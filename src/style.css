@@ -271,17 +271,24 @@ body {
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
 }
 
-.drag-ghost-piece {
+/* 駒をドラッグ中も立方体のまま見せるための入れ子構造。外側(outer)はカーソル追従の位置決めだけ
+   を担当し、内側(inner)にperspective+盤面と同じ傾き(--table-tilt)を与えることで、盤面の上に
+   乗っている時と同じような立体的な見た目を、3D空間の外(document.body直下)でも再現する。 */
+.drag-ghost-piece-outer {
   position: fixed;
   left: 0;
   top: 0;
   width: var(--cell);
   height: var(--cell);
-  border-radius: 0.3rem;
-  border: 2px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+  perspective: 1150px;
   pointer-events: none;
   z-index: 9999;
+}
+
+.drag-ghost-piece-inner {
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
 }
 
 /* 実物のプレイマット画像（画像素材/プレイマット.png、assets/playmat.pngにコピー）を敷く。
@@ -528,6 +535,11 @@ body {
   gap: 0.4rem;
   font-size: 0.65rem;
   overflow: visible; /* 親の.zoneはoverflow:hiddenだが、拡大縮小したスタックが見切れないよう上書きする */
+  /* .stack-frontが3Dで正しく折り畳まれるために必要。この要素自体はtransformを持たないが、
+     preserve-3dの既定値flatのままだと、間に挟まっているだけでも子孫(.stack-front)の
+     3D変形が壊れて高さ0に潰れてしまう（駒(.piece)側は.cell/.board/.arenaが全てpreserve-3d
+     なのに対し、山(.stack)側だけこの.pile-zoneが素通りできていなかったのが原因）。 */
+  transform-style: preserve-3d;
 }
 
 /* 山札・捨て場・エターナルをそれぞれ独立に拡大縮小・位置調整できるようにする。
@@ -601,7 +613,9 @@ body {
   height: calc(var(--stack-height) + 0.15rem);
   transform-origin: 50% 100%;
   transform: rotateX(-90deg);
-  filter: brightness(0.6);
+  /* filterはpreserve-3dを無効化してしまう（駒の壁面で判明済みの教訓）ため、暗くする表現は
+     box-shadowで代用する。inset 0 0 0 999pxで箱全体を覆う半透明の黒を敷くのと同じ効果。 */
+  box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.4);
   backface-visibility: hidden;
 }
 
@@ -613,11 +627,30 @@ body {
   white-space: nowrap;
 }
 
-/* プレイヤーB/Dの名前ラベルは、盤面の左右の辺と平行になるよう90度回転させる
-   （transformはレイアウトに影響しないので、回転してもゾーン内の配置自体は変わらない）。 */
+/* プレイヤー名ラベルの位置（管理者モードで調整可能）。B/Dは盤面の左右の辺と平行になるよう
+   90度回転させた上で、その回転済みの向きのままtranslateで位置調整できるようにしている
+   （回転を先に書くとtranslateがまだ回転していない軸基準になり、直感的な調整幅と一致するため、
+   translateの方を後ろに書いて先に適用させている）。 */
+:root {
+  --label-a-pos-x: 0rem;
+  --label-a-pos-y: 0rem;
+  --label-b-pos-x: 0rem;
+  --label-b-pos-y: 0rem;
+  --label-c-pos-x: 0rem;
+  --label-c-pos-y: 0rem;
+  --label-d-pos-x: 0rem;
+  --label-d-pos-y: 0rem;
+}
+
+.zone-bottom .label {
+  transform: translate(var(--label-a-pos-x), var(--label-a-pos-y));
+}
 .zone-left .label {
-  transform: rotate(90deg);
+  transform: rotate(90deg) translate(var(--label-b-pos-x), var(--label-b-pos-y));
+}
+.zone-top .label {
+  transform: translate(var(--label-c-pos-x), var(--label-c-pos-y));
 }
 .zone-right .label {
-  transform: rotate(-90deg);
+  transform: rotate(-90deg) translate(var(--label-d-pos-x), var(--label-d-pos-y));
 }

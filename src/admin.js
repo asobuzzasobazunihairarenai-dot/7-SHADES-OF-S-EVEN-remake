@@ -29,6 +29,19 @@ const GROUPS = [
     ],
   },
   {
+    title: "プレイヤー名ラベルの位置",
+    controls: [
+      { key: "--label-a-pos-x", label: "A（自分）位置X", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
+      { key: "--label-a-pos-y", label: "A（自分）位置Y", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
+      { key: "--label-b-pos-x", label: "B 位置X", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
+      { key: "--label-b-pos-y", label: "B 位置Y", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
+      { key: "--label-c-pos-x", label: "C 位置X", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
+      { key: "--label-c-pos-y", label: "C 位置Y", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
+      { key: "--label-d-pos-x", label: "D 位置X", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
+      { key: "--label-d-pos-y", label: "D 位置Y", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
+    ],
+  },
+  {
     title: "手札の位置（盤面中心からのずれ）",
     controls: [
       { key: "--hand-a-pos-x", label: "A（自分）位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },

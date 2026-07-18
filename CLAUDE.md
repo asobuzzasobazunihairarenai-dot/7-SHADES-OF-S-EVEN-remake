@@ -150,6 +150,15 @@
   - **ダブルクリックでの表裏反転が効かない問題も同根のバグだった**: 手札の当たり判定ズレ（`.hand-area`の項参照）と全く同じ理由で、ネイティブの`dblclick`イベントも3D階層内でのヒットテストに頼っているため正しく発火しないことがあった。`dblclick`リスナー自体を廃止し、ドラッグ開始判定（`elementsFromPoint`ベースの`findDraggableAt`、確実に動作することが分かっている）に統合。同じ`.board-card`トークンに対して400ms以内に2回`pointerdown`があったら、ドラッグの代わりにflipToken()を呼ぶ、という自前のダブルクリック検出にした。
   - **ロックスロットの枠線太さを管理者モードで調整可能に**: `--lock-slot-border-width`（デフォルト0.1rem、以前は固定3px）を追加し、`border: 3px solid ...`だった記述を`border-width`/`border-style`/`border-color`に分割した。
   - **プレイヤーB/Dの名前ラベルを90度回転**: 盤面の左右の辺と平行に読めるよう、`.zone-left .label { transform: rotate(90deg); }` / `.zone-right .label { transform: rotate(-90deg); }`を追加（transformはレイアウトに影響しないため、回転してもゾーン内の配置自体は変わらない）。
+- **プレイヤー名ラベルの位置を管理者モードで調整可能に**: `--label-{a,b,c,d}-pos-x/y`を追加。B/Dは回転(rotate)の後にtranslateを重ねる形（`rotate(90deg) translate(x, y)`）にし、回転済みの見た目の向きのままtranslateで動かせるようにした。
+- **ドラッグ中のカード/駒が実物と違って見える問題を修正**:
+  - カードのドラッグゴーストが常に紺色の汎用プレースホルダーになっていた。`createGhost()`/`startPileDrag()`のゴースト生成時にも`background-image`を実際のカード画像（表向きなら顔、裏向きなら裏面）で設定するようにした。捨て場からのドラッグは表向きに積まれている実物画像、山札・エターナルからのドラッグは裏面画像を使う。
+  - 駒のドラッグゴーストが立方体ではなく平らな正方形(`.drag-ghost-piece`)になっていた。3D空間の外(document.body直下)に置く都合上、本物の`.piece`をそのまま持ってきても盤面のperspective/rotateXが無いと立体的に見えない。`perspective: 1150px`を持つouter要素と、盤面と同じ傾き(`--table-tilt`)を持つinner要素の入れ子(`.drag-ghost-piece-outer`/`-inner`)を新設し、その中に`buildCubePiece()`で作った本物の駒をそのまま入れることで、ドラッグ中も立方体の見た目を保てるようにした。
+- **山札の厚みが枚数に応じて変化しているように見えない問題の真因を特定・修正（重要なハマりどころ）**: `--stack-height`の値自体は枚数に応じて正しく計算されていたが、それを表現する`.stack-front`（山の側面）が実際には高さ0に潰れて全く見えていなかった。
+  - **原因1**: `.stack-front`に`filter: brightness(0.6)`が残っていた。これは駒の壁面で既に踏んだのと全く同じ「filterはpreserve-3dを無効化する」バグ。`box-shadow: inset 0 0 0 999px rgba(0,0,0,0.4)`（箱全体を覆う半透明の黒）に置き換えて解決。
+  - **原因2（filterを直しても直らず、真因はこちら）**: `.stack`から`.game-table`に至る祖先の`.pile-zone`（山札/エターナル/捨て場ゾーンの共通クラス）が`transform-style`を明示指定しておらず既定値の`flat`のままだった。駒側の祖先チェーン（`.cell`→`.board`→`.arena`→`.game-table`）は全て`preserve-3d`なのに対し、山側だけこの`.pile-zone`が素通りできていなかった。`.pile-zone`自体はtransformを持たない（＝自分自身が回転等をしているわけではない）要素だが、それでも間に`transform-style: flat`の要素が挟まっていると子孫の3D変形（`.stack-front`のrotateX）が壊れて描画されなくなることが、駒との比較実験で判明した。`.pile-zone`に`transform-style: preserve-3d;`を追加して解決。実際に山札を15枚引いて厚みが目に見えて薄くなることを確認済み。
+  - **教訓**: 「自分自身はtransformを持たない要素」であっても、`transform-style: flat`（既定値）のままだと3D階層の途中に挟まるだけで子孫の3D変形を壊すことがある——手札(`.hand-area`)の当たり判定のケースで学んだ「transformの無い要素は3Dに対して透過的」という理解は、正確には「他要素からの見た目上のヒットテストには影響しないが、preserve-3dの伝播そのものは別問題」だったとわかった。3Dで組んだ構造をコピー/流用する時は、祖先チェーンの`transform-style`が全て`preserve-3d`になっているかを逐一確認する必要がある。
+- **場・ロックエリア間の移動でカードの表裏が変わってしまう問題を修正**: 前回導入した「移動先に応じて表裏を決める」ロジック(`faceUpForLocation`)を`MOVE_TOKEN`に単純適用していたため、マス→マス・マス→ロック・ロック→ロックなど「既に場に出ているカードを場の中で動かすだけ」の操作でも毎回裏向きにリセットされてしまっていた。`state.js`に`isTable(location)`（zoneがcellまたはlockかどうか）を追加し、「移動元と移動先が両方とも場/ロックエリア」の場合は表裏を変更しない（既存の`faceUp`をそのまま維持する）よう修正。手札↔場/ロックエリアの移動（新しくカードが場に出る／手札に加わる）の時だけ、引き続き`faceUpForLocation`で表裏を決め直す。
 
 ## 未確認・要フォローアップ
 

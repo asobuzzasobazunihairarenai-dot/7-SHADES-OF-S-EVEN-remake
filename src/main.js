@@ -390,17 +390,30 @@ function initDragHandlers() {
 }
 
 function createGhost(kind, tokenId) {
-  const ghost = document.createElement("div");
   const token = getState().tokens.find((t) => t.id === tokenId);
   if (kind === "piece") {
-    ghost.className = "drag-ghost-piece";
-    ghost.style.background = `var(--color-${token.color})`;
-  } else {
-    // ドラッグ元のDOMクラス（.is-self等）に頼ると、手札の外(.board-card)から拾った場合に
-    // 対応するクラスが無くて判定を誤るため、必ずstateの実データ(faceUp)を見て決める。
-    const faceClass = token && token.faceUp ? "is-self" : "is-facedown";
-    ghost.className = `hand-card ${faceClass} drag-ghost`;
+    // 駒はドラッグ中も立方体のまま見せる。3D空間の外(document.body直下)に置くゴーストでも
+    // 見た目を保てるよう、perspective+盤面と同じ傾きを与えた入れ子(outer/inner)の中に
+    // 本物の.pieceを丸ごと入れる（buildCubePieceをそのまま再利用）。
+    const outer = document.createElement("div");
+    outer.className = "drag-ghost drag-ghost-piece-outer";
+    const inner = document.createElement("div");
+    inner.className = "drag-ghost-piece-inner";
+    const tilt = getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim();
+    inner.style.transform = `rotateX(${tilt})`;
+    inner.appendChild(buildCubePiece(token.color));
+    outer.appendChild(inner);
+    document.body.appendChild(outer);
+    return outer;
   }
+
+  const ghost = document.createElement("div");
+  // ドラッグ元のDOMクラス（.is-self等）に頼ると、手札の外(.board-card)から拾った場合に
+  // 対応するクラスが無くて判定を誤るため、必ずstateの実データ(faceUp)を見て決める。
+  const faceClass = token && token.faceUp ? "is-self" : "is-facedown";
+  ghost.className = `hand-card ${faceClass} drag-ghost`;
+  const imagePath = token.faceUp ? getCardImagePath(token.cardId) : getCardBackImagePath(token.cardId);
+  ghost.style.backgroundImage = `url("${imagePath}")`;
   document.body.appendChild(ghost);
   return ghost;
 }
@@ -424,9 +437,19 @@ function startTokenDrag(e, tokenId, kind, sourceEl) {
 }
 
 function startPileDrag(e, pileKey) {
-  if (getState().piles[pileKey].length === 0) return; // 空の山からは引けない
+  const pileArray = getState().piles[pileKey];
+  if (pileArray.length === 0) return; // 空の山からは引けない
+  const topCardId = pileArray[pileArray.length - 1];
   const ghost = document.createElement("div");
-  ghost.className = "hand-card is-facedown drag-ghost";
+  // 捨て場は表向きに積まれている（ルール通り）ので一番上のカードの実物画像を、
+  // 山札・エターナルは裏向き積みなので裏面画像をゴーストに表示する。
+  if (pileKey === "discard") {
+    ghost.className = "hand-card is-self drag-ghost";
+    ghost.style.backgroundImage = `url("${getCardImagePath(topCardId)}")`;
+  } else {
+    ghost.className = "hand-card is-facedown drag-ghost";
+    ghost.style.backgroundImage = `url("${getCardBackImagePath(topCardId)}")`;
+  }
   document.body.appendChild(ghost);
   positionGhost(ghost, e.clientX, e.clientY);
   dragSession = { tokenId: null, kind: "card", ghost, pileSource: pileKey, highlightEl: null };

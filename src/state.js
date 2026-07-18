@@ -85,13 +85,16 @@ export function subscribe(fn) {
   };
 }
 
-// ドロップ先のゾーンから、カードが表向きになるかどうかを決める。
-// 手札effect加わる時は持ち主本人にだけ見える表向き、それ以外（盤面マス・ロックスロット）は
-// 基本裏向き（物理カードを裏向きで置くのと同じ。中身を見せたければダブルクリックでめくる）。
+// 新しく盤面に現れるカード（手札から出す、山から引く）の表裏を決める。
+// 手札に加わる時は持ち主本人（A）にだけ見える表向き、それ以外（盤面マス・ロックスロットへ
+// 新規に置かれる時）は基本裏向き（物理カードを裏向きで置くのと同じ。中身を見せたければ
+// ダブルクリックでめくる）。
 function faceUpForLocation(location) {
   if (location.zone === "hand") return location.player === "A";
   return false;
 }
+
+const isTable = (location) => location.zone === "cell" || location.zone === "lock";
 
 function reduce(current, action) {
   switch (action.type) {
@@ -99,7 +102,12 @@ function reduce(current, action) {
       const tokens = current.tokens.map((t) => {
         if (t.id !== action.tokenId) return t;
         const next = { ...t, location: action.location };
-        if (t.kind === "card") next.faceUp = faceUpForLocation(action.location);
+        // 場・ロックエリア同士の移動（例: マス→ロック、ロック→ロック）は、既に表向き/裏向きが
+        // 決まっているカードをただ動かすだけなので、表裏を変えない。手札から場/ロックへ出す時・
+        // 場/ロックから手札に加える時だけ、新しい置き場所に応じて表裏を決め直す。
+        if (t.kind === "card" && !(isTable(t.location) && isTable(action.location))) {
+          next.faceUp = faceUpForLocation(action.location);
+        }
         return next;
       });
       return { ...current, tokens };
