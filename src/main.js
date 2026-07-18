@@ -314,18 +314,6 @@ window.addEventListener("resize", () => {
   resizeTimer = setTimeout(fitTableToViewport, 100);
 });
 
-// 場（盤面マス・ロックスロット）にあるカードはダブルクリックで表裏を切り替えられる。
-// 手札のカードは対象外（手札は常に「自分だけ表向き／他人には裏向き」の固定表示のため）。
-function initFlipHandlers() {
-  const table = document.getElementById("game-table");
-  table.addEventListener("dblclick", (e) => {
-    const card = e.target.closest(".board-card");
-    if (!card) return;
-    flipToken(card.dataset.tokenId);
-    render();
-  });
-}
-
 // --- ドラッグ操作 ---------------------------------------------------------
 // ルールを一切適用しない自由な移動なので、「掴んだ物を離した場所」を見て状態を更新するだけの
 // シンプルな仕組みにする。ドラッグ中は実体を動かさず、カーソルに追従する「ゴースト」だけを
@@ -354,15 +342,27 @@ function findDraggableAt(clientX, clientY) {
   for (const el of elements) {
     const piece = el.closest(".piece");
     if (piece) return { el: piece, tokenId: piece.dataset.tokenId, kind: "piece" };
-    // 手札の中のカード(.hand-card)と、盤面/ロックスロットに直接置かれたカード(.board-card)の
-    // 両方を拾う。どちらも同じ"card"としてドラッグできる。
-    const card = el.closest(".hand-card, .board-card");
-    if (card) return { el: card, tokenId: card.dataset.tokenId, kind: "card" };
+    // 盤面マス／ロックスロットに直接置かれたカードは、手札のカードと違ってダブルクリックで
+    // 表裏を反転できる対象なので区別しておく(isBoardCard)。
+    const boardCard = el.closest(".board-card");
+    if (boardCard) return { el: boardCard, tokenId: boardCard.dataset.tokenId, kind: "card", isBoardCard: true };
+    const handCard = el.closest(".hand-card");
+    if (handCard) return { el: handCard, tokenId: handCard.dataset.tokenId, kind: "card" };
     const stack = el.closest(".stack[data-pile]");
     if (stack) return { el: stack, kind: "pile", pile: stack.dataset.pile };
   }
   return null;
 }
+
+// ダブルクリックでの表裏反転は、ネイティブの`dblclick`イベントではなく、ドラッグと同じ
+// elementsFromPoint()ベースの判定に統合して自前実装する。
+// 理由（ハマりどころ）: `dblclick`もpointerdown同様ネイティブのヒットテスト(target)に頼る
+// イベントのため、自分の手札で起きたのと同じ「見た目と当たり判定がズレる」3D階層特有の問題で
+// 正しく発火しないことがあった（ユーザー報告：「ダブルクリックで裏返せない」）。ドラッグ開始
+// 判定は既にelementsFromPoint()で確実に動いているため、同じ判定結果を使って「同じカードに
+// 400ms以内に2回pointerdownがあったか」を見ることでダブルクリック相当を検出する。
+let lastFlipClick = { tokenId: null, time: 0 };
+const DOUBLE_CLICK_MS = 400;
 
 function initDragHandlers() {
   const table = document.getElementById("game-table");
@@ -371,6 +371,19 @@ function initDragHandlers() {
     const hit = findDraggableAt(e.clientX, e.clientY);
     if (!hit) return;
     e.preventDefault();
+
+    if (hit.isBoardCard) {
+      const now = Date.now();
+      const isDoubleClick = hit.tokenId === lastFlipClick.tokenId && now - lastFlipClick.time < DOUBLE_CLICK_MS;
+      lastFlipClick = { tokenId: hit.tokenId, time: now };
+      if (isDoubleClick) {
+        flipToken(hit.tokenId);
+        render();
+        lastFlipClick = { tokenId: null, time: 0 }; // 3連続クリックを2回分のダブルクリックにしない
+        return;
+      }
+    }
+
     if (hit.kind === "pile") startPileDrag(e, hit.pile);
     else startTokenDrag(e, hit.tokenId, hit.kind, hit.el);
   });
@@ -508,6 +521,5 @@ window.addEventListener("admin:change", render);
 
 render();
 initDragHandlers();
-initFlipHandlers();
 initAdminMode();
 initDeckViewer();

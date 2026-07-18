@@ -25,6 +25,7 @@ const GROUPS = [
       { key: "--lock-left-pos-y", label: "左/B側 位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
       { key: "--lock-right-pos-x", label: "右/D側 位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
       { key: "--lock-right-pos-y", label: "右/D側 位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--lock-slot-border-width", label: "枠線の太さ", unit: "rem", min: 0.02, max: 0.4, step: 0.02, default: 0.1 },
     ],
   },
   {

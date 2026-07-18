@@ -166,7 +166,7 @@ body {
   margin-top: -1.3rem;
   margin-left: -1.3rem;
   border-radius: 0.3rem;
-  background: linear-gradient(160deg, #334155, #1e293b);
+  background-image: linear-gradient(160deg, #334155, #1e293b);
   border: 1px solid rgba(226, 232, 240, 0.4);
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.55);
 }
@@ -180,8 +180,15 @@ body {
   font-size: 0.62rem;
 }
 
+/* ハマりどころ: ここは元々`background:`ショートハンドで指定していたが、ショートハンドは
+   指定していないサブプロパティ(background-size/position/repeat)も暗黙に初期値へリセットする。
+   このルールは.hand-cardより詳細度が高い(クラス2つ)ため、下の.hand-card,.board-card,.stack-top
+   で指定したbackground-size:coverを打ち消してしまい、実物のカード裏面画像が「auto(原寸)サイズ・
+   左上起点・タイル(repeat)」で描画される＝小さな枠の中に画像の左上の角だけが原寸大で
+   表示される、というバグになっていた（ユーザー報告「裏面画像の角だけがアップして描画」）。
+   background-imageのロングハンドに変えることでこの問題を回避した。 */
 .hand-card.is-facedown {
-  background: repeating-linear-gradient(45deg, #1e293b, #1e293b 5px, #2a3b52 5px, #2a3b52 10px);
+  background-image: repeating-linear-gradient(45deg, #1e293b, #1e293b 5px, #2a3b52 5px, #2a3b52 10px);
   border-color: rgba(148, 163, 184, 0.45);
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.5);
 }
@@ -232,13 +239,13 @@ body {
   position: absolute;
   inset: 8%;
   border-radius: 0.2rem;
-  background: linear-gradient(160deg, #334155, #1e293b);
+  background-image: linear-gradient(160deg, #334155, #1e293b);
   border: 1px solid rgba(226, 232, 240, 0.4);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
 }
 
 .board-card.is-facedown {
-  background: repeating-linear-gradient(45deg, #1e293b, #1e293b 5px, #2a3b52 5px, #2a3b52 10px);
+  background-image: repeating-linear-gradient(45deg, #1e293b, #1e293b 5px, #2a3b52 5px, #2a3b52 10px);
   border-color: rgba(148, 163, 184, 0.45);
 }
 
@@ -310,6 +317,7 @@ body {
   --lock-left-pos-y: 0rem;
   --lock-right-pos-x: 1.8rem;
   --lock-right-pos-y: 0rem;
+  --lock-slot-border-width: 0.1rem; /* ロックスロットの枠線の太さ（管理者モードで調整可） */
 }
 
 .arena {
@@ -400,8 +408,10 @@ body {
   width: var(--cell);
   height: var(--cell);
   border-radius: 0.2rem;
-  border: 3px solid rgba(226, 232, 240, 0.6);
-  background: rgba(15, 23, 32, 0.55);
+  border-width: var(--lock-slot-border-width);
+  border-style: solid;
+  border-color: rgba(226, 232, 240, 0.6);
+  background: transparent; /* うっすら枠だけの色分けにする（塗りつぶしは無し） */
   /* 3D遠近感で帯が薄く潰れて見えなくなる問題への対策として、色付きのグロー(box-shadow)を追加。
      JS側でcolorプロパティにその色スロットの色を設定し、currentColorで参照する（buildLockArea参照）。
      ぼかしが強すぎると隣接する色同士が混ざって見えるため、控えめな値にしている。 */
@@ -550,9 +560,9 @@ body {
   transform-origin: center center;
 }
 
-.pile-deck { background: linear-gradient(160deg, #334155, #1e293b); }
-.pile-discard { background: linear-gradient(160deg, #475569, #334155); }
-.pile-eternal { background: var(--color-rainbow); }
+.pile-deck { background-image: linear-gradient(160deg, #334155, #1e293b); }
+.pile-discard { background-image: linear-gradient(160deg, #475569, #334155); }
+.pile-eternal { background-image: var(--color-rainbow); }
 
 /* 枚数に応じて厚みを持つカードの山。駒(.piece)と同じ「床+壁」の考え方だが、面は上面と正面の2枚のみ。
    --stack-height（枚数から計算）が高さになる。将来、盤面マスのカードスタックにも流用する想定。 */
@@ -600,4 +610,14 @@ body {
   z-index: 5; /* 手札を大きくずらすと.hand-fanが上に重なって名前が隠れることがあるため、常に手前に出す */
   opacity: 0.7;
   letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+/* プレイヤーB/Dの名前ラベルは、盤面の左右の辺と平行になるよう90度回転させる
+   （transformはレイアウトに影響しないので、回転してもゾーン内の配置自体は変わらない）。 */
+.zone-left .label {
+  transform: rotate(90deg);
+}
+.zone-right .label {
+  transform: rotate(-90deg);
 }
