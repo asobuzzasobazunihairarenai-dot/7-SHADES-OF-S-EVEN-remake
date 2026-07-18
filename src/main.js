@@ -64,11 +64,11 @@ function layoutFan(count, orientation, isSelf) {
   const maxSpread = isSelf ? Math.min(50, count * 11) : Math.min(24, count * 6); // 度
   const step = count > 1 ? maxSpread / (count - 1) : 0;
   const start = -maxSpread / 2;
-  const spacing = isSelf ? 1.6 : 0.9; // rem。カード同士の水平間隔（相手は重なりを強くする）
+  const spacing = isSelf ? 3.0 : 0.9; // rem。カード同士の水平間隔（相手は重なりを強くする）
   return Array.from({ length: count }, (_, i) => {
     const angle = count > 1 ? start + step * i : 0;
     const centerOffset = i - (count - 1) / 2;
-    const lift = isSelf ? -Math.abs(centerOffset) * 6 : 0; // 中央が高く、外側が下がる弧（相手は平ら）
+    const lift = isSelf ? -Math.abs(centerOffset) * 8 : 0; // 中央が高く、外側が下がる弧（相手は平ら）
     const spreadX = centerOffset * spacing;
     return { angle, spreadX, spreadY: lift / 16, liftPx: lift };
   });
@@ -90,7 +90,7 @@ function buildPlayerZone(side, label, handCount, isSelf) {
 
   for (const card of layoutFan(handCount, orientation, isSelf)) {
     const cardEl = document.createElement("div");
-    cardEl.className = `hand-card ${isSelf ? "" : "is-facedown"}`;
+    cardEl.className = `hand-card ${isSelf ? "is-self" : "is-facedown"}`;
     const liftPx = card.liftPx ?? 0;
     cardEl.style.transform =
       orientation === "vertical"
@@ -122,15 +122,39 @@ function buildPileZone(gridArea, label, pileClass, pileLabel) {
   return zone;
 }
 
-function buildCubePiece(color) {
+// leanFactor: -1(盤面左端)〜0(中央列)〜+1(盤面右端)。
+// 中心から離れたマスほど側面がよく見え（カメラの視野角の端に来るため）、中心列付近ではほぼ正面のみになる。
+// 中心より左のマスは駒の右面（中心を向く面）を見せ、右のマスは左面を見せる。
+function buildCubePiece(color, leanFactor = 0) {
   const piece = document.createElement("div");
   piece.className = "piece";
-  for (const faceClass of ["face-top", "face-front", "face-side"]) {
+
+  for (const faceClass of ["face-top", "face-front"]) {
     const face = document.createElement("div");
     face.className = faceClass;
     face.style.background = `var(--color-${color})`;
     piece.appendChild(face);
   }
+
+  const side = document.createElement("div");
+  side.className = "face-side";
+  side.style.background = `var(--color-${color})`;
+  const magnitude = 0.2 + 0.8 * Math.min(1, Math.abs(leanFactor)); // 中心でも薄く残す
+  const widthExpr = `calc(var(--piece-depth) * 0.6 * ${magnitude.toFixed(2)})`;
+  side.style.width = widthExpr;
+  if (leanFactor <= 0) {
+    // 中心より左（または中央）: 中心を向く右面を見せる
+    side.style.right = `calc(-1 * ${widthExpr})`;
+    side.style.transform = "skewY(-40deg)";
+    side.style.transformOrigin = "top left";
+  } else {
+    // 中心より右: 中心を向く左面を見せる
+    side.style.left = `calc(-1 * ${widthExpr})`;
+    side.style.transform = "skewY(40deg)";
+    side.style.transformOrigin = "top right";
+  }
+  piece.appendChild(side);
+
   return piece;
 }
 
@@ -140,7 +164,8 @@ function placeDummyPieces(tableEl) {
   for (const [side, pos] of Object.entries(GATE_POSITIONS)) {
     const cell = tableEl.querySelector(`.cell[data-row="${pos.row}"][data-col="${pos.col}"]`);
     if (!cell) continue;
-    cell.appendChild(buildCubePiece(pieceColors[side]));
+    const leanFactor = (pos.col - 3) / 3;
+    cell.appendChild(buildCubePiece(pieceColors[side], leanFactor));
   }
 }
 

@@ -39,7 +39,8 @@ body {
   transform-style: preserve-3d;
   display: grid;
   grid-template-columns: 12rem auto 12rem;
-  grid-template-rows: 9rem auto 9rem;
+  /* 奥(C, 相手): 控えめな高さ / 手前(A, 自分): 大きい手札分の高さを確保 */
+  grid-template-rows: 6.5rem auto 11rem;
   gap: 0.75rem;
   width: max-content;
 }
@@ -84,6 +85,10 @@ body {
   overflow: visible;
 }
 
+.zone-bottom .hand-area {
+  height: 9rem;
+}
+
 /* 手札全体を持ち上げる。自分（is-self）はテーブルの傾きを打ち消してカメラ側を向かせ、
    扇状に大きく開く。他プレイヤー（is-opponent）は逆に盤面側へ伏せて、密集させて持つ。
    個々のカードの位置・角度はJS側でindexに応じて計算しinline transformで与える。 */
@@ -105,14 +110,22 @@ body {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 3.2rem;
-  height: 3.2rem;
-  margin-top: -1.6rem;
-  margin-left: -1.6rem;
+  width: 2.6rem;
+  height: 2.6rem;
+  margin-top: -1.3rem;
+  margin-left: -1.3rem;
   border-radius: 0.3rem;
   background: linear-gradient(160deg, #334155, #1e293b);
   border: 1px solid rgba(226, 232, 240, 0.4);
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.55);
+}
+
+/* 自分の手札は視認性優先で大きく表示する */
+.hand-card.is-self {
+  width: 5.8rem;
+  height: 5.8rem;
+  margin-top: -2.9rem;
+  margin-left: -2.9rem;
 }
 
 .hand-card.is-facedown {
@@ -181,8 +194,10 @@ body {
 }
 
 /* 立方体の駒。真の3D(preserve-3d)だと盤面の傾きの角度によって側面がほぼ隠れてしまうため、
-   2Dのskewで組む「アイソメトリック風」の擬似立方体に変更。盤面の傾きを打ち消して常にカメラ目線
-   （ビルボード）で描画することで、盤面がどの角度でも同じ見え方になり安定する。 */
+   2Dのskewで組む「アイソメトリック風」の擬似立方体を採用。盤面の傾きはそのまま素直に継承する
+   （打ち消し回転＝ビルボード化すると正面が潰れる問題が出たため採用しなかった）。
+   側面(.face-side)は中心列からの距離に応じて左右どちら向きに出すか・どれだけ幅を持たせるかを
+   JS側でセル位置(leanFactor)から計算しinline styleで与える（buildCubePiece参照）。 */
 :root {
   --piece: 2.2rem;
   --piece-depth: 0.9rem;
@@ -226,15 +241,12 @@ body {
   z-index: 1;
 }
 
-/* 側面: skewYで平行四辺形にして奥行きを表現 */
+/* 側面: skewYで平行四辺形にして奥行きを表現。
+   left/right・width・transformはJS側でセル位置に応じて計算し、inline styleで上書きする。 */
 .piece .face-side {
   position: absolute;
   top: var(--piece-depth);
-  right: calc(-1 * var(--piece-depth) * 0.6);
-  width: calc(var(--piece-depth) * 0.6);
   height: 100%;
-  transform: skewY(-40deg);
-  transform-origin: top left;
   filter: brightness(0.55);
   border: 1px solid rgba(0, 0, 0, 0.4);
   z-index: 3;
