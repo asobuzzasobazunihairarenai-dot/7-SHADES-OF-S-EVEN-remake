@@ -182,6 +182,10 @@ function placeDummyPieces(tableEl) {
 function render() {
   const table = document.getElementById("game-table");
   table.innerHTML = "";
+  // arena（プレイマット画像を含む）を最初に追加する＝DOM順で一番背面にする。
+  // 後に追加した手札・山札・捨て場・エターナルは、画面上で座標が重なってもプレイマットより
+  // 手前に描画される（盤面のマス目の枠線と同じ「高さ」で表示される、という要望に対応）。
+  table.appendChild(buildArena());
   table.appendChild(buildPlayerZone("bottom", "プレイヤーA（自分）", 4, true));
   table.appendChild(buildPlayerZone("left", "プレイヤーB", 2, false));
   table.appendChild(buildPlayerZone("top", "プレイヤーC", 3, false));
@@ -189,7 +193,6 @@ function render() {
   table.appendChild(buildPileZone("deck", "山札", "pile-deck", "山札", 112 - 49)); // 通常カード112枚 - 盤面49枚
   table.appendChild(buildPileZone("eternal", "エターナル", "pile-eternal", "永久", 7));
   table.appendChild(buildPileZone("discard", "捨て場", "pile-discard", "捨て場", 0));
-  table.appendChild(buildArena());
   placeDummyPieces(table);
   fitTableToViewport();
 }
