@@ -17,8 +17,24 @@ const GROUPS = [
   {
     title: "ロックエリア",
     controls: [
-      { key: "--lock-thickness", label: "帯の太さ", unit: "rem", min: 0.3, max: 6, step: 0.05, default: 3.2 },
+      { key: "--lock-thickness-top", label: "太さ（奥/C側）", unit: "rem", min: 0.3, max: 8, step: 0.05, default: 3.2 },
+      { key: "--lock-thickness-bottom", label: "太さ（手前/A側）", unit: "rem", min: 0.3, max: 8, step: 0.05, default: 3.2 },
+      { key: "--lock-thickness-left", label: "太さ（左/B側）", unit: "rem", min: 0.3, max: 8, step: 0.05, default: 3.2 },
+      { key: "--lock-thickness-right", label: "太さ（右/D側）", unit: "rem", min: 0.3, max: 8, step: 0.05, default: 3.2 },
       { key: "--arena-gap", label: "盤面との間隔", unit: "rem", min: 0, max: 2, step: 0.05, default: 0 },
+    ],
+  },
+  {
+    title: "手札の位置（盤面中心からのずれ）",
+    controls: [
+      { key: "--hand-a-pos-x", label: "A（自分）位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--hand-a-pos-y", label: "A（自分）位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--hand-b-pos-x", label: "B 位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--hand-b-pos-y", label: "B 位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--hand-c-pos-x", label: "C 位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--hand-c-pos-y", label: "C 位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--hand-d-pos-x", label: "D 位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--hand-d-pos-y", label: "D 位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
     ],
   },
   {

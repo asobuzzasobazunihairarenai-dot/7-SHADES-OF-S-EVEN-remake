@@ -19,6 +19,7 @@ function buildLockArea(side) {
     slot.className = "lock-slot";
     slot.style.borderColor = `var(--color-${color})`;
     slot.style.color = `var(--color-${color})`; // CSS側のbox-shadow: currentColorで使う
+    slot.style.background = `var(--color-${color})`; // 駒と同じく塗りつぶしにして視認性を上げる
     el.appendChild(slot);
   }
   return el;

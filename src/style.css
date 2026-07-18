@@ -101,17 +101,35 @@ body {
   transform-style: preserve-3d;
 }
 
-.hand-fan.is-self {
-  transform: rotateX(-40deg) translateZ(2.4rem);
+/* 各プレイヤーの手札が盤面中心からどれだけ離れているか（＝手札ゾーンの画面上の位置）を
+   独立に調整できるようにする。translateを先頭（＝最後に適用）に置くことで、
+   カメラ目線に傾けた後の画面座標系でシフトするようにしている。 */
+:root {
+  --hand-a-pos-x: 0rem;
+  --hand-a-pos-y: 0rem;
+  --hand-b-pos-x: 0rem;
+  --hand-b-pos-y: 0rem;
+  --hand-c-pos-x: 0rem;
+  --hand-c-pos-y: 0rem;
+  --hand-d-pos-x: 0rem;
+  --hand-d-pos-y: 0rem;
 }
 
-.hand-fan.is-opponent {
-  transform: rotateX(18deg) translateZ(0.5rem);
+.zone-bottom .hand-fan.is-self {
+  transform: translate(var(--hand-a-pos-x), var(--hand-a-pos-y)) rotateX(-40deg) translateZ(2.4rem);
+}
+
+.zone-top .hand-fan.is-opponent {
+  transform: translate(var(--hand-c-pos-x), var(--hand-c-pos-y)) rotateX(18deg) translateZ(0.5rem);
+}
+
+.zone-right .hand-fan.is-opponent {
+  transform: translate(var(--hand-d-pos-x), var(--hand-d-pos-y)) rotateX(18deg) translateZ(0.5rem);
 }
 
 /* プレイヤーBの手札は180度回転させる */
 .zone-left .hand-fan.is-opponent {
-  transform: rotateX(18deg) translateZ(0.5rem) rotate(180deg);
+  transform: translate(var(--hand-b-pos-x), var(--hand-b-pos-y)) rotateX(18deg) translateZ(0.5rem) rotate(180deg);
 }
 
 .hand-card {
@@ -152,7 +170,12 @@ body {
    - background-sizeではなくtransform: scale()で拡大する（はみ出しても切れない。
      transform-originを中心にしているので盤面中央が拡大縮小の起点になる） */
 :root {
-  --lock-thickness: 3.2rem;
+  /* 4辺を独立させている。3D遠近感（カメラから遠い辺ほど圧縮されて薄く見える）を辺ごとに
+     補正できるようにするため。 */
+  --lock-thickness-top: 3.2rem;
+  --lock-thickness-bottom: 3.2rem;
+  --lock-thickness-left: 3.2rem;
+  --lock-thickness-right: 3.2rem;
   --arena-gap: 0rem; /* ロックエリアと盤面の間の隙間（前は密着していた） */
   /* プレイマット画像の位置合わせ用パラメータ。管理者モード（src/admin.js）から調整できる。
      scaleは盤面サイズ(.board)を100%とした拡大率、pos-x/pos-yは中心からのずれ（%）。 */
@@ -165,8 +188,8 @@ body {
   grid-column: 2;
   grid-row: 2;
   display: grid;
-  grid-template-columns: var(--lock-thickness) var(--arena-gap) auto var(--arena-gap) var(--lock-thickness);
-  grid-template-rows: var(--lock-thickness) var(--arena-gap) auto var(--arena-gap) var(--lock-thickness);
+  grid-template-columns: var(--lock-thickness-left) var(--arena-gap) auto var(--arena-gap) var(--lock-thickness-right);
+  grid-template-rows: var(--lock-thickness-top) var(--arena-gap) auto var(--arena-gap) var(--lock-thickness-bottom);
   width: max-content;
   transform-style: preserve-3d;
   padding: 1rem;
@@ -176,6 +199,7 @@ body {
 
 .playmat-bg {
   position: absolute;
+  z-index: 1;
   top: 50%;
   left: 50%;
   width: calc(7 * var(--cell) + 6 * 0.2rem + 2 * 0.3rem); /* .boardの実サイズと同じ計算式 */
@@ -188,12 +212,18 @@ body {
   transform: translate(var(--playmat-pos-x), var(--playmat-pos-y)) scale(var(--playmat-scale));
   transform-origin: center center;
   pointer-events: none;
-  /* z-indexを明示的に指定するとスタッキングコンテキストができ、position指定のないロックエリアや
-     盤面（通常のフロー要素）より手前に描画されてしまい、隠れて見えなくなるバグが起きた。
-     z-indexを付けずDOM順（この要素が一番最初＝一番背面）に任せることで解決。 */
+  /* 経緯: 最初z-indexを明示指定したら、position指定のないロックエリアや盤面（通常のフロー要素）
+     より手前に描画され隠れるバグが起きたため、一旦z-indexを外してDOM順に任せる方式にした。
+     しかしそれでも「.lock-areaだけ描画されない」問題が再発した（DevTools上は正しい位置・色・
+     最前面のはずなのに画面に出ない、というブラウザ側の合成の問題と思われる不具合）。
+     最終的に、プレイマット(1) < 盤面(2) < ロックエリア(3)の順で全要素に明示的なz-indexを
+     揃えて割り振ることで解決した。z-indexを「全く使わない」のではなく「関係する全要素に
+     一貫した値を必ず割り振る」のが安全、という教訓。 */
 }
 
 .lock-area {
+  position: relative;
+  z-index: 3;
   display: flex;
   gap: 0.2rem;
   align-items: center;
@@ -207,9 +237,15 @@ body {
 .lock-left { grid-column: 1; grid-row: 3; }
 .lock-right { grid-column: 5; grid-row: 3; }
 
+/* 「太さ」は盤面から外向きの奥行き方向のみに効かせる（=上下の帯は高さ、左右の帯は幅）。
+   スロットを正方形のまま太さと連動させると、帯の長さ方向（7色分の並び）まで伸びてしまい
+   横に伸びすぎて崩れるため、長さ方向は固定サイズにしている。 */
+.lock-top .lock-slot    { width: 2.2rem; height: var(--lock-thickness-top); }
+.lock-bottom .lock-slot { width: 2.2rem; height: var(--lock-thickness-bottom); }
+.lock-left .lock-slot   { width: var(--lock-thickness-left); height: 2.2rem; }
+.lock-right .lock-slot  { width: var(--lock-thickness-right); height: 2.2rem; }
+
 .lock-slot {
-  width: var(--lock-thickness);
-  height: var(--lock-thickness);
   border-radius: 0.2rem;
   border: 3px solid rgba(226, 232, 240, 0.6);
   background: rgba(15, 23, 32, 0.55);
@@ -222,6 +258,8 @@ body {
 .board {
   grid-column: 3;
   grid-row: 3;
+  position: relative;
+  z-index: 2;
   display: grid;
   grid-template-columns: repeat(7, var(--cell));
   grid-template-rows: repeat(7, var(--cell));
