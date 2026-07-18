@@ -201,15 +201,26 @@ function findLocationElement(table, location) {
   return null;
 }
 
-function renderPieceTokens(table) {
+// 盤面マスの上に直接置かれたカードを表す簡易な見た目（手札の外に出たカードは扇の仕組みが
+// 使えないため、セル/ロックスロットにフィットするだけの平たいカードにする）。
+function buildFlatCard(token) {
+  const card = document.createElement("div");
+  card.className = `board-card ${token.faceUp ? "" : "is-facedown"}`.trim();
+  return card;
+}
+
+// 盤面マス／ロックスロットの上にある駒・カードを両方描画する（手札の中のカードは
+// buildPlayerZoneが別途担当する）。
+function renderBoardTokens(table) {
   for (const token of getState().tokens) {
-    if (token.kind !== "piece") continue;
+    if (token.location.zone !== "cell" && token.location.zone !== "lock") continue;
     const host = findLocationElement(table, token.location);
     if (!host) continue;
-    const pieceEl = buildCubePiece(token.color);
-    pieceEl.dataset.tokenId = token.id;
-    host.appendChild(pieceEl);
-    // 駒はセルより大きくはみ出すため、隣のマス（DOM順で後にあるもの）に隠されないよう最前面にする
+    const el = token.kind === "piece" ? buildCubePiece(token.color) : buildFlatCard(token);
+    el.dataset.tokenId = token.id;
+    host.appendChild(el);
+    // 駒・カードはセルより大きくはみ出すことがあるため、隣のマス（DOM順で後にあるもの）に
+    // 隠されないよう最前面にする
     if (host.classList.contains("cell")) host.style.zIndex = "10";
   }
 }
@@ -228,7 +239,7 @@ function render() {
   table.appendChild(buildPileZone("deck"));
   table.appendChild(buildPileZone("eternal"));
   table.appendChild(buildPileZone("discard"));
-  renderPieceTokens(table);
+  renderBoardTokens(table);
   fitTableToViewport();
 }
 
@@ -283,7 +294,9 @@ function findDraggableAt(clientX, clientY) {
   for (const el of elements) {
     const piece = el.closest(".piece");
     if (piece) return { el: piece, tokenId: piece.dataset.tokenId, kind: "piece" };
-    const card = el.closest(".hand-card");
+    // 手札の中のカード(.hand-card)と、盤面/ロックスロットに直接置かれたカード(.board-card)の
+    // 両方を拾う。どちらも同じ"card"としてドラッグできる。
+    const card = el.closest(".hand-card, .board-card");
     if (card) return { el: card, tokenId: card.dataset.tokenId, kind: "card" };
     const stack = el.closest(".stack[data-pile]");
     if (stack) return { el: stack, kind: "pile", pile: stack.dataset.pile };
@@ -303,15 +316,16 @@ function initDragHandlers() {
   });
 }
 
-function createGhost(kind, sourceEl) {
+function createGhost(kind, tokenId) {
   const ghost = document.createElement("div");
+  const token = getState().tokens.find((t) => t.id === tokenId);
   if (kind === "piece") {
-    const tokenId = sourceEl.dataset.tokenId;
-    const token = getState().tokens.find((t) => t.id === tokenId);
     ghost.className = "drag-ghost-piece";
     ghost.style.background = `var(--color-${token.color})`;
   } else {
-    const faceClass = sourceEl.classList.contains("is-self") ? "is-self" : "is-facedown";
+    // ドラッグ元のDOMクラス（.is-self等）に頼ると、手札の外(.board-card)から拾った場合に
+    // 対応するクラスが無くて判定を誤るため、必ずstateの実データ(faceUp)を見て決める。
+    const faceClass = token && token.faceUp ? "is-self" : "is-facedown";
     ghost.className = `hand-card ${faceClass} drag-ghost`;
   }
   document.body.appendChild(ghost);
@@ -323,8 +337,12 @@ function positionGhost(ghost, clientX, clientY) {
 }
 
 function startTokenDrag(e, tokenId, kind, sourceEl) {
-  const ghost = createGhost(kind, sourceEl);
+  const ghost = createGhost(kind, tokenId);
   positionGhost(ghost, e.clientX, e.clientY);
+  // ドラッグ中は元の場所の実体を隠す（ゴーストと二重に見えたり、掴んでいるはずのカードが
+  // 手札に残ったまま見えたりしないようにするため）。dropの成否にかかわらず必ずrender()で
+  // DOMが作り直されるので、明示的に元に戻す処理は不要。
+  sourceEl.style.visibility = "hidden";
   dragSession = { tokenId, kind, ghost, pileSource: null };
   document.body.style.userSelect = "none";
   window.addEventListener("pointermove", onDragMove);
@@ -351,18 +369,16 @@ function onDragMove(e) {
 function findDropTarget(clientX, clientY, kind) {
   const elements = document.elementsFromPoint(clientX, clientY);
   for (const el of elements) {
-    if (kind === "piece") {
-      const cell = el.closest(".cell");
-      if (cell) return { zone: "cell", row: Number(cell.dataset.row), col: Number(cell.dataset.col) };
-      const lockSlot = el.closest(".lock-slot");
-      if (lockSlot) return { zone: "lock", side: lockSlot.dataset.side, index: Number(lockSlot.dataset.index) };
-    } else {
+    // 盤面マス／ロックスロットは駒・カード共通の移動先（ルール適用なしの自由配置のため）。
+    const cell = el.closest(".cell");
+    if (cell) return { zone: "cell", row: Number(cell.dataset.row), col: Number(cell.dataset.col) };
+    const lockSlot = el.closest(".lock-slot");
+    if (lockSlot) return { zone: "lock", side: lockSlot.dataset.side, index: Number(lockSlot.dataset.index) };
+    if (kind === "card") {
       const handArea = el.closest(".hand-area");
       if (handArea) return { zone: "hand", player: handArea.dataset.player };
       const pileZone = el.closest(".pile-zone");
       if (pileZone) return { zone: "pile", pile: pileZone.dataset.pile };
-      const cell = el.closest(".cell"); // カードを盤面マスに置くことも許可（役割は自由、ルール適用なし）
-      if (cell) return { zone: "cell", row: Number(cell.dataset.row), col: Number(cell.dataset.col) };
     }
   }
   return null;

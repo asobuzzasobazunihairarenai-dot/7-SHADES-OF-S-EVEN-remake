@@ -167,9 +167,27 @@ body {
    タッチ操作時にドラッグ中にページ自体がスクロールしてしまうのを防ぐため。 */
 .piece,
 .hand-card,
-.stack[data-pile] {
+.stack[data-pile],
+.board-card {
   cursor: grab;
   touch-action: none;
+}
+
+/* 盤面マス・ロックスロットに直接置かれたカード（手札の外に出たカード）の見た目。
+   手札の扇のような複雑な配置は不要なので、置かれたマス/スロットにフィットするだけの
+   シンプルな見た目にする。色・柄は.hand-cardと揃える。 */
+.board-card {
+  position: absolute;
+  inset: 8%;
+  border-radius: 0.2rem;
+  background: linear-gradient(160deg, #334155, #1e293b);
+  border: 1px solid rgba(226, 232, 240, 0.4);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+.board-card.is-facedown {
+  background: repeating-linear-gradient(45deg, #1e293b, #1e293b 5px, #2a3b52 5px, #2a3b52 10px);
+  border-color: rgba(148, 163, 184, 0.45);
 }
 
 /* ドラッグ中はカーソルに1:1追従する「ゴースト」を3D空間の外(document.body直下)に表示する。
@@ -317,6 +335,7 @@ body {
 }
 
 .lock-slot {
+  position: relative; /* 中に置かれた.board-cardをposition:absoluteで配置するための基準 */
   width: var(--cell);
   height: var(--cell);
   border-radius: 0.2rem;
