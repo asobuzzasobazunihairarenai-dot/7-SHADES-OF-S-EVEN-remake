@@ -230,7 +230,6 @@ function render() {
   table.appendChild(buildPileZone("discard"));
   renderPieceTokens(table);
   fitTableToViewport();
-  attachDragHandlers(table);
 }
 
 // 画面サイズが変わっても手札などが見切れないよう、テーブル全体をビューポートに収まる
@@ -267,15 +266,40 @@ window.addEventListener("resize", () => {
 
 let dragSession = null;
 
-function attachDragHandlers(table) {
-  table.querySelectorAll(".piece").forEach((el) => {
-    el.addEventListener("pointerdown", (e) => startTokenDrag(e, el.dataset.tokenId, "piece"));
-  });
-  table.querySelectorAll(".hand-card").forEach((el) => {
-    el.addEventListener("pointerdown", (e) => startTokenDrag(e, el.dataset.tokenId, "card"));
-  });
-  table.querySelectorAll(".stack[data-pile]").forEach((el) => {
-    el.addEventListener("pointerdown", (e) => startPileDrag(e, el.dataset.pile));
+// ドラッグ開始対象の特定は、各要素にpointerdownを直接付ける方式ではなく、#game-table全体に
+// 1つだけ付けたリスナーの中でelementsFromPoint()を使って手動で判定する。
+// 理由（ハマりどころ）: このアプリの盤面はperspective+rotateXの3D階層が何段も入れ子に
+// なっており、ネイティブのヒットテスト（＝どの要素がpointerdownを受け取るか。elementFromPoint
+// と同じ仕組み）が、実際に描画されている見た目と食い違うことがある。特に自分の手札
+// （.hand-fan.is-selfがrotateX(-40deg)+translateZ(2.4rem)で大きく持ち上げられ、カメラに
+// ほぼ正対する角度になっている）は、見た目には正しくカードが手前に描画されているのに、
+// ネイティブのヒットテストだけがその奥にある.zone-bottom（何もリスナーの無い平坦なコンテナ）
+// を返してしまい、カード自体にpointerdownイベントが一切届かず「触れない」状態になっていた。
+// 一方でelementsFromPoint()（複数形）は実際の見た目通りに.hand-cardを最前面として正しく
+// 返すことを確認できたため、要素個別のリスナーに頼らずelementsFromPoint()で自前判定する
+// 方式に統一した（ドロップ先の判定は元々この方式だった）。
+function findDraggableAt(clientX, clientY) {
+  const elements = document.elementsFromPoint(clientX, clientY);
+  for (const el of elements) {
+    const piece = el.closest(".piece");
+    if (piece) return { el: piece, tokenId: piece.dataset.tokenId, kind: "piece" };
+    const card = el.closest(".hand-card");
+    if (card) return { el: card, tokenId: card.dataset.tokenId, kind: "card" };
+    const stack = el.closest(".stack[data-pile]");
+    if (stack) return { el: stack, kind: "pile", pile: stack.dataset.pile };
+  }
+  return null;
+}
+
+function initDragHandlers() {
+  const table = document.getElementById("game-table");
+  table.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    const hit = findDraggableAt(e.clientX, e.clientY);
+    if (!hit) return;
+    e.preventDefault();
+    if (hit.kind === "pile") startPileDrag(e, hit.pile);
+    else startTokenDrag(e, hit.tokenId, hit.kind, hit.el);
   });
 }
 
@@ -298,10 +322,8 @@ function positionGhost(ghost, clientX, clientY) {
   ghost.style.transform = `translate(${clientX}px, ${clientY}px) translate(-50%, -50%)`;
 }
 
-function startTokenDrag(e, tokenId, kind) {
-  if (e.button !== 0) return;
-  e.preventDefault();
-  const ghost = createGhost(kind, e.currentTarget);
+function startTokenDrag(e, tokenId, kind, sourceEl) {
+  const ghost = createGhost(kind, sourceEl);
   positionGhost(ghost, e.clientX, e.clientY);
   dragSession = { tokenId, kind, ghost, pileSource: null };
   document.body.style.userSelect = "none";
@@ -310,9 +332,7 @@ function startTokenDrag(e, tokenId, kind) {
 }
 
 function startPileDrag(e, pileKey) {
-  if (e.button !== 0) return;
   if (getState().piles[pileKey] <= 0) return; // 空の山からは引けない
-  e.preventDefault();
   const ghost = document.createElement("div");
   ghost.className = "hand-card is-facedown drag-ghost";
   document.body.appendChild(ghost);
@@ -363,7 +383,9 @@ function onDragEnd(e) {
     // 山から直接引けるのは手札へ落とした時だけにする（盤面マスへ「山から直接置く」等は
     // 意味が曖昧になるため対象外。それ以外の場所へ落とした場合は何も起きず山はそのまま）。
     if (dropTarget && dropTarget.zone === "hand") drawFromPile(pileSource, dropTarget);
-    else render(); // 状態は変わらないが、ゴーストを消すために再描画する
+    render(); // 引けた場合も引けなかった場合も、必ず再描画する（drawFromPile後にrenderし忘れると
+    // 状態は更新済みなのに画面に反映されず、次に別の操作でrender()が走った時にまとめて
+    // 反映されたように見えるバグになる。これが実際に起きていたので、必ずここで呼ぶ）。
     return;
   }
 
@@ -377,4 +399,5 @@ function onDragEnd(e) {
 }
 
 render();
+initDragHandlers();
 initAdminMode();
