@@ -160,8 +160,8 @@ body {
 .lock-right { grid-column: 3; grid-row: 2; }
 
 .lock-slot {
-  width: 1.9rem;
-  height: 1.9rem;
+  width: var(--cell);
+  height: var(--cell);
   border-radius: 0.25rem;
   border: 2px solid rgba(226, 232, 240, 0.4);
   background: rgba(15, 23, 32, 0.6);
@@ -193,30 +193,77 @@ body {
   border-color: rgba(250, 204, 21, 0.6);
 }
 
-/* 立方体の駒。ユドナリウム(TK11235/udonarium)の駒コンポーネントを参考に、
-   複数面をskewで組み立てる方式ではなく、非対称な太さ・濃淡のボーダーだけで
-   立体的なブロックに見せる方式にした。単一要素なので隣マスへのはみ出しで
-   崩れる心配がなく、はるかに壊れにくい。
-   上下左右のボーダーの太さ・色はJS側でセル位置(leanFactor)と駒の色から
-   計算しinline styleで与える（buildCubePiece参照）。 */
+/* 立方体の駒。ユドナリウム(TK11235/udonarium)のterrain（地形）コンポーネントの技法を
+   そのまま移植した。「床」を駒の高さ分translateZで持ち上げ、4枚の壁を角ごとに異なる
+   transform-origin + rotateZ/rotateX の組み合わせで側面に貼り付ける、真のpreserve-3d構成。
+   （以前試した独自のpreserve-3d立方体は組み方が甘く崩れたが、こちらは実績のある組み方）
+   どの面がどれだけ見えるかはブラウザの3D計算に任せる（セル位置によるJS側の手動計算は不要）。
+   注意（ハマりどころ）: `.piece`に`filter: drop-shadow()`を付けると、CSSの仕様上
+   要素とその子が強制的に2Dへ平坦化され（transform-style: preserve-3dが無視される）、
+   壁が全て高さゼロに潰れるバグが発生した。影は`filter`ではなく`box-shadow`で代用する。 */
 :root {
-  --piece: 2.6rem;
+  --piece-size: 2.4rem;
+  --piece-height: 1.3rem;
 }
 
 .piece {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: var(--piece);
-  height: var(--piece);
-  margin-top: calc(var(--piece) / -2);
-  margin-left: calc(var(--piece) / -2);
-  box-sizing: border-box;
-  border-style: solid;
-  border-top-width: 0.5rem;
-  border-bottom-width: 0.35rem;
-  border-radius: 0.3rem;
-  filter: drop-shadow(0 0.3rem 0.35rem rgba(0, 0, 0, 0.6));
+  width: var(--piece-size);
+  height: var(--piece-size);
+  margin-top: calc(var(--piece-size) / -2);
+  margin-left: calc(var(--piece-size) / -2);
+  transform-style: preserve-3d;
+  box-shadow: 0 0.3rem 0.4rem rgba(0, 0, 0, 0.5);
+}
+
+.piece-face {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0.2rem;
+}
+
+/* 床（上面）: 駒の高さ分持ち上げる */
+.piece-top {
+  transform: translateZ(var(--piece-height));
+}
+
+/* 奥の壁（カメラから見て奥・最も見えにくい面） */
+.piece-wall-back {
+  height: var(--piece-height);
+  transform-origin: 50% 100%;
+  transform: translateY(-100%) rotateX(90deg) rotateZ(180deg) scaleX(-1);
+  filter: brightness(0.35);
+}
+
+/* 手前の壁（カメラに正対する面。最も明るい） */
+.piece-wall-front {
+  bottom: 0;
+  height: var(--piece-height);
+  transform-origin: 50% 100%;
+  transform: rotateX(-90deg);
+}
+
+/* 左の壁 */
+.piece-wall-left {
+  height: var(--piece-height);
+  transform-origin: 0% 0%;
+  transform: rotateZ(90deg) rotateX(-90deg) scaleX(-1) translateX(-100%) translateY(-100%);
+  filter: brightness(0.55);
+}
+
+/* 右の壁 */
+.piece-wall-right {
+  top: 0;
+  right: 0;
+  height: var(--piece-height);
+  transform-origin: 100% 0%;
+  transform: rotateZ(-90deg) rotateX(-90deg) translateY(-100%);
+  filter: brightness(0.8);
 }
 
 .pile-zone {

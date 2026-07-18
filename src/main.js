@@ -122,53 +122,24 @@ function buildPileZone(gridArea, label, pileClass, pileLabel) {
   return zone;
 }
 
-// 駒はユドナリウムの駒コンポーネントを参考に、複数面を組み立てる立方体ではなく、
-// 非対称な太さ・濃淡のボーダーだけで立体感を出す方式にした（skewによる面組み立ては
-// 隣マスへのはみ出し等で繰り返し崩れたため、より単純で壊れにくい手法に変更）。
-const COLOR_HEX = {
-  red: "#dc2626",
-  orange: "#ea580c",
-  yellow: "#ca8a04",
-  green: "#16a34a",
-  blue: "#0891b2",
-  pink: "#db2777",
-  purple: "#7e22ce",
-};
-
-function shade(hex, percent) {
-  const num = parseInt(hex.slice(1), 16);
-  const clamp = (v) => Math.max(0, Math.min(255, v));
-  const r = clamp((num >> 16) + Math.round(2.55 * percent));
-  const g = clamp(((num >> 8) & 0xff) + Math.round(2.55 * percent));
-  const b = clamp((num & 0xff) + Math.round(2.55 * percent));
-  return `rgb(${r}, ${g}, ${b})`;
-}
-
-// leanFactor: -1(盤面左端)〜0(中央列)〜+1(盤面右端)。
-// 中心から離れたマスほど側面がよく見える想定で、中心を向く側のボーダーを太く・濃くする。
-function buildCubePiece(color, leanFactor = 0) {
+// 駒は、ユドナリウム(TK11235/udonarium)のterrain（地形）コンポーネントの技法を移植して構築する。
+// 「床」を高さ分持ち上げ、4枚の壁を角ごとのtransform-originで側面に貼り付ける、真のpreserve-3d立方体。
+// 各面の見え方（どれだけ側面が見えるか）はブラウザの3D計算に任せるため、
+// 駒の位置によるJS側の手動調整（leanFactor等）は不要になった。
+function buildCubePiece(color) {
   const piece = document.createElement("div");
   piece.className = "piece";
-  const base = COLOR_HEX[color];
 
-  piece.style.background = base;
-  piece.style.borderTopColor = shade(base, 40); // 上面: 明るい
-  piece.style.borderBottomColor = shade(base, -45); // 底: 暗い（影）
+  const top = document.createElement("div");
+  top.className = "piece-face piece-top";
+  top.style.background = `var(--color-${color})`;
+  piece.appendChild(top);
 
-  const magnitude = 0.35 + 0.65 * Math.min(1, Math.abs(leanFactor));
-  const visibleWidth = `${(0.55 * magnitude).toFixed(2)}rem`;
-  const visibleColor = shade(base, -25); // 見えている側面: やや暗い
-  const hiddenColor = shade(base, -10);
-  if (leanFactor <= 0) {
-    piece.style.borderRightWidth = visibleWidth;
-    piece.style.borderRightColor = visibleColor;
-    piece.style.borderLeftWidth = "0.12rem";
-    piece.style.borderLeftColor = hiddenColor;
-  } else {
-    piece.style.borderLeftWidth = visibleWidth;
-    piece.style.borderLeftColor = visibleColor;
-    piece.style.borderRightWidth = "0.12rem";
-    piece.style.borderRightColor = hiddenColor;
+  for (const wallClass of ["piece-wall-back", "piece-wall-front", "piece-wall-left", "piece-wall-right"]) {
+    const wall = document.createElement("div");
+    wall.className = `piece-face ${wallClass}`;
+    wall.style.background = `var(--color-${color})`;
+    piece.appendChild(wall);
   }
 
   return piece;
@@ -180,8 +151,7 @@ function placeDummyPieces(tableEl) {
   for (const [side, pos] of Object.entries(GATE_POSITIONS)) {
     const cell = tableEl.querySelector(`.cell[data-row="${pos.row}"][data-col="${pos.col}"]`);
     if (!cell) continue;
-    const leanFactor = (pos.col - 3) / 3;
-    cell.appendChild(buildCubePiece(pieceColors[side], leanFactor));
+    cell.appendChild(buildCubePiece(pieceColors[side]));
     // 駒はセルより大きくはみ出すため、隣のマス（DOM順で後にあるもの）に隠されないよう最前面にする
     cell.style.zIndex = "10";
   }

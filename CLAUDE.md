@@ -63,8 +63,10 @@
 - **駒の見た目は何度か作り直した**（試行錯誤の記録）:
   1. 3面をpreserve-3dで組む真の3D立方体 → 盤面のrotateX(42deg)との兼ね合いで正面以外がほぼ潰れる。打ち消し回転（ビルボード化）も試したが逆に正面が潰れて失敗。
   2. 2DのskewX/skewYで組む疑似アイソメトリック立方体（top/front/sideの3枚）→ 見た目は良くなったが、駒がセルより大きくはみ出すため「DOM順で後に来る隣のセル」に隠され、脚だけ残る崩れ方をした（`.cell`同士が同じスタッキング文脈でDOM順に描画されるため）。駒のあるセルに`z-index`を与えて一旦解決したが、複数面構成自体が壊れやすかった。
-  3. **最終的に、ユドナリウム(TK11235/udonarium、Angular+TypeScript製、three.js等は不使用でCSSベース)のgame-characterコンポーネントを調査し、非対称な太さ・濃淡のボーダーだけで立体感を出す手法を採用**（`.pedestal-grab-border`を参考）。単一要素で完結するため隣セルへのはみ出しで崩れる心配がなく、巨大化検証でも崩れないことを確認済み。上面=明るいボーダー、底面=暗いボーダー、中心列からの距離（leanFactor）に応じて中心を向く側のボーダーを太く・濃くする（`buildCubePiece`/`shade`関数参照）。
-  - 教訓: 見た目を真似たい対象（ユドコネ）が実際どう実装されているかをオープンソースで確認したことで、過剰に複雑な自前技法（skew立方体）より単純な技法の方が本家でも使われており、単純な方が頑丈という結論に至った。
+  3. ユドナリウム(TK11235/udonarium、Angular+TypeScript製、three.js等は不使用でCSSベース)の`game-character`コンポーネントを調査し、非対称な太さ・濃淡のボーダーだけで立体感を出す手法を試した（`.pedestal-grab-border`参考）。頑丈だが、ユーザーから「駒はユドナリウムでいう『地形』に該当する」と指摘があり、参照コンポーネントが違うと判明。
+  4. **`terrain`（地形）コンポーネントを調査し、その技法をそのまま移植**。「床」を`translateZ(height)`で持ち上げ、4枚の壁を角ごとに異なる`transform-origin`+`rotateZ`/`rotateX`の組み合わせで側面に貼り付ける、正しい組み方のpreserve-3d立方体（`buildCubePiece`参照、CSSクラスは`.piece-top`/`.piece-wall-front`/`.piece-wall-back`/`.piece-wall-left`/`.piece-wall-right`）。移植直後、壁の高さが常にゼロに潰れる新たなバグが発生したが、原因は**`.piece`に付けていた`filter: drop-shadow()`**だった。CSSの`filter`は要素とその子孫を強制的に2D平坦化する仕様があり、`transform-style: preserve-3d`を無効化してしまう。影を`box-shadow`に変更して解決。この技法なら、駒がどの位置にあってもどの面がどれだけ見えるかはブラウザの3D計算が自動でやってくれるため、以前のようなセル位置に応じたJS側の手動調整（leanFactor）は不要になった。
+  - 教訓1: 見た目を真似たい対象（ユドコネ）が実際どう実装されているかをオープンソースで確認する時は、コンポーネント名（駒＝character/terrainのどちらか）を早い段階でユーザーに確認する。
+  - 教訓2: `transform-style: preserve-3d`を使う要素には`filter`（drop-shadow等）を付けない。影が欲しい場合は`box-shadow`を使う。
 - 自分の手札カード（`.hand-card.is-self`）は視認性のため他プレイヤーの手札より大きく表示している。それに合わせて`.game-table`のgrid-template-rows（手前の行のみ拡大）、`.zone-bottom .hand-area`の高さ、扇の間隔(layoutFanのspacing)も調整済み。
 - 盤面の奥行き感（台形っぽさ）は、`perspective`の値を小さくする（=カメラを近づける）ことで自然に強調できる。手動で盤面を台形に変形するのではなく、既存の3D構成（`perspective`+`rotateX`）のパラメータ調整で対応した（`perspective: 2200px→1150px`）。
 - 山札は左上、エターナルカードは左下、捨て場は右下（山札と対角）に配置済み。
