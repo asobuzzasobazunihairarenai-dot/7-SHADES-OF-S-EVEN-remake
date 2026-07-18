@@ -193,14 +193,14 @@ body {
   border-color: rgba(250, 204, 21, 0.6);
 }
 
-/* 立方体の駒。真の3D(preserve-3d)だと盤面の傾きの角度によって側面がほぼ隠れてしまうため、
-   2Dのskewで組む「アイソメトリック風」の擬似立方体を採用。盤面の傾きはそのまま素直に継承する
-   （打ち消し回転＝ビルボード化すると正面が潰れる問題が出たため採用しなかった）。
-   側面(.face-side)は中心列からの距離に応じて左右どちら向きに出すか・どれだけ幅を持たせるかを
-   JS側でセル位置(leanFactor)から計算しinline styleで与える（buildCubePiece参照）。 */
+/* 立方体の駒。ユドナリウム(TK11235/udonarium)の駒コンポーネントを参考に、
+   複数面をskewで組み立てる方式ではなく、非対称な太さ・濃淡のボーダーだけで
+   立体的なブロックに見せる方式にした。単一要素なので隣マスへのはみ出しで
+   崩れる心配がなく、はるかに壊れにくい。
+   上下左右のボーダーの太さ・色はJS側でセル位置(leanFactor)と駒の色から
+   計算しinline styleで与える（buildCubePiece参照）。 */
 :root {
-  --piece: 2.2rem;
-  --piece-depth: 0.9rem;
+  --piece: 2.6rem;
 }
 
 .piece {
@@ -209,47 +209,14 @@ body {
   left: 50%;
   width: var(--piece);
   height: var(--piece);
-  margin-top: calc(-1 * var(--piece) / 2 - var(--piece-depth) / 2);
+  margin-top: calc(var(--piece) / -2);
   margin-left: calc(var(--piece) / -2);
-  filter: drop-shadow(0 0.3rem 0.35rem rgba(0, 0, 0, 0.65));
-}
-
-/* 正面 */
-.piece .face-front {
-  position: absolute;
-  top: var(--piece-depth);
-  left: 0;
-  width: 100%;
-  height: 100%;
-  border-radius: 0.15rem;
-  filter: brightness(1.05);
-  border: 1px solid rgba(0, 0, 0, 0.4);
-  z-index: 2;
-}
-
-/* 上面: skewXで平行四辺形にして奥行きを表現 */
-.piece .face-top {
-  position: absolute;
-  top: 0;
-  left: calc(var(--piece-depth) * 0.6);
-  width: calc(100% - var(--piece-depth) * 0.6);
-  height: var(--piece-depth);
-  transform: skewX(-40deg);
-  transform-origin: bottom left;
-  filter: brightness(1.5);
-  border: 1px solid rgba(0, 0, 0, 0.4);
-  z-index: 1;
-}
-
-/* 側面: skewYで平行四辺形にして奥行きを表現。
-   left/right・width・transformはJS側でセル位置に応じて計算し、inline styleで上書きする。 */
-.piece .face-side {
-  position: absolute;
-  top: var(--piece-depth);
-  height: 100%;
-  filter: brightness(0.55);
-  border: 1px solid rgba(0, 0, 0, 0.4);
-  z-index: 3;
+  box-sizing: border-box;
+  border-style: solid;
+  border-top-width: 0.5rem;
+  border-bottom-width: 0.35rem;
+  border-radius: 0.3rem;
+  filter: drop-shadow(0 0.3rem 0.35rem rgba(0, 0, 0, 0.6));
 }
 
 .pile-zone {

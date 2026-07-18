@@ -122,38 +122,54 @@ function buildPileZone(gridArea, label, pileClass, pileLabel) {
   return zone;
 }
 
+// 駒はユドナリウムの駒コンポーネントを参考に、複数面を組み立てる立方体ではなく、
+// 非対称な太さ・濃淡のボーダーだけで立体感を出す方式にした（skewによる面組み立ては
+// 隣マスへのはみ出し等で繰り返し崩れたため、より単純で壊れにくい手法に変更）。
+const COLOR_HEX = {
+  red: "#dc2626",
+  orange: "#ea580c",
+  yellow: "#ca8a04",
+  green: "#16a34a",
+  blue: "#0891b2",
+  pink: "#db2777",
+  purple: "#7e22ce",
+};
+
+function shade(hex, percent) {
+  const num = parseInt(hex.slice(1), 16);
+  const clamp = (v) => Math.max(0, Math.min(255, v));
+  const r = clamp((num >> 16) + Math.round(2.55 * percent));
+  const g = clamp(((num >> 8) & 0xff) + Math.round(2.55 * percent));
+  const b = clamp((num & 0xff) + Math.round(2.55 * percent));
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
 // leanFactor: -1(盤面左端)〜0(中央列)〜+1(盤面右端)。
-// 中心から離れたマスほど側面がよく見え（カメラの視野角の端に来るため）、中心列付近ではほぼ正面のみになる。
-// 中心より左のマスは駒の右面（中心を向く面）を見せ、右のマスは左面を見せる。
+// 中心から離れたマスほど側面がよく見える想定で、中心を向く側のボーダーを太く・濃くする。
 function buildCubePiece(color, leanFactor = 0) {
   const piece = document.createElement("div");
   piece.className = "piece";
+  const base = COLOR_HEX[color];
 
-  for (const faceClass of ["face-top", "face-front"]) {
-    const face = document.createElement("div");
-    face.className = faceClass;
-    face.style.background = `var(--color-${color})`;
-    piece.appendChild(face);
-  }
+  piece.style.background = base;
+  piece.style.borderTopColor = shade(base, 40); // 上面: 明るい
+  piece.style.borderBottomColor = shade(base, -45); // 底: 暗い（影）
 
-  const side = document.createElement("div");
-  side.className = "face-side";
-  side.style.background = `var(--color-${color})`;
-  const magnitude = 0.2 + 0.8 * Math.min(1, Math.abs(leanFactor)); // 中心でも薄く残す
-  const widthExpr = `calc(var(--piece-depth) * 0.6 * ${magnitude.toFixed(2)})`;
-  side.style.width = widthExpr;
+  const magnitude = 0.35 + 0.65 * Math.min(1, Math.abs(leanFactor));
+  const visibleWidth = `${(0.55 * magnitude).toFixed(2)}rem`;
+  const visibleColor = shade(base, -25); // 見えている側面: やや暗い
+  const hiddenColor = shade(base, -10);
   if (leanFactor <= 0) {
-    // 中心より左（または中央）: 中心を向く右面を見せる
-    side.style.right = `calc(-1 * ${widthExpr})`;
-    side.style.transform = "skewY(-40deg)";
-    side.style.transformOrigin = "top left";
+    piece.style.borderRightWidth = visibleWidth;
+    piece.style.borderRightColor = visibleColor;
+    piece.style.borderLeftWidth = "0.12rem";
+    piece.style.borderLeftColor = hiddenColor;
   } else {
-    // 中心より右: 中心を向く左面を見せる
-    side.style.left = `calc(-1 * ${widthExpr})`;
-    side.style.transform = "skewY(40deg)";
-    side.style.transformOrigin = "top right";
+    piece.style.borderLeftWidth = visibleWidth;
+    piece.style.borderLeftColor = visibleColor;
+    piece.style.borderRightWidth = "0.12rem";
+    piece.style.borderRightColor = hiddenColor;
   }
-  piece.appendChild(side);
 
   return piece;
 }
