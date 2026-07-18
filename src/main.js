@@ -166,6 +166,8 @@ function placeDummyPieces(tableEl) {
     if (!cell) continue;
     const leanFactor = (pos.col - 3) / 3;
     cell.appendChild(buildCubePiece(pieceColors[side], leanFactor));
+    // 駒はセルより大きくはみ出すため、隣のマス（DOM順で後にあるもの）に隠されないよう最前面にする
+    cell.style.zIndex = "10";
   }
 }
 

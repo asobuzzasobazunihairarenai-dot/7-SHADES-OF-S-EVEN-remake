@@ -30,7 +30,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  perspective: 2200px;
+  perspective: 1150px;
   perspective-origin: 50% 15%;
 }
 
