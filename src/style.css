@@ -90,13 +90,16 @@ body {
   overflow: visible;
 }
 
-.zone-bottom .hand-area {
-  height: 9rem;
-}
-
 /* 手札全体を持ち上げる。自分（is-self）はテーブルの傾きを打ち消してカメラ側を向かせ、
    扇状に大きく開く。他プレイヤー（is-opponent）は逆に盤面側へ伏せて、密集させて持つ。
-   個々のカードの位置・角度はJS側でindexに応じて計算しinline transformで与える。 */
+   個々のカードの位置・角度はJS側でindexに応じて計算しinline transformで与える。
+   ハマりどころ: この持ち上げtransformは、以前は子要素の.hand-fanに付けていた。すると
+   .hand-fan（見た目）はカメラ側へ大きくリフトされて描画されるのに、ドラッグの当たり判定に
+   使っている.hand-area自身は一切transformされない「素の（傾いた机の上に平らに置かれた）」
+   位置のままになり、見た目上のカードの位置とクリック判定の位置がズレるバグになっていた
+   （プレイヤーCの手札がロックエリアの帯とほぼ同じ画面位置に「当たり判定だけ」重なって
+   干渉する、という形で発覚した）。transformを.hand-fanではなく.hand-area自身に付ける
+   ことで、当たり判定の箱自体が見た目通りの位置に来るようにした。 */
 .hand-fan {
   position: absolute;
   inset: 0;
@@ -115,22 +118,42 @@ body {
   --hand-c-pos-y: -5rem;
   --hand-d-pos-x: 1.5rem;
   --hand-d-pos-y: 0rem;
+  /* 手札エリア(.hand-area)の「扇が伸びる方向」のサイズ（手札3枚の時を基準値とする）。
+     .hand-areaはカードをドロップする際の当たり判定(findDropTarget内の.hand-area)にも
+     使われており、以前はwidth:100%（盤面と同じ幅）で常に固定されていたため、実際に
+     見えている手札の範囲よりずっと広い当たり判定になり、ロックエリアの帯と干渉していた。
+     枚数に応じてJS側(main.js buildPlayerZone)で自動的に比例拡大/縮小する。 */
+  --hand-a-size: 16rem;
+  --hand-b-size: 10rem;
+  --hand-c-size: 10rem;
+  --hand-d-size: 10rem;
+  /* 手札エリアの「扇が伸びない方向」の厚み（固定値。枚数では変わらない）。デフォルトの
+     5.2rem/9rem/100%幅では、この厚みの分だけ当たり判定がロックエリア側にはみ出して
+     干渉することが分かったため、カード1枚分程度に絞れるよう調整可能にした。 */
+  --hand-a-thickness: 7rem;
+  --hand-b-thickness: 2.5rem;
+  --hand-c-thickness: 5.2rem;
+  --hand-d-thickness: 1.8rem;
 }
 
-.zone-bottom .hand-fan.is-self {
+.zone-bottom .hand-area {
+  height: var(--hand-a-thickness);
   transform: translate(var(--hand-a-pos-x), var(--hand-a-pos-y)) rotateX(-40deg) translateZ(2.4rem);
 }
 
-.zone-top .hand-fan.is-opponent {
+.zone-top .hand-area {
+  height: var(--hand-c-thickness);
   transform: translate(var(--hand-c-pos-x), var(--hand-c-pos-y)) rotateX(18deg) translateZ(0.5rem);
 }
 
-.zone-right .hand-fan.is-opponent {
+.zone-right .hand-area {
+  width: var(--hand-d-thickness);
   transform: translate(var(--hand-d-pos-x), var(--hand-d-pos-y)) rotateX(18deg) translateZ(0.5rem);
 }
 
 /* プレイヤーBの手札は180度回転させる */
-.zone-left .hand-fan.is-opponent {
+.zone-left .hand-area {
+  width: var(--hand-b-thickness);
   transform: translate(var(--hand-b-pos-x), var(--hand-b-pos-y)) rotateX(18deg) translateZ(0.5rem) rotate(180deg);
 }
 

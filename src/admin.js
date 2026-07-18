@@ -41,6 +41,24 @@ const GROUPS = [
     ],
   },
   {
+    title: "手札エリアのサイズ（手札3枚時が基準。枚数に応じて自動で伸縮）",
+    controls: [
+      { key: "--hand-a-size", label: "A（自分）サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 16 },
+      { key: "--hand-b-size", label: "B サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 10 },
+      { key: "--hand-c-size", label: "C サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 10 },
+      { key: "--hand-d-size", label: "D サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 10 },
+    ],
+  },
+  {
+    title: "手札エリアの厚み（扇が伸びない方向。固定値、ロックエリアとの干渉調整用）",
+    controls: [
+      { key: "--hand-a-thickness", label: "A（自分）厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 7 },
+      { key: "--hand-b-thickness", label: "B 厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 2.5 },
+      { key: "--hand-c-thickness", label: "C 厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 5.2 },
+      { key: "--hand-d-thickness", label: "D 厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 1.8 },
+    ],
+  },
+  {
     title: "山札",
     controls: [
       { key: "--deck-scale", label: "拡大率", unit: "", min: 0.3, max: 3, step: 0.01, default: 1 },
@@ -131,6 +149,9 @@ function buildPanel() {
         setVar(c.key, slider.value, c.unit);
         valueLabel.textContent = `${slider.value}${c.unit}`;
         updateExport();
+        // 手札エリアのサイズ(--hand-*-size)等、CSSではなくJS側で読み取って適用している値は
+        // CSS変数を変えるだけでは画面に反映されない。main.js側にrender()し直してもらう。
+        window.dispatchEvent(new CustomEvent("admin:change"));
       });
 
       row.appendChild(labelRow);
@@ -151,6 +172,7 @@ function buildPanel() {
     }
     rebuildSliders();
     updateExport();
+    window.dispatchEvent(new CustomEvent("admin:change"));
   });
 
   const copyBtn = document.createElement("button");

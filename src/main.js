@@ -106,6 +106,20 @@ function buildPlayerZone(side, label, player, isSelf) {
   const handTokens = getState().tokens.filter(
     (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player
   );
+
+  // .hand-areaは見た目だけでなく、カードをドロップする際の当たり判定(findDropTarget)にも
+  // 使われる。固定サイズ(以前はwidth:100%=盤面と同じ幅)のままだと実際に見えている手札の
+  // 範囲よりずっと広くなり、ロックエリアの帯と干渉してしまう。手札3枚の時を基準サイズ
+  // (--hand-{player}-size、管理者モードで調整可能)とし、枚数に比例して自動で伸縮させる。
+  // 扇が伸びる方向(横=horizontal、縦=vertical)にだけ効かせ、反対方向は固定のまま。
+  const baseSize = parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue(`--hand-${player.toLowerCase()}-size`)
+  );
+  const scale = Math.max(handTokens.length, 2) / 3;
+  const sizeRem = (Number.isNaN(baseSize) ? 10 : baseSize) * scale;
+  if (orientation === "horizontal") handEl.style.width = `${sizeRem}rem`;
+  else handEl.style.height = `${sizeRem}rem`;
+
   const layout = layoutFan(handTokens.length, orientation, isSelf, side);
   handTokens.forEach((token, i) => {
     const cardEl = document.createElement("div");
@@ -434,6 +448,11 @@ function onDragEnd(e) {
   else moveToken(tokenId, dropTarget);
   render();
 }
+
+// 管理者モードのスライダーには、CSS変数を変えるだけでは反映されない値（--hand-*-sizeなど、
+// JS側でgetComputedStyleして読み取り、inline styleとして適用しているもの）があるため、
+// 変更のたびに再描画してもらう。
+window.addEventListener("admin:change", render);
 
 render();
 initDragHandlers();
