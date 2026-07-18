@@ -217,19 +217,23 @@ function buildPileZone(pileKey) {
 // 「床」を高さ分持ち上げ、4枚の壁を角ごとのtransform-originで側面に貼り付ける、真のpreserve-3d立方体。
 // 各面の見え方（どれだけ側面が見えるか）はブラウザの3D計算に任せるため、
 // 駒の位置によるJS側の手動調整（leanFactor等）は不要になった。
+// 駒の見た目（画像素材/駒スキン、assets/pieces/にコピー）。柄付きの正方形テクスチャを
+// 5面（上面+4つの壁）すべてに敷く。各壁は既存のfilter/brightnessで陰影がつくので、
+// 単色時と同じ見た目のロジックがそのまま画像にも効く。
 function buildCubePiece(color) {
   const piece = document.createElement("div");
   piece.className = "piece";
+  const skinUrl = `url("assets/pieces/${color}.png")`;
 
   const top = document.createElement("div");
   top.className = "piece-face piece-top";
-  top.style.background = `var(--color-${color})`;
+  top.style.backgroundImage = skinUrl;
   piece.appendChild(top);
 
   for (const wallClass of ["piece-wall-back", "piece-wall-front", "piece-wall-left", "piece-wall-right"]) {
     const wall = document.createElement("div");
     wall.className = `piece-face ${wallClass}`;
-    wall.style.background = `var(--color-${color})`;
+    wall.style.backgroundImage = skinUrl;
     piece.appendChild(wall);
   }
 
@@ -264,6 +268,23 @@ function buildFlatCard(token) {
 
 // 盤面マス／ロックスロットの上にある駒・カードを両方描画する（手札の中のカードは
 // buildPlayerZoneが別途担当する）。
+// 同じマス/ロックスロットに重なっているカード(kind:"card"のみ、駒は数えない)をグループ化する。
+// 戻り値はlocationごとのトークン配列（state.tokens内の並び順＝下から上への重なり順）。
+function getCardStackGroups() {
+  const groups = new Map();
+  for (const token of getState().tokens) {
+    if (token.kind !== "card") continue;
+    if (token.location.zone !== "cell" && token.location.zone !== "lock") continue;
+    const key =
+      token.location.zone === "cell"
+        ? `cell-${token.location.row}-${token.location.col}`
+        : `lock-${token.location.side}-${token.location.index}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(token);
+  }
+  return groups;
+}
+
 function renderBoardTokens(table) {
   for (const token of getState().tokens) {
     if (token.location.zone !== "cell" && token.location.zone !== "lock") continue;
@@ -275,6 +296,21 @@ function renderBoardTokens(table) {
     // 駒・カードはセルより大きくはみ出すことがあるため、隣のマス（DOM順で後にあるもの）に
     // 隠されないよう最前面にする
     if (host.classList.contains("cell")) host.style.zIndex = "10";
+  }
+
+  // 2枚以上重なっているマス/ロックスロットには、一番上のカードに「+N」バッジを付ける。
+  // バッジにカーソルを合わせると、重なっている全カードを一覧で拡大表示できる
+  // （updateHover/updatePreviewが.stack-badgeを特別扱いする）。
+  for (const tokens of getCardStackGroups().values()) {
+    if (tokens.length < 2) continue;
+    const topToken = tokens[tokens.length - 1];
+    const topEl = table.querySelector(`[data-token-id="${topToken.id}"]`);
+    if (!topEl) continue;
+    const badge = document.createElement("div");
+    badge.className = "stack-badge";
+    badge.textContent = `+${tokens.length}`;
+    badge.dataset.stackTokens = tokens.map((t) => t.id).join(",");
+    topEl.appendChild(badge);
   }
 }
 
@@ -368,6 +404,9 @@ function findDraggableAt(clientX, clientY) {
 function findHoverTarget(clientX, clientY) {
   const elements = document.elementsFromPoint(clientX, clientY);
   for (const el of elements) {
+    // 「+N」バッジ（重なりカードの一覧表示）は一番手前にあるので最優先で判定する。
+    const badge = el.closest(".stack-badge");
+    if (badge) return badge;
     const piece = el.closest(".piece");
     if (piece) return piece;
     const boardCard = el.closest(".board-card");
@@ -391,25 +430,30 @@ function clearHover() {
   hoverEl = null;
 }
 
-// ホバー中の要素が「中身の見える表向きカード」なら、その実物画像のパスを返す（それ以外はnull）。
-// 自分の手札(is-self)は常に中身が見える。盤面/ロックのカードはtoken.faceUpを見る。捨て場は
-// ルール上表向きに積まれているので、空でなければ一番上のカードだけプレビュー対象になる
-// （山札・エターナルは裏向き積みなので中身を明かさない＝プレビューしない）。
-function getPreviewImagePath(el) {
+// ホバー/右クリック中の要素が「中身の見える表向きカード」なら、そのcardIdを返す
+// （それ以外はnull）。自分の手札(is-self)は常に中身が見える。盤面/ロックのカードは
+// token.faceUpを見る。捨て場はルール上表向きに積まれているので、空でなければ一番上の
+// カードだけ対象になる（山札・エターナル・ファーストは裏向き積みなので中身を明かさない）。
+function getVisibleCardId(el) {
   if (el.classList.contains("hand-card")) {
     if (!el.classList.contains("is-self")) return null;
     const token = getState().tokens.find((t) => t.id === el.dataset.tokenId);
-    return token ? getCardImagePath(token.cardId) : null;
+    return token ? token.cardId : null;
   }
   if (el.classList.contains("board-card")) {
     const token = getState().tokens.find((t) => t.id === el.dataset.tokenId);
-    return token && token.faceUp ? getCardImagePath(token.cardId) : null;
+    return token && token.faceUp ? token.cardId : null;
   }
   if (el.matches(".stack[data-pile]") && el.dataset.pile === "discard") {
     const pile = getState().piles.discard;
-    return pile.length > 0 ? getCardImagePath(pile[pile.length - 1]) : null;
+    return pile.length > 0 ? pile[pile.length - 1] : null;
   }
   return null;
+}
+
+function getPreviewImagePath(el) {
+  const cardId = getVisibleCardId(el);
+  return cardId ? getCardImagePath(cardId) : null;
 }
 
 let previewEl = null;
@@ -422,23 +466,68 @@ function getPreviewEl() {
   return previewEl;
 }
 
+let stackPreviewEl = null;
+function getStackPreviewEl() {
+  if (!stackPreviewEl) {
+    stackPreviewEl = document.createElement("div");
+    stackPreviewEl.id = "stack-preview";
+    document.body.appendChild(stackPreviewEl);
+  }
+  return stackPreviewEl;
+}
+
+// 「+N」バッジにカーソルを合わせた時、重なっている全カードを横一列で拡大表示する。
+// 各カードは自分自身のfaceUpに従って表向き/裏向きの画像を出す（下に潜んでいる裏向きの
+// カードの中身を、一覧表示によって覗けてしまわないようにするため）。
+function showStackPreview(badge, clientX, clientY) {
+  const ids = badge.dataset.stackTokens.split(",");
+  const tokens = ids.map((id) => getState().tokens.find((t) => t.id === id)).filter(Boolean);
+  const panel = getStackPreviewEl();
+  panel.innerHTML = "";
+  for (const token of tokens) {
+    const card = document.createElement("div");
+    card.className = "stack-preview-card";
+    const imagePath = token.faceUp ? getCardImagePath(token.cardId) : getCardBackImagePath(token.cardId);
+    card.style.backgroundImage = `url("${imagePath}")`;
+    panel.appendChild(card);
+  }
+  positionPreviewPanel(panel, clientX, clientY);
+  panel.style.display = "flex";
+}
+
+// #card-previewと#stack-previewで共通の位置決め処理。拡大の起点は左下端（＝カーソル付近）に
+// 固定し、そこから右上方向へ広がるようにする。left/bottom（topではなく）で位置決めしている
+// のがポイント：中身のサイズが変わってもleft/bottomの基準点自体はズレない。画面右端を
+// はみ出す場合だけ、右上ではなく左上方向へ表示先を切り替える。
+function positionPreviewPanel(panel, clientX, clientY) {
+  const offset = 20;
+  let left = clientX + offset;
+  const panelWidthPx = panel.getBoundingClientRect().width || parseFloat(getComputedStyle(panel).width);
+  if (left + panelWidthPx > window.innerWidth) left = clientX - offset - panelWidthPx;
+  const bottom = window.innerHeight - clientY + offset;
+  panel.style.left = `${left}px`;
+  panel.style.bottom = `${bottom}px`;
+  panel.style.top = "";
+}
+
 function updatePreview(el, clientX, clientY) {
   const preview = getPreviewEl();
+  const stackPreview = getStackPreviewEl();
+
+  if (el && el.classList.contains("stack-badge")) {
+    preview.style.display = "none";
+    showStackPreview(el, clientX, clientY);
+    return;
+  }
+  stackPreview.style.display = "none";
+
   const imagePath = el ? getPreviewImagePath(el) : null;
   if (!imagePath) {
     preview.style.display = "none";
     return;
   }
   preview.style.backgroundImage = `url("${imagePath}")`;
-  // カーソルの右上あたりに表示する。カーソル自体やホバー中のカードを隠さないよう、
-  // 少しオフセットする。画面右端/下端にはみ出す場合は反対側に出す。
-  const offset = 24;
-  let left = clientX + offset;
-  let top = clientY - offset - 224; // プレビューの高さ分(14rem=224px)持ち上げて右上に出す
-  if (left + 224 > window.innerWidth) left = clientX - offset - 224;
-  if (top < 0) top = clientY + offset;
-  preview.style.left = `${left}px`;
-  preview.style.top = `${top}px`;
+  positionPreviewPanel(preview, clientX, clientY);
   preview.style.display = "block";
 }
 
@@ -464,6 +553,74 @@ function initHoverHandlers() {
   table.addEventListener("pointerleave", () => {
     clearHover();
     updatePreview(null);
+  });
+}
+
+// --- 右クリックメニュー ---------------------------------------------------
+// ゲーム内では常にブラウザ標準の右クリックメニューを出さないようにし、代わりに専用メニューを
+// 出す。対象の判定は、dblclickと同じ理由でネイティブのe.targetを信用せず、ここでも
+// elementsFromPoint()ベースのfindHoverTarget()を使う。中身の分かるカード以外（駒や空マス等）は
+// 今のところメニュー項目が無いので、ブラウザメニューを消すだけに留める。
+let contextMenuEl = null;
+
+function closeContextMenu() {
+  if (contextMenuEl) {
+    contextMenuEl.remove();
+    contextMenuEl = null;
+  }
+}
+
+function showCardNoteModal(cardId) {
+  const def = getCardDefinition(cardId);
+  if (!def) return;
+  const modal = document.createElement("div");
+  modal.id = "card-note-modal";
+  const title = document.createElement("div");
+  title.className = "card-note-title";
+  title.textContent = def.name;
+  const body = document.createElement("div");
+  body.className = "card-note-body";
+  body.textContent = def.note || "（補足なし）";
+  const closeBtn = document.createElement("button");
+  closeBtn.textContent = "閉じる";
+  closeBtn.addEventListener("click", () => modal.remove());
+  modal.appendChild(title);
+  modal.appendChild(body);
+  modal.appendChild(closeBtn);
+  document.body.appendChild(modal);
+}
+
+function showContextMenu(clientX, clientY, cardId) {
+  closeContextMenu();
+  const menu = document.createElement("div");
+  menu.id = "card-context-menu";
+  const item = document.createElement("button");
+  item.textContent = "カード補足を見る";
+  item.addEventListener("click", () => {
+    closeContextMenu();
+    showCardNoteModal(cardId);
+  });
+  menu.appendChild(item);
+  menu.style.left = `${clientX}px`;
+  menu.style.top = `${clientY}px`;
+  document.body.appendChild(menu);
+  contextMenuEl = menu;
+}
+
+function initContextMenuHandlers() {
+  const table = document.getElementById("game-table");
+  table.addEventListener("contextmenu", (e) => {
+    e.preventDefault(); // ゲームの盤面上では常にブラウザの既定メニューを出さない
+    const hit = findHoverTarget(e.clientX, e.clientY);
+    const cardId = hit ? getVisibleCardId(hit) : null;
+    if (!cardId) {
+      closeContextMenu();
+      return;
+    }
+    showContextMenu(e.clientX, e.clientY, cardId);
+  });
+  document.addEventListener("pointerdown", (e) => {
+    if (contextMenuEl && !contextMenuEl.contains(e.target)) closeContextMenu();
   });
 }
 
@@ -658,5 +815,6 @@ window.addEventListener("admin:change", render);
 render();
 initDragHandlers();
 initHoverHandlers();
+initContextMenuHandlers();
 initAdminMode();
 initDeckViewer();

@@ -1,74 +1,78 @@
 // 「山札一覧」: テキストデータ(cards-data.js)と実際のカード画像(assets/cards/)がちゃんと
-// 紐づいているかを目視確認するためのデバッグ用ビューア。通常カード・エターナルカードそれぞれの
-// タイトル・画像・枚数を一覧表示し、各カードに「補足」ボタンを付けてルール補足テキストを
-// 開閉できるようにする。管理者モードと同様、ゲーム本編のUIではなく開発用ツール。
+// 紐づいているかを目視確認するためのデバッグ用ビューア。通常カード・エターナルカード・
+// ファーストカードそれぞれのタイトル・画像・枚数をグリッドで一覧表示し、タイルをクリックすると
+// ルール補足テキストが開閉できる。管理者モードと同様、ゲーム本編のUIではなく開発用ツール。
 
 import { NORMAL_CARDS, ETERNAL_CARDS, FIRST_CARDS, getCardImagePath } from "./cards-data.js";
 
-function buildCardRow(def) {
-  const row = document.createElement("div");
-  row.style.cssText = `
-    display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem;
-    padding: 0.5rem 0.2rem; border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+// タイルとその下に差し込む補足テキスト行の2つを返す（呼び出し側でgridに両方appendする。
+// 補足はgrid-column:1/-1で全幅に広げ、クリックしたタイルの直後にだけ表示されるようにする）。
+function buildCardTile(def) {
+  const tile = document.createElement("button");
+  tile.type = "button";
+  tile.style.cssText = `
+    position: relative; display: flex; flex-direction: column; align-items: center;
+    gap: 0.2rem; padding: 0.3rem; background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 0.4rem; cursor: pointer;
+    font-family: sans-serif; color: #e2e8f0; text-align: center;
   `;
 
   const img = document.createElement("img");
   img.src = getCardImagePath(def.id);
   img.alt = def.name;
   img.loading = "lazy";
-  img.style.cssText = "width: 3.4rem; height: 3.4rem; object-fit: cover; border-radius: 0.3rem; flex-shrink: 0;";
-  row.appendChild(img);
+  img.style.cssText = "width: 4.2rem; height: 4.2rem; object-fit: cover; border-radius: 0.25rem;";
+  tile.appendChild(img);
 
-  const info = document.createElement("div");
-  info.style.cssText = "flex: 1; min-width: 8rem;";
-  const title = document.createElement("div");
-  title.textContent = def.name;
-  title.style.cssText = "font-weight: bold;";
-  const countEl = document.createElement("div");
-  countEl.textContent = `${def.count ?? 1}枚`;
-  countEl.style.cssText = "opacity: 0.7; font-size: 0.8em; margin-top: 0.1rem;";
-  info.appendChild(title);
-  info.appendChild(countEl);
-  row.appendChild(info);
-
-  const noteBtn = document.createElement("button");
-  noteBtn.textContent = "補足";
-  noteBtn.style.cssText = `
-    flex-shrink: 0; padding: 0.25rem 0.6rem; background: #334155; color: #fff;
-    border: none; border-radius: 0.25rem; cursor: pointer; font-size: 0.75rem;
+  const countBadge = document.createElement("div");
+  countBadge.textContent = `×${def.count ?? 1}`;
+  countBadge.style.cssText = `
+    position: absolute; top: 0.15rem; right: 0.15rem; padding: 0 0.3rem;
+    background: rgba(15, 23, 32, 0.85); border-radius: 0.5rem; font-size: 0.6rem;
   `;
-  row.appendChild(noteBtn);
+  tile.appendChild(countBadge);
 
-  const noteText = document.createElement("div");
-  noteText.textContent = def.note || "（補足なし）";
-  noteText.style.cssText = `
-    display: none; width: 100%; margin-top: 0.4rem; padding: 0.5rem;
-    background: rgba(0, 0, 0, 0.3); border-radius: 0.25rem; font-size: 0.78rem;
-    line-height: 1.5; opacity: 0.9;
+  const name = document.createElement("div");
+  name.textContent = def.name;
+  name.style.cssText = "font-size: 0.6rem; line-height: 1.2; max-height: 2.4em; overflow: hidden;";
+  tile.appendChild(name);
+
+  const note = document.createElement("div");
+  note.textContent = def.note || "（補足なし）";
+  note.style.cssText = `
+    display: none; grid-column: 1 / -1; text-align: left; padding: 0.5rem;
+    background: rgba(0, 0, 0, 0.3); border-radius: 0.25rem; font-size: 0.75rem;
+    line-height: 1.5; font-family: sans-serif; color: #e2e8f0;
   `;
-  noteBtn.addEventListener("click", () => {
-    const open = noteText.style.display !== "none";
-    noteText.style.display = open ? "none" : "block";
-    noteBtn.textContent = open ? "補足" : "補足を隠す";
+
+  tile.addEventListener("click", () => {
+    note.style.display = note.style.display === "none" ? "block" : "none";
   });
-  row.appendChild(noteText);
 
-  return row;
+  return { tile, note };
 }
 
 function buildSection(title, cardDefs) {
   const section = document.createElement("div");
-  section.style.cssText = "margin-bottom: 1.2rem;";
+  section.style.cssText = "margin-bottom: 0.8rem;";
 
   const heading = document.createElement("div");
   heading.textContent = `${title}（${cardDefs.length}種）`;
   heading.style.cssText = `
-    font-weight: bold; color: #7dd3fc; margin-bottom: 0.3rem;
+    font-weight: bold; color: #7dd3fc; margin-bottom: 0.4rem;
     border-bottom: 1px solid rgba(148, 163, 184, 0.3); padding-bottom: 0.3rem;
+    font-family: sans-serif;
   `;
   section.appendChild(heading);
 
-  for (const def of cardDefs) section.appendChild(buildCardRow(def));
+  const grid = document.createElement("div");
+  grid.style.cssText = "display: grid; grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr)); gap: 0.5rem;";
+  for (const def of cardDefs) {
+    const { tile, note } = buildCardTile(def);
+    grid.appendChild(tile);
+    grid.appendChild(note);
+  }
+  section.appendChild(grid);
   return section;
 }
 
@@ -77,7 +81,7 @@ function buildPanel() {
   panel.id = "deck-viewer-panel";
   panel.style.cssText = `
     position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    width: min(30rem, 92vw); max-height: 85vh; overflow-y: auto;
+    width: min(68rem, 96vw); max-height: 92vh; overflow-y: auto;
     background: rgba(15, 23, 32, 0.98); border: 1px solid rgba(148, 163, 184, 0.4);
     border-radius: 0.5rem; padding: 1rem; z-index: 2001;
     font-family: sans-serif; font-size: 0.85rem; color: #e2e8f0;
@@ -88,7 +92,7 @@ function buildPanel() {
   const header = document.createElement("div");
   header.style.cssText = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;";
   const titleEl = document.createElement("div");
-  titleEl.textContent = "山札一覧（データと画像の紐づき確認用）";
+  titleEl.textContent = "山札一覧";
   titleEl.style.cssText = "font-weight: bold;";
   const closeBtn = document.createElement("button");
   closeBtn.textContent = "閉じる";

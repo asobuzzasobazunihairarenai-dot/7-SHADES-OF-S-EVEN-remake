@@ -7,6 +7,12 @@
 // pos-x/pos-yは中心からのずれ。どちらもtransform: scale/translateなので、拡大しても見切れない。
 const GROUPS = [
   {
+    title: "カード拡大プレビュー",
+    controls: [
+      { key: "--card-preview-size", label: "サイズ", unit: "rem", min: 8, max: 36, step: 0.5, default: 20 },
+    ],
+  },
+  {
     title: "プレイマット",
     controls: [
       { key: "--playmat-scale", label: "拡大率", unit: "", min: 0.5, max: 3, step: 0.01, default: 1.42 },

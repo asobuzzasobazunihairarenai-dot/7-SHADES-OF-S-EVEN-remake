@@ -249,7 +249,7 @@ body {
    シンプルな見た目にする。色・柄は.hand-cardと揃える。 */
 .board-card {
   position: absolute;
-  inset: 8%;
+  inset: 3%;
   border-radius: 0.2rem;
   background-image: linear-gradient(160deg, #334155, #1e293b);
   border: 1px solid rgba(226, 232, 240, 0.4);
@@ -307,10 +307,14 @@ body {
 /* 表向きカードにカーソルを乗せた時の拡大プレビュー。main.jsのupdatePreview()が
    カーソル位置に応じてleft/topとbackground-imageを書き換える。3D空間の外(body直下)に
    置く単純な2D要素なので、盤面の傾き等は一切気にしなくてよい。 */
+:root {
+  --card-preview-size: 20rem; /* 管理者モードで調整可能 */
+}
+
 #card-preview {
   position: fixed;
-  width: 14rem;
-  height: 14rem;
+  width: var(--card-preview-size);
+  height: var(--card-preview-size);
   border-radius: 0.5rem;
   border: 2px solid rgba(255, 255, 255, 0.7);
   box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.6);
@@ -320,6 +324,114 @@ body {
   pointer-events: none;
   z-index: 10000;
   display: none;
+}
+
+/* 同じマス/ロックスロットに複数枚重なっている時、一番上のカードの左上に出す「+N」バッジ。 */
+.stack-badge {
+  position: absolute;
+  top: -0.35rem;
+  left: -0.35rem;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.25rem;
+  border-radius: 0.6rem;
+  background: rgba(15, 23, 32, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  color: #fff;
+  font-size: 0.55rem;
+  font-weight: bold;
+  font-family: sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  cursor: pointer;
+}
+
+/* +Nバッジにカーソルを乗せた時、重なっている全カードを横一列に並べて拡大表示するパネル。
+   1枚ずつは#card-previewと同じ見た目・同じサイズ変数(--card-preview-size)を使う。 */
+#stack-preview {
+  position: fixed;
+  display: none;
+  gap: 0.6rem;
+  z-index: 10000;
+  pointer-events: none;
+}
+.stack-preview-card {
+  width: var(--card-preview-size);
+  height: var(--card-preview-size);
+  border-radius: 0.5rem;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.6);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  flex-shrink: 0;
+}
+
+/* カード右クリックの専用メニューと、その中の「カード補足を見る」で開くモーダル。 */
+#card-context-menu {
+  position: fixed;
+  z-index: 10001;
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.4rem;
+  padding: 0.3rem;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6);
+}
+#card-context-menu button {
+  display: block;
+  width: 100%;
+  padding: 0.4rem 0.8rem;
+  background: transparent;
+  color: #e2e8f0;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-family: sans-serif;
+  border-radius: 0.25rem;
+  white-space: nowrap;
+}
+#card-context-menu button:hover {
+  background: rgba(56, 189, 248, 0.2);
+}
+
+#card-note-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(24rem, 90vw);
+  max-height: 70vh;
+  overflow-y: auto;
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  z-index: 10002;
+  font-family: sans-serif;
+  color: #e2e8f0;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+.card-note-title {
+  font-weight: bold;
+  margin-bottom: 0.6rem;
+  font-size: 0.95rem;
+}
+.card-note-body {
+  font-size: 0.85rem;
+  line-height: 1.6;
+  margin-bottom: 0.8rem;
+  white-space: pre-wrap;
+}
+#card-note-modal button {
+  padding: 0.3rem 0.8rem;
+  background: #475569;
+  color: #fff;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
 }
 
 /* ドラッグ中はカーソルに1:1追従する「ゴースト」を3D空間の外(document.body直下)に表示する。
@@ -525,7 +637,7 @@ body {
    要素とその子が強制的に2Dへ平坦化され（transform-style: preserve-3dが無視される）、
    壁が全て高さゼロに潰れるバグが発生した。影は`filter`ではなく`box-shadow`で代用する。 */
 :root {
-  --piece-size: 2.4rem;
+  --piece-size: 2.1rem;
   --piece-height: 2rem;
 }
 
@@ -550,6 +662,9 @@ body {
   height: 100%;
   border-radius: 0.2rem;
   backface-visibility: hidden;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 /* 床（上面）: 駒の高さ分持ち上げる */
@@ -760,7 +875,7 @@ body {
   transform: rotate(90deg) translate(var(--label-b-pos-x), var(--label-b-pos-y));
 }
 .zone-top .label {
-  transform: translate(var(--label-c-pos-x), var(--label-c-pos-y));
+  transform: translate(var(--label-c-pos-x), var(--label-c-pos-y)) rotate(180deg);
 }
 .zone-right .label {
   transform: rotate(-90deg) translate(var(--label-d-pos-x), var(--label-d-pos-y));
