@@ -6,7 +6,7 @@
 // のid配列）」だけ。将来docs/game-state-design.mdの本格的なGameState設計へ拡張し、オンライン
 // 非同期化する際は同じactionをサーバーに送って同期する流れにそのまま乗せる想定。
 
-import { NORMAL_CARDS, ETERNAL_CARDS } from "./cards-data.js";
+import { NORMAL_CARDS, ETERNAL_CARDS, FIRST_CARDS } from "./cards-data.js";
 
 let nextId = 1;
 const uid = (prefix) => `${prefix}-${nextId++}`;
@@ -63,10 +63,14 @@ function createInitialState() {
   }
 
   const eternal = shuffled(expandDeck(ETERNAL_CARDS));
+  // ファーストカードは本来ゲーム開始時に各プレイヤーへ1枚ずつ自動配布されるものだが、
+  // Phase1はセットアップ自動化のスコープ外。他の山と同じ「シャッフルされた山」として置き、
+  // 手動でドラッグして配れるようにするだけに留める。
+  const first = shuffled(expandDeck(FIRST_CARDS));
 
   return {
     tokens,
-    piles: { deck, eternal, discard: [] },
+    piles: { deck, eternal, first, discard: [] },
   };
 }
 

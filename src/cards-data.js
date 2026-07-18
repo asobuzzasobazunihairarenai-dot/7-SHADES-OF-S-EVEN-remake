@@ -42,13 +42,13 @@ export const ETERNAL_CARDS = [
 
 // ファーストカード7種、各色1種・1枚（ゲーム開始前に配られる、駒と同色のカード）。
 export const FIRST_CARDS = [
-  { id: "first-red", name: "赤のキューブ フェニックス", color: "red" },
-  { id: "first-orange", name: "橙のキューブ ハーベスト", color: "orange" },
-  { id: "first-yellow", name: "黄のキューブ サフラン", color: "yellow" },
-  { id: "first-green", name: "緑のキューブ ヴァーディアン", color: "green" },
-  { id: "first-blue", name: "青のキューブ セレスティア", color: "blue" },
-  { id: "first-pink", name: "桃のキューブ セレナーデ", color: "pink" },
-  { id: "first-purple", name: "紫のキューブ ディメンション", color: "purple" },
+  { id: "first-red", name: "赤のキューブ フェニックス", color: "red", note: "追色により赤のカードを捨ててから使用するため、実質捨て場の上から２番目のカードは、効果使用前の捨て場の１番上のカードとなる。手に入れたカードが赤ならば、そのカードを捨て、もう一度効果を使えるが、意味のない行為になる場合のループ行為は禁止とする。" },
+  { id: "first-orange", name: "橙のキューブ ハーベスト", color: "orange", note: "相手の駒が乗っているマスも対象にでき、対象のマスのカードの表裏は問わない。手札にまだ橙のカードを持っていれば、そのカードを捨てることで何度でも効果を使ってもよい。「あなたから２マス以内」とは、仮に２マス移動する場合に移動できる範囲のことを示す。自分のいるマスも対象である。" },
+  { id: "first-yellow", name: "黄のキューブ サフラン", color: "yellow", note: "「あなたから２マス以内」とは、仮に２マス移動する場合に移動できる範囲のことを示す。自分のいるマスも対象である。" },
+  { id: "first-green", name: "緑のキューブ ヴァーディアン", color: "green", note: "ドロー（手札に加える）とあるが、オープンした状態で相手プレイヤーに見える状態で公開したままにしておくのが望ましい。" },
+  { id: "first-blue", name: "青のキューブ セレスティア", color: "blue", note: "複数のプレイヤーを対象にした効果は原則、効果の使用者から時計回りに効果を処理する（処理順の原則）。" },
+  { id: "first-pink", name: "桃のキューブ セレナーデ", color: "pink", note: "ロックフェイズでカードを１枚ロックしていたとしても、このカードの手札効果でもう１枚ロックすることができる。" },
+  { id: "first-purple", name: "紫のキューブ ディメンション", color: "purple", note: "「一気に移動」なので１マス目のカードや相手の駒等の有無は関係ない。「通常の移動」とはムーブフェイズで通常行う移動のこと。" },
 ];
 
 // カードid → 定義の逆引き（山札・手札等に入っている実際のトークンのcardIdから
@@ -68,8 +68,10 @@ export function getCardImagePath(cardId) {
   return `assets/cards/${cardId}.png`;
 }
 
-// 裏面は「通常カード」と「エターナルカード」でデザインが違う（物理カードと同じ）。
-// エターナルカードのidは"eternal-"で始まる命名にしているので、それで判別する。
+// 裏面は「通常カード」「エターナルカード」「ファーストカード」でデザインが違う（物理カードと
+// 同じ）。idの接頭辞（"eternal-"/"first-"）で判別する。
 export function getCardBackImagePath(cardId) {
-  return cardId.startsWith("eternal-") ? "assets/cards/back-eternal.png" : "assets/cards/back-normal.png";
+  if (cardId.startsWith("eternal-")) return "assets/cards/back-eternal.png";
+  if (cardId.startsWith("first-")) return "assets/cards/back-first.png";
+  return "assets/cards/back-normal.png";
 }

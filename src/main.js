@@ -170,11 +170,14 @@ function buildCardStack(count, pileClass, pileLabel, imagePath) {
   top.appendChild(countEl);
   stack.appendChild(top);
 
-  // 側面(front)にもtop面と同じカード柄を敷くと、薄い帯に絵柄が引き伸ばされて見苦しいため、
-  // 側面は常に無地（CSS側で薄いグレー）のままにする。
-  const front = document.createElement("div");
-  front.className = "stack-front";
-  stack.appendChild(front);
+  // 側面にtop面と同じカード柄を敷くと、薄い帯に絵柄が引き伸ばされて見苦しいため、
+  // 側面は常に無地（CSS側で薄いグレー）のままにする。4面（前後左右）すべて用意しないと、
+  // 見る角度によって存在しない面から奥が透けて見えてしまう（駒(.piece)と同じ理由）。
+  for (const wallClass of ["stack-front", "stack-back", "stack-left", "stack-right"]) {
+    const wall = document.createElement("div");
+    wall.className = wallClass;
+    stack.appendChild(wall);
+  }
 
   return stack;
 }
@@ -182,6 +185,7 @@ function buildCardStack(count, pileClass, pileLabel, imagePath) {
 const PILE_CONFIG = {
   deck: { gridArea: "deck", pileClass: "pile-deck", label: "山札", backImage: "assets/cards/back-normal.png" },
   eternal: { gridArea: "eternal", pileClass: "pile-eternal", label: "永久", backImage: "assets/cards/back-eternal.png" },
+  first: { gridArea: "first", pileClass: "pile-first", label: "ファースト", backImage: "assets/cards/back-first.png" },
   discard: { gridArea: "discard", pileClass: "pile-discard", label: "捨て場" },
 };
 
@@ -287,6 +291,7 @@ function render() {
   table.appendChild(buildPlayerZone("right", "プレイヤーD", "D", false));
   table.appendChild(buildPileZone("deck"));
   table.appendChild(buildPileZone("eternal"));
+  table.appendChild(buildPileZone("first"));
   table.appendChild(buildPileZone("discard"));
   renderBoardTokens(table);
   fitTableToViewport();
@@ -386,23 +391,80 @@ function clearHover() {
   hoverEl = null;
 }
 
+// ホバー中の要素が「中身の見える表向きカード」なら、その実物画像のパスを返す（それ以外はnull）。
+// 自分の手札(is-self)は常に中身が見える。盤面/ロックのカードはtoken.faceUpを見る。捨て場は
+// ルール上表向きに積まれているので、空でなければ一番上のカードだけプレビュー対象になる
+// （山札・エターナルは裏向き積みなので中身を明かさない＝プレビューしない）。
+function getPreviewImagePath(el) {
+  if (el.classList.contains("hand-card")) {
+    if (!el.classList.contains("is-self")) return null;
+    const token = getState().tokens.find((t) => t.id === el.dataset.tokenId);
+    return token ? getCardImagePath(token.cardId) : null;
+  }
+  if (el.classList.contains("board-card")) {
+    const token = getState().tokens.find((t) => t.id === el.dataset.tokenId);
+    return token && token.faceUp ? getCardImagePath(token.cardId) : null;
+  }
+  if (el.matches(".stack[data-pile]") && el.dataset.pile === "discard") {
+    const pile = getState().piles.discard;
+    return pile.length > 0 ? getCardImagePath(pile[pile.length - 1]) : null;
+  }
+  return null;
+}
+
+let previewEl = null;
+function getPreviewEl() {
+  if (!previewEl) {
+    previewEl = document.createElement("div");
+    previewEl.id = "card-preview";
+    document.body.appendChild(previewEl);
+  }
+  return previewEl;
+}
+
+function updatePreview(el, clientX, clientY) {
+  const preview = getPreviewEl();
+  const imagePath = el ? getPreviewImagePath(el) : null;
+  if (!imagePath) {
+    preview.style.display = "none";
+    return;
+  }
+  preview.style.backgroundImage = `url("${imagePath}")`;
+  // カーソルの右上あたりに表示する。カーソル自体やホバー中のカードを隠さないよう、
+  // 少しオフセットする。画面右端/下端にはみ出す場合は反対側に出す。
+  const offset = 24;
+  let left = clientX + offset;
+  let top = clientY - offset - 224; // プレビューの高さ分(14rem=224px)持ち上げて右上に出す
+  if (left + 224 > window.innerWidth) left = clientX - offset - 224;
+  if (top < 0) top = clientY + offset;
+  preview.style.left = `${left}px`;
+  preview.style.top = `${top}px`;
+  preview.style.display = "block";
+}
+
 function updateHover(clientX, clientY) {
   // ドラッグ中はドロップ先ハイライト(.drop-target-active)と役割が被って紛らわしいので休止する。
   if (dragSession) {
     clearHover();
+    updatePreview(null);
     return;
   }
   const next = findHoverTarget(clientX, clientY);
-  if (next === hoverEl) return;
-  clearHover();
-  if (next) next.classList.add("hover-active");
-  hoverEl = next;
+  if (next !== hoverEl) {
+    clearHover();
+    if (next) next.classList.add("hover-active");
+    hoverEl = next;
+  }
+  updatePreview(next, clientX, clientY);
 }
 
 function initHoverHandlers() {
   const table = document.getElementById("game-table");
   table.addEventListener("pointermove", (e) => updateHover(e.clientX, e.clientY));
-  table.addEventListener("pointerleave", clearHover);
+  table.addEventListener("pointerleave", () => {
+    clearHover();
+    updatePreview(null);
+  });
 }
 
 // ダブルクリックでの表裏反転は、ネイティブの`dblclick`イベントではなく、ドラッグと同じ

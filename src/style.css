@@ -61,6 +61,7 @@ body {
 .zone-right   { grid-column: 3; grid-row: 2; }
 .zone-deck    { grid-column: 1; grid-row: 1; }
 .zone-eternal { grid-column: 1; grid-row: 3; }
+.zone-first   { grid-column: 3; grid-row: 1; }
 .zone-discard { grid-column: 3; grid-row: 3; }
 
 .zone {
@@ -260,6 +261,19 @@ body {
   border-color: rgba(148, 163, 184, 0.45);
 }
 
+/* ロックエリアに置いたカードは、そのロックエリアの持ち主（座席）から見て正しい向きに
+   読めるよう回転させる。手前(A)は元々正しい向きなので回転不要。奥(C)は真逆に座っているので
+   180度、左(B)・右(D)はそれぞれの席から見て正しい向きになるよう90度/-90度。 */
+.lock-top .board-card {
+  transform: rotate(180deg);
+}
+.lock-left .board-card {
+  transform: rotate(90deg);
+}
+.lock-right .board-card {
+  transform: rotate(-90deg);
+}
+
 /* ドラッグ中、今離すとどこに置かれるかを示すハイライト。findDropTarget()が返す実際の対象
    要素(.cell/.lock-slot/.hand-area/.pile-zone)にmain.js側でこのクラスを付け外しするだけで、
    レイアウトには一切影響しない。ゲームの色(--color-*)と紛れないよう、黄金色で統一する。 */
@@ -278,6 +292,34 @@ body {
 .hover-active {
   outline: 2px solid rgba(56, 189, 248, 0.85);
   outline-offset: 1px;
+}
+
+/* 駒は平らな外枠ではなく、立方体の各面（上面+4つの壁）を個別に光らせて、
+   立体のまま辺が光っているように見せる。.piece-faceはbox-shadowを他で使っていないので
+   ここで問題なく使える。 */
+.piece.hover-active {
+  outline: none;
+}
+.piece.hover-active .piece-face {
+  box-shadow: 0 0 0.4rem 0.12rem rgba(56, 189, 248, 0.9);
+}
+
+/* 表向きカードにカーソルを乗せた時の拡大プレビュー。main.jsのupdatePreview()が
+   カーソル位置に応じてleft/topとbackground-imageを書き換える。3D空間の外(body直下)に
+   置く単純な2D要素なので、盤面の傾き等は一切気にしなくてよい。 */
+#card-preview {
+  position: fixed;
+  width: 14rem;
+  height: 14rem;
+  border-radius: 0.5rem;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.6);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: 10000;
+  display: none;
 }
 
 /* ドラッグ中はカーソルに1:1追従する「ゴースト」を3D空間の外(document.body直下)に表示する。
@@ -577,6 +619,9 @@ body {
   --discard-scale: 1;
   --discard-pos-x: -4.1rem;
   --discard-pos-y: -3.7rem;
+  --first-scale: 1;
+  --first-pos-x: -4.1rem;
+  --first-pos-y: 1.5rem;
 }
 
 .zone-deck .stack {
@@ -589,14 +634,22 @@ body {
   transform-origin: center center;
 }
 
+.zone-first .stack {
+  transform: translate(var(--first-pos-x), var(--first-pos-y)) scale(var(--first-scale));
+  transform-origin: center center;
+}
+
 .zone-discard .stack {
   transform: translate(var(--discard-pos-x), var(--discard-pos-y)) scale(var(--discard-scale));
   transform-origin: center center;
 }
 
 .pile-deck { background-image: linear-gradient(160deg, #334155, #1e293b); }
-.pile-discard { background-image: linear-gradient(160deg, #475569, #334155); }
+/* 捨て場は空の時、中身の分からない塗りつぶしではなく透明にする（ロックスロットと同じ考え方）。
+   カードが入れば.stack-topに実物画像がinline styleで敷かれ、これは上書きされて見えなくなる。 */
+.pile-discard { background-image: none; background-color: transparent; }
 .pile-eternal { background-image: var(--color-rainbow); }
+.pile-first { background-image: linear-gradient(160deg, #334155, #1e293b); }
 
 /* 枚数に応じて厚みを持つカードの山。駒(.piece)と同じ「床+壁」の考え方だが、面は上面と正面の2枚のみ。
    --stack-height（枚数から計算）が高さになる。将来、盤面マスのカードスタックにも流用する想定。 */
@@ -627,21 +680,54 @@ body {
   opacity: 0.8;
 }
 
-.stack-front {
+/* 山の側面。以前は.stack-front（手前の1面）しか無く、見る角度によっては他の面（特に右側）が
+   まるごと透明に見えてしまっていた（そもそも面自体が存在しないため）。駒(.piece)と同じ
+   「床+4面の壁」の技法で、奥・左・右の面も追加し、正しい直方体にした。
+   側面はカード柄を貼らず無地のライトグレーにする（薄い帯に絵柄を貼ると引き伸ばされて
+   見苦しいため）。filterはpreserve-3dを無効化してしまう（駒の壁面で判明済みの教訓）ため、
+   暗くする表現はbox-shadowで代用する（面ごとに濃さを変えて陰影をつける）。 */
+.stack-front,
+.stack-back,
+.stack-left,
+.stack-right {
   position: absolute;
-  bottom: 0;
-  left: 0;
   width: 100%;
   height: calc(var(--stack-height) + 0.15rem);
+  background-color: #cbd5e1;
+  backface-visibility: hidden;
+}
+
+.stack-front {
+  bottom: 0;
+  left: 0;
   transform-origin: 50% 100%;
   transform: rotateX(-90deg);
-  /* 側面はカード柄を貼らず無地のライトグレーにする（薄い帯に絵柄を貼ると引き伸ばされて
-     見苦しいため）。filterはpreserve-3dを無効化してしまう（駒の壁面で判明済みの教訓）ため、
-     暗くする表現はbox-shadowで代用する。inset 0 0 0 999pxで箱全体を覆う半透明の黒を敷くのと
-     同じ効果。 */
-  background-color: #cbd5e1;
   box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.4);
-  backface-visibility: hidden;
+}
+
+.stack-back {
+  top: 0;
+  left: 0;
+  transform-origin: 50% 100%;
+  transform: translateY(-100%) rotateX(90deg) rotateZ(180deg) scaleX(-1);
+  box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.6);
+}
+
+.stack-left {
+  top: 0;
+  left: 0;
+  transform-origin: 0% 0%;
+  transform: rotateZ(90deg) rotateX(-90deg) scaleX(-1) translateX(-100%) translateY(-100%);
+  box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.5);
+}
+
+.stack-right {
+  top: 0;
+  right: 0;
+  left: auto;
+  transform-origin: 100% 0%;
+  transform: rotateZ(-90deg) rotateX(-90deg) translateY(-100%);
+  box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.2);
 }
 
 .label {
@@ -657,14 +743,14 @@ body {
    （回転を先に書くとtranslateがまだ回転していない軸基準になり、直感的な調整幅と一致するため、
    translateの方を後ろに書いて先に適用させている）。 */
 :root {
-  --label-a-pos-x: 0rem;
-  --label-a-pos-y: 0rem;
-  --label-b-pos-x: 0rem;
-  --label-b-pos-y: 0rem;
-  --label-c-pos-x: 0rem;
-  --label-c-pos-y: 0rem;
-  --label-d-pos-x: 0rem;
-  --label-d-pos-y: 0rem;
+  --label-a-pos-x: -14.7rem;
+  --label-a-pos-y: -1.1rem;
+  --label-b-pos-x: -14.7rem;
+  --label-b-pos-y: -1.5rem;
+  --label-c-pos-x: 14.2rem;
+  --label-c-pos-y: -1.5rem;
+  --label-d-pos-x: -16.4rem;
+  --label-d-pos-y: -1.5rem;
 }
 
 .zone-bottom .label {

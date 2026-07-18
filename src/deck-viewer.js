@@ -3,7 +3,7 @@
 // タイトル・画像・枚数を一覧表示し、各カードに「補足」ボタンを付けてルール補足テキストを
 // 開閉できるようにする。管理者モードと同様、ゲーム本編のUIではなく開発用ツール。
 
-import { NORMAL_CARDS, ETERNAL_CARDS, getCardImagePath } from "./cards-data.js";
+import { NORMAL_CARDS, ETERNAL_CARDS, FIRST_CARDS, getCardImagePath } from "./cards-data.js";
 
 function buildCardRow(def) {
   const row = document.createElement("div");
@@ -99,6 +99,7 @@ function buildPanel() {
 
   panel.appendChild(buildSection("通常カード", NORMAL_CARDS));
   panel.appendChild(buildSection("エターナルカード", ETERNAL_CARDS));
+  panel.appendChild(buildSection("ファーストカード", FIRST_CARDS));
 
   return { panel, closeBtn };
 }

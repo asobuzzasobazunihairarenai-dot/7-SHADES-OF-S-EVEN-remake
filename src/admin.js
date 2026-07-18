@@ -96,6 +96,14 @@ const GROUPS = [
       { key: "--eternal-pos-y", label: "位置Y（中心からのずれ）", unit: "rem", min: -25, max: 25, step: 0.1, default: 0 },
     ],
   },
+  {
+    title: "ファーストカード",
+    controls: [
+      { key: "--first-scale", label: "拡大率", unit: "", min: 0.3, max: 3, step: 0.01, default: 1 },
+      { key: "--first-pos-x", label: "位置X（中心からのずれ）", unit: "rem", min: -25, max: 25, step: 0.1, default: 0 },
+      { key: "--first-pos-y", label: "位置Y（中心からのずれ）", unit: "rem", min: -25, max: 25, step: 0.1, default: 0 },
+    ],
+  },
 ];
 
 const CONTROLS = GROUPS.flatMap((g) => g.controls);
