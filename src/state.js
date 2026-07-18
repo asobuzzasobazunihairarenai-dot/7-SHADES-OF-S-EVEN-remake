@@ -7,6 +7,7 @@
 // 非同期化する際は同じactionをサーバーに送って同期する流れにそのまま乗せる想定。
 
 import { NORMAL_CARDS, ETERNAL_CARDS, FIRST_CARDS } from "./cards-data.js";
+import { COLORS, GATE_POSITIONS } from "./board-layout.js";
 
 let nextId = 1;
 const uid = (prefix) => `${prefix}-${nextId++}`;
@@ -141,6 +142,84 @@ function reduce(current, action) {
       );
       return { ...current, tokens };
     }
+    // セットアップウィザード（game-setup.js）の「１：ファーストカードを配り、駒を配置する」
+    // の起点として、盤面を完全に空の状態に戻す。ルールブック通り「初期手札なし」の状態から
+    // 組み立て直すため、現在ある駒・カード（手札含む）を全て消し、山札・エターナル・
+    // ファーストの3つの山を新しくシャッフルし直す（捨て場は空にする）。
+    case "RESET_GAME": {
+      return {
+        tokens: [],
+        piles: {
+          deck: shuffled(expandDeck(NORMAL_CARDS)),
+          eternal: shuffled(expandDeck(ETERNAL_CARDS)),
+          first: shuffled(expandDeck(FIRST_CARDS)),
+          discard: [],
+        },
+      };
+    }
+    // セットアップウィザードの手順1: 参加している座席（action.players、時計回り順）に
+    // ファーストカードの山から1枚ずつ配り、そのカードと同色のロックエリアへ表向きでロックする
+    // （物理ルール「ロックした状態でゲーム開始」）。同時に、そのカードと同色の駒を
+    // そのプレイヤーのゲートに置く（「ファーストカードと同色の駒が自分の駒となる」）。
+    case "SETUP_ASSIGN_FIRST_CARDS": {
+      const firstPile = [...current.piles.first];
+      const newTokens = [];
+      for (const { player, side } of action.players) {
+        if (firstPile.length === 0) break;
+        const cardId = firstPile.pop();
+        const def = FIRST_CARDS.find((c) => c.id === cardId);
+        const colorIndex = COLORS.indexOf(def.color);
+        newTokens.push({
+          id: uid("card"),
+          kind: "card",
+          cardId,
+          faceUp: true,
+          location: { zone: "lock", side, index: colorIndex },
+        });
+        newTokens.push({
+          id: uid("piece"),
+          kind: "piece",
+          color: def.color,
+          location: { zone: "cell", ...GATE_POSITIONS[side] },
+        });
+      }
+      return {
+        ...current,
+        tokens: [...current.tokens, ...newTokens],
+        piles: { ...current.piles, first: firstPile },
+      };
+    }
+    // セットアップウィザードの手順2: 山札（無色/白黒カードはaction.includeBlackWhiteに応じて
+    // 含めるかどうか選べる）をシャッフルし、場の7×7＝49マスに1枚ずつ裏向きで配置する。
+    // 再実行しても安全なように、まず場のカード（駒は除く）だけを一旦取り除いてから配り直す。
+    case "SETUP_FILL_BOARD": {
+      const tokensWithoutBoardCards = current.tokens.filter(
+        (t) => !(t.kind === "card" && t.location.zone === "cell")
+      );
+      let pool = expandDeck(NORMAL_CARDS);
+      if (!action.includeBlackWhite) {
+        pool = pool.filter((cardId) => {
+          const def = NORMAL_CARDS.find((c) => c.id === cardId);
+          return def.color !== "white" && def.color !== "black";
+        });
+      }
+      const shuffledPool = shuffled(pool);
+      const boardCardIds = shuffledPool.slice(0, 49);
+      const remainingDeck = shuffledPool.slice(49);
+      const newTokens = [];
+      let i = 0;
+      for (let row = 0; row < 7; row++) {
+        for (let col = 0; col < 7; col++) {
+          newTokens.push({ id: uid("card"), kind: "card", cardId: boardCardIds[i], faceUp: false, location: { zone: "cell", row, col } });
+          i++;
+        }
+      }
+      return {
+        ...current,
+        tokens: [...tokensWithoutBoardCards, ...newTokens],
+        piles: { ...current.piles, deck: remainingDeck },
+      };
+    }
     default:
       return current;
   }
@@ -165,4 +244,17 @@ export function drawFromPile(pile, location) {
 
 export function flipToken(tokenId) {
   dispatch({ type: "FLIP_TOKEN", tokenId });
+}
+
+export function resetGame() {
+  dispatch({ type: "RESET_GAME" });
+}
+
+// players: [{ player: "A", side: "bottom" }, ...]（座席の時計回り順、game-setup.jsが組み立てる）
+export function setupAssignFirstCards(players) {
+  dispatch({ type: "SETUP_ASSIGN_FIRST_CARDS", players });
+}
+
+export function setupFillBoard(includeBlackWhite) {
+  dispatch({ type: "SETUP_FILL_BOARD", includeBlackWhite });
 }

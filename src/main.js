@@ -3,17 +3,10 @@
 
 import { initAdminMode } from "./admin.js";
 import { initDeckViewer } from "./deck-viewer.js";
+import { initGameSetup } from "./game-setup.js";
 import { getState, moveToken, sendTokenToPile, drawFromPile, flipToken } from "./state.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
-
-const COLORS = ["red", "orange", "yellow", "green", "blue", "pink", "purple"];
-
-const GATE_POSITIONS = {
-  top: { row: 0, col: 3 },
-  bottom: { row: 6, col: 3 },
-  left: { row: 3, col: 0 },
-  right: { row: 3, col: 6 },
-};
+import { COLORS, GATE_POSITIONS } from "./board-layout.js";
 
 function buildLockArea(side) {
   const el = document.createElement("div");
@@ -907,3 +900,4 @@ initHoverHandlers();
 initContextMenuHandlers();
 initAdminMode();
 initDeckViewer();
+initGameSetup();

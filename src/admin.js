@@ -114,6 +114,15 @@ const GROUPS = [
 
 const CONTROLS = GROUPS.flatMap((g) => g.controls);
 
+// セットアップウィザード（game-setup.js）の「０：プレイ人数選択」で、2人/3人プレイ時の
+// 座席をどう決めるか。CSS変数のスライダー群とは性質が異なる（見た目の微調整ではなく
+// 挙動の切り替え）ため、GROUPS/CONTROLSとは別に単純なbool値として持つ。
+let manualSeatMode = false;
+
+export function isManualSeatMode() {
+  return manualSeatMode;
+}
+
 function currentValue(key, fallback) {
   const inline = document.documentElement.style.getPropertyValue(key).trim();
   if (inline) return parseFloat(inline);
@@ -142,6 +151,26 @@ function buildPanel() {
   title.textContent = "管理者モード：位置合わせ";
   title.style.cssText = "font-weight: bold; margin-bottom: 0.5rem;";
   panel.appendChild(title);
+
+  const setupTitle = document.createElement("div");
+  setupTitle.textContent = "セットアップウィザード";
+  setupTitle.style.cssText = "font-weight: bold; margin-top: 0.7rem; margin-bottom: 0.3rem; color: #7dd3fc; border-top: 1px solid rgba(148,163,184,0.25); padding-top: 0.5rem;";
+  panel.appendChild(setupTitle);
+
+  const seatModeRow = document.createElement("label");
+  seatModeRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.5rem; cursor: pointer;";
+  const seatModeCheckbox = document.createElement("input");
+  seatModeCheckbox.type = "checkbox";
+  seatModeCheckbox.checked = manualSeatMode;
+  seatModeCheckbox.addEventListener("change", () => {
+    manualSeatMode = seatModeCheckbox.checked;
+    window.dispatchEvent(new CustomEvent("admin:change"));
+  });
+  const seatModeLabel = document.createElement("span");
+  seatModeLabel.textContent = "2人/3人プレイの座席を自由に選べるようにする（オフ=人数から自動選択）";
+  seatModeRow.appendChild(seatModeCheckbox);
+  seatModeRow.appendChild(seatModeLabel);
+  panel.appendChild(seatModeRow);
 
   for (const group of GROUPS) {
     const groupTitle = document.createElement("div");
