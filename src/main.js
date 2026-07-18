@@ -343,10 +343,11 @@ function startTokenDrag(e, tokenId, kind, sourceEl) {
   // 手札に残ったまま見えたりしないようにするため）。dropの成否にかかわらず必ずrender()で
   // DOMが作り直されるので、明示的に元に戻す処理は不要。
   sourceEl.style.visibility = "hidden";
-  dragSession = { tokenId, kind, ghost, pileSource: null };
+  dragSession = { tokenId, kind, ghost, pileSource: null, highlightEl: null };
   document.body.style.userSelect = "none";
   window.addEventListener("pointermove", onDragMove);
   window.addEventListener("pointerup", onDragEnd);
+  updateDropHighlight(e.clientX, e.clientY);
 }
 
 function startPileDrag(e, pileKey) {
@@ -355,15 +356,28 @@ function startPileDrag(e, pileKey) {
   ghost.className = "hand-card is-facedown drag-ghost";
   document.body.appendChild(ghost);
   positionGhost(ghost, e.clientX, e.clientY);
-  dragSession = { tokenId: null, kind: "card", ghost, pileSource: pileKey };
+  dragSession = { tokenId: null, kind: "card", ghost, pileSource: pileKey, highlightEl: null };
   document.body.style.userSelect = "none";
   window.addEventListener("pointermove", onDragMove);
   window.addEventListener("pointerup", onDragEnd);
+  updateDropHighlight(e.clientX, e.clientY);
 }
 
 function onDragMove(e) {
   if (!dragSession) return;
   positionGhost(dragSession.ghost, e.clientX, e.clientY);
+  updateDropHighlight(e.clientX, e.clientY);
+}
+
+// ドラッグ中、今離すとどこに置かれるかを光らせて示す。findDropTarget()が返す実際の
+// 対象要素(el)に.drop-target-activeクラスを付け外しするだけなので、レイアウトには影響しない。
+function updateDropHighlight(clientX, clientY) {
+  const result = findDropTarget(clientX, clientY, dragSession.kind);
+  const nextEl = result ? result.el : null;
+  if (dragSession.highlightEl === nextEl) return;
+  if (dragSession.highlightEl) dragSession.highlightEl.classList.remove("drop-target-active");
+  if (nextEl) nextEl.classList.add("drop-target-active");
+  dragSession.highlightEl = nextEl;
 }
 
 function findDropTarget(clientX, clientY, kind) {
@@ -371,14 +385,19 @@ function findDropTarget(clientX, clientY, kind) {
   for (const el of elements) {
     // 盤面マス／ロックスロットは駒・カード共通の移動先（ルール適用なしの自由配置のため）。
     const cell = el.closest(".cell");
-    if (cell) return { zone: "cell", row: Number(cell.dataset.row), col: Number(cell.dataset.col) };
+    if (cell) return { location: { zone: "cell", row: Number(cell.dataset.row), col: Number(cell.dataset.col) }, el: cell };
     const lockSlot = el.closest(".lock-slot");
-    if (lockSlot) return { zone: "lock", side: lockSlot.dataset.side, index: Number(lockSlot.dataset.index) };
+    if (lockSlot) {
+      return {
+        location: { zone: "lock", side: lockSlot.dataset.side, index: Number(lockSlot.dataset.index) },
+        el: lockSlot,
+      };
+    }
     if (kind === "card") {
       const handArea = el.closest(".hand-area");
-      if (handArea) return { zone: "hand", player: handArea.dataset.player };
+      if (handArea) return { location: { zone: "hand", player: handArea.dataset.player }, el: handArea };
       const pileZone = el.closest(".pile-zone");
-      if (pileZone) return { zone: "pile", pile: pileZone.dataset.pile };
+      if (pileZone) return { location: { zone: "pile", pile: pileZone.dataset.pile }, el: pileZone };
     }
   }
   return null;
@@ -386,13 +405,15 @@ function findDropTarget(clientX, clientY, kind) {
 
 function onDragEnd(e) {
   if (!dragSession) return;
-  const { tokenId, kind, ghost, pileSource } = dragSession;
+  const { tokenId, kind, ghost, pileSource, highlightEl } = dragSession;
   ghost.remove();
+  if (highlightEl) highlightEl.classList.remove("drop-target-active");
   window.removeEventListener("pointermove", onDragMove);
   window.removeEventListener("pointerup", onDragEnd);
   document.body.style.userSelect = "";
 
-  const dropTarget = findDropTarget(e.clientX, e.clientY, kind);
+  const dropResult = findDropTarget(e.clientX, e.clientY, kind);
+  const dropTarget = dropResult ? dropResult.location : null;
   dragSession = null;
 
   if (pileSource) {

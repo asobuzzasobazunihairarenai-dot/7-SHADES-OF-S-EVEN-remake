@@ -109,11 +109,11 @@ body {
 :root {
   --hand-a-pos-x: 0rem;
   --hand-a-pos-y: -1.5rem;
-  --hand-b-pos-x: -0.3rem;
+  --hand-b-pos-x: -1.5rem;
   --hand-b-pos-y: 0rem;
   --hand-c-pos-x: 0rem;
-  --hand-c-pos-y: -2.9rem;
-  --hand-d-pos-x: 0.3rem;
+  --hand-c-pos-y: -5rem;
+  --hand-d-pos-x: 1.5rem;
   --hand-d-pos-y: 0rem;
 }
 
@@ -188,6 +188,15 @@ body {
 .board-card.is-facedown {
   background: repeating-linear-gradient(45deg, #1e293b, #1e293b 5px, #2a3b52 5px, #2a3b52 10px);
   border-color: rgba(148, 163, 184, 0.45);
+}
+
+/* ドラッグ中、今離すとどこに置かれるかを示すハイライト。findDropTarget()が返す実際の対象
+   要素(.cell/.lock-slot/.hand-area/.pile-zone)にmain.js側でこのクラスを付け外しするだけで、
+   レイアウトには一切影響しない。ゲームの色(--color-*)と紛れないよう、黄金色で統一する。 */
+.drop-target-active {
+  outline: 3px solid rgba(250, 204, 21, 0.9);
+  outline-offset: 2px;
+  box-shadow: 0 0 0.9rem 0.2rem rgba(250, 204, 21, 0.65);
 }
 
 /* ドラッグ中はカーソルに1:1追従する「ゴースト」を3D空間の外(document.body直下)に表示する。
