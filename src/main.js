@@ -121,7 +121,13 @@ function buildCardStack(count, pileClass, pileLabel) {
 
   const top = document.createElement("div");
   top.className = `stack-top ${pileClass}`;
-  top.textContent = pileLabel;
+  const nameEl = document.createElement("div");
+  nameEl.textContent = pileLabel;
+  const countEl = document.createElement("div");
+  countEl.className = "stack-count";
+  countEl.textContent = `${count}枚`;
+  top.appendChild(nameEl);
+  top.appendChild(countEl);
   stack.appendChild(top);
 
   const front = document.createElement("div");
@@ -131,17 +137,11 @@ function buildCardStack(count, pileClass, pileLabel) {
   return stack;
 }
 
-function buildPileZone(gridArea, label, pileClass, pileLabel, count) {
+// 枚数はゾーン外の別ラベルではなく、山自体（stack-top）の表示に含める。
+function buildPileZone(gridArea, pileClass, pileLabel, count) {
   const zone = document.createElement("div");
   zone.className = `zone zone-${gridArea} pile-zone`;
-
-  const labelEl = document.createElement("div");
-  labelEl.className = "label";
-  labelEl.textContent = `${label}（${count}枚）`;
-  zone.appendChild(labelEl);
-
   zone.appendChild(buildCardStack(count, pileClass, pileLabel));
-
   return zone;
 }
 
@@ -191,9 +191,9 @@ function render() {
   table.appendChild(buildPlayerZone("left", "プレイヤーB", 2, false));
   table.appendChild(buildPlayerZone("top", "プレイヤーC", 3, false));
   table.appendChild(buildPlayerZone("right", "プレイヤーD", 5, false));
-  table.appendChild(buildPileZone("deck", "山札", "pile-deck", "山札", 112 - 49)); // 通常カード112枚 - 盤面49枚
-  table.appendChild(buildPileZone("eternal", "エターナル", "pile-eternal", "永久", 7));
-  table.appendChild(buildPileZone("discard", "捨て場", "pile-discard", "捨て場", 0));
+  table.appendChild(buildPileZone("deck", "pile-deck", "山札", 112 - 49)); // 通常カード112枚 - 盤面49枚
+  table.appendChild(buildPileZone("eternal", "pile-eternal", "永久", 7));
+  table.appendChild(buildPileZone("discard", "pile-discard", "捨て場", 0));
   placeDummyPieces(table);
   fitTableToViewport();
 }

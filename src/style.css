@@ -78,6 +78,8 @@ body {
   padding: 0.5rem;
   font-size: 0.7rem;
   min-height: 0;
+  overflow: visible; /* 親の.zoneはoverflow:hiddenだが、手札位置調整(--hand-*-pos-y)でゾーンの外に
+                         はみ出すと見えない境界線で上端が切れてしまうため、pile-zoneと同様に上書きする */
 }
 
 .player-zone .hand-area {
@@ -106,12 +108,12 @@ body {
    カメラ目線に傾けた後の画面座標系でシフトするようにしている。 */
 :root {
   --hand-a-pos-x: 0rem;
-  --hand-a-pos-y: -4.3rem;
-  --hand-b-pos-x: 2.3rem;
+  --hand-a-pos-y: -1.5rem;
+  --hand-b-pos-x: -0.3rem;
   --hand-b-pos-y: 0rem;
   --hand-c-pos-x: 0rem;
-  --hand-c-pos-y: -1rem;
-  --hand-d-pos-x: -2.3rem;
+  --hand-c-pos-y: -2.9rem;
+  --hand-d-pos-x: 0.3rem;
   --hand-d-pos-y: 0rem;
 }
 
@@ -186,12 +188,12 @@ body {
      連動して動かない（以前は帯の「太さ」をCSS Gridのトラックサイズとして扱っていたため、
      1辺だけ太さを変えると盤面全体・他の全要素が連動して動いてしまうバグがあった）。 */
   --lock-top-pos-x: 0rem;
-  --lock-top-pos-y: 0rem;
+  --lock-top-pos-y: -1.8rem;
   --lock-bottom-pos-x: 0rem;
-  --lock-bottom-pos-y: 0rem;
-  --lock-left-pos-x: 0rem;
+  --lock-bottom-pos-y: 1.8rem;
+  --lock-left-pos-x: -1.9rem;
   --lock-left-pos-y: 0rem;
-  --lock-right-pos-x: 0rem;
+  --lock-right-pos-x: 1.8rem;
   --lock-right-pos-y: 0rem;
 }
 
@@ -407,14 +409,14 @@ body {
    管理者モード（src/admin.js）から調整できる。 */
 :root {
   --deck-scale: 1;
-  --deck-pos-x: 7.4rem;
-  --deck-pos-y: 3.9rem;
+  --deck-pos-x: 4.1rem;
+  --deck-pos-y: 0.7rem;
   --eternal-scale: 1;
-  --eternal-pos-x: 7.4rem;
-  --eternal-pos-y: -7.6rem;
+  --eternal-pos-x: 4.1rem;
+  --eternal-pos-y: -4.4rem;
   --discard-scale: 1;
-  --discard-pos-x: -7.4rem;
-  --discard-pos-y: -7.6rem;
+  --discard-pos-x: -4.1rem;
+  --discard-pos-y: -4.4rem;
 }
 
 .zone-deck .stack {
@@ -451,10 +453,18 @@ body {
   border-radius: 0.25rem;
   border: 1px solid rgba(226, 232, 240, 0.35);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  line-height: 1.2;
+  text-align: center;
   transform: translateZ(var(--stack-height));
   backface-visibility: hidden;
+}
+
+.stack-top .stack-count {
+  font-size: 0.85em;
+  opacity: 0.8;
 }
 
 .stack-front {
@@ -470,6 +480,8 @@ body {
 }
 
 .label {
+  position: relative;
+  z-index: 5; /* 手札を大きくずらすと.hand-fanが上に重なって名前が隠れることがあるため、常に手前に出す */
   opacity: 0.7;
   letter-spacing: 0.05em;
 }
