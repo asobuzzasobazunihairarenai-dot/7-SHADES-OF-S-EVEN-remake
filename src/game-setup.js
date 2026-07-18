@@ -1,13 +1,16 @@
 // 「セットアップウィザード」: 物理版の説明書(docs/rulebook.md「Game Preparation」)にある
 // ゲーム準備の手順を、ボタン操作でその通りに再現するツール。
-// ０: プレイ人数選択・白黒（無色）カードを山札に含めるか確認
+// パネルを開くと、まず「プレイ人数選択・白黒（無色）カードを山札に含めるか」の設定フォームが
+// 展開された状態で表示され、「決定」するまでは１〜３のステップに進めない
+// （設定を済ませないと１〜３が実行できないように、あえてボタンを表示しない設計）。
+// 決定すると、フォームの代わりに以下のステップボタンが現れる。
 // １: ファーストカードを配り、駒を配置する（このステップの最初に盤面を完全リセットする）
 // ２: 山札をシャッフルして盤面49マスに裏向きで配置する
-// ３: スタートプレイヤーを無作為に決める
+// ３: スタートプレイヤーを無作為に決める（以降のターン管理の起点にもなる）
 // のいずれかを個別に、または「１〜３を一気に行う」でまとめて実行できる。
 // 配布アニメーションは今回のスコープ外（機能を固めた後の別作業とする）。
 
-import { resetGame, setupAssignFirstCards, setupFillBoard } from "./state.js";
+import { resetGame, setupAssignFirstCards, setupFillBoard, setTurnPlayer } from "./state.js";
 import { isManualSeatMode } from "./admin.js";
 import { SEAT_TO_SIDE, SEAT_ORDER, SEAT_LABELS } from "./board-layout.js";
 
@@ -19,8 +22,9 @@ const AUTO_SEATS_BY_COUNT = {
   4: ["A", "B", "C", "D"],
 };
 
-// ステップ0で決めた内容（次にステップ1/2/3を実行する時に使う）。未設定ならnull。
+// ステップ0で決めた内容。未設定（＝フォームをまだ「決定」していない）ならnull。
 let config = null;
+let bodyEl = null; // パネル内の可変領域（設定フォーム⇄ステップボタンをここで差し替える）
 
 function notifyChange() {
   window.dispatchEvent(new CustomEvent("admin:change"));
@@ -30,8 +34,8 @@ function activePlayersOrdered() {
   return SEAT_ORDER.filter((p) => config.activePlayers.includes(p));
 }
 
-// main.jsのrender()と同じ「シンプルなbackdrop+モーダル」パターン
-// （外側クリック・✕ボタンの両方で閉じられるようにする）。
+// main.jsの各種モーダルと同じ「シンプルなbackdrop+モーダル」パターン
+// （外側クリック・✕ボタンの両方で閉じられるようにする）。スタートプレイヤー発表にのみ使う。
 function buildSimpleModal({ widthRem = 24 } = {}) {
   const backdrop = document.createElement("div");
   backdrop.style.cssText = "position: fixed; inset: 0; z-index: 10001;";
@@ -59,22 +63,37 @@ function buildSimpleModal({ widthRem = 24 } = {}) {
   return { backdrop, modal, close };
 }
 
-function openConfigDialog() {
-  const { modal, close } = buildSimpleModal({ widthRem: 26 });
+function showStartPlayerModal(player) {
+  const { modal } = buildSimpleModal({ widthRem: 20 });
+  const title = document.createElement("div");
+  title.style.cssText = "font-weight: bold; margin-bottom: 0.6rem; font-size: 0.95rem;";
+  title.textContent = "３：スタートプレイヤー決定";
+  const body = document.createElement("div");
+  body.style.cssText = "font-size: 0.9rem; line-height: 1.6;";
+  body.textContent = `${SEAT_LABELS[player]} からスタートです！（以降、時計回りにターンを進めてください）`;
+  modal.appendChild(title);
+  modal.appendChild(body);
+}
+
+// パネル内に「０：プレイ人数選択、白黒カード確認」のフォームを直接展開する
+// （以前は別ウィンドウのダイアログだったが、決定するまで１〜３に進めないことを
+// 分かりやすくするため、パネルの一部として常に見える形にした）。
+function buildConfigForm() {
+  const wrapper = document.createElement("div");
 
   const title = document.createElement("div");
   title.textContent = "０：プレイ人数選択、白黒カード確認";
-  title.style.cssText = "font-weight: bold; margin-bottom: 0.8rem; font-size: 0.95rem;";
-  modal.appendChild(title);
+  title.style.cssText = "font-weight: bold; margin-bottom: 0.6rem;";
+  wrapper.appendChild(title);
 
   const manualMode = isManualSeatMode();
   let getActivePlayers; // 決定ボタン押下時に呼び、有効な座席の配列を返す関数
 
   if (manualMode) {
     const note = document.createElement("div");
-    note.style.cssText = "font-size: 0.75rem; opacity: 0.8; margin-bottom: 0.4rem;";
+    note.style.cssText = "font-size: 0.72rem; opacity: 0.8; margin-bottom: 0.4rem;";
     note.textContent = "使う座席を選んでください（2〜4人）。";
-    modal.appendChild(note);
+    wrapper.appendChild(note);
 
     const checkboxes = {};
     for (const p of SEAT_ORDER) {
@@ -88,14 +107,14 @@ function openConfigDialog() {
       span.textContent = SEAT_LABELS[p];
       row.appendChild(cb);
       row.appendChild(span);
-      modal.appendChild(row);
+      wrapper.appendChild(row);
     }
     getActivePlayers = () => SEAT_ORDER.filter((p) => checkboxes[p].checked);
   } else {
     const note = document.createElement("div");
     note.style.cssText = "font-size: 0.8rem; margin-bottom: 0.4rem;";
     note.textContent = "プレイ人数：";
-    modal.appendChild(note);
+    wrapper.appendChild(note);
 
     const radioRow = document.createElement("div");
     radioRow.style.cssText = "display: flex; gap: 0.8rem; margin-bottom: 0.6rem;";
@@ -116,7 +135,7 @@ function openConfigDialog() {
       row.appendChild(span);
       radioRow.appendChild(row);
     }
-    modal.appendChild(radioRow);
+    wrapper.appendChild(radioRow);
     getActivePlayers = () => {
       const count = [2, 3, 4].find((c) => radios[c].checked) ?? 4;
       return AUTO_SEATS_BY_COUNT[count];
@@ -125,10 +144,10 @@ function openConfigDialog() {
 
   const errorEl = document.createElement("div");
   errorEl.style.cssText = "color: #f87171; font-size: 0.75rem; margin-bottom: 0.4rem; display: none;";
-  modal.appendChild(errorEl);
+  wrapper.appendChild(errorEl);
 
   const bwRow = document.createElement("label");
-  bwRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; margin: 0.6rem 0; cursor: pointer;";
+  bwRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; margin: 0.5rem 0; cursor: pointer;";
   const bwCheckbox = document.createElement("input");
   bwCheckbox.type = "checkbox";
   bwCheckbox.checked = config ? config.includeBlackWhite : false;
@@ -136,16 +155,16 @@ function openConfigDialog() {
   bwSpan.textContent = "白黒（無色）カードを山札に含める";
   bwRow.appendChild(bwCheckbox);
   bwRow.appendChild(bwSpan);
-  modal.appendChild(bwRow);
+  wrapper.appendChild(bwRow);
 
   const bwNote = document.createElement("div");
-  bwNote.style.cssText = "font-size: 0.7rem; opacity: 0.7; margin-bottom: 0.8rem;";
+  bwNote.style.cssText = "font-size: 0.68rem; opacity: 0.7; margin-bottom: 0.7rem;";
   bwNote.textContent = "説明書では、初めてプレイする時は白黒（無色）カードを外すことを勧めています（デフォルトでは含めません）。";
-  modal.appendChild(bwNote);
+  wrapper.appendChild(bwNote);
 
   const confirmBtn = document.createElement("button");
   confirmBtn.textContent = "決定";
-  confirmBtn.style.cssText = "padding: 0.4rem 1rem; background: #0891b2; color: #fff; border: none; border-radius: 0.25rem; cursor: pointer;";
+  confirmBtn.style.cssText = "width: 100%; padding: 0.4rem; background: #0891b2; color: #fff; border: none; border-radius: 0.25rem; cursor: pointer;";
   confirmBtn.addEventListener("click", () => {
     const activePlayers = getActivePlayers();
     if (activePlayers.length < 2) {
@@ -154,36 +173,57 @@ function openConfigDialog() {
       return;
     }
     config = { activePlayers, includeBlackWhite: bwCheckbox.checked };
-    updateStatusLine();
-    close();
+    renderPanelBody();
   });
-  modal.appendChild(confirmBtn);
+  wrapper.appendChild(confirmBtn);
+
+  return wrapper;
 }
 
-function showStartPlayerModal(player) {
-  const { modal } = buildSimpleModal({ widthRem: 20 });
-  const title = document.createElement("div");
-  title.style.cssText = "font-weight: bold; margin-bottom: 0.6rem; font-size: 0.95rem;";
-  title.textContent = "３：スタートプレイヤー決定";
-  const body = document.createElement("div");
-  body.style.cssText = "font-size: 0.9rem; line-height: 1.6;";
-  body.textContent = `${SEAT_LABELS[player]} からスタートです！（以降、時計回りにターンを進めてください）`;
-  modal.appendChild(title);
-  modal.appendChild(body);
-}
+// 決定済みの設定に基づき、１〜３のステップボタンを表示する
+// （設定変更リンクからいつでも０のフォームに戻れる）。
+function buildStepButtons() {
+  const wrapper = document.createElement("div");
 
-// ステップ1/2/3のいずれかを押した時、まだステップ0が未実施ならまず設定ダイアログを開いて
-// そこで止める（実行はせず、ユーザーに再度ボタンを押してもらう）。
-function ensureConfig() {
-  if (!config) {
-    openConfigDialog();
-    return false;
+  const statusLine = document.createElement("div");
+  const seatsText = activePlayersOrdered().join("・");
+  const bwText = config.includeBlackWhite ? "含める" : "含めない";
+  statusLine.textContent = `設定: ${config.activePlayers.length}人（${seatsText}）／白黒カード: ${bwText}`;
+  statusLine.style.cssText = "font-size: 0.72rem; opacity: 0.8; margin-bottom: 0.3rem;";
+  wrapper.appendChild(statusLine);
+
+  const changeLink = document.createElement("button");
+  changeLink.textContent = "⚙ 設定を変更（０に戻る）";
+  changeLink.style.cssText = "display: block; width: 100%; margin-bottom: 0.6rem; padding: 0.3rem; background: transparent; color: #7dd3fc; border: 1px solid rgba(125,211,252,0.4); border-radius: 0.25rem; cursor: pointer; font-size: 0.72rem;";
+  changeLink.addEventListener("click", () => {
+    renderPanelBody(true);
+  });
+  wrapper.appendChild(changeLink);
+
+  const steps = [
+    ["１：ファーストカードを配り、駒を配置する", runStep1],
+    ["２：盤面にカードを配置する", runStep2],
+    ["３：スタートプレイヤーを決める", runStep3],
+    ["１〜３を一気に行う", runAll],
+  ];
+  for (const [label, handler] of steps) {
+    const btn = document.createElement("button");
+    btn.textContent = label;
+    btn.style.cssText = "display: block; width: 100%; margin-bottom: 0.4rem; padding: 0.4rem; background: #334155; color: #fff; border: none; border-radius: 0.25rem; cursor: pointer; text-align: left;";
+    btn.addEventListener("click", handler);
+    wrapper.appendChild(btn);
   }
-  return true;
+
+  return wrapper;
+}
+
+function renderPanelBody(forceForm = false) {
+  if (!bodyEl) return;
+  bodyEl.innerHTML = "";
+  bodyEl.appendChild(!config || forceForm ? buildConfigForm() : buildStepButtons());
 }
 
 function runStep1() {
-  if (!ensureConfig()) return;
   resetGame();
   const players = activePlayersOrdered().map((player) => ({ player, side: SEAT_TO_SIDE[player] }));
   setupAssignFirstCards(players);
@@ -191,36 +231,22 @@ function runStep1() {
 }
 
 function runStep2() {
-  if (!ensureConfig()) return;
   setupFillBoard(config.includeBlackWhite);
   notifyChange();
 }
 
 function runStep3() {
-  if (!ensureConfig()) return;
   const players = activePlayersOrdered();
   const startPlayer = players[Math.floor(Math.random() * players.length)];
+  setTurnPlayer(startPlayer);
+  notifyChange();
   showStartPlayerModal(startPlayer);
 }
 
 function runAll() {
-  if (!ensureConfig()) return;
   runStep1();
   runStep2();
   runStep3();
-}
-
-let statusLineEl = null;
-
-function updateStatusLine() {
-  if (!statusLineEl) return;
-  if (!config) {
-    statusLineEl.textContent = "設定: 未設定（まず「０」を実行してください）";
-    return;
-  }
-  const seatsText = activePlayersOrdered().join("・");
-  const bwText = config.includeBlackWhite ? "含める" : "含めない";
-  statusLineEl.textContent = `設定: ${config.activePlayers.length}人（${seatsText}）／白黒カード: ${bwText}`;
 }
 
 function buildPanel() {
@@ -236,28 +262,12 @@ function buildPanel() {
 
   const title = document.createElement("div");
   title.textContent = "セットアップウィザード";
-  title.style.cssText = "font-weight: bold; margin-bottom: 0.4rem;";
+  title.style.cssText = "font-weight: bold; margin-bottom: 0.5rem;";
   panel.appendChild(title);
 
-  statusLineEl = document.createElement("div");
-  statusLineEl.style.cssText = "font-size: 0.72rem; opacity: 0.8; margin-bottom: 0.6rem;";
-  panel.appendChild(statusLineEl);
-  updateStatusLine();
-
-  const steps = [
-    ["０：プレイ人数選択、白黒カード確認", openConfigDialog],
-    ["１：ファーストカードを配り、駒を配置する", runStep1],
-    ["２：盤面にカードを配置する", runStep2],
-    ["３：スタートプレイヤーを決める", runStep3],
-    ["１〜３を一気に行う", runAll],
-  ];
-  for (const [label, handler] of steps) {
-    const btn = document.createElement("button");
-    btn.textContent = label;
-    btn.style.cssText = "display: block; width: 100%; margin-bottom: 0.4rem; padding: 0.4rem; background: #334155; color: #fff; border: none; border-radius: 0.25rem; cursor: pointer; text-align: left;";
-    btn.addEventListener("click", handler);
-    panel.appendChild(btn);
-  }
+  bodyEl = document.createElement("div");
+  panel.appendChild(bodyEl);
+  renderPanelBody();
 
   const closeBtn = document.createElement("button");
   closeBtn.textContent = "閉じる";

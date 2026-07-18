@@ -4,13 +4,15 @@
 import { initAdminMode } from "./admin.js";
 import { initDeckViewer } from "./deck-viewer.js";
 import { initGameSetup } from "./game-setup.js";
-import { getState, moveToken, sendTokenToPile, drawFromPile, flipToken } from "./state.js";
+import { getState, moveToken, sendTokenToPile, drawFromPile, flipToken, nextTurn } from "./state.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
-import { COLORS, GATE_POSITIONS } from "./board-layout.js";
+import { COLORS, GATE_POSITIONS, SEAT_TO_SIDE, SEAT_LABELS } from "./board-layout.js";
 
 function buildLockArea(side) {
   const el = document.createElement("div");
-  el.className = `lock-area lock-${side}`;
+  const turnPlayer = getState().turnPlayer;
+  const isTurnSide = turnPlayer && SEAT_TO_SIDE[turnPlayer] === side;
+  el.className = `lock-area lock-${side}${isTurnSide ? " is-turn-player" : ""}`;
   COLORS.forEach((color, index) => {
     const slot = document.createElement("div");
     slot.className = "lock-slot";
@@ -88,7 +90,7 @@ function buildPlayerZone(side, label, player, isSelf) {
   const zone = document.createElement("div");
   zone.className = `zone zone-${side} player-zone`;
   const nameEl = document.createElement("div");
-  nameEl.className = "label";
+  nameEl.className = `label${player === getState().turnPlayer ? " is-turn-player" : ""}`;
   nameEl.textContent = label;
 
   const orientation = side === "left" || side === "right" ? "vertical" : "horizontal";
@@ -317,6 +319,7 @@ function render() {
   table.appendChild(buildPileZone("discard"));
   renderBoardTokens(table);
   fitTableToViewport();
+  updateEndTurnButton();
 }
 
 // 画面サイズが変わっても手札などが見切れないよう、テーブル全体をビューポートに収まる
@@ -889,11 +892,40 @@ function onDragEnd(e) {
   render();
 }
 
+// --- ターンを次のプレイヤーへ渡すボタン ---------------------------------------------
+// セットアップウィザードの手順3でスタートプレイヤーが決まって初めて意味を持つ操作なので、
+// state.turnPlayerがまだnullの間は非表示にする。プレイヤー自身が操作するボタンなので、
+// 管理者モード等の開発者向けツール（左上/右上）とは離し、画面右下に置く。
+let endTurnButtonEl = null;
+
+function buildEndTurnButton() {
+  const btn = document.createElement("button");
+  btn.id = "end-turn-button";
+  btn.addEventListener("click", () => {
+    nextTurn();
+    render();
+  });
+  document.body.appendChild(btn);
+  return btn;
+}
+
+function updateEndTurnButton() {
+  if (!endTurnButtonEl) return;
+  const turnPlayer = getState().turnPlayer;
+  if (!turnPlayer) {
+    endTurnButtonEl.style.display = "none";
+    return;
+  }
+  endTurnButtonEl.style.display = "block";
+  endTurnButtonEl.textContent = `${SEAT_LABELS[turnPlayer]}のターンを終了 →`;
+}
+
 // 管理者モードのスライダーには、CSS変数を変えるだけでは反映されない値（--hand-*-sizeなど、
 // JS側でgetComputedStyleして読み取り、inline styleとして適用しているもの）があるため、
 // 変更のたびに再描画してもらう。
 window.addEventListener("admin:change", render);
 
+endTurnButtonEl = buildEndTurnButton();
 render();
 initDragHandlers();
 initHoverHandlers();

@@ -638,6 +638,17 @@ body {
   gap: 0.2rem;
   align-items: center;
   justify-content: center;
+  border-radius: 0.4rem;
+}
+
+/* 現在のターンプレイヤーのロックエリア全体を、ゆっくり柔らかく明滅させて目立たせる
+   （box-shadowは.lock-area自体に背景が無くても外側に描画されるため、これだけで光って見える）。 */
+@keyframes lock-area-turn-glow {
+  0%, 100% { box-shadow: 0 0 0.6rem 0.1rem rgba(255, 224, 130, 0.25); }
+  50% { box-shadow: 0 0 2.2rem 0.7rem rgba(255, 224, 130, 0.75); }
+}
+.lock-area.is-turn-player {
+  animation: lock-area-turn-glow 2.6s ease-in-out infinite;
 }
 
 .lock-top, .lock-bottom {
@@ -942,6 +953,19 @@ body {
   white-space: nowrap;
 }
 
+/* 現在のターンプレイヤーの名前ラベルを点滅させて目立たせる（.lock-areaの明滅と対になる演出）。
+   opacityはアニメーション中はkeyframesの値が.labelの静的なopacity:0.7を上書きするため、
+   ここで改めて基準値を書く必要はない。 */
+@keyframes label-turn-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.label.is-turn-player {
+  animation: label-turn-blink 1.1s ease-in-out infinite;
+  font-weight: bold;
+  color: #fde68a;
+}
+
 /* プレイヤー名ラベルの位置（管理者モードで調整可能）。B/Dは盤面の左右の辺と平行になるよう
    90度回転させた上で、その回転済みの向きのままtranslateで位置調整できるようにしている
    （回転を先に書くとtranslateがまだ回転していない軸基準になり、直感的な調整幅と一致するため、
@@ -968,4 +992,29 @@ body {
 }
 .zone-right .label {
   transform: rotate(-90deg) translate(var(--label-d-pos-x), var(--label-d-pos-y));
+}
+
+/* 「ターンを次のプレイヤーへ渡す」ボタン。プレイヤー自身が操作するゲームプレイ上のボタン
+   なので、開発者向けツール（管理者モード＝左上、山札一覧/セットアップ＝右上）とは離し、
+   画面右下に配置する。state.turnPlayerがnullの間（セットアップ手順3が未実行）は
+   非表示にする（updateEndTurnButton()参照）。 */
+#end-turn-button {
+  position: fixed;
+  bottom: 1.2rem;
+  right: 1.2rem;
+  z-index: 1000;
+  padding: 0.7rem 1.2rem;
+  background: linear-gradient(160deg, #f59e0b, #ea580c);
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-family: sans-serif;
+  font-size: 0.9rem;
+  font-weight: bold;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  display: none;
+}
+#end-turn-button:hover {
+  background: linear-gradient(160deg, #fbbf24, #f97316);
 }

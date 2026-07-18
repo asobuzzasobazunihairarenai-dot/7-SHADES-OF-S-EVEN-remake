@@ -7,7 +7,7 @@
 // 非同期化する際は同じactionをサーバーに送って同期する流れにそのまま乗せる想定。
 
 import { NORMAL_CARDS, ETERNAL_CARDS, FIRST_CARDS } from "./cards-data.js";
-import { COLORS, GATE_POSITIONS } from "./board-layout.js";
+import { COLORS, GATE_POSITIONS, SEAT_ORDER } from "./board-layout.js";
 
 let nextId = 1;
 const uid = (prefix) => `${prefix}-${nextId++}`;
@@ -72,6 +72,10 @@ function createInitialState() {
   return {
     tokens,
     piles: { deck, eternal, first, discard: [] },
+    // ターン管理: セットアップウィザードの手順1（参加座席確定）・手順3（スタートプレイヤー決定）
+    // でそれぞれ設定されるまでは空/nullのまま（＝まだ「ターン」という概念が始まっていない）。
+    activePlayers: [],
+    turnPlayer: null,
   };
 }
 
@@ -155,12 +159,15 @@ function reduce(current, action) {
           first: shuffled(expandDeck(FIRST_CARDS)),
           discard: [],
         },
+        activePlayers: [],
+        turnPlayer: null,
       };
     }
     // セットアップウィザードの手順1: 参加している座席（action.players、時計回り順）に
     // ファーストカードの山から1枚ずつ配り、そのカードと同色のロックエリアへ表向きでロックする
     // （物理ルール「ロックした状態でゲーム開始」）。同時に、そのカードと同色の駒を
     // そのプレイヤーのゲートに置く（「ファーストカードと同色の駒が自分の駒となる」）。
+    // 参加座席の一覧もここでstate.activePlayersに記録し、以降のターン管理（NEXT_TURN）で使う。
     case "SETUP_ASSIGN_FIRST_CARDS": {
       const firstPile = [...current.piles.first];
       const newTokens = [];
@@ -187,7 +194,21 @@ function reduce(current, action) {
         ...current,
         tokens: [...current.tokens, ...newTokens],
         piles: { ...current.piles, first: firstPile },
+        activePlayers: action.players.map((p) => p.player),
       };
+    }
+    // セットアップウィザードの手順3: ターンプレイヤーを設定する（無作為に選ぶのはgame-setup.js側）。
+    case "SET_TURN_PLAYER": {
+      return { ...current, turnPlayer: action.player };
+    }
+    // 「ターンを次のプレイヤーへ渡す」ボタン。参加座席(activePlayers)を時計回り順に絞り込み、
+    // 現在のturnPlayerの次の座席へ進める（末尾の次は先頭に戻る）。
+    case "NEXT_TURN": {
+      if (!current.turnPlayer || current.activePlayers.length === 0) return current;
+      const order = SEAT_ORDER.filter((p) => current.activePlayers.includes(p));
+      const idx = order.indexOf(current.turnPlayer);
+      const next = order[(idx + 1) % order.length];
+      return { ...current, turnPlayer: next };
     }
     // セットアップウィザードの手順2: 山札（無色/白黒カードはaction.includeBlackWhiteに応じて
     // 含めるかどうか選べる）をシャッフルし、場の7×7＝49マスに1枚ずつ裏向きで配置する。
@@ -257,4 +278,12 @@ export function setupAssignFirstCards(players) {
 
 export function setupFillBoard(includeBlackWhite) {
   dispatch({ type: "SETUP_FILL_BOARD", includeBlackWhite });
+}
+
+export function setTurnPlayer(player) {
+  dispatch({ type: "SET_TURN_PLAYER", player });
+}
+
+export function nextTurn() {
+  dispatch({ type: "NEXT_TURN" });
 }
