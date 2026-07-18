@@ -49,28 +49,30 @@ function buildArena() {
   return arena;
 }
 
-// 手札を並べる。中央のカードほど高く、外側ほど回転がつく（トランプを持っている感じ）。
-// orientation: "horizontal"（上下のプレイヤー）は左右に扇状、"vertical"（左右のプレイヤー）は
-// カードは回転させず上下に積む（回転させると扇ごと横倒しになってしまうため）。
+// 手札を扇状に並べる。中央のカードを基準に、外側ほど回転がつき、盤面から遠ざかる向きに
+// 少し逃げる弧を描く（トランプを持っている感じ）。上下(horizontal)は左右に、
+// 左右(vertical)は上下に扇が開く。個々のカードを少しずつ回転させるだけなので、
+// 扇コンテナ全体を90度回転させていた以前の方式（カード自体が横倒しになるバグがあった）とは違う。
 // isSelf: 自分の手札は大きく扇状に開く。他プレイヤーの手札は裏向き・密集させて控えめに見せる。
-function layoutFan(count, orientation, isSelf) {
-  if (orientation === "vertical") {
-    const spacing = isSelf ? 1.4 : 0.9; // rem
-    return Array.from({ length: count }, (_, i) => {
-      const centerOffset = i - (count - 1) / 2;
-      return { angle: 0, spreadX: 0, spreadY: centerOffset * spacing };
-    });
-  }
+const ARC_SIGN = { top: -1, bottom: 1, left: -1, right: 1 }; // 盤面から遠ざかる方向
+
+function layoutFan(count, orientation, isSelf, side) {
   const maxSpread = isSelf ? Math.min(50, count * 11) : Math.min(24, count * 6); // 度
   const step = count > 1 ? maxSpread / (count - 1) : 0;
   const start = -maxSpread / 2;
-  const spacing = isSelf ? 3.0 : 0.9; // rem。カード同士の水平間隔（相手は重なりを強くする）
+  // すべてpx単位（1rem=16px換算）。カード同士の間隔
+  const spacing = isSelf ? 48 : orientation === "vertical" ? 17.6 : 14.4;
+  const arcStrength = isSelf ? 8 : 4; // px。外側のカードが盤面から逃げる強さ
+  const arcSign = ARC_SIGN[side];
+
   return Array.from({ length: count }, (_, i) => {
     const angle = count > 1 ? start + step * i : 0;
     const centerOffset = i - (count - 1) / 2;
-    const lift = isSelf ? -Math.abs(centerOffset) * 8 : 0; // 中央が高く、外側が下がる弧（相手は平ら）
-    const spreadX = centerOffset * spacing;
-    return { angle, spreadX, spreadY: lift / 16, liftPx: lift };
+    const arc = Math.abs(centerOffset) * arcStrength * arcSign; // 中央が基準、外側ほど盤面から離れる
+    if (orientation === "vertical") {
+      return { angle, spreadX: arc, spreadY: centerOffset * spacing };
+    }
+    return { angle, spreadX: centerOffset * spacing, spreadY: arc };
   });
 }
 
@@ -88,14 +90,10 @@ function buildPlayerZone(side, label, handCount, isSelf) {
   const fanEl = document.createElement("div");
   fanEl.className = `hand-fan ${isSelf ? "is-self" : "is-opponent"}`;
 
-  for (const card of layoutFan(handCount, orientation, isSelf)) {
+  for (const card of layoutFan(handCount, orientation, isSelf, side)) {
     const cardEl = document.createElement("div");
     cardEl.className = `hand-card ${isSelf ? "is-self" : "is-facedown"}`;
-    const liftPx = card.liftPx ?? 0;
-    cardEl.style.transform =
-      orientation === "vertical"
-        ? `translateY(${card.spreadY}rem)`
-        : `translateX(${card.spreadX}rem) translateY(${liftPx}px) rotate(${card.angle}deg)`;
+    cardEl.style.transform = `translateX(${card.spreadX}px) translateY(${card.spreadY}px) rotate(${card.angle}deg)`;
     fanEl.appendChild(cardEl);
   }
   handEl.appendChild(fanEl);

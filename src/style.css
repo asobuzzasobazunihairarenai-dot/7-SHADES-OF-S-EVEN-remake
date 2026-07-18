@@ -203,7 +203,7 @@ body {
    壁が全て高さゼロに潰れるバグが発生した。影は`filter`ではなく`box-shadow`で代用する。 */
 :root {
   --piece-size: 2.4rem;
-  --piece-height: 1.3rem;
+  --piece-height: 2rem;
 }
 
 .piece {
@@ -215,6 +215,7 @@ body {
   margin-top: calc(var(--piece-size) / -2);
   margin-left: calc(var(--piece-size) / -2);
   transform-style: preserve-3d;
+  backface-visibility: hidden;
   box-shadow: 0 0.3rem 0.4rem rgba(0, 0, 0, 0.5);
 }
 
@@ -225,6 +226,7 @@ body {
   width: 100%;
   height: 100%;
   border-radius: 0.2rem;
+  backface-visibility: hidden;
 }
 
 /* 床（上面）: 駒の高さ分持ち上げる */
@@ -234,7 +236,7 @@ body {
 
 /* 奥の壁（カメラから見て奥・最も見えにくい面） */
 .piece-wall-back {
-  height: var(--piece-height);
+  height: calc(var(--piece-height) + 0.15rem); /* 上面との継ぎ目の隙間を隠すため少し重ねる */
   transform-origin: 50% 100%;
   transform: translateY(-100%) rotateX(90deg) rotateZ(180deg) scaleX(-1);
   filter: brightness(0.35);
@@ -243,14 +245,14 @@ body {
 /* 手前の壁（カメラに正対する面。最も明るい） */
 .piece-wall-front {
   bottom: 0;
-  height: var(--piece-height);
+  height: calc(var(--piece-height) + 0.15rem); /* 上面との継ぎ目の隙間を隠すため少し重ねる */
   transform-origin: 50% 100%;
   transform: rotateX(-90deg);
 }
 
 /* 左の壁 */
 .piece-wall-left {
-  height: var(--piece-height);
+  height: calc(var(--piece-height) + 0.15rem); /* 上面との継ぎ目の隙間を隠すため少し重ねる */
   transform-origin: 0% 0%;
   transform: rotateZ(90deg) rotateX(-90deg) scaleX(-1) translateX(-100%) translateY(-100%);
   filter: brightness(0.55);
@@ -260,7 +262,7 @@ body {
 .piece-wall-right {
   top: 0;
   right: 0;
-  height: var(--piece-height);
+  height: calc(var(--piece-height) + 0.15rem); /* 上面との継ぎ目の隙間を隠すため少し重ねる */
   transform-origin: 100% 0%;
   transform: rotateZ(-90deg) rotateX(-90deg) translateY(-100%);
   filter: brightness(0.8);
