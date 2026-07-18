@@ -3,6 +3,7 @@
 
 import { initAdminMode } from "./admin.js";
 import { getState, moveToken, sendTokenToPile, drawFromPile } from "./state.js";
+import { getCardDefinition } from "./cards-data.js";
 
 const COLORS = ["red", "orange", "yellow", "green", "blue", "pink", "purple"];
 
@@ -123,7 +124,15 @@ function buildPlayerZone(side, label, player, isSelf) {
   const layout = layoutFan(handTokens.length, orientation, isSelf, side);
   handTokens.forEach((token, i) => {
     const cardEl = document.createElement("div");
-    cardEl.className = `hand-card ${isSelf ? "is-self" : "is-facedown"}`;
+    // 自分の手札は常に中身が見える（物理カードを自分で持っているのと同じ）。
+    // 他プレイヤーの手札は中身を明かさず、常に裏向きの見た目にする。
+    if (isSelf) {
+      const def = getCardDefinition(token.cardId);
+      cardEl.className = `hand-card is-self is-color-${def.color}`;
+      cardEl.textContent = def.name;
+    } else {
+      cardEl.className = "hand-card is-facedown";
+    }
     cardEl.dataset.tokenId = token.id;
     const card = layout[i];
     cardEl.style.transform = `translateX(${card.spreadX}px) translateY(${card.spreadY}px) rotate(${card.angle}deg)`;
@@ -138,14 +147,16 @@ function buildPlayerZone(side, label, player, isSelf) {
 
 // 枚数に応じて厚みのある山を作る（山札・エターナルカード用。将来は盤面マスのスタックにも流用する）。
 // 1枚あたり0.6px、最低0.15rem（0枚でも山があるように見える最低限の厚み）。
-function buildCardStack(count, pileClass, pileLabel) {
+// colorClassを渡すと、山の色番号(pileClass)ではなくその色で塗る（捨て場の一番上のカードを
+// 表向きで見せる時に使う。それ以外の山は裏向き積みなので常にpileClassのまま）。
+function buildCardStack(count, pileClass, pileLabel, colorClass) {
   const stack = document.createElement("div");
   stack.className = "stack";
   const heightPx = Math.max(2.4, count * 0.6);
   stack.style.setProperty("--stack-height", `${heightPx}px`);
 
   const top = document.createElement("div");
-  top.className = `stack-top ${pileClass}`;
+  top.className = `stack-top ${colorClass || pileClass}`;
   const nameEl = document.createElement("div");
   nameEl.textContent = pileLabel;
   const countEl = document.createElement("div");
@@ -156,7 +167,7 @@ function buildCardStack(count, pileClass, pileLabel) {
   stack.appendChild(top);
 
   const front = document.createElement("div");
-  front.className = `stack-front ${pileClass}`;
+  front.className = `stack-front ${colorClass || pileClass}`;
   stack.appendChild(front);
 
   return stack;
@@ -169,14 +180,24 @@ const PILE_CONFIG = {
 };
 
 // 枚数はゾーン外の別ラベルではなく、山自体（stack-top）の表示に含める。
+// 捨て場だけはルール上「表向きに積む」場所なので、空でなければ一番上のカードの
+// 名前・色をそのまま表示する（山札・エターナルは裏向き積みなので中身を明かさない）。
 function buildPileZone(pileKey) {
   const config = PILE_CONFIG[pileKey];
   const zone = document.createElement("div");
   zone.className = `zone zone-${config.gridArea} pile-zone`;
   zone.dataset.pile = pileKey;
 
-  const count = getState().piles[pileKey];
-  const stack = buildCardStack(count, config.pileClass, config.label);
+  const pileArray = getState().piles[pileKey];
+  const count = pileArray.length;
+  let label = config.label;
+  let colorClass;
+  if (pileKey === "discard" && count > 0) {
+    const topDef = getCardDefinition(pileArray[pileArray.length - 1]);
+    label = topDef.name;
+    colorClass = `is-color-${topDef.color}`;
+  }
+  const stack = buildCardStack(count, config.pileClass, label, colorClass);
   stack.dataset.pile = pileKey;
   zone.appendChild(stack);
   return zone;
@@ -217,9 +238,16 @@ function findLocationElement(table, location) {
 
 // 盤面マスの上に直接置かれたカードを表す簡易な見た目（手札の外に出たカードは扇の仕組みが
 // 使えないため、セル/ロックスロットにフィットするだけの平たいカードにする）。
+// 表向きなら実際のカード名・色を、裏向きなら裏面の見た目だけを表示する。
 function buildFlatCard(token) {
   const card = document.createElement("div");
-  card.className = `board-card ${token.faceUp ? "" : "is-facedown"}`.trim();
+  if (token.faceUp) {
+    const def = getCardDefinition(token.cardId);
+    card.className = `board-card is-color-${def.color}`;
+    card.textContent = def.name;
+  } else {
+    card.className = "board-card is-facedown";
+  }
   return card;
 }
 
@@ -365,7 +393,7 @@ function startTokenDrag(e, tokenId, kind, sourceEl) {
 }
 
 function startPileDrag(e, pileKey) {
-  if (getState().piles[pileKey] <= 0) return; // 空の山からは引けない
+  if (getState().piles[pileKey].length === 0) return; // 空の山からは引けない
   const ghost = document.createElement("div");
   ghost.className = "hand-card is-facedown drag-ghost";
   document.body.appendChild(ghost);

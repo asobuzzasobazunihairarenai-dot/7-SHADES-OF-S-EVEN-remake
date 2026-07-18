@@ -177,6 +177,7 @@ body {
   height: 5.8rem;
   margin-top: -2.9rem;
   margin-left: -2.9rem;
+  font-size: 0.62rem;
 }
 
 .hand-card.is-facedown {
@@ -184,6 +185,35 @@ body {
   border-color: rgba(148, 163, 184, 0.45);
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.5);
 }
+
+/* カード名の表示（表向きの.hand-card/.board-card、捨て場の一番上のカード）。
+   物理カードの絵柄の代わりに、名前テキストと色だけで見分けられるようにする。 */
+.hand-card,
+.board-card,
+.stack-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.2rem;
+  font-size: 0.5rem;
+  line-height: 1.15;
+  overflow: hidden;
+  color: #e2e8f0;
+}
+
+/* 実際のカードデータの色（docs/cards.mdの7色＋虹＋白＋黒）。--color-*(:root)を流用する。
+   表向きの.hand-card/.board-card、捨て場の一番上のカード(.stack-top/.stack-front)に使う。 */
+.is-color-red { background: linear-gradient(160deg, var(--color-red), #7a0016); border-color: var(--color-red); }
+.is-color-orange { background: linear-gradient(160deg, var(--color-orange), #9c4c0a); border-color: var(--color-orange); }
+.is-color-yellow { background: linear-gradient(160deg, var(--color-yellow), #a17b00); border-color: var(--color-yellow); color: #3a2c00; }
+.is-color-green { background: linear-gradient(160deg, var(--color-green), #15671f); border-color: var(--color-green); }
+.is-color-blue { background: linear-gradient(160deg, var(--color-blue), #0f7c8a); border-color: var(--color-blue); }
+.is-color-pink { background: linear-gradient(160deg, var(--color-pink), #c46e9b); border-color: var(--color-pink); color: #3a1428; }
+.is-color-purple { background: linear-gradient(160deg, var(--color-purple), #5c3968); border-color: var(--color-purple); }
+.is-color-white { background: linear-gradient(160deg, var(--color-white), #94a3b8); border-color: var(--color-white); color: #1e293b; }
+.is-color-black { background: linear-gradient(160deg, #334155, var(--color-black)); border-color: #475569; }
+.is-color-rainbow { background: var(--color-rainbow); border-color: rgba(255, 255, 255, 0.7); color: #1e293b; }
 
 /* --- ドラッグ操作 ---------------------------------------------------------
    駒・手札カード・山札等はマウス/タッチでドラッグして動かせる。touch-action:noneは
