@@ -492,13 +492,28 @@ body {
   line-height: 1.6;
   white-space: pre-wrap;
 }
-#card-note-modal button {
-  padding: 0.3rem 0.8rem;
-  background: #475569;
-  color: #fff;
+/* カード補足モーダル（右クリック・山札一覧の両方）共通の、右上に浮かせる丸型✕閉じるボタン。
+   下部に「閉じる」テキストボタンを置く形から変更（画像+テキスト横並びレイアウトと相性が良い）。
+   モーダル本体がposition:fixedのため、この絶対配置はモーダルを基準にできる。 */
+.modal-close-x {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
   border: none;
-  border-radius: 0.25rem;
+  color: #e2e8f0;
+  font-size: 1.1rem;
+  line-height: 1;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-close-x:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 /* ドラッグ中はカーソルに1:1追従する「ゴースト」を3D空間の外(document.body直下)に表示する。

@@ -179,7 +179,7 @@ function buildCardStack(count, pileClass, imagePath) {
 const PILE_CONFIG = {
   deck: { gridArea: "deck", pileClass: "pile-deck", label: "山札", backImage: "assets/cards/back-normal.png" },
   eternal: { gridArea: "eternal", pileClass: "pile-eternal", label: "エターナルカード", backImage: "assets/cards/back-eternal.png" },
-  first: { gridArea: "first", pileClass: "pile-first", label: "ファースト", backImage: "assets/cards/back-first.png" },
+  first: { gridArea: "first", pileClass: "pile-first", label: "ファーストカード", backImage: "assets/cards/back-first.png" },
   discard: { gridArea: "discard", pileClass: "pile-discard", label: "捨て場" },
 };
 
@@ -605,10 +605,12 @@ function showCardNoteModal(cardId) {
   content.appendChild(img);
   content.appendChild(textCol);
   const closeBtn = document.createElement("button");
-  closeBtn.textContent = "閉じる";
+  closeBtn.className = "modal-close-x";
+  closeBtn.textContent = "×";
+  closeBtn.setAttribute("aria-label", "閉じる");
   closeBtn.addEventListener("click", () => modal.remove());
-  modal.appendChild(content);
   modal.appendChild(closeBtn);
+  modal.appendChild(content);
   document.body.appendChild(modal);
 }
 

@@ -106,11 +106,12 @@ function buildCardModal() {
   content.appendChild(textCol);
 
   const closeBtn = document.createElement("button");
-  closeBtn.textContent = "閉じる";
-  closeBtn.style.cssText = "padding: 0.3rem 0.6rem; background: #475569; color: #fff; border: none; border-radius: 0.25rem; cursor: pointer;";
+  closeBtn.className = "modal-close-x";
+  closeBtn.textContent = "×";
+  closeBtn.setAttribute("aria-label", "閉じる");
 
-  modal.appendChild(content);
   modal.appendChild(closeBtn);
+  modal.appendChild(content);
 
   function close() {
     backdrop.style.display = "none";
