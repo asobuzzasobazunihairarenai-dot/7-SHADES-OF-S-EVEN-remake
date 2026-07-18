@@ -411,7 +411,12 @@ function findDropTarget(clientX, clientY, kind) {
       const handArea = el.closest(".hand-area");
       if (handArea) return { location: { zone: "hand", player: handArea.dataset.player }, el: handArea };
       const pileZone = el.closest(".pile-zone");
-      if (pileZone) return { location: { zone: "pile", pile: pileZone.dataset.pile }, el: pileZone };
+      if (pileZone) {
+        // ハイライトは.pile-zone（グリッド上の枠、実際の山より大きくズレて見える）ではなく、
+        // 実際に見えている山(.stack)自体に付ける。サイズ・位置とも見た目と一致する。
+        const stackEl = pileZone.querySelector(".stack") || pileZone;
+        return { location: { zone: "pile", pile: pileZone.dataset.pile }, el: stackEl };
+      }
     }
   }
   return null;
@@ -431,9 +436,10 @@ function onDragEnd(e) {
   dragSession = null;
 
   if (pileSource) {
-    // 山から直接引けるのは手札へ落とした時だけにする（盤面マスへ「山から直接置く」等は
-    // 意味が曖昧になるため対象外。それ以外の場所へ落とした場合は何も起きず山はそのまま）。
-    if (dropTarget && dropTarget.zone === "hand") drawFromPile(pileSource, dropTarget);
+    // 山からは手札だけでなく盤面マス・ロックスロットへも直接置ける（ルール適用なしの自由な
+    // 移動のため）。ただし山(pile)自体へは置けない——山は個々のカードを保持せず残り枚数
+    // だけを持つ構造なので、"zone: pile"を新しいカードの置き場所にはできない。
+    if (dropTarget && dropTarget.zone !== "pile") drawFromPile(pileSource, dropTarget);
     render(); // 引けた場合も引けなかった場合も、必ず再描画する（drawFromPile後にrenderし忘れると
     // 状態は更新済みなのに画面に反映されず、次に別の操作でrender()が走った時にまとめて
     // 反映されたように見えるバグになる。これが実際に起きていたので、必ずここで呼ぶ）。

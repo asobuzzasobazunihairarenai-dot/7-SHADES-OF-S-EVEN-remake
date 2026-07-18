@@ -123,17 +123,17 @@ body {
      使われており、以前はwidth:100%（盤面と同じ幅）で常に固定されていたため、実際に
      見えている手札の範囲よりずっと広い当たり判定になり、ロックエリアの帯と干渉していた。
      枚数に応じてJS側(main.js buildPlayerZone)で自動的に比例拡大/縮小する。 */
-  --hand-a-size: 16rem;
-  --hand-b-size: 10rem;
-  --hand-c-size: 10rem;
-  --hand-d-size: 10rem;
+  --hand-a-size: 13rem;
+  --hand-b-size: 6rem;
+  --hand-c-size: 6rem;
+  --hand-d-size: 6rem;
   /* 手札エリアの「扇が伸びない方向」の厚み（固定値。枚数では変わらない）。デフォルトの
      5.2rem/9rem/100%幅では、この厚みの分だけ当たり判定がロックエリア側にはみ出して
      干渉することが分かったため、カード1枚分程度に絞れるよう調整可能にした。 */
   --hand-a-thickness: 7rem;
-  --hand-b-thickness: 2.5rem;
-  --hand-c-thickness: 5.2rem;
-  --hand-d-thickness: 1.8rem;
+  --hand-b-thickness: 4rem;
+  --hand-c-thickness: 12rem;
+  --hand-d-thickness: 4rem;
 }
 
 .zone-bottom .hand-area {

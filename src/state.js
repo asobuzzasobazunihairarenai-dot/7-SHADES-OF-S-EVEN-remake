@@ -66,7 +66,9 @@ function reduce(current, action) {
     case "DRAW_FROM_PILE": {
       if (current.piles[action.pile] <= 0) return current;
       const piles = { ...current.piles, [action.pile]: current.piles[action.pile] - 1 };
-      const faceUp = action.location.zone === "hand" && action.location.player === "A";
+      // 手札に引く場合は自分(A)だけ表向き（他人の手札は裏向き）。盤面マス・ロックスロットへ
+      // 直接置く場合は「場に出したカード」として表向きにする。
+      const faceUp = action.location.zone !== "hand" || action.location.player === "A";
       const newToken = { id: uid("card"), kind: "card", faceUp, location: action.location };
       return { ...current, piles, tokens: [...current.tokens, newToken] };
     }
