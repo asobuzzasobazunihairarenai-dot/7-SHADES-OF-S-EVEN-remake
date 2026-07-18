@@ -106,12 +106,12 @@ body {
    カメラ目線に傾けた後の画面座標系でシフトするようにしている。 */
 :root {
   --hand-a-pos-x: 0rem;
-  --hand-a-pos-y: 0rem;
-  --hand-b-pos-x: 0rem;
+  --hand-a-pos-y: -4.3rem;
+  --hand-b-pos-x: 2.3rem;
   --hand-b-pos-y: 0rem;
   --hand-c-pos-x: 0rem;
-  --hand-c-pos-y: 0rem;
-  --hand-d-pos-x: 0rem;
+  --hand-c-pos-y: -1rem;
+  --hand-d-pos-x: -2.3rem;
   --hand-d-pos-y: 0rem;
 }
 
@@ -170,26 +170,35 @@ body {
    - background-sizeではなくtransform: scale()で拡大する（はみ出しても切れない。
      transform-originを中心にしているので盤面中央が拡大縮小の起点になる） */
 :root {
-  /* 4辺を独立させている。3D遠近感（カメラから遠い辺ほど圧縮されて薄く見える）を辺ごとに
-     補正できるようにするため。 */
-  --lock-thickness-top: 3.2rem;
-  --lock-thickness-bottom: 3.2rem;
-  --lock-thickness-left: 3.2rem;
-  --lock-thickness-right: 3.2rem;
-  --arena-gap: 0rem; /* ロックエリアと盤面の間の隙間（前は密着していた） */
   /* プレイマット画像の位置合わせ用パラメータ。管理者モード（src/admin.js）から調整できる。
      scaleは盤面サイズ(.board)を100%とした拡大率、pos-x/pos-yは中心からのずれ（%）。 */
   --playmat-scale: 1.42;
   --playmat-pos-x: 0%;
   --playmat-pos-y: 0%;
+  /* .boardの実サイズ（枠のpadding込み）。ロック帯・プレイマット双方の位置計算の基準として共通化した。 */
+  --board-size: calc(7 * var(--cell) + 6 * 0.2rem + 2 * 0.3rem);
+  /* ロック帯の「長さ」方向のサイズ＝マス7個分（盤面自体の枠paddingは含まない、マスの並びと同じ長さ）。 */
+  --lock-band-length: calc(7 * var(--cell) + 6 * 0.2rem);
+  /* ロックエリアは盤面のマスと同じ大きさ（--cell四方）の帯として、盤面の外側にデフォルトで
+     隙間なく密着配置する。太さ調整は行わず、盤面中心からの距離（位置）だけを辺ごとに独立して
+     ずらせるようにする。position:absolute + transformによる見た目上の移動のみなので、
+     グリッドのトラックサイズには一切影響せず、他の要素（手札・山札・他の辺のロック帯など）は
+     連動して動かない（以前は帯の「太さ」をCSS Gridのトラックサイズとして扱っていたため、
+     1辺だけ太さを変えると盤面全体・他の全要素が連動して動いてしまうバグがあった）。 */
+  --lock-top-pos-x: 0rem;
+  --lock-top-pos-y: 0rem;
+  --lock-bottom-pos-x: 0rem;
+  --lock-bottom-pos-y: 0rem;
+  --lock-left-pos-x: 0rem;
+  --lock-left-pos-y: 0rem;
+  --lock-right-pos-x: 0rem;
+  --lock-right-pos-y: 0rem;
 }
 
 .arena {
   grid-column: 2;
   grid-row: 2;
   display: grid;
-  grid-template-columns: var(--lock-thickness-left) var(--arena-gap) auto var(--arena-gap) var(--lock-thickness-right);
-  grid-template-rows: var(--lock-thickness-top) var(--arena-gap) auto var(--arena-gap) var(--lock-thickness-bottom);
   width: max-content;
   transform-style: preserve-3d;
   padding: 1rem;
@@ -202,10 +211,10 @@ body {
   z-index: 1;
   top: 50%;
   left: 50%;
-  width: calc(7 * var(--cell) + 6 * 0.2rem + 2 * 0.3rem); /* .boardの実サイズと同じ計算式 */
-  height: calc(7 * var(--cell) + 6 * 0.2rem + 2 * 0.3rem);
-  margin-top: calc(-1 * (7 * var(--cell) + 6 * 0.2rem + 2 * 0.3rem) / 2);
-  margin-left: calc(-1 * (7 * var(--cell) + 6 * 0.2rem + 2 * 0.3rem) / 2);
+  width: var(--board-size);
+  height: var(--board-size);
+  margin-top: calc(-1 * var(--board-size) / 2);
+  margin-left: calc(-1 * var(--board-size) / 2);
   background-image: url("../assets/playmat.png");
   background-repeat: no-repeat;
   background-size: 100% 100%;
@@ -221,8 +230,11 @@ body {
      一貫した値を必ず割り振る」のが安全、という教訓。 */
 }
 
+/* ロックエリアは.arenaの中心（＝盤面の中心。.arenaのpaddingは全辺均等なので中心は一致する）
+   を基準に、盤面の実サイズ(--board-size)の半分だけ外側へmarginでずらして「盤面の外側に密着」
+   をデフォルト位置にする。そこからのユーザー調整分はtransformで加える（レイアウトに影響しない）。 */
 .lock-area {
-  position: relative;
+  position: absolute;
   z-index: 3;
   display: flex;
   gap: 0.2rem;
@@ -230,22 +242,45 @@ body {
   justify-content: center;
 }
 
-.lock-top, .lock-bottom { grid-column: 3; flex-direction: row; }
-.lock-top { grid-row: 1; }
-.lock-bottom { grid-row: 5; }
-.lock-left, .lock-right { flex-direction: column; }
-.lock-left { grid-column: 1; grid-row: 3; }
-.lock-right { grid-column: 5; grid-row: 3; }
+.lock-top, .lock-bottom {
+  left: 50%;
+  width: var(--lock-band-length);
+  height: var(--cell);
+  margin-left: calc(-1 * var(--lock-band-length) / 2);
+  flex-direction: row;
+}
+.lock-top {
+  top: 50%;
+  margin-top: calc(-1 * var(--board-size) / 2 - var(--cell));
+  transform: translate(var(--lock-top-pos-x), var(--lock-top-pos-y));
+}
+.lock-bottom {
+  top: 50%;
+  margin-top: calc(var(--board-size) / 2);
+  transform: translate(var(--lock-bottom-pos-x), var(--lock-bottom-pos-y));
+}
 
-/* 「太さ」は盤面から外向きの奥行き方向のみに効かせる（=上下の帯は高さ、左右の帯は幅）。
-   スロットを正方形のまま太さと連動させると、帯の長さ方向（7色分の並び）まで伸びてしまい
-   横に伸びすぎて崩れるため、長さ方向は固定サイズにしている。 */
-.lock-top .lock-slot    { width: 2.2rem; height: var(--lock-thickness-top); }
-.lock-bottom .lock-slot { width: 2.2rem; height: var(--lock-thickness-bottom); }
-.lock-left .lock-slot   { width: var(--lock-thickness-left); height: 2.2rem; }
-.lock-right .lock-slot  { width: var(--lock-thickness-right); height: 2.2rem; }
+.lock-left, .lock-right {
+  top: 50%;
+  height: var(--lock-band-length);
+  width: var(--cell);
+  margin-top: calc(-1 * var(--lock-band-length) / 2);
+  flex-direction: column;
+}
+.lock-left {
+  left: 50%;
+  margin-left: calc(-1 * var(--board-size) / 2 - var(--cell));
+  transform: translate(var(--lock-left-pos-x), var(--lock-left-pos-y));
+}
+.lock-right {
+  left: 50%;
+  margin-left: calc(var(--board-size) / 2);
+  transform: translate(var(--lock-right-pos-x), var(--lock-right-pos-y));
+}
 
 .lock-slot {
+  width: var(--cell);
+  height: var(--cell);
   border-radius: 0.2rem;
   border: 3px solid rgba(226, 232, 240, 0.6);
   background: rgba(15, 23, 32, 0.55);
@@ -372,14 +407,14 @@ body {
    管理者モード（src/admin.js）から調整できる。 */
 :root {
   --deck-scale: 1;
-  --deck-pos-x: 0%;
-  --deck-pos-y: 0%;
+  --deck-pos-x: 7.4rem;
+  --deck-pos-y: 3.9rem;
   --eternal-scale: 1;
-  --eternal-pos-x: 0%;
-  --eternal-pos-y: 0%;
+  --eternal-pos-x: 7.4rem;
+  --eternal-pos-y: -7.6rem;
   --discard-scale: 1;
-  --discard-pos-x: 0%;
-  --discard-pos-y: 0%;
+  --discard-pos-x: -7.4rem;
+  --discard-pos-y: -7.6rem;
 }
 
 .zone-deck .stack {

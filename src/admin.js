@@ -15,13 +15,16 @@ const GROUPS = [
     ],
   },
   {
-    title: "ロックエリア",
+    title: "ロックエリア（盤面中心からの距離、デフォルトはマスに密着）",
     controls: [
-      { key: "--lock-thickness-top", label: "太さ（奥/C側）", unit: "rem", min: 0.3, max: 8, step: 0.05, default: 3.2 },
-      { key: "--lock-thickness-bottom", label: "太さ（手前/A側）", unit: "rem", min: 0.3, max: 8, step: 0.05, default: 3.2 },
-      { key: "--lock-thickness-left", label: "太さ（左/B側）", unit: "rem", min: 0.3, max: 8, step: 0.05, default: 3.2 },
-      { key: "--lock-thickness-right", label: "太さ（右/D側）", unit: "rem", min: 0.3, max: 8, step: 0.05, default: 3.2 },
-      { key: "--arena-gap", label: "盤面との間隔", unit: "rem", min: 0, max: 2, step: 0.05, default: 0 },
+      { key: "--lock-top-pos-x", label: "奥/C側 位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--lock-top-pos-y", label: "奥/C側 位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--lock-bottom-pos-x", label: "手前/A側 位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--lock-bottom-pos-y", label: "手前/A側 位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--lock-left-pos-x", label: "左/B側 位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--lock-left-pos-y", label: "左/B側 位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--lock-right-pos-x", label: "右/D側 位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--lock-right-pos-y", label: "右/D側 位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
     ],
   },
   {
