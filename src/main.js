@@ -2,6 +2,7 @@
 // ルール処理は行わない（ユドナリウムコネクトのような手動サンドボックス）。
 
 import { initAdminMode } from "./admin.js";
+import { initDeckViewer } from "./deck-viewer.js";
 import { getState, moveToken, sendTokenToPile, drawFromPile, flipToken } from "./state.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 
@@ -24,7 +25,8 @@ function buildLockArea(side) {
     slot.dataset.index = String(index);
     slot.style.borderColor = `var(--color-${color})`;
     slot.style.color = `var(--color-${color})`; // CSS側のbox-shadow: currentColorで使う
-    slot.style.background = `var(--color-${color})`; // 駒と同じく塗りつぶしにして視認性を上げる
+    // 以前は視認性確保のため塗りつぶしにしていたが、z-index修正で表示問題が解決したので、
+    // 枠線とうっすらしたグロー(box-shadow)だけの控えめな色分けに戻した。
     el.appendChild(slot);
   });
   return el;
@@ -508,3 +510,4 @@ render();
 initDragHandlers();
 initFlipHandlers();
 initAdminMode();
+initDeckViewer();
