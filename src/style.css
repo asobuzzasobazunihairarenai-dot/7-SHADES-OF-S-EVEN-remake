@@ -84,27 +84,41 @@ body {
   overflow: visible;
 }
 
-/* 手札全体を持ち上げて（テーブルの傾きを打ち消して）カメラ側を向かせる。
-   個々のカードの位置・扇状の角度はJS側でindexに応じて計算しinline transformで与える。 */
+/* 手札全体を持ち上げる。自分（is-self）はテーブルの傾きを打ち消してカメラ側を向かせ、
+   扇状に大きく開く。他プレイヤー（is-opponent）は逆に盤面側へ伏せて、密集させて持つ。
+   個々のカードの位置・角度はJS側でindexに応じて計算しinline transformで与える。 */
 .hand-fan {
   position: absolute;
   inset: 0;
-  transform: rotateX(-40deg) translateZ(2.4rem);
   transform-style: preserve-3d;
+}
+
+.hand-fan.is-self {
+  transform: rotateX(-40deg) translateZ(2.4rem);
+}
+
+.hand-fan.is-opponent {
+  transform: rotateX(18deg) translateZ(0.5rem);
 }
 
 .hand-card {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 2.8rem;
-  height: 3.9rem;
-  margin-top: -1.95rem;
-  margin-left: -1.4rem;
+  width: 3.2rem;
+  height: 3.2rem;
+  margin-top: -1.6rem;
+  margin-left: -1.6rem;
   border-radius: 0.3rem;
   background: linear-gradient(160deg, #334155, #1e293b);
   border: 1px solid rgba(226, 232, 240, 0.4);
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.55);
+}
+
+.hand-card.is-facedown {
+  background: repeating-linear-gradient(45deg, #1e293b, #1e293b 5px, #2a3b52 5px, #2a3b52 10px);
+  border-color: rgba(148, 163, 184, 0.45);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.5);
 }
 
 .arena {
@@ -166,11 +180,12 @@ body {
   border-color: rgba(250, 204, 21, 0.6);
 }
 
-/* 立方体の駒。3面（上・正面・側面）をpreserve-3dで組み立てる。
-   game-tableが42deg傾いているため、無回転のfaceが板面に平行な「上面」として一番大きく見え、
-   残り2面は板の傾きにより細いスリットとして側面が見える（サイコロを斜め上から見た見え方に近い）。 */
+/* 立方体の駒。真の3D(preserve-3d)だと盤面の傾きの角度によって側面がほぼ隠れてしまうため、
+   2Dのskewで組む「アイソメトリック風」の擬似立方体に変更。盤面の傾きを打ち消して常にカメラ目線
+   （ビルボード）で描画することで、盤面がどの角度でも同じ見え方になり安定する。 */
 :root {
-  --piece: 2.1rem;
+  --piece: 2.2rem;
+  --piece-depth: 0.9rem;
 }
 
 .piece {
@@ -179,33 +194,50 @@ body {
   left: 50%;
   width: var(--piece);
   height: var(--piece);
-  margin-top: calc(var(--piece) / -2);
+  margin-top: calc(-1 * var(--piece) / 2 - var(--piece-depth) / 2);
   margin-left: calc(var(--piece) / -2);
-  transform-style: preserve-3d;
-  transform: translateZ(calc(var(--piece) / 2));
-  filter: drop-shadow(0 0.3rem 0.35rem rgba(0, 0, 0, 0.6));
+  filter: drop-shadow(0 0.3rem 0.35rem rgba(0, 0, 0, 0.65));
 }
 
-.piece .face {
-  position: absolute;
-  width: var(--piece);
-  height: var(--piece);
-  border: 1px solid rgba(0, 0, 0, 0.35);
-}
-
+/* 正面 */
 .piece .face-front {
-  transform: translateZ(calc(var(--piece) / 2));
-  filter: brightness(1.25);
+  position: absolute;
+  top: var(--piece-depth);
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0.15rem;
+  filter: brightness(1.05);
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  z-index: 2;
 }
 
+/* 上面: skewXで平行四辺形にして奥行きを表現 */
 .piece .face-top {
-  transform: rotateX(90deg) translateZ(calc(var(--piece) / 2));
-  filter: brightness(0.55);
+  position: absolute;
+  top: 0;
+  left: calc(var(--piece-depth) * 0.6);
+  width: calc(100% - var(--piece-depth) * 0.6);
+  height: var(--piece-depth);
+  transform: skewX(-40deg);
+  transform-origin: bottom left;
+  filter: brightness(1.5);
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  z-index: 1;
 }
 
+/* 側面: skewYで平行四辺形にして奥行きを表現 */
 .piece .face-side {
-  transform: rotateY(90deg) translateZ(calc(var(--piece) / 2));
-  filter: brightness(0.4);
+  position: absolute;
+  top: var(--piece-depth);
+  right: calc(-1 * var(--piece-depth) * 0.6);
+  width: calc(var(--piece-depth) * 0.6);
+  height: 100%;
+  transform: skewY(-40deg);
+  transform-origin: top left;
+  filter: brightness(0.55);
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  z-index: 3;
 }
 
 .pile-zone {
@@ -218,8 +250,8 @@ body {
 }
 
 .pile {
-  width: 2.6rem;
-  height: 3.6rem;
+  width: 3.2rem;
+  height: 3.2rem;
   border-radius: 0.25rem;
   border: 1px solid rgba(226, 232, 240, 0.35);
   display: flex;

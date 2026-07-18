@@ -49,30 +49,32 @@ function buildArena() {
   return arena;
 }
 
-// 手札を扇状に並べる。中央のカードほど高く、外側ほど回転がつく（トランプを持っている感じ）。
+// 手札を並べる。中央のカードほど高く、外側ほど回転がつく（トランプを持っている感じ）。
 // orientation: "horizontal"（上下のプレイヤー）は左右に扇状、"vertical"（左右のプレイヤー）は
 // カードは回転させず上下に積む（回転させると扇ごと横倒しになってしまうため）。
-function layoutFan(count, orientation) {
+// isSelf: 自分の手札は大きく扇状に開く。他プレイヤーの手札は裏向き・密集させて控えめに見せる。
+function layoutFan(count, orientation, isSelf) {
   if (orientation === "vertical") {
-    const spacing = 1.4; // rem
+    const spacing = isSelf ? 1.4 : 0.9; // rem
     return Array.from({ length: count }, (_, i) => {
       const centerOffset = i - (count - 1) / 2;
       return { angle: 0, spreadX: 0, spreadY: centerOffset * spacing };
     });
   }
-  const maxSpread = Math.min(50, count * 11); // 度。枚数が多いほど広がるが上限あり
+  const maxSpread = isSelf ? Math.min(50, count * 11) : Math.min(24, count * 6); // 度
   const step = count > 1 ? maxSpread / (count - 1) : 0;
   const start = -maxSpread / 2;
+  const spacing = isSelf ? 1.6 : 0.9; // rem。カード同士の水平間隔（相手は重なりを強くする）
   return Array.from({ length: count }, (_, i) => {
     const angle = count > 1 ? start + step * i : 0;
     const centerOffset = i - (count - 1) / 2;
-    const lift = -Math.abs(centerOffset) * 6; // 中央が高く、外側が下がる弧
-    const spreadX = centerOffset * 1.6; // rem。カード同士の水平間隔
+    const lift = isSelf ? -Math.abs(centerOffset) * 6 : 0; // 中央が高く、外側が下がる弧（相手は平ら）
+    const spreadX = centerOffset * spacing;
     return { angle, spreadX, spreadY: lift / 16, liftPx: lift };
   });
 }
 
-function buildPlayerZone(side, label, handCount) {
+function buildPlayerZone(side, label, handCount, isSelf) {
   const zone = document.createElement("div");
   zone.className = `zone zone-${side} player-zone`;
   const nameEl = document.createElement("div");
@@ -84,11 +86,11 @@ function buildPlayerZone(side, label, handCount) {
   const handEl = document.createElement("div");
   handEl.className = "hand-area";
   const fanEl = document.createElement("div");
-  fanEl.className = "hand-fan";
+  fanEl.className = `hand-fan ${isSelf ? "is-self" : "is-opponent"}`;
 
-  for (const card of layoutFan(handCount, orientation)) {
+  for (const card of layoutFan(handCount, orientation, isSelf)) {
     const cardEl = document.createElement("div");
-    cardEl.className = "hand-card";
+    cardEl.className = `hand-card ${isSelf ? "" : "is-facedown"}`;
     const liftPx = card.liftPx ?? 0;
     cardEl.style.transform =
       orientation === "vertical"
@@ -125,7 +127,7 @@ function buildCubePiece(color) {
   piece.className = "piece";
   for (const faceClass of ["face-top", "face-front", "face-side"]) {
     const face = document.createElement("div");
-    face.className = `face ${faceClass}`;
+    face.className = faceClass;
     face.style.background = `var(--color-${color})`;
     piece.appendChild(face);
   }
@@ -133,7 +135,8 @@ function buildCubePiece(color) {
 }
 
 function placeDummyPieces(tableEl) {
-  const pieceColors = { top: "red", bottom: "pink", left: "purple", right: "blue" };
+  // 座席は手前(南)=A, 左(西)=B, 奥(北)=C, 右(東)=D。盤面を上から見て時計回り(A→B→C→D)。
+  const pieceColors = { bottom: "red", left: "orange", top: "yellow", right: "green" };
   for (const [side, pos] of Object.entries(GATE_POSITIONS)) {
     const cell = tableEl.querySelector(`.cell[data-row="${pos.row}"][data-col="${pos.col}"]`);
     if (!cell) continue;
@@ -144,10 +147,10 @@ function placeDummyPieces(tableEl) {
 function render() {
   const table = document.getElementById("game-table");
   table.innerHTML = "";
-  table.appendChild(buildPlayerZone("top", "プレイヤーA", 3));
-  table.appendChild(buildPlayerZone("bottom", "プレイヤーC", 4));
-  table.appendChild(buildPlayerZone("left", "プレイヤーD", 2));
-  table.appendChild(buildPlayerZone("right", "プレイヤーB", 5));
+  table.appendChild(buildPlayerZone("bottom", "プレイヤーA（自分）", 4, true));
+  table.appendChild(buildPlayerZone("left", "プレイヤーB", 2, false));
+  table.appendChild(buildPlayerZone("top", "プレイヤーC", 3, false));
+  table.appendChild(buildPlayerZone("right", "プレイヤーD", 5, false));
   table.appendChild(buildPileZone("deck", "山札", "pile-deck", "山札"));
   table.appendChild(buildPileZone("eternal", "エターナル", "pile-eternal", "永久"));
   table.appendChild(buildPileZone("discard", "捨て場", "pile-discard", "捨て場"));
