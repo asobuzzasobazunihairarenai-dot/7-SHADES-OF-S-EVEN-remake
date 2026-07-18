@@ -17,7 +17,7 @@ const GROUPS = [
   {
     title: "ロックエリア",
     controls: [
-      { key: "--lock-thickness", label: "帯の太さ", unit: "rem", min: 0.3, max: 3, step: 0.05, default: 2.2 },
+      { key: "--lock-thickness", label: "帯の太さ", unit: "rem", min: 0.3, max: 6, step: 0.05, default: 3.2 },
       { key: "--arena-gap", label: "盤面との間隔", unit: "rem", min: 0, max: 2, step: 0.05, default: 0 },
     ],
   },
@@ -25,24 +25,24 @@ const GROUPS = [
     title: "山札",
     controls: [
       { key: "--deck-scale", label: "拡大率", unit: "", min: 0.3, max: 3, step: 0.01, default: 1 },
-      { key: "--deck-pos-x", label: "位置X（中心からのずれ）", unit: "%", min: -100, max: 100, step: 1, default: 0 },
-      { key: "--deck-pos-y", label: "位置Y（中心からのずれ）", unit: "%", min: -100, max: 100, step: 1, default: 0 },
+      { key: "--deck-pos-x", label: "位置X（中心からのずれ）", unit: "rem", min: -25, max: 25, step: 0.1, default: 0 },
+      { key: "--deck-pos-y", label: "位置Y（中心からのずれ）", unit: "rem", min: -25, max: 25, step: 0.1, default: 0 },
     ],
   },
   {
     title: "捨て場",
     controls: [
       { key: "--discard-scale", label: "拡大率", unit: "", min: 0.3, max: 3, step: 0.01, default: 1 },
-      { key: "--discard-pos-x", label: "位置X（中心からのずれ）", unit: "%", min: -100, max: 100, step: 1, default: 0 },
-      { key: "--discard-pos-y", label: "位置Y（中心からのずれ）", unit: "%", min: -100, max: 100, step: 1, default: 0 },
+      { key: "--discard-pos-x", label: "位置X（中心からのずれ）", unit: "rem", min: -25, max: 25, step: 0.1, default: 0 },
+      { key: "--discard-pos-y", label: "位置Y（中心からのずれ）", unit: "rem", min: -25, max: 25, step: 0.1, default: 0 },
     ],
   },
   {
     title: "エターナルカード",
     controls: [
       { key: "--eternal-scale", label: "拡大率", unit: "", min: 0.3, max: 3, step: 0.01, default: 1 },
-      { key: "--eternal-pos-x", label: "位置X（中心からのずれ）", unit: "%", min: -100, max: 100, step: 1, default: 0 },
-      { key: "--eternal-pos-y", label: "位置Y（中心からのずれ）", unit: "%", min: -100, max: 100, step: 1, default: 0 },
+      { key: "--eternal-pos-x", label: "位置X（中心からのずれ）", unit: "rem", min: -25, max: 25, step: 0.1, default: 0 },
+      { key: "--eternal-pos-y", label: "位置Y（中心からのずれ）", unit: "rem", min: -25, max: 25, step: 0.1, default: 0 },
     ],
   },
 ];

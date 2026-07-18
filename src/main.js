@@ -18,6 +18,7 @@ function buildLockArea(side) {
     const slot = document.createElement("div");
     slot.className = "lock-slot";
     slot.style.borderColor = `var(--color-${color})`;
+    slot.style.color = `var(--color-${color})`; // CSS側のbox-shadow: currentColorで使う
     el.appendChild(slot);
   }
   return el;

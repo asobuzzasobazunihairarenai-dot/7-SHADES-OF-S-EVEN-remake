@@ -152,7 +152,7 @@ body {
    - background-sizeではなくtransform: scale()で拡大する（はみ出しても切れない。
      transform-originを中心にしているので盤面中央が拡大縮小の起点になる） */
 :root {
-  --lock-thickness: 2.2rem;
+  --lock-thickness: 3.2rem;
   --arena-gap: 0rem; /* ロックエリアと盤面の間の隙間（前は密着していた） */
   /* プレイマット画像の位置合わせ用パラメータ。管理者モード（src/admin.js）から調整できる。
      scaleは盤面サイズ(.board)を100%とした拡大率、pos-x/pos-yは中心からのずれ（%）。 */
@@ -211,8 +211,12 @@ body {
   width: var(--lock-thickness);
   height: var(--lock-thickness);
   border-radius: 0.2rem;
-  border: 2px solid rgba(226, 232, 240, 0.5);
-  background: rgba(15, 23, 32, 0.35);
+  border: 3px solid rgba(226, 232, 240, 0.6);
+  background: rgba(15, 23, 32, 0.55);
+  /* 3D遠近感で帯が薄く潰れて見えなくなる問題への対策として、色付きのグロー(box-shadow)を追加。
+     JS側でcolorプロパティにその色スロットの色を設定し、currentColorで参照する（buildLockArea参照）。
+     ぼかしが強すぎると隣接する色同士が混ざって見えるため、控えめな値にしている。 */
+  box-shadow: 0 0 0.15rem 0.05rem currentColor;
 }
 
 .board {
