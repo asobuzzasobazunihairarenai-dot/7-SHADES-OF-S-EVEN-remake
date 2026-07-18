@@ -50,6 +50,14 @@
   - GameState / Board / Player / CardDefinition / CardInstance / Action の設計（v1、ユーザー合意済み）。
   - 乱数処理の同期方針: 結果をアクションのpayloadに確定値として含める（1人用⇄オンライン非同期で同じロジックを使うため）。
 
+## Phase 1 実装状況
+
+- 方針: CSS疑似3D（`perspective`+`rotateX`）で開始。3D化が必要になった場合は描画層（`src/main.js`の描画処理）だけを差し替える想定で、ゲームロジックとは分離して実装する。
+- モバイル対応: PC（横長ブラウザ）優先。スマホ横向きは意識するが、実機での細かい調整はPhase1完了後に回す（現状、縦幅が狭い画面では上下のプレイヤーゾーンが見切れる）。
+- ローカル確認用サーバー: ルートの `.claude/launch.json` に `7shades-digital` という設定名で追加済み（`npx serve 7shades-digital -l 3001`）。ルート直下の`static-serve`(3000番)は姉妹プロジェクト用なのでポートを分けている。
+- 静的レイアウト（盤面7x7・4人分のロックエリア/手札ゾーン・共有山札等）を [index.html](index.html) / [src/style.css](src/style.css) / [src/main.js](src/main.js) にダミーデータで実装済み。まだゲーム状態（GameState）とは未接続。
+- **注意（ハマりどころ）**: CSS疑似3Dの箱に `class="table"` を付けたところ、Tailwind CDNの組み込みユーティリティクラス`table`（`display:table`）と衝突し、`display:grid`が上書きされるバグが発生した。Tailwind使用時はカスタムクラス名がTailwindの既存ユーティリティ名（`table`, `hidden`, `flex`, `grid`, `block`, `container`等）と衝突しないよう注意する（今回は`game-table`に変更して回避）。
+
 ## 未確認・要フォローアップ
 
 - 親フォルダ（Googleドライブ）直下に以下の関連しそうなファイル・フォルダがあるが、中身は未確認：
