@@ -142,7 +142,7 @@ body {
      干渉することが分かったため、カード1枚分程度に絞れるよう調整可能にした。 */
   --hand-a-thickness: 7rem;
   --hand-b-thickness: 4rem;
-  --hand-c-thickness: 12rem;
+  --hand-c-thickness: 4rem;
   --hand-d-thickness: 4rem;
 }
 
