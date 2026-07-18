@@ -1,5 +1,7 @@
 // Phase 1 milestone 1a: 静的レイアウト確認用。ゲームロジックはまだ繋がず、ダミーデータのみ描画する。
 
+import { initAdminMode } from "./admin.js";
+
 const COLORS = ["red", "orange", "yellow", "green", "blue", "pink", "purple"];
 
 const GATE_POSITIONS = {
@@ -209,3 +211,4 @@ window.addEventListener("resize", () => {
 });
 
 render();
+initAdminMode();

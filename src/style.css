@@ -149,6 +149,11 @@ body {
 :root {
   --lock-thickness: 0.85rem;
   --arena-gap: 0.9rem; /* ロックエリアと盤面の間の隙間（前は密着していた） */
+  /* プレイマット画像の位置合わせ用パラメータ。管理者モード（src/admin.js）から調整できる。 */
+  --playmat-size-x: 100%;
+  --playmat-size-y: 100%;
+  --playmat-pos-x: 0%;
+  --playmat-pos-y: 0%;
 }
 
 .arena {
@@ -163,10 +168,8 @@ body {
   border-radius: 0.75rem;
   background-image: url("../assets/playmat.png");
   background-repeat: no-repeat;
-  /* プレイマット画像全体(1080x1080)をアリーナ全体に等倍でマッピングする。
-     ロックエリアの色ラベルの実測位置がこれでほぼ一致することを確認済み。 */
-  background-size: 100% 100%;
-  background-position: 0 0;
+  background-size: var(--playmat-size-x) var(--playmat-size-y);
+  background-position: var(--playmat-pos-x) var(--playmat-pos-y);
 }
 
 .lock-area {
