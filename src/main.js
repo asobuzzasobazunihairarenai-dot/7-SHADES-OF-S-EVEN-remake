@@ -43,6 +43,9 @@ function buildBoard() {
 function buildArena() {
   const arena = document.createElement("div");
   arena.className = "arena";
+  const playmatBg = document.createElement("div");
+  playmatBg.className = "playmat-bg";
+  arena.appendChild(playmatBg); // 最初に追加＝他の要素の背面に描画される
   arena.appendChild(buildLockArea("top"));
   arena.appendChild(buildLockArea("left"));
   arena.appendChild(buildBoard());

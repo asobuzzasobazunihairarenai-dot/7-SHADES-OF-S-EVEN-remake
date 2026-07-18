@@ -3,13 +3,14 @@
 // 調整が終わったら「出力」欄の内容をそのまま開発者に渡せば、CSSの :root にある
 // 対応する変数へそのまま反映できる。
 
+// playmat-scaleは盤面(.board)の実サイズを100%とした拡大率（transform: scaleなので中心基準・見切れない）。
+// pos-x/pos-yは中心からのずれ（%、transform: translateなのでこちらも見切れない）。
 const CONTROLS = [
-  { key: "--playmat-size-x", label: "プレイマット横幅", unit: "%", min: 50, max: 200, step: 0.5, default: 100 },
-  { key: "--playmat-size-y", label: "プレイマット縦幅", unit: "%", min: 50, max: 200, step: 0.5, default: 100 },
-  { key: "--playmat-pos-x", label: "プレイマット位置X", unit: "%", min: -50, max: 50, step: 0.5, default: 0 },
-  { key: "--playmat-pos-y", label: "プレイマット位置Y", unit: "%", min: -50, max: 50, step: 0.5, default: 0 },
-  { key: "--lock-thickness", label: "ロック帯の太さ", unit: "rem", min: 0.3, max: 3, step: 0.05, default: 0.85 },
-  { key: "--arena-gap", label: "ロックエリアと盤面の間隔", unit: "rem", min: 0, max: 2, step: 0.05, default: 0.9 },
+  { key: "--playmat-scale", label: "プレイマット拡大率", unit: "", min: 0.5, max: 3, step: 0.01, default: 1.3 },
+  { key: "--playmat-pos-x", label: "プレイマット位置X（中心からのずれ）", unit: "%", min: -50, max: 50, step: 0.5, default: 0 },
+  { key: "--playmat-pos-y", label: "プレイマット位置Y（中心からのずれ）", unit: "%", min: -50, max: 50, step: 0.5, default: 0 },
+  { key: "--lock-thickness", label: "ロック帯の太さ", unit: "rem", min: 0.3, max: 3, step: 0.05, default: 1.45 },
+  { key: "--arena-gap", label: "ロックエリアと盤面の間隔", unit: "rem", min: 0, max: 2, step: 0.05, default: 0 },
 ];
 
 function currentValue(key, fallback) {
