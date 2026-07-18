@@ -151,8 +151,9 @@ function buildPlayerZone(side, label, player, isSelf) {
 // 枚数に応じて厚みのある山を作る（山札・エターナルカード用。将来は盤面マスのスタックにも流用する）。
 // 1枚あたり0.6px、最低0.15rem（0枚でも山があるように見える最低限の厚み）。
 // imagePathを渡すと、その画像を背景に敷く（山札/エターナルは常に裏面画像、捨て場は
-// 空でなければ一番上のカードの実際の絵柄）。
-function buildCardStack(count, pileClass, pileLabel, imagePath) {
+// 空でなければ一番上のカードの実際の絵柄）。名前・枚数は常時表示のテキストではなく、
+// ホバー時のツールチップ（updatePileTooltip参照）でだけ見せるようにしている。
+function buildCardStack(count, pileClass, imagePath) {
   const stack = document.createElement("div");
   stack.className = "stack";
   const heightPx = Math.max(2.4, count * 0.6);
@@ -161,13 +162,6 @@ function buildCardStack(count, pileClass, pileLabel, imagePath) {
   const top = document.createElement("div");
   top.className = `stack-top ${pileClass}`;
   if (imagePath) top.style.backgroundImage = `url("${imagePath}")`;
-  const nameEl = document.createElement("div");
-  nameEl.textContent = pileLabel;
-  const countEl = document.createElement("div");
-  countEl.className = "stack-count";
-  countEl.textContent = `${count}枚`;
-  top.appendChild(nameEl);
-  top.appendChild(countEl);
   stack.appendChild(top);
 
   // 側面にtop面と同じカード柄を敷くと、薄い帯に絵柄が引き伸ばされて見苦しいため、
@@ -189,9 +183,10 @@ const PILE_CONFIG = {
   discard: { gridArea: "discard", pileClass: "pile-discard", label: "捨て場" },
 };
 
-// 枚数はゾーン外の別ラベルではなく、山自体（stack-top）の表示に含める。
-// 山札・エターナルは常に裏面画像（裏向き積みのため中身は明かさない）。捨て場だけはルール上
-// 「表向きに積む」場所なので、空でなければ一番上のカードの実際の画像・名前を表示する。
+// 名前・枚数のテキストはゾーン外の別ラベルにも山自体にも常時表示しない。ホバー時のツール
+// チップ（getPileTooltipText参照）でだけ見せる。山札・エターナルは常に裏面画像（裏向き積み
+// のため中身は明かさない）。捨て場だけはルール上「表向きに積む」場所なので、空でなければ
+// 一番上のカードの実際の画像を表示する。
 function buildPileZone(pileKey) {
   const config = PILE_CONFIG[pileKey];
   const zone = document.createElement("div");
@@ -200,14 +195,12 @@ function buildPileZone(pileKey) {
 
   const pileArray = getState().piles[pileKey];
   const count = pileArray.length;
-  let label = config.label;
   let imagePath = config.backImage;
   if (pileKey === "discard" && count > 0) {
     const topId = pileArray[pileArray.length - 1];
-    label = getCardDefinition(topId).name;
     imagePath = getCardImagePath(topId);
   }
-  const stack = buildCardStack(count, config.pileClass, label, imagePath);
+  const stack = buildCardStack(count, config.pileClass, imagePath);
   stack.dataset.pile = pileKey;
   zone.appendChild(stack);
   return zone;
@@ -434,7 +427,13 @@ function clearHover() {
 // （それ以外はnull）。自分の手札(is-self)は常に中身が見える。盤面/ロックのカードは
 // token.faceUpを見る。捨て場はルール上表向きに積まれているので、空でなければ一番上の
 // カードだけ対象になる（山札・エターナル・ファーストは裏向き積みなので中身を明かさない）。
+// 「+N」バッジは一番上のカードそのものとして扱う。
 function getVisibleCardId(el) {
+  if (el.classList.contains("stack-badge")) {
+    const ids = el.dataset.stackTokens.split(",");
+    const topToken = getState().tokens.find((t) => t.id === ids[ids.length - 1]);
+    return topToken && topToken.faceUp ? topToken.cardId : null;
+  }
   if (el.classList.contains("hand-card")) {
     if (!el.classList.contains("is-self")) return null;
     const token = getState().tokens.find((t) => t.id === el.dataset.tokenId);
@@ -466,60 +465,72 @@ function getPreviewEl() {
   return previewEl;
 }
 
-let stackPreviewEl = null;
-function getStackPreviewEl() {
-  if (!stackPreviewEl) {
-    stackPreviewEl = document.createElement("div");
-    stackPreviewEl.id = "stack-preview";
-    document.body.appendChild(stackPreviewEl);
+// 山（山札・エターナル・ファースト・捨て場）にカーソルを乗せた時に見せる「名前 N枚」の
+// 小さなテキスト。常時表示だったラベル・枚数をやめた代わりに、ホバー時だけ見えるようにする。
+function getPileTooltipText(el) {
+  if (!el.matches(".stack[data-pile]")) return null;
+  const pileKey = el.dataset.pile;
+  const config = PILE_CONFIG[pileKey];
+  const pileArray = getState().piles[pileKey];
+  const count = pileArray.length;
+  let label = config.label;
+  if (pileKey === "discard" && count > 0) {
+    label = getCardDefinition(pileArray[pileArray.length - 1]).name;
   }
-  return stackPreviewEl;
+  return `${label}　${count}枚`;
 }
 
-// 「+N」バッジにカーソルを合わせた時、重なっている全カードを横一列で拡大表示する。
-// 各カードは自分自身のfaceUpに従って表向き/裏向きの画像を出す（下に潜んでいる裏向きの
-// カードの中身を、一覧表示によって覗けてしまわないようにするため）。
-function showStackPreview(badge, clientX, clientY) {
-  const ids = badge.dataset.stackTokens.split(",");
-  const tokens = ids.map((id) => getState().tokens.find((t) => t.id === id)).filter(Boolean);
-  const panel = getStackPreviewEl();
-  panel.innerHTML = "";
-  for (const token of tokens) {
-    const card = document.createElement("div");
-    card.className = "stack-preview-card";
-    const imagePath = token.faceUp ? getCardImagePath(token.cardId) : getCardBackImagePath(token.cardId);
-    card.style.backgroundImage = `url("${imagePath}")`;
-    panel.appendChild(card);
+let pileTooltipEl = null;
+function getPileTooltipEl() {
+  if (!pileTooltipEl) {
+    pileTooltipEl = document.createElement("div");
+    pileTooltipEl.id = "pile-tooltip";
+    document.body.appendChild(pileTooltipEl);
   }
-  positionPreviewPanel(panel, clientX, clientY);
-  panel.style.display = "flex";
+  return pileTooltipEl;
 }
 
-// #card-previewと#stack-previewで共通の位置決め処理。拡大の起点は左下端（＝カーソル付近）に
-// 固定し、そこから右上方向へ広がるようにする。left/bottom（topではなく）で位置決めしている
-// のがポイント：中身のサイズが変わってもleft/bottomの基準点自体はズレない。画面右端を
-// はみ出す場合だけ、右上ではなく左上方向へ表示先を切り替える。
+function updatePileTooltip(el, clientX, clientY) {
+  const tooltip = getPileTooltipEl();
+  const text = el ? getPileTooltipText(el) : null;
+  if (!text) {
+    tooltip.style.display = "none";
+    return;
+  }
+  tooltip.textContent = text;
+  tooltip.style.left = `${clientX + 16}px`;
+  tooltip.style.top = `${clientY + 16}px`;
+  tooltip.style.display = "block";
+}
+
+// #card-previewの位置決め。拡大の起点は左下端（＝カーソル付近）に固定し、そこから右上方向へ
+// 広がるようにする。left/bottom（topではなく）で位置決めしているのがポイント：
+// --card-preview-size（管理者モードで調整可能）を変えてもleft/bottomの基準点自体はズレず、
+// 大きさだけが変わる。画面右端・上端をはみ出す場合だけ、表示方向を反転する
+// （盤面奥のカードをホバーすると上端で見切れる、という報告への対応）。
 function positionPreviewPanel(panel, clientX, clientY) {
   const offset = 20;
+  const cs = getComputedStyle(panel);
+  const panelWidthPx = parseFloat(cs.width);
+  const panelHeightPx = parseFloat(cs.height);
+
   let left = clientX + offset;
-  const panelWidthPx = panel.getBoundingClientRect().width || parseFloat(getComputedStyle(panel).width);
   if (left + panelWidthPx > window.innerWidth) left = clientX - offset - panelWidthPx;
-  const bottom = window.innerHeight - clientY + offset;
   panel.style.left = `${left}px`;
-  panel.style.bottom = `${bottom}px`;
-  panel.style.top = "";
+
+  if (clientY - offset - panelHeightPx < 0) {
+    // 上方向に広げると画面上端をはみ出す→カーソルの下方向に広げる
+    panel.style.top = `${clientY + offset}px`;
+    panel.style.bottom = "";
+  } else {
+    panel.style.bottom = `${window.innerHeight - clientY + offset}px`;
+    panel.style.top = "";
+  }
 }
 
 function updatePreview(el, clientX, clientY) {
   const preview = getPreviewEl();
-  const stackPreview = getStackPreviewEl();
-
-  if (el && el.classList.contains("stack-badge")) {
-    preview.style.display = "none";
-    showStackPreview(el, clientX, clientY);
-    return;
-  }
-  stackPreview.style.display = "none";
+  updatePileTooltip(el, clientX, clientY);
 
   const imagePath = el ? getPreviewImagePath(el) : null;
   if (!imagePath) {
@@ -575,6 +586,10 @@ function showCardNoteModal(cardId) {
   if (!def) return;
   const modal = document.createElement("div");
   modal.id = "card-note-modal";
+  const img = document.createElement("img");
+  img.className = "card-note-image";
+  img.src = getCardImagePath(cardId);
+  img.alt = def.name;
   const title = document.createElement("div");
   title.className = "card-note-title";
   title.textContent = def.name;
@@ -584,23 +599,73 @@ function showCardNoteModal(cardId) {
   const closeBtn = document.createElement("button");
   closeBtn.textContent = "閉じる";
   closeBtn.addEventListener("click", () => modal.remove());
+  modal.appendChild(img);
   modal.appendChild(title);
   modal.appendChild(body);
   modal.appendChild(closeBtn);
   document.body.appendChild(modal);
 }
 
-function showContextMenu(clientX, clientY, cardId) {
+// 重なっているカードを一覧表示する、ホバーではなく常時表示・要クローズのモーダル
+// （ホバー式の一覧は「何枚も重なっていると表示が難しい」との理由で廃止し、これに置き換えた）。
+// 各カードは自分自身のfaceUpに従って表向き/裏向きの画像を出す（下に潜む裏向きカードの
+// 中身を一覧表示によって覗けてしまわないようにするため）。下から上への重なり順で表示する。
+function showStackModal(tokenIds) {
+  const tokens = tokenIds.map((id) => getState().tokens.find((t) => t.id === id)).filter(Boolean);
+  const modal = document.createElement("div");
+  modal.id = "stack-modal";
+  const title = document.createElement("div");
+  title.className = "stack-modal-title";
+  title.textContent = `重なっているカード（${tokens.length}枚・下から上の順）`;
+  const list = document.createElement("div");
+  list.className = "stack-modal-list";
+  for (const token of tokens) {
+    const card = document.createElement("div");
+    card.className = "stack-modal-card";
+    const imagePath = token.faceUp ? getCardImagePath(token.cardId) : getCardBackImagePath(token.cardId);
+    card.style.backgroundImage = `url("${imagePath}")`;
+    list.appendChild(card);
+  }
+  const closeBtn = document.createElement("button");
+  closeBtn.textContent = "閉じる";
+  closeBtn.addEventListener("click", () => modal.remove());
+  modal.appendChild(title);
+  modal.appendChild(list);
+  modal.appendChild(closeBtn);
+  document.body.appendChild(modal);
+}
+
+// 右クリックされた要素(.board-cardまたは.stack-badge)が2枚以上重なっているマス/ロックスロットの
+// 一部なら、そのグループの全トークンidを下から上の順で返す（重なっていなければnull）。
+function getStackTokensAt(el) {
+  if (el.classList.contains("stack-badge")) {
+    return el.dataset.stackTokens.split(",");
+  }
+  if (el.classList.contains("board-card")) {
+    const token = getState().tokens.find((t) => t.id === el.dataset.tokenId);
+    if (!token) return null;
+    for (const tokens of getCardStackGroups().values()) {
+      if (tokens.length >= 2 && tokens.some((t) => t.id === token.id)) {
+        return tokens.map((t) => t.id);
+      }
+    }
+  }
+  return null;
+}
+
+function showContextMenu(clientX, clientY, items) {
   closeContextMenu();
   const menu = document.createElement("div");
   menu.id = "card-context-menu";
-  const item = document.createElement("button");
-  item.textContent = "カード補足を見る";
-  item.addEventListener("click", () => {
-    closeContextMenu();
-    showCardNoteModal(cardId);
-  });
-  menu.appendChild(item);
+  for (const { label, onClick } of items) {
+    const item = document.createElement("button");
+    item.textContent = label;
+    item.addEventListener("click", () => {
+      closeContextMenu();
+      onClick();
+    });
+    menu.appendChild(item);
+  }
   menu.style.left = `${clientX}px`;
   menu.style.top = `${clientY}px`;
   document.body.appendChild(menu);
@@ -613,11 +678,19 @@ function initContextMenuHandlers() {
     e.preventDefault(); // ゲームの盤面上では常にブラウザの既定メニューを出さない
     const hit = findHoverTarget(e.clientX, e.clientY);
     const cardId = hit ? getVisibleCardId(hit) : null;
-    if (!cardId) {
+    const stackTokenIds = hit ? getStackTokensAt(hit) : null;
+    if (!cardId && !stackTokenIds) {
       closeContextMenu();
       return;
     }
-    showContextMenu(e.clientX, e.clientY, cardId);
+    const items = [];
+    if (cardId) {
+      items.push({ label: "カード補足を見る", onClick: () => showCardNoteModal(cardId) });
+    }
+    if (stackTokenIds) {
+      items.push({ label: "重なっているカードを見る", onClick: () => showStackModal(stackTokenIds) });
+    }
+    showContextMenu(e.clientX, e.clientY, items);
   });
   document.addEventListener("pointerdown", (e) => {
     if (contextMenuEl && !contextMenuEl.contains(e.target)) closeContextMenu();
