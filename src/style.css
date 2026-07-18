@@ -430,7 +430,6 @@ body {
 .confirm-modal-title {
   font-weight: bold;
   margin-bottom: 0.6rem;
-  padding-right: 1.6rem;
 }
 .confirm-modal-body {
   font-size: 0.9rem;
@@ -1088,17 +1087,112 @@ body {
   background: linear-gradient(160deg, #22d3ee, #0e7490);
 }
 
-/* カードが手札に加わった時の「何をゲットしたか」トースト。#end-turn-button・#draw-buttonの
-   上に重ねて表示されるよう、その分の高さを空けてbottomを取っている。クリックすると即座に
-   消せる（右上の✕ボタンでも同様）。サイズ・表示時間は管理者モードで調整できる
-   （--hand-pickup-toast-scale・--hand-pickup-toast-duration、hand-announcer.js参照）。 */
+/* 「駒スキン」ボタン。#draw-buttonのさらに上に積む。自分の駒がまだ無い（セットアップ未実施）
+   間は非表示にする（updatePieceSkinButton()参照）。 */
+#piece-skin-button {
+  position: fixed;
+  bottom: 7.6rem;
+  right: 1.2rem;
+  z-index: 1000;
+  padding: 0.6rem 1.1rem;
+  background: linear-gradient(160deg, #7c3aed, #4c1d95);
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  font-weight: bold;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  display: none;
+}
+#piece-skin-button:hover {
+  background: linear-gradient(160deg, #a78bfa, #6d28d9);
+}
+
+/* 駒スキン選択モーダル。 */
+#piece-skin-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(20rem, 90vw);
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  z-index: 10002;
+  font-family: sans-serif;
+  color: #e2e8f0;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+.piece-skin-modal-title {
+  font-weight: bold;
+  margin-bottom: 0.8rem;
+  padding-right: 1.6rem;
+}
+.piece-skin-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.6rem;
+}
+.piece-skin-swatch {
+  padding: 0.4rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 2px solid rgba(148, 163, 184, 0.3);
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+.piece-skin-swatch.is-selected {
+  border-color: #7dd3fc;
+}
+.piece-skin-swatch img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 0.25rem;
+  display: block;
+}
+
+/* 自分（A）のターン中、自分の駒だけをその駒自身の色でゆっくり柔らかく発光させる
+   （ロックエリア/名前ラベルの手番演出とは別物。--piece-turn-glow-colorはrenderBoardTokens内で
+   駒ごとにJSから設定する）。 */
+@keyframes piece-own-turn-glow {
+  0%, 100% { box-shadow: 0 0 0.25rem 0.05rem var(--piece-turn-glow-color, transparent); }
+  50% { box-shadow: 0 0 1rem 0.4rem var(--piece-turn-glow-color, transparent); }
+}
+.piece.is-my-turn-glow .piece-face {
+  animation: piece-own-turn-glow 2.6s ease-in-out infinite;
+}
+
+/* 自分専用の手札枚数ステータス。他のパネルと違う左下に置き、常時表示にする
+   （state.turnPlayerの有無に関わらず、自分の手札は常に自分だけ見えていて良い情報のため）。 */
+#self-hand-status {
+  position: fixed;
+  bottom: 1.2rem;
+  left: 1.2rem;
+  z-index: 1000;
+  padding: 0.5rem 0.9rem;
+  background: rgba(15, 23, 32, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.4rem;
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  font-weight: bold;
+  color: #e2e8f0;
+}
+
+/* カードが手札に加わった時の「何をゲットしたか」トースト。#end-turn-button・#draw-button・
+   #piece-skin-buttonの上に重ねて表示されるよう、その分の高さを空けてbottomを取っている。
+   クリックすると即座に消せる（右上の✕ボタンでも同様）。サイズ・表示時間は管理者モードで
+   調整できる（--hand-pickup-toast-scale・--hand-pickup-toast-duration、hand-announcer.js参照）。 */
 :root {
   --hand-pickup-toast-scale: 1.3;
   --hand-pickup-toast-duration: 5; /* 秒 */
 }
 .hand-pickup-toast {
   position: fixed;
-  bottom: 7.6rem;
+  bottom: 10.8rem;
   right: 1.2rem;
   z-index: 10500;
   max-width: calc(20rem * var(--hand-pickup-toast-scale));

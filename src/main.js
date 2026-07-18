@@ -7,6 +7,7 @@ import { initGameSetup } from "./game-setup.js";
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
 import { announceHandPickups } from "./hand-announcer.js";
 import { checkForVictory } from "./victory.js";
+import { initPieceSkins, updatePieceSkinButton, getSkinImagePath } from "./piece-skins.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getState, moveToken, sendTokenToPile, drawFromPile, flipToken, nextTurn, refillDeckFromDiscard } from "./state.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
@@ -160,7 +161,15 @@ function buildCardStack(count, pileClass, imagePath) {
 
   const top = document.createElement("div");
   top.className = `stack-top ${pileClass}`;
-  if (imagePath) top.style.backgroundImage = `url("${imagePath}")`;
+  if (imagePath) {
+    top.style.backgroundImage = `url("${imagePath}")`;
+  } else {
+    // 0枚の時は、CSS側の色付きフォールバック背景（.pile-deck等）を打ち消して透明にする
+    // （捨て場が空の時と同じ「中身が無いとわかる」見た目にする。imagePathがnullでも
+    // フォールバック背景のせいで満杯の山があるように見えてしまっていたのを修正）。
+    top.style.backgroundImage = "none";
+    top.style.backgroundColor = "transparent";
+  }
   stack.appendChild(top);
 
   // 側面にtop面と同じカード柄を敷くと、薄い帯に絵柄が引き伸ばされて見苦しいため、
@@ -194,10 +203,11 @@ function buildPileZone(pileKey) {
 
   const pileArray = getState().piles[pileKey];
   const count = pileArray.length;
-  let imagePath = config.backImage;
-  if (pileKey === "discard" && count > 0) {
-    const topId = pileArray[pileArray.length - 1];
-    imagePath = getCardImagePath(topId);
+  // 0枚の時はどの山も画像なし（透明）にする。捨て場は空でなければ一番上のカードの実物、
+  // それ以外（山札・エターナル・ファースト）は裏向き積みのため常に共通の裏面画像。
+  let imagePath = null;
+  if (count > 0) {
+    imagePath = pileKey === "discard" ? getCardImagePath(pileArray[pileArray.length - 1]) : config.backImage;
   }
   const stack = buildCardStack(count, config.pileClass, imagePath);
   stack.dataset.pile = pileKey;
@@ -215,7 +225,7 @@ function buildPileZone(pileKey) {
 function buildCubePiece(color) {
   const piece = document.createElement("div");
   piece.className = "piece";
-  const skinUrl = `url("assets/pieces/${color}.png")`;
+  const skinUrl = `url("${getSkinImagePath(color)}")`;
 
   const top = document.createElement("div");
   top.className = "piece-face piece-top";
@@ -292,6 +302,12 @@ function renderBoardTokens(table) {
     if (!host) continue;
     const el = token.kind === "piece" ? buildCubePiece(token.color) : buildFlatCard(token);
     el.dataset.tokenId = token.id;
+    // 自分（A）のターン中は、自分の駒だけを自分の色でゆっくり柔らかく発光させる
+    // （ロックエリア/名前ラベルの手番演出とは別に、盤面上でも自分の駒がすぐ分かるように）。
+    if (token.kind === "piece" && token.player === "A" && getState().turnPlayer === "A") {
+      el.classList.add("is-my-turn-glow");
+      el.style.setProperty("--piece-turn-glow-color", `var(--color-${token.color})`);
+    }
     host.appendChild(el);
     // 駒・カードはセルより大きくはみ出すことがあるため、隣のマス（DOM順で後にあるもの）に
     // 隠されないよう最前面にする
@@ -333,6 +349,8 @@ function render() {
   fitTableToViewport();
   updateEndTurnButton();
   updateDrawButton();
+  updatePieceSkinButton();
+  updateSelfHandStatus();
   checkForVictory();
 }
 
@@ -518,6 +536,19 @@ function getPileTooltipText(el) {
   return `${label}　${count}枚`;
 }
 
+// 相手（自分以外）の手札にカーソルを合わせた時、中身は明かさず枚数だけを教える
+// （手札の中身自体は非公開情報のため、getVisibleCardId等と同じ考え方で自分の手札は除外する）。
+function getHandTooltipText(el) {
+  if (!el.classList.contains("hand-card") || el.classList.contains("is-self")) return null;
+  const token = getState().tokens.find((t) => t.id === el.dataset.tokenId);
+  if (!token) return null;
+  const player = token.location.player;
+  const count = getState().tokens.filter(
+    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player
+  ).length;
+  return `${SEAT_LABELS[player]}　手札${count}枚`;
+}
+
 let pileTooltipEl = null;
 function getPileTooltipEl() {
   if (!pileTooltipEl) {
@@ -530,7 +561,7 @@ function getPileTooltipEl() {
 
 function updatePileTooltip(el, clientX, clientY) {
   const tooltip = getPileTooltipEl();
-  const text = el ? getPileTooltipText(el) : null;
+  const text = el ? getPileTooltipText(el) || getHandTooltipText(el) : null;
   if (!text) {
     tooltip.style.display = "none";
     return;
@@ -1005,15 +1036,13 @@ function updateEndTurnButton() {
   endTurnButtonEl.textContent = `${SEAT_LABELS[turnPlayer]}のターンを終了 →`;
 }
 
-// OKボタン1つだけのシンプルな確認モーダル（山札切れの補充確認に使う）。
+// OKボタン1つだけのシンプルな確認モーダル（山札切れの補充確認に使う）。ゲームの状態に
+// 関わる必須の確認のため、✕ボタンや外側クリックでは閉じられないようにしてある
+// （他のパネル/モーダルの「✕＋外クリックで閉じる」統一ルールの、意図的な例外）。
 function showConfirmModal(title, text, onOk) {
   const modal = document.createElement("div");
   modal.id = "confirm-modal";
-  const close = () => {
-    backdrop.remove();
-    modal.remove();
-  };
-  const backdrop = createBackdrop(close, { zIndex: 10001 });
+  const backdrop = createBackdrop(() => {}, { dim: true, zIndex: 10001 });
   const titleEl = document.createElement("div");
   titleEl.className = "confirm-modal-title";
   titleEl.textContent = title;
@@ -1024,10 +1053,10 @@ function showConfirmModal(title, text, onOk) {
   okBtn.textContent = "OK";
   okBtn.className = "confirm-modal-ok";
   okBtn.addEventListener("click", () => {
-    close();
+    backdrop.remove();
+    modal.remove();
     onOk();
   });
-  modal.appendChild(createModalCloseX(close));
   modal.appendChild(titleEl);
   modal.appendChild(bodyEl);
   modal.appendChild(okBtn);
@@ -1088,6 +1117,26 @@ function updateDrawButton() {
   drawButtonEl.style.display = getState().turnPlayer ? "block" : "none";
 }
 
+// --- 自分の手札枚数ステータス ------------------------------------------------------
+// 他のプレイヤーには見せない、自分専用の常時表示ステータス。手札は扇状に表示されると
+// 重なって数えづらいため、画面の隅に「今何枚持っているか」を数字で出しておく。
+let selfHandStatusEl = null;
+
+function buildSelfHandStatus() {
+  const el = document.createElement("div");
+  el.id = "self-hand-status";
+  document.body.appendChild(el);
+  return el;
+}
+
+function updateSelfHandStatus() {
+  if (!selfHandStatusEl) return;
+  const count = getState().tokens.filter(
+    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === "A"
+  ).length;
+  selfHandStatusEl.textContent = `自分の手札：${count}枚`;
+}
+
 // 管理者モードのスライダーには、CSS変数を変えるだけでは反映されない値（--hand-*-sizeなど、
 // JS側でgetComputedStyleして読み取り、inline styleとして適用しているもの）があるため、
 // 変更のたびに再描画してもらう。
@@ -1095,6 +1144,7 @@ window.addEventListener("admin:change", render);
 
 endTurnButtonEl = buildEndTurnButton();
 drawButtonEl = buildDrawButton();
+selfHandStatusEl = buildSelfHandStatus();
 render();
 initDragHandlers();
 initHoverHandlers();
@@ -1102,3 +1152,4 @@ initContextMenuHandlers();
 initAdminMode();
 initDeckViewer();
 initGameSetup();
+initPieceSkins();
