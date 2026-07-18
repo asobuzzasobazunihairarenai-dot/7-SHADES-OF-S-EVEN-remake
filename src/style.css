@@ -70,6 +70,7 @@ body {
 }
 
 .player-zone {
+  position: relative; /* .hand-areaをposition:absoluteで中心配置するための基準 */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -82,9 +83,17 @@ body {
                          はみ出すと見えない境界線で上端が切れてしまうため、pile-zoneと同様に上書きする */
 }
 
+/* ハマりどころ: .hand-areaは以前.player-zoneの通常のフローに置いていた（name labelの下に
+   flexで積む）。すると手札の枚数が増えて--hand-a-sizeによる幅が大きくなった時、その幅が
+   .player-zone自身の幅、さらには.game-tableのgridトラック(auto幅の中央列)にまで影響し、
+   盤面(.arena)の方が押し出される形でズレる、というレイアウト崩れが起きていた。
+   .hand-areaをposition:absoluteで通常のフローから外し、.player-zoneの中心(50%,50%)を
+   基準にtranslateで自分自身を中心合わせすることで、手札がどれだけ幅を持っても周囲の
+   グリッド/フレックスのサイズ計算に一切影響しないようにした。 */
 .player-zone .hand-area {
-  position: relative;
-  width: 100%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
   height: 5.2rem;
   transform-style: preserve-3d;
   overflow: visible;
@@ -136,25 +145,27 @@ body {
   --hand-d-thickness: 4rem;
 }
 
+/* translate(-50%, -50%)を先頭に置き、.hand-areaが（幅がどれだけ変わっても）常に
+   .player-zoneの中心を基準に配置されるようにする。 */
 .zone-bottom .hand-area {
   height: var(--hand-a-thickness);
-  transform: translate(var(--hand-a-pos-x), var(--hand-a-pos-y)) rotateX(-40deg) translateZ(2.4rem);
+  transform: translate(-50%, -50%) translate(var(--hand-a-pos-x), var(--hand-a-pos-y)) rotateX(-40deg) translateZ(2.4rem);
 }
 
 .zone-top .hand-area {
   height: var(--hand-c-thickness);
-  transform: translate(var(--hand-c-pos-x), var(--hand-c-pos-y)) rotateX(18deg) translateZ(0.5rem);
+  transform: translate(-50%, -50%) translate(var(--hand-c-pos-x), var(--hand-c-pos-y)) rotateX(18deg) translateZ(0.5rem);
 }
 
 .zone-right .hand-area {
   width: var(--hand-d-thickness);
-  transform: translate(var(--hand-d-pos-x), var(--hand-d-pos-y)) rotateX(18deg) translateZ(0.5rem);
+  transform: translate(-50%, -50%) translate(var(--hand-d-pos-x), var(--hand-d-pos-y)) rotateX(18deg) translateZ(0.5rem);
 }
 
 /* プレイヤーBの手札は180度回転させる */
 .zone-left .hand-area {
   width: var(--hand-b-thickness);
-  transform: translate(var(--hand-b-pos-x), var(--hand-b-pos-y)) rotateX(18deg) translateZ(0.5rem) rotate(180deg);
+  transform: translate(-50%, -50%) translate(var(--hand-b-pos-x), var(--hand-b-pos-y)) rotateX(18deg) translateZ(0.5rem) rotate(180deg);
 }
 
 .hand-card {
@@ -256,6 +267,17 @@ body {
   outline: 3px solid rgba(250, 204, 21, 0.9);
   outline-offset: 2px;
   box-shadow: 0 0 0.9rem 0.2rem rgba(250, 204, 21, 0.65);
+}
+
+/* マウスカーソルが今乗っている「つかめる/対象になる」要素のハイライト（ドラッグ中の黄金色の
+   ドロップ先ハイライトとは別役割なので、混同しないよう水色にしている）。駒がカードの上に
+   乗っている時、どちらが掴めるかを視覚的に示すために使う。
+   ハマりどころ: box-shadowは.piece/.lock-slot等、対象自身が既に別のbox-shadowを持っている
+   場合に上書きされて消えてしまう（box-shadowは複数ルールの値を合成しない）。outlineは
+   他のどのルールも使っていないプロパティなので、確実に見えるようoutlineだけで表現する。 */
+.hover-active {
+  outline: 2px solid rgba(56, 189, 248, 0.85);
+  outline-offset: 1px;
 }
 
 /* ドラッグ中はカーソルに1:1追従する「ゴースト」を3D空間の外(document.body直下)に表示する。
@@ -613,8 +635,11 @@ body {
   height: calc(var(--stack-height) + 0.15rem);
   transform-origin: 50% 100%;
   transform: rotateX(-90deg);
-  /* filterはpreserve-3dを無効化してしまう（駒の壁面で判明済みの教訓）ため、暗くする表現は
-     box-shadowで代用する。inset 0 0 0 999pxで箱全体を覆う半透明の黒を敷くのと同じ効果。 */
+  /* 側面はカード柄を貼らず無地のライトグレーにする（薄い帯に絵柄を貼ると引き伸ばされて
+     見苦しいため）。filterはpreserve-3dを無効化してしまう（駒の壁面で判明済みの教訓）ため、
+     暗くする表現はbox-shadowで代用する。inset 0 0 0 999pxで箱全体を覆う半透明の黒を敷くのと
+     同じ効果。 */
+  background-color: #cbd5e1;
   box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.4);
   backface-visibility: hidden;
 }

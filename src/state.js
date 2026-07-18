@@ -99,18 +99,21 @@ const isTable = (location) => location.zone === "cell" || location.zone === "loc
 function reduce(current, action) {
   switch (action.type) {
     case "MOVE_TOKEN": {
-      const tokens = current.tokens.map((t) => {
-        if (t.id !== action.tokenId) return t;
-        const next = { ...t, location: action.location };
-        // 場・ロックエリア同士の移動（例: マス→ロック、ロック→ロック）は、既に表向き/裏向きが
-        // 決まっているカードをただ動かすだけなので、表裏を変えない。手札から場/ロックへ出す時・
-        // 場/ロックから手札に加える時だけ、新しい置き場所に応じて表裏を決め直す。
-        if (t.kind === "card" && !(isTable(t.location) && isTable(action.location))) {
-          next.faceUp = faceUpForLocation(action.location);
-        }
-        return next;
-      });
-      return { ...current, tokens };
+      const token = current.tokens.find((t) => t.id === action.tokenId);
+      if (!token) return current;
+      const next = { ...token, location: action.location };
+      // 場・ロックエリア同士の移動（例: マス→ロック、ロック→ロック）は、既に表向き/裏向きが
+      // 決まっているカードをただ動かすだけなので、表裏を変えない。手札から場/ロックへ出す時・
+      // 場/ロックから手札に加える時だけ、新しい置き場所に応じて表裏を決め直す。
+      if (token.kind === "card" && !(isTable(token.location) && isTable(action.location))) {
+        next.faceUp = faceUpForLocation(action.location);
+      }
+      // 動かしたトークンを配列の末尾に移す。renderBoardTokens()はtokens配列の順番通りに
+      // appendChildするため、同じマスに複数枚重なっている時は「配列の後ろにあるもの」ほど
+      // 描画が後＝画面上で手前(一番上)になる。末尾に移さないと、元々配列の前方にあった
+      // トークンを後から同じマスへ動かしても見た目上「潜り込む」ことがあった。
+      const rest = current.tokens.filter((t) => t.id !== action.tokenId);
+      return { ...current, tokens: [...rest, next] };
     }
     case "SEND_TOKEN_TO_PILE": {
       const token = current.tokens.find((t) => t.id === action.tokenId);

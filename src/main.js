@@ -170,9 +170,10 @@ function buildCardStack(count, pileClass, pileLabel, imagePath) {
   top.appendChild(countEl);
   stack.appendChild(top);
 
+  // 側面(front)にもtop面と同じカード柄を敷くと、薄い帯に絵柄が引き伸ばされて見苦しいため、
+  // 側面は常に無地（CSS側で薄いグレー）のままにする。
   const front = document.createElement("div");
-  front.className = `stack-front ${pileClass}`;
-  if (imagePath) front.style.backgroundImage = `url("${imagePath}")`;
+  front.className = "stack-front";
   stack.appendChild(front);
 
   return stack;
@@ -352,6 +353,56 @@ function findDraggableAt(clientX, clientY) {
     if (stack) return { el: stack, kind: "pile", pile: stack.dataset.pile };
   }
   return null;
+}
+
+// マウスカーソルの下にある「つかめる/対象になる」要素をハイライトする（ドラッグはしない、
+// ホバーだけ）。findDraggableAt()と同じ優先順位（駒＞カード＞山）で判定するので、駒がカードの
+// 上に乗っている時に「今クリックしたらどっちが掴めるか」がハイライトで分かるようになる。
+// 加えて、何も乗っていない空のマス／ロックスロットもホバー対象にする（掴めるものが無くても
+// マス自体を示したいため）。
+function findHoverTarget(clientX, clientY) {
+  const elements = document.elementsFromPoint(clientX, clientY);
+  for (const el of elements) {
+    const piece = el.closest(".piece");
+    if (piece) return piece;
+    const boardCard = el.closest(".board-card");
+    if (boardCard) return boardCard;
+    const handCard = el.closest(".hand-card");
+    if (handCard) return handCard;
+    const stack = el.closest(".stack[data-pile]");
+    if (stack) return stack;
+    const cell = el.closest(".cell");
+    if (cell) return cell;
+    const lockSlot = el.closest(".lock-slot");
+    if (lockSlot) return lockSlot;
+  }
+  return null;
+}
+
+let hoverEl = null;
+
+function clearHover() {
+  if (hoverEl) hoverEl.classList.remove("hover-active");
+  hoverEl = null;
+}
+
+function updateHover(clientX, clientY) {
+  // ドラッグ中はドロップ先ハイライト(.drop-target-active)と役割が被って紛らわしいので休止する。
+  if (dragSession) {
+    clearHover();
+    return;
+  }
+  const next = findHoverTarget(clientX, clientY);
+  if (next === hoverEl) return;
+  clearHover();
+  if (next) next.classList.add("hover-active");
+  hoverEl = next;
+}
+
+function initHoverHandlers() {
+  const table = document.getElementById("game-table");
+  table.addEventListener("pointermove", (e) => updateHover(e.clientX, e.clientY));
+  table.addEventListener("pointerleave", clearHover);
 }
 
 // ダブルクリックでの表裏反転は、ネイティブの`dblclick`イベントではなく、ドラッグと同じ
@@ -544,5 +595,6 @@ window.addEventListener("admin:change", render);
 
 render();
 initDragHandlers();
+initHoverHandlers();
 initAdminMode();
 initDeckViewer();
