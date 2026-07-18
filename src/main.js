@@ -9,9 +9,10 @@ import { announceHandPickups } from "./hand-announcer.js";
 import { checkForVictory } from "./victory.js";
 import { initPieceSkins, updatePieceSkinButton, getSkinImagePath } from "./piece-skins.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS } from "./player-identity.js";
 import { getState, moveToken, sendTokenToPile, drawFromPile, flipToken, nextTurn, refillDeckFromDiscard } from "./state.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
-import { COLORS, GATE_POSITIONS, SEAT_TO_SIDE, SEAT_LABELS } from "./board-layout.js";
+import { COLORS, GATE_POSITIONS, SEAT_TO_SIDE } from "./board-layout.js";
 
 function buildLockArea(side) {
   const el = document.createElement("div");
@@ -91,12 +92,19 @@ function layoutFan(count, orientation, isSelf, side) {
   });
 }
 
-function buildPlayerZone(side, label, player, isSelf) {
+function buildPlayerZone(side, player, isSelf) {
   const zone = document.createElement("div");
   zone.className = `zone zone-${side} player-zone`;
   const nameEl = document.createElement("div");
   nameEl.className = `label${player === getState().turnPlayer ? " is-turn-player" : ""}`;
-  nameEl.textContent = label;
+  nameEl.textContent = getPlayerName(player);
+
+  // アバターは「手札の後ろ側」に見えるよう、手札(.hand-area)より先にDOMへ足す
+  // （同じ場所で重なった時、後から足した手札側が手前に描画される）。管理者モードで
+  // 位置・サイズを調整できる（--avatar-{a,b,c,d}-pos-x/y・--avatar-size）。
+  const avatarEl = document.createElement("div");
+  avatarEl.className = "player-avatar";
+  avatarEl.textContent = getPlayerAvatar(player);
 
   const orientation = side === "left" || side === "right" ? "vertical" : "horizontal";
 
@@ -144,6 +152,7 @@ function buildPlayerZone(side, label, player, isSelf) {
   handEl.appendChild(fanEl);
 
   zone.appendChild(nameEl);
+  zone.appendChild(avatarEl);
   zone.appendChild(handEl);
   return zone;
 }
@@ -302,9 +311,10 @@ function renderBoardTokens(table) {
     if (!host) continue;
     const el = token.kind === "piece" ? buildCubePiece(token.color) : buildFlatCard(token);
     el.dataset.tokenId = token.id;
-    // 自分（A）のターン中は、自分の駒だけを自分の色でゆっくり柔らかく発光させる
-    // （ロックエリア/名前ラベルの手番演出とは別に、盤面上でも自分の駒がすぐ分かるように）。
-    if (token.kind === "piece" && token.player === "A" && getState().turnPlayer === "A") {
+    // 手番プレイヤーの駒だけを、その駒自身の色でゆっくり柔らかく発光させる
+    // （ロックエリア/名前ラベルの手番演出とは別に、盤面上でも手番の駒がすぐ分かるように）。
+    // 「自分」に限定していたのは誤りで、B/C/Dのターンでもそれぞれの駒が光る必要がある。
+    if (token.kind === "piece" && token.player === getState().turnPlayer) {
       el.classList.add("is-my-turn-glow");
       el.style.setProperty("--piece-turn-glow-color", `var(--color-${token.color})`);
     }
@@ -337,10 +347,10 @@ function render() {
   // 後に追加した手札・山札・捨て場・エターナルは、画面上で座標が重なってもプレイマットより
   // 手前に描画される（盤面のマス目の枠線と同じ「高さ」で表示される、という要望に対応）。
   table.appendChild(buildArena());
-  table.appendChild(buildPlayerZone("bottom", "プレイヤーA（自分）", "A", true));
-  table.appendChild(buildPlayerZone("left", "プレイヤーB", "B", false));
-  table.appendChild(buildPlayerZone("top", "プレイヤーC", "C", false));
-  table.appendChild(buildPlayerZone("right", "プレイヤーD", "D", false));
+  table.appendChild(buildPlayerZone("bottom", "A", true));
+  table.appendChild(buildPlayerZone("left", "B", false));
+  table.appendChild(buildPlayerZone("top", "C", false));
+  table.appendChild(buildPlayerZone("right", "D", false));
   table.appendChild(buildPileZone("deck"));
   table.appendChild(buildPileZone("eternal"));
   table.appendChild(buildPileZone("first"));
@@ -358,17 +368,61 @@ function render() {
 // 倍率へ動的に縮小・拡大する。rem基準の固定サイズレイアウトのままでも、外側のscale
 // だけをJSで調整することでウィンドウサイズへの追従を実現する。
 function fitTableToViewport() {
+  if (boardZoomed) {
+    applyBoardZoomFit();
+    return;
+  }
+  applyNormalFit();
+}
+
+function applyNormalFit() {
   const table = document.getElementById("game-table");
   const tilt = getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim();
   // scale()は2軸(X/Y)しか縮小しないため、駒の高さ等のtranslateZ(奥行き)がそのまま残り、
   // 画面を小さくするほど駒が奥行き方向にだけ間延びして見えるバグがあった。
   // scale3d()でZ軸も同じ倍率にすることで、縮小しても駒の縦横比が保たれるようにする。
+  table.style.transformOrigin = "";
   table.style.transform = `rotateX(${tilt}) scale3d(1, 1, 1)`;
   const rect = table.getBoundingClientRect();
   const availW = window.innerWidth * 0.94;
   const availH = window.innerHeight * 0.94;
   const scale = Math.min(availW / rect.width, availH / rect.height, 1.15);
   table.style.transform = `rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
+}
+
+// 「盤面拡大」: プレイヤーA（手前）のロックエリアが画面下端、プレイヤーC（奥）のロックエリアが
+// 画面上端にほぼ収まる倍率までズームアップする。scaleは常にtransform-origin（拡大の基準点）
+// を中心に働くため、A側ロック〜C側ロックの中間点を基準点に設定してから拡大することで、
+// 中間点の画面上の位置を変えずに（＝結果的に上下対称に）その区間全体を引き伸ばせる。
+function applyBoardZoomFit() {
+  const table = document.getElementById("game-table");
+  const tilt = getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim();
+  table.style.transformOrigin = "";
+  table.style.transform = `rotateX(${tilt}) scale3d(1, 1, 1)`;
+
+  const lockBottom = document.querySelector(".lock-bottom");
+  const lockTop = document.querySelector(".lock-top");
+  if (!lockBottom || !lockTop) return;
+  const tableRect = table.getBoundingClientRect();
+  const bottomRect = lockBottom.getBoundingClientRect();
+  const topRect = lockTop.getBoundingClientRect();
+
+  const spanTop = topRect.top;
+  const spanBottom = bottomRect.bottom;
+  const spanHeight = spanBottom - spanTop;
+  const spanMidY = (spanTop + spanBottom) / 2;
+  const originYPercent = ((spanMidY - tableRect.top) / tableRect.height) * 100;
+
+  table.style.transformOrigin = `50% ${originYPercent}%`;
+  const scale = (window.innerHeight * 0.98) / spanHeight;
+  table.style.transform = `rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
+}
+
+let boardZoomed = false;
+
+function toggleBoardZoom() {
+  boardZoomed = !boardZoomed;
+  fitTableToViewport();
 }
 
 let resizeTimer;
@@ -546,7 +600,7 @@ function getHandTooltipText(el) {
   const count = getState().tokens.filter(
     (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player
   ).length;
-  return `${SEAT_LABELS[player]}　手札${count}枚`;
+  return `${getPlayerName(player)}　手札${count}枚`;
 }
 
 let pileTooltipEl = null;
@@ -1033,7 +1087,7 @@ function updateEndTurnButton() {
     return;
   }
   endTurnButtonEl.style.display = "block";
-  endTurnButtonEl.textContent = `${SEAT_LABELS[turnPlayer]}のターンを終了 →`;
+  endTurnButtonEl.textContent = `${getPlayerName(turnPlayer)}のターンを終了 →`;
 }
 
 // OKボタン1つだけのシンプルな確認モーダル（山札切れの補充確認に使う）。ゲームの状態に
@@ -1086,6 +1140,22 @@ function ensureDeckAvailable(onReady) {
   );
 }
 
+// --- 「盤面拡大」ボタン ----------------------------------------------------------
+// もう一度押すと元の画角(fitTableToViewport()の通常の全体フィット)に戻る、単純なトグル。
+// state.turnPlayerの有無に関係なく常に使える表示上の機能なので、非表示にする条件は無い。
+function buildBoardZoomButton() {
+  const btn = document.createElement("button");
+  btn.id = "board-zoom-button";
+  btn.textContent = "🔍 盤面拡大";
+  btn.addEventListener("click", () => {
+    toggleBoardZoom();
+    btn.classList.toggle("is-active", boardZoomed);
+    btn.textContent = boardZoomed ? "🔍 元に戻す" : "🔍 盤面拡大";
+  });
+  document.body.appendChild(btn);
+  return btn;
+}
+
 // --- 「1枚ドロー」ボタン ---------------------------------------------------------
 // 手番プレイヤーが山札から1枚引いて自分の手札に加える、簡易操作用のショートカット。
 // 「ターンを次のプレイヤーへ渡す」ボタンと同じ理由で、state.turnPlayerがまだnullの間は
@@ -1117,14 +1187,97 @@ function updateDrawButton() {
   drawButtonEl.style.display = getState().turnPlayer ? "block" : "none";
 }
 
-// --- 自分の手札枚数ステータス ------------------------------------------------------
+// --- 自分専用ステータス（手札枚数・名前・アバター） --------------------------------
 // 他のプレイヤーには見せない、自分専用の常時表示ステータス。手札は扇状に表示されると
 // 重なって数えづらいため、画面の隅に「今何枚持っているか」を数字で出しておく。
+// あわせて自分の名前・アバターもここから変更できるようにする（変更内容は盤面のラベルや
+// 各種ポップアップの表記にもそのまま反映される。player-identity.js参照）。
 let selfHandStatusEl = null;
+let selfStatusNameEl = null;
+let selfStatusAvatarEl = null;
+let selfStatusHandCountEl = null;
+
+function openAvatarPicker() {
+  const modal = document.createElement("div");
+  modal.id = "avatar-picker-modal";
+  const close = () => {
+    backdrop.remove();
+    modal.remove();
+  };
+  const backdrop = createBackdrop(close, { zIndex: 10001 });
+
+  const title = document.createElement("div");
+  title.className = "avatar-picker-modal-title";
+  title.textContent = "アバターを選択";
+
+  const grid = document.createElement("div");
+  grid.className = "avatar-picker-modal-grid";
+  for (const avatar of AVATAR_OPTIONS) {
+    const swatch = document.createElement("button");
+    swatch.className = "avatar-picker-swatch";
+    if (getPlayerAvatar("A") === avatar) swatch.classList.add("is-selected");
+    swatch.textContent = avatar;
+    swatch.addEventListener("click", () => {
+      setPlayerAvatar("A", avatar);
+      render();
+      close();
+    });
+    grid.appendChild(swatch);
+  }
+
+  modal.appendChild(createModalCloseX(close));
+  modal.appendChild(title);
+  modal.appendChild(grid);
+  document.body.appendChild(backdrop);
+  document.body.appendChild(modal);
+}
+
+function startEditingName() {
+  const input = document.createElement("input");
+  input.className = "self-status-name-input";
+  input.value = getPlayerName("A");
+  input.maxLength = 12;
+  const commit = () => {
+    if (input.value.trim()) setPlayerName("A", input.value);
+    render();
+  };
+  input.addEventListener("blur", commit);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") input.blur();
+    if (e.key === "Escape") {
+      input.value = getPlayerName("A");
+      input.blur();
+    }
+  });
+  selfStatusNameEl.replaceWith(input);
+  input.focus();
+  input.select();
+}
 
 function buildSelfHandStatus() {
   const el = document.createElement("div");
   el.id = "self-hand-status";
+
+  selfStatusAvatarEl = document.createElement("button");
+  selfStatusAvatarEl.className = "self-status-avatar";
+  selfStatusAvatarEl.title = "クリックしてアバターを変更";
+  selfStatusAvatarEl.addEventListener("click", openAvatarPicker);
+
+  const info = document.createElement("div");
+  info.className = "self-status-info";
+
+  selfStatusNameEl = document.createElement("div");
+  selfStatusNameEl.className = "self-status-name";
+  selfStatusNameEl.title = "クリックして名前を変更";
+  selfStatusNameEl.addEventListener("click", startEditingName);
+
+  selfStatusHandCountEl = document.createElement("div");
+  selfStatusHandCountEl.className = "self-status-hand-count";
+
+  info.appendChild(selfStatusNameEl);
+  info.appendChild(selfStatusHandCountEl);
+  el.appendChild(selfStatusAvatarEl);
+  el.appendChild(info);
   document.body.appendChild(el);
   return el;
 }
@@ -1134,7 +1287,19 @@ function updateSelfHandStatus() {
   const count = getState().tokens.filter(
     (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === "A"
   ).length;
-  selfHandStatusEl.textContent = `自分の手札：${count}枚`;
+  selfStatusAvatarEl.textContent = getPlayerAvatar("A");
+  // startEditingName()が.self-status-nameを一時的に<input>へ差し替えるため、render()の
+  // たびに毎回ここで作り直す（差し替え後の入力欄はrender()時点で既にblur済みのはず）。
+  if (!selfStatusNameEl.isConnected) {
+    const fresh = document.createElement("div");
+    fresh.className = "self-status-name";
+    fresh.title = "クリックして名前を変更";
+    fresh.addEventListener("click", startEditingName);
+    selfHandStatusEl.querySelector(".self-status-name-input")?.replaceWith(fresh);
+    selfStatusNameEl = fresh;
+  }
+  selfStatusNameEl.textContent = getPlayerName("A");
+  selfStatusHandCountEl.textContent = `手札：${count}枚`;
 }
 
 // 管理者モードのスライダーには、CSS変数を変えるだけでは反映されない値（--hand-*-sizeなど、
@@ -1145,6 +1310,7 @@ window.addEventListener("admin:change", render);
 endTurnButtonEl = buildEndTurnButton();
 drawButtonEl = buildDrawButton();
 selfHandStatusEl = buildSelfHandStatus();
+buildBoardZoomButton();
 render();
 initDragHandlers();
 initHoverHandlers();

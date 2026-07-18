@@ -4,7 +4,8 @@
 // 瞬間だけ派手な勝利モーダルを出す（一度出したプレイヤーは、以後同じ対戦中は出し直さない）。
 
 import { getState } from "./state.js";
-import { COLORS, SEAT_TO_SIDE, SEAT_LABELS } from "./board-layout.js";
+import { COLORS, SEAT_TO_SIDE } from "./board-layout.js";
+import { getPlayerName } from "./player-identity.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 
 let announcedPlayers = new Set();
@@ -41,7 +42,7 @@ function showVictoryModal(player) {
 
   const title = document.createElement("div");
   title.className = "victory-modal-title";
-  title.textContent = `${SEAT_LABELS[player]} の勝利！`;
+  title.textContent = `${getPlayerName(player)} の勝利！`;
 
   const subtitle = document.createElement("div");
   subtitle.className = "victory-modal-subtitle";

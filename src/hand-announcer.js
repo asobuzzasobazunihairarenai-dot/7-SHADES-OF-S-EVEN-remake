@@ -4,7 +4,7 @@
 // 「カードを得た」という事実だけを伝えるポップアップ（トースト、自動で消える）。
 
 import { getCardDefinition, getCardImagePath } from "./cards-data.js";
-import { SEAT_LABELS } from "./board-layout.js";
+import { getPlayerName } from "./player-identity.js";
 import { createModalCloseX } from "./ui-helpers.js";
 
 // 表示時間（秒）は管理者モードの「カード獲得ポップアップ」グループで調整できる
@@ -50,7 +50,7 @@ export function announceHandPickups(player, pickups) {
   if (visible.length === 0) {
     showToast(`
       <div class="hand-pickup-toast-text">
-        <div class="hand-pickup-toast-title">${SEAT_LABELS[player]}が非公開のカードを${hiddenCount}枚手札に加えました</div>
+        <div class="hand-pickup-toast-title">${getPlayerName(player)}が非公開のカードを${hiddenCount}枚手札に加えました</div>
       </div>
     `);
     return;
@@ -70,7 +70,7 @@ export function announceHandPickups(player, pickups) {
   const hiddenNote = hiddenCount > 0 ? `<div class="hand-pickup-toast-hidden-note">＋非公開のカード${hiddenCount}枚</div>` : "";
 
   showToast(`
-    <div class="hand-pickup-toast-title">${SEAT_LABELS[player]}が獲得</div>
+    <div class="hand-pickup-toast-title">${getPlayerName(player)}が獲得</div>
     <div class="hand-pickup-toast-cards">${cardsHtml}</div>
     ${hiddenNote}
   `);

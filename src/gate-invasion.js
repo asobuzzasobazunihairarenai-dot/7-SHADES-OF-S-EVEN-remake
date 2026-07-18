@@ -9,7 +9,8 @@
 // ポップアップ→OKで実行、という形で順番に自動処理する。該当者がいない時は何もせずdone()を呼ぶ。
 
 import { getState, gateInvasionStealHand, gateInvasionEternal, gateInvasionReturnHome } from "./state.js";
-import { GATE_POSITIONS, SIDE_TO_SEAT, SEAT_TO_SIDE, SEAT_ORDER, COLORS, SEAT_LABELS } from "./board-layout.js";
+import { GATE_POSITIONS, SIDE_TO_SEAT, SEAT_TO_SIDE, SEAT_ORDER, COLORS } from "./board-layout.js";
+import { getPlayerName } from "./player-identity.js";
 import { getCardDefinition } from "./cards-data.js";
 import { announceHandPickups } from "./hand-announcer.js";
 
@@ -85,7 +86,7 @@ function runStealHand(attacker, defender, onDone) {
   const count = Math.floor(defenderHand.length / 2);
   const stolenTokens = shuffled(defenderHand).slice(0, count);
   const countText = count > 0 ? `${count}枚を無作為に奪います。` : "枚数が半分未満のため、奪えるカードはありません。";
-  showBonusStepModal(`${SEAT_LABELS[attacker]}はゲート侵攻成功！\n${SEAT_LABELS[defender]}の手札${countText}`, () => {
+  showBonusStepModal(`${getPlayerName(attacker)}はゲート侵攻成功！\n${getPlayerName(defender)}の手札${countText}`, () => {
     gateInvasionStealHand(attacker, stolenTokens.map((t) => t.id));
     notifyChange();
     announceHandPickups(attacker, stolenTokens.map((t) => ({ cardId: t.cardId, wasPublic: false })));
@@ -99,7 +100,7 @@ function runStealHand(attacker, defender, onDone) {
 function runEternal(attacker, onDone) {
   const eternalPile = getState().piles.eternal;
   if (eternalPile.length === 0) {
-    showBonusStepModal(`${SEAT_LABELS[attacker]}はエターナルカードを獲得するはずでしたが、盤面の外のエターナルカードはもう残っていません。`, onDone);
+    showBonusStepModal(`${getPlayerName(attacker)}はエターナルカードを獲得するはずでしたが、盤面の外のエターナルカードはもう残っていません。`, onDone);
     return;
   }
   const cardId = eternalPile[eternalPile.length - 1];
@@ -109,7 +110,7 @@ function runEternal(attacker, onDone) {
   const bumpedTokens = getState().tokens.filter(
     (t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side && t.location.index === colorIndex && !t.cardId.startsWith("first-")
   );
-  showBonusStepModal(`${SEAT_LABELS[attacker]}はエターナルカード「${def.name}」を獲得！\n自分のロックエリアにロックします。`, () => {
+  showBonusStepModal(`${getPlayerName(attacker)}はエターナルカード「${def.name}」を獲得！\n自分のロックエリアにロックします。`, () => {
     gateInvasionEternal(attacker, cardId);
     notifyChange();
     announceHandPickups(attacker, bumpedTokens.map((t) => ({ cardId: t.cardId, wasPublic: true })));
@@ -125,7 +126,7 @@ function runReturnHome(attacker, onDone) {
   const gateTokens = getState().tokens.filter(
     (t) => t.kind === "card" && t.location.zone === "cell" && t.location.row === homeGate.row && t.location.col === homeGate.col
   );
-  showBonusStepModal(`${SEAT_LABELS[attacker]}は自分のゲートにあるカードをすべて回収し、ゲートに帰還します。`, () => {
+  showBonusStepModal(`${getPlayerName(attacker)}は自分のゲートにあるカードをすべて回収し、ゲートに帰還します。`, () => {
     gateInvasionReturnHome(attacker);
     notifyChange();
     announceHandPickups(attacker, gateTokens.map((t) => ({ cardId: t.cardId, wasPublic: t.faceUp })));

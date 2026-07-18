@@ -63,6 +63,20 @@ const GROUPS = [
     ],
   },
   {
+    title: "プレイヤーアバターの位置・サイズ（手札の後ろ側に配置）",
+    controls: [
+      { key: "--avatar-size", label: "サイズ（共通）", unit: "rem", min: 1, max: 8, step: 0.1, default: 3 },
+      { key: "--avatar-a-pos-x", label: "A（自分）位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--avatar-a-pos-y", label: "A（自分）位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 7 },
+      { key: "--avatar-b-pos-x", label: "B 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -8 },
+      { key: "--avatar-b-pos-y", label: "B 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--avatar-c-pos-x", label: "C 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--avatar-c-pos-y", label: "C 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: -9 },
+      { key: "--avatar-d-pos-x", label: "D 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 8 },
+      { key: "--avatar-d-pos-y", label: "D 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+    ],
+  },
+  {
     title: "手札の位置（盤面中心からのずれ）",
     controls: [
       { key: "--hand-a-pos-x", label: "A（自分）位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },

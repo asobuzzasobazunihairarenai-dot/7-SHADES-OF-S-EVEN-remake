@@ -12,7 +12,8 @@
 
 import { resetGame, setupAssignFirstCards, setupFillBoard, setTurnPlayer } from "./state.js";
 import { isManualSeatMode } from "./admin.js";
-import { SEAT_TO_SIDE, SEAT_ORDER, SEAT_LABELS } from "./board-layout.js";
+import { SEAT_TO_SIDE, SEAT_ORDER } from "./board-layout.js";
+import { getPlayerName } from "./player-identity.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { resetVictoryTracking } from "./victory.js";
 
@@ -27,6 +28,7 @@ const AUTO_SEATS_BY_COUNT = {
 // ステップ0で決めた内容。未設定（＝フォームをまだ「決定」していない）ならnull。
 let config = null;
 let bodyEl = null; // パネル内の可変領域（設定フォーム⇄ステップボタンをここで差し替える）
+let closePanel = null; // 「１〜３を一気に行う」完了時にパネルを自動で閉じるために使う
 
 function notifyChange() {
   window.dispatchEvent(new CustomEvent("admin:change"));
@@ -65,7 +67,7 @@ function showStartPlayerModal(player) {
   title.textContent = "３：スタートプレイヤー決定";
   const body = document.createElement("div");
   body.style.cssText = "font-size: 0.9rem; line-height: 1.6;";
-  body.textContent = `${SEAT_LABELS[player]} からスタートです！（以降、時計回りにターンを進めてください）`;
+  body.textContent = `${getPlayerName(player)} からスタートです！（以降、時計回りにターンを進めてください）`;
   modal.appendChild(title);
   modal.appendChild(body);
 }
@@ -99,7 +101,7 @@ function buildConfigForm() {
       cb.checked = config ? config.activePlayers.includes(p) : true;
       checkboxes[p] = cb;
       const span = document.createElement("span");
-      span.textContent = SEAT_LABELS[p];
+      span.textContent = getPlayerName(p);
       row.appendChild(cb);
       row.appendChild(span);
       wrapper.appendChild(row);
@@ -243,6 +245,7 @@ function runAll() {
   runStep1();
   runStep2();
   runStep3();
+  if (closePanel) closePanel();
 }
 
 function buildPanel(close) {
@@ -288,6 +291,7 @@ export function initGameSetup() {
     backdrop.style.display = "none";
     toggleBtn.style.display = "block";
   }
+  closePanel = close;
   function open() {
     panel.style.display = "block";
     backdrop.style.display = "block";
