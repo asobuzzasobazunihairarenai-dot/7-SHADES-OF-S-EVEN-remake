@@ -1,17 +1,53 @@
-// Phase 1: プレイマット画像とロックエリアの位置合わせを、コードを直接編集せずに
+// Phase 1: プレイマット画像・ロックエリア・各種カードの山の位置合わせを、コードを直接編集せずに
 // ブラウザ上のスライダーで調整し、最終値をテキストで書き出せる管理者モード。
 // 調整が終わったら「出力」欄の内容をそのまま開発者に渡せば、CSSの :root にある
 // 対応する変数へそのまま反映できる。
 
-// playmat-scaleは盤面(.board)の実サイズを100%とした拡大率（transform: scaleなので中心基準・見切れない）。
-// pos-x/pos-yは中心からのずれ（%、transform: translateなのでこちらも見切れない）。
-const CONTROLS = [
-  { key: "--playmat-scale", label: "プレイマット拡大率", unit: "", min: 0.5, max: 3, step: 0.01, default: 1.3 },
-  { key: "--playmat-pos-x", label: "プレイマット位置X（中心からのずれ）", unit: "%", min: -50, max: 50, step: 0.5, default: 0 },
-  { key: "--playmat-pos-y", label: "プレイマット位置Y（中心からのずれ）", unit: "%", min: -50, max: 50, step: 0.5, default: 0 },
-  { key: "--lock-thickness", label: "ロック帯の太さ", unit: "rem", min: 0.3, max: 3, step: 0.05, default: 1.45 },
-  { key: "--arena-gap", label: "ロックエリアと盤面の間隔", unit: "rem", min: 0, max: 2, step: 0.05, default: 0 },
+// scaleは基準サイズ（プレイマットなら盤面、各山ならカード1枚分）を100%とした拡大率。
+// pos-x/pos-yは中心からのずれ。どちらもtransform: scale/translateなので、拡大しても見切れない。
+const GROUPS = [
+  {
+    title: "プレイマット",
+    controls: [
+      { key: "--playmat-scale", label: "拡大率", unit: "", min: 0.5, max: 3, step: 0.01, default: 1.42 },
+      { key: "--playmat-pos-x", label: "位置X（中心からのずれ）", unit: "%", min: -50, max: 50, step: 0.5, default: 0 },
+      { key: "--playmat-pos-y", label: "位置Y（中心からのずれ）", unit: "%", min: -50, max: 50, step: 0.5, default: 0 },
+    ],
+  },
+  {
+    title: "ロックエリア",
+    controls: [
+      { key: "--lock-thickness", label: "帯の太さ", unit: "rem", min: 0.3, max: 3, step: 0.05, default: 2.2 },
+      { key: "--arena-gap", label: "盤面との間隔", unit: "rem", min: 0, max: 2, step: 0.05, default: 0 },
+    ],
+  },
+  {
+    title: "山札",
+    controls: [
+      { key: "--deck-scale", label: "拡大率", unit: "", min: 0.3, max: 3, step: 0.01, default: 1 },
+      { key: "--deck-pos-x", label: "位置X（中心からのずれ）", unit: "%", min: -100, max: 100, step: 1, default: 0 },
+      { key: "--deck-pos-y", label: "位置Y（中心からのずれ）", unit: "%", min: -100, max: 100, step: 1, default: 0 },
+    ],
+  },
+  {
+    title: "捨て場",
+    controls: [
+      { key: "--discard-scale", label: "拡大率", unit: "", min: 0.3, max: 3, step: 0.01, default: 1 },
+      { key: "--discard-pos-x", label: "位置X（中心からのずれ）", unit: "%", min: -100, max: 100, step: 1, default: 0 },
+      { key: "--discard-pos-y", label: "位置Y（中心からのずれ）", unit: "%", min: -100, max: 100, step: 1, default: 0 },
+    ],
+  },
+  {
+    title: "エターナルカード",
+    controls: [
+      { key: "--eternal-scale", label: "拡大率", unit: "", min: 0.3, max: 3, step: 0.01, default: 1 },
+      { key: "--eternal-pos-x", label: "位置X（中心からのずれ）", unit: "%", min: -100, max: 100, step: 1, default: 0 },
+      { key: "--eternal-pos-y", label: "位置Y（中心からのずれ）", unit: "%", min: -100, max: 100, step: 1, default: 0 },
+    ],
+  },
 ];
+
+const CONTROLS = GROUPS.flatMap((g) => g.controls);
 
 function currentValue(key, fallback) {
   const inline = document.documentElement.style.getPropertyValue(key).trim();
@@ -30,8 +66,9 @@ function buildPanel() {
   panel.id = "admin-panel";
   panel.style.cssText = `
     position: fixed; top: 1rem; left: 1rem; z-index: 1000;
-    background: rgba(15, 23, 32, 0.92); border: 1px solid rgba(148,163,184,0.4);
-    border-radius: 0.5rem; padding: 0.75rem; width: 19rem;
+    background: rgba(15, 23, 32, 0.95); border: 1px solid rgba(148,163,184,0.4);
+    border-radius: 0.5rem; padding: 0.75rem; width: 19rem; max-height: 90vh;
+    overflow-y: auto; box-sizing: border-box;
     font-family: sans-serif; font-size: 0.75rem; color: #e2e8f0;
     display: none;
   `;
@@ -41,39 +78,46 @@ function buildPanel() {
   title.style.cssText = "font-weight: bold; margin-bottom: 0.5rem;";
   panel.appendChild(title);
 
-  for (const c of CONTROLS) {
-    const row = document.createElement("div");
-    row.style.cssText = "margin-bottom: 0.5rem;";
+  for (const group of GROUPS) {
+    const groupTitle = document.createElement("div");
+    groupTitle.textContent = group.title;
+    groupTitle.style.cssText = "font-weight: bold; margin-top: 0.7rem; margin-bottom: 0.3rem; color: #7dd3fc; border-top: 1px solid rgba(148,163,184,0.25); padding-top: 0.5rem;";
+    panel.appendChild(groupTitle);
 
-    const labelRow = document.createElement("div");
-    labelRow.style.cssText = "display: flex; justify-content: space-between; margin-bottom: 0.15rem;";
-    const label = document.createElement("span");
-    label.textContent = c.label;
-    const valueLabel = document.createElement("span");
-    valueLabel.id = `admin-value-${c.key}`;
-    labelRow.appendChild(label);
-    labelRow.appendChild(valueLabel);
+    for (const c of group.controls) {
+      const row = document.createElement("div");
+      row.style.cssText = "margin-bottom: 0.5rem;";
 
-    const slider = document.createElement("input");
-    slider.type = "range";
-    slider.dataset.key = c.key;
-    slider.min = String(c.min);
-    slider.max = String(c.max);
-    slider.step = String(c.step);
-    slider.style.width = "100%";
-    const initial = currentValue(c.key, c.default);
-    slider.value = String(initial);
-    valueLabel.textContent = `${initial}${c.unit}`;
+      const labelRow = document.createElement("div");
+      labelRow.style.cssText = "display: flex; justify-content: space-between; margin-bottom: 0.15rem;";
+      const label = document.createElement("span");
+      label.textContent = c.label;
+      const valueLabel = document.createElement("span");
+      valueLabel.id = `admin-value-${c.key}`;
+      labelRow.appendChild(label);
+      labelRow.appendChild(valueLabel);
 
-    slider.addEventListener("input", () => {
-      setVar(c.key, slider.value, c.unit);
-      valueLabel.textContent = `${slider.value}${c.unit}`;
-      updateExport();
-    });
+      const slider = document.createElement("input");
+      slider.type = "range";
+      slider.dataset.key = c.key;
+      slider.min = String(c.min);
+      slider.max = String(c.max);
+      slider.step = String(c.step);
+      slider.style.width = "100%";
+      const initial = currentValue(c.key, c.default);
+      slider.value = String(initial);
+      valueLabel.textContent = `${initial}${c.unit}`;
 
-    row.appendChild(labelRow);
-    row.appendChild(slider);
-    panel.appendChild(row);
+      slider.addEventListener("input", () => {
+        setVar(c.key, slider.value, c.unit);
+        valueLabel.textContent = `${slider.value}${c.unit}`;
+        updateExport();
+      });
+
+      row.appendChild(labelRow);
+      row.appendChild(slider);
+      panel.appendChild(row);
+    }
   }
 
   const buttonRow = document.createElement("div");
@@ -116,7 +160,7 @@ function buildPanel() {
   const exportEl = document.createElement("textarea");
   exportEl.id = "admin-export";
   exportEl.readOnly = true;
-  exportEl.style.cssText = "width: 100%; height: 8rem; margin-top: 0.3rem; background: #0f1520; color: #a5f3fc; font-family: monospace; font-size: 0.7rem; border: 1px solid rgba(148,163,184,0.3); border-radius: 0.25rem; padding: 0.4rem; box-sizing: border-box;";
+  exportEl.style.cssText = "width: 100%; height: 12rem; margin-top: 0.3rem; background: #0f1520; color: #a5f3fc; font-family: monospace; font-size: 0.7rem; border: 1px solid rgba(148,163,184,0.3); border-radius: 0.25rem; padding: 0.4rem; box-sizing: border-box;";
   panel.appendChild(exportEl);
 
   function rebuildSliders() {
