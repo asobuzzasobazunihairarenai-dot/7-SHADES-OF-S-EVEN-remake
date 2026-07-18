@@ -51,11 +51,13 @@ body {
   box-shadow: 0 0 12px rgba(0, 0, 0, 0.4);
 }
 
-.zone-top    { grid-column: 2; grid-row: 1; }
-.zone-bottom { grid-column: 2; grid-row: 3; }
-.zone-left   { grid-column: 1; grid-row: 2; }
-.zone-right  { grid-column: 3; grid-row: 2; }
-.zone-shared { grid-column: 1; grid-row: 1; }
+.zone-top     { grid-column: 2; grid-row: 1; }
+.zone-bottom  { grid-column: 2; grid-row: 3; }
+.zone-left    { grid-column: 1; grid-row: 2; }
+.zone-right   { grid-column: 3; grid-row: 2; }
+.zone-deck    { grid-column: 1; grid-row: 1; }
+.zone-eternal { grid-column: 1; grid-row: 3; }
+.zone-discard { grid-column: 3; grid-row: 3; }
 
 .zone {
   min-width: 0;
@@ -75,25 +77,34 @@ body {
 }
 
 .player-zone .hand-area {
-  display: flex;
-  gap: 0.3rem;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-content: center;
-  overflow: hidden;
+  position: relative;
+  width: 100%;
+  height: 5.2rem;
+  transform-style: preserve-3d;
+  overflow: visible;
+}
+
+/* 手札全体を持ち上げて（テーブルの傾きを打ち消して）カメラ側を向かせる。
+   個々のカードの位置・扇状の角度はJS側でindexに応じて計算しinline transformで与える。 */
+.hand-fan {
+  position: absolute;
+  inset: 0;
+  transform: rotateX(-40deg) translateZ(2.4rem);
+  transform-style: preserve-3d;
 }
 
 .hand-card {
-  width: 2.6rem;
-  height: 3.6rem;
-  border-radius: 0.25rem;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2.8rem;
+  height: 3.9rem;
+  margin-top: -1.95rem;
+  margin-left: -1.4rem;
+  border-radius: 0.3rem;
   background: linear-gradient(160deg, #334155, #1e293b);
-  border: 1px solid rgba(226, 232, 240, 0.35);
-}
-
-.zone-left .hand-area,
-.zone-right .hand-area {
-  flex-direction: column;
+  border: 1px solid rgba(226, 232, 240, 0.4);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.55);
 }
 
 .arena {
@@ -104,6 +115,7 @@ body {
   grid-template-rows: 2.3rem auto 2.3rem;
   gap: 0.4rem;
   width: max-content;
+  transform-style: preserve-3d;
 }
 
 .lock-area {
@@ -138,12 +150,15 @@ body {
   background: rgba(5, 8, 12, 0.5);
   border-radius: 0.4rem;
   padding: 0.3rem;
+  transform-style: preserve-3d;
 }
 
 .cell {
   border-radius: 0.2rem;
   background: linear-gradient(160deg, #475569, #1e293b);
   border: 1px solid rgba(226, 232, 240, 0.2);
+  transform-style: preserve-3d;
+  position: relative;
 }
 
 .cell.is-gate {
@@ -151,20 +166,54 @@ body {
   border-color: rgba(250, 204, 21, 0.6);
 }
 
-.piece {
-  width: 60%;
-  height: 60%;
-  margin: 20%;
-  border-radius: 0.2rem;
-  box-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
+/* 立方体の駒。3面（上・正面・側面）をpreserve-3dで組み立てる。
+   game-tableが42deg傾いているため、無回転のfaceが板面に平行な「上面」として一番大きく見え、
+   残り2面は板の傾きにより細いスリットとして側面が見える（サイコロを斜め上から見た見え方に近い）。 */
+:root {
+  --piece: 2.1rem;
 }
 
-.shared-piles {
+.piece {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--piece);
+  height: var(--piece);
+  margin-top: calc(var(--piece) / -2);
+  margin-left: calc(var(--piece) / -2);
+  transform-style: preserve-3d;
+  transform: translateZ(calc(var(--piece) / 2));
+  filter: drop-shadow(0 0.3rem 0.35rem rgba(0, 0, 0, 0.6));
+}
+
+.piece .face {
+  position: absolute;
+  width: var(--piece);
+  height: var(--piece);
+  border: 1px solid rgba(0, 0, 0, 0.35);
+}
+
+.piece .face-front {
+  transform: translateZ(calc(var(--piece) / 2));
+  filter: brightness(1.25);
+}
+
+.piece .face-top {
+  transform: rotateX(90deg) translateZ(calc(var(--piece) / 2));
+  filter: brightness(0.55);
+}
+
+.piece .face-side {
+  transform: rotateY(90deg) translateZ(calc(var(--piece) / 2));
+  filter: brightness(0.4);
+}
+
+.pile-zone {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
   font-size: 0.65rem;
 }
 
