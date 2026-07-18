@@ -74,15 +74,23 @@ function buildCardModal() {
   const modal = document.createElement("div");
   modal.style.cssText = `
     position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    width: min(24rem, 90vw); max-height: 90vh; overflow-y: auto;
+    width: min(38rem, 92vw); max-height: 85vh; overflow-y: auto;
     background: rgba(15, 23, 32, 0.98); border: 1px solid rgba(148, 163, 184, 0.4);
     border-radius: 0.5rem; padding: 1rem; z-index: 2101;
     font-family: sans-serif; color: #e2e8f0; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
     display: none;
   `;
 
+  // 拡大画像の右隣に補足テキストを並べ、縦スクロールをなるべく減らす
+  // （狭い画面ではflex-wrapで縦積みにフォールバック）。
+  const content = document.createElement("div");
+  content.style.cssText = "display: flex; gap: 0.8rem; margin-bottom: 0.8rem; flex-wrap: wrap;";
+
   const img = document.createElement("img");
-  img.style.cssText = "width: 100%; border-radius: 0.4rem; margin-bottom: 0.6rem; display: block;";
+  img.style.cssText = "width: 14rem; flex-shrink: 0; border-radius: 0.4rem; display: block;";
+
+  const textCol = document.createElement("div");
+  textCol.style.cssText = "flex: 1; min-width: 12rem;";
 
   const name = document.createElement("div");
   name.style.cssText = "font-weight: bold; font-size: 1rem; margin-bottom: 0.4rem;";
@@ -92,14 +100,16 @@ function buildCardModal() {
     padding: 0.5rem; background: rgba(0, 0, 0, 0.3); border-radius: 0.25rem;
     font-size: 0.8rem; line-height: 1.5; white-space: pre-wrap;
   `;
+  textCol.appendChild(name);
+  textCol.appendChild(note);
+  content.appendChild(img);
+  content.appendChild(textCol);
 
   const closeBtn = document.createElement("button");
   closeBtn.textContent = "閉じる";
-  closeBtn.style.cssText = "margin-top: 0.8rem; padding: 0.3rem 0.6rem; background: #475569; color: #fff; border: none; border-radius: 0.25rem; cursor: pointer;";
+  closeBtn.style.cssText = "padding: 0.3rem 0.6rem; background: #475569; color: #fff; border: none; border-radius: 0.25rem; cursor: pointer;";
 
-  modal.appendChild(img);
-  modal.appendChild(name);
-  modal.appendChild(note);
+  modal.appendChild(content);
   modal.appendChild(closeBtn);
 
   function close() {

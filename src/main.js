@@ -178,7 +178,7 @@ function buildCardStack(count, pileClass, imagePath) {
 
 const PILE_CONFIG = {
   deck: { gridArea: "deck", pileClass: "pile-deck", label: "山札", backImage: "assets/cards/back-normal.png" },
-  eternal: { gridArea: "eternal", pileClass: "pile-eternal", label: "永久", backImage: "assets/cards/back-eternal.png" },
+  eternal: { gridArea: "eternal", pileClass: "pile-eternal", label: "エターナルカード", backImage: "assets/cards/back-eternal.png" },
   first: { gridArea: "first", pileClass: "pile-first", label: "ファースト", backImage: "assets/cards/back-first.png" },
   discard: { gridArea: "discard", pileClass: "pile-discard", label: "捨て場" },
 };
@@ -590,18 +590,24 @@ function showCardNoteModal(cardId) {
   img.className = "card-note-image";
   img.src = getCardImagePath(cardId);
   img.alt = def.name;
+  const textCol = document.createElement("div");
+  textCol.className = "card-note-text-col";
   const title = document.createElement("div");
   title.className = "card-note-title";
   title.textContent = def.name;
   const body = document.createElement("div");
   body.className = "card-note-body";
   body.textContent = def.note || "（補足なし）";
+  textCol.appendChild(title);
+  textCol.appendChild(body);
+  const content = document.createElement("div");
+  content.className = "card-note-content";
+  content.appendChild(img);
+  content.appendChild(textCol);
   const closeBtn = document.createElement("button");
   closeBtn.textContent = "閉じる";
   closeBtn.addEventListener("click", () => modal.remove());
-  modal.appendChild(img);
-  modal.appendChild(title);
-  modal.appendChild(body);
+  modal.appendChild(content);
   modal.appendChild(closeBtn);
   document.body.appendChild(modal);
 }
