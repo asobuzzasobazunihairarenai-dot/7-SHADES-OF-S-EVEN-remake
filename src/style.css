@@ -43,7 +43,7 @@ body {
   --board-zoom-offset-y: -1.7rem;
   --board-zoom-2-margin: 1.3;
   --board-zoom-2-offset-x: 0rem;
-  --board-zoom-2-offset-y: 0rem;
+  --board-zoom-2-offset-y: -2.5rem;
 }
 
 .game-table {
@@ -270,14 +270,18 @@ body {
 }
 
 /* ロックしていても手札効果が使える特別なカード（ファーストカード・エターナルカード）を、
-   ロックエリア内にある間だけ定期的に強調する。斜めの光の帯（::after）が定期的に
-   カードを横切って「キラッ」と光り、あわせて金色のグローがふわっと明滅する。 */
+   ロックエリア内にある間だけ定期的に強調する。管理者モードで2種類の演出を切り替えられる
+   （main.jsのbuildFlatCardがeffect-shine/effect-orbitのどちらかを付与し、--usable-locked-colorに
+   そのロックスロットの色を設定する）。 */
+
+/* 演出1: 斜めの光の帯（::after）が定期的にカードを横切り、あわせて金色のグローが明滅する。
+   以前は帯の幅が35%あって存在感が強すぎたため、大幅に細くした。 */
 @keyframes usable-locked-shine-sweep {
   0%, 85% {
-    transform: translateX(-160%) skewX(-20deg);
+    transform: translateX(-800%) skewX(-20deg);
   }
   100% {
-    transform: translateX(160%) skewX(-20deg);
+    transform: translateX(800%) skewX(-20deg);
   }
 }
 @keyframes usable-locked-glow-pulse {
@@ -291,19 +295,42 @@ body {
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
   }
 }
-.board-card.is-usable-while-locked {
+.board-card.is-usable-while-locked.effect-shine {
   overflow: hidden;
   animation: usable-locked-glow-pulse 4s ease-in-out infinite;
 }
-.board-card.is-usable-while-locked::after {
+.board-card.is-usable-while-locked.effect-shine::after {
   content: "";
   position: absolute;
   top: 0;
   left: 0;
-  width: 35%;
+  width: 6%;
   height: 100%;
   background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.95), transparent);
   animation: usable-locked-shine-sweep 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* 演出2（デフォルト）: そのロックスロットの色をした小さな球が、カードのふちに沿って
+   ゆっくり周回する。4隅を等間隔のキーフレームにして直線的に結ぶことで、辺に沿って
+   進むように見せている（offset-path等のモーションパスAPIより確実に動作するため）。 */
+@keyframes usable-locked-orbit {
+  0%   { top: 0%; left: 0%; }
+  25%  { top: 0%; left: 100%; }
+  50%  { top: 100%; left: 100%; }
+  75%  { top: 100%; left: 0%; }
+  100% { top: 0%; left: 0%; }
+}
+.board-card.is-usable-while-locked.effect-orbit::before {
+  content: "";
+  position: absolute;
+  width: 0.4rem;
+  height: 0.4rem;
+  margin: -0.2rem;
+  border-radius: 50%;
+  background: var(--usable-locked-color, #facc15);
+  box-shadow: 0 0 0.35rem 0.1rem var(--usable-locked-color, #facc15);
+  animation: usable-locked-orbit 3.5s linear infinite;
   pointer-events: none;
 }
 
@@ -1098,13 +1125,13 @@ body {
 :root {
   --avatar-size: 3rem;
   --avatar-a-pos-x: 0rem;
-  --avatar-a-pos-y: 7rem;
-  --avatar-b-pos-x: -8rem;
-  --avatar-b-pos-y: 0rem;
-  --avatar-c-pos-x: 0rem;
-  --avatar-c-pos-y: -9rem;
-  --avatar-d-pos-x: 8rem;
-  --avatar-d-pos-y: 0rem;
+  --avatar-a-pos-y: 1.9rem;
+  --avatar-b-pos-x: -4.8rem;
+  --avatar-b-pos-y: 0.1rem;
+  --avatar-c-pos-x: 0.1rem;
+  --avatar-c-pos-y: -8.8rem;
+  --avatar-d-pos-x: 4.5rem;
+  --avatar-d-pos-y: -0.1rem;
 }
 .player-avatar {
   position: absolute;
@@ -1154,6 +1181,68 @@ body {
   background: linear-gradient(160deg, #fbbf24, #f97316);
 }
 
+/* ゲームタイトル。画面左上（以前「⚙ 管理者モード」ボタンがあった場所。オプションメニューに
+   統合して空いたスペースに表示する）。 */
+#game-title {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 900;
+  font-family: sans-serif;
+  font-size: 0.95rem;
+  font-weight: bold;
+  color: rgba(226, 232, 240, 0.85);
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+
+/* 「⚙ オプション」ボタンとそのドロップダウン（管理者モードの呼び出し口をここに統合した）。
+   山札一覧・セットアップと同じ右上の並びに、その下へ積む形で配置する。 */
+#options-menu-button {
+  position: fixed;
+  top: 5.8rem;
+  right: 1rem;
+  z-index: 1001;
+  padding: 0.4rem 0.7rem;
+  background: rgba(15, 23, 32, 0.85);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-family: sans-serif;
+  font-size: 0.75rem;
+}
+#options-menu-panel {
+  position: fixed;
+  top: 5.8rem;
+  right: 1rem;
+  z-index: 1000;
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.4rem;
+  padding: 0.3rem;
+  min-width: 9rem;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+}
+.options-menu-item {
+  display: block;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  background: transparent;
+  color: #e2e8f0;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-family: sans-serif;
+  border-radius: 0.25rem;
+  white-space: nowrap;
+}
+.options-menu-item:hover {
+  background: rgba(56, 189, 248, 0.2);
+}
+
 /* 「1枚ドロー」ボタン。#end-turn-buttonのすぐ上に積む形で、同じ右下の並びに配置する。 */
 #draw-button {
   position: fixed;
@@ -1176,34 +1265,12 @@ body {
   background: linear-gradient(160deg, #22d3ee, #0e7490);
 }
 
-/* 「駒スキン」ボタン。#draw-buttonのさらに上に積む。自分の駒がまだ無い（セットアップ未実施）
-   間は非表示にする（updatePieceSkinButton()参照）。 */
-#piece-skin-button {
-  position: fixed;
-  bottom: 7.6rem;
-  right: 1.2rem;
-  z-index: 1000;
-  padding: 0.6rem 1.1rem;
-  background: linear-gradient(160deg, #7c3aed, #4c1d95);
-  color: #fff;
-  border: none;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  font-family: sans-serif;
-  font-size: 0.85rem;
-  font-weight: bold;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-  display: none;
-}
-#piece-skin-button:hover {
-  background: linear-gradient(160deg, #a78bfa, #6d28d9);
-}
-
-/* 「盤面拡大」ボタン。#piece-skin-buttonのさらに上に積む。常時表示（turnPlayerの有無に
-   関係なく使える）。オンの間は色を変えて「今拡大中」であることを示す。 */
+/* 「盤面拡大」ボタン。#draw-buttonのさらに上に積む（駒スキンボタンは左下の自分専用
+   ステータスエリアに統合したため、このスタックからは無くなった）。常時表示
+   （turnPlayerの有無に関係なく使える）。オンの間は色を変えて「今拡大中」であることを示す。 */
 #board-zoom-button {
   position: fixed;
-  bottom: 10.8rem;
+  bottom: 7.6rem;
   right: 1.2rem;
   z-index: 1000;
   padding: 0.6rem 1.1rem;
@@ -1323,6 +1390,33 @@ body {
 .self-status-avatar:hover {
   background: rgba(255, 255, 255, 0.14);
 }
+/* 駒スキンのサムネイル。ドラッグ中のゴースト(.drag-ghost-piece-outer/-inner)と同じ
+   「perspective+盤面と同じ傾きを持つ入れ子」で、3D空間の外でも本物の.pieceを
+   立方体のまま小さく表示する。自分の駒がまだ無い（セットアップ未実施）間は非表示。 */
+.self-status-piece-thumb {
+  position: relative;
+  width: 2.6rem;
+  height: 2.6rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  perspective: 400px;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.self-status-piece-thumb:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.self-status-piece-thumb-inner {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
 .self-status-info {
   display: flex;
   flex-direction: column;
@@ -1392,7 +1486,7 @@ body {
 }
 
 /* カードが手札に加わった時の「何をゲットしたか」トースト。#end-turn-button・#draw-button・
-   #piece-skin-buttonの上に重ねて表示されるよう、その分の高さを空けてbottomを取っている。
+   #board-zoom-buttonの上に重ねて表示されるよう、その分の高さを空けてbottomを取っている。
    クリックすると即座に消せる（右上の✕ボタンでも同様）。サイズ・表示時間は管理者モードで
    調整できる（--hand-pickup-toast-scale・--hand-pickup-toast-duration、hand-announcer.js参照）。 */
 :root {
@@ -1401,7 +1495,7 @@ body {
 }
 .hand-pickup-toast {
   position: fixed;
-  bottom: 14rem;
+  bottom: 10.8rem;
   right: 1.2rem;
   z-index: 10500;
   max-width: calc(20rem * var(--hand-pickup-toast-scale));

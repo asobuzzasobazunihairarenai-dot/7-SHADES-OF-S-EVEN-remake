@@ -34,7 +34,7 @@ const GROUPS = [
     controls: [
       { key: "--board-zoom-2-margin", label: "余白（大きいほど拡大される）", unit: "", min: 1, max: 2, step: 0.01, default: 1.3 },
       { key: "--board-zoom-2-offset-x", label: "位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--board-zoom-2-offset-y", label: "位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--board-zoom-2-offset-y", label: "位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: -2.5 },
     ],
   },
   {
@@ -84,13 +84,13 @@ const GROUPS = [
     controls: [
       { key: "--avatar-size", label: "サイズ（共通）", unit: "rem", min: 1, max: 8, step: 0.1, default: 3 },
       { key: "--avatar-a-pos-x", label: "A（自分）位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--avatar-a-pos-y", label: "A（自分）位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 7 },
-      { key: "--avatar-b-pos-x", label: "B 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -8 },
-      { key: "--avatar-b-pos-y", label: "B 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--avatar-c-pos-x", label: "C 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--avatar-c-pos-y", label: "C 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: -9 },
-      { key: "--avatar-d-pos-x", label: "D 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 8 },
-      { key: "--avatar-d-pos-y", label: "D 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--avatar-a-pos-y", label: "A（自分）位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 1.9 },
+      { key: "--avatar-b-pos-x", label: "B 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -4.8 },
+      { key: "--avatar-b-pos-y", label: "B 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0.1 },
+      { key: "--avatar-c-pos-x", label: "C 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0.1 },
+      { key: "--avatar-c-pos-y", label: "C 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: -8.8 },
+      { key: "--avatar-d-pos-x", label: "D 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 4.5 },
+      { key: "--avatar-d-pos-y", label: "D 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: -0.1 },
     ],
   },
   {
@@ -167,6 +167,15 @@ let manualSeatMode = false;
 
 export function isManualSeatMode() {
   return manualSeatMode;
+}
+
+// ロックしていても使えるカード（ファーストカード・エターナルカード）をロックエリア内で
+// 目立たせる演出の種類。"orbit"=色の球がふちを回る（デフォルト）、"shine"=斜めに光る帯が
+// 定期的に横切る。main.jsのbuildFlatCardが参照する。
+let usableLockedEffect = "orbit";
+
+export function getUsableLockedEffect() {
+  return usableLockedEffect;
 }
 
 function currentValue(key, fallback) {
@@ -249,6 +258,25 @@ function buildPanel(rebuildSlidersRef) {
       turnGlowRow.appendChild(turnGlowCheckbox);
       turnGlowRow.appendChild(turnGlowLabel);
       content.appendChild(turnGlowRow);
+    })
+  );
+
+  panel.appendChild(
+    buildSection("ロック中でも使えるカードの強調演出", (content) => {
+      const effectRow = document.createElement("label");
+      effectRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const effectCheckbox = document.createElement("input");
+      effectCheckbox.type = "checkbox";
+      effectCheckbox.checked = usableLockedEffect === "shine";
+      effectCheckbox.addEventListener("change", () => {
+        usableLockedEffect = effectCheckbox.checked ? "shine" : "orbit";
+        window.dispatchEvent(new CustomEvent("admin:change"));
+      });
+      const effectLabel = document.createElement("span");
+      effectLabel.textContent = "斜めに光る帯にする（オフ=色の球がふちを回る）";
+      effectRow.appendChild(effectCheckbox);
+      effectRow.appendChild(effectLabel);
+      content.appendChild(effectRow);
     })
   );
 
@@ -360,17 +388,13 @@ function buildPanel(rebuildSlidersRef) {
   return panel;
 }
 
-function buildToggleButton(open) {
-  const btn = document.createElement("button");
-  btn.textContent = "⚙ 管理者モード";
-  btn.style.cssText = `
-    position: fixed; top: 1rem; left: 1rem; z-index: 1001;
-    padding: 0.4rem 0.7rem; background: rgba(15,23,32,0.85); color: #e2e8f0;
-    border: 1px solid rgba(148,163,184,0.4); border-radius: 0.4rem; cursor: pointer;
-    font-family: sans-serif; font-size: 0.75rem;
-  `;
-  btn.addEventListener("click", open);
-  return btn;
+let openAdminPanelFn = null;
+
+// options-menu.js（右上「⚙ オプション」の中の「管理者モード」項目）から呼ぶ。
+// 以前はこのモジュール自身が左上に専用の呼び出しボタンを持っていたが、オプションメニューに
+// 統合したため、パネルの開閉トリガーだけをここから外部提供する形にした。
+export function openAdminPanel() {
+  if (openAdminPanelFn) openAdminPanelFn();
 }
 
 export function initAdminMode() {
@@ -380,13 +404,12 @@ export function initAdminMode() {
   function close() {
     panel.style.display = "none";
     backdrop.style.display = "none";
-    toggleBtn.style.display = "block";
   }
   function open() {
     panel.style.display = "block";
     backdrop.style.display = "block";
-    toggleBtn.style.display = "none";
   }
+  openAdminPanelFn = open;
 
   // ツールパネルなので背景は暗くしない（盤面を見ながら調整したいため）が、外側クリックで
   // 閉じられるようにする（今後追加するパネル/モーダルもこの閉じ方に統一する）。
@@ -394,9 +417,6 @@ export function initAdminMode() {
   backdrop.style.display = "none";
   panel.appendChild(createModalCloseX(close));
 
-  const toggleBtn = buildToggleButton(open);
-
   document.body.appendChild(backdrop);
   document.body.appendChild(panel);
-  document.body.appendChild(toggleBtn);
 }

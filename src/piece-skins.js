@@ -3,6 +3,8 @@
 // 固定なので、選べるのは「自分の駒と同じ色の中のスキンバリエーション」だけ
 // （色が変わるわけではない）。選択は色ごとに保持するため、対戦を通して座席の色が変わっても
 // 同じ色なら同じスキンが使われる。
+// トリガーとなるUI（駒の立体サムネイル）は左下の自分専用ステータスエリア側（main.js）に
+// あるため、このモジュールはデータ管理とピッカーのモーダルだけを持つ。
 
 import { getState } from "./state.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
@@ -16,7 +18,7 @@ export function getSkinImagePath(color) {
   return idx === 0 ? `assets/pieces/${color}.png` : `assets/pieces/${color}-${idx}.png`;
 }
 
-function myPieceColor() {
+export function getMyPieceColor() {
   const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === "A");
   return piece ? piece.color : null;
 }
@@ -25,8 +27,8 @@ function notifyChange() {
   window.dispatchEvent(new CustomEvent("admin:change"));
 }
 
-function openPicker() {
-  const color = myPieceColor();
+export function openPieceSkinPicker() {
+  const color = getMyPieceColor();
   if (!color) return;
 
   const modal = document.createElement("div");
@@ -64,25 +66,4 @@ function openPicker() {
   modal.appendChild(grid);
   document.body.appendChild(backdrop);
   document.body.appendChild(modal);
-}
-
-let toggleBtnEl = null;
-
-function buildToggleButton() {
-  const btn = document.createElement("button");
-  btn.id = "piece-skin-button";
-  btn.textContent = "🎨 駒スキン";
-  btn.addEventListener("click", openPicker);
-  document.body.appendChild(btn);
-  return btn;
-}
-
-// 自分の駒がまだ無い（セットアップ未実施）間は非表示にする。render()の度に呼んでもらう。
-export function updatePieceSkinButton() {
-  if (!toggleBtnEl) return;
-  toggleBtnEl.style.display = myPieceColor() ? "block" : "none";
-}
-
-export function initPieceSkins() {
-  toggleBtnEl = buildToggleButton();
 }

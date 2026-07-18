@@ -1,13 +1,14 @@
 // Phase 1: 盤面・手札・山札等を描画し、駒とカードをドラッグ操作で自由に動かせるようにする。
 // ルール処理は行わない（ユドナリウムコネクトのような手動サンドボックス）。
 
-import { initAdminMode } from "./admin.js";
+import { initAdminMode, getUsableLockedEffect } from "./admin.js";
 import { initDeckViewer } from "./deck-viewer.js";
 import { initGameSetup } from "./game-setup.js";
+import { initOptionsMenu } from "./options-menu.js";
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
 import { announceHandPickups } from "./hand-announcer.js";
 import { checkForVictory } from "./victory.js";
-import { initPieceSkins, updatePieceSkinButton, getSkinImagePath } from "./piece-skins.js";
+import { getSkinImagePath, getMyPieceColor, openPieceSkinPicker } from "./piece-skins.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS } from "./player-identity.js";
 import { getSelectedPlaymatPath } from "./playmat.js";
@@ -285,10 +286,15 @@ function buildFlatCard(token) {
     card.style.backgroundImage = `url("${getCardBackImagePath(token.cardId)}")`;
   }
   // ロックしていても手札効果が使えるカード（ファーストカード・エターナルカード）は、
-  // ロックエリア内にある間だけ定期的にキラッと光らせて目立たせる（普段は「原則ロックした
-  // カードの手札効果は使えない」ため、この2種類だけが特別だと分かりやすくするため）。
+  // ロックエリア内にある間だけ定期的に目立たせる（普段は「原則ロックしたカードの手札効果は
+  // 使えない」ため、この2種類だけが特別だと分かりやすくするため）。演出は管理者モードで
+  // 「回る球」（デフォルト）と「斜めに光る帯」を切り替えられる。球の色はそのロックスロットの
+  // 色（token.location.index）に合わせる。
   if (token.location.zone === "lock" && (token.cardId.startsWith("first-") || token.cardId.startsWith("eternal-"))) {
-    card.classList.add("is-usable-while-locked");
+    const effect = getUsableLockedEffect();
+    card.classList.add("is-usable-while-locked", `effect-${effect}`);
+    const slotColor = COLORS[token.location.index];
+    card.style.setProperty("--usable-locked-color", `var(--color-${slotColor})`);
   }
   return card;
 }
@@ -367,7 +373,6 @@ function render() {
   fitTableToViewport();
   updateEndTurnButton();
   updateDrawButton();
-  updatePieceSkinButton();
   updateSelfHandStatus();
   checkForVictory();
 }
@@ -1180,6 +1185,17 @@ function buildBoardZoomButton() {
   return btn;
 }
 
+// --- ゲームタイトル表示 -----------------------------------------------------------
+// 画面左上（以前は「⚙ 管理者モード」ボタンがあった場所。オプションメニューに統合して
+// 空いたスペースにタイトルを表示する）。
+function buildGameTitle() {
+  const el = document.createElement("div");
+  el.id = "game-title";
+  el.textContent = "7 SHADES OF S:EVEN remake";
+  document.body.appendChild(el);
+  return el;
+}
+
 // --- 「1枚ドロー」ボタン ---------------------------------------------------------
 // 手番プレイヤーが山札から1枚引いて自分の手札に加える、簡易操作用のショートカット。
 // 「ターンを次のプレイヤーへ渡す」ボタンと同じ理由で、state.turnPlayerがまだnullの間は
@@ -1219,6 +1235,7 @@ function updateDrawButton() {
 let selfHandStatusEl = null;
 let selfStatusNameEl = null;
 let selfStatusAvatarEl = null;
+let selfStatusPieceThumbEl = null;
 let selfStatusHandCountEl = null;
 
 function openAvatarPicker() {
@@ -1287,6 +1304,14 @@ function buildSelfHandStatus() {
   selfStatusAvatarEl.title = "クリックしてアバターを変更";
   selfStatusAvatarEl.addEventListener("click", openAvatarPicker);
 
+  // 駒スキンの選択もここに集約する（以前は別の独立したボタンだった）。実際の駒と同じ
+  // buildCubePiece()をそのまま使い、立体のまま小さく表示する（ドラッグ中のゴーストと同じ
+  // 「perspective+盤面と同じ傾きを持つ入れ子」のテクニックで、3D空間の外でも立方体に見せる）。
+  selfStatusPieceThumbEl = document.createElement("button");
+  selfStatusPieceThumbEl.className = "self-status-piece-thumb";
+  selfStatusPieceThumbEl.title = "クリックして駒スキンを変更";
+  selfStatusPieceThumbEl.addEventListener("click", openPieceSkinPicker);
+
   const info = document.createElement("div");
   info.className = "self-status-info";
 
@@ -1301,6 +1326,7 @@ function buildSelfHandStatus() {
   info.appendChild(selfStatusNameEl);
   info.appendChild(selfStatusHandCountEl);
   el.appendChild(selfStatusAvatarEl);
+  el.appendChild(selfStatusPieceThumbEl);
   el.appendChild(info);
   document.body.appendChild(el);
   return el;
@@ -1312,6 +1338,19 @@ function updateSelfHandStatus() {
     (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === "A"
   ).length;
   selfStatusAvatarEl.textContent = getPlayerAvatar("A");
+
+  const myColor = getMyPieceColor();
+  selfStatusPieceThumbEl.style.display = myColor ? "flex" : "none";
+  if (myColor) {
+    selfStatusPieceThumbEl.innerHTML = "";
+    const inner = document.createElement("div");
+    inner.className = "self-status-piece-thumb-inner";
+    const tilt = getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim();
+    inner.style.transform = `rotateX(${tilt})`;
+    inner.appendChild(buildCubePiece(myColor));
+    selfStatusPieceThumbEl.appendChild(inner);
+  }
+
   // startEditingName()が.self-status-nameを一時的に<input>へ差し替えるため、render()の
   // たびに毎回ここで作り直す（差し替え後の入力欄はrender()時点で既にblur済みのはず）。
   if (!selfStatusNameEl.isConnected) {
@@ -1342,4 +1381,5 @@ initContextMenuHandlers();
 initAdminMode();
 initDeckViewer();
 initGameSetup();
-initPieceSkins();
+initOptionsMenu();
+buildGameTitle();
