@@ -2,8 +2,8 @@
 // ルール処理は行わない（ユドナリウムコネクトのような手動サンドボックス）。
 
 import { initAdminMode } from "./admin.js";
-import { getState, moveToken, sendTokenToPile, drawFromPile } from "./state.js";
-import { getCardDefinition } from "./cards-data.js";
+import { getState, moveToken, sendTokenToPile, drawFromPile, flipToken } from "./state.js";
+import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 
 const COLORS = ["red", "orange", "yellow", "green", "blue", "pink", "purple"];
 
@@ -126,12 +126,13 @@ function buildPlayerZone(side, label, player, isSelf) {
     const cardEl = document.createElement("div");
     // 自分の手札は常に中身が見える（物理カードを自分で持っているのと同じ）。
     // 他プレイヤーの手札は中身を明かさず、常に裏向きの見た目にする。
+    // カード画像自体にタイトル・色・効果まで描かれているので、背景画像を敷くだけでよい。
     if (isSelf) {
-      const def = getCardDefinition(token.cardId);
-      cardEl.className = `hand-card is-self is-color-${def.color}`;
-      cardEl.textContent = def.name;
+      cardEl.className = "hand-card is-self";
+      cardEl.style.backgroundImage = `url("${getCardImagePath(token.cardId)}")`;
     } else {
       cardEl.className = "hand-card is-facedown";
+      cardEl.style.backgroundImage = `url("${getCardBackImagePath(token.cardId)}")`;
     }
     cardEl.dataset.tokenId = token.id;
     const card = layout[i];
@@ -147,16 +148,17 @@ function buildPlayerZone(side, label, player, isSelf) {
 
 // 枚数に応じて厚みのある山を作る（山札・エターナルカード用。将来は盤面マスのスタックにも流用する）。
 // 1枚あたり0.6px、最低0.15rem（0枚でも山があるように見える最低限の厚み）。
-// colorClassを渡すと、山の色番号(pileClass)ではなくその色で塗る（捨て場の一番上のカードを
-// 表向きで見せる時に使う。それ以外の山は裏向き積みなので常にpileClassのまま）。
-function buildCardStack(count, pileClass, pileLabel, colorClass) {
+// imagePathを渡すと、その画像を背景に敷く（山札/エターナルは常に裏面画像、捨て場は
+// 空でなければ一番上のカードの実際の絵柄）。
+function buildCardStack(count, pileClass, pileLabel, imagePath) {
   const stack = document.createElement("div");
   stack.className = "stack";
   const heightPx = Math.max(2.4, count * 0.6);
   stack.style.setProperty("--stack-height", `${heightPx}px`);
 
   const top = document.createElement("div");
-  top.className = `stack-top ${colorClass || pileClass}`;
+  top.className = `stack-top ${pileClass}`;
+  if (imagePath) top.style.backgroundImage = `url("${imagePath}")`;
   const nameEl = document.createElement("div");
   nameEl.textContent = pileLabel;
   const countEl = document.createElement("div");
@@ -167,21 +169,22 @@ function buildCardStack(count, pileClass, pileLabel, colorClass) {
   stack.appendChild(top);
 
   const front = document.createElement("div");
-  front.className = `stack-front ${colorClass || pileClass}`;
+  front.className = `stack-front ${pileClass}`;
+  if (imagePath) front.style.backgroundImage = `url("${imagePath}")`;
   stack.appendChild(front);
 
   return stack;
 }
 
 const PILE_CONFIG = {
-  deck: { gridArea: "deck", pileClass: "pile-deck", label: "山札" },
-  eternal: { gridArea: "eternal", pileClass: "pile-eternal", label: "永久" },
+  deck: { gridArea: "deck", pileClass: "pile-deck", label: "山札", backImage: "assets/cards/back-normal.png" },
+  eternal: { gridArea: "eternal", pileClass: "pile-eternal", label: "永久", backImage: "assets/cards/back-eternal.png" },
   discard: { gridArea: "discard", pileClass: "pile-discard", label: "捨て場" },
 };
 
 // 枚数はゾーン外の別ラベルではなく、山自体（stack-top）の表示に含める。
-// 捨て場だけはルール上「表向きに積む」場所なので、空でなければ一番上のカードの
-// 名前・色をそのまま表示する（山札・エターナルは裏向き積みなので中身を明かさない）。
+// 山札・エターナルは常に裏面画像（裏向き積みのため中身は明かさない）。捨て場だけはルール上
+// 「表向きに積む」場所なので、空でなければ一番上のカードの実際の画像・名前を表示する。
 function buildPileZone(pileKey) {
   const config = PILE_CONFIG[pileKey];
   const zone = document.createElement("div");
@@ -191,13 +194,13 @@ function buildPileZone(pileKey) {
   const pileArray = getState().piles[pileKey];
   const count = pileArray.length;
   let label = config.label;
-  let colorClass;
+  let imagePath = config.backImage;
   if (pileKey === "discard" && count > 0) {
-    const topDef = getCardDefinition(pileArray[pileArray.length - 1]);
-    label = topDef.name;
-    colorClass = `is-color-${topDef.color}`;
+    const topId = pileArray[pileArray.length - 1];
+    label = getCardDefinition(topId).name;
+    imagePath = getCardImagePath(topId);
   }
-  const stack = buildCardStack(count, config.pileClass, label, colorClass);
+  const stack = buildCardStack(count, config.pileClass, label, imagePath);
   stack.dataset.pile = pileKey;
   zone.appendChild(stack);
   return zone;
@@ -238,15 +241,16 @@ function findLocationElement(table, location) {
 
 // 盤面マスの上に直接置かれたカードを表す簡易な見た目（手札の外に出たカードは扇の仕組みが
 // 使えないため、セル/ロックスロットにフィットするだけの平たいカードにする）。
-// 表向きなら実際のカード名・色を、裏向きなら裏面の見た目だけを表示する。
+// 表向きなら実際のカード画像を、裏向きなら裏面の画像を敷く。ダブルクリックで表裏を切り替えられる
+// （initFlipHandlers参照）。
 function buildFlatCard(token) {
   const card = document.createElement("div");
   if (token.faceUp) {
-    const def = getCardDefinition(token.cardId);
-    card.className = `board-card is-color-${def.color}`;
-    card.textContent = def.name;
+    card.className = "board-card";
+    card.style.backgroundImage = `url("${getCardImagePath(token.cardId)}")`;
   } else {
     card.className = "board-card is-facedown";
+    card.style.backgroundImage = `url("${getCardBackImagePath(token.cardId)}")`;
   }
   return card;
 }
@@ -307,6 +311,18 @@ window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(fitTableToViewport, 100);
 });
+
+// 場（盤面マス・ロックスロット）にあるカードはダブルクリックで表裏を切り替えられる。
+// 手札のカードは対象外（手札は常に「自分だけ表向き／他人には裏向き」の固定表示のため）。
+function initFlipHandlers() {
+  const table = document.getElementById("game-table");
+  table.addEventListener("dblclick", (e) => {
+    const card = e.target.closest(".board-card");
+    if (!card) return;
+    flipToken(card.dataset.tokenId);
+    render();
+  });
+}
 
 // --- ドラッグ操作 ---------------------------------------------------------
 // ルールを一切適用しない自由な移動なので、「掴んだ物を離した場所」を見て状態を更新するだけの
@@ -490,4 +506,5 @@ window.addEventListener("admin:change", render);
 
 render();
 initDragHandlers();
+initFlipHandlers();
 initAdminMode();

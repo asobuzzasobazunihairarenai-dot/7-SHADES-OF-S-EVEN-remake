@@ -186,8 +186,10 @@ body {
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.5);
 }
 
-/* カード名の表示（表向きの.hand-card/.board-card、捨て場の一番上のカード）。
-   物理カードの絵柄の代わりに、名前テキストと色だけで見分けられるようにする。 */
+/* 実物のカード画像は、JS側でbackground-imageとしてinline styleで敷く（.hand-card/.board-card/
+   .stack-top/.stack-front）。画像自体にタイトル・色・効果テキストまで描かれているため、
+   background-size:coverで枠いっぱいに表示するだけでよい。山の残り枚数などの補足テキストは
+   画像の上に重ねるので、text-shadowで可読性を確保する。 */
 .hand-card,
 .board-card,
 .stack-top {
@@ -200,20 +202,17 @@ body {
   line-height: 1.15;
   overflow: hidden;
   color: #e2e8f0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 6px rgba(0, 0, 0, 0.7);
 }
 
-/* 実際のカードデータの色（docs/cards.mdの7色＋虹＋白＋黒）。--color-*(:root)を流用する。
-   表向きの.hand-card/.board-card、捨て場の一番上のカード(.stack-top/.stack-front)に使う。 */
-.is-color-red { background: linear-gradient(160deg, var(--color-red), #7a0016); border-color: var(--color-red); }
-.is-color-orange { background: linear-gradient(160deg, var(--color-orange), #9c4c0a); border-color: var(--color-orange); }
-.is-color-yellow { background: linear-gradient(160deg, var(--color-yellow), #a17b00); border-color: var(--color-yellow); color: #3a2c00; }
-.is-color-green { background: linear-gradient(160deg, var(--color-green), #15671f); border-color: var(--color-green); }
-.is-color-blue { background: linear-gradient(160deg, var(--color-blue), #0f7c8a); border-color: var(--color-blue); }
-.is-color-pink { background: linear-gradient(160deg, var(--color-pink), #c46e9b); border-color: var(--color-pink); color: #3a1428; }
-.is-color-purple { background: linear-gradient(160deg, var(--color-purple), #5c3968); border-color: var(--color-purple); }
-.is-color-white { background: linear-gradient(160deg, var(--color-white), #94a3b8); border-color: var(--color-white); color: #1e293b; }
-.is-color-black { background: linear-gradient(160deg, #334155, var(--color-black)); border-color: #475569; }
-.is-color-rainbow { background: var(--color-rainbow); border-color: rgba(255, 255, 255, 0.7); color: #1e293b; }
+.stack-front {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
 
 /* --- ドラッグ操作 ---------------------------------------------------------
    駒・手札カード・山札等はマウス/タッチでドラッグして動かせる。touch-action:noneは

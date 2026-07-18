@@ -58,3 +58,17 @@ const CARD_BY_ID = new Map(ALL_CARDS.map((c) => [c.id, c]));
 export function getCardDefinition(cardId) {
   return CARD_BY_ID.get(cardId);
 }
+
+// 実物のカード画像（画像素材/配下、assets/cards/にコピーしてcardIdをそのままファイル名にした
+// もの）。プレイマット画像と同じ理由で、実際の絵柄はgit管理・公開リポジトリには含めない
+// （.gitignoreの/assets/cards/参照）。画像自体にタイトル・色・効果テキストまで描かれているため、
+// 表向きの時はこの画像を表示するだけでよく、別途テキストを重ねて表示する必要はない。
+export function getCardImagePath(cardId) {
+  return `assets/cards/${cardId}.png`;
+}
+
+// 裏面は「通常カード」と「エターナルカード」でデザインが違う（物理カードと同じ）。
+// エターナルカードのidは"eternal-"で始まる命名にしているので、それで判別する。
+export function getCardBackImagePath(cardId) {
+  return cardId.startsWith("eternal-") ? "assets/cards/back-eternal.png" : "assets/cards/back-normal.png";
+}

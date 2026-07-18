@@ -85,10 +85,23 @@ export function subscribe(fn) {
   };
 }
 
+// ドロップ先のゾーンから、カードが表向きになるかどうかを決める。
+// 手札effect加わる時は持ち主本人にだけ見える表向き、それ以外（盤面マス・ロックスロット）は
+// 基本裏向き（物理カードを裏向きで置くのと同じ。中身を見せたければダブルクリックでめくる）。
+function faceUpForLocation(location) {
+  if (location.zone === "hand") return location.player === "A";
+  return false;
+}
+
 function reduce(current, action) {
   switch (action.type) {
     case "MOVE_TOKEN": {
-      const tokens = current.tokens.map((t) => (t.id === action.tokenId ? { ...t, location: action.location } : t));
+      const tokens = current.tokens.map((t) => {
+        if (t.id !== action.tokenId) return t;
+        const next = { ...t, location: action.location };
+        if (t.kind === "card") next.faceUp = faceUpForLocation(action.location);
+        return next;
+      });
       return { ...current, tokens };
     }
     case "SEND_TOKEN_TO_PILE": {
@@ -103,11 +116,15 @@ function reduce(current, action) {
       if (pileArray.length === 0) return current;
       const cardId = pileArray[pileArray.length - 1];
       const piles = { ...current.piles, [action.pile]: pileArray.slice(0, -1) };
-      // 手札に引く場合は自分(A)だけ表向き（他人の手札は裏向き）。盤面マス・ロックスロットへ
-      // 直接置く場合は「場に出したカード」として表向きにする。
-      const faceUp = action.location.zone !== "hand" || action.location.player === "A";
+      const faceUp = faceUpForLocation(action.location);
       const newToken = { id: uid("card"), kind: "card", cardId, faceUp, location: action.location };
       return { ...current, piles, tokens: [...current.tokens, newToken] };
+    }
+    case "FLIP_TOKEN": {
+      const tokens = current.tokens.map((t) =>
+        t.id === action.tokenId && t.kind === "card" ? { ...t, faceUp: !t.faceUp } : t
+      );
+      return { ...current, tokens };
     }
     default:
       return current;
@@ -129,4 +146,8 @@ export function sendTokenToPile(tokenId, pile) {
 
 export function drawFromPile(pile, location) {
   dispatch({ type: "DRAW_FROM_PILE", pile, location });
+}
+
+export function flipToken(tokenId) {
+  dispatch({ type: "FLIP_TOKEN", tokenId });
 }
