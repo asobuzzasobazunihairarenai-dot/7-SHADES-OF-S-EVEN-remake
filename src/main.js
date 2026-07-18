@@ -376,8 +376,8 @@ function render() {
 // 倍率へ動的に縮小・拡大する。rem基準の固定サイズレイアウトのままでも、外側のscale
 // だけをJSで調整することでウィンドウサイズへの追従を実現する。
 function fitTableToViewport() {
-  if (boardZoomed) {
-    applyBoardZoomFit();
+  if (boardZoomLevel > 0) {
+    applyBoardZoomFit(boardZoomLevel);
     return;
   }
   applyNormalFit();
@@ -402,7 +402,10 @@ function applyNormalFit() {
 // 画面上端にほぼ収まる倍率までズームアップする。scaleは常にtransform-origin（拡大の基準点）
 // を中心に働くため、A側ロック〜C側ロックの中間点を基準点に設定してから拡大することで、
 // 中間点の画面上の位置を変えずに（＝結果的に上下対称に）その区間全体を引き伸ばせる。
-function applyBoardZoomFit() {
+// ボタンは「盤面拡大(level1)」→「もっと拡大(level2)」→「元に戻す(level0)」の3段階トグルで、
+// 基準点(A〜C間の中間点)はどちらのレベルでも同じ。倍率・位置の微調整分だけレベルごとに
+// 別のCSS変数（--board-zoom-{,2-}margin/offset-x/y）を持たせ、管理者モードから別々に調整できる。
+function applyBoardZoomFit(level) {
   const table = document.getElementById("game-table");
   const tilt = getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim();
   table.style.transformOrigin = "";
@@ -425,19 +428,21 @@ function applyBoardZoomFit() {
   // ブラウザごとのレンダリング誤差で微妙にズレる（手前のロックエリアが見切れる、等）ことが
   // あったため、余白率・XY位置を管理者モードから追加で微調整できるようにした。
   const style = getComputedStyle(document.documentElement);
-  const marginFrac = parseFloat(style.getPropertyValue("--board-zoom-margin")) || 0.98;
-  const offsetX = style.getPropertyValue("--board-zoom-offset-x").trim() || "0rem";
-  const offsetY = style.getPropertyValue("--board-zoom-offset-y").trim() || "0rem";
+  const prefix = level === 2 ? "--board-zoom-2-" : "--board-zoom-";
+  const marginFrac = parseFloat(style.getPropertyValue(`${prefix}margin`)) || 0.98;
+  const offsetX = style.getPropertyValue(`${prefix}offset-x`).trim() || "0rem";
+  const offsetY = style.getPropertyValue(`${prefix}offset-y`).trim() || "0rem";
 
   table.style.transformOrigin = `50% ${originYPercent}%`;
   const scale = (window.innerHeight * marginFrac) / spanHeight;
   table.style.transform = `translate(${offsetX}, ${offsetY}) rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
 }
 
-let boardZoomed = false;
+// 0=通常, 1=盤面拡大, 2=もっと拡大。ボタンを押すたびに0→1→2→0…と巡回する。
+let boardZoomLevel = 0;
 
-function toggleBoardZoom() {
-  boardZoomed = !boardZoomed;
+function cycleBoardZoom() {
+  boardZoomLevel = (boardZoomLevel + 1) % 3;
   fitTableToViewport();
 }
 
@@ -1157,16 +1162,19 @@ function ensureDeckAvailable(onReady) {
 }
 
 // --- 「盤面拡大」ボタン ----------------------------------------------------------
-// もう一度押すと元の画角(fitTableToViewport()の通常の全体フィット)に戻る、単純なトグル。
+// 押すたびに 盤面拡大 → もっと拡大 → 元に戻す、と3段階を巡回する。
 // state.turnPlayerの有無に関係なく常に使える表示上の機能なので、非表示にする条件は無い。
+const BOARD_ZOOM_LABELS = ["🔍 盤面拡大", "🔍 もっと拡大", "🔍 元に戻す"];
+
 function buildBoardZoomButton() {
   const btn = document.createElement("button");
   btn.id = "board-zoom-button";
-  btn.textContent = "🔍 盤面拡大";
+  btn.textContent = BOARD_ZOOM_LABELS[0];
   btn.addEventListener("click", () => {
-    toggleBoardZoom();
-    btn.classList.toggle("is-active", boardZoomed);
-    btn.textContent = boardZoomed ? "🔍 元に戻す" : "🔍 盤面拡大";
+    cycleBoardZoom();
+    btn.classList.toggle("is-active", boardZoomLevel > 0);
+    btn.classList.toggle("is-zoom-2", boardZoomLevel === 2);
+    btn.textContent = BOARD_ZOOM_LABELS[boardZoomLevel];
   });
   document.body.appendChild(btn);
   return btn;

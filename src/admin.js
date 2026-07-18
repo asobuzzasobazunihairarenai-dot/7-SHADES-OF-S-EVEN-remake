@@ -22,11 +22,19 @@ const GROUPS = [
     ],
   },
   {
-    title: "盤面拡大ボタンのズーム位置調整",
+    title: "盤面拡大ボタン（1段階目）のズーム位置調整",
     controls: [
-      { key: "--board-zoom-margin", label: "余白（小さいほど余白が増える）", unit: "", min: 0.5, max: 1, step: 0.01, default: 0.98 },
+      { key: "--board-zoom-margin", label: "余白（小さいほど余白が増える）", unit: "", min: 0.5, max: 1, step: 0.01, default: 0.92 },
       { key: "--board-zoom-offset-x", label: "位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--board-zoom-offset-y", label: "位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--board-zoom-offset-y", label: "位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: -1.7 },
+    ],
+  },
+  {
+    title: "盤面拡大ボタン（2段階目「もっと拡大」）のズーム位置調整",
+    controls: [
+      { key: "--board-zoom-2-margin", label: "余白（大きいほど拡大される）", unit: "", min: 1, max: 2, step: 0.01, default: 1.3 },
+      { key: "--board-zoom-2-offset-x", label: "位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--board-zoom-2-offset-y", label: "位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
     ],
   },
   {
@@ -54,8 +62,8 @@ const GROUPS = [
       { key: "--lock-left-pos-y", label: "左/B側 位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
       { key: "--lock-right-pos-x", label: "右/D側 位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
       { key: "--lock-right-pos-y", label: "右/D側 位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
-      { key: "--lock-slot-border-width", label: "枠線の太さ", unit: "rem", min: 0, max: 0.4, step: 0.01, default: 0.1 },
-      { key: "--lock-slot-glow-scale", label: "色グローの強さ", unit: "", min: 0, max: 2, step: 0.05, default: 1 },
+      { key: "--lock-slot-border-width", label: "枠線の太さ", unit: "rem", min: 0, max: 0.4, step: 0.01, default: 0.01 },
+      { key: "--lock-slot-glow-scale", label: "色グローの強さ", unit: "", min: 0, max: 2, step: 0.05, default: 0.25 },
     ],
   },
   {

@@ -36,10 +36,14 @@ body {
 
 :root {
   --table-tilt: 42deg; /* JS側(fitTableToViewport)もこの変数を参照してscaleだけ動的に上書きする */
-  /* 「盤面拡大」ボタンのズーム位置微調整（applyBoardZoomFit参照）。管理者モードで調整可能。 */
-  --board-zoom-margin: 0.98;
+  /* 「盤面拡大」ボタンのズーム位置微調整（applyBoardZoomFit参照）。管理者モードで調整可能。
+     ボタンは 盤面拡大(1段階目) → もっと拡大(2段階目) → 元に戻す、の3段階トグル。 */
+  --board-zoom-margin: 0.92;
   --board-zoom-offset-x: 0rem;
-  --board-zoom-offset-y: 0rem;
+  --board-zoom-offset-y: -1.7rem;
+  --board-zoom-2-margin: 1.3;
+  --board-zoom-2-offset-x: 0rem;
+  --board-zoom-2-offset-y: 0rem;
 }
 
 .game-table {
@@ -659,8 +663,8 @@ body {
   --lock-left-pos-y: 0rem;
   --lock-right-pos-x: 1.8rem;
   --lock-right-pos-y: 0rem;
-  --lock-slot-border-width: 0.1rem; /* ロックスロットの枠線の太さ（管理者モードで調整可） */
-  --lock-slot-glow-scale: 1; /* ロックスロットの色付きグローの強さ（管理者モードで調整可） */
+  --lock-slot-border-width: 0.01rem; /* ロックスロットの枠線の太さ（管理者モードで調整可） */
+  --lock-slot-glow-scale: 0.25; /* ロックスロットの色付きグローの強さ（管理者モードで調整可） */
 }
 
 .arena {
@@ -1221,6 +1225,13 @@ body {
 }
 #board-zoom-button.is-active:hover {
   background: linear-gradient(160deg, #4ade80, #16a34a);
+}
+/* 2段階目「もっと拡大」の間は、1段階目(緑)と見分けられるよう色を変える。 */
+#board-zoom-button.is-zoom-2 {
+  background: linear-gradient(160deg, #f97316, #b45309);
+}
+#board-zoom-button.is-zoom-2:hover {
+  background: linear-gradient(160deg, #fb923c, #c2660a);
 }
 
 /* 駒スキン選択モーダル。 */
