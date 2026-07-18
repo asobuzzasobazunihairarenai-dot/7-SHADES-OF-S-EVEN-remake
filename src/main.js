@@ -584,6 +584,8 @@ function closeContextMenu() {
 function showCardNoteModal(cardId) {
   const def = getCardDefinition(cardId);
   if (!def) return;
+  const backdrop = document.createElement("div");
+  backdrop.id = "card-note-modal-backdrop";
   const modal = document.createElement("div");
   modal.id = "card-note-modal";
   const img = document.createElement("img");
@@ -608,9 +610,15 @@ function showCardNoteModal(cardId) {
   closeBtn.className = "modal-close-x";
   closeBtn.textContent = "×";
   closeBtn.setAttribute("aria-label", "閉じる");
-  closeBtn.addEventListener("click", () => modal.remove());
+  const close = () => {
+    backdrop.remove();
+    modal.remove();
+  };
+  closeBtn.addEventListener("click", close);
+  backdrop.addEventListener("click", close);
   modal.appendChild(closeBtn);
   modal.appendChild(content);
+  document.body.appendChild(backdrop);
   document.body.appendChild(modal);
 }
 

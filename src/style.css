@@ -447,6 +447,14 @@ body {
   background: rgba(56, 189, 248, 0.2);
 }
 
+/* モーダル外クリックで閉じられるようにするための透明な全画面オーバーレイ。
+   デッキビューアのカードモーダルと同じ「backdropのclickでclose()」パターン。 */
+#card-note-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+}
+
 #card-note-modal {
   position: fixed;
   top: 50%;
