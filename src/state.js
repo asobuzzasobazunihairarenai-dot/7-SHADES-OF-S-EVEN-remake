@@ -7,7 +7,7 @@
 // 非同期化する際は同じactionをサーバーに送って同期する流れにそのまま乗せる想定。
 
 import { NORMAL_CARDS, ETERNAL_CARDS, FIRST_CARDS } from "./cards-data.js";
-import { COLORS, GATE_POSITIONS, SEAT_ORDER } from "./board-layout.js";
+import { COLORS, GATE_POSITIONS, SEAT_ORDER, SEAT_TO_SIDE } from "./board-layout.js";
 
 let nextId = 1;
 const uid = (prefix) => `${prefix}-${nextId++}`;
@@ -187,6 +187,7 @@ function reduce(current, action) {
           id: uid("piece"),
           kind: "piece",
           color: def.color,
+          player, // 相手ゲート侵攻ボーナス判定（gate-invasion.js）で「この駒は誰のものか」を引くために必要
           location: { zone: "cell", ...GATE_POSITIONS[side] },
         });
       }
@@ -241,6 +242,73 @@ function reduce(current, action) {
         piles: { ...current.piles, deck: remainingDeck },
       };
     }
+    // 相手ゲート侵攻ボーナス（docs/rulebook.md「Gate Invasion Bonus」）①: 侵攻された側
+    // (action.defender)の手札を半分（端数切り捨て）無作為に、侵攻した側(action.attacker)の
+    // 手札へ移す。実際にどのカードが対象かは呼び出し側（gate-invasion.js）が事前に無作為抽選し、
+    // action.tokenIdsとして渡す（ポップアップの文言に「N枚」と事前に出すため、枚数だけでなく
+    // 対象そのものも先に決めてから見せる必要があった）。
+    case "GATE_INVASION_STEAL_HAND": {
+      const idSet = new Set(action.tokenIds);
+      const tokens = current.tokens.map((t) =>
+        idSet.has(t.id)
+          ? { ...t, location: { zone: "hand", player: action.attacker }, faceUp: faceUpForLocation({ zone: "hand", player: action.attacker }) }
+          : t
+      );
+      return { ...current, tokens };
+    }
+    // 相手ゲート侵攻ボーナス②: エターナルカードの山から1枚（action.cardId、呼び出し側が既に
+    // pop位置を確認済み）を、侵攻した側のロックエリアの対応する色のスロットへ表向きでロックする。
+    // そのスロットに既に何か（ファーストカードを除く）があれば、先に手札へ加える
+    // （ルール「ロックする箇所に既にカードがある場合、全て手札に加える」）。
+    case "GATE_INVASION_ETERNAL": {
+      const eternalPile = current.piles.eternal.slice(0, -1);
+      const def = ETERNAL_CARDS.find((c) => c.id === action.cardId);
+      const colorIndex = COLORS.indexOf(def.color);
+      const side = SEAT_TO_SIDE[action.attacker];
+      const bumpedIds = new Set(
+        current.tokens
+          .filter((t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side && t.location.index === colorIndex && !t.cardId.startsWith("first-"))
+          .map((t) => t.id)
+      );
+      const tokens = current.tokens.map((t) =>
+        bumpedIds.has(t.id)
+          ? { ...t, location: { zone: "hand", player: action.attacker }, faceUp: faceUpForLocation({ zone: "hand", player: action.attacker }) }
+          : t
+      );
+      const newEternalToken = {
+        id: uid("card"),
+        kind: "card",
+        cardId: action.cardId,
+        faceUp: true,
+        location: { zone: "lock", side, index: colorIndex },
+      };
+      return {
+        ...current,
+        tokens: [...tokens, newEternalToken],
+        piles: { ...current.piles, eternal: eternalPile },
+      };
+    }
+    // 相手ゲート侵攻ボーナス③④: 侵攻した側の自分のゲートにあるカードを全て手札に加え、
+    // その駒を自分のゲートへ強制移動する（侵攻中に乗っていた相手ゲートから帰還する）。
+    case "GATE_INVASION_RETURN_HOME": {
+      const side = SEAT_TO_SIDE[action.attacker];
+      const homeGate = GATE_POSITIONS[side];
+      const gateCardIds = new Set(
+        current.tokens
+          .filter((t) => t.kind === "card" && t.location.zone === "cell" && t.location.row === homeGate.row && t.location.col === homeGate.col)
+          .map((t) => t.id)
+      );
+      const tokens = current.tokens.map((t) => {
+        if (gateCardIds.has(t.id)) {
+          return { ...t, location: { zone: "hand", player: action.attacker }, faceUp: faceUpForLocation({ zone: "hand", player: action.attacker }) };
+        }
+        if (t.kind === "piece" && t.player === action.attacker) {
+          return { ...t, location: { zone: "cell", ...homeGate } };
+        }
+        return t;
+      });
+      return { ...current, tokens };
+    }
     default:
       return current;
   }
@@ -286,4 +354,18 @@ export function setTurnPlayer(player) {
 
 export function nextTurn() {
   dispatch({ type: "NEXT_TURN" });
+}
+
+// tokenIds: 侵攻した側(attacker)が奪う、侵攻された側の手札トークンid（呼び出し側が無作為抽選済み）
+export function gateInvasionStealHand(attacker, tokenIds) {
+  dispatch({ type: "GATE_INVASION_STEAL_HAND", attacker, tokenIds });
+}
+
+// cardId: エターナルの山の一番上（＝呼び出し側が無作為抽選の結果として確認済み）のカードid
+export function gateInvasionEternal(attacker, cardId) {
+  dispatch({ type: "GATE_INVASION_ETERNAL", attacker, cardId });
+}
+
+export function gateInvasionReturnHome(attacker) {
+  dispatch({ type: "GATE_INVASION_RETURN_HOME", attacker });
 }

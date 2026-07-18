@@ -172,6 +172,25 @@ function buildPanel() {
   seatModeRow.appendChild(seatModeLabel);
   panel.appendChild(seatModeRow);
 
+  const turnGlowTitle = document.createElement("div");
+  turnGlowTitle.textContent = "手番プレイヤー演出";
+  turnGlowTitle.style.cssText = "font-weight: bold; margin-top: 0.7rem; margin-bottom: 0.3rem; color: #7dd3fc; border-top: 1px solid rgba(148,163,184,0.25); padding-top: 0.5rem;";
+  panel.appendChild(turnGlowTitle);
+
+  const turnGlowRow = document.createElement("label");
+  turnGlowRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.5rem; cursor: pointer;";
+  const turnGlowCheckbox = document.createElement("input");
+  turnGlowCheckbox.type = "checkbox";
+  turnGlowCheckbox.checked = document.documentElement.style.getPropertyValue("--turn-glow-rgb").trim() === "255, 255, 255";
+  turnGlowCheckbox.addEventListener("change", () => {
+    setVar("--turn-glow-rgb", turnGlowCheckbox.checked ? "255, 255, 255" : "255, 224, 130", "");
+  });
+  const turnGlowLabel = document.createElement("span");
+  turnGlowLabel.textContent = "ロックエリアの手番グローを白色にする（オフ=黄色）";
+  turnGlowRow.appendChild(turnGlowCheckbox);
+  turnGlowRow.appendChild(turnGlowLabel);
+  panel.appendChild(turnGlowRow);
+
   for (const group of GROUPS) {
     const groupTitle = document.createElement("div");
     groupTitle.textContent = group.title;

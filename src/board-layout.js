@@ -16,6 +16,10 @@ export const GATE_POSITIONS = {
 // 座席(A/B/C/D)と、盤面の辺(top/bottom/left/right)の対応。Aが自分（手前）、以降時計回り。
 export const SEAT_TO_SIDE = { A: "bottom", B: "left", C: "top", D: "right" };
 
+// SEAT_TO_SIDEの逆引き（あるゲートの辺から、そのゲートの持ち主の座席を引く。
+// 相手ゲート侵攻ボーナスの判定=「駒がどの座席のゲートに乗っているか」に使う）。
+export const SIDE_TO_SEAT = { bottom: "A", left: "B", top: "C", right: "D" };
+
 // 時計回りの座席順（ターン順・セットアップ時のファーストカード配布順に使う）。
 export const SEAT_ORDER = ["A", "B", "C", "D"];
 

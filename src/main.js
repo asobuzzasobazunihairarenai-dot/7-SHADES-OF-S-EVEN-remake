@@ -4,6 +4,7 @@
 import { initAdminMode } from "./admin.js";
 import { initDeckViewer } from "./deck-viewer.js";
 import { initGameSetup } from "./game-setup.js";
+import { runGateInvasionIfNeeded } from "./gate-invasion.js";
 import { getState, moveToken, sendTokenToPile, drawFromPile, flipToken, nextTurn } from "./state.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import { COLORS, GATE_POSITIONS, SEAT_TO_SIDE, SEAT_LABELS } from "./board-layout.js";
@@ -902,8 +903,14 @@ function buildEndTurnButton() {
   const btn = document.createElement("button");
   btn.id = "end-turn-button";
   btn.addEventListener("click", () => {
-    nextTurn();
-    render();
+    const attacker = getState().turnPlayer;
+    // 侵攻条件を満たしていなければrunGateInvasionIfNeededは即座にdone()を呼ぶだけなので、
+    // 普段のターン終了と体感は変わらない。満たしていればボーナス処理の3つのポップアップが
+    // 終わってから初めてnextTurn()が呼ばれる。
+    runGateInvasionIfNeeded(attacker, () => {
+      nextTurn();
+      render();
+    });
   });
   document.body.appendChild(btn);
   return btn;

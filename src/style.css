@@ -642,10 +642,14 @@ body {
 }
 
 /* 現在のターンプレイヤーのロックエリア全体を、ゆっくり柔らかく明滅させて目立たせる
-   （box-shadowは.lock-area自体に背景が無くても外側に描画されるため、これだけで光って見える）。 */
+   （box-shadowは.lock-area自体に背景が無くても外側に描画されるため、これだけで光って見える）。
+   色は--turn-glow-rgb（管理者モードで白/黄色を切り替え可能）を参照する。 */
+:root {
+  --turn-glow-rgb: 255, 224, 130; /* デフォルトは黄色寄り。管理者モードのチェックボックスで白(255,255,255)に切り替え可 */
+}
 @keyframes lock-area-turn-glow {
-  0%, 100% { box-shadow: 0 0 0.6rem 0.1rem rgba(255, 224, 130, 0.25); }
-  50% { box-shadow: 0 0 2.2rem 0.7rem rgba(255, 224, 130, 0.75); }
+  0%, 100% { box-shadow: 0 0 0.6rem 0.1rem rgba(var(--turn-glow-rgb), 0.25); }
+  50% { box-shadow: 0 0 2.2rem 0.7rem rgba(var(--turn-glow-rgb), 0.75); }
 }
 .lock-area.is-turn-player {
   animation: lock-area-turn-glow 2.6s ease-in-out infinite;
