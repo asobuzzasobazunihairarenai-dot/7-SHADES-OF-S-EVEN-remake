@@ -95,11 +95,13 @@ export function subscribe(fn) {
 }
 
 // 新しく盤面に現れるカード（手札から出す、山から引く）の表裏を決める。
-// 手札に加わる時は持ち主本人（A）にだけ見える表向き、それ以外（盤面マス・ロックスロットへ
-// 新規に置かれる時）は基本裏向き（物理カードを裏向きで置くのと同じ。中身を見せたければ
+// 手札に加わる時は持ち主本人（A）にだけ見える表向き、ロックエリアは物理ルール通り原則
+// 表向き（「ロックする：カード1枚を...表向きで置くこと」）、それ以外（盤面マスへ新規に
+// 置かれる時）は基本裏向き（物理カードを裏向きで置くのと同じ。中身を見せたければ
 // ダブルクリックでめくる）。
 function faceUpForLocation(location) {
   if (location.zone === "hand") return location.player === "A";
+  if (location.zone === "lock") return true;
   return false;
 }
 
@@ -111,11 +113,16 @@ function reduce(current, action) {
       const token = current.tokens.find((t) => t.id === action.tokenId);
       if (!token) return current;
       const next = { ...token, location: action.location };
-      // 場・ロックエリア同士の移動（例: マス→ロック、ロック→ロック）は、既に表向き/裏向きが
-      // 決まっているカードをただ動かすだけなので、表裏を変えない。手札から場/ロックへ出す時・
+      // ロックエリアへの移動は移動元を問わず常に表向きにする（物理ルール通り）。それ以外の
+      // 場・ロックエリア同士の移動（例: マス→マス、ロック→ロック）は、既に表向き/裏向きが
+      // 決まっているカードをただ動かすだけなので表裏を変えない。手札から場へ出す時・
       // 場/ロックから手札に加える時だけ、新しい置き場所に応じて表裏を決め直す。
-      if (token.kind === "card" && !(isTable(token.location) && isTable(action.location))) {
-        next.faceUp = faceUpForLocation(action.location);
+      if (token.kind === "card") {
+        if (action.location.zone === "lock") {
+          next.faceUp = true;
+        } else if (!(isTable(token.location) && isTable(action.location))) {
+          next.faceUp = faceUpForLocation(action.location);
+        }
       }
       // 動かしたトークンを配列の末尾に移す。renderBoardTokens()はtokens配列の順番通りに
       // appendChildするため、同じマスに複数枚重なっている時は「配列の後ろにあるもの」ほど
@@ -242,6 +249,16 @@ function reduce(current, action) {
         piles: { ...current.piles, deck: remainingDeck },
       };
     }
+    // 山札が切れた時のルール（docs/rulebook.md「こんな時は」）: 「捨て場のカードをそのまま
+    // 裏向きにして山札とする。シャッフルはしない。」物理的には「捨て場の山をそのままひっくり
+    // 返して山札にする」動作にあたるため、並び順を反転させる（捨て場で一番下＝一番古く
+    // 捨てられたカードが、ひっくり返すことで新しい山札の一番上＝最初に引かれるカードになる）。
+    case "REFILL_DECK_FROM_DISCARD": {
+      return {
+        ...current,
+        piles: { ...current.piles, deck: [...current.piles.discard].reverse(), discard: [] },
+      };
+    }
     // 相手ゲート侵攻ボーナス（docs/rulebook.md「Gate Invasion Bonus」）①: 侵攻された側
     // (action.defender)の手札を半分（端数切り捨て）無作為に、侵攻した側(action.attacker)の
     // 手札へ移す。実際にどのカードが対象かは呼び出し側（gate-invasion.js）が事前に無作為抽選し、
@@ -346,6 +363,10 @@ export function setupAssignFirstCards(players) {
 
 export function setupFillBoard(includeBlackWhite) {
   dispatch({ type: "SETUP_FILL_BOARD", includeBlackWhite });
+}
+
+export function refillDeckFromDiscard() {
+  dispatch({ type: "REFILL_DECK_FROM_DISCARD" });
 }
 
 export function setTurnPlayer(player) {

@@ -3,6 +3,8 @@
 // 調整が終わったら「出力」欄の内容をそのまま開発者に渡せば、CSSの :root にある
 // 対応する変数へそのまま反映できる。
 
+import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+
 // scaleは基準サイズ（プレイマットなら盤面、各山ならカード1枚分）を100%とした拡大率。
 // pos-x/pos-yは中心からのずれ。どちらもtransform: scale/translateなので、拡大しても見切れない。
 const GROUPS = [
@@ -10,6 +12,13 @@ const GROUPS = [
     title: "カード拡大プレビュー",
     controls: [
       { key: "--card-preview-size", label: "サイズ", unit: "rem", min: 8, max: 36, step: 0.5, default: 20 },
+    ],
+  },
+  {
+    title: "カード獲得ポップアップ",
+    controls: [
+      { key: "--hand-pickup-toast-scale", label: "大きさ", unit: "", min: 0.8, max: 2.5, step: 0.05, default: 1.3 },
+      { key: "--hand-pickup-toast-duration", label: "表示時間（秒）", unit: "", min: 1, max: 15, step: 0.5, default: 5 },
     ],
   },
   {
@@ -141,7 +150,24 @@ function setVar(key, value, unit) {
   document.documentElement.style.setProperty(key, `${value}${unit}`);
 }
 
-function buildPanel() {
+// 項目が増えて縦に長くなりすぎないよう、各セクションを<details>で開閉できるようにする
+// （デフォルトは閉じた状態。今調整したいセクションだけ開けば済むようにして、パネル全体の
+// 見た目をコンパクトに保つ）。
+function buildSection(title, buildContent) {
+  const details = document.createElement("details");
+  details.style.cssText = "margin-top: 0.4rem; border-top: 1px solid rgba(148, 163, 184, 0.25); padding-top: 0.4rem;";
+  const summary = document.createElement("summary");
+  summary.textContent = title;
+  summary.style.cssText = "cursor: pointer; font-weight: bold; color: #7dd3fc;";
+  details.appendChild(summary);
+  const content = document.createElement("div");
+  content.style.cssText = "margin-top: 0.4rem;";
+  buildContent(content);
+  details.appendChild(content);
+  return details;
+}
+
+function buildPanel(rebuildSlidersRef) {
   const panel = document.createElement("div");
   panel.id = "admin-panel";
   panel.style.cssText = `
@@ -155,95 +181,92 @@ function buildPanel() {
 
   const title = document.createElement("div");
   title.textContent = "管理者モード：位置合わせ";
-  title.style.cssText = "font-weight: bold; margin-bottom: 0.5rem;";
+  title.style.cssText = "font-weight: bold; margin-bottom: 0.5rem; padding-right: 1.6rem;";
   panel.appendChild(title);
 
-  const setupTitle = document.createElement("div");
-  setupTitle.textContent = "セットアップウィザード";
-  setupTitle.style.cssText = "font-weight: bold; margin-top: 0.7rem; margin-bottom: 0.3rem; color: #7dd3fc; border-top: 1px solid rgba(148,163,184,0.25); padding-top: 0.5rem;";
-  panel.appendChild(setupTitle);
-
-  const seatModeRow = document.createElement("label");
-  seatModeRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.5rem; cursor: pointer;";
-  const seatModeCheckbox = document.createElement("input");
-  seatModeCheckbox.type = "checkbox";
-  seatModeCheckbox.checked = manualSeatMode;
-  seatModeCheckbox.addEventListener("change", () => {
-    manualSeatMode = seatModeCheckbox.checked;
-    window.dispatchEvent(new CustomEvent("admin:change"));
-  });
-  const seatModeLabel = document.createElement("span");
-  seatModeLabel.textContent = "2人/3人プレイの座席を自由に選べるようにする（オフ=人数から自動選択）";
-  seatModeRow.appendChild(seatModeCheckbox);
-  seatModeRow.appendChild(seatModeLabel);
-  panel.appendChild(seatModeRow);
-
-  const turnGlowTitle = document.createElement("div");
-  turnGlowTitle.textContent = "手番プレイヤー演出";
-  turnGlowTitle.style.cssText = "font-weight: bold; margin-top: 0.7rem; margin-bottom: 0.3rem; color: #7dd3fc; border-top: 1px solid rgba(148,163,184,0.25); padding-top: 0.5rem;";
-  panel.appendChild(turnGlowTitle);
-
-  const turnGlowRow = document.createElement("label");
-  turnGlowRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.5rem; cursor: pointer;";
-  const turnGlowCheckbox = document.createElement("input");
-  turnGlowCheckbox.type = "checkbox";
-  turnGlowCheckbox.checked = document.documentElement.style.getPropertyValue("--turn-glow-rgb").trim() === "255, 255, 255";
-  turnGlowCheckbox.addEventListener("change", () => {
-    setVar("--turn-glow-rgb", turnGlowCheckbox.checked ? "255, 255, 255" : "255, 224, 130", "");
-  });
-  const turnGlowLabel = document.createElement("span");
-  turnGlowLabel.textContent = "ロックエリアの手番グローを白色にする（オフ=黄色）";
-  turnGlowRow.appendChild(turnGlowCheckbox);
-  turnGlowRow.appendChild(turnGlowLabel);
-  panel.appendChild(turnGlowRow);
-
-  for (const group of GROUPS) {
-    const groupTitle = document.createElement("div");
-    groupTitle.textContent = group.title;
-    groupTitle.style.cssText = "font-weight: bold; margin-top: 0.7rem; margin-bottom: 0.3rem; color: #7dd3fc; border-top: 1px solid rgba(148,163,184,0.25); padding-top: 0.5rem;";
-    panel.appendChild(groupTitle);
-
-    for (const c of group.controls) {
-      const row = document.createElement("div");
-      row.style.cssText = "margin-bottom: 0.5rem;";
-
-      const labelRow = document.createElement("div");
-      labelRow.style.cssText = "display: flex; justify-content: space-between; margin-bottom: 0.15rem;";
-      const label = document.createElement("span");
-      label.textContent = c.label;
-      const valueLabel = document.createElement("span");
-      valueLabel.id = `admin-value-${c.key}`;
-      labelRow.appendChild(label);
-      labelRow.appendChild(valueLabel);
-
-      const slider = document.createElement("input");
-      slider.type = "range";
-      slider.dataset.key = c.key;
-      slider.min = String(c.min);
-      slider.max = String(c.max);
-      slider.step = String(c.step);
-      slider.style.width = "100%";
-      const initial = currentValue(c.key, c.default);
-      slider.value = String(initial);
-      valueLabel.textContent = `${initial}${c.unit}`;
-
-      slider.addEventListener("input", () => {
-        setVar(c.key, slider.value, c.unit);
-        valueLabel.textContent = `${slider.value}${c.unit}`;
-        updateExport();
-        // 手札エリアのサイズ(--hand-*-size)等、CSSではなくJS側で読み取って適用している値は
-        // CSS変数を変えるだけでは画面に反映されない。main.js側にrender()し直してもらう。
+  panel.appendChild(
+    buildSection("セットアップウィザード", (content) => {
+      const seatModeRow = document.createElement("label");
+      seatModeRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const seatModeCheckbox = document.createElement("input");
+      seatModeCheckbox.type = "checkbox";
+      seatModeCheckbox.checked = manualSeatMode;
+      seatModeCheckbox.addEventListener("change", () => {
+        manualSeatMode = seatModeCheckbox.checked;
         window.dispatchEvent(new CustomEvent("admin:change"));
       });
+      const seatModeLabel = document.createElement("span");
+      seatModeLabel.textContent = "2人/3人プレイの座席を自由に選べるようにする（オフ=人数から自動選択）";
+      seatModeRow.appendChild(seatModeCheckbox);
+      seatModeRow.appendChild(seatModeLabel);
+      content.appendChild(seatModeRow);
+    })
+  );
 
-      row.appendChild(labelRow);
-      row.appendChild(slider);
-      panel.appendChild(row);
-    }
+  panel.appendChild(
+    buildSection("手番プレイヤー演出", (content) => {
+      const turnGlowRow = document.createElement("label");
+      turnGlowRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const turnGlowCheckbox = document.createElement("input");
+      turnGlowCheckbox.type = "checkbox";
+      turnGlowCheckbox.checked = document.documentElement.style.getPropertyValue("--turn-glow-rgb").trim() === "255, 255, 255";
+      turnGlowCheckbox.addEventListener("change", () => {
+        setVar("--turn-glow-rgb", turnGlowCheckbox.checked ? "255, 255, 255" : "255, 224, 130", "");
+      });
+      const turnGlowLabel = document.createElement("span");
+      turnGlowLabel.textContent = "ロックエリアの手番グローを白色にする（オフ=黄色）";
+      turnGlowRow.appendChild(turnGlowCheckbox);
+      turnGlowRow.appendChild(turnGlowLabel);
+      content.appendChild(turnGlowRow);
+    })
+  );
+
+  for (const group of GROUPS) {
+    panel.appendChild(
+      buildSection(group.title, (content) => {
+        for (const c of group.controls) {
+          const row = document.createElement("div");
+          row.style.cssText = "margin-bottom: 0.5rem;";
+
+          const labelRow = document.createElement("div");
+          labelRow.style.cssText = "display: flex; justify-content: space-between; margin-bottom: 0.15rem;";
+          const label = document.createElement("span");
+          label.textContent = c.label;
+          const valueLabel = document.createElement("span");
+          valueLabel.id = `admin-value-${c.key}`;
+          labelRow.appendChild(label);
+          labelRow.appendChild(valueLabel);
+
+          const slider = document.createElement("input");
+          slider.type = "range";
+          slider.dataset.key = c.key;
+          slider.min = String(c.min);
+          slider.max = String(c.max);
+          slider.step = String(c.step);
+          slider.style.width = "100%";
+          const initial = currentValue(c.key, c.default);
+          slider.value = String(initial);
+          valueLabel.textContent = `${initial}${c.unit}`;
+
+          slider.addEventListener("input", () => {
+            setVar(c.key, slider.value, c.unit);
+            valueLabel.textContent = `${slider.value}${c.unit}`;
+            updateExport();
+            // 手札エリアのサイズ(--hand-*-size)等、CSSではなくJS側で読み取って適用している値は
+            // CSS変数を変えるだけでは画面に反映されない。main.js側にrender()し直してもらう。
+            window.dispatchEvent(new CustomEvent("admin:change"));
+          });
+
+          row.appendChild(labelRow);
+          row.appendChild(slider);
+          content.appendChild(row);
+        }
+      })
+    );
   }
 
   const buttonRow = document.createElement("div");
-  buttonRow.style.cssText = "display: flex; gap: 0.4rem; margin-top: 0.5rem;";
+  buttonRow.style.cssText = "display: flex; gap: 0.4rem; margin-top: 0.6rem;";
 
   const resetBtn = document.createElement("button");
   resetBtn.textContent = "リセット";
@@ -252,7 +275,7 @@ function buildPanel() {
     for (const c of CONTROLS) {
       setVar(c.key, c.default, c.unit);
     }
-    rebuildSliders();
+    rebuildSlidersRef.current();
     updateExport();
     window.dispatchEvent(new CustomEvent("admin:change"));
   });
@@ -295,6 +318,7 @@ function buildPanel() {
       if (input) input.value = String(value);
     }
   }
+  rebuildSlidersRef.current = rebuildSliders;
 
   function updateExport() {
     const lines = CONTROLS.map((c) => `  ${c.key}: ${currentValue(c.key, c.default)}${c.unit};`);
@@ -305,7 +329,7 @@ function buildPanel() {
   return panel;
 }
 
-function buildToggleButton(panel) {
+function buildToggleButton(open) {
   const btn = document.createElement("button");
   btn.textContent = "⚙ 管理者モード";
   btn.style.cssText = `
@@ -314,31 +338,34 @@ function buildToggleButton(panel) {
     border: 1px solid rgba(148,163,184,0.4); border-radius: 0.4rem; cursor: pointer;
     font-family: sans-serif; font-size: 0.75rem;
   `;
-  let open = false;
-  btn.addEventListener("click", () => {
-    open = !open;
-    panel.style.display = open ? "block" : "none";
-    btn.style.display = open ? "none" : "block";
-  });
-  panel.dataset.toggleAttached = "true";
-
-  // パネルを閉じるボタンも用意する
-  const closeBtn = document.createElement("button");
-  closeBtn.textContent = "閉じる";
-  closeBtn.style.cssText = "width: 100%; margin-top: 0.5rem; padding: 0.3rem; background: #475569; color: #fff; border: none; border-radius: 0.25rem; cursor: pointer;";
-  closeBtn.addEventListener("click", () => {
-    open = false;
-    panel.style.display = "none";
-    btn.style.display = "block";
-  });
-  panel.appendChild(closeBtn);
-
+  btn.addEventListener("click", open);
   return btn;
 }
 
 export function initAdminMode() {
-  const panel = buildPanel();
-  const btn = buildToggleButton(panel);
-  document.body.appendChild(btn);
+  const rebuildSlidersRef = { current: () => {} };
+  const panel = buildPanel(rebuildSlidersRef);
+
+  function close() {
+    panel.style.display = "none";
+    backdrop.style.display = "none";
+    toggleBtn.style.display = "block";
+  }
+  function open() {
+    panel.style.display = "block";
+    backdrop.style.display = "block";
+    toggleBtn.style.display = "none";
+  }
+
+  // ツールパネルなので背景は暗くしない（盤面を見ながら調整したいため）が、外側クリックで
+  // 閉じられるようにする（今後追加するパネル/モーダルもこの閉じ方に統一する）。
+  const backdrop = createBackdrop(close, { dim: false, zIndex: 999 });
+  backdrop.style.display = "none";
+  panel.appendChild(createModalCloseX(close));
+
+  const toggleBtn = buildToggleButton(open);
+
+  document.body.appendChild(backdrop);
   document.body.appendChild(panel);
+  document.body.appendChild(toggleBtn);
 }

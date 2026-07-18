@@ -390,6 +390,7 @@ body {
   font-weight: bold;
   margin-bottom: 0.6rem;
   font-size: 0.9rem;
+  padding-right: 1.6rem;
 }
 .stack-modal-list {
   display: flex;
@@ -410,9 +411,36 @@ body {
   background-repeat: no-repeat;
   flex-shrink: 0;
 }
-#stack-modal button {
-  padding: 0.3rem 0.8rem;
-  background: #475569;
+/* OKボタン1つだけの汎用確認モーダル（山札切れの補充確認等に使う）。 */
+#confirm-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(24rem, 90vw);
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.5rem;
+  padding: 1.2rem;
+  z-index: 10002;
+  font-family: sans-serif;
+  color: #e2e8f0;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+.confirm-modal-title {
+  font-weight: bold;
+  margin-bottom: 0.6rem;
+  padding-right: 1.6rem;
+}
+.confirm-modal-body {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin-bottom: 1rem;
+  white-space: pre-wrap;
+}
+.confirm-modal-ok {
+  padding: 0.4rem 1.4rem;
+  background: #0891b2;
   color: #fff;
   border: none;
   border-radius: 0.25rem;
@@ -1038,18 +1066,46 @@ body {
   background: linear-gradient(160deg, #fbbf24, #f97316);
 }
 
-/* カードが手札に加わった時の「何をゲットしたか」トースト。#end-turn-buttonの上に重ねて
-   表示されるよう、その分の高さを空けてbottomを取っている。クリックすると即座に消せる。 */
+/* 「1枚ドロー」ボタン。#end-turn-buttonのすぐ上に積む形で、同じ右下の並びに配置する。 */
+#draw-button {
+  position: fixed;
+  bottom: 4.4rem;
+  right: 1.2rem;
+  z-index: 1000;
+  padding: 0.6rem 1.1rem;
+  background: linear-gradient(160deg, #0891b2, #155e75);
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  font-weight: bold;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  display: none;
+}
+#draw-button:hover {
+  background: linear-gradient(160deg, #22d3ee, #0e7490);
+}
+
+/* カードが手札に加わった時の「何をゲットしたか」トースト。#end-turn-button・#draw-buttonの
+   上に重ねて表示されるよう、その分の高さを空けてbottomを取っている。クリックすると即座に
+   消せる（右上の✕ボタンでも同様）。サイズ・表示時間は管理者モードで調整できる
+   （--hand-pickup-toast-scale・--hand-pickup-toast-duration、hand-announcer.js参照）。 */
+:root {
+  --hand-pickup-toast-scale: 1.3;
+  --hand-pickup-toast-duration: 5; /* 秒 */
+}
 .hand-pickup-toast {
   position: fixed;
-  bottom: 6rem;
+  bottom: 7.6rem;
   right: 1.2rem;
   z-index: 10500;
-  max-width: 20rem;
+  max-width: calc(20rem * var(--hand-pickup-toast-scale));
   background: rgba(15, 23, 32, 0.97);
   border: 1px solid rgba(148, 163, 184, 0.4);
   border-radius: 0.5rem;
-  padding: 0.6rem 0.8rem;
+  padding: calc(0.6rem * var(--hand-pickup-toast-scale)) calc(1.6rem * var(--hand-pickup-toast-scale)) calc(0.6rem * var(--hand-pickup-toast-scale)) calc(0.8rem * var(--hand-pickup-toast-scale));
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
   font-family: sans-serif;
   color: #e2e8f0;
@@ -1062,34 +1118,85 @@ body {
   opacity: 1;
   transform: translateY(0);
 }
+.hand-pickup-toast-close {
+  /* トースト用に一回り小さく、既定の.modal-close-xより少し内側に */
+  top: 0.4rem;
+  right: 0.4rem;
+}
 .hand-pickup-toast-title {
-  font-size: 0.72rem;
+  font-size: calc(0.72rem * var(--hand-pickup-toast-scale));
   opacity: 0.8;
   margin-bottom: 0.3rem;
 }
 .hand-pickup-toast-cards {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: calc(0.5rem * var(--hand-pickup-toast-scale));
 }
 .hand-pickup-toast-card {
-  width: 4.2rem;
+  width: calc(4.2rem * var(--hand-pickup-toast-scale));
   text-align: center;
 }
 .hand-pickup-toast-card img {
-  width: 4.2rem;
-  height: 4.2rem;
+  width: calc(4.2rem * var(--hand-pickup-toast-scale));
+  height: calc(4.2rem * var(--hand-pickup-toast-scale));
   object-fit: cover;
   border-radius: 0.3rem;
   display: block;
 }
 .hand-pickup-toast-name {
-  font-size: 0.65rem;
+  font-size: calc(0.65rem * var(--hand-pickup-toast-scale));
   line-height: 1.3;
   margin-top: 0.2rem;
 }
 .hand-pickup-toast-hidden-note {
-  font-size: 0.68rem;
+  font-size: calc(0.68rem * var(--hand-pickup-toast-scale));
   opacity: 0.7;
   margin-top: 0.4rem;
+}
+
+/* 7色ロック達成時の勝利モーダル。金色のグロー＋トロフィーで祝う演出。 */
+@keyframes victory-modal-glow {
+  0%, 100% { box-shadow: 0 0 2rem 0.4rem rgba(250, 204, 21, 0.5), 0 20px 60px rgba(0, 0, 0, 0.7); }
+  50% { box-shadow: 0 0 4rem 1rem rgba(250, 204, 21, 0.9), 0 20px 60px rgba(0, 0, 0, 0.7); }
+}
+@keyframes victory-modal-pop-in {
+  0% { transform: translate(-50%, -50%) scale(0.7); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+#victory-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(26rem, 90vw);
+  padding: 2.2rem 1.5rem;
+  border-radius: 1rem;
+  background: linear-gradient(160deg, #422006, #1c1004);
+  border: 3px solid #facc15;
+  text-align: center;
+  z-index: 10501;
+  font-family: sans-serif;
+  color: #fff8e1;
+  animation: victory-modal-glow 2s ease-in-out infinite, victory-modal-pop-in 0.4s ease-out;
+}
+.victory-modal-trophy {
+  font-size: 4rem;
+  line-height: 1;
+  margin-bottom: 0.8rem;
+  filter: drop-shadow(0 0 0.6rem rgba(250, 204, 21, 0.8));
+}
+.victory-modal-title {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #facc15;
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.03em;
+}
+.victory-modal-subtitle {
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+.victory-modal-close {
+  background: rgba(255, 255, 255, 0.12);
 }

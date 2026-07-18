@@ -13,6 +13,8 @@
 import { resetGame, setupAssignFirstCards, setupFillBoard, setTurnPlayer } from "./state.js";
 import { isManualSeatMode } from "./admin.js";
 import { SEAT_TO_SIDE, SEAT_ORDER, SEAT_LABELS } from "./board-layout.js";
+import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { resetVictoryTracking } from "./victory.js";
 
 // 2人/3人プレイ時、座席自動選択モード（管理者モードのトグルがオフの時）で使う座席。
 // 2人=対面(A・C)、3人=Dを除いた3隅。4人は常に全員。
@@ -34,11 +36,9 @@ function activePlayersOrdered() {
   return SEAT_ORDER.filter((p) => config.activePlayers.includes(p));
 }
 
-// main.jsの各種モーダルと同じ「シンプルなbackdrop+モーダル」パターン
-// （外側クリック・✕ボタンの両方で閉じられるようにする）。スタートプレイヤー発表にのみ使う。
+// スタートプレイヤー発表にのみ使う、シンプルなbackdrop+モーダル（外側クリック・✕ボタンの
+// 両方で閉じられる、ui-helpers.jsの共通部品を使う）。
 function buildSimpleModal({ widthRem = 24 } = {}) {
-  const backdrop = document.createElement("div");
-  backdrop.style.cssText = "position: fixed; inset: 0; z-index: 10001;";
   const modal = document.createElement("div");
   modal.style.cssText = `
     position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -47,17 +47,12 @@ function buildSimpleModal({ widthRem = 24 } = {}) {
     border-radius: 0.5rem; padding: 1rem; z-index: 10002;
     font-family: sans-serif; color: #e2e8f0; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
   `;
-  const closeBtn = document.createElement("button");
-  closeBtn.className = "modal-close-x";
-  closeBtn.textContent = "×";
-  closeBtn.setAttribute("aria-label", "閉じる");
   const close = () => {
     backdrop.remove();
     modal.remove();
   };
-  closeBtn.addEventListener("click", close);
-  backdrop.addEventListener("click", close);
-  modal.appendChild(closeBtn);
+  const backdrop = createBackdrop(close, { zIndex: 10001 });
+  modal.appendChild(createModalCloseX(close));
   document.body.appendChild(backdrop);
   document.body.appendChild(modal);
   return { backdrop, modal, close };
@@ -225,6 +220,7 @@ function renderPanelBody(forceForm = false) {
 
 function runStep1() {
   resetGame();
+  resetVictoryTracking(); // 新しい対戦の開始なので、以前の勝利済みプレイヤーの記録も忘れる
   const players = activePlayersOrdered().map((player) => ({ player, side: SEAT_TO_SIDE[player] }));
   setupAssignFirstCards(players);
   notifyChange();
@@ -249,7 +245,7 @@ function runAll() {
   runStep3();
 }
 
-function buildPanel() {
+function buildPanel(close) {
   const panel = document.createElement("div");
   panel.id = "game-setup-panel";
   panel.style.cssText = `
@@ -262,22 +258,18 @@ function buildPanel() {
 
   const title = document.createElement("div");
   title.textContent = "セットアップウィザード";
-  title.style.cssText = "font-weight: bold; margin-bottom: 0.5rem;";
+  title.style.cssText = "font-weight: bold; margin-bottom: 0.5rem; padding-right: 1.6rem;";
   panel.appendChild(title);
+  panel.appendChild(createModalCloseX(close));
 
   bodyEl = document.createElement("div");
   panel.appendChild(bodyEl);
   renderPanelBody();
 
-  const closeBtn = document.createElement("button");
-  closeBtn.textContent = "閉じる";
-  closeBtn.style.cssText = "width: 100%; margin-top: 0.3rem; padding: 0.3rem; background: #475569; color: #fff; border: none; border-radius: 0.25rem; cursor: pointer;";
-  panel.appendChild(closeBtn);
-
-  return { panel, closeBtn };
+  return panel;
 }
 
-function buildToggleButton(panel, closeBtn) {
+function buildToggleButton(open) {
   const btn = document.createElement("button");
   btn.textContent = "🎲 セットアップ";
   btn.style.cssText = `
@@ -286,20 +278,28 @@ function buildToggleButton(panel, closeBtn) {
     border: 1px solid rgba(148, 163, 184, 0.4); border-radius: 0.4rem; cursor: pointer;
     font-family: sans-serif; font-size: 0.75rem;
   `;
-  let open = false;
-  const setOpen = (next) => {
-    open = next;
-    panel.style.display = open ? "block" : "none";
-    btn.style.display = open ? "none" : "block";
-  };
-  btn.addEventListener("click", () => setOpen(true));
-  closeBtn.addEventListener("click", () => setOpen(false));
+  btn.addEventListener("click", open);
   return btn;
 }
 
 export function initGameSetup() {
-  const { panel, closeBtn } = buildPanel();
-  const btn = buildToggleButton(panel, closeBtn);
+  function close() {
+    panel.style.display = "none";
+    backdrop.style.display = "none";
+    toggleBtn.style.display = "block";
+  }
+  function open() {
+    panel.style.display = "block";
+    backdrop.style.display = "block";
+    toggleBtn.style.display = "none";
+  }
+
+  const panel = buildPanel(close);
+  // ツールパネルなので背景は暗くしない（盤面を見ながら操作したいため）。
+  const backdrop = createBackdrop(close, { dim: false, zIndex: 999 });
+  const toggleBtn = buildToggleButton(open);
+
+  document.body.appendChild(backdrop);
   document.body.appendChild(panel);
-  document.body.appendChild(btn);
+  document.body.appendChild(toggleBtn);
 }

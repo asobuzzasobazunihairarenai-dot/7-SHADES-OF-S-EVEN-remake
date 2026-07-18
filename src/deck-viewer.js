@@ -5,6 +5,7 @@
 // ゲーム本編のUIではなく開発用ツール。
 
 import { NORMAL_CARDS, ETERNAL_CARDS, FIRST_CARDS, getCardImagePath } from "./cards-data.js";
+import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 
 let showCardModal = null; // initDeckViewer内で実体を設定する
 
@@ -105,14 +106,6 @@ function buildCardModal() {
   content.appendChild(img);
   content.appendChild(textCol);
 
-  const closeBtn = document.createElement("button");
-  closeBtn.className = "modal-close-x";
-  closeBtn.textContent = "×";
-  closeBtn.setAttribute("aria-label", "閉じる");
-
-  modal.appendChild(closeBtn);
-  modal.appendChild(content);
-
   function close() {
     backdrop.style.display = "none";
     modal.style.display = "none";
@@ -125,7 +118,9 @@ function buildCardModal() {
     backdrop.style.display = "block";
     modal.style.display = "block";
   }
-  closeBtn.addEventListener("click", close);
+
+  modal.appendChild(createModalCloseX(close));
+  modal.appendChild(content);
   backdrop.addEventListener("click", close);
 
   document.body.appendChild(backdrop);
@@ -134,7 +129,7 @@ function buildCardModal() {
   return open;
 }
 
-function buildPanel() {
+function buildPanel(close) {
   const panel = document.createElement("div");
   panel.id = "deck-viewer-panel";
   panel.style.cssText = `
@@ -147,33 +142,20 @@ function buildPanel() {
     display: none;
   `;
 
-  const header = document.createElement("div");
-  header.style.cssText = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;";
   const titleEl = document.createElement("div");
   titleEl.textContent = "山札一覧";
-  titleEl.style.cssText = "font-weight: bold;";
-  const closeBtn = document.createElement("button");
-  closeBtn.textContent = "閉じる";
-  closeBtn.style.cssText = "padding: 0.3rem 0.6rem; background: #475569; color: #fff; border: none; border-radius: 0.25rem; cursor: pointer;";
-  header.appendChild(titleEl);
-  header.appendChild(closeBtn);
-  panel.appendChild(header);
+  titleEl.style.cssText = "font-weight: bold; margin-bottom: 0.6rem; padding-right: 1.6rem;";
+  panel.appendChild(titleEl);
+  panel.appendChild(createModalCloseX(close));
 
   panel.appendChild(buildSection("通常カード", NORMAL_CARDS));
   panel.appendChild(buildSection("エターナルカード", ETERNAL_CARDS));
   panel.appendChild(buildSection("ファーストカード", FIRST_CARDS));
 
-  return { panel, closeBtn };
+  return panel;
 }
 
-function buildBackdrop() {
-  const backdrop = document.createElement("div");
-  backdrop.id = "deck-viewer-backdrop";
-  backdrop.style.cssText = "position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); z-index: 2000; display: none;";
-  return backdrop;
-}
-
-function buildToggleButton(open, close) {
+function buildToggleButton(open) {
   const btn = document.createElement("button");
   btn.textContent = "📋 山札一覧";
   btn.style.cssText = `
@@ -188,21 +170,21 @@ function buildToggleButton(open, close) {
 
 export function initDeckViewer() {
   showCardModal = buildCardModal();
-  const { panel, closeBtn } = buildPanel();
-  const backdrop = buildBackdrop();
 
-  function open() {
-    panel.style.display = "block";
-    backdrop.style.display = "block";
-  }
   function close() {
     panel.style.display = "none";
     backdrop.style.display = "none";
+    toggleBtn.style.display = "block";
   }
-  closeBtn.addEventListener("click", close);
-  backdrop.addEventListener("click", close);
+  function open() {
+    panel.style.display = "block";
+    backdrop.style.display = "block";
+    toggleBtn.style.display = "none";
+  }
 
-  const toggleBtn = buildToggleButton(open, close);
+  const panel = buildPanel(close);
+  const backdrop = createBackdrop(close, { dim: true, zIndex: 2000 });
+  const toggleBtn = buildToggleButton(open);
 
   document.body.appendChild(backdrop);
   document.body.appendChild(panel);

@@ -6,7 +6,9 @@ import { initDeckViewer } from "./deck-viewer.js";
 import { initGameSetup } from "./game-setup.js";
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
 import { announceHandPickups } from "./hand-announcer.js";
-import { getState, moveToken, sendTokenToPile, drawFromPile, flipToken, nextTurn } from "./state.js";
+import { checkForVictory } from "./victory.js";
+import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { getState, moveToken, sendTokenToPile, drawFromPile, flipToken, nextTurn, refillDeckFromDiscard } from "./state.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import { COLORS, GATE_POSITIONS, SEAT_TO_SIDE, SEAT_LABELS } from "./board-layout.js";
 
@@ -330,6 +332,8 @@ function render() {
   renderBoardTokens(table);
   fitTableToViewport();
   updateEndTurnButton();
+  updateDrawButton();
+  checkForVictory();
 }
 
 // 画面サイズが変わっても手札などが見切れないよう、テーブル全体をビューポートに収まる
@@ -378,17 +382,31 @@ let dragSession = null;
 // 一方でelementsFromPoint()（複数形）は実際の見た目通りに.hand-cardを最前面として正しく
 // 返すことを確認できたため、要素個別のリスナーに頼らずelementsFromPoint()で自前判定する
 // 方式に統一した（ドロップ先の判定は元々この方式だった）。
+// ハマりどころ: 以前は要素ごとに「駒？カード？山？」と優先順位付きで1回だけ判定していたが、
+// これだと「カードの上に駒が乗っている」時、そのカードのDOM要素がたまたま駒より後で描画されて
+// 手前に来ていると（同じマス内で描画順が後になっただけの理由で）、elementsFromPointの並びで
+// カードの方が駒より先に出てきてしまい、本来最優先のはずの駒より先にカードとして判定・確定
+// してしまうことがあった（駒の当たり判定を追加した後、駒の「下の方」だけ掴めなくなる、
+// という形で発覚）。優先順位（駒＞盤面カード＞手札カード＞山）を「要素ごと」ではなく
+// 「種類ごと」に全要素を舐めてから確定するように直し、描画順に関係なく常に駒を最優先で
+// 拾えるようにした。
 function findDraggableAt(clientX, clientY) {
   const elements = document.elementsFromPoint(clientX, clientY);
   for (const el of elements) {
     const piece = el.closest(".piece");
     if (piece) return { el: piece, tokenId: piece.dataset.tokenId, kind: "piece" };
+  }
+  for (const el of elements) {
     // 盤面マス／ロックスロットに直接置かれたカードは、手札のカードと違ってダブルクリックで
     // 表裏を反転できる対象なので区別しておく(isBoardCard)。
     const boardCard = el.closest(".board-card");
     if (boardCard) return { el: boardCard, tokenId: boardCard.dataset.tokenId, kind: "card", isBoardCard: true };
+  }
+  for (const el of elements) {
     const handCard = el.closest(".hand-card");
     if (handCard) return { el: handCard, tokenId: handCard.dataset.tokenId, kind: "card" };
+  }
+  for (const el of elements) {
     const stack = el.closest(".stack[data-pile]");
     if (stack) return { el: stack, kind: "pile", pile: stack.dataset.pile };
   }
@@ -402,20 +420,34 @@ function findDraggableAt(clientX, clientY) {
 // マス自体を示したいため）。
 function findHoverTarget(clientX, clientY) {
   const elements = document.elementsFromPoint(clientX, clientY);
+  // findDraggableAtと同じ理由（描画順に関係なく優先順位を種類ごとに確定させるため）で
+  // 二段階に分けている。
   for (const el of elements) {
     // 「+N」バッジ（重なりカードの一覧表示）は一番手前にあるので最優先で判定する。
     const badge = el.closest(".stack-badge");
     if (badge) return badge;
+  }
+  for (const el of elements) {
     const piece = el.closest(".piece");
     if (piece) return piece;
+  }
+  for (const el of elements) {
     const boardCard = el.closest(".board-card");
     if (boardCard) return boardCard;
+  }
+  for (const el of elements) {
     const handCard = el.closest(".hand-card");
     if (handCard) return handCard;
+  }
+  for (const el of elements) {
     const stack = el.closest(".stack[data-pile]");
     if (stack) return stack;
+  }
+  for (const el of elements) {
     const cell = el.closest(".cell");
     if (cell) return cell;
+  }
+  for (const el of elements) {
     const lockSlot = el.closest(".lock-slot");
     if (lockSlot) return lockSlot;
   }
@@ -636,6 +668,11 @@ function showStackModal(tokenIds) {
   const tokens = tokenIds.map((id) => getState().tokens.find((t) => t.id === id)).filter(Boolean);
   const modal = document.createElement("div");
   modal.id = "stack-modal";
+  const close = () => {
+    backdrop.remove();
+    modal.remove();
+  };
+  const backdrop = createBackdrop(close, { zIndex: 10001 });
   const title = document.createElement("div");
   title.className = "stack-modal-title";
   title.textContent = `重なっているカード（${tokens.length}枚・下から上の順）`;
@@ -648,12 +685,10 @@ function showStackModal(tokenIds) {
     card.style.backgroundImage = `url("${imagePath}")`;
     list.appendChild(card);
   }
-  const closeBtn = document.createElement("button");
-  closeBtn.textContent = "閉じる";
-  closeBtn.addEventListener("click", () => modal.remove());
+  modal.appendChild(createModalCloseX(close));
   modal.appendChild(title);
   modal.appendChild(list);
-  modal.appendChild(closeBtn);
+  document.body.appendChild(backdrop);
   document.body.appendChild(modal);
 }
 
@@ -970,12 +1005,96 @@ function updateEndTurnButton() {
   endTurnButtonEl.textContent = `${SEAT_LABELS[turnPlayer]}のターンを終了 →`;
 }
 
+// OKボタン1つだけのシンプルな確認モーダル（山札切れの補充確認に使う）。
+function showConfirmModal(title, text, onOk) {
+  const modal = document.createElement("div");
+  modal.id = "confirm-modal";
+  const close = () => {
+    backdrop.remove();
+    modal.remove();
+  };
+  const backdrop = createBackdrop(close, { zIndex: 10001 });
+  const titleEl = document.createElement("div");
+  titleEl.className = "confirm-modal-title";
+  titleEl.textContent = title;
+  const bodyEl = document.createElement("div");
+  bodyEl.className = "confirm-modal-body";
+  bodyEl.textContent = text;
+  const okBtn = document.createElement("button");
+  okBtn.textContent = "OK";
+  okBtn.className = "confirm-modal-ok";
+  okBtn.addEventListener("click", () => {
+    close();
+    onOk();
+  });
+  modal.appendChild(createModalCloseX(close));
+  modal.appendChild(titleEl);
+  modal.appendChild(bodyEl);
+  modal.appendChild(okBtn);
+  document.body.appendChild(backdrop);
+  document.body.appendChild(modal);
+}
+
+// 山札が空の状態で引こうとした時のルール（docs/rulebook.md「こんな時は」）:
+// 「捨て場のカードをそのまま裏向きにして山札とする。シャッフルはしない。」
+// 山札に残りがあれば何もせずすぐにonReady()を呼ぶ。空でも捨て場が空ならこれ以上引ける
+// カードが無いので、確認モーダルを出さずそのままonReady()を呼ぶ（drawFromPile側が
+// 空振りするだけで安全なため）。
+function ensureDeckAvailable(onReady) {
+  const state = getState();
+  if (state.piles.deck.length > 0 || state.piles.discard.length === 0) {
+    onReady();
+    return;
+  }
+  showConfirmModal(
+    "山札が空になりました",
+    "捨て場のカードをノーシャッフルで山札にします。",
+    () => {
+      refillDeckFromDiscard();
+      render();
+      onReady();
+    }
+  );
+}
+
+// --- 「1枚ドロー」ボタン ---------------------------------------------------------
+// 手番プレイヤーが山札から1枚引いて自分の手札に加える、簡易操作用のショートカット。
+// 「ターンを次のプレイヤーへ渡す」ボタンと同じ理由で、state.turnPlayerがまだnullの間は
+// 非表示にする。
+let drawButtonEl = null;
+
+function buildDrawButton() {
+  const btn = document.createElement("button");
+  btn.id = "draw-button";
+  btn.textContent = "1枚ドロー";
+  btn.addEventListener("click", () => {
+    const player = getState().turnPlayer;
+    if (!player) return;
+    ensureDeckAvailable(() => {
+      const pileArray = getState().piles.deck;
+      if (pileArray.length === 0) return; // 捨て場も空で、これ以上引けるカードが無い
+      const cardId = pileArray[pileArray.length - 1];
+      drawFromPile("deck", { zone: "hand", player });
+      announceHandPickups(player, [{ cardId, wasPublic: false }]);
+      render();
+    });
+  });
+  document.body.appendChild(btn);
+  return btn;
+}
+
+function updateDrawButton() {
+  if (!drawButtonEl) return;
+  drawButtonEl.style.display = getState().turnPlayer ? "block" : "none";
+}
+
 // 管理者モードのスライダーには、CSS変数を変えるだけでは反映されない値（--hand-*-sizeなど、
 // JS側でgetComputedStyleして読み取り、inline styleとして適用しているもの）があるため、
 // 変更のたびに再描画してもらう。
 window.addEventListener("admin:change", render);
 
 endTurnButtonEl = buildEndTurnButton();
+drawButtonEl = buildDrawButton();
 render();
 initDragHandlers();
 initHoverHandlers();

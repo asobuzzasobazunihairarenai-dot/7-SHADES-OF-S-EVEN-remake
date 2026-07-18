@@ -5,19 +5,36 @@
 
 import { getCardDefinition, getCardImagePath } from "./cards-data.js";
 import { SEAT_LABELS } from "./board-layout.js";
+import { createModalCloseX } from "./ui-helpers.js";
+
+// 表示時間（秒）は管理者モードの「カード獲得ポップアップ」グループで調整できる
+// （--hand-pickup-toast-duration、デフォルト5秒）。
+function getDurationMs() {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue("--hand-pickup-toast-duration").trim();
+  const seconds = parseFloat(raw);
+  return (Number.isNaN(seconds) ? 5 : seconds) * 1000;
+}
 
 function showToast(innerHTML) {
   const toast = document.createElement("div");
   toast.className = "hand-pickup-toast";
-  toast.innerHTML = innerHTML;
   const dismiss = () => {
     toast.classList.remove("show");
     setTimeout(() => toast.remove(), 400);
   };
+  const content = document.createElement("div");
+  content.innerHTML = innerHTML;
+  const closeBtn = createModalCloseX((e) => {
+    e.stopPropagation(); // トースト全体のクリックでも消えるようにしているため、二重に走らないよう止める
+    dismiss();
+  });
+  closeBtn.classList.add("hand-pickup-toast-close");
+  toast.appendChild(closeBtn);
+  toast.appendChild(content);
   toast.addEventListener("click", dismiss);
   document.body.appendChild(toast);
   requestAnimationFrame(() => toast.classList.add("show"));
-  setTimeout(dismiss, 3200);
+  setTimeout(dismiss, getDurationMs());
 }
 
 // player: カードを手に入れたプレイヤー。
@@ -29,10 +46,6 @@ export function announceHandPickups(player, pickups) {
 
   const visible = pickups.filter((p) => p.wasPublic || player === "A");
   const hiddenCount = pickups.length - visible.length;
-
-  const title = document.createElement("div");
-  title.className = "hand-pickup-toast-title";
-  title.textContent = `${SEAT_LABELS[player]}が獲得`;
 
   if (visible.length === 0) {
     showToast(`
