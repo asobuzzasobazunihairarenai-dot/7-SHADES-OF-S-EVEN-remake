@@ -10,6 +10,7 @@ import { checkForVictory } from "./victory.js";
 import { initPieceSkins, updatePieceSkinButton, getSkinImagePath } from "./piece-skins.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS } from "./player-identity.js";
+import { getSelectedPlaymatPath } from "./playmat.js";
 import { getState, moveToken, sendTokenToPile, drawFromPile, flipToken, nextTurn, refillDeckFromDiscard } from "./state.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import { COLORS, GATE_POSITIONS, SEAT_TO_SIDE } from "./board-layout.js";
@@ -55,6 +56,7 @@ function buildArena() {
   arena.className = "arena";
   const playmatBg = document.createElement("div");
   playmatBg.className = "playmat-bg";
+  playmatBg.style.backgroundImage = `url("${getSelectedPlaymatPath()}")`;
   arena.appendChild(playmatBg); // 最初に追加＝他の要素の背面に描画される
   arena.appendChild(buildLockArea("top"));
   arena.appendChild(buildLockArea("left"));
@@ -282,6 +284,12 @@ function buildFlatCard(token) {
     card.className = "board-card is-facedown";
     card.style.backgroundImage = `url("${getCardBackImagePath(token.cardId)}")`;
   }
+  // ロックしていても手札効果が使えるカード（ファーストカード・エターナルカード）は、
+  // ロックエリア内にある間だけ定期的にキラッと光らせて目立たせる（普段は「原則ロックした
+  // カードの手札効果は使えない」ため、この2種類だけが特別だと分かりやすくするため）。
+  if (token.location.zone === "lock" && (token.cardId.startsWith("first-") || token.cardId.startsWith("eternal-"))) {
+    card.classList.add("is-usable-while-locked");
+  }
   return card;
 }
 
@@ -413,9 +421,17 @@ function applyBoardZoomFit() {
   const spanMidY = (spanTop + spanBottom) / 2;
   const originYPercent = ((spanMidY - tableRect.top) / tableRect.height) * 100;
 
+  // 理論上はここでちょうど画面いっぱいになるはずだが、手札・アバター等の飛び出しや
+  // ブラウザごとのレンダリング誤差で微妙にズレる（手前のロックエリアが見切れる、等）ことが
+  // あったため、余白率・XY位置を管理者モードから追加で微調整できるようにした。
+  const style = getComputedStyle(document.documentElement);
+  const marginFrac = parseFloat(style.getPropertyValue("--board-zoom-margin")) || 0.98;
+  const offsetX = style.getPropertyValue("--board-zoom-offset-x").trim() || "0rem";
+  const offsetY = style.getPropertyValue("--board-zoom-offset-y").trim() || "0rem";
+
   table.style.transformOrigin = `50% ${originYPercent}%`;
-  const scale = (window.innerHeight * 0.98) / spanHeight;
-  table.style.transform = `rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
+  const scale = (window.innerHeight * marginFrac) / spanHeight;
+  table.style.transform = `translate(${offsetX}, ${offsetY}) rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
 }
 
 let boardZoomed = false;

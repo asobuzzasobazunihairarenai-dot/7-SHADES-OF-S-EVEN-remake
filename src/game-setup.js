@@ -16,6 +16,7 @@ import { SEAT_TO_SIDE, SEAT_ORDER } from "./board-layout.js";
 import { getPlayerName } from "./player-identity.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { resetVictoryTracking } from "./victory.js";
+import { PLAYMAT_OPTIONS, getSelectedPlaymatId, setSelectedPlaymatId } from "./playmat.js";
 
 // 2人/3人プレイ時、座席自動選択モード（管理者モードのトグルがオフの時）で使う座席。
 // 2人=対面(A・C)、3人=Dを除いた3隅。4人は常に全員。
@@ -159,6 +160,32 @@ function buildConfigForm() {
   bwNote.textContent = "説明書では、初めてプレイする時は白黒（無色）カードを外すことを勧めています（デフォルトでは含めません）。";
   wrapper.appendChild(bwNote);
 
+  const playmatNote = document.createElement("div");
+  playmatNote.style.cssText = "font-size: 0.8rem; margin-bottom: 0.4rem;";
+  playmatNote.textContent = "プレイマット：";
+  wrapper.appendChild(playmatNote);
+
+  const playmatRow = document.createElement("div");
+  playmatRow.style.cssText = "display: flex; gap: 0.8rem; margin-bottom: 0.7rem;";
+  const currentPlaymatId = getSelectedPlaymatId();
+  const playmatRadios = {};
+  for (const option of PLAYMAT_OPTIONS) {
+    const row = document.createElement("label");
+    row.style.cssText = "display: flex; align-items: center; gap: 0.3rem; cursor: pointer;";
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "game-setup-playmat";
+    radio.value = option.id;
+    radio.checked = option.id === currentPlaymatId;
+    playmatRadios[option.id] = radio;
+    const span = document.createElement("span");
+    span.textContent = option.label;
+    row.appendChild(radio);
+    row.appendChild(span);
+    playmatRow.appendChild(row);
+  }
+  wrapper.appendChild(playmatRow);
+
   const confirmBtn = document.createElement("button");
   confirmBtn.textContent = "決定";
   confirmBtn.style.cssText = "width: 100%; padding: 0.4rem; background: #0891b2; color: #fff; border: none; border-radius: 0.25rem; cursor: pointer;";
@@ -170,6 +197,9 @@ function buildConfigForm() {
       return;
     }
     config = { activePlayers, includeBlackWhite: bwCheckbox.checked };
+    const chosenPlaymat = PLAYMAT_OPTIONS.find((o) => playmatRadios[o.id].checked);
+    setSelectedPlaymatId(chosenPlaymat ? chosenPlaymat.id : "white");
+    notifyChange(); // プレイマットはこの時点で即座に見た目へ反映したい
     renderPanelBody();
   });
   wrapper.appendChild(confirmBtn);

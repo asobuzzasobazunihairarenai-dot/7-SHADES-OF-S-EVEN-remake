@@ -36,6 +36,10 @@ body {
 
 :root {
   --table-tilt: 42deg; /* JS側(fitTableToViewport)もこの変数を参照してscaleだけ動的に上書きする */
+  /* 「盤面拡大」ボタンのズーム位置微調整（applyBoardZoomFit参照）。管理者モードで調整可能。 */
+  --board-zoom-margin: 0.98;
+  --board-zoom-offset-x: 0rem;
+  --board-zoom-offset-y: 0rem;
 }
 
 .game-table {
@@ -259,6 +263,44 @@ body {
 .board-card.is-facedown {
   background-image: repeating-linear-gradient(45deg, #1e293b, #1e293b 5px, #2a3b52 5px, #2a3b52 10px);
   border-color: rgba(148, 163, 184, 0.45);
+}
+
+/* ロックしていても手札効果が使える特別なカード（ファーストカード・エターナルカード）を、
+   ロックエリア内にある間だけ定期的に強調する。斜めの光の帯（::after）が定期的に
+   カードを横切って「キラッ」と光り、あわせて金色のグローがふわっと明滅する。 */
+@keyframes usable-locked-shine-sweep {
+  0%, 85% {
+    transform: translateX(-160%) skewX(-20deg);
+  }
+  100% {
+    transform: translateX(160%) skewX(-20deg);
+  }
+}
+@keyframes usable-locked-glow-pulse {
+  0%, 80% {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  }
+  90% {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5), 0 0 0.7rem 0.15rem rgba(250, 204, 21, 0.9);
+  }
+  100% {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  }
+}
+.board-card.is-usable-while-locked {
+  overflow: hidden;
+  animation: usable-locked-glow-pulse 4s ease-in-out infinite;
+}
+.board-card.is-usable-while-locked::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 35%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.95), transparent);
+  animation: usable-locked-shine-sweep 4s ease-in-out infinite;
+  pointer-events: none;
 }
 
 /* ロックエリアに置いたカードは、そのロックエリアの持ち主（座席）から見て正しい向きに
@@ -618,6 +660,7 @@ body {
   --lock-right-pos-x: 1.8rem;
   --lock-right-pos-y: 0rem;
   --lock-slot-border-width: 0.1rem; /* ロックスロットの枠線の太さ（管理者モードで調整可） */
+  --lock-slot-glow-scale: 1; /* ロックスロットの色付きグローの強さ（管理者モードで調整可） */
 }
 
 .arena {
@@ -640,7 +683,8 @@ body {
   height: var(--board-size);
   margin-top: calc(-1 * var(--board-size) / 2);
   margin-left: calc(-1 * var(--board-size) / 2);
-  background-image: url("../assets/playmat.png");
+  /* 画像自体はJS側(buildArena)がplaymat.jsの選択状態に応じてinline styleで敷く
+     （セットアップウィザードで白/青/黒を選べるようにしたため、固定のurlをやめた）。 */
   background-repeat: no-repeat;
   background-size: 100% 100%;
   transform: translate(var(--playmat-pos-x), var(--playmat-pos-y)) scale(var(--playmat-scale));
@@ -729,8 +773,10 @@ body {
   background: transparent; /* うっすら枠だけの色分けにする（塗りつぶしは無し） */
   /* 3D遠近感で帯が薄く潰れて見えなくなる問題への対策として、色付きのグロー(box-shadow)を追加。
      JS側でcolorプロパティにその色スロットの色を設定し、currentColorで参照する（buildLockArea参照）。
-     ぼかしが強すぎると隣接する色同士が混ざって見えるため、控えめな値にしている。 */
-  box-shadow: 0 0 0.15rem 0.05rem currentColor;
+     ぼかしが強すぎると隣接する色同士が混ざって見えるため、控えめな値にしている。
+     --lock-slot-glow-scaleで枠線とは別にグローの強さだけ管理者モードから調整できる
+     （枠線を細くしても、グローだけ強いと結局「存在感」が残ってしまうため）。 */
+  box-shadow: 0 0 calc(0.15rem * var(--lock-slot-glow-scale)) calc(0.05rem * var(--lock-slot-glow-scale)) currentColor;
 }
 
 .board {
