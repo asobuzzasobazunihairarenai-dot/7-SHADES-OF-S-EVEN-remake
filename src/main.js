@@ -204,12 +204,15 @@ function render() {
 function fitTableToViewport() {
   const table = document.getElementById("game-table");
   const tilt = getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim();
-  table.style.transform = `rotateX(${tilt}) scale(1)`;
+  // scale()は2軸(X/Y)しか縮小しないため、駒の高さ等のtranslateZ(奥行き)がそのまま残り、
+  // 画面を小さくするほど駒が奥行き方向にだけ間延びして見えるバグがあった。
+  // scale3d()でZ軸も同じ倍率にすることで、縮小しても駒の縦横比が保たれるようにする。
+  table.style.transform = `rotateX(${tilt}) scale3d(1, 1, 1)`;
   const rect = table.getBoundingClientRect();
   const availW = window.innerWidth * 0.94;
   const availH = window.innerHeight * 0.94;
   const scale = Math.min(availW / rect.width, availH / rect.height, 1.15);
-  table.style.transform = `rotateX(${tilt}) scale(${scale})`;
+  table.style.transform = `rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
 }
 
 let resizeTimer;

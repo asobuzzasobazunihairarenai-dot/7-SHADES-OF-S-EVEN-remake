@@ -410,13 +410,13 @@ body {
 :root {
   --deck-scale: 1;
   --deck-pos-x: 4.1rem;
-  --deck-pos-y: 0.7rem;
+  --deck-pos-y: 1.5rem;
   --eternal-scale: 1;
   --eternal-pos-x: 4.1rem;
-  --eternal-pos-y: -4.4rem;
+  --eternal-pos-y: -3.7rem;
   --discard-scale: 1;
   --discard-pos-x: -4.1rem;
-  --discard-pos-y: -4.4rem;
+  --discard-pos-y: -3.7rem;
 }
 
 .zone-deck .stack {
