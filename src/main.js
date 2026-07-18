@@ -62,7 +62,8 @@ function layoutFan(count, orientation, isSelf, side) {
   const start = -maxSpread / 2;
   // すべてpx単位（1rem=16px換算）。カード同士の間隔
   const spacing = isSelf ? 48 : orientation === "vertical" ? 17.6 : 14.4;
-  const arcStrength = isSelf ? 8 : 4; // px。外側のカードが盤面から逃げる強さ
+  // 相手の手札は弧をつけない：3D変形と組み合わさると非対称に見えてしまうため回転のみのシンプルな扇にする
+  const arcStrength = isSelf ? 8 : 0;
   const arcSign = ARC_SIGN[side];
 
   return Array.from({ length: count }, (_, i) => {
@@ -103,19 +104,36 @@ function buildPlayerZone(side, label, handCount, isSelf) {
   return zone;
 }
 
-function buildPileZone(gridArea, label, pileClass, pileLabel) {
+// 枚数に応じて厚みのある山を作る（山札・エターナルカード用。将来は盤面マスのスタックにも流用する）。
+// 1枚あたり0.6px、最低0.15rem（0枚でも山があるように見える最低限の厚み）。
+function buildCardStack(count, pileClass, pileLabel) {
+  const stack = document.createElement("div");
+  stack.className = "stack";
+  const heightPx = Math.max(2.4, count * 0.6);
+  stack.style.setProperty("--stack-height", `${heightPx}px`);
+
+  const top = document.createElement("div");
+  top.className = `stack-top ${pileClass}`;
+  top.textContent = pileLabel;
+  stack.appendChild(top);
+
+  const front = document.createElement("div");
+  front.className = `stack-front ${pileClass}`;
+  stack.appendChild(front);
+
+  return stack;
+}
+
+function buildPileZone(gridArea, label, pileClass, pileLabel, count) {
   const zone = document.createElement("div");
   zone.className = `zone zone-${gridArea} pile-zone`;
 
   const labelEl = document.createElement("div");
   labelEl.className = "label";
-  labelEl.textContent = label;
+  labelEl.textContent = `${label}（${count}枚）`;
   zone.appendChild(labelEl);
 
-  const pile = document.createElement("div");
-  pile.className = `pile ${pileClass}`;
-  pile.textContent = pileLabel;
-  zone.appendChild(pile);
+  zone.appendChild(buildCardStack(count, pileClass, pileLabel));
 
   return zone;
 }
@@ -162,11 +180,32 @@ function render() {
   table.appendChild(buildPlayerZone("left", "プレイヤーB", 2, false));
   table.appendChild(buildPlayerZone("top", "プレイヤーC", 3, false));
   table.appendChild(buildPlayerZone("right", "プレイヤーD", 5, false));
-  table.appendChild(buildPileZone("deck", "山札", "pile-deck", "山札"));
-  table.appendChild(buildPileZone("eternal", "エターナル", "pile-eternal", "永久"));
-  table.appendChild(buildPileZone("discard", "捨て場", "pile-discard", "捨て場"));
+  table.appendChild(buildPileZone("deck", "山札", "pile-deck", "山札", 112 - 49)); // 通常カード112枚 - 盤面49枚
+  table.appendChild(buildPileZone("eternal", "エターナル", "pile-eternal", "永久", 7));
+  table.appendChild(buildPileZone("discard", "捨て場", "pile-discard", "捨て場", 0));
   table.appendChild(buildArena());
   placeDummyPieces(table);
+  fitTableToViewport();
 }
+
+// 画面サイズが変わっても手札などが見切れないよう、テーブル全体をビューポートに収まる
+// 倍率へ動的に縮小・拡大する。rem基準の固定サイズレイアウトのままでも、外側のscale
+// だけをJSで調整することでウィンドウサイズへの追従を実現する。
+function fitTableToViewport() {
+  const table = document.getElementById("game-table");
+  const tilt = getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim();
+  table.style.transform = `rotateX(${tilt}) scale(1)`;
+  const rect = table.getBoundingClientRect();
+  const availW = window.innerWidth * 0.94;
+  const availH = window.innerHeight * 0.94;
+  const scale = Math.min(availW / rect.width, availH / rect.height, 1.15);
+  table.style.transform = `rotateX(${tilt}) scale(${scale})`;
+}
+
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(fitTableToViewport, 100);
+});
 
 render();

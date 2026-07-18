@@ -34,8 +34,12 @@ body {
   perspective-origin: 50% 15%;
 }
 
+:root {
+  --table-tilt: 42deg; /* JS側(fitTableToViewport)もこの変数を参照してscaleだけ動的に上書きする */
+}
+
 .game-table {
-  transform: rotateX(42deg) scale(0.85);
+  transform: rotateX(var(--table-tilt)) scale(0.85);
   transform-style: preserve-3d;
   display: grid;
   grid-template-columns: 12rem auto 12rem;
@@ -104,6 +108,11 @@ body {
 
 .hand-fan.is-opponent {
   transform: rotateX(18deg) translateZ(0.5rem);
+}
+
+/* プレイヤーBの手札は180度回転させる */
+.zone-left .hand-fan.is-opponent {
+  transform: rotateX(18deg) translateZ(0.5rem) rotate(180deg);
 }
 
 .hand-card {
@@ -277,19 +286,42 @@ body {
   font-size: 0.65rem;
 }
 
-.pile {
+.pile-deck { background: linear-gradient(160deg, #334155, #1e293b); }
+.pile-discard { background: linear-gradient(160deg, #475569, #334155); }
+.pile-eternal { background: var(--color-rainbow); }
+
+/* 枚数に応じて厚みを持つカードの山。駒(.piece)と同じ「床+壁」の考え方だが、面は上面と正面の2枚のみ。
+   --stack-height（枚数から計算）が高さになる。将来、盤面マスのカードスタックにも流用する想定。 */
+.stack {
+  position: relative;
   width: 3.2rem;
   height: 3.2rem;
+  transform-style: preserve-3d;
+}
+
+.stack-top {
+  position: absolute;
+  inset: 0;
   border-radius: 0.25rem;
   border: 1px solid rgba(226, 232, 240, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
+  transform: translateZ(var(--stack-height));
+  backface-visibility: hidden;
 }
 
-.pile-deck { background: linear-gradient(160deg, #334155, #1e293b); }
-.pile-discard { background: linear-gradient(160deg, #475569, #334155); }
-.pile-eternal { background: var(--color-rainbow); }
+.stack-front {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: calc(var(--stack-height) + 0.15rem);
+  transform-origin: 50% 100%;
+  transform: rotateX(-90deg);
+  filter: brightness(0.6);
+  backface-visibility: hidden;
+}
 
 .label {
   opacity: 0.7;
