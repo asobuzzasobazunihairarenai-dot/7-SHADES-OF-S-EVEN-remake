@@ -4,7 +4,8 @@
 import { initAdminMode } from "./admin.js";
 import { initDeckViewer } from "./deck-viewer.js";
 import { initGameSetup } from "./game-setup.js";
-import { runGateInvasionIfNeeded } from "./gate-invasion.js";
+import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
+import { announceHandPickups } from "./hand-announcer.js";
 import { getState, moveToken, sendTokenToPile, drawFromPile, flipToken, nextTurn } from "./state.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import { COLORS, GATE_POSITIONS, SEAT_TO_SIDE, SEAT_LABELS } from "./board-layout.js";
@@ -225,6 +226,14 @@ function buildCubePiece(color) {
     wall.style.backgroundImage = skinUrl;
     piece.appendChild(wall);
   }
+
+  // 見た目（立方体）とは別に、ホバー/掴む判定のためだけの透明な当たり判定エリアを重ねる。
+  // --piece-hitbox-scale（管理者モードで調整可）でサイズだけ独立に拡大縮小できるようにし、
+  // 立体の見た目を変えずに「掴みやすさ」を微調整できるようにした。.pieceの子要素なので
+  // findDraggableAt/findHoverTargetの.closest(".piece")はそのままここでも正しく機能する。
+  const hitbox = document.createElement("div");
+  hitbox.className = "piece-hitbox";
+  piece.appendChild(hitbox);
 
   return piece;
 }
@@ -877,7 +886,23 @@ function onDragEnd(e) {
     // 山からは手札だけでなく盤面マス・ロックスロットへも直接置ける（ルール適用なしの自由な
     // 移動のため）。ただし山(pile)自体へは置けない——山は個々のカードを保持せず残り枚数
     // だけを持つ構造なので、"zone: pile"を新しいカードの置き場所にはできない。
-    if (dropTarget && dropTarget.zone !== "pile") drawFromPile(pileSource, dropTarget);
+    if (dropTarget && dropTarget.zone !== "pile") {
+      // drawFromPile()が山の中身を書き換えてしまう前に、一番上のカードを確認しておく
+      // （捨て場からの取得は元々表向きに積まれている＝公開情報、山札/エターナル/ファーストは
+      // 裏向き積み＝非公開情報として扱う）。
+      if (dropTarget.zone === "hand") {
+        const pileArray = getState().piles[pileSource];
+        if (pileArray.length > 0) {
+          const cardId = pileArray[pileArray.length - 1];
+          const player = dropTarget.player;
+          drawFromPile(pileSource, dropTarget);
+          announceHandPickups(player, [{ cardId, wasPublic: pileSource === "discard" }]);
+          render();
+          return;
+        }
+      }
+      drawFromPile(pileSource, dropTarget);
+    }
     render(); // 引けた場合も引けなかった場合も、必ず再描画する（drawFromPile後にrenderし忘れると
     // 状態は更新済みなのに画面に反映されず、次に別の操作でrender()が走った時にまとめて
     // 反映されたように見えるバグになる。これが実際に起きていたので、必ずここで呼ぶ）。
@@ -888,8 +913,25 @@ function onDragEnd(e) {
     render();
     return;
   }
-  if (dropTarget.zone === "pile") sendTokenToPile(tokenId, dropTarget.pile);
-  else moveToken(tokenId, dropTarget);
+  if (dropTarget.zone === "pile") {
+    sendTokenToPile(tokenId, dropTarget.pile);
+  } else {
+    // 手札に「新しく」加わる時（今までは手札に無かった、または別プレイヤーの手札から移ってきた
+    // 時）だけ、何を得たか知らせるポップアップを出す。同じ手札の中で位置を動かしただけの時は
+    // 対象外。
+    if (dropTarget.zone === "hand") {
+      const token = getState().tokens.find((t) => t.id === tokenId);
+      const alreadyInThisHand = token && token.location.zone === "hand" && token.location.player === dropTarget.player;
+      if (token && !alreadyInThisHand) {
+        const wasPublic = token.location.zone === "cell" || token.location.zone === "lock" ? token.faceUp : false;
+        moveToken(tokenId, dropTarget);
+        announceHandPickups(dropTarget.player, [{ cardId: token.cardId, wasPublic }]);
+        render();
+        return;
+      }
+    }
+    moveToken(tokenId, dropTarget);
+  }
   render();
 }
 
@@ -903,11 +945,12 @@ function buildEndTurnButton() {
   const btn = document.createElement("button");
   btn.id = "end-turn-button";
   btn.addEventListener("click", () => {
-    const attacker = getState().turnPlayer;
-    // 侵攻条件を満たしていなければrunGateInvasionIfNeededは即座にdone()を呼ぶだけなので、
-    // 普段のターン終了と体感は変わらない。満たしていればボーナス処理の3つのポップアップが
-    // 終わってから初めてnextTurn()が呼ばれる。
-    runGateInvasionIfNeeded(attacker, () => {
+    // 侵攻条件を満たしている参加プレイヤーが誰もいなければrunGateInvasionsIfNeededは
+    // 即座にdone()を呼ぶだけなので、普段のターン終了と体感は変わらない。満たしていれば
+    // （手番プレイヤー本人とは限らない。効果等で自分のターンでなくても相手ゲートに
+    // 駒がいることはあり得るため、手番プレイヤーに限らず全参加プレイヤーを対象にする）
+    // ボーナス処理の3つのポップアップが終わってから初めてnextTurn()が呼ばれる。
+    runGateInvasionsIfNeeded(() => {
       nextTurn();
       render();
     });

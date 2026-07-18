@@ -13,6 +13,12 @@ const GROUPS = [
     ],
   },
   {
+    title: "駒の当たり判定（ホバーすると発光する範囲）",
+    controls: [
+      { key: "--piece-hitbox-scale", label: "広さ（見た目のサイズはそのまま）", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 1 },
+    ],
+  },
+  {
     title: "プレイマット",
     controls: [
       { key: "--playmat-scale", label: "拡大率", unit: "", min: 0.5, max: 3, step: 0.01, default: 1.42 },
