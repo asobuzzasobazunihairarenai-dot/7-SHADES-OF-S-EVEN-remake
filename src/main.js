@@ -1,6 +1,8 @@
-// Phase 1 milestone 1a: 静的レイアウト確認用。ゲームロジックはまだ繋がず、ダミーデータのみ描画する。
+// Phase 1: 盤面・手札・山札等を描画し、駒とカードをドラッグ操作で自由に動かせるようにする。
+// ルール処理は行わない（ユドナリウムコネクトのような手動サンドボックス）。
 
 import { initAdminMode } from "./admin.js";
+import { getState, moveToken, sendTokenToPile, drawFromPile } from "./state.js";
 
 const COLORS = ["red", "orange", "yellow", "green", "blue", "pink", "purple"];
 
@@ -14,14 +16,16 @@ const GATE_POSITIONS = {
 function buildLockArea(side) {
   const el = document.createElement("div");
   el.className = `lock-area lock-${side}`;
-  for (const color of COLORS) {
+  COLORS.forEach((color, index) => {
     const slot = document.createElement("div");
     slot.className = "lock-slot";
+    slot.dataset.side = side;
+    slot.dataset.index = String(index);
     slot.style.borderColor = `var(--color-${color})`;
     slot.style.color = `var(--color-${color})`; // CSS側のbox-shadow: currentColorで使う
     slot.style.background = `var(--color-${color})`; // 駒と同じく塗りつぶしにして視認性を上げる
     el.appendChild(slot);
-  }
+  });
   return el;
 }
 
@@ -84,7 +88,7 @@ function layoutFan(count, orientation, isSelf, side) {
   });
 }
 
-function buildPlayerZone(side, label, handCount, isSelf) {
+function buildPlayerZone(side, label, player, isSelf) {
   const zone = document.createElement("div");
   zone.className = `zone zone-${side} player-zone`;
   const nameEl = document.createElement("div");
@@ -95,15 +99,22 @@ function buildPlayerZone(side, label, handCount, isSelf) {
 
   const handEl = document.createElement("div");
   handEl.className = "hand-area";
+  handEl.dataset.player = player;
   const fanEl = document.createElement("div");
   fanEl.className = `hand-fan ${isSelf ? "is-self" : "is-opponent"}`;
 
-  for (const card of layoutFan(handCount, orientation, isSelf, side)) {
+  const handTokens = getState().tokens.filter(
+    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player
+  );
+  const layout = layoutFan(handTokens.length, orientation, isSelf, side);
+  handTokens.forEach((token, i) => {
     const cardEl = document.createElement("div");
     cardEl.className = `hand-card ${isSelf ? "is-self" : "is-facedown"}`;
+    cardEl.dataset.tokenId = token.id;
+    const card = layout[i];
     cardEl.style.transform = `translateX(${card.spreadX}px) translateY(${card.spreadY}px) rotate(${card.angle}deg)`;
     fanEl.appendChild(cardEl);
-  }
+  });
   handEl.appendChild(fanEl);
 
   zone.appendChild(nameEl);
@@ -137,11 +148,23 @@ function buildCardStack(count, pileClass, pileLabel) {
   return stack;
 }
 
+const PILE_CONFIG = {
+  deck: { gridArea: "deck", pileClass: "pile-deck", label: "山札" },
+  eternal: { gridArea: "eternal", pileClass: "pile-eternal", label: "永久" },
+  discard: { gridArea: "discard", pileClass: "pile-discard", label: "捨て場" },
+};
+
 // 枚数はゾーン外の別ラベルではなく、山自体（stack-top）の表示に含める。
-function buildPileZone(gridArea, pileClass, pileLabel, count) {
+function buildPileZone(pileKey) {
+  const config = PILE_CONFIG[pileKey];
   const zone = document.createElement("div");
-  zone.className = `zone zone-${gridArea} pile-zone`;
-  zone.appendChild(buildCardStack(count, pileClass, pileLabel));
+  zone.className = `zone zone-${config.gridArea} pile-zone`;
+  zone.dataset.pile = pileKey;
+
+  const count = getState().piles[pileKey];
+  const stack = buildCardStack(count, config.pileClass, config.label);
+  stack.dataset.pile = pileKey;
+  zone.appendChild(stack);
   return zone;
 }
 
@@ -168,15 +191,26 @@ function buildCubePiece(color) {
   return piece;
 }
 
-function placeDummyPieces(tableEl) {
-  // 座席は手前(南)=A, 左(西)=B, 奥(北)=C, 右(東)=D。盤面を上から見て時計回り(A→B→C→D)。
-  const pieceColors = { bottom: "red", left: "orange", top: "yellow", right: "green" };
-  for (const [side, pos] of Object.entries(GATE_POSITIONS)) {
-    const cell = tableEl.querySelector(`.cell[data-row="${pos.row}"][data-col="${pos.col}"]`);
-    if (!cell) continue;
-    cell.appendChild(buildCubePiece(pieceColors[side]));
+function findLocationElement(table, location) {
+  if (location.zone === "cell") {
+    return table.querySelector(`.cell[data-row="${location.row}"][data-col="${location.col}"]`);
+  }
+  if (location.zone === "lock") {
+    return table.querySelector(`.lock-slot[data-side="${location.side}"][data-index="${location.index}"]`);
+  }
+  return null;
+}
+
+function renderPieceTokens(table) {
+  for (const token of getState().tokens) {
+    if (token.kind !== "piece") continue;
+    const host = findLocationElement(table, token.location);
+    if (!host) continue;
+    const pieceEl = buildCubePiece(token.color);
+    pieceEl.dataset.tokenId = token.id;
+    host.appendChild(pieceEl);
     // 駒はセルより大きくはみ出すため、隣のマス（DOM順で後にあるもの）に隠されないよう最前面にする
-    cell.style.zIndex = "10";
+    if (host.classList.contains("cell")) host.style.zIndex = "10";
   }
 }
 
@@ -187,15 +221,16 @@ function render() {
   // 後に追加した手札・山札・捨て場・エターナルは、画面上で座標が重なってもプレイマットより
   // 手前に描画される（盤面のマス目の枠線と同じ「高さ」で表示される、という要望に対応）。
   table.appendChild(buildArena());
-  table.appendChild(buildPlayerZone("bottom", "プレイヤーA（自分）", 4, true));
-  table.appendChild(buildPlayerZone("left", "プレイヤーB", 2, false));
-  table.appendChild(buildPlayerZone("top", "プレイヤーC", 3, false));
-  table.appendChild(buildPlayerZone("right", "プレイヤーD", 5, false));
-  table.appendChild(buildPileZone("deck", "pile-deck", "山札", 112 - 49)); // 通常カード112枚 - 盤面49枚
-  table.appendChild(buildPileZone("eternal", "pile-eternal", "永久", 7));
-  table.appendChild(buildPileZone("discard", "pile-discard", "捨て場", 0));
-  placeDummyPieces(table);
+  table.appendChild(buildPlayerZone("bottom", "プレイヤーA（自分）", "A", true));
+  table.appendChild(buildPlayerZone("left", "プレイヤーB", "B", false));
+  table.appendChild(buildPlayerZone("top", "プレイヤーC", "C", false));
+  table.appendChild(buildPlayerZone("right", "プレイヤーD", "D", false));
+  table.appendChild(buildPileZone("deck"));
+  table.appendChild(buildPileZone("eternal"));
+  table.appendChild(buildPileZone("discard"));
+  renderPieceTokens(table);
   fitTableToViewport();
+  attachDragHandlers(table);
 }
 
 // 画面サイズが変わっても手札などが見切れないよう、テーブル全体をビューポートに収まる
@@ -220,6 +255,126 @@ window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(fitTableToViewport, 100);
 });
+
+// --- ドラッグ操作 ---------------------------------------------------------
+// ルールを一切適用しない自由な移動なので、「掴んだ物を離した場所」を見て状態を更新するだけの
+// シンプルな仕組みにする。ドラッグ中は実体を動かさず、カーソルに追従する「ゴースト」だけを
+// 画面全体(document.body)に浮かせて表示する。盤面自体がperspective+rotateXで傾いた3D空間の
+// 中にあるため、ドラッグ中の要素をその中で動かそうとすると座標計算が複雑になる。ゴーストを
+// 3D空間の外(body直下)に置いてカーソルに1:1で追従させる方が単純かつ確実。
+// ドロップ位置の判定はelementsFromPoint()で「その座標にある要素」を調べ、盤面マス／ロック
+// スロット／手札エリア／山札等のどれに該当するかをclosest()で特定する。
+
+let dragSession = null;
+
+function attachDragHandlers(table) {
+  table.querySelectorAll(".piece").forEach((el) => {
+    el.addEventListener("pointerdown", (e) => startTokenDrag(e, el.dataset.tokenId, "piece"));
+  });
+  table.querySelectorAll(".hand-card").forEach((el) => {
+    el.addEventListener("pointerdown", (e) => startTokenDrag(e, el.dataset.tokenId, "card"));
+  });
+  table.querySelectorAll(".stack[data-pile]").forEach((el) => {
+    el.addEventListener("pointerdown", (e) => startPileDrag(e, el.dataset.pile));
+  });
+}
+
+function createGhost(kind, sourceEl) {
+  const ghost = document.createElement("div");
+  if (kind === "piece") {
+    const tokenId = sourceEl.dataset.tokenId;
+    const token = getState().tokens.find((t) => t.id === tokenId);
+    ghost.className = "drag-ghost-piece";
+    ghost.style.background = `var(--color-${token.color})`;
+  } else {
+    const faceClass = sourceEl.classList.contains("is-self") ? "is-self" : "is-facedown";
+    ghost.className = `hand-card ${faceClass} drag-ghost`;
+  }
+  document.body.appendChild(ghost);
+  return ghost;
+}
+
+function positionGhost(ghost, clientX, clientY) {
+  ghost.style.transform = `translate(${clientX}px, ${clientY}px) translate(-50%, -50%)`;
+}
+
+function startTokenDrag(e, tokenId, kind) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  const ghost = createGhost(kind, e.currentTarget);
+  positionGhost(ghost, e.clientX, e.clientY);
+  dragSession = { tokenId, kind, ghost, pileSource: null };
+  document.body.style.userSelect = "none";
+  window.addEventListener("pointermove", onDragMove);
+  window.addEventListener("pointerup", onDragEnd);
+}
+
+function startPileDrag(e, pileKey) {
+  if (e.button !== 0) return;
+  if (getState().piles[pileKey] <= 0) return; // 空の山からは引けない
+  e.preventDefault();
+  const ghost = document.createElement("div");
+  ghost.className = "hand-card is-facedown drag-ghost";
+  document.body.appendChild(ghost);
+  positionGhost(ghost, e.clientX, e.clientY);
+  dragSession = { tokenId: null, kind: "card", ghost, pileSource: pileKey };
+  document.body.style.userSelect = "none";
+  window.addEventListener("pointermove", onDragMove);
+  window.addEventListener("pointerup", onDragEnd);
+}
+
+function onDragMove(e) {
+  if (!dragSession) return;
+  positionGhost(dragSession.ghost, e.clientX, e.clientY);
+}
+
+function findDropTarget(clientX, clientY, kind) {
+  const elements = document.elementsFromPoint(clientX, clientY);
+  for (const el of elements) {
+    if (kind === "piece") {
+      const cell = el.closest(".cell");
+      if (cell) return { zone: "cell", row: Number(cell.dataset.row), col: Number(cell.dataset.col) };
+      const lockSlot = el.closest(".lock-slot");
+      if (lockSlot) return { zone: "lock", side: lockSlot.dataset.side, index: Number(lockSlot.dataset.index) };
+    } else {
+      const handArea = el.closest(".hand-area");
+      if (handArea) return { zone: "hand", player: handArea.dataset.player };
+      const pileZone = el.closest(".pile-zone");
+      if (pileZone) return { zone: "pile", pile: pileZone.dataset.pile };
+      const cell = el.closest(".cell"); // カードを盤面マスに置くことも許可（役割は自由、ルール適用なし）
+      if (cell) return { zone: "cell", row: Number(cell.dataset.row), col: Number(cell.dataset.col) };
+    }
+  }
+  return null;
+}
+
+function onDragEnd(e) {
+  if (!dragSession) return;
+  const { tokenId, kind, ghost, pileSource } = dragSession;
+  ghost.remove();
+  window.removeEventListener("pointermove", onDragMove);
+  window.removeEventListener("pointerup", onDragEnd);
+  document.body.style.userSelect = "";
+
+  const dropTarget = findDropTarget(e.clientX, e.clientY, kind);
+  dragSession = null;
+
+  if (pileSource) {
+    // 山から直接引けるのは手札へ落とした時だけにする（盤面マスへ「山から直接置く」等は
+    // 意味が曖昧になるため対象外。それ以外の場所へ落とした場合は何も起きず山はそのまま）。
+    if (dropTarget && dropTarget.zone === "hand") drawFromPile(pileSource, dropTarget);
+    else render(); // 状態は変わらないが、ゴーストを消すために再描画する
+    return;
+  }
+
+  if (!dropTarget) {
+    render();
+    return;
+  }
+  if (dropTarget.zone === "pile") sendTokenToPile(tokenId, dropTarget.pile);
+  else moveToken(tokenId, dropTarget);
+  render();
+}
 
 render();
 initAdminMode();

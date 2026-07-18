@@ -162,6 +162,42 @@ body {
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.5);
 }
 
+/* --- ドラッグ操作 ---------------------------------------------------------
+   駒・手札カード・山札等はマウス/タッチでドラッグして動かせる。touch-action:noneは
+   タッチ操作時にドラッグ中にページ自体がスクロールしてしまうのを防ぐため。 */
+.piece,
+.hand-card,
+.stack[data-pile] {
+  cursor: grab;
+  touch-action: none;
+}
+
+/* ドラッグ中はカーソルに1:1追従する「ゴースト」を3D空間の外(document.body直下)に表示する。
+   left:0;top:0;を基準にtransform: translate()だけで位置決めするので、駒/カードの実寸
+   (remベースの固定サイズ)をそのまま流用でき、ドラッグ開始時にサイズを測る必要がない。 */
+.drag-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  margin: 0;
+  z-index: 9999;
+  pointer-events: none;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+}
+
+.drag-ghost-piece {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: var(--cell);
+  height: var(--cell);
+  border-radius: 0.3rem;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  z-index: 9999;
+}
+
 /* 実物のプレイマット画像（画像素材/プレイマット.png、assets/playmat.pngにコピー）を敷く。
    以前は`.arena`の背景画像として実装していたが、2つの問題があった：
    (1) background-sizeで拡大すると、はみ出した部分が要素の外側として切り取られ見切れる。
