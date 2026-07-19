@@ -23,4 +23,8 @@ export const SIDE_TO_SEAT = { bottom: "A", left: "B", top: "C", right: "D" };
 // 時計回りの座席順（ターン順・セットアップ時のファーストカード配布順に使う）。
 export const SEAT_ORDER = ["A", "B", "C", "D"];
 
-export const SEAT_LABELS = { A: "プレイヤーA（自分）", B: "プレイヤーB", C: "プレイヤーC", D: "プレイヤーD" };
+// 以前はAだけ「プレイヤーA（自分）」と「自分」の文字を名前自体に焼き込んでいたが、
+// オンライン対戦では「自分」がAとは限らないため、単なる座席名に統一した。「（自分）」の
+// 表示は、実際に見ている本人にだけ意味のある場所（main.jsのupdateSelfHandStatus、
+// 自分専用ステータス）で動的に付け足すようにしている。
+export const SEAT_LABELS = { A: "プレイヤーA", B: "プレイヤーB", C: "プレイヤーC", D: "プレイヤーD" };

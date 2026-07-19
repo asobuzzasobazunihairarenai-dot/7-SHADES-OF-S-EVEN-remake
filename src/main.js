@@ -1978,7 +1978,9 @@ function updateSelfHandStatus() {
     selfHandStatusEl.querySelector(".self-status-name-input")?.replaceWith(fresh);
     selfStatusNameEl = fresh;
   }
-  selfStatusNameEl.textContent = getPlayerName(getSelfSeat());
+  // 「（自分）」はここ（実際に見ている本人にしか意味を持たない場所）でだけ動的に付け足す。
+  // SEAT_LABELS側にはもう含めていない（「自分」がAとは限らないため）。
+  selfStatusNameEl.textContent = `${getPlayerName(getSelfSeat())}（自分）`;
   selfStatusHandCountEl.textContent = `手札：${count}枚`;
 }
 
