@@ -70,7 +70,12 @@ export function getCardImagePath(cardId) {
 
 // 裏面は「通常カード」「エターナルカード」「ファーストカード」でデザインが違う（物理カードと
 // 同じ）。idの接頭辞（"eternal-"/"first-"）で判別する。
+// cardIdがnullの場合（オンライン対戦で、本当に中身が見えない裏向きカード・他人の手札を
+// 描画する時。so7_game_tokens_visibleビューがマスクした結果、真にcardIdが分からない）は
+// 通常カードの裏面にフォールバックする（このオンライン対戦の第一弾では盤面49マスは
+// 通常カードのみで構成されるため、実用上はこれで正しい）。
 export function getCardBackImagePath(cardId) {
+  if (!cardId) return "assets/cards/back-normal.png";
   if (cardId.startsWith("eternal-")) return "assets/cards/back-eternal.png";
   if (cardId.startsWith("first-")) return "assets/cards/back-first.png";
   return "assets/cards/back-normal.png";

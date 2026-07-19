@@ -350,6 +350,7 @@ function buildPanel(close) {
 
 function buildToggleButton(open) {
   const btn = document.createElement("button");
+  btn.id = "game-setup-toggle-button";
   btn.className = "header-tool-button";
   btn.textContent = "🎲 セットアップ";
   btn.style.cssText = `

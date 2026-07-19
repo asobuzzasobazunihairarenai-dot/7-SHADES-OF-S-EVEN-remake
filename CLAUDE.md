@@ -437,6 +437,100 @@
 - **ロックエリアからロックエリアへカードを移動させた時にもロック演出を出すよう変更**: 従来`maybeAnnounceLock()`は`wasAlreadyLocked`（移動前から既にロックエリアにいたか）が真の場合、トースト・演出とも丸ごとスキップしていた（ロックエリア内で位置を動かしただけ、という扱い）。ユーザー要望を受け、「ロックした」トースト（`announceCardLocked`）は引き続き新規ロック時のみに絞ったまま、ロック演出（`triggerLockEffect`、柱状バースト＋ロックスタンプ＋効果音）だけは`wasAlreadyLocked`に関わらずロックエリアへの移動全般（ロックエリア間の移動も含む）で常に出すよう分離した。白黒（無色）カードの除外条件はトースト・演出とも従来通り維持。
   - ブラウザでの実測: 既にロックされているカードを別のロックスロットへドラッグし、`arrivalEffect`→`lock`効果音が新規ロック時と同じ間隔（1300ms）で再生されること、かつ「ロックした」トーストは表示されないことを確認済み。
 
+### 2026-07-19の変更（続き・同日19回目のラウンド）：オンライン非同期対戦・第一弾（最小構成）
+
+- **目的**: 最終目標（MTGA的な本格オンライン対戦）への第一歩として、実際に離れた場所にいる複数人が
+  それぞれの端末からログインして対戦できる最小構成を追加した。既存のローカル1人用（回し打ち）
+  モードは一切変更せず、新しく追加した「🌐 オンライン」ボタンからオプトインする別モードとして
+  共存させている。詳細な設計判断・査読内容は `C:\Users\user\.claude\plans\declarative-hopping-gray.md`
+  （このラウンドの承認済み実装計画）を参照。
+- **既存Supabaseプロジェクトへの相乗り**: 姉妹プロジェクト「7 SHADES OF S:EVEN 戦績管理システム」が
+  使っている同じSupabaseプロジェクト（`prnddzrnblfysggiuzmo`）に、`so7_`プレフィックスの新しい
+  テーブル群を追加する形にした（姉妹プロジェクトの`supabase_setup.sql`は一切変更していない）。
+  supabase-jsは姉妹プロジェクトと同じCDN UMD版（`index.html`に追加）を使う。
+- **隠すべき情報（手札・山札の中身）はデータ層で本当に隠す**: 姉妹プロジェクトの`using (true)`
+  という性善説RLSとは異なり、今回はメール認証（マジックリンク）を前提に、`so7_game_tokens`/
+  `so7_game_piles`という生テーブルへの直接アクセスをRLSで完全に禁止し、`card_id`をマスクした
+  ビュー（`so7_game_tokens_visible`/`so7_game_piles_visible`、`supabase_setup_so7.sql`参照）
+  経由でしか読めないようにした。マスク条件は「手札は持ち主(user_id)以外に常に隠す」
+  「盤面/ロックのカードは`face_up`の値だけで判定」という2つの独立ルール。
+  - **重要な設計判断（Planエージェントの査読で判明）**: RLSで生テーブルへの直接SELECTを
+    禁止すると、Supabase Realtimeの`postgres_changes`もRLSに従うため誰にも変化通知が
+    届かなくなる（ビューへの購読も不可）。そのため`so7_game_tokens`/`so7_game_piles`の
+    変化通知は`postgres_changes`を使わず、Edge Function側からのBroadcast
+    （`channel('game:'+id).send({type:'broadcast', event:'state_changed'})`、データ自体は
+    載せず「変わったよ」の合図のみ）で代替した。姉妹プロジェクトの「変化があったら全部
+    取り直す」という粗い同期思想はそのまま踏襲している。
+  - マスキングビューは`security_invoker`を付けない（デフォルトのビュー所有者権限のまま）
+    ことが必須——付けると呼び出し元のRLS（＝生テーブルへの直接アクセス拒否）がビュー自体にも
+    適用され、誰も読めなくなってしまう。
+- **アクションの適用はEdge Function（`supabase/functions/so7-apply-action.ts`）に集約**:
+  クライアントは山札の中身等を知り得ないため、`drawFromPile`のようなアクションはクライアント側
+  で計算できない。`src/state.js`の`reduce()`から今回ポートした6ケース（`MOVE_TOKEN`/
+  `DRAW_FROM_PILE`/`FLIP_TOKEN`/`SET_TURN_PLAYER`/`NEXT_TURN`＋新設`BOOTSTRAP_GAME`）を
+  TypeScriptへ複製し、Edge Function内でサービスロールキー（RLSをバイパス）を使って
+  全状態を読み書きする。複製にした理由: このリポジトリはビルド無しの静的サイトで、
+  Edge Functionもダッシュボードに直接貼り付けてデプロイする運用（`notify-on-event.ts`と同じ）
+  のため、ブラウザのESMとDenoファイルが同じ相対パスを直接importする手立てが無いため
+  （詳細は計画ファイル参照）。`board-layout.js`/`cards-data.js`由来の定数は値だけコピーし、
+  元ファイルを変更したら両方直すべき箇所とコメントで明記した。
+  - **同時実行制御**: `so7_apply_and_commit`という原子的な書き込み用RPC（SQL、
+    `supabase_setup_so7.sql`内）を新設し、`so7_games.version`列を使った楽観的並行制御
+    （`for update`でロック＋期待versionと一致しなければ`version_conflict`エラー）で、
+    同じゲームへの同時アクション適用による競合を防ぐ。ゲームロジック自体（reduce相当）は
+    Edge Function側のTypeScriptに残し、RPCは「計算済みの結果を原子的に書き込むだけ」の
+    薄い層にすることで、SQL側にゲームルールを持たせずに済むようにした。
+  - **権限チェックはPhase1の既存方針通り「座席を持っているか」だけ**: 「今の手番か」
+    「このトークンは自分の物か」は問わない（ローカル版と同じ自由度、CLAUDE.mdの
+    「ルール適用は一切しない」方針と一貫）。
+- **今回ポートしなかったアクション**（オンラインモード中はUI側でボタンごと隠す。
+  `body.is-online-mode`クラス＋CSSで`#game-setup-toggle-button`/`#quick-start-bar`/
+  `#hand-shuffle-button`をまとめて隠す）: セットアップウィザードの個別ステップ・
+  クイックスタート・手札シャッフル・ゲート侵攻ボーナス（`GATE_INVASION_*`）。
+  「ターン終了」ボタンはオンライン中、`runGateInvasionsIfNeeded()`をスキップして
+  `nextTurn()`だけを直接呼ぶよう分岐した（ポートしていないアクションがローカルだけに
+  適用されてサーバーの状態と食い違うのを防ぐため）。
+- **クライアント側の統合（`src/state.js`/`src/online.js`/`src/online-ui.js`）**:
+  `state.js`に`setOnlineMode`/`setOnlineTransport`/`hydrateState`/`isOnlineMode`を追加し、
+  `moveToken`/`drawFromPile`/`flipToken`/`setTurnPlayer`/`nextTurn`の5つだけ、オンライン中は
+  注入されたtransport（`online.js`がEdge Functionを呼ぶ関数）を使うよう分岐した
+  （呼び出し側のシグネチャは変更不要）。`main.js`は起動時に`subscribe(render)`を1回呼ぶ
+  ようにし（今まで誰も呼んでいなかった`listeners`機構を初めて有効化）、サーバー側の変化が
+  Broadcast→`fetchAndHydrate()`→`hydrateState()`経由で届くとそのまま再描画される。
+  `src/online.js`が部屋の作成/参加（座席選択、URLの`?room=`）・マジックリンクログイン・
+  Edge Function呼び出し・ビュー経由の状態取得を担当し、`src/online-ui.js`が
+  `ui-helpers.js`の`createModalCloseX`/`createBackdrop`を使った簡易モーダルUIを提供する。
+- **山からの引き方（先読みパターン）を分岐**: `main.js`の`onDragEnd`は元々
+  `drawFromPile()`を呼ぶ**前**にローカルの山配列を直接読んで獲得ポップアップ用のcardIdを
+  確定させていたが、オンラインでは山の中身はサーバーにしか無く先読みできない。
+  `onDragEnd`を`async`にし、オンライン中はtransportの応答（`revealedCardId`）を待って
+  からポップアップを出すよう分岐した（ローカル分岐は従来のまま変更なし）。
+- **バグ修正（実装中に発覚、null安全性）**: `cards-data.js`の`getCardBackImagePath(cardId)`が
+  `cardId.startsWith(...)`を無条件に呼んでおり、`cardId`が`null`だとクラッシュする実装だった。
+  ローカルモードでは裏向きカードでも実際のcardIdを常に持っている（見た目だけ隠す設計）ため
+  今まで問題にならなかったが、オンラインでは「本当に中身が分からない」裏向きカード・他人の
+  手札で`cardId`が実際に`null`になる（マスキングビューがそう返す）ため、このままだと
+  盤面49マスの裏向きカードや相手の手札を表示しようとした瞬間にクラッシュしていた。
+  `!cardId`の場合は通常カードの裏面にフォールバックするよう修正（`buildFlatCard`の
+  `token.cardId.startsWith(...)`も同様にnullガードを追加）。
+- **既知の制約（次回以降の課題として明記）**: 自分視点で常に手前に見えるよう盤面を回転する
+  表示・手番の通知・洗練された部屋一覧UI・ドラッグ操作自体のリアルタイムミラーリングは
+  今回のスコープ外（`board-layout.js`が座席⇔辺の対応を集約済みなので、視点回転は次回の
+  対応が比較的小さいはず）。オンライン中のアクションはクライアント側で楽観的に即座に
+  反映するのではなく、サーバーへ送ってBroadcastの往復を待ってから画面に反映される
+  （体感としては操作からわずかに遅れて盤面が更新される）。
+- **ユーザー側の作業が必要（コード変更だけでは完結しない）**: `supabase_setup_so7.sql`を
+  Supabaseダッシュボード（既存プロジェクト）のSQL Editorで実行し、Authentication >
+  Providersでメールのマジックリンクログインを有効化し、
+  `supabase/functions/so7-apply-action.ts`の中身をEdge Functionsダッシュボードに貼り付けて
+  `so7-apply-action`という名前でデプロイする必要がある（`notify-on-event.ts`と同じ運用）。
+  これらはSupabaseの認証情報・ダッシュボード操作を伴うため、私自身では実行していない。
+- **検証状況**: ローカルモードの回帰確認（クイックスタート・ドラッグ操作・ロック演出・
+  ドロー・ターン終了ボタン・オンラインパネルの開閉）はブラウザで実施し、エラー無しを
+  確認済み。実際のオンライン対戦フロー（2つのアカウントでの本物のログイン・部屋の作成/参加・
+  リアルタイム同期・隠し情報が本当に隠れているか）は、上記のユーザー側作業が完了しないと
+  検証できないため未実施。
+
 ## 未確認・要フォローアップ
 
 - 親フォルダ（Googleドライブ）直下に以下の関連しそうなファイル・フォルダがあるが、中身は未確認：

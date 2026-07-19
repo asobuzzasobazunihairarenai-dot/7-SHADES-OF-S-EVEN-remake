@@ -18,7 +18,19 @@ import { showCardArrivalModal } from "./card-arrival.js";
 import { initPlayerButtons } from "./player-buttons.js";
 import { initQuickStart } from "./quick-start.js";
 import { registerRenderHelpers } from "./setup-animation.js";
-import { getState, moveToken, sendTokenToPile, drawFromPile, flipToken, shuffleHand, nextTurn, refillDeckFromDiscard } from "./state.js";
+import {
+  getState,
+  moveToken,
+  sendTokenToPile,
+  drawFromPile,
+  flipToken,
+  shuffleHand,
+  nextTurn,
+  refillDeckFromDiscard,
+  subscribe,
+  isOnlineMode,
+} from "./state.js";
+import { initOnlineUi, openOnlinePanel } from "./online-ui.js";
 import { playSound } from "./sound.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import { COLORS, GATE_POSITIONS, SEAT_TO_SIDE, SIDE_TO_SEAT } from "./board-layout.js";
@@ -333,7 +345,7 @@ function buildFlatCard(token) {
   // （cards-data.jsのcolor）に合わせる。以前はロックスロットの色（token.location.index）を
   // 使っていたが、他プレイヤーの効果でスロットとカードの色がズレて置かれる状況もあり得るため、
   // カード自身の色を優先するよう修正した。
-  if (token.location.zone === "lock" && (token.cardId.startsWith("first-") || token.cardId.startsWith("eternal-"))) {
+  if (token.location.zone === "lock" && token.cardId && (token.cardId.startsWith("first-") || token.cardId.startsWith("eternal-"))) {
     const effect = getUsableLockedEffect();
     card.classList.add("is-usable-while-locked", `effect-${effect}`);
     const cardColor = getCardDefinition(token.cardId).color;
@@ -614,6 +626,9 @@ function renderBoardTokens(table) {
 }
 
 function render() {
+  // オンライン対戦（第一弾）ではまだサーバー側にポートしていないアクション（セットアップ
+  // ウィザード・クイックスタート・手札シャッフル）に繋がるボタンを隠す（style.css参照）。
+  document.body.classList.toggle("is-online-mode", isOnlineMode());
   const table = document.getElementById("game-table");
   table.innerHTML = "";
   // arena（プレイマット画像を含む）を最初に追加する＝DOM順で一番背面にする。
@@ -1380,7 +1395,7 @@ function maybeAnnounceLock(dropTarget, cardId, wasAlreadyLocked) {
   triggerLockEffect(cardId, dropTarget);
 }
 
-function onDragEnd(e) {
+async function onDragEnd(e) {
   if (!dragSession) return;
   const { tokenId, kind, ghost, pileSource, highlightEl } = dragSession;
   ghost.remove();
@@ -1401,24 +1416,51 @@ function onDragEnd(e) {
     // 一旦覚えておく）。
     let lockAnnounceCardId = null;
     if (dropTarget && dropTarget.zone !== "pile") {
-      // drawFromPile()が山の中身を書き換えてしまう前に、一番上のカードを確認しておく
-      // （捨て場からの取得は元々表向きに積まれている＝公開情報、山札/エターナル/ファーストは
-      // 裏向き積み＝非公開情報として扱う）。
-      const pileArray = getState().piles[pileSource];
-      const cardId = pileArray.length > 0 ? pileArray[pileArray.length - 1] : null;
-      if (dropTarget.zone === "hand") {
-        if (cardId) {
-          const player = dropTarget.player;
-          drawFromPile(pileSource, dropTarget);
-          announceHandPickups(player, [{ cardId, wasPublic: pileSource === "discard" }]);
+      if (isOnlineMode()) {
+        // オンライン対戦では山の中身はサーバーにしか無い（so7_game_piles_visibleは
+        // deck/eternal/firstの中身を一切返さない）ため、ローカル版のような「先読み」は
+        // できない。drawFromPile()（オンライン中はEdge Functionを呼ぶtransportを返す）の
+        // 応答を待ち、実際に引けたカードをそこから受け取る。
+        let result = null;
+        try {
+          result = await drawFromPile(pileSource, dropTarget);
+        } catch (err) {
+          console.error("drawFromPile failed", err);
           render();
           return;
         }
-      } else {
-        drawFromPile(pileSource, dropTarget);
-        if (cardId) {
+        const revealedCardId = result?.revealedCardId ?? null;
+        if (dropTarget.zone === "hand") {
+          if (revealedCardId) {
+            announceHandPickups(dropTarget.player, [{ cardId: revealedCardId, wasPublic: pileSource === "discard" }]);
+          }
+          render();
+          return;
+        }
+        if (revealedCardId) {
           playSound("cardPlace");
-          lockAnnounceCardId = cardId;
+          lockAnnounceCardId = revealedCardId;
+        }
+      } else {
+        // drawFromPile()が山の中身を書き換えてしまう前に、一番上のカードを確認しておく
+        // （捨て場からの取得は元々表向きに積まれている＝公開情報、山札/エターナル/ファーストは
+        // 裏向き積み＝非公開情報として扱う）。
+        const pileArray = getState().piles[pileSource];
+        const cardId = pileArray.length > 0 ? pileArray[pileArray.length - 1] : null;
+        if (dropTarget.zone === "hand") {
+          if (cardId) {
+            const player = dropTarget.player;
+            drawFromPile(pileSource, dropTarget);
+            announceHandPickups(player, [{ cardId, wasPublic: pileSource === "discard" }]);
+            render();
+            return;
+          }
+        } else {
+          drawFromPile(pileSource, dropTarget);
+          if (cardId) {
+            playSound("cardPlace");
+            lockAnnounceCardId = cardId;
+          }
         }
       }
     }
@@ -1472,6 +1514,24 @@ function onDragEnd(e) {
   render();
 }
 
+// --- オンライン対戦（第一弾・最小構成）の入り口ボタン -------------------------------
+// 右上のヘッダーツールボタン列（山札一覧1.8rem→セットアップ4.2rem→オプション6.6rem→
+// クイックスタート9rem）の下、余裕を持たせた位置に置く。
+function buildOnlineButton() {
+  const btn = document.createElement("button");
+  btn.id = "online-toggle-button";
+  btn.className = "header-tool-button";
+  btn.textContent = "🌐 オンライン";
+  btn.style.cssText = `
+    position: fixed; top: 13.5rem; right: 1rem; z-index: 1001;
+    padding: 0.4rem 0.7rem; background: rgba(15, 23, 32, 0.85); color: #e2e8f0;
+    border: 1px solid rgba(148, 163, 184, 0.4); border-radius: 0.4rem; cursor: pointer;
+    font-family: sans-serif; font-size: 0.75rem;
+  `;
+  btn.addEventListener("click", openOnlinePanel);
+  return btn;
+}
+
 // --- ターンを次のプレイヤーへ渡すボタン ---------------------------------------------
 // セットアップウィザードの手順3でスタートプレイヤーが決まって初めて意味を持つ操作なので、
 // state.turnPlayerがまだnullの間は非表示にする。プレイヤー自身が操作するボタンなので、
@@ -1482,6 +1542,13 @@ function buildEndTurnButton() {
   const btn = document.createElement("button");
   btn.id = "end-turn-button";
   btn.addEventListener("click", () => {
+    // オンライン対戦（第一弾）ではGATE_INVASION_*をまだサーバー側にポートしていないため、
+    // runGateInvasionsIfNeeded()を呼ぶとローカルだけに適用されサーバーの状態と食い違って
+    // しまう。オンライン中はnextTurn()だけを直接呼ぶ（ゲート侵攻ボーナスは次回以降）。
+    if (isOnlineMode()) {
+      nextTurn();
+      return;
+    }
     // 侵攻条件を満たしている参加プレイヤーが誰もいなければrunGateInvasionsIfNeededは
     // 即座にdone()を呼ぶだけなので、普段のターン終了と体感は変わらない。満たしていれば
     // （手番プレイヤー本人とは限らない。効果等で自分のターンでなくても相手ゲートに
@@ -1912,3 +1979,11 @@ registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocati
 buildGameTitle();
 turnRoundCounterEl = buildTurnRoundCounter();
 updateTurnRoundCounter();
+
+// オンライン対戦（第一弾・最小構成）の入り口。online.jsが部屋に参加するとisOnlineMode()が
+// trueになり、moveToken等の一部アクションがサーバー経由になる。サーバー側の変化はBroadcast
+// 通知→hydrateState()経由でここのsubscribe(render)が拾って再描画する（既存の各所の手動
+// render()呼び出しはローカルモードのためにそのまま残してある）。
+subscribe(render);
+initOnlineUi();
+document.body.appendChild(buildOnlineButton());

@@ -1,0 +1,240 @@
+// オンライン対戦（第一弾・最小構成）の入り口UI。ログイン・部屋の作成/参加・座席選択・
+// ゲーム開始のための簡易モーダル。洗練されたロビー画面は次回以降のスコープなので、
+// 今回は「部屋コードをLINE等で直接共有する」という前提の最小限の見た目にしている。
+// 既存の他モーダル（admin.js・deck-viewer.js等）と同じくui-helpers.jsの
+// createModalCloseX/createBackdropを使い、閉じ方の一貫性を保つ。
+
+import {
+  isOnlineAvailable,
+  signInWithMagicLink,
+  getCurrentUser,
+  onAuthChange,
+  createRoom,
+  claimSeat,
+  getJoinedSeats,
+  getCurrentGameId,
+  getMySeat,
+  leaveGame,
+  startGame,
+} from "./online.js";
+import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { SEAT_ORDER } from "./board-layout.js";
+
+let panelEl = null;
+let backdropEl = null;
+let contentEl = null;
+
+function closePanel() {
+  panelEl?.remove();
+  backdropEl?.remove();
+  panelEl = null;
+  backdropEl = null;
+  contentEl = null;
+}
+
+function textButton(label) {
+  const btn = document.createElement("button");
+  btn.textContent = label;
+  btn.className = "header-tool-button";
+  return btn;
+}
+
+async function renderPanelContent() {
+  if (!contentEl) return;
+  contentEl.innerHTML = "";
+
+  if (!isOnlineAvailable()) {
+    const msg = document.createElement("div");
+    msg.textContent =
+      "オンライン機能を読み込めませんでした（index.htmlのsupabase-js読み込みに失敗した可能性があります）。";
+    contentEl.appendChild(msg);
+    return;
+  }
+
+  const user = await getCurrentUser();
+  if (!user) {
+    renderLoginForm();
+    return;
+  }
+
+  const gameId = getCurrentGameId();
+  if (!gameId) {
+    renderRoomChoice(user);
+  } else {
+    await renderRoomStatus(gameId);
+  }
+}
+
+function renderLoginForm() {
+  const title = document.createElement("div");
+  title.style.cssText = "font-weight: bold; margin-bottom: 0.6rem;";
+  title.textContent = "🌐 オンライン対戦（ログイン）";
+  contentEl.appendChild(title);
+
+  const input = document.createElement("input");
+  input.type = "email";
+  input.placeholder = "メールアドレス";
+  input.style.cssText =
+    "width: 100%; box-sizing: border-box; padding: 0.4rem; margin-bottom: 0.5rem; border-radius: 0.3rem; " +
+    "border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(255, 255, 255, 0.05); color: inherit;";
+  contentEl.appendChild(input);
+
+  const status = document.createElement("div");
+  status.style.cssText = "font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.5rem; min-height: 1.2em;";
+  contentEl.appendChild(status);
+
+  const btn = textButton("マジックリンクを送る");
+  btn.addEventListener("click", async () => {
+    if (!input.value) return;
+    btn.disabled = true;
+    status.textContent = "送信中...";
+    try {
+      await signInWithMagicLink(input.value);
+      status.textContent = "メールを確認し、届いたリンクを開いてください。";
+    } catch (err) {
+      status.textContent = `エラー: ${err.message ?? err}`;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  contentEl.appendChild(btn);
+}
+
+function renderRoomChoice(user) {
+  const title = document.createElement("div");
+  title.style.cssText = "font-weight: bold; margin-bottom: 0.6rem;";
+  title.textContent = `🌐 オンライン対戦（${user.email}）`;
+  contentEl.appendChild(title);
+
+  const createBtn = textButton("部屋を作成する");
+  createBtn.style.marginBottom = "0.8rem";
+  createBtn.addEventListener("click", async () => {
+    createBtn.disabled = true;
+    try {
+      const gameId = await createRoom();
+      history.replaceState(null, "", `?room=${gameId}`);
+      await renderPanelContent();
+    } catch (err) {
+      alert(`部屋の作成に失敗しました: ${err.message ?? err}`);
+      createBtn.disabled = false;
+    }
+  });
+  contentEl.appendChild(createBtn);
+
+  const joinLabel = document.createElement("div");
+  joinLabel.style.cssText = "font-size: 0.85rem; margin-bottom: 0.3rem;";
+  joinLabel.textContent = "部屋コードで参加（座席も選ぶ）:";
+  contentEl.appendChild(joinLabel);
+
+  const codeInput = document.createElement("input");
+  codeInput.type = "text";
+  codeInput.placeholder = "部屋コード";
+  codeInput.style.cssText =
+    "width: 100%; box-sizing: border-box; padding: 0.4rem; margin-bottom: 0.5rem; border-radius: 0.3rem; " +
+    "border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(255, 255, 255, 0.05); color: inherit; " +
+    "text-transform: uppercase;";
+  contentEl.appendChild(codeInput);
+
+  const status = document.createElement("div");
+  status.style.cssText = "font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.3rem; min-height: 1.2em;";
+  contentEl.appendChild(status);
+
+  const seatRow = document.createElement("div");
+  seatRow.style.cssText = "display: flex; gap: 0.4rem;";
+  for (const seat of SEAT_ORDER) {
+    const seatBtn = textButton(seat);
+    seatBtn.addEventListener("click", async () => {
+      const code = codeInput.value.trim().toUpperCase();
+      if (!code) {
+        status.textContent = "部屋コードを入力してください。";
+        return;
+      }
+      status.textContent = "参加中...";
+      try {
+        await claimSeat(code, seat);
+        history.replaceState(null, "", `?room=${code}`);
+        await renderPanelContent();
+      } catch (err) {
+        status.textContent = `エラー: ${err.message ?? err}`;
+      }
+    });
+    seatRow.appendChild(seatBtn);
+  }
+  contentEl.appendChild(seatRow);
+}
+
+async function renderRoomStatus(gameId) {
+  const title = document.createElement("div");
+  title.style.cssText = "font-weight: bold; margin-bottom: 0.4rem;";
+  title.textContent = `🌐 部屋: ${gameId}（あなたは座席${getMySeat()}）`;
+  contentEl.appendChild(title);
+
+  let seats = [];
+  try {
+    seats = await getJoinedSeats(gameId);
+  } catch (err) {
+    // 一覧取得に失敗しても部屋自体からは出られるようにしておく
+  }
+  const seatsEl = document.createElement("div");
+  seatsEl.style.cssText = "font-size: 0.85rem; margin-bottom: 0.6rem;";
+  seatsEl.textContent = `参加済み座席: ${seats.map((s) => s.player).join("、") || "取得できませんでした"}`;
+  contentEl.appendChild(seatsEl);
+
+  const shareHint = document.createElement("div");
+  shareHint.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.6rem;";
+  shareHint.textContent = "この部屋コードを他のプレイヤーに共有してください。";
+  contentEl.appendChild(shareHint);
+
+  if (seats.length >= 2) {
+    const startBtn = textButton("ゲームを開始する");
+    startBtn.style.marginRight = "0.4rem";
+    startBtn.style.marginBottom = "0.4rem";
+    startBtn.addEventListener("click", async () => {
+      startBtn.disabled = true;
+      try {
+        await startGame(gameId);
+        closePanel();
+      } catch (err) {
+        alert(err.message ?? String(err));
+        startBtn.disabled = false;
+      }
+    });
+    contentEl.appendChild(startBtn);
+  }
+
+  const leaveBtn = textButton("この部屋を離れる");
+  leaveBtn.addEventListener("click", () => {
+    leaveGame();
+    history.replaceState(null, "", location.pathname);
+    closePanel();
+  });
+  contentEl.appendChild(leaveBtn);
+}
+
+export function openOnlinePanel() {
+  if (panelEl) return;
+  backdropEl = createBackdrop(closePanel, { dim: true, zIndex: 10001 });
+  panelEl = document.createElement("div");
+  panelEl.id = "online-panel";
+  panelEl.style.cssText = `
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: min(22rem, 92vw); background: rgba(15, 23, 32, 0.98);
+    border: 1px solid rgba(148, 163, 184, 0.4); border-radius: 0.5rem; padding: 1rem;
+    z-index: 10002; font-family: sans-serif; color: #e2e8f0;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  `;
+  panelEl.appendChild(createModalCloseX(closePanel));
+  contentEl = document.createElement("div");
+  panelEl.appendChild(contentEl);
+  document.body.appendChild(backdropEl);
+  document.body.appendChild(panelEl);
+  renderPanelContent();
+}
+
+// マジックリンクのリンクを踏んで戻ってきた時など、ログイン状態が変わったら
+// 開いているパネルの中身を更新する。main.jsの起動時に1回呼ぶ。
+export function initOnlineUi() {
+  onAuthChange(() => {
+    if (panelEl) renderPanelContent();
+  });
+}

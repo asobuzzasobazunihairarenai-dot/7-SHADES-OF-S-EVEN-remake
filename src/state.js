@@ -102,6 +102,35 @@ export function subscribe(fn) {
   };
 }
 
+// --- オンライン対戦（第一弾・最小構成、src/online.jsが使う） -----------------------------
+// online.jsが部屋に参加すると、以降moveToken/drawFromPile/flipToken/setTurnPlayer/nextTurn
+// の5つだけ、ローカルのdispatch()の代わりにonlineTransport（online.jsがso7-apply-action
+// Edge Functionを呼ぶ関数）を使うようになる。他9つのアクション・resetGameはローカル専用の
+// まま変更しない（セットアップウィザード・ゲート侵攻ボーナス等は今回のオンライン対戦の
+// スコープ外のため）。サーバー側で実際に状態が変わると、online.jsがBroadcast通知を受けて
+// hydrateState()を呼び、ここでlistenersに通知することで既存のrender()がそのまま動く
+// （main.jsがsubscribe(render)を1回呼ぶだけで済む設計）。
+let onlineMode = false;
+let onlineTransport = null;
+
+export function setOnlineMode(active) {
+  onlineMode = active;
+}
+
+export function isOnlineMode() {
+  return onlineMode;
+}
+
+export function setOnlineTransport(fn) {
+  onlineTransport = fn;
+}
+
+// online.jsがサーバーから取得した最新状態を、そのままローカルのstateとして採用する。
+export function hydrateState(newState) {
+  state = newState;
+  for (const fn of listeners) fn(state);
+}
+
 // 新しく盤面に現れるカード（手札から出す、山から引く）の表裏を決める。
 // 手札に加わる時は持ち主本人（A）にだけ見える表向き、ロックエリアは物理ルール通り原則
 // 表向き（「ロックする：カード1枚を...表向きで置くこと」）、それ以外（盤面マスへ新規に
@@ -372,6 +401,7 @@ function dispatch(action) {
 }
 
 export function moveToken(tokenId, location) {
+  if (onlineMode && onlineTransport) return onlineTransport({ type: "MOVE_TOKEN", tokenId, location });
   dispatch({ type: "MOVE_TOKEN", tokenId, location });
 }
 
@@ -380,10 +410,12 @@ export function sendTokenToPile(tokenId, pile) {
 }
 
 export function drawFromPile(pile, location) {
+  if (onlineMode && onlineTransport) return onlineTransport({ type: "DRAW_FROM_PILE", pile, location });
   dispatch({ type: "DRAW_FROM_PILE", pile, location });
 }
 
 export function flipToken(tokenId) {
+  if (onlineMode && onlineTransport) return onlineTransport({ type: "FLIP_TOKEN", tokenId });
   dispatch({ type: "FLIP_TOKEN", tokenId });
 }
 
@@ -409,10 +441,12 @@ export function refillDeckFromDiscard() {
 }
 
 export function setTurnPlayer(player) {
+  if (onlineMode && onlineTransport) return onlineTransport({ type: "SET_TURN_PLAYER", player });
   dispatch({ type: "SET_TURN_PLAYER", player });
 }
 
 export function nextTurn() {
+  if (onlineMode && onlineTransport) return onlineTransport({ type: "NEXT_TURN" });
   dispatch({ type: "NEXT_TURN" });
 }
 

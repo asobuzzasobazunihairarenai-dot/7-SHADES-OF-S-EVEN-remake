@@ -2301,6 +2301,16 @@ body {
   background: rgba(8, 145, 178, 0.45);
 }
 
+/* オンライン対戦（第一弾・最小構成）中は、まだサーバー側にポートしていないアクション
+   （セットアップウィザードの個別ステップ・クイックスタート・手札シャッフル）へ
+   繋がるボタンを丸ごと隠す。main.jsのrender()がisOnlineMode()に応じて
+   body.is-online-modeを付け外しするだけで済むよう、CSS側でまとめて隠す。 */
+body.is-online-mode #game-setup-toggle-button,
+body.is-online-mode #quick-start-bar,
+body.is-online-mode #hand-shuffle-button {
+  display: none;
+}
+
 /* セットアップアニメーション（src/setup-animation.js）: ファーストカード配布・盤面への
    カード配置を、山/ファーストカードの位置から各マス/ロックスロットへ飛んでいく演出で見せる。 */
 
