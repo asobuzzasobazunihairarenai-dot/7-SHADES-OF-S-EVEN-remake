@@ -110,6 +110,13 @@ export async function animateFirstCardsDealt() {
   const STAGGER_MS = 550;
   const FLIGHT_MS = 500;
 
+  // 各カードのロック演出（到達バースト＋ロック画像）が完全に終わるまでのPromiseを集めておく。
+  // このスケジューリング(setTimeout)が終わりきる前に次のステップ(animateBoardFilled)が
+  // 呼ばれてrender()が走ると、演出中の要素ごとDOMが作り直されて画面から消えてしまう
+  // （最初のプレイヤーだけロック画像が見えて、以降のプレイヤーには表示されなかったバグの
+  // 真因）。そのためこの関数はそれらが全部終わるまで解決しない。
+  const lockEffectPromises = [];
+
   for (const { token, el } of cardEntries) {
     if (skipped) break;
     const fromRect = firstPileEl.getBoundingClientRect();
@@ -119,7 +126,10 @@ export async function animateFirstCardsDealt() {
     await done;
     if (skipped) break;
     el.classList.remove("is-setup-pending");
-    if (helpers.triggerLockEffect) helpers.triggerLockEffect(token.cardId, token.location);
+    if (helpers.triggerLockEffect) {
+      const p = helpers.triggerLockEffect(token.cardId, token.location);
+      if (p && typeof p.then === "function") lockEffectPromises.push(p);
+    }
     await new Promise((r) => setTimeout(r, Math.max(80, STAGGER_MS - FLIGHT_MS)));
   }
 
@@ -127,6 +137,10 @@ export async function animateFirstCardsDealt() {
   for (const { el } of cardEntries) el.classList.remove("is-setup-pending");
   for (const ghost of ghosts) ghost.remove();
   overlay.remove();
+
+  // スキップ時は「今すぐ次へ進みたい」という意図なので待たない。通常時のみ、全カードの
+  // ロック演出が終わるまで待ってから関数を完了させる。
+  if (!skipped) await Promise.all(lockEffectPromises);
 }
 
 // 山札をシャッフルする効果音を鳴らしてから、49マスへ1枚ずつテンポよく（合計3〜4秒程度）
@@ -152,6 +166,19 @@ export async function animateBoardFilled() {
     if (el) {
       el.classList.add("is-setup-pending");
       entries.push({ token, el });
+    }
+  }
+
+  // このrender()は毎回DOM要素を作り直すため、ステップ1(animateFirstCardsDealt)が
+  // 駒に付けたis-setup-pendingは引き継がれず、駒が49マスの配布より先にいきなり
+  // 見えてしまっていた（真因）。この直後にもう一度隠し直し、49マスが埋め終わった
+  // 最後にまとめて登場させる。
+  const pieceEntries = [];
+  for (const token of state.tokens.filter((t) => t.kind === "piece")) {
+    const el = table.querySelector(`[data-token-id="${token.id}"]`);
+    if (el) {
+      el.classList.add("is-setup-pending");
+      pieceEntries.push({ token, el });
     }
   }
 
@@ -189,13 +216,9 @@ export async function animateBoardFilled() {
   for (const ghost of ghosts) ghost.remove();
   overlay.remove();
 
-  // 盤面49マスが埋め終わったところで、ステップ1（animateFirstCardsDealt）で隠しておいた
-  // 駒をまとめて登場させる。フェードイン（.pieceの既存transition）に、到達演出の光の柱
-  // （spawnArrivalBurst）＋到達効果音を重ねて流用する（ユーザー指定）。
-  const pieceEntries = state.tokens
-    .filter((t) => t.kind === "piece")
-    .map((token) => ({ token, el: table.querySelector(`[data-token-id="${token.id}"]`) }))
-    .filter(({ el }) => el && el.classList.contains("is-setup-pending"));
+  // 盤面49マスが埋め終わったところで、上で隠しておいた駒をまとめて登場させる。
+  // フェードイン（.pieceの既存transition）に、到達演出の光の柱（spawnArrivalBurst）＋
+  // 到達効果音を重ねて流用する（ユーザー指定）。
   for (const { token, el } of pieceEntries) {
     el.classList.remove("is-setup-pending");
     playSound("arrivalEffect");

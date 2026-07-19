@@ -424,17 +424,26 @@ function spawnLockStamp(hostEl) {
 // 流用し、そのオーラがほぼ収まってから（重ねず順番に）ロック画像がカードより大きく拡大
 // しながらフェードアウトする演出とロック効果音を続けて行う（ユーザー指定の順序）。
 // 白黒（無色）カードは呼び出し元(maybeAnnounceLock)側で既に除外済み。
+// 一連の演出が完全に終わるタイミングで解決するPromiseを返す（呼び出し元は基本的に
+// fire-and-forestで無視して構わないが、setup-animation.jsのようにこの後すぐrender()で
+// DOM全体を作り直してしまう場面では、演出中の要素が消えてしまわないよう完了を待つ必要がある。
+// ファーストカードのロックで最初のプレイヤー以外にロック画像が表示されないバグの真因が
+// これだった：setTimeoutで捕まえていたhostElが、演出完了前に後続のrender()でDOMごと
+// 作り直されて画面から切り離され、そこに追加されても見えなくなっていた）。
 function triggerLockEffect(cardId, location) {
   const table = document.getElementById("game-table");
   const hostEl = findLocationElement(table, location);
-  if (!hostEl) return;
+  if (!hostEl) return Promise.resolve();
   const color = getCardDefinition(cardId).color;
   playSound("arrivalEffect");
   spawnArrivalBurst(hostEl, color);
-  setTimeout(() => {
-    playSound("lock");
-    spawnLockStamp(hostEl);
-  }, 1300);
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      playSound("lock");
+      spawnLockStamp(hostEl);
+      setTimeout(resolve, LOCK_STAMP_DURATION_MS);
+    }, 1300);
+  });
 }
 
 // 駒がカードの上に乗った瞬間の演出。表向きのカードならそのまま到達モーダルを表示する。
@@ -449,6 +458,17 @@ function maybeTriggerCardArrival(dropTarget, pieceTokenId) {
     return;
   }
   triggerCardArrival(card.cardId, card.location);
+}
+
+// 逆方向（駒が既にいるマス/ロックスロットへ、表向きのカードを新しく置いた/動かした時）にも
+// 到達演出を出す。今までは駒側が動いた時しか到達判定していなかったが、カード側が動いて
+// 駒の下に潜り込むケースでも同じように到達したことにしてほしい、というユーザー要望への対応。
+// 裏向きのカードの場合は対象外（駒が裏向きカードに乗った時の「オープンする/しない」選択の
+// ような自動オープンの仕組みはここでは設けない。ユーザーの要望が表向きの場合のみのため）。
+function maybeTriggerCardArrivalForCard(dropTarget, cardId, faceUp) {
+  if (!dropTarget || !faceUp) return;
+  if (!hasPieceAt(dropTarget)) return;
+  triggerCardArrival(cardId, dropTarget);
 }
 
 // 「オープンする/しない」の選択アイコン。同時に1つだけ表示する（新しく駒が別のカードに
@@ -1339,7 +1359,11 @@ function onDragEnd(e) {
     render(); // 引けた場合も引けなかった場合も、必ず再描画する（drawFromPile後にrenderし忘れると
     // 状態は更新済みなのに画面に反映されず、次に別の操作でrender()が走った時にまとめて
     // 反映されたように見えるバグになる。これが実際に起きていたので、必ずここで呼ぶ）。
-    if (lockAnnounceCardId) maybeAnnounceLock(dropTarget, lockAnnounceCardId, false);
+    if (lockAnnounceCardId) {
+      maybeAnnounceLock(dropTarget, lockAnnounceCardId, false);
+      const topToken = findTopCardAt(dropTarget);
+      if (topToken) maybeTriggerCardArrivalForCard(dropTarget, topToken.cardId, topToken.faceUp);
+    }
     return;
   }
 
@@ -1373,6 +1397,10 @@ function onDragEnd(e) {
     // 使うため、どちらもrender()で盤面を描き直した後でなければ呼べない。
     if (token) maybeAnnounceLock(dropTarget, token.cardId, wasAlreadyLocked);
     if (kind === "piece") maybeTriggerCardArrival(dropTarget, tokenId);
+    if (kind === "card") {
+      const movedToken = getState().tokens.find((t) => t.id === tokenId);
+      if (movedToken) maybeTriggerCardArrivalForCard(dropTarget, movedToken.cardId, movedToken.faceUp);
+    }
     return;
   }
   render();
