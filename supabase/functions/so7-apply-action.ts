@@ -412,8 +412,17 @@ Deno.serve(async (req) => {
       const memberIds = (memberRows ?? []).map((r: any) => r.user_id as string);
       if (memberIds.length < 2) return json({ ok: false, error: "not_enough_players" }, 400);
 
-      const shuffledIds = shuffled(memberIds).slice(0, SEAT_ORDER.length);
-      const assignments = shuffledIds.map((uid, i) => ({ userId: uid, seat: SEAT_ORDER[i] }));
+      // 座席の並び順はローカル版(src/game-setup.jsのAUTO_SEATS_BY_COUNT)と揃える:
+      // 2人なら対面(A・C)、3人ならA・B・C、4人なら全員。2人だけ隣同士(A・B)にならないよう
+      // 特別扱いする。
+      const seatsForCount: Record<number, string[]> = {
+        2: ["A", "C"],
+        3: ["A", "B", "C"],
+        4: ["A", "B", "C", "D"],
+      };
+      const seatsToUse = seatsForCount[memberIds.length] ?? SEAT_ORDER.slice(0, memberIds.length);
+      const shuffledIds = shuffled(memberIds).slice(0, seatsToUse.length);
+      const assignments = shuffledIds.map((uid, i) => ({ userId: uid, seat: seatsToUse[i] }));
       for (const a of assignments) {
         const { error: updErr } = await db
           .from("so7_game_seats")

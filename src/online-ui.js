@@ -43,26 +43,37 @@ function textButton(label) {
   return btn;
 }
 
+// renderPanelContent()はawaitをまたぐ非同期関数のため、短時間に複数回呼ばれる
+// （例: 匿名ログイン成功直後、呼び出し元の明示的な再描画とonAuthChange経由の自動再描画が
+// ほぼ同時に発生する）と、先に呼ばれた方がcontentEl.innerHTML=""で一旦クリアした「後」に
+// 別の呼び出しもクリア→両方が中身を積み増してしまい、パネルの中身が二重に表示される
+// バグがあった。世代番号を持たせ、awaitから戻った時点で自分が最新の呼び出しでなければ
+// 描画を中断する（＝一番最後に呼ばれたものだけが実際にappendする）ことで解決した。
+let renderGeneration = 0;
+
 async function renderPanelContent() {
   if (!contentEl) return;
+  const myGeneration = ++renderGeneration;
   contentEl.innerHTML = "";
 
-  if (!isOnlineAvailable()) {
+  const available = isOnlineAvailable();
+  const user = available ? await getCurrentUser() : null;
+  if (myGeneration !== renderGeneration) return;
+
+  if (!available) {
     const msg = document.createElement("div");
     msg.textContent =
       "オンライン機能を読み込めませんでした（index.htmlのsupabase-js読み込みに失敗した可能性があります）。";
     contentEl.appendChild(msg);
+  } else if (!user) {
+    renderLoginForm();
   } else {
-    const user = await getCurrentUser();
-    if (!user) {
-      renderLoginForm();
+    const gameId = getCurrentGameId();
+    if (!gameId) {
+      renderRoomChoice(user);
     } else {
-      const gameId = getCurrentGameId();
-      if (!gameId) {
-        renderRoomChoice(user);
-      } else {
-        await renderRoomStatus(gameId);
-      }
+      await renderRoomStatus(gameId);
+      if (myGeneration !== renderGeneration) return;
     }
   }
 
@@ -205,8 +216,10 @@ function renderLoginForm() {
 function renderRoomChoice(user) {
   const title = document.createElement("div");
   title.style.cssText = "font-weight: bold; margin-bottom: 0.6rem;";
-  // 匿名ログインの場合はuser.emailが無いため、代わりにその旨を表示する。
-  title.textContent = `🌐 オンライン対戦（${user.email ?? "匿名ユーザー"}）`;
+  // 匿名ログインの場合、user.emailはundefinedではなく空文字列になることがあるため、
+  // ??ではなく||でフォールバックする（??だと""はnullish扱いされず素通りしてしまい、
+  // 「オンライン対戦（）」のように空の括弧が表示されるバグになっていた）。
+  title.textContent = `🌐 オンライン対戦（${user.email || "匿名ユーザー"}）`;
   contentEl.appendChild(title);
 
   const createBtn = textButton("部屋を作成する");
