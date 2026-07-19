@@ -75,3 +75,21 @@ export function announceHandPickups(player, pickups) {
     ${hiddenNote}
   `);
 }
+
+// player: ロックエリアの持ち主（そのカードをロックしたプレイヤー）。
+// ロックは必ず表向き（[[state.js]]のfaceUpForLocation参照）で誰でも見える情報のため、
+// announceHandPickupsと違い公開/非公開の出し分けは不要。白黒（無色）カードをロックエリアへ
+// 「置く」ことは、ルール上ロックしたことにはならない（docs/cards.mdの黒カードの補足参照）ため、
+// 呼び出し側（main.js）でその2色を除外してから呼ぶ。
+export function announceCardLocked(player, cardId) {
+  const def = getCardDefinition(cardId);
+  showToast(`
+    <div class="hand-pickup-toast-title">${getPlayerName(player)}がロック</div>
+    <div class="hand-pickup-toast-cards">
+      <div class="hand-pickup-toast-card">
+        <img src="${getCardImagePath(cardId)}" alt="${def.name}" />
+        <div class="hand-pickup-toast-name">${def.name}</div>
+      </div>
+    </div>
+  `);
+}

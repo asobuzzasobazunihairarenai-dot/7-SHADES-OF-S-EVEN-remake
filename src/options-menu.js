@@ -4,6 +4,7 @@
 
 import { openAdminPanel } from "./admin.js";
 import { isLockAreaBarVisible, setLockAreaBarVisible } from "./lock-area-bar.js";
+import { isLockColorVisible, setLockColorVisible } from "./lock-color.js";
 import { createBackdrop } from "./ui-helpers.js";
 
 function buildMenuItem(label, onClick) {
@@ -56,6 +57,12 @@ export function initOptionsMenu() {
       window.dispatchEvent(new CustomEvent("admin:change"));
     })
   );
+  panel.appendChild(
+    buildCheckboxRow("ロックエリアの色を表示する", isLockColorVisible(), (checked) => {
+      setLockColorVisible(checked);
+      window.dispatchEvent(new CustomEvent("admin:change"));
+    })
+  );
 
   const divider = document.createElement("div");
   divider.className = "options-menu-divider";
@@ -69,7 +76,11 @@ export function initOptionsMenu() {
   );
 
   // ツールパネルなので背景は暗くしない。外側クリックで閉じる（統一ルール）。
-  const backdrop = createBackdrop(close, { dim: false, zIndex: 999 });
+  // ハマりどころ: このパネル自体のz-index(901)は他パネル(999〜1000)より低くしてあるため、
+  // backdropも合わせて低くしないと（以前ここを999のままにしていた）、backdropがパネルより
+  // 手前に来てパネル内のボタン・チェックボックスへのクリックを奪ってしまい、
+  // 「管理者モードを押しても開かない」「チェックボックスが外せない」という形で症状が出る。
+  const backdrop = createBackdrop(close, { dim: false, zIndex: 890 });
   backdrop.style.display = "none";
 
   const toggleBtn = document.createElement("button");

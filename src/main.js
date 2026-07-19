@@ -6,16 +6,17 @@ import { initDeckViewer } from "./deck-viewer.js";
 import { initGameSetup } from "./game-setup.js";
 import { initOptionsMenu } from "./options-menu.js";
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
-import { announceHandPickups } from "./hand-announcer.js";
+import { announceHandPickups, announceCardLocked } from "./hand-announcer.js";
 import { checkForVictory } from "./victory.js";
 import { getSkinImagePath, getMyPieceColor, openPieceSkinPicker } from "./piece-skins.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS } from "./player-identity.js";
 import { getSelectedPlaymatPath } from "./playmat.js";
 import { isLockAreaBarVisible } from "./lock-area-bar.js";
+import { isLockColorVisible } from "./lock-color.js";
 import { getState, moveToken, sendTokenToPile, drawFromPile, flipToken, nextTurn, refillDeckFromDiscard } from "./state.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
-import { COLORS, GATE_POSITIONS, SEAT_TO_SIDE } from "./board-layout.js";
+import { COLORS, GATE_POSITIONS, SEAT_TO_SIDE, SIDE_TO_SEAT } from "./board-layout.js";
 
 function buildLockArea(side) {
   const el = document.createElement("div");
@@ -27,8 +28,12 @@ function buildLockArea(side) {
     slot.className = "lock-slot";
     slot.dataset.side = side;
     slot.dataset.index = String(index);
-    slot.style.borderColor = `var(--color-${color})`;
-    slot.style.color = `var(--color-${color})`; // CSS側のbox-shadow: currentColorで使う
+    // オプションメニューの「基本設定」でオフにされていれば、色の上書きをせずCSS側の
+    // デフォルト（無色のグレー枠）のままにする。
+    if (isLockColorVisible()) {
+      slot.style.borderColor = `var(--color-${color})`;
+      slot.style.color = `var(--color-${color})`; // CSS側のbox-shadow: currentColorで使う
+    }
     // 以前は視認性確保のため塗りつぶしにしていたが、z-index修正で表示問題が解決したので、
     // 枠線とうっすらしたグロー(box-shadow)だけの控えめな色分けに戻した。
     el.appendChild(slot);
@@ -307,13 +312,15 @@ function buildFlatCard(token) {
   // ロックしていても手札効果が使えるカード（ファーストカード・エターナルカード）は、
   // ロックエリア内にある間だけ定期的に目立たせる（普段は「原則ロックしたカードの手札効果は
   // 使えない」ため、この2種類だけが特別だと分かりやすくするため）。演出は管理者モードで
-  // 「回る球」（デフォルト）と「斜めに光る帯」を切り替えられる。球の色はそのロックスロットの
-  // 色（token.location.index）に合わせる。
+  // 「回る球」（デフォルト）と「斜めに光る帯」を切り替えられる。球の色はそのカード自身の色
+  // （cards-data.jsのcolor）に合わせる。以前はロックスロットの色（token.location.index）を
+  // 使っていたが、他プレイヤーの効果でスロットとカードの色がズレて置かれる状況もあり得るため、
+  // カード自身の色を優先するよう修正した。
   if (token.location.zone === "lock" && (token.cardId.startsWith("first-") || token.cardId.startsWith("eternal-"))) {
     const effect = getUsableLockedEffect();
     card.classList.add("is-usable-while-locked", `effect-${effect}`);
-    const slotColor = COLORS[token.location.index];
-    card.style.setProperty("--usable-locked-color", `var(--color-${slotColor})`);
+    const cardColor = getCardDefinition(token.cardId).color;
+    card.style.setProperty("--usable-locked-color", `var(--color-${cardColor})`);
   }
   return card;
 }
@@ -420,6 +427,7 @@ function applyNormalFit() {
   const availH = window.innerHeight * 0.94;
   const scale = Math.min(availW / rect.width, availH / rect.height, 1.15);
   table.style.transform = `rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
+  currentTableScale = scale;
 }
 
 // 「盤面拡大」: プレイヤーA（手前）のロックエリアが画面下端、プレイヤーC（奥）のロックエリアが
@@ -460,10 +468,16 @@ function applyBoardZoomFit(level) {
   table.style.transformOrigin = `50% ${originYPercent}%`;
   const scale = (window.innerHeight * marginFrac) / spanHeight;
   table.style.transform = `translate(${offsetX}, ${offsetY}) rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
+  currentTableScale = scale;
 }
 
 // 0=通常, 1=盤面拡大, 2=もっと拡大。ボタンを押すたびに0→1→2→0…と巡回する。
 let boardZoomLevel = 0;
+
+// #game-tableに現在適用されているscale3d()の倍率。ドラッグ中のゴースト（3D空間の外＝
+// document.body直下に置くため、#game-tableのscale3dの影響を受けない）のサイズをこの値に
+// 合わせるために使う（applyNormalFit/applyBoardZoomFitの末尾で更新）。
+let currentTableScale = 1;
 
 function cycleBoardZoom() {
   boardZoomLevel = (boardZoomLevel + 1) % 3;
@@ -949,7 +963,13 @@ function createGhost(kind, tokenId) {
 }
 
 function positionGhost(ghost, clientX, clientY) {
-  ghost.style.transform = `translate(${clientX}px, ${clientY}px) translate(-50%, -50%)`;
+  // ハマりどころ: ゴーストは3D空間の外(document.body直下)に置いているため、盤面拡大時に
+  // #game-tableへ適用されるscale3d()の影響を受けず、拡大した盤面上の駒/カードに対して
+  // ゴーストだけ小さいまま（相対的に「すごく小っちゃい」）に見えるバグがあった。
+  // translate(-50%,-50%)の後にscale3d()を続けることで、カーソル位置を中心にしたまま
+  // 盤面と同じ倍率で見た目のサイズだけを合わせる（percentageのtranslateは変形前の
+  // レイアウトサイズが基準のため、この順序でも位置がズレない）。
+  ghost.style.transform = `translate(${clientX}px, ${clientY}px) translate(-50%, -50%) scale3d(${currentTableScale}, ${currentTableScale}, ${currentTableScale})`;
 }
 
 function startTokenDrag(e, tokenId, kind, sourceEl) {
@@ -1034,6 +1054,18 @@ function findDropTarget(clientX, clientY, kind) {
   return null;
 }
 
+// カードが新しくロックエリアに入った瞬間だけ「ロックした」トーストを出す
+// （wasAlreadyLocked=trueならロックエリア内で位置を動かしただけなので対象外）。
+// 白黒（無色）カードをロックエリアへ「置く」ことはルール上ロックしたことにはならない
+// （docs/cards.mdの黒カード補足参照）ため、その2色は除外する。
+function maybeAnnounceLock(dropTarget, cardId, wasAlreadyLocked) {
+  if (!dropTarget || dropTarget.zone !== "lock" || wasAlreadyLocked) return;
+  const def = getCardDefinition(cardId);
+  if (!def || def.color === "white" || def.color === "black") return;
+  const player = SIDE_TO_SEAT[dropTarget.side];
+  announceCardLocked(player, cardId);
+}
+
 function onDragEnd(e) {
   if (!dragSession) return;
   const { tokenId, kind, ghost, pileSource, highlightEl } = dragSession;
@@ -1055,18 +1087,20 @@ function onDragEnd(e) {
       // drawFromPile()が山の中身を書き換えてしまう前に、一番上のカードを確認しておく
       // （捨て場からの取得は元々表向きに積まれている＝公開情報、山札/エターナル/ファーストは
       // 裏向き積み＝非公開情報として扱う）。
+      const pileArray = getState().piles[pileSource];
+      const cardId = pileArray.length > 0 ? pileArray[pileArray.length - 1] : null;
       if (dropTarget.zone === "hand") {
-        const pileArray = getState().piles[pileSource];
-        if (pileArray.length > 0) {
-          const cardId = pileArray[pileArray.length - 1];
+        if (cardId) {
           const player = dropTarget.player;
           drawFromPile(pileSource, dropTarget);
           announceHandPickups(player, [{ cardId, wasPublic: pileSource === "discard" }]);
           render();
           return;
         }
+      } else {
+        drawFromPile(pileSource, dropTarget);
+        if (cardId) maybeAnnounceLock(dropTarget, cardId, false);
       }
-      drawFromPile(pileSource, dropTarget);
     }
     render(); // 引けた場合も引けなかった場合も、必ず再描画する（drawFromPile後にrenderし忘れると
     // 状態は更新済みなのに画面に反映されず、次に別の操作でrender()が走った時にまとめて
@@ -1095,7 +1129,10 @@ function onDragEnd(e) {
         return;
       }
     }
+    const token = getState().tokens.find((t) => t.id === tokenId);
+    const wasAlreadyLocked = !!token && token.location.zone === "lock";
     moveToken(tokenId, dropTarget);
+    if (token) maybeAnnounceLock(dropTarget, token.cardId, wasAlreadyLocked);
   }
   render();
 }
