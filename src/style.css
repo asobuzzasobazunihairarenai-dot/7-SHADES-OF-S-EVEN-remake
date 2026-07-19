@@ -30,12 +30,18 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  perspective: 1150px;
-  perspective-origin: 50% 15%;
+  perspective: var(--camera-perspective);
+  perspective-origin: 50% var(--camera-perspective-origin-y);
 }
 
 :root {
   --table-tilt: 42deg; /* JS側(fitTableToViewport)もこの変数を参照してscaleだけ動的に上書きする */
+  /* 「カメラ位置」（3D視点の初期値）。管理者モードから調整できる。perspectiveは値が小さいほど
+     カメラが近く（遠近感が強い）、perspective-origin-yは0%に近いほど画面上寄りが視点の消失点に
+     なる。ドラッグゴースト(.drag-ghost-piece-outer)のperspectiveもこの値を共有し、
+     盤面上の駒と見た目の遠近感がズレないようにしている。 */
+  --camera-perspective: 1150px;
+  --camera-perspective-origin-y: 15%;
   /* 「盤面拡大」ボタンのズーム位置微調整（applyBoardZoomFit参照）。管理者モードで調整可能。
      ボタンは 盤面拡大(1段階目) → もっと拡大(2段階目) → 元に戻す、の3段階トグル。 */
   --board-zoom-margin: 0.92;
@@ -130,11 +136,11 @@ body {
 :root {
   --hand-a-pos-x: 0rem;
   --hand-a-pos-y: -1.5rem;
-  --hand-b-pos-x: -1.5rem;
+  --hand-b-pos-x: -0.3rem;
   --hand-b-pos-y: 0rem;
   --hand-c-pos-x: 0rem;
-  --hand-c-pos-y: -5rem;
-  --hand-d-pos-x: 1.5rem;
+  --hand-c-pos-y: -3rem;
+  --hand-d-pos-x: 0rem;
   --hand-d-pos-y: 0rem;
   /* 手札エリア(.hand-area)の「扇が伸びる方向」のサイズ（手札3枚の時を基準値とする）。
      .hand-areaはカードをドロップする際の当たり判定(findDropTarget内の.hand-area)にも
@@ -646,7 +652,7 @@ body {
   top: 0;
   width: var(--cell);
   height: var(--cell);
-  perspective: 1150px;
+  perspective: var(--camera-perspective);
   pointer-events: none;
   z-index: 9999;
 }
@@ -800,7 +806,7 @@ body {
    ズレを、外側ボックスの位置決め計算に混ぜずに済むようにするため。表示/非表示はオプション
    メニューの「基本設定」から（main.jsのbuildLockAreaBarがdisplayを切り替える）。 */
 :root {
-  --lock-bar-scale: 1;
+  --lock-bar-scale: 1.13;
   --lock-bar-thickness: 1.2rem;
   --lock-bar-top-pos-x: 0rem;
   --lock-bar-top-pos-y: 0rem;
@@ -1197,10 +1203,10 @@ body {
   --avatar-size: 3rem;
   --avatar-a-pos-x: 0rem;
   --avatar-a-pos-y: 1.9rem;
-  --avatar-b-pos-x: -4.8rem;
+  --avatar-b-pos-x: -3.5rem;
   --avatar-b-pos-y: 0.1rem;
   --avatar-c-pos-x: 0.1rem;
-  --avatar-c-pos-y: -8.8rem;
+  --avatar-c-pos-y: -6.8rem;
   --avatar-d-pos-x: 4.5rem;
   --avatar-d-pos-y: -0.1rem;
 }
