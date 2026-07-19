@@ -82,9 +82,17 @@ export async function animateFirstCardsDealt() {
   );
   if (lockTokens.length === 0) return;
   const pieceTokensAll = state.tokens.filter((t) => t.kind === "piece");
+  // ローカル版の2段階dispatch（先にファーストカード配布、盤面49マスは後で別途
+  // setupFillBoard()）ではこの時点で盤面マスのカードはまだ存在しないため無関係だが、
+  // オンライン版のBOOTSTRAP_GAMEは両方を1回のアクションで同時に作るため、ここで一緒に
+  // 隠しておかないと、この関数自身の直後のrender()で49マスが即座に表示されてしまう
+  // （盤面配布はanimateBoardFilled側が別途担当するため、フラッシュ防止のためだけに隠す）。
+  const cellCardTokensAll = state.tokens.filter((t) => t.kind === "card" && t.location.zone === "cell");
 
   if (helpers.setSetupPendingTokenIds) {
-    helpers.setSetupPendingTokenIds(new Set([...lockTokens.map((t) => t.id), ...pieceTokensAll.map((t) => t.id)]));
+    helpers.setSetupPendingTokenIds(
+      new Set([...lockTokens.map((t) => t.id), ...pieceTokensAll.map((t) => t.id), ...cellCardTokensAll.map((t) => t.id)])
+    );
   }
   helpers.render();
   if (helpers.setSetupPendingTokenIds) helpers.setSetupPendingTokenIds(new Set());

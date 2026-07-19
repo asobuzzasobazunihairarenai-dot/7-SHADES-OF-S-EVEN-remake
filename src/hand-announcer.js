@@ -77,6 +77,18 @@ export function announceHandPickups(player, pickups) {
   `);
 }
 
+// attacker/defender: 相手ゲート侵攻ボーナスが発生した時の導入トースト。オンライン対戦では
+// サーバー（so7-apply-action.ts）がターン終了時に自動判定・適用するため、ローカル版の
+// ような1ステップずつの確認ポップアップは出さず、代わりにこのトースト→続く
+// announceHandPickups（奪った手札・獲得したエターナルカード・帰還した自ゲートのカード）の
+// 一連の通知で「何が起きたか」を伝える。
+export function announceGateInvasion(attacker, defender) {
+  showToast(`
+    <div class="hand-pickup-toast-title">相手ゲート侵攻ボーナス発生</div>
+    <div class="hand-pickup-toast-text">${getPlayerName(attacker)}が${getPlayerName(defender)}のゲートに侵攻！</div>
+  `);
+}
+
 // player: ロックエリアの持ち主（そのカードをロックしたプレイヤー）。
 // ロックは必ず表向き（[[state.js]]のfaceUpForLocation参照）で誰でも見える情報のため、
 // announceHandPickupsと違い公開/非公開の出し分けは不要。白黒（無色）カードをロックエリアへ

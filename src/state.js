@@ -415,6 +415,7 @@ export function moveToken(tokenId, location) {
 }
 
 export function sendTokenToPile(tokenId, pile) {
+  if (onlineMode && onlineTransport) return onlineTransport({ type: "SEND_TOKEN_TO_PILE", tokenId, pile });
   dispatch({ type: "SEND_TOKEN_TO_PILE", tokenId, pile });
 }
 

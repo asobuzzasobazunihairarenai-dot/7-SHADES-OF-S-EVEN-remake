@@ -6,7 +6,7 @@ import { initDeckViewer } from "./deck-viewer.js";
 import { initGameSetup } from "./game-setup.js";
 import { initOptionsMenu } from "./options-menu.js";
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
-import { announceHandPickups, announceCardLocked } from "./hand-announcer.js";
+import { announceHandPickups, announceCardLocked, announceGateInvasion } from "./hand-announcer.js";
 import { checkForVictory } from "./victory.js";
 import { getSkinImagePath, getMyPieceColor, openPieceSkinPicker } from "./piece-skins.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
@@ -17,7 +17,7 @@ import { isLockColorVisible } from "./lock-color.js";
 import { showCardArrivalModal } from "./card-arrival.js";
 import { initPlayerButtons } from "./player-buttons.js";
 import { initQuickStart } from "./quick-start.js";
-import { registerRenderHelpers } from "./setup-animation.js";
+import { registerRenderHelpers, animateFirstCardsDealt, animateBoardFilled } from "./setup-animation.js";
 import {
   getState,
   moveToken,
@@ -31,7 +31,14 @@ import {
   isOnlineMode,
 } from "./state.js";
 import { initOnlineUi, openOnlinePanel } from "./online-ui.js";
-import { getSelfSeat, getCachedUser, getCurrentGameId, onAuthChange } from "./online.js";
+import {
+  getSelfSeat,
+  getCachedUser,
+  getCurrentGameId,
+  onAuthChange,
+  fetchAndHydrate,
+  onGateInvasionEvents,
+} from "./online.js";
 import { playSound } from "./sound.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import {
@@ -598,12 +605,27 @@ function promptCardOpen(pieceTokenId, card) {
   const yesBtn = document.createElement("button");
   yesBtn.className = "card-open-prompt-yes";
   yesBtn.textContent = "👁 オープンする";
-  yesBtn.addEventListener("click", () => {
-    flipToken(card.id);
+  yesBtn.addEventListener("click", async () => {
+    if (isOnlineMode()) {
+      // オンライン中はflipToken()がローカルstateを書き換えず、サーバーへの
+      // リクエストを送るだけ（Promiseを返す）。awaitせずすぐrender()すると
+      // 反転前の古い状態のまま描画・演出判定してしまうため、応答を待ってから
+      // fetchAndHydrate()で明示的に再同期してから続ける。
+      try {
+        await flipToken(card.id);
+        await fetchAndHydrate(getCurrentGameId());
+      } catch (err) {
+        console.error("flipToken failed", err);
+        render();
+        return;
+      }
+    } else {
+      flipToken(card.id);
+    }
     playSound("cardFlip");
     closeOpenPrompt();
     render();
-    triggerCardArrival(card.cardId, card.location);
+    triggerCardArrival(card.cardId, card.location); // 反転前後でcardId/locationは変わらないため捕捉済みの値で問題ない
   });
 
   const noBtn = document.createElement("button");
@@ -1249,7 +1271,7 @@ const DOUBLE_CLICK_MS = 400;
 
 function initDragHandlers() {
   const table = document.getElementById("game-table");
-  table.addEventListener("pointerdown", (e) => {
+  table.addEventListener("pointerdown", async (e) => {
     if (e.button !== 0) return;
     const hit = findDraggableAt(e.clientX, e.clientY);
     if (!hit) return;
@@ -1264,10 +1286,26 @@ function initDragHandlers() {
         // オープンした」場合も、その瞬間に初めて表向きカードの上に駒がいる状態になるため、
         // 到達モーダルの対象にする（表向き→裏向きに戻す方向の時は対象外）。
         const cardToken = getState().tokens.find((t) => t.id === hit.tokenId);
-        flipToken(hit.tokenId);
+        if (isOnlineMode()) {
+          // オンライン中はflipToken()がローカルstateを書き換えないため、awaitして
+          // fetchAndHydrate()で明示的に再同期してから演出判定する（promptCardOpenの
+          // 「オープンする」ボタンと同じ考え方）。
+          try {
+            await flipToken(hit.tokenId);
+            await fetchAndHydrate(getCurrentGameId());
+          } catch (err) {
+            console.error("flipToken failed", err);
+            render();
+            lastFlipClick = { tokenId: null, time: 0 };
+            return;
+          }
+        } else {
+          flipToken(hit.tokenId);
+        }
         playSound("cardFlip");
-        if (cardToken && !cardToken.faceUp && hasPieceAt(cardToken.location)) {
-          triggerCardArrival(cardToken.cardId, cardToken.location);
+        const freshToken = getState().tokens.find((t) => t.id === hit.tokenId);
+        if (cardToken && !cardToken.faceUp && freshToken && hasPieceAt(freshToken.location)) {
+          triggerCardArrival(freshToken.cardId, freshToken.location);
         }
         render();
         lastFlipClick = { tokenId: null, time: 0 }; // 3連続クリックを2回分のダブルクリックにしない
@@ -1519,7 +1557,19 @@ async function onDragEnd(e) {
     return;
   }
   if (dropTarget.zone === "pile") {
-    sendTokenToPile(tokenId, dropTarget.pile);
+    if (isOnlineMode()) {
+      // オンライン中はsendTokenToPile()がローカルstateを書き換えず、サーバーへの
+      // リクエストのPromiseを返すだけ（onDragEnd冒頭のdrawFromPileと同じ考え方）。
+      // 捨てたカードがサイレントに元に戻って見えるバグを防ぐため、必ず再同期する。
+      try {
+        await sendTokenToPile(tokenId, dropTarget.pile);
+        await fetchAndHydrate(getCurrentGameId());
+      } catch (err) {
+        console.error("sendTokenToPile failed", err);
+      }
+    } else {
+      sendTokenToPile(tokenId, dropTarget.pile);
+    }
   } else {
     // 手札に「新しく」加わる時（今までは手札に無かった、または別プレイヤーの手札から移ってきた
     // 時）だけ、何を得たか知らせるポップアップを出す。同じ手札の中で位置を動かしただけの時は
@@ -1529,15 +1579,42 @@ async function onDragEnd(e) {
       const alreadyInThisHand = token && token.location.zone === "hand" && token.location.player === dropTarget.player;
       if (token && !alreadyInThisHand) {
         const wasPublic = token.location.zone === "cell" || token.location.zone === "lock" ? token.faceUp : false;
-        moveToken(tokenId, dropTarget);
-        announceHandPickups(dropTarget.player, [{ cardId: token.cardId, wasPublic }]);
+        const cardId = token.cardId; // hydrate後にtokenが古い参照になるため先に捕捉しておく
+        if (isOnlineMode()) {
+          try {
+            await moveToken(tokenId, dropTarget);
+            await fetchAndHydrate(getCurrentGameId());
+          } catch (err) {
+            console.error("moveToken failed", err);
+            render();
+            return;
+          }
+        } else {
+          moveToken(tokenId, dropTarget);
+        }
+        announceHandPickups(dropTarget.player, [{ cardId, wasPublic }]);
         render();
         return;
       }
     }
     const token = getState().tokens.find((t) => t.id === tokenId);
     const wasAlreadyLocked = !!token && token.location.zone === "lock";
-    moveToken(tokenId, dropTarget);
+    if (isOnlineMode()) {
+      // オンライン中はmoveToken()がローカルstateを書き換えないため、awaitせずすぐ
+      // render()・演出関数を呼ぶと移動前の古い状態のまま判定してしまい、到達演出・
+      // ロック演出・効果音が正しく発火しない（発火してもズレたデータで発火する）
+      // バグになっていた。応答を待ち、fetchAndHydrate()で明示的に再同期してから続ける。
+      try {
+        await moveToken(tokenId, dropTarget);
+        await fetchAndHydrate(getCurrentGameId());
+      } catch (err) {
+        console.error("moveToken failed", err);
+        render();
+        return;
+      }
+    } else {
+      moveToken(tokenId, dropTarget);
+    }
     if (kind === "card") playSound("cardPlace");
     render();
     // 到達プロンプト/モーダル・ロック演出の位置決めに実際のDOM座標(getBoundingClientRect)を
@@ -2063,6 +2140,24 @@ buildGameTitle();
 turnRoundCounterEl = buildTurnRoundCounter();
 updateTurnRoundCounter();
 
+// オンラインでゲームが開始された瞬間（turnPlayerがnull→非nullに変わった瞬間、
+// online-ui.jsの部屋モーダル自動クローズと同じ検知方法）に、ローカル版のセットアップ配布
+// アニメーションを再生する。hydrateState()のリスナーループは登録順に同期実行されるため、
+// 下のsubscribe(render)より必ず「前」に登録する（このリスナーがpendingIdsを設定した後で
+// 初めて通常のrender()が走るようにし、盤面が一瞬裸のまま表示される「フラッシュ」を防ぐ）。
+// isOnlineMode()のガードは必須——無いとローカルのセットアップウィザードの手順3
+// （SET_TURN_PLAYER）でも同じturnPlayerの遷移が起き、既に済んだ配布演出が二重に
+// 再生されてしまう。
+let wasOnlineGameStarted = false;
+subscribe(() => {
+  const started = Boolean(getState().turnPlayer);
+  if (isOnlineMode() && started && !wasOnlineGameStarted) {
+    setSetupPendingTokenIds(new Set(getState().tokens.map((t) => t.id)));
+    animateFirstCardsDealt().then(() => animateBoardFilled());
+  }
+  wasOnlineGameStarted = started;
+});
+
 // オンライン対戦（第一弾・最小構成）の入り口。online.jsが部屋に参加するとisOnlineMode()が
 // trueになり、moveToken等の一部アクションがサーバー経由になる。サーバー側の変化はBroadcast
 // 通知→hydrateState()経由でここのsubscribe(render)が拾って再描画する（既存の各所の手動
@@ -2075,3 +2170,40 @@ document.body.appendChild(buildOnlineButton());
 // online.js自身のonAuthChangeも別途subscribeしておく必要がある。
 onAuthChange(render);
 updateOnlineButtonLabel();
+
+// 相手ゲート侵攻ボーナスが発生した時（誰がターン終了を押したかに関わらず、部屋の全員に
+// 届く。online.jsのsubscribeToGame()参照）、ローカル版と同じ一連のトースト通知を出す。
+// cardIdの解決は「自分から見えているgetState()」から引くだけでよい——攻撃側自身の
+// 手札に入ったカードは自分には見え、それ以外のクライアントからは元々RLSでマスクされて
+// いるため、cardIdが必要な箇所ごとに特別な場合分けをする必要はない
+// （fetchAndHydrate()完了後に呼ばれるため、この時点のgetState()は既に最新かつ
+// 正しくマスクされている）。
+function resolveTokenCardId(tokenId) {
+  return getState().tokens.find((t) => t.id === tokenId)?.cardId ?? null;
+}
+onGateInvasionEvents((events) => {
+  for (const ev of events) {
+    announceGateInvasion(ev.attacker, ev.defender);
+    if (ev.stolenCount > 0) {
+      announceHandPickups(
+        ev.attacker,
+        ev.stolenTokenIds.map((id) => ({ cardId: resolveTokenCardId(id), wasPublic: false }))
+      );
+    }
+    if (ev.eternalCardId) {
+      announceCardLocked(ev.attacker, ev.eternalCardId);
+    }
+    if (ev.bumpedCards.length > 0) {
+      announceHandPickups(
+        ev.attacker,
+        ev.bumpedCards.map((b) => ({ cardId: b.cardId, wasPublic: true }))
+      );
+    }
+    if (ev.gateCards.length > 0) {
+      announceHandPickups(
+        ev.attacker,
+        ev.gateCards.map((g) => ({ cardId: g.wasPublic ? g.cardId : resolveTokenCardId(g.tokenId), wasPublic: g.wasPublic }))
+      );
+    }
+  }
+});

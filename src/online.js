@@ -143,6 +143,16 @@ export function onAuthChange(fn) {
     authChangeListeners = authChangeListeners.filter((f) => f !== fn);
   };
 }
+
+// ゲート侵攻ボーナスが発生した時（誰がターン終了を押したかに関わらず、部屋の全クライアント）
+// に呼ばれる。main.jsがトースト通知を出すのに使う。onAuthChangeと同じ単純なpub/subパターン。
+let gateInvasionEventListeners = [];
+export function onGateInvasionEvents(fn) {
+  gateInvasionEventListeners.push(fn);
+  return () => {
+    gateInvasionEventListeners = gateInvasionEventListeners.filter((f) => f !== fn);
+  };
+}
 // main.jsのヘッダーボタン（「🌐 オンライン」）のラベルを、ログイン状態が分かるように
 // 動的に変える時など、awaitせず同期的に「今ログイン中かどうか」を知りたい場面のために
 // キャッシュしておく（getCurrentUser()は毎回サーバーに問い合わせる非同期関数のため）。
@@ -335,8 +345,16 @@ function subscribeToGame(gameId) {
   if (broadcastChannel) client.removeChannel(broadcastChannel);
   broadcastChannel = client
     .channel(`game:${gameId}`)
-    .on("broadcast", { event: "state_changed" }, () => {
-      fetchAndHydrate(gameId).catch(() => {});
+    .on("broadcast", { event: "state_changed" }, ({ payload }) => {
+      fetchAndHydrate(gameId)
+        .then(() => {
+          // ゲート侵攻ボーナスが発生した場合だけ、payloadにgateInvasionEventsが載っている。
+          // 盤面の再取得（自分の手札等、隠し情報の解決に必要）が終わってから通知する。
+          if (payload?.gateInvasionEvents?.length) {
+            for (const fn of gateInvasionEventListeners) fn(payload.gateInvasionEvents);
+          }
+        })
+        .catch(() => {});
     })
     .subscribe();
   setOnlineMode(true);

@@ -19,9 +19,11 @@
 // 合わせ、「呼び出し元がこのゲームのいずれかの座席を持っているか」だけを確認する。
 // 「今の手番か」「このトークンは自分の物か」は問わない（ローカル版と同じ自由度）。
 //
-// 今回ポートしているアクションは6種類のみ（MOVE_TOKEN / DRAW_FROM_PILE / FLIP_TOKEN /
-// SET_TURN_PLAYER / NEXT_TURN / 新設BOOTSTRAP_GAME）。それ以外（セットアップウィザードの
-// 個別ステップ・ゲート侵攻ボーナス等）はローカルモード専用のまま、次回以降のスコープ。
+// ポートしているアクションはMOVE_TOKEN / DRAW_FROM_PILE / SEND_TOKEN_TO_PILE / FLIP_TOKEN /
+// SET_TURN_PLAYER / NEXT_TURN / BOOTSTRAP_GAME。それ以外（セットアップウィザードの個別
+// ステップ・手札シャッフル等）はローカルモード専用のまま。相手ゲート侵攻ボーナスは
+// NEXT_TURNの処理直前にapplyGateInvasions()として組み込み済み（隠し情報の無作為抽選が
+// 必要なため、サーバー側で判定から適用まで行う。詳細は該当コメント参照）。
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -43,6 +45,7 @@ const GATE_POSITIONS: Record<string, { row: number; col: number }> = {
   right: { row: 3, col: 6 },
 };
 const SEAT_TO_SIDE: Record<string, string> = { A: "bottom", B: "left", C: "top", D: "right" };
+const SIDE_TO_SEAT: Record<string, string> = { bottom: "A", left: "B", top: "C", right: "D" };
 const SEAT_ORDER = ["A", "B", "C", "D"];
 
 const NORMAL_CARDS: { id: string; color: string; count: number }[] = [
@@ -166,6 +169,14 @@ function reduce(current: GameState, action: any): GameState {
       const newToken: Token = { id: uid("card"), kind: "card", cardId, faceUp, location: action.location };
       return { ...current, piles, tokens: [...current.tokens, newToken] };
     }
+    case "SEND_TOKEN_TO_PILE": {
+      const token = current.tokens.find((t) => t.id === action.tokenId);
+      if (!token) return current;
+      const tokens = current.tokens.filter((t) => t.id !== action.tokenId);
+      const pileArray = current.piles[action.pile as keyof Piles];
+      const piles = { ...current.piles, [action.pile]: [...pileArray, token.cardId] };
+      return { ...current, tokens, piles };
+    }
     case "FLIP_TOKEN": {
       const tokens = current.tokens.map((t) =>
         t.id === action.tokenId && t.kind === "card" ? { ...t, faceUp: !t.faceUp } : t
@@ -262,6 +273,146 @@ function reduce(current: GameState, action: any): GameState {
     default:
       return current;
   }
+}
+
+// ---------------------------------------------------------------------------
+// 相手ゲート侵攻ボーナス（src/gate-invasion.js・src/state.jsからの移植）。
+// ローカル版は「奪う手札」「エターナルの山の一番上」をクライアント側で無作為抽選していたが、
+// オンラインではどちらも隠し情報（RLSでマスクされクライアントから見えない）のため、
+// サーバー（このEdge Function、サービスロールキーでマスク無しアクセス）側で抽選から
+// 確定まで行う。NEXT_TURNアクションの処理直前（reduce()を呼ぶ前）に、参加中の全プレイヤーを
+// 時計回り順に走査して適用する。
+// ---------------------------------------------------------------------------
+type GateInvasionEvent = {
+  attacker: string;
+  defender: string;
+  stolenCount: number;
+  stolenTokenIds: string[]; // 中身は誰にも公開しない（攻撃側自身は次回fetchAndHydrate後に自分の手札として解決できる）
+  eternalCardId: string | null; // ロックは常に表向き＝公開情報なので実際のcardIdをそのまま含めてよい
+  bumpedCards: { tokenId: string; cardId: string }[]; // 同上、常に公開情報
+  gateCards: { tokenId: string; cardId: string | null; wasPublic: boolean }[]; // 元のfaceUpに従う。裏向きだった分はcardIdをnullにする
+};
+
+function findInvadedDefender(state: GameState, attacker: string): string | null {
+  const piece = state.tokens.find((t) => t.kind === "piece" && t.player === attacker);
+  if (!piece || piece.location.zone !== "cell") return null;
+  const loc = piece.location as { zone: "cell"; row: number; col: number };
+  for (const [side, pos] of Object.entries(GATE_POSITIONS)) {
+    if (pos.row !== loc.row || pos.col !== loc.col) continue;
+    const defender = SIDE_TO_SEAT[side];
+    if (defender === attacker) return null; // 自分のゲートは対象外
+    if (!state.activePlayers.includes(defender)) return null; // 空席のゲートは対象外
+    return defender;
+  }
+  return null;
+}
+
+function applyGateInvasions(initial: GameState): { state: GameState; events: GateInvasionEvent[] } {
+  let state = initial;
+  const events: GateInvasionEvent[] = [];
+  const order = SEAT_ORDER.filter((p) => state.activePlayers.includes(p));
+
+  for (const attacker of order) {
+    const defender = findInvadedDefender(state, attacker);
+    if (!defender) continue;
+
+    // ①手札を半分（端数切り捨て）無作為に奪う
+    const defenderHand = state.tokens.filter(
+      (t) => t.kind === "card" && t.location.zone === "hand" && (t.location as { player: string }).player === defender
+    );
+    const stealCount = Math.floor(defenderHand.length / 2);
+    const stolen = shuffled(defenderHand).slice(0, stealCount);
+    const stolenIds = new Set(stolen.map((t) => t.id));
+    state = {
+      ...state,
+      tokens: state.tokens.map((t) =>
+        stolenIds.has(t.id) ? { ...t, location: { zone: "hand", player: attacker }, faceUp: faceUpForLocation({ zone: "hand", player: attacker }) } : t
+      ),
+    };
+
+    // ②エターナルカードを1枚無作為に獲得し、自分のロックエリアの対応する色にロックする。
+    // そのスロットに既に何か（ファーストカードを除く）があれば、先に手札へ加える。
+    let eternalCardId: string | null = null;
+    const bumpedCards: { tokenId: string; cardId: string }[] = [];
+    if (state.piles.eternal.length > 0) {
+      const eternalPile = [...state.piles.eternal];
+      eternalCardId = eternalPile.pop()!;
+      const color = eternalCardId.replace(/^eternal-/, "");
+      const colorIndex = COLORS.indexOf(color);
+      const side = SEAT_TO_SIDE[attacker];
+      const bumpedTokens = state.tokens.filter(
+        (t) =>
+          t.kind === "card" &&
+          t.location.zone === "lock" &&
+          (t.location as { side: string }).side === side &&
+          (t.location as { index: number }).index === colorIndex &&
+          !!t.cardId &&
+          !t.cardId.startsWith("first-")
+      );
+      const bumpedIds = new Set(bumpedTokens.map((t) => t.id));
+      for (const t of bumpedTokens) bumpedCards.push({ tokenId: t.id, cardId: t.cardId! });
+      const newEternalToken: Token = {
+        id: uid("card"),
+        kind: "card",
+        cardId: eternalCardId,
+        faceUp: true,
+        location: { zone: "lock", side, index: colorIndex },
+      };
+      state = {
+        ...state,
+        tokens: [
+          ...state.tokens.map((t) =>
+            bumpedIds.has(t.id)
+              ? { ...t, location: { zone: "hand", player: attacker }, faceUp: faceUpForLocation({ zone: "hand", player: attacker }) }
+              : t
+          ),
+          newEternalToken,
+        ],
+        piles: { ...state.piles, eternal: eternalPile },
+      };
+    }
+
+    // ③自分のゲートにあるカードを全て手札に加え、ゲートに帰還する
+    const side = SEAT_TO_SIDE[attacker];
+    const homeGate = GATE_POSITIONS[side];
+    const gateTokens = state.tokens.filter(
+      (t) =>
+        t.kind === "card" &&
+        t.location.zone === "cell" &&
+        (t.location as { row: number; col: number }).row === homeGate.row &&
+        (t.location as { row: number; col: number }).col === homeGate.col
+    );
+    const gateCards = gateTokens.map((t) => ({
+      tokenId: t.id,
+      cardId: t.faceUp ? t.cardId ?? null : null,
+      wasPublic: !!t.faceUp,
+    }));
+    const gateIds = new Set(gateTokens.map((t) => t.id));
+    state = {
+      ...state,
+      tokens: state.tokens.map((t) => {
+        if (gateIds.has(t.id)) {
+          return { ...t, location: { zone: "hand", player: attacker }, faceUp: faceUpForLocation({ zone: "hand", player: attacker }) };
+        }
+        if (t.kind === "piece" && t.player === attacker) {
+          return { ...t, location: { zone: "cell", ...homeGate } };
+        }
+        return t;
+      }),
+    };
+
+    events.push({
+      attacker,
+      defender,
+      stolenCount: stealCount,
+      stolenTokenIds: [...stolenIds],
+      eternalCardId,
+      bumpedCards,
+      gateCards,
+    });
+  }
+
+  return { state, events };
 }
 
 // エターナルカード7種（各色1種）。BOOTSTRAP_GAMEのeternal山づくり専用に、上のreduce内の
@@ -436,7 +587,19 @@ Deno.serve(async (req) => {
     }
 
     const { state: current, version } = await loadState(db, gameId);
-    const next = reduce(current, effectiveAction);
+
+    // ターンを進める直前に、相手ゲート侵攻ボーナスの対象者がいないか全員分チェックし、
+    // 該当すれば適用する（ローカル版のgate-invasion.jsと同じ判定・処理を、隠し情報の
+    // 抽選が必要な分だけサーバー側で行う）。該当者がいなければworkingStateはcurrentのまま。
+    let workingState = current;
+    let gateInvasionEvents: GateInvasionEvent[] = [];
+    if (effectiveAction.type === "NEXT_TURN") {
+      const result = applyGateInvasions(workingState);
+      workingState = result.state;
+      gateInvasionEvents = result.events;
+    }
+
+    const next = reduce(workingState, effectiveAction);
 
     // BOOTSTRAP_GAMEのeternal placeholderを正しい構成に差し替える
     // （reduce()内で仮の値を入れているのはETERNAL_CARD_IDSの定義位置の都合のため）。
@@ -471,9 +634,16 @@ Deno.serve(async (req) => {
       return json({ ok: false, error: isConflict ? "version_conflict" : commitErr.message }, isConflict ? 409 : 500);
     }
 
-    // 他のクライアントへ「変わったよ」とだけ知らせる（データ自体は載せない。受け取った側は
-    // 自分が見えるビューを取り直す）。
-    await db.channel(`game:${gameId}`).send({ type: "broadcast", event: "state_changed", payload: {} });
+    // 他のクライアントへ「変わったよ」と知らせる（盤面データ自体は載せない。受け取った側は
+    // 自分が見えるビューを取り直す）。ゲート侵攻ボーナスが発生した場合だけ、公開しても
+    // 問題ない範囲の情報（誰が誰に侵攻したか・奪った枚数・エターナルカードの種類等。
+    // 奪った手札の中身そのものは含めない）をgateInvasionEventsとして一緒に送り、
+    // 全クライアントがトースト通知を出せるようにする。
+    await db.channel(`game:${gameId}`).send({
+      type: "broadcast",
+      event: "state_changed",
+      payload: gateInvasionEvents.length > 0 ? { gateInvasionEvents } : {},
+    });
 
     // 山から自分の手札へ引いた場合だけ、獲得ポップアップ用に実際のcardIdを返す
     // （それ以外の場合、呼び出し元に山の中身を教えてはいけない）。
