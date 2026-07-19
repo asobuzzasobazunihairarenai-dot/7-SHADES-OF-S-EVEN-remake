@@ -6,6 +6,7 @@
 import { getCardDefinition, getCardImagePath } from "./cards-data.js";
 import { getPlayerName } from "./player-identity.js";
 import { createModalCloseX } from "./ui-helpers.js";
+import { getSelfSeat } from "./online.js";
 
 // 表示時間（秒）は管理者モードの「カード獲得ポップアップ」グループで調整できる
 // （--hand-pickup-toast-duration、デフォルト5秒）。
@@ -44,7 +45,7 @@ function showToast(innerHTML) {
 export function announceHandPickups(player, pickups) {
   if (pickups.length === 0) return;
 
-  const visible = pickups.filter((p) => p.wasPublic || player === "A");
+  const visible = pickups.filter((p) => p.wasPublic || player === getSelfSeat());
   const hiddenCount = pickups.length - visible.length;
 
   if (visible.length === 0) {

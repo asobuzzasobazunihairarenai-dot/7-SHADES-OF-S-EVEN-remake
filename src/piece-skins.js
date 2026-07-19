@@ -8,6 +8,7 @@
 
 import { getState } from "./state.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { getSelfSeat } from "./online.js";
 
 const SKIN_VARIANTS = [0, 1, 2, 3, 4, 5]; // 0=標準（assets/pieces/${color}.png）
 
@@ -19,7 +20,7 @@ export function getSkinImagePath(color) {
 }
 
 export function getMyPieceColor() {
-  const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === "A");
+  const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === getSelfSeat());
   return piece ? piece.color : null;
 }
 

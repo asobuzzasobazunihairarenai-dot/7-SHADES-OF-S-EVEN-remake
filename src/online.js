@@ -95,6 +95,34 @@ export async function signInWithMagicLink(email) {
   });
 }
 
+// Googleアカウントでログイン。実際にGoogleのログイン画面へ遷移し、成功すると
+// emailRedirectToで指定したこのページへ戻ってくる（マジックリンクと違い、ページ遷移を
+// 伴う）。事前にSupabaseダッシュボード「Authentication > Sign In / Providers > Google」で
+// Google Cloud Console発行のクライアントID/シークレットを設定し有効化しておく必要がある。
+export async function signInWithGoogle() {
+  return withLog("Googleログイン", async () => {
+    if (!client) throw new Error("Supabaseクライアントが初期化されていません");
+    const { error } = await client.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.href },
+    });
+    if (error) throw error;
+  });
+}
+
+// メールアドレス不要の匿名ログイン（ユドナリウムのような手軽さ）。ページ遷移せずその場で
+// 完了し、確実にユニークなauth.uid()が発行されるため、隠し情報のマスキング（RLS）は
+// メール/Googleログインと全く同じ仕組みのまま機能する。事前にSupabaseダッシュボード
+// 「Authentication > Sign In / Providers」の「Anonymous Sign-Ins」を有効化しておく必要がある。
+// ブラウザを変えたりデータを消したりすると同じ人として戻ってこられなくなる点に注意。
+export async function signInAnonymously() {
+  return withLog("匿名ログイン", async () => {
+    if (!client) throw new Error("Supabaseクライアントが初期化されていません");
+    const { error } = await client.auth.signInAnonymously();
+    if (error) throw error;
+  });
+}
+
 export async function getCurrentUser() {
   if (!client) return null;
   const { data } = await client.auth.getUser();
@@ -174,6 +202,15 @@ export function getCurrentGameId() {
 
 export function getMySeat() {
   return currentSeat;
+}
+
+// main.js等の描画側が「自分の手札・自分専用ステータス」をどの座席として扱うかに使う。
+// ローカルモードでは常に"A"（これまでの「1人で全座席を動かす」前提を完全に維持する）。
+// オンラインモードでは実際にclaimSeat()した座席を返す（万一未確定ならフォールバックとして
+// "A"）。getMySeat()はオンラインでない時にnullを返す「部屋UI用の正直な値」として役割を
+// 分けている（部屋パネルの「今の座席」表示に使う）。
+export function getSelfSeat() {
+  return isOnlineMode() ? currentSeat || "A" : "A";
 }
 
 export function leaveGame() {

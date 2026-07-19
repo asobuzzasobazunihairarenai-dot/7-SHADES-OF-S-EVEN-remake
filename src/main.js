@@ -31,6 +31,7 @@ import {
   isOnlineMode,
 } from "./state.js";
 import { initOnlineUi, openOnlinePanel } from "./online-ui.js";
+import { getSelfSeat } from "./online.js";
 import { playSound } from "./sound.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import { COLORS, GATE_POSITIONS, SEAT_TO_SIDE, SIDE_TO_SEAT } from "./board-layout.js";
@@ -641,10 +642,13 @@ function render() {
   // 従来通り4人分をプレビューとして表示しておく。
   const { activePlayers } = getState();
   const isActive = (player) => activePlayers.length === 0 || activePlayers.includes(player);
-  if (isActive("A")) table.appendChild(buildPlayerZone("bottom", "A", true));
-  if (isActive("B")) table.appendChild(buildPlayerZone("left", "B", false));
-  if (isActive("C")) table.appendChild(buildPlayerZone("top", "C", false));
-  if (isActive("D")) table.appendChild(buildPlayerZone("right", "D", false));
+  // オンライン対戦では「自分」が実際にログインしている座席になる（ローカルモードでは
+  // これまで通り常にA、src/online.jsのgetSelfSeat()参照）。
+  const self = getSelfSeat();
+  if (isActive("A")) table.appendChild(buildPlayerZone("bottom", "A", self === "A"));
+  if (isActive("B")) table.appendChild(buildPlayerZone("left", "B", self === "B"));
+  if (isActive("C")) table.appendChild(buildPlayerZone("top", "C", self === "C"));
+  if (isActive("D")) table.appendChild(buildPlayerZone("right", "D", self === "D"));
   table.appendChild(buildPileZone("deck"));
   table.appendChild(buildPileZone("eternal"));
   table.appendChild(buildPileZone("first"));
@@ -1741,7 +1745,7 @@ function buildHandShuffleButton() {
   btn.id = "hand-shuffle-button";
   btn.textContent = "🔀 手札シャッフル";
   btn.addEventListener("click", () => {
-    shuffleHand("A");
+    shuffleHand(getSelfSeat());
     playSound("handShuffle");
     render();
   });
@@ -1752,7 +1756,7 @@ function buildHandShuffleButton() {
 function updateHandShuffleButton() {
   if (!handShuffleButtonEl) return;
   const handCount = getState().tokens.filter(
-    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === "A"
+    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === getSelfSeat()
   ).length;
   handShuffleButtonEl.disabled = handCount < 2;
 }
@@ -1869,10 +1873,10 @@ function openAvatarPicker() {
   for (const avatar of AVATAR_OPTIONS) {
     const swatch = document.createElement("button");
     swatch.className = "avatar-picker-swatch";
-    if (getPlayerAvatar("A") === avatar) swatch.classList.add("is-selected");
+    if (getPlayerAvatar(getSelfSeat()) === avatar) swatch.classList.add("is-selected");
     swatch.textContent = avatar;
     swatch.addEventListener("click", () => {
-      setPlayerAvatar("A", avatar);
+      setPlayerAvatar(getSelfSeat(), avatar);
       render();
       close();
     });
@@ -1889,17 +1893,17 @@ function openAvatarPicker() {
 function startEditingName() {
   const input = document.createElement("input");
   input.className = "self-status-name-input";
-  input.value = getPlayerName("A");
+  input.value = getPlayerName(getSelfSeat());
   input.maxLength = 12;
   const commit = () => {
-    if (input.value.trim()) setPlayerName("A", input.value);
+    if (input.value.trim()) setPlayerName(getSelfSeat(), input.value);
     render();
   };
   input.addEventListener("blur", commit);
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") input.blur();
     if (e.key === "Escape") {
-      input.value = getPlayerName("A");
+      input.value = getPlayerName(getSelfSeat());
       input.blur();
     }
   });
@@ -1948,9 +1952,9 @@ function buildSelfHandStatus() {
 function updateSelfHandStatus() {
   if (!selfHandStatusEl) return;
   const count = getState().tokens.filter(
-    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === "A"
+    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === getSelfSeat()
   ).length;
-  selfStatusAvatarEl.textContent = getPlayerAvatar("A");
+  selfStatusAvatarEl.textContent = getPlayerAvatar(getSelfSeat());
 
   const myColor = getMyPieceColor();
   selfStatusPieceThumbEl.style.display = myColor ? "flex" : "none";
@@ -1974,7 +1978,7 @@ function updateSelfHandStatus() {
     selfHandStatusEl.querySelector(".self-status-name-input")?.replaceWith(fresh);
     selfStatusNameEl = fresh;
   }
-  selfStatusNameEl.textContent = getPlayerName("A");
+  selfStatusNameEl.textContent = getPlayerName(getSelfSeat());
   selfStatusHandCountEl.textContent = `手札：${count}枚`;
 }
 

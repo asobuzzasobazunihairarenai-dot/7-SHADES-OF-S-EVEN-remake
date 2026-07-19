@@ -7,6 +7,8 @@
 import {
   isOnlineAvailable,
   signInWithMagicLink,
+  signInWithGoogle,
+  signInAnonymously,
   getCurrentUser,
   onAuthChange,
   createRoom,
@@ -158,6 +160,45 @@ function renderLoginForm() {
     }
   });
   contentEl.appendChild(btn);
+
+  const divider = document.createElement("div");
+  divider.style.cssText = "text-align: center; font-size: 0.75rem; color: #94a3b8; margin: 0.7rem 0;";
+  divider.textContent = "── または ──";
+  contentEl.appendChild(divider);
+
+  // Googleログインはページ遷移を伴う（Googleのログイン画面へ実際に飛んで戻ってくる）ため、
+  // 押した直後にステータス表示を更新する意味があまりない（成功時はそのままページが
+  // 離れる）。事前にSupabaseダッシュボードでのGoogleプロバイダ設定が必要。
+  const googleBtn = textButton("Googleでログイン");
+  googleBtn.style.marginBottom = "0.4rem";
+  googleBtn.addEventListener("click", async () => {
+    googleBtn.disabled = true;
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      status.textContent = `エラー: ${err.message ?? err}`;
+      googleBtn.disabled = false;
+    }
+  });
+  contentEl.appendChild(googleBtn);
+
+  // 匿名ログインはページ遷移せずその場で完了する（メール確認不要、ユドナリウムのような
+  // 手軽さ）。事前にSupabaseダッシュボードで「Anonymous Sign-Ins」を有効化しておく必要がある。
+  const anonBtn = textButton("とりあえず遊ぶ（匿名）");
+  anonBtn.addEventListener("click", async () => {
+    anonBtn.disabled = true;
+    status.textContent = "ログイン中...";
+    try {
+      await signInAnonymously();
+      // ログイン成功はonAuthChange経由でパネルが自動的に更新されるはずだが、念のため
+      // ここでも明示的に再描画しておく。
+      await renderPanelContent();
+    } catch (err) {
+      status.textContent = `エラー: ${err.message ?? err}`;
+      anonBtn.disabled = false;
+    }
+  });
+  contentEl.appendChild(anonBtn);
 }
 
 function renderRoomChoice(user) {
