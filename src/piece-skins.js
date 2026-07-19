@@ -9,7 +9,7 @@
 import { getState } from "./state.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 
-const SKIN_VARIANTS = [0, 1, 2, 3]; // 0=標準（assets/pieces/${color}.png）
+const SKIN_VARIANTS = [0, 1, 2, 3, 4, 5]; // 0=標準（assets/pieces/${color}.png）
 
 let skinIndexByColor = {};
 

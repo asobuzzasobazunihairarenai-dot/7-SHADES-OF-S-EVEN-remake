@@ -1340,6 +1340,9 @@ body {
   border-radius: 0.4rem;
   padding: 0.3rem;
   min-width: 9rem;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-sizing: border-box;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
 }
 .options-menu-item {
@@ -1377,6 +1380,67 @@ body {
 .options-menu-divider {
   border-top: 1px solid rgba(148, 163, 184, 0.25);
   margin: 0.3rem 0;
+}
+.options-menu-volume-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.options-menu-volume-row input[type="range"] {
+  flex: 1;
+  min-width: 0;
+}
+.options-menu-volume-value {
+  min-width: 2.6rem;
+  text-align: right;
+  opacity: 0.8;
+}
+.options-menu-shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  border-radius: 0.25rem;
+  transition: background 0.3s ease;
+}
+.options-menu-shortcut-row span:first-child {
+  flex: 1;
+}
+.options-menu-shortcut-row.is-highlighted {
+  background: rgba(56, 189, 248, 0.3);
+}
+.options-menu-shortcut-key {
+  padding: 0.2rem 0.5rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.3rem;
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-family: monospace;
+}
+.options-menu-shortcut-key:hover {
+  background: rgba(56, 189, 248, 0.2);
+}
+.options-menu-shortcut-clear {
+  width: 1.3rem;
+  height: 1.3rem;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+.options-menu-shortcut-clear:hover {
+  background: rgba(248, 113, 113, 0.3);
 }
 
 /* 「1枚ドロー」ボタン。#end-turn-buttonのすぐ上に積む形で、同じ右下の並びに配置する。 */
@@ -1467,6 +1531,28 @@ body {
 }
 #hand-shuffle-button:hover {
   background: linear-gradient(160deg, #c084fc, #7e22ce);
+}
+/* 手札が0〜1枚（シャッフルしても見た目が変わらない）の間は押せなくする。 */
+#hand-shuffle-button:disabled {
+  background: linear-gradient(160deg, #475569, #1e293b);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+#hand-shuffle-button:disabled:hover {
+  background: linear-gradient(160deg, #475569, #1e293b);
+}
+
+/* 「プレイヤー用ボタン」（手札シャッフル・盤面拡大・1枚ドロー）をドラッグして並び替える時の
+   ゴースト。掴んだボタンのクローンをそのままカーソルに追従させる（player-buttons.js参照）。
+   ドラッグ元のボタン自体は掴んでいる間少し薄くして、今どれを動かしているか分かるようにする。 */
+.player-button-ghost {
+  position: fixed !important;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.85;
+}
+.is-drag-source {
+  opacity: 0.35;
 }
 
 /* 駒スキン選択モーダル。 */
@@ -1728,6 +1814,46 @@ body {
 }
 .card-arrival-modal-pin:hover {
   background: rgba(56, 189, 248, 0.2);
+}
+
+/* 駒が裏向きのカードに乗った時、自動でオープンする代わりに出す「オープンする/しない」の
+   選択アイコン。駒のすぐ上に浮かべる（main.jsのpromptCardOpen参照、左右中央基準で
+   left/topをJS側から直接指定するのでtransformで自分の幅の半分・自分の高さぶんだけ
+   ずらして駒の真上に来るようにする）。 */
+.card-open-prompt {
+  position: fixed;
+  transform: translate(-50%, calc(-100% - 0.5rem));
+  z-index: 10400;
+  display: flex;
+  gap: 0.4rem;
+  background: rgba(15, 23, 32, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.5rem;
+  padding: 0.4rem;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+}
+.card-open-prompt button {
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.4rem;
+  border: none;
+  cursor: pointer;
+  font-family: sans-serif;
+  font-size: 0.75rem;
+  font-weight: bold;
+  white-space: nowrap;
+  color: #fff;
+}
+.card-open-prompt-yes {
+  background: linear-gradient(160deg, #22c55e, #15803d);
+}
+.card-open-prompt-yes:hover {
+  background: linear-gradient(160deg, #4ade80, #16a34a);
+}
+.card-open-prompt-no {
+  background: linear-gradient(160deg, #64748b, #334155);
+}
+.card-open-prompt-no:hover {
+  background: linear-gradient(160deg, #94a3b8, #475569);
 }
 
 /* カードが手札に加わった時の「何をゲットしたか」トースト。#end-turn-button・#draw-button・

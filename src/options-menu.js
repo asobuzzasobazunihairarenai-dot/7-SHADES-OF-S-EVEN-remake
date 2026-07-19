@@ -5,6 +5,8 @@
 import { openAdminPanel } from "./admin.js";
 import { isLockAreaBarVisible, setLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible, setLockColorVisible } from "./lock-color.js";
+import { getSoundVolume, setSoundVolume } from "./sound.js";
+import { PLAYER_BUTTONS, getShortcut, setShortcut, registerShortcutSettingsOpener } from "./player-buttons.js";
 import { createBackdrop } from "./ui-helpers.js";
 
 function buildMenuItem(label, onClick) {
@@ -36,6 +38,76 @@ function buildCheckboxRow(label, checked, onChange) {
   return row;
 }
 
+function buildVolumeRow() {
+  const row = document.createElement("div");
+  row.className = "options-menu-volume-row";
+  const label = document.createElement("span");
+  label.textContent = "効果音の音量";
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.min = "0";
+  slider.max = "100";
+  slider.step = "5";
+  slider.value = String(Math.round(getSoundVolume() * 100));
+  const valueLabel = document.createElement("span");
+  valueLabel.className = "options-menu-volume-value";
+  valueLabel.textContent = `${slider.value}%`;
+  slider.addEventListener("input", () => {
+    setSoundVolume(Number(slider.value) / 100);
+    valueLabel.textContent = `${slider.value}%`;
+  });
+  row.appendChild(label);
+  row.appendChild(slider);
+  row.appendChild(valueLabel);
+  return row;
+}
+
+// 「手札シャッフル」「盤面拡大」「1枚ドロー」（プレイヤー用ボタン）にキーボードショートカットを
+// 割り当てる行。ボタンをクリックすると次に押したキーをそのまま割り当てる「記録待ち」状態になる
+// （player-buttons.jsのgetShortcut/setShortcutで実体を保持）。プレイヤー用ボタンを右クリックした
+// 時にも、このパネルを開いてこの行までスクロールする（initOptionsMenu内でregisterする）。
+function buildShortcutRow(buttonId, label) {
+  const row = document.createElement("div");
+  row.className = "options-menu-shortcut-row";
+  row.dataset.shortcutFor = buttonId;
+
+  const labelEl = document.createElement("span");
+  labelEl.textContent = label;
+
+  const keyBtn = document.createElement("button");
+  keyBtn.className = "options-menu-shortcut-key";
+  function refresh() {
+    const key = getShortcut(buttonId);
+    keyBtn.textContent = key ? key.toUpperCase() : "未設定";
+  }
+  refresh();
+  keyBtn.addEventListener("click", () => {
+    keyBtn.textContent = "キーを押してください…";
+    function onKey(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      window.removeEventListener("keydown", onKey, true);
+      if (e.key !== "Escape") setShortcut(buttonId, e.key.toLowerCase());
+      refresh();
+    }
+    window.addEventListener("keydown", onKey, true);
+  });
+
+  const clearBtn = document.createElement("button");
+  clearBtn.className = "options-menu-shortcut-clear";
+  clearBtn.textContent = "×";
+  clearBtn.title = "割り当てを解除";
+  clearBtn.addEventListener("click", () => {
+    setShortcut(buttonId, null);
+    refresh();
+  });
+
+  row.appendChild(labelEl);
+  row.appendChild(keyBtn);
+  row.appendChild(clearBtn);
+  return row;
+}
+
 export function initOptionsMenu() {
   const panel = document.createElement("div");
   panel.id = "options-menu-panel";
@@ -63,6 +135,27 @@ export function initOptionsMenu() {
       window.dispatchEvent(new CustomEvent("admin:change"));
     })
   );
+  panel.appendChild(buildVolumeRow());
+
+  const shortcutDivider = document.createElement("div");
+  shortcutDivider.className = "options-menu-divider";
+  panel.appendChild(shortcutDivider);
+
+  panel.appendChild(buildSectionTitle("ショートカットキー（プレイヤー用ボタン）"));
+  for (const { id, label } of PLAYER_BUTTONS) {
+    panel.appendChild(buildShortcutRow(id, label));
+  }
+
+  // プレイヤー用ボタンを右クリックした時、このパネルを開いて該当行を目立たせる。
+  registerShortcutSettingsOpener((buttonId) => {
+    open();
+    const row = panel.querySelector(`[data-shortcut-for="${buttonId}"]`);
+    if (row) {
+      row.scrollIntoView({ block: "center" });
+      row.classList.add("is-highlighted");
+      setTimeout(() => row.classList.remove("is-highlighted"), 1500);
+    }
+  });
 
   const divider = document.createElement("div");
   divider.className = "options-menu-divider";

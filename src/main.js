@@ -15,6 +15,7 @@ import { getSelectedPlaymatPath } from "./playmat.js";
 import { isLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible } from "./lock-color.js";
 import { showCardArrivalModal } from "./card-arrival.js";
+import { initPlayerButtons } from "./player-buttons.js";
 import { getState, moveToken, sendTokenToPile, drawFromPile, flipToken, shuffleHand, nextTurn, refillDeckFromDiscard } from "./state.js";
 import { playSound } from "./sound.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
@@ -367,17 +368,62 @@ function hasPieceAt(location) {
   });
 }
 
-// 駒がカードの上に乗った瞬間の演出。裏向きのカードなら先に自動でオープンし、その上で
-// 必ず到達モーダルを表示する（表向きだった場合はオープン処理をスキップしてモーダルのみ）。
-function maybeTriggerCardArrival(dropTarget, kind) {
-  if (kind !== "piece" || !dropTarget) return;
+// 駒がカードの上に乗った瞬間の演出。表向きのカードならそのまま到達モーダルを表示する。
+// 裏向きの場合は自動でオープンせず、駒の近くに「オープンする/しない」の選択肢を出し、
+// 選んでもらってから（オープンする場合のみ）到達モーダルを表示する。
+function maybeTriggerCardArrival(dropTarget, pieceTokenId) {
+  if (!dropTarget) return;
   const card = findTopCardAt(dropTarget);
   if (!card) return;
   if (!card.faceUp) {
-    flipToken(card.id);
-    playSound("cardFlip");
+    promptCardOpen(pieceTokenId, card);
+    return;
   }
   showCardArrivalModal(card.cardId);
+}
+
+// 「オープンする/しない」の選択アイコン。同時に1つだけ表示する（新しく駒が別のカードに
+// 乗ったら、前のプロンプトは消えて新しい方だけになる）。
+let openPromptEl = null;
+
+function closeOpenPrompt() {
+  if (openPromptEl) {
+    openPromptEl.remove();
+    openPromptEl = null;
+  }
+}
+
+function promptCardOpen(pieceTokenId, card) {
+  closeOpenPrompt();
+  const pieceEl = document.querySelector(`.piece[data-token-id="${pieceTokenId}"]`);
+  if (!pieceEl) return;
+  const rect = pieceEl.getBoundingClientRect();
+
+  const prompt = document.createElement("div");
+  prompt.className = "card-open-prompt";
+  prompt.style.left = `${rect.left + rect.width / 2}px`;
+  prompt.style.top = `${rect.top}px`;
+
+  const yesBtn = document.createElement("button");
+  yesBtn.className = "card-open-prompt-yes";
+  yesBtn.textContent = "👁 オープンする";
+  yesBtn.addEventListener("click", () => {
+    flipToken(card.id);
+    playSound("cardFlip");
+    closeOpenPrompt();
+    render();
+    showCardArrivalModal(card.cardId);
+  });
+
+  const noBtn = document.createElement("button");
+  noBtn.className = "card-open-prompt-no";
+  noBtn.textContent = "🚫 オープンしない";
+  noBtn.addEventListener("click", () => closeOpenPrompt());
+
+  prompt.appendChild(yesBtn);
+  prompt.appendChild(noBtn);
+  document.body.appendChild(prompt);
+  openPromptEl = prompt;
 }
 
 function renderBoardTokens(table) {
@@ -435,6 +481,7 @@ function render() {
   fitTableToViewport();
   updateEndTurnButton();
   updateDrawButton();
+  updateHandShuffleButton();
   updateSelfHandStatus();
   checkForVictory();
 }
@@ -936,6 +983,7 @@ function initContextMenuHandlers() {
   });
   document.addEventListener("pointerdown", (e) => {
     if (contextMenuEl && !contextMenuEl.contains(e.target)) closeContextMenu();
+    if (openPromptEl && !openPromptEl.contains(e.target)) closeOpenPrompt();
   });
 }
 
@@ -1186,7 +1234,11 @@ function onDragEnd(e) {
     moveToken(tokenId, dropTarget);
     if (token) maybeAnnounceLock(dropTarget, token.cardId, wasAlreadyLocked);
     if (kind === "card") playSound("cardPlace");
-    maybeTriggerCardArrival(dropTarget, kind);
+    render();
+    // 到達プロンプト/モーダルの位置決めに駒の実際のDOM座標(getBoundingClientRect)を使うため、
+    // render()で盤面を描き直した後でなければ呼べない。
+    if (kind === "piece") maybeTriggerCardArrival(dropTarget, tokenId);
+    return;
   }
   render();
 }
@@ -1297,8 +1349,10 @@ function buildBoardZoomButton() {
 
 // --- 「手札シャッフル」ボタン ------------------------------------------------------
 // 自分(A)の手札の並び順をシャッフルする（カードの中身自体は変わらない、見た目上の
-// 並び替え演出）。turnPlayerの有無に関係なく常に使える表示上の機能なので、盤面拡大と
-// 同じく非表示にする条件は無い。
+// 並び替え演出）。turnPlayerの有無に関係なく常に使える表示上の機能なので、非表示にする
+// 条件は無いが、手札が0〜1枚（シャッフルしても見た目が変わらない）の間は押せなくする。
+let handShuffleButtonEl = null;
+
 function buildHandShuffleButton() {
   const btn = document.createElement("button");
   btn.id = "hand-shuffle-button";
@@ -1310,6 +1364,14 @@ function buildHandShuffleButton() {
   });
   document.body.appendChild(btn);
   return btn;
+}
+
+function updateHandShuffleButton() {
+  if (!handShuffleButtonEl) return;
+  const handCount = getState().tokens.filter(
+    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === "A"
+  ).length;
+  handShuffleButtonEl.disabled = handCount < 2;
 }
 
 // --- ゲームタイトル表示 -----------------------------------------------------------
@@ -1501,7 +1563,7 @@ endTurnButtonEl = buildEndTurnButton();
 drawButtonEl = buildDrawButton();
 selfHandStatusEl = buildSelfHandStatus();
 buildBoardZoomButton();
-buildHandShuffleButton();
+handShuffleButtonEl = buildHandShuffleButton();
 render();
 initDragHandlers();
 initHoverHandlers();
@@ -1510,4 +1572,5 @@ initAdminMode();
 initDeckViewer();
 initGameSetup();
 initOptionsMenu();
+initPlayerButtons();
 buildGameTitle();

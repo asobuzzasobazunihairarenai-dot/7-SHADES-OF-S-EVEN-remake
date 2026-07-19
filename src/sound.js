@@ -8,10 +8,22 @@ const SOUND_PATHS = {
   cardPlace: "assets/sounds/card-place.mp3",
 };
 
+// 音量（0〜1）。オプションメニューの「基本設定」から調整できる（--volume: 0〜100を100で割った値）。
+let volume = 0.8;
+
+export function getSoundVolume() {
+  return volume;
+}
+
+export function setSoundVolume(next) {
+  volume = Math.min(1, Math.max(0, next));
+}
+
 export function playSound(name) {
   const path = SOUND_PATHS[name];
-  if (!path) return;
+  if (!path || volume <= 0) return;
   const audio = new Audio(path);
+  audio.volume = volume;
   // ブラウザの自動再生制限等で再生に失敗しても、ゲーム進行自体には影響させたくないので無視する。
   audio.play().catch(() => {});
 }
