@@ -367,6 +367,16 @@
   - **循環import回避**: `game-setup.js`（呼び出し元）と`main.js`（`render()`等の実装を持つ）が互いをimportし合う循環を避けるため、`setup-animation.js`という第三のモジュールを間に置いた。`main.js`が起動時に`registerRenderHelpers({ render })`で自分の`render`関数を注入し、`game-setup.js`は`setup-animation.js`から`animateFirstCardsDealt`/`animateBoardFilled`をimportして`await`する（`runStep1`/`runStep2`/`runAll`/`quickStart`はこれに合わせてasync化した）。この「登録して注入してもらう」形は`player-buttons.js`の`registerShortcutSettingsOpener`と同じ、このプロジェクトで確立済みのパターン。
   - **「１〜３を一気に行う」でスタートプレイヤー発表が演出に割り込まないようにした**: `runAll()`が`runStep1()`/`runStep2()`をそれぞれ`await`するようにしたことで、両方のアニメーションが完全に終わってから`runStep3()`（スタートプレイヤー決定モーダル）が実行される。実際にクイックスタートを試し、モーダルがアニメーション完了後に出ることを確認済み。
 
+### 2026-07-19の変更（続き・同日12回目のラウンド）
+
+- **スタートプレイヤー決定モーダルに「溜め→フェードイン」演出を追加**: 従来はセットアップ完了と同時にパッと表示されていたが、`game-setup.js`の`buildSimpleModal({ fadeIn: true })`で、backdrop・モーダル本体とも`opacity:0`かつ`transition: opacity 0.7s`で生成し、appendChild直後ではなく`setTimeout(..., 500)`を挟んでから`opacity:1`に切り替えるようにした（「溜めて」からフェードインする、という要望通りの2段構え）。他の`buildSimpleModal`利用箇所は無い（このモーダル専用）ため、fadeInはオプション引数にして既定はfalse（従来通り即表示）のままにしてある。ブラウザで実際にopacityの推移を計測し、500ms間0のまま→約700msかけて1へ滑らかに変化することを確認済み。
+- **ロックエリアにカードを置いた時のアニメーションを追加（画像・効果音はユーザー提供）**: 「ロックエリアにカードを置く→到達効果（柱状のオーラ）を流用→ロック画像をカード中心から拡大しながら重ねる→同時にロック効果音」という要望通りに実装した。`画像素材/ロック/ロック.png`→`assets/lock-icon.png`、`音声/効果音/ロック.mp3`→`assets/sounds/lock.mp3`としてコピー（他の実物素材と同じ理由でgit管理外、`.gitignore`に追記）。
+  - `main.js`の`triggerCardArrival`から到達演出の柱状バーストDOM生成部分を`spawnArrivalBurst(hostEl, color)`として切り出し（駒の到達演出とロック演出の両方から呼べるようにするための共通化）、新設した`triggerLockEffect(cardId, location)`が①`spawnArrivalBurst`を即座に呼び、②`setTimeout(650ms)`後にロック効果音を再生しつつカード上の`.lock-stamp`へ`.is-locking`クラス（拡大登場アニメーション）を付与する、という2段構成にした。
+  - **ロック画像はロックされている間ずっと表示され続ける仕様にした**（`buildFlatCard()`が`location.zone === "lock"`かつカード自身が白黒（無色）以外の色の間、常に`.lock-stamp`を描画する。無色カードを「置く」ことはルール上ロックにならないため、既存の`announceCardLocked`と同じ除外条件を踏襲）。
+  - **到達バースト（柱）とロック画像のタイミングは重ねる方式にした**（バーストの再生中、650ms経過した時点でロック画像の登場アニメーションが始まる）。
+  - **ユーザーへの確認事項（未回答のため、こちらの判断で上記2点を選択済み）**: 「ロック画像は登場演出だけで数秒後に消えるか、ずっと表示され続けるか」「到達効果が完全に終わってからロック画像を出すか、途中から重ねて出すか」の2問を尋ねたが回答が無かったため、それぞれ「ずっと表示」「重ねて表示（650ms時点で開始）」という、こちらの推奨案の方を選んで実装した。見た目が意図と違う場合は、`main.js`の`triggerLockEffect`内の`650`という遅延値、または`buildFlatCard`の`.lock-stamp`常時描画条件を調整すれば変更できる。
+  - ブラウザでの検証: 手札の赤カードをロックスロットへドラッグ&ドロップし、`card-place.mp3`→（柱状バースト表示開始）→約650ms後に`lock.mp3`再生+`.is-locking`付与→約600ms後に`.is-locking`除去（アニメーション終了）→約1400ms時点でバースト要素が自己削除→`.lock-stamp`はopacity:1のまま残り続ける、という一連の流れを`window.Audio`の差し替え・DOMポーリングで実測し、設計通りであることを確認済み。
+
 ## 未確認・要フォローアップ
 
 - 親フォルダ（Googleドライブ）直下に以下の関連しそうなファイル・フォルダがあるが、中身は未確認：

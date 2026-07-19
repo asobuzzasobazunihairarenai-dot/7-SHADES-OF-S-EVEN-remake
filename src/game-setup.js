@@ -44,7 +44,9 @@ function activePlayersOrdered() {
 
 // スタートプレイヤー発表にのみ使う、シンプルなbackdrop+モーダル（外側クリック・✕ボタンの
 // 両方で閉じられる、ui-helpers.jsの共通部品を使う）。
-function buildSimpleModal({ widthRem = 24 } = {}) {
+// fadeIn:trueにすると、いきなり表示せず少し溜めてからフェードインする
+// （スタートプレイヤー決定のような「発表」演出に重みを持たせるため）。
+function buildSimpleModal({ widthRem = 24, fadeIn = false } = {}) {
   const modal = document.createElement("div");
   modal.style.cssText = `
     position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -59,13 +61,27 @@ function buildSimpleModal({ widthRem = 24 } = {}) {
   };
   const backdrop = createBackdrop(close, { zIndex: 10001 });
   modal.appendChild(createModalCloseX(close));
+  if (fadeIn) {
+    backdrop.style.opacity = "0";
+    modal.style.opacity = "0";
+    modal.style.transition = "opacity 0.7s ease";
+    backdrop.style.transition = "opacity 0.7s ease";
+  }
   document.body.appendChild(backdrop);
   document.body.appendChild(modal);
+  if (fadeIn) {
+    // 「パッと」ではなく一呼吸置いてから見せたいので、appendの直後ではなく
+    // 少し溜めてからフェードインを開始する。
+    setTimeout(() => {
+      backdrop.style.opacity = "1";
+      modal.style.opacity = "1";
+    }, 500);
+  }
   return { backdrop, modal, close };
 }
 
 function showStartPlayerModal(player) {
-  const { modal } = buildSimpleModal({ widthRem: 20 });
+  const { modal } = buildSimpleModal({ widthRem: 20, fadeIn: true });
   const title = document.createElement("div");
   title.style.cssText = "font-weight: bold; margin-bottom: 0.6rem; font-size: 0.95rem;";
   title.textContent = "３：スタートプレイヤー決定";

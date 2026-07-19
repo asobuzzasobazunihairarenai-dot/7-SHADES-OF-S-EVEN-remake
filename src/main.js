@@ -327,6 +327,18 @@ function buildFlatCard(token) {
     const cardColor = getCardDefinition(token.cardId).color;
     card.style.setProperty("--usable-locked-color", `var(--color-${cardColor})`);
   }
+  // ロックされている間は常に「ロック」スタンプを重ねて表示する（真新しくロックされた瞬間
+  // だけ、triggerLockEffect()が.is-lockingを付けて拡大しながら現れるアニメーションにする）。
+  // 白黒（無色）カードは置いてもルール上ロック扱いではないため対象外（maybeAnnounceLockと
+  // 同じ判定基準）。
+  if (token.location.zone === "lock") {
+    const def = getCardDefinition(token.cardId);
+    if (def.color !== "white" && def.color !== "black") {
+      const stamp = document.createElement("div");
+      stamp.className = "lock-stamp";
+      card.appendChild(stamp);
+    }
+  }
   return card;
 }
 
@@ -370,18 +382,11 @@ function hasPieceAt(location) {
   });
 }
 
-// 到達演出一式（右上モーダル＋そのマス自体が発光する柱状のオーラ＋効果音）をまとめて行う。
-// 柱の色はカード自身の色に合わせる（--color-*をそのまま使う）。枠の縁取り(.arrival-effect-frame)
-// ＋太さの違う柱3本(.arrival-effect-flame系、CSS側でタイミング・幅をずらして重ねてある)＋
-// 根本の光の輪(.arrival-effect-ring)の3層構成で、CSSアニメーションが終わる頃
-// （一番長いものでも1.3s）に合わせてまとめてDOMから消す。
-function triggerCardArrival(cardId, location) {
-  showCardArrivalModal(cardId);
-  playSound("arrivalEffect");
-  const table = document.getElementById("game-table");
-  const hostEl = findLocationElement(table, location);
-  if (!hostEl) return;
-  const color = getCardDefinition(cardId).color;
+// そのマス/ロックスロット自体が指定色で発光する柱状のオーラ演出（枠の縁取り
+// .arrival-effect-frame＋太さの違う柱3本.arrival-effect-flame系＋根本の光の輪
+// .arrival-effect-ring の3層構成）。到達演出・ロック演出の両方から流用する共通部分。
+// CSSアニメーションが終わる頃（一番長いものでも1.3s）に合わせてまとめてDOMから消す。
+function spawnArrivalBurst(hostEl, color) {
   const burst = document.createElement("div");
   burst.className = "arrival-effect-burst";
   burst.style.setProperty("--arrival-effect-color", `var(--color-${color})`);
@@ -400,6 +405,40 @@ function triggerCardArrival(cardId, location) {
 
   hostEl.appendChild(burst);
   setTimeout(() => burst.remove(), 1400);
+  return burst;
+}
+
+// 到達演出一式（右上モーダル＋そのマス自体が発光する柱状のオーラ＋効果音）をまとめて行う。
+// 柱の色はカード自身の色に合わせる（--color-*をそのまま使う）。
+function triggerCardArrival(cardId, location) {
+  showCardArrivalModal(cardId);
+  playSound("arrivalEffect");
+  const table = document.getElementById("game-table");
+  const hostEl = findLocationElement(table, location);
+  if (!hostEl) return;
+  const color = getCardDefinition(cardId).color;
+  spawnArrivalBurst(hostEl, color);
+}
+
+// カードが新しくロックされた瞬間の演出。到達演出と同じ柱状のオーラをそのマスに流用し、
+// その後半（燃え盛っている途中）にロックスタンプ画像がカード中心を起点に拡大しながら
+// 重なって現れる、というのをロック効果音とあわせて行う（ユーザー指定の順序・演出）。
+// 白黒（無色）カードは呼び出し元(maybeAnnounceLock)側で既に除外済み。
+function triggerLockEffect(cardId, location) {
+  const table = document.getElementById("game-table");
+  const hostEl = findLocationElement(table, location);
+  if (!hostEl) return;
+  const color = getCardDefinition(cardId).color;
+  spawnArrivalBurst(hostEl, color);
+  setTimeout(() => {
+    playSound("lock");
+    const cardEl = hostEl.querySelector(".board-card");
+    const stamp = cardEl ? cardEl.querySelector(".lock-stamp") : null;
+    if (stamp) {
+      stamp.classList.add("is-locking");
+      stamp.addEventListener("animationend", () => stamp.classList.remove("is-locking"), { once: true });
+    }
+  }, 650);
 }
 
 // 駒がカードの上に乗った瞬間の演出。表向きのカードならそのまま到達モーダルを表示する。
@@ -1244,16 +1283,19 @@ function findDropTarget(clientX, clientY, kind) {
   return null;
 }
 
-// カードが新しくロックエリアに入った瞬間だけ「ロックした」トーストを出す
-// （wasAlreadyLocked=trueならロックエリア内で位置を動かしただけなので対象外）。
-// 白黒（無色）カードをロックエリアへ「置く」ことはルール上ロックしたことにはならない
-// （docs/cards.mdの黒カード補足参照）ため、その2色は除外する。
+// カードが新しくロックエリアに入った瞬間だけ「ロックした」トースト＋ロック演出
+// （柱状のオーラ流用＋ロックスタンプの拡大登場＋効果音）を出す（wasAlreadyLocked=trueなら
+// ロックエリア内で位置を動かしただけなので対象外）。白黒（無色）カードをロックエリアへ
+// 「置く」ことはルール上ロックしたことにはならない（docs/cards.mdの黒カード補足参照）ため、
+// その2色は除外する。ロック演出はそのマスのDOM要素（render()済みであること）が必要なため、
+// この関数はrender()の後に呼ぶこと。
 function maybeAnnounceLock(dropTarget, cardId, wasAlreadyLocked) {
   if (!dropTarget || dropTarget.zone !== "lock" || wasAlreadyLocked) return;
   const def = getCardDefinition(cardId);
   if (!def || def.color === "white" || def.color === "black") return;
   const player = SIDE_TO_SEAT[dropTarget.side];
   announceCardLocked(player, cardId);
+  triggerLockEffect(cardId, dropTarget);
 }
 
 function onDragEnd(e) {
@@ -1273,6 +1315,9 @@ function onDragEnd(e) {
     // 山からは手札だけでなく盤面マス・ロックスロットへも直接置ける（ルール適用なしの自由な
     // 移動のため）。ただし山(pile)自体へは置けない——山は個々のカードを保持せず残り枚数
     // だけを持つ構造なので、"zone: pile"を新しいカードの置き場所にはできない。
+    // ロック演出はそのマスのDOM要素が必要なため、render()の後で呼ぶ（lockAnnounceCardIdに
+    // 一旦覚えておく）。
+    let lockAnnounceCardId = null;
     if (dropTarget && dropTarget.zone !== "pile") {
       // drawFromPile()が山の中身を書き換えてしまう前に、一番上のカードを確認しておく
       // （捨て場からの取得は元々表向きに積まれている＝公開情報、山札/エターナル/ファーストは
@@ -1290,14 +1335,15 @@ function onDragEnd(e) {
       } else {
         drawFromPile(pileSource, dropTarget);
         if (cardId) {
-          maybeAnnounceLock(dropTarget, cardId, false);
           playSound("cardPlace");
+          lockAnnounceCardId = cardId;
         }
       }
     }
     render(); // 引けた場合も引けなかった場合も、必ず再描画する（drawFromPile後にrenderし忘れると
     // 状態は更新済みなのに画面に反映されず、次に別の操作でrender()が走った時にまとめて
     // 反映されたように見えるバグになる。これが実際に起きていたので、必ずここで呼ぶ）。
+    if (lockAnnounceCardId) maybeAnnounceLock(dropTarget, lockAnnounceCardId, false);
     return;
   }
 
@@ -1325,11 +1371,11 @@ function onDragEnd(e) {
     const token = getState().tokens.find((t) => t.id === tokenId);
     const wasAlreadyLocked = !!token && token.location.zone === "lock";
     moveToken(tokenId, dropTarget);
-    if (token) maybeAnnounceLock(dropTarget, token.cardId, wasAlreadyLocked);
     if (kind === "card") playSound("cardPlace");
     render();
-    // 到達プロンプト/モーダルの位置決めに駒の実際のDOM座標(getBoundingClientRect)を使うため、
-    // render()で盤面を描き直した後でなければ呼べない。
+    // 到達プロンプト/モーダル・ロック演出の位置決めに実際のDOM座標(getBoundingClientRect)を
+    // 使うため、どちらもrender()で盤面を描き直した後でなければ呼べない。
+    if (token) maybeAnnounceLock(dropTarget, token.cardId, wasAlreadyLocked);
     if (kind === "piece") maybeTriggerCardArrival(dropTarget, tokenId);
     return;
   }

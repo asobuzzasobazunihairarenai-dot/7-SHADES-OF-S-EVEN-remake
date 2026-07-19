@@ -372,6 +372,44 @@ body {
   transform: rotate(-90deg);
 }
 
+/* ロックされている間、カードの上に常時重ねる「ロック」スタンプ画像
+   （画像素材/ロック/、assets/lock-icon.pngにコピー）。白黒（無色）カードは
+   ルール上ロック扱いではないため、buildFlatCard側でこのスタンプ自体を付けない。
+   新しくロックされた瞬間だけ.is-lockingが付き、カード中心を起点に拡大しながら
+   現れるアニメーションが入る（main.jsのtriggerLockEffect参照）。 */
+.lock-stamp {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 55%;
+  height: 55%;
+  transform: translate(-50%, -50%) scale(1);
+  background-image: url("../assets/lock-icon.png");
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 0.1rem 0.3rem rgba(0, 0, 0, 0.7));
+  pointer-events: none;
+  z-index: 16;
+}
+.lock-stamp.is-locking {
+  animation: lock-stamp-appear 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes lock-stamp-appear {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0;
+  }
+  70% {
+    transform: translate(-50%, -50%) scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+
 /* ドラッグ中、今離すとどこに置かれるかを示すハイライト。findDropTarget()が返す実際の対象
    要素(.cell/.lock-slot/.hand-area/.pile-zone)にmain.js側でこのクラスを付け外しするだけで、
    レイアウトには一切影響しない。ゲームの色(--color-*)と紛れないよう、黄金色で統一する。 */
@@ -2023,6 +2061,7 @@ body {
   --sound-volume-card-place: 80;
   --sound-volume-card-draw: 80;
   --sound-volume-arrival-effect: 80;
+  --sound-volume-lock: 80;
 }
 
 /* 駒がカードに到達した瞬間、そのマス/ロックスロット自体がカードの色で発光する演出

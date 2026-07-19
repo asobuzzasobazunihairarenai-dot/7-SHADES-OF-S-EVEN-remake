@@ -11,6 +11,7 @@ const SOUND_DEFS = {
   cardPlace: { path: "assets/sounds/card-place.mp3", cssVar: "--sound-volume-card-place" },
   cardDraw: { path: "assets/sounds/card-draw.mp3", cssVar: "--sound-volume-card-draw" },
   arrivalEffect: { path: "assets/sounds/arrival-effect.mp3", cssVar: "--sound-volume-arrival-effect" },
+  lock: { path: "assets/sounds/lock.mp3", cssVar: "--sound-volume-lock" },
 };
 
 // マスター音量（0〜1）。オプションメニューの「基本設定」から調整できる。
