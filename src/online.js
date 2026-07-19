@@ -17,6 +17,7 @@ import {
   setOnlineTransport,
   hydrateState,
   isOnlineMode,
+  notifyListeners,
 } from "./state.js";
 
 // state.jsの方が唯一の真実（main.jsも同じ関数をstate.jsから直接importして使う）。
@@ -48,7 +49,14 @@ export function isOnlineAvailable() {
 
 export async function signInWithMagicLink(email) {
   if (!client) throw new Error("Supabaseクライアントが初期化されていません");
-  const { error } = await client.auth.signInWithOtp({ email });
+  // Supabase側の「Site URL」は姉妹プロジェクト（戦績管理システム）用のポートに設定されて
+  // いるため、明示的に「今開いているこのページ」を戻り先として指定する（ホスト/ポートが
+  // 変わっても常に正しく動くように）。ただしこのURLはSupabaseダッシュボード
+  // 「Authentication > URL Configuration」のRedirect URLs欄で許可されている必要がある。
+  const { error } = await client.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.href },
+  });
   if (error) throw error;
 }
 
@@ -222,5 +230,9 @@ function subscribeToGame(gameId) {
     .subscribe();
   setOnlineMode(true);
   setOnlineTransport(callAction);
+  // fetchAndHydrate()（ネットワーク往復あり）を待たず、この場で即座に再描画を強制する。
+  // これが無いと、部屋に参加した直後のわずかな間だけ、まだisOnlineMode()が反映される前の
+  // 画面（セットアップウィザード等のローカル専用ボタンがまだ押せる状態）が残ってしまう。
+  notifyListeners();
   fetchAndHydrate(gameId).catch((err) => console.error("fetchAndHydrate failed", err));
 }

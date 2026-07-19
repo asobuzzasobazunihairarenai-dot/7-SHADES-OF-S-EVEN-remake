@@ -131,6 +131,15 @@ export function hydrateState(newState) {
   for (const fn of listeners) fn(state);
 }
 
+// stateの中身は変えず、listeners（main.jsのrender()）にだけ「今すぐ再描画して」と伝える。
+// setOnlineMode(true)の直後にonline.jsが呼ぶことで、サーバーからの最初の取得（非同期・
+// ネットワーク往復あり）を待たずに、その場でセットアップウィザード等のボタンを隠す
+// （body.is-online-modeクラスの反映）ようにするため。これが無いと、部屋に参加した直後の
+// わずかな間だけローカル専用のボタンがまだ押せてしまうことがあった。
+export function notifyListeners() {
+  for (const fn of listeners) fn(state);
+}
+
 // 新しく盤面に現れるカード（手札から出す、山から引く）の表裏を決める。
 // 手札に加わる時は持ち主本人（A）にだけ見える表向き、ロックエリアは物理ルール通り原則
 // 表向き（「ロックする：カード1枚を...表向きで置くこと」）、それ以外（盤面マスへ新規に
