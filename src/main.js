@@ -15,7 +15,8 @@ import { getSelectedPlaymatPath } from "./playmat.js";
 import { isLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible } from "./lock-color.js";
 import { showCardArrivalModal } from "./card-arrival.js";
-import { getState, moveToken, sendTokenToPile, drawFromPile, flipToken, nextTurn, refillDeckFromDiscard } from "./state.js";
+import { getState, moveToken, sendTokenToPile, drawFromPile, flipToken, shuffleHand, nextTurn, refillDeckFromDiscard } from "./state.js";
+import { playSound } from "./sound.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import { COLORS, GATE_POSITIONS, SEAT_TO_SIDE, SIDE_TO_SEAT } from "./board-layout.js";
 
@@ -372,7 +373,10 @@ function maybeTriggerCardArrival(dropTarget, kind) {
   if (kind !== "piece" || !dropTarget) return;
   const card = findTopCardAt(dropTarget);
   if (!card) return;
-  if (!card.faceUp) flipToken(card.id);
+  if (!card.faceUp) {
+    flipToken(card.id);
+    playSound("cardFlip");
+  }
   showCardArrivalModal(card.cardId);
 }
 
@@ -963,6 +967,7 @@ function initDragHandlers() {
         // 到達モーダルの対象にする（表向き→裏向きに戻す方向の時は対象外）。
         const cardToken = getState().tokens.find((t) => t.id === hit.tokenId);
         flipToken(hit.tokenId);
+        playSound("cardFlip");
         if (cardToken && !cardToken.faceUp && hasPieceAt(cardToken.location)) {
           showCardArrivalModal(cardToken.cardId);
         }
@@ -1143,7 +1148,10 @@ function onDragEnd(e) {
         }
       } else {
         drawFromPile(pileSource, dropTarget);
-        if (cardId) maybeAnnounceLock(dropTarget, cardId, false);
+        if (cardId) {
+          maybeAnnounceLock(dropTarget, cardId, false);
+          playSound("cardPlace");
+        }
       }
     }
     render(); // 引けた場合も引けなかった場合も、必ず再描画する（drawFromPile後にrenderし忘れると
@@ -1177,6 +1185,7 @@ function onDragEnd(e) {
     const wasAlreadyLocked = !!token && token.location.zone === "lock";
     moveToken(tokenId, dropTarget);
     if (token) maybeAnnounceLock(dropTarget, token.cardId, wasAlreadyLocked);
+    if (kind === "card") playSound("cardPlace");
     maybeTriggerCardArrival(dropTarget, kind);
   }
   render();
@@ -1281,6 +1290,23 @@ function buildBoardZoomButton() {
     btn.classList.toggle("is-active", boardZoomLevel > 0);
     btn.classList.toggle("is-zoom-2", boardZoomLevel === 2);
     btn.textContent = BOARD_ZOOM_LABELS[boardZoomLevel];
+  });
+  document.body.appendChild(btn);
+  return btn;
+}
+
+// --- 「手札シャッフル」ボタン ------------------------------------------------------
+// 自分(A)の手札の並び順をシャッフルする（カードの中身自体は変わらない、見た目上の
+// 並び替え演出）。turnPlayerの有無に関係なく常に使える表示上の機能なので、盤面拡大と
+// 同じく非表示にする条件は無い。
+function buildHandShuffleButton() {
+  const btn = document.createElement("button");
+  btn.id = "hand-shuffle-button";
+  btn.textContent = "🔀 手札シャッフル";
+  btn.addEventListener("click", () => {
+    shuffleHand("A");
+    playSound("handShuffle");
+    render();
   });
   document.body.appendChild(btn);
   return btn;
@@ -1475,6 +1501,7 @@ endTurnButtonEl = buildEndTurnButton();
 drawButtonEl = buildDrawButton();
 selfHandStatusEl = buildSelfHandStatus();
 buildBoardZoomButton();
+buildHandShuffleButton();
 render();
 initDragHandlers();
 initHoverHandlers();

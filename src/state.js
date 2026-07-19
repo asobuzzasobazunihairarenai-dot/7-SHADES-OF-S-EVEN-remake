@@ -147,6 +147,20 @@ function reduce(current, action) {
       const newToken = { id: uid("card"), kind: "card", cardId, faceUp, location: action.location };
       return { ...current, piles, tokens: [...current.tokens, newToken] };
     }
+    // 自分の手札を並べ替える（画面左下の「手札シャッフル」ボタン）。カード自体の入れ替わりは
+    // 無い（顔ぶれは変わらない）ので、どのカードを持っているかを推測されにくくする、
+    // 見た目上の並び替え演出。handTokens内の相対順だけをシャッフルし、他のトークンとの
+    // 配列内の相対位置（＝盤面上の重なり順）には影響させない。
+    case "SHUFFLE_HAND": {
+      const handTokens = current.tokens.filter(
+        (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === action.player
+      );
+      if (handTokens.length < 2) return current;
+      const others = current.tokens.filter(
+        (t) => !(t.kind === "card" && t.location.zone === "hand" && t.location.player === action.player)
+      );
+      return { ...current, tokens: [...others, ...shuffled(handTokens)] };
+    }
     case "FLIP_TOKEN": {
       const tokens = current.tokens.map((t) =>
         t.id === action.tokenId && t.kind === "card" ? { ...t, faceUp: !t.faceUp } : t
@@ -350,6 +364,10 @@ export function drawFromPile(pile, location) {
 
 export function flipToken(tokenId) {
   dispatch({ type: "FLIP_TOKEN", tokenId });
+}
+
+export function shuffleHand(player) {
+  dispatch({ type: "SHUFFLE_HAND", player });
 }
 
 export function resetGame() {

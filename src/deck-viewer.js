@@ -157,6 +157,7 @@ function buildPanel(close) {
 
 function buildToggleButton(open) {
   const btn = document.createElement("button");
+  btn.className = "header-tool-button";
   btn.textContent = "📋 山札一覧";
   btn.style.cssText = `
     position: fixed; top: 1rem; right: 1rem; z-index: 1001;

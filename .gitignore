@@ -1,8 +1,10 @@
 *.pdf
 /*.txt
 /画像素材/
+/音声/
 /assets/playmat.png
 /assets/playmats/
 /assets/cards/
 /assets/pieces/
 /assets/lock-area-bar.png
+/assets/sounds/

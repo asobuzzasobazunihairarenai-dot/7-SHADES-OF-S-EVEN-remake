@@ -85,6 +85,7 @@ export function initOptionsMenu() {
 
   const toggleBtn = document.createElement("button");
   toggleBtn.id = "options-menu-button";
+  toggleBtn.className = "header-tool-button";
   toggleBtn.textContent = "⚙ オプション";
   toggleBtn.addEventListener("click", open);
 

@@ -304,6 +304,7 @@ function buildPanel(close) {
 
 function buildToggleButton(open) {
   const btn = document.createElement("button");
+  btn.className = "header-tool-button";
   btn.textContent = "🎲 セットアップ";
   btn.style.cssText = `
     position: fixed; top: 3.4rem; right: 1rem; z-index: 1001;

@@ -1306,6 +1306,16 @@ body {
    開いている間non-displayにするが、無関係な他のボタンまでは考慮しないため）。
    オプションボタン自体は「自分の担当パネルさえ開いていなければ常に見える」でよいので、
    他のパネル群より明確に低いz-indexにして、開いているパネルの下に自然と隠れるようにした。 */
+/* 右上に積むボタン群（山札一覧・セットアップ・オプション）の共通サイズ。ラベルの文字数が
+   バラバラでも見た目の横幅が揃うよう、幅を固定して中央寄せにする（山札一覧/セットアップの
+   トグルボタンはdeck-viewer.js/game-setup.jsでinline style.cssTextとして定義されているため、
+   このクラスを付けて共通化する）。 */
+.header-tool-button {
+  min-width: 8rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
 #options-menu-button {
   position: fixed;
   top: 5.8rem;
@@ -1391,6 +1401,17 @@ body {
   background: linear-gradient(160deg, #22d3ee, #0e7490);
 }
 
+/* 右下に積むボタン群（1枚ドロー・盤面拡大・手札シャッフル）の共通サイズ。ラベルの文字数が
+   バラバラでも見た目の横幅が揃うよう、幅を固定して中央寄せにする（#end-turn-buttonは
+   プレイヤー名が入り長さが可変なので、あえてこのグループには含めない）。 */
+#draw-button,
+#board-zoom-button,
+#hand-shuffle-button {
+  min-width: 9.5rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
 /* 「盤面拡大」ボタン。#draw-buttonのさらに上に積む（駒スキンボタンは左下の自分専用
    ステータスエリアに統合したため、このスタックからは無くなった）。常時表示
    （turnPlayerの有無に関係なく使える）。オンの間は色を変えて「今拡大中」であることを示す。 */
@@ -1425,6 +1446,27 @@ body {
 }
 #board-zoom-button.is-zoom-2:hover {
   background: linear-gradient(160deg, #fb923c, #c2660a);
+}
+
+/* 「手札シャッフル」ボタン。#board-zoom-buttonのさらに上に積む。常時表示。 */
+#hand-shuffle-button {
+  position: fixed;
+  bottom: 10.8rem;
+  right: 1.2rem;
+  z-index: 1000;
+  padding: 0.6rem 1.1rem;
+  background: linear-gradient(160deg, #a855f7, #6b21a8);
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  font-weight: bold;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+#hand-shuffle-button:hover {
+  background: linear-gradient(160deg, #c084fc, #7e22ce);
 }
 
 /* 駒スキン選択モーダル。 */
@@ -1625,28 +1667,47 @@ body {
   border-color: #7dd3fc;
 }
 
-/* 駒がカードの上に乗った（到達した）ことを知らせる、画面中央に大きく出る一時的なモーダル。
-   裏向きのカードだった場合は先に自動でオープンしてから表示される（main.js/card-arrival.js参照）。
-   数秒で自動的に消える。サイズ・表示時間は管理者モードで調整できる
-   （--card-arrival-modal-size・--card-arrival-modal-duration）。 */
+/* 駒がカードの上に乗った（到達した）ことを知らせる一時的なモーダル。画面右上（右上に既にある
+   山札一覧/セットアップ/オプションのボタン列より下）に固定表示する。中央に表示すると
+   盤面中央の駒がモーダルに隠れてしまい「駒がそのカードに乗っている姿」を確認できないため、
+   あえて盤面から外れた位置に固定した。裏向きのカードだった場合は先に自動でオープンしてから
+   表示される（main.js/card-arrival.js参照）。数秒で自動的に消えるが、内側の「📌 消えないように
+   する」ボタンでその場に留めることもできる（✕でいつでも閉じられる）。サイズ・表示時間は
+   管理者モードで調整できる（--card-arrival-modal-size・--card-arrival-modal-duration）。 */
 :root {
   --card-arrival-modal-size: 20rem;
   --card-arrival-modal-duration: 3; /* 秒 */
 }
 .card-arrival-modal {
   position: fixed;
-  top: 50%;
-  left: 50%;
+  top: 8.5rem;
+  right: 1rem;
   z-index: 10600;
   width: var(--card-arrival-modal-size);
-  transform: translate(-50%, -50%) scale(0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  background: rgba(15, 23, 32, 0.5);
+  border-radius: 0.8rem;
+  transform-origin: top right;
+  transform: scale(0.85);
   opacity: 0;
-  pointer-events: none;
+  pointer-events: auto;
   transition: opacity 0.3s ease, transform 0.3s ease;
 }
 .card-arrival-modal.show {
   opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
+  transform: scale(1);
+}
+.card-arrival-modal-label {
+  font-family: sans-serif;
+  font-weight: bold;
+  font-size: 1.2rem;
+  letter-spacing: 0.2em;
+  color: #fbbf24;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
 }
 .card-arrival-modal img {
   width: 100%;
@@ -1654,6 +1715,19 @@ body {
   border-radius: 0.6rem;
   border: 2px solid rgba(255, 255, 255, 0.8);
   box-shadow: 0 1.2rem 3rem rgba(0, 0, 0, 0.7);
+}
+.card-arrival-modal-pin {
+  padding: 0.35rem 0.9rem;
+  background: rgba(15, 23, 32, 0.85);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-family: sans-serif;
+  font-size: 0.75rem;
+}
+.card-arrival-modal-pin:hover {
+  background: rgba(56, 189, 248, 0.2);
 }
 
 /* カードが手札に加わった時の「何をゲットしたか」トースト。#end-turn-button・#draw-button・
@@ -1666,7 +1740,7 @@ body {
 }
 .hand-pickup-toast {
   position: fixed;
-  bottom: 10.8rem;
+  bottom: 14rem; /* #hand-shuffle-button（bottom: 10.8rem）の上に出るよう積み増した */
   right: 1.2rem;
   z-index: 10500;
   max-width: calc(20rem * var(--hand-pickup-toast-scale));
