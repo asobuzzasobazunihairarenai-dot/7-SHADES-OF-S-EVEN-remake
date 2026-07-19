@@ -31,7 +31,7 @@ import {
   isOnlineMode,
 } from "./state.js";
 import { initOnlineUi, openOnlinePanel } from "./online-ui.js";
-import { getSelfSeat } from "./online.js";
+import { getSelfSeat, getCachedUser, getCurrentGameId, onAuthChange } from "./online.js";
 import { playSound } from "./sound.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import { COLORS, GATE_POSITIONS, SEAT_TO_SIDE, SIDE_TO_SEAT } from "./board-layout.js";
@@ -630,6 +630,7 @@ function render() {
   // オンライン対戦（第一弾）ではまだサーバー側にポートしていないアクション（セットアップ
   // ウィザード・クイックスタート・手札シャッフル）に繋がるボタンを隠す（style.css参照）。
   document.body.classList.toggle("is-online-mode", isOnlineMode());
+  updateOnlineButtonLabel();
   const table = document.getElementById("game-table");
   table.innerHTML = "";
   // arena（プレイマット画像を含む）を最初に追加する＝DOM順で一番背面にする。
@@ -1521,6 +1522,8 @@ async function onDragEnd(e) {
 // --- オンライン対戦（第一弾・最小構成）の入り口ボタン -------------------------------
 // 右上のヘッダーツールボタン列（山札一覧1.8rem→セットアップ4.2rem→オプション6.6rem→
 // クイックスタート9rem）の下、余裕を持たせた位置に置く。
+let onlineButtonEl = null;
+
 function buildOnlineButton() {
   const btn = document.createElement("button");
   btn.id = "online-toggle-button";
@@ -1533,7 +1536,23 @@ function buildOnlineButton() {
     font-family: sans-serif; font-size: 0.75rem;
   `;
   btn.addEventListener("click", openOnlinePanel);
+  onlineButtonEl = btn;
   return btn;
+}
+
+// ログイン中かどうか・どの部屋にいるかを、パネルを開かなくてもボタンのラベルだけで
+// さりげなく分かるようにする（ユーザー提案）。render()のたびに呼ばれるが、
+// getCachedUser()/getCurrentGameId()はどちらも同期・軽量なのでawait不要。
+function updateOnlineButtonLabel() {
+  if (!onlineButtonEl) return;
+  const gameId = getCurrentGameId();
+  if (gameId) {
+    onlineButtonEl.textContent = `🌐 部屋:${gameId}`;
+  } else if (getCachedUser()) {
+    onlineButtonEl.textContent = "🌐 ログイン中";
+  } else {
+    onlineButtonEl.textContent = "🌐 オンライン";
+  }
 }
 
 // --- ターンを次のプレイヤーへ渡すボタン ---------------------------------------------
@@ -2017,3 +2036,8 @@ updateTurnRoundCounter();
 subscribe(render);
 initOnlineUi();
 document.body.appendChild(buildOnlineButton());
+// ログイン/ログアウト直後は部屋の作成・参加を伴わない（＝state.js側のnotifyListeners()が
+// 発火しない）ことがあるため、オンラインボタンのラベルを常に最新に保つには
+// online.js自身のonAuthChangeも別途subscribeしておく必要がある。
+onAuthChange(render);
+updateOnlineButtonLabel();

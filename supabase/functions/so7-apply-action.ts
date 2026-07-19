@@ -386,9 +386,10 @@ Deno.serve(async (req) => {
 
     const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // 座席確認: 呼び出し元がこのゲームのいずれかの座席を持っているか。BOOTSTRAP_GAMEは
-    // 部屋作成直後・座席登録の流れの中で叩く想定だが、それでも「座席を持っている」ことは
-    // 変わらず要求する（部屋を作った人が最初の座席Aを登録してから呼ぶ、という流れにする）。
+    // 部屋の参加確認: 呼び出し元がこの部屋に参加しているか（so7_game_seatsに行があるか）。
+    // 参加した時点ではまだ座席(seat)は決まっていない（「ゲームを開始する」を押した瞬間に
+    // ランダムに割り振られる）ため、BOOTSTRAP_GAME以外のアクションだけ、実際に座席が
+    // 割り当て済み（seatがnullでない）ことも追加で要求する。
     const { data: seatRow } = await db
       .from("so7_game_seats")
       .select("seat")
@@ -396,9 +397,37 @@ Deno.serve(async (req) => {
       .eq("user_id", userId)
       .maybeSingle();
     if (!seatRow) return json({ ok: false, error: "not_seated" }, 403);
+    if (action.type !== "BOOTSTRAP_GAME" && !seatRow.seat) {
+      return json({ ok: false, error: "no_seat_assigned" }, 403);
+    }
+
+    let effectiveAction = action;
+    if (action.type === "BOOTSTRAP_GAME") {
+      // 参加時は座席を選ばせていないため、ここで部屋の参加者全員(so7_game_seats)を集めて
+      // ランダムに座席(A/B/C/D、最大4人)を割り振り、書き戻す。ゲームロジック(reduce)の
+      // BOOTSTRAP_GAMEケース自体は既存のまま（players引数を要求する形）なので、ここで
+      // 組み立てたplayersを差し込む。
+      const { data: memberRows, error: memberErr } = await db.from("so7_game_seats").select("user_id").eq("game_id", gameId);
+      if (memberErr) return json({ ok: false, error: memberErr.message }, 500);
+      const memberIds = (memberRows ?? []).map((r: any) => r.user_id as string);
+      if (memberIds.length < 2) return json({ ok: false, error: "not_enough_players" }, 400);
+
+      const shuffledIds = shuffled(memberIds).slice(0, SEAT_ORDER.length);
+      const assignments = shuffledIds.map((uid, i) => ({ userId: uid, seat: SEAT_ORDER[i] }));
+      for (const a of assignments) {
+        const { error: updErr } = await db
+          .from("so7_game_seats")
+          .update({ seat: a.seat })
+          .eq("game_id", gameId)
+          .eq("user_id", a.userId);
+        if (updErr) return json({ ok: false, error: updErr.message }, 500);
+      }
+      const players = assignments.map((a) => ({ player: a.seat, side: SEAT_TO_SIDE[a.seat] }));
+      effectiveAction = { ...action, players };
+    }
 
     const { state: current, version } = await loadState(db, gameId);
-    const next = reduce(current, action);
+    const next = reduce(current, effectiveAction);
 
     // BOOTSTRAP_GAMEのeternal placeholderを正しい構成に差し替える
     // （reduce()内で仮の値を入れているのはETERNAL_CARD_IDSの定義位置の都合のため）。

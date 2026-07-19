@@ -23,7 +23,6 @@ import {
 // state.jsの方が唯一の真実（main.jsも同じ関数をstate.jsから直接importして使う）。
 // ここでは呼び出し側（online-ui.js）の利便性のためだけに再エクスポートする。
 export { isOnlineMode };
-import { SEAT_TO_SIDE, SEAT_ORDER } from "./board-layout.js";
 
 const SUPABASE_URL = "https://prnddzrnblfysggiuzmo.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_YFYWr0FghhXbrqNQJ9Jzgw_hu31kvw9";
@@ -143,9 +142,17 @@ export function onAuthChange(fn) {
     authChangeListeners = authChangeListeners.filter((f) => f !== fn);
   };
 }
+// main.jsのヘッダーボタン（「🌐 オンライン」）のラベルを、ログイン状態が分かるように
+// 動的に変える時など、awaitせず同期的に「今ログイン中かどうか」を知りたい場面のために
+// キャッシュしておく（getCurrentUser()は毎回サーバーに問い合わせる非同期関数のため）。
+let cachedUser = null;
+export function getCachedUser() {
+  return cachedUser;
+}
 if (client) {
   client.auth.onAuthStateChange((_event, session) => {
-    for (const fn of authChangeListeners) fn(session?.user ?? null);
+    cachedUser = session?.user ?? null;
+    for (const fn of authChangeListeners) fn(cachedUser);
   });
 }
 
@@ -155,7 +162,9 @@ function generateRoomId() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
-// 部屋を新規作成し、作成者自身を座席Aとして登録する。戻り値はroom id（URLの?room=に使う）。
+// 部屋を新規作成し、作成者自身もその部屋に参加する（座席はまだ選ばない/決まらない。
+// 「ゲームを開始する」を押した瞬間にso7-apply-action Edge Function側で参加者全員へ
+// ランダムに割り振られる）。戻り値はroom id（URLの?room=に使う）。
 export async function createRoom() {
   return withLog("部屋の作成", async () => {
     const user = await getCurrentUser();
@@ -163,37 +172,39 @@ export async function createRoom() {
     const gameId = generateRoomId();
     const { error: gameErr } = await client.from("so7_games").insert({ id: gameId });
     if (gameErr) throw gameErr;
-    await claimSeat(gameId, "A");
+    await joinRoom(gameId);
     return gameId;
   });
 }
 
-// 指定した座席で部屋に参加する。既に他の人がその座席を使っていればUNIQUE制約違反になる
-// （so7_game_seatsの unique(game_id, seat)）。
-export async function claimSeat(gameId, seat) {
-  return withLog(`座席${seat}に参加`, async () => {
+// 部屋に参加する（座席は選ばない。1ユーザーにつき1部屋1行、既に参加済みならUNIQUE制約
+// 違反になる）。
+export async function joinRoom(gameId) {
+  return withLog("部屋に参加", async () => {
     const user = await getCurrentUser();
     if (!user) throw new Error("ログインしてください");
-    const { error } = await client.from("so7_game_seats").insert({ game_id: gameId, seat, user_id: user.id });
+    const { error } = await client.from("so7_game_seats").insert({ game_id: gameId, user_id: user.id });
     if (error) {
       if (String(error.message ?? "").includes("duplicate key")) {
-        throw new Error("その座席は既に使われています");
+        throw new Error("既にこの部屋に参加しています");
       }
       throw error;
     }
     currentGameId = gameId;
-    currentSeat = seat;
+    currentSeat = null; // ゲーム開始時にランダムに割り当てられる
     subscribeToGame(gameId);
   });
 }
 
-// 今この部屋に参加済みの座席一覧（{seat, side}の配列、SEAT_ORDER順）を返す。
-// BOOTSTRAP_GAMEのplayers引数や座席選択UIの「空いている席」判定に使う。
-export async function getJoinedSeats(gameId) {
-  const { data, error } = await client.from("so7_game_seats").select("seat").eq("game_id", gameId);
+// 今この部屋に参加している人数（座席未定でもカウントする）。
+// 「ゲームを開始する」ボタンを2人以上揃ってから出す判定に使う。
+export async function getMemberCount(gameId) {
+  const { count, error } = await client
+    .from("so7_game_seats")
+    .select("*", { count: "exact", head: true })
+    .eq("game_id", gameId);
   if (error) throw error;
-  const seats = (data ?? []).map((r) => r.seat);
-  return SEAT_ORDER.filter((s) => seats.includes(s)).map((s) => ({ player: s, side: SEAT_TO_SIDE[s] }));
+  return count ?? 0;
 }
 
 export function getCurrentGameId() {
@@ -206,9 +217,9 @@ export function getMySeat() {
 
 // main.js等の描画側が「自分の手札・自分専用ステータス」をどの座席として扱うかに使う。
 // ローカルモードでは常に"A"（これまでの「1人で全座席を動かす」前提を完全に維持する）。
-// オンラインモードでは実際にclaimSeat()した座席を返す（万一未確定ならフォールバックとして
-// "A"）。getMySeat()はオンラインでない時にnullを返す「部屋UI用の正直な値」として役割を
-// 分けている（部屋パネルの「今の座席」表示に使う）。
+// オンラインモードでは実際に割り当てられた座席を返す（ゲーム開始前や割り当て未反映の間は
+// フォールバックとして"A"）。getMySeat()はオンラインでない時・座席未割り当ての間はnullを
+// 返す「部屋UI用の正直な値」として役割を分けている（部屋パネルの「今の座席」表示に使う）。
 export function getSelfSeat() {
   return isOnlineMode() ? currentSeat || "A" : "A";
 }
@@ -237,13 +248,13 @@ async function callAction(action) {
   });
 }
 
-// ゲーム開始（セットアップウィザードの代わり）。部屋に参加済みの座席を集めて
-// BOOTSTRAP_GAMEを送る。
+// ゲーム開始（セットアップウィザードの代わり）。座席の割り当てはso7-apply-action
+// Edge Function側が部屋の参加者を見てランダムに行う（クライアント側では組み立てない）。
 export async function startGame(gameId, { includeBlackWhite = false } = {}) {
   return withLog("ゲーム開始", async () => {
-    const players = await getJoinedSeats(gameId);
-    if (players.length < 2) throw new Error("2人以上揃ってから開始してください");
-    return callAction({ type: "BOOTSTRAP_GAME", players, includeBlackWhite });
+    const count = await getMemberCount(gameId);
+    if (count < 2) throw new Error("2人以上揃ってから開始してください");
+    return callAction({ type: "BOOTSTRAP_GAME", includeBlackWhite });
   });
 }
 
@@ -254,16 +265,28 @@ export async function startGame(gameId, { includeBlackWhite = false } = {}) {
 // revealedCardIdはここでは扱わない（呼び出し元がcallAction()の戻り値から直接使う）。
 export async function fetchAndHydrate(gameId) {
   return withLog("状態の取得", async () => {
-    const [{ data: gameRow, error: gameErr }, { data: tokenRows, error: tokenErr }, { data: pileRows, error: pileErr }] =
-      await Promise.all([
-        client.from("so7_games").select("*").eq("id", gameId).maybeSingle(),
-        client.from("so7_game_tokens_visible").select("*").eq("game_id", gameId).order("order_index", { ascending: true }),
-        client.from("so7_game_piles_visible").select("*").eq("game_id", gameId),
-      ]);
+    const [
+      { data: gameRow, error: gameErr },
+      { data: tokenRows, error: tokenErr },
+      { data: pileRows, error: pileErr },
+      { data: mySeatRow },
+    ] = await Promise.all([
+      client.from("so7_games").select("*").eq("id", gameId).maybeSingle(),
+      client.from("so7_game_tokens_visible").select("*").eq("game_id", gameId).order("order_index", { ascending: true }),
+      client.from("so7_game_piles_visible").select("*").eq("game_id", gameId),
+      // 参加時点では自分の座席がまだ決まっていない（null）。「ゲームを開始する」が押されて
+      // Edge Function側でランダムに割り当てられた後、この取得のたびに拾い直すことで
+      // 自分の座席を知る（実際に割り当てが反映されるのはBroadcast経由でこの関数が
+      // 再度呼ばれた時）。
+      cachedUser
+        ? client.from("so7_game_seats").select("seat").eq("game_id", gameId).eq("user_id", cachedUser.id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
     if (gameErr) throw gameErr;
     if (tokenErr) throw tokenErr;
     if (pileErr) throw pileErr;
     if (!gameRow) return;
+    if (mySeatRow?.seat) currentSeat = mySeatRow.seat;
 
     const tokens = (tokenRows ?? []).map((r) => {
       const location =

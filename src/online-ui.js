@@ -12,8 +12,8 @@ import {
   getCurrentUser,
   onAuthChange,
   createRoom,
-  claimSeat,
-  getJoinedSeats,
+  joinRoom,
+  getMemberCount,
   getCurrentGameId,
   getMySeat,
   leaveGame,
@@ -22,7 +22,7 @@ import {
   getDebugLog,
 } from "./online.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
-import { SEAT_ORDER } from "./board-layout.js";
+import { subscribe, getState, isOnlineMode } from "./state.js";
 
 let panelEl = null;
 let backdropEl = null;
@@ -226,7 +226,7 @@ function renderRoomChoice(user) {
 
   const joinLabel = document.createElement("div");
   joinLabel.style.cssText = "font-size: 0.85rem; margin-bottom: 0.3rem;";
-  joinLabel.textContent = "部屋コードで参加（座席も選ぶ）:";
+  joinLabel.textContent = "部屋コードで参加:";
   contentEl.appendChild(joinLabel);
 
   const codeInput = document.createElement("input");
@@ -242,28 +242,28 @@ function renderRoomChoice(user) {
   status.style.cssText = "font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.3rem; min-height: 1.2em;";
   contentEl.appendChild(status);
 
-  const seatRow = document.createElement("div");
-  seatRow.style.cssText = "display: flex; gap: 0.4rem;";
-  for (const seat of SEAT_ORDER) {
-    const seatBtn = textButton(seat);
-    seatBtn.addEventListener("click", async () => {
-      const code = codeInput.value.trim().toUpperCase();
-      if (!code) {
-        status.textContent = "部屋コードを入力してください。";
-        return;
-      }
-      status.textContent = "参加中...";
-      try {
-        await claimSeat(code, seat);
-        history.replaceState(null, "", `?room=${code}`);
-        await renderPanelContent();
-      } catch (err) {
-        status.textContent = `エラー: ${err.message ?? err}`;
-      }
-    });
-    seatRow.appendChild(seatBtn);
-  }
-  contentEl.appendChild(seatRow);
+  // 座席はここでは選ばず（後で「ゲームを開始する」を押した瞬間にランダムに割り振られる）、
+  // 部屋に参加するだけのシンプルな1ボタンにした。
+  const joinBtn = textButton("参加する");
+  joinBtn.style.marginBottom = "0.8rem";
+  joinBtn.addEventListener("click", async () => {
+    const code = codeInput.value.trim().toUpperCase();
+    if (!code) {
+      status.textContent = "部屋コードを入力してください。";
+      return;
+    }
+    status.textContent = "参加中...";
+    joinBtn.disabled = true;
+    try {
+      await joinRoom(code);
+      history.replaceState(null, "", `?room=${code}`);
+      await renderPanelContent();
+    } catch (err) {
+      status.textContent = `エラー: ${err.message ?? err}`;
+      joinBtn.disabled = false;
+    }
+  });
+  contentEl.appendChild(joinBtn);
 
   // 別の認証方法（メール/Google/匿名）を試したい時のため、ログアウトできるようにしておく
   // （一度ログインすると明示的にログアウトするまでそのブラウザにセッションが残り続ける）。
@@ -277,28 +277,31 @@ function renderRoomChoice(user) {
 }
 
 async function renderRoomStatus(gameId) {
+  const mySeat = getMySeat();
   const title = document.createElement("div");
   title.style.cssText = "font-weight: bold; margin-bottom: 0.4rem;";
-  title.textContent = `🌐 部屋: ${gameId}（あなたは座席${getMySeat()}）`;
+  title.textContent = mySeat ? `🌐 部屋: ${gameId}（あなたは座席${mySeat}）` : `🌐 部屋: ${gameId}`;
   contentEl.appendChild(title);
 
-  let seats = [];
+  let count = 0;
   try {
-    seats = await getJoinedSeats(gameId);
+    count = await getMemberCount(gameId);
   } catch (err) {
-    // 一覧取得に失敗しても部屋自体からは出られるようにしておく
+    // 人数取得に失敗しても部屋自体からは出られるようにしておく
   }
-  const seatsEl = document.createElement("div");
-  seatsEl.style.cssText = "font-size: 0.85rem; margin-bottom: 0.6rem;";
-  seatsEl.textContent = `参加済み座席: ${seats.map((s) => s.player).join("、") || "取得できませんでした"}`;
-  contentEl.appendChild(seatsEl);
+  const countEl = document.createElement("div");
+  countEl.style.cssText = "font-size: 0.85rem; margin-bottom: 0.6rem;";
+  countEl.textContent = mySeat
+    ? `参加人数: ${count}人`
+    : `参加人数: ${count}人（座席はゲーム開始時にランダムに決まります）`;
+  contentEl.appendChild(countEl);
 
   const shareHint = document.createElement("div");
   shareHint.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.6rem;";
   shareHint.textContent = "この部屋コードを他のプレイヤーに共有してください。";
   contentEl.appendChild(shareHint);
 
-  if (seats.length >= 2) {
+  if (!mySeat && count >= 2) {
     const startBtn = textButton("ゲームを開始する");
     startBtn.style.marginRight = "0.4rem";
     startBtn.style.marginBottom = "0.4rem";
@@ -349,5 +352,17 @@ export function openOnlinePanel() {
 export function initOnlineUi() {
   onAuthChange(() => {
     if (panelEl) renderPanelContent();
+  });
+
+  // 誰か1人が「ゲームを開始する」を押した瞬間、他の全クライアントでも部屋モーダルを
+  // 自動で閉じる。turnPlayerがnull→非nullに変わった瞬間だけを検知する（離脱→再度別の
+  // 部屋に入り直した時にturnPlayerがまたnullに戻るので、そのたびに再度検知できる）。
+  let wasGameStarted = false;
+  subscribe(() => {
+    const started = Boolean(getState().turnPlayer);
+    if (started && !wasGameStarted && isOnlineMode() && panelEl) {
+      closePanel();
+    }
+    wasGameStarted = started;
   });
 }

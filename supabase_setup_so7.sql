@@ -205,3 +205,15 @@ $$;
 -- 配信されない（RLSに従うため）。そちらはso7-apply-action Edge Functionからの
 -- Broadcastメッセージ（"state_changed"の合図のみ、データ自体は載せない）で代替する。
 alter publication supabase_realtime add table so7_games;
+
+-- 追加機能: 部屋への参加時に座席(A/B/C/D)を選ばせず、「ゲームを開始する」ボタンを押した
+-- 瞬間にso7-apply-action Edge Function側で参加者へランダムに座席を割り振るようにする。
+-- 以前はseatがnot null・(game_id, seat)が主キーだったが、参加した時点ではまだ座席が
+-- 決まらないため、seatをnull許容にし、主キーを(game_id, user_id)に変更する。
+-- （game_id, seat）の一意性はseatが決まった後だけ効けばよいので、部分一意インデックスに
+-- 置き換える。
+alter table so7_game_seats drop constraint if exists so7_game_seats_pkey;
+alter table so7_game_seats alter column seat drop not null;
+alter table so7_game_seats add constraint so7_game_seats_pkey primary key (game_id, user_id);
+create unique index if not exists so7_game_seats_seat_unique_idx
+  on so7_game_seats (game_id, seat) where seat is not null;

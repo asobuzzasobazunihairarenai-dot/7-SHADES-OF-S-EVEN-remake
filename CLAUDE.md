@@ -589,3 +589,53 @@
   - `7 SHADES OF S EVENカード一覧.gsheet`（カード一覧の可能性）
   - ドライブ直下の `seven.html`
   - これらが本プロジェクトの参考資料・過去の関連作業であるか、次回セッションで確認する。
+
+### 2026-07-19の変更（続き・同日21回目のラウンド）：座席のランダム割り当て・部屋の状況表示・自動クローズ
+
+ユーザーから「次に直す順番」の相談を受けて回答した際の3項目（優先度の低い順、大きい
+「視点回転」機能は別途プランモードで着手予定）を実装した。
+
+- **入室時の座席選択を廃止し、「ゲームを開始する」を押した瞬間にランダムで座席を割り振るように変更**:
+  従来は`claimSeat(gameId, seat)`で参加者自身がA/B/C/Dを選んでいたが、部屋作成者が常にAになる
+  非対称さ・「誰がどの座席か」を事前に調整する手間をなくすため、参加時は座席を選ばせず
+  （`joinRoom(gameId)`、`so7_game_seats.seat`をnullのまま挿入）、開始時にサーバー
+  （`so7-apply-action.ts`の`BOOTSTRAP_GAME`ハンドリング）側で参加者をシャッフルしてA/B/C/D
+  を割り当てるようにした。
+  - `supabase_setup_so7.sql`に追記: `so7_game_seats.seat`をnullable化し、主キーを
+    `(game_id, seat)`→`(game_id, user_id)`に変更（座席未確定でも行を持てるようにするため）。
+    `(game_id, seat)`の一意性は座席確定後だけ効けばよいので部分一意インデックスに置き換えた。
+  - `so7-apply-action.ts`: `BOOTSTRAP_GAME`以外のアクションは`seatRow.seat`が無ければ拒否
+    （座席未確定のまま操作されるのを防ぐ）。`BOOTSTRAP_GAME`自体は、部屋の全参加者
+    （`so7_game_seats`の`user_id`一覧）をシャッフルし、`SEAT_ORDER`順に割り当てて
+    `so7_game_seats.seat`を更新してから、従来のセットアップロジック（ファーストカード配布等）
+    に渡す`players`配列を組み立てる。
+  - `online.js`: `claimSeat`/`getJoinedSeats`を削除し、`joinRoom(gameId)`（座席指定なしで
+    参加）・`getMemberCount(gameId)`（座席ではなく単純な参加人数）に置き換えた。
+    `fetchAndHydrate()`は毎回、呼び出し元自身の`so7_game_seats.seat`も取得して
+    `currentSeat`に反映するようにした（開始前はnull、開始後にサーバー側で割り当てられた
+    座席を次のhydrateで拾う、という受動的な発見の仕組み）。
+  - `online-ui.js`: `renderRoomChoice`のA/B/C/D個別ボタン(`seatRow`)を、単一の「参加する」
+    ボタン（`joinRoom`呼び出し）に置き換えた。`renderRoomStatus`は`getMySeat()`が`null`
+    （開始前）の間は座席ではなく参加人数を表示し、「ゲームを開始する」ボタンも
+    座席未確定の間だけ表示するようにした。
+- **ログイン/部屋の状況を、パネルを開かなくても分かるようさりげなく表示（ユーザー提案）**:
+  「🌐 オンライン」ボタン自体のラベルを、状態に応じて動的に切り替えるようにした
+  （`main.js`の`updateOnlineButtonLabel()`）：未ログイン→「🌐 オンライン」、ログイン済み・
+  部屋なし→「🌐 ログイン中」、部屋に参加中→「🌐 部屋:（部屋コード）」。`render()`のたびに
+  更新する（状態変化のたびに呼ばれる`subscribe(render)`に加え、ログイン/ログアウト単体では
+  state.js側の通知が飛ばないことがあるため、`online.js`の`onAuthChange(render)`も別途
+  main.js起動時に登録した）。
+- **「ゲームを開始する」を誰か1人が押したら、全クライアントで部屋モーダルを自動的に閉じるように**:
+  `online-ui.js`の`initOnlineUi()`に、`state.js`の`subscribe()`を使った監視を追加。
+  `turnPlayer`がnull→非nullに変わった瞬間（＝ゲーム開始の合図）を検知し、オンラインモード中
+  かつパネルが開いていれば`closePanel()`を呼ぶ。押した本人はこれまで通り`startGame()`の
+  呼び出し元（`renderRoomStatus`内）で直接閉じるが、他の参加者はBroadcast通知→
+  `hydrateState()`→この`subscribe()`経由で同じタイミングで自動的に閉じる。
+- **検証状況**: ローカルモードの回帰確認（クイックスタート・パネルの開閉・ログイン画面の
+  表示・オンラインボタンのラベル表示）はブラウザで実施し、エラー無しを確認済み。
+  座席のランダム割り当て・自動クローズの実際のサーバーサイド動作は、下記のSQL追記・
+  Edge Function再デプロイをユーザーが行うまで検証できないため未実施。
+- **ユーザー側の作業が必要**: `supabase_setup_so7.sql`に今回追記した末尾のSQL
+  （`so7_game_seats`のnullable化・主キー変更）をSupabaseダッシュボードのSQL Editorで実行し、
+  `supabase/functions/so7-apply-action.ts`の更新後の内容をEdge Functionsダッシュボードで
+  再デプロイする必要がある。
