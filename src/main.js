@@ -2142,18 +2142,35 @@ updateTurnRoundCounter();
 
 // オンラインでゲームが開始された瞬間（turnPlayerがnull→非nullに変わった瞬間、
 // online-ui.jsの部屋モーダル自動クローズと同じ検知方法）に、ローカル版のセットアップ配布
-// アニメーションを再生する。hydrateState()のリスナーループは登録順に同期実行されるため、
-// 下のsubscribe(render)より必ず「前」に登録する（このリスナーがpendingIdsを設定した後で
-// 初めて通常のrender()が走るようにし、盤面が一瞬裸のまま表示される「フラッシュ」を防ぐ）。
-// isOnlineMode()のガードは必須——無いとローカルのセットアップウィザードの手順3
-// （SET_TURN_PLAYER）でも同じturnPlayerの遷移が起き、既に済んだ配布演出が二重に
-// 再生されてしまう。
+// アニメーションを再生する。
+//
+// 重要なハマりどころ: 当初「このリスナーをsubscribe(render)より前に登録すれば、
+// pendingIdsを設定した直後に走る通常のrender()が正しく隠れた状態で描画するはず」という
+// 設計だったが、実際には効かなかった。原因は、async関数（animateFirstCardsDealt）を
+// awaitせず呼び出しても、その関数本体は最初のawaitに達するまで「同期的に」実行される
+// というJSの仕様。animateFirstCardsDealt自身が内部でhelpers.render()を呼んでから
+// pendingIdsを空に戻す処理まで、全てこのリスナーの実行中（＝hydrateState()のリスナー
+// ループが次のリスナーへ進む前）に同期的に完了してしまう。そのため、次に
+// subscribe(render)（下）が呼ばれる頃には既にpendingIdsが空になっており、
+// 配布済みの盤面がそのままフルに表示されてしまっていた（ユーザー報告:
+// 「最初から駒とカード49枚が並んでいて、ファーストカード配布後に一旦消えて
+// 並べ直すアニメが始まる」）。
+// 対策: アニメーション実行中は下の汎用render()リスナー自体を丸ごとスキップする
+// フラグ(suppressGenericRenderForOnlineStart)を導入した。アニメーション関数が
+// 自前で呼ぶhelpers.render()（このsubscribe()経由ではない直接呼び出し）は
+// このフラグの影響を受けないため、配布アニメーション自体は今まで通り正しく動く。
 let wasOnlineGameStarted = false;
+let suppressGenericRenderForOnlineStart = false;
 subscribe(() => {
   const started = Boolean(getState().turnPlayer);
   if (isOnlineMode() && started && !wasOnlineGameStarted) {
+    suppressGenericRenderForOnlineStart = true;
     setSetupPendingTokenIds(new Set(getState().tokens.map((t) => t.id)));
-    animateFirstCardsDealt().then(() => animateBoardFilled());
+    animateFirstCardsDealt()
+      .then(() => animateBoardFilled())
+      .finally(() => {
+        suppressGenericRenderForOnlineStart = false;
+      });
   }
   wasOnlineGameStarted = started;
 });
@@ -2161,8 +2178,12 @@ subscribe(() => {
 // オンライン対戦（第一弾・最小構成）の入り口。online.jsが部屋に参加するとisOnlineMode()が
 // trueになり、moveToken等の一部アクションがサーバー経由になる。サーバー側の変化はBroadcast
 // 通知→hydrateState()経由でここのsubscribe(render)が拾って再描画する（既存の各所の手動
-// render()呼び出しはローカルモードのためにそのまま残してある）。
-subscribe(render);
+// render()呼び出しはローカルモードのためにそのまま残してある）。上のオンラインゲーム開始
+// アニメーション中だけは、このリスナーの発火をスキップする（理由は上のコメント参照）。
+subscribe(() => {
+  if (suppressGenericRenderForOnlineStart) return;
+  render();
+});
 initOnlineUi();
 document.body.appendChild(buildOnlineButton());
 // ログイン/ログアウト直後は部屋の作成・参加を伴わない（＝state.js側のnotifyListeners()が
