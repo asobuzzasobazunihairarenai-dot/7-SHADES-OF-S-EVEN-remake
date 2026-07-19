@@ -344,11 +344,30 @@ function tokenToRow(t: Token, orderIndex: number) {
   };
 }
 
+// ブラウザ（別オリジンから動く静的サイト）から直接呼び出すため、CORS対応が必須。
+// これが無いと、ブラウザが本番のPOSTリクエストの前に送る「OPTIONSプリフライト」に
+// このFunctionが正しく応答できず、supabase-js側では「Failed to send a request to the
+// Edge Function」という中身の分からないエラーになる（実際に何が悪いかはFunction側の
+// ログを見ないと分からないため、原因特定しづらいハマりどころ）。
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+  });
 }
 
 Deno.serve(async (req) => {
+  // ブラウザが本番リクエストの前に送るプリフライト確認。ここで204+CORSヘッダーを
+  // 返さないと、実際のPOSTリクエスト自体が送信されない。
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
+  }
   try {
     if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
 

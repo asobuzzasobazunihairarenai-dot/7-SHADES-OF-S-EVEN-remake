@@ -45,19 +45,54 @@ export function isOnlineAvailable() {
   return !!client;
 }
 
+// --- デバッグログ（画面から内容を確認・コピーできるようにする） -----------------------------
+// 「Failed to send a request to the Edge Function」のような、ブラウザの開発者ツールを
+// 開かないと詳細が分からないエラーが起きた時に、非エンジニアのユーザーでも状況を
+// 報告しやすくするための簡易ログ。姉妹プロジェクト（戦績管理システム）の
+// デバッグログ機能と同じ考え方。ただしCORSブロックなど、ブラウザがJS側に理由を
+// 一切渡さない種類のエラーは、この仕組みでも詳細までは分からない（その場合は
+// ブラウザの開発者ツール(F12)のNetworkタブを直接見る必要がある旨、UI側で案内する）。
+const debugLogEntries = [];
+function logDebug(context, err) {
+  const time = new Date().toLocaleTimeString("ja-JP");
+  let detail = err?.message ?? String(err);
+  if (err?.name) detail = `${err.name}: ${detail}`;
+  if (err?.status !== undefined) detail += `（status: ${err.status}）`;
+  if (err?.context?.status !== undefined) detail += `（context.status: ${err.context.status}）`;
+  debugLogEntries.push(`[${time}] ${context}: ${detail}`);
+  if (debugLogEntries.length > 50) debugLogEntries.shift();
+  console.error(`[online.js] ${context}`, err);
+}
+export function getDebugLog() {
+  return debugLogEntries.length ? debugLogEntries.join("\n") : "（まだログはありません）";
+}
+export function clearDebugLog() {
+  debugLogEntries.length = 0;
+}
+async function withLog(context, fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    logDebug(context, err);
+    throw err;
+  }
+}
+
 // --- 認証（メールのマジックリンク） -----------------------------------------------
 
 export async function signInWithMagicLink(email) {
-  if (!client) throw new Error("Supabaseクライアントが初期化されていません");
-  // Supabase側の「Site URL」は姉妹プロジェクト（戦績管理システム）用のポートに設定されて
-  // いるため、明示的に「今開いているこのページ」を戻り先として指定する（ホスト/ポートが
-  // 変わっても常に正しく動くように）。ただしこのURLはSupabaseダッシュボード
-  // 「Authentication > URL Configuration」のRedirect URLs欄で許可されている必要がある。
-  const { error } = await client.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: window.location.href },
+  return withLog("マジックリンク送信", async () => {
+    if (!client) throw new Error("Supabaseクライアントが初期化されていません");
+    // Supabase側の「Site URL」は姉妹プロジェクト（戦績管理システム）用のポートに設定されて
+    // いるため、明示的に「今開いているこのページ」を戻り先として指定する（ホスト/ポートが
+    // 変わっても常に正しく動くように）。ただしこのURLはSupabaseダッシュボード
+    // 「Authentication > URL Configuration」のRedirect URLs欄で許可されている必要がある。
+    const { error } = await client.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.href },
+    });
+    if (error) throw error;
   });
-  if (error) throw error;
 }
 
 export async function getCurrentUser() {
@@ -94,30 +129,34 @@ function generateRoomId() {
 
 // 部屋を新規作成し、作成者自身を座席Aとして登録する。戻り値はroom id（URLの?room=に使う）。
 export async function createRoom() {
-  const user = await getCurrentUser();
-  if (!user) throw new Error("ログインしてください");
-  const gameId = generateRoomId();
-  const { error: gameErr } = await client.from("so7_games").insert({ id: gameId });
-  if (gameErr) throw gameErr;
-  await claimSeat(gameId, "A");
-  return gameId;
+  return withLog("部屋の作成", async () => {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("ログインしてください");
+    const gameId = generateRoomId();
+    const { error: gameErr } = await client.from("so7_games").insert({ id: gameId });
+    if (gameErr) throw gameErr;
+    await claimSeat(gameId, "A");
+    return gameId;
+  });
 }
 
 // 指定した座席で部屋に参加する。既に他の人がその座席を使っていればUNIQUE制約違反になる
 // （so7_game_seatsの unique(game_id, seat)）。
 export async function claimSeat(gameId, seat) {
-  const user = await getCurrentUser();
-  if (!user) throw new Error("ログインしてください");
-  const { error } = await client.from("so7_game_seats").insert({ game_id: gameId, seat, user_id: user.id });
-  if (error) {
-    if (String(error.message ?? "").includes("duplicate key")) {
-      throw new Error("その座席は既に使われています");
+  return withLog(`座席${seat}に参加`, async () => {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("ログインしてください");
+    const { error } = await client.from("so7_game_seats").insert({ game_id: gameId, seat, user_id: user.id });
+    if (error) {
+      if (String(error.message ?? "").includes("duplicate key")) {
+        throw new Error("その座席は既に使われています");
+      }
+      throw error;
     }
-    throw error;
-  }
-  currentGameId = gameId;
-  currentSeat = seat;
-  subscribeToGame(gameId);
+    currentGameId = gameId;
+    currentSeat = seat;
+    subscribeToGame(gameId);
+  });
 }
 
 // 今この部屋に参加済みの座席一覧（{seat, side}の配列、SEAT_ORDER順）を返す。
@@ -150,21 +189,25 @@ export function leaveGame() {
 // --- アクション送信（so7-apply-action Edge Function） -------------------------------
 
 async function callAction(action) {
-  if (!currentGameId) throw new Error("部屋に参加していません");
-  const { data, error } = await client.functions.invoke(EDGE_FUNCTION_NAME, {
-    body: { game_id: currentGameId, action },
+  return withLog(`アクション送信(${action.type})`, async () => {
+    if (!currentGameId) throw new Error("部屋に参加していません");
+    const { data, error } = await client.functions.invoke(EDGE_FUNCTION_NAME, {
+      body: { game_id: currentGameId, action },
+    });
+    if (error) throw error;
+    if (!data?.ok) throw new Error(data?.error ?? "アクションが失敗しました");
+    return data;
   });
-  if (error) throw error;
-  if (!data?.ok) throw new Error(data?.error ?? "アクションが失敗しました");
-  return data;
 }
 
 // ゲーム開始（セットアップウィザードの代わり）。部屋に参加済みの座席を集めて
 // BOOTSTRAP_GAMEを送る。
 export async function startGame(gameId, { includeBlackWhite = false } = {}) {
-  const players = await getJoinedSeats(gameId);
-  if (players.length < 2) throw new Error("2人以上揃ってから開始してください");
-  return callAction({ type: "BOOTSTRAP_GAME", players, includeBlackWhite });
+  return withLog("ゲーム開始", async () => {
+    const players = await getJoinedSeats(gameId);
+    if (players.length < 2) throw new Error("2人以上揃ってから開始してください");
+    return callAction({ type: "BOOTSTRAP_GAME", players, includeBlackWhite });
+  });
 }
 
 // --- サーバー状態の取得・反映 --------------------------------------------------------
@@ -173,50 +216,52 @@ export async function startGame(gameId, { includeBlackWhite = false } = {}) {
 // getState()と同じ形に組み直してhydrateState()へ渡す。DRAW_FROM_PILEの応答に含まれる
 // revealedCardIdはここでは扱わない（呼び出し元がcallAction()の戻り値から直接使う）。
 export async function fetchAndHydrate(gameId) {
-  const [{ data: gameRow, error: gameErr }, { data: tokenRows, error: tokenErr }, { data: pileRows, error: pileErr }] =
-    await Promise.all([
-      client.from("so7_games").select("*").eq("id", gameId).maybeSingle(),
-      client.from("so7_game_tokens_visible").select("*").eq("game_id", gameId).order("order_index", { ascending: true }),
-      client.from("so7_game_piles_visible").select("*").eq("game_id", gameId),
-    ]);
-  if (gameErr) throw gameErr;
-  if (tokenErr) throw tokenErr;
-  if (pileErr) throw pileErr;
-  if (!gameRow) return;
+  return withLog("状態の取得", async () => {
+    const [{ data: gameRow, error: gameErr }, { data: tokenRows, error: tokenErr }, { data: pileRows, error: pileErr }] =
+      await Promise.all([
+        client.from("so7_games").select("*").eq("id", gameId).maybeSingle(),
+        client.from("so7_game_tokens_visible").select("*").eq("game_id", gameId).order("order_index", { ascending: true }),
+        client.from("so7_game_piles_visible").select("*").eq("game_id", gameId),
+      ]);
+    if (gameErr) throw gameErr;
+    if (tokenErr) throw tokenErr;
+    if (pileErr) throw pileErr;
+    if (!gameRow) return;
 
-  const tokens = (tokenRows ?? []).map((r) => {
-    const location =
-      r.zone === "cell"
-        ? { zone: "cell", row: r.row, col: r.col }
-        : r.zone === "lock"
-        ? { zone: "lock", side: r.side, index: r.idx }
-        : { zone: "hand", player: r.hand_player };
-    const token = { id: r.token_id, kind: r.kind, location };
-    if (r.kind === "card") {
-      token.cardId = r.card_id; // 見えない場合はnull（buildFlatCard等はcardId未確定の描画に
-      // 対応していないため、この最小構成では「隠れているカードの見た目」の描画は
-      // 次回以降の課題として明記する）。
-      token.faceUp = r.face_up;
-    } else {
-      token.color = r.color;
-      token.player = r.piece_player;
+    const tokens = (tokenRows ?? []).map((r) => {
+      const location =
+        r.zone === "cell"
+          ? { zone: "cell", row: r.row, col: r.col }
+          : r.zone === "lock"
+          ? { zone: "lock", side: r.side, index: r.idx }
+          : { zone: "hand", player: r.hand_player };
+      const token = { id: r.token_id, kind: r.kind, location };
+      if (r.kind === "card") {
+        token.cardId = r.card_id; // 見えない場合はnull（buildFlatCard等はcardId未確定の描画に
+        // 対応していないため、この最小構成では「隠れているカードの見た目」の描画は
+        // 次回以降の課題として明記する）。
+        token.faceUp = r.face_up;
+      } else {
+        token.color = r.color;
+        token.player = r.piece_player;
+      }
+      return token;
+    });
+
+    const piles = { deck: [], eternal: [], first: [], discard: [] };
+    for (const r of pileRows ?? []) {
+      piles[r.pile_name] = r.pile_name === "discard" ? r.cards ?? [] : new Array(r.card_count ?? 0).fill(null);
     }
-    return token;
-  });
 
-  const piles = { deck: [], eternal: [], first: [], discard: [] };
-  for (const r of pileRows ?? []) {
-    piles[r.pile_name] = r.pile_name === "discard" ? r.cards ?? [] : new Array(r.card_count ?? 0).fill(null);
-  }
-
-  hydrateState({
-    tokens,
-    piles,
-    activePlayers: gameRow.active_players ?? [],
-    turnPlayer: gameRow.turn_player,
-    turnNumber: gameRow.turn_number,
-    roundNumber: gameRow.round_number,
-    startPlayer: gameRow.start_player,
+    hydrateState({
+      tokens,
+      piles,
+      activePlayers: gameRow.active_players ?? [],
+      turnPlayer: gameRow.turn_player,
+      turnNumber: gameRow.turn_number,
+      roundNumber: gameRow.round_number,
+      startPlayer: gameRow.start_player,
+    });
   });
 }
 
@@ -225,7 +270,7 @@ function subscribeToGame(gameId) {
   broadcastChannel = client
     .channel(`game:${gameId}`)
     .on("broadcast", { event: "state_changed" }, () => {
-      fetchAndHydrate(gameId).catch((err) => console.error("fetchAndHydrate failed", err));
+      fetchAndHydrate(gameId).catch(() => {});
     })
     .subscribe();
   setOnlineMode(true);
@@ -234,5 +279,5 @@ function subscribeToGame(gameId) {
   // これが無いと、部屋に参加した直後のわずかな間だけ、まだisOnlineMode()が反映される前の
   // 画面（セットアップウィザード等のローカル専用ボタンがまだ押せる状態）が残ってしまう。
   notifyListeners();
-  fetchAndHydrate(gameId).catch((err) => console.error("fetchAndHydrate failed", err));
+  fetchAndHydrate(gameId).catch(() => {});
 }

@@ -16,6 +16,7 @@ import {
   getMySeat,
   leaveGame,
   startGame,
+  getDebugLog,
 } from "./online.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { SEAT_ORDER } from "./board-layout.js";
@@ -48,21 +49,80 @@ async function renderPanelContent() {
     msg.textContent =
       "オンライン機能を読み込めませんでした（index.htmlのsupabase-js読み込みに失敗した可能性があります）。";
     contentEl.appendChild(msg);
-    return;
-  }
-
-  const user = await getCurrentUser();
-  if (!user) {
-    renderLoginForm();
-    return;
-  }
-
-  const gameId = getCurrentGameId();
-  if (!gameId) {
-    renderRoomChoice(user);
   } else {
-    await renderRoomStatus(gameId);
+    const user = await getCurrentUser();
+    if (!user) {
+      renderLoginForm();
+    } else {
+      const gameId = getCurrentGameId();
+      if (!gameId) {
+        renderRoomChoice(user);
+      } else {
+        await renderRoomStatus(gameId);
+      }
+    }
   }
+
+  contentEl.appendChild(buildDebugLogSection());
+}
+
+// 「Failed to send a request to the Edge Function」のような、詳細が分かりにくいエラーが
+// 起きた時に、非エンジニアのユーザーでも状況を報告しやすくするための簡易ログ表示。
+// 普段は折りたたんでおき、押した時だけ中身（online.jsが記録した直近のエラー履歴）を
+// テキストエリアに表示する。「コピー」ボタンでクリップボードにコピーできる。
+function buildDebugLogSection() {
+  const wrapper = document.createElement("div");
+  wrapper.style.cssText = "margin-top: 0.8rem; border-top: 1px solid rgba(148, 163, 184, 0.25); padding-top: 0.5rem;";
+
+  const toggleBtn = document.createElement("button");
+  toggleBtn.textContent = "🐛 ログを表示";
+  toggleBtn.className = "header-tool-button";
+  toggleBtn.style.cssText = "font-size: 0.7rem; padding: 0.3rem 0.5rem; min-width: auto;";
+  wrapper.appendChild(toggleBtn);
+
+  const area = document.createElement("div");
+  area.style.display = "none";
+  area.style.marginTop = "0.4rem";
+
+  const textarea = document.createElement("textarea");
+  textarea.readOnly = true;
+  textarea.style.cssText =
+    "width: 100%; box-sizing: border-box; height: 8rem; font-size: 0.7rem; font-family: monospace; " +
+    "background: rgba(0, 0, 0, 0.3); color: #e2e8f0; border: 1px solid rgba(148, 163, 184, 0.3); " +
+    "border-radius: 0.3rem; padding: 0.3rem; resize: vertical;";
+  area.appendChild(textarea);
+
+  const hint = document.createElement("div");
+  hint.style.cssText = "font-size: 0.7rem; color: #94a3b8; margin: 0.3rem 0;";
+  hint.textContent =
+    "※ CORS（ブラウザのクロスオリジン制限）が原因のエラーなど、ブラウザがJS側に理由を渡さない" +
+    "種類のエラーは、この一覧にも詳細が出ないことがあります。その場合はブラウザの開発者ツール" +
+    "（F12）のNetwork/Consoleタブの内容を教えてください。";
+  area.appendChild(hint);
+
+  const copyBtn = textButton("コピー");
+  copyBtn.style.cssText = "font-size: 0.7rem; padding: 0.3rem 0.5rem; min-width: auto;";
+  copyBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(textarea.value);
+      copyBtn.textContent = "コピーしました";
+      setTimeout(() => (copyBtn.textContent = "コピー"), 1500);
+    } catch {
+      textarea.select();
+    }
+  });
+  area.appendChild(copyBtn);
+
+  wrapper.appendChild(area);
+
+  toggleBtn.addEventListener("click", () => {
+    const opening = area.style.display === "none";
+    area.style.display = opening ? "block" : "none";
+    toggleBtn.textContent = opening ? "🐛 ログを隠す" : "🐛 ログを表示";
+    if (opening) textarea.value = getDebugLog();
+  });
+
+  return wrapper;
 }
 
 function renderLoginForm() {
