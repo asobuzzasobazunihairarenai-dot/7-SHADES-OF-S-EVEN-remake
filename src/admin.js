@@ -5,17 +5,28 @@
 
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 
+// 大項目（カテゴリ）。項目が増えて縦に長くなりすぎたため、各グループ/トグルセクションを
+// さらにこの単位でまとめる。GROUPS各要素・TOGGLE_SECTIONS各要素の`category`フィールドで
+// どのカテゴリに属するか指定する。
+const CATEGORIES = [
+  { key: "position", label: "📐 位置合わせ" },
+  { key: "effect", label: "✨ 演出" },
+  { key: "behavior", label: "⚙ セットアップ・挙動" },
+];
+
 // scaleは基準サイズ（プレイマットなら盤面、各山ならカード1枚分）を100%とした拡大率。
 // pos-x/pos-yは中心からのずれ。どちらもtransform: scale/translateなので、拡大しても見切れない。
 const GROUPS = [
   {
     title: "カード拡大プレビュー",
+    category: "position",
     controls: [
       { key: "--card-preview-size", label: "サイズ", unit: "rem", min: 8, max: 36, step: 0.5, default: 20 },
     ],
   },
   {
     title: "カード獲得ポップアップ",
+    category: "effect",
     controls: [
       { key: "--hand-pickup-toast-scale", label: "大きさ", unit: "", min: 0.8, max: 2.5, step: 0.05, default: 1.3 },
       { key: "--hand-pickup-toast-duration", label: "表示時間（秒）", unit: "", min: 1, max: 15, step: 0.5, default: 5 },
@@ -23,6 +34,7 @@ const GROUPS = [
   },
   {
     title: "盤面拡大ボタン（1段階目）のズーム位置調整",
+    category: "position",
     controls: [
       { key: "--board-zoom-margin", label: "余白（小さいほど余白が増える）", unit: "", min: 0.5, max: 1, step: 0.01, default: 0.92 },
       { key: "--board-zoom-offset-x", label: "位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
@@ -31,6 +43,7 @@ const GROUPS = [
   },
   {
     title: "盤面拡大ボタン（2段階目「もっと拡大」）のズーム位置調整",
+    category: "position",
     controls: [
       { key: "--board-zoom-2-margin", label: "余白（大きいほど拡大される）", unit: "", min: 1, max: 2, step: 0.01, default: 1.3 },
       { key: "--board-zoom-2-offset-x", label: "位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
@@ -39,12 +52,14 @@ const GROUPS = [
   },
   {
     title: "駒の当たり判定（ホバーすると発光する範囲）",
+    category: "position",
     controls: [
       { key: "--piece-hitbox-scale", label: "広さ（見た目のサイズはそのまま）", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 1 },
     ],
   },
   {
     title: "プレイマット",
+    category: "position",
     controls: [
       { key: "--playmat-scale", label: "拡大率", unit: "", min: 0.5, max: 3, step: 0.01, default: 1.42 },
       { key: "--playmat-pos-x", label: "位置X（中心からのずれ）", unit: "%", min: -50, max: 50, step: 0.5, default: 0 },
@@ -53,6 +68,7 @@ const GROUPS = [
   },
   {
     title: "ロックエリア（盤面中心からの距離、デフォルトはマスに密着）",
+    category: "position",
     controls: [
       { key: "--lock-top-pos-x", label: "奥/C側 位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
       { key: "--lock-top-pos-y", label: "奥/C側 位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
@@ -67,7 +83,23 @@ const GROUPS = [
     ],
   },
   {
+    title: "ロックエリアバー（ロックエリアと盤面の間の装飾画像）",
+    category: "position",
+    controls: [
+      { key: "--lock-bar-scale", label: "大きさ（共通）", unit: "", min: 0.3, max: 3, step: 0.01, default: 1 },
+      { key: "--lock-bar-top-pos-x", label: "奥/C側 位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--lock-bar-top-pos-y", label: "奥/C側 位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--lock-bar-bottom-pos-x", label: "手前/A側 位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--lock-bar-bottom-pos-y", label: "手前/A側 位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--lock-bar-left-pos-x", label: "左/B側 位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--lock-bar-left-pos-y", label: "左/B側 位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--lock-bar-right-pos-x", label: "右/D側 位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--lock-bar-right-pos-y", label: "右/D側 位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+    ],
+  },
+  {
     title: "プレイヤー名ラベルの位置",
+    category: "position",
     controls: [
       { key: "--label-a-pos-x", label: "A（自分）位置X", unit: "rem", min: -24, max: 24, step: 0.1, default: 0 },
       { key: "--label-a-pos-y", label: "A（自分）位置Y", unit: "rem", min: -24, max: 24, step: 0.1, default: 0 },
@@ -81,6 +113,7 @@ const GROUPS = [
   },
   {
     title: "プレイヤーアバターの位置・サイズ（手札の後ろ側に配置）",
+    category: "position",
     controls: [
       { key: "--avatar-size", label: "サイズ（共通）", unit: "rem", min: 1, max: 8, step: 0.1, default: 3 },
       { key: "--avatar-a-pos-x", label: "A（自分）位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
@@ -95,6 +128,7 @@ const GROUPS = [
   },
   {
     title: "手札の位置（盤面中心からのずれ）",
+    category: "position",
     controls: [
       { key: "--hand-a-pos-x", label: "A（自分）位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
       { key: "--hand-a-pos-y", label: "A（自分）位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
@@ -108,6 +142,7 @@ const GROUPS = [
   },
   {
     title: "手札エリアのサイズ（手札3枚時が基準。枚数に応じて自動で伸縮）",
+    category: "position",
     controls: [
       { key: "--hand-a-size", label: "A（自分）サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 16 },
       { key: "--hand-b-size", label: "B サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 10 },
@@ -117,6 +152,7 @@ const GROUPS = [
   },
   {
     title: "手札エリアの厚み（扇が伸びない方向。固定値、ロックエリアとの干渉調整用）",
+    category: "position",
     controls: [
       { key: "--hand-a-thickness", label: "A（自分）厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 7 },
       { key: "--hand-b-thickness", label: "B 厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 2.5 },
@@ -126,6 +162,7 @@ const GROUPS = [
   },
   {
     title: "山札",
+    category: "position",
     controls: [
       { key: "--deck-scale", label: "拡大率", unit: "", min: 0.3, max: 3, step: 0.01, default: 1 },
       { key: "--deck-pos-x", label: "位置X（中心からのずれ）", unit: "rem", min: -25, max: 25, step: 0.1, default: 0 },
@@ -134,6 +171,7 @@ const GROUPS = [
   },
   {
     title: "捨て場",
+    category: "position",
     controls: [
       { key: "--discard-scale", label: "拡大率", unit: "", min: 0.3, max: 3, step: 0.01, default: 1 },
       { key: "--discard-pos-x", label: "位置X（中心からのずれ）", unit: "rem", min: -25, max: 25, step: 0.1, default: 0 },
@@ -142,6 +180,7 @@ const GROUPS = [
   },
   {
     title: "エターナルカード",
+    category: "position",
     controls: [
       { key: "--eternal-scale", label: "拡大率", unit: "", min: 0.3, max: 3, step: 0.01, default: 1 },
       { key: "--eternal-pos-x", label: "位置X（中心からのずれ）", unit: "rem", min: -25, max: 25, step: 0.1, default: 0 },
@@ -150,6 +189,7 @@ const GROUPS = [
   },
   {
     title: "ファーストカード",
+    category: "position",
     controls: [
       { key: "--first-scale", label: "拡大率", unit: "", min: 0.3, max: 3, step: 0.01, default: 1 },
       { key: "--first-pos-x", label: "位置X（中心からのずれ）", unit: "rem", min: -25, max: 25, step: 0.1, default: 0 },
@@ -177,6 +217,71 @@ let usableLockedEffect = "orbit";
 export function getUsableLockedEffect() {
   return usableLockedEffect;
 }
+
+// 単純なON/OFFトグル系のセクション（GROUPSのCSS変数スライダーとは性質が異なる）も、
+// カテゴリ分けの対象にするためこの配列にまとめておく。buildPanel()がcategoryごとに
+// GROUPSと合わせて振り分ける。
+const TOGGLE_SECTIONS = [
+  {
+    title: "セットアップウィザード",
+    category: "behavior",
+    buildContent: (content) => {
+      const seatModeRow = document.createElement("label");
+      seatModeRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const seatModeCheckbox = document.createElement("input");
+      seatModeCheckbox.type = "checkbox";
+      seatModeCheckbox.checked = manualSeatMode;
+      seatModeCheckbox.addEventListener("change", () => {
+        manualSeatMode = seatModeCheckbox.checked;
+        window.dispatchEvent(new CustomEvent("admin:change"));
+      });
+      const seatModeLabel = document.createElement("span");
+      seatModeLabel.textContent = "2人/3人プレイの座席を自由に選べるようにする（オフ=人数から自動選択）";
+      seatModeRow.appendChild(seatModeCheckbox);
+      seatModeRow.appendChild(seatModeLabel);
+      content.appendChild(seatModeRow);
+    },
+  },
+  {
+    title: "手番プレイヤー演出",
+    category: "effect",
+    buildContent: (content) => {
+      const turnGlowRow = document.createElement("label");
+      turnGlowRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const turnGlowCheckbox = document.createElement("input");
+      turnGlowCheckbox.type = "checkbox";
+      turnGlowCheckbox.checked = document.documentElement.style.getPropertyValue("--turn-glow-rgb").trim() === "255, 255, 255";
+      turnGlowCheckbox.addEventListener("change", () => {
+        setVar("--turn-glow-rgb", turnGlowCheckbox.checked ? "255, 255, 255" : "255, 224, 130", "");
+      });
+      const turnGlowLabel = document.createElement("span");
+      turnGlowLabel.textContent = "ロックエリア・アバターの手番グローを白色にする（オフ=黄色）";
+      turnGlowRow.appendChild(turnGlowCheckbox);
+      turnGlowRow.appendChild(turnGlowLabel);
+      content.appendChild(turnGlowRow);
+    },
+  },
+  {
+    title: "ロック中でも使えるカードの強調演出",
+    category: "effect",
+    buildContent: (content) => {
+      const effectRow = document.createElement("label");
+      effectRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const effectCheckbox = document.createElement("input");
+      effectCheckbox.type = "checkbox";
+      effectCheckbox.checked = usableLockedEffect === "shine";
+      effectCheckbox.addEventListener("change", () => {
+        usableLockedEffect = effectCheckbox.checked ? "shine" : "orbit";
+        window.dispatchEvent(new CustomEvent("admin:change"));
+      });
+      const effectLabel = document.createElement("span");
+      effectLabel.textContent = "斜めに光る帯にする（オフ=色の球がふちを回る）";
+      effectRow.appendChild(effectCheckbox);
+      effectRow.appendChild(effectLabel);
+      content.appendChild(effectRow);
+    },
+  },
+];
 
 function currentValue(key, fallback) {
   const inline = document.documentElement.style.getPropertyValue(key).trim();
@@ -207,6 +312,19 @@ function buildSection(title, buildContent) {
   return details;
 }
 
+// カテゴリ（大項目）用。個々のセクションと見分けやすいよう、少し濃い背景と大きめの見出しにする。
+// デフォルトは開いた状態（中の各セクション自体がさらに個別に開閉できるため）。
+function buildCategory(label) {
+  const details = document.createElement("details");
+  details.open = true;
+  details.style.cssText = "margin-top: 0.6rem; background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 0.35rem; padding: 0.4rem 0.5rem;";
+  const summary = document.createElement("summary");
+  summary.textContent = label;
+  summary.style.cssText = "cursor: pointer; font-weight: bold; color: #e0f2fe; font-size: 0.85rem;";
+  details.appendChild(summary);
+  return details;
+}
+
 function buildPanel(rebuildSlidersRef) {
   const panel = document.createElement("div");
   panel.id = "admin-panel";
@@ -224,104 +342,63 @@ function buildPanel(rebuildSlidersRef) {
   title.style.cssText = "font-weight: bold; margin-bottom: 0.5rem; padding-right: 1.6rem;";
   panel.appendChild(title);
 
-  panel.appendChild(
-    buildSection("セットアップウィザード", (content) => {
-      const seatModeRow = document.createElement("label");
-      seatModeRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
-      const seatModeCheckbox = document.createElement("input");
-      seatModeCheckbox.type = "checkbox";
-      seatModeCheckbox.checked = manualSeatMode;
-      seatModeCheckbox.addEventListener("change", () => {
-        manualSeatMode = seatModeCheckbox.checked;
-        window.dispatchEvent(new CustomEvent("admin:change"));
-      });
-      const seatModeLabel = document.createElement("span");
-      seatModeLabel.textContent = "2人/3人プレイの座席を自由に選べるようにする（オフ=人数から自動選択）";
-      seatModeRow.appendChild(seatModeCheckbox);
-      seatModeRow.appendChild(seatModeLabel);
-      content.appendChild(seatModeRow);
-    })
-  );
+  function buildGroupSection(group) {
+    return buildSection(group.title, (content) => {
+      for (const c of group.controls) {
+        const row = document.createElement("div");
+        row.style.cssText = "margin-bottom: 0.5rem;";
 
-  panel.appendChild(
-    buildSection("手番プレイヤー演出", (content) => {
-      const turnGlowRow = document.createElement("label");
-      turnGlowRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
-      const turnGlowCheckbox = document.createElement("input");
-      turnGlowCheckbox.type = "checkbox";
-      turnGlowCheckbox.checked = document.documentElement.style.getPropertyValue("--turn-glow-rgb").trim() === "255, 255, 255";
-      turnGlowCheckbox.addEventListener("change", () => {
-        setVar("--turn-glow-rgb", turnGlowCheckbox.checked ? "255, 255, 255" : "255, 224, 130", "");
-      });
-      const turnGlowLabel = document.createElement("span");
-      turnGlowLabel.textContent = "ロックエリアの手番グローを白色にする（オフ=黄色）";
-      turnGlowRow.appendChild(turnGlowCheckbox);
-      turnGlowRow.appendChild(turnGlowLabel);
-      content.appendChild(turnGlowRow);
-    })
-  );
+        const labelRow = document.createElement("div");
+        labelRow.style.cssText = "display: flex; justify-content: space-between; margin-bottom: 0.15rem;";
+        const label = document.createElement("span");
+        label.textContent = c.label;
+        const valueLabel = document.createElement("span");
+        valueLabel.id = `admin-value-${c.key}`;
+        labelRow.appendChild(label);
+        labelRow.appendChild(valueLabel);
 
-  panel.appendChild(
-    buildSection("ロック中でも使えるカードの強調演出", (content) => {
-      const effectRow = document.createElement("label");
-      effectRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
-      const effectCheckbox = document.createElement("input");
-      effectCheckbox.type = "checkbox";
-      effectCheckbox.checked = usableLockedEffect === "shine";
-      effectCheckbox.addEventListener("change", () => {
-        usableLockedEffect = effectCheckbox.checked ? "shine" : "orbit";
-        window.dispatchEvent(new CustomEvent("admin:change"));
-      });
-      const effectLabel = document.createElement("span");
-      effectLabel.textContent = "斜めに光る帯にする（オフ=色の球がふちを回る）";
-      effectRow.appendChild(effectCheckbox);
-      effectRow.appendChild(effectLabel);
-      content.appendChild(effectRow);
-    })
-  );
+        const slider = document.createElement("input");
+        slider.type = "range";
+        slider.dataset.key = c.key;
+        slider.min = String(c.min);
+        slider.max = String(c.max);
+        slider.step = String(c.step);
+        slider.style.width = "100%";
+        const initial = currentValue(c.key, c.default);
+        slider.value = String(initial);
+        valueLabel.textContent = `${initial}${c.unit}`;
 
-  for (const group of GROUPS) {
-    panel.appendChild(
-      buildSection(group.title, (content) => {
-        for (const c of group.controls) {
-          const row = document.createElement("div");
-          row.style.cssText = "margin-bottom: 0.5rem;";
+        slider.addEventListener("input", () => {
+          setVar(c.key, slider.value, c.unit);
+          valueLabel.textContent = `${slider.value}${c.unit}`;
+          updateExport();
+          // 手札エリアのサイズ(--hand-*-size)等、CSSではなくJS側で読み取って適用している値は
+          // CSS変数を変えるだけでは画面に反映されない。main.js側にrender()し直してもらう。
+          window.dispatchEvent(new CustomEvent("admin:change"));
+        });
 
-          const labelRow = document.createElement("div");
-          labelRow.style.cssText = "display: flex; justify-content: space-between; margin-bottom: 0.15rem;";
-          const label = document.createElement("span");
-          label.textContent = c.label;
-          const valueLabel = document.createElement("span");
-          valueLabel.id = `admin-value-${c.key}`;
-          labelRow.appendChild(label);
-          labelRow.appendChild(valueLabel);
+        row.appendChild(labelRow);
+        row.appendChild(slider);
+        content.appendChild(row);
+      }
+    });
+  }
 
-          const slider = document.createElement("input");
-          slider.type = "range";
-          slider.dataset.key = c.key;
-          slider.min = String(c.min);
-          slider.max = String(c.max);
-          slider.step = String(c.step);
-          slider.style.width = "100%";
-          const initial = currentValue(c.key, c.default);
-          slider.value = String(initial);
-          valueLabel.textContent = `${initial}${c.unit}`;
-
-          slider.addEventListener("input", () => {
-            setVar(c.key, slider.value, c.unit);
-            valueLabel.textContent = `${slider.value}${c.unit}`;
-            updateExport();
-            // 手札エリアのサイズ(--hand-*-size)等、CSSではなくJS側で読み取って適用している値は
-            // CSS変数を変えるだけでは画面に反映されない。main.js側にrender()し直してもらう。
-            window.dispatchEvent(new CustomEvent("admin:change"));
-          });
-
-          row.appendChild(labelRow);
-          row.appendChild(slider);
-          content.appendChild(row);
-        }
-      })
-    );
+  // 項目数が増えて縦に長くなりすぎたため、GROUPS/TOGGLE_SECTIONSをそれぞれのcategoryごとに
+  // 大項目<details>の中へ振り分けて配置する（CATEGORIESの並び順を採用）。
+  for (const cat of CATEGORIES) {
+    const categoryEl = buildCategory(cat.label);
+    for (const toggle of TOGGLE_SECTIONS) {
+      if (toggle.category === cat.key) {
+        categoryEl.appendChild(buildSection(toggle.title, toggle.buildContent));
+      }
+    }
+    for (const group of GROUPS) {
+      if (group.category === cat.key) {
+        categoryEl.appendChild(buildGroupSection(group));
+      }
+    }
+    panel.appendChild(categoryEl);
   }
 
   const buttonRow = document.createElement("div");

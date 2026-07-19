@@ -793,6 +793,77 @@ body {
   transform: translate(var(--lock-right-pos-x), var(--lock-right-pos-y));
 }
 
+/* ロックエリアバー: ロックエリアと盤面の間に置く装飾画像（画像素材/ロックエリアバー/、
+   assets/lock-area-bar.pngにコピー）。画像自体は横長の1枚絵なので、外側の位置決め用ボックス
+   （top/bottomはそのまま横長、left/rightは幅高さを入れ替えた縦長）と、中の画像用要素
+   （常に横長のまま、left/rightだけCSSでrotate(90deg)）を分けている。回転による見た目上の
+   ズレを、外側ボックスの位置決め計算に混ぜずに済むようにするため。表示/非表示はオプション
+   メニューの「基本設定」から（main.jsのbuildLockAreaBarがdisplayを切り替える）。 */
+:root {
+  --lock-bar-scale: 1;
+  --lock-bar-thickness: 1.2rem;
+  --lock-bar-top-pos-x: 0rem;
+  --lock-bar-top-pos-y: 0rem;
+  --lock-bar-bottom-pos-x: 0rem;
+  --lock-bar-bottom-pos-y: 0rem;
+  --lock-bar-left-pos-x: 0rem;
+  --lock-bar-left-pos-y: 0rem;
+  --lock-bar-right-pos-x: 0rem;
+  --lock-bar-right-pos-y: 0rem;
+}
+.lock-area-bar {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+}
+.lock-area-bar-image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: calc(var(--lock-band-length) * var(--lock-bar-scale));
+  height: calc(var(--lock-bar-thickness) * var(--lock-bar-scale));
+  background-image: url("../assets/lock-area-bar.png");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  transform: translate(-50%, -50%);
+}
+.lock-area-bar-left .lock-area-bar-image,
+.lock-area-bar-right .lock-area-bar-image {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+.lock-area-bar-top, .lock-area-bar-bottom {
+  left: 50%;
+  width: calc(var(--lock-band-length) * var(--lock-bar-scale));
+  height: calc(var(--lock-bar-thickness) * var(--lock-bar-scale));
+  margin-left: calc(-1 * var(--lock-band-length) * var(--lock-bar-scale) / 2);
+}
+.lock-area-bar-top {
+  top: 50%;
+  margin-top: calc(-1 * var(--board-size) / 2 - var(--lock-bar-thickness) * var(--lock-bar-scale));
+  transform: translate(var(--lock-bar-top-pos-x), var(--lock-bar-top-pos-y));
+}
+.lock-area-bar-bottom {
+  top: 50%;
+  margin-top: calc(var(--board-size) / 2);
+  transform: translate(var(--lock-bar-bottom-pos-x), var(--lock-bar-bottom-pos-y));
+}
+.lock-area-bar-left, .lock-area-bar-right {
+  top: 50%;
+  width: calc(var(--lock-bar-thickness) * var(--lock-bar-scale));
+  height: calc(var(--lock-band-length) * var(--lock-bar-scale));
+  margin-top: calc(-1 * var(--lock-band-length) * var(--lock-bar-scale) / 2);
+}
+.lock-area-bar-left {
+  left: 50%;
+  margin-left: calc(-1 * var(--board-size) / 2 - var(--lock-bar-thickness) * var(--lock-bar-scale));
+  transform: translate(var(--lock-bar-left-pos-x), var(--lock-bar-left-pos-y));
+}
+.lock-area-bar-right {
+  left: 50%;
+  margin-left: calc(var(--board-size) / 2);
+  transform: translate(var(--lock-bar-right-pos-x), var(--lock-bar-right-pos-y));
+}
+
 .lock-slot {
   position: relative; /* 中に置かれた.board-cardをposition:absoluteで配置するための基準 */
   width: var(--cell);
@@ -1156,6 +1227,17 @@ body {
   transform: translate(-50%, -50%) translate(var(--avatar-d-pos-x), var(--avatar-d-pos-y));
 }
 
+/* 手番プレイヤーのアバターも、ロックエリア/名前ラベルと同じ色(--turn-glow-rgb、管理者モードで
+   白/黄色を切替可)・同じ2.6秒周期でゆっくり柔らかく発光させる。絵文字はdrop-shadowでないと
+   グロー風の縁取りにならないため、既存の静的な影用drop-shadowに重ねる形でもう1つ追加する。 */
+@keyframes avatar-turn-glow {
+  0%, 100% { filter: drop-shadow(0 0.2rem 0.3rem rgba(0, 0, 0, 0.6)) drop-shadow(0 0 0.15rem rgba(var(--turn-glow-rgb), 0.4)); }
+  50% { filter: drop-shadow(0 0.2rem 0.3rem rgba(0, 0, 0, 0.6)) drop-shadow(0 0 0.7rem rgba(var(--turn-glow-rgb), 0.95)); }
+}
+.player-avatar.is-turn-player {
+  animation: avatar-turn-glow 2.6s ease-in-out infinite;
+}
+
 /* 「ターンを次のプレイヤーへ渡す」ボタン。プレイヤー自身が操作するゲームプレイ上のボタン
    なので、開発者向けツール（管理者モード＝左上、山札一覧/セットアップ＝右上）とは離し、
    画面右下に配置する。state.turnPlayerがnullの間（セットアップ手順3が未実行）は
@@ -1199,11 +1281,17 @@ body {
 
 /* 「⚙ オプション」ボタンとそのドロップダウン（管理者モードの呼び出し口をここに統合した）。
    山札一覧・セットアップと同じ右上の並びに、その下へ積む形で配置する。 */
+/* ハマりどころ: z-indexを1001（山札一覧/セットアップと同じ並びのつもりで）にしていたところ、
+   セットアップウィザードや管理者モードのパネル（z-index:999〜1000）を開くと、その上に
+   オプションボタンが浮いて表示されてしまっていた（両パネルとも、自分自身のトグルボタンは
+   開いている間non-displayにするが、無関係な他のボタンまでは考慮しないため）。
+   オプションボタン自体は「自分の担当パネルさえ開いていなければ常に見える」でよいので、
+   他のパネル群より明確に低いz-indexにして、開いているパネルの下に自然と隠れるようにした。 */
 #options-menu-button {
   position: fixed;
   top: 5.8rem;
   right: 1rem;
-  z-index: 1001;
+  z-index: 900;
   padding: 0.4rem 0.7rem;
   background: rgba(15, 23, 32, 0.85);
   color: #e2e8f0;
@@ -1217,7 +1305,7 @@ body {
   position: fixed;
   top: 5.8rem;
   right: 1rem;
-  z-index: 1000;
+  z-index: 901;
   background: rgba(15, 23, 32, 0.98);
   border: 1px solid rgba(148, 163, 184, 0.4);
   border-radius: 0.4rem;
@@ -1241,6 +1329,25 @@ body {
 }
 .options-menu-item:hover {
   background: rgba(56, 189, 248, 0.2);
+}
+.options-menu-section-title {
+  font-weight: bold;
+  color: #7dd3fc;
+  font-size: 0.72rem;
+  padding: 0.3rem 0.6rem 0.2rem;
+}
+.options-menu-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.6rem 0.4rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.options-menu-divider {
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+  margin: 0.3rem 0;
 }
 
 /* 「1枚ドロー」ボタン。#end-turn-buttonのすぐ上に積む形で、同じ右下の並びに配置する。 */
@@ -1354,6 +1461,20 @@ body {
 }
 .piece.is-my-turn-glow .piece-face {
   animation: piece-own-turn-glow 2.6s ease-in-out infinite;
+}
+/* ハマりどころ: 手番プレイヤーの駒にカーソルを乗せると、ホバーの水色グロー
+   (.hover-active .piece-face)が全く見えなくなっていた。box-shadowは複数ルールの値を
+   自動合成しないため、同じ詳細度(0,2,0)の2つのルールが同じ要素に競合した時は、CSS内で
+   後に書かれた方（このケースでは.is-my-turn-glowのアニメーション）が丸ごと勝ってしまい、
+   ホバー側の静的なbox-shadowが完全に無視されていた。両方のクラスが同時に付く場合専用の、
+   より詳細度の高いルール（.hover-active.is-my-turn-glow、詳細度0,3,0）を用意し、
+   1つのbox-shadow値の中に両方の光を層として含めることで両立させる。 */
+@keyframes piece-own-turn-glow-hover {
+  0%, 100% { box-shadow: 0 0 0.4rem 0.12rem rgba(56, 189, 248, 0.9), 0 0 0.25rem 0.05rem var(--piece-turn-glow-color, transparent); }
+  50% { box-shadow: 0 0 0.4rem 0.12rem rgba(56, 189, 248, 0.9), 0 0 1rem 0.4rem var(--piece-turn-glow-color, transparent); }
+}
+.piece.hover-active.is-my-turn-glow .piece-face {
+  animation: piece-own-turn-glow-hover 2.6s ease-in-out infinite;
 }
 
 /* 自分専用の手札枚数ステータス。他のパネルと違う左下に置き、常時表示にする

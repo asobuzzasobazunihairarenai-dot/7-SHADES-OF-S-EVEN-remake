@@ -12,6 +12,7 @@ import { getSkinImagePath, getMyPieceColor, openPieceSkinPicker } from "./piece-
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS } from "./player-identity.js";
 import { getSelectedPlaymatPath } from "./playmat.js";
+import { isLockAreaBarVisible } from "./lock-area-bar.js";
 import { getState, moveToken, sendTokenToPile, drawFromPile, flipToken, nextTurn, refillDeckFromDiscard } from "./state.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import { COLORS, GATE_POSITIONS, SEAT_TO_SIDE } from "./board-layout.js";
@@ -52,6 +53,20 @@ function buildBoard() {
   return board;
 }
 
+// ロックエリアと盤面(49マス)の間に置く装飾バー。画像自体は横長（画像素材/ロックエリアバー/）
+// なので、外側の位置決め用ボックス（top/bottomはそのまま、left/rightは幅高さを入れ替えた
+// 縦長）と、中の画像用要素（常に横長のまま、left/rightだけCSSでrotate(90deg)）を分けている。
+// こうすることで、回転による見た目上のズレを位置決めの計算に混ぜずに済む。
+function buildLockAreaBar(side) {
+  const outer = document.createElement("div");
+  outer.className = `lock-area-bar lock-area-bar-${side}`;
+  outer.style.display = isLockAreaBarVisible() ? "block" : "none";
+  const img = document.createElement("div");
+  img.className = "lock-area-bar-image";
+  outer.appendChild(img);
+  return outer;
+}
+
 function buildArena() {
   const arena = document.createElement("div");
   arena.className = "arena";
@@ -59,6 +74,10 @@ function buildArena() {
   playmatBg.className = "playmat-bg";
   playmatBg.style.backgroundImage = `url("${getSelectedPlaymatPath()}")`;
   arena.appendChild(playmatBg); // 最初に追加＝他の要素の背面に描画される
+  arena.appendChild(buildLockAreaBar("top"));
+  arena.appendChild(buildLockAreaBar("bottom"));
+  arena.appendChild(buildLockAreaBar("left"));
+  arena.appendChild(buildLockAreaBar("right"));
   arena.appendChild(buildLockArea("top"));
   arena.appendChild(buildLockArea("left"));
   arena.appendChild(buildBoard());
@@ -106,7 +125,7 @@ function buildPlayerZone(side, player, isSelf) {
   // （同じ場所で重なった時、後から足した手札側が手前に描画される）。管理者モードで
   // 位置・サイズを調整できる（--avatar-{a,b,c,d}-pos-x/y・--avatar-size）。
   const avatarEl = document.createElement("div");
-  avatarEl.className = "player-avatar";
+  avatarEl.className = `player-avatar${player === getState().turnPlayer ? " is-turn-player" : ""}`;
   avatarEl.textContent = getPlayerAvatar(player);
 
   const orientation = side === "left" || side === "right" ? "vertical" : "horizontal";
