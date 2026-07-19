@@ -159,8 +159,10 @@ function buildToggleButton(open) {
   const btn = document.createElement("button");
   btn.className = "header-tool-button";
   btn.textContent = "📋 山札一覧";
+  // top: 1.8remは右上ボタン列の中で一番上。真上に#turn-round-counter（通算ターン数・
+  // ラウンド数の表示）があるため、それと重ならないよう少し下げてある。
   btn.style.cssText = `
-    position: fixed; top: 1rem; right: 1rem; z-index: 1001;
+    position: fixed; top: 1.8rem; right: 1rem; z-index: 1001;
     padding: 0.4rem 0.7rem; background: rgba(15, 23, 32, 0.85); color: #e2e8f0;
     border: 1px solid rgba(148, 163, 184, 0.4); border-radius: 0.4rem; cursor: pointer;
     font-family: sans-serif; font-size: 0.75rem;

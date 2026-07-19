@@ -37,11 +37,17 @@ body {
 :root {
   --table-tilt: 42deg; /* JS側(fitTableToViewport)もこの変数を参照してscaleだけ動的に上書きする */
   /* 「カメラ位置」（3D視点の初期値）。管理者モードから調整できる。perspectiveは値が小さいほど
-     カメラが近く（遠近感が強い）、perspective-origin-yは0%に近いほど画面上寄りが視点の消失点に
+     カメラが近く（遠近感が強い）、perspective-origin-yは0remに近いほど画面上寄りが視点の消失点に
      なる。ドラッグゴースト(.drag-ghost-piece-outer)のperspectiveもこの値を共有し、
-     盤面上の駒と見た目の遠近感がズレないようにしている。 */
+     盤面上の駒と見た目の遠近感がズレないようにしている。
+     ハマりどころ: perspective-origin-yは以前%指定（.sceneの高さ=100vhに対する割合）だった。
+     %は「.sceneの実ピクセル高さ」に対する割合のため、ブラウザウィンドウの高さが変わると
+     視点（消失点）の絶対位置自体が上下に動いてしまい、rotateXで傾いた盤面の見え方
+     （3D投影後の見かけの縦幅、ひいては「盤面拡大」ボタンの上端・下端の位置）が
+     ウィンドウサイズに応じて意図せず変わってしまっていた。remの絶対値にすることで、
+     消失点の位置をウィンドウサイズに左右されない固定位置にした。 */
   --camera-perspective: 1150px;
-  --camera-perspective-origin-y: 15%;
+  --camera-perspective-origin-y: 8.4rem;
   /* カメラの上下(Y軸)方向の平行移動。fitTableToViewport()内でtranslate()として
      rotateX/scale3dより先に足す（rem絶対量なので、盤面拡大時のscale3dの影響を受けない）。 */
   --camera-offset-y: 0rem;
@@ -55,9 +61,14 @@ body {
   --board-zoom-margin: 0.92;
   --board-zoom-offset-x: 0rem;
   --board-zoom-offset-y: -1.7rem;
+  /* 拡大時の倍率計算の基準となる高さ（px）。実際のブラウザウィンドウの高さではなく、この
+     固定値を使うことで、拡大時の上端・下端の画面上の位置がウィンドウサイズに左右されなく
+     なる（applyBoardZoomFit参照）。 */
+  --board-zoom-reference-height: 900px;
   --board-zoom-2-margin: 1.3;
   --board-zoom-2-offset-x: 0rem;
   --board-zoom-2-offset-y: -2.5rem;
+  --board-zoom-2-reference-height: 900px;
 }
 
 .game-table {
@@ -1302,11 +1313,12 @@ body {
    小さく表示する。turnNumberが無い（まだ対戦が始まっていない）間は非表示。 */
 #turn-round-counter {
   position: fixed;
-  top: 0.3rem;
+  top: 0.4rem;
   right: 1.1rem;
   z-index: 900;
   font-family: sans-serif;
   font-size: 0.65rem;
+  line-height: 1;
   color: rgba(226, 232, 240, 0.6);
   letter-spacing: 0.02em;
   pointer-events: none;
@@ -1333,7 +1345,7 @@ body {
 
 #options-menu-button {
   position: fixed;
-  top: 5.8rem;
+  top: 6.6rem;
   right: 1rem;
   z-index: 900;
   padding: 0.4rem 0.7rem;
@@ -1347,7 +1359,7 @@ body {
 }
 #options-menu-panel {
   position: fixed;
-  top: 5.8rem;
+  top: 6.6rem;
   right: 1rem;
   z-index: 901;
   background: rgba(15, 23, 32, 0.98);
@@ -1793,8 +1805,8 @@ body {
    する」ボタンでその場に留めることもできる（✕でいつでも閉じられる）。サイズ・表示時間は
    管理者モードで調整できる（--card-arrival-modal-size・--card-arrival-modal-duration）。 */
 :root {
-  --card-arrival-modal-size: 20rem;
-  --card-arrival-modal-duration: 3; /* 秒 */
+  --card-arrival-modal-size: 25rem;
+  --card-arrival-modal-duration: 5; /* 秒 */
 }
 .card-arrival-modal {
   position: fixed;
@@ -2015,73 +2027,136 @@ body {
 
 /* 駒がカードに到達した瞬間、そのマス/ロックスロット自体がカードの色で発光する演出
    （main.jsのtriggerCardArrival参照。.cell/.lock-slotは元からposition:relativeなので、
-   このposition:absoluteな子要素はそのマスを基準に配置される）。アニメーション終了後は
-   animationendイベントでJS側が要素ごと消す（使い捨てのワンショット演出）。 */
+   このposition:absoluteな子要素はそのマスを基準に配置される）。カードの外枠(.arrival-effect-frame)
+   が縁取りとして光り、そこから複数の柱(.arrival-effect-flame、太さ・タイミングをずらして
+   3本重ねることで1本より厚みのある「オーラ」らしい揺らめきを出す)が立ち上り、根本に光の輪
+   (.arrival-effect-ring)が広がる、という3層構成。アニメーション終了後はJS側がsetTimeoutで
+   要素ごと消す（使い捨てのワンショット演出）。 */
 .arrival-effect-burst {
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 30;
 }
-.arrival-effect-burst::before {
-  content: "";
+/* カードの外枠自体が発光源になっているように見せる縁取り（「カードの枠から立ち上る」印象を
+   柱の演出より先に作る）。 */
+.arrival-effect-frame {
+  position: absolute;
+  inset: -8%;
+  border: 0.2rem solid var(--arrival-effect-color);
+  border-radius: 0.3rem;
+  box-shadow:
+    0 0 0.5rem 0.15rem var(--arrival-effect-color),
+    0 0 1.4rem 0.5rem var(--arrival-effect-color),
+    inset 0 0 0.9rem 0.3rem var(--arrival-effect-color);
+  opacity: 0;
+  animation: arrival-frame-glow 1.3s ease-out forwards;
+}
+/* 柱本体。base(80%幅)・mid(55%幅)・core(32%幅、遅れて立ち上る芯)の3本を重ね、
+   mix-blend-mode:screenで色を飽和させすぎずに濃く見せる。 */
+.arrival-effect-flame {
   position: absolute;
   left: 50%;
-  bottom: 50%;
-  width: 55%;
-  height: 220%;
+  bottom: 45%;
+  width: 80%;
+  height: 320%;
   transform-origin: bottom center;
-  transform: translateX(-50%) scaleY(0);
   background: linear-gradient(
     to top,
     var(--arrival-effect-color) 0%,
-    color-mix(in srgb, var(--arrival-effect-color) 35%, transparent) 55%,
+    color-mix(in srgb, var(--arrival-effect-color) 80%, transparent) 32%,
+    color-mix(in srgb, var(--arrival-effect-color) 40%, transparent) 62%,
     transparent 100%
   );
-  border-radius: 50% 50% 0 0 / 12% 12% 0 0;
-  filter: blur(0.12rem);
-  animation: arrival-pillar-rise 1s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+  border-radius: 50% 50% 0 0 / 16% 16% 0 0;
+  filter: blur(0.15rem);
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: arrival-pillar-rise 1.3s cubic-bezier(0.15, 0.7, 0.25, 1) forwards;
 }
-.arrival-effect-burst::after {
-  content: "";
+.arrival-effect-flame-mid {
+  width: 55%;
+  animation-delay: 0.08s;
+  animation-duration: 1.15s;
+}
+.arrival-effect-flame-core {
+  width: 32%;
+  filter: blur(0.05rem);
+  animation-delay: 0.15s;
+  animation-duration: 1s;
+}
+.arrival-effect-ring {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 40%;
-  height: 40%;
+  width: 55%;
+  height: 55%;
   transform: translate(-50%, -50%) scale(0);
   border-radius: 50%;
-  background: radial-gradient(circle, var(--arrival-effect-color) 0%, transparent 70%);
-  animation: arrival-burst-ring 0.7s ease-out forwards;
+  background: radial-gradient(
+    circle,
+    var(--arrival-effect-color) 0%,
+    color-mix(in srgb, var(--arrival-effect-color) 45%, transparent) 45%,
+    transparent 75%
+  );
+  opacity: 0;
+  animation: arrival-burst-ring 0.9s ease-out forwards;
 }
-@keyframes arrival-pillar-rise {
+@keyframes arrival-frame-glow {
   0% {
-    transform: translateX(-50%) scaleY(0);
     opacity: 0;
   }
-  20% {
+  18% {
     opacity: 1;
   }
-  55% {
-    transform: translateX(-50%) scaleY(1);
-    opacity: 0.9;
+  65% {
+    opacity: 0.7;
   }
   100% {
-    transform: translateX(-50%) scaleY(1);
+    opacity: 0;
+  }
+}
+/* rise(縦に伸びる)・widen(横に太くなる)・flicker(左右にわずかに揺れる)を1つの
+   transformにまとめて焼き込む。別々の@keyframesを同じtransformプロパティに重ねがけ
+   することはできない（後勝ちで上書きされる）ため、この形にしている。 */
+@keyframes arrival-pillar-rise {
+  0% {
+    transform: translateX(-50%) scaleY(0) scaleX(0.5);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  30% {
+    transform: translateX(-53%) scaleY(0.5) scaleX(0.8);
+  }
+  45% {
+    transform: translateX(-47%) scaleY(0.75) scaleX(1);
+  }
+  60% {
+    transform: translateX(-51%) scaleY(0.95) scaleX(1.2);
+    opacity: 1;
+  }
+  80% {
+    transform: translateX(-49%) scaleY(1.05) scaleX(1.4);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateX(-50%) scaleY(1.1) scaleX(1.55);
     opacity: 0;
   }
 }
 @keyframes arrival-burst-ring {
   0% {
     transform: translate(-50%, -50%) scale(0);
-    opacity: 0.9;
+    opacity: 0.95;
   }
-  70% {
-    transform: translate(-50%, -50%) scale(2.4);
-    opacity: 0.5;
+  60% {
+    transform: translate(-50%, -50%) scale(2.6);
+    opacity: 0.6;
   }
   100% {
-    transform: translate(-50%, -50%) scale(3.2);
+    transform: translate(-50%, -50%) scale(3.6);
     opacity: 0;
   }
 }
@@ -2091,7 +2166,7 @@ body {
    ウィザードの０〜３を一気に実行する（quick-start.js参照）。 */
 #quick-start-bar {
   position: fixed;
-  top: 8.2rem;
+  top: 9rem;
   right: 1rem;
   z-index: 900;
   display: flex;

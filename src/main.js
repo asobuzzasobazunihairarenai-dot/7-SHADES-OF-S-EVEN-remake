@@ -370,7 +370,10 @@ function hasPieceAt(location) {
 }
 
 // 到達演出一式（右上モーダル＋そのマス自体が発光する柱状のオーラ＋効果音）をまとめて行う。
-// 柱の色はカード自身の色に合わせる（--color-*をそのまま使う）。
+// 柱の色はカード自身の色に合わせる（--color-*をそのまま使う）。枠の縁取り(.arrival-effect-frame)
+// ＋太さの違う柱3本(.arrival-effect-flame系、CSS側でタイミング・幅をずらして重ねてある)＋
+// 根本の光の輪(.arrival-effect-ring)の3層構成で、CSSアニメーションが終わる頃
+// （一番長いものでも1.3s）に合わせてまとめてDOMから消す。
 function triggerCardArrival(cardId, location) {
   showCardArrivalModal(cardId);
   playSound("arrivalEffect");
@@ -381,8 +384,21 @@ function triggerCardArrival(cardId, location) {
   const burst = document.createElement("div");
   burst.className = "arrival-effect-burst";
   burst.style.setProperty("--arrival-effect-color", `var(--color-${color})`);
-  burst.addEventListener("animationend", () => burst.remove());
+
+  const frame = document.createElement("div");
+  frame.className = "arrival-effect-frame";
+  burst.appendChild(frame);
+
+  burst.appendChild(Object.assign(document.createElement("div"), { className: "arrival-effect-flame" }));
+  burst.appendChild(Object.assign(document.createElement("div"), { className: "arrival-effect-flame arrival-effect-flame-mid" }));
+  burst.appendChild(Object.assign(document.createElement("div"), { className: "arrival-effect-flame arrival-effect-flame-core" }));
+
+  const ring = document.createElement("div");
+  ring.className = "arrival-effect-ring";
+  burst.appendChild(ring);
+
   hostEl.appendChild(burst);
+  setTimeout(() => burst.remove(), 1400);
 }
 
 // 駒がカードの上に乗った瞬間の演出。表向きのカードならそのまま到達モーダルを表示する。
@@ -548,9 +564,27 @@ function applyBoardZoomFit(level) {
   const lockBottom = document.querySelector(".lock-bottom");
   const lockTop = document.querySelector(".lock-top");
   if (!lockBottom || !lockTop) return;
+
+  const style = getComputedStyle(document.documentElement);
+  const prefix = level === 2 ? "--board-zoom-2-" : "--board-zoom-";
+  const referenceHeight = parseFloat(style.getPropertyValue(`${prefix}reference-height`)) || 900;
+
+  // ハマりどころ（重要、--camera-perspective-origin-yをrem固定にしただけでは直らなかった）:
+  // .sceneは`display:flex; align-items:center; height:100vh;`でテーブルを常に「今の
+  // ウィンドウの高さ」で上下中央寄せしている。ウィンドウの高さが変わるとテーブル自体の画面上の
+  // 垂直位置が動き、rotateXで傾いたテーブルと3D遠近感(perspective)の消失点との相対距離が
+  // 変わるため、たとえ消失点自体の絶対位置を固定していても「見た目の縦幅」が
+  // ウィンドウサイズに応じて変わってしまっていた。対策として、getBoundingClientRect()で
+  // 測定する一瞬だけ.sceneの高さを基準値(reference-height)に強制し、「常に基準の高さの
+  // ウィンドウで見た時と同じ状態」を再現してから測定し、直後に元の高さへ戻す
+  // （この間は同期的なJS処理内で完結するため、画面には一切ちらつかない）。
+  const scene = document.querySelector(".scene");
+  const originalSceneHeight = scene.style.height;
+  scene.style.height = `${referenceHeight}px`;
   const tableRect = table.getBoundingClientRect();
   const bottomRect = lockBottom.getBoundingClientRect();
   const topRect = lockTop.getBoundingClientRect();
+  scene.style.height = originalSceneHeight;
 
   const spanTop = topRect.top;
   const spanBottom = bottomRect.bottom;
@@ -561,15 +595,16 @@ function applyBoardZoomFit(level) {
   // 理論上はここでちょうど画面いっぱいになるはずだが、手札・アバター等の飛び出しや
   // ブラウザごとのレンダリング誤差で微妙にズレる（手前のロックエリアが見切れる、等）ことが
   // あったため、余白率・XY位置を管理者モードから追加で微調整できるようにした。
-  const style = getComputedStyle(document.documentElement);
-  const prefix = level === 2 ? "--board-zoom-2-" : "--board-zoom-";
   const marginFrac = parseFloat(style.getPropertyValue(`${prefix}margin`)) || 0.98;
   const offsetX = style.getPropertyValue(`${prefix}offset-x`).trim() || "0rem";
   const offsetY = style.getPropertyValue(`${prefix}offset-y`).trim() || "0rem";
   const zoom = parseFloat(style.getPropertyValue("--camera-zoom")) || 1;
-
+  // 実際のウィンドウの高さではなく、上で測定に使ったのと同じ固定の基準値
+  // （--board-zoom-*-reference-height、px）を倍率計算にも使う。これで拡大結果は
+  // ウィンドウサイズに一切依存しなくなる（基準値と大きく違う高さのウィンドウでは
+  // 上下が見切れたり余白が出たりし得るが、その場合は基準値側を調整して合わせる）。
   table.style.transformOrigin = `50% ${originYPercent}%`;
-  const scale = ((window.innerHeight * marginFrac) / spanHeight) * zoom;
+  const scale = ((referenceHeight * marginFrac) / spanHeight) * zoom;
   // カメラのY軸オフセット(--camera-offset-y)は盤面拡大レベルごとのoffset-x/yとは独立に、
   // 常時一定量を追加でずらす（先に適用することで、拡大時のtranslateOriginや倍率計算には
   // 影響させない）。

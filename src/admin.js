@@ -23,7 +23,7 @@ const GROUPS = [
     controls: [
       { key: "--table-tilt", label: "テーブルの傾き", unit: "deg", min: 0, max: 70, step: 1, default: 42 },
       { key: "--camera-perspective", label: "カメラ距離（小さいほど遠近感が強い）", unit: "px", min: 500, max: 3000, step: 10, default: 1150 },
-      { key: "--camera-perspective-origin-y", label: "消失点の高さ（画面上端からの%）", unit: "%", min: 0, max: 100, step: 1, default: 15 },
+      { key: "--camera-perspective-origin-y", label: "消失点の高さ（画面上端からの距離、ウィンドウサイズに依存しない固定値）", unit: "rem", min: 0, max: 20, step: 0.1, default: 8.4 },
       { key: "--camera-offset-y", label: "上下（Y軸）位置", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--camera-zoom", label: "ズーム", unit: "", min: 0.3, max: 2.5, step: 0.01, default: 1 },
     ],
@@ -47,8 +47,8 @@ const GROUPS = [
     title: "カード到達モーダル（駒がカードに乗った時）",
     category: "effect",
     controls: [
-      { key: "--card-arrival-modal-size", label: "大きさ", unit: "rem", min: 8, max: 40, step: 0.5, default: 20 },
-      { key: "--card-arrival-modal-duration", label: "表示時間（秒）", unit: "", min: 1, max: 15, step: 0.5, default: 3 },
+      { key: "--card-arrival-modal-size", label: "大きさ", unit: "rem", min: 8, max: 40, step: 0.5, default: 25 },
+      { key: "--card-arrival-modal-duration", label: "表示時間（秒）", unit: "", min: 1, max: 15, step: 0.5, default: 5 },
     ],
   },
   {
@@ -70,6 +70,7 @@ const GROUPS = [
       { key: "--board-zoom-margin", label: "余白（小さいほど余白が増える）", unit: "", min: 0.5, max: 1, step: 0.01, default: 0.92 },
       { key: "--board-zoom-offset-x", label: "位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--board-zoom-offset-y", label: "位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: -1.7 },
+      { key: "--board-zoom-reference-height", label: "基準の高さ（ウィンドウサイズに依存させないための固定値）", unit: "px", min: 400, max: 2000, step: 10, default: 900 },
     ],
   },
   {
@@ -79,6 +80,7 @@ const GROUPS = [
       { key: "--board-zoom-2-margin", label: "余白（大きいほど拡大される）", unit: "", min: 1, max: 2, step: 0.01, default: 1.3 },
       { key: "--board-zoom-2-offset-x", label: "位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--board-zoom-2-offset-y", label: "位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: -2.5 },
+      { key: "--board-zoom-2-reference-height", label: "基準の高さ（ウィンドウサイズに依存させないための固定値）", unit: "px", min: 400, max: 2000, step: 10, default: 900 },
     ],
   },
   {

@@ -79,8 +79,11 @@ function createInitialState() {
     // 通算ターン数・ラウンド数。手順3でスタートプレイヤーが決まった瞬間にどちらも1から始まり、
     // NEXT_TURNのたびにturnNumberが+1、参加座席を一周してスタート地点の座席に戻るたびに
     // roundNumberが+1になる（「プレイヤー全員のターンが終わったら1ラウンド」というルール）。
+    // 「一周した」の基準はSEAT_ORDER上の先頭（＝座席Aとは限らない）ではなく、実際に選ばれた
+    // スタートプレイヤー(startPlayer)そのものにする必要があるため、別途保持しておく。
     turnNumber: null,
     roundNumber: null,
+    startPlayer: null,
   };
 }
 
@@ -189,6 +192,7 @@ function reduce(current, action) {
         turnPlayer: null,
         turnNumber: null,
         roundNumber: null,
+        startPlayer: null,
       };
     }
     // セットアップウィザードの手順1: 参加している座席（action.players、時計回り順）に
@@ -228,23 +232,25 @@ function reduce(current, action) {
     }
     // セットアップウィザードの手順3: ターンプレイヤーを設定する（無作為に選ぶのはgame-setup.js側）。
     // ここが「ターン」という概念の起点なので、通算ターン数・ラウンド数も1から始める。
+    // startPlayerも記録しておく（NEXT_TURNで「一周した」を判定する基準にするため。
+    // SEAT_ORDER上の先頭＝座席Aとは限らないので、実際に選ばれたこのプレイヤーを基準にする）。
     case "SET_TURN_PLAYER": {
-      return { ...current, turnPlayer: action.player, turnNumber: 1, roundNumber: 1 };
+      return { ...current, turnPlayer: action.player, turnNumber: 1, roundNumber: 1, startPlayer: action.player };
     }
     // 「ターンを次のプレイヤーへ渡す」ボタン。参加座席(activePlayers)を時計回り順に絞り込み、
-    // 現在のturnPlayerの次の座席へ進める（末尾の次は先頭に戻る）。次の座席が先頭（座席が
-    // 一周した）時だけラウンド数を+1する（「プレイヤー全員のターンが終わったら1ラウンド」）。
+    // 現在のturnPlayerの次の座席へ進める（末尾の次は先頭に戻る）。次の座席がstartPlayer
+    // （実際に選ばれたスタートプレイヤー、座席Aとは限らない）に戻った時だけラウンド数を+1する
+    // （「プレイヤー全員のターンが終わったら1ラウンド」）。
     case "NEXT_TURN": {
       if (!current.turnPlayer || current.activePlayers.length === 0) return current;
       const order = SEAT_ORDER.filter((p) => current.activePlayers.includes(p));
       const idx = order.indexOf(current.turnPlayer);
-      const nextIdx = (idx + 1) % order.length;
-      const next = order[nextIdx];
+      const next = order[(idx + 1) % order.length];
       return {
         ...current,
         turnPlayer: next,
         turnNumber: (current.turnNumber ?? 1) + 1,
-        roundNumber: nextIdx === 0 ? (current.roundNumber ?? 1) + 1 : (current.roundNumber ?? 1),
+        roundNumber: next === current.startPlayer ? (current.roundNumber ?? 1) + 1 : (current.roundNumber ?? 1),
       };
     }
     // セットアップウィザードの手順2: 山札（無色/白黒カードはaction.includeBlackWhiteに応じて

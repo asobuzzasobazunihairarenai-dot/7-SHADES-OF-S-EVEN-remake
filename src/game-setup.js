@@ -309,7 +309,7 @@ function buildPanel(close) {
   const panel = document.createElement("div");
   panel.id = "game-setup-panel";
   panel.style.cssText = `
-    position: fixed; top: 3.4rem; right: 1rem; z-index: 1000;
+    position: fixed; top: 4.2rem; right: 1rem; z-index: 1000;
     background: rgba(15, 23, 32, 0.95); border: 1px solid rgba(148, 163, 184, 0.4);
     border-radius: 0.5rem; padding: 0.75rem; width: 19rem;
     font-family: sans-serif; font-size: 0.8rem; color: #e2e8f0;
@@ -334,7 +334,7 @@ function buildToggleButton(open) {
   btn.className = "header-tool-button";
   btn.textContent = "🎲 セットアップ";
   btn.style.cssText = `
-    position: fixed; top: 3.4rem; right: 1rem; z-index: 1001;
+    position: fixed; top: 4.2rem; right: 1rem; z-index: 1001;
     padding: 0.4rem 0.7rem; background: rgba(15, 23, 32, 0.85); color: #e2e8f0;
     border: 1px solid rgba(148, 163, 184, 0.4); border-radius: 0.4rem; cursor: pointer;
     font-family: sans-serif; font-size: 0.75rem;
