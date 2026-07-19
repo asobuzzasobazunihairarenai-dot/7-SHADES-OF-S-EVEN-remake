@@ -238,6 +238,10 @@ export async function animateBoardFilled() {
   for (const ghost of ghosts) ghost.remove();
   overlay.remove();
 
+  // 49マスが並び終わった直後に間髪入れず駒が出ると忙しなく見えるため、駒の登場前に
+  // 一呼吸だけ間を置く（スキップ時は「今すぐ次へ進みたい」という意図なので待たない）。
+  if (!skipped) await new Promise((r) => setTimeout(r, 600));
+
   // 盤面49マスが埋め終わったところで、上で隠しておいた駒をまとめて登場させる。
   // フェードイン（.pieceの既存transition）に、到達演出の光の柱（spawnArrivalBurst）＋
   // 到達効果音を重ねて流用する（ユーザー指定）。

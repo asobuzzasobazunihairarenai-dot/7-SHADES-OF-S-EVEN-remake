@@ -2076,6 +2076,19 @@ body {
   --sound-volume-lock: 80;
 }
 
+/* プレイヤーDのロックエリア(.lock-right)は7色スロットの並び順を正すため祖先自体に
+   180度回転を掛けている。柱状バースト・ロックスタンプはどの辺でも常に画面の「上方向」に
+   伸びる向きで作られているため、そのままだとD側だけ上下逆さまに表示されてしまう。
+   main.jsのappendEffectHost()が、.lock-rightの子孫にだけこの入れ子（180度回転）を
+   挟んで祖先の回転を打ち消す（中身は中心基準の配置・アニメーションのため、入れ子を
+   挟んでも見た目の位置はズレない）。 */
+.effect-side-flip {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform: rotate(180deg);
+}
+
 /* 駒がカードに到達した瞬間、そのマス/ロックスロット自体がカードの色で発光する演出
    （main.jsのtriggerCardArrival参照。.cell/.lock-slotは元からposition:relativeなので、
    このposition:absoluteな子要素はそのマスを基準に配置される）。カードの外枠(.arrival-effect-frame)

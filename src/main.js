@@ -382,6 +382,26 @@ function hasPieceAt(location) {
   });
 }
 
+// プレイヤーDのロックエリア(.lock-right)は7色スロットの並び順を正すため祖先(.lock-right)
+// 自体に180度回転を掛けている（style.css参照）。柱状バースト・ロックスタンプはどの辺でも
+// 常に画面の「上方向」に伸びる向きで作られているため、そのままだとD側だけ上下逆さまに
+// 表示されてしまう。.lock-rightの子孫であれば、演出用の使い捨て要素をもう一枚の
+// position:absolute; inset:0な入れ子（.effect-side-flip、180度回転）で包み、
+// 祖先の回転を打ち消す。中身の座標系（center基準の配置・アニメーション）は
+// 180度回転しても中心位置は変わらないため、この入れ子を挟んでも見た目のズレは生じない。
+function appendEffectHost(hostEl, effectEl, ttlMs) {
+  if (hostEl.closest(".lock-right")) {
+    const flip = document.createElement("div");
+    flip.className = "effect-side-flip";
+    flip.appendChild(effectEl);
+    hostEl.appendChild(flip);
+    setTimeout(() => flip.remove(), ttlMs);
+  } else {
+    hostEl.appendChild(effectEl);
+    setTimeout(() => effectEl.remove(), ttlMs);
+  }
+}
+
 // そのマス/ロックスロット自体が指定色で発光する柱状のオーラ演出（枠の縁取り
 // .arrival-effect-frame＋太さの違う柱3本.arrival-effect-flame系＋根本の光の輪
 // .arrival-effect-ring の3層構成）。到達演出・ロック演出の両方から流用する共通部分。
@@ -408,8 +428,7 @@ function spawnArrivalBurst(hostEl, color) {
   ring.className = "arrival-effect-ring";
   burst.appendChild(ring);
 
-  hostEl.appendChild(burst);
-  setTimeout(() => burst.remove(), 1400);
+  appendEffectHost(hostEl, burst, 1400);
   return burst;
 }
 
@@ -432,8 +451,7 @@ const LOCK_STAMP_DURATION_MS = 900;
 function spawnLockStamp(hostEl) {
   const stamp = document.createElement("div");
   stamp.className = "lock-stamp-burst";
-  hostEl.appendChild(stamp);
-  setTimeout(() => stamp.remove(), LOCK_STAMP_DURATION_MS);
+  appendEffectHost(hostEl, stamp, LOCK_STAMP_DURATION_MS);
   return stamp;
 }
 
