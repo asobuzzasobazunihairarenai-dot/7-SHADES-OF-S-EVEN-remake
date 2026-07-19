@@ -52,6 +52,17 @@ const GROUPS = [
     ],
   },
   {
+    title: "効果音の音量（個別）",
+    category: "effect",
+    controls: [
+      { key: "--sound-volume-hand-shuffle", label: "手札シャッフル", unit: "%", min: 0, max: 100, step: 5, default: 80 },
+      { key: "--sound-volume-deck-shuffle", label: "山札シャッフル", unit: "%", min: 0, max: 100, step: 5, default: 80 },
+      { key: "--sound-volume-card-flip", label: "カードめくり", unit: "%", min: 0, max: 100, step: 5, default: 80 },
+      { key: "--sound-volume-card-place", label: "カードを置く", unit: "%", min: 0, max: 100, step: 5, default: 80 },
+      { key: "--sound-volume-card-draw", label: "カードを抜き取る", unit: "%", min: 0, max: 100, step: 5, default: 80 },
+    ],
+  },
+  {
     title: "盤面拡大ボタン（1段階目）のズーム位置調整",
     category: "position",
     controls: [
@@ -237,6 +248,11 @@ export function getUsableLockedEffect() {
   return usableLockedEffect;
 }
 
+// TOGGLE_SECTIONSの各buildContentはモジュール直下で定義される共有クロージャのため、
+// buildPanel()内のローカル変数であるupdateExport()を直接呼べない。「更新して」を伝える
+// 間接参照として、rebuildSlidersRefと同じ形のref経由で呼ぶ。
+const updateExportRef = { current: () => {} };
+
 // 単純なON/OFFトグル系のセクション（GROUPSのCSS変数スライダーとは性質が異なる）も、
 // カテゴリ分けの対象にするためこの配列にまとめておく。buildPanel()がcategoryごとに
 // GROUPSと合わせて振り分ける。
@@ -253,6 +269,7 @@ const TOGGLE_SECTIONS = [
       seatModeCheckbox.addEventListener("change", () => {
         manualSeatMode = seatModeCheckbox.checked;
         window.dispatchEvent(new CustomEvent("admin:change"));
+        updateExportRef.current();
       });
       const seatModeLabel = document.createElement("span");
       seatModeLabel.textContent = "2人/3人プレイの座席を自由に選べるようにする（オフ=人数から自動選択）";
@@ -272,6 +289,7 @@ const TOGGLE_SECTIONS = [
       turnGlowCheckbox.checked = document.documentElement.style.getPropertyValue("--turn-glow-rgb").trim() === "255, 255, 255";
       turnGlowCheckbox.addEventListener("change", () => {
         setVar("--turn-glow-rgb", turnGlowCheckbox.checked ? "255, 255, 255" : "255, 224, 130", "");
+        updateExportRef.current();
       });
       const turnGlowLabel = document.createElement("span");
       turnGlowLabel.textContent = "ロックエリア・アバターの手番グローを白色にする（オフ=黄色）";
@@ -292,6 +310,7 @@ const TOGGLE_SECTIONS = [
       effectCheckbox.addEventListener("change", () => {
         usableLockedEffect = effectCheckbox.checked ? "shine" : "orbit";
         window.dispatchEvent(new CustomEvent("admin:change"));
+        updateExportRef.current();
       });
       const effectLabel = document.createElement("span");
       effectLabel.textContent = "斜めに光る帯にする（オフ=色の球がふちを回る）";
@@ -475,10 +494,21 @@ function buildPanel(rebuildSlidersRef) {
   }
   rebuildSlidersRef.current = rebuildSliders;
 
+  // 「管理者モードの設定内容はすべて出力できるように」の対応。CSS変数のスライダー(CONTROLS)
+  // だけでなく、GROUPS/CONTROLSの仕組みに乗っていないON/OFFトグル（manualSeatMode・
+  // 手番グローの色・ロック中カードの強調演出の種類）も出力に含める。CSS変数ではないので
+  // :rootブロックの外に、コメント付きの別ブロックとして追記する。
   function updateExport() {
     const lines = CONTROLS.map((c) => `  ${c.key}: ${currentValue(c.key, c.default)}${c.unit};`);
-    exportEl.value = `:root {\n${lines.join("\n")}\n}`;
+    const turnGlowWhite = document.documentElement.style.getPropertyValue("--turn-glow-rgb").trim() === "255, 255, 255";
+    const toggleLines = [
+      `manualSeatMode: ${manualSeatMode}`,
+      `turnGlowWhite: ${turnGlowWhite}`,
+      `usableLockedEffect: "${usableLockedEffect}"`,
+    ];
+    exportEl.value = `:root {\n${lines.join("\n")}\n}\n\n/* 以下はCSS変数ではない設定（管理者モードのチェックボックス等） */\n${toggleLines.join("\n")}`;
   }
+  updateExportRef.current = updateExport;
 
   updateExport();
   return panel;

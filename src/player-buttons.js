@@ -6,11 +6,17 @@
 // - 右クリックで基本設定のショートカット設定欄を開く（実際に開く処理はoptions-menu.js側に
 //   registerShortcutSettingsOpener()で登録してもらう）
 
+// ドラッグで並び替えできる3つ（画面右下のスタック内で位置が入れ替わる対象）。
 export const PLAYER_BUTTONS = [
   { id: "hand-shuffle-button", label: "手札シャッフル" },
   { id: "board-zoom-button", label: "盤面拡大" },
   { id: "draw-button", label: "1枚ドロー" },
 ];
+
+// ショートカットキーを割り当てられる対象（PLAYER_BUTTONSに「ターン終了」を加えたもの）。
+// #end-turn-buttonはプレイヤー名で幅が可変なため並び替えの対象からは除外しているが、
+// ショートカットキーの割り当て自体はできるようにする。
+export const SHORTCUT_TARGETS = [...PLAYER_BUTTONS, { id: "end-turn-button", label: "ターン終了" }];
 
 // 画面右下のスタックで、#end-turn-button（bottom: 1.2rem、このグループには含まれない）の
 // 上に積む3つのスロットのbottom位置。orderの並び順（先頭が一番下）でそのまま対応する。
@@ -92,11 +98,18 @@ function attachDrag(btn, id) {
         dragging = true;
         // 「ドロップするとこうなりますよ」の見た目をそのまま伝えるため、ボタン自身の
         // クローンをカーソルに追従させるゴーストにする。
+        // ハマりどころ: cloneNode(true)は元のボタンのinline style（applyPositions()が
+        // 設定した`bottom: Xrem`）とid属性もそのままコピーする。bottomを消さずに
+        // 新たにtop:0も設定すると、position:fixedな要素がtopとbottomの両方に引っ張られて
+        // 縦方向いっぱいに引き伸ばされてしまう（画面全体を覆う縦長のボタンに見えるバグ）。
+        // また、idを残すと元のボタンとDOM上でid重複を起こす。どちらも明示的に消しておく。
         ghost = btn.cloneNode(true);
+        ghost.removeAttribute("id");
         ghost.className = `${btn.className} player-button-ghost`;
         ghost.style.left = "0";
         ghost.style.top = "0";
         ghost.style.right = "auto";
+        ghost.style.bottom = "auto";
         document.body.appendChild(ghost);
         btn.classList.add("is-drag-source");
       }
@@ -139,6 +152,10 @@ export function initPlayerButtons() {
     const btn = document.getElementById(id);
     if (!btn) continue;
     attachDrag(btn, id);
+  }
+  for (const { id } of SHORTCUT_TARGETS) {
+    const btn = document.getElementById(id);
+    if (!btn) continue;
     btn.addEventListener("contextmenu", (e) => {
       e.preventDefault();
       if (openShortcutSettingsFn) openShortcutSettingsFn(id);

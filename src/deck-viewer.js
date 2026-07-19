@@ -185,6 +185,13 @@ export function initDeckViewer() {
 
   const panel = buildPanel(close);
   const backdrop = createBackdrop(close, { dim: true, zIndex: 2000 });
+  // ハマりどころ: 他のパネル（admin.js/options-menu.js等）と違い、ここだけ生成直後に
+  // display:noneを付け忘れていたため、ページを開いた瞬間から画面全体が薄暗いbackdropで
+  // 覆われていた（deck-viewer自体は右上のボタンからしか開かないので、backdropの意図しない
+  // 表示に気付きにくかった）。1回目のクリックはこのbackdrop自身をclose()するだけに消費され、
+  // 実際にはマウスがまだ動いていない（クリックだけでは新しいpointermoveが発生しない）ため、
+  // 盤面のホバー演出が効き始めるにはもう1回の操作が必要になる、という体感になっていた。
+  backdrop.style.display = "none";
   const toggleBtn = buildToggleButton(open);
 
   document.body.appendChild(backdrop);

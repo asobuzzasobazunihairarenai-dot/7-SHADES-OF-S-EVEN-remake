@@ -278,6 +278,19 @@ function runAll() {
   if (closePanel) closePanel();
 }
 
+// クイックスタート（quick-start.js、画面右上の人数アイコン）用。通常のウィザードの
+// 「０：プレイ人数選択」を経由せず、指定した人数・無色カードの有無で直接０〜３を実行する。
+// 座席自動選択モード（管理者モードのトグルがオフ）を前提にした人数固定の座席割り当てになる
+// （手動座席選択モードの時に「2人プレイで特定の2席だけ選ぶ」といった細かい指定はできない。
+// その場合は従来通りウィザードの０から手動で設定してもらう）。
+export function quickStart(count, includeBlackWhite) {
+  const activePlayers = AUTO_SEATS_BY_COUNT[count];
+  if (!activePlayers) return;
+  config = { activePlayers, includeBlackWhite };
+  if (bodyEl) renderPanelBody();
+  runAll();
+}
+
 function buildPanel(close) {
   const panel = document.createElement("div");
   panel.id = "game-setup-panel";

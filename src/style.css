@@ -1968,3 +1968,60 @@ body {
 .victory-modal-close {
   background: rgba(255, 255, 255, 0.12);
 }
+
+/* 効果音ごとの音量（0〜100）。src/sound.jsがオプションメニューの「マスター音量」と
+   掛け算して最終的な再生音量にする。管理者モードの「効果音の音量（個別）」グループから
+   調整できる。 */
+:root {
+  --sound-volume-hand-shuffle: 80;
+  --sound-volume-deck-shuffle: 80;
+  --sound-volume-card-flip: 80;
+  --sound-volume-card-place: 80;
+  --sound-volume-card-draw: 80;
+}
+
+/* クイックスタート: 画面右上（山札一覧/セットアップ/オプションの下）に常設する、
+   「無色あり/なし」の切り替えと「2人/3人/4人」のボタン。押すだけでセットアップ
+   ウィザードの０〜３を一気に実行する（quick-start.js参照）。 */
+#quick-start-bar {
+  position: fixed;
+  top: 8.2rem;
+  right: 1rem;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  align-items: flex-end;
+}
+.quick-start-toggle,
+.quick-start-counts {
+  display: flex;
+  gap: 0.2rem;
+}
+.quick-start-toggle button,
+.quick-start-counts button {
+  padding: 0.3rem 0.55rem;
+  background: rgba(15, 23, 32, 0.85);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-family: sans-serif;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+.quick-start-toggle button:hover,
+.quick-start-counts button:hover {
+  background: rgba(56, 189, 248, 0.2);
+}
+.quick-start-toggle button.is-selected {
+  background: rgba(56, 189, 248, 0.35);
+  border-color: #7dd3fc;
+  font-weight: bold;
+}
+.quick-start-counts button {
+  background: rgba(8, 145, 178, 0.25);
+}
+.quick-start-counts button:hover {
+  background: rgba(8, 145, 178, 0.45);
+}

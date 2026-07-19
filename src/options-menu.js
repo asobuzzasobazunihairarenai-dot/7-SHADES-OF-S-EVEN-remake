@@ -6,7 +6,7 @@ import { openAdminPanel } from "./admin.js";
 import { isLockAreaBarVisible, setLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible, setLockColorVisible } from "./lock-color.js";
 import { getSoundVolume, setSoundVolume } from "./sound.js";
-import { PLAYER_BUTTONS, getShortcut, setShortcut, registerShortcutSettingsOpener } from "./player-buttons.js";
+import { SHORTCUT_TARGETS, getShortcut, setShortcut, registerShortcutSettingsOpener } from "./player-buttons.js";
 import { createBackdrop } from "./ui-helpers.js";
 
 function buildMenuItem(label, onClick) {
@@ -142,7 +142,7 @@ export function initOptionsMenu() {
   panel.appendChild(shortcutDivider);
 
   panel.appendChild(buildSectionTitle("ショートカットキー（プレイヤー用ボタン）"));
-  for (const { id, label } of PLAYER_BUTTONS) {
+  for (const { id, label } of SHORTCUT_TARGETS) {
     panel.appendChild(buildShortcutRow(id, label));
   }
 

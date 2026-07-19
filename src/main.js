@@ -16,6 +16,7 @@ import { isLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible } from "./lock-color.js";
 import { showCardArrivalModal } from "./card-arrival.js";
 import { initPlayerButtons } from "./player-buttons.js";
+import { initQuickStart } from "./quick-start.js";
 import { getState, moveToken, sendTokenToPile, drawFromPile, flipToken, shuffleHand, nextTurn, refillDeckFromDiscard } from "./state.js";
 import { playSound } from "./sound.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
@@ -1076,6 +1077,11 @@ function startTokenDrag(e, tokenId, kind, sourceEl) {
   // 手札に残ったまま見えたりしないようにするため）。dropの成否にかかわらず必ずrender()で
   // DOMが作り直されるので、明示的に元に戻す処理は不要。
   sourceEl.style.visibility = "hidden";
+  // 自分・相手を問わず、手札のカードを掴んだ瞬間に「抜き取る」効果音を鳴らす。
+  const draggedToken = getState().tokens.find((t) => t.id === tokenId);
+  if (draggedToken && draggedToken.kind === "card" && draggedToken.location.zone === "hand") {
+    playSound("cardDraw");
+  }
   dragSession = { tokenId, kind, ghost, pileSource: null, highlightEl: null };
   document.body.style.userSelect = "none";
   window.addEventListener("pointermove", onDragMove);
@@ -1085,7 +1091,14 @@ function startTokenDrag(e, tokenId, kind, sourceEl) {
 
 function startPileDrag(e, pileKey) {
   const pileArray = getState().piles[pileKey];
-  if (pileArray.length === 0) return; // 空の山からは引けない
+  if (pileArray.length === 0) {
+    // 「1枚ドロー」ボタンはensureDeckAvailable()経由で山札切れ時に補充確認モーダルを出すが、
+    // 山札を直接ドラッグして引こうとした時はこのガードで即座に抜けるだけで、モーダルが
+    // 一切出ないまま「掴んでも何も起きない」だけの挙動になっていた（ユーザー報告のバグ）。
+    // 山札(deck)が対象の時だけ、ここでも同じ補充確認を出す（捨て場も空なら何もしない）。
+    if (pileKey === "deck") ensureDeckAvailable(() => {});
+    return;
+  }
   const topCardId = pileArray[pileArray.length - 1];
   const ghost = document.createElement("div");
   // 捨て場は表向きに積まれている（ルール通り）ので一番上のカードの実物画像を、
@@ -1099,6 +1112,8 @@ function startPileDrag(e, pileKey) {
   }
   document.body.appendChild(ghost);
   positionGhost(ghost, e.clientX, e.clientY);
+  // 山札から掴んだ瞬間にも「抜き取る」効果音を鳴らす（捨て場・エターナル等からは対象外）。
+  if (pileKey === "deck") playSound("cardDraw");
   dragSession = { tokenId: null, kind: "card", ghost, pileSource: pileKey, highlightEl: null };
   document.body.style.userSelect = "none";
   window.addEventListener("pointermove", onDragMove);
@@ -1403,6 +1418,7 @@ function buildDrawButton() {
       if (pileArray.length === 0) return; // 捨て場も空で、これ以上引けるカードが無い
       const cardId = pileArray[pileArray.length - 1];
       drawFromPile("deck", { zone: "hand", player });
+      playSound("cardDraw");
       announceHandPickups(player, [{ cardId, wasPublic: false }]);
       render();
     });
@@ -1573,4 +1589,5 @@ initDeckViewer();
 initGameSetup();
 initOptionsMenu();
 initPlayerButtons();
+initQuickStart();
 buildGameTitle();
