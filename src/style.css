@@ -361,7 +361,10 @@ body {
 
 /* ロックエリアに置いたカードは、そのロックエリアの持ち主（座席）から見て正しい向きに
    読めるよう回転させる。手前(A)は元々正しい向きなので回転不要。奥(C)は真逆に座っているので
-   180度、左(B)・右(D)はそれぞれの席から見て正しい向きになるよう90度/-90度。 */
+   180度、左(B)・右(D)はそれぞれの席から見て正しい向きになるよう90度/-90度。
+   右(D)は下の.lock-right自体に180度の回転を追加したため（7色スロットの並び順が
+   逆になっていた不具合の修正）、カードの向きを打ち消し分だけ再調整している
+   （-90度のままだと親の180度回転と合成されて上下逆さまになってしまうため、90度に変更）。 */
 .lock-top .board-card {
   transform: rotate(180deg);
 }
@@ -369,7 +372,7 @@ body {
   transform: rotate(90deg);
 }
 .lock-right .board-card {
-  transform: rotate(-90deg);
+  transform: rotate(90deg);
 }
 
 /* カードが新しくロックされた瞬間だけの使い捨て演出（画像素材/ロック/、assets/lock-icon.png
@@ -856,7 +859,13 @@ body {
 .lock-right {
   left: 50%;
   margin-left: calc(var(--board-size) / 2);
-  transform: translate(var(--lock-right-pos-x), var(--lock-right-pos-y));
+  /* プレイヤーDから見て7色スロットの並び順が逆になっていたバグ修正。rotate(180deg)は
+     rightmost（内側）に置くことで、translate(先頭)はこれまで通り画面座標系での
+     単純な位置調整のままにし、回転は箱自身の中心を軸にした「その場での180度反転」だけに
+     留めている（180度回転は中心が動かないため、既存のtuned位置には影響しない）。
+     ロックしたカードの向き(main.js/style.css内.lock-right .board-card)もこれに合わせて
+     再調整済み。 */
+  transform: translate(var(--lock-right-pos-x), var(--lock-right-pos-y)) rotate(180deg);
 }
 
 /* ロックエリアバー: ロックエリアと盤面の間に置く装飾画像（画像素材/ロックエリアバー/、
@@ -2143,6 +2152,36 @@ body {
   );
   opacity: 0;
   animation: arrival-burst-ring 0.9s ease-out forwards;
+}
+
+/* 虹（なないろの欠片）カードの到達演出だけ、柱・光の輪を単色ではなく虹色にする。
+   border-color/box-shadow/color-mix()はグラデーションを受け付けないため、
+   --arrival-effect-colorをそのまま使う通常ルールでは虹を表現できない。
+   spawnArrivalBurst()がcolor==="rainbow"の時だけこのクラスを付け、柱・光の輪の
+   background/枠線だけをここで個別に上書きする（transform/opacityのアニメーションは
+   通常ルールと共通のまま）。 */
+.arrival-effect-burst.is-rainbow .arrival-effect-frame {
+  border-color: transparent;
+  border-image: linear-gradient(90deg, #c70025, #ee781f, #fabe00, #22ac38, #1bb8ce, #f19ec2, #915da3) 1;
+  box-shadow:
+    0 0 0.5rem 0.15rem rgba(255, 255, 255, 0.55),
+    0 0 1.4rem 0.5rem rgba(255, 255, 255, 0.35);
+}
+.arrival-effect-burst.is-rainbow .arrival-effect-flame {
+  background: linear-gradient(
+    to top,
+    #c70025 0%,
+    #ee781f 14%,
+    #fabe00 28%,
+    #22ac38 42%,
+    #1bb8ce 57%,
+    #f19ec2 71%,
+    #915da3 85%,
+    transparent 100%
+  );
+}
+.arrival-effect-burst.is-rainbow .arrival-effect-ring {
+  background: conic-gradient(#c70025, #ee781f, #fabe00, #22ac38, #1bb8ce, #f19ec2, #915da3, #c70025);
 }
 @keyframes arrival-frame-glow {
   0% {

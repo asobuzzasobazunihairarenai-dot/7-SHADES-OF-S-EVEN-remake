@@ -404,6 +404,15 @@
   - ブラウザでの実測（4人クイックスタート）: 4人分すべてで`lock`効果音（4回）と`.lock-stamp-burst`要素の出現（最大同時2件、重なりあり）を確認。ステップ１の所要時間が、カード配布ループ自体の長さ（スタガー分のみ）から、最後のプレイヤーのロック演出（バースト1300ms＋ロック画像900ms＝2200ms）が終わるまで自然に延びていることも計測で確認済み。
 - **プレイヤーDのアバター位置を管理者モードでの調整に合わせて更新**: `--avatar-d-pos-x: 4.5rem → 3.5rem`（style.css・admin.jsの両方）。
 
+### 2026-07-19の変更（続き・同日15回目のラウンド）
+
+- **虹（なないろの欠片）カードの到達演出を虹色にした**: `--arrival-effect-color`（単色のCSS変数）に虹用の`--color-rainbow`（既に`linear-gradient(135deg, ...)`として定義済み、`.pile-eternal`の背景で流用中）をそのまま渡すと、`border-color`/`box-shadow`/`color-mix()`はグラデーション値を受け付けず無効になってしまう。`spawnArrivalBurst(hostEl, color)`が`color === "rainbow"`の時だけ`.arrival-effect-burst`に`is-rainbow`クラスを付けるようにし（`--arrival-effect-color`自体は設定しない）、CSS側に`.arrival-effect-burst.is-rainbow`用の個別ルールを追加した: 柱(`.arrival-effect-flame`系)は7色を含む縦グラデーション（先端は透明でフェード）、光の輪(`.arrival-effect-ring`)は`conic-gradient`で虹色の円盤、カード外枠(`.arrival-effect-frame`)は`border-image`で虹色の枠線＋白めのグロー（box-shadowは単色しか使えないため）に置き換えた。`triggerLockEffect`・`triggerCardArrival`はどちらも内部で`spawnArrivalBurst`を呼ぶ共通経路なので、ロック時・駒到達時どちらでも自動的に虹色になる。
+  - ブラウザでの検証: 山札から虹カード(`rainbow-shard`)が引けるまでドローを繰り返し（18回目で出現）、手札からロックスロットへドラッグして`.arrival-effect-burst.is-rainbow`が生成されること、柱・光の輪・外枠がいずれも7色のグラデーション/conic-gradientで描画されていることを`getComputedStyle`で確認。比較のため通常色（緑）のカードも同じ経路でロックし、`is-rainbow`クラスが付かず従来通り`var(--color-green)`が使われることも確認済み（回帰なし）。
+- **プレイヤーD（右側）のロックエリアの7色並び順が逆だったバグを修正**: `.lock-right`（Dのロックエリア全体を囲むコンテナ）の`transform`に`rotate(180deg)`を追加した（既存の`translate(var(--lock-right-pos-x), var(--lock-right-pos-y))`の後ろに付け足す形。180度回転は要素自身の中心を軸にした「その場での反転」なので、既存のtranslateによる位置調整には影響しない）。これにより7色スロットの並び順（DOM順=COLORS配列順）が上下反転し、プレイヤーBの並び順と正しく逆（ミラー）になる。
+  - **カードの向きを再調整**: `.lock-right`自体が180度回転したことで、ロックされたカードの見た目の向きも「親の180度」＋「カード自身の回転」の合成になってしまうため、`.lock-right .board-card`の`rotate(-90deg)`を`rotate(90deg)`に変更し、合成後の向き（270度≡-90度）が元の向き（-90度）と一致するよう補正した。ブラウザで`getComputedStyle().transform`の行列を実測し、`.lock-right`が`matrix(-1,0,0,-1,28.8,0)`（=180度回転＋既存のtranslate）、カードが`matrix(0,1,-1,0,0,0)`（=90度回転）で、合成した見た目の向きが修正前と一致することを確認済み。
+  - 「ロックエリアバー」（装飾用の帯画像、`.lock-area-bar-right`）はユーザー指定通り変更していない（ロックエリア本体`.lock-right`とは別要素のため無関係）。
+  - なお、到達演出の柱状バースト・ロック画像の拡大演出（`.arrival-effect-*`/`.lock-stamp-burst`）はどの辺でも常に画面の「上方向」に伸びる向きで固定（元々どの辺についても側ごとの向き調整はされていなかった）。D側だけ親コンテナが180度回転した影響で、これらの演出は他の3辺と比べて上下反転した向きで表示される。この演出自体の向きはこれまでどの辺についても未調整だったため、今回はカードの可読性（テキストの向き）だけを優先して補正し、演出の向きは据え置いた。見た目が気になる場合は追加対応可能。
+
 ## 未確認・要フォローアップ
 
 - 親フォルダ（Googleドライブ）直下に以下の関連しそうなファイル・フォルダがあるが、中身は未確認：

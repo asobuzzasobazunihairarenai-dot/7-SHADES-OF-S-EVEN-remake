@@ -374,10 +374,15 @@ function hasPieceAt(location) {
 // .arrival-effect-frame＋太さの違う柱3本.arrival-effect-flame系＋根本の光の輪
 // .arrival-effect-ring の3層構成）。到達演出・ロック演出の両方から流用する共通部分。
 // CSSアニメーションが終わる頃（一番長いものでも1.3s）に合わせてまとめてDOMから消す。
+// 虹（なないろの欠片、cards-data.jsのcolor: "rainbow"）は単色のCSS変数では表現できない
+// （border-color/box-shadow/color-mix()はグラデーションを受け付けない）ため、
+// .is-rainbowクラスを付けてCSS側で柱・光の輪を虹色に個別上書きする。
 function spawnArrivalBurst(hostEl, color) {
   const burst = document.createElement("div");
-  burst.className = "arrival-effect-burst";
-  burst.style.setProperty("--arrival-effect-color", `var(--color-${color})`);
+  burst.className = color === "rainbow" ? "arrival-effect-burst is-rainbow" : "arrival-effect-burst";
+  if (color !== "rainbow") {
+    burst.style.setProperty("--arrival-effect-color", `var(--color-${color})`);
+  }
 
   const frame = document.createElement("div");
   frame.className = "arrival-effect-frame";
