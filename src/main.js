@@ -1613,6 +1613,13 @@ function ensureDeckAvailable(onReady) {
     onReady();
     return;
   }
+  // REFILL_DECK_FROM_DISCARDはオンライン対戦（第一弾）にまだポートしていないため、
+  // オンライン中はこの自動補充を行わない（山が本当に空ならサーバー側のDRAW_FROM_PILEが
+  // 何もせず返してくるだけ）。
+  if (isOnlineMode()) {
+    onReady();
+    return;
+  }
   showConfirmModal(
     "山札が空になりました",
     "捨て場のカードをノーシャッフルで山札にします。",
@@ -1797,7 +1804,24 @@ function buildDrawButton() {
   btn.addEventListener("click", () => {
     const player = getState().turnPlayer;
     if (!player) return;
-    ensureDeckAvailable(() => {
+    ensureDeckAvailable(async () => {
+      if (isOnlineMode()) {
+        // 山の中身はサーバーにしか無く先読みできないため、drawFromPile()（オンライン中は
+        // transportを返す）の応答を待ち、実際に引けたカードをそこから受け取る
+        // （onDragEndの山ドロー分岐と同じ考え方）。
+        let result = null;
+        try {
+          result = await drawFromPile("deck", { zone: "hand", player });
+        } catch (err) {
+          console.error("drawFromPile failed", err);
+          return;
+        }
+        if (result?.revealedCardId) {
+          playSound("cardDraw");
+          announceHandPickups(player, [{ cardId: result.revealedCardId, wasPublic: false }]);
+        }
+        return;
+      }
       const pileArray = getState().piles.deck;
       if (pileArray.length === 0) return; // 捨て場も空で、これ以上引けるカードが無い
       const cardId = pileArray[pileArray.length - 1];
