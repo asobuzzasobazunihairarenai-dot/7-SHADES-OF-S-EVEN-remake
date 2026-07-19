@@ -8,7 +8,9 @@
 // ２: 山札をシャッフルして盤面49マスに裏向きで配置する
 // ３: スタートプレイヤーを無作為に決める（以降のターン管理の起点にもなる）
 // のいずれかを個別に、または「１〜３を一気に行う」でまとめて実行できる。
-// 配布アニメーションは今回のスコープ外（機能を固めた後の別作業とする）。
+// １・２はそれぞれ、対応する配布演出（setup-animation.js）の再生が終わるまで待ってから
+// 次のステップに進む（「１〜３を一気に行う」でスタートプレイヤー発表が演出の途中に
+// 割り込んでこないようにするため）。
 
 import { resetGame, setupAssignFirstCards, setupFillBoard, setTurnPlayer } from "./state.js";
 import { isManualSeatMode } from "./admin.js";
@@ -17,6 +19,7 @@ import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { resetVictoryTracking } from "./victory.js";
 import { PLAYMAT_OPTIONS, getSelectedPlaymatId, setSelectedPlaymatId } from "./playmat.js";
+import { animateFirstCardsDealt, animateBoardFilled } from "./setup-animation.js";
 
 // 2人/3人プレイ時、座席自動選択モード（管理者モードのトグルがオフの時）で使う座席。
 // 2人=対面(A・C)、3人=Dを除いた3隅。4人は常に全員。
@@ -264,17 +267,17 @@ function renderPanelBody(forceForm = false) {
   bodyEl.appendChild(!config || forceForm ? buildConfigForm() : buildStepButtons());
 }
 
-function runStep1() {
+async function runStep1() {
   resetGame();
   resetVictoryTracking(); // 新しい対戦の開始なので、以前の勝利済みプレイヤーの記録も忘れる
   const players = activePlayersOrdered().map((player) => ({ player, side: SEAT_TO_SIDE[player] }));
   setupAssignFirstCards(players);
-  notifyChange();
+  await animateFirstCardsDealt();
 }
 
-function runStep2() {
+async function runStep2() {
   setupFillBoard(config.includeBlackWhite);
-  notifyChange();
+  await animateBoardFilled();
 }
 
 function runStep3() {
@@ -285,9 +288,9 @@ function runStep3() {
   showStartPlayerModal(startPlayer);
 }
 
-function runAll() {
-  runStep1();
-  runStep2();
+async function runAll() {
+  await runStep1();
+  await runStep2();
   runStep3();
   if (closePanel) closePanel();
 }
@@ -297,12 +300,12 @@ function runAll() {
 // 座席自動選択モード（管理者モードのトグルがオフ）を前提にした人数固定の座席割り当てになる
 // （手動座席選択モードの時に「2人プレイで特定の2席だけ選ぶ」といった細かい指定はできない。
 // その場合は従来通りウィザードの０から手動で設定してもらう）。
-export function quickStart(count, includeBlackWhite) {
+export async function quickStart(count, includeBlackWhite) {
   const activePlayers = AUTO_SEATS_BY_COUNT[count];
   if (!activePlayers) return;
   config = { activePlayers, includeBlackWhite };
   if (bodyEl) renderPanelBody();
-  runAll();
+  await runAll();
 }
 
 function buildPanel(close) {

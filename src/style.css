@@ -2206,3 +2206,63 @@ body {
 .quick-start-counts button:hover {
   background: rgba(8, 145, 178, 0.45);
 }
+
+/* セットアップアニメーション（src/setup-animation.js）: ファーストカード配布・盤面への
+   カード配置を、山/ファーストカードの位置から各マス/ロックスロットへ飛んでいく演出で見せる。 */
+
+/* 配られる最中はまだ場の実物要素を隠しておき、ゴーストが届いた瞬間に表示に切り替える。
+   .board-cardと.pieceの両方に使うため、共通のopacity/transformプロパティだけを扱う。 */
+.is-setup-pending {
+  opacity: 0;
+}
+.piece.is-setup-pending {
+  transform: scale(0.2);
+}
+/* 通常時のtransition。is-setup-pendingが外れた瞬間にこのtransitionで滑らかに現れる
+   （駒はcubic-bezierのオーバーシュートで「ぶわーん」というポップ感を出す）。 */
+.board-card {
+  transition: opacity 0.2s ease-out;
+}
+.piece {
+  transition:
+    opacity 0.3s ease-out,
+    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ファーストカードの山・山札からマス/ロックスロットへ飛んでいく途中のゴースト。
+   ドラッグ中のゴースト(.drag-ghost)と同じくdocument.body直下、3D空間の外に浮かべる。 */
+.setup-fly-card {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 9998;
+  border-radius: 0.3rem;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+/* アニメーション中に画面全体を覆う透明な受け皿。クリックで残りを即座に完了させる
+   （セットアップは何度もやり直すことが多いテストプレイ用途を考慮）。 */
+#setup-animation-skip-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9997;
+  cursor: pointer;
+}
+.setup-animation-skip-hint {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 32, 0.85);
+  color: rgba(226, 232, 240, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.4rem;
+  padding: 0.4rem 0.9rem;
+  font-family: sans-serif;
+  font-size: 0.75rem;
+  pointer-events: none;
+}
