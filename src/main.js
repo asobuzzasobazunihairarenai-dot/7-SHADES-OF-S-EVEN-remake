@@ -34,7 +34,16 @@ import { initOnlineUi, openOnlinePanel } from "./online-ui.js";
 import { getSelfSeat, getCachedUser, getCurrentGameId, onAuthChange } from "./online.js";
 import { playSound } from "./sound.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
-import { COLORS, GATE_POSITIONS, SEAT_TO_SIDE, SIDE_TO_SEAT } from "./board-layout.js";
+import {
+  COLORS,
+  GATE_POSITIONS,
+  SEAT_TO_SIDE,
+  SIDE_TO_SEAT,
+  SEAT_ORDER,
+  getRotationSteps,
+  rotateCell,
+  rotateSide,
+} from "./board-layout.js";
 
 // セットアップの配布演出（setup-animation.js）が、render()で新しくDOM要素を作らせる
 // 「前」に登録しておく、まだ登場させたくないトークンidの集合。render()の後から
@@ -48,11 +57,17 @@ function setSetupPendingTokenIds(ids) {
   setupPendingTokenIds = ids;
 }
 
-function buildLockArea(side) {
+// side引数は常に「実際の物理side」（ゲート/座席と紐づく本当のside）を渡す。
+// ロックエリア自体の判定（トークンのdataset.side・手番ハイライト）は全てこのsideを使う。
+// stepsはビューア視点回転量（main.jsのrender()参照）で、CSSクラス名（＝画面上の表示位置）
+// だけをrotateSide()で変換する。他は一切変更しないため、既存のロックエリアCSS
+// （Dの180度回転補正・effect-side-flip等）はそのまま正しく動く。
+function buildLockArea(side, steps = 0) {
   const el = document.createElement("div");
   const turnPlayer = getState().turnPlayer;
   const isTurnSide = turnPlayer && SEAT_TO_SIDE[turnPlayer] === side;
-  el.className = `lock-area lock-${side}${isTurnSide ? " is-turn-player" : ""}`;
+  const displaySide = rotateSide(side, steps);
+  el.className = `lock-area lock-${displaySide}${isTurnSide ? " is-turn-player" : ""}`;
   COLORS.forEach((color, index) => {
     const slot = document.createElement("div");
     slot.className = "lock-slot";
@@ -71,7 +86,10 @@ function buildLockArea(side) {
   return el;
 }
 
-function buildBoard() {
+// row/col・dataset.row/colは常に「実際のマス座標」（drag/drop・findLocationElement等が
+// 引き続きこれを使う）。stepsが0でなければ、CSS Gridの行/列を明示指定して見た目の位置
+// だけをrotateCell()で回転させる（暗黙のDOM順配置を上書きする。行/列は1始まりのため+1）。
+function buildBoard(steps = 0) {
   const board = document.createElement("div");
   board.className = "board";
   for (let row = 0; row < 7; row++) {
@@ -82,6 +100,11 @@ function buildBoard() {
       if (isGate) cell.classList.add("is-gate");
       cell.dataset.row = String(row);
       cell.dataset.col = String(col);
+      if (steps % 4 !== 0) {
+        const { row: dr, col: dc } = rotateCell(row, col, steps);
+        cell.style.gridRow = String(dr + 1);
+        cell.style.gridColumn = String(dc + 1);
+      }
       board.appendChild(cell);
     }
   }
@@ -92,9 +115,11 @@ function buildBoard() {
 // なので、外側の位置決め用ボックス（top/bottomはそのまま、left/rightは幅高さを入れ替えた
 // 縦長）と、中の画像用要素（常に横長のまま、left/rightだけCSSでrotate(90deg)）を分けている。
 // こうすることで、回転による見た目上のズレを位置決めの計算に混ぜずに済む。
-function buildLockAreaBar(side) {
+// 装飾のみでゲームデータを持たないため、表示位置(rotateSide結果)をそのままクラス名に使う。
+function buildLockAreaBar(side, steps = 0) {
   const outer = document.createElement("div");
-  outer.className = `lock-area-bar lock-area-bar-${side}`;
+  const displaySide = rotateSide(side, steps);
+  outer.className = `lock-area-bar lock-area-bar-${displaySide}`;
   outer.style.display = isLockAreaBarVisible() ? "block" : "none";
   const img = document.createElement("div");
   img.className = "lock-area-bar-image";
@@ -102,22 +127,22 @@ function buildLockAreaBar(side) {
   return outer;
 }
 
-function buildArena() {
+function buildArena(steps = 0) {
   const arena = document.createElement("div");
   arena.className = "arena";
   const playmatBg = document.createElement("div");
   playmatBg.className = "playmat-bg";
   playmatBg.style.backgroundImage = `url("${getSelectedPlaymatPath()}")`;
   arena.appendChild(playmatBg); // 最初に追加＝他の要素の背面に描画される
-  arena.appendChild(buildLockAreaBar("top"));
-  arena.appendChild(buildLockAreaBar("bottom"));
-  arena.appendChild(buildLockAreaBar("left"));
-  arena.appendChild(buildLockAreaBar("right"));
-  arena.appendChild(buildLockArea("top"));
-  arena.appendChild(buildLockArea("left"));
-  arena.appendChild(buildBoard());
-  arena.appendChild(buildLockArea("right"));
-  arena.appendChild(buildLockArea("bottom"));
+  arena.appendChild(buildLockAreaBar("top", steps));
+  arena.appendChild(buildLockAreaBar("bottom", steps));
+  arena.appendChild(buildLockAreaBar("left", steps));
+  arena.appendChild(buildLockAreaBar("right", steps));
+  arena.appendChild(buildLockArea("top", steps));
+  arena.appendChild(buildLockArea("left", steps));
+  arena.appendChild(buildBoard(steps));
+  arena.appendChild(buildLockArea("right", steps));
+  arena.appendChild(buildLockArea("bottom", steps));
   return arena;
 }
 
@@ -178,10 +203,15 @@ function buildPlayerZone(side, player, isSelf) {
   // .hand-areaは見た目だけでなく、カードをドロップする際の当たり判定(findDropTarget)にも
   // 使われる。固定サイズ(以前はwidth:100%=盤面と同じ幅)のままだと実際に見えている手札の
   // 範囲よりずっと広くなり、ロックエリアの帯と干渉してしまう。手札3枚の時を基準サイズ
-  // (--hand-{player}-size、管理者モードで調整可能)とし、枚数に比例して自動で伸縮させる。
+  // (--hand-{a,b,c,d}-size、管理者モードで調整可能)とし、枚数に比例して自動で伸縮させる。
   // 扇が伸びる方向(横=horizontal、縦=vertical)にだけ効かせ、反対方向は固定のまま。
+  // 注意: このCSS変数は座席(player)ではなく画面上の表示位置(side)に紐づく
+  // （例: --hand-a-sizeは常に「画面手前(bottom)」用のサイズ。ビューア視点回転により
+  // bottom位置に座席B/C/Dが来ることがあるため、player.toLowerCase()ではなくsideから
+  // 変数名を組み立てる必要がある）。
+  const HAND_VAR_LETTER = { bottom: "a", left: "b", top: "c", right: "d" };
   const baseSize = parseFloat(
-    getComputedStyle(document.documentElement).getPropertyValue(`--hand-${player.toLowerCase()}-size`)
+    getComputedStyle(document.documentElement).getPropertyValue(`--hand-${HAND_VAR_LETTER[side]}-size`)
   );
   const scale = Math.max(handTokens.length, 2) / 3;
   const sizeRem = (Number.isNaN(baseSize) ? 10 : baseSize) * scale;
@@ -633,23 +663,27 @@ function render() {
   updateOnlineButtonLabel();
   const table = document.getElementById("game-table");
   table.innerHTML = "";
+  // オンライン対戦では「自分」が実際にログインしている座席になる（ローカルモードでは
+  // これまで通り常にA、src/online.jsのgetSelfSeat()参照）。stepsは「自分の座席を画面手前
+  // (bottom)に持ってくるには盤面を時計回りに何回(90度単位)回転させるか」（0ならA視点の
+  // 従来通りの見た目と完全に同じ、board-layout.js参照）。
+  const self = getSelfSeat();
+  const steps = getRotationSteps(self);
   // arena（プレイマット画像を含む）を最初に追加する＝DOM順で一番背面にする。
   // 後に追加した手札・山札・捨て場・エターナルは、画面上で座標が重なってもプレイマットより
   // 手前に描画される（盤面のマス目の枠線と同じ「高さ」で表示される、という要望に対応）。
-  table.appendChild(buildArena());
+  table.appendChild(buildArena(steps));
   // セットアップ手順1で参加座席(activePlayers)が確定した後は、参加していない座席の
   // アバター・名前・手札ゾーンごと表示しない（例: 2人プレイなのに4人分のアバターが
   // 出てしまっていたバグの修正）。まだセットアップ前（activePlayers==[]）の間は、
   // 従来通り4人分をプレビューとして表示しておく。
   const { activePlayers } = getState();
   const isActive = (player) => activePlayers.length === 0 || activePlayers.includes(player);
-  // オンライン対戦では「自分」が実際にログインしている座席になる（ローカルモードでは
-  // これまで通り常にA、src/online.jsのgetSelfSeat()参照）。
-  const self = getSelfSeat();
-  if (isActive("A")) table.appendChild(buildPlayerZone("bottom", "A", self === "A"));
-  if (isActive("B")) table.appendChild(buildPlayerZone("left", "B", self === "B"));
-  if (isActive("C")) table.appendChild(buildPlayerZone("top", "C", self === "C"));
-  if (isActive("D")) table.appendChild(buildPlayerZone("right", "D", self === "D"));
+  for (const seat of SEAT_ORDER) {
+    if (!isActive(seat)) continue;
+    const displaySide = rotateSide(SEAT_TO_SIDE[seat], steps);
+    table.appendChild(buildPlayerZone(displaySide, seat, self === seat));
+  }
   table.appendChild(buildPileZone("deck"));
   table.appendChild(buildPileZone("eternal"));
   table.appendChild(buildPileZone("first"));

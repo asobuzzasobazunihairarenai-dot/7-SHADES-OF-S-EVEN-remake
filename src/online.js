@@ -19,6 +19,7 @@ import {
   isOnlineMode,
   notifyListeners,
 } from "./state.js";
+import { SEAT_ORDER } from "./board-layout.js";
 
 // state.jsの方が唯一の真実（main.jsも同じ関数をstate.jsから直接importして使う）。
 // ここでは呼び出し側（online-ui.js）の利便性のためだけに再エクスポートする。
@@ -221,6 +222,11 @@ export function getMySeat() {
 // フォールバックとして"A"）。getMySeat()はオンラインでない時・座席未割り当ての間はnullを
 // 返す「部屋UI用の正直な値」として役割を分けている（部屋パネルの「今の座席」表示に使う）。
 export function getSelfSeat() {
+  // 検証用の一時的な抜け道: ?debugSeat=B のようにURLへ付けると、ローカルモードのままでも
+  // B/C/Dの視点（盤面のビューア視点回転）を確認できる。本番の座席割り当てには一切影響しない
+  // （callAction等はcurrentSeatを直接参照するため、このデバッグ値の影響を受けない）。
+  const debugSeat = new URLSearchParams(window.location.search).get("debugSeat");
+  if (debugSeat && SEAT_ORDER.includes(debugSeat)) return debugSeat;
   return isOnlineMode() ? currentSeat || "A" : "A";
 }
 

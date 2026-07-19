@@ -639,3 +639,93 @@
   （`so7_game_seats`のnullable化・主キー変更）をSupabaseダッシュボードのSQL Editorで実行し、
   `supabase/functions/so7-apply-action.ts`の更新後の内容をEdge Functionsダッシュボードで
   再デプロイする必要がある。
+
+### 2026-07-19の変更（続き・同日22回目のラウンド）：オンラインパネルの二重表示バグ・匿名名の空括弧・2人時の座席を修正
+
+実際にユーザーがSQL追記・Edge Function再デプロイを行い、オンラインパネルを操作した際に
+新たな不具合が見つかった。
+
+- **オンラインパネルの中身が縦に二重表示されるバグを修正（重要なハマりどころ）**:
+  `online-ui.js`の`renderPanelContent()`は`contentEl.innerHTML = ""`でクリアしてから
+  `await getCurrentUser()`等で非同期に待ち、その後に中身を組み立てる作りだった。この関数が
+  短時間に2回呼ばれる（例: 匿名ログイン成功時、`anonBtn`のクリックハンドラ内の明示的な
+  再描画呼び出しと、`onAuthStateChange`経由の`onAuthChange`リスナーによる自動再描画が
+  ほぼ同時に発火する）と、先に呼ばれた方が`await`で一旦止まっている間に後から呼ばれた方が
+  再度クリア→両方が「クリア後の空の状態」から中身を積み増してしまい、パネルの中身
+  （ログイン/部屋の情報一式）がまるごと2回分表示されるバグになっていた。世代カウンタ
+  （`renderGeneration`）を導入し、`await`から戻った時点で自分が最新の呼び出しでなければ
+  描画を中断する（＝一番最後に呼ばれたものだけが実際に`appendChild`する）ようにして解決。
+- **匿名ユーザーのタイトルが「オンライン対戦（）」と空の括弧になるバグを修正**:
+  `renderRoomChoice`が`user.email ?? "匿名ユーザー"`としていたが、匿名ログインのユーザーは
+  `email`が`undefined`ではなく空文字列`""`になることがあり、`??`は`""`をnullish扱いしない
+  ためフォールバックが効かなかった。`||`に変更して解決。
+- **2人プレイで対面(A・C)ではなく隣同士(A・B)に座席が割り振られるバグを修正**:
+  `so7-apply-action.ts`のBOOTSTRAP_GAMEが単純に`SEAT_ORDER`の先頭から人数分を割り当てて
+  いたため、2人プレイでは常にA・Bという隣同士の座席になっていた。ローカル版の
+  `game-setup.js`の`AUTO_SEATS_BY_COUNT`（2人=対面のA・C、3人=A・B・C、4人=全員）と同じ
+  規則をEdge Function側にも反映し、オンラインでも2人プレイ時は対面に座るようにした。
+- **Steam/スマホアプリ化との整合性を確認**: ビルド不要の静的サイト＋Supabase(HTTPS)通信
+  という現在の構成のまま、Tauri/Capacitor等でラップして進めても問題ないことを確認
+  （ネットワーク層の作り直しは不要）。ただし将来「見知らぬ相手とのマッチング」段階では、
+  今の「座席を持っていれば何でも動かせる」という友人間前提のゆるい権限チェックとは別に、
+  サーバー側の権限チェック強化が別途必要になる（Steam化そのものとは無関係な課題）。
+
+### 2026-07-19の変更（続き・同日23回目のラウンド）：盤面のビューア視点回転（自分の座席が常に手前に来るように）
+
+これまで盤面の見た目は常に「A＝手前(bottom)・B＝左・C＝奥(top)・D＝右」に固定されており、
+座席B/C/Dで参加したプレイヤーは自分の手札が画面の隅に小さく表示され、Aだけがいつも通り
+手前に大きく表示されていた（"自分＝A"の決め打ちは`getSelfSeat()`導入で解消済みだったが、
+盤面の**見た目の配置**自体は未対応のまま残っていた）。ユーザーから繰り返し要望されていた
+残タスクのうち最も要望の強い項目に対応した。
+
+- **設計方針**: 物理的な盤面（49マスのrow/col）とロックエリア（"top"/"bottom"/"left"/
+  "right"というside文字列）は完全に抽象的な識別子であり、画面上のピクセル位置には
+  依存していない（`state.js`・`gate-invasion.js`・`victory.js`はDOM/CSSに一切触れず
+  row/col/side/seatの純粋なデータ比較だけでルール判定しており、drag/drop
+  （`findDraggableAt`/`findDropTarget`/`findHoverTarget`）も`document.elementsFromPoint()`
+  で実際の画面上の要素を特定してから`dataset.row/col/side`を読む方式で、座標からrow/colを
+  逆算する処理は無い）。この性質を活かし、**row/col/side/座席という「実データ」は一切
+  変更せず、「実データ→画面上どこに描画するか」という表示専用の回転計算だけを追加する**
+  方式にした。CSS側（`.zone-*`/`.lock-*`の位置・回転・Dの180度補正・`effect-side-flip`・
+  ARC_SIGN・admin.jsの調整スライダー等、何十ラウンドもかけて手動チューニングされてきた
+  もの）は「画面上のこの位置に来たものをどう見せるか」という位置ベースの指定のため、
+  **一切変更不要**（既存のチューニングを壊さずに済んだ）。盤面全体をCSSの`rotateZ`で
+  物理的に回転させる案も検討したが、既に複雑な盤面拡大/カメラズーム・パンの`#game-table`
+  transform計算と干渉するリスクがあるため見送り、上記の「表示位置の付け替え」方式を採用。
+- **`src/board-layout.js`に純粋関数を追加**: `getRotationSteps(selfSeat)`（自分の座席を
+  画面手前に持ってくるのに盤面を時計回りに何回(90度単位)回転させるか。A=0,B=3,C=2,D=1）・
+  `rotateCell(row, col, steps)`（7x7マスの実座標を表示用座標に変換）・
+  `rotateSide(side, steps)`（"top"等のside文字列を表示用sideに変換）。
+  `getSelfSeat()`は一切importしない（`online.js`→`state.js`→`board-layout.js`という
+  既存の依存の向きがあるため、逆向きにimportすると循環になる。回転量は必ず呼び出し元
+  （main.js）が計算して引数で渡す設計にした）。
+- **`src/main.js`の変更**: `render()`で`const steps = getRotationSteps(getSelfSeat());`を
+  計算し、`buildArena(steps)`経由で`buildBoard(steps)`（各マスの`cell.style.gridRow/
+  gridColumn`を回転後の座標で明示指定し、暗黙のグリッド配置を上書き。`dataset.row/col`
+  自体は実座標のまま変更しない）・`buildLockArea(side, steps)`/`buildLockAreaBar(side,
+  steps)`（`side`引数は今まで通り実際の物理sideとして`dataset.side`・手番ハイライト判定に
+  使い続け、表示用の`rotateSide(side, steps)`はCSSクラス名だけに使う）へ伝播。4つの
+  `buildPlayerZone`ハードコード呼び出し（`buildPlayerZone("bottom","A",...)`等）は
+  `SEAT_ORDER`をループし各座席の表示位置を`rotateSide(SEAT_TO_SIDE[seat], steps)`で
+  計算する形に置き換えた。
+- **バグ修正（今回の実装中に発覚）**: `buildPlayerZone`内の手札サイズCSS変数の参照が
+  `` `--hand-${player.toLowerCase()}-size` `` と座席文字で組み立てられていたが、
+  `--hand-a/b/c/d-size`は実際には「画面位置」ベースの変数（例:`--hand-a-size`は常に
+  "bottom位置"用のサイズで、CSS側の`.zone-bottom`ルール内でハードコードされている）。
+  回転後にbottom位置へ座席Bが来た場合、誤って`--hand-b-size`（左位置用の小さいサイズ）を
+  参照してしまうバグだったため、`{bottom:"a",left:"b",top:"c",right:"d"}`という表示位置
+  →変数文字の対応表を使うよう修正した。
+- **検証用の一時的なデバッグ抜け道を追加**: 2つ目のオンラインセッションを用意しなくても
+  B/C/D視点を確認できるよう、`src/online.js`の`getSelfSeat()`に`?debugSeat=B`のような
+  URLパラメータでの上書きを追加した（本番の座席割り当て・`callAction`等には一切影響しない、
+  ローカルモードのまま見た目だけ切り替えられる検証専用の仕組み）。
+- **検証状況**: ローカルモード（`steps`は常に0）で回帰確認済み（4人クイックスタート後の
+  盤面が見た目上まったく変化なし、エラー無し）。`?debugSeat=B/C/D`でB・C・D視点も
+  ブラウザで確認し、いずれも「自分の座席が画面手前・大きい手札サイズで表示され、残り3人が
+  時計回りに正しい色・正しい位置（左・奥・右）に配置される」ことを確認済み。B視点で駒の
+  ドラッグ＆ドロップも正しいマスに反映されることを確認。ロックエリアDの180度回転補正
+  （7色の並び順・カードの向き）は、他の座席がその表示位置（右）に来た場合でも
+  （右ロックエリアの色順を`getComputedStyle`で実測して）CSSクラス`.lock-right`ベースの
+  補正がそのまま正しく効くことを確認済み。「盤面拡大」ボタンも、回転後は自動的に
+  「自分の手前ロックエリア」と「対面のロックエリア」を基準にズームするようになった
+  （副次的な改善、`applyBoardZoomFit()`は無改修）。

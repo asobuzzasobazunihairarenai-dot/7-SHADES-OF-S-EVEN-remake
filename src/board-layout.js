@@ -28,3 +28,45 @@ export const SEAT_ORDER = ["A", "B", "C", "D"];
 // 表示は、実際に見ている本人にだけ意味のある場所（main.jsのupdateSelfHandStatus、
 // 自分専用ステータス）で動的に付け足すようにしている。
 export const SEAT_LABELS = { A: "プレイヤーA", B: "プレイヤーB", C: "プレイヤーC", D: "プレイヤーD" };
+
+// --- 盤面のビューア視点回転 ---------------------------------------------------------
+// 自分がA以外の座席で参加していても、常に自分の座席が画面手前(bottom)に来るようにする
+// ための表示専用の回転計算。row/col・side・座席の「実データ」は一切変更せず（ゲーム
+// ルール・サーバー同期・drag/dropの当たり判定は全部このモジュールのimportしていない
+// 実データを使い続ける）、「実データ→画面上どこに描画するか」の対応だけをここで計算する。
+// このモジュールはgetSelfSeat()（online.js）を一切importしない依存の無い葉モジュールの
+// ままにする（online.js→state.js→board-layout.jsという既存の依存の向きがあるため、
+// ここから逆にonline.jsを参照すると循環importになる）。回転量(steps)は必ず呼び出し元
+// （main.js）がgetSelfSeat()から計算し、引数として渡す設計にしている。
+
+// 画面上の辺(top/bottom/left/right)が、盤面を時計回りに90度回転させるたびに
+// どう入れ替わるかの並び順。
+const SIDE_CW = ["top", "right", "bottom", "left"];
+
+// 自分の座席(selfSeat)を画面手前(bottom)に持ってくるために、盤面を時計回りに
+// 何回(90度単位)回転させる必要があるかを返す。A=0, B=3, C=2, D=1。
+export function getRotationSteps(selfSeat) {
+  return (4 - SEAT_ORDER.indexOf(selfSeat)) % 4;
+}
+
+// 盤面7x7マスの実座標(row,col)を、steps回(90度単位、時計回り)回転させた
+// 「表示用」座標に変換する（データ自体は変えない。描画位置の計算専用）。
+export function rotateCell(row, col, steps) {
+  const N = 7;
+  switch (((steps % 4) + 4) % 4) {
+    case 1:
+      return { row: col, col: N - 1 - row };
+    case 2:
+      return { row: N - 1 - row, col: N - 1 - col };
+    case 3:
+      return { row: N - 1 - col, col: row };
+    default:
+      return { row, col };
+  }
+}
+
+// side文字列("top"等)をsteps回(90度単位、時計回り)回転させた表示用sideを返す。
+export function rotateSide(side, steps) {
+  const idx = SIDE_CW.indexOf(side);
+  return SIDE_CW[(idx + ((steps % 4) + 4) % 4) % 4];
+}
