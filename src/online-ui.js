@@ -17,6 +17,7 @@ import {
   getCurrentGameId,
   getMySeat,
   leaveGame,
+  signOut,
   startGame,
   getDebugLog,
 } from "./online.js";
@@ -204,7 +205,8 @@ function renderLoginForm() {
 function renderRoomChoice(user) {
   const title = document.createElement("div");
   title.style.cssText = "font-weight: bold; margin-bottom: 0.6rem;";
-  title.textContent = `🌐 オンライン対戦（${user.email}）`;
+  // 匿名ログインの場合はuser.emailが無いため、代わりにその旨を表示する。
+  title.textContent = `🌐 オンライン対戦（${user.email ?? "匿名ユーザー"}）`;
   contentEl.appendChild(title);
 
   const createBtn = textButton("部屋を作成する");
@@ -262,6 +264,16 @@ function renderRoomChoice(user) {
     seatRow.appendChild(seatBtn);
   }
   contentEl.appendChild(seatRow);
+
+  // 別の認証方法（メール/Google/匿名）を試したい時のため、ログアウトできるようにしておく
+  // （一度ログインすると明示的にログアウトするまでそのブラウザにセッションが残り続ける）。
+  const signOutBtn = textButton("ログアウト");
+  signOutBtn.style.marginTop = "0.8rem";
+  signOutBtn.addEventListener("click", async () => {
+    await signOut();
+    await renderPanelContent();
+  });
+  contentEl.appendChild(signOutBtn);
 }
 
 async function renderRoomStatus(gameId) {
