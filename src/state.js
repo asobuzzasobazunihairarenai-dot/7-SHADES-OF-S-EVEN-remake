@@ -76,6 +76,11 @@ function createInitialState() {
     // でそれぞれ設定されるまでは空/nullのまま（＝まだ「ターン」という概念が始まっていない）。
     activePlayers: [],
     turnPlayer: null,
+    // 通算ターン数・ラウンド数。手順3でスタートプレイヤーが決まった瞬間にどちらも1から始まり、
+    // NEXT_TURNのたびにturnNumberが+1、参加座席を一周してスタート地点の座席に戻るたびに
+    // roundNumberが+1になる（「プレイヤー全員のターンが終わったら1ラウンド」というルール）。
+    turnNumber: null,
+    roundNumber: null,
   };
 }
 
@@ -182,6 +187,8 @@ function reduce(current, action) {
         },
         activePlayers: [],
         turnPlayer: null,
+        turnNumber: null,
+        roundNumber: null,
       };
     }
     // セットアップウィザードの手順1: 参加している座席（action.players、時計回り順）に
@@ -220,17 +227,25 @@ function reduce(current, action) {
       };
     }
     // セットアップウィザードの手順3: ターンプレイヤーを設定する（無作為に選ぶのはgame-setup.js側）。
+    // ここが「ターン」という概念の起点なので、通算ターン数・ラウンド数も1から始める。
     case "SET_TURN_PLAYER": {
-      return { ...current, turnPlayer: action.player };
+      return { ...current, turnPlayer: action.player, turnNumber: 1, roundNumber: 1 };
     }
     // 「ターンを次のプレイヤーへ渡す」ボタン。参加座席(activePlayers)を時計回り順に絞り込み、
-    // 現在のturnPlayerの次の座席へ進める（末尾の次は先頭に戻る）。
+    // 現在のturnPlayerの次の座席へ進める（末尾の次は先頭に戻る）。次の座席が先頭（座席が
+    // 一周した）時だけラウンド数を+1する（「プレイヤー全員のターンが終わったら1ラウンド」）。
     case "NEXT_TURN": {
       if (!current.turnPlayer || current.activePlayers.length === 0) return current;
       const order = SEAT_ORDER.filter((p) => current.activePlayers.includes(p));
       const idx = order.indexOf(current.turnPlayer);
-      const next = order[(idx + 1) % order.length];
-      return { ...current, turnPlayer: next };
+      const nextIdx = (idx + 1) % order.length;
+      const next = order[nextIdx];
+      return {
+        ...current,
+        turnPlayer: next,
+        turnNumber: (current.turnNumber ?? 1) + 1,
+        roundNumber: nextIdx === 0 ? (current.roundNumber ?? 1) + 1 : (current.roundNumber ?? 1),
+      };
     }
     // セットアップウィザードの手順2: 山札（無色/白黒カードはaction.includeBlackWhiteに応じて
     // 含めるかどうか選べる）をシャッフルし、場の7×7＝49マスに1枚ずつ裏向きで配置する。

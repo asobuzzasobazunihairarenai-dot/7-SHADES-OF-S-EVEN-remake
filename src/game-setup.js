@@ -13,7 +13,7 @@
 import { resetGame, setupAssignFirstCards, setupFillBoard, setTurnPlayer } from "./state.js";
 import { isManualSeatMode } from "./admin.js";
 import { SEAT_TO_SIDE, SEAT_ORDER } from "./board-layout.js";
-import { getPlayerName } from "./player-identity.js";
+import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { resetVictoryTracking } from "./victory.js";
 import { PLAYMAT_OPTIONS, getSelectedPlaymatId, setSelectedPlaymatId } from "./playmat.js";
@@ -66,10 +66,24 @@ function showStartPlayerModal(player) {
   const title = document.createElement("div");
   title.style.cssText = "font-weight: bold; margin-bottom: 0.6rem; font-size: 0.95rem;";
   title.textContent = "３：スタートプレイヤー決定";
+
+  // 誰から始まるかが一目で分かるよう、アバターと名前を大きく見せる
+  // （文字だけの通知だと地味で見落としやすい、という要望への対応）。
+  const avatarEl = document.createElement("div");
+  avatarEl.style.cssText = "font-size: 4rem; text-align: center; line-height: 1; margin: 0.4rem 0;";
+  avatarEl.textContent = getPlayerAvatar(player);
+
+  const nameEl = document.createElement("div");
+  nameEl.style.cssText = "font-size: 1.5rem; font-weight: bold; text-align: center; color: #7dd3fc; margin-bottom: 0.6rem;";
+  nameEl.textContent = getPlayerName(player);
+
   const body = document.createElement("div");
-  body.style.cssText = "font-size: 0.9rem; line-height: 1.6;";
-  body.textContent = `${getPlayerName(player)} からスタートです！（以降、時計回りにターンを進めてください）`;
+  body.style.cssText = "font-size: 0.9rem; line-height: 1.6; text-align: center;";
+  body.textContent = "からスタートです！（以降、時計回りにターンを進めてください）";
+
   modal.appendChild(title);
+  modal.appendChild(avatarEl);
+  modal.appendChild(nameEl);
   modal.appendChild(body);
 }
 

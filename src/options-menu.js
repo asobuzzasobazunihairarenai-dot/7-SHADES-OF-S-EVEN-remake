@@ -105,8 +105,18 @@ function buildShortcutRow(buttonId, label) {
   row.appendChild(labelEl);
   row.appendChild(keyBtn);
   row.appendChild(clearBtn);
-  return row;
+  return { row, refresh };
 }
+
+// 「おすすめ」ボタンでまとめて割り当てるショートカットキー（手札シャッフル=S、盤面拡大=Z、
+// 1枚ドロー=D）。ターン終了はキー操作だと誤操作の影響が大きい（ターンを間違えて進めてしまう）
+// ため、おすすめでは割り当てず未設定のままにする。
+const RECOMMENDED_SHORTCUTS = {
+  "hand-shuffle-button": "s",
+  "board-zoom-button": "z",
+  "draw-button": "d",
+  "end-turn-button": null,
+};
 
 export function initOptionsMenu() {
   const panel = document.createElement("div");
@@ -142,9 +152,20 @@ export function initOptionsMenu() {
   panel.appendChild(shortcutDivider);
 
   panel.appendChild(buildSectionTitle("ショートカットキー（プレイヤー用ボタン）"));
-  for (const { id, label } of SHORTCUT_TARGETS) {
-    panel.appendChild(buildShortcutRow(id, label));
+  const shortcutRows = SHORTCUT_TARGETS.map(({ id, label }) => buildShortcutRow(id, label));
+  for (const { row } of shortcutRows) {
+    panel.appendChild(row);
   }
+
+  const presetBtn = document.createElement("button");
+  presetBtn.className = "options-menu-shortcut-preset";
+  presetBtn.textContent = "⭐ おすすめ";
+  presetBtn.title = "手札シャッフル=S、盤面拡大=Z、1枚ドロー=Dを一括で割り当てます";
+  presetBtn.addEventListener("click", () => {
+    for (const [id, key] of Object.entries(RECOMMENDED_SHORTCUTS)) setShortcut(id, key);
+    for (const { refresh } of shortcutRows) refresh();
+  });
+  panel.appendChild(presetBtn);
 
   // プレイヤー用ボタンを右クリックした時、このパネルを開いて該当行を目立たせる。
   registerShortcutSettingsOpener((buttonId) => {

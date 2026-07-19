@@ -369,6 +369,22 @@ function hasPieceAt(location) {
   });
 }
 
+// 到達演出一式（右上モーダル＋そのマス自体が発光する柱状のオーラ＋効果音）をまとめて行う。
+// 柱の色はカード自身の色に合わせる（--color-*をそのまま使う）。
+function triggerCardArrival(cardId, location) {
+  showCardArrivalModal(cardId);
+  playSound("arrivalEffect");
+  const table = document.getElementById("game-table");
+  const hostEl = findLocationElement(table, location);
+  if (!hostEl) return;
+  const color = getCardDefinition(cardId).color;
+  const burst = document.createElement("div");
+  burst.className = "arrival-effect-burst";
+  burst.style.setProperty("--arrival-effect-color", `var(--color-${color})`);
+  burst.addEventListener("animationend", () => burst.remove());
+  hostEl.appendChild(burst);
+}
+
 // 駒がカードの上に乗った瞬間の演出。表向きのカードならそのまま到達モーダルを表示する。
 // 裏向きの場合は自動でオープンせず、駒の近くに「オープンする/しない」の選択肢を出し、
 // 選んでもらってから（オープンする場合のみ）到達モーダルを表示する。
@@ -380,7 +396,7 @@ function maybeTriggerCardArrival(dropTarget, pieceTokenId) {
     promptCardOpen(pieceTokenId, card);
     return;
   }
-  showCardArrivalModal(card.cardId);
+  triggerCardArrival(card.cardId, card.location);
 }
 
 // 「オープンする/しない」の選択アイコン。同時に1つだけ表示する（新しく駒が別のカードに
@@ -413,7 +429,7 @@ function promptCardOpen(pieceTokenId, card) {
     playSound("cardFlip");
     closeOpenPrompt();
     render();
-    showCardArrivalModal(card.cardId);
+    triggerCardArrival(card.cardId, card.location);
   });
 
   const noBtn = document.createElement("button");
@@ -484,6 +500,7 @@ function render() {
   updateDrawButton();
   updateHandShuffleButton();
   updateSelfHandStatus();
+  updateTurnRoundCounter();
   checkForVictory();
 }
 
@@ -1018,7 +1035,7 @@ function initDragHandlers() {
         flipToken(hit.tokenId);
         playSound("cardFlip");
         if (cardToken && !cardToken.faceUp && hasPieceAt(cardToken.location)) {
-          showCardArrivalModal(cardToken.cardId);
+          triggerCardArrival(cardToken.cardId, cardToken.location);
         }
         render();
         lastFlipClick = { tokenId: null, time: 0 }; // 3連続クリックを2回分のダブルクリックにしない
@@ -1400,6 +1417,29 @@ function buildGameTitle() {
   return el;
 }
 
+// --- ターン数・ラウンド数の表示 ----------------------------------------------------
+// 画面右上、山札一覧ボタンのさらに上にさりげなく表示する。turnNumber/roundNumberが
+// まだnull（セットアップ手順3が未実行）の間は非表示にする。
+let turnRoundCounterEl = null;
+
+function buildTurnRoundCounter() {
+  const el = document.createElement("div");
+  el.id = "turn-round-counter";
+  document.body.appendChild(el);
+  return el;
+}
+
+function updateTurnRoundCounter() {
+  if (!turnRoundCounterEl) return;
+  const { turnNumber, roundNumber } = getState();
+  if (!turnNumber) {
+    turnRoundCounterEl.style.display = "none";
+    return;
+  }
+  turnRoundCounterEl.style.display = "block";
+  turnRoundCounterEl.textContent = `ターン ${turnNumber} ／ ラウンド ${roundNumber}`;
+}
+
 // --- 「1枚ドロー」ボタン ---------------------------------------------------------
 // 手番プレイヤーが山札から1枚引いて自分の手札に加える、簡易操作用のショートカット。
 // 「ターンを次のプレイヤーへ渡す」ボタンと同じ理由で、state.turnPlayerがまだnullの間は
@@ -1591,3 +1631,5 @@ initOptionsMenu();
 initPlayerButtons();
 initQuickStart();
 buildGameTitle();
+turnRoundCounterEl = buildTurnRoundCounter();
+updateTurnRoundCounter();

@@ -1298,6 +1298,21 @@ body {
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
 }
 
+/* 通算ターン数・ラウンド数。「📋 山札一覧」ボタン(top: 1rem)のすぐ上に、さりげなく
+   小さく表示する。turnNumberが無い（まだ対戦が始まっていない）間は非表示。 */
+#turn-round-counter {
+  position: fixed;
+  top: 0.3rem;
+  right: 1.1rem;
+  z-index: 900;
+  font-family: sans-serif;
+  font-size: 0.65rem;
+  color: rgba(226, 232, 240, 0.6);
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  display: none;
+}
+
 /* 「⚙ オプション」ボタンとそのドロップダウン（管理者モードの呼び出し口をここに統合した）。
    山札一覧・セットアップと同じ右上の並びに、その下へ積む形で配置する。 */
 /* ハマりどころ: z-indexを1001（山札一覧/セットアップと同じ並びのつもりで）にしていたところ、
@@ -1441,6 +1456,23 @@ body {
 }
 .options-menu-shortcut-clear:hover {
   background: rgba(248, 113, 113, 0.3);
+}
+.options-menu-shortcut-preset {
+  display: block;
+  width: calc(100% - 1.2rem);
+  margin: 0.4rem 0.6rem 0.2rem;
+  padding: 0.3rem;
+  background: rgba(250, 204, 21, 0.15);
+  color: #fde68a;
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  border-radius: 0.3rem;
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: bold;
+  font-family: sans-serif;
+}
+.options-menu-shortcut-preset:hover {
+  background: rgba(250, 204, 21, 0.3);
 }
 
 /* 「1枚ドロー」ボタン。#end-turn-buttonのすぐ上に積む形で、同じ右下の並びに配置する。 */
@@ -1978,6 +2010,80 @@ body {
   --sound-volume-card-flip: 80;
   --sound-volume-card-place: 80;
   --sound-volume-card-draw: 80;
+  --sound-volume-arrival-effect: 80;
+}
+
+/* 駒がカードに到達した瞬間、そのマス/ロックスロット自体がカードの色で発光する演出
+   （main.jsのtriggerCardArrival参照。.cell/.lock-slotは元からposition:relativeなので、
+   このposition:absoluteな子要素はそのマスを基準に配置される）。アニメーション終了後は
+   animationendイベントでJS側が要素ごと消す（使い捨てのワンショット演出）。 */
+.arrival-effect-burst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 30;
+}
+.arrival-effect-burst::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 50%;
+  width: 55%;
+  height: 220%;
+  transform-origin: bottom center;
+  transform: translateX(-50%) scaleY(0);
+  background: linear-gradient(
+    to top,
+    var(--arrival-effect-color) 0%,
+    color-mix(in srgb, var(--arrival-effect-color) 35%, transparent) 55%,
+    transparent 100%
+  );
+  border-radius: 50% 50% 0 0 / 12% 12% 0 0;
+  filter: blur(0.12rem);
+  animation: arrival-pillar-rise 1s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+.arrival-effect-burst::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 40%;
+  height: 40%;
+  transform: translate(-50%, -50%) scale(0);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--arrival-effect-color) 0%, transparent 70%);
+  animation: arrival-burst-ring 0.7s ease-out forwards;
+}
+@keyframes arrival-pillar-rise {
+  0% {
+    transform: translateX(-50%) scaleY(0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  55% {
+    transform: translateX(-50%) scaleY(1);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(-50%) scaleY(1);
+    opacity: 0;
+  }
+}
+@keyframes arrival-burst-ring {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0.9;
+  }
+  70% {
+    transform: translate(-50%, -50%) scale(2.4);
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(3.2);
+    opacity: 0;
+  }
 }
 
 /* クイックスタート: 画面右上（山札一覧/セットアップ/オプションの下）に常設する、
