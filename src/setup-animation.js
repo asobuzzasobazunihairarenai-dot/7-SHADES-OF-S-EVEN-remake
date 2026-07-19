@@ -10,7 +10,6 @@
 import { getState } from "./state.js";
 import { playSound } from "./sound.js";
 import { getCardImagePath, getCardBackImagePath } from "./cards-data.js";
-import { SIDE_TO_SEAT } from "./board-layout.js";
 
 let helpers = null; // { render }
 
@@ -65,7 +64,10 @@ function flyCard(fromRect, toRect, imagePath, faceDown, durationMs) {
 }
 
 // 参加人数分（最大4枚）のファーストカードが、ファーストカードの山からロックエリアへ
-// 1枚ずつ飛んでいき、同時にその色の駒がゲートに「ぶわーん」とポップする演出。
+// 1枚ずつ飛んでいき、着地すると通常のロック演出（到達効果の柱状オーラ＋ロック画像の
+// 拡大フェードアウト＋各効果音）がそのまま流れる（main.jsのtriggerLockEffectと同じ演出、
+// ユーザー指定）。駒は今回ここではまだ登場させず、is-setup-pendingのまま隠しておく
+// （盤面49マスが埋まった後、animateBoardFilled側でまとめて登場させる）。
 export async function animateFirstCardsDealt() {
   if (!helpers) return;
   helpers.render();
@@ -88,13 +90,10 @@ export async function animateFirstCardsDealt() {
       cardEntries.push({ token, el });
     }
   }
-  const pieceEntries = [];
+  // 駒は表示だけ隠しておく（登場自体はanimateBoardFilledの最後にまとめて行う）。
   for (const token of state.tokens.filter((t) => t.kind === "piece")) {
     const el = table.querySelector(`[data-token-id="${token.id}"]`);
-    if (el) {
-      el.classList.add("is-setup-pending");
-      pieceEntries.push({ token, el });
-    }
+    if (el) el.classList.add("is-setup-pending");
   }
 
   let skipped = false;
@@ -120,20 +119,12 @@ export async function animateFirstCardsDealt() {
     await done;
     if (skipped) break;
     el.classList.remove("is-setup-pending");
-    playSound("cardPlace");
-    // 同じ色の駒も、対応するロックエリアのカードが届いたのと同時にゲートへポップさせる。
-    const player = SIDE_TO_SEAT[token.location.side];
-    const piecePair = pieceEntries.find((p) => p.token.player === player);
-    if (piecePair) {
-      piecePair.el.classList.remove("is-setup-pending");
-      playSound("arrivalEffect");
-    }
+    if (helpers.triggerLockEffect) helpers.triggerLockEffect(token.cardId, token.location);
     await new Promise((r) => setTimeout(r, Math.max(80, STAGGER_MS - FLIGHT_MS)));
   }
 
-  // スキップされた場合、まだ届いていない分をまとめて即座に表示する。
+  // スキップされた場合、まだ届いていない分をまとめて即座に表示する（駒はここでは出さない）。
   for (const { el } of cardEntries) el.classList.remove("is-setup-pending");
-  for (const { el } of pieceEntries) el.classList.remove("is-setup-pending");
   for (const ghost of ghosts) ghost.remove();
   overlay.remove();
 }
@@ -197,4 +188,20 @@ export async function animateBoardFilled() {
   for (const { el } of entries) el.classList.remove("is-setup-pending");
   for (const ghost of ghosts) ghost.remove();
   overlay.remove();
+
+  // 盤面49マスが埋め終わったところで、ステップ1（animateFirstCardsDealt）で隠しておいた
+  // 駒をまとめて登場させる。フェードイン（.pieceの既存transition）に、到達演出の光の柱
+  // （spawnArrivalBurst）＋到達効果音を重ねて流用する（ユーザー指定）。
+  const pieceEntries = state.tokens
+    .filter((t) => t.kind === "piece")
+    .map((token) => ({ token, el: table.querySelector(`[data-token-id="${token.id}"]`) }))
+    .filter(({ el }) => el && el.classList.contains("is-setup-pending"));
+  for (const { token, el } of pieceEntries) {
+    el.classList.remove("is-setup-pending");
+    playSound("arrivalEffect");
+    if (helpers.spawnArrivalBurst && helpers.findLocationElement) {
+      const hostEl = helpers.findLocationElement(table, token.location);
+      if (hostEl) helpers.spawnArrivalBurst(hostEl, token.color);
+    }
+  }
 }

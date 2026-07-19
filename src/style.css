@@ -372,41 +372,44 @@ body {
   transform: rotate(-90deg);
 }
 
-/* ロックされている間、カードの上に常時重ねる「ロック」スタンプ画像
-   （画像素材/ロック/、assets/lock-icon.pngにコピー）。白黒（無色）カードは
-   ルール上ロック扱いではないため、buildFlatCard側でこのスタンプ自体を付けない。
-   新しくロックされた瞬間だけ.is-lockingが付き、カード中心を起点に拡大しながら
-   現れるアニメーションが入る（main.jsのtriggerLockEffect参照）。 */
-.lock-stamp {
+/* カードが新しくロックされた瞬間だけの使い捨て演出（画像素材/ロック/、assets/lock-icon.png
+   にコピー）。ロックされている間ずっと表示され続けるものではなく、ロックした瞬間に
+   カード中心からカードより大きく拡大しながらフェードアウトする一発演出（main.jsの
+   spawnLockStamp/triggerLockEffect参照。到達演出の柱状オーラと同じ「使い捨てDOM要素を
+   setTimeoutで消す」パターン）。白黒（無色）カードは呼び出し元(maybeAnnounceLock)側で
+   既に除外済みなので、ここでは色の判定はしない。 */
+.lock-stamp-burst {
   position: absolute;
   left: 50%;
   top: 50%;
   width: 55%;
   height: 55%;
-  transform: translate(-50%, -50%) scale(1);
+  transform: translate(-50%, -50%) scale(0.4);
   background-image: url("../assets/lock-icon.png");
   background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
   filter: drop-shadow(0 0.1rem 0.3rem rgba(0, 0, 0, 0.7));
   pointer-events: none;
-  z-index: 16;
+  z-index: 31;
+  opacity: 0;
+  animation: lock-stamp-burst 0.9s cubic-bezier(0.16, 0.84, 0.44, 1) forwards;
 }
-.lock-stamp.is-locking {
-  animation: lock-stamp-appear 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-@keyframes lock-stamp-appear {
+@keyframes lock-stamp-burst {
   0% {
-    transform: translate(-50%, -50%) scale(0);
+    transform: translate(-50%, -50%) scale(0.4);
     opacity: 0;
   }
-  70% {
-    transform: translate(-50%, -50%) scale(1.15);
+  25% {
     opacity: 1;
   }
+  60% {
+    transform: translate(-50%, -50%) scale(1.9);
+    opacity: 0.85;
+  }
   100% {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 1;
+    transform: translate(-50%, -50%) scale(2.6);
+    opacity: 0;
   }
 }
 

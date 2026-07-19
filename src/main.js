@@ -327,18 +327,6 @@ function buildFlatCard(token) {
     const cardColor = getCardDefinition(token.cardId).color;
     card.style.setProperty("--usable-locked-color", `var(--color-${cardColor})`);
   }
-  // ロックされている間は常に「ロック」スタンプを重ねて表示する（真新しくロックされた瞬間
-  // だけ、triggerLockEffect()が.is-lockingを付けて拡大しながら現れるアニメーションにする）。
-  // 白黒（無色）カードは置いてもルール上ロック扱いではないため対象外（maybeAnnounceLockと
-  // 同じ判定基準）。
-  if (token.location.zone === "lock") {
-    const def = getCardDefinition(token.cardId);
-    if (def.color !== "white" && def.color !== "black") {
-      const stamp = document.createElement("div");
-      stamp.className = "lock-stamp";
-      card.appendChild(stamp);
-    }
-  }
   return card;
 }
 
@@ -420,25 +408,33 @@ function triggerCardArrival(cardId, location) {
   spawnArrivalBurst(hostEl, color);
 }
 
-// カードが新しくロックされた瞬間の演出。到達演出と同じ柱状のオーラをそのマスに流用し、
-// その後半（燃え盛っている途中）にロックスタンプ画像がカード中心を起点に拡大しながら
-// 重なって現れる、というのをロック効果音とあわせて行う（ユーザー指定の順序・演出）。
+// カードの中心を起点に、ロック画像がカードよりも大きく拡大しながらフェードアウトする
+// ワンショット演出（到達演出の柱と同じ「使い捨てDOM要素」パターン）。ロックされている間
+// ずっと表示され続ける仕様ではなく、ロックした瞬間だけの一発演出（ユーザー指定）。
+const LOCK_STAMP_DURATION_MS = 900;
+function spawnLockStamp(hostEl) {
+  const stamp = document.createElement("div");
+  stamp.className = "lock-stamp-burst";
+  hostEl.appendChild(stamp);
+  setTimeout(() => stamp.remove(), LOCK_STAMP_DURATION_MS);
+  return stamp;
+}
+
+// カードが新しくロックされた瞬間の演出。到達演出と同じ柱状のオーラ＋到達効果音をそのマスに
+// 流用し、そのオーラがほぼ収まってから（重ねず順番に）ロック画像がカードより大きく拡大
+// しながらフェードアウトする演出とロック効果音を続けて行う（ユーザー指定の順序）。
 // 白黒（無色）カードは呼び出し元(maybeAnnounceLock)側で既に除外済み。
 function triggerLockEffect(cardId, location) {
   const table = document.getElementById("game-table");
   const hostEl = findLocationElement(table, location);
   if (!hostEl) return;
   const color = getCardDefinition(cardId).color;
+  playSound("arrivalEffect");
   spawnArrivalBurst(hostEl, color);
   setTimeout(() => {
     playSound("lock");
-    const cardEl = hostEl.querySelector(".board-card");
-    const stamp = cardEl ? cardEl.querySelector(".lock-stamp") : null;
-    if (stamp) {
-      stamp.classList.add("is-locking");
-      stamp.addEventListener("animationend", () => stamp.classList.remove("is-locking"), { once: true });
-    }
-  }, 650);
+    spawnLockStamp(hostEl);
+  }, 1300);
 }
 
 // 駒がカードの上に乗った瞬間の演出。表向きのカードならそのまま到達モーダルを表示する。
@@ -1818,7 +1814,7 @@ initGameSetup();
 initOptionsMenu();
 initPlayerButtons();
 initQuickStart();
-registerRenderHelpers({ render });
+registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocationElement });
 buildGameTitle();
 turnRoundCounterEl = buildTurnRoundCounter();
 updateTurnRoundCounter();

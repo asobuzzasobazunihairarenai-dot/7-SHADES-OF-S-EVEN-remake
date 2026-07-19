@@ -377,6 +377,18 @@
   - **ユーザーへの確認事項（未回答のため、こちらの判断で上記2点を選択済み）**: 「ロック画像は登場演出だけで数秒後に消えるか、ずっと表示され続けるか」「到達効果が完全に終わってからロック画像を出すか、途中から重ねて出すか」の2問を尋ねたが回答が無かったため、それぞれ「ずっと表示」「重ねて表示（650ms時点で開始）」という、こちらの推奨案の方を選んで実装した。見た目が意図と違う場合は、`main.js`の`triggerLockEffect`内の`650`という遅延値、または`buildFlatCard`の`.lock-stamp`常時描画条件を調整すれば変更できる。
   - ブラウザでの検証: 手札の赤カードをロックスロットへドラッグ&ドロップし、`card-place.mp3`→（柱状バースト表示開始）→約650ms後に`lock.mp3`再生+`.is-locking`付与→約600ms後に`.is-locking`除去（アニメーション終了）→約1400ms時点でバースト要素が自己削除→`.lock-stamp`はopacity:1のまま残り続ける、という一連の流れを`window.Audio`の差し替え・DOMポーリングで実測し、設計通りであることを確認済み。
 
+### 2026-07-19の変更（続き・同日13回目のラウンド）
+
+- **ロック演出を、前回の未回答の判断（重ねる・常時表示）からユーザーの明示的な指示に合わせて作り直した**:
+  - **到達バースト（柱）とロック画像は完全に順番（ほぼ重ならない）に変更**: `triggerLockEffect`が到達バースト開始時に`arrivalEffect`効果音も鳴らすようにし（`playSound("arrivalEffect")`を追加）、ロック画像側の開始タイミングを`650ms`→`1300ms`に変更（バースト自身がJS側で1400ms後に自己削除されるのとほぼ同時＝バーストが収まりきってからロック画像が出る、という「ほぼ順番」の見た目になる）。
+  - **ロック画像は「ロックされている間ずっと表示」をやめ、ロックした瞬間だけのワンショット演出に変更**: `buildFlatCard()`から常時`.lock-stamp`を描画していたブロックを削除し、代わりに新設した`spawnLockStamp(hostEl)`（到達バーストの`spawnArrivalBurst`と同じ「使い捨てDOM要素をsetTimeoutで消す」パターン）が、ロックした瞬間だけカード中心から**カードより大きく**（`scale(0.4)→scale(2.6)`、55%幅基準なので最大143%＝カードの実寸(約94〜97%)より確実に大きい）拡大しながらフェードアウトし、900ms後にDOMから消える。CSSの`.lock-stamp`/`.lock-stamp.is-locking`/`@keyframes lock-stamp-appear`は`.lock-stamp-burst`/`@keyframes lock-stamp-burst`に置き換えた。
+  - ブラウザでの実測: 柱状バーストが0〜1300ms表示→1300ms時点で消え、同時にロック画像が`scale(0.8)`opacity 0.5前後から出現→1900ms付近で`scale(1.9)`opacity 0.85でピーク→2200ms付近でopacityが急減→2300ms付近でDOMから完全に消える、という設計通りの流れを`window.Audio`差し替え＋`getComputedStyle`のポーリングで確認済み。
+- **セットアップ時の駒の登場タイミングを、ファーストカード配布時（１）から盤面49マス配置完了後（２の最後）に変更**: `setup-animation.js`の`animateFirstCardsDealt()`から駒を`.is-setup-pending`解除する処理（「ぶわーん」ポップ）を削除し、駒は隠したまま（`is-setup-pending`のまま）ステップ１を終える。代わりに`animateBoardFilled()`の最後（49マス分のカードが全て表示され終わった直後）で、まだ`is-setup-pending`が付いたままの駒トークンをまとめて検出し、`.is-setup-pending`を外す（`.piece`に元から設定済みのopacity/transformトランジションでフェードイン+ポップする）と同時に、到達演出の光の柱（`spawnArrivalBurst`）と`arrivalEffect`効果音をその駒のゲートマスに重ねて登場させるようにした。
+  - **循環import回避**: `spawnArrivalBurst`・`triggerLockEffect`・`findLocationElement`（いずれもmain.js定義）を、既存の`registerRenderHelpers({ render })`の第三のモジュール注入パターンをそのまま拡張し、`registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocationElement })`としてsetup-animation.js側から呼べるようにした（新しいモジュールを増やす必要はなかった）。
+  - ブラウザでの実測: 「2人」クイックスタートを実行し、ステップ１の間（盤面カードがまだ2枚だけの間）は駒の可視要素数が1つ（画面左下の自分専用ステータスにある駒スキンプレビュー用の`buildCubePiece()`要素、ゲーム状態とは無関係）のみで、盤面上の駒2つは非表示のままだったこと、盤面カードが51枚（49マス＋ファーストカード2枚）に揃った瞬間に駒2つが同時に可視化されたことをDOMポーリングで確認済み。
+- **ファーストカードのロックにも通常ロックと全く同じ演出を採用**: 上記のセットアップ変更にあわせて、`animateFirstCardsDealt()`内でカードがロックスロットに着地した瞬間に鳴らしていた`playSound("cardPlace")`（単発の配置音のみ）を、`helpers.triggerLockEffect(token.cardId, token.location)`の呼び出しに置き換えた。これにより、ファーストカードのロックも通常のドラッグ操作によるロックと全く同じ（到達バースト＋到達効果音→約1300ms後にロック効果音＋ロック画像の拡大フェードアウト）演出になる。
+  - ブラウザでの実測: クイックスタート実行時の効果音ログで、1人目のファーストカードの`arrivalEffect`（t=23350）から1300ms後の`lock`音（t=24659、実測差+9ms）、2人目の`arrivalEffect`（t=23974）から1300ms後の`lock`音（t=25274、実測差0ms）と、通常ロックと寸分違わぬ間隔になっていることを確認済み。
+
 ## 未確認・要フォローアップ
 
 - 親フォルダ（Googleドライブ）直下に以下の関連しそうなファイル・フォルダがあるが、中身は未確認：
