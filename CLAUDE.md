@@ -294,6 +294,7 @@
 
 - **プレイヤーD（右辺）のロックエリアバーの絵柄を180度回転**: `.lock-area-bar-left`/`.lock-area-bar-right`共通で`rotate(90deg)`していたのを、右辺だけ`.lock-area-bar-right .lock-area-bar-image`という詳細度の高い専用ルールで`rotate(270deg)`（90deg+180deg）に上書きし、左右で独立して絵柄の向きを調整できるようにした。
 - **管理者モードの「カメラ（3D視点）の位置調整」にY軸（上下）移動を追加**: `--camera-offset-y`を新設し、`applyNormalFit()`/`applyBoardZoomFit()`の`#game-table`のtransformに`translate(0, var(--camera-offset-y))`を最初に追加した。既存の`--board-zoom-{,2-}offset-y`（拡大レベルごとの微調整）とは別に、拡大の有無に関わらず常に効く全体的なカメラの上下位置として独立させてある。rem絶対量のtranslateなので、`scale3d()`による拡大の影響を受けない（既存のboard-zoom-offset-x/yと同じ考え方）。
+- **「カメラ（3D視点）の位置調整」にズームを追加**: `--camera-zoom`（デフォルト1）を新設し、`applyNormalFit()`/`applyBoardZoomFit()`がそれぞれ自動計算する基準スケールに掛け合わせるようにした。「盤面拡大」ボタン（A〜C間のロックエリアがちょうど収まるよう自動計算する専用ズーム、3段階トグル）とは別枠の、常時効く単純な倍率。1.5倍で実際に盤面全体が1.5倍のスケールで描画されることを確認済み。
 
 ## 未確認・要フォローアップ
 

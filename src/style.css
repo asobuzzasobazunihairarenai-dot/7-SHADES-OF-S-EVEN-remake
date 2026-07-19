@@ -45,6 +45,11 @@ body {
   /* カメラの上下(Y軸)方向の平行移動。fitTableToViewport()内でtranslate()として
      rotateX/scale3dより先に足す（rem絶対量なので、盤面拡大時のscale3dの影響を受けない）。 */
   --camera-offset-y: 0rem;
+  /* カメラのズーム。ビューポートに自動フィットさせた基準の倍率(applyNormalFit/
+     applyBoardZoomFitがそれぞれ計算するscale)に、さらに掛け合わせる係数。1が等倍
+     （今までの自動フィットのまま）。「盤面拡大」ボタンの拡大レベルとは独立していて、
+     どの表示状態でも常に効く。 */
+  --camera-zoom: 1;
   /* 「盤面拡大」ボタンのズーム位置微調整（applyBoardZoomFit参照）。管理者モードで調整可能。
      ボタンは 盤面拡大(1段階目) → もっと拡大(2段階目) → 元に戻す、の3段階トグル。 */
   --board-zoom-margin: 0.92;

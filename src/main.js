@@ -425,7 +425,8 @@ function applyNormalFit() {
   const rect = table.getBoundingClientRect();
   const availW = window.innerWidth * 0.94;
   const availH = window.innerHeight * 0.94;
-  const scale = Math.min(availW / rect.width, availH / rect.height, 1.15);
+  const zoom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--camera-zoom")) || 1;
+  const scale = Math.min(availW / rect.width, availH / rect.height, 1.15) * zoom;
   table.style.transform = `translate(0, var(--camera-offset-y)) rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
   currentTableScale = scale;
 }
@@ -464,9 +465,10 @@ function applyBoardZoomFit(level) {
   const marginFrac = parseFloat(style.getPropertyValue(`${prefix}margin`)) || 0.98;
   const offsetX = style.getPropertyValue(`${prefix}offset-x`).trim() || "0rem";
   const offsetY = style.getPropertyValue(`${prefix}offset-y`).trim() || "0rem";
+  const zoom = parseFloat(style.getPropertyValue("--camera-zoom")) || 1;
 
   table.style.transformOrigin = `50% ${originYPercent}%`;
-  const scale = (window.innerHeight * marginFrac) / spanHeight;
+  const scale = ((window.innerHeight * marginFrac) / spanHeight) * zoom;
   // カメラのY軸オフセット(--camera-offset-y)は盤面拡大レベルごとのoffset-x/yとは独立に、
   // 常時一定量を追加でずらす（先に適用することで、拡大時のtranslateOriginや倍率計算には
   // 影響させない）。
