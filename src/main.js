@@ -14,6 +14,7 @@ import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_
 import { getSelectedPlaymatPath } from "./playmat.js";
 import { isLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible } from "./lock-color.js";
+import { showCardArrivalModal } from "./card-arrival.js";
 import { getState, moveToken, sendTokenToPile, drawFromPile, flipToken, nextTurn, refillDeckFromDiscard } from "./state.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import { COLORS, GATE_POSITIONS, SEAT_TO_SIDE, SIDE_TO_SEAT } from "./board-layout.js";
@@ -342,6 +343,37 @@ function getCardStackGroups() {
     groups.get(key).push(token);
   }
   return groups;
+}
+
+// 指定locationに重なっているカードのうち、一番上（getCardStackGroupsの並び順で最後＝
+// 一番最後に動かされたもの）のトークンを返す。無ければnull。
+function findTopCardAt(location) {
+  if (location.zone !== "cell" && location.zone !== "lock") return null;
+  const key =
+    location.zone === "cell" ? `cell-${location.row}-${location.col}` : `lock-${location.side}-${location.index}`;
+  const group = getCardStackGroups().get(key);
+  return group && group.length > 0 ? group[group.length - 1] : null;
+}
+
+// 指定locationに駒が1つでもいるか（複数枚重なっていてもtrueを返すだけで十分な用途向け）。
+function hasPieceAt(location) {
+  if (location.zone !== "cell" && location.zone !== "lock") return false;
+  return getState().tokens.some((t) => {
+    if (t.kind !== "piece" || t.location.zone !== location.zone) return false;
+    return location.zone === "cell"
+      ? t.location.row === location.row && t.location.col === location.col
+      : t.location.side === location.side && t.location.index === location.index;
+  });
+}
+
+// 駒がカードの上に乗った瞬間の演出。裏向きのカードなら先に自動でオープンし、その上で
+// 必ず到達モーダルを表示する（表向きだった場合はオープン処理をスキップしてモーダルのみ）。
+function maybeTriggerCardArrival(dropTarget, kind) {
+  if (kind !== "piece" || !dropTarget) return;
+  const card = findTopCardAt(dropTarget);
+  if (!card) return;
+  if (!card.faceUp) flipToken(card.id);
+  showCardArrivalModal(card.cardId);
 }
 
 function renderBoardTokens(table) {
@@ -926,7 +958,14 @@ function initDragHandlers() {
       const isDoubleClick = hit.tokenId === lastFlipClick.tokenId && now - lastFlipClick.time < DOUBLE_CLICK_MS;
       lastFlipClick = { tokenId: hit.tokenId, time: now };
       if (isDoubleClick) {
+        // オープンする前のカードを見ておく。「駒がすでに乗っている裏向きカードを手動で
+        // オープンした」場合も、その瞬間に初めて表向きカードの上に駒がいる状態になるため、
+        // 到達モーダルの対象にする（表向き→裏向きに戻す方向の時は対象外）。
+        const cardToken = getState().tokens.find((t) => t.id === hit.tokenId);
         flipToken(hit.tokenId);
+        if (cardToken && !cardToken.faceUp && hasPieceAt(cardToken.location)) {
+          showCardArrivalModal(cardToken.cardId);
+        }
         render();
         lastFlipClick = { tokenId: null, time: 0 }; // 3連続クリックを2回分のダブルクリックにしない
         return;
@@ -1138,6 +1177,7 @@ function onDragEnd(e) {
     const wasAlreadyLocked = !!token && token.location.zone === "lock";
     moveToken(tokenId, dropTarget);
     if (token) maybeAnnounceLock(dropTarget, token.cardId, wasAlreadyLocked);
+    maybeTriggerCardArrival(dropTarget, kind);
   }
   render();
 }

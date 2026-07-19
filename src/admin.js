@@ -44,6 +44,14 @@ const GROUPS = [
     ],
   },
   {
+    title: "カード到達モーダル（駒がカードに乗った時）",
+    category: "effect",
+    controls: [
+      { key: "--card-arrival-modal-size", label: "大きさ", unit: "rem", min: 8, max: 40, step: 0.5, default: 20 },
+      { key: "--card-arrival-modal-duration", label: "表示時間（秒）", unit: "", min: 1, max: 15, step: 0.5, default: 3 },
+    ],
+  },
+  {
     title: "盤面拡大ボタン（1段階目）のズーム位置調整",
     category: "position",
     controls: [

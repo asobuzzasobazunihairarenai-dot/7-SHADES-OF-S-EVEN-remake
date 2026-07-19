@@ -1625,6 +1625,37 @@ body {
   border-color: #7dd3fc;
 }
 
+/* 駒がカードの上に乗った（到達した）ことを知らせる、画面中央に大きく出る一時的なモーダル。
+   裏向きのカードだった場合は先に自動でオープンしてから表示される（main.js/card-arrival.js参照）。
+   数秒で自動的に消える。サイズ・表示時間は管理者モードで調整できる
+   （--card-arrival-modal-size・--card-arrival-modal-duration）。 */
+:root {
+  --card-arrival-modal-size: 20rem;
+  --card-arrival-modal-duration: 3; /* 秒 */
+}
+.card-arrival-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 10600;
+  width: var(--card-arrival-modal-size);
+  transform: translate(-50%, -50%) scale(0.85);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.card-arrival-modal.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+.card-arrival-modal img {
+  width: 100%;
+  display: block;
+  border-radius: 0.6rem;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 1.2rem 3rem rgba(0, 0, 0, 0.7);
+}
+
 /* カードが手札に加わった時の「何をゲットしたか」トースト。#end-turn-button・#draw-button・
    #board-zoom-buttonの上に重ねて表示されるよう、その分の高さを空けてbottomを取っている。
    クリックすると即座に消せる（右上の✕ボタンでも同様）。サイズ・表示時間は管理者モードで
