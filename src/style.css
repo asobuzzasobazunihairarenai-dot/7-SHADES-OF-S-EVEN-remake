@@ -42,6 +42,9 @@ body {
      盤面上の駒と見た目の遠近感がズレないようにしている。 */
   --camera-perspective: 1150px;
   --camera-perspective-origin-y: 15%;
+  /* カメラの上下(Y軸)方向の平行移動。fitTableToViewport()内でtranslate()として
+     rotateX/scale3dより先に足す（rem絶対量なので、盤面拡大時のscale3dの影響を受けない）。 */
+  --camera-offset-y: 0rem;
   /* 「盤面拡大」ボタンのズーム位置微調整（applyBoardZoomFit参照）。管理者モードで調整可能。
      ボタンは 盤面拡大(1段階目) → もっと拡大(2段階目) → 元に戻す、の3段階トグル。 */
   --board-zoom-margin: 0.92;
@@ -836,6 +839,11 @@ body {
 .lock-area-bar-left .lock-area-bar-image,
 .lock-area-bar-right .lock-area-bar-image {
   transform: translate(-50%, -50%) rotate(90deg);
+}
+/* プレイヤーD（右辺）の画像は柄の向きが逆さまだったため、90degに180deg足して反転させる。
+   他の3辺とは絵柄の向きが独立して調整できるよう、あえてrightだけ別ルールに分けている。 */
+.lock-area-bar-right .lock-area-bar-image {
+  transform: translate(-50%, -50%) rotate(270deg);
 }
 .lock-area-bar-top, .lock-area-bar-bottom {
   left: 50%;

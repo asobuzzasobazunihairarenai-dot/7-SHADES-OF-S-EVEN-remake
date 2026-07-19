@@ -426,7 +426,7 @@ function applyNormalFit() {
   const availW = window.innerWidth * 0.94;
   const availH = window.innerHeight * 0.94;
   const scale = Math.min(availW / rect.width, availH / rect.height, 1.15);
-  table.style.transform = `rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
+  table.style.transform = `translate(0, var(--camera-offset-y)) rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
   currentTableScale = scale;
 }
 
@@ -467,7 +467,10 @@ function applyBoardZoomFit(level) {
 
   table.style.transformOrigin = `50% ${originYPercent}%`;
   const scale = (window.innerHeight * marginFrac) / spanHeight;
-  table.style.transform = `translate(${offsetX}, ${offsetY}) rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
+  // カメラのY軸オフセット(--camera-offset-y)は盤面拡大レベルごとのoffset-x/yとは独立に、
+  // 常時一定量を追加でずらす（先に適用することで、拡大時のtranslateOriginや倍率計算には
+  // 影響させない）。
+  table.style.transform = `translate(0, var(--camera-offset-y)) translate(${offsetX}, ${offsetY}) rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
   currentTableScale = scale;
 }
 

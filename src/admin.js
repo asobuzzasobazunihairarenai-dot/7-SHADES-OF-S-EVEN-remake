@@ -24,6 +24,7 @@ const GROUPS = [
       { key: "--table-tilt", label: "テーブルの傾き", unit: "deg", min: 0, max: 70, step: 1, default: 42 },
       { key: "--camera-perspective", label: "カメラ距離（小さいほど遠近感が強い）", unit: "px", min: 500, max: 3000, step: 10, default: 1150 },
       { key: "--camera-perspective-origin-y", label: "消失点の高さ（画面上端からの%）", unit: "%", min: 0, max: 100, step: 1, default: 15 },
+      { key: "--camera-offset-y", label: "上下（Y軸）位置", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
     ],
   },
   {
