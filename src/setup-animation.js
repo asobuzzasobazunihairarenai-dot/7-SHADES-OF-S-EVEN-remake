@@ -70,13 +70,24 @@ function flyCard(fromRect, toRect, imagePath, faceDown, durationMs) {
 // （盤面49マスが埋まった後、animateBoardFilled側でまとめて登場させる）。
 export async function animateFirstCardsDealt() {
   if (!helpers) return;
-  helpers.render();
 
+  // setupAssignFirstCards()は呼び出し元(runStep1)が既に済ませているため、この時点の
+  // state.tokensには新しいロックカード・駒トークンが反映済み。render()を呼ぶ「前」に
+  // 隠したいidを登録しておくことで、render()がこれらの要素を作る最初のフレームから
+  // 既にopacity:0の状態になる（render()の後からclassList.addする方式だと、理論上は
+  // 同期処理で見えないはずでも、実際のブラウザでは一瞬フルに見えてしまうことがあった）。
   const state = getState();
   const lockTokens = state.tokens.filter(
     (t) => t.kind === "card" && t.location.zone === "lock" && t.cardId.startsWith("first-")
   );
   if (lockTokens.length === 0) return;
+  const pieceTokensAll = state.tokens.filter((t) => t.kind === "piece");
+
+  if (helpers.setSetupPendingTokenIds) {
+    helpers.setSetupPendingTokenIds(new Set([...lockTokens.map((t) => t.id), ...pieceTokensAll.map((t) => t.id)]));
+  }
+  helpers.render();
+  if (helpers.setSetupPendingTokenIds) helpers.setSetupPendingTokenIds(new Set());
 
   const table = document.getElementById("game-table");
   const firstPileEl = document.querySelector('.stack[data-pile="first"]');
@@ -86,12 +97,12 @@ export async function animateFirstCardsDealt() {
   for (const token of lockTokens) {
     const el = table.querySelector(`[data-token-id="${token.id}"]`);
     if (el) {
-      el.classList.add("is-setup-pending");
+      el.classList.add("is-setup-pending"); // render()時点で既に付与済みだが、安全のため維持
       cardEntries.push({ token, el });
     }
   }
   // 駒は表示だけ隠しておく（登場自体はanimateBoardFilledの最後にまとめて行う）。
-  for (const token of state.tokens.filter((t) => t.kind === "piece")) {
+  for (const token of pieceTokensAll) {
     const el = table.querySelector(`[data-token-id="${token.id}"]`);
     if (el) el.classList.add("is-setup-pending");
   }
@@ -148,13 +159,28 @@ export async function animateFirstCardsDealt() {
 // ことで複数枚が同時に飛んでいるように見せる（ディーラーが手早く配る感じ）。
 export async function animateBoardFilled() {
   if (!helpers) return;
-  helpers.render();
 
-  const state = getState();
-  const cellTokens = state.tokens
-    .filter((t) => t.kind === "card" && t.location.zone === "cell")
-    .sort((a, b) => a.location.row - b.location.row || a.location.col - b.location.col);
-  if (cellTokens.length === 0) return;
+  // setupFillBoard()は呼び出し元(runStep2)が既に済ませているため、この時点のstate.tokensには
+  // 49マス分の新しいカードトークンが反映済み。render()を呼ぶ「前」に隠したいidを登録して
+  // おくことで、render()がこれらの要素を作る最初のフレームから既にopacity:0の状態になる
+  // （以前はrender()の後からclassList.addしていたが、ファーストカード配布直後・49マス配布
+  // 直前の両方で「一瞬フルに見えてから隠れる」フラッシュが実際に報告された。render()の後で
+  // 隠す方式は理論上は同期処理で一瞬も見えないはずでも、実際のブラウザでは見えてしまうことが
+  // あったため、そもそも見える瞬間自体が発生しないこの方式に変更した）。
+  const preState = getState();
+  const cellTokensAll = preState.tokens.filter((t) => t.kind === "card" && t.location.zone === "cell");
+  if (cellTokensAll.length === 0) return;
+  const pieceTokensAll = preState.tokens.filter((t) => t.kind === "piece");
+
+  if (helpers.setSetupPendingTokenIds) {
+    helpers.setSetupPendingTokenIds(new Set([...cellTokensAll.map((t) => t.id), ...pieceTokensAll.map((t) => t.id)]));
+  }
+  helpers.render();
+  if (helpers.setSetupPendingTokenIds) helpers.setSetupPendingTokenIds(new Set());
+
+  const cellTokens = cellTokensAll.sort(
+    (a, b) => a.location.row - b.location.row || a.location.col - b.location.col
+  );
 
   const table = document.getElementById("game-table");
   const deckPileEl = document.querySelector('.stack[data-pile="deck"]');
@@ -164,17 +190,13 @@ export async function animateBoardFilled() {
   for (const token of cellTokens) {
     const el = table.querySelector(`[data-token-id="${token.id}"]`);
     if (el) {
-      el.classList.add("is-setup-pending");
+      el.classList.add("is-setup-pending"); // render()時点で既に付与済みだが、安全のため維持
       entries.push({ token, el });
     }
   }
 
-  // このrender()は毎回DOM要素を作り直すため、ステップ1(animateFirstCardsDealt)が
-  // 駒に付けたis-setup-pendingは引き継がれず、駒が49マスの配布より先にいきなり
-  // 見えてしまっていた（真因）。この直後にもう一度隠し直し、49マスが埋め終わった
-  // 最後にまとめて登場させる。
   const pieceEntries = [];
-  for (const token of state.tokens.filter((t) => t.kind === "piece")) {
+  for (const token of pieceTokensAll) {
     const el = table.querySelector(`[data-token-id="${token.id}"]`);
     if (el) {
       el.classList.add("is-setup-pending");

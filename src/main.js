@@ -23,6 +23,18 @@ import { playSound } from "./sound.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import { COLORS, GATE_POSITIONS, SEAT_TO_SIDE, SIDE_TO_SEAT } from "./board-layout.js";
 
+// セットアップの配布演出（setup-animation.js）が、render()で新しくDOM要素を作らせる
+// 「前」に登録しておく、まだ登場させたくないトークンidの集合。render()の後から
+// classList.addで隠す方式だと、理論上は同期処理で一瞬たりとも見えないはずでも、
+// 実際のブラウザでは一瞬フルに見えてから隠れる「フラッシュ」が起きることがあった
+// （盤面49マス一斉配置後の駒、49マスのカード配布開始直前、いずれも報告あり）。
+// render()がトークンの要素を作る「その場」でこの集合を見て最初からopacity:0にしておけば、
+// 見えてしまう一瞬自体が存在しなくなる。
+let setupPendingTokenIds = new Set();
+function setSetupPendingTokenIds(ids) {
+  setupPendingTokenIds = ids;
+}
+
 function buildLockArea(side) {
   const el = document.createElement("div");
   const turnPlayer = getState().turnPlayer;
@@ -527,6 +539,9 @@ function renderBoardTokens(table) {
     if (!host) continue;
     const el = token.kind === "piece" ? buildCubePiece(token.color) : buildFlatCard(token);
     el.dataset.tokenId = token.id;
+    // セットアップ配布演出中、まだ登場させたくないトークンは最初からopacity:0にしておく
+    // （setup-animation.jsのanimateFirstCardsDealt/animateBoardFilled参照）。
+    if (setupPendingTokenIds.has(token.id)) el.classList.add("is-setup-pending");
     // 手番プレイヤーの駒だけを、その駒自身の色でゆっくり柔らかく発光させる
     // （ロックエリア/名前ラベルの手番演出とは別に、盤面上でも手番の駒がすぐ分かるように）。
     // 「自分」に限定していたのは誤りで、B/C/Dのターンでもそれぞれの駒が光る必要がある。
@@ -1847,7 +1862,7 @@ initGameSetup();
 initOptionsMenu();
 initPlayerButtons();
 initQuickStart();
-registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocationElement });
+registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocationElement, setSetupPendingTokenIds });
 buildGameTitle();
 turnRoundCounterEl = buildTurnRoundCounter();
 updateTurnRoundCounter();
