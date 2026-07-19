@@ -382,6 +382,29 @@ function hasPieceAt(location) {
   });
 }
 
+// 演出中（柱状バースト・ロックスタンプ）は、そのマス/ロックスロット自体のz-indexを
+// 一時的に引き上げる。柱の高さがマスの3倍以上あるなど演出が隣のマス/ロックスロットへ
+// 視覚的にはみ出すため、DOM順で後にある隣接スロット（通常はそちらが手前に描画される）
+// の下に演出が隠れてしまうことがあった（プレイヤーDのロックエリアは並び順を正すため
+// 祖先ごと180度回転しており、DOM順と画面上の上下関係が逆転しているため特に顕著だった）。
+// バースト→ロックスタンプと同じマスで演出が連続することがあるため、参照カウント方式で
+// 「最後の演出が終わるまでz-indexを元に戻さない」ようにしている。
+function bumpEffectZIndex(hostEl, ttlMs) {
+  if (hostEl.__effectZCount === undefined) hostEl.__effectZCount = 0;
+  if (hostEl.__effectZCount === 0) {
+    hostEl.__effectPrevZIndex = hostEl.style.zIndex;
+    hostEl.style.zIndex = "50";
+  }
+  hostEl.__effectZCount += 1;
+  setTimeout(() => {
+    hostEl.__effectZCount -= 1;
+    if (hostEl.__effectZCount <= 0) {
+      hostEl.__effectZCount = 0;
+      hostEl.style.zIndex = hostEl.__effectPrevZIndex || "";
+    }
+  }, ttlMs);
+}
+
 // プレイヤーDのロックエリア(.lock-right)は7色スロットの並び順を正すため祖先(.lock-right)
 // 自体に180度回転を掛けている（style.css参照）。柱状バースト・ロックスタンプはどの辺でも
 // 常に画面の「上方向」に伸びる向きで作られているため、そのままだとD側だけ上下逆さまに
@@ -390,6 +413,7 @@ function hasPieceAt(location) {
 // 祖先の回転を打ち消す。中身の座標系（center基準の配置・アニメーション）は
 // 180度回転しても中心位置は変わらないため、この入れ子を挟んでも見た目のズレは生じない。
 function appendEffectHost(hostEl, effectEl, ttlMs) {
+  bumpEffectZIndex(hostEl, ttlMs);
   if (hostEl.closest(".lock-right")) {
     const flip = document.createElement("div");
     flip.className = "effect-side-flip";
@@ -1337,18 +1361,22 @@ function findDropTarget(clientX, clientY, kind) {
   return null;
 }
 
-// カードが新しくロックエリアに入った瞬間だけ「ロックした」トースト＋ロック演出
-// （柱状のオーラ流用＋ロックスタンプの拡大登場＋効果音）を出す（wasAlreadyLocked=trueなら
-// ロックエリア内で位置を動かしただけなので対象外）。白黒（無色）カードをロックエリアへ
-// 「置く」ことはルール上ロックしたことにはならない（docs/cards.mdの黒カード補足参照）ため、
-// その2色は除外する。ロック演出はそのマスのDOM要素（render()済みであること）が必要なため、
-// この関数はrender()の後に呼ぶこと。
+// カードがロックエリアへ動いた時のロック演出（柱状のオーラ流用＋ロックスタンプの拡大登場＋
+// 効果音）は、新しくロックした時だけでなく、ロックエリア同士の移動（別のロックスロットへ
+// 動かした時）でも出す（ユーザー要望）。ただし「ロックした」トーストは新しくロックエリアに
+// 入った瞬間だけに絞る（wasAlreadyLocked=trueならロックエリア内/間の移動なので対象外。
+// 既に公開済みの情報を動かしただけで、トーストで再度知らせる必要は無いため）。白黒（無色）
+// カードをロックエリアへ「置く」ことはルール上ロックしたことにはならない
+// （docs/cards.mdの黒カード補足参照）ため、トースト・演出とも対象外とする。ロック演出は
+// そのマスのDOM要素（render()済みであること）が必要なため、この関数はrender()の後に呼ぶこと。
 function maybeAnnounceLock(dropTarget, cardId, wasAlreadyLocked) {
-  if (!dropTarget || dropTarget.zone !== "lock" || wasAlreadyLocked) return;
+  if (!dropTarget || dropTarget.zone !== "lock") return;
   const def = getCardDefinition(cardId);
   if (!def || def.color === "white" || def.color === "black") return;
-  const player = SIDE_TO_SEAT[dropTarget.side];
-  announceCardLocked(player, cardId);
+  if (!wasAlreadyLocked) {
+    const player = SIDE_TO_SEAT[dropTarget.side];
+    announceCardLocked(player, cardId);
+  }
   triggerLockEffect(cardId, dropTarget);
 }
 
