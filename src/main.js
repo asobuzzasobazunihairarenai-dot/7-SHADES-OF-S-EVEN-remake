@@ -502,10 +502,16 @@ function render() {
   // 後に追加した手札・山札・捨て場・エターナルは、画面上で座標が重なってもプレイマットより
   // 手前に描画される（盤面のマス目の枠線と同じ「高さ」で表示される、という要望に対応）。
   table.appendChild(buildArena());
-  table.appendChild(buildPlayerZone("bottom", "A", true));
-  table.appendChild(buildPlayerZone("left", "B", false));
-  table.appendChild(buildPlayerZone("top", "C", false));
-  table.appendChild(buildPlayerZone("right", "D", false));
+  // セットアップ手順1で参加座席(activePlayers)が確定した後は、参加していない座席の
+  // アバター・名前・手札ゾーンごと表示しない（例: 2人プレイなのに4人分のアバターが
+  // 出てしまっていたバグの修正）。まだセットアップ前（activePlayers==[]）の間は、
+  // 従来通り4人分をプレビューとして表示しておく。
+  const { activePlayers } = getState();
+  const isActive = (player) => activePlayers.length === 0 || activePlayers.includes(player);
+  if (isActive("A")) table.appendChild(buildPlayerZone("bottom", "A", true));
+  if (isActive("B")) table.appendChild(buildPlayerZone("left", "B", false));
+  if (isActive("C")) table.appendChild(buildPlayerZone("top", "C", false));
+  if (isActive("D")) table.appendChild(buildPlayerZone("right", "D", false));
   table.appendChild(buildPileZone("deck"));
   table.appendChild(buildPileZone("eternal"));
   table.appendChild(buildPileZone("first"));
@@ -543,8 +549,10 @@ function applyNormalFit() {
   const availW = window.innerWidth * 0.94;
   const availH = window.innerHeight * 0.94;
   const zoom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--camera-zoom")) || 1;
-  const scale = Math.min(availW / rect.width, availH / rect.height, 1.15) * zoom;
-  table.style.transform = `translate(0, var(--camera-offset-y)) rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
+  // マウスホイールでの手動ズーム(manualZoom)・中クリックドラッグでの手動移動(manualPanX/Y)を
+  // 自動フィットの結果にさらに上乗せする。
+  const scale = Math.min(availW / rect.width, availH / rect.height, 1.15) * zoom * manualZoom;
+  table.style.transform = `translate(${manualPanX}rem, calc(var(--camera-offset-y) + ${manualPanY}rem)) rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
   currentTableScale = scale;
 }
 
@@ -604,11 +612,12 @@ function applyBoardZoomFit(level) {
   // ウィンドウサイズに一切依存しなくなる（基準値と大きく違う高さのウィンドウでは
   // 上下が見切れたり余白が出たりし得るが、その場合は基準値側を調整して合わせる）。
   table.style.transformOrigin = `50% ${originYPercent}%`;
-  const scale = ((referenceHeight * marginFrac) / spanHeight) * zoom;
-  // カメラのY軸オフセット(--camera-offset-y)は盤面拡大レベルごとのoffset-x/yとは独立に、
-  // 常時一定量を追加でずらす（先に適用することで、拡大時のtranslateOriginや倍率計算には
-  // 影響させない）。
-  table.style.transform = `translate(0, var(--camera-offset-y)) translate(${offsetX}, ${offsetY}) rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
+  // マウスホイールでの手動ズーム(manualZoom)も、盤面拡大の倍率にさらに上乗せする。
+  const scale = ((referenceHeight * marginFrac) / spanHeight) * zoom * manualZoom;
+  // カメラのY軸オフセット(--camera-offset-y)・中クリックドラッグでの手動移動(manualPanX/Y)は
+  // 盤面拡大レベルごとのoffset-x/yとは独立に、常時一定量を追加でずらす（先に適用することで、
+  // 拡大時のtranslateOriginや倍率計算には影響させない）。
+  table.style.transform = `translate(${manualPanX}rem, calc(var(--camera-offset-y) + ${manualPanY}rem)) translate(${offsetX}, ${offsetY}) rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
   currentTableScale = scale;
 }
 
@@ -620,9 +629,25 @@ let boardZoomLevel = 0;
 // 合わせるために使う（applyNormalFit/applyBoardZoomFitの末尾で更新）。
 let currentTableScale = 1;
 
+// マウスホイールでの自由なズーム・中クリックドラッグでの視点移動。「盤面拡大」ボタンの
+// 3段階トグルとは別枠で、常にその時点の表示（通常時／盤面拡大時どちらでも）に上乗せする形で
+// 効く倍率・平行移動。hasManualViewがtrueの間は「盤面拡大」ボタンの見た目・挙動が
+// 「🔄 最初の視点に戻る」に切り替わる（updateBoardZoomButtonLabel参照）。
+let manualZoom = 1;
+let manualPanX = 0; // rem
+let manualPanY = 0; // rem
+let hasManualView = false;
+
 function cycleBoardZoom() {
   boardZoomLevel = (boardZoomLevel + 1) % 3;
   fitTableToViewport();
+}
+
+function resetManualView() {
+  manualZoom = 1;
+  manualPanX = 0;
+  manualPanY = 0;
+  hasManualView = false;
 }
 
 let resizeTimer;
@@ -1398,20 +1423,100 @@ function ensureDeckAvailable(onReady) {
 // --- 「盤面拡大」ボタン ----------------------------------------------------------
 // 押すたびに 盤面拡大 → もっと拡大 → 元に戻す、と3段階を巡回する。
 // state.turnPlayerの有無に関係なく常に使える表示上の機能なので、非表示にする条件は無い。
+// マウスホイールでのズーム・中クリックドラッグでの視点移動（initCameraControls参照）を
+// 一度でも使うと、このボタンは「🔄 最初の視点に戻る」に切り替わる（updateBoardZoomButtonLabel）。
 const BOARD_ZOOM_LABELS = ["🔍 盤面拡大", "🔍 もっと拡大", "🔍 元に戻す"];
+
+let boardZoomButtonEl = null;
+
+function updateBoardZoomButtonLabel() {
+  const btn = boardZoomButtonEl;
+  if (!btn) return;
+  if (hasManualView) {
+    btn.textContent = "🔄 最初の視点に戻る";
+    btn.classList.add("is-active");
+    btn.classList.remove("is-zoom-2");
+    return;
+  }
+  btn.classList.toggle("is-active", boardZoomLevel > 0);
+  btn.classList.toggle("is-zoom-2", boardZoomLevel === 2);
+  btn.textContent = BOARD_ZOOM_LABELS[boardZoomLevel];
+}
 
 function buildBoardZoomButton() {
   const btn = document.createElement("button");
   btn.id = "board-zoom-button";
   btn.textContent = BOARD_ZOOM_LABELS[0];
   btn.addEventListener("click", () => {
+    if (hasManualView) {
+      resetManualView();
+      boardZoomLevel = 0;
+      fitTableToViewport();
+      updateBoardZoomButtonLabel();
+      return;
+    }
     cycleBoardZoom();
-    btn.classList.toggle("is-active", boardZoomLevel > 0);
-    btn.classList.toggle("is-zoom-2", boardZoomLevel === 2);
-    btn.textContent = BOARD_ZOOM_LABELS[boardZoomLevel];
+    updateBoardZoomButtonLabel();
   });
   document.body.appendChild(btn);
   return btn;
+}
+
+// マウスホイールでの自由なズームイン/アウトと、中クリック（ホイール押し込み）ドラッグでの
+// 視点移動。「盤面拡大」ボタンの3段階トグルの上に、常にさらに上乗せする形で効く
+// （manualZoom/manualPanX/Y、applyNormalFit/applyBoardZoomFit参照）。
+function initCameraControls() {
+  const scene = document.querySelector(".scene");
+  if (!scene) return;
+
+  scene.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 0.9 : 1.1;
+      manualZoom = Math.min(4, Math.max(0.3, manualZoom * factor));
+      hasManualView = true;
+      fitTableToViewport();
+      updateBoardZoomButtonLabel();
+    },
+    { passive: false }
+  );
+
+  let panning = false;
+  let panStartX = 0;
+  let panStartY = 0;
+  let panOriginX = 0;
+  let panOriginY = 0;
+
+  // 中クリックのデフォルト動作（ブラウザのオートスクロールモード等）を抑止する。
+  scene.addEventListener("mousedown", (e) => {
+    if (e.button === 1) e.preventDefault();
+  });
+  scene.addEventListener("auxclick", (e) => {
+    if (e.button === 1) e.preventDefault();
+  });
+
+  scene.addEventListener("pointerdown", (e) => {
+    if (e.button !== 1) return;
+    e.preventDefault();
+    panning = true;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+    panOriginX = manualPanX;
+    panOriginY = manualPanY;
+  });
+  window.addEventListener("pointermove", (e) => {
+    if (!panning) return;
+    const rootFontSizePx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    manualPanX = panOriginX + (e.clientX - panStartX) / rootFontSizePx;
+    manualPanY = panOriginY + (e.clientY - panStartY) / rootFontSizePx;
+    hasManualView = true;
+    fitTableToViewport();
+    updateBoardZoomButtonLabel();
+  });
+  window.addEventListener("pointerup", (e) => {
+    if (e.button === 1) panning = false;
+  });
 }
 
 // --- 「手札シャッフル」ボタン ------------------------------------------------------
@@ -1653,12 +1758,13 @@ window.addEventListener("admin:change", render);
 endTurnButtonEl = buildEndTurnButton();
 drawButtonEl = buildDrawButton();
 selfHandStatusEl = buildSelfHandStatus();
-buildBoardZoomButton();
+boardZoomButtonEl = buildBoardZoomButton();
 handShuffleButtonEl = buildHandShuffleButton();
 render();
 initDragHandlers();
 initHoverHandlers();
 initContextMenuHandlers();
+initCameraControls();
 initAdminMode();
 initDeckViewer();
 initGameSetup();

@@ -357,6 +357,12 @@
 - **ラウンド数が「プレイヤーA」を起点にカウントされてしまうバグを修正**: `NEXT_TURN`の「一周した」判定が、`SEAT_ORDER`（固定のA→B→C→D順）でフィルタした配列の先頭（＝参加者の中でA,B,C,D順で一番早い座席、実際に選ばれたスタートプレイヤーとは限らない）に戻ったかどうかで判定していた。`state.js`に`startPlayer`（`SET_TURN_PLAYER`で記録）を追加し、「次の座席が`startPlayer`と一致した時だけラウンド+1」という、実際に選ばれたスタートプレイヤー基準の判定に修正した。
 - **到達モーダルのサイズ・表示時間の新デフォルトを反映**: `--card-arrival-modal-size: 20rem→25rem`、`--card-arrival-modal-duration: 3→5`（style.css・admin.jsの両方）。
 
+### 2026-07-19の変更（続き・同日11回目のラウンド）
+
+- **2人プレイなのにアバターが4人分表示されるバグを修正**: `render()`が`activePlayers`を見ずに常に4人分の`buildPlayerZone()`を呼んでいた。`activePlayers`が確定した後（セットアップ手順1以降）は、参加していない座席のアバター・名前・手札ゾーンごと表示しないようにした（セットアップ前は従来通り4人分をプレビュー表示する）。
+- **マウスホイールでのズームと中クリックドラッグでの視点移動を追加**: 「盤面拡大」ボタンのウィンドウサイズ依存の問題が解決しきらなかったため、代替としてユーザーが直接調整できる自由なカメラ操作を追加した（`main.js`の`initCameraControls()`新規）。ホイールで`manualZoom`を、中クリック（ホイール押し込み）ドラッグで`manualPanX`/`manualPanY`（rem単位）を更新し、`applyNormalFit()`/`applyBoardZoomFit()`双方の最終的なscale・translateにさらに上乗せする形にした（「盤面拡大」ボタンの3段階トグルとは独立した、常に効くレイヤー）。一度でも手動調整すると「🔍 盤面拡大」ボタンが「🔄 最初の視点に戻る」に切り替わり（`updateBoardZoomButtonLabel()`）、押すと`manualZoom`/`manualPanX`/`manualPanY`と`boardZoomLevel`をすべてリセットして最初の見た目に戻る。中クリックのブラウザ既定動作（オートスクロールモード）は`mousedown`/`auxclick`で`preventDefault()`して抑止した。
+- **盤面拡大の位置調整の新デフォルトを反映**: `--board-zoom-margin: 0.92→0.8`、`--board-zoom-offset-y: -1.7rem→-2rem`、`--board-zoom-reference-height: 900px→800px`、`--board-zoom-2-margin: 1.3→1.13`、`--board-zoom-2-reference-height: 900px→800px`（style.css・admin.jsの両方）。
+
 ## 未確認・要フォローアップ
 
 - 親フォルダ（Googleドライブ）直下に以下の関連しそうなファイル・フォルダがあるが、中身は未確認：

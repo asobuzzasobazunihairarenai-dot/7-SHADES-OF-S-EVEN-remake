@@ -58,17 +58,17 @@ body {
   --camera-zoom: 1;
   /* 「盤面拡大」ボタンのズーム位置微調整（applyBoardZoomFit参照）。管理者モードで調整可能。
      ボタンは 盤面拡大(1段階目) → もっと拡大(2段階目) → 元に戻す、の3段階トグル。 */
-  --board-zoom-margin: 0.92;
+  --board-zoom-margin: 0.8;
   --board-zoom-offset-x: 0rem;
-  --board-zoom-offset-y: -1.7rem;
+  --board-zoom-offset-y: -2rem;
   /* 拡大時の倍率計算の基準となる高さ（px）。実際のブラウザウィンドウの高さではなく、この
      固定値を使うことで、拡大時の上端・下端の画面上の位置がウィンドウサイズに左右されなく
      なる（applyBoardZoomFit参照）。 */
-  --board-zoom-reference-height: 900px;
-  --board-zoom-2-margin: 1.3;
+  --board-zoom-reference-height: 800px;
+  --board-zoom-2-margin: 1.13;
   --board-zoom-2-offset-x: 0rem;
   --board-zoom-2-offset-y: -2.5rem;
-  --board-zoom-2-reference-height: 900px;
+  --board-zoom-2-reference-height: 800px;
 }
 
 .game-table {
