@@ -20,6 +20,7 @@ import {
   notifyListeners,
 } from "./state.js";
 import { SEAT_ORDER } from "./board-layout.js";
+import { markSelfHandled } from "./self-handled-tokens.js";
 
 // state.jsの方が唯一の真実（main.jsも同じ関数をstate.jsから直接importして使う）。
 // ここでは呼び出し側（online-ui.js）の利便性のためだけに再エクスポートする。
@@ -276,6 +277,74 @@ export async function startGame(gameId, { includeBlackWhite = false } = {}) {
 
 // --- サーバー状態の取得・反映 --------------------------------------------------------
 
+// 座席ごとのプレイヤー名・アバター・駒スキン選択のキャッシュ（{seat: {name, avatar,
+// pieceSkinIndex, userId}}）。src/player-identity.js・src/piece-skins.jsがオンライン中に
+// これを参照する。fetchAndHydrate()のたびに全座席分を取り直すほか、identity_changed
+// Broadcast受信時にも単独で取り直す（updateIdentityRoster参照）。
+let roster = {};
+
+export function getSyncedIdentity(seat) {
+  return roster[seat] ?? null;
+}
+
+async function updateIdentityRoster(gameId) {
+  const { data: seatRows, error } = await client
+    .from("so7_game_seats")
+    .select("seat, user_id, display_name, avatar, piece_skin_index")
+    .eq("game_id", gameId);
+  if (error) throw error;
+  const nextRoster = {};
+  for (const r of seatRows ?? []) {
+    if (!r.seat) continue;
+    nextRoster[r.seat] = {
+      name: r.display_name || null,
+      avatar: r.avatar || null,
+      pieceSkinIndex: r.piece_skin_index ?? 0,
+      userId: r.user_id,
+    };
+    if (cachedUser && r.user_id === cachedUser.id) currentSeat = r.seat;
+  }
+  roster = nextRoster;
+}
+
+// 名前・アバター・駒スキンは隠すべき情報ではないため、so7-apply-action Edge Functionを
+// 経由させず、joinRoom()と同じ「クライアントから直接テーブルへ書き込む」パターンを踏襲する。
+export async function updateMyIdentity({ name, avatar, pieceSkinIndex } = {}) {
+  return withLog("プレイヤー情報の更新", async () => {
+    const user = await getCurrentUser();
+    if (!user || !currentGameId) return;
+    const patch = {};
+    if (name !== undefined) patch.display_name = name;
+    if (avatar !== undefined) patch.avatar = avatar;
+    if (pieceSkinIndex !== undefined) patch.piece_skin_index = pieceSkinIndex;
+    if (Object.keys(patch).length === 0) return;
+
+    const { error } = await client
+      .from("so7_game_seats")
+      .update(patch)
+      .eq("game_id", currentGameId)
+      .eq("user_id", user.id);
+    if (error) throw error;
+
+    // 自分のローカルキャッシュにも即座に反映（次の再取得を待たなくても自分の画面には
+    // すぐ反映されるように）。
+    if (currentSeat) {
+      roster[currentSeat] = {
+        ...(roster[currentSeat] ?? { userId: user.id }),
+        ...(name !== undefined ? { name } : {}),
+        ...(avatar !== undefined ? { avatar } : {}),
+        ...(pieceSkinIndex !== undefined ? { pieceSkinIndex } : {}),
+      };
+    }
+
+    // 他クライアントへ速やかに伝える（盤面のstate_changedとは無関係の情報のため別イベント名
+    // にする。次の何らかの操作を待たずに、名前変更等がすぐ他プレイヤーへ伝わるようにする）。
+    if (broadcastChannel) {
+      broadcastChannel.send({ type: "broadcast", event: "identity_changed", payload: {} });
+    }
+  });
+}
+
 // so7_games・so7_game_tokens_visible・so7_game_piles_visibleを取得し、state.jsの
 // getState()と同じ形に組み直してhydrateState()へ渡す。DRAW_FROM_PILEの応答に含まれる
 // revealedCardIdはここでは扱わない（呼び出し元がcallAction()の戻り値から直接使う）。
@@ -285,7 +354,6 @@ export async function fetchAndHydrate(gameId) {
       { data: gameRow, error: gameErr },
       { data: tokenRows, error: tokenErr },
       { data: pileRows, error: pileErr },
-      { data: mySeatRow },
     ] = await Promise.all([
       client.from("so7_games").select("*").eq("id", gameId).maybeSingle(),
       client.from("so7_game_tokens_visible").select("*").eq("game_id", gameId).order("order_index", { ascending: true }),
@@ -293,16 +361,14 @@ export async function fetchAndHydrate(gameId) {
       // 参加時点では自分の座席がまだ決まっていない（null）。「ゲームを開始する」が押されて
       // Edge Function側でランダムに割り当てられた後、この取得のたびに拾い直すことで
       // 自分の座席を知る（実際に割り当てが反映されるのはBroadcast経由でこの関数が
-      // 再度呼ばれた時）。
-      cachedUser
-        ? client.from("so7_game_seats").select("seat").eq("game_id", gameId).eq("user_id", cachedUser.id).maybeSingle()
-        : Promise.resolve({ data: null }),
+      // 再度呼ばれた時）。座席ロスター（名前・アバター・駒スキン含む全座席分）も同時に
+      // 更新する。
+      updateIdentityRoster(gameId),
     ]);
     if (gameErr) throw gameErr;
     if (tokenErr) throw tokenErr;
     if (pileErr) throw pileErr;
     if (!gameRow) return;
-    if (mySeatRow?.seat) currentSeat = mySeatRow.seat;
 
     const tokens = (tokenRows ?? []).map((r) => {
       const location =
@@ -346,14 +412,37 @@ function subscribeToGame(gameId) {
   broadcastChannel = client
     .channel(`game:${gameId}`)
     .on("broadcast", { event: "state_changed" }, ({ payload }) => {
+      // ゲート侵攻ボーナスが発生した場合、そのイベントで動いたトークンidを
+      // fetchAndHydrate()（＝内部のhydrateState()、ひいてはremote-move-animator.jsの
+      // 差分検知）より前にmarkSelfHandledしておく。ゲート侵攻の通知は
+      // gate-invasion-modal.js側が専用の中央モーダルで既に案内するため、汎用の差分検知に
+      // よる二重の演出・通知（右下トースト等）を防ぐ。fetchAndHydrate()のthen()の後で
+      // マークしても、その時点で既にhydrateState()（＝差分検知）は完了してしまっている
+      // ため遅い——ここで先にマークする必要がある。
+      if (payload?.gateInvasionEvents?.length) {
+        const ids = [];
+        for (const ev of payload.gateInvasionEvents) {
+          ids.push(...(ev.stolenTokenIds ?? []));
+          ids.push(...(ev.bumpedCards ?? []).map((b) => b.tokenId));
+          ids.push(...(ev.gateCards ?? []).map((g) => g.tokenId));
+        }
+        markSelfHandled(ids);
+      }
       fetchAndHydrate(gameId)
         .then(() => {
-          // ゲート侵攻ボーナスが発生した場合だけ、payloadにgateInvasionEventsが載っている。
           // 盤面の再取得（自分の手札等、隠し情報の解決に必要）が終わってから通知する。
           if (payload?.gateInvasionEvents?.length) {
             for (const fn of gateInvasionEventListeners) fn(payload.gateInvasionEvents);
           }
         })
+        .catch(() => {});
+    })
+    // 名前・アバター・駒スキンの変更は盤面のstate_changedとは別イベントで通知される
+    // （updateMyIdentity参照）。ロスターだけ取り直し、notifyListeners()でrender()を
+    // 促す（トークン等は変わっていないためfetchAndHydrate()丸ごとは呼ばない）。
+    .on("broadcast", { event: "identity_changed" }, () => {
+      updateIdentityRoster(gameId)
+        .then(() => notifyListeners())
         .catch(() => {});
     })
     .subscribe();

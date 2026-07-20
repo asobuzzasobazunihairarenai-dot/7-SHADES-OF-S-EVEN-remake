@@ -5,17 +5,29 @@
 // 同じ色なら同じスキンが使われる。
 // トリガーとなるUI（駒の立体サムネイル）は左下の自分専用ステータスエリア側（main.js）に
 // あるため、このモジュールはデータ管理とピッカーのモーダルだけを持つ。
+//
+// オンライン対戦では、他プレイヤーの駒スキンは自分のブラウザのローカル推測値ではなく、
+// online.jsが同期取得した座席ロスター（getSyncedIdentity）を優先する。ローカルの
+// skinIndexByColorは「色」で保持しているが、同期データは「座席」ごと（so7_game_seats）に
+// 持っているため、getSkinImagePathに座席を渡せる場面ではオンライン中はそちらを優先する。
 
 import { getState } from "./state.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
-import { getSelfSeat } from "./online.js";
+import { getSelfSeat, isOnlineMode, getSyncedIdentity, updateMyIdentity } from "./online.js";
 
 const SKIN_VARIANTS = [0, 1, 2, 3, 4, 5]; // 0=標準（assets/pieces/${color}.png）
 
 let skinIndexByColor = {};
 
-export function getSkinImagePath(color) {
-  const idx = skinIndexByColor[color] || 0;
+// seat: 分かる場合（盤面上の駒を描画する時等）は渡すと、オンライン中はその座席の同期済み
+// スキン選択を優先する。省略時（自分専用ステータスのプレビュー等）はローカルの色ベースの
+// 選択にフォールバックする。
+export function getSkinImagePath(color, seat) {
+  let idx = skinIndexByColor[color] || 0;
+  if (isOnlineMode() && seat) {
+    const synced = getSyncedIdentity(seat)?.pieceSkinIndex;
+    if (typeof synced === "number") idx = synced;
+  }
   return idx === 0 ? `assets/pieces/${color}.png` : `assets/pieces/${color}-${idx}.png`;
 }
 
@@ -57,6 +69,9 @@ export function openPieceSkinPicker() {
     swatch.addEventListener("click", () => {
       skinIndexByColor[color] = idx;
       notifyChange();
+      if (isOnlineMode()) {
+        updateMyIdentity({ pieceSkinIndex: idx }).catch((err) => console.error("updateMyIdentity failed", err));
+      }
       close();
     });
     grid.appendChild(swatch);

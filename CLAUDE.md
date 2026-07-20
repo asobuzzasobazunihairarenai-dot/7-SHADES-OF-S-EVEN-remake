@@ -818,3 +818,88 @@
 - **ユーザー側の作業が必要**: `supabase/functions/so7-apply-action.ts`の更新後の内容を
   Edge Functionsダッシュボードで再デプロイする必要がある（SQLの変更は無いため
   `supabase_setup_so7.sql`の再実行は不要）。
+
+### 2026-07-20の変更：実際に2ブラウザで試した追加フィードバック7件への対応（名前/アバター/駒スキン同期、自分/相手の到達演出・移動アニメ、獲得モーダル全員表示、ゲート侵攻通知の中央モーダル化）
+
+前回ラウンドを実際に2ブラウザで試したユーザーから、新たに7件のフィードバックがあった。
+このうち「Googleログインせずに匿名ログインできないか」（既存の匿名ログイン機能の案内で回答済み）
+と「セットアップ時に49枚のカードが一瞬フルに見えてから配布アニメが始まる」（`suppressGenericRenderForOnlineStart`
+フラグの追加で即日修正済み）は別途対応済み。「部屋に入っているのにセットアップボタンが表示される」は
+コード上の原因を特定できず、ユーザーに強制リロードを依頼し保留（未解決のまま残っている）。
+残り4件（名前/アバター/駒スキン同期、到達演出・移動アニメ、獲得モーダル、ゲート侵攻通知）に対応した。
+
+- **重要な追加発見（ユーザーからの訂正）**: 当初は「相手の操作が見えない」という4件として
+  スコープしていたが、ユーザーから「自分の到達効果アニメも見えていなかった」という訂正があり、
+  調査の結果、**全く別の根本原因**が見つかった。`so7-apply-action.ts`はコミット後、HTTPレスポンスと
+  Broadcast送信を別々に行うため、自分の操作1回につき`hydrateState()`（＝`render()`）が実際には
+  **2回**発火することがある（①`onDragEnd`等が直接呼ぶ`fetchAndHydrate()`、②`online.js`の
+  `subscribeToGame()`が持つ全員向けBroadcastハンドラが「自分の操作のこだま」を受信して呼ぶもの）。
+  `render()`は毎回`table.innerHTML=""`で盤面DOM全体を作り直すため、①の直後に到達演出のDOM要素が
+  追加されても、その演出（1〜2秒台）が終わる前に②の「こだま」が届いてrender()が再度DOM全体を
+  作り直すと、再生中の演出要素ごと消えてしまっていた。
+- **Step 0（土台）: 実質的に変化のないhydrateではrender()自体をスキップする**: `main.js`に
+  `computeStateFingerprint(state)`（`tokens`のid/location/faceUp/cardIdをソートして結合したもの＋
+  `turnPlayer`/`turnNumber`/`roundNumber`/`activePlayers`/`isOnlineMode()`）と、直近の
+  render()呼び出し時のフィンガープリントを保持する変数を追加した。generic renderリスナーは、
+  呼ぶ前に現在の状態のフィンガープリントが直前と完全一致するかを比較し、一致すれば`render()`
+  自体をスキップする。オンライン中の「こだまBroadcast」（内容が直前のfetchAndHydrateと完全に
+  同じ）はこの比較で確実にスキップされ、再生中の到達演出/ロック演出のDOM要素が中断されなくなる。
+  `isOnlineMode()`をフィンガープリントに含めているのは、`online.js`が`setOnlineMode(true)`直後に
+  `is-online-mode`CSSクラスを即座に切り替えるための強制`notifyListeners()`を、トークンがまだ
+  変化していない段階でも正しく反映させるため。
+- **Step 1: ゲート侵攻ボーナス通知を、右下トーストの連続表示から1件ずつの中央モーダルへ**:
+  新規`src/gate-invasion-modal.js`（`enqueueGateInvasionSteps(events)`）。ローカル版
+  `gate-invasion.js`の`showBonusStepModal`と同じ見た目で、導入→奪った手札→エターナル獲得→
+  弾き出されたカード→帰還、の最大5ステップを1件ずつ画面中央に表示し、`--gate-invasion-modal-step-duration`
+  （管理者モードで調整可、デフォルト3.5秒）で自動的に次へ進む。「スキップ」ボタンで残り全部を
+  即座に閉じる。`hand-announcer.js`から閲覧者ごとの公開/非公開判定を`isPickupVisible(pickup, player)`
+  として切り出し、両方から共有。`main.js`の`onGateInvasionEvents`ハンドラは
+  `enqueueGateInvasionSteps(events)`の呼び出し1行に簡略化した。
+- **Step 2: プレイヤー名・アバター・駒スキンをサーバー経由で同期**: `so7_game_seats`に
+  `display_name`/`avatar`/`piece_skin_index`列を追加し、UPDATEポリシー（`user_id = auth.uid()`
+  のみ）を新設（`supabase_setup_so7.sql`に追記、ユーザーがSQL Editorで実行する必要あり）。
+  `online.js`に座席ごとのロスターキャッシュ（`updateIdentityRoster`、ゲーム内の全座席分を
+  `fetchAndHydrate()`のたびに取得）と`getSyncedIdentity(seat)`/`updateMyIdentity({name,avatar,pieceSkinIndex})`
+  を追加。`updateMyIdentity`成功後は`identity_changed`という軽量Broadcastを送り、他クライアントは
+  ロスターだけ再取得して再描画する。`player-identity.js`/`piece-skins.js`はオンライン中
+  `getSyncedIdentity`を優先し、無ければ従来のローカル値にフォールバックする形にリファクタ
+  （呼び出し元のmain.js等は無改修）。
+- **Step 3: 「リモート移動アニメーター」— 他プレイヤーの操作をBroadcast経由で受動的に
+  受け取った時にも、到達演出・移動アニメ・獲得通知を再現**: 新規`src/remote-move-animator.js`。
+  `hydrateState()`のたびに直前のトークン一覧と突き合わせ、位置が変わった/新規出現したトークンを
+  検知し、対応する演出（`ghost-flight.js`に切り出した`flyGhost`によるゴースト飛翔＋
+  `maybeAnnounceLock`/`triggerCardArrivalIfFaceUp`/`maybeTriggerCardArrivalForCard`/
+  `announceHandPickups`）を、自分の操作と同じ関数で再現する。
+  - **自分の操作との二重発火防止（TTL付きの個別id方式、単一グローバルフラグではない）**:
+    新規`src/self-handled-tokens.js`（`markSelfHandled(tokenIds, ttlMs=4000)`/`isSelfHandled(id)`）。
+    自分の操作をきっかけに演出を出す既存コード7箇所（`onDragEnd`の5分岐・ダブルクリック反転・
+    `promptCardOpen`の「オープンする」）が、演出を出すのと同じタイミングで対象トークンidを
+    「処理済み」としてマークする。単一グローバルフラグにしなかった理由: 自分の操作についても
+    ①②の2回hydrateが起き得るため、②が①より先に届くとフラグが立っていない状態で誤検知する
+    レースコンディションがあった。id単位でTTL付きにマークすることで、到着順序に関わらず
+    正しく判定できる。`online.js`と`remote-move-animator.js`の両方から参照する必要があるが、
+    循環import（`remote-move-animator.js`が`online.js`の`isOnlineMode`を既にimportしている）を
+    避けるため、依存の無い独立モジュールに切り出した。
+  - 裏向きカードに他人の駒が到達した場合は、対話的な「オープンする/しない」選択肢を出さない
+    （安全側に倒したスコープ決定。表向きカードへの到達演出は全員に表示する）。
+  - ゲート侵攻イベント由来の移動（`stolenTokenIds`・弾き出されたカード・帰還したゲートカード）は
+    `online.js`の`state_changed`Broadcastハンドラが`fetchAndHydrate()`を呼ぶ**前**に
+    `markSelfHandled`で処理済みマークする（順序が逆だと二重演出になる）。ただし攻撃側の駒自身の
+    帰還は意図的にマークせず、リモートアニメーターの飛翔演出をそのまま追加の演出として活かした。
+- **既存の実装漏れの修正（Step 3実装中に発覚）**: `onDragEnd`の「盤面マス/ロックスロットへの
+  直接ドロー」分岐が、これまで`fetchAndHydrate()`を一度も呼んでおらず、古い`getState()`のまま
+  演出判定していた（ドロー系の他の分岐は既に対応済みだったが、この1箇所だけ見落とされていた）。
+  `fetchAndHydrate()`を呼んでから`findTopCardAt`で新しいトークンを見つけるよう修正。
+- **検証状況**: ローカルモードの回帰確認（4人クイックスタート→設定アニメーション→駒ドラッグ→
+  カードのダブルクリック反転→1枚ドロー→ターン終了→ゲート侵攻ボーナスの3ステップ確認ポップアップ
+  →次ターンへ、名前/アバター変更）をブラウザで実施し、エラー無しを確認済み。オンライン専用の
+  経路（Step 1のゲート侵攻モーダル、Step 3のリモート移動アニメーター）は、ブラウザコンソールから
+  `hydrateState()`相当の呼び出しを手動で行うシミュレーションで検証した（駒・ロックカードの
+  移動→飛翔→到達演出/ロック演出が正しく再生され、終了後にゴースト・演出要素が残留しないことを
+  DOM上で確認済み）。実際の2ブラウザでの動作（本当に相手の画面に名前/アバター/駒スキンが
+  反映されるか、相手の操作が飛翔・演出・通知として見えるか）は、下記のSQL実行後にユーザーが
+  試すまで検証できないため未実施。
+- **ユーザー側の作業が必要**: `supabase_setup_so7.sql`に今回追記した末尾のSQL
+  （`so7_game_seats`への`display_name`/`avatar`/`piece_skin_index`列追加＋UPDATEポリシー新設）を
+  Supabaseダッシュボードの SQL Editor で実行する必要がある。`so7-apply-action.ts`の変更は
+  今回無いため、Edge Functionの再デプロイは不要。

@@ -6,7 +6,8 @@ import { initDeckViewer } from "./deck-viewer.js";
 import { initGameSetup } from "./game-setup.js";
 import { initOptionsMenu } from "./options-menu.js";
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
-import { announceHandPickups, announceCardLocked, announceGateInvasion } from "./hand-announcer.js";
+import { announceHandPickups, announceCardLocked } from "./hand-announcer.js";
+import { enqueueGateInvasionSteps } from "./gate-invasion-modal.js";
 import { checkForVictory } from "./victory.js";
 import { getSkinImagePath, getMyPieceColor, openPieceSkinPicker } from "./piece-skins.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
@@ -18,6 +19,8 @@ import { showCardArrivalModal } from "./card-arrival.js";
 import { initPlayerButtons } from "./player-buttons.js";
 import { initQuickStart } from "./quick-start.js";
 import { registerRenderHelpers, animateFirstCardsDealt, animateBoardFilled } from "./setup-animation.js";
+import { registerRemoteMoveAnimatorHelpers, handleHydrate as handleRemoteMoveHydrate } from "./remote-move-animator.js";
+import { markSelfHandled } from "./self-handled-tokens.js";
 import {
   getState,
   moveToken,
@@ -325,10 +328,10 @@ function buildPileZone(pileKey) {
 // 駒の見た目（画像素材/駒スキン、assets/pieces/にコピー）。柄付きの正方形テクスチャを
 // 5面（上面+4つの壁）すべてに敷く。各壁は既存のfilter/brightnessで陰影がつくので、
 // 単色時と同じ見た目のロジックがそのまま画像にも効く。
-function buildCubePiece(color) {
+function buildCubePiece(color, seat) {
   const piece = document.createElement("div");
   piece.className = "piece";
-  const skinUrl = `url("${getSkinImagePath(color)}")`;
+  const skinUrl = `url("${getSkinImagePath(color, seat)}")`;
 
   const top = document.createElement("div");
   top.className = "piece-face piece-top";
@@ -569,6 +572,15 @@ function maybeTriggerCardArrival(dropTarget, pieceTokenId) {
   triggerCardArrival(card.cardId, card.location);
 }
 
+// maybeTriggerCardArrivalの「表向きの場合のみ」の部分だけを切り出したもの。
+// remote-move-animator.jsが、他プレイヤーの駒の到達を再現する時に使う——裏向きカードの
+// 場合の「オープンする/しない」対話的選択肢(promptCardOpen)は、自分が動かしてもいない駒に
+// ついて出すと混乱を招くため、あえて出さない（安全側に倒したスコープ決定）。
+function triggerCardArrivalIfFaceUp(location) {
+  const card = findTopCardAt(location);
+  if (card && card.faceUp) triggerCardArrival(card.cardId, card.location);
+}
+
 // 逆方向（駒が既にいるマス/ロックスロットへ、表向きのカードを新しく置いた/動かした時）にも
 // 到達演出を出す。今までは駒側が動いた時しか到達判定していなかったが、カード側が動いて
 // 駒の下に潜り込むケースでも同じように到達したことにしてほしい、というユーザー要望への対応。
@@ -613,6 +625,7 @@ function promptCardOpen(pieceTokenId, card) {
       // fetchAndHydrate()で明示的に再同期してから続ける。
       try {
         await flipToken(card.id);
+        markSelfHandled([card.id]);
         await fetchAndHydrate(getCurrentGameId());
       } catch (err) {
         console.error("flipToken failed", err);
@@ -644,7 +657,7 @@ function renderBoardTokens(table) {
     if (token.location.zone !== "cell" && token.location.zone !== "lock") continue;
     const host = findLocationElement(table, token.location);
     if (!host) continue;
-    const el = token.kind === "piece" ? buildCubePiece(token.color) : buildFlatCard(token);
+    const el = token.kind === "piece" ? buildCubePiece(token.color, token.player) : buildFlatCard(token);
     el.dataset.tokenId = token.id;
     // セットアップ配布演出中、まだ登場させたくないトークンは最初からopacity:0にしておく
     // （setup-animation.jsのanimateFirstCardsDealt/animateBoardFilled参照）。
@@ -1292,6 +1305,7 @@ function initDragHandlers() {
           // 「オープンする」ボタンと同じ考え方）。
           try {
             await flipToken(hit.tokenId);
+            markSelfHandled([hit.tokenId]);
             await fetchAndHydrate(getCurrentGameId());
           } catch (err) {
             console.error("flipToken failed", err);
@@ -1330,7 +1344,7 @@ function createGhost(kind, tokenId) {
     inner.className = "drag-ghost-piece-inner";
     const tilt = getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim();
     inner.style.transform = `rotateX(${tilt})`;
-    inner.appendChild(buildCubePiece(token.color));
+    inner.appendChild(buildCubePiece(token.color, token.player));
     outer.appendChild(inner);
     document.body.appendChild(outer);
     return outer;
@@ -1514,9 +1528,23 @@ async function onDragEnd(e) {
           render();
           return;
         }
-        if (revealedCardId) {
+        // 盤面マス/ロックスロットへの直接ドローはレスポンスにcardIdが含まれない
+        // （サーバーは手札行き以外の場合、山の中身を教えない）ため、fetchAndHydrate()で
+        // 再同期してから、実際に置かれた新しいトークンをgetState()経由で見つける必要がある
+        // （これをしないと、以前は再同期前の古いgetState()を使ってしまい、演出判定が
+        // 正しく行われなかった）。
+        try {
+          await fetchAndHydrate(getCurrentGameId());
+        } catch (err) {
+          console.error("fetchAndHydrate failed", err);
+          render();
+          return;
+        }
+        const drawnToken = findTopCardAt(dropTarget);
+        if (drawnToken) {
+          markSelfHandled([drawnToken.id]);
           playSound("cardPlace");
-          lockAnnounceCardId = revealedCardId;
+          lockAnnounceCardId = drawnToken.cardId;
         }
       } else {
         // drawFromPile()が山の中身を書き換えてしまう前に、一番上のカードを確認しておく
@@ -1563,6 +1591,7 @@ async function onDragEnd(e) {
       // 捨てたカードがサイレントに元に戻って見えるバグを防ぐため、必ず再同期する。
       try {
         await sendTokenToPile(tokenId, dropTarget.pile);
+        markSelfHandled([tokenId]);
         await fetchAndHydrate(getCurrentGameId());
       } catch (err) {
         console.error("sendTokenToPile failed", err);
@@ -1583,6 +1612,7 @@ async function onDragEnd(e) {
         if (isOnlineMode()) {
           try {
             await moveToken(tokenId, dropTarget);
+            markSelfHandled([tokenId]);
             await fetchAndHydrate(getCurrentGameId());
           } catch (err) {
             console.error("moveToken failed", err);
@@ -1606,6 +1636,7 @@ async function onDragEnd(e) {
       // バグになっていた。応答を待ち、fetchAndHydrate()で明示的に再同期してから続ける。
       try {
         await moveToken(tokenId, dropTarget);
+        markSelfHandled([tokenId]);
         await fetchAndHydrate(getCurrentGameId());
       } catch (err) {
         console.error("moveToken failed", err);
@@ -2094,7 +2125,7 @@ function updateSelfHandStatus() {
     inner.className = "self-status-piece-thumb-inner";
     const tilt = getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim();
     inner.style.transform = `rotateX(${tilt})`;
-    inner.appendChild(buildCubePiece(myColor));
+    inner.appendChild(buildCubePiece(myColor, getSelfSeat()));
     selfStatusPieceThumbEl.appendChild(inner);
   }
 
@@ -2136,6 +2167,13 @@ initOptionsMenu();
 initPlayerButtons();
 initQuickStart();
 registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocationElement, setSetupPendingTokenIds });
+registerRemoteMoveAnimatorHelpers({
+  setSetupPendingTokenIds,
+  maybeAnnounceLock,
+  maybeTriggerCardArrivalForCard,
+  triggerCardArrivalIfFaceUp,
+  announceHandPickups,
+});
 buildGameTitle();
 turnRoundCounterEl = buildTurnRoundCounter();
 updateTurnRoundCounter();
@@ -2175,6 +2213,51 @@ subscribe(() => {
   wasOnlineGameStarted = started;
 });
 
+// 他プレイヤーの操作をBroadcast経由で受動的に受け取った時の演出・アニメーション・通知
+// （remote-move-animator.js）。移動前の実DOM要素の位置(getBoundingClientRect)を、下の
+// 汎用render()リスナーがDOMを作り直す「前」に取得する必要があるため、必ずrenderリスナーより
+// 前に登録する。オンラインゲーム開始アニメーション中は、盤面が丸ごと配布演出用に隠されて
+// いる最中のため競合しないよう休止する。
+subscribe(() => {
+  if (suppressGenericRenderForOnlineStart) return;
+  handleRemoteMoveHydrate();
+});
+
+// 直近でrender()に反映済みの状態の軽量な指紋（フィンガープリント）。オンライン中、
+// 自分の操作1回につき実際にはhydrateState()が2回呼ばれることがある——①onDragEnd等が
+// 明示的に呼ぶfetchAndHydrate()によるものと、②online.jsのsubscribeToGame()が持つ、
+// 全員向けの共通Broadcastハンドラが、同じ操作の「こだま」を受信して呼ぶもの
+// （so7-apply-action.tsはコミット後、HTTPレスポンスとBroadcast送信を別々に行っているため、
+// 到着順序も保証されない）。②が①の直後に届くと、①で追加した到達演出/ロック演出のDOM要素
+// （spawnArrivalBurst等）が、中身は同じはずの②由来のrender()（table.innerHTML=""で
+// 盤面DOM全体を作り直す）によって再生中に消されてしまい、「自分の操作でも到達演出が
+// 見えない/途中で消える」というユーザー報告の原因になっていた。
+// 対策として、次のrenderリスナーは「今のgetState()が直前にrender()した内容と実質的に
+// 同一か」を比較し、同一なら（＝直前の内容の再送に過ぎないなら）render()自体をスキップする。
+// isOnlineMode()も指紋に含めるのは、online.jsのsubscribeToGame()がsetOnlineMode(true)の
+// 直後に呼ぶnotifyListeners()（tokensは変化しないが、is-online-modeクラスを即座に反映する
+// ためだけの強制再描画）が、この重複排除によって誤ってスキップされないようにするため。
+let lastRenderedFingerprint = null;
+function computeStateFingerprint(state) {
+  const tokenParts = state.tokens
+    .map((t) => {
+      const l = t.location;
+      const loc =
+        l.zone === "cell" ? `c:${l.row},${l.col}` : l.zone === "lock" ? `l:${l.side},${l.index}` : `h:${l.player}`;
+      return `${t.id}|${loc}|${t.faceUp ? 1 : 0}|${t.cardId ?? ""}`;
+    })
+    .sort()
+    .join(";");
+  return [
+    isOnlineMode() ? 1 : 0,
+    state.turnPlayer ?? "",
+    state.turnNumber ?? "",
+    state.roundNumber ?? "",
+    state.activePlayers.join(","),
+    tokenParts,
+  ].join("|");
+}
+
 // オンライン対戦（第一弾・最小構成）の入り口。online.jsが部屋に参加するとisOnlineMode()が
 // trueになり、moveToken等の一部アクションがサーバー経由になる。サーバー側の変化はBroadcast
 // 通知→hydrateState()経由でここのsubscribe(render)が拾って再描画する（既存の各所の手動
@@ -2182,6 +2265,9 @@ subscribe(() => {
 // アニメーション中だけは、このリスナーの発火をスキップする（理由は上のコメント参照）。
 subscribe(() => {
   if (suppressGenericRenderForOnlineStart) return;
+  const fingerprint = computeStateFingerprint(getState());
+  if (fingerprint === lastRenderedFingerprint) return;
+  lastRenderedFingerprint = fingerprint;
   render();
 });
 initOnlineUi();
@@ -2193,38 +2279,9 @@ onAuthChange(render);
 updateOnlineButtonLabel();
 
 // 相手ゲート侵攻ボーナスが発生した時（誰がターン終了を押したかに関わらず、部屋の全員に
-// 届く。online.jsのsubscribeToGame()参照）、ローカル版と同じ一連のトースト通知を出す。
-// cardIdの解決は「自分から見えているgetState()」から引くだけでよい——攻撃側自身の
-// 手札に入ったカードは自分には見え、それ以外のクライアントからは元々RLSでマスクされて
-// いるため、cardIdが必要な箇所ごとに特別な場合分けをする必要はない
-// （fetchAndHydrate()完了後に呼ばれるため、この時点のgetState()は既に最新かつ
-// 正しくマスクされている）。
-function resolveTokenCardId(tokenId) {
-  return getState().tokens.find((t) => t.id === tokenId)?.cardId ?? null;
-}
+// 届く。online.jsのsubscribeToGame()参照）、1件ずつ画面中央のモーダルで自動送りしながら
+// 知らせる（gate-invasion-modal.js）。以前は右下トーストを間隔なく連続で出していたため、
+// 何が起きたか分からないほど積み重なってしまっていた。
 onGateInvasionEvents((events) => {
-  for (const ev of events) {
-    announceGateInvasion(ev.attacker, ev.defender);
-    if (ev.stolenCount > 0) {
-      announceHandPickups(
-        ev.attacker,
-        ev.stolenTokenIds.map((id) => ({ cardId: resolveTokenCardId(id), wasPublic: false }))
-      );
-    }
-    if (ev.eternalCardId) {
-      announceCardLocked(ev.attacker, ev.eternalCardId);
-    }
-    if (ev.bumpedCards.length > 0) {
-      announceHandPickups(
-        ev.attacker,
-        ev.bumpedCards.map((b) => ({ cardId: b.cardId, wasPublic: true }))
-      );
-    }
-    if (ev.gateCards.length > 0) {
-      announceHandPickups(
-        ev.attacker,
-        ev.gateCards.map((g) => ({ cardId: g.wasPublic ? g.cardId : resolveTokenCardId(g.tokenId), wasPublic: g.wasPublic }))
-      );
-    }
-  }
+  enqueueGateInvasionSteps(events);
 });

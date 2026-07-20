@@ -52,6 +52,14 @@ const GROUPS = [
     ],
   },
   {
+    title: "相手ゲート侵攻ボーナス通知（オンライン対戦）",
+    category: "effect",
+    controls: [
+      { key: "--gate-invasion-modal-size", label: "大きさ", unit: "rem", min: 8, max: 40, step: 0.5, default: 28 },
+      { key: "--gate-invasion-modal-step-duration", label: "1ステップの表示時間（秒）", unit: "", min: 1, max: 15, step: 0.5, default: 3.5 },
+    ],
+  },
+  {
     title: "効果音の音量（個別）",
     category: "effect",
     controls: [

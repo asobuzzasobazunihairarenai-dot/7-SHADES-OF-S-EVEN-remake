@@ -10,6 +10,7 @@
 import { getState } from "./state.js";
 import { playSound } from "./sound.js";
 import { getCardImagePath, getCardBackImagePath } from "./cards-data.js";
+import { flyGhost } from "./ghost-flight.js";
 
 let helpers = null; // { render }
 
@@ -29,38 +30,11 @@ function showSkipOverlay() {
   return overlay;
 }
 
-function rectCenter(rect) {
-  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-}
-
-// ソース位置(fromRect)からターゲット位置(toRect)へ、指定画像を敷いた正方形のゴーストを
-// CSSトランジションで飛ばす。ドラッグ中のゴースト(main.jsのcreateGhost)と同じく
-// document.body直下に3D空間の外から浮かべる方式（盤面の3D変形を気にしなくてよい）。
+// ソース位置(fromRect)からターゲット位置(toRect)へ、カード用の見た目でゴーストを飛ばす
+// （実際の飛翔処理自体はghost-flight.jsのflyGhostへ切り出し済み。remote-move-animator.jsも
+// 同じ技法を使うため共有モジュールにした）。
 function flyCard(fromRect, toRect, imagePath, faceDown, durationMs) {
-  const ghost = document.createElement("div");
-  ghost.className = `setup-fly-card${faceDown ? " is-facedown" : ""}`;
-  ghost.style.backgroundImage = `url("${imagePath}")`;
-  ghost.style.width = `${fromRect.width}px`;
-  ghost.style.height = `${fromRect.height}px`;
-  const from = rectCenter(fromRect);
-  ghost.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%)`;
-  document.body.appendChild(ghost);
-
-  const done = new Promise((resolve) => {
-    // 1フレーム後にトランジション先を設定する（開始状態が描画されてから動かさないと
-    // トランジション自体が発火しないため）。
-    requestAnimationFrame(() => {
-      const to = rectCenter(toRect);
-      const scale = toRect.width / fromRect.width;
-      ghost.style.transition = `transform ${durationMs}ms ease-in-out`;
-      ghost.style.transform = `translate(${to.x}px, ${to.y}px) translate(-50%, -50%) scale(${scale})`;
-    });
-    setTimeout(() => {
-      ghost.remove();
-      resolve();
-    }, durationMs + 20);
-  });
-  return { ghost, done };
+  return flyGhost(fromRect, toRect, imagePath, `setup-fly-card${faceDown ? " is-facedown" : ""}`, durationMs);
 }
 
 // 参加人数分（最大4枚）のファーストカードが、ファーストカードの山からロックエリアへ

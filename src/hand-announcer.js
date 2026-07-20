@@ -38,6 +38,13 @@ function showToast(innerHTML) {
   setTimeout(dismiss, getDurationMs());
 }
 
+// pickup（{cardId, wasPublic}）の中身を、今見ている本人(getSelfSeat())が見てよいかどうかを
+// 判定する共通ルール。公開情報（wasPublic）か、そのpickupを得た本人自身が見ている場合だけ
+// 中身を見せる。gate-invasion-modal.jsも同じ判定基準を使うため、ここから再利用する。
+export function isPickupVisible(pickup, player) {
+  return pickup.wasPublic || player === getSelfSeat();
+}
+
 // player: カードを手に入れたプレイヤー。
 // pickups: [{ cardId, wasPublic }, ...]（1回のアクションで複数枚まとめて手に入る場合はそのまま並べる）。
 // wasPublicは「手札に入る直前、既にテーブル上で公開されていた情報かどうか」
@@ -45,7 +52,7 @@ function showToast(innerHTML) {
 export function announceHandPickups(player, pickups) {
   if (pickups.length === 0) return;
 
-  const visible = pickups.filter((p) => p.wasPublic || player === getSelfSeat());
+  const visible = pickups.filter((p) => isPickupVisible(p, player));
   const hiddenCount = pickups.length - visible.length;
 
   if (visible.length === 0) {

@@ -217,3 +217,16 @@ alter table so7_game_seats alter column seat drop not null;
 alter table so7_game_seats add constraint so7_game_seats_pkey primary key (game_id, user_id);
 create unique index if not exists so7_game_seats_seat_unique_idx
   on so7_game_seats (game_id, seat) where seat is not null;
+
+-- 追加機能: プレイヤー名・アバター・駒スキンの選択を同期する。これらは隠すべき情報では
+-- ないため、so7-apply-action Edge Functionを経由させず、joinRoom()と同じ「クライアントから
+-- 直接テーブルへ書き込む」パターンを踏襲する。SELECTは既存のso7_game_seats_select
+-- （using (true)、他人の行も読める）のままでよいが、UPDATEは今まで一切許可していなかった
+-- ため、自分の行(user_id = auth.uid())に限定した新しいポリシーを追加する。
+alter table so7_game_seats
+  add column if not exists display_name text,
+  add column if not exists avatar text,
+  add column if not exists piece_skin_index int not null default 0;
+
+create policy "so7_game_seats_update" on so7_game_seats for update to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
