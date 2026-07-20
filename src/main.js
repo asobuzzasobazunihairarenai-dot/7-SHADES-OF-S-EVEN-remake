@@ -1379,9 +1379,66 @@ function initDragHandlers() {
       }
     }
 
+    // タッチ/ペンでは「マウスホバーで拡大プレビュー」に相当する操作が無く、指で押さえても
+    // 即座にドラッグ（つまむ）が始まってしまうため、中身を確認する手段が無かった
+    // （ユーザー報告: タブレットで長押しすると代わりにブラウザの文字選択が出てしまう）。
+    // 動かさずに押さえ続けた場合はドラッグの代わりに拡大プレビューを表示し、途中で動かせば
+    // 通常通りドラッグへ切り替える。マウスは従来通り即座にドラッグを開始する（ホバーは
+    // 別途pointermoveだけで機能しているため変更不要）。
+    if (e.pointerType === "touch" || e.pointerType === "pen") {
+      startTouchHoldOrDrag(e, hit);
+      return;
+    }
+
     if (hit.kind === "pile") startPileDrag(e, hit.pile);
     else startTokenDrag(e, hit.tokenId, hit.kind, hit.el);
   });
+}
+
+const TOUCH_HOLD_MS = 450; // これ以上動かさずに押さえ続けたら「長押し」＝プレビュー表示
+const TOUCH_HOLD_MOVE_CANCEL_PX = 10; // これ以上動いたら長押しをやめて通常のドラッグに切り替える
+
+function startTouchHoldOrDrag(e, hit) {
+  const startX = e.clientX;
+  const startY = e.clientY;
+  let settled = false; // ドラッグ開始・タイムアウト・指離しのいずれかが起きたらtrue
+  let peeking = false;
+
+  const timer = setTimeout(() => {
+    if (settled) return;
+    settled = true;
+    peeking = true;
+    updateHover(startX, startY); // 既存のホバー処理（ハイライト＋拡大プレビュー）をそのまま流用
+  }, TOUCH_HOLD_MS);
+
+  function onMove(ev) {
+    if (settled) return;
+    const dx = ev.clientX - startX;
+    const dy = ev.clientY - startY;
+    if (Math.hypot(dx, dy) < TOUCH_HOLD_MOVE_CANCEL_PX) return;
+    settled = true;
+    clearTimeout(timer);
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    // 長押し判定より先に指が動いた＝ドラッグとして開始する（このmoveイベント分もすぐに反映する）。
+    if (hit.kind === "pile") startPileDrag(e, hit.pile);
+    else startTokenDrag(e, hit.tokenId, hit.kind, hit.el);
+    onDragMove(ev);
+  }
+
+  function onUp() {
+    clearTimeout(timer);
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    if (peeking) {
+      clearHover();
+      updatePreview(null);
+    }
+    settled = true;
+  }
+
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
 }
 
 function createGhost(kind, tokenId) {
