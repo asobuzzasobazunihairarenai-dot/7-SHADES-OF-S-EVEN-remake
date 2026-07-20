@@ -614,13 +614,22 @@ Deno.serve(async (req) => {
 
     const tokensJson = next.tokens.map((t, i) => tokenToRow(t, i));
     const pilesJson = Object.entries(next.piles).map(([pile_name, cards]) => ({ pile_name, cards }));
-    const gamesPatch = {
+    const gamesPatch: any = {
       active_players: next.activePlayers,
       turn_player: next.turnPlayer,
       turn_number: next.turnNumber,
       round_number: next.roundNumber,
       start_player: next.startPlayer,
     };
+    // ターンタイマー設定（基本時間・延長時間・初期/最大砂時計数・補充ターン数・有効/無効）を
+    // 対局全体で共通の値に固定する。includeBlackWhiteと同じく、BOOTSTRAP_GAME実行時に
+    // 部屋作成者のその時点のローカル設定を1回だけ書き込み、以後は対局中変更しない
+    // （src/online.jsのstartGame()参照）。優先権自体の状態（priorityPlayer等）はここを
+    // 経由しない——updateMyIdentity()と同じ「クライアントから直接テーブルへ書き込む」
+    // パターンで別途同期する（隠す必要の無い公開情報のため）。
+    if (action.type === "BOOTSTRAP_GAME" && action.timerConfig) {
+      gamesPatch.timer_config = action.timerConfig;
+    }
 
     const { error: commitErr } = await db.rpc("so7_apply_and_commit", {
       p_game_id: gameId,
@@ -635,14 +644,20 @@ Deno.serve(async (req) => {
     }
 
     // 他のクライアントへ「変わったよ」と知らせる（盤面データ自体は載せない。受け取った側は
-    // 自分が見えるビューを取り直す）。ゲート侵攻ボーナスが発生した場合だけ、公開しても
+    // 自分が見えるビューを取り直す）。actorSeat/actionTypeは常に含める——隠す必要の無い
+    // 情報（誰が何のアクションを行ったか）で、turn-timer.jsのonStateChangeがオンライン中に
+    // 「本当に優先権保持者本人の操作でロープをリセットすべきか」を判定するのに使う
+    // （src/last-action-info.js参照）。ゲート侵攻ボーナスが発生した場合だけ、公開しても
     // 問題ない範囲の情報（誰が誰に侵攻したか・奪った枚数・エターナルカードの種類等。
-    // 奪った手札の中身そのものは含めない）をgateInvasionEventsとして一緒に送り、
-    // 全クライアントがトースト通知を出せるようにする。
+    // 奪った手札の中身そのものは含めない）をgateInvasionEventsとして追加で送る。
     await db.channel(`game:${gameId}`).send({
       type: "broadcast",
       event: "state_changed",
-      payload: gateInvasionEvents.length > 0 ? { gateInvasionEvents } : {},
+      payload: {
+        actorSeat: seatRow.seat,
+        actionType: effectiveAction.type,
+        ...(gateInvasionEvents.length > 0 ? { gateInvasionEvents } : {}),
+      },
     });
 
     // 山から自分の手札へ引いた場合だけ、獲得ポップアップ用に実際のcardIdを返す

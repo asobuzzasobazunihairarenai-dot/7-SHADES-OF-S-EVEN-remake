@@ -19,22 +19,65 @@
 //
 // 実質的にオンライン対戦向けの機能（ローカルモードは1人で全座席を操作するため緊張感が
 // 無い）のため、管理者モードのマスタースイッチ（デフォルトOFF）で完全にオフにできる。
-// 今回はローカルモードのみの実装で、オンライン同期は次回以降のラウンドに回す。
+// オンライン対戦でも優先権状態（誰の優先権か・残り砂時計数）はso7_gamesへ直接同期される
+// （state.jsのsetPriorityState/online.jsのupdatePriorityState参照）。基本時間・延長時間等の
+// パラメータは対局開始時に部屋作成者の設定で全員共通に固定される（不公平にならないよう、
+// online.jsのstartGame()が送るtimerConfig参照）。
 
-import { getState, subscribe, setPriority, setHourglassStock } from "./state.js";
+import { getState, subscribe, setPriorityState, isOnlineMode } from "./state.js";
 import { SEAT_ORDER, SEAT_TO_SIDE, getRotationSteps, rotateSide } from "./board-layout.js";
-import { getSelfSeat } from "./online.js";
+import { getSelfSeat, getSyncedTimerConfig } from "./online.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { consumeLastActionInfo } from "./last-action-info.js";
 import {
-  isTurnTimerEnabled,
-  getInitialHourglassStock,
-  getMaxHourglassStock,
-  getRopeBaseSeconds,
-  getRopeExtensionSeconds,
-  getTurnsToReplenishHourglass,
-  getReducedBaseSeconds,
+  isTurnTimerEnabled as isTurnTimerEnabledLocal,
+  getInitialHourglassStock as getInitialHourglassStockLocal,
+  getMaxHourglassStock as getMaxHourglassStockLocal,
+  getRopeBaseSeconds as getRopeBaseSecondsLocal,
+  getRopeExtensionSeconds as getRopeExtensionSecondsLocal,
+  getTurnsToReplenishHourglass as getTurnsToReplenishHourglassLocal,
+  getReducedBaseSeconds as getReducedBaseSecondsLocal,
 } from "./admin.js";
+
+// オンライン対戦中は、ゲーム開始時に固定された対局全体共通の設定（timer_config、
+// 部屋作成者のその時点のローカル設定を1回だけ書き込んだもの）を優先する——プレイヤーごとに
+// 異なる基本時間・砂時計数だと不公平になるため。ローカルモード、またはオンラインでもまだ
+// 対局が始まっていない間は、従来通り自分のadmin.jsのローカル設定を使う（getPlayerName等が
+// 既に使っている「オンラインなら同期値優先、無ければローカル値」というこのプロジェクト
+// 共通のパターンを踏襲）。
+function isTurnTimerEnabled() {
+  const synced = isOnlineMode() && getSyncedTimerConfig();
+  return synced ? !!synced.enabled : isTurnTimerEnabledLocal();
+}
+function getInitialHourglassStock() {
+  const synced = isOnlineMode() && getSyncedTimerConfig();
+  return synced ? synced.initialHourglassStock : getInitialHourglassStockLocal();
+}
+function getMaxHourglassStock() {
+  const synced = isOnlineMode() && getSyncedTimerConfig();
+  return synced ? synced.maxHourglassStock : getMaxHourglassStockLocal();
+}
+function getRopeBaseSeconds() {
+  const synced = isOnlineMode() && getSyncedTimerConfig();
+  return synced ? synced.ropeBaseSeconds : getRopeBaseSecondsLocal();
+}
+function getRopeExtensionSeconds() {
+  const synced = isOnlineMode() && getSyncedTimerConfig();
+  return synced ? synced.ropeExtensionSeconds : getRopeExtensionSecondsLocal();
+}
+function getTurnsToReplenishHourglass() {
+  const synced = isOnlineMode() && getSyncedTimerConfig();
+  return synced ? synced.turnsToReplenishHourglass : getTurnsToReplenishHourglassLocal();
+}
+function getReducedBaseSeconds() {
+  const synced = isOnlineMode() && getSyncedTimerConfig();
+  return synced ? synced.reducedBaseSeconds : getReducedBaseSecondsLocal();
+}
+
+// オンライン中、MOVE_TOKEN等の「本物のゲーム操作」だけを優先権保持者の行動とみなす
+// （SET_PRIORITY_STATE自身やターン交代アクションは対象外）。
+const REAL_ACTION_TYPES = new Set(["MOVE_TOKEN", "DRAW_FROM_PILE", "FLIP_TOKEN", "SEND_TOKEN_TO_PILE"]);
 
 let selfStockEl = null; // 左下の自分専用ステータスエリアに出す、自分の砂時計個数バッジ
 let baseClockEl = null; // フェイズ案内板の中に出す、基本時間の残り秒数表示
@@ -61,17 +104,29 @@ let turnsWithoutHourglass = {};
 // （＝中断されなかった）場合はこの値を使わない＝次の1個は満タンから始まる。
 let pausedExtensionRemainingMs = {};
 
-// 自分自身が発行したdispatch（setPriority/setHourglassStock）による通知で、
-// onStateChangeが無限に再入しないようにする再入防止フラグ（remote-move-animator.jsの
-// skipNextHydrateDiffと同じ考え方）。
+// 自分自身が発行したdispatch（setPriorityState）による通知で、onStateChangeが無限に
+// 再入しないようにする再入防止フラグ（remote-move-animator.jsのskipNextHydrateDiffと
+// 同じ考え方）。ローカルモードのdispatch()は同期的なので有効に機能するが、オンライン中の
+// setPriorityStateは非同期（サーバー往復あり）のため、このフラグ自体はオンライン側の
+// 保護には寄与しない——オンライン側は代わりにonStateChange内のactorSeat/actionType判定で
+// 自分自身の書き込みの「こだま」を正しく扱う（REAL_ACTION_TYPESに含まれないため自然に
+// 除外される）。
 let applyingOwnUpdate = false;
 function withGuard(fn) {
   applyingOwnUpdate = true;
   try {
-    fn();
+    fireAndForget(fn());
   } finally {
     applyingOwnUpdate = false;
   }
+}
+
+// オンライン中のsetPriorityStateはPromiseを返す（callAction等と同じ非同期の書き込み）。
+// version_conflict等の失敗は、他クライアントが同じ結論に先に到達しただけなので無視して
+// よい（決定的な再計算のため、次のtick/onStateChangeで自然に収束する）。ローカルモードでは
+// setPriorityStateがundefinedを返すだけなので、Promise.resolve()でラップしても無害。
+function fireAndForget(maybePromise) {
+  Promise.resolve(maybePromise).catch(() => {});
 }
 
 // その座席が既に砂時計を使い始めている（＝そのターン中に1個でも正式消費している）場合は、
@@ -95,29 +150,36 @@ function extensionDurationMsFor(seat) {
 }
 
 // ターンプレイヤーの交代（ゲーム開始時のnull→非nullも含む）を検知した時の処理。
+// hourglassUsedThisTurn/turnsWithoutHourglass/pausedExtensionRemainingMsはタブごとの
+// ローカル変数のため、全クライアントが同じ順序で同じonStateChangeを処理する限り自然に
+// 一致し続ける——ローカルの簿記自体は全クライアントで行うが、サーバーへの実際の送信は
+// 「次の手番になる本人」のクライアントだけが担当する（オンライン中、複数クライアントが
+// 同時に送信して無駄な書き込みが重なるのを防ぐ。次に自分がこの座席の担当になった時の
+// ために、送信しないクライアントも同じ計算は続けておく必要がある）。
 function handleTurnTransition(prevPlayer, nextPlayer, activePlayers) {
+  let patch = null;
   if (prevPlayer === null && nextPlayer !== null) {
     // ゲーム開始。参加座席全員の砂時計を初期値にし、優先権をスタートプレイヤーへ渡す
     // （基本時間から開始、ロープは非表示）。
+    const hourglassStock = {};
     for (const seat of activePlayers) {
       hourglassUsedThisTurn[seat] = false;
       turnsWithoutHourglass[seat] = 0;
       pausedExtensionRemainingMs[seat] = null;
-      withGuard(() => setHourglassStock(seat, getInitialHourglassStock()));
+      hourglassStock[seat] = getInitialHourglassStock();
     }
-    withGuard(() => setPriority(nextPlayer, freshBaseDeadlineFor(nextPlayer), "base"));
-    return;
-  }
-  if (prevPlayer !== null && nextPlayer !== null && prevPlayer !== nextPlayer) {
+    patch = { hourglassStock, player: nextPlayer, deadline: freshBaseDeadlineFor(nextPlayer), phase: "base" };
+  } else if (prevPlayer !== null && nextPlayer !== null && prevPlayer !== nextPlayer) {
     // 通常のターン交代。離れる座席が「そのターン中に一度も砂時計を正式に消費しなかったか」
     // を評価し、3ターン（管理者モードで調整可）連続なら砂時計を1個補充する。
+    patch = { player: nextPlayer, deadline: freshBaseDeadlineFor(nextPlayer), phase: "base" };
     if (!hourglassUsedThisTurn[prevPlayer]) {
       turnsWithoutHourglass[prevPlayer] = (turnsWithoutHourglass[prevPlayer] ?? 0) + 1;
       if (turnsWithoutHourglass[prevPlayer] >= getTurnsToReplenishHourglass()) {
         turnsWithoutHourglass[prevPlayer] = 0;
         const current = getState().hourglassStock[prevPlayer] ?? 0;
         const next = Math.min(getMaxHourglassStock(), current + 1);
-        if (next !== current) withGuard(() => setHourglassStock(prevPlayer, next));
+        if (next !== current) patch.hourglassStock = { [prevPlayer]: next }; // 差分のみ（全置換しない）
       }
     } else {
       turnsWithoutHourglass[prevPlayer] = 0;
@@ -126,8 +188,10 @@ function handleTurnTransition(prevPlayer, nextPlayer, activePlayers) {
     // ロープの続きをリセットし、通常の基本時間をまるまる与える。
     hourglassUsedThisTurn[nextPlayer] = false;
     pausedExtensionRemainingMs[nextPlayer] = null;
-    withGuard(() => setPriority(nextPlayer, freshBaseDeadlineFor(nextPlayer), "base"));
   }
+  if (!patch) return;
+  if (isOnlineMode() && getSelfSeat() !== nextPlayer) return; // 送信は次の手番になる本人だけ
+  withGuard(() => setPriorityState(patch));
 }
 
 function onStateChange(state) {
@@ -135,22 +199,40 @@ function onStateChange(state) {
   if (!isTurnTimerEnabled()) return;
   const tp = state.turnPlayer;
   if (tp !== prevTurnPlayer) {
+    if (prevTurnPlayer === null && state.priorityPlayer) {
+      // 他のクライアントが既にこのゲームの優先権システムを初期化済み。このタブの
+      // prevTurnPlayerがnullなのは、対局途中でリロード/再参加してモジュールが今
+      // 読み込まれたばかりだからで、本当のゲーム開始ではない——ローカルの追跡変数だけ
+      // 合わせ、進行中の砂時計残数を勝手に初期値へ巻き戻すような再初期化はしない。
+      prevTurnPlayer = tp;
+      return;
+    }
     handleTurnTransition(prevTurnPlayer, tp, state.activePlayers);
     prevTurnPlayer = tp;
     return;
   }
-  // ターン交代以外の理由で状態が変化した＝優先権を持つ座席が何か行動したとみなし、
-  // 基本時間の窓へリセットする（延長中に行動した場合、仮消費していた砂時計は
-  // 「ロープが完全に無くならなければ持ち越せる」仕様通り、何も減らさずそのまま戻る）。
-  if (state.priorityPlayer) {
-    // 延長ロープが燃えている最中に中断された場合、その時点の残り時間を覚えておき、
-    // 次にこの座席の延長ロープが再開する時は満タンではなくこの続きから燃えるようにする。
-    if (state.priorityPhase === "extension" && state.priorityDeadline) {
-      const remaining = state.priorityDeadline - Date.now();
-      if (remaining > 0) pausedExtensionRemainingMs[state.priorityPlayer] = remaining;
-    }
-    withGuard(() => setPriority(state.priorityPlayer, freshBaseDeadlineFor(state.priorityPlayer), "base"));
+  if (!state.priorityPlayer) return;
+
+  // オンライン中は、この状態変化が本当に優先権保持者本人の「本物のゲーム操作」による
+  // ものかを確認する（online.jsが各アクション実行時に記録するactorSeat/actionTypeを
+  // 消費して判定。last-action-info.js参照）。ローカルモードはこの判定を行わず、従来通り
+  // 「ターン交代以外の状態変化＝優先権保持者が行動した」という前提のまま（1人が全座席を
+  // 操作するローカルモードでは常に正しいヒューリスティック）。
+  if (isOnlineMode()) {
+    const info = consumeLastActionInfo();
+    if (!info || !REAL_ACTION_TYPES.has(info.actionType) || info.actorSeat !== state.priorityPlayer) return;
   }
+
+  // 優先権を持つ座席が何か行動した＝基本時間の窓へリセットする（延長中に行動した場合、
+  // 仮消費していた砂時計は「ロープが完全に無くならなければ持ち越せる」仕様通り、
+  // 何も減らさずそのまま戻る）。
+  // 延長ロープが燃えている最中に中断された場合、その時点の残り時間を覚えておき、
+  // 次にこの座席の延長ロープが再開する時は満タンではなくこの続きから燃えるようにする。
+  if (state.priorityPhase === "extension" && state.priorityDeadline) {
+    const remaining = state.priorityDeadline - Date.now();
+    if (remaining > 0) pausedExtensionRemainingMs[state.priorityPlayer] = remaining;
+  }
+  withGuard(() => setPriorityState({ player: state.priorityPlayer, deadline: freshBaseDeadlineFor(state.priorityPlayer), phase: "base" }));
 }
 
 // --- 自分専用の砂時計バッジ（左下ステータスエリア） -------------------------------------
@@ -318,7 +400,7 @@ const TRANSFER_EXPLANATION = [
 // main.jsのapplyAvatarContentと同じロジック（main.js側は非公開のため、依存を増やさない
 // よう軽量な内容をここに複製してある）。
 function isImageAvatar(avatar) {
-  return typeof avatar === "string" && /^https?:\/\//.test(avatar);
+  return typeof avatar === "string" && (/^https?:\/\//.test(avatar) || /\.(png|jpe?g|webp|gif)$/i.test(avatar));
 }
 function applyAvatar(el, avatar) {
   if (isImageAvatar(avatar)) {
@@ -430,12 +512,20 @@ function rebuildTransferButtons() {
     // 優先権の譲渡自体も「行動」の一種として扱い、freshBaseDeadlineForで基本時間の窓を
     // 仕切り直す（既に砂時計を使い始めている座席への譲渡は、短縮された基本時間になる——
     // 譲渡を繰り返して時間を稼ぐ抜け道を作らないため）。
-    btn.addEventListener("click", () => setPriority(seat, freshBaseDeadlineFor(seat), "base"));
+    btn.addEventListener("click", () =>
+      fireAndForget(setPriorityState({ player: seat, deadline: freshBaseDeadlineFor(seat), phase: "base" }))
+    );
     grid.appendChild(btn);
   }
 }
 
 // --- ティック（描画のみ。stateへのdispatchは基本/延長時間切れの遷移のみ） -------------------
+// 誰のtick()が実際に書き込むかは制限しない——handleTurnTransitionとは異なり、tick()は
+// 「優先権保持者本人がブラウザを閉じている間はロープが誰にも報告されず凍りついたまま」
+// という事態を避けるための保険なので、あえて優先権保持者以外のクライアントも報告できる
+// ようにしておく。同じ入力（synced state）からは同じ結果しか計算されない冪等な処理なので、
+// 複数クライアントが同時に書き込んでも安全に収束する（後から失敗した側はversion_conflict
+// 等を無視するだけでよい、fireAndForget参照）。
 
 function tick() {
   if (!isTurnTimerEnabled()) {
@@ -479,7 +569,11 @@ function tick() {
       // 中断された延長ロープの続きがあればそこから、無ければ満タンから燃やす
       // （extensionDurationMsFor参照）。
       withGuard(() =>
-        setPriority(state.priorityPlayer, Date.now() + extensionDurationMsFor(state.priorityPlayer), "extension")
+        setPriorityState({
+          player: state.priorityPlayer,
+          deadline: Date.now() + extensionDurationMsFor(state.priorityPlayer),
+          phase: "extension",
+        })
       );
     } else {
       updateWarning(state.priorityPlayer === state.turnPlayer);
@@ -498,19 +592,27 @@ function tick() {
   }
   const nextStock = stock - 1;
   if (nextStock > 0) {
-    withGuard(() => {
-      setHourglassStock(state.priorityPlayer, nextStock);
-      setPriority(state.priorityPlayer, Date.now() + getRopeExtensionSeconds() * 1000, "extension");
-    });
+    withGuard(() =>
+      setPriorityState({
+        hourglassStock: { [state.priorityPlayer]: nextStock },
+        player: state.priorityPlayer,
+        deadline: Date.now() + getRopeExtensionSeconds() * 1000,
+        phase: "extension",
+      })
+    );
     updateWarning(false);
   } else {
     // 最後の1個も使い切った。ロープを消して警告表示だけの安定状態(phase:"base")に戻す
     // （ここで一度だけdispatchすれば、以降は上のstock<=0の早期returnで毎ティックの
     // 無駄な再dispatchを避けられる）。
-    withGuard(() => {
-      setHourglassStock(state.priorityPlayer, nextStock);
-      setPriority(state.priorityPlayer, state.priorityDeadline, "base");
-    });
+    withGuard(() =>
+      setPriorityState({
+        hourglassStock: { [state.priorityPlayer]: nextStock },
+        player: state.priorityPlayer,
+        deadline: state.priorityDeadline,
+        phase: "base",
+      })
+    );
     updateWarning(state.priorityPlayer === state.turnPlayer);
   }
 }

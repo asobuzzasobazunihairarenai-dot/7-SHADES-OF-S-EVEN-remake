@@ -290,17 +290,26 @@ function reduce(current, action) {
       return { ...current, turnPlayer: action.player, turnNumber: 1, roundNumber: 1, startPlayer: action.player };
     }
     // ターンタイマー（src/turn-timer.js）専用。優先権の所在・現在の窓が燃え尽きる時刻・
-    // 今が「基本時間（ロープ非表示）」か「延長（ロープ表示、砂時計を1個仮消費中）」かを
-    // 更新するだけの薄いケース。ターン開始時の初期化・行動によるリセット・優先権の譲渡・
-    // 基本時間切れでの延長開始・延長の連続消費、全てturn-timer.js側がdeadline/phaseを
-    // 計算してこれを呼ぶ。
-    case "SET_PRIORITY": {
-      return { ...current, priorityPlayer: action.player, priorityDeadline: action.deadline, priorityPhase: action.phase };
-    }
-    // ターンタイマー専用。座席ごとの砂時計の残り数を直接設定する（消費時のdecrement・
-    // 補充時のincrement、どちらもturn-timer.js側が計算した値をそのまま渡すだけの汎用setter）。
-    case "SET_HOURGLASS_STOCK": {
-      return { ...current, hourglassStock: { ...current.hourglassStock, [action.player]: action.value } };
+    // 今が「基本時間（ロープ非表示）」か「延長（ロープ表示、砂時計を1個仮消費中）」か・
+    // 座席ごとの砂時計の残り数を、1回のアクションでまとめて更新する（以前は
+    // SET_PRIORITY/SET_HOURGLASS_STOCKという2つの別アクションだったが、オンライン化に
+    // あたり「1つの論理的なイベント（例: ターン開始時の全員分の砂時計初期化＋優先権付与）を
+    // 1回のサーバー往復で原子的に書き込みたい」という理由で1本化した）。patchの各
+    // フィールドは省略可（undefinedのものは変更しない）。hourglassStockだけは「差分の
+    // マージ」であり全置換ではない——呼び出し側が古いスナップショットから丸ごと組み立てて
+    // 送ると、他の座席が別経路で確定させた変更を上書きして消してしまう「失われた更新」の
+    // 危険があるため。
+    case "SET_PRIORITY_STATE": {
+      const patch = action.patch ?? {};
+      return {
+        ...current,
+        ...(patch.player !== undefined ? { priorityPlayer: patch.player } : {}),
+        ...(patch.deadline !== undefined ? { priorityDeadline: patch.deadline } : {}),
+        ...(patch.phase !== undefined ? { priorityPhase: patch.phase } : {}),
+        ...(patch.hourglassStock !== undefined
+          ? { hourglassStock: { ...current.hourglassStock, ...patch.hourglassStock } }
+          : {}),
+      };
     }
     // 「ターンを次のプレイヤーへ渡す」ボタン。参加座席(activePlayers)を時計回り順に絞り込み、
     // 現在のturnPlayerの次の座席へ進める（末尾の次は先頭に戻る）。次の座席がstartPlayer
@@ -487,13 +496,38 @@ export function nextTurn() {
   dispatch({ type: "NEXT_TURN" });
 }
 
-// ターンタイマー（src/turn-timer.js）専用のローカル専用アクション。他のオンライン非対応
-// アクション（gateInvasionStealHand等）と同じくdispatch()を直接呼ぶだけ。
-export function setPriority(player, deadline, phase) {
-  dispatch({ type: "SET_PRIORITY", player, deadline, phase });
+// ターンタイマー（src/turn-timer.js）専用。優先権状態は隠す必要のない公開情報（誰の
+// 優先権か・残り砂時計数は全員に見えるべき情報）のため、moveToken等のようなso7-apply-action
+// Edge Function経由の楽観的並行制御は使わず、updateMyIdentity()と同じ「クライアントから
+// 直接テーブルへ書き込む」パターンを踏襲する。そのため既存のonlineTransport（callAction用）
+// とは別の、優先権専用の注入ポイントを新設する（online.js⇄state.jsの循環import回避の
+// ための既存パターンの踏襲。online.jsのsubscribeToGame()がsetPriorityTransport()経由で
+// 実際の書き込み関数を注入する）。
+let priorityTransport = null;
+export function setPriorityTransport(fn) {
+  priorityTransport = fn;
 }
-export function setHourglassStock(player, value) {
-  dispatch({ type: "SET_HOURGLASS_STOCK", player, value });
+export function setPriorityState(patch) {
+  if (onlineMode && priorityTransport) return priorityTransport(patch);
+  dispatch({ type: "SET_PRIORITY_STATE", patch });
+}
+
+// online.jsが"priority_changed"のBroadcastを受け取った時に使う、優先権状態だけの
+// 軽量な部分更新。hydrateState()（盤面全体の総入れ替え）とは別に、隠す必要のないこの
+// 情報だけを直接マージするための専用エントリポイント。reduce()を経由しない点は
+// hydrateState()自体が既に持つ「サーバー由来の状態をactionを介さず直接適用する」という
+// 前例の延長。
+export function applyRemotePriorityPatch(patch) {
+  state = {
+    ...state,
+    ...(patch.player !== undefined ? { priorityPlayer: patch.player } : {}),
+    ...(patch.deadline !== undefined ? { priorityDeadline: patch.deadline } : {}),
+    ...(patch.phase !== undefined ? { priorityPhase: patch.phase } : {}),
+    ...(patch.hourglassStock !== undefined
+      ? { hourglassStock: { ...state.hourglassStock, ...patch.hourglassStock } }
+      : {}),
+  };
+  notifyListeners();
 }
 
 // tokenIds: 侵攻した側(attacker)が奪う、侵攻された側の手札トークンid（呼び出し側が無作為抽選済み）

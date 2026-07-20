@@ -463,3 +463,115 @@ alter table so7_user_profiles
   add column if not exists card_arrival_modal_duration numeric not null default 5,
   add column if not exists hand_pickup_toast_duration numeric not null default 5,
   add column if not exists shortcuts jsonb not null default '{}'::jsonb;
+
+-- 追加機能: ターンタイマー（ロープ・砂時計・優先権）のオンライン同期。隠す必要の無い
+-- 公開情報（誰の優先権か・残り砂時計数は全員に見えるべき情報）のため、so7-apply-action
+-- Edge Functionを経由させず、updateMyIdentity()と同じ「クライアントから直接テーブルへ
+-- 書き込む」パターンを踏襲する（src/online.jsのupdatePriorityState参照）。
+alter table so7_games
+  add column if not exists priority_player text,
+  add column if not exists priority_deadline bigint,
+  add column if not exists priority_phase text,
+  add column if not exists hourglass_stock jsonb not null default '{}'::jsonb;
+
+-- priority_player/priority_deadline/priority_phaseは最後に書いた人が勝つ素朴な上書きで
+-- よい（優先権譲渡ボタン自体が「誰でも押せる自己申告制」のため）。so7_games_update_name
+-- （改名機能、後に取り消し済み）と同じ「行レベルRLS（参加者本人）＋列レベルGRANT」の
+-- 組み合わせ——RLSポリシーだけでは行全体が対象になってしまい、status/turn_player/version等
+-- （本来so7-apply-action Edge Function経由でしか変更してはいけない列）まで誰でも
+-- 書き換え可能になってしまうため、列GRANTで更新可能範囲をこの3列だけに絞る。
+create policy "so7_games_update_priority" on so7_games for update to authenticated
+  using (exists (select 1 from so7_game_seats s where s.game_id = so7_games.id and s.user_id = auth.uid()))
+  with check (exists (select 1 from so7_game_seats s where s.game_id = so7_games.id and s.user_id = auth.uid()));
+grant update (priority_player, priority_deadline, priority_phase) on so7_games to authenticated;
+
+-- hourglass_stockは座席ごとの差分マージが必要（他座席の値を巻き込んで上書きしないため）。
+-- PostgRESTのUPDATEはSQL式（col = col || $delta）を送れないため専用のSECURITY DEFINER
+-- 関数にし、hourglass_stock列自体への直接GRANTは行わない（この関数経由でしか変更できない
+-- ようにし、誤った全置換の経路をDBの権限レベルで塞ぐ）。1つのUPDATE文の中で
+-- hourglass_stock || p_deltaを評価するため、Postgresの行ロックにより複数クライアントからの
+-- 同時マージも安全（読み取ってから書き込むのではなく、1文で完結するため競合状態が生じない）。
+create or replace function so7_merge_hourglass_stock(p_game_id text, p_delta jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  if not exists (select 1 from so7_game_seats where game_id = p_game_id and user_id = auth.uid()) then
+    raise exception 'not_seated';
+  end if;
+  update so7_games set hourglass_stock = coalesce(hourglass_stock, '{}'::jsonb) || p_delta where id = p_game_id;
+end;
+$$;
+revoke execute on function so7_merge_hourglass_stock(text, jsonb) from public;
+grant execute on function so7_merge_hourglass_stock(text, jsonb) to authenticated;
+
+-- ターンタイマー設定（基本時間・延長時間・初期/最大砂時計数・補充ターン数・有効/無効）を
+-- 対局全体で共通の値に固定する（プレイヤーごとに異なると不公平になるため）。
+-- includeBlackWhiteと同じく、BOOTSTRAP_GAME実行時に部屋作成者（開始ボタンを押した本人）の
+-- その時点のローカル設定を1回だけ書き込み、以後は対局中変更しない。これは既存の
+-- so7_apply_and_commit（BOOTSTRAP_GAME自身が経由する通常のゲーム操作パイプライン）の
+-- gamesPatchに乗せるため、SET句に1行追加するだけでよい（so7-apply-action.ts参照）。
+alter table so7_games add column if not exists timer_config jsonb;
+
+create or replace function so7_apply_and_commit(
+  p_game_id text,
+  p_expected_version int,
+  p_games_patch jsonb,
+  p_tokens jsonb,
+  p_piles jsonb
+) returns void
+language plpgsql
+security definer
+as $$
+declare
+  v_current_version int;
+begin
+  select version into v_current_version from so7_games where id = p_game_id for update;
+  if v_current_version is null then
+    raise exception 'game_not_found';
+  end if;
+  if v_current_version <> p_expected_version then
+    raise exception 'version_conflict';
+  end if;
+
+  delete from so7_game_tokens where game_id = p_game_id;
+  insert into so7_game_tokens (
+    game_id, token_id, kind, card_id, face_up, color, piece_player,
+    zone, row, col, side, idx, hand_player, order_index
+  )
+  select
+    p_game_id,
+    t->>'token_id',
+    t->>'kind',
+    t->>'card_id',
+    coalesce((t->>'face_up')::boolean, false),
+    t->>'color',
+    t->>'piece_player',
+    t->>'zone',
+    (t->>'row')::int,
+    (t->>'col')::int,
+    t->>'side',
+    (t->>'idx')::int,
+    t->>'hand_player',
+    coalesce((t->>'order_index')::int, 0)
+  from jsonb_array_elements(p_tokens) as t;
+
+  delete from so7_game_piles where game_id = p_game_id;
+  insert into so7_game_piles (game_id, pile_name, cards)
+  select p_game_id, p->>'pile_name', p->'cards'
+  from jsonb_array_elements(p_piles) as p;
+
+  update so7_games set
+    active_players = coalesce(p_games_patch->'active_players', active_players),
+    turn_player = coalesce(p_games_patch->>'turn_player', turn_player),
+    turn_number = coalesce((p_games_patch->>'turn_number')::int, turn_number),
+    round_number = coalesce((p_games_patch->>'round_number')::int, round_number),
+    start_player = coalesce(p_games_patch->>'start_player', start_player),
+    status = coalesce(p_games_patch->>'status', status),
+    timer_config = coalesce(p_games_patch->'timer_config', timer_config),
+    version = version + 1
+  where id = p_game_id;
+end;
+$$;

@@ -15,12 +15,24 @@
 import {
   setOnlineMode,
   setOnlineTransport,
+  setPriorityTransport,
   hydrateState,
   isOnlineMode,
   notifyListeners,
+  applyRemotePriorityPatch,
 } from "./state.js";
 import { SEAT_ORDER } from "./board-layout.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
+import { setLastActionInfo } from "./last-action-info.js";
+import {
+  isTurnTimerEnabled,
+  getInitialHourglassStock,
+  getMaxHourglassStock,
+  getRopeBaseSeconds,
+  getRopeExtensionSeconds,
+  getTurnsToReplenishHourglass,
+  getReducedBaseSeconds,
+} from "./admin.js";
 import { setLockAreaBarVisible } from "./lock-area-bar.js";
 import { setLockColorVisible } from "./lock-color.js";
 import { setSoundVolume } from "./sound.js";
@@ -463,6 +475,10 @@ export async function leaveGame() {
 async function callAction(action) {
   return withLog(`アクション送信(${action.type})`, async () => {
     if (!currentGameId) throw new Error("部屋に参加していません");
+    // 「誰が・何をした結果か」を、この後届くブロードキャストのこだま/直後の
+    // fetchAndHydrate()より前に記録しておく（turn-timer.jsのonStateChangeがオンライン中に
+    // 「本当に優先権保持者本人の操作か」を判定するのに使う。last-action-info.js参照）。
+    setLastActionInfo({ actorSeat: getSelfSeat(), actionType: action.type });
     const { data, error } = await client.functions.invoke(EDGE_FUNCTION_NAME, {
       body: { game_id: currentGameId, action },
     });
@@ -478,7 +494,52 @@ export async function startGame(gameId, { includeBlackWhite = false } = {}) {
   return withLog("ゲーム開始", async () => {
     const count = await getMemberCount(gameId);
     if (count < 2) throw new Error("2人以上揃ってから開始してください");
-    return callAction({ type: "BOOTSTRAP_GAME", includeBlackWhite });
+    // ターンタイマー設定（基本時間・延長時間・初期/最大砂時計数・補充ターン数・有効/無効）は
+    // includeBlackWhiteと同じく、開始ボタンを押した本人のその時点のローカル設定を対局全体の
+    // 固定値として1回だけ送る（プレイヤーごとに異なると不公平になるため、対局中は変更しない）。
+    const timerConfig = {
+      enabled: isTurnTimerEnabled(),
+      initialHourglassStock: getInitialHourglassStock(),
+      maxHourglassStock: getMaxHourglassStock(),
+      ropeBaseSeconds: getRopeBaseSeconds(),
+      ropeExtensionSeconds: getRopeExtensionSeconds(),
+      turnsToReplenishHourglass: getTurnsToReplenishHourglass(),
+      reducedBaseSeconds: getReducedBaseSeconds(),
+    };
+    return callAction({ type: "BOOTSTRAP_GAME", includeBlackWhite, timerConfig });
+  });
+}
+
+// ターンタイマー（優先権・砂時計）の状態更新。隠す必要の無い公開情報のため、
+// so7-apply-action Edge Functionを経由させず、updateMyIdentity()と同じ「クライアントから
+// 直接テーブルへ書き込む」パターンを踏襲する。priority_player/priority_deadline/
+// priority_phaseは最後に書いた人が勝つ素朴な上書き（優先権譲渡ボタン自体が「誰でも
+// 押せる自己申告制」のため）。hourglassStockだけは座席ごとの差分マージが必要（他座席の
+// 値を巻き込んで上書きしないため）で、PostgRESTのUPDATEはSQL式を送れないため専用の
+// SECURITY DEFINER関数(so7_merge_hourglass_stock)経由にする。
+export async function updatePriorityState(patch) {
+  return withLog("優先権状態の更新", async () => {
+    if (!currentGameId) return;
+    const dbPatch = {};
+    if (patch.player !== undefined) dbPatch.priority_player = patch.player;
+    if (patch.deadline !== undefined) dbPatch.priority_deadline = patch.deadline;
+    if (patch.phase !== undefined) dbPatch.priority_phase = patch.phase;
+    if (Object.keys(dbPatch).length > 0) {
+      const { error } = await client.from("so7_games").update(dbPatch).eq("id", currentGameId);
+      if (error) throw error;
+    }
+    if (patch.hourglassStock !== undefined) {
+      const { error } = await client.rpc("so7_merge_hourglass_stock", {
+        p_game_id: currentGameId,
+        p_delta: patch.hourglassStock,
+      });
+      if (error) throw error;
+    }
+    await client.channel(`game:${currentGameId}`).send({
+      type: "broadcast",
+      event: "priority_changed",
+      payload: { patch },
+    });
   });
 }
 
@@ -624,8 +685,21 @@ export async function fetchAndHydrate(gameId) {
       turnNumber: gameRow.turn_number,
       roundNumber: gameRow.round_number,
       startPlayer: gameRow.start_player,
+      priorityPlayer: gameRow.priority_player,
+      priorityDeadline: gameRow.priority_deadline,
+      priorityPhase: gameRow.priority_phase,
+      hourglassStock: gameRow.hourglass_stock ?? {},
     });
+    syncedTimerConfig = gameRow.timer_config ?? null;
   });
+}
+
+// ターンタイマー設定（対局開始時に部屋作成者のローカル設定を1回だけ固定したもの）。
+// admin.jsの各getterはturn-timer.js側で「オンライン中はこちらを優先」というラップを
+// 経由して参照される（admin.js自体はonline.jsをimportしない、循環import回避のため）。
+let syncedTimerConfig = null;
+export function getSyncedTimerConfig() {
+  return syncedTimerConfig;
 }
 
 function subscribeToGame(gameId) {
@@ -649,6 +723,11 @@ function subscribeToGame(gameId) {
         }
         markSelfHandled(ids);
       }
+      // 「誰が・何をした結果の変化か」を、この後のhydrateより前に記録しておく
+      // （自分自身の操作の「こだま」も他プレイヤーの操作も同じこの経路を通る）。
+      if (payload?.actorSeat) {
+        setLastActionInfo({ actorSeat: payload.actorSeat, actionType: payload.actionType });
+      }
       fetchAndHydrate(gameId)
         .then(() => {
           // 盤面の再取得（自分の手札等、隠し情報の解決に必要）が終わってから通知する。
@@ -666,9 +745,15 @@ function subscribeToGame(gameId) {
         .then(() => notifyListeners())
         .catch(() => {});
     })
+    // 優先権状態（ターンタイマー）の変化。隠す必要の無い情報のため、state_changedと違い
+    // 再取得はせず、パッチそのものを直接マージする（updatePriorityState参照）。
+    .on("broadcast", { event: "priority_changed" }, ({ payload }) => {
+      if (payload?.patch) applyRemotePriorityPatch(payload.patch);
+    })
     .subscribe();
   setOnlineMode(true);
   setOnlineTransport(callAction);
+  setPriorityTransport(updatePriorityState);
   // fetchAndHydrate()（ネットワーク往復あり）を待たず、この場で即座に再描画を強制する。
   // これが無いと、部屋に参加した直後のわずかな間だけ、まだisOnlineMode()が反映される前の
   // 画面（セットアップウィザード等のローカル専用ボタンがまだ押せる状態）が残ってしまう。
