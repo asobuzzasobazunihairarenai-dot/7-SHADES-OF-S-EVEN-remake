@@ -100,7 +100,9 @@ function processMovedOrNew(items, table) {
     }
   }
 
-  const hideIds = items.filter((i) => i.kind !== "pickup").map((i) => i.id);
+  // flipは位置が変わらずrender()時点で既に正しい（開いた後の）見た目になっているため、
+  // 隠す必要がない（隠すと一瞬opacity:0になるだけ無駄なちらつきになる）。
+  const hideIds = items.filter((i) => i.kind !== "pickup" && i.kind !== "flip").map((i) => i.id);
   if (hideIds.length > 0 && helpers.setSetupPendingTokenIds) {
     helpers.setSetupPendingTokenIds(new Set(hideIds));
   }
@@ -122,6 +124,12 @@ function processMovedOrNew(items, table) {
     if (!table2) return;
     for (const item of items) {
       if (item.kind === "pickup") continue;
+      if (item.kind === "flip") {
+        // 移動が無い＝飛翔ゴースト（document.body直下の2Dオーバーレイ）を経由する意味が
+        // 無いため、その場で演出だけ直接発火する。
+        triggerEffectsFor(item);
+        continue;
+      }
       let fromRect = null;
       if (item.kind === "move") fromRect = fromRects.get(item.id) || null;
       else if (item.kind === "new-lock") fromRect = getOriginPileRect(item.token.cardId);
@@ -154,10 +162,26 @@ export function handleHydrate() {
         items.push({ id: token.id, token, kind: "new-lock" });
       } else if (token.kind === "card" && token.location.zone === "cell") {
         items.push({ id: token.id, token, kind: "new-cell-fade" });
+      } else if (token.kind === "card" && token.location.zone === "hand") {
+        // 山から直接手札へドローされた場合（「1枚ドロー」ボタン等）。以前はこのケースが
+        // 分類対象から漏れており、他プレイヤーがカードを引いても誰の画面にも獲得通知が
+        // 出ないバグの原因だった（既存の"pickup"は「テーブル上のカードが手札へ移った」場合
+        // しか扱っていない）。"pickup"kindをそのまま再利用する——山からのドローは必ず
+        // 非公開情報として扱う（announceHandPickupsのwasPublic=false）。
+        items.push({ id: token.id, token, kind: "pickup", prevFaceUp: false });
       }
       continue;
     }
-    if (locationsEqual(prev.location, token.location) && prev.faceUp === token.faceUp) continue;
+    if (locationsEqual(prev.location, token.location) && prev.faceUp !== token.faceUp) {
+      // 位置は変わらずfaceUpだけ変化＝その場でカードがオープンされた（駒の下の裏向き
+      // カードを開いた時など）。"move"として扱うと不要なゴースト飛翔（document.body直下の
+      // 2Dオーバーレイ）が発生し、盤面の3D階層内で本来手前にあるはずの駒より一瞬前面に
+      // 描画されてしまうバグの原因になっていた。飛翔なしでその場に演出だけ発火する
+      // 専用kindにする。
+      items.push({ id: token.id, token, kind: "flip" });
+      continue;
+    }
+    if (locationsEqual(prev.location, token.location)) continue;
     if (isTableZone(prev.location) && isTableZone(token.location)) {
       items.push({ id: token.id, token, kind: "move", prevLocation: prev.location });
     } else if (isTableZone(prev.location) && token.location.zone === "hand") {

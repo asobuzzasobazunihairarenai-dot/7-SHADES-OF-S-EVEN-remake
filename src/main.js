@@ -436,6 +436,16 @@ function hasPieceAt(location) {
   });
 }
 
+// 山から直接手札へドローした直後、新しく加わったトークンidを特定する。オンライン中の
+// drawFromPile()応答にはトークンidが含まれない（revealedCardId=カードの中身のみ）ため、
+// ドロー前に取得しておいた手札トークンidの集合と突き合わせて差分から見つける
+// （remote-move-animator.jsのmarkSelfHandled対象を決めるために使う）。
+function findNewHandTokenIds(player, beforeIds) {
+  return getState()
+    .tokens.filter((t) => t.location.zone === "hand" && t.location.player === player && !beforeIds.has(t.id))
+    .map((t) => t.id);
+}
+
 // 演出中（柱状バースト・ロックスタンプ）は、そのマス/ロックスロット自体のz-indexを
 // 一時的に引き上げる。柱の高さがマスの3倍以上あるなど演出が隣のマス/ロックスロットへ
 // 視覚的にはみ出すため、DOM順で後にある隣接スロット（通常はそちらが手前に描画される）
@@ -1519,6 +1529,14 @@ async function onDragEnd(e) {
         // deck/eternal/firstの中身を一切返さない）ため、ローカル版のような「先読み」は
         // できない。drawFromPile()（オンライン中はEdge Functionを呼ぶtransportを返す）の
         // 応答を待ち、実際に引けたカードをそこから受け取る。
+        const handBeforeForPileDrop =
+          dropTarget.zone === "hand"
+            ? new Set(
+                getState()
+                  .tokens.filter((t) => t.location.zone === "hand" && t.location.player === dropTarget.player)
+                  .map((t) => t.id)
+              )
+            : null;
         let result = null;
         try {
           result = await drawFromPile(pileSource, dropTarget);
@@ -1532,7 +1550,17 @@ async function onDragEnd(e) {
           if (revealedCardId) {
             announceHandPickups(dropTarget.player, [{ cardId: revealedCardId, wasPublic: pileSource === "discard" }]);
           }
-          render();
+          // 山からの直接ドロー(手札行き)も、remote-move-animator.jsの差分検知が「新規出現」
+          // として拾うようになった（相手プレイヤーへのカード獲得通知を出すため）。自分自身の
+          // 操作を二重に通知しないよう、新しいトークンを特定して処理済みマークする。
+          try {
+            await fetchAndHydrate(getCurrentGameId());
+          } catch (err) {
+            console.error("fetchAndHydrate failed", err);
+            render();
+            return;
+          }
+          markSelfHandled(findNewHandTokenIds(dropTarget.player, handBeforeForPileDrop));
           return;
         }
         // 盤面マス/ロックスロットへの直接ドローはレスポンスにcardIdが含まれない
@@ -1998,6 +2026,11 @@ function buildDrawButton() {
         // 山の中身はサーバーにしか無く先読みできないため、drawFromPile()（オンライン中は
         // transportを返す）の応答を待ち、実際に引けたカードをそこから受け取る
         // （onDragEndの山ドロー分岐と同じ考え方）。
+        const handBefore = new Set(
+          getState()
+            .tokens.filter((t) => t.location.zone === "hand" && t.location.player === player)
+            .map((t) => t.id)
+        );
         let result = null;
         try {
           result = await drawFromPile("deck", { zone: "hand", player });
@@ -2009,6 +2042,17 @@ function buildDrawButton() {
           playSound("cardDraw");
           announceHandPickups(player, [{ cardId: result.revealedCardId, wasPublic: false }]);
         }
+        // 山からの直接ドローで新しく手札に加わったトークンも、remote-move-animator.jsの
+        // 差分検知が「新規出現」として拾うようになった（相手プレイヤーへのカード獲得通知を
+        // 出すため）。自分自身の操作を二重に通知しないよう、新しいトークンを特定して
+        // 処理済みマークする（レスポンスにトークンidが含まれないため、直前の手札idと
+        // 突き合わせて差分から見つける）。
+        try {
+          await fetchAndHydrate(getCurrentGameId());
+        } catch (err) {
+          console.error("fetchAndHydrate failed", err);
+        }
+        markSelfHandled(findNewHandTokenIds(player, handBefore));
         return;
       }
       const pileArray = getState().piles.deck;

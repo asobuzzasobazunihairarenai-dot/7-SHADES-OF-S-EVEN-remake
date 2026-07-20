@@ -6,7 +6,15 @@
 import { getCardDefinition, getCardImagePath } from "./cards-data.js";
 import { getPlayerName } from "./player-identity.js";
 import { createModalCloseX } from "./ui-helpers.js";
-import { getSelfSeat } from "./online.js";
+import { getSelfSeat, isOnlineMode } from "./online.js";
+
+// 通知の主語が「自分自身」の時は名前ではなく「あなた」と表示する（「プレイヤーAが獲得」の
+// ような他人事っぽい文言になるのを避ける）。ローカルモードは1人で全座席を操作する前提で
+// 「自分」の概念が実質無意味なため対象外（isOnlineMode()でガード）。gate-invasion-modal.js
+// も同じ考え方を使うため、isPickupVisibleと同様にここからexportして再利用する。
+export function getPlayerNameOrYou(player) {
+  return isOnlineMode() && player === getSelfSeat() ? "あなた" : getPlayerName(player);
+}
 
 // 表示時間（秒）は管理者モードの「カード獲得ポップアップ」グループで調整できる
 // （--hand-pickup-toast-duration、デフォルト5秒）。
@@ -41,7 +49,14 @@ function showToast(innerHTML) {
 // pickup（{cardId, wasPublic}）の中身を、今見ている本人(getSelfSeat())が見てよいかどうかを
 // 判定する共通ルール。公開情報（wasPublic）か、そのpickupを得た本人自身が見ている場合だけ
 // 中身を見せる。gate-invasion-modal.jsも同じ判定基準を使うため、ここから再利用する。
+// cardIdが無い（何らかの理由でまだ解決できていない）場合は、閲覧資格があっても強制的に
+// 非公開扱いにする——本来なら見えるはずの自分自身の手札でも、markSelfHandled()のTTL切れ後に
+// 遅れて届いたBroadcastなどでcardIdが未解決のまま処理される可能性が完全には排除できず、
+// そのままgetCardDefinition(null)を呼ぶとundefined.nameでクラッシュしていたため
+// （このガードが無いと、そのカードだけでなく同じバッチの他のカードの通知まで巻き添えで
+// 出なくなってしまう）。
 export function isPickupVisible(pickup, player) {
+  if (!pickup.cardId) return false;
   return pickup.wasPublic || player === getSelfSeat();
 }
 
@@ -58,7 +73,7 @@ export function announceHandPickups(player, pickups) {
   if (visible.length === 0) {
     showToast(`
       <div class="hand-pickup-toast-text">
-        <div class="hand-pickup-toast-title">${getPlayerName(player)}が非公開のカードを${hiddenCount}枚手札に加えました</div>
+        <div class="hand-pickup-toast-title">${getPlayerNameOrYou(player)}が非公開のカードを${hiddenCount}枚手札に加えました</div>
       </div>
     `);
     return;
@@ -78,7 +93,7 @@ export function announceHandPickups(player, pickups) {
   const hiddenNote = hiddenCount > 0 ? `<div class="hand-pickup-toast-hidden-note">＋非公開のカード${hiddenCount}枚</div>` : "";
 
   showToast(`
-    <div class="hand-pickup-toast-title">${getPlayerName(player)}が獲得</div>
+    <div class="hand-pickup-toast-title">${getPlayerNameOrYou(player)}が獲得</div>
     <div class="hand-pickup-toast-cards">${cardsHtml}</div>
     ${hiddenNote}
   `);
@@ -92,7 +107,7 @@ export function announceHandPickups(player, pickups) {
 export function announceGateInvasion(attacker, defender) {
   showToast(`
     <div class="hand-pickup-toast-title">相手ゲート侵攻ボーナス発生</div>
-    <div class="hand-pickup-toast-text">${getPlayerName(attacker)}が${getPlayerName(defender)}のゲートに侵攻！</div>
+    <div class="hand-pickup-toast-text">${getPlayerNameOrYou(attacker)}が${getPlayerNameOrYou(defender)}のゲートに侵攻！</div>
   `);
 }
 
@@ -104,7 +119,7 @@ export function announceGateInvasion(attacker, defender) {
 export function announceCardLocked(player, cardId) {
   const def = getCardDefinition(cardId);
   showToast(`
-    <div class="hand-pickup-toast-title">${getPlayerName(player)}がロック</div>
+    <div class="hand-pickup-toast-title">${getPlayerNameOrYou(player)}がロック</div>
     <div class="hand-pickup-toast-cards">
       <div class="hand-pickup-toast-card">
         <img src="${getCardImagePath(cardId)}" alt="${def.name}" />

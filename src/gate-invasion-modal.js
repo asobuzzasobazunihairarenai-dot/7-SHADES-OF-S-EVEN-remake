@@ -5,9 +5,8 @@
 // 問題を解消するため）。見た目はローカル版gate-invasion.jsのshowBonusStepModalを踏襲する。
 
 import { getCardDefinition, getCardImagePath } from "./cards-data.js";
-import { getPlayerName } from "./player-identity.js";
 import { getSelfSeat } from "./online.js";
-import { isPickupVisible } from "./hand-announcer.js";
+import { isPickupVisible, getPlayerNameOrYou } from "./hand-announcer.js";
 import { createModalCloseX } from "./ui-helpers.js";
 import { getState } from "./state.js";
 
@@ -50,36 +49,36 @@ function buildCardsHtml(player, pickups) {
 function buildSteps(events) {
   const steps = [];
   for (const ev of events) {
-    steps.push({ text: `${getPlayerName(ev.attacker)}が${getPlayerName(ev.defender)}のゲートに侵攻！` });
+    steps.push({ text: `${getPlayerNameOrYou(ev.attacker)}が${getPlayerNameOrYou(ev.defender)}のゲートに侵攻！` });
 
     if (ev.stolenCount > 0) {
       steps.push({
-        text: `${getPlayerName(ev.attacker)}はゲート侵攻成功！\n${getPlayerName(ev.defender)}の手札${ev.stolenCount}枚を無作為に奪いました。`,
+        text: `${getPlayerNameOrYou(ev.attacker)}はゲート侵攻成功！\n${getPlayerNameOrYou(ev.defender)}の手札${ev.stolenCount}枚を無作為に奪いました。`,
         cardsHtml: buildCardsHtml(ev.attacker, ev.stolenTokenIds.map((id) => ({ cardId: resolveIfSelf(ev.attacker, id), wasPublic: false }))),
       });
     } else {
-      steps.push({ text: `${getPlayerName(ev.attacker)}はゲート侵攻成功！\n${getPlayerName(ev.defender)}の手札枚数が半分未満のため、奪えるカードはありません。` });
+      steps.push({ text: `${getPlayerNameOrYou(ev.attacker)}はゲート侵攻成功！\n${getPlayerNameOrYou(ev.defender)}の手札枚数が半分未満のため、奪えるカードはありません。` });
     }
 
     if (ev.eternalCardId) {
       const def = getCardDefinition(ev.eternalCardId);
       steps.push({
-        text: `${getPlayerName(ev.attacker)}はエターナルカード「${def.name}」を獲得！\n自分のロックエリアにロックします。`,
+        text: `${getPlayerNameOrYou(ev.attacker)}はエターナルカード「${def.name}」を獲得！\n自分のロックエリアにロックします。`,
         cardsHtml: buildCardsHtml(ev.attacker, [{ cardId: ev.eternalCardId, wasPublic: true }]),
       });
       if (ev.bumpedCards.length > 0) {
         steps.push({
-          text: `ロックスロットにあったカードが弾き出され、${getPlayerName(ev.attacker)}の手札に加わりました。`,
+          text: `ロックスロットにあったカードが弾き出され、${getPlayerNameOrYou(ev.attacker)}の手札に加わりました。`,
           cardsHtml: buildCardsHtml(ev.attacker, ev.bumpedCards.map((b) => ({ cardId: b.cardId, wasPublic: true }))),
         });
       }
     } else {
-      steps.push({ text: `${getPlayerName(ev.attacker)}はエターナルカードを獲得するはずでしたが、盤面の外のエターナルカードはもう残っていません。` });
+      steps.push({ text: `${getPlayerNameOrYou(ev.attacker)}はエターナルカードを獲得するはずでしたが、盤面の外のエターナルカードはもう残っていません。` });
     }
 
     if (ev.gateCards.length > 0) {
       steps.push({
-        text: `${getPlayerName(ev.attacker)}は自分のゲートにあるカードをすべて回収し、ゲートに帰還します。`,
+        text: `${getPlayerNameOrYou(ev.attacker)}は自分のゲートにあるカードをすべて回収し、ゲートに帰還します。`,
         cardsHtml: buildCardsHtml(
           ev.attacker,
           ev.gateCards.map((g) => ({
@@ -92,7 +91,7 @@ function buildSteps(events) {
         ),
       });
     } else {
-      steps.push({ text: `${getPlayerName(ev.attacker)}は自分のゲートに帰還します。` });
+      steps.push({ text: `${getPlayerNameOrYou(ev.attacker)}は自分のゲートに帰還します。` });
     }
   }
   return steps;
