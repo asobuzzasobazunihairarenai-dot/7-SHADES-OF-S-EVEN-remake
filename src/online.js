@@ -18,6 +18,7 @@ import {
   hydrateState,
   isOnlineMode,
   notifyListeners,
+  getState,
 } from "./state.js";
 import { SEAT_ORDER } from "./board-layout.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
@@ -177,6 +178,40 @@ if (client) {
 
 // --- 部屋の作成・参加・一覧 ---------------------------------------------------------
 
+// 「ブラウザを閉じて放置」を検知するためのハートビート。参加中は一定間隔で自分の座席の
+// last_seenを更新し続ける。ゲームが開始済み（turnPlayerが立っている）になったら停止する
+// （so7_cleanup_stale_roomsがstatus='openの部屋しか対象にしないため、対局中は送り続ける
+// 意味が無い）。更新に失敗しても致命的ではない（一定時間送れなければ、次に誰かが
+// listOpenRooms()を呼んだ時にso7_cleanup_stale_roomsが座席ごと片付ける）。
+const HEARTBEAT_MS = 25000;
+let heartbeatIntervalId = null;
+
+function stopHeartbeat() {
+  if (heartbeatIntervalId) {
+    clearInterval(heartbeatIntervalId);
+    heartbeatIntervalId = null;
+  }
+}
+
+function startHeartbeat(gameId, userId) {
+  stopHeartbeat();
+  heartbeatIntervalId = setInterval(async () => {
+    if (getState().turnPlayer) {
+      stopHeartbeat();
+      return;
+    }
+    try {
+      await client
+        .from("so7_game_seats")
+        .update({ last_seen: new Date().toISOString() })
+        .eq("game_id", gameId)
+        .eq("user_id", userId);
+    } catch (err) {
+      // 送れなくても致命的ではない（上のコメント参照）。
+    }
+  }, HEARTBEAT_MS);
+}
+
 // 部屋を新規作成し、作成者自身もその部屋に参加する（座席はまだ選ばない/決まらない。
 // 「ゲームを開始する」を押した瞬間にso7-apply-action Edge Function側で参加者全員へ
 // ランダムに割り振られる）。部屋idの生成・パスワードのハッシュ化はサーバー側の
@@ -225,12 +260,24 @@ export async function joinRoom(gameId, passwordAttempt) {
     currentGameId = gameId;
     currentSeat = null; // ゲーム開始時にランダムに割り当てられる
     subscribeToGame(gameId);
+    startHeartbeat(gameId, user.id);
   });
 }
 
 // 開いている（まだ始まっていない）部屋の一覧。so7_games_listビューはパスワードの
-// ハッシュ自体を一切含まず、has_password（真偽値）だけを返す。
+// ハッシュ自体を一切含まず、has_password（真偽値）だけを返す。一覧を取る前に必ず
+// so7_cleanup_stale_roomsを呼び、ブラウザを閉じて放置された部屋を掃除してから
+// 取得する（定期実行cronジョブ等を使わない、「次に誰かが一覧を見た時に掃除される」方式）。
 export async function listOpenRooms() {
+  try {
+    // supabase-jsの.rpc()は失敗時に例外をthrowするのではなく{error}を返すため、
+    // 分割代入で明示的に受け取って確認する必要がある（awaitしただけでは失敗に
+    // 気づけない）。
+    const { error: cleanupErr } = await client.rpc("so7_cleanup_stale_rooms");
+    if (cleanupErr) console.error("so7_cleanup_stale_rooms failed", cleanupErr);
+  } catch (err) {
+    console.error("so7_cleanup_stale_rooms failed", err);
+  }
   const { data, error } = await client.from("so7_games_list").select("*").order("created_at", { ascending: false });
   if (error) throw error;
   return data ?? [];
@@ -290,7 +337,13 @@ export function getSelfSeat() {
   return isOnlineMode() ? currentSeat || "A" : "A";
 }
 
-export function leaveGame() {
+// 「この部屋を離れる」ボタンから呼ぶ。ローカルの後始末を先に済ませてからサーバー側の
+// 座席削除を行う（so7_leave_room、SECURITY DEFINER。全員抜けた部屋が一覧に残り続ける
+// バグへの対応）——サーバー側呼び出しが失敗しても、アプリ自体の利用は継続できるように
+// するため。失敗して座席が残っても、いずれso7_cleanup_stale_roomsが回収する。
+export async function leaveGame() {
+  const gameIdToLeave = currentGameId;
+  stopHeartbeat();
   if (broadcastChannel) {
     client?.removeChannel(broadcastChannel);
     broadcastChannel = null;
@@ -298,6 +351,15 @@ export function leaveGame() {
   currentGameId = null;
   currentSeat = null;
   setOnlineMode(false);
+
+  if (gameIdToLeave) {
+    try {
+      const { error } = await client.rpc("so7_leave_room", { p_game_id: gameIdToLeave });
+      if (error) console.error("so7_leave_room failed", error);
+    } catch (err) {
+      console.error("so7_leave_room failed", err);
+    }
+  }
 }
 
 // --- アクション送信（so7-apply-action Edge Function） -------------------------------

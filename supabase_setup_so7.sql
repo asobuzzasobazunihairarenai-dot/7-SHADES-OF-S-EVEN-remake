@@ -352,3 +352,52 @@ create policy "so7_games_update_name" on so7_games for update to authenticated
   using (exists (select 1 from so7_game_seats s where s.game_id = so7_games.id and s.user_id = auth.uid()))
   with check (exists (select 1 from so7_game_seats s where s.game_id = so7_games.id and s.user_id = auth.uid()));
 grant update (name) on so7_games to authenticated;
+
+-- 追加機能: 部屋を離れたら（明示的な「この部屋を離れる」、またはブラウザを閉じて放置）
+-- 誰もいなくなった部屋を自動的に削除する。so7_game_seatsにso7_game_seats_delete相当の
+-- ポリシーを新設する代わりに、座席の削除と「空になったら部屋ごと削除」を1つの
+-- SECURITY DEFINER関数にまとめる——so7_create_room/so7_join_roomと同じ理由（自分の座席を
+-- 削除した直後は「自分がこの部屋の参加者である」という条件のRLSがもう成立しなくなるため、
+-- 通常のRLSポリシーだけでは「空になった部屋を削除する」権限を素直に表現しづらい）。
+create or replace function so7_leave_room(p_game_id text)
+returns void
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  delete from so7_game_seats where game_id = p_game_id and user_id = auth.uid();
+  if not exists (select 1 from so7_game_seats where game_id = p_game_id) then
+    delete from so7_games where id = p_game_id;
+  end if;
+end;
+$$;
+revoke execute on function so7_leave_room(text) from public;
+grant execute on function so7_leave_room(text) to authenticated;
+
+-- 「ブラウザを閉じて放置」を検知するため、参加中のクライアントが一定間隔で自分の座席の
+-- last_seenを更新する（online.jsのハートビート、開始後のゲーム=status<>'open'では停止する）。
+-- 更新が一定時間途絶えた座席＝閉じられたまま放置されたとみなし、部屋一覧を開くたび
+-- （listOpenRooms()）に掃除する。定期実行cronジョブ等の追加インフラを必要としない
+-- 「次に誰かが一覧を見た時に掃除される」方式（即座の削除ではない点に注意）。
+-- ゲーム開始後(status<>'open')の部屋・座席は対象外——対局中にタブが一時的にバックグラウンド
+-- 化してハートビートが遅れても、対局中の座席が誤って削除されないようにするため。
+alter table so7_game_seats add column if not exists last_seen timestamptz not null default now();
+
+create or replace function so7_cleanup_stale_rooms()
+returns void
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  delete from so7_game_seats s
+  using so7_games g
+  where s.game_id = g.id and g.status = 'open' and s.last_seen < now() - interval '90 seconds';
+
+  delete from so7_games g
+  where g.status = 'open' and not exists (select 1 from so7_game_seats s where s.game_id = g.id);
+end;
+$$;
+revoke execute on function so7_cleanup_stale_rooms() from public;
+grant execute on function so7_cleanup_stale_rooms() to authenticated;
