@@ -69,10 +69,16 @@ alter table so7_game_piles enable row level security;
 
 -- so7_games・so7_game_seatsは秘密情報を含まないため、authenticatedに直接
 -- SELECT/INSERTを許可する（部屋の作成・座席選択用）。
+-- create policyはcreate tableと違いif not existsが無いため、このSQL全体を再実行しても
+-- 安全なように、必ずdrop policy if existsを直前に置いてから作り直す。
+drop policy if exists "so7_games_select" on so7_games;
 create policy "so7_games_select" on so7_games for select to authenticated using (true);
+drop policy if exists "so7_games_insert" on so7_games;
 create policy "so7_games_insert" on so7_games for insert to authenticated with check (true);
 
+drop policy if exists "so7_game_seats_select" on so7_game_seats;
 create policy "so7_game_seats_select" on so7_game_seats for select to authenticated using (true);
+drop policy if exists "so7_game_seats_insert" on so7_game_seats;
 create policy "so7_game_seats_insert" on so7_game_seats for insert to authenticated
   with check (user_id = auth.uid());
 
@@ -204,7 +210,18 @@ $$;
 -- 生テーブルへの直接SELECTを拒否しているため、postgres_changesを購読しても誰にも
 -- 配信されない（RLSに従うため）。そちらはso7-apply-action Edge Functionからの
 -- Broadcastメッセージ（"state_changed"の合図のみ、データ自体は載せない）で代替する。
-alter publication supabase_realtime add table so7_games;
+-- alter publication ... add tableにはif not exists相当の構文が無いため、既にpublicationの
+-- メンバーかどうかをpg_publication_tablesで確認してから追加する（このSQL全体の再実行を
+-- 安全にするため）。
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'so7_games'
+  ) then
+    alter publication supabase_realtime add table so7_games;
+  end if;
+end $$;
 
 -- 追加機能: 部屋への参加時に座席(A/B/C/D)を選ばせず、「ゲームを開始する」ボタンを押した
 -- 瞬間にso7-apply-action Edge Function側で参加者へランダムに座席を割り振るようにする。
@@ -228,6 +245,7 @@ alter table so7_game_seats
   add column if not exists avatar text,
   add column if not exists piece_skin_index int not null default 0;
 
+drop policy if exists "so7_game_seats_update" on so7_game_seats;
 create policy "so7_game_seats_update" on so7_game_seats for update to authenticated
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 
@@ -243,10 +261,13 @@ create table if not exists so7_user_profiles (
   updated_at timestamptz not null default now()
 );
 alter table so7_user_profiles enable row level security;
+drop policy if exists "so7_user_profiles_select" on so7_user_profiles;
 create policy "so7_user_profiles_select" on so7_user_profiles for select to authenticated
   using (user_id = auth.uid());
+drop policy if exists "so7_user_profiles_insert" on so7_user_profiles;
 create policy "so7_user_profiles_insert" on so7_user_profiles for insert to authenticated
   with check (user_id = auth.uid());
+drop policy if exists "so7_user_profiles_update" on so7_user_profiles;
 create policy "so7_user_profiles_update" on so7_user_profiles for update to authenticated
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 
@@ -345,7 +366,7 @@ grant execute on function so7_join_room(text, text) to authenticated;
 -- 決して含めない。既存のso7_game_tokens_visible等と同じ「security_invokerを付けない」
 -- パターンで、so7_game_passwords（authenticatedへのポリシー無し）をビュー所有者権限で
 -- 参照できるようにする。
-create view so7_games_list as
+create or replace view so7_games_list as
 select
   g.id, g.name, g.status, g.created_at,
   (p.game_id is not null) as has_password,
@@ -359,6 +380,7 @@ grant select on so7_games_list to authenticated;
 -- 更新可能範囲を絞る——RLSポリシーだけでは行全体が対象になってしまい、status/turn_player/
 -- version等（本来so7-apply-action Edge Function経由でしか変更してはいけない列）まで誰でも
 -- 書き換え可能になってしまう。RLSと列GRANTを両方満たさないと更新できない。
+drop policy if exists "so7_games_update_name" on so7_games;
 create policy "so7_games_update_name" on so7_games for update to authenticated
   using (exists (select 1 from so7_game_seats s where s.game_id = so7_games.id and s.user_id = auth.uid()))
   with check (exists (select 1 from so7_game_seats s where s.game_id = so7_games.id and s.user_id = auth.uid()));
@@ -480,6 +502,7 @@ alter table so7_games
 -- 組み合わせ——RLSポリシーだけでは行全体が対象になってしまい、status/turn_player/version等
 -- （本来so7-apply-action Edge Function経由でしか変更してはいけない列）まで誰でも
 -- 書き換え可能になってしまうため、列GRANTで更新可能範囲をこの3列だけに絞る。
+drop policy if exists "so7_games_update_priority" on so7_games;
 create policy "so7_games_update_priority" on so7_games for update to authenticated
   using (exists (select 1 from so7_game_seats s where s.game_id = so7_games.id and s.user_id = auth.uid()))
   with check (exists (select 1 from so7_game_seats s where s.game_id = so7_games.id and s.user_id = auth.uid()));
