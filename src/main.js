@@ -865,9 +865,23 @@ function applyBoardZoomFit(level) {
   // （--board-zoom-*-reference-height、px）を倍率計算にも使う。これで拡大結果は
   // ウィンドウサイズに一切依存しなくなる（基準値と大きく違う高さのウィンドウでは
   // 上下が見切れたり余白が出たりし得るが、その場合は基準値側を調整して合わせる）。
+  //
+  // ただし基準値（デフォルト800px）より実際のウィンドウが低い場合、この理屈のままだと
+  // 拡大率が「800pxの画面で見た時と同じ」になるよう計算されるため、実際にはそれより
+  // 低いウィンドウでは中身がはみ出し、画面上端に近いプレイヤーCのアバターが見切れて
+  // しまうバグがあった（ユーザー報告）。基準値の代わりに「基準値と実際のウィンドウの
+  // 高さの小さい方」を使うことで、基準値以上の高さのウィンドウでは従来通りの
+  // サイズ非依存の拡大率を維持しつつ、基準値より低いウィンドウでは実際に収まる分だけ
+  // 拡大率を自動的に下げ、はみ出し・見切れを防ぐ。
+  // アバター・手札は測定対象のspan（ロック〜ロック間）自体からさらにはみ出す位置に配置
+  // されているため、実際のウィンドウの高さぴったりまで許容すると、その分だけまだ見切れが
+  // 残ってしまう（実測: 700px高のウィンドウで約26pxはみ出し）。安全率をかけて少し余裕を
+  // 持たせる。
+  const effectiveHeight =
+    window.innerHeight < referenceHeight ? window.innerHeight * 0.85 : referenceHeight;
   table.style.transformOrigin = `50% ${originYPercent}%`;
   // マウスホイールでの手動ズーム(manualZoom)も、盤面拡大の倍率にさらに上乗せする。
-  const scale = ((referenceHeight * marginFrac) / spanHeight) * zoom * manualZoom;
+  const scale = ((effectiveHeight * marginFrac) / spanHeight) * zoom * manualZoom;
   // カメラのY軸オフセット(--camera-offset-y)・中クリックドラッグでの手動移動(manualPanX/Y)は
   // 盤面拡大レベルごとのoffset-x/yとは独立に、常時一定量を追加でずらす（先に適用することで、
   // 拡大時のtranslateOriginや倍率計算には影響させない）。

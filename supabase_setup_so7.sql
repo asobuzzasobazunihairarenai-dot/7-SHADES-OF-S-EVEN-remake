@@ -376,12 +376,17 @@ revoke execute on function so7_leave_room(text) from public;
 grant execute on function so7_leave_room(text) to authenticated;
 
 -- 「ブラウザを閉じて放置」を検知するため、参加中のクライアントが一定間隔で自分の座席の
--- last_seenを更新する（online.jsのハートビート、開始後のゲーム=status<>'open'では停止する）。
--- 更新が一定時間途絶えた座席＝閉じられたまま放置されたとみなし、部屋一覧を開くたび
--- （listOpenRooms()）に掃除する。定期実行cronジョブ等の追加インフラを必要としない
+-- last_seenを更新し続ける（online.jsのハートビート。ロビーでも対局中でも、部屋を離れる
+-- まで止めない）。更新が一定時間途絶えた座席＝閉じられたまま放置されたとみなし、部屋一覧を
+-- 開くたび（listOpenRooms()）に掃除する。定期実行cronジョブ等の追加インフラを必要としない
 -- 「次に誰かが一覧を見た時に掃除される」方式（即座の削除ではない点に注意）。
--- ゲーム開始後(status<>'open')の部屋・座席は対象外——対局中にタブが一時的にバックグラウンド
--- 化してハートビートが遅れても、対局中の座席が誤って削除されないようにするため。
+-- ロビー（status='open'）と対局中（status<>'open'）でしきい値・掃除の粒度を変えている:
+--   ・ロビー: 90秒。まだ誰も遊んでいないので、1人だけ抜けても他の待機者には実害が無いため、
+--     個々の座席を単独で削除してよい。
+--   ・対局中: 24時間。対局中は1人が一時的に接続が切れただけで他のプレイヤーを巻き込むわけには
+--     いかないため、個々の座席は絶対に削除しない。「全員が同時に24時間以上応答が無い」＝
+--     本当に全員が離脱したと判断できる場合だけ、対局（部屋）ごと削除する（長考・離席との
+--     誤判定を避けるため、ロビーよりずっと長い猶予を取る）。
 alter table so7_game_seats add column if not exists last_seen timestamptz not null default now();
 
 create or replace function so7_cleanup_stale_rooms()
@@ -391,12 +396,23 @@ security definer
 set search_path = public, extensions
 as $$
 begin
+  -- ロビー: 個々の座席を掃除し、結果空になった部屋を削除する。
   delete from so7_game_seats s
   using so7_games g
   where s.game_id = g.id and g.status = 'open' and s.last_seen < now() - interval '90 seconds';
 
   delete from so7_games g
   where g.status = 'open' and not exists (select 1 from so7_game_seats s where s.game_id = g.id);
+
+  -- 対局中: 個々の座席は触らず、全員のlast_seenが24時間以上更新されていない（＝座席が
+  -- 無い、または全座席とも更新が無い）部屋だけ、まるごと削除する（座席・パスワード・
+  -- カード・山札はso7_gamesへのon delete cascadeで一緒に消える）。
+  delete from so7_games g
+  where g.status <> 'open'
+    and not exists (
+      select 1 from so7_game_seats s
+      where s.game_id = g.id and s.last_seen >= now() - interval '24 hours'
+    );
 end;
 $$;
 revoke execute on function so7_cleanup_stale_rooms() from public;

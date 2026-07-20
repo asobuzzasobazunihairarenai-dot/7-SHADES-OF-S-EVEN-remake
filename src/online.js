@@ -18,7 +18,6 @@ import {
   hydrateState,
   isOnlineMode,
   notifyListeners,
-  getState,
 } from "./state.js";
 import { SEAT_ORDER } from "./board-layout.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
@@ -178,11 +177,11 @@ if (client) {
 
 // --- 部屋の作成・参加・一覧 ---------------------------------------------------------
 
-// 「ブラウザを閉じて放置」を検知するためのハートビート。参加中は一定間隔で自分の座席の
-// last_seenを更新し続ける。ゲームが開始済み（turnPlayerが立っている）になったら停止する
-// （so7_cleanup_stale_roomsがstatus='openの部屋しか対象にしないため、対局中は送り続ける
-// 意味が無い）。更新に失敗しても致命的ではない（一定時間送れなければ、次に誰かが
-// listOpenRooms()を呼んだ時にso7_cleanup_stale_roomsが座席ごと片付ける）。
+// 「ブラウザを閉じて放置」を検知するためのハートビート。参加中（ロビーでも対局中でも）は
+// ずっと一定間隔で自分の座席のlast_seenを更新し続ける（leaveGame()が呼ばれるまで停止しない）。
+// 更新に失敗しても致命的ではない（一定時間送れなければ、次に誰かがlistOpenRooms()を
+// 呼んだ時にso7_cleanup_stale_roomsが片付ける——ロビー中の個別座席の掃除も、対局が
+// 全員分放置された場合の部屋ごとの掃除も、しきい値の違いはあれ同じ仕組みで行う）。
 const HEARTBEAT_MS = 25000;
 let heartbeatIntervalId = null;
 
@@ -196,10 +195,6 @@ function stopHeartbeat() {
 function startHeartbeat(gameId, userId) {
   stopHeartbeat();
   heartbeatIntervalId = setInterval(async () => {
-    if (getState().turnPlayer) {
-      stopHeartbeat();
-      return;
-    }
     try {
       await client
         .from("so7_game_seats")
