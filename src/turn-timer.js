@@ -1,12 +1,16 @@
 // ターンタイマー（ロープ・砂時計・優先権）。MTGAのイメージで、優先権を持ってから次に
 // 何かする（フェイズを進める/カードを使う/ターンを終了する等）までを「1回の行動」とし、
-// 約30秒（管理者モードで調整可）経過すると画面にロープ（燃え尽きる導火線）が表示される。
-// 燃え尽きる前に行動しないと、ストックしている砂時計を1個消費してさらに延長する。
+// 基本時間（管理者モードで調整可、デフォルト30秒）は完全に無音・無表示で与えられる
+// （ロープは出現しない）。基本時間が切れると、そこで初めてストックしている砂時計を1個
+// 「仮消費」し、画面中央に神秘的なオーラのロープが出現して延長時間分だけ燃え尽きていく。
+// 行動を取れば（＝ロープリセット）その仮消費は無かったことになり砂時計は満額のまま持ち越
+// せる。延長時間も使い切って燃え尽きた場合だけ、砂時計が正式に1個減る（さらに残りがあれば
+// 連続してもう1本ロープが燃える）。
 //
 // このゲーム全体の「座席を持っていれば何でも自由に操作できる、強制力の無い自己申告制」
 // という設計方針に合わせ、砂時計も尽きた場合でも自動でターンを終了させたりはしない。
 // 代わりに「ムーブフェイズを終えてターンを終了してください」という警告を点滅表示するだけに
-// 留める（ユーザー判断で「自動でターン終了ボタンを押す」案を撤回した経緯あり）。
+// 留める。
 //
 // 実質的にオンライン対戦向けの機能（ローカルモードは1人で全座席を操作するため緊張感が
 // 無い）のため、管理者モードのマスタースイッチ（デフォルトOFF）で完全にオフにできる。
@@ -25,14 +29,17 @@ import {
   getTurnsToReplenishHourglass,
 } from "./admin.js";
 
-let hudEl = null;
-let transferButtonsEl = null;
+let selfStockEl = null; // 左下の自分専用ステータスエリアに出す、自分の砂時計個数バッジ
+let ropeEl = null; // 画面中央のロープ本体（延長中だけ表示）
+let ropeStrandEl = null;
+let ropeTipEl = null;
+let ropeHourglassCountEl = null;
 let warningEl = null;
-let seatCardRefs = {}; // seat -> { card, stockEl, ropeFill }
+let transferButtonsEl = null;
 
+let prevTurnPlayer = null;
 // 「砂時計を使わずに何ターン経過したか」は見た目に影響しない内部カウンタのため、共有
 // state.jsには持たせず、このモジュールのローカル変数だけで追跡する。
-let prevTurnPlayer = null;
 let hourglassUsedThisTurn = {};
 let turnsWithoutHourglass = {};
 
@@ -49,25 +56,26 @@ function withGuard(fn) {
   }
 }
 
-function freshDeadline() {
+function freshBaseDeadline() {
   return Date.now() + getRopeBaseSeconds() * 1000;
 }
 
 // ターンプレイヤーの交代（ゲーム開始時のnull→非nullも含む）を検知した時の処理。
 function handleTurnTransition(prevPlayer, nextPlayer, activePlayers) {
   if (prevPlayer === null && nextPlayer !== null) {
-    // ゲーム開始。参加座席全員の砂時計を初期値にし、優先権をスタートプレイヤーへ渡す。
+    // ゲーム開始。参加座席全員の砂時計を初期値にし、優先権をスタートプレイヤーへ渡す
+    // （基本時間から開始、ロープは非表示）。
     for (const seat of activePlayers) {
       hourglassUsedThisTurn[seat] = false;
       turnsWithoutHourglass[seat] = 0;
       withGuard(() => setHourglassStock(seat, getInitialHourglassStock()));
     }
-    withGuard(() => setPriority(nextPlayer, freshDeadline()));
+    withGuard(() => setPriority(nextPlayer, freshBaseDeadline(), "base"));
     return;
   }
   if (prevPlayer !== null && nextPlayer !== null && prevPlayer !== nextPlayer) {
-    // 通常のターン交代。離れる座席が「そのターン中に一度も砂時計を使わなかったか」を
-    // 評価し、3ターン（管理者モードで調整可）連続なら砂時計を1個補充する。
+    // 通常のターン交代。離れる座席が「そのターン中に一度も砂時計を正式に消費しなかったか」
+    // を評価し、3ターン（管理者モードで調整可）連続なら砂時計を1個補充する。
     if (!hourglassUsedThisTurn[prevPlayer]) {
       turnsWithoutHourglass[prevPlayer] = (turnsWithoutHourglass[prevPlayer] ?? 0) + 1;
       if (turnsWithoutHourglass[prevPlayer] >= getTurnsToReplenishHourglass()) {
@@ -80,7 +88,7 @@ function handleTurnTransition(prevPlayer, nextPlayer, activePlayers) {
       turnsWithoutHourglass[prevPlayer] = 0;
     }
     hourglassUsedThisTurn[nextPlayer] = false;
-    withGuard(() => setPriority(nextPlayer, freshDeadline()));
+    withGuard(() => setPriority(nextPlayer, freshBaseDeadline(), "base"));
   }
 }
 
@@ -91,80 +99,98 @@ function onStateChange(state) {
   if (tp !== prevTurnPlayer) {
     handleTurnTransition(prevTurnPlayer, tp, state.activePlayers);
     prevTurnPlayer = tp;
-    rebuildHud();
     return;
   }
   // ターン交代以外の理由で状態が変化した＝優先権を持つ座席が何か行動したとみなし、
-  // ロープをリセットする（「1回の行動」＝優先権を持ってから次に何かするまで、という定義）。
+  // 基本時間の窓へリセットする（延長中に行動した場合、仮消費していた砂時計は
+  // 「ロープが完全に無くならなければ持ち越せる」仕様通り、何も減らさずそのまま戻る）。
   if (state.priorityPlayer) {
-    withGuard(() => setPriority(state.priorityPlayer, freshDeadline()));
+    withGuard(() => setPriority(state.priorityPlayer, freshBaseDeadline(), "base"));
   }
 }
 
-// --- HUD（座席カード：名前・砂時計・ロープ）--------------------------------------------
+// --- 自分専用の砂時計バッジ（左下ステータスエリア） -------------------------------------
 
-function buildHud() {
-  hudEl = document.createElement("div");
-  hudEl.id = "turn-timer-hud";
-  hudEl.style.display = "none";
-  document.body.appendChild(hudEl);
+function buildSelfStock() {
+  const host = document.getElementById("self-hand-status");
+  if (!host) return;
+  selfStockEl = document.createElement("div");
+  selfStockEl.className = "turn-timer-self-stock";
+  selfStockEl.style.display = "none";
+  host.appendChild(selfStockEl);
 }
 
-function rebuildHud() {
-  if (!hudEl) return;
-  hudEl.innerHTML = "";
-  seatCardRefs = {};
-  const state = getState();
+function updateSelfStock(state) {
+  if (!selfStockEl) return;
   if (!isTurnTimerEnabled() || !state.turnPlayer) {
-    hudEl.style.display = "none";
+    selfStockEl.style.display = "none";
     return;
   }
-  hudEl.style.display = "flex";
-  for (const seat of SEAT_ORDER.filter((s) => state.activePlayers.includes(s))) {
-    const card = document.createElement("div");
-    card.className = "turn-timer-seat-card";
+  const stock = state.hourglassStock[getSelfSeat()] ?? 0;
+  selfStockEl.textContent = `⏳ × ${stock}`;
+  selfStockEl.style.display = "block";
+}
 
-    const nameEl = document.createElement("div");
-    nameEl.className = "turn-timer-seat-name";
-    nameEl.textContent = getPlayerName(seat);
-    card.appendChild(nameEl);
+// --- 画面中央のロープ（延長中だけ表示、全プレイヤーに見える） ---------------------------
 
-    const stockEl = document.createElement("div");
-    stockEl.className = "turn-timer-seat-stock";
-    card.appendChild(stockEl);
+function buildRope() {
+  ropeEl = document.createElement("div");
+  ropeEl.id = "turn-timer-rope";
+  ropeEl.style.display = "none";
 
-    const ropeTrack = document.createElement("div");
-    ropeTrack.className = "turn-timer-rope-track";
-    const ropeFill = document.createElement("div");
-    ropeFill.className = "turn-timer-rope-fill";
-    ropeTrack.appendChild(ropeFill);
-    card.appendChild(ropeTrack);
+  const track = document.createElement("div");
+  track.className = "turn-timer-rope-track";
 
-    hudEl.appendChild(card);
-    seatCardRefs[seat] = { card, stockEl, ropeFill };
-  }
-  updateHudValues();
+  ropeStrandEl = document.createElement("div");
+  ropeStrandEl.className = "turn-timer-rope-strand";
+  track.appendChild(ropeStrandEl);
+
+  ropeTipEl = document.createElement("div");
+  ropeTipEl.className = "turn-timer-rope-tip";
+  const spark = document.createElement("div");
+  spark.className = "turn-timer-rope-spark";
+  const hourglass = document.createElement("div");
+  hourglass.className = "turn-timer-rope-hourglass";
+  hourglass.textContent = "⏳";
+  ropeHourglassCountEl = document.createElement("span");
+  ropeHourglassCountEl.className = "turn-timer-rope-hourglass-count";
+  hourglass.appendChild(ropeHourglassCountEl);
+  ropeTipEl.appendChild(spark);
+  ropeTipEl.appendChild(hourglass);
+  track.appendChild(ropeTipEl);
+
+  const nameEl = document.createElement("div");
+  nameEl.className = "turn-timer-rope-name";
+  track.appendChild(nameEl);
+  ropeEl.appendChild(track);
+  ropeEl._nameEl = nameEl;
+
+  document.body.appendChild(ropeEl);
+}
+
+function getPieceColor(seat) {
+  const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === seat);
+  return piece ? piece.color : null;
 }
 
 // tick()から高頻度に呼ばれる、DOM更新だけを行う軽量な部分（stateへのdispatchは行わない）。
-function updateHudValues() {
-  const state = getState();
-  const now = Date.now();
-  for (const [seat, refs] of Object.entries(seatCardRefs)) {
-    const stock = state.hourglassStock[seat] ?? 0;
-    refs.stockEl.textContent = `⏳ × ${stock}`;
-    const isPriorityHolder = state.priorityPlayer === seat;
-    refs.card.classList.toggle("is-priority-holder", isPriorityHolder);
-    if (isPriorityHolder && state.priorityDeadline) {
-      const remaining = state.priorityDeadline - now;
-      const totalMs = getRopeBaseSeconds() * 1000;
-      const ratio = Math.max(0, Math.min(1, remaining / totalMs));
-      refs.ropeFill.style.transform = `scaleX(${ratio})`;
-      refs.card.classList.toggle("is-timed-out", remaining <= 0);
-    } else {
-      refs.card.classList.remove("is-timed-out");
-    }
+function updateRope(state) {
+  const inExtension =
+    isTurnTimerEnabled() && state.turnPlayer && state.priorityPlayer && state.priorityPhase === "extension";
+  if (!inExtension) {
+    if (ropeEl) ropeEl.style.display = "none";
+    return;
   }
+  ropeEl.style.display = "block";
+  const totalMs = getRopeExtensionSeconds() * 1000;
+  const remaining = state.priorityDeadline - Date.now();
+  const ratio = Math.max(0, Math.min(1, remaining / totalMs));
+  ropeStrandEl.style.width = `${ratio * 100}%`;
+  ropeTipEl.style.left = `${ratio * 100}%`;
+  const color = getPieceColor(state.priorityPlayer);
+  ropeEl.style.setProperty("--turn-timer-rope-color", color ? `var(--color-${color})` : "#eab308");
+  ropeHourglassCountEl.textContent = state.hourglassStock[state.priorityPlayer] ?? 0;
+  ropeEl._nameEl.textContent = `${getPlayerName(state.priorityPlayer)}の砂時計が燃えています`;
 }
 
 // --- #end-turn-buttonのそばに出す警告バッジ ---------------------------------------------
@@ -224,21 +250,29 @@ function rebuildTransferButtons() {
     btn.className = "priority-transfer-btn";
     btn.textContent = getPlayerName(seat).slice(0, 2);
     btn.title = `${getPlayerName(seat)}に優先権を渡す`;
-    btn.addEventListener("click", () => setPriority(seat, freshDeadline()));
+    // 優先権の譲渡自体は基本時間の窓から仕切り直す（受け取った側にロープなしの
+    // 基本時間をまるまる与える）。
+    btn.addEventListener("click", () => setPriority(seat, freshBaseDeadline(), "base"));
     transferButtonsEl.appendChild(btn);
   }
 }
 
-// --- ティック（描画のみ。stateへのdispatchはタイムアウト時の砂時計自動消費のみ） -----------
+// --- ティック（描画のみ。stateへのdispatchは基本/延長時間切れの遷移のみ） -------------------
 
 function tick() {
-  if (!isTurnTimerEnabled()) return;
+  if (!isTurnTimerEnabled()) {
+    updateWarning(false);
+    if (ropeEl) ropeEl.style.display = "none";
+    return;
+  }
   const state = getState();
   if (!state.turnPlayer || !state.priorityPlayer || !state.priorityDeadline) {
     updateWarning(false);
+    if (ropeEl) ropeEl.style.display = "none";
     return;
   }
-  updateHudValues();
+  updateSelfStock(state);
+  updateRope(state);
 
   const remaining = state.priorityDeadline - Date.now();
   if (remaining > 0) {
@@ -246,20 +280,46 @@ function tick() {
     return;
   }
 
-  // ロープが燃え尽きた。ストックがあれば自動で消費して延長する（これは元の仕様通り
-  // 自動で行う）。無ければ、強制力を持たせずあくまで警告表示だけに留める。
   const stock = state.hourglassStock[state.priorityPlayer] ?? 0;
-  if (stock > 0) {
-    hourglassUsedThisTurn[state.priorityPlayer] = true;
-    withGuard(() => {
-      setHourglassStock(state.priorityPlayer, stock - 1);
-      setPriority(state.priorityPlayer, Date.now() + getRopeExtensionSeconds() * 1000);
-    });
-    updateWarning(false);
+
+  if (state.priorityPhase === "base") {
+    // 基本時間が切れた。ストックがあれば、ここで初めて延長ロープを出現させる
+    // （まだ正式には消費しない＝仮消費。行動すれば持ち越せる）。無ければ延長できないので
+    // 基本時間切れのまま警告表示のみ。
+    if (stock > 0) {
+      withGuard(() => setPriority(state.priorityPlayer, Date.now() + getRopeExtensionSeconds() * 1000, "extension"));
+    } else {
+      updateWarning(state.priorityPlayer === state.turnPlayer);
+    }
     return;
   }
 
-  updateWarning(state.priorityPlayer === state.turnPlayer);
+  // 延長ロープも燃え尽きた＝行動が無いまま延長時間を使い切った。ここで初めて砂時計を
+  // 正式に1個消費する。まだ残っていれば連続してもう1本ロープを燃やす。
+  // stockが既に0の場合（この分岐に前回既に入っていて消費し切っている）は、ここで
+  // 何もdispatchせず素通りする（後述のphase:"base"への遷移で既に安定状態のはず）。
+  if (stock <= 0) {
+    updateWarning(state.priorityPlayer === state.turnPlayer);
+    return;
+  }
+  hourglassUsedThisTurn[state.priorityPlayer] = true;
+  const nextStock = stock - 1;
+  if (nextStock > 0) {
+    withGuard(() => {
+      setHourglassStock(state.priorityPlayer, nextStock);
+      setPriority(state.priorityPlayer, Date.now() + getRopeExtensionSeconds() * 1000, "extension");
+    });
+    updateWarning(false);
+  } else {
+    // 最後の1個も使い切った。ロープを消して警告表示だけの安定状態(phase:"base")に戻す
+    // （ここで一度だけdispatchすれば、以降は上のstock<=0の早期returnで毎ティックの
+    // 無駄な再dispatchを避けられる）。
+    withGuard(() => {
+      setHourglassStock(state.priorityPlayer, nextStock);
+      setPriority(state.priorityPlayer, state.priorityDeadline, "base");
+    });
+    updateWarning(state.priorityPlayer === state.turnPlayer);
+  }
 }
 
 // 管理者モードのマスタースイッチを試合の途中でONにした場合、prevTurnPlayerの追跡は
@@ -275,17 +335,20 @@ function ensureInitializedIfNeeded() {
 }
 
 export function initTurnTimer() {
-  buildHud();
+  buildSelfStock();
+  buildRope();
   buildWarning();
   buildTransferButtons();
   subscribe((state) => {
     onStateChange(state);
+    updateSelfStock(state);
     rebuildTransferButtons();
   });
   window.addEventListener("admin:change", () => {
     ensureInitializedIfNeeded();
-    rebuildHud();
+    updateSelfStock(getState());
     rebuildTransferButtons();
+    if (!isTurnTimerEnabled() && ropeEl) ropeEl.style.display = "none";
   });
   setInterval(tick, 200);
 }

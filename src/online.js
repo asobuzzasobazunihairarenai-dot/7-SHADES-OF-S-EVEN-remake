@@ -355,6 +355,24 @@ export async function listOpenRooms() {
   return data ?? [];
 }
 
+// 自分がまだ座席を持ったままの、対局中（status<>'open'）の部屋一覧。誤って「この部屋を
+// 離れる」を押した・ブラウザを閉じて放置した等で今画面には出ていないが、so7_leave_room側の
+// 変更によりサーバー上には座席がまだ残っている対局を、部屋一覧画面から見つけて再開できる
+// ようにするためのもの。so7_game_seats/so7_gamesとも既存のRLS（using(true)）でそのまま
+// 読めるため、専用のSECURITY DEFINER関数は不要。
+export async function getMyActiveGames() {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const { data, error } = await client
+    .from("so7_game_seats")
+    .select("game_id, so7_games(name, status)")
+    .eq("user_id", user.id);
+  if (error) throw error;
+  return (data ?? [])
+    .filter((row) => row.so7_games && row.so7_games.status !== "open")
+    .map((row) => ({ id: row.game_id, name: row.so7_games.name || "セブンの部屋" }));
+}
+
 // 部屋名（ゲーム開始後も含め、部屋にいる間ずっと表示するため）。so7_games_listは
 // status='openの部屋しか含まないため、開始後の部屋にも使えるようso7_gamesから直接取る
 // （name列自体は秘匿の必要が無い、既存のso7_games_select using(true)のまま読める）。

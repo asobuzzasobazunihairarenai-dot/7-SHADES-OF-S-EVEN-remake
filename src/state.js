@@ -92,6 +92,7 @@ function createInitialState() {
     // （見た目に影響しない内部カウンタのため、共有stateには持たせない）。
     priorityPlayer: null,
     priorityDeadline: null,
+    priorityPhase: null, // "base"（ロープ非表示）| "extension"（ロープ表示、砂時計消費中）
     hourglassStock: {},
   };
 }
@@ -242,6 +243,7 @@ function reduce(current, action) {
         startPlayer: null,
         priorityPlayer: null,
         priorityDeadline: null,
+        priorityPhase: null,
         hourglassStock: {},
       };
     }
@@ -287,11 +289,13 @@ function reduce(current, action) {
     case "SET_TURN_PLAYER": {
       return { ...current, turnPlayer: action.player, turnNumber: 1, roundNumber: 1, startPlayer: action.player };
     }
-    // ターンタイマー（src/turn-timer.js）専用。優先権の所在と、現在のロープが燃え尽きる
-    // 時刻を更新するだけの薄いケース（ターン開始時の初期化・行動によるロープリセット・
-    // 優先権の譲渡・砂時計消費後の延長、全てturn-timer.js側がdeadlineを計算してこれを呼ぶ）。
+    // ターンタイマー（src/turn-timer.js）専用。優先権の所在・現在の窓が燃え尽きる時刻・
+    // 今が「基本時間（ロープ非表示）」か「延長（ロープ表示、砂時計を1個仮消費中）」かを
+    // 更新するだけの薄いケース。ターン開始時の初期化・行動によるリセット・優先権の譲渡・
+    // 基本時間切れでの延長開始・延長の連続消費、全てturn-timer.js側がdeadline/phaseを
+    // 計算してこれを呼ぶ。
     case "SET_PRIORITY": {
-      return { ...current, priorityPlayer: action.player, priorityDeadline: action.deadline };
+      return { ...current, priorityPlayer: action.player, priorityDeadline: action.deadline, priorityPhase: action.phase };
     }
     // ターンタイマー専用。座席ごとの砂時計の残り数を直接設定する（消費時のdecrement・
     // 補充時のincrement、どちらもturn-timer.js側が計算した値をそのまま渡すだけの汎用setter）。
@@ -485,8 +489,8 @@ export function nextTurn() {
 
 // ターンタイマー（src/turn-timer.js）専用のローカル専用アクション。他のオンライン非対応
 // アクション（gateInvasionStealHand等）と同じくdispatch()を直接呼ぶだけ。
-export function setPriority(player, deadline) {
-  dispatch({ type: "SET_PRIORITY", player, deadline });
+export function setPriority(player, deadline, phase) {
+  dispatch({ type: "SET_PRIORITY", player, deadline, phase });
 }
 export function setHourglassStock(player, value) {
   dispatch({ type: "SET_HOURGLASS_STOCK", player, value });

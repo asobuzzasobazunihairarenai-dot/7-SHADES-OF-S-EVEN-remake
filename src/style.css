@@ -50,7 +50,7 @@ body {
   --camera-perspective-origin-y: 8.4rem;
   /* カメラの上下(Y軸)方向の平行移動。fitTableToViewport()内でtranslate()として
      rotateX/scale3dより先に足す（rem絶対量なので、盤面拡大時のscale3dの影響を受けない）。 */
-  --camera-offset-y: 0rem;
+  --camera-offset-y: -1.7rem;
   /* カメラのズーム。ビューポートに自動フィットさせた基準の倍率(applyNormalFit/
      applyBoardZoomFitがそれぞれ計算するscale)に、さらに掛け合わせる係数。1が等倍
      （今までの自動フィットのまま）。「盤面拡大」ボタンの拡大レベルとは独立していて、
@@ -70,12 +70,13 @@ body {
   --board-zoom-2-offset-y: -2.5rem;
   --board-zoom-2-reference-height: 800px;
   /* フェイズ案内板（画面下部中央）の位置・1項目あたりのサイズ。管理者モードで調整可能。 */
-  --phase-guide-bottom: 1.2rem;
-  --phase-guide-item-width: 6rem;
-  --phase-guide-item-height: 2.2rem;
-  /* ターンタイマー（ロープ・砂時計HUD・優先権譲渡ボタン）の位置。管理者モードで調整可能。 */
-  --turn-timer-hud-pos-x: 0rem;
-  --turn-timer-hud-pos-y: 0rem;
+  --phase-guide-bottom: 0rem;
+  --phase-guide-item-width: 9rem;
+  --phase-guide-item-height: 1rem;
+  /* ターンタイマー（画面中央のロープ・優先権譲渡ボタン）の位置。管理者モードで調整可能。 */
+  --turn-timer-rope-pos-x: 0rem;
+  --turn-timer-rope-pos-y: 0rem;
+  --turn-timer-rope-width: 46rem;
   --priority-transfer-pos-x: 0rem;
   --priority-transfer-pos-y: 0rem;
 }
@@ -806,70 +807,121 @@ body {
   font-size: 0.85rem;
 }
 
-/* ターンタイマー（ロープ・砂時計HUD）。画面上部中央に固定表示する横並びの座席カード。
-   管理者モードのマスタースイッチがオフの間・ゲーム開始前はturn-timer.js側で非表示にする
-   （display:noneの付け外しはJS側の責務、ここはレイアウトのみ担当）。 */
-#turn-timer-hud {
-  position: fixed;
-  top: 4.5rem;
-  left: 50%;
-  transform: translate(calc(-50% + var(--turn-timer-hud-pos-x)), var(--turn-timer-hud-pos-y));
-  z-index: 950;
-  display: flex;
-  gap: 0.5rem;
-  font-family: sans-serif;
-}
-.turn-timer-seat-card {
-  min-width: 6rem;
-  padding: 0.35rem 0.6rem;
-  background: rgba(15, 23, 32, 0.85);
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  border-radius: 0.4rem;
-  color: #e2e8f0;
+/* 自分専用の砂時計個数バッジ。#self-hand-status（左下ステータスエリア）の中に
+   turn-timer.js側が直接appendする。ターンタイマーが有効かつゲーム中だけ表示。 */
+.turn-timer-self-stock {
   font-size: 0.75rem;
-  text-align: center;
-}
-.turn-timer-seat-card.is-timed-out {
-  animation: turn-timer-warning-blink 1s ease-in-out infinite;
-}
-.turn-timer-seat-name {
-  font-weight: bold;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.turn-timer-seat-stock {
-  font-size: 0.7rem;
   color: #94a3b8;
-  margin-top: 0.1rem;
+}
+
+/* 画面中央、プレイマットを横断するスケールで出現する神秘的なオーラのロープ。基本時間
+   （管理者モードのropeBaseSeconds、無音・無表示）が切れて初めて、延長時間（同
+   ropeExtensionSeconds）ぶんだけ出現する——「1回の行動」の基本時間そのものにはロープを
+   出さない、というユーザー要望を反映。色は優先権を持つプレイヤーの駒の色
+   （turn-timer.js側が--turn-timer-rope-colorへ動的に設定、手番プレイヤーの駒の発光と
+   同じ「神秘的なオーラ」のトンマナ）。誰の延長中でも全プレイヤーに見える（自分のロープ
+   だけではない）。右端（火花＋砂時計）が左へ進みながら燃え尽きていく＝ロープ本体
+   (.turn-timer-rope-strand)の幅を右側から縮める。 */
+#turn-timer-rope {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(calc(-50% + var(--turn-timer-rope-pos-x)), calc(-50% + var(--turn-timer-rope-pos-y)));
+  z-index: 960;
+  width: var(--turn-timer-rope-width);
+  max-width: 90vw;
+  pointer-events: none;
+  --turn-timer-rope-color: #eab308;
 }
 .turn-timer-rope-track {
-  margin-top: 0.3rem;
-  height: 0.35rem;
-  border-radius: 0.2rem;
-  background: rgba(255, 255, 255, 0.1);
-  overflow: hidden;
-  display: none;
+  position: relative;
+  height: 1.6rem;
 }
-.turn-timer-seat-card.is-priority-holder .turn-timer-rope-track {
-  display: block;
-}
-.turn-timer-rope-fill {
-  height: 100%;
+.turn-timer-rope-strand {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 0.5rem;
   width: 100%;
-  background: linear-gradient(90deg, #22c55e, #eab308, #ef4444);
-  transform-origin: left center;
-  transition: transform 0.15s linear;
+  border-radius: 0.3rem;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--turn-timer-rope-color) 35%, transparent),
+    var(--turn-timer-rope-color)
+  );
+  box-shadow:
+    0 0 1.2rem 0.25rem color-mix(in srgb, var(--turn-timer-rope-color) 65%, transparent),
+    0 0 0.4rem color-mix(in srgb, var(--turn-timer-rope-color) 90%, white);
+  animation: turn-timer-rope-aura-pulse 1.4s ease-in-out infinite;
+}
+@keyframes turn-timer-rope-aura-pulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.4); }
+}
+.turn-timer-rope-tip {
+  position: absolute;
+  top: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translate(-50%, -50%);
+}
+.turn-timer-rope-spark {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff, var(--turn-timer-rope-color) 55%, transparent 75%);
+  animation: turn-timer-rope-spark-flicker 0.22s steps(2) infinite;
+  margin-bottom: 0.2rem;
+}
+@keyframes turn-timer-rope-spark-flicker {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.65) rotate(25deg); }
+  100% { opacity: 1; transform: scale(1.15) rotate(-15deg); }
+}
+.turn-timer-rope-hourglass {
+  position: relative;
+  font-size: 1.5rem;
+  line-height: 1;
+  filter: drop-shadow(0 0 0.5rem var(--turn-timer-rope-color));
+}
+.turn-timer-rope-hourglass-count {
+  position: absolute;
+  bottom: -0.35rem;
+  right: -0.7rem;
+  background: rgba(15, 23, 32, 0.9);
+  border: 1px solid var(--turn-timer-rope-color);
+  border-radius: 50%;
+  min-width: 1.1rem;
+  padding: 0 0.15rem;
+  font-size: 0.65rem;
+  font-family: sans-serif;
+  font-weight: bold;
+  color: #fff;
+  text-align: center;
+}
+.turn-timer-rope-name {
+  margin-top: 0.9rem;
+  text-align: center;
+  font-family: sans-serif;
+  font-size: 0.75rem;
+  font-weight: bold;
+  color: var(--turn-timer-rope-color);
+  text-shadow: 0 0 0.5rem var(--turn-timer-rope-color);
 }
 
 /* 優先権譲渡ボタン。activePlayersから自分の座席を除いた最大3座席分を三角形に配置する
    （1つを上段中央、2つを下段左右）。誰でも押せる自己申告制（このゲーム全体の設計方針通り、
    押した本人が今優先権を持っているかは問わない）。 */
+/* 右下（1枚ドロー〜ターン終了の縦積みボタン列）・左下（自分専用ステータス）どちらとも
+   重ならない、画面下部中央寄りの位置がデフォルト（右下固定だと#draw-button等の縦積みボタン
+   列とちょうど重なってしまっていたため変更）。 */
 #priority-transfer-buttons {
   position: fixed;
-  bottom: 8.5rem;
-  right: 1.2rem;
-  transform: translate(var(--priority-transfer-pos-x), var(--priority-transfer-pos-y));
+  bottom: 4rem;
+  left: 50%;
+  transform: translate(calc(-50% + var(--priority-transfer-pos-x)), var(--priority-transfer-pos-y));
   z-index: 950;
   display: grid;
   grid-template-columns: repeat(2, 2.6rem);

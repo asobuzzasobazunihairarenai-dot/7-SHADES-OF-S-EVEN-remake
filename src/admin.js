@@ -24,7 +24,7 @@ const GROUPS = [
       { key: "--table-tilt", label: "テーブルの傾き", unit: "deg", min: 0, max: 70, step: 1, default: 42 },
       { key: "--camera-perspective", label: "カメラ距離（小さいほど遠近感が強い）", unit: "px", min: 500, max: 3000, step: 10, default: 1150 },
       { key: "--camera-perspective-origin-y", label: "消失点の高さ（画面上端からの距離、ウィンドウサイズに依存しない固定値）", unit: "rem", min: 0, max: 20, step: 0.1, default: 8.4 },
-      { key: "--camera-offset-y", label: "上下（Y軸）位置", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--camera-offset-y", label: "上下（Y軸）位置", unit: "rem", min: -20, max: 20, step: 0.1, default: -1.7 },
       { key: "--camera-zoom", label: "ズーム", unit: "", min: 0.3, max: 2.5, step: 0.01, default: 1 },
     ],
   },
@@ -96,17 +96,18 @@ const GROUPS = [
     title: "フェイズ案内板（画面下部中央）",
     category: "position",
     controls: [
-      { key: "--phase-guide-bottom", label: "Y位置（画面下端からの距離）", unit: "rem", min: 0, max: 20, step: 0.1, default: 1.2 },
-      { key: "--phase-guide-item-width", label: "1項目の幅", unit: "rem", min: 2, max: 20, step: 0.1, default: 6 },
-      { key: "--phase-guide-item-height", label: "1項目の高さ", unit: "rem", min: 1, max: 10, step: 0.1, default: 2.2 },
+      { key: "--phase-guide-bottom", label: "Y位置（画面下端からの距離）", unit: "rem", min: 0, max: 20, step: 0.1, default: 0 },
+      { key: "--phase-guide-item-width", label: "1項目の幅", unit: "rem", min: 2, max: 20, step: 0.1, default: 9 },
+      { key: "--phase-guide-item-height", label: "1項目の高さ", unit: "rem", min: 1, max: 10, step: 0.1, default: 1 },
     ],
   },
   {
-    title: "ターンタイマーHUDの位置調整",
+    title: "ターンタイマー：中央ロープの位置調整",
     category: "position",
     controls: [
-      { key: "--turn-timer-hud-pos-x", label: "位置X", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
-      { key: "--turn-timer-hud-pos-y", label: "位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--turn-timer-rope-pos-x", label: "位置X", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--turn-timer-rope-pos-y", label: "位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--turn-timer-rope-width", label: "幅（プレイマットを横断するスケール）", unit: "rem", min: 10, max: 70, step: 0.5, default: 46 },
     ],
   },
   {
@@ -338,7 +339,11 @@ function buildNumberRow(label, value, { min, max, step = 1, unit = "" }, onChang
   input.max = String(max);
   input.step = String(step);
   input.value = String(value);
-  input.style.cssText = "width: 4.5rem;";
+  // 明示的に背景・文字色を指定しないと、この管理者パネルの暗い配色の下でinput[type=number]の
+  // 既定スタイル（薄いグレー文字）が読めないほど薄くなってしまうため、出力欄(#admin-export)と
+  // 同系統の配色を明示する。
+  input.style.cssText =
+    "width: 4.5rem; background: #0f1520; color: #f1f5f9; border: 1px solid rgba(148,163,184,0.4); border-radius: 0.25rem; padding: 0.15rem 0.3rem;";
   input.addEventListener("change", () => {
     const num = Number(input.value);
     if (!Number.isFinite(num)) return;

@@ -14,6 +14,7 @@ import {
   createRoom,
   joinRoom,
   listOpenRooms,
+  getMyActiveGames,
   getRoomName,
   getMemberCount,
   getCurrentGameId,
@@ -374,6 +375,40 @@ async function renderRoomChoice(user) {
   // 「オンライン対戦（）」のように空の括弧が表示されるバグになっていた）。
   title.textContent = `🌐 オンライン対戦（${user.email || "匿名ユーザー"}）`;
   contentEl.appendChild(title);
+
+  // 誤って「この部屋を離れる」を押した・ブラウザを閉じて放置した等で今は部屋の外にいるが、
+  // サーバー上にはまだ自分の座席が残っている対局中の部屋があれば、ここに表示して
+  // ワンクリックで再開できるようにする（so7_leave_room/so7_join_room側の変更と対）。
+  try {
+    const activeGames = await getMyActiveGames();
+    if (activeGames.length > 0) {
+      const resumeLabel = document.createElement("div");
+      resumeLabel.style.cssText = "font-size: 0.85rem; margin-bottom: 0.3rem;";
+      resumeLabel.textContent = "進行中の対局（途中退出した部屋）:";
+      contentEl.appendChild(resumeLabel);
+      for (const game of activeGames) {
+        const resumeBtn = textButton(`▶ ${game.name} を再開`);
+        resumeBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box; margin-bottom: 0.4rem;";
+        resumeBtn.addEventListener("click", async () => {
+          resumeBtn.disabled = true;
+          try {
+            await joinRoom(game.id);
+            history.replaceState(null, "", `?room=${game.id}`);
+            await renderPanelContent();
+          } catch (err) {
+            alert(`再開に失敗しました: ${err.message ?? err}`);
+            resumeBtn.disabled = false;
+          }
+        });
+        contentEl.appendChild(resumeBtn);
+      }
+      const resumeDivider = document.createElement("div");
+      resumeDivider.style.cssText = "border-top: 1px solid rgba(148, 163, 184, 0.3); margin: 0.6rem 0;";
+      contentEl.appendChild(resumeDivider);
+    }
+  } catch (err) {
+    // 取れなくても部屋の作成・一覧自体は引き続き使えるようにしておく
+  }
 
   // 「部屋を作成」フォームは最初は畳んでおき、押した時だけ名前/パスワード入力を出す。
   const createToggleBtn = textButton("＋ 部屋を作成");

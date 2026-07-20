@@ -313,6 +313,15 @@ declare
   stored_hash text;
   profile record;
 begin
+  -- 既にこの部屋に自分の座席がある場合（対局中に誤って「この部屋を離れる」を押した後の
+  -- 再参加や、ブラウザを閉じて放置した後に再度アクセスした場合等）は、パスワードの再照合も
+  -- プロフィールの再コピーもせず、そのまま成功扱いにする——元の座席・色をそのまま引き継いで
+  -- 途中から再開できるようにするため（so7_leave_room側で対局中は座席を削除しないように
+  -- なったことと対になる変更）。
+  if exists (select 1 from so7_game_seats where game_id = p_game_id and user_id = auth.uid()) then
+    return;
+  end if;
+
   select password_hash into stored_hash from so7_game_passwords where game_id = p_game_id;
   if stored_hash is not null then
     if p_password_attempt is null or crypt(p_password_attempt, stored_hash) <> stored_hash then
@@ -365,7 +374,19 @@ language plpgsql
 security definer
 set search_path = public, extensions
 as $$
+declare
+  game_status text;
 begin
+  select status into game_status from so7_games where id = p_game_id;
+  -- 対局中（ロビー=open以外）の部屋では座席を削除しない。誤って「この部屋を離れる」を
+  -- 押しても、同じアカウントで再度参加すれば元の座席・色のまま途中から再開できるように
+  -- するため（＝ブラウザを閉じて放置した場合と同じ扱いに統一する）。座席の掃除は
+  -- so7_cleanup_stale_rooms()の「対局中は全座席が24時間動きが無い場合のみ削除」という
+  -- 既存ルールにそのまま任せる。ロビー（開始前）の部屋は今まで通り即座に座席を削除し、
+  -- 誰もいなくなれば部屋ごと削除する。
+  if game_status is not null and game_status <> 'open' then
+    return;
+  end if;
   delete from so7_game_seats where game_id = p_game_id and user_id = auth.uid();
   if not exists (select 1 from so7_game_seats where game_id = p_game_id) then
     delete from so7_games where id = p_game_id;
