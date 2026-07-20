@@ -93,6 +93,15 @@ const GROUPS = [
     ],
   },
   {
+    title: "フェイズ案内板（画面下部中央）",
+    category: "position",
+    controls: [
+      { key: "--phase-guide-bottom", label: "Y位置（画面下端からの距離）", unit: "rem", min: 0, max: 20, step: 0.1, default: 1.2 },
+      { key: "--phase-guide-item-width", label: "1項目の幅", unit: "rem", min: 2, max: 20, step: 0.1, default: 6 },
+      { key: "--phase-guide-item-height", label: "1項目の高さ", unit: "rem", min: 1, max: 10, step: 0.1, default: 2.2 },
+    ],
+  },
+  {
     title: "駒の当たり判定（ホバーすると発光する範囲）",
     category: "position",
     controls: [

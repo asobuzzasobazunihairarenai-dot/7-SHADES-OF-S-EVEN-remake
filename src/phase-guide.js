@@ -91,6 +91,7 @@ function buildPhaseButton(phase) {
   btn.dataset.phase = phase.id;
 
   const labelEl = document.createElement("span");
+  labelEl.className = "phase-guide-item-label";
   labelEl.textContent = phase.label;
   btn.appendChild(labelEl);
 
