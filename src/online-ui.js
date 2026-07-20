@@ -569,6 +569,21 @@ async function renderRoomStatus(gameId) {
   }
 
   if (!mySeat && count >= 2) {
+    // ターンタイマーを使うかどうか。ここで決めた値が対局全体で固定される
+    // （src/online.jsのstartGame()参照、不公平にならないよう対局中は変更できない）。
+    // デフォルトはON——管理者モードの中まで潜らないと有効化できないと気づかれにくい、
+    // というユーザー報告への対応。
+    const timerRow = document.createElement("label");
+    timerRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0.5rem; font-size: 0.85rem;";
+    const timerCheckbox = document.createElement("input");
+    timerCheckbox.type = "checkbox";
+    timerCheckbox.checked = true;
+    const timerLabel = document.createElement("span");
+    timerLabel.textContent = "⏳ ターンタイマーを使用する";
+    timerRow.appendChild(timerCheckbox);
+    timerRow.appendChild(timerLabel);
+    contentEl.appendChild(timerRow);
+
     const startBtn = textButton("ゲームを開始する");
     // ログインパネルのボタン（renderLoginForm）と同じ理由で、display:blockを明示しないと
     // .header-tool-buttonの既定表示(inline-block)のせいで「この部屋を離れる」ボタンと
@@ -577,7 +592,7 @@ async function renderRoomStatus(gameId) {
     startBtn.addEventListener("click", async () => {
       startBtn.disabled = true;
       try {
-        await startGame(gameId);
+        await startGame(gameId, { timerEnabled: timerCheckbox.checked });
         closePanel();
       } catch (err) {
         alert(err.message ?? String(err));

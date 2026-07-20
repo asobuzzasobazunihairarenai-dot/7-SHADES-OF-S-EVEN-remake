@@ -19,6 +19,7 @@ import {
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS } from "./player-identity.js";
 import { applyAvatarContent } from "./avatar-render.js";
+import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { getSelectedPlaymatPath } from "./playmat.js";
 import { isLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible } from "./lock-color.js";
@@ -732,7 +733,7 @@ function render() {
   // オンライン対戦（第一弾）ではまだサーバー側にポートしていないアクション（セットアップ
   // ウィザード・クイックスタート・手札シャッフル）に繋がるボタンを隠す（style.css参照）。
   document.body.classList.toggle("is-online-mode", isOnlineMode());
-  updateOnlineButtonLabel();
+  updateSelfStatusOnlineWidget();
   const table = document.getElementById("game-table");
   table.innerHTML = "";
   // オンライン対戦では「自分」が実際にログインしている座席になる（ローカルモードでは
@@ -1730,55 +1731,76 @@ async function onDragEnd(e) {
   render();
 }
 
-// --- オンライン対戦（第一弾・最小構成）の入り口ボタン -------------------------------
-// 右上、ターン/ラウンド数表示の下に置く（歯車アイコンが最も右上・その左にターン/ラウンド
-// 数、という並びの続き）。
-let onlineButtonEl = null;
+// --- オンライン対戦（第一弾・最小構成）の入り口 -------------------------------------
+// 以前は右上に独立した「🌐」テキストボタンだったが、ユーザー要望により左下の自分専用
+// ステータスエリア（#self-hand-status、buildSelfHandStatus参照）内へ統合し、状態を
+// アイコン画像（ログアウト中/ログイン中/入室中の3種）で表現するようにした。
+let selfStatusOnlineEl = null;
+let selfStatusOnlineCaptionEl = null;
+let selfStatusOnlineTooltipEl = null;
 
-function buildOnlineButton() {
+const ONLINE_STATUS_ICONS = {
+  loggedOut: "assets/icons/status-logged-out.svg",
+  loggedIn: "assets/icons/status-logged-in.svg",
+  inRoom: "assets/icons/status-in-room.svg",
+};
+
+function buildSelfStatusOnlineWidget() {
   const btn = document.createElement("button");
-  btn.id = "online-toggle-button";
-  btn.className = "header-tool-button";
-  btn.textContent = "🌐 オンライン";
-  btn.style.cssText = `
-    position: fixed; top: 2.3rem; right: 1rem; z-index: 1001;
-    padding: 0.4rem 0.7rem; background: rgba(15, 23, 32, 0.85); color: #e2e8f0;
-    border: 1px solid rgba(148, 163, 184, 0.4); border-radius: 0.4rem; cursor: pointer;
-    font-family: sans-serif; font-size: 0.75rem;
-  `;
-  btn.addEventListener("click", openOnlinePanel);
-  onlineButtonEl = btn;
+  btn.id = "self-status-online";
+  const { captionEl, tooltipEl } = buildIconButtonContent(btn, {
+    icon: ONLINE_STATUS_ICONS.loggedOut,
+    tooltip: "",
+  });
+  selfStatusOnlineCaptionEl = captionEl;
+  selfStatusOnlineTooltipEl = tooltipEl;
+  wireIconButtonClick(btn, {
+    detailTitle: "オンライン対戦",
+    detailParagraphs: [
+      "ログインすると、離れた場所にいる友達と部屋を作って対局できます（ログアウト中/ログイン中/入室中の3つの状態をアイコンで表します）。",
+      "入室中は、アイコンの下に部屋名が小さく表示されます。クリックすると部屋の詳細（参加人数・退室等）を開けます。",
+    ],
+    onAction: openOnlinePanel,
+  });
+  selfStatusOnlineEl = btn;
   return btn;
 }
 
 // 部屋名は改名不可（作成時に固定）なので、gameIdごとに1回だけ取得してキャッシュする
-// （render()のたびに呼ばれるupdateOnlineButtonLabel()から毎回DB問い合わせしないため）。
+// （render()のたびに呼ばれるupdateSelfStatusOnlineWidget()から毎回DB問い合わせしないため）。
 let cachedRoomNameGameId = null;
 let cachedRoomName = null;
 
-// ログイン中かどうか・どの部屋にいるかを、パネルを開かなくてもボタンのラベルだけで
-// さりげなく分かるようにする（ユーザー提案）。部屋名の表示は非同期取得のため、取得できる
-// までは部屋コードを暫定表示し、取得でき次第ラベルを差し替える。
-function updateOnlineButtonLabel() {
-  if (!onlineButtonEl) return;
+// ログイン中かどうか・どの部屋にいるかを、パネルを開かなくてもアイコン+キャプションだけで
+// さりげなく分かるようにする。部屋名の表示は非同期取得のため、取得できるまでは部屋コードを
+// 暫定表示し、取得でき次第キャプションを差し替える。
+function updateSelfStatusOnlineWidget() {
+  if (!selfStatusOnlineEl) return;
+  const img = selfStatusOnlineEl.querySelector(".icon-action-button-icon-img");
   const gameId = getCurrentGameId();
   if (gameId) {
+    img.src = ONLINE_STATUS_ICONS.inRoom;
+    selfStatusOnlineTooltipEl.textContent = "オンライン対戦中です。クリックで部屋の詳細を開きます";
     if (cachedRoomNameGameId === gameId) {
-      onlineButtonEl.textContent = `🌐 部屋:${cachedRoomName}`;
+      selfStatusOnlineCaptionEl.textContent = cachedRoomName;
     } else {
-      onlineButtonEl.textContent = `🌐 部屋:${gameId}`;
+      selfStatusOnlineCaptionEl.textContent = gameId;
       getRoomName(gameId)
         .then((name) => {
           cachedRoomNameGameId = gameId;
           cachedRoomName = name;
-          updateOnlineButtonLabel();
+          updateSelfStatusOnlineWidget();
         })
         .catch(() => {});
     }
   } else if (getCachedUser()) {
-    onlineButtonEl.textContent = "🌐 ログイン中";
+    img.src = ONLINE_STATUS_ICONS.loggedIn;
+    selfStatusOnlineTooltipEl.textContent = "ログイン中です。クリックでオンライン対戦の部屋一覧を開きます";
+    selfStatusOnlineCaptionEl.textContent = "ログイン中";
   } else {
-    onlineButtonEl.textContent = "🌐 オンライン";
+    img.src = ONLINE_STATUS_ICONS.loggedOut;
+    selfStatusOnlineTooltipEl.textContent = "オンライン対戦を始めるにはログインしてください";
+    selfStatusOnlineCaptionEl.textContent = "オンライン";
   }
 }
 
@@ -1787,32 +1809,46 @@ function updateOnlineButtonLabel() {
 // state.turnPlayerがまだnullの間は非表示にする。プレイヤー自身が操作するボタンなので、
 // 管理者モード等の開発者向けツール（左上/右上）とは離し、画面右下に置く。
 let endTurnButtonEl = null;
+let endTurnTooltipEl = null;
 
 function buildEndTurnButton() {
   const btn = document.createElement("button");
   btn.id = "end-turn-button";
-  btn.addEventListener("click", () => {
-    // オンライン中、自分の手番でない間はupdateEndTurnButton()側でdisabled=trueに
-    // しているはずだが、念のためここでも二重にガードする（他人のターンを勝手に
-    // 終了させられてしまうバグの再発防止）。
-    if (isOnlineMode() && getSelfSeat() !== getState().turnPlayer) return;
-    // ゲート侵攻ボーナス(GATE_INVASION_*)は、so7-apply-action.ts側でNEXT_TURN処理に
-    // 統合済み（サーバー側で自動判定・自動適用される）。オンライン中にrunGateInvasionsIfNeeded()
-    // を呼ぶとローカルだけに二重適用されサーバーの状態と食い違ってしまうため、
-    // オンライン中はnextTurn()だけを直接呼ぶ。
-    if (isOnlineMode()) {
-      nextTurn();
-      return;
-    }
-    // 侵攻条件を満たしている参加プレイヤーが誰もいなければrunGateInvasionsIfNeededは
-    // 即座にdone()を呼ぶだけなので、普段のターン終了と体感は変わらない。満たしていれば
-    // （手番プレイヤー本人とは限らない。効果等で自分のターンでなくても相手ゲートに
-    // 駒がいることはあり得るため、手番プレイヤーに限らず全参加プレイヤーを対象にする）
-    // ボーナス処理の3つのポップアップが終わってから初めてnextTurn()が呼ばれる。
-    runGateInvasionsIfNeeded(() => {
-      nextTurn();
-      render();
-    });
+  const { captionEl, tooltipEl } = buildIconButtonContent(btn, {
+    icon: "assets/icons/end-turn.svg",
+    tooltip: "",
+  });
+  captionEl.textContent = "ターン終了";
+  endTurnTooltipEl = tooltipEl;
+  wireIconButtonClick(btn, {
+    detailTitle: "ターン終了",
+    detailParagraphs: [
+      "自分のターンを終え、次のプレイヤーへ手番を渡します。",
+      "相手のゲートに自分の駒が乗っている場合、ターン終了時に「相手ゲート侵攻ボーナス」が自動的に処理されます。",
+    ],
+    onAction: () => {
+      // オンライン中、自分の手番でない間はupdateEndTurnButton()側でdisabled=trueに
+      // しているはずだが、念のためここでも二重にガードする（他人のターンを勝手に
+      // 終了させられてしまうバグの再発防止）。
+      if (isOnlineMode() && getSelfSeat() !== getState().turnPlayer) return;
+      // ゲート侵攻ボーナス(GATE_INVASION_*)は、so7-apply-action.ts側でNEXT_TURN処理に
+      // 統合済み（サーバー側で自動判定・自動適用される）。オンライン中にrunGateInvasionsIfNeeded()
+      // を呼ぶとローカルだけに二重適用されサーバーの状態と食い違ってしまうため、
+      // オンライン中はnextTurn()だけを直接呼ぶ。
+      if (isOnlineMode()) {
+        nextTurn();
+        return;
+      }
+      // 侵攻条件を満たしている参加プレイヤーが誰もいなければrunGateInvasionsIfNeededは
+      // 即座にdone()を呼ぶだけなので、普段のターン終了と体感は変わらない。満たしていれば
+      // （手番プレイヤー本人とは限らない。効果等で自分のターンでなくても相手ゲートに
+      // 駒がいることはあり得るため、手番プレイヤーに限らず全参加プレイヤーを対象にする）
+      // ボーナス処理の3つのポップアップが終わってから初めてnextTurn()が呼ばれる。
+      runGateInvasionsIfNeeded(() => {
+        nextTurn();
+        render();
+      });
+    },
   });
   document.body.appendChild(btn);
   return btn;
@@ -1825,15 +1861,19 @@ function updateEndTurnButton() {
     endTurnButtonEl.style.display = "none";
     return;
   }
-  endTurnButtonEl.style.display = "block";
+  endTurnButtonEl.style.display = "flex";
   // オンライン中は「今誰のターンか」を明示し、自分の手番でない間は押せないようにする
   // （以前は誰でも他人のターンを終了させられてしまっていた）。ローカルモードは
   // 1人で全座席を操作する前提のため、従来通り常に有効・宛先の座席名を表示する。
+  // 動的な文言はキャプション（常に「ターン終了」固定）ではなく、ホバー時のツールチップへ
+  // 表示するようにした（キャプションは他の右下ボタンと揃えて短く固定したいため）。
   if (isOnlineMode() && getSelfSeat() !== turnPlayer) {
-    endTurnButtonEl.textContent = `今は${getPlayerName(turnPlayer)}のターン中です`;
+    if (endTurnTooltipEl) endTurnTooltipEl.textContent = `今は${getPlayerName(turnPlayer)}のターン中です`;
     endTurnButtonEl.disabled = true;
   } else {
-    endTurnButtonEl.textContent = isOnlineMode() ? "自分のターンを終了 →" : `${getPlayerName(turnPlayer)}のターンを終了 →`;
+    if (endTurnTooltipEl) {
+      endTurnTooltipEl.textContent = isOnlineMode() ? "自分のターンを終了します" : `${getPlayerName(turnPlayer)}のターンを終了します`;
+    }
     endTurnButtonEl.disabled = false;
   }
 }
@@ -1900,38 +1940,51 @@ function ensureDeckAvailable(onReady) {
 // state.turnPlayerの有無に関係なく常に使える表示上の機能なので、非表示にする条件は無い。
 // マウスホイールでのズーム・中クリックドラッグでの視点移動（initCameraControls参照）を
 // 一度でも使うと、このボタンは「🔄 最初の視点に戻る」に切り替わる（updateBoardZoomButtonLabel）。
-const BOARD_ZOOM_LABELS = ["🔍 盤面拡大", "🔍 もっと拡大", "🔍 元に戻す"];
+const BOARD_ZOOM_LABELS = ["盤面拡大", "もっと拡大", "元に戻す"];
 
 let boardZoomButtonEl = null;
+let boardZoomTooltipEl = null;
 
 function updateBoardZoomButtonLabel() {
   const btn = boardZoomButtonEl;
   if (!btn) return;
   if (hasManualView) {
-    btn.textContent = "🔄 最初の視点に戻る";
+    if (boardZoomTooltipEl) boardZoomTooltipEl.textContent = "最初の視点に戻る";
     btn.classList.add("is-active");
     btn.classList.remove("is-zoom-2");
     return;
   }
   btn.classList.toggle("is-active", boardZoomLevel > 0);
   btn.classList.toggle("is-zoom-2", boardZoomLevel === 2);
-  btn.textContent = BOARD_ZOOM_LABELS[boardZoomLevel];
+  if (boardZoomTooltipEl) boardZoomTooltipEl.textContent = BOARD_ZOOM_LABELS[boardZoomLevel];
 }
 
 function buildBoardZoomButton() {
   const btn = document.createElement("button");
   btn.id = "board-zoom-button";
-  btn.textContent = BOARD_ZOOM_LABELS[0];
-  btn.addEventListener("click", () => {
-    if (hasManualView) {
-      resetManualView();
-      boardZoomLevel = 0;
-      fitTableToViewport();
+  const { captionEl, tooltipEl } = buildIconButtonContent(btn, {
+    icon: "assets/icons/board-zoom.svg",
+    tooltip: BOARD_ZOOM_LABELS[0],
+  });
+  captionEl.textContent = "盤面拡大";
+  boardZoomTooltipEl = tooltipEl;
+  wireIconButtonClick(btn, {
+    detailTitle: "盤面拡大",
+    detailParagraphs: [
+      "盤面全体をズームして見やすくします。押すたびに「拡大」→「もっと拡大」→「元に戻す」の3段階を切り替えます。",
+      "マウスホイールでの自由なズームや中クリックドラッグでの視点移動を一度でも使うと、代わりに「最初の視点に戻る」ボタンに変わります。",
+    ],
+    onAction: () => {
+      if (hasManualView) {
+        resetManualView();
+        boardZoomLevel = 0;
+        fitTableToViewport();
+        updateBoardZoomButtonLabel();
+        return;
+      }
+      cycleBoardZoom();
       updateBoardZoomButtonLabel();
-      return;
-    }
-    cycleBoardZoom();
-    updateBoardZoomButtonLabel();
+    },
   });
   document.body.appendChild(btn);
   return btn;
@@ -2003,9 +2056,20 @@ let handShuffleButtonEl = null;
 function buildHandShuffleButton() {
   const btn = document.createElement("button");
   btn.id = "hand-shuffle-button";
-  btn.textContent = "🔀 手札シャッフル";
-  btn.addEventListener("click", () => {
-    animateHandShuffle(getSelfSeat());
+  const { captionEl } = buildIconButtonContent(btn, {
+    icon: "assets/icons/hand-shuffle.svg",
+    tooltip: "自分の手札の並び順をシャッフルします（カードの中身は変わりません）",
+  });
+  captionEl.textContent = "手札シャッフル";
+  wireIconButtonClick(btn, {
+    detailTitle: "手札シャッフル",
+    detailParagraphs: [
+      "自分の手札の並び順だけをシャッフルします。カードの中身（持っている手札）自体は変わりません。",
+      "相手に手の内を推測されにくくするための、見た目上の演出です。",
+    ],
+    onAction: () => {
+      animateHandShuffle(getSelfSeat());
+    },
   });
   document.body.appendChild(btn);
   return btn;
@@ -2172,52 +2236,63 @@ let drawButtonEl = null;
 function buildDrawButton() {
   const btn = document.createElement("button");
   btn.id = "draw-button";
-  btn.textContent = "1枚ドロー";
-  btn.addEventListener("click", () => {
-    if (!getState().turnPlayer) return;
-    const player = getSelfSeat();
-    ensureDeckAvailable(async () => {
-      if (isOnlineMode()) {
-        // 山の中身はサーバーにしか無く先読みできないため、drawFromPile()（オンライン中は
-        // transportを返す）の応答を待ち、実際に引けたカードをそこから受け取る
-        // （onDragEndの山ドロー分岐と同じ考え方）。
-        const handBefore = new Set(
-          getState()
-            .tokens.filter((t) => t.location.zone === "hand" && t.location.player === player)
-            .map((t) => t.id)
-        );
-        let result = null;
-        try {
-          result = await drawFromPile("deck", { zone: "hand", player });
-        } catch (err) {
-          console.error("drawFromPile failed", err);
+  const { captionEl } = buildIconButtonContent(btn, {
+    icon: "assets/icons/draw.svg",
+    tooltip: "山札から1枚引いて手札に加えます",
+  });
+  captionEl.textContent = "1枚ドロー";
+  wireIconButtonClick(btn, {
+    detailTitle: "1枚ドロー",
+    detailParagraphs: [
+      "山札の一番上のカードを1枚引いて、自分の手札に加えます。",
+      "山札が無くなった場合は、捨て場を裏向きのまま新しい山札とします（シャッフルはしません）。",
+    ],
+    onAction: () => {
+      if (!getState().turnPlayer) return;
+      const player = getSelfSeat();
+      ensureDeckAvailable(async () => {
+        if (isOnlineMode()) {
+          // 山の中身はサーバーにしか無く先読みできないため、drawFromPile()（オンライン中は
+          // transportを返す）の応答を待ち、実際に引けたカードをそこから受け取る
+          // （onDragEndの山ドロー分岐と同じ考え方）。
+          const handBefore = new Set(
+            getState()
+              .tokens.filter((t) => t.location.zone === "hand" && t.location.player === player)
+              .map((t) => t.id)
+          );
+          let result = null;
+          try {
+            result = await drawFromPile("deck", { zone: "hand", player });
+          } catch (err) {
+            console.error("drawFromPile failed", err);
+            return;
+          }
+          if (result?.revealedCardId) {
+            playSound("cardDraw");
+            announceHandPickups(player, [{ cardId: result.revealedCardId, wasPublic: false }]);
+          }
+          // 山からの直接ドローで新しく手札に加わったトークンも、remote-move-animator.jsの
+          // 差分検知が「新規出現」として拾うようになった（相手プレイヤーへのカード獲得通知を
+          // 出すため）。自分自身の操作を二重に通知しないよう、新しいトークンを特定して
+          // 処理済みマークする（レスポンスにトークンidが含まれないため、直前の手札idと
+          // 突き合わせて差分から見つける）。
+          try {
+            await fetchAndHydrate(getCurrentGameId());
+          } catch (err) {
+            console.error("fetchAndHydrate failed", err);
+          }
+          markSelfHandled(findNewHandTokenIds(player, handBefore));
           return;
         }
-        if (result?.revealedCardId) {
-          playSound("cardDraw");
-          announceHandPickups(player, [{ cardId: result.revealedCardId, wasPublic: false }]);
-        }
-        // 山からの直接ドローで新しく手札に加わったトークンも、remote-move-animator.jsの
-        // 差分検知が「新規出現」として拾うようになった（相手プレイヤーへのカード獲得通知を
-        // 出すため）。自分自身の操作を二重に通知しないよう、新しいトークンを特定して
-        // 処理済みマークする（レスポンスにトークンidが含まれないため、直前の手札idと
-        // 突き合わせて差分から見つける）。
-        try {
-          await fetchAndHydrate(getCurrentGameId());
-        } catch (err) {
-          console.error("fetchAndHydrate failed", err);
-        }
-        markSelfHandled(findNewHandTokenIds(player, handBefore));
-        return;
-      }
-      const pileArray = getState().piles.deck;
-      if (pileArray.length === 0) return; // 捨て場も空で、これ以上引けるカードが無い
-      const cardId = pileArray[pileArray.length - 1];
-      drawFromPile("deck", { zone: "hand", player });
-      playSound("cardDraw");
-      announceHandPickups(player, [{ cardId, wasPublic: false }]);
-      render();
-    });
+        const pileArray = getState().piles.deck;
+        if (pileArray.length === 0) return; // 捨て場も空で、これ以上引けるカードが無い
+        const cardId = pileArray[pileArray.length - 1];
+        drawFromPile("deck", { zone: "hand", player });
+        playSound("cardDraw");
+        announceHandPickups(player, [{ cardId, wasPublic: false }]);
+        render();
+      });
+    },
   });
   document.body.appendChild(btn);
   return btn;
@@ -2225,7 +2300,7 @@ function buildDrawButton() {
 
 function updateDrawButton() {
   if (!drawButtonEl) return;
-  drawButtonEl.style.display = getState().turnPlayer ? "block" : "none";
+  drawButtonEl.style.display = getState().turnPlayer ? "flex" : "none";
 }
 
 // --- 自分専用ステータス（手札枚数・名前・アバター） --------------------------------
@@ -2346,6 +2421,7 @@ function buildSelfHandStatus() {
   el.appendChild(selfStatusAvatarEl);
   el.appendChild(selfStatusPieceThumbEl);
   el.appendChild(info);
+  el.appendChild(buildSelfStatusOnlineWidget());
   document.body.appendChild(el);
   return el;
 }
@@ -2547,12 +2623,11 @@ subscribe(() => {
   render();
 });
 initOnlineUi();
-document.body.appendChild(buildOnlineButton());
 // ログイン/ログアウト直後は部屋の作成・参加を伴わない（＝state.js側のnotifyListeners()が
-// 発火しない）ことがあるため、オンラインボタンのラベルを常に最新に保つには
+// 発火しない）ことがあるため、オンライン状態ウィジェットを常に最新に保つには
 // online.js自身のonAuthChangeも別途subscribeしておく必要がある。
 onAuthChange(render);
-updateOnlineButtonLabel();
+updateSelfStatusOnlineWidget();
 
 // 相手ゲート侵攻ボーナスが発生した時（誰がターン終了を押したかに関わらず、部屋の全員に
 // 届く。online.jsのsubscribeToGame()参照）、1件ずつ画面中央のモーダルで自動送りしながら

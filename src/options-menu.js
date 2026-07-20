@@ -18,6 +18,7 @@ import {
   setContinuousGlowDisabled,
 } from "./motion-prefs.js";
 import { saveMyPreference } from "./online.js";
+import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 
 function buildMenuItem(label, onClick) {
   const btn = document.createElement("button");
@@ -348,9 +349,18 @@ export function initOptionsMenu() {
 
   const toggleBtn = document.createElement("button");
   toggleBtn.id = "options-menu-button";
-  toggleBtn.textContent = "⚙";
-  toggleBtn.title = "オプション";
-  toggleBtn.addEventListener("click", open);
+  const { captionEl } = buildIconButtonContent(toggleBtn, {
+    icon: "assets/icons/options.svg",
+    tooltip: "基本設定・管理者モード・山札一覧などを開きます",
+  });
+  captionEl.textContent = "オプション";
+  wireIconButtonClick(toggleBtn, {
+    detailTitle: "オプション",
+    detailParagraphs: [
+      "基本設定（効果音の音量・アニメーションの有無・ショートカットキー等）・管理者モード（見た目の細かい調整）・山札一覧（カード一覧の確認）をまとめたメニューです。",
+    ],
+    onAction: open,
+  });
 
   document.body.appendChild(backdrop);
   document.body.appendChild(panel);

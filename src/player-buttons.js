@@ -20,7 +20,9 @@ export const SHORTCUT_TARGETS = [...PLAYER_BUTTONS, { id: "end-turn-button", lab
 
 // 画面右下のスタックで、#end-turn-button（bottom: 1.2rem、このグループには含まれない）の
 // 上に積む3つのスロットのbottom位置。orderの並び順（先頭が一番下）でそのまま対応する。
-const SLOT_BOTTOM_REM = [4.4, 7.6, 10.8];
+// アイコン+キャプション形式（icon-action-button.js）は縦に少し高さがあるため、旧デザイン
+// （3.2rem間隔のテキストボタン）より間隔を広げてある。
+const SLOT_BOTTOM_REM = [5.0, 8.8, 12.6];
 
 // ハマりどころ: 初期順をPLAYER_BUTTONS（ショートカット設定UIでの表示順）からそのまま
 // 流用すると、その並び("hand-shuffle"→"board-zoom"→"draw")と実際のCSSデフォルトの

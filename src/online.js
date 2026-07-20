@@ -490,15 +490,20 @@ async function callAction(action) {
 
 // ゲーム開始（セットアップウィザードの代わり）。座席の割り当てはso7-apply-action
 // Edge Function側が部屋の参加者を見てランダムに行う（クライアント側では組み立てない）。
-export async function startGame(gameId, { includeBlackWhite = false } = {}) {
+export async function startGame(gameId, { includeBlackWhite = false, timerEnabled } = {}) {
   return withLog("ゲーム開始", async () => {
     const count = await getMemberCount(gameId);
     if (count < 2) throw new Error("2人以上揃ってから開始してください");
     // ターンタイマー設定（基本時間・延長時間・初期/最大砂時計数・補充ターン数・有効/無効）は
-    // includeBlackWhiteと同じく、開始ボタンを押した本人のその時点のローカル設定を対局全体の
-    // 固定値として1回だけ送る（プレイヤーごとに異なると不公平になるため、対局中は変更しない）。
+    // includeBlackWhiteと同じく、開始ボタンを押した本人のその時点の設定を対局全体の固定値
+    // として1回だけ送る（プレイヤーごとに異なると不公平になるため、対局中は変更しない）。
+    // 有効/無効(enabled)だけは、部屋の状況パネル（online-ui.js）に専用のチェックボックスが
+    // あるためそちらの値(timerEnabled)を優先する——管理者モードの奥にあるチェックボックスは
+    // 気づかれにくく、オンラインでタイマーが使えないという報告の原因になっていたため。
+    // timerEnabledが渡されなかった場合（呼び出し元の想定外の使い方）だけ、admin.jsの
+    // ローカル設定にフォールバックする。
     const timerConfig = {
-      enabled: isTurnTimerEnabled(),
+      enabled: timerEnabled !== undefined ? timerEnabled : isTurnTimerEnabled(),
       initialHourglassStock: getInitialHourglassStock(),
       maxHourglassStock: getMaxHourglassStock(),
       ropeBaseSeconds: getRopeBaseSeconds(),

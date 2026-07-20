@@ -60,6 +60,17 @@ const GROUPS = [
     ],
   },
   {
+    title: "スポットライトモードの明るい範囲",
+    category: "effect",
+    controls: [
+      { key: "--spotlight-inner-radius", label: "明るい範囲の広さ", unit: "%", min: 0, max: 50, step: 1, default: 15 },
+      { key: "--spotlight-outer-radius", label: "暗さが最大になる位置（大きいほど暗くなる範囲が広い＝falloffが緩やか）", unit: "%", min: 30, max: 100, step: 1, default: 100 },
+      { key: "--spotlight-opacity", label: "最大の暗さ", unit: "", min: 0.3, max: 1, step: 0.05, default: 0.95 },
+      { key: "--spotlight-width", label: "形の横幅", unit: "%", min: 20, max: 100, step: 1, default: 55 },
+      { key: "--spotlight-height", label: "形の縦幅", unit: "%", min: 20, max: 100, step: 1, default: 50 },
+    ],
+  },
+  {
     title: "効果音の音量（個別）",
     category: "effect",
     controls: [
