@@ -230,3 +230,22 @@ alter table so7_game_seats
 
 create policy "so7_game_seats_update" on so7_game_seats for update to authenticated
   using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- 追加機能: 名前・アバター・駒スキンをユーザーごとに永続化する（ゲームをまたいで覚えておく）。
+-- so7_game_seatsはゲームごとの行のため、新しいゲームに参加するたびに白紙に戻ってしまって
+-- いた。user_idだけをキーにしたこのテーブルにも同時に書き込み（online.jsのupdateMyIdentity
+-- 参照）、部屋に参加する瞬間(joinRoom)にここから読み出して初期値として使う。
+create table if not exists so7_user_profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  display_name text,
+  avatar text,
+  piece_skin_index int not null default 0,
+  updated_at timestamptz not null default now()
+);
+alter table so7_user_profiles enable row level security;
+create policy "so7_user_profiles_select" on so7_user_profiles for select to authenticated
+  using (user_id = auth.uid());
+create policy "so7_user_profiles_insert" on so7_user_profiles for insert to authenticated
+  with check (user_id = auth.uid());
+create policy "so7_user_profiles_update" on so7_user_profiles for update to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());

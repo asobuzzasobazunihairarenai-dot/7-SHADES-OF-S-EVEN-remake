@@ -1727,6 +1727,22 @@ body {
   animation: piece-own-turn-glow-hover 2.6s ease-in-out infinite;
 }
 
+/* 基本設定「常時光る演出」トグル(options-menu.js)がオフの間、bodyに付く。ゲーム中ずっと
+   動き続けるCSSアニメーション（手番の駒/ロックエリア/名前ラベル/アバターのパルス、
+   ロック中カードの周回演出等）だけを止める。一時的な到達/ロック演出（main.jsの
+   spawnArrivalBurst/spawnLockStamp、別のトグルで制御）はDOM要素自体が作られなくなる
+   方式のためここでは対象外。 */
+body.reduce-glow .lock-area.is-turn-player,
+body.reduce-glow .label.is-turn-player,
+body.reduce-glow .player-avatar.is-turn-player,
+body.reduce-glow .piece.is-my-turn-glow .piece-face,
+body.reduce-glow .piece.hover-active.is-my-turn-glow .piece-face,
+body.reduce-glow .board-card.is-usable-while-locked.effect-shine,
+body.reduce-glow .board-card.is-usable-while-locked.effect-shine::after,
+body.reduce-glow .board-card.is-usable-while-locked.effect-orbit::before {
+  animation: none !important;
+}
+
 /* 自分専用の手札枚数ステータス。他のパネルと違う左下に置き、常時表示にする
    （state.turnPlayerの有無に関わらず、自分の手札は常に自分だけ見えていて良い情報のため）。 */
 #self-hand-status {
@@ -1854,6 +1870,28 @@ body {
 }
 .avatar-picker-swatch.is-selected {
   border-color: #7dd3fc;
+}
+
+/* Googleプロフィール画像をアバターに使う場合の共通スタイル（絵文字textContentの代わりに
+   <img class="avatar-image">を挿入する、main.jsのapplyAvatarContent参照）。各コンテナの
+   既存サイズ（.player-avatarはfont-size、.self-status-avatar/.avatar-picker-swatchは
+   固定サイズ）に収まるよう、置かれた場所ごとに寸法だけ個別指定する。 */
+.avatar-image {
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+.player-avatar .avatar-image {
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+}
+.self-status-avatar .avatar-image {
+  width: 100%;
+  height: 100%;
+}
+.avatar-picker-swatch .avatar-image {
+  width: 1.6rem;
+  height: 1.6rem;
 }
 
 /* 駒がカードの上に乗った（到達した）ことを知らせる一時的なモーダル。画面右上（右上に既にある

@@ -161,6 +161,13 @@ let cachedUser = null;
 export function getCachedUser() {
   return cachedUser;
 }
+
+// Googleログインの場合、Supabaseのuser_metadataにGoogle側のプロフィール画像URLが
+// 入っている（マッピング先のキー名は環境によりavatar_url/pictureのどちらのこともあるため
+// 両方フォールバックする）。匿名ログイン等では両方とも無く、nullを返す。
+export function getGoogleAvatarUrl() {
+  return cachedUser?.user_metadata?.avatar_url ?? cachedUser?.user_metadata?.picture ?? null;
+}
 if (client) {
   client.auth.onAuthStateChange((_event, session) => {
     cachedUser = session?.user ?? null;
@@ -195,7 +202,24 @@ export async function joinRoom(gameId) {
   return withLog("部屋に参加", async () => {
     const user = await getCurrentUser();
     if (!user) throw new Error("ログインしてください");
-    const { error } = await client.from("so7_game_seats").insert({ game_id: gameId, user_id: user.id });
+
+    // 永続プロフィール（so7_user_profiles）があれば、その値を最初の座席行にそのまま
+    // 使う。無ければ列を省略しDB側のデフォルト（display_name/avatarはnull、
+    // piece_skin_indexは0）に任せる。取得に失敗しても部屋参加自体は続行してよい
+    // （単に前回の設定が引き継がれないだけ）。
+    const seatRow = { game_id: gameId, user_id: user.id };
+    const { data: profile } = await client
+      .from("so7_user_profiles")
+      .select("display_name, avatar, piece_skin_index")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (profile) {
+      if (profile.display_name) seatRow.display_name = profile.display_name;
+      if (profile.avatar) seatRow.avatar = profile.avatar;
+      if (typeof profile.piece_skin_index === "number") seatRow.piece_skin_index = profile.piece_skin_index;
+    }
+
+    const { error } = await client.from("so7_game_seats").insert(seatRow);
     if (error) {
       if (String(error.message ?? "").includes("duplicate key")) {
         throw new Error("既にこの部屋に参加しています");
@@ -325,6 +349,15 @@ export async function updateMyIdentity({ name, avatar, pieceSkinIndex } = {}) {
       .eq("game_id", currentGameId)
       .eq("user_id", user.id);
     if (error) throw error;
+
+    // ユーザーごとの永続プロフィールにも同時に反映する（ゲームをまたいで名前/アバター/
+    // 駒スキンを覚えておくため。so7_game_seatsはゲームごとの行のため、これが無いと
+    // 新しい部屋に参加するたびに白紙に戻ってしまう）。失敗してもso7_game_seats側の
+    // 更新自体は既に成功しているため、このエラーで全体を失敗扱いにはしない。
+    const { error: profileErr } = await client
+      .from("so7_user_profiles")
+      .upsert({ user_id: user.id, ...patch, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    if (profileErr) console.error("so7_user_profiles upsert failed", profileErr);
 
     // 自分のローカルキャッシュにも即座に反映（次の再取得を待たなくても自分の画面には
     // すぐ反映されるように）。

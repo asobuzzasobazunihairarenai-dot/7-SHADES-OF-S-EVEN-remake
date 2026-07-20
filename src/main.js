@@ -15,11 +15,16 @@ import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_
 import { getSelectedPlaymatPath } from "./playmat.js";
 import { isLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible } from "./lock-color.js";
+import { isArrivalEffectDisabled } from "./motion-prefs.js";
 import { showCardArrivalModal } from "./card-arrival.js";
 import { initPlayerButtons } from "./player-buttons.js";
 import { initQuickStart } from "./quick-start.js";
 import { registerRenderHelpers, animateFirstCardsDealt, animateBoardFilled } from "./setup-animation.js";
-import { registerRemoteMoveAnimatorHelpers, handleHydrate as handleRemoteMoveHydrate } from "./remote-move-animator.js";
+import {
+  registerRemoteMoveAnimatorHelpers,
+  handleHydrate as handleRemoteMoveHydrate,
+  skipNextHydrateDiff,
+} from "./remote-move-animator.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
 import {
   getState,
@@ -42,6 +47,7 @@ import {
   fetchAndHydrate,
   onGateInvasionEvents,
   getSyncedIdentity,
+  getGoogleAvatarUrl,
 } from "./online.js";
 import { playSound } from "./sound.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
@@ -185,6 +191,28 @@ function layoutFan(count, orientation, isSelf, side) {
   });
 }
 
+// アバターは絵文字1文字（従来通り）か、Googleプロフィール画像のURLのどちらかを取り得る。
+// so7_game_seats/so7_user_profilesのavatar列はどちらもtext型のままで、URL文字列を
+// そのまま格納する（スキーマ変更は不要、表示側だけで判定する）。
+function isImageAvatar(avatar) {
+  return typeof avatar === "string" && /^https?:\/\//.test(avatar);
+}
+function applyAvatarContent(el, avatar) {
+  if (isImageAvatar(avatar)) {
+    let img = el.querySelector("img.avatar-image");
+    if (!img) {
+      img = document.createElement("img");
+      img.className = "avatar-image";
+      el.textContent = "";
+      el.appendChild(img);
+    }
+    img.src = avatar;
+  } else {
+    el.querySelector("img.avatar-image")?.remove();
+    el.textContent = avatar;
+  }
+}
+
 function buildPlayerZone(side, player, isSelf) {
   const zone = document.createElement("div");
   zone.className = `zone zone-${side} player-zone`;
@@ -197,7 +225,7 @@ function buildPlayerZone(side, player, isSelf) {
   // 位置・サイズを調整できる（--avatar-{a,b,c,d}-pos-x/y・--avatar-size）。
   const avatarEl = document.createElement("div");
   avatarEl.className = `player-avatar${player === getState().turnPlayer ? " is-turn-player" : ""}`;
-  avatarEl.textContent = getPlayerAvatar(player);
+  applyAvatarContent(avatarEl, getPlayerAvatar(player));
 
   const orientation = side === "left" || side === "right" ? "vertical" : "horizontal";
 
@@ -498,6 +526,7 @@ function appendEffectHost(hostEl, effectEl, ttlMs) {
 // （border-color/box-shadow/color-mix()はグラデーションを受け付けない）ため、
 // .is-rainbowクラスを付けてCSS側で柱・光の輪を虹色に個別上書きする。
 function spawnArrivalBurst(hostEl, color) {
+  if (isArrivalEffectDisabled()) return null;
   const burst = document.createElement("div");
   burst.className = color === "rainbow" ? "arrival-effect-burst is-rainbow" : "arrival-effect-burst";
   if (color !== "rainbow") {
@@ -537,6 +566,7 @@ function triggerCardArrival(cardId, location) {
 // ずっと表示され続ける仕様ではなく、ロックした瞬間だけの一発演出（ユーザー指定）。
 const LOCK_STAMP_DURATION_MS = 900;
 function spawnLockStamp(hostEl) {
+  if (isArrivalEffectDisabled()) return null;
   const stamp = document.createElement("div");
   stamp.className = "lock-stamp-burst";
   appendEffectHost(hostEl, stamp, LOCK_STAMP_DURATION_MS);
@@ -2099,6 +2129,23 @@ function openAvatarPicker() {
 
   const grid = document.createElement("div");
   grid.className = "avatar-picker-modal-grid";
+
+  // Googleログインの場合、プロフィール画像も選択肢の1つとして追加する（絵文字より先頭に置く）。
+  const googleAvatarUrl = getGoogleAvatarUrl();
+  if (googleAvatarUrl) {
+    const googleSwatch = document.createElement("button");
+    googleSwatch.className = "avatar-picker-swatch";
+    googleSwatch.title = "Googleのプロフィール画像を使う";
+    if (getPlayerAvatar(getSelfSeat()) === googleAvatarUrl) googleSwatch.classList.add("is-selected");
+    applyAvatarContent(googleSwatch, googleAvatarUrl);
+    googleSwatch.addEventListener("click", () => {
+      setPlayerAvatar(getSelfSeat(), googleAvatarUrl);
+      render();
+      close();
+    });
+    grid.appendChild(googleSwatch);
+  }
+
   for (const avatar of AVATAR_OPTIONS) {
     const swatch = document.createElement("button");
     swatch.className = "avatar-picker-swatch";
@@ -2183,7 +2230,7 @@ function updateSelfHandStatus() {
   const count = getState().tokens.filter(
     (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === getSelfSeat()
   ).length;
-  selfStatusAvatarEl.textContent = getPlayerAvatar(getSelfSeat());
+  applyAvatarContent(selfStatusAvatarEl, getPlayerAvatar(getSelfSeat()));
 
   const myColor = getMyPieceColor();
   selfStatusPieceThumbEl.style.display = myColor ? "flex" : "none";
@@ -2277,6 +2324,12 @@ subscribe(() => {
       .then(() => animateBoardFilled())
       .finally(() => {
         suppressGenericRenderForOnlineStart = false;
+        // 配布アニメーション中はremote-move-animator.js自体が丸ごと呼ばれず
+        // previousTokensByIdが更新されないため、再開後の最初のhydrateは診断せず
+        // ベースラインだけ更新させる（そうしないと配布済みの全トークンが「新規出現」に
+        // 見えてしまい、駒を初めて動かした瞬間にゲーム開始時のロック演出が再発生する
+        // バグの原因になっていた）。
+        skipNextHydrateDiff();
       });
   }
   wasOnlineGameStarted = started;

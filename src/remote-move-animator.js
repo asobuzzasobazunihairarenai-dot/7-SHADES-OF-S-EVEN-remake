@@ -29,6 +29,22 @@ const FLIGHT_MS = 450;
 // 直近でこのモジュールが把握しているトークンの位置スナップショット（id -> 簡易情報）。
 let previousTokensById = new Map();
 
+// 次回のhydrateでは、差分検知（新規出現・移動判定）を一切行わず、ベースラインの更新だけを
+// 行う。ローカルモードの間は毎回trueにリセットしておくことで、オンラインへ切り替わった
+// 直後の最初のhydrateが「ローカルの仮データ」と「実際の部屋の状態」を誤って比較してしまい、
+// 全トークンが「新規出現」に見えてカード獲得通知が大量に誤発火する問題（部屋に参加した
+// 瞬間、獲得していないのに獲得モーダルが複数出るバグの原因）を防ぐ。main.js側からも、
+// セットアップ配布アニメーション中（このモジュール自体が丸ごと呼ばれない期間）が終わった
+// 直後に明示的に呼んでもらう（skipNextHydrateDiff export）——配布アニメーション中は
+// previousTokensByIdが更新されないため、終了直後の最初のhydrateで49マス・ファーストカード
+// 全部が「新規出現」に見えてロック演出等が再生されてしまう問題（駒を初めて動かした瞬間に
+// ゲーム開始時のロック演出が再発生するバグの原因）を防ぐ。
+let skipNextDiff = true;
+
+export function skipNextHydrateDiff() {
+  skipNextDiff = true;
+}
+
 function isTableZone(location) {
   return location.zone === "cell" || location.zone === "lock";
 }
@@ -145,10 +161,16 @@ export function handleHydrate() {
   const state = getState();
   if (!isOnlineMode()) {
     previousTokensById = snapshotOf(state);
+    skipNextDiff = true;
     return;
   }
   if (!helpers) {
     previousTokensById = snapshotOf(state);
+    return;
+  }
+  if (skipNextDiff) {
+    previousTokensById = snapshotOf(state);
+    skipNextDiff = false;
     return;
   }
 

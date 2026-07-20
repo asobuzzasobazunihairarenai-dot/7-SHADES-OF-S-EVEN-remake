@@ -8,6 +8,14 @@ import { isLockColorVisible, setLockColorVisible } from "./lock-color.js";
 import { getSoundVolume, setSoundVolume } from "./sound.js";
 import { SHORTCUT_TARGETS, getShortcut, setShortcut, registerShortcutSettingsOpener } from "./player-buttons.js";
 import { createBackdrop } from "./ui-helpers.js";
+import {
+  isFlightAnimationDisabled,
+  setFlightAnimationDisabled,
+  isArrivalEffectDisabled,
+  setArrivalEffectDisabled,
+  isContinuousGlowDisabled,
+  setContinuousGlowDisabled,
+} from "./motion-prefs.js";
 
 function buildMenuItem(label, onClick) {
   const btn = document.createElement("button");
@@ -146,6 +154,26 @@ export function initOptionsMenu() {
     })
   );
   panel.appendChild(buildVolumeRow());
+
+  // パフォーマンス改善用。純粋にクライアントローカルな描画設定のため、1人がオンにしても
+  // 相手プレイヤーの画面には一切影響しない（各ブラウザは自分のstateから独立して描画する）。
+  panel.appendChild(buildSectionTitle("アニメーションを減らす（動作が重い時に）"));
+  panel.appendChild(
+    buildCheckboxRow("移動アニメーション（駒・カードの飛翔）を無効にする", isFlightAnimationDisabled(), (checked) => {
+      setFlightAnimationDisabled(checked);
+    })
+  );
+  panel.appendChild(
+    buildCheckboxRow("到達・ロック演出（光の柱・ロック画像等）を無効にする", isArrivalEffectDisabled(), (checked) => {
+      setArrivalEffectDisabled(checked);
+    })
+  );
+  panel.appendChild(
+    buildCheckboxRow("常時光る演出（手番のグロー等）を無効にする", isContinuousGlowDisabled(), (checked) => {
+      setContinuousGlowDisabled(checked);
+      document.body.classList.toggle("reduce-glow", checked);
+    })
+  );
 
   const shortcutDivider = document.createElement("div");
   shortcutDivider.className = "options-menu-divider";
