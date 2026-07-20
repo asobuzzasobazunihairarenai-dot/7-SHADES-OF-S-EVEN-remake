@@ -180,94 +180,120 @@ export function initOptionsMenu() {
     backdrop.style.display = "none";
   }
   function open() {
+    // 開くたびに中身を作り直す。パネルは起動時に1回だけ組み立てる方式だと、その時点では
+    // まだアカウントの設定（online.jsのloadMyPreferences、ログイン直後に非同期で読み込む）が
+    // 間に合っておらず、チェックボックス・スライダー・ショートカットキーの表示が起動直後の
+    // デフォルト値のまま固定されてしまう（実際の設定値=各モジュールの内部状態は正しく
+    // 復元されているが、パネルの見た目だけがそれを反映しないため「設定が記憶されていない」
+    // ように見えるバグがあった）。開くたびに最新の値で作り直せば、ログイン直後の読み込みが
+    // 完了していればその値が、まだなら暫定のデフォルトが、常に正しく表示される。
+    renderContent();
     panel.style.display = "block";
     backdrop.style.display = "block";
   }
 
-  panel.appendChild(buildSectionTitle("基本設定"));
-  panel.appendChild(
-    buildCheckboxRow("ロックエリアバーを表示する", isLockAreaBarVisible(), (checked) => {
-      setLockAreaBarVisible(checked);
-      window.dispatchEvent(new CustomEvent("admin:change"));
-      saveMyPreference({ lock_area_bar_visible: checked });
-    })
-  );
-  panel.appendChild(
-    buildCheckboxRow("ロックエリアの色を表示する", isLockColorVisible(), (checked) => {
-      setLockColorVisible(checked);
-      window.dispatchEvent(new CustomEvent("admin:change"));
-      saveMyPreference({ lock_color_visible: checked });
-    })
-  );
-  const volumeRow = buildVolumeRow();
-  const volumeSlider = volumeRow.querySelector("input[type=range]");
-  volumeSlider.addEventListener("change", () => {
-    saveMyPreference({ sound_volume: Number(volumeSlider.value) / 100 });
-  });
-  panel.appendChild(volumeRow);
+  function renderContent() {
+    panel.innerHTML = "";
 
-  panel.appendChild(buildSectionTitle("モーダル表示時間"));
-  panel.appendChild(
-    buildDurationRow("相手ゲート侵攻ボーナス通知", "--gate-invasion-modal-step-duration", 3.5, (value) => {
-      saveMyPreference({ gate_invasion_modal_duration: value });
-    })
-  );
-  panel.appendChild(
-    buildDurationRow("到達モーダル", "--card-arrival-modal-duration", 5, (value) => {
-      saveMyPreference({ card_arrival_modal_duration: value });
-    })
-  );
-  panel.appendChild(
-    buildDurationRow("カード獲得ポップアップ", "--hand-pickup-toast-duration", 5, (value) => {
-      saveMyPreference({ hand_pickup_toast_duration: value });
-    })
-  );
+    panel.appendChild(buildSectionTitle("基本設定"));
+    panel.appendChild(
+      buildCheckboxRow("ロックエリアバーを表示する", isLockAreaBarVisible(), (checked) => {
+        setLockAreaBarVisible(checked);
+        window.dispatchEvent(new CustomEvent("admin:change"));
+        saveMyPreference({ lock_area_bar_visible: checked });
+      })
+    );
+    panel.appendChild(
+      buildCheckboxRow("ロックエリアの色を表示する", isLockColorVisible(), (checked) => {
+        setLockColorVisible(checked);
+        window.dispatchEvent(new CustomEvent("admin:change"));
+        saveMyPreference({ lock_color_visible: checked });
+      })
+    );
+    const volumeRow = buildVolumeRow();
+    const volumeSlider = volumeRow.querySelector("input[type=range]");
+    volumeSlider.addEventListener("change", () => {
+      saveMyPreference({ sound_volume: Number(volumeSlider.value) / 100 });
+    });
+    panel.appendChild(volumeRow);
 
-  // パフォーマンス改善用。純粋にクライアントローカルな描画設定のため、1人がオンにしても
-  // 相手プレイヤーの画面には一切影響しない（各ブラウザは自分のstateから独立して描画する）。
-  panel.appendChild(buildSectionTitle("アニメーションを減らす（動作が重い時に）"));
-  panel.appendChild(
-    buildCheckboxRow("移動アニメーション（駒・カードの飛翔）を無効にする", isFlightAnimationDisabled(), (checked) => {
-      setFlightAnimationDisabled(checked);
-      saveMyPreference({ flight_animation_disabled: checked });
-    })
-  );
-  panel.appendChild(
-    buildCheckboxRow("到達・ロック演出（光の柱・ロック画像等）を無効にする", isArrivalEffectDisabled(), (checked) => {
-      setArrivalEffectDisabled(checked);
-      saveMyPreference({ arrival_effect_disabled: checked });
-    })
-  );
-  panel.appendChild(
-    buildCheckboxRow("常時光る演出（手番のグロー等）を無効にする", isContinuousGlowDisabled(), (checked) => {
-      setContinuousGlowDisabled(checked);
-      document.body.classList.toggle("reduce-glow", checked);
-      saveMyPreference({ continuous_glow_disabled: checked });
-    })
-  );
+    panel.appendChild(buildSectionTitle("モーダル表示時間"));
+    panel.appendChild(
+      buildDurationRow("相手ゲート侵攻ボーナス通知", "--gate-invasion-modal-step-duration", 3.5, (value) => {
+        saveMyPreference({ gate_invasion_modal_duration: value });
+      })
+    );
+    panel.appendChild(
+      buildDurationRow("到達モーダル", "--card-arrival-modal-duration", 5, (value) => {
+        saveMyPreference({ card_arrival_modal_duration: value });
+      })
+    );
+    panel.appendChild(
+      buildDurationRow("カード獲得ポップアップ", "--hand-pickup-toast-duration", 5, (value) => {
+        saveMyPreference({ hand_pickup_toast_duration: value });
+      })
+    );
 
-  const shortcutDivider = document.createElement("div");
-  shortcutDivider.className = "options-menu-divider";
-  panel.appendChild(shortcutDivider);
+    // パフォーマンス改善用。純粋にクライアントローカルな描画設定のため、1人がオンにしても
+    // 相手プレイヤーの画面には一切影響しない（各ブラウザは自分のstateから独立して描画する）。
+    panel.appendChild(buildSectionTitle("アニメーションを減らす（動作が重い時に）"));
+    panel.appendChild(
+      buildCheckboxRow("移動アニメーション（駒・カードの飛翔）を無効にする", isFlightAnimationDisabled(), (checked) => {
+        setFlightAnimationDisabled(checked);
+        saveMyPreference({ flight_animation_disabled: checked });
+      })
+    );
+    panel.appendChild(
+      buildCheckboxRow("到達・ロック演出（光の柱・ロック画像等）を無効にする", isArrivalEffectDisabled(), (checked) => {
+        setArrivalEffectDisabled(checked);
+        saveMyPreference({ arrival_effect_disabled: checked });
+      })
+    );
+    panel.appendChild(
+      buildCheckboxRow("常時光る演出（手番のグロー等）を無効にする", isContinuousGlowDisabled(), (checked) => {
+        setContinuousGlowDisabled(checked);
+        document.body.classList.toggle("reduce-glow", checked);
+        saveMyPreference({ continuous_glow_disabled: checked });
+      })
+    );
 
-  panel.appendChild(buildSectionTitle("ショートカットキー（プレイヤー用ボタン）"));
-  const shortcutRows = SHORTCUT_TARGETS.map(({ id, label }) => buildShortcutRow(id, label));
-  for (const { row } of shortcutRows) {
-    panel.appendChild(row);
+    const shortcutDivider = document.createElement("div");
+    shortcutDivider.className = "options-menu-divider";
+    panel.appendChild(shortcutDivider);
+
+    panel.appendChild(buildSectionTitle("ショートカットキー（プレイヤー用ボタン）"));
+    const shortcutRows = SHORTCUT_TARGETS.map(({ id, label }) => buildShortcutRow(id, label));
+    for (const { row } of shortcutRows) {
+      panel.appendChild(row);
+    }
+
+    const presetBtn = document.createElement("button");
+    presetBtn.className = "options-menu-shortcut-preset";
+    presetBtn.textContent = "⭐ おすすめ";
+    presetBtn.title = "手札シャッフル=S、盤面拡大=Z、1枚ドロー=Dを一括で割り当てます";
+    presetBtn.addEventListener("click", () => {
+      for (const [id, key] of Object.entries(RECOMMENDED_SHORTCUTS)) setShortcut(id, key);
+      for (const { refresh } of shortcutRows) refresh();
+      persistShortcuts();
+    });
+    panel.appendChild(presetBtn);
+
+    const divider = document.createElement("div");
+    divider.className = "options-menu-divider";
+    panel.appendChild(divider);
+
+    panel.appendChild(
+      buildMenuItem("⚙ 管理者モード", () => {
+        close();
+        openAdminPanel();
+      })
+    );
   }
 
-  const presetBtn = document.createElement("button");
-  presetBtn.className = "options-menu-shortcut-preset";
-  presetBtn.textContent = "⭐ おすすめ";
-  presetBtn.title = "手札シャッフル=S、盤面拡大=Z、1枚ドロー=Dを一括で割り当てます";
-  presetBtn.addEventListener("click", () => {
-    for (const [id, key] of Object.entries(RECOMMENDED_SHORTCUTS)) setShortcut(id, key);
-    for (const { refresh } of shortcutRows) refresh();
-    persistShortcuts();
-  });
-  panel.appendChild(presetBtn);
+  renderContent();
 
   // プレイヤー用ボタンを右クリックした時、このパネルを開いて該当行を目立たせる。
+  // open()が毎回中身を作り直すため、querySelectorは常にその時点の最新DOMを見る。
   registerShortcutSettingsOpener((buttonId) => {
     open();
     const row = panel.querySelector(`[data-shortcut-for="${buttonId}"]`);
@@ -277,17 +303,6 @@ export function initOptionsMenu() {
       setTimeout(() => row.classList.remove("is-highlighted"), 1500);
     }
   });
-
-  const divider = document.createElement("div");
-  divider.className = "options-menu-divider";
-  panel.appendChild(divider);
-
-  panel.appendChild(
-    buildMenuItem("⚙ 管理者モード", () => {
-      close();
-      openAdminPanel();
-    })
-  );
 
   // ツールパネルなので背景は暗くしない。外側クリックで閉じる（統一ルール）。
   // ハマりどころ: このパネル自体のz-index(901)は他パネル(999〜1000)より低くしてあるため、

@@ -234,6 +234,85 @@ function textInput(placeholderOrValue, { isValue } = {}) {
   return input;
 }
 
+// パスワード欄に「表示/非表示」切り替え(👁)ボタンを付けて包む。inputはtype="password"の
+// まま渡し、返り値のwrapperをDOMに追加する（inputへの参照自体は呼び出し元がそのまま使える）。
+function wrapWithPasswordToggle(input) {
+  input.style.marginBottom = "0";
+  input.style.paddingRight = "2rem";
+  const wrapper = document.createElement("div");
+  wrapper.style.cssText = "position: relative; margin-bottom: 0.4rem;";
+  const toggleBtn = document.createElement("button");
+  toggleBtn.type = "button";
+  toggleBtn.textContent = "👁";
+  toggleBtn.title = "パスワードを表示";
+  toggleBtn.style.cssText =
+    "position: absolute; right: 0.2rem; top: 50%; transform: translateY(-50%); background: none; " +
+    "border: none; cursor: pointer; font-size: 0.9rem; padding: 0.1rem 0.3rem; line-height: 1; color: inherit;";
+  toggleBtn.addEventListener("click", () => {
+    const nowShowing = input.type === "text";
+    input.type = nowShowing ? "password" : "text";
+    toggleBtn.textContent = nowShowing ? "👁" : "🙈";
+    toggleBtn.title = nowShowing ? "パスワードを表示" : "パスワードを隠す";
+  });
+  wrapper.appendChild(input);
+  wrapper.appendChild(toggleBtn);
+  return wrapper;
+}
+
+// 部屋のパスワードは、サーバー側にはハッシュしか保存しない設計（そもそも平文を復元できない）
+// ため、「部屋作成後もパスワードを確認できるように」は、作成した本人のこのブラウザだけが
+// 作成時に入力した平文を覚えておく、という形でしか実現できない（別端末や別ブラウザからは
+// 分からない）。サーバーへは一切送らない、あくまでこのブラウザのlocalStorageだけの記録。
+function savedRoomPasswordKey(gameId) {
+  return `so7-room-password-${gameId}`;
+}
+function getSavedRoomPassword(gameId) {
+  try {
+    return localStorage.getItem(savedRoomPasswordKey(gameId));
+  } catch (err) {
+    return null;
+  }
+}
+function setSavedRoomPassword(gameId, password) {
+  try {
+    if (password) localStorage.setItem(savedRoomPasswordKey(gameId), password);
+    else localStorage.removeItem(savedRoomPasswordKey(gameId));
+  } catch (err) {
+    // localStorageが使えない環境でも致命的ではない（単に「作成後の確認」ができないだけ）
+  }
+}
+
+// 部屋の状況パネルに表示する、保存済みパスワードの表示/非表示行。
+function buildPasswordDisplayRow(password) {
+  const row = document.createElement("div");
+  row.style.cssText =
+    "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.3rem;";
+  row.title = "このブラウザで部屋を作成した時だけ表示できます（サーバーには平文で保存されません）。";
+  const label = document.createElement("span");
+  label.textContent = "🔒 パスワード:";
+  const valueEl = document.createElement("span");
+  valueEl.style.cssText = "font-family: monospace; letter-spacing: 0.05em;";
+  let visible = false;
+  function refresh() {
+    valueEl.textContent = visible ? password : "•".repeat(password.length);
+  }
+  refresh();
+  const toggleBtn = document.createElement("button");
+  toggleBtn.type = "button";
+  toggleBtn.textContent = "👁";
+  toggleBtn.title = "表示/非表示";
+  toggleBtn.style.cssText = "background: none; border: none; cursor: pointer; font-size: 0.8rem; padding: 0 0.2rem; color: inherit;";
+  toggleBtn.addEventListener("click", () => {
+    visible = !visible;
+    refresh();
+    toggleBtn.textContent = visible ? "🙈" : "👁";
+  });
+  row.appendChild(label);
+  row.appendChild(valueEl);
+  row.appendChild(toggleBtn);
+  return row;
+}
+
 // 部屋一覧の1行。パスワード無しならクリックでそのまま参加、有りならその場にパスワード
 // 入力欄を展開する（別ダイアログを開かず、一覧のその場で完結させる）。
 function buildRoomRow(room) {
@@ -256,7 +335,7 @@ function buildRoomRow(room) {
   passStatus.style.cssText = "font-size: 0.75rem; color: #f87171; min-height: 1.1em;";
   const passConfirmBtn = textButton("参加する");
   passConfirmBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box;";
-  passRow.appendChild(passInput);
+  passRow.appendChild(wrapWithPasswordToggle(passInput));
   passRow.appendChild(passStatus);
   passRow.appendChild(passConfirmBtn);
   row.appendChild(passRow);
@@ -314,6 +393,7 @@ async function renderRoomChoice(user) {
     createStatus.textContent = "作成中...";
     try {
       const gameId = await createRoom(nameInput.value, passInput.value);
+      setSavedRoomPassword(gameId, passInput.value || null);
       history.replaceState(null, "", `?room=${gameId}`);
       await renderPanelContent();
     } catch (err) {
@@ -322,7 +402,7 @@ async function renderRoomChoice(user) {
     }
   });
   createForm.appendChild(nameInput);
-  createForm.appendChild(passInput);
+  createForm.appendChild(wrapWithPasswordToggle(passInput));
   createForm.appendChild(createStatus);
   createForm.appendChild(createConfirmBtn);
   createToggleBtn.addEventListener("click", () => {
@@ -440,6 +520,13 @@ async function renderRoomStatus(gameId) {
   shareHint.textContent = "他のプレイヤーは「🌐オンライン」の部屋一覧からこの部屋を選べます。";
   contentEl.appendChild(shareHint);
 
+  // サーバーはパスワードのハッシュしか持たないため、これは「このブラウザで実際に部屋を
+  // 作成した時に入力した値」をlocalStorageから引いているだけ（他端末では表示できない）。
+  const savedPassword = getSavedRoomPassword(gameId);
+  if (savedPassword) {
+    contentEl.appendChild(buildPasswordDisplayRow(savedPassword));
+  }
+
   if (!mySeat && count >= 2) {
     const startBtn = textButton("ゲームを開始する");
     // ログインパネルのボタン（renderLoginForm）と同じ理由で、display:blockを明示しないと
@@ -463,6 +550,7 @@ async function renderRoomStatus(gameId) {
   leaveBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box;";
   leaveBtn.addEventListener("click", () => {
     leaveGame();
+    setSavedRoomPassword(gameId, null);
     history.replaceState(null, "", location.pathname);
     closePanel();
   });

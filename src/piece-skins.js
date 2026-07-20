@@ -28,16 +28,21 @@ export function registerPieceSkinHelpers(h) {
 }
 
 // seat: 分かる場合（盤面上の駒を描画する時等）は渡すと、オンライン中はその座席の同期済み
-// スキン選択を優先する。省略時（自分専用ステータスのプレビュー等）はローカルの色ベースの
-// 選択にフォールバックする。
-// 自分自身の座席については、同期ロスターではなく常にローカルのskinIndexByColorを優先する
-// （スキン変更直後、updateMyIdentity()のネットワーク応答＋roster更新を待たずに自分の画面へ
-// 即座に反映するため）。以前はここでも同期ロスターを優先していたため、自分でスキンを
-// 変更した直後は「相手の画面には即反映されるが、自分の画面はidentity_changed Broadcastの
-// こだまが届く（数秒〜十数秒かかることがある）まで古いスキンのまま」というバグがあった。
+// スキン選択を優先する。
+// この色について「今のページ読み込み以降にローカルで実際に選び直したか」
+// （skinIndexByColorに自分でセットしたか）を優先し、それが無ければ同期ロスターを使う。
+// 以前は「自分の座席かどうか」で分岐しており、スキン変更直後は即座に自分の画面へ反映
+// できる利点があった一方、ページを再読み込みするとskinIndexByColorが空に戻るため、
+// 自分の座席は常に標準スキン(0)に見えてしまう（相手の画面にはサーバーに保存済みの
+// 正しいスキンが表示されるのに、自分の画面だけリロードで消える）というバグがあった。
+// 「ローカルに実際の上書きがあるかどうか」で判定することで、変更直後の即時反映（クリック
+// ハンドラがskinIndexByColorへ書き込んでからrenderするため）と、リロード後も同期ロスター
+// （so7_user_profiles由来、参加時にso7_game_seatsへ複製済み）から正しく復元される、
+// 両方を同時に満たせる。
 export function getSkinImagePath(color, seat) {
-  let idx = skinIndexByColor[color] || 0;
-  if (isOnlineMode() && seat && seat !== getSelfSeat()) {
+  const hasLocalOverride = Object.prototype.hasOwnProperty.call(skinIndexByColor, color);
+  let idx = hasLocalOverride ? skinIndexByColor[color] : 0;
+  if (isOnlineMode() && seat && !hasLocalOverride) {
     const synced = getSyncedIdentity(seat)?.pieceSkinIndex;
     if (typeof synced === "number") idx = synced;
   }

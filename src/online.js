@@ -299,7 +299,7 @@ export async function createRoom(name, password) {
       room_password: password || null,
     });
     if (error) throw error;
-    await joinRoom(gameId);
+    await joinRoom(gameId, password);
     return gameId;
   });
 }
