@@ -157,7 +157,13 @@ function renderLoginForm() {
   status.style.cssText = "font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.5rem; min-height: 1.2em;";
   contentEl.appendChild(status);
 
+  // .header-tool-buttonはdisplayを指定していない（既定でinline-block）ため、幅に余裕が
+  // あるこのパネルでは複数のボタンが横並びになってしまい、「Googleでログイン」と
+  // 「とりあえず遊ぶ（匿名）」が見た目上ほぼ隣接して紛らわしく表示されるバグがあった
+  // （ユーザー報告のスクリーンショットで確認）。ログイン手段のボタンはどれも縦に1列で
+  // 並べたい意図が明確なため、ここで明示的にdisplay:block; width:100%;を指定する。
   const btn = textButton("マジックリンクを送る");
+  btn.style.cssText = "display: block; width: 100%; box-sizing: border-box;";
   btn.addEventListener("click", async () => {
     if (!input.value) return;
     btn.disabled = true;
@@ -182,7 +188,7 @@ function renderLoginForm() {
   // 押した直後にステータス表示を更新する意味があまりない（成功時はそのままページが
   // 離れる）。事前にSupabaseダッシュボードでのGoogleプロバイダ設定が必要。
   const googleBtn = textButton("Googleでログイン");
-  googleBtn.style.marginBottom = "0.4rem";
+  googleBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box; margin-bottom: 0.4rem;";
   googleBtn.addEventListener("click", async () => {
     googleBtn.disabled = true;
     try {
@@ -197,6 +203,7 @@ function renderLoginForm() {
   // 匿名ログインはページ遷移せずその場で完了する（メール確認不要、ユドナリウムのような
   // 手軽さ）。事前にSupabaseダッシュボードで「Anonymous Sign-Ins」を有効化しておく必要がある。
   const anonBtn = textButton("とりあえず遊ぶ（匿名）");
+  anonBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box;";
   anonBtn.addEventListener("click", async () => {
     anonBtn.disabled = true;
     status.textContent = "ログイン中...";
