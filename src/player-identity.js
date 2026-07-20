@@ -1,6 +1,7 @@
 // プレイヤーの表示名・アバターを管理する。名前はいつでも自由に変更できる（デフォルトは
-// board-layout.jsのSEAT_LABELS）。アバターは今のところ、画像素材を用意していないので
-// 絵文字のダミーセットから選ぶだけの簡易実装（AVATAR_OPTIONS）。
+// board-layout.jsのSEAT_LABELS）。アバターは実物の画像素材（画像素材/アバター/アバター1、
+// 7色分）をassets/avatars/${color}.pngとしてコピーして使う（他の実物画像素材と同じ理由で
+// git管理外、.gitignoreの/assets/avatars/参照）。以前の絵文字ダミーセットは撤去した。
 // 座席(A/B/C/D)ごとに保持するだけで、誰がどのプレイヤーかという実データ（state.jsの
 // activePlayers/turnPlayer等）とは独立している——名前やアバターを変えてもゲームの
 // 進行ロジックには一切影響しない、純粋に表示用の情報だから。
@@ -15,9 +16,15 @@
 import { SEAT_LABELS, SEAT_ORDER } from "./board-layout.js";
 import { isOnlineMode, getSelfSeat, getSyncedIdentity, updateMyIdentity } from "./online.js";
 
-export const AVATAR_OPTIONS = ["🦊", "🐸", "🐙", "🦉", "🐲", "🦄", "🐧", "🦁", "🐺", "🐢", "🐬", "🦋"];
+const AVATAR_COLORS = ["red", "orange", "yellow", "green", "blue", "pink", "purple"];
+export const AVATAR_OPTIONS = AVATAR_COLORS.map((color) => `assets/avatars/${color}.png`);
 
-const DEFAULT_AVATARS = { A: "🦊", B: "🐸", C: "🐙", D: "🦉" };
+const DEFAULT_AVATARS = {
+  A: "assets/avatars/red.png",
+  B: "assets/avatars/orange.png",
+  C: "assets/avatars/yellow.png",
+  D: "assets/avatars/green.png",
+};
 
 let customNames = {};
 let avatars = { ...DEFAULT_AVATARS };

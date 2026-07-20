@@ -206,7 +206,7 @@ function layoutFan(count, orientation, isSelf, side) {
 // so7_game_seats/so7_user_profilesのavatar列はどちらもtext型のままで、URL文字列を
 // そのまま格納する（スキーマ変更は不要、表示側だけで判定する）。
 function isImageAvatar(avatar) {
-  return typeof avatar === "string" && /^https?:\/\//.test(avatar);
+  return typeof avatar === "string" && (/^https?:\/\//.test(avatar) || /\.(png|jpe?g|webp|gif)$/i.test(avatar));
 }
 function applyAvatarContent(el, avatar) {
   if (isImageAvatar(avatar)) {
@@ -2032,11 +2032,13 @@ function buildHandShuffleButton() {
   return btn;
 }
 
-// 1束に集めてシャカシャカ揺すってから広げ直す演出。手札の枚数が変わらない限り、
-// 扇の各スロット位置(layoutFan)自体はシャッフル前後で同じなので、「本物のカードを
-// 隠す→画像だけのゴーストを旧スロット位置から中央へ集める→揺する→shuffleHand()で
-// 実際の並びを変えてrender()→ゴーストを新スロット位置へ散らして本物を出す」という
-// 流れだけでよく、render()を2回呼ぶだけで済む（新しい位置を得るための特別な仕掛けは不要）。
+// 手札を中央に1束・裏向きにまとめる→その場で数枚が出たり入ったりする（シャッフルして
+// いる感）→元の手札の状態（同じスロット位置、新しい並び）に戻る、という演出。手札の枚数が
+// 変わらない限り扇の各スロット位置(layoutFan)自体はシャッフル前後で同じなので、「本物の
+// カードを隠す→裏面画像だけのゴーストを旧スロット位置から中央へ集める→数枚だけその場で
+// 出し入れする→shuffleHand()で実際の並びを変えてrender()→ゴーストを同じスロット位置へ
+// 戻して本物を出す」という流れだけでよい。ゴーストは終始裏向き（束の中身は見せない）の
+// ため、各カードの実際の絵柄を個別に持ち回す必要が無く、1枚の裏面画像を使い回せる。
 async function animateHandShuffle(seat) {
   const fanEl = document.querySelector(`.hand-area[data-player="${seat}"] .hand-fan`);
   const cardEls = fanEl ? Array.from(fanEl.querySelectorAll(".hand-card")) : [];
@@ -2050,19 +2052,19 @@ async function animateHandShuffle(seat) {
   handShuffleButtonEl.disabled = true;
 
   const slotRects = cardEls.map((el) => el.getBoundingClientRect());
-  const images = cardEls.map((el) => el.style.backgroundImage);
   const centerRect = slotRects[Math.floor(slotRects.length / 2)];
   cardEls.forEach((el) => {
     el.style.visibility = "hidden";
   });
 
-  const ghosts = images.map((bg, i) => {
+  const backImage = getCardBackImagePath(null); // 自分の手札は常に通常カードのため裏面は1種類固定
+  const ghosts = slotRects.map((rect, i) => {
     const g = document.createElement("div");
     g.className = "hand-shuffle-ghost";
-    g.style.backgroundImage = bg;
-    g.style.width = `${slotRects[i].width}px`;
-    g.style.height = `${slotRects[i].height}px`;
-    const from = rectCenter(slotRects[i]);
+    g.style.backgroundImage = `url("${backImage}")`;
+    g.style.width = `${rect.width}px`;
+    g.style.height = `${rect.height}px`;
+    const from = rectCenter(rect);
     g.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%)`;
     document.body.appendChild(g);
     return g;
@@ -2080,10 +2082,27 @@ async function animateHandShuffle(seat) {
   await new Promise((resolve) => setTimeout(resolve, GATHER_MS + 30));
 
   playSound("handShuffle");
-  const SHAKE_MS = 650;
-  ghosts.forEach((g) => g.classList.add("is-shaking"));
-  await new Promise((resolve) => setTimeout(resolve, SHAKE_MS));
-  ghosts.forEach((g) => g.classList.remove("is-shaking"));
+
+  // 束の中から数枚だけ、ずらしたタイミングでその場に軽くポップして戻る
+  // （＝出し入れしている感）。全員一斉に震えるのではなく、一部だけ動くことで
+  // 「触っている」印象を出す。
+  const POP_MS = 500;
+  const POP_STAGGER_MS = 130;
+  const popIndices = [];
+  const pool = ghosts.map((_, i) => i);
+  const popCount = Math.min(4, pool.length);
+  for (let i = 0; i < popCount; i++) {
+    const j = Math.floor(Math.random() * pool.length);
+    popIndices.push(pool.splice(j, 1)[0]);
+  }
+  popIndices.forEach((idx, order) => {
+    const g = ghosts[idx];
+    g.style.setProperty("--pop-delay", `${order * POP_STAGGER_MS}ms`);
+    g.classList.add("is-popping");
+  });
+  const totalPopMs = POP_STAGGER_MS * (popCount - 1) + POP_MS;
+  await new Promise((resolve) => setTimeout(resolve, totalPopMs));
+  ghosts.forEach((g) => g.classList.remove("is-popping"));
 
   shuffleHand(seat);
   render();
@@ -2095,13 +2114,13 @@ async function animateHandShuffle(seat) {
   });
   const newRects = newCardEls.map((el) => el.getBoundingClientRect());
 
-  const SCATTER_MS = 320;
+  const RESTORE_MS = 320;
   ghosts.forEach((g, i) => {
     const target = rectCenter(newRects[i] || centerRect);
-    g.style.transition = `transform ${SCATTER_MS}ms ease-in-out`;
+    g.style.transition = `transform ${RESTORE_MS}ms ease-in-out`;
     g.style.transform = `translate(${target.x}px, ${target.y}px) translate(-50%, -50%)`;
   });
-  await new Promise((resolve) => setTimeout(resolve, SCATTER_MS + 30));
+  await new Promise((resolve) => setTimeout(resolve, RESTORE_MS + 30));
 
   newCardEls.forEach((el) => {
     el.style.visibility = "";
@@ -2267,7 +2286,7 @@ function openAvatarPicker() {
     const swatch = document.createElement("button");
     swatch.className = "avatar-picker-swatch";
     if (getPlayerAvatar(getSelfSeat()) === avatar) swatch.classList.add("is-selected");
-    swatch.textContent = avatar;
+    applyAvatarContent(swatch, avatar);
     swatch.addEventListener("click", () => {
       setPlayerAvatar(getSelfSeat(), avatar);
       render();

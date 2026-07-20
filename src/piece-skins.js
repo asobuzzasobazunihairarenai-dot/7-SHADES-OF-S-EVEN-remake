@@ -21,7 +21,7 @@ import { getState } from "./state.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getSelfSeat, isOnlineMode, getSyncedIdentity, updateMyIdentity } from "./online.js";
 
-const SKIN_VARIANTS = [0, 1, 2, 3, 4, 5]; // 0=標準（assets/pieces/${color}.png）
+const SKIN_VARIANTS = [0, 1, 2, 3, 4, 5, 6, 7]; // 0=標準（assets/pieces/${color}.png）
 
 let preferredSkinIndex = 0;
 let hasLocalPreference = false;
