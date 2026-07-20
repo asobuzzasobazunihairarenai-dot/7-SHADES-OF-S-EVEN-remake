@@ -278,6 +278,25 @@ const GROUPS = [
       { key: "--first-pos-y", label: "位置Y（中心からのずれ）", unit: "rem", min: -25, max: 25, step: 0.1, default: 1.5 },
     ],
   },
+  {
+    // 「アイコン再配置モード」（下のTOGGLE_SECTIONS参照）でドラッグした分のズレも、
+    // ここと同じCSS変数へ直接書き込む（icon-rearrange.js参照）ため、ドラッグでも
+    // スライダーでも同じ値を共有し、どちらで動かしても「出力をコピー」に反映される。
+    title: "アイコンの位置調整（自由配置）",
+    category: "position",
+    controls: [
+      { key: "--icon-pos-hand-shuffle-x", label: "手札シャッフル 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-hand-shuffle-y", label: "手札シャッフル 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-board-zoom-x", label: "盤面拡大 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-board-zoom-y", label: "盤面拡大 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-draw-x", label: "1枚ドロー 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-draw-y", label: "1枚ドロー 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-end-turn-x", label: "ターン終了 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-end-turn-y", label: "ターン終了 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-options-x", label: "オプション 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-options-y", label: "オプション 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+    ],
+  },
 ];
 
 const CONTROLS = GROUPS.flatMap((g) => g.controls);
@@ -307,6 +326,18 @@ let cardArrivalModalPersistent = true;
 
 export function isCardArrivalModalPersistent() {
   return cardArrivalModalPersistent;
+}
+
+// アイコン再配置モード。ONの間、5つのアイコンボタン（手札シャッフル・盤面拡大・
+// 1枚ドロー・ターン終了・オプション）を画面上で直接ドラッグして自由に動かせる
+// （icon-rearrange.js参照）。移動量は上の「アイコンの位置調整（自由配置）」グループと
+// 同じCSS変数に書き込まれるため、動かした結果はスライダー・「出力をコピー」の両方に
+// そのまま反映される。ドラッグ操作そのものを許可するかどうかのモード切替なので、
+// GROUPS/CONTROLSの仕組みには乗せず単純なbool値として持つ（manualSeatMode等と同じ）。
+let iconRearrangeMode = false;
+
+export function isIconRearrangeMode() {
+  return iconRearrangeMode;
 }
 
 // 画面全体の明るさモード。「スタンダードモード」（デフォルト、従来通り）と
@@ -501,6 +532,34 @@ const TOGGLE_SECTIONS = [
       spotlightRow.appendChild(spotlightCheckbox);
       spotlightRow.appendChild(spotlightLabel);
       content.appendChild(spotlightRow);
+    },
+  },
+  {
+    title: "アイコン再配置モード",
+    category: "position",
+    buildContent: (content) => {
+      const rearrangeRow = document.createElement("label");
+      rearrangeRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const rearrangeCheckbox = document.createElement("input");
+      rearrangeCheckbox.type = "checkbox";
+      rearrangeCheckbox.checked = iconRearrangeMode;
+      rearrangeCheckbox.addEventListener("change", () => {
+        iconRearrangeMode = rearrangeCheckbox.checked;
+        document.body.classList.toggle("icon-rearrange-mode", iconRearrangeMode);
+      });
+      const rearrangeLabel = document.createElement("span");
+      rearrangeLabel.textContent = "ONにする（手札シャッフル・盤面拡大・1枚ドロー・ターン終了・オプションの5アイコンを直接ドラッグして動かせます）";
+      rearrangeRow.appendChild(rearrangeCheckbox);
+      rearrangeRow.appendChild(rearrangeLabel);
+      content.appendChild(rearrangeRow);
+
+      const note = document.createElement("div");
+      note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-top: 0.5rem; line-height: 1.5;";
+      note.textContent =
+        "動かした結果は上の「📐 位置合わせ」カテゴリ内「アイコンの位置調整（自由配置）」" +
+        "グループの値としてそのまま反映されます。移動し終えたら下の「出力をコピー」を押して、" +
+        "その内容を開発者に伝えてください。";
+      content.appendChild(note);
     },
   },
   {
@@ -785,6 +844,13 @@ export function openAdminPanel() {
 export function initAdminMode() {
   const rebuildSlidersRef = { current: () => {} };
   const panel = buildPanel(rebuildSlidersRef);
+
+  // icon-rearrange.jsが、アイコンのドラッグ再配置が1回終わるたびに発火する。スライダーの
+  // 表示値・出力欄をその場で最新化する（パネルが閉じていても軽い処理なので無条件に行う）。
+  window.addEventListener("admin:icon-rearrange-change", () => {
+    rebuildSlidersRef.current();
+    updateExportRef.current();
+  });
 
   function close() {
     panel.style.display = "none";

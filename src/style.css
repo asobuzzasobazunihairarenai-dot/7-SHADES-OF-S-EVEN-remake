@@ -874,6 +874,28 @@ body {
 .icon-action-button:disabled .icon-action-button-caption {
   cursor: not-allowed;
 }
+/* 管理者モードの「アイコン再配置モード」がONの間、対象の5つのアイコンボタンに
+   掴めることが分かる点線の枠＋grabカーソルを付ける（icon-rearrange.js参照）。
+   ドラッグ中は枠を強調しgrabbingカーソルに切り替える。 */
+body.icon-rearrange-mode #hand-shuffle-button,
+body.icon-rearrange-mode #board-zoom-button,
+body.icon-rearrange-mode #draw-button,
+body.icon-rearrange-mode #end-turn-button,
+body.icon-rearrange-mode #options-menu-button {
+  cursor: grab;
+  outline: 2px dashed rgba(56, 189, 248, 0.7);
+  outline-offset: 3px;
+  border-radius: 50%;
+}
+body.icon-rearrange-mode #hand-shuffle-button.is-rearranging,
+body.icon-rearrange-mode #board-zoom-button.is-rearranging,
+body.icon-rearrange-mode #draw-button.is-rearranging,
+body.icon-rearrange-mode #end-turn-button.is-rearranging,
+body.icon-rearrange-mode #options-menu-button.is-rearranging {
+  cursor: grabbing;
+  outline-color: #38bdf8;
+}
+
 /* 盤面拡大ボタン: 拡大中は色を、2段階目「もっと拡大」はさらに別の色を、というアイコン版。 */
 #board-zoom-button.is-active .icon-action-button-icon-wrap {
   background: rgba(34, 197, 94, 0.25);
@@ -1129,9 +1151,12 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   animation: turn-timer-warning-blink 1s ease-in-out infinite;
   pointer-events: none;
-  max-width: 11rem;
+  /* 文中の明示的な<br>（turn-timer.js参照）で2行に区切っているため、自動折返しが
+     割り込まないよう各行の実際の幅より少し広めに確保する。 */
+  max-width: 12rem;
+  white-space: nowrap;
   text-align: right;
-  line-height: 1.3;
+  line-height: 1.5;
 }
 /* 警告テキストだけでなく、対象の#end-turn-button自体にも点滅する縁取りを付ける。
    画面が狭くテキストバッジが見切れる／被る場合でも、光っているボタン自体で気付ける
@@ -1807,6 +1832,7 @@ body {
   right: 1.2rem;
   z-index: 1000;
   display: none; /* is-active時のみflexに切り替える（updateEndTurnButton参照） */
+  transform: translate(var(--icon-pos-end-turn-x, 0rem), var(--icon-pos-end-turn-y, 0rem));
 }
 /* 自分のターンでオンライン中、自分の手番でない間は押せなくする（アイコン全体を薄くする）。 */
 #end-turn-button:disabled .icon-action-button-icon-wrap {
@@ -1899,10 +1925,26 @@ body.spotlight-mode #spotlight-overlay {
   top: 0.3rem;
   right: 1rem;
   z-index: 900;
+  transform: translate(var(--icon-pos-options-x, 0rem), var(--icon-pos-options-y, 0rem));
+}
+/* ユーザー要望により、オプションボタンだけキャプション文字と丸い縁取りを非表示にする
+   （他のアイコンボタンは従来通り）。captionをdisplay:noneにすると1要素だけのflex列に
+   なりgapも自動的に効かなくなるため、ボタン自体の高さもアイコンぶんだけに縮む。 */
+#options-menu-button .icon-action-button-caption {
+  display: none;
+}
+#options-menu-button .icon-action-button-icon-wrap {
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+#options-menu-button:hover .icon-action-button-icon-wrap {
+  background: none;
+  border-color: transparent;
 }
 #options-menu-panel {
   position: fixed;
-  top: 4.3rem;
+  top: 3.3rem;
   right: 1rem;
   /* 呼び出しボタン(#options-menu-button)自体は900のまま（他の常設パネルより低くして
      "セットアップ/管理者モードが開いている間、オプションボタンがその上に乗ってしまう"
@@ -2075,18 +2117,23 @@ body.spotlight-mode #spotlight-overlay {
   right: 1.2rem;
   z-index: 1000;
   display: none;
+  /* 管理者モードの「アイコン再配置モード」でドラッグした分のズレ。基準位置は変えず
+     translate()で上乗せする（icon-rearrange.js参照）。 */
+  transform: translate(var(--icon-pos-draw-x, 0rem), var(--icon-pos-draw-y, 0rem));
 }
 #board-zoom-button {
   position: fixed;
   bottom: 8.8rem;
   right: 1.2rem;
   z-index: 1000;
+  transform: translate(var(--icon-pos-board-zoom-x, 0rem), var(--icon-pos-board-zoom-y, 0rem));
 }
 #hand-shuffle-button {
   position: fixed;
   bottom: 12.6rem;
   right: 1.2rem;
   z-index: 1000;
+  transform: translate(var(--icon-pos-hand-shuffle-x, 0rem), var(--icon-pos-hand-shuffle-y, 0rem));
 }
 /* 手札が0〜1枚（シャッフルしても見た目が変わらない）の間は押せなくする。 */
 #hand-shuffle-button:disabled .icon-action-button-icon-wrap {
@@ -2194,6 +2241,59 @@ body.reduce-glow .board-card.is-usable-while-locked.effect-orbit::before {
 
 /* 自分専用の手札枚数ステータス。他のパネルと違う左下に置き、常時表示にする
    （state.turnPlayerの有無に関わらず、自分の手札は常に自分だけ見えていて良い情報のため）。 */
+/* 「誤操作防止」（駒/カード グレー表示切替）ボタン。タッチ主体の端末でのみ表示される
+   （interaction-mode.js参照）。#self-hand-status（左下ステータス）のすぐ上に置く。 */
+#interaction-mode-button {
+  position: fixed;
+  bottom: 5.6rem;
+  left: 1.2rem;
+  z-index: 1000;
+}
+@keyframes icon-mode-active-glow {
+  0%, 100% { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4), 0 0 0 0.15rem rgba(250, 204, 21, 0.9); }
+  50% { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4), 0 0 0 0.35rem rgba(250, 204, 21, 0.3); }
+}
+#interaction-mode-button.is-glowing .icon-action-button-icon-wrap {
+  background: rgba(250, 204, 21, 0.2);
+  border-color: rgba(250, 204, 21, 0.85);
+  animation: icon-mode-active-glow 1.4s ease-in-out infinite;
+}
+
+/* 「誤操作防止」がONの間、対象（駒/カード）をグレー表示にして操作できなくする。
+   ハマりどころ: .pieceはtransform-style:preserve-3dの立方体のため、.piece自身や
+   その祖先にfilterを付けると3D立方体の壁が高さ0に潰れる既知のバグがある（駒の壁面・
+   カード山の側面で過去に踏んだのと同じ）。そのためfilter(grayscale)は3D子孫を持たない
+   flatな葉要素(.piece-face、5面それぞれ)にだけ適用し、.piece自身にはpointer-events/
+   cursorだけを設定する。既存の陰影用filter(brightness)を持つ面は、上書きで消さないよう
+   同じbrightness値と組み合わせておく。 */
+body.pieces-interaction-hidden .piece {
+  pointer-events: none;
+  cursor: default;
+}
+body.pieces-interaction-hidden .piece-face {
+  opacity: 0.4;
+}
+body.pieces-interaction-hidden .piece-top,
+body.pieces-interaction-hidden .piece-wall-front {
+  filter: grayscale(1);
+}
+body.pieces-interaction-hidden .piece-wall-back {
+  filter: brightness(0.35) grayscale(1);
+}
+body.pieces-interaction-hidden .piece-wall-left {
+  filter: brightness(0.55) grayscale(1);
+}
+body.pieces-interaction-hidden .piece-wall-right {
+  filter: brightness(0.8) grayscale(1);
+}
+/* .board-cardは3D子孫を持たない平面のカードのため、直接filterを付けても安全。 */
+body.cards-interaction-hidden .board-card {
+  opacity: 0.4;
+  filter: grayscale(1);
+  pointer-events: none;
+  cursor: default;
+}
+
 #self-hand-status {
   position: fixed;
   bottom: 1.2rem;

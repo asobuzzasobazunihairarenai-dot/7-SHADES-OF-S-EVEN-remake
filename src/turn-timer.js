@@ -365,7 +365,16 @@ function updateRope(state) {
 function buildWarning() {
   warningEl = document.createElement("div");
   warningEl.className = "turn-timer-warning";
-  warningEl.textContent = "ムーブフェイズを終えてターンを終了してください";
+  // 自動折返しに任せると文字の途中(max-widthとフォント幅の兼ね合い)で改行位置が
+  // 不自然な場所になってしまうことがあったため、意味の区切り（「終えて」/「ください」）で
+  // 明示的に2行に分ける。
+  const line1 = document.createElement("span");
+  line1.textContent = "ムーブフェイズを終えて";
+  const line2 = document.createElement("span");
+  line2.textContent = "ターンを終了してください";
+  warningEl.appendChild(line1);
+  warningEl.appendChild(document.createElement("br"));
+  warningEl.appendChild(line2);
   warningEl.style.display = "none";
   document.body.appendChild(warningEl);
 }

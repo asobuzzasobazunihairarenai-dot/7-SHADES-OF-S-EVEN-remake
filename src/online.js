@@ -682,6 +682,15 @@ export async function fetchAndHydrate(gameId) {
       piles[r.pile_name] = r.pile_name === "discard" ? r.cards ?? [] : new Array(r.card_count ?? 0).fill(null);
     }
 
+    // hydrateState()より前にsyncedTimerConfigを更新する必要がある。hydrateState()は
+    // 内部でnotifyListeners()を同期的に呼び、turn-timer.jsのonStateChangeがその場で
+    // isTurnTimerEnabled()（synced優先）を参照するため、後から代入すると「ゲーム開始
+    // 直後の最初のhydrateではまだsyncedTimerConfigがnullのまま＝ローカルのadmin設定
+    // （デフォルトOFF）にフォールバックしてタイマーが初期化されず、次に何か操作して
+    // 2回目のhydrateが起きて初めてsyncedTimerConfigが反映され動き出す」というバグが
+    // あった（ユーザー報告: 「オンにしたのにゲーム開始後、何かクリックするまでタイマーが
+    // 作動しない」）。
+    syncedTimerConfig = gameRow.timer_config ?? null;
     hydrateState({
       tokens,
       piles,
@@ -695,7 +704,6 @@ export async function fetchAndHydrate(gameId) {
       priorityPhase: gameRow.priority_phase,
       hourglassStock: gameRow.hourglass_stock ?? {},
     });
-    syncedTimerConfig = gameRow.timer_config ?? null;
   });
 }
 
