@@ -693,6 +693,96 @@ body {
   background: rgba(255, 255, 255, 0.2);
 }
 
+/* フェイズ案内板（画面最下部中央）。ロック/ハンド/ムーブの3つを常設表示する。現時点では
+   「今どのフェイズか」を示す状態が無いため純粋な案内表示だが、将来フェイズ状態を持たせた
+   時に該当ボタンを光らせられるよう、is-current-phase等のクラスを後付けしやすい構造にして
+   ある（phase-guide.js参照）。 */
+#phase-guide-bar {
+  position: fixed;
+  bottom: 1.2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  gap: 0.5rem;
+  background: rgba(15, 23, 32, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.5rem;
+  padding: 0.4rem;
+  font-family: sans-serif;
+}
+.phase-guide-item {
+  position: relative;
+  padding: 0.4rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.4rem;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+.phase-guide-item:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.5);
+}
+/* 将来、現在のフェイズが分かるようになった時にこのクラスを付ける想定（未実装）。 */
+.phase-guide-item.is-current-phase {
+  animation: lock-area-turn-glow 2.6s ease-in-out infinite;
+  border-color: rgba(var(--turn-glow-rgb), 0.9);
+}
+.phase-guide-tooltip {
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 16rem;
+  background: rgba(15, 23, 32, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: normal;
+  line-height: 1.4;
+  white-space: normal;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease;
+}
+.phase-guide-item:hover .phase-guide-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+#phase-guide-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(30rem, 92vw);
+  max-height: 80vh;
+  overflow-y: auto;
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  z-index: 10101;
+  font-family: sans-serif;
+  color: #e2e8f0;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+.phase-guide-modal-title {
+  font-weight: bold;
+  font-size: 1rem;
+  margin-bottom: 0.6rem;
+}
+.phase-guide-modal-body {
+  font-size: 0.85rem;
+}
+
 /* ドラッグ中はカーソルに1:1追従する「ゴースト」を3D空間の外(document.body直下)に表示する。
    left:0;top:0;を基準にtransform: translate()だけで位置決めするので、駒/カードの実寸
    (remベースの固定サイズ)をそのまま流用でき、ドラッグ開始時にサイズを測る必要がない。 */

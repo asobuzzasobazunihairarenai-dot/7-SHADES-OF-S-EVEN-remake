@@ -19,6 +19,7 @@ import { isArrivalEffectDisabled } from "./motion-prefs.js";
 import { showCardArrivalModal } from "./card-arrival.js";
 import { initPlayerButtons } from "./player-buttons.js";
 import { initQuickStart } from "./quick-start.js";
+import { initPhaseGuide } from "./phase-guide.js";
 import { registerRenderHelpers, animateFirstCardsDealt, animateBoardFilled } from "./setup-animation.js";
 import {
   registerRemoteMoveAnimatorHelpers,
@@ -2295,6 +2296,7 @@ initGameSetup();
 initOptionsMenu();
 initPlayerButtons();
 initQuickStart();
+initPhaseGuide();
 registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocationElement, setSetupPendingTokenIds });
 registerPieceSkinHelpers({ render });
 registerRemoteMoveAnimatorHelpers({
