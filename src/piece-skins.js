@@ -100,9 +100,7 @@ export function openPieceSkinPicker() {
     swatch.addEventListener("click", () => {
       setLocalPreferredSkinIndex(idx);
       notifyChange();
-      if (isOnlineMode()) {
-        updateMyIdentity({ pieceSkinIndex: idx }).catch((err) => console.error("updateMyIdentity failed", err));
-      }
+      updateMyIdentity({ pieceSkinIndex: idx }).catch((err) => console.error("updateMyIdentity failed", err));
       // 名前・アバターの編集(main.js)は変更直後に直接render()を呼んでいるが、ここは
       // それが漏れていたため、駒スキンを変えても選んだ本人の画面にすら反映されない
       // バグになっていた（駒スキンだけ相手にも自分にも反映されない、という報告の原因）。

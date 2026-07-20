@@ -33,7 +33,7 @@ export function getPlayerName(seat) {
 export function setPlayerName(seat, name) {
   const trimmed = name.trim();
   customNames[seat] = trimmed || null;
-  if (isOnlineMode() && seat === getSelfSeat()) {
+  if (seat === getSelfSeat()) {
     updateMyIdentity({ name: trimmed || null }).catch((err) => console.error("updateMyIdentity failed", err));
   }
 }
@@ -48,7 +48,7 @@ export function getPlayerAvatar(seat) {
 
 export function setPlayerAvatar(seat, avatar) {
   avatars[seat] = avatar;
-  if (isOnlineMode() && seat === getSelfSeat()) {
+  if (seat === getSelfSeat()) {
     updateMyIdentity({ avatar }).catch((err) => console.error("updateMyIdentity failed", err));
   }
 }
