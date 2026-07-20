@@ -162,6 +162,15 @@ export function handleHydrate() {
       items.push({ id: token.id, token, kind: "move", prevLocation: prev.location });
     } else if (isTableZone(prev.location) && token.location.zone === "hand") {
       items.push({ id: token.id, token, kind: "pickup", prevFaceUp: prev.faceUp });
+    } else if (prev.location.zone === "hand" && isTableZone(token.location)) {
+      // 手札からロック/盤面マスへ直接移動するケース（実際の対戦で最も一般的なロックの
+      // やり方）。以前はこの向きの遷移が分類漏れしており、他プレイヤーの画面では
+      // ロック演出が一切再生されないバグの原因だった。"move"kindをそのまま使う——
+      // 移動前の実DOM要素（他プレイヤーの手札カードも実際に描画されている）から
+      // fromRectが取れれば飛翔演出になり、取れなければ新規出現と同様その場で
+      // フェードインする。prevLocation.zoneは"hand"なのでwasAlreadyLocked判定
+      // （triggerEffectsFor参照）は正しくfalseになり、新規ロックとして扱われる。
+      items.push({ id: token.id, token, kind: "move", prevLocation: prev.location });
     }
     // 手札→手札、手札→山等、その他の遷移は対象外（山へ送る操作はローカル版でも演出無し）。
   }

@@ -19,6 +19,14 @@ const SKIN_VARIANTS = [0, 1, 2, 3, 4, 5]; // 0=標準（assets/pieces/${color}.p
 
 let skinIndexByColor = {};
 
+// setup-animation.js/remote-move-animator.jsと同じ「main.jsから自分の関数を注入してもらう」
+// 循環import回避パターン。スキン変更直後、自分の画面にも即座に反映させるためだけに使う
+// （main.js自体はexportを持たない静的サイトのため、直接importできない）。
+let helpers = null; // { render }
+export function registerPieceSkinHelpers(h) {
+  helpers = h;
+}
+
 // seat: 分かる場合（盤面上の駒を描画する時等）は渡すと、オンライン中はその座席の同期済み
 // スキン選択を優先する。省略時（自分専用ステータスのプレビュー等）はローカルの色ベースの
 // 選択にフォールバックする。
@@ -72,6 +80,10 @@ export function openPieceSkinPicker() {
       if (isOnlineMode()) {
         updateMyIdentity({ pieceSkinIndex: idx }).catch((err) => console.error("updateMyIdentity failed", err));
       }
+      // 名前・アバターの編集(main.js)は変更直後に直接render()を呼んでいるが、ここは
+      // それが漏れていたため、駒スキンを変えても選んだ本人の画面にすら反映されない
+      // バグになっていた（駒スキンだけ相手にも自分にも反映されない、という報告の原因）。
+      helpers?.render();
       close();
     });
     grid.appendChild(swatch);

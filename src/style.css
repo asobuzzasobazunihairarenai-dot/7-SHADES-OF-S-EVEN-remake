@@ -1342,6 +1342,15 @@ body {
 #end-turn-button:hover {
   background: linear-gradient(160deg, #fbbf24, #f97316);
 }
+/* オンライン中、自分の手番でない間は押せなくする（#hand-shuffle-button:disabledと同じ配色）。 */
+#end-turn-button:disabled {
+  background: linear-gradient(160deg, #475569, #1e293b);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+#end-turn-button:disabled:hover {
+  background: linear-gradient(160deg, #475569, #1e293b);
+}
 
 /* ゲームタイトル。画面左上（以前「⚙ 管理者モード」ボタンがあった場所。オプションメニューに
    統合して空いたスペースに表示する）。 */

@@ -367,7 +367,13 @@ export function initGameSetup() {
   function close() {
     panel.style.display = "none";
     backdrop.style.display = "none";
-    toggleBtn.style.display = "block";
+    // インラインスタイルはCSSの `body.is-online-mode #game-setup-toggle-button { display: none; }`
+    // より常に優先されてしまう。"block"を直接指定していたため、一度でもこのパネルを
+    // 閉じる操作（ウィザードの通常利用・クイックスタート完了時の自動クローズ含む）が
+    // 行われると、その後オンラインの部屋に参加してもこのボタンが二度と隠れなくなる
+    // バグがあった。removeProperty()でインラインスタイルそのものを外し、CSS側の
+    // カスケード（オンラインモード時の非表示規則を含む）に判断を委ねる。
+    toggleBtn.style.removeProperty("display");
   }
   closePanel = close;
   function open() {

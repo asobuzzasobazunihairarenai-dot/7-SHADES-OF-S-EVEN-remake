@@ -9,7 +9,7 @@ import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
 import { announceHandPickups, announceCardLocked } from "./hand-announcer.js";
 import { enqueueGateInvasionSteps } from "./gate-invasion-modal.js";
 import { checkForVictory } from "./victory.js";
-import { getSkinImagePath, getMyPieceColor, openPieceSkinPicker } from "./piece-skins.js";
+import { getSkinImagePath, getMyPieceColor, openPieceSkinPicker, registerPieceSkinHelpers } from "./piece-skins.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS } from "./player-identity.js";
 import { getSelectedPlaymatPath } from "./playmat.js";
@@ -41,6 +41,7 @@ import {
   onAuthChange,
   fetchAndHydrate,
   onGateInvasionEvents,
+  getSyncedIdentity,
 } from "./online.js";
 import { playSound } from "./sound.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
@@ -638,7 +639,13 @@ function promptCardOpen(pieceTokenId, card) {
     playSound("cardFlip");
     closeOpenPrompt();
     render();
-    triggerCardArrival(card.cardId, card.location); // 反転前後でcardId/locationは変わらないため捕捉済みの値で問題ない
+    // オンライン中、オープン前のcardは裏向き（RLSマスクによりcardIdがnull）だった時点の
+    // クロージャ値のままなので、そのまま到達演出に使うとgetCardDefinition(null)が
+    // undefinedを返しshowCardArrivalModal内でクラッシュし、演出全体（サウンド・光の柱含む）
+    // が失敗する（オープンした本人の画面だけ到達演出が出ないバグの原因だった）。
+    // fetchAndHydrate()後のフレッシュな状態から改めて取得する。
+    const freshCard = getState().tokens.find((t) => t.id === card.id);
+    if (freshCard) triggerCardArrival(freshCard.cardId, freshCard.location);
   });
 
   const noBtn = document.createElement("button");
@@ -1707,9 +1714,14 @@ function buildEndTurnButton() {
   const btn = document.createElement("button");
   btn.id = "end-turn-button";
   btn.addEventListener("click", () => {
-    // オンライン対戦（第一弾）ではGATE_INVASION_*をまだサーバー側にポートしていないため、
-    // runGateInvasionsIfNeeded()を呼ぶとローカルだけに適用されサーバーの状態と食い違って
-    // しまう。オンライン中はnextTurn()だけを直接呼ぶ（ゲート侵攻ボーナスは次回以降）。
+    // オンライン中、自分の手番でない間はupdateEndTurnButton()側でdisabled=trueに
+    // しているはずだが、念のためここでも二重にガードする（他人のターンを勝手に
+    // 終了させられてしまうバグの再発防止）。
+    if (isOnlineMode() && getSelfSeat() !== getState().turnPlayer) return;
+    // ゲート侵攻ボーナス(GATE_INVASION_*)は、so7-apply-action.ts側でNEXT_TURN処理に
+    // 統合済み（サーバー側で自動判定・自動適用される）。オンライン中にrunGateInvasionsIfNeeded()
+    // を呼ぶとローカルだけに二重適用されサーバーの状態と食い違ってしまうため、
+    // オンライン中はnextTurn()だけを直接呼ぶ。
     if (isOnlineMode()) {
       nextTurn();
       return;
@@ -1736,7 +1748,16 @@ function updateEndTurnButton() {
     return;
   }
   endTurnButtonEl.style.display = "block";
-  endTurnButtonEl.textContent = `${getPlayerName(turnPlayer)}のターンを終了 →`;
+  // オンライン中は「今誰のターンか」を明示し、自分の手番でない間は押せないようにする
+  // （以前は誰でも他人のターンを終了させられてしまっていた）。ローカルモードは
+  // 1人で全座席を操作する前提のため、従来通り常に有効・宛先の座席名を表示する。
+  if (isOnlineMode() && getSelfSeat() !== turnPlayer) {
+    endTurnButtonEl.textContent = `今は${getPlayerName(turnPlayer)}のターン中です`;
+    endTurnButtonEl.disabled = true;
+  } else {
+    endTurnButtonEl.textContent = isOnlineMode() ? "自分のターンを終了 →" : `${getPlayerName(turnPlayer)}のターンを終了 →`;
+    endTurnButtonEl.disabled = false;
+  }
 }
 
 // OKボタン1つだけのシンプルな確認モーダル（山札切れの補充確認に使う）。ゲームの状態に
@@ -1957,9 +1978,12 @@ function updateTurnRoundCounter() {
 }
 
 // --- 「1枚ドロー」ボタン ---------------------------------------------------------
-// 手番プレイヤーが山札から1枚引いて自分の手札に加える、簡易操作用のショートカット。
-// 「ターンを次のプレイヤーへ渡す」ボタンと同じ理由で、state.turnPlayerがまだnullの間は
-// 非表示にする。
+// 自分（押した本人）が山札から1枚引いて自分の手札に加える、簡易操作用のショートカット。
+// このゲームには手番でなくても自分の判断で引ける場面があるため、手番プレイヤーに
+// 限定しない（押した本人が常に受け取る。以前は誤ってgetState().turnPlayerへ
+// ドローしていたため、オンライン中に他人が押すと手番プレイヤーの手札が増えてしまう
+// バグがあった）。「ターンを次のプレイヤーへ渡す」ボタンと同じ理由で、
+// state.turnPlayerがまだnullの間（ゲーム開始前）は非表示にする。
 let drawButtonEl = null;
 
 function buildDrawButton() {
@@ -1967,8 +1991,8 @@ function buildDrawButton() {
   btn.id = "draw-button";
   btn.textContent = "1枚ドロー";
   btn.addEventListener("click", () => {
-    const player = getState().turnPlayer;
-    if (!player) return;
+    if (!getState().turnPlayer) return;
+    const player = getSelfSeat();
     ensureDeckAvailable(async () => {
       if (isOnlineMode()) {
         // 山の中身はサーバーにしか無く先読みできないため、drawFromPile()（オンライン中は
@@ -2167,6 +2191,7 @@ initOptionsMenu();
 initPlayerButtons();
 initQuickStart();
 registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocationElement, setSetupPendingTokenIds });
+registerPieceSkinHelpers({ render });
 registerRemoteMoveAnimatorHelpers({
   setSetupPendingTokenIds,
   maybeAnnounceLock,
@@ -2237,6 +2262,10 @@ subscribe(() => {
 // isOnlineMode()も指紋に含めるのは、online.jsのsubscribeToGame()がsetOnlineMode(true)の
 // 直後に呼ぶnotifyListeners()（tokensは変化しないが、is-online-modeクラスを即座に反映する
 // ためだけの強制再描画）が、この重複排除によって誤ってスキップされないようにするため。
+// ロスター（名前・アバター・駒スキン）も指紋に含めるのは、online.jsのidentity_changed
+// Broadcastハンドラが盤面トークンを一切変えずにnotifyListeners()だけ呼ぶため——含めないと
+// 相手が名前/アバター/駒スキンを変更しても、盤面側の指紋が一致してrender()自体が
+// スキップされ、変更が画面に反映されないバグになっていた。
 let lastRenderedFingerprint = null;
 function computeStateFingerprint(state) {
   const tokenParts = state.tokens
@@ -2248,6 +2277,12 @@ function computeStateFingerprint(state) {
     })
     .sort()
     .join(";");
+  const rosterParts = state.activePlayers
+    .map((seat) => {
+      const identity = getSyncedIdentity(seat);
+      return `${seat}:${identity?.name ?? ""}:${identity?.avatar ?? ""}:${identity?.pieceSkinIndex ?? ""}`;
+    })
+    .join(";");
   return [
     isOnlineMode() ? 1 : 0,
     state.turnPlayer ?? "",
@@ -2255,6 +2290,7 @@ function computeStateFingerprint(state) {
     state.roundNumber ?? "",
     state.activePlayers.join(","),
     tokenParts,
+    rosterParts,
   ].join("|");
 }
 

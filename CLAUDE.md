@@ -903,3 +903,101 @@
   （`so7_game_seats`への`display_name`/`avatar`/`piece_skin_index`列追加＋UPDATEポリシー新設）を
   Supabaseダッシュボードの SQL Editor で実行する必要がある。`so7-apply-action.ts`の変更は
   今回無いため、Edge Functionの再デプロイは不要。
+
+### 2026-07-20の変更：実際に2ブラウザで試した追加フィードバック9件への対応（到達演出/ロック演出の非表示バグ・ドロー先の取り違え・ターン終了ボタンの誤操作・セットアップボタンが消えないバグ・名前/駒スキン同期の見落とし）
+
+前回ラウンド（名前/アバター/駒スキン同期・リモート移動アニメーター・ゲート侵攻モーダル）を
+実際に2ブラウザで動かしたユーザーから、新たに9件の不具合・要望が報告された。今回はサーバー側
+（SQL・Edge Function）の変更を一切伴わない、クライアント側のバグ修正のみで完結する。
+`C:\Users\user\.claude\plans\declarative-hopping-gray.md`にPlan agentの査読を経た詳細な
+根本原因分析が残っている。
+
+- **到達演出（裏向きカードをオープンした場合）が操作者本人の画面に出ないバグを修正**:
+  `main.js`の`promptCardOpen()`の「👁 オープンする」ボタンが、`flipToken()`＋
+  `fetchAndHydrate()`後に`triggerCardArrival(card.cardId, card.location)`を呼んでいたが、
+  `card`はオープン前（＝裏向きでRLSマスクによりcardIdがnullだった時点）のクロージャ値の
+  ままだった。`triggerCardArrival`→`showCardArrivalModal(null)`→`getCardDefinition(null)`が
+  `undefined`を返し、`def.name`で`TypeError`が発生、`playSound`・`spawnArrivalBurst`も含めて
+  演出全体がその場で失敗していた（表向きに乗った場合は最初からcardIdが見えているため問題ない
+  ＝ユーザー報告と一致）。`fetchAndHydrate()`後に`getState()`から該当トークンを再取得し、
+  フレッシュな`cardId`/`location`で`triggerCardArrival`を呼ぶよう修正（ダブルクリックでの
+  オープン処理は元々このパターンを使っていたため無傷だった）。
+- **ロック演出が、手札から直接ロックした場合に相手プレイヤーの画面へ表示されないバグを修正**:
+  `remote-move-animator.js`の`handleHydrate()`内の差分分類ロジックは「テーブル→テーブル」と
+  「テーブル→手札」の2パターンしか扱っておらず、「手札→テーブル（ロック含む）」という、
+  実際の対戦で最も一般的なロック方法（手札のカードを自分のロックエリアへドラッグする）が
+  分類対象から漏れていた。新しい分岐（`prev.location.zone === "hand" && isTableZone(token.location)`）
+  を追加し、既存の"move"kindをそのまま再利用するようにした。移動前の実DOM要素（他プレイヤーの
+  手札カードも実際に`dataset.tokenId`付きでレンダリングされている）から`fromRect`を取得できる
+  ため、手札→ロックスロットへの本物の飛翔アニメーションになる。
+- **「1枚ドロー」ボタンが、押した本人ではなく手番プレイヤーへドローしてしまうバグを修正**:
+  `buildDrawButton()`は常に`getState().turnPlayer`へドローする実装だった。ユーザーから
+  「シェイズオブセブンでは相手のターンでも自分がドローする場合があります」との訂正があり、
+  「自分の手番の時だけ押せる」という制限（#4のターン終了ボタンと同様のガード）を付けるのは
+  誤りと判明。あくまで「宛先が押した本人ではなく手番プレイヤーになっていた」取り違えが問題
+  だったため、ドロー先を`getState().turnPlayer`から`getSelfSeat()`（押した本人の座席）に
+  変更した。ボタンの有効/無効条件（ゲーム開始後は常に押せる）は変更していない。
+- **「ターンを終了」ボタンのラベルと、他人のターンを勝手に終了させられてしまう問題を修正**:
+  `updateEndTurnButton()`は常に`${getPlayerName(turnPlayer)}のターンを終了 →`と表示し、
+  クリックハンドラも誰が押したかを問わず`nextTurn()`を呼んでいた。オンライン中、
+  `getSelfSeat() === turnPlayer`なら「自分のターンを終了 →」・有効、そうでなければ
+  「今は${プレイヤー名}のターン中です」・`disabled = true`に分岐するよう修正（クリック
+  ハンドラ側にも`isOnlineMode() && getSelfSeat() !== turnPlayer`の二重ガードを追加）。
+  ローカルモードは現状の表示・常時有効のまま変更していない。無効化時のスタイルは既存の
+  `#hand-shuffle-button:disabled`（グレーグラデーション＋`opacity:0.6`）を流用した。
+- **オンライン対戦中なのに「🎲 セットアップ」ボタンが表示されてしまうバグを、真因を特定して
+  修正（前回ラウンドから持ち越しの未解決バグ）**: 当初「render()の重複排除（Step 0の
+  フィンガープリント）が`is-online-mode`クラス付与をスキップしている」という仮説を立てたが、
+  Plan agentの査読で異なる真因が判明した。`game-setup.js`の`initGameSetup()`内、`close()`
+  関数が`toggleBtn.style.display = "block";`という**インラインスタイル**を無条件にセットして
+  いた。インラインスタイルはCSSの`body.is-online-mode #game-setup-toggle-button { display: none; }`
+  という規則（`!important`無し）より常に優先されるため、一度でもセットアップパネルを閉じる
+  操作（✕ボタン・背景クリック・クイックスタートやウィザードの「①〜③を一気に行う」完了時の
+  自動クローズ含む）が行われると、その後オンラインの部屋に参加してもこのボタンは二度と
+  CSSの非表示規則に従わなくなっていた。ごく普通のローカルモードの利用（セットアップ
+  ウィザードを一度でも開閉する）で発生するため再現性が高く、これが前回・前々回の調査で
+  見つからなかった理由（class-toggle/renderのタイミングばかり調べており、別モジュールの
+  インラインスタイル上書きを見ていなかった）でもある。`close()`内を
+  `toggleBtn.style.removeProperty("display");`に変更し、インラインスタイルそのものを外して
+  CSSカスケードに判断を委ねるよう修正。ブラウザで実測: パネルを開閉した後の`toggleBtn`の
+  インラインstyle.displayが空文字列になり、オンラインモードへ切り替えると
+  `getComputedStyle().display`が正しく`"none"`になることを確認済み。
+- **名前・アバター・駒スキンの変更が、相手の画面（および駒スキンは自分の画面も）に
+  反映されないバグを修正**: 2つの独立した原因があった。
+  1. （相手の画面全般）`computeStateFingerprint()`（前回ラウンドのStep 0で追加）が
+     `tokens`/`turnPlayer`/`turnNumber`/`roundNumber`/`activePlayers`/`isOnlineMode()`
+     のみを対象にしており、ロスター（名前・アバター・駒スキン）を含んでいなかった。
+     `identity_changed`Broadcastを受けた側は`updateIdentityRoster()`→`notifyListeners()`を
+     呼ぶが、盤面のトークン等は何も変わっていないため指紋が一致し、render()自体が
+     スキップされていた。`state.activePlayers`の各座席について`getSyncedIdentity(seat)`の
+     `name`/`avatar`/`pieceSkinIndex`を連結した文字列を指紋に追加して解決（ロスター変更は
+     盤面トークンの変更と独立に発生するため、進行中の到達演出/ロック演出のアニメーションを
+     誤って中断させるリスクは無い）。
+  2. （駒スキンが自分の画面にも反映されない、#7固有の追加の欠落）`piece-skins.js`の
+     スキン選択スウォッチのクリックハンドラは`skinIndexByColor[color] = idx`のあと
+     `notifyChange()`（管理者パネル用の無関係なカスタムイベント）と`updateMyIdentity()`だけを
+     呼び、`render()`も`notifyListeners()`も一切呼んでいなかった。名前・アバターの編集
+     （main.js側）は直接`render()`を呼んでいるため自分の画面には即反映されるが、駒スキンだけ
+     この呼び出しが漏れていた。`setup-animation.js`/`remote-move-animator.js`と同じ
+     `registerRenderHelpers`的な注入パターンで、新規`registerPieceSkinHelpers({ render })`を
+     `piece-skins.js`にexportし、main.js起動時に他の2つの登録と並べて呼ぶようにした上で、
+     スウォッチクリック時に`render()`を呼ぶよう修正。ブラウザで実測: スキン変更直後、盤面上の
+     自分の駒の背景画像が別操作を挟まず即座に切り替わることを確認済み。
+- **ゲート侵攻ボーナスモーダルの表示秒数の管理者モード調整**: 確認したところ既に実装済み
+  だった（`admin.js`の「相手ゲート侵攻ボーナス通知（オンライン対戦）」グループ、
+  `✨ 演出`カテゴリ内、`--gate-invasion-modal-step-duration`スライダー、1〜15秒・デフォルト
+  3.5秒）。このカテゴリ内の各グループはデフォルトで折りたたまれているため見落とされていた
+  だけで、コード変更は不要。ユーザーには場所（⚙オプション→管理者モード→✨演出カテゴリ）を
+  案内した。
+- **今回は含めなかった副次的な発見（将来の課題）**: `remote-move-animator.js`の
+  `previousTokensById`は初期値が空の`Map`のままなので、進行中のゲームに途中参加/再接続した
+  クライアントは、既存の全トークンを「新規出現」と誤検知し、ロック演出や49マスのフェードインが
+  再生されてしまう可能性がある（Plan agentの査読で発見、今回の9件には含まれていないため
+  対応せず）。
+- **検証状況**: ローカルモードの回帰確認（4人クイックスタート→駒ドラッグ→名前変更→
+  駒スキン変更→1枚ドロー→ターン終了ボタンのラベル/有効状態）をブラウザで実施し、エラー
+  無し・ローカルモードの既存挙動に変化が無いことを確認済み。#6（セットアップボタン）は
+  `isOnlineMode(true)`をコンソールから直接切り替えるシミュレーションで、修正が意図通り
+  効くことを直接確認済み。#1/#5・#2・#7の「相手画面」側の見え方は、サーバー側の変更が
+  無いため今回は2ブラウザでの実地テストのみで確認可能（追加のSQL実行・Edge Function
+  再デプロイは不要、コード反映後すぐに試せる）。
