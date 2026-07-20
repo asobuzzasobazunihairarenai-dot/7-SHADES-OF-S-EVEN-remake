@@ -2284,12 +2284,24 @@ async function animateHandShuffle(seat) {
   });
 
   const backImage = getCardBackImagePath(null); // 自分の手札は常に通常カードのため裏面は1種類固定
+  // ハマりどころ（ユーザー報告: シャッフル中の裏向きカードが上部だけ切れて見える）:
+  // 自分の手札(.hand-card.is-self)はrotateX(-40deg)+translateZ(2.4rem)の強い3D傾きの中に
+  // あるため、getBoundingClientRect()が返す幅/高さは「画面に投影された後の遠近感で
+  // 縮んだ（本来は正方形なのに台形に見える）見た目のサイズ」であり、真の正方形ではない。
+  // これをそのままゴースト（3D空間の外＝傾きの影響を受けない平面）の幅/高さに使うと、
+  // 正方形の裏面画像をbackground-size:coverで敷いた時に非対称にトリミングされてしまう。
+  // 位置決め(rectCenter)には引き続き投影後の座標が必要だが、サイズには
+  // getComputedStyle()（3D変形前の、CSSで指定した本来の正方形サイズ）を使う。
+  const slotSizes = cardEls.map((el) => {
+    const cs = getComputedStyle(el);
+    return { width: parseFloat(cs.width), height: parseFloat(cs.height) };
+  });
   const ghosts = slotRects.map((rect, i) => {
     const g = document.createElement("div");
     g.className = "hand-shuffle-ghost";
     g.style.backgroundImage = `url("${backImage}")`;
-    g.style.width = `${rect.width}px`;
-    g.style.height = `${rect.height}px`;
+    g.style.width = `${slotSizes[i].width}px`;
+    g.style.height = `${slotSizes[i].height}px`;
     const from = rectCenter(rect);
     g.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%)`;
     document.body.appendChild(g);
@@ -2634,17 +2646,18 @@ function updateSelfHandStatus() {
   ).length;
   applyAvatarContent(selfStatusAvatarEl, getPlayerAvatar(getSelfSeat()));
 
-  const myColor = getMyPieceColor();
-  selfStatusPieceThumbEl.style.display = myColor ? "flex" : "none";
-  if (myColor) {
-    selfStatusPieceThumbEl.innerHTML = "";
-    const inner = document.createElement("div");
-    inner.className = "self-status-piece-thumb-inner";
-    const tilt = getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim();
-    inner.style.transform = `rotateX(${tilt})`;
-    inner.appendChild(buildCubePiece(myColor, getSelfSeat()));
-    selfStatusPieceThumbEl.appendChild(inner);
-  }
+  // セットアップ前（自分の駒の色がまだ決まっていない間）でも、選んだバリエーション番号
+  // 自体は色に依存しない好みなので、先に見た目を確認・選べるよう常に表示する
+  // （ユーザー要望）。実際の色がまだ無い間はCOLORS[0]の見た目で仮表示する。
+  const myColor = getMyPieceColor() || COLORS[0];
+  selfStatusPieceThumbEl.style.display = "flex";
+  selfStatusPieceThumbEl.innerHTML = "";
+  const inner = document.createElement("div");
+  inner.className = "self-status-piece-thumb-inner";
+  const tilt = getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim();
+  inner.style.transform = `rotateX(${tilt})`;
+  inner.appendChild(buildCubePiece(myColor, getSelfSeat()));
+  selfStatusPieceThumbEl.appendChild(inner);
 
   selfStatusCardBackThumbEl.querySelector("img").src = cardBackSetImagePath("normal", getCardBackSetIndex());
 

@@ -20,6 +20,13 @@
 import { getState } from "./state.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getSelfSeat, isOnlineMode, getSyncedIdentity, updateMyIdentity } from "./online.js";
+import { COLORS } from "./board-layout.js";
+
+// セットアップ前（自分の駒の色がまだファーストカードで決まっていない間）でも、左下の
+// ステータスエリアからスキンだけ先に選べるようにするための仮のプレビュー色。実際の色が
+// 決まればgetMyPieceColor()が優先されるため、ここはあくまで見た目を確認するためだけの
+// 値（バリエーション番号の選択自体は色に依存しないため、どの色で見せても選択結果は同じ）。
+const PREVIEW_FALLBACK_COLOR = COLORS[0];
 
 const SKIN_VARIANTS = [0, 1, 2, 3, 4, 5, 6, 7]; // 0=標準（assets/pieces/${color}.png）
 
@@ -72,8 +79,8 @@ function notifyChange() {
 }
 
 export function openPieceSkinPicker() {
-  const color = getMyPieceColor();
-  if (!color) return;
+  const realColor = getMyPieceColor();
+  const color = realColor || PREVIEW_FALLBACK_COLOR;
 
   const modal = document.createElement("div");
   modal.id = "piece-skin-modal";
@@ -86,6 +93,12 @@ export function openPieceSkinPicker() {
   const title = document.createElement("div");
   title.className = "piece-skin-modal-title";
   title.textContent = "駒スキンを選択";
+  let note = null;
+  if (!realColor) {
+    note = document.createElement("div");
+    note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin: -0.4rem 0 0.8rem;";
+    note.textContent = "まだ駒の色が決まっていないため仮の色で表示しています。バリエーションの選択自体は実際の色になっても引き継がれます。";
+  }
 
   const grid = document.createElement("div");
   grid.className = "piece-skin-modal-grid";
@@ -112,6 +125,7 @@ export function openPieceSkinPicker() {
 
   modal.appendChild(createModalCloseX(close));
   modal.appendChild(title);
+  if (note) modal.appendChild(note);
   modal.appendChild(grid);
   document.body.appendChild(backdrop);
   document.body.appendChild(modal);

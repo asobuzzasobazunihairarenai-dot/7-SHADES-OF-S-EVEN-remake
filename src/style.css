@@ -2443,7 +2443,9 @@ body.cards-interaction-hidden .board-card {
 }
 /* 駒スキンのサムネイル。ドラッグ中のゴースト(.drag-ghost-piece-outer/-inner)と同じ
    「perspective+盤面と同じ傾きを持つ入れ子」で、3D空間の外でも本物の.pieceを
-   立方体のまま小さく表示する。自分の駒がまだ無い（セットアップ未実施）間は非表示。 */
+   立方体のまま小さく表示する。セットアップ前（自分の駒の色が未確定）でも、選んだ
+   バリエーション番号自体は色に依存しない好みのため、常に表示する（main.jsが色未確定の
+   間は仮の色で描画する）。 */
 .self-status-piece-thumb {
   position: relative;
   width: 2.6rem;
