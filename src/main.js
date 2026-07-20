@@ -16,6 +16,7 @@ import {
   registerPieceSkinHelpers,
   setLocalPreferredSkinIndex,
 } from "./piece-skins.js";
+import { openCardBackSkinPicker, registerCardBackSkinHelpers, backImagePath as cardBackSetImagePath, getCardBackSetIndex } from "./card-back-skins.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS } from "./player-identity.js";
 import { applyAvatarContent } from "./avatar-render.js";
@@ -333,10 +334,14 @@ function buildCardStack(count, pileClass, imagePath) {
   return stack;
 }
 
+// backImageKindは「通常/エターナル/ファースト」のどの裏面画像セットを使うかの種別
+// （card-back-skins.jsのbackImagePath()第1引数）。選ばれているセット番号は
+// getCardBackSetIndex()を毎回参照する（プレイヤー自身の好みでいつでも変わり得るため、
+// ここで固定パスとして持たない）。
 const PILE_CONFIG = {
-  deck: { gridArea: "deck", pileClass: "pile-deck", label: "山札", backImage: "assets/cards/back-normal.png" },
-  eternal: { gridArea: "eternal", pileClass: "pile-eternal", label: "エターナルカード", backImage: "assets/cards/back-eternal.png" },
-  first: { gridArea: "first", pileClass: "pile-first", label: "ファーストカード", backImage: "assets/cards/back-first.png" },
+  deck: { gridArea: "deck", pileClass: "pile-deck", label: "山札", backImageKind: "normal" },
+  eternal: { gridArea: "eternal", pileClass: "pile-eternal", label: "エターナルカード", backImageKind: "eternal" },
+  first: { gridArea: "first", pileClass: "pile-first", label: "ファーストカード", backImageKind: "first" },
   discard: { gridArea: "discard", pileClass: "pile-discard", label: "捨て場" },
 };
 
@@ -356,7 +361,10 @@ function buildPileZone(pileKey) {
   // それ以外（山札・エターナル・ファースト）は裏向き積みのため常に共通の裏面画像。
   let imagePath = null;
   if (count > 0) {
-    imagePath = pileKey === "discard" ? getCardImagePath(pileArray[pileArray.length - 1]) : config.backImage;
+    imagePath =
+      pileKey === "discard"
+        ? getCardImagePath(pileArray[pileArray.length - 1])
+        : cardBackSetImagePath(config.backImageKind, getCardBackSetIndex());
   }
   const stack = buildCardStack(count, config.pileClass, imagePath);
   stack.dataset.pile = pileKey;
@@ -2486,6 +2494,7 @@ let selfHandStatusEl = null;
 let selfStatusNameEl = null;
 let selfStatusAvatarEl = null;
 let selfStatusPieceThumbEl = null;
+let selfStatusCardBackThumbEl = null;
 let selfStatusHandCountEl = null;
 
 function openAvatarPicker() {
@@ -2579,6 +2588,15 @@ function buildSelfHandStatus() {
   selfStatusPieceThumbEl.title = "クリックして駒スキンを変更";
   selfStatusPieceThumbEl.addEventListener("click", openPieceSkinPicker);
 
+  // カード裏面セットの選択（自分だけの見た目の好み、card-back-skins.js参照）。
+  // 駒と違い自分の色に依存しない・ゲーム開始前でも常に選べるため、非表示にする条件は無い。
+  selfStatusCardBackThumbEl = document.createElement("button");
+  selfStatusCardBackThumbEl.className = "self-status-card-back-thumb";
+  selfStatusCardBackThumbEl.title = "クリックしてカード裏面を変更（自分の画面にだけ反映されます）";
+  selfStatusCardBackThumbEl.addEventListener("click", openCardBackSkinPicker);
+  const cardBackThumbImg = document.createElement("img");
+  selfStatusCardBackThumbEl.appendChild(cardBackThumbImg);
+
   const info = document.createElement("div");
   info.className = "self-status-info";
 
@@ -2594,6 +2612,7 @@ function buildSelfHandStatus() {
   info.appendChild(selfStatusHandCountEl);
   el.appendChild(selfStatusAvatarEl);
   el.appendChild(selfStatusPieceThumbEl);
+  el.appendChild(selfStatusCardBackThumbEl);
   el.appendChild(info);
   el.appendChild(buildSelfStatusOnlineWidget());
   document.body.appendChild(el);
@@ -2618,6 +2637,8 @@ function updateSelfHandStatus() {
     inner.appendChild(buildCubePiece(myColor, getSelfSeat()));
     selfStatusPieceThumbEl.appendChild(inner);
   }
+
+  selfStatusCardBackThumbEl.querySelector("img").src = cardBackSetImagePath("normal", getCardBackSetIndex());
 
   // startEditingName()が.self-status-nameを一時的に<input>へ差し替えるため、render()の
   // たびに毎回ここで作り直す（差し替え後の入力欄はrender()時点で既にblur済みのはず）。
@@ -2667,6 +2688,7 @@ initIconRearrange();
 initInteractionModeToggle();
 registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocationElement, setSetupPendingTokenIds });
 registerPieceSkinHelpers({ render });
+registerCardBackSkinHelpers({ render });
 // ログイン直後（online.jsのloadMyPreferences）に、保存済みの名前・アバター・駒スキンを
 // ローカルの表示側（player-identity.js/piece-skins.js）へ反映する。部屋に入る前は
 // getSelfSeat()が常に"A"を返すため、ここではまだ「A」という固定座席への適用でよい

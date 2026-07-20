@@ -7,6 +7,20 @@
      src/main.js の initCameraControls() が盤面(.scene)だけを対象にした独自の
      ピンチズームを実装している（タブレットでの誤操作報告を受けての対応）。 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<!-- iOS Safariは、標準のtouch-action CSSやviewport metaのuser-scalable=noとは別の、
+     独自のgesturestart/gesturechange/gestureendイベント（2本指ピンチの開始を知らせる、
+     Web標準には無いApple独自API）経由でもネイティブのページ全体ピンチズームを
+     トリガーすることがある（ユーザー報告: touch-actionだけの対策だとゲーム画面に来て
+     最初の1回目のピンチだけネイティブズームになってしまっていた——一度でも他の操作で
+     ページに触れた後は正しく独自のピンチズーム実装(src/main.js)が効くことから、
+     「一番最初の2本指タッチだけ」ネイティブのジェスチャー認識に先を越されていたと
+     判断した）。他のどのスクリプトより先に、確実にページ最初のタッチより前に登録
+     しておく必要があるため、モジュール読み込みを待たずここでインラインに登録する。 -->
+<script>
+  document.addEventListener("gesturestart", (e) => e.preventDefault());
+  document.addEventListener("gesturechange", (e) => e.preventDefault());
+  document.addEventListener("gestureend", (e) => e.preventDefault());
+</script>
 <title>7 SHADES OF S:EVEN デジタル版</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <!-- オンライン対戦（第一弾）用。姉妹プロジェクトと同じCDN UMD版・同じSupabaseプロジェクトに

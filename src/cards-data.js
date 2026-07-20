@@ -1,3 +1,5 @@
+import { getCardBackSetIndex, backImagePath } from "./card-back-skins.js";
+
 // 実際のカードデータ（docs/cards.md, docs/rulebook.mdより）。
 // 「カード効果・カードデータはコードに埋め込まず、外部データとして持つ」という方針(CLAUDE.md)
 // に沿って、ゲームロジック(state.js)や描画(main.js)から分離したこのファイルにまとめる。
@@ -74,9 +76,11 @@ export function getCardImagePath(cardId) {
 // 描画する時。so7_game_tokens_visibleビューがマスクした結果、真にcardIdが分からない）は
 // 通常カードの裏面にフォールバックする（このオンライン対戦の第一弾では盤面49マスは
 // 通常カードのみで構成されるため、実用上はこれで正しい）。
+// どの「セット」の裏面画像を使うかは、プレイヤー自身だけのローカルな見た目の好み
+// （card-back-skins.js、他プレイヤーには一切反映されない）に従う。
 export function getCardBackImagePath(cardId) {
-  if (!cardId) return "assets/cards/back-normal.png";
-  if (cardId.startsWith("eternal-")) return "assets/cards/back-eternal.png";
-  if (cardId.startsWith("first-")) return "assets/cards/back-first.png";
-  return "assets/cards/back-normal.png";
+  if (!cardId) return backImagePath("normal", getCardBackSetIndex());
+  if (cardId.startsWith("eternal-")) return backImagePath("eternal", getCardBackSetIndex());
+  if (cardId.startsWith("first-")) return backImagePath("first", getCardBackSetIndex());
+  return backImagePath("normal", getCardBackSetIndex());
 }

@@ -1603,6 +1603,14 @@ body.icon-rearrange-mode #options-menu-button.is-rearranging {
   transform-style: preserve-3d;
   backface-visibility: hidden;
   box-shadow: 0 0.3rem 0.4rem rgba(0, 0, 0, 0.5);
+  /* ハマりどころ（ユーザー報告、タブレット）: セットアップ配布アニメーション終了時、
+     .piece.is-setup-pendingのtransform:scale(0.2)から通常表示へtransitionするタイミングで、
+     preserve-3dの立方体が「ペっちゃんこ」（壁が高さ0に潰れたように）に描画されたまま
+     固まってしまうことがあった。駒を一度掴んで動かす（＝render()で作り直される）と
+     正しい立体に戻ることから、初回の合成(compositing)レイヤー確立に失敗するタイプの
+     WebKit/モバイルブラウザの既知の不具合と判断し、will-change: transformでブラウザに
+     3D合成レイヤーを事前に確保させる、この種の不具合に対する定番の対策を施した。 */
+  will-change: transform;
 }
 
 .piece-face {
@@ -2250,7 +2258,8 @@ body.spotlight-mode #spotlight-overlay {
 }
 
 /* 駒スキン選択モーダル。 */
-#piece-skin-modal {
+#piece-skin-modal,
+#card-back-skin-modal {
   position: fixed;
   top: 50%;
   left: 50%;
@@ -2447,6 +2456,30 @@ body.cards-interaction-hidden .board-card {
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
+}
+/* カード裏面セットのサムネイル。駒スキンの丸いボタンと区別が付くよう角丸の正方形にした
+   （中身は実際にカードと同じ正方形の画像なので、丸くクロップすると絵柄が分かりにくい
+   ため）。ゲーム開始前でも常に選べる（駒スキンと違い自分の色に依存しないため）。 */
+.self-status-card-back-thumb {
+  position: relative;
+  width: 2.6rem;
+  height: 2.6rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.self-status-card-back-thumb:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.self-status-card-back-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .self-status-info {
   display: flex;
