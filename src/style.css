@@ -988,6 +988,21 @@ body {
   border-color: rgba(250, 204, 21, 0.6);
 }
 
+/* 他プレイヤーの駒/カードの移動を、remote-move-animator.jsが移動元・移動先のマス自体を
+   一瞬点滅させて知らせる（駒・カードそのものの飛翔演出とは別に、操作していないプレイヤーが
+   「どこで何が起きたか」を見落としにくくするための合図）。マスの縁が2回明滅するだけの
+   短い演出のため、到達演出（マス中央から立ち上る光の柱、.arrival-effect-burst）と同時に
+   起きても視覚的に競合しない。 */
+@keyframes move-highlight-blink {
+  0%, 100% { box-shadow: none; }
+  25%, 75% { box-shadow: inset 0 0 0 0.15rem rgba(255, 255, 255, 0.95), 0 0 0.5rem 0.15rem rgba(255, 255, 255, 0.6); }
+  50% { box-shadow: none; }
+}
+.cell.move-highlight-blink,
+.lock-slot.move-highlight-blink {
+  animation: move-highlight-blink 0.7s ease-in-out;
+}
+
 /* 立方体の駒。ユドナリウム(TK11235/udonarium)のterrain（地形）コンポーネントの技法を
    そのまま移植した。「床」を駒の高さ分translateZで持ち上げ、4枚の壁を角ごとに異なる
    transform-origin + rotateZ/rotateX の組み合わせで側面に貼り付ける、真のpreserve-3d構成。
@@ -1420,7 +1435,14 @@ body {
   position: fixed;
   top: 6.6rem;
   right: 1rem;
-  z-index: 901;
+  /* 呼び出しボタン(#options-menu-button)自体は900のまま（他の常設パネルより低くして
+     "セットアップ/管理者モードが開いている間、オプションボタンがその上に乗ってしまう"
+     バグの再発を防いでいる）。パネル本体は開いている間、右下に浮かぶプレイヤー用ボタン
+     （1枚ドロー・盤面拡大・部屋ステータス等、z-index 1000〜1001）より必ず手前に来る
+     必要がある——アニメーション削減設定の追加でパネルが縦に伸び、それらのボタンと
+     画面上で重なるようになった際、ボタン側が手前に出て設定項目が隠れてしまうバグが
+     あった。ボタンより高いz-indexにすることで解決する。 */
+  z-index: 1002;
   background: rgba(15, 23, 32, 0.98);
   border: 1px solid rgba(148, 163, 184, 0.4);
   border-radius: 0.4rem;

@@ -18,7 +18,7 @@ import { getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import { getSkinImagePath } from "./piece-skins.js";
 import { isSelfHandled } from "./self-handled-tokens.js";
 
-let helpers = null; // { render, setSetupPendingTokenIds, maybeAnnounceLock, maybeTriggerCardArrivalForCard, triggerCardArrivalIfFaceUp, announceHandPickups }
+let helpers = null; // { render, setSetupPendingTokenIds, maybeAnnounceLock, maybeTriggerCardArrivalForCard, triggerCardArrivalIfFaceUp, announceHandPickups, findLocationElement }
 
 export function registerRemoteMoveAnimatorHelpers(h) {
   helpers = h;
@@ -79,7 +79,20 @@ function getOriginPileRect(cardId) {
   return el ? el.getBoundingClientRect() : null;
 }
 
-async function flyAndReveal(item, fromRect, table) {
+// 移動元/移動先のマス・ロックスロット自体を一瞬点滅させる（駒・カードそのものではなく
+// マスの縁を光らせる）。操作していないプレイヤーが「どこからどこへ動いたか」を見落とし
+// にくくするための、控えめで短い（0.7秒）合図。到達演出（光の柱、spawnArrivalBurst）とは
+// 別レイヤー（マス自体の縁の明滅 vs マス中央から立ち上る光の柱）なので、同時に発生しても
+// 見た目が競合しない設計にしてある。
+const MOVE_BLINK_MS = 700;
+function blinkLocation(location, table) {
+  const hostEl = helpers.findLocationElement?.(table, location);
+  if (!hostEl) return;
+  hostEl.classList.add("move-highlight-blink");
+  setTimeout(() => hostEl.classList.remove("move-highlight-blink"), MOVE_BLINK_MS);
+}
+
+async function flyAndReveal(item, fromRect, table, blinkDestination) {
   const el = table.querySelector(`[data-token-id="${item.id}"]`);
   if (!el) return;
   const toRect = el.getBoundingClientRect();
@@ -88,6 +101,7 @@ async function flyAndReveal(item, fromRect, table) {
     await done;
   }
   el.classList.remove("is-setup-pending");
+  if (blinkDestination) blinkLocation(item.token.location, table);
   triggerEffectsFor(item);
 }
 
@@ -147,10 +161,14 @@ function processMovedOrNew(items, table) {
         continue;
       }
       let fromRect = null;
-      if (item.kind === "move") fromRect = fromRects.get(item.id) || null;
-      else if (item.kind === "new-lock") fromRect = getOriginPileRect(item.token.cardId);
+      if (item.kind === "move") {
+        fromRect = fromRects.get(item.id) || null;
+        // 移動元は手札の場合もある（手札からロックへ等）。手札には点滅させる実マスが
+        // 無いため、盤面/ロックからの移動の時だけ移動元も光らせる。
+        if (isTableZone(item.prevLocation)) blinkLocation(item.prevLocation, table2);
+      } else if (item.kind === "new-lock") fromRect = getOriginPileRect(item.token.cardId);
       // new-cell-fadeはfromRectなし＝その場でフェードインするだけ。
-      flyAndReveal(item, fromRect, table2); // 個々の飛翔は並行に進めてよいためawaitしない
+      flyAndReveal(item, fromRect, table2, item.kind === "move"); // 個々の飛翔は並行に進めてよいためawaitしない
     }
   });
 }

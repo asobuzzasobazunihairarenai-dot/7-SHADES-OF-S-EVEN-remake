@@ -2289,6 +2289,7 @@ registerRemoteMoveAnimatorHelpers({
   maybeTriggerCardArrivalForCard,
   triggerCardArrivalIfFaceUp,
   announceHandPickups,
+  findLocationElement,
 });
 buildGameTitle();
 turnRoundCounterEl = buildTurnRoundCounter();

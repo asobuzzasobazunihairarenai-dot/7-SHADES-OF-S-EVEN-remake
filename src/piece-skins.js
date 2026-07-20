@@ -30,9 +30,14 @@ export function registerPieceSkinHelpers(h) {
 // seat: 分かる場合（盤面上の駒を描画する時等）は渡すと、オンライン中はその座席の同期済み
 // スキン選択を優先する。省略時（自分専用ステータスのプレビュー等）はローカルの色ベースの
 // 選択にフォールバックする。
+// 自分自身の座席については、同期ロスターではなく常にローカルのskinIndexByColorを優先する
+// （スキン変更直後、updateMyIdentity()のネットワーク応答＋roster更新を待たずに自分の画面へ
+// 即座に反映するため）。以前はここでも同期ロスターを優先していたため、自分でスキンを
+// 変更した直後は「相手の画面には即反映されるが、自分の画面はidentity_changed Broadcastの
+// こだまが届く（数秒〜十数秒かかることがある）まで古いスキンのまま」というバグがあった。
 export function getSkinImagePath(color, seat) {
   let idx = skinIndexByColor[color] || 0;
-  if (isOnlineMode() && seat) {
+  if (isOnlineMode() && seat && seat !== getSelfSeat()) {
     const synced = getSyncedIdentity(seat)?.pieceSkinIndex;
     if (typeof synced === "number") idx = synced;
   }
