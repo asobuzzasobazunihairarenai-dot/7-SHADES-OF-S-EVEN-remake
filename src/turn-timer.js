@@ -30,6 +30,7 @@ import { getSelfSeat, getSyncedTimerConfig } from "./online.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { consumeLastActionInfo } from "./last-action-info.js";
+import { applyAvatarContent } from "./avatar-render.js";
 import {
   isTurnTimerEnabled as isTurnTimerEnabledLocal,
   getInitialHourglassStock as getInitialHourglassStockLocal,
@@ -397,27 +398,6 @@ const TRANSFER_EXPLANATION = [
   "ボタンの枠の色はそのプレイヤーの駒の色、円の中は登録されているアバターです。",
 ];
 
-// main.jsのapplyAvatarContentと同じロジック（main.js側は非公開のため、依存を増やさない
-// よう軽量な内容をここに複製してある）。
-function isImageAvatar(avatar) {
-  return typeof avatar === "string" && (/^https?:\/\//.test(avatar) || /\.(png|jpe?g|webp|gif)$/i.test(avatar));
-}
-function applyAvatar(el, avatar) {
-  if (isImageAvatar(avatar)) {
-    let img = el.querySelector("img.avatar-image");
-    if (!img) {
-      img = document.createElement("img");
-      img.className = "avatar-image";
-      el.textContent = "";
-      el.appendChild(img);
-    }
-    img.src = avatar;
-  } else {
-    el.querySelector("img.avatar-image")?.remove();
-    el.textContent = avatar;
-  }
-}
-
 function openTransferModal() {
   transferModalBackdrop.style.display = "block";
   transferModalEl.style.display = "block";
@@ -507,7 +487,7 @@ function rebuildTransferButtons() {
     btn.dataset.pos = isSelf ? "self" : rotateSide(SEAT_TO_SIDE[seat], steps);
     const color = getPieceColor(seat);
     btn.style.borderColor = color ? `var(--color-${color})` : "rgba(255, 255, 255, 0.5)";
-    applyAvatar(btn, getPlayerAvatar(seat));
+    applyAvatarContent(btn, getPlayerAvatar(seat));
     btn.title = isSelf ? "自分に優先権を戻す" : `${getPlayerName(seat)}に優先権を渡す`;
     // 優先権の譲渡自体も「行動」の一種として扱い、freshBaseDeadlineForで基本時間の窓を
     // 仕切り直す（既に砂時計を使い始めている座席への譲渡は、短縮された基本時間になる——

@@ -289,6 +289,24 @@ export function getUsableLockedEffect() {
   return usableLockedEffect;
 }
 
+// カード到達モーダル（駒がカードに乗った時、src/card-arrival.js）を時間で自動的に消すか、
+// 触るまで消さずに残すか。ユーザー要望「プレイヤーはカードを見ながら到達効果を処理したい」
+// に合わせ、デフォルトは「消えない」（触ると消える）。
+let cardArrivalModalPersistent = true;
+
+export function isCardArrivalModalPersistent() {
+  return cardArrivalModalPersistent;
+}
+
+// 画面全体の明るさモード。「スタンダードモード」（デフォルト、従来通り）と
+// 「スポットライトモード」（盤面付近だけ明るく、周辺を暗くする）。main.jsが
+// body.spotlight-modeクラスの付け外しに使うCSS(#spotlight-overlay)を実際に描画する。
+let spotlightMode = false;
+
+export function isSpotlightMode() {
+  return spotlightMode;
+}
+
 // ターンタイマー（ロープ・砂時計・優先権、src/turn-timer.js）。実質オンライン対戦向けの
 // 機能でローカルモードでは緊張感が無いため、デフォルトはオフ。GROUPS/CONTROLSのCSS変数
 // スライダーとは性質が異なる（見た目ではなくゲームロジックのパラメータ）ため、
@@ -433,6 +451,48 @@ const TOGGLE_SECTIONS = [
     },
   },
   {
+    title: "カード到達モーダルの消え方",
+    category: "effect",
+    buildContent: (content) => {
+      const persistRow = document.createElement("label");
+      persistRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const persistCheckbox = document.createElement("input");
+      persistCheckbox.type = "checkbox";
+      persistCheckbox.checked = cardArrivalModalPersistent;
+      persistCheckbox.addEventListener("change", () => {
+        cardArrivalModalPersistent = persistCheckbox.checked;
+        updateExportRef.current();
+      });
+      const persistLabel = document.createElement("span");
+      persistLabel.textContent =
+        "時間で自動的に消さない（触ると消える。オフ=右上の「カード到達モーダル」グループの表示時間で自動的に消える）";
+      persistRow.appendChild(persistCheckbox);
+      persistRow.appendChild(persistLabel);
+      content.appendChild(persistRow);
+    },
+  },
+  {
+    title: "画面の明るさモード",
+    category: "effect",
+    buildContent: (content) => {
+      const spotlightRow = document.createElement("label");
+      spotlightRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const spotlightCheckbox = document.createElement("input");
+      spotlightCheckbox.type = "checkbox";
+      spotlightCheckbox.checked = spotlightMode;
+      spotlightCheckbox.addEventListener("change", () => {
+        spotlightMode = spotlightCheckbox.checked;
+        document.body.classList.toggle("spotlight-mode", spotlightMode);
+        updateExportRef.current();
+      });
+      const spotlightLabel = document.createElement("span");
+      spotlightLabel.textContent = "スポットライトモードにする（盤面付近だけ明るく、周辺を暗くする。オフ=スタンダードモード）";
+      spotlightRow.appendChild(spotlightCheckbox);
+      spotlightRow.appendChild(spotlightLabel);
+      content.appendChild(spotlightRow);
+    },
+  },
+  {
     title: "ターンタイマー（ロープ・砂時計）",
     category: "behavior",
     buildContent: (content) => {
@@ -451,6 +511,15 @@ const TOGGLE_SECTIONS = [
       enableRow.appendChild(enableCheckbox);
       enableRow.appendChild(enableLabel);
       content.appendChild(enableRow);
+
+      const onlineNote = document.createElement("div");
+      onlineNote.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.6rem; line-height: 1.5;";
+      onlineNote.textContent =
+        "※ オンライン対戦では、ここの設定（この行と下の6項目全て）は「ゲームを開始する」を" +
+        "押した人の、押した瞬間の設定が対局全体で固定されて使われます。対局が始まった後に" +
+        "誰かがここを変更しても、その対局には反映されません（不公平にならないための仕様）。" +
+        "有効にしたい場合は、部屋を開始する人が事前にオンにしておいてください。";
+      content.appendChild(onlineNote);
 
       content.appendChild(
         buildNumberRow("初期の砂時計個数", initialHourglassStock, { min: 0, max: 4, unit: "個" }, (v) => {
@@ -675,6 +744,8 @@ function buildPanel(rebuildSlidersRef) {
       `manualSeatMode: ${manualSeatMode}`,
       `turnGlowWhite: ${turnGlowWhite}`,
       `usableLockedEffect: "${usableLockedEffect}"`,
+      `cardArrivalModalPersistent: ${cardArrivalModalPersistent}`,
+      `spotlightMode: ${spotlightMode}`,
       `turnTimerEnabled: ${turnTimerEnabled}`,
       `initialHourglassStock: ${initialHourglassStock}`,
       `maxHourglassStock: ${maxHourglassStock}`,

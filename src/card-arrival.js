@@ -8,6 +8,7 @@
 
 import { getCardDefinition, getCardImagePath } from "./cards-data.js";
 import { createModalCloseX } from "./ui-helpers.js";
+import { isCardArrivalModalPersistent } from "./admin.js";
 
 function getDurationMs() {
   const raw = getComputedStyle(document.documentElement).getPropertyValue("--card-arrival-modal-duration").trim();
@@ -47,20 +48,30 @@ export function showCardArrivalModal(cardId) {
   img.alt = def.name;
   modal.appendChild(img);
 
-  // 自動で消えるのを止めて、手動で✕を押すまで表示し続けられるようにするボタン。
-  const pinBtn = document.createElement("button");
-  pinBtn.className = "card-arrival-modal-pin";
-  pinBtn.textContent = "📌 消えないようにする";
-  pinBtn.addEventListener("click", () => {
-    clearTimeout(currentTimer);
-    pinBtn.remove(); // 止めた後はこのボタン自体は不要（✕でいつでも閉じられる）
-  });
-  modal.appendChild(pinBtn);
+  const persistent = isCardArrivalModalPersistent();
+  if (!persistent) {
+    // 自動で消えるのを止めて、手動で✕を押すまで表示し続けられるようにするボタン
+    // （デフォルトの「消えない」設定の間は最初から消えないため、このボタン自体が不要）。
+    const pinBtn = document.createElement("button");
+    pinBtn.className = "card-arrival-modal-pin";
+    pinBtn.textContent = "📌 消えないようにする";
+    pinBtn.addEventListener("click", (e) => {
+      e.stopPropagation(); // モーダル本体のクリックで即座に消えてしまわないように
+      clearTimeout(currentTimer);
+      pinBtn.remove(); // 止めた後はこのボタン自体は不要（触る/✕でいつでも閉じられる）
+    });
+    modal.appendChild(pinBtn);
+  }
 
   modal.appendChild(createModalCloseX(dismiss));
+  // カードを見ながら到達効果を処理し終えたら、モーダルに触れるだけで閉じられるようにする
+  // （「デフォルトは消えない」設定と対になる操作）。
+  modal.addEventListener("click", dismiss);
 
   document.body.appendChild(modal);
   currentModal = modal;
   requestAnimationFrame(() => modal.classList.add("show"));
-  currentTimer = setTimeout(dismiss, getDurationMs());
+  if (!persistent) {
+    currentTimer = setTimeout(dismiss, getDurationMs());
+  }
 }

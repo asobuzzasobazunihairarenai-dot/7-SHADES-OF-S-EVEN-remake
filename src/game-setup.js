@@ -20,6 +20,7 @@ import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { resetVictoryTracking } from "./victory.js";
 import { PLAYMAT_OPTIONS, getSelectedPlaymatId, setSelectedPlaymatId } from "./playmat.js";
 import { animateFirstCardsDealt, animateBoardFilled } from "./setup-animation.js";
+import { applyAvatarContent } from "./avatar-render.js";
 
 // 2人/3人プレイ時、座席自動選択モード（管理者モードのトグルがオフの時）で使う座席。
 // 2人=対面(A・C)、3人=Dを除いた3隅。4人は常に全員。
@@ -89,8 +90,9 @@ function showStartPlayerModal(player) {
   // 誰から始まるかが一目で分かるよう、アバターと名前を大きく見せる
   // （文字だけの通知だと地味で見落としやすい、という要望への対応）。
   const avatarEl = document.createElement("div");
+  avatarEl.className = "start-player-avatar";
   avatarEl.style.cssText = "font-size: 4rem; text-align: center; line-height: 1; margin: 0.4rem 0;";
-  avatarEl.textContent = getPlayerAvatar(player);
+  applyAvatarContent(avatarEl, getPlayerAvatar(player));
 
   const nameEl = document.createElement("div");
   nameEl.style.cssText = "font-size: 1.5rem; font-weight: bold; text-align: center; color: #7dd3fc; margin-bottom: 0.6rem;";

@@ -18,6 +18,7 @@ import {
 } from "./piece-skins.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS } from "./player-identity.js";
+import { applyAvatarContent } from "./avatar-render.js";
 import { getSelectedPlaymatPath } from "./playmat.js";
 import { isLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible } from "./lock-color.js";
@@ -200,28 +201,6 @@ function layoutFan(count, orientation, isSelf, side) {
     }
     return { angle, spreadX: centerOffset * spacing, spreadY: arc };
   });
-}
-
-// アバターは絵文字1文字（従来通り）か、Googleプロフィール画像のURLのどちらかを取り得る。
-// so7_game_seats/so7_user_profilesのavatar列はどちらもtext型のままで、URL文字列を
-// そのまま格納する（スキーマ変更は不要、表示側だけで判定する）。
-function isImageAvatar(avatar) {
-  return typeof avatar === "string" && (/^https?:\/\//.test(avatar) || /\.(png|jpe?g|webp|gif)$/i.test(avatar));
-}
-function applyAvatarContent(el, avatar) {
-  if (isImageAvatar(avatar)) {
-    let img = el.querySelector("img.avatar-image");
-    if (!img) {
-      img = document.createElement("img");
-      img.className = "avatar-image";
-      el.textContent = "";
-      el.appendChild(img);
-    }
-    img.src = avatar;
-  } else {
-    el.querySelector("img.avatar-image")?.remove();
-    el.textContent = avatar;
-  }
 }
 
 function buildPlayerZone(side, player, isSelf) {
@@ -2148,6 +2127,16 @@ function buildGameTitle() {
   return el;
 }
 
+// --- スポットライトモードの暗幕オーバーレイ ------------------------------------------
+// 実際の明るさ切り替えはCSS（body.spotlight-modeクラスの有無、style.css参照）が担当する。
+// ここでは要素をDOMに1つ作るだけでよい。
+function buildSpotlightOverlay() {
+  const el = document.createElement("div");
+  el.id = "spotlight-overlay";
+  document.body.appendChild(el);
+  return el;
+}
+
 // --- ターン数・ラウンド数の表示 ----------------------------------------------------
 // 画面右上、山札一覧ボタンのさらに上にさりげなく表示する。turnNumber/roundNumberが
 // まだnull（セットアップ手順3が未実行）の間は非表示にする。
@@ -2444,6 +2433,7 @@ registerRemoteMoveAnimatorHelpers({
   findLocationElement,
 });
 buildGameTitle();
+buildSpotlightOverlay();
 turnRoundCounterEl = buildTurnRoundCounter();
 updateTurnRoundCounter();
 

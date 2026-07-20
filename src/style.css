@@ -1751,6 +1751,23 @@ body {
   background: linear-gradient(160deg, #475569, #1e293b);
 }
 
+/* スポットライトモード（管理者モード「スタンダードモード/スポットライトモード」切替）。
+   盤面付近だけ明るく、周辺が暗くなる演出。ボタン類(z-index:900以上)より手前に出ると
+   操作の邪魔になるため、それより低いz-indexにして常に背面に留める。クリックを拾わない
+   よう pointer-events:none も必須（無いと盤面の駒・カードのドラッグ操作を奪ってしまう）。 */
+#spotlight-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  background: radial-gradient(ellipse 55% 50% at center, transparent 15%, rgba(0, 0, 0, 0.75) 65%, rgba(0, 0, 0, 0.95) 100%);
+}
+body.spotlight-mode #spotlight-overlay {
+  opacity: 1;
+}
+
 /* ゲームタイトル。画面左上（以前「⚙ 管理者モード」ボタンがあった場所。オプションメニューに
    統合して空いたスペースに表示する）。 */
 #game-title {
@@ -2349,6 +2366,11 @@ body.reduce-glow .board-card.is-usable-while-locked.effect-orbit::before {
 .avatar-picker-swatch .avatar-image {
   width: 1.6rem;
   height: 1.6rem;
+}
+.start-player-avatar .avatar-image {
+  width: 4rem;
+  height: 4rem;
+  margin: 0 auto; /* avatar-imageはdisplay:blockのため、親のtext-align:centerでは中央寄せされない */
 }
 
 /* 駒がカードの上に乗った（到達した）ことを知らせる一時的なモーダル。画面右上（右上に既にある
