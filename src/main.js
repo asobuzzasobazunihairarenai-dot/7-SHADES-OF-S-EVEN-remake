@@ -20,6 +20,7 @@ import { showCardArrivalModal } from "./card-arrival.js";
 import { initPlayerButtons } from "./player-buttons.js";
 import { initQuickStart } from "./quick-start.js";
 import { initPhaseGuide } from "./phase-guide.js";
+import { initTurnTimer } from "./turn-timer.js";
 import { registerRenderHelpers, animateFirstCardsDealt, animateBoardFilled } from "./setup-animation.js";
 import {
   registerRemoteMoveAnimatorHelpers,
@@ -2297,6 +2298,7 @@ initOptionsMenu();
 initPlayerButtons();
 initQuickStart();
 initPhaseGuide();
+initTurnTimer();
 registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocationElement, setSetupPendingTokenIds });
 registerPieceSkinHelpers({ render });
 registerRemoteMoveAnimatorHelpers({

@@ -73,6 +73,11 @@ body {
   --phase-guide-bottom: 1.2rem;
   --phase-guide-item-width: 6rem;
   --phase-guide-item-height: 2.2rem;
+  /* ターンタイマー（ロープ・砂時計HUD・優先権譲渡ボタン）の位置。管理者モードで調整可能。 */
+  --turn-timer-hud-pos-x: 0rem;
+  --turn-timer-hud-pos-y: 0rem;
+  --priority-transfer-pos-x: 0rem;
+  --priority-transfer-pos-y: 0rem;
 }
 
 .game-table {
@@ -799,6 +804,121 @@ body {
 }
 .phase-guide-modal-body {
   font-size: 0.85rem;
+}
+
+/* ターンタイマー（ロープ・砂時計HUD）。画面上部中央に固定表示する横並びの座席カード。
+   管理者モードのマスタースイッチがオフの間・ゲーム開始前はturn-timer.js側で非表示にする
+   （display:noneの付け外しはJS側の責務、ここはレイアウトのみ担当）。 */
+#turn-timer-hud {
+  position: fixed;
+  top: 4.5rem;
+  left: 50%;
+  transform: translate(calc(-50% + var(--turn-timer-hud-pos-x)), var(--turn-timer-hud-pos-y));
+  z-index: 950;
+  display: flex;
+  gap: 0.5rem;
+  font-family: sans-serif;
+}
+.turn-timer-seat-card {
+  min-width: 6rem;
+  padding: 0.35rem 0.6rem;
+  background: rgba(15, 23, 32, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.4rem;
+  color: #e2e8f0;
+  font-size: 0.75rem;
+  text-align: center;
+}
+.turn-timer-seat-card.is-timed-out {
+  animation: turn-timer-warning-blink 1s ease-in-out infinite;
+}
+.turn-timer-seat-name {
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.turn-timer-seat-stock {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  margin-top: 0.1rem;
+}
+.turn-timer-rope-track {
+  margin-top: 0.3rem;
+  height: 0.35rem;
+  border-radius: 0.2rem;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  display: none;
+}
+.turn-timer-seat-card.is-priority-holder .turn-timer-rope-track {
+  display: block;
+}
+.turn-timer-rope-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #22c55e, #eab308, #ef4444);
+  transform-origin: left center;
+  transition: transform 0.15s linear;
+}
+
+/* 優先権譲渡ボタン。activePlayersから自分の座席を除いた最大3座席分を三角形に配置する
+   （1つを上段中央、2つを下段左右）。誰でも押せる自己申告制（このゲーム全体の設計方針通り、
+   押した本人が今優先権を持っているかは問わない）。 */
+#priority-transfer-buttons {
+  position: fixed;
+  bottom: 8.5rem;
+  right: 1.2rem;
+  transform: translate(var(--priority-transfer-pos-x), var(--priority-transfer-pos-y));
+  z-index: 950;
+  display: grid;
+  grid-template-columns: repeat(2, 2.6rem);
+  grid-template-rows: repeat(2, 2.6rem);
+  gap: 0.3rem;
+  font-family: sans-serif;
+}
+.priority-transfer-btn {
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  background: rgba(15, 23, 32, 0.85);
+  color: #e2e8f0;
+  font-size: 0.7rem;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.priority-transfer-btn:hover {
+  background: rgba(56, 189, 248, 0.25);
+}
+/* 3つまでを▽形（上段中央1つ・下段左右2つ）に配置する。座席数が2以下の場合は
+   自動的に空いたgrid-areaが詰まって表示される。 */
+.priority-transfer-btn:nth-child(1) { grid-column: 1 / span 2; grid-row: 1; justify-self: center; }
+.priority-transfer-btn:nth-child(2) { grid-column: 1; grid-row: 2; }
+.priority-transfer-btn:nth-child(3) { grid-column: 2; grid-row: 2; }
+
+/* #end-turn-buttonのそばに出す、タイムアウト警告バッジ（点滅）。stateは一切変更しない、
+   あくまで「ムーブフェイズを終えてターンを終了してください」という視覚的な促し。 */
+.turn-timer-warning {
+  position: fixed;
+  z-index: 1001;
+  background: rgba(239, 68, 68, 0.95);
+  color: #fff;
+  font-family: sans-serif;
+  font-size: 0.75rem;
+  font-weight: bold;
+  padding: 0.4rem 0.7rem;
+  border-radius: 0.4rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  animation: turn-timer-warning-blink 1s ease-in-out infinite;
+  pointer-events: none;
+  white-space: nowrap;
+}
+@keyframes turn-timer-warning-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
 }
 
 /* ドラッグ中はカーソルに1:1追従する「ゴースト」を3D空間の外(document.body直下)に表示する。

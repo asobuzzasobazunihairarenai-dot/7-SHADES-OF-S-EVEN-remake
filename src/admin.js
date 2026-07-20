@@ -102,6 +102,22 @@ const GROUPS = [
     ],
   },
   {
+    title: "ターンタイマーHUDの位置調整",
+    category: "position",
+    controls: [
+      { key: "--turn-timer-hud-pos-x", label: "位置X", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--turn-timer-hud-pos-y", label: "位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+    ],
+  },
+  {
+    title: "優先権譲渡ボタンの位置調整",
+    category: "position",
+    controls: [
+      { key: "--priority-transfer-pos-x", label: "位置X", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--priority-transfer-pos-y", label: "位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+    ],
+  },
+  {
     title: "駒の当たり判定（ホバーすると発光する範囲）",
     category: "position",
     controls: [
@@ -272,10 +288,72 @@ export function getUsableLockedEffect() {
   return usableLockedEffect;
 }
 
+// ターンタイマー（ロープ・砂時計・優先権、src/turn-timer.js）。実質オンライン対戦向けの
+// 機能でローカルモードでは緊張感が無いため、デフォルトはオフ。GROUPS/CONTROLSのCSS変数
+// スライダーとは性質が異なる（見た目ではなくゲームロジックのパラメータ）ため、
+// manualSeatMode等と同じくここに単純な数値/bool変数として持つ。
+let turnTimerEnabled = false;
+let initialHourglassStock = 0;
+let maxHourglassStock = 3;
+let ropeBaseSeconds = 30;
+let ropeExtensionSeconds = 30;
+let turnsToReplenishHourglass = 3;
+
+export function isTurnTimerEnabled() {
+  return turnTimerEnabled;
+}
+export function getInitialHourglassStock() {
+  return initialHourglassStock;
+}
+export function getMaxHourglassStock() {
+  return maxHourglassStock;
+}
+export function getRopeBaseSeconds() {
+  return ropeBaseSeconds;
+}
+export function getRopeExtensionSeconds() {
+  return ropeExtensionSeconds;
+}
+export function getTurnsToReplenishHourglass() {
+  return turnsToReplenishHourglass;
+}
+
 // TOGGLE_SECTIONSの各buildContentはモジュール直下で定義される共有クロージャのため、
 // buildPanel()内のローカル変数であるupdateExport()を直接呼べない。「更新して」を伝える
 // 間接参照として、rebuildSlidersRefと同じ形のref経由で呼ぶ。
 const updateExportRef = { current: () => {} };
+
+// ターンタイマー設定用の数値入力行（ラベル + <input type="number"> + 単位）。CSS変数の
+// スライダー(GROUPS/CONTROLS)とは違い、ゲームロジックのパラメータ（見た目ではなく数値その
+// ものが意味を持つ）なのでinput[type=range]ではなくnumberにしてある。
+function buildNumberRow(label, value, { min, max, step = 1, unit = "" }, onChange) {
+  const row = document.createElement("label");
+  row.style.cssText = "display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.3rem;";
+  const labelEl = document.createElement("span");
+  labelEl.textContent = label;
+  labelEl.style.cssText = "flex: 1;";
+  const input = document.createElement("input");
+  input.type = "number";
+  input.min = String(min);
+  input.max = String(max);
+  input.step = String(step);
+  input.value = String(value);
+  input.style.cssText = "width: 4.5rem;";
+  input.addEventListener("change", () => {
+    const num = Number(input.value);
+    if (!Number.isFinite(num)) return;
+    const clamped = Math.min(max, Math.max(min, num));
+    input.value = String(clamped);
+    onChange(clamped);
+    updateExportRef.current();
+  });
+  const unitEl = document.createElement("span");
+  unitEl.textContent = unit;
+  row.appendChild(labelEl);
+  row.appendChild(input);
+  row.appendChild(unitEl);
+  return row;
+}
 
 // 単純なON/OFFトグル系のセクション（GROUPSのCSS変数スライダーとは性質が異なる）も、
 // カテゴリ分けの対象にするためこの配列にまとめておく。buildPanel()がcategoryごとに
@@ -341,6 +419,53 @@ const TOGGLE_SECTIONS = [
       effectRow.appendChild(effectCheckbox);
       effectRow.appendChild(effectLabel);
       content.appendChild(effectRow);
+    },
+  },
+  {
+    title: "ターンタイマー（ロープ・砂時計）",
+    category: "behavior",
+    buildContent: (content) => {
+      const enableRow = document.createElement("label");
+      enableRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0.5rem;";
+      const enableCheckbox = document.createElement("input");
+      enableCheckbox.type = "checkbox";
+      enableCheckbox.checked = turnTimerEnabled;
+      enableCheckbox.addEventListener("change", () => {
+        turnTimerEnabled = enableCheckbox.checked;
+        window.dispatchEvent(new CustomEvent("admin:change"));
+        updateExportRef.current();
+      });
+      const enableLabel = document.createElement("span");
+      enableLabel.textContent = "機能を有効にする（オフ=HUD/警告/優先権譲渡ボタンを一切表示しない）";
+      enableRow.appendChild(enableCheckbox);
+      enableRow.appendChild(enableLabel);
+      content.appendChild(enableRow);
+
+      content.appendChild(
+        buildNumberRow("初期の砂時計個数", initialHourglassStock, { min: 0, max: 4, unit: "個" }, (v) => {
+          initialHourglassStock = v;
+        })
+      );
+      content.appendChild(
+        buildNumberRow("最大保持数", maxHourglassStock, { min: 0, max: 6, unit: "個" }, (v) => {
+          maxHourglassStock = v;
+        })
+      );
+      content.appendChild(
+        buildNumberRow("基本時間", ropeBaseSeconds, { min: 10, max: 120, unit: "秒" }, (v) => {
+          ropeBaseSeconds = v;
+        })
+      );
+      content.appendChild(
+        buildNumberRow("延長時間（砂時計1個あたり）", ropeExtensionSeconds, { min: 10, max: 120, unit: "秒" }, (v) => {
+          ropeExtensionSeconds = v;
+        })
+      );
+      content.appendChild(
+        buildNumberRow("補充に必要なターン数", turnsToReplenishHourglass, { min: 1, max: 10, unit: "ターン" }, (v) => {
+          turnsToReplenishHourglass = v;
+        })
+      );
     },
   },
 ];
@@ -529,6 +654,12 @@ function buildPanel(rebuildSlidersRef) {
       `manualSeatMode: ${manualSeatMode}`,
       `turnGlowWhite: ${turnGlowWhite}`,
       `usableLockedEffect: "${usableLockedEffect}"`,
+      `turnTimerEnabled: ${turnTimerEnabled}`,
+      `initialHourglassStock: ${initialHourglassStock}`,
+      `maxHourglassStock: ${maxHourglassStock}`,
+      `ropeBaseSeconds: ${ropeBaseSeconds}`,
+      `ropeExtensionSeconds: ${ropeExtensionSeconds}`,
+      `turnsToReplenishHourglass: ${turnsToReplenishHourglass}`,
     ];
     exportEl.value = `:root {\n${lines.join("\n")}\n}\n\n/* 以下はCSS変数ではない設定（管理者モードのチェックボックス等） */\n${toggleLines.join("\n")}`;
   }

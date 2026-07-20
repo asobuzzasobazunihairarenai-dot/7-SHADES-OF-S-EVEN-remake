@@ -84,6 +84,15 @@ function createInitialState() {
     turnNumber: null,
     roundNumber: null,
     startPlayer: null,
+    // ターンタイマー（ロープ・砂時計・優先権）: src/turn-timer.js参照。ゲーム開始まで
+    // null/空のまま（turn-timer.js自身がturnPlayerのnull→非nullへの変化を検知して初期化
+    // する。SET_TURN_PLAYER側では関知しない）。強制力は持たせない設計のため、ここに置く
+    // 値は全て「表示のための記録」であり、これ自体がゲーム進行を止めたりはしない。
+    // 「砂時計を使わずに何ターン経過したか」はturn-timer.js内のローカル変数で追跡する
+    // （見た目に影響しない内部カウンタのため、共有stateには持たせない）。
+    priorityPlayer: null,
+    priorityDeadline: null,
+    hourglassStock: {},
   };
 }
 
@@ -231,6 +240,9 @@ function reduce(current, action) {
         turnNumber: null,
         roundNumber: null,
         startPlayer: null,
+        priorityPlayer: null,
+        priorityDeadline: null,
+        hourglassStock: {},
       };
     }
     // セットアップウィザードの手順1: 参加している座席（action.players、時計回り順）に
@@ -274,6 +286,17 @@ function reduce(current, action) {
     // SEAT_ORDER上の先頭＝座席Aとは限らないので、実際に選ばれたこのプレイヤーを基準にする）。
     case "SET_TURN_PLAYER": {
       return { ...current, turnPlayer: action.player, turnNumber: 1, roundNumber: 1, startPlayer: action.player };
+    }
+    // ターンタイマー（src/turn-timer.js）専用。優先権の所在と、現在のロープが燃え尽きる
+    // 時刻を更新するだけの薄いケース（ターン開始時の初期化・行動によるロープリセット・
+    // 優先権の譲渡・砂時計消費後の延長、全てturn-timer.js側がdeadlineを計算してこれを呼ぶ）。
+    case "SET_PRIORITY": {
+      return { ...current, priorityPlayer: action.player, priorityDeadline: action.deadline };
+    }
+    // ターンタイマー専用。座席ごとの砂時計の残り数を直接設定する（消費時のdecrement・
+    // 補充時のincrement、どちらもturn-timer.js側が計算した値をそのまま渡すだけの汎用setter）。
+    case "SET_HOURGLASS_STOCK": {
+      return { ...current, hourglassStock: { ...current.hourglassStock, [action.player]: action.value } };
     }
     // 「ターンを次のプレイヤーへ渡す」ボタン。参加座席(activePlayers)を時計回り順に絞り込み、
     // 現在のturnPlayerの次の座席へ進める（末尾の次は先頭に戻る）。次の座席がstartPlayer
@@ -458,6 +481,15 @@ export function setTurnPlayer(player) {
 export function nextTurn() {
   if (onlineMode && onlineTransport) return onlineTransport({ type: "NEXT_TURN" });
   dispatch({ type: "NEXT_TURN" });
+}
+
+// ターンタイマー（src/turn-timer.js）専用のローカル専用アクション。他のオンライン非対応
+// アクション（gateInvasionStealHand等）と同じくdispatch()を直接呼ぶだけ。
+export function setPriority(player, deadline) {
+  dispatch({ type: "SET_PRIORITY", player, deadline });
+}
+export function setHourglassStock(player, value) {
+  dispatch({ type: "SET_HOURGLASS_STOCK", player, value });
 }
 
 // tokenIds: 侵攻した側(attacker)が奪う、侵攻された側の手札トークンid（呼び出し側が無作為抽選済み）
