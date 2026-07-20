@@ -22,7 +22,7 @@
 // 今回はローカルモードのみの実装で、オンライン同期は次回以降のラウンドに回す。
 
 import { getState, subscribe, setPriority, setHourglassStock } from "./state.js";
-import { SEAT_ORDER } from "./board-layout.js";
+import { SEAT_ORDER, SEAT_TO_SIDE, getRotationSteps, rotateSide } from "./board-layout.js";
 import { getSelfSeat } from "./online.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
@@ -54,6 +54,12 @@ let prevTurnPlayer = null;
 // だけで追跡する。
 let hourglassUsedThisTurn = {};
 let turnsWithoutHourglass = {};
+// 延長ロープが燃えている最中に行動して中断された場合、その時点の残りミリ秒を座席ごとに
+// 覚えておく。次にその座席の延長ロープが再開する時、満タンからではなくこの続きから
+// 燃え始めるようにするため（ユーザー報告: 「再起動時に前回のロープの長さではなく
+// マックスの長さから再開してしまっている」の修正）。延長が最後まで自然に燃え尽きた
+// （＝中断されなかった）場合はこの値を使わない＝次の1個は満タンから始まる。
+let pausedExtensionRemainingMs = {};
 
 // 自分自身が発行したdispatch（setPriority/setHourglassStock）による通知で、
 // onStateChangeが無限に再入しないようにする再入防止フラグ（remote-move-animator.jsの
@@ -76,6 +82,18 @@ function freshBaseDeadlineFor(seat) {
   return Date.now() + seconds * 1000;
 }
 
+// 延長ロープを（再）開始する時に使う長さ（ミリ秒）。中断されて一時停止中の残り時間が
+// あればそれを使い切って消費し（＝続きから再開）、無ければ通常の延長時間をまるまる使う
+// （＝新しい砂時計が燃え始める）。
+function extensionDurationMsFor(seat) {
+  const paused = pausedExtensionRemainingMs[seat];
+  if (typeof paused === "number" && paused > 0) {
+    pausedExtensionRemainingMs[seat] = null;
+    return paused;
+  }
+  return getRopeExtensionSeconds() * 1000;
+}
+
 // ターンプレイヤーの交代（ゲーム開始時のnull→非nullも含む）を検知した時の処理。
 function handleTurnTransition(prevPlayer, nextPlayer, activePlayers) {
   if (prevPlayer === null && nextPlayer !== null) {
@@ -84,6 +102,7 @@ function handleTurnTransition(prevPlayer, nextPlayer, activePlayers) {
     for (const seat of activePlayers) {
       hourglassUsedThisTurn[seat] = false;
       turnsWithoutHourglass[seat] = 0;
+      pausedExtensionRemainingMs[seat] = null;
       withGuard(() => setHourglassStock(seat, getInitialHourglassStock()));
     }
     withGuard(() => setPriority(nextPlayer, freshBaseDeadlineFor(nextPlayer), "base"));
@@ -103,9 +122,10 @@ function handleTurnTransition(prevPlayer, nextPlayer, activePlayers) {
     } else {
       turnsWithoutHourglass[prevPlayer] = 0;
     }
-    // ターンが変わるので、新しいターンプレイヤーの「基本時間短縮」フラグをリセットし、
-    // 通常の基本時間をまるまる与える。
+    // ターンが変わるので、新しいターンプレイヤーの「基本時間短縮」フラグ・一時停止中の
+    // ロープの続きをリセットし、通常の基本時間をまるまる与える。
     hourglassUsedThisTurn[nextPlayer] = false;
+    pausedExtensionRemainingMs[nextPlayer] = null;
     withGuard(() => setPriority(nextPlayer, freshBaseDeadlineFor(nextPlayer), "base"));
   }
 }
@@ -123,6 +143,12 @@ function onStateChange(state) {
   // 基本時間の窓へリセットする（延長中に行動した場合、仮消費していた砂時計は
   // 「ロープが完全に無くならなければ持ち越せる」仕様通り、何も減らさずそのまま戻る）。
   if (state.priorityPlayer) {
+    // 延長ロープが燃えている最中に中断された場合、その時点の残り時間を覚えておき、
+    // 次にこの座席の延長ロープが再開する時は満タンではなくこの続きから燃えるようにする。
+    if (state.priorityPhase === "extension" && state.priorityDeadline) {
+      const remaining = state.priorityDeadline - Date.now();
+      if (remaining > 0) pausedExtensionRemainingMs[state.priorityPlayer] = remaining;
+    }
     withGuard(() => setPriority(state.priorityPlayer, freshBaseDeadlineFor(state.priorityPlayer), "base"));
   }
 }
@@ -385,7 +411,18 @@ function rebuildTransferButtons() {
     return;
   }
   transferButtonsEl.style.display = "flex";
-  for (const seat of others) {
+  // 三角形の3スロット（CSSの:nth-child(1)=上段中央/(2)=下段左/(3)=下段右）に、実際の
+  // 画面上の座席位置（上/左/右）が一致するよう並び替える。SEAT_ORDER.filter()の時計回り
+  // 順のままだと、実際に見えている位置（自分視点で盤面が回転する既存の仕組み、
+  // getRotationSteps/rotateSide参照）とズレてしまっていた（ユーザー報告）。
+  const SLOT_ORDER = { top: 0, left: 1, right: 2 };
+  const steps = getRotationSteps(selfSeat);
+  const sortedOthers = [...others].sort((a, b) => {
+    const sideA = rotateSide(SEAT_TO_SIDE[a], steps);
+    const sideB = rotateSide(SEAT_TO_SIDE[b], steps);
+    return SLOT_ORDER[sideA] - SLOT_ORDER[sideB];
+  });
+  for (const seat of sortedOthers) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "priority-transfer-btn";
@@ -442,7 +479,11 @@ function tick() {
       // 仕様に合わせ、ロープが最初に出現するこの時点でフラグを立てる（本当に正式消費
       // されるかどうかは問わない）。
       hourglassUsedThisTurn[state.priorityPlayer] = true;
-      withGuard(() => setPriority(state.priorityPlayer, Date.now() + getRopeExtensionSeconds() * 1000, "extension"));
+      // 中断された延長ロープの続きがあればそこから、無ければ満タンから燃やす
+      // （extensionDurationMsFor参照）。
+      withGuard(() =>
+        setPriority(state.priorityPlayer, Date.now() + extensionDurationMsFor(state.priorityPlayer), "extension")
+      );
     } else {
       updateWarning(state.priorityPlayer === state.turnPlayer);
     }
