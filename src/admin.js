@@ -114,8 +114,8 @@ const GROUPS = [
     title: "優先権譲渡ボタンの位置調整",
     category: "position",
     controls: [
-      { key: "--priority-transfer-pos-x", label: "位置X", unit: "rem", min: -30, max: 30, step: 0.1, default: -2 },
-      { key: "--priority-transfer-pos-y", label: "位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: -5.3 },
+      { key: "--priority-transfer-pos-x", label: "位置X", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--priority-transfer-pos-y", label: "位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
     ],
   },
   {

@@ -287,7 +287,9 @@ begin
     exit when not exists (select 1 from so7_games where id = new_id);
   end loop;
 
-  insert into so7_games (id, name) values (new_id, coalesce(nullif(trim(room_name), ''), 'セブンの部屋'));
+  -- 部屋名の文字数上限（クライアント側のmaxlengthと同じ20文字）。devtools/curlから直接
+  -- 呼ばれた場合の保険として、サーバー側でも切り詰めておく。
+  insert into so7_games (id, name) values (new_id, coalesce(nullif(left(trim(room_name), 20), ''), 'セブンの部屋'));
   if room_password is not null and room_password <> '' then
     insert into so7_game_passwords (game_id, password_hash) values (new_id, crypt(room_password, gen_salt('bf')));
   end if;

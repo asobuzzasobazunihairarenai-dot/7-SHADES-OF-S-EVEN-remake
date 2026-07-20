@@ -202,6 +202,18 @@ const PREFERENCE_DURATION_VARS = {
   hand_pickup_toast_duration: "--hand-pickup-toast-duration",
 };
 
+// player-identity.js/piece-skins.jsはどちらもこのファイルを直接importしている
+// （isOnlineMode/getSelfSeat/getSyncedIdentity/updateMyIdentity）ため、online.js側から
+// それらを直接importし返すと循環importになる。setup-animation.js等と同じ「main.jsから
+// 実際の適用ロジックを注入してもらう」パターンで回避する。ログイン直後、部屋に入る前でも
+// 名前・アバター・駒スキンが「初期化されて見える」（実際にはso7_user_profilesに保存済み
+// なのに、部屋に入るまでローカル表示側に反映する経路が無かった）というユーザー報告への
+// 対応。
+let identityApplierFn = null;
+export function registerIdentityApplier(fn) {
+  identityApplierFn = fn;
+}
+
 // ログイン済みならso7_user_profilesへ{user_id, ...patch, updated_at}をupsertするだけの
 // 薄い関数。未ログインの間は何もしない（ローカル/未ログインでの利用を妨げないため）。
 export async function saveMyPreference(patch) {
@@ -220,7 +232,8 @@ export async function loadMyPreferences() {
     .select(
       "lock_area_bar_visible, lock_color_visible, sound_volume, flight_animation_disabled, " +
         "arrival_effect_disabled, continuous_glow_disabled, gate_invasion_modal_duration, " +
-        "card_arrival_modal_duration, hand_pickup_toast_duration, shortcuts"
+        "card_arrival_modal_duration, hand_pickup_toast_duration, shortcuts, " +
+        "display_name, avatar, piece_skin_index"
     )
     .eq("user_id", cachedUser.id)
     .maybeSingle();
@@ -249,6 +262,11 @@ export async function loadMyPreferences() {
       setShortcut(id, data.shortcuts[id] ?? null);
     }
   }
+  identityApplierFn?.({
+    name: data.display_name || null,
+    avatar: data.avatar || null,
+    pieceSkinIndex: typeof data.piece_skin_index === "number" ? data.piece_skin_index : null,
+  });
   window.dispatchEvent(new CustomEvent("admin:change"));
 }
 

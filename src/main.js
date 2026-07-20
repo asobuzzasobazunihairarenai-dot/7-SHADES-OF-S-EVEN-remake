@@ -9,7 +9,13 @@ import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
 import { announceHandPickups, announceCardLocked } from "./hand-announcer.js";
 import { enqueueGateInvasionSteps } from "./gate-invasion-modal.js";
 import { checkForVictory } from "./victory.js";
-import { getSkinImagePath, getMyPieceColor, openPieceSkinPicker, registerPieceSkinHelpers } from "./piece-skins.js";
+import {
+  getSkinImagePath,
+  getMyPieceColor,
+  openPieceSkinPicker,
+  registerPieceSkinHelpers,
+  setLocalPreferredSkinIndex,
+} from "./piece-skins.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS } from "./player-identity.js";
 import { getSelectedPlaymatPath } from "./playmat.js";
@@ -51,6 +57,7 @@ import {
   getSyncedIdentity,
   getGoogleAvatarUrl,
   getRoomName,
+  registerIdentityApplier,
 } from "./online.js";
 import { playSound } from "./sound.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
@@ -2318,6 +2325,20 @@ initPhaseGuide();
 initTurnTimer();
 registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocationElement, setSetupPendingTokenIds });
 registerPieceSkinHelpers({ render });
+// ログイン直後（online.jsのloadMyPreferences）に、保存済みの名前・アバター・駒スキンを
+// ローカルの表示側（player-identity.js/piece-skins.js）へ反映する。部屋に入る前は
+// getSelfSeat()が常に"A"を返すため、ここではまだ「A」という固定座席への適用でよい
+// （実際に部屋へ入った後は、それぞれのモジュールが自動的に同期ロスター優先へ切り替わる）。
+// isOnlineMode()はこの時点ではまだfalseのため、setPlayerName/setPlayerAvatarが内部で
+// 行うupdateMyIdentity()への書き戻しは発生しない（読み込んだ値をそのまま書き戻すだけの
+// 無駄なネットワーク往復を避けられる）。
+registerIdentityApplier(({ name, avatar, pieceSkinIndex }) => {
+  const seat = getSelfSeat();
+  if (name) setPlayerName(seat, name);
+  if (avatar) setPlayerAvatar(seat, avatar);
+  if (typeof pieceSkinIndex === "number") setLocalPreferredSkinIndex(pieceSkinIndex);
+  render();
+});
 registerRemoteMoveAnimatorHelpers({
   setSetupPendingTokenIds,
   maybeAnnounceLock,

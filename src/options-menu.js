@@ -34,6 +34,21 @@ function buildSectionTitle(text) {
   return el;
 }
 
+// 項目数が増えて縦に長くなりすぎたため、admin.jsの<details>と同じ考え方で、性質の近い
+// 項目をグループごとに開閉できるようにする。buildContent(content)で中身を組み立てる。
+function buildCollapsibleSection(title, buildContent) {
+  const details = document.createElement("details");
+  details.className = "options-menu-details";
+  const summary = document.createElement("summary");
+  summary.textContent = title;
+  details.appendChild(summary);
+  const content = document.createElement("div");
+  content.className = "options-menu-details-content";
+  buildContent(content);
+  details.appendChild(content);
+  return details;
+}
+
 function buildCheckboxRow(label, checked, onChange) {
   const row = document.createElement("label");
   row.className = "options-menu-checkbox-row";
@@ -193,24 +208,32 @@ export function initOptionsMenu() {
     backdrop.style.display = "block";
   }
 
+  let shortcutSectionEl = null;
+
   function renderContent() {
     panel.innerHTML = "";
 
     panel.appendChild(buildSectionTitle("基本設定"));
+
     panel.appendChild(
-      buildCheckboxRow("ロックエリアバーを表示する", isLockAreaBarVisible(), (checked) => {
-        setLockAreaBarVisible(checked);
-        window.dispatchEvent(new CustomEvent("admin:change"));
-        saveMyPreference({ lock_area_bar_visible: checked });
+      buildCollapsibleSection("ロックエリア関連", (content) => {
+        content.appendChild(
+          buildCheckboxRow("ロックエリアバーを表示する", isLockAreaBarVisible(), (checked) => {
+            setLockAreaBarVisible(checked);
+            window.dispatchEvent(new CustomEvent("admin:change"));
+            saveMyPreference({ lock_area_bar_visible: checked });
+          })
+        );
+        content.appendChild(
+          buildCheckboxRow("ロックエリアの色を表示する", isLockColorVisible(), (checked) => {
+            setLockColorVisible(checked);
+            window.dispatchEvent(new CustomEvent("admin:change"));
+            saveMyPreference({ lock_color_visible: checked });
+          })
+        );
       })
     );
-    panel.appendChild(
-      buildCheckboxRow("ロックエリアの色を表示する", isLockColorVisible(), (checked) => {
-        setLockColorVisible(checked);
-        window.dispatchEvent(new CustomEvent("admin:change"));
-        saveMyPreference({ lock_color_visible: checked });
-      })
-    );
+
     const volumeRow = buildVolumeRow();
     const volumeSlider = volumeRow.querySelector("input[type=range]");
     volumeSlider.addEventListener("change", () => {
@@ -218,66 +241,69 @@ export function initOptionsMenu() {
     });
     panel.appendChild(volumeRow);
 
-    panel.appendChild(buildSectionTitle("モーダル表示時間"));
     panel.appendChild(
-      buildDurationRow("相手ゲート侵攻ボーナス通知", "--gate-invasion-modal-step-duration", 3.5, (value) => {
-        saveMyPreference({ gate_invasion_modal_duration: value });
-      })
-    );
-    panel.appendChild(
-      buildDurationRow("到達モーダル", "--card-arrival-modal-duration", 5, (value) => {
-        saveMyPreference({ card_arrival_modal_duration: value });
-      })
-    );
-    panel.appendChild(
-      buildDurationRow("カード獲得ポップアップ", "--hand-pickup-toast-duration", 5, (value) => {
-        saveMyPreference({ hand_pickup_toast_duration: value });
+      buildCollapsibleSection("モーダル表示時間", (content) => {
+        content.appendChild(
+          buildDurationRow("相手ゲート侵攻ボーナス通知", "--gate-invasion-modal-step-duration", 3.5, (value) => {
+            saveMyPreference({ gate_invasion_modal_duration: value });
+          })
+        );
+        content.appendChild(
+          buildDurationRow("到達モーダル", "--card-arrival-modal-duration", 5, (value) => {
+            saveMyPreference({ card_arrival_modal_duration: value });
+          })
+        );
+        content.appendChild(
+          buildDurationRow("カード獲得ポップアップ", "--hand-pickup-toast-duration", 5, (value) => {
+            saveMyPreference({ hand_pickup_toast_duration: value });
+          })
+        );
       })
     );
 
     // パフォーマンス改善用。純粋にクライアントローカルな描画設定のため、1人がオンにしても
     // 相手プレイヤーの画面には一切影響しない（各ブラウザは自分のstateから独立して描画する）。
-    panel.appendChild(buildSectionTitle("アニメーションを減らす（動作が重い時に）"));
     panel.appendChild(
-      buildCheckboxRow("移動アニメーション（駒・カードの飛翔）を無効にする", isFlightAnimationDisabled(), (checked) => {
-        setFlightAnimationDisabled(checked);
-        saveMyPreference({ flight_animation_disabled: checked });
-      })
-    );
-    panel.appendChild(
-      buildCheckboxRow("到達・ロック演出（光の柱・ロック画像等）を無効にする", isArrivalEffectDisabled(), (checked) => {
-        setArrivalEffectDisabled(checked);
-        saveMyPreference({ arrival_effect_disabled: checked });
-      })
-    );
-    panel.appendChild(
-      buildCheckboxRow("常時光る演出（手番のグロー等）を無効にする", isContinuousGlowDisabled(), (checked) => {
-        setContinuousGlowDisabled(checked);
-        document.body.classList.toggle("reduce-glow", checked);
-        saveMyPreference({ continuous_glow_disabled: checked });
+      buildCollapsibleSection("アニメーションを減らす（動作が重い時に）", (content) => {
+        content.appendChild(
+          buildCheckboxRow("移動アニメーション（駒・カードの飛翔）を無効にする", isFlightAnimationDisabled(), (checked) => {
+            setFlightAnimationDisabled(checked);
+            saveMyPreference({ flight_animation_disabled: checked });
+          })
+        );
+        content.appendChild(
+          buildCheckboxRow("到達・ロック演出（光の柱・ロック画像等）を無効にする", isArrivalEffectDisabled(), (checked) => {
+            setArrivalEffectDisabled(checked);
+            saveMyPreference({ arrival_effect_disabled: checked });
+          })
+        );
+        content.appendChild(
+          buildCheckboxRow("常時光る演出（手番のグロー等）を無効にする", isContinuousGlowDisabled(), (checked) => {
+            setContinuousGlowDisabled(checked);
+            document.body.classList.toggle("reduce-glow", checked);
+            saveMyPreference({ continuous_glow_disabled: checked });
+          })
+        );
       })
     );
 
-    const shortcutDivider = document.createElement("div");
-    shortcutDivider.className = "options-menu-divider";
-    panel.appendChild(shortcutDivider);
-
-    panel.appendChild(buildSectionTitle("ショートカットキー（プレイヤー用ボタン）"));
     const shortcutRows = SHORTCUT_TARGETS.map(({ id, label }) => buildShortcutRow(id, label));
-    for (const { row } of shortcutRows) {
-      panel.appendChild(row);
-    }
-
-    const presetBtn = document.createElement("button");
-    presetBtn.className = "options-menu-shortcut-preset";
-    presetBtn.textContent = "⭐ おすすめ";
-    presetBtn.title = "手札シャッフル=S、盤面拡大=Z、1枚ドロー=Dを一括で割り当てます";
-    presetBtn.addEventListener("click", () => {
-      for (const [id, key] of Object.entries(RECOMMENDED_SHORTCUTS)) setShortcut(id, key);
-      for (const { refresh } of shortcutRows) refresh();
-      persistShortcuts();
+    shortcutSectionEl = buildCollapsibleSection("ショートカットキー（プレイヤー用ボタン）", (content) => {
+      for (const { row } of shortcutRows) {
+        content.appendChild(row);
+      }
+      const presetBtn = document.createElement("button");
+      presetBtn.className = "options-menu-shortcut-preset";
+      presetBtn.textContent = "⭐ おすすめ";
+      presetBtn.title = "手札シャッフル=S、盤面拡大=Z、1枚ドロー=Dを一括で割り当てます";
+      presetBtn.addEventListener("click", () => {
+        for (const [id, key] of Object.entries(RECOMMENDED_SHORTCUTS)) setShortcut(id, key);
+        for (const { refresh } of shortcutRows) refresh();
+        persistShortcuts();
+      });
+      content.appendChild(presetBtn);
     });
-    panel.appendChild(presetBtn);
+    panel.appendChild(shortcutSectionEl);
 
     const divider = document.createElement("div");
     divider.className = "options-menu-divider";
@@ -303,6 +329,7 @@ export function initOptionsMenu() {
   // open()が毎回中身を作り直すため、querySelectorは常にその時点の最新DOMを見る。
   registerShortcutSettingsOpener((buttonId) => {
     open();
+    if (shortcutSectionEl) shortcutSectionEl.open = true;
     const row = panel.querySelector(`[data-shortcut-for="${buttonId}"]`);
     if (row) {
       row.scrollIntoView({ block: "center" });

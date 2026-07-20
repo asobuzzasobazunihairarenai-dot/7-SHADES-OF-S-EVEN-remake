@@ -27,6 +27,11 @@ import {
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { subscribe, getState, isOnlineMode } from "./state.js";
 
+// 部屋名の文字数上限。部屋一覧・ヘッダーの部屋バッジ等、限られた幅に表示する箇所が
+// 複数あるため、極端に長い部屋名で崩れないよう作成時点で制限する（サーバー側
+// so7_create_roomでも同じ上限で切り詰める、両方で持たせるのは既存の他の入力欄と同じ方針）。
+const ROOM_NAME_MAX_LENGTH = 20;
+
 let panelEl = null;
 let backdropEl = null;
 let contentEl = null;
@@ -417,6 +422,7 @@ async function renderRoomChoice(user) {
   createForm.style.cssText =
     "display: none; margin-bottom: 0.8rem; padding: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 0.3rem;";
   const nameInput = textInput("セブンの部屋", { isValue: true });
+  nameInput.maxLength = ROOM_NAME_MAX_LENGTH;
   const passInput = textInput("パスワード（任意）");
   passInput.type = "password";
   const createStatus = document.createElement("div");
