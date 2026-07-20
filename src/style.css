@@ -1285,11 +1285,14 @@ body {
 
 /* 各プレイヤーのアバター（絵文字ダミー）。相手のアバターは「手札の後ろ側」に見えるよう、
    buildPlayerZone()内でhand-areaより先にDOMへ足している（重なった時は後から足した
-   hand側が手前）。位置・サイズは管理者モードで調整できる（--avatar-size・
+   hand側が手前）。位置・サイズは管理者モードで調整できる（--avatar-{a,b,c,d}-size・
    --avatar-{a,b,c,d}-pos-x/y）。emoji自体は常に正立させたいので、名前ラベルと違い回転は
    付けない。 */
 :root {
-  --avatar-size: 3rem;
+  --avatar-a-size: 3rem;
+  --avatar-b-size: 3rem;
+  --avatar-c-size: 3rem;
+  --avatar-d-size: 3rem;
   --avatar-a-pos-x: 0rem;
   --avatar-a-pos-y: 1.9rem;
   --avatar-b-pos-x: -3.5rem;
@@ -1303,22 +1306,28 @@ body {
   position: absolute;
   top: 50%;
   left: 50%;
-  font-size: var(--avatar-size);
   line-height: 1;
   z-index: 3;
   pointer-events: none;
   filter: drop-shadow(0 0.2rem 0.3rem rgba(0, 0, 0, 0.6));
 }
+/* サイズは元々4人共通の--avatar-sizeだったが、プレイヤーごとに調整したいという要望を受けて
+   位置(--avatar-{a,b,c,d}-pos-x/y)と同じ「表示位置ごと」の変数に分割した
+   （bottom=a/left=b/top=c/right=d、hand-{a,b,c,d}-size等と同じ命名規則）。 */
 .zone-bottom .player-avatar {
+  font-size: var(--avatar-a-size);
   transform: translate(-50%, -50%) translate(var(--avatar-a-pos-x), var(--avatar-a-pos-y));
 }
 .zone-left .player-avatar {
+  font-size: var(--avatar-b-size);
   transform: translate(-50%, -50%) translate(var(--avatar-b-pos-x), var(--avatar-b-pos-y));
 }
 .zone-top .player-avatar {
+  font-size: var(--avatar-c-size);
   transform: translate(-50%, -50%) translate(var(--avatar-c-pos-x), var(--avatar-c-pos-y));
 }
 .zone-right .player-avatar {
+  font-size: var(--avatar-d-size);
   transform: translate(-50%, -50%) translate(var(--avatar-d-pos-x), var(--avatar-d-pos-y));
 }
 
@@ -1903,9 +1912,21 @@ body.reduce-glow .board-card.is-usable-while-locked.effect-orbit::before {
   object-fit: cover;
   display: block;
 }
-.player-avatar .avatar-image {
-  width: var(--avatar-size);
-  height: var(--avatar-size);
+.zone-bottom .player-avatar .avatar-image {
+  width: var(--avatar-a-size);
+  height: var(--avatar-a-size);
+}
+.zone-left .player-avatar .avatar-image {
+  width: var(--avatar-b-size);
+  height: var(--avatar-b-size);
+}
+.zone-top .player-avatar .avatar-image {
+  width: var(--avatar-c-size);
+  height: var(--avatar-c-size);
+}
+.zone-right .player-avatar .avatar-image {
+  width: var(--avatar-d-size);
+  height: var(--avatar-d-size);
 }
 .self-status-avatar .avatar-image {
   width: 100%;

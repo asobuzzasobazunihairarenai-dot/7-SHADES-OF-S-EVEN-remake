@@ -175,54 +175,50 @@ if (client) {
   });
 }
 
-// --- 部屋の作成・参加 --------------------------------------------------------------
-
-function generateRoomId() {
-  return Math.random().toString(36).slice(2, 8).toUpperCase();
-}
+// --- 部屋の作成・参加・一覧 ---------------------------------------------------------
 
 // 部屋を新規作成し、作成者自身もその部屋に参加する（座席はまだ選ばない/決まらない。
 // 「ゲームを開始する」を押した瞬間にso7-apply-action Edge Function側で参加者全員へ
-// ランダムに割り振られる）。戻り値はroom id（URLの?room=に使う）。
-export async function createRoom() {
+// ランダムに割り振られる）。部屋idの生成・パスワードのハッシュ化はサーバー側の
+// so7_create_room（SECURITY DEFINER）が行う——クライアントの入力をそのまま主キーとして
+// 信頼しないため、また平文パスワードをテーブルへ直接書かせないため。戻り値はroom id
+// （URLの?room=に使う）。
+export async function createRoom(name, password) {
   return withLog("部屋の作成", async () => {
     const user = await getCurrentUser();
     if (!user) throw new Error("ログインしてください");
-    const gameId = generateRoomId();
-    const { error: gameErr } = await client.from("so7_games").insert({ id: gameId });
-    if (gameErr) throw gameErr;
+    const { data: gameId, error } = await client.rpc("so7_create_room", {
+      room_name: name || null,
+      room_password: password || null,
+    });
+    if (error) throw error;
     await joinRoom(gameId);
     return gameId;
   });
 }
 
 // 部屋に参加する（座席は選ばない。1ユーザーにつき1部屋1行、既に参加済みならUNIQUE制約
-// 違反になる）。
-export async function joinRoom(gameId) {
+// 違反になる）。パスワード照合と座席行の作成をサーバー側のso7_join_room
+// （SECURITY DEFINER）に一本化してある——クライアント側だけでパスワードを確認してから
+// so7_game_seatsへ直接insertする方式だと、devtools/curlから直接REST APIを叩けば
+// パスワードを一切入力せずに参加できてしまう（so7_game_seats_insertポリシー自体は
+// user_id=auth.uid()のみのチェックで、パスワードの有無を関知できないため）。
+// 永続プロフィール（so7_user_profiles）からの初期値反映もso7_join_room側で行う。
+export async function joinRoom(gameId, passwordAttempt) {
   return withLog("部屋に参加", async () => {
     const user = await getCurrentUser();
     if (!user) throw new Error("ログインしてください");
 
-    // 永続プロフィール（so7_user_profiles）があれば、その値を最初の座席行にそのまま
-    // 使う。無ければ列を省略しDB側のデフォルト（display_name/avatarはnull、
-    // piece_skin_indexは0）に任せる。取得に失敗しても部屋参加自体は続行してよい
-    // （単に前回の設定が引き継がれないだけ）。
-    const seatRow = { game_id: gameId, user_id: user.id };
-    const { data: profile } = await client
-      .from("so7_user_profiles")
-      .select("display_name, avatar, piece_skin_index")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (profile) {
-      if (profile.display_name) seatRow.display_name = profile.display_name;
-      if (profile.avatar) seatRow.avatar = profile.avatar;
-      if (typeof profile.piece_skin_index === "number") seatRow.piece_skin_index = profile.piece_skin_index;
-    }
-
-    const { error } = await client.from("so7_game_seats").insert(seatRow);
+    const { error } = await client.rpc("so7_join_room", {
+      p_game_id: gameId,
+      p_password_attempt: passwordAttempt ?? null,
+    });
     if (error) {
       if (String(error.message ?? "").includes("duplicate key")) {
         throw new Error("既にこの部屋に参加しています");
+      }
+      if (String(error.message ?? "").includes("invalid_password")) {
+        throw new Error("パスワードが違います");
       }
       throw error;
     }
@@ -230,6 +226,35 @@ export async function joinRoom(gameId) {
     currentSeat = null; // ゲーム開始時にランダムに割り当てられる
     subscribeToGame(gameId);
   });
+}
+
+// 開いている（まだ始まっていない）部屋の一覧。so7_games_listビューはパスワードの
+// ハッシュ自体を一切含まず、has_password（真偽値）だけを返す。
+export async function listOpenRooms() {
+  const { data, error } = await client.from("so7_games_list").select("*").order("created_at", { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+// 部屋名の変更。参加者本人であれば誰でも改名できる（このアプリ全体で「友人間の緩い前提」
+// のもと厳密な所有者概念を設けていないのと同じ考え方）。RLS（参加者本人）＋列GRANT
+// （name列のみ）の両方を満たさないと更新できないようSQL側で絞ってある。
+export async function renameRoom(gameId, newName) {
+  return withLog("部屋名の変更", async () => {
+    const trimmed = (newName ?? "").trim();
+    if (!trimmed) return;
+    const { error } = await client.from("so7_games").update({ name: trimmed }).eq("id", gameId);
+    if (error) throw error;
+  });
+}
+
+// 部屋名（ゲーム開始後も含め、部屋にいる間ずっと表示するため）。so7_games_listは
+// status='openの部屋しか含まないため、開始後の部屋にも使えるようso7_gamesから直接取る
+// （name列自体は秘匿の必要が無い、既存のso7_games_select using(true)のまま読める）。
+export async function getRoomName(gameId) {
+  const { data, error } = await client.from("so7_games").select("name").eq("id", gameId).maybeSingle();
+  if (error) throw error;
+  return data?.name || "セブンの部屋";
 }
 
 // 今この部屋に参加している人数（座席未定でもカウントする）。
@@ -336,12 +361,26 @@ async function updateIdentityRoster(gameId) {
 export async function updateMyIdentity({ name, avatar, pieceSkinIndex } = {}) {
   return withLog("プレイヤー情報の更新", async () => {
     const user = await getCurrentUser();
-    if (!user || !currentGameId) return;
+    if (!user) return;
     const patch = {};
     if (name !== undefined) patch.display_name = name;
     if (avatar !== undefined) patch.avatar = avatar;
     if (pieceSkinIndex !== undefined) patch.piece_skin_index = pieceSkinIndex;
     if (Object.keys(patch).length === 0) return;
+
+    // ユーザーごとの永続プロフィールへは、部屋に入っているかどうかに関わらず常に反映する
+    // （ゲームをまたいで名前/アバター/駒スキンを覚えておくため）。以前はcurrentGameIdが
+    // 無いと関数全体が即returnしていたため、部屋に参加する「前」にアバター等を変更しても
+    // 実際にはサーバーへ何も送られていなかった——自分の画面には選択が即座に反映されて
+    // 見えるため一見成功しているようだが、その後joinRoom()が最初の座席行を作る時点では
+    // 永続プロフィールがまだ空/古いままなので、初期値として拾われず、相手プレイヤーには
+    // 反映されない（もう一度部屋の中で選び直すと初めて動く、というユーザー報告の原因）。
+    const { error: profileErr } = await client
+      .from("so7_user_profiles")
+      .upsert({ user_id: user.id, ...patch, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    if (profileErr) console.error("so7_user_profiles upsert failed", profileErr);
+
+    if (!currentGameId) return; // 部屋に入っていない間はso7_game_seats側の更新は対象外
 
     const { error } = await client
       .from("so7_game_seats")
@@ -349,15 +388,6 @@ export async function updateMyIdentity({ name, avatar, pieceSkinIndex } = {}) {
       .eq("game_id", currentGameId)
       .eq("user_id", user.id);
     if (error) throw error;
-
-    // ユーザーごとの永続プロフィールにも同時に反映する（ゲームをまたいで名前/アバター/
-    // 駒スキンを覚えておくため。so7_game_seatsはゲームごとの行のため、これが無いと
-    // 新しい部屋に参加するたびに白紙に戻ってしまう）。失敗してもso7_game_seats側の
-    // 更新自体は既に成功しているため、このエラーで全体を失敗扱いにはしない。
-    const { error: profileErr } = await client
-      .from("so7_user_profiles")
-      .upsert({ user_id: user.id, ...patch, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
-    if (profileErr) console.error("so7_user_profiles upsert failed", profileErr);
 
     // 自分のローカルキャッシュにも即座に反映（次の再取得を待たなくても自分の画面には
     // すぐ反映されるように）。

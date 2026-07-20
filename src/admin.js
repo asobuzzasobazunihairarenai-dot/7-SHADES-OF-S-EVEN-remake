@@ -157,7 +157,10 @@ const GROUPS = [
     title: "プレイヤーアバターの位置・サイズ（手札の後ろ側に配置）",
     category: "position",
     controls: [
-      { key: "--avatar-size", label: "サイズ（共通）", unit: "rem", min: 1, max: 8, step: 0.1, default: 3 },
+      { key: "--avatar-a-size", label: "A（自分）サイズ", unit: "rem", min: 1, max: 8, step: 0.1, default: 3 },
+      { key: "--avatar-b-size", label: "B サイズ", unit: "rem", min: 1, max: 8, step: 0.1, default: 3 },
+      { key: "--avatar-c-size", label: "C サイズ", unit: "rem", min: 1, max: 8, step: 0.1, default: 3 },
+      { key: "--avatar-d-size", label: "D サイズ", unit: "rem", min: 1, max: 8, step: 0.1, default: 3 },
       { key: "--avatar-a-pos-x", label: "A（自分）位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--avatar-a-pos-y", label: "A（自分）位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 1.9 },
       { key: "--avatar-b-pos-x", label: "B 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -3.5 },

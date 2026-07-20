@@ -249,3 +249,106 @@ create policy "so7_user_profiles_insert" on so7_user_profiles for insert to auth
   with check (user_id = auth.uid());
 create policy "so7_user_profiles_update" on so7_user_profiles for update to authenticated
   using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- 追加機能: 部屋名・パスワード・部屋一覧。部屋コードのコピペをやめ、部屋名を付けて一覧から
+-- クリックで参加できるようにする（online.js/online-ui.js参照）。
+
+-- 部屋名。既存のso7_games_selectがusing(true)のままなので、この列自体は特に秘匿する
+-- 必要が無い（fetchAndHydrate()の既存select("*")がそのまま拾ってくれる）。
+alter table so7_games add column if not exists name text not null default 'セブンの部屋';
+
+-- パスワードのハッシュは、so7_gamesとは別の完全に独立したテーブルに置く。RLSは有効化する
+-- が、authenticatedロールへのポリシーを一切付与しない（デフォルト拒否）。これにより
+-- クライアント側のどんな実装ミス（select("*")等）があってもハッシュへは物理的に到達
+-- できない。アクセスは全て下のSECURITY DEFINER関数経由のみに限定する。
+create extension if not exists pgcrypto;
+create table if not exists so7_game_passwords (
+  game_id text primary key references so7_games(id) on delete cascade,
+  password_hash text not null
+);
+alter table so7_game_passwords enable row level security;
+
+-- 部屋の作成（部屋idの生成もSQL側で行い、クライアント入力を主キーとして信頼しない）。
+create or replace function so7_create_room(room_name text default null, room_password text default null)
+returns text
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  new_id text;
+  alphabet text := '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+begin
+  loop
+    new_id := '';
+    for i in 1..6 loop
+      new_id := new_id || substr(alphabet, floor(random() * 36)::int + 1, 1);
+    end loop;
+    exit when not exists (select 1 from so7_games where id = new_id);
+  end loop;
+
+  insert into so7_games (id, name) values (new_id, coalesce(nullif(trim(room_name), ''), 'セブンの部屋'));
+  if room_password is not null and room_password <> '' then
+    insert into so7_game_passwords (game_id, password_hash) values (new_id, crypt(room_password, gen_salt('bf')));
+  end if;
+  return new_id;
+end;
+$$;
+revoke execute on function so7_create_room(text, text) from public;
+grant execute on function so7_create_room(text, text) to authenticated;
+
+-- 部屋への参加。パスワード照合と座席行の作成をサーバー側で1つのSECURITY DEFINER関数に
+-- まとめることで、クライアントがパスワードチェックを迂回してso7_game_seatsへ直接insert
+-- してしまう経路を塞ぐ（当初案の穴。so7_game_seats_insertポリシー自体はuser_id=auth.uid()
+-- のみのチェックで、パスワードの有無を関知できないため）。あわせて、既存のjoinRoom()が
+-- クライアント側で行っていた「so7_user_profilesから前回の設定を読んで初期値にする」処理も
+-- ここに統合する。
+create or replace function so7_join_room(p_game_id text, p_password_attempt text default null)
+returns void
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  stored_hash text;
+  profile record;
+begin
+  select password_hash into stored_hash from so7_game_passwords where game_id = p_game_id;
+  if stored_hash is not null then
+    if p_password_attempt is null or crypt(p_password_attempt, stored_hash) <> stored_hash then
+      raise exception 'invalid_password';
+    end if;
+  end if;
+
+  select display_name, avatar, piece_skin_index into profile
+  from so7_user_profiles where user_id = auth.uid();
+
+  insert into so7_game_seats (game_id, user_id, display_name, avatar, piece_skin_index)
+  values (p_game_id, auth.uid(), profile.display_name, profile.avatar, coalesce(profile.piece_skin_index, 0));
+end;
+$$;
+revoke execute on function so7_join_room(text, text) from public;
+grant execute on function so7_join_room(text, text) to authenticated;
+
+-- 部屋一覧（開いている部屋のみ）。has_passwordは真偽値のみを公開し、ハッシュ自体は
+-- 決して含めない。既存のso7_game_tokens_visible等と同じ「security_invokerを付けない」
+-- パターンで、so7_game_passwords（authenticatedへのポリシー無し）をビュー所有者権限で
+-- 参照できるようにする。
+create view so7_games_list as
+select
+  g.id, g.name, g.status, g.created_at,
+  (p.game_id is not null) as has_password,
+  (select count(*) from so7_game_seats s where s.game_id = g.id) as member_count
+from so7_games g
+left join so7_game_passwords p on p.game_id = g.id
+where g.status = 'open';
+grant select on so7_games_list to authenticated;
+
+-- 部屋名の改名。行レベルのRLS（参加者本人のみ）に加えて列レベルのGRANTでname列だけに
+-- 更新可能範囲を絞る——RLSポリシーだけでは行全体が対象になってしまい、status/turn_player/
+-- version等（本来so7-apply-action Edge Function経由でしか変更してはいけない列）まで誰でも
+-- 書き換え可能になってしまう。RLSと列GRANTを両方満たさないと更新できない。
+create policy "so7_games_update_name" on so7_games for update to authenticated
+  using (exists (select 1 from so7_game_seats s where s.game_id = so7_games.id and s.user_id = auth.uid()))
+  with check (exists (select 1 from so7_game_seats s where s.game_id = so7_games.id and s.user_id = auth.uid()));
+grant update (name) on so7_games to authenticated;

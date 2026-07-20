@@ -222,7 +222,7 @@ function buildPlayerZone(side, player, isSelf) {
 
   // アバターは「手札の後ろ側」に見えるよう、手札(.hand-area)より先にDOMへ足す
   // （同じ場所で重なった時、後から足した手札側が手前に描画される）。管理者モードで
-  // 位置・サイズを調整できる（--avatar-{a,b,c,d}-pos-x/y・--avatar-size）。
+  // 位置・サイズを調整できる（--avatar-{a,b,c,d}-pos-x/y・--avatar-{a,b,c,d}-size）。
   const avatarEl = document.createElement("div");
   avatarEl.className = `player-avatar${player === getState().turnPlayer ? " is-turn-player" : ""}`;
   applyAvatarContent(avatarEl, getPlayerAvatar(player));

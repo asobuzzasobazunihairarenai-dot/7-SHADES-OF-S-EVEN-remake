@@ -13,6 +13,9 @@ import {
   onAuthChange,
   createRoom,
   joinRoom,
+  listOpenRooms,
+  renameRoom,
+  getRoomName,
   getMemberCount,
   getCurrentGameId,
   getMySeat,
@@ -70,7 +73,8 @@ async function renderPanelContent() {
   } else {
     const gameId = getCurrentGameId();
     if (!gameId) {
-      renderRoomChoice(user);
+      await renderRoomChoice(user);
+      if (myGeneration !== renderGeneration) return;
     } else {
       await renderRoomStatus(gameId);
       if (myGeneration !== renderGeneration) return;
@@ -220,7 +224,71 @@ function renderLoginForm() {
   contentEl.appendChild(anonBtn);
 }
 
-function renderRoomChoice(user) {
+function textInput(placeholderOrValue, { isValue } = {}) {
+  const input = document.createElement("input");
+  input.type = "text";
+  if (isValue) input.value = placeholderOrValue;
+  else input.placeholder = placeholderOrValue;
+  input.style.cssText =
+    "width: 100%; box-sizing: border-box; padding: 0.4rem; margin-bottom: 0.4rem; border-radius: 0.3rem; " +
+    "border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(255, 255, 255, 0.05); color: inherit;";
+  return input;
+}
+
+// 部屋一覧の1行。パスワード無しならクリックでそのまま参加、有りならその場にパスワード
+// 入力欄を展開する（別ダイアログを開かず、一覧のその場で完結させる）。
+function buildRoomRow(room) {
+  const row = document.createElement("div");
+  row.style.cssText =
+    "padding: 0.5rem 0.6rem; margin-bottom: 0.4rem; border: 1px solid rgba(148, 163, 184, 0.3); " +
+    "border-radius: 0.3rem; cursor: pointer;";
+
+  const label = document.createElement("div");
+  label.style.cssText = "font-size: 0.85rem;";
+  label.textContent = `${room.has_password ? "🔒 " : ""}${room.name}（${room.member_count}人）`;
+  row.appendChild(label);
+
+  const passRow = document.createElement("div");
+  passRow.style.cssText = "display: none; margin-top: 0.4rem;";
+  passRow.addEventListener("click", (e) => e.stopPropagation()); // 行自体のクリック(開閉)を誘発しない
+  const passInput = textInput("パスワード");
+  passInput.type = "password";
+  const passStatus = document.createElement("div");
+  passStatus.style.cssText = "font-size: 0.75rem; color: #f87171; min-height: 1.1em;";
+  const passConfirmBtn = textButton("参加する");
+  passConfirmBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box;";
+  passRow.appendChild(passInput);
+  passRow.appendChild(passStatus);
+  passRow.appendChild(passConfirmBtn);
+  row.appendChild(passRow);
+
+  async function attemptJoin(password) {
+    try {
+      await joinRoom(room.id, password);
+      history.replaceState(null, "", `?room=${room.id}`);
+      await renderPanelContent();
+    } catch (err) {
+      if (room.has_password) {
+        passStatus.textContent = err.message ?? String(err);
+      } else {
+        alert(`参加に失敗しました: ${err.message ?? err}`);
+      }
+    }
+  }
+
+  passConfirmBtn.addEventListener("click", () => attemptJoin(passInput.value));
+  row.addEventListener("click", () => {
+    if (room.has_password) {
+      passRow.style.display = passRow.style.display === "none" ? "block" : "none";
+    } else {
+      attemptJoin(null);
+    }
+  });
+
+  return row;
+}
+
+async function renderRoomChoice(user) {
   const title = document.createElement("div");
   title.style.cssText = "font-weight: bold; margin-bottom: 0.6rem;";
   // 匿名ログインの場合、user.emailはundefinedではなく空文字列になることがあるため、
@@ -229,66 +297,106 @@ function renderRoomChoice(user) {
   title.textContent = `🌐 オンライン対戦（${user.email || "匿名ユーザー"}）`;
   contentEl.appendChild(title);
 
-  const createBtn = textButton("部屋を作成する");
-  createBtn.style.marginBottom = "0.8rem";
-  createBtn.addEventListener("click", async () => {
-    createBtn.disabled = true;
+  // 「部屋を作成」フォームは最初は畳んでおき、押した時だけ名前/パスワード入力を出す。
+  const createToggleBtn = textButton("＋ 部屋を作成");
+  createToggleBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box; margin-bottom: 0.6rem;";
+  const createForm = document.createElement("div");
+  createForm.style.cssText =
+    "display: none; margin-bottom: 0.8rem; padding: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 0.3rem;";
+  const nameInput = textInput("セブンの部屋", { isValue: true });
+  const passInput = textInput("パスワード（任意）");
+  passInput.type = "password";
+  const createStatus = document.createElement("div");
+  createStatus.style.cssText = "font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.3rem; min-height: 1.2em;";
+  const createConfirmBtn = textButton("作成する");
+  createConfirmBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box;";
+  createConfirmBtn.addEventListener("click", async () => {
+    createConfirmBtn.disabled = true;
+    createStatus.textContent = "作成中...";
     try {
-      const gameId = await createRoom();
+      const gameId = await createRoom(nameInput.value, passInput.value);
       history.replaceState(null, "", `?room=${gameId}`);
       await renderPanelContent();
     } catch (err) {
-      alert(`部屋の作成に失敗しました: ${err.message ?? err}`);
-      createBtn.disabled = false;
+      createStatus.textContent = `エラー: ${err.message ?? err}`;
+      createConfirmBtn.disabled = false;
     }
   });
-  contentEl.appendChild(createBtn);
+  createForm.appendChild(nameInput);
+  createForm.appendChild(passInput);
+  createForm.appendChild(createStatus);
+  createForm.appendChild(createConfirmBtn);
+  createToggleBtn.addEventListener("click", () => {
+    createForm.style.display = createForm.style.display === "none" ? "block" : "none";
+  });
+  contentEl.appendChild(createToggleBtn);
+  contentEl.appendChild(createForm);
 
-  const joinLabel = document.createElement("div");
-  joinLabel.style.cssText = "font-size: 0.85rem; margin-bottom: 0.3rem;";
-  joinLabel.textContent = "部屋コードで参加:";
-  contentEl.appendChild(joinLabel);
+  const listLabel = document.createElement("div");
+  listLabel.style.cssText = "font-size: 0.85rem; margin-bottom: 0.3rem;";
+  listLabel.textContent = "参加できる部屋:";
+  contentEl.appendChild(listLabel);
 
-  const codeInput = document.createElement("input");
-  codeInput.type = "text";
-  codeInput.placeholder = "部屋コード";
-  codeInput.style.cssText =
-    "width: 100%; box-sizing: border-box; padding: 0.4rem; margin-bottom: 0.5rem; border-radius: 0.3rem; " +
-    "border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(255, 255, 255, 0.05); color: inherit; " +
-    "text-transform: uppercase;";
-  contentEl.appendChild(codeInput);
+  const listStatus = document.createElement("div");
+  listStatus.style.cssText = "font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.3rem; min-height: 1.2em;";
+  contentEl.appendChild(listStatus);
 
-  const status = document.createElement("div");
-  status.style.cssText = "font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.3rem; min-height: 1.2em;";
-  contentEl.appendChild(status);
+  const listContainer = document.createElement("div");
+  contentEl.appendChild(listContainer);
 
-  // 座席はここでは選ばず（後で「ゲームを開始する」を押した瞬間にランダムに割り振られる）、
-  // 部屋に参加するだけのシンプルな1ボタンにした。
-  const joinBtn = textButton("参加する");
-  joinBtn.style.marginBottom = "0.8rem";
-  joinBtn.addEventListener("click", async () => {
+  try {
+    const rooms = await listOpenRooms();
+    if (rooms.length === 0) {
+      listStatus.textContent = "現在、参加できる部屋はありません。「＋ 部屋を作成」から作ってください。";
+    } else {
+      for (const room of rooms) listContainer.appendChild(buildRoomRow(room));
+    }
+  } catch (err) {
+    listStatus.textContent = `一覧の取得に失敗しました: ${err.message ?? err}`;
+  }
+
+  // 部屋コード直接入力は、URL共有(?room=)からの参加や一覧に出てこない場合の保険として、
+  // 折りたたみ式の補助手段として残す。
+  const codeToggleBtn = textButton("部屋コードで参加");
+  codeToggleBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box; margin-top: 0.8rem;";
+  const codeForm = document.createElement("div");
+  codeForm.style.cssText = "display: none; margin-top: 0.4rem;";
+  const codeInput = textInput("部屋コード");
+  codeInput.style.textTransform = "uppercase";
+  const codeStatus = document.createElement("div");
+  codeStatus.style.cssText = "font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.3rem; min-height: 1.2em;";
+  const codeJoinBtn = textButton("参加する");
+  codeJoinBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box;";
+  codeJoinBtn.addEventListener("click", async () => {
     const code = codeInput.value.trim().toUpperCase();
     if (!code) {
-      status.textContent = "部屋コードを入力してください。";
+      codeStatus.textContent = "部屋コードを入力してください。";
       return;
     }
-    status.textContent = "参加中...";
-    joinBtn.disabled = true;
+    codeStatus.textContent = "参加中...";
+    codeJoinBtn.disabled = true;
     try {
       await joinRoom(code);
       history.replaceState(null, "", `?room=${code}`);
       await renderPanelContent();
     } catch (err) {
-      status.textContent = `エラー: ${err.message ?? err}`;
-      joinBtn.disabled = false;
+      codeStatus.textContent = `エラー: ${err.message ?? err}`;
+      codeJoinBtn.disabled = false;
     }
   });
-  contentEl.appendChild(joinBtn);
+  codeForm.appendChild(codeInput);
+  codeForm.appendChild(codeStatus);
+  codeForm.appendChild(codeJoinBtn);
+  codeToggleBtn.addEventListener("click", () => {
+    codeForm.style.display = codeForm.style.display === "none" ? "block" : "none";
+  });
+  contentEl.appendChild(codeToggleBtn);
+  contentEl.appendChild(codeForm);
 
   // 別の認証方法（メール/Google/匿名）を試したい時のため、ログアウトできるようにしておく
   // （一度ログインすると明示的にログアウトするまでそのブラウザにセッションが残り続ける）。
   const signOutBtn = textButton("ログアウト");
-  signOutBtn.style.marginTop = "0.8rem";
+  signOutBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box; margin-top: 0.8rem;";
   signOutBtn.addEventListener("click", async () => {
     await signOut();
     await renderPanelContent();
@@ -298,10 +406,50 @@ function renderRoomChoice(user) {
 
 async function renderRoomStatus(gameId) {
   const mySeat = getMySeat();
+  let roomName = "セブンの部屋";
+  try {
+    roomName = await getRoomName(gameId);
+  } catch (err) {
+    // 名前が取れなくても部屋自体は表示・操作できるようにしておく
+  }
+
   const title = document.createElement("div");
   title.style.cssText = "font-weight: bold; margin-bottom: 0.4rem;";
-  title.textContent = mySeat ? `🌐 部屋: ${gameId}（あなたは座席${mySeat}）` : `🌐 部屋: ${gameId}`;
+  title.textContent = mySeat ? `🌐 ${roomName}（座席${mySeat}）` : `🌐 ${roomName}`;
   contentEl.appendChild(title);
+
+  const codeHint = document.createElement("div");
+  codeHint.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.4rem;";
+  codeHint.textContent = `部屋コード: ${gameId}`;
+  contentEl.appendChild(codeHint);
+
+  // 部屋名の変更（参加者なら誰でも可能。作成時のデフォルト「セブンの部屋」から改名したい
+  // という要望への対応）。
+  const renameRow = document.createElement("div");
+  renameRow.style.cssText = "display: flex; gap: 0.3rem; margin-bottom: 0.6rem;";
+  const renameInput = document.createElement("input");
+  renameInput.type = "text";
+  renameInput.value = roomName;
+  renameInput.style.cssText =
+    "flex: 1; min-width: 0; box-sizing: border-box; padding: 0.3rem; border-radius: 0.3rem; " +
+    "border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(255, 255, 255, 0.05); color: inherit; font-size: 0.8rem;";
+  const renameBtn = document.createElement("button");
+  renameBtn.className = "header-tool-button";
+  renameBtn.textContent = "改名";
+  renameBtn.style.cssText = "font-size: 0.75rem; padding: 0.3rem 0.6rem; min-width: auto; white-space: nowrap;";
+  renameBtn.addEventListener("click", async () => {
+    renameBtn.disabled = true;
+    try {
+      await renameRoom(gameId, renameInput.value);
+      await renderPanelContent();
+    } catch (err) {
+      alert(`部屋名の変更に失敗しました: ${err.message ?? err}`);
+      renameBtn.disabled = false;
+    }
+  });
+  renameRow.appendChild(renameInput);
+  renameRow.appendChild(renameBtn);
+  contentEl.appendChild(renameRow);
 
   let count = 0;
   try {
@@ -318,13 +466,15 @@ async function renderRoomStatus(gameId) {
 
   const shareHint = document.createElement("div");
   shareHint.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.6rem;";
-  shareHint.textContent = "この部屋コードを他のプレイヤーに共有してください。";
+  shareHint.textContent = "他のプレイヤーは「🌐オンライン」の部屋一覧からこの部屋を選べます。";
   contentEl.appendChild(shareHint);
 
   if (!mySeat && count >= 2) {
     const startBtn = textButton("ゲームを開始する");
-    startBtn.style.marginRight = "0.4rem";
-    startBtn.style.marginBottom = "0.4rem";
+    // ログインパネルのボタン（renderLoginForm）と同じ理由で、display:blockを明示しないと
+    // .header-tool-buttonの既定表示(inline-block)のせいで「この部屋を離れる」ボタンと
+    // 横並びになってしまう（ユーザー報告のスクリーンショットで確認）。
+    startBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box; margin-bottom: 0.4rem;";
     startBtn.addEventListener("click", async () => {
       startBtn.disabled = true;
       try {
@@ -339,6 +489,7 @@ async function renderRoomStatus(gameId) {
   }
 
   const leaveBtn = textButton("この部屋を離れる");
+  leaveBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box;";
   leaveBtn.addEventListener("click", () => {
     leaveGame();
     history.replaceState(null, "", location.pathname);
