@@ -936,11 +936,12 @@ body {
   text-shadow: 0 0 0.5rem var(--turn-timer-rope-color);
 }
 
-/* 優先権譲渡ボタン。activePlayersから自分の座席を除いた最大3座席分を三角形に配置する
-   （1つを上段中央、2つを下段左右）。誰でも押せる自己申告制（このゲーム全体の設計方針通り、
-   押した本人が今優先権を持っているかは問わない）。円の中はそのプレイヤーのアバター、
-   枠の色はそのプレイヤーの駒の色。ボタン列の下に「優先権譲渡」という小さなラベルを
-   置き、フェイズ案内板と同じ「ホバーで簡易説明・クリックで詳細説明」を付けてある。 */
+/* 優先権譲渡ボタン。参加座席全員分（自分を含む）を、実際のテーブルの位置関係と同じ
+   「＋」形（上/左/右/自分=下）に配置する。自分のボタンは「自分に優先権を戻す」ボタンを
+   兼ねる。誰でも押せる自己申告制（このゲーム全体の設計方針通り、押した本人が今優先権を
+   持っているかは問わない）。円の中はそのプレイヤーのアバター、枠の色はそのプレイヤーの
+   駒の色。ボタン列の下に「優先権譲渡」という小さなラベルを置き、フェイズ案内板と同じ
+   「ホバーで簡易説明・クリックで詳細説明」を付けてある。 */
 /* 「手札シャッフル」ボタン（縦積みボタン列の一番上、bottom:10.8rem）のすぐ上に置く
    （ユーザー指定）。右揃えでその列と揃える。 */
 #priority-transfer-buttons {
@@ -957,8 +958,8 @@ body {
 }
 .priority-transfer-grid {
   display: grid;
-  grid-template-columns: repeat(2, 2.6rem);
-  grid-template-rows: repeat(2, 2.6rem);
+  grid-template-columns: repeat(3, 2.6rem);
+  grid-template-rows: repeat(3, 2.6rem);
   gap: 0.3rem;
 }
 .priority-transfer-btn {
@@ -979,6 +980,7 @@ body {
   justify-content: center;
   padding: 0;
   overflow: hidden;
+  position: relative;
 }
 .priority-transfer-btn img.avatar-image {
   width: 100%;
@@ -989,11 +991,22 @@ body {
 .priority-transfer-btn:hover {
   filter: brightness(1.3);
 }
-/* 3つまでを▽形（上段中央1つ・下段左右2つ）に配置する。座席数が2以下の場合は
-   自動的に空いたgrid-areaが詰まって表示される。 */
-.priority-transfer-btn:nth-child(1) { grid-column: 1 / span 2; grid-row: 1; justify-self: center; }
-.priority-transfer-btn:nth-child(2) { grid-column: 1; grid-row: 2; }
-.priority-transfer-btn:nth-child(3) { grid-column: 2; grid-row: 2; }
+/* 実際のテーブルの位置関係（自分から見て奥/左/右、自分は手前）と同じ「＋」形に配置する。
+   turn-timer.js側がdata-pos属性（top/left/right/self）を各ボタンに付ける。 */
+.priority-transfer-btn[data-pos="top"] { grid-column: 2; grid-row: 1; }
+.priority-transfer-btn[data-pos="left"] { grid-column: 1; grid-row: 2; }
+.priority-transfer-btn[data-pos="right"] { grid-column: 3; grid-row: 2; }
+.priority-transfer-btn[data-pos="self"] { grid-column: 2; grid-row: 3; }
+/* 自分のボタン（＝優先権を自分に戻すボタン）は、他人へ渡すボタンと見分けられるよう
+   金色のリングを重ねる。 */
+.priority-transfer-btn.is-self::after {
+  content: "";
+  position: absolute;
+  inset: -0.2rem;
+  border-radius: 50%;
+  border: 2px solid rgba(250, 204, 21, 0.8);
+  pointer-events: none;
+}
 
 .priority-transfer-label {
   position: relative;
@@ -1010,6 +1023,14 @@ body {
 .priority-transfer-label:hover .phase-guide-tooltip {
   opacity: 1;
   visibility: visible;
+}
+/* .phase-guide-tooltipは既定でleft:50%＋中央寄せだが、優先権譲渡ボタンは画面右端近く
+   （right:1.2rem）に置いてあるため、中央寄せのままだとツールチップが画面右端で見切れて
+   いた。右端をラベルの右端に合わせ、常に左方向にだけ伸びるようにする。 */
+.priority-transfer-label .phase-guide-tooltip {
+  left: auto;
+  right: 0;
+  transform: none;
 }
 
 /* #end-turn-buttonのそばに出す、タイムアウト警告バッジ（点滅）。stateは一切変更しない、

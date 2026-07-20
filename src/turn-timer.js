@@ -405,31 +405,28 @@ function rebuildTransferButtons() {
     return;
   }
   const selfSeat = getSelfSeat();
-  const others = SEAT_ORDER.filter((s) => state.activePlayers.includes(s) && s !== selfSeat);
-  if (others.length === 0) {
+  const activeSeats = SEAT_ORDER.filter((s) => state.activePlayers.includes(s));
+  if (activeSeats.length === 0) {
     transferButtonsEl.style.display = "none";
     return;
   }
   transferButtonsEl.style.display = "flex";
-  // 三角形の3スロット（CSSの:nth-child(1)=上段中央/(2)=下段左/(3)=下段右）に、実際の
-  // 画面上の座席位置（上/左/右）が一致するよう並び替える。SEAT_ORDER.filter()の時計回り
-  // 順のままだと、実際に見えている位置（自分視点で盤面が回転する既存の仕組み、
-  // getRotationSteps/rotateSide参照）とズレてしまっていた（ユーザー報告）。
-  const SLOT_ORDER = { top: 0, left: 1, right: 2 };
+  // 実際のテーブルの位置関係と同じ「＋」形（上/左/右/自分=下）にdata-pos属性で配置する。
+  // 自分以外は、実際の画面上の座席位置（自分視点で盤面全体が回転する既存の仕組み、
+  // getRotationSteps/rotateSide参照）をそのままスロットの位置として使う。自分自身の
+  // ボタンは常に「自分（下）」の位置＝「自分に優先権を戻す」ボタンを兼ねる
+  // （ユーザー要望）。
   const steps = getRotationSteps(selfSeat);
-  const sortedOthers = [...others].sort((a, b) => {
-    const sideA = rotateSide(SEAT_TO_SIDE[a], steps);
-    const sideB = rotateSide(SEAT_TO_SIDE[b], steps);
-    return SLOT_ORDER[sideA] - SLOT_ORDER[sideB];
-  });
-  for (const seat of sortedOthers) {
+  for (const seat of activeSeats) {
+    const isSelf = seat === selfSeat;
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "priority-transfer-btn";
+    btn.className = isSelf ? "priority-transfer-btn is-self" : "priority-transfer-btn";
+    btn.dataset.pos = isSelf ? "self" : rotateSide(SEAT_TO_SIDE[seat], steps);
     const color = getPieceColor(seat);
     btn.style.borderColor = color ? `var(--color-${color})` : "rgba(255, 255, 255, 0.5)";
     applyAvatar(btn, getPlayerAvatar(seat));
-    btn.title = `${getPlayerName(seat)}に優先権を渡す`;
+    btn.title = isSelf ? "自分に優先権を戻す" : `${getPlayerName(seat)}に優先権を渡す`;
     // 優先権の譲渡自体も「行動」の一種として扱い、freshBaseDeadlineForで基本時間の窓を
     // 仕切り直す（既に砂時計を使い始めている座席への譲渡は、短縮された基本時間になる——
     // 譲渡を繰り返して時間を稼ぐ抜け道を作らないため）。
