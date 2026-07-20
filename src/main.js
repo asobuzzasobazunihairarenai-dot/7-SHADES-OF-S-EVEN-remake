@@ -21,7 +21,8 @@ import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_
 import { getSelectedPlaymatPath } from "./playmat.js";
 import { isLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible } from "./lock-color.js";
-import { isArrivalEffectDisabled } from "./motion-prefs.js";
+import { isArrivalEffectDisabled, isFlightAnimationDisabled } from "./motion-prefs.js";
+import { rectCenter } from "./ghost-flight.js";
 import { showCardArrivalModal } from "./card-arrival.js";
 import { initPlayerButtons } from "./player-buttons.js";
 import { initQuickStart } from "./quick-start.js";
@@ -2025,12 +2026,88 @@ function buildHandShuffleButton() {
   btn.id = "hand-shuffle-button";
   btn.textContent = "🔀 手札シャッフル";
   btn.addEventListener("click", () => {
-    shuffleHand(getSelfSeat());
-    playSound("handShuffle");
-    render();
+    animateHandShuffle(getSelfSeat());
   });
   document.body.appendChild(btn);
   return btn;
+}
+
+// 1束に集めてシャカシャカ揺すってから広げ直す演出。手札の枚数が変わらない限り、
+// 扇の各スロット位置(layoutFan)自体はシャッフル前後で同じなので、「本物のカードを
+// 隠す→画像だけのゴーストを旧スロット位置から中央へ集める→揺する→shuffleHand()で
+// 実際の並びを変えてrender()→ゴーストを新スロット位置へ散らして本物を出す」という
+// 流れだけでよく、render()を2回呼ぶだけで済む（新しい位置を得るための特別な仕掛けは不要）。
+async function animateHandShuffle(seat) {
+  const fanEl = document.querySelector(`.hand-area[data-player="${seat}"] .hand-fan`);
+  const cardEls = fanEl ? Array.from(fanEl.querySelectorAll(".hand-card")) : [];
+  if (isFlightAnimationDisabled() || cardEls.length < 2) {
+    shuffleHand(seat);
+    playSound("handShuffle");
+    render();
+    return;
+  }
+
+  handShuffleButtonEl.disabled = true;
+
+  const slotRects = cardEls.map((el) => el.getBoundingClientRect());
+  const images = cardEls.map((el) => el.style.backgroundImage);
+  const centerRect = slotRects[Math.floor(slotRects.length / 2)];
+  cardEls.forEach((el) => {
+    el.style.visibility = "hidden";
+  });
+
+  const ghosts = images.map((bg, i) => {
+    const g = document.createElement("div");
+    g.className = "hand-shuffle-ghost";
+    g.style.backgroundImage = bg;
+    g.style.width = `${slotRects[i].width}px`;
+    g.style.height = `${slotRects[i].height}px`;
+    const from = rectCenter(slotRects[i]);
+    g.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%)`;
+    document.body.appendChild(g);
+    return g;
+  });
+
+  const GATHER_MS = 320;
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  const to = rectCenter(centerRect);
+  ghosts.forEach((g, i) => {
+    // 少し重なりをずらして本物の束のように見せる（中央寄りほどズレが小さい）。
+    const stackOffset = (i - (ghosts.length - 1) / 2) * 1.2;
+    g.style.transition = `transform ${GATHER_MS}ms ease-in-out`;
+    g.style.transform = `translate(${to.x}px, ${to.y}px) translate(-50%, -50%) translate(${stackOffset}px, ${stackOffset}px)`;
+  });
+  await new Promise((resolve) => setTimeout(resolve, GATHER_MS + 30));
+
+  playSound("handShuffle");
+  const SHAKE_MS = 650;
+  ghosts.forEach((g) => g.classList.add("is-shaking"));
+  await new Promise((resolve) => setTimeout(resolve, SHAKE_MS));
+  ghosts.forEach((g) => g.classList.remove("is-shaking"));
+
+  shuffleHand(seat);
+  render();
+
+  const newFanEl = document.querySelector(`.hand-area[data-player="${seat}"] .hand-fan`);
+  const newCardEls = newFanEl ? Array.from(newFanEl.querySelectorAll(".hand-card")) : [];
+  newCardEls.forEach((el) => {
+    el.style.visibility = "hidden";
+  });
+  const newRects = newCardEls.map((el) => el.getBoundingClientRect());
+
+  const SCATTER_MS = 320;
+  ghosts.forEach((g, i) => {
+    const target = rectCenter(newRects[i] || centerRect);
+    g.style.transition = `transform ${SCATTER_MS}ms ease-in-out`;
+    g.style.transform = `translate(${target.x}px, ${target.y}px) translate(-50%, -50%)`;
+  });
+  await new Promise((resolve) => setTimeout(resolve, SCATTER_MS + 30));
+
+  newCardEls.forEach((el) => {
+    el.style.visibility = "";
+  });
+  ghosts.forEach((g) => g.remove());
+  updateHandShuffleButton();
 }
 
 function updateHandShuffleButton() {

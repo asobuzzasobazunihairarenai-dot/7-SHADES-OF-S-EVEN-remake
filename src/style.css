@@ -2888,6 +2888,36 @@ body.is-online-mode #hand-shuffle-button {
   pointer-events: none;
 }
 
+/* 手札シャッフル演出（main.jsのanimateHandShuffle）: 1束に集めてシャカシャカ揺すってから
+   広げ直す間だけ現れるゴースト。.setup-fly-cardと同じ「document.body直下、3D空間の外」の
+   考え方。位置(transform: translate)はJS側が制御し、揺すり(rotate)はCSSアニメーション側が
+   別プロパティで担当する——同じtransformを2箇所から操作すると後勝ちで上書きされてしまう
+   （box-shadowの合成不可バグと同種の教訓）ため、位置と回転を独立したCSSプロパティに分けた。 */
+.hand-shuffle-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 9998;
+  border-radius: 0.3rem;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+.hand-shuffle-ghost.is-shaking {
+  animation: hand-shuffle-shake 0.13s ease-in-out infinite;
+}
+@keyframes hand-shuffle-shake {
+  0%,
+  100% {
+    rotate: -5deg;
+  }
+  50% {
+    rotate: 5deg;
+  }
+}
+
 /* アニメーション中に画面全体を覆う透明な受け皿。クリックで残りを即座に完了させる
    （セットアップは何度もやり直すことが多いテストプレイ用途を考慮）。 */
 #setup-animation-skip-overlay {
