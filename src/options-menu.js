@@ -16,6 +16,7 @@ import {
   isContinuousGlowDisabled,
   setContinuousGlowDisabled,
 } from "./motion-prefs.js";
+import { saveMyPreference } from "./online.js";
 
 function buildMenuItem(label, onClick) {
   const btn = document.createElement("button");
@@ -70,10 +71,51 @@ function buildVolumeRow() {
   return row;
 }
 
+// 「モーダル表示時間」グループの3スライダー共通部品。admin.jsの対応するスライダーと同じ
+// CSS変数を直接setPropertyで共有するため、基本設定側から変更しても管理者モードの表示に
+// 反映される。範囲・デフォルトもadmin.js側と揃えてある（1〜15秒、step 0.5）。
+function buildDurationRow(label, cssVar, defaultValue, onSave) {
+  const row = document.createElement("div");
+  row.className = "options-menu-volume-row";
+  const labelEl = document.createElement("span");
+  labelEl.textContent = label;
+  const current = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(cssVar));
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.min = "1";
+  slider.max = "15";
+  slider.step = "0.5";
+  slider.value = String(Number.isFinite(current) ? current : defaultValue);
+  const valueLabel = document.createElement("span");
+  valueLabel.className = "options-menu-volume-value";
+  valueLabel.textContent = `${slider.value}秒`;
+  slider.addEventListener("input", () => {
+    const value = Number(slider.value);
+    document.documentElement.style.setProperty(cssVar, String(value));
+    valueLabel.textContent = `${slider.value}秒`;
+    window.dispatchEvent(new CustomEvent("admin:change"));
+    onSave(value);
+  });
+  row.appendChild(labelEl);
+  row.appendChild(slider);
+  row.appendChild(valueLabel);
+  return row;
+}
+
 // 「手札シャッフル」「盤面拡大」「1枚ドロー」（プレイヤー用ボタン）にキーボードショートカットを
 // 割り当てる行。ボタンをクリックすると次に押したキーをそのまま割り当てる「記録待ち」状態になる
 // （player-buttons.jsのgetShortcut/setShortcutで実体を保持）。プレイヤー用ボタンを右クリックした
 // 時にも、このパネルを開いてこの行までスクロールする（initOptionsMenu内でregisterする）。
+// 現在の全ショートカット割り当て（SHORTCUT_TARGETS分）をso7_user_profilesへ保存する。
+function persistShortcuts() {
+  const shortcuts = {};
+  for (const { id } of SHORTCUT_TARGETS) {
+    const key = getShortcut(id);
+    if (key) shortcuts[id] = key;
+  }
+  saveMyPreference({ shortcuts });
+}
+
 function buildShortcutRow(buttonId, label) {
   const row = document.createElement("div");
   row.className = "options-menu-shortcut-row";
@@ -97,6 +139,7 @@ function buildShortcutRow(buttonId, label) {
       window.removeEventListener("keydown", onKey, true);
       if (e.key !== "Escape") setShortcut(buttonId, e.key.toLowerCase());
       refresh();
+      persistShortcuts();
     }
     window.addEventListener("keydown", onKey, true);
   });
@@ -108,6 +151,7 @@ function buildShortcutRow(buttonId, label) {
   clearBtn.addEventListener("click", () => {
     setShortcut(buttonId, null);
     refresh();
+    persistShortcuts();
   });
 
   row.appendChild(labelEl);
@@ -145,15 +189,39 @@ export function initOptionsMenu() {
     buildCheckboxRow("ロックエリアバーを表示する", isLockAreaBarVisible(), (checked) => {
       setLockAreaBarVisible(checked);
       window.dispatchEvent(new CustomEvent("admin:change"));
+      saveMyPreference({ lock_area_bar_visible: checked });
     })
   );
   panel.appendChild(
     buildCheckboxRow("ロックエリアの色を表示する", isLockColorVisible(), (checked) => {
       setLockColorVisible(checked);
       window.dispatchEvent(new CustomEvent("admin:change"));
+      saveMyPreference({ lock_color_visible: checked });
     })
   );
-  panel.appendChild(buildVolumeRow());
+  const volumeRow = buildVolumeRow();
+  const volumeSlider = volumeRow.querySelector("input[type=range]");
+  volumeSlider.addEventListener("change", () => {
+    saveMyPreference({ sound_volume: Number(volumeSlider.value) / 100 });
+  });
+  panel.appendChild(volumeRow);
+
+  panel.appendChild(buildSectionTitle("モーダル表示時間"));
+  panel.appendChild(
+    buildDurationRow("相手ゲート侵攻ボーナス通知", "--gate-invasion-modal-step-duration", 3.5, (value) => {
+      saveMyPreference({ gate_invasion_modal_duration: value });
+    })
+  );
+  panel.appendChild(
+    buildDurationRow("到達モーダル", "--card-arrival-modal-duration", 5, (value) => {
+      saveMyPreference({ card_arrival_modal_duration: value });
+    })
+  );
+  panel.appendChild(
+    buildDurationRow("カード獲得ポップアップ", "--hand-pickup-toast-duration", 5, (value) => {
+      saveMyPreference({ hand_pickup_toast_duration: value });
+    })
+  );
 
   // パフォーマンス改善用。純粋にクライアントローカルな描画設定のため、1人がオンにしても
   // 相手プレイヤーの画面には一切影響しない（各ブラウザは自分のstateから独立して描画する）。
@@ -161,17 +229,20 @@ export function initOptionsMenu() {
   panel.appendChild(
     buildCheckboxRow("移動アニメーション（駒・カードの飛翔）を無効にする", isFlightAnimationDisabled(), (checked) => {
       setFlightAnimationDisabled(checked);
+      saveMyPreference({ flight_animation_disabled: checked });
     })
   );
   panel.appendChild(
     buildCheckboxRow("到達・ロック演出（光の柱・ロック画像等）を無効にする", isArrivalEffectDisabled(), (checked) => {
       setArrivalEffectDisabled(checked);
+      saveMyPreference({ arrival_effect_disabled: checked });
     })
   );
   panel.appendChild(
     buildCheckboxRow("常時光る演出（手番のグロー等）を無効にする", isContinuousGlowDisabled(), (checked) => {
       setContinuousGlowDisabled(checked);
       document.body.classList.toggle("reduce-glow", checked);
+      saveMyPreference({ continuous_glow_disabled: checked });
     })
   );
 
@@ -192,6 +263,7 @@ export function initOptionsMenu() {
   presetBtn.addEventListener("click", () => {
     for (const [id, key] of Object.entries(RECOMMENDED_SHORTCUTS)) setShortcut(id, key);
     for (const { refresh } of shortcutRows) refresh();
+    persistShortcuts();
   });
   panel.appendChild(presetBtn);
 

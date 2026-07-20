@@ -417,3 +417,26 @@ end;
 $$;
 revoke execute on function so7_cleanup_stale_rooms() from public;
 grant execute on function so7_cleanup_stale_rooms() to authenticated;
+
+-- 追加機能: 部屋の改名は作成時（so7_create_room）のみとし、作成後は誰も変更できないように
+-- する。以前追加した「参加者なら誰でも改名できる」ポリシー・列GRANTを取り消す
+-- （UIを消すだけだとdevtools/curlから直接updateできてしまうため、サーバー側で構造的に
+-- 不可能にする）。
+drop policy if exists "so7_games_update_name" on so7_games;
+revoke update (name) on so7_games from authenticated;
+
+-- 追加機能: オプションの「基本設定」（ロックエリアバー表示・ロックエリア色表示・効果音の
+-- 音量・アニメーション削減3項目・モーダル表示時間3項目）とショートカットキーも、
+-- so7_user_profiles（名前・アバター・駒スキンと同じ、ユーザーごとに1行の永続プロフィール）
+-- に含めてアカウントに紐づける。online.jsのloadMyPreferences()/saveMyPreference()参照。
+alter table so7_user_profiles
+  add column if not exists lock_area_bar_visible boolean not null default true,
+  add column if not exists lock_color_visible boolean not null default true,
+  add column if not exists sound_volume numeric not null default 0.8,
+  add column if not exists flight_animation_disabled boolean not null default false,
+  add column if not exists arrival_effect_disabled boolean not null default false,
+  add column if not exists continuous_glow_disabled boolean not null default false,
+  add column if not exists gate_invasion_modal_duration numeric not null default 3.5,
+  add column if not exists card_arrival_modal_duration numeric not null default 5,
+  add column if not exists hand_pickup_toast_duration numeric not null default 5,
+  add column if not exists shortcuts jsonb not null default '{}'::jsonb;

@@ -21,6 +21,15 @@ import {
 } from "./state.js";
 import { SEAT_ORDER } from "./board-layout.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
+import { setLockAreaBarVisible } from "./lock-area-bar.js";
+import { setLockColorVisible } from "./lock-color.js";
+import { setSoundVolume } from "./sound.js";
+import {
+  setFlightAnimationDisabled,
+  setArrivalEffectDisabled,
+  setContinuousGlowDisabled,
+} from "./motion-prefs.js";
+import { SHORTCUT_TARGETS, setShortcut } from "./player-buttons.js";
 
 // state.jsの方が唯一の真実（main.jsも同じ関数をstate.jsから直接importして使う）。
 // ここでは呼び出し側（online-ui.js）の利便性のためだけに再エクスポートする。
@@ -170,9 +179,77 @@ export function getGoogleAvatarUrl() {
 }
 if (client) {
   client.auth.onAuthStateChange((_event, session) => {
+    const wasLoggedIn = !!cachedUser;
     cachedUser = session?.user ?? null;
+    // ログインした瞬間（未ログイン→ログイン済みへの変化）だけ、アカウントに紐づけて
+    // 保存しておいた基本設定・ショートカットを読み込んで適用する。
+    if (!wasLoggedIn && cachedUser) {
+      loadMyPreferences().catch((err) => console.error("loadMyPreferences failed", err));
+    }
     for (const fn of authChangeListeners) fn(cachedUser);
   });
+}
+
+// --- 基本設定・ショートカットのアカウント永続化 --------------------------------------
+// オプションの「基本設定」（ロックエリアバー表示・ロックエリア色表示・効果音の音量・
+// アニメーション削減3項目・モーダル表示時間3項目）とショートカットキーを、名前/アバター/
+// 駒スキンと同じso7_user_profiles（ユーザーごとに1行の永続プロフィール）に含めて
+// アカウントに紐づける。
+
+const PREFERENCE_DURATION_VARS = {
+  gate_invasion_modal_duration: "--gate-invasion-modal-step-duration",
+  card_arrival_modal_duration: "--card-arrival-modal-duration",
+  hand_pickup_toast_duration: "--hand-pickup-toast-duration",
+};
+
+// ログイン済みならso7_user_profilesへ{user_id, ...patch, updated_at}をupsertするだけの
+// 薄い関数。未ログインの間は何もしない（ローカル/未ログインでの利用を妨げないため）。
+export async function saveMyPreference(patch) {
+  if (!cachedUser) return;
+  const { error } = await client
+    .from("so7_user_profiles")
+    .upsert({ user_id: cachedUser.id, ...patch, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+  if (error) console.error("saveMyPreference failed", error);
+}
+
+// ログイン直後に呼ばれ、保存済みの基本設定・ショートカットを各モジュールへ反映する。
+export async function loadMyPreferences() {
+  if (!cachedUser) return;
+  const { data, error } = await client
+    .from("so7_user_profiles")
+    .select(
+      "lock_area_bar_visible, lock_color_visible, sound_volume, flight_animation_disabled, " +
+        "arrival_effect_disabled, continuous_glow_disabled, gate_invasion_modal_duration, " +
+        "card_arrival_modal_duration, hand_pickup_toast_duration, shortcuts"
+    )
+    .eq("user_id", cachedUser.id)
+    .maybeSingle();
+  if (error) {
+    console.error("loadMyPreferences failed", error);
+    return;
+  }
+  if (!data) return; // 初回ログイン等、まだ何も保存していない場合はDBのデフォルト値のまま
+
+  if (typeof data.lock_area_bar_visible === "boolean") setLockAreaBarVisible(data.lock_area_bar_visible);
+  if (typeof data.lock_color_visible === "boolean") setLockColorVisible(data.lock_color_visible);
+  if (typeof data.sound_volume === "number") setSoundVolume(data.sound_volume);
+  if (typeof data.flight_animation_disabled === "boolean") setFlightAnimationDisabled(data.flight_animation_disabled);
+  if (typeof data.arrival_effect_disabled === "boolean") setArrivalEffectDisabled(data.arrival_effect_disabled);
+  if (typeof data.continuous_glow_disabled === "boolean") {
+    setContinuousGlowDisabled(data.continuous_glow_disabled);
+    document.body.classList.toggle("reduce-glow", data.continuous_glow_disabled);
+  }
+  for (const [column, cssVar] of Object.entries(PREFERENCE_DURATION_VARS)) {
+    if (typeof data[column] === "number") {
+      document.documentElement.style.setProperty(cssVar, String(data[column]));
+    }
+  }
+  if (data.shortcuts && typeof data.shortcuts === "object") {
+    for (const { id } of SHORTCUT_TARGETS) {
+      setShortcut(id, data.shortcuts[id] ?? null);
+    }
+  }
+  window.dispatchEvent(new CustomEvent("admin:change"));
 }
 
 // --- 部屋の作成・参加・一覧 ---------------------------------------------------------
@@ -276,18 +353,6 @@ export async function listOpenRooms() {
   const { data, error } = await client.from("so7_games_list").select("*").order("created_at", { ascending: false });
   if (error) throw error;
   return data ?? [];
-}
-
-// 部屋名の変更。参加者本人であれば誰でも改名できる（このアプリ全体で「友人間の緩い前提」
-// のもと厳密な所有者概念を設けていないのと同じ考え方）。RLS（参加者本人）＋列GRANT
-// （name列のみ）の両方を満たさないと更新できないようSQL側で絞ってある。
-export async function renameRoom(gameId, newName) {
-  return withLog("部屋名の変更", async () => {
-    const trimmed = (newName ?? "").trim();
-    if (!trimmed) return;
-    const { error } = await client.from("so7_games").update({ name: trimmed }).eq("id", gameId);
-    if (error) throw error;
-  });
 }
 
 // 部屋名（ゲーム開始後も含め、部屋にいる間ずっと表示するため）。so7_games_listは

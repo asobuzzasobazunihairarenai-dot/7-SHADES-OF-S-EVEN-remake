@@ -14,7 +14,6 @@ import {
   createRoom,
   joinRoom,
   listOpenRooms,
-  renameRoom,
   getRoomName,
   getMemberCount,
   getCurrentGameId,
@@ -422,34 +421,6 @@ async function renderRoomStatus(gameId) {
   codeHint.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.4rem;";
   codeHint.textContent = `部屋コード: ${gameId}`;
   contentEl.appendChild(codeHint);
-
-  // 部屋名の変更（参加者なら誰でも可能。作成時のデフォルト「セブンの部屋」から改名したい
-  // という要望への対応）。
-  const renameRow = document.createElement("div");
-  renameRow.style.cssText = "display: flex; gap: 0.3rem; margin-bottom: 0.6rem;";
-  const renameInput = document.createElement("input");
-  renameInput.type = "text";
-  renameInput.value = roomName;
-  renameInput.style.cssText =
-    "flex: 1; min-width: 0; box-sizing: border-box; padding: 0.3rem; border-radius: 0.3rem; " +
-    "border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(255, 255, 255, 0.05); color: inherit; font-size: 0.8rem;";
-  const renameBtn = document.createElement("button");
-  renameBtn.className = "header-tool-button";
-  renameBtn.textContent = "改名";
-  renameBtn.style.cssText = "font-size: 0.75rem; padding: 0.3rem 0.6rem; min-width: auto; white-space: nowrap;";
-  renameBtn.addEventListener("click", async () => {
-    renameBtn.disabled = true;
-    try {
-      await renameRoom(gameId, renameInput.value);
-      await renderPanelContent();
-    } catch (err) {
-      alert(`部屋名の変更に失敗しました: ${err.message ?? err}`);
-      renameBtn.disabled = false;
-    }
-  });
-  renameRow.appendChild(renameInput);
-  renameRow.appendChild(renameBtn);
-  contentEl.appendChild(renameRow);
 
   let count = 0;
   try {
