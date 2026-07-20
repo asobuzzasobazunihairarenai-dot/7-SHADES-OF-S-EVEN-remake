@@ -77,8 +77,8 @@ body {
   --turn-timer-rope-pos-x: 0rem;
   --turn-timer-rope-pos-y: 0rem;
   --turn-timer-rope-width: 46rem;
-  --priority-transfer-pos-x: 0rem;
-  --priority-transfer-pos-y: 0rem;
+  --priority-transfer-pos-x: -2rem;
+  --priority-transfer-pos-y: -5.3rem;
 }
 
 .game-table {
@@ -755,6 +755,30 @@ body {
   animation: lock-area-turn-glow 2.6s ease-in-out infinite;
   border-color: rgba(var(--turn-glow-rgb), 0.9);
 }
+/* ターンタイマーの基本時間（無音・ロープ非表示の窓）の残り秒数を、フェイズ案内板と
+   統一感のある見た目で表示する（turn-timer.js側がこの箱をbar内へappendする）。残りが
+   少なくなるにつれ黄色→赤に色が変わり、最後は点滅する。 */
+.turn-timer-base-clock {
+  cursor: default;
+  font-variant-numeric: tabular-nums;
+}
+.turn-timer-base-clock:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+.turn-timer-base-clock.is-warning {
+  border-color: rgba(234, 179, 8, 0.6);
+}
+.turn-timer-base-clock.is-warning .phase-guide-item-label {
+  color: #eab308;
+}
+.turn-timer-base-clock.is-critical {
+  border-color: rgba(239, 68, 68, 0.7);
+  animation: turn-timer-warning-blink 1s ease-in-out infinite;
+}
+.turn-timer-base-clock.is-critical .phase-guide-item-label {
+  color: #ef4444;
+}
 .phase-guide-tooltip {
   position: absolute;
   bottom: calc(100% + 0.5rem);
@@ -781,7 +805,8 @@ body {
   visibility: visible;
 }
 
-#phase-guide-modal {
+#phase-guide-modal,
+#priority-transfer-modal {
   position: fixed;
   top: 50%;
   left: 50%;
@@ -913,7 +938,9 @@ body {
 
 /* 優先権譲渡ボタン。activePlayersから自分の座席を除いた最大3座席分を三角形に配置する
    （1つを上段中央、2つを下段左右）。誰でも押せる自己申告制（このゲーム全体の設計方針通り、
-   押した本人が今優先権を持っているかは問わない）。 */
+   押した本人が今優先権を持っているかは問わない）。円の中はそのプレイヤーのアバター、
+   枠の色はそのプレイヤーの駒の色。ボタン列の下に「優先権譲渡」という小さなラベルを
+   置き、フェイズ案内板と同じ「ホバーで簡易説明・クリックで詳細説明」を付けてある。 */
 /* 右下（1枚ドロー〜ターン終了の縦積みボタン列）・左下（自分専用ステータス）どちらとも
    重ならない、画面下部中央寄りの位置がデフォルト（右下固定だと#draw-button等の縦積みボタン
    列とちょうど重なってしまっていたため変更）。 */
@@ -923,27 +950,45 @@ body {
   left: 50%;
   transform: translate(calc(-50% + var(--priority-transfer-pos-x)), var(--priority-transfer-pos-y));
   z-index: 950;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: sans-serif;
+}
+.priority-transfer-grid {
   display: grid;
   grid-template-columns: repeat(2, 2.6rem);
   grid-template-rows: repeat(2, 2.6rem);
   gap: 0.3rem;
-  font-family: sans-serif;
 }
 .priority-transfer-btn {
+  /* ハマりどころ: グリッドセルのサイズ(2.6rem)任せにしていたところ、アバターが絵文字
+     テキストの座席では中身の文字幅次第でボタン自体が横に伸び、正円ではなく縦長の楕円に
+     なってしまうことがあった。width/heightを明示して常に正円になるようにする。 */
+  width: 2.6rem;
+  height: 2.6rem;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.5);
   background: rgba(15, 23, 32, 0.85);
   color: #e2e8f0;
-  font-size: 0.7rem;
-  font-weight: bold;
+  font-size: 1.3rem;
+  line-height: 1;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
+  overflow: hidden;
+}
+.priority-transfer-btn img.avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
 }
 .priority-transfer-btn:hover {
-  background: rgba(56, 189, 248, 0.25);
+  filter: brightness(1.3);
 }
 /* 3つまでを▽形（上段中央1つ・下段左右2つ）に配置する。座席数が2以下の場合は
    自動的に空いたgrid-areaが詰まって表示される。 */
@@ -951,22 +996,52 @@ body {
 .priority-transfer-btn:nth-child(2) { grid-column: 1; grid-row: 2; }
 .priority-transfer-btn:nth-child(3) { grid-column: 2; grid-row: 2; }
 
+.priority-transfer-label {
+  position: relative;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.65rem;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+}
+.priority-transfer-label:hover {
+  color: #e2e8f0;
+}
+.priority-transfer-label:hover .phase-guide-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
 /* #end-turn-buttonのそばに出す、タイムアウト警告バッジ（点滅）。stateは一切変更しない、
    あくまで「ムーブフェイズを終えてターンを終了してください」という視覚的な促し。 */
 .turn-timer-warning {
   position: fixed;
+  transform: translateY(-50%);
   z-index: 1001;
   background: rgba(239, 68, 68, 0.95);
   color: #fff;
   font-family: sans-serif;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: bold;
   padding: 0.4rem 0.7rem;
   border-radius: 0.4rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   animation: turn-timer-warning-blink 1s ease-in-out infinite;
   pointer-events: none;
-  white-space: nowrap;
+  max-width: 11rem;
+  text-align: right;
+  line-height: 1.3;
+}
+/* 警告テキストだけでなく、対象の#end-turn-button自体にも点滅する縁取りを付ける。
+   画面が狭くテキストバッジが見切れる／被る場合でも、光っているボタン自体で気付ける
+   ようにするための保険。 */
+#end-turn-button.turn-timer-warning-glow {
+  animation: turn-timer-button-glow 1s ease-in-out infinite;
+}
+@keyframes turn-timer-button-glow {
+  0%, 100% { box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), 0 0 0 0.15rem rgba(239, 68, 68, 0.9); }
+  50% { box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), 0 0 0 0.3rem rgba(239, 68, 68, 0.3); }
 }
 @keyframes turn-timer-warning-blink {
   0%, 100% { opacity: 1; }
@@ -1677,7 +1752,9 @@ body {
 #turn-round-counter {
   position: fixed;
   top: 0.4rem;
-  right: 1.1rem;
+  /* 右上の歯車アイコン(#options-menu-button、width:1.8rem、right:1rem)とぶつからないよう、
+     その分だけ右端の余白を空ける。 */
+  right: 3.1rem;
   z-index: 900;
   font-family: sans-serif;
   font-size: 0.65rem;
@@ -1706,23 +1783,32 @@ body {
   white-space: nowrap;
 }
 
+/* 画面の最も右上（ラウンド数表示の右隣）に、歯車アイコンだけの小さいボタンとして配置する。
+   以前は右側のボタン列（📋山札一覧・🎲セットアップ）と並んで「⚙ オプション」という
+   テキスト付きボタンだったが、山札一覧をこのメニューの中へ統合したのに合わせて
+   アイコンのみに整理した。 */
 #options-menu-button {
   position: fixed;
-  top: 6.6rem;
+  top: 0.3rem;
   right: 1rem;
   z-index: 900;
-  padding: 0.4rem 0.7rem;
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: rgba(15, 23, 32, 0.85);
   color: #e2e8f0;
   border: 1px solid rgba(148, 163, 184, 0.4);
   border-radius: 0.4rem;
   cursor: pointer;
-  font-family: sans-serif;
-  font-size: 0.75rem;
+  font-size: 1rem;
+  line-height: 1;
 }
 #options-menu-panel {
   position: fixed;
-  top: 6.6rem;
+  top: 2.3rem;
   right: 1rem;
   /* 呼び出しボタン(#options-menu-button)自体は900のまま（他の常設パネルより低くして
      "セットアップ/管理者モードが開いている間、オプションボタンがその上に乗ってしまう"

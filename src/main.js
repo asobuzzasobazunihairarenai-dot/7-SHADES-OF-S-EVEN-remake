@@ -50,6 +50,7 @@ import {
   onGateInvasionEvents,
   getSyncedIdentity,
   getGoogleAvatarUrl,
+  getRoomName,
 } from "./online.js";
 import { playSound } from "./sound.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
@@ -1743,8 +1744,8 @@ async function onDragEnd(e) {
 }
 
 // --- オンライン対戦（第一弾・最小構成）の入り口ボタン -------------------------------
-// 右上のヘッダーツールボタン列（山札一覧1.8rem→セットアップ4.2rem→オプション6.6rem→
-// クイックスタート9rem）の下、余裕を持たせた位置に置く。
+// 右上、ターン/ラウンド数表示の下に置く（歯車アイコンが最も右上・その左にターン/ラウンド
+// 数、という並びの続き）。
 let onlineButtonEl = null;
 
 function buildOnlineButton() {
@@ -1753,7 +1754,7 @@ function buildOnlineButton() {
   btn.className = "header-tool-button";
   btn.textContent = "🌐 オンライン";
   btn.style.cssText = `
-    position: fixed; top: 13.5rem; right: 1rem; z-index: 1001;
+    position: fixed; top: 2.3rem; right: 1rem; z-index: 1001;
     padding: 0.4rem 0.7rem; background: rgba(15, 23, 32, 0.85); color: #e2e8f0;
     border: 1px solid rgba(148, 163, 184, 0.4); border-radius: 0.4rem; cursor: pointer;
     font-family: sans-serif; font-size: 0.75rem;
@@ -1763,14 +1764,30 @@ function buildOnlineButton() {
   return btn;
 }
 
+// 部屋名は改名不可（作成時に固定）なので、gameIdごとに1回だけ取得してキャッシュする
+// （render()のたびに呼ばれるupdateOnlineButtonLabel()から毎回DB問い合わせしないため）。
+let cachedRoomNameGameId = null;
+let cachedRoomName = null;
+
 // ログイン中かどうか・どの部屋にいるかを、パネルを開かなくてもボタンのラベルだけで
-// さりげなく分かるようにする（ユーザー提案）。render()のたびに呼ばれるが、
-// getCachedUser()/getCurrentGameId()はどちらも同期・軽量なのでawait不要。
+// さりげなく分かるようにする（ユーザー提案）。部屋名の表示は非同期取得のため、取得できる
+// までは部屋コードを暫定表示し、取得でき次第ラベルを差し替える。
 function updateOnlineButtonLabel() {
   if (!onlineButtonEl) return;
   const gameId = getCurrentGameId();
   if (gameId) {
-    onlineButtonEl.textContent = `🌐 部屋:${gameId}`;
+    if (cachedRoomNameGameId === gameId) {
+      onlineButtonEl.textContent = `🌐 部屋:${cachedRoomName}`;
+    } else {
+      onlineButtonEl.textContent = `🌐 部屋:${gameId}`;
+      getRoomName(gameId)
+        .then((name) => {
+          cachedRoomNameGameId = gameId;
+          cachedRoomName = name;
+          updateOnlineButtonLabel();
+        })
+        .catch(() => {});
+    }
   } else if (getCachedUser()) {
     onlineButtonEl.textContent = "🌐 ログイン中";
   } else {

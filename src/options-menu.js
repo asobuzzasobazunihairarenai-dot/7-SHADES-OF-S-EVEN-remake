@@ -3,6 +3,7 @@
 // 単独のボタンとして左上にあったが、ここに統合し、左上はゲームタイトル表示用に空けた。
 
 import { openAdminPanel } from "./admin.js";
+import { openDeckViewer } from "./deck-viewer.js";
 import { isLockAreaBarVisible, setLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible, setLockColorVisible } from "./lock-color.js";
 import { getSoundVolume, setSoundVolume } from "./sound.js";
@@ -283,6 +284,12 @@ export function initOptionsMenu() {
     panel.appendChild(divider);
 
     panel.appendChild(
+      buildMenuItem("📋 山札一覧", () => {
+        close();
+        openDeckViewer();
+      })
+    );
+    panel.appendChild(
       buildMenuItem("⚙ 管理者モード", () => {
         close();
         openAdminPanel();
@@ -314,8 +321,8 @@ export function initOptionsMenu() {
 
   const toggleBtn = document.createElement("button");
   toggleBtn.id = "options-menu-button";
-  toggleBtn.className = "header-tool-button";
-  toggleBtn.textContent = "⚙ オプション";
+  toggleBtn.textContent = "⚙";
+  toggleBtn.title = "オプション";
   toggleBtn.addEventListener("click", open);
 
   document.body.appendChild(backdrop);

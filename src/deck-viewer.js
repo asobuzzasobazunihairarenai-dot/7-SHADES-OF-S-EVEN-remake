@@ -155,20 +155,12 @@ function buildPanel(close) {
   return panel;
 }
 
-function buildToggleButton(open) {
-  const btn = document.createElement("button");
-  btn.className = "header-tool-button";
-  btn.textContent = "📋 山札一覧";
-  // top: 1.8remは右上ボタン列の中で一番上。真上に#turn-round-counter（通算ターン数・
-  // ラウンド数の表示）があるため、それと重ならないよう少し下げてある。
-  btn.style.cssText = `
-    position: fixed; top: 1.8rem; right: 1rem; z-index: 1001;
-    padding: 0.4rem 0.7rem; background: rgba(15, 23, 32, 0.85); color: #e2e8f0;
-    border: 1px solid rgba(148, 163, 184, 0.4); border-radius: 0.4rem; cursor: pointer;
-    font-family: sans-serif; font-size: 0.75rem;
-  `;
-  btn.addEventListener("click", open);
-  return btn;
+let openDeckViewerFn = null;
+
+// 「⚙ オプション」の中の「📋 山札一覧」項目から呼ぶ（以前は右上に専用ボタンがあったが、
+// 右上のボタン列を整理するためオプションメニューに統合した）。
+export function openDeckViewer() {
+  openDeckViewerFn?.();
 }
 
 export function initDeckViewer() {
@@ -177,26 +169,22 @@ export function initDeckViewer() {
   function close() {
     panel.style.display = "none";
     backdrop.style.display = "none";
-    toggleBtn.style.display = "block";
   }
   function open() {
     panel.style.display = "block";
     backdrop.style.display = "block";
-    toggleBtn.style.display = "none";
   }
+  openDeckViewerFn = open;
 
   const panel = buildPanel(close);
   const backdrop = createBackdrop(close, { dim: true, zIndex: 2000 });
   // ハマりどころ: 他のパネル（admin.js/options-menu.js等）と違い、ここだけ生成直後に
   // display:noneを付け忘れていたため、ページを開いた瞬間から画面全体が薄暗いbackdropで
-  // 覆われていた（deck-viewer自体は右上のボタンからしか開かないので、backdropの意図しない
-  // 表示に気付きにくかった）。1回目のクリックはこのbackdrop自身をclose()するだけに消費され、
+  // 覆われていた。1回目のクリックはこのbackdrop自身をclose()するだけに消費され、
   // 実際にはマウスがまだ動いていない（クリックだけでは新しいpointermoveが発生しない）ため、
   // 盤面のホバー演出が効き始めるにはもう1回の操作が必要になる、という体感になっていた。
   backdrop.style.display = "none";
-  const toggleBtn = buildToggleButton(open);
 
   document.body.appendChild(backdrop);
   document.body.appendChild(panel);
-  document.body.appendChild(toggleBtn);
 }

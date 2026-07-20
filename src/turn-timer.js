@@ -5,7 +5,9 @@
 // 「仮消費」し、画面中央に神秘的なオーラのロープが出現して延長時間分だけ燃え尽きていく。
 // 行動を取れば（＝ロープリセット）その仮消費は無かったことになり砂時計は満額のまま持ち越
 // せる。延長時間も使い切って燃え尽きた場合だけ、砂時計が正式に1個減る（さらに残りがあれば
-// 連続してもう1本ロープが燃える）。
+// 連続してもう1本ロープが燃える）。砂時計を1個でも使い始めた後は、行動で得られる基本時間の
+// 窓が短縮される（管理者モードで調整可、デフォルト10秒上限）。ターンが変わればまた通常の
+// 基本時間に戻る。
 //
 // このゲーム全体の「座席を持っていれば何でも自由に操作できる、強制力の無い自己申告制」
 // という設計方針に合わせ、砂時計も尽きた場合でも自動でターンを終了させたりはしない。
@@ -19,7 +21,8 @@
 import { getState, subscribe, setPriority, setHourglassStock } from "./state.js";
 import { SEAT_ORDER } from "./board-layout.js";
 import { getSelfSeat } from "./online.js";
-import { getPlayerName } from "./player-identity.js";
+import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
+import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import {
   isTurnTimerEnabled,
   getInitialHourglassStock,
@@ -27,19 +30,25 @@ import {
   getRopeBaseSeconds,
   getRopeExtensionSeconds,
   getTurnsToReplenishHourglass,
+  getReducedBaseSeconds,
 } from "./admin.js";
 
 let selfStockEl = null; // 左下の自分専用ステータスエリアに出す、自分の砂時計個数バッジ
+let baseClockEl = null; // フェイズ案内板の中に出す、基本時間の残り秒数表示
+let baseClockLabelEl = null;
 let ropeEl = null; // 画面中央のロープ本体（延長中だけ表示）
 let ropeStrandEl = null;
 let ropeTipEl = null;
 let ropeHourglassCountEl = null;
 let warningEl = null;
 let transferButtonsEl = null;
+let transferModalBackdrop = null;
+let transferModalEl = null;
 
 let prevTurnPlayer = null;
-// 「砂時計を使わずに何ターン経過したか」は見た目に影響しない内部カウンタのため、共有
-// state.jsには持たせず、このモジュールのローカル変数だけで追跡する。
+// 「砂時計を使わずに何ターン経過したか」「そのターン中に砂時計を使ったか」は見た目に
+// 影響しない内部カウンタのため、共有state.jsには持たせず、このモジュールのローカル変数
+// だけで追跡する。
 let hourglassUsedThisTurn = {};
 let turnsWithoutHourglass = {};
 
@@ -56,8 +65,12 @@ function withGuard(fn) {
   }
 }
 
-function freshBaseDeadline() {
-  return Date.now() + getRopeBaseSeconds() * 1000;
+// その座席が既に砂時計を使い始めている（＝そのターン中に1個でも正式消費している）場合は、
+// 行動で得られる基本時間の窓を短く抑える（デフォルト上限10秒、管理者モードで調整可）。
+// まだ使っていなければ通常の基本時間をまるまる与える。
+function freshBaseDeadlineFor(seat) {
+  const seconds = hourglassUsedThisTurn[seat] ? Math.min(getRopeBaseSeconds(), getReducedBaseSeconds()) : getRopeBaseSeconds();
+  return Date.now() + seconds * 1000;
 }
 
 // ターンプレイヤーの交代（ゲーム開始時のnull→非nullも含む）を検知した時の処理。
@@ -70,7 +83,7 @@ function handleTurnTransition(prevPlayer, nextPlayer, activePlayers) {
       turnsWithoutHourglass[seat] = 0;
       withGuard(() => setHourglassStock(seat, getInitialHourglassStock()));
     }
-    withGuard(() => setPriority(nextPlayer, freshBaseDeadline(), "base"));
+    withGuard(() => setPriority(nextPlayer, freshBaseDeadlineFor(nextPlayer), "base"));
     return;
   }
   if (prevPlayer !== null && nextPlayer !== null && prevPlayer !== nextPlayer) {
@@ -87,8 +100,10 @@ function handleTurnTransition(prevPlayer, nextPlayer, activePlayers) {
     } else {
       turnsWithoutHourglass[prevPlayer] = 0;
     }
+    // ターンが変わるので、新しいターンプレイヤーの「基本時間短縮」フラグをリセットし、
+    // 通常の基本時間をまるまる与える。
     hourglassUsedThisTurn[nextPlayer] = false;
-    withGuard(() => setPriority(nextPlayer, freshBaseDeadline(), "base"));
+    withGuard(() => setPriority(nextPlayer, freshBaseDeadlineFor(nextPlayer), "base"));
   }
 }
 
@@ -105,7 +120,7 @@ function onStateChange(state) {
   // 基本時間の窓へリセットする（延長中に行動した場合、仮消費していた砂時計は
   // 「ロープが完全に無くならなければ持ち越せる」仕様通り、何も減らさずそのまま戻る）。
   if (state.priorityPlayer) {
-    withGuard(() => setPriority(state.priorityPlayer, freshBaseDeadline(), "base"));
+    withGuard(() => setPriority(state.priorityPlayer, freshBaseDeadlineFor(state.priorityPlayer), "base"));
   }
 }
 
@@ -129,6 +144,46 @@ function updateSelfStock(state) {
   const stock = state.hourglassStock[getSelfSeat()] ?? 0;
   selfStockEl.textContent = `⏳ × ${stock}`;
   selfStockEl.style.display = "block";
+}
+
+// --- フェイズ案内板の中に出す、基本時間の残り秒数表示 -----------------------------------
+// 延長中（ロープ表示中）は出さない——役割が被るため、基本時間の「音も無く静かに減っていく」
+// 感覚を伝えるための控えめな表示にとどめる。
+
+function buildBaseClock() {
+  const bar = document.getElementById("phase-guide-bar");
+  if (!bar) return;
+  baseClockEl = document.createElement("div");
+  baseClockEl.className = "phase-guide-item turn-timer-base-clock";
+  baseClockEl.style.display = "none";
+  baseClockLabelEl = document.createElement("span");
+  baseClockLabelEl.className = "phase-guide-item-label";
+  baseClockEl.appendChild(baseClockLabelEl);
+  bar.appendChild(baseClockEl);
+}
+
+function updateBaseClock(state) {
+  if (!baseClockEl) return;
+  const showing =
+    isTurnTimerEnabled() &&
+    state.turnPlayer &&
+    state.priorityPlayer &&
+    state.priorityPhase === "base" &&
+    state.priorityDeadline &&
+    state.priorityDeadline - Date.now() > 0;
+  if (!showing) {
+    baseClockEl.style.display = "none";
+    return;
+  }
+  const remainingSec = Math.max(0, Math.ceil((state.priorityDeadline - Date.now()) / 1000));
+  baseClockLabelEl.textContent = `⏱ ${remainingSec}`;
+  baseClockEl.style.display = "flex";
+  const totalSeconds = hourglassUsedThisTurn[state.priorityPlayer]
+    ? Math.min(getRopeBaseSeconds(), getReducedBaseSeconds())
+    : getRopeBaseSeconds();
+  const ratio = remainingSec / totalSeconds;
+  baseClockEl.classList.toggle("is-warning", ratio <= 0.5 && ratio > 0.2);
+  baseClockEl.classList.toggle("is-critical", ratio <= 0.2);
 }
 
 // --- 画面中央のロープ（延長中だけ表示、全プレイヤーに見える） ---------------------------
@@ -205,33 +260,116 @@ function buildWarning() {
 
 function updateWarning(shouldShow) {
   if (!warningEl) return;
-  if (!shouldShow) {
-    warningEl.style.display = "none";
-    return;
-  }
   const endTurnBtn = document.getElementById("end-turn-button");
-  if (!endTurnBtn || getComputedStyle(endTurnBtn).display === "none") {
+  if (!shouldShow || !endTurnBtn || getComputedStyle(endTurnBtn).display === "none") {
     warningEl.style.display = "none";
+    endTurnBtn?.classList.remove("turn-timer-warning-glow");
     return;
   }
+  // 「1枚ドロー」ボタン等、#end-turn-buttonの真上に縦に積まれている他のボタンと重なって
+  // いた（ボタンの上に表示する方式だった）ため、縦積みの列とは重ならない列の左側へ表示する
+  // よう変更した。あわせてボタン自体にも点滅する縁取りを付け、警告テキストが画面外にはみ
+  // 出す狭い画面でも「ここが光っている」ことだけは必ず伝わるようにしている。
+  endTurnBtn.classList.add("turn-timer-warning-glow");
   const rect = endTurnBtn.getBoundingClientRect();
-  warningEl.style.left = `${rect.left}px`;
-  warningEl.style.top = `${rect.top - 2.4 * 16}px`; // ボタンの少し上（2.4rem相当）
+  warningEl.style.top = `${rect.top + rect.height / 2}px`;
+  warningEl.style.right = `${window.innerWidth - rect.left + 12}px`;
+  warningEl.style.left = "auto";
   warningEl.style.display = "block";
 }
 
-// --- 優先権譲渡ボタン（三角形配置） -----------------------------------------------------
+// --- 優先権譲渡ボタン（三角形配置、円の中はアバター・枠は駒の色） ------------------------
+
+const TRANSFER_EXPLANATION = [
+  "優先権とは「次に行動すべきプレイヤー」を表します。通常はターンプレイヤーが持っていますが、カードの効果などで一時的に他のプレイヤーへ移ることがあります（今はカード効果の自動処理が無いため、実際に効果が発生したらこのボタンで手動・自己申告的に表現してください）。",
+  "円形のボタンを押すと、そのプレイヤーへ優先権を譲渡します。誰でも押せます（押した本人が今優先権を持っているかは問いません、このゲーム全体の自己申告制と同じ考え方です）。",
+  "ボタンの枠の色はそのプレイヤーの駒の色、円の中は登録されているアバターです。",
+];
+
+// main.jsのapplyAvatarContentと同じロジック（main.js側は非公開のため、依存を増やさない
+// よう軽量な内容をここに複製してある）。
+function isImageAvatar(avatar) {
+  return typeof avatar === "string" && /^https?:\/\//.test(avatar);
+}
+function applyAvatar(el, avatar) {
+  if (isImageAvatar(avatar)) {
+    let img = el.querySelector("img.avatar-image");
+    if (!img) {
+      img = document.createElement("img");
+      img.className = "avatar-image";
+      el.textContent = "";
+      el.appendChild(img);
+    }
+    img.src = avatar;
+  } else {
+    el.querySelector("img.avatar-image")?.remove();
+    el.textContent = avatar;
+  }
+}
+
+function openTransferModal() {
+  transferModalBackdrop.style.display = "block";
+  transferModalEl.style.display = "block";
+}
+function closeTransferModal() {
+  transferModalBackdrop.style.display = "none";
+  transferModalEl.style.display = "none";
+}
 
 function buildTransferButtons() {
   transferButtonsEl = document.createElement("div");
   transferButtonsEl.id = "priority-transfer-buttons";
   transferButtonsEl.style.display = "none";
+
+  const grid = document.createElement("div");
+  grid.className = "priority-transfer-grid";
+  transferButtonsEl.appendChild(grid);
+  transferButtonsEl._grid = grid;
+
+  // 「優先権譲渡」ラベル。フェイズ案内板のボタンと同じ「ホバーで簡易説明・クリックで詳細
+  // 説明」パターン（説明文はTRANSFER_EXPLANATION参照）。
+  const label = document.createElement("button");
+  label.type = "button";
+  label.className = "priority-transfer-label";
+  const labelText = document.createElement("span");
+  labelText.textContent = "優先権譲渡";
+  const tooltip = document.createElement("span");
+  tooltip.className = "phase-guide-tooltip";
+  tooltip.textContent = "優先権を他のプレイヤーへ手動で譲渡します（自己申告制）";
+  label.appendChild(labelText);
+  label.appendChild(tooltip);
+  label.addEventListener("click", openTransferModal);
+  transferButtonsEl.appendChild(label);
+
   document.body.appendChild(transferButtonsEl);
+
+  transferModalBackdrop = createBackdrop(closeTransferModal, { dim: true, zIndex: 10100 });
+  transferModalBackdrop.style.display = "none";
+  transferModalEl = document.createElement("div");
+  transferModalEl.id = "priority-transfer-modal";
+  transferModalEl.style.display = "none";
+  transferModalEl.appendChild(createModalCloseX(closeTransferModal));
+  const modalTitle = document.createElement("div");
+  modalTitle.className = "phase-guide-modal-title";
+  modalTitle.textContent = "優先権譲渡";
+  transferModalEl.appendChild(modalTitle);
+  const modalBody = document.createElement("div");
+  modalBody.className = "phase-guide-modal-body";
+  for (const paragraph of TRANSFER_EXPLANATION) {
+    const p = document.createElement("p");
+    p.style.cssText = "margin: 0 0 0.6rem 0; line-height: 1.6;";
+    p.textContent = paragraph;
+    modalBody.appendChild(p);
+  }
+  transferModalEl.appendChild(modalBody);
+  document.body.appendChild(transferModalBackdrop);
+  document.body.appendChild(transferModalEl);
 }
 
 function rebuildTransferButtons() {
   if (!transferButtonsEl) return;
-  transferButtonsEl.innerHTML = "";
+  const grid = transferButtonsEl._grid;
+  grid.innerHTML = "";
   const state = getState();
   if (!isTurnTimerEnabled() || !state.turnPlayer) {
     transferButtonsEl.style.display = "none";
@@ -243,17 +381,20 @@ function rebuildTransferButtons() {
     transferButtonsEl.style.display = "none";
     return;
   }
-  transferButtonsEl.style.display = "grid";
+  transferButtonsEl.style.display = "flex";
   for (const seat of others) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "priority-transfer-btn";
-    btn.textContent = getPlayerName(seat).slice(0, 2);
+    const color = getPieceColor(seat);
+    btn.style.borderColor = color ? `var(--color-${color})` : "rgba(255, 255, 255, 0.5)";
+    applyAvatar(btn, getPlayerAvatar(seat));
     btn.title = `${getPlayerName(seat)}に優先権を渡す`;
-    // 優先権の譲渡自体は基本時間の窓から仕切り直す（受け取った側にロープなしの
-    // 基本時間をまるまる与える）。
-    btn.addEventListener("click", () => setPriority(seat, freshBaseDeadline(), "base"));
-    transferButtonsEl.appendChild(btn);
+    // 優先権の譲渡自体も「行動」の一種として扱い、freshBaseDeadlineForで基本時間の窓を
+    // 仕切り直す（既に砂時計を使い始めている座席への譲渡は、短縮された基本時間になる——
+    // 譲渡を繰り返して時間を稼ぐ抜け道を作らないため）。
+    btn.addEventListener("click", () => setPriority(seat, freshBaseDeadlineFor(seat), "base"));
+    grid.appendChild(btn);
   }
 }
 
@@ -263,16 +404,19 @@ function tick() {
   if (!isTurnTimerEnabled()) {
     updateWarning(false);
     if (ropeEl) ropeEl.style.display = "none";
+    if (baseClockEl) baseClockEl.style.display = "none";
     return;
   }
   const state = getState();
   if (!state.turnPlayer || !state.priorityPlayer || !state.priorityDeadline) {
     updateWarning(false);
     if (ropeEl) ropeEl.style.display = "none";
+    if (baseClockEl) baseClockEl.style.display = "none";
     return;
   }
   updateSelfStock(state);
   updateRope(state);
+  updateBaseClock(state);
 
   const remaining = state.priorityDeadline - Date.now();
   if (remaining > 0) {
@@ -336,6 +480,7 @@ function ensureInitializedIfNeeded() {
 
 export function initTurnTimer() {
   buildSelfStock();
+  buildBaseClock();
   buildRope();
   buildWarning();
   buildTransferButtons();
@@ -348,7 +493,10 @@ export function initTurnTimer() {
     ensureInitializedIfNeeded();
     updateSelfStock(getState());
     rebuildTransferButtons();
-    if (!isTurnTimerEnabled() && ropeEl) ropeEl.style.display = "none";
+    if (!isTurnTimerEnabled()) {
+      if (ropeEl) ropeEl.style.display = "none";
+      if (baseClockEl) baseClockEl.style.display = "none";
+    }
   });
   setInterval(tick, 200);
 }

@@ -114,8 +114,8 @@ const GROUPS = [
     title: "優先権譲渡ボタンの位置調整",
     category: "position",
     controls: [
-      { key: "--priority-transfer-pos-x", label: "位置X", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
-      { key: "--priority-transfer-pos-y", label: "位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--priority-transfer-pos-x", label: "位置X", unit: "rem", min: -30, max: 30, step: 0.1, default: -2 },
+      { key: "--priority-transfer-pos-y", label: "位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: -5.3 },
     ],
   },
   {
@@ -294,11 +294,14 @@ export function getUsableLockedEffect() {
 // スライダーとは性質が異なる（見た目ではなくゲームロジックのパラメータ）ため、
 // manualSeatMode等と同じくここに単純な数値/bool変数として持つ。
 let turnTimerEnabled = false;
-let initialHourglassStock = 0;
+let initialHourglassStock = 1;
 let maxHourglassStock = 3;
 let ropeBaseSeconds = 30;
 let ropeExtensionSeconds = 30;
 let turnsToReplenishHourglass = 3;
+// 砂時計を1個でも使い始めた後は、行動でリセットされる基本時間の窓がこの秒数を上限に
+// 縮む（そのターンが終わるまで）。ターンが変わると通常のropeBaseSecondsに戻る。
+let reducedBaseSeconds = 10;
 
 export function isTurnTimerEnabled() {
   return turnTimerEnabled;
@@ -317,6 +320,9 @@ export function getRopeExtensionSeconds() {
 }
 export function getTurnsToReplenishHourglass() {
   return turnsToReplenishHourglass;
+}
+export function getReducedBaseSeconds() {
+  return reducedBaseSeconds;
 }
 
 // TOGGLE_SECTIONSの各buildContentはモジュール直下で定義される共有クロージャのため、
@@ -441,7 +447,7 @@ const TOGGLE_SECTIONS = [
         updateExportRef.current();
       });
       const enableLabel = document.createElement("span");
-      enableLabel.textContent = "機能を有効にする（オフ=HUD/警告/優先権譲渡ボタンを一切表示しない）";
+      enableLabel.textContent = "機能を有効にする（オフ=ロープ/砂時計バッジ/警告/優先権譲渡ボタンを一切表示しない）";
       enableRow.appendChild(enableCheckbox);
       enableRow.appendChild(enableLabel);
       content.appendChild(enableRow);
@@ -470,6 +476,16 @@ const TOGGLE_SECTIONS = [
         buildNumberRow("補充に必要なターン数", turnsToReplenishHourglass, { min: 1, max: 10, unit: "ターン" }, (v) => {
           turnsToReplenishHourglass = v;
         })
+      );
+      content.appendChild(
+        buildNumberRow(
+          "砂時計を使い始めた後の基本時間の上限",
+          reducedBaseSeconds,
+          { min: 3, max: 60, unit: "秒" },
+          (v) => {
+            reducedBaseSeconds = v;
+          }
+        )
       );
     },
   },
@@ -665,6 +681,7 @@ function buildPanel(rebuildSlidersRef) {
       `ropeBaseSeconds: ${ropeBaseSeconds}`,
       `ropeExtensionSeconds: ${ropeExtensionSeconds}`,
       `turnsToReplenishHourglass: ${turnsToReplenishHourglass}`,
+      `reducedBaseSeconds: ${reducedBaseSeconds}`,
     ];
     exportEl.value = `:root {\n${lines.join("\n")}\n}\n\n/* 以下はCSS変数ではない設定（管理者モードのチェックボックス等） */\n${toggleLines.join("\n")}`;
   }
