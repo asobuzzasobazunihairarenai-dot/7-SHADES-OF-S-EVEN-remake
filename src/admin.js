@@ -78,6 +78,7 @@ const GROUPS = [
       { key: "--sound-volume-deck-shuffle", label: "山札シャッフル", unit: "%", min: 0, max: 100, step: 5, default: 80 },
       { key: "--sound-volume-card-flip", label: "カードめくり", unit: "%", min: 0, max: 100, step: 5, default: 80 },
       { key: "--sound-volume-card-place", label: "カードを置く", unit: "%", min: 0, max: 100, step: 5, default: 80 },
+      { key: "--sound-volume-piece-place", label: "駒を置く", unit: "%", min: 0, max: 100, step: 5, default: 80 },
       { key: "--sound-volume-card-draw", label: "カードを抜き取る", unit: "%", min: 0, max: 100, step: 5, default: 80 },
       { key: "--sound-volume-arrival-effect", label: "到達効果", unit: "%", min: 0, max: 100, step: 5, default: 80 },
       { key: "--sound-volume-lock", label: "ロック", unit: "%", min: 0, max: 100, step: 5, default: 80 },

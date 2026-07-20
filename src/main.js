@@ -1848,6 +1848,7 @@ async function onDragEnd(e) {
       moveToken(tokenId, dropTarget);
     }
     if (kind === "card") playSound("cardPlace");
+    if (kind === "piece") playSound("piecePlace");
     render();
     // 到達プロンプト/モーダル・ロック演出の位置決めに実際のDOM座標(getBoundingClientRect)を
     // 使うため、どちらもrender()で盤面を描き直した後でなければ呼べない。
@@ -2610,11 +2611,18 @@ function buildSelfHandStatus() {
 
   info.appendChild(selfStatusNameEl);
   info.appendChild(selfStatusHandCountEl);
-  el.appendChild(selfStatusAvatarEl);
-  el.appendChild(selfStatusPieceThumbEl);
-  el.appendChild(selfStatusCardBackThumbEl);
+
+  // アバター・駒スキン・カード裏面・オンライン状態の4つのアイコンを2x2（田の字）に
+  // まとめる。ユーザー要望「4つ揃ったのでスタイリッシュに田の字配置」に対応。
+  const iconGrid = document.createElement("div");
+  iconGrid.className = "self-status-icon-grid";
+  iconGrid.appendChild(selfStatusAvatarEl);
+  iconGrid.appendChild(selfStatusPieceThumbEl);
+  iconGrid.appendChild(selfStatusCardBackThumbEl);
+  iconGrid.appendChild(buildSelfStatusOnlineWidget());
+
+  el.appendChild(iconGrid);
   el.appendChild(info);
-  el.appendChild(buildSelfStatusOnlineWidget());
   document.body.appendChild(el);
   return el;
 }

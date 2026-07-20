@@ -9,6 +9,7 @@ const SOUND_DEFS = {
   deckShuffle: { path: "assets/sounds/deck-shuffle.mp3", cssVar: "--sound-volume-deck-shuffle" },
   cardFlip: { path: "assets/sounds/card-flip.mp3", cssVar: "--sound-volume-card-flip" },
   cardPlace: { path: "assets/sounds/card-place.mp3", cssVar: "--sound-volume-card-place" },
+  piecePlace: { path: "assets/sounds/piece-place.mp3", cssVar: "--sound-volume-piece-place" },
   cardDraw: { path: "assets/sounds/card-draw.mp3", cssVar: "--sound-volume-card-draw" },
   arrivalEffect: { path: "assets/sounds/arrival-effect.mp3", cssVar: "--sound-volume-arrival-effect" },
   lock: { path: "assets/sounds/lock.mp3", cssVar: "--sound-volume-lock" },

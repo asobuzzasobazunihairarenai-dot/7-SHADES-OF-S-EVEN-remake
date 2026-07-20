@@ -222,6 +222,17 @@ function onStateChange(state) {
   if (isOnlineMode()) {
     const info = consumeLastActionInfo();
     if (!info || !REAL_ACTION_TYPES.has(info.actionType) || info.actorSeat !== state.priorityPlayer) return;
+    // 重要（ユーザー報告バグの根本原因）: このactorSeat判定は、優先権保持者本人の
+    // 操作を検知した全クライアント（本人の画面・相手の画面・観戦者、全員）で真になる。
+    // handleTurnTransitionは「次の手番になる本人だけが送信する」よう既に制限されて
+    // いるのに、こちらは制限が無かったため、2人対戦では両方のクライアントが同時に
+    // （それぞれ別々のDate.now()を使って）setPriorityStateを書き込み合っていた。
+    // 最後に書き込んだ方が勝つ素朴な上書きのため、基本時間が意図せず両者で消費されたり、
+    // ターン終了時にphase:"base"へ戻すはずの書き込みが、直後に届いた別クライアントの
+    // 古い（phase:"extension"のままの）書き込みで上書きされてロープが消えない、
+    // といった不整合が起きていた。handleTurnTransitionと同じ「本人のクライアントだけが
+    // 書き込む」方針に揃え、優先権保持者本人以外はここで書き込まないようにする。
+    if (getSelfSeat() !== state.priorityPlayer) return;
   }
 
   // 優先権を持つ座席が何か行動した＝基本時間の窓へリセットする（延長中に行動した場合、
