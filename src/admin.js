@@ -341,9 +341,15 @@ export function isIconRearrangeMode() {
 }
 
 // ゲートマス（各辺中央の4マス）を、光の色をした台座のように少しだけ高く見せる演出。
-// デフォルトON。main.jsのbuildBoard()がこのフラグを見て、駒/カードの当たり判定には
-// 影響しない装飾専用の子要素(.gate-pedestal、pointer-events:none)を表示/非表示する。
-let gatePedestalVisible = true;
+// デフォルトOFF——駒/カードの当たり判定自体は無改修（elementsFromPointから完全に除外
+// されるpointer-events:noneの装飾レイヤーなので機能面では安全）だが、見た目としては
+// 台座が浮いている分、上に乗ったカードが台座の下に沈んで見えたり駒が台座にめり込んで
+// 見えたりする（駒/カード自体は元々.cellのZ=0基準のまま動かしていないため）。この
+// ズレを解消するには駒/カード側の描画もこの台座の高さぶん一緒に持ち上げる必要があり
+// 手間がかかるため、一旦はデフォルトを見た目に問題の無いOFFにし、見たい人だけ管理者
+// モードでONにできるようにする。main.jsのbuildBoard()がこのフラグを見て、装飾専用の
+// 子要素(.gate-pedestal、pointer-events:none)を表示/非表示する。
+let gatePedestalVisible = false;
 
 export function isGatePedestalVisible() {
   return gatePedestalVisible;

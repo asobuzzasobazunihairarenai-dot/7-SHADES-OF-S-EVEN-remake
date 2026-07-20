@@ -37,6 +37,30 @@ body {
   touch-action: none;
 }
 
+/* ハマりどころ（ユーザー報告）: ゲーム画面に来て最初の操作がいきなり2本指ピンチだった
+   場合、指の片方がposition:fixedな常設UI（アイコンボタン・自分専用ステータス等、
+   .sceneの外＝直接のtouch-action:noneが効かない領域）の上に乗っていると、その指の分だけ
+   ブラウザ標準のページ全体ピンチズームが依然として認識されてしまっていた（2本指ジェス
+   チャーの可否は、触れている全ての指それぞれの位置の要素のtouch-actionの合成で決まる
+   ため、片方でもtouch-action:auto=既定の領域があると、ブラウザはそちらを優先してネイ
+   ティブズームとして扱ってしまう）。html/body自体に一律touch-action:noneを付ける方法も
+   検討したが、touch-actionは「祖先が禁止した挙動は子孫が明示的に許可しても復活しない」
+   仕様のため、それだと管理者モード等のスクロール可能なパネル(overflow-y:auto)まで
+   タッチスクロールできなくなってしまう副作用がある。そのため、常時画面に表示される
+   固定UIチャンパーツ（スクロールを必要としないもの）だけを個別に列挙してtouch-action:
+   noneを付ける、より的を絞った対策にした。 */
+.icon-action-button,
+#self-hand-status,
+#turn-round-counter,
+#turn-timer-rope,
+.turn-timer-warning,
+#priority-transfer-buttons,
+#phase-guide-bar,
+#game-setup-toggle-button,
+#quick-start-bar {
+  touch-action: none;
+}
+
 :root {
   --table-tilt: 42deg; /* JS側(fitTableToViewport)もこの変数を参照してscaleだけ動的に上書きする */
   /* 「カメラ位置」（3D視点の初期値）。管理者モードから調整できる。perspectiveは値が小さいほど
@@ -3138,6 +3162,7 @@ body.is-online-mode #hand-shuffle-button {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  touch-action: none; /* オープニング画面表示中のピンチでもブラウザ標準ズームが出ないように */
 }
 #opening-screen.is-closing {
   transition: opacity 0.6s ease;
