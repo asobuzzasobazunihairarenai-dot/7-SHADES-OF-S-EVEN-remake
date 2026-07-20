@@ -32,6 +32,9 @@ body {
   justify-content: center;
   perspective: var(--camera-perspective);
   perspective-origin: 50% var(--camera-perspective-origin-y);
+  /* ブラウザ標準のピンチズーム/パン等のジェスチャー処理を無効化し、
+     initCameraControls()の独自ピンチズーム実装に完全に委ねる。 */
+  touch-action: none;
 }
 
 :root {
@@ -1135,6 +1138,20 @@ body.icon-rearrange-mode #options-menu-button.is-rearranging {
   transform: none;
 }
 
+/* 同じ理由（画面右端近くのボタンでツールチップが中央寄せのまま右へ見切れる）で、
+   ターン終了ボタン(#end-turn-button、right:1.2rem)にも同じ右寄せ補正を適用する。 */
+#end-turn-button .phase-guide-tooltip {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+/* 逆に画面左端近く（#interaction-mode-button、left:1.2rem）では中央寄せのツールチップが
+   左へ見切れるため、左端をアイコンの左端に合わせ、常に右方向にだけ伸びるようにする。 */
+#interaction-mode-button .phase-guide-tooltip {
+  left: 0;
+  transform: none;
+}
+
 /* #end-turn-buttonのそばに出す、タイムアウト警告バッジ（点滅）。stateは一切変更しない、
    あくまで「ムーブフェイズを終えてターンを終了してください」という視覚的な促し。 */
 .turn-timer-warning {
@@ -1466,6 +1483,60 @@ body.icon-rearrange-mode #options-menu-button.is-rearranging {
 .cell.is-gate {
   background: rgba(250, 204, 21, 0.12);
   border-color: rgba(250, 204, 21, 0.6);
+}
+
+/* ゲートマスの台座演出（管理者モードでオンオフ可能）。駒(.piece)と同じ「床+壁」の
+   preserve-3d技法（buildCubePieceと同じ考え方、main.jsのbuildGatePedestal参照）だが、
+   .cell自身は動かさず、この装飾専用の子要素だけを浮かせる。pointer-events:noneのため
+   駒/カードの当たり判定(elementsFromPoint)をこの上に乗っていても一切邪魔しない。 */
+:root {
+  --gate-pedestal-height: 0.35rem;
+}
+.gate-pedestal {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform-style: preserve-3d;
+}
+.gate-pedestal-face {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #cbd5e1; /* ライトグレー */
+  backface-visibility: hidden;
+}
+.gate-pedestal-top {
+  transform: translateZ(var(--gate-pedestal-height));
+  border-radius: 0.15rem;
+}
+.gate-pedestal-wall-back {
+  height: var(--gate-pedestal-height);
+  transform-origin: 50% 100%;
+  transform: translateY(-100%) rotateX(90deg) rotateZ(180deg) scaleX(-1);
+  filter: brightness(0.5);
+}
+.gate-pedestal-wall-front {
+  bottom: 0;
+  height: var(--gate-pedestal-height);
+  transform-origin: 50% 100%;
+  transform: rotateX(-90deg);
+  filter: brightness(0.95);
+}
+.gate-pedestal-wall-left {
+  height: var(--gate-pedestal-height);
+  transform-origin: 0% 0%;
+  transform: rotateZ(90deg) rotateX(-90deg) scaleX(-1) translateX(-100%) translateY(-100%);
+  filter: brightness(0.65);
+}
+.gate-pedestal-wall-right {
+  top: 0;
+  right: 0;
+  height: var(--gate-pedestal-height);
+  transform-origin: 100% 0%;
+  transform: rotateZ(-90deg) rotateX(-90deg) translateY(-100%);
+  filter: brightness(0.8);
 }
 
 /* 他プレイヤーの駒/カードの移動を、remote-move-animator.jsが移動元・移動先のマス自体を
@@ -2119,21 +2190,21 @@ body.spotlight-mode #spotlight-overlay {
   display: none;
   /* 管理者モードの「アイコン再配置モード」でドラッグした分のズレ。基準位置は変えず
      translate()で上乗せする（icon-rearrange.js参照）。 */
-  transform: translate(var(--icon-pos-draw-x, 0rem), var(--icon-pos-draw-y, 0rem));
+  transform: translate(var(--icon-pos-draw-x, -6.21rem), var(--icon-pos-draw-y, -2.17rem));
 }
 #board-zoom-button {
   position: fixed;
   bottom: 8.8rem;
   right: 1.2rem;
   z-index: 1000;
-  transform: translate(var(--icon-pos-board-zoom-x, 0rem), var(--icon-pos-board-zoom-y, 0rem));
+  transform: translate(var(--icon-pos-board-zoom-x, -0.29rem), var(--icon-pos-board-zoom-y, -1.08rem));
 }
 #hand-shuffle-button {
   position: fixed;
   bottom: 12.6rem;
   right: 1.2rem;
   z-index: 1000;
-  transform: translate(var(--icon-pos-hand-shuffle-x, 0rem), var(--icon-pos-hand-shuffle-y, 0rem));
+  transform: translate(var(--icon-pos-hand-shuffle-x, -8.17rem), var(--icon-pos-hand-shuffle-y, 11.38rem));
 }
 /* 手札が0〜1枚（シャッフルしても見た目が変わらない）の間は押せなくする。 */
 #hand-shuffle-button:disabled .icon-action-button-icon-wrap {
@@ -3053,4 +3124,82 @@ body.is-online-mode #hand-shuffle-button {
   font-family: sans-serif;
   font-size: 0.75rem;
   pointer-events: none;
+}
+
+/* オープニング画面（起動直後の「ローカル」「オンライン」2択メニュー、opening-screen.js
+   参照）。ゲーム本体より確実に手前に出す必要があるため、他のどのモーダル/パネルより
+   高いz-indexにしてある。画像・メニューともゆっくりフェードインさせる演出。 */
+#opening-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 50000;
+  background: #05070a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+#opening-screen.is-closing {
+  transition: opacity 0.6s ease;
+  opacity: 0;
+  pointer-events: none;
+}
+.opening-screen-bg {
+  position: absolute;
+  inset: 0;
+  /* 背景画像はJS側(opening-screen.js)でinline styleとして設定する。CSSのurl()は
+     このスタイルシート自身の場所(src/)基準で解決されるため、プロジェクトルート直下の
+     assets/を指すにはJS側（ドキュメント基準で解決される）で設定する必要がある
+     （他の実物画像アセットと同じ、このプロジェクト共通の設定方法）。 */
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  animation: opening-screen-fade-in 1.6s ease forwards;
+}
+.opening-screen-dim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.15) 55%, rgba(0, 0, 0, 0.7) 100%);
+}
+.opening-screen-content {
+  position: absolute;
+  left: 50%;
+  bottom: 12%;
+  transform: translateX(-50%);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  opacity: 0;
+  animation: opening-screen-rise-in 1.1s ease forwards;
+  animation-delay: 0.7s;
+}
+.opening-screen-menu {
+  display: flex;
+  gap: 1.5rem;
+}
+.opening-screen-menu-btn {
+  font-family: sans-serif;
+  font-size: 1.05rem;
+  letter-spacing: 0.05em;
+  padding: 0.9rem 2.4rem;
+  border-radius: 2rem;
+  background: rgba(15, 23, 32, 0.75);
+  border: 1px solid rgba(226, 232, 240, 0.5);
+  color: #f1f5f9;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+.opening-screen-menu-btn:hover {
+  background: rgba(56, 189, 248, 0.25);
+  border-color: rgba(56, 189, 248, 0.85);
+  transform: translateY(-0.15rem);
+}
+@keyframes opening-screen-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes opening-screen-rise-in {
+  from { opacity: 0; transform: translateY(0.9rem); }
+  to { opacity: 1; transform: translateY(0); }
 }

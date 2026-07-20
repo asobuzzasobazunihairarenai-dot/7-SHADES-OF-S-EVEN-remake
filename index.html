@@ -2,7 +2,11 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<!-- maximum-scale=1.0 + user-scalable=no でブラウザ標準のピンチズーム（ページ全体が
+     拡縮され、固定配置のアイコン類まで一緒に動いてしまう）を無効化する。代わりに
+     src/main.js の initCameraControls() が盤面(.scene)だけを対象にした独自の
+     ピンチズームを実装している（タブレットでの誤操作報告を受けての対応）。 -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>7 SHADES OF S:EVEN デジタル版</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <!-- オンライン対戦（第一弾）用。姉妹プロジェクトと同じCDN UMD版・同じSupabaseプロジェクトに

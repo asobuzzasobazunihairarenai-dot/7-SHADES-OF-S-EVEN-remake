@@ -285,12 +285,12 @@ const GROUPS = [
     title: "アイコンの位置調整（自由配置）",
     category: "position",
     controls: [
-      { key: "--icon-pos-hand-shuffle-x", label: "手札シャッフル 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--icon-pos-hand-shuffle-y", label: "手札シャッフル 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--icon-pos-board-zoom-x", label: "盤面拡大 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--icon-pos-board-zoom-y", label: "盤面拡大 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--icon-pos-draw-x", label: "1枚ドロー 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--icon-pos-draw-y", label: "1枚ドロー 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-hand-shuffle-x", label: "手札シャッフル 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -8.17 },
+      { key: "--icon-pos-hand-shuffle-y", label: "手札シャッフル 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 11.38 },
+      { key: "--icon-pos-board-zoom-x", label: "盤面拡大 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -0.29 },
+      { key: "--icon-pos-board-zoom-y", label: "盤面拡大 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: -1.08 },
+      { key: "--icon-pos-draw-x", label: "1枚ドロー 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -6.21 },
+      { key: "--icon-pos-draw-y", label: "1枚ドロー 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: -2.17 },
       { key: "--icon-pos-end-turn-x", label: "ターン終了 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-end-turn-y", label: "ターン終了 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-options-x", label: "オプション 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
@@ -338,6 +338,15 @@ let iconRearrangeMode = false;
 
 export function isIconRearrangeMode() {
   return iconRearrangeMode;
+}
+
+// ゲートマス（各辺中央の4マス）を、光の色をした台座のように少しだけ高く見せる演出。
+// デフォルトON。main.jsのbuildBoard()がこのフラグを見て、駒/カードの当たり判定には
+// 影響しない装飾専用の子要素(.gate-pedestal、pointer-events:none)を表示/非表示する。
+let gatePedestalVisible = true;
+
+export function isGatePedestalVisible() {
+  return gatePedestalVisible;
 }
 
 // 画面全体の明るさモード。「スタンダードモード」（デフォルト、従来通り）と
@@ -511,6 +520,27 @@ const TOGGLE_SECTIONS = [
       persistRow.appendChild(persistCheckbox);
       persistRow.appendChild(persistLabel);
       content.appendChild(persistRow);
+    },
+  },
+  {
+    title: "ゲートマスの台座演出",
+    category: "effect",
+    buildContent: (content) => {
+      const pedestalRow = document.createElement("label");
+      pedestalRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const pedestalCheckbox = document.createElement("input");
+      pedestalCheckbox.type = "checkbox";
+      pedestalCheckbox.checked = gatePedestalVisible;
+      pedestalCheckbox.addEventListener("change", () => {
+        gatePedestalVisible = pedestalCheckbox.checked;
+        window.dispatchEvent(new CustomEvent("admin:change"));
+        updateExportRef.current();
+      });
+      const pedestalLabel = document.createElement("span");
+      pedestalLabel.textContent = "ゲートマス（4辺の中央）を台座のように少し高く見せる（ライトグレー）";
+      pedestalRow.appendChild(pedestalCheckbox);
+      pedestalRow.appendChild(pedestalLabel);
+      content.appendChild(pedestalRow);
     },
   },
   {
@@ -815,6 +845,7 @@ function buildPanel(rebuildSlidersRef) {
       `turnGlowWhite: ${turnGlowWhite}`,
       `usableLockedEffect: "${usableLockedEffect}"`,
       `cardArrivalModalPersistent: ${cardArrivalModalPersistent}`,
+      `gatePedestalVisible: ${gatePedestalVisible}`,
       `spotlightMode: ${spotlightMode}`,
       `turnTimerEnabled: ${turnTimerEnabled}`,
       `initialHourglassStock: ${initialHourglassStock}`,

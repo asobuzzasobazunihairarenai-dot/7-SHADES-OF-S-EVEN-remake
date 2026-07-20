@@ -1,7 +1,7 @@
 // Phase 1: 盤面・手札・山札等を描画し、駒とカードをドラッグ操作で自由に動かせるようにする。
 // ルール処理は行わない（ユドナリウムコネクトのような手動サンドボックス）。
 
-import { initAdminMode, getUsableLockedEffect } from "./admin.js";
+import { initAdminMode, getUsableLockedEffect, isGatePedestalVisible } from "./admin.js";
 import { initDeckViewer } from "./deck-viewer.js";
 import { initGameSetup } from "./game-setup.js";
 import { initOptionsMenu } from "./options-menu.js";
@@ -52,6 +52,7 @@ import {
   isOnlineMode,
 } from "./state.js";
 import { initOnlineUi, openOnlinePanel } from "./online-ui.js";
+import { initOpeningScreen } from "./opening-screen.js";
 import {
   getSelfSeat,
   getCachedUser,
@@ -118,6 +119,23 @@ function buildLockArea(side, steps = 0) {
   return el;
 }
 
+// ゲートマスを台座のように少し高く見せる装飾（管理者モードでオンオフ可能、
+// isGatePedestalVisible参照）。駒(.piece)の「床+壁」技法（buildCubePiece参照）と同じ
+// preserve-3d構成だが、.cell自身は一切transformしない（既存の駒/カード位置決めは
+// .cellのZ=0を基準にしているため、ここを動かすと全部ズレる）。代わりに装飾専用の
+// 子要素だけを浮かせることで、既存の当たり判定・描画コードを無改修のまま台座を追加できる。
+// pointer-events:noneなので駒/カードのドラッグ判定(elementsFromPoint)には一切影響しない。
+function buildGatePedestal() {
+  const pedestal = document.createElement("div");
+  pedestal.className = "gate-pedestal";
+  for (const face of ["top", "wall-front", "wall-back", "wall-left", "wall-right"]) {
+    const el = document.createElement("div");
+    el.className = `gate-pedestal-face gate-pedestal-${face}`;
+    pedestal.appendChild(el);
+  }
+  return pedestal;
+}
+
 // row/col・dataset.row/colは常に「実際のマス座標」（drag/drop・findLocationElement等が
 // 引き続きこれを使う）。stepsが0でなければ、CSS Gridの行/列を明示指定して見た目の位置
 // だけをrotateCell()で回転させる（暗黙のDOM順配置を上書きする。行/列は1始まりのため+1）。
@@ -129,7 +147,10 @@ function buildBoard(steps = 0) {
       const cell = document.createElement("div");
       cell.className = "cell";
       const isGate = Object.values(GATE_POSITIONS).some((g) => g.row === row && g.col === col);
-      if (isGate) cell.classList.add("is-gate");
+      if (isGate) {
+        cell.classList.add("is-gate");
+        if (isGatePedestalVisible()) cell.appendChild(buildGatePedestal());
+      }
       cell.dataset.row = String(row);
       cell.dataset.col = String(col);
       if (steps % 4 !== 0) {
@@ -928,6 +949,11 @@ window.addEventListener("resize", () => {
 
 let dragSession = null;
 
+// タッチ操作中、1本指の長押しプレビュー/ドラッグ判定(startTouchHoldOrDrag)が進行中の場合に
+// その中断関数を置く場所。2本目の指が触れてピンチズーム(initCameraControls)が始まった瞬間、
+// これを呼んで安全に打ち切る（ドラッグへ昇格済みならcancelDragSession()で位置を戻す）。
+let activeSingleTouchAbort = null;
+
 // ドラッグ開始対象の特定は、各要素にpointerdownを直接付ける方式ではなく、#game-table全体に
 // 1つだけ付けたリスナーの中でelementsFromPoint()を使って手動で判定する。
 // 理由（ハマりどころ）: このアプリの盤面はperspective+rotateXの3D階層が何段も入れ子に
@@ -1406,6 +1432,14 @@ function startTouchHoldOrDrag(e, hit) {
   let settled = false; // ドラッグ開始・タイムアウト・指離しのいずれかが起きたらtrue
   let peeking = false;
 
+  function cleanupListeners() {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+  }
+  function releaseAbortSlot() {
+    if (activeSingleTouchAbort === abort) activeSingleTouchAbort = null;
+  }
+
   const timer = setTimeout(() => {
     if (settled) return;
     settled = true;
@@ -1420,8 +1454,7 @@ function startTouchHoldOrDrag(e, hit) {
     if (Math.hypot(dx, dy) < TOUCH_HOLD_MOVE_CANCEL_PX) return;
     settled = true;
     clearTimeout(timer);
-    window.removeEventListener("pointermove", onMove);
-    window.removeEventListener("pointerup", onUp);
+    cleanupListeners();
     // 長押し判定より先に指が動いた＝ドラッグとして開始する（このmoveイベント分もすぐに反映する）。
     if (hit.kind === "pile") startPileDrag(e, hit.pile);
     else startTokenDrag(e, hit.tokenId, hit.kind, hit.el);
@@ -1430,14 +1463,31 @@ function startTouchHoldOrDrag(e, hit) {
 
   function onUp() {
     clearTimeout(timer);
-    window.removeEventListener("pointermove", onMove);
-    window.removeEventListener("pointerup", onUp);
+    cleanupListeners();
     if (peeking) {
       clearHover();
       updatePreview(null);
     }
     settled = true;
+    releaseAbortSlot();
   }
+
+  // 2本目の指が触れてピンチズーム(initCameraControls)が始まった時に外部から呼ばれる中断関数。
+  // まだ待機中/プレビュー中ならそのまま安全に打ち切り、既にドラッグへ昇格していれば
+  // cancelDragSession()で位置を戻す（ピンチはほぼ一瞬で2本目が触れるため、大抵は
+  // ドラッグへ昇格する前=待機中のうちに打ち切れる）。
+  function abort() {
+    clearTimeout(timer);
+    cleanupListeners();
+    if (peeking) {
+      clearHover();
+      updatePreview(null);
+    }
+    if (dragSession) cancelDragSession();
+    settled = true;
+    releaseAbortSlot();
+  }
+  activeSingleTouchAbort = abort;
 
   window.addEventListener("pointermove", onMove);
   window.addEventListener("pointerup", onUp);
@@ -1537,6 +1587,20 @@ function onDragMove(e) {
   if (!dragSession) return;
   positionGhost(dragSession.ghost, e.clientX, e.clientY);
   updateDropHighlight(e.clientX, e.clientY);
+}
+
+// ピンチズーム開始等、ドラッグを「ドロップ」ではなく「無かったことにして」打ち切りたい時に
+// 呼ぶ。onDragEnd()と違い、どこにも移動させず（stateは一切変更せず）ゴースト・ハイライトの
+// 後始末だけ行い、render()で元の状態に戻す。
+function cancelDragSession() {
+  if (!dragSession) return;
+  window.removeEventListener("pointermove", onDragMove);
+  window.removeEventListener("pointerup", onDragEnd);
+  if (dragSession.highlightEl) dragSession.highlightEl.classList.remove("drop-target-active");
+  dragSession.ghost.remove();
+  document.body.style.userSelect = "";
+  dragSession = null;
+  render();
 }
 
 // ドラッグ中、今離すとどこに置かれるかを光らせて示す。findDropTarget()が返す実際の
@@ -2104,6 +2168,57 @@ function initCameraControls() {
   window.addEventListener("pointerup", (e) => {
     if (e.button === 1) panning = false;
   });
+
+  // タブレット等でのピンチズーム（2本指）。ブラウザ標準のピンチズーム（ページ全体が拡縮され、
+  // 固定配置のアイコン類まで一緒に動いてしまう）はindex.htmlのviewport meta
+  // （maximum-scale=1.0, user-scalable=no）＋.sceneのtouch-action:noneで無効化済みのため、
+  // ここでは.scene上の指の動きだけを見て、代わりにmanualZoomを直接動かす（マウスホイールと
+  // 全く同じ入り口）。
+  const activeTouches = new Map(); // pointerId -> {x, y}
+  let pinchStartDist = null;
+  let pinchStartZoom = 1;
+
+  function touchDistance() {
+    const pts = Array.from(activeTouches.values());
+    if (pts.length < 2) return null;
+    return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+  }
+
+  scene.addEventListener("pointerdown", (e) => {
+    if (e.pointerType !== "touch") return;
+    const isSecondFinger = activeTouches.size >= 1 && !activeTouches.has(e.pointerId);
+    activeTouches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (isSecondFinger) {
+      // 2本指目が触れた＝ピンチ操作の開始とみなす。1本指用の長押しプレビュー/ドラッグ判定
+      // (startTouchHoldOrDrag)が既に進行中なら安全に打ち切る（掴んだままピンチしても
+      // 駒/カードが動いてしまわないようにするため）。
+      if (activeSingleTouchAbort) activeSingleTouchAbort();
+      pinchStartDist = null; // 次のmoveで改めて基準距離を取り直す
+    }
+  });
+  window.addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "touch" || !activeTouches.has(e.pointerId)) return;
+    activeTouches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (activeTouches.size !== 2) return;
+    const dist = touchDistance();
+    if (dist == null) return;
+    if (pinchStartDist == null) {
+      pinchStartDist = dist;
+      pinchStartZoom = manualZoom;
+      return;
+    }
+    manualZoom = Math.min(4, Math.max(0.3, pinchStartZoom * (dist / pinchStartDist)));
+    hasManualView = true;
+    fitTableToViewport();
+    updateBoardZoomButtonLabel();
+  });
+  function releaseTouch(e) {
+    if (e.pointerType !== "touch") return;
+    activeTouches.delete(e.pointerId);
+    if (activeTouches.size < 2) pinchStartDist = null;
+  }
+  window.addEventListener("pointerup", releaseTouch);
+  window.addEventListener("pointercancel", releaseTouch);
 }
 
 // --- 「手札シャッフル」ボタン ------------------------------------------------------
@@ -2519,6 +2634,11 @@ function updateSelfHandStatus() {
   selfStatusNameEl.textContent = `${getPlayerName(getSelfSeat())}（自分）`;
   selfStatusHandCountEl.textContent = `手札：${count}枚`;
 }
+
+// オープニング画面（ローカル/オンラインの2択メニュー）を、ゲーム本体の初期化より先に
+// 画面へ追加しておく。ゲーム自体はこれまで通りすぐ裏で初期化・描画されるため、後段の
+// 処理を待たせる必要はない（単純な最前面オーバーレイとしてゲート役を果たすだけ）。
+initOpeningScreen();
 
 // 管理者モードのスライダーには、CSS変数を変えるだけでは反映されない値（--hand-*-sizeなど、
 // JS側でgetComputedStyleして読み取り、inline styleとして適用しているもの）があるため、
