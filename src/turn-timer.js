@@ -26,7 +26,7 @@
 
 import { getState, subscribe, setPriorityState, isOnlineMode } from "./state.js";
 import { SEAT_ORDER, SEAT_TO_SIDE, getRotationSteps, rotateSide } from "./board-layout.js";
-import { getSelfSeat, getSyncedTimerConfig } from "./online.js";
+import { getSelfSeat, getSyncedTimerConfig, getCurrentGameId, fetchAndHydrate } from "./online.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { consumeLastActionInfo } from "./last-action-info.js";
@@ -553,12 +553,37 @@ function rebuildTransferButtons() {
 // 複数クライアントが同時に書き込んでも安全に収束する（後から失敗した側はversion_conflict
 // 等を無視するだけでよい、fireAndForget参照）。
 
+// ユーザー報告バグ「優先権を譲渡して失ったはずなのに、自分にも相手にもタイマーが動き
+// 続けてしまう」への対策。優先権の同期は"priority_changed"というRealtime Broadcastの
+// 到達だけに頼っており（updateMyIdentity等と同じ「隠す必要の無い公開情報を直接テーブルへ
+// 書き込む」パターン）、盤面のトークン移動のような他の同期経路と違って、broadcastが
+// 届かなかった場合に自動で辻褄を合わせる仕組みが無かった。WebSocketベースのRealtime
+// broadcastは、タブのバックグラウンド化・一時的な接続の途切れ等でメッセージが届かない
+// ことが現実にあり得るため（この環境では2つの本物の別アカウントを使った再現ができず、
+// 確定原因の特定はできなかったが、最も筋の通る説明として対応する）、数秒おきに
+// so7_gamesの現在値を直接取り直す「安全網」の定期再同期を追加した。broadcastが正しく
+// 届いている限りは無害な重複取得に過ぎず、万一broadcastが失われても数秒以内に
+// 必ず正しい状態へ収束するようになる。
+let ticksSincePriorityResync = 0;
+const PRIORITY_RESYNC_EVERY_TICKS = 15; // tick()は200ms間隔なので約3秒に1回
+
 function tick() {
   if (!isTurnTimerEnabled()) {
     updateWarning(false);
     if (ropeEl) ropeEl.style.display = "none";
     if (baseClockEl) baseClockEl.style.display = "none";
     return;
+  }
+  // 優先権の安全網の定期再同期（上のコメント参照）。オンライン中だけ、数秒おきに
+  // fetchAndHydrate()（盤面全体の再取得、tokens/piles/priority全部含む）を呼び、
+  // broadcastの取りこぼしがあってもここで必ず追いつけるようにする。
+  if (isOnlineMode()) {
+    ticksSincePriorityResync++;
+    if (ticksSincePriorityResync >= PRIORITY_RESYNC_EVERY_TICKS) {
+      ticksSincePriorityResync = 0;
+      const gameId = getCurrentGameId();
+      if (gameId) fetchAndHydrate(gameId).catch(() => {});
+    }
   }
   const state = getState();
   if (!state.turnPlayer || !state.priorityPlayer || !state.priorityDeadline) {

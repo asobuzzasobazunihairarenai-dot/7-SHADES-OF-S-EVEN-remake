@@ -1,17 +1,21 @@
-// フェイズ案内板: 画面最下部中央に「ロック」「ハンド」「ムーブ」の3つを常設表示する。
-// ホバーで簡易説明のツールチップ、クリックで詳細説明のモーダルを表示する（docs/rulebook.md
-// 「The Flow of Your Turn」の内容をそのまま要約）。
+// フェイズ案内板: 「ロック」「ハンド」「ムーブ」フェイズを画面右下（他のアイコンボタン
+// 群の近く）に、ユーザー提供のアイコン画像で常設表示する。以前はテキストラベルの3項目を
+// 画面最下部中央に表示していたが、ユーザーが専用のアイコン画像（ロック/ハンド/ムーブ
+// フェイズ.webp）を用意したのに合わせ、他のアイコンボタン（手札シャッフル等）と同じ
+// 「アイコン+キャプション、ホバーで簡易説明・キャプションクリックで詳細説明」の見た目・
+// 操作感に統一し、位置も右下へ引っ越した（icon-action-button.jsの共通部品をそのまま流用）。
 // 現時点ではstate.jsに「今どのフェイズか」という状態が無いため、あくまで静的な案内として
 // 実装する（強制力なし、自己申告のPhase1方針のまま）。将来、効果処理の全自動化にあわせて
 // フェイズ状態を持たせた時、この案内板の該当ボタンを発光させる形で「今のフェイズ」を
 // 示せるようにする想定（そのための土台として、ボタンをフェイズidで識別できるようにしてある）。
 
-import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 
 const PHASES = [
   {
     id: "lock",
     label: "ロック",
+    icon: "assets/icons/lock-phase.webp",
     short: "手札を1枚だけロックできます（任意）",
     detail: [
       "あなたの手札を1枚だけロックしてもよい（ロックしなくてもよい）。",
@@ -21,6 +25,7 @@ const PHASES = [
   {
     id: "hand",
     label: "ハンド",
+    icon: "assets/icons/hand-phase.webp",
     short: "手札を何枚でも使えます（任意）",
     detail: [
       "あなたの手札を何枚でも使ってもよい（使わなくてもよい）。手札効果はそのカード自身を捨てることで得ることができる。",
@@ -30,6 +35,7 @@ const PHASES = [
   {
     id: "move",
     label: "ムーブ",
+    icon: "assets/icons/move-phase.webp",
     short: "「移動」か「接触」のどちらかを必ず行います",
     detail: [
       "以下のどちらか一方を必ず行わなければならない。",
@@ -40,74 +46,22 @@ const PHASES = [
   },
 ];
 
-let modalBackdrop = null;
-let modalEl = null;
-let modalTitleEl = null;
-let modalBodyEl = null;
-
-function openPhaseModal(phase) {
-  modalTitleEl.textContent = `${phase.label}フェイズ`;
-  modalBodyEl.innerHTML = "";
-  for (const paragraph of phase.detail) {
-    const p = document.createElement("p");
-    p.style.cssText = "margin: 0 0 0.6rem 0; line-height: 1.6;";
-    p.textContent = paragraph;
-    modalBodyEl.appendChild(p);
-  }
-  modalBackdrop.style.display = "block";
-  modalEl.style.display = "block";
-}
-
-function closePhaseModal() {
-  modalBackdrop.style.display = "none";
-  modalEl.style.display = "none";
-}
-
-function buildModal() {
-  modalBackdrop = createBackdrop(closePhaseModal, { dim: true, zIndex: 10100 });
-  modalBackdrop.style.display = "none";
-
-  modalEl = document.createElement("div");
-  modalEl.id = "phase-guide-modal";
-  modalEl.style.display = "none";
-  modalEl.appendChild(createModalCloseX(closePhaseModal));
-
-  modalTitleEl = document.createElement("div");
-  modalTitleEl.className = "phase-guide-modal-title";
-  modalEl.appendChild(modalTitleEl);
-
-  modalBodyEl = document.createElement("div");
-  modalBodyEl.className = "phase-guide-modal-body";
-  modalEl.appendChild(modalBodyEl);
-
-  document.body.appendChild(modalBackdrop);
-  document.body.appendChild(modalEl);
-}
-
 function buildPhaseButton(phase) {
   const btn = document.createElement("button");
   btn.type = "button";
-  btn.className = "phase-guide-item";
+  btn.id = `phase-guide-${phase.id}-button`;
   btn.dataset.phase = phase.id;
-
-  const labelEl = document.createElement("span");
-  labelEl.className = "phase-guide-item-label";
-  labelEl.textContent = phase.label;
-  btn.appendChild(labelEl);
-
-  const tooltip = document.createElement("span");
-  tooltip.className = "phase-guide-tooltip";
-  tooltip.textContent = phase.short;
-  btn.appendChild(tooltip);
-
-  btn.addEventListener("click", () => openPhaseModal(phase));
-
+  const { captionEl } = buildIconButtonContent(btn, { icon: phase.icon, tooltip: phase.short });
+  captionEl.textContent = phase.label;
+  wireIconButtonClick(btn, {
+    detailTitle: `${phase.label}フェイズ`,
+    detailParagraphs: phase.detail,
+    onAction: () => {}, // フェイズボタン自体には実行する操作が無い（案内表示のみ）
+  });
   return btn;
 }
 
 export function initPhaseGuide() {
-  buildModal();
-
   const bar = document.createElement("div");
   bar.id = "phase-guide-bar";
   for (const phase of PHASES) {

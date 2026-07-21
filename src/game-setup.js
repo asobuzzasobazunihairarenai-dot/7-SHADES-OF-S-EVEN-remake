@@ -102,7 +102,7 @@ function showStartPlayerModal(player, { onClose = null, autoDismissMs = 8000 } =
   const avatarEl = document.createElement("div");
   avatarEl.className = "start-player-avatar";
   avatarEl.style.cssText =
-    "font-size: var(--start-player-avatar-size, 4rem); text-align: center; line-height: 1; margin: 0.4rem 0;";
+    "font-size: var(--start-player-avatar-size, 12rem); text-align: center; line-height: 1; margin: 0.4rem 0;";
   applyAvatarContent(avatarEl, getPlayerAvatar(player));
 
   const nameEl = document.createElement("div");

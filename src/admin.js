@@ -57,6 +57,11 @@ const GROUPS = [
     controls: [
       { key: "--card-arrival-modal-size", label: "大きさ", unit: "rem", min: 8, max: 40, step: 0.5, default: 25 },
       { key: "--card-arrival-modal-duration", label: "表示時間（秒）", unit: "", min: 1, max: 15, step: 0.5, default: 5 },
+      // ユーザー報告「右下のアイコンボタン群と干渉する」への対応。位置(top/right)を
+      // 直接調整可能にした（他の右上固定要素とは違い、この要素はtranslateベースの
+      // オフセット方式ではなく元々top/right固定だったため、そのまま調整可能にした）。
+      { key: "--card-arrival-modal-top", label: "位置（上端からの距離）", unit: "rem", min: 0, max: 30, step: 0.1, default: 8.5 },
+      { key: "--card-arrival-modal-right", label: "位置（右端からの距離）", unit: "rem", min: 0, max: 30, step: 0.1, default: 1 },
     ],
   },
   {
@@ -70,9 +75,9 @@ const GROUPS = [
         label: "アバターの大きさ",
         unit: "rem",
         min: 1,
-        max: 12,
+        max: 16,
         step: 0.1,
-        default: 4,
+        default: 12,
         previewOnInteract: () => startPlayerPreviewFn?.(),
       },
     ],
@@ -133,12 +138,16 @@ const GROUPS = [
     ],
   },
   {
-    title: "フェイズ案内板（画面下部中央）",
+    // 以前は画面下部中央のテキストラベル3項目だったが、アイコン画像に差し替えて画面右下
+    // （他のアイコンボタン列の近く）へ引っ越した。item-width/heightは今もturn-timer.jsの
+    // 基本時間表示（⏱、テキストのまま）にだけ使われている。
+    title: "フェイズ案内板（画面右下）",
     category: "position",
     controls: [
-      { key: "--phase-guide-bottom", label: "Y位置（画面下端からの距離）", unit: "rem", min: 0, max: 20, step: 0.1, default: 0 },
-      { key: "--phase-guide-item-width", label: "1項目の幅", unit: "rem", min: 2, max: 20, step: 0.1, default: 9 },
-      { key: "--phase-guide-item-height", label: "1項目の高さ", unit: "rem", min: 1, max: 10, step: 0.1, default: 1 },
+      { key: "--phase-guide-bottom", label: "Y位置（画面下端からの距離）", unit: "rem", min: 0, max: 20, step: 0.1, default: 1.2 },
+      { key: "--phase-guide-right", label: "X位置（画面右端からの距離）", unit: "rem", min: 0, max: 30, step: 0.1, default: 5.6 },
+      { key: "--phase-guide-item-width", label: "基本時間表示(⏱)の幅", unit: "rem", min: 2, max: 20, step: 0.1, default: 9 },
+      { key: "--phase-guide-item-height", label: "基本時間表示(⏱)の高さ", unit: "rem", min: 1, max: 10, step: 0.1, default: 1 },
     ],
   },
   {
@@ -176,11 +185,14 @@ const GROUPS = [
   },
   {
     // ユーザー提供の背景画像（プレイマットよりさらに大きい「背景」イメージ、main.jsの
-    // buildArena参照）。プレイマットと同じ「.board基準の拡大率＋中心からのずれ」方式。
+    // buildArena参照）。元画像は横長（実測約16:9）のため、横幅・高さを別々の倍率で
+    // 調整できるようにし（background-size:containと組み合わせ、トリミング・変形は
+    // 一切発生しない）、横長のまま好きなサイズに調整できるようにした。
     title: "背景画像",
     category: "position",
     controls: [
-      { key: "--table-background-scale", label: "拡大率", unit: "", min: 0.5, max: 6, step: 0.05, default: 2.4 },
+      { key: "--table-background-scale-x", label: "拡大率（横幅）", unit: "", min: 0.5, max: 8, step: 0.05, default: 4.2 },
+      { key: "--table-background-scale-y", label: "拡大率（高さ）", unit: "", min: 0.5, max: 8, step: 0.05, default: 2.4 },
       { key: "--table-background-pos-x", label: "位置X（中心からのずれ）", unit: "%", min: -50, max: 50, step: 0.5, default: 0 },
       { key: "--table-background-pos-y", label: "位置Y（中心からのずれ）", unit: "%", min: -50, max: 50, step: 0.5, default: 0 },
     ],
@@ -333,7 +345,7 @@ const GROUPS = [
     title: "自分の手札：ホバー/タップで1枚だけ持ち上げる量",
     category: "position",
     controls: [
-      { key: "--hand-a-peek-lift", label: "持ち上げ量", unit: "rem", min: 0, max: 6, step: 0.1, default: 2.5 },
+      { key: "--hand-a-peek-lift", label: "持ち上げ量", unit: "rem", min: 0, max: 6, step: 0.1, default: 3 },
     ],
   },
   {

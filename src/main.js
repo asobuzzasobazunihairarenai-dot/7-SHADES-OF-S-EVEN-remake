@@ -1427,8 +1427,17 @@ function setPeekedCard(cardEl) {
   if (peekedCardEl) peekedCardEl.style.transform = peekedCardEl.dataset.baseTransform ?? "";
   peekedCardEl = cardEl;
   if (!cardEl) return;
-  const lift = getComputedStyle(document.documentElement).getPropertyValue("--hand-a-peek-lift").trim() || "2.5rem";
-  cardEl.style.transform = `${cardEl.dataset.baseTransform ?? ""} translateZ(${lift})`;
+  const lift = getComputedStyle(document.documentElement).getPropertyValue("--hand-a-peek-lift").trim() || "3rem";
+  // ハマりどころ（ユーザー報告「引っ込む方向になっちゃってる」）: 当初はtranslateZ(lift)
+  // （カメラ側へのポップ量）を追記していた。実測したところ、カードの基準transform
+  // （rotate(angle)deg）の後にtranslateZを追記すると、既に傾いている手札全体
+  // （.hand-areaのrotateX(-40deg)）の座標系の都合で、画面上は「大きくなる（カメラに
+  // 近づく効果は出る）が同時に下方向へ沈む」という、意図と逆の見え方になっていた
+  // （getBoundingClientRect実測: widthは増えるがtopも増える＝下に動く）。カードの
+  // 基準transform（rotateより前のtranslateX/Y段階、画面のY軸にほぼ対応する）に対して
+  // 追加のtranslateY(-lift)を使う方式に変更し、実測で「上に持ち上がる」動きになる
+  // ことを確認した。
+  cardEl.style.transform = `${cardEl.dataset.baseTransform ?? ""} translateY(-${lift})`;
 }
 // カーソル/タップ座標に重なる自分の手札カードのうち、中心が最も近い1枚を返す（無ければ
 // null）。ハマりどころ: 扇状に回転したカードのgetBoundingClientRect()は、見た目の菱形より
