@@ -18,7 +18,7 @@ import { getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import { getSkinImagePath } from "./piece-skins.js";
 import { isSelfHandled } from "./self-handled-tokens.js";
 
-let helpers = null; // { render, setSetupPendingTokenIds, maybeAnnounceLock, maybeTriggerCardArrivalForCard, triggerCardArrivalIfFaceUp, announceHandPickups, findLocationElement }
+let helpers = null; // { render, setSetupPendingTokenIds, maybeAnnounceLock, maybeTriggerCardArrivalForCard, maybeTriggerCardArrivalForExposedCard, triggerCardArrivalIfFaceUp, announceHandPickups, findLocationElement }
 
 export function registerRemoteMoveAnimatorHelpers(h) {
   helpers = h;
@@ -118,6 +118,17 @@ function triggerEffectsFor(item) {
     helpers.triggerCardArrivalIfFaceUp?.(token.location);
   } else if (token.kind === "card") {
     helpers.maybeTriggerCardArrivalForCard?.(token.location, token.cardId, token.faceUp);
+    // 他プレイヤーがカードを動かした結果、移動元のマス/ロックスロットで駒の下に別のカードが
+    // 新しく露出した場合も「到達」として再現する（main.jsのonDragEndと同じ考え方）。
+    // 移動元と移動先が同じマスの場合（重なりの中で並び替えただけ等）は対象外にする。
+    if (item.kind === "move") {
+      const sameLocation =
+        item.prevLocation.zone === token.location.zone &&
+        (item.prevLocation.zone === "cell"
+          ? item.prevLocation.row === token.location.row && item.prevLocation.col === token.location.col
+          : item.prevLocation.side === token.location.side && item.prevLocation.index === token.location.index);
+      if (!sameLocation) helpers.maybeTriggerCardArrivalForExposedCard?.(item.prevLocation);
+    }
   }
 }
 

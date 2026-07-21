@@ -659,6 +659,21 @@ function maybeTriggerCardArrivalForCard(dropTarget, cardId, faceUp) {
   triggerCardArrival(cardId, dropTarget);
 }
 
+// もう一つの逆方向: 駒が既に乗っているマス/ロックスロットで、複数枚重なったカードの
+// 一番上（＝駒が直接触れているカード）が山・手札・別のマス/ロックスロットへ動いてどいた
+// 結果、下に隠れていた別のカードが新しく一番上になった場合も「到達」として扱う
+// （ユーザー要望）。新しく一番上になったカードが表向きの場合のみ（裏向きの場合の
+// 自動オープン/確認プロンプトはこの経路では設けない。maybeTriggerCardArrivalと違い
+// 「駒自身は動いていない」ため、駒側のドラッグ操作に紐づく`promptCardOpen`の仕組みに
+// 素直には乗らないため）。呼び出し元はカードの移動が確定しrender()済みの後に呼ぶこと
+// （findTopCardAt/hasPieceAtは最新のstateを参照するため、render()自体は必須ではないが、
+// 他の到達演出呼び出しと同じタイミングに揃えてある）。
+function maybeTriggerCardArrivalForExposedCard(location) {
+  if (!location || (location.zone !== "cell" && location.zone !== "lock")) return;
+  if (!hasPieceAt(location)) return;
+  triggerCardArrivalIfFaceUp(location);
+}
+
 // 「オープンする/しない」の選択アイコン。同時に1つだけ表示する（新しく駒が別のカードに
 // 乗ったら、前のプロンプトは消えて新しい方だけになる）。
 let openPromptEl = null;
@@ -1732,6 +1747,12 @@ async function onDragEnd(e) {
   const dropTarget = dropResult ? dropResult.location : null;
   dragSession = null;
 
+  // 移動前の位置を覚えておく（moveToken/sendTokenToPile等で状態が書き換わる前に取得する
+  // 必要がある）。カードが盤面/ロックスロットから離れた結果、駒の下で新しいカードが
+  // 露出するケースの「到達」判定（maybeTriggerCardArrivalForExposedCard）に使う。
+  const cardSourceLocation =
+    kind === "card" ? getState().tokens.find((t) => t.id === tokenId)?.location ?? null : null;
+
   if (pileSource) {
     // 山からは手札だけでなく盤面マス・ロックスロットへも直接置ける（ルール適用なしの自由な
     // 移動のため）。ただし山(pile)自体へは置けない——山は個々のカードを保持せず残り枚数
@@ -1875,6 +1896,7 @@ async function onDragEnd(e) {
         }
         announceHandPickups(dropTarget.player, [{ cardId, wasPublic }]);
         render();
+        maybeTriggerCardArrivalForExposedCard(cardSourceLocation);
         return;
       }
     }
@@ -1907,10 +1929,20 @@ async function onDragEnd(e) {
     if (kind === "card") {
       const movedToken = getState().tokens.find((t) => t.id === tokenId);
       if (movedToken) maybeTriggerCardArrivalForCard(dropTarget, movedToken.cardId, movedToken.faceUp);
+      // 移動元と移動先が同じマスの場合（重なりの中で並び替えただけ等）は、移動先の判定
+      // （maybeTriggerCardArrivalForCard、上で既に呼んだ）と重複するため対象外にする。
+      const sameLocation =
+        cardSourceLocation &&
+        cardSourceLocation.zone === dropTarget.zone &&
+        (cardSourceLocation.zone === "cell"
+          ? cardSourceLocation.row === dropTarget.row && cardSourceLocation.col === dropTarget.col
+          : cardSourceLocation.side === dropTarget.side && cardSourceLocation.index === dropTarget.index);
+      if (!sameLocation) maybeTriggerCardArrivalForExposedCard(cardSourceLocation);
     }
     return;
   }
   render();
+  if (kind === "card") maybeTriggerCardArrivalForExposedCard(cardSourceLocation);
 }
 
 // --- オンライン対戦（第一弾・最小構成）の入り口 -------------------------------------
@@ -2889,6 +2921,7 @@ registerRemoteMoveAnimatorHelpers({
   setSetupPendingTokenIds,
   maybeAnnounceLock,
   maybeTriggerCardArrivalForCard,
+  maybeTriggerCardArrivalForExposedCard,
   triggerCardArrivalIfFaceUp,
   announceHandPickups,
   findLocationElement,
