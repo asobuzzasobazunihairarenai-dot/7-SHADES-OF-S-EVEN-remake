@@ -2690,31 +2690,58 @@ function startEditingName() {
   input.select();
 }
 
+// 自分専用ステータスの4アイコン（アバター・駒スキン・カード裏面・オンライン状態）のうち、
+// buildIconButtonContent()を使わない3つ（見た目がアイコン+キャプション形式ではなく、
+// それぞれ独自の中身を持つため）に、既存の.phase-guide-tooltip（フェイズ案内板・
+// アイコンボタン共通のホバー簡易説明）と同じ見た目のツールチップを追加する共通ヘルパー。
+// ネイティブのtitle属性（ブラウザ既定の遅いツールチップ）は使わず、アプリ全体で統一
+// されたこのスタイルに揃える。
+// ハマりどころ: アバター(applyAvatarContent)・駒スキン(updateSelfHandStatus内)は
+// render()のたびに中身を丸ごと作り直す（textContent/innerHTMLのリセットを伴う）ため、
+// 一度だけ追加したツールチップがその瞬間に一緒に消えてしまう。既存のツールチップが
+// あれば使い回し、無ければ作る（直接の子要素だけを見る）ようにして、
+// updateSelfHandStatus()側から中身の再構築のたびに呼び直しても安全にした。
+function addSimpleTooltip(btn, text) {
+  let tooltipEl = null;
+  for (const child of btn.children) {
+    if (child.classList.contains("phase-guide-tooltip")) {
+      tooltipEl = child;
+      break;
+    }
+  }
+  if (!tooltipEl) {
+    tooltipEl = document.createElement("span");
+    tooltipEl.className = "phase-guide-tooltip";
+    btn.appendChild(tooltipEl);
+  }
+  tooltipEl.textContent = text;
+}
+
 function buildSelfHandStatus() {
   const el = document.createElement("div");
   el.id = "self-hand-status";
 
   selfStatusAvatarEl = document.createElement("button");
   selfStatusAvatarEl.className = "self-status-avatar";
-  selfStatusAvatarEl.title = "クリックしてアバターを変更";
   selfStatusAvatarEl.addEventListener("click", openAvatarPicker);
+  addSimpleTooltip(selfStatusAvatarEl, "クリックしてアバターを変更");
 
   // 駒スキンの選択もここに集約する（以前は別の独立したボタンだった）。実際の駒と同じ
   // buildCubePiece()をそのまま使い、立体のまま小さく表示する（ドラッグ中のゴーストと同じ
   // 「perspective+盤面と同じ傾きを持つ入れ子」のテクニックで、3D空間の外でも立方体に見せる）。
   selfStatusPieceThumbEl = document.createElement("button");
   selfStatusPieceThumbEl.className = "self-status-piece-thumb";
-  selfStatusPieceThumbEl.title = "クリックして駒スキンを変更";
   selfStatusPieceThumbEl.addEventListener("click", openPieceSkinPicker);
+  addSimpleTooltip(selfStatusPieceThumbEl, "クリックして駒スキンを変更");
 
   // カード裏面セットの選択（自分だけの見た目の好み、card-back-skins.js参照）。
   // 駒と違い自分の色に依存しない・ゲーム開始前でも常に選べるため、非表示にする条件は無い。
   selfStatusCardBackThumbEl = document.createElement("button");
   selfStatusCardBackThumbEl.className = "self-status-card-back-thumb";
-  selfStatusCardBackThumbEl.title = "クリックしてカード裏面を変更（自分の画面にだけ反映されます）";
   selfStatusCardBackThumbEl.addEventListener("click", openCardBackSkinPicker);
   const cardBackThumbImg = document.createElement("img");
   selfStatusCardBackThumbEl.appendChild(cardBackThumbImg);
+  addSimpleTooltip(selfStatusCardBackThumbEl, "クリックしてカード裏面を変更（自分の画面にだけ反映されます）");
 
   const info = document.createElement("div");
   info.className = "self-status-info";
@@ -2751,6 +2778,7 @@ function updateSelfHandStatus() {
     (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === getSelfSeat()
   ).length;
   applyAvatarContent(selfStatusAvatarEl, getPlayerAvatar(getSelfSeat()));
+  addSimpleTooltip(selfStatusAvatarEl, "クリックしてアバターを変更");
 
   // セットアップ前（自分の駒の色がまだ決まっていない間）でも、選んだバリエーション番号
   // 自体は色に依存しない好みなので、先に見た目を確認・選べるよう常に表示する
@@ -2764,6 +2792,7 @@ function updateSelfHandStatus() {
   inner.style.transform = `rotateX(${tilt})`;
   inner.appendChild(buildCubePiece(myColor, getSelfSeat()));
   selfStatusPieceThumbEl.appendChild(inner);
+  addSimpleTooltip(selfStatusPieceThumbEl, "クリックして駒スキンを変更");
 
   selfStatusCardBackThumbEl.querySelector("img").src = cardBackSetImagePath("normal", getCardBackSetIndex());
 

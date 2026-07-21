@@ -2299,6 +2299,11 @@ body.spotlight-mode #spotlight-overlay {
   left: 50%;
   transform: translate(-50%, -50%);
   width: min(20rem, 90vw);
+  /* 駒スキンが8バリエーション(2列4行)に増えたことで、縦に長い画面でないと収まりきらず、
+     画面からはみ出て閉じるボタンにも手が届かなくなっていた（ユーザー報告）。
+     max-height+overflow-yで、収まらない場合はモーダル自身がスクロールするようにする。 */
+  max-height: 85vh;
+  overflow-y: auto;
   background: rgba(15, 23, 32, 0.98);
   border: 1px solid rgba(148, 163, 184, 0.4);
   border-radius: 0.5rem;
@@ -2459,6 +2464,7 @@ body.cards-interaction-hidden .board-card {
   justify-items: center;
 }
 .self-status-avatar {
+  position: relative;
   font-size: 1.8rem;
   line-height: 1;
   background: rgba(255, 255, 255, 0.06);
@@ -2474,6 +2480,22 @@ body.cards-interaction-hidden .board-card {
 }
 .self-status-avatar:hover {
   background: rgba(255, 255, 255, 0.14);
+}
+/* アバター・駒スキン・カード裏面の3つは、buildIconButtonContent()を使うアイコンボタン
+   （手札シャッフル等）と違う独自の見た目のため、ホバー簡易説明(.phase-guide-tooltip)の
+   表示トリガーもここで個別に用意する（中身の見た目・表示ルール自体は共通クラスを流用）。 */
+.self-status-avatar:hover .phase-guide-tooltip,
+.self-status-piece-thumb:hover .phase-guide-tooltip,
+.self-status-card-back-thumb:hover .phase-guide-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+/* この4アイコン（オンライン状態を含む）は画面左下、左端に近い位置にあるため、
+   .phase-guide-tooltipの既定（中央寄せ）のままだと画面左端で見切れる。左端をアイコンの
+   左端に合わせ、常に右方向にだけ伸びるようにする（#interaction-mode-buttonと同じ対策）。 */
+.self-status-icon-grid .phase-guide-tooltip {
+  left: 0;
+  transform: none;
 }
 /* 駒スキンのサムネイル。ドラッグ中のゴースト(.drag-ghost-piece-outer/-inner)と同じ
    「perspective+盤面と同じ傾きを持つ入れ子」で、3D空間の外でも本物の.pieceを
