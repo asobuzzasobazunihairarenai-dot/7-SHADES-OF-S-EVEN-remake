@@ -9,6 +9,19 @@ export function isImageAvatar(avatar) {
   return typeof avatar === "string" && (/^https?:\/\//.test(avatar) || /\.(png|jpe?g|webp|gif)$/i.test(avatar));
 }
 
+// ローカルのアバター画像は色ごとに正面(front)・左向き(left)・右向き(right)の3バリエーションが
+// 用意されている（player-identity.jsのDEFAULT_AVATARS/AVATAR_OPTIONSは常にfront版を
+// 「そのプレイヤーが選んだアバター」の正規の値として保持する）。表示する場所（盤面上のどの
+// 席か、ステータスエリアか等）によって向きだけを差し替えたい時にこの関数を使う。
+// Googleプロフィール画像等、front/left/right接尾辞を持たないアバター（isImageAvatarがtrueでも
+// マッチしない）はバリエーションが無いため、そのまま返す（向き替え不可）。
+export function getAvatarVariant(avatar, direction) {
+  if (typeof avatar !== "string") return avatar;
+  const m = avatar.match(/^(.*)-(?:front|left|right)(\.[a-zA-Z0-9]+)$/);
+  if (!m) return avatar;
+  return `${m[1]}-${direction}${m[2]}`;
+}
+
 export function applyAvatarContent(el, avatar) {
   if (isImageAvatar(avatar)) {
     let img = el.querySelector("img.avatar-image");

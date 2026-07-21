@@ -154,7 +154,6 @@ const GROUPS = [
     title: "自分専用ステータスエリア（左下）：サイズ（アイコンごとに個別）",
     category: "position",
     controls: [
-      { key: "--self-status-icon-avatar-size", label: "アバターアイコン サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
       { key: "--self-status-icon-piece-size", label: "駒スキンアイコン サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 1.5 },
       { key: "--self-status-icon-cardback-size", label: "カード裏面アイコン サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 1.5 },
       { key: "--self-status-icon-playmat-size", label: "プレイマットアイコン サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 1.5 },
@@ -166,9 +165,9 @@ const GROUPS = [
     title: "自分専用ステータスエリア（左下）：大きいアバター（背面表示）",
     category: "position",
     controls: [
-      { key: "--self-status-large-avatar-size", label: "サイズ", unit: "rem", min: 2, max: 16, step: 0.1, default: 6 },
-      { key: "--self-status-large-avatar-pos-x", label: "位置X", unit: "rem", min: -15, max: 20, step: 0.1, default: 0 },
-      { key: "--self-status-large-avatar-pos-y", label: "位置Y", unit: "rem", min: -15, max: 20, step: 0.1, default: 0 },
+      { key: "--self-status-large-avatar-size", label: "サイズ", unit: "rem", min: 2, max: 16, step: 0.1, default: 11 },
+      { key: "--self-status-large-avatar-pos-x", label: "位置X", unit: "rem", min: -15, max: 20, step: 0.1, default: -0.34 },
+      { key: "--self-status-large-avatar-pos-y", label: "位置Y", unit: "rem", min: -15, max: 20, step: 0.1, default: -2.02 },
     ],
   },
   {
@@ -178,17 +177,15 @@ const GROUPS = [
       { key: "--self-status-pos-x", label: "パネル全体 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--self-status-pos-y", label: "パネル全体 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--self-status-info-pos-x", label: "名前・手札枚数 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: -6.2 },
-      { key: "--self-status-info-pos-y", label: "名前・手札枚数 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 0.4 },
-      { key: "--self-status-icon-avatar-pos-x", label: "アバターアイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 9.53 },
-      { key: "--self-status-icon-avatar-pos-y", label: "アバターアイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 3.71 },
-      { key: "--self-status-icon-piece-pos-x", label: "駒スキンアイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 9.09 },
-      { key: "--self-status-icon-piece-pos-y", label: "駒スキンアイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 4.21 },
-      { key: "--self-status-icon-cardback-pos-x", label: "カード裏面アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 9.67 },
-      { key: "--self-status-icon-cardback-pos-y", label: "カード裏面アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 3.59 },
-      { key: "--self-status-icon-playmat-pos-x", label: "プレイマットアイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 8.63 },
-      { key: "--self-status-icon-playmat-pos-y", label: "プレイマットアイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 3.04 },
-      { key: "--self-status-icon-online-pos-x", label: "オンライン状態アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 7.43 },
-      { key: "--self-status-icon-online-pos-y", label: "オンライン状態アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 0.22 },
+      { key: "--self-status-info-pos-y", label: "名前・手札枚数 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 3.1 },
+      { key: "--self-status-icon-piece-pos-x", label: "駒スキンアイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 5.58 },
+      { key: "--self-status-icon-piece-pos-y", label: "駒スキンアイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 7.38 },
+      { key: "--self-status-icon-cardback-pos-x", label: "カード裏面アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 4.21 },
+      { key: "--self-status-icon-cardback-pos-y", label: "カード裏面アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 4.42 },
+      { key: "--self-status-icon-playmat-pos-x", label: "プレイマットアイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 3.5 },
+      { key: "--self-status-icon-playmat-pos-y", label: "プレイマットアイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 4.38 },
+      { key: "--self-status-icon-online-pos-x", label: "オンライン状態アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: -0.25 },
+      { key: "--self-status-icon-online-pos-y", label: "オンライン状態アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: -6.87 },
     ],
   },
   {
@@ -670,8 +667,8 @@ const TOGGLE_SECTIONS = [
       });
       const rearrangeLabel = document.createElement("span");
       rearrangeLabel.textContent =
-        "ONにする（左下ステータスエリアの背面の大きいアバター＋5アイコン：アバター・" +
-        "駒スキン・カード裏面・プレイマット・オンライン状態をドラッグで位置調整、" +
+        "ONにする（左下ステータスエリアの背面の大きいアバター＋4アイコン：駒スキン・" +
+        "カード裏面・プレイマット・オンライン状態をドラッグで位置調整、" +
         "マウスホイールでサイズ調整できます）";
       rearrangeRow.appendChild(rearrangeCheckbox);
       rearrangeRow.appendChild(rearrangeLabel);

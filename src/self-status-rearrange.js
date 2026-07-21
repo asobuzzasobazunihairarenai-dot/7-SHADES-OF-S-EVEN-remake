@@ -1,11 +1,10 @@
 // 管理者モードの「自分専用ステータスエリア再配置モード」。ONの間、左下ステータスエリアの
-// 6つの要素（背面の大きいアバター・アバターアイコン・駒スキン・カード裏面・プレイマット・
-// オンライン状態）を画面上で直接ドラッグして位置を、マウスホイールでサイズを、それぞれ
-// 直感的に調整できる。
+// 5つの要素（背面の大きいアバター・駒スキン・カード裏面・プレイマット・オンライン状態）を
+// 画面上で直接ドラッグして位置を、マウスホイールでサイズを、それぞれ直感的に調整できる。
 //
 // icon-rearrange.js（手札シャッフル等5ボタンの再配置）と同じ設計方針を踏襲する:
 // 各要素の基準位置・基準サイズは変えず、そこからのズレ・実際のサイズだけを専用の
-// CSS変数（--self-status-icon-{avatar,piece,cardback,playmat,online}-pos-x/y・-size、
+// CSS変数（--self-status-icon-{piece,cardback,playmat,online}-pos-x/y・-size、
 // --self-status-large-avatar-pos-x/y・-size、admin.jsのGROUPSにスライダーとしても登録済み）
 // へ書き込む。ドラッグでの再配置・ホイールでのリサイズ・スライダーでの微調整のどれも
 // 同じ値を共有するため、「出力をコピー」にも自動的に反映される。
@@ -18,25 +17,27 @@
 import { isSelfStatusRearrangeMode } from "./admin.js";
 
 const SELECTOR =
-  ".self-status-large-avatar, .self-status-avatar, .self-status-piece-thumb, .self-status-card-back-thumb, .self-status-playmat-thumb, #self-status-online";
+  ".self-status-large-avatar, .self-status-piece-thumb, .self-status-card-back-thumb, .self-status-playmat-thumb, #self-status-online";
 
+// posDefaultは各要素のCSS側var(--x, フォールバック値)と同じ値を持たせてある。
+// これが無いと、そのCSS変数に一度もinline styleが書き込まれていない（＝ページ読み込み
+// 直後、admin.jsのスライダーもまだ一度も動かされていない）状態でいきなりドラッグを
+// 始めた時、currentRem()がフォールバック無しの0を「現在位置」だと誤認し、実際に
+// 見えている位置（CSSのフォールバック分だけズレた位置）との食い違いで要素が一瞬
+// 飛ぶ（ジャンプする）バグになる。ドラッグ開始時の基準値としてこの値を使うことで、
+// 見た目の位置とズレなく連続的に動かせるようにしている。
 const VARS_BY_CLASS = {
   "self-status-large-avatar": {
     pos: ["--self-status-large-avatar-pos-x", "--self-status-large-avatar-pos-y"],
+    posDefault: [-0.34, -2.02],
     size: "--self-status-large-avatar-size",
     sizeMin: 2,
     sizeMax: 16,
-    sizeDefault: 6,
-  },
-  "self-status-avatar": {
-    pos: ["--self-status-icon-avatar-pos-x", "--self-status-icon-avatar-pos-y"],
-    size: "--self-status-icon-avatar-size",
-    sizeMin: 1.2,
-    sizeMax: 6,
-    sizeDefault: 2.6,
+    sizeDefault: 11,
   },
   "self-status-piece-thumb": {
     pos: ["--self-status-icon-piece-pos-x", "--self-status-icon-piece-pos-y"],
+    posDefault: [5.58, 7.38],
     size: "--self-status-icon-piece-size",
     sizeMin: 1.2,
     sizeMax: 6,
@@ -44,6 +45,7 @@ const VARS_BY_CLASS = {
   },
   "self-status-card-back-thumb": {
     pos: ["--self-status-icon-cardback-pos-x", "--self-status-icon-cardback-pos-y"],
+    posDefault: [4.21, 4.42],
     size: "--self-status-icon-cardback-size",
     sizeMin: 1.2,
     sizeMax: 6,
@@ -51,6 +53,7 @@ const VARS_BY_CLASS = {
   },
   "self-status-playmat-thumb": {
     pos: ["--self-status-icon-playmat-pos-x", "--self-status-icon-playmat-pos-y"],
+    posDefault: [3.5, 4.38],
     size: "--self-status-icon-playmat-size",
     sizeMin: 1.2,
     sizeMax: 6,
@@ -60,6 +63,7 @@ const VARS_BY_CLASS = {
 
 const ONLINE_VARS = {
   pos: ["--self-status-icon-online-pos-x", "--self-status-icon-online-pos-y"],
+  posDefault: [-0.25, -6.87],
   size: "--self-status-icon-online-size",
   sizeMin: 1.2,
   sizeMax: 6,
@@ -72,14 +76,6 @@ function resolveVars(el) {
     if (el.classList.contains(cls)) return VARS_BY_CLASS[cls];
   }
   return null;
-}
-
-// setup-animation.js等と同じ「main.jsから自分の関数を注入してもらう」循環import回避
-// パターン。ドラッグ/ホイール操作の最中にも外枠(.self-status-backdrop)がリアルタイムに
-// 追従するよう、都度main.js側の再計算関数を呼ぶ。
-let helpers = null; // { updatePanelBounds }
-export function registerSelfStatusRearrangeHelpers(h) {
-  helpers = h;
 }
 
 function remToPx() {
@@ -103,12 +99,12 @@ function scheduleChangeNotify() {
   }, 250);
 }
 
-function startDrag(el, varX, varY, e) {
+function startDrag(el, varX, varY, posDefault, e) {
   const startX = e.clientX;
   const startY = e.clientY;
   const remPx = remToPx();
-  const baseX = currentRem(varX);
-  const baseY = currentRem(varY);
+  const baseX = currentRem(varX, posDefault[0]);
+  const baseY = currentRem(varY, posDefault[1]);
   el.classList.add("is-rearranging");
 
   function onMove(ev) {
@@ -116,7 +112,6 @@ function startDrag(el, varX, varY, e) {
     const dyRem = (ev.clientY - startY) / remPx;
     document.documentElement.style.setProperty(varX, `${(baseX + dxRem).toFixed(2)}rem`);
     document.documentElement.style.setProperty(varY, `${(baseY + dyRem).toFixed(2)}rem`);
-    helpers?.updatePanelBounds();
   }
   function onUp() {
     window.removeEventListener("pointermove", onMove);
@@ -136,7 +131,7 @@ function onPointerDownCapture(e) {
   if (!vars) return;
   e.preventDefault();
   e.stopPropagation();
-  startDrag(el, vars.pos[0], vars.pos[1], e);
+  startDrag(el, vars.pos[0], vars.pos[1], vars.posDefault, e);
 }
 
 function onClickCapture(e) {
@@ -160,7 +155,6 @@ function onWheelCapture(e) {
   const delta = e.deltaY > 0 ? -0.1 : 0.1;
   const next = Math.min(vars.sizeMax, Math.max(vars.sizeMin, current + delta));
   document.documentElement.style.setProperty(vars.size, `${next.toFixed(2)}rem`);
-  helpers?.updatePanelBounds();
   scheduleChangeNotify();
 }
 

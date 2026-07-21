@@ -1,7 +1,8 @@
 // プレイヤーの表示名・アバターを管理する。名前はいつでも自由に変更できる（デフォルトは
 // board-layout.jsのSEAT_LABELS）。アバターは実物の画像素材（画像素材/アバター/アバター1、
-// 7色分）をassets/avatars/${color}.pngとしてコピーして使う（他の実物画像素材と同じ理由で
-// git管理外、.gitignoreの/assets/avatars/参照）。以前の絵文字ダミーセットは撤去した。
+// 7色×正面/左向き/右向きの3方向）をassets/avatars/${color}-{front,left,right}.pngとして
+// コピーして使う（他の実物画像素材と同じ理由でgit管理外、.gitignoreの/assets/avatars/参照）。
+// 以前の絵文字ダミーセットは撤去した。
 // 座席(A/B/C/D)ごとに保持するだけで、誰がどのプレイヤーかという実データ（state.jsの
 // activePlayers/turnPlayer等）とは独立している——名前やアバターを変えてもゲームの
 // 進行ロジックには一切影響しない、純粋に表示用の情報だから。
@@ -16,14 +17,18 @@
 import { SEAT_LABELS, SEAT_ORDER } from "./board-layout.js";
 import { isOnlineMode, getSelfSeat, getSyncedIdentity, updateMyIdentity } from "./online.js";
 
+// 色ごとに正面(front)・左向き(left)・右向き(right)の3バリエーションが用意されている
+// （画像素材/アバター/アバター1参照）。「そのプレイヤーが選んだアバター」の正規の値としては
+// 常にfront版を保持し、実際に表示する場所（盤面上の席・ステータスエリア等）に応じた
+// 向きの差し替えはavatar-render.jsのgetAvatarVariant()で行う。
 const AVATAR_COLORS = ["red", "orange", "yellow", "green", "blue", "pink", "purple"];
-export const AVATAR_OPTIONS = AVATAR_COLORS.map((color) => `assets/avatars/${color}.png`);
+export const AVATAR_OPTIONS = AVATAR_COLORS.map((color) => `assets/avatars/${color}-front.png`);
 
 const DEFAULT_AVATARS = {
-  A: "assets/avatars/red.png",
-  B: "assets/avatars/orange.png",
-  C: "assets/avatars/yellow.png",
-  D: "assets/avatars/green.png",
+  A: "assets/avatars/red-front.png",
+  B: "assets/avatars/orange-front.png",
+  C: "assets/avatars/yellow-front.png",
+  D: "assets/avatars/green-front.png",
 };
 
 let customNames = {};

@@ -923,12 +923,11 @@ body.icon-rearrange-mode #options-menu-button.is-rearranging {
   outline-color: #38bdf8;
 }
 
-/* 管理者モードの「自分専用ステータスエリア再配置モード」がONの間、対象の5アイコンに
+/* 管理者モードの「自分専用ステータスエリア再配置モード」がONの間、対象の要素に
    掴めることが分かる点線の枠＋grabカーソルを付ける（self-status-rearrange.js参照）。
    ドラッグで位置、マウスホイールでサイズを変えられる（アイコン再配置モードと同じ
    考え方だが、サイズ調整もできる点が異なるため別モードとして用意した）。 */
 body.self-status-rearrange-mode .self-status-large-avatar,
-body.self-status-rearrange-mode .self-status-avatar,
 body.self-status-rearrange-mode .self-status-piece-thumb,
 body.self-status-rearrange-mode .self-status-card-back-thumb,
 body.self-status-rearrange-mode .self-status-playmat-thumb,
@@ -938,7 +937,6 @@ body.self-status-rearrange-mode #self-status-online {
   outline-offset: 3px;
 }
 body.self-status-rearrange-mode .self-status-large-avatar.is-rearranging,
-body.self-status-rearrange-mode .self-status-avatar.is-rearranging,
 body.self-status-rearrange-mode .self-status-piece-thumb.is-rearranging,
 body.self-status-rearrange-mode .self-status-card-back-thumb.is-rearranging,
 body.self-status-rearrange-mode .self-status-playmat-thumb.is-rearranging,
@@ -2480,16 +2478,12 @@ body.cards-interaction-hidden .board-card {
 
 /* 管理者モードの「自分専用ステータスエリア」グループ、または自分専用ステータス再配置
    モード（self-status-rearrange.js、ドラッグで位置・ホイールでサイズ）が調整するCSS変数
-   （--self-status-icon-gap＝アイコン間隔、--self-status-icon-{avatar,piece,cardback,
+   （--self-status-icon-gap＝アイコン間隔、--self-status-icon-{piece,cardback,
    playmat,online}-size＝各アイコン個別のサイズ、-pos-x/y＝各アイコン個別の位置微調整、
    --self-status-pos-x/y＝パネル全体の位置、--self-status-info-pos-x/y＝名前・手札枚数の
    位置、--self-status-large-avatar-*＝背面に大きく表示する自分のアバター）を参照する。
-   アイコンを大きく動かす／大きいアバターを追加すると、通常のgrid/flexレイアウトの
-   content sizeだけでは外枠が追従しきれなくなる（transformによる位置移動はレイアウト
-   サイズに含まれないため）ため、外枠の背景・枠線は#self-hand-status自身ではなく
-   別要素の.self-status-backdrop（JS側のupdateSelfStatusPanelBounds()が各要素の実際の
-   描画位置を都度計測し、それらを囲む矩形として動的にサイズ・位置を計算する）が担当する。
-   #self-hand-status自体は透明な位置決め用のフレックスコンテナのまま残す。 */
+   外枠（背景・枠線）はユーザー要望によりビジュアルとしては表示しない
+   （#self-hand-status自体は透明な位置決め用のフレックスコンテナのまま）。 */
 #self-hand-status {
   position: fixed;
   bottom: 1.2rem;
@@ -2502,36 +2496,26 @@ body.cards-interaction-hidden .board-card {
   color: #e2e8f0;
   transform: translate(var(--self-status-pos-x, 0rem), var(--self-status-pos-y, 0rem));
 }
-/* 外枠の背景・枠線本体。#self-hand-status内の実際のコンテンツ（アイコン・名前欄・
-   大きいアバター）の描画済み位置を包む矩形として、JS側で位置・サイズを都度計算する
-   （position:absoluteでレイアウトには参加しない。pointer-events:noneでクリックの
-   邪魔もしない）。 */
-.self-status-backdrop {
-  position: absolute;
-  z-index: 0;
-  pointer-events: none;
-  background: rgba(15, 23, 32, 0.85);
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  border-radius: 0.4rem;
-}
 /* 背面に大きく表示する自分専用アバター。ステータスエリアの他の要素（アイコン・名前欄）を
-   「ラップする」ように大きく表示する演出（ユーザー要望）。DOM順でbackdropの直後・
-   アイコングリッド/名前欄より前に置くことで、常にそれらの背面に描画される
-   （preserve-3dが絡まないシンプルな2D要素同士のため、DOM順だけで意図通りのスタッキングに
-   なる）。クリックすると小さいアバターアイコンと同じピッカーが開く。 */
+   「ラップする」ように大きく表示する演出（ユーザー要望）。以前あった小さい丸型の
+   アバターアイコンはこれに統合し撤去した。DOM順でアイコングリッド/名前欄より前に
+   置くことで、常にそれらの背面に描画される（preserve-3dが絡まないシンプルな2D要素同士の
+   ため、DOM順だけで意図通りのスタッキングになる）。クリックするとアバター選択ピッカーが
+   開く。ステータスエリアでは常に右向き（"right"）のバリエーションを表示する
+   （main.jsのgetAvatarVariant参照、ユーザー指定）。 */
 .self-status-large-avatar {
   position: absolute;
   left: 0;
   top: 0;
-  font-size: calc(var(--self-status-large-avatar-size, 6rem) * 0.75);
+  font-size: calc(var(--self-status-large-avatar-size, 11rem) * 0.75);
   line-height: 1;
   cursor: pointer;
-  transform: translate(var(--self-status-large-avatar-pos-x, 0rem), var(--self-status-large-avatar-pos-y, 0rem));
+  transform: translate(var(--self-status-large-avatar-pos-x, -0.34rem), var(--self-status-large-avatar-pos-y, -2.02rem));
   filter: drop-shadow(0 0.2rem 0.4rem rgba(0, 0, 0, 0.6));
 }
 .self-status-large-avatar .avatar-image {
-  width: var(--self-status-large-avatar-size, 6rem);
-  height: var(--self-status-large-avatar-size, 6rem);
+  width: var(--self-status-large-avatar-size, 11rem);
+  height: var(--self-status-large-avatar-size, 11rem);
 }
 .self-status-large-avatar:hover .phase-guide-tooltip {
   opacity: 1;
@@ -2541,48 +2525,27 @@ body.cards-interaction-hidden .board-card {
   left: 0;
   transform: none;
 }
-/* アバター・駒スキン・カード裏面・プレイマット・オンライン状態の5アイコンを2x2+1で
-   まとめる。サイズは各アイコン個別のCSS変数（--self-status-icon-*-size）で管理して
-   いるため、アイコンごとに異なる大きさにもできる（オンライン状態アイコンだけキャプション
-   文字が下に付く分だけ、その行の高さがもう片方の行よりわずかに大きくなるが、
-   grid-auto-rowsが行ごとに自動調整するため崩れない）。 */
+/* 駒スキン・カード裏面・プレイマット・オンライン状態の4アイコンを2x2でまとめる。
+   サイズは各アイコン個別のCSS変数（--self-status-icon-*-size）で管理しているため、
+   アイコンごとに異なる大きさにもできる（オンライン状態アイコンだけキャプション文字が
+   下に付く分だけ、その行の高さがもう片方の行よりわずかに大きくなるが、grid-auto-rowsが
+   行ごとに自動調整するため崩れない）。 */
 .self-status-icon-grid {
   display: grid;
   grid-template-columns: repeat(2, auto);
   gap: var(--self-status-icon-gap, 0.4rem);
   justify-items: center;
 }
-.self-status-avatar {
-  position: relative;
-  font-size: 1.8rem;
-  line-height: 1;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 50%;
-  width: var(--self-status-icon-avatar-size, 2.6rem);
-  height: var(--self-status-icon-avatar-size, 2.6rem);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 0;
-  transform: translate(var(--self-status-icon-avatar-pos-x, 9.53rem), var(--self-status-icon-avatar-pos-y, 3.71rem));
-}
-.self-status-avatar:hover {
-  background: rgba(255, 255, 255, 0.14);
-}
-/* アバター・駒スキン・カード裏面・プレイマットの4つは、buildIconButtonContent()を使う
-   アイコンボタン（手札シャッフル等）と違う独自の見た目のため、ホバー簡易説明
-   (.phase-guide-tooltip)の表示トリガーもここで個別に用意する（中身の見た目・表示ルール
-   自体は共通クラスを流用）。 */
-.self-status-avatar:hover .phase-guide-tooltip,
+/* 駒スキン・カード裏面・プレイマットの3つは、buildIconButtonContent()を使うアイコンボタン
+   （手札シャッフル等）と違う独自の見た目のため、ホバー簡易説明(.phase-guide-tooltip)の
+   表示トリガーもここで個別に用意する（中身の見た目・表示ルール自体は共通クラスを流用）。 */
 .self-status-piece-thumb:hover .phase-guide-tooltip,
 .self-status-card-back-thumb:hover .phase-guide-tooltip,
 .self-status-playmat-thumb:hover .phase-guide-tooltip {
   opacity: 1;
   visibility: visible;
 }
-/* この5アイコン（オンライン状態を含む）は画面左下、左端に近い位置にあるため、
+/* この4アイコン（オンライン状態を含む）は画面左下、左端に近い位置にあるため、
    .phase-guide-tooltipの既定（中央寄せ）のままだと画面左端で見切れる。左端をアイコンの
    左端に合わせ、常に右方向にだけ伸びるようにする（#interaction-mode-buttonと同じ対策）。 */
 .self-status-icon-grid .phase-guide-tooltip {
@@ -2608,7 +2571,7 @@ body.cards-interaction-hidden .board-card {
   display: none;
   align-items: center;
   justify-content: center;
-  transform: translate(var(--self-status-icon-piece-pos-x, 9.09rem), var(--self-status-icon-piece-pos-y, 4.21rem));
+  transform: translate(var(--self-status-icon-piece-pos-x, 5.58rem), var(--self-status-icon-piece-pos-y, 7.38rem));
 }
 .self-status-piece-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -2638,7 +2601,7 @@ body.cards-interaction-hidden .board-card {
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
-  transform: translate(var(--self-status-icon-cardback-pos-x, 9.67rem), var(--self-status-icon-cardback-pos-y, 3.59rem));
+  transform: translate(var(--self-status-icon-cardback-pos-x, 4.21rem), var(--self-status-icon-cardback-pos-y, 4.42rem));
 }
 .self-status-card-back-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -2663,7 +2626,7 @@ body.cards-interaction-hidden .board-card {
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
-  transform: translate(var(--self-status-icon-playmat-pos-x, 8.63rem), var(--self-status-icon-playmat-pos-y, 3.04rem));
+  transform: translate(var(--self-status-icon-playmat-pos-x, 3.5rem), var(--self-status-icon-playmat-pos-y, 4.38rem));
 }
 .self-status-playmat-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -2680,7 +2643,7 @@ body.cards-interaction-hidden .board-card {
    （.icon-action-button-icon-wrap自体には触れない）。位置調整はボタン本体(#self-status-online)
    へのtranslateで行う（キャプション文字ごと一緒に動く）。 */
 #self-status-online {
-  transform: translate(var(--self-status-icon-online-pos-x, 7.43rem), var(--self-status-icon-online-pos-y, 0.22rem));
+  transform: translate(var(--self-status-icon-online-pos-x, -0.25rem), var(--self-status-icon-online-pos-y, -6.87rem));
 }
 .self-status-icon-grid #self-status-online .icon-action-button-icon-wrap {
   width: var(--self-status-icon-online-size, 2.6rem);
@@ -2690,7 +2653,7 @@ body.cards-interaction-hidden .board-card {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
-  transform: translate(var(--self-status-info-pos-x, -6.2rem), var(--self-status-info-pos-y, 0.4rem));
+  transform: translate(var(--self-status-info-pos-x, -6.2rem), var(--self-status-info-pos-y, 3.1rem));
 }
 .self-status-name {
   font-size: 0.85rem;
@@ -2755,10 +2718,10 @@ body.cards-interaction-hidden .board-card {
   border-color: #7dd3fc;
 }
 
-/* Googleプロフィール画像をアバターに使う場合の共通スタイル（絵文字textContentの代わりに
-   <img class="avatar-image">を挿入する、main.jsのapplyAvatarContent参照）。各コンテナの
-   既存サイズ（.player-avatarはfont-size、.self-status-avatar/.avatar-picker-swatchは
-   固定サイズ）に収まるよう、置かれた場所ごとに寸法だけ個別指定する。 */
+/* 画像アバター（実物のイラスト・Googleプロフィール画像共通）の共通スタイル
+   （main.jsのapplyAvatarContent参照）。各コンテナの既存サイズ（.player-avatarはfont-size、
+   .avatar-picker-swatch等は固定サイズ）に収まるよう、置かれた場所ごとに寸法だけ
+   個別指定する。 */
 .avatar-image {
   border-radius: 50%;
   object-fit: cover;
@@ -2779,10 +2742,6 @@ body.cards-interaction-hidden .board-card {
 .zone-right .player-avatar .avatar-image {
   width: var(--avatar-d-size);
   height: var(--avatar-d-size);
-}
-.self-status-avatar .avatar-image {
-  width: 100%;
-  height: 100%;
 }
 .avatar-picker-swatch .avatar-image {
   width: 1.6rem;
