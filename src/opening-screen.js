@@ -9,6 +9,11 @@
 // 「ローカル」はこのオーバーレイを閉じるだけ（＝今までの初期画面がそのまま現れる、
 // ローカルモードは元々デフォルトの起動状態のため特別な処理は不要）は引き続き
 // 小さなリンクとして残してある。
+//
+// ログインカードは背景のタイトルロゴにいきなり重なって見えるとの指摘があったため、
+// 起動直後は小さな「ログイン」ボタンだけを表示し、押した時だけカードを開く2段階構成に
+// 変更した（カード自体にも右上の✕でボタン表示へ戻せる、開き直してもオーバーレイ全体は
+// 閉じない）。
 
 import { openOnlinePanel } from "./online-ui.js";
 import {
@@ -88,8 +93,18 @@ export function initOpeningScreen() {
   const content = document.createElement("div");
   content.className = "opening-screen-content";
 
+  // 起動直後はこの小さなボタンだけを表示する（背景のタイトルロゴと重ならないように）。
+  // 押すとカードが開く。ログイン済みかどうかで文言を変える（非同期に取得するため、
+  // 判明するまでは無難な「ログイン」のまま）。
+  const loginToggleBtn = document.createElement("button");
+  loginToggleBtn.type = "button";
+  loginToggleBtn.className = "opening-screen-menu-btn";
+  loginToggleBtn.textContent = "ログイン";
+  content.appendChild(loginToggleBtn);
+
   const card = document.createElement("div");
   card.className = "opening-login-card";
+  card.style.display = "none";
   content.appendChild(card);
 
   overlay.appendChild(content);
@@ -103,6 +118,19 @@ export function initOpeningScreen() {
     }, CLOSE_TRANSITION_MS);
   }
 
+  function showCard() {
+    loginToggleBtn.style.display = "none";
+    card.style.display = "flex";
+    renderCard();
+  }
+
+  function hideCard() {
+    card.style.display = "none";
+    loginToggleBtn.style.display = "inline-block";
+  }
+
+  loginToggleBtn.addEventListener("click", showCard);
+
   function buildLocalLink() {
     const link = document.createElement("button");
     link.type = "button";
@@ -114,6 +142,7 @@ export function initOpeningScreen() {
 
   async function renderCard() {
     card.innerHTML = "";
+    card.appendChild(createModalCloseX(hideCard));
 
     const available = isOnlineAvailable();
     const user = available ? await getCurrentUser() : null;
@@ -263,5 +292,11 @@ export function initOpeningScreen() {
     moreSection.appendChild(magicBtn);
   }
 
-  renderCard();
+  // トグルボタンの文言だけ先に確認しておく（カードは開かない）。ログイン済みなら
+  // 最初から「ログイン中」と分かるようにするための軽い先読み。
+  (async () => {
+    if (!isOnlineAvailable()) return;
+    const user = await getCurrentUser();
+    if (user) loginToggleBtn.textContent = "🌐 ログイン中";
+  })();
 }

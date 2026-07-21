@@ -12,9 +12,22 @@
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 
 // 0=標準（assets/cards/back-{eternal,first,normal}.png）。
-// 1=画像素材/カード裏面追加/追加1（assets/cards/back-{eternal,first,normal}-1.png）。
-// 今後セットが増えたらこの配列に追記するだけでよい（ピッカーのグリッドも自動で増える）。
-const CARD_BACK_SETS = [0, 1];
+// 1=画像素材/カード裏面追加/追加旧（旧称「追加1」、assets/cards/back-{eternal,first,normal}-1.png）。
+// 2〜9=画像素材/カード裏面追加/追加{赤,橙,黄,緑,青,桃,紫,黒}（各色テーマのセット）。
+// 今後セットが増えたらこの配列とSET_LABELSに追記するだけでよい（ピッカーのグリッドも自動で増える）。
+const CARD_BACK_SETS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+const SET_LABELS = {
+  0: "標準",
+  1: "旧",
+  2: "赤",
+  3: "橙",
+  4: "黄",
+  5: "緑",
+  6: "青",
+  7: "桃",
+  8: "紫",
+  9: "黒",
+};
 
 let selectedSetIndex = 0;
 
@@ -55,7 +68,7 @@ export function openCardBackSkinPicker() {
     if (selectedSetIndex === idx) swatch.classList.add("is-selected");
     const img = document.createElement("img");
     img.src = backImagePath("normal", idx);
-    img.alt = idx === 0 ? "標準" : `追加${idx}`;
+    img.alt = SET_LABELS[idx] ?? `追加${idx}`;
     swatch.appendChild(img);
     swatch.addEventListener("click", () => {
       selectedSetIndex = idx;
