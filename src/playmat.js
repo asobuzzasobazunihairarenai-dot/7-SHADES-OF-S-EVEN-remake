@@ -6,17 +6,17 @@
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 
 export const PLAYMAT_OPTIONS = [
-  { id: "white", label: "白", path: "assets/playmats/white.png" },
-  { id: "black", label: "黒", path: "assets/playmats/black.png" },
-  { id: "red", label: "赤", path: "assets/playmats/red.png" },
-  { id: "orange", label: "橙", path: "assets/playmats/orange.png" },
-  { id: "yellow", label: "黄", path: "assets/playmats/yellow.png" },
-  { id: "green", label: "緑", path: "assets/playmats/green.png" },
-  { id: "blue", label: "青", path: "assets/playmats/blue.png" },
-  { id: "pink", label: "桃", path: "assets/playmats/pink.png" },
-  { id: "purple", label: "紫", path: "assets/playmats/purple.png" },
-  { id: "white-old", label: "白（旧）", path: "assets/playmats/white-old.png" },
-  { id: "blue-old", label: "青（旧）", path: "assets/playmats/blue-old.png" },
+  { id: "white", label: "白", path: "assets/playmats/white.webp" },
+  { id: "black", label: "黒", path: "assets/playmats/black.webp" },
+  { id: "red", label: "赤", path: "assets/playmats/red.webp" },
+  { id: "orange", label: "橙", path: "assets/playmats/orange.webp" },
+  { id: "yellow", label: "黄", path: "assets/playmats/yellow.webp" },
+  { id: "green", label: "緑", path: "assets/playmats/green.webp" },
+  { id: "blue", label: "青", path: "assets/playmats/blue.webp" },
+  { id: "pink", label: "桃", path: "assets/playmats/pink.webp" },
+  { id: "purple", label: "紫", path: "assets/playmats/purple.webp" },
+  { id: "white-old", label: "白（旧）", path: "assets/playmats/white-old.webp" },
+  { id: "blue-old", label: "青（旧）", path: "assets/playmats/blue-old.webp" },
 ];
 
 let selectedPlaymatId = "white";

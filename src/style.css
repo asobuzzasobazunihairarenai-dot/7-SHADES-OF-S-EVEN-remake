@@ -187,29 +187,55 @@ body {
 /* 手札公開エリア: 手札からドラッグで手動配置した「宣言」カード、または「公開ドロー」
    ボタンで山から引いたカードを、扇状の手札とは別に表面全体が見えるよう左寄せの一列に
    並べる場所（main.jsのbuildPlayerZone参照、findDropTargetがドラッグの受け皿にもなる）。
-   盤面のそば・プレイヤー名の下あたりがデフォルト位置（ユーザー要望）。.hand-areaと同じ
-   「中心基準+translateで自己センタリング」方式にし、管理者モードから
-   --hand-reveal-{bottom,top,left,right}-pos-x/yで個別に調整できるようにした。 */
+   盤面のそば・プレイヤー名の下あたりがデフォルト位置（ユーザー要望）。
+   ハマりどころ（ユーザー報告）: 当初.hand-areaと同じ「中心基準(-50%,-50%)+
+   flex-wrap:wrap」にしていたため、1枚目の位置が枚数に応じて左右に動いてしまい、かつ
+   4枚目で次の行に折り返してしまっていた。「1枚目の位置は固定・左端基準で右方向へ
+   永続的に増えていく」という要望に合わせ、水平方向の自己センタリング(-50%)を外して
+   左端をpos-xの位置に固定し（垂直方向だけ-50%で中央基準を維持）、flex-wrapもnowrapに
+   変更した（何枚積んでも折り返さず右へ伸び続ける）。 */
 .hand-reveal-area {
   position: absolute;
   top: 50%;
   left: 50%;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.5rem;
   z-index: 1;
 }
 .hand-reveal-bottom {
-  transform: translate(-50%, -50%) translate(var(--hand-reveal-bottom-pos-x, 0rem), var(--hand-reveal-bottom-pos-y, 6rem));
+  transform: translate(0, -50%) translate(var(--hand-reveal-bottom-pos-x, 0rem), var(--hand-reveal-bottom-pos-y, 6rem));
 }
 .hand-reveal-top {
-  transform: translate(-50%, -50%) translate(var(--hand-reveal-top-pos-x, 0rem), var(--hand-reveal-top-pos-y, -6rem));
+  transform: translate(0, -50%) translate(var(--hand-reveal-top-pos-x, 0rem), var(--hand-reveal-top-pos-y, -6rem));
 }
 .hand-reveal-left {
-  transform: translate(-50%, -50%) translate(var(--hand-reveal-left-pos-x, -8rem), var(--hand-reveal-left-pos-y, 0rem));
+  transform: translate(0, -50%) translate(var(--hand-reveal-left-pos-x, -8rem), var(--hand-reveal-left-pos-y, 0rem));
 }
 .hand-reveal-right {
-  transform: translate(-50%, -50%) translate(var(--hand-reveal-right-pos-x, 8rem), var(--hand-reveal-right-pos-y, 0rem));
+  transform: translate(0, -50%) translate(var(--hand-reveal-right-pos-x, 8rem), var(--hand-reveal-right-pos-y, 0rem));
+}
+/* 手札公開エリアの一時的な可視化（管理者モードのデバッグ用トグル）。中身が空だと
+   枠線・背景を一切持たないため、B/C/Dの分がどこにあるか見つけられないという報告への
+   対応。有効な間だけ、中身の有無に関わらず枠線とプレイヤー名のラベルを表示する。 */
+body.hand-reveal-debug-visible .hand-reveal-area {
+  min-width: 2rem;
+  min-height: 2rem;
+  border: 2px dashed rgba(56, 189, 248, 0.85);
+  background: rgba(56, 189, 248, 0.12);
+  border-radius: 0.3rem;
+}
+body.hand-reveal-debug-visible .hand-reveal-area::before {
+  content: "手札公開エリア (" attr(data-player) ")";
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  font-size: 0.55rem;
+  white-space: nowrap;
+  color: #7dd3fc;
+  background: rgba(15, 23, 32, 0.85);
+  border-radius: 0.2rem;
+  padding: 0.05rem 0.3rem;
 }
 /* 1枚ごとに「カード＋捨てるボタン」を縦に積んだ単位。 */
 .hand-reveal-slot {
@@ -280,7 +306,7 @@ body {
    カメラ目線に傾けた後の画面座標系でシフトするようにしている。 */
 :root {
   --hand-a-pos-x: 0rem;
-  --hand-a-pos-y: -1.5rem;
+  --hand-a-pos-y: 4.3rem;
   --hand-b-pos-x: -0.3rem;
   --hand-b-pos-y: 0rem;
   --hand-c-pos-x: 0rem;
@@ -309,7 +335,14 @@ body {
    .player-zoneの中心を基準に配置されるようにする。 */
 .zone-bottom .hand-area {
   height: var(--hand-a-thickness);
-  transform: translate(-50%, -50%) translate(var(--hand-a-pos-x), var(--hand-a-pos-y)) rotateX(-40deg) translateZ(2.4rem);
+  transform: translate(-50%, -50%) translate(var(--hand-a-pos-x), var(--hand-a-pos-y)) rotateX(-40deg)
+    translateZ(2.4rem);
+  /* 自分の手札をあえて画面下部で見切れさせている時の「ひょこっと持ち上げ」機能
+     （main.jsのsetHandPeeked参照）。transitionだけここに残し、実際の持ち上げ位置は
+     JS側からinline style（transform）を直接書き換える方式にしてある——preserve-3d+
+     perspectiveが何重にも重なった深い3D階層では、既存ノードのtransformがカスタム
+     プロパティの変更だけでは再計算されないケースが実機検証で判明したため。 */
+  transition: transform 0.25s ease-out;
 }
 
 .zone-top .hand-area {
@@ -347,10 +380,10 @@ body {
 
 /* 自分の手札は視認性優先で大きく表示する */
 .hand-card.is-self {
-  width: var(--hand-card-self-size, 5.8rem);
-  height: var(--hand-card-self-size, 5.8rem);
-  margin-top: calc(var(--hand-card-self-size, 5.8rem) / -2);
-  margin-left: calc(var(--hand-card-self-size, 5.8rem) / -2);
+  width: var(--hand-card-self-size, 10.1rem);
+  height: var(--hand-card-self-size, 10.1rem);
+  margin-top: calc(var(--hand-card-self-size, 10.1rem) / -2);
+  margin-left: calc(var(--hand-card-self-size, 10.1rem) / -2);
   font-size: 0.62rem;
 }
 
@@ -506,7 +539,7 @@ body {
   transform: rotate(90deg);
 }
 
-/* カードが新しくロックされた瞬間だけの使い捨て演出（画像素材/ロック/、assets/lock-icon.png
+/* カードが新しくロックされた瞬間だけの使い捨て演出（画像素材/ロック/、assets/lock-icon.webp
    にコピー）。ロックされている間ずっと表示され続けるものではなく、ロックした瞬間に
    カード中心からカードより大きく拡大しながらフェードアウトする一発演出（main.jsの
    spawnLockStamp/triggerLockEffect参照。到達演出の柱状オーラと同じ「使い捨てDOM要素を
@@ -519,7 +552,7 @@ body {
   width: 55%;
   height: 55%;
   transform: translate(-50%, -50%) scale(0.4);
-  background-image: url("../assets/lock-icon.png");
+  background-image: url("../assets/lock-icon.webp");
   background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
@@ -1595,7 +1628,7 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
 }
 
 /* ロックエリアバー: ロックエリアと盤面の間に置く装飾画像（画像素材/ロックエリアバー/、
-   assets/lock-area-bar.pngにコピー）。画像自体は横長の1枚絵なので、外側の位置決め用ボックス
+   assets/lock-area-bar.webpにコピー）。画像自体は横長の1枚絵なので、外側の位置決め用ボックス
    （top/bottomはそのまま横長、left/rightは幅高さを入れ替えた縦長）と、中の画像用要素
    （常に横長のまま、left/rightだけCSSでrotate(90deg)）を分けている。回転による見た目上の
    ズレを、外側ボックスの位置決め計算に混ぜずに済むようにするため。表示/非表示はオプション
@@ -1623,7 +1656,7 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
   left: 50%;
   width: calc(var(--lock-band-length) * var(--lock-bar-scale));
   height: calc(var(--lock-bar-thickness) * var(--lock-bar-scale));
-  background-image: url("../assets/lock-area-bar.png");
+  background-image: url("../assets/lock-area-bar.webp");
   background-size: 100% 100%;
   background-repeat: no-repeat;
   transform: translate(-50%, -50%);
@@ -2984,8 +3017,8 @@ body.cards-interaction-hidden .board-card {
   height: 1.6rem;
 }
 .start-player-avatar .avatar-image {
-  width: 4rem;
-  height: 4rem;
+  width: var(--start-player-avatar-size, 4rem);
+  height: var(--start-player-avatar-size, 4rem);
   margin: 0 auto; /* avatar-imageはdisplay:blockのため、親のtext-align:centerでは中央寄せされない */
 }
 

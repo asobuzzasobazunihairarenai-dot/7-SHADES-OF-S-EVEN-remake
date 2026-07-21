@@ -11,7 +11,7 @@
 
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 
-// 0=標準（assets/cards/back-{eternal,first,normal}.png）。
+// 0=標準（assets/cards/back-{eternal,first,normal}.webp）。
 // 1=画像素材/カード裏面追加/追加旧（旧称「追加1」、assets/cards/back-{eternal,first,normal}-1.png）。
 // 2〜9=画像素材/カード裏面追加/追加{赤,橙,黄,緑,青,桃,紫,黒}（各色テーマのセット）。
 // 今後セットが増えたらこの配列とSET_LABELSに追記するだけでよい（ピッカーのグリッドも自動で増える）。
@@ -37,7 +37,10 @@ export function getCardBackSetIndex() {
 
 export function backImagePath(kind, idx) {
   const suffix = idx === 0 ? "" : `-${idx}`;
-  return `assets/cards/back-${kind}${suffix}.png`;
+  // 標準セット(0)だけWebPに変換済み。追加セット(1〜9、画像素材/カード裏面追加/配下)は
+  // 未変換のままPNGなので、拡張子をセットごとに出し分ける必要がある。
+  const ext = idx === 0 ? "webp" : "png";
+  return `assets/cards/back-${kind}${suffix}.${ext}`;
 }
 
 // setup-animation.js/remote-move-animator.jsと同じ「main.jsから自分の関数を注入してもらう」

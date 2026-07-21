@@ -21,6 +21,7 @@ import { resetVictoryTracking } from "./victory.js";
 import { PLAYMAT_OPTIONS, getSelectedPlaymatId, setSelectedPlaymatId } from "./playmat.js";
 import { animateFirstCardsDealt, animateBoardFilled } from "./setup-animation.js";
 import { applyAvatarContent } from "./avatar-render.js";
+import { getSelfSeat } from "./online.js";
 
 // 2人/3人プレイ時、座席自動選択モード（管理者モードのトグルがオフの時）で使う座席。
 // 2人=対面(A・C)、3人=Dを除いた3隅。4人は常に全員。
@@ -47,7 +48,7 @@ function activePlayersOrdered() {
 // 両方で閉じられる、ui-helpers.jsの共通部品を使う）。
 // fadeIn:trueにすると、いきなり表示せず少し溜めてからフェードインする
 // （スタートプレイヤー決定のような「発表」演出に重みを持たせるため）。
-function buildSimpleModal({ widthRem = 24, fadeIn = false } = {}) {
+function buildSimpleModal({ widthRem = 24, fadeIn = false, autoDismissMs = null, onClose = null } = {}) {
   const modal = document.createElement("div");
   modal.style.cssText = `
     position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -59,6 +60,7 @@ function buildSimpleModal({ widthRem = 24, fadeIn = false } = {}) {
   const close = () => {
     backdrop.remove();
     modal.remove();
+    onClose?.();
   };
   const backdrop = createBackdrop(close, { zIndex: 10001 });
   modal.appendChild(createModalCloseX(close));
@@ -78,11 +80,19 @@ function buildSimpleModal({ widthRem = 24, fadeIn = false } = {}) {
       modal.style.opacity = "1";
     }, 500);
   }
+  // ハマりどころ: このモーダルの背景(backdrop)は画面全体を覆うposition:fixedの要素
+  // （z-index:10001）で、閉じるまで盤面上のどんな操作（駒/カードのドラッグ、手札公開
+  // エリアの「捨てる」ボタン等）も一切受け付けなくなる。フェードインが控えめなことも
+  // あり閉じ忘れやすく、「何をクリックしても反応しない」という形で発覚しがちなため、
+  // 一定時間で自動的に閉じる保険を用意した（ユーザーが閉じ忘れても詰まない安全策）。
+  if (autoDismissMs) {
+    setTimeout(close, autoDismissMs);
+  }
   return { backdrop, modal, close };
 }
 
-function showStartPlayerModal(player) {
-  const { modal } = buildSimpleModal({ widthRem: 20, fadeIn: true });
+function showStartPlayerModal(player, { onClose = null, autoDismissMs = 8000 } = {}) {
+  const { modal } = buildSimpleModal({ widthRem: 20, fadeIn: true, autoDismissMs, onClose });
   const title = document.createElement("div");
   title.style.cssText = "font-weight: bold; margin-bottom: 0.6rem; font-size: 0.95rem;";
   title.textContent = "３：スタートプレイヤー決定";
@@ -91,7 +101,8 @@ function showStartPlayerModal(player) {
   // （文字だけの通知だと地味で見落としやすい、という要望への対応）。
   const avatarEl = document.createElement("div");
   avatarEl.className = "start-player-avatar";
-  avatarEl.style.cssText = "font-size: 4rem; text-align: center; line-height: 1; margin: 0.4rem 0;";
+  avatarEl.style.cssText =
+    "font-size: var(--start-player-avatar-size, 4rem); text-align: center; line-height: 1; margin: 0.4rem 0;";
   applyAvatarContent(avatarEl, getPlayerAvatar(player));
 
   const nameEl = document.createElement("div");
@@ -106,6 +117,30 @@ function showStartPlayerModal(player) {
   modal.appendChild(avatarEl);
   modal.appendChild(nameEl);
   modal.appendChild(body);
+}
+
+// 管理者モードの「スタートプレイヤー決定モーダルのアバターサイズ」スライダーから、実際に
+// このゲーム進行とは無関係な「仮」のモーダルを出して見た目を確認できるようにする
+// （admin.jsのregisterStartPlayerPreviewHelper経由で呼ばれる）。自分の座席の名前・
+// アバターで表示する（実際のゲーム状態は一切変更しない、見た目の確認専用）。
+// スライダーをドラッグする間に何度も呼ばれても、既に仮モーダルが開いていれば新しく
+// 積み増さない（CSS変数自体はroot側で変わるので、開いたままのモーダルにもそのまま
+// ライブ反映される。閉じている時だけ新しく開き直す）。onCloseコールバックで、✕/外側
+// クリック/自動タイムアウトのどの閉じ方でもフラグを確実に戻す。
+// ハマりどころ: 本来のautoDismissMs(8秒)はゲームプレイを止めないための安全策だが、
+// これをプレビューにもそのまま使うと、調整中にスライダーをじっくり動かしている途中で
+// モーダルが勝手に消えてしまう（実測で発覚）。プレビューはあくまで管理者自身の画面上の
+// 一時的な確認用で「ゲームを止める」リスクが無いため、もっと長い猶予（30秒）にしている。
+let previewModalOpen = false;
+export function previewStartPlayerModal() {
+  if (previewModalOpen) return;
+  previewModalOpen = true;
+  showStartPlayerModal(getSelfSeat(), {
+    autoDismissMs: 30000,
+    onClose: () => {
+      previewModalOpen = false;
+    },
+  });
 }
 
 // パネル内に「０：プレイ人数選択、白黒カード確認」のフォームを直接展開する

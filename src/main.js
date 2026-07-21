@@ -1,9 +1,15 @@
 // Phase 1: 盤面・手札・山札等を描画し、駒とカードをドラッグ操作で自由に動かせるようにする。
 // ルール処理は行わない（ユドナリウムコネクトのような手動サンドボックス）。
 
-import { initAdminMode, getUsableLockedEffect, isGatePedestalVisible, isSelfBoardAvatarVisible } from "./admin.js";
+import {
+  initAdminMode,
+  getUsableLockedEffect,
+  isGatePedestalVisible,
+  isSelfBoardAvatarVisible,
+  registerStartPlayerPreviewHelper,
+} from "./admin.js";
 import { initDeckViewer } from "./deck-viewer.js";
-import { initGameSetup } from "./game-setup.js";
+import { initGameSetup, previewStartPlayerModal } from "./game-setup.js";
 import { initOptionsMenu } from "./options-menu.js";
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
 import { announceHandPickups, announceCardLocked } from "./hand-announcer.js";
@@ -34,7 +40,7 @@ import { initTurnTimer } from "./turn-timer.js";
 import { initIconRearrange } from "./icon-rearrange.js";
 import { initSelfStatusRearrange } from "./self-status-rearrange.js";
 import { initInteractionModeToggle } from "./interaction-mode.js";
-import { initDeviceDetect } from "./device-detect.js";
+import { initDeviceDetect, isTouchPrimaryDevice } from "./device-detect.js";
 import { registerRenderHelpers, animateFirstCardsDealt, animateBoardFilled } from "./setup-animation.js";
 import {
   registerRemoteMoveAnimatorHelpers,
@@ -1107,11 +1113,6 @@ const DUMMY_ICON_RETURN_TO_VIEW = dummyIconDataUri(
 const DUMMY_ICON_REGISTER_VIEW = dummyIconDataUri(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>'
 );
-// 「公開ドロー」ボタン用の仮アイコン（カード＋目のマーク＝「みんなに見える」を表す）。
-// 実物のアイコンが用意でき次第、buildPublicDrawButton()のicon指定を差し替えるだけでよい。
-const DUMMY_ICON_PUBLIC_DRAW = dummyIconDataUri(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12c2.5-3 5-4.5 9-4.5s6.5 1.5 9 4.5c-2.5 3-5 4.5-9 4.5s-6.5-1.5-9-4.5z"/><circle cx="12" cy="12" r="2"/></svg>'
-);
 
 let resizeTimer;
 window.addEventListener("resize", () => {
@@ -1381,6 +1382,72 @@ function initHoverHandlers() {
     clearHover();
     updatePreview(null);
   });
+}
+
+// 自分の手札をあえて画面下部で見切れさせている場合向け（ユーザー要望）: PCではホバーで、
+// タブレットではタップで、手札全体が「ひょこっと」持ち上がる（--hand-a-peek-liftで
+// 持ち上げ量を管理者モードから調整可能）。自分の手札は常に画面手前（.zone-bottom）に来る
+// （視点回転済み）ため、この1箇所だけを見ればよい。
+// PC: マウス位置が.hand-areaの矩形内にあるかをpointermoveのたびに判定する
+// （pointerenter/leaveは子要素間の出入りのたびに発火してしまい、扇状に開いた個々の
+// カードの隙間で頻繁にON/OFFが切り替わってしまうため、親のhand-area全体を1つの矩形として
+// 判定する）。タブレット: タップした瞬間に手札の中かどうかで単純にON/OFFを切り替える
+// （「関係ないところをタップすると元に戻る」という要望通り）。
+// ハマりどころ（重要）: 当初はクラス(.is-peeked)を付け外しし、CSS側で
+// --hand-peek-offset-yというカスタムプロパティをcalc()経由でtransformに反映する方式に
+// していたが、実機で検証したところ「クラス自体は正しく付いており、カスタムプロパティの
+// 計算値も正しいのに、既にレンダリング済みの.hand-area要素のtransformが再計算されず
+// 見た目が一切変わらない」という不具合が判明した（render()でDOMごと作り直した直後の
+// 新規ノードでは正しく反映されるため、preserve-3d+perspectiveが何重にも重なった深い
+// 3D階層の中で、既存ノードのtransform再計算がカスタムプロパティ変更だけでは走らない、
+// というこのブラウザ特有の癖と判断——このプロジェクトで何度も遭遇してきた「深い3D
+// transform階層は仕様通りに振る舞うとは限らない」の新しいパターン）。回避策として、
+// クラスの付け外しに頼らず、transformプロパティ自体をJSから直接書き換える（インライン
+// スタイル）方式に変更した。これなら3D階層の再計算に頼らず確実に効く。
+let handPeeked = false;
+function setHandPeeked(peeked) {
+  if (handPeeked === peeked) return;
+  handPeeked = peeked;
+  const handArea = document.querySelector(".zone-bottom .hand-area");
+  if (!handArea) return;
+  if (!peeked) {
+    handArea.style.transform = "";
+    return;
+  }
+  const rootStyle = getComputedStyle(document.documentElement);
+  const posX = rootStyle.getPropertyValue("--hand-a-pos-x").trim() || "0rem";
+  const posY = rootStyle.getPropertyValue("--hand-a-pos-y").trim() || "0rem";
+  const lift = rootStyle.getPropertyValue("--hand-a-peek-lift").trim() || "-10rem";
+  handArea.style.transform =
+    `translate(-50%, -50%) translate(${posX}, calc(${posY} + (${lift}))) ` + `rotateX(-40deg) translateZ(2.4rem)`;
+}
+function initHandPeek() {
+  window.addEventListener("pointermove", (e) => {
+    if (isTouchPrimaryDevice()) return; // タブレットはタップ専用（下のpointerdown参照）
+    const handArea = document.querySelector(".zone-bottom .hand-area");
+    if (!handArea) return;
+    const r = handArea.getBoundingClientRect();
+    const within = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+    setHandPeeked(within);
+  });
+  window.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (!isTouchPrimaryDevice()) return;
+      // ハマりどころ: e.target.closest(...)によるネイティブのヒットテストは、深い
+      // preserve-3d階層の中では実際に見えている要素と食い違うことがある（このプロジェクトで
+      // 繰り返し確認済み。実測でも.hand-area自身の中心座標でelementFromPointを呼ぶと
+      // 親の.player-zoneが返ってきた）。pointermove側と同じ、矩形の座標包含判定に揃える。
+      const handArea = document.querySelector(".zone-bottom .hand-area");
+      const r = handArea?.getBoundingClientRect();
+      const withinHand = !!r && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+      setHandPeeked(withinHand);
+    },
+    // キャプチャフェーズにはしない: 手札のドラッグ開始判定(#game-tableのpointerdown)を
+    // 妨げてはいけないため、素直にbubbleフェーズで拾うだけの読み取り専用リスナーにする
+    // （preventDefault/stopPropagationは一切呼ばない）。
+    false
+  );
 }
 
 // --- 右クリックメニュー ---------------------------------------------------
@@ -2773,7 +2840,7 @@ function buildPublicDrawButton() {
   const btn = document.createElement("button");
   btn.id = "public-draw-button";
   const { captionEl } = buildIconButtonContent(btn, {
-    icon: DUMMY_ICON_PUBLIC_DRAW,
+    icon: "assets/icons/public-draw.svg",
     tooltip: "山札から1枚、表向きで公開ドローします",
   });
   captionEl.textContent = "公開ドロー";
@@ -3072,11 +3139,13 @@ handShuffleButtonEl = buildHandShuffleButton();
 render();
 initDragHandlers();
 initHoverHandlers();
+initHandPeek();
 initContextMenuHandlers();
 initCameraControls();
 initAdminMode();
 initDeckViewer();
 initGameSetup();
+registerStartPlayerPreviewHelper(previewStartPlayerModal);
 initOptionsMenu();
 initPlayerButtons();
 initQuickStart();

@@ -1,6 +1,6 @@
 // プレイヤーの表示名・アバターを管理する。名前はいつでも自由に変更できる（デフォルトは
 // board-layout.jsのSEAT_LABELS）。アバターは実物の画像素材（画像素材/アバター/アバター1、
-// 7色×正面/左向き/右向きの3方向）をassets/avatars/${color}-{front,left,right}.pngとして
+// 7色×正面/左向き/右向きの3方向）をassets/avatars/${color}-{front,left,right}.webpとして
 // コピーして使う（他の実物画像素材と同じ理由でgit管理外、.gitignoreの/assets/avatars/参照）。
 // 以前の絵文字ダミーセットは撤去した。
 // 座席(A/B/C/D)ごとに保持するだけで、誰がどのプレイヤーかという実データ（state.jsの
@@ -22,13 +22,13 @@ import { isOnlineMode, getSelfSeat, getSyncedIdentity, updateMyIdentity } from "
 // 常にfront版を保持し、実際に表示する場所（盤面上の席・ステータスエリア等）に応じた
 // 向きの差し替えはavatar-render.jsのgetAvatarVariant()で行う。
 const AVATAR_COLORS = ["red", "orange", "yellow", "green", "blue", "pink", "purple"];
-export const AVATAR_OPTIONS = AVATAR_COLORS.map((color) => `assets/avatars/${color}-front.png`);
+export const AVATAR_OPTIONS = AVATAR_COLORS.map((color) => `assets/avatars/${color}-front.webp`);
 
 const DEFAULT_AVATARS = {
-  A: "assets/avatars/red-front.png",
-  B: "assets/avatars/orange-front.png",
-  C: "assets/avatars/yellow-front.png",
-  D: "assets/avatars/green-front.png",
+  A: "assets/avatars/red-front.webp",
+  B: "assets/avatars/orange-front.webp",
+  C: "assets/avatars/yellow-front.webp",
+  D: "assets/avatars/green-front.webp",
 };
 
 let customNames = {};

@@ -67,7 +67,7 @@ export function getCardDefinition(cardId) {
 // （.gitignoreの/assets/cards/参照）。画像自体にタイトル・色・効果テキストまで描かれているため、
 // 表向きの時はこの画像を表示するだけでよく、別途テキストを重ねて表示する必要はない。
 export function getCardImagePath(cardId) {
-  return `assets/cards/${cardId}.png`;
+  return `assets/cards/${cardId}.webp`;
 }
 
 // 裏面は「通常カード」「エターナルカード」「ファーストカード」でデザインが違う（物理カードと

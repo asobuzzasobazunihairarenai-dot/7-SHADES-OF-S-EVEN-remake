@@ -5,6 +5,14 @@
 
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 
+// game-setup.jsは既にadmin.js（isManualSeatMode）をimportしているため、admin.js側から
+// game-setup.jsを直接importすると循環importになる。他の箇所（setup-animation.js等）と
+// 同じ「main.js経由で実際の関数を注入してもらう」パターンで回避する。
+let startPlayerPreviewFn = null;
+export function registerStartPlayerPreviewHelper(fn) {
+  startPlayerPreviewFn = fn;
+}
+
 // 大項目（カテゴリ）。項目が増えて縦に長くなりすぎたため、各グループ/トグルセクションを
 // さらにこの単位でまとめる。GROUPS各要素・TOGGLE_SECTIONS各要素の`category`フィールドで
 // どのカテゴリに属するか指定する。
@@ -49,6 +57,24 @@ const GROUPS = [
     controls: [
       { key: "--card-arrival-modal-size", label: "大きさ", unit: "rem", min: 8, max: 40, step: 0.5, default: 25 },
       { key: "--card-arrival-modal-duration", label: "表示時間（秒）", unit: "", min: 1, max: 15, step: 0.5, default: 5 },
+    ],
+  },
+  {
+    // スライダーを触った瞬間、実際に「仮」のスタートプレイヤー決定モーダルが出て見た目を
+    // 確認できる（previewOnInteract、game-setup.jsのpreviewStartPlayerModal参照）。
+    title: "スタートプレイヤー決定モーダルのアバターサイズ",
+    category: "effect",
+    controls: [
+      {
+        key: "--start-player-avatar-size",
+        label: "アバターの大きさ",
+        unit: "rem",
+        min: 1,
+        max: 12,
+        step: 0.1,
+        default: 4,
+        previewOnInteract: () => startPlayerPreviewFn?.(),
+      },
     ],
   },
   {
@@ -256,7 +282,7 @@ const GROUPS = [
     category: "position",
     controls: [
       { key: "--hand-a-pos-x", label: "A（自分）位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
-      { key: "--hand-a-pos-y", label: "A（自分）位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: -1.5 },
+      { key: "--hand-a-pos-y", label: "A（自分）位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 4.3 },
       { key: "--hand-b-pos-x", label: "B 位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: -0.3 },
       { key: "--hand-b-pos-y", label: "B 位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
       { key: "--hand-c-pos-x", label: "C 位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
@@ -286,6 +312,16 @@ const GROUPS = [
     ],
   },
   {
+    // 自分の手札をあえて画面下部で見切れさせている場合向け。ホバー(PC)/タップ(タブレット)
+    // すると、ここで指定した分だけ手札全体が「ひょこっと」持ち上がる（main.jsの
+    // initHandPeek参照）。マイナスの値で上方向に動く。
+    title: "自分の手札：ホバー/タップで持ち上げる量",
+    category: "position",
+    controls: [
+      { key: "--hand-a-peek-lift", label: "持ち上げ量", unit: "rem", min: -20, max: 0, step: 0.5, default: -10 },
+    ],
+  },
+  {
     // 上の「手札エリアのサイズ」は扇が広がる範囲（枚数に応じて伸縮する当たり判定の箱）で、
     // カード1枚自体の見た目の大きさとは別物（ユーザーから「手札エリアのサイズ変更は見当たる
     // けど、手札自体のサイズ変更が見当たらない」と指摘され追加）。中心基準(top/left:50%)の
@@ -293,7 +329,7 @@ const GROUPS = [
     title: "手札カード自体のサイズ（1枚あたりの見た目の大きさ）",
     category: "position",
     controls: [
-      { key: "--hand-card-self-size", label: "自分の手札", unit: "rem", min: 2, max: 12, step: 0.1, default: 5.8 },
+      { key: "--hand-card-self-size", label: "自分の手札", unit: "rem", min: 2, max: 12, step: 0.1, default: 10.1 },
       { key: "--hand-card-opponent-size", label: "相手の手札", unit: "rem", min: 1, max: 8, step: 0.1, default: 2.6 },
     ],
   },
@@ -491,6 +527,13 @@ let selfBoardAvatarVisible = false;
 export function isSelfBoardAvatarVisible() {
   return selfBoardAvatarVisible;
 }
+
+// 手札公開エリア(.hand-reveal-area)は、中身が空の間は枠線・背景を一切持たない透明な
+// 領域のため、B/C/Dの分がどこにあるか画面上から見つけられない、というユーザー報告への
+// 対応。一時的にデバッグ用の枠線・ラベルを表示するトグル（デフォルトOFF、本番のゲーム
+// プレイには不要な確認用ツールのため）。style.cssのbody.hand-reveal-debug-visible配下の
+// ルールが実際の見た目を担当する。
+let handRevealDebugVisible = false;
 
 // 画面全体の明るさモード。「スタンダードモード」（デフォルト、従来通り）と
 // 「スポットライトモード」（盤面付近だけ明るく、周辺を暗くする）。main.jsが
@@ -706,6 +749,28 @@ const TOGGLE_SECTIONS = [
       selfAvatarRow.appendChild(selfAvatarCheckbox);
       selfAvatarRow.appendChild(selfAvatarLabel);
       content.appendChild(selfAvatarRow);
+    },
+  },
+  {
+    title: "手札公開エリアの一時的な可視化（デバッグ用）",
+    category: "effect",
+    buildContent: (content) => {
+      const revealDebugRow = document.createElement("label");
+      revealDebugRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const revealDebugCheckbox = document.createElement("input");
+      revealDebugCheckbox.type = "checkbox";
+      revealDebugCheckbox.checked = handRevealDebugVisible;
+      revealDebugCheckbox.addEventListener("change", () => {
+        handRevealDebugVisible = revealDebugCheckbox.checked;
+        document.body.classList.toggle("hand-reveal-debug-visible", handRevealDebugVisible);
+        updateExportRef.current();
+      });
+      const revealDebugLabel = document.createElement("span");
+      revealDebugLabel.textContent =
+        "全員の手札公開エリアに枠線とラベルを表示する（中身が空でも位置確認できる。確認用、常時ONにする想定ではない）";
+      revealDebugRow.appendChild(revealDebugCheckbox);
+      revealDebugRow.appendChild(revealDebugLabel);
+      content.appendChild(revealDebugRow);
     },
   },
   {
@@ -963,6 +1028,14 @@ function buildPanel(rebuildSlidersRef) {
         slider.value = String(initial);
         valueLabel.textContent = `${initial}${c.unit}`;
 
+        // このコントロールが実際の画面上に「仮」で見た目を出すプレビュー機能を持つ場合
+        // （例: スタートプレイヤー決定モーダルのアバターサイズ）、触り始めた瞬間に一度だけ
+        // 呼ぶ。ドラッグ中に何度も呼ばれても実際に開くかどうかはプレビュー側の実装が
+        // 重複防止する（game-setup.jsのpreviewStartPlayerModal参照）。
+        if (c.previewOnInteract) {
+          slider.addEventListener("pointerdown", () => c.previewOnInteract());
+        }
+
         slider.addEventListener("input", () => {
           setVar(c.key, slider.value, c.unit);
           valueLabel.textContent = `${slider.value}${c.unit}`;
@@ -1065,6 +1138,7 @@ function buildPanel(rebuildSlidersRef) {
       `cardArrivalModalPersistent: ${cardArrivalModalPersistent}`,
       `gatePedestalVisible: ${gatePedestalVisible}`,
       `selfBoardAvatarVisible: ${selfBoardAvatarVisible}`,
+      `handRevealDebugVisible: ${handRevealDebugVisible}`,
       `spotlightMode: ${spotlightMode}`,
       `turnTimerEnabled: ${turnTimerEnabled}`,
       `initialHourglassStock: ${initialHourglassStock}`,

@@ -28,7 +28,7 @@ import { COLORS } from "./board-layout.js";
 // 値（バリエーション番号の選択自体は色に依存しないため、どの色で見せても選択結果は同じ）。
 const PREVIEW_FALLBACK_COLOR = COLORS[0];
 
-const SKIN_VARIANTS = [0, 1, 2, 3, 4, 5, 6, 7]; // 0=標準（assets/pieces/${color}.png）
+const SKIN_VARIANTS = [0, 1, 2, 3, 4, 5, 6, 7]; // 0=標準（assets/pieces/${color}.webp）
 
 let preferredSkinIndex = 0;
 let hasLocalPreference = false;
@@ -66,7 +66,7 @@ export function getSkinImagePath(color, seat) {
     const synced = getSyncedIdentity(seat)?.pieceSkinIndex;
     if (typeof synced === "number") idx = synced;
   }
-  return idx === 0 ? `assets/pieces/${color}.png` : `assets/pieces/${color}-${idx}.png`;
+  return idx === 0 ? `assets/pieces/${color}.webp` : `assets/pieces/${color}-${idx}.webp`;
 }
 
 export function getMyPieceColor() {
@@ -107,7 +107,7 @@ export function openPieceSkinPicker() {
     swatch.className = "piece-skin-swatch";
     if ((hasLocalPreference ? preferredSkinIndex : 0) === idx) swatch.classList.add("is-selected");
     const img = document.createElement("img");
-    img.src = idx === 0 ? `assets/pieces/${color}.png` : `assets/pieces/${color}-${idx}.png`;
+    img.src = idx === 0 ? `assets/pieces/${color}.webp` : `assets/pieces/${color}-${idx}.webp`;
     img.alt = idx === 0 ? "標準" : `追加${idx}`;
     swatch.appendChild(img);
     swatch.addEventListener("click", () => {
