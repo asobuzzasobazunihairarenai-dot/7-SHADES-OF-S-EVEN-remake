@@ -7,6 +7,7 @@ import { getState } from "./state.js";
 import { COLORS, SEAT_TO_SIDE } from "./board-layout.js";
 import { getPlayerName } from "./player-identity.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { playSound } from "./sound.js";
 
 let announcedPlayers = new Set();
 
@@ -27,7 +28,24 @@ function hasAllSevenLocked(player) {
   return COLORS.every((_color, index) => lockedIndexes.has(index));
 }
 
+// 「最後のロック承認」機能（main.js）用: あるプレイヤーのロックエリアの空きスロット
+// (newIndex)にカードを1枚ロックしたと仮定した場合、それによって7色すべてが揃う
+// （＝勝利になる）かどうかを判定する。既に埋まっているスロットへの判定は「今回の追加では
+// 変化なし」としてfalseを返す（置き換えではなく新規ロックのみを対象にするため）。
+export function wouldCompleteLockWithNewIndex(player, newIndex) {
+  const side = SEAT_TO_SIDE[player];
+  const lockedIndexes = new Set(
+    getState()
+      .tokens.filter((t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side)
+      .map((t) => t.location.index)
+  );
+  if (lockedIndexes.has(newIndex)) return false;
+  lockedIndexes.add(newIndex);
+  return COLORS.every((_color, index) => lockedIndexes.has(index));
+}
+
 function showVictoryModal(player) {
+  playSound("victory");
   const modal = document.createElement("div");
   modal.id = "victory-modal";
   const close = () => {

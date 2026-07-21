@@ -337,12 +337,6 @@ body.hand-reveal-debug-visible .hand-reveal-area::before {
   height: var(--hand-a-thickness);
   transform: translate(-50%, -50%) translate(var(--hand-a-pos-x), var(--hand-a-pos-y)) rotateX(-40deg)
     translateZ(2.4rem);
-  /* 自分の手札をあえて画面下部で見切れさせている時の「ひょこっと持ち上げ」機能
-     （main.jsのsetHandPeeked参照）。transitionだけここに残し、実際の持ち上げ位置は
-     JS側からinline style（transform）を直接書き換える方式にしてある——preserve-3d+
-     perspectiveが何重にも重なった深い3D階層では、既存ノードのtransformがカスタム
-     プロパティの変更だけでは再計算されないケースが実機検証で判明したため。 */
-  transition: transform 0.25s ease-out;
 }
 
 .zone-top .hand-area {
@@ -385,6 +379,10 @@ body.hand-reveal-debug-visible .hand-reveal-area::before {
   margin-top: calc(var(--hand-card-self-size, 10.1rem) / -2);
   margin-left: calc(var(--hand-card-self-size, 10.1rem) / -2);
   font-size: 0.62rem;
+  /* ホバー(PC)/タップ(タブレット)で1枚だけ「ひょこっと」持ち上がる演出
+     （main.jsのsetPeekedCard参照。JS側がtransformを直接書き換えるため、ここでは
+     滑らかにするtransitionだけを持たせる）。 */
+  transition: transform 0.2s ease-out;
 }
 
 /* ハマりどころ: ここは元々`background:`ショートハンドで指定していたが、ショートハンドは
@@ -1526,6 +1524,32 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
   padding: 1rem;
   border-radius: 0.75rem;
   position: relative;
+}
+
+/* 背景画像（ユーザー提供、プレイマットよりさらに大きい「背景」イメージ）。プレイマット
+   (.playmat-bg、z-index:1)よりさらに背面(z-index:0)に、同じ「.boardの固定サイズを基準に
+   transform:scaleで拡大」の考え方で配置する。中心を合わせる基準はプレイマットと同じ
+   .board中心なので、拡大率だけ変えれば自然とプレイマットの背後に大きくはみ出して見える。 */
+:root {
+  --table-background-scale: 2.4;
+  --table-background-pos-x: 0%;
+  --table-background-pos-y: 0%;
+}
+.table-background-bg {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  left: 50%;
+  width: var(--board-size);
+  height: var(--board-size);
+  margin-top: calc(-1 * var(--board-size) / 2);
+  margin-left: calc(-1 * var(--board-size) / 2);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  transform: translate(var(--table-background-pos-x), var(--table-background-pos-y))
+    scale(var(--table-background-scale));
+  transform-origin: center center;
+  pointer-events: none;
 }
 
 .playmat-bg {
@@ -2795,6 +2819,19 @@ body.cards-interaction-hidden .board-card {
   gap: var(--self-status-icon-gap, 0.4rem);
   justify-items: center;
   z-index: 2;
+  /* ハマりどころ（ユーザー報告「名前クリックの反応範囲が限られている」）: このグリッド
+     自体はz-index:2で.self-status-info（名前・手札枚数、z-index:1）より手前にあるため、
+     実際に見えている4つの丸いアイコンの隙間（grid gap分の余白）にも関わらず、コンテナ
+     自体の透明な矩形全体がクリックを奪っていた。特に位置調整（自分専用ステータスエリア
+     再配置モード）で名前欄とアイコン群がある程度重なる配置にすると、アイコンの絵柄が
+     無い隙間の下に隠れている名前テキストがクリックできなくなっていた。コンテナ自体は
+     クリックを透過させ(pointer-events:none)、実際のアイコンボタン(直接の子要素)だけに
+     pointer-events:autoで戻すことで、見た目通り「アイコンの絵柄がある場所だけ」が
+     クリックを受け取るようにした。 */
+  pointer-events: none;
+}
+.self-status-icon-grid > * {
+  pointer-events: auto;
 }
 /* 駒スキン・カード裏面・プレイマットの3つは、buildIconButtonContent()を使うアイコンボタン
    （手札シャッフル等）と違う独自の見た目のため、ホバー簡易説明(.phase-guide-tooltip)の
@@ -3243,6 +3280,101 @@ body.cards-interaction-hidden .board-card {
   font-size: 0.72rem;
   opacity: 0.7;
   margin-bottom: 0.6rem;
+}
+
+/* 最後のロック承認バナー（src/final-lock-approval.js）。画面上部中央に常設し、
+   pendingFinalLockが立っている間だけ表示する（is-visibleクラスの有無で切替。displayでは
+   なくopacity/pointer-eventsで隠す方式にし、フェードのトランジションを効かせる）。 */
+#final-lock-approval-banner {
+  position: fixed;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4000;
+  background: linear-gradient(160deg, #422006, #1c1004);
+  border: 2px solid #facc15;
+  border-radius: 0.7rem;
+  padding: 0.8rem 1.4rem;
+  text-align: center;
+  font-family: sans-serif;
+  color: #fef3c7;
+  box-shadow: 0 0 1.5rem rgba(250, 204, 21, 0.5), 0 10px 30px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+#final-lock-approval-banner.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.final-lock-approval-title {
+  font-weight: bold;
+  font-size: 1rem;
+  margin-bottom: 0.2rem;
+}
+.final-lock-approval-status {
+  font-size: 0.8rem;
+  opacity: 0.9;
+  margin-bottom: 0.5rem;
+}
+.final-lock-approval-buttons {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+}
+.final-lock-approval-approve,
+.final-lock-approval-reject {
+  font-size: 0.85rem;
+  border-radius: 0.4rem;
+  padding: 0.35rem 0.9rem;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-weight: bold;
+}
+.final-lock-approval-approve {
+  background: rgba(34, 172, 56, 0.85);
+  color: #f0fdf4;
+}
+.final-lock-approval-approve:hover {
+  background: rgba(34, 172, 56, 1);
+}
+.final-lock-approval-reject {
+  background: rgba(153, 27, 27, 0.7);
+  color: #fef2f2;
+}
+.final-lock-approval-reject:hover {
+  background: rgba(153, 27, 27, 0.95);
+}
+
+/* ターン終了時の中央告知（src/turn-announce.js）。ゲーム操作を妨げないよう
+   pointer-events:noneにし、一瞬だけ画面中央に大きく次のプレイヤー名を表示してから
+   自動的に消える（クリック不要のトースト、victory-modalとは違い操作を待たない）。 */
+#turn-announce-toast {
+  position: fixed;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.7);
+  z-index: 9000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+#turn-announce-toast.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+.turn-announce-label {
+  font-family: sans-serif;
+  font-weight: bold;
+  font-size: 2.2rem;
+  color: #fef3c7;
+  background: linear-gradient(160deg, rgba(66, 32, 6, 0.92), rgba(28, 16, 4, 0.92));
+  border: 3px solid #facc15;
+  border-radius: 1rem;
+  padding: 1rem 2.2rem;
+  text-shadow: 0 0 0.6rem rgba(250, 204, 21, 0.8);
+  box-shadow: 0 0 2.5rem rgba(250, 204, 21, 0.55), 0 20px 50px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
 }
 
 /* 7色ロック達成時の勝利モーダル。金色のグロー＋トロフィーで祝う演出。 */

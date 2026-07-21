@@ -20,12 +20,16 @@
 // 「今の手番か」「このトークンは自分の物か」は問わない（ローカル版と同じ自由度）。
 //
 // ポートしているアクションはMOVE_TOKEN / DRAW_FROM_PILE / SEND_TOKEN_TO_PILE / FLIP_TOKEN /
-// SHUFFLE_HAND / SET_TURN_PLAYER / NEXT_TURN / BOOTSTRAP_GAME。それ以外（セットアップ
-// ウィザードの個別ステップ等）はローカルモード専用のまま。「公開ドロー」ボタンは新しい
-// アクション型を追加せず、DRAW_FROM_PILEをlocation.zone="publicDraw"で呼ぶだけなので
-// 追加のポートは不要（faceUpForLocation/mergePublicDrawIntoHand参照）。相手ゲート侵攻
-// ボーナスはNEXT_TURNの処理直前にapplyGateInvasions()として組み込み済み（隠し情報の
-// 無作為抽選が必要なため、サーバー側で判定から適用まで行う。詳細は該当コメント参照）。
+// SHUFFLE_HAND / SET_TURN_PLAYER / NEXT_TURN / BOOTSTRAP_GAME / REQUEST_FINAL_LOCK /
+// RESPOND_FINAL_LOCK。それ以外（セットアップウィザードの個別ステップ等）はローカルモード
+// 専用のまま。「公開ドロー」ボタンは新しいアクション型を追加せず、DRAW_FROM_PILEを
+// location.zone="publicDraw"で呼ぶだけなので追加のポートは不要（faceUpForLocation/
+// mergePublicDrawIntoHand参照）。相手ゲート侵攻ボーナスはNEXT_TURNの処理直前に
+// applyGateInvasions()として組み込み済み（隠し情報の無作為抽選が必要なため、サーバー側で
+// 判定から適用まで行う。詳細は該当コメント参照）。REQUEST_FINAL_LOCK/RESPOND_FINAL_LOCK
+// （最後のロック承認、src/state.jsと同じロジック）は隠す必要の無い公開情報のみを扱うため、
+// 特別な権限チェックは無い（座席さえ持っていれば誰でも承認/却下できる、既存の
+// 「座席を持っていれば何でも動かせる」方針のまま）。
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -125,6 +129,13 @@ type Token = {
 
 type Piles = { deck: string[]; eternal: string[]; first: string[]; discard: string[] };
 
+type PendingFinalLock = {
+  tokenId: string;
+  location: Location;
+  attacker: string;
+  queue: string[];
+} | null;
+
 type GameState = {
   tokens: Token[];
   piles: Piles;
@@ -133,6 +144,7 @@ type GameState = {
   turnNumber: number | null;
   roundNumber: number | null;
   startPlayer: string | null;
+  pendingFinalLock: PendingFinalLock;
 };
 
 // オンライン版では手札の表裏フラグをローカル版のような「自分がAかどうか」で決める必要が
@@ -313,7 +325,38 @@ function reduce(current: GameState, action: any): GameState {
         turnNumber: 1,
         roundNumber: 1,
         startPlayer,
+        pendingFinalLock: null,
       };
+    }
+    // 最後のロック承認①②（src/state.jsのREQUEST_FINAL_LOCK/RESPOND_FINAL_LOCKケースと
+    // 同じロジック）。
+    case "REQUEST_FINAL_LOCK": {
+      if (current.pendingFinalLock) return current;
+      return {
+        ...current,
+        pendingFinalLock: {
+          tokenId: action.tokenId,
+          location: action.location,
+          attacker: action.attacker,
+          queue: action.queue,
+        },
+      };
+    }
+    case "RESPOND_FINAL_LOCK": {
+      const pending = current.pendingFinalLock;
+      if (!pending) return current;
+      if (!action.approve) {
+        return { ...current, pendingFinalLock: null };
+      }
+      const queue = pending.queue.slice(1);
+      if (queue.length === 0) {
+        const token = current.tokens.find((t) => t.id === pending.tokenId);
+        if (!token) return { ...current, pendingFinalLock: null };
+        const next: Token = { ...token, location: pending.location, faceUp: true };
+        const rest = current.tokens.filter((t) => t.id !== pending.tokenId);
+        return { ...current, tokens: [...rest, next], pendingFinalLock: null };
+      }
+      return { ...current, pendingFinalLock: { ...pending, queue } };
     }
     default:
       return current;
@@ -519,6 +562,7 @@ async function loadState(db: any, gameId: string): Promise<{ state: GameState; v
       turnNumber: gameRow.turn_number,
       roundNumber: gameRow.round_number,
       startPlayer: gameRow.start_player,
+      pendingFinalLock: gameRow.pending_final_lock ?? null,
     },
     version: gameRow.version,
   };
@@ -678,6 +722,12 @@ Deno.serve(async (req) => {
     // パターンで別途同期する（隠す必要の無い公開情報のため）。
     if (action.type === "BOOTSTRAP_GAME" && action.timerConfig) {
       gamesPatch.timer_config = action.timerConfig;
+    }
+    // 最後のロック承認: このアクションの時だけpending_final_lockを含める（保留が解消
+    // された時はnullを明示的に含める）。それ以外のアクションはキー自体を含めないため、
+    // SQL側のcoalesce()が現在値をそのまま維持する（supabase_setup_so7.sql参照）。
+    if (effectiveAction.type === "REQUEST_FINAL_LOCK" || effectiveAction.type === "RESPOND_FINAL_LOCK") {
+      gamesPatch.pending_final_lock = next.pendingFinalLock ?? null;
     }
 
     const { error: commitErr } = await db.rpc("so7_apply_and_commit", {

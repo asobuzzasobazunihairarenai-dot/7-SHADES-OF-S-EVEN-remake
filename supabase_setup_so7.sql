@@ -547,6 +547,16 @@ grant execute on function so7_merge_hourglass_stock(text, jsonb) to authenticate
 -- gamesPatchに乗せるため、SET句に1行追加するだけでよい（so7-apply-action.ts参照）。
 alter table so7_games add column if not exists timer_config jsonb;
 
+-- 最後のロック承認（ユーザー要望「勝利になる最後のロックは他プレイヤー全員の承認が必要」）。
+-- 隠す必要の無い公開情報（誰が最後のロックを試みているか・誰の承認待ちか）のため、
+-- 優先権(priority_player等)と違って専用の直接書き込み経路は不要——通常のso7_apply_and_commit
+-- （REQUEST_FINAL_LOCK/RESPOND_FINAL_LOCKもso7-apply-action.ts経由のこのパイプラインに乗る）
+-- のSET句に1行追加するだけでよい。timer_configと同じパターンで、so7-apply-action.ts側は
+-- REQUEST_FINAL_LOCK/RESPOND_FINAL_LOCKの時だけこのキーをgamesPatchに含める（保留が
+-- 解消された時はnullを明示的に含める）。それ以外のアクションではキー自体を含めないため、
+-- coalesce()が正しく「現在値を維持」する。
+alter table so7_games add column if not exists pending_final_lock jsonb;
+
 create or replace function so7_apply_and_commit(
   p_game_id text,
   p_expected_version int,
@@ -604,6 +614,7 @@ begin
     start_player = coalesce(p_games_patch->>'start_player', start_player),
     status = coalesce(p_games_patch->>'status', status),
     timer_config = coalesce(p_games_patch->'timer_config', timer_config),
+    pending_final_lock = coalesce(p_games_patch->'pending_final_lock', pending_final_lock),
     version = version + 1
   where id = p_game_id;
 end;

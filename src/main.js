@@ -14,7 +14,13 @@ import { initOptionsMenu } from "./options-menu.js";
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
 import { announceHandPickups, announceCardLocked } from "./hand-announcer.js";
 import { enqueueGateInvasionSteps } from "./gate-invasion-modal.js";
-import { checkForVictory } from "./victory.js";
+import { checkForVictory, wouldCompleteLockWithNewIndex } from "./victory.js";
+import { announceTurnChange } from "./turn-announce.js";
+import {
+  buildFinalLockApprovalBanner,
+  updateFinalLockApprovalBanner,
+  registerFinalLockApprovalHandler,
+} from "./final-lock-approval.js";
 import {
   getSkinImagePath,
   getMyPieceColor,
@@ -59,6 +65,8 @@ import {
   refillDeckFromDiscard,
   subscribe,
   isOnlineMode,
+  requestFinalLock,
+  respondFinalLock,
 } from "./state.js";
 import { initOnlineUi, openOnlinePanel } from "./online-ui.js";
 import { initOpeningScreen } from "./opening-screen.js";
@@ -85,6 +93,7 @@ import {
   getRotationSteps,
   rotateCell,
   rotateSide,
+  getFinalLockApprovalOrder,
 } from "./board-layout.js";
 
 // セットアップの配布演出（setup-animation.js）が、render()で新しくDOM要素を作らせる
@@ -192,6 +201,14 @@ function buildLockAreaBar(side, steps = 0) {
 function buildArena(steps = 0) {
   const arena = document.createElement("div");
   arena.className = "arena";
+  // 背景画像（ユーザー提供、プレイマットよりさらに大きい背景イメージ）。プレイマットより
+  // 先にappendChildすることで、DOM順・z-index(0<1)の両方で確実にプレイマットの背面に
+  // なるようにする。画像パスはCSSのurl()（style.cssからの相対パスになり404になる）では
+  // なくJS側でinline styleとして敷く（他の実物画像アセットと同じ理由）。
+  const backgroundBg = document.createElement("div");
+  backgroundBg.className = "table-background-bg";
+  backgroundBg.style.backgroundImage = `url("assets/background.webp")`;
+  arena.appendChild(backgroundBg);
   const playmatBg = document.createElement("div");
   playmatBg.className = "playmat-bg";
   playmatBg.style.backgroundImage = `url("${getSelectedPlaymatPath()}")`;
@@ -299,6 +316,9 @@ function buildPlayerZone(side, player, isSelf) {
     cardEl.dataset.tokenId = token.id;
     const card = layout[i];
     cardEl.style.transform = `translateX(${card.spreadX}px) translateY(${card.spreadY}px) rotate(${card.angle}deg)`;
+    // ひょこっと持ち上げ演出（initHandPeek参照）が、この基準となる扇の位置に戻せるよう
+    // 保持しておく（後からtranslateZを追加する時、この文字列に追記する形にする）。
+    if (isSelf) cardEl.dataset.baseTransform = cardEl.style.transform;
     fanEl.appendChild(cardEl);
   });
   handEl.appendChild(fanEl);
@@ -927,6 +947,7 @@ function render() {
   updateHandShuffleButton();
   updateSelfHandStatus();
   updateTurnRoundCounter();
+  updateFinalLockApprovalBanner();
   checkForVictory();
 }
 
@@ -1385,50 +1406,57 @@ function initHoverHandlers() {
 }
 
 // 自分の手札をあえて画面下部で見切れさせている場合向け（ユーザー要望）: PCではホバーで、
-// タブレットではタップで、手札全体が「ひょこっと」持ち上がる（--hand-a-peek-liftで
-// 持ち上げ量を管理者モードから調整可能）。自分の手札は常に画面手前（.zone-bottom）に来る
-// （視点回転済み）ため、この1箇所だけを見ればよい。
-// PC: マウス位置が.hand-areaの矩形内にあるかをpointermoveのたびに判定する
-// （pointerenter/leaveは子要素間の出入りのたびに発火してしまい、扇状に開いた個々の
-// カードの隙間で頻繁にON/OFFが切り替わってしまうため、親のhand-area全体を1つの矩形として
-// 判定する）。タブレット: タップした瞬間に手札の中かどうかで単純にON/OFFを切り替える
-// （「関係ないところをタップすると元に戻る」という要望通り）。
-// ハマりどころ（重要）: 当初はクラス(.is-peeked)を付け外しし、CSS側で
-// --hand-peek-offset-yというカスタムプロパティをcalc()経由でtransformに反映する方式に
-// していたが、実機で検証したところ「クラス自体は正しく付いており、カスタムプロパティの
-// 計算値も正しいのに、既にレンダリング済みの.hand-area要素のtransformが再計算されず
-// 見た目が一切変わらない」という不具合が判明した（render()でDOMごと作り直した直後の
-// 新規ノードでは正しく反映されるため、preserve-3d+perspectiveが何重にも重なった深い
-// 3D階層の中で、既存ノードのtransform再計算がカスタムプロパティ変更だけでは走らない、
-// というこのブラウザ特有の癖と判断——このプロジェクトで何度も遭遇してきた「深い3D
-// transform階層は仕様通りに振る舞うとは限らない」の新しいパターン）。回避策として、
-// クラスの付け外しに頼らず、transformプロパティ自体をJSから直接書き換える（インライン
-// スタイル）方式に変更した。これなら3D階層の再計算に頼らず確実に効く。
-let handPeeked = false;
-function setHandPeeked(peeked) {
-  if (handPeeked === peeked) return;
-  handPeeked = peeked;
-  const handArea = document.querySelector(".zone-bottom .hand-area");
-  if (!handArea) return;
-  if (!peeked) {
-    handArea.style.transform = "";
-    return;
+// タブレットではタップで、カーソル/タップ位置にある1枚だけが「ひょこっと」持ち上がる
+// （--hand-a-peek-liftで持ち上げ量を管理者モードから調整可能）。以前は手札全体を
+// 持ち上げていたが、「1枚だけひょこっと出るようにしたい」という要望を受け、個々の
+// カード（.hand-card.is-self）単位の当たり判定・演出に作り直した。自分の手札は常に
+// 画面手前（.zone-bottom）に来る（視点回転済み）ため、この1箇所だけを見ればよい。
+// カードの当たり判定は、扇状に並ぶ各カードの矩形(getBoundingClientRect)にカーソル/タップ
+// 座標が含まれるかで判定する（重なっている場合はDOM順で最後＝扇の上に描画されている
+// カードを優先する）。
+// ハマりどころ（重要、以前の「手札全体」版から引き継ぎ）: クラス(.is-peeked)の付け外し＋
+// カスタムプロパティをcalc()経由でtransformに反映する方式は、深いpreserve-3d階層の中では
+// 既存ノードのtransformが再計算されず効かないことが判明済み（render()でDOMごと作り直した
+// 直後の新規ノードでは正しく反映される）。そのため、クラス切替には頼らず、transform
+// プロパティ自体をJSから直接書き換える。各カードの基準となる扇の位置(cardEl.dataset.
+// baseTransform、buildPlayerZone参照)にtranslateZを追記する形にし、解除時はこの基準値へ
+// そのまま戻す。
+let peekedCardEl = null;
+function setPeekedCard(cardEl) {
+  if (peekedCardEl === cardEl) return;
+  if (peekedCardEl) peekedCardEl.style.transform = peekedCardEl.dataset.baseTransform ?? "";
+  peekedCardEl = cardEl;
+  if (!cardEl) return;
+  const lift = getComputedStyle(document.documentElement).getPropertyValue("--hand-a-peek-lift").trim() || "2.5rem";
+  cardEl.style.transform = `${cardEl.dataset.baseTransform ?? ""} translateZ(${lift})`;
+}
+// カーソル/タップ座標に重なる自分の手札カードのうち、中心が最も近い1枚を返す（無ければ
+// null）。ハマりどころ: 扇状に回転したカードのgetBoundingClientRect()は、見た目の菱形より
+// かなり大きい軸並行の矩形になるため、隣接カードの矩形と広く重なり合う。「矩形に含まれる
+// 最後（DOM順）のもの」で判定すると、実際にカーソルの真下にあるカードとは違う、隣の
+// カードが選ばれてしまうことがあった（実測で確認）。矩形に含まれるものの中から、中心点との
+// 距離が最も近いものを選ぶことで、見た目通りの1枚に絞れるようにした。
+function findSelfHandCardAt(clientX, clientY) {
+  const cards = document.querySelectorAll(".zone-bottom .hand-area .hand-card.is-self");
+  let best = null;
+  let bestDist = Infinity;
+  for (const el of cards) {
+    const r = el.getBoundingClientRect();
+    if (clientX < r.left || clientX > r.right || clientY < r.top || clientY > r.bottom) continue;
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const dist = (clientX - cx) ** 2 + (clientY - cy) ** 2;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = el;
+    }
   }
-  const rootStyle = getComputedStyle(document.documentElement);
-  const posX = rootStyle.getPropertyValue("--hand-a-pos-x").trim() || "0rem";
-  const posY = rootStyle.getPropertyValue("--hand-a-pos-y").trim() || "0rem";
-  const lift = rootStyle.getPropertyValue("--hand-a-peek-lift").trim() || "-10rem";
-  handArea.style.transform =
-    `translate(-50%, -50%) translate(${posX}, calc(${posY} + (${lift}))) ` + `rotateX(-40deg) translateZ(2.4rem)`;
+  return best;
 }
 function initHandPeek() {
   window.addEventListener("pointermove", (e) => {
     if (isTouchPrimaryDevice()) return; // タブレットはタップ専用（下のpointerdown参照）
-    const handArea = document.querySelector(".zone-bottom .hand-area");
-    if (!handArea) return;
-    const r = handArea.getBoundingClientRect();
-    const within = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
-    setHandPeeked(within);
+    setPeekedCard(findSelfHandCardAt(e.clientX, e.clientY));
   });
   window.addEventListener(
     "pointerdown",
@@ -1436,12 +1464,8 @@ function initHandPeek() {
       if (!isTouchPrimaryDevice()) return;
       // ハマりどころ: e.target.closest(...)によるネイティブのヒットテストは、深い
       // preserve-3d階層の中では実際に見えている要素と食い違うことがある（このプロジェクトで
-      // 繰り返し確認済み。実測でも.hand-area自身の中心座標でelementFromPointを呼ぶと
-      // 親の.player-zoneが返ってきた）。pointermove側と同じ、矩形の座標包含判定に揃える。
-      const handArea = document.querySelector(".zone-bottom .hand-area");
-      const r = handArea?.getBoundingClientRect();
-      const withinHand = !!r && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
-      setHandPeeked(withinHand);
+      // 繰り返し確認済み）。pointermove側と同じ、矩形の座標包含判定に揃える。
+      setPeekedCard(findSelfHandCardAt(e.clientX, e.clientY));
     },
     // キャプチャフェーズにはしない: 手札のドラッグ開始判定(#game-tableのpointerdown)を
     // 妨げてはいけないため、素直にbubbleフェーズで拾うだけの読み取り専用リスナーにする
@@ -1917,6 +1941,38 @@ function maybeAnnounceLock(dropTarget, cardId, wasAlreadyLocked) {
   triggerLockEffect(cardId, dropTarget);
 }
 
+// 最後のロック承認バナー（final-lock-approval.js）の承認/却下ボタンから呼ばれる。
+// オンライン中は、演出（ロックの光の柱等）を自分で手動発火せず、remote-move-animator.js
+// （subscribe()経由で全クライアント共通、自分自身の操作も含めて動く）に任せる——他の
+// 承認者が最後の承認をした場合、この演出は「自分の操作」ではなく「サーバーから届いた
+// 変化」として検知される必要があるため、自分が最後の承認者だった場合も同じ経路に
+// 統一する（自分だけ特別扱いすると二重発火・見た目の不一致が起きるリスクがある）。
+// ローカルモードはremote-move-animator.jsが動かない（isOnlineMode()で早期returnする設計）
+// ため、ここで直接演出を発火する必要がある。
+async function respondToFinalLock(approve) {
+  const pendingBefore = getState().pendingFinalLock;
+  if (!pendingBefore) return;
+  if (isOnlineMode()) {
+    try {
+      await respondFinalLock(approve);
+      await fetchAndHydrate(getCurrentGameId());
+    } catch (err) {
+      console.error("respondFinalLock failed", err);
+    }
+    render();
+    return;
+  }
+  respondFinalLock(approve);
+  render();
+  if (approve && !getState().pendingFinalLock) {
+    const movedToken = getState().tokens.find((t) => t.id === pendingBefore.tokenId);
+    if (movedToken) {
+      playSound("cardPlace");
+      maybeAnnounceLock(pendingBefore.location, movedToken.cardId, false);
+    }
+  }
+}
+
 async function onDragEnd(e) {
   if (!dragSession) return;
   const { tokenId, kind, ghost, pileSource, highlightEl } = dragSession;
@@ -2081,6 +2137,38 @@ async function onDragEnd(e) {
         render();
         maybeTriggerCardArrivalForExposedCard(cardSourceLocation);
         return;
+      }
+    }
+    // 最後のロック承認（ユーザー要望）: このカードをロックすると、そのロックエリアの
+    // 持ち主が7色すべて揃って勝利になる場合、通常のmoveTokenを呼ばず、他の参加プレイヤー
+    // 全員（左隣から時計回り）の承認を待つ専用フローへ切り替える。既に別の承認待ちが
+    // 進行中の場合は二重に開始しない（その場合は通常通りreturnせずフォールスルーする
+    // ことはない——下の通常処理に進んでしまうと承認無しでロックできてしまうため、
+    // ここでは「進行中なら何もしない」を明示的にreturnする）。
+    if (kind === "card" && dropTarget.zone === "lock") {
+      if (getState().pendingFinalLock) {
+        render();
+        return;
+      }
+      const ownerSeat = SIDE_TO_SEAT[dropTarget.side];
+      if (ownerSeat && wouldCompleteLockWithNewIndex(ownerSeat, dropTarget.index)) {
+        const queue = getFinalLockApprovalOrder(ownerSeat, getState().activePlayers);
+        if (queue.length > 0) {
+          if (isOnlineMode()) {
+            try {
+              await requestFinalLock(tokenId, dropTarget, ownerSeat, queue);
+              await fetchAndHydrate(getCurrentGameId());
+            } catch (err) {
+              console.error("requestFinalLock failed", err);
+            }
+          } else {
+            requestFinalLock(tokenId, dropTarget, ownerSeat, queue);
+          }
+          render();
+          return;
+        }
+        // 承認すべき他の参加プレイヤーがいない（1人でのテストプレイ等）場合は、承認不要で
+        // そのまま通常通りロックする（このifブロックを素通りし、下の既存処理へ進む）。
       }
     }
     const token = getState().tokens.find((t) => t.id === tokenId);
@@ -3182,8 +3270,10 @@ registerRemoteMoveAnimatorHelpers({
   announceHandPickups,
   findLocationElement,
 });
+registerFinalLockApprovalHandler(respondToFinalLock);
 buildGameTitle();
 buildSpotlightOverlay();
+buildFinalLockApprovalBanner();
 turnRoundCounterEl = buildTurnRoundCounter();
 updateTurnRoundCounter();
 
@@ -3238,6 +3328,23 @@ subscribe(() => {
   handleRemoteMoveHydrate();
 });
 
+// ターン終了時の中央告知（ユーザー要望）: turnPlayerが「非null→別の非null」へ変わった
+// 瞬間だけ announceTurnChange() を呼ぶ。「null→非null」（セットアップ完了・スタート
+// プレイヤー決定の瞬間）は対象外——そちらは既存の「３：スタートプレイヤー決定」モーダルが
+// 別途案内するため、二重表示を避ける。turn-timer.jsのhandleTurnTransitionと同じ
+// 「turnPlayerの変化を検知する」考え方だが、こちらは表示専用でstateへは一切書き込まない
+// 独立した仕組みにした（ローカル・オンラインどちらの経路で変化してもこのsubscribe一本で
+// 拾えるため、onDragEnd側やターン終了ボタン側に個別の呼び出しを増やす必要が無い）。
+let prevTurnPlayerForAnnouncement = null;
+subscribe(() => {
+  if (suppressGenericRenderForOnlineStart) return;
+  const { turnPlayer } = getState();
+  if (prevTurnPlayerForAnnouncement !== null && turnPlayer !== null && turnPlayer !== prevTurnPlayerForAnnouncement) {
+    announceTurnChange(turnPlayer);
+  }
+  prevTurnPlayerForAnnouncement = turnPlayer;
+});
+
 // 直近でrender()に反映済みの状態の軽量な指紋（フィンガープリント）。オンライン中、
 // 自分の操作1回につき実際にはhydrateState()が2回呼ばれることがある——①onDragEnd等が
 // 明示的に呼ぶfetchAndHydrate()によるものと、②online.jsのsubscribeToGame()が持つ、
@@ -3255,7 +3362,11 @@ subscribe(() => {
 // ロスター（名前・アバター・駒スキン）も指紋に含めるのは、online.jsのidentity_changed
 // Broadcastハンドラが盤面トークンを一切変えずにnotifyListeners()だけ呼ぶため——含めないと
 // 相手が名前/アバター/駒スキンを変更しても、盤面側の指紋が一致してrender()自体が
-// スキップされ、変更が画面に反映されないバグになっていた。
+// スキップされ、変更が画面に反映されないバグになっていた。pendingFinalLock（最後のロック
+// 承認、final-lock-approval.js参照）も同じ理由で指紋に含める——他の参加プレイヤーが
+// 承認/却下しても盤面のトークン自体はまだ動いていない（承認完了までは何も動かさない設計の
+// ため）ことがあり、含めないと自分以外の画面で承認バナーの状態（「今誰の承認待ちか」）が
+// 更新されずに固まって見えるバグになる。
 let lastRenderedFingerprint = null;
 function computeStateFingerprint(state) {
   const tokenParts = state.tokens
@@ -3281,6 +3392,7 @@ function computeStateFingerprint(state) {
     state.activePlayers.join(","),
     tokenParts,
     rosterParts,
+    state.pendingFinalLock ? `${state.pendingFinalLock.tokenId}|${state.pendingFinalLock.queue.join(",")}` : "",
   ].join("|");
 }
 

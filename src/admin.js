@@ -108,6 +108,8 @@ const GROUPS = [
       { key: "--sound-volume-card-draw", label: "カードを抜き取る", unit: "%", min: 0, max: 100, step: 5, default: 80 },
       { key: "--sound-volume-arrival-effect", label: "到達効果", unit: "%", min: 0, max: 100, step: 5, default: 80 },
       { key: "--sound-volume-lock", label: "ロック", unit: "%", min: 0, max: 100, step: 5, default: 80 },
+      { key: "--sound-volume-turn-switch", label: "ターン切替", unit: "%", min: 0, max: 100, step: 5, default: 80 },
+      { key: "--sound-volume-victory", label: "勝利時", unit: "%", min: 0, max: 100, step: 5, default: 80 },
     ],
   },
   {
@@ -170,6 +172,17 @@ const GROUPS = [
       { key: "--playmat-scale", label: "拡大率", unit: "", min: 0.5, max: 3, step: 0.01, default: 1.42 },
       { key: "--playmat-pos-x", label: "位置X（中心からのずれ）", unit: "%", min: -50, max: 50, step: 0.5, default: 0 },
       { key: "--playmat-pos-y", label: "位置Y（中心からのずれ）", unit: "%", min: -50, max: 50, step: 0.5, default: 0 },
+    ],
+  },
+  {
+    // ユーザー提供の背景画像（プレイマットよりさらに大きい「背景」イメージ、main.jsの
+    // buildArena参照）。プレイマットと同じ「.board基準の拡大率＋中心からのずれ」方式。
+    title: "背景画像",
+    category: "position",
+    controls: [
+      { key: "--table-background-scale", label: "拡大率", unit: "", min: 0.5, max: 6, step: 0.05, default: 2.4 },
+      { key: "--table-background-pos-x", label: "位置X（中心からのずれ）", unit: "%", min: -50, max: 50, step: 0.5, default: 0 },
+      { key: "--table-background-pos-y", label: "位置Y（中心からのずれ）", unit: "%", min: -50, max: 50, step: 0.5, default: 0 },
     ],
   },
   {
@@ -313,12 +326,14 @@ const GROUPS = [
   },
   {
     // 自分の手札をあえて画面下部で見切れさせている場合向け。ホバー(PC)/タップ(タブレット)
-    // すると、ここで指定した分だけ手札全体が「ひょこっと」持ち上がる（main.jsの
-    // initHandPeek参照）。マイナスの値で上方向に動く。
-    title: "自分の手札：ホバー/タップで持ち上げる量",
+    // した1枚だけが、ここで指定した分だけ「ひょこっと」持ち上がる（main.jsのinitHandPeek/
+    // setPeekedCard参照）。以前は手札全体を持ち上げる仕様で、その頃はマイナスの値
+    // （Y方向の移動量）を使っていたが、「1枚だけ」に変更したのに合わせてtranslateZ
+    // （カメラ側へのポップ量、プラスの値）に意味を変えた。
+    title: "自分の手札：ホバー/タップで1枚だけ持ち上げる量",
     category: "position",
     controls: [
-      { key: "--hand-a-peek-lift", label: "持ち上げ量", unit: "rem", min: -20, max: 0, step: 0.5, default: -10 },
+      { key: "--hand-a-peek-lift", label: "持ち上げ量", unit: "rem", min: 0, max: 6, step: 0.1, default: 2.5 },
     ],
   },
   {

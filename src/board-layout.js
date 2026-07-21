@@ -70,3 +70,16 @@ export function rotateSide(side, steps) {
   const idx = SIDE_CW.indexOf(side);
   return SIDE_CW[(idx + ((steps % 4) + 4) % 4) % 4];
 }
+
+// --- 最後のロック承認（全員承認制） ---------------------------------------------------
+// 最後のロックを試みたプレイヤー(attacker)の左隣から時計回りに、残りの参加プレイヤー
+// （attacker自身を除く）を並べた配列を返す。座席配置(A=南/B=西/C=北/D=東)では、
+// 自分から見た左隣は常にSEAT_ORDER上の次の座席と一致する（例: Aから見て左＝西＝B、
+// これはSEAT_ORDER("A","B","C","D")の並び順そのもの）。この配列の先頭が「今まさに
+// 承認待ちの相手」、承認するたびに先頭を1つ進める、という使い方をする想定。
+export function getFinalLockApprovalOrder(attacker, activePlayers) {
+  const idx = SEAT_ORDER.indexOf(attacker);
+  if (idx < 0) return [];
+  const rotated = [...SEAT_ORDER.slice(idx + 1), ...SEAT_ORDER.slice(0, idx + 1)];
+  return rotated.filter((s) => activePlayers.includes(s) && s !== attacker);
+}

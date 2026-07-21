@@ -94,6 +94,13 @@ function createInitialState() {
     priorityDeadline: null,
     priorityPhase: null, // "base"（ロープ非表示）| "extension"（ロープ表示、砂時計消費中）
     hourglassStock: {},
+    // 最後のロック承認（ユーザー要望「勝利になる最後のロックは他プレイヤー全員の承認が
+    // 必要」）: null | { tokenId, location, attacker, queue }。queueは承認待ちの残り座席を
+    // 「attackerの左隣から時計回り」の順で並べた配列（board-layout.jsのgetFinalLockApprovalOrder
+    // 参照）で、先頭が「今まさに承認待ちの相手」。承認するたびに先頭を1つ進め、空になった
+    // 瞬間に実際のロック（MOVE_TOKEN相当）を適用する。誰か1人でも却下すればnullに戻すだけ
+    // （カードは最初から動かしていないので、戻す動作自体は不要）。
+    pendingFinalLock: null,
   };
 }
 
@@ -275,6 +282,7 @@ function reduce(current, action) {
         priorityDeadline: null,
         priorityPhase: null,
         hourglassStock: {},
+        pendingFinalLock: null,
       };
     }
     // セットアップウィザードの手順1: 参加している座席（action.players、時計回り順）に
@@ -468,6 +476,40 @@ function reduce(current, action) {
       });
       return { ...current, tokens };
     }
+    // 最後のロック承認①: main.jsが「このロックは勝利になる」と判定した時に、通常の
+    // MOVE_TOKENの代わりに呼ぶ。既に別の承認待ちが進行中なら二重に受け付けない。
+    // action.queueは呼び出し側（main.js）がgetFinalLockApprovalOrder()で計算済み。
+    case "REQUEST_FINAL_LOCK": {
+      if (current.pendingFinalLock) return current;
+      return {
+        ...current,
+        pendingFinalLock: {
+          tokenId: action.tokenId,
+          location: action.location,
+          attacker: action.attacker,
+          queue: action.queue,
+        },
+      };
+    }
+    // 最後のロック承認②: 承認待ちの先頭の座席が承認/却下する。却下なら保留を消して終わり
+    // （カードは元々動かしていないのでそのまま）。承認でqueueが空になったら、実際に
+    // MOVE_TOKENと同じ効果（ロックエリアへ表向きで配置）を適用してから保留を消す。
+    case "RESPOND_FINAL_LOCK": {
+      const pending = current.pendingFinalLock;
+      if (!pending) return current;
+      if (!action.approve) {
+        return { ...current, pendingFinalLock: null };
+      }
+      const queue = pending.queue.slice(1);
+      if (queue.length === 0) {
+        const token = current.tokens.find((t) => t.id === pending.tokenId);
+        if (!token) return { ...current, pendingFinalLock: null };
+        const rest = current.tokens.filter((t) => t.id !== pending.tokenId);
+        const next = { ...token, location: pending.location, faceUp: true };
+        return { ...current, tokens: [...rest, next], pendingFinalLock: null };
+      }
+      return { ...current, pendingFinalLock: { ...pending, queue } };
+    }
     default:
       return current;
   }
@@ -562,6 +604,21 @@ export function applyRemotePriorityPatch(patch) {
       : {}),
   };
   notifyListeners();
+}
+
+// queue: getFinalLockApprovalOrder(attacker, activePlayers)で計算済みの承認待ち座席の配列
+// （main.jsが呼び出し側）。moveToken等と同じく、オンライン中はonlineTransport（callAction）
+// をそのまま使う——REQUEST_FINAL_LOCK/RESPOND_FINAL_LOCKは隠す必要の無い公開情報
+// （誰が最後のロックを試みているか・誰の承認待ちか）しか扱わないため、優先権のような
+// 別経路(priorityTransport)は不要で、通常のアクションパイプラインにそのまま乗せられる。
+export function requestFinalLock(tokenId, location, attacker, queue) {
+  if (onlineMode && onlineTransport) return onlineTransport({ type: "REQUEST_FINAL_LOCK", tokenId, location, attacker, queue });
+  dispatch({ type: "REQUEST_FINAL_LOCK", tokenId, location, attacker, queue });
+}
+
+export function respondFinalLock(approve) {
+  if (onlineMode && onlineTransport) return onlineTransport({ type: "RESPOND_FINAL_LOCK", approve });
+  dispatch({ type: "RESPOND_FINAL_LOCK", approve });
 }
 
 // tokenIds: 侵攻した側(attacker)が奪う、侵攻された側の手札トークンid（呼び出し側が無作為抽選済み）
