@@ -15,6 +15,8 @@ export const PLAYMAT_OPTIONS = [
   { id: "blue", label: "青", path: "assets/playmats/blue.png" },
   { id: "pink", label: "桃", path: "assets/playmats/pink.png" },
   { id: "purple", label: "紫", path: "assets/playmats/purple.png" },
+  { id: "white-old", label: "白（旧）", path: "assets/playmats/white-old.png" },
+  { id: "blue-old", label: "青（旧）", path: "assets/playmats/blue-old.png" },
 ];
 
 let selectedPlaymatId = "white";

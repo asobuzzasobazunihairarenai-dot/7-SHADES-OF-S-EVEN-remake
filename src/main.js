@@ -32,6 +32,7 @@ import { initQuickStart } from "./quick-start.js";
 import { initPhaseGuide } from "./phase-guide.js";
 import { initTurnTimer } from "./turn-timer.js";
 import { initIconRearrange } from "./icon-rearrange.js";
+import { initSelfStatusRearrange } from "./self-status-rearrange.js";
 import { initInteractionModeToggle } from "./interaction-mode.js";
 import { registerRenderHelpers, animateFirstCardsDealt, animateBoardFilled } from "./setup-animation.js";
 import {
@@ -2855,6 +2856,7 @@ initQuickStart();
 initPhaseGuide();
 initTurnTimer();
 initIconRearrange();
+initSelfStatusRearrange();
 initInteractionModeToggle();
 registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocationElement, setSetupPendingTokenIds });
 registerPieceSkinHelpers({ render });

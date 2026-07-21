@@ -923,6 +923,28 @@ body.icon-rearrange-mode #options-menu-button.is-rearranging {
   outline-color: #38bdf8;
 }
 
+/* 管理者モードの「自分専用ステータスエリア再配置モード」がONの間、対象の5アイコンに
+   掴めることが分かる点線の枠＋grabカーソルを付ける（self-status-rearrange.js参照）。
+   ドラッグで位置、マウスホイールでサイズを変えられる（アイコン再配置モードと同じ
+   考え方だが、サイズ調整もできる点が異なるため別モードとして用意した）。 */
+body.self-status-rearrange-mode .self-status-avatar,
+body.self-status-rearrange-mode .self-status-piece-thumb,
+body.self-status-rearrange-mode .self-status-card-back-thumb,
+body.self-status-rearrange-mode .self-status-playmat-thumb,
+body.self-status-rearrange-mode #self-status-online {
+  cursor: grab;
+  outline: 2px dashed rgba(56, 189, 248, 0.7);
+  outline-offset: 3px;
+}
+body.self-status-rearrange-mode .self-status-avatar.is-rearranging,
+body.self-status-rearrange-mode .self-status-piece-thumb.is-rearranging,
+body.self-status-rearrange-mode .self-status-card-back-thumb.is-rearranging,
+body.self-status-rearrange-mode .self-status-playmat-thumb.is-rearranging,
+body.self-status-rearrange-mode #self-status-online.is-rearranging {
+  cursor: grabbing;
+  outline-color: #38bdf8;
+}
+
 /* 盤面拡大ボタン: 拡大中は色を、2段階目「もっと拡大」はさらに別の色を、というアイコン版。 */
 #board-zoom-button.is-active .icon-action-button-icon-wrap {
   background: rgba(34, 197, 94, 0.25);
@@ -2291,9 +2313,10 @@ body.spotlight-mode #spotlight-overlay {
   opacity: 0.35;
 }
 
-/* 駒スキン選択モーダル。 */
+/* 駒スキン/カード裏面/プレイマット選択モーダル。 */
 #piece-skin-modal,
-#card-back-skin-modal {
+#card-back-skin-modal,
+#playmat-picker-modal {
   position: fixed;
   top: 50%;
   left: 50%;
@@ -2437,14 +2460,15 @@ body.cards-interaction-hidden .board-card {
   cursor: default;
 }
 
-/* 管理者モードの「自分専用ステータスエリア」グループが調整するCSS変数
-   （--self-status-icon-size/-gap＝アイコン共通のサイズ・間隔、--self-status-pos-x/y＝
-   パネル全体の位置、--self-status-info-pos-x/y＝名前・手札枚数の位置、
-   --self-status-icon-{avatar,piece,cardback,playmat,online}-pos-x/y＝各アイコン個別の
-   位置微調整）を参照する。サイズはgrid/flexの通常のレイアウト計算に乗る値のため、
-   サイズを変えると外枠（#self-hand-status自体、padding+contentサイズで決まる）も
-   自動的に追従して大きく/小さくなる。位置の微調整はtransform:translate()（レイアウトに
-   影響しない）で行うため、動かしてもレイアウト自体は崩れない。 */
+/* 管理者モードの「自分専用ステータスエリア」グループ、または自分専用ステータス再配置
+   モード（self-status-rearrange.js、ドラッグで位置・ホイールでサイズ）が調整するCSS変数
+   （--self-status-icon-gap＝アイコン間隔、--self-status-icon-{avatar,piece,cardback,
+   playmat,online}-size＝各アイコン個別のサイズ、-pos-x/y＝各アイコン個別の位置微調整、
+   --self-status-pos-x/y＝パネル全体の位置、--self-status-info-pos-x/y＝名前・手札枚数の
+   位置）を参照する。サイズはgrid/flexの通常のレイアウト計算に乗る値のため、サイズを
+   変えると外枠（#self-hand-status自体、padding+contentサイズで決まる）も自動的に
+   追従して大きく/小さくなる。位置の微調整はtransform:translate()（レイアウトに影響
+   しない）で行うため、動かしてもレイアウト自体は崩れない。 */
 #self-hand-status {
   position: fixed;
   bottom: 1.2rem;
@@ -2462,10 +2486,10 @@ body.cards-interaction-hidden .board-card {
   transform: translate(var(--self-status-pos-x, 0rem), var(--self-status-pos-y, 0rem));
 }
 /* アバター・駒スキン・カード裏面・プレイマット・オンライン状態の5アイコンを2x2+1で
-   まとめる。全て共通の--self-status-icon-sizeで実寸が揃っているため、素直に並べるだけで
-   きれいなグリッドになる（オンライン状態アイコンだけキャプション文字が下に付く分だけ、
-   その行の高さがもう片方の行よりわずかに大きくなるが、grid-auto-rowsが行ごとに自動調整
-   するため崩れない）。 */
+   まとめる。サイズは各アイコン個別のCSS変数（--self-status-icon-*-size）で管理して
+   いるため、アイコンごとに異なる大きさにもできる（オンライン状態アイコンだけキャプション
+   文字が下に付く分だけ、その行の高さがもう片方の行よりわずかに大きくなるが、
+   grid-auto-rowsが行ごとに自動調整するため崩れない）。 */
 .self-status-icon-grid {
   display: grid;
   grid-template-columns: repeat(2, auto);
@@ -2479,8 +2503,8 @@ body.cards-interaction-hidden .board-card {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 50%;
-  width: var(--self-status-icon-size, 2.6rem);
-  height: var(--self-status-icon-size, 2.6rem);
+  width: var(--self-status-icon-avatar-size, 2.6rem);
+  height: var(--self-status-icon-avatar-size, 2.6rem);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2516,8 +2540,8 @@ body.cards-interaction-hidden .board-card {
    間は仮の色で描画する）。 */
 .self-status-piece-thumb {
   position: relative;
-  width: var(--self-status-icon-size, 2.6rem);
-  height: var(--self-status-icon-size, 2.6rem);
+  width: var(--self-status-icon-piece-size, 2.6rem);
+  height: var(--self-status-icon-piece-size, 2.6rem);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 50%;
@@ -2550,8 +2574,8 @@ body.cards-interaction-hidden .board-card {
    ため）。ゲーム開始前でも常に選べる（駒スキンと違い自分の色に依存しないため）。 */
 .self-status-card-back-thumb {
   position: relative;
-  width: var(--self-status-icon-size, 2.6rem);
-  height: var(--self-status-icon-size, 2.6rem);
+  width: var(--self-status-icon-cardback-size, 2.6rem);
+  height: var(--self-status-icon-cardback-size, 2.6rem);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 0.4rem;
@@ -2575,8 +2599,8 @@ body.cards-interaction-hidden .board-card {
 /* プレイマットのサムネイル。カード裏面と同じ角丸正方形（プレイマットも正方形の画像）。 */
 .self-status-playmat-thumb {
   position: relative;
-  width: var(--self-status-icon-size, 2.6rem);
-  height: var(--self-status-icon-size, 2.6rem);
+  width: var(--self-status-icon-playmat-size, 2.6rem);
+  height: var(--self-status-icon-playmat-size, 2.6rem);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 0.4rem;
@@ -2603,8 +2627,8 @@ body.cards-interaction-hidden .board-card {
   transform: translate(var(--self-status-icon-online-pos-x, 0rem), var(--self-status-icon-online-pos-y, 0rem));
 }
 .self-status-icon-grid #self-status-online .icon-action-button-icon-wrap {
-  width: var(--self-status-icon-size, 2.6rem);
-  height: var(--self-status-icon-size, 2.6rem);
+  width: var(--self-status-icon-online-size, 2.6rem);
+  height: var(--self-status-icon-online-size, 2.6rem);
 }
 .self-status-info {
   display: flex;

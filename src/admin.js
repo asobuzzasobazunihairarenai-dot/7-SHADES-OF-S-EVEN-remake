@@ -147,10 +147,18 @@ const GROUPS = [
     ],
   },
   {
-    title: "自分専用ステータスエリア（左下）：サイズ",
+    // 「自分専用ステータスエリア再配置モード」（下のTOGGLE_SECTIONS参照）でドラッグ/
+    // ホイール操作した分も、ここと同じCSS変数へ直接書き込む（self-status-rearrange.js
+    // 参照）ため、マウス操作でもスライダーでも同じ値を共有し、どちらで動かしても
+    // 「出力をコピー」に反映される。
+    title: "自分専用ステータスエリア（左下）：サイズ（アイコンごとに個別）",
     category: "position",
     controls: [
-      { key: "--self-status-icon-size", label: "アイコンのサイズ（共通）", unit: "rem", min: 1.5, max: 6, step: 0.1, default: 2.6 },
+      { key: "--self-status-icon-avatar-size", label: "アバターアイコン サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--self-status-icon-piece-size", label: "駒スキンアイコン サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--self-status-icon-cardback-size", label: "カード裏面アイコン サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--self-status-icon-playmat-size", label: "プレイマットアイコン サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--self-status-icon-online-size", label: "オンライン状態アイコン サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
       { key: "--self-status-icon-gap", label: "アイコンの間隔", unit: "rem", min: 0, max: 2, step: 0.05, default: 0.4 },
     ],
   },
@@ -367,6 +375,17 @@ let iconRearrangeMode = false;
 
 export function isIconRearrangeMode() {
   return iconRearrangeMode;
+}
+
+// 自分専用ステータスエリア再配置モード。ONの間、左下ステータスエリアの5アイコン
+// （アバター・駒スキン・カード裏面・プレイマット・オンライン状態）をドラッグで位置、
+// マウスホイールでサイズを直接調整できる（self-status-rearrange.js参照）。動かした結果は
+// 上の「自分専用ステータスエリア（左下）」グループと同じCSS変数に書き込まれるため、
+// スライダー・「出力をコピー」の両方にそのまま反映される。
+let selfStatusRearrangeMode = false;
+
+export function isSelfStatusRearrangeMode() {
+  return selfStatusRearrangeMode;
 }
 
 // ゲートマス（各辺中央の4マス）を、光の色をした台座のように少しだけ高く見せる演出。
@@ -628,6 +647,36 @@ const TOGGLE_SECTIONS = [
     },
   },
   {
+    title: "自分専用ステータスエリア再配置モード",
+    category: "position",
+    buildContent: (content) => {
+      const rearrangeRow = document.createElement("label");
+      rearrangeRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const rearrangeCheckbox = document.createElement("input");
+      rearrangeCheckbox.type = "checkbox";
+      rearrangeCheckbox.checked = selfStatusRearrangeMode;
+      rearrangeCheckbox.addEventListener("change", () => {
+        selfStatusRearrangeMode = rearrangeCheckbox.checked;
+        document.body.classList.toggle("self-status-rearrange-mode", selfStatusRearrangeMode);
+      });
+      const rearrangeLabel = document.createElement("span");
+      rearrangeLabel.textContent =
+        "ONにする（左下ステータスエリアの5アイコン：アバター・駒スキン・カード裏面・" +
+        "プレイマット・オンライン状態をドラッグで位置調整、マウスホイールでサイズ調整できます）";
+      rearrangeRow.appendChild(rearrangeCheckbox);
+      rearrangeRow.appendChild(rearrangeLabel);
+      content.appendChild(rearrangeRow);
+
+      const note = document.createElement("div");
+      note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-top: 0.5rem; line-height: 1.5;";
+      note.textContent =
+        "動かした結果は上の「自分専用ステータスエリア（左下）」の各グループの値として" +
+        "そのまま反映されます。移動・拡大縮小し終えたら下の「出力をコピー」を押して、" +
+        "その内容を開発者に伝えてください。";
+      content.appendChild(note);
+    },
+  },
+  {
     title: "ターンタイマー（ロープ・砂時計）",
     category: "behavior",
     buildContent: (content) => {
@@ -751,7 +800,29 @@ function buildPanel(rebuildSlidersRef) {
 
   const title = document.createElement("div");
   title.textContent = "管理者モード：位置合わせ";
-  title.style.cssText = "font-weight: bold; margin-bottom: 0.5rem; padding-right: 1.6rem;";
+  title.title = "ドラッグしてパネルを移動できます";
+  title.style.cssText =
+    "font-weight: bold; margin-bottom: 0.5rem; padding-right: 1.6rem; cursor: move; user-select: none;";
+
+  // パネルが左上に固定表示され、盤面左下の自分専用ステータスエリア等の調整対象が隠れて
+  // 触れないという報告があったため、タイトルバーを掴んでパネル自体を自由に移動できるようにした。
+  title.addEventListener("pointerdown", (e) => {
+    const rect = panel.getBoundingClientRect();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startLeft = rect.left;
+    const startTop = rect.top;
+    function onMove(ev) {
+      panel.style.left = `${startLeft + (ev.clientX - startX)}px`;
+      panel.style.top = `${startTop + (ev.clientY - startY)}px`;
+    }
+    function onUp() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  });
   panel.appendChild(title);
 
   function buildGroupSection(group) {
@@ -914,6 +985,11 @@ export function initAdminMode() {
   // icon-rearrange.jsが、アイコンのドラッグ再配置が1回終わるたびに発火する。スライダーの
   // 表示値・出力欄をその場で最新化する（パネルが閉じていても軽い処理なので無条件に行う）。
   window.addEventListener("admin:icon-rearrange-change", () => {
+    rebuildSlidersRef.current();
+    updateExportRef.current();
+  });
+  // self-status-rearrange.jsが、ドラッグ/ホイール操作が少し落ち着いた時に発火する。
+  window.addEventListener("admin:self-status-rearrange-change", () => {
     rebuildSlidersRef.current();
     updateExportRef.current();
   });
