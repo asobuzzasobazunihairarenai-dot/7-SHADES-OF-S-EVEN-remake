@@ -184,40 +184,79 @@ body {
   z-index: 1;
 }
 
-/* 「公開ドロー」で引いたカードを、扇状の手札とは別に表面全体が見えるよう一列に並べる場所
-   （main.jsのbuildPlayerZone参照）。.hand-areaと同じ「中心基準+translateで自己センタリング」
-   方式にし、手札から少し離れた位置（外側方向）をデフォルトにして、管理者モードから
-   --public-draw-{bottom,top,left,right}-pos-x/yで個別に調整できるようにした。 */
-.public-draw-area {
+/* 手札公開エリア: 手札からドラッグで手動配置した「宣言」カード、または「公開ドロー」
+   ボタンで山から引いたカードを、扇状の手札とは別に表面全体が見えるよう左寄せの一列に
+   並べる場所（main.jsのbuildPlayerZone参照、findDropTargetがドラッグの受け皿にもなる）。
+   盤面のそば・プレイヤー名の下あたりがデフォルト位置（ユーザー要望）。.hand-areaと同じ
+   「中心基準+translateで自己センタリング」方式にし、管理者モードから
+   --hand-reveal-{bottom,top,left,right}-pos-x/yで個別に調整できるようにした。 */
+.hand-reveal-area {
   position: absolute;
   top: 50%;
   left: 50%;
   display: flex;
-  gap: 0.4rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   z-index: 1;
 }
-.public-draw-bottom {
-  transform: translate(-50%, -50%) translate(var(--public-draw-bottom-pos-x, 0rem), var(--public-draw-bottom-pos-y, -9rem));
+.hand-reveal-bottom {
+  transform: translate(-50%, -50%) translate(var(--hand-reveal-bottom-pos-x, 0rem), var(--hand-reveal-bottom-pos-y, 6rem));
 }
-.public-draw-top {
-  flex-direction: row-reverse;
-  transform: translate(-50%, -50%) translate(var(--public-draw-top-pos-x, 0rem), var(--public-draw-top-pos-y, 9rem));
+.hand-reveal-top {
+  transform: translate(-50%, -50%) translate(var(--hand-reveal-top-pos-x, 0rem), var(--hand-reveal-top-pos-y, -6rem));
 }
-.public-draw-left {
+.hand-reveal-left {
+  transform: translate(-50%, -50%) translate(var(--hand-reveal-left-pos-x, -8rem), var(--hand-reveal-left-pos-y, 0rem));
+}
+.hand-reveal-right {
+  transform: translate(-50%, -50%) translate(var(--hand-reveal-right-pos-x, 8rem), var(--hand-reveal-right-pos-y, 0rem));
+}
+/* 1枚ごとに「カード＋捨てるボタン」を縦に積んだ単位。 */
+.hand-reveal-slot {
+  display: flex;
   flex-direction: column;
-  transform: translate(-50%, -50%) translate(var(--public-draw-left-pos-x, 9rem), var(--public-draw-left-pos-y, 0rem));
+  align-items: center;
+  gap: 0.2rem;
 }
-.public-draw-right {
-  flex-direction: column;
-  transform: translate(-50%, -50%) translate(var(--public-draw-right-pos-x, -9rem), var(--public-draw-right-pos-y, 0rem));
-}
-.public-draw-card {
-  width: var(--public-draw-card-size, 4rem);
-  height: var(--public-draw-card-size, 4rem);
+.hand-reveal-card {
+  position: relative;
+  width: var(--hand-reveal-card-size, 4rem);
+  height: var(--hand-reveal-card-size, 4rem);
   border-radius: 0.3rem;
-  border: 1px solid rgba(226, 232, 240, 0.5);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
   flex-shrink: 0;
+}
+/* 手動配置（宣言）と公開ドローを、枠線の色で視覚的に区別する（ユーザー要望）。 */
+.hand-reveal-card.is-manual {
+  border: 2px solid rgba(56, 189, 248, 0.85); /* 水色 */
+}
+.hand-reveal-card.is-drawn {
+  border: 2px solid rgba(250, 204, 21, 0.85); /* 黄色 */
+}
+.hand-reveal-badge {
+  position: absolute;
+  bottom: -0.35rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.5rem;
+  white-space: nowrap;
+  background: rgba(15, 23, 32, 0.9);
+  border-radius: 0.2rem;
+  padding: 0.05rem 0.25rem;
+  pointer-events: none;
+}
+.hand-reveal-discard-btn {
+  font-size: 0.6rem;
+  background: rgba(153, 27, 27, 0.6);
+  color: #fecaca;
+  border: 1px solid rgba(248, 113, 113, 0.6);
+  border-radius: 0.2rem;
+  padding: 0.1rem 0.35rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.hand-reveal-discard-btn:hover {
+  background: rgba(153, 27, 27, 0.9);
 }
 
 /* 手札全体を持ち上げる。自分（is-self）はテーブルの傾きを打ち消してカメラ側を向かせ、
@@ -293,10 +332,13 @@ body {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 2.6rem;
-  height: 2.6rem;
-  margin-top: -1.3rem;
-  margin-left: -1.3rem;
+  /* カード1枚自体の見た目の大きさ（手札エリア全体のサイズ--hand-{a,b,c,d}-sizeとは別物、
+     管理者モードの「手札カード自体のサイズ」グループで調整可能）。中心基準の配置のため、
+     marginをcalc()で連動させ、サイズを変えても中心がズレないようにしている。 */
+  width: var(--hand-card-opponent-size, 2.6rem);
+  height: var(--hand-card-opponent-size, 2.6rem);
+  margin-top: calc(var(--hand-card-opponent-size, 2.6rem) / -2);
+  margin-left: calc(var(--hand-card-opponent-size, 2.6rem) / -2);
   border-radius: 0.3rem;
   background-image: linear-gradient(160deg, #334155, #1e293b);
   border: 1px solid rgba(226, 232, 240, 0.4);
@@ -305,10 +347,10 @@ body {
 
 /* 自分の手札は視認性優先で大きく表示する */
 .hand-card.is-self {
-  width: 5.8rem;
-  height: 5.8rem;
-  margin-top: -2.9rem;
-  margin-left: -2.9rem;
+  width: var(--hand-card-self-size, 5.8rem);
+  height: var(--hand-card-self-size, 5.8rem);
+  margin-top: calc(var(--hand-card-self-size, 5.8rem) / -2);
+  margin-left: calc(var(--hand-card-self-size, 5.8rem) / -2);
   font-size: 0.62rem;
 }
 
@@ -332,7 +374,7 @@ body {
 .hand-card,
 .board-card,
 .stack-top,
-.public-draw-card {
+.hand-reveal-card {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -940,9 +982,13 @@ body {
   width: var(--icon-size-options, 2.6rem);
   height: var(--icon-size-options, 2.6rem);
 }
-#interaction-mode-button .icon-action-button-icon-wrap {
-  width: var(--icon-size-interaction-mode, 2.6rem);
-  height: var(--icon-size-interaction-mode, 2.6rem);
+#piece-hide-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-piece-hide, 2.6rem);
+  height: var(--icon-size-piece-hide, 2.6rem);
+}
+#card-hide-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-card-hide, 2.6rem);
+  height: var(--icon-size-card-hide, 2.6rem);
 }
 /* PC/タブレットでサイズを分けたい場合の対応（位置の--icon-pos-*-touch-x/yと同じ
    フォールバックチェーン方式。誤操作防止ボタンはタッチ専用のため対象外）。 */
@@ -1321,9 +1367,11 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
   right: 0;
   transform: none;
 }
-/* 逆に画面左端近く（#interaction-mode-button、left:1.2rem）では中央寄せのツールチップが
-   左へ見切れるため、左端をアイコンの左端に合わせ、常に右方向にだけ伸びるようにする。 */
-#interaction-mode-button .phase-guide-tooltip {
+/* 逆に画面左端近く（#piece-hide-button/#card-hide-button、left:1.2rem付近）では中央寄せの
+   ツールチップが左へ見切れるため、左端をアイコンの左端に合わせ、常に右方向にだけ伸びる
+   ようにする。 */
+#piece-hide-button .phase-guide-tooltip,
+#card-hide-button .phase-guide-tooltip {
   left: 0;
   transform: none;
 }
@@ -2424,7 +2472,7 @@ body.is-touch-device #options-menu-button {
   display: none;
   /* 管理者モードの「アイコン再配置モード」でドラッグした分のズレ。基準位置は変えず
      translate()で上乗せする（icon-rearrange.js参照）。 */
-  transform: translate(var(--icon-pos-draw-x, -6.21rem), var(--icon-pos-draw-y, -2.17rem));
+  transform: translate(var(--icon-pos-draw-x, -9rem), var(--icon-pos-draw-y, -4.7rem));
 }
 /* 「公開ドロー」ボタン。ユーザー指定の通り「1枚ドロー」ボタンの左上に置く
    （#draw-buttonの基準位置bottom:5rem;right:1.2remから見て、上方向・左方向にずらした
@@ -2436,7 +2484,7 @@ body.is-touch-device #options-menu-button {
   right: 5.5rem;
   z-index: 1000;
   display: none;
-  transform: translate(var(--icon-pos-public-draw-x, 0rem), var(--icon-pos-public-draw-y, 0rem));
+  transform: translate(var(--icon-pos-public-draw-x, 0.2rem), var(--icon-pos-public-draw-y, 2.3rem));
 }
 #public-draw-button .icon-action-button-icon-wrap {
   width: var(--icon-size-public-draw, 2.6rem);
@@ -2454,14 +2502,14 @@ body.is-touch-device #options-menu-button {
   bottom: 12.6rem;
   right: 1.2rem;
   z-index: 1000;
-  transform: translate(var(--icon-pos-hand-shuffle-x, -8.17rem), var(--icon-pos-hand-shuffle-y, 11.38rem));
+  transform: translate(var(--icon-pos-hand-shuffle-x, -8.1rem), var(--icon-pos-hand-shuffle-y, 11.38rem));
 }
 /* PC/タブレットでUI位置を分けたい場合の対応（#end-turn-button側と同じフォールバック
    チェーン方式）。 */
 body.is-touch-device #draw-button {
   transform: translate(
-    var(--icon-pos-draw-touch-x, var(--icon-pos-draw-x, -6.21rem)),
-    var(--icon-pos-draw-touch-y, var(--icon-pos-draw-y, -2.17rem))
+    var(--icon-pos-draw-touch-x, var(--icon-pos-draw-x, -9rem)),
+    var(--icon-pos-draw-touch-y, var(--icon-pos-draw-y, -4.7rem))
   );
 }
 body.is-touch-device #board-zoom-button {
@@ -2472,7 +2520,7 @@ body.is-touch-device #board-zoom-button {
 }
 body.is-touch-device #hand-shuffle-button {
   transform: translate(
-    var(--icon-pos-hand-shuffle-touch-x, var(--icon-pos-hand-shuffle-x, -8.17rem)),
+    var(--icon-pos-hand-shuffle-touch-x, var(--icon-pos-hand-shuffle-x, -8.1rem)),
     var(--icon-pos-hand-shuffle-touch-y, var(--icon-pos-hand-shuffle-y, 11.38rem))
   );
 }
@@ -2589,22 +2637,30 @@ body.reduce-glow .board-card.is-usable-while-locked.effect-orbit::before {
 
 /* 自分専用の手札枚数ステータス。他のパネルと違う左下に置き、常時表示にする
    （state.turnPlayerの有無に関わらず、自分の手札は常に自分だけ見えていて良い情報のため）。 */
-/* 「誤操作防止」（駒/カード グレー表示切替）ボタン。タッチ主体の端末でのみ表示される
-   （interaction-mode.js参照）。#self-hand-status（左下ステータス）のすぐ上に置く。 */
-#interaction-mode-button {
+/* 「駒消し」「カード消し」（誤操作防止、それぞれ独立したトグル）ボタン。タッチ主体の
+   端末でのみ表示される（interaction-mode.js参照）。#self-hand-status（左下ステータス）の
+   すぐ上に縦に2つ並べる。以前は1つのボタンが4状態を巡回する仕組みだったが、分かりやすさの
+   ため独立ボタンに分割した（同時ONはinteraction-mode.js側で禁止している）。 */
+#piece-hide-button {
   position: fixed;
   bottom: 5.6rem;
   left: 1.2rem;
   z-index: 1000;
-  /* このボタンはタッチ主体の端末でしか表示されないため、PC/タブレットの出し分けは不要
-     （常にタブレット向けの1系統の位置調整のみ）。 */
-  transform: translate(var(--icon-pos-interaction-mode-x, 0rem), var(--icon-pos-interaction-mode-y, 0rem));
+  transform: translate(var(--icon-pos-piece-hide-x, 0rem), var(--icon-pos-piece-hide-y, 0rem));
+}
+#card-hide-button {
+  position: fixed;
+  bottom: 9.2rem;
+  left: 1.2rem;
+  z-index: 1000;
+  transform: translate(var(--icon-pos-card-hide-x, 0rem), var(--icon-pos-card-hide-y, 0rem));
 }
 @keyframes icon-mode-active-glow {
   0%, 100% { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4), 0 0 0 0.15rem rgba(250, 204, 21, 0.9); }
   50% { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4), 0 0 0 0.35rem rgba(250, 204, 21, 0.3); }
 }
-#interaction-mode-button.is-glowing .icon-action-button-icon-wrap {
+#piece-hide-button.is-glowing .icon-action-button-icon-wrap,
+#card-hide-button.is-glowing .icon-action-button-icon-wrap {
   background: rgba(250, 204, 21, 0.2);
   border-color: rgba(250, 204, 21, 0.85);
   animation: icon-mode-active-glow 1.4s ease-in-out infinite;
@@ -2676,6 +2732,7 @@ body.cards-interaction-hidden .board-card {
   position: absolute;
   left: 0;
   top: 0;
+  z-index: 0;
   font-size: calc(var(--self-status-large-avatar-size, 13.7rem) * 0.75);
   line-height: 1;
   cursor: pointer;
@@ -2704,6 +2761,7 @@ body.cards-interaction-hidden .board-card {
   grid-template-columns: repeat(2, auto);
   gap: var(--self-status-icon-gap, 0.4rem);
   justify-items: center;
+  z-index: 2;
 }
 /* 駒スキン・カード裏面・プレイマットの3つは、buildIconButtonContent()を使うアイコンボタン
    （手札シャッフル等）と違う独自の見た目のため、ホバー簡易説明(.phase-guide-tooltip)の
@@ -2716,7 +2774,8 @@ body.cards-interaction-hidden .board-card {
 }
 /* この4アイコン（オンライン状態を含む）は画面左下、左端に近い位置にあるため、
    .phase-guide-tooltipの既定（中央寄せ）のままだと画面左端で見切れる。左端をアイコンの
-   左端に合わせ、常に右方向にだけ伸びるようにする（#interaction-mode-buttonと同じ対策）。 */
+   左端に合わせ、常に右方向にだけ伸びるようにする（#piece-hide-button/#card-hide-buttonと
+   同じ対策）。 */
 .self-status-icon-grid .phase-guide-tooltip {
   left: 0;
   transform: none;
@@ -2822,6 +2881,14 @@ body.cards-interaction-hidden .board-card {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
+  /* ハマりどころ（ユーザー報告「駒スキン/裏面/プレイマットのアイコンが反応しづらい」）:
+     #self-hand-statusはdisplay:flexで、この要素はアイコングリッドより後にappendChildされる
+     ため、両者ともz-index:auto（デフォルト）だとflexアイテムの並び順がそのままスタッキング
+     順になり、名前・手札枚数のテキスト自体は短くても、要素の「箱」自体は幅130px前後まで
+     広がっており、駒スキン・カード裏面アイコンの上に透明な当たり判定として覆いかぶさって
+     クリックを奪っていた（見た目のテキストが被っていなくても、箱の透明な部分もクリックを
+     奪う）。z-index:1を明示し、アイコングリップ側(z-index:2)に確実に負けるようにした。 */
+  z-index: 1;
   transform: translate(var(--self-status-info-pos-x, -6.2rem), var(--self-status-info-pos-y, 2.2rem));
 }
 .self-status-name {
@@ -2983,6 +3050,23 @@ body.cards-interaction-hidden .board-card {
 }
 .card-arrival-modal-pin:hover {
   background: rgba(56, 189, 248, 0.2);
+}
+/* 到達した駒の持ち主にだけ表示される「このカードを手札に加える」ボタン。モーダル右下に
+   配置する（ユーザー指定）。 */
+.card-arrival-modal-add-to-hand {
+  align-self: flex-end;
+  padding: 0.4rem 0.9rem;
+  background: rgba(21, 128, 61, 0.7);
+  color: #dcfce7;
+  border: 1px solid rgba(74, 222, 128, 0.7);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-family: sans-serif;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+.card-arrival-modal-add-to-hand:hover {
+  background: rgba(21, 128, 61, 0.95);
 }
 
 /* 駒が裏向きのカードに乗った時、自動でオープンする代わりに出す「オープンする/しない」の

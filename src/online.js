@@ -675,6 +675,7 @@ export async function fetchAndHydrate(gameId) {
         // 対応していないため、この最小構成では「隠れているカードの見た目」の描画は
         // 次回以降の課題として明記する）。
         token.faceUp = r.face_up;
+        if (r.reveal_source) token.revealSource = r.reveal_source;
       } else {
         token.color = r.color;
         token.player = r.piece_player;

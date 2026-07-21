@@ -297,22 +297,41 @@ function buildPlayerZone(side, player, isSelf) {
   });
   handEl.appendChild(fanEl);
 
-  // 「公開ドロー」ボタン（buildPublicDrawButton参照）で引いたカードを、扇状の手札とは
-  // 別に、表面全体が見えるよう一列に並べて表示する場所。手札シャッフル/ターン終了を
-  // 押すと通常の手札へ合流する（state.jsのmergePublicDrawIntoHand参照）ため、ここには
-  // まだ合流していない分だけが残る。誰が引いたかは公開情報なので、自分以外の座席分も
-  // 常に表向きで表示する（普段の手札とは違い、ここではisSelfによる出し分けをしない）。
-  const publicDrawEl = document.createElement("div");
-  publicDrawEl.className = `public-draw-area public-draw-${side}`;
-  const publicDrawTokens = getState().tokens.filter(
+  // 手札公開エリア: 盤面のそば・プレイヤー名の下あたりに置く、表向きカードの公開表示場所
+  // （ユーザー要望）。2通りの経路でカードが集まる: (1) 手札からドラッグで手動配置＝
+  // 手札効果の使用を宣言する時などに使う（findDropTarget参照、revealSource:"manual"）、
+  // (2) 「公開ドロー」ボタン（buildPublicDrawButton参照）で山から直接引く
+  // （revealSource:"draw"）。どちらも扇状の手札には直接入らず、手札シャッフル/ターン終了を
+  // 押すと通常の手札へまとめて合流する（state.jsのmergePublicDrawIntoHand参照）。誰が
+  // 置いた/引いたかは公開情報なので、自分以外の座席分も常に表向きで表示する（普段の手札とは
+  // 違い、ここではisSelfによる出し分けをしない）。各カードの下に「捨てる」ボタンが付き、
+  // 押すとその場で捨て場へ送れる。
+  const handRevealEl = document.createElement("div");
+  handRevealEl.className = `hand-reveal-area hand-reveal-${side}`;
+  handRevealEl.dataset.player = player;
+  const handRevealTokens = getState().tokens.filter(
     (t) => t.kind === "card" && t.location.zone === "publicDraw" && t.location.player === player
   );
-  publicDrawTokens.forEach((token) => {
+  handRevealTokens.forEach((token) => {
+    const slot = document.createElement("div");
+    slot.className = "hand-reveal-slot";
     const cardEl = document.createElement("div");
-    cardEl.className = "public-draw-card";
+    // revealSourceが無い（あり得ない想定だが安全側で）場合は手動配置扱いにしておく。
+    cardEl.className = `hand-reveal-card${token.revealSource === "draw" ? " is-drawn" : " is-manual"}`;
     cardEl.dataset.tokenId = token.id;
     cardEl.style.backgroundImage = `url("${getCardImagePath(token.cardId)}")`;
-    publicDrawEl.appendChild(cardEl);
+    const badge = document.createElement("span");
+    badge.className = "hand-reveal-badge";
+    badge.textContent = token.revealSource === "draw" ? "🎴 公開ドロー" : "📣 宣言";
+    cardEl.appendChild(badge);
+    const discardBtn = document.createElement("button");
+    discardBtn.className = "hand-reveal-discard-btn";
+    discardBtn.type = "button";
+    discardBtn.textContent = "🗑 捨てる";
+    discardBtn.addEventListener("click", () => discardFromHandReveal(token.id));
+    slot.appendChild(cardEl);
+    slot.appendChild(discardBtn);
+    handRevealEl.appendChild(slot);
   });
 
   zone.appendChild(nameEl);
@@ -320,8 +339,26 @@ function buildPlayerZone(side, player, isSelf) {
   // デフォルト非表示にした（管理者モードでオンオフ可能）。B/C/Dは常時表示のまま。
   if (!isSelf || isSelfBoardAvatarVisible()) zone.appendChild(avatarEl);
   zone.appendChild(handEl);
-  zone.appendChild(publicDrawEl);
+  zone.appendChild(handRevealEl);
   return zone;
+}
+
+// 手札公開エリアのカードを捨て場へ送る（各カードの「捨てる」ボタン）。ドラッグ操作の
+// sendTokenToPile呼び出し（onDragEndのpile-drop分岐）と同じパターン。
+async function discardFromHandReveal(tokenId) {
+  if (isOnlineMode()) {
+    try {
+      await sendTokenToPile(tokenId, "discard");
+      markSelfHandled([tokenId]);
+      await fetchAndHydrate(getCurrentGameId());
+    } catch (err) {
+      console.error("sendTokenToPile failed", err);
+      render();
+    }
+    return;
+  }
+  sendTokenToPile(tokenId, "discard");
+  render();
 }
 
 // 枚数に応じて厚みのある山を作る（山札・エターナルカード用。将来は盤面マスのスタックにも流用する）。
@@ -512,6 +549,19 @@ function hasPieceAt(location) {
   });
 }
 
+// 到達モーダルの「このカードを手札に加える」ボタン用: そのマス/ロックスロットにいる駒の
+// 持ち主（座席）を返す（複数枚重なることは無い想定、最初に見つかったものを返す）。
+function getPieceOwnerAt(location) {
+  if (location.zone !== "cell" && location.zone !== "lock") return null;
+  const piece = getState().tokens.find((t) => {
+    if (t.kind !== "piece" || t.location.zone !== location.zone) return false;
+    return location.zone === "cell"
+      ? t.location.row === location.row && t.location.col === location.col
+      : t.location.side === location.side && t.location.index === location.index;
+  });
+  return piece ? piece.player : null;
+}
+
 // 山から直接手札へドローした直後、新しく加わったトークンidを特定する。オンライン中の
 // drawFromPile()応答にはトークンidが含まれない（revealedCardId=カードの中身のみ）ため、
 // ドロー前に取得しておいた手札トークンidの集合と突き合わせて差分から見つける
@@ -597,10 +647,40 @@ function spawnArrivalBurst(hostEl, color) {
   return burst;
 }
 
+// 到達したカードをその場からそのプレイヤーの手札へ加える（到達モーダルの
+// 「このカードを手札に加える」ボタン）。ボタン自体は到達した本人の画面にしか出さないが、
+// クリック時点で改めてstateを見直し、既に無くなっている（誰かが動かした等）場合は
+// 何もしない。
+async function addArrivedCardToHand(location, player) {
+  const token = findTopCardAt(location);
+  if (!token) return;
+  if (isOnlineMode()) {
+    try {
+      await moveToken(token.id, { zone: "hand", player });
+      markSelfHandled([token.id]);
+      await fetchAndHydrate(getCurrentGameId());
+    } catch (err) {
+      console.error("moveToken failed", err);
+      render();
+      return;
+    }
+  } else {
+    moveToken(token.id, { zone: "hand", player });
+  }
+  announceHandPickups(player, [{ cardId: token.cardId, wasPublic: token.faceUp }]);
+  render();
+}
+
 // 到達演出一式（右上モーダル＋そのマス自体が発光する柱状のオーラ＋効果音）をまとめて行う。
-// 柱の色はカード自身の色に合わせる（--color-*をそのまま使う）。
+// 柱の色はカード自身の色に合わせる（--color-*をそのまま使う）。到達した駒の持ち主にだけ
+// 「このカードを手札に加える」ボタンを出す（ユーザー要望）。
 function triggerCardArrival(cardId, location) {
-  showCardArrivalModal(cardId);
+  const player = getPieceOwnerAt(location);
+  const showAddToHand = !!player && player === getSelfSeat();
+  showCardArrivalModal(cardId, {
+    showAddToHand,
+    onAddToHand: () => addArrivedCardToHand(location, player),
+  });
   playSound("arrivalEffect");
   const table = document.getElementById("game-table");
   const hostEl = findLocationElement(table, location);
@@ -1731,6 +1811,14 @@ function findDropTarget(clientX, clientY, kind) {
     if (kind === "card") {
       const handArea = el.closest(".hand-area");
       if (handArea) return { location: { zone: "hand", player: handArea.dataset.player }, el: handArea };
+      // 手札公開エリア: 手札のカードをここへドラッグすると「宣言」として表向きに公開できる
+      // （手札効果の使用を宣言する時などに活用、location.zone:"publicDraw"はDRAW_FROM_PILE
+      // 由来の「公開ドロー」と共有。state.jsのMOVE_TOKENケースがrevealSource:"manual"を
+      // 自動で付与し、公開ドローと視覚的に区別する）。
+      const handRevealArea = el.closest(".hand-reveal-area");
+      if (handRevealArea) {
+        return { location: { zone: "publicDraw", player: handRevealArea.dataset.player }, el: handRevealArea };
+      }
       const pileZone = el.closest(".pile-zone");
       if (pileZone) {
         // ハイライトは.pile-zone（グリッド上の枠、実際の山より大きくズレて見える）ではなく、

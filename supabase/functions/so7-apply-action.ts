@@ -120,6 +120,7 @@ type Token = {
   color?: string;
   player?: string;
   location: Location;
+  revealSource?: "manual" | "draw"; // 手札公開エリア（zone: "publicDraw"）内でのみ意味を持つ
 };
 
 type Piles = { deck: string[]; eternal: string[]; first: string[]; discard: string[] };
@@ -170,6 +171,10 @@ function reduce(current: GameState, action: any): GameState {
         } else if (!(isTable(token.location) && isTable(action.location))) {
           next.faceUp = faceUpForLocation(action.location);
         }
+        // src/state.jsのMOVE_TOKENケースと同じ「手動配置」印付け。
+        if (action.location.zone === "publicDraw" && token.location.zone !== "publicDraw") {
+          next.revealSource = "manual";
+        }
       }
       const rest = current.tokens.filter((t) => t.id !== action.tokenId);
       return { ...current, tokens: [...rest, next] };
@@ -181,6 +186,7 @@ function reduce(current: GameState, action: any): GameState {
       const piles = { ...current.piles, [action.pile]: pileArray.slice(0, -1) };
       const faceUp = faceUpForLocation(action.location);
       const newToken: Token = { id: uid("card"), kind: "card", cardId, faceUp, location: action.location };
+      if (action.location.zone === "publicDraw") newToken.revealSource = "draw";
       return { ...current, piles, tokens: [...current.tokens, newToken] };
     }
     case "SEND_TOKEN_TO_PILE": {
@@ -491,6 +497,7 @@ async function loadState(db: any, gameId: string): Promise<{ state: GameState; v
     if (r.kind === "card") {
       token.cardId = r.card_id;
       token.faceUp = r.face_up;
+      if (r.reveal_source) token.revealSource = r.reveal_source;
     } else {
       token.color = r.color;
       token.player = r.piece_player;
@@ -532,6 +539,7 @@ function tokenToRow(t: Token, orderIndex: number) {
     side: loc.zone === "lock" ? loc.side : null,
     idx: loc.zone === "lock" ? loc.index : null,
     hand_player: loc.zone === "hand" || loc.zone === "publicDraw" ? loc.player : null,
+    reveal_source: t.revealSource ?? null,
     order_index: orderIndex,
   };
 }

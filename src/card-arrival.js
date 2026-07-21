@@ -19,7 +19,11 @@ function getDurationMs() {
 let currentModal = null;
 let currentTimer = null;
 
-export function showCardArrivalModal(cardId) {
+// options.showAddToHand: 到達した駒の持ち主が自分自身の時だけtrue（main.jsのtriggerCardArrival
+// 側で判定済み、ここでは受け取った真偽値をそのまま反映するだけ）。
+// options.onAddToHand: ボタンを押した時に呼ぶコールバック（実際の状態変更・同期はmain.js側の
+// 責務、このモジュールはUIの表示に徹する）。
+export function showCardArrivalModal(cardId, options = {}) {
   // 短時間で連続して別のカードに到達した場合、前のモーダルを消して最新のものだけ表示する。
   if (currentModal) {
     clearTimeout(currentTimer);
@@ -64,6 +68,21 @@ export function showCardArrivalModal(cardId) {
   }
 
   modal.appendChild(createModalCloseX(dismiss));
+
+  // 到達した駒の持ち主が自分自身の時だけ表示する（main.jsのtriggerCardArrivalで判定済み）。
+  // 右下に配置（ユーザー指定）。
+  if (options.showAddToHand) {
+    const addBtn = document.createElement("button");
+    addBtn.className = "card-arrival-modal-add-to-hand";
+    addBtn.textContent = "このカードを手札に加える";
+    addBtn.addEventListener("click", (e) => {
+      e.stopPropagation(); // モーダル本体のクリックによる即座のdismissを防ぐ
+      options.onAddToHand?.();
+      dismiss();
+    });
+    modal.appendChild(addBtn);
+  }
+
   // カードを見ながら到達効果を処理し終えたら、モーダルに触れるだけで閉じられるようにする
   // （「デフォルトは消えない」設定と対になる操作）。
   modal.addEventListener("click", dismiss);

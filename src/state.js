@@ -191,6 +191,13 @@ function reduce(current, action) {
         } else if (!(isTable(token.location) && isTable(action.location))) {
           next.faceUp = faceUpForLocation(action.location);
         }
+        // 手札公開エリア（location.zone: "publicDraw"）へドラッグで手動配置したカードは
+        // 「宣言」扱い（revealSource: "manual"）。公開ドローボタンで引いたカード
+        // （DRAW_FROM_PILEケース参照、revealSource: "draw"）と視覚的に区別するための印。
+        // 既にこのエリア内にいたカードを同エリア内で動かしただけの場合は上書きしない。
+        if (action.location.zone === "publicDraw" && token.location.zone !== "publicDraw") {
+          next.revealSource = "manual";
+        }
       }
       // 動かしたトークンを配列の末尾に移す。renderBoardTokens()はtokens配列の順番通りに
       // appendChildするため、同じマスに複数枚重なっている時は「配列の後ろにあるもの」ほど
@@ -213,6 +220,7 @@ function reduce(current, action) {
       const piles = { ...current.piles, [action.pile]: pileArray.slice(0, -1) };
       const faceUp = faceUpForLocation(action.location);
       const newToken = { id: uid("card"), kind: "card", cardId, faceUp, location: action.location };
+      if (action.location.zone === "publicDraw") newToken.revealSource = "draw";
       return { ...current, piles, tokens: [...current.tokens, newToken] };
     }
     // 自分の手札を並べ替える（画面左下の「手札シャッフル」ボタン）。カード自体の入れ替わりは

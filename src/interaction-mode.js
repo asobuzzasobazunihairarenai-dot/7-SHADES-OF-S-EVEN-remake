@@ -1,81 +1,112 @@
 // タブレット等のタッチ操作向け「駒/カード 一時グレー表示」トグルボタン。誤操作防止のため、
 // カードだけ触りたい時は駒を、駒だけ触りたい時はカードを、それぞれ一時的にグレー表示＋
 // タップ操作不可にできる。マウス操作が前提のPCでは誤操作の心配が薄く、画面も窮屈になる
-// だけのため、タッチ主体の端末（"hover:none かつ pointer:coarse" — ホバーできず入力精度が
-// 粗い、タブレット/スマホの標準的な検知方法。トラックパッド付きノートPC等は
-// hover:hover/pointer:fineのまま検知されないため対象外になる）でのみボタン自体を表示する。
+// だけのため、タッチ主体の端末（"hover:none かつ pointer:coarse" — device-detect.js参照）
+// でのみボタン自体を表示する。
 //
-// クリックのたびに以下の4状態を巡回する:
-//   normal（通常、駒アイコン表示） → pieces-hidden（駒グレー表示中、同じ駒アイコンが発光）
-//   → cards-normal（通常に戻り、カードアイコン表示） → cards-hidden（カードグレー表示中、
-//   カードアイコンが発光） → normal に戻る
+// 以前は1つのボタンが4状態（通常→駒グレー→通常（カードアイコン）→カードグレー→通常）を
+// 巡回する仕組みだったが、「駒消し」「カード消し」を分かりやすく独立したボタンに分けたい
+// という要望を受け、2つの独立したトグルボタンに作り直した。ユーザーの指定により、
+// 同時に両方ONにはできない（片方をONにすると、もう片方は自動的にOFFになる）——駒と
+// カードが両方グレー表示になって盤面に触れなくなる事故を防ぐため。
 // 実際にグレー表示/操作不可にする処理自体はCSS側（body.pieces-interaction-hidden /
-// body.cards-interaction-hidden、style.css参照）に任せ、このモジュールはbodyクラスの
-// 付け外しとボタンの見た目更新だけを行う。
+// body.cards-interaction-hidden、style.css参照、旧実装と同じクラス名をそのまま使う）に
+// 任せ、このモジュールはbodyクラスの付け外しとボタンの見た目更新だけを行う。
 
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { isTouchPrimaryDevice, TOUCH_MEDIA_QUERY } from "./device-detect.js";
 
-const STATES = ["normal", "pieces-hidden", "cards-normal", "cards-hidden"];
+let piecesHidden = false;
+let cardsHidden = false;
 
-const TOOLTIP_BY_STATE = {
-  normal: "駒を一時的にグレー表示にして操作できなくします（カードだけ触りたい時に）",
-  "pieces-hidden": "タップすると駒を元に戻します",
-  "cards-normal": "カードを一時的にグレー表示にして操作できなくします（駒だけ触りたい時に）",
-  "cards-hidden": "タップするとカードを元に戻します",
+let pieceBtnEl = null;
+let pieceTooltipEl = null;
+let cardBtnEl = null;
+let cardTooltipEl = null;
+
+const PIECE_TOOLTIP = {
+  off: "駒を一時的にグレー表示にして操作できなくします（カードだけ触りたい時に）",
+  on: "タップすると駒を元に戻します",
+};
+const CARD_TOOLTIP = {
+  off: "カードを一時的にグレー表示にして操作できなくします（駒だけ触りたい時に）",
+  on: "タップするとカードを元に戻します",
 };
 
-let state = "normal";
-let btnEl = null;
-let iconImgEl = null;
-let tooltipEl = null;
-
 function applyBodyClasses() {
-  document.body.classList.toggle("pieces-interaction-hidden", state === "pieces-hidden");
-  document.body.classList.toggle("cards-interaction-hidden", state === "cards-hidden");
+  document.body.classList.toggle("pieces-interaction-hidden", piecesHidden);
+  document.body.classList.toggle("cards-interaction-hidden", cardsHidden);
 }
 
-function updateButton() {
-  if (!btnEl) return;
-  const showingPieceIcon = state === "normal" || state === "pieces-hidden";
-  const glowing = state === "pieces-hidden" || state === "cards-hidden";
-  btnEl.classList.toggle("is-glowing", glowing);
-  if (iconImgEl) iconImgEl.src = showingPieceIcon ? "assets/icons/piece-transparency.svg" : "assets/icons/card-transparency.svg";
-  if (tooltipEl) tooltipEl.textContent = TOOLTIP_BY_STATE[state];
+function updateButtons() {
+  if (pieceBtnEl) {
+    pieceBtnEl.classList.toggle("is-glowing", piecesHidden);
+    pieceTooltipEl.textContent = piecesHidden ? PIECE_TOOLTIP.on : PIECE_TOOLTIP.off;
+  }
+  if (cardBtnEl) {
+    cardBtnEl.classList.toggle("is-glowing", cardsHidden);
+    cardTooltipEl.textContent = cardsHidden ? CARD_TOOLTIP.on : CARD_TOOLTIP.off;
+  }
 }
 
-function advance() {
-  const idx = STATES.indexOf(state);
-  state = STATES[(idx + 1) % STATES.length];
+function togglePieces() {
+  piecesHidden = !piecesHidden;
+  if (piecesHidden) cardsHidden = false; // 同時ONは禁止（ユーザー指定）
   applyBodyClasses();
-  updateButton();
+  updateButtons();
+}
+
+function toggleCards() {
+  cardsHidden = !cardsHidden;
+  if (cardsHidden) piecesHidden = false;
+  applyBodyClasses();
+  updateButtons();
 }
 
 function updateVisibility() {
-  if (!btnEl) return;
-  btnEl.style.display = isTouchPrimaryDevice() ? "" : "none";
+  const visible = isTouchPrimaryDevice();
+  if (pieceBtnEl) pieceBtnEl.style.display = visible ? "" : "none";
+  if (cardBtnEl) cardBtnEl.style.display = visible ? "" : "none";
 }
 
 export function initInteractionModeToggle() {
-  btnEl = document.createElement("button");
-  btnEl.id = "interaction-mode-button";
-  const { captionEl, tooltipEl: tEl } = buildIconButtonContent(btnEl, {
+  pieceBtnEl = document.createElement("button");
+  pieceBtnEl.id = "piece-hide-button";
+  const { captionEl: pieceCaption, tooltipEl: pTooltip } = buildIconButtonContent(pieceBtnEl, {
     icon: "assets/icons/piece-transparency.svg",
-    tooltip: TOOLTIP_BY_STATE.normal,
+    tooltip: PIECE_TOOLTIP.off,
   });
-  tooltipEl = tEl;
-  iconImgEl = btnEl.querySelector(".icon-action-button-icon-img");
-  captionEl.textContent = "誤操作防止";
-  wireIconButtonClick(btnEl, {
-    detailTitle: "誤操作防止（駒/カードのグレー表示）",
+  pieceTooltipEl = pTooltip;
+  pieceCaption.textContent = "駒消し";
+  wireIconButtonClick(pieceBtnEl, {
+    detailTitle: "駒消し（誤操作防止）",
     detailParagraphs: [
-      "タブレット等での誤操作を防ぐためのボタンです。押すたびに「駒をグレー表示にして操作できなくする」→「元に戻してカードをグレー表示にする」→「通常に戻る」の順に切り替わります。",
-      "カードだけを触りたい時は駒を、駒だけを触りたい時はカードを、それぞれ一時的にグレー表示＋タップ無効にできます。アイコンが光っている間がグレー表示中です。",
+      "タブレット等での誤操作を防ぐためのボタンです。押すと駒を一時的にグレー表示にして操作できなくします（カードだけ触りたい時に）。もう一度押すと元に戻ります。",
+      "「カード消し」と同時にはONにできません（両方ONにすると盤面に何も触れなくなってしまうため）。",
     ],
-    onAction: advance,
+    onAction: togglePieces,
   });
-  document.body.appendChild(btnEl);
-  updateButton();
+  document.body.appendChild(pieceBtnEl);
+
+  cardBtnEl = document.createElement("button");
+  cardBtnEl.id = "card-hide-button";
+  const { captionEl: cardCaption, tooltipEl: cTooltip } = buildIconButtonContent(cardBtnEl, {
+    icon: "assets/icons/card-transparency.svg",
+    tooltip: CARD_TOOLTIP.off,
+  });
+  cardTooltipEl = cTooltip;
+  cardCaption.textContent = "カード消し";
+  wireIconButtonClick(cardBtnEl, {
+    detailTitle: "カード消し（誤操作防止）",
+    detailParagraphs: [
+      "タブレット等での誤操作を防ぐためのボタンです。押すとカードを一時的にグレー表示にして操作できなくします（駒だけ触りたい時に）。もう一度押すと元に戻ります。",
+      "「駒消し」と同時にはONにできません（両方ONにすると盤面に何も触れなくなってしまうため）。",
+    ],
+    onAction: toggleCards,
+  });
+  document.body.appendChild(cardBtnEl);
+
+  updateButtons();
   updateVisibility();
 
   // マウスの接続/切断等でポインタ種別が動的に変わる場合にも表示/非表示を追従させる。

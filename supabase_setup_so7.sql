@@ -45,11 +45,16 @@ create table if not exists so7_game_tokens (
   col int,
   side text,
   idx int,
-  hand_player text, -- zone='hand'の時の座席
+  hand_player text, -- zone='hand'|'publicDraw'の時の座席
+  reveal_source text, -- zone='publicDraw'の時のみ意味を持つ: 'manual'（手札からドラッグで
+                       -- 手動配置）| 'draw'（公開ドローボタンで山から引いた）
   order_index int not null default 0, -- 重なり順（tokens配列内の並び順に相当）
   primary key (game_id, token_id)
 );
 create index if not exists so7_game_tokens_game_id_idx on so7_game_tokens(game_id);
+-- 手札公開エリア機能の追加時、既存のso7_game_tokensテーブルには無い列のため後から追加。
+-- 新規にこのSQL全体を実行する環境では上のcreate table側で既に存在するため実質no-op。
+alter table so7_game_tokens add column if not exists reveal_source text;
 
 -- 各山の中身（state.jsのpilesに相当。cardsは末尾=一番上のcardId配列）。
 create table if not exists so7_game_piles (
@@ -117,7 +122,10 @@ select
   t.side,
   t.idx,
   t.hand_player,
-  t.order_index
+  t.order_index,
+  -- create or replace viewは既存列の順序を変えられない（末尾への追加のみ許可）ため、
+  -- 手札公開エリア機能で後から追加したこの列は必ず一番最後に置く。
+  t.reveal_source
 from so7_game_tokens t
 where exists (
   select 1 from so7_game_seats s where s.game_id = t.game_id and s.user_id = auth.uid()
@@ -169,7 +177,7 @@ begin
   delete from so7_game_tokens where game_id = p_game_id;
   insert into so7_game_tokens (
     game_id, token_id, kind, card_id, face_up, color, piece_player,
-    zone, row, col, side, idx, hand_player, order_index
+    zone, row, col, side, idx, hand_player, reveal_source, order_index
   )
   select
     p_game_id,
@@ -185,6 +193,7 @@ begin
     t->>'side',
     (t->>'idx')::int,
     t->>'hand_player',
+    t->>'reveal_source',
     coalesce((t->>'order_index')::int, 0)
   from jsonb_array_elements(p_tokens) as t;
 
@@ -562,7 +571,7 @@ begin
   delete from so7_game_tokens where game_id = p_game_id;
   insert into so7_game_tokens (
     game_id, token_id, kind, card_id, face_up, color, piece_player,
-    zone, row, col, side, idx, hand_player, order_index
+    zone, row, col, side, idx, hand_player, reveal_source, order_index
   )
   select
     p_game_id,
@@ -578,6 +587,7 @@ begin
     t->>'side',
     (t->>'idx')::int,
     t->>'hand_player',
+    t->>'reveal_source',
     coalesce((t->>'order_index')::int, 0)
   from jsonb_array_elements(p_tokens) as t;
 

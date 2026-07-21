@@ -1,6 +1,7 @@
-// 管理者モードの「アイコン再配置モード」。ONの間、対象の5つのアイコンボタン
-// (#hand-shuffle-button/#board-zoom-button/#draw-button/#end-turn-button/#options-menu-button)
-// を画面上で直接つまんでドラッグし、自由な位置へずらせるようにする。
+// 管理者モードの「アイコン再配置モード」。ONの間、対象の6つのアイコンボタン
+// (#hand-shuffle-button/#board-zoom-button/#draw-button/#public-draw-button/
+// #end-turn-button/#options-menu-button)を画面上で直接つまんでドラッグし、自由な位置へ
+// ずらせるようにする。
 //
 // 実装方針: 各ボタンの基準位置（bottom/right、player-buttons.jsが並び替えのために書き換える
 // bottom値も含む）は一切変更せず、そこからのズレだけを専用のCSS変数
@@ -20,12 +21,14 @@
 
 import { isIconRearrangeMode } from "./admin.js";
 
-const SELECTOR = "#hand-shuffle-button, #board-zoom-button, #draw-button, #end-turn-button, #options-menu-button";
+const SELECTOR =
+  "#hand-shuffle-button, #board-zoom-button, #draw-button, #public-draw-button, #end-turn-button, #options-menu-button";
 
 const VAR_BY_ID = {
   "hand-shuffle-button": ["--icon-pos-hand-shuffle-x", "--icon-pos-hand-shuffle-y"],
   "board-zoom-button": ["--icon-pos-board-zoom-x", "--icon-pos-board-zoom-y"],
   "draw-button": ["--icon-pos-draw-x", "--icon-pos-draw-y"],
+  "public-draw-button": ["--icon-pos-public-draw-x", "--icon-pos-public-draw-y"],
   "end-turn-button": ["--icon-pos-end-turn-x", "--icon-pos-end-turn-y"],
   "options-menu-button": ["--icon-pos-options-x", "--icon-pos-options-y"],
 };
