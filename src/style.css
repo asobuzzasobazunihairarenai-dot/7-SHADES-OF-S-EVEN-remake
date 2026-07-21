@@ -927,6 +927,7 @@ body.icon-rearrange-mode #options-menu-button.is-rearranging {
    掴めることが分かる点線の枠＋grabカーソルを付ける（self-status-rearrange.js参照）。
    ドラッグで位置、マウスホイールでサイズを変えられる（アイコン再配置モードと同じ
    考え方だが、サイズ調整もできる点が異なるため別モードとして用意した）。 */
+body.self-status-rearrange-mode .self-status-large-avatar,
 body.self-status-rearrange-mode .self-status-avatar,
 body.self-status-rearrange-mode .self-status-piece-thumb,
 body.self-status-rearrange-mode .self-status-card-back-thumb,
@@ -936,6 +937,7 @@ body.self-status-rearrange-mode #self-status-online {
   outline: 2px dashed rgba(56, 189, 248, 0.7);
   outline-offset: 3px;
 }
+body.self-status-rearrange-mode .self-status-large-avatar.is-rearranging,
 body.self-status-rearrange-mode .self-status-avatar.is-rearranging,
 body.self-status-rearrange-mode .self-status-piece-thumb.is-rearranging,
 body.self-status-rearrange-mode .self-status-card-back-thumb.is-rearranging,
@@ -1928,10 +1930,10 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
    --avatar-{a,b,c,d}-pos-x/y）。emoji自体は常に正立させたいので、名前ラベルと違い回転は
    付けない。 */
 :root {
-  --avatar-a-size: 3rem;
-  --avatar-b-size: 3rem;
-  --avatar-c-size: 3rem;
-  --avatar-d-size: 3rem;
+  --avatar-a-size: 5.7rem;
+  --avatar-b-size: 8rem;
+  --avatar-c-size: 8rem;
+  --avatar-d-size: 8rem;
   --avatar-a-pos-x: 0rem;
   --avatar-a-pos-y: 1.9rem;
   --avatar-b-pos-x: -3.5rem;
@@ -1968,6 +1970,22 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
 .zone-right .player-avatar {
   font-size: var(--avatar-d-size);
   transform: translate(-50%, -50%) translate(var(--avatar-d-pos-x), var(--avatar-d-pos-y));
+}
+
+/* ユーザー報告・要望への対応: BCD（自分＝画面手前/zone-bottom以外の3人）のアバターを
+   手札より背面に描画する（Aは現状のまま=手札より手前を維持）。
+   根本原因: .player-avatarには元々z-index:3（正の数）が付いており、.hand-area側は
+   z-index:auto（無指定）だった。CSSのスタッキング順では「z-index:autoの位置指定要素」より
+   「正のz-indexを持つ要素」の方が必ず手前に描画されるため、DOM順（ラベル→アバター→
+   手札の順でappendChildしており、コード上の意図は「手札を後から足すことで手前にする」
+   だった）は実際には無視され、常にアバターが手札より手前に出てしまっていた
+   （アバターが3remだった頃は目立たなかったが、8remに拡大したことで顕在化した）。
+   BCDだけz-index:0にすると、.hand-area（z-index:auto）と同じ「z-index:auto/0の束」に
+   加わり、その束の中ではDOM順が効くため、意図通りアバター→手札の順（手札が手前）になる。 */
+.zone-left .player-avatar,
+.zone-top .player-avatar,
+.zone-right .player-avatar {
+  z-index: 0;
 }
 
 /* 手番プレイヤーのアバターも、ロックエリア/名前ラベルと同じ色(--turn-glow-rgb、管理者モードで
@@ -2465,10 +2483,13 @@ body.cards-interaction-hidden .board-card {
    （--self-status-icon-gap＝アイコン間隔、--self-status-icon-{avatar,piece,cardback,
    playmat,online}-size＝各アイコン個別のサイズ、-pos-x/y＝各アイコン個別の位置微調整、
    --self-status-pos-x/y＝パネル全体の位置、--self-status-info-pos-x/y＝名前・手札枚数の
-   位置）を参照する。サイズはgrid/flexの通常のレイアウト計算に乗る値のため、サイズを
-   変えると外枠（#self-hand-status自体、padding+contentサイズで決まる）も自動的に
-   追従して大きく/小さくなる。位置の微調整はtransform:translate()（レイアウトに影響
-   しない）で行うため、動かしてもレイアウト自体は崩れない。 */
+   位置、--self-status-large-avatar-*＝背面に大きく表示する自分のアバター）を参照する。
+   アイコンを大きく動かす／大きいアバターを追加すると、通常のgrid/flexレイアウトの
+   content sizeだけでは外枠が追従しきれなくなる（transformによる位置移動はレイアウト
+   サイズに含まれないため）ため、外枠の背景・枠線は#self-hand-status自身ではなく
+   別要素の.self-status-backdrop（JS側のupdateSelfStatusPanelBounds()が各要素の実際の
+   描画位置を都度計測し、それらを囲む矩形として動的にサイズ・位置を計算する）が担当する。
+   #self-hand-status自体は透明な位置決め用のフレックスコンテナのまま残す。 */
 #self-hand-status {
   position: fixed;
   bottom: 1.2rem;
@@ -2477,13 +2498,48 @@ body.cards-interaction-hidden .board-card {
   display: flex;
   align-items: center;
   gap: 0.7rem;
-  padding: 0.5rem 0.9rem;
-  background: rgba(15, 23, 32, 0.85);
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  border-radius: 0.4rem;
   font-family: sans-serif;
   color: #e2e8f0;
   transform: translate(var(--self-status-pos-x, 0rem), var(--self-status-pos-y, 0rem));
+}
+/* 外枠の背景・枠線本体。#self-hand-status内の実際のコンテンツ（アイコン・名前欄・
+   大きいアバター）の描画済み位置を包む矩形として、JS側で位置・サイズを都度計算する
+   （position:absoluteでレイアウトには参加しない。pointer-events:noneでクリックの
+   邪魔もしない）。 */
+.self-status-backdrop {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  background: rgba(15, 23, 32, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.4rem;
+}
+/* 背面に大きく表示する自分専用アバター。ステータスエリアの他の要素（アイコン・名前欄）を
+   「ラップする」ように大きく表示する演出（ユーザー要望）。DOM順でbackdropの直後・
+   アイコングリッド/名前欄より前に置くことで、常にそれらの背面に描画される
+   （preserve-3dが絡まないシンプルな2D要素同士のため、DOM順だけで意図通りのスタッキングに
+   なる）。クリックすると小さいアバターアイコンと同じピッカーが開く。 */
+.self-status-large-avatar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-size: calc(var(--self-status-large-avatar-size, 6rem) * 0.75);
+  line-height: 1;
+  cursor: pointer;
+  transform: translate(var(--self-status-large-avatar-pos-x, 0rem), var(--self-status-large-avatar-pos-y, 0rem));
+  filter: drop-shadow(0 0.2rem 0.4rem rgba(0, 0, 0, 0.6));
+}
+.self-status-large-avatar .avatar-image {
+  width: var(--self-status-large-avatar-size, 6rem);
+  height: var(--self-status-large-avatar-size, 6rem);
+}
+.self-status-large-avatar:hover .phase-guide-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+.self-status-large-avatar .phase-guide-tooltip {
+  left: 0;
+  transform: none;
 }
 /* アバター・駒スキン・カード裏面・プレイマット・オンライン状態の5アイコンを2x2+1で
    まとめる。サイズは各アイコン個別のCSS変数（--self-status-icon-*-size）で管理して
@@ -2510,7 +2566,7 @@ body.cards-interaction-hidden .board-card {
   justify-content: center;
   cursor: pointer;
   padding: 0;
-  transform: translate(var(--self-status-icon-avatar-pos-x, 0rem), var(--self-status-icon-avatar-pos-y, 0rem));
+  transform: translate(var(--self-status-icon-avatar-pos-x, 9.53rem), var(--self-status-icon-avatar-pos-y, 3.71rem));
 }
 .self-status-avatar:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -2540,8 +2596,8 @@ body.cards-interaction-hidden .board-card {
    間は仮の色で描画する）。 */
 .self-status-piece-thumb {
   position: relative;
-  width: var(--self-status-icon-piece-size, 2.6rem);
-  height: var(--self-status-icon-piece-size, 2.6rem);
+  width: var(--self-status-icon-piece-size, 1.5rem);
+  height: var(--self-status-icon-piece-size, 1.5rem);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 50%;
@@ -2552,7 +2608,7 @@ body.cards-interaction-hidden .board-card {
   display: none;
   align-items: center;
   justify-content: center;
-  transform: translate(var(--self-status-icon-piece-pos-x, 0rem), var(--self-status-icon-piece-pos-y, 0rem));
+  transform: translate(var(--self-status-icon-piece-pos-x, 9.09rem), var(--self-status-icon-piece-pos-y, 4.21rem));
 }
 .self-status-piece-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -2574,15 +2630,15 @@ body.cards-interaction-hidden .board-card {
    ため）。ゲーム開始前でも常に選べる（駒スキンと違い自分の色に依存しないため）。 */
 .self-status-card-back-thumb {
   position: relative;
-  width: var(--self-status-icon-cardback-size, 2.6rem);
-  height: var(--self-status-icon-cardback-size, 2.6rem);
+  width: var(--self-status-icon-cardback-size, 1.5rem);
+  height: var(--self-status-icon-cardback-size, 1.5rem);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 0.4rem;
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
-  transform: translate(var(--self-status-icon-cardback-pos-x, 0rem), var(--self-status-icon-cardback-pos-y, 0rem));
+  transform: translate(var(--self-status-icon-cardback-pos-x, 9.67rem), var(--self-status-icon-cardback-pos-y, 3.59rem));
 }
 .self-status-card-back-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -2599,15 +2655,15 @@ body.cards-interaction-hidden .board-card {
 /* プレイマットのサムネイル。カード裏面と同じ角丸正方形（プレイマットも正方形の画像）。 */
 .self-status-playmat-thumb {
   position: relative;
-  width: var(--self-status-icon-playmat-size, 2.6rem);
-  height: var(--self-status-icon-playmat-size, 2.6rem);
+  width: var(--self-status-icon-playmat-size, 1.5rem);
+  height: var(--self-status-icon-playmat-size, 1.5rem);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 0.4rem;
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
-  transform: translate(var(--self-status-icon-playmat-pos-x, 0rem), var(--self-status-icon-playmat-pos-y, 0rem));
+  transform: translate(var(--self-status-icon-playmat-pos-x, 8.63rem), var(--self-status-icon-playmat-pos-y, 3.04rem));
 }
 .self-status-playmat-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -2624,7 +2680,7 @@ body.cards-interaction-hidden .board-card {
    （.icon-action-button-icon-wrap自体には触れない）。位置調整はボタン本体(#self-status-online)
    へのtranslateで行う（キャプション文字ごと一緒に動く）。 */
 #self-status-online {
-  transform: translate(var(--self-status-icon-online-pos-x, 0rem), var(--self-status-icon-online-pos-y, 0rem));
+  transform: translate(var(--self-status-icon-online-pos-x, 7.43rem), var(--self-status-icon-online-pos-y, 0.22rem));
 }
 .self-status-icon-grid #self-status-online .icon-action-button-icon-wrap {
   width: var(--self-status-icon-online-size, 2.6rem);
@@ -2634,7 +2690,7 @@ body.cards-interaction-hidden .board-card {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
-  transform: translate(var(--self-status-info-pos-x, 0rem), var(--self-status-info-pos-y, 0rem));
+  transform: translate(var(--self-status-info-pos-x, -6.2rem), var(--self-status-info-pos-y, 0.4rem));
 }
 .self-status-name {
   font-size: 0.85rem;

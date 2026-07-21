@@ -1,13 +1,14 @@
 // 管理者モードの「自分専用ステータスエリア再配置モード」。ONの間、左下ステータスエリアの
-// 5つのアイコン（アバター・駒スキン・カード裏面・プレイマット・オンライン状態）を画面上で
-// 直接ドラッグして位置を、マウスホイールでサイズを、それぞれ直感的に調整できる。
+// 6つの要素（背面の大きいアバター・アバターアイコン・駒スキン・カード裏面・プレイマット・
+// オンライン状態）を画面上で直接ドラッグして位置を、マウスホイールでサイズを、それぞれ
+// 直感的に調整できる。
 //
 // icon-rearrange.js（手札シャッフル等5ボタンの再配置）と同じ設計方針を踏襲する:
-// 各アイコンの基準位置・基準サイズは変えず、そこからのズレ・実際のサイズだけを専用の
+// 各要素の基準位置・基準サイズは変えず、そこからのズレ・実際のサイズだけを専用の
 // CSS変数（--self-status-icon-{avatar,piece,cardback,playmat,online}-pos-x/y・-size、
-// admin.jsのGROUPSにスライダーとしても登録済み）へ書き込む。ドラッグでの再配置・ホイールでの
-// リサイズ・スライダーでの微調整のどれも同じ値を共有するため、「出力をコピー」にも
-// 自動的に反映される。
+// --self-status-large-avatar-pos-x/y・-size、admin.jsのGROUPSにスライダーとしても登録済み）
+// へ書き込む。ドラッグでの再配置・ホイールでのリサイズ・スライダーでの微調整のどれも
+// 同じ値を共有するため、「出力をコピー」にも自動的に反映される。
 //
 // document自体へcapture:trueで委譲リスナーを登録する（icon-rearrange.jsと同じ理由:
 // 各アイコンは既にクリックでピッカーを開く・ホバーでツールチップを出す等の独自リスナーを
@@ -17,19 +18,53 @@
 import { isSelfStatusRearrangeMode } from "./admin.js";
 
 const SELECTOR =
-  ".self-status-avatar, .self-status-piece-thumb, .self-status-card-back-thumb, .self-status-playmat-thumb, #self-status-online";
+  ".self-status-large-avatar, .self-status-avatar, .self-status-piece-thumb, .self-status-card-back-thumb, .self-status-playmat-thumb, #self-status-online";
 
 const VARS_BY_CLASS = {
-  "self-status-avatar": { pos: ["--self-status-icon-avatar-pos-x", "--self-status-icon-avatar-pos-y"], size: "--self-status-icon-avatar-size" },
-  "self-status-piece-thumb": { pos: ["--self-status-icon-piece-pos-x", "--self-status-icon-piece-pos-y"], size: "--self-status-icon-piece-size" },
-  "self-status-card-back-thumb": { pos: ["--self-status-icon-cardback-pos-x", "--self-status-icon-cardback-pos-y"], size: "--self-status-icon-cardback-size" },
-  "self-status-playmat-thumb": { pos: ["--self-status-icon-playmat-pos-x", "--self-status-icon-playmat-pos-y"], size: "--self-status-icon-playmat-size" },
+  "self-status-large-avatar": {
+    pos: ["--self-status-large-avatar-pos-x", "--self-status-large-avatar-pos-y"],
+    size: "--self-status-large-avatar-size",
+    sizeMin: 2,
+    sizeMax: 16,
+    sizeDefault: 6,
+  },
+  "self-status-avatar": {
+    pos: ["--self-status-icon-avatar-pos-x", "--self-status-icon-avatar-pos-y"],
+    size: "--self-status-icon-avatar-size",
+    sizeMin: 1.2,
+    sizeMax: 6,
+    sizeDefault: 2.6,
+  },
+  "self-status-piece-thumb": {
+    pos: ["--self-status-icon-piece-pos-x", "--self-status-icon-piece-pos-y"],
+    size: "--self-status-icon-piece-size",
+    sizeMin: 1.2,
+    sizeMax: 6,
+    sizeDefault: 1.5,
+  },
+  "self-status-card-back-thumb": {
+    pos: ["--self-status-icon-cardback-pos-x", "--self-status-icon-cardback-pos-y"],
+    size: "--self-status-icon-cardback-size",
+    sizeMin: 1.2,
+    sizeMax: 6,
+    sizeDefault: 1.5,
+  },
+  "self-status-playmat-thumb": {
+    pos: ["--self-status-icon-playmat-pos-x", "--self-status-icon-playmat-pos-y"],
+    size: "--self-status-icon-playmat-size",
+    sizeMin: 1.2,
+    sizeMax: 6,
+    sizeDefault: 1.5,
+  },
 };
 
-const ONLINE_VARS = { pos: ["--self-status-icon-online-pos-x", "--self-status-icon-online-pos-y"], size: "--self-status-icon-online-size" };
-
-const SIZE_MIN_REM = 1.2;
-const SIZE_MAX_REM = 6;
+const ONLINE_VARS = {
+  pos: ["--self-status-icon-online-pos-x", "--self-status-icon-online-pos-y"],
+  size: "--self-status-icon-online-size",
+  sizeMin: 1.2,
+  sizeMax: 6,
+  sizeDefault: 2.6,
+};
 
 function resolveVars(el) {
   if (el.id === "self-status-online") return ONLINE_VARS;
@@ -37,6 +72,14 @@ function resolveVars(el) {
     if (el.classList.contains(cls)) return VARS_BY_CLASS[cls];
   }
   return null;
+}
+
+// setup-animation.js等と同じ「main.jsから自分の関数を注入してもらう」循環import回避
+// パターン。ドラッグ/ホイール操作の最中にも外枠(.self-status-backdrop)がリアルタイムに
+// 追従するよう、都度main.js側の再計算関数を呼ぶ。
+let helpers = null; // { updatePanelBounds }
+export function registerSelfStatusRearrangeHelpers(h) {
+  helpers = h;
 }
 
 function remToPx() {
@@ -73,6 +116,7 @@ function startDrag(el, varX, varY, e) {
     const dyRem = (ev.clientY - startY) / remPx;
     document.documentElement.style.setProperty(varX, `${(baseX + dxRem).toFixed(2)}rem`);
     document.documentElement.style.setProperty(varY, `${(baseY + dyRem).toFixed(2)}rem`);
+    helpers?.updatePanelBounds();
   }
   function onUp() {
     window.removeEventListener("pointermove", onMove);
@@ -112,10 +156,11 @@ function onWheelCapture(e) {
   if (!vars) return;
   e.preventDefault();
   e.stopPropagation();
-  const current = currentRem(vars.size, 2.6);
+  const current = currentRem(vars.size, vars.sizeDefault);
   const delta = e.deltaY > 0 ? -0.1 : 0.1;
-  const next = Math.min(SIZE_MAX_REM, Math.max(SIZE_MIN_REM, current + delta));
+  const next = Math.min(vars.sizeMax, Math.max(vars.sizeMin, current + delta));
   document.documentElement.style.setProperty(vars.size, `${next.toFixed(2)}rem`);
+  helpers?.updatePanelBounds();
   scheduleChangeNotify();
 }
 

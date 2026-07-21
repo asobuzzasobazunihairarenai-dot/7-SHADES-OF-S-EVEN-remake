@@ -32,7 +32,7 @@ import { initQuickStart } from "./quick-start.js";
 import { initPhaseGuide } from "./phase-guide.js";
 import { initTurnTimer } from "./turn-timer.js";
 import { initIconRearrange } from "./icon-rearrange.js";
-import { initSelfStatusRearrange } from "./self-status-rearrange.js";
+import { initSelfStatusRearrange, registerSelfStatusRearrangeHelpers } from "./self-status-rearrange.js";
 import { initInteractionModeToggle } from "./interaction-mode.js";
 import { registerRenderHelpers, animateFirstCardsDealt, animateBoardFilled } from "./setup-animation.js";
 import {
@@ -2617,6 +2617,9 @@ let selfStatusPieceThumbEl = null;
 let selfStatusCardBackThumbEl = null;
 let selfStatusPlaymatThumbEl = null;
 let selfStatusHandCountEl = null;
+let selfStatusInfoEl = null;
+let selfStatusBackdropEl = null;
+let selfStatusLargeAvatarEl = null;
 
 function openAvatarPicker() {
   const modal = document.createElement("div");
@@ -2723,6 +2726,19 @@ function buildSelfHandStatus() {
   const el = document.createElement("div");
   el.id = "self-hand-status";
 
+  // 外枠の背景本体（JS側でサイズ・位置を都度計算するため、最初はゼロサイズで作るだけでよい）。
+  selfStatusBackdropEl = document.createElement("div");
+  selfStatusBackdropEl.className = "self-status-backdrop";
+  el.appendChild(selfStatusBackdropEl);
+
+  // 背面に大きく表示する自分のアバター（ユーザー要望「ステータスエリアにラップするように
+  // 大きめの自分アバターを表示したい」）。小さいアバターアイコンと同じピッカーを開く。
+  selfStatusLargeAvatarEl = document.createElement("div");
+  selfStatusLargeAvatarEl.className = "self-status-large-avatar";
+  selfStatusLargeAvatarEl.addEventListener("click", openAvatarPicker);
+  addSimpleTooltip(selfStatusLargeAvatarEl, "クリックしてアバターを変更");
+  el.appendChild(selfStatusLargeAvatarEl);
+
   selfStatusAvatarEl = document.createElement("button");
   selfStatusAvatarEl.className = "self-status-avatar";
   selfStatusAvatarEl.addEventListener("click", openAvatarPicker);
@@ -2757,6 +2773,7 @@ function buildSelfHandStatus() {
 
   const info = document.createElement("div");
   info.className = "self-status-info";
+  selfStatusInfoEl = info;
 
   selfStatusNameEl = document.createElement("div");
   selfStatusNameEl.className = "self-status-name";
@@ -2792,6 +2809,8 @@ function updateSelfHandStatus() {
   ).length;
   applyAvatarContent(selfStatusAvatarEl, getPlayerAvatar(getSelfSeat()));
   addSimpleTooltip(selfStatusAvatarEl, "クリックしてアバターを変更");
+  applyAvatarContent(selfStatusLargeAvatarEl, getPlayerAvatar(getSelfSeat()));
+  addSimpleTooltip(selfStatusLargeAvatarEl, "クリックしてアバターを変更");
 
   // セットアップ前（自分の駒の色がまだ決まっていない間）でも、選んだバリエーション番号
   // 自体は色に依存しない好みなので、先に見た目を確認・選べるよう常に表示する
@@ -2824,6 +2843,54 @@ function updateSelfHandStatus() {
   // SEAT_LABELS側にはもう含めていない（「自分」がAとは限らないため）。
   selfStatusNameEl.textContent = `${getPlayerName(getSelfSeat())}（自分）`;
   selfStatusHandCountEl.textContent = `手札：${count}枚`;
+
+  updateSelfStatusPanelBounds();
+}
+
+// #self-hand-status内の実際の要素（大きいアバター・5つの個別アイコン・名前欄）は、それぞれ
+// 個別のtransformで自由に動かせる（管理者モードのスライダー・自分専用ステータス再配置
+// モードのドラッグ/ホイールいずれでも）。transformはレイアウトサイズに影響しないため、
+// 通常のflex/gridレイアウトだけでは外枠（.self-status-backdrop）がこれらの実際の見た目上の
+// 位置を追従できない。この関数は各要素の実際の描画位置(getBoundingClientRect)を都度測り、
+// それらを囲む最小の矩形を.self-status-backdropへ反映することで、動かした結果に外枠が
+// 常に追従するようにする。
+// 注意: アイコングリッド自身(.self-status-icon-grid)の当たり判定ではなく、5つの個別の
+// アイコン要素をそれぞれ測る必要がある——グリッドコンテナ自身のgetBoundingClientRect()は
+// 各アイコンに掛かっているtransform:translate()による見た目上のズレを反映しない
+// （transformは要素自身の描画位置のみ動かし、親コンテナのレイアウトサイズには影響しない
+// ため）。個別に測らないと、大きく動かしたアイコンが外枠からはみ出して見えるバグになる
+// （実装直後にブラウザでこの不具合を確認し、修正した）。
+function updateSelfStatusPanelBounds() {
+  if (!selfHandStatusEl || !selfStatusBackdropEl) return;
+  const parts = [
+    selfStatusLargeAvatarEl,
+    selfStatusAvatarEl,
+    selfStatusPieceThumbEl,
+    selfStatusCardBackThumbEl,
+    selfStatusPlaymatThumbEl,
+    selfStatusOnlineEl,
+    selfStatusInfoEl,
+  ].filter(Boolean);
+  if (parts.length === 0) return;
+  const panelRect = selfHandStatusEl.getBoundingClientRect();
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const part of parts) {
+    const r = part.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) continue;
+    minX = Math.min(minX, r.left - panelRect.left);
+    minY = Math.min(minY, r.top - panelRect.top);
+    maxX = Math.max(maxX, r.right - panelRect.left);
+    maxY = Math.max(maxY, r.bottom - panelRect.top);
+  }
+  if (!Number.isFinite(minX)) return;
+  const pad = 12; // px、既存のpadding(0.5rem/0.9rem相当)に近い余白
+  selfStatusBackdropEl.style.left = `${minX - pad}px`;
+  selfStatusBackdropEl.style.top = `${minY - pad}px`;
+  selfStatusBackdropEl.style.width = `${maxX - minX + pad * 2}px`;
+  selfStatusBackdropEl.style.height = `${maxY - minY + pad * 2}px`;
 }
 
 // オープニング画面（ローカル/オンラインの2択メニュー）を、ゲーム本体の初期化より先に
@@ -2862,6 +2929,7 @@ registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocati
 registerPieceSkinHelpers({ render });
 registerCardBackSkinHelpers({ render });
 registerPlaymatHelpers({ render });
+registerSelfStatusRearrangeHelpers({ updatePanelBounds: updateSelfStatusPanelBounds });
 // ログイン直後（online.jsのloadMyPreferences）に、保存済みの名前・アバター・駒スキンを
 // ローカルの表示側（player-identity.js/piece-skins.js）へ反映する。部屋に入る前は
 // getSelfSeat()が常に"A"を返すため、ここではまだ「A」という固定座席への適用でよい
