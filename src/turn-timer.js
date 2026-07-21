@@ -93,6 +93,17 @@ let transferModalBackdrop = null;
 let transferModalEl = null;
 
 let prevTurnPlayer = null;
+
+// オンライン中、ターン交代の瞬間（state.turnPlayerが変わった瞬間）から、それに対応する
+// priorityPlayerの更新（次の手番になる本人のクライアントが書き込み、ブロードキャストが
+// 一往復する分のラグがある）がサーバーから届くまでの間、まだ「前のターンプレイヤー用の
+// 古いpriorityPlayer/priorityDeadline」しか見えていない一時的な窓ができる
+// （ユーザー報告バグの根本原因: この窓の間にtick()や本人行動の判定が古い値を見て動作
+// してしまうと、「相手のターンなのに自分の基本時間が減る」「たまに相手にだけロープが
+// 表示される」といった不整合になる）。この変数がnullでない間は、tick()・onStateChangeの
+// 双方が「新しいturnPlayerに一致するpriorityPlayerが届くまでは何もしない」よう待機する。
+let awaitingPriorityForTurnPlayer = null;
+
 // 「砂時計を使わずに何ターン経過したか」「そのターン中に砂時計を使ったか」は見た目に
 // 影響しない内部カウンタのため、共有state.jsには持たせず、このモジュールのローカル変数
 // だけで追跡する。
@@ -209,8 +220,23 @@ function onStateChange(state) {
       return;
     }
     handleTurnTransition(prevTurnPlayer, tp, state.activePlayers);
+    // ターンが変わった瞬間から、新しいturnPlayerに一致するpriorityPlayerがまだ届いて
+    // いない可能性がある間、tick()等が古いpriorityPlayer/priorityDeadlineに基づいて
+    // 誤動作しないようにする（下記の待機ガード参照）。
+    if (isOnlineMode()) awaitingPriorityForTurnPlayer = tp;
     prevTurnPlayer = tp;
     return;
+  }
+  // ターン交代直後、新しいturnPlayerに一致するpriorityPlayerがまだ届いていない間は、
+  // 以降の「本人が行動した」判定・ロープ表示の更新を一切行わない（古い値のまま動くと
+  // 「相手のターンなのに自分の基本時間が減る」等の不整合になるため）。一致を確認できた
+  // 時点でガードを解除し、通常の判定に戻る。
+  if (awaitingPriorityForTurnPlayer !== null) {
+    if (state.priorityPlayer === awaitingPriorityForTurnPlayer) {
+      awaitingPriorityForTurnPlayer = null;
+    } else {
+      return;
+    }
   }
   if (!state.priorityPlayer) return;
 
@@ -540,6 +566,21 @@ function tick() {
     if (ropeEl) ropeEl.style.display = "none";
     if (baseClockEl) baseClockEl.style.display = "none";
     return;
+  }
+  // ターン交代直後、新しいturnPlayerに一致するpriorityPlayerがまだ届いていない間は、
+  // 古い（前のターンプレイヤー用の）priorityPlayer/priorityDeadlineに基づいてロープや
+  // 基本時間の消費を進めてしまわないよう、何も表示せず・何も書き込まずに待つ
+  // （onStateChangeと同じガード。ユーザー報告バグ「相手のターンなのに自分の基本時間が
+  // 減る」「たまに相手にだけロープが表示される」の根本原因への対策）。
+  if (awaitingPriorityForTurnPlayer !== null) {
+    if (state.priorityPlayer === awaitingPriorityForTurnPlayer) {
+      awaitingPriorityForTurnPlayer = null;
+    } else {
+      updateWarning(false);
+      if (ropeEl) ropeEl.style.display = "none";
+      if (baseClockEl) baseClockEl.style.display = "none";
+      return;
+    }
   }
   updateSelfStock(state);
   updateRope(state);
