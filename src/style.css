@@ -1773,9 +1773,13 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
      正しい立体に戻ることから、初回の合成(compositing)レイヤー確立に失敗するタイプの
      WebKit/モバイルブラウザの既知の不具合と判断し、will-change: transformでブラウザに
      3D合成レイヤーを事前に確保させる、この種の不具合に対する定番の対策を施した。
-     後日、opacityの遷移（セットアップ配布時のフェードイン）でも同種の一時的な
-     合成順序の乱れが報告されたため、opacityも合わせてヒントするよう拡張した。 */
-  will-change: transform, opacity;
+     一時的にopacityも合わせてヒントする対策を試したが、実機PCで駒自体が描画されなく
+     なる（真っ黒/非表示になる）重大な副作用が判明したため、will-change: transformのみに
+     戻した（transformだけならタブレットでのペっちゃんこ問題を直したまま、この副作用は
+     出ていなかったため）。preserve-3dな立方体（.piece-face×5枚の子要素を持つ）に対しては、
+     will-changeへopacityを追加するだけでも合成方法が変わり、GPU/ドライバの組み合わせに
+     よっては駒ごと消えてしまうことがある、という教訓。 */
+  will-change: transform;
 }
 
 .piece-face {
@@ -3433,16 +3437,14 @@ body.is-online-mode #quick-start-bar {
    （駒はcubic-bezierのオーバーシュートで「ぶわーん」というポップ感を出す）。
    ハマりどころ（ユーザー報告、タブレット）: セットアップ配布時、is-setup-pendingが外れて
    opacity:0→1へtransitionする瞬間、深いpreserve-3d階層の中のこのカードが一瞬プレイマットの
-   下に回り込んで見える（アニメーション終了後は正しく最前面に戻る）ことがあった。z-index上は
-   .board(2)/.lock-area(3)がプレイマット(.playmat-bg、1)より確実に手前のはずだが、この
-   プロジェクトで繰り返し確認してきた「モバイル系ブラウザは深い3D+opacity遷移の合成順序を
-   遷移中だけ一時的に取り違えることがある」という既知の不具合カテゴリと判断し、駒の
-   「タブレットでペっちゃんこ」バグで効果があったのと同じwill-change対策を、opacity側にも
-   適用した。実機タブレットでの改善確認はできていないため、効果が薄い/悪化する場合は
-   is-setup-pendingが付いている間だけに絞る等の追加調整を検討する。 */
+   下に回り込んで見える（アニメーション終了後は正しく最前面に戻る）ことがあった。一旦
+   will-change: opacityを試したが、同じ発想で.pieceに適用した際に実機PCで駒自体が
+   描画されなくなる重大な副作用が判明したため、こちらも安全のため撤去した（.board-cardは
+   preserve-3dの子要素を持たない平面要素で.pieceほどのリスクは無いはずだが、確認する
+   手段が無い以上は同じ性質の対策を残さない判断とした）。この表示崩れ自体への対策は
+   持ち越しとなる。 */
 .board-card {
   transition: opacity 0.2s ease-out;
-  will-change: opacity;
 }
 .piece {
   transition:
