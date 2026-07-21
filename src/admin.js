@@ -193,8 +193,13 @@ const GROUPS = [
     controls: [
       { key: "--table-background-scale-x", label: "拡大率（横幅）", unit: "", min: 0.5, max: 8, step: 0.05, default: 4.2 },
       { key: "--table-background-scale-y", label: "拡大率（高さ）", unit: "", min: 0.5, max: 8, step: 0.05, default: 2.4 },
-      { key: "--table-background-pos-x", label: "位置X（中心からのずれ）", unit: "%", min: -50, max: 50, step: 0.5, default: 0 },
-      { key: "--table-background-pos-y", label: "位置Y（中心からのずれ）", unit: "%", min: -50, max: 50, step: 0.5, default: 0 },
+      // ユーザー報告「位置Yの調整範囲が足りない、もっと下に動かしたい」への対応。
+      // 元々は.playmat-bgと同じ±50%（プレイマットの微調整用としては十分な範囲）を
+      // 踏襲していたが、背景画像は拡大率(--table-background-scale-x/-y)がプレイマット
+      // よりずっと大きいため、同じ%でも実際の絶対移動量が大きく、逆に「もっと動かしたい」
+      // 場面では窮屈になる。範囲を大幅に拡張した。
+      { key: "--table-background-pos-x", label: "位置X（中心からのずれ）", unit: "%", min: -200, max: 200, step: 0.5, default: 0 },
+      { key: "--table-background-pos-y", label: "位置Y（中心からのずれ）", unit: "%", min: -200, max: 200, step: 0.5, default: 0 },
     ],
   },
   {
@@ -208,6 +213,7 @@ const GROUPS = [
       { key: "--self-status-icon-piece-size", label: "駒スキンアイコン サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 1.5 },
       { key: "--self-status-icon-cardback-size", label: "カード裏面アイコン サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 1.5 },
       { key: "--self-status-icon-playmat-size", label: "プレイマットアイコン サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 1.5 },
+      { key: "--self-status-icon-background-size", label: "背景画像アイコン サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 1.5 },
       { key: "--self-status-icon-online-size", label: "オンライン状態アイコン サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
       { key: "--self-status-icon-gap", label: "アイコンの間隔", unit: "rem", min: 0, max: 2, step: 0.05, default: 0.4 },
     ],
@@ -235,6 +241,8 @@ const GROUPS = [
       { key: "--self-status-icon-cardback-pos-y", label: "カード裏面アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 5 },
       { key: "--self-status-icon-playmat-pos-x", label: "プレイマットアイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 8.7 },
       { key: "--self-status-icon-playmat-pos-y", label: "プレイマットアイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 3.1 },
+      { key: "--self-status-icon-background-pos-x", label: "背景画像アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 11.4 },
+      { key: "--self-status-icon-background-pos-y", label: "背景画像アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 3.1 },
       { key: "--self-status-icon-online-pos-x", label: "オンライン状態アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: -2.4 },
       { key: "--self-status-icon-online-pos-y", label: "オンライン状態アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: -2.3 },
     ],
@@ -403,22 +411,22 @@ const GROUPS = [
     title: "アイコンの位置調整（自由配置）",
     category: "position",
     controls: [
-      { key: "--icon-pos-hand-shuffle-x", label: "手札シャッフル 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -8.1 },
-      { key: "--icon-pos-hand-shuffle-y", label: "手札シャッフル 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 11.38 },
+      { key: "--icon-pos-hand-shuffle-x", label: "手札シャッフル 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -7.91 },
+      { key: "--icon-pos-hand-shuffle-y", label: "手札シャッフル 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 7.79 },
       { key: "--icon-pos-board-zoom-x", label: "盤面拡大 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -0.29 },
-      { key: "--icon-pos-board-zoom-y", label: "盤面拡大 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: -1.08 },
-      { key: "--icon-pos-draw-x", label: "1枚ドロー 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -9 },
-      { key: "--icon-pos-draw-y", label: "1枚ドロー 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: -4.7 },
-      { key: "--icon-pos-end-turn-x", label: "ターン終了 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--icon-pos-end-turn-y", label: "ターン終了 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-board-zoom-y", label: "盤面拡大 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: -0.71 },
+      { key: "--icon-pos-draw-x", label: "1枚ドロー 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -8.83 },
+      { key: "--icon-pos-draw-y", label: "1枚ドロー 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: -4.71 },
+      { key: "--icon-pos-end-turn-x", label: "ターン終了 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0.17 },
+      { key: "--icon-pos-end-turn-y", label: "ターン終了 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: -3.21 },
       { key: "--icon-pos-options-x", label: "オプション 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-options-y", label: "オプション 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-piece-hide-x", label: "駒消し 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-piece-hide-y", label: "駒消し 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-card-hide-x", label: "カード消し 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-card-hide-y", label: "カード消し 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--icon-pos-public-draw-x", label: "公開ドロー 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0.2 },
-      { key: "--icon-pos-public-draw-y", label: "公開ドロー 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 2.3 },
+      { key: "--icon-pos-public-draw-x", label: "公開ドロー 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0.29 },
+      { key: "--icon-pos-public-draw-y", label: "公開ドロー 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 1.25 },
     ],
   },
   {
@@ -464,15 +472,15 @@ const GROUPS = [
     title: "手札公開エリアの位置・サイズ（宣言カード・公開ドロー共通）",
     category: "position",
     controls: [
-      { key: "--hand-reveal-card-size", label: "カードのサイズ（共通）", unit: "rem", min: 2, max: 8, step: 0.1, default: 4 },
-      { key: "--hand-reveal-bottom-pos-x", label: "手前(A) 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--hand-reveal-bottom-pos-y", label: "手前(A) 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 6 },
-      { key: "--hand-reveal-top-pos-x", label: "奥(C) 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--hand-reveal-top-pos-y", label: "奥(C) 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: -6 },
-      { key: "--hand-reveal-left-pos-x", label: "左(B) 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -8 },
-      { key: "--hand-reveal-left-pos-y", label: "左(B) 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--hand-reveal-right-pos-x", label: "右(D) 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 8 },
-      { key: "--hand-reveal-right-pos-y", label: "右(D) 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--hand-reveal-card-size", label: "カードのサイズ（共通）", unit: "rem", min: 2, max: 8, step: 0.1, default: 2.9 },
+      { key: "--hand-reveal-bottom-pos-x", label: "手前(A) 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -16.2 },
+      { key: "--hand-reveal-bottom-pos-y", label: "手前(A) 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0.6 },
+      { key: "--hand-reveal-top-pos-x", label: "奥(C) 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 13 },
+      { key: "--hand-reveal-top-pos-y", label: "奥(C) 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: -1.4 },
+      { key: "--hand-reveal-left-pos-x", label: "左(B) 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0.1 },
+      { key: "--hand-reveal-left-pos-y", label: "左(B) 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: -13.4 },
+      { key: "--hand-reveal-right-pos-x", label: "右(D) 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -2.4 },
+      { key: "--hand-reveal-right-pos-y", label: "右(D) 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 13.5 },
     ],
   },
 ];
@@ -553,6 +561,16 @@ let selfBoardAvatarVisible = false;
 
 export function isSelfBoardAvatarVisible() {
   return selfBoardAvatarVisible;
+}
+
+// 自分の盤面横の名前ラベル（.label）。ユーザー要望「盤面横のプレイヤーAのプレイヤー名は
+// 不要」に対応。selfBoardAvatarVisibleと同じ考え方で、デフォルトは非表示（B/C/Dの名前
+// ラベルはそのまま常時表示、影響しない）。main.jsのbuildPlayerZone()がこのフラグを見て、
+// isSelfの場合だけnameElのappendChildをスキップする。
+let selfNameLabelVisible = false;
+
+export function isSelfNameLabelVisible() {
+  return selfNameLabelVisible;
 }
 
 // 手札公開エリア(.hand-reveal-area)は、中身が空の間は枠線・背景を一切持たない透明な
@@ -776,6 +794,27 @@ const TOGGLE_SECTIONS = [
       selfAvatarRow.appendChild(selfAvatarCheckbox);
       selfAvatarRow.appendChild(selfAvatarLabel);
       content.appendChild(selfAvatarRow);
+    },
+  },
+  {
+    title: "自分の盤面横の名前ラベル",
+    category: "effect",
+    buildContent: (content) => {
+      const selfNameRow = document.createElement("label");
+      selfNameRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const selfNameCheckbox = document.createElement("input");
+      selfNameCheckbox.type = "checkbox";
+      selfNameCheckbox.checked = selfNameLabelVisible;
+      selfNameCheckbox.addEventListener("change", () => {
+        selfNameLabelVisible = selfNameCheckbox.checked;
+        window.dispatchEvent(new CustomEvent("admin:change"));
+        updateExportRef.current();
+      });
+      const selfNameLabel = document.createElement("span");
+      selfNameLabel.textContent = "自分の盤面横に名前ラベルを表示する（デフォルトOFF、不要とのご要望）";
+      selfNameRow.appendChild(selfNameCheckbox);
+      selfNameRow.appendChild(selfNameLabel);
+      content.appendChild(selfNameRow);
     },
   },
   {
@@ -1165,6 +1204,7 @@ function buildPanel(rebuildSlidersRef) {
       `cardArrivalModalPersistent: ${cardArrivalModalPersistent}`,
       `gatePedestalVisible: ${gatePedestalVisible}`,
       `selfBoardAvatarVisible: ${selfBoardAvatarVisible}`,
+      `selfNameLabelVisible: ${selfNameLabelVisible}`,
       `handRevealDebugVisible: ${handRevealDebugVisible}`,
       `spotlightMode: ${spotlightMode}`,
       `turnTimerEnabled: ${turnTimerEnabled}`,

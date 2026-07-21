@@ -6,6 +6,7 @@ import {
   getUsableLockedEffect,
   isGatePedestalVisible,
   isSelfBoardAvatarVisible,
+  isSelfNameLabelVisible,
   registerStartPlayerPreviewHelper,
 } from "./admin.js";
 import { initDeckViewer } from "./deck-viewer.js";
@@ -30,6 +31,7 @@ import {
 } from "./piece-skins.js";
 import { openCardBackSkinPicker, registerCardBackSkinHelpers, backImagePath as cardBackSetImagePath, getCardBackSetIndex } from "./card-back-skins.js";
 import { openPlaymatPicker, registerPlaymatHelpers, getSelectedPlaymatPath } from "./playmat.js";
+import { openBackgroundPicker, registerBackgroundHelpers, getSelectedBackgroundPath } from "./background.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS } from "./player-identity.js";
 import { applyAvatarContent, getAvatarVariant } from "./avatar-render.js";
@@ -207,7 +209,7 @@ function buildArena(steps = 0) {
   // なくJS側でinline styleとして敷く（他の実物画像アセットと同じ理由）。
   const backgroundBg = document.createElement("div");
   backgroundBg.className = "table-background-bg";
-  backgroundBg.style.backgroundImage = `url("assets/background.webp")`;
+  backgroundBg.style.backgroundImage = `url("${getSelectedBackgroundPath()}")`;
   arena.appendChild(backgroundBg);
   const playmatBg = document.createElement("div");
   playmatBg.className = "playmat-bg";
@@ -360,7 +362,9 @@ function buildPlayerZone(side, player, isSelf) {
     handRevealEl.appendChild(slot);
   });
 
-  zone.appendChild(nameEl);
+  // 自分の盤面横の名前ラベルは不要とのご要望により、デフォルト非表示にした（管理者
+  // モードでオンオフ可能）。B/C/Dは常時表示のまま。
+  if (!isSelf || isSelfNameLabelVisible()) zone.appendChild(nameEl);
   // 自分(A)の盤面アバターは、左下の大きい背面アバターと重複して冗長との要望により
   // デフォルト非表示にした（管理者モードでオンオフ可能）。B/C/Dは常時表示のまま。
   if (!isSelf || isSelfBoardAvatarVisible()) zone.appendChild(avatarEl);
@@ -1190,6 +1194,12 @@ function findDraggableAt(clientX, clientY) {
     if (boardCard) return { el: boardCard, tokenId: boardCard.dataset.tokenId, kind: "card", isBoardCard: true };
   }
   for (const el of elements) {
+    // 手札公開エリアのカードも「場のカードと同じように扱えるように」というユーザー要望で、
+    // .board-cardと同じ扱い（つかんで動かせる・ダブルクリックで表裏反転できる）にする。
+    const revealCard = el.closest(".hand-reveal-card");
+    if (revealCard) return { el: revealCard, tokenId: revealCard.dataset.tokenId, kind: "card", isBoardCard: true };
+  }
+  for (const el of elements) {
     const handCard = el.closest(".hand-card");
     if (handCard) return { el: handCard, tokenId: handCard.dataset.tokenId, kind: "card" };
   }
@@ -1221,6 +1231,10 @@ function findHoverTarget(clientX, clientY) {
   for (const el of elements) {
     const boardCard = el.closest(".board-card");
     if (boardCard) return boardCard;
+  }
+  for (const el of elements) {
+    const revealCard = el.closest(".hand-reveal-card");
+    if (revealCard) return revealCard;
   }
   for (const el of elements) {
     const handCard = el.closest(".hand-card");
@@ -1265,6 +1279,10 @@ function getVisibleCardId(el) {
     return token ? token.cardId : null;
   }
   if (el.classList.contains("board-card")) {
+    const token = getState().tokens.find((t) => t.id === el.dataset.tokenId);
+    return token && token.faceUp ? token.cardId : null;
+  }
+  if (el.classList.contains("hand-reveal-card")) {
     const token = getState().tokens.find((t) => t.id === el.dataset.tokenId);
     return token && token.faceUp ? token.cardId : null;
   }
@@ -1997,9 +2015,12 @@ async function onDragEnd(e) {
 
   // 移動前の位置を覚えておく（moveToken/sendTokenToPile等で状態が書き換わる前に取得する
   // 必要がある）。カードが盤面/ロックスロットから離れた結果、駒の下で新しいカードが
-  // 露出するケースの「到達」判定（maybeTriggerCardArrivalForExposedCard）に使う。
-  const cardSourceLocation =
-    kind === "card" ? getState().tokens.find((t) => t.id === tokenId)?.location ?? null : null;
+  // 露出するケースの「到達」判定（maybeTriggerCardArrivalForExposedCard）に使う。以前は
+  // kind==="card"の時だけ計算していたが、下の「移動元と移動先が同じ場合はmoveToken
+  // 自体を呼ばない」ガードでkindを問わず使うようになったため、駒も含めて常に計算する
+  // （呼び出し側は従来通りkind==="card"の時だけこの値を使うため、駒については実質
+  // 無害な追加計算が増えるだけ）。
+  const cardSourceLocation = getState().tokens.find((t) => t.id === tokenId)?.location ?? null;
 
   if (pileSource) {
     // 山からは手札だけでなく盤面マス・ロックスロットへも直接置ける（ルール適用なしの自由な
@@ -2180,6 +2201,28 @@ async function onDragEnd(e) {
         // そのまま通常通りロックする（このifブロックを素通りし、下の既存処理へ進む）。
       }
     }
+    // ドラッグ元と移動先が完全に同じ場所（クリックしただけで実際には動かしていない）
+    // 場合は、moveToken自体を呼ばない（重要・オンラインでのダブルクリック不具合の
+    // 根本原因）。以前はここで無条件にmoveTokenを呼んでいたため、盤面のカードを普通に
+    // クリックしただけ（＝ダブルクリックでめくろうとした時の1回目のクリックも含む）でも
+    // 「同じ場所への移動」という実質no-opのオンライン同期リクエストが毎回発生していた。
+    // ダブルクリックでは、1回目のクリックが発生させるこのno-opなmoveTokenのサーバー
+    // 往復（バージョン管理されたso7_apply_and_commit経由）と、2回目のクリックが発生させる
+    // flipTokenの往復が短い間隔で連続することになり、後から届いた方がversion_conflictで
+    // 静かに失敗する（コンソールにエラーが出るだけで、ユーザーには何も表示されない）
+    // ことがあった——ローカルモードでは該当する競合の仕組み自体が無いため再現しなかった
+    // （ユーザー報告「オンラインでは裏向きカードをダブルクリックで開けないが、ローカルでは
+    // できる」の根本原因と判断）。
+    const isSameLocation =
+      cardSourceLocation &&
+      cardSourceLocation.zone === dropTarget.zone &&
+      (dropTarget.zone === "cell"
+        ? cardSourceLocation.row === dropTarget.row && cardSourceLocation.col === dropTarget.col
+        : cardSourceLocation.side === dropTarget.side && cardSourceLocation.index === dropTarget.index);
+    if (isSameLocation) {
+      render();
+      return;
+    }
     const token = getState().tokens.find((t) => t.id === tokenId);
     const wasAlreadyLocked = !!token && token.location.zone === "lock";
     if (isOnlineMode()) {
@@ -2209,15 +2252,10 @@ async function onDragEnd(e) {
     if (kind === "card") {
       const movedToken = getState().tokens.find((t) => t.id === tokenId);
       if (movedToken) maybeTriggerCardArrivalForCard(dropTarget, movedToken.cardId, movedToken.faceUp);
-      // 移動元と移動先が同じマスの場合（重なりの中で並び替えただけ等）は、移動先の判定
-      // （maybeTriggerCardArrivalForCard、上で既に呼んだ）と重複するため対象外にする。
-      const sameLocation =
-        cardSourceLocation &&
-        cardSourceLocation.zone === dropTarget.zone &&
-        (cardSourceLocation.zone === "cell"
-          ? cardSourceLocation.row === dropTarget.row && cardSourceLocation.col === dropTarget.col
-          : cardSourceLocation.side === dropTarget.side && cardSourceLocation.index === dropTarget.index);
-      if (!sameLocation) maybeTriggerCardArrivalForExposedCard(cardSourceLocation);
+      // 移動元と移動先が同じ場合は、上のisSameLocationガードで既にreturn済みのため、
+      // ここに到達する時点で移動元と移動先は必ず異なる（重なりの中で並び替えただけ、
+      // という「同じマスへ移動」のケースは、そもそもここまで到達しない）。
+      maybeTriggerCardArrivalForExposedCard(cardSourceLocation);
     }
     return;
   }
@@ -2999,6 +3037,7 @@ let selfStatusNameEl = null;
 let selfStatusPieceThumbEl = null;
 let selfStatusCardBackThumbEl = null;
 let selfStatusPlaymatThumbEl = null;
+let selfStatusBackgroundThumbEl = null;
 let selfStatusHandCountEl = null;
 let selfStatusInfoEl = null;
 let selfStatusLargeAvatarEl = null;
@@ -3145,6 +3184,16 @@ function buildSelfHandStatus() {
   selfStatusPlaymatThumbEl.appendChild(playmatThumbImg);
   addSimpleTooltip(selfStatusPlaymatThumbEl, "クリックしてプレイマットを変更");
 
+  // 背景画像の選択（background.js参照）。プレイマットのすぐ隣に、同じ大きさで配置する
+  // （ユーザー要望）。CSSはプレイマットアイコンのクラスをそのまま流用し、サイズ・位置だけ
+  // 独自のCSS変数（--self-status-icon-background-*）で個別調整できるようにする。
+  selfStatusBackgroundThumbEl = document.createElement("button");
+  selfStatusBackgroundThumbEl.className = "self-status-playmat-thumb self-status-background-thumb";
+  selfStatusBackgroundThumbEl.addEventListener("click", openBackgroundPicker);
+  const backgroundThumbImg = document.createElement("img");
+  selfStatusBackgroundThumbEl.appendChild(backgroundThumbImg);
+  addSimpleTooltip(selfStatusBackgroundThumbEl, "クリックして背景画像を変更");
+
   const info = document.createElement("div");
   info.className = "self-status-info";
   selfStatusInfoEl = info;
@@ -3167,6 +3216,7 @@ function buildSelfHandStatus() {
   iconGrid.appendChild(selfStatusPieceThumbEl);
   iconGrid.appendChild(selfStatusCardBackThumbEl);
   iconGrid.appendChild(selfStatusPlaymatThumbEl);
+  iconGrid.appendChild(selfStatusBackgroundThumbEl);
   iconGrid.appendChild(buildSelfStatusOnlineWidget());
 
   el.appendChild(iconGrid);
@@ -3199,6 +3249,7 @@ function updateSelfHandStatus() {
 
   selfStatusCardBackThumbEl.querySelector("img").src = cardBackSetImagePath("normal", getCardBackSetIndex());
   selfStatusPlaymatThumbEl.querySelector("img").src = getSelectedPlaymatPath();
+  selfStatusBackgroundThumbEl.querySelector("img").src = getSelectedBackgroundPath();
 
   // startEditingName()が.self-status-nameを一時的に<input>へ差し替えるため、render()の
   // たびに毎回ここで作り直す（差し替え後の入力欄はrender()時点で既にblur済みのはず）。
@@ -3256,6 +3307,7 @@ registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocati
 registerPieceSkinHelpers({ render });
 registerCardBackSkinHelpers({ render });
 registerPlaymatHelpers({ render });
+registerBackgroundHelpers({ render });
 // ログイン直後（online.jsのloadMyPreferences）に、保存済みの名前・アバター・駒スキンを
 // ローカルの表示側（player-identity.js/piece-skins.js）へ反映する。部屋に入る前は
 // getSelfSeat()が常に"A"を返すため、ここではまだ「A」という固定座席への適用でよい

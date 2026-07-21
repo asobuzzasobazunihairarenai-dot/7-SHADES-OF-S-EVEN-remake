@@ -204,16 +204,19 @@ body {
   z-index: 1;
 }
 .hand-reveal-bottom {
-  transform: translate(0, -50%) translate(var(--hand-reveal-bottom-pos-x, 0rem), var(--hand-reveal-bottom-pos-y, 6rem));
+  transform: translate(0, -50%) translate(var(--hand-reveal-bottom-pos-x, -16.2rem), var(--hand-reveal-bottom-pos-y, 0.6rem));
 }
+/* ユーザー要望「各プレイヤーとも公開方向はロックエリアの向きに合わせる」により、
+   B=時計回り90度・C=180度・D=反時計回り90度を追加した（position(translate)の後に
+   付けることで、位置調整自体は回転の影響を受けない画面座標のまま行える）。 */
 .hand-reveal-top {
-  transform: translate(0, -50%) translate(var(--hand-reveal-top-pos-x, 0rem), var(--hand-reveal-top-pos-y, -6rem));
+  transform: translate(0, -50%) translate(var(--hand-reveal-top-pos-x, 13rem), var(--hand-reveal-top-pos-y, -1.4rem)) rotate(180deg);
 }
 .hand-reveal-left {
-  transform: translate(0, -50%) translate(var(--hand-reveal-left-pos-x, -8rem), var(--hand-reveal-left-pos-y, 0rem));
+  transform: translate(0, -50%) translate(var(--hand-reveal-left-pos-x, 0.1rem), var(--hand-reveal-left-pos-y, -13.4rem)) rotate(90deg);
 }
 .hand-reveal-right {
-  transform: translate(0, -50%) translate(var(--hand-reveal-right-pos-x, 8rem), var(--hand-reveal-right-pos-y, 0rem));
+  transform: translate(0, -50%) translate(var(--hand-reveal-right-pos-x, -2.4rem), var(--hand-reveal-right-pos-y, 13.5rem)) rotate(-90deg);
 }
 /* 手札公開エリアの一時的な可視化（管理者モードのデバッグ用トグル）。中身が空だと
    枠線・背景を一切持たないため、B/C/Dの分がどこにあるか見つけられないという報告への
@@ -246,8 +249,8 @@ body.hand-reveal-debug-visible .hand-reveal-area::before {
 }
 .hand-reveal-card {
   position: relative;
-  width: var(--hand-reveal-card-size, 4rem);
-  height: var(--hand-reveal-card-size, 4rem);
+  width: var(--hand-reveal-card-size, 2.9rem);
+  height: var(--hand-reveal-card-size, 2.9rem);
   border-radius: 0.3rem;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
   flex-shrink: 0;
@@ -2133,17 +2136,20 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
   --label-d-pos-y: -1.5rem;
 }
 
+/* ユーザー要望「BCD分の名前ラベルは全部画面上が頭の正の向きにしてください（位置は
+   こちらで調整します）」により、以前あった辺ごとの回転（B=90deg/C=180deg/D=-90deg、
+   盤面の辺に沿って読める向きにしていた）を撤去し、4つとも回転無しの通常表示にした。 */
 .zone-bottom .label {
   transform: translate(var(--label-a-pos-x), var(--label-a-pos-y));
 }
 .zone-left .label {
-  transform: rotate(90deg) translate(var(--label-b-pos-x), var(--label-b-pos-y));
+  transform: translate(var(--label-b-pos-x), var(--label-b-pos-y));
 }
 .zone-top .label {
-  transform: translate(var(--label-c-pos-x), var(--label-c-pos-y)) rotate(180deg);
+  transform: translate(var(--label-c-pos-x), var(--label-c-pos-y));
 }
 .zone-right .label {
-  transform: rotate(-90deg) translate(var(--label-d-pos-x), var(--label-d-pos-y));
+  transform: translate(var(--label-d-pos-x), var(--label-d-pos-y));
 }
 
 /* 各プレイヤーのアバター（絵文字ダミー）。相手のアバターは「手札の後ろ側」に見えるよう、
@@ -2231,7 +2237,7 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
   right: 1.2rem;
   z-index: 1000;
   display: none; /* is-active時のみflexに切り替える（updateEndTurnButton参照） */
-  transform: translate(var(--icon-pos-end-turn-x, 0rem), var(--icon-pos-end-turn-y, 0rem));
+  transform: translate(var(--icon-pos-end-turn-x, 0.17rem), var(--icon-pos-end-turn-y, -3.21rem));
 }
 /* PC/タブレットでUI位置を分けたい場合の対応（device-detect.jsのbody.is-touch-device）。
    管理者モードの「タブレット用の位置調整」で個別に触った分だけ、タッチ端末側の変数
@@ -2240,8 +2246,8 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
    いなければ、タブレットでもPCと全く同じ位置のまま変わらない。 */
 body.is-touch-device #end-turn-button {
   transform: translate(
-    var(--icon-pos-end-turn-touch-x, var(--icon-pos-end-turn-x, 0rem)),
-    var(--icon-pos-end-turn-touch-y, var(--icon-pos-end-turn-y, 0rem))
+    var(--icon-pos-end-turn-touch-x, var(--icon-pos-end-turn-x, 0.17rem)),
+    var(--icon-pos-end-turn-touch-y, var(--icon-pos-end-turn-y, -3.21rem))
   );
 }
 /* 自分のターンでオンライン中、自分の手番でない間は押せなくする（アイコン全体を薄くする）。 */
@@ -2535,7 +2541,7 @@ body.is-touch-device #options-menu-button {
   display: none;
   /* 管理者モードの「アイコン再配置モード」でドラッグした分のズレ。基準位置は変えず
      translate()で上乗せする（icon-rearrange.js参照）。 */
-  transform: translate(var(--icon-pos-draw-x, -9rem), var(--icon-pos-draw-y, -4.7rem));
+  transform: translate(var(--icon-pos-draw-x, -8.83rem), var(--icon-pos-draw-y, -4.71rem));
 }
 /* 「公開ドロー」ボタン。ユーザー指定の通り「1枚ドロー」ボタンの左上に置く
    （#draw-buttonの基準位置bottom:5rem;right:1.2remから見て、上方向・左方向にずらした
@@ -2547,7 +2553,7 @@ body.is-touch-device #options-menu-button {
   right: 5.5rem;
   z-index: 1000;
   display: none;
-  transform: translate(var(--icon-pos-public-draw-x, 0.2rem), var(--icon-pos-public-draw-y, 2.3rem));
+  transform: translate(var(--icon-pos-public-draw-x, 0.29rem), var(--icon-pos-public-draw-y, 1.25rem));
 }
 #public-draw-button .icon-action-button-icon-wrap {
   width: var(--icon-size-public-draw, 2.6rem);
@@ -2558,33 +2564,33 @@ body.is-touch-device #options-menu-button {
   bottom: 8.8rem;
   right: 1.2rem;
   z-index: 1000;
-  transform: translate(var(--icon-pos-board-zoom-x, -0.29rem), var(--icon-pos-board-zoom-y, -1.08rem));
+  transform: translate(var(--icon-pos-board-zoom-x, -0.29rem), var(--icon-pos-board-zoom-y, -0.71rem));
 }
 #hand-shuffle-button {
   position: fixed;
   bottom: 12.6rem;
   right: 1.2rem;
   z-index: 1000;
-  transform: translate(var(--icon-pos-hand-shuffle-x, -8.1rem), var(--icon-pos-hand-shuffle-y, 11.38rem));
+  transform: translate(var(--icon-pos-hand-shuffle-x, -7.91rem), var(--icon-pos-hand-shuffle-y, 7.79rem));
 }
 /* PC/タブレットでUI位置を分けたい場合の対応（#end-turn-button側と同じフォールバック
    チェーン方式）。 */
 body.is-touch-device #draw-button {
   transform: translate(
-    var(--icon-pos-draw-touch-x, var(--icon-pos-draw-x, -9rem)),
-    var(--icon-pos-draw-touch-y, var(--icon-pos-draw-y, -4.7rem))
+    var(--icon-pos-draw-touch-x, var(--icon-pos-draw-x, -8.83rem)),
+    var(--icon-pos-draw-touch-y, var(--icon-pos-draw-y, -4.71rem))
   );
 }
 body.is-touch-device #board-zoom-button {
   transform: translate(
     var(--icon-pos-board-zoom-touch-x, var(--icon-pos-board-zoom-x, -0.29rem)),
-    var(--icon-pos-board-zoom-touch-y, var(--icon-pos-board-zoom-y, -1.08rem))
+    var(--icon-pos-board-zoom-touch-y, var(--icon-pos-board-zoom-y, -0.71rem))
   );
 }
 body.is-touch-device #hand-shuffle-button {
   transform: translate(
-    var(--icon-pos-hand-shuffle-touch-x, var(--icon-pos-hand-shuffle-x, -8.1rem)),
-    var(--icon-pos-hand-shuffle-touch-y, var(--icon-pos-hand-shuffle-y, 11.38rem))
+    var(--icon-pos-hand-shuffle-touch-x, var(--icon-pos-hand-shuffle-x, -7.91rem)),
+    var(--icon-pos-hand-shuffle-touch-y, var(--icon-pos-hand-shuffle-y, 7.79rem))
   );
 }
 /* 手札が0〜1枚（シャッフルしても見た目が変わらない）の間は押せなくする。 */
@@ -2606,10 +2612,11 @@ body.is-touch-device #hand-shuffle-button {
   opacity: 0.35;
 }
 
-/* 駒スキン/カード裏面/プレイマット選択モーダル。 */
+/* 駒スキン/カード裏面/プレイマット/背景画像選択モーダル。 */
 #piece-skin-modal,
 #card-back-skin-modal,
-#playmat-picker-modal {
+#playmat-picker-modal,
+#background-picker-modal {
   position: fixed;
   top: 50%;
   left: 50%;
@@ -2934,6 +2941,16 @@ body.cards-interaction-hidden .board-card {
 }
 .self-status-playmat-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
+}
+/* 背景画像のサムネイル（background.js参照）。プレイマットアイコンと同じ大きさ・見た目の
+   まま、独立したCSS変数で位置だけ別々に調整できるようにする（ユーザー要望「プレイマット
+   変更アイコンと同じサイズでその隣に配置」）。プレイマット用のルール(.self-status-playmat-
+   thumb)は幅/高さ/位置も含めて丸ごと継承しているため、ここでは位置と幅/高さだけ、2つの
+   クラスが両方付いた時だけ効くより詳細度の高いセレクタで上書きする。 */
+.self-status-playmat-thumb.self-status-background-thumb {
+  width: var(--self-status-icon-background-size, 1.5rem);
+  height: var(--self-status-icon-background-size, 1.5rem);
+  transform: translate(var(--self-status-icon-background-pos-x, 11.4rem), var(--self-status-icon-background-pos-y, 3.1rem));
 }
 .self-status-playmat-thumb img {
   width: 100%;

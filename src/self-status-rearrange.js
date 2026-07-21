@@ -17,7 +17,7 @@
 import { isSelfStatusRearrangeMode } from "./admin.js";
 
 const SELECTOR =
-  ".self-status-large-avatar, .self-status-piece-thumb, .self-status-card-back-thumb, .self-status-playmat-thumb, #self-status-online";
+  ".self-status-large-avatar, .self-status-piece-thumb, .self-status-card-back-thumb, .self-status-playmat-thumb, .self-status-background-thumb, #self-status-online";
 
 // posDefaultは各要素のCSS側var(--x, フォールバック値)と同じ値を持たせてある。
 // これが無いと、そのCSS変数に一度もinline styleが書き込まれていない（＝ページ読み込み
@@ -47,6 +47,14 @@ const VARS_BY_CLASS = {
     pos: ["--self-status-icon-cardback-pos-x", "--self-status-icon-cardback-pos-y"],
     posDefault: [4, 5],
     size: "--self-status-icon-cardback-size",
+    sizeMin: 1.2,
+    sizeMax: 6,
+    sizeDefault: 1.5,
+  },
+  "self-status-background-thumb": {
+    pos: ["--self-status-icon-background-pos-x", "--self-status-icon-background-pos-y"],
+    posDefault: [11.4, 3.1],
+    size: "--self-status-icon-background-size",
     sizeMin: 1.2,
     sizeMax: 6,
     sizeDefault: 1.5,
