@@ -933,6 +933,40 @@ body.icon-rearrange-mode #options-menu-button.is-rearranging {
   border-color: rgba(251, 146, 60, 0.7);
 }
 
+/* 「拡大率登録」ボタン（盤面拡大機能の再設計、main.jsのbuildBoardZoomRegisterButton
+   参照）。手動ズーム/移動中（hasManualView）だけ、盤面拡大ボタンの真上に浮かんで
+   現れる。位置はJS側で盤面拡大ボタンの実際の座標から毎回計算し直す（ドラッグ再配置
+   されても追従するため）ので、ここではleft/topの基準からの中央下寄せだけ指定する。
+   常に点滅させて「まだ登録されていない設定」であることを目立たせる。 */
+#board-zoom-register-button {
+  position: fixed;
+  transform: translate(-50%, -100%);
+  z-index: 1001;
+}
+#board-zoom-register-button .icon-action-button-icon-wrap {
+  width: 2rem;
+  height: 2rem;
+  animation: board-zoom-register-pulse 1.2s ease-in-out infinite;
+}
+@keyframes board-zoom-register-pulse {
+  0%, 100% {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4), 0 0 0 0.1rem rgba(250, 204, 21, 0.9);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4), 0 0 0 0.4rem rgba(250, 204, 21, 0.15);
+    transform: scale(1.12);
+  }
+}
+/* 登録した瞬間だけ、点滅の代わりに緑色でしっかり止める（「保存できた」というフィード
+   バック）。0.6秒後にmain.js側でクラスを外し、通常の点滅表示に戻る。 */
+#board-zoom-register-button.is-just-registered .icon-action-button-icon-wrap {
+  animation: none;
+  background: rgba(74, 222, 128, 0.35);
+  border-color: #4ade80;
+  transform: scale(1.2);
+}
+
 #phase-guide-modal,
 #priority-transfer-modal,
 #icon-action-detail-modal {

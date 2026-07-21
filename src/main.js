@@ -940,6 +940,52 @@ function resetManualView() {
   hasManualView = false;
 }
 
+// --- 「拡大率登録」機能（盤面拡大ボタンの再設計） ----------------------------------
+// マウスホイール/ピンチ/中クリックドラッグで自由に調整した画角(manualZoom/manualPanX/Y)を
+// 「登録」しておくと、次回以降は通常表示の状態から「盤面拡大」ボタンを押すだけで
+// （従来の拡大→もっと拡大→元に戻す、の3段階サイクルの代わりに）一気にその画角へ
+// ジャンプできるようにする機能。ブラウザのlocalStorageに保存し、次回ページを開いた
+// 時にも引き継がれる（他プレイヤーには一切共有されない、自分のブラウザだけの設定）。
+const BOARD_ZOOM_REGISTERED_VIEW_KEY = "so7-board-zoom-registered-view";
+
+function loadRegisteredBoardZoomView() {
+  try {
+    const raw = localStorage.getItem(BOARD_ZOOM_REGISTERED_VIEW_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.zoom === "number" && typeof parsed?.panX === "number" && typeof parsed?.panY === "number") {
+      return parsed;
+    }
+  } catch {
+    // 壊れた値が入っていた場合は無視して未登録扱いにする。
+  }
+  return null;
+}
+
+let registeredBoardZoomView = loadRegisteredBoardZoomView();
+
+function saveRegisteredBoardZoomView(view) {
+  registeredBoardZoomView = view;
+  try {
+    localStorage.setItem(BOARD_ZOOM_REGISTERED_VIEW_KEY, JSON.stringify(view));
+  } catch {
+    // プライベートブラウジング等でlocalStorageが使えなくても、今回のセッション中は
+    // registeredBoardZoomView自体は有効なまま動作を続けられるようにする。
+  }
+}
+
+// 正式なアイコン画像がまだ無いため、差し替えまでの仮アイコンとしてシンプルなインラインSVGを
+// 使う（assets/icons/へのファイル追加が要らず、コードだけで完結する）。
+function dummyIconDataUri(svgInner) {
+  return "data:image/svg+xml," + encodeURIComponent(svgInner);
+}
+const DUMMY_ICON_RETURN_TO_VIEW = dummyIconDataUri(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>'
+);
+const DUMMY_ICON_REGISTER_VIEW = dummyIconDataUri(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>'
+);
+
 let resizeTimer;
 window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);
@@ -2068,27 +2114,53 @@ function ensureDeckAvailable(onReady) {
 }
 
 // --- 「盤面拡大」ボタン ----------------------------------------------------------
-// 押すたびに 盤面拡大 → もっと拡大 → 元に戻す、と3段階を巡回する。
-// state.turnPlayerの有無に関係なく常に使える表示上の機能なので、非表示にする条件は無い。
+// 押すたびに 盤面拡大 → もっと拡大 → 元に戻す、と3段階を巡回する（これは「拡大率登録」が
+// 未登録の間だけの、従来通りの挙動）。state.turnPlayerの有無に関係なく常に使える表示上の
+// 機能なので、非表示にする条件は無い。
 // マウスホイールでのズーム・中クリックドラッグでの視点移動（initCameraControls参照）を
-// 一度でも使うと、このボタンは「🔄 最初の視点に戻る」に切り替わる（updateBoardZoomButtonLabel）。
+// 一度でも使うと、このボタンは「元の画角に戻る」に切り替わる（アイコンも切り替わる、
+// updateBoardZoomButtonLabel参照）。この状態の間だけ、その上に点滅する「拡大率登録」
+// ボタン（buildBoardZoomRegisterButton）が現れ、押すと今の画角をlocalStorageに保存する。
+// 一度登録すると、以後は通常表示から「盤面拡大」ボタンを押した瞬間に3段階サイクルの
+// 代わりに登録した画角へ直接ジャンプするようになる（cycleBoardZoomは登録が無い間の
+// フォールバック挙動として残している）。
 const BOARD_ZOOM_LABELS = ["盤面拡大", "もっと拡大", "元に戻す"];
 
 let boardZoomButtonEl = null;
 let boardZoomTooltipEl = null;
+let boardZoomIconImgEl = null;
+let boardZoomRegisterButtonEl = null;
 
 function updateBoardZoomButtonLabel() {
   const btn = boardZoomButtonEl;
   if (!btn) return;
   if (hasManualView) {
-    if (boardZoomTooltipEl) boardZoomTooltipEl.textContent = "最初の視点に戻る";
+    if (boardZoomTooltipEl) boardZoomTooltipEl.textContent = "元の画角に戻る";
+    if (boardZoomIconImgEl) boardZoomIconImgEl.src = DUMMY_ICON_RETURN_TO_VIEW;
     btn.classList.add("is-active");
     btn.classList.remove("is-zoom-2");
+  } else {
+    btn.classList.toggle("is-active", boardZoomLevel > 0);
+    btn.classList.toggle("is-zoom-2", boardZoomLevel === 2);
+    if (boardZoomTooltipEl) boardZoomTooltipEl.textContent = BOARD_ZOOM_LABELS[boardZoomLevel];
+    if (boardZoomIconImgEl) boardZoomIconImgEl.src = "assets/icons/board-zoom.svg";
+  }
+  updateBoardZoomRegisterButtonPosition();
+}
+
+// 「拡大率登録」ボタンは、盤面拡大ボタン自体がドラッグ再配置（player-buttons.js/
+// icon-rearrange.js）で動くことがあるため、固定オフセットではなく毎回
+// getBoundingClientRect()から位置を計算し直す（そのすぐ上に浮かべる）。
+function updateBoardZoomRegisterButtonPosition() {
+  if (!boardZoomRegisterButtonEl || !boardZoomButtonEl) return;
+  if (!hasManualView) {
+    boardZoomRegisterButtonEl.style.display = "none";
     return;
   }
-  btn.classList.toggle("is-active", boardZoomLevel > 0);
-  btn.classList.toggle("is-zoom-2", boardZoomLevel === 2);
-  if (boardZoomTooltipEl) boardZoomTooltipEl.textContent = BOARD_ZOOM_LABELS[boardZoomLevel];
+  boardZoomRegisterButtonEl.style.display = "flex";
+  const rect = boardZoomButtonEl.getBoundingClientRect();
+  boardZoomRegisterButtonEl.style.left = `${rect.left + rect.width / 2}px`;
+  boardZoomRegisterButtonEl.style.top = `${rect.top - 10}px`;
 }
 
 function buildBoardZoomButton() {
@@ -2100,11 +2172,12 @@ function buildBoardZoomButton() {
   });
   captionEl.textContent = "盤面拡大";
   boardZoomTooltipEl = tooltipEl;
+  boardZoomIconImgEl = btn.querySelector(".icon-action-button-icon-img");
   wireIconButtonClick(btn, {
     detailTitle: "盤面拡大",
     detailParagraphs: [
-      "盤面全体をズームして見やすくします。押すたびに「拡大」→「もっと拡大」→「元に戻す」の3段階を切り替えます。",
-      "マウスホイールでの自由なズームや中クリックドラッグでの視点移動を一度でも使うと、代わりに「最初の視点に戻る」ボタンに変わります。",
+      "盤面全体をズームして見やすくします。まだ画角を登録していない間は、押すたびに「拡大」→「もっと拡大」→「元に戻す」の3段階を切り替えます。",
+      "マウスホイールでの自由なズームや中クリックドラッグでの視点移動を一度でも使うと、代わりに「元の画角に戻る」ボタンに変わります。その間だけ現れる点滅した「拡大率登録」ボタンを押すと、今の画角を登録できます。登録後は、通常表示からこのボタンを押すと登録した画角へ一気に切り替わります。",
     ],
     onAction: () => {
       if (hasManualView) {
@@ -2114,9 +2187,42 @@ function buildBoardZoomButton() {
         updateBoardZoomButtonLabel();
         return;
       }
+      if (registeredBoardZoomView) {
+        manualZoom = registeredBoardZoomView.zoom;
+        manualPanX = registeredBoardZoomView.panX;
+        manualPanY = registeredBoardZoomView.panY;
+        hasManualView = true;
+        fitTableToViewport();
+        updateBoardZoomButtonLabel();
+        return;
+      }
       cycleBoardZoom();
       updateBoardZoomButtonLabel();
     },
+  });
+  document.body.appendChild(btn);
+  return btn;
+}
+
+// 点滅して目立つ「拡大率登録」ボタン。手動でズーム/移動している間（hasManualView）だけ
+// 「盤面拡大」ボタンの真上に浮かんで現れる。押すと今の画角(manualZoom/manualPanX/Y)を
+// registeredBoardZoomViewとして保存する（再度押せば上書きできる）。
+// アイコンは正式なものが用意でき次第差し替える仮のプレースホルダー。
+function buildBoardZoomRegisterButton() {
+  const btn = document.createElement("button");
+  btn.id = "board-zoom-register-button";
+  btn.style.display = "none";
+  const { tooltipEl } = buildIconButtonContent(btn, {
+    icon: DUMMY_ICON_REGISTER_VIEW,
+    tooltip: "この画角を登録する［仮アイコン］",
+  });
+  // 小さなバッジ的な位置づけのボタンのため、キャプション文字（クリックで詳細説明を開く
+  // 仕組み）は無し。ホバーの簡易説明だけで十分と判断した。
+  btn.querySelector(".icon-action-button-caption")?.remove();
+  btn.addEventListener("click", () => {
+    saveRegisteredBoardZoomView({ zoom: manualZoom, panX: manualPanX, panY: manualPanY });
+    btn.classList.add("is-just-registered");
+    setTimeout(() => btn.classList.remove("is-just-registered"), 600);
   });
   document.body.appendChild(btn);
   return btn;
@@ -2691,6 +2797,7 @@ endTurnButtonEl = buildEndTurnButton();
 drawButtonEl = buildDrawButton();
 selfHandStatusEl = buildSelfHandStatus();
 boardZoomButtonEl = buildBoardZoomButton();
+boardZoomRegisterButtonEl = buildBoardZoomRegisterButton();
 handShuffleButtonEl = buildHandShuffleButton();
 render();
 initDragHandlers();
