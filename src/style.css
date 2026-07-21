@@ -200,8 +200,30 @@ body {
   left: 50%;
   display: flex;
   flex-wrap: nowrap;
+  align-items: center;
   gap: 0.5rem;
   z-index: 1;
+  /* 盤面のマスと同じ見た目で常時可視化する（ユーザー要望）。中身が空の間もmin-width/
+     min-heightで当たり判定の箱を確保しておくことで、手札からドラッグしてここへ
+     直接置けるようにする（枠が無いと0x0に潰れてドロップ先として掴めなかった）。 */
+  min-width: var(--hand-reveal-card-size, 2.9rem);
+  min-height: var(--hand-reveal-card-size, 2.9rem);
+  border-radius: 0.2rem;
+  background: rgba(30, 41, 59, 0.15);
+  border: 1px solid rgba(226, 232, 240, 0.15);
+}
+/* 中身が入ったら（＝子の.hand-reveal-slotが1つでもあれば）ラベルは不要になるので、
+   :emptyで空の時だけ表示する（盤面マスの座標ラベルと同じ考え方）。 */
+.hand-reveal-area:empty {
+  justify-content: center;
+}
+.hand-reveal-area:empty::before {
+  content: "手札公開エリア";
+  font-size: 0.5rem;
+  line-height: 1.15;
+  text-align: center;
+  color: rgba(226, 232, 240, 0.55);
+  padding: 0.2rem;
 }
 .hand-reveal-bottom {
   transform: translate(0, -50%) translate(var(--hand-reveal-bottom-pos-x, -16.2rem), var(--hand-reveal-bottom-pos-y, 0.6rem));
@@ -217,28 +239,6 @@ body {
 }
 .hand-reveal-right {
   transform: translate(0, -50%) translate(var(--hand-reveal-right-pos-x, -2.4rem), var(--hand-reveal-right-pos-y, 13.5rem)) rotate(-90deg);
-}
-/* 手札公開エリアの一時的な可視化（管理者モードのデバッグ用トグル）。中身が空だと
-   枠線・背景を一切持たないため、B/C/Dの分がどこにあるか見つけられないという報告への
-   対応。有効な間だけ、中身の有無に関わらず枠線とプレイヤー名のラベルを表示する。 */
-body.hand-reveal-debug-visible .hand-reveal-area {
-  min-width: 2rem;
-  min-height: 2rem;
-  border: 2px dashed rgba(56, 189, 248, 0.85);
-  background: rgba(56, 189, 248, 0.12);
-  border-radius: 0.3rem;
-}
-body.hand-reveal-debug-visible .hand-reveal-area::before {
-  content: "手札公開エリア (" attr(data-player) ")";
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  font-size: 0.55rem;
-  white-space: nowrap;
-  color: #7dd3fc;
-  background: rgba(15, 23, 32, 0.85);
-  border-radius: 0.2rem;
-  padding: 0.05rem 0.3rem;
 }
 /* 1枚ごとに「カード＋捨てるボタン」を縦に積んだ単位。 */
 .hand-reveal-slot {
@@ -322,16 +322,16 @@ body.hand-reveal-debug-visible .hand-reveal-area::before {
      見えている手札の範囲よりずっと広い当たり判定になり、ロックエリアの帯と干渉していた。
      枚数に応じてJS側(main.js buildPlayerZone)で自動的に比例拡大/縮小する。 */
   --hand-a-size: 13rem;
-  --hand-b-size: 6rem;
-  --hand-c-size: 6rem;
-  --hand-d-size: 6rem;
+  --hand-b-size: 7rem;
+  --hand-c-size: 7rem;
+  --hand-d-size: 7rem;
   /* 手札エリアの「扇が伸びない方向」の厚み（固定値。枚数では変わらない）。デフォルトの
      5.2rem/9rem/100%幅では、この厚みの分だけ当たり判定がロックエリア側にはみ出して
      干渉することが分かったため、カード1枚分程度に絞れるよう調整可能にした。 */
   --hand-a-thickness: 7rem;
-  --hand-b-thickness: 4rem;
+  --hand-b-thickness: 5rem;
   --hand-c-thickness: 4rem;
-  --hand-d-thickness: 4rem;
+  --hand-d-thickness: 5rem;
 }
 
 /* translate(-50%, -50%)を先頭に置き、.hand-areaが（幅がどれだけ変わっても）常に
@@ -868,7 +868,7 @@ body.hand-reveal-debug-visible .hand-reveal-area::before {
 #phase-guide-bar {
   position: fixed;
   bottom: var(--phase-guide-bottom, 1.2rem);
-  right: var(--phase-guide-right, 5.6rem);
+  right: var(--phase-guide-right, 2.3rem);
   z-index: 1000;
   display: flex;
   gap: 0.6rem;
@@ -1539,10 +1539,10 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
    関わらず画像本来の縦横比のまま収める）に変更した。これにより、たとえ箱の縦横比が画像と
    完全に一致していなくても画像が変形・トリミングされることは無い。 */
 :root {
-  --table-background-scale-x: 4.2;
-  --table-background-scale-y: 2.4;
+  --table-background-scale-x: 4.75;
+  --table-background-scale-y: 4.85;
   --table-background-pos-x: 0%;
-  --table-background-pos-y: 0%;
+  --table-background-pos-y: 108.5%;
 }
 .table-background-bg {
   position: absolute;
@@ -1850,9 +1850,44 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
   25%, 75% { box-shadow: inset 0 0 0 0.15rem rgba(255, 255, 255, 0.95), 0 0 0.5rem 0.15rem rgba(255, 255, 255, 0.6); }
   50% { box-shadow: none; }
 }
+:root {
+  /* 点滅の長さ（秒）。ユーザー要望「その秒数は管理者モードで調整できるようにしたい」。
+     keyframes自体は25/75%地点で明滅する比率のままなので、この値を伸ばすほどゆっくり
+     2回光るようになる（回数は変わらない）。 */
+  --move-blink-duration: 3;
+}
 .cell.move-highlight-blink,
 .lock-slot.move-highlight-blink {
-  animation: move-highlight-blink 0.7s ease-in-out;
+  animation: move-highlight-blink calc(var(--move-blink-duration, 3) * 1s) ease-in-out;
+}
+
+/* オンラインで他プレイヤーがカードを場に置いた/取った時、点滅と一緒に方向を示す矢印を
+   一瞬表示する（ユーザー要望）。「↓」=置いた、「↑」=取った。マス自体の点滅
+   （move-highlight-blink）と重ねて出す、控えめなオーバーレイ。 */
+@keyframes move-blink-arrow-fade {
+  0% { opacity: 0; transform: translateY(0.2rem) scale(0.7); }
+  15%, 70% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-0.2rem) scale(1); }
+}
+.move-blink-arrow {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+  z-index: 6;
+  text-shadow: 0 0 0.3rem rgba(0, 0, 0, 0.85), 0 0 0.6rem rgba(0, 0, 0, 0.6);
+  animation: move-blink-arrow-fade calc(var(--move-blink-duration, 3) * 1s) ease-in-out;
+}
+.move-blink-arrow.is-down {
+  color: #38bdf8;
+}
+.move-blink-arrow.is-up {
+  color: #fbbf24;
 }
 
 /* 立方体の駒。ユドナリウム(TK11235/udonarium)のterrain（地形）コンポーネントの技法を
@@ -2128,12 +2163,12 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
 :root {
   --label-a-pos-x: -14.7rem;
   --label-a-pos-y: -1.1rem;
-  --label-b-pos-x: -14.7rem;
-  --label-b-pos-y: -1.5rem;
-  --label-c-pos-x: 14.2rem;
-  --label-c-pos-y: -1.5rem;
-  --label-d-pos-x: -16.4rem;
-  --label-d-pos-y: -1.5rem;
+  --label-b-pos-x: -4.4rem;
+  --label-b-pos-y: -5.1rem;
+  --label-c-pos-x: 4.5rem;
+  --label-c-pos-y: -7rem;
+  --label-d-pos-x: 3.8rem;
+  --label-d-pos-y: -5.2rem;
 }
 
 /* ユーザー要望「BCD分の名前ラベルは全部画面上が頭の正の向きにしてください（位置は
@@ -2950,7 +2985,7 @@ body.cards-interaction-hidden .board-card {
 .self-status-playmat-thumb.self-status-background-thumb {
   width: var(--self-status-icon-background-size, 1.5rem);
   height: var(--self-status-icon-background-size, 1.5rem);
-  transform: translate(var(--self-status-icon-background-pos-x, 11.4rem), var(--self-status-icon-background-pos-y, 3.1rem));
+  transform: translate(var(--self-status-icon-background-pos-x, 7.86rem), var(--self-status-icon-background-pos-y, 3.1rem));
 }
 .self-status-playmat-thumb img {
   width: 100%;
@@ -2964,7 +2999,7 @@ body.cards-interaction-hidden .board-card {
    （.icon-action-button-icon-wrap自体には触れない）。位置調整はボタン本体(#self-status-online)
    へのtranslateで行う（キャプション文字ごと一緒に動く）。 */
 #self-status-online {
-  transform: translate(var(--self-status-icon-online-pos-x, -2.4rem), var(--self-status-icon-online-pos-y, -2.3rem));
+  transform: translate(var(--self-status-icon-online-pos-x, -0.4rem), var(--self-status-icon-online-pos-y, -3.17rem));
 }
 .self-status-icon-grid #self-status-online .icon-action-button-icon-wrap {
   width: var(--self-status-icon-online-size, 2.6rem);

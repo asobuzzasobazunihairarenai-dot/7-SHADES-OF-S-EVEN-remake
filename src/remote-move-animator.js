@@ -81,15 +81,30 @@ function getOriginPileRect(cardId) {
 
 // 移動元/移動先のマス・ロックスロット自体を一瞬点滅させる（駒・カードそのものではなく
 // マスの縁を光らせる）。操作していないプレイヤーが「どこからどこへ動いたか」を見落とし
-// にくくするための、控えめで短い（0.7秒）合図。到達演出（光の柱、spawnArrivalBurst）とは
-// 別レイヤー（マス自体の縁の明滅 vs マス中央から立ち上る光の柱）なので、同時に発生しても
-// 見た目が競合しない設計にしてある。
-const MOVE_BLINK_MS = 700;
-function blinkLocation(location, table) {
+// にくくするための、控えめな合図。到達演出（光の柱、spawnArrivalBurst）とは別レイヤー
+// （マス自体の縁の明滅 vs マス中央から立ち上る光の柱）なので、同時に発生しても見た目が
+// 競合しない設計にしてある。長さは管理者モードで調整できる（--move-blink-duration、秒）。
+// arrowには"down"（カードが置かれた側）または"up"（カードが取られた側）を渡すと、
+// 点滅と一緒に方向を示す矢印も一瞬表示する（ユーザー要望：オンラインで相手がどこに
+// 置いた/取ったのか分かりづらいので、区別しやすい矢印を出したい）。
+function getMoveBlinkDurationMs() {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue("--move-blink-duration").trim();
+  const seconds = parseFloat(raw);
+  return (Number.isNaN(seconds) ? 3 : seconds) * 1000;
+}
+function blinkLocation(location, table, arrow = null) {
   const hostEl = helpers.findLocationElement?.(table, location);
   if (!hostEl) return;
+  const durationMs = getMoveBlinkDurationMs();
   hostEl.classList.add("move-highlight-blink");
-  setTimeout(() => hostEl.classList.remove("move-highlight-blink"), MOVE_BLINK_MS);
+  setTimeout(() => hostEl.classList.remove("move-highlight-blink"), durationMs);
+  if (arrow) {
+    const arrowEl = document.createElement("div");
+    arrowEl.className = `move-blink-arrow is-${arrow}`;
+    arrowEl.textContent = arrow === "down" ? "↓" : "↑";
+    hostEl.appendChild(arrowEl);
+    setTimeout(() => arrowEl.remove(), durationMs);
+  }
 }
 
 async function flyAndReveal(item, fromRect, table, blinkDestination) {
@@ -101,7 +116,8 @@ async function flyAndReveal(item, fromRect, table, blinkDestination) {
     await done;
   }
   el.classList.remove("is-setup-pending");
-  if (blinkDestination) blinkLocation(item.token.location, table);
+  // 場に「置かれた」到着マスなので常に↓（置いた）の矢印を出す。
+  if (blinkDestination) blinkLocation(item.token.location, table, "down");
   triggerEffectsFor(item);
 }
 
@@ -164,7 +180,15 @@ function processMovedOrNew(items, table) {
     const table2 = document.getElementById("game-table");
     if (!table2) return;
     for (const item of items) {
-      if (item.kind === "pickup") continue;
+      if (item.kind === "pickup") {
+        // 盤面/ロックから手札へ「取られた」場合、取られた側のマスを↑で点滅させる
+        // （ユーザー要望：置いた時と同様、取った時も分かりやすくしたい）。山から直接
+        // 手札へ引いた場合（prevLocationが無い）は該当マスが無いので対象外。
+        if (item.prevLocation && isTableZone(item.prevLocation)) {
+          blinkLocation(item.prevLocation, table2, "up");
+        }
+        continue;
+      }
       if (item.kind === "flip") {
         // 移動が無い＝飛翔ゴースト（document.body直下の2Dオーバーレイ）を経由する意味が
         // 無いため、その場で演出だけ直接発火する。
@@ -175,11 +199,14 @@ function processMovedOrNew(items, table) {
       if (item.kind === "move") {
         fromRect = fromRects.get(item.id) || null;
         // 移動元は手札の場合もある（手札からロックへ等）。手札には点滅させる実マスが
-        // 無いため、盤面/ロックからの移動の時だけ移動元も光らせる。
-        if (isTableZone(item.prevLocation)) blinkLocation(item.prevLocation, table2);
+        // 無いため、盤面/ロックからの移動の時だけ移動元も光らせる（↑＝取られた）。
+        if (isTableZone(item.prevLocation)) blinkLocation(item.prevLocation, table2, "up");
       } else if (item.kind === "new-lock") fromRect = getOriginPileRect(item.token.cardId);
       // new-cell-fadeはfromRectなし＝その場でフェードインするだけ。
-      flyAndReveal(item, fromRect, table2, item.kind === "move"); // 個々の飛翔は並行に進めてよいためawaitしない
+      // move/new-lock/new-cell-fadeはいずれも「場に何かが現れた/置かれた」ケースなので
+      // 到着マスに↓（置いた）を出す。
+      const blinkDestination = item.kind === "move" || item.kind === "new-lock" || item.kind === "new-cell-fade";
+      flyAndReveal(item, fromRect, table2, blinkDestination); // 個々の飛翔は並行に進めてよいためawaitしない
     }
   });
 }
@@ -236,7 +263,7 @@ export function handleHydrate() {
     if (isTableZone(prev.location) && isTableZone(token.location)) {
       items.push({ id: token.id, token, kind: "move", prevLocation: prev.location });
     } else if (isTableZone(prev.location) && token.location.zone === "hand") {
-      items.push({ id: token.id, token, kind: "pickup", prevFaceUp: prev.faceUp });
+      items.push({ id: token.id, token, kind: "pickup", prevFaceUp: prev.faceUp, prevLocation: prev.location });
     } else if (prev.location.zone === "hand" && isTableZone(token.location)) {
       // 手札からロック/盤面マスへ直接移動するケース（実際の対戦で最も一般的なロックの
       // やり方）。以前はこの向きの遷移が分類漏れしており、他プレイヤーの画面では

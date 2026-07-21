@@ -356,7 +356,16 @@ function buildPlayerZone(side, player, isSelf) {
     discardBtn.className = "hand-reveal-discard-btn";
     discardBtn.type = "button";
     discardBtn.textContent = "🗑 捨てる";
-    discardBtn.addEventListener("click", () => discardFromHandReveal(token.id));
+    // ハマりどころ（ユーザー報告「捨てるボタンが押せない」の根本原因）: このボタンは
+    // .hand-area/.hand-reveal-area等と同じ深いperspective+rotateXの3D階層の中にあり、
+    // 実機で検証したところdocument.elementFromPoint()（単数形、実際のマウス/クリック
+    // イベントがヒットテストに使うのと同じAPI）がこの領域では見た目と食い違い、
+    // ボタンの真上でクリックしても#game-tableが受け取ってしまうことを確認した
+    // （elementsFromPoint()＝複数形なら正しくボタンを最前面として返す）。他の全ての
+    // カード/駒操作が採用しているのと同じ対策＝ネイティブのclickに頼らず、
+    // #game-tableのpointerdownハンドラ側でelementsFromPoint()を使った自前判定
+    // （findDiscardButtonAt参照）で拾う方式に統一する。tokenIdだけdatasetに残す。
+    discardBtn.dataset.tokenId = token.id;
     slot.appendChild(cardEl);
     slot.appendChild(discardBtn);
     handRevealEl.appendChild(slot);
@@ -1181,6 +1190,18 @@ let activeSingleTouchAbort = null;
 // という形で発覚）。優先順位（駒＞盤面カード＞手札カード＞山）を「要素ごと」ではなく
 // 「種類ごと」に全要素を舐めてから確定するように直し、描画順に関係なく常に駒を最優先で
 // 拾えるようにした。
+// 手札公開エリアの「捨てる」ボタン専用の当たり判定（findDraggableAtと同じ理由で
+// elementsFromPoint()を使う。ネイティブのclickイベントに任せると3D階層の中で
+// ヒットテストが狂うため、pointerdown側で先回りして拾う）。
+function findDiscardButtonAt(clientX, clientY) {
+  const elements = document.elementsFromPoint(clientX, clientY);
+  for (const el of elements) {
+    const btn = el.closest(".hand-reveal-discard-btn");
+    if (btn) return btn;
+  }
+  return null;
+}
+
 function findDraggableAt(clientX, clientY) {
   const elements = document.elementsFromPoint(clientX, clientY);
   for (const el of elements) {
@@ -1665,6 +1686,15 @@ function initDragHandlers() {
   const table = document.getElementById("game-table");
   table.addEventListener("pointerdown", async (e) => {
     if (e.button !== 0) return;
+    // 「捨てる」ボタンはfindDraggableAtの対象外（駒でもカードでも山でもない）だが、
+    // 同じ3D階層のヒットテスト問題を受けるため、先に専用の当たり判定で拾っておく
+    // （buildPlayerZoneのdiscardBtn生成部のコメント参照）。
+    const discardBtn = findDiscardButtonAt(e.clientX, e.clientY);
+    if (discardBtn) {
+      e.preventDefault();
+      discardFromHandReveal(discardBtn.dataset.tokenId);
+      return;
+    }
     const hit = findDraggableAt(e.clientX, e.clientY);
     if (!hit) return;
     e.preventDefault();

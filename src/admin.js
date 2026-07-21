@@ -65,6 +65,16 @@ const GROUPS = [
     ],
   },
   {
+    // オンライン対戦中、他プレイヤーがカードを場に置いた/取った時にそのマスを点滅させ、
+    // 「↓」（置いた）「↑」（取った）の矢印を表示する演出の長さ（remote-move-animator.js
+    // 参照）。ユーザー要望「その秒数は管理者モードで調整できるようにしたい」。
+    title: "オンライン操作の点滅ハイライト（置いた/取った）",
+    category: "effect",
+    controls: [
+      { key: "--move-blink-duration", label: "点滅の長さ（秒）", unit: "", min: 0.5, max: 10, step: 0.5, default: 3 },
+    ],
+  },
+  {
     // スライダーを触った瞬間、実際に「仮」のスタートプレイヤー決定モーダルが出て見た目を
     // 確認できる（previewOnInteract、game-setup.jsのpreviewStartPlayerModal参照）。
     title: "スタートプレイヤー決定モーダルのアバターサイズ",
@@ -145,7 +155,7 @@ const GROUPS = [
     category: "position",
     controls: [
       { key: "--phase-guide-bottom", label: "Y位置（画面下端からの距離）", unit: "rem", min: 0, max: 20, step: 0.1, default: 1.2 },
-      { key: "--phase-guide-right", label: "X位置（画面右端からの距離）", unit: "rem", min: 0, max: 30, step: 0.1, default: 5.6 },
+      { key: "--phase-guide-right", label: "X位置（画面右端からの距離）", unit: "rem", min: 0, max: 30, step: 0.1, default: 2.3 },
       { key: "--phase-guide-item-width", label: "基本時間表示(⏱)の幅", unit: "rem", min: 2, max: 20, step: 0.1, default: 9 },
       { key: "--phase-guide-item-height", label: "基本時間表示(⏱)の高さ", unit: "rem", min: 1, max: 10, step: 0.1, default: 1 },
     ],
@@ -191,15 +201,15 @@ const GROUPS = [
     title: "背景画像",
     category: "position",
     controls: [
-      { key: "--table-background-scale-x", label: "拡大率（横幅）", unit: "", min: 0.5, max: 8, step: 0.05, default: 4.2 },
-      { key: "--table-background-scale-y", label: "拡大率（高さ）", unit: "", min: 0.5, max: 8, step: 0.05, default: 2.4 },
+      { key: "--table-background-scale-x", label: "拡大率（横幅）", unit: "", min: 0.5, max: 8, step: 0.05, default: 4.75 },
+      { key: "--table-background-scale-y", label: "拡大率（高さ）", unit: "", min: 0.5, max: 8, step: 0.05, default: 4.85 },
       // ユーザー報告「位置Yの調整範囲が足りない、もっと下に動かしたい」への対応。
       // 元々は.playmat-bgと同じ±50%（プレイマットの微調整用としては十分な範囲）を
       // 踏襲していたが、背景画像は拡大率(--table-background-scale-x/-y)がプレイマット
       // よりずっと大きいため、同じ%でも実際の絶対移動量が大きく、逆に「もっと動かしたい」
       // 場面では窮屈になる。範囲を大幅に拡張した。
       { key: "--table-background-pos-x", label: "位置X（中心からのずれ）", unit: "%", min: -200, max: 200, step: 0.5, default: 0 },
-      { key: "--table-background-pos-y", label: "位置Y（中心からのずれ）", unit: "%", min: -200, max: 200, step: 0.5, default: 0 },
+      { key: "--table-background-pos-y", label: "位置Y（中心からのずれ）", unit: "%", min: -200, max: 200, step: 0.5, default: 108.5 },
     ],
   },
   {
@@ -241,10 +251,10 @@ const GROUPS = [
       { key: "--self-status-icon-cardback-pos-y", label: "カード裏面アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 5 },
       { key: "--self-status-icon-playmat-pos-x", label: "プレイマットアイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 8.7 },
       { key: "--self-status-icon-playmat-pos-y", label: "プレイマットアイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 3.1 },
-      { key: "--self-status-icon-background-pos-x", label: "背景画像アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 11.4 },
+      { key: "--self-status-icon-background-pos-x", label: "背景画像アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 7.86 },
       { key: "--self-status-icon-background-pos-y", label: "背景画像アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 3.1 },
-      { key: "--self-status-icon-online-pos-x", label: "オンライン状態アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: -2.4 },
-      { key: "--self-status-icon-online-pos-y", label: "オンライン状態アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: -2.3 },
+      { key: "--self-status-icon-online-pos-x", label: "オンライン状態アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: -0.4 },
+      { key: "--self-status-icon-online-pos-y", label: "オンライン状態アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: -3.17 },
     ],
   },
   {
@@ -284,12 +294,12 @@ const GROUPS = [
     controls: [
       { key: "--label-a-pos-x", label: "A（自分）位置X", unit: "rem", min: -24, max: 24, step: 0.1, default: -14.7 },
       { key: "--label-a-pos-y", label: "A（自分）位置Y", unit: "rem", min: -24, max: 24, step: 0.1, default: -1.1 },
-      { key: "--label-b-pos-x", label: "B 位置X", unit: "rem", min: -24, max: 24, step: 0.1, default: -14.7 },
-      { key: "--label-b-pos-y", label: "B 位置Y", unit: "rem", min: -24, max: 24, step: 0.1, default: -1.5 },
-      { key: "--label-c-pos-x", label: "C 位置X", unit: "rem", min: -24, max: 24, step: 0.1, default: 14.2 },
-      { key: "--label-c-pos-y", label: "C 位置Y", unit: "rem", min: -24, max: 24, step: 0.1, default: -1.5 },
-      { key: "--label-d-pos-x", label: "D 位置X", unit: "rem", min: -24, max: 24, step: 0.1, default: -16.4 },
-      { key: "--label-d-pos-y", label: "D 位置Y", unit: "rem", min: -24, max: 24, step: 0.1, default: -1.5 },
+      { key: "--label-b-pos-x", label: "B 位置X", unit: "rem", min: -24, max: 24, step: 0.1, default: -4.4 },
+      { key: "--label-b-pos-y", label: "B 位置Y", unit: "rem", min: -24, max: 24, step: 0.1, default: -5.1 },
+      { key: "--label-c-pos-x", label: "C 位置X", unit: "rem", min: -24, max: 24, step: 0.1, default: 4.5 },
+      { key: "--label-c-pos-y", label: "C 位置Y", unit: "rem", min: -24, max: 24, step: 0.1, default: -7 },
+      { key: "--label-d-pos-x", label: "D 位置X", unit: "rem", min: -24, max: 24, step: 0.1, default: 3.8 },
+      { key: "--label-d-pos-y", label: "D 位置Y", unit: "rem", min: -24, max: 24, step: 0.1, default: -5.2 },
     ],
   },
   {
@@ -329,9 +339,9 @@ const GROUPS = [
     category: "position",
     controls: [
       { key: "--hand-a-size", label: "A（自分）サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 13 },
-      { key: "--hand-b-size", label: "B サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 6 },
-      { key: "--hand-c-size", label: "C サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 6 },
-      { key: "--hand-d-size", label: "D サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 6 },
+      { key: "--hand-b-size", label: "B サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 7 },
+      { key: "--hand-c-size", label: "C サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 7 },
+      { key: "--hand-d-size", label: "D サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 7 },
     ],
   },
   {
@@ -339,9 +349,9 @@ const GROUPS = [
     category: "position",
     controls: [
       { key: "--hand-a-thickness", label: "A（自分）厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 7 },
-      { key: "--hand-b-thickness", label: "B 厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 4 },
+      { key: "--hand-b-thickness", label: "B 厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 5 },
       { key: "--hand-c-thickness", label: "C 厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 4 },
-      { key: "--hand-d-thickness", label: "D 厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 4 },
+      { key: "--hand-d-thickness", label: "D 厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 5 },
     ],
   },
   {
@@ -572,13 +582,6 @@ let selfNameLabelVisible = false;
 export function isSelfNameLabelVisible() {
   return selfNameLabelVisible;
 }
-
-// 手札公開エリア(.hand-reveal-area)は、中身が空の間は枠線・背景を一切持たない透明な
-// 領域のため、B/C/Dの分がどこにあるか画面上から見つけられない、というユーザー報告への
-// 対応。一時的にデバッグ用の枠線・ラベルを表示するトグル（デフォルトOFF、本番のゲーム
-// プレイには不要な確認用ツールのため）。style.cssのbody.hand-reveal-debug-visible配下の
-// ルールが実際の見た目を担当する。
-let handRevealDebugVisible = false;
 
 // 画面全体の明るさモード。「スタンダードモード」（デフォルト、従来通り）と
 // 「スポットライトモード」（盤面付近だけ明るく、周辺を暗くする）。main.jsが
@@ -815,28 +818,6 @@ const TOGGLE_SECTIONS = [
       selfNameRow.appendChild(selfNameCheckbox);
       selfNameRow.appendChild(selfNameLabel);
       content.appendChild(selfNameRow);
-    },
-  },
-  {
-    title: "手札公開エリアの一時的な可視化（デバッグ用）",
-    category: "effect",
-    buildContent: (content) => {
-      const revealDebugRow = document.createElement("label");
-      revealDebugRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
-      const revealDebugCheckbox = document.createElement("input");
-      revealDebugCheckbox.type = "checkbox";
-      revealDebugCheckbox.checked = handRevealDebugVisible;
-      revealDebugCheckbox.addEventListener("change", () => {
-        handRevealDebugVisible = revealDebugCheckbox.checked;
-        document.body.classList.toggle("hand-reveal-debug-visible", handRevealDebugVisible);
-        updateExportRef.current();
-      });
-      const revealDebugLabel = document.createElement("span");
-      revealDebugLabel.textContent =
-        "全員の手札公開エリアに枠線とラベルを表示する（中身が空でも位置確認できる。確認用、常時ONにする想定ではない）";
-      revealDebugRow.appendChild(revealDebugCheckbox);
-      revealDebugRow.appendChild(revealDebugLabel);
-      content.appendChild(revealDebugRow);
     },
   },
   {
@@ -1205,7 +1186,6 @@ function buildPanel(rebuildSlidersRef) {
       `gatePedestalVisible: ${gatePedestalVisible}`,
       `selfBoardAvatarVisible: ${selfBoardAvatarVisible}`,
       `selfNameLabelVisible: ${selfNameLabelVisible}`,
-      `handRevealDebugVisible: ${handRevealDebugVisible}`,
       `spotlightMode: ${spotlightMode}`,
       `turnTimerEnabled: ${turnTimerEnabled}`,
       `initialHourglassStock: ${initialHourglassStock}`,
