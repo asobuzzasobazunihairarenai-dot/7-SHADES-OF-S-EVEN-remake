@@ -201,7 +201,7 @@ function buildConfigForm() {
   wrapper.appendChild(playmatNote);
 
   const playmatRow = document.createElement("div");
-  playmatRow.style.cssText = "display: flex; gap: 0.8rem; margin-bottom: 0.7rem;";
+  playmatRow.style.cssText = "display: flex; flex-wrap: wrap; gap: 0.5rem 0.8rem; margin-bottom: 0.7rem;";
   const currentPlaymatId = getSelectedPlaymatId();
   const playmatRadios = {};
   for (const option of PLAYMAT_OPTIONS) {

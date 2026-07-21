@@ -17,11 +17,11 @@ import {
   setLocalPreferredSkinIndex,
 } from "./piece-skins.js";
 import { openCardBackSkinPicker, registerCardBackSkinHelpers, backImagePath as cardBackSetImagePath, getCardBackSetIndex } from "./card-back-skins.js";
+import { openPlaymatPicker, registerPlaymatHelpers, getSelectedPlaymatPath } from "./playmat.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS } from "./player-identity.js";
 import { applyAvatarContent } from "./avatar-render.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
-import { getSelectedPlaymatPath } from "./playmat.js";
 import { isLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible } from "./lock-color.js";
 import { isArrivalEffectDisabled, isFlightAnimationDisabled } from "./motion-prefs.js";
@@ -2614,6 +2614,7 @@ let selfStatusNameEl = null;
 let selfStatusAvatarEl = null;
 let selfStatusPieceThumbEl = null;
 let selfStatusCardBackThumbEl = null;
+let selfStatusPlaymatThumbEl = null;
 let selfStatusHandCountEl = null;
 
 function openAvatarPicker() {
@@ -2743,6 +2744,16 @@ function buildSelfHandStatus() {
   selfStatusCardBackThumbEl.appendChild(cardBackThumbImg);
   addSimpleTooltip(selfStatusCardBackThumbEl, "クリックしてカード裏面を変更（自分の画面にだけ反映されます）");
 
+  // プレイマットの選択（playmat.js参照）。カード裏面と違い盤面の背景そのものなので、
+  // 全プレイヤーの画面に見た目上反映される（現状はこのブラウザのローカル選択のみ、
+  // オンライン同期は今回のスコープ外）。
+  selfStatusPlaymatThumbEl = document.createElement("button");
+  selfStatusPlaymatThumbEl.className = "self-status-playmat-thumb";
+  selfStatusPlaymatThumbEl.addEventListener("click", openPlaymatPicker);
+  const playmatThumbImg = document.createElement("img");
+  selfStatusPlaymatThumbEl.appendChild(playmatThumbImg);
+  addSimpleTooltip(selfStatusPlaymatThumbEl, "クリックしてプレイマットを変更");
+
   const info = document.createElement("div");
   info.className = "self-status-info";
 
@@ -2757,13 +2768,14 @@ function buildSelfHandStatus() {
   info.appendChild(selfStatusNameEl);
   info.appendChild(selfStatusHandCountEl);
 
-  // アバター・駒スキン・カード裏面・オンライン状態の4つのアイコンを2x2（田の字）に
-  // まとめる。ユーザー要望「4つ揃ったのでスタイリッシュに田の字配置」に対応。
+  // アバター・駒スキン・カード裏面・プレイマット・オンライン状態の5つのアイコンを
+  // グリッドにまとめる（元々は4つを田の字に配置、プレイマット追加で5つ目が並ぶ）。
   const iconGrid = document.createElement("div");
   iconGrid.className = "self-status-icon-grid";
   iconGrid.appendChild(selfStatusAvatarEl);
   iconGrid.appendChild(selfStatusPieceThumbEl);
   iconGrid.appendChild(selfStatusCardBackThumbEl);
+  iconGrid.appendChild(selfStatusPlaymatThumbEl);
   iconGrid.appendChild(buildSelfStatusOnlineWidget());
 
   el.appendChild(iconGrid);
@@ -2795,6 +2807,7 @@ function updateSelfHandStatus() {
   addSimpleTooltip(selfStatusPieceThumbEl, "クリックして駒スキンを変更");
 
   selfStatusCardBackThumbEl.querySelector("img").src = cardBackSetImagePath("normal", getCardBackSetIndex());
+  selfStatusPlaymatThumbEl.querySelector("img").src = getSelectedPlaymatPath();
 
   // startEditingName()が.self-status-nameを一時的に<input>へ差し替えるため、render()の
   // たびに毎回ここで作り直す（差し替え後の入力欄はrender()時点で既にblur済みのはず）。
@@ -2846,6 +2859,7 @@ initInteractionModeToggle();
 registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocationElement, setSetupPendingTokenIds });
 registerPieceSkinHelpers({ render });
 registerCardBackSkinHelpers({ render });
+registerPlaymatHelpers({ render });
 // ログイン直後（online.jsのloadMyPreferences）に、保存済みの名前・アバター・駒スキンを
 // ローカルの表示側（player-identity.js/piece-skins.js）へ反映する。部屋に入る前は
 // getSelfSeat()が常に"A"を返すため、ここではまだ「A」という固定座席への適用でよい

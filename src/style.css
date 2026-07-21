@@ -2437,6 +2437,14 @@ body.cards-interaction-hidden .board-card {
   cursor: default;
 }
 
+/* 管理者モードの「自分専用ステータスエリア」グループが調整するCSS変数
+   （--self-status-icon-size/-gap＝アイコン共通のサイズ・間隔、--self-status-pos-x/y＝
+   パネル全体の位置、--self-status-info-pos-x/y＝名前・手札枚数の位置、
+   --self-status-icon-{avatar,piece,cardback,playmat,online}-pos-x/y＝各アイコン個別の
+   位置微調整）を参照する。サイズはgrid/flexの通常のレイアウト計算に乗る値のため、
+   サイズを変えると外枠（#self-hand-status自体、padding+contentサイズで決まる）も
+   自動的に追従して大きく/小さくなる。位置の微調整はtransform:translate()（レイアウトに
+   影響しない）で行うため、動かしてもレイアウト自体は崩れない。 */
 #self-hand-status {
   position: fixed;
   bottom: 1.2rem;
@@ -2451,16 +2459,17 @@ body.cards-interaction-hidden .board-card {
   border-radius: 0.4rem;
   font-family: sans-serif;
   color: #e2e8f0;
+  transform: translate(var(--self-status-pos-x, 0rem), var(--self-status-pos-y, 0rem));
 }
-/* アバター・駒スキン・カード裏面・オンライン状態の4アイコンを2x2（田の字）にまとめる。
-   4つとも既存のアイコン部分の実寸は2.6rem角で揃っているため、素直に並べるだけで
-   きれいな正方形グリッドになる（オンライン状態アイコンだけキャプション文字が下に付く
-   分だけ、その行の高さがもう片方の行よりわずかに大きくなるが、grid-auto-rowsが行ごとに
-   自動調整するため崩れない）。 */
+/* アバター・駒スキン・カード裏面・プレイマット・オンライン状態の5アイコンを2x2+1で
+   まとめる。全て共通の--self-status-icon-sizeで実寸が揃っているため、素直に並べるだけで
+   きれいなグリッドになる（オンライン状態アイコンだけキャプション文字が下に付く分だけ、
+   その行の高さがもう片方の行よりわずかに大きくなるが、grid-auto-rowsが行ごとに自動調整
+   するため崩れない）。 */
 .self-status-icon-grid {
   display: grid;
   grid-template-columns: repeat(2, auto);
-  gap: 0.4rem;
+  gap: var(--self-status-icon-gap, 0.4rem);
   justify-items: center;
 }
 .self-status-avatar {
@@ -2470,27 +2479,30 @@ body.cards-interaction-hidden .board-card {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 50%;
-  width: 2.6rem;
-  height: 2.6rem;
+  width: var(--self-status-icon-size, 2.6rem);
+  height: var(--self-status-icon-size, 2.6rem);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   padding: 0;
+  transform: translate(var(--self-status-icon-avatar-pos-x, 0rem), var(--self-status-icon-avatar-pos-y, 0rem));
 }
 .self-status-avatar:hover {
   background: rgba(255, 255, 255, 0.14);
 }
-/* アバター・駒スキン・カード裏面の3つは、buildIconButtonContent()を使うアイコンボタン
-   （手札シャッフル等）と違う独自の見た目のため、ホバー簡易説明(.phase-guide-tooltip)の
-   表示トリガーもここで個別に用意する（中身の見た目・表示ルール自体は共通クラスを流用）。 */
+/* アバター・駒スキン・カード裏面・プレイマットの4つは、buildIconButtonContent()を使う
+   アイコンボタン（手札シャッフル等）と違う独自の見た目のため、ホバー簡易説明
+   (.phase-guide-tooltip)の表示トリガーもここで個別に用意する（中身の見た目・表示ルール
+   自体は共通クラスを流用）。 */
 .self-status-avatar:hover .phase-guide-tooltip,
 .self-status-piece-thumb:hover .phase-guide-tooltip,
-.self-status-card-back-thumb:hover .phase-guide-tooltip {
+.self-status-card-back-thumb:hover .phase-guide-tooltip,
+.self-status-playmat-thumb:hover .phase-guide-tooltip {
   opacity: 1;
   visibility: visible;
 }
-/* この4アイコン（オンライン状態を含む）は画面左下、左端に近い位置にあるため、
+/* この5アイコン（オンライン状態を含む）は画面左下、左端に近い位置にあるため、
    .phase-guide-tooltipの既定（中央寄せ）のままだと画面左端で見切れる。左端をアイコンの
    左端に合わせ、常に右方向にだけ伸びるようにする（#interaction-mode-buttonと同じ対策）。 */
 .self-status-icon-grid .phase-guide-tooltip {
@@ -2504,8 +2516,8 @@ body.cards-interaction-hidden .board-card {
    間は仮の色で描画する）。 */
 .self-status-piece-thumb {
   position: relative;
-  width: 2.6rem;
-  height: 2.6rem;
+  width: var(--self-status-icon-size, 2.6rem);
+  height: var(--self-status-icon-size, 2.6rem);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 50%;
@@ -2516,6 +2528,7 @@ body.cards-interaction-hidden .board-card {
   display: none;
   align-items: center;
   justify-content: center;
+  transform: translate(var(--self-status-icon-piece-pos-x, 0rem), var(--self-status-icon-piece-pos-y, 0rem));
 }
 .self-status-piece-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -2537,14 +2550,15 @@ body.cards-interaction-hidden .board-card {
    ため）。ゲーム開始前でも常に選べる（駒スキンと違い自分の色に依存しないため）。 */
 .self-status-card-back-thumb {
   position: relative;
-  width: 2.6rem;
-  height: 2.6rem;
+  width: var(--self-status-icon-size, 2.6rem);
+  height: var(--self-status-icon-size, 2.6rem);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 0.4rem;
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
+  transform: translate(var(--self-status-icon-cardback-pos-x, 0rem), var(--self-status-icon-cardback-pos-y, 0rem));
 }
 .self-status-card-back-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -2558,10 +2572,45 @@ body.cards-interaction-hidden .board-card {
   display: block;
   border-radius: 0.4rem;
 }
+/* プレイマットのサムネイル。カード裏面と同じ角丸正方形（プレイマットも正方形の画像）。 */
+.self-status-playmat-thumb {
+  position: relative;
+  width: var(--self-status-icon-size, 2.6rem);
+  height: var(--self-status-icon-size, 2.6rem);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transform: translate(var(--self-status-icon-playmat-pos-x, 0rem), var(--self-status-icon-playmat-pos-y, 0rem));
+}
+.self-status-playmat-thumb:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.self-status-playmat-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 0.4rem;
+}
+/* オンライン状態アイコン（icon-action-button.js共通部品）は他のボタン（手札シャッフル等）
+   と共有クラスのため、アイコンのサイズ変数だけこの中でスコープして上書きする
+   （.icon-action-button-icon-wrap自体には触れない）。位置調整はボタン本体(#self-status-online)
+   へのtranslateで行う（キャプション文字ごと一緒に動く）。 */
+#self-status-online {
+  transform: translate(var(--self-status-icon-online-pos-x, 0rem), var(--self-status-icon-online-pos-y, 0rem));
+}
+.self-status-icon-grid #self-status-online .icon-action-button-icon-wrap {
+  width: var(--self-status-icon-size, 2.6rem);
+  height: var(--self-status-icon-size, 2.6rem);
+}
 .self-status-info {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
+  transform: translate(var(--self-status-info-pos-x, 0rem), var(--self-status-info-pos-y, 0rem));
 }
 .self-status-name {
   font-size: 0.85rem;

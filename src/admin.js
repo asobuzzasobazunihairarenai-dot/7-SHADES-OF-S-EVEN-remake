@@ -147,6 +147,34 @@ const GROUPS = [
     ],
   },
   {
+    title: "自分専用ステータスエリア（左下）：サイズ",
+    category: "position",
+    controls: [
+      { key: "--self-status-icon-size", label: "アイコンのサイズ（共通）", unit: "rem", min: 1.5, max: 6, step: 0.1, default: 2.6 },
+      { key: "--self-status-icon-gap", label: "アイコンの間隔", unit: "rem", min: 0, max: 2, step: 0.05, default: 0.4 },
+    ],
+  },
+  {
+    title: "自分専用ステータスエリア（左下）：位置調整",
+    category: "position",
+    controls: [
+      { key: "--self-status-pos-x", label: "パネル全体 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--self-status-pos-y", label: "パネル全体 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--self-status-info-pos-x", label: "名前・手札枚数 位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--self-status-info-pos-y", label: "名前・手札枚数 位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
+      { key: "--self-status-icon-avatar-pos-x", label: "アバターアイコン 位置X", unit: "rem", min: -5, max: 5, step: 0.1, default: 0 },
+      { key: "--self-status-icon-avatar-pos-y", label: "アバターアイコン 位置Y", unit: "rem", min: -5, max: 5, step: 0.1, default: 0 },
+      { key: "--self-status-icon-piece-pos-x", label: "駒スキンアイコン 位置X", unit: "rem", min: -5, max: 5, step: 0.1, default: 0 },
+      { key: "--self-status-icon-piece-pos-y", label: "駒スキンアイコン 位置Y", unit: "rem", min: -5, max: 5, step: 0.1, default: 0 },
+      { key: "--self-status-icon-cardback-pos-x", label: "カード裏面アイコン 位置X", unit: "rem", min: -5, max: 5, step: 0.1, default: 0 },
+      { key: "--self-status-icon-cardback-pos-y", label: "カード裏面アイコン 位置Y", unit: "rem", min: -5, max: 5, step: 0.1, default: 0 },
+      { key: "--self-status-icon-playmat-pos-x", label: "プレイマットアイコン 位置X", unit: "rem", min: -5, max: 5, step: 0.1, default: 0 },
+      { key: "--self-status-icon-playmat-pos-y", label: "プレイマットアイコン 位置Y", unit: "rem", min: -5, max: 5, step: 0.1, default: 0 },
+      { key: "--self-status-icon-online-pos-x", label: "オンライン状態アイコン 位置X", unit: "rem", min: -5, max: 5, step: 0.1, default: 0 },
+      { key: "--self-status-icon-online-pos-y", label: "オンライン状態アイコン 位置Y", unit: "rem", min: -5, max: 5, step: 0.1, default: 0 },
+    ],
+  },
+  {
     title: "ロックエリア（盤面中心からの距離、デフォルトはマスに密着）",
     category: "position",
     controls: [
