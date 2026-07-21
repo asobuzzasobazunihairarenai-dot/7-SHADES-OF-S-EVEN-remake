@@ -540,11 +540,14 @@ export async function updatePriorityState(patch) {
       });
       if (error) throw error;
     }
-    await client.channel(`game:${currentGameId}`).send({
-      type: "broadcast",
-      event: "priority_changed",
-      payload: { patch },
-    });
+    // identity_changedと同じ、既にsubscribeToGame()で購読済みのbroadcastChannelを再利用する
+    // （以前はここで毎回client.channel(...)を新規に呼んでいたため、購読側と送信側が別々の
+    // チャンネルインスタンスになっており、下記のself:true設定が実際には効いていなかった
+    // ——押した本人の画面で優先権譲渡ボタンを押しても自分の基本時間タイマーが止まらない、
+    // というユーザー報告バグの根本原因）。
+    if (broadcastChannel) {
+      await broadcastChannel.send({ type: "broadcast", event: "priority_changed", payload: { patch } });
+    }
   });
 }
 
@@ -663,6 +666,8 @@ export async function fetchAndHydrate(gameId) {
           ? { zone: "cell", row: r.row, col: r.col }
           : r.zone === "lock"
           ? { zone: "lock", side: r.side, index: r.idx }
+          : r.zone === "publicDraw"
+          ? { zone: "publicDraw", player: r.hand_player }
           : { zone: "hand", player: r.hand_player };
       const token = { id: r.token_id, kind: r.kind, location };
       if (r.kind === "card") {
@@ -717,8 +722,14 @@ export function getSyncedTimerConfig() {
 
 function subscribeToGame(gameId) {
   if (broadcastChannel) client.removeChannel(broadcastChannel);
+  // config.broadcast.self:trueが無いと、Supabase Realtimeのデフォルト（自分が送信した
+  // broadcastは自分自身には配信されない）のせいで、identity_changed/priority_changedを
+  // 送信した本人のクライアントだけがその場で反映されず、他プレイヤーの操作を待つまで
+  // 自分の変更が自分の画面に見えない、という不具合の温床になっていた
+  // （優先権譲渡ボタンを押しても自分の基本時間タイマーが止まらない、というユーザー報告の
+  // 根本原因の一つ）。state_changedはEdge Function側から送られる別経路のため影響しない。
   broadcastChannel = client
-    .channel(`game:${gameId}`)
+    .channel(`game:${gameId}`, { config: { broadcast: { self: true } } })
     .on("broadcast", { event: "state_changed" }, ({ payload }) => {
       // ゲート侵攻ボーナスが発生した場合、そのイベントで動いたトークンidを
       // fetchAndHydrate()（＝内部のhydrateState()、ひいてはremote-move-animator.jsの

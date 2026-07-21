@@ -165,9 +165,9 @@ const GROUPS = [
     title: "自分専用ステータスエリア（左下）：大きいアバター（背面表示）",
     category: "position",
     controls: [
-      { key: "--self-status-large-avatar-size", label: "サイズ", unit: "rem", min: 2, max: 16, step: 0.1, default: 11 },
-      { key: "--self-status-large-avatar-pos-x", label: "位置X", unit: "rem", min: -15, max: 20, step: 0.1, default: -0.34 },
-      { key: "--self-status-large-avatar-pos-y", label: "位置Y", unit: "rem", min: -15, max: 20, step: 0.1, default: -2.02 },
+      { key: "--self-status-large-avatar-size", label: "サイズ", unit: "rem", min: 2, max: 16, step: 0.1, default: 13.7 },
+      { key: "--self-status-large-avatar-pos-x", label: "位置X", unit: "rem", min: -15, max: 20, step: 0.1, default: -1.9 },
+      { key: "--self-status-large-avatar-pos-y", label: "位置Y", unit: "rem", min: -15, max: 20, step: 0.1, default: -6.2 },
     ],
   },
   {
@@ -177,15 +177,15 @@ const GROUPS = [
       { key: "--self-status-pos-x", label: "パネル全体 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--self-status-pos-y", label: "パネル全体 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--self-status-info-pos-x", label: "名前・手札枚数 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: -6.2 },
-      { key: "--self-status-info-pos-y", label: "名前・手札枚数 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 3.1 },
-      { key: "--self-status-icon-piece-pos-x", label: "駒スキンアイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 5.58 },
-      { key: "--self-status-icon-piece-pos-y", label: "駒スキンアイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 7.38 },
-      { key: "--self-status-icon-cardback-pos-x", label: "カード裏面アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 4.21 },
-      { key: "--self-status-icon-cardback-pos-y", label: "カード裏面アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 4.42 },
-      { key: "--self-status-icon-playmat-pos-x", label: "プレイマットアイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 3.5 },
-      { key: "--self-status-icon-playmat-pos-y", label: "プレイマットアイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 4.38 },
-      { key: "--self-status-icon-online-pos-x", label: "オンライン状態アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: -0.25 },
-      { key: "--self-status-icon-online-pos-y", label: "オンライン状態アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: -6.87 },
+      { key: "--self-status-info-pos-y", label: "名前・手札枚数 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 2.2 },
+      { key: "--self-status-icon-piece-pos-x", label: "駒スキンアイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 4.8 },
+      { key: "--self-status-icon-piece-pos-y", label: "駒スキンアイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 5 },
+      { key: "--self-status-icon-cardback-pos-x", label: "カード裏面アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 4 },
+      { key: "--self-status-icon-cardback-pos-y", label: "カード裏面アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 5 },
+      { key: "--self-status-icon-playmat-pos-x", label: "プレイマットアイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 8.7 },
+      { key: "--self-status-icon-playmat-pos-y", label: "プレイマットアイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 3.1 },
+      { key: "--self-status-icon-online-pos-x", label: "オンライン状態アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: -2.4 },
+      { key: "--self-status-icon-online-pos-y", label: "オンライン状態アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: -2.3 },
     ],
   },
   {
@@ -338,6 +338,63 @@ const GROUPS = [
       { key: "--icon-pos-end-turn-y", label: "ターン終了 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-options-x", label: "オプション 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-options-y", label: "オプション 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-interaction-mode-x", label: "誤操作防止 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-interaction-mode-y", label: "誤操作防止 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-public-draw-x", label: "公開ドロー 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-public-draw-y", label: "公開ドロー 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+    ],
+  },
+  {
+    title: "アイコンボタンのサイズ調整（個別）",
+    category: "position",
+    controls: [
+      { key: "--icon-size-hand-shuffle", label: "手札シャッフル サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--icon-size-board-zoom", label: "盤面拡大 サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--icon-size-draw", label: "1枚ドロー サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--icon-size-end-turn", label: "ターン終了 サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--icon-size-options", label: "オプション サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--icon-size-interaction-mode", label: "誤操作防止 サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--icon-size-public-draw", label: "公開ドロー サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+    ],
+  },
+  {
+    // タッチ主体の端末（device-detect.jsのbody.is-touch-device、タブレット・スマホ等）
+    // だけに適用される位置・サイズの上書き。一度も触らなければタブレットでもPC用と全く
+    // 同じ値のまま（CSS側のvar()フォールバックチェーンがPC用の変数へそのまま辿り着くため）。
+    // 誤操作防止ボタンはタッチ端末専用のため対象外（上のグループの位置調整がそのまま効く）。
+    title: "タブレット専用の位置・サイズ調整（PCには影響しません）",
+    category: "position",
+    controls: [
+      { key: "--icon-pos-hand-shuffle-touch-x", label: "手札シャッフル 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -8.17 },
+      { key: "--icon-pos-hand-shuffle-touch-y", label: "手札シャッフル 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 11.38 },
+      { key: "--icon-size-hand-shuffle-touch", label: "手札シャッフル サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--icon-pos-board-zoom-touch-x", label: "盤面拡大 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -0.29 },
+      { key: "--icon-pos-board-zoom-touch-y", label: "盤面拡大 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -1.08 },
+      { key: "--icon-size-board-zoom-touch", label: "盤面拡大 サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--icon-pos-draw-touch-x", label: "1枚ドロー 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -6.21 },
+      { key: "--icon-pos-draw-touch-y", label: "1枚ドロー 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -2.17 },
+      { key: "--icon-size-draw-touch", label: "1枚ドロー サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--icon-pos-end-turn-touch-x", label: "ターン終了 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-end-turn-touch-y", label: "ターン終了 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-size-end-turn-touch", label: "ターン終了 サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--icon-pos-options-touch-x", label: "オプション 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-options-touch-y", label: "オプション 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-size-options-touch", label: "オプション サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+    ],
+  },
+  {
+    title: "公開ドローエリアの位置・サイズ",
+    category: "position",
+    controls: [
+      { key: "--public-draw-card-size", label: "カードのサイズ（共通）", unit: "rem", min: 2, max: 8, step: 0.1, default: 4 },
+      { key: "--public-draw-bottom-pos-x", label: "手前(A) 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--public-draw-bottom-pos-y", label: "手前(A) 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: -9 },
+      { key: "--public-draw-top-pos-x", label: "奥(C) 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--public-draw-top-pos-y", label: "奥(C) 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 9 },
+      { key: "--public-draw-left-pos-x", label: "左(B) 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 9 },
+      { key: "--public-draw-left-pos-y", label: "左(B) 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--public-draw-right-pos-x", label: "右(D) 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -9 },
+      { key: "--public-draw-right-pos-y", label: "右(D) 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
     ],
   },
 ];
@@ -407,6 +464,17 @@ let gatePedestalVisible = false;
 
 export function isGatePedestalVisible() {
   return gatePedestalVisible;
+}
+
+// 自分(A)の手札付近に表示される小さい盤面アバター。左下の自分専用ステータスエリアに
+// 大きい背面アバターが既にあるため、自分の分だけ冗長と感じるとの要望を受けデフォルトを
+// 非表示にした（B/C/Dの盤面アバターはそのまま常時表示、影響しない）。完全に削除は
+// せず管理者モードでオンオフできるようにする。main.jsのbuildPlayerZone()がこのフラグを
+// 見て、isSelfの場合だけavatarElのappendChildをスキップする。
+let selfBoardAvatarVisible = false;
+
+export function isSelfBoardAvatarVisible() {
+  return selfBoardAvatarVisible;
 }
 
 // 画面全体の明るさモード。「スタンダードモード」（デフォルト、従来通り）と
@@ -601,6 +669,28 @@ const TOGGLE_SECTIONS = [
       pedestalRow.appendChild(pedestalCheckbox);
       pedestalRow.appendChild(pedestalLabel);
       content.appendChild(pedestalRow);
+    },
+  },
+  {
+    title: "自分(A)の盤面アバター",
+    category: "effect",
+    buildContent: (content) => {
+      const selfAvatarRow = document.createElement("label");
+      selfAvatarRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const selfAvatarCheckbox = document.createElement("input");
+      selfAvatarCheckbox.type = "checkbox";
+      selfAvatarCheckbox.checked = selfBoardAvatarVisible;
+      selfAvatarCheckbox.addEventListener("change", () => {
+        selfBoardAvatarVisible = selfAvatarCheckbox.checked;
+        window.dispatchEvent(new CustomEvent("admin:change"));
+        updateExportRef.current();
+      });
+      const selfAvatarLabel = document.createElement("span");
+      selfAvatarLabel.textContent =
+        "自分の手札付近にも小さい盤面アバターを表示する（デフォルトOFF。左下の大きい背面アバターと重複するため）";
+      selfAvatarRow.appendChild(selfAvatarCheckbox);
+      selfAvatarRow.appendChild(selfAvatarLabel);
+      content.appendChild(selfAvatarRow);
     },
   },
   {
@@ -959,6 +1049,7 @@ function buildPanel(rebuildSlidersRef) {
       `usableLockedEffect: "${usableLockedEffect}"`,
       `cardArrivalModalPersistent: ${cardArrivalModalPersistent}`,
       `gatePedestalVisible: ${gatePedestalVisible}`,
+      `selfBoardAvatarVisible: ${selfBoardAvatarVisible}`,
       `spotlightMode: ${spotlightMode}`,
       `turnTimerEnabled: ${turnTimerEnabled}`,
       `initialHourglassStock: ${initialHourglassStock}`,

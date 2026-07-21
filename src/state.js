@@ -158,10 +158,22 @@ export function notifyListeners() {
 function faceUpForLocation(location) {
   if (location.zone === "hand") return location.player === "A";
   if (location.zone === "lock") return true;
+  if (location.zone === "publicDraw") return true; // 公開ドロー：誰が引いたか常に見える
   return false;
 }
 
 const isTable = (location) => location.zone === "cell" || location.zone === "lock";
+
+// 「公開ドロー」ボタンで引いたカード（publicDraw）は、手札シャッフル・ターン終了の
+// どちらかが起きた時点で通常の手札へ合流する（見た目上の扱いを含め、以降は普通の
+// 手札カードと同じになる）。
+function mergePublicDrawIntoHand(tokens, player) {
+  return tokens.map((t) =>
+    t.kind === "card" && t.location.zone === "publicDraw" && t.location.player === player
+      ? { ...t, location: { zone: "hand", player } }
+      : t
+  );
+}
 
 function reduce(current, action) {
   switch (action.type) {
@@ -208,11 +220,21 @@ function reduce(current, action) {
     // 見た目上の並び替え演出。handTokens内の相対順だけをシャッフルし、他のトークンとの
     // 配列内の相対位置（＝盤面上の重なり順）には影響させない。
     case "SHUFFLE_HAND": {
-      const handTokens = current.tokens.filter(
+      // シャッフル前に、まだ手札へ合流していない公開ドローのカードがあれば先に合流させる
+      // （合流した分もまとめてシャッフル対象になる）。合流対象が無ければ従来通り何もしない
+      // （currentをそのまま返す＝オンライン側の「変化なしなら書き込みをスキップ」判定に乗る）。
+      const hasPendingPublicDraw = current.tokens.some(
+        (t) => t.kind === "card" && t.location.zone === "publicDraw" && t.location.player === action.player
+      );
+      const mergedTokens = hasPendingPublicDraw ? mergePublicDrawIntoHand(current.tokens, action.player) : current.tokens;
+      const handTokens = mergedTokens.filter(
         (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === action.player
       );
-      if (handTokens.length < 2) return current;
-      const others = current.tokens.filter(
+      if (handTokens.length < 2) {
+        if (!hasPendingPublicDraw) return current;
+        return { ...current, tokens: mergedTokens }; // シャッフルはしないが合流だけ反映する
+      }
+      const others = mergedTokens.filter(
         (t) => !(t.kind === "card" && t.location.zone === "hand" && t.location.player === action.player)
       );
       return { ...current, tokens: [...others, ...shuffled(handTokens)] };
@@ -320,8 +342,11 @@ function reduce(current, action) {
       const order = SEAT_ORDER.filter((p) => current.activePlayers.includes(p));
       const idx = order.indexOf(current.turnPlayer);
       const next = order[(idx + 1) % order.length];
+      // ターンを終えるプレイヤー自身の公開ドローが残っていれば、ここで手札へ合流させる。
+      const tokens = mergePublicDrawIntoHand(current.tokens, current.turnPlayer);
       return {
         ...current,
+        tokens,
         turnPlayer: next,
         turnNumber: (current.turnNumber ?? 1) + 1,
         roundNumber: next === current.startPlayer ? (current.roundNumber ?? 1) + 1 : (current.roundNumber ?? 1),
@@ -466,6 +491,7 @@ export function flipToken(tokenId) {
 }
 
 export function shuffleHand(player) {
+  if (onlineMode && onlineTransport) return onlineTransport({ type: "SHUFFLE_HAND", player });
   dispatch({ type: "SHUFFLE_HAND", player });
 }
 

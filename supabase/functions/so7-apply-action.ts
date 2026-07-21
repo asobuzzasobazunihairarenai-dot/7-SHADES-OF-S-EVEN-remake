@@ -20,10 +20,12 @@
 // 「今の手番か」「このトークンは自分の物か」は問わない（ローカル版と同じ自由度）。
 //
 // ポートしているアクションはMOVE_TOKEN / DRAW_FROM_PILE / SEND_TOKEN_TO_PILE / FLIP_TOKEN /
-// SET_TURN_PLAYER / NEXT_TURN / BOOTSTRAP_GAME。それ以外（セットアップウィザードの個別
-// ステップ・手札シャッフル等）はローカルモード専用のまま。相手ゲート侵攻ボーナスは
-// NEXT_TURNの処理直前にapplyGateInvasions()として組み込み済み（隠し情報の無作為抽選が
-// 必要なため、サーバー側で判定から適用まで行う。詳細は該当コメント参照）。
+// SHUFFLE_HAND / SET_TURN_PLAYER / NEXT_TURN / BOOTSTRAP_GAME。それ以外（セットアップ
+// ウィザードの個別ステップ等）はローカルモード専用のまま。「公開ドロー」ボタンは新しい
+// アクション型を追加せず、DRAW_FROM_PILEをlocation.zone="publicDraw"で呼ぶだけなので
+// 追加のポートは不要（faceUpForLocation/mergePublicDrawIntoHand参照）。相手ゲート侵攻
+// ボーナスはNEXT_TURNの処理直前にapplyGateInvasions()として組み込み済み（隠し情報の
+// 無作為抽選が必要なため、サーバー側で判定から適用まで行う。詳細は該当コメント参照）。
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -107,7 +109,8 @@ function uid(prefix: string): string {
 type Location =
   | { zone: "cell"; row: number; col: number }
   | { zone: "lock"; side: string; index: number }
-  | { zone: "hand"; player: string };
+  | { zone: "hand"; player: string }
+  | { zone: "publicDraw"; player: string };
 
 type Token = {
   id: string;
@@ -137,9 +140,20 @@ type GameState = {
 function faceUpForLocation(location: Location): boolean {
   if (location.zone === "hand") return true;
   if (location.zone === "lock") return true;
+  if (location.zone === "publicDraw") return true; // 公開ドロー：誰が引いたか常に見える
   return false;
 }
 const isTable = (l: Location) => l.zone === "cell" || l.zone === "lock";
+
+// 「公開ドロー」で引いたカードを、手札シャッフル・ターン終了のどちらかが起きた時点で
+// 通常の手札へ合流させる（src/state.jsのmergePublicDrawIntoHandと同じロジック）。
+function mergePublicDrawIntoHand(tokens: Token[], player: string): Token[] {
+  return tokens.map((t) =>
+    t.kind === "card" && t.location.zone === "publicDraw" && (t.location as { player: string }).player === player
+      ? { ...t, location: { zone: "hand", player } }
+      : t
+  );
+}
 
 // ---------------------------------------------------------------------------
 // reduce: src/state.jsのreduce()から、今回ポートする6ケースのみ移植したもの。
@@ -183,6 +197,28 @@ function reduce(current: GameState, action: any): GameState {
       );
       return { ...current, tokens };
     }
+    // src/state.jsのSHUFFLE_HANDケースと同じロジック（手札シャッフルボタン）。
+    // order_indexはコミット時に配列の並び順からそのまま再採番される（tokenToRow参照）ため、
+    // ここで並び替えた配列を返すだけで、次回fetchAndHydrate時の手札の並びに反映される。
+    case "SHUFFLE_HAND": {
+      // src/state.jsのSHUFFLE_HANDケースと同じロジック。シャッフル前に、まだ手札へ
+      // 合流していない公開ドローのカードがあれば先に合流させる。
+      const hasPendingPublicDraw = current.tokens.some(
+        (t) => t.kind === "card" && t.location.zone === "publicDraw" && (t.location as { player: string }).player === action.player
+      );
+      const mergedTokens = hasPendingPublicDraw ? mergePublicDrawIntoHand(current.tokens, action.player) : current.tokens;
+      const handTokens = mergedTokens.filter(
+        (t) => t.kind === "card" && t.location.zone === "hand" && (t.location as { player: string }).player === action.player
+      );
+      if (handTokens.length < 2) {
+        if (!hasPendingPublicDraw) return current;
+        return { ...current, tokens: mergedTokens };
+      }
+      const others = mergedTokens.filter(
+        (t) => !(t.kind === "card" && t.location.zone === "hand" && (t.location as { player: string }).player === action.player)
+      );
+      return { ...current, tokens: [...others, ...shuffled(handTokens)] };
+    }
     case "SET_TURN_PLAYER": {
       return { ...current, turnPlayer: action.player, turnNumber: 1, roundNumber: 1, startPlayer: action.player };
     }
@@ -191,8 +227,11 @@ function reduce(current: GameState, action: any): GameState {
       const order = SEAT_ORDER.filter((p) => current.activePlayers.includes(p));
       const idx = order.indexOf(current.turnPlayer);
       const next = order[(idx + 1) % order.length];
+      // ターンを終えるプレイヤー自身の公開ドローが残っていれば、ここで手札へ合流させる。
+      const tokens = mergePublicDrawIntoHand(current.tokens, current.turnPlayer);
       return {
         ...current,
+        tokens,
         turnPlayer: next,
         turnNumber: (current.turnNumber ?? 1) + 1,
         roundNumber: next === current.startPlayer ? (current.roundNumber ?? 1) + 1 : current.roundNumber ?? 1,
@@ -445,6 +484,8 @@ async function loadState(db: any, gameId: string): Promise<{ state: GameState; v
         ? { zone: "cell", row: r.row, col: r.col }
         : r.zone === "lock"
         ? { zone: "lock", side: r.side, index: r.idx }
+        : r.zone === "publicDraw"
+        ? { zone: "publicDraw", player: r.hand_player }
         : { zone: "hand", player: r.hand_player };
     const token: Token = { id: r.token_id, kind: r.kind, location };
     if (r.kind === "card") {
@@ -490,7 +531,7 @@ function tokenToRow(t: Token, orderIndex: number) {
     col: loc.zone === "cell" ? loc.col : null,
     side: loc.zone === "lock" ? loc.side : null,
     idx: loc.zone === "lock" ? loc.index : null,
-    hand_player: loc.zone === "hand" ? loc.player : null,
+    hand_player: loc.zone === "hand" || loc.zone === "publicDraw" ? loc.player : null,
     order_index: orderIndex,
   };
 }

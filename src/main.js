@@ -1,7 +1,7 @@
 // Phase 1: 盤面・手札・山札等を描画し、駒とカードをドラッグ操作で自由に動かせるようにする。
 // ルール処理は行わない（ユドナリウムコネクトのような手動サンドボックス）。
 
-import { initAdminMode, getUsableLockedEffect, isGatePedestalVisible } from "./admin.js";
+import { initAdminMode, getUsableLockedEffect, isGatePedestalVisible, isSelfBoardAvatarVisible } from "./admin.js";
 import { initDeckViewer } from "./deck-viewer.js";
 import { initGameSetup } from "./game-setup.js";
 import { initOptionsMenu } from "./options-menu.js";
@@ -34,6 +34,7 @@ import { initTurnTimer } from "./turn-timer.js";
 import { initIconRearrange } from "./icon-rearrange.js";
 import { initSelfStatusRearrange } from "./self-status-rearrange.js";
 import { initInteractionModeToggle } from "./interaction-mode.js";
+import { initDeviceDetect } from "./device-detect.js";
 import { registerRenderHelpers, animateFirstCardsDealt, animateBoardFilled } from "./setup-animation.js";
 import {
   registerRemoteMoveAnimatorHelpers,
@@ -296,9 +297,30 @@ function buildPlayerZone(side, player, isSelf) {
   });
   handEl.appendChild(fanEl);
 
+  // 「公開ドロー」ボタン（buildPublicDrawButton参照）で引いたカードを、扇状の手札とは
+  // 別に、表面全体が見えるよう一列に並べて表示する場所。手札シャッフル/ターン終了を
+  // 押すと通常の手札へ合流する（state.jsのmergePublicDrawIntoHand参照）ため、ここには
+  // まだ合流していない分だけが残る。誰が引いたかは公開情報なので、自分以外の座席分も
+  // 常に表向きで表示する（普段の手札とは違い、ここではisSelfによる出し分けをしない）。
+  const publicDrawEl = document.createElement("div");
+  publicDrawEl.className = `public-draw-area public-draw-${side}`;
+  const publicDrawTokens = getState().tokens.filter(
+    (t) => t.kind === "card" && t.location.zone === "publicDraw" && t.location.player === player
+  );
+  publicDrawTokens.forEach((token) => {
+    const cardEl = document.createElement("div");
+    cardEl.className = "public-draw-card";
+    cardEl.dataset.tokenId = token.id;
+    cardEl.style.backgroundImage = `url("${getCardImagePath(token.cardId)}")`;
+    publicDrawEl.appendChild(cardEl);
+  });
+
   zone.appendChild(nameEl);
-  zone.appendChild(avatarEl);
+  // 自分(A)の盤面アバターは、左下の大きい背面アバターと重複して冗長との要望により
+  // デフォルト非表示にした（管理者モードでオンオフ可能）。B/C/Dは常時表示のまま。
+  if (!isSelf || isSelfBoardAvatarVisible()) zone.appendChild(avatarEl);
   zone.appendChild(handEl);
+  zone.appendChild(publicDrawEl);
   return zone;
 }
 
@@ -523,16 +545,16 @@ function bumpEffectZIndex(hostEl, ttlMs) {
   }, ttlMs);
 }
 
-// プレイヤーDのロックエリア(.lock-right)は7色スロットの並び順を正すため祖先(.lock-right)
-// 自体に180度回転を掛けている（style.css参照）。柱状バースト・ロックスタンプはどの辺でも
-// 常に画面の「上方向」に伸びる向きで作られているため、そのままだとD側だけ上下逆さまに
-// 表示されてしまう。.lock-rightの子孫であれば、演出用の使い捨て要素をもう一枚の
+// プレイヤーD・Cのロックエリア(.lock-right/.lock-top)は7色スロットの並び順を正すため
+// 祖先自体に180度回転を掛けている（style.css参照）。柱状バースト・ロックスタンプは
+// どの辺でも常に画面の「上方向」に伸びる向きで作られているため、そのままだとD・C側だけ
+// 上下逆さまに表示されてしまう。これらの子孫であれば、演出用の使い捨て要素をもう一枚の
 // position:absolute; inset:0な入れ子（.effect-side-flip、180度回転）で包み、
 // 祖先の回転を打ち消す。中身の座標系（center基準の配置・アニメーション）は
 // 180度回転しても中心位置は変わらないため、この入れ子を挟んでも見た目のズレは生じない。
 function appendEffectHost(hostEl, effectEl, ttlMs) {
   bumpEffectZIndex(hostEl, ttlMs);
-  if (hostEl.closest(".lock-right")) {
+  if (hostEl.closest(".lock-right") || hostEl.closest(".lock-top")) {
     const flip = document.createElement("div");
     flip.className = "effect-side-flip";
     flip.appendChild(effectEl);
@@ -815,6 +837,7 @@ function render() {
   fitTableToViewport();
   updateEndTurnButton();
   updateDrawButton();
+  updatePublicDrawButton();
   updateHandShuffleButton();
   updateSelfHandStatus();
   updateTurnRoundCounter();
@@ -1003,6 +1026,11 @@ const DUMMY_ICON_RETURN_TO_VIEW = dummyIconDataUri(
 );
 const DUMMY_ICON_REGISTER_VIEW = dummyIconDataUri(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>'
+);
+// 「公開ドロー」ボタン用の仮アイコン（カード＋目のマーク＝「みんなに見える」を表す）。
+// 実物のアイコンが用意でき次第、buildPublicDrawButton()のicon指定を差し替えるだけでよい。
+const DUMMY_ICON_PUBLIC_DRAW = dummyIconDataUri(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12c2.5-3 5-4.5 9-4.5s6.5 1.5 9 4.5c-2.5 3-5 4.5-9 4.5s-6.5-1.5-9-4.5z"/><circle cx="12" cy="12" r="2"/></svg>'
 );
 
 let resizeTimer;
@@ -2511,10 +2539,16 @@ async function animateHandShuffle(seat) {
 
 function updateHandShuffleButton() {
   if (!handShuffleButtonEl) return;
+  const selfSeat = getSelfSeat();
   const handCount = getState().tokens.filter(
-    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === getSelfSeat()
+    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === selfSeat
   ).length;
-  handShuffleButtonEl.disabled = handCount < 2;
+  // 公開ドローで引いたカードが残っている間は、実際にシャッフルする意味が無い枚数
+  // （手札0〜1枚）でも押せるようにする——押すと公開ドロー分が手札へ合流するため。
+  const hasPendingPublicDraw = getState().tokens.some(
+    (t) => t.kind === "card" && t.location.zone === "publicDraw" && t.location.player === selfSeat
+  );
+  handShuffleButtonEl.disabled = handCount < 2 && !hasPendingPublicDraw;
 }
 
 // --- ゲームタイトル表示 -----------------------------------------------------------
@@ -2638,6 +2672,69 @@ function buildDrawButton() {
 function updateDrawButton() {
   if (!drawButtonEl) return;
   drawButtonEl.style.display = getState().turnPlayer ? "flex" : "none";
+}
+
+let publicDrawButtonEl = null;
+
+// 「公開ドロー」ボタン。通常の「1枚ドロー」と同じく山札から1枚引くが、扇状の手札には
+// 直接加えず、常に表向きで手札付近の専用エリア（buildPlayerZoneのpublicDrawEl参照）に
+// 並べる。手札シャッフル・ターン終了のどちらかを行うと通常の手札へ合流する
+// （state.jsのmergePublicDrawIntoHand参照）。「1枚ドロー」と同じく、押した本人が
+// 手番かどうかは問わない（誰でも自分の分だけ引ける）。
+function buildPublicDrawButton() {
+  const btn = document.createElement("button");
+  btn.id = "public-draw-button";
+  const { captionEl } = buildIconButtonContent(btn, {
+    icon: DUMMY_ICON_PUBLIC_DRAW,
+    tooltip: "山札から1枚、表向きで公開ドローします",
+  });
+  captionEl.textContent = "公開ドロー";
+  wireIconButtonClick(btn, {
+    detailTitle: "公開ドロー",
+    detailParagraphs: [
+      "山札の一番上のカードを1枚引き、表向きのまま手札の近くに公開して並べます（扇状の手札には直接入りません）。",
+      "「手札シャッフル」または「ターンを終了する」を押すと、公開ドローしたカードがまとめて通常の手札へ合流します。",
+    ],
+    onAction: () => {
+      if (!getState().turnPlayer) return;
+      const player = getSelfSeat();
+      ensureDeckAvailable(async () => {
+        if (isOnlineMode()) {
+          let result = null;
+          try {
+            result = await drawFromPile("deck", { zone: "publicDraw", player });
+          } catch (err) {
+            console.error("drawFromPile failed", err);
+            return;
+          }
+          if (result?.revealedCardId) {
+            playSound("cardDraw");
+            announceHandPickups(player, [{ cardId: result.revealedCardId, wasPublic: true }]);
+          }
+          try {
+            await fetchAndHydrate(getCurrentGameId());
+          } catch (err) {
+            console.error("fetchAndHydrate failed", err);
+          }
+          return;
+        }
+        const pileArray = getState().piles.deck;
+        if (pileArray.length === 0) return;
+        const cardId = pileArray[pileArray.length - 1];
+        drawFromPile("deck", { zone: "publicDraw", player });
+        playSound("cardDraw");
+        announceHandPickups(player, [{ cardId, wasPublic: true }]);
+        render();
+      });
+    },
+  });
+  document.body.appendChild(btn);
+  return btn;
+}
+
+function updatePublicDrawButton() {
+  if (!publicDrawButtonEl) return;
+  publicDrawButtonEl.style.display = getState().turnPlayer ? "flex" : "none";
 }
 
 // --- 自分専用ステータス（手札枚数・名前・アバター） --------------------------------
@@ -2879,6 +2976,7 @@ window.addEventListener("admin:change", render);
 
 endTurnButtonEl = buildEndTurnButton();
 drawButtonEl = buildDrawButton();
+publicDrawButtonEl = buildPublicDrawButton();
 selfHandStatusEl = buildSelfHandStatus();
 boardZoomButtonEl = buildBoardZoomButton();
 boardZoomRegisterButtonEl = buildBoardZoomRegisterButton();
@@ -2899,6 +2997,7 @@ initTurnTimer();
 initIconRearrange();
 initSelfStatusRearrange();
 initInteractionModeToggle();
+initDeviceDetect();
 registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocationElement, setSetupPendingTokenIds });
 registerPieceSkinHelpers({ render });
 registerCardBackSkinHelpers({ render });

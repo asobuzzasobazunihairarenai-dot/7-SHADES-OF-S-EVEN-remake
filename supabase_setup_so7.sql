@@ -40,7 +40,7 @@ create table if not exists so7_game_tokens (
   face_up boolean not null default false,
   color text, -- pieceの色
   piece_player text, -- pieceの持ち主座席
-  zone text not null, -- 'cell' | 'lock' | 'hand'
+  zone text not null, -- 'cell' | 'lock' | 'hand' | 'publicDraw'
   row int,
   col int,
   side text,

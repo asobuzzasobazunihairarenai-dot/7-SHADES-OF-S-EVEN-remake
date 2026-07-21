@@ -184,6 +184,42 @@ body {
   z-index: 1;
 }
 
+/* 「公開ドロー」で引いたカードを、扇状の手札とは別に表面全体が見えるよう一列に並べる場所
+   （main.jsのbuildPlayerZone参照）。.hand-areaと同じ「中心基準+translateで自己センタリング」
+   方式にし、手札から少し離れた位置（外側方向）をデフォルトにして、管理者モードから
+   --public-draw-{bottom,top,left,right}-pos-x/yで個別に調整できるようにした。 */
+.public-draw-area {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  gap: 0.4rem;
+  z-index: 1;
+}
+.public-draw-bottom {
+  transform: translate(-50%, -50%) translate(var(--public-draw-bottom-pos-x, 0rem), var(--public-draw-bottom-pos-y, -9rem));
+}
+.public-draw-top {
+  flex-direction: row-reverse;
+  transform: translate(-50%, -50%) translate(var(--public-draw-top-pos-x, 0rem), var(--public-draw-top-pos-y, 9rem));
+}
+.public-draw-left {
+  flex-direction: column;
+  transform: translate(-50%, -50%) translate(var(--public-draw-left-pos-x, 9rem), var(--public-draw-left-pos-y, 0rem));
+}
+.public-draw-right {
+  flex-direction: column;
+  transform: translate(-50%, -50%) translate(var(--public-draw-right-pos-x, -9rem), var(--public-draw-right-pos-y, 0rem));
+}
+.public-draw-card {
+  width: var(--public-draw-card-size, 4rem);
+  height: var(--public-draw-card-size, 4rem);
+  border-radius: 0.3rem;
+  border: 1px solid rgba(226, 232, 240, 0.5);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  flex-shrink: 0;
+}
+
 /* 手札全体を持ち上げる。自分（is-self）はテーブルの傾きを打ち消してカメラ側を向かせ、
    扇状に大きく開く。他プレイヤー（is-opponent）は逆に盤面側へ伏せて、密集させて持つ。
    個々のカードの位置・角度はJS側でindexに応じて計算しinline transformで与える。
@@ -295,7 +331,8 @@ body {
    画像の上に重ねるので、text-shadowで可読性を確保する。 */
 .hand-card,
 .board-card,
-.stack-top {
+.stack-top,
+.public-draw-card {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -412,12 +449,13 @@ body {
 
 /* ロックエリアに置いたカードは、そのロックエリアの持ち主（座席）から見て正しい向きに
    読めるよう回転させる。手前(A)は元々正しい向きなので回転不要。奥(C)は真逆に座っているので
-   180度、左(B)・右(D)はそれぞれの席から見て正しい向きになるよう90度/-90度。
-   右(D)は下の.lock-right自体に180度の回転を追加したため（7色スロットの並び順が
-   逆になっていた不具合の修正）、カードの向きを打ち消し分だけ再調整している
-   （-90度のままだと親の180度回転と合成されて上下逆さまになってしまうため、90度に変更）。 */
+   本来180度、左(B)・右(D)はそれぞれの席から見て正しい向きになるよう90度/-90度。
+   奥(C)・右(D)は、それぞれ.lock-top/.lock-right自体に7色スロットの並び順を正すための
+   180度回転を追加したため（不具合修正）、カードの向きを打ち消し分だけ再調整している
+   （Cは親の180度と相殺して0度、Dは-90度のままだと親の180度回転と合成されて上下逆さまに
+   なってしまうため90度に変更）。 */
 .lock-top .board-card {
-  transform: rotate(180deg);
+  transform: rotate(0deg);
 }
 .lock-left .board-card {
   transform: rotate(90deg);
@@ -877,6 +915,56 @@ body {
   background: rgba(56, 189, 248, 0.18);
   border-color: rgba(56, 189, 248, 0.6);
   transform: scale(1.06);
+}
+/* 各アイコンボタン（手札シャッフル・盤面拡大・1枚ドロー・ターン終了・オプション・
+   誤操作防止）は基本サイズを共有していたが、管理者モードから個別にサイズ調整したいという
+   要望があったため、ボタンごとに専用のCSS変数を割り振った（位置調整の--icon-pos-*と
+   同じ命名規則）。フォールバック値は元の共通サイズ(2.6rem)のまま。 */
+#hand-shuffle-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-hand-shuffle, 2.6rem);
+  height: var(--icon-size-hand-shuffle, 2.6rem);
+}
+#board-zoom-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-board-zoom, 2.6rem);
+  height: var(--icon-size-board-zoom, 2.6rem);
+}
+#draw-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-draw, 2.6rem);
+  height: var(--icon-size-draw, 2.6rem);
+}
+#end-turn-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-end-turn, 2.6rem);
+  height: var(--icon-size-end-turn, 2.6rem);
+}
+#options-menu-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-options, 2.6rem);
+  height: var(--icon-size-options, 2.6rem);
+}
+#interaction-mode-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-interaction-mode, 2.6rem);
+  height: var(--icon-size-interaction-mode, 2.6rem);
+}
+/* PC/タブレットでサイズを分けたい場合の対応（位置の--icon-pos-*-touch-x/yと同じ
+   フォールバックチェーン方式。誤操作防止ボタンはタッチ専用のため対象外）。 */
+body.is-touch-device #hand-shuffle-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-hand-shuffle-touch, var(--icon-size-hand-shuffle, 2.6rem));
+  height: var(--icon-size-hand-shuffle-touch, var(--icon-size-hand-shuffle, 2.6rem));
+}
+body.is-touch-device #board-zoom-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-board-zoom-touch, var(--icon-size-board-zoom, 2.6rem));
+  height: var(--icon-size-board-zoom-touch, var(--icon-size-board-zoom, 2.6rem));
+}
+body.is-touch-device #draw-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-draw-touch, var(--icon-size-draw, 2.6rem));
+  height: var(--icon-size-draw-touch, var(--icon-size-draw, 2.6rem));
+}
+body.is-touch-device #end-turn-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-end-turn-touch, var(--icon-size-end-turn, 2.6rem));
+  height: var(--icon-size-end-turn-touch, var(--icon-size-end-turn, 2.6rem));
+}
+body.is-touch-device #options-menu-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-options-touch, var(--icon-size-options, 2.6rem));
+  height: var(--icon-size-options-touch, var(--icon-size-options, 2.6rem));
 }
 /* ホバーで簡易説明（phase-guide-tooltip、フェイズ案内板・優先権譲渡と共用）を表示する。 */
 .icon-action-button:hover .phase-guide-tooltip {
@@ -1421,7 +1509,12 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
 .lock-top {
   top: 50%;
   margin-top: calc(-1 * var(--board-size) / 2 - var(--cell));
-  transform: translate(var(--lock-top-pos-x), var(--lock-top-pos-y));
+  /* プレイヤーCのロックエリアも、Dの.lock-right同様に7色スロットの並び順が逆だった
+     バグ修正。.lock-bottom(A)と同じDOM順のまま同じ左→右で描画すると、対面に座る
+     Cから見ると自分の右→左になってしまうため、rotate(180deg)でその場反転させ、
+     Bと同じ考え方でAと正しくミラーになるようにする（既存のtranslateには影響しない）。
+     ロックしたカードの向き(.lock-top .board-card)もこれに合わせて再調整済み。 */
+  transform: translate(var(--lock-top-pos-x), var(--lock-top-pos-y)) rotate(180deg);
 }
 .lock-bottom {
   top: 50%;
@@ -1506,6 +1599,12 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
   top: 50%;
   margin-top: calc(-1 * var(--board-size) / 2 - var(--lock-bar-thickness) * var(--lock-bar-scale));
   transform: translate(var(--lock-bar-top-pos-x), var(--lock-bar-top-pos-y));
+}
+/* プレイヤーC（奥）の画像も柄の向きが逆さまだったため180deg回転させる（右辺と同じ理由、
+   外側の位置決めボックス側ではなく中の画像要素だけを回転させることで既存の位置調整には
+   影響しない）。 */
+.lock-area-bar-top .lock-area-bar-image {
+  transform: translate(-50%, -50%) rotate(180deg);
 }
 .lock-area-bar-bottom {
   top: 50%;
@@ -1673,8 +1772,10 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
      固まってしまうことがあった。駒を一度掴んで動かす（＝render()で作り直される）と
      正しい立体に戻ることから、初回の合成(compositing)レイヤー確立に失敗するタイプの
      WebKit/モバイルブラウザの既知の不具合と判断し、will-change: transformでブラウザに
-     3D合成レイヤーを事前に確保させる、この種の不具合に対する定番の対策を施した。 */
-  will-change: transform;
+     3D合成レイヤーを事前に確保させる、この種の不具合に対する定番の対策を施した。
+     後日、opacityの遷移（セットアップ配布時のフェードイン）でも同種の一時的な
+     合成順序の乱れが報告されたため、opacityも合わせてヒントするよう拡張した。 */
+  will-change: transform, opacity;
 }
 
 .piece-face {
@@ -2017,6 +2118,17 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
   display: none; /* is-active時のみflexに切り替える（updateEndTurnButton参照） */
   transform: translate(var(--icon-pos-end-turn-x, 0rem), var(--icon-pos-end-turn-y, 0rem));
 }
+/* PC/タブレットでUI位置を分けたい場合の対応（device-detect.jsのbody.is-touch-device）。
+   管理者モードの「タブレット用の位置調整」で個別に触った分だけ、タッチ端末側の変数
+   （--icon-pos-*-touch-x/y）が実際にセットされ、この方がPC用より優先される（var()の
+   フォールバックチェーン: タッチ専用値→PC用値→ハードコードの初期値）。一度も調整して
+   いなければ、タブレットでもPCと全く同じ位置のまま変わらない。 */
+body.is-touch-device #end-turn-button {
+  transform: translate(
+    var(--icon-pos-end-turn-touch-x, var(--icon-pos-end-turn-x, 0rem)),
+    var(--icon-pos-end-turn-touch-y, var(--icon-pos-end-turn-y, 0rem))
+  );
+}
 /* 自分のターンでオンライン中、自分の手番でない間は押せなくする（アイコン全体を薄くする）。 */
 #end-turn-button:disabled .icon-action-button-icon-wrap {
   background: rgba(71, 85, 105, 0.5);
@@ -2109,6 +2221,12 @@ body.spotlight-mode #spotlight-overlay {
   right: 1rem;
   z-index: 900;
   transform: translate(var(--icon-pos-options-x, 0rem), var(--icon-pos-options-y, 0rem));
+}
+body.is-touch-device #options-menu-button {
+  transform: translate(
+    var(--icon-pos-options-touch-x, var(--icon-pos-options-x, 0rem)),
+    var(--icon-pos-options-touch-y, var(--icon-pos-options-y, 0rem))
+  );
 }
 /* ユーザー要望により、オプションボタンだけキャプション文字と丸い縁取りを非表示にする
    （他のアイコンボタンは従来通り）。captionをdisplay:noneにすると1要素だけのflex列に
@@ -2304,6 +2422,22 @@ body.spotlight-mode #spotlight-overlay {
      translate()で上乗せする（icon-rearrange.js参照）。 */
   transform: translate(var(--icon-pos-draw-x, -6.21rem), var(--icon-pos-draw-y, -2.17rem));
 }
+/* 「公開ドロー」ボタン。ユーザー指定の通り「1枚ドロー」ボタンの左上に置く
+   （#draw-buttonの基準位置bottom:5rem;right:1.2remから見て、上方向・左方向にずらした
+   位置をデフォルトにしてある）。1枚ドロー等3ボタンのドラッグ並び替えグループ
+   （player-buttons.js）には含めず、#end-turn-button等と同じ独立した固定ボタンとして扱う。 */
+#public-draw-button {
+  position: fixed;
+  bottom: 8.2rem;
+  right: 5.5rem;
+  z-index: 1000;
+  display: none;
+  transform: translate(var(--icon-pos-public-draw-x, 0rem), var(--icon-pos-public-draw-y, 0rem));
+}
+#public-draw-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-public-draw, 2.6rem);
+  height: var(--icon-size-public-draw, 2.6rem);
+}
 #board-zoom-button {
   position: fixed;
   bottom: 8.8rem;
@@ -2317,6 +2451,26 @@ body.spotlight-mode #spotlight-overlay {
   right: 1.2rem;
   z-index: 1000;
   transform: translate(var(--icon-pos-hand-shuffle-x, -8.17rem), var(--icon-pos-hand-shuffle-y, 11.38rem));
+}
+/* PC/タブレットでUI位置を分けたい場合の対応（#end-turn-button側と同じフォールバック
+   チェーン方式）。 */
+body.is-touch-device #draw-button {
+  transform: translate(
+    var(--icon-pos-draw-touch-x, var(--icon-pos-draw-x, -6.21rem)),
+    var(--icon-pos-draw-touch-y, var(--icon-pos-draw-y, -2.17rem))
+  );
+}
+body.is-touch-device #board-zoom-button {
+  transform: translate(
+    var(--icon-pos-board-zoom-touch-x, var(--icon-pos-board-zoom-x, -0.29rem)),
+    var(--icon-pos-board-zoom-touch-y, var(--icon-pos-board-zoom-y, -1.08rem))
+  );
+}
+body.is-touch-device #hand-shuffle-button {
+  transform: translate(
+    var(--icon-pos-hand-shuffle-touch-x, var(--icon-pos-hand-shuffle-x, -8.17rem)),
+    var(--icon-pos-hand-shuffle-touch-y, var(--icon-pos-hand-shuffle-y, 11.38rem))
+  );
 }
 /* 手札が0〜1枚（シャッフルしても見た目が変わらない）の間は押せなくする。 */
 #hand-shuffle-button:disabled .icon-action-button-icon-wrap {
@@ -2438,6 +2592,9 @@ body.reduce-glow .board-card.is-usable-while-locked.effect-orbit::before {
   bottom: 5.6rem;
   left: 1.2rem;
   z-index: 1000;
+  /* このボタンはタッチ主体の端末でしか表示されないため、PC/タブレットの出し分けは不要
+     （常にタブレット向けの1系統の位置調整のみ）。 */
+  transform: translate(var(--icon-pos-interaction-mode-x, 0rem), var(--icon-pos-interaction-mode-y, 0rem));
 }
 @keyframes icon-mode-active-glow {
   0%, 100% { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4), 0 0 0 0.15rem rgba(250, 204, 21, 0.9); }
@@ -2515,15 +2672,15 @@ body.cards-interaction-hidden .board-card {
   position: absolute;
   left: 0;
   top: 0;
-  font-size: calc(var(--self-status-large-avatar-size, 11rem) * 0.75);
+  font-size: calc(var(--self-status-large-avatar-size, 13.7rem) * 0.75);
   line-height: 1;
   cursor: pointer;
-  transform: translate(var(--self-status-large-avatar-pos-x, -0.34rem), var(--self-status-large-avatar-pos-y, -2.02rem));
+  transform: translate(var(--self-status-large-avatar-pos-x, -1.9rem), var(--self-status-large-avatar-pos-y, -6.2rem));
   filter: drop-shadow(0 0.2rem 0.4rem rgba(0, 0, 0, 0.6));
 }
 .self-status-large-avatar .avatar-image {
-  width: var(--self-status-large-avatar-size, 11rem);
-  height: var(--self-status-large-avatar-size, 11rem);
+  width: var(--self-status-large-avatar-size, 13.7rem);
+  height: var(--self-status-large-avatar-size, 13.7rem);
 }
 .self-status-large-avatar:hover .phase-guide-tooltip {
   opacity: 1;
@@ -2579,7 +2736,7 @@ body.cards-interaction-hidden .board-card {
   display: none;
   align-items: center;
   justify-content: center;
-  transform: translate(var(--self-status-icon-piece-pos-x, 5.58rem), var(--self-status-icon-piece-pos-y, 7.38rem));
+  transform: translate(var(--self-status-icon-piece-pos-x, 4.8rem), var(--self-status-icon-piece-pos-y, 5rem));
 }
 .self-status-piece-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -2609,7 +2766,7 @@ body.cards-interaction-hidden .board-card {
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
-  transform: translate(var(--self-status-icon-cardback-pos-x, 4.21rem), var(--self-status-icon-cardback-pos-y, 4.42rem));
+  transform: translate(var(--self-status-icon-cardback-pos-x, 4rem), var(--self-status-icon-cardback-pos-y, 5rem));
 }
 .self-status-card-back-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -2634,7 +2791,7 @@ body.cards-interaction-hidden .board-card {
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
-  transform: translate(var(--self-status-icon-playmat-pos-x, 3.5rem), var(--self-status-icon-playmat-pos-y, 4.38rem));
+  transform: translate(var(--self-status-icon-playmat-pos-x, 8.7rem), var(--self-status-icon-playmat-pos-y, 3.1rem));
 }
 .self-status-playmat-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -2651,7 +2808,7 @@ body.cards-interaction-hidden .board-card {
    （.icon-action-button-icon-wrap自体には触れない）。位置調整はボタン本体(#self-status-online)
    へのtranslateで行う（キャプション文字ごと一緒に動く）。 */
 #self-status-online {
-  transform: translate(var(--self-status-icon-online-pos-x, -0.25rem), var(--self-status-icon-online-pos-y, -6.87rem));
+  transform: translate(var(--self-status-icon-online-pos-x, -2.4rem), var(--self-status-icon-online-pos-y, -2.3rem));
 }
 .self-status-icon-grid #self-status-online .icon-action-button-icon-wrap {
   width: var(--self-status-icon-online-size, 2.6rem);
@@ -2661,7 +2818,7 @@ body.cards-interaction-hidden .board-card {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
-  transform: translate(var(--self-status-info-pos-x, -6.2rem), var(--self-status-info-pos-y, 3.1rem));
+  transform: translate(var(--self-status-info-pos-x, -6.2rem), var(--self-status-info-pos-y, 2.2rem));
 }
 .self-status-name {
   font-size: 0.85rem;
@@ -3252,12 +3409,12 @@ body.cards-interaction-hidden .board-card {
 }
 
 /* オンライン対戦（第一弾・最小構成）中は、まだサーバー側にポートしていないアクション
-   （セットアップウィザードの個別ステップ・クイックスタート・手札シャッフル）へ
-   繋がるボタンを丸ごと隠す。main.jsのrender()がisOnlineMode()に応じて
-   body.is-online-modeを付け外しするだけで済むよう、CSS側でまとめて隠す。 */
+   （セットアップウィザードの個別ステップ・クイックスタート）へ繋がるボタンを丸ごと隠す。
+   main.jsのrender()がisOnlineMode()に応じてbody.is-online-modeを付け外しするだけで
+   済むよう、CSS側でまとめて隠す。手札シャッフルはSHUFFLE_HANDアクションをso7-apply-action
+   Edge Function側にもポートしたため、ここでは隠さない（state.js/shuffleHand参照）。 */
 body.is-online-mode #game-setup-toggle-button,
-body.is-online-mode #quick-start-bar,
-body.is-online-mode #hand-shuffle-button {
+body.is-online-mode #quick-start-bar {
   display: none;
 }
 
@@ -3273,9 +3430,19 @@ body.is-online-mode #hand-shuffle-button {
   transform: scale(0.2);
 }
 /* 通常時のtransition。is-setup-pendingが外れた瞬間にこのtransitionで滑らかに現れる
-   （駒はcubic-bezierのオーバーシュートで「ぶわーん」というポップ感を出す）。 */
+   （駒はcubic-bezierのオーバーシュートで「ぶわーん」というポップ感を出す）。
+   ハマりどころ（ユーザー報告、タブレット）: セットアップ配布時、is-setup-pendingが外れて
+   opacity:0→1へtransitionする瞬間、深いpreserve-3d階層の中のこのカードが一瞬プレイマットの
+   下に回り込んで見える（アニメーション終了後は正しく最前面に戻る）ことがあった。z-index上は
+   .board(2)/.lock-area(3)がプレイマット(.playmat-bg、1)より確実に手前のはずだが、この
+   プロジェクトで繰り返し確認してきた「モバイル系ブラウザは深い3D+opacity遷移の合成順序を
+   遷移中だけ一時的に取り違えることがある」という既知の不具合カテゴリと判断し、駒の
+   「タブレットでペっちゃんこ」バグで効果があったのと同じwill-change対策を、opacity側にも
+   適用した。実機タブレットでの改善確認はできていないため、効果が薄い/悪化する場合は
+   is-setup-pendingが付いている間だけに絞る等の追加調整を検討する。 */
 .board-card {
   transition: opacity 0.2s ease-out;
+  will-change: opacity;
 }
 .piece {
   transition:

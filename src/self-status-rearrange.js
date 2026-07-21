@@ -29,15 +29,15 @@ const SELECTOR =
 const VARS_BY_CLASS = {
   "self-status-large-avatar": {
     pos: ["--self-status-large-avatar-pos-x", "--self-status-large-avatar-pos-y"],
-    posDefault: [-0.34, -2.02],
+    posDefault: [-1.9, -6.2],
     size: "--self-status-large-avatar-size",
     sizeMin: 2,
     sizeMax: 16,
-    sizeDefault: 11,
+    sizeDefault: 13.7,
   },
   "self-status-piece-thumb": {
     pos: ["--self-status-icon-piece-pos-x", "--self-status-icon-piece-pos-y"],
-    posDefault: [5.58, 7.38],
+    posDefault: [4.8, 5],
     size: "--self-status-icon-piece-size",
     sizeMin: 1.2,
     sizeMax: 6,
@@ -45,7 +45,7 @@ const VARS_BY_CLASS = {
   },
   "self-status-card-back-thumb": {
     pos: ["--self-status-icon-cardback-pos-x", "--self-status-icon-cardback-pos-y"],
-    posDefault: [4.21, 4.42],
+    posDefault: [4, 5],
     size: "--self-status-icon-cardback-size",
     sizeMin: 1.2,
     sizeMax: 6,
@@ -53,7 +53,7 @@ const VARS_BY_CLASS = {
   },
   "self-status-playmat-thumb": {
     pos: ["--self-status-icon-playmat-pos-x", "--self-status-icon-playmat-pos-y"],
-    posDefault: [3.5, 4.38],
+    posDefault: [8.7, 3.1],
     size: "--self-status-icon-playmat-size",
     sizeMin: 1.2,
     sizeMax: 6,
@@ -63,7 +63,7 @@ const VARS_BY_CLASS = {
 
 const ONLINE_VARS = {
   pos: ["--self-status-icon-online-pos-x", "--self-status-icon-online-pos-y"],
-  posDefault: [-0.25, -6.87],
+  posDefault: [-2.4, -2.3],
   size: "--self-status-icon-online-size",
   sizeMin: 1.2,
   sizeMax: 6,

@@ -14,6 +14,7 @@
 // 付け外しとボタンの見た目更新だけを行う。
 
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
+import { isTouchPrimaryDevice, TOUCH_MEDIA_QUERY } from "./device-detect.js";
 
 const STATES = ["normal", "pieces-hidden", "cards-normal", "cards-hidden"];
 
@@ -24,16 +25,10 @@ const TOOLTIP_BY_STATE = {
   "cards-hidden": "タップするとカードを元に戻します",
 };
 
-const TOUCH_MEDIA_QUERY = "(hover: none) and (pointer: coarse)";
-
 let state = "normal";
 let btnEl = null;
 let iconImgEl = null;
 let tooltipEl = null;
-
-function isTouchPrimaryDevice() {
-  return window.matchMedia(TOUCH_MEDIA_QUERY).matches;
-}
 
 function applyBodyClasses() {
   document.body.classList.toggle("pieces-interaction-hidden", state === "pieces-hidden");
