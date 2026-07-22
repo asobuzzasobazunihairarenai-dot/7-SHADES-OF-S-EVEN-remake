@@ -263,7 +263,7 @@ body {
   padding: 0.2rem;
 }
 .hand-reveal-bottom {
-  transform: translate(0, -50%) translate(var(--hand-reveal-bottom-pos-x, -16.2rem), var(--hand-reveal-bottom-pos-y, -0.4rem));
+  transform: translate(0, -50%) translate(var(--hand-reveal-bottom-pos-x, -16.2rem), var(--hand-reveal-bottom-pos-y, 0.4rem));
 }
 /* ユーザー要望「各プレイヤーとも公開方向はロックエリアの向きに合わせる」により、
    B=時計回り90度・C=180度・D=反時計回り90度を追加した（position(translate)の後に
@@ -358,14 +358,14 @@ body {
      使われており、以前はwidth:100%（盤面と同じ幅）で常に固定されていたため、実際に
      見えている手札の範囲よりずっと広い当たり判定になり、ロックエリアの帯と干渉していた。
      枚数に応じてJS側(main.js buildPlayerZone)で自動的に比例拡大/縮小する。 */
-  --hand-a-size: 13rem;
+  --hand-a-size: 17rem;
   --hand-b-size: 7rem;
   --hand-c-size: 7rem;
   --hand-d-size: 7rem;
   /* 手札エリアの「扇が伸びない方向」の厚み（固定値。枚数では変わらない）。デフォルトの
      5.2rem/9rem/100%幅では、この厚みの分だけ当たり判定がロックエリア側にはみ出して
      干渉することが分かったため、カード1枚分程度に絞れるよう調整可能にした。 */
-  --hand-a-thickness: 7rem;
+  --hand-a-thickness: 10rem;
   --hand-b-thickness: 5rem;
   --hand-c-thickness: 4rem;
   --hand-d-thickness: 5rem;
@@ -995,6 +995,31 @@ body.is-touch-device .zone-left .hand-area {
 }
 .turn-timer-base-clock.is-critical .turn-timer-base-clock-value {
   color: #ef4444;
+}
+/* ユーザー要望「砂時計残機数を基本時間の隣に表示させたい」。ロープ先端の砂時計バッジ
+   （.turn-timer-rope-hourglass-count）と同じ「丸枠の右下に小さく添える」見た目にする。 */
+.turn-timer-base-clock-hourglass {
+  position: absolute;
+  bottom: -0.35rem;
+  right: -0.7rem;
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  background: rgba(15, 23, 32, 0.9);
+  border: 1px solid var(--turn-timer-base-clock-color, #38bdf8);
+  border-radius: 1rem;
+  padding: 0 0.25rem;
+}
+.turn-timer-base-clock-hourglass-icon {
+  display: block;
+  width: 0.75rem;
+  height: 0.75rem;
+  object-fit: contain;
+}
+.turn-timer-base-clock-hourglass-count {
+  font-size: 0.65rem;
+  font-family: sans-serif;
+  color: #e2e8f0;
 }
 .phase-guide-tooltip {
   position: absolute;
@@ -3088,7 +3113,7 @@ body.cards-interaction-hidden .board-card {
   display: none;
   align-items: center;
   justify-content: center;
-  transform: translate(var(--self-status-icon-piece-pos-x, 5.09rem), var(--self-status-icon-piece-pos-y, 6.29rem));
+  transform: translate(var(--self-status-icon-piece-pos-x, 8.8rem), var(--self-status-icon-piece-pos-y, 6.29rem));
 }
 .self-status-piece-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -3118,7 +3143,7 @@ body.cards-interaction-hidden .board-card {
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
-  transform: translate(var(--self-status-icon-cardback-pos-x, 3.88rem), var(--self-status-icon-cardback-pos-y, 6.29rem));
+  transform: translate(var(--self-status-icon-cardback-pos-x, 7.6rem), var(--self-status-icon-cardback-pos-y, 6.29rem));
 }
 .self-status-card-back-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -3175,7 +3200,7 @@ body.cards-interaction-hidden .board-card {
    （.icon-action-button-icon-wrap自体には触れない）。位置調整はボタン本体(#self-status-online)
    へのtranslateで行う（キャプション文字ごと一緒に動く）。 */
 #self-status-online {
-  transform: translate(var(--self-status-icon-online-pos-x, -0.4rem), var(--self-status-icon-online-pos-y, -3.17rem));
+  transform: translate(var(--self-status-icon-online-pos-x, 0.27rem), var(--self-status-icon-online-pos-y, -4.14rem));
 }
 .self-status-icon-grid #self-status-online .icon-action-button-icon-wrap {
   width: var(--self-status-icon-online-size, 2.6rem);

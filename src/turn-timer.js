@@ -86,6 +86,8 @@ let selfStockIconEl = null;
 let selfStockCountEl = null;
 let baseClockEl = null; // フェイズ案内板の中に出す、基本時間の残り秒数表示
 let baseClockLabelEl = null;
+let baseClockHourglassIconEl = null;
+let baseClockHourglassCountEl = null;
 let ropeEl = null; // 画面中央のロープ本体（延長中だけ表示）
 let ropeStrandEl = null;
 let ropeTipEl = null;
@@ -339,6 +341,19 @@ function buildBaseClock() {
   baseClockLabelEl.className = "turn-timer-base-clock-value";
   iconWrap.appendChild(baseClockLabelEl);
   baseClockEl.appendChild(iconWrap);
+  // ユーザー要望「砂時計残機数を基本時間の隣に表示させたい」。基本時間表示は既に
+  // 「優先権保持者が誰か」を駒の色で示しているため、その同じ人物の砂時計残数を
+  // 丸枠の角に小さく添える（ロープ先端の砂時計バッジと同じ構造）。
+  const hourglassBadge = document.createElement("div");
+  hourglassBadge.className = "turn-timer-base-clock-hourglass";
+  baseClockHourglassIconEl = document.createElement("img");
+  baseClockHourglassIconEl.className = "turn-timer-base-clock-hourglass-icon";
+  baseClockHourglassIconEl.alt = "";
+  hourglassBadge.appendChild(baseClockHourglassIconEl);
+  baseClockHourglassCountEl = document.createElement("span");
+  baseClockHourglassCountEl.className = "turn-timer-base-clock-hourglass-count";
+  hourglassBadge.appendChild(baseClockHourglassCountEl);
+  iconWrap.appendChild(hourglassBadge);
   const caption = document.createElement("span");
   caption.className = "icon-action-button-caption";
   caption.textContent = "基本時間";
@@ -371,6 +386,14 @@ function updateBaseClock(state) {
   baseClockEl.title = `${getPlayerName(state.priorityPlayer)}の基本時間`;
   const color = getPieceColor(state.priorityPlayer);
   baseClockEl.style.setProperty("--turn-timer-base-clock-color", color ? `var(--color-${color})` : "#38bdf8");
+  const hourglassIconPath = getHourglassIconPath(color);
+  if (hourglassIconPath) {
+    baseClockHourglassIconEl.src = hourglassIconPath;
+    baseClockHourglassIconEl.style.display = "";
+  } else {
+    baseClockHourglassIconEl.style.display = "none";
+  }
+  baseClockHourglassCountEl.textContent = state.hourglassStock[state.priorityPlayer] ?? 0;
   baseClockEl.style.display = "flex";
   const totalSeconds = hourglassUsedThisTurn[state.priorityPlayer]
     ? Math.min(getRopeBaseSeconds(), getReducedBaseSeconds())

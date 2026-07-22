@@ -261,9 +261,9 @@ const GROUPS = [
       { key: "--self-status-pos-y", label: "パネル全体 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--self-status-info-pos-x", label: "名前・手札枚数 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: -6.2 },
       { key: "--self-status-info-pos-y", label: "名前・手札枚数 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 2.2 },
-      { key: "--self-status-icon-piece-pos-x", label: "駒スキンアイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 5.09 },
+      { key: "--self-status-icon-piece-pos-x", label: "駒スキンアイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 8.8 },
       { key: "--self-status-icon-piece-pos-y", label: "駒スキンアイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 6.29 },
-      { key: "--self-status-icon-cardback-pos-x", label: "カード裏面アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 3.88 },
+      { key: "--self-status-icon-cardback-pos-x", label: "カード裏面アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 7.6 },
       { key: "--self-status-icon-cardback-pos-y", label: "カード裏面アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 6.29 },
       // ユーザー要望「4アイコンをきれいに整列させたい」。プレイマット/背景のXを、それぞれ
       // 駒スキン/カード裏面と同じ列に揃え、縦にきれいな2x2グリッドになるようにした
@@ -272,8 +272,8 @@ const GROUPS = [
       { key: "--self-status-icon-playmat-pos-y", label: "プレイマットアイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 4.4 },
       { key: "--self-status-icon-background-pos-x", label: "背景画像アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 3.88 },
       { key: "--self-status-icon-background-pos-y", label: "背景画像アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 4.4 },
-      { key: "--self-status-icon-online-pos-x", label: "オンライン状態アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: -0.4 },
-      { key: "--self-status-icon-online-pos-y", label: "オンライン状態アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: -3.17 },
+      { key: "--self-status-icon-online-pos-x", label: "オンライン状態アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 0.27 },
+      { key: "--self-status-icon-online-pos-y", label: "オンライン状態アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: -4.14 },
     ],
   },
   {
@@ -358,7 +358,7 @@ const GROUPS = [
     title: "手札エリアのサイズ（手札3枚時が基準。枚数に応じて自動で伸縮）",
     category: "position",
     controls: [
-      { key: "--hand-a-size", label: "A（自分）サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 13 },
+      { key: "--hand-a-size", label: "A（自分）サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 17 },
       { key: "--hand-b-size", label: "B サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 7 },
       { key: "--hand-c-size", label: "C サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 7 },
       { key: "--hand-d-size", label: "D サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 7 },
@@ -368,7 +368,7 @@ const GROUPS = [
     title: "手札エリアの厚み（扇が伸びない方向。固定値、ロックエリアとの干渉調整用）",
     category: "position",
     controls: [
-      { key: "--hand-a-thickness", label: "A（自分）厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 7 },
+      { key: "--hand-a-thickness", label: "A（自分）厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 10 },
       { key: "--hand-b-thickness", label: "B 厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 5 },
       { key: "--hand-c-thickness", label: "C 厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 4 },
       { key: "--hand-d-thickness", label: "D 厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 5 },
@@ -529,7 +529,7 @@ const GROUPS = [
     controls: [
       { key: "--hand-reveal-card-size", label: "カードのサイズ（共通）", unit: "rem", min: 2, max: 8, step: 0.1, default: 2.9 },
       { key: "--hand-reveal-bottom-pos-x", label: "手前(A) 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -16.2 },
-      { key: "--hand-reveal-bottom-pos-y", label: "手前(A) 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: -0.4 },
+      { key: "--hand-reveal-bottom-pos-y", label: "手前(A) 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0.4 },
       { key: "--hand-reveal-top-pos-x", label: "奥(C) 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 13 },
       { key: "--hand-reveal-top-pos-y", label: "奥(C) 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: -2.2 },
       { key: "--hand-reveal-left-pos-x", label: "左(B) 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -1 },
