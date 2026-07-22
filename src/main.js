@@ -34,7 +34,7 @@ import { openPlaymatPicker, registerPlaymatHelpers, getSelectedPlaymatPath, setS
 import { openBackgroundPicker, registerBackgroundHelpers, getSelectedBackgroundPath, setSelectedBackgroundId } from "./background.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS } from "./player-identity.js";
-import { applyAvatarContent, getAvatarVariant, getAwakenedVariant } from "./avatar-render.js";
+import { applyAvatarContent, getAvatarVariant, getAwakenedVariant, getEnragedVariant } from "./avatar-render.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { isLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible } from "./lock-color.js";
@@ -273,11 +273,14 @@ function buildPlayerZone(side, player, isSelf) {
   const avatarEl = document.createElement("div");
   avatarEl.className = `player-avatar${player === getState().turnPlayer ? " is-turn-player" : ""}`;
   let avatarSrc = getAvatarVariant(getPlayerAvatar(player), AVATAR_DIRECTION_BY_SIDE[side]);
-  // ユーザー要望「残りロックエリアの数が3つになったら、対応するアバター2（覚醒版）に
-  // 変更してほしい」。7色中4色ロック済み＝残り3つの時点で切り替える。ロックは
-  // GATE_INVASION_ETERNALで手札へ戻されることもあるため、毎回のrender()で
-  // 都度判定し直す（一度覚醒したら固定、ではなくその時点の実際のロック数に追従する）。
-  if (getLockedCount(player) >= 4) avatarSrc = getAwakenedVariant(avatarSrc);
+  // ユーザー要望「残りロックエリアの数が3つになったら覚醒版(アバター2)、1つになったら
+  // 激昂版(アバター3)に変更してほしい」。7色中4色ロック済み＝残り3つで覚醒、6色ロック済み
+  // ＝残り1つで激昂。ロックはGATE_INVASION_ETERNALで手札へ戻されることもあるため、
+  // 毎回のrender()で都度判定し直す（一度切り替わったら固定、ではなくその時点の実際の
+  // ロック数に追従する）。
+  const lockedCount = getLockedCount(player);
+  if (lockedCount >= 6) avatarSrc = getEnragedVariant(avatarSrc);
+  else if (lockedCount >= 4) avatarSrc = getAwakenedVariant(avatarSrc);
   applyAvatarContent(avatarEl, avatarSrc);
 
   const orientation = side === "left" || side === "right" ? "vertical" : "horizontal";
@@ -3517,7 +3520,9 @@ function updateSelfHandStatus() {
     (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === getSelfSeat()
   ).length;
   let selfAvatarSrc = getAvatarVariant(getPlayerAvatar(getSelfSeat()), "right");
-  if (getLockedCount(getSelfSeat()) >= 4) selfAvatarSrc = getAwakenedVariant(selfAvatarSrc);
+  const selfLockedCount = getLockedCount(getSelfSeat());
+  if (selfLockedCount >= 6) selfAvatarSrc = getEnragedVariant(selfAvatarSrc);
+  else if (selfLockedCount >= 4) selfAvatarSrc = getAwakenedVariant(selfAvatarSrc);
   applyAvatarContent(selfStatusLargeAvatarEl, selfAvatarSrc);
   addSimpleTooltip(selfStatusLargeAvatarEl, "クリックしてアバターを変更");
 

@@ -429,6 +429,17 @@ body.is-touch-device .table-background-bg,
 body.is-touch-device .playmat-bg {
   will-change: transform;
 }
+/* ユーザー報告「手札・名前ラベルの点滅は大分減ったが、アバター・手札公開エリア・
+   ロックエリアの帯付近も同じタイミングで一瞬透明になる（Bのアバターは下半分だけ）」。
+   これらも.hand-area/.labelと同じ「preserve-3d階層内でtranslateZ無し・z-indexだけで
+   前後を分けている」要素（.player-avatarのB/C/Dはz-index:0、.hand-reveal-areaは
+   z-index:1、.lock-area-barはz-index:2、いずれもtranslateZは無し）で、既存の
+   will-change対策がまだ適用されていなかった箇所だった。同じ対策を横展開する。 */
+body.is-touch-device .player-avatar,
+body.is-touch-device .hand-reveal-area,
+body.is-touch-device .lock-area-bar {
+  will-change: transform;
+}
 
 .zone-top .hand-area {
   height: var(--hand-c-thickness);
