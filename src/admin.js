@@ -358,7 +358,7 @@ const GROUPS = [
     title: "手札エリアのサイズ（手札3枚時が基準。枚数に応じて自動で伸縮）",
     category: "position",
     controls: [
-      { key: "--hand-a-size", label: "A（自分）サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 13 },
+      { key: "--hand-a-size", label: "A（自分）サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 17 },
       { key: "--hand-b-size", label: "B サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 7 },
       { key: "--hand-c-size", label: "C サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 7 },
       { key: "--hand-d-size", label: "D サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 7 },
@@ -368,7 +368,7 @@ const GROUPS = [
     title: "手札エリアの厚み（扇が伸びない方向。固定値、ロックエリアとの干渉調整用）",
     category: "position",
     controls: [
-      { key: "--hand-a-thickness", label: "A（自分）厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 7 },
+      { key: "--hand-a-thickness", label: "A（自分）厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 10 },
       { key: "--hand-b-thickness", label: "B 厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 5 },
       { key: "--hand-c-thickness", label: "C 厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 4 },
       { key: "--hand-d-thickness", label: "D 厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 5 },
@@ -484,36 +484,36 @@ const GROUPS = [
       { key: "--icon-pos-hand-shuffle-touch-x", label: "手札シャッフル 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -8.1 },
       { key: "--icon-pos-hand-shuffle-touch-y", label: "手札シャッフル 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 11.38 },
       { key: "--icon-size-hand-shuffle-touch", label: "手札シャッフル サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 6 },
-      { key: "--icon-pos-board-zoom-touch-x", label: "盤面拡大 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -0.29 },
-      { key: "--icon-pos-board-zoom-touch-y", label: "盤面拡大 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -7.2 },
+      { key: "--icon-pos-board-zoom-touch-x", label: "盤面拡大 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0.9 },
+      { key: "--icon-pos-board-zoom-touch-y", label: "盤面拡大 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -3.6 },
       { key: "--icon-size-board-zoom-touch", label: "盤面拡大 サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 6 },
       { key: "--icon-pos-draw-touch-x", label: "1枚ドロー 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -9 },
-      { key: "--icon-pos-draw-touch-y", label: "1枚ドロー 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -10.9 },
+      { key: "--icon-pos-draw-touch-y", label: "1枚ドロー 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -7.6 },
       { key: "--icon-size-draw-touch", label: "1枚ドロー サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 6 },
-      { key: "--icon-pos-end-turn-touch-x", label: "ターン終了 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-end-turn-touch-x", label: "ターン終了 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0.7 },
       { key: "--icon-pos-end-turn-touch-y", label: "ターン終了 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-size-end-turn-touch", label: "ターン終了 サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 6 },
-      { key: "--icon-pos-options-touch-x", label: "オプション 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--icon-pos-options-touch-y", label: "オプション 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -0.5 },
-      { key: "--icon-size-options-touch", label: "オプション サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 5 },
+      { key: "--icon-pos-options-touch-x", label: "オプション 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 1.7 },
+      { key: "--icon-pos-options-touch-y", label: "オプション 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -0.9 },
+      { key: "--icon-size-options-touch", label: "オプション サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 6 },
       { key: "--icon-pos-piece-hide-touch-x", label: "駒消し 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--icon-pos-piece-hide-touch-y", label: "駒消し 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -14.6 },
-      { key: "--icon-size-piece-hide-touch", label: "駒消し サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 5 },
-      { key: "--icon-pos-card-hide-touch-x", label: "カード消し 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 5.8 },
-      { key: "--icon-pos-card-hide-touch-y", label: "カード消し 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -10.9 },
-      { key: "--icon-size-card-hide-touch", label: "カード消し サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 5 },
+      { key: "--icon-pos-piece-hide-touch-y", label: "駒消し 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -20 },
+      { key: "--icon-size-piece-hide-touch", label: "駒消し サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 6 },
+      { key: "--icon-pos-card-hide-touch-x", label: "カード消し 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 6.7 },
+      { key: "--icon-pos-card-hide-touch-y", label: "カード消し 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -16.3 },
+      { key: "--icon-size-card-hide-touch", label: "カード消し サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 6 },
       // ユーザー要望「タブレット専用位置調整に優先権譲渡ボタン・公開ドロー・
       // フェイズ案内・オンラインアイコンを追加」への対応。
-      { key: "--priority-transfer-pos-touch-x", label: "優先権譲渡ボタン 位置X（タブレット）", unit: "rem", min: -30, max: 30, step: 0.1, default: -1.6 },
-      { key: "--priority-transfer-pos-touch-y", label: "優先権譲渡ボタン 位置Y（タブレット）", unit: "rem", min: -30, max: 30, step: 0.1, default: 1.5 },
+      { key: "--priority-transfer-pos-touch-x", label: "優先権譲渡ボタン 位置X（タブレット）", unit: "rem", min: -30, max: 30, step: 0.1, default: -2.2 },
+      { key: "--priority-transfer-pos-touch-y", label: "優先権譲渡ボタン 位置Y（タブレット）", unit: "rem", min: -30, max: 30, step: 0.1, default: -5 },
       { key: "--icon-pos-public-draw-touch-x", label: "公開ドロー 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0.3 },
-      { key: "--icon-pos-public-draw-touch-y", label: "公開ドロー 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 1 },
-      { key: "--icon-size-public-draw-touch", label: "公開ドロー サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 3.5 },
+      { key: "--icon-pos-public-draw-touch-y", label: "公開ドロー 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -1.2 },
+      { key: "--icon-size-public-draw-touch", label: "公開ドロー サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 4.7 },
       { key: "--phase-guide-bottom-touch", label: "フェイズ案内 Y位置（タブレット）", unit: "rem", min: 0, max: 20, step: 0.1, default: 0 },
       { key: "--phase-guide-right-touch", label: "フェイズ案内 X位置（タブレット）", unit: "rem", min: 0, max: 30, step: 0.1, default: 2.3 },
       { key: "--self-status-icon-online-pos-touch-x", label: "オンラインアイコン 位置X（タブレット）", unit: "rem", min: -15, max: 15, step: 0.1, default: 0.27 },
       { key: "--self-status-icon-online-pos-touch-y", label: "オンラインアイコン 位置Y（タブレット）", unit: "rem", min: -15, max: 15, step: 0.1, default: -4.14 },
-      { key: "--self-status-icon-online-size-touch", label: "オンラインアイコン サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--self-status-icon-online-size-touch", label: "オンラインアイコン サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 3.2 },
       { key: "--hand-a-pos-touch-x", label: "自分の手札 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--hand-a-pos-touch-y", label: "自分の手札 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 2.6 },
     ],
@@ -542,6 +542,21 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー報告「Z値・手札の傾き角度どちらを触っても改善しなかった」を受けた次の
+    // 実験用ノブ。手札単体の値ではなく、preserve-3d + perspectiveの入れ子構造全体を
+    // 一部のタブレットGPUが特定の投影角度で正しく合成できていない（3D描画精度起因の
+    // バグ）可能性を疑い、視点（透視投影）自体をタブレット限定で動かせるようにする。
+    // 「画角によって」症状が変わるというユーザー報告と、視点を変えるこの調整は
+    // 直接対応している。PC版はこれらのCSS変数を一切参照しない別ルールのため、
+    // 値を変えてもPCの見た目には絶対に影響しない。
+    title: "タブレット専用：透視投影の調整（実験用、PCには影響しません）",
+    category: "tablet",
+    controls: [
+      { key: "--camera-perspective-touch", label: "カメラ距離（小さいほど遠近感が強い）", unit: "px", min: 500, max: 3000, step: 10, default: 1090 },
+      { key: "--camera-perspective-origin-y-touch", label: "消失点の高さ", unit: "rem", min: 0, max: 20, step: 0.1, default: 8.4 },
+    ],
+  },
+  {
     // ユーザー要望「タブレット専用にステータスエリア群の一括拡大を新設」。個々のアイコンを
     // バラバラに拡大せず、左下の自分専用ステータスエリア全体（背面アバター・4アイコン・
     // 名前欄・オンラインアイコン）をまとめて拡大縮小できるようにする。基準点は左下
@@ -550,7 +565,7 @@ const GROUPS = [
     title: "タブレット専用：ステータスエリア群の一括拡大",
     category: "tablet",
     controls: [
-      { key: "--self-status-scale-touch", label: "拡大率", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 1 },
+      { key: "--self-status-scale-touch", label: "拡大率", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 1.75 },
     ],
   },
   {

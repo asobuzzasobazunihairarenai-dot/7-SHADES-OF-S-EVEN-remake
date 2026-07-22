@@ -76,6 +76,18 @@ body {
   touch-action: none;
 }
 
+/* ハマりどころ（ユーザー報告「タブレットで画角によって手札・名前が消える」）:
+   手札(A)自体のZ値・rotateXを触っても改善しなかったため、原因は手札単体の値ではなく、
+   preserve-3d + perspectiveの入れ子構造をタブレットのGPUが特定の投影角度で正しく
+   合成できていない（3D描画の精度起因のバグ）可能性が高いと考えている。この場合、
+   手札個別の値ではなく「視点（透視投影）そのもの」を変えることで症状の出る角度を
+   避けられる可能性があるため、タブレット専用の実験用として透視投影自体を
+   調整できるようにする。 */
+body.is-touch-device .scene {
+  perspective: var(--camera-perspective-touch, var(--camera-perspective));
+  perspective-origin: 50% var(--camera-perspective-origin-y-touch, var(--camera-perspective-origin-y));
+}
+
 /* ハマりどころ（ユーザー報告）: ゲーム画面に来て最初の操作がいきなり2本指ピンチだった
    場合、指の片方がposition:fixedな常設UI（アイコンボタン・自分専用ステータス等、
    .sceneの外＝直接のtouch-action:noneが効かない領域）の上に乗っていると、その指の分だけ
