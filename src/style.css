@@ -2009,10 +2009,18 @@ body.is-touch-device #priority-transfer-buttons {
    「どこで何が起きたか」を見落としにくくするための合図）。マスの縁が2回明滅するだけの
    短い演出のため、到達演出（マス中央から立ち上る光の柱、.arrival-effect-burst）と同時に
    起きても視覚的に競合しない。 */
+/* ユーザー要望「点滅はマスの枠だけでなく面もにしたい、色はそれを行ったプレイヤーの色に
+   したい」。--move-blink-color（remote-move-animator.jsが実行者の駒の色で都度セット）を
+   使い、縁の光彩(box-shadow)だけでなく面(background-color)も一緒に明滅させる。
+   color-mix()で塗りつぶしを半透明にし、下のマス目・駒・カードが透けて見えるようにする
+   （完全な不透明色で塗ると駒/カードが隠れてしまうため）。 */
 @keyframes move-highlight-blink {
-  0%, 100% { box-shadow: none; }
-  25%, 75% { box-shadow: inset 0 0 0 0.15rem rgba(255, 255, 255, 0.95), 0 0 0.5rem 0.15rem rgba(255, 255, 255, 0.6); }
-  50% { box-shadow: none; }
+  0%, 100% { box-shadow: none; background-color: transparent; }
+  25%, 75% {
+    box-shadow: inset 0 0 0 0.2rem var(--move-blink-color, #ffffff), 0 0 0.7rem 0.2rem var(--move-blink-color, #ffffff);
+    background-color: color-mix(in srgb, var(--move-blink-color, #ffffff) 45%, transparent);
+  }
+  50% { box-shadow: none; background-color: transparent; }
 }
 :root {
   /* 点滅の長さ（秒）。ユーザー要望「その秒数は管理者モードで調整できるようにしたい」。
@@ -2027,7 +2035,10 @@ body.is-touch-device #priority-transfer-buttons {
 
 /* オンラインで他プレイヤーがカードを場に置いた/取った時、点滅と一緒に方向を示す矢印を
    一瞬表示する（ユーザー要望）。「↓」=置いた、「↑」=取った。マス自体の点滅
-   （move-highlight-blink）と重ねて出す、控えめなオーバーレイ。 */
+   （move-highlight-blink）と重ねて出す、控えめなオーバーレイ。ユーザー要望により、
+   矢印をそれを行ったプレイヤーの色・太く大きくし、そのプレイヤーのミニアバターも
+   セットで表示する（.move-blink-arrow-glyphが矢印本体、.move-blink-arrow-avatarが
+   アバター、どちらも親.move-blink-arrowのvar(--move-blink-color)を共有する）。 */
 @keyframes move-blink-arrow-fade {
   0% { opacity: 0; transform: translateY(0.2rem) scale(0.7); }
   15%, 70% { opacity: 1; transform: translateY(0) scale(1); }
@@ -2037,21 +2048,42 @@ body.is-touch-device #priority-transfer-buttons {
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: var(--move-blink-arrow-size, 1.3rem);
-  font-weight: 700;
-  line-height: 1;
+  gap: 0.1rem;
   pointer-events: none;
   z-index: 6;
-  text-shadow: 0 0 0.3rem rgba(0, 0, 0, 0.85), 0 0 0.6rem rgba(0, 0, 0, 0.6);
   animation: move-blink-arrow-fade calc(var(--move-blink-duration, 3) * 1s) ease-in-out;
 }
-.move-blink-arrow.is-down {
-  color: #38bdf8;
+.move-blink-arrow-glyph {
+  font-size: var(--move-blink-arrow-size, 2.2rem);
+  font-weight: 900;
+  line-height: 1;
+  color: var(--move-blink-color, #ffffff);
+  /* 太字だけでは縁が細く見えたため、-webkit-text-strokeで輪郭を太らせ、さらに
+     drop-shadowではなくtext-shadowを複数重ねて「もっと太く大きく」というユーザー要望に
+     応える（矢印は絵文字ではなく単純なテキストグリフのため、-webkit-text-strokeが
+     効く）。 */
+  -webkit-text-stroke: 0.09rem var(--move-blink-color, #ffffff);
+  text-shadow:
+    0 0 0.15rem rgba(0, 0, 0, 0.9),
+    0 0 0.4rem rgba(0, 0, 0, 0.75),
+    0 0 0.8rem var(--move-blink-color, #ffffff);
 }
-.move-blink-arrow.is-up {
-  color: #fbbf24;
+.move-blink-arrow-avatar {
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 0.12rem solid var(--move-blink-color, #ffffff);
+  box-shadow: 0 0 0.4rem rgba(0, 0, 0, 0.6);
+  background: #1e293b;
+}
+.move-blink-arrow-avatar .avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* 立方体の駒。ユドナリウム(TK11235/udonarium)のterrain（地形）コンポーネントの技法を
@@ -4404,7 +4436,7 @@ body.is-online-mode #quick-start-bar {
   --card-arrival-modal-top: 3rem;
   --card-arrival-modal-right: 1rem;
   --move-blink-duration: 3;
-  --move-blink-arrow-size: 1.3rem;
+  --move-blink-arrow-size: 2.2rem;
   --start-player-avatar-size: 12rem;
   --gate-invasion-modal-size: 28rem;
   --gate-invasion-modal-step-duration: 3.5;

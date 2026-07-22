@@ -17,6 +17,18 @@ import { flyGhost } from "./ghost-flight.js";
 import { getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import { getSkinImagePath } from "./piece-skins.js";
 import { isSelfHandled } from "./self-handled-tokens.js";
+import { getPlayerAvatar } from "./player-identity.js";
+import { applyAvatarContent, getAvatarVariant } from "./avatar-render.js";
+
+// ユーザー要望「点滅ハイライトの矢印・マスの色をそのプレイヤーの色にし、ミニアバターも
+// 添えたい」への対応。この演出はターン制ゲームにおける「今まさにターンプレイヤーが
+// 行った操作」を再現するものなので、その時点のturnPlayerを実行者とみなす
+// （turn-timer.jsのgetPieceColorと同じ、駒のcolorを引くだけの小さな純粋関数のため、
+// 依存関係を増やさないようここでも同じ実装を複製する）。
+function getPieceColor(seat) {
+  const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === seat);
+  return piece ? piece.color : null;
+}
 
 let helpers = null; // { render, setSetupPendingTokenIds, maybeAnnounceLock, maybeTriggerCardArrivalForCard, maybeTriggerCardArrivalForExposedCard, triggerCardArrivalIfFaceUp, announceHandPickups, findLocationElement }
 
@@ -96,14 +108,33 @@ function blinkLocation(location, table, arrow = null) {
   const hostEl = helpers.findLocationElement?.(table, location);
   if (!hostEl) return;
   const durationMs = getMoveBlinkDurationMs();
+  // ユーザー要望「点滅・矢印はそれを行ったプレイヤーの色にしたい、ミニアバターも
+  // 添えたい」。この演出は常に「今のターンプレイヤーが行った操作」の再現なので、
+  // その時点のturnPlayerを実行者とみなして色・アバターを決める。
+  const actor = getState().turnPlayer;
+  const color = actor ? getPieceColor(actor) : null;
+  hostEl.style.setProperty("--move-blink-color", color ? `var(--color-${color})` : "#ffffff");
   hostEl.classList.add("move-highlight-blink");
-  setTimeout(() => hostEl.classList.remove("move-highlight-blink"), durationMs);
+  setTimeout(() => {
+    hostEl.classList.remove("move-highlight-blink");
+    hostEl.style.removeProperty("--move-blink-color");
+  }, durationMs);
   if (arrow) {
-    const arrowEl = document.createElement("div");
-    arrowEl.className = `move-blink-arrow is-${arrow}`;
-    arrowEl.textContent = arrow === "down" ? "↓" : "↑";
-    hostEl.appendChild(arrowEl);
-    setTimeout(() => arrowEl.remove(), durationMs);
+    const arrowWrap = document.createElement("div");
+    arrowWrap.className = `move-blink-arrow is-${arrow}`;
+    arrowWrap.style.setProperty("--move-blink-color", color ? `var(--color-${color})` : "#ffffff");
+    const arrowGlyph = document.createElement("span");
+    arrowGlyph.className = "move-blink-arrow-glyph";
+    arrowGlyph.textContent = arrow === "down" ? "↓" : "↑";
+    arrowWrap.appendChild(arrowGlyph);
+    if (actor) {
+      const avatarEl = document.createElement("div");
+      avatarEl.className = "move-blink-arrow-avatar";
+      applyAvatarContent(avatarEl, getAvatarVariant(getPlayerAvatar(actor), "front"));
+      arrowWrap.appendChild(avatarEl);
+    }
+    hostEl.appendChild(arrowWrap);
+    setTimeout(() => arrowWrap.remove(), durationMs);
   }
 }
 

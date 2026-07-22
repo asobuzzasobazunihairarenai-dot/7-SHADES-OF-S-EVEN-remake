@@ -78,7 +78,7 @@ const GROUPS = [
     category: "effect",
     controls: [
       { key: "--move-blink-duration", label: "点滅の長さ（秒）", unit: "", min: 0.5, max: 10, step: 0.5, default: 3 },
-      { key: "--move-blink-arrow-size", label: "矢印のサイズ", unit: "rem", min: 0.5, max: 4, step: 0.1, default: 1.3 },
+      { key: "--move-blink-arrow-size", label: "矢印のサイズ", unit: "rem", min: 0.5, max: 4, step: 0.1, default: 2.2 },
     ],
   },
   {
