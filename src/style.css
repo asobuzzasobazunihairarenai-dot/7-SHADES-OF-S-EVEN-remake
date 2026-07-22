@@ -96,10 +96,8 @@ body {
   --board-zoom-2-offset-x: 0rem;
   --board-zoom-2-offset-y: -2.5rem;
   --board-zoom-2-reference-height: 800px;
-  /* フェイズ案内板（画面下部中央）の位置・1項目あたりのサイズ。管理者モードで調整可能。 */
+  /* フェイズ案内板（画面右下）の位置。管理者モードで調整可能。 */
   --phase-guide-bottom: 0rem;
-  --phase-guide-item-width: 9rem;
-  --phase-guide-item-height: 1rem;
   /* ターンタイマー（画面中央のロープ・優先権譲渡ボタン）の位置。管理者モードで調整可能。 */
   --turn-timer-rope-pos-x: 0rem;
   --turn-timer-rope-pos-y: 0rem;
@@ -340,6 +338,13 @@ body {
   height: var(--hand-a-thickness);
   transform: translate(-50%, -50%) translate(var(--hand-a-pos-x), var(--hand-a-pos-y)) rotateX(-40deg)
     translateZ(2.4rem);
+}
+/* ユーザー要望「タブレット専用の位置調整に自分の手札位置も追加」。他のプレイヤー用ボタンと
+   同じ「タブレット専用オーバーライド未設定ならPC値にフォールバック」の仕組みにする。 */
+body.is-touch-device .zone-bottom .hand-area {
+  transform: translate(-50%, -50%)
+    translate(var(--hand-a-pos-touch-x, var(--hand-a-pos-x)), var(--hand-a-pos-touch-y, var(--hand-a-pos-y)))
+    rotateX(-40deg) translateZ(2.4rem);
 }
 
 .zone-top .hand-area {
@@ -874,61 +879,35 @@ body {
   gap: 0.6rem;
   font-family: sans-serif;
 }
-.phase-guide-item {
-  position: relative;
-  /* container-type: sizeで、この箱の実際の縦横をcqw/cqh単位として子要素（ラベル文字）が
-     参照できるようにする。これにより、枠のサイズを管理者モードで変えると文字サイズも
-     追従して自動調整される（JSでの再計算・ResizeObserver等は不要）。 */
-  container-type: size;
-  width: var(--phase-guide-item-width);
-  height: var(--phase-guide-item-height);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 0.3rem;
-  box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  border-radius: 0.4rem;
-  color: #e2e8f0;
-  font-weight: bold;
-  cursor: pointer;
-}
-.phase-guide-item-label {
-  font-size: clamp(0.6rem, 45cqh, 3rem);
-  white-space: nowrap;
-}
-.phase-guide-item:hover {
-  background: rgba(56, 189, 248, 0.15);
-  border-color: rgba(56, 189, 248, 0.5);
-}
-/* 将来、現在のフェイズが分かるようになった時にこのクラスを付ける想定（未実装）。 */
-.phase-guide-item.is-current-phase {
-  animation: lock-area-turn-glow 2.6s ease-in-out infinite;
-  border-color: rgba(var(--turn-glow-rgb), 0.9);
-}
-/* ターンタイマーの基本時間（無音・ロープ非表示の窓）の残り秒数を、フェイズ案内板と
-   統一感のある見た目で表示する（turn-timer.js側がこの箱をbar内へappendする）。残りが
-   少なくなるにつれ黄色→赤に色が変わり、最後は点滅する。 */
+/* ターンタイマーの基本時間（無音・ロープ非表示の窓）の残り秒数を、ロック/ハンド/ムーブと
+   同じ丸いアイコンボタンの見た目（icon-action-button.js共通CSS）で表示する（turn-timer.js
+   側がこの箱をbar内へappendする）。アイコン画像の代わりに数字を中央に置き、優先権保持者の
+   駒の色で縁取りして「誰の分か」を示す（ロープと同じ色分けの考え方）。残りが少なくなるに
+   つれ黄色→赤に変わり、最後は点滅する。 */
 .turn-timer-base-clock {
   cursor: default;
+}
+.turn-timer-base-clock .icon-action-button-icon-wrap {
+  border-color: var(--turn-timer-base-clock-color, #38bdf8);
+}
+.turn-timer-base-clock-value {
   font-variant-numeric: tabular-nums;
+  font-size: 1.1rem;
+  font-weight: bold;
+  font-family: sans-serif;
+  color: #e2e8f0;
 }
-.turn-timer-base-clock:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(148, 163, 184, 0.35);
+.turn-timer-base-clock.is-warning .icon-action-button-icon-wrap {
+  border-color: rgba(234, 179, 8, 0.8);
 }
-.turn-timer-base-clock.is-warning {
-  border-color: rgba(234, 179, 8, 0.6);
-}
-.turn-timer-base-clock.is-warning .phase-guide-item-label {
+.turn-timer-base-clock.is-warning .turn-timer-base-clock-value {
   color: #eab308;
 }
-.turn-timer-base-clock.is-critical {
-  border-color: rgba(239, 68, 68, 0.7);
+.turn-timer-base-clock.is-critical .icon-action-button-icon-wrap {
+  border-color: rgba(239, 68, 68, 0.9);
   animation: turn-timer-warning-blink 1s ease-in-out infinite;
 }
-.turn-timer-base-clock.is-critical .phase-guide-item-label {
+.turn-timer-base-clock.is-critical .turn-timer-base-clock-value {
   color: #ef4444;
 }
 .phase-guide-tooltip {
@@ -951,10 +930,6 @@ body {
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.15s ease;
-}
-.phase-guide-item:hover .phase-guide-tooltip {
-  opacity: 1;
-  visibility: visible;
 }
 
 /* アイコン+キャプション形式のボタン共通部品（icon-action-button.js参照）。アイコンは丸い
@@ -2205,6 +2180,13 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
 .zone-right .label {
   transform: translate(var(--label-d-pos-x), var(--label-d-pos-y));
 }
+/* ユーザー要望「盤面横のプレイヤー名BCDについてサイズを管理者モードで調整できるように
+   したい」。Aは対象外（自分の名前ラベルは別トグルで表示/非表示のみ）。 */
+.zone-left .label,
+.zone-top .label,
+.zone-right .label {
+  font-size: var(--label-bcd-font-size, 1rem);
+}
 
 /* 各プレイヤーのアバター（絵文字ダミー）。相手のアバターは「手札の後ろ側」に見えるよう、
    buildPlayerZone()内でhand-areaより先にDOMへ足している（重なった時は後から足した
@@ -2758,6 +2740,25 @@ body.reduce-glow .board-card.is-usable-while-locked.effect-shine::after,
 body.reduce-glow .board-card.is-usable-while-locked.effect-orbit::before {
   animation: none !important;
 }
+/* ユーザー報告「砂時計ロープのアニメーションが環境によっては重くなる」への対応。
+   ロープ本体(.turn-timer-rope-strand)はturn-timer.jsのtick()が200msごとに幅を書き換える
+   ため、大きくぼかしたbox-shadow（アニメーションの有無に関わらず）を毎回再描画すること
+   自体が負荷の主因になっている。既存の「常時光る演出を無効にする」設定を流用し、
+   box-shadow自体の除去・点滅アニメーションの停止・drop-shadow/text-shadowの除去まで
+   まとめて行うことで、幅の書き換えだけの軽い描画に留める「簡素バージョン」にする。 */
+body.reduce-glow .turn-timer-rope-strand {
+  animation: none !important;
+  box-shadow: none !important;
+}
+body.reduce-glow .turn-timer-rope-spark {
+  animation: none !important;
+}
+body.reduce-glow .turn-timer-rope-hourglass {
+  filter: none !important;
+}
+body.reduce-glow .turn-timer-rope-name {
+  text-shadow: none !important;
+}
 
 /* 自分専用の手札枚数ステータス。他のパネルと違う左下に置き、常時表示にする
    （state.turnPlayerの有無に関わらず、自分の手札は常に自分だけ見えていて良い情報のため）。 */
@@ -2778,6 +2779,29 @@ body.reduce-glow .board-card.is-usable-while-locked.effect-orbit::before {
   left: 1.2rem;
   z-index: 1000;
   transform: translate(var(--icon-pos-card-hide-x, 0rem), var(--icon-pos-card-hide-y, 0rem));
+}
+/* 駒消し/カード消しはタッチ主体の端末でのみ表示されるボタンだが、他のプレイヤー用ボタン
+   （手札シャッフル等）と同じ「タブレット専用オーバーライド」の仕組みが無かったため、
+   ユーザー要望に合わせて同じフォールバックチェーン方式を追加した。 */
+body.is-touch-device #piece-hide-button {
+  transform: translate(
+    var(--icon-pos-piece-hide-touch-x, var(--icon-pos-piece-hide-x, 0rem)),
+    var(--icon-pos-piece-hide-touch-y, var(--icon-pos-piece-hide-y, 0rem))
+  );
+}
+body.is-touch-device #card-hide-button {
+  transform: translate(
+    var(--icon-pos-card-hide-touch-x, var(--icon-pos-card-hide-x, 0rem)),
+    var(--icon-pos-card-hide-touch-y, var(--icon-pos-card-hide-y, 0rem))
+  );
+}
+body.is-touch-device #piece-hide-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-piece-hide-touch, var(--icon-size-piece-hide, 2.6rem));
+  height: var(--icon-size-piece-hide-touch, var(--icon-size-piece-hide, 2.6rem));
+}
+body.is-touch-device #card-hide-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-card-hide-touch, var(--icon-size-card-hide, 2.6rem));
+  height: var(--icon-size-card-hide-touch, var(--icon-size-card-hide, 2.6rem));
 }
 @keyframes icon-mode-active-glow {
   0%, 100% { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4), 0 0 0 0.15rem rgba(250, 204, 21, 0.9); }
@@ -2882,7 +2906,14 @@ body.cards-interaction-hidden .board-card {
    行ごとに自動調整するため崩れない）。 */
 .self-status-icon-grid {
   display: grid;
-  grid-template-columns: repeat(2, auto);
+  /* ハマりどころ（ユーザー報告「オンライン時とローカル時でアイコン位置が微妙に変わる」）:
+     以前はrepeat(2, auto)で列幅を内容依存にしていたため、#self-status-onlineのキャプション
+     文字（「ログイン中」/「入室中」+部屋名など、状態によって文字数が変わる）の実際の
+     横幅がその列のトラック幅を決めてしまい、同じ列を共有する他のアイコン（駒スキン等）が
+     オンライン/ローカルの状態によって数px単位で左右にズレていた。列幅を固定
+     （オンライン状態アイコンの最大サイズ基準）にすることで、キャプション文字数に関係なく
+     常に同じ位置になるようにした。 */
+  grid-template-columns: repeat(2, var(--self-status-icon-online-size, 2.6rem));
   gap: var(--self-status-icon-gap, 0.4rem);
   justify-items: center;
   z-index: 2;
@@ -3038,6 +3069,19 @@ body.cards-interaction-hidden .board-card {
   z-index: 1;
   transform: translate(var(--self-status-info-pos-x, -6.2rem), var(--self-status-info-pos-y, 2.2rem));
 }
+/* ユーザー要望「白いアバターだとプレイヤー名、手札枚数の視認性が悪い」への対応。
+   アバター画像の色に関わらず読めるよう、テキストの背面に半透明の黒い塗りつぶし（角丸の
+   小さな帯）を敷く。inline-blockにして帯の幅をテキスト自体の幅に合わせている
+   （ブロック全体を覆う帯にすると不格好なため）。 */
+.self-status-name,
+.self-status-hand-count {
+  display: inline-block;
+  background: rgba(10, 14, 20, 0.55);
+  border-radius: 0.3rem;
+  padding: 0.05rem 0.4rem;
+  backdrop-filter: blur(2px);
+  width: fit-content;
+}
 .self-status-name {
   font-size: 0.85rem;
   font-weight: bold;
@@ -3109,6 +3153,12 @@ body.cards-interaction-hidden .board-card {
   border-radius: 50%;
   object-fit: cover;
   display: block;
+  /* ユーザー要望「アバターがそのまま貼ってあると少し味気ない、輪郭にドロップシャドウ的な
+     ものを」。既存のdrop-shadow（.player-avatar/.self-status-large-avatarの背後のぼやけた
+     影）だけだと、白っぽい背景のアバター画像では輪郭がぼやけて分かりにくいため、画像本体に
+     はっきりした暗色のリング（box-shadow）を追加し、どんな色のアバターでも輪郭が
+     くっきり見えるようにした。 */
+  box-shadow: 0 0 0 0.12rem rgba(0, 0, 0, 0.55);
 }
 .zone-bottom .player-avatar .avatar-image {
   width: var(--avatar-a-size);

@@ -308,6 +308,10 @@ as $$
 declare
   new_id text;
   alphabet text := '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  base_name text;
+  final_name text;
+  suffix text;
+  n int;
 begin
   loop
     new_id := '';
@@ -319,7 +323,21 @@ begin
 
   -- 部屋名の文字数上限（クライアント側のmaxlengthと同じ20文字）。devtools/curlから直接
   -- 呼ばれた場合の保険として、サーバー側でも切り詰めておく。
-  insert into so7_games (id, name) values (new_id, coalesce(nullif(left(trim(room_name), 20), ''), 'セブンの部屋'));
+  base_name := coalesce(nullif(left(trim(room_name), 20), ''), 'セブンの部屋');
+
+  -- ユーザー要望「すでに同名の部屋が存在する場合は自動で末尾に-2などの数字がつくように
+  -- したい」への対応。既存の（掃除しきれていない過去の部屋も含む）so7_games.nameと
+  -- 完全一致する間は、-2, -3, ...と末尾に付けて空くまで試す。20文字上限に収まるよう、
+  -- 付番する場合はその分だけ元の名前を切り詰める。
+  final_name := base_name;
+  n := 1;
+  while exists (select 1 from so7_games where name = final_name) loop
+    n := n + 1;
+    suffix := '-' || n;
+    final_name := left(base_name, greatest(1, 20 - length(suffix))) || suffix;
+  end loop;
+
+  insert into so7_games (id, name) values (new_id, final_name);
   if room_password is not null and room_password <> '' then
     insert into so7_game_passwords (game_id, password_hash) values (new_id, crypt(room_password, gen_salt('bf')));
   end if;

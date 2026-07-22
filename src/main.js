@@ -975,6 +975,56 @@ function fitTableToViewport() {
   applyNormalFit();
 }
 
+// ユーザー報告「タブレットで自分の手札が見えない」の根本原因（実測で特定）:
+// #game-table自身のgetBoundingClientRect()は、rotateX(-40deg)+translateZ(2.4rem)で
+// カメラ側へ大きく持ち上げられている自分の手札(.hand-fan.is-self)の実際の描画範囲を
+// 過小評価する（3D変形された子要素の見た目の広がりを、深い perspective 階層越しの
+// バウンディングボックス計算が正しく反映しないという、このプロジェクトで繰り返し
+// 確認されてきたのと同じ系統の問題）。実測では、scale=1の時点で#game-table自身の
+// bottomより自分の手札の実際のbottomが約150px下にはみ出していた。PCの背の高い
+// ウィンドウでは余白に紛れて気付きにくいが、タブレットの横向き（縦幅が狭い）では
+// その分だけ手札が画面下端の外へ切れて見えなくなっていた。
+// 対策: フィット計算の基準を#game-table自身の矩形だけでなく、実際に3D変形されている
+// 各手札(.hand-fan)の描画範囲も含めた「実効矩形」に広げる。
+function getEffectiveFitRect(table) {
+  const rects = [table.getBoundingClientRect()];
+  // .hand-fan自身ではなく個々の.hand-cardを見る（扇状の回転は個々のカードのtransformで
+  // 付けているため、.hand-fan自身の矩形はその突き出しを含まない。measureHandFanExtent
+  // 参照）。ここは初期見積もりなので、以降の実測補正ループほど厳密でなくてもよいが、
+  // 同じ理由で最初から.hand-cardを使っておく。
+  for (const card of table.querySelectorAll(".hand-card")) {
+    rects.push(card.getBoundingClientRect());
+  }
+  const top = Math.min(...rects.map((r) => r.top));
+  const bottom = Math.max(...rects.map((r) => r.bottom));
+  const left = Math.min(...rects.map((r) => r.left));
+  const right = Math.max(...rects.map((r) => r.right));
+  return { width: right - left, height: bottom - top };
+}
+
+// 現在適用中のtransform（rotateX+scale3d、translateは変えない）のまま、実際に画面に
+// 描画されている自分/他プレイヤーの手札の最大到達範囲（上下左右）を実測する。
+// ハマりどころ: 親の.hand-fan自身のgetBoundingClientRect()は、扇状に個別回転している
+// 子の.hand-card（親のレイアウトサイズには反映されない、見た目だけの transform）の
+// 実際の突き出しを含んでくれない（.hand-fan単体で測ると再び過小評価してしまう）。
+// 必ず個々の.hand-cardを直接測る。
+function measureHandFanExtent(table) {
+  const fans = table.querySelectorAll(".hand-card");
+  let top = Infinity;
+  let bottom = -Infinity;
+  let left = Infinity;
+  let right = -Infinity;
+  for (const fan of fans) {
+    const r = fan.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) continue; // 空の手札（駒だけ等）は無視
+    top = Math.min(top, r.top);
+    bottom = Math.max(bottom, r.bottom);
+    left = Math.min(left, r.left);
+    right = Math.max(right, r.right);
+  }
+  return { top, bottom, left, right };
+}
+
 function applyNormalFit() {
   const table = document.getElementById("game-table");
   const tilt = getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim();
@@ -983,14 +1033,75 @@ function applyNormalFit() {
   // scale3d()でZ軸も同じ倍率にすることで、縮小しても駒の縦横比が保たれるようにする。
   table.style.transformOrigin = "";
   table.style.transform = `rotateX(${tilt}) scale3d(1, 1, 1)`;
-  const rect = table.getBoundingClientRect();
+  const rect = getEffectiveFitRect(table);
   const availW = window.innerWidth * 0.94;
   const availH = window.innerHeight * 0.94;
   const zoom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--camera-zoom")) || 1;
   // マウスホイールでの手動ズーム(manualZoom)・中クリックドラッグでの手動移動(manualPanX/Y)を
   // 自動フィットの結果にさらに上乗せする。
-  const scale = Math.min(availW / rect.width, availH / rect.height, 1.15) * zoom * manualZoom;
-  table.style.transform = `translate(${manualPanX}rem, calc(var(--camera-offset-y) + ${manualPanY}rem)) rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
+  let scale = Math.min(availW / rect.width, availH / rect.height, 1.15) * zoom * manualZoom;
+
+  const applyScale = (s) => {
+    table.style.transform = `translate(${manualPanX}rem, calc(var(--camera-offset-y) + ${manualPanY}rem)) rotateX(${tilt}) scale3d(${s}, ${s}, ${s})`;
+  };
+  applyScale(scale);
+
+  // ユーザー報告「タブレットで自分の手札が見えない」への対応（実測で根本原因を特定、
+  // getEffectiveFitRectのコメント参照）。rotateX+perspectiveが絡む3D変形の中では、
+  // 「変形前の矩形の比率」と「実際に画面上で必要な縮小率」が単純な比例関係にならない
+  // （transform-originが手札の実際の重心ではなく#game-table自身の中心にあるため）。
+  // このプロジェクトで繰り返し有効だった「3D越しの計算より実測」の方針に従い、上のscaleを
+  // 一旦適用した上で実際の手札の画面上の到達範囲を実測し、まだ画面外にはみ出していれば、
+  // 別のscaleでもう一度実測した2点から線形関係（scale3dの拡大率は常に線形）を逆算して
+  // ちょうど収まるscaleを直接求める。数回繰り返して精度を上げる（各回、境界からの誤差が
+  // 大幅に縮むため、3回もあれば十分収束する）。
+  const marginW = window.innerWidth * 0.03;
+  const marginH = window.innerHeight * 0.03;
+  const bounds = {
+    top: marginH,
+    bottom: window.innerHeight - marginH,
+    left: marginW,
+    right: window.innerWidth - marginW,
+  };
+  const worstOverflow = (e) => Math.max(e.bottom - bounds.bottom, bounds.top - e.top, e.right - bounds.right, bounds.left - e.left);
+  for (let i = 0; i < 3 && scale > 0.05; i++) {
+    const e1 = measureHandFanExtent(table);
+    const overflow1 = worstOverflow(e1);
+    if (overflow1 <= 0.5) break;
+    const scale2 = scale * 0.85;
+    applyScale(scale2);
+    const e2 = measureHandFanExtent(table);
+    // はみ出しが最も大きかった辺について、2点(scale, 値)(scale2, 値)から線形補間し、
+    // ちょうど境界に収まるscaleを求める。
+    let edge1;
+    let edge2;
+    let bound;
+    if (e1.bottom - bounds.bottom === overflow1) {
+      edge1 = e1.bottom;
+      edge2 = e2.bottom;
+      bound = bounds.bottom;
+    } else if (bounds.top - e1.top === overflow1) {
+      edge1 = e1.top;
+      edge2 = e2.top;
+      bound = bounds.top;
+    } else if (e1.right - bounds.right === overflow1) {
+      edge1 = e1.right;
+      edge2 = e2.right;
+      bound = bounds.right;
+    } else {
+      edge1 = e1.left;
+      edge2 = e2.left;
+      bound = bounds.left;
+    }
+    const slope = (edge2 - edge1) / (scale2 - scale);
+    if (Number.isFinite(slope) && slope !== 0) {
+      const solvedScale = scale + (bound - edge1) / slope;
+      scale = Number.isFinite(solvedScale) && solvedScale > 0 ? Math.min(solvedScale, scale) : scale2;
+    } else {
+      scale = scale2;
+    }
+    applyScale(scale);
+  }
   currentTableScale = scale;
 }
 

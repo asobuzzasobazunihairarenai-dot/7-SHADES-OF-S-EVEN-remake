@@ -279,7 +279,7 @@ export function initOptionsMenu() {
           })
         );
         content.appendChild(
-          buildCheckboxRow("常時光る演出（手番のグロー等）を無効にする", isContinuousGlowDisabled(), (checked) => {
+          buildCheckboxRow("常時光る演出（手番のグロー・砂時計ロープ等）を無効にする", isContinuousGlowDisabled(), (checked) => {
             setContinuousGlowDisabled(checked);
             document.body.classList.toggle("reduce-glow", checked);
             saveMyPreference({ continuous_glow_disabled: checked });

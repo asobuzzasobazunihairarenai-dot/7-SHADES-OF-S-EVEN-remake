@@ -157,8 +157,6 @@ const GROUPS = [
     controls: [
       { key: "--phase-guide-bottom", label: "Y位置（画面下端からの距離）", unit: "rem", min: 0, max: 20, step: 0.1, default: 0 },
       { key: "--phase-guide-right", label: "X位置（画面右端からの距離）", unit: "rem", min: 0, max: 30, step: 0.1, default: 2.3 },
-      { key: "--phase-guide-item-width", label: "基本時間表示(⏱)の幅", unit: "rem", min: 2, max: 20, step: 0.1, default: 9 },
-      { key: "--phase-guide-item-height", label: "基本時間表示(⏱)の高さ", unit: "rem", min: 1, max: 10, step: 0.1, default: 1 },
     ],
   },
   {
@@ -310,6 +308,7 @@ const GROUPS = [
       { key: "--label-c-pos-y", label: "C 位置Y", unit: "rem", min: -24, max: 24, step: 0.1, default: -7 },
       { key: "--label-d-pos-x", label: "D 位置X", unit: "rem", min: -24, max: 24, step: 0.1, default: 3.8 },
       { key: "--label-d-pos-y", label: "D 位置Y", unit: "rem", min: -24, max: 24, step: 0.1, default: -5.2 },
+      { key: "--label-bcd-font-size", label: "B/C/D 文字サイズ", unit: "rem", min: 0.5, max: 3, step: 0.05, default: 1 },
     ],
   },
   {
@@ -486,6 +485,14 @@ const GROUPS = [
       { key: "--icon-pos-options-touch-x", label: "オプション 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-options-touch-y", label: "オプション 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-size-options-touch", label: "オプション サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--icon-pos-piece-hide-touch-x", label: "駒消し 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-piece-hide-touch-y", label: "駒消し 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-size-piece-hide-touch", label: "駒消し サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--icon-pos-card-hide-touch-x", label: "カード消し 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-card-hide-touch-y", label: "カード消し 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-size-card-hide-touch", label: "カード消し サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--hand-a-pos-touch-x", label: "自分の手札 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--hand-a-pos-touch-y", label: "自分の手札 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 4.3 },
     ],
   },
   {

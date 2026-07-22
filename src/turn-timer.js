@@ -300,15 +300,26 @@ function updateSelfStock(state) {
 // 延長中（ロープ表示中）は出さない——役割が被るため、基本時間の「音も無く静かに減っていく」
 // 感覚を伝えるための控えめな表示にとどめる。
 
+// ユーザー要望「ムーブフェイズの横にフェイズアイコンの丸枠と同じものの中に時間表示して
+// 統一感を出したい」への対応。従来の横長バー表示をやめ、ロック/ハンド/ムーブと同じ
+// 丸いアイコンボタンの見た目（icon-action-button.js共通CSSをそのまま流用）にし、
+// アイコン画像の代わりに残り秒数の数字を丸枠の中央に表示する。
 function buildBaseClock() {
   const bar = document.getElementById("phase-guide-bar");
   if (!bar) return;
   baseClockEl = document.createElement("div");
-  baseClockEl.className = "phase-guide-item turn-timer-base-clock";
+  baseClockEl.className = "icon-action-button turn-timer-base-clock";
   baseClockEl.style.display = "none";
+  const iconWrap = document.createElement("span");
+  iconWrap.className = "icon-action-button-icon-wrap";
   baseClockLabelEl = document.createElement("span");
-  baseClockLabelEl.className = "phase-guide-item-label";
-  baseClockEl.appendChild(baseClockLabelEl);
+  baseClockLabelEl.className = "turn-timer-base-clock-value";
+  iconWrap.appendChild(baseClockLabelEl);
+  baseClockEl.appendChild(iconWrap);
+  const caption = document.createElement("span");
+  caption.className = "icon-action-button-caption";
+  caption.textContent = "基本時間";
+  baseClockEl.appendChild(caption);
   bar.appendChild(baseClockEl);
 }
 
@@ -326,14 +337,17 @@ function updateBaseClock(state) {
     return;
   }
   const remainingSec = Math.max(0, Math.ceil((state.priorityDeadline - Date.now()) / 1000));
+  baseClockLabelEl.textContent = `${remainingSec}`;
   // ユーザー報告「両方のプレイヤーで基本時間が減っていくように見える」への対応。
   // この表示はロープ（延長時間）と同じく、優先権保持者が誰であっても全プレイヤーの
   // 画面に同じ1つの数字が見える設計（単一の共有stateをそのまま描画しているだけで、
   // 実際に2人分独立したタイマーが動いているわけではない）。ただし従来は誰の基本時間かの
   // 表示が無く、見ている本人には「自分の分が減っている」ように誤解されやすかった。
-  // ロープの「○○の砂時計が燃えています」と同じように、座席を明示する。
-  baseClockLabelEl.textContent = `${state.priorityPlayer} ⏱${remainingSec}`;
+  // ロープと同じ「優先権保持者の駒の色で縁取りする」方式で誰の分か色分けし、詳細は
+  // ホバー説明（title）に譲る。
   baseClockEl.title = `${getPlayerName(state.priorityPlayer)}の基本時間`;
+  const color = getPieceColor(state.priorityPlayer);
+  baseClockEl.style.setProperty("--turn-timer-base-clock-color", color ? `var(--color-${color})` : "#38bdf8");
   baseClockEl.style.display = "flex";
   const totalSeconds = hourglassUsedThisTurn[state.priorityPlayer]
     ? Math.min(getRopeBaseSeconds(), getReducedBaseSeconds())
