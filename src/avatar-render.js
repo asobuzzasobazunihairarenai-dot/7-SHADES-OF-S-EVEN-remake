@@ -36,14 +36,14 @@ export function getAwakenedVariant(avatar) {
 
 // ユーザー要望「残りロックが1つになったらアバター3（激昂版）に変更」への対応。
 // 画像素材/アバター/アバター3（-aura-enraged接尾辞）をassets/avatars/へ
-// {color}-{front,left,right}-enraged.pngとしてコピー済み。アバター2(-awakened)は元と
-// 同じwebp拡張子だったが、アバター3の元データはpngなので、拡張子を元のものに合わせず
-// 常に.pngへ固定する（ここが唯一getAwakenedVariantと構造が異なる点）。
+// {color}-{front,left,right}-enraged.webpとしてコピー済み（当初pngで提供されたため
+// 拡張子を.pngに固定していたが、後にユーザーが軽量なwebp版に差し替えたため、
+// getAwakenedVariantと同様に元の拡張子をそのまま使う形に戻した）。
 export function getEnragedVariant(avatar) {
   if (typeof avatar !== "string") return avatar;
-  const m = avatar.match(/^(.*-(?:front|left|right))\.[a-zA-Z0-9]+$/);
+  const m = avatar.match(/^(.*-(?:front|left|right))(\.[a-zA-Z0-9]+)$/);
   if (!m) return avatar;
-  return `${m[1]}-enraged.png`;
+  return `${m[1]}-enraged${m[2]}`;
 }
 
 export function applyAvatarContent(el, avatar) {
