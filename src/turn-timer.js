@@ -82,12 +82,15 @@ function getReducedBaseSeconds() {
 const REAL_ACTION_TYPES = new Set(["MOVE_TOKEN", "DRAW_FROM_PILE", "FLIP_TOKEN", "SEND_TOKEN_TO_PILE"]);
 
 let selfStockEl = null; // 左下の自分専用ステータスエリアに出す、自分の砂時計個数バッジ
+let selfStockIconEl = null;
+let selfStockCountEl = null;
 let baseClockEl = null; // フェイズ案内板の中に出す、基本時間の残り秒数表示
 let baseClockLabelEl = null;
 let ropeEl = null; // 画面中央のロープ本体（延長中だけ表示）
 let ropeStrandEl = null;
 let ropeTipEl = null;
 let ropeHourglassCountEl = null;
+let ropeHourglassIconEl = null;
 let warningEl = null;
 let priorityReturnWarningEl = null; // 手番でない座席が優先権を持ったままタイムオーバーした時の警告
 let transferButtonsEl = null;
@@ -283,6 +286,12 @@ function buildSelfStock() {
   selfStockEl = document.createElement("div");
   selfStockEl.className = "turn-timer-self-stock";
   selfStockEl.style.display = "none";
+  selfStockIconEl = document.createElement("img");
+  selfStockIconEl.className = "turn-timer-self-stock-icon";
+  selfStockIconEl.alt = "";
+  selfStockEl.appendChild(selfStockIconEl);
+  selfStockCountEl = document.createElement("span");
+  selfStockEl.appendChild(selfStockCountEl);
   host.appendChild(selfStockEl);
 }
 
@@ -293,7 +302,14 @@ function updateSelfStock(state) {
     return;
   }
   const stock = state.hourglassStock[getSelfSeat()] ?? 0;
-  selfStockEl.textContent = `⏳ × ${stock}`;
+  const iconPath = getHourglassIconPath(getPieceColor(getSelfSeat()));
+  if (iconPath) {
+    selfStockIconEl.src = iconPath;
+    selfStockIconEl.style.display = "";
+  } else {
+    selfStockIconEl.style.display = "none";
+  }
+  selfStockCountEl.textContent = `× ${stock}`;
   selfStockEl.style.display = "block";
 }
 
@@ -378,7 +394,10 @@ function buildRope() {
   spark.className = "turn-timer-rope-spark";
   const hourglass = document.createElement("div");
   hourglass.className = "turn-timer-rope-hourglass";
-  hourglass.textContent = "⏳";
+  ropeHourglassIconEl = document.createElement("img");
+  ropeHourglassIconEl.className = "turn-timer-rope-hourglass-icon";
+  ropeHourglassIconEl.alt = "";
+  hourglass.appendChild(ropeHourglassIconEl);
   ropeHourglassCountEl = document.createElement("span");
   ropeHourglassCountEl.className = "turn-timer-rope-hourglass-count";
   hourglass.appendChild(ropeHourglassCountEl);
@@ -400,6 +419,21 @@ function getPieceColor(seat) {
   return piece ? piece.color : null;
 }
 
+// ユーザーが追加した色別の砂時計アイコン（画像素材/アイコン/砂時計/）。ロープ先端・自分専用
+// ステータスの砂時計バッジは、それぞれ「今誰の砂時計か」の駒の色に合わせて表示を切り替える。
+const HOURGLASS_ICON_BY_COLOR = {
+  red: "assets/icons/hourglass-red.webp",
+  orange: "assets/icons/hourglass-orange.webp",
+  yellow: "assets/icons/hourglass-yellow.webp",
+  green: "assets/icons/hourglass-green.webp",
+  blue: "assets/icons/hourglass-blue.webp",
+  pink: "assets/icons/hourglass-pink.webp",
+  purple: "assets/icons/hourglass-purple.webp",
+};
+function getHourglassIconPath(color) {
+  return HOURGLASS_ICON_BY_COLOR[color] ?? null;
+}
+
 // tick()から高頻度に呼ばれる、DOM更新だけを行う軽量な部分（stateへのdispatchは行わない）。
 function updateRope(state) {
   const inExtension =
@@ -416,6 +450,13 @@ function updateRope(state) {
   ropeTipEl.style.left = `${ratio * 100}%`;
   const color = getPieceColor(state.priorityPlayer);
   ropeEl.style.setProperty("--turn-timer-rope-color", color ? `var(--color-${color})` : "#eab308");
+  const iconPath = getHourglassIconPath(color);
+  if (iconPath) {
+    ropeHourglassIconEl.src = iconPath;
+    ropeHourglassIconEl.style.display = "";
+  } else {
+    ropeHourglassIconEl.style.display = "none";
+  }
   ropeHourglassCountEl.textContent = state.hourglassStock[state.priorityPlayer] ?? 0;
   ropeEl._nameEl.textContent = `${getPlayerName(state.priorityPlayer)}の砂時計が燃えています`;
 }

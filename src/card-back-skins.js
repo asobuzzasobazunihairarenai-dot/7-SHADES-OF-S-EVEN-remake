@@ -1,10 +1,11 @@
-// カード裏面セットの選択: プレイヤー自身だけの見た目の好み。updateMyIdentity()等で
-// サーバーへ送らない、他プレイヤーの画面には一切反映されない、ページ再読み込みで
-// デフォルト（標準）に戻る、純粋にローカルの表示設定（motion-prefs.jsと同じ
-// 「永続化しない」方針）。ユーザー要望「一旦はこの仕様（自分だけ）で、将来的には
-// STORYモード等で裏面が全員向けに変わるようにもしたい」を反映し、今回は意図的に
-// サーバー同期の仕組みを持たせていない（全員向けに変える仕組みが必要になったら、
-// このモジュールとは別に、state.js/online.js側の同期の仕組みとして追加する想定）。
+// カード裏面セットの選択: プレイヤー自身だけの見た目の好み。他プレイヤーの画面には
+// 一切反映されない（updateMyIdentity()等、盤面共有の仕組みとは別経路）。ユーザー要望
+// 「一旦はこの仕様（自分だけ）で、将来的にはSTORYモード等で裏面が全員向けに変わるように
+// もしたい」を反映し、他プレイヤーへ配る仕組みは意図的に持たせていない。
+// 一方で「アカウントに紐づけてほしい」という要望を受け、選択自体はログイン中なら
+// so7_user_profiles（名前・アバター・駒スキンと同じ、ユーザーごとに1行の永続プロフィール）
+// に保存し、ログインするたびに復元されるようにした（online.jsのsaveMyPreference/
+// registerAppearanceApplier参照）。未ログインの間はこれまで通りページ再読み込みで標準に戻る。
 //
 // 「通常カード」「エターナルカード」「ファーストカード」の裏面は、物理カードの
 // デザインセットに相当するため常にセットとして一括で切り替わる（個別には選べない）。
@@ -38,6 +39,14 @@ export function getCardBackSetIndex() {
   return selectedSetIndex;
 }
 
+// ログイン直後、アカウントに保存済みの選択を読み込んで適用する時にも使う
+// （online.jsのloadMyPreferences経由、registerAppearanceApplier参照）。
+export function setCardBackSetIndex(idx) {
+  if (!CARD_BACK_SETS.includes(idx)) return;
+  selectedSetIndex = idx;
+  helpers?.render();
+}
+
 export function backImagePath(kind, idx) {
   const suffix = idx === 0 ? "" : `-${idx}`;
   // 標準セット(0)と「古」セット(10、元画像が既にwebpだった)はWebP、それ以外の追加セット
@@ -49,7 +58,14 @@ export function backImagePath(kind, idx) {
 
 // setup-animation.js/remote-move-animator.jsと同じ「main.jsから自分の関数を注入してもらう」
 // 循環import回避パターン。セット変更直後、自分の画面にも即座に反映させるためだけに使う。
-let helpers = null; // { render }
+// ハマりどころ: online.jsのsaveMyPreference()もこのパターンでinjectする必要がある
+// （render等とは別の理由）。cards-data.jsがこのファイルをimportしており、もしこのファイルが
+// online.js（→state.js→cards-data.js）を直接importすると、cards-data.js→card-back-skins.js
+// →online.js→state.js→cards-data.jsという循環importになり、NORMAL_CARDS等の初期化順序が
+// 崩れてTDZエラー（"Cannot access 'NORMAL_CARDS' before initialization"）でアプリ全体が
+// 起動しなくなる（実際に発生させて原因特定済み）。savePreferenceもmain.js経由で注入する
+// ことでこれを回避する。
+let helpers = null; // { render, savePreference }
 export function registerCardBackSkinHelpers(h) {
   helpers = h;
 }
@@ -78,8 +94,8 @@ export function openCardBackSkinPicker() {
     img.alt = SET_LABELS[idx] ?? `追加${idx}`;
     swatch.appendChild(img);
     swatch.addEventListener("click", () => {
-      selectedSetIndex = idx;
-      helpers?.render();
+      setCardBackSetIndex(idx);
+      helpers?.savePreference?.({ card_back_set_index: idx }).catch((err) => console.error("saveMyPreference failed", err));
       close();
     });
     grid.appendChild(swatch);

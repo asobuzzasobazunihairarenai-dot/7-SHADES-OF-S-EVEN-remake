@@ -29,9 +29,9 @@ import {
   registerPieceSkinHelpers,
   setLocalPreferredSkinIndex,
 } from "./piece-skins.js";
-import { openCardBackSkinPicker, registerCardBackSkinHelpers, backImagePath as cardBackSetImagePath, getCardBackSetIndex } from "./card-back-skins.js";
-import { openPlaymatPicker, registerPlaymatHelpers, getSelectedPlaymatPath } from "./playmat.js";
-import { openBackgroundPicker, registerBackgroundHelpers, getSelectedBackgroundPath } from "./background.js";
+import { openCardBackSkinPicker, registerCardBackSkinHelpers, backImagePath as cardBackSetImagePath, getCardBackSetIndex, setCardBackSetIndex } from "./card-back-skins.js";
+import { openPlaymatPicker, registerPlaymatHelpers, getSelectedPlaymatPath, setSelectedPlaymatId } from "./playmat.js";
+import { openBackgroundPicker, registerBackgroundHelpers, getSelectedBackgroundPath, setSelectedBackgroundId } from "./background.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS } from "./player-identity.js";
 import { applyAvatarContent, getAvatarVariant } from "./avatar-render.js";
@@ -83,6 +83,8 @@ import {
   getGoogleAvatarUrl,
   getRoomName,
   registerIdentityApplier,
+  registerAppearanceApplier,
+  saveMyPreference,
 } from "./online.js";
 import { playSound } from "./sound.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
@@ -1000,18 +1002,28 @@ export function toStageLocalRect(r) {
 }
 
 function getEffectiveFitRect(table) {
-  const rects = [table.getBoundingClientRect()];
+  const tableRect = table.getBoundingClientRect();
   // .hand-fan自身ではなく個々の.hand-cardを見る（扇状の回転は個々のカードのtransformで
   // 付けているため、.hand-fan自身の矩形はその突き出しを含まない。measureHandFanExtent
   // 参照）。ここは初期見積もりなので、以降の実測補正ループほど厳密でなくてもよいが、
   // 同じ理由で最初から.hand-cardを使っておく。
+  // ハマりどころ（ユーザー報告「Aの手札にカードが加わると画面全体が遠景になる」）:
+  // 手札は扇の枚数が増えるほど個々のカードのtranslateY・rotateが大きくなり、下端(bottom)が
+  // どんどん深く伸びる（実測で確認済み）。この下端は「あえて画面下端から見切れる」設計
+  // （手札は上の部分が少し見えていればよい）なので、幅/高さの初期見積もりには含めない。
+  // 上端(top)・左右(left/right)は引き続き含める（手札が完全に画面外へ消えたり、
+  // 扇が左右にはみ出すのを防ぐため）。
+  let top = tableRect.top;
+  let bottom = tableRect.bottom;
+  let left = tableRect.left;
+  let right = tableRect.right;
   for (const card of table.querySelectorAll(".hand-card")) {
-    rects.push(card.getBoundingClientRect());
+    const r = card.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) continue;
+    top = Math.min(top, r.top);
+    left = Math.min(left, r.left);
+    right = Math.max(right, r.right);
   }
-  const top = Math.min(...rects.map((r) => r.top));
-  const bottom = Math.max(...rects.map((r) => r.bottom));
-  const left = Math.min(...rects.map((r) => r.left));
-  const right = Math.max(...rects.map((r) => r.right));
   // width/heightは差分（オフセットの影響を受けない）なので、ステージの倍率で割るだけで
   // ローカル座標系の値になる。
   return { width: (right - left) / currentStageScale, height: (bottom - top) / currentStageScale };
@@ -1096,7 +1108,14 @@ function applyNormalFit() {
     left: marginW,
     right: STAGE_WIDTH - marginW,
   };
-  const worstOverflow = (e) => Math.max(e.bottom - bounds.bottom, bounds.top - e.top, e.right - bounds.right, bounds.left - e.left);
+  // ユーザー要望「Aの手札は上の部分がちらっと見えていればよく、画面全体を遠景にしてまで
+  // 手札全体を収める必要はない」に対応するため、下端方向だけは手札の下端(e.bottom)ではなく
+  // 上端(e.top)を基準に判定する。つまり「手札の一番奥側（board寄り）の縁が画面下端の
+  // 余白より上に少しでも顔を出していればOK」という緩い基準にし、手札の残り（近側の大部分）が
+  // 画面下端の外へ大きくはみ出すのは許容する（元々「あえて画面下端から見切れる位置に
+  // 配置」していた意図的な見た目に近い状態）。タブレットで手札が完全に見えなくなる
+  // （e.topごと画面外に落ちる）不具合への対策はこれでも引き続き機能する。
+  const worstOverflow = (e) => Math.max(e.top - bounds.bottom, bounds.top - e.top, e.right - bounds.right, bounds.left - e.left);
   for (let i = 0; i < 3 && scale > 0.05; i++) {
     const e1 = measureHandFanExtent(table);
     const overflow1 = worstOverflow(e1);
@@ -1109,9 +1128,9 @@ function applyNormalFit() {
     let edge1;
     let edge2;
     let bound;
-    if (e1.bottom - bounds.bottom === overflow1) {
-      edge1 = e1.bottom;
-      edge2 = e2.bottom;
+    if (e1.top - bounds.bottom === overflow1) {
+      edge1 = e1.top;
+      edge2 = e2.top;
       bound = bounds.bottom;
     } else if (bounds.top - e1.top === overflow1) {
       edge1 = e1.top;
@@ -3551,7 +3570,7 @@ initInteractionModeToggle();
 initDeviceDetect();
 registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocationElement, setSetupPendingTokenIds });
 registerPieceSkinHelpers({ render });
-registerCardBackSkinHelpers({ render });
+registerCardBackSkinHelpers({ render, savePreference: saveMyPreference });
 registerPlaymatHelpers({ render });
 registerBackgroundHelpers({ render });
 // ログイン直後（online.jsのloadMyPreferences）に、保存済みの名前・アバター・駒スキンを
@@ -3566,6 +3585,16 @@ registerIdentityApplier(({ name, avatar, pieceSkinIndex }) => {
   if (name) setPlayerName(seat, name);
   if (avatar) setPlayerAvatar(seat, avatar);
   if (typeof pieceSkinIndex === "number") setLocalPreferredSkinIndex(pieceSkinIndex);
+  render();
+});
+// ユーザー要望「プレイマット・カード裏面・背景変更をアカウントに紐づけてほしい」。
+// ログイン直後、online.jsのloadMyPreferences()がso7_user_profilesから読み込んだ値を
+// ここで実際に反映する（各setter自体が内部でrenderを済ませるが、念のためこの後も
+// render()を呼び、初回ログイン等で他の初期化と競合してもズレが残らないようにする）。
+registerAppearanceApplier(({ playmatId, cardBackSetIndex, backgroundId }) => {
+  if (playmatId) setSelectedPlaymatId(playmatId);
+  if (typeof cardBackSetIndex === "number") setCardBackSetIndex(cardBackSetIndex);
+  if (backgroundId) setSelectedBackgroundId(backgroundId);
   render();
 });
 registerRemoteMoveAnimatorHelpers({

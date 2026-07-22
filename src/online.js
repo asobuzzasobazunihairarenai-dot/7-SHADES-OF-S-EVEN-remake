@@ -226,6 +226,16 @@ export function registerIdentityApplier(fn) {
   identityApplierFn = fn;
 }
 
+// playmat.js/card-back-skins.js/background.jsはどれもsaveMyPreference()を使うために
+// このファイルを直接importしているため、online.js側からそれらを直接importし返すと
+// player-identity.js/piece-skins.jsと同じ理由で循環importになる。上のidentityApplierFnと
+// 同じ「main.jsから実際の適用ロジックを注入してもらう」パターンで、ログイン直後に
+// 保存済みのプレイマット/カード裏面/背景画像を反映する。
+let appearanceApplierFn = null;
+export function registerAppearanceApplier(fn) {
+  appearanceApplierFn = fn;
+}
+
 // ログイン済みならso7_user_profilesへ{user_id, ...patch, updated_at}をupsertするだけの
 // 薄い関数。未ログインの間は何もしない（ローカル/未ログインでの利用を妨げないため）。
 export async function saveMyPreference(patch) {
@@ -245,7 +255,7 @@ export async function loadMyPreferences() {
       "lock_area_bar_visible, lock_color_visible, sound_volume, flight_animation_disabled, " +
         "arrival_effect_disabled, continuous_glow_disabled, gate_invasion_modal_duration, " +
         "card_arrival_modal_duration, hand_pickup_toast_duration, shortcuts, " +
-        "display_name, avatar, piece_skin_index"
+        "display_name, avatar, piece_skin_index, playmat_id, card_back_set_index, background_id"
     )
     .eq("user_id", cachedUser.id)
     .maybeSingle();
@@ -278,6 +288,11 @@ export async function loadMyPreferences() {
     name: data.display_name || null,
     avatar: data.avatar || null,
     pieceSkinIndex: typeof data.piece_skin_index === "number" ? data.piece_skin_index : null,
+  });
+  appearanceApplierFn?.({
+    playmatId: data.playmat_id || null,
+    cardBackSetIndex: typeof data.card_back_set_index === "number" ? data.card_back_set_index : null,
+    backgroundId: data.background_id || null,
   });
   window.dispatchEvent(new CustomEvent("admin:change"));
 }
@@ -709,6 +724,13 @@ export async function fetchAndHydrate(gameId) {
       priorityDeadline: gameRow.priority_deadline,
       priorityPhase: gameRow.priority_phase,
       hourglassStock: gameRow.hourglass_stock ?? {},
+      // ハマりどころ（ユーザー報告「オンラインで最後のロックの承認拒否モーダルが出ない」）:
+      // supabase_setup_so7.sqlのso7_apply_and_commitはpending_final_lockカラムを正しく
+      // 読み書きしているが、ここのhydrateState()に渡すオブジェクトにこのフィールドが
+      // 抜けていたため、fetchAndHydrate()が呼ばれるたび（自分の操作直後・他プレイヤーの
+      // state_changed Broadcast受信時のいずれも）にstate.pendingFinalLockがundefinedへ
+      // 上書きされ、final-lock-approval.jsのバナーが常に非表示扱いになっていた。
+      pendingFinalLock: gameRow.pending_final_lock ?? null,
     });
   });
 }

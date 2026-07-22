@@ -4,6 +4,7 @@
 // 素材と同じ理由でgit管理外（.gitignoreの/assets/playmats/参照）。
 
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { saveMyPreference } from "./online.js";
 
 export const PLAYMAT_OPTIONS = [
   { id: "white", label: "白", path: "assets/playmats/white.webp" },
@@ -35,8 +36,13 @@ export function getSelectedPlaymatId() {
   return selectedPlaymatId;
 }
 
+// ログイン直後、アカウントに保存済みの選択を読み込んで適用する時にも使う
+// （online.jsのloadMyPreferences経由、registerAppearanceApplier参照）。呼び出し元を問わず
+// 見た目へすぐ反映されるよう、ここでrenderまで済ませておく。
 export function setSelectedPlaymatId(id) {
-  if (PLAYMAT_OPTIONS.some((p) => p.id === id)) selectedPlaymatId = id;
+  if (!PLAYMAT_OPTIONS.some((p) => p.id === id)) return;
+  selectedPlaymatId = id;
+  helpers?.render();
 }
 
 export function getSelectedPlaymatPath() {
@@ -78,8 +84,10 @@ export function openPlaymatPicker() {
     img.alt = option.label;
     swatch.appendChild(img);
     swatch.addEventListener("click", () => {
-      selectedPlaymatId = option.id;
-      helpers?.render();
+      setSelectedPlaymatId(option.id);
+      // ユーザー要望「プレイマット変更をアカウントに紐づけてほしい」。未ログインの間は
+      // saveMyPreference側が何もしないので、ローカルでの見た目切り替えは従来通り機能する。
+      saveMyPreference({ playmat_id: option.id }).catch((err) => console.error("saveMyPreference failed", err));
       close();
     });
     grid.appendChild(swatch);

@@ -398,6 +398,25 @@ body.is-touch-device .zone-bottom .hand-area {
 body.is-touch-device .hand-area {
   will-change: transform;
 }
+/* ユーザー報告「タブレットでBDの名前表示もチカチカ高速点滅する」への追加対応
+   （前回のhand-areaへのwill-change単体では解決しなかった）。B/Dの.hand-areaは
+   translateZ(0.5rem)しか無く（Aの2.4remよりずっと浅い）、translateZ無し(実質0)の
+   同じpreserve-3d階層内の兄弟である.labelとのZ差がごくわずかなため、この2つの間で
+   z-fightingが起きている可能性が高いと判断した。.labelの方にも同じwill-change対策を
+   施し、独立した合成レイヤーに分離することで深度比較のあいまいさを避ける
+   （こちらも実機でしか再現できず未検証）。 */
+body.is-touch-device .label {
+  will-change: transform;
+}
+/* ユーザーの仮説「背景にレイヤーか手札レイヤーがいたずらしてそう」に基づく追加対応。
+   .table-background-bg（背景画像）と.playmat-bg（プレイマット画像）はどちらも
+   translateZ無し（実質同じZ=0）で、z-indexだけで前後を分けている。preserve-3d階層内では
+   z-indexだけでは確実な前後判定にならず、この2枚も.labelと同様のz-fighting候補になり得る
+   ため、同じ対策を施す。 */
+body.is-touch-device .table-background-bg,
+body.is-touch-device .playmat-bg {
+  will-change: transform;
+}
 
 .zone-top .hand-area {
   height: var(--hand-c-thickness);
@@ -1223,7 +1242,18 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
   font-size: 0.75rem;
   color: #94a3b8;
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
   transform: translate(var(--turn-timer-self-stock-pos-x, 0rem), var(--turn-timer-self-stock-pos-y, 0rem));
+}
+/* ユーザーがプレイヤー色別の砂時計アイコン画像を追加してくれたため、絵文字(⏳)から
+   差し替えた。自分の駒の色に応じたアイコンをJS側(updateSelfStock)で設定する。 */
+.turn-timer-self-stock-icon {
+  display: block;
+  width: 0.9rem;
+  height: 0.9rem;
+  object-fit: contain;
 }
 
 /* 画面中央、プレイマットを横断するスケールで出現する神秘的なオーラのロープ。基本時間
@@ -1297,6 +1327,14 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
   font-size: 1.5rem;
   line-height: 1;
   filter: drop-shadow(0 0 0.5rem var(--turn-timer-rope-color));
+}
+/* ユーザーがプレイヤー色別の砂時計アイコン画像を追加してくれたため、絵文字(⏳)から
+   差し替えた。優先権保持者の駒の色に応じて表示するアイコンをJS側(updateRope)で切り替える。 */
+.turn-timer-rope-hourglass-icon {
+  display: block;
+  width: 1.5rem;
+  height: 1.5rem;
+  object-fit: contain;
 }
 .turn-timer-rope-hourglass-count {
   position: absolute;

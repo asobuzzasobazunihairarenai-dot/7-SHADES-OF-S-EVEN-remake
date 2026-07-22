@@ -637,3 +637,14 @@ begin
   where id = p_game_id;
 end;
 $$;
+
+-- 追加機能: プレイマット・カード裏面・背景画像の選択も、名前/アバター/駒スキンや基本設定と
+-- 同じso7_user_profiles（ユーザーごとに1行の永続プロフィール）に含めてアカウントに紐づける
+-- （ユーザー要望「まだアカウントに紐づいていないので紐づけてほしい」）。これらは他プレイヤーの
+-- 画面には反映されない自分だけの見た目設定（card-back-skins.js冒頭のコメント参照）のため、
+-- so7_game_seats側への書き込みは不要——online.jsのloadMyPreferences()/saveMyPreference()と
+-- 同じ経路にそのまま乗せるだけでよい。
+alter table so7_user_profiles
+  add column if not exists playmat_id text,
+  add column if not exists card_back_set_index int not null default 0,
+  add column if not exists background_id text;

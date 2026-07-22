@@ -1,8 +1,11 @@
 // 背景画像の選択。画像素材/背景/配下に複数種類（現在3種）が用意されたため、プレイマットと
 // 同じ「左下の自分専用ステータスエリアのアイコンから選べる」方式にする。他の実物画像素材と
 // 同じ理由でgit管理外（.gitignoreの/assets/backgrounds/参照）。
+// ユーザー要望「アカウントに紐づけてほしい」を受け、ログイン中はso7_user_profilesに保存し
+// ログインするたびに復元する（online.jsのsaveMyPreference/registerAppearanceApplier参照）。
 
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { saveMyPreference } from "./online.js";
 
 export const BACKGROUND_OPTIONS = [
   { id: "1", label: "背景1", path: "assets/backgrounds/1.webp" },
@@ -14,6 +17,14 @@ let selectedBackgroundId = "1";
 
 export function getSelectedBackgroundPath() {
   return BACKGROUND_OPTIONS.find((b) => b.id === selectedBackgroundId).path;
+}
+
+// ログイン直後、アカウントに保存済みの選択を読み込んで適用する時にも使う
+// （online.jsのloadMyPreferences経由、registerAppearanceApplier参照）。
+export function setSelectedBackgroundId(id) {
+  if (!BACKGROUND_OPTIONS.some((b) => b.id === id)) return;
+  selectedBackgroundId = id;
+  helpers?.render();
 }
 
 // setup-animation.js/playmat.js等と同じ「main.jsから自分のrenderを注入してもらう」
@@ -50,8 +61,8 @@ export function openBackgroundPicker() {
     img.alt = option.label;
     swatch.appendChild(img);
     swatch.addEventListener("click", () => {
-      selectedBackgroundId = option.id;
-      helpers?.render();
+      setSelectedBackgroundId(option.id);
+      saveMyPreference({ background_id: option.id }).catch((err) => console.error("saveMyPreference failed", err));
       close();
     });
     grid.appendChild(swatch);
