@@ -3385,6 +3385,20 @@ body.is-touch-device .self-status-icon-grid #self-status-online .icon-action-but
 body.avatar-outline-visible .avatar-image {
   box-shadow: 0 0 0 0.12rem rgba(0, 0, 0, 0.55);
 }
+
+/* タブレット点滅の原因切り分け用（管理者モード「【診断用】3D効果を一時的に無効化」）。
+   ユーザーがZ値・傾き角度・透視投影・will-changeの横展開の4種類の実験を試しても
+   直らず、Firefox/Chrome/Safariいずれでも同様に起きるとの報告を受けた最終確認手段。
+   perspectiveを外し、全要素のtransform-styleをflatに強制することで、preserve-3d
+   による疑似3D合成そのものを完全に無効化する。見た目は真上から見たような平らな
+   崩れた表示になるが、それは想定内（原因切り分け専用で、見た目を保つ機能ではない）。
+   これで点滅が消えれば3D合成が原因、消えなければ描画とは別の原因を疑う必要がある。 */
+body.diagnostic-flatten-3d .scene {
+  perspective: none;
+}
+body.diagnostic-flatten-3d * {
+  transform-style: flat !important;
+}
 .zone-bottom .player-avatar .avatar-image {
   width: var(--avatar-a-size);
   height: var(--avatar-a-size);

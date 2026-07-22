@@ -699,6 +699,16 @@ export function isAvatarOutlineVisible() {
   return avatarOutlineVisible;
 }
 
+// タブレットの点滅診断用（一時的なデバッグ機能）。ユーザーがZ値・傾き角度・透視投影・
+// will-changeの横展開と4種類の実験を試しても点滅が直らず、しかもFirefox/Chrome/Safari
+// 全てで同様に起きるとの報告を受け、「preserve-3d + perspectiveによる3D合成そのもの」が
+// 原因かどうかを切り分けるための最終確認手段として追加した。ONにすると盤面が本来の
+// 見た目（斜め上から見た3D風レイアウト）を保てず真上から見たような平らな見た目に
+// 崩れるが、それは想定内（見た目の良し悪しを問う機能ではなく、あくまで原因切り分け用）。
+// これで点滅が消えれば3D合成が原因、消えなければ全く別の原因（描画とは無関係な
+// JS側の高頻度処理等）を疑う必要がある。
+let diagnosticFlatten3d = false;
+
 // ターンタイマー（ロープ・砂時計・優先権、src/turn-timer.js）。実質オンライン対戦向けの
 // 機能でローカルモードでは緊張感が無いため、デフォルトはオフ。GROUPS/CONTROLSのCSS変数
 // スライダーとは性質が異なる（見た目ではなくゲームロジックのパラメータ）ため、
@@ -967,6 +977,30 @@ const TOGGLE_SECTIONS = [
       avatarOutlineRow.appendChild(avatarOutlineCheckbox);
       avatarOutlineRow.appendChild(avatarOutlineLabel);
       content.appendChild(avatarOutlineRow);
+    },
+  },
+  {
+    // タブレット点滅の原因切り分け用診断ツール。ONの間は盤面の見た目が崩れるのは
+    // 想定内（機能ではなく実験用）。
+    title: "【診断用】3D効果を一時的に無効化（点滅の原因切り分け）",
+    category: "tablet",
+    buildContent: (content) => {
+      const flattenRow = document.createElement("label");
+      flattenRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const flattenCheckbox = document.createElement("input");
+      flattenCheckbox.type = "checkbox";
+      flattenCheckbox.checked = diagnosticFlatten3d;
+      flattenCheckbox.addEventListener("change", () => {
+        diagnosticFlatten3d = flattenCheckbox.checked;
+        document.body.classList.toggle("diagnostic-flatten-3d", diagnosticFlatten3d);
+        updateExportRef.current();
+      });
+      const flattenLabel = document.createElement("span");
+      flattenLabel.textContent =
+        "ONにすると盤面が平らな見た目に崩れます（正常な動作です）。これでチカチカが消えるかどうかだけ確認してください。";
+      flattenRow.appendChild(flattenCheckbox);
+      flattenRow.appendChild(flattenLabel);
+      content.appendChild(flattenRow);
     },
   },
   {
@@ -1319,6 +1353,7 @@ function buildPanel(rebuildSlidersRef) {
       `selfNameLabelVisible: ${selfNameLabelVisible}`,
       `spotlightMode: ${spotlightMode}`,
       `avatarOutlineVisible: ${avatarOutlineVisible}`,
+      `diagnosticFlatten3d: ${diagnosticFlatten3d}`,
       `turnTimerEnabled: ${turnTimerEnabled}`,
       `initialHourglassStock: ${initialHourglassStock}`,
       `maxHourglassStock: ${maxHourglassStock}`,
