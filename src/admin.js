@@ -77,8 +77,10 @@ const GROUPS = [
     title: "オンライン操作の点滅ハイライト（置いた/取った）",
     category: "effect",
     controls: [
-      { key: "--move-blink-duration", label: "点滅の長さ（秒）", unit: "", min: 0.5, max: 10, step: 0.5, default: 3 },
-      { key: "--move-blink-arrow-size", label: "矢印のサイズ", unit: "rem", min: 0.5, max: 4, step: 0.1, default: 2.2 },
+      { key: "--move-blink-duration", label: "表示秒数（点滅・矢印・アバター共通）", unit: "", min: 0.5, max: 10, step: 0.5, default: 3 },
+      { key: "--move-blink-arrow-size", label: "矢印のサイズ", unit: "rem", min: 0.5, max: 8, step: 0.1, default: 5 },
+      { key: "--move-blink-arrow-stroke", label: "矢印の太さ（輪郭線）", unit: "rem", min: 0, max: 0.6, step: 0.01, default: 0.09 },
+      { key: "--move-blink-avatar-rotate", label: "ミニアバターの傾き", unit: "deg", min: -180, max: 180, step: 1, default: 0 },
     ],
   },
   {

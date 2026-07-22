@@ -2057,15 +2057,15 @@ body.is-touch-device #priority-transfer-buttons {
   animation: move-blink-arrow-fade calc(var(--move-blink-duration, 3) * 1s) ease-in-out;
 }
 .move-blink-arrow-glyph {
-  font-size: var(--move-blink-arrow-size, 2.2rem);
+  font-size: var(--move-blink-arrow-size, 5rem);
   font-weight: 900;
   line-height: 1;
   color: var(--move-blink-color, #ffffff);
   /* 太字だけでは縁が細く見えたため、-webkit-text-strokeで輪郭を太らせ、さらに
      drop-shadowではなくtext-shadowを複数重ねて「もっと太く大きく」というユーザー要望に
      応える（矢印は絵文字ではなく単純なテキストグリフのため、-webkit-text-strokeが
-     効く）。 */
-  -webkit-text-stroke: 0.09rem var(--move-blink-color, #ffffff);
+     効く）。太さは管理者モードで調整できる（--move-blink-arrow-stroke）。 */
+  -webkit-text-stroke: var(--move-blink-arrow-stroke, 0.09rem) var(--move-blink-color, #ffffff);
   text-shadow:
     0 0 0.15rem rgba(0, 0, 0, 0.9),
     0 0 0.4rem rgba(0, 0, 0, 0.75),
@@ -2079,6 +2079,8 @@ body.is-touch-device #priority-transfer-buttons {
   border: 0.12rem solid var(--move-blink-color, #ffffff);
   box-shadow: 0 0 0.4rem rgba(0, 0, 0, 0.6);
   background: #1e293b;
+  /* ユーザー要望「ミニアバターの傾きも管理者モードで調整したい」。 */
+  transform: rotate(var(--move-blink-avatar-rotate, 0deg));
 }
 .move-blink-arrow-avatar .avatar-image {
   width: 100%;
@@ -4436,7 +4438,9 @@ body.is-online-mode #quick-start-bar {
   --card-arrival-modal-top: 3rem;
   --card-arrival-modal-right: 1rem;
   --move-blink-duration: 3;
-  --move-blink-arrow-size: 2.2rem;
+  --move-blink-arrow-size: 5rem;
+  --move-blink-arrow-stroke: 0.09rem;
+  --move-blink-avatar-rotate: 0deg;
   --start-player-avatar-size: 12rem;
   --gate-invasion-modal-size: 28rem;
   --gate-invasion-modal-step-duration: 3.5;

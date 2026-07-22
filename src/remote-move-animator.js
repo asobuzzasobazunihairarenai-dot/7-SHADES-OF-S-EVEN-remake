@@ -123,16 +123,18 @@ function blinkLocation(location, table, arrow = null) {
     const arrowWrap = document.createElement("div");
     arrowWrap.className = `move-blink-arrow is-${arrow}`;
     arrowWrap.style.setProperty("--move-blink-color", color ? `var(--color-${color})` : "#ffffff");
-    const arrowGlyph = document.createElement("span");
-    arrowGlyph.className = "move-blink-arrow-glyph";
-    arrowGlyph.textContent = arrow === "down" ? "↓" : "↑";
-    arrowWrap.appendChild(arrowGlyph);
+    // ユーザー要望「ミニアバターは矢印の上がいい」。DOM順=見た目の上下（.move-blink-arrowは
+    // flex-direction: column）なので、アバターを先に足す。
     if (actor) {
       const avatarEl = document.createElement("div");
       avatarEl.className = "move-blink-arrow-avatar";
       applyAvatarContent(avatarEl, getAvatarVariant(getPlayerAvatar(actor), "front"));
       arrowWrap.appendChild(avatarEl);
     }
+    const arrowGlyph = document.createElement("span");
+    arrowGlyph.className = "move-blink-arrow-glyph";
+    arrowGlyph.textContent = arrow === "down" ? "↓" : "↑";
+    arrowWrap.appendChild(arrowGlyph);
     hostEl.appendChild(arrowWrap);
     setTimeout(() => arrowWrap.remove(), durationMs);
   }
