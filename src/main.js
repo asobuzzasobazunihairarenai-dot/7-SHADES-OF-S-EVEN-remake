@@ -54,6 +54,7 @@ import {
   registerRemoteMoveAnimatorHelpers,
   handleHydrate as handleRemoteMoveHydrate,
   skipNextHydrateDiff,
+  reapplyActiveHighlights,
 } from "./remote-move-animator.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
 import {
@@ -972,6 +973,13 @@ function render() {
   table.appendChild(buildPileZone("first"));
   table.appendChild(buildPileZone("discard"));
   renderBoardTokens(table);
+  // ハマりどころ（ユーザー報告「連続で置いたり取ったりすると前のアニメが強制的に
+  // 消える」）: このrender()は状態が変わるたびに盤面を丸ごと作り直す
+  // （上のtable.innerHTML=""）ため、直前の操作で点滅中だったマスのDOM要素も
+  // 問答無用で消えてしまっていた。remote-move-animator.jsが「今どこがまだ点滅中か」を
+  // DOM要素ではなく論理的な位置で覚えているので、作り直した直後にそれをこの新しい
+  // 要素へ再度貼り付け直してもらう。
+  reapplyActiveHighlights(table);
   fitTableToViewport();
   updateEndTurnButton();
   updateDrawButton();

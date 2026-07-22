@@ -104,13 +104,61 @@ function getMoveBlinkDurationMs() {
   const seconds = parseFloat(raw);
   return (Number.isNaN(seconds) ? 3 : seconds) * 1000;
 }
-// ユーザー報告「連続で置いたり取ったりした場合、時間内であっても前のアニメが
-// 強制的に消えてしまう」への対応。以前は呼び出しのたびに素朴なsetTimeoutだけで
-// クラス/矢印を消していたため、同じマスで短時間に複数回blinkLocationが呼ばれると、
-// 先に仕掛けたタイマーが今回の分もろとも消してしまっていた（後から来た方の表示時間が
-// 実質的に短縮される、または表示中に消える）。マスごとに「今何が予約されているか」を
-// 憶えておき、新しい呼び出しが来たら前の予約を解除してから今回の分を予約し直す。
-const pendingBlinkByHost = new WeakMap();
+// ハマりどころ（重大、ユーザー報告「連続で置いたり取ったりすると前のアニメが
+// 強制的に消える」）: 以前はこのタイマー管理をDOM要素（hostEl）に直接ひもづけて
+// いたが、main.jsのrender()は状態が変わるたびに`table.innerHTML = ""`で盤面
+// 全体を毎回作り直しており、他のどんな操作（同じマスとは限らない）が起きても
+// その瞬間に今光っているマスのDOM要素ごと消え去ってしまっていた（タイマー管理を
+// どれだけ工夫してもDOM要素自体が無くなれば意味が無い）。そのため、状態を
+// 「DOM要素」ではなく「マスの論理的な位置（座標）」に紐づけて持つように変更した。
+// render()のたびに、まだ有効なものだけをこの記録から読み直してそのマスの
+// （作り直された）新しい要素へ再度貼り付け直す（reapplyActiveHighlights、
+// main.jsのrender()末尾から呼んでもらう）。
+const activeBlinksByKey = new Map(); // key -> { location, startedAt, durationMs, color, arrow }
+
+function locationKey(location) {
+  if (location.zone === "cell") return `cell:${location.row}:${location.col}`;
+  if (location.zone === "lock") return `lock:${location.side}:${location.index}`;
+  return `${location.zone}:${location.player}`;
+}
+
+// hostElに実際にクラス・CSS変数・矢印を貼り付ける処理。新規発火(blinkLocation)・
+// render後の再貼り付け(reapplyActiveHighlights)の両方から呼ぶ共通処理。
+// elapsedMsを渡すと、CSSアニメーションを最初からではなく「resumeAtMsだけ既に
+// 経過した状態」から再生させる（負のanimation-delayで実現、render()を挟んでも
+// 点滅が唐突に最初へ巻き戻らず、自然に続きから見えるようにするため）。
+function applyBlinkVisual(hostEl, entry, elapsedMs) {
+  hostEl.style.setProperty("--move-blink-color", entry.color ? `var(--color-${entry.color})` : "#ffffff");
+  hostEl.classList.remove("move-highlight-blink");
+  void hostEl.offsetWidth;
+  hostEl.classList.add("move-highlight-blink");
+  hostEl.style.animationDelay = `-${elapsedMs}ms`;
+
+  if (entry.arrow) {
+    const arrowWrap = document.createElement("div");
+    arrowWrap.className = `move-blink-arrow is-${entry.arrow}`;
+    arrowWrap.style.setProperty("--move-blink-color", entry.color ? `var(--color-${entry.color})` : "#ffffff");
+    arrowWrap.style.animationDelay = `-${elapsedMs}ms`;
+    // ユーザー要望「ミニアバターは矢印の上がいい」。DOM順=見た目の上下（.move-blink-arrowは
+    // flex-direction: column）なので、アバターを先に足す。
+    if (entry.actor) {
+      const avatarEl = document.createElement("div");
+      avatarEl.className = "move-blink-arrow-avatar";
+      applyAvatarContent(avatarEl, getAvatarVariant(getPlayerAvatar(entry.actor), "front"));
+      arrowWrap.appendChild(avatarEl);
+    }
+    // ユーザーが用意した色別の矢印画像（画像素材/アイコン/矢印/、7色×上/下）に差し替え。
+    // 既にその色に着色済みの画像のため、CSS側で色を塗り直す必要は無い（--move-blink-color
+    // は引き続きマス目の点滅・アバターの縁取りにだけ使う）。色が特定できない場合
+    // （実行者不明・駒が見つからない等、通常は起こらない）は既定でredの画像にフォールバックする。
+    const arrowGlyph = document.createElement("img");
+    arrowGlyph.className = "move-blink-arrow-glyph";
+    arrowGlyph.alt = "";
+    arrowGlyph.src = `assets/icons/arrow-${entry.color || "red"}-${entry.arrow}.webp`;
+    arrowWrap.appendChild(arrowGlyph);
+    hostEl.appendChild(arrowWrap);
+  }
+}
 
 function blinkLocation(location, table, arrow = null) {
   const hostEl = helpers.findLocationElement?.(table, location);
@@ -122,53 +170,31 @@ function blinkLocation(location, table, arrow = null) {
   const actor = getState().turnPlayer;
   const color = actor ? getPieceColor(actor) : null;
 
-  const pending = pendingBlinkByHost.get(hostEl);
-  if (pending) {
-    clearTimeout(pending.timeoutId);
-    pending.arrowWrap?.remove();
-  }
+  const key = locationKey(location);
+  const existing = activeBlinksByKey.get(key);
+  if (existing) clearTimeout(existing.timeoutId);
 
-  hostEl.style.setProperty("--move-blink-color", color ? `var(--color-${color})` : "#ffffff");
-  // 既に点滅中（前回のタイマーをキャンセルしただけでクラス自体は付いたまま）だと、
-  // classList.addし直しても既に付いているクラスなのでCSSアニメーションが最初から
-  // 再生し直されない。一度外してリフローを挟んでから付け直すことで、毎回きちんと
-  // 最初から点滅を再生させる。
-  hostEl.classList.remove("move-highlight-blink");
-  void hostEl.offsetWidth;
-  hostEl.classList.add("move-highlight-blink");
+  const entry = { location, startedAt: Date.now(), durationMs, color, arrow, actor };
+  applyBlinkVisual(hostEl, entry, 0);
 
-  let arrowWrap = null;
-  if (arrow) {
-    arrowWrap = document.createElement("div");
-    arrowWrap.className = `move-blink-arrow is-${arrow}`;
-    arrowWrap.style.setProperty("--move-blink-color", color ? `var(--color-${color})` : "#ffffff");
-    // ユーザー要望「ミニアバターは矢印の上がいい」。DOM順=見た目の上下（.move-blink-arrowは
-    // flex-direction: column）なので、アバターを先に足す。
-    if (actor) {
-      const avatarEl = document.createElement("div");
-      avatarEl.className = "move-blink-arrow-avatar";
-      applyAvatarContent(avatarEl, getAvatarVariant(getPlayerAvatar(actor), "front"));
-      arrowWrap.appendChild(avatarEl);
-    }
-    // ユーザーが用意した色別の矢印画像（画像素材/アイコン/矢印/、7色×上/下）に差し替え。
-    // 既にその色に着色済みの画像のため、CSS側で色を塗り直す必要は無い（--move-blink-color
-    // は引き続きマス目の点滅・アバターの縁取りにだけ使う）。色が特定できない場合
-    // （実行者不明・駒が見つからない等、通常は起こらない）は既定でredの画像にフォールバックする。
-    const arrowGlyph = document.createElement("img");
-    arrowGlyph.className = "move-blink-arrow-glyph";
-    arrowGlyph.alt = "";
-    arrowGlyph.src = `assets/icons/arrow-${color || "red"}-${arrow}.webp`;
-    arrowWrap.appendChild(arrowGlyph);
-    hostEl.appendChild(arrowWrap);
-  }
-
-  const timeoutId = setTimeout(() => {
-    hostEl.classList.remove("move-highlight-blink");
-    hostEl.style.removeProperty("--move-blink-color");
-    arrowWrap?.remove();
-    pendingBlinkByHost.delete(hostEl);
+  entry.timeoutId = setTimeout(() => {
+    activeBlinksByKey.delete(key);
   }, durationMs);
-  pendingBlinkByHost.set(hostEl, { timeoutId, arrowWrap });
+  activeBlinksByKey.set(key, entry);
+}
+
+// main.jsのrender()が盤面を作り直した直後に呼んでもらう。まだ有効期限内の点滅だけを、
+// その場所の（作り直された）新しい要素へ経過時間つきで再度貼り付け直す。
+export function reapplyActiveHighlights(table) {
+  if (!helpers || activeBlinksByKey.size === 0) return;
+  const now = Date.now();
+  for (const entry of activeBlinksByKey.values()) {
+    const elapsedMs = now - entry.startedAt;
+    if (elapsedMs >= entry.durationMs) continue; // 期限切れはタイマー側の削除待ち、ここでは無視するだけでよい
+    const hostEl = helpers.findLocationElement?.(table, entry.location);
+    if (!hostEl) continue;
+    applyBlinkVisual(hostEl, entry, elapsedMs);
+  }
 }
 
 async function flyAndReveal(item, fromRect, table, blinkDestination) {

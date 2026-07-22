@@ -80,6 +80,90 @@ const STORY_LINES = [
   "今、はじまる",
 ];
 
+// ユーザー要望「7色の人魂は、ただの丸ではなく軌跡（同じ道を戻らず動く）が欲しい。
+// 輪郭はぼやけている方がいい」への対応。CSSの@keyframesは必ず一定周期で同じ経路を
+// 繰り返してしまう（無限ループなので、いずれ全く同じ軌道をなぞり直す）ため、JSで
+// 毎フレーム「ランダムな目的地へゆっくり近づき、着いたらまた別のランダムな目的地を
+// 選び直す」という徒歩（ワンダリング）アルゴリズムで動かし、真に反復しない軌道にした。
+// 「軌跡」自体は、本体の位置履歴を数フレーム分覚えておき、過去の位置に薄い残像を
+// 重ねて表示する（彗星の尾と同じ仕組み）ことで表現する。
+const AURA_TRAIL_LENGTH = 10;
+
+function startAuraTrails(container) {
+  const auras = AURA_COLORS.map((color) => {
+    const wrap = document.createElement("div");
+    wrap.className = "opening-aura-wrap";
+    wrap.style.setProperty("--aura-color", `var(--color-${color})`);
+    const dots = [];
+    // 残像は末尾(古い)から先に描画し、本体(先頭、一番新しい)を最後に描画することで
+    // 本体が常に一番手前に重なるようにする。
+    for (let i = 0; i < AURA_TRAIL_LENGTH; i++) {
+      const dot = document.createElement("div");
+      dot.className = "opening-aura-dot";
+      wrap.appendChild(dot);
+      dots.push(dot);
+    }
+    container.appendChild(wrap);
+    const startX = 10 + Math.random() * 80;
+    const startY = 10 + Math.random() * 80;
+    return {
+      dots,
+      x: startX,
+      y: startY,
+      targetX: 10 + Math.random() * 80,
+      targetY: 10 + Math.random() * 80,
+      // 見た目の速さにばらつきを持たせる（ユーザー要望「もっと活発に」を踏まえ、
+      // やや速め）。
+      speed: 0.035 + Math.random() * 0.035,
+      history: Array.from({ length: AURA_TRAIL_LENGTH }, () => ({ x: startX, y: startY })),
+    };
+  });
+
+  let running = true;
+  let rafId = null;
+
+  function pickNewTarget(aura) {
+    aura.targetX = 10 + Math.random() * 80;
+    aura.targetY = 10 + Math.random() * 80;
+  }
+
+  function tick() {
+    if (!running) return;
+    for (const aura of auras) {
+      const dx = aura.targetX - aura.x;
+      const dy = aura.targetY - aura.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 3) pickNewTarget(aura);
+      aura.x += dx * aura.speed;
+      aura.y += dy * aura.speed;
+
+      aura.history.pop();
+      aura.history.unshift({ x: aura.x, y: aura.y });
+
+      // 残像を古い順(配列の末尾、履歴の一番過去)から先に位置決めし、本体（履歴[0]）は
+      // 最後に一番不透明・一番大きく描く。
+      for (let i = aura.dots.length - 1; i >= 0; i--) {
+        const pos = aura.history[i];
+        const dot = aura.dots[i];
+        const ratio = 1 - i / aura.dots.length; // 1(本体) 〜 ほぼ0(一番古い残像)
+        dot.style.left = `${pos.x}%`;
+        dot.style.top = `${pos.y}%`;
+        dot.style.opacity = String(ratio * 0.85);
+        dot.style.transform = `translate(-50%, -50%) scale(${0.4 + ratio * 0.7})`;
+      }
+    }
+    rafId = requestAnimationFrame(tick);
+  }
+  rafId = requestAnimationFrame(tick);
+
+  // STARTボタンが押されてゲート自体が不要になったら、無駄にrequestAnimationFrameを
+  // 回し続けないよう停止する（呼び出し元に停止関数を返す）。
+  return function stop() {
+    running = false;
+    if (rafId) cancelAnimationFrame(rafId);
+  };
+}
+
 // ゲストログインの注意書き用の詳細モーダル。既存のphase-guide-modal-*クラス（フェイズ案内板・
 // アイコンボタン等と共通のホバー=簡易/クリック=詳細パターン）をそのまま流用する。
 let infoModalBackdrop = null;
@@ -187,11 +271,7 @@ export function initOpeningScreen() {
 
   const startGate = document.createElement("div");
   startGate.className = "opening-start-gate";
-  for (const color of AURA_COLORS) {
-    const aura = document.createElement("div");
-    aura.className = `opening-aura opening-aura-${color}`;
-    startGate.appendChild(aura);
-  }
+  const stopAuras = startAuraTrails(startGate);
   const startBtn = document.createElement("button");
   startBtn.type = "button";
   startBtn.className = "opening-start-btn";
@@ -241,6 +321,7 @@ export function initOpeningScreen() {
   startBtn.addEventListener("click", () => {
     playOpeningBgm();
     startGate.classList.add("is-closing");
+    stopAuras();
     setTimeout(() => {
       startGate.style.display = "none";
       beginTitleSequence();
