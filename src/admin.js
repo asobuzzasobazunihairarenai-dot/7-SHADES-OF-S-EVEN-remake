@@ -565,7 +565,7 @@ const GROUPS = [
     title: "タブレット専用：ステータスエリア群の一括拡大",
     category: "tablet",
     controls: [
-      { key: "--self-status-scale-touch", label: "拡大率", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 1.75 },
+      { key: "--self-status-scale-touch", label: "拡大率", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 2.5 },
     ],
   },
   {
