@@ -87,9 +87,21 @@ const STORY_LINES = [
 // 選び直す」という徒歩（ワンダリング）アルゴリズムで動かし、真に反復しない軌道にした。
 // 「軌跡」自体は、本体の位置履歴を数フレーム分覚えておき、過去の位置に薄い残像を
 // 重ねて表示する（彗星の尾と同じ仕組み）ことで表現する。
-const AURA_TRAIL_LENGTH = 10;
+// ユーザー要望「大きさ・軌跡の長さ・スピードを管理者モードで調整したい」に対応し、
+// 固定値ではなくCSS変数から都度読み取る（admin.jsの「オープニングの7色の人魂」
+// グループ参照）。
+function getAuraCssNumber(varName, fallback) {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  const n = parseFloat(raw);
+  return Number.isNaN(n) ? fallback : n;
+}
 
 function startAuraTrails(container) {
+  const trailLength = Math.max(1, Math.round(getAuraCssNumber("--opening-aura-trail-length", 10)));
+  const sizeRem = getAuraCssNumber("--opening-aura-size", 12);
+  // ユーザー要望「もっとゆったりと動き回ってほしい」を受けて基準速度を半分程度に
+  // 落とした。--opening-aura-speedは管理者モードで動かせる倍率（既定1）。
+  const speedMultiplier = getAuraCssNumber("--opening-aura-speed", 1);
   const auras = AURA_COLORS.map((color) => {
     const wrap = document.createElement("div");
     wrap.className = "opening-aura-wrap";
@@ -97,9 +109,11 @@ function startAuraTrails(container) {
     const dots = [];
     // 残像は末尾(古い)から先に描画し、本体(先頭、一番新しい)を最後に描画することで
     // 本体が常に一番手前に重なるようにする。
-    for (let i = 0; i < AURA_TRAIL_LENGTH; i++) {
+    for (let i = 0; i < trailLength; i++) {
       const dot = document.createElement("div");
       dot.className = "opening-aura-dot";
+      dot.style.width = `${sizeRem}rem`;
+      dot.style.height = `${sizeRem}rem`;
       wrap.appendChild(dot);
       dots.push(dot);
     }
@@ -112,10 +126,8 @@ function startAuraTrails(container) {
       y: startY,
       targetX: 10 + Math.random() * 80,
       targetY: 10 + Math.random() * 80,
-      // 見た目の速さにばらつきを持たせる（ユーザー要望「もっと活発に」を踏まえ、
-      // やや速め）。
-      speed: 0.035 + Math.random() * 0.035,
-      history: Array.from({ length: AURA_TRAIL_LENGTH }, () => ({ x: startX, y: startY })),
+      speed: (0.015 + Math.random() * 0.015) * speedMultiplier,
+      history: Array.from({ length: trailLength }, () => ({ x: startX, y: startY })),
     };
   });
 
@@ -162,6 +174,43 @@ function startAuraTrails(container) {
     running = false;
     if (rafId) cancelAnimationFrame(rafId);
   };
+}
+
+// ユーザー要望「設定しようとする時は疑似的にオープニングの人魂の画面になるように
+// してほしい」への対応。admin.jsのregisterAuraPreviewHelper経由で注入される
+// （admin.js→opening-screen.jsの直接importは循環importになるため、game-setup.jsの
+// previewStartPlayerModalと同じ注入パターンを使う）。スライダーに触れた瞬間・
+// ドラッグ中の値変更のたびに呼ばれる想定（admin.js参照）。既に開いていれば
+// 中身を最新の値で作り直すだけ、閉じていれば新しく開く。一定時間操作が無ければ
+// 自動で閉じる（クリックでも即座に閉じられる）。
+const AURA_PREVIEW_AUTO_CLOSE_MS = 30000;
+let auraPreviewOverlay = null;
+let auraPreviewStop = null;
+let auraPreviewCloseTimeoutId = null;
+
+function closeAuraPreview() {
+  auraPreviewStop?.();
+  auraPreviewStop = null;
+  auraPreviewOverlay?.remove();
+  auraPreviewOverlay = null;
+  clearTimeout(auraPreviewCloseTimeoutId);
+}
+
+export function previewOpeningAuras() {
+  if (auraPreviewOverlay) {
+    // 既に開いている＝ドラッグ中の値変化を反映するため中身を作り直す。
+    auraPreviewStop?.();
+    auraPreviewOverlay.innerHTML = "";
+  } else {
+    auraPreviewOverlay = document.createElement("div");
+    auraPreviewOverlay.id = "opening-aura-preview";
+    auraPreviewOverlay.title = "クリックで閉じる";
+    auraPreviewOverlay.addEventListener("click", closeAuraPreview);
+    document.body.appendChild(auraPreviewOverlay);
+  }
+  auraPreviewStop = startAuraTrails(auraPreviewOverlay);
+  clearTimeout(auraPreviewCloseTimeoutId);
+  auraPreviewCloseTimeoutId = setTimeout(closeAuraPreview, AURA_PREVIEW_AUTO_CLOSE_MS);
 }
 
 // ゲストログインの注意書き用の詳細モーダル。既存のphase-guide-modal-*クラス（フェイズ案内板・

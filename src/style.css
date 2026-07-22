@@ -4321,6 +4321,19 @@ body.is-online-mode #quick-start-bar {
   pointer-events: none;
   will-change: left, top, opacity, transform;
 }
+/* ユーザー要望「人魂の設定をしようとする時は疑似的にオープニングの人魂の画面に
+   なるようにしてほしい」。管理者パネル(z-index:1000)より奥・実際のゲーム画面より
+   手前に、オープニングのSTART画面と同じ白背景+人魂だけを一時的に表示する
+   （opening-screen.jsのpreviewOpeningAuras参照、admin.jsのスライダー操作から
+   注入パターンで呼ばれる）。クリックすると即座に閉じられる。 */
+#opening-aura-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: #ffffff;
+  cursor: pointer;
+  overflow: hidden;
+}
 .opening-start-btn {
   position: relative;
   z-index: 1;
@@ -4626,6 +4639,9 @@ body.is-online-mode #quick-start-bar {
   --sound-volume-victory: 80%;
   --sound-volume-opening-bgm: 80%;
   --opening-story-crawl-duration: 40;
+  --opening-aura-size: 12rem;
+  --opening-aura-trail-length: 10;
+  --opening-aura-speed: 1;
   --board-zoom-margin: 1;
   --board-zoom-offset-x: 0rem;
   --board-zoom-offset-y: 3.2rem;

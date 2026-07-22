@@ -8,6 +8,7 @@ import {
   isSelfBoardAvatarVisible,
   isSelfNameLabelVisible,
   registerStartPlayerPreviewHelper,
+  registerAuraPreviewHelper,
 } from "./admin.js";
 import { initDeckViewer } from "./deck-viewer.js";
 import { initGameSetup, previewStartPlayerModal } from "./game-setup.js";
@@ -72,7 +73,7 @@ import {
   respondFinalLock,
 } from "./state.js";
 import { initOnlineUi, openOnlinePanel } from "./online-ui.js";
-import { initOpeningScreen } from "./opening-screen.js";
+import { initOpeningScreen, previewOpeningAuras } from "./opening-screen.js";
 import {
   getSelfSeat,
   getCachedUser,
@@ -3596,6 +3597,7 @@ initAdminMode();
 initDeckViewer();
 initGameSetup();
 registerStartPlayerPreviewHelper(previewStartPlayerModal);
+registerAuraPreviewHelper(previewOpeningAuras);
 initOptionsMenu();
 initPlayerButtons();
 initQuickStart();

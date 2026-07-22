@@ -614,9 +614,45 @@ async function getOrCreateStatsPlayer(userId, displayName) {
   return created.id;
 }
 
+// 勝利の瞬間の盤面(#scene)をスクリーンショットし、戦績管理システムと共有している
+// Supabase Storageの`match-proofs`バケット（姉妹プロジェクトが証拠画像アップロードに
+// 使っているのと同じバケット）へアップロードして公開URLを返す。html2canvas
+// （姉妹プロジェクトのindex.htmlと同じCDN・同じバージョン、index.htmlでグローバル
+// 読み込み済み）を使う。この盤面はrotateX等の3D CSS変形を多用しているため
+// html2canvasが完全に忠実な見た目を再現できるとは限らないが、対戦の証拠としては
+// 十分な情報（配置・プレイヤー名等）が写る。失敗しても対戦記録自体の登録は
+// 止めたくないため、ここで発生した例外は呼び出し元へ伝播させずnullを返すだけにする。
+async function captureVictoryScreenshot(gameId) {
+  try {
+    if (typeof window.html2canvas !== "function") return null;
+    const sceneEl = document.getElementById("scene");
+    if (!sceneEl) return null;
+    const canvas = await window.html2canvas(sceneEl, { backgroundColor: null, logging: false });
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) return null;
+    const path = `digital-${gameId}-${Date.now()}.png`;
+    const { error: uploadError } = await client.storage.from("match-proofs").upload(path, blob, {
+      contentType: "image/png",
+    });
+    if (uploadError) {
+      console.error("captureVictoryScreenshot upload failed", uploadError);
+      return null;
+    }
+    const { data } = client.storage.from("match-proofs").getPublicUrl(path);
+    return data?.publicUrl ?? null;
+  } catch (err) {
+    console.error("captureVictoryScreenshot failed", err);
+    return null;
+  }
+}
+
 // オンライン対戦が勝利で終わった瞬間、victory.jsから（勝者本人の画面からだけ、
 // 二重登録防止のため）呼ばれる。参加した座席全員を戦績システムのプレイヤーとして
-// 解決（未登録なら自動登録）し、対戦記録を1件登録する。
+// 解決（未登録なら自動登録）し、対戦記録を1件登録する。ユーザー要望により、
+// 手動登録と同じく「証拠画像（勝利時の盤面スクリーンショット）を添えて、
+// 承認待ち(pending)として登録する」形にした（当初は証拠画像無し・承認不要の
+// 即時反映だったが、戦績管理システム本来の不正防止の仕組みをそのまま活かしたい
+// とのことで変更した）。
 export async function submitStatsMatchResult({ activePlayers, winnerSeat }) {
   if (!client || !currentGameId) return;
   const { data: gameRow, error: gameError } = await client
@@ -639,13 +675,15 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat }) {
   if (memberIds.length === 0 || !winnerId) return;
 
   const durationMinutes = Math.max(1, Math.round((Date.now() - new Date(gameRow.created_at).getTime()) / 60000));
+  const proofImageUrl = await captureVictoryScreenshot(currentGameId);
 
   const { error: matchError } = await client.from("matches").insert({
     date: new Date().toISOString().slice(0, 10),
     members: memberIds,
     winner_id: winnerId,
     duration_minutes: durationMinutes,
-    status: "approved",
+    proof_image_url: proofImageUrl,
+    status: "pending",
     source: "digital",
   });
   if (matchError) throw matchError;

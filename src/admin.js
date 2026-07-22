@@ -14,6 +14,14 @@ export function registerStartPlayerPreviewHelper(fn) {
   startPlayerPreviewFn = fn;
 }
 
+// opening-screen.jsはonline.jsをimportしており、そのonline.jsが既にadmin.js
+// （getMaxHourglassStock等）をimportしているため、上と同じ理由でここから
+// opening-screen.jsを直接importすると循環importになる。同じ注入パターンで回避する。
+let auraPreviewFn = null;
+export function registerAuraPreviewHelper(fn) {
+  auraPreviewFn = fn;
+}
+
 // 大項目（カテゴリ）。項目が増えて縦に長くなりすぎたため、各グループ/トグルセクションを
 // さらにこの単位でまとめる。GROUPS各要素・TOGGLE_SECTIONS各要素の`category`フィールドで
 // どのカテゴリに属するか指定する。
@@ -146,6 +154,21 @@ const GROUPS = [
     category: "effect",
     controls: [
       { key: "--opening-story-crawl-duration", label: "テロップが流れる時間（秒）", unit: "", min: 10, max: 90, step: 1, default: 40 },
+    ],
+  },
+  {
+    // ユーザー要望「7色の人魂の大きさ・軌跡残像の長さ・スピードを管理者モードで
+    // 調整できるようにしてほしい。設定しようとする時は疑似的にオープニングの
+    // 人魂の画面になるようにしてほしい」。previewOnInteractは既存の
+    // スタートプレイヤー決定モーダルのプレビューと同じ仕組み（触った瞬間に一度
+    // 呼ぶ、既に表示中なら何もしない）。opening-screen.js側でregisterAuraPreviewHelper
+    // 経由で注入される（循環import回避のため直接importできない）。
+    title: "オープニングの7色の人魂（実験用プレビュー付き）",
+    category: "effect",
+    controls: [
+      { key: "--opening-aura-size", label: "大きさ", unit: "rem", min: 4, max: 24, step: 0.5, default: 12, previewOnInteract: () => auraPreviewFn?.() },
+      { key: "--opening-aura-trail-length", label: "軌跡残像の長さ（個数）", unit: "", min: 1, max: 25, step: 1, default: 10, previewOnInteract: () => auraPreviewFn?.() },
+      { key: "--opening-aura-speed", label: "スピード（倍率）", unit: "", min: 0.2, max: 3, step: 0.1, default: 1, previewOnInteract: () => auraPreviewFn?.() },
     ],
   },
   {
@@ -1269,6 +1292,11 @@ function buildPanel(rebuildSlidersRef) {
           // 手札エリアのサイズ(--hand-*-size)等、CSSではなくJS側で読み取って適用している値は
           // CSS変数を変えるだけでは画面に反映されない。main.js側にrender()し直してもらう。
           window.dispatchEvent(new CustomEvent("admin:change"));
+          // previewOnInteractを持つコントロールは、ドラッグ中の値の変化もその場で
+          // プレビューへ反映したい（人魂の軌跡の長さ等はDOM構造ごと作り直す必要が
+          // あるため、CSS変数の反映だけでは足りない）。同じ関数を毎回呼び直す
+          // （既に開いていれば作り直すだけ、というのは呼び出し先の実装に任せる）。
+          if (c.previewOnInteract) c.previewOnInteract();
         });
 
         row.appendChild(labelRow);
