@@ -1055,6 +1055,18 @@ function applyNormalFit() {
   // 別のscaleでもう一度実測した2点から線形関係（scale3dの拡大率は常に線形）を逆算して
   // ちょうど収まるscaleを直接求める。数回繰り返して精度を上げる（各回、境界からの誤差が
   // 大幅に縮むため、3回もあれば十分収束する）。
+  //
+  // ハマりどころ（ユーザー報告「マウスホイールでズームインできなくなった」）: この補正を
+  // hasManualView（手動ズーム/パン中かどうか）を問わず常に実行していたため、ユーザーが
+  // ホイールでズームインしてmanualZoomを増やしても、直後にこの補正が「はみ出している」と
+  // 判定して即座に縮め戻してしまい、ズームインが効かなくなっていた（ズームアウトは
+  // 常に安全側なので影響を受けず、そちらだけ効いているように見えた）。自動フィット
+  // （hasManualViewがfalseの間）の時だけ補正するようにし、ユーザーが意図的にズーム/パン
+  // した後は、はみ出しを許容してでもその操作を尊重する。
+  if (hasManualView) {
+    currentTableScale = scale;
+    return;
+  }
   const marginW = window.innerWidth * 0.03;
   const marginH = window.innerHeight * 0.03;
   const bounds = {
