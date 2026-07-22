@@ -17,7 +17,12 @@ export function registerStartPlayerPreviewHelper(fn) {
 // 大項目（カテゴリ）。項目が増えて縦に長くなりすぎたため、各グループ/トグルセクションを
 // さらにこの単位でまとめる。GROUPS各要素・TOGGLE_SECTIONS各要素の`category`フィールドで
 // どのカテゴリに属するか指定する。
+// ユーザー要望「大項目としてPC/タブレットを頭に持ってきて、タブレットにはおすすめの
+// 項目を並べてほしい」への対応。「PC」は新設せず（既存の3項目がそのままPC向けの内容の
+// ため）、「タブレット」だけを一番上に新設し、既存のタブレット専用オーバーライド一式と
+// 今回追加したZ値調整をここにまとめた。
 const CATEGORIES = [
+  { key: "tablet", label: "📱 タブレット" },
   { key: "position", label: "📐 位置合わせ" },
   { key: "effect", label: "✨ 演出" },
   { key: "behavior", label: "⚙ セットアップ・挙動" },
@@ -474,7 +479,7 @@ const GROUPS = [
     // 同じ値のまま（CSS側のvar()フォールバックチェーンがPC用の変数へそのまま辿り着くため）。
     // 誤操作防止ボタンはタッチ端末専用のため対象外（上のグループの位置調整がそのまま効く）。
     title: "タブレット専用の位置・サイズ調整（PCには影響しません）",
-    category: "position",
+    category: "tablet",
     controls: [
       { key: "--icon-pos-hand-shuffle-touch-x", label: "手札シャッフル 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -8.1 },
       { key: "--icon-pos-hand-shuffle-touch-y", label: "手札シャッフル 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 11.38 },
@@ -499,6 +504,23 @@ const GROUPS = [
       { key: "--icon-size-card-hide-touch", label: "カード消し サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
       { key: "--hand-a-pos-touch-x", label: "自分の手札 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--hand-a-pos-touch-y", label: "自分の手札 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 4.3 },
+    ],
+  },
+  {
+    // ユーザー報告「タブレットで画角によって手札・名前が見えなくなる」への対応。手札
+    // (translateZ 2.4rem/0.5rem)と名前ラベル(Z値無し=実質0)がpreserve-3d階層内で近い
+    // Z値に固まっており、GPUの深度バッファ精度によってはz-fightingで「消えた」ように
+    // 見えることがある（will-changeでの合成レイヤー分離だけでは解決しなかったとの報告）。
+    // 根本原因のZ値そのものをユーザーが調整できるようにする。PC版はこれらの
+    // CSS変数を一切参照しない別ルールのため、値を変えてもPCの見た目には絶対に影響しない。
+    title: "タブレット専用：手札・名前ラベルのZ値調整（PCには影響しません）",
+    category: "tablet",
+    controls: [
+      { key: "--hand-a-translate-z-touch", label: "自分の手札 Z値", unit: "rem", min: 0, max: 6, step: 0.1, default: 2.4 },
+      { key: "--hand-b-translate-z-touch", label: "B（左）の手札 Z値", unit: "rem", min: 0, max: 6, step: 0.1, default: 0.5 },
+      { key: "--hand-c-translate-z-touch", label: "C（奥）の手札 Z値", unit: "rem", min: 0, max: 6, step: 0.1, default: 0.5 },
+      { key: "--hand-d-translate-z-touch", label: "D（右）の手札 Z値", unit: "rem", min: 0, max: 6, step: 0.1, default: 0.5 },
+      { key: "--label-translate-z-touch", label: "プレイヤー名ラベル Z値（B/C/D共通）", unit: "rem", min: -6, max: 6, step: 0.1, default: 0 },
     ],
   },
   {

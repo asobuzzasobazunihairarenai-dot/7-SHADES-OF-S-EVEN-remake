@@ -383,7 +383,7 @@ body {
 body.is-touch-device .zone-bottom .hand-area {
   transform: translate(-50%, -50%)
     translate(var(--hand-a-pos-touch-x, var(--hand-a-pos-x)), var(--hand-a-pos-touch-y, var(--hand-a-pos-y)))
-    rotateX(-40deg) translateZ(2.4rem);
+    rotateX(-40deg) translateZ(var(--hand-a-translate-z-touch, 2.4rem));
 }
 /* ユーザー報告「タブレットで手札が高速に点滅する」への対応（未検証・実機のGPUでしか
    起きない現象のため、この環境では再現確認できていない）。手札のクリッピング対策
@@ -432,6 +432,21 @@ body.is-touch-device .playmat-bg {
 .zone-left .hand-area {
   width: var(--hand-b-thickness);
   transform: translate(-50%, -50%) translate(var(--hand-b-pos-x), var(--hand-b-pos-y)) rotateX(18deg) translateZ(0.5rem) rotate(180deg);
+}
+/* ユーザー要望「タブレットで手札/名前が画角によって見えなくなる。Z値が原因では」への
+   対応。B/C/Dの手札はもともとtranslateZ(0.5rem)しか無く、Z値無し(実質0)の.labelと
+   ほぼ同じ深さのため、GPUの深度バッファ精度によってはz-fightingが起きやすい
+   （will-changeでのレイヤー分離だけでは解決しなかったとの報告があったため、根本的な
+   Z値そのものをユーザーが微調整できるようにする）。PC版はこれらのルールの対象外
+   （body.is-touch-deviceスコープ）のため、Z値・見た目とも一切変わらない。 */
+body.is-touch-device .zone-top .hand-area {
+  transform: translate(-50%, -50%) translate(var(--hand-c-pos-x), var(--hand-c-pos-y)) rotateX(18deg) translateZ(var(--hand-c-translate-z-touch, 0.5rem));
+}
+body.is-touch-device .zone-right .hand-area {
+  transform: translate(-50%, -50%) translate(var(--hand-d-pos-x), var(--hand-d-pos-y)) rotateX(18deg) translateZ(var(--hand-d-translate-z-touch, 0.5rem));
+}
+body.is-touch-device .zone-left .hand-area {
+  transform: translate(-50%, -50%) translate(var(--hand-b-pos-x), var(--hand-b-pos-y)) rotateX(18deg) translateZ(var(--hand-b-translate-z-touch, 0.5rem)) rotate(180deg);
 }
 
 .hand-card {
@@ -2269,6 +2284,22 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
 }
 .zone-right .label {
   transform: translate(var(--label-d-pos-x), var(--label-d-pos-y));
+}
+/* ユーザー要望「タブレットで名前が見えなくなるのはZ値が原因では」への対応。PC版の.label
+   はtranslateZ自体を持たない（常にZ=0）ため、この4ルールはbody.is-touch-deviceスコープで
+   PCのtransformを完全に上書きし、そこにだけtranslateZを追加する（PC側の見た目は一切
+   変わらない）。 */
+body.is-touch-device .zone-bottom .label {
+  transform: translate(var(--label-a-pos-x), var(--label-a-pos-y)) translateZ(var(--label-translate-z-touch, 0rem));
+}
+body.is-touch-device .zone-left .label {
+  transform: translate(var(--label-b-pos-x), var(--label-b-pos-y)) translateZ(var(--label-translate-z-touch, 0rem));
+}
+body.is-touch-device .zone-top .label {
+  transform: translate(var(--label-c-pos-x), var(--label-c-pos-y)) translateZ(var(--label-translate-z-touch, 0rem));
+}
+body.is-touch-device .zone-right .label {
+  transform: translate(var(--label-d-pos-x), var(--label-d-pos-y)) translateZ(var(--label-translate-z-touch, 0rem));
 }
 /* ユーザー要望「盤面横のプレイヤー名BCDについてサイズを管理者モードで調整できるように
    したい」。Aは対象外（自分の名前ラベルは別トグルで表示/非表示のみ）。 */

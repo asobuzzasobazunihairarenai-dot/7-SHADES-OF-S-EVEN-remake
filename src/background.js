@@ -9,6 +9,9 @@ import { saveMyPreference } from "./online.js";
 
 export const BACKGROUND_OPTIONS = [
   { id: "1", label: "背景1", path: "assets/backgrounds/1.webp" },
+  // ユーザーが追加した高画質版（元画像はpng、2.5MB超のため読み込みがやや重い点は
+  // 承知の上でラインナップに追加）。
+  { id: "1-hq", label: "背景1（高画質）", path: "assets/backgrounds/1-hq.png" },
   { id: "2", label: "背景2", path: "assets/backgrounds/2.webp" },
   { id: "3", label: "背景3", path: "assets/backgrounds/3.webp" },
 ];
