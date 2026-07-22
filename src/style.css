@@ -4215,11 +4215,13 @@ body.is-online-mode #quick-start-bar {
   inset: 0;
   background: linear-gradient(to bottom, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.15) 55%, rgba(0, 0, 0, 0.7) 100%);
 }
+/* ユーザー要望「ログインモーダルは画面中央左側に表示してほしい」。以前は画面下部中央
+   だったが、縦中央・横は左寄りに変更した。 */
 .opening-screen-content {
   position: absolute;
-  left: 50%;
-  bottom: 12%;
-  transform: translateX(-50%);
+  top: 50%;
+  left: 12%;
+  transform: translateY(-50%);
   z-index: 1;
   display: flex;
   flex-direction: column;
@@ -4229,7 +4231,7 @@ body.is-online-mode #quick-start-bar {
 /* ストーリーテロップが終わる（または飛ばされる）と#opening-screenに
    stage-contentクラスが付き、ここで初めてログインボタンが浮かび上がる。 */
 #opening-screen.stage-content .opening-screen-content {
-  animation: opening-screen-rise-in 1.1s ease forwards;
+  animation: opening-screen-content-rise-in 1.1s ease forwards;
   animation-delay: 0.2s;
 }
 .opening-screen-menu {
@@ -4261,6 +4263,14 @@ body.is-online-mode #quick-start-bar {
   from { opacity: 0; transform: translateY(0.9rem); }
   to { opacity: 1; transform: translateY(0); }
 }
+/* .opening-screen-contentは縦中央寄せのtranslateY(-50%)を基本transformに持つため、
+   共有のopening-screen-rise-inをそのまま使うと（アニメーション側のtransformが
+   丸ごと上書きしてしまい）中央寄せが解除されてしまう。中央寄せの分を織り込んだ
+   専用のkeyframeにする。 */
+@keyframes opening-screen-content-rise-in {
+  from { opacity: 0; transform: translateY(calc(-50% + 0.9rem)); }
+  to { opacity: 1; transform: translateY(-50%); }
+}
 
 /* ユーザー要望「最初真っ白な画面に7色のオーラが漂い、STARTボタンがフェードイン。押すと
    BGM再生開始」。#opening-screen内の最前面レイヤーとして、bg/dim/contentを完全に覆い
@@ -4282,46 +4292,49 @@ body.is-online-mode #quick-start-bar {
   pointer-events: none;
 }
 /* 7色の人魂風のオーラ。ぼかした円形グラデーションを、色ごとに異なる経路・速さで
-   ふわふわ漂わせる（@keyframesを色ごとに分けて、動きが揃って見えないようにしている）。 */
+   ふわふわ漂わせる（@keyframesを色ごとに分けて、動きが揃って見えないようにしている）。
+   ユーザー要望「もっと活発に移動、ぼやけすぎなのでもっとはっきり」に対応し、
+   ぼかし量を1.8rem→0.7remに減らし、移動距離(2〜4rem→7〜14rem)を広げ、周期
+   (18〜26s→6〜11s)を短くした。 */
 .opening-aura {
   position: absolute;
   width: 12rem;
   height: 12rem;
   border-radius: 50%;
-  filter: blur(1.8rem);
-  opacity: 0.5;
+  filter: blur(0.7rem);
+  opacity: 0.65;
   pointer-events: none;
 }
-.opening-aura-red { background: radial-gradient(circle, var(--color-red) 0%, transparent 70%); top: 15%; left: 20%; animation: opening-aura-float-1 19s ease-in-out infinite; }
-.opening-aura-orange { background: radial-gradient(circle, var(--color-orange) 0%, transparent 70%); top: 65%; left: 15%; animation: opening-aura-float-2 23s ease-in-out infinite; animation-delay: -3s; }
-.opening-aura-yellow { background: radial-gradient(circle, var(--color-yellow) 0%, transparent 70%); top: 25%; left: 75%; animation: opening-aura-float-3 26s ease-in-out infinite; animation-delay: -8s; }
-.opening-aura-green { background: radial-gradient(circle, var(--color-green) 0%, transparent 70%); top: 70%; left: 70%; animation: opening-aura-float-4 21s ease-in-out infinite; animation-delay: -12s; }
-.opening-aura-blue { background: radial-gradient(circle, var(--color-blue) 0%, transparent 70%); top: 45%; left: 45%; animation: opening-aura-float-1 24s ease-in-out infinite; animation-delay: -6s; }
-.opening-aura-pink { background: radial-gradient(circle, var(--color-pink) 0%, transparent 70%); top: 10%; left: 55%; animation: opening-aura-float-2 18s ease-in-out infinite; animation-delay: -15s; }
-.opening-aura-purple { background: radial-gradient(circle, var(--color-purple) 0%, transparent 70%); top: 80%; left: 40%; animation: opening-aura-float-3 22s ease-in-out infinite; animation-delay: -2s; }
+.opening-aura-red { background: radial-gradient(circle, var(--color-red) 0%, transparent 70%); top: 15%; left: 20%; animation: opening-aura-float-1 7s ease-in-out infinite; }
+.opening-aura-orange { background: radial-gradient(circle, var(--color-orange) 0%, transparent 70%); top: 65%; left: 15%; animation: opening-aura-float-2 8.5s ease-in-out infinite; animation-delay: -1.5s; }
+.opening-aura-yellow { background: radial-gradient(circle, var(--color-yellow) 0%, transparent 70%); top: 25%; left: 75%; animation: opening-aura-float-3 9.5s ease-in-out infinite; animation-delay: -3s; }
+.opening-aura-green { background: radial-gradient(circle, var(--color-green) 0%, transparent 70%); top: 70%; left: 70%; animation: opening-aura-float-4 7.5s ease-in-out infinite; animation-delay: -4.5s; }
+.opening-aura-blue { background: radial-gradient(circle, var(--color-blue) 0%, transparent 70%); top: 45%; left: 45%; animation: opening-aura-float-1 9s ease-in-out infinite; animation-delay: -2.5s; }
+.opening-aura-pink { background: radial-gradient(circle, var(--color-pink) 0%, transparent 70%); top: 10%; left: 55%; animation: opening-aura-float-2 6.5s ease-in-out infinite; animation-delay: -5.5s; }
+.opening-aura-purple { background: radial-gradient(circle, var(--color-purple) 0%, transparent 70%); top: 80%; left: 40%; animation: opening-aura-float-3 8s ease-in-out infinite; animation-delay: -1s; }
 @keyframes opening-aura-float-1 {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(3rem, -4rem) scale(1.15); }
-  50% { transform: translate(-2rem, 3rem) scale(0.9); }
-  75% { transform: translate(-4rem, -2rem) scale(1.05); }
+  25% { transform: translate(9rem, -11rem) scale(1.25); }
+  50% { transform: translate(-7rem, 8rem) scale(0.8); }
+  75% { transform: translate(-11rem, -6rem) scale(1.1); }
 }
 @keyframes opening-aura-float-2 {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  30% { transform: translate(-3.5rem, 2.5rem) scale(1.1); }
-  60% { transform: translate(2.5rem, 4rem) scale(0.85); }
-  85% { transform: translate(3rem, -3rem) scale(1); }
+  30% { transform: translate(-10rem, 7rem) scale(1.2); }
+  60% { transform: translate(8rem, 11rem) scale(0.75); }
+  85% { transform: translate(9rem, -9rem) scale(1.05); }
 }
 @keyframes opening-aura-float-3 {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  20% { transform: translate(-2.5rem, -3.5rem) scale(0.9); }
-  55% { transform: translate(-4rem, 2rem) scale(1.15); }
-  80% { transform: translate(3rem, 3rem) scale(1); }
+  20% { transform: translate(-8rem, -10rem) scale(0.8); }
+  55% { transform: translate(-12rem, 7rem) scale(1.25); }
+  80% { transform: translate(9rem, 9rem) scale(1); }
 }
 @keyframes opening-aura-float-4 {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  35% { transform: translate(4rem, 1.5rem) scale(1.1); }
-  65% { transform: translate(1.5rem, -4rem) scale(0.9); }
-  90% { transform: translate(-3.5rem, -1.5rem) scale(1.05); }
+  35% { transform: translate(11rem, 5rem) scale(1.2); }
+  65% { transform: translate(5rem, -12rem) scale(0.8); }
+  90% { transform: translate(-10rem, -5rem) scale(1.1); }
 }
 .opening-start-btn {
   position: relative;
@@ -4386,10 +4399,19 @@ body.is-online-mode #quick-start-bar {
   margin-bottom: 1.1rem;
 }
 @keyframes opening-story-crawl-scroll {
-  from { transform: translateY(60vh); opacity: 0; }
+  /* ハマりどころ: このオーバーレイは#opening-screen（body直下、body自体が
+     applyViewportStage()で1600×900の「ステージ」としてscale()される対象）に
+     入れ子になっている。position:fixedな子要素は、祖先にtransformがあると
+     実際のビューポートではなくそのtransformされた祖先基準になる（CSS仕様上の挙動）
+     ため、vh単位（常に「本物の」ビューポート基準で計算される）を使うと、ステージの
+     拡大縮小率によって「画面の下から」の見え方がずれてしまう（ユーザー報告
+     「もっと下からスタートしてほしい」の一因と考えられる）。remなら祖先のscale()と
+     一緒に見た目も伸縮するため、ステージ側の900px(=56.25rem)を基準に、確実に
+     画面外（上下とも半分の28.125remを超える）から出入りするよう34remにした。 */
+  from { transform: translateY(34rem); opacity: 0; }
   5% { opacity: 1; }
   95% { opacity: 1; }
-  to { transform: translateY(-60vh); opacity: 0; }
+  to { transform: translateY(-34rem); opacity: 0; }
 }
 .opening-story-crawl-skip-hint {
   position: absolute;
