@@ -202,7 +202,9 @@ export function initOpeningScreen() {
   document.body.appendChild(overlay);
 
   function close(after) {
-    stopOpeningBgm();
+    // ユーザー要望「音楽もフェードアウトしてほしい」。オーバーレイのフェードアウトと
+    // 同じ時間をかけて音量を下げる。
+    stopOpeningBgm(CLOSE_TRANSITION_MS);
     overlay.classList.add("is-closing");
     setTimeout(() => {
       overlay.style.display = "none";

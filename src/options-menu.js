@@ -88,6 +88,38 @@ function buildVolumeRow() {
   return row;
 }
 
+// ユーザー要望「BGM音量をオプションの基本設定で変えられるようにしてほしい」。
+// buildDurationRowと同じ「CSS変数を直接setPropertyで共有する」仕組みだが、
+// 範囲が0〜100%な点だけ異なる。オープニングBGMは管理者モードの効果音音量グループ
+// （--sound-volume-opening-bgm）と同じCSS変数を共有するため、ここで変更しても
+// 管理者モード側の表示にも反映される。
+function buildBgmVolumeRow() {
+  const row = document.createElement("div");
+  row.className = "options-menu-volume-row";
+  const labelEl = document.createElement("span");
+  labelEl.textContent = "オープニングBGMの音量";
+  const current = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sound-volume-opening-bgm"));
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.min = "0";
+  slider.max = "100";
+  slider.step = "5";
+  slider.value = String(Number.isFinite(current) ? current : 80);
+  const valueLabel = document.createElement("span");
+  valueLabel.className = "options-menu-volume-value";
+  valueLabel.textContent = `${slider.value}%`;
+  slider.addEventListener("input", () => {
+    document.documentElement.style.setProperty("--sound-volume-opening-bgm", `${slider.value}%`);
+    valueLabel.textContent = `${slider.value}%`;
+    window.dispatchEvent(new CustomEvent("admin:change"));
+    saveMyPreference({ sound_volume_opening_bgm: Number(slider.value) });
+  });
+  row.appendChild(labelEl);
+  row.appendChild(slider);
+  row.appendChild(valueLabel);
+  return row;
+}
+
 // 「モーダル表示時間」グループの3スライダー共通部品。admin.jsの対応するスライダーと同じ
 // CSS変数を直接setPropertyで共有するため、基本設定側から変更しても管理者モードの表示に
 // 反映される。範囲・デフォルトもadmin.js側と揃えてある（1〜15秒、step 0.5）。
@@ -241,6 +273,7 @@ export function initOptionsMenu() {
       saveMyPreference({ sound_volume: Number(volumeSlider.value) / 100 });
     });
     panel.appendChild(volumeRow);
+    panel.appendChild(buildBgmVolumeRow());
 
     panel.appendChild(
       buildCollapsibleSection("モーダル表示時間", (content) => {

@@ -34,11 +34,30 @@ export function playOpeningBgm() {
   openingBgmAudio.play().catch(() => {});
 }
 
-// ゲーム本編に入ったら（オープニング画面が閉じたら）止める。
-export function stopOpeningBgm() {
+let bgmFadeIntervalId = null;
+
+// ゲーム本編に入ったら（オープニング画面が閉じたら）止める。ユーザー要望「音楽もプチっと
+// 終わるんじゃなくてフェードアウトしてほしい」への対応で、即座にpauseするのではなく
+// durationMsかけて音量を0まで滑らかに下げてから止める（opening-screen.js側の
+// オーバーレイのフェードアウト時間=CLOSE_TRANSITION_MSと合わせて呼ばれる想定）。
+export function stopOpeningBgm(durationMs = 600) {
   if (!openingBgmAudio) return;
-  openingBgmAudio.pause();
-  openingBgmAudio.currentTime = 0;
+  if (bgmFadeIntervalId) clearInterval(bgmFadeIntervalId);
+  const startVolume = openingBgmAudio.volume;
+  const stepMs = 30;
+  const steps = Math.max(1, Math.round(durationMs / stepMs));
+  let step = 0;
+  bgmFadeIntervalId = setInterval(() => {
+    step++;
+    const ratio = Math.max(0, 1 - step / steps);
+    openingBgmAudio.volume = startVolume * ratio;
+    if (step >= steps) {
+      clearInterval(bgmFadeIntervalId);
+      bgmFadeIntervalId = null;
+      openingBgmAudio.pause();
+      openingBgmAudio.currentTime = 0;
+    }
+  }, stepMs);
 }
 
 // マスター音量（0〜1）。オプションメニューの「基本設定」から調整できる。

@@ -4180,7 +4180,11 @@ body.is-online-mode #quick-start-bar {
   position: fixed;
   inset: 0;
   z-index: 50000;
-  background: #05070a;
+  /* ユーザー要望「STARTを押した後、暗転せずに白からタイトル画像へそのまま行きたい」。
+     以前は暗い背景色だったため、.opening-start-gate（白背景）がフェードアウトし
+     きる前にタイトル画像がまだ薄い間、この暗い下地が透けて一瞬暗転して見えていた。
+     白にすることで「白→（うっすら）タイトル画像→タイトル画像」と自然に繋がる。 */
+  background: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4296,22 +4300,24 @@ body.is-online-mode #quick-start-bar {
    ユーザー要望「もっと活発に移動、ぼやけすぎなのでもっとはっきり」に対応し、
    ぼかし量を1.8rem→0.7remに減らし、移動距離(2〜4rem→7〜14rem)を広げ、周期
    (18〜26s→6〜11s)を短くした。 */
+/* ユーザー報告「まだボケすぎている」への対応。blur()フィルタを完全に外し、
+   radial-gradient自体のグラデーション幅も狭めて（0%→55%→75%）芯のはっきりした
+   輪郭にした。柔らかさは引き続きグラデーションの外側のフェードだけで表現する。 */
 .opening-aura {
   position: absolute;
   width: 12rem;
   height: 12rem;
   border-radius: 50%;
-  filter: blur(0.7rem);
-  opacity: 0.65;
+  opacity: 0.75;
   pointer-events: none;
 }
-.opening-aura-red { background: radial-gradient(circle, var(--color-red) 0%, transparent 70%); top: 15%; left: 20%; animation: opening-aura-float-1 7s ease-in-out infinite; }
-.opening-aura-orange { background: radial-gradient(circle, var(--color-orange) 0%, transparent 70%); top: 65%; left: 15%; animation: opening-aura-float-2 8.5s ease-in-out infinite; animation-delay: -1.5s; }
-.opening-aura-yellow { background: radial-gradient(circle, var(--color-yellow) 0%, transparent 70%); top: 25%; left: 75%; animation: opening-aura-float-3 9.5s ease-in-out infinite; animation-delay: -3s; }
-.opening-aura-green { background: radial-gradient(circle, var(--color-green) 0%, transparent 70%); top: 70%; left: 70%; animation: opening-aura-float-4 7.5s ease-in-out infinite; animation-delay: -4.5s; }
-.opening-aura-blue { background: radial-gradient(circle, var(--color-blue) 0%, transparent 70%); top: 45%; left: 45%; animation: opening-aura-float-1 9s ease-in-out infinite; animation-delay: -2.5s; }
-.opening-aura-pink { background: radial-gradient(circle, var(--color-pink) 0%, transparent 70%); top: 10%; left: 55%; animation: opening-aura-float-2 6.5s ease-in-out infinite; animation-delay: -5.5s; }
-.opening-aura-purple { background: radial-gradient(circle, var(--color-purple) 0%, transparent 70%); top: 80%; left: 40%; animation: opening-aura-float-3 8s ease-in-out infinite; animation-delay: -1s; }
+.opening-aura-red { background: radial-gradient(circle, var(--color-red) 0%, var(--color-red) 55%, transparent 75%); top: 15%; left: 20%; animation: opening-aura-float-1 7s ease-in-out infinite; }
+.opening-aura-orange { background: radial-gradient(circle, var(--color-orange) 0%, var(--color-orange) 55%, transparent 75%); top: 65%; left: 15%; animation: opening-aura-float-2 8.5s ease-in-out infinite; animation-delay: -1.5s; }
+.opening-aura-yellow { background: radial-gradient(circle, var(--color-yellow) 0%, var(--color-yellow) 55%, transparent 75%); top: 25%; left: 75%; animation: opening-aura-float-3 9.5s ease-in-out infinite; animation-delay: -3s; }
+.opening-aura-green { background: radial-gradient(circle, var(--color-green) 0%, var(--color-green) 55%, transparent 75%); top: 70%; left: 70%; animation: opening-aura-float-4 7.5s ease-in-out infinite; animation-delay: -4.5s; }
+.opening-aura-blue { background: radial-gradient(circle, var(--color-blue) 0%, var(--color-blue) 55%, transparent 75%); top: 45%; left: 45%; animation: opening-aura-float-1 9s ease-in-out infinite; animation-delay: -2.5s; }
+.opening-aura-pink { background: radial-gradient(circle, var(--color-pink) 0%, var(--color-pink) 55%, transparent 75%); top: 10%; left: 55%; animation: opening-aura-float-2 6.5s ease-in-out infinite; animation-delay: -5.5s; }
+.opening-aura-purple { background: radial-gradient(circle, var(--color-purple) 0%, var(--color-purple) 55%, transparent 75%); top: 80%; left: 40%; animation: opening-aura-float-3 8s ease-in-out infinite; animation-delay: -1s; }
 @keyframes opening-aura-float-1 {
   0%, 100% { transform: translate(0, 0) scale(1); }
   25% { transform: translate(9rem, -11rem) scale(1.25); }
@@ -4350,8 +4356,10 @@ body.is-online-mode #quick-start-bar {
   color: #f8fafc;
   cursor: pointer;
   opacity: 0;
-  animation: opening-screen-rise-in 1.2s ease forwards;
-  animation-delay: 0.9s;
+  /* ユーザー要望「STARTボタンのフェードインをもっとゆっくりじれったく」。
+     delay・durationともに大幅に伸ばした。 */
+  animation: opening-screen-rise-in 4s ease forwards;
+  animation-delay: 2.5s;
   transition: transform 0.2s ease, background 0.2s ease;
 }
 .opening-start-btn:hover {
@@ -4368,12 +4376,22 @@ body.is-online-mode #quick-start-bar {
   inset: 0;
   z-index: 5;
   display: none;
-  align-items: center;
-  justify-content: center;
   cursor: pointer;
   overflow: hidden;
 }
+/* ハマりどころ（ユーザー報告「まだ下から出てこない」、34remでも直らなかった）:
+   前回はtranslateYの開始位置を「中央からの相対オフセット」にしていたが、
+   このテロップは39行分の長文でトータルの高さがかなりあり（line-height2で
+   概算80rem前後）、flexで縦中央寄せされた状態だと先頭行が中央よりかなり上に
+   来てしまうため、そこから34rem下げた程度では画面内にまだ入ってしまっていた
+   （文章が長いほど必要なオフセットも増える、という文章の長さ依存の問題だった）。
+   文章の長さに関係なく確実に「画面外の下」から始まるよう、flexでの中央寄せをやめて
+   position:absolute; top:100%（＝このオーバーレイの一番下の外側）を先頭行の基準位置
+   にし、そこからtranslateYだけで押し上げる方式に変更した。 */
 .opening-story-crawl-text {
+  position: absolute;
+  top: 100%;
+  left: 50%;
   width: min(34rem, 80vw);
   text-align: center;
   color: #f8fafc;
@@ -4399,19 +4417,18 @@ body.is-online-mode #quick-start-bar {
   margin-bottom: 1.1rem;
 }
 @keyframes opening-story-crawl-scroll {
-  /* ハマりどころ: このオーバーレイは#opening-screen（body直下、body自体が
-     applyViewportStage()で1600×900の「ステージ」としてscale()される対象）に
-     入れ子になっている。position:fixedな子要素は、祖先にtransformがあると
-     実際のビューポートではなくそのtransformされた祖先基準になる（CSS仕様上の挙動）
-     ため、vh単位（常に「本物の」ビューポート基準で計算される）を使うと、ステージの
-     拡大縮小率によって「画面の下から」の見え方がずれてしまう（ユーザー報告
-     「もっと下からスタートしてほしい」の一因と考えられる）。remなら祖先のscale()と
-     一緒に見た目も伸縮するため、ステージ側の900px(=56.25rem)を基準に、確実に
-     画面外（上下とも半分の28.125remを超える）から出入りするよう34remにした。 */
-  from { transform: translateY(34rem); opacity: 0; }
+  /* left:50%だけでは横方向が中央寄せにならない（translateX(-50%)とセットで初めて
+     中央寄せになる）ため、アニメーション側のtransformにも常にtranslateX(-50%)を
+     含めておく必要がある（animationのtransformは要素の基本transformを丸ごと
+     上書きするため）。top:100%で既に画面外(下)から始まっているため、あとは文章
+     全体の高さ＋画面の高さ分だけ上へ動かせば確実に上まで抜けられる。39行・
+     line-height2での実測高さ（約85rem）にステージの高さ(56.25rem)を足した140remを、
+     余裕を見て160remにした。文章を増減した場合はこの値も調整が必要（JSで実測して
+     自動計算する方式ではない）。 */
+  from { transform: translateX(-50%) translateY(0); opacity: 0; }
   5% { opacity: 1; }
   95% { opacity: 1; }
-  to { transform: translateY(-34rem); opacity: 0; }
+  to { transform: translateX(-50%) translateY(-160rem); opacity: 0; }
 }
 .opening-story-crawl-skip-hint {
   position: absolute;
@@ -4606,9 +4623,9 @@ body.is-online-mode #quick-start-bar {
   --card-arrival-modal-duration: 5;
   --card-arrival-modal-top: 3rem;
   --card-arrival-modal-right: 1rem;
-  --move-blink-duration: 3;
-  --move-blink-arrow-size: 5rem;
-  --move-blink-arrow-stroke: 0.09rem;
+  --move-blink-duration: 5;
+  --move-blink-arrow-size: 1.6rem;
+  --move-blink-arrow-stroke: 0.2rem;
   --move-blink-avatar-rotate: 0deg;
   --start-player-avatar-size: 12rem;
   --gate-invasion-modal-size: 28rem;

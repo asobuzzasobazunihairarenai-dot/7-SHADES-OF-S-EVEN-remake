@@ -648,3 +648,9 @@ alter table so7_user_profiles
   add column if not exists playmat_id text,
   add column if not exists card_back_set_index int not null default 0,
   add column if not exists background_id text;
+
+-- 追加機能: オプション「基本設定」にオープニングBGMの音量スライダーを追加した
+-- （options-menu.jsのbuildBgmVolumeRow()参照）。既存のsound_volume（効果音マスター音量）と
+-- 同じ列レベルの仕組みで、0〜100のパーセント値をそのまま保存する。
+alter table so7_user_profiles
+  add column if not exists sound_volume_opening_bgm numeric not null default 80;

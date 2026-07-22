@@ -104,6 +104,14 @@ function getMoveBlinkDurationMs() {
   const seconds = parseFloat(raw);
   return (Number.isNaN(seconds) ? 3 : seconds) * 1000;
 }
+// ユーザー報告「連続で置いたり取ったりした場合、時間内であっても前のアニメが
+// 強制的に消えてしまう」への対応。以前は呼び出しのたびに素朴なsetTimeoutだけで
+// クラス/矢印を消していたため、同じマスで短時間に複数回blinkLocationが呼ばれると、
+// 先に仕掛けたタイマーが今回の分もろとも消してしまっていた（後から来た方の表示時間が
+// 実質的に短縮される、または表示中に消える）。マスごとに「今何が予約されているか」を
+// 憶えておき、新しい呼び出しが来たら前の予約を解除してから今回の分を予約し直す。
+const pendingBlinkByHost = new WeakMap();
+
 function blinkLocation(location, table, arrow = null) {
   const hostEl = helpers.findLocationElement?.(table, location);
   if (!hostEl) return;
@@ -113,14 +121,25 @@ function blinkLocation(location, table, arrow = null) {
   // その時点のturnPlayerを実行者とみなして色・アバターを決める。
   const actor = getState().turnPlayer;
   const color = actor ? getPieceColor(actor) : null;
+
+  const pending = pendingBlinkByHost.get(hostEl);
+  if (pending) {
+    clearTimeout(pending.timeoutId);
+    pending.arrowWrap?.remove();
+  }
+
   hostEl.style.setProperty("--move-blink-color", color ? `var(--color-${color})` : "#ffffff");
+  // 既に点滅中（前回のタイマーをキャンセルしただけでクラス自体は付いたまま）だと、
+  // classList.addし直しても既に付いているクラスなのでCSSアニメーションが最初から
+  // 再生し直されない。一度外してリフローを挟んでから付け直すことで、毎回きちんと
+  // 最初から点滅を再生させる。
+  hostEl.classList.remove("move-highlight-blink");
+  void hostEl.offsetWidth;
   hostEl.classList.add("move-highlight-blink");
-  setTimeout(() => {
-    hostEl.classList.remove("move-highlight-blink");
-    hostEl.style.removeProperty("--move-blink-color");
-  }, durationMs);
+
+  let arrowWrap = null;
   if (arrow) {
-    const arrowWrap = document.createElement("div");
+    arrowWrap = document.createElement("div");
     arrowWrap.className = `move-blink-arrow is-${arrow}`;
     arrowWrap.style.setProperty("--move-blink-color", color ? `var(--color-${color})` : "#ffffff");
     // ユーザー要望「ミニアバターは矢印の上がいい」。DOM順=見た目の上下（.move-blink-arrowは
@@ -141,8 +160,15 @@ function blinkLocation(location, table, arrow = null) {
     arrowGlyph.src = `assets/icons/arrow-${color || "red"}-${arrow}.webp`;
     arrowWrap.appendChild(arrowGlyph);
     hostEl.appendChild(arrowWrap);
-    setTimeout(() => arrowWrap.remove(), durationMs);
   }
+
+  const timeoutId = setTimeout(() => {
+    hostEl.classList.remove("move-highlight-blink");
+    hostEl.style.removeProperty("--move-blink-color");
+    arrowWrap?.remove();
+    pendingBlinkByHost.delete(hostEl);
+  }, durationMs);
+  pendingBlinkByHost.set(hostEl, { timeoutId, arrowWrap });
 }
 
 async function flyAndReveal(item, fromRect, table, blinkDestination) {

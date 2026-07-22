@@ -208,6 +208,14 @@ if (client) {
 // 駒スキンと同じso7_user_profiles（ユーザーごとに1行の永続プロフィール）に含めて
 // アカウントに紐づける。
 
+// ハマりどころ: sound_volume_opening_bgm列をここ・下のSELECT文に追加してみたところ、
+// まだ本番のSupabase側にその列が存在しない間は「1つの列が無いだけでSELECT文全体が
+// エラーになり、他の設定（ロックエリア表示・音量・モーダル表示時間等）まで丸ごと
+// 読み込めなくなる」という重大な副作用が判明したため、いったん元に戻した。
+// supabase_setup_so7.sql末尾のalter tableを実際にSupabase側で実行し終えたら、
+// 改めてここと下のSELECT文にsound_volume_opening_bgmを追加する（それまではオプション
+// メニューのBGM音量スライダーはそのセッション内だけ有効で、アカウントへの永続化は
+// まだ効かない）。
 const PREFERENCE_DURATION_VARS = {
   gate_invasion_modal_duration: "--gate-invasion-modal-step-duration",
   card_arrival_modal_duration: "--card-arrival-modal-duration",
