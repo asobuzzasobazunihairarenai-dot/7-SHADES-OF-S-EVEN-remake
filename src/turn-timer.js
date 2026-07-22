@@ -717,8 +717,17 @@ function updateTimeoutWarnings(state, isTimedOut) {
     return;
   }
   const priorityHolderIsTurnPlayer = state.priorityPlayer === state.turnPlayer;
-  updateWarning(priorityHolderIsTurnPlayer);
-  updatePriorityReturnWarning(!priorityHolderIsTurnPlayer);
+  // ハマりどころ（ユーザー報告「相手にも『ムーブフェイズを終えてターンを終了してください』
+  // が表示される」）: このstateはオンライン中は全クライアント共有のため、従来は
+  // 「誰の画面か」を一切見ずにpriorityHolderIsTurnPlayerだけで判定していた。しかし
+  // updateWarning/updatePriorityReturnWarningはどちらも「本人にしか押せないボタンを
+  // 指して行動を促す」表示のため、オンライン中は「今この画面を見ている自分がその
+  // 警告の対象本人か」も条件に加える必要がある（ローカルモードは全座席を1人で
+  // 操作する前提のため、従来通り誰の番でも表示する）。
+  const selfIsTurnPlayer = !isOnlineMode() || getSelfSeat() === state.turnPlayer;
+  const selfIsPriorityPlayer = !isOnlineMode() || getSelfSeat() === state.priorityPlayer;
+  updateWarning(priorityHolderIsTurnPlayer && selfIsTurnPlayer);
+  updatePriorityReturnWarning(!priorityHolderIsTurnPlayer && selfIsPriorityPlayer);
 }
 
 function tick() {

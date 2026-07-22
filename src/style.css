@@ -383,7 +383,7 @@ body {
 body.is-touch-device .zone-bottom .hand-area {
   transform: translate(-50%, -50%)
     translate(var(--hand-a-pos-touch-x, var(--hand-a-pos-x)), var(--hand-a-pos-touch-y, var(--hand-a-pos-y)))
-    rotateX(-40deg) translateZ(var(--hand-a-translate-z-touch, 2.4rem));
+    rotateX(var(--hand-a-rotate-x-touch, -40deg)) translateZ(var(--hand-a-translate-z-touch, 2.4rem));
 }
 /* ユーザー報告「タブレットで手札が高速に点滅する」への対応（未検証・実機のGPUでしか
    起きない現象のため、この環境では再現確認できていない）。手札のクリッピング対策
@@ -965,6 +965,12 @@ body.is-touch-device .zone-left .hand-area {
   gap: 0.6rem;
   font-family: sans-serif;
 }
+/* ユーザー要望「タブレット専用位置調整にフェイズ案内を追加」。他のタブレット専用
+   オーバーライドと同じ「未設定ならPC値にフォールバック」の仕組み。 */
+body.is-touch-device #phase-guide-bar {
+  bottom: var(--phase-guide-bottom-touch, var(--phase-guide-bottom, 0rem));
+  right: var(--phase-guide-right-touch, var(--phase-guide-right, 2.3rem));
+}
 /* ターンタイマーの基本時間（無音・ロープ非表示の窓）の残り秒数を、ロック/ハンド/ムーブと
    同じ丸いアイコンボタンの見た目（icon-action-button.js共通CSS）で表示する（turn-timer.js
    側がこの箱をbar内へappendする）。アイコン画像の代わりに数字を中央に置き、優先権保持者の
@@ -1420,6 +1426,14 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
   align-items: center;
   gap: 0.3rem;
   font-family: sans-serif;
+}
+/* ユーザー要望「タブレット専用位置調整に優先権譲渡ボタンを追加」。他のタブレット専用
+   オーバーライドと同じ「未設定ならPC値にフォールバック」の仕組み。 */
+body.is-touch-device #priority-transfer-buttons {
+  transform: translate(
+    var(--priority-transfer-pos-touch-x, var(--priority-transfer-pos-x)),
+    var(--priority-transfer-pos-touch-y, var(--priority-transfer-pos-y))
+  );
 }
 .priority-transfer-grid {
   display: grid;
@@ -2741,6 +2755,18 @@ body.is-touch-device #options-menu-button {
   width: var(--icon-size-public-draw, 3.5rem);
   height: var(--icon-size-public-draw, 3.5rem);
 }
+/* ユーザー要望「タブレット専用位置調整に公開ドローボタンを追加」。他のタブレット専用
+   オーバーライドと同じ「未設定ならPC値にフォールバック」の仕組み。 */
+body.is-touch-device #public-draw-button {
+  transform: translate(
+    var(--icon-pos-public-draw-touch-x, var(--icon-pos-public-draw-x, 0.3rem)),
+    var(--icon-pos-public-draw-touch-y, var(--icon-pos-public-draw-y, 1rem))
+  );
+}
+body.is-touch-device #public-draw-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-public-draw-touch, var(--icon-size-public-draw, 3.5rem));
+  height: var(--icon-size-public-draw-touch, var(--icon-size-public-draw, 3.5rem));
+}
 #board-zoom-button {
   position: fixed;
   bottom: 8.8rem;
@@ -3015,6 +3041,15 @@ body.cards-interaction-hidden .board-card {
   color: #e2e8f0;
   transform: translate(var(--self-status-pos-x, 0rem), var(--self-status-pos-y, 0rem));
 }
+/* ユーザー要望「タブレット専用にステータスエリア群の一括拡大を新設」。アバター・
+   4アイコン・名前欄を個別にではなく、パネル全体をまとめて拡大縮小できるようにする。
+   パネル自体は画面左下に固定配置(bottom/left)されているため、拡大の基準点を左下に
+   合わせ、拡大してもパネルの左下の位置がズレないようにした。PC版はこのCSS変数を
+   参照しないため影響しない。 */
+body.is-touch-device #self-hand-status {
+  transform: translate(var(--self-status-pos-x, 0rem), var(--self-status-pos-y, 0rem)) scale(var(--self-status-scale-touch, 1));
+  transform-origin: bottom left;
+}
 /* 背面に大きく表示する自分専用アバター。ステータスエリアの他の要素（アイコン・名前欄）を
    「ラップする」ように大きく表示する演出（ユーザー要望）。以前あった小さい丸型の
    アバターアイコンはこれに統合し撤去した。DOM順でアイコングリッド/名前欄より前に
@@ -3205,6 +3240,18 @@ body.cards-interaction-hidden .board-card {
 .self-status-icon-grid #self-status-online .icon-action-button-icon-wrap {
   width: var(--self-status-icon-online-size, 2.6rem);
   height: var(--self-status-icon-online-size, 2.6rem);
+}
+/* ユーザー要望「タブレット専用位置調整にオンラインアイコンを追加」。他のタブレット専用
+   オーバーライドと同じ「未設定ならPC値にフォールバック」の仕組み。 */
+body.is-touch-device #self-status-online {
+  transform: translate(
+    var(--self-status-icon-online-pos-touch-x, var(--self-status-icon-online-pos-x, 0.27rem)),
+    var(--self-status-icon-online-pos-touch-y, var(--self-status-icon-online-pos-y, -4.14rem))
+  );
+}
+body.is-touch-device .self-status-icon-grid #self-status-online .icon-action-button-icon-wrap {
+  width: var(--self-status-icon-online-size-touch, var(--self-status-icon-online-size, 2.6rem));
+  height: var(--self-status-icon-online-size-touch, var(--self-status-icon-online-size, 2.6rem));
 }
 .self-status-info {
   display: flex;
