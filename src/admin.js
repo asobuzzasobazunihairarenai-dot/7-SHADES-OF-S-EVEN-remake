@@ -85,7 +85,7 @@ const GROUPS = [
     title: "オンライン操作の点滅ハイライト（置いた/取った）",
     category: "effect",
     controls: [
-      { key: "--move-blink-duration", label: "表示秒数（点滅・矢印・アバター共通）", unit: "", min: 0.5, max: 10, step: 0.5, default: 5 },
+      { key: "--move-blink-duration", label: "表示秒数（点滅・矢印・アバター共通）", unit: "", min: 0.5, max: 10, step: 0.5, default: 7 },
       { key: "--move-blink-arrow-size", label: "矢印のサイズ", unit: "rem", min: 0.5, max: 8, step: 0.1, default: 1.6 },
       { key: "--move-blink-arrow-stroke", label: "矢印の発光の強さ", unit: "rem", min: 0, max: 0.6, step: 0.01, default: 0.2 },
       { key: "--move-blink-avatar-rotate", label: "ミニアバターの傾き", unit: "deg", min: -180, max: 180, step: 1, default: 0 },
@@ -298,9 +298,9 @@ const GROUPS = [
       { key: "--self-status-pos-y", label: "パネル全体 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--self-status-info-pos-x", label: "名前・手札枚数 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: -6.2 },
       { key: "--self-status-info-pos-y", label: "名前・手札枚数 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 2.2 },
-      { key: "--self-status-icon-piece-pos-x", label: "駒スキンアイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 5.09 },
+      { key: "--self-status-icon-piece-pos-x", label: "駒スキンアイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 8.6 },
       { key: "--self-status-icon-piece-pos-y", label: "駒スキンアイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 6.29 },
-      { key: "--self-status-icon-cardback-pos-x", label: "カード裏面アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 3.88 },
+      { key: "--self-status-icon-cardback-pos-x", label: "カード裏面アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 7.4 },
       { key: "--self-status-icon-cardback-pos-y", label: "カード裏面アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 6.29 },
       // ユーザー要望「4アイコンをきれいに整列させたい」。プレイマット/背景のXを、それぞれ
       // 駒スキン/カード裏面と同じ列に揃え、縦にきれいな2x2グリッドになるようにした
@@ -310,7 +310,7 @@ const GROUPS = [
       { key: "--self-status-icon-background-pos-x", label: "背景画像アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 3.88 },
       { key: "--self-status-icon-background-pos-y", label: "背景画像アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 4.4 },
       { key: "--self-status-icon-online-pos-x", label: "オンライン状態アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: -0.4 },
-      { key: "--self-status-icon-online-pos-y", label: "オンライン状態アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: -3.17 },
+      { key: "--self-status-icon-online-pos-y", label: "オンライン状態アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: -3.2 },
     ],
   },
   {

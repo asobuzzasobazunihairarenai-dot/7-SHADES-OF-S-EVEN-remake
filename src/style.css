@@ -4615,7 +4615,7 @@ body.is-online-mode #quick-start-bar {
   --card-arrival-modal-duration: 5;
   --card-arrival-modal-top: 3rem;
   --card-arrival-modal-right: 1rem;
-  --move-blink-duration: 5;
+  --move-blink-duration: 7;
   --move-blink-arrow-size: 1.6rem;
   --move-blink-arrow-stroke: 0.2rem;
   --move-blink-avatar-rotate: 0deg;
@@ -4680,16 +4680,16 @@ body.is-online-mode #quick-start-bar {
   --self-status-pos-y: 0rem;
   --self-status-info-pos-x: -6.2rem;
   --self-status-info-pos-y: 2.2rem;
-  --self-status-icon-piece-pos-x: 5.09rem;
+  --self-status-icon-piece-pos-x: 8.6rem;
   --self-status-icon-piece-pos-y: 6.29rem;
-  --self-status-icon-cardback-pos-x: 3.88rem;
+  --self-status-icon-cardback-pos-x: 7.4rem;
   --self-status-icon-cardback-pos-y: 6.29rem;
   --self-status-icon-playmat-pos-x: 5.09rem;
   --self-status-icon-playmat-pos-y: 4.4rem;
   --self-status-icon-background-pos-x: 3.88rem;
   --self-status-icon-background-pos-y: 4.4rem;
   --self-status-icon-online-pos-x: -0.4rem;
-  --self-status-icon-online-pos-y: -3.17rem;
+  --self-status-icon-online-pos-y: -3.2rem;
   --lock-top-pos-x: 0rem;
   --lock-top-pos-y: -1.8rem;
   --lock-bottom-pos-x: 0rem;

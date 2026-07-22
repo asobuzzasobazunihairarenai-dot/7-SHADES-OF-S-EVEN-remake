@@ -177,8 +177,23 @@ function blinkLocation(location, table, arrow = null) {
   const entry = { location, startedAt: Date.now(), durationMs, color, arrow, actor };
   applyBlinkVisual(hostEl, entry, 0);
 
+  // ユーザー報告「連続配置すると、次の行動を起こすまで矢印が点滅をやめて消えなく
+  // なる」への対応。これまではCSSアニメーション自身が自然に終わって見えなくなる
+  // ことだけに頼っており、期限が来てもJS側では`activeBlinksByKey`からの削除しか
+  // 行っていなかった。何らかの理由でアニメーションの自然終了に頼れない場合
+  // （実機のブラウザでの再現性は確認できていないが、animation-delayでの
+  // 再開を挟むこの仕組み自体が万一崩れるケースを想定した保険）に備え、期限が来た
+  // 時点でその場所の「今の」要素からクラス・色変数・矢印要素を明示的に取り除く
+  // （CSSアニメーションの終わり方に一切依存しない、確実な後始末にする）。
   entry.timeoutId = setTimeout(() => {
     activeBlinksByKey.delete(key);
+    const currentTable = document.getElementById("game-table");
+    const currentHostEl = currentTable ? helpers.findLocationElement?.(currentTable, location) : null;
+    if (currentHostEl) {
+      currentHostEl.classList.remove("move-highlight-blink");
+      currentHostEl.style.removeProperty("--move-blink-color");
+      for (const el of currentHostEl.querySelectorAll(".move-blink-arrow")) el.remove();
+    }
   }, durationMs);
   activeBlinksByKey.set(key, entry);
 }
