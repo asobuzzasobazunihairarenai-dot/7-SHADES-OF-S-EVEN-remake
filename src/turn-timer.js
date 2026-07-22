@@ -189,6 +189,16 @@ function handleTurnTransition(prevPlayer, nextPlayer, activePlayers) {
   } else if (prevPlayer !== null && nextPlayer !== null && prevPlayer !== nextPlayer) {
     // 通常のターン交代。離れる座席が「そのターン中に一度も砂時計を正式に消費しなかったか」
     // を評価し、3ターン（管理者モードで調整可）連続なら砂時計を1個補充する。
+    // ハマりどころ（ユーザー報告「ターンをもらうとき基本時間が10秒からスタートすることが
+    // ある」）: 新しいターンプレイヤーの「基本時間短縮」フラグのリセット
+    // (hourglassUsedThisTurn[nextPlayer] = false)を、以前はfreshBaseDeadlineFor(nextPlayer)
+    // の呼び出しより後に行っていた。nextPlayerが自分の前回のターンで既に砂時計を使い始めて
+    // いた場合、このフラグは次に自分のターンが回ってくるまでtrueのまま残り続けるため、
+    // リセット前にfreshBaseDeadlineForを呼ぶと古いtrueを見て短縮された基本時間
+    // （デフォルト上限10秒）を返してしまっていた。フラグのリセットをdeadline計算より
+    // 先に行うよう順序を入れ替えて修正した。
+    hourglassUsedThisTurn[nextPlayer] = false;
+    pausedExtensionRemainingMs[nextPlayer] = null;
     patch = { player: nextPlayer, deadline: freshBaseDeadlineFor(nextPlayer), phase: "base" };
     if (!hourglassUsedThisTurn[prevPlayer]) {
       turnsWithoutHourglass[prevPlayer] = (turnsWithoutHourglass[prevPlayer] ?? 0) + 1;
@@ -201,10 +211,6 @@ function handleTurnTransition(prevPlayer, nextPlayer, activePlayers) {
     } else {
       turnsWithoutHourglass[prevPlayer] = 0;
     }
-    // ターンが変わるので、新しいターンプレイヤーの「基本時間短縮」フラグ・一時停止中の
-    // ロープの続きをリセットし、通常の基本時間をまるまる与える。
-    hourglassUsedThisTurn[nextPlayer] = false;
-    pausedExtensionRemainingMs[nextPlayer] = null;
   }
   if (!patch) return;
   if (isOnlineMode() && getSelfSeat() !== nextPlayer) return; // 送信は次の手番になる本人だけ

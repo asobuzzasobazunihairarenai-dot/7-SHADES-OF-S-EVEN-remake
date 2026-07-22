@@ -112,37 +112,37 @@ body {
      （3D投影後の見かけの縦幅、ひいては「盤面拡大」ボタンの上端・下端の位置）が
      ウィンドウサイズに応じて意図せず変わってしまっていた。remの絶対値にすることで、
      消失点の位置をウィンドウサイズに左右されない固定位置にした。 */
-  --camera-perspective: 1150px;
+  --camera-perspective: 1090px;
   --camera-perspective-origin-y: 8.4rem;
   /* カメラの上下(Y軸)方向の平行移動。fitTableToViewport()内でtranslate()として
      rotateX/scale3dより先に足す（rem絶対量なので、盤面拡大時のscale3dの影響を受けない）。 */
-  --camera-offset-y: -1.7rem;
+  --camera-offset-y: -4.2rem;
   /* カメラのズーム。ビューポートに自動フィットさせた基準の倍率(applyNormalFit/
      applyBoardZoomFitがそれぞれ計算するscale)に、さらに掛け合わせる係数。1が等倍
      （今までの自動フィットのまま）。「盤面拡大」ボタンの拡大レベルとは独立していて、
      どの表示状態でも常に効く。 */
-  --camera-zoom: 1;
+  --camera-zoom: 0.93;
   /* 「盤面拡大」ボタンのズーム位置微調整（applyBoardZoomFit参照）。管理者モードで調整可能。
      ボタンは 盤面拡大(1段階目) → もっと拡大(2段階目) → 元に戻す、の3段階トグル。 */
-  --board-zoom-margin: 0.95;
+  --board-zoom-margin: 1;
   --board-zoom-offset-x: 0rem;
-  --board-zoom-offset-y: -2.2rem;
+  --board-zoom-offset-y: 3.2rem;
   /* 拡大時の倍率計算の基準となる高さ（px）。実際のブラウザウィンドウの高さではなく、この
      固定値を使うことで、拡大時の上端・下端の画面上の位置がウィンドウサイズに左右されなく
      なる（applyBoardZoomFit参照）。 */
-  --board-zoom-reference-height: 620px;
-  --board-zoom-2-margin: 1.5;
+  --board-zoom-reference-height: 1000px;
+  --board-zoom-2-margin: 2;
   --board-zoom-2-offset-x: 0rem;
   --board-zoom-2-offset-y: -2.5rem;
-  --board-zoom-2-reference-height: 800px;
+  --board-zoom-2-reference-height: 1000px;
   /* フェイズ案内板（画面右下）の位置。管理者モードで調整可能。 */
   --phase-guide-bottom: 0rem;
   /* ターンタイマー（画面中央のロープ・優先権譲渡ボタン）の位置。管理者モードで調整可能。 */
   --turn-timer-rope-pos-x: 0rem;
   --turn-timer-rope-pos-y: 0rem;
   --turn-timer-rope-width: 46rem;
-  --priority-transfer-pos-x: 0rem;
-  --priority-transfer-pos-y: 0rem;
+  --priority-transfer-pos-x: -1.6rem;
+  --priority-transfer-pos-y: 1.5rem;
 }
 
 .game-table {
@@ -263,16 +263,16 @@ body {
   padding: 0.2rem;
 }
 .hand-reveal-bottom {
-  transform: translate(0, -50%) translate(var(--hand-reveal-bottom-pos-x, -16.2rem), var(--hand-reveal-bottom-pos-y, 0.6rem));
+  transform: translate(0, -50%) translate(var(--hand-reveal-bottom-pos-x, -16.2rem), var(--hand-reveal-bottom-pos-y, -0.4rem));
 }
 /* ユーザー要望「各プレイヤーとも公開方向はロックエリアの向きに合わせる」により、
    B=時計回り90度・C=180度・D=反時計回り90度を追加した（position(translate)の後に
    付けることで、位置調整自体は回転の影響を受けない画面座標のまま行える）。 */
 .hand-reveal-top {
-  transform: translate(0, -50%) translate(var(--hand-reveal-top-pos-x, 13rem), var(--hand-reveal-top-pos-y, -1.4rem)) rotate(180deg);
+  transform: translate(0, -50%) translate(var(--hand-reveal-top-pos-x, 13rem), var(--hand-reveal-top-pos-y, -2.2rem)) rotate(180deg);
 }
 .hand-reveal-left {
-  transform: translate(0, -50%) translate(var(--hand-reveal-left-pos-x, 0.1rem), var(--hand-reveal-left-pos-y, -13.4rem)) rotate(90deg);
+  transform: translate(0, -50%) translate(var(--hand-reveal-left-pos-x, -1rem), var(--hand-reveal-left-pos-y, -13.4rem)) rotate(90deg);
 }
 .hand-reveal-right {
   transform: translate(0, -50%) translate(var(--hand-reveal-right-pos-x, -2.4rem), var(--hand-reveal-right-pos-y, 13.5rem)) rotate(-90deg);
@@ -453,10 +453,10 @@ body.is-touch-device .playmat-bg {
 
 /* 自分の手札は視認性優先で大きく表示する */
 .hand-card.is-self {
-  width: var(--hand-card-self-size, 10.1rem);
-  height: var(--hand-card-self-size, 10.1rem);
-  margin-top: calc(var(--hand-card-self-size, 10.1rem) / -2);
-  margin-left: calc(var(--hand-card-self-size, 10.1rem) / -2);
+  width: var(--hand-card-self-size, 9rem);
+  height: var(--hand-card-self-size, 9rem);
+  margin-top: calc(var(--hand-card-self-size, 9rem) / -2);
+  margin-left: calc(var(--hand-card-self-size, 9rem) / -2);
   font-size: 0.62rem;
   /* ホバー(PC)/タップ(タブレット)で1枚だけ「ひょこっと」持ち上がる演出
      （main.jsのsetPeekedCard参照。JS側がtransformを直接書き換えるため、ここでは
@@ -1040,20 +1040,20 @@ body.is-touch-device .playmat-bg {
    要望があったため、ボタンごとに専用のCSS変数を割り振った（位置調整の--icon-pos-*と
    同じ命名規則）。フォールバック値は元の共通サイズ(2.6rem)のまま。 */
 #hand-shuffle-button .icon-action-button-icon-wrap {
-  width: var(--icon-size-hand-shuffle, 2.6rem);
-  height: var(--icon-size-hand-shuffle, 2.6rem);
+  width: var(--icon-size-hand-shuffle, 3.5rem);
+  height: var(--icon-size-hand-shuffle, 3.5rem);
 }
 #board-zoom-button .icon-action-button-icon-wrap {
-  width: var(--icon-size-board-zoom, 2.6rem);
-  height: var(--icon-size-board-zoom, 2.6rem);
+  width: var(--icon-size-board-zoom, 3.5rem);
+  height: var(--icon-size-board-zoom, 3.5rem);
 }
 #draw-button .icon-action-button-icon-wrap {
-  width: var(--icon-size-draw, 2.6rem);
-  height: var(--icon-size-draw, 2.6rem);
+  width: var(--icon-size-draw, 3.5rem);
+  height: var(--icon-size-draw, 3.5rem);
 }
 #end-turn-button .icon-action-button-icon-wrap {
-  width: var(--icon-size-end-turn, 2.6rem);
-  height: var(--icon-size-end-turn, 2.6rem);
+  width: var(--icon-size-end-turn, 3.5rem);
+  height: var(--icon-size-end-turn, 3.5rem);
 }
 #options-menu-button .icon-action-button-icon-wrap {
   width: var(--icon-size-options, 2.6rem);
@@ -1070,20 +1070,20 @@ body.is-touch-device .playmat-bg {
 /* PC/タブレットでサイズを分けたい場合の対応（位置の--icon-pos-*-touch-x/yと同じ
    フォールバックチェーン方式。誤操作防止ボタンはタッチ専用のため対象外）。 */
 body.is-touch-device #hand-shuffle-button .icon-action-button-icon-wrap {
-  width: var(--icon-size-hand-shuffle-touch, var(--icon-size-hand-shuffle, 2.6rem));
-  height: var(--icon-size-hand-shuffle-touch, var(--icon-size-hand-shuffle, 2.6rem));
+  width: var(--icon-size-hand-shuffle-touch, var(--icon-size-hand-shuffle, 3.5rem));
+  height: var(--icon-size-hand-shuffle-touch, var(--icon-size-hand-shuffle, 3.5rem));
 }
 body.is-touch-device #board-zoom-button .icon-action-button-icon-wrap {
-  width: var(--icon-size-board-zoom-touch, var(--icon-size-board-zoom, 2.6rem));
-  height: var(--icon-size-board-zoom-touch, var(--icon-size-board-zoom, 2.6rem));
+  width: var(--icon-size-board-zoom-touch, var(--icon-size-board-zoom, 3.5rem));
+  height: var(--icon-size-board-zoom-touch, var(--icon-size-board-zoom, 3.5rem));
 }
 body.is-touch-device #draw-button .icon-action-button-icon-wrap {
-  width: var(--icon-size-draw-touch, var(--icon-size-draw, 2.6rem));
-  height: var(--icon-size-draw-touch, var(--icon-size-draw, 2.6rem));
+  width: var(--icon-size-draw-touch, var(--icon-size-draw, 3.5rem));
+  height: var(--icon-size-draw-touch, var(--icon-size-draw, 3.5rem));
 }
 body.is-touch-device #end-turn-button .icon-action-button-icon-wrap {
-  width: var(--icon-size-end-turn-touch, var(--icon-size-end-turn, 2.6rem));
-  height: var(--icon-size-end-turn-touch, var(--icon-size-end-turn, 2.6rem));
+  width: var(--icon-size-end-turn-touch, var(--icon-size-end-turn, 3.5rem));
+  height: var(--icon-size-end-turn-touch, var(--icon-size-end-turn, 3.5rem));
 }
 body.is-touch-device #options-menu-button .icon-action-button-icon-wrap {
   width: var(--icon-size-options-touch, var(--icon-size-options, 2.6rem));
@@ -1245,7 +1245,7 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
   display: flex;
   align-items: center;
   gap: 0.2rem;
-  transform: translate(var(--turn-timer-self-stock-pos-x, 0rem), var(--turn-timer-self-stock-pos-y, 0rem));
+  transform: translate(var(--turn-timer-self-stock-pos-x, -6rem), var(--turn-timer-self-stock-pos-y, 0rem));
 }
 /* ユーザーがプレイヤー色別の砂時計アイコン画像を追加してくれたため、絵文字(⏳)から
    差し替えた。自分の駒の色に応じたアイコンをJS側(updateSelfStock)で設定する。 */
@@ -2247,9 +2247,9 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
 :root {
   --label-a-pos-x: -14.7rem;
   --label-a-pos-y: -1.1rem;
-  --label-b-pos-x: -4.4rem;
+  --label-b-pos-x: -4.5rem;
   --label-b-pos-y: -5.1rem;
-  --label-c-pos-x: 4.5rem;
+  --label-c-pos-x: 7.3rem;
   --label-c-pos-y: -7rem;
   --label-d-pos-x: 3.8rem;
   --label-d-pos-y: -5.2rem;
@@ -2363,7 +2363,7 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
   right: 1.2rem;
   z-index: 1000;
   display: none; /* is-active時のみflexに切り替える（updateEndTurnButton参照） */
-  transform: translate(var(--icon-pos-end-turn-x, 0.17rem), var(--icon-pos-end-turn-y, -3.21rem));
+  transform: translate(var(--icon-pos-end-turn-x, 0rem), var(--icon-pos-end-turn-y, -3.4rem));
 }
 /* PC/タブレットでUI位置を分けたい場合の対応（device-detect.jsのbody.is-touch-device）。
    管理者モードの「タブレット用の位置調整」で個別に触った分だけ、タッチ端末側の変数
@@ -2372,8 +2372,8 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
    いなければ、タブレットでもPCと全く同じ位置のまま変わらない。 */
 body.is-touch-device #end-turn-button {
   transform: translate(
-    var(--icon-pos-end-turn-touch-x, var(--icon-pos-end-turn-x, 0.17rem)),
-    var(--icon-pos-end-turn-touch-y, var(--icon-pos-end-turn-y, -3.21rem))
+    var(--icon-pos-end-turn-touch-x, var(--icon-pos-end-turn-x, 0rem)),
+    var(--icon-pos-end-turn-touch-y, var(--icon-pos-end-turn-y, -3.4rem))
   );
 }
 /* 自分のターンでオンライン中、自分の手番でない間は押せなくする（アイコン全体を薄くする）。 */
@@ -2667,7 +2667,7 @@ body.is-touch-device #options-menu-button {
   display: none;
   /* 管理者モードの「アイコン再配置モード」でドラッグした分のズレ。基準位置は変えず
      translate()で上乗せする（icon-rearrange.js参照）。 */
-  transform: translate(var(--icon-pos-draw-x, -8.83rem), var(--icon-pos-draw-y, -4.71rem));
+  transform: translate(var(--icon-pos-draw-x, -8rem), var(--icon-pos-draw-y, -4.71rem));
 }
 /* 「公開ドロー」ボタン。ユーザー指定の通り「1枚ドロー」ボタンの左上に置く
    （#draw-buttonの基準位置bottom:5rem;right:1.2remから見て、上方向・左方向にずらした
@@ -2679,43 +2679,43 @@ body.is-touch-device #options-menu-button {
   right: 5.5rem;
   z-index: 1000;
   display: none;
-  transform: translate(var(--icon-pos-public-draw-x, 0.29rem), var(--icon-pos-public-draw-y, 1.25rem));
+  transform: translate(var(--icon-pos-public-draw-x, 0.3rem), var(--icon-pos-public-draw-y, 1rem));
 }
 #public-draw-button .icon-action-button-icon-wrap {
-  width: var(--icon-size-public-draw, 2.6rem);
-  height: var(--icon-size-public-draw, 2.6rem);
+  width: var(--icon-size-public-draw, 3.5rem);
+  height: var(--icon-size-public-draw, 3.5rem);
 }
 #board-zoom-button {
   position: fixed;
   bottom: 8.8rem;
   right: 1.2rem;
   z-index: 1000;
-  transform: translate(var(--icon-pos-board-zoom-x, -0.29rem), var(--icon-pos-board-zoom-y, -0.71rem));
+  transform: translate(var(--icon-pos-board-zoom-x, 0rem), var(--icon-pos-board-zoom-y, -0.71rem));
 }
 #hand-shuffle-button {
   position: fixed;
   bottom: 12.6rem;
   right: 1.2rem;
   z-index: 1000;
-  transform: translate(var(--icon-pos-hand-shuffle-x, -7.91rem), var(--icon-pos-hand-shuffle-y, 7.79rem));
+  transform: translate(var(--icon-pos-hand-shuffle-x, -7.5rem), var(--icon-pos-hand-shuffle-y, 7.79rem));
 }
 /* PC/タブレットでUI位置を分けたい場合の対応（#end-turn-button側と同じフォールバック
    チェーン方式）。 */
 body.is-touch-device #draw-button {
   transform: translate(
-    var(--icon-pos-draw-touch-x, var(--icon-pos-draw-x, -8.83rem)),
+    var(--icon-pos-draw-touch-x, var(--icon-pos-draw-x, -8rem)),
     var(--icon-pos-draw-touch-y, var(--icon-pos-draw-y, -4.71rem))
   );
 }
 body.is-touch-device #board-zoom-button {
   transform: translate(
-    var(--icon-pos-board-zoom-touch-x, var(--icon-pos-board-zoom-x, -0.29rem)),
+    var(--icon-pos-board-zoom-touch-x, var(--icon-pos-board-zoom-x, 0rem)),
     var(--icon-pos-board-zoom-touch-y, var(--icon-pos-board-zoom-y, -0.71rem))
   );
 }
 body.is-touch-device #hand-shuffle-button {
   transform: translate(
-    var(--icon-pos-hand-shuffle-touch-x, var(--icon-pos-hand-shuffle-x, -7.91rem)),
+    var(--icon-pos-hand-shuffle-touch-x, var(--icon-pos-hand-shuffle-x, -7.5rem)),
     var(--icon-pos-hand-shuffle-touch-y, var(--icon-pos-hand-shuffle-y, 7.79rem))
   );
 }
@@ -3057,7 +3057,7 @@ body.cards-interaction-hidden .board-card {
   display: none;
   align-items: center;
   justify-content: center;
-  transform: translate(var(--self-status-icon-piece-pos-x, 4.8rem), var(--self-status-icon-piece-pos-y, 6.3rem));
+  transform: translate(var(--self-status-icon-piece-pos-x, 5.09rem), var(--self-status-icon-piece-pos-y, 6.29rem));
 }
 .self-status-piece-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -3087,7 +3087,7 @@ body.cards-interaction-hidden .board-card {
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
-  transform: translate(var(--self-status-icon-cardback-pos-x, 4rem), var(--self-status-icon-cardback-pos-y, 6.3rem));
+  transform: translate(var(--self-status-icon-cardback-pos-x, 3.88rem), var(--self-status-icon-cardback-pos-y, 6.29rem));
 }
 .self-status-card-back-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -3112,7 +3112,10 @@ body.cards-interaction-hidden .board-card {
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
-  transform: translate(var(--self-status-icon-playmat-pos-x, 8.45rem), var(--self-status-icon-playmat-pos-y, 4.4rem));
+  /* ユーザー要望「4アイコンをきれいに整列させたい」。従来はプレイマット/背景が
+     駒スキン/カード裏面と別々のX位置に浮いていて2x2として揃っていなかった。
+     駒スキンと同じX（列）に揃え、縦にきれいな2x2グリッドになるようにした。 */
+  transform: translate(var(--self-status-icon-playmat-pos-x, 5.09rem), var(--self-status-icon-playmat-pos-y, 4.4rem));
 }
 .self-status-playmat-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -3125,7 +3128,9 @@ body.cards-interaction-hidden .board-card {
 .self-status-playmat-thumb.self-status-background-thumb {
   width: var(--self-status-icon-background-size, 1.5rem);
   height: var(--self-status-icon-background-size, 1.5rem);
-  transform: translate(var(--self-status-icon-background-pos-x, 7.86rem), var(--self-status-icon-background-pos-y, 4.4rem));
+  /* カード裏面と同じX（列）に揃え、縦にきれいな2x2グリッドになるようにした
+     （上の.self-status-playmat-thumbのコメント参照）。 */
+  transform: translate(var(--self-status-icon-background-pos-x, 3.88rem), var(--self-status-icon-background-pos-y, 4.4rem));
 }
 .self-status-playmat-thumb img {
   width: 100%;
@@ -3287,7 +3292,7 @@ body.avatar-outline-visible .avatar-image {
 :root {
   --card-arrival-modal-size: 25rem;
   --card-arrival-modal-duration: 5; /* 秒 */
-  --card-arrival-modal-top: 1rem;
+  --card-arrival-modal-top: 3rem;
   --card-arrival-modal-right: 1rem;
 }
 .card-arrival-modal {

@@ -710,6 +710,11 @@ async function addArrivedCardToHand(location, player) {
   }
   announceHandPickups(player, [{ cardId: token.cardId, wasPublic: token.faceUp }]);
   render();
+  // ハマりどころ（ユーザー報告「表向きが2枚重なっていて上のカードを手札に加えても、
+  // 下の表向きカードの到達コンボが発動しない」）: ドラッグ&ドロップでの移動は全て
+  // maybeTriggerCardArrivalForExposedCard()を呼んでいたが、到達モーダルの「このカードを
+  // 手札に加える」ボタン経由の移動だけこの呼び出しが抜けていた。
+  maybeTriggerCardArrivalForExposedCard(location);
 }
 
 // 到達演出一式（右上モーダル＋そのマス自体が発光する柱状のオーラ＋効果音）をまとめて行う。
@@ -832,11 +837,14 @@ function promptCardOpen(pieceTokenId, card) {
   closeOpenPrompt();
   const pieceEl = document.querySelector(`.piece[data-token-id="${pieceTokenId}"]`);
   if (!pieceEl) return;
-  const rect = pieceEl.getBoundingClientRect();
+  // getBoundingClientRect()は実画面座標だが、promptはposition:fixedでステージ内に
+  // 描画されるため、ステージのローカル座標に変換してから使う（ユーザー報告「オープン
+  // する/しないボタンがだいぶ遠くに表示される」の原因。ステージ導入時の見落とし）。
+  const rect = toStageLocalRect(pieceEl.getBoundingClientRect());
 
   const prompt = document.createElement("div");
   prompt.className = "card-open-prompt";
-  prompt.style.left = `${rect.left + rect.width / 2}px`;
+  prompt.style.left = `${rect.left + (rect.right - rect.left) / 2}px`;
   prompt.style.top = `${rect.top}px`;
 
   const yesBtn = document.createElement("button");
@@ -1118,6 +1126,14 @@ function applyNormalFit() {
   const worstOverflow = (e) => Math.max(e.top - bounds.bottom, bounds.top - e.top, e.right - bounds.right, bounds.left - e.left);
   for (let i = 0; i < 3 && scale > 0.05; i++) {
     const e1 = measureHandFanExtent(table);
+    // ハマりどころ（ユーザー報告「セットアップ直後は遠景になり、ドローすると戻る」）:
+    // セットアップ直後は誰の手札もまだ0枚のことがあり、measureHandFanExtentが空のまま
+    // （top/leftがInfinity、bottom/rightが-Infinity）を返す。上のworstOverflowは
+    // 「下端方向だけe.topを見る」よう変更済みのため、e.topがInfinityのままだと
+    // Infinity - bounds.bottomが+Infinityになり「巨大なはみ出し」と誤判定されて
+    // scaleが際限なく縮められてしまっていた（手札が1枚も無い＝この判定自体が
+    // 無意味なので、そもそも判定しない）。
+    if (!Number.isFinite(e1.top)) break;
     const overflow1 = worstOverflow(e1);
     if (overflow1 <= 0.5) break;
     const scale2 = scale * 0.85;
