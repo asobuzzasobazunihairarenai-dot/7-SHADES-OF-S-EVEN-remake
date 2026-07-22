@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">駒操作OFF</title>
+  <desc id="desc">薄い破線のキューブと斜線付きのタップ記号で駒を一時的に操作できない状態を表すアイコン</desc>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke="var(--icon-muted, #8A95A5)" stroke-width="11" opacity=".7" stroke-dasharray="18 12">
+      <path d="m128 30 79 46v91l-79 46-79-46V76Z"/>
+      <path d="m49 76 79 49 79-49M128 125v88"/>
+    </g>
+    <g stroke="var(--icon-primary, #F4F7FB)" stroke-width="10">
+      <path d="M102 174v-57c0-9 6-15 14-15s14 6 14 15v30-13c0-8 5-13 12-13s12 5 12 13v18-10c0-8 5-13 12-13s12 5 12 13v17-7c0-8 5-13 12-13s12 5 12 13v30c0 29-19 48-48 48h-10c-18 0-32-8-42-23l-21-31c-5-8-3-17 4-22 7-4 15-2 21 5Z" fill="var(--icon-badge, #16202D)" opacity=".96"/>
+    </g>
+    <path d="M43 43 213 213" fill="none" stroke="var(--icon-accent, #E6B94F)" stroke-width="16" stroke-linecap="round"/>
+  </g>
+</svg>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">ルーム入室中</title>
+  <desc id="desc">扉の中の人物と金色のチェックでゲームルームに入室中の状態を表すアイコン</desc>
+  <g fill="none" stroke="var(--icon-primary, #F4F7FB)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M45 218V43h132v175M26 218h169"/>
+    <path d="M72 218V72h79v146" opacity=".45"/>
+    <circle cx="111" cy="112" r="24"/>
+    <path d="M72 190c3-33 17-51 39-51 23 0 37 18 40 51Z"/>
+    <circle cx="185" cy="180" r="45" fill="var(--icon-badge, #16202D)"/>
+    <path d="m160 180 16 16 35-39" stroke="var(--icon-accent, #E6B94F)" stroke-width="13"/>
+  </g>
+</svg>

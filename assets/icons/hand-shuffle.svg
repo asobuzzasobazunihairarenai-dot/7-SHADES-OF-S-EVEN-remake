@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">手札シャッフル</title>
+  <desc id="desc">正方形のカード三枚と入れ替わる二本の矢印</desc>
+  <g fill="none" stroke="var(--icon-primary, #F4F7FB)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="47" y="49" width="120" height="120" rx="9" transform="rotate(-13 107 109)" opacity=".5"/>
+    <rect x="89" y="49" width="120" height="120" rx="9" transform="rotate(13 149 109)" opacity=".5"/>
+    <rect x="68" y="43" width="120" height="120" rx="9"/>
+    <path d="M128 59 171 103 128 147 85 103Z" stroke="var(--icon-accent, #E6B94F)" stroke-width="7"/>
+    <path d="m128 76 22 15v25l-22 15-22-15V91Z" stroke="var(--icon-accent, #E6B94F)" stroke-width="6"/>
+    <path d="m106 91 22 14 22-14M128 105v26" stroke="var(--icon-accent, #E6B94F)" stroke-width="6"/>
+    <path d="M39 193c25 25 55 33 87 21"/>
+    <path d="m111 201 17 13-14 17"/>
+    <path d="M217 193c-25 25-55 33-87 21"/>
+    <path d="m145 201-17 13 14 17"/>
+  </g>
+</svg>

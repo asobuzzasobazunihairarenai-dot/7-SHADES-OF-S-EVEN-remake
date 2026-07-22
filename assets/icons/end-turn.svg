@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">ターン終了</title>
+  <desc id="desc">金色の立方体から右の終端線へ進む矢印でターン終了を表すアイコン</desc>
+  <g fill="none" stroke="var(--icon-primary, #F4F7FB)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M51 81h63l31 47-31 47H51Z" opacity=".28"/>
+    <path d="m72 93 30 18v34l-30 18-30-18v-34Z" stroke="var(--icon-accent, #E6B94F)" stroke-width="9"/>
+    <path d="m42 111 30 19 30-19M72 130v33" stroke="var(--icon-accent, #E6B94F)" stroke-width="9"/>
+    <path d="M116 128h77"/>
+    <path d="m167 101 27 27-27 27"/>
+    <path d="M216 77v102" stroke="var(--icon-accent, #E6B94F)"/>
+  </g>
+</svg>

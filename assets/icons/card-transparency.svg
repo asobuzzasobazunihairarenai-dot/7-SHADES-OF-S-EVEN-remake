@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">場のカード操作OFF</title>
+  <desc id="desc">斜め上空から見た四枚の盤面カードと斜線付きタップ記号で場のカードを一時的に操作できない状態を表すアイコン</desc>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke="var(--icon-muted, #8A95A5)" stroke-width="10" opacity=".76" stroke-dasharray="17 11">
+      <path d="M25 85 115 33 225 97 135 149Z"/>
+      <path d="M70 59 180 123M80 117 170 65"/>
+    </g>
+    <g stroke="var(--icon-primary, #F4F7FB)" stroke-width="10">
+      <path d="M105 176v-54c0-9 6-15 14-15s14 6 14 15v28-12c0-8 5-13 12-13s12 5 12 13v17-9c0-8 5-13 12-13s12 5 12 13v16-6c0-8 5-13 12-13s12 5 12 13v27c0 28-18 46-46 46h-10c-17 0-31-8-41-22l-20-29c-5-8-3-17 4-21 7-4 15-2 20 5Z" fill="var(--icon-badge, #16202D)" opacity=".96"/>
+    </g>
+    <path d="M42 43 214 215" fill="none" stroke="var(--icon-accent, #E6B94F)" stroke-width="16" stroke-linecap="round"/>
+  </g>
+</svg>

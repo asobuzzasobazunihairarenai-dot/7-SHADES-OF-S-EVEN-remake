@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">オプション</title>
+  <desc id="desc">白い歯車の中央に金色の立方体を配したセブン専用の設定アイコン</desc>
+  <g fill="none" stroke="var(--icon-primary, #F4F7FB)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M111 25h34l7 25c8 3 16 7 23 13l25-7 17 30-18 18c1 8 1 16 0 24l18 18-17 30-25-7c-7 6-15 10-23 13l-7 25h-34l-7-25c-8-3-16-7-23-13l-25 7-17-30 18-18c-1-8-1-16 0-24L39 86l17-30 25 7c7-6 15-10 23-13Z" transform="translate(0 12)"/>
+    <circle cx="128" cy="128" r="48" opacity=".42"/>
+    <path d="m128 91 32 19v37l-32 19-32-19v-37Z" stroke="var(--icon-accent, #E6B94F)" stroke-width="8"/>
+    <path d="m96 110 32 20 32-20M128 130v36" stroke="var(--icon-accent, #E6B94F)" stroke-width="8"/>
+  </g>
+</svg>

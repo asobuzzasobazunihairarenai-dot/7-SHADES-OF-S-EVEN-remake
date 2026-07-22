@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">1枚ドロー</title>
+  <desc id="desc">セブンの正方形カード裏面にプラス1を重ねたアイコン</desc>
+  <g fill="none" stroke="var(--icon-primary, #F4F7FB)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M39 62h142a12 12 0 0 1 12 12v142H51a12 12 0 0 1-12-12Z" opacity=".45"/>
+    <rect x="27" y="45" width="166" height="166" rx="12"/>
+    <path d="M110 65 170 125 110 191 47 125Z" stroke="var(--icon-accent, #E6B94F)" stroke-width="7"/>
+    <path d="m110 88 31 21v37l-31 21-31-21v-37Z" stroke="var(--icon-accent, #E6B94F)" stroke-width="6"/>
+    <path d="m79 109 31 21 31-21M110 130v37" stroke="var(--icon-accent, #E6B94F)" stroke-width="6"/>
+    <circle cx="188" cy="188" r="51" fill="var(--icon-badge, #16202D)" stroke="var(--icon-primary, #F4F7FB)"/>
+    <path d="M148 188h35M165.5 170.5v35" stroke="var(--icon-accent, #E6B94F)" stroke-width="10"/>
+    <path d="m198 176 12-8v39M197 208h27" stroke="var(--icon-accent, #E6B94F)" stroke-width="10"/>
+  </g>
+</svg>

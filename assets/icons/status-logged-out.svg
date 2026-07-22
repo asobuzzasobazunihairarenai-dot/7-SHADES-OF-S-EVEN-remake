@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">オフライン</title>
+  <desc id="desc">接続されていない状態を示す地球と斜線のアイコン</desc>
+  <g fill="none" stroke="var(--icon-muted, #8A95A5)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="128" cy="128" r="88"/>
+    <path d="M43 128h170M128 40c29 25 45 55 45 88s-16 63-45 88M128 40c-29 25-45 55-45 88s16 63 45 88M57 82h142M57 174h142"/>
+    <path d="M42 42 214 214" stroke="var(--icon-accent, #E6B94F)" stroke-width="16"/>
+  </g>
+</svg>

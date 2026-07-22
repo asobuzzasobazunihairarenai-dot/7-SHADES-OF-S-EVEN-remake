@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">画面拡大</title>
+  <desc id="desc">四隅へ広がる白いフルスクリーン記号と中央の金色の立方体</desc>
+  <g fill="none" stroke="var(--icon-primary, #F4F7FB)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M101 39H39v62M155 39h62v62M217 155v62h-62M101 217H39v-62"/>
+    <path d="M91 91 48 48M165 91l43-43M165 165l43 43M91 165l-43 43" opacity=".55"/>
+    <path d="m128 82 40 23v46l-40 23-40-23v-46Z" stroke="var(--icon-accent, #E6B94F)" stroke-width="9"/>
+    <path d="m88 105 40 25 40-25M128 130v44" stroke="var(--icon-accent, #E6B94F)" stroke-width="9"/>
+  </g>
+</svg>

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">ログイン・オンライン中</title>
+  <desc id="desc">地球を背にした人物と金色のチェックでログイン済みかつオンラインの状態を表すアイコン</desc>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke="var(--icon-online, #42C7F5)" stroke-width="9" opacity=".42">
+      <circle cx="128" cy="116" r="91"/>
+      <path d="M39 116h178M128 25c29 25 45 56 45 91 0 34-16 66-45 91M128 25c-29 25-45 56-45 91 0 34 16 66 45 91M56 67h144M48 163h160"/>
+    </g>
+    <g stroke="var(--icon-primary, #F4F7FB)" stroke-width="11">
+      <circle cx="105" cy="91" r="35" fill="var(--icon-badge, #16202D)"/>
+      <path d="M42 210c4-46 28-73 63-73 36 0 60 27 64 73Z" fill="var(--icon-badge, #16202D)"/>
+      <path d="M79 146c6 10 15 16 26 16s20-6 26-16" opacity=".35"/>
+      <circle cx="187" cy="184" r="43" fill="var(--icon-badge, #16202D)"/>
+      <path d="m163 184 16 16 34-38" stroke="var(--icon-accent, #E6B94F)" stroke-width="13"/>
+    </g>
+  </g>
+</svg>
