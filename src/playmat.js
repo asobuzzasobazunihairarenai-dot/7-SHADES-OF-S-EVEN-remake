@@ -17,6 +17,16 @@ export const PLAYMAT_OPTIONS = [
   { id: "purple", label: "紫", path: "assets/playmats/purple.webp" },
   { id: "white-old", label: "白（旧）", path: "assets/playmats/white-old.webp" },
   { id: "blue-old", label: "青（旧）", path: "assets/playmats/blue-old.webp" },
+  // 「古」バリエーション（9色分、既存の「旧」とは別デザイン）。
+  { id: "red-aged", label: "赤（古）", path: "assets/playmats/red-aged.webp" },
+  { id: "orange-aged", label: "橙（古）", path: "assets/playmats/orange-aged.webp" },
+  { id: "yellow-aged", label: "黄（古）", path: "assets/playmats/yellow-aged.webp" },
+  { id: "green-aged", label: "緑（古）", path: "assets/playmats/green-aged.webp" },
+  { id: "blue-aged", label: "青（古）", path: "assets/playmats/blue-aged.webp" },
+  { id: "pink-aged", label: "桃（古）", path: "assets/playmats/pink-aged.webp" },
+  { id: "purple-aged", label: "紫（古）", path: "assets/playmats/purple-aged.webp" },
+  { id: "white-aged", label: "白（古）", path: "assets/playmats/white-aged.webp" },
+  { id: "black-aged", label: "黒（古）", path: "assets/playmats/black-aged.webp" },
 ];
 
 let selectedPlaymatId = "white";

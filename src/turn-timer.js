@@ -88,6 +88,7 @@ let ropeStrandEl = null;
 let ropeTipEl = null;
 let ropeHourglassCountEl = null;
 let warningEl = null;
+let priorityReturnWarningEl = null; // 手番でない座席が優先権を持ったままタイムオーバーした時の警告
 let transferButtonsEl = null;
 let transferModalBackdrop = null;
 let transferModalEl = null;
@@ -325,7 +326,14 @@ function updateBaseClock(state) {
     return;
   }
   const remainingSec = Math.max(0, Math.ceil((state.priorityDeadline - Date.now()) / 1000));
-  baseClockLabelEl.textContent = `⏱ ${remainingSec}`;
+  // ユーザー報告「両方のプレイヤーで基本時間が減っていくように見える」への対応。
+  // この表示はロープ（延長時間）と同じく、優先権保持者が誰であっても全プレイヤーの
+  // 画面に同じ1つの数字が見える設計（単一の共有stateをそのまま描画しているだけで、
+  // 実際に2人分独立したタイマーが動いているわけではない）。ただし従来は誰の基本時間かの
+  // 表示が無く、見ている本人には「自分の分が減っている」ように誤解されやすかった。
+  // ロープの「○○の砂時計が燃えています」と同じように、座席を明示する。
+  baseClockLabelEl.textContent = `${state.priorityPlayer} ⏱${remainingSec}`;
+  baseClockEl.title = `${getPlayerName(state.priorityPlayer)}の基本時間`;
   baseClockEl.style.display = "flex";
   const totalSeconds = hourglassUsedThisTurn[state.priorityPlayer]
     ? Math.min(getRopeBaseSeconds(), getReducedBaseSeconds())
@@ -436,6 +444,40 @@ function updateWarning(shouldShow) {
   warningEl.style.display = "block";
 }
 
+// ユーザー要望「手番じゃないのに優先権を持っていてタイムオーバーになった場合は、優先権を
+// 手番プレイヤーに返してくださいという警告を出してほしい」への対応。updateWarning
+// （ムーブフェイズを終えてターンを終了してください＝優先権保持者=手番プレイヤーの時用）と
+// 同じ「赤いバッジ＋対象の光る縁取り」の見た目を、対象を#priority-transfer-buttonsに
+// 変えて再利用する。
+function buildPriorityReturnWarning() {
+  priorityReturnWarningEl = document.createElement("div");
+  priorityReturnWarningEl.className = "turn-timer-warning";
+  const line1 = document.createElement("span");
+  line1.textContent = "優先権を手番プレイヤーに";
+  const line2 = document.createElement("span");
+  line2.textContent = "返してください";
+  priorityReturnWarningEl.appendChild(line1);
+  priorityReturnWarningEl.appendChild(document.createElement("br"));
+  priorityReturnWarningEl.appendChild(line2);
+  priorityReturnWarningEl.style.display = "none";
+  document.body.appendChild(priorityReturnWarningEl);
+}
+
+function updatePriorityReturnWarning(shouldShow) {
+  if (!priorityReturnWarningEl) return;
+  if (!shouldShow || !transferButtonsEl || getComputedStyle(transferButtonsEl).display === "none") {
+    priorityReturnWarningEl.style.display = "none";
+    transferButtonsEl?.classList.remove("turn-timer-warning-glow");
+    return;
+  }
+  transferButtonsEl.classList.add("turn-timer-warning-glow");
+  const rect = transferButtonsEl.getBoundingClientRect();
+  priorityReturnWarningEl.style.top = `${rect.top + rect.height / 2}px`;
+  priorityReturnWarningEl.style.right = `${window.innerWidth - rect.left + 12}px`;
+  priorityReturnWarningEl.style.left = "auto";
+  priorityReturnWarningEl.style.display = "block";
+}
+
 // --- 優先権譲渡ボタン（三角形配置、円の中はアバター・枠は駒の色） ------------------------
 
 const TRANSFER_EXPLANATION = [
@@ -530,11 +572,20 @@ function rebuildTransferButtons() {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = isSelf ? "priority-transfer-btn is-self" : "priority-transfer-btn";
+    // ユーザー要望「優先権を誰が持っているのか明確にしたい」への対応。今まさに優先権を
+    // 持っている座席のボタンだけ光らせる（has-priority、style.css参照）。
+    if (seat === state.priorityPlayer) btn.classList.add("has-priority");
     btn.dataset.pos = isSelf ? "self" : rotateSide(SEAT_TO_SIDE[seat], steps);
     const color = getPieceColor(seat);
     btn.style.borderColor = color ? `var(--color-${color})` : "rgba(255, 255, 255, 0.5)";
     applyAvatarContent(btn, getPlayerAvatar(seat));
-    btn.title = isSelf ? "自分に優先権を戻す" : `${getPlayerName(seat)}に優先権を渡す`;
+    btn.title = isSelf
+      ? seat === state.priorityPlayer
+        ? "自分に優先権を戻す（現在優先権を保持中）"
+        : "自分に優先権を戻す"
+      : seat === state.priorityPlayer
+        ? `${getPlayerName(seat)}に優先権を渡す（現在優先権を保持中）`
+        : `${getPlayerName(seat)}に優先権を渡す`;
     // 優先権の譲渡自体も「行動」の一種として扱い、freshBaseDeadlineForで基本時間の窓を
     // 仕切り直す（既に砂時計を使い始めている座席への譲渡は、短縮された基本時間になる——
     // 譲渡を繰り返して時間を稼ぐ抜け道を作らないため）。
@@ -567,9 +618,26 @@ function rebuildTransferButtons() {
 let ticksSincePriorityResync = 0;
 const PRIORITY_RESYNC_EVERY_TICKS = 15; // tick()は200ms間隔なので約3秒に1回
 
+// タイムオーバー時、2種類の警告のどちらを出すかをまとめて切り替える。優先権保持者が
+// 手番プレイヤー本人ならupdateWarning（ムーブフェイズを終えて〜）、手番プレイヤーで
+// ない座席が優先権を持ったままタイムオーバーしているならupdatePriorityReturnWarning
+// （優先権を手番プレイヤーに返してください）——ユーザー要望「手番じゃないのに優先権を
+// 持っていてタイムオーバーになった場合」への対応。isTimedOut=falseの間は両方消す。
+function updateTimeoutWarnings(state, isTimedOut) {
+  if (!isTimedOut) {
+    updateWarning(false);
+    updatePriorityReturnWarning(false);
+    return;
+  }
+  const priorityHolderIsTurnPlayer = state.priorityPlayer === state.turnPlayer;
+  updateWarning(priorityHolderIsTurnPlayer);
+  updatePriorityReturnWarning(!priorityHolderIsTurnPlayer);
+}
+
 function tick() {
   if (!isTurnTimerEnabled()) {
     updateWarning(false);
+    updatePriorityReturnWarning(false);
     if (ropeEl) ropeEl.style.display = "none";
     if (baseClockEl) baseClockEl.style.display = "none";
     return;
@@ -588,6 +656,7 @@ function tick() {
   const state = getState();
   if (!state.turnPlayer || !state.priorityPlayer || !state.priorityDeadline) {
     updateWarning(false);
+    updatePriorityReturnWarning(false);
     if (ropeEl) ropeEl.style.display = "none";
     if (baseClockEl) baseClockEl.style.display = "none";
     return;
@@ -602,6 +671,7 @@ function tick() {
       awaitingPriorityForTurnPlayer = null;
     } else {
       updateWarning(false);
+      updatePriorityReturnWarning(false);
       if (ropeEl) ropeEl.style.display = "none";
       if (baseClockEl) baseClockEl.style.display = "none";
       return;
@@ -613,7 +683,7 @@ function tick() {
 
   const remaining = state.priorityDeadline - Date.now();
   if (remaining > 0) {
-    updateWarning(false);
+    updateTimeoutWarnings(state, false);
     return;
   }
 
@@ -642,7 +712,7 @@ function tick() {
         })
       );
     } else {
-      updateWarning(state.priorityPlayer === state.turnPlayer);
+      updateTimeoutWarnings(state, true);
     }
     return;
   }
@@ -653,7 +723,7 @@ function tick() {
   // stockが既に0の場合（この分岐に前回既に入っていて消費し切っている）は、ここで
   // 何もdispatchせず素通りする（後述のphase:"base"への遷移で既に安定状態のはず）。
   if (stock <= 0) {
-    updateWarning(state.priorityPlayer === state.turnPlayer);
+    updateTimeoutWarnings(state, true);
     return;
   }
   const nextStock = stock - 1;
@@ -666,7 +736,7 @@ function tick() {
         phase: "extension",
       })
     );
-    updateWarning(false);
+    updateTimeoutWarnings(state, false);
   } else {
     // 最後の1個も使い切った。ロープを消して警告表示だけの安定状態(phase:"base")に戻す
     // （ここで一度だけdispatchすれば、以降は上のstock<=0の早期returnで毎ティックの
@@ -679,7 +749,7 @@ function tick() {
         phase: "base",
       })
     );
-    updateWarning(state.priorityPlayer === state.turnPlayer);
+    updateTimeoutWarnings(state, true);
   }
 }
 
@@ -700,6 +770,7 @@ export function initTurnTimer() {
   buildBaseClock();
   buildRope();
   buildWarning();
+  buildPriorityReturnWarning();
   buildTransferButtons();
   subscribe((state) => {
     onStateChange(state);

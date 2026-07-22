@@ -867,7 +867,7 @@ body {
    （--phase-guide-bottom/-right）。 */
 #phase-guide-bar {
   position: fixed;
-  bottom: var(--phase-guide-bottom, 1.2rem);
+  bottom: var(--phase-guide-bottom, 0rem);
   right: var(--phase-guide-right, 2.3rem);
   z-index: 1000;
   display: flex;
@@ -1195,6 +1195,8 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
 .turn-timer-self-stock {
   font-size: 0.75rem;
   color: #94a3b8;
+  position: relative;
+  transform: translate(var(--turn-timer-self-stock-pos-x, 0rem), var(--turn-timer-self-stock-pos-y, 0rem));
 }
 
 /* 画面中央、プレイマットを横断するスケールで出現する神秘的なオーラのロープ。基本時間
@@ -1365,6 +1367,17 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
   border: 2px solid rgba(250, 204, 21, 0.8);
   pointer-events: none;
 }
+/* ユーザー要望「優先権を誰が持っているのか明確にしたい」への対応。今まさに優先権を
+   持っている座席のボタンだけ、ゆっくり明滅する水色の光でひと目で分かるようにする
+   （is-selfの金色リングとは別レイヤーなので、自分が優先権を持っている時は両方重なって見える）。 */
+@keyframes priority-transfer-glow {
+  0%, 100% { box-shadow: 0 0 0.3rem 0.05rem rgba(56, 189, 248, 0.6); }
+  50% { box-shadow: 0 0 0.6rem 0.2rem rgba(56, 189, 248, 0.95); }
+}
+.priority-transfer-btn.has-priority {
+  border-color: #38bdf8;
+  animation: priority-transfer-glow 1.6s ease-in-out infinite;
+}
 
 .priority-transfer-label {
   position: relative;
@@ -1435,6 +1448,12 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
    ようにするための保険。 */
 #end-turn-button.turn-timer-warning-glow {
   animation: turn-timer-button-glow 1s ease-in-out infinite;
+}
+/* 「優先権を手番プレイヤーに返してください」警告用。優先権譲渡ボタン群自体を同じ
+   点滅する縁取りで光らせる（updatePriorityReturnWarning参照）。 */
+#priority-transfer-buttons.turn-timer-warning-glow {
+  animation: turn-timer-button-glow 1s ease-in-out infinite;
+  border-radius: 0.6rem;
 }
 @keyframes turn-timer-button-glow {
   0%, 100% { box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), 0 0 0 0.15rem rgba(239, 68, 68, 0.9); }
@@ -1875,7 +1894,7 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.3rem;
+  font-size: var(--move-blink-arrow-size, 1.3rem);
   font-weight: 700;
   line-height: 1;
   pointer-events: none;
@@ -2838,15 +2857,15 @@ body.cards-interaction-hidden .board-card {
   left: 0;
   top: 0;
   z-index: 0;
-  font-size: calc(var(--self-status-large-avatar-size, 13.7rem) * 0.75);
+  font-size: calc(var(--self-status-large-avatar-size, 13.5rem) * 0.75);
   line-height: 1;
   cursor: pointer;
-  transform: translate(var(--self-status-large-avatar-pos-x, -1.9rem), var(--self-status-large-avatar-pos-y, -6.2rem));
+  transform: translate(var(--self-status-large-avatar-pos-x, -0.86rem), var(--self-status-large-avatar-pos-y, -5.12rem));
   filter: drop-shadow(0 0.2rem 0.4rem rgba(0, 0, 0, 0.6));
 }
 .self-status-large-avatar .avatar-image {
-  width: var(--self-status-large-avatar-size, 13.7rem);
-  height: var(--self-status-large-avatar-size, 13.7rem);
+  width: var(--self-status-large-avatar-size, 13.5rem);
+  height: var(--self-status-large-avatar-size, 13.5rem);
 }
 .self-status-large-avatar:hover .phase-guide-tooltip {
   opacity: 1;
@@ -2917,7 +2936,7 @@ body.cards-interaction-hidden .board-card {
   display: none;
   align-items: center;
   justify-content: center;
-  transform: translate(var(--self-status-icon-piece-pos-x, 4.8rem), var(--self-status-icon-piece-pos-y, 5rem));
+  transform: translate(var(--self-status-icon-piece-pos-x, 4.8rem), var(--self-status-icon-piece-pos-y, 6.3rem));
 }
 .self-status-piece-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -2947,7 +2966,7 @@ body.cards-interaction-hidden .board-card {
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
-  transform: translate(var(--self-status-icon-cardback-pos-x, 4rem), var(--self-status-icon-cardback-pos-y, 5rem));
+  transform: translate(var(--self-status-icon-cardback-pos-x, 4rem), var(--self-status-icon-cardback-pos-y, 6.3rem));
 }
 .self-status-card-back-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -2972,7 +2991,7 @@ body.cards-interaction-hidden .board-card {
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
-  transform: translate(var(--self-status-icon-playmat-pos-x, 8.7rem), var(--self-status-icon-playmat-pos-y, 3.1rem));
+  transform: translate(var(--self-status-icon-playmat-pos-x, 8.45rem), var(--self-status-icon-playmat-pos-y, 4.4rem));
 }
 .self-status-playmat-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -2985,7 +3004,7 @@ body.cards-interaction-hidden .board-card {
 .self-status-playmat-thumb.self-status-background-thumb {
   width: var(--self-status-icon-background-size, 1.5rem);
   height: var(--self-status-icon-background-size, 1.5rem);
-  transform: translate(var(--self-status-icon-background-pos-x, 7.86rem), var(--self-status-icon-background-pos-y, 3.1rem));
+  transform: translate(var(--self-status-icon-background-pos-x, 7.86rem), var(--self-status-icon-background-pos-y, 4.4rem));
 }
 .self-status-playmat-thumb img {
   width: 100%;
@@ -3127,7 +3146,7 @@ body.cards-interaction-hidden .board-card {
 :root {
   --card-arrival-modal-size: 25rem;
   --card-arrival-modal-duration: 5; /* 秒 */
-  --card-arrival-modal-top: 8.5rem;
+  --card-arrival-modal-top: 1rem;
   --card-arrival-modal-right: 1rem;
 }
 .card-arrival-modal {

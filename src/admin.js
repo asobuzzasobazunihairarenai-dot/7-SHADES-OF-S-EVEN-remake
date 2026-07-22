@@ -60,7 +60,7 @@ const GROUPS = [
       // ユーザー報告「右下のアイコンボタン群と干渉する」への対応。位置(top/right)を
       // 直接調整可能にした（他の右上固定要素とは違い、この要素はtranslateベースの
       // オフセット方式ではなく元々top/right固定だったため、そのまま調整可能にした）。
-      { key: "--card-arrival-modal-top", label: "位置（上端からの距離）", unit: "rem", min: 0, max: 30, step: 0.1, default: 8.5 },
+      { key: "--card-arrival-modal-top", label: "位置（上端からの距離）", unit: "rem", min: 0, max: 30, step: 0.1, default: 1 },
       { key: "--card-arrival-modal-right", label: "位置（右端からの距離）", unit: "rem", min: 0, max: 30, step: 0.1, default: 1 },
     ],
   },
@@ -72,6 +72,7 @@ const GROUPS = [
     category: "effect",
     controls: [
       { key: "--move-blink-duration", label: "点滅の長さ（秒）", unit: "", min: 0.5, max: 10, step: 0.5, default: 3 },
+      { key: "--move-blink-arrow-size", label: "矢印のサイズ", unit: "rem", min: 0.5, max: 4, step: 0.1, default: 1.3 },
     ],
   },
   {
@@ -154,7 +155,7 @@ const GROUPS = [
     title: "フェイズ案内板（画面右下）",
     category: "position",
     controls: [
-      { key: "--phase-guide-bottom", label: "Y位置（画面下端からの距離）", unit: "rem", min: 0, max: 20, step: 0.1, default: 1.2 },
+      { key: "--phase-guide-bottom", label: "Y位置（画面下端からの距離）", unit: "rem", min: 0, max: 20, step: 0.1, default: 0 },
       { key: "--phase-guide-right", label: "X位置（画面右端からの距離）", unit: "rem", min: 0, max: 30, step: 0.1, default: 2.3 },
       { key: "--phase-guide-item-width", label: "基本時間表示(⏱)の幅", unit: "rem", min: 2, max: 20, step: 0.1, default: 9 },
       { key: "--phase-guide-item-height", label: "基本時間表示(⏱)の高さ", unit: "rem", min: 1, max: 10, step: 0.1, default: 1 },
@@ -175,6 +176,15 @@ const GROUPS = [
     controls: [
       { key: "--priority-transfer-pos-x", label: "位置X", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
       { key: "--priority-transfer-pos-y", label: "位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+    ],
+  },
+  {
+    // 左下の自分専用ステータスエリアに出す「⏳×N」表示（turn-timer.jsのbuildSelfStock参照）。
+    title: "ターンタイマー：砂時計残数バッジの位置調整",
+    category: "position",
+    controls: [
+      { key: "--turn-timer-self-stock-pos-x", label: "位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 0 },
+      { key: "--turn-timer-self-stock-pos-y", label: "位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 0 },
     ],
   },
   {
@@ -232,9 +242,9 @@ const GROUPS = [
     title: "自分専用ステータスエリア（左下）：大きいアバター（背面表示）",
     category: "position",
     controls: [
-      { key: "--self-status-large-avatar-size", label: "サイズ", unit: "rem", min: 2, max: 16, step: 0.1, default: 13.7 },
-      { key: "--self-status-large-avatar-pos-x", label: "位置X", unit: "rem", min: -15, max: 20, step: 0.1, default: -1.9 },
-      { key: "--self-status-large-avatar-pos-y", label: "位置Y", unit: "rem", min: -15, max: 20, step: 0.1, default: -6.2 },
+      { key: "--self-status-large-avatar-size", label: "サイズ", unit: "rem", min: 2, max: 16, step: 0.1, default: 13.5 },
+      { key: "--self-status-large-avatar-pos-x", label: "位置X", unit: "rem", min: -15, max: 20, step: 0.1, default: -0.86 },
+      { key: "--self-status-large-avatar-pos-y", label: "位置Y", unit: "rem", min: -15, max: 20, step: 0.1, default: -5.12 },
     ],
   },
   {
@@ -246,13 +256,13 @@ const GROUPS = [
       { key: "--self-status-info-pos-x", label: "名前・手札枚数 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: -6.2 },
       { key: "--self-status-info-pos-y", label: "名前・手札枚数 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 2.2 },
       { key: "--self-status-icon-piece-pos-x", label: "駒スキンアイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 4.8 },
-      { key: "--self-status-icon-piece-pos-y", label: "駒スキンアイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 5 },
+      { key: "--self-status-icon-piece-pos-y", label: "駒スキンアイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 6.3 },
       { key: "--self-status-icon-cardback-pos-x", label: "カード裏面アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 4 },
-      { key: "--self-status-icon-cardback-pos-y", label: "カード裏面アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 5 },
-      { key: "--self-status-icon-playmat-pos-x", label: "プレイマットアイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 8.7 },
-      { key: "--self-status-icon-playmat-pos-y", label: "プレイマットアイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 3.1 },
+      { key: "--self-status-icon-cardback-pos-y", label: "カード裏面アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 6.3 },
+      { key: "--self-status-icon-playmat-pos-x", label: "プレイマットアイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 8.45 },
+      { key: "--self-status-icon-playmat-pos-y", label: "プレイマットアイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 4.4 },
       { key: "--self-status-icon-background-pos-x", label: "背景画像アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 7.86 },
-      { key: "--self-status-icon-background-pos-y", label: "背景画像アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 3.1 },
+      { key: "--self-status-icon-background-pos-y", label: "背景画像アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 4.4 },
       { key: "--self-status-icon-online-pos-x", label: "オンライン状態アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: -0.4 },
       { key: "--self-status-icon-online-pos-y", label: "オンライン状態アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: -3.17 },
     ],

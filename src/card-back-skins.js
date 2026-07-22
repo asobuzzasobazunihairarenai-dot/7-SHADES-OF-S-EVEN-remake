@@ -14,8 +14,10 @@ import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 // 0=標準（assets/cards/back-{eternal,first,normal}.webp）。
 // 1=画像素材/カード裏面追加/追加旧（旧称「追加1」、assets/cards/back-{eternal,first,normal}-1.png）。
 // 2〜9=画像素材/カード裏面追加/追加{赤,橙,黄,緑,青,桃,紫,黒}（各色テーマのセット）。
+// 10=画像素材/カード裏面追加/追加古（「旧」とは別デザインの「古」バリエーション、
+// 元画像がwebpのため他の追加セット(1〜9、png)と違いbackImagePath側でwebp扱いにしている）。
 // 今後セットが増えたらこの配列とSET_LABELSに追記するだけでよい（ピッカーのグリッドも自動で増える）。
-const CARD_BACK_SETS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+const CARD_BACK_SETS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const SET_LABELS = {
   0: "標準",
   1: "旧",
@@ -27,6 +29,7 @@ const SET_LABELS = {
   7: "桃",
   8: "紫",
   9: "黒",
+  10: "古",
 };
 
 let selectedSetIndex = 0;
@@ -37,9 +40,10 @@ export function getCardBackSetIndex() {
 
 export function backImagePath(kind, idx) {
   const suffix = idx === 0 ? "" : `-${idx}`;
-  // 標準セット(0)だけWebPに変換済み。追加セット(1〜9、画像素材/カード裏面追加/配下)は
-  // 未変換のままPNGなので、拡張子をセットごとに出し分ける必要がある。
-  const ext = idx === 0 ? "webp" : "png";
+  // 標準セット(0)と「古」セット(10、元画像が既にwebpだった)はWebP、それ以外の追加セット
+  // (1〜9、画像素材/カード裏面追加/配下)は未変換のままPNGなので、拡張子をセットごとに
+  // 出し分ける必要がある。
+  const ext = idx === 0 || idx === 10 ? "webp" : "png";
   return `assets/cards/back-${kind}${suffix}.${ext}`;
 }
 
