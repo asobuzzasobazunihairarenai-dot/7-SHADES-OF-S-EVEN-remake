@@ -21,17 +21,23 @@ alter table players
   add column if not exists user_id uuid references auth.users(id);
 create unique index if not exists players_user_id_idx on players(user_id) where user_id is not null;
 
--- matches.source: 'manual'（従来通り、戦績管理システムのUIから手動登録・証拠画像
--- 必須・要承認）か'digital'（デジタル版が対戦終了時に自動登録、承認不要）かを
--- 区別する。将来、戦績管理システム側のUIで「デジタル版の記録」であることを
--- 表示し分けたくなった時にも使える。
+-- matches.source: 'manual'（従来通り、戦績管理システムのUIから手動登録）か
+-- 'digital'（このデジタル版が対戦終了時に自動登録）かを区別する。将来、戦績管理
+-- システム側のUIで「デジタル版の記録」であることを表示し分けたくなった時にも使える。
+-- デジタル版からの登録も、手動登録と同じく証拠画像（勝利時の盤面スクリーンショット、
+-- html2canvasで撮影しmatch-proofsバケットへアップロード）を添えて、status='pending'
+-- （要承認）で登録する（online.jsのsubmitStatsMatchResult参照。当初は証拠画像無し・
+-- 即時承認の設計だったが、戦績管理システム本来の不正防止の仕組みをそのまま活かす
+-- ため変更した）。
 alter table matches
   add column if not exists source text not null default 'manual';
 
--- デジタル版からの自動登録は証拠画像（スクリーンショット）を用意できない
--- （そもそもゲームプレイの結果そのものが記録の正本のため、証拠画像という概念が
--- 不要）。従来はproof_image_urlが必須(NOT NULL)だったため、nullを許可するよう
--- 変更する（既にnull許容なら何もしないno-op）。
+-- スクリーンショットの撮影・アップロード自体が失敗した場合（例: ブラウザの
+-- 3D描画をhtml2canvasが正しく扱えない、ネットワーク不調等）でも対戦記録の登録
+-- 自体は止めたくないため、その場合はproof_image_urlをnullのまま登録する
+-- （online.jsのcaptureVictoryScreenshot参照）。従来proof_image_urlが必須
+-- (NOT NULL)だったため、nullを許可するよう変更する（既にnull許容なら
+-- 何もしないno-op）。
 alter table matches alter column proof_image_url drop not null;
 
 -- RLS: デジタル版のログイン済みユーザー(authenticated)がplayers/matchesへ
@@ -47,3 +53,11 @@ create policy "matches_insert_authenticated" on matches for insert to authentica
 -- 効果を持たないだけで害はない）。
 drop policy if exists "players_select_authenticated" on players;
 create policy "players_select_authenticated" on players for select to authenticated using (true);
+
+-- 補足（Storageのmatch-proofsバケットについて）: 戦績管理システムはSupabase Auth
+-- ログインを使わず匿名(anon)のまま証拠画像をmatch-proofsバケットへアップロード
+-- できているため、このバケットのStorageポリシーは既にanon/authenticated問わず
+-- アップロードを許可している可能性が高く、追加のポリシーは恐らく不要と考えている。
+-- もし実際にログイン済みユーザーからのアップロードが権限エラーで失敗する場合は、
+-- Supabaseダッシュボード > Storage > match-proofs > Policies で
+-- authenticatedロールのINSERTを許可するポリシーを追加してほしい。
