@@ -1440,12 +1440,15 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
   font-family: sans-serif;
 }
 /* ユーザー要望「タブレット専用位置調整に優先権譲渡ボタンを追加」。他のタブレット専用
-   オーバーライドと同じ「未設定ならPC値にフォールバック」の仕組み。 */
+   オーバーライドと同じ「未設定ならPC値にフォールバック」の仕組み。
+   ユーザー要望「優先権譲渡ボタンの一括サイズ調整を追加」に対応し、自分専用ステータス
+   エリア（--self-status-scale-touch）と同じ考え方でscale()を追加した。 */
 body.is-touch-device #priority-transfer-buttons {
   transform: translate(
-    var(--priority-transfer-pos-touch-x, var(--priority-transfer-pos-x)),
-    var(--priority-transfer-pos-touch-y, var(--priority-transfer-pos-y))
-  );
+      var(--priority-transfer-pos-touch-x, var(--priority-transfer-pos-x)),
+      var(--priority-transfer-pos-touch-y, var(--priority-transfer-pos-y))
+    )
+    scale(var(--priority-transfer-scale-touch, 1));
 }
 .priority-transfer-grid {
   display: grid;
@@ -4358,6 +4361,9 @@ body.is-online-mode #quick-start-bar {
  * 今後、管理者モードの値を同期する際は、admin.jsのdefaultを更新するのと
  * 必ずセットで、このブロックも同じ値に更新すること（このブロックだけが
  * 実際の見た目を決める「本当の」デフォルト値）。
+ * このブロックはregen_override_block.js相当のスクリプトで丸ごと再生成する
+ * 前提（手動で個別に編集しない）。admin.jsのCONTROLSが変わったら、この
+ * ブロック全体をadmin.jsの現在値から再生成し直すこと。
  * ============================================================ */
 :root {
   --table-tilt: 42deg;
@@ -4570,7 +4576,8 @@ body.is-online-mode #quick-start-bar {
   --hand-a-pos-touch-y: 2.6rem;
   --camera-perspective-touch: 1090px;
   --camera-perspective-origin-y-touch: 8.4rem;
-  --self-status-scale-touch: 2.5;
+  --self-status-scale-touch: 1.5;
+  --priority-transfer-scale-touch: 1;
   --hand-reveal-card-size: 2.9rem;
   --hand-reveal-bottom-pos-x: -16.2rem;
   --hand-reveal-bottom-pos-y: -0.4rem;

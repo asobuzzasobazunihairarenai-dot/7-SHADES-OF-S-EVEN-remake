@@ -22,6 +22,18 @@ export function getAvatarVariant(avatar, direction) {
   return `${m[1]}-${direction}${m[2]}`;
 }
 
+// ユーザー要望「残りロックが3つになったら対応するアバターに変更」への対応。
+// 画像素材/アバター/アバター2（-aura-awakened接尾辞）をassets/avatars/へ
+// {color}-{front,left,right}-awakened.webpとしてコピー済み。Google/絵文字アバター等、
+// front/left/right接尾辞を持たない（＝アバター1のローカル画像ではない）ものには
+// 覚醒版が存在しないため、その場合は元のavatarをそのまま返す。
+export function getAwakenedVariant(avatar) {
+  if (typeof avatar !== "string") return avatar;
+  const m = avatar.match(/^(.*-(?:front|left|right))(\.[a-zA-Z0-9]+)$/);
+  if (!m) return avatar;
+  return `${m[1]}-awakened${m[2]}`;
+}
+
 export function applyAvatarContent(el, avatar) {
   if (isImageAvatar(avatar)) {
     let img = el.querySelector("img.avatar-image");

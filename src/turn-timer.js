@@ -371,7 +371,7 @@ function updateBaseClock(state) {
     state.priorityDeadline &&
     state.priorityDeadline - Date.now() > 0;
   if (!showing) {
-    baseClockEl.style.display = "none";
+    setDisplayIfChanged(baseClockEl, "none");
     return;
   }
   const remainingSec = Math.max(0, Math.ceil((state.priorityDeadline - Date.now()) / 1000));
@@ -468,10 +468,10 @@ function updateRope(state) {
   const inExtension =
     isTurnTimerEnabled() && state.turnPlayer && state.priorityPlayer && state.priorityPhase === "extension";
   if (!inExtension) {
-    if (ropeEl) ropeEl.style.display = "none";
+    setDisplayIfChanged(ropeEl, "none");
     return;
   }
-  ropeEl.style.display = "block";
+  setDisplayIfChanged(ropeEl, "block");
   const totalMs = getRopeExtensionSeconds() * 1000;
   const remaining = state.priorityDeadline - Date.now();
   const ratio = Math.max(0, Math.min(1, remaining / totalMs));
@@ -509,11 +509,24 @@ function buildWarning() {
   document.body.appendChild(warningEl);
 }
 
+// ハマりどころ（ユーザー報告「タブレットで手札やロックバー付近が周期的にチカチカする、
+// カメラ距離を変えても直らない」）: tick()は無効時・優先権未確定時も含め200msごとに
+// 必ず呼ばれ続けるが、以前はこの関数も含め毎回`style.display = "none"`等を無条件に
+// 書き込んでいた。値が既に同じでも実際にDOMへ書き込みが発生していたため、一部の
+// タブレットGPUではこの高頻度な（無意味な）再書き込みがpreserve-3d階層全体の
+// 再コンポジットを誘発し、手札やロックバー等ページ内の離れた場所が「全く同じ
+// タイミングで」同時にチカチカする一因になっていた可能性がある（複数の無関係な
+// 領域が完全に同期してチカチカするのは、単一要素の角度依存の問題ではなく、こうした
+// 周期的な全体再描画の方が説明として自然）。値が変わる時だけ書き込むようにする。
+function setDisplayIfChanged(el, value) {
+  if (el && el.style.display !== value) el.style.display = value;
+}
+
 function updateWarning(shouldShow) {
   if (!warningEl) return;
   const endTurnBtn = document.getElementById("end-turn-button");
   if (!shouldShow || !endTurnBtn || getComputedStyle(endTurnBtn).display === "none") {
-    warningEl.style.display = "none";
+    setDisplayIfChanged(warningEl, "none");
     endTurnBtn?.classList.remove("turn-timer-warning-glow");
     return;
   }
@@ -553,7 +566,7 @@ function buildPriorityReturnWarning() {
 function updatePriorityReturnWarning(shouldShow) {
   if (!priorityReturnWarningEl) return;
   if (!shouldShow || !transferButtonsEl || getComputedStyle(transferButtonsEl).display === "none") {
-    priorityReturnWarningEl.style.display = "none";
+    setDisplayIfChanged(priorityReturnWarningEl, "none");
     transferButtonsEl?.classList.remove("turn-timer-warning-glow");
     return;
   }
@@ -734,8 +747,8 @@ function tick() {
   if (!isTurnTimerEnabled()) {
     updateWarning(false);
     updatePriorityReturnWarning(false);
-    if (ropeEl) ropeEl.style.display = "none";
-    if (baseClockEl) baseClockEl.style.display = "none";
+    setDisplayIfChanged(ropeEl, "none");
+    setDisplayIfChanged(baseClockEl, "none");
     return;
   }
   // 優先権の安全網の定期再同期（上のコメント参照）。オンライン中だけ、数秒おきに
@@ -753,8 +766,8 @@ function tick() {
   if (!state.turnPlayer || !state.priorityPlayer || !state.priorityDeadline) {
     updateWarning(false);
     updatePriorityReturnWarning(false);
-    if (ropeEl) ropeEl.style.display = "none";
-    if (baseClockEl) baseClockEl.style.display = "none";
+    setDisplayIfChanged(ropeEl, "none");
+    setDisplayIfChanged(baseClockEl, "none");
     return;
   }
   // ターン交代直後、新しいturnPlayerに一致するpriorityPlayerがまだ届いていない間は、
@@ -768,8 +781,8 @@ function tick() {
     } else {
       updateWarning(false);
       updatePriorityReturnWarning(false);
-      if (ropeEl) ropeEl.style.display = "none";
-      if (baseClockEl) baseClockEl.style.display = "none";
+      setDisplayIfChanged(ropeEl, "none");
+      setDisplayIfChanged(baseClockEl, "none");
       return;
     }
   }
@@ -878,8 +891,8 @@ export function initTurnTimer() {
     updateSelfStock(getState());
     rebuildTransferButtons();
     if (!isTurnTimerEnabled()) {
-      if (ropeEl) ropeEl.style.display = "none";
-      if (baseClockEl) baseClockEl.style.display = "none";
+      setDisplayIfChanged(ropeEl, "none");
+      setDisplayIfChanged(baseClockEl, "none");
     }
   });
   setInterval(tick, 200);

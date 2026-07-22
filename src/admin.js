@@ -565,7 +565,16 @@ const GROUPS = [
     title: "タブレット専用：ステータスエリア群の一括拡大",
     category: "tablet",
     controls: [
-      { key: "--self-status-scale-touch", label: "拡大率", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 2.5 },
+      { key: "--self-status-scale-touch", label: "拡大率", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 1.5 },
+    ],
+  },
+  {
+    // ユーザー要望「タブレット専用で、優先権譲渡ボタンの一括サイズ調整を追加してほしい」。
+    // ステータスエリアの一括拡大と同じ考え方で、優先権譲渡ボタン群全体にscale()をかける。
+    title: "タブレット専用：優先権譲渡ボタンの一括拡大",
+    category: "tablet",
+    controls: [
+      { key: "--priority-transfer-scale-touch", label: "拡大率", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 1 },
     ],
   },
   {

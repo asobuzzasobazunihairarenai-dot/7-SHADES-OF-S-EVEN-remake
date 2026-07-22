@@ -18,6 +18,18 @@ export function resetVictoryTracking() {
   announcedPlayers = new Set();
 }
 
+// ユーザー要望「残りロックエリアの数が3つになったらアバターを変更したい」用。
+// そのプレイヤーの7色のロックスロットのうち、何色ロック済みかを返す（0〜7）。
+export function getLockedCount(player) {
+  const side = SEAT_TO_SIDE[player];
+  const lockedIndexes = new Set(
+    getState()
+      .tokens.filter((t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side)
+      .map((t) => t.location.index)
+  );
+  return lockedIndexes.size;
+}
+
 function hasAllSevenLocked(player) {
   const side = SEAT_TO_SIDE[player];
   const lockedIndexes = new Set(
