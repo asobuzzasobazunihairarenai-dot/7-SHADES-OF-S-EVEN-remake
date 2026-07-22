@@ -10,6 +10,16 @@ export function rectCenter(rect) {
 }
 
 import { isFlightAnimationDisabled } from "./motion-prefs.js";
+import { stageDelta, stageClientToLocal } from "./main.js";
+
+// fromRect/toRectは常にgetBoundingClientRect()由来の実画面座標。ゴースト自身は
+// document.body直下（ステージのtransformの影響下）に浮かべるため、位置(translate)も
+// サイズ(width/height)もステージのローカル単位に変換してから使う必要がある
+// （main.jsのstageClientToLocal/stageDelta参照）。
+function localRectCenter(rect) {
+  const c = rectCenter(rect);
+  return stageClientToLocal(c.x, c.y);
+}
 
 // imagePath: 飛んでいる間に表示する画像（表向き/裏向き/駒スキン等、呼び出し側が決める）。
 // className: ゴースト要素に付けるCSSクラス（見た目の基本形はこちら任せ。カード用の
@@ -18,14 +28,14 @@ export function flyGhost(fromRect, toRect, imagePath, className, durationMs) {
   const ghost = document.createElement("div");
   ghost.className = className;
   ghost.style.backgroundImage = `url("${imagePath}")`;
-  ghost.style.width = `${fromRect.width}px`;
-  ghost.style.height = `${fromRect.height}px`;
+  ghost.style.width = `${stageDelta(fromRect.width)}px`;
+  ghost.style.height = `${stageDelta(fromRect.height)}px`;
 
   if (isFlightAnimationDisabled()) {
     // 「移動アニメーション」設定がオフの間は飛翔（CSSトランジション）自体を省略する。
     // ただし呼び出し元は{ghost, done}の形を前提に後始末（ghost.remove()等）をしている
     // ため、互換性のため要素自体は作り、最終位置に置いてすぐ消す形にする。
-    const to = rectCenter(toRect);
+    const to = localRectCenter(toRect);
     ghost.style.transform = `translate(${to.x}px, ${to.y}px) translate(-50%, -50%)`;
     document.body.appendChild(ghost);
     const done = new Promise((resolve) => {
@@ -37,7 +47,7 @@ export function flyGhost(fromRect, toRect, imagePath, className, durationMs) {
     return { ghost, done };
   }
 
-  const from = rectCenter(fromRect);
+  const from = localRectCenter(fromRect);
   ghost.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%)`;
   document.body.appendChild(ghost);
 
@@ -45,7 +55,8 @@ export function flyGhost(fromRect, toRect, imagePath, className, durationMs) {
     // 1フレーム後にトランジション先を設定する（開始状態が描画されてから動かさないと
     // トランジション自体が発火しないため）。
     requestAnimationFrame(() => {
-      const to = rectCenter(toRect);
+      const to = localRectCenter(toRect);
+      // 拡大率は実画面座標同士の比率（スケール不変）なので変換不要。
       const scale = toRect.width / fromRect.width;
       ghost.style.transition = `transform ${durationMs}ms ease-in-out`;
       ghost.style.transform = `translate(${to.x}px, ${to.y}px) translate(-50%, -50%) scale(${scale})`;

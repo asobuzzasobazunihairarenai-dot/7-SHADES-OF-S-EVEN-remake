@@ -15,6 +15,7 @@
 // キャプチャフェーズなら常にターゲット本体のリスナーより先に完了するため、確実に割り込める）。
 
 import { isSelfStatusRearrangeMode } from "./admin.js";
+import { stageDelta } from "./main.js";
 
 const SELECTOR =
   ".self-status-large-avatar, .self-status-piece-thumb, .self-status-card-back-thumb, .self-status-playmat-thumb, .self-status-background-thumb, #self-status-online";
@@ -116,8 +117,11 @@ function startDrag(el, varX, varY, posDefault, e) {
   el.classList.add("is-rearranging");
 
   function onMove(ev) {
-    const dxRem = (ev.clientX - startX) / remPx;
-    const dyRem = (ev.clientY - startY) / remPx;
+    // clientX/clientYの差分は常に実画面ピクセルだが、このtranslate()自体はステージ内で
+    // 適用される（ステージのscaleの影響を受ける）ため、remへ変換する前にstageDelta()で
+    // ステージのローカル距離に直しておく必要がある（icon-rearrange.jsと同じ理由）。
+    const dxRem = stageDelta(ev.clientX - startX) / remPx;
+    const dyRem = stageDelta(ev.clientY - startY) / remPx;
     document.documentElement.style.setProperty(varX, `${(baseX + dxRem).toFixed(2)}rem`);
     document.documentElement.style.setProperty(varY, `${(baseY + dyRem).toFixed(2)}rem`);
   }

@@ -6,6 +6,8 @@
 // - 右クリックで基本設定のショートカット設定欄を開く（実際に開く処理はoptions-menu.js側に
 //   registerShortcutSettingsOpener()で登録してもらう）
 
+import { stageClientToLocal } from "./main.js";
+
 // ドラッグで並び替えできる3つ（画面右下のスタック内で位置が入れ替わる対象）。
 export const PLAYER_BUTTONS = [
   { id: "hand-shuffle-button", label: "手札シャッフル" },
@@ -115,7 +117,10 @@ function attachDrag(btn, id) {
         document.body.appendChild(ghost);
         btn.classList.add("is-drag-source");
       }
-      ghost.style.transform = `translate(${ev.clientX}px, ${ev.clientY}px) translate(-50%, -50%)`;
+      // clientX/clientYは常に実画面座標なので、ステージ内のposition:fixed要素の
+      // 位置に使う前にローカル座標へ変換する（stage.js方式、main.js参照）。
+      const local = stageClientToLocal(ev.clientX, ev.clientY);
+      ghost.style.transform = `translate(${local.x}px, ${local.y}px) translate(-50%, -50%)`;
       const idx = slotIndexAt(ev.clientY);
       for (const slotId of order) {
         const el = document.getElementById(slotId);

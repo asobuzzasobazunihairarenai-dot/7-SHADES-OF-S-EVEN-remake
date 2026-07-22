@@ -25,6 +25,7 @@
 // online.jsのstartGame()が送るtimerConfig参照）。
 
 import { getState, subscribe, setPriorityState, isOnlineMode } from "./state.js";
+import { toStageLocalRect, STAGE_WIDTH } from "./main.js";
 import { SEAT_ORDER, SEAT_TO_SIDE, getRotationSteps, rotateSide } from "./board-layout.js";
 import { getSelfSeat, getSyncedTimerConfig, getCurrentGameId, fetchAndHydrate } from "./online.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
@@ -451,9 +452,11 @@ function updateWarning(shouldShow) {
   // よう変更した。あわせてボタン自体にも点滅する縁取りを付け、警告テキストが画面外にはみ
   // 出す狭い画面でも「ここが光っている」ことだけは必ず伝わるようにしている。
   endTurnBtn.classList.add("turn-timer-warning-glow");
-  const rect = endTurnBtn.getBoundingClientRect();
-  warningEl.style.top = `${rect.top + rect.height / 2}px`;
-  warningEl.style.right = `${window.innerWidth - rect.left + 12}px`;
+  // getBoundingClientRect()は実画面座標だが、warningElはposition:fixedでステージ内に
+  // 描画されるため、ステージのローカル座標系（STAGE_WIDTH基準）に変換してから使う。
+  const rect = toStageLocalRect(endTurnBtn.getBoundingClientRect());
+  warningEl.style.top = `${rect.top + (rect.bottom - rect.top) / 2}px`;
+  warningEl.style.right = `${STAGE_WIDTH - rect.left + 12}px`;
   warningEl.style.left = "auto";
   warningEl.style.display = "block";
 }
@@ -485,9 +488,9 @@ function updatePriorityReturnWarning(shouldShow) {
     return;
   }
   transferButtonsEl.classList.add("turn-timer-warning-glow");
-  const rect = transferButtonsEl.getBoundingClientRect();
-  priorityReturnWarningEl.style.top = `${rect.top + rect.height / 2}px`;
-  priorityReturnWarningEl.style.right = `${window.innerWidth - rect.left + 12}px`;
+  const rect = toStageLocalRect(transferButtonsEl.getBoundingClientRect());
+  priorityReturnWarningEl.style.top = `${rect.top + (rect.bottom - rect.top) / 2}px`;
+  priorityReturnWarningEl.style.right = `${STAGE_WIDTH - rect.left + 12}px`;
   priorityReturnWarningEl.style.left = "auto";
   priorityReturnWarningEl.style.display = "block";
 }

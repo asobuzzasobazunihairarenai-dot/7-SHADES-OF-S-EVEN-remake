@@ -986,6 +986,19 @@ function fitTableToViewport() {
 // その分だけ手札が画面下端の外へ切れて見えなくなっていた。
 // 対策: フィット計算の基準を#game-table自身の矩形だけでなく、実際に3D変形されている
 // 各手札(.hand-fan)の描画範囲も含めた「実効矩形」に広げる。
+// getBoundingClientRect()は常に実画面のピクセルを返すが、bodyがステージのtransform
+// （translate+scale、applyViewportStage参照）を持つようになったため、実画面座標のままだと
+// STAGE_WIDTH/STAGE_HEIGHTという固定の仮想解像度と直接比較できない。ステージのローカル
+// 座標（stageScale=1・オフセット無しだったとした場合の座標）に変換してから使う。
+export function toStageLocalRect(r) {
+  return {
+    top: (r.top - currentStageOffsetY) / currentStageScale,
+    bottom: (r.bottom - currentStageOffsetY) / currentStageScale,
+    left: (r.left - currentStageOffsetX) / currentStageScale,
+    right: (r.right - currentStageOffsetX) / currentStageScale,
+  };
+}
+
 function getEffectiveFitRect(table) {
   const rects = [table.getBoundingClientRect()];
   // .hand-fan自身ではなく個々の.hand-cardを見る（扇状の回転は個々のカードのtransformで
@@ -999,11 +1012,14 @@ function getEffectiveFitRect(table) {
   const bottom = Math.max(...rects.map((r) => r.bottom));
   const left = Math.min(...rects.map((r) => r.left));
   const right = Math.max(...rects.map((r) => r.right));
-  return { width: right - left, height: bottom - top };
+  // width/heightは差分（オフセットの影響を受けない）なので、ステージの倍率で割るだけで
+  // ローカル座標系の値になる。
+  return { width: (right - left) / currentStageScale, height: (bottom - top) / currentStageScale };
 }
 
 // 現在適用中のtransform（rotateX+scale3d、translateは変えない）のまま、実際に画面に
-// 描画されている自分/他プレイヤーの手札の最大到達範囲（上下左右）を実測する。
+// 描画されている自分/他プレイヤーの手札の最大到達範囲（上下左右、ステージのローカル
+// 座標系）を実測する。
 // ハマりどころ: 親の.hand-fan自身のgetBoundingClientRect()は、扇状に個別回転している
 // 子の.hand-card（親のレイアウトサイズには反映されない、見た目だけの transform）の
 // 実際の突き出しを含んでくれない（.hand-fan単体で測ると再び過小評価してしまう）。
@@ -1015,8 +1031,9 @@ function measureHandFanExtent(table) {
   let left = Infinity;
   let right = -Infinity;
   for (const fan of fans) {
-    const r = fan.getBoundingClientRect();
-    if (r.width === 0 && r.height === 0) continue; // 空の手札（駒だけ等）は無視
+    const rReal = fan.getBoundingClientRect();
+    if (rReal.width === 0 && rReal.height === 0) continue; // 空の手札（駒だけ等）は無視
+    const r = toStageLocalRect(rReal);
     top = Math.min(top, r.top);
     bottom = Math.max(bottom, r.bottom);
     left = Math.min(left, r.left);
@@ -1034,8 +1051,12 @@ function applyNormalFit() {
   table.style.transformOrigin = "";
   table.style.transform = `rotateX(${tilt}) scale3d(1, 1, 1)`;
   const rect = getEffectiveFitRect(table);
-  const availW = window.innerWidth * 0.94;
-  const availH = window.innerHeight * 0.94;
+  // ステージ方式（画面の縦横比固定）導入により、テーブルが実際に収まるべき「キャンバス」は
+  // 常に固定のSTAGE_WIDTH×STAGE_HEIGHT（bodyのローカル座標系）になった。実際のウィンドウ
+  // サイズは別レイヤー（applyViewportStage）が吸収するため、ここではwindow.innerWidth/
+  // innerHeightを一切参照しない。
+  const availW = STAGE_WIDTH * 0.94;
+  const availH = STAGE_HEIGHT * 0.94;
   const zoom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--camera-zoom")) || 1;
   // マウスホイールでの手動ズーム(manualZoom)・中クリックドラッグでの手動移動(manualPanX/Y)を
   // 自動フィットの結果にさらに上乗せする。
@@ -1067,13 +1088,13 @@ function applyNormalFit() {
     currentTableScale = scale;
     return;
   }
-  const marginW = window.innerWidth * 0.03;
-  const marginH = window.innerHeight * 0.03;
+  const marginW = STAGE_WIDTH * 0.03;
+  const marginH = STAGE_HEIGHT * 0.03;
   const bounds = {
     top: marginH,
-    bottom: window.innerHeight - marginH,
+    bottom: STAGE_HEIGHT - marginH,
     left: marginW,
-    right: window.innerWidth - marginW,
+    right: STAGE_WIDTH - marginW,
   };
   const worstOverflow = (e) => Math.max(e.bottom - bounds.bottom, bounds.top - e.top, e.right - bounds.right, bounds.left - e.left);
   for (let i = 0; i < 3 && scale > 0.05; i++) {
@@ -1184,8 +1205,9 @@ function applyBoardZoomFit(level) {
   // されているため、実際のウィンドウの高さぴったりまで許容すると、その分だけまだ見切れが
   // 残ってしまう（実測: 700px高のウィンドウで約26pxはみ出し）。安全率をかけて少し余裕を
   // 持たせる。
-  const effectiveHeight =
-    window.innerHeight < referenceHeight ? window.innerHeight * 0.85 : referenceHeight;
+  // ステージ方式導入により、実際のウィンドウ高さではなく固定のSTAGE_HEIGHTを基準にする
+  // （実際のウィンドウへの適応はapplyViewportStageが別レイヤーで担当するため）。
+  const effectiveHeight = STAGE_HEIGHT < referenceHeight ? STAGE_HEIGHT * 0.85 : referenceHeight;
   table.style.transformOrigin = `50% ${originYPercent}%`;
   // マウスホイールでの手動ズーム(manualZoom)も、盤面拡大の倍率にさらに上乗せする。
   const scale = ((effectiveHeight * marginFrac) / spanHeight) * zoom * manualZoom;
@@ -1271,8 +1293,53 @@ const DUMMY_ICON_REGISTER_VIEW = dummyIconDataUri(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>'
 );
 
+// --- 画面の縦横比を固定するステージ方式 -------------------------------------------------
+// ユーザー要望「画面の縦横比を固定したい。合わない画面は上下端か左右端に黒帯でよい」。
+// bodyをstyle.css側で固定の仮想解像度(--stage-width/-height、STAGE_WIDTH/STAGE_HEIGHTと
+// 常に一致させること)の箱にしてあり、ここではその箱を実際のウィンドウに収まる倍率で
+// scaleし、中央に来るようtranslateする。CSSのtransformは position:fixed/absolute な
+// 子孫にとって新しい基準（containing block）になる仕様のため、これだけで既存の
+// ほぼ全てのオーバーレイUI（アイコンボタン・モーダル・ドラッグゴースト等）が、実装を
+// 変えずに自動的に「このステージに対してfixed」になる。
+export const STAGE_WIDTH = 1600;
+export const STAGE_HEIGHT = 900;
+let currentStageScale = 1;
+let currentStageOffsetX = 0;
+let currentStageOffsetY = 0;
+
+function applyViewportStage() {
+  const scale = Math.min(window.innerWidth / STAGE_WIDTH, window.innerHeight / STAGE_HEIGHT);
+  const offsetX = (window.innerWidth - STAGE_WIDTH * scale) / 2;
+  const offsetY = (window.innerHeight - STAGE_HEIGHT * scale) / 2;
+  document.body.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+  currentStageScale = scale;
+  currentStageOffsetX = offsetX;
+  currentStageOffsetY = offsetY;
+}
+
+// マウス/タッチイベントのclientX/clientYは常に「実画面のピクセル」で、ステージの
+// transform（上のapplyViewportStage）の影響を受けない。ステージ内の要素へその座標を
+// そのままstyle.left/top等として使う箇所（ドラッグゴースト・コンテキストメニュー・
+// 各種ツールチップ等の「カーソルの位置に何かを表示する」処理）は、この関数で
+// ステージのローカル座標（bodyの1600x900の座標系）に変換してから使う必要がある。
+// elementsFromPoint()・getBoundingClientRect()は両方とも実画面座標のままで一貫している
+// ため、当たり判定目的の比較には使わない（変換すると逆にズレる）。
+export function stageClientToLocal(clientX, clientY) {
+  return {
+    x: (clientX - currentStageOffsetX) / currentStageScale,
+    y: (clientY - currentStageOffsetY) / currentStageScale,
+  };
+}
+
+// ドラッグの移動量（差分）をステージのローカル座標系に変換する（オフセットは差分では
+// 打ち消し合うため、倍率で割るだけでよい）。
+export function stageDelta(px) {
+  return px / currentStageScale;
+}
+
 let resizeTimer;
 window.addEventListener("resize", () => {
+  applyViewportStage();
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(fitTableToViewport, 100);
 });
@@ -1498,8 +1565,12 @@ function updatePileTooltip(el, clientX, clientY) {
     return;
   }
   tooltip.textContent = text;
-  tooltip.style.left = `${clientX + 16}px`;
-  tooltip.style.top = `${clientY + 16}px`;
+  // ステージ方式導入により、tooltipはbody（ステージ）に対してfixedになったため、
+  // clientX/clientY（常に実画面座標）をステージのローカル座標に変換してから使う
+  // （stageClientToLocal参照）。
+  const local = stageClientToLocal(clientX, clientY);
+  tooltip.style.left = `${local.x + 16}px`;
+  tooltip.style.top = `${local.y + 16}px`;
   tooltip.style.display = "block";
 }
 
@@ -1513,17 +1584,22 @@ function positionPreviewPanel(panel, clientX, clientY) {
   const cs = getComputedStyle(panel);
   const panelWidthPx = parseFloat(cs.width);
   const panelHeightPx = parseFloat(cs.height);
+  // ステージ方式導入により、panelはbody（ステージ）に対してfixedになったため、
+  // clientX/clientY（常に実画面座標）をステージのローカル座標に変換してから使う
+  // （stageClientToLocal参照）。画面端の判定もSTAGE_WIDTH/STAGE_HEIGHT基準にする。
+  const local = stageClientToLocal(clientX, clientY);
+  const { x: clientXLocal, y: clientYLocal } = local;
 
-  let left = clientX + offset;
-  if (left + panelWidthPx > window.innerWidth) left = clientX - offset - panelWidthPx;
+  let left = clientXLocal + offset;
+  if (left + panelWidthPx > STAGE_WIDTH) left = clientXLocal - offset - panelWidthPx;
   panel.style.left = `${left}px`;
 
-  if (clientY - offset - panelHeightPx < 0) {
+  if (clientYLocal - offset - panelHeightPx < 0) {
     // 上方向に広げると画面上端をはみ出す→カーソルの下方向に広げる
-    panel.style.top = `${clientY + offset}px`;
+    panel.style.top = `${clientYLocal + offset}px`;
     panel.style.bottom = "";
   } else {
-    panel.style.bottom = `${window.innerHeight - clientY + offset}px`;
+    panel.style.bottom = `${STAGE_HEIGHT - clientYLocal + offset}px`;
     panel.style.top = "";
   }
 }
@@ -1763,8 +1839,11 @@ function showContextMenu(clientX, clientY, items) {
     });
     menu.appendChild(item);
   }
-  menu.style.left = `${clientX}px`;
-  menu.style.top = `${clientY}px`;
+  // ステージ方式導入により、menuはbody（ステージ）に対してfixedになったため、
+  // clientX/clientY（常に実画面座標）をステージのローカル座標に変換してから使う。
+  const local = stageClientToLocal(clientX, clientY);
+  menu.style.left = `${local.x}px`;
+  menu.style.top = `${local.y}px`;
   document.body.appendChild(menu);
   contextMenuEl = menu;
 }
@@ -1981,7 +2060,10 @@ function positionGhost(ghost, clientX, clientY) {
   // translate(-50%,-50%)の後にscale3d()を続けることで、カーソル位置を中心にしたまま
   // 盤面と同じ倍率で見た目のサイズだけを合わせる（percentageのtranslateは変形前の
   // レイアウトサイズが基準のため、この順序でも位置がズレない）。
-  ghost.style.transform = `translate(${clientX}px, ${clientY}px) translate(-50%, -50%) scale3d(${currentTableScale}, ${currentTableScale}, ${currentTableScale})`;
+  // ステージ方式導入により、ghostはbody（ステージ）に対してfixedになったため、
+  // clientX/clientY（常に実画面座標）をステージのローカル座標に変換してから使う。
+  const local = stageClientToLocal(clientX, clientY);
+  ghost.style.transform = `translate(${local.x}px, ${local.y}px) translate(-50%, -50%) scale3d(${currentTableScale}, ${currentTableScale}, ${currentTableScale})`;
 }
 
 function startTokenDrag(e, tokenId, kind, sourceEl) {
@@ -2665,8 +2747,10 @@ function updateBoardZoomRegisterButtonPosition() {
     return;
   }
   boardZoomRegisterButtonEl.style.display = "flex";
-  const rect = boardZoomButtonEl.getBoundingClientRect();
-  boardZoomRegisterButtonEl.style.left = `${rect.left + rect.width / 2}px`;
+  // getBoundingClientRect()は常に実画面座標なので、position:fixedな移動先の
+  // style.left/topに使う前にステージのローカル座標へ変換する必要がある。
+  const rect = toStageLocalRect(boardZoomButtonEl.getBoundingClientRect());
+  boardZoomRegisterButtonEl.style.left = `${rect.left + (rect.right - rect.left) / 2}px`;
   boardZoomRegisterButtonEl.style.top = `${rect.top - 10}px`;
 }
 
@@ -2781,8 +2865,11 @@ function initCameraControls() {
   window.addEventListener("pointermove", (e) => {
     if (!panning) return;
     const rootFontSizePx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-    manualPanX = panOriginX + (e.clientX - panStartX) / rootFontSizePx;
-    manualPanY = panOriginY + (e.clientY - panStartY) / rootFontSizePx;
+    // ステージ方式導入により、clientX/clientYの差分（常に実画面ピクセル）は、remに変換する
+    // 前にステージのローカルピクセルへ変換する必要がある（stageDelta参照。オフセットは
+    // 差分では打ち消し合うため、倍率で割るだけでよい）。
+    manualPanX = panOriginX + stageDelta(e.clientX - panStartX) / rootFontSizePx;
+    manualPanY = panOriginY + stageDelta(e.clientY - panStartY) / rootFontSizePx;
     hasManualView = true;
     fitTableToViewport();
     updateBoardZoomButtonLabel();
@@ -2915,7 +3002,10 @@ async function animateHandShuffle(seat) {
     g.style.backgroundImage = `url("${backImage}")`;
     g.style.width = `${slotSizes[i].width}px`;
     g.style.height = `${slotSizes[i].height}px`;
-    const from = rectCenter(rect);
+    // rectCenter()はgetBoundingClientRect()由来の実画面座標を返すため、gはdocument.body直下
+    // （ステージのtransformの影響下）に置く以上、ステージのローカル座標に変換してから使う。
+    const fromReal = rectCenter(rect);
+    const from = stageClientToLocal(fromReal.x, fromReal.y);
     g.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%)`;
     document.body.appendChild(g);
     return g;
@@ -2923,7 +3013,8 @@ async function animateHandShuffle(seat) {
 
   const GATHER_MS = 320;
   await new Promise((resolve) => requestAnimationFrame(resolve));
-  const to = rectCenter(centerRect);
+  const centerReal = rectCenter(centerRect);
+  const to = stageClientToLocal(centerReal.x, centerReal.y);
   ghosts.forEach((g, i) => {
     // 少し重なりをずらして本物の束のように見せる（中央寄りほどズレが小さい）。
     const stackOffset = (i - (ghosts.length - 1) / 2) * 1.2;
@@ -2967,7 +3058,8 @@ async function animateHandShuffle(seat) {
 
   const RESTORE_MS = 320;
   ghosts.forEach((g, i) => {
-    const target = rectCenter(newRects[i] || centerRect);
+    const targetReal = rectCenter(newRects[i] || centerRect);
+    const target = stageClientToLocal(targetReal.x, targetReal.y);
     g.style.transition = `transform ${RESTORE_MS}ms ease-in-out`;
     g.style.transform = `translate(${target.x}px, ${target.y}px) translate(-50%, -50%)`;
   });
@@ -3437,6 +3529,7 @@ selfHandStatusEl = buildSelfHandStatus();
 boardZoomButtonEl = buildBoardZoomButton();
 boardZoomRegisterButtonEl = buildBoardZoomRegisterButton();
 handShuffleButtonEl = buildHandShuffleButton();
+applyViewportStage();
 render();
 initDragHandlers();
 initHoverHandlers();

@@ -4,6 +4,7 @@
 // 対応する変数へそのまま反映できる。
 
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { stageDelta, toStageLocalRect } from "./main.js";
 
 // game-setup.jsは既にadmin.js（isManualSeatMode）をimportしているため、admin.js側から
 // game-setup.jsを直接importすると循環importになる。他の箇所（setup-animation.js等）と
@@ -609,6 +610,14 @@ export function isSpotlightMode() {
   return spotlightMode;
 }
 
+// アバター画像の輪郭に暗色のリング（box-shadow）を重ねるかどうか。一度追加したが
+// 「やはり不要」とのことで撤回し、管理者モードのオンオフ（デフォルトOFF）にした。
+let avatarOutlineVisible = false;
+
+export function isAvatarOutlineVisible() {
+  return avatarOutlineVisible;
+}
+
 // ターンタイマー（ロープ・砂時計・優先権、src/turn-timer.js）。実質オンライン対戦向けの
 // 機能でローカルモードでは緊張感が無いため、デフォルトはオフ。GROUPS/CONTROLSのCSS変数
 // スライダーとは性質が異なる（見た目ではなくゲームロジックのパラメータ）ため、
@@ -859,6 +868,27 @@ const TOGGLE_SECTIONS = [
     },
   },
   {
+    title: "アバターの輪郭ドロップシャドウ",
+    category: "effect",
+    buildContent: (content) => {
+      const avatarOutlineRow = document.createElement("label");
+      avatarOutlineRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const avatarOutlineCheckbox = document.createElement("input");
+      avatarOutlineCheckbox.type = "checkbox";
+      avatarOutlineCheckbox.checked = avatarOutlineVisible;
+      avatarOutlineCheckbox.addEventListener("change", () => {
+        avatarOutlineVisible = avatarOutlineCheckbox.checked;
+        document.body.classList.toggle("avatar-outline-visible", avatarOutlineVisible);
+        updateExportRef.current();
+      });
+      const avatarOutlineLabel = document.createElement("span");
+      avatarOutlineLabel.textContent = "全アバター画像の輪郭に暗色のリング（box-shadow）を重ねる";
+      avatarOutlineRow.appendChild(avatarOutlineCheckbox);
+      avatarOutlineRow.appendChild(avatarOutlineLabel);
+      content.appendChild(avatarOutlineRow);
+    },
+  },
+  {
     title: "アイコン再配置モード",
     category: "position",
     buildContent: (content) => {
@@ -1048,14 +1078,17 @@ function buildPanel(rebuildSlidersRef) {
   // パネルが左上に固定表示され、盤面左下の自分専用ステータスエリア等の調整対象が隠れて
   // 触れないという報告があったため、タイトルバーを掴んでパネル自体を自由に移動できるようにした。
   title.addEventListener("pointerdown", (e) => {
-    const rect = panel.getBoundingClientRect();
+    // getBoundingClientRect()は実画面座標だが、panelはposition:fixedでステージ内に
+    // 描画されるため、style.left/topに使う基準値はステージのローカル座標に変換して
+    // おく必要がある（差分側もstageDelta()でスケール分を補正する）。
+    const rect = toStageLocalRect(panel.getBoundingClientRect());
     const startX = e.clientX;
     const startY = e.clientY;
     const startLeft = rect.left;
     const startTop = rect.top;
     function onMove(ev) {
-      panel.style.left = `${startLeft + (ev.clientX - startX)}px`;
-      panel.style.top = `${startTop + (ev.clientY - startY)}px`;
+      panel.style.left = `${startLeft + stageDelta(ev.clientX - startX)}px`;
+      panel.style.top = `${startTop + stageDelta(ev.clientY - startY)}px`;
     }
     function onUp() {
       window.removeEventListener("pointermove", onMove);
@@ -1204,6 +1237,7 @@ function buildPanel(rebuildSlidersRef) {
       `selfBoardAvatarVisible: ${selfBoardAvatarVisible}`,
       `selfNameLabelVisible: ${selfNameLabelVisible}`,
       `spotlightMode: ${spotlightMode}`,
+      `avatarOutlineVisible: ${avatarOutlineVisible}`,
       `turnTimerEnabled: ${turnTimerEnabled}`,
       `initialHourglassStock: ${initialHourglassStock}`,
       `maxHourglassStock: ${maxHourglassStock}`,

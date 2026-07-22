@@ -16,7 +16,46 @@ html, body {
   margin: 0;
 }
 
+/* 画面の縦横比を固定するための「ステージ」方式（ユーザー要望「画面の縦横比を固定したい。
+   合わない画面は上下端か左右端に黒帯」）。bodyを固定の仮想解像度(--stage-width/-height、
+   px単位)の箱にし、実際のウィンドウに収まる倍率でJS(applyViewportStage、main.js)が
+   transform: translate() scale()を掛けて中央寄せする。CSSの仕様上、transformを持つ要素は
+   position:fixed/absoluteな子孫にとって新しい基準（containing block）になるため、
+   これまで「実画面に対してfixed」だったアイコンボタン・モーダル・ドラッグゴースト等
+   （本プロジェクトのほぼ全てのオーバーレイUI）が、コードを1つも変えずに自動的に
+   「このステージに対してfixed」に切り替わり、ステージの外側（黒帯部分）には一切はみ
+   出さなくなる。合わない縦横比の画面では、ステージの外側がhtml自身の黒背景として
+   見える。
+   ハマりどころ: ステージにtransformが掛かることで、以降はマウス/タッチイベントの
+   clientX/clientYが「実画面のピクセル」であり続ける一方、ステージ内の要素へその値を
+   そのままstyle.left/top等に使うと倍率・オフセット分だけズレる。main.jsの
+   stageClientToLocal()/stageDelta()で変換してから使うこと（ドラッグゴースト・
+   コンテキストメニュー・各種ツールチップの位置決め、パン操作の移動量計算など）。
+   elementsFromPoint()・getBoundingClientRect()同士の比較（当たり判定）は両方とも実画面
+   座標のままで一貫しているため、変換不要。 */
+:root {
+  --stage-width: 1600px;
+  --stage-height: 900px;
+}
+html {
+  background: #000;
+  overflow: clip;
+}
+/* ハマりどころ: overflow:hiddenだと「スクロールコンテナ」自体には変わりなく、フォーカス移動
+   （Tabキーで画面外の入力欄にフォーカス等）やscrollIntoView()で見た目には現れないまま
+   body.scrollLeft/scrollTopが動いてしまうことがある。bodyはtransformでposition:fixedな
+   子孫全ての基準（containing block）になっているため、このスクロール量がその全ての
+   子孫のstyle.left/top計算に混入し、画面のあちこちのUIが実際にズレて描画される
+   （検証中に発見。overflow:clipなら仕様上そもそもスクロールコンテナにならず、
+   scrollLeft/scrollTopは常に0のまま安全）。 */
 body {
+  width: var(--stage-width);
+  height: var(--stage-height);
+  position: fixed;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  overflow: clip;
   background: radial-gradient(ellipse at center, #2a3441 0%, #0f1520 70%, #05070a 100%);
 }
 
@@ -25,8 +64,8 @@ body {
 }
 
 .scene {
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -345,6 +384,19 @@ body.is-touch-device .zone-bottom .hand-area {
   transform: translate(-50%, -50%)
     translate(var(--hand-a-pos-touch-x, var(--hand-a-pos-x)), var(--hand-a-pos-touch-y, var(--hand-a-pos-y)))
     rotateX(-40deg) translateZ(2.4rem);
+}
+/* ユーザー報告「タブレットで手札が高速に点滅する」への対応（未検証・実機のGPUでしか
+   起きない現象のため、この環境では再現確認できていない）。手札のクリッピング対策
+   （applyNormalFit）でタブレット等の縦幅が狭い画面では自動フィットのscaleが以前より
+   小さくなったことで、preserve-3d階層内の手札(.hand-area、rotateX+translateZで持ち上げ
+   ている)と他の要素との画面上のZ値の差が縮み、GPUの深度バッファの精度限界で
+   「どちらが手前か」の判定がフレームごとに揺れる、いわゆるz-fighting（ユーザーの
+   仮説「レイヤーが中途半端な位置にいる」と同じ現象）が起きやすくなった可能性がある。
+   will-changeで手札を独立した合成レイヤーに昇格させ、周囲の要素との3D深度比較の
+   あいまいさを避ける（見た目には影響しない、purely rendering-layerのヒント）。
+   PCでのレイアウト・見た目に影響しないよう、タッチデバイスに限定して適用する。 */
+body.is-touch-device .hand-area {
+  will-change: transform;
 }
 
 .zone-top .hand-area {
@@ -3153,11 +3205,12 @@ body.cards-interaction-hidden .board-card {
   border-radius: 50%;
   object-fit: cover;
   display: block;
-  /* ユーザー要望「アバターがそのまま貼ってあると少し味気ない、輪郭にドロップシャドウ的な
-     ものを」。既存のdrop-shadow（.player-avatar/.self-status-large-avatarの背後のぼやけた
-     影）だけだと、白っぽい背景のアバター画像では輪郭がぼやけて分かりにくいため、画像本体に
-     はっきりした暗色のリング（box-shadow）を追加し、どんな色のアバターでも輪郭が
-     くっきり見えるようにした。 */
+}
+/* ユーザー要望「アバターがそのまま貼ってあると少し味気ない、輪郭にドロップシャドウ的な
+   ものを」で一度追加したが、「やはり不要」とのことで撤回し、管理者モードのオンオフ
+   （デフォルトOFF）に変更した。ONの間だけ、画像本体にはっきりした暗色のリング
+   （box-shadow）を重ねる。 */
+body.avatar-outline-visible .avatar-image {
   box-shadow: 0 0 0 0.12rem rgba(0, 0, 0, 0.55);
 }
 .zone-bottom .player-avatar .avatar-image {
