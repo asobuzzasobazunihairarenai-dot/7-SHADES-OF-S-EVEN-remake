@@ -131,9 +131,14 @@ function blinkLocation(location, table, arrow = null) {
       applyAvatarContent(avatarEl, getAvatarVariant(getPlayerAvatar(actor), "front"));
       arrowWrap.appendChild(avatarEl);
     }
-    const arrowGlyph = document.createElement("span");
+    // ユーザーが用意した色別の矢印画像（画像素材/アイコン/矢印/、7色×上/下）に差し替え。
+    // 既にその色に着色済みの画像のため、CSS側で色を塗り直す必要は無い（--move-blink-color
+    // は引き続きマス目の点滅・アバターの縁取りにだけ使う）。色が特定できない場合
+    // （実行者不明・駒が見つからない等、通常は起こらない）は既定でredの画像にフォールバックする。
+    const arrowGlyph = document.createElement("img");
     arrowGlyph.className = "move-blink-arrow-glyph";
-    arrowGlyph.textContent = arrow === "down" ? "↓" : "↑";
+    arrowGlyph.alt = "";
+    arrowGlyph.src = `assets/icons/arrow-${color || "red"}-${arrow}.webp`;
     arrowWrap.appendChild(arrowGlyph);
     hostEl.appendChild(arrowWrap);
     setTimeout(() => arrowWrap.remove(), durationMs);

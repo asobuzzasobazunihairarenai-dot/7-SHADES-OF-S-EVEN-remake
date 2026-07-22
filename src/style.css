@@ -2056,20 +2056,17 @@ body.is-touch-device #priority-transfer-buttons {
   z-index: 6;
   animation: move-blink-arrow-fade calc(var(--move-blink-duration, 3) * 1s) ease-in-out;
 }
+/* ユーザーが用意した色別の矢印画像（既に着色済み）に差し替えたため、テキストグリフ
+   時代のcolor/text-stroke/text-shadowは不要になった。--move-blink-arrow-strokeは
+   「輪郭線の太さ」から「発光（drop-shadow）の強さ」へ役割を変えて再利用する
+   （admin.jsのCSS変数名は変えずラベルだけ更新、既存の同期の手間を増やさないため）。 */
 .move-blink-arrow-glyph {
-  font-size: var(--move-blink-arrow-size, 5rem);
-  font-weight: 900;
-  line-height: 1;
-  color: var(--move-blink-color, #ffffff);
-  /* 太字だけでは縁が細く見えたため、-webkit-text-strokeで輪郭を太らせ、さらに
-     drop-shadowではなくtext-shadowを複数重ねて「もっと太く大きく」というユーザー要望に
-     応える（矢印は絵文字ではなく単純なテキストグリフのため、-webkit-text-strokeが
-     効く）。太さは管理者モードで調整できる（--move-blink-arrow-stroke）。 */
-  -webkit-text-stroke: var(--move-blink-arrow-stroke, 0.09rem) var(--move-blink-color, #ffffff);
-  text-shadow:
-    0 0 0.15rem rgba(0, 0, 0, 0.9),
-    0 0 0.4rem rgba(0, 0, 0, 0.75),
-    0 0 0.8rem var(--move-blink-color, #ffffff);
+  width: var(--move-blink-arrow-size, 5rem);
+  height: var(--move-blink-arrow-size, 5rem);
+  object-fit: contain;
+  filter:
+    drop-shadow(0 0 var(--move-blink-arrow-stroke, 0.09rem) var(--move-blink-color, #ffffff))
+    drop-shadow(0 0.1rem 0.2rem rgba(0, 0, 0, 0.6));
 }
 .move-blink-arrow-avatar {
   width: 1.8rem;
@@ -4205,6 +4202,12 @@ body.is-online-mode #quick-start-bar {
   background-size: cover;
   background-position: center;
   opacity: 0;
+}
+/* ユーザー要望「最初は真っ白な画面にSTARTボタン。押したらタイトル画像がフェードイン」。
+   以前はページ読み込み直後に無条件でフェードインしていたが、.opening-start-gateが
+   最初に全体を覆っているため、STARTボタンが押されて#opening-screenに
+   stage-titleクラスが付いた時だけこのフェードインを再生するようにした。 */
+#opening-screen.stage-title .opening-screen-bg {
   animation: opening-screen-fade-in 1.6s ease forwards;
 }
 .opening-screen-dim {
@@ -4222,8 +4225,12 @@ body.is-online-mode #quick-start-bar {
   flex-direction: column;
   align-items: center;
   opacity: 0;
+}
+/* ストーリーテロップが終わる（または飛ばされる）と#opening-screenに
+   stage-contentクラスが付き、ここで初めてログインボタンが浮かび上がる。 */
+#opening-screen.stage-content .opening-screen-content {
   animation: opening-screen-rise-in 1.1s ease forwards;
-  animation-delay: 0.7s;
+  animation-delay: 0.2s;
 }
 .opening-screen-menu {
   display: flex;
@@ -4253,6 +4260,146 @@ body.is-online-mode #quick-start-bar {
 @keyframes opening-screen-rise-in {
   from { opacity: 0; transform: translateY(0.9rem); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* ユーザー要望「最初真っ白な画面に7色のオーラが漂い、STARTボタンがフェードイン。押すと
+   BGM再生開始」。#opening-screen内の最前面レイヤーとして、bg/dim/contentを完全に覆い
+   隠す（真っ白なので下のタイトル画像も見えない）。STARTを押すとJS側(opening-screen.js)
+   がis-closingを付けてフェードアウトさせ、その後display:noneにする。 */
+.opening-start-gate {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.opening-start-gate.is-closing {
+  transition: opacity 0.6s ease;
+  opacity: 0;
+  pointer-events: none;
+}
+/* 7色の人魂風のオーラ。ぼかした円形グラデーションを、色ごとに異なる経路・速さで
+   ふわふわ漂わせる（@keyframesを色ごとに分けて、動きが揃って見えないようにしている）。 */
+.opening-aura {
+  position: absolute;
+  width: 12rem;
+  height: 12rem;
+  border-radius: 50%;
+  filter: blur(1.8rem);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.opening-aura-red { background: radial-gradient(circle, var(--color-red) 0%, transparent 70%); top: 15%; left: 20%; animation: opening-aura-float-1 19s ease-in-out infinite; }
+.opening-aura-orange { background: radial-gradient(circle, var(--color-orange) 0%, transparent 70%); top: 65%; left: 15%; animation: opening-aura-float-2 23s ease-in-out infinite; animation-delay: -3s; }
+.opening-aura-yellow { background: radial-gradient(circle, var(--color-yellow) 0%, transparent 70%); top: 25%; left: 75%; animation: opening-aura-float-3 26s ease-in-out infinite; animation-delay: -8s; }
+.opening-aura-green { background: radial-gradient(circle, var(--color-green) 0%, transparent 70%); top: 70%; left: 70%; animation: opening-aura-float-4 21s ease-in-out infinite; animation-delay: -12s; }
+.opening-aura-blue { background: radial-gradient(circle, var(--color-blue) 0%, transparent 70%); top: 45%; left: 45%; animation: opening-aura-float-1 24s ease-in-out infinite; animation-delay: -6s; }
+.opening-aura-pink { background: radial-gradient(circle, var(--color-pink) 0%, transparent 70%); top: 10%; left: 55%; animation: opening-aura-float-2 18s ease-in-out infinite; animation-delay: -15s; }
+.opening-aura-purple { background: radial-gradient(circle, var(--color-purple) 0%, transparent 70%); top: 80%; left: 40%; animation: opening-aura-float-3 22s ease-in-out infinite; animation-delay: -2s; }
+@keyframes opening-aura-float-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(3rem, -4rem) scale(1.15); }
+  50% { transform: translate(-2rem, 3rem) scale(0.9); }
+  75% { transform: translate(-4rem, -2rem) scale(1.05); }
+}
+@keyframes opening-aura-float-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  30% { transform: translate(-3.5rem, 2.5rem) scale(1.1); }
+  60% { transform: translate(2.5rem, 4rem) scale(0.85); }
+  85% { transform: translate(3rem, -3rem) scale(1); }
+}
+@keyframes opening-aura-float-3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  20% { transform: translate(-2.5rem, -3.5rem) scale(0.9); }
+  55% { transform: translate(-4rem, 2rem) scale(1.15); }
+  80% { transform: translate(3rem, 3rem) scale(1); }
+}
+@keyframes opening-aura-float-4 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  35% { transform: translate(4rem, 1.5rem) scale(1.1); }
+  65% { transform: translate(1.5rem, -4rem) scale(0.9); }
+  90% { transform: translate(-3.5rem, -1.5rem) scale(1.05); }
+}
+.opening-start-btn {
+  position: relative;
+  z-index: 1;
+  font-family: sans-serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  padding: 1.1rem 3.4rem;
+  border-radius: 3rem;
+  background: rgba(20, 24, 32, 0.9);
+  border: 1px solid rgba(30, 41, 59, 0.4);
+  color: #f8fafc;
+  cursor: pointer;
+  opacity: 0;
+  animation: opening-screen-rise-in 1.2s ease forwards;
+  animation-delay: 0.9s;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+.opening-start-btn:hover {
+  background: rgba(20, 24, 32, 1);
+  transform: translateY(-0.15rem) scale(1.03);
+}
+
+/* ユーザー要望「タイトル画像フェードイン中にストーリーテロップを流す。クリックで
+   飛ばせる」。bg/dimより手前、ログインボタン(content)より奥に表示する
+   （z-indexは.opening-screen-contentの1より大きく、.opening-start-gateの10より
+   小さい値にする）。 */
+.opening-story-crawl {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+}
+.opening-story-crawl-text {
+  width: min(34rem, 80vw);
+  text-align: center;
+  color: #f8fafc;
+  font-family: sans-serif;
+  line-height: 2;
+  text-shadow: 0 0 0.4rem rgba(0, 0, 0, 0.9), 0 0.1rem 0.3rem rgba(0, 0, 0, 0.8);
+  /* ハマりどころ: 当初はJS側(opening-screen.js)がdisplay:flexにした直後にJSで
+     animationDurationを上書きする方式だったが、display変更と同じ同期処理内でも
+     ブラウザがまずスタイルシート側の既定（animationショートハンドにdurationを
+     書いていなかったため実質0秒）でアニメーションを開始・即完了させてしまい、
+     その後のJSでのduration上書きが間に合わずanimationendが一瞬で発火する不具合が
+     あった（move-blink-durationと同じ「calc(var(...))をスタイルシート側に直接
+     書く」方式に変更して解決）。 */
+  animation-name: opening-story-crawl-scroll;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+  animation-duration: calc(var(--opening-story-crawl-duration, 40) * 1s);
+}
+.opening-story-crawl-text p {
+  margin: 0 0 0.3rem 0;
+}
+.opening-story-crawl-text p.is-blank {
+  margin-bottom: 1.1rem;
+}
+@keyframes opening-story-crawl-scroll {
+  from { transform: translateY(60vh); opacity: 0; }
+  5% { opacity: 1; }
+  95% { opacity: 1; }
+  to { transform: translateY(-60vh); opacity: 0; }
+}
+.opening-story-crawl-skip-hint {
+  position: absolute;
+  bottom: 6%;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(248, 250, 252, 0.6);
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
 }
 
 /* オープニング画面のログインカード（opening-screen.js参照）。ゲストログインを主ボタンに
@@ -4459,6 +4606,8 @@ body.is-online-mode #quick-start-bar {
   --sound-volume-lock: 80%;
   --sound-volume-turn-switch: 80%;
   --sound-volume-victory: 80%;
+  --sound-volume-opening-bgm: 80%;
+  --opening-story-crawl-duration: 40;
   --board-zoom-margin: 1;
   --board-zoom-offset-x: 0rem;
   --board-zoom-offset-y: 3.2rem;

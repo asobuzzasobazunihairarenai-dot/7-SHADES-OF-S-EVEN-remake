@@ -17,6 +17,30 @@ const SOUND_DEFS = {
   victory: { path: "assets/sounds/victory.mp3", cssVar: "--sound-volume-victory" },
 };
 
+// オープニングBGM（ユーザー提供、音声/BGM/オープニング.mp3）。効果音(playSound)と違い
+// ループ再生し続ける必要があるため、使い回す単一のAudioインスタンスを持つ。ブラウザの
+// 自動再生制限により、ページ読み込み直後には再生できない（ユーザーの操作＝STARTボタン
+// クリックが必要）ため、opening-screen.jsがそのクリックハンドラ内から呼ぶ設計にする。
+let openingBgmAudio = null;
+
+export function playOpeningBgm() {
+  if (!openingBgmAudio) {
+    openingBgmAudio = new Audio("assets/sounds/opening-bgm.mp3");
+    openingBgmAudio.loop = true;
+  }
+  const volume = Math.min(1, Math.max(0, masterVolume * getPerSoundVolume("--sound-volume-opening-bgm")));
+  openingBgmAudio.volume = volume;
+  openingBgmAudio.currentTime = 0;
+  openingBgmAudio.play().catch(() => {});
+}
+
+// ゲーム本編に入ったら（オープニング画面が閉じたら）止める。
+export function stopOpeningBgm() {
+  if (!openingBgmAudio) return;
+  openingBgmAudio.pause();
+  openingBgmAudio.currentTime = 0;
+}
+
 // マスター音量（0〜1）。オプションメニューの「基本設定」から調整できる。
 let masterVolume = 0.8;
 

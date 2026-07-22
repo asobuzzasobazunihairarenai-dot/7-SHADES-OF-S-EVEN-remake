@@ -25,9 +25,60 @@ import {
   signOut,
 } from "./online.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { playOpeningBgm, stopOpeningBgm } from "./sound.js";
 
-// フェードアウトのCSSトランジション時間と合わせる（style.cssの#opening-screen.is-closing参照）。
+// フェードアウトのCSSトランジション時間と合わせる（style.cssの#opening-screen.is-closing、
+// .opening-start-gate.is-closing参照）。
 const CLOSE_TRANSITION_MS = 600;
+
+// ユーザー要望「最初真っ白な画面にSTARTボタン、周りに7色のオーラが漂う。押したら
+// BGM開始＋タイトル画像フェードイン＋ストーリーテロップ（クリックで飛ばせる）→
+// ログインボタン出現」への対応。以下の7色は既存のCOLORS(board-layout.js)と同じ並びだが、
+// ここは単なる装飾演出でゲームロジックとは無関係なため、循環import回避のため独自に
+// 定数を持つ（board-layout.jsを経由する理由が無い）。
+const AURA_COLORS = ["red", "orange", "yellow", "green", "blue", "pink", "purple"];
+
+const STORY_LINES = [
+  "ここは異世界「ファルベンド」",
+  "世界は「色」で満ちている",
+  "",
+  "この世界には、7つの国があり",
+  "各国はそれぞれの色を治めている",
+  "そして、均衡は保たれ平和を築いていた",
+  "",
+  "しかし、世界の「色」は突如――",
+  "",
+  "消えた",
+  "",
+  "各国は、それぞれ国宝を有していた",
+  "それはその国の「色」を纏った「キューブ」",
+  "しかし、なぜかその「キューブ」だけは",
+  "「色」を失わなかった",
+  "",
+  "色を失った世界で民は輝きを失い途方にくれていた",
+  "",
+  "やがて各国の国王は",
+  "その「キューブ」の「特殊な力」に気付く",
+  "",
+  "そうそれは、「色」を「具現化する力」だった",
+  "",
+  "「色」はこの世のあらゆるものと",
+  "密接に関わっている",
+  "",
+  "モノ、記憶、能力、あらゆるものに",
+  "",
+  "ある時「キューブ」の力が国王に語りかける",
+  "",
+  "-7つの色を集めよ-",
+  "",
+  "7つの色を集めたら　一体どうなるのか",
+  "",
+  "各国のそれぞれの野望、思惑、理想が交錯する中",
+  "",
+  "7色を巡る戦いが",
+  "",
+  "今、はじまる",
+];
 
 // ゲストログインの注意書き用の詳細モーダル。既存のphase-guide-modal-*クラス（フェイズ案内板・
 // アイコンボタン等と共通のホバー=簡易/クリック=詳細パターン）をそのまま流用する。
@@ -108,15 +159,91 @@ export function initOpeningScreen() {
   content.appendChild(card);
 
   overlay.appendChild(content);
+
+  // ユーザー要望の演出一式: 起動直後は真っ白な画面+7色のオーラ+STARTボタンだけを見せ
+  // （.opening-start-gateがbg/dim/contentを覆い隠す）、STARTを押した瞬間にBGM再生・
+  // タイトル画像フェードイン・ストーリーテロップ表示という3段階へ進める。
+  const storyCrawl = document.createElement("div");
+  storyCrawl.className = "opening-story-crawl";
+  storyCrawl.style.display = "none";
+  const crawlText = document.createElement("div");
+  crawlText.className = "opening-story-crawl-text";
+  for (const line of STORY_LINES) {
+    const p = document.createElement("p");
+    if (line === "") {
+      p.className = "is-blank";
+      p.innerHTML = "&nbsp;";
+    } else {
+      p.textContent = line;
+    }
+    crawlText.appendChild(p);
+  }
+  storyCrawl.appendChild(crawlText);
+  const crawlSkipHint = document.createElement("div");
+  crawlSkipHint.className = "opening-story-crawl-skip-hint";
+  crawlSkipHint.textContent = "クリックでスキップ";
+  storyCrawl.appendChild(crawlSkipHint);
+  overlay.appendChild(storyCrawl);
+
+  const startGate = document.createElement("div");
+  startGate.className = "opening-start-gate";
+  for (const color of AURA_COLORS) {
+    const aura = document.createElement("div");
+    aura.className = `opening-aura opening-aura-${color}`;
+    startGate.appendChild(aura);
+  }
+  const startBtn = document.createElement("button");
+  startBtn.type = "button";
+  startBtn.className = "opening-start-btn";
+  startBtn.textContent = "START";
+  startGate.appendChild(startBtn);
+  overlay.appendChild(startGate);
+
   document.body.appendChild(overlay);
 
   function close(after) {
+    stopOpeningBgm();
     overlay.classList.add("is-closing");
     setTimeout(() => {
       overlay.style.display = "none";
       if (after) after();
     }, CLOSE_TRANSITION_MS);
   }
+
+  function revealContent() {
+    overlay.classList.add("stage-content");
+  }
+
+  // テロップの表示秒数はCSS側（--opening-story-crawl-duration、style.css参照）で
+  // calc(var(...))として直接持たせている（JSでanimationDurationを後から上書きする
+  // 方式は、display変更とduration上書きが同じ同期処理内でも間に合わずアニメーションが
+  // 0秒で終わってしまう不具合があったため廃止した）。
+  function showStoryCrawl() {
+    storyCrawl.style.display = "flex";
+    let done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      storyCrawl.style.display = "none";
+      revealContent();
+    }
+    storyCrawl.addEventListener("click", finish);
+    crawlText.addEventListener("animationend", finish);
+  }
+
+  function beginTitleSequence() {
+    overlay.classList.add("stage-title");
+    showStoryCrawl();
+  }
+
+  startBtn.addEventListener("click", () => {
+    playOpeningBgm();
+    startGate.classList.add("is-closing");
+    setTimeout(() => {
+      startGate.style.display = "none";
+      beginTitleSequence();
+    }, CLOSE_TRANSITION_MS);
+  });
 
   function showCard() {
     loginToggleBtn.style.display = "none";

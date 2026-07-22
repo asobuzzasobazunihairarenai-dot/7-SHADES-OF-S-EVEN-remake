@@ -79,7 +79,7 @@ const GROUPS = [
     controls: [
       { key: "--move-blink-duration", label: "表示秒数（点滅・矢印・アバター共通）", unit: "", min: 0.5, max: 10, step: 0.5, default: 3 },
       { key: "--move-blink-arrow-size", label: "矢印のサイズ", unit: "rem", min: 0.5, max: 8, step: 0.1, default: 5 },
-      { key: "--move-blink-arrow-stroke", label: "矢印の太さ（輪郭線）", unit: "rem", min: 0, max: 0.6, step: 0.01, default: 0.09 },
+      { key: "--move-blink-arrow-stroke", label: "矢印の発光の強さ", unit: "rem", min: 0, max: 0.6, step: 0.01, default: 0.09 },
       { key: "--move-blink-avatar-rotate", label: "ミニアバターの傾き", unit: "deg", min: -180, max: 180, step: 1, default: 0 },
     ],
   },
@@ -134,6 +134,18 @@ const GROUPS = [
       { key: "--sound-volume-lock", label: "ロック", unit: "%", min: 0, max: 100, step: 5, default: 80 },
       { key: "--sound-volume-turn-switch", label: "ターン切替", unit: "%", min: 0, max: 100, step: 5, default: 80 },
       { key: "--sound-volume-victory", label: "勝利時", unit: "%", min: 0, max: 100, step: 5, default: 80 },
+      { key: "--sound-volume-opening-bgm", label: "オープニングBGM", unit: "%", min: 0, max: 100, step: 5, default: 80 },
+    ],
+  },
+  {
+    // ユーザー要望「STARTボタン→タイトルフェードイン＋ストーリーテロップ→ログインボタン」
+    // というオープニング演出一式（opening-screen.js参照）。テロップの流れる速さだけは
+    // 好みが分かれそうなので調整できるようにする（クリックでいつでも飛ばせるが、
+    // 飛ばさない場合の速さの好みに対応）。
+    title: "オープニングのストーリーテロップ",
+    category: "effect",
+    controls: [
+      { key: "--opening-story-crawl-duration", label: "テロップが流れる時間（秒）", unit: "", min: 10, max: 90, step: 1, default: 40 },
     ],
   },
   {
