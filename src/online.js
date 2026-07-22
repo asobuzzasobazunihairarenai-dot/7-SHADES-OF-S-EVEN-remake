@@ -586,6 +586,71 @@ export function getSyncedIdentity(seat) {
   return roster[seat] ?? null;
 }
 
+// --- 戦績管理システムとの連携（Phase 1: 対戦結果の自動登録） -------------------------
+// 姉妹プロジェクト「7 SHADES OF S:EVEN 戦績管理システム」と全く同じSupabase
+// プロジェクトを共有しているため、そちらのplayers/matchesテーブルへ直接
+// insertする（supabase_setup_stats_integration.sql参照。players.user_id・
+// matches.sourceの2列だけ例外的に追加してもらった）。victory.js（オンライン対戦が
+// 勝利で終わった瞬間）からだけ呼ぶ想定。
+
+// 認証済みユーザー(userId)に対応する戦績プレイヤー行のidを取得、無ければ作成する。
+// 一度リンクしたら以降は同じ行を使い続ける（ユーザー要望「Googleアカウント等で
+// 既に登録済みとわかれば新たに登録は行わない」への対応）。
+async function getOrCreateStatsPlayer(userId, displayName) {
+  const { data: existing, error: selectError } = await client
+    .from("players")
+    .select("id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (selectError) throw selectError;
+  if (existing) return existing.id;
+
+  const { data: created, error: insertError } = await client
+    .from("players")
+    .insert({ user_id: userId, name: displayName || "プレイヤー", status: "approved" })
+    .select("id")
+    .single();
+  if (insertError) throw insertError;
+  return created.id;
+}
+
+// オンライン対戦が勝利で終わった瞬間、victory.jsから（勝者本人の画面からだけ、
+// 二重登録防止のため）呼ばれる。参加した座席全員を戦績システムのプレイヤーとして
+// 解決（未登録なら自動登録）し、対戦記録を1件登録する。
+export async function submitStatsMatchResult({ activePlayers, winnerSeat }) {
+  if (!client || !currentGameId) return;
+  const { data: gameRow, error: gameError } = await client
+    .from("so7_games")
+    .select("created_at")
+    .eq("id", currentGameId)
+    .maybeSingle();
+  if (gameError) throw gameError;
+  if (!gameRow) return;
+
+  const memberIds = [];
+  let winnerId = null;
+  for (const seat of activePlayers) {
+    const identity = getSyncedIdentity(seat);
+    if (!identity?.userId) continue; // 座席にログインユーザーが紐づいていない（通常は起こらない）
+    const playerId = await getOrCreateStatsPlayer(identity.userId, identity.name);
+    memberIds.push(playerId);
+    if (seat === winnerSeat) winnerId = playerId;
+  }
+  if (memberIds.length === 0 || !winnerId) return;
+
+  const durationMinutes = Math.max(1, Math.round((Date.now() - new Date(gameRow.created_at).getTime()) / 60000));
+
+  const { error: matchError } = await client.from("matches").insert({
+    date: new Date().toISOString().slice(0, 10),
+    members: memberIds,
+    winner_id: winnerId,
+    duration_minutes: durationMinutes,
+    status: "approved",
+    source: "digital",
+  });
+  if (matchError) throw matchError;
+}
+
 async function updateIdentityRoster(gameId) {
   const { data: seatRows, error } = await client
     .from("so7_game_seats")
