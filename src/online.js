@@ -632,7 +632,14 @@ async function captureVictoryScreenshot(gameId) {
     if (typeof window.html2canvas !== "function") return null;
     const sceneEl = document.getElementById("scene");
     if (!sceneEl) return null;
-    const canvas = await window.html2canvas(sceneEl, { backgroundColor: null, logging: false });
+    // foreignObjectRendering: 通常モード（DOM構造を手動で読み取ってcanvasに再構成する）
+    // だと、色（color-mix()等）だけでなく、rotateX等の3D変形・グラデーション・
+    // box-shadowのぼかし等も含め、盤面全体がかなり崩れて写ってしまうとユーザーから
+    // 報告があった。foreignObjectRendering: trueにすると、DOM構造をSVGの
+    // <foreignObject>へそのまま埋め込んでブラウザ自身に描画させてからcanvasへ焼き込む
+    // ため、こうした複雑なCSSもブラウザのネイティブ描画に任せられ、より実際の見た目に
+    // 忠実になる（全ての素材が同一オリジンのためcanvasがtaintedになる心配も無い）。
+    const canvas = await window.html2canvas(sceneEl, { backgroundColor: null, logging: false, foreignObjectRendering: true });
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
     if (!blob) return null;
     const path = `digital-${gameId}-${Date.now()}.png`;
