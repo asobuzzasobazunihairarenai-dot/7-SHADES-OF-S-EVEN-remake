@@ -3607,6 +3607,47 @@ body.is-touch-device .self-status-icon-grid #self-status-online .icon-action-but
   border-color: #7dd3fc;
 }
 
+/* ユーザー要望「アバター画像を自分でアップロードできるようにしたい」への対応
+   （avatar-upload.js参照）。 */
+.avatar-upload-section {
+  margin-top: 0.8rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
+.avatar-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.avatar-upload-btn {
+  flex: 1;
+  padding: 0.5rem 0.7rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.3rem;
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-family: sans-serif;
+}
+.avatar-upload-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.avatar-upload-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.avatar-upload-file-input {
+  display: none;
+}
+.avatar-upload-status {
+  min-height: 1.1em;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-top: 0.4rem;
+  text-align: center;
+}
+
 /* 画像アバター（実物のイラスト・Googleプロフィール画像共通）の共通スタイル
    （main.jsのapplyAvatarContent参照）。各コンテナの既存サイズ（.player-avatarはfont-size、
    .avatar-picker-swatch等は固定サイズ）に収まるよう、置かれた場所ごとに寸法だけ

@@ -41,6 +41,7 @@ import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS } from "./player-identity.js";
 import { applyAvatarContent, getAvatarVariant, getAwakenedVariant, getEnragedVariant } from "./avatar-render.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
+import { buildAvatarUploadSection } from "./avatar-upload.js";
 import { isLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible } from "./lock-color.js";
 import { isArrivalEffectDisabled, isFlightAnimationDisabled } from "./motion-prefs.js";
@@ -3465,6 +3466,14 @@ function openAvatarPicker() {
   modal.appendChild(createModalCloseX(close));
   modal.appendChild(title);
   modal.appendChild(grid);
+  // ユーザー要望「アバター画像を自分でアップロードできるようにしたい」への対応。
+  modal.appendChild(
+    buildAvatarUploadSection((url) => {
+      setPlayerAvatar(getSelfSeat(), url);
+      render();
+      close();
+    })
+  );
   document.body.appendChild(backdrop);
   document.body.appendChild(modal);
 }

@@ -643,21 +643,12 @@ export function initOpeningScreen() {
     card.appendChild(primaryRow);
     card.appendChild(status);
 
-    // その他のログイン方法（右下、折りたたみ）: Googleログイン・マジックリンクをここに格納する。
-    const moreRow = document.createElement("div");
-    moreRow.className = "opening-login-more-row";
-    moreRow.textContent = "その他のログイン方法 ▾";
-    card.appendChild(moreRow);
-
-    const moreSection = document.createElement("div");
-    moreSection.className = "opening-login-more-section";
-    card.appendChild(moreSection);
-
-    moreRow.addEventListener("click", () => {
-      const opening = moreSection.style.display !== "flex";
-      moreSection.style.display = opening ? "flex" : "none";
-      moreRow.textContent = opening ? "その他のログイン方法 ▴" : "その他のログイン方法 ▾";
-    });
+    // ユーザー要望「ゲストでログインの下にGoogleでログインを出したい。そこにiマークで
+    // アカウントでログインするとこんないいことあるよの説明を書きたい」への対応。
+    // 以前は折りたたみの「その他のログイン方法」の中（マジックリンクと一緒）に
+    // 隠れていたが、案内をより目立たせるためゲストログインのすぐ下に常設した。
+    const googleRow = document.createElement("div");
+    googleRow.className = "opening-login-primary-row";
 
     const googleBtn = document.createElement("button");
     googleBtn.type = "button";
@@ -672,12 +663,38 @@ export function initOpeningScreen() {
         googleBtn.disabled = false;
       }
     });
-    moreSection.appendChild(googleBtn);
+    googleRow.appendChild(googleBtn);
 
-    const divider = document.createElement("div");
-    divider.className = "opening-login-divider";
-    divider.textContent = "── または ──";
-    moreSection.appendChild(divider);
+    const googleInfoBtn = document.createElement("button");
+    googleInfoBtn.type = "button";
+    googleInfoBtn.className = "opening-login-info-btn";
+    googleInfoBtn.textContent = "i";
+    googleInfoBtn.title = "アカウントでログインするメリット";
+    googleInfoBtn.addEventListener("click", () => {
+      openInfoModal("アカウントでログインするメリット", [
+        "名前・アバター・駒スキンなどの設定が、別の端末・別のブラウザからログインしても引き継がれます。",
+        "戦績管理システムのプレイヤーとの連携も、アカウントに紐づけて保存されるため、次にログインした時も選び直す必要がありません。",
+        "ゲストログインと違い、ログアウトしたり端末を変えたりしても、同じアカウントとして続けて遊べます。",
+      ]);
+    });
+    googleRow.appendChild(googleInfoBtn);
+    card.appendChild(googleRow);
+
+    // その他のログイン方法（右下、折りたたみ）: マジックリンクをここに格納する。
+    const moreRow = document.createElement("div");
+    moreRow.className = "opening-login-more-row";
+    moreRow.textContent = "その他のログイン方法（メール） ▾";
+    card.appendChild(moreRow);
+
+    const moreSection = document.createElement("div");
+    moreSection.className = "opening-login-more-section";
+    card.appendChild(moreSection);
+
+    moreRow.addEventListener("click", () => {
+      const opening = moreSection.style.display !== "flex";
+      moreSection.style.display = opening ? "flex" : "none";
+      moreRow.textContent = opening ? "その他のログイン方法（メール） ▴" : "その他のログイン方法（メール） ▾";
+    });
 
     const emailInput = document.createElement("input");
     emailInput.type = "email";

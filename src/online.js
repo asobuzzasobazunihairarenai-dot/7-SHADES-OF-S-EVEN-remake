@@ -931,6 +931,33 @@ async function captureVictoryScreenshot(gameId, { activePlayers, winnerSeat }) {
   }
 }
 
+// ユーザー要望「アバター画像を自分でアップロードできるようにしたい。画像はWebPに
+// 変換してからサーバーに保存する」への対応。専用のSupabase Storageバケット
+// "avatars"（supabase_setup_avatars.sql参照、要ダッシュボード/SQLでの事前セットアップ）
+// へ、{user_id}.webpという固定パスで保存する（アップロードのたびに上書き、履歴は
+// 残さない——同じ人が何度も試しても際限なく増えないようにするため）。実際のファイル
+// 読み込み・正方形クロップ・WebP変換はavatar-upload.js側（ブラウザのCanvas API）で
+// 行い、ここでは既にWebP化されたBlobを受け取ってアップロードするだけにする。
+export async function uploadAvatarImage(blob) {
+  return withLog("アバター画像のアップロード", async () => {
+    if (!client) throw new Error("Supabaseクライアントが初期化されていません");
+    const user = await getCurrentUser();
+    if (!user) throw new Error("ログインしてください");
+    const path = `${user.id}.webp`;
+    const { error: uploadError } = await client.storage.from("avatars").upload(path, blob, {
+      contentType: "image/webp",
+      upsert: true,
+    });
+    if (uploadError) throw uploadError;
+    const { data } = client.storage.from("avatars").getPublicUrl(path);
+    if (!data?.publicUrl) throw new Error("画像URLの取得に失敗しました");
+    // 上書きアップロードのたびに同じURLになるため、ブラウザ/CDNのキャッシュにより
+    // 古い画像のまま見えてしまうことがある。末尾にタイムスタンプを付け、毎回別の
+    // URLとして扱われるようにする（画像自体はサーバー上で1枚に保たれたまま）。
+    return `${data.publicUrl}?v=${Date.now()}`;
+  });
+}
+
 // オンライン対戦が勝利で終わった瞬間、victory.jsから（勝者本人の画面からだけ、
 // 二重登録防止のため）呼ばれる。参加した座席全員を戦績システムのプレイヤーとして
 // 解決（未登録なら自動登録）し、対戦記録を1件登録する。ユーザー要望により、
