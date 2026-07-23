@@ -3,12 +3,13 @@
 // 画面右上のオプションアイコンの隣の人マークアイコン、または左下の巨大アバターの
 // クリックで開く（main.js側で配線）。
 
-import { getCurrentUser, getSelfSeat, isOnlineMode } from "./online.js";
+import { getCurrentUser, getSelfSeat } from "./online.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { fetchStatsProfile } from "./stats-profile.js";
 import { openStatsPlayerLinkModal } from "./stats-player-link.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
+import { openOnlinePanel } from "./online-ui.js";
 
 // main.jsのopenAvatarPicker()はmain.js内のローカル関数（circular importを避けるための
 // 既存パターン、admin.js等と同じ）。main.js側からregisterAvatarPickerHelper()で
@@ -64,14 +65,6 @@ function buildPanel(close) {
   async function render() {
     body.innerHTML = "";
 
-    if (!isOnlineMode()) {
-      const msg = document.createElement("div");
-      msg.textContent = "マイページはオンライン対戦中のみ利用できます。";
-      msg.style.cssText = "color: #94a3b8; text-align: center; padding: 1rem 0;";
-      body.appendChild(msg);
-      return;
-    }
-
     const seat = getSelfSeat();
     const avatarWrap = document.createElement("div");
     avatarWrap.style.cssText = "display: flex; flex-direction: column; align-items: center; gap: 0.5rem; margin-bottom: 1rem;";
@@ -97,7 +90,21 @@ function buildPanel(close) {
 
     const user = await getCurrentUser();
     if (!user) {
-      statusEl.textContent = "ログインするとこの先の戦績が表示されます。";
+      statusEl.innerHTML = "";
+      const loginMsg = document.createElement("div");
+      loginMsg.textContent = "ログインすると戦績（対戦数・勝率・順位等）が表示されます。";
+      loginMsg.style.cssText = "margin-bottom: 0.5rem;";
+      const loginBtn = document.createElement("button");
+      loginBtn.type = "button";
+      loginBtn.textContent = "ログインする";
+      loginBtn.style.cssText =
+        "padding: 0.4rem 0.9rem; background: #be185d; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.85rem;";
+      loginBtn.addEventListener("click", () => {
+        close();
+        openOnlinePanel();
+      });
+      statusEl.appendChild(loginMsg);
+      statusEl.appendChild(loginBtn);
       return;
     }
 
@@ -114,8 +121,9 @@ function buildPanel(close) {
       statusEl.innerHTML = "";
       statusEl.style.textAlign = "left";
       const linkMsg = document.createElement("div");
-      linkMsg.textContent = "まだ戦績管理システムのプレイヤーと連携していません。";
-      linkMsg.style.cssText = "margin-bottom: 0.5rem;";
+      linkMsg.textContent =
+        "まだ戦績管理システムのプレイヤーと連携していません。既に登録済みの方は下のボタンから連携できます（未登録の方は、オンライン対戦で一度勝利すると自動的に新規登録されます）。";
+      linkMsg.style.cssText = "margin-bottom: 0.5rem; line-height: 1.5;";
       const linkBtn = document.createElement("button");
       linkBtn.type = "button";
       linkBtn.textContent = "連携する";
