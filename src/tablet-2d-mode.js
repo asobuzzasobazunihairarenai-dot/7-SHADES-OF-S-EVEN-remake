@@ -19,6 +19,15 @@ const listeners = [];
 
 function apply() {
   document.body.classList.toggle("diagnostic-flatten-3d", enabled);
+  // ハマりどころ（重大、ユーザー報告「2Dから3Dに戻したら盤面の傾きが変な風になる」）:
+  // .game-tableの実際のtransformはmain.jsのapplyNormalFit/applyBoardZoomFitが
+  // table.style.transformへ直接書き込む（インラインスタイル）方式で、resizeイベント
+  // をきっかけに再計算される。このクラスをtoggleするだけでは誰も再計算のきっかけを
+  // 作らないため、2D表示中に計算・書き込まれた値（2D専用の傾き・パン・拡大率）が
+  // インラインスタイルとしてそのまま残り、3Dへ戻した後もそれが（本来の3D用の値を
+  // 上書きしたまま）居座ってしまっていた。resizeイベントを発火させて確実に
+  // 再計算させる。
+  window.dispatchEvent(new Event("resize"));
   for (const fn of listeners) fn(enabled);
 }
 apply();

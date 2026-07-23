@@ -5591,3 +5591,22 @@ https://asobuzzasobazunihairarenai-dot.github.io/7-SHADES-OF-S-EVEN-remake/
   - `--phase-guide-right-flat`: 0rem → 0.7rem
 - **検証**: ブラウザで反映後の値をgetComputedStyleで実測し、8項目とも意図通りの
   値になっていることを確認済み。`node --check`通過。
+
+### 2026-07-23の変更（続き）：2D表示から3Dに戻すと盤面の傾きがおかしいまま残る不具合を修正
+
+- **ユーザー報告**: 「2Dタブレットモードから3Dに戻したら盤面の傾きが変な風になっちゃって
+  ます」。
+- **原因**: `.game-table`の実際のtransformはmain.jsの`applyNormalFit()`/
+  `applyBoardZoomFit()`が`table.style.transform`へ直接書き込む（インラインスタイル）
+  方式で、`resize`イベントをきっかけに再計算される。`tablet-2d-mode.js`の
+  `setFlatten2dMode()`は`body.diagnostic-flatten-3d`クラスをtoggleするだけで、
+  誰も再計算のきっかけ（resizeイベント）を発火させていなかった。そのため、2D表示中に
+  計算・書き込まれた値（2D専用の傾き-21deg・パン・拡大率0.99倍）がインライン
+  スタイルとしてそのまま残り、3Dへ戻した後もそれが本来の3D用の値（42deg等）を
+  上書きしたまま居座ってしまっていた。
+- **修正**: `tablet-2d-mode.js`の`apply()`（トグルの度に呼ばれる）内で、クラスを
+  toggleした直後に`window.dispatchEvent(new Event("resize"))`を発火させ、確実に
+  再計算させるようにした。
+- **検証**: ブラウザで`setFlatten2dMode(true)`→`setFlatten2dMode(false)`を実行し、
+  `.game-table`のインラインtransformが2D表示中は`rotateX(-21deg)`、3Dに戻した後は
+  正しく`rotateX(42deg)`（本来の3D用の値）に戻ることを実測確認済み。
