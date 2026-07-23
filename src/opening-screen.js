@@ -24,6 +24,7 @@ import {
   signInWithMagicLink,
   getCurrentUser,
   signOut,
+  onAuthChange,
 } from "./online.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { playOpeningBgm, stopOpeningBgm } from "./sound.js";
@@ -706,19 +707,28 @@ export function initOpeningScreen() {
 
   // 起動直後にログイン状態を確認する。Googleログインはページ遷移を伴うため、認証完了後は
   // ブラウザがこのページへ丸ごとリロードして戻ってくる（＝initOpeningScreen()が最初から
-  // 実行し直される）。この時、小さい「ログイン」ボタンのままだと「オンラインで続ける」
-  // モーダルに気づけず、あたかもログインが失敗したかのように見えてしまう
-  // （ユーザー報告）。ログイン済みと判明した場合は、カードを自動的に開いて
-  // 「オンラインで続ける」をすぐ提示する（このカードは未ログイン時のカードと違い
-  // タイトル+ボタン1つ+リンク2つだけの簡素な内容のため、タイトルロゴへの重なりは
-  // 軽微で許容できる）。未ログインの間は引き続き小さいボタンのまま（タイトルロゴとの
-  // 重なりを避けるための前回の対応を維持）。
-  (async () => {
-    if (!isOnlineAvailable()) return;
-    const user = await getCurrentUser();
-    if (user) {
-      skipIntroToContent();
-      showCard();
-    }
-  })();
+  // 実行し直される）。ログイン済みと判明した場合は、STARTボタン演出・ストーリーテロップを
+  // 飛ばしてカードを自動的に開き、「オンラインで続ける」をすぐ提示する
+  // （skipIntroToContent参照）。
+  //
+  // ハマりどころ（ユーザー報告「まだ直らない」）: 起動直後に1回だけgetCurrentUser()を
+  // 呼ぶ実装だと、Googleログインからのリダイレクト直後はSupabase側がURLからセッションを
+  // 検出・確定させる処理がまだ終わっていないタイミングがあり、その場合getCurrentUser()が
+  // 一度nullを返してこの分岐そのものが素通りしてしまう（＝今まで通りSTART演出から
+  // 表示される）。1回きりのチェックに頼らず、online.jsのonAuthChange（Supabase自身の
+  // onAuthStateChange、セッション確定時に確実に発火する）も購読し、後から確定した
+  // 場合でも同じ処理を行えるようにする。「まだ通常のログインカードを自分で開いて
+  // 操作している最中」に誤って発火して割り込まないよう、既にstage-contentへ進んで
+  // いる場合は何もしない（＝オープニング画面がまだ最初の段階の時だけ有効）。
+  function maybeAutoAdvanceForLoggedInUser(user) {
+    if (!user) return;
+    if (overlay.classList.contains("stage-content")) return;
+    skipIntroToContent();
+    showCard();
+  }
+
+  if (isOnlineAvailable()) {
+    getCurrentUser().then(maybeAutoAdvanceForLoggedInUser);
+    onAuthChange(maybeAutoAdvanceForLoggedInUser);
+  }
 }
