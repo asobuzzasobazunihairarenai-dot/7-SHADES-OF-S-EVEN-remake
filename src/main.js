@@ -972,7 +972,18 @@ function render() {
   // 出てしまっていたバグの修正）。まだセットアップ前（activePlayers==[]）の間は、
   // 従来通り4人分をプレビューとして表示しておく。
   const { activePlayers } = getState();
-  const isActive = (player) => activePlayers.length === 0 || activePlayers.includes(player);
+  // ユーザー報告「オンラインの部屋で参加者が自分1人だけなのにB/C/Dにアバターが
+  // 表示されている」への対応。ローカルモード（サンドボックス）ではセットアップ前の
+  // 4人分プレビュー表示は従来通り便利なため維持するが、オンラインモードでは
+  // 「本当にその部屋にいる人」（自分自身、または実際に入室済みの人＝roster/
+  // getSyncedIdentityに載っている座席、待機中はrank-ring-orbit.jsではなく
+  // online.jsのupdateIdentityRosterが割り当てる仮の座席）だけを表示し、
+  // まだ誰も入っていない席は非表示にする。
+  const isActive = (player) => {
+    if (activePlayers.length > 0) return activePlayers.includes(player);
+    if (isOnlineMode()) return player === self || !!getSyncedIdentity(player);
+    return true;
+  };
   for (const seat of SEAT_ORDER) {
     if (!isActive(seat)) continue;
     const displaySide = rotateSide(SEAT_TO_SIDE[seat], steps);

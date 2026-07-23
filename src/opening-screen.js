@@ -430,6 +430,21 @@ export function initOpeningScreen() {
     showStoryCrawl();
   }
 
+  // ユーザー報告「オープニングでログインしたら一番最初に戻る（＝START演出・
+  // ストーリーテロップをもう一度見せられる）んじゃなくて、『オンラインで続ける』
+  // モーダルに戻ってほしい」への対応。既存のshowCard()はログインカードを開くだけで、
+  // STARTボタンの白い画面やストーリーテロップ自体はスキップしないままだった
+  // （＝ユーザーからは「最初から」に見える）。ここでSTART演出・テロップの両方を
+  // 飛ばして一気にカードの見える段階まで進める。BGMは自動再生扱いになりブラウザの
+  // 自動再生ポリシーでどうせブロックされる（ユーザー操作を経ていないため）ので、
+  // ここでは鳴らそうとしない。
+  function skipIntroToContent() {
+    stopAuras();
+    startGate.style.display = "none";
+    storyCrawl.style.display = "none";
+    overlay.classList.add("stage-title", "stage-content");
+  }
+
   // ユーザー要望「優しく、すごくゆっくり、完全に消えない（透過率50%と0%＝不透明度
   // 100%と50%の間）を繰り返す点滅」。最初のフェードイン(opening-screen-rise-in、
   // 2.5秒後開始・4秒かけて0→1)が終わってから、無限に繰り返す点滅アニメーションへ
@@ -701,6 +716,9 @@ export function initOpeningScreen() {
   (async () => {
     if (!isOnlineAvailable()) return;
     const user = await getCurrentUser();
-    if (user) showCard();
+    if (user) {
+      skipIntroToContent();
+      showCard();
+    }
   })();
 }

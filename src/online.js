@@ -523,6 +523,34 @@ async function callAction(action) {
 
 // ゲーム開始（セットアップウィザードの代わり）。座席の割り当てはso7-apply-action
 // Edge Function側が部屋の参加者を見てランダムに行う（クライアント側では組み立てない）。
+// ユーザー要望「（戦績管理システムに）勝利しなくても対戦に参加すれば登録されるように
+// してほしい」への対応。以前はvictory.js（勝利した瞬間）からgetOrCreateStatsPlayer()を
+// 呼ぶ経路しか無く、対局が最後まで終わらなかった場合は誰も登録されなかった。
+// startGame()（＝「ゲームを開始する」を押した本人）から、座席が決まった直後に参加者
+// 全員を登録する。この時点ではこのクライアントのローカルroster（updateIdentityRoster
+// 経由、state_changed Broadcastを待って初めて更新される）がまだ最新とは限らないため、
+// so7_game_seatsを直接読み直して確実な座席一覧を得る。失敗してもゲーム開始自体は
+// 継続できるよう、呼び出し元ではawaitしない（fire and forget）。
+async function registerParticipantsAsStatsPlayers(gameId) {
+  const { data: seatRows, error } = await client
+    .from("so7_game_seats")
+    .select("user_id, display_name, avatar")
+    .eq("game_id", gameId);
+  if (error) {
+    console.error("registerParticipantsAsStatsPlayers failed", error);
+    return;
+  }
+  for (const row of seatRows ?? []) {
+    if (!row.user_id) continue;
+    try {
+      const avatarUrl = row.avatar ? new URL(row.avatar, window.location.href).href : null;
+      await getOrCreateStatsPlayer(row.user_id, row.display_name, avatarUrl);
+    } catch (err) {
+      console.error("getOrCreateStatsPlayer failed (game start registration)", err);
+    }
+  }
+}
+
 export async function startGame(gameId, { includeBlackWhite = false, timerEnabled } = {}) {
   return withLog("ゲーム開始", async () => {
     const count = await getMemberCount(gameId);
@@ -544,7 +572,11 @@ export async function startGame(gameId, { includeBlackWhite = false, timerEnable
       turnsToReplenishHourglass: getTurnsToReplenishHourglass(),
       reducedBaseSeconds: getReducedBaseSeconds(),
     };
-    return callAction({ type: "BOOTSTRAP_GAME", includeBlackWhite, timerConfig });
+    const result = await callAction({ type: "BOOTSTRAP_GAME", includeBlackWhite, timerConfig });
+    registerParticipantsAsStatsPlayers(gameId).catch((err) =>
+      console.error("registerParticipantsAsStatsPlayers failed", err)
+    );
+    return result;
   });
 }
 
@@ -662,8 +694,11 @@ export function onRosterChange(fn) {
 // 姉妹プロジェクト「7 SHADES OF S:EVEN 戦績管理システム」と全く同じSupabase
 // プロジェクトを共有しているため、そちらのplayers/matchesテーブルへ直接
 // insertする（supabase_setup_stats_integration.sql参照。players.user_id・
-// matches.sourceの2列だけ例外的に追加してもらった）。victory.js（オンライン対戦が
-// 勝利で終わった瞬間）からだけ呼ぶ想定。
+// matches.sourceの2列だけ例外的に追加してもらった）。プレイヤー行自体の登録
+// （getOrCreateStatsPlayer）はstartGame()（対局参加時）とvictory.js（勝利した瞬間）の
+// 両方から呼ばれる——ユーザー要望「勝利しなくても対戦に参加すれば登録されるように
+// してほしい」への対応で対局開始時にも呼ぶようにした。対戦記録自体(matches行)の
+// 登録はこれまで通りvictory.js経由のsubmitStatsMatchResult()からだけ。
 
 // requestStatsPlayerLink()で申請中（まだ管理者が承認していない）のuser_id連携先が
 // あれば、そのプレイヤーのidを返す。ハマりどころ（重大、ユーザー報告で発覚）:

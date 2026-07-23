@@ -122,7 +122,7 @@ function buildPanel(close) {
       statusEl.style.textAlign = "left";
       const linkMsg = document.createElement("div");
       linkMsg.textContent =
-        "まだ戦績管理システムのプレイヤーと連携していません。既に登録済みの方は下のボタンから連携できます（未登録の方は、オンライン対戦で一度勝利すると自動的に新規登録されます）。";
+        "まだ戦績管理システムのプレイヤーと連携していません。既に登録済みの方は下のボタンから連携できます（未登録の方は、オンライン対戦に参加すると自動的に新規登録されます）。";
       linkMsg.style.cssText = "margin-bottom: 0.5rem; line-height: 1.5;";
       const linkBtn = document.createElement("button");
       linkBtn.type = "button";
