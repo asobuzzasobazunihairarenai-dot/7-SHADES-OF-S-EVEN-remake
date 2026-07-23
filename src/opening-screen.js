@@ -32,6 +32,23 @@ import { playOpeningBgm, stopOpeningBgm } from "./sound.js";
 // .opening-start-gate.is-closing参照）。
 const CLOSE_TRANSITION_MS = 600;
 
+// ユーザー要望「1画面で複数人が遊べるモードは、実際にはそういう遊び方をさせる予定が
+// 無いので『テストモード』画面とし、ログインカードからは削除して右下に小さいボタンだけを
+// 常時置きたい。押すとログインを求め、ログイン完了後は『オンラインで続ける』を挟まず
+// そのまま盤面（今までの『ローカルでプレイ』と同じ画面）へ直接進む」への対応。
+// Googleログイン・マジックリンクは成功するとページがまるごと再読み込みされて戻ってくる
+// ため（initOpeningScreen()がもう一度最初から実行される）、in-memoryな変数では
+// 「テストモード経由だった」という状態を覚えていられない。sessionStorageに一時保存し、
+// このタブが閉じられるまで（あるいは実際にテストモードへ抜けた時点で）だけ持続させる。
+const TEST_MODE_STORAGE_KEY = "so7-test-mode-login-pending";
+function isTestModeRequested() {
+  return sessionStorage.getItem(TEST_MODE_STORAGE_KEY) === "1";
+}
+function setTestModeRequested(value) {
+  if (value) sessionStorage.setItem(TEST_MODE_STORAGE_KEY, "1");
+  else sessionStorage.removeItem(TEST_MODE_STORAGE_KEY);
+}
+
 // ユーザー要望「最初真っ白な画面にSTARTボタン、周りに7色のオーラが漂う。押したら
 // BGM開始＋タイトル画像フェードイン＋ストーリーテロップ（クリックで飛ばせる）→
 // ログインボタン出現」への対応。以下の7色は既存のCOLORS(board-layout.js)と同じ並びだが、
@@ -294,6 +311,20 @@ export function initOpeningScreen() {
 
   overlay.appendChild(content);
 
+  // ユーザー要望「右下端に小さく『テストモード』ボタン」。.opening-screen-content自身が
+  // transform（translateY）を持っているため、その子にすると position:fixed の基準が
+  // 画面全体ではなくその細い縦長カラムになってしまう（実機検証で発覚）。#opening-screen
+  // （transform無し）の直接の子にすることで、main.jsのステージ方式により画面全体
+  // （1600x900の仮想解像度）基準の右下に固定される。表示タイミングだけはログインボタンと
+  // 揃えたいので、CSS側で#opening-screen.stage-content時にopacityが上がるようにする
+  // （style.css参照）。
+  const testModeBtn = document.createElement("button");
+  testModeBtn.type = "button";
+  testModeBtn.className = "opening-test-mode-btn";
+  testModeBtn.textContent = "テストモード";
+  testModeBtn.title = "1画面で複数人分を動かせる検証用の盤面へ直接進みます（開発・動作確認用）";
+  overlay.appendChild(testModeBtn);
+
   // ユーザー要望の演出一式: 起動直後は真っ白な画面+7色のオーラ+STARTボタンだけを見せ
   // （.opening-start-gateがbg/dim/contentを覆い隠す）、STARTを押した瞬間にBGM再生・
   // タイトル画像フェードイン・ストーリーテロップ表示という3段階へ進める。
@@ -415,9 +446,35 @@ export function initOpeningScreen() {
   function hideCard() {
     card.style.display = "none";
     loginToggleBtn.style.display = "inline-block";
+    // カードを✕で閉じた（＝ログインを完了せずに引き返した）場合、テストモード経由で
+    // あったという記憶は捨てる。捨てておかないと、この後に通常の「ログイン」ボタンから
+    // 入り直してログインした時、本来出るはずの「オンラインで続ける」カードが誤って
+    // スキップされてしまう。
+    setTestModeRequested(false);
   }
 
-  loginToggleBtn.addEventListener("click", showCard);
+  loginToggleBtn.addEventListener("click", () => {
+    setTestModeRequested(false);
+    showCard();
+  });
+
+  // ユーザー要望「テストモードを押すと、ログインするか求められ（『オンラインで続ける』は
+  // 表示せず）、そのまま盤面へ直接進む。既にログイン済みならそのまま盤面へ」への対応。
+  testModeBtn.addEventListener("click", async () => {
+    if (!isOnlineAvailable()) {
+      // オンライン機能自体が読み込めていない場合はログインのしようが無いため、
+      // そのまま盤面へ進む（今までの「ローカルでプレイ」の障害時フォールバックと同じ扱い）。
+      close();
+      return;
+    }
+    const user = await getCurrentUser();
+    if (user) {
+      close();
+      return;
+    }
+    setTestModeRequested(true);
+    showCard();
+  });
 
   function buildLocalLink() {
     const link = document.createElement("button");
@@ -434,6 +491,17 @@ export function initOpeningScreen() {
 
     const available = isOnlineAvailable();
     const user = available ? await getCurrentUser() : null;
+
+    // テストモード経由でログインし終えた場合、「オンラインで続ける」を挟まずそのまま
+    // 盤面へ進む（Googleログイン・マジックリンクはページ再読み込みを伴うため、ここが
+    // ログイン完了後に必ず通る唯一の場所になる。ゲストログインの即時ケースは
+    // guestBtnのクリックハンドラ側で先に処理して、このカードを一瞬でも見せないように
+    // している）。
+    if (available && user && isTestModeRequested()) {
+      setTestModeRequested(false);
+      close();
+      return;
+    }
 
     if (!available) {
       const msg = document.createElement("div");
@@ -459,8 +527,6 @@ export function initOpeningScreen() {
       continueBtn.addEventListener("click", () => close(openOnlinePanel));
       row.appendChild(continueBtn);
       card.appendChild(row);
-
-      card.appendChild(buildLocalLink());
 
       const logoutBtn = document.createElement("button");
       logoutBtn.type = "button";
@@ -490,6 +556,14 @@ export function initOpeningScreen() {
       status.textContent = "ログイン中...";
       try {
         await signInAnonymously();
+        // テストモード経由の場合、ゲストログインはページ遷移を伴わずその場で完了する
+        // ため、renderCard()の再描画（＝「オンラインで続ける」カード）を経由させず
+        // ここで直接盤面へ進む。
+        if (isTestModeRequested()) {
+          setTestModeRequested(false);
+          close();
+          return;
+        }
         await renderCard();
       } catch (err) {
         status.textContent = `エラー: ${err.message ?? err}`;
@@ -516,7 +590,6 @@ export function initOpeningScreen() {
 
     card.appendChild(primaryRow);
     card.appendChild(status);
-    card.appendChild(buildLocalLink());
 
     // その他のログイン方法（右下、折りたたみ）: Googleログイン・マジックリンクをここに格納する。
     const moreRow = document.createElement("div");

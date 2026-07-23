@@ -4455,6 +4455,40 @@ body.is-online-mode #quick-start-bar {
   border-color: rgba(56, 189, 248, 0.85);
   transform: translateY(-0.15rem);
 }
+/* ユーザー要望「1画面で複数人が遊べるモードは、実際にそういう遊び方をさせる予定が
+   無いのでテストモード画面とし、右下に小さく置きたい」。ログイン導線（.opening-screen-menu-btn）
+   とは違い、あえて目立たせない見た目にする。#opening-screenがposition:fixed要素の
+   基準（main.jsのステージ方式）になっているため、これも同じくposition:fixedで
+   画面右下に固定できる。 */
+.opening-test-mode-btn {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 2;
+  font-family: sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  padding: 0.3rem 0.7rem;
+  border-radius: 0.3rem;
+  background: rgba(15, 23, 32, 0.35);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  color: rgba(226, 232, 240, 0.55);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: background 0.2s ease, color 0.2s ease, opacity 0.6s ease;
+}
+/* ログインボタン(.opening-screen-content)が浮かび上がるのと同じタイミングで
+   一緒に現れるようにする（タイトル演出・ストーリーテロップの最中は隠しておく）。 */
+#opening-screen.stage-content .opening-test-mode-btn {
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 0.3s;
+}
+.opening-test-mode-btn:hover {
+  background: rgba(15, 23, 32, 0.6);
+  color: rgba(226, 232, 240, 0.9);
+}
 @keyframes opening-screen-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }

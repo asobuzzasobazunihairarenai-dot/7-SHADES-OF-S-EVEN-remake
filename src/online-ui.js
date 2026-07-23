@@ -23,6 +23,7 @@ import {
   signOut,
   startGame,
   getDebugLog,
+  onRosterChange,
 } from "./online.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { subscribe, getState, isOnlineMode } from "./state.js";
@@ -31,6 +32,9 @@ import { subscribe, getState, isOnlineMode } from "./state.js";
 // 複数あるため、極端に長い部屋名で崩れないよう作成時点で制限する（サーバー側
 // so7_create_roomでも同じ上限で切り詰める、両方で持たせるのは既存の他の入力欄と同じ方針）。
 const ROOM_NAME_MAX_LENGTH = 20;
+
+// ユーザー要望「対戦相手を待っている間、公式Discordを開くボタンを並べたい」への対応。
+const OFFICIAL_DISCORD_URL = "https://discord.gg/stP78fswKx";
 
 let panelEl = null;
 let backdropEl = null;
@@ -568,38 +572,66 @@ async function renderRoomStatus(gameId) {
     contentEl.appendChild(buildPasswordDisplayRow(savedPassword));
   }
 
-  if (!mySeat && count >= 2) {
-    // ターンタイマーを使うかどうか。ここで決めた値が対局全体で固定される
-    // （src/online.jsのstartGame()参照、不公平にならないよう対局中は変更できない）。
-    // デフォルトはON——管理者モードの中まで潜らないと有効化できないと気づかれにくい、
-    // というユーザー報告への対応。
-    const timerRow = document.createElement("label");
-    timerRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0.5rem; font-size: 0.85rem;";
-    const timerCheckbox = document.createElement("input");
-    timerCheckbox.type = "checkbox";
-    timerCheckbox.checked = true;
-    const timerLabel = document.createElement("span");
-    timerLabel.textContent = "⏳ ターンタイマーを使用する";
-    timerRow.appendChild(timerCheckbox);
-    timerRow.appendChild(timerLabel);
-    contentEl.appendChild(timerRow);
+  // ユーザー要望「部屋を作ったら『対戦相手を待っています』が画面に出て、公式Discordを
+  // 開くボタンも並べたい。2人以上揃ったら『ゲームを開始する（現在●名）』というボタンに
+  // 変わり、入室メンバー誰でも押せる」への対応。まだ座席が無い（＝この部屋でゲームが
+  // 始まっていない）全員に表示する。入室・退室はonline.jsのonRosterChange経由でこの
+  // パネルが開いている間だけリアルタイムに再描画されるため、人数表示・ボタンの切り替わりも
+  // 相手側の操作を待たずその場で反映される。
+  if (!mySeat) {
+    const waitingBox = document.createElement("div");
+    waitingBox.style.cssText =
+      "text-align: center; padding: 0.8rem 0.5rem; margin-bottom: 0.6rem; " +
+      "background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 0.4rem;";
 
-    const startBtn = textButton("ゲームを開始する");
-    // ログインパネルのボタン（renderLoginForm）と同じ理由で、display:blockを明示しないと
-    // .header-tool-buttonの既定表示(inline-block)のせいで「この部屋を離れる」ボタンと
-    // 横並びになってしまう（ユーザー報告のスクリーンショットで確認）。
-    startBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box; margin-bottom: 0.4rem;";
-    startBtn.addEventListener("click", async () => {
-      startBtn.disabled = true;
-      try {
-        await startGame(gameId, { timerEnabled: timerCheckbox.checked });
-        closePanel();
-      } catch (err) {
-        alert(err.message ?? String(err));
-        startBtn.disabled = false;
-      }
+    if (count < 2) {
+      const waitingText = document.createElement("div");
+      waitingText.style.cssText = "font-weight: bold; margin-bottom: 0.6rem;";
+      waitingText.textContent = "対戦相手を待っています。";
+      waitingBox.appendChild(waitingText);
+    } else {
+      // ターンタイマーを使うかどうか。ここで決めた値が対局全体で固定される
+      // （src/online.jsのstartGame()参照、不公平にならないよう対局中は変更できない）。
+      // デフォルトはON——管理者モードの中まで潜らないと有効化できないと気づかれにくい、
+      // というユーザー報告への対応。
+      const timerRow = document.createElement("label");
+      timerRow.style.cssText =
+        "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0.5rem; font-size: 0.85rem; text-align: left;";
+      const timerCheckbox = document.createElement("input");
+      timerCheckbox.type = "checkbox";
+      timerCheckbox.checked = true;
+      const timerLabel = document.createElement("span");
+      timerLabel.textContent = "⏳ ターンタイマーを使用する";
+      timerRow.appendChild(timerCheckbox);
+      timerRow.appendChild(timerLabel);
+      waitingBox.appendChild(timerRow);
+
+      const startBtn = textButton(`ゲームを開始する（現在${count}名）`);
+      // ログインパネルのボタン（renderLoginForm）と同じ理由で、display:blockを明示しないと
+      // .header-tool-buttonの既定表示(inline-block)のせいで横並びになってしまう
+      // （ユーザー報告のスクリーンショットで確認）。
+      startBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box;";
+      startBtn.addEventListener("click", async () => {
+        startBtn.disabled = true;
+        try {
+          await startGame(gameId, { timerEnabled: timerCheckbox.checked });
+          closePanel();
+        } catch (err) {
+          alert(err.message ?? String(err));
+          startBtn.disabled = false;
+        }
+      });
+      waitingBox.appendChild(startBtn);
+    }
+
+    const discordBtn = textButton("🔗 公式Discordを開く");
+    discordBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box; margin-top: 0.5rem;";
+    discordBtn.addEventListener("click", () => {
+      window.open(OFFICIAL_DISCORD_URL, "_blank", "noopener,noreferrer");
     });
-    contentEl.appendChild(startBtn);
+    waitingBox.appendChild(discordBtn);
+
+    contentEl.appendChild(waitingBox);
   }
 
   const leaveBtn = textButton("この部屋を離れる");
@@ -637,6 +669,15 @@ export function openOnlinePanel() {
 // 開いているパネルの中身を更新する。main.jsの起動時に1回呼ぶ。
 export function initOnlineUi() {
   onAuthChange(() => {
+    if (panelEl) renderPanelContent();
+  });
+
+  // ユーザー要望「誰かが部屋に入ってきたら（相手側の他の操作を待たずに）リアルタイムで
+  // 待機人数・『ゲームを開始する』ボタンに反映してほしい」への対応。online.js側で
+  // 入室・退室・名前変更等のたびに発火する専用の通知（onRosterChange、notifyListeners()
+  // より粒度が細かく盤面の駒移動等では発火しない）を購読し、パネルが開いている間だけ
+  // 中身を最新化する。
+  onRosterChange(() => {
     if (panelEl) renderPanelContent();
   });
 

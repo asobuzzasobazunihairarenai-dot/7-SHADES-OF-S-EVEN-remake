@@ -388,7 +388,7 @@ export async function joinRoom(gameId, passwordAttempt) {
     }
     currentGameId = gameId;
     currentSeat = null; // ゲーム開始時にランダムに割り当てられる
-    subscribeToGame(gameId);
+    subscribeToGame(gameId, { announceJoin: true });
     startHeartbeat(gameId, user.id);
   });
 }
@@ -478,23 +478,29 @@ export function getSelfSeat() {
 // するため。失敗して座席が残っても、いずれso7_cleanup_stale_roomsが回収する。
 export async function leaveGame() {
   const gameIdToLeave = currentGameId;
+  const channelToClose = broadcastChannel;
   stopHeartbeat();
-  if (broadcastChannel) {
-    client?.removeChannel(broadcastChannel);
-    broadcastChannel = null;
-  }
   currentGameId = null;
   currentSeat = null;
+  broadcastChannel = null;
   setOnlineMode(false);
 
   if (gameIdToLeave) {
     try {
       const { error } = await client.rpc("so7_leave_room", { p_game_id: gameIdToLeave });
       if (error) console.error("so7_leave_room failed", error);
+      else if (channelToClose) {
+        // 入室時（joinRoomのannounceJoin）と対称。待機中に自分が抜けたことを、
+        // 座席削除が終わった直後・チャンネルを閉じる直前に他メンバーへ伝える
+        // （ユーザー要望の「リアルタイムで着席」の裏返しとして、退室時も待機中の
+        // 並びがすぐ詰め直されるようにする）。
+        channelToClose.send({ type: "broadcast", event: "identity_changed", payload: {} });
+      }
     } catch (err) {
       console.error("so7_leave_room failed", err);
     }
   }
+  if (channelToClose) client?.removeChannel(channelToClose);
 }
 
 // --- アクション送信（so7-apply-action Edge Function） -------------------------------
@@ -636,6 +642,20 @@ let roster = {};
 
 export function getSyncedIdentity(seat) {
   return roster[seat] ?? null;
+}
+
+// 部屋の参加人数（座席の有無に関わらず）が変わった可能性がある瞬間（updateIdentityRoster
+// が呼ばれるたび）に通知する。online-ui.jsの部屋パネルが、開いている間だけ待機人数・
+// 待機中アバターの表示をその場で最新化するために使う（notifyListeners()は盤面の駒移動
+// 等でも毎回呼ばれてしまうため、それとは別に「ロスターが変わったかもしれない」専用の
+// 通知にした）。
+const rosterChangeListeners = [];
+export function onRosterChange(fn) {
+  rosterChangeListeners.push(fn);
+  return () => {
+    const i = rosterChangeListeners.indexOf(fn);
+    if (i >= 0) rosterChangeListeners.splice(i, 1);
+  };
 }
 
 // --- 戦績管理システムとの連携（Phase 1: 対戦結果の自動登録） -------------------------
@@ -903,24 +923,51 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat, feedba
   if (matchError) throw matchError;
 }
 
+// ユーザー要望「オンラインで部屋を作ったら、入室してきた相手がCBDの順に（＝2人だけなら
+// 対面のCに）リアルタイムで着席していくようにしたい」への対応。本当の対局用の座席は
+// 引き続きゲーム開始時（so7-apply-action Edge FunctionのBOOTSTRAP_GAME）にランダムで
+// 決まる（このマッピングとは無関係）が、それより前の待機中は誰にも座席(seat列)が
+// 割り当てられていないため、盤面周囲のアバター表示（buildPlayerZone、player-identity.js
+// 経由でこのrosterを参照する）が空のままだった。ここでは「本当の座席がまだ無い間だけ」、
+// 入室時刻(joined_at)順に仮の座席を割り当てて見た目上だけ着席させる。自分自身は含めない
+// （自分の名前・アバターは常にローカルの値がそのまま使われるため、rosterに乗せる必要が
+// 無い）。C（自分の対面）→B（左）→D（右）の順で埋める。
+const PREVIEW_SEAT_ORDER = ["C", "B", "D"];
+
 async function updateIdentityRoster(gameId) {
   const { data: seatRows, error } = await client
     .from("so7_game_seats")
-    .select("seat, user_id, display_name, avatar, piece_skin_index")
-    .eq("game_id", gameId);
+    .select("seat, user_id, display_name, avatar, piece_skin_index, joined_at")
+    .eq("game_id", gameId)
+    .order("joined_at", { ascending: true });
   if (error) throw error;
   const nextRoster = {};
+  const unseatedOthers = [];
   for (const r of seatRows ?? []) {
-    if (!r.seat) continue;
-    nextRoster[r.seat] = {
+    if (r.seat) {
+      nextRoster[r.seat] = {
+        name: r.display_name || null,
+        avatar: r.avatar || null,
+        pieceSkinIndex: r.piece_skin_index ?? 0,
+        userId: r.user_id,
+      };
+      if (cachedUser && r.user_id === cachedUser.id) currentSeat = r.seat;
+    } else if (!cachedUser || r.user_id !== cachedUser.id) {
+      unseatedOthers.push(r);
+    }
+  }
+  unseatedOthers.forEach((r, i) => {
+    const previewSeat = PREVIEW_SEAT_ORDER[i];
+    if (!previewSeat || nextRoster[previewSeat]) return; // 既に本座席が決まっている枠は上書きしない
+    nextRoster[previewSeat] = {
       name: r.display_name || null,
       avatar: r.avatar || null,
       pieceSkinIndex: r.piece_skin_index ?? 0,
       userId: r.user_id,
     };
-    if (cachedUser && r.user_id === cachedUser.id) currentSeat = r.seat;
-  }
+  });
   roster = nextRoster;
+  for (const fn of rosterChangeListeners) fn();
 }
 
 // 名前・アバター・駒スキンは隠すべき情報ではないため、so7-apply-action Edge Functionを
@@ -1068,7 +1115,7 @@ export function getSyncedTimerConfig() {
   return syncedTimerConfig;
 }
 
-function subscribeToGame(gameId) {
+function subscribeToGame(gameId, { announceJoin = false } = {}) {
   if (broadcastChannel) client.removeChannel(broadcastChannel);
   // config.broadcast.self:trueが無いと、Supabase Realtimeのデフォルト（自分が送信した
   // broadcastは自分自身には配信されない）のせいで、identity_changed/priority_changedを
@@ -1122,7 +1169,16 @@ function subscribeToGame(gameId) {
     .on("broadcast", { event: "priority_changed" }, ({ payload }) => {
       if (payload?.patch) applyRemotePriorityPatch(payload.patch);
     })
-    .subscribe();
+    .subscribe((status) => {
+      // ユーザー要望「部屋に入ってきたら、待機中の他メンバーにもリアルタイムで（＝
+      // 相手側が何か操作するのを待たずに）伝わってほしい」への対応。channel購読が
+      // 実際に確立してから送らないと、.subscribe()呼び出し直後はまだサーバー側の
+      // ハンドシェイクが終わっておらず、送信したbroadcastが届かないことがあるため
+      // （SUBSCRIBEDコールバックを待つのが公式に推奨される送信タイミング）。
+      if (status === "SUBSCRIBED" && announceJoin) {
+        broadcastChannel.send({ type: "broadcast", event: "identity_changed", payload: {} });
+      }
+    });
   setOnlineMode(true);
   setOnlineTransport(callAction);
   setPriorityTransport(updatePriorityState);
