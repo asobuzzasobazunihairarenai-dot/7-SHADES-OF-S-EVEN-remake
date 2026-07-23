@@ -4051,6 +4051,75 @@ body.diagnostic-flatten-3d * {
   background: rgba(255, 255, 255, 0.12);
 }
 
+/* ユーザー要望「勝利時ランクアップした場合に何かモーダル出したい」。post-game-panel.js
+   が承認後の見込みティアを楽観的に計算して呼ぶ（rank-up-modal.js参照）。 */
+@keyframes rank-up-modal-pop-in {
+  0% { transform: translate(-50%, -50%) scale(0.7); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+#rank-up-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(24rem, 90vw);
+  padding: 1.8rem 1.5rem;
+  border-radius: 1rem;
+  background: linear-gradient(160deg, #1e1b4b, #0f0a2e);
+  border: 2px solid #a855f7;
+  box-shadow: 0 0 2.5rem 0.4rem rgba(168, 85, 247, 0.5), 0 20px 60px rgba(0, 0, 0, 0.7);
+  text-align: center;
+  z-index: 10701;
+  font-family: sans-serif;
+  color: #f5f3ff;
+  animation: rank-up-modal-pop-in 0.4s ease-out;
+}
+.rank-up-modal-title {
+  font-size: 1.3rem;
+  font-weight: bold;
+  margin-bottom: 1.2rem;
+  letter-spacing: 0.03em;
+}
+.rank-up-modal-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.rank-up-modal-arrow {
+  font-size: 1.5rem;
+  color: #c4b5fd;
+}
+.rank-up-modal-badge {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  border: 0.4rem solid var(--rank-up-badge-color, #facc15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+}
+.rank-up-modal-badge.is-large {
+  width: 6rem;
+  height: 6rem;
+  opacity: 1;
+  box-shadow: 0 0 1rem 0.2rem var(--rank-up-badge-color, #facc15);
+}
+.rank-up-modal-badge.is-rainbow {
+  border: none;
+  background: conic-gradient(#ef4444, #f97316, #eab308, #22c55e, #3b82f6, #6366f1, #a855f7, #ef4444);
+}
+.rank-up-modal-subtitle {
+  font-size: 0.85rem;
+  color: #c4b5fd;
+  line-height: 1.5;
+}
+.rank-up-modal-close {
+  background: rgba(255, 255, 255, 0.12);
+}
+
 /* 効果音ごとの音量（0〜100）。src/sound.jsがオプションメニューの「マスター音量」と
    掛け算して最終的な再生音量にする。管理者モードの「効果音の音量（個別）」グループから
    調整できる。 */

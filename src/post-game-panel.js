@@ -14,8 +14,18 @@
 // このパネルは自動で閉じる。
 
 import { subscribe } from "./state.js";
-import { isOnlineMode, getSelfSeat, getCurrentGameId, submitStatsMatchResult, setRematchReady, maybeTriggerRematch } from "./online.js";
+import {
+  isOnlineMode,
+  getSelfSeat,
+  getCurrentGameId,
+  getCurrentUser,
+  submitStatsMatchResult,
+  setRematchReady,
+  maybeTriggerRematch,
+} from "./online.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { fetchStatsProfile, getTierInfo } from "./stats-profile.js";
+import { showRankUpModal } from "./rank-up-modal.js";
 
 // victory.jsはこのモジュール（showPostGamePanel）を呼ぶ側になる予定のため、ここから
 // victory.jsを直接importすると循環importになる。他の箇所（setup-animation.js等）と
@@ -189,11 +199,41 @@ export function showPostGamePanel({ activePlayers, winnerSeat }) {
   }
 
   if (getSelfSeat() === winnerSeat) {
+    // ユーザー要望「勝利時ランクアップした場合に何かモーダル出したい」への対応。
+    // 対戦記録(matches行)は承認待ちの状態で登録され、承認されるまでは戦績システム
+    // 側のmatchesCountは実際には増えない。承認を待ってから通知しても間に合わない
+    // （数分〜数日後、プレイヤーはもう見ていない可能性が高い）ため、パネルを開いた
+    // 時点の「対戦前」の対戦数を先に取得しておき、対戦記録が承認された場合の
+    // 見込み（対戦前+1）で楽観的にランクアップを判定する（rank-up-modal.js参照）。
+    const beforeRankProfilePromise = (async () => {
+      try {
+        const user = await getCurrentUser();
+        if (!user) return null;
+        return await fetchStatsProfile(user.id);
+      } catch (err) {
+        console.error("fetchStatsProfile (rank-up check) failed", err);
+        return null;
+      }
+    })();
+
     body.appendChild(
       buildCommentSection(activePlayers, winnerSeat, (feedback) => {
         submitStatsMatchResult({ activePlayers, winnerSeat, feedback })
           .catch((err) => console.error("submitStatsMatchResult failed", err))
-          .finally(showButtons);
+          .finally(async () => {
+            showButtons();
+            try {
+              const before = await beforeRankProfilePromise;
+              if (before?.linked && before.tier.label !== "カスタムカラー") {
+                const afterTier = getTierInfo(before.matchesCount + 1);
+                if (afterTier.label !== before.tier.label) {
+                  showRankUpModal({ fromTier: before.tier, toTier: afterTier });
+                }
+              }
+            } catch (err) {
+              console.error("rank-up check failed", err);
+            }
+          });
       })
     );
   } else {
