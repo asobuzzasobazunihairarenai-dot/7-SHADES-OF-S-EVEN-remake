@@ -2039,10 +2039,18 @@ body.is-touch-device #priority-transfer-buttons {
    矢印をそれを行ったプレイヤーの色・太く大きくし、そのプレイヤーのミニアバターも
    セットで表示する（.move-blink-arrow-glyphが矢印本体、.move-blink-arrow-avatarが
    アバター、どちらも親.move-blink-arrowのvar(--move-blink-color)を共有する）。 */
+/* ユーザー報告「単独設置の場合、マスの点滅は正常だがミニアバター（矢印）は1回しか
+   点滅しない、また7秒に設定したはずが実際には5秒くらいで消える」への対応。以前はここが
+   15%〜70%だけ表示のシンプルな「1回フェードイン→保持→フェードアウト」だったため、
+   (a) マス目のmove-highlight-blink（25%/75%の2山、50%で一旦消える）と違って1回しか
+   明滅しないように見え、(b) 70%地点（7秒なら約4.9秒）で完全に消えるため、マス目が
+   まだ7秒目まで点滅を続けているのに矢印・アバターだけ先に消えて「実際は5秒では」と
+   感じさせていた。マス目と同じ25%/75%山・50%谷のリズムに合わせ、100%まで使い切るように
+   変更した。 */
 @keyframes move-blink-arrow-fade {
-  0% { opacity: 0; transform: translateY(0.2rem) scale(0.7); }
-  15%, 70% { opacity: 1; transform: translateY(0) scale(1); }
-  100% { opacity: 0; transform: translateY(-0.2rem) scale(1); }
+  0%, 100% { opacity: 0; transform: translateY(0.2rem) scale(0.7); }
+  25%, 75% { opacity: 1; transform: translateY(0) scale(1); }
+  50% { opacity: 0; transform: translateY(0) scale(0.85); }
 }
 .move-blink-arrow {
   position: absolute;
@@ -4639,8 +4647,8 @@ body.is-online-mode #quick-start-bar {
   --sound-volume-victory: 80%;
   --sound-volume-opening-bgm: 80%;
   --opening-story-crawl-duration: 40;
-  --opening-aura-size: 12rem;
-  --opening-aura-trail-length: 10;
+  --opening-aura-size: 2rem;
+  --opening-aura-trail-length: 25;
   --opening-aura-speed: 1;
   --board-zoom-margin: 1;
   --board-zoom-offset-x: 0rem;

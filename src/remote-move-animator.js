@@ -134,6 +134,12 @@ function applyBlinkVisual(hostEl, entry, elapsedMs) {
   hostEl.classList.add("move-highlight-blink");
   hostEl.style.animationDelay = `-${elapsedMs}ms`;
 
+  // 同じ場所へ（テーブル再構築を挟まずに）blinkLocation/reapplyが2度呼ばれた場合、
+  // 前回このhostElへ足した矢印要素が残ったままだと新しいものが重なって積み上がる
+  // （矢印が積み重なる／片方だけ点滅が止まって見える不具合の一因になり得るため、
+  // 新しく足す前に必ず既存のものを取り除く）。
+  for (const el of hostEl.querySelectorAll(".move-blink-arrow")) el.remove();
+
   if (entry.arrow) {
     const arrowWrap = document.createElement("div");
     arrowWrap.className = `move-blink-arrow is-${entry.arrow}`;
@@ -160,6 +166,15 @@ function applyBlinkVisual(hostEl, entry, elapsedMs) {
   }
 }
 
+// 一時的な調査用ログ（ユーザー報告「ターンタイマーモードの時、複数マスに続けて配置すると
+// 秒数を待っても点滅・矢印が消えない」の原因特定用。ローカル環境では再現できなかったため、
+// ユーザーの実機（オンライン＋ターンタイマーON）でブラウザのコンソール出力を見せてもらう
+// 目的で追加した。原因が分かり次第、このconsole.log群は削除する）。
+const BLINK_DEBUG = true;
+function blinkDebugLog(...args) {
+  if (BLINK_DEBUG) console.log("[blink-debug]", new Date().toISOString().slice(11, 23), ...args);
+}
+
 function blinkLocation(location, table, arrow = null) {
   const hostEl = helpers.findLocationElement?.(table, location);
   if (!hostEl) return;
@@ -173,6 +188,7 @@ function blinkLocation(location, table, arrow = null) {
   const key = locationKey(location);
   const existing = activeBlinksByKey.get(key);
   if (existing) clearTimeout(existing.timeoutId);
+  blinkDebugLog("blinkLocation", key, existing ? "RETRIGGER(既存を上書き)" : "new", "durationMs=", durationMs, "arrow=", arrow);
 
   const entry = { location, startedAt: Date.now(), durationMs, color, arrow, actor };
   applyBlinkVisual(hostEl, entry, 0);
@@ -186,6 +202,7 @@ function blinkLocation(location, table, arrow = null) {
   // 時点でその場所の「今の」要素からクラス・色変数・矢印要素を明示的に取り除く
   // （CSSアニメーションの終わり方に一切依存しない、確実な後始末にする）。
   entry.timeoutId = setTimeout(() => {
+    blinkDebugLog("cleanup timeout fired", key);
     activeBlinksByKey.delete(key);
     const currentTable = document.getElementById("game-table");
     const currentHostEl = currentTable ? helpers.findLocationElement?.(currentTable, location) : null;
@@ -203,11 +220,18 @@ function blinkLocation(location, table, arrow = null) {
 export function reapplyActiveHighlights(table) {
   if (!helpers || activeBlinksByKey.size === 0) return;
   const now = Date.now();
-  for (const entry of activeBlinksByKey.values()) {
+  for (const [key, entry] of activeBlinksByKey.entries()) {
     const elapsedMs = now - entry.startedAt;
-    if (elapsedMs >= entry.durationMs) continue; // 期限切れはタイマー側の削除待ち、ここでは無視するだけでよい
+    if (elapsedMs >= entry.durationMs) {
+      blinkDebugLog("reapply: 期限切れなのでスキップ(タイマー待ち)", key, "elapsed=", elapsedMs, "duration=", entry.durationMs);
+      continue; // 期限切れはタイマー側の削除待ち、ここでは無視するだけでよい
+    }
     const hostEl = helpers.findLocationElement?.(table, entry.location);
-    if (!hostEl) continue;
+    if (!hostEl) {
+      blinkDebugLog("reapply: hostElが見つからずスキップ", key);
+      continue;
+    }
+    blinkDebugLog("reapply", key, "elapsed=", elapsedMs, "duration=", entry.durationMs);
     applyBlinkVisual(hostEl, entry, elapsedMs);
   }
 }

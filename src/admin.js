@@ -166,8 +166,8 @@ const GROUPS = [
     title: "オープニングの7色の人魂（実験用プレビュー付き）",
     category: "effect",
     controls: [
-      { key: "--opening-aura-size", label: "大きさ", unit: "rem", min: 4, max: 24, step: 0.5, default: 12, previewOnInteract: () => auraPreviewFn?.() },
-      { key: "--opening-aura-trail-length", label: "軌跡残像の長さ（個数）", unit: "", min: 1, max: 25, step: 1, default: 10, previewOnInteract: () => auraPreviewFn?.() },
+      { key: "--opening-aura-size", label: "大きさ", unit: "rem", min: 1, max: 24, step: 0.25, default: 2, previewOnInteract: () => auraPreviewFn?.() },
+      { key: "--opening-aura-trail-length", label: "軌跡残像の長さ（個数）", unit: "", min: 1, max: 25, step: 1, default: 25, previewOnInteract: () => auraPreviewFn?.() },
       { key: "--opening-aura-speed", label: "スピード（倍率）", unit: "", min: 0.2, max: 3, step: 0.1, default: 1, previewOnInteract: () => auraPreviewFn?.() },
     ],
   },
