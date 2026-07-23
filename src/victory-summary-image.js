@@ -106,6 +106,10 @@ async function preloadImages(state, seats) {
 // 勝利の瞬間の対戦記録の「証拠画像」を生成し、canvasを返す（アップロードはonline.js側の
 // 呼び出し元が行う）。activePlayers/winnerSeatはvictory.jsのcheckForVictoryから渡される
 // ものと同じ形。
+//
+// レイアウト（ユーザー要望「横長画像にしたい」）: 盤面を左カラム、各プレイヤーの
+// ロックエリア・手札を右カラムに縦に並べる横並び2カラム構成にした（以前は盤面の下に
+// 全プレイヤー分を縦に積んでいたため、正方形に近い盤面の分だけ縦長になっていた）。
 export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat }) {
   const state = getState();
   const seats = SEAT_ORDER.filter((s) => activePlayers.includes(s));
@@ -123,11 +127,16 @@ export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat }
   const boardPx = BOARD_N * CELL + (BOARD_N - 1) * CELL_GAP;
   const sectionGap = 10;
   // 1プレイヤー分＝名前ラベル＋ロックエリア（7色）＋隙間＋手札ラベル＋手札の各行。
-  const rowH = ROW_LABEL_H + CARD_H + sectionGap + ROW_LABEL_H + CARD_H + 20;
+  const playerBlockH = ROW_LABEL_H + CARD_H + sectionGap + ROW_LABEL_H + CARD_H + 22;
   const cardsAcross = Math.max(COLORS.length, maxHandCount, 1);
-  const width = Math.max(PAD * 2 + boardPx, PAD * 2 + cardsAcross * (CARD_W + CARD_GAP));
-  const titleH = 84;
-  const height = titleH + PAD + boardPx + PAD + seats.length * rowH + PAD;
+
+  const titleH = 74;
+  const colGap = 36;
+  const leftColW = PAD * 2 + boardPx;
+  const rightColW = PAD + cardsAcross * (CARD_W + CARD_GAP);
+  const width = leftColW + colGap + rightColW;
+  const bodyH = Math.max(boardPx, seats.length * playerBlockH);
+  const height = titleH + PAD + bodyH + PAD;
 
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -138,18 +147,18 @@ export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat }
   ctx.fillStyle = "#0f172a";
   ctx.fillRect(0, 0, width, height);
 
-  // タイトル・日付・勝者
+  // タイトル・日付・勝者（全幅、上部）
   ctx.fillStyle = "#f8fafc";
   ctx.font = "bold 22px sans-serif";
-  ctx.fillText("7 SHADES OF S:EVEN デジタル版 - 対戦記録", PAD, 34);
-  ctx.font = "16px sans-serif";
+  ctx.fillText("7 SHADES OF S:EVEN デジタル版 - 対戦記録", PAD, 30);
+  ctx.font = "14px sans-serif";
   ctx.fillStyle = "#cbd5e1";
-  ctx.fillText(new Date().toISOString().slice(0, 10), PAD, 58);
-  ctx.font = "bold 20px sans-serif";
+  ctx.fillText(new Date().toISOString().slice(0, 10), PAD, 50);
+  ctx.font = "bold 18px sans-serif";
   ctx.fillStyle = "#facc15";
-  ctx.fillText(`🏆 勝者: ${getPlayerName(winnerSeat)}`, PAD, 82);
+  ctx.fillText(`🏆 勝者: ${getPlayerName(winnerSeat)}`, PAD, 70);
 
-  // 盤面 7x7
+  // 左カラム: 盤面 7x7
   const boardX = PAD;
   const boardY = titleH + PAD;
   const cellTokens = state.tokens.filter((t) => t.location.zone === "cell");
@@ -181,8 +190,9 @@ export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat }
     }
   }
 
-  // プレイヤーごとのロックエリア・手札
-  let y = boardY + boardPx + PAD;
+  // 右カラム: プレイヤーごとのロックエリア・手札
+  const rightX = leftColW + colGap;
+  let y = boardY;
   for (const seat of seats) {
     const isWinner = seat === winnerSeat;
     const side = SEAT_TO_SIDE[seat];
@@ -191,12 +201,12 @@ export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat }
     ctx.font = "bold 16px sans-serif";
     ctx.fillStyle = isWinner ? "#facc15" : "#e2e8f0";
     const crown = isWinner ? "🏆 " : "";
-    ctx.fillText(`${crown}${getPlayerName(seat)}${color ? `（${color}）` : ""}`, PAD, y + 16);
+    ctx.fillText(`${crown}${getPlayerName(seat)}${color ? `（${color}）` : ""}`, rightX, y + 16);
 
     // ロックエリア（7色分、揃っている色だけ実際のカード絵を表示）
     const lockY = y + ROW_LABEL_H;
     for (let i = 0; i < COLORS.length; i++) {
-      const x = PAD + i * (CARD_W + CARD_GAP);
+      const x = rightX + i * (CARD_W + CARD_GAP);
       const locked = state.tokens.find(
         (t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side && t.location.index === i
       );
@@ -223,15 +233,15 @@ export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat }
     const hand = handTokensBySeat.get(seat) ?? [];
     ctx.font = "14px sans-serif";
     ctx.fillStyle = "#94a3b8";
-    ctx.fillText(`手札（${hand.length}枚）`, PAD, handY + 12);
+    ctx.fillText(`手札（${hand.length}枚）`, rightX, handY + 12);
     const cardsY = handY + ROW_LABEL_H;
     hand.forEach((token, i) => {
-      const x = PAD + i * (CARD_W + CARD_GAP);
+      const x = rightX + i * (CARD_W + CARD_GAP);
       const src = token.faceUp ? getCardImagePath(token.cardId) : getCardBackImagePath(token.cardId);
       drawCover(ctx, img(src), x, cardsY, CARD_W, CARD_H, 4);
     });
 
-    y += rowH;
+    y += playerBlockH;
   }
 
   return canvas;
