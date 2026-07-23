@@ -1,5 +1,7 @@
-// 駒スキン選択: 使うスキンのバリエーション（0=標準、1〜5=画像素材/駒スキン追加の
-// 「追加1」〜「追加5」フォルダに対応）を1つだけ保持し、いつでも自由に変更できるようにする。
+// 駒スキン選択: 使うスキンのバリエーション（0=標準、1〜7=追加1〜7、8=大航海時代風、
+// 9=遊びの王様風。以前は「駒スキン」「駒スキン追加」の2フォルダに分かれていたが、
+// ユーザーが1つの画像素材/駒スキンフォルダに統合した）を1つだけ保持し、いつでも
+// 自由に変更できるようにする。
 // 駒の色自体はファーストカードで固定なので、選べるのは「自分の駒と同じ色の中のスキン
 // バリエーション」だけ（色が変わるわけではない）。
 // 以前は色ごとに別々のバリエーション番号を覚える設計（skinIndexByColor）だったが、
@@ -28,7 +30,15 @@ import { COLORS } from "./board-layout.js";
 // 値（バリエーション番号の選択自体は色に依存しないため、どの色で見せても選択結果は同じ）。
 const PREVIEW_FALLBACK_COLOR = COLORS[0];
 
-const SKIN_VARIANTS = [0, 1, 2, 3, 4, 5, 6, 7]; // 0=標準（assets/pieces/${color}.webp）
+const SKIN_VARIANTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]; // 0=標準（assets/pieces/${color}.webp）
+
+// ユーザー要望「一部駒スキンセットに名前を付けました」への対応。8=大航海時代風、
+// 9=遊びの王様風の2セットだけテーマ名が付いているため、それ以外（1〜7）はこれまで
+// 通り「追加N」のまま。card-back-skins.jsのSET_LABELSと同じ考え方。
+const NAMED_SKIN_LABELS = {
+  8: "大航海時代風",
+  9: "遊びの王様風",
+};
 
 let preferredSkinIndex = 0;
 let hasLocalPreference = false;
@@ -108,7 +118,7 @@ export function openPieceSkinPicker() {
     if ((hasLocalPreference ? preferredSkinIndex : 0) === idx) swatch.classList.add("is-selected");
     const img = document.createElement("img");
     img.src = idx === 0 ? `assets/pieces/${color}.webp` : `assets/pieces/${color}-${idx}.webp`;
-    img.alt = idx === 0 ? "標準" : `追加${idx}`;
+    img.alt = idx === 0 ? "標準" : (NAMED_SKIN_LABELS[idx] ?? `追加${idx}`);
     swatch.appendChild(img);
     swatch.addEventListener("click", () => {
       setLocalPreferredSkinIndex(idx);
