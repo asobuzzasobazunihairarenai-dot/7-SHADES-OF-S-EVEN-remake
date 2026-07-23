@@ -5105,6 +5105,7 @@ body.is-online-mode #quick-start-bar {
   --spotlight-opacity: 0.95;
   --spotlight-width: 55%;
   --spotlight-height: 50%;
+  --sound-volume-button-press: 80%;
   --sound-volume-hand-shuffle: 80%;
   --sound-volume-deck-shuffle: 80%;
   --sound-volume-card-flip: 80%;

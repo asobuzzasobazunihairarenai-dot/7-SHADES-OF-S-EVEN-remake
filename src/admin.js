@@ -145,6 +145,10 @@ const GROUPS = [
     title: "効果音の音量（個別）",
     category: "effect",
     controls: [
+      // ユーザー要望「効果音『ボタン押す』を追加しました。いろんなボタンに適用して
+      // ください。アイコンには不要です」への対応（main.jsのグローバルクリック
+      // リスナー、.icon-action-buttonは対象外にしてある）。
+      { key: "--sound-volume-button-press", label: "ボタン押下", unit: "%", min: 0, max: 100, step: 5, default: 80 },
       { key: "--sound-volume-hand-shuffle", label: "手札シャッフル", unit: "%", min: 0, max: 100, step: 5, default: 80 },
       { key: "--sound-volume-deck-shuffle", label: "山札シャッフル", unit: "%", min: 0, max: 100, step: 5, default: 80 },
       { key: "--sound-volume-card-flip", label: "カードめくり", unit: "%", min: 0, max: 100, step: 5, default: 80 },

@@ -11,7 +11,7 @@ import {
   registerAuraPreviewHelper,
   registerRankRingPreviewHelper,
 } from "./admin.js";
-import { initDeckViewer } from "./deck-viewer.js";
+import { initDeckViewer, openDeckViewer } from "./deck-viewer.js";
 import { initStatsPlayerLinkModal } from "./stats-player-link.js";
 import { initMyPage, openMyPage, registerAvatarPickerHelper } from "./my-page.js";
 import { initGameSetup, previewStartPlayerModal } from "./game-setup.js";
@@ -47,9 +47,9 @@ import { openBackgroundPicker, registerBackgroundHelpers, getSelectedBackgroundP
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS } from "./player-identity.js";
 import { applyAvatarContent, getAvatarVariant, getAwakenedVariant, getEnragedVariant } from "./avatar-render.js";
-import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
+import { buildIconButtonContent, wireIconButtonClick, openIconDetailModal } from "./icon-action-button.js";
 import { buildAvatarUploadSection } from "./avatar-upload.js";
-import { isLockAreaBarVisible } from "./lock-area-bar.js";
+import { isLockAreaBarVisible, setLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible } from "./lock-color.js";
 import { isArrivalEffectDisabled, isFlightAnimationDisabled } from "./motion-prefs.js";
 import { rectCenter } from "./ghost-flight.js";
@@ -1969,29 +1969,132 @@ function showContextMenu(clientX, clientY, items) {
   contextMenuEl = menu;
 }
 
+// ユーザー要望「裏面カードで右クリック→裏面変更」への対応。右クリックされた要素が
+// 「今まさに裏向き（カード裏面画像）を表示している」かどうかを判定する。findHoverTarget
+// が拾い得る各種要素ごとに、裏向きの意味が異なるため個別に見る。
+function isFaceDownCardElement(el) {
+  if (el.classList.contains("board-card")) return el.classList.contains("is-facedown");
+  if (el.classList.contains("hand-card")) return !el.classList.contains("is-self"); // 他人の手札は常に裏向き
+  if (el.classList.contains("hand-reveal-card")) {
+    const token = getState().tokens.find((t) => t.id === el.dataset.tokenId);
+    return token ? !token.faceUp : false;
+  }
+  if (el.classList.contains("stack-badge")) {
+    const ids = el.dataset.stackTokens.split(",");
+    const topToken = getState().tokens.find((t) => t.id === ids[ids.length - 1]);
+    return topToken ? !topToken.faceUp : false;
+  }
+  if (el.matches(".stack[data-pile]")) {
+    // 山札・エターナル・ファーストは常に裏向き積み。捨て場は表向き積みのため対象外。
+    return el.dataset.pile === "deck" || el.dataset.pile === "eternal" || el.dataset.pile === "first";
+  }
+  return false;
+}
+
+// ユーザー要望「駒を右クリック」「マットを右クリック」「背景を右クリック」
+// 「ロックエリアバーを右クリック」への対応。これらはfindHoverTarget（カード/駒/山/
+// マス目専用、ドラッグ判定と共有しているため既存の挙動を変えたくない）には含めない、
+// 「今の見た目を決めているレイヤー」を専用に探す。
+// ハマりどころ: この3種類（.lock-area-bar/.playmat-bg/.table-background-bg）は
+// クリックがピース/マス目に通り抜けるようpointer-events:noneが指定されているため、
+// document.elementsFromPoint()では（findHoverTargetと違い）そもそも一切拾えない。
+// そのため見た目の重なり順（ロックエリアバー→プレイマット→背景の順、arena内の
+// z-index 2/1/0と対応）通りに、各要素のgetBoundingClientRect()へ座標が収まっているか
+// を自前で判定する。また.lock-area-barは上下左右4辺ぶん個別の要素があるため、
+// querySelectorAllで全辺をチェックする。
+function findAppearanceLayerAt(clientX, clientY) {
+  const pointInRect = (el) => {
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+  };
+  for (const bar of document.querySelectorAll(".lock-area-bar")) {
+    if (pointInRect(bar)) return "lockAreaBar";
+  }
+  if (pointInRect(document.querySelector(".playmat-bg"))) return "playmat";
+  if (pointInRect(document.querySelector(".table-background-bg"))) return "background";
+  return null;
+}
+
 function initContextMenuHandlers() {
   const table = document.getElementById("game-table");
   table.addEventListener("contextmenu", (e) => {
     e.preventDefault(); // ゲームの盤面上では常にブラウザの既定メニューを出さない
     const hit = findHoverTarget(e.clientX, e.clientY);
-    const cardId = hit ? getVisibleCardId(hit) : null;
-    const stackTokenIds = hit ? getStackTokensAt(hit) : null;
-    if (!cardId && !stackTokenIds) {
+    const items = [];
+
+    if (hit) {
+      const cardId = getVisibleCardId(hit);
+      const stackTokenIds = getStackTokensAt(hit);
+      if (cardId) {
+        items.push({ label: "カード補足を見る", onClick: () => showCardNoteModal(cardId) });
+      }
+      if (stackTokenIds) {
+        items.push({ label: "重なっているカードを見る", onClick: () => showStackModal(stackTokenIds) });
+      }
+      // ユーザー要望「裏面カードで右クリック→裏面変更」「駒を右クリック→スキン変更」
+      // 「山札を右クリック→山札一覧」への対応。同じ要素に複数の項目が同時に出ることもある
+      // （例: 山札を右クリックすると「裏面デザインを変更」と「山札一覧を見る」の両方）。
+      if (isFaceDownCardElement(hit)) {
+        items.push({ label: "カード裏面デザインを変更", onClick: () => openCardBackSkinPicker() });
+      }
+      if (hit.matches(".stack[data-pile]") && hit.dataset.pile === "deck") {
+        items.push({ label: "山札一覧を見る", onClick: () => openDeckViewer() });
+      }
+      if (hit.classList.contains("piece")) {
+        items.push({ label: "駒スキンを変更", onClick: () => openPieceSkinPicker() });
+      }
+    }
+    if (items.length === 0) {
+      // ユーザー要望「マットを右クリック」「背景を右クリック」「ロックエリアバーを
+      // 右クリック→隠す」への対応。findHoverTargetが何か拾っていても（例: 何も置かれて
+      // いない.cellや.lock-slot）、そこから項目が1つも出なかった場合はまだ「実質的に
+      // 何もない場所」なので、その下に見えているレイヤーを判定する。盤面49マスの大半は
+      // .cellがプレイマットの真上に重なっているため、hitがnullの時だけに絞ると
+      // 「マス目の外側の細い余白」でしかマット変更を出せなくなってしまう。
+      const layer = findAppearanceLayerAt(e.clientX, e.clientY);
+      if (layer === "lockAreaBar") {
+        items.push({
+          label: "ロックエリアバーを隠す",
+          onClick: () => {
+            setLockAreaBarVisible(false);
+            render();
+            openIconDetailModal("ロックエリアバーを隠しました", [
+              "画面右上の「⚙ オプション」→「基本設定」の「ロックエリアバーを表示する」を" +
+                "チェックすると、いつでも元に戻せます。",
+            ]);
+          },
+        });
+      } else if (layer === "playmat") {
+        items.push({ label: "プレイマットを変更", onClick: () => openPlaymatPicker() });
+      } else if (layer === "background") {
+        items.push({ label: "背景画像を変更", onClick: () => openBackgroundPicker() });
+      }
+    }
+
+    if (items.length === 0) {
       closeContextMenu();
       return;
-    }
-    const items = [];
-    if (cardId) {
-      items.push({ label: "カード補足を見る", onClick: () => showCardNoteModal(cardId) });
-    }
-    if (stackTokenIds) {
-      items.push({ label: "重なっているカードを見る", onClick: () => showStackModal(stackTokenIds) });
     }
     showContextMenu(e.clientX, e.clientY, items);
   });
   document.addEventListener("pointerdown", (e) => {
     if (contextMenuEl && !contextMenuEl.contains(e.target)) closeContextMenu();
     if (openPromptEl && !openPromptEl.contains(e.target)) closeOpenPrompt();
+  });
+}
+
+// ユーザー要望「効果音『ボタン押す』を追加しました。いろんなボタンに適用してください。
+// アイコンには不要です」への対応。アプリ内のボタンは非常に多くのファイルに散らばって
+// いるため、1つ1つにplaySound()を書き足す代わりに、document全体で<button>のクリックを
+// 拾うグローバルな委譲リスナーにした。アイコンボタン（.icon-action-button、手札
+// シャッフル・盤面拡大・マイページ等の右下/右上のアイコン群）だけは要望通り対象外にする。
+function initButtonClickSound() {
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn || btn.disabled) return;
+    if (btn.classList.contains("icon-action-button")) return;
+    playSound("buttonPress");
   });
 }
 
@@ -3739,6 +3842,7 @@ initDragHandlers();
 initHoverHandlers();
 initHandPeek();
 initContextMenuHandlers();
+initButtonClickSound();
 initCameraControls();
 initAdminMode();
 initDeckViewer();

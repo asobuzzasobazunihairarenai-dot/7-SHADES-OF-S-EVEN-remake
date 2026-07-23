@@ -5,6 +5,7 @@
 // 掛け算で最終的な再生音量を決める。
 
 const SOUND_DEFS = {
+  buttonPress: { path: "assets/sounds/button-press.mp3", cssVar: "--sound-volume-button-press" },
   handShuffle: { path: "assets/sounds/hand-shuffle.mp3", cssVar: "--sound-volume-hand-shuffle" },
   deckShuffle: { path: "assets/sounds/deck-shuffle.mp3", cssVar: "--sound-volume-deck-shuffle" },
   cardFlip: { path: "assets/sounds/card-flip.mp3", cssVar: "--sound-volume-card-flip" },
