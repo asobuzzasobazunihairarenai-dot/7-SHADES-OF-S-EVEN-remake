@@ -76,7 +76,7 @@ import {
   requestFinalLock,
   respondFinalLock,
 } from "./state.js";
-import { initOnlineUi, openOnlinePanel } from "./online-ui.js";
+import { initOnlineUi, openOnlinePanel, isOnlinePanelOpen } from "./online-ui.js";
 import { initOpeningScreen, previewOpeningAuras } from "./opening-screen.js";
 import {
   getSelfSeat,
@@ -953,7 +953,10 @@ function renderBoardTokens(table) {
 function render() {
   // オンライン対戦（第一弾）ではまだサーバー側にポートしていないアクション（セットアップ
   // ウィザード・クイックスタート・手札シャッフル）に繋がるボタンを隠す（style.css参照）。
-  document.body.classList.toggle("is-online-mode", isOnlineMode());
+  // 「オンラインで続ける」を押した直後、まだ部屋を選んでいない間はisOnlineMode()自体は
+  // まだfalseのままだが、その段階からローカル専用UIを隠したいため、online-ui.jsの
+  // isOnlinePanelOpen()（部屋一覧/状況パネルが開いているか）もあわせて見る。
+  document.body.classList.toggle("is-online-mode", isOnlineMode() || isOnlinePanelOpen());
   updateSelfStatusOnlineWidget();
   const table = document.getElementById("game-table");
   table.innerHTML = "";
@@ -981,7 +984,9 @@ function render() {
   // まだ誰も入っていない席は非表示にする。
   const isActive = (player) => {
     if (activePlayers.length > 0) return activePlayers.includes(player);
-    if (isOnlineMode()) return player === self || !!getSyncedIdentity(player);
+    // 「オンラインで続ける」を押した直後、まだ部屋を選んでいない間もisOnlinePanelOpen()で
+    // 拾う（isOnlineMode()の直後の説明コメント参照）。
+    if (isOnlineMode() || isOnlinePanelOpen()) return player === self || !!getSyncedIdentity(player);
     return true;
   };
   for (const seat of SEAT_ORDER) {
@@ -3859,6 +3864,13 @@ function computeStateFingerprint(state) {
     .join(";");
   return [
     isOnlineMode() ? 1 : 0,
+    // ユーザー報告「『オンラインで続ける』を押した直後の盤面（部屋を選ぶ前）が
+    // テストモードのままB/C/Dにダミーアバターが出ている」への対応でisActive()の
+    // 判定にisOnlinePanelOpen()を加えたが、この指紋にも含めないと、部屋を選ばずに
+    // パネルを閉じた時（getState()自体は変化しない）にrender()がスキップされてしまい、
+    // 盤面がオンライン風の見た目のまま元に戻らなくなる（isOnlineMode()をここに含めて
+    // いるのと同じ理由）。
+    isOnlinePanelOpen() ? 1 : 0,
     state.turnPlayer ?? "",
     state.turnNumber ?? "",
     state.roundNumber ?? "",

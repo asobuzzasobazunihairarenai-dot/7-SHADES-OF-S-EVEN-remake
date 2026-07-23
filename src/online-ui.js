@@ -26,7 +26,7 @@ import {
   onRosterChange,
 } from "./online.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
-import { subscribe, getState, isOnlineMode } from "./state.js";
+import { subscribe, getState, isOnlineMode, notifyListeners } from "./state.js";
 
 // 部屋名の文字数上限。部屋一覧・ヘッダーの部屋バッジ等、限られた幅に表示する箇所が
 // 複数あるため、極端に長い部屋名で崩れないよう作成時点で制限する（サーバー側
@@ -40,12 +40,27 @@ let panelEl = null;
 let backdropEl = null;
 let contentEl = null;
 
+// ユーザー報告「『オンラインで続ける』を押した直後、まだ部屋を選んでいない段階なのに
+// モーダルの背後がテストモード（ローカルのサンドボックス）盤面のまま、B/C/Dにダミーの
+// アバターが座っていたりセットアップボタンが出ていたりする」への対応。実際に部屋へ
+// 入室するまではonline.jsのisOnlineMode()はまだfalseのままのため、main.js側の
+// 「オンライン中はローカル専用UIを隠す」既存の仕組み（body.is-online-modeクラス、
+// style.css参照）がこの段階では効いていなかった。このパネルが開いている間は
+// isOnlineMode()の代わりにこちらを見てもらう。
+export function isOnlinePanelOpen() {
+  return !!panelEl;
+}
+
 function closePanel() {
   panelEl?.remove();
   backdropEl?.remove();
   panelEl = null;
   backdropEl = null;
   contentEl = null;
+  // openOnlinePanel()と対称。部屋を選ばずに閉じた場合、盤面表示をローカルの見た目へ
+  // 戻す（実際に部屋へ入った後にこのパネルを閉じた場合は、isOnlineMode()自体が
+  // trueになっているのでこの通知が無くても隠れたままになる）。
+  notifyListeners();
 }
 
 function textButton(label) {
@@ -663,6 +678,10 @@ export function openOnlinePanel() {
   document.body.appendChild(backdropEl);
   document.body.appendChild(panelEl);
   renderPanelContent();
+  // isOnlinePanelOpen()を見ているmain.js側の盤面表示（B/C/Dのダミーアバター・
+  // セットアップボタン等をローカル専用として隠す判定）を、部屋を選ぶ前のこの時点から
+  // 即座に反映させる（state.js自体は変化していないが、盤面側の再描画を強制する）。
+  notifyListeners();
 }
 
 // マジックリンクのリンクを踏んで戻ってきた時など、ログイン状態が変わったら
