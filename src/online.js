@@ -596,14 +596,28 @@ export function getSyncedIdentity(seat) {
 // 認証済みユーザー(userId)に対応する戦績プレイヤー行のidを取得、無ければ作成する。
 // 一度リンクしたら以降は同じ行を使い続ける（ユーザー要望「Googleアカウント等で
 // 既に登録済みとわかれば新たに登録は行わない」への対応）。
-async function getOrCreateStatsPlayer(userId, displayName) {
+// ユーザー要望「再戦時にプレイヤー名を変更していれば戦績システムの方も変更される
+// ようにしたい。またその時のアバターも登録されるようにしたい」への対応として、
+// 既存行が見つかった場合も名前・アバターを対戦のたびに現在値へ同期する
+// （変わっていなければ実質no-op）。
+async function getOrCreateStatsPlayer(userId, displayName, avatarUrl) {
   const { data: existing, error: selectError } = await client
     .from("players")
-    .select("id")
+    .select("id, name, avatar_url")
     .eq("user_id", userId)
     .maybeSingle();
   if (selectError) throw selectError;
-  if (existing) return existing.id;
+
+  if (existing) {
+    const patch = {};
+    if (displayName && displayName !== existing.name) patch.name = displayName;
+    if (avatarUrl && avatarUrl !== existing.avatar_url) patch.avatar_url = avatarUrl;
+    if (Object.keys(patch).length > 0) {
+      const { error: updateError } = await client.from("players").update(patch).eq("id", existing.id);
+      if (updateError) throw updateError;
+    }
+    return existing.id;
+  }
 
   // 戦績管理システムのplayers.idはtext主キーでDB側のデフォルト値が無く、姉妹プロジェクト
   // 自身（index.html）もクライアント側で"p_"+Date.now()という形のidを生成してから
@@ -612,7 +626,13 @@ async function getOrCreateStatsPlayer(userId, displayName) {
   // エラー: 23502 null value in column "id"）ため、同じ命名規則でidを生成して渡す。
   const { data: created, error: insertError } = await client
     .from("players")
-    .insert({ id: `p_${Date.now()}`, user_id: userId, name: displayName || "プレイヤー", status: "approved" })
+    .insert({
+      id: `p_${Date.now()}`,
+      user_id: userId,
+      name: displayName || "プレイヤー",
+      avatar_url: avatarUrl || "",
+      status: "approved",
+    })
     .select("id")
     .single();
   if (insertError) throw insertError;
@@ -642,12 +662,25 @@ export function registerVictorySummaryHelper(fn) {
 // 「盤面49マスの状態・各プレイヤーのロックエリア（7色）・各プレイヤーの手札」を
 // 描画したサマリー画像を自作することにした。失敗しても対戦記録自体の登録は
 // 止めたくないため、ここで発生した例外は呼び出し元へ伝播させずnullを返すだけにする。
+// 一時的な調査用ログ（[stats-debug]）: 「証拠画像が登録されなかった」報告の原因特定用。
+// このコード自体が複数箇所で「失敗しても対戦記録の登録は止めない」ためにnullを黙って
+// 返す設計になっており、以前のエラーログ（upload failed等）が今回は出ていなかった
+// ことから、どの分岐で止まったのかログが無いと切り分けできない。原因が分かり次第
+// このログ群は削除する。
 async function captureVictoryScreenshot(gameId, { activePlayers, winnerSeat }) {
   try {
-    if (!generateVictorySummaryCanvasFn) return null;
+    if (!generateVictorySummaryCanvasFn) {
+      console.warn("[stats-debug] captureVictoryScreenshot: generateVictorySummaryCanvasFnが未登録");
+      return null;
+    }
     const canvas = await generateVictorySummaryCanvasFn({ activePlayers, winnerSeat });
+    console.log("[stats-debug] canvas生成完了", canvas.width, canvas.height);
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-    if (!blob) return null;
+    if (!blob) {
+      console.warn("[stats-debug] captureVictoryScreenshot: canvas.toBlobがnullを返した");
+      return null;
+    }
+    console.log("[stats-debug] blob生成完了", blob.size, "bytes");
     const path = `digital-${gameId}-${Date.now()}.png`;
     const { error: uploadError } = await client.storage.from("match-proofs").upload(path, blob, {
       contentType: "image/png",
@@ -656,7 +689,9 @@ async function captureVictoryScreenshot(gameId, { activePlayers, winnerSeat }) {
       console.error("captureVictoryScreenshot upload failed", uploadError);
       return null;
     }
+    console.log("[stats-debug] Storageアップロード成功", path);
     const { data } = client.storage.from("match-proofs").getPublicUrl(path);
+    console.log("[stats-debug] publicUrl", data?.publicUrl);
     return data?.publicUrl ?? null;
   } catch (err) {
     console.error("captureVictoryScreenshot failed", err);
@@ -686,7 +721,14 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat }) {
   for (const seat of activePlayers) {
     const identity = getSyncedIdentity(seat);
     if (!identity?.userId) continue; // 座席にログインユーザーが紐づいていない（通常は起こらない）
-    const playerId = await getOrCreateStatsPlayer(identity.userId, identity.name);
+    // identity.avatarは、Googleアカウントのアバターなら既に絶対URL、ローカルの
+    // アバター選択肢（player-identity.jsのAVATAR_OPTIONS）なら"assets/avatars/..."という
+    // このアプリ自身から見た相対パスのどちらかが入っている。戦績管理システムは別ドメイン/
+    // パスで動いているため、相対パスのままだとその側の起点で解決されて壊れる
+    // （実在しない画像になる）。new URL()で常に絶対URLへ変換してから渡す
+    // （既に絶対URLの場合はそのまま維持される）。
+    const avatarUrl = identity.avatar ? new URL(identity.avatar, window.location.href).href : null;
+    const playerId = await getOrCreateStatsPlayer(identity.userId, identity.name, avatarUrl);
     memberIds.push(playerId);
     if (seat === winnerSeat) winnerId = playerId;
   }
