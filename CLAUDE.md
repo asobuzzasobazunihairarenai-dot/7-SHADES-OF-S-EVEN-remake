@@ -5528,3 +5528,47 @@ https://asobuzzasobazunihairarenai-dot.github.io/7-SHADES-OF-S-EVEN-remake/
   BOOTSTRAP_GAME再実行を含む一連の流れは、実機の複数アカウントでのオンライン対戦
   でしかテストできないため、この環境では未検証（本番データを汚さないための
   従来からの方針を踏襲）。
+
+### 2026-07-23の変更（続き）：2D警告のタイミング変更、タブレット2D位置調整の大幅拡張、カード拡大プレビューを基本設定に追加、戦績サイトURL設定
+
+- **2D警告モーダルの表示タイミングを変更**: 以前はページ読み込み直後、まだオープニング
+  画面が表示されている段階で出していた。ユーザー要望「オープニング画面が終わり
+  盤面画面に移行するタイミングで出したい」に対応し、`opening-screen.js`の`close(after)`
+  （「オンラインで続ける」「ローカルでプレイ」等、オープニング画面を抜ける操作は
+  全てここを経由する）の中で呼ぶように変更した。main.js側の早すぎる呼び出しは削除。
+- **「📱 タブレット2D位置調整」を大幅拡張**:
+  - **盤面が横長に見える不具合を特定・修正**: `.game-table`は常に`rotateX(--table-tilt、
+    既定42deg)`を持っており、通常はperspectiveの遠近補正で正しい正方形に投影される
+    が、2D表示（perspective:none）下では補正が無いままrotateXだけが残り、Y方向だけ
+    cos(42deg)≈0.74倍に潰れて見えていた（＝相対的に横長）。「盤面の傾き角度」
+    （既定0deg）で解消できるようにした。
+  - **重要なハマりどころ**: 当初はCSSだけで`body.diagnostic-flatten-3d .game-table
+    {transform:...}`という上書きルールを書いたが、全く効かなかった。実測の結果、
+    `.game-table`のtransformは`main.js`の`applyNormalFit()`/`applyBoardZoomFit()`が
+    毎回`table.style.transform`へ直接書き込んでいる（インラインスタイル）ため、
+    CSS側の詳細度をいくら上げても常にインラインスタイルに負けることが判明した。
+    そのため実際の修正はCSSではなく`main.js`側（新設`getFlatTableAdjustments()`、
+    2D表示中は`--table-tilt-flat`/`--table-flat-offset-x/y`/`--table-scale-flat`を
+    読んで計算に織り込む）で行った。
+  - 「カメラ視点位置」＝盤面全体のX/Yパン（`--table-flat-offset-x/y`）、
+    「盤面の拡大率」＝自動フィット結果への追加倍率（`--table-scale-flat`、既定1＝
+    変化なし）も追加。
+  - 「アイコン位置（手札シャッフル、ターン終了などすべて）」に対応し、既存の
+    タッチ用位置に2D表示専用の上乗せオフセットを足す方式で10個のアイコン/ボタン
+    （手札シャッフル・盤面拡大・1枚ドロー・ターン終了・駒消し・カード消し・
+    公開ドロー・優先権譲渡ボタン・フェイズ案内・オンラインアイコン）に対応する
+    スライダーを追加した（「オプション」ボタンはCSS側に元々位置調整の仕組みが
+    無かったため対象外）。
+  - 自分の手札の位置Yの既定値を0rem→5.8remに変更（ユーザー実機調整済みの値）。
+- **カード拡大プレビューのサイズをオプションの基本設定にも追加**: 管理者モードの
+  `--card-preview-size`と同じCSS変数を共有するスライダーを追加した。
+- **戦績サイトURLを設定**: `src/post-game-panel.js`の`STATS_SITE_URL`に
+  `https://asobuzzasobazunihairarenai-dot.github.io/BATTLE-log/`を設定した。
+  「戦績を確認してみる」ボタンが有効になった。
+- **検証**: ローカルサーバーで`body.diagnostic-flatten-3d`+`is-touch-device`を
+  付与した状態で`resize`イベントを発火させ、`.game-table`の実際のインライン
+  transform・computed transform（matrix3d）を確認——修正前はrotateX成分が残った
+  斜めの行列だったが、修正後は`rotateX(0deg)`かつ純粋な一様スケール行列
+  （回転成分ゼロ）になることを確認済み。オプションパネルに新しい3行
+  （カード拡大プレビューのサイズ・戦績連携・2D表示切り替え）が正しく表示される
+  ことも確認済み。`node --check`全ファイル通過。

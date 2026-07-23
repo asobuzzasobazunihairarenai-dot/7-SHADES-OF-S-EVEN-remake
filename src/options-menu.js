@@ -122,6 +122,35 @@ function buildBgmVolumeRow() {
   return row;
 }
 
+// ユーザー要望「ホバー時のカード拡大サイズをオプションの基本設定でも触れるように
+// してほしい」。管理者モードの「カード拡大プレビュー」グループ（--card-preview-size）
+// と同じCSS変数をそのまま共有するので、どちらから変更しても両方に反映される。
+function buildCardPreviewSizeRow() {
+  const row = document.createElement("div");
+  row.className = "options-menu-volume-row";
+  const labelEl = document.createElement("span");
+  labelEl.textContent = "カード拡大プレビューのサイズ";
+  const current = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--card-preview-size"));
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.min = "8";
+  slider.max = "36";
+  slider.step = "0.5";
+  slider.value = String(Number.isFinite(current) ? current : 20);
+  const valueLabel = document.createElement("span");
+  valueLabel.className = "options-menu-volume-value";
+  valueLabel.textContent = `${slider.value}rem`;
+  slider.addEventListener("input", () => {
+    document.documentElement.style.setProperty("--card-preview-size", `${slider.value}rem`);
+    valueLabel.textContent = `${slider.value}rem`;
+    window.dispatchEvent(new CustomEvent("admin:change"));
+  });
+  row.appendChild(labelEl);
+  row.appendChild(slider);
+  row.appendChild(valueLabel);
+  return row;
+}
+
 // ユーザー要望「戦績管理システムにすでに登録済みで、でもデジタル版を初めてやる人の
 // ために、戦績管理システムのプレイヤー登録をアカウントに紐づける設定を設けたい。
 // オプションの基本設定内に配置する」。実際のモーダル（一覧・検索・申請）は
@@ -296,6 +325,7 @@ export function initOptionsMenu() {
     });
     panel.appendChild(volumeRow);
     panel.appendChild(buildBgmVolumeRow());
+    panel.appendChild(buildCardPreviewSizeRow());
     panel.appendChild(buildStatsPlayerLinkRow());
 
     // ユーザー要望「タブレットの点滅対策として、2D表示への切り替えを画面右上の

@@ -16,6 +16,7 @@
 // 閉じない）。
 
 import { openOnlinePanel } from "./online-ui.js";
+import { maybeShowTablet2dWarning } from "./tablet-2d-warning.js";
 import {
   isOnlineAvailable,
   signInAnonymously,
@@ -345,6 +346,12 @@ export function initOpeningScreen() {
     setTimeout(() => {
       overlay.style.display = "none";
       if (after) after();
+      // ユーザー要望「2D表示の警告は、オープニング画面が終わり盤面画面に移行する
+      // タイミングで出したい」。「オンラインで続ける」「ローカルでプレイ」等、
+      // オープニング画面から抜けるボタンは全てこのclose()を経由するため、ここが
+      // 「実際に盤面側の画面が見え始める」タイミングとして一番自然（以前はページ
+      // 読み込み直後、オープニング画面がまだ表示されている段階で出していた）。
+      maybeShowTablet2dWarning();
     }, CLOSE_TRANSITION_MS);
   }
 

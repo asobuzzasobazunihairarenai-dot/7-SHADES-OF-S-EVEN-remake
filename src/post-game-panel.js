@@ -27,9 +27,7 @@ export function registerVictoryHelpers({ getLockedCount, resetVictoryTracking })
   resetVictoryTrackingFn = resetVictoryTracking;
 }
 
-// TODO: 戦績管理システムの実際のURLをここに設定してください。空のままだと
-// 「戦績を確認してみる」ボタンは押せない状態で表示されます。
-const STATS_SITE_URL = "";
+const STATS_SITE_URL = "https://asobuzzasobazunihairarenai-dot.github.io/BATTLE-log/";
 
 let panelEl = null;
 let backdropEl = null;

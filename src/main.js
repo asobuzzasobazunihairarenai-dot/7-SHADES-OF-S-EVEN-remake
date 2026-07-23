@@ -12,7 +12,6 @@ import {
 } from "./admin.js";
 import { initDeckViewer } from "./deck-viewer.js";
 import { initStatsPlayerLinkModal } from "./stats-player-link.js";
-import { maybeShowTablet2dWarning } from "./tablet-2d-warning.js";
 import { initGameSetup, previewStartPlayerModal } from "./game-setup.js";
 import { initOptionsMenu } from "./options-menu.js";
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
@@ -1085,9 +1084,29 @@ function measureHandFanExtent(table) {
   return { top, bottom, left, right };
 }
 
+// ユーザー要望「タブレット2D位置調整にカメラ視点位置・盤面のアスペクト比の調整を
+// 追加してほしい」への対応。applyNormalFit/applyBoardZoomFitはtable.style.transform
+// へ直接書き込む（インラインスタイル）ため、CSS側で body.diagnostic-flatten-3d
+// .game-table {...} のようなオーバーライドを用意しても、インラインスタイルが常に
+// スタイルシートより優先されて効かない（実測で確認済み）。そのため、2D表示中は
+// これらの関数自身が2D表示専用のCSS変数（--table-tilt-flat・--table-flat-offset-x/y・
+// --table-scale-flat）を読んで計算に織り込む。
+function getFlatTableAdjustments() {
+  const style = getComputedStyle(document.documentElement);
+  if (!document.body.classList.contains("diagnostic-flatten-3d")) {
+    return { tilt: style.getPropertyValue("--table-tilt").trim(), offsetX: "0rem", offsetY: "0rem", scaleMultiplier: 1 };
+  }
+  return {
+    tilt: style.getPropertyValue("--table-tilt-flat").trim() || "0deg",
+    offsetX: style.getPropertyValue("--table-flat-offset-x").trim() || "0rem",
+    offsetY: style.getPropertyValue("--table-flat-offset-y").trim() || "0rem",
+    scaleMultiplier: parseFloat(style.getPropertyValue("--table-scale-flat")) || 1,
+  };
+}
+
 function applyNormalFit() {
   const table = document.getElementById("game-table");
-  const tilt = getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim();
+  const { tilt, offsetX: flatOffsetX, offsetY: flatOffsetY, scaleMultiplier } = getFlatTableAdjustments();
   // scale()は2軸(X/Y)しか縮小しないため、駒の高さ等のtranslateZ(奥行き)がそのまま残り、
   // 画面を小さくするほど駒が奥行き方向にだけ間延びして見えるバグがあった。
   // scale3d()でZ軸も同じ倍率にすることで、縮小しても駒の縦横比が保たれるようにする。
@@ -1102,11 +1121,12 @@ function applyNormalFit() {
   const availH = STAGE_HEIGHT * 0.94;
   const zoom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--camera-zoom")) || 1;
   // マウスホイールでの手動ズーム(manualZoom)・中クリックドラッグでの手動移動(manualPanX/Y)を
-  // 自動フィットの結果にさらに上乗せする。
-  let scale = Math.min(availW / rect.width, availH / rect.height, 1.15) * zoom * manualZoom;
+  // 自動フィットの結果にさらに上乗せする。2D表示中はscaleMultiplier（--table-scale-flat、
+  // 既定1＝変化なし）もさらに掛け合わせる。
+  let scale = Math.min(availW / rect.width, availH / rect.height, 1.15) * zoom * manualZoom * scaleMultiplier;
 
   const applyScale = (s) => {
-    table.style.transform = `translate(${manualPanX}rem, calc(var(--camera-offset-y) + ${manualPanY}rem)) rotateX(${tilt}) scale3d(${s}, ${s}, ${s})`;
+    table.style.transform = `translate(calc(${manualPanX}rem + ${flatOffsetX}), calc(var(--camera-offset-y) + ${manualPanY}rem + ${flatOffsetY})) rotateX(${tilt}) scale3d(${s}, ${s}, ${s})`;
   };
   applyScale(scale);
 
@@ -1205,7 +1225,7 @@ function applyNormalFit() {
 // 別のCSS変数（--board-zoom-{,2-}margin/offset-x/y）を持たせ、管理者モードから別々に調整できる。
 function applyBoardZoomFit(level) {
   const table = document.getElementById("game-table");
-  const tilt = getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim();
+  const { tilt, offsetX: flatOffsetX, offsetY: flatOffsetY, scaleMultiplier } = getFlatTableAdjustments();
   table.style.transformOrigin = "";
   table.style.transform = `rotateX(${tilt}) scale3d(1, 1, 1)`;
 
@@ -1268,11 +1288,13 @@ function applyBoardZoomFit(level) {
   const effectiveHeight = STAGE_HEIGHT < referenceHeight ? STAGE_HEIGHT * 0.85 : referenceHeight;
   table.style.transformOrigin = `50% ${originYPercent}%`;
   // マウスホイールでの手動ズーム(manualZoom)も、盤面拡大の倍率にさらに上乗せする。
-  const scale = ((effectiveHeight * marginFrac) / spanHeight) * zoom * manualZoom;
+  // 2D表示中はscaleMultiplier（--table-scale-flat、既定1＝変化なし）もさらに掛け合わせる。
+  const scale = ((effectiveHeight * marginFrac) / spanHeight) * zoom * manualZoom * scaleMultiplier;
   // カメラのY軸オフセット(--camera-offset-y)・中クリックドラッグでの手動移動(manualPanX/Y)は
   // 盤面拡大レベルごとのoffset-x/yとは独立に、常時一定量を追加でずらす（先に適用することで、
-  // 拡大時のtranslateOriginや倍率計算には影響させない）。
-  table.style.transform = `translate(${manualPanX}rem, calc(var(--camera-offset-y) + ${manualPanY}rem)) translate(${offsetX}, ${offsetY}) rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
+  // 拡大時のtranslateOriginや倍率計算には影響させない）。2D表示専用のパン
+  // （--table-flat-offset-x/y、実質的な「カメラ視点位置」）も同様にここへ足す。
+  table.style.transform = `translate(calc(${manualPanX}rem + ${flatOffsetX}), calc(var(--camera-offset-y) + ${manualPanY}rem + ${flatOffsetY})) translate(${offsetX}, ${offsetY}) rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
   currentTableScale = scale;
 }
 
@@ -3601,7 +3623,6 @@ initCameraControls();
 initAdminMode();
 initDeckViewer();
 initStatsPlayerLinkModal();
-maybeShowTablet2dWarning();
 initGameSetup();
 registerStartPlayerPreviewHelper(previewStartPlayerModal);
 registerAuraPreviewHelper(previewOpeningAuras);
