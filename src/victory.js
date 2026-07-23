@@ -5,10 +5,19 @@
 
 import { getState, isOnlineMode } from "./state.js";
 import { COLORS, SEAT_TO_SIDE } from "./board-layout.js";
-import { getPlayerName } from "./player-identity.js";
+import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
+import { getAvatarVariant, applyAvatarContent } from "./avatar-render.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { playSound } from "./sound.js";
 import { showPostGamePanel } from "./post-game-panel.js";
+
+// ユーザー要望「勝利モーダルが5秒ぐらいしっかり出た後に、『戦績確認・もう一度遊ぶ』
+// モーダル（勝利者へのコメント依頼を含む）が出るようにしてほしい」への対応。以前は
+// 両方のモーダルを同じタイミングで同時に出しており、画面上で重なって表示が
+// ごちゃついてしまっていた（ユーザー報告のスクリーンショットで確認）。勝利モーダルを
+// 最低でもこの時間は表示してから、閉じた（自動 or 手動どちらでも）タイミングで
+// 次のモーダルへ引き継ぐ。
+const VICTORY_MODAL_MIN_DISPLAY_MS = 5000;
 
 let announcedPlayers = new Set();
 
@@ -57,15 +66,27 @@ export function wouldCompleteLockWithNewIndex(player, newIndex) {
   return COLORS.every((_color, index) => lockedIndexes.has(index));
 }
 
-function showVictoryModal(player) {
+function showVictoryModal(player, onClose) {
   playSound("victory");
   const modal = document.createElement("div");
   modal.id = "victory-modal";
+  let done = false;
   const close = () => {
+    if (done) return;
+    done = true;
+    clearTimeout(autoCloseTimer);
     backdrop.remove();
     modal.remove();
+    onClose?.();
   };
   const backdrop = createBackdrop(close, { dim: true, zIndex: 10500 });
+
+  // ユーザー要望「勝利モーダルにはアバターも大きく表示させてください」。
+  // 手前(front)向きの、その時点の実際のアバター（覚醒/激昂版への差し替えは含まない、
+  // 勝利の瞬間の「素」の姿を見せたいため常にgetPlayerAvatarの値をそのまま使う）。
+  const avatarEl = document.createElement("div");
+  avatarEl.className = "victory-modal-avatar";
+  applyAvatarContent(avatarEl, getAvatarVariant(getPlayerAvatar(player), "front"));
 
   const trophy = document.createElement("div");
   trophy.className = "victory-modal-trophy";
@@ -83,12 +104,18 @@ function showVictoryModal(player) {
   closeX.classList.add("victory-modal-close");
 
   modal.appendChild(closeX);
+  modal.appendChild(avatarEl);
   modal.appendChild(trophy);
   modal.appendChild(title);
   modal.appendChild(subtitle);
 
   document.body.appendChild(backdrop);
   document.body.appendChild(modal);
+
+  // ユーザー要望「勝利モーダルが5秒ぐらいしっかり出た後に次のモーダルが出るように」。
+  // 早く閉じたい人のために✕/背景クリックでの手動クローズも引き続き効くが（この場合は
+  // すぐにonCloseへ進む）、何もしなければ最低でもこの時間は表示され続ける。
+  const autoCloseTimer = setTimeout(close, VICTORY_MODAL_MIN_DISPLAY_MS);
 }
 
 export function checkForVictory() {
@@ -96,16 +123,19 @@ export function checkForVictory() {
     if (announcedPlayers.has(player)) continue;
     if (hasAllSevenLocked(player)) {
       announcedPlayers.add(player);
-      showVictoryModal(player);
       // ユーザー要望「ゲーム終了時にコメント記入→戦績確認・もう一度遊ぶボタン」。
       // オンライン対戦の全員の画面に出す（実際に戦績システムへ書き込むのは、
       // 勝者本人の画面だけ——post-game-panel.js内でgetSelfSeat()===winnerSeatを
       // 見て判定する）。ローカルモードでは対象外（対戦記録として意味を持つのは
-      // オンライン対戦のみのため）。
-      if (isOnlineMode()) {
-        const { activePlayers } = getState();
-        showPostGamePanel({ activePlayers, winnerSeat: player });
-      }
+      // オンライン対戦のみのため）。勝利モーダルと同時に出すと重なって表示が
+      // ごちゃつくため、勝利モーダルが閉じてから（最低5秒後、または手動で早く
+      // 閉じた場合はその時点で）出すようにする。
+      showVictoryModal(player, () => {
+        if (isOnlineMode()) {
+          const { activePlayers } = getState();
+          showPostGamePanel({ activePlayers, winnerSeat: player });
+        }
+      });
     }
   }
 }
