@@ -19,6 +19,7 @@ import {
 } from "./motion-prefs.js";
 import { saveMyPreference } from "./online.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
+import { openStatsPlayerLinkModal } from "./stats-player-link.js";
 
 function buildMenuItem(label, onClick) {
   const btn = document.createElement("button");
@@ -117,6 +118,26 @@ function buildBgmVolumeRow() {
   row.appendChild(labelEl);
   row.appendChild(slider);
   row.appendChild(valueLabel);
+  return row;
+}
+
+// ユーザー要望「戦績管理システムにすでに登録済みで、でもデジタル版を初めてやる人の
+// ために、戦績管理システムのプレイヤー登録をアカウントに紐づける設定を設けたい。
+// オプションの基本設定内に配置する」。実際のモーダル（一覧・検索・申請）は
+// stats-player-link.jsが持つ。
+function buildStatsPlayerLinkRow() {
+  const row = document.createElement("div");
+  row.className = "options-menu-volume-row";
+  const labelEl = document.createElement("span");
+  labelEl.textContent = "戦績管理システムのプレイヤーと連携";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.textContent = "選択する";
+  btn.className = "options-menu-item";
+  btn.style.cssText = "width: auto; flex: none; padding: 0.3rem 0.8rem;";
+  btn.addEventListener("click", openStatsPlayerLinkModal);
+  row.appendChild(labelEl);
+  row.appendChild(btn);
   return row;
 }
 
@@ -274,6 +295,7 @@ export function initOptionsMenu() {
     });
     panel.appendChild(volumeRow);
     panel.appendChild(buildBgmVolumeRow());
+    panel.appendChild(buildStatsPlayerLinkRow());
 
     panel.appendChild(
       buildCollapsibleSection("モーダル表示時間", (content) => {

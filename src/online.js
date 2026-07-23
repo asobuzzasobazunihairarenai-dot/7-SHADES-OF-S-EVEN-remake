@@ -624,6 +624,13 @@ async function getOrCreateStatsPlayer(userId, displayName, avatarUrl) {
   // insertしている（DBに生成を任せていない）。ここで単に{user_id,name,status}だけを
   // insertするとid列がnullのままnot null制約違反になる（ユーザー報告で確認した実際の
   // エラー: 23502 null value in column "id"）ため、同じ命名規則でidを生成して渡す。
+  // ユーザー要望「(アカウント連携前に対戦してしまい)既存プレイヤーではなく新規の
+  // 重複プレイヤーが自動登録されてしまう場合、承認前プレイヤーとして登録できるように
+  // したい。それ以外は承認済みプレイヤーと同一に扱ってよい」への対応。姉妹プロジェクト
+  // 自身の「プレイヤー登録申請」も既定でstatus='pending'（承認待ち）になる仕組みが
+  // 既にあり、管理者コンソールの「承認待ちのプレイヤー登録申請」欄にそのまま表示・
+  // 承認/却下できる。自動登録もこの既存の仕組みに素直に乗せる（以前は'approved'で
+  // 即時反映していたが、無審査でプレイヤーが増え続けるのは望ましくないため変更した）。
   const { data: created, error: insertError } = await client
     .from("players")
     .insert({
@@ -631,12 +638,71 @@ async function getOrCreateStatsPlayer(userId, displayName, avatarUrl) {
       user_id: userId,
       name: displayName || "プレイヤー",
       avatar_url: avatarUrl || "",
-      status: "approved",
+      status: "pending",
     })
     .select("id")
     .single();
   if (insertError) throw insertError;
   return created.id;
+}
+
+// ユーザー要望「戦績管理システムにすでに登録済みで、でもデジタル版を初めてやる人の
+// ために、戦績管理システムのプレイヤー登録をアカウントに紐づける設定を設けたい」
+// への対応（options-menu.jsの基本設定から呼ばれる）。
+//
+// 選択肢に出す一覧は「まだどのアカウントとも紐づいていない、承認済みのプレイヤー」
+// のみに絞る（user_id is null かつ status='approved'）。既に誰かと紐づいている
+// プレイヤーを選べてしまうと紐づけの奪い合いになるため。
+export async function listUnlinkedStatsPlayers() {
+  const { data, error } = await client
+    .from("players")
+    .select("id, name, avatar_url")
+    .is("user_id", null)
+    .eq("status", "approved")
+    .order("name", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+// 選んだプレイヤーへの紐づけを申請する。ユーザー要望「このプレイヤー引継ぎは戦績
+// 管理システムのプレイヤー編集承認待ちに行く」——実際にuser_id列を書き換えるのでは
+// なく、姉妹プロジェクトの既存の「プロフィール編集承認」の仕組み（players.edit_pending、
+// 管理者コンソールの「承認待ちのプロフィール編集申請」欄）に相乗りする形で申請する。
+// edit_pendingの形は姉妹プロジェクト（index.htmlのsavePlayerEdit）が使っている
+// {name, discordId, avatar}と同じ形に、新しく userId を足しただけにしてある
+// （name/discordId/avatarは元の値のまま持たせる＝「名前やアバターは変えない、
+// アカウント紐づけだけ申請する」という意味になる。姉妹プロジェクト側の表示・
+// 承認処理は元々この3項目が必ず入っている前提で書かれているため、あえて空にしない）。
+// 承認されればapprovePlayerEdit()がuser_id列へ書き込む（index.html側を対応済み）。
+//
+// ゲーム内のアバター・名前は、承認を待たずこの場で選んだプレイヤーのものへ即座に
+// 変更する（ユーザー要望「そうするとゲーム内のアバターと名前がそれになる」）。
+export async function requestStatsPlayerLink(playerId) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("not logged in");
+  const { data: player, error: selectError } = await client
+    .from("players")
+    .select("id, name, discord_id, avatar_url")
+    .eq("id", playerId)
+    .maybeSingle();
+  if (selectError) throw selectError;
+  if (!player) throw new Error("player not found");
+
+  const { error: updateError } = await client
+    .from("players")
+    .update({
+      edit_pending: {
+        name: player.name,
+        discordId: player.discord_id ?? "",
+        avatar: player.avatar_url ?? "",
+        userId: user.id,
+      },
+    })
+    .eq("id", playerId);
+  if (updateError) throw updateError;
+
+  await updateMyIdentity({ name: player.name, avatar: player.avatar_url || undefined });
+  return player;
 }
 
 // victory-summary-image.jsのgenerateVictorySummaryCanvasは、piece-skins.js/
