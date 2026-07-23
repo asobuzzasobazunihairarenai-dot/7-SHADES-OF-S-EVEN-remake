@@ -95,6 +95,7 @@ import {
   registerVictorySummaryHelper,
 } from "./online.js";
 import { fetchStatsProfile, getTierInfo } from "./stats-profile.js";
+import { setRankRingOrbitContainer, startRankRingOrbit, stopRankRingOrbit } from "./rank-ring-orbit.js";
 import { generateVictorySummaryCanvas } from "./victory-summary-image.js";
 import { playSound } from "./sound.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
@@ -3381,10 +3382,14 @@ function updateSelfStatusRankRing(tier) {
   selfStatusRankRingEl.classList.remove("is-visible", "is-solid", "is-glow", "is-rainbow");
   selfStatusRankRingEl.style.removeProperty("--rank-ring-color");
   selfStatusRankRingEl.style.removeProperty("--rank-ring-glow");
-  if (!tier) return;
+  if (!tier) {
+    stopRankRingOrbit();
+    return;
+  }
   selfStatusRankRingEl.classList.add("is-visible");
   if (tier.type === "rainbow") {
     selfStatusRankRingEl.classList.add("is-rainbow");
+    startRankRingOrbit();
     return;
   }
   selfStatusRankRingEl.classList.add("is-solid");
@@ -3393,6 +3398,7 @@ function updateSelfStatusRankRing(tier) {
     selfStatusRankRingEl.classList.add("is-glow");
     selfStatusRankRingEl.style.setProperty("--rank-ring-glow", tier.glow);
   }
+  startRankRingOrbit();
 }
 
 function openAvatarPicker() {
@@ -3524,6 +3530,7 @@ function buildSelfHandStatus() {
   selfStatusRankRingEl = document.createElement("div");
   selfStatusRankRingEl.className = "self-status-rank-ring";
   el.appendChild(selfStatusRankRingEl);
+  setRankRingOrbitContainer(selfStatusRankRingEl);
 
   el.appendChild(selfStatusLargeAvatarEl);
 

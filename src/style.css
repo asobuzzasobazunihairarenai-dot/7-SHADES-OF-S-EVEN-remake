@@ -3291,33 +3291,44 @@ body.is-touch-device #self-hand-status {
 .self-status-rank-ring.is-visible {
   display: block;
 }
-.self-status-rank-ring.is-solid {
-  border: var(--rank-ring-thickness, 0.5rem) solid var(--rank-ring-color, transparent);
-}
 .self-status-rank-ring.is-glow {
   box-shadow: 0 0 0.8rem 0.2rem var(--rank-ring-glow, transparent);
 }
-.self-status-rank-ring.is-rainbow {
-  background: conic-gradient(#ef4444, #f97316, #eab308, #22c55e, #3b82f6, #6366f1, #a855f7, #ef4444);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - var(--rank-ring-thickness, 0.5rem)), #000 calc(100% - var(--rank-ring-thickness, 0.5rem)));
-  mask: radial-gradient(farthest-side, transparent calc(100% - var(--rank-ring-thickness, 0.5rem)), #000 calc(100% - var(--rank-ring-thickness, 0.5rem)));
-  animation: self-status-rank-ring-spin 3s linear infinite;
+/* ユーザー要望「ランクリングを、ロックエリアのファースト/エターナルカードの周回演出
+   （style.cssのeffect-orbit）みたいに、枠をその色の発光体がくるくる回る感じにしたい。
+   残像も欲しい」への対応。effect-orbitは矩形（カードの四隅）専用の4点キーフレームで
+   正円には使えないため、位置計算自体はJS（rank-ring-orbit.js、requestAnimationFrameで
+   三角関数を使い正円の軌道を計算）が行う。ここでは発光体1つぶんの見た目だけを定義し、
+   色は要素ごとに指定せず、親の--rank-ring-color（is-solid/is-glowと同じ、main.js側で
+   tierごとに設定済み）をCSS変数の継承に任せる。 */
+.rank-ring-orbit-dot {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--rank-ring-color, #facc15);
+  box-shadow: 0 0 0.4rem 0.12rem var(--rank-ring-color, #facc15);
+  pointer-events: none;
 }
-@keyframes self-status-rank-ring-spin {
+/* レインボーティアには単色の--rank-ring-colorが無い（本来7色を巡回するティアのため）ので、
+   基準色にhue-rotateを連続適用して色自体も巡回させることで「虹色」らしさを保つ。 */
+.self-status-rank-ring.is-rainbow .rank-ring-orbit-dot {
+  background: #ef4444;
+  box-shadow: 0 0 0.4rem 0.12rem #ef4444;
+  animation: rank-ring-orbit-hue-cycle 3s linear infinite;
+}
+@keyframes rank-ring-orbit-hue-cycle {
   from {
-    transform: translate(
-        calc(var(--self-status-large-avatar-pos-x, -0.86rem) - var(--rank-ring-thickness, 0.5rem) + var(--rank-ring-offset-x, 0rem)),
-        calc(var(--self-status-large-avatar-pos-y, -5.12rem) - var(--rank-ring-thickness, 0.5rem) + var(--rank-ring-offset-y, 0rem))
-      )
-      rotate(0deg);
+    filter: hue-rotate(0deg);
   }
   to {
-    transform: translate(
-        calc(var(--self-status-large-avatar-pos-x, -0.86rem) - var(--rank-ring-thickness, 0.5rem) + var(--rank-ring-offset-x, 0rem)),
-        calc(var(--self-status-large-avatar-pos-y, -5.12rem) - var(--rank-ring-thickness, 0.5rem) + var(--rank-ring-offset-y, 0rem))
-      )
-      rotate(360deg);
+    filter: hue-rotate(360deg);
   }
+}
+/* 「アニメーションを減らす」設定がONの間は、rank-ring-orbit.js側で回転自体を止めて
+   発光体を1つだけ静止表示するが、レインボーティアの色巡回（CSSアニメーション）は
+   別物のためここで個別に止める（ロックエリアの周回演出を止める既存ルールと同じ扱い）。 */
+body.reduce-glow .self-status-rank-ring.is-rainbow .rank-ring-orbit-dot {
+  animation: none !important;
+  filter: none !important;
 }
 .self-status-large-avatar:hover .phase-guide-tooltip {
   opacity: 1;
@@ -5113,4 +5124,7 @@ body.is-online-mode #quick-start-bar {
   --rank-ring-thickness: 0.5rem;
   --rank-ring-offset-x: 0rem;
   --rank-ring-offset-y: 0rem;
+  --rank-ring-orbit-size: 0.5rem;
+  --rank-ring-orbit-trail-length: 12;
+  --rank-ring-orbit-speed: 3.5;
 }

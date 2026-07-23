@@ -41,11 +41,29 @@ const CLOSE_TRANSITION_MS = 600;
 // 「テストモード経由だった」という状態を覚えていられない。sessionStorageに一時保存し、
 // このタブが閉じられるまで（あるいは実際にテストモードへ抜けた時点で）だけ持続させる。
 const TEST_MODE_STORAGE_KEY = "so7-test-mode-login-pending";
+// ハマりどころ（ユーザー報告「ログアウトしてGoogleでログインし直したら『オンラインで
+// 続ける』が出なくなった」）: このフラグを「1」のような単純な真偽値として持たせ、
+// 消費される（ログイン完了を検知する）まで無期限に残す実装だと、以前テストモードを
+// 試した際に何らかの理由で消費されずに残ってしまった場合、ずっと後になって全く無関係に
+// 行った通常のログインまで「テストモード経由だった」と誤認され、close()が呼ばれて
+// オープニング画面ごと閉じてしまう（＝「オンラインで続ける」が一切出ない）——実際に
+// sessionStorageへ直接「1」をセットしてページを再読み込みし、この症状を再現して
+// 確認した。対策として、セットした時刻を持たせ、一定時間（Googleログイン/マジック
+// リンクの往復に十分な時間だが、それより後の無関係な操作には影響しない程度の短さ）を
+// 過ぎていたら自動的に無効扱いにする。
+const TEST_MODE_REQUEST_MAX_AGE_MS = 3 * 60 * 1000;
 function isTestModeRequested() {
-  return sessionStorage.getItem(TEST_MODE_STORAGE_KEY) === "1";
+  const raw = sessionStorage.getItem(TEST_MODE_STORAGE_KEY);
+  if (!raw) return false;
+  const setAt = Number(raw);
+  if (!Number.isFinite(setAt) || Date.now() - setAt > TEST_MODE_REQUEST_MAX_AGE_MS) {
+    sessionStorage.removeItem(TEST_MODE_STORAGE_KEY);
+    return false;
+  }
+  return true;
 }
 function setTestModeRequested(value) {
-  if (value) sessionStorage.setItem(TEST_MODE_STORAGE_KEY, "1");
+  if (value) sessionStorage.setItem(TEST_MODE_STORAGE_KEY, String(Date.now()));
   else sessionStorage.removeItem(TEST_MODE_STORAGE_KEY);
 }
 
@@ -533,11 +551,29 @@ export function initOpeningScreen() {
       logoutBtn.className = "opening-login-signout-link";
       logoutBtn.textContent = "ログアウト";
       logoutBtn.addEventListener("click", async () => {
+        setTestModeRequested(false);
         await signOut();
         renderCard();
       });
       card.appendChild(logoutBtn);
       return;
+    }
+
+    // ユーザー要望「テストモード経由で開いたことが分かるようにしたい」への対応
+    // （右下の小さいボタンは他の装飾と近く誤クリックしやすいため、ここで開いている
+    // カードが未ログイン時のものと全く同じ見た目だと、テストモード経由だと気づかないまま
+    // Googleログイン等を進めてしまい、後で「オンラインで続ける」が出ないと戸惑う恐れが
+    // あった）。テストモード経由の間は目立つ色のヒントを出し、✕で引き返せることも伝える。
+    if (isTestModeRequested()) {
+      const testModeHint = document.createElement("div");
+      testModeHint.className = "opening-login-status";
+      testModeHint.style.cssText =
+        "background: rgba(250, 204, 21, 0.12); border: 1px solid rgba(250, 204, 21, 0.5); " +
+        "border-radius: 0.3rem; padding: 0.5rem 0.7rem; margin-bottom: 0.6rem; font-size: 0.75rem; line-height: 1.5;";
+      testModeHint.textContent =
+        "🧪 テストモード：ログイン完了後、「オンラインで続ける」を経由せず直接検証用の盤面へ進みます。" +
+        "通常のオンライン対戦をしたい場合は右上の✕で引き返してください。";
+      card.appendChild(testModeHint);
     }
 
     // 未ログイン: ゲストログインを主目的にした画面。

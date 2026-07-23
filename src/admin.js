@@ -706,12 +706,12 @@ const GROUPS = [
     // game-setup.jsのpreviewStartPlayerModal参照）でスライダーに触れた瞬間だけ、実際の
     // 連携状況とは無関係にレインボー柄（最も複雑な虹色リング）を仮表示して調整できる
     // ようにした（main.jsのpreviewRankRing参照、30秒後に自動で元の表示に戻る）。
-    title: "🏅 ランクリングの位置・太さ（スライダーに触れると仮表示されます）",
+    title: "🏅 ランクリングの位置・太さ・周回演出（スライダーに触れると仮表示されます）",
     category: "position",
     controls: [
       {
         key: "--rank-ring-thickness",
-        label: "太さ",
+        label: "太さ（土台の円のサイズ）",
         unit: "rem",
         min: 0.1,
         max: 2,
@@ -737,6 +737,39 @@ const GROUPS = [
         max: 10,
         step: 0.1,
         default: 0,
+        previewOnInteract: () => rankRingPreviewFn?.(),
+      },
+      // ユーザー要望「ロックエリアのファースト/エターナルカードみたいに、枠をその色の
+      // 発光体がくるくる回る感じにしたい。残像も欲しい。残像の量・発光体のサイズ・
+      // スピードを調整したい」への対応（rank-ring-orbit.js参照）。
+      {
+        key: "--rank-ring-orbit-size",
+        label: "発光体のサイズ",
+        unit: "rem",
+        min: 0.1,
+        max: 2,
+        step: 0.05,
+        default: 0.5,
+        previewOnInteract: () => rankRingPreviewFn?.(),
+      },
+      {
+        key: "--rank-ring-orbit-trail-length",
+        label: "残像の量（個数）",
+        unit: "",
+        min: 1,
+        max: 40,
+        step: 1,
+        default: 12,
+        previewOnInteract: () => rankRingPreviewFn?.(),
+      },
+      {
+        key: "--rank-ring-orbit-speed",
+        label: "スピード（1周にかかる秒数、小さいほど速い）",
+        unit: "",
+        min: 0.5,
+        max: 10,
+        step: 0.1,
+        default: 3.5,
         previewOnInteract: () => rankRingPreviewFn?.(),
       },
     ],
