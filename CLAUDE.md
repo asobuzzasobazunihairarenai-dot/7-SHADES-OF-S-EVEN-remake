@@ -5867,3 +5867,34 @@ https://asobuzzasobazunihairarenai-dot.github.io/7-SHADES-OF-S-EVEN-remake/
   確認（＝リダイレクト直後にgetCurrentUser()が一時的にnullを返すケースを模擬）。
   （2）ログアウト→START→テロップスキップ→ログインボタン→ゲストでログイン、という
   通常の手動フローも問題なく動作し、途中で不要な割り込みが起きないことを確認。
+
+### 2026-07-23の変更（続き8）：Googleログインが特定アカウントで永久に失敗するバグを修正
+
+- **ユーザー報告「特定のアカウント（asobuzz.asobazunihairarenai@gmail.com）でダメです」**。
+  リダイレクト後のURLを実際に見せてもらい、原因を特定した:
+  `https://.../7-SHADES-OF-S-EVEN-remake/##access_token=...#access_token=...#access_token=...#access_token=...`
+  のように、**同じURLに`#access_token=...`が4つ連結されて壊れていた**。
+- **根本原因**: `signInWithGoogle()`/`signInWithMagicLink()`の戻り先(`redirectTo`/
+  `emailRedirectTo`)に`window.location.href`をそのまま使っていたため、何らかの理由で
+  一度でもSupabase側のハッシュ検出(`detectSessionInUrl`)が失敗してハッシュがURLに
+  残ったままになると、**次のログイン試行時の戻り先URLにもその古いハッシュがそのまま
+  乗ってしまい**、Googleから戻ってきた新しいハッシュがさらにその末尾へ連結される。
+  これが繰り返されるたびに`token_type`の値が`"bearer#access_token=..."`のように
+  壊れていき、Supabase側が二度とセッションを確立できなくなる——一度この状態に
+  陥ると、同じURL（同じタブ・同じ端末）で何度ログインし直しても恒久的に失敗し
+  続ける「詰み」状態になっていた。オープニング演出のスキップ処理自体は正しく
+  動いていたが、ログインそのものが一度も成立していなかったため「最初に戻る」
+  ように見えていた。
+- **修正（`src/online.js`）**:
+  1. `cleanRedirectUrl()`を新設し、`signInWithGoogle`/`signInWithMagicLink`の戻り先を
+     常にハッシュを含まない「素の」URLにした（今後この連鎖が起きないようにする根本対応）。
+  2. 起動時、URLに`access_token`を含むハッシュが残っている場合、Supabase自身の
+     ハッシュ検出処理が一通り終わるのに十分な猶予（2秒）を置いてから、結果の成否に
+     関わらずURLから確実にハッシュを取り除くようにした（既に壊れたURLで開いて
+     しまった既存ユーザーも、この対応が反映されたページで一度開けば以降は
+     クリーンな状態に復帰できる）。
+  - ブラウザで擬似的に`#access_token=A&token_type=bearer#access_token=B`のような
+    壊れたハッシュを再現し、ロジック自体（ハッシュ検知・除去・`cleanRedirectUrl()`の
+    出力）が正しく動作することを確認済み（実際のタイマー発火はこの検証環境では
+    バックグラウンドタブのスロットリングにより確認できなかったが、ロジックの
+    直接実行では正しく動作している）。

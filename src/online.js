@@ -62,6 +62,24 @@ const client = typeof window !== "undefined" && window.supabase
 // importして直接クライアントを渡す（循環importの心配が無い）。
 setStatsProfileClient(client);
 
+// ハマりどころ（重大、実際のユーザー報告で確認）: 上のsignInWithGoogle/
+// signInWithMagicLinkの戻り先を常に「素の」URLにする修正だけでは、既に壊れた
+// ハッシュ（`##access_token=...#access_token=...`のように複数連結されたもの）が
+// 今まさにURLバーに残っているユーザーは救えない（そのURLをそのまま再利用してもう一度
+// ログインし直そうとすると、この修正後も結局その場に残った壊れたハッシュがそのまま
+// redirectToの元になってしまうケースが起こり得るため）。Supabase自身のハッシュ検出
+// 処理（detectSessionInUrl）が一通り終わるのに十分な猶予（2秒、早すぎるとSupabase自身
+// の処理より先に消してしまいセッション確立を阻害する）を置いてから、結果の成否に
+// 関わらずURLから確実にハッシュを取り除いておく。これにより、既に壊れたURLで開いて
+// しまった場合でも、次にログインし直す時には必ずクリーンな状態から始められる。
+if (client && typeof window !== "undefined" && window.location.hash.includes("access_token")) {
+  setTimeout(() => {
+    if (window.location.hash.includes("access_token")) {
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  }, 2000);
+}
+
 let currentGameId = null;
 let currentSeat = null;
 let broadcastChannel = null;
@@ -106,6 +124,20 @@ async function withLog(context, fn) {
 
 // --- 認証（メールのマジックリンク） -----------------------------------------------
 
+// ハマりどころ（重大、実際のユーザー報告のリダイレクト後URLで確認）: 戻り先に
+// window.location.hrefをそのまま使うと、そのURLに既に#access_token=...のような
+// ハッシュが残っていた場合（何らかの理由で一度でもSupabase側のハッシュ検出に
+// 失敗して消えずに残ったケース）、次のログイン試行のredirectTo/emailRedirectToにも
+// その古いハッシュがそのまま乗ってしまう。すると戻ってきた時、Googleから渡された
+// 新しいハッシュがその末尾にそのまま連結され、`##access_token=...#access_token=...`
+// のような壊れたURLになってしまう（実際に発生を確認）。連結された結果token_typeの
+// 値が"bearer#access_token=..."のように壊れ、Supabase側がセッションを確立できなく
+// なり、以降何度ログインし直してもこの1点で恒久的に失敗し続けるようになっていた。
+// 戻り先には常にハッシュを取り除いた「素の」URLを使うことで、この連鎖を防ぐ。
+function cleanRedirectUrl() {
+  return window.location.origin + window.location.pathname + window.location.search;
+}
+
 export async function signInWithMagicLink(email) {
   return withLog("マジックリンク送信", async () => {
     if (!client) throw new Error("Supabaseクライアントが初期化されていません");
@@ -115,7 +147,7 @@ export async function signInWithMagicLink(email) {
     // 「Authentication > URL Configuration」のRedirect URLs欄で許可されている必要がある。
     const { error } = await client.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: window.location.href },
+      options: { emailRedirectTo: cleanRedirectUrl() },
     });
     if (error) throw error;
   });
@@ -130,7 +162,7 @@ export async function signInWithGoogle() {
     if (!client) throw new Error("Supabaseクライアントが初期化されていません");
     const { error } = await client.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: window.location.href },
+      options: { redirectTo: cleanRedirectUrl() },
     });
     if (error) throw error;
   });
