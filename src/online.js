@@ -593,6 +593,20 @@ export function getSyncedIdentity(seat) {
 // matches.sourceの2列だけ例外的に追加してもらった）。victory.js（オンライン対戦が
 // 勝利で終わった瞬間）からだけ呼ぶ想定。
 
+// requestStatsPlayerLink()で申請中（まだ管理者が承認していない）のuser_id連携先が
+// あれば、そのプレイヤーのidを返す。ハマりどころ（重大、ユーザー報告で発覚）:
+// 「連携申請→承認前に勝利→新規プレイヤーとして自動登録（承認待ち）」という順で
+// 進んだ後、管理者が「編集承認待ち」（連携申請）と「登録承認待ち」（自動登録された
+// 重複）の両方を承認してしまうと、同一人物なのに別々の2行が両方approvedのまま
+// 恒久的に残ってしまう。根本原因は「重複が承認待ちとして登録されること」自体では
+// なく、そもそも連携申請中は重複を作らずに済ませられるはずなのにgetOrCreateStatsPlayer()
+// がそれを考慮していなかったこと。ここで先に確認することで、重複の発生自体を防ぐ。
+async function findPendingLinkedPlayerId(userId) {
+  const { data, error } = await client.from("players").select("id").eq("edit_pending->>userId", userId).limit(1);
+  if (error) throw error;
+  return data?.[0]?.id ?? null;
+}
+
 // 認証済みユーザー(userId)に対応する戦績プレイヤー行のidを取得、無ければ作成する。
 // 一度リンクしたら以降は同じ行を使い続ける（ユーザー要望「Googleアカウント等で
 // 既に登録済みとわかれば新たに登録は行わない」への対応）。
@@ -618,6 +632,12 @@ async function getOrCreateStatsPlayer(userId, displayName, avatarUrl) {
     }
     return existing.id;
   }
+
+  // user_idでの直接リンクはまだ無いが、連携申請（edit_pending）が承認待ちの相手が
+  // いればそちらを使う（新規重複を作らない）。この行自体はまだ承認前なので、
+  // name/avatar_urlを直接書き換えたりはしない（承認フローを迂回することになるため）。
+  const pendingLinkedId = await findPendingLinkedPlayerId(userId);
+  if (pendingLinkedId) return pendingLinkedId;
 
   // 戦績管理システムのplayers.idはtext主キーでDB側のデフォルト値が無く、姉妹プロジェクト
   // 自身（index.html）もクライアント側で"p_"+Date.now()という形のidを生成してから
