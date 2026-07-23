@@ -5259,3 +5259,40 @@ https://asobuzzasobazunihairarenai-dot.github.io/7-SHADES-OF-S-EVEN-remake/
   使えないため、忠実度をさらに上げるには別のアプローチ（html2canvasの別オプション、
   あるいはhtml2canvasを使わず日付・メンバー・勝者・ロック済み7色を単純な図形で
   描画したサマリー画像に切り替える等）が必要。ユーザーの意向確認待ち。
+
+### 2026-07-23の変更（続き）：戦績証拠画像をhtml2canvasでの撮影から自作Canvas生成へ全面的に切り替え
+
+- **背景**: html2canvas(-pro)で実際の盤面(#scene)を撮影する方式は、oklab対応の
+  フォークに替えても、3D合成(preserve-3d/perspective)の再現に限界があり見た目が
+  崩れたまま改善しなかった。3D合成を撮影の瞬間だけ無効化する案も試したが
+  html2canvas自体が無限にハングする致命的な副作用があり不採用にした（前回の
+  変更履歴参照）。ユーザーからも「盤面のカードや各プレイヤーの手札の状況も記載
+  したい」との追加要望があり、DOM解析ライブラリを使う路線ではこれ以上の忠実度・
+  情報量の両立が困難と判断し、方針を転換した。
+- **新設: `src/victory-summary-image.js`**: `generateVictorySummaryCanvas({activePlayers,
+  winnerSeat})`。DOM解析ライブラリを一切使わず、`getState()`のtokensから直接
+  Canvas 2D APIへ「盤面7x7マスの状態（カード柄・駒）」「各プレイヤーのロックエリア
+  （7色、揃った色は実際のカード絵）」「各プレイヤーの手札（実際のカード絵＋枚数）」
+  「日付・勝者」を描画する。3D変形・color-mix()を一切経由しないため、この種の
+  再現性の不具合が原理的に起こらない。
+  - **重要な設計上の注意点（ハマりどころ）**: 「ゲームが終わった後だから手札を
+    見せてもよいはず」は誤り。この画像を生成するのは勝者本人のクライアントだが、
+    そのgetState()はso7_game_tokens_visibleビュー（online.js冒頭のコメント参照）が
+    サーバー側でマスクした結果をそのまま反映しているだけで、自分の手札はcardIdが
+    見えるが他プレイヤーの手札は元々cardId:null・faceUp:falseのまま（ゲームの
+    決着状態に関わらず、このクライアントには他人の手札の中身を知る手段が無い）。
+    盤面のマス目と同じくtoken.faceUpに従い、見えない手札はカード裏面を描く
+    ようにしている。
+- **循環import回避**: `victory-summary-image.js`は`piece-skins.js`/
+  `player-identity.js`を経由して`online.js`自身を参照するため、online.js側から
+  直接importすると循環importになる。setup-animation.js等と同じ「main.jsから
+  注入してもらう」既存パターン（`registerVictorySummaryHelper`）で回避した。
+- **`online.js`の`captureVictoryScreenshot()`を全面書き換え**: html2canvas呼び出しを
+  `generateVictorySummaryCanvasFn(...)`に差し替え、生成したcanvasを従来通り
+  `match-proofs`バケットへアップロードする部分はそのまま維持した。状態から直接
+  描画するため、以前追加した「ロック演出完了を待つ2.6秒の遅延」も不要になり削除した。
+- **index.htmlのhtml2canvas-pro CDN読み込みを削除**（もう使わないため）。
+- **検証**: ローカルサーバーで実際に`generateVictorySummaryCanvas()`を呼び出し、
+  canvasを画面に貼り付けて目視確認。タイトル・日付・勝者・盤面・手札（実際の
+  カード絵）が意図通り綺麗に描画されることを確認済み（`node --check`も全ファイル
+  通過）。実際のオンライン対戦での最終確認をお願いしたい。

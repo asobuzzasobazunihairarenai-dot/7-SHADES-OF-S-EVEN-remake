@@ -87,7 +87,9 @@ import {
   registerIdentityApplier,
   registerAppearanceApplier,
   saveMyPreference,
+  registerVictorySummaryHelper,
 } from "./online.js";
+import { generateVictorySummaryCanvas } from "./victory-summary-image.js";
 import { playSound } from "./sound.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import {
@@ -3598,6 +3600,7 @@ initDeckViewer();
 initGameSetup();
 registerStartPlayerPreviewHelper(previewStartPlayerModal);
 registerAuraPreviewHelper(previewOpeningAuras);
+registerVictorySummaryHelper(generateVictorySummaryCanvas);
 initOptionsMenu();
 initPlayerButtons();
 initQuickStart();

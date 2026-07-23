@@ -619,39 +619,33 @@ async function getOrCreateStatsPlayer(userId, displayName) {
   return created.id;
 }
 
-// 勝利の瞬間の盤面(#scene)をスクリーンショットし、戦績管理システムと共有している
+// victory-summary-image.jsのgenerateVictorySummaryCanvasは、piece-skins.js/
+// player-identity.js経由でonline.js自身を参照する（getSelfSeat等）ため、online.js側から
+// 直接importすると循環importになる。setup-animation.js/remote-move-animator.js等と同じ
+// 「main.jsから注入してもらう」既存パターンで回避する。
+let generateVictorySummaryCanvasFn = null;
+export function registerVictorySummaryHelper(fn) {
+  generateVictorySummaryCanvasFn = fn;
+}
+
+// 勝利の瞬間の対戦記録の「証拠画像」を生成し、戦績管理システムと共有している
 // Supabase Storageの`match-proofs`バケット（姉妹プロジェクトが証拠画像アップロードに
-// 使っているのと同じバケット）へアップロードして公開URLを返す。html2canvas
-// （姉妹プロジェクトのindex.htmlと同じCDN・同じバージョン、index.htmlでグローバル
-// 読み込み済み）を使う。この盤面はrotateX等の3D CSS変形を多用しているため
-// html2canvasが完全に忠実な見た目を再現できるとは限らないが、対戦の証拠としては
-// 十分な情報（配置・プレイヤー名等）が写る。失敗しても対戦記録自体の登録は
+// 使っているのと同じバケット）へアップロードして公開URLを返す。
+//
+// 当初はhtml2canvas系ライブラリで実際の盤面(#scene)をそのまま撮影していたが、
+// この盤面はpreserve-3d + perspectiveの3D合成やcolor-mix()を多用しており、
+// html2canvasでは色・カード柄がまともに再現できなかった（ユーザー報告で複数回確認）。
+// 3D合成を撮影の瞬間だけ無効化する案（body.diagnostic-flatten-3d、元々は
+// タブレット点滅の原因切り分け用の管理者トグル）も試したが、html2canvas自体が
+// 無限にハングする致命的な副作用があったため断念した。そこで方針を変え、DOM解析
+// ライブラリを一切使わず、victory-summary-image.jsでCanvas 2D APIへ直接
+// 「盤面49マスの状態・各プレイヤーのロックエリア（7色）・各プレイヤーの手札」を
+// 描画したサマリー画像を自作することにした。失敗しても対戦記録自体の登録は
 // 止めたくないため、ここで発生した例外は呼び出し元へ伝播させずnullを返すだけにする。
-// ハマりどころ（重大、検証中に発見）: style.cssのbody.diagnostic-flatten-3d
-// （元々はタブレット点滅の原因切り分け用の管理者トグル、全要素にtransform-style:flat
-// !importantを強制する）をキャプチャの瞬間だけ有効にする案を一度試したが、
-// foreignObjectRenderingと組み合わせるとhtml2canvas側の処理がそのまま無限に
-// ハング（エラーにもならず永遠に返ってこない）することをこの開発環境で確認した。
-// captureVictoryScreenshot()がここで固まるとsubmitStatsMatchResult()のawaitも
-// 永遠に終わらず、対戦記録自体の登録（matchesへのinsert）まで巻き添えでできなく
-// なってしまう（画像が崩れる不具合よりずっと悪い）ため、この案は不採用にした。
-// タイムアウトで強制的に打ち切る手も検討したが、そもそも「見た目を保ったまま
-// 3D合成を止める」こと自体がこのプロジェクトのCSS構造上簡単ではない
-// （diagnostic-flatten-3dは元々「見た目を保つ機能ではない」と明記されている）ため、
-// 見送った。
-async function captureVictoryScreenshot(gameId) {
+async function captureVictoryScreenshot(gameId, { activePlayers, winnerSeat }) {
   try {
-    if (typeof window.html2canvas !== "function") return null;
-    const sceneEl = document.getElementById("scene");
-    if (!sceneEl) return null;
-    // foreignObjectRendering: 通常モード（DOM構造を手動で読み取ってcanvasに再構成する）
-    // だと、色（color-mix()等）だけでなく、rotateX等の3D変形・グラデーション・
-    // box-shadowのぼかし等も含め、盤面全体がかなり崩れて写ってしまうとユーザーから
-    // 報告があった。foreignObjectRendering: trueにすると、DOM構造をSVGの
-    // <foreignObject>へそのまま埋め込んでブラウザ自身に描画させてからcanvasへ焼き込む
-    // ため、こうした複雑なCSSもブラウザのネイティブ描画に任せられ、より実際の見た目に
-    // 忠実になる（全ての素材が同一オリジンのためcanvasがtaintedになる心配も無い）。
-    const canvas = await window.html2canvas(sceneEl, { backgroundColor: null, logging: false, foreignObjectRendering: true });
+    if (!generateVictorySummaryCanvasFn) return null;
+    const canvas = await generateVictorySummaryCanvasFn({ activePlayers, winnerSeat });
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
     if (!blob) return null;
     const path = `digital-${gameId}-${Date.now()}.png`;
@@ -699,15 +693,11 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat }) {
   if (memberIds.length === 0 || !winnerId) return;
 
   const durationMinutes = Math.max(1, Math.round((Date.now() - new Date(gameRow.created_at).getTime()) / 60000));
-  // ユーザー報告「最後のロックが完了する前の画像になってしまっている」への対応。
-  // 7色すべて揃った瞬間にcheckForVictory()がここを呼ぶが、その最後の1枚がロック
-  // スロットへ到達する見た目の演出（main.jsのtriggerLockEffect: 飛翔アニメーション
-  // 約450ms→到達バースト→1300ms後にロックスタンプ→スタンプ表示900ms、合計で
-  // 2.5秒前後）はまだ再生中のことが多い。演出が視覚的に落ち着くまで少し待ってから
-  // キャプチャする（対戦記録自体の登録が遅れて困る種類の機能ではないため、多少待っても
-  // 実害は無い）。
-  await new Promise((resolve) => setTimeout(resolve, 2600));
-  const proofImageUrl = await captureVictoryScreenshot(currentGameId);
+  // 以前はDOMを実際にスクリーンショットしていたため、最後のロックの視覚的な演出
+  // （飛翔・到達バースト・ロックスタンプ、合計2.5秒前後）が終わるまで待つ必要があった。
+  // 今はgetState()のtokensから直接描画するCanvas生成（victory-summary-image.js）に
+  // 切り替えたため、状態自体は承認完了時点で既に確定しており待つ必要が無い。
+  const proofImageUrl = await captureVictoryScreenshot(currentGameId, { activePlayers, winnerSeat });
 
   // players同様、matches.idもtext主キーでDB側のデフォルトが無く、created_atもbigint
   // （姉妹プロジェクトはDate.now()のミリ秒エポックをそのまま入れている、timestamptzでは
