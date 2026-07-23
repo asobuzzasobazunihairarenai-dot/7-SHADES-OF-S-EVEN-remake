@@ -6,6 +6,8 @@
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { stageDelta, toStageLocalRect } from "./main.js";
 import { isFlatten2dMode, setFlatten2dMode } from "./tablet-2d-mode.js";
+import { getTierInfo } from "./stats-profile.js";
+import { showRankUpModal } from "./rank-up-modal.js";
 
 // game-setup.jsは既にadmin.js（isManualSeatMode）をimportしているため、admin.js側から
 // game-setup.jsを直接importすると循環importになる。他の箇所（setup-animation.js等）と
@@ -873,6 +875,13 @@ export function isSpotlightMode() {
   return spotlightMode;
 }
 
+// ユーザー要望「ランクアップモーダルを検証するために何度も勝つのが手間。プレビュー
+// ボタンを管理者モードに追加してほしい」への対応。「この対戦数から+1戦した場合」を
+// 判定する基準値（post-game-panel.jsの実際の判定ロジックと同じgetTierInfoの
+// 呼び方をそのまま再現する）。既定7→8はテスター系からホワイトマスターへ昇格する、
+// 見た目の変化が分かりやすい組み合わせにしてある。
+let rankUpPreviewMatchCount = 7;
+
 // アバター画像の輪郭に暗色のリング（box-shadow）を重ねるかどうか。一度追加したが
 // 「やはり不要」とのことで撤回し、管理者モードのオンオフ（デフォルトOFF）にした。
 let avatarOutlineVisible = false;
@@ -1310,6 +1319,44 @@ const TOGGLE_SECTIONS = [
           }
         )
       );
+    },
+  },
+  {
+    // ユーザー要望「ランクアップモーダルを検証するために何度も勝つのが手間。
+    // プレビューボタンを追加してほしい」への対応。実際の戦績には一切書き込まず、
+    // post-game-panel.jsの判定ロジックと同じgetTierInfo(N)→getTierInfo(N+1)の
+    // 比較をそのまま再現して見た目だけ確認できるようにする。
+    title: "🎉 ランクアップモーダルのプレビュー",
+    category: "effect",
+    buildContent: (content) => {
+      const hint = document.createElement("div");
+      hint.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.5rem; line-height: 1.5;";
+      hint.textContent = "指定した対戦数から1戦勝った場合のランクアップ演出を試せます（実際の戦績には一切影響しません）。";
+      content.appendChild(hint);
+
+      content.appendChild(
+        buildNumberRow(
+          "プレビュー対戦数（この数から+1戦で判定）",
+          rankUpPreviewMatchCount,
+          { min: 0, max: 20, unit: "戦" },
+          (v) => {
+            rankUpPreviewMatchCount = v;
+          }
+        )
+      );
+
+      const previewBtn = document.createElement("button");
+      previewBtn.type = "button";
+      previewBtn.textContent = "プレビュー表示";
+      previewBtn.style.cssText =
+        "display: block; width: 100%; box-sizing: border-box; padding: 0.4rem; margin-top: 0.4rem; " +
+        "background: #7c3aed; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.85rem;";
+      previewBtn.addEventListener("click", () => {
+        const fromTier = getTierInfo(rankUpPreviewMatchCount);
+        const toTier = getTierInfo(rankUpPreviewMatchCount + 1);
+        showRankUpModal({ fromTier, toTier });
+      });
+      content.appendChild(previewBtn);
     },
   },
 ];

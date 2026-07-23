@@ -655,7 +655,12 @@ async function renderRoomStatus(gameId) {
     leaveGame();
     setSavedRoomPassword(gameId, null);
     history.replaceState(null, "", location.pathname);
-    closePanel();
+    // ユーザー要望「『この部屋を離れる』を押したら、また『オンラインで続ける』を
+    // 押した時に出る画面に戻るようにしたい」への対応。以前はパネルごと閉じて
+    // いたため、盤面がローカルのテストモード表示へ戻ってしまっていた。
+    // leaveGame()でcurrentGameIdがnullに戻っているため、renderPanelContent()を
+    // 呼び直せば自動的に部屋一覧（renderRoomChoice）が表示される。
+    renderPanelContent();
   });
   contentEl.appendChild(leaveBtn);
 }

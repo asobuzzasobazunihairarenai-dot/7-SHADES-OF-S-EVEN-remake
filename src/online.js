@@ -515,7 +515,14 @@ export async function leaveGame() {
   currentGameId = null;
   currentSeat = null;
   broadcastChannel = null;
+  // ハマりどころ: rosterをここでリセットしないと、退室後も直前にいた部屋の
+  // メンバー情報（getSyncedIdentity）が残ったままになる。「この部屋を離れる」を
+  // 押した後パネルが閉じずに部屋一覧へ戻る（online-ui.js）ようになったことで、
+  // isOnlinePanelOpen()がtrueのまま盤面のB/C/D表示判定が続くため、この古い
+  // ロスターのせいで既にいない部屋のダミーアバターが残り続けてしまう。
+  roster = {};
   setOnlineMode(false);
+  notifyListeners();
 
   if (gameIdToLeave) {
     try {
