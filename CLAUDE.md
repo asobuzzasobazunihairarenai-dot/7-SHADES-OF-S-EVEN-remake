@@ -5200,3 +5200,22 @@ https://asobuzzasobazunihairarenai-dot.github.io/7-SHADES-OF-S-EVEN-remake/
   （index.html）と同じ命名規則・形式に揃えた。
 - **検証状況**: `node --check`通過。実際のオンライン勝利での再テストをお願いしたい
   （引き続き本番データを汚さないよう、こちらでは実書き込みのテストは行っていない）。
+
+### 2026-07-23の変更（続き）：戦績スクショが撮れない不具合を修正（html2canvas→html2canvas-proへ差し替え）
+
+- **原因判明**: 実機コンソールで`captureVictoryScreenshot failed Error: Attempting to
+  parse an unsupported color function "oklab"`を確認。本プロジェクトは
+  `move-highlight-blink`のマス目背景等で`color-mix(in srgb, ...)`を多用しており、
+  ブラウザがその計算結果を`getComputedStyle`経由で`oklab()`表記で返すことがあるが、
+  姉妹プロジェクトに合わせて使っていた本家html2canvas(1.4.1、2022年リリースで開発が
+  ほぼ止まっている)はこの表記を解釈できずキャプチャ処理全体が例外で落ちていた
+  （盤面に3D変形を多用している影響かと当初予想していたが、実際の原因は色関数の方だった）。
+- **修正**: index.htmlのCDN読み込みを、oklab/oklch対応済みのフォーク
+  `html2canvas-pro`（グローバル変数名は同じ`window.html2canvas`のため、
+  `src/online.js`側は無変更）に差し替えた。当初`/dist/html2canvas.min.js`という
+  本家と同じファイル名で試したが404だったため、実際のファイル名
+  `/dist/html2canvas-pro.min.js`に修正した。
+- **検証**: ローカルサーバーで実際に`#scene`要素をhtml2canvas-proでキャプチャし、
+  780×439のcanvasが例外無く生成されることを確認済み（以前は同じ操作で確実に
+  例外が発生していた）。実際のオンライン対戦での証拠画像アップロードまでの
+  再確認をお願いしたい。
