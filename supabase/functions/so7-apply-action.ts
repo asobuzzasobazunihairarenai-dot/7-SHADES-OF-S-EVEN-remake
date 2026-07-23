@@ -742,6 +742,16 @@ Deno.serve(async (req) => {
       return json({ ok: false, error: isConflict ? "version_conflict" : commitErr.message }, isConflict ? 409 : 500);
     }
 
+    // 「もう一度遊ぶ」機能（src/online.jsのcheckRematchReadiness/setRematchReady、
+    // supabase_setup_so7.sqlのrematch_ready参照）: 新しい対局が始まったので、次の
+    // 対局終了時にまた素の状態から使えるよう、この部屋の全座席のrematch_readyを
+    // falseへ戻す。失敗しても対局開始自体は既に成功しているため致命的ではない
+    // （次回「もう一度遊ぶ」を押した時に古いtrueが残っていても、全員分揃わなければ
+    // どのみち再開しないだけ）。
+    if (action.type === "BOOTSTRAP_GAME") {
+      await db.from("so7_game_seats").update({ rematch_ready: false }).eq("game_id", gameId);
+    }
+
     // 他のクライアントへ「変わったよ」と知らせる（盤面データ自体は載せない。受け取った側は
     // 自分が見えるビューを取り直す）。actorSeat/actionTypeは常に含める——隠す必要の無い
     // 情報（誰が何のアクションを行ったか）で、turn-timer.jsのonStateChangeがオンライン中に

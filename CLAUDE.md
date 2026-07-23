@@ -5477,3 +5477,54 @@ https://asobuzzasobazunihairarenai-dot.github.io/7-SHADES-OF-S-EVEN-remake/
   （`body.diagnostic-flatten-3d`付与・localStorage記録・モーダルを閉じる動作）・
   `tablet-2d-mode.js`の状態共有・新設CSS変数のフォールバック値反映を、それぞれ
   実測確認済み。`node --check`も全ファイル通過。
+
+### 2026-07-23の変更（続き）：ゲーム終了後に「コメント記入→戦績確認・もう一度遊ぶ」パネルを追加
+
+- **背景**: ユーザー要望「ゲーム終了時に戦績システムへのコメント記入欄（パス可）を
+  出す。次に『戦績を確認してみる』ボタン（新規タブで開く）。並列して『もう一度遊ぶ』
+  ボタンも追加。プレイ人数が減る場合も想定すること」。
+- **新設 `src/post-game-panel.js`**: `showPostGamePanel({activePlayers, winnerSeat})`。
+  勝者の画面だけコメント欄（記入 or パス）を経てから`submitStatsMatchResult()`を
+  呼ぶよう変更した（以前は勝利判定と同時に無条件・無言で登録していた）。勝者以外の
+  画面はコメント欄を出さず直接ボタン列を表示する（実際にmatches.feedbackへ書き込む
+  のは勝者の入力内容だけのため）。「戦績を確認してみる」は新規タブでURLを開く
+  （**下記の通りURL未設定、要ユーザー入力**）。
+- **「もう一度遊ぶ」＝『プレイ人数が減る場合』への対応**: 既存の「ゲームを開始する」
+  仕組み（BOOTSTRAP_GAME）が、呼ばれた時点でso7_game_seatsに残っている座席だけで
+  座席を割り振り直せることを確認した上で採用。ユーザー案「一緒に遊んだメンバー
+  全員が『もう一度遊ぶ』を押すか、部屋から抜ける（ブラウザを閉じる）のどちらかを
+  終えた時点で再開」を実装:
+  - `supabase_setup_so7.sql`に`so7_game_seats.rematch_ready`列を追加（要ユーザー実行）。
+  - `src/online.js`に`setRematchReady()`（自分の座席をtrueに）・
+    `maybeTriggerRematch()`（まだ生きている＝last_seenが新しい座席が全員trueなら、
+    アルファベット順先頭の座席のクライアントだけがstartGame()を実行——複数クライアント
+    が同時に気づいて二重にBOOTSTRAP_GAMEを呼ばないための決定的なタイブレーク）を追加。
+    「ブラウザを閉じる」の検知は、既存のハートビート（25秒間隔でlast_seen更新）が
+    止まることを利用する（新規のPresence機構等は追加していない）。
+  - `supabase/functions/so7-apply-action.ts`のBOOTSTRAP_GAME成功後に、次の対局のため
+    全座席のrematch_readyをfalseへリセットする処理を追加（**要デプロイ、後述**）。
+  - `post-game-panel.js`が新しい対局の開始（＝勝者のロック済み色数が7から減った）を
+    `subscribe()`で検知し、「もう一度遊ぶ」を押していない人も含め全クライアントの
+    パネルを自動で閉じる。
+- **循環import回避**: `post-game-panel.js`はvictory.jsから呼ばれる側になるため、
+  victory.js側を直接importすると循環importになる。他の箇所と同じ「main.jsから
+  注入してもらう」パターン（`registerVictoryHelpers`）で回避した。
+- **victory.jsを変更**: `checkForVictory()`が、勝者判定と同時に無条件で
+  `submitStatsMatchResult()`を呼んでいた処理を撤去し、代わりに（勝者だけでなく
+  オンライン中の全員に対して）`showPostGamePanel()`を呼ぶように変更した。
+- **⚠️ ユーザーの作業が必要**:
+  1. `supabase_setup_so7.sql`の新しいalter table文（rematch_ready列追加）をSupabase
+     SQL Editorで実行してください。
+  2. `supabase/functions/so7-apply-action.ts`の変更を反映するには、Edge Functionの
+     再デプロイが必要です（ファイルを編集しただけでは本番の関数は更新されません、
+     このプロジェクトで何度か既出のハマりどころと同じ）。`supabase functions deploy
+     so7-apply-action`等、いつもの手順でお願いします。
+  3. `src/post-game-panel.js`の`STATS_SITE_URL`（現在は空文字）に、実際の戦績管理
+     システムのURLを設定してください。空のままだと「戦績を確認してみる」ボタンは
+     無効化された状態で表示されます。
+- **検証状況**: `node --check`全ファイル通過。ローカルサーバーで、オンラインで
+  ない状態（既定）で`showPostGamePanel()`を呼んでも例外無く・パネルを表示せずに
+  早期returnすることを確認済み。ただし「もう一度遊ぶ」の全員揃い待ち・実際の
+  BOOTSTRAP_GAME再実行を含む一連の流れは、実機の複数アカウントでのオンライン対戦
+  でしかテストできないため、この環境では未検証（本番データを汚さないための
+  従来からの方針を踏襲）。

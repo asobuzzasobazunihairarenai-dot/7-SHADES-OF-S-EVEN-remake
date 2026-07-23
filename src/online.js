@@ -538,6 +538,54 @@ export async function startGame(gameId, { includeBlackWhite = false, timerEnable
   });
 }
 
+// --- 「もう一度遊ぶ」（ユーザー要望） -----------------------------------------------
+// 対局終了後、まだこの部屋にいる（last_seenが新しい）全員が「もう一度遊ぶ」を押した
+// 時点で、誰かのクライアントが自動でstartGame()を呼んで再開する。BOOTSTRAP_GAMEは
+// 呼ばれた時点でso7_game_seatsに残っている座席だけで座席を割り振り直す既存の仕組みが
+// あるため、「続けたくない人は部屋を抜ける、残った人がもう一度遊ぶを押せばその人数で
+// 再開」という形が自然に実現できる（supabase_setup_so7.sqlのrematch_ready参照）。
+
+// ハートビート間隔(HEARTBEAT_MS=25秒)より十分長い猶予を持たせた「まだこの部屋に
+// いる」判定のしきい値。これより古いlast_seenの座席は「既にブラウザを閉じた」と
+// みなし、全員揃うのを待つ対象から除外する。
+const REMATCH_FRESH_MS = 70000;
+
+export async function setRematchReady(ready) {
+  if (!currentGameId || !currentSeat) return;
+  const { error } = await client
+    .from("so7_game_seats")
+    .update({ rematch_ready: ready })
+    .eq("game_id", currentGameId)
+    .eq("seat", currentSeat);
+  if (error) throw error;
+}
+
+// 今この部屋にいる座席のうち、まだ生きている（last_seenが新しい）ものだけを対象に、
+// 全員がrematch_ready=trueかどうかを調べる。1人だけ（全員抜けた等）ならまだ再開しない。
+async function checkRematchReadiness(gameId) {
+  const { data, error } = await client.from("so7_game_seats").select("seat, rematch_ready, last_seen").eq("game_id", gameId);
+  if (error) throw error;
+  const now = Date.now();
+  const freshSeats = (data ?? []).filter((s) => s.seat && now - new Date(s.last_seen).getTime() < REMATCH_FRESH_MS);
+  const allReady = freshSeats.length >= 2 && freshSeats.every((s) => s.rematch_ready);
+  return { allReady, freshSeats };
+}
+
+// post-game-panel.jsが「もう一度遊ぶ」待ち中に定期的に呼ぶ。全員揃っていれば
+// startGame()を呼んで実際に再開する（複数クライアントが同時に「揃った」と気づいて
+// 二重にBOOTSTRAP_GAMEを呼ばないよう、fresh+ready座席の中でアルファベット順最初の
+// 座席のクライアントだけが実行する決定的なタイブレークにしてある）。戻り値は
+// 「このクライアントが再開を実行したか」（呼び出し元が待機UIを閉じる判断に使う
+// 必要は無い——実際に再開したかどうかはgetState()の変化で全クライアントが検知する）。
+export async function maybeTriggerRematch(gameId) {
+  const { allReady, freshSeats } = await checkRematchReadiness(gameId);
+  if (!allReady) return false;
+  const triggerSeat = freshSeats.map((s) => s.seat).sort()[0];
+  if (getSelfSeat() !== triggerSeat) return false;
+  await startGame(gameId);
+  return true;
+}
+
 // ターンタイマー（優先権・砂時計）の状態更新。隠す必要の無い公開情報のため、
 // so7-apply-action Edge Functionを経由させず、updateMyIdentity()と同じ「クライアントから
 // 直接テーブルへ書き込む」パターンを踏襲する。priority_player/priority_deadline/
@@ -792,7 +840,13 @@ async function captureVictoryScreenshot(gameId, { activePlayers, winnerSeat }) {
 // 承認待ち(pending)として登録する」形にした（当初は証拠画像無し・承認不要の
 // 即時反映だったが、戦績管理システム本来の不正防止の仕組みをそのまま活かしたい
 // とのことで変更した）。
-export async function submitStatsMatchResult({ activePlayers, winnerSeat }) {
+// feedbackはユーザー要望「ゲーム終了時に戦績システムにゲームのコメントを記入する
+// 記入欄を出現させる（パス可能）」への対応。post-game-panel.jsが、証拠画像の生成・
+// アップロードとは独立して、勝者の入力（または空文字＝パス）を待ってから渡す
+// （待つ間、証拠画像自体は先行して生成できる処理なので、ここではawaitせず
+// 呼び出し元に委ねる設計にはせず、単純にfeedbackが決まってから呼んでもらう形にした
+// ——同時に2回submitStatsMatchResultが走ることは無い前提のため、シンプルさを優先）。
+export async function submitStatsMatchResult({ activePlayers, winnerSeat, feedback }) {
   if (!client || !currentGameId) return;
   const { data: gameRow, error: gameError } = await client
     .from("so7_games")
@@ -840,6 +894,7 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat }) {
     created_at: Date.now(),
     status: "pending",
     source: "digital",
+    feedback: feedback || "",
   });
   if (matchError) throw matchError;
 }

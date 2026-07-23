@@ -18,7 +18,8 @@ import { initOptionsMenu } from "./options-menu.js";
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
 import { announceHandPickups, announceCardLocked } from "./hand-announcer.js";
 import { enqueueGateInvasionSteps } from "./gate-invasion-modal.js";
-import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount } from "./victory.js";
+import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking } from "./victory.js";
+import { registerVictoryHelpers } from "./post-game-panel.js";
 import { announceTurnChange } from "./turn-announce.js";
 import {
   buildFinalLockApprovalBanner,
@@ -3605,6 +3606,7 @@ initGameSetup();
 registerStartPlayerPreviewHelper(previewStartPlayerModal);
 registerAuraPreviewHelper(previewOpeningAuras);
 registerVictorySummaryHelper(generateVictorySummaryCanvas);
+registerVictoryHelpers({ getLockedCount, resetVictoryTracking });
 initOptionsMenu();
 initPlayerButtons();
 initQuickStart();

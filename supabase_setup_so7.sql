@@ -487,6 +487,16 @@ begin
     );
 end;
 $$;
+
+-- ユーザー要望「ゲーム終了時に『もう一度遊ぶ』ボタンを追加。一緒に遊んだメンバー全員が
+-- 『もう一度遊ぶ』を押すか、部屋から抜ける（ブラウザを閉じる）のどちらかを終えた時点で
+-- ゲームが再開する」への対応。「まだこの部屋にいる（last_seenが新しい）のに、まだ
+-- 押していない」座席が1つも無くなった時点で、誰かのクライアントがstartGame()
+-- （＝BOOTSTRAP_GAMEの再実行、そのタイミングでso7_game_seatsに残っている座席だけで
+-- 座席を割り振り直す仕組みが既にある）を呼ぶ。src/online.jsのcheckRematchReadiness/
+-- setRematchReady参照。BOOTSTRAP_GAME実行時にso-apply-action.ts側でfalseへ戻すため、
+-- 次の対局でまた素の状態から使える。
+alter table so7_game_seats add column if not exists rematch_ready boolean not null default false;
 revoke execute on function so7_cleanup_stale_rooms() from public;
 grant execute on function so7_cleanup_stale_rooms() to authenticated;
 

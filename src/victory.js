@@ -8,7 +8,7 @@ import { COLORS, SEAT_TO_SIDE } from "./board-layout.js";
 import { getPlayerName } from "./player-identity.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { playSound } from "./sound.js";
-import { getSelfSeat, submitStatsMatchResult } from "./online.js";
+import { showPostGamePanel } from "./post-game-panel.js";
 
 let announcedPlayers = new Set();
 
@@ -97,16 +97,14 @@ export function checkForVictory() {
     if (hasAllSevenLocked(player)) {
       announcedPlayers.add(player);
       showVictoryModal(player);
-      // ユーザー要望「オンライン対戦終了時に戦績システムへ自動登録したい」
-      // (Phase 1)。オンライン中は接続している全員の画面でcheckForVictoryが
-      // 同時に真になるため、二重登録を避けるためこの勝者本人の画面からだけ
-      // 送信する（他の座席の画面では送信しない）。ローカルモードでは戦績登録の
-      // 対象外（対戦記録として意味を持つのはオンライン対戦のみのため）。
-      if (isOnlineMode() && getSelfSeat() === player) {
+      // ユーザー要望「ゲーム終了時にコメント記入→戦績確認・もう一度遊ぶボタン」。
+      // オンライン対戦の全員の画面に出す（実際に戦績システムへ書き込むのは、
+      // 勝者本人の画面だけ——post-game-panel.js内でgetSelfSeat()===winnerSeatを
+      // 見て判定する）。ローカルモードでは対象外（対戦記録として意味を持つのは
+      // オンライン対戦のみのため）。
+      if (isOnlineMode()) {
         const { activePlayers } = getState();
-        submitStatsMatchResult({ activePlayers, winnerSeat: player }).catch((err) =>
-          console.error("submitStatsMatchResult failed", err)
-        );
+        showPostGamePanel({ activePlayers, winnerSeat: player });
       }
     }
   }
