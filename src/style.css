@@ -2677,6 +2677,28 @@ body.is-touch-device #options-menu-button {
   background: none;
   border-color: transparent;
 }
+/* ユーザー要望「画面右上のオプションアイコンの隣に人マークのアイコンを作り、それを
+   押すとマイページモーダルが開く」への対応。#options-menu-buttonと同じ高さ・同じ
+   見た目（アイコンのみ、丸い縁取り無し）で、その左隣に並べる。 */
+#my-page-button {
+  position: fixed;
+  top: 0.3rem;
+  right: 3.9rem;
+  z-index: 900;
+}
+#my-page-button .icon-action-button-caption {
+  display: none;
+}
+#my-page-button .icon-action-button-icon-wrap {
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+#my-page-button:hover .icon-action-button-icon-wrap {
+  background: none;
+  border-color: transparent;
+}
+
 #options-menu-panel {
   position: fixed;
   top: 3.3rem;
@@ -3227,6 +3249,68 @@ body.is-touch-device #self-hand-status {
 .self-status-large-avatar .avatar-image {
   width: var(--self-status-large-avatar-size, 13.5rem);
   height: var(--self-status-large-avatar-size, 13.5rem);
+}
+/* ユーザー要望「戦績システムと連携しているプレイヤーはステータスエリアにランクを
+   表示させたい」。姉妹プロジェクト（戦績管理システム）のgetTierInfo/renderAvatarRingHtml
+   と同じ見た目（対戦数に応じた色付きリング、15戦以上は虹色の回転リング）を、
+   stats-profile.jsが計算したtierに従ってJS側（updateSelfStatusRankRing、main.js）で
+   このリング要素へ反映する。アバター本体より一回り大きくして縁取りのように見せる
+   （avatar-imageより背面に置く、z-index参照）。連携していないプレイヤーには何も
+   表示しない（is-visibleが付かない）。 */
+/* ハマりどころ: 当初.self-status-large-avatarの子要素だったが、avatar-render.jsの
+   applyAvatarContent()が初回に`el.textContent = ""`で子要素を丸ごと消してから
+   <img>を作るため、updateSelfHandStatus()が最初に呼ばれた瞬間にこのリングごと
+   消えてしまっていた（実機検証で発覚）。.self-status-large-avatarの「兄弟」に
+   変更し、applyAvatarContent()の対象を一切変更しないようにした。兄弟になった分、
+   .self-status-large-avatar自身の位置オフセット（--self-status-large-avatar-pos-x/y）
+   をこちらにも同じくtranslateへ足し込み、見た目の位置がアバター本体とズレないように
+   している。DOM順でアバターより先に追加しているため、z-indexを個別に触らなくても
+   自然にアバターの背面に描画される。 */
+.self-status-rank-ring {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(var(--self-status-large-avatar-size, 13.5rem) + 1rem);
+  height: calc(var(--self-status-large-avatar-size, 13.5rem) + 1rem);
+  transform: translate(
+    calc(var(--self-status-large-avatar-pos-x, -0.86rem) - 0.5rem),
+    calc(var(--self-status-large-avatar-pos-y, -5.12rem) - 0.5rem)
+  );
+  border-radius: 50%;
+  pointer-events: none;
+  display: none;
+  box-sizing: border-box;
+}
+.self-status-rank-ring.is-visible {
+  display: block;
+}
+.self-status-rank-ring.is-solid {
+  border: 0.5rem solid var(--rank-ring-color, transparent);
+}
+.self-status-rank-ring.is-glow {
+  box-shadow: 0 0 0.8rem 0.2rem var(--rank-ring-glow, transparent);
+}
+.self-status-rank-ring.is-rainbow {
+  background: conic-gradient(#ef4444, #f97316, #eab308, #22c55e, #3b82f6, #6366f1, #a855f7, #ef4444);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 0.5rem), #000 calc(100% - 0.5rem));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 0.5rem), #000 calc(100% - 0.5rem));
+  animation: self-status-rank-ring-spin 3s linear infinite;
+}
+@keyframes self-status-rank-ring-spin {
+  from {
+    transform: translate(
+        calc(var(--self-status-large-avatar-pos-x, -0.86rem) - 0.5rem),
+        calc(var(--self-status-large-avatar-pos-y, -5.12rem) - 0.5rem)
+      )
+      rotate(0deg);
+  }
+  to {
+    transform: translate(
+        calc(var(--self-status-large-avatar-pos-x, -0.86rem) - 0.5rem),
+        calc(var(--self-status-large-avatar-pos-y, -5.12rem) - 0.5rem)
+      )
+      rotate(360deg);
+  }
 }
 .self-status-large-avatar:hover .phase-guide-tooltip {
   opacity: 1;

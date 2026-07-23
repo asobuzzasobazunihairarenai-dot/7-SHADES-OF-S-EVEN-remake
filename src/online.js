@@ -24,6 +24,7 @@ import {
 import { SEAT_ORDER } from "./board-layout.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
 import { setLastActionInfo } from "./last-action-info.js";
+import { setStatsProfileClient } from "./stats-profile.js";
 import {
   isTurnTimerEnabled,
   getInitialHourglassStock,
@@ -57,6 +58,9 @@ const EDGE_FUNCTION_NAME = "so7-apply-action";
 const client = typeof window !== "undefined" && window.supabase
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   : null;
+// stats-profile.js（マイページ・ランク表示）は依存の無い葉モジュールのため、ここから
+// importして直接クライアントを渡す（循環importの心配が無い）。
+setStatsProfileClient(client);
 
 let currentGameId = null;
 let currentSeat = null;

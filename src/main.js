@@ -12,6 +12,7 @@ import {
 } from "./admin.js";
 import { initDeckViewer } from "./deck-viewer.js";
 import { initStatsPlayerLinkModal } from "./stats-player-link.js";
+import { initMyPage, openMyPage, registerAvatarPickerHelper } from "./my-page.js";
 import { initGameSetup, previewStartPlayerModal } from "./game-setup.js";
 import { initOptionsMenu } from "./options-menu.js";
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
@@ -79,6 +80,7 @@ import { initOpeningScreen, previewOpeningAuras } from "./opening-screen.js";
 import {
   getSelfSeat,
   getCachedUser,
+  getCurrentUser,
   getCurrentGameId,
   onAuthChange,
   fetchAndHydrate,
@@ -91,6 +93,7 @@ import {
   saveMyPreference,
   registerVictorySummaryHelper,
 } from "./online.js";
+import { fetchStatsProfile } from "./stats-profile.js";
 import { generateVictorySummaryCanvas } from "./victory-summary-image.js";
 import { playSound } from "./sound.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
@@ -3366,6 +3369,30 @@ let selfStatusBackgroundThumbEl = null;
 let selfStatusHandCountEl = null;
 let selfStatusInfoEl = null;
 let selfStatusLargeAvatarEl = null;
+let selfStatusRankRingEl = null;
+
+// ユーザー要望「戦績システムと連携しているプレイヤーはステータスエリアにランクを
+// 表示させたい」。stats-profile.jsのgetTierInfo()と同じ形のtierオブジェクト
+// （{type:'ring',color,glow} または {type:'rainbow'}、もしくは連携無しならnull）を
+// 受け取り、リング要素の見た目を更新する。
+function updateSelfStatusRankRing(tier) {
+  if (!selfStatusRankRingEl) return;
+  selfStatusRankRingEl.classList.remove("is-visible", "is-solid", "is-glow", "is-rainbow");
+  selfStatusRankRingEl.style.removeProperty("--rank-ring-color");
+  selfStatusRankRingEl.style.removeProperty("--rank-ring-glow");
+  if (!tier) return;
+  selfStatusRankRingEl.classList.add("is-visible");
+  if (tier.type === "rainbow") {
+    selfStatusRankRingEl.classList.add("is-rainbow");
+    return;
+  }
+  selfStatusRankRingEl.classList.add("is-solid");
+  selfStatusRankRingEl.style.setProperty("--rank-ring-color", tier.color);
+  if (tier.glow) {
+    selfStatusRankRingEl.classList.add("is-glow");
+    selfStatusRankRingEl.style.setProperty("--rank-ring-glow", tier.glow);
+  }
+}
 
 function openAvatarPicker() {
   const modal = document.createElement("div");
@@ -3478,8 +3505,25 @@ function buildSelfHandStatus() {
   // 右向き（"right"）のバリエーションを表示する（ユーザー指定）。
   selfStatusLargeAvatarEl = document.createElement("div");
   selfStatusLargeAvatarEl.className = "self-status-large-avatar";
-  selfStatusLargeAvatarEl.addEventListener("click", openAvatarPicker);
-  addSimpleTooltip(selfStatusLargeAvatarEl, "クリックしてアバターを変更");
+  // ユーザー要望「左下の巨大アバターを押してもマイページが開くようにしたい」。
+  // 以前はここで直接openAvatarPicker()を呼んでいたが、マイページ側に「アバター変更」
+  // ボタンとして移した（my-page.js参照）。
+  selfStatusLargeAvatarEl.addEventListener("click", openMyPage);
+  addSimpleTooltip(selfStatusLargeAvatarEl, "クリックしてマイページを開く");
+
+  // ユーザー要望「戦績システムと連携しているプレイヤーはステータスエリアにランクを
+  // 表示させたい」。stats-profile.jsのtierに従ってupdateSelfStatusRankRing()が
+  // クラス・CSS変数を反映する（avatar-imageより一回り大きく、背面のリングとして表示）。
+  // ハマりどころ（実機検証で発覚）: 当初selfStatusLargeAvatarElの子要素として追加して
+  // いたが、avatar-render.jsのapplyAvatarContent()は初回（まだimg.avatar-imageが
+  // 無い）に`el.textContent = ""`で子要素を丸ごと消してから<img>を作る実装のため、
+  // updateSelfHandStatus()が最初に一度呼ばれた瞬間にこのリングごと消えてしまって
+  // いた。selfStatusLargeAvatarElの「兄弟」にすることで、applyAvatarContent()の
+  // 対象（selfStatusLargeAvatarElの中身）を一切変更せずに済むようにした。
+  selfStatusRankRingEl = document.createElement("div");
+  selfStatusRankRingEl.className = "self-status-rank-ring";
+  el.appendChild(selfStatusRankRingEl);
+
   el.appendChild(selfStatusLargeAvatarEl);
 
   // 駒スキンの選択もここに集約する（以前は別の独立したボタンだった）。実際の駒と同じ
@@ -3560,7 +3604,10 @@ function updateSelfHandStatus() {
   if (selfLockedCount >= 6) selfAvatarSrc = getEnragedVariant(selfAvatarSrc);
   else if (selfLockedCount >= 4) selfAvatarSrc = getAwakenedVariant(selfAvatarSrc);
   applyAvatarContent(selfStatusLargeAvatarEl, selfAvatarSrc);
-  addSimpleTooltip(selfStatusLargeAvatarEl, "クリックしてアバターを変更");
+  // ハマりどころ: applyAvatarContent()の直後は毎回tooltip要素も一緒に消えている
+  // ため（同じ理由でリングも消えていた、buildSelfHandStatusのコメント参照）、
+  // ここで都度re-addする必要がある。文言はbuildSelfHandStatus側と揃える。
+  addSimpleTooltip(selfStatusLargeAvatarEl, "クリックしてマイページを開く");
 
   // セットアップ前（自分の駒の色がまだ決まっていない間）でも、選んだバリエーション番号
   // 自体は色に依存しない好みなので、先に見た目を確認・選べるよう常に表示する
@@ -3623,6 +3670,8 @@ initCameraControls();
 initAdminMode();
 initDeckViewer();
 initStatsPlayerLinkModal();
+initMyPage();
+registerAvatarPickerHelper(openAvatarPicker);
 initGameSetup();
 registerStartPlayerPreviewHelper(previewStartPlayerModal);
 registerAuraPreviewHelper(previewOpeningAuras);
@@ -3819,6 +3868,25 @@ initOnlineUi();
 // online.js自身のonAuthChangeも別途subscribeしておく必要がある。
 onAuthChange(render);
 updateSelfStatusOnlineWidget();
+
+// ユーザー要望「戦績システムと連携しているプレイヤーはステータスエリアにランクを
+// 表示させたい」。ログイン状態が変わるたび（マイページでの連携直後も含む）に
+// 取得し直す。連携していない・未ログインの場合はリングを消す。
+async function refreshSelfStatusRankRing() {
+  const user = await getCurrentUser();
+  if (!user) {
+    updateSelfStatusRankRing(null);
+    return;
+  }
+  try {
+    const profile = await fetchStatsProfile(user.id);
+    updateSelfStatusRankRing(profile.linked ? profile.tier : null);
+  } catch (err) {
+    console.error("refreshSelfStatusRankRing failed", err);
+  }
+}
+onAuthChange(refreshSelfStatusRankRing);
+refreshSelfStatusRankRing();
 
 // 相手ゲート侵攻ボーナスが発生した時（誰がターン終了を押したかに関わらず、部屋の全員に
 // 届く。online.jsのsubscribeToGame()参照）、1件ずつ画面中央のモーダルで自動送りしながら

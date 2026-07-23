@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">マイページ</title>
+  <desc id="desc">丸い頭と肩のシルエットで表した、マイページ（プレイヤー情報）アイコン</desc>
+  <g fill="none" stroke="var(--icon-primary, #F4F7FB)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="128" cy="96" r="44" opacity=".9"/>
+    <path d="M40 208c8-46 44-74 88-74s80 28 88 74" stroke-width="10"/>
+    <circle cx="128" cy="96" r="44" stroke="var(--icon-accent, #E6B94F)" stroke-width="6" opacity=".55"/>
+  </g>
+</svg>
