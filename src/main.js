@@ -12,6 +12,7 @@ import {
 } from "./admin.js";
 import { initDeckViewer } from "./deck-viewer.js";
 import { initStatsPlayerLinkModal } from "./stats-player-link.js";
+import { maybeShowTablet2dWarning } from "./tablet-2d-warning.js";
 import { initGameSetup, previewStartPlayerModal } from "./game-setup.js";
 import { initOptionsMenu } from "./options-menu.js";
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
@@ -3599,6 +3600,7 @@ initCameraControls();
 initAdminMode();
 initDeckViewer();
 initStatsPlayerLinkModal();
+maybeShowTablet2dWarning();
 initGameSetup();
 registerStartPlayerPreviewHelper(previewStartPlayerModal);
 registerAuraPreviewHelper(previewOpeningAuras);

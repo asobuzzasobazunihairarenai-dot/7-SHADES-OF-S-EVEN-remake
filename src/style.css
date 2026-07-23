@@ -472,6 +472,30 @@ body.is-touch-device .zone-left .hand-area {
   transform: translate(-50%, -50%) translate(var(--hand-b-pos-x), var(--hand-b-pos-y)) rotateX(18deg) translateZ(var(--hand-b-translate-z-touch, 0.5rem)) rotate(180deg);
 }
 
+/* 「2D表示に切り替える」（tablet-2d-mode.js、body.diagnostic-flatten-3d）ON時、
+   上のタッチ用ルールがrotateX+translateZを持ったままだと、.sceneのperspective:noneと
+   合わさって「奥行きの無いrotateXがそのまま縦方向を潰す」形になり、手札が不自然に
+   潰れて見えることがある。管理者モード「📱 タブレット2D位置調整」で、2D表示時だけの
+   回転・オフセットを個別に上書きできるようにする（セレクタの詳細度をタッチ用ルール
+   より高くして確実に上書きする）。既定値はrotateX(0)（潰れを解消する素直な平置き）＋
+   オフセット無しにしてあるので、値を変えるまでは「回転だけ無くなった」状態になる。 */
+body.diagnostic-flatten-3d.is-touch-device .zone-bottom .hand-area {
+  transform: translate(-50%, -50%) translate(var(--hand-a-pos-touch-x, var(--hand-a-pos-x)), var(--hand-a-pos-touch-y, var(--hand-a-pos-y)))
+    translate(var(--hand-a-flat-offset-x, 0rem), var(--hand-a-flat-offset-y, 0rem)) rotateX(var(--hand-a-rotate-x-flat, 0deg));
+}
+body.diagnostic-flatten-3d.is-touch-device .zone-top .hand-area {
+  transform: translate(-50%, -50%) translate(var(--hand-c-pos-x), var(--hand-c-pos-y))
+    translate(var(--hand-c-flat-offset-x, 0rem), var(--hand-c-flat-offset-y, 0rem)) rotateX(var(--hand-c-rotate-x-flat, 0deg));
+}
+body.diagnostic-flatten-3d.is-touch-device .zone-right .hand-area {
+  transform: translate(-50%, -50%) translate(var(--hand-d-pos-x), var(--hand-d-pos-y))
+    translate(var(--hand-d-flat-offset-x, 0rem), var(--hand-d-flat-offset-y, 0rem)) rotateX(var(--hand-d-rotate-x-flat, 0deg));
+}
+body.diagnostic-flatten-3d.is-touch-device .zone-left .hand-area {
+  transform: translate(-50%, -50%) translate(var(--hand-b-pos-x), var(--hand-b-pos-y))
+    translate(var(--hand-b-flat-offset-x, 0rem), var(--hand-b-flat-offset-y, 0rem)) rotateX(var(--hand-b-rotate-x-flat, 0deg)) rotate(180deg);
+}
+
 .hand-card {
   position: absolute;
   top: 50%;
@@ -4852,4 +4876,16 @@ body.is-online-mode #quick-start-bar {
   --hand-reveal-left-pos-y: -13.4rem;
   --hand-reveal-right-pos-x: -2.4rem;
   --hand-reveal-right-pos-y: 13.5rem;
+  --hand-a-rotate-x-flat: 0deg;
+  --hand-a-flat-offset-x: 0rem;
+  --hand-a-flat-offset-y: 0rem;
+  --hand-b-rotate-x-flat: 0deg;
+  --hand-b-flat-offset-x: 0rem;
+  --hand-b-flat-offset-y: 0rem;
+  --hand-c-rotate-x-flat: 0deg;
+  --hand-c-flat-offset-x: 0rem;
+  --hand-c-flat-offset-y: 0rem;
+  --hand-d-rotate-x-flat: 0deg;
+  --hand-d-flat-offset-x: 0rem;
+  --hand-d-flat-offset-y: 0rem;
 }

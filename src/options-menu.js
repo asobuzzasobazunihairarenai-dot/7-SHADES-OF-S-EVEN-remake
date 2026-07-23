@@ -20,6 +20,7 @@ import {
 import { saveMyPreference } from "./online.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { openStatsPlayerLinkModal } from "./stats-player-link.js";
+import { isFlatten2dMode, setFlatten2dMode } from "./tablet-2d-mode.js";
 
 function buildMenuItem(label, onClick) {
   const btn = document.createElement("button");
@@ -296,6 +297,15 @@ export function initOptionsMenu() {
     panel.appendChild(volumeRow);
     panel.appendChild(buildBgmVolumeRow());
     panel.appendChild(buildStatsPlayerLinkRow());
+
+    // ユーザー要望「タブレットの点滅対策として、2D表示への切り替えを画面右上の
+    // オプションからもできるようにしたい」。実体はtablet-2d-mode.jsで管理者モードと
+    // 共有している（admin.jsの「2D表示に切り替える」トグルと同じ状態）。
+    panel.appendChild(
+      buildCheckboxRow("2D表示に切り替える（タブレットの点滅対策）", isFlatten2dMode(), (checked) => {
+        setFlatten2dMode(checked);
+      })
+    );
 
     panel.appendChild(
       buildCollapsibleSection("モーダル表示時間", (content) => {

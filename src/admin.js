@@ -5,6 +5,7 @@
 
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { stageDelta, toStageLocalRect } from "./main.js";
+import { isFlatten2dMode, setFlatten2dMode } from "./tablet-2d-mode.js";
 
 // game-setup.jsは既にadmin.js（isManualSeatMode）をimportしているため、admin.js側から
 // game-setup.jsを直接importすると循環importになる。他の箇所（setup-animation.js等）と
@@ -579,6 +580,31 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー要望「2D表示に切り替える機能（tablet-2d-mode.js）と合わせて、タブレット
+    // 2D位置調整を追加してほしい、自分で調整する」への対応。2D表示ON時、タッチ用の
+    // rotateX+translateZがperspective:noneと組み合わさって手札が潰れて見えることが
+    // あるため、2D表示時だけ別の回転・位置オフセットを使えるようにした（style.cssの
+    // body.diagnostic-flatten-3d.is-touch-device .zone-*.hand-area参照）。既定値は
+    // 回転0deg・オフセット無し（素直な平置き）。2D表示がOFFの間・PCでは一切参照
+    // されないため見た目に影響しない。
+    title: "📱 タブレット2D位置調整（「2D表示に切り替える」ON時のみ有効）",
+    category: "tablet",
+    controls: [
+      { key: "--hand-a-rotate-x-flat", label: "自分の手札 傾き角度", unit: "deg", min: -90, max: 90, step: 1, default: 0 },
+      { key: "--hand-a-flat-offset-x", label: "自分の手札 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--hand-a-flat-offset-y", label: "自分の手札 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--hand-b-rotate-x-flat", label: "B（左）の手札 傾き角度", unit: "deg", min: -90, max: 90, step: 1, default: 0 },
+      { key: "--hand-b-flat-offset-x", label: "B（左）の手札 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--hand-b-flat-offset-y", label: "B（左）の手札 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--hand-c-rotate-x-flat", label: "C（奥）の手札 傾き角度", unit: "deg", min: -90, max: 90, step: 1, default: 0 },
+      { key: "--hand-c-flat-offset-x", label: "C（奥）の手札 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--hand-c-flat-offset-y", label: "C（奥）の手札 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--hand-d-rotate-x-flat", label: "D（右）の手札 傾き角度", unit: "deg", min: -90, max: 90, step: 1, default: 0 },
+      { key: "--hand-d-flat-offset-x", label: "D（右）の手札 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--hand-d-flat-offset-y", label: "D（右）の手札 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+    ],
+  },
+  {
     // ユーザー報告「Z値・手札の傾き角度どちらを触っても改善しなかった」を受けた次の
     // 実験用ノブ。手札単体の値ではなく、preserve-3d + perspectiveの入れ子構造全体を
     // 一部のタブレットGPUが特定の投影角度で正しく合成できていない（3D描画精度起因の
@@ -744,7 +770,9 @@ export function isAvatarOutlineVisible() {
 // 崩れるが、それは想定内（見た目の良し悪しを問う機能ではなく、あくまで原因切り分け用）。
 // これで点滅が消えれば3D合成が原因、消えなければ全く別の原因（描画とは無関係な
 // JS側の高頻度処理等）を疑う必要がある。
-let diagnosticFlatten3d = false;
+// この状態自体はtablet-2d-mode.jsへ切り出した（ユーザー要望「2D表示への切り替えを
+// 画面右上のオプションからもできるようにしたい」——options-menu.js側からも同じ
+// 状態を参照・変更する必要があるため）。
 
 // ターンタイマー（ロープ・砂時計・優先権、src/turn-timer.js）。実質オンライン対戦向けの
 // 機能でローカルモードでは緊張感が無いため、デフォルトはオフ。GROUPS/CONTROLSのCSS変数
@@ -1017,24 +1045,24 @@ const TOGGLE_SECTIONS = [
     },
   },
   {
-    // タブレット点滅の原因切り分け用診断ツール。ONの間は盤面の見た目が崩れるのは
-    // 想定内（機能ではなく実験用）。
-    title: "【診断用】3D効果を一時的に無効化（点滅の原因切り分け）",
+    // タブレット点滅の原因切り分け用診断ツールとして追加したが、原因がGPU負荷である
+    // ことがほぼ確定して以降は、プレイヤー向けの「2D表示に切り替える」回避策としても
+    // 使う（options-menu.jsの基本設定にも同じトグルがある、tablet-2d-mode.js参照）。
+    title: "2D表示に切り替える（タブレット点滅の回避策／原因切り分け）",
     category: "tablet",
     buildContent: (content) => {
       const flattenRow = document.createElement("label");
       flattenRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
       const flattenCheckbox = document.createElement("input");
       flattenCheckbox.type = "checkbox";
-      flattenCheckbox.checked = diagnosticFlatten3d;
+      flattenCheckbox.checked = isFlatten2dMode();
       flattenCheckbox.addEventListener("change", () => {
-        diagnosticFlatten3d = flattenCheckbox.checked;
-        document.body.classList.toggle("diagnostic-flatten-3d", diagnosticFlatten3d);
+        setFlatten2dMode(flattenCheckbox.checked);
         updateExportRef.current();
       });
       const flattenLabel = document.createElement("span");
       flattenLabel.textContent =
-        "ONにすると盤面が平らな見た目に崩れます（正常な動作です）。これでチカチカが消えるかどうかだけ確認してください。";
+        "ONにすると盤面が平らな2D表示に崩れる代わりに、GPU負荷が原因の点滅が消えます。";
       flattenRow.appendChild(flattenCheckbox);
       flattenRow.appendChild(flattenLabel);
       content.appendChild(flattenRow);
@@ -1395,7 +1423,7 @@ function buildPanel(rebuildSlidersRef) {
       `selfNameLabelVisible: ${selfNameLabelVisible}`,
       `spotlightMode: ${spotlightMode}`,
       `avatarOutlineVisible: ${avatarOutlineVisible}`,
-      `diagnosticFlatten3d: ${diagnosticFlatten3d}`,
+      `diagnosticFlatten3d: ${isFlatten2dMode()}`,
       `turnTimerEnabled: ${turnTimerEnabled}`,
       `initialHourglassStock: ${initialHourglassStock}`,
       `maxHourglassStock: ${maxHourglassStock}`,
