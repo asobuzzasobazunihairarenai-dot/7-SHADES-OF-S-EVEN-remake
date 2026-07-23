@@ -43,7 +43,7 @@ function ensureDotCount(count) {
 
 function renderStatic() {
   ensureDotCount(1);
-  const orbSize = readNumber("--rank-ring-orbit-size", 0.5);
+  const orbSize = readNumber("--rank-ring-orbit-size", 0.4);
   const dot = dots[0];
   dot.style.left = "50%";
   dot.style.top = "0%";
@@ -66,9 +66,9 @@ function tick(time) {
   const dtSec = (time - lastTime) / 1000;
   lastTime = time;
 
-  const revolutionSec = Math.max(0.2, readNumber("--rank-ring-orbit-speed", 3.5));
-  const trailLength = Math.max(1, Math.round(readNumber("--rank-ring-orbit-trail-length", 12)));
-  const orbSize = readNumber("--rank-ring-orbit-size", 0.5);
+  const revolutionSec = Math.max(0.2, readNumber("--rank-ring-orbit-speed", 7.6));
+  const trailLength = Math.max(1, Math.round(readNumber("--rank-ring-orbit-trail-length", 23)));
+  const orbSize = readNumber("--rank-ring-orbit-size", 0.4);
 
   angleDeg = (angleDeg + (dtSec / revolutionSec) * 360) % 360;
 

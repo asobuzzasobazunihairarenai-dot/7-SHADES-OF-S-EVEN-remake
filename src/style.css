@@ -5253,10 +5253,10 @@ body.is-online-mode #quick-start-bar {
   --phase-guide-right-flat: 0.7rem;
   --self-status-icon-online-flat-x: 0rem;
   --self-status-icon-online-flat-y: 0rem;
-  --rank-ring-thickness: 0.5rem;
+  --rank-ring-thickness: 0.4rem;
   --rank-ring-offset-x: 0rem;
   --rank-ring-offset-y: 0rem;
-  --rank-ring-orbit-size: 0.5rem;
-  --rank-ring-orbit-trail-length: 12;
-  --rank-ring-orbit-speed: 3.5;
+  --rank-ring-orbit-size: 0.4rem;
+  --rank-ring-orbit-trail-length: 23;
+  --rank-ring-orbit-speed: 7.6;
 }

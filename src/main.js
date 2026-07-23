@@ -89,6 +89,7 @@ import {
   onGateInvasionEvents,
   getSyncedIdentity,
   getGoogleAvatarUrl,
+  fetchMyCustomAvatarUrl,
   getRoomName,
   registerIdentityApplier,
   registerAppearanceApplier,
@@ -3418,7 +3419,7 @@ function updateSelfStatusRankRing(tier) {
   startRankRingOrbit();
 }
 
-function openAvatarPicker() {
+async function openAvatarPicker() {
   const modal = document.createElement("div");
   modal.id = "avatar-picker-modal";
   const close = () => {
@@ -3448,6 +3449,25 @@ function openAvatarPicker() {
       close();
     });
     grid.appendChild(googleSwatch);
+  }
+
+  // ユーザー要望「アバター画像をアップロードしたらアバター変更時に一覧に出るように
+  // してほしい。もちろん他のプレイヤーの一覧には出ない」への対応。so7_user_profiles
+  // （本人しか読み書きできないRLS）に保存された、自分がアップロードした画像を
+  // 選択肢の1つとして出す（Google同様、他プレイヤーには一切見えない自分専用の選択肢）。
+  const customAvatarUrl = await fetchMyCustomAvatarUrl();
+  if (customAvatarUrl) {
+    const customSwatch = document.createElement("button");
+    customSwatch.className = "avatar-picker-swatch";
+    customSwatch.title = "アップロードした画像を使う";
+    if (getPlayerAvatar(getSelfSeat()) === customAvatarUrl) customSwatch.classList.add("is-selected");
+    applyAvatarContent(customSwatch, customAvatarUrl);
+    customSwatch.addEventListener("click", () => {
+      setPlayerAvatar(getSelfSeat(), customAvatarUrl);
+      render();
+      close();
+    });
+    grid.appendChild(customSwatch);
   }
 
   for (const avatar of AVATAR_OPTIONS) {

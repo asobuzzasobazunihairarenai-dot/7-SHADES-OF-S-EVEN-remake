@@ -718,7 +718,7 @@ const GROUPS = [
         min: 0.1,
         max: 2,
         step: 0.05,
-        default: 0.5,
+        default: 0.4,
         previewOnInteract: () => rankRingPreviewFn?.(),
       },
       {
@@ -751,7 +751,7 @@ const GROUPS = [
         min: 0.1,
         max: 2,
         step: 0.05,
-        default: 0.5,
+        default: 0.4,
         previewOnInteract: () => rankRingPreviewFn?.(),
       },
       {
@@ -761,7 +761,7 @@ const GROUPS = [
         min: 1,
         max: 40,
         step: 1,
-        default: 12,
+        default: 23,
         previewOnInteract: () => rankRingPreviewFn?.(),
       },
       {
@@ -771,7 +771,7 @@ const GROUPS = [
         min: 0.5,
         max: 10,
         step: 0.1,
-        default: 3.5,
+        default: 7.6,
         previewOnInteract: () => rankRingPreviewFn?.(),
       },
     ],

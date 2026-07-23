@@ -68,6 +68,31 @@ function setTestModeRequested(value) {
   else sessionStorage.removeItem(TEST_MODE_STORAGE_KEY);
 }
 
+// ユーザー要望「Googleでログイン済みであってもブラウザを手動で再読み込みした時は
+// HUERISEの画面から始まってほしい」への対応。以前は「ログイン済みと判明したら
+// 無条件でSTART演出・ストーリーテロップをスキップする」実装だったため、単なる
+// 手動リロード（既にログイン済みのセッションが残っているだけで、リダイレクトは
+// 起きていない）でも毎回スキップされてしまっていた。Googleログイン/マジックリンクの
+// ボタンを押した「直後」だけこのフラグを立てておき、実際にリダイレクトから
+// 戻ってきた（＝このフラグが立っている）場合だけ演出をスキップする。テストモードの
+// フラグと同じ理由で、時刻を持たせて一定時間で自動失効させる。
+const AWAITING_REDIRECT_STORAGE_KEY = "so7-awaiting-login-redirect";
+const AWAITING_REDIRECT_MAX_AGE_MS = 3 * 60 * 1000;
+function isAwaitingLoginRedirect() {
+  const raw = sessionStorage.getItem(AWAITING_REDIRECT_STORAGE_KEY);
+  if (!raw) return false;
+  const setAt = Number(raw);
+  if (!Number.isFinite(setAt) || Date.now() - setAt > AWAITING_REDIRECT_MAX_AGE_MS) {
+    sessionStorage.removeItem(AWAITING_REDIRECT_STORAGE_KEY);
+    return false;
+  }
+  return true;
+}
+function setAwaitingLoginRedirect(value) {
+  if (value) sessionStorage.setItem(AWAITING_REDIRECT_STORAGE_KEY, String(Date.now()));
+  else sessionStorage.removeItem(AWAITING_REDIRECT_STORAGE_KEY);
+}
+
 // ユーザー要望「最初真っ白な画面にSTARTボタン、周りに7色のオーラが漂う。押したら
 // BGM開始＋タイトル画像フェードイン＋ストーリーテロップ（クリックで飛ばせる）→
 // ログインボタン出現」への対応。以下の7色は既存のCOLORS(board-layout.js)と同じ並びだが、
@@ -656,9 +681,11 @@ export function initOpeningScreen() {
     googleBtn.textContent = "Googleでログイン";
     googleBtn.addEventListener("click", async () => {
       googleBtn.disabled = true;
+      setAwaitingLoginRedirect(true);
       try {
         await signInWithGoogle();
       } catch (err) {
+        setAwaitingLoginRedirect(false);
         status.textContent = `エラー: ${err.message ?? err}`;
         googleBtn.disabled = false;
       }
@@ -710,10 +737,12 @@ export function initOpeningScreen() {
       if (!emailInput.value) return;
       magicBtn.disabled = true;
       status.textContent = "送信中...";
+      setAwaitingLoginRedirect(true);
       try {
         await signInWithMagicLink(emailInput.value);
         status.textContent = "メールを確認し、届いたリンクを開いてください。";
       } catch (err) {
+        setAwaitingLoginRedirect(false);
         status.textContent = `エラー: ${err.message ?? err}`;
       } finally {
         magicBtn.disabled = false;
@@ -724,24 +753,45 @@ export function initOpeningScreen() {
 
   // 起動直後にログイン状態を確認する。Googleログインはページ遷移を伴うため、認証完了後は
   // ブラウザがこのページへ丸ごとリロードして戻ってくる（＝initOpeningScreen()が最初から
-  // 実行し直される）。ログイン済みと判明した場合は、STARTボタン演出・ストーリーテロップを
-  // 飛ばしてカードを自動的に開き、「オンラインで続ける」をすぐ提示する
-  // （skipIntroToContent参照）。
+  // 実行し直される）。
   //
-  // ハマりどころ（ユーザー報告「まだ直らない」）: 起動直後に1回だけgetCurrentUser()を
-  // 呼ぶ実装だと、Googleログインからのリダイレクト直後はSupabase側がURLからセッションを
-  // 検出・確定させる処理がまだ終わっていないタイミングがあり、その場合getCurrentUser()が
-  // 一度nullを返してこの分岐そのものが素通りしてしまう（＝今まで通りSTART演出から
-  // 表示される）。1回きりのチェックに頼らず、online.jsのonAuthChange（Supabase自身の
-  // onAuthStateChange、セッション確定時に確実に発火する）も購読し、後から確定した
-  // 場合でも同じ処理を行えるようにする。「まだ通常のログインカードを自分で開いて
-  // 操作している最中」に誤って発火して割り込まないよう、既にstage-contentへ進んで
-  // いる場合は何もしない（＝オープニング画面がまだ最初の段階の時だけ有効）。
+  // ハマりどころ1（ユーザー報告「Googleでログインし直したらオンラインで続けるが出ない」）:
+  // 起動直後に1回だけgetCurrentUser()を呼ぶ実装だと、Googleログインからのリダイレクト
+  // 直後はSupabase側がURLからセッションを検出・確定させる処理がまだ終わっていない
+  // タイミングがあり、その場合getCurrentUser()が一度nullを返してこの分岐そのものが
+  // 素通りしてしまう。1回きりのチェックに頼らず、online.jsのonAuthChange
+  // （Supabase自身のonAuthStateChange、セッション確定時に確実に発火する）も購読し、
+  // 後から確定した場合でも同じ処理を行えるようにする。
+  //
+  // ハマりどころ2（ユーザー報告「Googleでログイン済みであってもブラウザを手動で
+  // 再読み込みした時はHUERISEの画面から始まってほしい」）: 以前は「ログイン済みと
+  // 判明したら無条件でSTART演出・ストーリーテロップをスキップする」実装だったため、
+  // 単なる手動リロード（セッションが残っているだけで、実際にはリダイレクトは起きて
+  // いない）でも毎回スキップされてしまっていた。演出のスキップ自体は
+  // isAwaitingLoginRedirect()（Googleログイン/マジックリンクのボタンを押した直後だけ
+  // 立つフラグ）が立っている時だけ行い、それ以外（既にログイン済みのまま単に
+  // ページを開き直した場合等）はカード（「オンラインで続ける」）だけを裏で準備して
+  // おき、演出自体は通常通り最初から見せる（＝ユーザーがSTART→テロップを経て
+  // カードの見える段階まで進んだ時に、既に「オンラインで続ける」が出ている）。
+  //
+  // どちらの場合も、「まだ通常のログインカードを自分で開いて操作している最中」に
+  // 誤って割り込まないよう、既にstage-contentへ進んでいる場合は何もしない
+  // （＝オープニング画面がまだ最初の段階の時だけ有効）。
+  // showCard()自体は「ログイン済みと分かった最初の1回だけ」に留める（onAuthChangeは
+  // トークン自動更新など、以後もこのタブが生きている限り何度も発火し得るため、これが
+  // 無いと、ユーザーが一度✕でカードを閉じて小さい「ログイン」ボタンに戻していても、
+  // 後から不意にまたカードが開き直ってしまう）。
+  let autoShownCardOnce = false;
   function maybeAutoAdvanceForLoggedInUser(user) {
     if (!user) return;
-    if (overlay.classList.contains("stage-content")) return;
-    skipIntroToContent();
-    showCard();
+    if (!overlay.classList.contains("stage-content") && isAwaitingLoginRedirect()) {
+      setAwaitingLoginRedirect(false);
+      skipIntroToContent();
+    }
+    if (!autoShownCardOnce) {
+      autoShownCardOnce = true;
+      showCard();
+    }
   }
 
   if (isOnlineAvailable()) {

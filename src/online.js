@@ -290,6 +290,30 @@ export async function saveMyPreference(patch) {
   if (error) console.error("saveMyPreference failed", error);
 }
 
+// ユーザー要望「アップロードしたアバター画像を、アバター変更時に一覧に出るように
+// してほしい」への対応。custom_avatar_url列をloadMyPreferences()の大きなSELECT文には
+// 混ぜず、あえて独立したクエリにしてある——過去に「まだ本番のSupabase側に存在しない
+// 列を1つでもSELECT文に混ぜると、それだけで文全体がエラーになり他の設定（名前・
+// アバター・音量等）まで丸ごと読み込めなくなる」という重大な副作用が判明した経緯が
+// あるため（このファイル内の他の箇所のコメント参照）。この列は
+// supabase_setup_so7.sqlの追加分をまだ実行していない環境でも、ここだけが
+// 失敗して(catchでnullを返す)他の機能に影響しないようにする。
+export async function fetchMyCustomAvatarUrl() {
+  if (!cachedUser) return null;
+  try {
+    const { data, error } = await client
+      .from("so7_user_profiles")
+      .select("custom_avatar_url")
+      .eq("user_id", cachedUser.id)
+      .maybeSingle();
+    if (error) throw error;
+    return data?.custom_avatar_url ?? null;
+  } catch (err) {
+    console.error("fetchMyCustomAvatarUrl failed (未実行のsupabase_setup_so7.sql追加分がある可能性)", err);
+    return null;
+  }
+}
+
 // ログイン直後に呼ばれ、保存済みの基本設定・ショートカットを各モジュールへ反映する。
 export async function loadMyPreferences() {
   if (!cachedUser) return;
@@ -954,7 +978,15 @@ export async function uploadAvatarImage(blob) {
     // 上書きアップロードのたびに同じURLになるため、ブラウザ/CDNのキャッシュにより
     // 古い画像のまま見えてしまうことがある。末尾にタイムスタンプを付け、毎回別の
     // URLとして扱われるようにする（画像自体はサーバー上で1枚に保たれたまま）。
-    return `${data.publicUrl}?v=${Date.now()}`;
+    const urlWithCacheBuster = `${data.publicUrl}?v=${Date.now()}`;
+    // ユーザー要望「アップロードしたらアバター変更時に一覧に出るようにしてほしい」への
+    // 対応。現在選んでいるavatar（他プレイヤーにも見える）とは別に、アップロードした
+    // 画像そのものをcustom_avatar_urlへ保存しておく（列が無ければsaveMyPreference側で
+    // エラーがログに出るだけで、アップロード自体は成功扱いのまま進める）。
+    saveMyPreference({ custom_avatar_url: urlWithCacheBuster }).catch((err) =>
+      console.error("custom_avatar_urlの保存に失敗しました", err)
+    );
+    return urlWithCacheBuster;
   });
 }
 

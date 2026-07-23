@@ -664,3 +664,15 @@ alter table so7_user_profiles
 -- 同じ列レベルの仕組みで、0〜100のパーセント値をそのまま保存する。
 alter table so7_user_profiles
   add column if not exists sound_volume_opening_bgm numeric not null default 80;
+
+-- 追加機能: アップロードしたアバター画像を、アバター選択一覧に自分専用の選択肢として
+-- 出し続けられるようにする（ユーザー要望「アバター画像をアップロードしたらアバター変更
+-- 時に一覧に出るようにしてほしい。もちろん他のプレイヤーの一覧には出ない」）。
+-- so7_user_profilesは既にuser_id=auth.uid()のみが読み書きできるRLSになっているため、
+-- この列も自然に「本人にしか見えない」設定になる（他プレイヤーの一覧には出ない、という
+-- 要望をこの列単体で満たせる）。実際に選んだ現在のアバター（avatar列、他プレイヤーにも
+-- 見える）とは別に、アップロードした画像そのもののURLだけをここに保存しておき、
+-- 一覧を開くたびに読み出して選択肢の1つとして出す（src/online.jsのuploadAvatarImage/
+-- fetchMyCustomAvatarUrl参照）。
+alter table so7_user_profiles
+  add column if not exists custom_avatar_url text;
