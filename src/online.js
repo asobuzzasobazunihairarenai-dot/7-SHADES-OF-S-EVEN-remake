@@ -627,6 +627,18 @@ async function getOrCreateStatsPlayer(userId, displayName) {
 // html2canvasが完全に忠実な見た目を再現できるとは限らないが、対戦の証拠としては
 // 十分な情報（配置・プレイヤー名等）が写る。失敗しても対戦記録自体の登録は
 // 止めたくないため、ここで発生した例外は呼び出し元へ伝播させずnullを返すだけにする。
+// ハマりどころ（重大、検証中に発見）: style.cssのbody.diagnostic-flatten-3d
+// （元々はタブレット点滅の原因切り分け用の管理者トグル、全要素にtransform-style:flat
+// !importantを強制する）をキャプチャの瞬間だけ有効にする案を一度試したが、
+// foreignObjectRenderingと組み合わせるとhtml2canvas側の処理がそのまま無限に
+// ハング（エラーにもならず永遠に返ってこない）することをこの開発環境で確認した。
+// captureVictoryScreenshot()がここで固まるとsubmitStatsMatchResult()のawaitも
+// 永遠に終わらず、対戦記録自体の登録（matchesへのinsert）まで巻き添えでできなく
+// なってしまう（画像が崩れる不具合よりずっと悪い）ため、この案は不採用にした。
+// タイムアウトで強制的に打ち切る手も検討したが、そもそも「見た目を保ったまま
+// 3D合成を止める」こと自体がこのプロジェクトのCSS構造上簡単ではない
+// （diagnostic-flatten-3dは元々「見た目を保つ機能ではない」と明記されている）ため、
+// 見送った。
 async function captureVictoryScreenshot(gameId) {
   try {
     if (typeof window.html2canvas !== "function") return null;
@@ -687,6 +699,14 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat }) {
   if (memberIds.length === 0 || !winnerId) return;
 
   const durationMinutes = Math.max(1, Math.round((Date.now() - new Date(gameRow.created_at).getTime()) / 60000));
+  // ユーザー報告「最後のロックが完了する前の画像になってしまっている」への対応。
+  // 7色すべて揃った瞬間にcheckForVictory()がここを呼ぶが、その最後の1枚がロック
+  // スロットへ到達する見た目の演出（main.jsのtriggerLockEffect: 飛翔アニメーション
+  // 約450ms→到達バースト→1300ms後にロックスタンプ→スタンプ表示900ms、合計で
+  // 2.5秒前後）はまだ再生中のことが多い。演出が視覚的に落ち着くまで少し待ってから
+  // キャプチャする（対戦記録自体の登録が遅れて困る種類の機能ではないため、多少待っても
+  // 実害は無い）。
+  await new Promise((resolve) => setTimeout(resolve, 2600));
   const proofImageUrl = await captureVictoryScreenshot(currentGameId);
 
   // players同様、matches.idもtext主キーでDB側のデフォルトが無く、created_atもbigint
