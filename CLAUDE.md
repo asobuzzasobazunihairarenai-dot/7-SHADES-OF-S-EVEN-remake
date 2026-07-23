@@ -5572,3 +5572,22 @@ https://asobuzzasobazunihairarenai-dot.github.io/7-SHADES-OF-S-EVEN-remake/
   （回転成分ゼロ）になることを確認済み。オプションパネルに新しい3行
   （カード拡大プレビューのサイズ・戦績連携・2D表示切り替え）が正しく表示される
   ことも確認済み。`node --check`全ファイル通過。
+
+### 2026-07-23の変更（続き）：タブレット2D位置調整の実機調整値を反映
+
+- ユーザーが実機（6年前のiPad mini）で「📱 タブレット2D位置調整」を実際に触って
+  調整した結果を管理者モードの出力として共有してもらい、admin.jsのdefaultと
+  style.css末尾の:rootオーバーライドブロックの両方に反映した（プログラムで
+  機械的に差分抽出し、他に取りこぼしが無いことも確認済み——意図的に除外している
+  6項目（--hand-a/b/c/d-translate-z-touch・--label-translate-z-touch・
+  --hand-a-rotate-x-touch）以外は完全一致）。
+  - `--table-tilt-flat`: 0deg → -21deg
+  - `--table-scale-flat`: 1 → 0.99
+  - `--table-flat-offset-x`: 0rem → -0.1rem
+  - `--table-flat-offset-y`: 0rem → 6.2rem
+  - `--icon-pos-hand-shuffle-flat-y`: 0rem → -2.3rem
+  - `--icon-pos-draw-flat-x`: 0rem → 0.9rem
+  - `--icon-pos-end-turn-flat-y`: 0rem → -2.3rem
+  - `--phase-guide-right-flat`: 0rem → 0.7rem
+- **検証**: ブラウザで反映後の値をgetComputedStyleで実測し、8項目とも意図通りの
+  値になっていることを確認済み。`node --check`通過。

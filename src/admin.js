@@ -597,10 +597,10 @@ const GROUPS = [
       // cos(42deg)≈0.74倍に潰れて見えていた（＝相対的に横長に見える）。傾き角度の
       // 既定を0degにしたことでこれを解消した。ついでに拡大率・位置（＝実質的な
       // 「カメラ視点位置」）も2D表示専用に調整できるようにした。
-      { key: "--table-tilt-flat", label: "盤面の傾き角度（正方形に戻すなら0推奨）", unit: "deg", min: -90, max: 90, step: 1, default: 0 },
-      { key: "--table-scale-flat", label: "盤面の拡大率（自動フィットへの追加倍率、既定1＝変化なし）", unit: "", min: 0.3, max: 2, step: 0.01, default: 1 },
-      { key: "--table-flat-offset-x", label: "カメラ視点位置 X（盤面全体の左右位置）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--table-flat-offset-y", label: "カメラ視点位置 Y（盤面全体の上下位置）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--table-tilt-flat", label: "盤面の傾き角度（正方形に戻すなら0推奨）", unit: "deg", min: -90, max: 90, step: 1, default: -21 },
+      { key: "--table-scale-flat", label: "盤面の拡大率（自動フィットへの追加倍率、既定1＝変化なし）", unit: "", min: 0.3, max: 2, step: 0.01, default: 0.99 },
+      { key: "--table-flat-offset-x", label: "カメラ視点位置 X（盤面全体の左右位置）", unit: "rem", min: -20, max: 20, step: 0.1, default: -0.1 },
+      { key: "--table-flat-offset-y", label: "カメラ視点位置 Y（盤面全体の上下位置）", unit: "rem", min: -20, max: 20, step: 0.1, default: 6.2 },
       { key: "--hand-a-rotate-x-flat", label: "自分の手札 傾き角度", unit: "deg", min: -90, max: 90, step: 1, default: 0 },
       { key: "--hand-a-flat-offset-x", label: "自分の手札 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--hand-a-flat-offset-y", label: "自分の手札 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 5.8 },
@@ -617,13 +617,13 @@ const GROUPS = [
       // 各アイコンの既存のタッチ用位置(--icon-pos-*-touch-x/y等)はそのままに、2D表示
       // 専用の「上乗せオフセット」を足す方式にした（既定0＝タッチ用の位置から変わらない）。
       { key: "--icon-pos-hand-shuffle-flat-x", label: "手札シャッフル 位置X（2D表示）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--icon-pos-hand-shuffle-flat-y", label: "手札シャッフル 位置Y（2D表示）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-hand-shuffle-flat-y", label: "手札シャッフル 位置Y（2D表示）", unit: "rem", min: -20, max: 20, step: 0.1, default: -2.3 },
       { key: "--icon-pos-board-zoom-flat-x", label: "盤面拡大 位置X（2D表示）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-board-zoom-flat-y", label: "盤面拡大 位置Y（2D表示）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--icon-pos-draw-flat-x", label: "1枚ドロー 位置X（2D表示）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-draw-flat-x", label: "1枚ドロー 位置X（2D表示）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0.9 },
       { key: "--icon-pos-draw-flat-y", label: "1枚ドロー 位置Y（2D表示）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-end-turn-flat-x", label: "ターン終了 位置X（2D表示）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--icon-pos-end-turn-flat-y", label: "ターン終了 位置Y（2D表示）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-end-turn-flat-y", label: "ターン終了 位置Y（2D表示）", unit: "rem", min: -20, max: 20, step: 0.1, default: -2.3 },
       { key: "--icon-pos-piece-hide-flat-x", label: "駒消し 位置X（2D表示）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-piece-hide-flat-y", label: "駒消し 位置Y（2D表示）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-card-hide-flat-x", label: "カード消し 位置X（2D表示）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
@@ -633,7 +633,7 @@ const GROUPS = [
       { key: "--priority-transfer-flat-x", label: "優先権譲渡ボタン 位置X（2D表示）", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
       { key: "--priority-transfer-flat-y", label: "優先権譲渡ボタン 位置Y（2D表示）", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
       { key: "--phase-guide-bottom-flat", label: "フェイズ案内 Y位置（2D表示）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--phase-guide-right-flat", label: "フェイズ案内 X位置（2D表示）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--phase-guide-right-flat", label: "フェイズ案内 X位置（2D表示）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0.7 },
       { key: "--self-status-icon-online-flat-x", label: "オンラインアイコン 位置X（2D表示）", unit: "rem", min: -15, max: 15, step: 0.1, default: 0 },
       { key: "--self-status-icon-online-flat-y", label: "オンラインアイコン 位置Y（2D表示）", unit: "rem", min: -15, max: 15, step: 0.1, default: 0 },
     ],

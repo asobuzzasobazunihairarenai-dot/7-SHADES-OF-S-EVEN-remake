@@ -4961,18 +4961,18 @@ body.is-online-mode #quick-start-bar {
   --hand-d-rotate-x-flat: 0deg;
   --hand-d-flat-offset-x: 0rem;
   --hand-d-flat-offset-y: 0rem;
-  --table-tilt-flat: 0deg;
-  --table-scale-flat: 1;
-  --table-flat-offset-x: 0rem;
-  --table-flat-offset-y: 0rem;
+  --table-tilt-flat: -21deg;
+  --table-scale-flat: 0.99;
+  --table-flat-offset-x: -0.1rem;
+  --table-flat-offset-y: 6.2rem;
   --icon-pos-hand-shuffle-flat-x: 0rem;
-  --icon-pos-hand-shuffle-flat-y: 0rem;
+  --icon-pos-hand-shuffle-flat-y: -2.3rem;
   --icon-pos-board-zoom-flat-x: 0rem;
   --icon-pos-board-zoom-flat-y: 0rem;
-  --icon-pos-draw-flat-x: 0rem;
+  --icon-pos-draw-flat-x: 0.9rem;
   --icon-pos-draw-flat-y: 0rem;
   --icon-pos-end-turn-flat-x: 0rem;
-  --icon-pos-end-turn-flat-y: 0rem;
+  --icon-pos-end-turn-flat-y: -2.3rem;
   --icon-pos-piece-hide-flat-x: 0rem;
   --icon-pos-piece-hide-flat-y: 0rem;
   --icon-pos-card-hide-flat-x: 0rem;
@@ -4982,7 +4982,7 @@ body.is-online-mode #quick-start-bar {
   --priority-transfer-flat-x: 0rem;
   --priority-transfer-flat-y: 0rem;
   --phase-guide-bottom-flat: 0rem;
-  --phase-guide-right-flat: 0rem;
+  --phase-guide-right-flat: 0.7rem;
   --self-status-icon-online-flat-x: 0rem;
   --self-status-icon-online-flat-y: 0rem;
 }
