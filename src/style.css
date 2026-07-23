@@ -4342,29 +4342,42 @@ body.is-online-mode #quick-start-bar {
   cursor: pointer;
   overflow: hidden;
 }
+/* ユーザー提供の画像（assets/opening-start-btn.png、HUERISEブランドのSTARTボタン
+   グラフィック）に差し替えたため、丸ボタンの背景色・枠線・文字装飾は不要になった。
+   ボタン自体は透明な当たり判定の器にするだけで、見た目は中のimg1枚に任せる。 */
 .opening-start-btn {
   position: relative;
   z-index: 1;
-  font-family: sans-serif;
-  font-size: 1.4rem;
-  font-weight: 700;
-  letter-spacing: 0.15em;
-  padding: 1.1rem 3.4rem;
-  border-radius: 3rem;
-  background: rgba(20, 24, 32, 0.9);
-  border: 1px solid rgba(30, 41, 59, 0.4);
-  color: #f8fafc;
+  padding: 0;
+  border: none;
+  background: none;
   cursor: pointer;
   opacity: 0;
   /* ユーザー要望「STARTボタンのフェードインをもっとゆっくりじれったく」。
      delay・durationともに大幅に伸ばした。 */
   animation: opening-screen-rise-in 4s ease forwards;
   animation-delay: 2.5s;
-  transition: transform 0.2s ease, background 0.2s ease;
+  transition: transform 0.2s ease;
 }
 .opening-start-btn:hover {
-  background: rgba(20, 24, 32, 1);
   transform: translateY(-0.15rem) scale(1.03);
+}
+.opening-start-btn img {
+  display: block;
+  width: 20rem;
+  max-width: 60vw;
+  height: auto;
+  pointer-events: none;
+}
+/* ユーザー要望「優しく、すごくゆっくり、完全に消えない（透過率50%〜0%＝不透明度
+   50%〜100%）を繰り返す点滅」。最初のフェードインが終わった後(opening-screen.jsの
+   animationendで付与)、無限に繰り返す。 */
+@keyframes opening-start-btn-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.opening-start-btn.is-blinking {
+  animation: opening-start-btn-blink 6s ease-in-out infinite;
 }
 
 /* ユーザー要望「タイトル画像フェードイン中にストーリーテロップを流す。クリックで

@@ -23,7 +23,7 @@
 import { getState } from "./state.js";
 import { getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import { getSkinImagePath } from "./piece-skins.js";
-import { getPlayerName } from "./player-identity.js";
+import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { COLORS, SEAT_TO_SIDE, SEAT_ORDER } from "./board-layout.js";
 
 const BOARD_N = 7;
@@ -35,13 +35,18 @@ const CARD_H = 84;
 const CARD_GAP = 6;
 const ROW_LABEL_H = 26;
 
-function loadImage(src) {
+function loadImage(src, { crossOrigin } = {}) {
   return new Promise((resolve) => {
     if (!src) {
       resolve(null);
       return;
     }
     const img = new Image();
+    // アバターはGoogleアカウントのものだと外部ドメイン(googleusercontent.com)の
+    // 画像になり得る。crossOrigin無しでcanvasに描画するとcanvasが「汚染」され、
+    // 後段のcanvas.toBlob()がSecurityErrorで失敗する（同一オリジンのカード/駒画像
+    // では起こらないため、呼び出し側がアバターの時だけ指定する）。
+    if (crossOrigin) img.crossOrigin = crossOrigin;
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null); // 読み込めなくても全体の生成は止めない
     img.src = src;
@@ -85,6 +90,8 @@ function drawCover(ctx, img, x, y, w, h, radius = 4) {
 
 // getState()のtokensから、盤面・ロック・手札の描画に必要な画像URLを一通り集めて
 // 先読みしておく（Canvas 2D の drawImage は読み込み完了済みのImageしか使えないため）。
+// アバターは別キャッシュ（座席id→Image）にする。crossOrigin指定がカード/駒画像とは
+// 異なるため（loadImage参照）、同じURLキーのMapに混ぜない。
 async function preloadImages(state, seats) {
   const urls = new Set();
   for (const t of state.tokens) {
@@ -95,12 +102,16 @@ async function preloadImages(state, seats) {
     }
   }
   const cache = new Map();
-  await Promise.all(
-    [...urls].map(async (url) => {
+  const avatarCache = new Map();
+  await Promise.all([
+    ...[...urls].map(async (url) => {
       cache.set(url, await loadImage(url));
-    })
-  );
-  return cache;
+    }),
+    ...seats.map(async (seat) => {
+      avatarCache.set(seat, await loadImage(getPlayerAvatar(seat), { crossOrigin: "anonymous" }));
+    }),
+  ]);
+  return { cache, avatarCache };
 }
 
 // 勝利の瞬間の対戦記録の「証拠画像」を生成し、canvasを返す（アップロードはonline.js側の
@@ -113,7 +124,7 @@ async function preloadImages(state, seats) {
 export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat }) {
   const state = getState();
   const seats = SEAT_ORDER.filter((s) => activePlayers.includes(s));
-  const images = await preloadImages(state, seats);
+  const { cache: images, avatarCache } = await preloadImages(state, seats);
   const img = (url) => images.get(url) ?? null;
 
   const handTokensBySeat = new Map(
@@ -198,10 +209,31 @@ export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat }
     const side = SEAT_TO_SIDE[seat];
     const color = getPieceColor(state, seat);
 
+    // ユーザー要望「証拠画像にアバター画像も含めてください」。名前の左に丸く切り抜いて
+    // 表示する。読み込めなかった場合（画像なし・GoogleアバターのcrossOrigin失敗等）は
+    // 無地の丸でフォールバックする。
+    const avatarSize = 22;
+    const avatarCx = rightX + avatarSize / 2;
+    const avatarCy = y + 8;
+    const avatarImg = avatarCache.get(seat);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(avatarCx, avatarCy, avatarSize / 2, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    if (avatarImg) {
+      ctx.drawImage(avatarImg, rightX, avatarCy - avatarSize / 2, avatarSize, avatarSize);
+    } else {
+      ctx.fillStyle = "#374151";
+      ctx.fillRect(rightX, avatarCy - avatarSize / 2, avatarSize, avatarSize);
+    }
+    ctx.restore();
+    const nameX = rightX + avatarSize + 8;
+
     ctx.font = "bold 16px sans-serif";
     ctx.fillStyle = isWinner ? "#facc15" : "#e2e8f0";
     const crown = isWinner ? "🏆 " : "";
-    ctx.fillText(`${crown}${getPlayerName(seat)}${color ? `（${color}）` : ""}`, rightX, y + 16);
+    ctx.fillText(`${crown}${getPlayerName(seat)}${color ? `（${color}）` : ""}`, nameX, y + 16);
 
     // ロックエリア（7色分、揃っている色だけ実際のカード絵を表示）
     const lockY = y + ROW_LABEL_H;

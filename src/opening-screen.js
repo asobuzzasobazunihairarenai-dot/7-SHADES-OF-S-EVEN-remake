@@ -321,10 +321,17 @@ export function initOpeningScreen() {
   const startGate = document.createElement("div");
   startGate.className = "opening-start-gate";
   const stopAuras = startAuraTrails(startGate);
+  // ユーザー提供のボタン画像（画像素材/オープニング画面/スタートボタン「HUERISE」.png、
+  // assets/opening-start-btn.pngへコピー済み、assets/opening.webpと同じ運用）に
+  // 差し替えた。以前はテキスト"START"の丸ボタンだったが、見た目を画像そのものに
+  // 任せるため、ボタン自体は透明な当たり判定の器にし、中に画像を1枚だけ入れる。
   const startBtn = document.createElement("button");
   startBtn.type = "button";
   startBtn.className = "opening-start-btn";
-  startBtn.textContent = "START";
+  const startBtnImg = document.createElement("img");
+  startBtnImg.src = "assets/opening-start-btn.png";
+  startBtnImg.alt = "START";
+  startBtn.appendChild(startBtnImg);
   startGate.appendChild(startBtn);
   overlay.appendChild(startGate);
 
@@ -366,6 +373,21 @@ export function initOpeningScreen() {
     overlay.classList.add("stage-title");
     showStoryCrawl();
   }
+
+  // ユーザー要望「優しく、すごくゆっくり、完全に消えない（透過率50%と0%＝不透明度
+  // 100%と50%の間）を繰り返す点滅」。最初のフェードイン(opening-screen-rise-in、
+  // 2.5秒後開始・4秒かけて0→1)が終わってから、無限に繰り返す点滅アニメーションへ
+  // 切り替える（2つのanimationを同じopacityプロパティに同時指定すると重なる瞬間の
+  // 挙動が読みにくいため、animationendで確実に区切る）。
+  startBtn.addEventListener(
+    "animationend",
+    (e) => {
+      if (e.animationName === "opening-screen-rise-in") {
+        startBtn.classList.add("is-blinking");
+      }
+    },
+    { once: true }
+  );
 
   startBtn.addEventListener("click", () => {
     playOpeningBgm();
