@@ -54,7 +54,17 @@ function renderStatic() {
 }
 
 function tick(time) {
-  if (!container) return;
+  // ハマりどころ: 以前はここでcontainerが無ければ単にreturnしていたが、その場合
+  // 次のrequestAnimationFrame(tick)を予約し直さないままrafIdだけが非nullに残る
+  // ため、startRankRingOrbit()の「既に動作中なら何もしない」ガード（!rafId確認）に
+  // よって、以後container が用意できても二度とアニメーションが再開できなくなって
+  // いた（ユーザー報告「ランクリングは入室前でもくるくる回ってほしい」の原因調査で
+  // 発見）。containerが無い間もループ自体は生かしたまま次フレームへ回し、用意でき次第
+  // 自動的に描画を再開できるようにする（＝自己修復するループにする）。
+  if (!container) {
+    rafId = requestAnimationFrame(tick);
+    return;
+  }
   if (isContinuousGlowDisabled()) {
     renderStatic();
     lastTime = null;

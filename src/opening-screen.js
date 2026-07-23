@@ -15,7 +15,7 @@
 // 変更した（カード自体にも右上の✕でボタン表示へ戻せる、開き直してもオーバーレイ全体は
 // 閉じない）。
 
-import { openOnlinePanel } from "./online-ui.js";
+import { openOnlinePanel, markOnlineIntentActive } from "./online-ui.js";
 import { maybeShowTablet2dWarning } from "./tablet-2d-warning.js";
 import {
   isOnlineAvailable,
@@ -592,7 +592,14 @@ export function initOpeningScreen() {
       continueBtn.type = "button";
       continueBtn.className = "opening-login-primary-btn";
       continueBtn.textContent = "オンラインで続ける";
-      continueBtn.addEventListener("click", () => close(openOnlinePanel));
+      continueBtn.addEventListener("click", () => {
+        // ユーザー報告「オンラインで続けるを押した後、次の画面に行くがテストモードの
+        // 画面に移ってしまっている」への対応。フェードアウト演出の間に背後の盤面が
+        // 一瞬ローカル表示のまま見えてしまうため、閉じるアニメーションを待たず
+        // クリック直後に先出しする（online-ui.jsのmarkOnlineIntentActive参照）。
+        markOnlineIntentActive();
+        close(openOnlinePanel);
+      });
       row.appendChild(continueBtn);
       card.appendChild(row);
 

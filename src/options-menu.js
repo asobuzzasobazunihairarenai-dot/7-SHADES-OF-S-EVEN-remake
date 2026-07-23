@@ -182,9 +182,30 @@ function buildResetAppearanceRow() {
   return row;
 }
 
-// ユーザー要望「ホバー時のカード拡大サイズをオプションの基本設定でも触れるように
-// してほしい」。管理者モードの「カード拡大プレビュー」グループ（--card-preview-size）
-// と同じCSS変数をそのまま共有するので、どちらから変更しても両方に反映される。
+// ユーザー要望「『カード拡大プレビューのサイズ』をいじったら実際にわかりやすいように
+// プレビューを表示させてください」への対応。以前はスライダーの数値だけが変わり、
+// 実際の見た目は盤面のカードにカーソルを乗せ直さないと確認できなかった。ここでは
+// main.js側の本物のホバープレビュー（#card-preview）とは別に、画面中央に固定表示する
+// 専用のデモ用要素を用意し、同じ--card-preview-sizeを共有することで見た目を完全に
+// 一致させつつ、main.jsに触れず（循環import回避）このファイル単体で完結させる。
+// スライダーを操作している間だけ表示し、操作が止まって少し経つと自動で消える
+// （admin.jsのランクリングプレビューと同じ「操作が続く限り延長される一時表示」方式）。
+let cardPreviewDemoEl = null;
+let cardPreviewDemoHideTimer = null;
+function showCardPreviewSizeDemo() {
+  if (!cardPreviewDemoEl) {
+    cardPreviewDemoEl = document.createElement("div");
+    cardPreviewDemoEl.id = "options-menu-card-preview-demo";
+    cardPreviewDemoEl.style.backgroundImage = 'url("assets/cards/back-normal.webp")';
+    document.body.appendChild(cardPreviewDemoEl);
+  }
+  cardPreviewDemoEl.style.display = "block";
+  clearTimeout(cardPreviewDemoHideTimer);
+  cardPreviewDemoHideTimer = setTimeout(() => {
+    cardPreviewDemoEl.style.display = "none";
+  }, 1500);
+}
+
 function buildCardPreviewSizeRow() {
   const row = document.createElement("div");
   row.className = "options-menu-volume-row";
@@ -204,6 +225,7 @@ function buildCardPreviewSizeRow() {
     document.documentElement.style.setProperty("--card-preview-size", `${slider.value}rem`);
     valueLabel.textContent = `${slider.value}rem`;
     window.dispatchEvent(new CustomEvent("admin:change"));
+    showCardPreviewSizeDemo();
   });
   row.appendChild(labelEl);
   row.appendChild(slider);

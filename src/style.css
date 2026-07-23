@@ -835,6 +835,26 @@ body.reduce-glow [style*="rainbow-shard.webp"]::after {
   display: none;
 }
 
+/* options-menu.jsの「カード拡大プレビューのサイズ」スライダー用デモ表示。#card-preview
+   と見た目・サイズは全く同じにしつつ、画面中央に固定して操作中だけ出す（main.js参照不要）。 */
+#options-menu-card-preview-demo {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--card-preview-size);
+  height: var(--card-preview-size);
+  border-radius: 0.5rem;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.6);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: 10000;
+  display: none;
+}
+
 /* 同じマス/ロックスロットに複数枚重なっている時、一番上のカードの左上に出す「+N」バッジ。 */
 .stack-badge {
   position: absolute;
@@ -1162,6 +1182,11 @@ body.diagnostic-flatten-3d.is-touch-device #phase-guide-bar {
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.15s ease;
+  /* ユーザー報告「ホバー表示がアイコンの裏に行ってしまっている」への対応。以前は
+     z-indexを指定しておらず(auto)、隣接する他のアイコンボタン等（多くがz-index:900〜1002）
+     の描画順次第でツールチップの方が奥に埋もれてしまうことがあった。ホバー中は常に
+     最前面に出したいので、既存モーダル群（最大でも10701付近）より確実に高い値にする。 */
+  z-index: 20000;
 }
 
 /* アイコン+キャプション形式のボタン共通部品（icon-action-button.js参照）。アイコンは丸い
@@ -1661,6 +1686,26 @@ body.diagnostic-flatten-3d.is-touch-device #priority-transfer-buttons {
 #piece-hide-button .phase-guide-tooltip,
 #card-hide-button .phase-guide-tooltip {
   left: 0;
+  transform: none;
+}
+
+/* ユーザー報告「ホバー表示が画面の端で見切れていないか確認してほしい」で見つかった
+   2件。#phase-guide-bar（画面右下、right:2.3rem）内のボタンも中央寄せのままだと
+   ツールチップが右へ見切れるため、上記2つと同じ右寄せ補正を適用する。 */
+#phase-guide-bar .phase-guide-tooltip {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+/* #options-menu-button（画面右上、top:0.3rem/right:1rem）は右端に近いだけでなく画面
+   最上部にもあるため、既定の「ボタンの上に出す」(bottom:calc(100% + 0.5rem))のままだと
+   画面上端でも見切れてしまう。右寄せに加え、下方向に出すよう上下も反転させる。 */
+#options-menu-button .phase-guide-tooltip {
+  left: auto;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  bottom: auto;
   transform: none;
 }
 

@@ -59,6 +59,19 @@ export function isOnlineIntentActive() {
   return onlineIntentActive;
 }
 
+// ユーザー報告「『オンラインで続ける』を押した後、次の画面に行くがテストモードの
+// 画面（ローカルのサンドボックス盤面）に一瞬移ってしまっている」への対応。以前は
+// このフラグをopenOnlinePanel()内でのみtrueにしていたが、openOnlinePanel()自体は
+// オープニング画面のフェードアウト演出（opening-screen.jsのCLOSE_TRANSITION_MS）が
+// 終わった後に呼ばれるため、フェードアウトしている最中はまだこのフラグがfalseの
+// ままで、透けて見える背後の盤面がローカル表示（B/C/Dのダミーアバター等）のまま
+// だった。クリックされた瞬間にこの軽量版だけ先に呼び、実際のパネル生成（見た目）は
+// これまで通りフェードアウト後のopenOnlinePanel()に任せる。
+export function markOnlineIntentActive() {
+  onlineIntentActive = true;
+  notifyListeners();
+}
+
 function closePanel() {
   panelEl?.remove();
   backdropEl?.remove();
