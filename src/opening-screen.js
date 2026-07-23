@@ -461,11 +461,20 @@ export function initOpeningScreen() {
   // モーダルに戻ってほしい」への対応。既存のshowCard()はログインカードを開くだけで、
   // STARTボタンの白い画面やストーリーテロップ自体はスキップしないままだった
   // （＝ユーザーからは「最初から」に見える）。ここでSTART演出・テロップの両方を
-  // 飛ばして一気にカードの見える段階まで進める。BGMは自動再生扱いになりブラウザの
-  // 自動再生ポリシーでどうせブロックされる（ユーザー操作を経ていないため）ので、
-  // ここでは鳴らそうとしない。
+  // 飛ばして一気にカードの見える段階まで進める。
+  //
+  // ハマりどころ（ユーザー報告「HUERISE画面を飛ばした時やGoogleログインから戻った
+  // 時、タイトル画面のBGMが鳴っていない気がする」）: 当初は「ここはユーザー操作を
+  // 経ていないので、どうせブラウザの自動再生ポリシーでブロックされる」と判断して
+  // playOpeningBgm()を呼んでいなかったが、実際には（a）Googleログインの場合は
+  // 直前の「Googleでログイン」クリック自体が正規のユーザー操作であり、ブラウザ側の
+  // サイトごとの再生実績（Chromeのメディアエンゲージメント等）によりこの後の
+  // 自動再生が許可されることが多い、（b）playOpeningBgm()自体がplay()の失敗を
+  // 内部で握りつぶす実装（sound.js参照）のため、万一ブロックされても実害が無い
+  // ——という2点から、鳴らそうとしないのはただの機会損失だった。呼ぶようにする。
   function skipIntroToContent() {
     stopAuras();
+    playOpeningBgm();
     startGate.style.display = "none";
     storyCrawl.style.display = "none";
     overlay.classList.add("stage-title", "stage-content");

@@ -45,10 +45,18 @@ let contentEl = null;
 // アバターが座っていたりセットアップボタンが出ていたりする」への対応。実際に部屋へ
 // 入室するまではonline.jsのisOnlineMode()はまだfalseのままのため、main.js側の
 // 「オンライン中はローカル専用UIを隠す」既存の仕組み（body.is-online-modeクラス、
-// style.css参照）がこの段階では効いていなかった。このパネルが開いている間は
-// isOnlineMode()の代わりにこちらを見てもらう。
-export function isOnlinePanelOpen() {
-  return !!panelEl;
+// style.css参照）がこの段階では効いていなかった。
+//
+// ハマりどころ（ユーザー報告「モーダルを閉じるとテストモード画面に行っちゃう。今
+// 見えている背景を維持してほしい」）: 当初はこのパネルが「開いている間だけ」true を
+// 返す実装だったため、部屋を選ばずに✕で閉じると盤面がローカルのテストモード表示へ
+// 戻ってしまっていた。「オンラインで続ける」を一度でも押したら、その後パネルを
+// 閉じても（部屋に入らないままでも）二度とローカル表示へは戻らない「一方向のラッチ」
+// に変更した（ページを読み込み直すかテストモードから入り直さない限りfalseへは
+// 戻らない）。
+let onlineIntentActive = false;
+export function isOnlineIntentActive() {
+  return onlineIntentActive;
 }
 
 function closePanel() {
@@ -57,9 +65,9 @@ function closePanel() {
   panelEl = null;
   backdropEl = null;
   contentEl = null;
-  // openOnlinePanel()と対称。部屋を選ばずに閉じた場合、盤面表示をローカルの見た目へ
-  // 戻す（実際に部屋へ入った後にこのパネルを閉じた場合は、isOnlineMode()自体が
-  // trueになっているのでこの通知が無くても隠れたままになる）。
+  // onlineIntentActiveは一方向のラッチのため、部屋を選ばずに閉じても盤面表示は
+  // オンライン風のまま維持される（isOnlineIntentActiveのコメント参照）。それでも
+  // 念のため再描画は促しておく（他の状態変化と合わせて反映させるため）。
   notifyListeners();
 }
 
@@ -666,6 +674,7 @@ async function renderRoomStatus(gameId) {
 }
 
 export function openOnlinePanel() {
+  onlineIntentActive = true;
   if (panelEl) return;
   backdropEl = createBackdrop(closePanel, { dim: true, zIndex: 10001 });
   panelEl = document.createElement("div");
@@ -683,7 +692,7 @@ export function openOnlinePanel() {
   document.body.appendChild(backdropEl);
   document.body.appendChild(panelEl);
   renderPanelContent();
-  // isOnlinePanelOpen()を見ているmain.js側の盤面表示（B/C/Dのダミーアバター・
+  // isOnlineIntentActive()を見ているmain.js側の盤面表示（B/C/Dのダミーアバター・
   // セットアップボタン等をローカル専用として隠す判定）を、部屋を選ぶ前のこの時点から
   // 即座に反映させる（state.js自体は変化していないが、盤面側の再描画を強制する）。
   notifyListeners();

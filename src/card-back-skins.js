@@ -39,6 +39,27 @@ export function getCardBackSetIndex() {
   return selectedSetIndex;
 }
 
+// ユーザー要望「カードが束になってる時の側面の色を、カード裏面の色に対応した雰囲気の
+// 色に自動で変更されるようにできますか」への対応。色テーマ付きのセット（赤〜黒）だけ
+// 対応する既存の色CSS変数（style.css冒頭の--color-*、盤面の色分け等アプリ全体で
+// 共通のもの）を返す。標準/旧/古の3セットは特定の色を持たない中立的なデザインのため
+// nullを返し、呼び出し側（main.jsのbuildCardStack）は従来通りの無地グレーのまま
+// にする。
+const SET_COLOR_VAR = {
+  2: "--color-red",
+  3: "--color-orange",
+  4: "--color-yellow",
+  5: "--color-green",
+  6: "--color-blue",
+  7: "--color-pink",
+  8: "--color-purple",
+  9: "--color-black",
+};
+export function getCardBackSetColorVar(idx) {
+  const varName = SET_COLOR_VAR[idx];
+  return varName ? `var(${varName})` : null;
+}
+
 // ログイン直後、アカウントに保存済みの選択を読み込んで適用する時にも使う
 // （online.jsのloadMyPreferences経由、registerAppearanceApplier参照）。
 export function setCardBackSetIndex(idx) {

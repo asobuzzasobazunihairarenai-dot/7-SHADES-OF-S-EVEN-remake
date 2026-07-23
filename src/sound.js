@@ -14,7 +14,6 @@ const SOUND_DEFS = {
   arrivalEffect: { path: "assets/sounds/arrival-effect.mp3", cssVar: "--sound-volume-arrival-effect" },
   lock: { path: "assets/sounds/lock.mp3", cssVar: "--sound-volume-lock" },
   turnSwitch: { path: "assets/sounds/turn-switch.mp3", cssVar: "--sound-volume-turn-switch" },
-  victory: { path: "assets/sounds/victory.mp3", cssVar: "--sound-volume-victory" },
 };
 
 // オープニングBGM（ユーザー提供、音声/BGM/オープニング.mp3）。効果音(playSound)と違い
@@ -75,6 +74,21 @@ function getPerSoundVolume(cssVar) {
   const raw = getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim();
   const pct = parseFloat(raw);
   return (Number.isNaN(pct) ? 80 : pct) / 100;
+}
+
+// ユーザー要望「『勝利時.mp3』をBGMフォルダへ移しました。音量調整などではBGMとして
+// 扱ってください」への対応。以前はSOUND_DEFS（効果音、鳴らすたびnew Audio()を使い
+// 捨てにする方式）の一員だったが、オープニングBGMと同じ「-bgm」接尾辞のファイル名
+// 規約に合わせてassets/sounds/victory-bgm.mp3へ配置してもらう前提にし、専用の
+// CSS変数（--sound-volume-victory-bgm）で音量を管理する。ループはしない（勝利の瞬間に
+// 1回だけ再生するBGM）ため、オープニングBGMのような使い回しAudioインスタンスは不要で、
+// 効果音と同じ「毎回new Audio()」のままでよい。
+export function playVictoryBgm() {
+  const volume = Math.min(1, Math.max(0, masterVolume * getPerSoundVolume("--sound-volume-victory-bgm")));
+  if (volume <= 0) return;
+  const audio = new Audio("assets/sounds/victory-bgm.mp3");
+  audio.volume = volume;
+  audio.play().catch(() => {});
 }
 
 export function playSound(name) {

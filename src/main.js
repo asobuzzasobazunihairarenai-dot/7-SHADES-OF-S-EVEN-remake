@@ -34,7 +34,14 @@ import {
   registerPieceSkinHelpers,
   setLocalPreferredSkinIndex,
 } from "./piece-skins.js";
-import { openCardBackSkinPicker, registerCardBackSkinHelpers, backImagePath as cardBackSetImagePath, getCardBackSetIndex, setCardBackSetIndex } from "./card-back-skins.js";
+import {
+  openCardBackSkinPicker,
+  registerCardBackSkinHelpers,
+  backImagePath as cardBackSetImagePath,
+  getCardBackSetIndex,
+  setCardBackSetIndex,
+  getCardBackSetColorVar,
+} from "./card-back-skins.js";
 import { openPlaymatPicker, registerPlaymatHelpers, getSelectedPlaymatPath, setSelectedPlaymatId } from "./playmat.js";
 import { openBackgroundPicker, registerBackgroundHelpers, getSelectedBackgroundPath, setSelectedBackgroundId } from "./background.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
@@ -77,7 +84,7 @@ import {
   requestFinalLock,
   respondFinalLock,
 } from "./state.js";
-import { initOnlineUi, openOnlinePanel, isOnlinePanelOpen } from "./online-ui.js";
+import { initOnlineUi, openOnlinePanel, isOnlineIntentActive } from "./online-ui.js";
 import { initOpeningScreen, previewOpeningAuras } from "./opening-screen.js";
 import {
   getSelfSeat,
@@ -97,7 +104,7 @@ import {
   registerVictorySummaryHelper,
 } from "./online.js";
 import { fetchStatsProfile, getTierInfo } from "./stats-profile.js";
-import { setRankRingOrbitContainer, startRankRingOrbit, stopRankRingOrbit } from "./rank-ring-orbit.js";
+import { setRankRingOrbitContainer, startRankRingOrbit } from "./rank-ring-orbit.js";
 import { generateVictorySummaryCanvas } from "./victory-summary-image.js";
 import { playSound } from "./sound.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
@@ -434,6 +441,13 @@ function buildCardStack(count, pileClass, imagePath) {
   stack.className = "stack";
   const heightPx = Math.max(2.4, count * 0.6);
   stack.style.setProperty("--stack-height", `${heightPx}px`);
+  // ユーザー要望「カードが束になってる時の側面の色を、カード裏面の色に対応した
+  // 雰囲気の色に自動で変更できますか」への対応。色テーマ付きの裏面セット（赤〜黒）を
+  // 選んでいる間だけ、その色を側面に反映する（標準/旧/古の3セットはnullが返り、
+  // CSS側のフォールバック=従来通りの無地グレーのままになる）。
+  const sideColor = getCardBackSetColorVar(getCardBackSetIndex());
+  if (sideColor) stack.style.setProperty("--stack-side-color", sideColor);
+  else stack.style.removeProperty("--stack-side-color");
 
   const top = document.createElement("div");
   top.className = `stack-top ${pileClass}`;
@@ -449,8 +463,9 @@ function buildCardStack(count, pileClass, imagePath) {
   stack.appendChild(top);
 
   // 側面にtop面と同じカード柄を敷くと、薄い帯に絵柄が引き伸ばされて見苦しいため、
-  // 側面は常に無地（CSS側で薄いグレー）のままにする。4面（前後左右）すべて用意しないと、
-  // 見る角度によって存在しない面から奥が透けて見えてしまう（駒(.piece)と同じ理由）。
+  // 側面は無地のままにする（色は上のsideColorに従う、既定は薄いグレー）。4面
+  // （前後左右）すべて用意しないと、見る角度によって存在しない面から奥が透けて
+  // 見えてしまう（駒(.piece)と同じ理由）。
   for (const wallClass of ["stack-front", "stack-back", "stack-left", "stack-right"]) {
     const wall = document.createElement("div");
     wall.className = wallClass;
@@ -957,8 +972,11 @@ function render() {
   // ウィザード・クイックスタート・手札シャッフル）に繋がるボタンを隠す（style.css参照）。
   // 「オンラインで続ける」を押した直後、まだ部屋を選んでいない間はisOnlineMode()自体は
   // まだfalseのままだが、その段階からローカル専用UIを隠したいため、online-ui.jsの
-  // isOnlinePanelOpen()（部屋一覧/状況パネルが開いているか）もあわせて見る。
-  document.body.classList.toggle("is-online-mode", isOnlineMode() || isOnlinePanelOpen());
+  // isOnlineIntentActive()（「オンラインで続ける」を一度でも押したか。部屋を選ばずに
+  // パネルを閉じても、いったんtrueになったら二度と戻らない一方向のラッチ——
+  // ユーザー要望「モーダルを閉じたら今見えている背景を維持してほしい」への対応）
+  // もあわせて見る。
+  document.body.classList.toggle("is-online-mode", isOnlineMode() || isOnlineIntentActive());
   updateSelfStatusOnlineWidget();
   const table = document.getElementById("game-table");
   table.innerHTML = "";
@@ -986,9 +1004,9 @@ function render() {
   // まだ誰も入っていない席は非表示にする。
   const isActive = (player) => {
     if (activePlayers.length > 0) return activePlayers.includes(player);
-    // 「オンラインで続ける」を押した直後、まだ部屋を選んでいない間もisOnlinePanelOpen()で
+    // 「オンラインで続ける」を押した直後、まだ部屋を選んでいない間もisOnlineIntentActive()で
     // 拾う（isOnlineMode()の直後の説明コメント参照）。
-    if (isOnlineMode() || isOnlinePanelOpen()) return player === self || !!getSyncedIdentity(player);
+    if (isOnlineMode() || isOnlineIntentActive()) return player === self || !!getSyncedIdentity(player);
     return true;
   };
   for (const seat of SEAT_ORDER) {
@@ -3395,15 +3413,17 @@ let selfStatusRankRingEl = null;
 // 表示させたい」。stats-profile.jsのgetTierInfo()と同じ形のtierオブジェクト
 // （{type:'ring',color,glow} または {type:'rainbow'}、もしくは連携無しならnull）を
 // 受け取り、リング要素の見た目を更新する。
+// ユーザー要望「ランクリングは常時表示されていてください」への対応。戦績システムと
+// 未連携・未ログインの間は、実際のティア（getTierInfo）が求められないため、この
+// 中立的な色（アプリ全体で補助テキストに使っている灰色と同じ）をそのまま代わりに使う。
+const UNLINKED_RANK_TIER = { type: "ring", color: "#94a3b8", glow: null, label: "未連携" };
+
 function updateSelfStatusRankRing(tier) {
   if (!selfStatusRankRingEl) return;
   selfStatusRankRingEl.classList.remove("is-visible", "is-solid", "is-glow", "is-rainbow");
   selfStatusRankRingEl.style.removeProperty("--rank-ring-color");
   selfStatusRankRingEl.style.removeProperty("--rank-ring-glow");
-  if (!tier) {
-    stopRankRingOrbit();
-    return;
-  }
+  if (!tier) tier = UNLINKED_RANK_TIER;
   selfStatusRankRingEl.classList.add("is-visible");
   if (tier.type === "rainbow") {
     selfStatusRankRingEl.classList.add("is-rainbow");
@@ -3895,11 +3915,11 @@ function computeStateFingerprint(state) {
     isOnlineMode() ? 1 : 0,
     // ユーザー報告「『オンラインで続ける』を押した直後の盤面（部屋を選ぶ前）が
     // テストモードのままB/C/Dにダミーアバターが出ている」への対応でisActive()の
-    // 判定にisOnlinePanelOpen()を加えたが、この指紋にも含めないと、部屋を選ばずに
+    // 判定にisOnlineIntentActive()を加えたが、この指紋にも含めないと、部屋を選ばずに
     // パネルを閉じた時（getState()自体は変化しない）にrender()がスキップされてしまい、
     // 盤面がオンライン風の見た目のまま元に戻らなくなる（isOnlineMode()をここに含めて
     // いるのと同じ理由）。
-    isOnlinePanelOpen() ? 1 : 0,
+    isOnlineIntentActive() ? 1 : 0,
     state.turnPlayer ?? "",
     state.turnNumber ?? "",
     state.roundNumber ?? "",
@@ -3931,7 +3951,9 @@ updateSelfStatusOnlineWidget();
 
 // ユーザー要望「戦績システムと連携しているプレイヤーはステータスエリアにランクを
 // 表示させたい」。ログイン状態が変わるたび（マイページでの連携直後も含む）に
-// 取得し直す。連携していない・未ログインの場合はリングを消す。
+// 取得し直す。ユーザー要望「ランクリングは常時表示されていてください」への対応で、
+// 連携していない・未ログインの場合もリングは消さず、updateSelfStatusRankRing側の
+// 中立的な既定表示（UNLINKED_RANK_TIER）にフォールバックする。
 async function refreshSelfStatusRankRing() {
   const user = await getCurrentUser();
   if (!user) {

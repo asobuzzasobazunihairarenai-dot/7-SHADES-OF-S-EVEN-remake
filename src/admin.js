@@ -154,7 +154,10 @@ const GROUPS = [
       { key: "--sound-volume-arrival-effect", label: "到達効果", unit: "%", min: 0, max: 100, step: 5, default: 80 },
       { key: "--sound-volume-lock", label: "ロック", unit: "%", min: 0, max: 100, step: 5, default: 80 },
       { key: "--sound-volume-turn-switch", label: "ターン切替", unit: "%", min: 0, max: 100, step: 5, default: 80 },
-      { key: "--sound-volume-victory", label: "勝利時", unit: "%", min: 0, max: 100, step: 5, default: 80 },
+      // ユーザー要望「『勝利時.mp3』をBGMフォルダへ移した。音量調整ではBGMとして
+      // 扱ってほしい」への対応で、専用のCSS変数（-bgm接尾辞、オープニングBGMと
+      // 同じ命名規則）に切り替えた（sound.jsのplayVictoryBgm参照）。
+      { key: "--sound-volume-victory-bgm", label: "勝利時BGM", unit: "%", min: 0, max: 100, step: 5, default: 80 },
       { key: "--sound-volume-opening-bgm", label: "オープニングBGM", unit: "%", min: 0, max: 100, step: 5, default: 80 },
     ],
   },

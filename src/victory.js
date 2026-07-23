@@ -8,7 +8,7 @@ import { COLORS, SEAT_TO_SIDE } from "./board-layout.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { getAvatarVariant, applyAvatarContent } from "./avatar-render.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
-import { playSound } from "./sound.js";
+import { playVictoryBgm } from "./sound.js";
 import { showPostGamePanel } from "./post-game-panel.js";
 
 // ユーザー要望「勝利モーダルが5秒ぐらいしっかり出た後に、『戦績確認・もう一度遊ぶ』
@@ -67,7 +67,7 @@ export function wouldCompleteLockWithNewIndex(player, newIndex) {
 }
 
 function showVictoryModal(player, onClose) {
-  playSound("victory");
+  playVictoryBgm();
   const modal = document.createElement("div");
   modal.id = "victory-modal";
   let done = false;

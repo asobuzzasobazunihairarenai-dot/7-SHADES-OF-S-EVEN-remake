@@ -290,6 +290,43 @@ export async function saveMyPreference(patch) {
   if (error) console.error("saveMyPreference failed", error);
 }
 
+// ユーザー要望「駒スキンやプレイマット等のアカウントに紐づく設定を初期化するボタンを
+// 設置したい」への対応。options-menu.jsの基本設定から呼ばれる。名前・アバター・駒
+// スキン・プレイマット・カード裏面・背景画像を既定値に戻す（ロックエリア表示や
+// 音量、アニメーション設定等は対象外——ユーザーの例示（駒スキン・プレイマット）に
+// 沿った「見た目・キャラクター設定」だけに絞った）。呼び出し元がこの後ページを
+// 再読み込みする想定のため、ここではサーバー側の値を戻すだけで、各モジュールの
+// ローカル状態までは触らない（再読み込み時のloadMyPreferences()が正しい既定値を
+// 読み直してくれる）。
+export async function resetMyAppearanceSettings() {
+  if (!cachedUser) return;
+  const { error } = await client
+    .from("so7_user_profiles")
+    .update({
+      display_name: null,
+      avatar: null,
+      piece_skin_index: 0,
+      playmat_id: null,
+      card_back_set_index: 0,
+      background_id: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", cachedUser.id);
+  if (error) throw error;
+  // custom_avatar_url列はまだ本番に存在しない環境があり得るため（supabase_setup_so7.sqlの
+  // 追加分が未実行）、fetchMyCustomAvatarUrlと同じ理由で別クエリにし、失敗してもこの関数
+  // 全体は成功扱いのまま進める。
+  try {
+    const { error: customAvatarError } = await client
+      .from("so7_user_profiles")
+      .update({ custom_avatar_url: null })
+      .eq("user_id", cachedUser.id);
+    if (customAvatarError) throw customAvatarError;
+  } catch (err) {
+    console.error("custom_avatar_urlのリセットに失敗しました（列が未追加の可能性）", err);
+  }
+}
+
 // ユーザー要望「アップロードしたアバター画像を、アバター変更時に一覧に出るように
 // してほしい」への対応。custom_avatar_url列をloadMyPreferences()の大きなSELECT文には
 // 混ぜず、あえて独立したクエリにしてある——過去に「まだ本番のSupabase側に存在しない

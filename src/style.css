@@ -607,6 +607,59 @@ body.diagnostic-flatten-3d.is-touch-device .zone-left .hand-area {
   border-color: rgba(148, 163, 184, 0.45);
 }
 
+/* ユーザー要望「『なないろの欠片』の表面をキラ仕様にできますか？」への対応。
+   このカードの実物画像(background-image)は手札・盤面・ロックエリア・山札の一番上・
+   ドラッグ中のゴースト・ホバー拡大プレビュー等、非常に多くの箇所へ個別に
+   `url("assets/cards/rainbow-shard.webp")`という同じ形で埋め込まれている
+   （main.js等の各所を1つずつ書き換えるのは大掛かりなため）。background-imageの
+   値そのもの（決まったファイル名）を属性セレクタで狙い撃ちすることで、この1箇所の
+   追加だけで表示箇所すべてに一律で効くようにした。斜めに流れる虹色の光沢
+   （mix-blend-modeでカード自体の絵柄と重ねる）で、トレーディングカードのキラ加工を
+   表現する。ほとんどの表示箇所は元々position:absolute/fixedなので、position自体は
+   変更せず（position:relativeを強制すると、position:absolute等に依存した既存の
+   配置が壊れる恐れがあるため）、::after疑似要素はそれぞれの既存のpositioned
+   ancestorにそのまま乗せる。 */
+[style*="rainbow-shard.webp"] {
+  overflow: hidden;
+}
+[style*="rainbow-shard.webp"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    115deg,
+    transparent 25%,
+    rgba(255, 255, 255, 0.2) 38%,
+    rgba(255, 0, 128, 0.45) 44%,
+    rgba(255, 200, 0, 0.45) 49%,
+    rgba(0, 220, 120, 0.45) 54%,
+    rgba(0, 170, 255, 0.45) 59%,
+    rgba(190, 0, 255, 0.45) 65%,
+    rgba(255, 255, 255, 0.2) 76%,
+    transparent 90%
+  );
+  background-size: 260% 260%;
+  mix-blend-mode: overlay;
+  animation: kira-shine 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes kira-shine {
+  0% {
+    background-position: 0% 0%;
+  }
+  50% {
+    background-position: 100% 100%;
+  }
+  100% {
+    background-position: 0% 0%;
+  }
+}
+body.reduce-glow [style*="rainbow-shard.webp"]::after {
+  animation: none !important;
+  background-position: 40% 40%;
+}
+
 /* ロックしていても手札効果が使える特別なカード（ファーストカード・エターナルカード）を、
    ロックエリア内にある間だけ定期的に強調する。管理者モードで2種類の演出を切り替えられる
    （main.jsのbuildFlatCardがeffect-shine/effect-orbitのどちらかを付与し、--usable-locked-colorに
@@ -2346,7 +2399,10 @@ body.diagnostic-flatten-3d.is-touch-device #priority-transfer-buttons {
   position: absolute;
   width: 100%;
   height: calc(var(--stack-height) + 0.15rem);
-  background-color: #cbd5e1;
+  /* ユーザー要望「側面の色をカード裏面の色に対応した雰囲気の色に自動で変更したい」。
+     main.jsのbuildCardStackが色テーマ付きの裏面セットを選んでいる間だけ
+     --stack-side-colorを設定する（既定は今まで通りの薄いグレー）。 */
+  background-color: var(--stack-side-color, #cbd5e1);
   backface-visibility: hidden;
 }
 
@@ -2862,6 +2918,42 @@ body.is-touch-device #options-menu-button {
 }
 .options-menu-shortcut-preset:hover {
   background: rgba(250, 204, 21, 0.3);
+}
+
+/* ユーザー要望「駒スキンやプレイマット等のアカウントに紐づく設定を初期化する
+   ボタンを設置したい」への対応（options-menu.jsのbuildResetAppearanceRow参照）。 */
+.options-menu-reset-row {
+  margin: 0.5rem 0.6rem 0.3rem;
+}
+.options-menu-reset-btn {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.35rem;
+  background: rgba(148, 163, 184, 0.1);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.3rem;
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+.options-menu-reset-btn:hover {
+  background: rgba(148, 163, 184, 0.2);
+}
+.options-menu-reset-btn.is-armed {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #fecaca;
+}
+.options-menu-reset-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.options-menu-reset-hint {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  margin-top: 0.25rem;
+  line-height: 1.4;
 }
 
 /* 「1枚ドロー」「盤面拡大」「手札シャッフル」ボタン。#end-turn-buttonの上に積む形で
@@ -5022,7 +5114,7 @@ body.is-online-mode #quick-start-bar {
   --sound-volume-arrival-effect: 80%;
   --sound-volume-lock: 80%;
   --sound-volume-turn-switch: 80%;
-  --sound-volume-victory: 80%;
+  --sound-volume-victory-bgm: 80%;
   --sound-volume-opening-bgm: 80%;
   --opening-story-crawl-duration: 40;
   --opening-aura-size: 2rem;

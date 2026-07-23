@@ -17,7 +17,7 @@ import {
   isContinuousGlowDisabled,
   setContinuousGlowDisabled,
 } from "./motion-prefs.js";
-import { saveMyPreference } from "./online.js";
+import { saveMyPreference, resetMyAppearanceSettings } from "./online.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { openStatsPlayerLinkModal } from "./stats-player-link.js";
 import { isFlatten2dMode, setFlatten2dMode } from "./tablet-2d-mode.js";
@@ -119,6 +119,66 @@ function buildBgmVolumeRow() {
   row.appendChild(labelEl);
   row.appendChild(slider);
   row.appendChild(valueLabel);
+  return row;
+}
+
+// ユーザー要望「駒スキンやプレイマット等のアカウントに紐づく設定を初期化する
+// ボタンを設置したい。基本設定の中がいいかな？」への対応。ネイティブのconfirm()は
+// このアプリの他のどのモーダル/確認とも見た目が揃わないため使わず、代わりに
+// 「1回目のクリックで『本当にリセットしますか？』に文言が変わり、5秒以内にもう一度
+// 押すと実行される（それを過ぎると自動的に元の文言へ戻る）」という2段階クリックの
+// 確認にした。実行後は各モジュール（駒スキン・プレイマット・カード裏面・背景・
+// 名前・アバター）のローカル状態を1つずつ書き換えるより、ページを再読み込みして
+// loadMyPreferences()に正しい既定値を読み直させる方が確実なため、成功時は
+// window.location.reload()する。
+function buildResetAppearanceRow() {
+  const row = document.createElement("div");
+  row.className = "options-menu-reset-row";
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "options-menu-reset-btn";
+  btn.textContent = "アカウント設定を初期化する";
+
+  const hint = document.createElement("div");
+  hint.className = "options-menu-reset-hint";
+  hint.textContent = "名前・アバター・駒スキン・プレイマット・カード裏面・背景画像を既定に戻します。";
+
+  let armed = false;
+  let armTimeoutId = null;
+  function disarm() {
+    armed = false;
+    clearTimeout(armTimeoutId);
+    btn.textContent = "アカウント設定を初期化する";
+    btn.classList.remove("is-armed");
+  }
+
+  btn.addEventListener("click", async () => {
+    if (!armed) {
+      armed = true;
+      btn.textContent = "本当に初期化しますか？（もう一度クリック）";
+      btn.classList.add("is-armed");
+      armTimeoutId = setTimeout(disarm, 5000);
+      return;
+    }
+    disarm();
+    btn.disabled = true;
+    btn.textContent = "初期化中…";
+    try {
+      await resetMyAppearanceSettings();
+      window.location.reload();
+    } catch (err) {
+      console.error("resetMyAppearanceSettings failed", err);
+      btn.disabled = false;
+      btn.textContent = "初期化に失敗しました";
+      setTimeout(() => {
+        btn.textContent = "アカウント設定を初期化する";
+      }, 3000);
+    }
+  });
+
+  row.appendChild(btn);
+  row.appendChild(hint);
   return row;
 }
 
@@ -400,6 +460,8 @@ export function initOptionsMenu() {
       content.appendChild(presetBtn);
     });
     panel.appendChild(shortcutSectionEl);
+
+    panel.appendChild(buildResetAppearanceRow());
 
     const divider = document.createElement("div");
     divider.className = "options-menu-divider";
