@@ -605,9 +605,14 @@ async function getOrCreateStatsPlayer(userId, displayName) {
   if (selectError) throw selectError;
   if (existing) return existing.id;
 
+  // 戦績管理システムのplayers.idはtext主キーでDB側のデフォルト値が無く、姉妹プロジェクト
+  // 自身（index.html）もクライアント側で"p_"+Date.now()という形のidを生成してから
+  // insertしている（DBに生成を任せていない）。ここで単に{user_id,name,status}だけを
+  // insertするとid列がnullのままnot null制約違反になる（ユーザー報告で確認した実際の
+  // エラー: 23502 null value in column "id"）ため、同じ命名規則でidを生成して渡す。
   const { data: created, error: insertError } = await client
     .from("players")
-    .insert({ user_id: userId, name: displayName || "プレイヤー", status: "approved" })
+    .insert({ id: `p_${Date.now()}`, user_id: userId, name: displayName || "プレイヤー", status: "approved" })
     .select("id")
     .single();
   if (insertError) throw insertError;
@@ -677,12 +682,17 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat }) {
   const durationMinutes = Math.max(1, Math.round((Date.now() - new Date(gameRow.created_at).getTime()) / 60000));
   const proofImageUrl = await captureVictoryScreenshot(currentGameId);
 
+  // players同様、matches.idもtext主キーでDB側のデフォルトが無く、created_atもbigint
+  // （姉妹プロジェクトはDate.now()のミリ秒エポックをそのまま入れている、timestamptzでは
+  // ない）。姉妹プロジェクト（index.html）と同じ命名規則・形式で明示的に渡す。
   const { error: matchError } = await client.from("matches").insert({
+    id: `m_${Date.now()}`,
     date: new Date().toISOString().slice(0, 10),
     members: memberIds,
     winner_id: winnerId,
     duration_minutes: durationMinutes,
     proof_image_url: proofImageUrl,
+    created_at: Date.now(),
     status: "pending",
     source: "digital",
   });

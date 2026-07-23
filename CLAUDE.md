@@ -5178,3 +5178,25 @@ https://asobuzzasobazunihairarenai-dot.github.io/7-SHADES-OF-S-EVEN-remake/
   未再現・未解決のまま（上記の調査ログでの原因特定待ち）。最後のロック承認モーダルが
   相手側に出ない件・戦績管理システムに反応が無い件は、次のメッセージで詳しい説明と
   確認をお願いする形にした。
+
+### 2026-07-23の変更（続き）：戦績システムへの登録が失敗していた原因を特定・修正（id列の未指定）
+
+- **原因判明**: ユーザーが実際にコンソールログを取得してくれたおかげで確定。
+  `submitStatsMatchResult failed`のエラーは`code: "23502"`
+  （`null value in column "id" of relation "players" violates not-null constraint`）。
+  戦績管理システムの`players`/`matches`テーブルは、どちらも`id text primary key`で
+  **DB側の自動採番（デフォルト値）が無い**設計（姉妹プロジェクト自身の`index.html`も、
+  DBに生成を任せず`"p_" + Date.now()`（players）・`"m_" + Date.now()`（matches）という
+  形でクライアント側でidを生成してからinsertしている）。今回追加した
+  `getOrCreateStatsPlayer()`のplayers insertと`submitStatsMatchResult()`のmatches
+  insertは、どちらも`id`を渡していなかったため、null値でinsertしようとして
+  not null制約違反になっていた（`supabase_setup_stats_integration.sql`実行済みかどうかは
+  無関係で、SQL自体は正しく反映されていた）。同時に、`matches.created_at`が
+  `bigint not null`（`timestamptz`ではなくエポックミリ秒の数値）でDB側のデフォルトも
+  無いことも確認し、これも渡していなかったので合わせて追加した。
+- **修正**: `online.js`の`getOrCreateStatsPlayer()`のinsertに
+  `id: \`p_${Date.now()}\`` を追加。`submitStatsMatchResult()`のmatches insertに
+  `id: \`m_${Date.now()}\`` と `created_at: Date.now()` を追加。どちらも姉妹プロジェクト
+  （index.html）と同じ命名規則・形式に揃えた。
+- **検証状況**: `node --check`通過。実際のオンライン勝利での再テストをお願いしたい
+  （引き続き本番データを汚さないよう、こちらでは実書き込みのテストは行っていない）。
