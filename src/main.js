@@ -9,6 +9,7 @@ import {
   isSelfNameLabelVisible,
   registerStartPlayerPreviewHelper,
   registerAuraPreviewHelper,
+  registerRankRingPreviewHelper,
 } from "./admin.js";
 import { initDeckViewer } from "./deck-viewer.js";
 import { initStatsPlayerLinkModal } from "./stats-player-link.js";
@@ -93,7 +94,7 @@ import {
   saveMyPreference,
   registerVictorySummaryHelper,
 } from "./online.js";
-import { fetchStatsProfile } from "./stats-profile.js";
+import { fetchStatsProfile, getTierInfo } from "./stats-profile.js";
 import { generateVictorySummaryCanvas } from "./victory-summary-image.js";
 import { playSound } from "./sound.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
@@ -3887,6 +3888,23 @@ async function refreshSelfStatusRankRing() {
 }
 onAuthChange(refreshSelfStatusRankRing);
 refreshSelfStatusRankRing();
+
+// 管理者モードの「ランクリングの位置・太さ」スライダー用プレビュー（admin.jsの
+// registerRankRingPreviewHelper経由で呼ばれる、previewStartPlayerModalと同じ
+// 注入パターン）。実際の戦績連携状況に関わらず、レインボー柄（最も複雑な見た目）を
+// 仮表示して位置・太さを調整できるようにする。スライダーを操作している間は
+// 何度も呼ばれるが、そのたびにタイマーを延長するだけで実害はない。放置すると
+// 30秒後に自動で本来の表示（refreshSelfStatusRankRing）に戻る。
+let rankRingPreviewTimer = null;
+function previewRankRing() {
+  updateSelfStatusRankRing(getTierInfo(15));
+  clearTimeout(rankRingPreviewTimer);
+  rankRingPreviewTimer = setTimeout(() => {
+    rankRingPreviewTimer = null;
+    refreshSelfStatusRankRing();
+  }, 30000);
+}
+registerRankRingPreviewHelper(previewRankRing);
 
 // 相手ゲート侵攻ボーナスが発生した時（誰がターン終了を押したかに関わらず、部屋の全員に
 // 届く。online.jsのsubscribeToGame()参照）、1件ずつ画面中央のモーダルで自動送りしながら

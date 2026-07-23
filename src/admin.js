@@ -23,6 +23,16 @@ export function registerAuraPreviewHelper(fn) {
   auraPreviewFn = fn;
 }
 
+// main.jsはstats-profile.js（online.js経由でadmin.jsを間接的にimportしている）に
+// 依存しているため、上と同じ理由でここからmain.jsのランクリング関連関数を直接
+// importすると循環importになる。同じ注入パターンで回避する。ユーザー報告
+// 「ランクリングが見当たらない」（＝実際に戦績連携済みのアカウントでないと
+// 表示されないため、管理者が普段は目視確認できない）への対応。
+let rankRingPreviewFn = null;
+export function registerRankRingPreviewHelper(fn) {
+  rankRingPreviewFn = fn;
+}
+
 // 大項目（カテゴリ）。項目が増えて縦に長くなりすぎたため、各グループ/トグルセクションを
 // さらにこの単位でまとめる。GROUPS各要素・TOGGLE_SECTIONS各要素の`category`フィールドで
 // どのカテゴリに属するか指定する。
@@ -687,6 +697,48 @@ const GROUPS = [
       { key: "--hand-reveal-left-pos-y", label: "左(B) 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: -13.4 },
       { key: "--hand-reveal-right-pos-x", label: "右(D) 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -2.4 },
       { key: "--hand-reveal-right-pos-y", label: "右(D) 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 13.5 },
+    ],
+  },
+  {
+    // ユーザー報告「ランクリングが見当たらない」への対応。実際に戦績管理システムと
+    // 連携済み・15戦以上等の対戦数条件を満たすアカウントでないと本来表示されないため、
+    // 管理者が普段は目視確認できない。previewOnInteract（他のスライダーと同じ仕組み、
+    // game-setup.jsのpreviewStartPlayerModal参照）でスライダーに触れた瞬間だけ、実際の
+    // 連携状況とは無関係にレインボー柄（最も複雑な虹色リング）を仮表示して調整できる
+    // ようにした（main.jsのpreviewRankRing参照、30秒後に自動で元の表示に戻る）。
+    title: "🏅 ランクリングの位置・太さ（スライダーに触れると仮表示されます）",
+    category: "position",
+    controls: [
+      {
+        key: "--rank-ring-thickness",
+        label: "太さ",
+        unit: "rem",
+        min: 0.1,
+        max: 2,
+        step: 0.05,
+        default: 0.5,
+        previewOnInteract: () => rankRingPreviewFn?.(),
+      },
+      {
+        key: "--rank-ring-offset-x",
+        label: "位置X（微調整）",
+        unit: "rem",
+        min: -10,
+        max: 10,
+        step: 0.1,
+        default: 0,
+        previewOnInteract: () => rankRingPreviewFn?.(),
+      },
+      {
+        key: "--rank-ring-offset-y",
+        label: "位置Y（微調整）",
+        unit: "rem",
+        min: -10,
+        max: 10,
+        step: 0.1,
+        default: 0,
+        previewOnInteract: () => rankRingPreviewFn?.(),
+      },
     ],
   },
 ];

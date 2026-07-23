@@ -5685,3 +5685,36 @@ https://asobuzzasobazunihairarenai-dot.github.io/7-SHADES-OF-S-EVEN-remake/
   済み）の状態でマイページアイコン・巨大アバターどちらのクリックでもモーダルが
   開き、プレイヤー名が表示された上で「まだ戦績管理システムのプレイヤーと連携
   していません。...」の案内が正しく出ることを実機相当の操作で確認済み。
+
+### 2026-07-23の変更（続き3）：ランクリングを管理者モードで位置・太さ調整できるように
+
+- **背景**: ユーザー報告「ランクリングが見当たりません」。実際には、戦績管理システムと
+  連携済みかつ承認済みのアカウントでログインしないと本来表示されない仕組み
+  （`refreshSelfStatusRankRing`が未連携・未ログインなら`null`を渡してリングを消す）
+  のため、テスト用アカウントでは正常に非表示だった可能性が高い。とはいえ管理者が
+  普段から目視確認しながら位置・太さを調整できないのは不便なため、他の管理者
+  モード項目と同じ「スライダーに触れた瞬間だけ仮表示するプレビュー」の仕組み
+  （`previewOnInteract`、既存の`game-setup.js`のスタートプレイヤー決定モーダル
+  プレビューと同じパターン）を導入した。
+- **`src/style.css`**: `.self-status-rank-ring`のサイズ・位置計算に使っていた
+  ハードコード値（太さ0.5rem固定）を、CSS変数`--rank-ring-thickness`
+  （太さ兼、アバターからのはみ出し量）・`--rank-ring-offset-x`/`--rank-ring-offset-y`
+  （最終位置の微調整用オフセット、既定0）に置き換えた。虹色ティアのmask計算・
+  スピンアニメーションのkeyframeも連動して同じ変数を参照するよう修正。
+  末尾のメガ`:root`ブロックにも同じ既定値を追記（他のCSS変数と同じ「単一の
+  真実の情報源」ルールに合わせるため）。
+- **`src/admin.js`**: 新グループ「🏅 ランクリングの位置・太さ（スライダーに触れると
+  仮表示されます）」（category: "position"）を追加。3つのスライダー（太さ・位置X・
+  位置Y）すべてに`previewOnInteract: () => rankRingPreviewFn?.()`を設定。
+  main.js側の実装への直接importは循環import（main.js→admin.js→main.js）になるため、
+  既存の`registerStartPlayerPreviewHelper`等と同じ注入パターンで
+  `registerRankRingPreviewHelper(fn)`を新設。
+- **`src/main.js`**: `previewRankRing()`を新設。呼ばれるたびに実際の連携状況とは
+  無関係に虹色ティア（`getTierInfo(15)`、最も複雑な見た目のため一番のストレス
+  テストになる）を仮表示し、30秒間操作が無ければ自動的に本来の表示
+  （`refreshSelfStatusRankRing()`）に戻すタイマーをセットする（スライダーを
+  ドラッグし続けている間は毎回タイマーが延長されるだけなので実害はない）。
+  `registerRankRingPreviewHelper(previewRankRing)`で登録。
+- **検証**: 管理者モードを開き、新設スライダーへの`pointerdown`で虹色リングが
+  即座に表示されること、太さスライダーを動かすとリングの実際のサイズ
+  （`getComputedStyle`のwidth）がリアルタイムに変わることをブラウザで実測確認済み。

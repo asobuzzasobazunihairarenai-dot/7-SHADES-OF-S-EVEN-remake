@@ -3266,15 +3266,22 @@ body.is-touch-device #self-hand-status {
    をこちらにも同じくtranslateへ足し込み、見た目の位置がアバター本体とズレないように
    している。DOM順でアバターより先に追加しているため、z-indexを個別に触らなくても
    自然にアバターの背面に描画される。 */
+/* ユーザー報告「ランクリングが見当たらない」への対応。実際に戦績連携済みの
+   アカウントでないと本来表示されないため管理者が普段は目視確認できない、という
+   問題とは別に、位置・太さ自体もadmin.js（🏅 ランクリングの位置・太さ）から
+   微調整できるようCSS変数化した。--rank-ring-thicknessはリングの太さ兼、
+   アバター本体の縁からリングがどれだけ外側にはみ出すかを兼ねる（従来は0.5rem
+   固定だった）。--rank-ring-offset-x/yは見た目の最終的な位置合わせ用の
+   追加オフセット（従来は無かった、既定0＝今までと同じ位置）。 */
 .self-status-rank-ring {
   position: absolute;
   top: 0;
   left: 0;
-  width: calc(var(--self-status-large-avatar-size, 13.5rem) + 1rem);
-  height: calc(var(--self-status-large-avatar-size, 13.5rem) + 1rem);
+  width: calc(var(--self-status-large-avatar-size, 13.5rem) + var(--rank-ring-thickness, 0.5rem) * 2);
+  height: calc(var(--self-status-large-avatar-size, 13.5rem) + var(--rank-ring-thickness, 0.5rem) * 2);
   transform: translate(
-    calc(var(--self-status-large-avatar-pos-x, -0.86rem) - 0.5rem),
-    calc(var(--self-status-large-avatar-pos-y, -5.12rem) - 0.5rem)
+    calc(var(--self-status-large-avatar-pos-x, -0.86rem) - var(--rank-ring-thickness, 0.5rem) + var(--rank-ring-offset-x, 0rem)),
+    calc(var(--self-status-large-avatar-pos-y, -5.12rem) - var(--rank-ring-thickness, 0.5rem) + var(--rank-ring-offset-y, 0rem))
   );
   border-radius: 50%;
   pointer-events: none;
@@ -3285,29 +3292,29 @@ body.is-touch-device #self-hand-status {
   display: block;
 }
 .self-status-rank-ring.is-solid {
-  border: 0.5rem solid var(--rank-ring-color, transparent);
+  border: var(--rank-ring-thickness, 0.5rem) solid var(--rank-ring-color, transparent);
 }
 .self-status-rank-ring.is-glow {
   box-shadow: 0 0 0.8rem 0.2rem var(--rank-ring-glow, transparent);
 }
 .self-status-rank-ring.is-rainbow {
   background: conic-gradient(#ef4444, #f97316, #eab308, #22c55e, #3b82f6, #6366f1, #a855f7, #ef4444);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 0.5rem), #000 calc(100% - 0.5rem));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 0.5rem), #000 calc(100% - 0.5rem));
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - var(--rank-ring-thickness, 0.5rem)), #000 calc(100% - var(--rank-ring-thickness, 0.5rem)));
+  mask: radial-gradient(farthest-side, transparent calc(100% - var(--rank-ring-thickness, 0.5rem)), #000 calc(100% - var(--rank-ring-thickness, 0.5rem)));
   animation: self-status-rank-ring-spin 3s linear infinite;
 }
 @keyframes self-status-rank-ring-spin {
   from {
     transform: translate(
-        calc(var(--self-status-large-avatar-pos-x, -0.86rem) - 0.5rem),
-        calc(var(--self-status-large-avatar-pos-y, -5.12rem) - 0.5rem)
+        calc(var(--self-status-large-avatar-pos-x, -0.86rem) - var(--rank-ring-thickness, 0.5rem) + var(--rank-ring-offset-x, 0rem)),
+        calc(var(--self-status-large-avatar-pos-y, -5.12rem) - var(--rank-ring-thickness, 0.5rem) + var(--rank-ring-offset-y, 0rem))
       )
       rotate(0deg);
   }
   to {
     transform: translate(
-        calc(var(--self-status-large-avatar-pos-x, -0.86rem) - 0.5rem),
-        calc(var(--self-status-large-avatar-pos-y, -5.12rem) - 0.5rem)
+        calc(var(--self-status-large-avatar-pos-x, -0.86rem) - var(--rank-ring-thickness, 0.5rem) + var(--rank-ring-offset-x, 0rem)),
+        calc(var(--self-status-large-avatar-pos-y, -5.12rem) - var(--rank-ring-thickness, 0.5rem) + var(--rank-ring-offset-y, 0rem))
       )
       rotate(360deg);
   }
@@ -5069,4 +5076,7 @@ body.is-online-mode #quick-start-bar {
   --phase-guide-right-flat: 0.7rem;
   --self-status-icon-online-flat-x: 0rem;
   --self-status-icon-online-flat-y: 0rem;
+  --rank-ring-thickness: 0.5rem;
+  --rank-ring-offset-x: 0rem;
+  --rank-ring-offset-y: 0rem;
 }
