@@ -585,6 +585,12 @@ alter table so7_games add column if not exists timer_config jsonb;
 -- coalesce()が正しく「現在値を維持」する。
 alter table so7_games add column if not exists pending_final_lock jsonb;
 
+-- 接触の承認待ち（ユーザー要望「接触を無効にする効果のカードが存在するので、接触される
+-- プレイヤーには承認/拒否モーダルを出す」）。pending_final_lockと全く同じパターン
+-- （REQUEST_CONTACT/RESPOND_CONTACTの時だけso7-apply-action.ts側がgamesPatchにこのキーを
+-- 含める。保留が解消された時はnullを明示的に含める）。
+alter table so7_games add column if not exists pending_contact jsonb;
+
 create or replace function so7_apply_and_commit(
   p_game_id text,
   p_expected_version int,
@@ -643,6 +649,7 @@ begin
     status = coalesce(p_games_patch->>'status', status),
     timer_config = coalesce(p_games_patch->'timer_config', timer_config),
     pending_final_lock = coalesce(p_games_patch->'pending_final_lock', pending_final_lock),
+    pending_contact = coalesce(p_games_patch->'pending_contact', pending_contact),
     version = version + 1
   where id = p_game_id;
 end;

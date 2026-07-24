@@ -4212,6 +4212,79 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   background: rgba(153, 27, 27, 0.95);
 }
 
+/* 接触の承認/拒否モーダル（src/contact-approval.js）。final-lock-approval-bannerと同じ
+   「pendingを見て自動表示」の仕組みだが、ユーザーが明示的に「モーダル」を指定したため
+   バナーではなく背景を暗くする中央モーダルにしてある。承認/拒否いずれかのボタンで
+   解決するまで消えない（閉じるボタンは無い）。 */
+#contact-approval-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10610;
+  background: rgba(0, 0, 0, 0.6);
+}
+#contact-approval-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(26rem, 90vw);
+  z-index: 10611;
+  background: linear-gradient(160deg, #422006, #1c1004);
+  border: 2px solid #facc15;
+  border-radius: 0.7rem;
+  padding: 1rem 1.4rem;
+  text-align: center;
+  font-family: sans-serif;
+  color: #fef3c7;
+  box-shadow: 0 0 1.5rem rgba(250, 204, 21, 0.5), 0 20px 50px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+#contact-approval-modal.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.contact-approval-title {
+  font-weight: bold;
+  font-size: 1.05rem;
+  margin-bottom: 0.5rem;
+}
+.contact-approval-body {
+  font-size: 0.85rem;
+  line-height: 1.6;
+  opacity: 0.95;
+  margin-bottom: 0.8rem;
+}
+.contact-approval-buttons {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+}
+.contact-approval-approve,
+.contact-approval-reject {
+  font-size: 0.85rem;
+  border-radius: 0.4rem;
+  padding: 0.4rem 1rem;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-weight: bold;
+}
+.contact-approval-approve {
+  background: rgba(34, 172, 56, 0.85);
+  color: #f0fdf4;
+}
+.contact-approval-approve:hover {
+  background: rgba(34, 172, 56, 1);
+}
+.contact-approval-reject {
+  background: rgba(153, 27, 27, 0.7);
+  color: #fef2f2;
+}
+.contact-approval-reject:hover {
+  background: rgba(153, 27, 27, 0.95);
+}
+
 /* ターン終了時の中央告知（src/turn-announce.js）。ゲーム操作を妨げないよう
    pointer-events:noneにし、一瞬だけ画面中央に大きく次のプレイヤー名を表示してから
    自動的に消える（クリック不要のトースト、victory-modalとは違い操作を待たない）。 */

@@ -6655,3 +6655,66 @@ https://asobuzzasobazunihairarenai-dot.github.io/7-SHADES-OF-S-EVEN-remake/
   - **要デプロイ**: `supabase/functions/so7-apply-action.ts`の変更はgit push だけでは
     反映されない。SupabaseダッシュボードのEdge Functionsデプロイ画面へ手動でコピー
     ペーストする必要がある（ファイル冒頭のコメント参照）。
+
+### 2026-07-24（続き18）：接触のトリガーをドラッグ&ドロップに変更、承認/拒否モーダルを新設
+
+- **ユーザー報告「相手の駒をクリックしても何も起きない、そのまま掴んでしまう」**: 原因は
+  `game-table`の`pointerdown`が既存のドラッグ処理（`initDragHandlers`）に即座に奪われ、
+  別途登録していた`click`リスナー（続き17で追加した`initContactHandler`）が実質的に
+  機能していなかったこと。加えてこのアプリはPhase1方針「ルール適用は一切しない」により
+  `findDropTarget`が移動先の妥当性を一切検証しない（駒が既にいるマスへも普通に重ねて
+  置けてしまう）ため、「隣の駒をクリックで選ぶ」という設計自体が既存のドラッグ操作と
+  competing していた。
+- **ユーザー提案「クリックではなく、相手の駒のいるマスに自分の駒を置くと、自分の駒は
+  移動前のマスに戻り接触するかどうかのボタンが出る感じ」を採用**:
+  `onDragEnd`（main.js）に、駒（`kind==="piece"`）のドロップ先が「ドラッグ開始位置に隣接した
+  セルで、かつ自分以外のプレイヤーの駒が既にいる」場合を検知する分岐を追加した。該当する
+  場合は`moveToken`を一切呼ばずに`render()`するだけ（＝駒は実際には動かしていないので、
+  見た目上は元の位置へ「戻る」＝スナップバックになる）、代わりに接触先の駒の上へ
+  「🤝 接触する」ボタンを浮かべる（`showContactPrompt`、位置決めは`promptCardOpen`と同じ
+  仕組みを流用）。隣接していない・重なる相手がいない場合は素通りして従来通りの自由な
+  移動（重ね置きも含む）を行う。
+- **ユーザー要望「接触を無効にする効果のカードが存在するので、接触されるプレイヤーには
+  承認/拒否モーダルを出す」**: 接触の実処理を「即時実行」から「要求→承認/拒否」の2段階に
+  変更した。最後のロック承認（`REQUEST_FINAL_LOCK`/`RESPOND_FINAL_LOCK`）と全く同じ
+  パターンで、`state.js`に`pendingContact`（`null | { attacker, defender }`）を新設し、
+  旧`CONTACT`アクション1個を`REQUEST_CONTACT`（保留状態にするだけ）と`RESPOND_CONTACT`
+  （拒否ならそのまま消すだけ、承認された時だけ旧CONTACTケースと同じ実処理＝手札から
+  無作為に1枚・ゲートへ強制移動を適用）の2つに分割した。承認者は常にdefenderの1人だけ
+  なので、最後のロック承認のような複数人の`queue`は持たない。
+  - 新設`src/contact-approval.js`（`final-lock-approval.js`と同じ「表示専用、main.jsから
+    ハンドラを注入してもらう」leafモジュール）が、`pendingContact`があれば画面中央に
+    モーダルを出す。ユーザーが明示的に「モーダル」を指定したため、あちらの常設バナーとは
+    違い背景を暗くする専用の確認モーダル（`#contact-approval-modal`/
+    `#contact-approval-backdrop`）にした。承認/拒否ボタンは接触された本人
+    （オンライン中は`getSelfSeat() === pendingContact.defender`）にだけ表示する
+    （ローカルモードは既存の「座席を持っていれば何でも動かせる」方針のまま常に表示）。
+  - オンライン同期は`pending_final_lock`と全く同じ配線を追加しただけ:
+    `supabase_setup_so7.sql`に`pending_contact` jsonbカラムを追加し
+    `so7_apply_and_commit`のcoalesce対象に加え、`so7-apply-action.ts`が
+    `REQUEST_CONTACT`/`RESPOND_CONTACT`の時だけ`gamesPatch.pending_contact`を含める
+    （保留解消時はnullを明示的に含める）。`src/online.js`の`fetchAndHydrate`にも
+    `pendingContact: gameRow.pending_contact ?? null`を追加——ここを忘れると
+    `hydrateState()`がstateを丸ごと置き換える設計のため、再同期のたびに
+    `pendingContact`がundefinedへ戻ってモーダルが出なくなる（`pendingFinalLock`で
+    過去に踏んだのと同じ地雷）。`computeStateFingerprint`（main.js）にも
+    `pendingContact`を追加し、盤面のトークン自体は動いていない承認待ち中でも
+    他プレイヤーの画面が更新されるようにした。
+  - 承認された時の実際の効果適用ロジック自体（無作為に1枚・強制移動・到達判定の扱い）は
+    続き17から変更していない。
+  - **重要な副次的な修正**: 旧実装は接触の攻撃者を常に`getSelfSeat()`としていたが、
+    ローカル（1画面対面）モードでは`getSelfSeat()`は常に`"A"`を返す（座席のデバッグ切替
+    以外では変わらない）ため、A以外の駒をドラッグしてB以外の駒に接触させるケースで
+    攻撃者が誤って"A"になってしまう不具合があった。ドラッグ&ドロップ方式への変更により、
+    ドラッグされた駒本体（`draggedToken.player`）を攻撃者として使うようになり、この
+    不具合も合わせて解消した。
+  - ブラウザで、隣接する相手の駒へドラッグ→駒が元の位置へスナップバックしボタンが表示→
+    確認モーダル→申し込み→接触された側の承認/拒否モーダルが表示、拒否した場合は何も
+    起きないこと、承認した場合に相手の手札から無作為の1枚が自分の手札に移ること・相手の
+    駒がゲートへ強制移動すること・ゲートの表向きカードで到達モーダルが自動的に出ること、
+    隣接していない通常の移動（重ね置きも含む）が従来通り動作することを、ローカルモードで
+    確認済み。
+  - **要デプロイ**: `supabase_setup_so7.sql`（`pending_contact`カラム追加・
+    `so7_apply_and_commit`更新）をSQL Editorで再実行し、`supabase/functions/
+    so7-apply-action.ts`をSupabaseダッシュボードのEdge Functionsへ再デプロイする必要が
+    ある。どちらもgit pushだけでは反映されない。

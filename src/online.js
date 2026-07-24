@@ -1289,6 +1289,12 @@ export async function fetchAndHydrate(gameId) {
       // state_changed Broadcast受信時のいずれも）にstate.pendingFinalLockがundefinedへ
       // 上書きされ、final-lock-approval.jsのバナーが常に非表示扱いになっていた。
       pendingFinalLock: gameRow.pending_final_lock ?? null,
+      // 接触の承認待ち（ユーザー要望「接触を無効にする効果のカードがあるので承認/拒否
+      // モーダルを出す」）。pendingFinalLockと全く同じ理由でここに含める必要がある——
+      // hydrateState()はstateを丸ごと置き換えるため、ここで渡し忘れるとfetchAndHydrate()の
+      // たびにstate.pendingContactがundefinedへ上書きされ、承認モーダルが常に非表示に
+      // なってしまう。
+      pendingContact: gameRow.pending_contact ?? null,
     });
   });
 }

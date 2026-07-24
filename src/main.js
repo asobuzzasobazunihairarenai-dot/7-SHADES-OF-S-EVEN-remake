@@ -28,6 +28,11 @@ import {
   registerFinalLockApprovalHandler,
 } from "./final-lock-approval.js";
 import {
+  buildContactApprovalModal,
+  updateContactApprovalModal,
+  registerContactApprovalHandler,
+} from "./contact-approval.js";
+import {
   getSkinImagePath,
   getMyPieceColor,
   openPieceSkinPicker,
@@ -84,7 +89,8 @@ import {
   isOnlineMode,
   requestFinalLock,
   respondFinalLock,
-  contactPlayer,
+  requestContact,
+  respondContact,
 } from "./state.js";
 import { initOnlineUi, openOnlinePanel, isOnlineIntentActive } from "./online-ui.js";
 import { initOpeningScreen, previewOpeningAuras } from "./opening-screen.js";
@@ -931,13 +937,19 @@ function promptCardOpen(pieceTokenId, card) {
 }
 
 // --- 接触（ムーブフェイズの選択肢、ユーザー要望「接触処理の自動化」） ------------------
-// 隣にいる相手の駒をクリックすると「接触する」ボタンが駒の上に浮かぶ（promptCardOpenと
-// 同じ「オープンする/しない」浮遊プロンプトの見た目を流用）。押すと「本当に接触しますか？」
-// の確認モーダルが挟まり、OKで実際に処理される（ゲート侵攻ボーナスと同じ「確認→自動処理」
-// の流れ）。接触された相手はゲートへ強制移動するだけで、そのゲートに表向きのカードが
+// 自分の駒を隣の相手の駒がいるマスへドラッグ＆ドロップすると（クリックだけでの選択は
+// 既存のドラッグ処理に奪われて反応しないというユーザー報告があったため、ドラッグそのものを
+// トリガーにした）、駒は元のマスへ戻り（＝実際には一切移動させない）、代わりに「接触する」
+// ボタンが浮かぶ（promptCardOpenと同じ「オープンする/しない」浮遊プロンプトの見た目を
+// 流用）。押すと「本当に接触しますか？」の確認モーダルが挟まり、OKでrequestContact()を
+// 呼んで接触される側（defender）の承認待ちになる（ゲート侵攻ボーナスと同じ「確認→
+// 自動処理」ではなく、最後のロック承認REQUEST_FINAL_LOCK/RESPOND_FINAL_LOCKと同じ
+// 「要求→承認/拒否」の2段階——ユーザー要望「接触を無効にする効果のカードが存在するので、
+// 接触されるプレイヤーには承認/拒否モーダルを出す」への対応）。承認されて初めて、相手の
+// 手札から無作為に1枚もらい、相手はゲートへ強制移動する。そのゲートに表向きのカードが
 // あった場合の到達効果は、通常の移動と全く同じ経路（オンライン中はremote-move-animator.js
 // が hydrateState後の差分検知で自動的に検知する）で、相手自身の画面に通常通りの到達
-// モーダルが出る。ここでは駒を動かす以上のことは一切しない。
+// モーダルが出る（respondToContact参照）。
 let contactPromptEl = null;
 
 function closeContactPrompt() {
@@ -953,13 +965,7 @@ function isAdjacentCell(a, b) {
   return (dr === 1 && dc === 0) || (dr === 0 && dc === 1);
 }
 
-function getSelfPieceLocation() {
-  const selfSeat = getSelfSeat();
-  const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === selfSeat && t.location.zone === "cell");
-  return piece?.location ?? null;
-}
-
-function openContactConfirmModal(targetSeat) {
+function openContactConfirmModal(attacker, defender) {
   const modal = document.createElement("div");
   modal.id = "contact-confirm-modal";
   const close = () => {
@@ -974,7 +980,9 @@ function openContactConfirmModal(targetSeat) {
 
   const body = document.createElement("div");
   body.className = "contact-confirm-body";
-  body.textContent = `${getPlayerName(targetSeat)}に接触します。相手の手札から無作為に1枚もらい、相手は自分のゲートへ強制移動します。`;
+  body.textContent = `${getPlayerName(attacker)}が${getPlayerName(
+    defender
+  )}に接触を申し込みます。承認されると、相手の手札から無作為に1枚もらい、相手は自分のゲートへ強制移動します。`;
 
   const btnRow = document.createElement("div");
   btnRow.className = "contact-confirm-buttons";
@@ -988,34 +996,20 @@ function openContactConfirmModal(targetSeat) {
   const okBtn = document.createElement("button");
   okBtn.className = "contact-confirm-ok";
   okBtn.type = "button";
-  okBtn.textContent = "🤝 接触する";
+  okBtn.textContent = "🤝 接触を申し込む";
   okBtn.addEventListener("click", async () => {
     okBtn.disabled = true;
     cancelBtn.disabled = true;
     try {
       if (isOnlineMode()) {
-        await contactPlayer(getSelfSeat(), targetSeat);
+        await requestContact(attacker, defender);
         await fetchAndHydrate(getCurrentGameId());
-        playSound("piecePlace");
-        render();
-        // オンライン中の到達判定はremote-move-animator.jsの状態差分検知に任せる
-        // （相手（接触された側）自身の画面で自動的に検知され、通常の移動と同じ経路で
-        // 到達モーダルが出る。ここで自分の画面から重ねて呼ぶ必要はない）。
       } else {
-        contactPlayer(getSelfSeat(), targetSeat);
-        playSound("piecePlace");
-        render();
-        // ローカル（同一画面の対面プレイ）はremote-move-animator.jsが動かないため
-        // （isOnlineMode()で早期returnする設計）、ドラッグ移動と同じ到達判定
-        // （maybeTriggerCardArrival、裏向きならオープンする/しないの選択も出す）を
-        // ここで明示的に呼ぶ必要がある。到達プロンプト/モーダルの位置決めに実際のDOM座標
-        // (getBoundingClientRect)を使うため、render()で盤面を描き直した後でなければ
-        // 呼べない（moveTokenの他の呼び出し箇所と同じ制約）。
-        const defenderPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === targetSeat);
-        if (defenderPiece) maybeTriggerCardArrival(defenderPiece.location, defenderPiece.id);
+        requestContact(attacker, defender);
       }
+      render();
     } catch (err) {
-      console.error("contactPlayer failed", err);
+      console.error("requestContact failed", err);
     } finally {
       close();
     }
@@ -1032,9 +1026,9 @@ function openContactConfirmModal(targetSeat) {
   document.body.appendChild(modal);
 }
 
-function showContactPrompt(pieceTokenId, targetSeat) {
+function showContactPrompt(attacker, defender, anchorPieceTokenId) {
   closeContactPrompt();
-  const pieceEl = document.querySelector(`.piece[data-token-id="${pieceTokenId}"]`);
+  const pieceEl = document.querySelector(`.piece[data-token-id="${anchorPieceTokenId}"]`);
   if (!pieceEl) return;
   const rect = toStageLocalRect(pieceEl.getBoundingClientRect());
 
@@ -1048,7 +1042,7 @@ function showContactPrompt(pieceTokenId, targetSeat) {
   contactBtn.textContent = "🤝 接触する";
   contactBtn.addEventListener("click", () => {
     closeContactPrompt();
-    openContactConfirmModal(targetSeat);
+    openContactConfirmModal(attacker, defender);
   });
 
   prompt.appendChild(contactBtn);
@@ -1056,27 +1050,37 @@ function showContactPrompt(pieceTokenId, targetSeat) {
   contactPromptEl = prompt;
 }
 
-// 誤操作防止のため、隣接した相手の駒を「クリック」した時だけ反応する（ドラッグでは
-// 反応しない。findDraggableAt/onDragStart側の既存のドラッグ判定には一切手を入れない）。
-function initContactHandler() {
-  const table = document.getElementById("game-table");
-  table.addEventListener("click", (e) => {
-    const pieceEl = e.target.closest(".piece");
-    if (!pieceEl) return;
-    const token = getState().tokens.find((t) => t.id === pieceEl.dataset.tokenId);
-    if (!token || token.kind !== "piece") return;
-    const selfSeat = getSelfSeat();
-    if (!selfSeat || token.player === selfSeat) return; // 自分の駒は対象外
-    if (!getState().activePlayers.includes(token.player)) return;
-    if (token.location.zone !== "cell") return;
-    const selfLoc = getSelfPieceLocation();
-    if (!selfLoc || selfLoc.zone !== "cell") return;
-    if (!isAdjacentCell(selfLoc, token.location)) return;
-    showContactPrompt(token.id, token.player);
-  });
-  document.addEventListener("pointerdown", (e) => {
-    if (contactPromptEl && !contactPromptEl.contains(e.target)) closeContactPrompt();
-  });
+document.addEventListener("pointerdown", (e) => {
+  if (contactPromptEl && !contactPromptEl.contains(e.target)) closeContactPrompt();
+});
+
+// 接触されたプレイヤー（defender）が承認/拒否モーダル（contact-approval.js）で応答した
+// 時に呼ばれる。承認された場合だけ、respondToFinalLockと同じ理由でローカルモードは
+// 明示的に到達判定を呼ぶ必要がある（remote-move-animator.jsはisOnlineMode()で早期return
+// する設計のため）。
+async function respondToContact(approve) {
+  const pendingBefore = getState().pendingContact;
+  if (!pendingBefore) return;
+  if (isOnlineMode()) {
+    try {
+      await respondContact(approve);
+      await fetchAndHydrate(getCurrentGameId());
+    } catch (err) {
+      console.error("respondContact failed", err);
+    }
+    render();
+    return;
+  }
+  respondContact(approve);
+  playSound("piecePlace");
+  render();
+  if (approve) {
+    // 到達プロンプト/モーダルの位置決めに実際のDOM座標(getBoundingClientRect)を使うため、
+    // render()で盤面を描き直した後でなければ呼べない（moveTokenの他の呼び出し箇所と同じ
+    // 制約）。
+    const defenderPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === pendingBefore.defender);
+    if (defenderPiece) maybeTriggerCardArrival(defenderPiece.location, defenderPiece.id);
+  }
 }
 
 function renderBoardTokens(table) {
@@ -1185,6 +1189,7 @@ function render() {
   updateSelfHandStatus();
   updateTurnRoundCounter();
   updateFinalLockApprovalBanner();
+  updateContactApprovalModal();
   checkForVictory();
 }
 
@@ -2735,6 +2740,29 @@ async function onDragEnd(e) {
     render();
     return;
   }
+  // 接触（ユーザー要望「接触処理の自動化」、main.js冒頭の接触関連コードのコメント参照）:
+  // 自分の駒を隣の相手の駒がいるマスへドロップした場合、実際には移動させず（moveTokenを
+  // 呼ばない＝駒は元のマスのまま）、代わりに「接触する」ボタンを出す。isAdjacentCell()は
+  // cardSourceLocation（このドラッグが始まる前の駒の位置）を基準にするため、遠くの
+  // マスへ相手の駒を跨いで動かした場合（隣接していない）は対象外——その場合は下の
+  // 通常のmoveTokenにフォールスルーし、従来通り自由に重ねて置ける（Phase1方針
+  // 「ルール適用は一切しない」）。
+  if (kind === "piece" && dropTarget.zone === "cell" && cardSourceLocation?.zone === "cell" && isAdjacentCell(cardSourceLocation, dropTarget)) {
+    const draggedToken = getState().tokens.find((t) => t.id === tokenId);
+    const opponentPiece = getState().tokens.find(
+      (t) =>
+        t.kind === "piece" &&
+        t.location.zone === "cell" &&
+        t.location.row === dropTarget.row &&
+        t.location.col === dropTarget.col &&
+        t.player !== draggedToken?.player
+    );
+    if (draggedToken && opponentPiece) {
+      render(); // moveTokenを呼んでいないので、駒は自動的に元の位置のまま描かれる(=見た目のスナップバック)
+      showContactPrompt(draggedToken.player, opponentPiece.player, opponentPiece.id);
+      return;
+    }
+  }
   if (dropTarget.zone === "pile") {
     if (isOnlineMode()) {
       // オンライン中はsendTokenToPile()がローカルstateを書き換えず、サーバーへの
@@ -3990,7 +4018,6 @@ handShuffleButtonEl = buildHandShuffleButton();
 applyViewportStage();
 render();
 initDragHandlers();
-initContactHandler();
 initHoverHandlers();
 initHandPeek();
 initContextMenuHandlers();
@@ -4057,9 +4084,11 @@ registerRemoteMoveAnimatorHelpers({
   findLocationElement,
 });
 registerFinalLockApprovalHandler(respondToFinalLock);
+registerContactApprovalHandler(respondToContact);
 buildGameTitle();
 buildSpotlightOverlay();
 buildFinalLockApprovalBanner();
+buildContactApprovalModal();
 turnRoundCounterEl = buildTurnRoundCounter();
 updateTurnRoundCounter();
 
@@ -4186,6 +4215,10 @@ function computeStateFingerprint(state) {
     tokenParts,
     rosterParts,
     state.pendingFinalLock ? `${state.pendingFinalLock.tokenId}|${state.pendingFinalLock.queue.join(",")}` : "",
+    // pendingContact（接触の承認待ち、contact-approval.js参照）もpendingFinalLockと同じ
+    // 理由で指紋に含める——盤面のトークン自体はまだ動いていないため、含めないと接触された
+    // 本人以外の画面で承認モーダルの状態が更新されずに固まって見えるバグになる。
+    state.pendingContact ? `${state.pendingContact.attacker}>${state.pendingContact.defender}` : "",
   ].join("|");
 }
 

@@ -101,6 +101,13 @@ function createInitialState() {
     // 瞬間に実際のロック（MOVE_TOKEN相当）を適用する。誰か1人でも却下すればnullに戻すだけ
     // （カードは最初から動かしていないので、戻す動作自体は不要）。
     pendingFinalLock: null,
+    // 接触の承認待ち（ユーザー要望「接触を無効にする効果のカードが存在するので、
+    // 接触されるプレイヤーには承認/拒否モーダルを出す」）: null | { attacker, defender }。
+    // 却下ならnullに戻すだけ（駒はまだ動かしていないので戻す動作自体は不要）。承認された
+    // 時だけ実際の効果（相手の手札から無作為に1枚もらう・相手を自分のゲートへ強制移動）を
+    // 適用する（最後のロック承認のqueueと同じ「保留→承認で確定」の考え方だが、承認者は
+    // 常にdefenderの1人だけなのでqueueは持たない）。
+    pendingContact: null,
   };
 }
 
@@ -260,19 +267,33 @@ function reduce(current, action) {
       );
       return { ...current, tokens };
     }
-    // ユーザー要望「接触処理の自動化」への対応。ムーブフェイズの選択肢の1つ「接触」
-    // （隣の相手の駒を選んで接触すると、その相手の手札から無作為に1枚もらい、相手は
-    // 自分のゲートへ強制移動する）。相手のゲートに表向きのカードがあれば、通常の移動と
-    // 全く同じ経路で到達効果が発動する——ここでは駒の位置を変えるだけにとどめ、到達判定
-    // 自体はmain.js側の既存の仕組み（オンライン中はremote-move-animator.jsの
-    // triggerCardArrivalIfFaceUp、駒の持ち主自身の画面で自動的に検知される）に任せる。
-    // 「無作為に1枚」は隠し情報の抽選のため、オンライン中は必ずonlineTransport
-    // （so7-apply-action.tsのCONTACTケース、サーバー側で抽選）を経由する
-    // （この関数の冒頭のonlineMode分岐参照）。ローカルモードは全員分の手札を1つの
-    // ブラウザで見ているだけなので、ここでのクライアント側抽選で問題ない。
-    case "CONTACT": {
+    // ユーザー要望「接触処理の自動化」＋「接触を無効にする効果のカードが存在するので、
+    // 接触されるプレイヤー（defender）には承認/拒否モーダルを出す」への対応。ムーブ
+    // フェイズの選択肢の1つ「接触」（隣の相手の駒へ自分の駒をドラッグすると、承認されれば
+    // その相手の手札から無作為に1枚もらい、相手は自分のゲートへ強制移動する）。
+    // 最後のロック承認（REQUEST_FINAL_LOCK/RESPOND_FINAL_LOCK）と同じ「保留→承認で確定、
+    // 却下ならそのまま消える」の2段階にした（ただし承認者は常にdefenderの1人だけなので
+    // queueは持たない）。
+    case "REQUEST_CONTACT": {
+      if (current.pendingContact) return current;
+      return { ...current, pendingContact: { attacker: action.attacker, defender: action.defender } };
+    }
+    // 承認された場合の実際の効果は、旧CONTACTケースと同じロジック。相手のゲートに表向きの
+    // カードがあれば、通常の移動と全く同じ経路で到達効果が発動する——ここでは駒の位置を
+    // 変えるだけにとどめ、到達判定自体はmain.js側の既存の仕組み（オンライン中は
+    // remote-move-animator.jsのtriggerCardArrivalIfFaceUp、駒の持ち主自身の画面で自動的に
+    // 検知される）に任せる。「無作為に1枚」は隠し情報の抽選のため、オンライン中は必ず
+    // onlineTransport（so7-apply-action.tsのRESPOND_CONTACTケース、サーバー側で抽選）を
+    // 経由する（この関数の冒頭のonlineMode分岐参照）。ローカルモードは全員分の手札を
+    // 1つのブラウザで見ているだけなので、ここでのクライアント側抽選で問題ない。
+    case "RESPOND_CONTACT": {
+      const pending = current.pendingContact;
+      if (!pending) return current;
+      if (!action.approve) {
+        return { ...current, pendingContact: null };
+      }
       const defenderHand = current.tokens.filter(
-        (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === action.defender
+        (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === pending.defender
       );
       let tokens = current.tokens;
       if (defenderHand.length > 0) {
@@ -281,18 +302,18 @@ function reduce(current, action) {
           t.id === stolen.id
             ? {
                 ...t,
-                location: { zone: "hand", player: action.attacker },
-                faceUp: faceUpForLocation({ zone: "hand", player: action.attacker }),
+                location: { zone: "hand", player: pending.attacker },
+                faceUp: faceUpForLocation({ zone: "hand", player: pending.attacker }),
               }
             : t
         );
       }
-      const side = SEAT_TO_SIDE[action.defender];
+      const side = SEAT_TO_SIDE[pending.defender];
       const homeGate = GATE_POSITIONS[side];
       tokens = tokens.map((t) =>
-        t.kind === "piece" && t.player === action.defender ? { ...t, location: { zone: "cell", ...homeGate } } : t
+        t.kind === "piece" && t.player === pending.defender ? { ...t, location: { zone: "cell", ...homeGate } } : t
       );
-      return { ...current, tokens };
+      return { ...current, tokens, pendingContact: null };
     }
     // セットアップウィザード（game-setup.js）の「１：ファーストカードを配り、駒を配置する」
     // の起点として、盤面を完全に空の状態に戻す。ルールブック通り「初期手札なし」の状態から
@@ -317,6 +338,7 @@ function reduce(current, action) {
         priorityPhase: null,
         hourglassStock: {},
         pendingFinalLock: null,
+        pendingContact: null,
       };
     }
     // セットアップウィザードの手順1: 参加している座席（action.players、時計回り順）に
@@ -580,10 +602,16 @@ export function shuffleHand(player) {
 }
 
 // ユーザー要望「接触処理の自動化」への対応。main.js側の確認モーダルで「OK」が
-// 押された時に呼ばれる。
-export function contactPlayer(attacker, defender) {
-  if (onlineMode && onlineTransport) return onlineTransport({ type: "CONTACT", attacker, defender });
-  dispatch({ type: "CONTACT", attacker, defender });
+// 押された時に呼ばれる（この時点ではまだ効果は適用されず、承認待ちになるだけ）。
+export function requestContact(attacker, defender) {
+  if (onlineMode && onlineTransport) return onlineTransport({ type: "REQUEST_CONTACT", attacker, defender });
+  dispatch({ type: "REQUEST_CONTACT", attacker, defender });
+}
+
+// 接触された側（defender）が承認/拒否モーダルで応答した時に呼ばれる。
+export function respondContact(approve) {
+  if (onlineMode && onlineTransport) return onlineTransport({ type: "RESPOND_CONTACT", approve });
+  dispatch({ type: "RESPOND_CONTACT", approve });
 }
 
 export function resetGame() {

@@ -21,17 +21,19 @@
 //
 // ポートしているアクションはMOVE_TOKEN / DRAW_FROM_PILE / SEND_TOKEN_TO_PILE / FLIP_TOKEN /
 // SHUFFLE_HAND / SET_TURN_PLAYER / NEXT_TURN / BOOTSTRAP_GAME / REQUEST_FINAL_LOCK /
-// RESPOND_FINAL_LOCK / CONTACT。それ以外（セットアップウィザードの個別ステップ等）は
-// ローカルモード専用のまま。「公開ドロー」ボタンは新しいアクション型を追加せず、
-// DRAW_FROM_PILEを location.zone="publicDraw"で呼ぶだけなので追加のポートは不要
+// RESPOND_FINAL_LOCK / REQUEST_CONTACT / RESPOND_CONTACT。それ以外（セットアップウィザードの
+// 個別ステップ等）はローカルモード専用のまま。「公開ドロー」ボタンは新しいアクション型を
+// 追加せず、DRAW_FROM_PILEを location.zone="publicDraw"で呼ぶだけなので追加のポートは不要
 // （faceUpForLocation/mergePublicDrawIntoHand参照）。相手ゲート侵攻ボーナスはNEXT_TURNの
 // 処理直前にapplyGateInvasions()として組み込み済み（隠し情報の無作為抽選が必要なため、
-// サーバー側で判定から適用まで行う。詳細は該当コメント参照）。CONTACT（接触、ユーザー
-// 要望「接触処理の自動化」）も同じ理由（相手の手札から無作為に1枚奪う）でreduce()内に
-// 直接実装した（詳細はCONTACTケースのコメント参照）。REQUEST_FINAL_LOCK/
-// RESPOND_FINAL_LOCK（最後のロック承認、src/state.jsと同じロジック）は隠す必要の無い
-// 公開情報のみを扱うため、特別な権限チェックは無い（座席さえ持っていれば誰でも
-// 承認/却下できる、既存の「座席を持っていれば何でも動かせる」方針のまま）。
+// サーバー側で判定から適用まで行う。詳細は該当コメント参照）。RESPOND_CONTACT（接触の
+// 承認、ユーザー要望「接触処理の自動化」＋「接触を無効にする効果のカードがあるので承認/
+// 拒否モーダルを出す」）も同じ理由（相手の手札から無作為に1枚奪う）でreduce()内に直接
+// 実装した（詳細はRESPOND_CONTACTケースのコメント参照）。REQUEST_FINAL_LOCK/
+// RESPOND_FINAL_LOCK・REQUEST_CONTACT/RESPOND_CONTACT（承認フロー、src/state.jsと同じ
+// ロジック）は隠す必要の無い公開情報のみを扱うため、特別な権限チェックは無い（座席さえ
+// 持っていれば誰でも承認/却下できる、既存の「座席を持っていれば何でも動かせる」方針の
+// まま）。
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -138,6 +140,8 @@ type PendingFinalLock = {
   queue: string[];
 } | null;
 
+type PendingContact = { attacker: string; defender: string } | null;
+
 type GameState = {
   tokens: Token[];
   piles: Piles;
@@ -147,6 +151,7 @@ type GameState = {
   roundNumber: number | null;
   startPlayer: string | null;
   pendingFinalLock: PendingFinalLock;
+  pendingContact: PendingContact;
 };
 
 // オンライン版では手札の表裏フラグをローカル版のような「自分がAかどうか」で決める必要が
@@ -217,7 +222,15 @@ function reduce(current: GameState, action: any): GameState {
       );
       return { ...current, tokens };
     }
-    // src/state.jsのCONTACTケースと同じロジック（ユーザー要望「接触処理の自動化」）。
+    // src/state.jsのREQUEST_CONTACT/RESPOND_CONTACTケースと同じロジック（ユーザー要望
+    // 「接触処理の自動化」＋「接触を無効にする効果のカードが存在するので、接触される
+    // プレイヤーには承認/拒否モーダルを出す」）。REQUEST_FINAL_LOCK/RESPOND_FINAL_LOCKと
+    // 同じ「保留→承認で確定、却下ならそのまま消える」の2段階（承認者はdefenderの1人だけ
+    // なのでqueueは無い）。
+    case "REQUEST_CONTACT": {
+      if (current.pendingContact) return current;
+      return { ...current, pendingContact: { attacker: action.attacker, defender: action.defender } };
+    }
     // 「無作為に1枚」は隠し情報の抽選のため、クライアント側では行えずここ（サーバー）で
     // 行う必要がある——ゲート侵攻ボーナスの「手札を半分奪う」と全く同じ理由。相手の
     // ゲートに表向きのカードがあった場合の到達効果は、ここでは駒の位置を変えるだけに
@@ -225,9 +238,14 @@ function reduce(current: GameState, action: any): GameState {
     // hydrateState後の差分検知で自動的に検知し、駒の持ち主自身の画面に到達モーダルを
     // 出す）に任せる。ゲート侵攻ボーナスの③（自分のゲートのカードを無条件で手札に
     // 加える）とは違い、ここでは到達モーダルでの通常の確認フローをそのまま使う。
-    case "CONTACT": {
+    case "RESPOND_CONTACT": {
+      const pending = current.pendingContact;
+      if (!pending) return current;
+      if (!action.approve) {
+        return { ...current, pendingContact: null };
+      }
       const defenderHand = current.tokens.filter(
-        (t) => t.kind === "card" && t.location.zone === "hand" && (t.location as { player: string }).player === action.defender
+        (t) => t.kind === "card" && t.location.zone === "hand" && (t.location as { player: string }).player === pending.defender
       );
       let tokens = current.tokens;
       if (defenderHand.length > 0) {
@@ -236,18 +254,18 @@ function reduce(current: GameState, action: any): GameState {
           t.id === stolen.id
             ? {
                 ...t,
-                location: { zone: "hand", player: action.attacker },
-                faceUp: faceUpForLocation({ zone: "hand", player: action.attacker }),
+                location: { zone: "hand", player: pending.attacker },
+                faceUp: faceUpForLocation({ zone: "hand", player: pending.attacker }),
               }
             : t
         );
       }
-      const side = SEAT_TO_SIDE[action.defender];
+      const side = SEAT_TO_SIDE[pending.defender];
       const homeGate = GATE_POSITIONS[side];
       tokens = tokens.map((t) =>
-        t.kind === "piece" && t.player === action.defender ? { ...t, location: { zone: "cell", ...homeGate } } : t
+        t.kind === "piece" && t.player === pending.defender ? { ...t, location: { zone: "cell", ...homeGate } } : t
       );
-      return { ...current, tokens };
+      return { ...current, tokens, pendingContact: null };
     }
     // src/state.jsのSHUFFLE_HANDケースと同じロジック（手札シャッフルボタン）。
     // order_indexはコミット時に配列の並び順からそのまま再採番される（tokenToRow参照）ため、
@@ -360,6 +378,7 @@ function reduce(current: GameState, action: any): GameState {
         roundNumber: 1,
         startPlayer,
         pendingFinalLock: null,
+        pendingContact: null,
       };
     }
     // 最後のロック承認①②（src/state.jsのREQUEST_FINAL_LOCK/RESPOND_FINAL_LOCKケースと
@@ -597,6 +616,7 @@ async function loadState(db: any, gameId: string): Promise<{ state: GameState; v
       roundNumber: gameRow.round_number,
       startPlayer: gameRow.start_player,
       pendingFinalLock: gameRow.pending_final_lock ?? null,
+      pendingContact: gameRow.pending_contact ?? null,
     },
     version: gameRow.version,
   };
@@ -762,6 +782,11 @@ Deno.serve(async (req) => {
     // SQL側のcoalesce()が現在値をそのまま維持する（supabase_setup_so7.sql参照）。
     if (effectiveAction.type === "REQUEST_FINAL_LOCK" || effectiveAction.type === "RESPOND_FINAL_LOCK") {
       gamesPatch.pending_final_lock = next.pendingFinalLock ?? null;
+    }
+    // 接触の承認待ち: 最後のロック承認と全く同じパターン（このアクションの時だけ
+    // pending_contactを含める。保留解消時はnullを明示的に含める）。
+    if (effectiveAction.type === "REQUEST_CONTACT" || effectiveAction.type === "RESPOND_CONTACT") {
+      gamesPatch.pending_contact = next.pendingContact ?? null;
     }
 
     const { error: commitErr } = await db.rpc("so7_apply_and_commit", {
