@@ -3,7 +3,7 @@
 // 参加中の各プレイヤーについて7色すべてのロックスロットが埋まっているかを判定、初めて達成した
 // 瞬間だけ派手な勝利モーダルを出す（一度出したプレイヤーは、以後同じ対戦中は出し直さない）。
 
-import { getState, isOnlineMode } from "./state.js";
+import { getState, isOnlineMode, subscribe } from "./state.js";
 import { COLORS, SEAT_TO_SIDE } from "./board-layout.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { getAvatarVariant, applyAvatarContent } from "./avatar-render.js";
@@ -27,6 +27,26 @@ let announcedPlayers = new Set();
 export function resetVictoryTracking() {
   announcedPlayers = new Set();
 }
+
+// ユーザー報告「勝利した時、勝利モーダル、勝利BGMが鳴らなくなりました」の原因調査で
+// 発見した不具合への対応。announcedPlayers（座席A〜Dの単純な集合、部屋・対局をまたいで
+// 同じ変数を使い回す）をクリアする経路が、以前は(a)ローカルのセットアップウィザード
+// 手順1と(b)post-game-panel.jsの「もう一度遊ぶ」ボタンの2箇所だけの手動呼び出しに
+// 限られていた。しかしオンライン対戦の「ゲームを開始する」（online.jsのstartGame→
+// サーバー側のBOOTSTRAP_GAME）は、そのどちらの経路も経由しない（サーバー側で完結する
+// ため）。そのため一度でもどこかで座席Aが勝つと、以後の（別の部屋・別の対局を含む）
+// 座席Aの勝利が二度と演出されなくなっていた。turnPlayerがnull→非nullに変わった瞬間
+// （online-ui.jsが部屋モーダルの自動クローズに使っているのと同じ「新しい対局が始まった」
+// 検知パターン）を汎用的に拾い、どの経路で始まった対局でも確実にリセットされるようにする
+// （既存の2箇所の手動呼び出しは無害な二重呼び出しとして残す）。
+let wasGameStartedForVictoryTracking = false;
+subscribe(() => {
+  const started = Boolean(getState().turnPlayer);
+  if (started && !wasGameStartedForVictoryTracking) {
+    resetVictoryTracking();
+  }
+  wasGameStartedForVictoryTracking = started;
+});
 
 // ユーザー要望「残りロックエリアの数が3つになったらアバターを変更したい」用。
 // そのプレイヤーの7色のロックスロットのうち、何色ロック済みかを返す（0〜7）。

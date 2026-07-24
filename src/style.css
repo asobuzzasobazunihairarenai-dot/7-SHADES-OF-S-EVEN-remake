@@ -4066,15 +4066,17 @@ body.diagnostic-flatten-3d * {
   margin-bottom: 0.6rem;
 }
 
-/* 最後のロック承認バナー（src/final-lock-approval.js）。画面上部中央に常設し、
-   pendingFinalLockが立っている間だけ表示する（is-visibleクラスの有無で切替。displayでは
-   なくopacity/pointer-eventsで隠す方式にし、フェードのトランジションを効かせる）。 */
+/* 最後のロック承認バナー（src/final-lock-approval.js）。ユーザー報告「画面上部でなく
+   画面中央に点滅強調など目立つように表示してください」への対応で、画面上部から
+   画面中央（縦横とも50%）へ変更し、pendingFinalLockが立っている間は境界線の発光を
+   点滅させて見逃しにくくした。displayではなくopacity/pointer-eventsで隠す方式は
+   従来通り（フェードのトランジションを効かせるため）。 */
 #final-lock-approval-banner {
   position: fixed;
-  top: 1rem;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
-  z-index: 4000;
+  transform: translate(-50%, -50%);
+  z-index: 10450;
   background: linear-gradient(160deg, #422006, #1c1004);
   border: 2px solid #facc15;
   border-radius: 0.7rem;
@@ -4090,6 +4092,21 @@ body.diagnostic-flatten-3d * {
 #final-lock-approval-banner.is-visible {
   opacity: 1;
   pointer-events: auto;
+  animation: final-lock-approval-blink 1.1s ease-in-out infinite;
+}
+@keyframes final-lock-approval-blink {
+  0%, 100% {
+    box-shadow: 0 0 1.5rem rgba(250, 204, 21, 0.5), 0 10px 30px rgba(0, 0, 0, 0.6);
+    border-color: #facc15;
+  }
+  50% {
+    box-shadow: 0 0 3rem rgba(250, 204, 21, 0.95), 0 10px 30px rgba(0, 0, 0, 0.6);
+    border-color: #fff7cc;
+  }
+}
+/* 「アニメーションを減らす」設定がONの間は、他の常時光る演出と同じく点滅を止める。 */
+body.reduce-glow #final-lock-approval-banner.is-visible {
+  animation: none;
 }
 .final-lock-approval-title {
   font-weight: bold;
@@ -4666,6 +4683,17 @@ body.is-online-mode #quick-start-bar {
   justify-content: center;
   overflow: hidden;
   touch-action: none; /* オープニング画面表示中のピンチでもブラウザ標準ズームが出ないように */
+  /* ユーザー報告「盤面画面に移動した時、何かクリックしてからじゃないとマウスホイール
+     ズームなどいろいろ動作しません」の原因調査で発見: ログインカードを✕で閉じても
+     （hideCard()）このオーバーレイ自体（画面全体をinset:0で覆う、全体の中で最も高い
+     z-index）はdisplay:noneにならず、右下の小さい「ログイン」ボタン等を表示したまま
+     居座り続ける設計になっている。その状態でこの要素自体がpointer-events:autoの
+     ままだと、見た目には盤面が透けて見えていても実際のクリック・ホイールは全てこの
+     透明な全画面レイヤーに吸われてしまい、盤面の.sceneには一切届いていなかった。
+     コンテナ自体はクリックを素通しにし（none）、実際に押せる必要がある子要素
+     （ログインカード一式・ストーリーテロップ・STARTボタン、テストモードボタンは
+     既に個別にautoを持つ）にだけ明示的にautoを戻す。 */
+  pointer-events: none;
 }
 #opening-screen.is-closing {
   transition: opacity 0.6s ease;
@@ -4707,6 +4735,9 @@ body.is-online-mode #quick-start-bar {
   flex-direction: column;
   align-items: center;
   opacity: 0;
+  /* #opening-screen自体はpointer-events:noneにしたため、ここ（ログインボタン一式）は
+     明示的に戻す。 */
+  pointer-events: auto;
 }
 /* ストーリーテロップが終わる（または飛ばされる）と#opening-screenに
    stage-contentクラスが付き、ここで初めてログインボタンが浮かび上がる。 */
@@ -4799,6 +4830,9 @@ body.is-online-mode #quick-start-bar {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  /* #opening-screen自体はpointer-events:noneにしたため、ここ（STARTボタン）は
+     明示的に戻す。 */
+  pointer-events: auto;
 }
 .opening-start-gate.is-closing {
   transition: opacity 0.6s ease;
@@ -4893,6 +4927,9 @@ body.is-online-mode #quick-start-bar {
   display: none;
   cursor: pointer;
   overflow: hidden;
+  /* #opening-screen自体はpointer-events:noneにしたため、ここ（クリックでスキップ）は
+     明示的に戻す。 */
+  pointer-events: auto;
 }
 /* ハマりどころ（ユーザー報告「まだ下から出てこない」、34remでも直らなかった）:
    前回はtranslateYの開始位置を「中央からの相対オフセット」にしていたが、

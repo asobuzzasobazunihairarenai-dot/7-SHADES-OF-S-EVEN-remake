@@ -9,7 +9,7 @@
 // フェイズ状態を持たせた時、この案内板の該当ボタンを発光させる形で「今のフェイズ」を
 // 示せるようにする想定（そのための土台として、ボタンをフェイズidで識別できるようにしてある）。
 
-import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
+import { buildIconButtonContent, wireIconButtonClick, openIconDetailModal } from "./icon-action-button.js";
 
 const PHASES = [
   {
@@ -56,7 +56,13 @@ function buildPhaseButton(phase) {
   wireIconButtonClick(btn, {
     detailTitle: `${phase.label}フェイズ`,
     detailParagraphs: phase.detail,
-    onAction: () => {}, // フェイズボタン自体には実行する操作が無い（案内表示のみ）
+    // ユーザー要望「フェイズ案内板の詳細説明についてアイコンをクリックでも表示される
+    // ようにしてほしい」。icon-action-button.jsの共通部品は本来「アイコン=実際の操作、
+    // キャプション文字=詳細説明」という役割分担だが、このボタン群には実行すべき操作が
+    // 元々無い（案内専用）。他のボタン（1枚ドロー等）と違ってicon-action-button.js側の
+    // 共通挙動を変える必要は無く、このボタンだけonAction（アイコンクリック時）でも
+    // キャプションクリックと同じ詳細モーダルを開けばよい。
+    onAction: () => openIconDetailModal(`${phase.label}フェイズ`, phase.detail),
   });
   return btn;
 }

@@ -492,10 +492,28 @@ async function renderRoomChoice(user) {
   contentEl.appendChild(createToggleBtn);
   contentEl.appendChild(createForm);
 
-  const listLabel = document.createElement("div");
-  listLabel.style.cssText = "font-size: 0.85rem; margin-bottom: 0.3rem;";
+  // ユーザー要望「このモーダルに『更新』（部屋が増えてないか確認）みたいなボタンが
+  // 欲しい」への対応。部屋一覧はパネルを開いた瞬間の1回きりの取得のため、開いたまま
+  // 待っていても新しい部屋には気づけなかった。renderPanelContent()自体を呼び直す
+  // （既存のrenderGenerationガードにより連打しても二重表示にはならない）。
+  const listLabelRow = document.createElement("div");
+  listLabelRow.style.cssText =
+    "display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.3rem;";
+  const listLabel = document.createElement("span");
+  listLabel.style.cssText = "font-size: 0.85rem;";
   listLabel.textContent = "参加できる部屋:";
-  contentEl.appendChild(listLabel);
+  listLabelRow.appendChild(listLabel);
+  const refreshBtn = document.createElement("button");
+  refreshBtn.type = "button";
+  refreshBtn.textContent = "🔄 更新";
+  refreshBtn.style.cssText =
+    "font-size: 0.75rem; padding: 0.15rem 0.5rem; background: rgba(148, 163, 184, 0.15); " +
+    "border: 1px solid rgba(148, 163, 184, 0.4); border-radius: 0.3rem; color: #e2e8f0; cursor: pointer;";
+  refreshBtn.addEventListener("click", () => {
+    renderPanelContent();
+  });
+  listLabelRow.appendChild(refreshBtn);
+  contentEl.appendChild(listLabelRow);
 
   const listStatus = document.createElement("div");
   listStatus.style.cssText = "font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.3rem; min-height: 1.2em;";
