@@ -188,6 +188,7 @@ const STEPS = [
       "画面手前に表示されているのがあなたの手札です。相手プレイヤーには中身が見えません。",
       "対局の進行とともに、ドローや駒の移動でここにカードが増えていきます。",
       "1ターンの中で「ロック」「ハンド」「ムーブ」の3つのフェイズを順番に行います。",
+      "※このチュートリアルでは説明のために手札を持たせていますが、実際の最初のターンでは手札は0枚から始まります。",
     ],
   },
   phaseStep(PHASES[0]),
@@ -233,21 +234,34 @@ const STEPS = [
     title: "ムーブフェイズでの移動",
     body: [
       "自分の隣（前後左右の4マス）へ移動するか、隣にいる相手の駒に接触するか、どちらか一方を必ず行います。",
-      "黄色い枠で囲んだマスが、あなたの駒が今動ける方向の目安です（実際に動けるかは、カードの有無や相手の駒の有無で変わります）。",
+      "黄色い枠で囲んだマスが、あなたの駒が今動ける方向の目安です（駒がいるマスとカードの無いマスへは移動できません）。",
     ],
     highlightMoveRange: true,
   },
   {
+    // ユーザー要望「この後に接触についてもモーダルで説明を」への対応。移動と同じ
+    // ムーブフェイズの選択肢だが、効果が全く違う（カードではなく相手プレイヤーが
+    // 対象）ため独立したステップにした。
+    target: () => document.getElementById("phase-guide-move-button"),
+    title: "接触",
+    body: [
+      "隣にいる相手の駒を選んで「接触」すると、その相手の手札から無作為に1枚もらえます。",
+      "接触された相手は、自分のゲートへ強制的に移動させられます（接触した自分自身は移動しません）。",
+    ],
+  },
+  {
     target: () => document.getElementById("phase-guide-move-button"),
     title: "到達効果",
+    icon: "assets/icons/arrival-effect.png",
     body: [
-      "移動先の表向きのカードに駒を乗せると「到達」となり、多くの場合そのカードを手札に加えられます。",
+      "移動先の表向きのカードに駒を乗せると「到達」となり、到達効果が自動的に発動します。発動し終わったら、そのカードは原則そのまま手札に加わります。",
       "カードには、乗った瞬間に発動する「到達効果」と、手札から捨てて発動する「手札効果」の2種類が書かれていることがあります。",
     ],
   },
   {
     target: () => document.querySelector(".zone-bottom .hand-area"),
     title: "手札効果（実際のカードで見てみましょう）",
+    icon: "assets/icons/hand-effect.png",
     body: [
       "手札のカードは、捨てることで「手札効果」を使えます。効果の内容はカードごとに異なり、カード自体に書かれています。",
       "例えばこのカードの手札効果:",
@@ -448,7 +462,16 @@ function positionForCurrentStep() {
 
 function renderStep() {
   const step = STEPS[currentStepIndex];
-  titleEl.textContent = step.title;
+  titleEl.innerHTML = "";
+  // ユーザー提供の到達効果/手札効果アイコンを、該当ステップだけタイトルの横に添える。
+  if (step.icon) {
+    const iconImg = document.createElement("img");
+    iconImg.className = "tutorial-callout-title-icon";
+    iconImg.src = step.icon;
+    iconImg.alt = "";
+    titleEl.appendChild(iconImg);
+  }
+  titleEl.appendChild(document.createTextNode(step.title));
   // ユーザー要望「カードはもっともっと大きく」への対応で、カード例を出すステップだけ
   // コールアウト自体も広げる（style.cssの#tutorial-callout.is-wide参照）。
   calloutEl.classList.toggle("is-wide", Boolean(step.wide));

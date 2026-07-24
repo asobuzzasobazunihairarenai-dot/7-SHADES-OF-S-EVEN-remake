@@ -5502,10 +5502,20 @@ body.reduce-glow .cell.tutorial-move-range {
   transition: left 0.25s ease, top 0.25s ease;
 }
 .tutorial-callout-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   font-weight: bold;
   font-size: 1rem;
   margin-bottom: 0.5rem;
   color: #fde68a;
+}
+/* ユーザー提供の到達効果/手札効果アイコン（tutorial.jsのstep.icon）。 */
+.tutorial-callout-title-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 .tutorial-callout-body p {
   margin: 0 0 0.6rem 0;
