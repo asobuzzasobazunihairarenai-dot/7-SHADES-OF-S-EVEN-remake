@@ -21,15 +21,17 @@
 //
 // ポートしているアクションはMOVE_TOKEN / DRAW_FROM_PILE / SEND_TOKEN_TO_PILE / FLIP_TOKEN /
 // SHUFFLE_HAND / SET_TURN_PLAYER / NEXT_TURN / BOOTSTRAP_GAME / REQUEST_FINAL_LOCK /
-// RESPOND_FINAL_LOCK。それ以外（セットアップウィザードの個別ステップ等）はローカルモード
-// 専用のまま。「公開ドロー」ボタンは新しいアクション型を追加せず、DRAW_FROM_PILEを
-// location.zone="publicDraw"で呼ぶだけなので追加のポートは不要（faceUpForLocation/
-// mergePublicDrawIntoHand参照）。相手ゲート侵攻ボーナスはNEXT_TURNの処理直前に
-// applyGateInvasions()として組み込み済み（隠し情報の無作為抽選が必要なため、サーバー側で
-// 判定から適用まで行う。詳細は該当コメント参照）。REQUEST_FINAL_LOCK/RESPOND_FINAL_LOCK
-// （最後のロック承認、src/state.jsと同じロジック）は隠す必要の無い公開情報のみを扱うため、
-// 特別な権限チェックは無い（座席さえ持っていれば誰でも承認/却下できる、既存の
-// 「座席を持っていれば何でも動かせる」方針のまま）。
+// RESPOND_FINAL_LOCK / CONTACT。それ以外（セットアップウィザードの個別ステップ等）は
+// ローカルモード専用のまま。「公開ドロー」ボタンは新しいアクション型を追加せず、
+// DRAW_FROM_PILEを location.zone="publicDraw"で呼ぶだけなので追加のポートは不要
+// （faceUpForLocation/mergePublicDrawIntoHand参照）。相手ゲート侵攻ボーナスはNEXT_TURNの
+// 処理直前にapplyGateInvasions()として組み込み済み（隠し情報の無作為抽選が必要なため、
+// サーバー側で判定から適用まで行う。詳細は該当コメント参照）。CONTACT（接触、ユーザー
+// 要望「接触処理の自動化」）も同じ理由（相手の手札から無作為に1枚奪う）でreduce()内に
+// 直接実装した（詳細はCONTACTケースのコメント参照）。REQUEST_FINAL_LOCK/
+// RESPOND_FINAL_LOCK（最後のロック承認、src/state.jsと同じロジック）は隠す必要の無い
+// 公開情報のみを扱うため、特別な権限チェックは無い（座席さえ持っていれば誰でも
+// 承認/却下できる、既存の「座席を持っていれば何でも動かせる」方針のまま）。
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -212,6 +214,38 @@ function reduce(current: GameState, action: any): GameState {
     case "FLIP_TOKEN": {
       const tokens = current.tokens.map((t) =>
         t.id === action.tokenId && t.kind === "card" ? { ...t, faceUp: !t.faceUp } : t
+      );
+      return { ...current, tokens };
+    }
+    // src/state.jsのCONTACTケースと同じロジック（ユーザー要望「接触処理の自動化」）。
+    // 「無作為に1枚」は隠し情報の抽選のため、クライアント側では行えずここ（サーバー）で
+    // 行う必要がある——ゲート侵攻ボーナスの「手札を半分奪う」と全く同じ理由。相手の
+    // ゲートに表向きのカードがあった場合の到達効果は、ここでは駒の位置を変えるだけに
+    // とどめ、通常の移動と同じ経路（クライアント側のremote-move-animator.jsが
+    // hydrateState後の差分検知で自動的に検知し、駒の持ち主自身の画面に到達モーダルを
+    // 出す）に任せる。ゲート侵攻ボーナスの③（自分のゲートのカードを無条件で手札に
+    // 加える）とは違い、ここでは到達モーダルでの通常の確認フローをそのまま使う。
+    case "CONTACT": {
+      const defenderHand = current.tokens.filter(
+        (t) => t.kind === "card" && t.location.zone === "hand" && (t.location as { player: string }).player === action.defender
+      );
+      let tokens = current.tokens;
+      if (defenderHand.length > 0) {
+        const stolen = shuffled(defenderHand)[0];
+        tokens = tokens.map((t) =>
+          t.id === stolen.id
+            ? {
+                ...t,
+                location: { zone: "hand", player: action.attacker },
+                faceUp: faceUpForLocation({ zone: "hand", player: action.attacker }),
+              }
+            : t
+        );
+      }
+      const side = SEAT_TO_SIDE[action.defender];
+      const homeGate = GATE_POSITIONS[side];
+      tokens = tokens.map((t) =>
+        t.kind === "piece" && t.player === action.defender ? { ...t, location: { zone: "cell", ...homeGate } } : t
       );
       return { ...current, tokens };
     }

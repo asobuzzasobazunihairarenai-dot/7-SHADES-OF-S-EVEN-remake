@@ -400,6 +400,7 @@ const STEPS = [
     renderExtra: (container) => container.appendChild(buildCardExampleEl()),
     footer: ["盤面のカードを右クリック→「カード補足を見る」でも、いつでも同じように詳細を確認できます。"],
     wide: true,
+    showDummyHand: true,
   },
   {
     // ユーザー要望「『手札公開エリアへドラッグして使用宣言してから使うと相手に

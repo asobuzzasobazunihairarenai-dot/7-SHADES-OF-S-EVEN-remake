@@ -260,6 +260,40 @@ function reduce(current, action) {
       );
       return { ...current, tokens };
     }
+    // ユーザー要望「接触処理の自動化」への対応。ムーブフェイズの選択肢の1つ「接触」
+    // （隣の相手の駒を選んで接触すると、その相手の手札から無作為に1枚もらい、相手は
+    // 自分のゲートへ強制移動する）。相手のゲートに表向きのカードがあれば、通常の移動と
+    // 全く同じ経路で到達効果が発動する——ここでは駒の位置を変えるだけにとどめ、到達判定
+    // 自体はmain.js側の既存の仕組み（オンライン中はremote-move-animator.jsの
+    // triggerCardArrivalIfFaceUp、駒の持ち主自身の画面で自動的に検知される）に任せる。
+    // 「無作為に1枚」は隠し情報の抽選のため、オンライン中は必ずonlineTransport
+    // （so7-apply-action.tsのCONTACTケース、サーバー側で抽選）を経由する
+    // （この関数の冒頭のonlineMode分岐参照）。ローカルモードは全員分の手札を1つの
+    // ブラウザで見ているだけなので、ここでのクライアント側抽選で問題ない。
+    case "CONTACT": {
+      const defenderHand = current.tokens.filter(
+        (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === action.defender
+      );
+      let tokens = current.tokens;
+      if (defenderHand.length > 0) {
+        const stolen = shuffled(defenderHand)[0];
+        tokens = tokens.map((t) =>
+          t.id === stolen.id
+            ? {
+                ...t,
+                location: { zone: "hand", player: action.attacker },
+                faceUp: faceUpForLocation({ zone: "hand", player: action.attacker }),
+              }
+            : t
+        );
+      }
+      const side = SEAT_TO_SIDE[action.defender];
+      const homeGate = GATE_POSITIONS[side];
+      tokens = tokens.map((t) =>
+        t.kind === "piece" && t.player === action.defender ? { ...t, location: { zone: "cell", ...homeGate } } : t
+      );
+      return { ...current, tokens };
+    }
     // セットアップウィザード（game-setup.js）の「１：ファーストカードを配り、駒を配置する」
     // の起点として、盤面を完全に空の状態に戻す。ルールブック通り「初期手札なし」の状態から
     // 組み立て直すため、現在ある駒・カード（手札含む）を全て消し、山札・エターナル・
@@ -543,6 +577,13 @@ export function flipToken(tokenId) {
 export function shuffleHand(player) {
   if (onlineMode && onlineTransport) return onlineTransport({ type: "SHUFFLE_HAND", player });
   dispatch({ type: "SHUFFLE_HAND", player });
+}
+
+// ユーザー要望「接触処理の自動化」への対応。main.js側の確認モーダルで「OK」が
+// 押された時に呼ばれる。
+export function contactPlayer(attacker, defender) {
+  if (onlineMode && onlineTransport) return onlineTransport({ type: "CONTACT", attacker, defender });
+  dispatch({ type: "CONTACT", attacker, defender });
 }
 
 export function resetGame() {

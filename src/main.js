@@ -84,6 +84,7 @@ import {
   isOnlineMode,
   requestFinalLock,
   respondFinalLock,
+  contactPlayer,
 } from "./state.js";
 import { initOnlineUi, openOnlinePanel, isOnlineIntentActive } from "./online-ui.js";
 import { initOpeningScreen, previewOpeningAuras } from "./opening-screen.js";
@@ -927,6 +928,155 @@ function promptCardOpen(pieceTokenId, card) {
   prompt.appendChild(noBtn);
   document.body.appendChild(prompt);
   openPromptEl = prompt;
+}
+
+// --- 接触（ムーブフェイズの選択肢、ユーザー要望「接触処理の自動化」） ------------------
+// 隣にいる相手の駒をクリックすると「接触する」ボタンが駒の上に浮かぶ（promptCardOpenと
+// 同じ「オープンする/しない」浮遊プロンプトの見た目を流用）。押すと「本当に接触しますか？」
+// の確認モーダルが挟まり、OKで実際に処理される（ゲート侵攻ボーナスと同じ「確認→自動処理」
+// の流れ）。接触された相手はゲートへ強制移動するだけで、そのゲートに表向きのカードが
+// あった場合の到達効果は、通常の移動と全く同じ経路（オンライン中はremote-move-animator.js
+// が hydrateState後の差分検知で自動的に検知する）で、相手自身の画面に通常通りの到達
+// モーダルが出る。ここでは駒を動かす以上のことは一切しない。
+let contactPromptEl = null;
+
+function closeContactPrompt() {
+  if (contactPromptEl) {
+    contactPromptEl.remove();
+    contactPromptEl = null;
+  }
+}
+
+function isAdjacentCell(a, b) {
+  const dr = Math.abs(a.row - b.row);
+  const dc = Math.abs(a.col - b.col);
+  return (dr === 1 && dc === 0) || (dr === 0 && dc === 1);
+}
+
+function getSelfPieceLocation() {
+  const selfSeat = getSelfSeat();
+  const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === selfSeat && t.location.zone === "cell");
+  return piece?.location ?? null;
+}
+
+function openContactConfirmModal(targetSeat) {
+  const modal = document.createElement("div");
+  modal.id = "contact-confirm-modal";
+  const close = () => {
+    backdrop.remove();
+    modal.remove();
+  };
+  const backdrop = createBackdrop(close, { dim: true, zIndex: 10600 });
+
+  const title = document.createElement("div");
+  title.className = "contact-confirm-title";
+  title.textContent = "本当に接触しますか？";
+
+  const body = document.createElement("div");
+  body.className = "contact-confirm-body";
+  body.textContent = `${getPlayerName(targetSeat)}に接触します。相手の手札から無作為に1枚もらい、相手は自分のゲートへ強制移動します。`;
+
+  const btnRow = document.createElement("div");
+  btnRow.className = "contact-confirm-buttons";
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.className = "contact-confirm-cancel";
+  cancelBtn.type = "button";
+  cancelBtn.textContent = "キャンセル";
+  cancelBtn.addEventListener("click", close);
+
+  const okBtn = document.createElement("button");
+  okBtn.className = "contact-confirm-ok";
+  okBtn.type = "button";
+  okBtn.textContent = "🤝 接触する";
+  okBtn.addEventListener("click", async () => {
+    okBtn.disabled = true;
+    cancelBtn.disabled = true;
+    try {
+      if (isOnlineMode()) {
+        await contactPlayer(getSelfSeat(), targetSeat);
+        await fetchAndHydrate(getCurrentGameId());
+        playSound("piecePlace");
+        render();
+        // オンライン中の到達判定はremote-move-animator.jsの状態差分検知に任せる
+        // （相手（接触された側）自身の画面で自動的に検知され、通常の移動と同じ経路で
+        // 到達モーダルが出る。ここで自分の画面から重ねて呼ぶ必要はない）。
+      } else {
+        contactPlayer(getSelfSeat(), targetSeat);
+        playSound("piecePlace");
+        render();
+        // ローカル（同一画面の対面プレイ）はremote-move-animator.jsが動かないため
+        // （isOnlineMode()で早期returnする設計）、ドラッグ移動と同じ到達判定
+        // （maybeTriggerCardArrival、裏向きならオープンする/しないの選択も出す）を
+        // ここで明示的に呼ぶ必要がある。到達プロンプト/モーダルの位置決めに実際のDOM座標
+        // (getBoundingClientRect)を使うため、render()で盤面を描き直した後でなければ
+        // 呼べない（moveTokenの他の呼び出し箇所と同じ制約）。
+        const defenderPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === targetSeat);
+        if (defenderPiece) maybeTriggerCardArrival(defenderPiece.location, defenderPiece.id);
+      }
+    } catch (err) {
+      console.error("contactPlayer failed", err);
+    } finally {
+      close();
+    }
+  });
+
+  btnRow.appendChild(cancelBtn);
+  btnRow.appendChild(okBtn);
+
+  modal.appendChild(createModalCloseX(close));
+  modal.appendChild(title);
+  modal.appendChild(body);
+  modal.appendChild(btnRow);
+  document.body.appendChild(backdrop);
+  document.body.appendChild(modal);
+}
+
+function showContactPrompt(pieceTokenId, targetSeat) {
+  closeContactPrompt();
+  const pieceEl = document.querySelector(`.piece[data-token-id="${pieceTokenId}"]`);
+  if (!pieceEl) return;
+  const rect = toStageLocalRect(pieceEl.getBoundingClientRect());
+
+  const prompt = document.createElement("div");
+  prompt.className = "card-open-prompt";
+  prompt.style.left = `${rect.left + (rect.right - rect.left) / 2}px`;
+  prompt.style.top = `${rect.top}px`;
+
+  const contactBtn = document.createElement("button");
+  contactBtn.className = "card-open-prompt-yes";
+  contactBtn.textContent = "🤝 接触する";
+  contactBtn.addEventListener("click", () => {
+    closeContactPrompt();
+    openContactConfirmModal(targetSeat);
+  });
+
+  prompt.appendChild(contactBtn);
+  document.body.appendChild(prompt);
+  contactPromptEl = prompt;
+}
+
+// 誤操作防止のため、隣接した相手の駒を「クリック」した時だけ反応する（ドラッグでは
+// 反応しない。findDraggableAt/onDragStart側の既存のドラッグ判定には一切手を入れない）。
+function initContactHandler() {
+  const table = document.getElementById("game-table");
+  table.addEventListener("click", (e) => {
+    const pieceEl = e.target.closest(".piece");
+    if (!pieceEl) return;
+    const token = getState().tokens.find((t) => t.id === pieceEl.dataset.tokenId);
+    if (!token || token.kind !== "piece") return;
+    const selfSeat = getSelfSeat();
+    if (!selfSeat || token.player === selfSeat) return; // 自分の駒は対象外
+    if (!getState().activePlayers.includes(token.player)) return;
+    if (token.location.zone !== "cell") return;
+    const selfLoc = getSelfPieceLocation();
+    if (!selfLoc || selfLoc.zone !== "cell") return;
+    if (!isAdjacentCell(selfLoc, token.location)) return;
+    showContactPrompt(token.id, token.player);
+  });
+  document.addEventListener("pointerdown", (e) => {
+    if (contactPromptEl && !contactPromptEl.contains(e.target)) closeContactPrompt();
+  });
 }
 
 function renderBoardTokens(table) {
@@ -3840,6 +3990,7 @@ handShuffleButtonEl = buildHandShuffleButton();
 applyViewportStage();
 render();
 initDragHandlers();
+initContactHandler();
 initHoverHandlers();
 initHandPeek();
 initContextMenuHandlers();

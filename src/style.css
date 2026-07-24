@@ -975,6 +975,66 @@ body.reduce-glow [style*="rainbow-shard.webp"]::after {
   cursor: pointer;
 }
 
+/* 接触の誤押下防止確認モーダル（キャンセル/OKの2択。#confirm-modalのOK単独版と違い
+   キャンセルもあるため専用ブロックにしてある）。 */
+#contact-confirm-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(26rem, 90vw);
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.5rem;
+  padding: 1.2rem;
+  z-index: 10601;
+  font-family: sans-serif;
+  color: #e2e8f0;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+.contact-confirm-title {
+  font-weight: bold;
+  margin-bottom: 0.6rem;
+}
+.contact-confirm-body {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin-bottom: 1rem;
+}
+.contact-confirm-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+.contact-confirm-buttons button {
+  padding: 0.4rem 1.2rem;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+.contact-confirm-cancel {
+  background: linear-gradient(160deg, #64748b, #334155);
+  color: #fff;
+}
+.contact-confirm-cancel:hover {
+  background: linear-gradient(160deg, #94a3b8, #475569);
+}
+.contact-confirm-ok {
+  background: linear-gradient(160deg, #22c55e, #15803d);
+  color: #fff;
+}
+.contact-confirm-ok:hover {
+  background: linear-gradient(160deg, #4ade80, #16a34a);
+}
+.contact-confirm-ok:disabled,
+.contact-confirm-cancel:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* カード右クリックの専用メニューと、その中の「カード補足を見る」で開くモーダル。 */
 #card-context-menu {
   position: fixed;
