@@ -48,7 +48,7 @@ function activePlayersOrdered() {
 // 両方で閉じられる、ui-helpers.jsの共通部品を使う）。
 // fadeIn:trueにすると、いきなり表示せず少し溜めてからフェードインする
 // （スタートプレイヤー決定のような「発表」演出に重みを持たせるため）。
-function buildSimpleModal({ widthRem = 24, fadeIn = false, autoDismissMs = null, onClose = null } = {}) {
+function buildSimpleModal({ widthRem = 24, fadeIn = false, autoDismissMs = null, onClose = null, blocksInput = true } = {}) {
   const modal = document.createElement("div");
   modal.style.cssText = `
     position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -63,6 +63,17 @@ function buildSimpleModal({ widthRem = 24, fadeIn = false, autoDismissMs = null,
     onClose?.();
   };
   const backdrop = createBackdrop(close, { zIndex: 10001 });
+  // ユーザー報告「セットアップが終わった後も無駄なワンクリックが必要」の原因調査で
+  // 発見。このバックドロップは画面全体を覆うposition:fixedの透明な要素で、既定では
+  // 盤面上のどんな操作（ホイールズーム含む）も一切受け付けなくなる。スタートプレイヤー
+  // 決定モーダル（showStartPlayerModal、blocksInput:false）は8秒で自動的に消える
+  // 「お知らせ」的な性質のため、閉じる操作（＝無駄な1クリック）を待たずすぐに盤面へ
+  // 触れるよう、バックドロップだけクリックを素通しにし、モーダル本体（✕ボタン含む）は
+  // 引き続き明示的に押せるままにする。
+  if (!blocksInput) {
+    backdrop.style.pointerEvents = "none";
+    modal.style.pointerEvents = "auto";
+  }
   modal.appendChild(createModalCloseX(close));
   if (fadeIn) {
     backdrop.style.opacity = "0";
@@ -92,7 +103,7 @@ function buildSimpleModal({ widthRem = 24, fadeIn = false, autoDismissMs = null,
 }
 
 function showStartPlayerModal(player, { onClose = null, autoDismissMs = 8000 } = {}) {
-  const { modal } = buildSimpleModal({ widthRem: 20, fadeIn: true, autoDismissMs, onClose });
+  const { modal } = buildSimpleModal({ widthRem: 20, fadeIn: true, autoDismissMs, onClose, blocksInput: false });
   const title = document.createElement("div");
   title.style.cssText = "font-weight: bold; margin-bottom: 0.6rem; font-size: 0.95rem;";
   title.textContent = "３：スタートプレイヤー決定";
