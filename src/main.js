@@ -14,6 +14,7 @@ import {
 import { initDeckViewer, openDeckViewer } from "./deck-viewer.js";
 import { initStatsPlayerLinkModal } from "./stats-player-link.js";
 import { initMyPage, openMyPage, registerAvatarPickerHelper } from "./my-page.js";
+import { initHelpButton } from "./help.js";
 import { initGameSetup, previewStartPlayerModal } from "./game-setup.js";
 import { initOptionsMenu } from "./options-menu.js";
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
@@ -4378,6 +4379,7 @@ initAdminMode();
 initDeckViewer();
 initStatsPlayerLinkModal();
 initMyPage();
+initHelpButton();
 registerAvatarPickerHelper(openAvatarPicker);
 initGameSetup();
 registerStartPlayerPreviewHelper(previewStartPlayerModal);

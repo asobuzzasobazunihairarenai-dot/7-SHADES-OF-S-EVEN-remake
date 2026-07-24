@@ -431,6 +431,23 @@ const STEPS = [
   },
 ];
 
+// ユーザー要望「オプションの横にヘルプボタンを作り、チュートリアルや説明書の内容を
+// 網羅しているページを出したい」への対応。help.jsから呼ばれる。このチュートリアルの
+// 説明文（title/body/icon）をそのまま読み物ページとして流用し、二重管理を避ける。
+// isBranch（「もっと詳しく知りたいですか？」の分岐質問）は、チュートリアルの進行を
+// 前提にした問いかけ文でヘルプページには不向きなため除外する。renderExtra（仮想盤面の
+// ミニ図・カード実例）とhighlightMoveRange/showDummyHand（実際の盤面を必要とする演出）は
+// ゲーム画面が無い状態でも開けるヘルプページでは再現しない——文章(body/footer)だけで
+// 意味が通るように書かれているため、無くても内容は十分に伝わる。
+export function getHelpSections() {
+  return STEPS.filter((step) => !step.isBranch).map((step) => ({
+    title: step.title,
+    icon: step.icon ?? null,
+    body: step.body,
+    footer: step.footer ?? null,
+  }));
+}
+
 let overlayEl = null;
 let scrimEl = null;
 let spotlightEl = null;

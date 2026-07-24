@@ -42,9 +42,15 @@ export function registerRankRingPreviewHelper(fn) {
 // 項目を並べてほしい」への対応。「PC」は新設せず（既存の3項目がそのままPC向けの内容の
 // ため）、「タブレット」だけを一番上に新設し、既存のタブレット専用オーバーライド一式と
 // 今回追加したZ値調整をここにまとめた。
+// ユーザー要望「管理者モードの項目が増えてきたので整理してほしい」への対応。「📐 位置合わせ」
+// 1本に33項目も詰め込まれていたため、対象ごとに4つへ細分化した（GROUPS/TOGGLE_SECTIONS側の
+// `category`もこの新しいキーに合わせて振り直し済み）。
 const CATEGORIES = [
   { key: "tablet", label: "📱 タブレット" },
-  { key: "position", label: "📐 位置合わせ" },
+  { key: "position-board", label: "📐 位置合わせ：盤面・カメラ・山" },
+  { key: "position-self", label: "📐 位置合わせ：自分のステータス・手札" },
+  { key: "position-players", label: "📐 位置合わせ：相手プレイヤー表示" },
+  { key: "position-ui", label: "📐 位置合わせ：アイコン・案内・タイマー" },
   { key: "effect", label: "✨ 演出" },
   { key: "behavior", label: "⚙ セットアップ・挙動" },
 ];
@@ -54,7 +60,7 @@ const CATEGORIES = [
 const GROUPS = [
   {
     title: "カメラ（3D視点）の位置調整",
-    category: "position",
+    category: "position-board",
     controls: [
       { key: "--table-tilt", label: "テーブルの傾き", unit: "deg", min: 0, max: 70, step: 1, default: 42 },
       { key: "--camera-perspective", label: "カメラ距離（小さいほど遠近感が強い）", unit: "px", min: 500, max: 3000, step: 10, default: 1090 },
@@ -65,7 +71,7 @@ const GROUPS = [
   },
   {
     title: "カード拡大プレビュー",
-    category: "position",
+    category: "position-board",
     controls: [
       { key: "--card-preview-size", label: "サイズ", unit: "rem", min: 8, max: 36, step: 0.5, default: 20 },
     ],
@@ -199,7 +205,7 @@ const GROUPS = [
   },
   {
     title: "盤面拡大ボタン（1段階目）のズーム位置調整",
-    category: "position",
+    category: "position-board",
     controls: [
       // ユーザー要望「もっとズームしたい」によりレンジを拡張（以前はmax:1までしか無く、
       // 2段階目(--board-zoom-2-margin、max:2)ほど拡大できなかった）。
@@ -211,7 +217,7 @@ const GROUPS = [
   },
   {
     title: "盤面拡大ボタン（2段階目「もっと拡大」）のズーム位置調整",
-    category: "position",
+    category: "position-board",
     controls: [
       { key: "--board-zoom-2-margin", label: "余白（大きいほど拡大される）", unit: "", min: 1, max: 2, step: 0.01, default: 2 },
       { key: "--board-zoom-2-offset-x", label: "位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
@@ -224,15 +230,27 @@ const GROUPS = [
     // （他のアイコンボタン列の近く）へ引っ越した。item-width/heightは今もturn-timer.jsの
     // 基本時間表示（⏱、テキストのまま）にだけ使われている。
     title: "フェイズ案内板（画面右下）",
-    category: "position",
+    category: "position-ui",
     controls: [
       { key: "--phase-guide-bottom", label: "Y位置（画面下端からの距離）", unit: "rem", min: 0, max: 20, step: 0.1, default: 0 },
       { key: "--phase-guide-right", label: "X位置（画面右端からの距離）", unit: "rem", min: 0, max: 30, step: 0.1, default: 2.3 },
     ],
   },
   {
+    // ユーザー要望「『ターン数、ラウンド数』の表示の位置サイズ調整を管理者モードに
+    // 追加したい」への対応。元々は画面右上に固定値（top:0.4rem・right:3.9rem・
+    // font-size:0.65rem）で決め打ちされていた（style.cssの#turn-round-counter参照）。
+    title: "ターン数・ラウンド数の表示（画面右上）",
+    category: "position-ui",
+    controls: [
+      { key: "--turn-round-counter-top", label: "Y位置（画面上端からの距離）", unit: "rem", min: 0, max: 20, step: 0.1, default: 0.4 },
+      { key: "--turn-round-counter-right", label: "X位置（画面右端からの距離）", unit: "rem", min: 0, max: 30, step: 0.1, default: 3.9 },
+      { key: "--turn-round-counter-font-size", label: "文字サイズ", unit: "rem", min: 0.4, max: 3, step: 0.05, default: 0.65 },
+    ],
+  },
+  {
     title: "ターンタイマー：中央ロープの位置調整",
-    category: "position",
+    category: "position-ui",
     controls: [
       { key: "--turn-timer-rope-pos-x", label: "位置X", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
       { key: "--turn-timer-rope-pos-y", label: "位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
@@ -241,7 +259,7 @@ const GROUPS = [
   },
   {
     title: "優先権譲渡ボタンの位置調整",
-    category: "position",
+    category: "position-ui",
     controls: [
       { key: "--priority-transfer-pos-x", label: "位置X", unit: "rem", min: -30, max: 30, step: 0.1, default: -1.6 },
       { key: "--priority-transfer-pos-y", label: "位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: 1.5 },
@@ -250,7 +268,7 @@ const GROUPS = [
   {
     // 左下の自分専用ステータスエリアに出す「⏳×N」表示（turn-timer.jsのbuildSelfStock参照）。
     title: "ターンタイマー：砂時計残数バッジの位置調整",
-    category: "position",
+    category: "position-ui",
     controls: [
       { key: "--turn-timer-self-stock-pos-x", label: "位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: -6 },
       { key: "--turn-timer-self-stock-pos-y", label: "位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 0 },
@@ -258,14 +276,14 @@ const GROUPS = [
   },
   {
     title: "駒の当たり判定（ホバーすると発光する範囲）",
-    category: "position",
+    category: "position-board",
     controls: [
       { key: "--piece-hitbox-scale", label: "広さ（見た目のサイズはそのまま）", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 1 },
     ],
   },
   {
     title: "プレイマット",
-    category: "position",
+    category: "position-board",
     controls: [
       { key: "--playmat-scale", label: "拡大率", unit: "", min: 0.5, max: 3, step: 0.01, default: 1.42 },
       { key: "--playmat-pos-x", label: "位置X（中心からのずれ）", unit: "%", min: -50, max: 50, step: 0.5, default: 0 },
@@ -278,7 +296,7 @@ const GROUPS = [
     // 調整できるようにし（background-size:containと組み合わせ、トリミング・変形は
     // 一切発生しない）、横長のまま好きなサイズに調整できるようにした。
     title: "背景画像",
-    category: "position",
+    category: "position-board",
     controls: [
       { key: "--table-background-scale-x", label: "拡大率（横幅）", unit: "", min: 0.5, max: 8, step: 0.05, default: 4.75 },
       { key: "--table-background-scale-y", label: "拡大率（高さ）", unit: "", min: 0.5, max: 8, step: 0.05, default: 4.85 },
@@ -297,7 +315,7 @@ const GROUPS = [
     // 参照）ため、マウス操作でもスライダーでも同じ値を共有し、どちらで動かしても
     // 「出力をコピー」に反映される。
     title: "自分専用ステータスエリア（左下）：サイズ（アイコンごとに個別）",
-    category: "position",
+    category: "position-self",
     controls: [
       { key: "--self-status-icon-piece-size", label: "駒スキンアイコン サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 1.5 },
       { key: "--self-status-icon-cardback-size", label: "カード裏面アイコン サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 1.5 },
@@ -309,7 +327,7 @@ const GROUPS = [
   },
   {
     title: "自分専用ステータスエリア（左下）：大きいアバター（背面表示）",
-    category: "position",
+    category: "position-self",
     controls: [
       { key: "--self-status-large-avatar-size", label: "サイズ", unit: "rem", min: 2, max: 16, step: 0.1, default: 13.5 },
       { key: "--self-status-large-avatar-pos-x", label: "位置X", unit: "rem", min: -15, max: 20, step: 0.1, default: -0.86 },
@@ -318,7 +336,7 @@ const GROUPS = [
   },
   {
     title: "自分専用ステータスエリア（左下）：位置調整",
-    category: "position",
+    category: "position-self",
     controls: [
       { key: "--self-status-pos-x", label: "パネル全体 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--self-status-pos-y", label: "パネル全体 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
@@ -341,7 +359,7 @@ const GROUPS = [
   },
   {
     title: "ロックエリア（盤面中心からの距離、デフォルトはマスに密着）",
-    category: "position",
+    category: "position-board",
     controls: [
       { key: "--lock-top-pos-x", label: "奥/C側 位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
       { key: "--lock-top-pos-y", label: "奥/C側 位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: -1.8 },
@@ -357,7 +375,7 @@ const GROUPS = [
   },
   {
     title: "ロックエリアバー（ロックエリアと盤面の間の装飾画像）",
-    category: "position",
+    category: "position-board",
     controls: [
       { key: "--lock-bar-scale", label: "大きさ（共通）", unit: "", min: 0.3, max: 3, step: 0.01, default: 1.13 },
       { key: "--lock-bar-top-pos-x", label: "奥/C側 位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
@@ -372,7 +390,7 @@ const GROUPS = [
   },
   {
     title: "プレイヤー名ラベルの位置",
-    category: "position",
+    category: "position-players",
     controls: [
       { key: "--label-a-pos-x", label: "A（自分）位置X", unit: "rem", min: -24, max: 24, step: 0.1, default: -14.7 },
       { key: "--label-a-pos-y", label: "A（自分）位置Y", unit: "rem", min: -24, max: 24, step: 0.1, default: -1.1 },
@@ -382,12 +400,12 @@ const GROUPS = [
       { key: "--label-c-pos-y", label: "C 位置Y", unit: "rem", min: -24, max: 24, step: 0.1, default: -7 },
       { key: "--label-d-pos-x", label: "D 位置X", unit: "rem", min: -24, max: 24, step: 0.1, default: 3.8 },
       { key: "--label-d-pos-y", label: "D 位置Y", unit: "rem", min: -24, max: 24, step: 0.1, default: -5.2 },
-      { key: "--label-bcd-font-size", label: "B/C/D 文字サイズ", unit: "rem", min: 0.5, max: 3, step: 0.05, default: 1 },
+      { key: "--label-bcd-font-size", label: "B/C/D 文字サイズ", unit: "rem", min: 0.5, max: 3, step: 0.05, default: 1.6 },
     ],
   },
   {
     title: "プレイヤーアバターの位置・サイズ（手札の後ろ側に配置）",
-    category: "position",
+    category: "position-players",
     controls: [
       { key: "--avatar-a-size", label: "A（自分）サイズ", unit: "rem", min: 1, max: 12, step: 0.1, default: 5.7 },
       { key: "--avatar-b-size", label: "B サイズ", unit: "rem", min: 1, max: 12, step: 0.1, default: 8 },
@@ -405,7 +423,7 @@ const GROUPS = [
   },
   {
     title: "手札の位置（盤面中心からのずれ）",
-    category: "position",
+    category: "position-self",
     controls: [
       { key: "--hand-a-pos-x", label: "A（自分）位置X", unit: "rem", min: -10, max: 10, step: 0.1, default: 0 },
       { key: "--hand-a-pos-y", label: "A（自分）位置Y", unit: "rem", min: -10, max: 10, step: 0.1, default: 4.3 },
@@ -419,7 +437,7 @@ const GROUPS = [
   },
   {
     title: "手札エリアのサイズ（手札3枚時が基準。枚数に応じて自動で伸縮）",
-    category: "position",
+    category: "position-self",
     controls: [
       { key: "--hand-a-size", label: "A（自分）サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 17 },
       { key: "--hand-b-size", label: "B サイズ", unit: "rem", min: 4, max: 30, step: 0.5, default: 7 },
@@ -429,7 +447,7 @@ const GROUPS = [
   },
   {
     title: "手札エリアの厚み（扇が伸びない方向。固定値、ロックエリアとの干渉調整用）",
-    category: "position",
+    category: "position-self",
     controls: [
       { key: "--hand-a-thickness", label: "A（自分）厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 10 },
       { key: "--hand-b-thickness", label: "B 厚み", unit: "rem", min: 1, max: 12, step: 0.1, default: 5 },
@@ -444,7 +462,7 @@ const GROUPS = [
     // （Y方向の移動量）を使っていたが、「1枚だけ」に変更したのに合わせてtranslateZ
     // （カメラ側へのポップ量、プラスの値）に意味を変えた。
     title: "自分の手札：ホバー/タップで1枚だけ持ち上げる量",
-    category: "position",
+    category: "position-self",
     controls: [
       { key: "--hand-a-peek-lift", label: "持ち上げ量", unit: "rem", min: 0, max: 6, step: 0.1, default: 3 },
     ],
@@ -455,7 +473,7 @@ const GROUPS = [
     // けど、手札自体のサイズ変更が見当たらない」と指摘され追加）。中心基準(top/left:50%)の
     // marginをcalc()でサイズと連動させてあるため、サイズを変えても中心がズレない。
     title: "手札カード自体のサイズ（1枚あたりの見た目の大きさ）",
-    category: "position",
+    category: "position-self",
     controls: [
       { key: "--hand-card-self-size", label: "自分の手札", unit: "rem", min: 2, max: 12, step: 0.1, default: 9 },
       { key: "--hand-card-opponent-size", label: "相手の手札", unit: "rem", min: 1, max: 8, step: 0.1, default: 2.6 },
@@ -463,7 +481,7 @@ const GROUPS = [
   },
   {
     title: "山札",
-    category: "position",
+    category: "position-board",
     controls: [
       { key: "--deck-scale", label: "拡大率", unit: "", min: 0.3, max: 3, step: 0.01, default: 1 },
       { key: "--deck-pos-x", label: "位置X（中心からのずれ）", unit: "rem", min: -25, max: 25, step: 0.1, default: 4.1 },
@@ -472,7 +490,7 @@ const GROUPS = [
   },
   {
     title: "捨て場",
-    category: "position",
+    category: "position-board",
     controls: [
       { key: "--discard-scale", label: "拡大率", unit: "", min: 0.3, max: 3, step: 0.01, default: 1 },
       { key: "--discard-pos-x", label: "位置X（中心からのずれ）", unit: "rem", min: -25, max: 25, step: 0.1, default: -4.1 },
@@ -481,7 +499,7 @@ const GROUPS = [
   },
   {
     title: "エターナルカード",
-    category: "position",
+    category: "position-board",
     controls: [
       { key: "--eternal-scale", label: "拡大率", unit: "", min: 0.3, max: 3, step: 0.01, default: 1 },
       { key: "--eternal-pos-x", label: "位置X（中心からのずれ）", unit: "rem", min: -25, max: 25, step: 0.1, default: 4.1 },
@@ -490,7 +508,7 @@ const GROUPS = [
   },
   {
     title: "ファーストカード",
-    category: "position",
+    category: "position-board",
     controls: [
       { key: "--first-scale", label: "拡大率", unit: "", min: 0.3, max: 3, step: 0.01, default: 1 },
       { key: "--first-pos-x", label: "位置X（中心からのずれ）", unit: "rem", min: -25, max: 25, step: 0.1, default: -4.1 },
@@ -502,7 +520,7 @@ const GROUPS = [
     // ここと同じCSS変数へ直接書き込む（icon-rearrange.js参照）ため、ドラッグでも
     // スライダーでも同じ値を共有し、どちらで動かしても「出力をコピー」に反映される。
     title: "アイコンの位置調整（自由配置）",
-    category: "position",
+    category: "position-ui",
     controls: [
       { key: "--icon-pos-hand-shuffle-x", label: "手札シャッフル 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -7.5 },
       { key: "--icon-pos-hand-shuffle-y", label: "手札シャッフル 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 7.79 },
@@ -514,6 +532,8 @@ const GROUPS = [
       { key: "--icon-pos-end-turn-y", label: "ターン終了 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: -3.4 },
       { key: "--icon-pos-options-x", label: "オプション 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-options-y", label: "オプション 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-help-x", label: "ヘルプ 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-help-y", label: "ヘルプ 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-piece-hide-x", label: "駒消し 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-piece-hide-y", label: "駒消し 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-card-hide-x", label: "カード消し 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
@@ -524,13 +544,14 @@ const GROUPS = [
   },
   {
     title: "アイコンボタンのサイズ調整（個別）",
-    category: "position",
+    category: "position-ui",
     controls: [
       { key: "--icon-size-hand-shuffle", label: "手札シャッフル サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 3.5 },
       { key: "--icon-size-board-zoom", label: "盤面拡大 サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 3.5 },
       { key: "--icon-size-draw", label: "1枚ドロー サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 3.5 },
       { key: "--icon-size-end-turn", label: "ターン終了 サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 3.5 },
       { key: "--icon-size-options", label: "オプション サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--icon-size-help", label: "ヘルプ サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
       { key: "--icon-size-piece-hide", label: "駒消し サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
       { key: "--icon-size-card-hide", label: "カード消し サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
       { key: "--icon-size-public-draw", label: "公開ドロー サイズ", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 3.5 },
@@ -701,7 +722,7 @@ const GROUPS = [
   },
   {
     title: "手札公開エリアの位置・サイズ（宣言カード・公開ドロー共通）",
-    category: "position",
+    category: "position-self",
     controls: [
       { key: "--hand-reveal-card-size", label: "カードのサイズ（共通）", unit: "rem", min: 2, max: 8, step: 0.1, default: 2.9 },
       { key: "--hand-reveal-bottom-pos-x", label: "手前(A) 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: -16.2 },
@@ -722,7 +743,7 @@ const GROUPS = [
     // 連携状況とは無関係にレインボー柄（最も複雑な虹色リング）を仮表示して調整できる
     // ようにした（main.jsのpreviewRankRing参照、30秒後に自動で元の表示に戻る）。
     title: "🏅 ランクリングの位置・太さ・周回演出（スライダーに触れると仮表示されます）",
-    category: "position",
+    category: "position-ui",
     controls: [
       {
         key: "--rank-ring-thickness",
@@ -1211,7 +1232,7 @@ const TOGGLE_SECTIONS = [
   },
   {
     title: "アイコン再配置モード",
-    category: "position",
+    category: "position-ui",
     buildContent: (content) => {
       const rearrangeRow = document.createElement("label");
       rearrangeRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
@@ -1239,7 +1260,7 @@ const TOGGLE_SECTIONS = [
   },
   {
     title: "自分専用ステータスエリア再配置モード",
-    category: "position",
+    category: "position-self",
     buildContent: (content) => {
       const rearrangeRow = document.createElement("label");
       rearrangeRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";

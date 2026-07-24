@@ -412,6 +412,14 @@ export function initOpeningScreen() {
   overlay.appendChild(startGate);
 
   document.body.appendChild(overlay);
+  // ユーザー要望「オプションマークはタイトル画面から常に表示させてほしい（BGM音量など
+  // 重要な設定が含まれているため）」への対応。#opening-screen自体がz-index:50000と
+  // 非常に高く、#options-menu-button（900）・#options-menu-panel（1002）が普段のまま
+  // だと裏に完全に隠れてしまう。かといってボタン側のz-indexを恒久的に引き上げると、
+  // 対局中に管理者モード等の他パネル（1000〜1002）より手前に浮いてしまう既存のバグ
+  // （#options-menu-panelのコメント参照）が再発するため、オープニング画面が実際に
+  // 表示されている間だけ有効なbody classでスコープを絞る（style.css参照）。
+  document.body.classList.add("opening-screen-active");
 
   function close(after) {
     // ユーザー要望「音楽もフェードアウトしてほしい」。オーバーレイのフェードアウトと
@@ -420,6 +428,7 @@ export function initOpeningScreen() {
     overlay.classList.add("is-closing");
     setTimeout(() => {
       overlay.style.display = "none";
+      document.body.classList.remove("opening-screen-active");
       if (after) after();
       // ユーザー要望「2D表示の警告は、オープニング画面が終わり盤面画面に移行する
       // タイミングで出したい」。「オンラインで続ける」「ローカルでプレイ」等、

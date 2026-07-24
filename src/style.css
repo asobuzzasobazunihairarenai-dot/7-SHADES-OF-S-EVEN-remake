@@ -2673,7 +2673,7 @@ body.is-touch-device .zone-right .label {
 .zone-left .label,
 .zone-top .label,
 .zone-right .label {
-  font-size: var(--label-bcd-font-size, 1rem);
+  font-size: var(--label-bcd-font-size, 1.6rem);
   background: rgba(0, 0, 0, 0.45);
   border-radius: 0.25rem;
   padding: 0.1rem 0.4rem;
@@ -2830,16 +2830,19 @@ body.spotlight-mode #spotlight-overlay {
 }
 
 /* 通算ターン数・ラウンド数。「📋 山札一覧」ボタン(top: 1rem)のすぐ上に、さりげなく
-   小さく表示する。turnNumberが無い（まだ対戦が始まっていない）間は非表示。 */
+   小さく表示する。turnNumberが無い（まだ対戦が始まっていない）間は非表示。位置・文字
+   サイズは管理者モードで調整できる（--turn-round-counter-top/-right/-font-size、
+   ユーザー要望）。 */
 #turn-round-counter {
   position: fixed;
-  top: 0.4rem;
+  top: var(--turn-round-counter-top, 0.4rem);
   /* 右上のオプションアイコン(#options-menu-button、アイコン+キャプション形式で幅が
-     2.6rem程度、right:1rem)とぶつからないよう、その分だけ右端の余白を空ける。 */
-  right: 3.9rem;
+     2.6rem程度、right:1rem)とぶつからないよう、その分だけ右端の余白を空ける
+     （デフォルト値の意図。管理者モードで自由に変えられる）。 */
+  right: var(--turn-round-counter-right, 3.9rem);
   z-index: 900;
   font-family: sans-serif;
-  font-size: 0.65rem;
+  font-size: var(--turn-round-counter-font-size, 0.65rem);
   line-height: 1;
   color: rgba(226, 232, 240, 0.6);
   letter-spacing: 0.02em;
@@ -2919,6 +2922,95 @@ body.is-touch-device #options-menu-button {
   border-color: transparent;
 }
 
+/* ユーザー要望「オプションの横にヘルプボタンを創設したい」への対応。#options-menu-button・
+   #my-page-buttonと同じ高さ・同じ見た目（アイコンのみ、丸い縁取り無し）で、その並びの
+   さらに左隣に置く。位置・サイズは管理者モードで調整できる
+   （--icon-pos-help-x/-y・--icon-size-help、help.js参照）。 */
+#help-button {
+  position: fixed;
+  top: 0.3rem;
+  right: 6.5rem;
+  z-index: 900;
+  transform: translate(var(--icon-pos-help-x, 0rem), var(--icon-pos-help-y, 0rem));
+}
+#help-button .icon-action-button-caption {
+  display: none;
+}
+#help-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-help, 2.6rem);
+  height: var(--icon-size-help, 2.6rem);
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+#help-button:hover .icon-action-button-icon-wrap {
+  background: none;
+  border-color: transparent;
+}
+
+/* ヘルプページ本体（help.js）。my-page-panelと同じ「画面中央固定・縦スクロール」の
+   パターンだが、文章量が多いため横幅は広めにしてある。tutorial.jsの説明文をそのまま
+   読み物として並べるだけの静的なページ。 */
+#help-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(34rem, 92vw);
+  max-height: 85vh;
+  overflow-y: auto;
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.6rem;
+  padding: 1.2rem 1.4rem;
+  z-index: 2501;
+  font-family: sans-serif;
+  color: #e2e8f0;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+#help-panel-title {
+  font-weight: bold;
+  font-size: 1.1rem;
+  margin-bottom: 0.8rem;
+  padding-right: 1.6rem;
+}
+.help-panel-section {
+  padding: 0.7rem 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+.help-panel-section:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+.help-panel-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: bold;
+  font-size: 0.95rem;
+  color: #fde68a;
+  margin-bottom: 0.4rem;
+}
+.help-panel-section-icon {
+  width: 1.4rem;
+  height: 1.4rem;
+  object-fit: contain;
+}
+.help-panel-paragraph {
+  font-size: 0.85rem;
+  line-height: 1.7;
+  margin: 0 0 0.5rem 0;
+}
+.help-panel-paragraph:last-child {
+  margin-bottom: 0;
+}
+.help-panel-footer {
+  font-size: 0.78rem;
+  line-height: 1.6;
+  opacity: 0.75;
+  margin: 0.3rem 0 0 0;
+}
+
 #options-menu-panel {
   position: fixed;
   top: 3.3rem;
@@ -2940,6 +3032,17 @@ body.is-touch-device #options-menu-button {
   overflow-y: auto;
   box-sizing: border-box;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+}
+/* ユーザー要望「オプションマークはタイトル画面から常に表示させてほしい（BGM音量など
+   重要な設定が含まれているため）」。#opening-screen（z-index:50000）より確実に高くする。
+   対局中の通常のz-index（900/1002、上のコメント参照）は崩さないよう、オープニング画面が
+   実際に表示されている間だけ（body.opening-screen-active、opening-screen.js参照）
+   スコープしてある。 */
+body.opening-screen-active #options-menu-button {
+  z-index: 50100;
+}
+body.opening-screen-active #options-menu-panel {
+  z-index: 50101;
 }
 .options-menu-item {
   display: block;
@@ -5496,6 +5599,9 @@ body.is-online-mode #quick-start-bar {
   --board-zoom-2-reference-height: 1000px;
   --phase-guide-bottom: 0rem;
   --phase-guide-right: 2.3rem;
+  --turn-round-counter-top: 0.4rem;
+  --turn-round-counter-right: 3.9rem;
+  --turn-round-counter-font-size: 0.65rem;
   --turn-timer-rope-pos-x: 0rem;
   --turn-timer-rope-pos-y: 0rem;
   --turn-timer-rope-width: 46rem;
@@ -5561,7 +5667,7 @@ body.is-online-mode #quick-start-bar {
   --label-c-pos-y: -7rem;
   --label-d-pos-x: 3.8rem;
   --label-d-pos-y: -5.2rem;
-  --label-bcd-font-size: 1rem;
+  --label-bcd-font-size: 1.6rem;
   --avatar-a-size: 5.7rem;
   --avatar-b-size: 8rem;
   --avatar-c-size: 8rem;
@@ -5615,6 +5721,8 @@ body.is-online-mode #quick-start-bar {
   --icon-pos-end-turn-y: -3.4rem;
   --icon-pos-options-x: 0rem;
   --icon-pos-options-y: 0rem;
+  --icon-pos-help-x: 0rem;
+  --icon-pos-help-y: 0rem;
   --icon-pos-piece-hide-x: 0rem;
   --icon-pos-piece-hide-y: 0rem;
   --icon-pos-card-hide-x: 0rem;
@@ -5626,6 +5734,7 @@ body.is-online-mode #quick-start-bar {
   --icon-size-draw: 3.5rem;
   --icon-size-end-turn: 3.5rem;
   --icon-size-options: 2.6rem;
+  --icon-size-help: 2.6rem;
   --icon-size-piece-hide: 2.6rem;
   --icon-size-card-hide: 2.6rem;
   --icon-size-public-draw: 3.5rem;
