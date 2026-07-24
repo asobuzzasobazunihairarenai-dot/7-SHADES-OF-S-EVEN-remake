@@ -2971,8 +2971,9 @@ body.is-touch-device #options-menu-button {
   transform: translate(var(--currency-display-pos-x, 0rem), var(--currency-display-pos-y, 0rem));
 }
 #currency-display-icon {
-  font-size: 1rem;
-  line-height: 1;
+  width: 1.2rem;
+  height: 1.2rem;
+  object-fit: contain;
 }
 
 /* ヘルプページ本体（help.js）。my-page-panelと同じ「画面中央固定・縦スクロール」の
@@ -3137,6 +3138,14 @@ body.is-touch-device #options-menu-button {
   font-size: 1.1rem;
   margin-bottom: 0.6rem;
   padding-right: 1.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+#shop-panel-title img {
+  width: 1.3rem;
+  height: 1.3rem;
+  object-fit: contain;
 }
 #shop-panel-balance {
   font-size: 0.9rem;

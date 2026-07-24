@@ -15,9 +15,12 @@ export function initCurrencyDisplay() {
   el.title = "ショップを開きます";
   el.addEventListener("click", () => openShop());
 
-  const icon = document.createElement("span");
+  // ユーザーが格納した専用アイコン（画像素材/アイコン/通貨.png）を使う。絵文字🪙は
+  // フォールバックとして残さず、この画像に一本化した。
+  const icon = document.createElement("img");
   icon.id = "currency-display-icon";
-  icon.textContent = "🪙";
+  icon.src = "assets/icons/currency.png";
+  icon.alt = "";
   el.appendChild(icon);
 
   amountEl = document.createElement("span");

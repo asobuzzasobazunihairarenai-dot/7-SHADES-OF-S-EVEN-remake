@@ -115,7 +115,11 @@ function buildPanel() {
 
   const titleEl = document.createElement("div");
   titleEl.id = "shop-panel-title";
-  titleEl.textContent = "🛍️ ショップ";
+  const titleIcon = document.createElement("img");
+  titleIcon.src = "assets/icons/store.png";
+  titleIcon.alt = "";
+  titleEl.appendChild(titleIcon);
+  titleEl.appendChild(document.createTextNode("ショップ"));
   panel.appendChild(titleEl);
   panel.appendChild(createModalCloseX(close));
 

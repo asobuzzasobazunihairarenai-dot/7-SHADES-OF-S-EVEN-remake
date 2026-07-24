@@ -73,14 +73,35 @@ export function updateContactApprovalModal() {
     approveBtn.className = "contact-approval-approve";
     approveBtn.type = "button";
     approveBtn.textContent = "✅ 承認する";
-    approveBtn.addEventListener("click", () => respondHandler?.(true));
+    approveBtn.addEventListener("click", () => {
+      hideImmediately();
+      respondHandler?.(true);
+    });
     const rejectBtn = document.createElement("button");
     rejectBtn.className = "contact-approval-reject";
     rejectBtn.type = "button";
     rejectBtn.textContent = "🚫 拒否する";
-    rejectBtn.addEventListener("click", () => respondHandler?.(false));
+    rejectBtn.addEventListener("click", () => {
+      hideImmediately();
+      respondHandler?.(false);
+    });
     buttons.appendChild(approveBtn);
     buttons.appendChild(rejectBtn);
     modalEl.appendChild(buttons);
   }
+}
+
+// ユーザー報告「接触演出時に『接触申し込みモーダル』が消えずに演出を邪魔している」への
+// 対応。承認/拒否ボタンを押した直後、respondToContact()のタックル演出中は
+// suppressGenericRenderForContactTackleにより汎用render()（このモーダルの更新も含む）が
+// 一時停止されるため、state.pendingContactの消滅を待つupdateContactApprovalModal()任せに
+// すると演出が終わるまでこのモーダルが残ってしまっていた。ボタンを押した時点で応答は
+// 確定しているので、state更新を待たずその場で即座に隠す。
+function hideImmediately() {
+  modalEl?.classList.remove("is-visible");
+  if (backdropEl) {
+    backdropEl.remove();
+    backdropEl = null;
+  }
+  if (modalEl) modalEl.innerHTML = "";
 }
