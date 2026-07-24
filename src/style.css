@@ -5440,3 +5440,104 @@ body.is-online-mode #quick-start-bar {
   --rank-ring-orbit-trail-length: 23;
   --rank-ring-orbit-speed: 7.6;
 }
+
+/* チュートリアル（tutorial.js）。実際の盤面のUI要素をハイライトしながら遊び方を
+   説明するステップ形式のオーバーレイ。既存モーダル（最大z-index約10701）より
+   確実に上、ただしオープニング画面(#opening-screen、50000)よりは下にする
+   （チュートリアルはオープニング画面が終わった後にしか出さないため実害は無いが、
+   念のため序列を保つ）。 */
+#tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40000;
+  display: none;
+}
+#tutorial-overlay.is-visible {
+  display: block;
+}
+#tutorial-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+}
+/* ハイライト対象の実際の位置・サイズにJS(tutorial.js)が毎回合わせる。box-shadowの
+   スプレッドを画面全体を覆うほど大きくすることで、この要素自体は透明なまま
+   「周囲だけ暗い穴」を作る、よくあるスポットライト演出の手法。 */
+#tutorial-spotlight {
+  position: fixed;
+  border-radius: 0.4rem;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+  outline: 2px solid rgba(250, 204, 21, 0.9);
+  outline-offset: 0.2rem;
+  pointer-events: none;
+  transition: left 0.25s ease, top 0.25s ease, width 0.25s ease, height 0.25s ease;
+}
+#tutorial-callout {
+  position: fixed;
+  width: min(22rem, 90vw);
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(250, 204, 21, 0.5);
+  border-radius: 0.6rem;
+  padding: 1rem;
+  font-family: sans-serif;
+  color: #e2e8f0;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  transition: left 0.25s ease, top 0.25s ease;
+}
+.tutorial-callout-title {
+  font-weight: bold;
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+  color: #fde68a;
+}
+.tutorial-callout-body p {
+  margin: 0 0 0.6rem 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+.tutorial-callout-body p:last-child {
+  margin-bottom: 0;
+}
+.tutorial-callout-progress {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  margin-top: 0.4rem;
+}
+.tutorial-callout-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+.tutorial-callout-skip {
+  margin-right: auto;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0.3rem 0;
+}
+.tutorial-callout-back,
+.tutorial-callout-next {
+  padding: 0.4rem 0.9rem;
+  border-radius: 0.3rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.tutorial-callout-back {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  color: #e2e8f0;
+}
+.tutorial-callout-back:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.tutorial-callout-next {
+  background: #be185d;
+  border: none;
+  color: white;
+  font-weight: bold;
+}

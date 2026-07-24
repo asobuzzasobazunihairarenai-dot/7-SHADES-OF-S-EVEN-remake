@@ -3,6 +3,7 @@
 // 単独のボタンとして左上にあったが、ここに統合し、左上はゲームタイトル表示用に空けた。
 
 import { openAdminPanel } from "./admin.js";
+import { startTutorial } from "./tutorial.js";
 import { openDeckViewer } from "./deck-viewer.js";
 import { isLockAreaBarVisible, setLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible, setLockColorVisible } from "./lock-color.js";
@@ -489,6 +490,12 @@ export function initOptionsMenu() {
     divider.className = "options-menu-divider";
     panel.appendChild(divider);
 
+    panel.appendChild(
+      buildMenuItem("🎓 チュートリアルを見る", () => {
+        close();
+        startTutorial();
+      })
+    );
     panel.appendChild(
       buildMenuItem("📋 山札一覧", () => {
         close();

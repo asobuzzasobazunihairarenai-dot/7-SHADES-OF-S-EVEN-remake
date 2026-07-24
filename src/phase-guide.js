@@ -11,7 +11,9 @@
 
 import { buildIconButtonContent, wireIconButtonClick, openIconDetailModal } from "./icon-action-button.js";
 
-const PHASES = [
+// tutorial.jsのチュートリアル手順から、フェイズの説明文をそのまま使い回すためexportする
+// （説明文の二重管理を避ける）。
+export const PHASES = [
   {
     id: "lock",
     label: "ロック",
