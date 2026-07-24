@@ -6364,3 +6364,24 @@ https://asobuzzasobazunihairarenai-dot.github.io/7-SHADES-OF-S-EVEN-remake/
   （新しく別のクラス・CSS変数を作りかけたが、既存の仕組みと重複すると気付き
   巻き戻した）。ブラウザでB/C/Dの名前ラベルに背景色が付くこと、既存の文字サイズ
   スライダーがそのまま効くことを確認済み。
+
+### 2026-07-24（続き10）：マイページに戦績システム同期ボタンを追加
+
+- **ユーザー要望「アバターやプレイヤー名を変更した時、戦績システムにも反映できるように、
+  マイページに戦績システムと同期するためのボタンを追加してください。iボタンで説明も
+  追加してください」**: 既存の`getOrCreateStatsPlayer()`（`online.js`）は対局開始時・
+  勝利時にしか呼ばれず、名前・アバターを変えても次の対局まで戦績システム側に
+  反映されなかった。新設した`syncMyStatsProfile(displayName, avatarPath)`
+  （`online.js`）から任意のタイミングで呼べるようにした。`online.js`が
+  `player-identity.js`を直接importすると循環import（`player-identity.js`→
+  `online.js`）になるため、呼び出し元（`my-page.js`）が`getPlayerName`/
+  `getPlayerAvatar`で実効値を計算し、引数として渡す設計にした。`my-page.js`の
+  戦績連携済み（`profile.linked`）セクションの末尾に「🔄 戦績システムと同期する」
+  ボタンと、`avatar-upload.js`と同じ「iボタン→`openIconDetailModal()`」パターンの
+  説明ボタンを追加した。
+  **検証について**: `syncMyStatsProfile()`は戦績管理システムの実際の共有Supabase
+  データベース（`players`テーブル）へ本当に書き込む処理のため、ブラウザでの
+  動作確認では（テスト用の匿名ユーザーで実際にクリックすると本番の戦績データベースに
+  ゴミデータが登録されてしまうリスクがあるため）ボタンを実際にクリックしての
+  検証は行わず、コードレビュー（循環importの不在・構文チェック）とマイページ自体が
+  エラーなく開くことの確認にとどめた。

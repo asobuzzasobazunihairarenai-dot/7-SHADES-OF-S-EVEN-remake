@@ -873,6 +873,22 @@ async function getOrCreateStatsPlayer(userId, displayName, avatarUrl) {
   return created.id;
 }
 
+// ユーザー要望「アバターやプレイヤー名を変更した時、戦績システムにも反映できるように、
+// マイページに戦績システムと同期するためのボタンを追加してほしい」への対応。
+// getOrCreateStatsPlayer()自体は既にstartGame()（対局開始時）・victory.js（勝利時）
+// から呼ばれ、名前・アバターが変わっていれば同期する仕組みを持っているが、それは
+// 「次に対局するまで」待たないと反映されない。マイページから任意のタイミングで
+// 手動同期できるようにする。
+// ハマりどころ: 呼び出し元（my-page.js）はplayer-identity.jsのgetPlayerName/
+// getPlayerAvatar()で「今まさに表示されている実効値」を持っているが、online.js側で
+// player-identity.jsを直接importすると循環import（player-identity.js→online.js）に
+// なるため、ここでは呼び出し元に計算してもらった値を引数で受け取るだけにする。
+export async function syncMyStatsProfile(displayName, avatarPath) {
+  if (!cachedUser) throw new Error("ログインしていません");
+  const avatarUrl = avatarPath ? new URL(avatarPath, window.location.href).href : null;
+  await getOrCreateStatsPlayer(cachedUser.id, displayName, avatarUrl);
+}
+
 // ユーザー要望「戦績管理システムにすでに登録済みで、でもデジタル版を初めてやる人の
 // ために、戦績管理システムのプレイヤー登録をアカウントに紐づける設定を設けたい」
 // への対応（options-menu.jsの基本設定から呼ばれる）。

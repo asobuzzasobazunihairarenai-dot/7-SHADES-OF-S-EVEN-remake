@@ -3,12 +3,12 @@
 // 画面右上のオプションアイコンの隣の人マークアイコン、または左下の巨大アバターの
 // クリックで開く（main.js側で配線）。
 
-import { getCurrentUser, getSelfSeat } from "./online.js";
+import { getCurrentUser, getSelfSeat, syncMyStatsProfile } from "./online.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { fetchStatsProfile } from "./stats-profile.js";
 import { openStatsPlayerLinkModal } from "./stats-player-link.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
-import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
+import { buildIconButtonContent, wireIconButtonClick, openIconDetailModal } from "./icon-action-button.js";
 import { openOnlinePanel } from "./online-ui.js";
 
 // main.jsのopenAvatarPicker()はmain.js内のローカル関数（circular importを避けるための
@@ -24,6 +24,61 @@ function formatDate(isoString) {
   const d = new Date(isoString);
   if (Number.isNaN(d.getTime())) return "-";
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+// ユーザー要望「アバターやプレイヤー名を変更した時、戦績システムにも反映できるように、
+// マイページに戦績システムと同期するためのボタンを追加してください。iボタンで説明も
+// 追加してください」への対応。avatar-upload.jsのアップロード注意書きボタンと同じ
+// 「小さいiボタン→openIconDetailModal」パターンを踏襲する。
+function buildStatsSyncRow(seat) {
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "margin-top: 0.8rem;";
+
+  const row = document.createElement("div");
+  row.style.cssText = "display: flex; align-items: center; gap: 0.4rem;";
+
+  const syncBtn = document.createElement("button");
+  syncBtn.type = "button";
+  syncBtn.textContent = "🔄 戦績システムと同期する";
+  syncBtn.style.cssText =
+    "padding: 0.4rem 0.9rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(148,163,184,0.3); " +
+    "border-radius: 0.3rem; color: #e2e8f0; cursor: pointer; font-size: 0.8rem;";
+
+  const infoBtn = document.createElement("button");
+  infoBtn.type = "button";
+  infoBtn.className = "opening-login-info-btn";
+  infoBtn.textContent = "i";
+  infoBtn.title = "同期についての説明";
+  infoBtn.addEventListener("click", () => {
+    openIconDetailModal("戦績システムとの同期について", [
+      "アバターやプレイヤー名を戦績管理システム（対戦記録・ランキングを管理する姉妹サイト）側にも反映します。",
+      "通常は対局を開始した時・勝利した時に自動的に同期されますが、今すぐ反映したい場合はこのボタンを押してください。",
+      "戦績管理システムのプレイヤーと連携済みのアカウントでのみ使えます。",
+    ]);
+  });
+
+  const statusEl = document.createElement("div");
+  statusEl.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-top: 0.3rem; min-height: 1.2em;";
+
+  syncBtn.addEventListener("click", async () => {
+    syncBtn.disabled = true;
+    statusEl.textContent = "同期中…";
+    try {
+      await syncMyStatsProfile(getPlayerName(seat), getPlayerAvatar(seat));
+      statusEl.textContent = "同期しました。";
+    } catch (err) {
+      console.error("syncMyStatsProfile failed", err);
+      statusEl.textContent = `エラー: ${err.message ?? err}`;
+    } finally {
+      syncBtn.disabled = false;
+    }
+  });
+
+  row.appendChild(syncBtn);
+  row.appendChild(infoBtn);
+  wrap.appendChild(row);
+  wrap.appendChild(statusEl);
+  return wrap;
 }
 
 function buildStatRow(label, value) {
@@ -145,6 +200,7 @@ function buildPanel(close) {
     body.appendChild(buildStatRow("勝率順位", rankText(profile.winRateRank)));
     body.appendChild(buildStatRow("対戦数順位", rankText(profile.matchCountRank)));
     body.appendChild(buildStatRow("登録年月日", formatDate(profile.createdAt)));
+    body.appendChild(buildStatsSyncRow(seat));
   }
 
   panel._render = render;
