@@ -104,10 +104,12 @@ import {
   onGateInvasionEvents,
   getSyncedIdentity,
   getGoogleAvatarUrl,
+  getGoogleDisplayName,
   fetchMyCustomAvatarUrl,
   getRoomName,
   registerIdentityApplier,
   registerAppearanceApplier,
+  registerFirstGoogleLoginPrompter,
   saveMyPreference,
   registerVictorySummaryHelper,
 } from "./online.js";
@@ -965,6 +967,92 @@ function isAdjacentCell(a, b) {
   return (dr === 1 && dc === 0) || (dr === 0 && dc === 1);
 }
 
+// ユーザー要望「接触の時、奪った側は何を奪ったか、奪われた側は何を奪われたかを画面中央に
+// モーダルで出す」への対応。role:"attacker"/"defender"はオンライン中に各自の画面へ、
+// role:"both"はローカルモード（1画面で両者を見ているため）に使う。cardIdがnullの場合は
+// 「相手の手札が無く何も奪えなかった/奪われなかった」の文面にする。
+function openContactResultModal({ role, attacker, defender, cardId }) {
+  const modal = document.createElement("div");
+  modal.id = "contact-result-modal";
+  const close = () => {
+    modal.remove();
+  };
+  // ハマりどころ: このモーダルは承認直後、「オープンする/しないの選択」(promptCardOpen)や
+  // 到達モーダル(card-arrival-modal)とほぼ同時に出ることがある。他の確認モーダルと同じ
+  // 全画面の暗いbackdrop（クリックで閉じる）を付けると、それらの後ろに隠れた対話的
+  // ボタンへのクリックを丸ごと奪ってしまい、押せなくなるバグになっていた。そのため
+  // このモーダルだけbackdrop無し（結果を知らせるだけの通知的な位置づけ）にしてある。
+
+  const title = document.createElement("div");
+  title.className = "contact-result-title";
+  title.textContent = "🤝 接触の結果";
+  modal.appendChild(title);
+
+  const cardDef = cardId ? getCardDefinition(cardId) : null;
+  const body = document.createElement("div");
+  body.className = "contact-result-body";
+  const lines = [];
+  if (role === "attacker" || role === "both") {
+    lines.push(
+      cardDef
+        ? `${getPlayerName(defender)}から「${cardDef.name}」を奪いました！`
+        : `${getPlayerName(defender)}の手札が無く、何も奪えませんでした。`
+    );
+  }
+  if (role === "defender" || role === "both") {
+    lines.push(
+      cardDef
+        ? `${getPlayerName(attacker)}に「${cardDef.name}」を奪われました…`
+        : `${getPlayerName(attacker)}に接触されましたが、手札が無く何も奪われませんでした。`
+    );
+  }
+  body.textContent = lines.join("\n");
+  modal.appendChild(body);
+
+  if (cardDef) {
+    const img = document.createElement("img");
+    img.className = "contact-result-card-image";
+    img.src = getCardImagePath(cardId);
+    img.alt = cardDef.name;
+    modal.appendChild(img);
+  }
+
+  const okBtn = document.createElement("button");
+  okBtn.type = "button";
+  okBtn.className = "contact-result-ok";
+  okBtn.textContent = "閉じる";
+  okBtn.addEventListener("click", close);
+  modal.appendChild(okBtn);
+
+  modal.appendChild(createModalCloseX(close));
+  document.body.appendChild(modal);
+}
+
+// オンライン中、接触を申し込んだ本人（attacker）の画面は、defender自身がrespondContact()を
+// 呼ぶまで結果を知る手段が無い（サーバーへの要求を送るだけで応答を待たない設計のため）。
+// 申し込んだ瞬間の自分の手札IDを覚えておき、承認/拒否されてpendingContactが消えた
+// 瞬間（render()から呼ばれるcheckContactAttackerResolution参照）に、手札に増えている
+// 新しいカードが無いか比較する形で検知する（defender自身の手札は常に本人にだけ実際の
+// cardIdが見えるのと同じく、attacker自身の手札も本人には常に実際のcardIdが見えるため、
+// この比較だけで十分——サーバーから別途通知をもらう必要が無い）。
+let contactAttackerSnapshot = null;
+
+function checkContactAttackerResolution() {
+  if (!contactAttackerSnapshot) return;
+  if (getState().pendingContact) return; // まだ承認/拒否されていない
+  const { attacker, defender, handIdsBefore } = contactAttackerSnapshot;
+  contactAttackerSnapshot = null;
+  const newCard = getState().tokens.find(
+    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === attacker && !handIdsBefore.has(t.id)
+  );
+  // 拒否された場合はnewCardが無いまま＝何も表示しない（承認されたが奪えるカードが
+  // 無かった場合と見分けがつかないが、ユーザー要望は「奪った/奪われた」結果の通知のため、
+  // 何も起きていない可能性がある時に無言なのは実害が無い）。
+  if (newCard) {
+    openContactResultModal({ role: "attacker", attacker, defender, cardId: newCard.cardId });
+  }
+}
+
 function openContactConfirmModal(attacker, defender) {
   const modal = document.createElement("div");
   modal.id = "contact-confirm-modal";
@@ -1002,6 +1090,17 @@ function openContactConfirmModal(attacker, defender) {
     cancelBtn.disabled = true;
     try {
       if (isOnlineMode()) {
+        // checkContactAttackerResolution()参照: 承認/拒否の結果を自分の画面で知るために、
+        // 申し込んだ瞬間の自分の手札IDを覚えておく。
+        contactAttackerSnapshot = {
+          attacker,
+          defender,
+          handIdsBefore: new Set(
+            getState()
+              .tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === attacker)
+              .map((t) => t.id)
+          ),
+        };
         await requestContact(attacker, defender);
         await fetchAndHydrate(getCurrentGameId());
       } else {
@@ -1010,6 +1109,7 @@ function openContactConfirmModal(attacker, defender) {
       render();
     } catch (err) {
       console.error("requestContact failed", err);
+      contactAttackerSnapshot = null;
     } finally {
       close();
     }
@@ -1061,25 +1161,65 @@ document.addEventListener("pointerdown", (e) => {
 async function respondToContact(approve) {
   const pendingBefore = getState().pendingContact;
   if (!pendingBefore) return;
+  const { attacker, defender } = pendingBefore;
+  // 承認された場合の到達判定・奪われたカードの特定に使うため、駒のID・手札の中身は
+  // 実際の効果が適用される前（＝ここではまだ何も変わっていない間）に確保しておく
+  // （駒自体は消えずlocationだけ変わるのでIDは不変）。defender自身の手札は常に本人に
+  // 実際のcardIdが見えているため、ここで捕まえておけば「何を奪われたか」をサーバーに
+  // 問い合わせ直さずそのまま特定できる。
+  const defenderPieceId = getState().tokens.find((t) => t.kind === "piece" && t.player === defender)?.id;
+  const defenderHandBefore = getState().tokens.filter(
+    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === defender
+  );
+  function findStolenCard() {
+    const afterIds = new Set(
+      getState()
+        .tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === defender)
+        .map((t) => t.id)
+    );
+    return defenderHandBefore.find((t) => !afterIds.has(t.id)) ?? null;
+  }
   if (isOnlineMode()) {
     try {
       await respondContact(approve);
+      // ユーザー要望「接触でゲートに飛ばされる際、カードが裏向きならオープンするか
+      // しないかのボタンを出す」への対応。承認した本人（defender自身の画面）だけ、
+      // 通常の移動と同じ完全な到達判定（maybeTriggerCardArrival、裏向きなら
+      // オープンする/しないの選択も出す）を行いたいので、remote-move-animator.jsの
+      // 状態差分検知（他プレイヤーの画面向け、triggerCardArrivalIfFaceUp＝表向きのみで
+      // 選択は出さない）による二重発火を防ぐため、先にmarkSelfHandledしておく
+      // （moveToken等の他のオンライン処理と同じパターン）。
+      if (approve && defenderPieceId) markSelfHandled([defenderPieceId]);
       await fetchAndHydrate(getCurrentGameId());
     } catch (err) {
       console.error("respondContact failed", err);
+      render();
+      return;
     }
+    if (approve) playSound("piecePlace");
     render();
+    if (approve && defenderPieceId) {
+      // 到達プロンプト/モーダルの位置決めに実際のDOM座標(getBoundingClientRect)を使うため、
+      // render()で盤面を描き直した後でなければ呼べない。
+      const defenderPiece = getState().tokens.find((t) => t.id === defenderPieceId);
+      if (defenderPiece) maybeTriggerCardArrival(defenderPiece.location, defenderPiece.id);
+      // ユーザー要望「奪われた側は何を奪われたかをモーダルで出す」への対応（オンライン中は
+      // defender自身の画面にだけ表示。attacker側はcheckContactAttackerResolution参照）。
+      const stolen = findStolenCard();
+      openContactResultModal({ role: "defender", attacker, defender, cardId: stolen?.cardId ?? null });
+    }
     return;
   }
   respondContact(approve);
-  playSound("piecePlace");
+  if (approve) playSound("piecePlace");
   render();
-  if (approve) {
-    // 到達プロンプト/モーダルの位置決めに実際のDOM座標(getBoundingClientRect)を使うため、
-    // render()で盤面を描き直した後でなければ呼べない（moveTokenの他の呼び出し箇所と同じ
-    // 制約）。
-    const defenderPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === pendingBefore.defender);
+  if (approve && defenderPieceId) {
+    const defenderPiece = getState().tokens.find((t) => t.id === defenderPieceId);
     if (defenderPiece) maybeTriggerCardArrival(defenderPiece.location, defenderPiece.id);
+    // ローカルモードは1画面で両者を見ているため、role:"both"で奪った側/奪われた側
+    // 両方の文面を一度に出す。
+    const stolen = findStolenCard();
+    openContactResultModal({ role: "both", attacker, defender, cardId: stolen?.cardId ?? null });
   }
 }
 
@@ -1190,6 +1330,7 @@ function render() {
   updateTurnRoundCounter();
   updateFinalLockApprovalBanner();
   updateContactApprovalModal();
+  checkContactAttackerResolution();
   checkForVictory();
 }
 
@@ -3800,6 +3941,105 @@ async function openAvatarPicker() {
   document.body.appendChild(modal);
 }
 
+// ユーザー要望「Googleで初めてログインするとき、アバターやニックネームはこれでいいですか
+// というモーダルを出し、自動でGoogleの名前やサムネを設定してほしい」への対応。
+// online.jsのloadMyPreferences()が「so7_user_profilesにまだ行が無い＝初回ログイン」かつ
+// Googleログインの場合に呼ぶ（registerFirstGoogleLoginPrompter参照）。openAvatarPicker()と
+// 中身のグリッドはほぼ同じだが、選んだ瞬間にモーダルを閉じず、その場でプレビューだけ
+// 差し替えて名前欄と一緒に確認できるようにしてある。
+async function openFirstLoginProfileModal() {
+  const seat = getSelfSeat();
+  const googleName = getGoogleDisplayName();
+  const googleAvatarUrl = getGoogleAvatarUrl();
+  // 自動で設定（ユーザー要望）。この時点ではまだ部屋に入っていないため、getSelfSeat()は
+  // 常に"A"を返す（registerIdentityApplierのコールバックと同じ理由）。
+  if (googleName) setPlayerName(seat, googleName);
+  if (googleAvatarUrl) setPlayerAvatar(seat, googleAvatarUrl);
+  render();
+
+  const modal = document.createElement("div");
+  modal.id = "first-login-profile-modal";
+  const close = () => {
+    backdrop.remove();
+    modal.remove();
+  };
+  // z-indexは#opening-screen（50000）より確実に高くしておく必要がある——Googleログインは
+  // OAuthのページ遷移を伴うため、まだタイトル/オープニング画面を閉じていない状態で戻って
+  // くることが多く、そのタイミングでこのモーダルが裏に隠れてしまわないようにするため。
+  const backdrop = createBackdrop(close, { dim: true, zIndex: 50100 });
+
+  const title = document.createElement("div");
+  title.className = "first-login-profile-title";
+  title.textContent = "🎉 プロフィールの確認";
+  modal.appendChild(title);
+
+  const body = document.createElement("div");
+  body.className = "first-login-profile-body";
+  body.textContent = "Googleアカウントのニックネームと画像から自動で設定しました。このまま始めますか？ここで変更もできます。";
+  modal.appendChild(body);
+
+  const avatarPreview = document.createElement("div");
+  avatarPreview.className = "first-login-profile-avatar-preview";
+  applyAvatarContent(avatarPreview, getPlayerAvatar(seat));
+  modal.appendChild(avatarPreview);
+
+  const grid = document.createElement("div");
+  grid.className = "first-login-profile-avatar-grid";
+  function addAvatarSwatch(avatarValue, label) {
+    const swatch = document.createElement("button");
+    swatch.type = "button";
+    swatch.className = "avatar-picker-swatch";
+    if (label) swatch.title = label;
+    if (getPlayerAvatar(seat) === avatarValue) swatch.classList.add("is-selected");
+    applyAvatarContent(swatch, avatarValue);
+    swatch.addEventListener("click", () => {
+      setPlayerAvatar(seat, avatarValue);
+      applyAvatarContent(avatarPreview, avatarValue);
+      grid.querySelectorAll(".avatar-picker-swatch").forEach((el) => el.classList.remove("is-selected"));
+      swatch.classList.add("is-selected");
+      render();
+    });
+    grid.appendChild(swatch);
+  }
+  if (googleAvatarUrl) addAvatarSwatch(googleAvatarUrl, "Googleのプロフィール画像を使う");
+  const customAvatarUrl = await fetchMyCustomAvatarUrl();
+  if (customAvatarUrl) addAvatarSwatch(customAvatarUrl, "アップロードした画像を使う");
+  for (const avatar of AVATAR_OPTIONS) addAvatarSwatch(avatar, "");
+  modal.appendChild(grid);
+
+  const nameLabel = document.createElement("div");
+  nameLabel.className = "first-login-profile-name-label";
+  nameLabel.textContent = "ニックネーム";
+  modal.appendChild(nameLabel);
+
+  const nameInput = document.createElement("input");
+  nameInput.className = "first-login-profile-name-input";
+  nameInput.maxLength = 12;
+  nameInput.value = getPlayerName(seat);
+  const commitName = () => {
+    if (nameInput.value.trim()) setPlayerName(seat, nameInput.value);
+    render();
+  };
+  nameInput.addEventListener("blur", commitName);
+  nameInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") nameInput.blur();
+  });
+  modal.appendChild(nameInput);
+
+  const okBtn = document.createElement("button");
+  okBtn.type = "button";
+  okBtn.className = "first-login-profile-ok";
+  okBtn.textContent = "この内容で始める";
+  okBtn.addEventListener("click", () => {
+    commitName();
+    close();
+  });
+  modal.appendChild(okBtn);
+
+  document.body.appendChild(backdrop);
+  document.body.appendChild(modal);
+}
+
 function startEditingName() {
   const input = document.createElement("input");
   input.className = "self-status-name-input";
@@ -4063,6 +4303,9 @@ registerIdentityApplier(({ name, avatar, pieceSkinIndex }) => {
   if (avatar) setPlayerAvatar(seat, avatar);
   if (typeof pieceSkinIndex === "number") setLocalPreferredSkinIndex(pieceSkinIndex);
   render();
+});
+registerFirstGoogleLoginPrompter(() => {
+  openFirstLoginProfileModal().catch((err) => console.error("openFirstLoginProfileModal failed", err));
 });
 // ユーザー要望「プレイマット・カード裏面・背景変更をアカウントに紐づけてほしい」。
 // ログイン直後、online.jsのloadMyPreferences()がso7_user_profilesから読み込んだ値を

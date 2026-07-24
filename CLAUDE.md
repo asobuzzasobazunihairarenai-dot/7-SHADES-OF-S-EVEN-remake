@@ -6718,3 +6718,68 @@ https://asobuzzasobazunihairarenai-dot.github.io/7-SHADES-OF-S-EVEN-remake/
     `so7_apply_and_commit`更新）をSQL Editorで再実行し、`supabase/functions/
     so7-apply-action.ts`をSupabaseダッシュボードのEdge Functionsへ再デプロイする必要が
     ある。どちらもgit pushだけでは反映されない。
+
+### 2026-07-24（続き19）：Google初回ログイン確認モーダル、接触の到達選択・結果モーダルを追加
+
+- **ユーザー要望「Googleで初めてログインするとき、アバターやニックネームはこれでいいですか
+  というモーダルを出し、自動でGoogleの名前やサムネを設定してほしい。モーダル内で変更も
+  できるように」**: `online.js`の`loadMyPreferences()`が「`so7_user_profiles`にまだ行が
+  無い＝初回ログイン」を検知する既存の分岐（今までは何もしていなかった）に、Googleログイン
+  （`getGoogleDisplayName()`/`getGoogleAvatarUrl()`が何か返す場合）だけ新設
+  `registerFirstGoogleLoginPrompter`経由でmain.js側のハンドラを呼ぶようにした。
+  - `main.js`の新設`openFirstLoginProfileModal()`が、Googleの名前・アバターを
+    `setPlayerName`/`setPlayerAvatar`で即座に適用してから（ユーザー要望「自動で設定」）、
+    確認モーダルを表示する。中身は既存の`openAvatarPicker()`のグリッド（Googleの
+    画像・アップロード済み画像・7色のデフォルトアバター）とほぼ同じだが、選んだ瞬間に
+    モーダルを閉じず、その場でプレビューと名前欄をまとめて確認できるようにした
+    （`#first-login-profile-modal`、新設CSS）。
+  - **ハマりどころ**: モーダルの`z-index`を他の確認モーダルと同じ感覚で`10700`にしたところ、
+    ブラウザ確認で実際には全く見えなかった。原因は`#opening-screen`（タイトル/オープニング
+    画面）の`z-index`が`50000`と非常に高いこと。Googleログインは実際のページ遷移を伴う
+    OAuthのため、タイトル画面をまだ閉じていない状態でこのモーダルを出すタイミングが
+    十分あり得る。`50100`に引き上げて解決した。
+- **ユーザー要望「接触でゲートに飛ばされる際、ゲートのカードが裏向きならオープンするか
+  しないかのボタンを出す」**: 続き18時点では、オンライン中は`remote-move-animator.js`の
+  状態差分検知（`triggerCardArrivalIfFaceUp`＝表向きの時だけ、選択肢は出さない設計）に
+  任せていたため、接触で強制移動した先が裏向きカードだった場合、オンライン中は何も
+  起きなかった（ローカルモードだけ`maybeTriggerCardArrival`経由で選択肢が出ていた）。
+  `respondToContact()`のオンライン分岐で、承認した本人（defender自身の画面）だけ
+  `moveToken`等と同じ`markSelfHandled`パターンでremote-move-animator側の二重発火を防いだ
+  上で、ローカルと同じ完全な到達判定（`maybeTriggerCardArrival`、裏向きなら
+  `promptCardOpen`のオープンする/しない選択も出す）を呼ぶようにした。
+- **ユーザー要望「接触の時、奪った側は何を奪ったか、奪われた側は何を奪われたかを画面中央に
+  モーダルで出す」**: 新設`openContactResultModal({role, attacker, defender, cardId})`
+  （`#contact-result-modal`）。
+  - defender側（承認した本人の画面、またはローカルモード）は`respondToContact()`内で
+    承認前後の自分の手札IDを比較し、消えたカードを特定するだけで済む（defender自身の
+    手札は常に本人にだけ実際のcardIdが見えているため、サーバーに問い合わせ直す必要が
+    無い）。
+  - attacker側（オンライン中、申し込んだ本人の画面）は、`respondContact()`を呼ぶのは
+    defender自身であってattacker本人ではないため、申し込んだ瞬間の自分の手札IDを
+    `contactAttackerSnapshot`に覚えておき、`render()`のたびに呼ばれる新設
+    `checkContactAttackerResolution()`が「`pendingContact`が消えた＝決着がついた」ことを
+    検知して、自分の手札に増えている新しいカードが無いか比較する形で結果を特定する
+    （gate-invasion-modal.jsの`resolveIfSelf`と同じ「本人の画面だけ実際のcardIdが見える」
+    という前提を、サーバーへの追加の問い合わせ無しで再現したもの）。拒否された場合は
+    手札に変化が無いため、attacker側には何も表示されない（defender側は拒否された場合
+    そもそもこのモーダル自体を呼ばない）。
+  - ローカルモードは1画面で両者を見ているため、`role: "both"`で「奪った」「奪われた」
+    両方の文面を一度に表示する。
+  - 相手の手札が0枚で何も奪えなかった場合は、defender側（オンライン）・ローカルモードは
+    その旨の文面を表示するが、attacker側（オンライン）は「拒否された」場合と手札の差分から
+    区別が付かないため、この場合だけ何も表示しない（実害の少ない非対称性として許容した）。
+  - **ハマりどころ**: 当初このモーダルにも他の確認モーダルと同じ「全画面の暗いbackdrop
+    （クリックで閉じる）」を付けていたところ、承認直後にほぼ同時に出る「オープンする/
+    しないの選択」(`promptCardOpen`)や到達モーダル(`card-arrival-modal`)より高い
+    z-indexだったため、それらのボタンへのクリックを丸ごと奪ってしまい、押せなくなる
+    バグになっていた（ブラウザ確認で発見）。このモーダルだけbackdrop無し（通知的な
+    位置づけ）にして解決した。
+- ブラウザで、（擬似的にGoogleの名前/アバターを設定した状態で）確認モーダルの表示・
+  アバターグリッドでの選択・名前欄の編集・z-index修正後にタイトル画面より前面に出ることを
+  確認済み。接触については、ゲートのカードが裏向きの場合に承認した側の画面で
+  オープンする/しないのボタンが出て実際にクリックできること（backdrop除去前は押せない
+  バグがあったことも含め）、承認後に奪った側・奪われた側両方の文面が正しいカード名で
+  表示されることを、ローカルモードで確認済み。オンライン専用の`attacker`側検知
+  （`checkContactAttackerResolution`）は、実際に2つのオンラインセッションを使った
+  E2E確認までは行っていない（コード上はflipToken/moveTokenの既存オンライン分岐と
+  同じパターンを踏襲）。

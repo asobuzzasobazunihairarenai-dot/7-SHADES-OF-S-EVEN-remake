@@ -225,6 +225,14 @@ export function getCachedUser() {
 export function getGoogleAvatarUrl() {
   return cachedUser?.user_metadata?.avatar_url ?? cachedUser?.user_metadata?.picture ?? null;
 }
+
+// ユーザー要望「Googleで初めてログインするとき、アバターやニックネームはこれでいいですか
+// というモーダルを出し、自動でGoogleの名前やサムネを設定してほしい」への対応。
+// getGoogleAvatarUrlと同じ理由でuser_metadataのキー名をfull_name/nameの順にフォールバック
+// する。
+export function getGoogleDisplayName() {
+  return cachedUser?.user_metadata?.full_name ?? cachedUser?.user_metadata?.name ?? null;
+}
 if (client) {
   client.auth.onAuthStateChange((_event, session) => {
     const wasLoggedIn = !!cachedUser;
@@ -268,6 +276,15 @@ const PREFERENCE_DURATION_VARS = {
 let identityApplierFn = null;
 export function registerIdentityApplier(fn) {
   identityApplierFn = fn;
+}
+
+// ユーザー要望「Googleで初めてログインするときアバター/ニックネームの確認モーダルを
+// 出したい」への対応。identityApplierFnと同じ「main.jsから注入してもらう」パターン。
+// loadMyPreferences()が「so7_user_profilesにまだ行が無い＝初回ログイン」を検知した時、
+// Googleログインであれば呼ぶ。
+let firstGoogleLoginPrompterFn = null;
+export function registerFirstGoogleLoginPrompter(fn) {
+  firstGoogleLoginPrompterFn = fn;
 }
 
 // playmat.js/card-back-skins.js/background.jsはどれもsaveMyPreference()を使うために
@@ -368,7 +385,15 @@ export async function loadMyPreferences() {
     console.error("loadMyPreferences failed", error);
     return;
   }
-  if (!data) return; // 初回ログイン等、まだ何も保存していない場合はDBのデフォルト値のまま
+  if (!data) {
+    // 初回ログイン等、まだ何も保存していない場合はDBのデフォルト値のまま。
+    // Googleログインでの初回だけ、Googleの名前/サムネで自動設定した上で確認モーダルを出す
+    // （ユーザー要望）。
+    if (getGoogleDisplayName() || getGoogleAvatarUrl()) {
+      firstGoogleLoginPrompterFn?.();
+    }
+    return;
+  }
 
   if (typeof data.lock_area_bar_visible === "boolean") setLockAreaBarVisible(data.lock_area_bar_visible);
   if (typeof data.lock_color_visible === "boolean") setLockColorVisible(data.lock_color_visible);

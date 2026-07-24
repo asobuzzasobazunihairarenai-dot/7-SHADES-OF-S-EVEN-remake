@@ -1035,6 +1035,60 @@ body.reduce-glow [style*="rainbow-shard.webp"]::after {
   cursor: default;
 }
 
+/* 接触の結果（何を奪った/奪われたか）モーダル（ユーザー要望）。#contact-confirm-modalと
+   同じ見た目のパターンに、奪ったカードの画像プレビューを追加した。 */
+#contact-result-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(24rem, 90vw);
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.5rem;
+  padding: 1.2rem;
+  z-index: 10621;
+  font-family: sans-serif;
+  color: #e2e8f0;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  text-align: center;
+}
+.contact-result-title {
+  font-weight: bold;
+  margin-bottom: 0.6rem;
+  padding-right: 1.6rem;
+}
+.contact-result-body {
+  font-size: 0.88rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  margin-bottom: 0.8rem;
+}
+.contact-result-card-image {
+  width: 8rem;
+  height: 8rem;
+  object-fit: cover;
+  border-radius: 0.4rem;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.5);
+  margin: 0 auto 1rem;
+  display: block;
+}
+.contact-result-ok {
+  padding: 0.4rem 1.4rem;
+  background: #0891b2;
+  color: #fff;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+.contact-result-ok:hover {
+  background: #0ea5c4;
+}
+
 /* カード右クリックの専用メニューと、その中の「カード補足を見る」で開くモーダル。 */
 #card-context-menu {
   position: fixed;
@@ -3841,6 +3895,95 @@ body.is-touch-device .self-status-icon-grid #self-status-online .icon-action-but
 }
 .avatar-upload-file-input {
   display: none;
+}
+
+/* Googleで初めてログインした時の「アバターとニックネームの確認」モーダル
+   （ユーザー要望）。avatar-picker-modalと同じ見た目のグリッドを流用しつつ、大きめの
+   プレビューと名前入力欄を追加した専用モーダル。 */
+#first-login-profile-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(22rem, 90vw);
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.6rem;
+  padding: 1.2rem;
+  /* #opening-screen（z-index:50000）より確実に高くする（main.jsのopenFirstLoginProfileModal
+     内のcreateBackdropコメント参照）。 */
+  z-index: 50100;
+  font-family: sans-serif;
+  color: #e2e8f0;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  text-align: center;
+}
+.first-login-profile-title {
+  font-weight: bold;
+  font-size: 1.1rem;
+  margin-bottom: 0.6rem;
+}
+.first-login-profile-body {
+  font-size: 0.82rem;
+  line-height: 1.6;
+  opacity: 0.9;
+  margin-bottom: 0.9rem;
+}
+.first-login-profile-avatar-preview {
+  width: 5rem;
+  height: 5rem;
+  margin: 0 auto 0.8rem;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid #7dd3fc;
+  font-size: 2.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+}
+.first-login-profile-avatar-preview .avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.first-login-profile-avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.45rem;
+  margin-bottom: 1rem;
+}
+.first-login-profile-name-label {
+  text-align: left;
+  font-size: 0.75rem;
+  opacity: 0.75;
+  margin-bottom: 0.3rem;
+}
+.first-login-profile-name-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem 0.7rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.3rem;
+  color: #e2e8f0;
+  font-size: 0.9rem;
+  font-family: sans-serif;
+  margin-bottom: 1rem;
+}
+.first-login-profile-ok {
+  width: 100%;
+  padding: 0.6rem;
+  background: linear-gradient(160deg, #22c55e, #15803d);
+  color: #fff;
+  border: none;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: bold;
+}
+.first-login-profile-ok:hover {
+  background: linear-gradient(160deg, #4ade80, #16a34a);
 }
 .avatar-upload-status {
   min-height: 1.1em;
