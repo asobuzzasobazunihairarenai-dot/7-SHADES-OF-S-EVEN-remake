@@ -21,6 +21,9 @@
 
 import { getState, subscribe } from "./state.js";
 import { PHASES } from "./phase-guide.js";
+import { GATE_POSITIONS, SEAT_TO_SIDE } from "./board-layout.js";
+import { getSelfSeat } from "./online.js";
+import { getCardDefinition, getCardImagePath } from "./cards-data.js";
 
 // ハマりどころ（ユーザー報告のスクリーンショットで発覚、実際の環境依存の不具合）:
 // このモジュールの要素（#tutorial-overlay等）はdocument.body直下に置いているが、
@@ -85,6 +88,47 @@ const phaseStep = (phase) => ({
   body: phase.detail,
 });
 
+// 自分のゲートマス（GATE_POSITIONS、盤面の物理座標）を探す。ボード自体は視点回転により
+// 見た目の位置（grid-row/grid-column）だけが変わり、.cellのdata-row/data-colは常に
+// 物理座標のまま（main.jsのbuildBoard参照）なので、回転を気にせずこの座標だけで引ける。
+function getSelfGateCell() {
+  const seat = getSelfSeat();
+  const side = SEAT_TO_SIDE[seat];
+  const pos = GATE_POSITIONS[side];
+  if (!pos) return null;
+  return document.querySelector(`.cell[data-row="${pos.row}"][data-col="${pos.col}"]`);
+}
+
+// ユーザー要望「手札効果の説明、実際のカード画面で説明」への対応。手札効果の説明として
+// 見せる具体例。「赤・ジャンプ台」は効果自体がシンプルで、初めての人向けの例として
+// 分かりやすいと判断した（他のカードに差し替えたい場合はこのidを変えるだけでよい）。
+const HAND_EFFECT_EXAMPLE_CARD_ID = "red-jump-pad";
+
+function buildCardExampleEl() {
+  const def = getCardDefinition(HAND_EFFECT_EXAMPLE_CARD_ID);
+  const wrap = document.createElement("div");
+  wrap.className = "tutorial-card-example";
+  const img = document.createElement("img");
+  img.className = "tutorial-card-example-image";
+  img.src = getCardImagePath(HAND_EFFECT_EXAMPLE_CARD_ID);
+  img.alt = def?.name ?? "";
+  const textCol = document.createElement("div");
+  textCol.className = "tutorial-card-example-text";
+  const name = document.createElement("div");
+  name.className = "tutorial-card-example-name";
+  name.textContent = def?.name ?? "";
+  textCol.appendChild(name);
+  if (def?.note) {
+    const note = document.createElement("div");
+    note.className = "tutorial-card-example-note";
+    note.textContent = def.note;
+    textCol.appendChild(note);
+  }
+  wrap.appendChild(img);
+  wrap.appendChild(textCol);
+  return wrap;
+}
+
 const STEPS = [
   {
     target: () => null,
@@ -129,8 +173,43 @@ const STEPS = [
   },
   {
     target: () => null,
-    title: "以上で基本の流れは終わりです",
-    body: ["あとは実際に対戦しながら覚えていきましょう。健闘を祈ります！"],
+    title: "もっと詳しく知りたいですか？",
+    body: [
+      "以上が基本の流れです。ここで終えても十分に対戦を楽しめます。",
+      "「到達効果」「手札効果」「相手ゲート侵攻ボーナス」など、もう少し踏み込んだルールも見てみますか？",
+    ],
+    isBranch: true,
+  },
+  {
+    target: () => document.getElementById("phase-guide-move-button"),
+    title: "到達効果",
+    body: [
+      "ムーブフェイズで表向きのカードに駒を乗せると「到達」となり、多くの場合そのカードを手札に加えられます。",
+      "カードには、乗った瞬間に発動する「到達効果」と、手札から捨てて発動する「手札効果」の2種類が書かれていることがあります。",
+    ],
+  },
+  {
+    target: () => document.querySelector(".zone-bottom .hand-area"),
+    title: "手札効果（実際のカードで見てみましょう）",
+    body: [
+      "手札のカードは、捨てることで「手札効果」を使えます。効果の内容はカードごとに異なり、カード自体に書かれています。",
+      "例えばこのカードの手札効果:",
+    ],
+    renderExtra: (container) => container.appendChild(buildCardExampleEl()),
+    footer: ["盤面のカードを右クリック→「カード補足を見る」でも、いつでも同じように詳細を確認できます。"],
+  },
+  {
+    target: () => getSelfGateCell(),
+    title: "相手ゲート侵攻ボーナス",
+    body: [
+      "相手のゲート（各辺の中央のマス）に自分の駒を置いたままターンを終えると、「相手ゲート侵攻ボーナス」が発生します。",
+      "相手の手札を半分奪ったり、エターナルカードを獲得したりできる、対局を大きく動かすチャンスです。",
+    ],
+  },
+  {
+    target: () => null,
+    title: "以上で応用ルールも含めて終わりです",
+    body: ["ここまで理解していれば十分に対戦を楽しめます。健闘を祈ります！"],
   },
 ];
 
@@ -143,6 +222,7 @@ let bodyEl = null;
 let backBtn = null;
 let nextBtn = null;
 let skipBtn = null;
+let finishHereBtn = null;
 let progressEl = null;
 
 let currentStepIndex = 0;
@@ -194,6 +274,16 @@ function ensureOverlay() {
   backBtn.textContent = "戻る";
   backBtn.addEventListener("click", () => goToStep(currentStepIndex - 1));
 
+  // ユーザー要望「チュートリアルの続きを作りたい。『もっと詳しく説明しますか？』的な
+  // やつを」への対応。isBranch:trueのステップ（基本の流れを終えた直後）だけ、通常の
+  // 次へ/スキップの代わりにこのボタンを出す。「ここで終わる」を押した場合は
+  // スキップと同じくfinishTutorial()（＝以後自動表示しない）を呼ぶ。
+  finishHereBtn = document.createElement("button");
+  finishHereBtn.type = "button";
+  finishHereBtn.className = "tutorial-callout-skip";
+  finishHereBtn.textContent = "ここで終わる";
+  finishHereBtn.addEventListener("click", () => finishTutorial());
+
   nextBtn = document.createElement("button");
   nextBtn.type = "button";
   nextBtn.className = "tutorial-callout-next";
@@ -207,6 +297,7 @@ function ensureOverlay() {
   });
 
   buttonRow.appendChild(skipBtn);
+  buttonRow.appendChild(finishHereBtn);
   buttonRow.appendChild(backBtn);
   buttonRow.appendChild(nextBtn);
   calloutEl.appendChild(buttonRow);
@@ -285,11 +376,32 @@ function renderStep() {
     p.textContent = paragraph;
     bodyEl.appendChild(p);
   }
+  step.renderExtra?.(bodyEl);
+  if (step.footer) {
+    for (const paragraph of step.footer) {
+      const p = document.createElement("p");
+      p.className = "tutorial-callout-footer";
+      p.textContent = paragraph;
+      bodyEl.appendChild(p);
+    }
+  }
   progressEl.textContent = `${currentStepIndex + 1} / ${STEPS.length}`;
   backBtn.disabled = currentStepIndex === 0;
-  nextBtn.textContent = currentStepIndex >= STEPS.length - 1 ? "始める" : "次へ";
-  // 最初と最後のステップ（対象なし）はスキップする意味が薄いため、それ以外の間だけ出す。
-  skipBtn.style.visibility = currentStepIndex === 0 || currentStepIndex === STEPS.length - 1 ? "hidden" : "visible";
+
+  if (step.isBranch) {
+    // 「もっと詳しく知りたいですか？」の分岐ステップ: 通常の次へ/スキップの代わりに
+    // 「詳しく見る」（＝次のステップへ進む）/「ここで終わる」を出す。
+    nextBtn.textContent = "詳しく見る";
+    nextBtn.style.display = "";
+    finishHereBtn.style.display = "";
+    skipBtn.style.visibility = "hidden";
+  } else {
+    finishHereBtn.style.display = "none";
+    nextBtn.style.display = "";
+    nextBtn.textContent = currentStepIndex >= STEPS.length - 1 ? "始める" : "次へ";
+    // 最初と最後のステップ（対象なし）はスキップする意味が薄いため、それ以外の間だけ出す。
+    skipBtn.style.visibility = currentStepIndex === 0 || currentStepIndex === STEPS.length - 1 ? "hidden" : "visible";
+  }
   positionForCurrentStep();
 }
 

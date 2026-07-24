@@ -5498,6 +5498,40 @@ body.is-online-mode #quick-start-bar {
 .tutorial-callout-body p:last-child {
   margin-bottom: 0;
 }
+/* ユーザー要望「チュートリアルの続き（到達効果・手札効果・ゲート侵攻の応用ルール）」
+   への対応。手札効果の説明で実際のカード（画像＋名前＋補足）を見せる部分。 */
+.tutorial-card-example {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 0.4rem;
+  padding: 0.5rem;
+  margin: 0.4rem 0 0.6rem;
+}
+.tutorial-card-example-image {
+  width: 4rem;
+  height: 4rem;
+  object-fit: contain;
+  border-radius: 0.3rem;
+  flex-shrink: 0;
+}
+.tutorial-card-example-name {
+  font-weight: bold;
+  font-size: 0.85rem;
+  margin-bottom: 0.2rem;
+}
+.tutorial-card-example-note {
+  font-size: 0.75rem;
+  color: #cbd5e1;
+  line-height: 1.5;
+}
+.tutorial-callout-footer {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-style: italic;
+}
 .tutorial-callout-progress {
   font-size: 0.7rem;
   color: #94a3b8;
