@@ -137,6 +137,21 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー要望「タックル演出が早すぎて何が起きたかよくわからない。秒数を管理者
+    // モードで設定できるといい」への対応。承認ボタンが押されてから①演出開始までの間→
+    // ②気合を入れる（到達演出流用、演出自体の時間なのでここには含めない）→③助走→
+    // ④タックル→⑤ゲートまで戻る（駒の飛翔）の順（main.jsのplayContactLunge/
+    // playContactFlight参照）。
+    title: "接触のタックル演出（各段階の秒数）",
+    category: "effect",
+    controls: [
+      { key: "--contact-anim-pre-delay", label: "①承認から演出開始までの間（秒）", unit: "", min: 0, max: 10, step: 0.5, default: 2 },
+      { key: "--contact-anim-runup-duration", label: "③助走にかける秒数", unit: "", min: 0.2, max: 10, step: 0.1, default: 3 },
+      { key: "--contact-anim-tackle-duration", label: "④タックルにかける秒数", unit: "", min: 0.1, max: 5, step: 0.1, default: 1 },
+      { key: "--contact-anim-flight-duration", label: "⑤ゲートまで戻るのにかかる秒数", unit: "", min: 0.2, max: 10, step: 0.1, default: 2 },
+    ],
+  },
+  {
     title: "スポットライトモードの明るい範囲",
     category: "effect",
     controls: [
@@ -243,8 +258,8 @@ const GROUPS = [
     title: "ターン数・ラウンド数の表示（画面右上）",
     category: "position-ui",
     controls: [
-      { key: "--turn-round-counter-top", label: "Y位置（画面上端からの距離）", unit: "rem", min: 0, max: 20, step: 0.1, default: 0.4 },
-      { key: "--turn-round-counter-right", label: "X位置（画面右端からの距離）", unit: "rem", min: 0, max: 30, step: 0.1, default: 3.9 },
+      { key: "--turn-round-counter-top", label: "Y位置（画面上端からの距離）", unit: "rem", min: 0, max: 20, step: 0.1, default: 3.1 },
+      { key: "--turn-round-counter-right", label: "X位置（画面右端からの距離）", unit: "rem", min: 0, max: 30, step: 0.1, default: 1.6 },
       { key: "--turn-round-counter-font-size", label: "文字サイズ", unit: "rem", min: 0.4, max: 3, step: 0.05, default: 0.65 },
     ],
   },

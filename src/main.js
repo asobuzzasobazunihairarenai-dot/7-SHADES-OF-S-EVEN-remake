@@ -824,15 +824,28 @@ function triggerLockEffect(cardId, location) {
 // 駒がカードの上に乗った瞬間の演出。表向きのカードならそのまま到達モーダルを表示する。
 // 裏向きの場合は自動でオープンせず、駒の近くに「オープンする/しない」の選択肢を出し、
 // 選んでもらってから（オープンする場合のみ）到達モーダルを表示する。
-function maybeTriggerCardArrival(dropTarget, pieceTokenId) {
-  if (!dropTarget) return;
+// onResolved: 到達判定が完全に決着した（何もしなかった/表向きで即座に処理した/裏向きで
+// ユーザーがオープンする・しないを選び終えた）タイミングで呼ばれる省略可能なコールバック。
+// ユーザー報告「接触の結果モーダルが、オープンする/しないの選択より先に（同時に）出て、
+// 不透明な結果モーダルの下に選択肢が隠れて見えなくなる」への対応として、respondToContact
+// （main.js）がこれを使い、結果モーダルの表示を「オープンする/しないの決着後」まで
+// 遅らせる。
+function maybeTriggerCardArrival(dropTarget, pieceTokenId, onResolved) {
+  if (!dropTarget) {
+    onResolved?.();
+    return;
+  }
   const card = findTopCardAt(dropTarget);
-  if (!card) return;
+  if (!card) {
+    onResolved?.();
+    return;
+  }
   if (!card.faceUp) {
-    promptCardOpen(pieceTokenId, card);
+    promptCardOpen(pieceTokenId, card, onResolved);
     return;
   }
   triggerCardArrival(card.cardId, card.location);
+  onResolved?.();
 }
 
 // maybeTriggerCardArrivalの「表向きの場合のみ」の部分だけを切り出したもの。
@@ -881,10 +894,13 @@ function closeOpenPrompt() {
   }
 }
 
-function promptCardOpen(pieceTokenId, card) {
+function promptCardOpen(pieceTokenId, card, onResolved) {
   closeOpenPrompt();
   const pieceEl = document.querySelector(`.piece[data-token-id="${pieceTokenId}"]`);
-  if (!pieceEl) return;
+  if (!pieceEl) {
+    onResolved?.();
+    return;
+  }
   // getBoundingClientRect()は実画面座標だが、promptはposition:fixedでステージ内に
   // 描画されるため、ステージのローカル座標に変換してから使う（ユーザー報告「オープン
   // する/しないボタンがだいぶ遠くに表示される」の原因。ステージ導入時の見落とし）。
@@ -911,6 +927,7 @@ function promptCardOpen(pieceTokenId, card) {
       } catch (err) {
         console.error("flipToken failed", err);
         render();
+        onResolved?.();
         return;
       }
     } else {
@@ -926,12 +943,16 @@ function promptCardOpen(pieceTokenId, card) {
     // fetchAndHydrate()後のフレッシュな状態から改めて取得する。
     const freshCard = getState().tokens.find((t) => t.id === card.id);
     if (freshCard) triggerCardArrival(freshCard.cardId, freshCard.location);
+    onResolved?.();
   });
 
   const noBtn = document.createElement("button");
   noBtn.className = "card-open-prompt-no";
   noBtn.textContent = "🚫 オープンしない";
-  noBtn.addEventListener("click", () => closeOpenPrompt());
+  noBtn.addEventListener("click", () => {
+    closeOpenPrompt();
+    onResolved?.();
+  });
 
   prompt.appendChild(yesBtn);
   prompt.appendChild(noBtn);
@@ -1159,20 +1180,28 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-const CONTACT_FLIGHT_MS = 450;
-
 // ユーザー要望「接触するときアニメーションを設定できますか」への対応（縮小版として合意
 // 済み——理想の「カメラが横に回り込んで駒2つを真横から捉える」演出は、今の3D盤面が
 // 見下ろし視点をtilt/zoom/panで微調整するだけの設計で任意の2駒を真横から捉えるカメラ
 // ワークを想定していないため、大掛かりな作り直しが必要でリスクが高いと判断し見送った。
 // 代わりにカメラは動かさず、既存の「使い捨てDOM演出」の部品——到達演出の柱状オーラ
 // (spawnArrivalBurst)・remote-move-animator.jsと同じ飛翔ゴースト(flyGhost)——を
-// 組み合わせている）。承認された接触の一連の演出: ①自分（attacker）の駒が相手
-// （defender）の駒へ向けて軽く突進→②衝突した瞬間に到達演出と同じ柱状のオーラ＋効果音→
-// ③相手の駒がゲートへ飛んでいく。①②は状態（state）を一切変えない見た目だけの
-// ワンショット演出のため、respondContact()で実際に駒を動かす「前」に行う（このタイミングの
-// 都合はrespondToContact参照）。
-async function playContactLunge({ attackerEl, defenderFromRect, attackerRect, defenderFromLocation, attackerColor }) {
+// 組み合わせている）。
+//
+// ユーザー報告「タックル演出が早すぎて何が起きたかよくわからない」への対応で、以下の
+// 5段階＋各段階の秒数を管理者モードで調整できるようにした（--contact-anim-*）:
+// ①承認から演出開始までの間 →②気合を入れる（到達演出のオーラを自分の駒のマスで流用、
+// 演出時間は到達演出自体と揃えているため設定項目には含めない）→③助走（後ろに引く）→
+// ④タックル（前へ突進、衝突エフェクト）→⑤ゲートまで戻る（駒の飛翔、playContactFlight）。
+// ①〜④は状態（state）を一切変えない見た目だけのワンショット演出のため、respondContact()
+// で実際に駒を動かす「前」に行う（このタイミングの都合はrespondToContact参照）。
+function getContactAnimSeconds(varName, fallback) {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  const seconds = parseFloat(raw);
+  return Number.isNaN(seconds) ? fallback : seconds;
+}
+
+async function playContactLunge({ attackerEl, defenderFromRect, attackerRect, defenderFromLocation, attackerFromLocation, attackerColor }) {
   const table = document.getElementById("game-table");
   const dx = defenderFromRect.left + defenderFromRect.width / 2 - (attackerRect.left + attackerRect.width / 2);
   const dy = defenderFromRect.top + defenderFromRect.height / 2 - (attackerRect.top + attackerRect.height / 2);
@@ -1182,22 +1211,33 @@ async function playContactLunge({ attackerEl, defenderFromRect, attackerRect, de
   const LUNGE_PX = 26;
   const RUNUP_PX = 8;
 
-  // 助走→タックル。駒本体はこの後respondContact()→render()でDOMごと作り直されるため、
-  // ここで付けたtransform/transitionの後片付けは不要。
-  attackerEl.style.transition = "none";
-  attackerEl.style.transform = `translate(${-ux * RUNUP_PX}px, ${-uy * RUNUP_PX}px)`;
-  void attackerEl.offsetWidth; // 直前のtransitionを確実にリセットしてから開始する強制リフロー
-  attackerEl.style.transition = "transform 140ms ease-in";
-  await wait(20);
-  attackerEl.style.transform = `translate(${ux * LUNGE_PX}px, ${uy * LUNGE_PX}px)`;
-  await wait(140);
+  // ①承認されてから演出が始まるまでの「間」。
+  await wait(getContactAnimSeconds("--contact-anim-pre-delay", 2) * 1000);
 
-  // 衝突エフェクト（到達演出と同じ柱状オーラを流用。到達演出設定が無効ならspawnArrivalBurst
-  // 自身が内部で何もしない）。
+  // ②気合を入れる。到達演出と同じ柱状オーラを、自分（attacker）の駒がいるマスで
+  // 発光させる。この演出時間自体は到達演出そのものと揃えているため、個別の設定項目には
+  // していない（ユーザー指定「到達EFFECTアニメ流用」）。
+  playSound("arrivalEffect");
+  const attackerHostEl = table ? findLocationElement(table, attackerFromLocation) : null;
+  if (attackerHostEl) spawnArrivalBurst(attackerHostEl, attackerColor);
+  await wait(1400);
+
+  // ③助走（後ろに引く）。駒本体はこの後respondContact()→render()でDOMごと作り直される
+  // ため、ここで付けたtransform/transitionの後片付けは不要。
+  const runupMs = getContactAnimSeconds("--contact-anim-runup-duration", 3) * 1000;
+  attackerEl.style.transition = `transform ${runupMs}ms ease-in`;
+  attackerEl.style.transform = `translate(${-ux * RUNUP_PX}px, ${-uy * RUNUP_PX}px)`;
+  await wait(runupMs);
+
+  // ④タックル（前へ突進、衝突エフェクト）。
+  const tackleMs = getContactAnimSeconds("--contact-anim-tackle-duration", 1) * 1000;
+  attackerEl.style.transition = `transform ${tackleMs}ms cubic-bezier(0.3, 0, 0.7, 1)`;
+  attackerEl.style.transform = `translate(${ux * LUNGE_PX}px, ${uy * LUNGE_PX}px)`;
+  await wait(tackleMs);
   playSound("arrivalEffect");
   const hostEl = table ? findLocationElement(table, defenderFromLocation) : null;
   if (hostEl) spawnArrivalBurst(hostEl, attackerColor);
-  await wait(180);
+  await wait(300);
 
   // 突進した駒を元の位置へ戻す。呼び出し元がこの直後にrespondContact()→render()で
   // DOMを作り直す前に、戻りきるまで待つ（途中で作り直すと戻りアニメが切れて見える）。
@@ -1222,7 +1262,7 @@ async function playContactFlight(defenderPieceId, defenderFromRect) {
       toRect,
       getSkinImagePath(defenderToken.color, defenderToken.player),
       "setup-fly-card",
-      CONTACT_FLIGHT_MS
+      getContactAnimSeconds("--contact-anim-flight-duration", 2) * 1000
     );
     await done;
   }
@@ -1274,6 +1314,7 @@ async function respondToContact(approve) {
         defenderFromRect: defenderEl.getBoundingClientRect(),
         attackerRect: attackerEl.getBoundingClientRect(),
         defenderFromLocation: defenderToken.location,
+        attackerFromLocation: attackerToken.location,
         attackerColor: attackerToken.color,
       };
     }
@@ -1321,17 +1362,26 @@ async function respondToContact(approve) {
     // 到達プロンプト/モーダルの位置決めに実際のDOM座標(getBoundingClientRect)を使うため、
     // render()で盤面を描き直した後でなければ呼べない。
     const defenderPiece = getState().tokens.find((t) => t.id === defenderPieceId);
-    if (defenderPiece) maybeTriggerCardArrival(defenderPiece.location, defenderPiece.id);
     // ユーザー要望「奪われた側は何を奪われたかをモーダルで出す」への対応。オンライン中は
     // defender自身の画面にだけ表示する（attacker側はcheckContactAttackerResolution参照）。
     // ローカルモードは1画面で両者を見ているため、role:"both"で両方の文面を一度に出す。
-    const stolen = findStolenCard();
-    openContactResultModal({
-      role: isOnlineMode() ? "defender" : "both",
-      attacker,
-      defender,
-      cardId: stolen?.cardId ?? null,
-    });
+    // ハマりどころ（ユーザー報告「接触され側でオープンする/しないの選択が出ない（実際には
+    // 出ているが、この結果モーダルの不透明な背景に隠れて見えなかった）」）: 到達判定
+    // （裏向きなら「オープンする/しない」の選択）と同時にこの結果モーダルを出すと、
+    // 結果モーダルの方が手前に重なって選択肢を覆い隠してしまう。到達判定が完全に決着した
+    // 後（表向きなら即座に、裏向きならユーザーが選び終えた後）まで表示を遅らせることで
+    // 解決する（maybeTriggerCardArrivalのonResolvedコールバック参照）。
+    const showResultModal = () => {
+      const stolen = findStolenCard();
+      openContactResultModal({
+        role: isOnlineMode() ? "defender" : "both",
+        attacker,
+        defender,
+        cardId: stolen?.cardId ?? null,
+      });
+    };
+    if (defenderPiece) maybeTriggerCardArrival(defenderPiece.location, defenderPiece.id, showResultModal);
+    else showResultModal();
   }
 }
 

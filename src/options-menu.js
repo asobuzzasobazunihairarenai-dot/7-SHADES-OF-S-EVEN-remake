@@ -3,7 +3,6 @@
 // 単独のボタンとして左上にあったが、ここに統合し、左上はゲームタイトル表示用に空けた。
 
 import { openAdminPanel } from "./admin.js";
-import { startTutorial } from "./tutorial.js";
 import { openDeckViewer } from "./deck-viewer.js";
 import { isLockAreaBarVisible, setLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible, setLockColorVisible } from "./lock-color.js";
@@ -490,12 +489,8 @@ export function initOptionsMenu() {
     divider.className = "options-menu-divider";
     panel.appendChild(divider);
 
-    panel.appendChild(
-      buildMenuItem("🎓 チュートリアルを見る", () => {
-        close();
-        startTutorial();
-      })
-    );
+    // ユーザー要望「オプション画面にあった『チュートリアルを見る』をヘルプ画面に移設」
+    // への対応でここから削除した（help.jsの「🎓 チュートリアルを見る」ボタン参照）。
     panel.appendChild(
       buildMenuItem("📋 山札一覧", () => {
         close();

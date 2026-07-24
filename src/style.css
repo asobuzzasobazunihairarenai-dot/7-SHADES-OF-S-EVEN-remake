@@ -2835,11 +2835,10 @@ body.spotlight-mode #spotlight-overlay {
    ユーザー要望）。 */
 #turn-round-counter {
   position: fixed;
-  top: var(--turn-round-counter-top, 0.4rem);
-  /* 右上のオプションアイコン(#options-menu-button、アイコン+キャプション形式で幅が
-     2.6rem程度、right:1rem)とぶつからないよう、その分だけ右端の余白を空ける
-     （デフォルト値の意図。管理者モードで自由に変えられる）。 */
-  right: var(--turn-round-counter-right, 3.9rem);
+  /* ユーザー要望により位置を変更（元はtop:0.4rem/right:3.9rem、
+     オプションアイコンとの衝突回避を意図した値だった）。 */
+  top: var(--turn-round-counter-top, 3.1rem);
+  right: var(--turn-round-counter-right, 1.6rem);
   z-index: 900;
   font-family: sans-serif;
   font-size: var(--turn-round-counter-font-size, 0.65rem);
@@ -2956,7 +2955,7 @@ body.is-touch-device #options-menu-button {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: min(34rem, 92vw);
+  width: min(28rem, 92vw);
   max-height: 85vh;
   overflow-y: auto;
   background: rgba(15, 23, 32, 0.98);
@@ -2974,41 +2973,115 @@ body.is-touch-device #options-menu-button {
   margin-bottom: 0.8rem;
   padding-right: 1.6rem;
 }
-.help-panel-section {
-  padding: 0.7rem 0;
-  border-top: 1px solid rgba(148, 163, 184, 0.2);
+/* ユーザー要望「オプション画面にあった『チュートリアルを見る』をヘルプ画面に移設」。 */
+#help-panel-tutorial-btn {
+  display: block;
+  width: 100%;
+  padding: 0.55rem;
+  margin-bottom: 1rem;
+  background: linear-gradient(160deg, #0891b2, #0e7490);
+  color: #fff;
+  border: none;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: bold;
+  font-family: sans-serif;
 }
-.help-panel-section:first-child {
-  border-top: none;
-  padding-top: 0;
+#help-panel-tutorial-btn:hover {
+  background: linear-gradient(160deg, #22d3ee, #0891b2);
 }
-.help-panel-section-title {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
+/* ユーザー要望「ヘルプ画面のトップは見やすいように項目を並べ表示し、クリックすると
+   そのモーダルが出るようにする」への対応。基本ルール/用語集/よくある質問の3大項目を
+   折りたたみ（<details>）にし、中身は項目名だけのボタン一覧にする。 */
+.help-index-section {
+  margin-bottom: 0.6rem;
+}
+.help-index-section > summary {
   font-weight: bold;
   font-size: 0.95rem;
   color: #fde68a;
-  margin-bottom: 0.4rem;
+  cursor: pointer;
+  padding: 0.3rem 0;
 }
-.help-panel-section-icon {
-  width: 1.4rem;
-  height: 1.4rem;
+.help-index-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.4rem 0 0.2rem 0.6rem;
+}
+/* よくある質問のカテゴリ（ロック/手札/移動/接触/その他）は、大項目の中にさらに
+   ネストした折りたたみにする。 */
+.help-index-subsection > summary {
+  font-weight: bold;
+  font-size: 0.85rem;
+  color: #93c5fd;
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+.help-index-subsection .help-index-list {
+  padding-left: 0.8rem;
+}
+.help-index-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  border-radius: 0.3rem;
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-family: sans-serif;
+  line-height: 1.4;
+}
+.help-index-item:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ヘルプ内の各項目（基本ルール1件・用語集の1語・FAQ1件）の内容を表示する小さなモーダル。
+   ヘルプ画面自身の裏に重ねて出すためz-indexをそれより高くしてある。 */
+#help-item-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(26rem, 90vw);
+  max-height: 80vh;
+  overflow-y: auto;
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.6rem;
+  padding: 1.2rem 1.4rem;
+  z-index: 2511;
+  font-family: sans-serif;
+  color: #e2e8f0;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+.help-item-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: bold;
+  font-size: 1rem;
+  color: #fde68a;
+  margin-bottom: 0.7rem;
+  padding-right: 1.6rem;
+}
+.help-item-modal-icon {
+  width: 1.5rem;
+  height: 1.5rem;
   object-fit: contain;
+  flex-shrink: 0;
 }
-.help-panel-paragraph {
+.help-item-modal-paragraph {
   font-size: 0.85rem;
   line-height: 1.7;
   margin: 0 0 0.5rem 0;
 }
-.help-panel-paragraph:last-child {
+.help-item-modal-paragraph:last-child {
   margin-bottom: 0;
-}
-.help-panel-footer {
-  font-size: 0.78rem;
-  line-height: 1.6;
-  opacity: 0.75;
-  margin: 0.3rem 0 0 0;
 }
 
 #options-menu-panel {
@@ -5599,9 +5672,15 @@ body.is-online-mode #quick-start-bar {
   --board-zoom-2-reference-height: 1000px;
   --phase-guide-bottom: 0rem;
   --phase-guide-right: 2.3rem;
-  --turn-round-counter-top: 0.4rem;
-  --turn-round-counter-right: 3.9rem;
+  --turn-round-counter-top: 3.1rem;
+  --turn-round-counter-right: 1.6rem;
   --turn-round-counter-font-size: 0.65rem;
+  /* 接触のタックル演出の各段階の秒数（ユーザー要望「早すぎて何が起きたか分からない」
+     への対応、main.jsのgetContactAnimSeconds参照）。 */
+  --contact-anim-pre-delay: 2;
+  --contact-anim-runup-duration: 3;
+  --contact-anim-tackle-duration: 1;
+  --contact-anim-flight-duration: 2;
   --turn-timer-rope-pos-x: 0rem;
   --turn-timer-rope-pos-y: 0rem;
   --turn-timer-rope-width: 46rem;
