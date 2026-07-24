@@ -22,10 +22,12 @@ import {
   submitStatsMatchResult,
   setRematchReady,
   maybeTriggerRematch,
+  leaveGame,
 } from "./online.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { fetchStatsProfile, getTierInfo } from "./stats-profile.js";
 import { showRankUpModal } from "./rank-up-modal.js";
+import { openOnlinePanel, setSavedRoomPassword } from "./online-ui.js";
 
 // victory.jsはこのモジュール（showPostGamePanel）を呼ぶ側になる予定のため、ここから
 // victory.jsを直接importすると循環importになる。他の箇所（setup-animation.js等）と
@@ -110,8 +112,31 @@ function buildButtonsSection(gameId) {
     }, 3000);
   });
 
+  // ユーザー要望「勝利後『もう一度遊ぶ』モーダルの時に、『この部屋を出る』ボタンも
+  // お願いします」。以前はこのパネルから抜けるには✕で閉じてローカル表示に戻すか、
+  // 「もう一度遊ぶ」を押すかの2択しかなく、「この部屋はもう十分遊んだので別の部屋を
+  // 探したい」という場合の導線が無かった。online-ui.jsの「この部屋を離れる」ボタンと
+  // 同じ処理（leaveGame→保存済みパスワード削除→URLの?room=を消す）を行い、このパネルを
+  // 閉じてから部屋一覧パネル（openOnlinePanel）を開き直す。
+  const leaveBtn = document.createElement("button");
+  leaveBtn.type = "button";
+  leaveBtn.textContent = "この部屋を出る";
+  leaveBtn.style.cssText = `
+    padding: 0.5rem 1rem; background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 0.3rem;
+    color: #e2e8f0; cursor: pointer; font-size: 0.85rem;
+  `;
+  leaveBtn.addEventListener("click", () => {
+    leaveGame();
+    setSavedRoomPassword(gameId, null);
+    history.replaceState(null, "", location.pathname);
+    closePanel();
+    openOnlinePanel();
+  });
+
   row.appendChild(statsBtn);
   row.appendChild(rematchBtn);
+  row.appendChild(leaveBtn);
   col.appendChild(row);
   col.appendChild(waitingLabel);
   return col;

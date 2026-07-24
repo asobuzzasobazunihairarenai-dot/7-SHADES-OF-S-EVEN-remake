@@ -2553,11 +2553,16 @@ body.is-touch-device .zone-right .label {
   transform: translate(var(--label-d-pos-x), var(--label-d-pos-y)) translateZ(var(--label-translate-z-touch, 0rem));
 }
 /* ユーザー要望「盤面横のプレイヤー名BCDについてサイズを管理者モードで調整できるように
-   したい」。Aは対象外（自分の名前ラベルは別トグルで表示/非表示のみ）。 */
+   したい」。Aは対象外（自分の名前ラベルは別トグルで表示/非表示のみ）。
+   ユーザー要望「相手プレイヤー名の背面に黒色半透明の塗りつぶしを視認性向上のために」
+   への対応であわせて背景も追加した。 */
 .zone-left .label,
 .zone-top .label,
 .zone-right .label {
   font-size: var(--label-bcd-font-size, 1rem);
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.4rem;
 }
 
 /* 各プレイヤーのアバター（絵文字ダミー）。相手のアバターは「手札の後ろ側」に見えるよう、

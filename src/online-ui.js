@@ -319,7 +319,7 @@ function getSavedRoomPassword(gameId) {
     return null;
   }
 }
-function setSavedRoomPassword(gameId, password) {
+export function setSavedRoomPassword(gameId, password) {
   try {
     if (password) localStorage.setItem(savedRoomPasswordKey(gameId), password);
     else localStorage.removeItem(savedRoomPasswordKey(gameId));
