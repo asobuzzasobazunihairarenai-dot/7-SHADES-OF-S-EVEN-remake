@@ -57,7 +57,7 @@ import { buildAvatarUploadSection } from "./avatar-upload.js";
 import { isLockAreaBarVisible, setLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible } from "./lock-color.js";
 import { isArrivalEffectDisabled, isFlightAnimationDisabled } from "./motion-prefs.js";
-import { rectCenter } from "./ghost-flight.js";
+import { rectCenter, flyGhost } from "./ghost-flight.js";
 import { showCardArrivalModal } from "./card-arrival.js";
 import { initPlayerButtons } from "./player-buttons.js";
 import { initQuickStart } from "./quick-start.js";
@@ -1154,6 +1154,80 @@ document.addEventListener("pointerdown", (e) => {
   if (contactPromptEl && !contactPromptEl.contains(e.target)) closeContactPrompt();
 });
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const CONTACT_FLIGHT_MS = 450;
+
+// ユーザー要望「接触するときアニメーションを設定できますか」への対応（縮小版として合意
+// 済み——理想の「カメラが横に回り込んで駒2つを真横から捉える」演出は、今の3D盤面が
+// 見下ろし視点をtilt/zoom/panで微調整するだけの設計で任意の2駒を真横から捉えるカメラ
+// ワークを想定していないため、大掛かりな作り直しが必要でリスクが高いと判断し見送った。
+// 代わりにカメラは動かさず、既存の「使い捨てDOM演出」の部品——到達演出の柱状オーラ
+// (spawnArrivalBurst)・remote-move-animator.jsと同じ飛翔ゴースト(flyGhost)——を
+// 組み合わせている）。承認された接触の一連の演出: ①自分（attacker）の駒が相手
+// （defender）の駒へ向けて軽く突進→②衝突した瞬間に到達演出と同じ柱状のオーラ＋効果音→
+// ③相手の駒がゲートへ飛んでいく。①②は状態（state）を一切変えない見た目だけの
+// ワンショット演出のため、respondContact()で実際に駒を動かす「前」に行う（このタイミングの
+// 都合はrespondToContact参照）。
+async function playContactLunge({ attackerEl, defenderFromRect, attackerRect, defenderFromLocation, attackerColor }) {
+  const table = document.getElementById("game-table");
+  const dx = defenderFromRect.left + defenderFromRect.width / 2 - (attackerRect.left + attackerRect.width / 2);
+  const dy = defenderFromRect.top + defenderFromRect.height / 2 - (attackerRect.top + attackerRect.height / 2);
+  const dist = Math.hypot(dx, dy) || 1;
+  const ux = dx / dist;
+  const uy = dy / dist;
+  const LUNGE_PX = 26;
+  const RUNUP_PX = 8;
+
+  // 助走→タックル。駒本体はこの後respondContact()→render()でDOMごと作り直されるため、
+  // ここで付けたtransform/transitionの後片付けは不要。
+  attackerEl.style.transition = "none";
+  attackerEl.style.transform = `translate(${-ux * RUNUP_PX}px, ${-uy * RUNUP_PX}px)`;
+  void attackerEl.offsetWidth; // 直前のtransitionを確実にリセットしてから開始する強制リフロー
+  attackerEl.style.transition = "transform 140ms ease-in";
+  await wait(20);
+  attackerEl.style.transform = `translate(${ux * LUNGE_PX}px, ${uy * LUNGE_PX}px)`;
+  await wait(140);
+
+  // 衝突エフェクト（到達演出と同じ柱状オーラを流用。到達演出設定が無効ならspawnArrivalBurst
+  // 自身が内部で何もしない）。
+  playSound("arrivalEffect");
+  const hostEl = table ? findLocationElement(table, defenderFromLocation) : null;
+  if (hostEl) spawnArrivalBurst(hostEl, attackerColor);
+  await wait(180);
+
+  // 突進した駒を元の位置へ戻す。呼び出し元がこの直後にrespondContact()→render()で
+  // DOMを作り直す前に、戻りきるまで待つ（途中で作り直すと戻りアニメが切れて見える）。
+  attackerEl.style.transition = "transform 220ms ease-out";
+  attackerEl.style.transform = "translate(0px, 0px)";
+  await wait(220);
+}
+
+// 駒が実際に移動した「後」に呼ぶ。相手の駒がゲートへ飛んでいく見た目を作る。render()で
+// 新しい位置に駒を作る「前」にsetSetupPendingTokenIdsへ登録しておくことで、一瞬フルに
+// 見えてから隠れる「フラッシュ」を防ぐ（セットアップ配布演出と同じ考え方）。
+async function playContactFlight(defenderPieceId, defenderFromRect) {
+  setSetupPendingTokenIds(new Set([defenderPieceId]));
+  render();
+  const table = document.getElementById("game-table");
+  const newDefenderEl = table?.querySelector(`.piece[data-token-id="${defenderPieceId}"]`);
+  const defenderToken = getState().tokens.find((t) => t.id === defenderPieceId);
+  if (newDefenderEl && defenderToken) {
+    const toRect = newDefenderEl.getBoundingClientRect();
+    const { done } = flyGhost(
+      defenderFromRect,
+      toRect,
+      getSkinImagePath(defenderToken.color, defenderToken.player),
+      "setup-fly-card",
+      CONTACT_FLIGHT_MS
+    );
+    await done;
+  }
+  setSetupPendingTokenIds(new Set());
+}
+
 // 接触されたプレイヤー（defender）が承認/拒否モーダル（contact-approval.js）で応答した
 // 時に呼ばれる。承認された場合だけ、respondToFinalLockと同じ理由でローカルモードは
 // 明示的に到達判定を呼ぶ必要がある（remote-move-animator.jsはisOnlineMode()で早期return
@@ -1168,6 +1242,7 @@ async function respondToContact(approve) {
   // 実際のcardIdが見えているため、ここで捕まえておけば「何を奪われたか」をサーバーに
   // 問い合わせ直さずそのまま特定できる。
   const defenderPieceId = getState().tokens.find((t) => t.kind === "piece" && t.player === defender)?.id;
+  const attackerPieceId = getState().tokens.find((t) => t.kind === "piece" && t.player === attacker)?.id;
   const defenderHandBefore = getState().tokens.filter(
     (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === defender
   );
@@ -1179,6 +1254,38 @@ async function respondToContact(approve) {
     );
     return defenderHandBefore.find((t) => !afterIds.has(t.id)) ?? null;
   }
+
+  // タックル演出のため、状態を変える(respondContact)前に「動く前」のDOM情報を確保して
+  // おく——stateが変わった瞬間、下の汎用render()リスナー(subscribe)が同期的にDOMを
+  // 作り直してしまうため、後から取り直すことができない。「移動アニメーション」設定が
+  // 無効、駒のDOM要素が見当たらない等の場合はtackleがnullのままとなり、後段が
+  // 従来通りのフォールバック（即座にrender()だけ）になる。
+  let tackle = null;
+  if (approve && defenderPieceId && attackerPieceId && !isFlightAnimationDisabled()) {
+    const table = document.getElementById("game-table");
+    const attackerEl = table?.querySelector(`.piece[data-token-id="${attackerPieceId}"]`);
+    const defenderEl = table?.querySelector(`.piece[data-token-id="${defenderPieceId}"]`);
+    const defenderToken = getState().tokens.find((t) => t.id === defenderPieceId);
+    const attackerToken = getState().tokens.find((t) => t.id === attackerPieceId);
+    if (table && attackerEl && defenderEl && defenderToken && attackerToken) {
+      tackle = {
+        attackerEl,
+        defenderFromRect: defenderEl.getBoundingClientRect(),
+        attackerRect: attackerEl.getBoundingClientRect(),
+        defenderFromLocation: defenderToken.location,
+        attackerColor: attackerToken.color,
+      };
+    }
+  }
+
+  if (tackle) {
+    // 汎用render()リスナー・remote-move-animator.jsを一時停止し、この後の
+    // respondContact()による状態変化で盤面が勝手に作り直されないようにする
+    // （suppressGenericRenderForOnlineStartと同じパターン）。
+    suppressGenericRenderForContactTackle = true;
+    await playContactLunge(tackle);
+  }
+
   if (isOnlineMode()) {
     try {
       await respondContact(approve);
@@ -1193,33 +1300,37 @@ async function respondToContact(approve) {
       await fetchAndHydrate(getCurrentGameId());
     } catch (err) {
       console.error("respondContact failed", err);
+      suppressGenericRenderForContactTackle = false;
       render();
       return;
     }
-    if (approve) playSound("piecePlace");
-    render();
-    if (approve && defenderPieceId) {
-      // 到達プロンプト/モーダルの位置決めに実際のDOM座標(getBoundingClientRect)を使うため、
-      // render()で盤面を描き直した後でなければ呼べない。
-      const defenderPiece = getState().tokens.find((t) => t.id === defenderPieceId);
-      if (defenderPiece) maybeTriggerCardArrival(defenderPiece.location, defenderPiece.id);
-      // ユーザー要望「奪われた側は何を奪われたかをモーダルで出す」への対応（オンライン中は
-      // defender自身の画面にだけ表示。attacker側はcheckContactAttackerResolution参照）。
-      const stolen = findStolenCard();
-      openContactResultModal({ role: "defender", attacker, defender, cardId: stolen?.cardId ?? null });
-    }
-    return;
+  } else {
+    respondContact(approve);
   }
-  respondContact(approve);
-  if (approve) playSound("piecePlace");
+
+  if (tackle) {
+    await playContactFlight(defenderPieceId, tackle.defenderFromRect);
+    suppressGenericRenderForContactTackle = false;
+  } else if (approve) {
+    playSound("piecePlace");
+  }
   render();
+
   if (approve && defenderPieceId) {
+    // 到達プロンプト/モーダルの位置決めに実際のDOM座標(getBoundingClientRect)を使うため、
+    // render()で盤面を描き直した後でなければ呼べない。
     const defenderPiece = getState().tokens.find((t) => t.id === defenderPieceId);
     if (defenderPiece) maybeTriggerCardArrival(defenderPiece.location, defenderPiece.id);
-    // ローカルモードは1画面で両者を見ているため、role:"both"で奪った側/奪われた側
-    // 両方の文面を一度に出す。
+    // ユーザー要望「奪われた側は何を奪われたかをモーダルで出す」への対応。オンライン中は
+    // defender自身の画面にだけ表示する（attacker側はcheckContactAttackerResolution参照）。
+    // ローカルモードは1画面で両者を見ているため、role:"both"で両方の文面を一度に出す。
     const stolen = findStolenCard();
-    openContactResultModal({ role: "both", attacker, defender, cardId: stolen?.cardId ?? null });
+    openContactResultModal({
+      role: isOnlineMode() ? "defender" : "both",
+      attacker,
+      defender,
+      cardId: stolen?.cardId ?? null,
+    });
   }
 }
 
@@ -4356,6 +4467,9 @@ updateTurnRoundCounter();
 // このフラグの影響を受けないため、配布アニメーション自体は今まで通り正しく動く。
 let wasOnlineGameStarted = false;
 let suppressGenericRenderForOnlineStart = false;
+// respondToContact()のタックル演出（playContactLunge/playContactFlight）中、同じ理由で
+// 汎用render()リスナー・remote-move-animator.jsを一時停止するためのフラグ。
+let suppressGenericRenderForContactTackle = false;
 subscribe(() => {
   const started = Boolean(getState().turnPlayer);
   if (isOnlineMode() && started && !wasOnlineGameStarted) {
@@ -4382,7 +4496,7 @@ subscribe(() => {
 // 前に登録する。オンラインゲーム開始アニメーション中は、盤面が丸ごと配布演出用に隠されて
 // いる最中のため競合しないよう休止する。
 subscribe(() => {
-  if (suppressGenericRenderForOnlineStart) return;
+  if (suppressGenericRenderForOnlineStart || suppressGenericRenderForContactTackle) return;
   handleRemoteMoveHydrate();
 });
 
@@ -4395,7 +4509,7 @@ subscribe(() => {
 // 拾えるため、onDragEnd側やターン終了ボタン側に個別の呼び出しを増やす必要が無い）。
 let prevTurnPlayerForAnnouncement = null;
 subscribe(() => {
-  if (suppressGenericRenderForOnlineStart) return;
+  if (suppressGenericRenderForOnlineStart || suppressGenericRenderForContactTackle) return;
   const { turnPlayer } = getState();
   if (prevTurnPlayerForAnnouncement !== null && turnPlayer !== null && turnPlayer !== prevTurnPlayerForAnnouncement) {
     announceTurnChange(turnPlayer);
@@ -4471,7 +4585,7 @@ function computeStateFingerprint(state) {
 // render()呼び出しはローカルモードのためにそのまま残してある）。上のオンラインゲーム開始
 // アニメーション中だけは、このリスナーの発火をスキップする（理由は上のコメント参照）。
 subscribe(() => {
-  if (suppressGenericRenderForOnlineStart) return;
+  if (suppressGenericRenderForOnlineStart || suppressGenericRenderForContactTackle) return;
   const fingerprint = computeStateFingerprint(getState());
   if (fingerprint === lastRenderedFingerprint) return;
   lastRenderedFingerprint = fingerprint;
