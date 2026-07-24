@@ -211,6 +211,20 @@ export function onGateInvasionEvents(fn) {
     gateInvasionEventListeners = gateInvasionEventListeners.filter((f) => f !== fn);
   };
 }
+
+// ユーザー報告「ゲート侵攻自動処理が完全に終わってから『○○のターン』の表示を出して
+// ほしい。現在ゲート侵攻モーダル１枚目と被ってしまっている」への対応。turnPlayerの
+// 変化はfetchAndHydrate()内部のhydrateState()が同期的にsubscribe()経由でmain.jsへ
+// 通知するが、gateInvasionEventListeners（gate-invasion-modal.jsのモーダル表示）は
+// fetchAndHydrate()の.then()後（＝1テック以上あと）に呼ばれるため、そのままだと
+// ターン告知の方が必ず先に出て、直後にゲート侵攻モーダルが上から重なって出てしまって
+// いた。今まさに処理中のstate_changed broadcastに未処理のゲート侵攻イベントが
+// 含まれているかどうかを、main.jsのturnPlayer変化検知（subscribe）が同期的に
+// 参照できるようにするための共有フラグ。
+let pendingGateInvasionEventCount = 0;
+export function isGateInvasionPending() {
+  return pendingGateInvasionEventCount > 0;
+}
 // main.jsのヘッダーボタン（「🌐 オンライン」）のラベルを、ログイン状態が分かるように
 // 動的に変える時など、awaitせず同期的に「今ログイン中かどうか」を知りたい場面のために
 // キャッシュしておく（getCurrentUser()は毎回サーバーに問い合わせる非同期関数のため）。
@@ -406,13 +420,21 @@ export async function getMyCurrencyBalance() {
 // 制限するため、呼び出し側は結果を気にせず気軽に呼んでよい）。ユーザー確認済み
 // 「対局終了毎に一定額」に加えて「勝利時にボーナス」も併用するため、winnerSeatに
 // 一致する座席だけサーバー側で追加ボーナスが上乗せされる（supabase_setup_so7.sql参照）。
+// ユーザー要望「対戦終了時にお金がもらえる演出を追加したい」への対応で、戻り値を
+// 「このクライアント（=呼び出し元のauth.uid()）が実際に受け取った額」にした。
+// 他クライアントが先に付与済みだった場合は0が返る（＝演出を出すべきでない合図として
+// そのまま使える、呼び出し元のvictory.js参照）。
 export async function awardMatchCurrency(winnerSeat) {
-  if (!client || !currentGameId) return;
-  const { error } = await client.rpc("so7_award_match_currency", {
+  if (!client || !currentGameId) return 0;
+  const { data, error } = await client.rpc("so7_award_match_currency", {
     p_game_id: currentGameId,
     p_winner_seat: winnerSeat ?? null,
   });
-  if (error) console.error("so7_award_match_currency failed", error);
+  if (error) {
+    console.error("so7_award_match_currency failed", error);
+    return 0;
+  }
+  return data ?? 0;
 }
 
 // ユーザー確認済み「ログインボーナス（日次）」。ログイン直後に自動で1回だけ呼ぶ
@@ -1513,6 +1535,11 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
         }
         markSelfHandled(ids);
       }
+      // ユーザー報告「ターン告知がゲート侵攻モーダルと被る」への対応。turnPlayerの変化を
+      // 検知するmain.jsのsubscribe()は、下のfetchAndHydrate()内部で同期的に発火するため、
+      // このタイミングで「今回の変化にはゲート侵攻イベントが伴うか」を先に知らせておく
+      // （isGateInvasionPending参照）。
+      pendingGateInvasionEventCount = payload?.gateInvasionEvents?.length ?? 0;
       // 「誰が・何をした結果の変化か」を、この後のhydrateより前に記録しておく
       // （自分自身の操作の「こだま」も他プレイヤーの操作も同じこの経路を通る）。
       if (payload?.actorSeat) {
@@ -1524,8 +1551,11 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
           if (payload?.gateInvasionEvents?.length) {
             for (const fn of gateInvasionEventListeners) fn(payload.gateInvasionEvents);
           }
+          pendingGateInvasionEventCount = 0;
         })
-        .catch(() => {});
+        .catch(() => {
+          pendingGateInvasionEventCount = 0;
+        });
     })
     // 名前・アバター・駒スキンの変更は盤面のstate_changedとは別イベントで通知される
     // （updateMyIdentity参照）。ロスターだけ取り直し、notifyListeners()でrender()を

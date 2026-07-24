@@ -44,3 +44,29 @@ export async function refreshCurrencyDisplay() {
   const balance = await getMyCurrencyBalance();
   amountEl.textContent = String(balance);
 }
+
+// ユーザー要望「対戦終了時にお金がもらえる演出を追加したい」への対応。通貨アイコンを
+// 一瞬光らせる(is-pulsing、transformではなくfilterで表現——#currency-display自体は
+// 位置調整用のtransformを既に持っているため、同じプロパティを2箇所から操作すると
+// 後勝ちで上書きされてしまう。他の演出でも使っている教訓)のと、「+N」の文字が
+// アイコンから浮かび上がって消えていく演出を同時に行う。victory.jsのcheckForVictory()
+// から、online.jsのawardMatchCurrency()が返した「自分が実際に受け取った額」が
+// 1以上の時だけ呼ばれる。
+export function showCurrencyAwardEffect(amount) {
+  const el = document.getElementById("currency-display");
+  if (!el || amount <= 0) return;
+
+  el.classList.remove("is-pulsing");
+  void el.offsetWidth; // 同じアニメーションを連続で再生できるよう、一度リフローを挟んで再スタートさせる
+  el.classList.add("is-pulsing");
+  setTimeout(() => el.classList.remove("is-pulsing"), 900);
+
+  const rect = el.getBoundingClientRect();
+  const floatEl = document.createElement("div");
+  floatEl.className = "currency-award-float";
+  floatEl.textContent = `+${amount}`;
+  floatEl.style.left = `${rect.left + rect.width / 2}px`;
+  floatEl.style.top = `${rect.top}px`;
+  document.body.appendChild(floatEl);
+  setTimeout(() => floatEl.remove(), 1700);
+}

@@ -11,7 +11,7 @@ import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { playVictoryBgm } from "./sound.js";
 import { showPostGamePanel } from "./post-game-panel.js";
 import { awardMatchCurrency } from "./online.js";
-import { refreshCurrencyDisplay } from "./currency-display.js";
+import { refreshCurrencyDisplay, showCurrencyAwardEffect } from "./currency-display.js";
 
 // ユーザー要望「勝利モーダルが5秒ぐらいしっかり出た後に、『戦績確認・もう一度遊ぶ』
 // モーダル（勝利者へのコメント依頼を含む）が出るようにしてほしい」への対応。以前は
@@ -154,7 +154,13 @@ export function checkForVictory() {
       // オンライン対戦のみ）。
       if (isOnlineMode()) {
         awardMatchCurrency(player)
-          .then(refreshCurrencyDisplay)
+          .then((amount) => {
+            refreshCurrencyDisplay();
+            // ユーザー要望「対戦終了時にお金がもらえる演出を追加したい」への対応。
+            // 0は「他クライアントが先に付与済みだった」場合なので演出は出さない
+            // （online.jsのawardMatchCurrencyコメント参照）。
+            if (amount > 0) showCurrencyAwardEffect(amount);
+          })
           .catch((err) => console.error("awardMatchCurrency failed", err));
       }
       // ユーザー要望「ゲーム終了時にコメント記入→戦績確認・もう一度遊ぶボタン」。

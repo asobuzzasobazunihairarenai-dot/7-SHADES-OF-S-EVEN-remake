@@ -30,7 +30,7 @@ export function playOpeningBgm() {
     openingBgmAudio = new Audio("assets/sounds/opening-bgm.mp3");
     openingBgmAudio.loop = true;
   }
-  const volume = Math.min(1, Math.max(0, masterVolume * getPerSoundVolume("--sound-volume-opening-bgm")));
+  const volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-opening-bgm")));
   openingBgmAudio.volume = volume;
   openingBgmAudio.currentTime = 0;
   openingBgmAudio.play().catch(() => {});
@@ -72,7 +72,7 @@ export function playGameBgm() {
     gameBgmAudio = new Audio("assets/sounds/game-bgm.mp3");
     gameBgmAudio.loop = true;
   }
-  const volume = Math.min(1, Math.max(0, masterVolume * getPerSoundVolume("--sound-volume-game-bgm")));
+  const volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-game-bgm")));
   gameBgmAudio.volume = volume;
   gameBgmAudio.currentTime = 0;
   gameBgmAudio.play().catch(() => {});
@@ -111,7 +111,7 @@ export function playWaitingBgm() {
     waitingBgmAudio = new Audio("assets/sounds/waiting-bgm.mp3");
     waitingBgmAudio.loop = true;
   }
-  const volume = Math.min(1, Math.max(0, masterVolume * getPerSoundVolume("--sound-volume-waiting-bgm")));
+  const volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-waiting-bgm")));
   waitingBgmAudio.volume = volume;
   if (waitingBgmAudio.paused) {
     waitingBgmAudio.currentTime = 0;
@@ -158,7 +158,8 @@ export function initGameBgmAutoStart() {
   });
 }
 
-// マスター音量（0〜1）。オプションメニューの「基本設定」から調整できる。
+// マスター音量（0〜1）。オプションメニューの「基本設定」から調整できる（効果音のみ、
+// BGMはmasterBgmVolume参照）。
 let masterVolume = 0.8;
 
 export function getSoundVolume() {
@@ -167,6 +168,22 @@ export function getSoundVolume() {
 
 export function setSoundVolume(next) {
   masterVolume = Math.min(1, Math.max(0, next));
+}
+
+// ユーザー要望「『オープニングBGMの音量』ではなくて『BGM』でよい。BGM全体の音量を
+// 調整できるように」への対応。効果音のmasterVolumeとは独立した、BGM専用のマスター
+// 音量（0〜1）。オープニング/ゲーム中/勝利時/待機中の全BGMがこれで一括調整できる
+// （各playXBgm()参照）。管理者モードの「効果音の音量（個別）」にある4つの個別BGM
+// スライダー（--sound-volume-*-bgm）は、このマスター値に対する相対的な微調整として
+// そのまま残す（効果音の個別スライダーと同じ「マスター×個別」の二段構え）。
+let masterBgmVolume = 0.8;
+
+export function getBgmVolume() {
+  return masterBgmVolume;
+}
+
+export function setBgmVolume(next) {
+  masterBgmVolume = Math.min(1, Math.max(0, next));
 }
 
 function getPerSoundVolume(cssVar) {
@@ -183,7 +200,7 @@ function getPerSoundVolume(cssVar) {
 // 1回だけ再生するBGM）ため、オープニングBGMのような使い回しAudioインスタンスは不要で、
 // 効果音と同じ「毎回new Audio()」のままでよい。
 export function playVictoryBgm() {
-  const volume = Math.min(1, Math.max(0, masterVolume * getPerSoundVolume("--sound-volume-victory-bgm")));
+  const volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-victory-bgm")));
   if (volume <= 0) return;
   const audio = new Audio("assets/sounds/victory-bgm.mp3");
   audio.volume = volume;

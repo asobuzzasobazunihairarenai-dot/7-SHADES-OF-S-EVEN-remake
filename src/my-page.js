@@ -10,6 +10,7 @@ import { openStatsPlayerLinkModal } from "./stats-player-link.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { buildIconButtonContent, wireIconButtonClick, openIconDetailModal } from "./icon-action-button.js";
 import { openOnlinePanel } from "./online-ui.js";
+import { getShopCompletionStats } from "./shop-content.js";
 
 // main.jsのopenAvatarPicker()はmain.js内のローカル関数（circular importを避けるための
 // 既存パターン、admin.js等と同じ）。main.js側からregisterAvatarPickerHelper()で
@@ -162,6 +163,12 @@ function buildPanel(close) {
       statusEl.appendChild(loginBtn);
       return;
     }
+
+    // ユーザー要望「ショップ画面とマイページにアイテムコンプリート率を表示したい」。
+    // 戦績システムとの連携状況とは無関係（アカウントの通貨/所持アイテムの話のため）に、
+    // ログインさえしていれば常に表示する。
+    const { owned, total, percent } = getShopCompletionStats();
+    body.appendChild(buildStatRow("アイテムコンプリート率", `${percent}%（${owned}/${total}）`));
 
     let profile;
     try {

@@ -12,6 +12,7 @@ import { getSkinShopItems } from "./piece-skins.js";
 import { getCardBackShopItems } from "./card-back-skins.js";
 import { getPlaymatShopItems } from "./playmat.js";
 import { getBackgroundShopItems } from "./background.js";
+import { isItemUnlocked } from "./online.js";
 
 export const SHOP_CATEGORIES = [
   { key: "piece-skin", label: "🎲 駒スキン", items: getSkinShopItems() },
@@ -19,3 +20,19 @@ export const SHOP_CATEGORIES = [
   { key: "playmat", label: "🟩 プレイマット", items: getPlaymatShopItems() },
   { key: "background", label: "🖼️ 背景画像", items: getBackgroundShopItems() },
 ];
+
+// ユーザー要望「ショップ画面とマイページにアイテムコンプリート率を表示したい」への対応。
+// 全カテゴリの項目数のうち、無料(cost===0)または既に購入済みの項目の割合を返す
+// （未ログインの間はisItemUnlockedが常にtrueを返すため100%になる——ローカル/オフライン
+// プレイを制限しない既存方針と同じ理由）。
+export function getShopCompletionStats() {
+  let owned = 0;
+  let total = 0;
+  for (const category of SHOP_CATEGORIES) {
+    for (const item of category.items) {
+      total++;
+      if (item.cost === 0 || isItemUnlocked(item.itemKey)) owned++;
+    }
+  }
+  return { owned, total, percent: total > 0 ? Math.round((owned / total) * 100) : 0 };
+}

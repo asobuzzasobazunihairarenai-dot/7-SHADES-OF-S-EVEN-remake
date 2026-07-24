@@ -729,16 +729,23 @@ create policy "so7_user_unlocks_select" on so7_user_unlocks for select to authen
 -- p_winner_seat（'A'|'B'|'C'|'D'、victory.jsが検知した実際の勝者の座席、
 -- so7_game_seats.seatと同じ表記）が渡されていれば、その座席のuser_idにだけ
 -- p_winner_bonusを上乗せする。
+-- ユーザー要望「対戦終了時にお金がもらえる演出を追加したい」への対応で、戻り値を
+-- voidからint（呼び出し元=auth.uid()自身が実際に受け取った額、対象外/既に付与済みなら
+-- 0）に変更した。複数クライアントがほぼ同時に呼んでも、実際にこの関数を実行して
+-- currency_awardedを立てた1クライアントだけが自分の本当の受取額を得る（先に他の
+-- クライアントが付与済みだった場合は0が返るため、演出を出さないよう呼び出し側
+-- （currency-display.jsのshowCurrencyAwardEffect）で判定する）。
 alter table so7_games add column if not exists currency_awarded boolean not null default false;
 
 drop function if exists so7_award_match_currency(text, int);
+drop function if exists so7_award_match_currency(text, int, text, int);
 create or replace function so7_award_match_currency(
   p_game_id text,
   p_amount int default 50,
   p_winner_seat text default null,
   p_winner_bonus int default 30
 )
-returns void
+returns int
 language plpgsql
 security definer
 set search_path = public, extensions
@@ -747,13 +754,14 @@ declare
   v_already boolean;
   r record;
   v_grant int;
+  v_my_grant int := 0;
 begin
   select currency_awarded into v_already from so7_games where id = p_game_id for update;
   if v_already is null then
     raise exception 'game_not_found';
   end if;
   if v_already then
-    return;
+    return 0;
   end if;
 
   for r in select user_id, seat from so7_game_seats where game_id = p_game_id loop
@@ -762,9 +770,13 @@ begin
     values (r.user_id, v_grant, now())
     on conflict (user_id) do update
       set balance = so7_user_currency.balance + v_grant, updated_at = now();
+    if r.user_id = auth.uid() then
+      v_my_grant := v_grant;
+    end if;
   end loop;
 
   update so7_games set currency_awarded = true where id = p_game_id;
+  return v_my_grant;
 end;
 $$;
 revoke execute on function so7_award_match_currency(text, int, text, int) from public;
@@ -889,6 +901,18 @@ create policy "so7_visit_log_insert" on so7_visit_log for insert to anon, authen
 -- 「今ログイン中かどうか」の判定用に、最終アクセス日時をso7_user_profilesへ追加する
 -- （online.jsのtouchPresence、ログイン直後・数分おきに呼ばれる）。
 alter table so7_user_profiles add column if not exists last_seen_at timestamptz;
+
+-- ユーザー要望「『オープニングBGMの音量』ではなくて『BGM』でよい。BGM全体の音量を
+-- 調整できるように」。options-menu.jsのBGMマスター音量スライダーを保存する列。
+-- ハマりどころ（online.jsのコメント参照、以前sound_volume_opening_bgmで同じ問題が
+-- 発生済み）: この列が存在しない間にonline.jsのloadMyPreferences()のSELECT文へ
+-- 追加すると、1つの列が無いだけでSELECT文全体がエラーになり、他の設定（ロックエリア
+-- 表示・効果音音量・モーダル表示時間等）まで丸ごと読み込めなくなる。そのため、この
+-- SQLを実行し終えるまではonline.js側は意図的にSELECT文へ追加していない
+-- （保存(saveMyPreference)はこの列がある前提で先に有効化してある。保存自体は
+-- 1設定ごとの独立したUPDATEのため、列が無ければその保存だけ失敗するが他の設定には
+-- 影響しない）。
+alter table so7_user_profiles add column if not exists sound_volume_bgm numeric;
 
 create or replace function so7_touch_presence()
 returns void

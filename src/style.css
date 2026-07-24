@@ -537,6 +537,63 @@ body.diagnostic-flatten-3d.is-touch-device .zone-left .hand-area {
   transition: transform 0.2s ease-out;
 }
 
+/* ユーザー要望「白と黒のカードは自分の手札内でそれぞれの色の湯気のような神秘的な
+   オーラで纏われている演出を入れたい」への対応（main.jsのbuildPlayerZone参照、自分の
+   手札のみ対象）。カードの縁からはみ出す2層のぼかしたグラデーションを、それぞれ別の
+   周期でゆっくり漂わせる（速度差で単調な繰り返しに見えにくくする）。mix-blend-mode:
+   screenで、カード本体の絵柄を暗くせず光だけを足す。 */
+.hand-card.has-mystic-aura::before,
+.hand-card.has-mystic-aura::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 15%;
+  width: 75%;
+  height: 75%;
+  border-radius: 50%;
+  filter: blur(0.6rem);
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+.hand-card.aura-white::before {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.55), transparent 70%);
+  animation: mystic-aura-drift-a 3.2s ease-in-out infinite;
+}
+.hand-card.aura-white::after {
+  background: radial-gradient(circle, rgba(226, 232, 240, 0.4), transparent 70%);
+  animation: mystic-aura-drift-b 4s ease-in-out infinite;
+}
+.hand-card.aura-black::before {
+  background: radial-gradient(circle, rgba(126, 34, 206, 0.5), transparent 70%);
+  animation: mystic-aura-drift-a 3.6s ease-in-out infinite;
+}
+.hand-card.aura-black::after {
+  background: radial-gradient(circle, rgba(15, 23, 42, 0.6), transparent 70%);
+  animation: mystic-aura-drift-b 4.4s ease-in-out infinite;
+}
+@keyframes mystic-aura-drift-a {
+  0%,
+  100% {
+    transform: translate(-50%, 0) scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translate(-62%, -35%) scale(1.15);
+    opacity: 1;
+  }
+}
+@keyframes mystic-aura-drift-b {
+  0%,
+  100% {
+    transform: translate(-50%, -10%) scale(1.05);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translate(-38%, -42%) scale(0.92);
+    opacity: 0.9;
+  }
+}
+
 /* ハマりどころ: ここは元々`background:`ショートハンドで指定していたが、ショートハンドは
    指定していないサブプロパティ(background-size/position/repeat)も暗黙に初期値へリセットする。
    このルールは.hand-cardより詳細度が高い(クラス2つ)ため、下の.hand-card,.board-card,.stack-top
@@ -2976,6 +3033,54 @@ body.is-touch-device #options-menu-button {
   object-fit: contain;
 }
 
+/* ユーザー要望「対戦終了時にお金がもらえる演出を追加したい」への対応
+   （currency-display.jsのshowCurrencyAwardEffect参照）。#currency-display自体は
+   位置調整用のtransform（--currency-display-pos-x/-y）を既に持っているため、この
+   パルスはtransformを使わずfilterだけで光らせる。 */
+#currency-display.is-pulsing {
+  animation: currency-display-pulse 0.9s ease-out;
+}
+@keyframes currency-display-pulse {
+  0% {
+    filter: none;
+  }
+  30% {
+    filter: drop-shadow(0 0 0.7rem rgba(250, 204, 21, 0.95));
+  }
+  100% {
+    filter: none;
+  }
+}
+.currency-award-float {
+  position: fixed;
+  transform: translate(-50%, 0);
+  z-index: 10600;
+  font-family: sans-serif;
+  font-weight: bold;
+  font-size: 1.1rem;
+  color: #fde68a;
+  text-shadow: 0 0.15rem 0.4rem rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+  animation: currency-award-float-rise 1.7s ease-out forwards;
+}
+@keyframes currency-award-float-rise {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0.5rem) scale(0.8);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1.15);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -2.6rem) scale(1);
+  }
+}
+
 /* ログインボーナス（日次）の通知トースト（main.jsのshowDailyBonusToast参照）。数秒で
    自動的に消える、押せない通知専用の小さな表示。 */
 #daily-bonus-toast {
@@ -3187,6 +3292,12 @@ body.is-touch-device #options-menu-button {
   font-size: 0.9rem;
   font-weight: bold;
   color: #fde68a;
+  margin-bottom: 0.2rem;
+}
+/* ユーザー要望「ショップ画面とマイページにアイテムコンプリート率を表示したい」。 */
+#shop-panel-completion {
+  font-size: 0.78rem;
+  color: #94a3b8;
   margin-bottom: 0.4rem;
 }
 #shop-panel-status {
@@ -3198,9 +3309,10 @@ body.is-touch-device #options-menu-button {
 #shop-panel-status.is-error {
   color: #fca5a5;
 }
-/* ユーザー要望「商品の見た目がわかるといい。見た目を並べてそこに金額を載せるのが
-   わかりやすいかな？おしゃれに並べてください」への対応。カテゴリはタブ切り替え、
-   中身は画像カードのグリッド表示にした（旧・折りたたみ+テキスト行から作り直し）。 */
+/* ユーザー要望「ショップのビジュアルはMTGAストアの感じを目指したい。一つ一つの商品を
+   目立たせてかっこよく並べたい」への対応。カテゴリはタブ切り替え、中身は大きめの
+   画像カードで、所持状況はMTGAの「SALE」等と同じ発想のリボンバッジで見せる
+   （旧デザインの小さい密集グリッドから拡大・リッチ化）。 */
 #shop-panel-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -3231,24 +3343,32 @@ body.is-touch-device #options-menu-button {
 }
 #shop-panel-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(6.6rem, 1fr));
-  gap: 0.7rem;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 1rem;
 }
 .shop-item-card {
   display: flex;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  border-radius: 0.5rem;
-  padding: 0.5rem;
-  gap: 0.35rem;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 0.7rem;
+  padding: 0.6rem;
+  gap: 0.5rem;
+  box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out, border-color 0.15s ease-out;
+}
+.shop-item-card:hover {
+  transform: translateY(-0.2rem);
+  border-color: rgba(250, 204, 21, 0.6);
+  box-shadow: 0 0.7rem 1.6rem rgba(0, 0, 0, 0.5);
 }
 .shop-item-thumb {
   position: relative;
   aspect-ratio: 1 / 1;
-  border-radius: 0.35rem;
+  border-radius: 0.5rem;
   overflow: hidden;
   background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 .shop-item-thumb img {
   width: 100%;
@@ -3260,38 +3380,57 @@ body.is-touch-device #options-menu-button {
 }
 .shop-item-thumb-lock {
   position: absolute;
-  top: 0.2rem;
-  right: 0.3rem;
-  font-size: 0.9rem;
+  top: 0.3rem;
+  right: 0.4rem;
+  font-size: 1.1rem;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
 }
+/* MTGAストアの左上リボン（「大人気」等）と同じ発想の所持状況バッジ。 */
+.shop-item-ribbon {
+  position: absolute;
+  top: 0.5rem;
+  left: -0.4rem;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.68rem;
+  font-weight: bold;
+  color: #0f1520;
+  border-radius: 0.2rem;
+  box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+}
+.shop-item-ribbon.is-free {
+  background: linear-gradient(160deg, #86efac, #16a34a);
+  color: #06280f;
+}
+.shop-item-ribbon.is-owned {
+  background: linear-gradient(160deg, #93c5fd, #2563eb);
+  color: #0b1f45;
+}
 .shop-item-card-label {
-  font-size: 0.72rem;
+  font-size: 0.85rem;
+  font-weight: bold;
   text-align: center;
   line-height: 1.3;
-  min-height: 1.9rem;
+  min-height: 2.2rem;
 }
 .shop-item-card-footer {
   display: flex;
   justify-content: center;
-}
-.shop-item-owned {
-  opacity: 0.6;
-  font-size: 0.72rem;
-  white-space: nowrap;
+  min-height: 1.9rem;
 }
 .shop-item-buy {
-  padding: 0.3rem 0.7rem;
+  padding: 0.4rem 0.7rem;
   background: linear-gradient(160deg, #f59e0b, #b45309);
   color: #fff;
   border: none;
-  border-radius: 0.3rem;
+  border-radius: 0.4rem;
   cursor: pointer;
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   font-weight: bold;
   white-space: nowrap;
   font-family: sans-serif;
   width: 100%;
+  box-shadow: 0 0.3rem 0.7rem rgba(180, 83, 9, 0.4);
 }
 .shop-item-buy:hover {
   background: linear-gradient(160deg, #fbbf24, #d97706);

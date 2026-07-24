@@ -12,11 +12,12 @@
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getCachedUser, getMyCurrencyBalance, isItemUnlocked, purchaseItem } from "./online.js";
 import { refreshCurrencyDisplay } from "./currency-display.js";
-import { SHOP_CATEGORIES } from "./shop-content.js";
+import { SHOP_CATEGORIES, getShopCompletionStats } from "./shop-content.js";
 
 let panelEl = null;
 let backdropEl = null;
 let balanceEl = null;
+let completionEl = null;
 let statusEl = null;
 let tabsEl = null;
 let gridEl = null;
@@ -55,7 +56,17 @@ function buildItemCard(item) {
   thumb.appendChild(img);
 
   const owned = item.cost === 0 || isItemUnlocked(item.itemKey);
-  if (!owned) {
+  // ユーザー要望「ショップのビジュアルはMTGA(Magic: The Gathering Arena)ストアの感じを
+  // 目指したい。一つ一つの商品を目立たせてかっこよく並べたい」への対応。所持状況は
+  // 画像の隅にリボン風バッジで見せ（MTGAの「SALE」等のリボンと同じ発想）、下段の
+  // ボタンは価格だけに専念させる。
+  const ribbon = document.createElement("span");
+  ribbon.className = "shop-item-ribbon";
+  if (owned) {
+    ribbon.classList.add(item.cost === 0 ? "is-free" : "is-owned");
+    ribbon.textContent = item.cost === 0 ? "無料" : "所持済み";
+    thumb.appendChild(ribbon);
+  } else {
     thumb.classList.add("is-locked");
     const lockBadge = document.createElement("span");
     lockBadge.className = "shop-item-thumb-lock";
@@ -72,10 +83,8 @@ function buildItemCard(item) {
   const footer = document.createElement("div");
   footer.className = "shop-item-card-footer";
   if (owned) {
-    const ownedEl = document.createElement("span");
-    ownedEl.className = "shop-item-owned";
-    ownedEl.textContent = item.cost === 0 ? "無料" : "所持済み";
-    footer.appendChild(ownedEl);
+    // リボンで既に伝えているため、下段は空けておく（MTGAの所持済みカードも
+    // ボタン枠を残したまま空ける見た目に近い）。
   } else {
     const buyBtn = document.createElement("button");
     buyBtn.type = "button";
@@ -136,10 +145,16 @@ async function refreshBalance() {
   const user = getCachedUser();
   if (!user) {
     balanceEl.textContent = "ログインすると通貨を貯められます";
+    if (completionEl) completionEl.textContent = "";
     return;
   }
   const balance = await getMyCurrencyBalance();
   balanceEl.textContent = `所持通貨: 🪙 ${balance}`;
+  // ユーザー要望「ショップ画面とマイページにアイテムコンプリート率を表示したい」への対応。
+  if (completionEl) {
+    const { owned, total, percent } = getShopCompletionStats();
+    completionEl.textContent = `🏆 コレクション達成率: ${percent}%（${owned}/${total}）`;
+  }
 }
 
 function buildPanel() {
@@ -159,6 +174,10 @@ function buildPanel() {
   balanceEl = document.createElement("div");
   balanceEl.id = "shop-panel-balance";
   panel.appendChild(balanceEl);
+
+  completionEl = document.createElement("div");
+  completionEl.id = "shop-panel-completion";
+  panel.appendChild(completionEl);
 
   statusEl = document.createElement("div");
   statusEl.id = "shop-panel-status";

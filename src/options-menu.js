@@ -6,7 +6,7 @@ import { openAdminPanel } from "./admin.js";
 import { openDeckViewer } from "./deck-viewer.js";
 import { isLockAreaBarVisible, setLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible, setLockColorVisible } from "./lock-color.js";
-import { getSoundVolume, setSoundVolume } from "./sound.js";
+import { getSoundVolume, setSoundVolume, getBgmVolume, setBgmVolume } from "./sound.js";
 import { SHORTCUT_TARGETS, getShortcut, setShortcut, registerShortcutSettingsOpener } from "./player-buttons.js";
 import { createBackdrop } from "./ui-helpers.js";
 import {
@@ -90,31 +90,36 @@ function buildVolumeRow() {
   return row;
 }
 
-// ユーザー要望「BGM音量をオプションの基本設定で変えられるようにしてほしい」。
-// buildDurationRowと同じ「CSS変数を直接setPropertyで共有する」仕組みだが、
-// 範囲が0〜100%な点だけ異なる。オープニングBGMは管理者モードの効果音音量グループ
-// （--sound-volume-opening-bgm）と同じCSS変数を共有するため、ここで変更しても
-// 管理者モード側の表示にも反映される。
+// ユーザー要望「『オープニングBGMの音量』ではなくて『BGM』でよい。BGM全体の音量を
+// 調整できるように」への対応。以前はオープニングBGM専用の個別音量（CSS変数）を
+// 直接操作していたが、オープニング/ゲーム中/勝利時/待機中の全BGMをまとめて上下できる
+// マスター音量（sound.jsのgetBgmVolume/setBgmVolume、効果音のmasterVolumeと対になる
+// 独立した値）に切り替えた。個別のBGMごとの微調整は引き続き管理者モードの
+// 「効果音の音量（個別）」グループに残っている。
 function buildBgmVolumeRow() {
   const row = document.createElement("div");
   row.className = "options-menu-volume-row";
   const labelEl = document.createElement("span");
-  labelEl.textContent = "オープニングBGMの音量";
-  const current = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sound-volume-opening-bgm"));
+  labelEl.textContent = "BGMの音量";
   const slider = document.createElement("input");
   slider.type = "range";
   slider.min = "0";
   slider.max = "100";
   slider.step = "5";
-  slider.value = String(Number.isFinite(current) ? current : 80);
+  slider.value = String(Math.round(getBgmVolume() * 100));
   const valueLabel = document.createElement("span");
   valueLabel.className = "options-menu-volume-value";
   valueLabel.textContent = `${slider.value}%`;
   slider.addEventListener("input", () => {
-    document.documentElement.style.setProperty("--sound-volume-opening-bgm", `${slider.value}%`);
+    setBgmVolume(Number(slider.value) / 100);
     valueLabel.textContent = `${slider.value}%`;
-    window.dispatchEvent(new CustomEvent("admin:change"));
-    saveMyPreference({ sound_volume_opening_bgm: Number(slider.value) });
+  });
+  slider.addEventListener("change", () => {
+    // ハマりどころ（online.jsのコメント参照）: so7_user_profilesにまだ
+    // sound_volume_bgm列が存在しない環境でSELECT文に含めるとアカウント設定の復元が
+    // 丸ごと壊れるため、保存(saveMyPreference、独立した更新なので失敗しても他の設定に
+    // 影響しない)はしても、読み込み側への追加はsupabase_setup_so7.sql実行後に行う。
+    saveMyPreference({ sound_volume_bgm: Number(slider.value) });
   });
   row.appendChild(labelEl);
   row.appendChild(slider);
@@ -501,6 +506,16 @@ export function initOptionsMenu() {
       buildMenuItem("⚙ 管理者モード", () => {
         close();
         openAdminPanel();
+      })
+    );
+    // ユーザー要望「オプション画面に『タイトルに戻る』があってもいいかも」への対応。
+    // 対局中の状態（盤面・オンライン接続等）を個別に片付けるより、ページを丸ごと
+    // 再読み込みする方が確実で安全（Googleログイン後の遷移等、既存の「戻ってくると
+    // 最初からになる」フローと同じ挙動）。オンライン対戦中でも部屋の座席自体は
+    // サーバー側に残るため、「進行中の対局を再開」から戻ってこられる。
+    panel.appendChild(
+      buildMenuItem("🏠 タイトルに戻る", () => {
+        window.location.reload();
       })
     );
   }

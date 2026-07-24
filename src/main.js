@@ -23,7 +23,7 @@ import { initGameSetup, previewStartPlayerModal } from "./game-setup.js";
 import { initOptionsMenu } from "./options-menu.js";
 import { runGateInvasionsIfNeeded, registerEternalAnimHelpers } from "./gate-invasion.js";
 import { announceHandPickups, announceCardLocked } from "./hand-announcer.js";
-import { enqueueGateInvasionSteps } from "./gate-invasion-modal.js";
+import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking } from "./victory.js";
 import { registerVictoryHelpers } from "./post-game-panel.js";
 import { announceTurnChange } from "./turn-announce.js";
@@ -124,6 +124,7 @@ import {
   isAdminUser,
   adminGrantCurrency,
   getAdminStats,
+  isGateInvasionPending,
 } from "./online.js";
 import { fetchStatsProfile, getTierInfo } from "./stats-profile.js";
 import { setRankRingOrbitContainer, startRankRingOrbit } from "./rank-ring-orbit.js";
@@ -364,6 +365,13 @@ function buildPlayerZone(side, player, isSelf) {
     if (isSelf) {
       cardEl.className = "hand-card is-self";
       cardEl.style.backgroundImage = `url("${getCardImagePath(token.cardId)}")`;
+      // ユーザー要望「白と黒のカードは自分の手札内でそれぞれの色の湯気のような神秘的な
+      // オーラで纏われている演出を入れたい」。自分の手札だけが実際の色を知っている
+      // （相手の手札は常に裏向きのため対象外）。
+      const cardColor = getCardDefinition(token.cardId).color;
+      if (cardColor === "white" || cardColor === "black") {
+        cardEl.classList.add("has-mystic-aura", `aura-${cardColor}`);
+      }
     } else {
       cardEl.className = "hand-card is-facedown";
       cardEl.style.backgroundImage = `url("${getCardBackImagePath(token.cardId)}")`;
@@ -4672,12 +4680,31 @@ subscribe(() => {
 // 「turnPlayerの変化を検知する」考え方だが、こちらは表示専用でstateへは一切書き込まない
 // 独立した仕組みにした（ローカル・オンラインどちらの経路で変化してもこのsubscribe一本で
 // 拾えるため、onDragEnd側やターン終了ボタン側に個別の呼び出しを増やす必要が無い）。
+// ユーザー報告「ゲート侵攻自動処理が完全に終わってから『○○のターン』の表示を出して
+// ほしい。現在ゲート侵攻モーダル１枚目と被ってしまっている」への対応。オンライン中、
+// turnPlayerの変化そのものはゲート侵攻の判定・適用と同じstate_changed broadcastの
+// hydrateで同期的に起きるが、それを画面中央のモーダル列として案内するgate-invasion-modal.js
+// 側は、まだ隠し情報の解決(fetchAndHydrate完了後)を待ってから始まるため一瞬遅れる
+// （online.jsのisGateInvasionPending参照）。今回の変化にゲート侵攻が伴う場合は告知を
+// 保留し、モーダル列が実際に始まって・空になったタイミング
+// （registerOnGateInvasionQueueDrained）で改めて告知する。
 let prevTurnPlayerForAnnouncement = null;
+let pendingTurnAnnouncePlayer = null;
+registerOnGateInvasionQueueDrained(() => {
+  if (pendingTurnAnnouncePlayer !== null) {
+    announceTurnChange(pendingTurnAnnouncePlayer);
+    pendingTurnAnnouncePlayer = null;
+  }
+});
 subscribe(() => {
   if (suppressGenericRenderForOnlineStart || suppressGenericRenderForContactTackle) return;
   const { turnPlayer } = getState();
   if (prevTurnPlayerForAnnouncement !== null && turnPlayer !== null && turnPlayer !== prevTurnPlayerForAnnouncement) {
-    announceTurnChange(turnPlayer);
+    if (isGateInvasionPending() || isGateInvasionQueueActive()) {
+      pendingTurnAnnouncePlayer = turnPlayer;
+    } else {
+      announceTurnChange(turnPlayer);
+    }
   }
   prevTurnPlayerForAnnouncement = turnPlayer;
 });

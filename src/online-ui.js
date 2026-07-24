@@ -534,43 +534,8 @@ async function renderRoomChoice(user) {
     listStatus.textContent = `一覧の取得に失敗しました: ${err.message ?? err}`;
   }
 
-  // 部屋コード直接入力は、URL共有(?room=)からの参加や一覧に出てこない場合の保険として、
-  // 折りたたみ式の補助手段として残す。
-  const codeToggleBtn = textButton("部屋コードで参加");
-  codeToggleBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box; margin-top: 0.8rem;";
-  const codeForm = document.createElement("div");
-  codeForm.style.cssText = "display: none; margin-top: 0.4rem;";
-  const codeInput = textInput("部屋コード");
-  codeInput.style.textTransform = "uppercase";
-  const codeStatus = document.createElement("div");
-  codeStatus.style.cssText = "font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.3rem; min-height: 1.2em;";
-  const codeJoinBtn = textButton("参加する");
-  codeJoinBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box;";
-  codeJoinBtn.addEventListener("click", async () => {
-    const code = codeInput.value.trim().toUpperCase();
-    if (!code) {
-      codeStatus.textContent = "部屋コードを入力してください。";
-      return;
-    }
-    codeStatus.textContent = "参加中...";
-    codeJoinBtn.disabled = true;
-    try {
-      await joinRoom(code);
-      history.replaceState(null, "", `?room=${code}`);
-      await renderPanelContent();
-    } catch (err) {
-      codeStatus.textContent = `エラー: ${err.message ?? err}`;
-      codeJoinBtn.disabled = false;
-    }
-  });
-  codeForm.appendChild(codeInput);
-  codeForm.appendChild(codeStatus);
-  codeForm.appendChild(codeJoinBtn);
-  codeToggleBtn.addEventListener("click", () => {
-    codeForm.style.display = codeForm.style.display === "none" ? "block" : "none";
-  });
-  contentEl.appendChild(codeToggleBtn);
-  contentEl.appendChild(codeForm);
+  // ユーザー要望「『部屋コードで参加』はもう削除でいい」への対応。部屋一覧・
+  // URL共有(?room=)からの参加で十分カバーできているため撤去した。
 
   // 別の認証方法（メール/Google/匿名）を試したい時のため、ログアウトできるようにしておく
   // （一度ログインすると明示的にログアウトするまでそのブラウザにセッションが残り続ける）。

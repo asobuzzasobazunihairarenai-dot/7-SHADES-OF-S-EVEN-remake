@@ -102,6 +102,19 @@ let currentTimer = null;
 let modalEl = null;
 let backdropEl = null;
 
+// ユーザー報告「ターン告知がゲート侵攻モーダルと被る」への対応。main.jsがターン告知を
+// 出す前に「今このモーダル列は表示中/待機中か」を確認できるようにする
+// （online.jsのisGateInvasionPendingと合わせて使う——こちらはキューが実際に積まれてから
+// 空になるまでの間をカバーし、そちらは積まれる直前の一瞬をカバーする）。
+export function isGateInvasionQueueActive() {
+  return queue.length > 0 || !!modalEl;
+}
+
+let onQueueDrainedFn = null;
+export function registerOnGateInvasionQueueDrained(fn) {
+  onQueueDrainedFn = fn;
+}
+
 function closeCurrent() {
   if (currentTimer) {
     clearTimeout(currentTimer);
@@ -141,11 +154,13 @@ function showStep(step) {
   skipBtn.addEventListener("click", () => {
     queue = [];
     closeCurrent();
+    onQueueDrainedFn?.();
   });
 
   modalEl.appendChild(createModalCloseX(() => {
     queue = [];
     closeCurrent();
+    onQueueDrainedFn?.();
   }));
   modalEl.appendChild(title);
   modalEl.appendChild(body);
@@ -166,7 +181,10 @@ function showStep(step) {
 }
 
 function advance() {
-  if (queue.length === 0) return;
+  if (queue.length === 0) {
+    onQueueDrainedFn?.();
+    return;
+  }
   const step = queue.shift();
   showStep(step);
 }
