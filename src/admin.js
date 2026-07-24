@@ -166,6 +166,9 @@ const GROUPS = [
       // ユーザー要望「ゲーム時のBGM追加しました。ゲーム開始時から流れるようにしたい」
       // への対応（sound.jsのplayGameBgm参照）。
       { key: "--sound-volume-game-bgm", label: "ゲーム時BGM", unit: "%", min: 0, max: 100, step: 5, default: 80 },
+      // ユーザー要望「プレイヤー待機中のBGMを追加しました」への対応
+      // （sound.jsのplayWaitingBgm参照）。
+      { key: "--sound-volume-waiting-bgm", label: "プレイヤー待機中BGM", unit: "%", min: 0, max: 100, step: 5, default: 80 },
     ],
   },
   {

@@ -99,16 +99,59 @@ export function stopGameBgm(durationMs = 600) {
 }
 let gameBgmFadeIntervalId = null;
 
+// ユーザー要望「プレイヤー待機中のBGMを追加しました」への対応。オンライン対戦の
+// 部屋で他のプレイヤーを待っている間（online-ui.jsの「対戦相手を待っています」/
+// 「ゲームを開始する」表示中）に流す。部屋パネルはonRosterChange等のたびに中身を
+// 何度も再描画するため、既に再生中なら再スタートしない（currentTimeを巻き戻すと
+// 再描画のたびに音が飛んでしまう）よう、他のBGMと違って明示的にガードする。
+let waitingBgmAudio = null;
+
+export function playWaitingBgm() {
+  if (!waitingBgmAudio) {
+    waitingBgmAudio = new Audio("assets/sounds/waiting-bgm.mp3");
+    waitingBgmAudio.loop = true;
+  }
+  const volume = Math.min(1, Math.max(0, masterVolume * getPerSoundVolume("--sound-volume-waiting-bgm")));
+  waitingBgmAudio.volume = volume;
+  if (waitingBgmAudio.paused) {
+    waitingBgmAudio.currentTime = 0;
+    waitingBgmAudio.play().catch(() => {});
+  }
+}
+
+export function stopWaitingBgm(durationMs = 600) {
+  if (!waitingBgmAudio || waitingBgmAudio.paused) return;
+  if (waitingBgmFadeIntervalId) clearInterval(waitingBgmFadeIntervalId);
+  const startVolume = waitingBgmAudio.volume;
+  const stepMs = 30;
+  const steps = Math.max(1, Math.round(durationMs / stepMs));
+  let step = 0;
+  waitingBgmFadeIntervalId = setInterval(() => {
+    step++;
+    const ratio = Math.max(0, 1 - step / steps);
+    waitingBgmAudio.volume = startVolume * ratio;
+    if (step >= steps) {
+      clearInterval(waitingBgmFadeIntervalId);
+      waitingBgmFadeIntervalId = null;
+      waitingBgmAudio.pause();
+      waitingBgmAudio.currentTime = 0;
+    }
+  }, stepMs);
+}
+let waitingBgmFadeIntervalId = null;
+
 // victory.js・tutorial.jsと同じ「turnPlayerがnull→非nullに変わった瞬間＝新しい対局が
 // 実際に始まった」検知パターンを、このモジュール自身で完結させる（main.js側の配線を
 // 増やさずに済む）。セットアップウィザードの各ステップを経てここまで来る時点で、
 // 既にユーザー操作（ボタンクリック）を経ているため、ブラウザの自動再生制限には
-// 引っかからない。
+// 引っかからない。対局が実際に始まったら、待機中BGMが鳴りっぱなしにならないよう
+// あわせて止める。
 let wasGameStartedForBgm = false;
 export function initGameBgmAutoStart() {
   subscribe(() => {
     const started = Boolean(getState().turnPlayer);
     if (started && !wasGameStartedForBgm) {
+      stopWaitingBgm();
       playGameBgm();
     }
     wasGameStartedForBgm = started;

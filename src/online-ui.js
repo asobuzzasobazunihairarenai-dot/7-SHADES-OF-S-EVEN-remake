@@ -27,6 +27,7 @@ import {
 } from "./online.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { subscribe, getState, isOnlineMode, notifyListeners } from "./state.js";
+import { playWaitingBgm, stopWaitingBgm } from "./sound.js";
 
 // 部屋名の文字数上限。部屋一覧・ヘッダーの部屋バッジ等、限られた幅に表示する箇所が
 // 複数あるため、極端に長い部屋名で崩れないよう作成時点で制限する（サーバー側
@@ -633,6 +634,12 @@ async function renderRoomStatus(gameId) {
   // パネルが開いている間だけリアルタイムに再描画されるため、人数表示・ボタンの切り替わりも
   // 相手側の操作を待たずその場で反映される。
   if (!mySeat) {
+    // ユーザー要望「プレイヤー待機中のBGMを追加しました」への対応。まだ座席が無い
+    // （＝この部屋でゲームが始まっていない）間、常にこの分岐を通るためここで再生する。
+    // playWaitingBgm()自体が「既に再生中なら再スタートしない」ガードを持つため、
+    // このパネルがonRosterChange等で何度再描画されても音が飛ぶことはない。
+    playWaitingBgm();
+
     const waitingBox = document.createElement("div");
     waitingBox.style.cssText =
       "text-align: center; padding: 0.8rem 0.5rem; margin-bottom: 0.6rem; " +
@@ -692,6 +699,7 @@ async function renderRoomStatus(gameId) {
   leaveBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box;";
   leaveBtn.addEventListener("click", () => {
     leaveGame();
+    stopWaitingBgm();
     setSavedRoomPassword(gameId, null);
     history.replaceState(null, "", location.pathname);
     // ユーザー要望「『この部屋を離れる』を押したら、また『オンラインで続ける』を

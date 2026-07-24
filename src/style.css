@@ -5205,6 +5205,7 @@ body.is-online-mode #quick-start-bar {
   --sound-volume-victory-bgm: 80%;
   --sound-volume-opening-bgm: 80%;
   --sound-volume-game-bgm: 80%;
+  --sound-volume-waiting-bgm: 80%;
   --opening-story-crawl-duration: 40;
   --opening-aura-size: 2rem;
   --opening-aura-trail-length: 25;
