@@ -5204,6 +5204,7 @@ body.is-online-mode #quick-start-bar {
   --sound-volume-turn-switch: 80%;
   --sound-volume-victory-bgm: 80%;
   --sound-volume-opening-bgm: 80%;
+  --sound-volume-game-bgm: 80%;
   --opening-story-crawl-duration: 40;
   --opening-aura-size: 2rem;
   --opening-aura-trail-length: 25;
@@ -5472,6 +5473,21 @@ body.is-online-mode #quick-start-bar {
   pointer-events: none;
   transition: left 0.25s ease, top 0.25s ease, width 0.25s ease, height 0.25s ease;
 }
+/* ユーザー要望「ムーブフェイズ、実際に駒を移動できる範囲をハイライトさせたりできる？」
+   への対応。自分の駒に隣接する最大4マスへ、tutorial.jsが直接このクラスを付け外しする
+   （#tutorial-spotlightと違い、実際の盤面要素そのものを軽く縁取るだけの簡易版）。 */
+.cell.tutorial-move-range {
+  outline: 3px solid rgba(250, 204, 21, 0.9);
+  outline-offset: -3px;
+  animation: tutorial-move-range-pulse 1.4s ease-in-out infinite;
+}
+@keyframes tutorial-move-range-pulse {
+  0%, 100% { outline-color: rgba(250, 204, 21, 0.9); }
+  50% { outline-color: rgba(250, 204, 21, 0.3); }
+}
+body.reduce-glow .cell.tutorial-move-range {
+  animation: none;
+}
 #tutorial-callout {
   position: fixed;
   width: min(22rem, 90vw);
@@ -5499,33 +5515,43 @@ body.is-online-mode #quick-start-bar {
   margin-bottom: 0;
 }
 /* ユーザー要望「チュートリアルの続き（到達効果・手札効果・ゲート侵攻の応用ルール）」
-   への対応。手札効果の説明で実際のカード（画像＋名前＋補足）を見せる部分。 */
+   への対応。手札効果の説明で実際のカード（画像＋名前＋補足）を見せる部分。
+   ユーザー要望「カードはもっともっと大きく！ホバー拡大時くらいのサイズがいい」への
+   対応で、盤面のホバー拡大プレビューと同じ--card-preview-size変数をそのまま流用する
+   （管理者モードでそちらのサイズを変えると、この例も連動して大きさが変わる）。
+   画像がかなり大きくなるため、横並びではなく縦積みレイアウトに変更した。 */
 .tutorial-card-example {
   display: flex;
-  gap: 0.6rem;
+  flex-direction: column;
   align-items: center;
+  text-align: center;
+  gap: 0.4rem;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 0.4rem;
-  padding: 0.5rem;
+  padding: 0.6rem;
   margin: 0.4rem 0 0.6rem;
 }
 .tutorial-card-example-image {
-  width: 4rem;
-  height: 4rem;
+  width: min(var(--card-preview-size, 20rem), 100%);
+  aspect-ratio: 1 / 1;
   object-fit: contain;
-  border-radius: 0.3rem;
-  flex-shrink: 0;
+  border-radius: 0.4rem;
 }
 .tutorial-card-example-name {
   font-weight: bold;
-  font-size: 0.85rem;
-  margin-bottom: 0.2rem;
+  font-size: 0.9rem;
+  margin-top: 0.2rem;
 }
 .tutorial-card-example-note {
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   color: #cbd5e1;
   line-height: 1.5;
+}
+/* 手札効果ステップはカード画像がかなり大きくなるため、コールアウト自体も広げる
+   （tutorial.jsのstep.wideフラグで切り替える）。 */
+#tutorial-callout.is-wide {
+  width: min(28rem, 92vw);
 }
 .tutorial-callout-footer {
   font-size: 0.72rem;

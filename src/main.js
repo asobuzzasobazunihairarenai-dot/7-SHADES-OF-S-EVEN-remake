@@ -107,7 +107,7 @@ import {
 import { fetchStatsProfile, getTierInfo } from "./stats-profile.js";
 import { setRankRingOrbitContainer, startRankRingOrbit } from "./rank-ring-orbit.js";
 import { generateVictorySummaryCanvas } from "./victory-summary-image.js";
-import { playSound } from "./sound.js";
+import { playSound, initGameBgmAutoStart } from "./sound.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import {
   COLORS,
@@ -3861,6 +3861,7 @@ initQuickStart();
 initPhaseGuide();
 registerTutorialStageHelpers({ stageClientToLocal, stageDelta, stageWidth: STAGE_WIDTH, stageHeight: STAGE_HEIGHT });
 initTutorialAutoStart();
+initGameBgmAutoStart();
 initTurnTimer();
 initIconRearrange();
 initSelfStatusRearrange();

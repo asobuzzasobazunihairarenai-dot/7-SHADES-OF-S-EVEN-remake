@@ -163,6 +163,9 @@ const GROUPS = [
       // 同じ命名規則）に切り替えた（sound.jsのplayVictoryBgm参照）。
       { key: "--sound-volume-victory-bgm", label: "勝利時BGM", unit: "%", min: 0, max: 100, step: 5, default: 80 },
       { key: "--sound-volume-opening-bgm", label: "オープニングBGM", unit: "%", min: 0, max: 100, step: 5, default: 80 },
+      // ユーザー要望「ゲーム時のBGM追加しました。ゲーム開始時から流れるようにしたい」
+      // への対応（sound.jsのplayGameBgm参照）。
+      { key: "--sound-volume-game-bgm", label: "ゲーム時BGM", unit: "%", min: 0, max: 100, step: 5, default: 80 },
     ],
   },
   {

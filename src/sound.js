@@ -4,6 +4,8 @@
 // （管理者モードの「効果音の音量（個別）」グループ、CSS変数として0〜100を保持）の
 // 掛け算で最終的な再生音量を決める。
 
+import { getState, subscribe } from "./state.js";
+
 const SOUND_DEFS = {
   buttonPress: { path: "assets/sounds/button-press.mp3", cssVar: "--sound-volume-button-press" },
   handShuffle: { path: "assets/sounds/hand-shuffle.mp3", cssVar: "--sound-volume-hand-shuffle" },
@@ -58,6 +60,59 @@ export function stopOpeningBgm(durationMs = 600) {
       openingBgmAudio.currentTime = 0;
     }
   }, stepMs);
+}
+
+// ユーザー要望「ゲーム時のBGM追加しました。ゲーム開始時から流れるようにしたいです」
+// への対応。オープニングBGMと同じ「使い回す単一のAudioインスタンス、ループ再生」
+// 方式にする。
+let gameBgmAudio = null;
+
+export function playGameBgm() {
+  if (!gameBgmAudio) {
+    gameBgmAudio = new Audio("assets/sounds/game-bgm.mp3");
+    gameBgmAudio.loop = true;
+  }
+  const volume = Math.min(1, Math.max(0, masterVolume * getPerSoundVolume("--sound-volume-game-bgm")));
+  gameBgmAudio.volume = volume;
+  gameBgmAudio.currentTime = 0;
+  gameBgmAudio.play().catch(() => {});
+}
+
+export function stopGameBgm(durationMs = 600) {
+  if (!gameBgmAudio) return;
+  if (gameBgmFadeIntervalId) clearInterval(gameBgmFadeIntervalId);
+  const startVolume = gameBgmAudio.volume;
+  const stepMs = 30;
+  const steps = Math.max(1, Math.round(durationMs / stepMs));
+  let step = 0;
+  gameBgmFadeIntervalId = setInterval(() => {
+    step++;
+    const ratio = Math.max(0, 1 - step / steps);
+    gameBgmAudio.volume = startVolume * ratio;
+    if (step >= steps) {
+      clearInterval(gameBgmFadeIntervalId);
+      gameBgmFadeIntervalId = null;
+      gameBgmAudio.pause();
+      gameBgmAudio.currentTime = 0;
+    }
+  }, stepMs);
+}
+let gameBgmFadeIntervalId = null;
+
+// victory.js・tutorial.jsと同じ「turnPlayerがnull→非nullに変わった瞬間＝新しい対局が
+// 実際に始まった」検知パターンを、このモジュール自身で完結させる（main.js側の配線を
+// 増やさずに済む）。セットアップウィザードの各ステップを経てここまで来る時点で、
+// 既にユーザー操作（ボタンクリック）を経ているため、ブラウザの自動再生制限には
+// 引っかからない。
+let wasGameStartedForBgm = false;
+export function initGameBgmAutoStart() {
+  subscribe(() => {
+    const started = Boolean(getState().turnPlayer);
+    if (started && !wasGameStartedForBgm) {
+      playGameBgm();
+    }
+    wasGameStartedForBgm = started;
+  });
 }
 
 // マスター音量（0〜1）。オプションメニューの「基本設定」から調整できる。

@@ -88,15 +88,58 @@ const phaseStep = (phase) => ({
   body: phase.detail,
 });
 
-// 自分のゲートマス（GATE_POSITIONS、盤面の物理座標）を探す。ボード自体は視点回転により
+// ユーザー報告「『相手ゲート侵攻ボーナス』の説明で自分のゲートにクローズアップしている
+// ので相手のゲートにクローズアップしてください」への対応。相手ゲート侵攻ボーナスは
+// 「自分の駒」が「相手のゲート」に乗ったまま終了した時のボーナスなので、説明すべきは
+// 相手側のゲートマス。activePlayersの中から自分以外の座席を1つ選び、その座席の
+// ゲートマス（GATE_POSITIONS、盤面の物理座標）を探す。ボード自体は視点回転により
 // 見た目の位置（grid-row/grid-column）だけが変わり、.cellのdata-row/data-colは常に
 // 物理座標のまま（main.jsのbuildBoard参照）なので、回転を気にせずこの座標だけで引ける。
-function getSelfGateCell() {
-  const seat = getSelfSeat();
-  const side = SEAT_TO_SIDE[seat];
+function getOpponentGateCell() {
+  const selfSeat = getSelfSeat();
+  const { activePlayers } = getState();
+  const candidates = activePlayers.length > 0 ? activePlayers : ["A", "B", "C", "D"];
+  const opponentSeat = candidates.find((seat) => seat !== selfSeat);
+  if (!opponentSeat) return null;
+  const side = SEAT_TO_SIDE[opponentSeat];
   const pos = GATE_POSITIONS[side];
   if (!pos) return null;
   return document.querySelector(`.cell[data-row="${pos.row}"][data-col="${pos.col}"]`);
+}
+
+// ユーザー要望「ムーブフェイズ、実際に駒を移動できる範囲をハイライトさせたりできる？」
+// への対応。自分の駒の現在地から前後左右のマスを（有効/無効を厳密に判定せず）ざっくり
+// 示す軽量版。本物の移動・接触を実際にシミュレーションして動かして見せるのは、
+// ghost-flight.js/setup-animation.js相当の使い捨てアニメーションを新たに組む必要があり
+// 実装コストとstate.jsの本物の状態を一切変えずに済ませる慎重さの両面でリスクが大きい
+// ため、今回はこの「範囲だけをハイライトする」軽量版にとどめた。
+function getSelfPieceAdjacentCells() {
+  const selfSeat = getSelfSeat();
+  const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === selfSeat && t.location.zone === "cell");
+  if (!piece) return [];
+  const { row, col } = piece.location;
+  const deltas = [
+    [-1, 0],
+    [1, 0],
+    [0, -1],
+    [0, 1],
+  ];
+  return deltas
+    .map(([dr, dc]) => [row + dr, col + dc])
+    .filter(([r, c]) => r >= 0 && r <= 6 && c >= 0 && c <= 6)
+    .map(([r, c]) => document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`))
+    .filter(Boolean);
+}
+
+let moveRangeCellEls = [];
+function clearMoveRangeHighlight() {
+  for (const el of moveRangeCellEls) el.classList.remove("tutorial-move-range");
+  moveRangeCellEls = [];
+}
+function applyMoveRangeHighlight() {
+  clearMoveRangeHighlight();
+  moveRangeCellEls = getSelfPieceAdjacentCells();
+  for (const el of moveRangeCellEls) el.classList.add("tutorial-move-range");
 }
 
 // ユーザー要望「手札効果の説明、実際のカード画面で説明」への対応。手札効果の説明として
@@ -186,7 +229,9 @@ const STEPS = [
     body: [
       "ムーブフェイズで表向きのカードに駒を乗せると「到達」となり、多くの場合そのカードを手札に加えられます。",
       "カードには、乗った瞬間に発動する「到達効果」と、手札から捨てて発動する「手札効果」の2種類が書かれていることがあります。",
+      "黄色い枠で囲んだ前後左右のマスが、あなたの駒が今動ける方向の目安です（実際に動けるかは、カードの有無や相手の駒の有無で変わります）。",
     ],
+    highlightMoveRange: true,
   },
   {
     target: () => document.querySelector(".zone-bottom .hand-area"),
@@ -196,14 +241,19 @@ const STEPS = [
       "例えばこのカードの手札効果:",
     ],
     renderExtra: (container) => container.appendChild(buildCardExampleEl()),
-    footer: ["盤面のカードを右クリック→「カード補足を見る」でも、いつでも同じように詳細を確認できます。"],
+    footer: [
+      "盤面のカードを右クリック→「カード補足を見る」でも、いつでも同じように詳細を確認できます。",
+      "使う前に一度「手札公開エリア」（プレイヤー名の下あたり）へドラッグして「このカードを使います」と宣言してから使うと、相手にも分かりやすくおすすめです。",
+    ],
+    wide: true,
   },
   {
-    target: () => getSelfGateCell(),
+    target: () => getOpponentGateCell(),
     title: "相手ゲート侵攻ボーナス",
     body: [
-      "相手のゲート（各辺の中央のマス）に自分の駒を置いたままターンを終えると、「相手ゲート侵攻ボーナス」が発生します。",
+      "相手のゲート（各辺の中央のマス、これはその一例です）に自分の駒を置いたままターンを終えると、「相手ゲート侵攻ボーナス」が発生します。",
       "相手の手札を半分奪ったり、エターナルカードを獲得したりできる、対局を大きく動かすチャンスです。",
+      "ボタン操作は不要で、条件を満たせば自動的に処理されます。",
     ],
   },
   {
@@ -365,11 +415,21 @@ function positionForCurrentStep() {
     spotlightEl.style.display = "none";
     positionCallout(null);
   }
+  // 自分の駒の移動範囲ハイライト（.cellは#game-tableの中身でrenderのたびに作り直される
+  // ため、対象要素のスポットライトと同じくこの関数が呼ばれるたびに探し直す）。
+  if (step.highlightMoveRange) {
+    applyMoveRangeHighlight();
+  } else {
+    clearMoveRangeHighlight();
+  }
 }
 
 function renderStep() {
   const step = STEPS[currentStepIndex];
   titleEl.textContent = step.title;
+  // ユーザー要望「カードはもっともっと大きく」への対応で、カード例を出すステップだけ
+  // コールアウト自体も広げる（style.cssの#tutorial-callout.is-wide参照）。
+  calloutEl.classList.toggle("is-wide", Boolean(step.wide));
   bodyEl.innerHTML = "";
   for (const paragraph of step.body) {
     const p = document.createElement("p");
@@ -427,6 +487,7 @@ export function startTutorial() {
 function finishTutorial() {
   isActive = false;
   overlayEl?.classList.remove("is-visible");
+  clearMoveRangeHighlight();
   if (unsubscribeStateWatch) {
     unsubscribeStateWatch();
     unsubscribeStateWatch = null;
