@@ -39,6 +39,7 @@ export function getBackgroundShopItems() {
     itemKey: `background:${b.id}`,
     label: b.label,
     cost: getBackgroundCost(b.id),
+    imagePath: b.path,
   }));
 }
 

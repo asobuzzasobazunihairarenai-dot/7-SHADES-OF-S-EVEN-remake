@@ -2,6 +2,12 @@
 // プレイマット背景を購入できるようにする」）。通貨表示（currency-display.js）をクリック
 // するか、各ピッカー（piece-skins.js等）でロックされた項目をクリックすると開く
 // （online.jsのregisterShopOpener経由、main.jsが注入する）。
+//
+// ユーザー要望「商品の見た目がわかるといい。見た目を並べてそこに金額を載せるのが
+// わかりやすいかな？おしゃれに並べてください」への対応。カテゴリをタブで切り替え、
+// 選んだカテゴリの中身を画像カードのグリッドで表示する（旧・折りたたみ+テキスト行の
+// 一覧から作り直した）。各カードの画像は各モジュールのgetXShopItems()が返す
+// imagePathをそのまま使う。
 
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getCachedUser, getMyCurrencyBalance, isItemUnlocked, purchaseItem } from "./online.js";
@@ -12,7 +18,9 @@ let panelEl = null;
 let backdropEl = null;
 let balanceEl = null;
 let statusEl = null;
-let listEl = null;
+let tabsEl = null;
+let gridEl = null;
+let activeCategoryKey = SHOP_CATEGORIES[0]?.key ?? null;
 
 function close() {
   if (panelEl) panelEl.style.display = "none";
@@ -35,21 +43,39 @@ function describePurchaseError(err) {
   return `購入に失敗しました（${message}）`;
 }
 
-function buildItemRow(item) {
-  const row = document.createElement("div");
-  row.className = "shop-item-row";
+function buildItemCard(item) {
+  const card = document.createElement("div");
+  card.className = "shop-item-card";
 
-  const labelEl = document.createElement("span");
-  labelEl.className = "shop-item-label";
-  labelEl.textContent = item.label;
-  row.appendChild(labelEl);
+  const thumb = document.createElement("div");
+  thumb.className = "shop-item-thumb";
+  const img = document.createElement("img");
+  img.src = item.imagePath;
+  img.alt = item.label;
+  thumb.appendChild(img);
 
   const owned = item.cost === 0 || isItemUnlocked(item.itemKey);
+  if (!owned) {
+    thumb.classList.add("is-locked");
+    const lockBadge = document.createElement("span");
+    lockBadge.className = "shop-item-thumb-lock";
+    lockBadge.textContent = "🔒";
+    thumb.appendChild(lockBadge);
+  }
+  card.appendChild(thumb);
+
+  const labelEl = document.createElement("div");
+  labelEl.className = "shop-item-card-label";
+  labelEl.textContent = item.label;
+  card.appendChild(labelEl);
+
+  const footer = document.createElement("div");
+  footer.className = "shop-item-card-footer";
   if (owned) {
     const ownedEl = document.createElement("span");
     ownedEl.className = "shop-item-owned";
     ownedEl.textContent = item.cost === 0 ? "無料" : "所持済み";
-    row.appendChild(ownedEl);
+    footer.appendChild(ownedEl);
   } else {
     const buyBtn = document.createElement("button");
     buyBtn.type = "button";
@@ -66,35 +92,42 @@ function buildItemRow(item) {
         await purchaseItem(item.itemKey, item.cost);
         setStatus(`「${item.label}」を購入しました！`);
         await Promise.all([refreshCurrencyDisplay(), refreshBalance()]);
-        renderList();
+        renderGrid();
       } catch (err) {
         setStatus(describePurchaseError(err), true);
         buyBtn.disabled = false;
       }
     });
-    row.appendChild(buyBtn);
+    footer.appendChild(buyBtn);
   }
+  card.appendChild(footer);
 
-  return row;
+  return card;
 }
 
-function renderList() {
-  listEl.innerHTML = "";
-  for (const category of SHOP_CATEGORIES) {
-    const details = document.createElement("details");
-    details.className = "shop-category";
-    details.open = true;
-    const summary = document.createElement("summary");
-    summary.textContent = category.label;
-    details.appendChild(summary);
+function renderGrid() {
+  gridEl.innerHTML = "";
+  const category = SHOP_CATEGORIES.find((c) => c.key === activeCategoryKey) ?? SHOP_CATEGORIES[0];
+  if (!category) return;
+  for (const item of category.items) {
+    gridEl.appendChild(buildItemCard(item));
+  }
+}
 
-    const rows = document.createElement("div");
-    rows.className = "shop-category-rows";
-    for (const item of category.items) {
-      rows.appendChild(buildItemRow(item));
-    }
-    details.appendChild(rows);
-    listEl.appendChild(details);
+function renderTabs() {
+  tabsEl.innerHTML = "";
+  for (const category of SHOP_CATEGORIES) {
+    const tab = document.createElement("button");
+    tab.type = "button";
+    tab.className = "shop-tab";
+    if (category.key === activeCategoryKey) tab.classList.add("is-active");
+    tab.textContent = category.label;
+    tab.addEventListener("click", () => {
+      activeCategoryKey = category.key;
+      renderTabs();
+      renderGrid();
+    });
+    tabsEl.appendChild(tab);
   }
 }
 
@@ -131,31 +164,31 @@ function buildPanel() {
   statusEl.id = "shop-panel-status";
   panel.appendChild(statusEl);
 
-  listEl = document.createElement("div");
-  listEl.id = "shop-panel-list";
-  panel.appendChild(listEl);
+  tabsEl = document.createElement("div");
+  tabsEl.id = "shop-panel-tabs";
+  panel.appendChild(tabsEl);
+
+  gridEl = document.createElement("div");
+  gridEl.id = "shop-panel-grid";
+  panel.appendChild(gridEl);
 
   return panel;
 }
 
-// initialCategoryKeyが指定されていれば、そのカテゴリだけ開いて他は畳んでおく
-// （ピッカー側のロック項目クリックから開いた時に、関連カテゴリへ直接誘導するため）。
+// initialCategoryKeyが指定されていれば、そのタブを選んだ状態で開く（ピッカー側の
+// ロック項目クリックから開いた時に、関連カテゴリへ直接誘導するため）。
 function focusCategory(categoryKey) {
   if (!categoryKey) return;
-  const detailsList = [...listEl.querySelectorAll(".shop-category")];
-  const categoryIndex = SHOP_CATEGORIES.findIndex((c) => c.key === categoryKey);
-  if (categoryIndex === -1) return;
-  detailsList.forEach((el, i) => {
-    el.open = i === categoryIndex;
-  });
-  detailsList[categoryIndex]?.scrollIntoView({ block: "center" });
+  if (!SHOP_CATEGORIES.some((c) => c.key === categoryKey)) return;
+  activeCategoryKey = categoryKey;
 }
 
 export function openShopPanel(initialCategoryKey) {
   setStatus("");
-  renderList();
-  refreshBalance();
   focusCategory(initialCategoryKey);
+  renderTabs();
+  renderGrid();
+  refreshBalance();
   panelEl.style.display = "block";
   backdropEl.style.display = "block";
 }

@@ -2976,6 +2976,42 @@ body.is-touch-device #options-menu-button {
   object-fit: contain;
 }
 
+/* ログインボーナス（日次）の通知トースト（main.jsのshowDailyBonusToast参照）。数秒で
+   自動的に消える、押せない通知専用の小さな表示。 */
+#daily-bonus-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10500;
+  background: rgba(15, 23, 32, 0.95);
+  border: 1px solid rgba(250, 204, 21, 0.6);
+  border-radius: 999px;
+  padding: 0.5rem 1.2rem;
+  font-family: sans-serif;
+  font-weight: bold;
+  color: #fde68a;
+  box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5);
+  animation: daily-bonus-toast-fade 3.5s ease-in-out forwards;
+  pointer-events: none;
+}
+@keyframes daily-bonus-toast-fade {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(0.5rem);
+  }
+  10% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 /* ヘルプページ本体（help.js）。my-page-panelと同じ「画面中央固定・縦スクロール」の
    パターンだが、文章量が多いため横幅は広めにしてある。tutorial.jsの説明文をそのまま
    読み物として並べるだけの静的なページ。 */
@@ -3121,7 +3157,7 @@ body.is-touch-device #options-menu-button {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: min(26rem, 92vw);
+  width: min(34rem, 92vw);
   max-height: 85vh;
   overflow-y: auto;
   background: rgba(15, 23, 32, 0.98);
@@ -3162,34 +3198,86 @@ body.is-touch-device #options-menu-button {
 #shop-panel-status.is-error {
   color: #fca5a5;
 }
-.shop-category {
-  margin-bottom: 0.5rem;
+/* ユーザー要望「商品の見た目がわかるといい。見た目を並べてそこに金額を載せるのが
+   わかりやすいかな？おしゃれに並べてください」への対応。カテゴリはタブ切り替え、
+   中身は画像カードのグリッド表示にした（旧・折りたたみ+テキスト行から作り直し）。 */
+#shop-panel-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.8rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
 }
-.shop-category > summary {
-  font-weight: bold;
-  font-size: 0.9rem;
+.shop-tab {
+  padding: 0.35rem 0.8rem;
+  background: rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
   cursor: pointer;
-  padding: 0.3rem 0;
+  font-size: 0.78rem;
+  font-family: sans-serif;
+  white-space: nowrap;
 }
-.shop-category-rows {
+.shop-tab:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.shop-tab.is-active {
+  background: linear-gradient(160deg, #f59e0b, #b45309);
+  color: #fff;
+  border-color: transparent;
+  font-weight: bold;
+}
+#shop-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6.6rem, 1fr));
+  gap: 0.7rem;
+}
+.shop-item-card {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  padding: 0.3rem 0 0.4rem 0.4rem;
-}
-.shop-item-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-  padding: 0.35rem 0.6rem;
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 0.3rem;
-  font-size: 0.82rem;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  gap: 0.35rem;
+}
+.shop-item-thumb {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 0.35rem;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.3);
+}
+.shop-item-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.shop-item-thumb.is-locked img {
+  filter: grayscale(0.85) brightness(0.55);
+}
+.shop-item-thumb-lock {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.3rem;
+  font-size: 0.9rem;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+}
+.shop-item-card-label {
+  font-size: 0.72rem;
+  text-align: center;
+  line-height: 1.3;
+  min-height: 1.9rem;
+}
+.shop-item-card-footer {
+  display: flex;
+  justify-content: center;
 }
 .shop-item-owned {
   opacity: 0.6;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   white-space: nowrap;
 }
 .shop-item-buy {
@@ -3199,10 +3287,11 @@ body.is-touch-device #options-menu-button {
   border: none;
   border-radius: 0.3rem;
   cursor: pointer;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: bold;
   white-space: nowrap;
   font-family: sans-serif;
+  width: 100%;
 }
 .shop-item-buy:hover {
   background: linear-gradient(160deg, #fbbf24, #d97706);
@@ -5113,6 +5202,90 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   }
 }
 
+/* エターナルカード獲得演出（ユーザー要望「ゲート侵攻によりエターナルカードを手に入れる
+   ときの演出を取り入れたい」、main.jsのplayEternalAcquisitionAnim参照）。画面中央固定の
+   カード1枚を、裏向き待機(is-suspense、虹色の縁取りが脈打つ)→3Dフリップ(is-flipped)→
+   表向きで色付きに脈打つ(is-revealed)、と切り替えていく。flyGhostの.setup-fly-cardと
+   違い、こちらは「止まって見せる」区間を持つため専用のクラスにしてある。 */
+.eternal-reveal-card {
+  position: fixed;
+  z-index: 9999;
+  perspective: 1600px;
+  pointer-events: none;
+}
+.eternal-reveal-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 1s ease-in-out;
+}
+.eternal-reveal-card-inner.is-flipped {
+  transform: rotateY(180deg);
+}
+.eternal-reveal-card-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-radius: 0.5rem;
+  box-shadow: 0 1rem 2.4rem rgba(0, 0, 0, 0.6);
+}
+.eternal-reveal-card-face.is-front {
+  transform: rotateY(180deg);
+}
+.eternal-reveal-card.is-suspense::before {
+  content: "";
+  position: absolute;
+  inset: -0.5rem;
+  border-radius: 0.8rem;
+  background: conic-gradient(#c70025, #ee781f, #fabe00, #22ac38, #1bb8ce, #f19ec2, #915da3, #c70025);
+  filter: blur(0.7rem);
+  z-index: -1;
+  animation: eternal-rainbow-shimmer 1.1s linear infinite;
+}
+@keyframes eternal-rainbow-shimmer {
+  0% {
+    filter: blur(0.7rem) hue-rotate(0deg);
+  }
+  100% {
+    filter: blur(0.7rem) hue-rotate(360deg);
+  }
+}
+.eternal-reveal-card.is-bursting::after {
+  content: "";
+  position: absolute;
+  inset: -1.5rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--eternal-reveal-color, #fff) 0%, transparent 70%);
+  opacity: 0.9;
+  animation: eternal-burst-pulse 0.5s ease-out;
+}
+@keyframes eternal-burst-pulse {
+  0% {
+    transform: scale(0.4);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+.eternal-reveal-card.is-revealed .eternal-reveal-card-inner {
+  animation: eternal-color-pulse 1.1s ease-in-out infinite;
+}
+@keyframes eternal-color-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 1rem var(--eternal-reveal-color, #fff));
+  }
+  50% {
+    filter: drop-shadow(0 0 2.2rem var(--eternal-reveal-color, #fff));
+  }
+}
+
 /* クイックスタート: 画面右上（山札一覧/セットアップ/オプションの下）に常設する、
    「無色あり/なし」の切り替えと「2人/3人/4人」のボタン。押すだけでセットアップ
    ウィザードの０〜３を一気に実行する（quick-start.js参照）。 */
@@ -5830,6 +6003,13 @@ body.is-online-mode #quick-start-bar {
   --contact-anim-runup-duration: 3;
   --contact-anim-tackle-duration: 1;
   --contact-anim-flight-duration: 2;
+  /* エターナルカード獲得演出の各段階の秒数（main.jsのplayEternalAcquisitionAnim参照）。 */
+  --eternal-anim-glow-duration: 1;
+  --eternal-anim-flight-duration: 1.5;
+  --eternal-anim-suspense-duration: 1.5;
+  --eternal-anim-flip-duration: 1;
+  --eternal-anim-hold-duration: 2;
+  --eternal-anim-return-duration: 1;
   --turn-timer-rope-pos-x: 0rem;
   --turn-timer-rope-pos-y: 0rem;
   --turn-timer-rope-width: 46rem;

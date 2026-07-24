@@ -66,6 +66,10 @@ export function getSkinShopItems() {
     itemKey: `piece-skin:${variant}`,
     label: NAMED_SKIN_LABELS[variant] ?? (variant === 0 ? "標準" : `追加${variant}`),
     cost: getSkinCost(variant),
+    // ショップの一覧は特定プレイヤーの実際の色に依存させず、常に同じ代表色
+    // （PREVIEW_FALLBACK_COLOR、ピッカーの「まだ色が決まっていない間」と同じ考え方）で
+    // プレビューする。
+    imagePath: variant === 0 ? `assets/pieces/${PREVIEW_FALLBACK_COLOR}.webp` : `assets/pieces/${PREVIEW_FALLBACK_COLOR}-${variant}.webp`,
   }));
 }
 

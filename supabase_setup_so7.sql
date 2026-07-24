@@ -725,9 +725,19 @@ create policy "so7_user_unlocks_select" on so7_user_unlocks for select to authen
 -- 追加したcurrency_awardedフラグで「1ゲーム1回」だけに制限し、既に付与済みなら
 -- 何もせず正常終了する（エラーにはしない。呼び出し側が結果を気にせず気軽に呼べるように
 -- するため）。
+-- ユーザー確認済み「対局終了毎に一定額」に加えて「勝利時にボーナス」も併用する。
+-- p_winner_seat（'A'|'B'|'C'|'D'、victory.jsが検知した実際の勝者の座席、
+-- so7_game_seats.seatと同じ表記）が渡されていれば、その座席のuser_idにだけ
+-- p_winner_bonusを上乗せする。
 alter table so7_games add column if not exists currency_awarded boolean not null default false;
 
-create or replace function so7_award_match_currency(p_game_id text, p_amount int default 50)
+drop function if exists so7_award_match_currency(text, int);
+create or replace function so7_award_match_currency(
+  p_game_id text,
+  p_amount int default 50,
+  p_winner_seat text default null,
+  p_winner_bonus int default 30
+)
 returns void
 language plpgsql
 security definer
@@ -735,7 +745,8 @@ set search_path = public, extensions
 as $$
 declare
   v_already boolean;
-  v_uid uuid;
+  r record;
+  v_grant int;
 begin
   select currency_awarded into v_already from so7_games where id = p_game_id for update;
   if v_already is null then
@@ -745,18 +756,53 @@ begin
     return;
   end if;
 
-  for v_uid in select user_id from so7_game_seats where game_id = p_game_id loop
+  for r in select user_id, seat from so7_game_seats where game_id = p_game_id loop
+    v_grant := p_amount + case when r.seat = p_winner_seat then p_winner_bonus else 0 end;
     insert into so7_user_currency (user_id, balance, updated_at)
-    values (v_uid, p_amount, now())
+    values (r.user_id, v_grant, now())
     on conflict (user_id) do update
-      set balance = so7_user_currency.balance + p_amount, updated_at = now();
+      set balance = so7_user_currency.balance + v_grant, updated_at = now();
   end loop;
 
   update so7_games set currency_awarded = true where id = p_game_id;
 end;
 $$;
-revoke execute on function so7_award_match_currency(text, int) from public;
-grant execute on function so7_award_match_currency(text, int) to authenticated;
+revoke execute on function so7_award_match_currency(text, int, text, int) from public;
+grant execute on function so7_award_match_currency(text, int, text, int) to authenticated;
+
+-- ユーザー確認済み「ログインボーナス（日次）」。1日1回、ログイン中に呼ぶと一定額もらえる
+-- （online.jsのclaimDailyLoginBonus参照、ログイン直後に自動で呼ぶ）。既に本日分を
+-- 受け取り済みなら何もせず0を返す（エラーにはしない）。
+alter table so7_user_currency add column if not exists last_daily_bonus_date date;
+
+create or replace function so7_claim_daily_login_bonus(p_amount int default 20)
+returns int
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_last date;
+begin
+  if v_uid is null then
+    raise exception 'not_authenticated';
+  end if;
+  select last_daily_bonus_date into v_last from so7_user_currency where user_id = v_uid for update;
+  if v_last is not null and v_last = current_date then
+    return 0;
+  end if;
+  insert into so7_user_currency (user_id, balance, last_daily_bonus_date, updated_at)
+  values (v_uid, p_amount, current_date, now())
+  on conflict (user_id) do update
+    set balance = so7_user_currency.balance + p_amount,
+        last_daily_bonus_date = current_date,
+        updated_at = now();
+  return p_amount;
+end;
+$$;
+revoke execute on function so7_claim_daily_login_bonus(int) from public;
+grant execute on function so7_claim_daily_login_bonus(int) to authenticated;
 
 -- 購入。呼び出し元(auth.uid())自身の残高から差し引き、所持済みリストへ追加する。
 -- 残高不足・購入済みの場合は例外を投げるだけで、残高・所持リストとも一切変更しない

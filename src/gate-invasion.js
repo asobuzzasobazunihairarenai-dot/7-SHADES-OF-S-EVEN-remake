@@ -13,6 +13,7 @@ import { GATE_POSITIONS, SIDE_TO_SEAT, SEAT_TO_SIDE, SEAT_ORDER, COLORS } from "
 import { getPlayerName } from "./player-identity.js";
 import { getCardDefinition } from "./cards-data.js";
 import { announceHandPickups } from "./hand-announcer.js";
+import { isFlightAnimationDisabled, isArrivalEffectDisabled } from "./motion-prefs.js";
 
 function notifyChange() {
   window.dispatchEvent(new CustomEvent("admin:change"));
@@ -94,6 +95,17 @@ function runStealHand(attacker, defender, onDone) {
   });
 }
 
+// ユーザー要望「ゲート侵攻によりエターナルカードを手に入れるときの演出を取り入れたい」
+// への対応（採用案「3Dフリップ＋色バースト」）。実際の見た目の演出自体は main.js が
+// 握っている（board-layout/DOM座標・spawnArrivalBurst/flyGhost等、盤面描画に依存する
+// 部品が必要なため、setup-animation.js等と同じ「main.jsから注入してもらう」パターン）。
+// 呼び出し時点ではまだ状態(state)を一切変えていない演出専用の関数で、
+// (attacker, cardId, cardDef, onAnimDone) を受け取り、演出が終わったらonAnimDone()を呼ぶ。
+let eternalAnimHelper = null; // (attacker, cardId, cardDef, onAnimDone) => void
+export function registerEternalAnimHelpers(fn) {
+  eternalAnimHelper = fn;
+}
+
 // ②エターナルカードを1枚無作為に獲得し、自分のロックエリアの対応する色にロックする。
 // そのスロットに既に何か（ファーストカードを除く）あれば、先に手札へ加える
 // （ロック上のカードは常に表向き＝公開情報として扱う）。
@@ -110,12 +122,19 @@ function runEternal(attacker, onDone) {
   const bumpedTokens = getState().tokens.filter(
     (t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side && t.location.index === colorIndex && !t.cardId.startsWith("first-")
   );
-  showBonusStepModal(`${getPlayerName(attacker)}はエターナルカード「${def.name}」を獲得！\n自分のロックエリアにロックします。`, () => {
+  function applyAndFinish() {
     gateInvasionEternal(attacker, cardId);
     notifyChange();
     announceHandPickups(attacker, bumpedTokens.map((t) => ({ cardId: t.cardId, wasPublic: true })));
     onDone();
-  });
+  }
+  // 「移動アニメーション」「到達・ロック演出」のどちらかが無効化されている間は、
+  // 演出を飛ばして従来通りのOKモーダルだけにする（他の演出と同じ配慮）。
+  if (eternalAnimHelper && !isFlightAnimationDisabled() && !isArrivalEffectDisabled()) {
+    eternalAnimHelper(attacker, cardId, def, applyAndFinish);
+  } else {
+    showBonusStepModal(`${getPlayerName(attacker)}はエターナルカード「${def.name}」を獲得！\n自分のロックエリアにロックします。`, applyAndFinish);
+  }
 }
 
 // ③④自分のゲートにあるカードを全て手札に加え、ゲートに帰還する。

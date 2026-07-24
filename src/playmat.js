@@ -68,6 +68,7 @@ export function getPlaymatShopItems() {
     itemKey: `playmat:${p.id}`,
     label: p.label,
     cost: getPlaymatCost(p.id),
+    imagePath: p.path,
   }));
 }
 

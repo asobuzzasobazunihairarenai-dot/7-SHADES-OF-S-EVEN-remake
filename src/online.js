@@ -391,14 +391,32 @@ export async function getMyCurrencyBalance() {
 
 // 対局終了時（victory.jsのcheckForVictory()）に呼ぶ。submitStatsMatchResultと同じく
 // currentGameId（このモジュール内部で追跡している現在の部屋）を暗黙に使うため、
-// 呼び出し側は引数無しで呼べる。オンライン対戦では勝者本人・傍観者それぞれのクライアントが
-// ほぼ同時に勝利を検知するため、同じgame_idに対して複数回呼ばれる前提の設計になっている
-// （so7_award_match_currency自身が「1ゲーム1回」に制限するため、呼び出し側は結果を
-// 気にせず気軽に呼んでよい）。
-export async function awardMatchCurrency() {
+// 呼び出し側はwinnerSeat（'A'|'B'|'C'|'D'）だけ渡せばよい。オンライン対戦では勝者本人・
+// 傍観者それぞれのクライアントがほぼ同時に勝利を検知するため、同じgame_idに対して
+// 複数回呼ばれる前提の設計になっている（so7_award_match_currency自身が「1ゲーム1回」に
+// 制限するため、呼び出し側は結果を気にせず気軽に呼んでよい）。ユーザー確認済み
+// 「対局終了毎に一定額」に加えて「勝利時にボーナス」も併用するため、winnerSeatに
+// 一致する座席だけサーバー側で追加ボーナスが上乗せされる（supabase_setup_so7.sql参照）。
+export async function awardMatchCurrency(winnerSeat) {
   if (!client || !currentGameId) return;
-  const { error } = await client.rpc("so7_award_match_currency", { p_game_id: currentGameId });
+  const { error } = await client.rpc("so7_award_match_currency", {
+    p_game_id: currentGameId,
+    p_winner_seat: winnerSeat ?? null,
+  });
   if (error) console.error("so7_award_match_currency failed", error);
+}
+
+// ユーザー確認済み「ログインボーナス（日次）」。ログイン直後に自動で1回だけ呼ぶ
+// （onAuthStateChangeのif (!wasLoggedIn && cachedUser)分岐参照）。本日分を既に
+// 受け取っていれば0が返る（RPC自体が1日1回に制限するため、呼び出し側は気軽に呼んでよい）。
+export async function claimDailyLoginBonus() {
+  if (!client || !cachedUser) return 0;
+  const { data, error } = await client.rpc("so7_claim_daily_login_bonus");
+  if (error) {
+    console.error("so7_claim_daily_login_bonus failed (未実行のsupabase_setup_so7.sql追加分がある可能性)", error);
+    return 0;
+  }
+  return data ?? 0;
 }
 
 // 所持済みの駒スキン/カード裏面/プレイマット/背景等のitem_key（例:

@@ -75,6 +75,7 @@ export function getCardBackShopItems() {
     itemKey: `card-back:${set}`,
     label: SET_LABELS[set],
     cost: getSetCost(set),
+    imagePath: backImagePath("normal", set),
   }));
 }
 

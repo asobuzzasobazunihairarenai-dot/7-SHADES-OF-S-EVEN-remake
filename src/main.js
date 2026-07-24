@@ -19,7 +19,7 @@ import { initCurrencyDisplay, refreshCurrencyDisplay } from "./currency-display.
 import { initShop, openShopPanel } from "./shop.js";
 import { initGameSetup, previewStartPlayerModal } from "./game-setup.js";
 import { initOptionsMenu } from "./options-menu.js";
-import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
+import { runGateInvasionsIfNeeded, registerEternalAnimHelpers } from "./gate-invasion.js";
 import { announceHandPickups, announceCardLocked } from "./hand-announcer.js";
 import { enqueueGateInvasionSteps } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking } from "./victory.js";
@@ -118,6 +118,7 @@ import {
   registerShopOpener,
   isItemUnlocked,
   openShop,
+  claimDailyLoginBonus,
 } from "./online.js";
 import { fetchStatsProfile, getTierInfo } from "./stats-profile.js";
 import { setRankRingOrbitContainer, startRankRingOrbit } from "./rank-ring-orbit.js";
@@ -1272,6 +1273,99 @@ async function playContactFlight(defenderPieceId, defenderFromRect) {
     await done;
   }
   setSetupPendingTokenIds(new Set());
+}
+
+// --- エターナルカード獲得演出（ユーザー要望「ゲート侵攻によりエターナルカードを手に
+// 入れるときの演出を取り入れたい」、採用案「3Dフリップ＋色バースト」） ------------------
+// gate-invasion.jsのrunEternal()から、実際に状態を変える「前」に呼ばれる（見た目だけの
+// ワンショット演出のため、タックル演出と同じ理由でstate変更前に行う）。
+// ①エターナル山札が一瞬黒く発光→②山札から画面中央へ裏向きのまま飛んでいく→③中央で
+// 虹色の縁取りが揺らめきながら少し溜める→④3Dフリップで表向きに反転、反転と同時に
+// そのカードの色でバースト演出＋効果音→⑤その色でしばらく脈打つように光る→⑥自分の
+// ロックエリアへ向けて飛んでいく、の6段階。各段階の秒数は管理者モードの「✨ 演出」→
+// 「エターナルカード獲得演出」で調整できる（--eternal-anim-*、getContactAnimSecondsは
+// 汎用実装のためそのまま流用）。
+function getEternalRevealCenterRect(pileRect) {
+  const scale = 2.1;
+  const width = pileRect.width * scale;
+  const height = pileRect.height * scale;
+  return {
+    left: window.innerWidth / 2 - width / 2,
+    top: window.innerHeight / 2 - height / 2,
+    width,
+    height,
+  };
+}
+
+async function playEternalAcquisitionAnim(attacker, cardId, cardDef, onDone) {
+  const table = document.getElementById("game-table");
+  const pileEl = table?.querySelector('.zone[data-pile="eternal"]');
+  if (!table || !pileEl) {
+    onDone();
+    return;
+  }
+  const side = SEAT_TO_SIDE[attacker];
+  const colorIndex = COLORS.indexOf(cardDef.color);
+  const lockEl = findLocationElement(table, { zone: "lock", side, index: colorIndex });
+  const pileRect = pileEl.getBoundingClientRect();
+  const centerRect = getEternalRevealCenterRect(pileRect);
+
+  // ①エターナル山札が一瞬黒く発光する（「これから何かが起きる」予告）。
+  playSound("arrivalEffect");
+  spawnArrivalBurst(pileEl, "black");
+  await wait(getContactAnimSeconds("--eternal-anim-glow-duration", 1) * 1000);
+
+  // ②山札から画面中央へ、裏向きのまま飛んでいく。
+  const flightMs = getContactAnimSeconds("--eternal-anim-flight-duration", 1.5) * 1000;
+  const { done: flightDone } = flyGhost(pileRect, centerRect, getCardBackImagePath(cardId), "setup-fly-card", flightMs);
+  await flightDone;
+
+  // ③中央で虹色の縁取りが揺らめきながら少し溜める（まだ裏向きのまま）。
+  const reveal = document.createElement("div");
+  reveal.className = "eternal-reveal-card is-suspense";
+  reveal.style.left = `${centerRect.left}px`;
+  reveal.style.top = `${centerRect.top}px`;
+  reveal.style.width = `${centerRect.width}px`;
+  reveal.style.height = `${centerRect.height}px`;
+  const inner = document.createElement("div");
+  inner.className = "eternal-reveal-card-inner";
+  const backFace = document.createElement("div");
+  backFace.className = "eternal-reveal-card-face is-back";
+  backFace.style.backgroundImage = `url("${getCardBackImagePath(cardId)}")`;
+  const frontFace = document.createElement("div");
+  frontFace.className = "eternal-reveal-card-face is-front";
+  frontFace.style.backgroundImage = `url("${getCardImagePath(cardId)}")`;
+  inner.appendChild(backFace);
+  inner.appendChild(frontFace);
+  reveal.appendChild(inner);
+  document.body.appendChild(reveal);
+  await wait(getContactAnimSeconds("--eternal-anim-suspense-duration", 1.5) * 1000);
+
+  // ④3Dフリップで表向きに反転。反転と同時にそのカードの色でバースト演出＋効果音。
+  reveal.classList.remove("is-suspense");
+  reveal.style.setProperty("--eternal-reveal-color", `var(--color-${cardDef.color})`);
+  playSound("arrivalEffect");
+  reveal.classList.add("is-bursting");
+  const flipMs = getContactAnimSeconds("--eternal-anim-flip-duration", 1) * 1000;
+  inner.style.transitionDuration = `${flipMs}ms`;
+  inner.classList.add("is-flipped");
+  await wait(flipMs);
+  reveal.classList.remove("is-bursting");
+
+  // ⑤その色でしばらく脈打つように光る。
+  reveal.classList.add("is-revealed");
+  await wait(getContactAnimSeconds("--eternal-anim-hold-duration", 2) * 1000);
+
+  // ⑥自分のロックエリアへ向けて飛んでいく。ロックスロットのDOMが見当たらない
+  // （通常起きないはずだが念のため）場合は、その場でフェードせずそのまま消す。
+  reveal.remove();
+  if (lockEl) {
+    const lockRect = lockEl.getBoundingClientRect();
+    const returnMs = getContactAnimSeconds("--eternal-anim-return-duration", 1) * 1000;
+    const { done: returnDone } = flyGhost(centerRect, lockRect, getCardImagePath(cardId), "setup-fly-card", returnMs);
+    await returnDone;
+  }
+  onDone();
 }
 
 // 接触されたプレイヤー（defender）が承認/拒否モーダル（contact-approval.js）で応答した
@@ -4499,6 +4593,7 @@ registerRemoteMoveAnimatorHelpers({
 });
 registerFinalLockApprovalHandler(respondToFinalLock);
 registerContactApprovalHandler(respondToContact);
+registerEternalAnimHelpers(playEternalAcquisitionAnim);
 buildGameTitle();
 buildSpotlightOverlay();
 buildFinalLockApprovalBanner();
@@ -4684,6 +4779,34 @@ refreshSelfStatusRankRing();
 // 購入直後もそれぞれの呼び出し元から直接refreshCurrencyDisplay()を呼ぶ。
 onAuthChange(refreshCurrencyDisplay);
 refreshCurrencyDisplay();
+
+// ユーザー確認済み「ログインボーナス（日次）」。ログインした瞬間（未ログイン→ログイン済み
+// への変化）だけ、1日1回のログインボーナスを受け取りに行く（online.jsのclaimDailyLoginBonus
+// 自身が「本日分は受け取り済みか」をサーバー側で判定するため、呼び出し側は毎回気軽に
+// 呼んでよい）。もらえた時だけ画面下に小さく通知する。
+let wasLoggedInForDailyBonus = !!getCachedUser();
+onAuthChange((user) => {
+  const isLoggedIn = !!user;
+  if (!wasLoggedInForDailyBonus && isLoggedIn) {
+    claimDailyLoginBonus()
+      .then((amount) => {
+        if (amount > 0) {
+          showDailyBonusToast(amount);
+          refreshCurrencyDisplay();
+        }
+      })
+      .catch((err) => console.error("claimDailyLoginBonus failed", err));
+  }
+  wasLoggedInForDailyBonus = isLoggedIn;
+});
+
+function showDailyBonusToast(amount) {
+  const toast = document.createElement("div");
+  toast.id = "daily-bonus-toast";
+  toast.textContent = `🪙 ログインボーナス +${amount}！`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3500);
+}
 
 // 管理者モードの「ランクリングの位置・太さ」スライダー用プレビュー（admin.jsの
 // registerRankRingPreviewHelper経由で呼ばれる、previewStartPlayerModalと同じ

@@ -152,6 +152,20 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー要望「ゲート侵攻によりエターナルカードを手に入れるときの演出を取り入れたい」
+    // への対応（main.jsのplayEternalAcquisitionAnim参照）。
+    title: "エターナルカード獲得演出（各段階の秒数）",
+    category: "effect",
+    controls: [
+      { key: "--eternal-anim-glow-duration", label: "①山札が黒く発光する秒数", unit: "", min: 0.2, max: 5, step: 0.1, default: 1 },
+      { key: "--eternal-anim-flight-duration", label: "②中央へ飛んでいく秒数", unit: "", min: 0.2, max: 5, step: 0.1, default: 1.5 },
+      { key: "--eternal-anim-suspense-duration", label: "③虹色に揺らめきながら溜める秒数", unit: "", min: 0.2, max: 5, step: 0.1, default: 1.5 },
+      { key: "--eternal-anim-flip-duration", label: "④表向きに反転する秒数", unit: "", min: 0.2, max: 3, step: 0.1, default: 1 },
+      { key: "--eternal-anim-hold-duration", label: "⑤色に輝きながら静止する秒数", unit: "", min: 0.5, max: 6, step: 0.1, default: 2 },
+      { key: "--eternal-anim-return-duration", label: "⑥ロックエリアへ飛んでいく秒数", unit: "", min: 0.2, max: 5, step: 0.1, default: 1 },
+    ],
+  },
+  {
     title: "スポットライトモードの明るい範囲",
     category: "effect",
     controls: [
