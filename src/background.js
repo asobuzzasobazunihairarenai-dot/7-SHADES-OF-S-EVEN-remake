@@ -5,7 +5,7 @@
 // ログインするたびに復元する（online.jsのsaveMyPreference/registerAppearanceApplier参照）。
 
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
-import { saveMyPreference } from "./online.js";
+import { saveMyPreference, isItemUnlocked, openShop } from "./online.js";
 
 export const BACKGROUND_OPTIONS = [
   { id: "1", label: "背景1", path: "assets/backgrounds/1.webp" },
@@ -20,6 +20,26 @@ let selectedBackgroundId = "1";
 
 export function getSelectedBackgroundPath() {
   return BACKGROUND_OPTIONS.find((b) => b.id === selectedBackgroundId).path;
+}
+
+// ユーザー要望「背景画像を購入できるようにする」への対応。既定の「背景1」は無料、
+// 高画質版は少し高め、それ以外は均一価格にした。まだ具体的な金額指定が無い
+// プレースホルダー（対局終了ごとの通貨獲得額50、supabase_setup_so7.sqlの
+// so7_award_match_currency参照、が基準）。実際の値は後で調整すること。
+function getBackgroundCost(id) {
+  if (id === "1") return 0;
+  if (id === "1-hq") return 150;
+  return 100;
+}
+
+// shop-content.js（ショップのカタログ）がこのまま使えるよう、このモジュール自身の
+// BACKGROUND_OPTIONSを唯一の正としてitem一覧を組み立てて返す。
+export function getBackgroundShopItems() {
+  return BACKGROUND_OPTIONS.map((b) => ({
+    itemKey: `background:${b.id}`,
+    label: b.label,
+    cost: getBackgroundCost(b.id),
+  }));
 }
 
 // ログイン直後、アカウントに保存済みの選択を読み込んで適用する時にも使う
@@ -63,7 +83,24 @@ export function openBackgroundPicker() {
     img.src = option.path;
     img.alt = option.label;
     swatch.appendChild(img);
+    // ユーザー要望「背景画像を購入できるようにする」への対応。未所持の有料背景は
+    // 選べないようにし、代わりにショップを開く。
+    const itemKey = `background:${option.id}`;
+    const cost = getBackgroundCost(option.id);
+    const locked = cost > 0 && !isItemUnlocked(itemKey);
+    if (locked) {
+      swatch.classList.add("is-locked");
+      const lockBadge = document.createElement("span");
+      lockBadge.className = "piece-skin-swatch-lock";
+      lockBadge.textContent = `🔒${cost}`;
+      swatch.appendChild(lockBadge);
+    }
     swatch.addEventListener("click", () => {
+      if (locked) {
+        close();
+        openShop("background");
+        return;
+      }
       setSelectedBackgroundId(option.id);
       saveMyPreference({ background_id: option.id }).catch((err) => console.error("saveMyPreference failed", err));
       close();

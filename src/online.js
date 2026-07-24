@@ -241,6 +241,7 @@ if (client) {
     // 保存しておいた基本設定・ショートカットを読み込んで適用する。
     if (!wasLoggedIn && cachedUser) {
       loadMyPreferences().catch((err) => console.error("loadMyPreferences failed", err));
+      refreshMyUnlocks().catch((err) => console.error("refreshMyUnlocks failed", err));
     }
     for (const fn of authChangeListeners) fn(cachedUser);
   });
@@ -366,6 +367,86 @@ export async function fetchMyCustomAvatarUrl() {
     console.error("fetchMyCustomAvatarUrl failed (未実行のsupabase_setup_so7.sql追加分がある可能性)", err);
     return null;
   }
+}
+
+// --- ゲーム内通貨（ユーザー要望「対局終了毎に一定額稼げる仮想通貨を実装したい。将来的には
+// 課金も検討。駒スキン・アバター・カード裏面・プレイマット背景を購入できるようにする」）。
+// 残高・所持済みアイテムの実際の増減はso7_user_currency/so7_user_unlocks側のポリシーが
+// 直接のUPDATE/INSERTを許可していないため、必ず下の2つのSECURITY DEFINER RPC
+// （supabase_setup_so7.sql参照）を経由する。 -----------------------------------------
+
+export async function getMyCurrencyBalance() {
+  if (!cachedUser) return 0;
+  const { data, error } = await client
+    .from("so7_user_currency")
+    .select("balance")
+    .eq("user_id", cachedUser.id)
+    .maybeSingle();
+  if (error) {
+    console.error("getMyCurrencyBalance failed (未実行のsupabase_setup_so7.sql追加分がある可能性)", error);
+    return 0;
+  }
+  return data?.balance ?? 0;
+}
+
+// 対局終了時（victory.jsのcheckForVictory()）に呼ぶ。submitStatsMatchResultと同じく
+// currentGameId（このモジュール内部で追跡している現在の部屋）を暗黙に使うため、
+// 呼び出し側は引数無しで呼べる。オンライン対戦では勝者本人・傍観者それぞれのクライアントが
+// ほぼ同時に勝利を検知するため、同じgame_idに対して複数回呼ばれる前提の設計になっている
+// （so7_award_match_currency自身が「1ゲーム1回」に制限するため、呼び出し側は結果を
+// 気にせず気軽に呼んでよい）。
+export async function awardMatchCurrency() {
+  if (!client || !currentGameId) return;
+  const { error } = await client.rpc("so7_award_match_currency", { p_game_id: currentGameId });
+  if (error) console.error("so7_award_match_currency failed", error);
+}
+
+// 所持済みの駒スキン/カード裏面/プレイマット/背景等のitem_key（例:
+// "piece-skin:3"・"playmat:red-aged"）を、ログイン直後・購入直後に読み直してキャッシュ
+// しておく。piece-skins.js等の各ピッカーがロック表示の判定に同期的に使えるようにする
+// ため（都度サーバーへ問い合わせるのではなく、このキャッシュを見るだけにする）。
+let myUnlocks = new Set();
+
+export async function refreshMyUnlocks() {
+  if (!cachedUser) {
+    myUnlocks = new Set();
+    return;
+  }
+  const { data, error } = await client.from("so7_user_unlocks").select("item_key").eq("user_id", cachedUser.id);
+  if (error) {
+    console.error("refreshMyUnlocks failed (未実行のsupabase_setup_so7.sql追加分がある可能性)", error);
+    return;
+  }
+  myUnlocks = new Set((data ?? []).map((row) => row.item_key));
+}
+
+// ピッカー（piece-skins.js等）がロック表示を判定するための同期関数。未ログインの間は
+// アカウントに紐づく所持データが存在しないため、ショップ自体を意識させない（何でも
+// 選べる、これまで通りの挙動）——ローカル/オフラインでの利用を妨げないため。
+export function isItemUnlocked(itemKey) {
+  if (!cachedUser) return true;
+  return myUnlocks.has(itemKey);
+}
+
+// 購入。成功時はキャッシュを読み直してから戻り、失敗時（残高不足・購入済み・未ログイン）は
+// 例外を投げる（呼び出し元shop.jsがtry/catchでエラー内容に応じたメッセージを出す想定）。
+export async function purchaseItem(itemKey, cost) {
+  const { error } = await client.rpc("so7_purchase_item", { p_item_key: itemKey, p_cost: cost });
+  if (error) throw error;
+  await refreshMyUnlocks();
+}
+
+// ショップ（shop.js）の呼び出し口。piece-skins.js/card-back-skins.js/playmat.js/
+// background.js（ロックされた項目をクリックした時）・currency-display.js（残高表示自体を
+// クリックした時）のどちらも、shop.jsを直接importすると循環import（shop.jsが
+// shop-content.js経由でpiece-skins.js等を既にimportしているため）になるので、
+// setup-animation.js等と同じ「main.jsから実際の関数を注入してもらう」パターンで回避する。
+let shopOpenerFn = null;
+export function registerShopOpener(fn) {
+  shopOpenerFn = fn;
+}
+export function openShop(initialCategoryKey) {
+  shopOpenerFn?.(initialCategoryKey);
 }
 
 // ログイン直後に呼ばれ、保存済みの基本設定・ショートカットを各モジュールへ反映する。

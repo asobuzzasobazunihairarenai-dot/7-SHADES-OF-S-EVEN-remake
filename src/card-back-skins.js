@@ -60,6 +60,24 @@ export function getCardBackSetColorVar(idx) {
   return varName ? `var(${varName})` : null;
 }
 
+// ユーザー要望「カード裏面を購入できるようにする」への対応。標準(0)は無料、それ以外は
+// 均一価格。まだ具体的な金額指定が無いプレースホルダー（対局終了ごとの通貨獲得額50、
+// supabase_setup_so7.sqlのso7_award_match_currency参照、が基準）。実際の値は後で
+// 調整すること。
+function getSetCost(idx) {
+  return idx === 0 ? 0 : 80;
+}
+
+// shop-content.js（ショップのカタログ）がこのまま使えるよう、このモジュール自身の
+// CARD_BACK_SETS/SET_LABELSを唯一の正としてitem一覧を組み立てて返す。
+export function getCardBackShopItems() {
+  return CARD_BACK_SETS.map((set) => ({
+    itemKey: `card-back:${set}`,
+    label: SET_LABELS[set],
+    cost: getSetCost(set),
+  }));
+}
+
 // ログイン直後、アカウントに保存済みの選択を読み込んで適用する時にも使う
 // （online.jsのloadMyPreferences経由、registerAppearanceApplier参照）。
 export function setCardBackSetIndex(idx) {
@@ -85,8 +103,10 @@ export function backImagePath(kind, idx) {
 // →online.js→state.js→cards-data.jsという循環importになり、NORMAL_CARDS等の初期化順序が
 // 崩れてTDZエラー（"Cannot access 'NORMAL_CARDS' before initialization"）でアプリ全体が
 // 起動しなくなる（実際に発生させて原因特定済み）。savePreferenceもmain.js経由で注入する
-// ことでこれを回避する。
-let helpers = null; // { render, savePreference }
+// ことでこれを回避する。isItemUnlocked/openShop（ユーザー要望「カード裏面を購入できる
+// ようにする」）も同じ理由でここに追加した——online.js由来の値だが、直接importせずに
+// main.jsから注入してもらう。
+let helpers = null; // { render, savePreference, isItemUnlocked, openShop }
 export function registerCardBackSkinHelpers(h) {
   helpers = h;
 }
@@ -114,7 +134,24 @@ export function openCardBackSkinPicker() {
     img.src = backImagePath("normal", idx);
     img.alt = SET_LABELS[idx] ?? `追加${idx}`;
     swatch.appendChild(img);
+    // ユーザー要望「カード裏面を購入できるようにする」への対応。未所持の有料セットは
+    // 選べないようにし、代わりにショップを開く。
+    const itemKey = `card-back:${idx}`;
+    const cost = getSetCost(idx);
+    const locked = cost > 0 && !helpers?.isItemUnlocked?.(itemKey);
+    if (locked) {
+      swatch.classList.add("is-locked");
+      const lockBadge = document.createElement("span");
+      lockBadge.className = "piece-skin-swatch-lock";
+      lockBadge.textContent = `🔒${cost}`;
+      swatch.appendChild(lockBadge);
+    }
     swatch.addEventListener("click", () => {
+      if (locked) {
+        close();
+        helpers?.openShop?.("card-back");
+        return;
+      }
       setCardBackSetIndex(idx);
       helpers?.savePreference?.({ card_back_set_index: idx }).catch((err) => console.error("saveMyPreference failed", err));
       close();

@@ -2947,6 +2947,34 @@ body.is-touch-device #options-menu-button {
   border-color: transparent;
 }
 
+/* ゲーム内通貨の所持金額表示（currency-display.js、ユーザー要望「ヘルプボタンの横に
+   通貨アイコンと所持金額を表示させたい」）。#help-button（right:6.5rem）のさらに左隣に
+   置く。アイコンボタンでは無く常時表示のバッジのため、他のicon-action-buttonとは別の
+   専用の見た目にしてある。位置は管理者モードで調整できる
+   （--currency-display-pos-x/-y、admin.js参照）。 */
+#currency-display {
+  position: fixed;
+  top: 0.5rem;
+  right: 9.1rem;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.7rem;
+  background: rgba(15, 23, 32, 0.7);
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  border-radius: 999px;
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  font-weight: bold;
+  color: #fde68a;
+  transform: translate(var(--currency-display-pos-x, 0rem), var(--currency-display-pos-y, 0rem));
+}
+#currency-display-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
 /* ヘルプページ本体（help.js）。my-page-panelと同じ「画面中央固定・縦スクロール」の
    パターンだが、文章量が多いため横幅は広めにしてある。tutorial.jsの説明文をそのまま
    読み物として並べるだけの静的なページ。 */
@@ -3082,6 +3110,97 @@ body.is-touch-device #options-menu-button {
 }
 .help-item-modal-paragraph:last-child {
   margin-bottom: 0;
+}
+
+/* ショップ（shop.js、ユーザー要望「ゲーム内通貨を実装し、駒スキンやアバター、カード裏面、
+   プレイマット背景を購入できるようにする」）。my-page-panel/help-panelと同じ
+   「画面中央固定・縦スクロール」パターン。 */
+#shop-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(26rem, 92vw);
+  max-height: 85vh;
+  overflow-y: auto;
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.6rem;
+  padding: 1.2rem 1.4rem;
+  z-index: 2601;
+  font-family: sans-serif;
+  color: #e2e8f0;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+#shop-panel-title {
+  font-weight: bold;
+  font-size: 1.1rem;
+  margin-bottom: 0.6rem;
+  padding-right: 1.6rem;
+}
+#shop-panel-balance {
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: #fde68a;
+  margin-bottom: 0.4rem;
+}
+#shop-panel-status {
+  font-size: 0.8rem;
+  min-height: 1.1rem;
+  margin-bottom: 0.6rem;
+  color: #86efac;
+}
+#shop-panel-status.is-error {
+  color: #fca5a5;
+}
+.shop-category {
+  margin-bottom: 0.5rem;
+}
+.shop-category > summary {
+  font-weight: bold;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0.3rem 0;
+}
+.shop-category-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.3rem 0 0.4rem 0.4rem;
+}
+.shop-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.35rem 0.6rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 0.3rem;
+  font-size: 0.82rem;
+}
+.shop-item-owned {
+  opacity: 0.6;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.shop-item-buy {
+  padding: 0.3rem 0.7rem;
+  background: linear-gradient(160deg, #f59e0b, #b45309);
+  color: #fff;
+  border: none;
+  border-radius: 0.3rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: bold;
+  white-space: nowrap;
+  font-family: sans-serif;
+}
+.shop-item-buy:hover {
+  background: linear-gradient(160deg, #fbbf24, #d97706);
+}
+.shop-item-buy:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 #options-menu-panel {
@@ -3468,6 +3587,27 @@ body.diagnostic-flatten-3d.is-touch-device #hand-shuffle-button {
   object-fit: cover;
   border-radius: 0.25rem;
   display: block;
+}
+/* ユーザー要望「駒スキン・カード裏面・プレイマット・背景を購入できるようにする」への
+   対応。未所持の有料項目はモノクロ気味に沈めて「選べない」ことを示し、右下に価格の
+   バッジを重ねる（クリックするとピッカー側がショップを開く）。 */
+.piece-skin-swatch {
+  position: relative;
+}
+.piece-skin-swatch.is-locked img {
+  filter: grayscale(0.8) brightness(0.6);
+}
+.piece-skin-swatch-lock {
+  position: absolute;
+  bottom: 0.2rem;
+  right: 0.2rem;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fde68a;
+  font-size: 0.65rem;
+  font-weight: bold;
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.6rem;
+  pointer-events: none;
 }
 
 /* 自分（A）のターン中、自分の駒だけをその駒自身の色でゆっくり柔らかく発光させる
@@ -5802,6 +5942,8 @@ body.is-online-mode #quick-start-bar {
   --icon-pos-options-y: 0rem;
   --icon-pos-help-x: 0rem;
   --icon-pos-help-y: 0rem;
+  --currency-display-pos-x: 0rem;
+  --currency-display-pos-y: 0rem;
   --icon-pos-piece-hide-x: 0rem;
   --icon-pos-piece-hide-y: 0rem;
   --icon-pos-card-hide-x: 0rem;

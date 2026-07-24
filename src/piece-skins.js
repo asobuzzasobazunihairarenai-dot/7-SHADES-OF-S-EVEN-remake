@@ -21,7 +21,7 @@
 
 import { getState } from "./state.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
-import { getSelfSeat, isOnlineMode, getSyncedIdentity, updateMyIdentity } from "./online.js";
+import { getSelfSeat, isOnlineMode, getSyncedIdentity, updateMyIdentity, isItemUnlocked, openShop } from "./online.js";
 import { COLORS } from "./board-layout.js";
 
 // セットアップ前（自分の駒の色がまだファーストカードで決まっていない間）でも、左下の
@@ -39,6 +39,27 @@ const NAMED_SKIN_LABELS = {
   8: "大航海時代風",
   9: "遊びの王様風",
 };
+
+// ユーザー要望「駒スキンを購入できるようにする」への対応。標準(0)は無料、大航海時代風/
+// 遊びの王様風(8,9)は特別セットのため少し高め、それ以外(1〜7)は均一価格。まだ具体的な
+// 金額指定が無いプレースホルダー（対局終了ごとの通貨獲得額50、supabase_setup_so7.sqlの
+// so7_award_match_currency参照、が基準）。実際の値は後で調整すること。
+function getSkinCost(idx) {
+  if (idx === 0) return 0;
+  if (idx >= 8) return 120;
+  return 80;
+}
+
+// shop-content.js（ショップのカタログ）がこのまま使えるよう、このモジュール自身の
+// SKIN_VARIANTS/NAMED_SKIN_LABELSを唯一の正としてitem一覧を組み立てて返す（二重管理を
+// 避けるため、ラベル・変化数はここだけが持つ）。
+export function getSkinShopItems() {
+  return SKIN_VARIANTS.map((variant) => ({
+    itemKey: `piece-skin:${variant}`,
+    label: NAMED_SKIN_LABELS[variant] ?? (variant === 0 ? "標準" : `追加${variant}`),
+    cost: getSkinCost(variant),
+  }));
+}
 
 let preferredSkinIndex = 0;
 let hasLocalPreference = false;
@@ -120,7 +141,24 @@ export function openPieceSkinPicker() {
     img.src = idx === 0 ? `assets/pieces/${color}.webp` : `assets/pieces/${color}-${idx}.webp`;
     img.alt = idx === 0 ? "標準" : (NAMED_SKIN_LABELS[idx] ?? `追加${idx}`);
     swatch.appendChild(img);
+    // ユーザー要望「駒スキンを購入できるようにする」への対応。未所持の有料スキンは
+    // 選べないようにし、代わりにショップを開く（online.jsのisItemUnlocked/openShop）。
+    const itemKey = `piece-skin:${idx}`;
+    const cost = getSkinCost(idx);
+    const locked = cost > 0 && !isItemUnlocked(itemKey);
+    if (locked) {
+      swatch.classList.add("is-locked");
+      const lockBadge = document.createElement("span");
+      lockBadge.className = "piece-skin-swatch-lock";
+      lockBadge.textContent = `🔒${cost}`;
+      swatch.appendChild(lockBadge);
+    }
     swatch.addEventListener("click", () => {
+      if (locked) {
+        close();
+        openShop("piece-skin");
+        return;
+      }
       setLocalPreferredSkinIndex(idx);
       notifyChange();
       updateMyIdentity({ pieceSkinIndex: idx }).catch((err) => console.error("updateMyIdentity failed", err));

@@ -10,6 +10,8 @@ import { getAvatarVariant, applyAvatarContent } from "./avatar-render.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { playVictoryBgm } from "./sound.js";
 import { showPostGamePanel } from "./post-game-panel.js";
+import { awardMatchCurrency } from "./online.js";
+import { refreshCurrencyDisplay } from "./currency-display.js";
 
 // ユーザー要望「勝利モーダルが5秒ぐらいしっかり出た後に、『戦績確認・もう一度遊ぶ』
 // モーダル（勝利者へのコメント依頼を含む）が出るようにしてほしい」への対応。以前は
@@ -143,6 +145,16 @@ export function checkForVictory() {
     if (announcedPlayers.has(player)) continue;
     if (hasAllSevenLocked(player)) {
       announcedPlayers.add(player);
+      // ユーザー要望「対局終了毎に一定額稼げる仮想通貨を実装したい」への対応。
+      // オンライン対戦の全クライアント（勝者本人・傍観者それぞれ）がこの分岐を通るが、
+      // awardMatchCurrency()自身がサーバー側で「1ゲーム1回」に制限するため、重複して
+      // 呼んでも二重付与にはならない（online.jsのso7_award_match_currencyコメント参照）。
+      // ローカルモードは対象外（対戦記録・通貨とも意味を持つのはオンライン対戦のみ）。
+      if (isOnlineMode()) {
+        awardMatchCurrency()
+          .then(refreshCurrencyDisplay)
+          .catch((err) => console.error("awardMatchCurrency failed", err));
+      }
       // ユーザー要望「ゲーム終了時にコメント記入→戦績確認・もう一度遊ぶボタン」。
       // オンライン対戦の全員の画面に出す（実際に戦績システムへ書き込むのは、
       // 勝者本人の画面だけ——post-game-panel.js内でgetSelfSeat()===winnerSeatを

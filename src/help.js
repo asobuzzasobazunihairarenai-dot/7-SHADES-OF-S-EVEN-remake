@@ -14,7 +14,7 @@
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { getHelpSections, startTutorial } from "./tutorial.js";
-import { GLOSSARY, FAQ_CATEGORIES } from "./help-content.js";
+import { GLOSSARY, FAQ_CATEGORIES, DIGITAL_FEATURES } from "./help-content.js";
 
 // 個別の説明を表示する小さなモーダル（トップの一覧からのクリックで開く。icon-action-button.js
 // のopenIconDetailModalと同じ「1個だけ使い回す」パターンだが、ヘルプ画面自身の裏に
@@ -130,6 +130,12 @@ function buildPanel(close) {
     )
   );
   list.appendChild(buildIndexSection("📖 基本ルール", buildFlatList(ruleButtons)));
+
+  // ユーザー要望「ヘルプの説明に、デジタル版独自のことも記載する項目を追加してください」。
+  // 手札から出したカードが自動で裏表になる・駒スキン等のカスタマイズなど、物理版には
+  // 無いこのデジタル版だけの機能をまとめた（help-content.js）。
+  const digitalButtons = DIGITAL_FEATURES.map((entry) => buildIndexButton(entry.title, () => openItemModal(entry.title, entry.body)));
+  list.appendChild(buildIndexSection("🖥️ デジタル版だけの機能", buildFlatList(digitalButtons)));
 
   // 用語集（help-content.js、説明書.txtの基本用語集を採録）。
   const glossaryButtons = GLOSSARY.map((entry) => buildIndexButton(entry.term, () => openItemModal(entry.term, entry.body)));

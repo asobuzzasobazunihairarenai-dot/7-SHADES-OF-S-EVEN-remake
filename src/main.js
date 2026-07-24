@@ -15,6 +15,8 @@ import { initDeckViewer, openDeckViewer } from "./deck-viewer.js";
 import { initStatsPlayerLinkModal } from "./stats-player-link.js";
 import { initMyPage, openMyPage, registerAvatarPickerHelper } from "./my-page.js";
 import { initHelpButton } from "./help.js";
+import { initCurrencyDisplay, refreshCurrencyDisplay } from "./currency-display.js";
+import { initShop, openShopPanel } from "./shop.js";
 import { initGameSetup, previewStartPlayerModal } from "./game-setup.js";
 import { initOptionsMenu } from "./options-menu.js";
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
@@ -113,6 +115,9 @@ import {
   registerFirstGoogleLoginPrompter,
   saveMyPreference,
   registerVictorySummaryHelper,
+  registerShopOpener,
+  isItemUnlocked,
+  openShop,
 } from "./online.js";
 import { fetchStatsProfile, getTierInfo } from "./stats-profile.js";
 import { setRankRingOrbitContainer, startRankRingOrbit } from "./rank-ring-orbit.js";
@@ -4430,6 +4435,9 @@ initDeckViewer();
 initStatsPlayerLinkModal();
 initMyPage();
 initHelpButton();
+initCurrencyDisplay();
+initShop();
+registerShopOpener(openShopPanel);
 registerAvatarPickerHelper(openAvatarPicker);
 initGameSetup();
 registerStartPlayerPreviewHelper(previewStartPlayerModal);
@@ -4450,7 +4458,7 @@ initInteractionModeToggle();
 initDeviceDetect();
 registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocationElement, setSetupPendingTokenIds });
 registerPieceSkinHelpers({ render });
-registerCardBackSkinHelpers({ render, savePreference: saveMyPreference });
+registerCardBackSkinHelpers({ render, savePreference: saveMyPreference, isItemUnlocked, openShop });
 registerPlaymatHelpers({ render });
 registerBackgroundHelpers({ render });
 // ログイン直後（online.jsのloadMyPreferences）に、保存済みの名前・アバター・駒スキンを
@@ -4670,6 +4678,12 @@ async function refreshSelfStatusRankRing() {
 }
 onAuthChange(refreshSelfStatusRankRing);
 refreshSelfStatusRankRing();
+
+// ユーザー要望「ヘルプボタンの横に通貨アイコンと所持金額を表示させたい」。ログイン状態が
+// 変わるたび（ログイン/ログアウト直後）に残高を読み直す。対局終了時の付与・shop.jsでの
+// 購入直後もそれぞれの呼び出し元から直接refreshCurrencyDisplay()を呼ぶ。
+onAuthChange(refreshCurrencyDisplay);
+refreshCurrencyDisplay();
 
 // 管理者モードの「ランクリングの位置・太さ」スライダー用プレビュー（admin.jsの
 // registerRankRingPreviewHelper経由で呼ばれる、previewStartPlayerModalと同じ

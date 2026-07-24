@@ -4,7 +4,7 @@
 // 素材と同じ理由でgit管理外（.gitignoreの/assets/playmats/参照）。
 
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
-import { saveMyPreference } from "./online.js";
+import { saveMyPreference, isItemUnlocked, openShop } from "./online.js";
 
 export const PLAYMAT_OPTIONS = [
   { id: "white", label: "白", path: "assets/playmats/white.webp" },
@@ -49,6 +49,28 @@ export function getSelectedPlaymatPath() {
   return PLAYMAT_OPTIONS.find((p) => p.id === selectedPlaymatId).path;
 }
 
+// ユーザー要望「プレイマットを購入できるようにする」への対応。既定の「白」は無料、
+// 「黒」は安価、「旧」「古」バリエーションは少し高め、それ以外(7色)は均一価格にした。
+// まだ具体的な金額指定が無いプレースホルダー（対局終了ごとの通貨獲得額50、
+// supabase_setup_so7.sqlのso7_award_match_currency参照、が基準）。実際の値は後で
+// 調整すること。
+function getPlaymatCost(id) {
+  if (id === "white") return 0;
+  if (id === "black") return 60;
+  if (id.endsWith("-old") || id.endsWith("-aged")) return 100;
+  return 80;
+}
+
+// shop-content.js（ショップのカタログ）がこのまま使えるよう、このモジュール自身の
+// PLAYMAT_OPTIONSを唯一の正としてitem一覧を組み立てて返す。
+export function getPlaymatShopItems() {
+  return PLAYMAT_OPTIONS.map((p) => ({
+    itemKey: `playmat:${p.id}`,
+    label: p.label,
+    cost: getPlaymatCost(p.id),
+  }));
+}
+
 // setup-animation.js/card-back-skins.js等と同じ「main.jsから自分のrenderを注入してもらう」
 // 循環import回避パターン。ピッカーで選び直した直後に盤面へ即反映するためだけに使う。
 let helpers = null; // { render }
@@ -83,7 +105,24 @@ export function openPlaymatPicker() {
     img.src = option.path;
     img.alt = option.label;
     swatch.appendChild(img);
+    // ユーザー要望「プレイマットを購入できるようにする」への対応。未所持の有料マットは
+    // 選べないようにし、代わりにショップを開く。
+    const itemKey = `playmat:${option.id}`;
+    const cost = getPlaymatCost(option.id);
+    const locked = cost > 0 && !isItemUnlocked(itemKey);
+    if (locked) {
+      swatch.classList.add("is-locked");
+      const lockBadge = document.createElement("span");
+      lockBadge.className = "piece-skin-swatch-lock";
+      lockBadge.textContent = `🔒${cost}`;
+      swatch.appendChild(lockBadge);
+    }
     swatch.addEventListener("click", () => {
+      if (locked) {
+        close();
+        openShop("playmat");
+        return;
+      }
       setSelectedPlaymatId(option.id);
       // ユーザー要望「プレイマット変更をアカウントに紐づけてほしい」。未ログインの間は
       // saveMyPreference側が何もしないので、ローカルでの見た目切り替えは従来通り機能する。

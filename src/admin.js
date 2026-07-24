@@ -549,6 +549,8 @@ const GROUPS = [
       { key: "--icon-pos-options-y", label: "オプション 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-help-x", label: "ヘルプ 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-help-y", label: "ヘルプ 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--currency-display-pos-x", label: "通貨表示 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--currency-display-pos-y", label: "通貨表示 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-piece-hide-x", label: "駒消し 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-piece-hide-y", label: "駒消し 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-card-hide-x", label: "カード消し 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
