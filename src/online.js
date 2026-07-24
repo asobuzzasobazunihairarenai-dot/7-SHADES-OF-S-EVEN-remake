@@ -242,9 +242,18 @@ if (client) {
     if (!wasLoggedIn && cachedUser) {
       loadMyPreferences().catch((err) => console.error("loadMyPreferences failed", err));
       refreshMyUnlocks().catch((err) => console.error("refreshMyUnlocks failed", err));
+      touchPresence().catch((err) => console.error("touchPresence failed", err));
     }
     for (const fn of authChangeListeners) fn(cachedUser);
   });
+  // ユーザー要望「サイトの利用状況（ログイン数・訪問数・誰がログイン中か）がわかるように
+  // したい」への対応。ページを開いた瞬間に1件だけ訪問ログを記録し（匿名でも記録される。
+  // ログイン中ならuser_idも一緒に残す）、ログイン中は数分おきに「まだ見ている」ことを
+  // 記録し直す（so7_touch_presence、管理者モードの「ログイン中」判定に使う）。
+  recordVisit().catch((err) => console.error("recordVisit failed", err));
+  setInterval(() => {
+    if (cachedUser) touchPresence().catch((err) => console.error("touchPresence failed", err));
+  }, 120000);
 }
 
 // --- 基本設定・ショートカットのアカウント永続化 --------------------------------------
@@ -417,6 +426,52 @@ export async function claimDailyLoginBonus() {
     return 0;
   }
   return data ?? 0;
+}
+
+// --- 管理者専用機能（ユーザー要望「管理者モードで自分の通貨を自由に増やせるように」
+// 「サイトの利用状況（ログイン数・訪問数・誰がログイン中か）を見られるように」への対応）。
+// isAdminUser()はUI表示の出し分け（管理者モードにこの項目を出すかどうか）だけに使う
+// クライアント側の簡易チェックで、本当のアクセス制限ではない（メールアドレスは誰でも
+// 閲覧可能なJSに埋め込まれるため）。実際の制限はsupabase_setup_so7.sql側の各関数が
+// auth.jwt()->>'email'をサーバー内部で直接チェックする形で行っており、他のユーザーが
+// このRPCを直接叩いても'not_authorized'で拒否される。 -----------------------------------
+const ADMIN_EMAIL = "asobuzz.asobazunihairarenai@gmail.com";
+
+export function isAdminUser() {
+  return !!cachedUser && cachedUser.email === ADMIN_EMAIL;
+}
+
+// 管理者モードの「自分の通貨を自由に増やせる」ボタンから呼ぶ。戻り値は更新後の残高。
+export async function adminGrantCurrency(amount) {
+  const { data, error } = await client.rpc("so7_admin_grant_currency", { p_amount: amount });
+  if (error) throw error;
+  return data;
+}
+
+// 管理者モードの「利用状況」表示から呼ぶ。{totalUsers, totalVisits, visitsToday,
+// onlineUsers:[{displayName, lastSeenAt}]}を返す（supabase_setup_so7.sqlのso7_get_admin_stats
+// 参照）。
+export async function getAdminStats() {
+  const { data, error } = await client.rpc("so7_get_admin_stats");
+  if (error) throw error;
+  return data;
+}
+
+// ページを開くたびに（ログイン有無を問わず）1件だけ訪問ログを記録する。生ログはRLSで
+// 誰も直接SELECTできない（so7_get_admin_stats経由の集計値だけが管理者に見える）ため、
+// 気軽に毎回呼んでよい。
+export async function recordVisit() {
+  if (!client) return;
+  const { error } = await client.from("so7_visit_log").insert({ user_id: cachedUser?.id ?? null });
+  if (error) console.error("recordVisit failed (未実行のsupabase_setup_so7.sql追加分がある可能性)", error);
+}
+
+// ログイン中、「まだこのアカウントで見ている」ことを定期的に記録し直す
+// （so7_user_profiles.last_seen_at、管理者モードの「ログイン中」判定の基準）。
+export async function touchPresence() {
+  if (!client || !cachedUser) return;
+  const { error } = await client.rpc("so7_touch_presence");
+  if (error) console.error("touchPresence failed (未実行のsupabase_setup_so7.sql追加分がある可能性)", error);
 }
 
 // 所持済みの駒スキン/カード裏面/プレイマット/背景等のitem_key（例:

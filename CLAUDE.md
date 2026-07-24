@@ -7045,4 +7045,54 @@ https://asobuzzasobazunihairarenai-dot.github.io/7-SHADES-OF-S-EVEN-remake/
   読み込まれること（`naturalWidth`確認）、駒スキンの項目名がフォルダ名（基本/
   キュート等）で表示されることを確認済み。
 
+### 2026-07-25（続き4）：管理者モード限定の通貨付与・サイト利用状況の集計機能
+
+- **ユーザー要望「管理者モードで自分の通貨を自由に増やせるように」「サイトの利用状況
+  （ログイン数・訪問数・誰がログイン中か）を見られるようにしたい」**: 管理者モードに
+  誰でも開ける既存の項目とは別に「🔐 管理者専用」という新カテゴリを追加し、
+  ユーザー確認済みの管理者アカウント（`asobuzz.asobazunihairarenai@gmail.com`）で
+  ログインしている間だけ操作できる2つの機能を実装した。
+  - **サーバー側で本当に制限する**（クライアント側のUI表示制御だけに頼らない）:
+    `supabase_setup_so7.sql`に新設した`so7_admin_grant_currency(p_amount)`・
+    `so7_get_admin_stats()`はどちらも`SECURITY DEFINER`関数内部で
+    `auth.jwt() ->> 'email'`を直接チェックし、一致しなければ`not_authorized`例外を
+    投げて拒否する。他のユーザーがこれらのRPCを直接叩いても弾かれる。
+    `online.js`の`isAdminUser()`（`cachedUser.email === ADMIN_EMAIL`の単純比較）は
+    あくまで管理者モードにこの項目を出すかどうかの表示制御用。
+  - **自分の通貨を自由に増やす**: `so7_admin_grant_currency`が呼び出し元
+    （`auth.uid()`、上記のメール一致チェック済み）の`so7_user_currency.balance`を
+    指定額だけ増やして新しい残高を返す。管理者モードの数値入力＋「🪙 自分に付与」
+    ボタンから呼ぶ。
+  - **サイトの利用状況**: 新設`so7_visit_log`（挿入専用、RLSはINSERTポリシーのみで
+    SELECTは誰にも許可しない＝`so7_game_passwords`と同じ「原則拒否」）にページを
+    開くたびの訪問を記録する（`online.js`の`recordVisit()`、ログイン有無を問わず
+    毎回呼ぶ）。`so7_user_profiles`に追加した`last_seen_at`列（ログイン直後・
+    2分おきに`so7_touch_presence()`で更新、`online.js`の`touchPresence()`）で
+    「誰が直近5分以内にログイン中か」を判定する。`so7_get_admin_stats()`が
+    総ユーザー数・総訪問数・本日の訪問数・ログイン中ユーザーの表示名一覧をまとめて
+    返し、管理者モードの「📊 利用状況を取得」ボタンで表示する。
+  - **ハマりどころ（実装中に発見・修正）**: 管理者パネルのDOMは`initAdminMode()`が
+    起動時に一度だけ構築するため、「🔐 管理者専用」セクションの中身を最初にビルドする
+    時点ではまだ誰もログインしていない（`registerAdminAuthHelpers`自体は
+    `initAdminMode()`より前に呼ぶよう修正済みだが、それでも実際のログインは
+    ページ読み込み後にユーザーが行う非同期な操作のため）。中身を静的に1回だけ
+    作ってしまうと、後からログインしても表示が「ログインしてください」のまま
+    永久に固まるバグになる。`admin.js`に`refreshAdminOnlySection()`を新設し、
+    `main.js`が`onAuthChange(refreshAdminOnlySection)`でログイン/ログアウトの
+    たびにこのセクションだけ作り直すようにして解決した（ブラウザで、未ログイン→
+    ログイン相当のヘルパー差し替えで実際に表示が切り替わることを確認済み）。
+  - `admin.js`は`online.js`を直接importできない（online.jsが既にadmin.jsをimport
+    しているため循環importになる）ので、他の箇所と同じ「main.jsから実際の関数を
+    注入してもらう」パターン（`registerAdminAuthHelpers`）で回避した。
+  - **要注意（ユーザーに要連絡）**: `supabase_setup_so7.sql`の今回の追加分
+    （`so7_visit_log`テーブル、`so7_user_profiles.last_seen_at`列、
+    `so7_admin_grant_currency`/`so7_touch_presence`/`so7_get_admin_stats`の3関数、
+    既存`so7_award_match_currency`の引数追加）も、他のSQL変更と同じく
+    **Supabase SQL Editorでの手動実行が必要**。
+  - ブラウザで、未ログイン時に「🔐 管理者専用」セクションが権限メッセージだけを
+    表示すること、管理者ヘルパーを模擬的に有効化すると「自分に付与」「利用状況を
+    取得」の両ボタンが正しく動作すること（残高加算・集計値表示）を確認済み
+    （実際のSupabaseバックエンドが無いテスト環境のため、本物のログイン経由の
+    確認はできていない）。
+
 

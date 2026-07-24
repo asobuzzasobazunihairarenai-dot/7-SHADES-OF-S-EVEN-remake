@@ -35,6 +35,102 @@ export function registerRankRingPreviewHelper(fn) {
   rankRingPreviewFn = fn;
 }
 
+// online.jsは既にadmin.js（getMaxHourglassStock等）をimportしているため、上と同じ理由で
+// ここからonline.jsを直接importすると循環importになる。同じ注入パターンで回避する。
+// ユーザー要望「管理者モードで自分の通貨を自由に増やせるように」「サイトの利用状況
+// （ログイン数・訪問数・誰がログイン中か）を見られるように」への対応。
+let adminAuthHelpers = null; // { isAdminUser, adminGrantCurrency, getAdminStats }
+export function registerAdminAuthHelpers(helpers) {
+  adminAuthHelpers = helpers;
+}
+
+// 「🔐 管理者専用」セクションのcontent要素への参照。initAdminMode()はパネルのDOMを
+// 起動時に一度だけ構築するため、ログイン状態が後から変わった時にこのセクションだけ
+// 作り直せるようにしておく必要がある（main.jsがonAuthChange経由でrefreshAdminOnlySection()
+// を呼ぶ、main.jsのregisterAdminAuthHelpers呼び出し箇所付近参照）。
+let adminOnlySectionContentEl = null;
+
+export function refreshAdminOnlySection() {
+  if (adminOnlySectionContentEl) renderAdminOnlySectionContent(adminOnlySectionContentEl);
+}
+
+function renderAdminOnlySectionContent(content) {
+  content.innerHTML = "";
+  if (!adminAuthHelpers || !adminAuthHelpers.isAdminUser()) {
+    const note = document.createElement("div");
+    note.style.cssText = "font-size: 0.8rem; color: #94a3b8;";
+    note.textContent = "この項目は開発者のGoogleアカウントでログインしている間だけ操作できます。";
+    content.appendChild(note);
+    return;
+  }
+
+  const grantRow = document.createElement("div");
+  grantRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.8rem;";
+  const grantInput = document.createElement("input");
+  grantInput.type = "number";
+  grantInput.value = "1000";
+  grantInput.min = "1";
+  grantInput.style.cssText =
+    "width: 5.5rem; background: #0f1520; color: #f1f5f9; border: 1px solid rgba(148,163,184,0.4); border-radius: 0.25rem; padding: 0.15rem 0.3rem;";
+  const grantBtn = document.createElement("button");
+  grantBtn.type = "button";
+  grantBtn.textContent = "🪙 自分に付与";
+  grantBtn.style.cssText =
+    "padding: 0.3rem 0.7rem; background: linear-gradient(160deg, #f59e0b, #b45309); color: #fff; border: none; border-radius: 0.3rem; cursor: pointer;";
+  const grantStatus = document.createElement("span");
+  grantStatus.style.cssText = "font-size: 0.8rem; color: #86efac;";
+  grantBtn.addEventListener("click", async () => {
+    const amount = Number(grantInput.value);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    grantBtn.disabled = true;
+    grantStatus.textContent = "処理中...";
+    grantStatus.style.color = "#86efac";
+    try {
+      const newBalance = await adminAuthHelpers.adminGrantCurrency(amount);
+      grantStatus.textContent = `付与しました（残高: ${newBalance}）`;
+    } catch (err) {
+      grantStatus.textContent = `失敗: ${err?.message ?? err}`;
+      grantStatus.style.color = "#fca5a5";
+    } finally {
+      grantBtn.disabled = false;
+    }
+  });
+  grantRow.appendChild(grantInput);
+  grantRow.appendChild(grantBtn);
+  grantRow.appendChild(grantStatus);
+  content.appendChild(grantRow);
+
+  const statsBtn = document.createElement("button");
+  statsBtn.type = "button";
+  statsBtn.textContent = "📊 利用状況を取得";
+  statsBtn.style.cssText =
+    "padding: 0.3rem 0.7rem; background: rgba(56, 189, 248, 0.25); color: #e2e8f0; border: 1px solid rgba(148,163,184,0.4); border-radius: 0.3rem; cursor: pointer; margin-bottom: 0.5rem;";
+  const statsResult = document.createElement("div");
+  statsResult.style.cssText = "font-size: 0.8rem; line-height: 1.6; white-space: pre-wrap;";
+  statsBtn.addEventListener("click", async () => {
+    statsBtn.disabled = true;
+    statsResult.textContent = "取得中...";
+    try {
+      const stats = await adminAuthHelpers.getAdminStats();
+      const onlineList = (stats.onlineUsers ?? [])
+        .map((u) => `　・${u.displayName}（${new Date(u.lastSeenAt).toLocaleString("ja-JP")}）`)
+        .join("\n");
+      statsResult.textContent =
+        `登録ユーザー数: ${stats.totalUsers}\n` +
+        `総訪問数: ${stats.totalVisits}\n` +
+        `本日の訪問数: ${stats.visitsToday}\n` +
+        `ログイン中（直近5分）: ${stats.onlineUsers?.length ?? 0}人` +
+        (onlineList ? `\n${onlineList}` : "");
+    } catch (err) {
+      statsResult.textContent = `取得に失敗しました: ${err?.message ?? err}`;
+    } finally {
+      statsBtn.disabled = false;
+    }
+  });
+  content.appendChild(statsBtn);
+  content.appendChild(statsResult);
+}
+
 // 大項目（カテゴリ）。項目が増えて縦に長くなりすぎたため、各グループ/トグルセクションを
 // さらにこの単位でまとめる。GROUPS各要素・TOGGLE_SECTIONS各要素の`category`フィールドで
 // どのカテゴリに属するか指定する。
@@ -53,6 +149,7 @@ const CATEGORIES = [
   { key: "position-ui", label: "📐 位置合わせ：アイコン・案内・タイマー" },
   { key: "effect", label: "✨ 演出" },
   { key: "behavior", label: "⚙ セットアップ・挙動" },
+  { key: "admin-only", label: "🔐 管理者専用" },
 ];
 
 // scaleは基準サイズ（プレイマットなら盤面、各山ならカード1枚分）を100%とした拡大率。
@@ -1048,6 +1145,23 @@ function buildNumberRow(label, value, { min, max, step = 1, unit = "" }, onChang
 // カテゴリ分けの対象にするためこの配列にまとめておく。buildPanel()がcategoryごとに
 // GROUPSと合わせて振り分ける。
 const TOGGLE_SECTIONS = [
+  {
+    // ユーザー要望「管理者モードで自分の通貨を自由に増やせるように」「サイトの利用状況
+    // （ログイン数・訪問数・誰がログイン中か）を見られるように」への対応。
+    // adminAuthHelpers.isAdminUser()は表示の出し分けだけ（本当の制限はサーバー側の
+    // 各RPC自身がauth.jwt()->>'email'をチェックする、online.js/supabase_setup_so7.sql参照）。
+    title: "自分の通貨を増やす／サイトの利用状況",
+    category: "admin-only",
+    // ユーザーがまだログインしていない状態でこのbuildContentが呼ばれる（initAdminMode()は
+    // パネルのDOMを起動時に一度だけ構築するため）ため、静的な中身のままだとログイン後も
+    // 「開発者アカウントでログインしてください」の表示に固まってしまう。この関数自身を
+    // 呼び直せば中身を作り直せるよう、main.jsからonAuthChange経由でrefreshAdminOnlySection()
+    // を呼んでもらう（下のexport参照）。
+    buildContent: (content) => {
+      adminOnlySectionContentEl = content;
+      renderAdminOnlySectionContent(content);
+    },
+  },
   {
     title: "セットアップウィザード",
     category: "behavior",

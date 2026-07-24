@@ -10,6 +10,8 @@ import {
   registerStartPlayerPreviewHelper,
   registerAuraPreviewHelper,
   registerRankRingPreviewHelper,
+  registerAdminAuthHelpers,
+  refreshAdminOnlySection,
 } from "./admin.js";
 import { initDeckViewer, openDeckViewer } from "./deck-viewer.js";
 import { initStatsPlayerLinkModal } from "./stats-player-link.js";
@@ -119,6 +121,9 @@ import {
   isItemUnlocked,
   openShop,
   claimDailyLoginBonus,
+  isAdminUser,
+  adminGrantCurrency,
+  getAdminStats,
 } from "./online.js";
 import { fetchStatsProfile, getTierInfo } from "./stats-profile.js";
 import { setRankRingOrbitContainer, startRankRingOrbit } from "./rank-ring-orbit.js";
@@ -4524,6 +4529,11 @@ initHandPeek();
 initContextMenuHandlers();
 initButtonClickSound();
 initCameraControls();
+// initAdminMode()は管理者パネルのDOM（各TOGGLE_SECTIONSのbuildContent含む）をここで
+// 一度だけ構築するため、「🔐 管理者専用」セクションが参照するadminAuthHelpersは
+// この呼び出しより前に登録し終えている必要がある（後で登録すると、パネルが既に
+// 「読み込み中...」の内容のまま固まってしまう）。
+registerAdminAuthHelpers({ isAdminUser, adminGrantCurrency, getAdminStats });
 initAdminMode();
 initDeckViewer();
 initStatsPlayerLinkModal();
@@ -4779,6 +4789,12 @@ refreshSelfStatusRankRing();
 // 購入直後もそれぞれの呼び出し元から直接refreshCurrencyDisplay()を呼ぶ。
 onAuthChange(refreshCurrencyDisplay);
 refreshCurrencyDisplay();
+
+// ユーザー要望「管理者モードで自分の通貨を自由に増やせるように」「サイトの利用状況を
+// 見られるように」。管理者パネルの「🔐 管理者専用」セクションはinitAdminMode()時点
+// （まだ未ログイン）で一度だけ構築されるため、ログイン/ログアウトの度に中身を
+// 作り直してもらう必要がある（admin.jsのrenderAdminOnlySectionContent参照）。
+onAuthChange(refreshAdminOnlySection);
 
 // ユーザー確認済み「ログインボーナス（日次）」。ログインした瞬間（未ログイン→ログイン済み
 // への変化）だけ、1日1回のログインボーナスを受け取りに行く（online.jsのclaimDailyLoginBonus

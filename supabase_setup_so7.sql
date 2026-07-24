@@ -840,3 +840,100 @@ end;
 $$;
 revoke execute on function so7_purchase_item(text, int) from public;
 grant execute on function so7_purchase_item(text, int) to authenticated;
+
+-- ユーザー要望「管理者モードで自分の通貨を自由に増やせるように」（テスト用）。
+-- 誰でも実行できてしまっては通貨の不正取得になるため、開発者本人のGoogleアカウント
+-- （auth.jwt()->>'email'）だけに制限する。クライアント側(online.jsのisAdminUser)の
+-- チェックはUI表示の出し分けだけで、本当の制限はここ（サーバー側）で行っている——
+-- 他のユーザーがこの関数を直接呼んでも'not_authorized'で拒否される。
+-- ★重要: このメールアドレスが実際の管理者アカウントと一致しているか確認すること。
+create or replace function so7_admin_grant_currency(p_amount int)
+returns int
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_email text := auth.jwt() ->> 'email';
+  v_balance int;
+begin
+  if v_uid is null or v_email is distinct from 'asobuzz.asobazunihairarenai@gmail.com' then
+    raise exception 'not_authorized';
+  end if;
+  insert into so7_user_currency (user_id, balance, updated_at)
+  values (v_uid, p_amount, now())
+  on conflict (user_id) do update
+    set balance = so7_user_currency.balance + p_amount, updated_at = now()
+  returning balance into v_balance;
+  return v_balance;
+end;
+$$;
+revoke execute on function so7_admin_grant_currency(int) from public;
+grant execute on function so7_admin_grant_currency(int) to authenticated;
+
+-- ユーザー要望「サイトの利用状況（ログイン数・訪問数・誰がログイン中か）がわかるように
+-- したい」。個々の訪問記録・最終ログイン日時は誰でも見られる情報にしたくないため、
+-- 生テーブルへのSELECTは一切許可しない（RLS有効化のみ、ポリシー無し＝so7_game_passwordsと
+-- 同じ「原則拒否」）。開発者本人だけが呼べるso7_get_admin_stats()経由の集計値だけを返す。
+create table if not exists so7_visit_log (
+  id bigint generated always as identity primary key,
+  created_at timestamptz not null default now(),
+  user_id uuid references auth.users(id) on delete set null
+);
+alter table so7_visit_log enable row level security;
+drop policy if exists "so7_visit_log_insert" on so7_visit_log;
+create policy "so7_visit_log_insert" on so7_visit_log for insert to anon, authenticated
+  with check (true);
+
+-- 「今ログイン中かどうか」の判定用に、最終アクセス日時をso7_user_profilesへ追加する
+-- （online.jsのtouchPresence、ログイン直後・数分おきに呼ばれる）。
+alter table so7_user_profiles add column if not exists last_seen_at timestamptz;
+
+create or replace function so7_touch_presence()
+returns void
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  update so7_user_profiles set last_seen_at = now() where user_id = auth.uid();
+end;
+$$;
+revoke execute on function so7_touch_presence() from public;
+grant execute on function so7_touch_presence() to authenticated;
+
+-- 管理者専用（開発者のGoogleアカウントのみ）。総ユーザー数・総訪問数・本日の訪問数・
+-- 直近5分以内にlast_seen_atが更新された「ログイン中」ユーザーの表示名一覧をまとめて返す。
+-- ★重要: このメールアドレスが実際の管理者アカウントと一致しているか確認すること。
+create or replace function so7_get_admin_stats()
+returns json
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_email text := auth.jwt() ->> 'email';
+  v_result json;
+begin
+  if v_email is distinct from 'asobuzz.asobazunihairarenai@gmail.com' then
+    raise exception 'not_authorized';
+  end if;
+  select json_build_object(
+    'totalUsers', (select count(*) from so7_user_profiles),
+    'totalVisits', (select count(*) from so7_visit_log),
+    'visitsToday', (select count(*) from so7_visit_log where created_at >= current_date),
+    'onlineUsers', (
+      select coalesce(json_agg(json_build_object(
+        'displayName', coalesce(display_name, '(未設定)'),
+        'lastSeenAt', last_seen_at
+      ) order by last_seen_at desc), '[]'::json)
+      from so7_user_profiles
+      where last_seen_at >= now() - interval '5 minutes'
+    )
+  ) into v_result;
+  return v_result;
+end;
+$$;
+revoke execute on function so7_get_admin_stats() from public;
+grant execute on function so7_get_admin_stats() to authenticated;
