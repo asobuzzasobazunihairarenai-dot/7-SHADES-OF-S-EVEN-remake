@@ -5564,6 +5564,77 @@ body.reduce-glow .cell.tutorial-move-range {
 #tutorial-callout.is-wide {
   width: min(28rem, 92vw);
 }
+
+/* ユーザー要望「ダミーの手札を一時的に持たせる」への対応。本物の.hand-fanへ一時的に
+   追加する見た目だけのカード（tutorial.jsのapplyDummyHand参照）。本物のhand-cardと
+   同じ見た目にしつつ、操作対象にはしない。 */
+.tutorial-dummy-hand-card {
+  pointer-events: none;
+}
+
+/* ユーザー要望「駒を1マス前に、隣に相手の駒を、もう一方のマスのカードを無くして
+   説明しやすくできますか？必要があれば仮想盤面としてもいいです」への対応。本物の
+   盤面には一切触れない、説明パネル内だけの簡易な仮想盤面（tutorial.jsの
+   buildMoveDemoDiagram）。十字型に5マスだけ配置する。 */
+.tutorial-move-diagram {
+  display: grid;
+  grid-template-columns: repeat(3, 3.4rem);
+  grid-template-rows: repeat(3, 3.4rem);
+  grid-template-areas:
+    ".    up    ."
+    "left center right"
+    ".    down  .";
+  gap: 0.3rem;
+  justify-content: center;
+  margin: 0.5rem auto 0.6rem;
+}
+.tutorial-move-diagram-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 0.3rem;
+}
+.tutorial-move-diagram-cell.pos-up { grid-area: up; }
+.tutorial-move-diagram-cell.pos-left { grid-area: left; }
+.tutorial-move-diagram-cell.pos-center { grid-area: center; }
+.tutorial-move-diagram-cell.pos-right { grid-area: right; }
+.tutorial-move-diagram-cell.pos-down { grid-area: down; }
+.tutorial-move-diagram-cell.is-target {
+  outline: 3px solid rgba(250, 204, 21, 0.9);
+  outline-offset: -3px;
+  animation: tutorial-move-range-pulse 1.4s ease-in-out infinite;
+}
+.tutorial-move-diagram-card {
+  width: 80%;
+  height: 80%;
+  background-size: cover;
+  background-position: center;
+  border-radius: 0.2rem;
+}
+.tutorial-move-diagram-piece {
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 0.3rem;
+  background: var(--diagram-piece-color, #94a3b8);
+  box-shadow: 0 0 0.4rem rgba(0, 0, 0, 0.5);
+}
+.tutorial-move-diagram-label {
+  position: absolute;
+  bottom: 0.1rem;
+  font-size: 0.6rem;
+  color: #cbd5e1;
+  width: 100%;
+  text-align: center;
+}
+.tutorial-move-diagram-empty {
+  width: 70%;
+  height: 70%;
+  border: 1px dashed rgba(148, 163, 184, 0.4);
+  border-radius: 0.2rem;
+}
 .tutorial-callout-footer {
   font-size: 0.72rem;
   color: #94a3b8;

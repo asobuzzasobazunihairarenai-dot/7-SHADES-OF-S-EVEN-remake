@@ -24,6 +24,7 @@ import { PHASES } from "./phase-guide.js";
 import { GATE_POSITIONS, SEAT_TO_SIDE } from "./board-layout.js";
 import { getSelfSeat } from "./online.js";
 import { getCardDefinition, getCardImagePath } from "./cards-data.js";
+import { backImagePath, getCardBackSetIndex } from "./card-back-skins.js";
 
 // ハマりどころ（ユーザー報告のスクリーンショットで発覚、実際の環境依存の不具合）:
 // このモジュールの要素（#tutorial-overlay等）はdocument.body直下に置いているが、
@@ -113,11 +114,25 @@ function getOpponentGateCell() {
 // ghost-flight.js/setup-animation.js相当の使い捨てアニメーションを新たに組む必要があり
 // 実装コストとstate.jsの本物の状態を一切変えずに済ませる慎重さの両面でリスクが大きい
 // ため、今回はこの「範囲だけをハイライトする」軽量版にとどめた。
-function getSelfPieceAdjacentCells() {
+function getSelfPieceCell() {
   const selfSeat = getSelfSeat();
   const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === selfSeat && t.location.zone === "cell");
-  if (!piece) return [];
+  if (!piece) return null;
   const { row, col } = piece.location;
+  return document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+}
+
+// ユーザー要望「『ムーブフェイズでの移動』『接触』『到達効果』の説明の時は駒に
+// フォーカスできますか」への対応。自分の駒の現在地のマスから実際の.piece要素を探す。
+function getSelfPieceEl() {
+  return getSelfPieceCell()?.querySelector(".piece") ?? null;
+}
+
+function getSelfPieceAdjacentCells() {
+  const cell = getSelfPieceCell();
+  if (!cell) return [];
+  const row = Number(cell.dataset.row);
+  const col = Number(cell.dataset.col);
   const deltas = [
     [-1, 0],
     [1, 0],
@@ -172,6 +187,114 @@ function buildCardExampleEl() {
   return wrap;
 }
 
+// ユーザー要望「実際ダミーの手札をチュートリアルの間一時的に持たせることはできますか」
+// への対応。実際のゲーム状態（state.jsのtokens）は一切変えず、見た目だけのカードを
+// 本物の.hand-fanへ一時的に追加する（pointer-events:noneで操作・ドラッグ判定には
+// 一切関わらせない）。.hand-fanは#game-tableの中身でrenderのたびに作り直されるため、
+// move-range/gateハイライトと同じく、この関数もステップ表示のたびに呼び直す。
+const DUMMY_HAND_CARD_IDS = ["red-jump-pad", "orange-harvest-sow", "yellow-gamble"];
+let dummyHandCardEls = [];
+function clearDummyHand() {
+  for (const el of dummyHandCardEls) el.remove();
+  dummyHandCardEls = [];
+}
+function applyDummyHand() {
+  clearDummyHand();
+  const fan = document.querySelector(".zone-bottom .hand-fan");
+  if (!fan) return;
+  const angles = [-12, 0, 12];
+  const spacings = [-44, 0, 44];
+  DUMMY_HAND_CARD_IDS.forEach((cardId, i) => {
+    const cardEl = document.createElement("div");
+    cardEl.className = "hand-card is-self tutorial-dummy-hand-card";
+    cardEl.style.backgroundImage = `url("${getCardImagePath(cardId)}")`;
+    cardEl.style.transform = `translateX(${spacings[i]}px) rotate(${angles[i]}deg)`;
+    fan.appendChild(cardEl);
+    dummyHandCardEls.push(cardEl);
+  });
+}
+
+// ユーザー要望「『ムーブフェイズでの移動』『接触』『到達効果』の説明の時は駒に
+// フォーカスできますか？駒を1マス前に、隣に相手の駒を、もう一方のマスのカードを
+// 無くして説明しやすくできますか？必要があれば仮想盤面としてもいいです」への対応。
+// 本物の盤面・駒・カードを実際に動かす方式は採らなかった——もしオンライン対戦中に
+// チュートリアルを開いた場合、駒を動かす・カードを消す操作が本物の対局操作として
+// 相手に配信され、到達効果・勝利判定等の本物のルール処理まで誤って動いてしまう
+// リスクがあるため。代わりに、本物の盤面には一切触れない「仮想盤面」を説明パネル内に
+// 描く。中央に自分の駒、上下に「移動できるマス（カードあり）」、左に「接触の対象＝
+// 相手の駒」、右に「移動できないマス（カード無し）」を配置した簡易図。
+function getSelfPieceColorVar() {
+  const selfSeat = getSelfSeat();
+  const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === selfSeat);
+  return `var(--color-${piece?.color ?? "red"})`;
+}
+
+function buildMoveDemoDiagram(highlightPositions = []) {
+  const grid = document.createElement("div");
+  grid.className = "tutorial-move-diagram";
+
+  const backPath = backImagePath("normal", getCardBackSetIndex());
+  const selfColorVar = getSelfPieceColorVar();
+
+  const makeCell = (pos, build) => {
+    const cell = document.createElement("div");
+    cell.className = `tutorial-move-diagram-cell pos-${pos}`;
+    if (highlightPositions.includes(pos)) cell.classList.add("is-target");
+    build?.(cell);
+    return cell;
+  };
+
+  grid.appendChild(
+    makeCell("up", (cell) => {
+      const card = document.createElement("div");
+      card.className = "tutorial-move-diagram-card";
+      card.style.backgroundImage = `url("${backPath}")`;
+      cell.appendChild(card);
+    })
+  );
+  grid.appendChild(
+    makeCell("left", (cell) => {
+      const piece = document.createElement("div");
+      piece.className = "tutorial-move-diagram-piece";
+      piece.style.setProperty("--diagram-piece-color", "#94a3b8");
+      cell.appendChild(piece);
+      const label = document.createElement("div");
+      label.className = "tutorial-move-diagram-label";
+      label.textContent = "相手";
+      cell.appendChild(label);
+    })
+  );
+  grid.appendChild(
+    makeCell("center", (cell) => {
+      const piece = document.createElement("div");
+      piece.className = "tutorial-move-diagram-piece";
+      piece.style.setProperty("--diagram-piece-color", selfColorVar);
+      cell.appendChild(piece);
+      const label = document.createElement("div");
+      label.className = "tutorial-move-diagram-label";
+      label.textContent = "自分";
+      cell.appendChild(label);
+    })
+  );
+  grid.appendChild(
+    makeCell("right", (cell) => {
+      const empty = document.createElement("div");
+      empty.className = "tutorial-move-diagram-empty";
+      cell.appendChild(empty);
+    })
+  );
+  grid.appendChild(
+    makeCell("down", (cell) => {
+      const card = document.createElement("div");
+      card.className = "tutorial-move-diagram-card";
+      card.style.backgroundImage = `url("${backPath}")`;
+      cell.appendChild(card);
+    })
+  );
+
+  return grid;
+}
+
 const STEPS = [
   {
     target: () => null,
@@ -190,6 +313,7 @@ const STEPS = [
       "1ターンの中で「ロック」「ハンド」「ムーブ」の3つのフェイズを順番に行います。",
       "※このチュートリアルでは説明のために手札を持たせていますが、実際の最初のターンでは手札は0枚から始まります。",
     ],
+    showDummyHand: true,
   },
   phaseStep(PHASES[0]),
   phaseStep(PHASES[1]),
@@ -230,33 +354,40 @@ const STEPS = [
     // モーダルを1つ立ち上げそこで説明するのがよさそうです」への対応。以前は「到達効果」
     // ステップに間借りしていたため、ハイライトの意図が伝わりにくかった。移動そのものの
     // 説明と、到達効果の説明を別ステップに分けた。
-    target: () => document.getElementById("phase-guide-move-button"),
+    // ユーザー要望「駒にフォーカスできますか？」への対応で、対象を案内板のボタンから
+    // 実際の自分の駒（getSelfPieceEl）に変更した。あわせて「駒を1マス前に、隣に相手の
+    // 駒を、もう一方のマスのカードを無くして説明しやすく」への対応として、本物の盤面は
+    // 一切動かさず、説明パネル内の仮想盤面（buildMoveDemoDiagram）でその配置を再現する。
+    target: () => getSelfPieceEl(),
     title: "ムーブフェイズでの移動",
     body: [
       "自分の隣（前後左右の4マス）へ移動するか、隣にいる相手の駒に接触するか、どちらか一方を必ず行います。",
       "黄色い枠で囲んだマスが、あなたの駒が今動ける方向の目安です（駒がいるマスとカードの無いマスへは移動できません）。",
     ],
     highlightMoveRange: true,
+    renderExtra: (container) => container.appendChild(buildMoveDemoDiagram(["up", "down"])),
   },
   {
     // ユーザー要望「この後に接触についてもモーダルで説明を」への対応。移動と同じ
     // ムーブフェイズの選択肢だが、効果が全く違う（カードではなく相手プレイヤーが
     // 対象）ため独立したステップにした。
-    target: () => document.getElementById("phase-guide-move-button"),
+    target: () => getSelfPieceEl(),
     title: "接触",
     body: [
       "隣にいる相手の駒を選んで「接触」すると、その相手の手札から無作為に1枚もらえます。",
       "接触された相手は、自分のゲートへ強制的に移動させられます（接触した自分自身は移動しません）。",
     ],
+    renderExtra: (container) => container.appendChild(buildMoveDemoDiagram(["left"])),
   },
   {
-    target: () => document.getElementById("phase-guide-move-button"),
+    target: () => getSelfPieceEl(),
     title: "到達効果",
     icon: "assets/icons/arrival-effect.png",
     body: [
       "移動先の表向きのカードに駒を乗せると「到達」となり、到達効果が自動的に発動します。発動し終わったら、そのカードは原則そのまま手札に加わります。",
       "カードには、乗った瞬間に発動する「到達効果」と、手札から捨てて発動する「手札効果」の2種類が書かれていることがあります。",
     ],
+    renderExtra: (container) => container.appendChild(buildMoveDemoDiagram(["up"])),
   },
   {
     target: () => document.querySelector(".zone-bottom .hand-area"),
@@ -458,6 +589,12 @@ function positionForCurrentStep() {
   } else {
     clearMoveRangeHighlight();
   }
+  // ダミーの手札も同じ理由（.hand-fanがrenderのたびに作り直される）で毎回作り直す。
+  if (step.showDummyHand) {
+    applyDummyHand();
+  } else {
+    clearDummyHand();
+  }
 }
 
 function renderStep() {
@@ -533,6 +670,7 @@ function finishTutorial() {
   isActive = false;
   overlayEl?.classList.remove("is-visible");
   clearMoveRangeHighlight();
+  clearDummyHand();
   if (unsubscribeStateWatch) {
     unsubscribeStateWatch();
     unsubscribeStateWatch = null;
