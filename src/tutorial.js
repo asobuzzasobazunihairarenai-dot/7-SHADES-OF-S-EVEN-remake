@@ -22,6 +22,45 @@
 import { getState, subscribe } from "./state.js";
 import { PHASES } from "./phase-guide.js";
 
+// ハマりどころ（ユーザー報告のスクリーンショットで発覚、実際の環境依存の不具合）:
+// このモジュールの要素（#tutorial-overlay等）はdocument.body直下に置いているが、
+// main.jsの「ステージ方式」（STAGE_WIDTH×STAGE_HEIGHTの仮想解像度でbody自体に
+// transform: translate()+scale()をかけ、実際のウィンドウサイズに収める仕組み）により、
+// body配下のposition:fixed要素は「実画面」ではなく「このステージ」を基準にfixedに
+// なる。target.getBoundingClientRect()自体は常に実画面座標を返す（main.jsの
+// stageClientToLocalのコメント参照）ため、これをそのままstyle.left/top/width/height
+// に使うと、ウィンドウサイズがSTAGE_WIDTH×STAGE_HEIGHT(1600×900)と一致しない限り
+// （＝ほぼ常に）スケール分だけズレる。1280×800前後のウィンドウでは倍率が0.8倍程度に
+// なるため、対戦相手同士でもウィンドウサイズが違えばズレ方も変わり得る
+// （「片方のブラウザでは正常だった」という報告と一致する）。main.js→tutorial.jsの
+// import（initTutorialAutoStart）が既にあるため、tutorial.js→main.jsの直接importは
+// 循環importになる。card-back-skins.js等と同じ「main.jsから注入してもらう」
+// パターンで、実画面座標→ステージのローカル座標への変換関数を受け取る。
+let stageClientToLocalFn = null;
+let stageDeltaFn = null;
+let stageWidth = 1600;
+let stageHeight = 900;
+export function registerTutorialStageHelpers({ stageClientToLocal, stageDelta, stageWidth: w, stageHeight: h }) {
+  stageClientToLocalFn = stageClientToLocal;
+  stageDeltaFn = stageDelta;
+  if (w) stageWidth = w;
+  if (h) stageHeight = h;
+}
+
+// 実画面座標のDOMRect相当のオブジェクトを、ステージのローカル座標系（position:fixed
+// 要素にそのまま使える値）へ変換する。まだmain.jsからの注入が済んでいない
+// （register呼び出し前）場合は変換せずそのまま返す（スケール1相当のフォールバック）。
+function toStageRect(rect) {
+  if (!stageClientToLocalFn || !stageDeltaFn) return rect;
+  const local = stageClientToLocalFn(rect.left, rect.top);
+  return {
+    left: local.x,
+    top: local.y,
+    width: stageDeltaFn(rect.width),
+    height: stageDeltaFn(rect.height),
+  };
+}
+
 const STORAGE_KEY = "so7-tutorial-completed";
 
 function hasCompletedTutorial() {
@@ -60,6 +99,7 @@ const STEPS = [
     title: "あなたの手札",
     body: [
       "画面手前に表示されているのがあなたの手札です。相手プレイヤーには中身が見えません。",
+      "対局の進行とともに、ドローや駒の移動でここにカードが増えていきます。",
       "1ターンの中で「ロック」「ハンド」「ムーブ」の3つのフェイズを順番に行います。",
     ],
   },
@@ -180,35 +220,38 @@ function ensureOverlay() {
 }
 
 // ホバープレビュー(main.jsのpositionPreviewPanel)と同じ考え方: 対象の近くに出しつつ、
-// 画面端をはみ出す場合は反対側へ逃がす。チュートリアルは#game-table等の3D「ステージ」の
-// 外（document.body直下、position:fixed）に置くため、getBoundingClientRect()の実画面
-// 座標をそのまま使ってよい（ステージのローカル座標変換は不要）。
-function positionCallout(targetRect) {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
+// 画面端をはみ出す場合は反対側へ逃がす。この要素自身がステージ（body）配下の
+// position:fixedのため、画面端の判定は実際のウィンドウサイズではなく、main.jsの
+// positionPreviewPanelと同じくSTAGE_WIDTH/STAGE_HEIGHT基準で行う。引数の
+// targetStageRectは既にtoStageRect()でステージのローカル座標へ変換済みのものとする。
+function positionCallout(targetStageRect) {
   const margin = 16;
   const calloutRect = calloutEl.getBoundingClientRect();
+  // calloutEl自身の実際の見た目サイズ(getBoundingClientRect、既にステージのscale込み)を
+  // 幅・高さの比較に使うため、ステージのローカルサイズへ変換しておく。
+  const calloutW = stageDeltaFn ? stageDeltaFn(calloutRect.width) : calloutRect.width;
+  const calloutH = stageDeltaFn ? stageDeltaFn(calloutRect.height) : calloutRect.height;
 
-  if (!targetRect) {
-    calloutEl.style.left = `${vw / 2}px`;
-    calloutEl.style.top = `${vh / 2}px`;
+  if (!targetStageRect) {
+    calloutEl.style.left = `${stageWidth / 2}px`;
+    calloutEl.style.top = `${stageHeight / 2}px`;
     calloutEl.style.transform = "translate(-50%, -50%)";
     return;
   }
 
-  let left = targetRect.left + targetRect.width / 2;
-  let top = targetRect.bottom + margin;
+  let left = targetStageRect.left + targetStageRect.width / 2;
+  let top = targetStageRect.top + targetStageRect.height + margin;
   let transform = "translate(-50%, 0)";
 
   // 下にはみ出す場合は対象の上に出す
-  if (top + calloutRect.height > vh - margin) {
-    top = targetRect.top - margin;
+  if (top + calloutH > stageHeight - margin) {
+    top = targetStageRect.top - margin;
     transform = "translate(-50%, -100%)";
   }
   // 左右にはみ出す場合は画面内に収める
-  const halfWidth = calloutRect.width / 2;
+  const halfWidth = calloutW / 2;
   if (left - halfWidth < margin) left = margin + halfWidth;
-  if (left + halfWidth > vw - margin) left = vw - margin - halfWidth;
+  if (left + halfWidth > stageWidth - margin) left = stageWidth - margin - halfWidth;
 
   calloutEl.style.left = `${left}px`;
   calloutEl.style.top = `${top}px`;
@@ -219,7 +262,8 @@ function positionForCurrentStep() {
   const step = STEPS[currentStepIndex];
   const target = step.target();
   if (target) {
-    const rect = target.getBoundingClientRect();
+    const realRect = target.getBoundingClientRect();
+    const rect = toStageRect(realRect);
     spotlightEl.style.display = "block";
     spotlightEl.style.left = `${rect.left}px`;
     spotlightEl.style.top = `${rect.top}px`;
