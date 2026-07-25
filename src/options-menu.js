@@ -3,6 +3,7 @@
 // 単独のボタンとして左上にあったが、ここに統合し、左上はゲームタイトル表示用に空けた。
 
 import { openAdminPanel } from "./admin.js";
+import { openCardDevMode } from "./card-dev-mode.js";
 import { openDeckViewer } from "./deck-viewer.js";
 import { isLockAreaBarVisible, setLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible, setLockColorVisible } from "./lock-color.js";
@@ -514,6 +515,16 @@ export function initOptionsMenu() {
         buildMenuItem("⚙ 管理者モード", () => {
           close();
           openAdminPanel();
+        })
+      );
+      // ユーザー要望「カード効果の自動処理を作っていくにあたり、実際にゲーム画面で
+      // 確認したい。管理者モードを潜っていくのは大変なので、オプションの直下に
+      // 『カード開発モード』として追加してほしい。もちろん管理者のみ入れるように」
+      // への対応。上の「⚙ 管理者モード」と同じisAdminUser()ガードをそのまま流用する。
+      panel.appendChild(
+        buildMenuItem("🃏 カード開発モード", () => {
+          close();
+          openCardDevMode();
         })
       );
     }

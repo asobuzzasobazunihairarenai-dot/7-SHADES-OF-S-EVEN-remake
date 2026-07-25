@@ -4,18 +4,21 @@
 // （online.jsのregisterShopOpener経由、main.jsが注入する）。
 //
 // ユーザー要望「商品の見た目がわかるといい。見た目を並べてそこに金額を載せるのが
-// わかりやすいかな？おしゃれに並べてください」への対応。カテゴリをタブで切り替え、
-// 選んだカテゴリの中身を画像カードのグリッドで表示する（旧・折りたたみ+テキスト行の
-// 一覧から作り直した）。各カードの画像は各モジュールのgetXShopItems()が返す
+// わかりやすいかな？おしゃれに並べてください」＋「ショップのビジュアルはMTGAストアの
+// 感じを目指したい。モーダルではなく画面全体を使って表示させよう」への対応。
+// カテゴリをタブで切り替え、選んだカテゴリの中身を大きめの画像カードのグリッドで
+// 表示する（旧・折りたたみ+テキスト行の一覧から作り直した）。中央固定の小さいモーダル
+// から、画面全体を使う専用ページ的な表示に変更したため、外側クリックで閉じる
+// backdropはもう不要（パネル自体が画面全体を覆うため、外側＝押せる場所が存在しない）。
+// 閉じるのは右上の✕ボタンのみ。各カードの画像は各モジュールのgetXShopItems()が返す
 // imagePathをそのまま使う。
 
-import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { createModalCloseX } from "./ui-helpers.js";
 import { getCachedUser, getMyCurrencyBalance, isItemUnlocked, purchaseItem } from "./online.js";
 import { refreshCurrencyDisplay } from "./currency-display.js";
 import { SHOP_CATEGORIES, getShopCompletionStats } from "./shop-content.js";
 
 let panelEl = null;
-let backdropEl = null;
 let balanceEl = null;
 let completionEl = null;
 let statusEl = null;
@@ -25,7 +28,6 @@ let activeCategoryKey = SHOP_CATEGORIES[0]?.key ?? null;
 
 function close() {
   if (panelEl) panelEl.style.display = "none";
-  if (backdropEl) backdropEl.style.display = "none";
 }
 
 function setStatus(text, isError) {
@@ -157,9 +159,15 @@ async function refreshBalance() {
   }
 }
 
+// ユーザー要望「モーダルではなく画面全体を使って表示させよう」への対応。ヘッダー
+// （タイトル・残高・達成率・閉じるボタン）を上部に固定し、タブ＋商品グリッドは
+// その下の残り全高を使ってスクロールする、という2段構成にした。
 function buildPanel() {
   const panel = document.createElement("div");
   panel.id = "shop-panel";
+
+  const header = document.createElement("div");
+  header.id = "shop-panel-header";
 
   const titleEl = document.createElement("div");
   titleEl.id = "shop-panel-title";
@@ -168,16 +176,20 @@ function buildPanel() {
   titleIcon.alt = "";
   titleEl.appendChild(titleIcon);
   titleEl.appendChild(document.createTextNode("ショップ"));
-  panel.appendChild(titleEl);
-  panel.appendChild(createModalCloseX(close));
+  header.appendChild(titleEl);
 
+  const headerInfo = document.createElement("div");
+  headerInfo.id = "shop-panel-header-info";
   balanceEl = document.createElement("div");
   balanceEl.id = "shop-panel-balance";
-  panel.appendChild(balanceEl);
-
+  headerInfo.appendChild(balanceEl);
   completionEl = document.createElement("div");
   completionEl.id = "shop-panel-completion";
-  panel.appendChild(completionEl);
+  headerInfo.appendChild(completionEl);
+  header.appendChild(headerInfo);
+
+  header.appendChild(createModalCloseX(close));
+  panel.appendChild(header);
 
   statusEl = document.createElement("div");
   statusEl.id = "shop-panel-status";
@@ -208,15 +220,11 @@ export function openShopPanel(initialCategoryKey) {
   renderTabs();
   renderGrid();
   refreshBalance();
-  panelEl.style.display = "block";
-  backdropEl.style.display = "block";
+  panelEl.style.display = "flex";
 }
 
 export function initShop() {
   panelEl = buildPanel();
-  backdropEl = createBackdrop(close, { dim: true, zIndex: 2600 });
-  backdropEl.style.display = "none";
   panelEl.style.display = "none";
-  document.body.appendChild(backdropEl);
   document.body.appendChild(panelEl);
 }

@@ -16,6 +16,7 @@ import {
 import { initDeckViewer, openDeckViewer } from "./deck-viewer.js";
 import { initStatsPlayerLinkModal } from "./stats-player-link.js";
 import { initMyPage, openMyPage, registerAvatarPickerHelper } from "./my-page.js";
+import { initCardDevMode } from "./card-dev-mode.js";
 import { initHelpButton } from "./help.js";
 import { initCurrencyDisplay, refreshCurrencyDisplay } from "./currency-display.js";
 import { initShop, openShopPanel } from "./shop.js";
@@ -4618,6 +4619,7 @@ initAdminMode();
 initDeckViewer();
 initStatsPlayerLinkModal();
 initMyPage();
+initCardDevMode();
 initHelpButton();
 initCurrencyDisplay();
 initShop();
