@@ -5186,6 +5186,122 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   white-space: nowrap;
 }
 
+/* フェイズ自動進行（src/phase-automation.js）。ユーザー要望「効果自動処理がオンの時は
+   フェイズも自動で流れるように。フェイズごとに画面中央に『ロックフェイズ』とかを
+   英語とカタカナルビでかっこよく表示」。turn-announce-toastと同じ「一瞬だけ表示して
+   自動的に消える」トーストパターン。 */
+.phase-announce-toast {
+  position: fixed;
+  top: 32%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.7);
+  z-index: 9001;
+  pointer-events: none;
+  opacity: 0;
+  text-align: center;
+  transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.phase-announce-toast.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+.phase-announce-title {
+  font-family: sans-serif;
+  font-weight: bold;
+  font-size: 2.6rem;
+  letter-spacing: 0.15em;
+  color: #e0f2fe;
+  text-shadow: 0 0 0.8rem rgba(56, 189, 248, 0.8), 0 4px 12px rgba(0, 0, 0, 0.7);
+}
+.phase-announce-ruby {
+  display: block;
+  font-size: 0.95rem;
+  letter-spacing: 0.3em;
+  color: #7dd3fc;
+  margin-top: 0.1rem;
+}
+.phase-announce-desc {
+  margin-top: 0.4rem;
+  font-family: sans-serif;
+  font-size: 1rem;
+  color: #fef3c7;
+  background: linear-gradient(160deg, rgba(66, 32, 6, 0.92), rgba(28, 16, 4, 0.92));
+  border: 2px solid #facc15;
+  border-radius: 0.6rem;
+  padding: 0.4rem 1.2rem;
+  display: inline-block;
+  box-shadow: 0 0 1.2rem rgba(250, 204, 21, 0.4), 0 10px 25px rgba(0, 0, 0, 0.5);
+}
+
+/* 常設のスキップボタン。ユーザー要望「スキップはフェイズ案内板の右あたりに強調して
+   表示」。#phase-guide-bar（bottom:0rem; right:2.3rem）の少し上に置く。ムーブフェイズは
+   「移動」か「接触」を必ず行う必要があるルールのため対象外（JS側でdisplay制御）。 */
+#phase-automation-skip-button {
+  position: fixed;
+  bottom: 5.2rem;
+  right: 2.3rem;
+  z-index: 1001;
+  display: none;
+  padding: 0.5rem 1.1rem;
+  background: linear-gradient(160deg, #facc15, #f59e0b);
+  border: none;
+  border-radius: 0.5rem;
+  color: #1c1006;
+  font-weight: bold;
+  font-family: sans-serif;
+  font-size: 0.9rem;
+  cursor: pointer;
+  box-shadow: 0 0 1rem rgba(250, 204, 21, 0.6), 0 6px 14px rgba(0, 0, 0, 0.5);
+  animation: phase-automation-skip-pulse 1.6s ease-in-out infinite;
+}
+@keyframes phase-automation-skip-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+#phase-automation-skip-button:hover {
+  filter: brightness(1.1);
+}
+body.reduce-glow #phase-automation-skip-button {
+  animation: none;
+}
+
+/* フェイズ案内板（phase-guide.js）で、今のフェイズのボタンだけ光らせる
+   （phase-guide.js冒頭コメントで「将来の土台」として予告されていた仕組み）。 */
+#phase-guide-bar button.is-current-phase {
+  outline: 2px solid rgba(56, 189, 248, 0.9);
+  outline-offset: 2px;
+  animation: phase-guide-current-glow 1.8s ease-in-out infinite;
+}
+@keyframes phase-guide-current-glow {
+  0%, 100% { box-shadow: 0 0 0.4rem 0.05rem rgba(56, 189, 248, 0.6); }
+  50% { box-shadow: 0 0 1rem 0.3rem rgba(56, 189, 248, 0.9); }
+}
+body.reduce-glow #phase-guide-bar button.is-current-phase {
+  animation: none;
+}
+
+/* ムーブフェイズの移動可能／接触可能ハイライト。既存のcard-effect-target-cell
+   （黄色、クリックして選ぶ候補）とは別物であることが分かるよう、移動可能は緑、
+   接触可能はオレンジにする。 */
+.cell.phase-move-highlight {
+  outline: 3px solid rgba(74, 222, 128, 0.85);
+  outline-offset: -3px;
+  animation: phase-move-highlight-pulse 1.4s ease-in-out infinite;
+}
+.cell.phase-contact-highlight {
+  outline: 3px solid rgba(251, 146, 60, 0.9);
+  outline-offset: -3px;
+  animation: phase-move-highlight-pulse 1.4s ease-in-out infinite;
+}
+@keyframes phase-move-highlight-pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+body.reduce-glow .cell.phase-move-highlight,
+body.reduce-glow .cell.phase-contact-highlight {
+  animation: none;
+}
+
 /* 7色ロック達成時の勝利モーダル。金色のグロー＋トロフィーで祝う演出。 */
 @keyframes victory-modal-glow {
   0%, 100% { box-shadow: 0 0 2rem 0.4rem rgba(250, 204, 21, 0.5), 0 20px 60px rgba(0, 0, 0, 0.7); }

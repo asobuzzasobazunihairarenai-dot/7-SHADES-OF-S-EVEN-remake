@@ -17,7 +17,20 @@ import { initDeckViewer, openDeckViewer } from "./deck-viewer.js";
 import { initStatsPlayerLinkModal } from "./stats-player-link.js";
 import { initMyPage, openMyPage, registerAvatarPickerHelper } from "./my-page.js";
 import { initCardDevMode, registerCardDevModeArrivalHelpers } from "./card-dev-mode.js";
-import { canAutoProcessArrival, runArrivalEffect } from "./card-effect-engine.js";
+import {
+  canAutoProcessArrival,
+  runArrivalEffect,
+  canUseHandEffect,
+  runHandEffect,
+  canPayHandEffectCost,
+  hasHandEffectData,
+} from "./card-effect-engine.js";
+import {
+  reconcilePhaseAutomation,
+  registerPhaseAutomationHelpers,
+  isHandPhaseActive,
+  setHandEffectBusy,
+} from "./phase-automation.js";
 import { initHelpButton } from "./help.js";
 import { initCurrencyDisplay, refreshCurrencyDisplay } from "./currency-display.js";
 import { initShop, openShopPanel } from "./shop.js";
@@ -915,10 +928,14 @@ function requestCellChoiceForEffect(candidates, hint) {
 }
 
 // 効果で使う手札カードをプレイヤーに選ばせる（自分の手札カードをハイライトし、クリックを待つ）。
-function requestHandCardChoiceForEffect(player, hint) {
+// tokenIdFilter（Set、省略可）を渡すと、その中に含まれる手札カードだけを候補にする
+// （「追色」コストで同じ色の手札だけを選ばせる用途、ユーザー要望「捨てられる手札が
+// 無い場合は警告を出す」の前段——実際に選ばせる候補自体を絞り込む）。
+function requestHandCardChoiceForEffect(player, hint, tokenIdFilter) {
   return new Promise((resolve) => {
     const handArea = document.querySelector(`.hand-area[data-player="${player}"]`);
-    const cardEls = handArea ? [...handArea.querySelectorAll(".hand-card")] : [];
+    const allCardEls = handArea ? [...handArea.querySelectorAll(".hand-card")] : [];
+    const cardEls = tokenIdFilter ? allCardEls.filter((el) => tokenIdFilter.has(el.dataset.tokenId)) : allCardEls;
     if (cardEls.length === 0) {
       resolve(null);
       return;
@@ -959,6 +976,53 @@ function markEffectPlacementTarget(location) {
 function clearEffectUiHighlights() {
   glowingEffectHandTokenId = null;
   pendingPlacementLocation = null;
+}
+
+// 手札効果のDRAW動詞用。playerの手札へ山札からcount枚引く（オンライン同期込み、
+// 「1枚ドロー」ボタンと同じ考え方をcount回・任意のplayer向けに一般化したもの）。
+async function drawCardsForEffect(player, count) {
+  for (let i = 0; i < count; i++) {
+    if (isOnlineMode()) {
+      try {
+        const result = await drawFromPile("deck", { zone: "hand", player });
+        if (result?.revealedCardId) {
+          playSound("cardDraw");
+          announceHandPickups(player, [{ cardId: result.revealedCardId, wasPublic: false }]);
+        }
+        await fetchAndHydrate(getCurrentGameId());
+      } catch (err) {
+        console.error("drawCardsForEffect failed", err);
+        return;
+      }
+    } else {
+      const pileArray = getState().piles.deck;
+      if (pileArray.length === 0) continue; // 山札が尽きたら諦める（善処の原則）
+      const cardId = pileArray[pileArray.length - 1];
+      drawFromPile("deck", { zone: "hand", player });
+      playSound("cardDraw");
+      announceHandPickups(player, [{ cardId, wasPublic: false }]);
+    }
+  }
+}
+
+// ユーザー要望「①通常の手札カードは、ハンドフェイズかつ手札エリア外で放すと手札効果が
+// 発動する」「②エターナル/ファーストカードは、ハンドフェイズでクリックすると追色コストを
+// 選ぶ流れに移行する」への対応の実行部。cardTokenIdは効果を使うカード自身。
+async function runAutoHandEffect(cardId, cardTokenId, player) {
+  setHandEffectBusy(true);
+  try {
+    await runHandEffect(
+      { cardId, cardTokenId, player },
+      {
+        discardAndSync: discardFromHandReveal,
+        drawCards: drawCardsForEffect,
+        pickDiscardCost: (candidates, hint) => requestHandCardChoiceForEffect(player, hint, new Set(candidates.map((t) => t.id))),
+      }
+    );
+    render();
+  } finally {
+    setHandEffectBusy(false);
+  }
 }
 
 async function runAutoArrivalEffect(cardId, location, player) {
@@ -1921,6 +1985,10 @@ function render() {
   updateContactApprovalModal();
   checkContactAttackerResolution();
   checkForVictory();
+  // ユーザー要望「効果自動処理がオンの時はフェイズも自動で流れるようにしよう」。
+  // render()のたびに「今のフェイズでもう次へ進めるか」を判定する（他の再適用系処理
+  // ・reapplyActiveHighlights等と同じ「呼び出し元がrender()の末尾で毎回呼ぶ」設計）。
+  reconcilePhaseAutomation();
 }
 
 // 画面サイズが変わっても手札などが見切れないよう、テーブル全体をビューポートに収まる
@@ -3537,6 +3605,35 @@ async function onDragEnd(e) {
         return;
       }
     }
+    // ユーザー要望「①通常の手札カードは、ハンドフェイズかつ手札エリア外で放すと
+    // 手札効果が発動するようにしたい」。実際にはどこへも置かず（moveTokenを呼ばない）
+    // 元の手札位置へスナップバックさせつつ、その場で手札効果を解決する（「接触」ドラッグ
+    // ＝隣の相手駒へドロップしても実際には移動させず専用フローへ切り替える、という
+    // 既存パターンと同じ考え方）。エターナル/ファーストカードは②のクリック方式を
+    // 使うためここでは対象外（is-usable-while-lockedの光る演出と同じ判定基準を流用）。
+    if (
+      kind === "card" &&
+      cardSourceLocation?.zone === "hand" &&
+      cardSourceLocation.player === getSelfSeat() &&
+      dropTarget.zone !== "hand" &&
+      isHandPhaseActive()
+    ) {
+      const draggedToken = getState().tokens.find((t) => t.id === tokenId);
+      if (
+        draggedToken &&
+        !draggedToken.cardId?.startsWith("eternal-") &&
+        !draggedToken.cardId?.startsWith("first-") &&
+        hasHandEffectData(draggedToken.cardId)
+      ) {
+        render();
+        if (canUseHandEffect(draggedToken.cardId, draggedToken.id, cardSourceLocation.player)) {
+          runAutoHandEffect(draggedToken.cardId, draggedToken.id, cardSourceLocation.player);
+        } else if (!canPayHandEffectCost(draggedToken.cardId, draggedToken.id, cardSourceLocation.player)) {
+          alert("捨てられる同じ色のカードが手札にありません。");
+        }
+        return;
+      }
+    }
     // 最後のロック承認（ユーザー要望）: このカードをロックすると、そのロックエリアの
     // 持ち主が7色すべて揃って勝利になる場合、通常のmoveTokenを呼ばず、他の参加プレイヤー
     // 全員（左隣から時計回り）の承認を待つ専用フローへ切り替える。既に別の承認待ちが
@@ -3588,6 +3685,34 @@ async function onDragEnd(e) {
         ? cardSourceLocation.row === dropTarget.row && cardSourceLocation.col === dropTarget.col
         : cardSourceLocation.side === dropTarget.side && cardSourceLocation.index === dropTarget.index);
     if (isSameLocation) {
+      // ユーザー要望「②エターナルカード・ファーストカードは、ハンドフェイズでそのカードを
+      // クリックすると、追色コストを手札から選ぶ流れに移行する」。クリック（動かさず
+      // 離した＝isSameLocation）を検知できるのはドラッグ終了時点だけなので、ここで判定する。
+      // 手札にある間だけでなく、ロックエリアにある間（is-usable-while-lockedの光る演出は
+      // あるが、今まで実際に使う手段が無かった）も対象にする（ユーザー確認済み）。
+      if (kind === "card" && isHandPhaseActive()) {
+        const clickedToken = getState().tokens.find((t) => t.id === tokenId);
+        const clickPlayer =
+          cardSourceLocation.zone === "hand"
+            ? cardSourceLocation.player
+            : cardSourceLocation.zone === "lock"
+              ? SIDE_TO_SEAT[cardSourceLocation.side]
+              : null;
+        if (
+          clickedToken &&
+          clickPlayer === getSelfSeat() &&
+          (clickedToken.cardId?.startsWith("eternal-") || clickedToken.cardId?.startsWith("first-")) &&
+          hasHandEffectData(clickedToken.cardId)
+        ) {
+          render();
+          if (canUseHandEffect(clickedToken.cardId, clickedToken.id, clickPlayer)) {
+            runAutoHandEffect(clickedToken.cardId, clickedToken.id, clickPlayer);
+          } else if (!canPayHandEffectCost(clickedToken.cardId, clickedToken.id, clickPlayer)) {
+            alert("捨てられる同じ色のカードが手札にありません。");
+          }
+          return;
+        }
+      }
       render();
       return;
     }
@@ -4863,6 +4988,7 @@ initStatsPlayerLinkModal();
 initMyPage();
 initCardDevMode();
 registerCardDevModeArrivalHelpers({ triggerCardArrival, render });
+registerPhaseAutomationHelpers({ render, findTopCardAt });
 initHelpButton();
 initCurrencyDisplay();
 initShop();
