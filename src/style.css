@@ -3551,17 +3551,20 @@ body.is-touch-device #options-menu-button {
 #card-dev-mode-minimize-btn:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+/* ユーザー要望「開発モードウィンドウがどこに縮小されたかわからない。画面左上のゲーム
+   タイトルテキストの下に固定して」への対応。#game-title（top:1rem; left:1rem）の
+   すぐ下に固定表示する（サイズ変更・移動しても常にここに戻ってくるので迷わない）。 */
 #card-dev-mode-mini-icon {
   position: fixed;
-  bottom: 5.5rem;
-  right: 1rem;
-  width: 3rem;
-  height: 3rem;
+  top: 3.1rem;
+  left: 1rem;
+  width: 2.6rem;
+  height: 2.6rem;
   border-radius: 50%;
   background: rgba(15, 23, 32, 0.95);
   border: 1px solid rgba(250, 204, 21, 0.6);
   color: #fde68a;
-  font-size: 1.4rem;
+  font-size: 1.2rem;
   display: none;
   align-items: center;
   justify-content: center;
