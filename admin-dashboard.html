@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理者ダッシュボード - 7 SHADES OF S:EVEN</title>
+<!-- ユーザー要望「登録ユーザーの一覧・ログイン履歴は小さい窓だと見にくいので独自の
+     ウインドウを立ち上げてほしい」への対応。管理者モードのパネルとは別に、専用の
+     静的ページとして独立させた（admin.jsから window.open() で開く）。ゲーム本体
+     （src/main.js以下の巨大なモジュール群）は一切読み込まず、このページ専用の
+     軽量なsrc/admin-dashboard.jsだけで完結させる。Supabaseの認証セッションは
+     同じオリジンのlocalStorageで共有されるため、ゲーム画面で既にログイン済みの
+     管理者アカウントなら、このページでも改めてログインし直す必要はない。 -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<link rel="stylesheet" href="src/admin-dashboard.css">
+</head>
+<body>
+  <div id="dashboard-root">
+    <h1>🔐 管理者ダッシュボード</h1>
+    <div id="dashboard-status">読み込み中...</div>
+    <div id="dashboard-content" style="display: none;">
+      <section>
+        <h2>登録ユーザー一覧</h2>
+        <div id="user-list-status" class="dashboard-hint"></div>
+        <div class="dashboard-table-wrap">
+          <table id="user-list-table">
+            <thead>
+              <tr>
+                <th>表示名</th>
+                <th>メールアドレス</th>
+                <th>登録日時</th>
+                <th>最終アクセス</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+      <section>
+        <h2>ログイン履歴（訪問記録）</h2>
+        <div id="visit-log-status" class="dashboard-hint"></div>
+        <div class="dashboard-table-wrap">
+          <table id="visit-log-table">
+            <thead>
+              <tr>
+                <th>日時</th>
+                <th>表示名</th>
+                <th>メールアドレス</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <button id="visit-log-more-btn" type="button">さらに読み込む</button>
+      </section>
+    </div>
+  </div>
+  <script type="module" src="src/admin-dashboard.js"></script>
+</body>
+</html>

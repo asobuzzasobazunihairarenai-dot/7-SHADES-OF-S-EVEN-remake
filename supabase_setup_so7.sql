@@ -961,3 +961,63 @@ end;
 $$;
 revoke execute on function so7_get_admin_stats() from public;
 grant execute on function so7_get_admin_stats() to authenticated;
+
+-- ユーザー要望「登録ユーザーのユーザー名とアドレスを一覧したい。ログイン履歴も
+-- さかのぼれるようにしたい」への対応。管理者専用（開発者のGoogleアカウントのみ、
+-- so7_get_admin_stats等と同じauth.jwt()チェック）。auth.usersはSECURITY DEFINERの
+-- 内部でのみ参照でき、クライアントから直接SELECTすることはできない。
+-- ★重要: このメールアドレスが実際の管理者アカウントと一致しているか確認すること。
+create or replace function so7_get_admin_user_list()
+returns table (
+  user_id uuid,
+  email text,
+  display_name text,
+  created_at timestamptz,
+  last_seen_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  if (auth.jwt() ->> 'email') is distinct from 'asobuzz.asobazunihairarenai@gmail.com' then
+    raise exception 'not_authorized';
+  end if;
+  return query
+    select u.id, u.email, p.display_name, u.created_at, p.last_seen_at
+    from auth.users u
+    left join so7_user_profiles p on p.user_id = u.id
+    order by u.created_at desc;
+end;
+$$;
+revoke execute on function so7_get_admin_user_list() from public;
+grant execute on function so7_get_admin_user_list() to authenticated;
+
+-- ログイン履歴（実体はso7_visit_log、ページを開くたびの訪問記録）を新しい順に
+-- ページングしながら遡れるようにする。p_offsetを増やしながら呼び出す想定。
+create or replace function so7_get_admin_visit_log(p_limit int default 200, p_offset int default 0)
+returns table (
+  created_at timestamptz,
+  user_id uuid,
+  email text,
+  display_name text
+)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  if (auth.jwt() ->> 'email') is distinct from 'asobuzz.asobazunihairarenai@gmail.com' then
+    raise exception 'not_authorized';
+  end if;
+  return query
+    select v.created_at, v.user_id, u.email, p.display_name
+    from so7_visit_log v
+    left join auth.users u on u.id = v.user_id
+    left join so7_user_profiles p on p.user_id = v.user_id
+    order by v.created_at desc
+    limit p_limit offset p_offset;
+end;
+$$;
+revoke execute on function so7_get_admin_visit_log(int, int) from public;
+grant execute on function so7_get_admin_visit_log(int, int) to authenticated;

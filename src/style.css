@@ -1761,6 +1761,23 @@ body.diagnostic-flatten-3d.is-touch-device #priority-transfer-buttons {
   grid-template-columns: repeat(3, 2.6rem);
   grid-template-rows: repeat(3, 2.6rem);
   gap: 0.3rem;
+  position: relative;
+}
+/* ユーザー要望「優先権譲渡のアイコン群に4アイコンを囲むようにひし形の枠をつけたい」
+   への対応。上下左右4アイコンの中心同士をちょうど結ぶ正方形(グリッド中心から見て
+   1セル+隙間分=2.9rem四方)を45度回転させることで、頂点が4アイコンの中心に一致する
+   ひし形になる。装飾のみでクリックを奪わないようpointer-events:noneにしてある。 */
+.priority-transfer-diamond {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5.9rem;
+  height: 5.9rem;
+  transform: translate(-50%, -50%) rotate(45deg);
+  border: 2px solid rgba(148, 163, 184, 0.55);
+  border-radius: 0.4rem;
+  pointer-events: none;
+  z-index: 0;
 }
 .priority-transfer-btn {
   /* ハマりどころ: グリッドセルのサイズ(2.6rem)任せにしていたところ、アバターが絵文字
@@ -1819,14 +1836,27 @@ body.diagnostic-flatten-3d.is-touch-device #priority-transfer-buttons {
   animation: priority-transfer-glow 1.6s ease-in-out infinite;
 }
 
+/* ユーザー要望「4アイコンの中央に『優先権譲渡』のテキストを持ってきてほしい」への対応。
+   グリッドの中心セル（元々空き）に配置し、ひし形の枠(.priority-transfer-diamond)より
+   手前に表示する。背景を少し敷いて、枠線と文字が重なっても読みやすくしてある
+   （fieldsetのlegendと同じ発想）。 */
 .priority-transfer-label {
   position: relative;
-  background: none;
+  grid-column: 2;
+  grid-row: 2;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 32, 0.85);
   border: none;
+  border-radius: 0.3rem;
   color: #94a3b8;
-  font-size: 0.65rem;
+  font-size: 0.6rem;
+  line-height: 1.15;
+  white-space: nowrap;
   cursor: pointer;
-  padding: 0.1rem 0.3rem;
+  padding: 0.1rem 0.25rem;
 }
 .priority-transfer-label:hover {
   color: #e2e8f0;
@@ -6138,10 +6168,10 @@ body.is-online-mode #quick-start-bar {
   --turn-round-counter-font-size: 0.65rem;
   /* 接触のタックル演出の各段階の秒数（ユーザー要望「早すぎて何が起きたか分からない」
      への対応、main.jsのgetContactAnimSeconds参照）。 */
-  --contact-anim-pre-delay: 2;
-  --contact-anim-runup-duration: 3;
+  --contact-anim-pre-delay: 1;
+  --contact-anim-runup-duration: 1.5;
   --contact-anim-tackle-duration: 1;
-  --contact-anim-flight-duration: 2;
+  --contact-anim-flight-duration: 1;
   /* エターナルカード獲得演出の各段階の秒数（main.jsのplayEternalAcquisitionAnim参照）。 */
   --eternal-anim-glow-duration: 1;
   --eternal-anim-flight-duration: 1.5;

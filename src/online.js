@@ -225,6 +225,26 @@ let pendingGateInvasionEventCount = 0;
 export function isGateInvasionPending() {
   return pendingGateInvasionEventCount > 0;
 }
+
+// ユーザー要望「接触タックル演出を参加者全員の画面に表示されるようにして」への対応。
+// 以前は承認した本人（defender）の画面だけでフルに再現され、attacker・傍観者の画面には
+// remote-move-animator.jsの自動差分検知による素の飛翔ゴーストしか見えていなかった。
+// priority_changedと同じ「サーバー状態を一切変えない、見た目の合図だけを直接
+// broadcastする」パターンで、承認された瞬間（respondContact()で実際に駒を動かす前）に
+// 全クライアントへ「これから接触のタックル演出が始まる」と伝える。実際の状態変更自体は
+// 従来通りso7-apply-action.ts経由のstate_changed broadcastで別途伝わる。
+let contactTackleEventListeners = [];
+export function onContactTackleEvents(fn) {
+  contactTackleEventListeners.push(fn);
+  return () => {
+    contactTackleEventListeners = contactTackleEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastContactTackle(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "contact_tackle", payload });
+  }
+}
 // main.jsのヘッダーボタン（「🌐 オンライン」）のラベルを、ログイン状態が分かるように
 // 動的に変える時など、awaitせず同期的に「今ログイン中かどうか」を知りたい場面のために
 // キャッシュしておく（getCurrentUser()は毎回サーバーに問い合わせる非同期関数のため）。
@@ -1569,6 +1589,10 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // 再取得はせず、パッチそのものを直接マージする（updatePriorityState参照）。
     .on("broadcast", { event: "priority_changed" }, ({ payload }) => {
       if (payload?.patch) applyRemotePriorityPatch(payload.patch);
+    })
+    // 接触のタックル演出開始の合図（broadcastContactTackle参照）。
+    .on("broadcast", { event: "contact_tackle" }, ({ payload }) => {
+      for (const fn of contactTackleEventListeners) fn(payload);
     })
     .subscribe((status) => {
       // ユーザー要望「部屋に入ってきたら、待機中の他メンバーにもリアルタイムで（＝

@@ -605,21 +605,6 @@ function buildTransferButtons() {
   transferButtonsEl.appendChild(grid);
   transferButtonsEl._grid = grid;
 
-  // 「優先権譲渡」ラベル。フェイズ案内板のボタンと同じ「ホバーで簡易説明・クリックで詳細
-  // 説明」パターン（説明文はTRANSFER_EXPLANATION参照）。
-  const label = document.createElement("button");
-  label.type = "button";
-  label.className = "priority-transfer-label";
-  const labelText = document.createElement("span");
-  labelText.textContent = "優先権譲渡";
-  const tooltip = document.createElement("span");
-  tooltip.className = "phase-guide-tooltip";
-  tooltip.textContent = "優先権を他のプレイヤーへ手動で譲渡します（自己申告制）";
-  label.appendChild(labelText);
-  label.appendChild(tooltip);
-  label.addEventListener("click", openTransferModal);
-  transferButtonsEl.appendChild(label);
-
   document.body.appendChild(transferButtonsEl);
 
   transferModalBackdrop = createBackdrop(closeTransferModal, { dim: true, zIndex: 10100 });
@@ -661,6 +646,35 @@ function rebuildTransferButtons() {
     return;
   }
   transferButtonsEl.style.display = "flex";
+
+  // ユーザー要望「優先権譲渡のアイコン群に4アイコンを囲むようにひし形の枠をつけたい。
+  // 4アイコンの中央に『優先権譲渡』のテキストを持ってきてほしい」への対応。上下左右の
+  // 4アイコン（下のforループでdata-pos="top"/"left"/"right"/"self"として配置される）の
+  // 中心同士をちょうど結ぶ大きさの正方形を45度回転させることで、視覚的に「ひし形」を
+  // 作る（style.cssの.priority-transfer-diamond参照）。ハマりどころ: この関数の冒頭で
+  // 毎回grid.innerHTML=""しているため、以前はbuildTransferButtons()側で1回だけ
+  // 作っていたが、次の再描画で消えてしまっていた。ここ（再描画の内側）で毎回作り
+  // 直す必要がある。
+  const diamond = document.createElement("div");
+  diamond.className = "priority-transfer-diamond";
+  grid.appendChild(diamond);
+
+  // 「優先権譲渡」ラベル。フェイズ案内板のボタンと同じ「ホバーで簡易説明・クリックで詳細
+  // 説明」パターン（説明文はTRANSFER_EXPLANATION参照）。4アイコンの中央（グリッドの
+  // 中心セル、元々空き）に配置する。
+  const label = document.createElement("button");
+  label.type = "button";
+  label.className = "priority-transfer-label";
+  const labelText = document.createElement("span");
+  labelText.textContent = "優先権譲渡";
+  const tooltip = document.createElement("span");
+  tooltip.className = "phase-guide-tooltip";
+  tooltip.textContent = "優先権を他のプレイヤーへ手動で譲渡します（自己申告制）";
+  label.appendChild(labelText);
+  label.appendChild(tooltip);
+  label.addEventListener("click", openTransferModal);
+  grid.appendChild(label);
+
   // 実際のテーブルの位置関係と同じ「＋」形（上/左/右/自分=下）にdata-pos属性で配置する。
   // 自分以外は、実際の画面上の座席位置（自分視点で盤面全体が回転する既存の仕組み、
   // getRotationSteps/rotateSide参照）をそのままスロットの位置として使う。自分自身の

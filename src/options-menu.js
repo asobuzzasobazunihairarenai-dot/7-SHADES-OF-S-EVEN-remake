@@ -17,7 +17,7 @@ import {
   isContinuousGlowDisabled,
   setContinuousGlowDisabled,
 } from "./motion-prefs.js";
-import { saveMyPreference, resetMyAppearanceSettings } from "./online.js";
+import { saveMyPreference, resetMyAppearanceSettings, isAdminUser } from "./online.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { openStatsPlayerLinkModal } from "./stats-player-link.js";
 import { isFlatten2dMode, setFlatten2dMode } from "./tablet-2d-mode.js";
@@ -502,12 +502,21 @@ export function initOptionsMenu() {
         openDeckViewer();
       })
     );
-    panel.appendChild(
-      buildMenuItem("⚙ 管理者モード", () => {
-        close();
-        openAdminPanel();
-      })
-    );
+    // ユーザー要望「管理者モードの制限についてオプションの『管理者モード』ボタンから
+    // 一般ユーザーは入れないようにしたい」への対応。位置合わせ用のスライダー等は
+    // 元々「開発者が調整して出力欄の値をCSSへ反映する」ための道具であり、各プレイヤー
+    // 個別の設定ではないため、開発者アカウントだけに絞るのが実態に合っている
+    // （isAdminUserは表示の出し分けだけで、この管理者モード自体には元々
+    // サーバー側で保護すべき機密操作は無い——通貨付与等の本当に危険な機能は
+    // admin.js内の「🔐 管理者専用」セクションが別途サーバー側でも制限している）。
+    if (isAdminUser()) {
+      panel.appendChild(
+        buildMenuItem("⚙ 管理者モード", () => {
+          close();
+          openAdminPanel();
+        })
+      );
+    }
     // ユーザー要望「オプション画面に『タイトルに戻る』があってもいいかも」への対応。
     // 対局中の状態（盤面・オンライン接続等）を個別に片付けるより、ページを丸ごと
     // 再読み込みする方が確実で安全（Googleログイン後の遷移等、既存の「戻ってくると

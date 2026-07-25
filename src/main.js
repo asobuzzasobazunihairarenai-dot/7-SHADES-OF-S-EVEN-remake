@@ -107,6 +107,8 @@ import {
   onAuthChange,
   fetchAndHydrate,
   onGateInvasionEvents,
+  broadcastContactTackle,
+  onContactTackleEvents,
   getSyncedIdentity,
   getGoogleAvatarUrl,
   getGoogleDisplayName,
@@ -1414,21 +1416,38 @@ async function respondToContact(approve) {
   // 無効、駒のDOM要素が見当たらない等の場合はtackleがnullのままとなり、後段が
   // 従来通りのフォールバック（即座にrender()だけ）になる。
   let tackle = null;
-  if (approve && defenderPieceId && attackerPieceId && !isFlightAnimationDisabled()) {
-    const table = document.getElementById("game-table");
-    const attackerEl = table?.querySelector(`.piece[data-token-id="${attackerPieceId}"]`);
-    const defenderEl = table?.querySelector(`.piece[data-token-id="${defenderPieceId}"]`);
-    const defenderToken = getState().tokens.find((t) => t.id === defenderPieceId);
-    const attackerToken = getState().tokens.find((t) => t.id === attackerPieceId);
-    if (table && attackerEl && defenderEl && defenderToken && attackerToken) {
-      tackle = {
-        attackerEl,
-        defenderFromRect: defenderEl.getBoundingClientRect(),
-        attackerRect: attackerEl.getBoundingClientRect(),
-        defenderFromLocation: defenderToken.location,
-        attackerFromLocation: attackerToken.location,
-        attackerColor: attackerToken.color,
-      };
+  if (approve && defenderPieceId && attackerPieceId) {
+    const attackerTokenForBroadcast = getState().tokens.find((t) => t.id === attackerPieceId);
+    // ユーザー要望「接触タックル演出は参加者全員の画面に表示されるようにして」への対応。
+    // 以前はこの演出が承認した本人（defender）の画面だけで再現されていた。実際に駒を
+    // 動かす（respondContact）より前に、他のクライアント（attacker・傍観者）へも
+    // 「これから始まる」と伝える（online.jsのbroadcastContactTackle参照）。この
+    // クライアント自身の「移動アニメーションを無効にする」設定とは関係なく、他の
+    // 参加者はそれぞれ自分の設定に従って再生するかどうかを決めるため、常に送る。
+    if (isOnlineMode() && attackerTokenForBroadcast) {
+      broadcastContactTackle({
+        attackerPieceId,
+        defenderPieceId,
+        attackerColor: attackerTokenForBroadcast.color,
+        defenderSeat: defender,
+      });
+    }
+    if (!isFlightAnimationDisabled()) {
+      const table = document.getElementById("game-table");
+      const attackerEl = table?.querySelector(`.piece[data-token-id="${attackerPieceId}"]`);
+      const defenderEl = table?.querySelector(`.piece[data-token-id="${defenderPieceId}"]`);
+      const defenderToken = getState().tokens.find((t) => t.id === defenderPieceId);
+      const attackerToken = getState().tokens.find((t) => t.id === attackerPieceId);
+      if (table && attackerEl && defenderEl && defenderToken && attackerToken) {
+        tackle = {
+          attackerEl,
+          defenderFromRect: defenderEl.getBoundingClientRect(),
+          attackerRect: attackerEl.getBoundingClientRect(),
+          defenderFromLocation: defenderToken.location,
+          attackerFromLocation: attackerToken.location,
+          attackerColor: attackerToken.color,
+        };
+      }
     }
   }
 
@@ -1494,6 +1513,59 @@ async function respondToContact(approve) {
     };
     if (defenderPiece) maybeTriggerCardArrival(defenderPiece.location, defenderPiece.id, showResultModal);
     else showResultModal();
+  }
+}
+
+// ユーザー要望「接触タックル演出は参加者全員の画面に表示されるようにして」への対応。
+// 承認した本人（defender、respondToContact参照）以外の全クライアント（attacker・
+// 傍観者）が、online.jsのcontact_tackle broadcastを受けてここを通る。まだ実際の
+// 状態変更（respondContact）が届く前の時点で呼ばれるため、自分の画面のDOM座標を
+// そのまま「動く前」の情報として使える。
+async function waitForTokenLocationChange(tokenId, fromLocation, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  const fromJson = JSON.stringify(fromLocation);
+  while (Date.now() < deadline) {
+    const token = getState().tokens.find((t) => t.id === tokenId);
+    if (token && JSON.stringify(token.location) !== fromJson) return true;
+    await wait(100);
+  }
+  return false;
+}
+
+async function playContactTackleForBystander({ attackerPieceId, defenderPieceId, attackerColor }) {
+  if (isFlightAnimationDisabled()) return;
+  const table = document.getElementById("game-table");
+  const attackerEl = table?.querySelector(`.piece[data-token-id="${attackerPieceId}"]`);
+  const defenderEl = table?.querySelector(`.piece[data-token-id="${defenderPieceId}"]`);
+  const attackerToken = getState().tokens.find((t) => t.id === attackerPieceId);
+  const defenderToken = getState().tokens.find((t) => t.id === defenderPieceId);
+  if (!table || !attackerEl || !defenderEl || !attackerToken || !defenderToken) return;
+  const defenderFromRect = defenderEl.getBoundingClientRect();
+  const defenderFromLocation = defenderToken.location;
+
+  // respondToContact()と同じ理由で、実際の状態変更（このすぐ後にstate_changed
+  // broadcastで届く）が汎用render()リスナー・remote-move-animator.jsに横取りされない
+  // よう一時停止する。markSelfHandledも、remote-move-animator.js自身の差分検知による
+  // 素の飛翔ゴーストとの二重演出を防ぐために必要。
+  markSelfHandled([defenderPieceId]);
+  suppressGenericRenderForContactTackle = true;
+  try {
+    await playContactLunge({
+      attackerEl,
+      defenderFromRect,
+      attackerRect: attackerEl.getBoundingClientRect(),
+      defenderFromLocation,
+      attackerFromLocation: attackerToken.location,
+      attackerColor,
+    });
+    // タックル演出自体（数秒）の間に、実際の状態変更がほぼ確実に届いているはずだが、
+    // 万一まだの場合に備えて少し待つ（最大4秒）。それでも届かなければ諦めて
+    // render()だけで最新状態に追従する。
+    await waitForTokenLocationChange(defenderPieceId, defenderFromLocation, 4000);
+    await playContactFlight(defenderPieceId, defenderFromRect);
+  } finally {
+    suppressGenericRenderForContactTackle = false;
+    render();
   }
 }
 
@@ -4874,4 +4946,11 @@ registerRankRingPreviewHelper(previewRankRing);
 // 何が起きたか分からないほど積み重なってしまっていた。
 onGateInvasionEvents((events) => {
   enqueueGateInvasionSteps(events);
+});
+
+// ユーザー要望「接触タックル演出は参加者全員の画面に表示されるようにして」への対応。
+// 承認した本人（defender、respondToContact内で直接再生する）以外の全員がここを通る。
+onContactTackleEvents((payload) => {
+  if (getSelfSeat() === payload.defenderSeat) return;
+  playContactTackleForBystander(payload).catch((err) => console.error("playContactTackleForBystander failed", err));
 });

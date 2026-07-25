@@ -317,7 +317,13 @@ const STEPS = [
   },
   phaseStep(PHASES[0]),
   phaseStep(PHASES[1]),
-  phaseStep(PHASES[2]),
+  // ユーザー要望「チュートリアルの『ムーブフェイズ』は文章が多くて読むのがおっくうに
+  // なる。挿絵等で読む気にさせることできる？」への対応。文章はphase-guide.js側で
+  // 短く区切り直した上で、後続の「ムーブフェイズでの移動」「接触」ステップで使っている
+  // 仮想盤面の挿絵（buildMoveDemoDiagram）をここにも先出しする。「up」（表向きでない
+  // カードのマス＝移動先）と「left」（相手の駒＝接触対象）を同時にハイライトし、
+  // 「移動か接触のどちらか」という本文の内容をひと目で示す。
+  { ...phaseStep(PHASES[2]), renderExtra: (container) => container.appendChild(buildMoveDemoDiagram(["up", "left"])) },
   {
     target: () => document.querySelector(".lock-bottom"),
     title: "あなたのロックエリア",

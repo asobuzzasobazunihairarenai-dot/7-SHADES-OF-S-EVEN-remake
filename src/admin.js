@@ -129,6 +129,21 @@ function renderAdminOnlySectionContent(content) {
   });
   content.appendChild(statsBtn);
   content.appendChild(statsResult);
+
+  // ユーザー要望「登録ユーザーのユーザー名とアドレスを一覧したい。ログイン履歴も
+  // さかのぼれるようにしたい。小さい窓だと見にくいので独自のウインドウを立ち上げて
+  // ほしい」への対応。admin-dashboard.html（このゲーム本体とは別の軽量な静的ページ、
+  // src/admin-dashboard.js参照）を新しいタブ/ウィンドウで開く。ログインセッションは
+  // 同じオリジンのSupabaseセッション（localStorage）を通じてそのまま引き継がれる。
+  const dashboardBtn = document.createElement("button");
+  dashboardBtn.type = "button";
+  dashboardBtn.textContent = "🗂 登録ユーザー一覧・ログイン履歴を別ウィンドウで開く";
+  dashboardBtn.style.cssText =
+    "display: block; margin-top: 0.6rem; padding: 0.3rem 0.7rem; background: rgba(56, 189, 248, 0.25); color: #e2e8f0; border: 1px solid rgba(148,163,184,0.4); border-radius: 0.3rem; cursor: pointer;";
+  dashboardBtn.addEventListener("click", () => {
+    window.open("admin-dashboard.html", "_blank");
+  });
+  content.appendChild(dashboardBtn);
 }
 
 // 大項目（カテゴリ）。項目が増えて縦に長くなりすぎたため、各グループ/トグルセクションを
@@ -242,10 +257,10 @@ const GROUPS = [
     title: "接触のタックル演出（各段階の秒数）",
     category: "effect",
     controls: [
-      { key: "--contact-anim-pre-delay", label: "①承認から演出開始までの間（秒）", unit: "", min: 0, max: 10, step: 0.5, default: 2 },
-      { key: "--contact-anim-runup-duration", label: "③助走にかける秒数", unit: "", min: 0.2, max: 10, step: 0.1, default: 3 },
+      { key: "--contact-anim-pre-delay", label: "①承認から演出開始までの間（秒）", unit: "", min: 0, max: 10, step: 0.5, default: 1 },
+      { key: "--contact-anim-runup-duration", label: "③助走にかける秒数", unit: "", min: 0.2, max: 10, step: 0.1, default: 1.5 },
       { key: "--contact-anim-tackle-duration", label: "④タックルにかける秒数", unit: "", min: 0.1, max: 5, step: 0.1, default: 1 },
-      { key: "--contact-anim-flight-duration", label: "⑤ゲートまで戻るのにかかる秒数", unit: "", min: 0.2, max: 10, step: 0.1, default: 2 },
+      { key: "--contact-anim-flight-duration", label: "⑤ゲートまで戻るのにかかる秒数", unit: "", min: 0.2, max: 10, step: 0.1, default: 1 },
     ],
   },
   {
