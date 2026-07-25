@@ -593,6 +593,24 @@ body.diagnostic-flatten-3d.is-touch-device .zone-left .hand-area {
     opacity: 0.9;
   }
 }
+/* ユーザー報告「10年前のタブレットで盤面下半分が白く欠け、ぼやけた色のシミが出る」
+   への対応（原因調査）。この演出はmix-blend-mode（GPU側で専用の合成レイヤーを
+   要求する）を、常に3D変形(preserve-3d/perspective)の中にある.hand-cardへ常時
+   アニメーションさせながら適用している。CLAUDE.mdに既存の記録がある「タブレットの
+   点滅はpreserve-3d+perspectiveの3D合成負荷が原因」という診断と同じ性質の負荷を
+   さらに増やす組み合わせのため、疑わしい順に真っ先に切り分ける対象とした。
+   「常時光る演出を無効にする」（body.reduce-glow）と「2D表示に切り替える」
+   （body.diagnostic-flatten-3d、preserve-3dが効かなくなり3D合成の対象外になる）の
+   どちらでも、このpseudo要素自体を生成しない（content: noneでmix-blend-modeの
+   合成レイヤーごと無くす。既存のキラ加工([style*="rainbow-shard.webp"])はアニメーションだけ
+   止める設計だが、こちらは新しい演出でまだ実機検証できていないため、より確実な
+   「生成しない」を選んだ）。 */
+body.reduce-glow .hand-card.has-mystic-aura::before,
+body.reduce-glow .hand-card.has-mystic-aura::after,
+body.diagnostic-flatten-3d .hand-card.has-mystic-aura::before,
+body.diagnostic-flatten-3d .hand-card.has-mystic-aura::after {
+  content: none;
+}
 
 /* ハマりどころ: ここは元々`background:`ショートハンドで指定していたが、ショートハンドは
    指定していないサブプロパティ(background-size/position/repeat)も暗黙に初期値へリセットする。
@@ -5812,6 +5830,16 @@ body.is-online-mode #quick-start-bar {
   background: radial-gradient(circle, var(--aura-color) 0%, transparent 70%);
   pointer-events: none;
   will-change: left, top, opacity, transform;
+}
+/* ユーザー報告「2D表示・アニメーション削減を全部オンにしても古いタブレットで画面が
+   壊れる」への対応（opening-screen.jsのstartAuraTrailsSimplified参照）。2D表示中は
+   blur()もアニメーションも一切使わない、色ごとに1個だけの静止した単色円に差し替える。 */
+.opening-aura-dot-static {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--aura-color);
+  opacity: 0.5;
+  pointer-events: none;
 }
 /* ユーザー要望「人魂の設定をしようとする時は疑似的にオープニングの人魂の画面に
    なるようにしてほしい」。管理者パネル(z-index:1000)より奥・実際のゲーム画面より

@@ -28,6 +28,7 @@ import {
 } from "./online.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { playOpeningBgm, stopOpeningBgm } from "./sound.js";
+import { isFlatten2dMode } from "./tablet-2d-mode.js";
 
 // フェードアウトのCSSトランジション時間と合わせる（style.cssの#opening-screen.is-closing、
 // .opening-start-gate.is-closing参照）。
@@ -158,7 +159,30 @@ function getAuraCssNumber(varName, fallback) {
   return Number.isNaN(n) ? fallback : n;
 }
 
+// ユーザー報告「2D表示・アニメーション削減を全部オンにしても、古いタブレットで
+// 途中から画面が壊れる」への対応。3D変形を切ってもGPU負荷が高いまま残る演出
+// （filter: blur()を使うオーラの軌跡、7色×トレイル枚数ぶんの要素を毎フレーム
+// transform/opacityで動かし続ける）が原因の1つと判断し、2D表示モード中は
+// アニメーション・ぼかしを一切使わない簡易版（色ごとに1個、静止した小さい円を
+// 置くだけ）に差し替える。呼び出し元（startBtn.click等）は「stop関数を受け取る」
+// 前提のままで済むよう、こちらも同じ形（何もしないstopを返す）にしておく。
+function startAuraTrailsSimplified(container) {
+  const sizeRem = getAuraCssNumber("--opening-aura-size", 12) * 0.5;
+  for (const color of AURA_COLORS) {
+    const dot = document.createElement("div");
+    dot.className = "opening-aura-dot-static";
+    dot.style.setProperty("--aura-color", `var(--color-${color})`);
+    dot.style.width = `${sizeRem}rem`;
+    dot.style.height = `${sizeRem}rem`;
+    dot.style.left = `${10 + Math.random() * 80}%`;
+    dot.style.top = `${10 + Math.random() * 80}%`;
+    container.appendChild(dot);
+  }
+  return function stop() {};
+}
+
 function startAuraTrails(container) {
+  if (isFlatten2dMode()) return startAuraTrailsSimplified(container);
   const trailLength = Math.max(1, Math.round(getAuraCssNumber("--opening-aura-trail-length", 10)));
   const sizeRem = getAuraCssNumber("--opening-aura-size", 12);
   // ユーザー要望「もっとゆったりと動き回ってほしい」を受けて基準速度を半分程度に

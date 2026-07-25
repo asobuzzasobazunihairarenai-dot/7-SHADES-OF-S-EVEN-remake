@@ -12,6 +12,8 @@
 // これは「このタブレットのGPUが弱い」という端末固有の話で、他の端末（PC等）にまで
 // 引き継ぐべき設定ではないため）。
 
+import { setFlightAnimationDisabled, setArrivalEffectDisabled, setContinuousGlowDisabled } from "./motion-prefs.js";
+
 const STORAGE_KEY = "so7-2d-mode";
 
 // ユーザー報告「10年前のタブレットで、対局中も再起動後の再読み込みも、盤面の一部が
@@ -35,6 +37,20 @@ let enabled = isFlatModeForcedByUrl() || localStorage.getItem(STORAGE_KEY) === "
 // ?flat=1で開いた時は、次回以降このURLを付け直さなくても2D表示のままになるよう、
 // 通常の手動トグルと同じくlocalStorageにも書き込んでおく。
 if (isFlatModeForcedByUrl()) localStorage.setItem(STORAGE_KEY, "1");
+
+// ユーザー報告「2D表示は既にオンにしていたが、Firefoxを入れて試しても途中で画面の
+// 半分が壊れる」への対応。2D表示（perspective/preserve-3d）を切っても直らなかった
+// ことから、犯人は3D変形ではなく`filter: blur()`・`mix-blend-mode`を使う演出
+// （オープニング画面の7色オーラの軌跡・到達演出のバースト・常時光る演出等、
+// いずれもGPU合成が重い）だと判断した。motion-prefs.jsの「アニメーションを
+// 減らす」3設定はセッション限りで持続しない仕様のため、`?flat=1`で開いた時は
+// まとめて有効化しておく（オプション画面の3つのチェックボックスを壊れた画面上で
+// 個別にタップしてもらう必要が無いようにするため）。
+if (isFlatModeForcedByUrl()) {
+  setFlightAnimationDisabled(true);
+  setArrivalEffectDisabled(true);
+  setContinuousGlowDisabled(true);
+}
 const listeners = [];
 
 function apply() {
