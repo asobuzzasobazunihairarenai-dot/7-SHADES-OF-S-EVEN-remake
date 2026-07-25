@@ -858,8 +858,26 @@ document.addEventListener(
   { capture: true }
 );
 
+// ユーザー要望「プレイヤーに作業をさせる場合は『移動先のマスを選択してください』などの
+// モーダルを出して案内するようにしてほしい」への対応。ハイライトだけでは何をすればいいか
+// 分かりにくいという指摘のため、選択中は画面上部に案内文を出す（盤面操作の邪魔をしない
+// pointer-events:noneのバナー、モーダルのように操作を止めない）。
+let effectPickerHintEl = null;
+function showEffectPickerHint(text) {
+  if (!effectPickerHintEl) {
+    effectPickerHintEl = document.createElement("div");
+    effectPickerHintEl.id = "card-effect-picker-hint";
+    document.body.appendChild(effectPickerHintEl);
+  }
+  effectPickerHintEl.textContent = text;
+  effectPickerHintEl.classList.add("show");
+}
+function hideEffectPickerHint() {
+  effectPickerHintEl?.classList.remove("show");
+}
+
 // 効果の対象マスをプレイヤーに選ばせる（候補マスをハイライトし、クリックを待つ）。
-function requestCellChoiceForEffect(candidates) {
+function requestCellChoiceForEffect(candidates, hint) {
   return new Promise((resolve) => {
     const table = document.getElementById("game-table");
     const entries = (table ? candidates.map((loc) => ({ loc, el: findLocationElement(table, loc) })) : []).filter(
@@ -871,12 +889,14 @@ function requestCellChoiceForEffect(candidates) {
     }
     for (const entry of entries) entry.el.classList.add("card-effect-target-cell");
     document.body.classList.add("card-effect-picking-cells");
+    if (hint) showEffectPickerHint(hint);
     activeEffectPicker = {
       type: "cell",
       candidates,
       resolve: (loc) => {
         for (const entry of entries) entry.el.classList.remove("card-effect-target-cell");
         document.body.classList.remove("card-effect-picking-cells");
+        hideEffectPickerHint();
         resolve(loc);
       },
     };
@@ -884,7 +904,7 @@ function requestCellChoiceForEffect(candidates) {
 }
 
 // 効果で使う手札カードをプレイヤーに選ばせる（自分の手札カードをハイライトし、クリックを待つ）。
-function requestHandCardChoiceForEffect(player) {
+function requestHandCardChoiceForEffect(player, hint) {
   return new Promise((resolve) => {
     const handArea = document.querySelector(`.hand-area[data-player="${player}"]`);
     const cardEls = handArea ? [...handArea.querySelectorAll(".hand-card")] : [];
@@ -894,12 +914,14 @@ function requestHandCardChoiceForEffect(player) {
     }
     for (const el of cardEls) el.classList.add("card-effect-target-cell");
     document.body.classList.add("card-effect-picking-hand");
+    if (hint) showEffectPickerHint(hint);
     activeEffectPicker = {
       type: "hand",
       tokenIds: new Set(cardEls.map((el) => el.dataset.tokenId)),
       resolve: (token) => {
         for (const el of cardEls) el.classList.remove("card-effect-target-cell");
         document.body.classList.remove("card-effect-picking-hand");
+        hideEffectPickerHint();
         resolve(token);
       },
     };

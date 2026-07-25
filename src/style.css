@@ -6638,6 +6638,34 @@ body.card-effect-picking-hand .hand-card:not(.card-effect-target-cell) {
 body.reduce-glow .cell.card-effect-target-cell .board-card {
   box-shadow: 0 0 0.4rem 0.1rem rgba(250, 204, 21, 0.6);
 }
+/* ユーザー要望「マスの選択などをさせる場合は案内を出してほしい」への対応。候補選択中、
+   画面上部に「移動先のマスを選択してください」等の案内バナーを出す。pointer-events:none
+   で盤面のクリックは一切妨げない（turn-announce-toastと同じ「操作を止めないトースト」
+   パターン）。 */
+#card-effect-picker-hint {
+  position: fixed;
+  top: 1rem;
+  left: 50%;
+  transform: translate(-50%, -0.6rem);
+  z-index: 3200;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(160deg, rgba(66, 32, 6, 0.92), rgba(28, 16, 4, 0.92));
+  border: 2px solid #facc15;
+  border-radius: 0.6rem;
+  padding: 0.5rem 1.2rem;
+  color: #fef3c7;
+  font-family: sans-serif;
+  font-weight: bold;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  box-shadow: 0 0 1.5rem rgba(250, 204, 21, 0.4), 0 10px 25px rgba(0, 0, 0, 0.5);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+#card-effect-picker-hint.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
 #tutorial-callout {
   position: fixed;
   width: min(22rem, 90vw);

@@ -237,7 +237,11 @@ export function initCardDevMode() {
 
   const panel = buildPanel(close, minimize);
   panel.style.display = "none";
-  const backdrop = createBackdrop(close, { dim: true, zIndex: 2700 });
+  // ユーザー報告「適当な場所をクリックしたらウィンドウが消えてどこかに行ってしまう」
+  // への対応。backdrop（パネル外側）のクリックはcloseではなくminimizeにして、
+  // 必ずミニアイコン経由で戻れる状態にする（closeだと「×」を押した時と見分けが
+  // つかず、次にどこから開き直せばいいか分かりにくかった）。
+  const backdrop = createBackdrop(minimize, { dim: true, zIndex: 2700 });
   backdrop.style.display = "none";
   const miniIcon = document.createElement("button");
   miniIcon.type = "button";

@@ -53,15 +53,39 @@ function hasPieceAt(row, col) {
   return getState().tokens.some((t) => t.kind === "piece" && t.location.zone === "cell" && t.location.row === row && t.location.col === col);
 }
 
+// ユーザー指摘「２マス先とは２マス移動できる範囲のことなので斜め隣のマスも対象」。
+// atOnce（一気に）の「Nマス先」は、上下左右の単位移動をN回組み合わせて届く範囲全体を指し、
+// 直線上のNマス先（4方向）だけでなく、方向を途中で変えた結果届く斜め隣接マスも含む
+// （例: N=2なら、直線上の2マス先4方向＋「上に1＋右に1」のような組み合わせで届く
+// 斜め隣接4方向＝合計8マス）。数学的には「そのマスからマンハッタン距離がちょうどN」の
+// マス全て。N=1の場合はこの式でも従来通り上下左右4マスのみになる（斜めは距離2以上でしか
+// 出現しないため）。
+function enumerateManhattanRing(count) {
+  const offsets = [];
+  for (let drAbs = 0; drAbs <= count; drAbs++) {
+    const dcAbs = count - drAbs;
+    const drs = drAbs === 0 ? [0] : [drAbs, -drAbs];
+    const dcs = dcAbs === 0 ? [0] : [dcAbs, -dcAbs];
+    for (const dr of drs) {
+      for (const dc of dcs) offsets.push({ dr, dc });
+    }
+  }
+  return offsets;
+}
+
 // moveの候補マスを計算する（純粋関数、DOM不要）。atOnce（一気に）の場合は中間マスの
-// カード・駒の有無を問わない（ユーザー確認済みのルール解釈）。それ以外（今回のパイロット
+// カード・駒の有無を問わない（ユーザー確認済みのルール解釈）だけでなく、斜め隣接マスも
+// 候補に含める（上記enumerateManhattanRing参照）。atOnceでない場合（今回のパイロット
 // 範囲ではcount:1のみ）は、通常の移動ルール通り「移動先にカードが必要、駒が既にいる
-// マスは不可」を課す。
+// マスは不可」を課す（count:1では従来の4方向のみのDIRECTIONSと結果は同じ）。
 export function getMoveCandidates(fromLocation, count, atOnce) {
   const candidates = [];
-  for (const { dr, dc } of DIRECTIONS) {
-    const row = fromLocation.row + dr * count;
-    const col = fromLocation.col + dc * count;
+  const offsets = atOnce
+    ? enumerateManhattanRing(count)
+    : DIRECTIONS.map(({ dr, dc }) => ({ dr: dr * count, dc: dc * count }));
+  for (const { dr, dc } of offsets) {
+    const row = fromLocation.row + dr;
+    const col = fromLocation.col + dc;
     if (!inBounds(row, col)) continue;
     if (!atOnce) {
       if (!hasCardAt(row, col) || hasPieceAt(row, col)) continue;
@@ -85,15 +109,17 @@ export function getAnyCellWithCardCandidates() {
 // 1つのactionを実行する。helpers:
 //   moveAndSync(tokenId, location): 実際にトークンを動かし、オンライン中の同期・
 //     再描画まで面倒を見る（main.jsのaddArrivedCardToHand等と同じ責務）。
-//   pickLocation(candidates): プレイヤーに候補マスの中から1つ選んでもらう
-//     （候補が1つしかなければ選ばせずそのまま採用してよい、呼び出し元の裁量）。
-//   pickHandCard(player): プレイヤーに自分の手札から1枚選んでもらう（手札トークンを返す）。
+//   pickLocation(candidates, hint): プレイヤーに候補マスの中から1つ選んでもらう
+//     （候補が1つしかなければ選ばせずそのまま採用してよい、呼び出し元の裁量）。hintは
+//     「何を選ぶ場面か」をプレイヤーに案内する短い文（ユーザー要望「移動先のマスを
+//     選択してください、等の案内を出してほしい」への対応）。
+//   pickHandCard(player, hint): プレイヤーに自分の手札から1枚選んでもらう（手札トークンを返す）。
 async function runAction(action, ctx, helpers) {
   switch (action.verb) {
     case VERBS.MOVE: {
       const candidates = getMoveCandidates(ctx.pieceLocation, action.count, !!action.atOnce);
       if (candidates.length === 0) return; // 善処の原則: 選べる先が無ければ何もしない
-      const dest = candidates.length === 1 ? candidates[0] : await helpers.pickLocation(candidates);
+      const dest = candidates.length === 1 ? candidates[0] : await helpers.pickLocation(candidates, "移動先のマスを選択してください");
       if (!dest) return;
       await helpers.moveAndSync(ctx.pieceTokenId, dest);
       ctx.pieceLocation = dest;
@@ -109,7 +135,8 @@ async function runAction(action, ctx, helpers) {
     case VERBS.PICKUP_TO_HAND: {
       const candidates = getAnyCellWithCardCandidates();
       if (candidates.length === 0) return;
-      const chosen = candidates.length === 1 ? candidates[0] : await helpers.pickLocation(candidates);
+      const chosen =
+        candidates.length === 1 ? candidates[0] : await helpers.pickLocation(candidates, "手札に加えるカードのあるマスを選択してください");
       if (!chosen) return;
       const token = getState().tokens.find(
         (t) =>
@@ -132,7 +159,7 @@ async function runAction(action, ctx, helpers) {
       }
       const dest = ctx.selections[action.destination.ref];
       if (!dest) return;
-      const handToken = await helpers.pickHandCard(ctx.player);
+      const handToken = await helpers.pickHandCard(ctx.player, "そのマスに置くカードを手札から選択してください");
       if (!handToken) return;
       await helpers.moveAndSync(handToken.id, { zone: "cell", row: dest.row, col: dest.col });
       return;
