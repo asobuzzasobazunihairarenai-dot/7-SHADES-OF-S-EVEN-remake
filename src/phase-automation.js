@@ -192,13 +192,15 @@ function ensureSkipButton() {
     advancePhase();
   });
   // ユーザー報告「スキップボタンが他のアイコンと被っています。フェイズ案内板の
-  // ロックフェイズアイコンの右隣に置いてください」。固定座標での配置をやめ、
-  // #phase-guide-bar（flexコンテナ）のロックボタンの直後にDOM上の兄弟として挿入する。
-  // これでフェイズ案内板自体の位置調整（タブレット別オーバーライド含む）にそのまま
-  // 追従する。念のためmain.js初期化順の都合でまだ無い場合はbody直下へフォールバックする。
+  // ロックフェイズアイコンの左隣に置いてください」（最初afterendで右隣に置いたところ
+  // 「右側ではなく左側がいい」と指摘を受けたのでbeforebeginに変更）。固定座標での
+  // 配置をやめ、#phase-guide-bar（flexコンテナ）のロックボタンの直前にDOM上の
+  // 兄弟として挿入する。これでフェイズ案内板自体の位置調整（タブレット別
+  // オーバーライド含む）にそのまま追従する。念のためmain.js初期化順の都合でまだ
+  // 無い場合はbody直下へフォールバックする。
   const lockBtn = document.getElementById("phase-guide-lock-button");
   if (lockBtn) {
-    lockBtn.insertAdjacentElement("afterend", skipButtonEl);
+    lockBtn.insertAdjacentElement("beforebegin", skipButtonEl);
   } else {
     document.body.appendChild(skipButtonEl);
   }

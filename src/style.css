@@ -5294,23 +5294,31 @@ body.reduce-glow #phase-guide-bar button.is-current-phase {
 .cell.phase-contact-highlight {
   outline: 3px solid rgba(251, 146, 60, 0.9);
   outline-offset: -3px;
-  animation: phase-move-highlight-pulse 1.4s ease-in-out infinite;
+  animation: phase-contact-highlight-pulse 1.4s ease-in-out infinite;
 }
+/* ユーザー報告「接触できる相手の駒がなぜかペッちゃんこです」の原因・修正: opacity（0.7↔1）で
+   パルスさせていたが、opacityが1未満の要素はブラウザが独立した合成レイヤーへ強制的に
+   分離する仕様のため、その中にいる3D立体駒（buildCubePieceのpreserve-3dキューブ技法）が
+   平面化して描画されてしまっていた。既存のtutorial-move-range-pulse（.card-effect-
+   target-cell等で使用、駒を巻き込む心配のない実績あるパターン）と同じくoutline-colorの
+   明暗だけをパルスさせる方式に変更する。 */
 @keyframes phase-move-highlight-pulse {
-  0%, 100% { opacity: 0.7; }
-  50% { opacity: 1; }
+  0%, 100% { outline-color: rgba(74, 222, 128, 0.9); }
+  50% { outline-color: rgba(74, 222, 128, 0.35); }
+}
+@keyframes phase-contact-highlight-pulse {
+  0%, 100% { outline-color: rgba(251, 146, 60, 0.9); }
+  50% { outline-color: rgba(251, 146, 60, 0.35); }
 }
 body.reduce-glow .cell.phase-move-highlight,
 body.reduce-glow .cell.phase-contact-highlight {
   animation: none;
 }
 /* ユーザー要望「移動先ハイライト時、範囲外のトーンを落としてください。ジャンプ台の時と
-   同じように」。card-effect-picking-cellsと同じ「候補以外を暗くする」仕組み
-   （inset box-shadowを使う理由は同箇所のコメント参照——filter/opacityがこの3D階層で
-   効かないため）。 */
+   同じように」。card-effect-picking-cellsと同じ「候補以外を暗くする」仕組み。 */
 body.phase-move-picking .cell:not(.phase-move-highlight):not(.phase-contact-highlight) {
-  box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.55);
-  transition: box-shadow 0.2s ease;
+  filter: brightness(0.45) saturate(0.6);
+  transition: filter 0.2s ease;
 }
 
 /* フェイズ自動スキップの通知モーダル（src/phase-automation.js）。confirm-modalと似た
@@ -6776,19 +6784,14 @@ body.reduce-glow .hand-card.card-effect-target-cell {
 }
 /* ユーザー要望「移動先候補が少しわかりずらい。ほかのマスのトーンを落として、カードの面も
    ハイライトされるようにしたい」への対応。候補選択中は他の全マス/手札カードを暗くし、
-   候補の中の実際のカード画像自体にも光彩を足す（枠線だけだと目に入りにくいため）。
-   ハマりどころ: 盤面のこれらの要素は3D階層（perspective/preserve-3d）の中にあり、
-   filter・opacityのどちらを指定してもこの環境ではcomputed styleに一切反映されない
-   （原因不明の3D階層特有の挙動、テストで確認済み——同じ階層でもbox-shadow・
-   background-colorは正しく効く）。そのため暗くする手段として、要素全体を覆う
-   inset box-shadowを使う（見た目の効果としてはopacityで暗くするのとほぼ同じ）。 */
+   候補の中の実際のカード画像自体にも光彩を足す（枠線だけだと目に入りにくいため）。 */
 body.card-effect-picking-cells .cell:not(.card-effect-target-cell) {
-  box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.55);
-  transition: box-shadow 0.2s ease;
+  filter: brightness(0.45) saturate(0.6);
+  transition: filter 0.2s ease;
 }
 body.card-effect-picking-hand .hand-card:not(.card-effect-target-cell) {
-  box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.55);
-  transition: box-shadow 0.2s ease;
+  filter: brightness(0.45) saturate(0.6);
+  transition: filter 0.2s ease;
 }
 .cell.card-effect-target-cell .board-card {
   box-shadow: 0 0 1.2rem 0.3rem rgba(250, 204, 21, 0.85);
