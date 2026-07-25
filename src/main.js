@@ -41,7 +41,7 @@ import { initShop, openShopPanel } from "./shop.js";
 import { initGameSetup, previewStartPlayerModal } from "./game-setup.js";
 import { initOptionsMenu } from "./options-menu.js";
 import { runGateInvasionsIfNeeded, registerEternalAnimHelpers } from "./gate-invasion.js";
-import { announceHandPickups, announceCardLocked } from "./hand-announcer.js";
+import { announceHandPickups, announceCardLocked, announceDrawCount } from "./hand-announcer.js";
 import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking } from "./victory.js";
 import { registerVictoryHelpers } from "./post-game-panel.js";
@@ -83,6 +83,7 @@ import { isLockColorVisible } from "./lock-color.js";
 import { isArrivalEffectDisabled, isFlightAnimationDisabled } from "./motion-prefs.js";
 import { rectCenter, flyGhost } from "./ghost-flight.js";
 import { showCardArrivalModal } from "./card-arrival.js";
+import { showHandEffectUseModal, showHandEffectOptionPicker } from "./hand-effect-ui.js";
 import { initPlayerButtons } from "./player-buttons.js";
 import { initQuickStart } from "./quick-start.js";
 import { initPhaseGuide } from "./phase-guide.js";
@@ -879,6 +880,13 @@ let activeEffectPicker = null; // { type: "cell", candidates, resolve } | { type
 // 状態を持ち、buildPlayerZone（手札）とrender()末尾（マス）でその都度再適用する。
 let glowingEffectHandTokenId = null;
 let pendingPlacementLocation = null;
+// ユーザー要望「配置系効果は配置後ここに配置したよがわかるように配置場所をしっかり
+// ハイライトしてください。マスの枠だけでなくカードの面もね！」。上のpendingPlacement
+// Locationは「これから置く場所」（置く前）の目印だが、こちらは「今まさに置いた場所」
+// （置いた後）の目印で、効果全体の完了を待たず一定時間で自動的に消える（数秒で消える他の
+// 演出と同じ考え方、対象マスは複数になり得るためSetで持つ）。
+let justPlacedLocations = new Set();
+let justPlacedClearTimer = null;
 
 document.addEventListener(
   "pointerdown",
@@ -923,15 +931,29 @@ document.addEventListener(
     if (picker.type === "cell") {
       for (const el of elements) {
         const cellEl = el.closest(".cell");
-        if (!cellEl) continue;
-        const row = Number(cellEl.dataset.row);
-        const col = Number(cellEl.dataset.col);
-        const match = picker.candidates.find((c) => c.row === row && c.col === col);
-        if (match) {
-          activeEffectPicker = null;
-          picker.resolve(match);
+        if (cellEl) {
+          const row = Number(cellEl.dataset.row);
+          const col = Number(cellEl.dataset.col);
+          const match = picker.candidates.find((c) => c.zone === "cell" && c.row === row && c.col === col);
+          if (match) {
+            activeEffectPicker = null;
+            picker.resolve(match);
+          }
+          return;
         }
-        return;
+        // なないろの欠片のLOCK_PAIR等、候補がロックスロットの場合（getOwnLockSlotCandidates
+        // 参照）。以前はここに無く、ロックスロットをクリックしても何も起きないバグだった。
+        const lockSlotEl = el.closest(".lock-slot");
+        if (lockSlotEl) {
+          const side = lockSlotEl.dataset.side;
+          const index = Number(lockSlotEl.dataset.index);
+          const match = picker.candidates.find((c) => c.zone === "lock" && c.side === side && c.index === index);
+          if (match) {
+            activeEffectPicker = null;
+            picker.resolve(match);
+          }
+          return;
+        }
       }
       return;
     }
@@ -1098,37 +1120,82 @@ function markEffectPlacementTarget(location) {
   render();
 }
 
+// ユーザー要望「配置後ここに配置したよがわかるように配置場所をしっかりハイライトして
+// ください。マスの枠だけでなくカードの面もね」。PLACE_CARD系のアクションが実際に
+// 置き終えた直後に呼ぶ（card-effect-engine.jsのrunActionから、helpers.markPlacedLocation
+// 経由）。効果全体の完了（clearEffectUiHighlights）を待たず、一定時間で自動的に消える。
+const JUST_PLACED_HIGHLIGHT_MS = 3000;
+function markEffectJustPlaced(location) {
+  justPlacedLocations.add(`${location.row},${location.col}`);
+  clearTimeout(justPlacedClearTimer);
+  justPlacedClearTimer = setTimeout(() => {
+    justPlacedLocations.clear();
+    render();
+  }, JUST_PLACED_HIGHLIGHT_MS);
+  render();
+}
+
 // 効果全体（例: 収穫と種まきの2段階）が完了した後、上の2つのハイライトをクリアする。
+// justPlacedLocationsは独立したタイマーで自動的に消えるため、ここでは対象外
+// （効果がすぐ終わっても、置いた場所の余韻はしばらく見えていてほしいため）。
 function clearEffectUiHighlights() {
   glowingEffectHandTokenId = null;
   pendingPlacementLocation = null;
 }
 
+// ドロー枚数の演出（山札から手札への飛翔ゴースト）。ユーザー要望「山札から１枚手札に
+// 加わるアニメが欲しい」。裏向きの私的ドローのため、飛んでいる間は常に裏面画像
+// （setup-animation.jsの初回配布演出と同じ考え方）。移動アニメーションを減らす設定
+// （motion-prefs.js）中は演出自体をスキップする。
+async function flyDrawnCardToHand(player, cardId) {
+  if (isFlightAnimationDisabled()) return;
+  const deckEl = document.querySelector('.stack[data-pile="deck"]');
+  const handArea = document.querySelector(`.hand-area[data-player="${player}"]`);
+  if (!deckEl || !handArea) return;
+  const fromRect = deckEl.getBoundingClientRect();
+  const toRect = handArea.getBoundingClientRect();
+  const { done } = flyGhost(fromRect, toRect, getCardBackImagePath(cardId), "setup-fly-card is-facedown", 500);
+  await done;
+}
+
 // 手札効果のDRAW動詞用。playerの手札へ山札からcount枚引く（オンライン同期込み、
 // 「1枚ドロー」ボタンと同じ考え方をcount回・任意のplayer向けに一般化したもの）。
+// ユーザー要望「「●枚ドローします。」的なモーダルも欲しいです。全員に。」「山札から
+// 手札に加わるアニメが欲しい」「獲得ポップアップは1枚ずつではなくまとめて」への対応。
 async function drawCardsForEffect(player, count) {
+  if (count > 0) announceDrawCount(player, count);
+  const pickups = [];
   for (let i = 0; i < count; i++) {
     if (isOnlineMode()) {
       try {
         const result = await drawFromPile("deck", { zone: "hand", player });
         if (result?.revealedCardId) {
           playSound("cardDraw");
-          announceHandPickups(player, [{ cardId: result.revealedCardId, wasPublic: false }]);
+          // ゴーストが飛んでいる間はまだrender()しない（実カードが先に一瞬見えてしまう
+          // 「二重表示」を避けるため、setup-animation.jsと同じ考え方）。着地後にrender()。
+          await flyDrawnCardToHand(player, result.revealedCardId);
+          render();
+          pickups.push({ cardId: result.revealedCardId, wasPublic: false });
         }
         await fetchAndHydrate(getCurrentGameId());
       } catch (err) {
         console.error("drawCardsForEffect failed", err);
-        return;
+        break;
       }
     } else {
       const pileArray = getState().piles.deck;
-      if (pileArray.length === 0) continue; // 山札が尽きたら諦める（善処の原則）
+      if (pileArray.length === 0) break; // 山札が尽きたら諦める（善処の原則）
       const cardId = pileArray[pileArray.length - 1];
       drawFromPile("deck", { zone: "hand", player });
       playSound("cardDraw");
-      announceHandPickups(player, [{ cardId, wasPublic: false }]);
+      await flyDrawnCardToHand(player, cardId);
+      render();
+      pickups.push({ cardId, wasPublic: false });
     }
   }
+  // ユーザー要望「獲得ポップアップは1枚ずつ出るのではなく、まとめて1回出てほしい」
+  // （複数枚ドローする効果で連続表示が煩雑だったため）。
+  if (pickups.length > 0) announceHandPickups(player, pickups);
 }
 
 // ユーザー要望「①通常の手札カードは、ハンドフェイズかつ手札エリア外で放すと手札効果が
@@ -1148,8 +1215,11 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         pickHandCard: requestHandCardChoiceForEffect,
         onCardAcquiredToHand: onEffectCardAcquiredToHand,
         markPlacementTarget: markEffectPlacementTarget,
+        markPlacedLocation: markEffectJustPlaced,
         placeFromDeck: placeFromDeckForEffect,
         swapPieces: swapPiecesForEffect,
+        announceUse: showHandEffectUseModal,
+        pickHandEffectOption: showHandEffectOptionPicker,
       }
     );
     clearEffectUiHighlights();
@@ -1171,6 +1241,7 @@ async function runAutoArrivalEffect(cardId, location, player) {
       pickHandCard: requestHandCardChoiceForEffect,
       onCardAcquiredToHand: onEffectCardAcquiredToHand,
       markPlacementTarget: markEffectPlacementTarget,
+      markPlacedLocation: markEffectJustPlaced,
       placeFromDeck: placeFromDeckForEffect,
       swapPieces: swapPiecesForEffect,
     }
@@ -2113,6 +2184,13 @@ function render() {
   if (pendingPlacementLocation) {
     const targetEl = findLocationElement(table, pendingPlacementLocation);
     if (targetEl) targetEl.classList.add("card-effect-placement-target");
+  }
+  // ユーザー要望「配置後ここに配置したよがわかるように配置場所をしっかりハイライト
+  // してください。マスの枠だけでなくカードの面もね」。
+  for (const key of justPlacedLocations) {
+    const [row, col] = key.split(",").map(Number);
+    const targetEl = findLocationElement(table, { zone: "cell", row, col });
+    if (targetEl) targetEl.classList.add("card-effect-just-placed");
   }
   fitTableToViewport();
   updateEndTurnButton();
@@ -5145,7 +5223,7 @@ initDeckViewer();
 initStatsPlayerLinkModal();
 initMyPage();
 initCardDevMode();
-registerCardDevModeArrivalHelpers({ triggerCardArrival, render });
+registerCardDevModeArrivalHelpers({ triggerCardArrival, runAutoHandEffect, render });
 registerPhaseAutomationHelpers({ render, findTopCardAt });
 initHelpButton();
 initCurrencyDisplay();

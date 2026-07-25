@@ -11,20 +11,22 @@
 
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getCardDefinition } from "./cards-data.js";
-import { CARD_EFFECTS, generateEffectText } from "./card-effects.js";
+import { CARD_EFFECTS, generateEffectText, generateHandEffectOptionsText } from "./card-effects.js";
 import { getState, moveToken, flipToken, isOnlineMode } from "./state.js";
 import { getSelfSeat, getCurrentGameId, fetchAndHydrate } from "./online.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
 import { stageDelta, toStageLocalRect } from "./main.js";
 import { setAutoProcessingEnabled } from "./card-effect-engine.js";
 
-// main.js側のtriggerCardArrival（自己申告モーダル／自動処理の分岐を持つ本体）は
-// main.js内にしか無いため、他の箇所と同じ「register helper」注入パターンで
+// main.js側のtriggerCardArrival・runAutoHandEffect（自己申告モーダル／自動処理の分岐を
+// 持つ本体）はmain.js内にしか無いため、他の箇所と同じ「register helper」注入パターンで
 // main.js側から渡してもらう（循環import回避）。
 let triggerCardArrivalHelper = null;
+let runAutoHandEffectHelper = null;
 let renderHelper = null;
-export function registerCardDevModeArrivalHelpers({ triggerCardArrival, render }) {
+export function registerCardDevModeArrivalHelpers({ triggerCardArrival, runAutoHandEffect, render }) {
   triggerCardArrivalHelper = triggerCardArrival;
+  runAutoHandEffectHelper = runAutoHandEffect;
   renderHelper = render;
 }
 
@@ -78,8 +80,46 @@ async function summonAndTriggerArrival(cardId) {
   }
 }
 
-// パイロット5枚（src/card-effects.jsのCARD_EFFECTSキーと対応、docs/cards.mdの実際の
+// summonAndTriggerArrivalの手札効果版。狙ったカードのトークンを自分の手札へ動かし、
+// そのまま手札効果の自動処理を呼ぶ（runAutoHandEffect側が追色コスト選択・使用可否判定
+// 等、実際のゲーム内クリック操作と全く同じ経路を通る）。
+async function summonAndTriggerHandEffect(cardId) {
+  const state = getState();
+  const selfSeat = getSelfSeat();
+  const cardToken = state.tokens.find((t) => t.kind === "card" && t.cardId === cardId);
+  if (!cardToken) {
+    alert(
+      isOnlineMode()
+        ? "このカードは今の対戦でまだ配られていないか、裏向き・相手の手札等でマスクされていて特定できません（オンライン対戦は他プレイヤーの非公開情報を覗けない設計のため）。ローカルのテストモードでの利用を推奨します。"
+        : "このカードは今のゲームでまだ配られていません（山札の中）。セットアップ後にもう一度お試しください。"
+    );
+    return;
+  }
+  const location = { zone: "hand", player: selfSeat };
+  if (isOnlineMode()) {
+    try {
+      await moveToken(cardToken.id, location);
+      markSelfHandled([cardToken.id]);
+      await fetchAndHydrate(getCurrentGameId());
+    } catch (err) {
+      console.error("summonAndTriggerHandEffect failed", err);
+      alert("呼び出しに失敗しました（詳細はコンソールを確認してください）。");
+      return;
+    }
+  } else {
+    moveToken(cardToken.id, location);
+  }
+  renderHelper?.();
+  if (runAutoHandEffectHelper) {
+    runAutoHandEffectHelper(cardId, cardToken.id, selfSeat);
+  } else {
+    alert("手札効果処理の呼び出し先が初期化されていません（main.jsの読み込み順を確認してください）。");
+  }
+}
+
+// パイロットカード（src/card-effects.jsのCARD_EFFECTSキーと対応、docs/cards.mdの実際の
 // 文章と見比べるための一覧）。新しいパイロットカードを追加したら、ここにも追記する。
+// kind: "arrival" | "handEffect" | "handEffectOptions"（複数選択肢を持つ手札効果）。
 const PILOT_CARDS = [
   { cardId: "purple-sorry", kind: "arrival", actual: "１マス移動する。" },
   { cardId: "eternal-green", kind: "handEffect", actual: "【追色１】１枚ドロー。" },
@@ -94,12 +134,35 @@ const PILOT_CARDS = [
     kind: "handEffect",
     actual: "【追色１】２枚ドロー。相手全員は１枚ドロー。この効果は１ターンに１度のみ得られる。",
   },
+  {
+    cardId: "rainbow-shard",
+    kind: "handEffectOptions",
+    actual:
+      "以下の効果のうち１つ得る。・１枚ドロー。・これを含めた「なないろの欠片」が２枚、あなたの手札にある時に使える。その２枚を任意の１箇所にロックする。２枚ドロー。",
+  },
+  {
+    cardId: "eternal-purple",
+    kind: "handEffect",
+    actual: "【追色１】任意の１マスの１枚をあなたの手札に加える。そのマスに山札から１枚裏向きで置く。",
+  },
+  { cardId: "eternal-blue", kind: "handEffect", actual: "【追色１】任意の２マスに山札から１枚ずつ裏向きで置く。" },
+  {
+    cardId: "orange-mass-change",
+    kind: "arrival",
+    actual: "３マス以内の相手のいる場所とあなたのいる場所を入れ替える。相手はこのカードの到達効果を得ない。",
+  },
+  { cardId: "orange-mass-change", kind: "handEffect", actual: "【追色1】上記の到達時の効果を得る。" },
+  { cardId: "first-orange", kind: "handEffect", actual: "【追色１】２マス以内のカードを１枚あなたの手札に加える。" },
 ];
+
+const KIND_LABEL = { arrival: "到達効果", handEffect: "手札効果", handEffectOptions: "手札効果（選択式）" };
 
 function buildPilotRow(pilot, minimize) {
   const def = getCardDefinition(pilot.cardId);
-  const effectDef = CARD_EFFECTS[pilot.cardId]?.[pilot.kind];
-  const generated = generateEffectText(effectDef);
+  const generated =
+    pilot.kind === "handEffectOptions"
+      ? generateHandEffectOptionsText(CARD_EFFECTS[pilot.cardId]?.handEffectOptions)
+      : generateEffectText(CARD_EFFECTS[pilot.cardId]?.[pilot.kind]);
   const matches = generated === pilot.actual;
 
   const row = document.createElement("div");
@@ -107,7 +170,7 @@ function buildPilotRow(pilot, minimize) {
 
   const nameEl = document.createElement("div");
   nameEl.className = "card-dev-mode-row-name";
-  nameEl.textContent = `${matches ? "✅" : "⚠️"} ${def?.name ?? pilot.cardId}（${pilot.kind === "arrival" ? "到達効果" : "手札効果"}）`;
+  nameEl.textContent = `${matches ? "✅" : "⚠️"} ${def?.name ?? pilot.cardId}（${KIND_LABEL[pilot.kind]}）`;
   row.appendChild(nameEl);
 
   const genRow = document.createElement("div");
@@ -120,24 +183,26 @@ function buildPilotRow(pilot, minimize) {
   actualRow.innerHTML = `<span class="card-dev-mode-row-label">実際:</span> ${pilot.actual}`;
   row.appendChild(actualRow);
 
-  // 到達効果はrunAutoArrivalEffect（main.js）に実際に配線済みなので、テスト用の
-  // 呼び出しボタンを出す。手札効果（■）はまだ「使った」を宣言するトリガー自体が
-  // アプリに無いため対象外（card-effect-engine.jsの冒頭コメント参照）。
-  if (pilot.kind === "arrival") {
-    const summonBtn = document.createElement("button");
-    summonBtn.type = "button";
-    summonBtn.className = "card-dev-mode-summon-btn";
-    summonBtn.textContent = "🧪 自分の駒の位置に呼び出してテスト";
-    // 効果によっては直後にマス/手札を選ぶ候補ハイライトが出るため、このパネル自体の
-    // 背面（z-index高め）が盤面へのクリックを塞がないよう、実行前にパネルを閉じる。
-    // closeではなくminimizeにしているのは、ユーザー要望「毎回開くのが面倒」への対応で、
-    // 効果確認後すぐミニアイコンから同じ位置・サイズのまま再度開けるようにするため。
-    summonBtn.addEventListener("click", () => {
-      minimize();
+  // 到達効果はrunAutoArrivalEffect、手札効果（単一・選択式とも）はrunAutoHandEffect
+  // （どちらもmain.js）に実際に配線済みなので、テスト用の呼び出しボタンを出す。
+  const summonBtn = document.createElement("button");
+  summonBtn.type = "button";
+  summonBtn.className = "card-dev-mode-summon-btn";
+  summonBtn.textContent =
+    pilot.kind === "arrival" ? "🧪 自分の駒の位置に呼び出してテスト" : "🧪 自分の手札に呼び出してテスト";
+  // 効果によっては直後にマス/手札を選ぶ候補ハイライトが出るため、このパネル自体の
+  // 背面（z-index高め）が盤面へのクリックを塞がないよう、実行前にパネルを閉じる。
+  // closeではなくminimizeにしているのは、ユーザー要望「毎回開くのが面倒」への対応で、
+  // 効果確認後すぐミニアイコンから同じ位置・サイズのまま再度開けるようにするため。
+  summonBtn.addEventListener("click", () => {
+    minimize();
+    if (pilot.kind === "arrival") {
       summonAndTriggerArrival(pilot.cardId);
-    });
-    row.appendChild(summonBtn);
-  }
+    } else {
+      summonAndTriggerHandEffect(pilot.cardId);
+    }
+  });
+  row.appendChild(summonBtn);
 
   return row;
 }
@@ -190,7 +255,7 @@ function buildPanel(close, minimize) {
   const intro = document.createElement("div");
   intro.id = "card-dev-mode-intro";
   intro.textContent =
-    "src/card-effects.jsの構造化データ（動詞＋パラメータ）から自動生成した効果文（生成）と、説明書の実際の文章（実際）を見比べる試作ビューです。到達効果（3枚）は基本設定「カード効果を自動処理する」がONの時、実際のゲーム挙動にも反映されます（手札効果はまだ未対応）。各カードの「🧪 自分の駒の位置に呼び出してテスト」ボタンで、盤面上のそのカードを探さずに即座に到達処理を試せます。";
+    "src/card-effects.jsの構造化データ（動詞＋パラメータ）から自動生成した効果文（生成）と、説明書の実際の文章（実際）を見比べる試作ビューです。基本設定「カード効果を自動処理する」がONの時、実際のゲーム挙動にも反映されます。各カードの「🧪 呼び出してテスト」ボタンで、盤面上/山札の中のそのカードを探さずに即座に到達処理・手札効果を試せます。";
   panel.appendChild(intro);
 
   const list = document.createElement("div");

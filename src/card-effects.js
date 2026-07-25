@@ -26,6 +26,7 @@ export const VERBS = {
   PLACE_CARD: "place_card", // 手札または山札からマスにカードを置く
   DISCARD_SAME_COLOR: "discard_same_color", // 「追色」コスト: 同色のカードを手札から捨てる
   SWAP_POSITION: "swap_position", // 自分の駒と、範囲内にいる相手の駒の位置を入れ替える（「移動」ではない）
+  LOCK_PAIR: "lock_pair", // なないろの欠片専用: 手札の同名2枚を任意のロックスロットへまとめてロックする
 };
 
 // 効果の主語（誰が対象か）。「自分」以外は今回のパイロットでは「相手全員」だけ登場する。
@@ -116,14 +117,24 @@ export const CARD_EFFECTS = {
   // 6. なないろの欠片（虹、通常カード） 手札効果: 「以下の効果のうち１つ得る。
   // ・１枚ドロー。・これを含めた「なないろの欠片」が２枚、あなたの手札にある時に
   // 使える。その２枚を任意の１箇所にロックする。２枚ドロー。」
-  // 選択肢のうち「１枚ドロー」（コスト無し）だけを今回DSL化する。もう一方
-  // （２枚集めて任意の１箇所にロックする）は、通常のロックフェイズ判定を経ない
-  // 特殊なロック処理が必要でDSLの現在の語彙では表現しづらいため、引き続き
-  // 自己申告のままにする（ユーザー確認の上での意図的な部分対応）。
+  // ユーザー要望「手札効果は２つあります。効果選択モーダルを出してください。
+  // 使用できない方はグレー表示。」への対応で、両方の選択肢をDSL化した
+  // （handEffectOptions、複数選択肢を持つ手札効果の最初の例）。
   "rainbow-shard": {
-    handEffect: {
-      actions: [{ verb: VERBS.DRAW, count: 1, target: TARGETS.SELF }],
-    },
+    handEffectOptions: [
+      { id: "draw", label: "１枚ドロー", actions: [{ verb: VERBS.DRAW, count: 1, target: TARGETS.SELF }] },
+      {
+        id: "lock-pair",
+        label: "２枚をロックする（２枚ドロー）",
+        // これを含めた「なないろの欠片」が2枚、手札にある時だけ選べる。
+        requiresPairInHand: true,
+        // このカード自身が「ロックされる2枚」の1枚になるため、通常の手札効果の
+        // デフォルト「効果発動時にこのカードを捨てる」の対象外にする
+        // （docs/cards.md: 効果発動時の処遇は選択肢ごとに違う）。
+        keepsCardOnUse: true,
+        actions: [{ verb: VERBS.LOCK_PAIR }, { verb: VERBS.DRAW, count: 2, target: TARGETS.SELF }],
+      },
+    ],
   },
 
   // 7. 終わりなき化学 ゲンテクニーク（紫、エターナルカード） 手札効果:
@@ -256,6 +267,8 @@ function renderAction(action, context) {
     }
     case VERBS.SWAP_POSITION:
       return `${count}マス以内の相手のいる場所とあなたのいる場所を入れ替える。`;
+    case VERBS.LOCK_PAIR:
+      return "その２枚を任意の１箇所にロックする。";
     default:
       return `（未対応の動詞: ${action.verb}）`;
   }
@@ -289,6 +302,15 @@ export function generateEffectText(effectDef) {
   const limitText = renderUsageLimit(effectDef.usageLimit);
   if (limitText) parts.push(limitText);
   return parts.join("");
+}
+
+// handEffectOptions（複数選択肢を持つ手札効果、なないろの欠片等）専用。各選択肢を
+// 「以下の効果のうち１つ得る。」の書式でまとめてテキスト化する（card-dev-mode.jsの
+// 生成/実際テキスト比較用）。
+export function generateHandEffectOptionsText(options) {
+  if (!options?.length) return "";
+  const lines = options.map((opt) => `・${generateEffectText(opt)}`);
+  return `以下の効果のうち１つ得る。${lines.join("")}`;
 }
 
 // --- 動作確認用（このファイル単体で実行し、docs/cards.mdの実際の文章と目視比較する） ---

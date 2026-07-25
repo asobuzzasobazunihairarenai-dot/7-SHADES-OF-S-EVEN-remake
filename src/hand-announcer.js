@@ -111,6 +111,18 @@ export function announceGateInvasion(attacker, defender) {
   `);
 }
 
+// player: これからカードを引くプレイヤー。count: 枚数。ユーザー要望「「●枚ドローします。」
+// 的なモーダルも欲しいです。全員に。」への対応——実際にカードが引かれる「前」に、
+// 何を引くかは明かさず枚数だけを予告する（announceHandPickupsは「引き終わった後」に
+// 中身を伝える別の通知）。「全員に」を厳密に満たすには他クライアントへのブロードキャストが
+// 必要だが未対応で、今のところ実行者自身の画面にのみ表示される（実機オンライン対戦での
+// 確認を推奨）。
+export function announceDrawCount(player, count) {
+  showToast(`
+    <div class="hand-pickup-toast-title">${getPlayerNameOrYou(player)}が${count}枚ドローします</div>
+  `);
+}
+
 // player: ロックエリアの持ち主（そのカードをロックしたプレイヤー）。
 // ロックは必ず表向き（[[state.js]]のfaceUpForLocation参照）で誰でも見える情報のため、
 // announceHandPickupsと違い公開/非公開の出し分けは不要。白黒（無色）カードをロックエリアへ

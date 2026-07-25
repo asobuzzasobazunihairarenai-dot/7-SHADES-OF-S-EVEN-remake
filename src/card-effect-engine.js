@@ -18,6 +18,7 @@
 import { getState } from "./state.js";
 import { VERBS, TARGETS, TARGET_SELECTIONS, CARD_EFFECTS } from "./card-effects.js";
 import { getCardDefinition } from "./cards-data.js";
+import { COLORS, SEAT_TO_SIDE } from "./board-layout.js";
 
 // ユーザー確認済み「効果自動処理は基本設定でON/OFFを選べるように」。他の「アニメーションを
 // 減らす」設定（motion-prefs.js）と同じくセッション限りの設定（ページ再読み込みで
@@ -50,8 +51,7 @@ function usageCountThisTurn(cardId, player) {
   if (!entry || entry.turnNumber !== getState().turnNumber) return 0;
   return entry.count;
 }
-function isUnderUsageLimit(cardId, player) {
-  const usageLimit = CARD_EFFECTS[cardId]?.handEffect?.usageLimit;
+function isUnderUsageLimit(usageLimit, cardId, player) {
   if (!usageLimit) return true;
   if (usageLimit.per !== "turn") return true; // 今回のパイロットは"turn"のみ対応
   return usageCountThisTurn(cardId, player) < usageLimit.count;
@@ -82,39 +82,65 @@ function findSameColorDiscardCandidates(cardTokenId, color, player) {
   });
 }
 
-// このカードの手札効果を今使ってよいか（設定ON・構造化データあり・使用回数制限内・
-// コストを払える手札がある、の全てを満たすか）。トリガーUI側（main.js）が「使用する」
-// 操作を有効にするかどうかの判定にも、Hand Phaseの自動スキップ判定にも使う共通関数。
-export function canUseHandEffect(cardId, cardTokenId, player) {
+// 手札効果データを「選択肢の配列」に正規化する。単一handEffectのカード（今までの
+// 大半）は1件だけの配列として扱い（id:"default"）、handEffectOptionsを持つカード
+// （なないろの欠片等、複数選択肢を持つ手札効果）はそのまま返す。呼び出し元（main.js）が
+// 「選択肢が1つならモーダル無しでそのまま実行、2つ以上なら選ばせる」を共通の形で
+// 書けるようにするための正規化。
+export function getHandEffectOptions(cardId) {
+  const def = CARD_EFFECTS[cardId];
+  if (!def) return [];
+  if (def.handEffectOptions) return def.handEffectOptions;
+  if (def.handEffect) return [{ id: "default", label: null, ...def.handEffect }];
+  return [];
+}
+
+// 1つの選択肢が今使えるか（設定ON・使用回数制限内・コストを払える・
+// requiresPairInHand等の追加条件を満たす、の全てを満たすか）。
+export function isHandEffectOptionUsable(cardId, cardTokenId, player, option) {
   if (!autoProcessingEnabled) return false;
-  const effectDef = CARD_EFFECTS[cardId]?.handEffect;
-  if (!effectDef) return false;
-  if (!isUnderUsageLimit(cardId, player)) return false;
-  if (effectDef.cost?.verb === VERBS.DISCARD_SAME_COLOR) {
+  if (!isUnderUsageLimit(option.usageLimit, cardId, player)) return false;
+  if (option.cost?.verb === VERBS.DISCARD_SAME_COLOR) {
     const color = getCardDefinition(cardId)?.color;
     const candidates = findSameColorDiscardCandidates(cardTokenId, color, player);
-    if (candidates.length < effectDef.cost.count) return false;
+    if (candidates.length < option.cost.count) return false;
+  }
+  if (option.requiresPairInHand) {
+    const count = getState().tokens.filter(
+      (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player && t.cardId === cardId
+    ).length;
+    if (count < 2) return false;
   }
   return true;
+}
+
+// このカードの手札効果を今使ってよいか（いずれかの選択肢が使えるか）。トリガーUI側
+// （main.js）が「使用する」操作を有効にするかどうかの判定にも、Hand Phaseの自動
+// スキップ判定にも使う共通関数。
+export function canUseHandEffect(cardId, cardTokenId, player) {
+  return getHandEffectOptions(cardId).some((opt) => isHandEffectOptionUsable(cardId, cardTokenId, player, opt));
 }
 
 // このカードが構造化された手札効果データを持っているか（使用可否は問わない）。
 // main.js側の「クリックしたが手札効果自体を持っていないカードなら何もしない」判定用。
 export function hasHandEffectData(cardId) {
-  return !!CARD_EFFECTS[cardId]?.handEffect;
+  return getHandEffectOptions(cardId).length > 0;
 }
 
 // コスト（追色）だけを見て払えるかどうか（使用回数制限・自動処理ON/OFFは問わない）。
 // ユーザー要望「追色コストになるカードが手札に無い場合はその旨の警告を出す」ための、
 // canUseHandEffectより細かい判定（何が原因で使えないかをUI側が案内できるようにする）。
+// 選択肢が複数ある場合は、コストだけ見ていずれか1つでも払えればtrue（コスト以外の
+// 条件、例えばrequiresPairInHandは問わない——「捨てられる手札が無い」という別種の
+// 警告の判定専用のため）。
 export function canPayHandEffectCost(cardId, cardTokenId, player) {
-  const effectDef = CARD_EFFECTS[cardId]?.handEffect;
-  if (!effectDef?.cost) return true;
-  if (effectDef.cost.verb === VERBS.DISCARD_SAME_COLOR) {
+  const options = getHandEffectOptions(cardId);
+  if (options.length === 0) return true;
+  return options.some((opt) => {
+    if (opt.cost?.verb !== VERBS.DISCARD_SAME_COLOR) return true;
     const color = getCardDefinition(cardId)?.color;
-    return findSameColorDiscardCandidates(cardTokenId, color, player).length >= effectDef.cost.count;
-  }
-  return true;
+    return findSameColorDiscardCandidates(cardTokenId, color, player).length >= opt.cost.count;
+  });
 }
 
 // 自分の手札の中に、今すぐ使える手札効果カードが1枚でもあるか（Hand Phaseの自動スキップ
@@ -247,6 +273,13 @@ function getOpponentPieceCellsWithinRange(fromLocation, range, player) {
   return candidates;
 }
 
+// なないろの欠片のLOCK_PAIR専用: 自分のロックエリアの7色スロット全部（埋まっている
+// スロットも含む——通常の「1色1枚まで」占有チェックの対象外の特殊ロックのため）。
+function getOwnLockSlotCandidates(player) {
+  const side = SEAT_TO_SIDE[player];
+  return COLORS.map((_, index) => ({ zone: "lock", side, index }));
+}
+
 // 1つのactionを実行する。helpers:
 //   moveAndSync(tokenId, location): 実際にトークンを動かし、オンライン中の同期・
 //     再描画まで面倒を見る（main.jsのaddArrivedCardToHand等と同じ責務）。
@@ -264,7 +297,8 @@ async function runAction(action, ctx, helpers) {
     case VERBS.MOVE: {
       const candidates = getMoveCandidates(ctx.pieceLocation, action.count, !!action.atOnce);
       if (candidates.length === 0) return; // 善処の原則: 選べる先が無ければ何もしない
-      const dest = candidates.length === 1 ? candidates[0] : await helpers.pickLocation(candidates, "移動先のマスを選択してください");
+      const dest =
+        candidates.length === 1 && !ctx.forcePrompt ? candidates[0] : await helpers.pickLocation(candidates, "移動先のマスを選択してください");
       if (!dest) return;
       await helpers.moveAndSync(ctx.pieceTokenId, dest);
       ctx.pieceLocation = dest;
@@ -288,7 +322,9 @@ async function runAction(action, ctx, helpers) {
         action.withinCells != null ? getCellsWithCardWithinRange(ctx.pieceLocation, action.withinCells) : getAnyCellWithCardCandidates();
       if (candidates.length === 0) return;
       const chosen =
-        candidates.length === 1 ? candidates[0] : await helpers.pickLocation(candidates, "手札に加えるカードのあるマスを選択してください");
+        candidates.length === 1 && !ctx.forcePrompt
+          ? candidates[0]
+          : await helpers.pickLocation(candidates, "手札に加えるカードのあるマスを選択してください");
       if (!chosen) return;
       const token = getState().tokens.find(
         (t) =>
@@ -335,6 +371,9 @@ async function runAction(action, ctx, helpers) {
           // "deck"（山札）: 手札からではなく山札の一番上を直接そのマスへ置く。
           await helpers.placeFromDeck(dest);
         }
+        // ユーザー要望「配置後ここに配置したよがわかるように配置場所をしっかり
+        // ハイライトしてください。マスの枠だけでなくカードの面も」。
+        helpers.markPlacedLocation?.(dest);
       }
       return;
     }
@@ -343,11 +382,29 @@ async function runAction(action, ctx, helpers) {
       // （ctx.arrivedAtをセットしない）。
       const candidates = getOpponentPieceCellsWithinRange(ctx.pieceLocation, action.count, ctx.player);
       if (candidates.length === 0) return;
+      // ユーザー要望「３マス以内の相手をハイライトしてプレイヤーに選ばせるステップを
+      // 踏んでください（対象が１人でも）」。
       const target =
-        candidates.length === 1 ? candidates[0] : await helpers.pickLocation(candidates, "入れ替える相手のマスを選択してください");
+        candidates.length === 1 && !ctx.forcePrompt
+          ? candidates[0]
+          : await helpers.pickLocation(candidates, "入れ替える相手のマスを選択してください");
       if (!target) return;
       await helpers.swapPieces(ctx.pieceTokenId, ctx.pieceLocation, target);
       ctx.pieceLocation = target;
+      return;
+    }
+    case VERBS.LOCK_PAIR: {
+      // なないろの欠片専用: これを含めた同名2枚を、任意の1箇所（自分のロックエリアの
+      // 好きな色スロット、通常の1色1枚の占有チェックは対象外の特殊ロック）へまとめて置く。
+      const partner = getState().tokens.find(
+        (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === ctx.player && t.cardId === "rainbow-shard" && t.id !== ctx.cardTokenId
+      );
+      if (!partner) return;
+      const candidates = getOwnLockSlotCandidates(ctx.player);
+      const dest = await helpers.pickLocation(candidates, "ロックする場所を選択してください");
+      if (!dest) return;
+      await helpers.moveAndSync(ctx.cardTokenId, dest);
+      await helpers.moveAndSync(partner.id, dest);
       return;
     }
     default:
@@ -373,26 +430,12 @@ export async function runArrivalEffect(ctx, helpers) {
   return runCtx.arrivedAt;
 }
 
-// 手札効果を自動処理する。ctx: { cardId, cardTokenId, player }。helpers（moveAndSync等の
-// 既存分に加えて）:
-//   discardAndSync(tokenId): 「追色」コストで実際にカードを1枚捨てる（オンライン同期込み）。
-//   pickDiscardCost(candidates, hint): 追色コストの候補（同色の手札トークン配列）から
-//     1枚選ばせる（候補が1枚ならこの関数自体呼ばれず自動採用——呼び出し元の裁量）。
-//   drawCards(player, count): 山札からplayerの手札へcount枚引く（オンライン同期込み）。
-//   placeFromDeck(location): 山札の一番上を直接そのマスへ裏向きで置く（オンライン同期込み、
-//     PLACE_CARDのsource:"deck"用）。
-//   swapPieces(pieceTokenId, fromLocation, toLocation): 自分の駒と、toLocationにいる相手の
-//     駒の位置を入れ替える（SWAP_POSITION用）。
-// マスチェンジ等、手札効果でも到達効果と同じアクション（PICKUP_TO_HAND・PLACE_CARD・
-// SWAP_POSITION等）を使うカードが出てきたため、到達効果と同じrunAction()ディスパッチャを
-// 共有する。自分の駒はplayerから引ける（盤面上に必ず1つだけ存在するため、呼び出し元から
-// 別途渡してもらう必要は無い）。
-// 戻り値: 実際に発動できた（コストを払えた）ならtrue、使用回数制限・コスト不足等で
-// 発動できなかったならfalse（呼び出し元がその旨を案内するために使う）。
-export async function runHandEffect(ctx, helpers) {
-  const effectDef = CARD_EFFECTS[ctx.cardId]?.handEffect;
-  if (!effectDef) return false;
-  if (!canUseHandEffect(ctx.cardId, ctx.cardTokenId, ctx.player)) return false;
+// 選ばれた1つの選択肢を実際に実行する（runHandEffectの内部処理を切り出したもの）。
+async function runHandEffectOption(ctx, option, helpers) {
+  // ユーザー要望「手札効果を使用したら、このカードが使用されるよ！って知らしめる
+  // モーダルをしっかりと出したい」。実際の状態変更（捨てる・コスト支払い等）より前、
+  // 「このカードを使う」と決まった瞬間に出す。
+  helpers.announceUse?.(ctx.cardId, option.label);
   // ユーザー指摘: 手札効果は「原則まず最初にそのカードを捨てて効果を発動する」。
   // 凡例（docs/cards.md）「効果カード自身の処遇の記載がなければ、効果発動時に
   // このカードを捨てる」の「発動時に」は、追色コストの支払いやアクション実行より
@@ -402,14 +445,17 @@ export async function runHandEffect(ctx, helpers) {
   // 単なる見た目の順序の話ではなく実際に先に捨てておく必要がある。エターナル/
   // ファーストカードは基本効果「これの手札効果はこれがロックされていても使える」の
   // 通り消費されない特別枠のため、このデフォルトの対象外（cardIdの命名規則で判定、
-  // main.js側の他の分岐と同じ基準）。
-  if (!ctx.cardId.startsWith("eternal-") && !ctx.cardId.startsWith("first-")) {
+  // main.js側の他の分岐と同じ基準）。なないろの欠片の「２枚をロックする」選択肢の
+  // ように、選択肢自体がこのカードを別の形で処遇する場合はkeepsCardOnUseで上書きする。
+  if (!option.keepsCardOnUse && !ctx.cardId.startsWith("eternal-") && !ctx.cardId.startsWith("first-")) {
     await helpers.discardAndSync(ctx.cardTokenId);
   }
-  if (effectDef.cost?.verb === VERBS.DISCARD_SAME_COLOR) {
+  if (option.cost?.verb === VERBS.DISCARD_SAME_COLOR) {
     const color = getCardDefinition(ctx.cardId)?.color;
     const candidates = findSameColorDiscardCandidates(ctx.cardTokenId, color, ctx.player);
-    const chosen = candidates.length === 1 ? candidates[0] : await helpers.pickDiscardCost(candidates, `捨てる${color === "white" || color === "black" ? "" : "同じ色の"}カードを手札から選択してください`);
+    // ユーザー要望「追色カードを手札から選択するステップを踏んでください」。候補が
+    // 1枚でも自動採用せず、常にpickDiscardCostのステップを踏ませる。
+    const chosen = await helpers.pickDiscardCost(candidates, `捨てる${color === "white" || color === "black" ? "" : "同じ色の"}カードを手札から選択してください`);
     if (!chosen) return false;
     await helpers.discardAndSync(chosen.id);
   }
@@ -420,10 +466,55 @@ export async function runHandEffect(ctx, helpers) {
     pieceLocation: piece?.location ?? null,
     selections: {},
     arrivedAt: null,
+    // ユーザー要望「対象が１人でもハイライトして選ばせるステップを踏んでください」。
+    // 到達効果（runArrivalEffect）は従来通り候補1つなら自動採用のまま
+    // （テンポを優先、今回の要望の対象外）——手札効果だけこのフラグで切り替える。
+    forcePrompt: true,
   };
-  for (const action of effectDef.actions) {
+  for (const action of option.actions) {
     await runAction(action, runCtx, helpers);
   }
   recordHandEffectUsage(ctx.cardId, ctx.player);
   return true;
+}
+
+// 手札効果を自動処理する。ctx: { cardId, cardTokenId, player }。helpers（moveAndSync等の
+// 既存分に加えて）:
+//   discardAndSync(tokenId): 「追色」コストで実際にカードを1枚捨てる（オンライン同期込み）。
+//   pickDiscardCost(candidates, hint): 追色コストの候補（同色の手札トークン配列）から
+//     1枚選ばせる。
+//   pickHandEffectOption(cardId, optionsWithUsability): 選択肢が2つ以上ある手札効果
+//     （なないろの欠片等）で、どれを使うか選ばせる。optionsWithUsabilityの各要素は
+//     `{...option, usable}` — usable:falseの選択肢はグレー表示にする（ユーザー要望）。
+//     選ばれたoptionオブジェクト（またはキャンセル時null）を返す。
+//   drawCards(player, count): 山札からplayerの手札へcount枚引く（オンライン同期込み）。
+//   placeFromDeck(location): 山札の一番上を直接そのマスへ裏向きで置く（オンライン同期込み、
+//     PLACE_CARDのsource:"deck"用）。
+//   swapPieces(pieceTokenId, fromLocation, toLocation): 自分の駒と、toLocationにいる相手の
+//     駒の位置を入れ替える（SWAP_POSITION用）。
+//   announceUse(cardId, optionLabel): 「このカードを使用します」の告知モーダルを出す。
+// マスチェンジ等、手札効果でも到達効果と同じアクション（PICKUP_TO_HAND・PLACE_CARD・
+// SWAP_POSITION等）を使うカードが出てきたため、到達効果と同じrunAction()ディスパッチャを
+// 共有する。自分の駒はplayerから引ける（盤面上に必ず1つだけ存在するため、呼び出し元から
+// 別途渡してもらう必要は無い）。
+// 戻り値: 実際に発動できた（コストを払えた）ならtrue、使用回数制限・コスト不足・
+// 選択肢を選ばず終わった等で発動できなかったならfalse（呼び出し元がその旨を案内するために使う）。
+export async function runHandEffect(ctx, helpers) {
+  const options = getHandEffectOptions(ctx.cardId);
+  if (options.length === 0) return false;
+  if (!canUseHandEffect(ctx.cardId, ctx.cardTokenId, ctx.player)) return false;
+  let chosenOption;
+  if (options.length === 1) {
+    chosenOption = options[0];
+  } else {
+    // ユーザー要望「手札効果は２つあります。効果選択モーダルを出してください。
+    // 使用できない方はグレー表示。」
+    const optionsWithUsability = options.map((opt) => ({
+      ...opt,
+      usable: isHandEffectOptionUsable(ctx.cardId, ctx.cardTokenId, ctx.player, opt),
+    }));
+    chosenOption = await helpers.pickHandEffectOption(ctx.cardId, optionsWithUsability);
+    if (!chosenOption) return false;
+  }
+  return runHandEffectOption(ctx, chosenOption, helpers);
 }
