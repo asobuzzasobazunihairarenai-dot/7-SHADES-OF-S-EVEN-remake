@@ -5,7 +5,7 @@
 // tablet-2d-mode.jsのトグルをその場でONにできる（同じ設定はオプションの基本設定・
 // 管理者モードのどちらからもいつでも切り替えられる）。
 
-import { isTouchPrimaryDevice } from "./device-detect.js";
+import { isTouchPrimaryDevice, getDeviceType, setDeviceType } from "./device-detect.js";
 import { setFlatten2dMode } from "./tablet-2d-mode.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 
@@ -52,6 +52,40 @@ export function maybeShowTablet2dWarning() {
   browserNote.textContent = "ブラウザはGoogle Chromeを推奨します（iPhone/iPadでは他のブラウザでも同じ描画エンジンのため効果は限定的です）。";
   browserNote.style.cssText = "line-height: 1.6; margin-bottom: 1rem; font-size: 0.8rem; color: #94a3b8;";
   modal.appendChild(browserNote);
+
+  // ユーザー要望「スマホ用のUIをいじりたいので、念のためここで端末の種類を聞いておこう」。
+  // 画面サイズからの推測（device-detect.jsのgetDeviceType）をデフォルトのチェックにしつつ、
+  // 実際の端末をここで選んでもらう（回答はsetDeviceTypeで保存し、以後は推測より優先される）。
+  const deviceTypeRow = document.createElement("div");
+  deviceTypeRow.style.cssText = "margin-bottom: 1rem;";
+  const deviceTypeLabel = document.createElement("div");
+  deviceTypeLabel.textContent = "あなたの端末はどちらですか？";
+  deviceTypeLabel.style.cssText = "margin-bottom: 0.4rem; font-size: 0.85rem;";
+  deviceTypeRow.appendChild(deviceTypeLabel);
+
+  const deviceTypeOptionsWrap = document.createElement("div");
+  deviceTypeOptionsWrap.style.cssText = "display: flex; gap: 1.2rem;";
+  const currentDeviceType = getDeviceType();
+  for (const { value, text } of [
+    { value: "phone", text: "スマホ" },
+    { value: "tablet", text: "タブレット" },
+  ]) {
+    const optionLabel = document.createElement("label");
+    optionLabel.style.cssText = "display: flex; align-items: center; gap: 0.3rem; cursor: pointer; font-size: 0.85rem;";
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "so7-device-type-choice";
+    radio.value = value;
+    radio.checked = currentDeviceType === value;
+    radio.addEventListener("change", () => {
+      if (radio.checked) setDeviceType(value);
+    });
+    optionLabel.appendChild(radio);
+    optionLabel.appendChild(document.createTextNode(text));
+    deviceTypeOptionsWrap.appendChild(optionLabel);
+  }
+  deviceTypeRow.appendChild(deviceTypeOptionsWrap);
+  modal.appendChild(deviceTypeRow);
 
   const btnRow = document.createElement("div");
   btnRow.style.cssText = "display: flex; gap: 0.5rem; justify-content: flex-end;";
