@@ -12,8 +12,10 @@
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getCardDefinition } from "./cards-data.js";
 import { CARD_EFFECTS, generateEffectText } from "./card-effects.js";
-import { getState, moveToken, flipToken } from "./state.js";
-import { getSelfSeat } from "./online.js";
+import { getState, moveToken, flipToken, isOnlineMode } from "./state.js";
+import { getSelfSeat, getCurrentGameId, fetchAndHydrate } from "./online.js";
+import { markSelfHandled } from "./self-handled-tokens.js";
+import { stageDelta, toStageLocalRect } from "./main.js";
 
 // main.js側のtriggerCardArrival（自己申告モーダル／自動処理の分岐を持つ本体）は
 // main.js内にしか無いため、他の箇所と同じ「register helper」注入パターンで
@@ -30,7 +32,7 @@ export function registerCardDevModeArrivalHelpers({ triggerCardArrival, render }
 // 実カードIDを持つトークンとしてまだ存在しないため対象外）を、自分の駒がいる
 // マスへ移動＋表向きにしてから、そのまま到達処理を呼ぶ。セットアップ後の狙った
 // カードを手作業で探しに行く手間を省くための開発用ショートカット。
-function summonAndTriggerArrival(cardId) {
+async function summonAndTriggerArrival(cardId) {
   const state = getState();
   const selfSeat = getSelfSeat();
   const piece = state.tokens.find((t) => t.kind === "piece" && t.player === selfSeat);
@@ -40,12 +42,33 @@ function summonAndTriggerArrival(cardId) {
   }
   const cardToken = state.tokens.find((t) => t.kind === "card" && t.cardId === cardId);
   if (!cardToken) {
-    alert("このカードは今のゲームでまだ配られていません（山札の中）。セットアップ後にもう一度お試しください。");
+    // オンライン中は、裏向きの盤面カード・他プレイヤーの手札はRLSによりcardIdが
+    // マスクされ、そもそもクライアント側に「このカードがどれか」という情報自体が
+    // 無い（見えない相手の手札を覗き見できてしまうと本末転倒なため、意図的な仕様）。
+    // このカードが今どこにあるか自体は分からないため、直接の解決策は提示できない。
+    alert(
+      isOnlineMode()
+        ? "このカードは今の対戦でまだ配られていないか、裏向き・相手の手札等でマスクされていて特定できません（オンライン対戦は他プレイヤーの非公開情報を覗けない設計のため）。ローカルのテストモードでの利用を推奨します。"
+        : "このカードは今のゲームでまだ配られていません（山札の中）。セットアップ後にもう一度お試しください。"
+    );
     return;
   }
   const location = { zone: "cell", row: piece.location.row, col: piece.location.col };
-  moveToken(cardToken.id, location);
-  if (!cardToken.faceUp) flipToken(cardToken.id);
+  if (isOnlineMode()) {
+    try {
+      await moveToken(cardToken.id, location);
+      if (!cardToken.faceUp) await flipToken(cardToken.id);
+      markSelfHandled([cardToken.id]);
+      await fetchAndHydrate(getCurrentGameId());
+    } catch (err) {
+      console.error("summonAndTriggerArrival failed", err);
+      alert("呼び出しに失敗しました（詳細はコンソールを確認してください）。");
+      return;
+    }
+  } else {
+    moveToken(cardToken.id, location);
+    if (!cardToken.faceUp) flipToken(cardToken.id);
+  }
   renderHelper?.();
   if (triggerCardArrivalHelper) {
     triggerCardArrivalHelper(cardId, location);
@@ -72,7 +95,7 @@ const PILOT_CARDS = [
   },
 ];
 
-function buildPilotRow(pilot, close) {
+function buildPilotRow(pilot, minimize) {
   const def = getCardDefinition(pilot.cardId);
   const effectDef = CARD_EFFECTS[pilot.cardId]?.[pilot.kind];
   const generated = generateEffectText(effectDef);
@@ -106,8 +129,10 @@ function buildPilotRow(pilot, close) {
     summonBtn.textContent = "🧪 自分の駒の位置に呼び出してテスト";
     // 効果によっては直後にマス/手札を選ぶ候補ハイライトが出るため、このパネル自体の
     // 背面（z-index高め）が盤面へのクリックを塞がないよう、実行前にパネルを閉じる。
+    // closeではなくminimizeにしているのは、ユーザー要望「毎回開くのが面倒」への対応で、
+    // 効果確認後すぐミニアイコンから同じ位置・サイズのまま再度開けるようにするため。
     summonBtn.addEventListener("click", () => {
-      close();
+      minimize();
       summonAndTriggerArrival(pilot.cardId);
     });
     row.appendChild(summonBtn);
@@ -116,14 +141,49 @@ function buildPilotRow(pilot, close) {
   return row;
 }
 
-function buildPanel(close) {
+// ユーザー要望「毎回開くのが面倒。位置・サイズをエクスプローラーみたいに動かせるように」
+// への対応。ドラッグ移動はadmin-panel（admin.js）と同じtoStageLocalRect/stageDelta方式
+// （bodyのapplyViewportStage()によるscale変換を補正する）、サイズ変更はCSSのネイティブ
+// resize:both（このパネルは盤面の3D階層の外なので、駒/カードのような自前の
+// elementsFromPoint()当たり判定は不要——ネイティブのままで問題ない）。
+function buildPanel(close, minimize) {
   const panel = document.createElement("div");
   panel.id = "card-dev-mode-panel";
 
   const titleEl = document.createElement("div");
   titleEl.id = "card-dev-mode-title";
   titleEl.textContent = "🃏 カード開発モード";
+  titleEl.title = "ドラッグしてパネルを移動できます";
+  titleEl.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    const rect = toStageLocalRect(panel.getBoundingClientRect());
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startLeft = rect.left;
+    const startTop = rect.top;
+    panel.style.left = `${startLeft}px`;
+    panel.style.top = `${startTop}px`;
+    panel.style.transform = "none";
+    function onMove(ev) {
+      panel.style.left = `${startLeft + stageDelta(ev.clientX - startX)}px`;
+      panel.style.top = `${startTop + stageDelta(ev.clientY - startY)}px`;
+    }
+    function onUp() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  });
   panel.appendChild(titleEl);
+
+  const minimizeBtn = document.createElement("button");
+  minimizeBtn.type = "button";
+  minimizeBtn.id = "card-dev-mode-minimize-btn";
+  minimizeBtn.textContent = "─";
+  minimizeBtn.setAttribute("aria-label", "最小化");
+  minimizeBtn.addEventListener("click", minimize);
+  panel.appendChild(minimizeBtn);
   panel.appendChild(createModalCloseX(close));
 
   const intro = document.createElement("div");
@@ -135,7 +195,7 @@ function buildPanel(close) {
   const list = document.createElement("div");
   list.id = "card-dev-mode-list";
   for (const pilot of PILOT_CARDS) {
-    list.appendChild(buildPilotRow(pilot, close));
+    list.appendChild(buildPilotRow(pilot, minimize));
   }
   panel.appendChild(list);
 
@@ -152,17 +212,40 @@ export function initCardDevMode() {
   function close() {
     panel.style.display = "none";
     backdrop.style.display = "none";
+    miniIcon.style.display = "none";
   }
   function open() {
     panel.style.display = "block";
     backdrop.style.display = "block";
+    miniIcon.style.display = "none";
+  }
+  // ユーザー要望「縮小ボタンをつけて縮小するとミニアイコンになり、それをクリックすると
+  // 再表示されるように」への対応。closeと違い、位置・サイズ（ドラッグ/resizeで
+  // 変更済みのものも含む）はDOMごと保持したまま表示を切り替えるだけなので、
+  // 再表示時に元の位置・サイズへそのまま戻る。
+  function minimize() {
+    panel.style.display = "none";
+    backdrop.style.display = "none";
+    miniIcon.style.display = "flex";
+  }
+  function restoreFromMini() {
+    panel.style.display = "block";
+    backdrop.style.display = "block";
+    miniIcon.style.display = "none";
   }
   openFn = open;
 
-  const panel = buildPanel(close);
+  const panel = buildPanel(close, minimize);
   panel.style.display = "none";
   const backdrop = createBackdrop(close, { dim: true, zIndex: 2700 });
   backdrop.style.display = "none";
+  const miniIcon = document.createElement("button");
+  miniIcon.type = "button";
+  miniIcon.id = "card-dev-mode-mini-icon";
+  miniIcon.textContent = "🃏";
+  miniIcon.title = "カード開発モードを再表示";
+  miniIcon.addEventListener("click", restoreFromMini);
   document.body.appendChild(backdrop);
   document.body.appendChild(panel);
+  document.body.appendChild(miniIcon);
 }

@@ -805,6 +805,59 @@ async function moveAndSyncForEffect(tokenId, location) {
   }
 }
 
+// ユーザー報告「移動先候補のハイライトをクリックしても自動で移動しない」の原因調査で
+// 判明: この盤面は3D的な傾き（テーブル演出）を持つため、駒・カードのドラッグは
+// ネイティブのclickイベント（当たり判定がズレる。initDragHandlers直前のコメント参照）
+// ではなく、#game-tableに1つだけ付けたpointerdownリスナー内でelementsFromPoint()を
+// 使った自前の当たり判定に統一されている。以前の実装は個々のマス/手札カード要素へ
+// 直接addEventListener("click", ...)していたため、その要素の上に乗っているカード等の
+// pointerdownをinitDragHandlers側が先に処理してドラッグ開始・preventDefault()してしまい、
+// 後続のclickイベント自体が発火しなかった（＝盤面上のカードがあるマスでは常に無反応）。
+// 対応として、候補選択中は他の全ての盤面操作より先に割り込む必要があるため、
+// captureフェーズのpointerdownリスナーを1つだけ用意し、選択待ち中はそれ以外の
+// ヒットテスト・ドラッグ開始を一切通さない（ユーザー要望「盤面全体49マスに対し
+// 移動候補しかクリックできないようにする」にも対応）。
+let activeEffectPicker = null; // { type: "cell", candidates, resolve } | { type: "hand", tokenIds: Set, resolve }
+
+document.addEventListener(
+  "pointerdown",
+  (e) => {
+    if (!activeEffectPicker || e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const picker = activeEffectPicker;
+    const elements = document.elementsFromPoint(e.clientX, e.clientY);
+    if (picker.type === "cell") {
+      for (const el of elements) {
+        const cellEl = el.closest(".cell");
+        if (!cellEl) continue;
+        const row = Number(cellEl.dataset.row);
+        const col = Number(cellEl.dataset.col);
+        const match = picker.candidates.find((c) => c.row === row && c.col === col);
+        if (match) {
+          activeEffectPicker = null;
+          picker.resolve(match);
+        }
+        return;
+      }
+      return;
+    }
+    if (picker.type === "hand") {
+      for (const el of elements) {
+        const cardEl = el.closest(".hand-card");
+        if (!cardEl) continue;
+        if (picker.tokenIds.has(cardEl.dataset.tokenId)) {
+          activeEffectPicker = null;
+          const token = getState().tokens.find((t) => t.id === cardEl.dataset.tokenId);
+          picker.resolve(token ?? null);
+        }
+        return;
+      }
+    }
+  },
+  { capture: true }
+);
+
 // 効果の対象マスをプレイヤーに選ばせる（候補マスをハイライトし、クリックを待つ）。
 function requestCellChoiceForEffect(candidates) {
   return new Promise((resolve) => {
@@ -816,21 +869,17 @@ function requestCellChoiceForEffect(candidates) {
       resolve(null);
       return;
     }
-    function cleanup() {
-      for (const entry of entries) {
-        entry.el.classList.remove("card-effect-target-cell");
-        entry.el.removeEventListener("click", entry.handler);
-      }
-    }
-    for (const entry of entries) {
-      entry.el.classList.add("card-effect-target-cell");
-      entry.handler = (e) => {
-        e.stopPropagation();
-        cleanup();
-        resolve(entry.loc);
-      };
-      entry.el.addEventListener("click", entry.handler);
-    }
+    for (const entry of entries) entry.el.classList.add("card-effect-target-cell");
+    document.body.classList.add("card-effect-picking-cells");
+    activeEffectPicker = {
+      type: "cell",
+      candidates,
+      resolve: (loc) => {
+        for (const entry of entries) entry.el.classList.remove("card-effect-target-cell");
+        document.body.classList.remove("card-effect-picking-cells");
+        resolve(loc);
+      },
+    };
   });
 }
 
@@ -843,22 +892,17 @@ function requestHandCardChoiceForEffect(player) {
       resolve(null);
       return;
     }
-    function cleanup() {
-      for (const el of cardEls) {
-        el.classList.remove("card-effect-target-cell");
-        el.removeEventListener("click", el._effectPickHandler);
-      }
-    }
-    for (const el of cardEls) {
-      el.classList.add("card-effect-target-cell");
-      el._effectPickHandler = (e) => {
-        e.stopPropagation();
-        cleanup();
-        const token = getState().tokens.find((t) => t.id === el.dataset.tokenId);
-        resolve(token ?? null);
-      };
-      el.addEventListener("click", el._effectPickHandler);
-    }
+    for (const el of cardEls) el.classList.add("card-effect-target-cell");
+    document.body.classList.add("card-effect-picking-hand");
+    activeEffectPicker = {
+      type: "hand",
+      tokenIds: new Set(cardEls.map((el) => el.dataset.tokenId)),
+      resolve: (token) => {
+        for (const el of cardEls) el.classList.remove("card-effect-target-cell");
+        document.body.classList.remove("card-effect-picking-hand");
+        resolve(token);
+      },
+    };
   });
 }
 
@@ -876,17 +920,32 @@ async function runAutoArrivalEffect(cardId, location, player) {
   );
   render();
   // moveアクションの結果、新しいマスへ「到達」した場合は、通常の移動と同じように続けて
-  // そのマスの到達判定を行う（表向きならtriggerCardArrivalを再帰的に呼ぶ——次のカードも
-  // 構造化データを持っていればそのまま自動処理が連鎖し、持っていなければ通常の自己申告
-  // モーダルにそのまま自然に戻る。裏向きなら通常通り「オープンする/しない」を尋ねる）。
+  // そのマスの到達判定を行う（次のカードも構造化データを持っていればそのまま自動処理が
+  // 連鎖し、持っていなければ通常の自己申告モーダルにそのまま自然に戻る）。ユーザー要望
+  // 「移動先のカードが裏向きなら自動でオープンするようにしたい」への対応で、通常の
+  // 「オープンする/しない」を尋ねるプロンプトは出さず、自動処理の連鎖中はここで
+  // そのままオープンしてから続ける。
   if (arrivedAt) {
     const nextCard = findTopCardAt(arrivedAt);
     if (nextCard) {
-      if (nextCard.faceUp) {
-        triggerCardArrival(nextCard.cardId, arrivedAt);
-      } else {
-        promptCardOpen(piece.id, nextCard);
+      if (!nextCard.faceUp) {
+        if (isOnlineMode()) {
+          try {
+            await flipToken(nextCard.id);
+            markSelfHandled([nextCard.id]);
+            await fetchAndHydrate(getCurrentGameId());
+          } catch (err) {
+            console.error("auto-open failed", err);
+            return;
+          }
+        } else {
+          flipToken(nextCard.id);
+        }
+        playSound("cardFlip");
+        render();
       }
+      const freshCard = getState().tokens.find((t) => t.id === nextCard.id);
+      if (freshCard) triggerCardArrival(freshCard.cardId, arrivedAt);
     }
   }
 }

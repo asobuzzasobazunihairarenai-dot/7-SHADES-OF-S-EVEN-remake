@@ -3496,15 +3496,25 @@ body.is-touch-device #options-menu-button {
 
 /* カード開発モード（card-dev-mode.js、ユーザー要望「管理者モードを潜っていくのは
    大変なので、オプションの直下に専用のモードとして追加してほしい」への対応）。
-   my-page-panel/shop-panelと同じ「画面中央固定・縦スクロール」パターン。 */
+   ユーザー要望「毎回開くのが面倒。位置・サイズをエクスプローラーみたいに動かせるように」
+   への対応で、my-page-panel等と違い中央固定ではなく、タイトルバードラッグでの移動
+   （admin-panelと同じtoStageLocalRect/stageDelta方式）とネイティブのresize:bothに
+   対応させている。初期位置は画面中央寄せだが、left:50%+transform:translateXのみ
+   （縦方向はtopの固定値）にしてあるのは、ドラッグ開始時にtransformを外して
+   left/topの絶対値に切り替える処理と衝突しないようにするため。 */
 #card-dev-mode-panel {
   position: fixed;
-  top: 50%;
+  top: 4rem;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   width: min(34rem, 92vw);
-  max-height: 85vh;
-  overflow-y: auto;
+  height: min(38rem, 85vh);
+  min-width: 20rem;
+  min-height: 14rem;
+  max-width: 96vw;
+  max-height: 92vh;
+  overflow: auto;
+  resize: both;
   background: rgba(15, 23, 32, 0.98);
   border: 1px solid rgba(148, 163, 184, 0.4);
   border-radius: 0.6rem;
@@ -3518,7 +3528,46 @@ body.is-touch-device #options-menu-button {
   font-weight: bold;
   font-size: 1.1rem;
   margin-bottom: 0.6rem;
-  padding-right: 1.6rem;
+  padding-right: 3.4rem;
+  cursor: move;
+  user-select: none;
+}
+#card-dev-mode-minimize-btn {
+  position: absolute;
+  top: 0.6rem;
+  right: 2.6rem;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#card-dev-mode-minimize-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+#card-dev-mode-mini-icon {
+  position: fixed;
+  bottom: 5.5rem;
+  right: 1rem;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: rgba(15, 23, 32, 0.95);
+  border: 1px solid rgba(250, 204, 21, 0.6);
+  color: #fde68a;
+  font-size: 1.4rem;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2701;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
 }
 #card-dev-mode-intro {
   font-size: 0.78rem;
@@ -6568,6 +6617,23 @@ body.reduce-glow .cell.tutorial-move-range {
 body.reduce-glow .cell.card-effect-target-cell,
 body.reduce-glow .hand-card.card-effect-target-cell {
   animation: none;
+}
+/* ユーザー要望「移動先候補が少しわかりずらい。ほかのマスのトーンを落として、カードの面も
+   ハイライトされるようにしたい」への対応。候補選択中は他の全マス/手札カードを暗くし、
+   候補の中の実際のカード画像自体にも光彩を足す（枠線だけだと目に入りにくいため）。 */
+body.card-effect-picking-cells .cell:not(.card-effect-target-cell) {
+  filter: brightness(0.45) saturate(0.6);
+  transition: filter 0.2s ease;
+}
+body.card-effect-picking-hand .hand-card:not(.card-effect-target-cell) {
+  filter: brightness(0.45) saturate(0.6);
+  transition: filter 0.2s ease;
+}
+.cell.card-effect-target-cell .board-card {
+  box-shadow: 0 0 1.2rem 0.3rem rgba(250, 204, 21, 0.85);
+}
+body.reduce-glow .cell.card-effect-target-cell .board-card {
+  box-shadow: 0 0 0.4rem 0.1rem rgba(250, 204, 21, 0.6);
 }
 #tutorial-callout {
   position: fixed;
