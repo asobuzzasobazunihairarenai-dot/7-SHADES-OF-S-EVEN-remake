@@ -14,7 +14,27 @@
 
 const STORAGE_KEY = "so7-2d-mode";
 
-let enabled = localStorage.getItem(STORAGE_KEY) === "1";
+// ユーザー報告「10年前のタブレットで、対局中も再起動後の再読み込みも、盤面の一部が
+// 白く壊れて表示される（Safari・Chromeどちらでも同じ）」への対応。GPU合成負荷が
+// 原因とほぼ確定している既存の「タブレット点滅」と同系統の症状と判断した
+// （iOSでは"Chrome"を含む全ブラウザが実質同じWebKitエンジンを使うため、ブラウザを
+// 変えても症状が同じなのは、アプリ側のバグというより端末のGPU/描画エンジンの限界を
+// 示す傍証になる）。壊れた画面では「オプション→2D表示に切り替える」を自分でタップ
+// するのも難しいことがあるため、URLに`?flat=1`を付けて開くだけで自動的に2D表示
+// （3D合成を使わない代替レイアウト）で起動できるようにした
+// （例: https://.../?flat=1、`?room=`と併用可）。
+function isFlatModeForcedByUrl() {
+  try {
+    return new URLSearchParams(window.location.search).get("flat") === "1";
+  } catch (err) {
+    return false;
+  }
+}
+
+let enabled = isFlatModeForcedByUrl() || localStorage.getItem(STORAGE_KEY) === "1";
+// ?flat=1で開いた時は、次回以降このURLを付け直さなくても2D表示のままになるよう、
+// 通常の手動トグルと同じくlocalStorageにも書き込んでおく。
+if (isFlatModeForcedByUrl()) localStorage.setItem(STORAGE_KEY, "1");
 const listeners = [];
 
 function apply() {
