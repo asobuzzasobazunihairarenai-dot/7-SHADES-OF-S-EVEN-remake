@@ -63,11 +63,16 @@ export const CARD_EFFECTS = {
 
   // 3. ジャンプ台（赤、通常カード）
   // 到達効果: 「これはあなたの手札に加えない。２マス先に一気に移動する。」
+  // ユーザー指摘: 「一気に」は言い回しではなく実際の挙動を変える条件。atOnce:falseだと
+  // 「1マス移動して到達判定→もう1マス移動して到達判定」を2回繰り返す（各ステップで
+  // 通常の移動ルール＝移動先にカードが必要、が適用される）。atOnce:trueだと中間マスの
+  // カード・駒の有無を問わず最終着地点まで直接ワープし、到達判定も最終着地点でのみ
+  // 発生する（ノート「１マス目のカードや相手の駒等の有無は関係ない」の通り）。
   "red-jump-pad": {
     arrival: {
       // 既定動作（効果処理後にこのカード自身を手札に加える）を明示的に上書きする。
       addsCardToHandAfter: false,
-      actions: [{ verb: VERBS.MOVE, count: 2 }],
+      actions: [{ verb: VERBS.MOVE, count: 2, atOnce: true }],
     },
   },
 
@@ -132,7 +137,10 @@ function renderAction(action, context) {
   const count = toFullWidthNumber(action.count);
   switch (action.verb) {
     case VERBS.MOVE:
-      return `${count}マス移動する。`;
+      // atOnce（一気に）: 中間マスの状態を無視して直接ワープする、実際に挙動が変わる
+      // 条件（ユーザー指摘、単なる言い回しの違いではない）。falseなら1マスずつの
+      // 通常移動をcount回繰り返す想定（各回で移動先にカードが必要、到達判定も毎回発生）。
+      return action.atOnce ? `${count}マス先に一気に移動する。` : `${count}マス移動する。`;
     case VERBS.DRAW:
       return `${renderTargetLabel(action.target)}${count}枚ドロー。`;
     case VERBS.PICKUP_TO_HAND: {
@@ -197,9 +205,7 @@ if (typeof process !== "undefined" && process.argv[1] && process.argv[1].endsWit
 
   console.log("[ジャンプ台 到達効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["red-jump-pad"].arrival));
-  console.log("  実際: これはあなたの手札に加えない。２マス先に一気に移動する。");
-  console.log("  （※「一気に」は演出上のニュアンスで、生成テキストでは省略している。挙動自体は");
-  console.log("     ノートの「１マス目のカードや相手の駒等の有無は関係ない」通り、素通りする想定。）\n");
+  console.log("  実際: これはあなたの手札に加えない。２マス先に一気に移動する。\n");
 
   console.log("[収穫と種まき 到達効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["orange-harvest-sow"].arrival));
