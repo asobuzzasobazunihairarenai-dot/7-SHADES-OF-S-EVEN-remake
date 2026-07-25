@@ -8,6 +8,8 @@ import { stageDelta, toStageLocalRect } from "./main.js";
 import { isFlatten2dMode, setFlatten2dMode } from "./tablet-2d-mode.js";
 import { getTierInfo } from "./stats-profile.js";
 import { showRankUpModal } from "./rank-up-modal.js";
+import { getCardDefinition } from "./cards-data.js";
+import { CARD_EFFECTS, generateEffectText } from "./card-effects.js";
 
 // game-setup.jsは既にadmin.js（isManualSeatMode）をimportしているため、admin.js側から
 // game-setup.jsを直接importすると循環importになる。他の箇所（setup-animation.js等）と
@@ -1175,6 +1177,65 @@ const TOGGLE_SECTIONS = [
     buildContent: (content) => {
       adminOnlySectionContentEl = content;
       renderAdminOnlySectionContent(content);
+    },
+  },
+  {
+    // ユーザー要望「カード効果の自動処理を作っていくにあたり、実際にゲーム画面で確認
+    // したい（コードは読めない）」への対応。src/card-effects.jsに試作した構造化データ
+    // （パイロット5枚）から生成した効果文を、実際のdocs/cards.mdの文章と並べて表示する
+    // だけの読み取り専用ビュー。まだ「その場で書き換える」編集機能は無い（次の段階）。
+    title: "🧪 カード効果DSL（試作・パイロット5枚）",
+    category: "admin-only",
+    buildContent: (content) => {
+      const intro = document.createElement("div");
+      intro.style.cssText = "font-size: 0.78rem; color: #94a3b8; margin-bottom: 0.6rem; line-height: 1.5;";
+      intro.textContent =
+        "src/card-effects.jsの構造化データから自動生成した効果文（左）と、説明書の実際の文章（右）を見比べる試作ビューです。まだこのデータはゲームの実際の挙動には一切影響しません。";
+      content.appendChild(intro);
+
+      const pilotCards = [
+        { cardId: "purple-sorry", kind: "arrival", actual: "１マス移動する。" },
+        { cardId: "eternal-green", kind: "handEffect", actual: "【追色１】１枚ドロー。" },
+        { cardId: "red-jump-pad", kind: "arrival", actual: "これはあなたの手札に加えない。２マス先に一気に移動する。" },
+        {
+          cardId: "orange-harvest-sow",
+          kind: "arrival",
+          actual: "任意の１マスの１枚をあなたの手札に加える。手札から１枚をそのマスに裏向きで置く。",
+        },
+        {
+          cardId: "eternal-yellow",
+          kind: "handEffect",
+          actual: "【追色１】２枚ドロー。相手全員は１枚ドロー。この効果は１ターンに１度のみ得られる。",
+        },
+      ];
+
+      for (const pilot of pilotCards) {
+        const def = getCardDefinition(pilot.cardId);
+        const effectDef = CARD_EFFECTS[pilot.cardId]?.[pilot.kind];
+        const generated = generateEffectText(effectDef);
+        const matches = generated === pilot.actual;
+
+        const row = document.createElement("div");
+        row.style.cssText =
+          "margin-bottom: 0.7rem; padding: 0.5rem 0.6rem; background: rgba(255,255,255,0.04); border: 1px solid rgba(148,163,184,0.25); border-radius: 0.3rem;";
+
+        const nameEl = document.createElement("div");
+        nameEl.style.cssText = "font-weight: bold; margin-bottom: 0.3rem; font-size: 0.85rem;";
+        nameEl.textContent = `${matches ? "✅" : "⚠️"} ${def?.name ?? pilot.cardId}（${pilot.kind === "arrival" ? "到達効果" : "手札効果"}）`;
+        row.appendChild(nameEl);
+
+        const genRow = document.createElement("div");
+        genRow.style.cssText = "font-size: 0.78rem; line-height: 1.5; margin-bottom: 0.15rem;";
+        genRow.innerHTML = `<span style="color:#86efac;">生成:</span> ${generated}`;
+        row.appendChild(genRow);
+
+        const actualRow = document.createElement("div");
+        actualRow.style.cssText = "font-size: 0.78rem; line-height: 1.5; color: #cbd5e1;";
+        actualRow.innerHTML = `<span style="color:#94a3b8;">実際:</span> ${pilot.actual}`;
+        row.appendChild(actualRow);
+
+        content.appendChild(row);
+      }
     },
   },
   {
