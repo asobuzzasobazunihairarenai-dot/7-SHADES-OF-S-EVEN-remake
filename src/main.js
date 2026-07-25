@@ -16,7 +16,7 @@ import {
 import { initDeckViewer, openDeckViewer } from "./deck-viewer.js";
 import { initStatsPlayerLinkModal } from "./stats-player-link.js";
 import { initMyPage, openMyPage, registerAvatarPickerHelper } from "./my-page.js";
-import { initCardDevMode } from "./card-dev-mode.js";
+import { initCardDevMode, registerCardDevModeArrivalHelpers } from "./card-dev-mode.js";
 import { canAutoProcessArrival, runArrivalEffect } from "./card-effect-engine.js";
 import { initHelpButton } from "./help.js";
 import { initCurrencyDisplay, refreshCurrencyDisplay } from "./currency-display.js";
@@ -4737,6 +4737,7 @@ initDeckViewer();
 initStatsPlayerLinkModal();
 initMyPage();
 initCardDevMode();
+registerCardDevModeArrivalHelpers({ triggerCardArrival, render });
 initHelpButton();
 initCurrencyDisplay();
 initShop();

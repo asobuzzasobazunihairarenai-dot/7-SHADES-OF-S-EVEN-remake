@@ -12,6 +12,47 @@
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getCardDefinition } from "./cards-data.js";
 import { CARD_EFFECTS, generateEffectText } from "./card-effects.js";
+import { getState, moveToken, flipToken } from "./state.js";
+import { getSelfSeat } from "./online.js";
+
+// main.js側のtriggerCardArrival（自己申告モーダル／自動処理の分岐を持つ本体）は
+// main.js内にしか無いため、他の箇所と同じ「register helper」注入パターンで
+// main.js側から渡してもらう（循環import回避）。
+let triggerCardArrivalHelper = null;
+let renderHelper = null;
+export function registerCardDevModeArrivalHelpers({ triggerCardArrival, render }) {
+  triggerCardArrivalHelper = triggerCardArrival;
+  renderHelper = render;
+}
+
+// ユーザー要望「テスト用にこの5枚を手札やマスに直接呼び出せるボタンが欲しい」への対応。
+// 実際にデータとして存在する既存トークン（山札から未だ配られていないカードは中身が
+// 実カードIDを持つトークンとしてまだ存在しないため対象外）を、自分の駒がいる
+// マスへ移動＋表向きにしてから、そのまま到達処理を呼ぶ。セットアップ後の狙った
+// カードを手作業で探しに行く手間を省くための開発用ショートカット。
+function summonAndTriggerArrival(cardId) {
+  const state = getState();
+  const selfSeat = getSelfSeat();
+  const piece = state.tokens.find((t) => t.kind === "piece" && t.player === selfSeat);
+  if (!piece || piece.location.zone !== "cell") {
+    alert("自分の駒が盤面上に見つかりません。先にセットアップを完了してください。");
+    return;
+  }
+  const cardToken = state.tokens.find((t) => t.kind === "card" && t.cardId === cardId);
+  if (!cardToken) {
+    alert("このカードは今のゲームでまだ配られていません（山札の中）。セットアップ後にもう一度お試しください。");
+    return;
+  }
+  const location = { zone: "cell", row: piece.location.row, col: piece.location.col };
+  moveToken(cardToken.id, location);
+  if (!cardToken.faceUp) flipToken(cardToken.id);
+  renderHelper?.();
+  if (triggerCardArrivalHelper) {
+    triggerCardArrivalHelper(cardId, location);
+  } else {
+    alert("到達処理の呼び出し先が初期化されていません（main.jsの読み込み順を確認してください）。");
+  }
+}
 
 // パイロット5枚（src/card-effects.jsのCARD_EFFECTSキーと対応、docs/cards.mdの実際の
 // 文章と見比べるための一覧）。新しいパイロットカードを追加したら、ここにも追記する。
@@ -31,7 +72,7 @@ const PILOT_CARDS = [
   },
 ];
 
-function buildPilotRow(pilot) {
+function buildPilotRow(pilot, close) {
   const def = getCardDefinition(pilot.cardId);
   const effectDef = CARD_EFFECTS[pilot.cardId]?.[pilot.kind];
   const generated = generateEffectText(effectDef);
@@ -55,6 +96,23 @@ function buildPilotRow(pilot) {
   actualRow.innerHTML = `<span class="card-dev-mode-row-label">実際:</span> ${pilot.actual}`;
   row.appendChild(actualRow);
 
+  // 到達効果はrunAutoArrivalEffect（main.js）に実際に配線済みなので、テスト用の
+  // 呼び出しボタンを出す。手札効果（■）はまだ「使った」を宣言するトリガー自体が
+  // アプリに無いため対象外（card-effect-engine.jsの冒頭コメント参照）。
+  if (pilot.kind === "arrival") {
+    const summonBtn = document.createElement("button");
+    summonBtn.type = "button";
+    summonBtn.className = "card-dev-mode-summon-btn";
+    summonBtn.textContent = "🧪 自分の駒の位置に呼び出してテスト";
+    // 効果によっては直後にマス/手札を選ぶ候補ハイライトが出るため、このパネル自体の
+    // 背面（z-index高め）が盤面へのクリックを塞がないよう、実行前にパネルを閉じる。
+    summonBtn.addEventListener("click", () => {
+      close();
+      summonAndTriggerArrival(pilot.cardId);
+    });
+    row.appendChild(summonBtn);
+  }
+
   return row;
 }
 
@@ -71,13 +129,13 @@ function buildPanel(close) {
   const intro = document.createElement("div");
   intro.id = "card-dev-mode-intro";
   intro.textContent =
-    "src/card-effects.jsの構造化データ（動詞＋パラメータ）から自動生成した効果文（生成）と、説明書の実際の文章（実際）を見比べる試作ビューです。まだこのデータはゲームの実際の挙動には一切影響しません。";
+    "src/card-effects.jsの構造化データ（動詞＋パラメータ）から自動生成した効果文（生成）と、説明書の実際の文章（実際）を見比べる試作ビューです。到達効果（3枚）は基本設定「カード効果を自動処理する」がONの時、実際のゲーム挙動にも反映されます（手札効果はまだ未対応）。各カードの「🧪 自分の駒の位置に呼び出してテスト」ボタンで、盤面上のそのカードを探さずに即座に到達処理を試せます。";
   panel.appendChild(intro);
 
   const list = document.createElement("div");
   list.id = "card-dev-mode-list";
   for (const pilot of PILOT_CARDS) {
-    list.appendChild(buildPilotRow(pilot));
+    list.appendChild(buildPilotRow(pilot, close));
   }
   panel.appendChild(list);
 
