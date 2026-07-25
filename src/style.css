@@ -6542,6 +6542,20 @@ body.is-online-mode #quick-start-bar {
 body.reduce-glow .cell.tutorial-move-range {
   animation: none;
 }
+/* カード効果の自動処理（card-effect-engine.js）が、対象マス・対象の手札カードを
+   プレイヤーに選ばせる時のハイライト。tutorial-move-rangeと同じ黄色パルスの見た目だが、
+   クリックで選べることを示すためcursor:pointerを明示している。 */
+.cell.card-effect-target-cell,
+.hand-card.card-effect-target-cell {
+  outline: 3px solid rgba(250, 204, 21, 0.9);
+  outline-offset: -3px;
+  animation: tutorial-move-range-pulse 1.4s ease-in-out infinite;
+  cursor: pointer;
+}
+body.reduce-glow .cell.card-effect-target-cell,
+body.reduce-glow .hand-card.card-effect-target-cell {
+  animation: none;
+}
 #tutorial-callout {
   position: fixed;
   width: min(22rem, 90vw);

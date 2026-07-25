@@ -17,6 +17,7 @@ import { initDeckViewer, openDeckViewer } from "./deck-viewer.js";
 import { initStatsPlayerLinkModal } from "./stats-player-link.js";
 import { initMyPage, openMyPage, registerAvatarPickerHelper } from "./my-page.js";
 import { initCardDevMode } from "./card-dev-mode.js";
+import { canAutoProcessArrival, runArrivalEffect } from "./card-effect-engine.js";
 import { initHelpButton } from "./help.js";
 import { initCurrencyDisplay, refreshCurrencyDisplay } from "./currency-display.js";
 import { initShop, openShopPanel } from "./shop.js";
@@ -787,12 +788,128 @@ async function addArrivedCardToHand(location, player) {
   maybeTriggerCardArrivalForExposedCard(location);
 }
 
+// ユーザー要望「カード効果の自動処理」への対応。card-effect-engine.jsに実際の状態変更を
+// 委譲し、ここではDOM操作が必要な3つのヘルパーだけを注入する（他の箇所と同じ「main.jsから
+// 実際の関数を渡してもらう」パターン、ただしこちらは呼び出し元が直接引数で渡す形）。
+async function moveAndSyncForEffect(tokenId, location) {
+  if (isOnlineMode()) {
+    try {
+      await moveToken(tokenId, location);
+      markSelfHandled([tokenId]);
+      await fetchAndHydrate(getCurrentGameId());
+    } catch (err) {
+      console.error("moveAndSyncForEffect failed", err);
+    }
+  } else {
+    moveToken(tokenId, location);
+  }
+}
+
+// 効果の対象マスをプレイヤーに選ばせる（候補マスをハイライトし、クリックを待つ）。
+function requestCellChoiceForEffect(candidates) {
+  return new Promise((resolve) => {
+    const table = document.getElementById("game-table");
+    const entries = (table ? candidates.map((loc) => ({ loc, el: findLocationElement(table, loc) })) : []).filter(
+      (e) => e.el
+    );
+    if (entries.length === 0) {
+      resolve(null);
+      return;
+    }
+    function cleanup() {
+      for (const entry of entries) {
+        entry.el.classList.remove("card-effect-target-cell");
+        entry.el.removeEventListener("click", entry.handler);
+      }
+    }
+    for (const entry of entries) {
+      entry.el.classList.add("card-effect-target-cell");
+      entry.handler = (e) => {
+        e.stopPropagation();
+        cleanup();
+        resolve(entry.loc);
+      };
+      entry.el.addEventListener("click", entry.handler);
+    }
+  });
+}
+
+// 効果で使う手札カードをプレイヤーに選ばせる（自分の手札カードをハイライトし、クリックを待つ）。
+function requestHandCardChoiceForEffect(player) {
+  return new Promise((resolve) => {
+    const handArea = document.querySelector(`.hand-area[data-player="${player}"]`);
+    const cardEls = handArea ? [...handArea.querySelectorAll(".hand-card")] : [];
+    if (cardEls.length === 0) {
+      resolve(null);
+      return;
+    }
+    function cleanup() {
+      for (const el of cardEls) {
+        el.classList.remove("card-effect-target-cell");
+        el.removeEventListener("click", el._effectPickHandler);
+      }
+    }
+    for (const el of cardEls) {
+      el.classList.add("card-effect-target-cell");
+      el._effectPickHandler = (e) => {
+        e.stopPropagation();
+        cleanup();
+        const token = getState().tokens.find((t) => t.id === el.dataset.tokenId);
+        resolve(token ?? null);
+      };
+      el.addEventListener("click", el._effectPickHandler);
+    }
+  });
+}
+
+async function runAutoArrivalEffect(cardId, location, player) {
+  const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === player);
+  const cardToken = findTopCardAt(location);
+  if (!piece || !cardToken) return;
+  const arrivedAt = await runArrivalEffect(
+    { cardId, player, pieceTokenId: piece.id, cardTokenId: cardToken.id, pieceLocation: location },
+    {
+      moveAndSync: moveAndSyncForEffect,
+      pickLocation: requestCellChoiceForEffect,
+      pickHandCard: requestHandCardChoiceForEffect,
+    }
+  );
+  render();
+  // moveアクションの結果、新しいマスへ「到達」した場合は、通常の移動と同じように続けて
+  // そのマスの到達判定を行う（表向きならtriggerCardArrivalを再帰的に呼ぶ——次のカードも
+  // 構造化データを持っていればそのまま自動処理が連鎖し、持っていなければ通常の自己申告
+  // モーダルにそのまま自然に戻る。裏向きなら通常通り「オープンする/しない」を尋ねる）。
+  if (arrivedAt) {
+    const nextCard = findTopCardAt(arrivedAt);
+    if (nextCard) {
+      if (nextCard.faceUp) {
+        triggerCardArrival(nextCard.cardId, arrivedAt);
+      } else {
+        promptCardOpen(piece.id, nextCard);
+      }
+    }
+  }
+}
+
 // 到達演出一式（右上モーダル＋そのマス自体が発光する柱状のオーラ＋効果音）をまとめて行う。
 // 柱の色はカード自身の色に合わせる（--color-*をそのまま使う）。到達した駒の持ち主にだけ
 // 「このカードを手札に加える」ボタンを出す（ユーザー要望）。
 function triggerCardArrival(cardId, location) {
   const player = getPieceOwnerAt(location);
   const showAddToHand = !!player && player === getSelfSeat();
+
+  // ユーザー要望「カード効果の自動処理」。設定がONで、このカードが構造化データを持ち、
+  // かつ「今まさに到達した本人の画面」の場合だけ、自己申告モーダルの代わりに自動実行する
+  // （他プレイヤーの画面では今まで通り表示専用の到達演出のみ）。
+  if (showAddToHand && canAutoProcessArrival(cardId)) {
+    runAutoArrivalEffect(cardId, location, player).catch((err) => console.error("runAutoArrivalEffect failed", err));
+    playSound("arrivalEffect");
+    const table = document.getElementById("game-table");
+    const hostEl = findLocationElement(table, location);
+    if (hostEl) spawnArrivalBurst(hostEl, getCardDefinition(cardId).color);
+    return;
+  }
+
   showCardArrivalModal(cardId, {
     showAddToHand,
     onAddToHand: () => addArrivedCardToHand(location, player),

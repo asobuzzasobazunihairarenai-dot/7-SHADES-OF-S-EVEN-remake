@@ -4,6 +4,7 @@
 
 import { openAdminPanel } from "./admin.js";
 import { openCardDevMode } from "./card-dev-mode.js";
+import { isAutoProcessingEnabled, setAutoProcessingEnabled } from "./card-effect-engine.js";
 import { openDeckViewer } from "./deck-viewer.js";
 import { isLockAreaBarVisible, setLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible, setLockColorVisible } from "./lock-color.js";
@@ -466,6 +467,27 @@ export function initOptionsMenu() {
             setContinuousGlowDisabled(checked);
             document.body.classList.toggle("reduce-glow", checked);
             saveMyPreference({ continuous_glow_disabled: checked });
+          })
+        );
+      })
+    );
+
+    // ユーザー要望「この自動処理を適用するかしないかを基本設定で変えれるようにもしたい」
+    // への対応。デフォルトOFF（既存の自己申告プレイのまま）。対象は今のところ
+    // src/card-effects.jsに構造化データがあるパイロットカード（到達効果のみ、手札効果は
+    // まだトリガーの仕組みが無く対象外）に限られるため、その旨を注記に明記した。
+    // ページ再読み込みでOFFに戻る仕様（motion-prefs.jsの「アニメーションを減らす」と
+    // 同じ、まだ試験運用中のためアカウントへの永続化はしていない）。
+    panel.appendChild(
+      buildCollapsibleSection("カード効果の自動処理（試験運用中）", (content) => {
+        const note = document.createElement("div");
+        note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.5rem; line-height: 1.5;";
+        note.textContent =
+          "ONにすると、対応済みのカード（現在3枚、到達効果のみ）は承認モーダルの代わりに効果が自動で実行されます。それ以外のカードは今まで通り自己申告のままです。";
+        content.appendChild(note);
+        content.appendChild(
+          buildCheckboxRow("カード効果を自動処理する", isAutoProcessingEnabled(), (checked) => {
+            setAutoProcessingEnabled(checked);
           })
         );
       })
