@@ -32,6 +32,7 @@ import {
   setHandEffectBusy,
   isMovePhaseActive,
   markPhaseMoveActionTaken,
+  setTurnAnnounceActive,
 } from "./phase-automation.js";
 import { initHelpButton } from "./help.js";
 import { initCurrencyDisplay, refreshCurrencyDisplay } from "./currency-display.js";
@@ -1171,10 +1172,14 @@ function triggerCardArrival(cardId, location) {
   const showAddToHand = !!player && player === getSelfSeat();
 
   // ユーザー要望「カード効果の自動処理」。設定がONで、このカードが構造化データを持ち、
-  // かつ「今まさに到達した本人の画面」の場合だけ、自己申告モーダルの代わりに自動実行する
-  // （他プレイヤーの画面では今まで通り表示専用の到達演出のみ）。
+  // かつ「今まさに到達した本人の画面」の場合、「このカードを手札に加える」ボタンの
+  // 代わりに効果そのものを自動実行する。ただしユーザー報告「自動処理モードでは到達
+  // 拡大モーダルが相手の画面にしか出ない」への対応として、本人の画面にも
+  // （ボタン無し・自動で消える表示専用の）同じ拡大モーダルを出す——効果は自動で
+  // 進んでも、自分がどのカードに到達したかは見えないと分かりにくいため。
   if (showAddToHand && canAutoProcessArrival(cardId)) {
     runAutoArrivalEffect(cardId, location, player).catch((err) => console.error("runAutoArrivalEffect failed", err));
+    showCardArrivalModal(cardId, { showAddToHand: false });
     playSound("arrivalEffect");
     const table = document.getElementById("game-table");
     const hostEl = findLocationElement(table, location);
@@ -5226,7 +5231,8 @@ let prevTurnPlayerForAnnouncement = null;
 let pendingTurnAnnouncePlayer = null;
 registerOnGateInvasionQueueDrained(() => {
   if (pendingTurnAnnouncePlayer !== null) {
-    announceTurnChange(pendingTurnAnnouncePlayer);
+    setTurnAnnounceActive(true);
+    announceTurnChange(pendingTurnAnnouncePlayer, () => setTurnAnnounceActive(false));
     pendingTurnAnnouncePlayer = null;
   }
 });
@@ -5237,7 +5243,8 @@ subscribe(() => {
     if (isGateInvasionPending() || isGateInvasionQueueActive()) {
       pendingTurnAnnouncePlayer = turnPlayer;
     } else {
-      announceTurnChange(turnPlayer);
+      setTurnAnnounceActive(true);
+      announceTurnChange(turnPlayer, () => setTurnAnnounceActive(false));
     }
   }
   prevTurnPlayerForAnnouncement = turnPlayer;

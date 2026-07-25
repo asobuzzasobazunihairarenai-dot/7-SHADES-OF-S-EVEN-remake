@@ -19,7 +19,8 @@ import { isAutoProcessingEnabled, getMoveCandidates } from "./card-effect-engine
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
 import { playSound } from "./sound.js";
 import { announceHandPickups } from "./hand-announcer.js";
-import { SIDE_TO_SEAT } from "./board-layout.js";
+import { SIDE_TO_SEAT, COLORS } from "./board-layout.js";
+import { getCardDefinition } from "./cards-data.js";
 
 let renderHelper = null;
 let findTopCardAtHelper = null;
@@ -62,6 +63,18 @@ export function setHandEffectBusy(v) {
   handEffectBusy = !!v;
 }
 
+// ユーザー報告「『○○のターン』の表示がちゃんと消えてからフェイズのモーダル表示に
+// 移ってほしい」。ターン切替時、announceTurnChange()（turn-announce.js）のトーストと
+// このモジュールのannouncePhase("lock")トーストが同じrender()タイミングで同時に
+// 出てしまい重なっていた。main.js側がannounceTurnChange()の表示中はtrueにし、
+// トーストが完全に消え終わったコールバックでfalseに戻す（その際reconcileし直し、
+// 待たされていたフェイズ開始をそこで行う）。
+let turnAnnounceActive = false;
+export function setTurnAnnounceActive(v) {
+  turnAnnounceActive = !!v;
+  if (!turnAnnounceActive) reconcilePhaseAutomation();
+}
+
 const DIRECTIONS = [
   { dr: -1, dc: 0 },
   { dr: 1, dc: 0 },
@@ -89,6 +102,29 @@ function getSelfPiece(player) {
 // 「手札が本当に空かどうか」だけを見るシンプルな判定に統一する。
 function handIsEmpty(player) {
   return !getState().tokens.some((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
+}
+
+// ユーザー指摘: ロックフェイズのスキップ判定は「手札が空かどうか」だけでは不十分。
+// docs/rulebook.mdの「ロック」FAQ確認: 原則1色のロックエリアには1枚しかロックできない
+// （既に埋まっている色は対象外）。「なないろの欠片」は手札に2枚揃っていてもロック
+// フェイズでは常にロックできない（手札効果やカウンターロック等、ハンドフェイズの
+// 効果でのみロックできる特殊カードのため）。無色（白/黒）カードはロックエリアへ
+// 「置いて」もルール上「ロックした」扱いにならない（docs/cards.md）ため対象外にする。
+function isLockSlotOccupied(player, color) {
+  const colorIndex = COLORS.indexOf(color);
+  if (colorIndex === -1) return false;
+  return getState().tokens.some(
+    (t) => t.kind === "card" && t.location.zone === "lock" && SIDE_TO_SEAT[t.location.side] === player && t.location.index === colorIndex
+  );
+}
+function hasLockableCard(player) {
+  const hand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
+  return hand.some((t) => {
+    if (t.cardId === "rainbow-shard") return false; // ロックフェイズでは常にロック不可
+    const color = getCardDefinition(t.cardId)?.color;
+    if (!color || color === "white" || color === "black") return false; // 無色は「ロックした」扱いにならない
+    return !isLockSlotOccupied(player, color);
+  });
 }
 
 // ユーザー要望「その旨をモーダルで伝えてください」。confirm-modal（main.js）と似た
@@ -220,12 +256,17 @@ function enterPhase(phase, player) {
   if (phase === "move") moveActionTaken = false;
 
   // ユーザー要望「手札がないロックフェイズを自動でスキップしてください。その際その旨を
-  // モーダルで伝えてください」。ロック・ハンドどちらも「手札に何もない」時は本当に
-  // 何もできないため、通常のフェイズ告知は出さずスキップの旨だけモーダルで伝えて
-  // 次へ進む。
-  if ((phase === "lock" || phase === "hand") && handIsEmpty(player)) {
-    const label = phase === "lock" ? "ロック" : "ハンド";
-    showPhaseSkipModal(`手札が無いため、${label}フェイズを自動的にスキップしました。`);
+  // モーダルで伝えてください」。ハンドフェイズは「手札に何もない」時、ロックフェイズは
+  // 「ロックできるカードが1枚も無い」時（手札はあっても、なないろの欠片だけ・
+  // 既に埋まっている色しか無い等の場合を含む——ユーザー指摘、hasLockableCard参照）に、
+  // 通常のフェイズ告知は出さずスキップの旨だけモーダルで伝えて次へ進む。
+  if (phase === "lock" && !hasLockableCard(player)) {
+    showPhaseSkipModal("ロックできるカードが無いため、ロックフェイズを自動的にスキップしました。");
+    advancePhase();
+    return;
+  }
+  if (phase === "hand" && handIsEmpty(player)) {
+    showPhaseSkipModal("手札が無いため、ハンドフェイズを自動的にスキップしました。");
     advancePhase();
     return;
   }
@@ -261,6 +302,10 @@ export function reconcilePhaseAutomation() {
     return;
   }
   if (currentPhase === null) {
+    // 「○○のターン」トースト表示中はフェイズ開始（LOCKフェイズ告知）を待たせる。
+    // setTurnAnnounceActive(false)で改めてreconcilePhaseAutomation()が呼ばれるので、
+    // トーストが消え次第ここに戻ってくる。
+    if (turnAnnounceActive) return;
     enterPhase("lock", player);
     return;
   }

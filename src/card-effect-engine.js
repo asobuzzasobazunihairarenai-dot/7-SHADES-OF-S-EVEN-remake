@@ -71,15 +71,15 @@ export function resetHandEffectUsage() {
 
 // 「追色」コスト（同色の別カードを手札から捨てる）で実際に捨てられる候補。cardTokenIdは
 // 効果を使おうとしている本人のカード自身（同じ色でも自分自身は対象外）。
+// ユーザー指摘＋docs/cards.mdの「なないろの欠片」記載（「★ これはすべての色であり、
+// ロックフェイズではロックできない。」）確認: なないろの欠片は「すべての色」を兼ねる
+// ため、追色コストとしてはどの色の代わりにも使える。
 function findSameColorDiscardCandidates(cardTokenId, color, player) {
-  return getState().tokens.filter(
-    (t) =>
-      t.kind === "card" &&
-      t.location.zone === "hand" &&
-      t.location.player === player &&
-      t.id !== cardTokenId &&
-      getCardDefinition(t.cardId)?.color === color
-  );
+  return getState().tokens.filter((t) => {
+    if (t.kind !== "card" || t.location.zone !== "hand" || t.location.player !== player || t.id === cardTokenId) return false;
+    if (t.cardId === "rainbow-shard") return true;
+    return getCardDefinition(t.cardId)?.color === color;
+  });
 }
 
 // このカードの手札効果を今使ってよいか（設定ON・構造化データあり・使用回数制限内・

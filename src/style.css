@@ -5315,10 +5315,25 @@ body.reduce-glow .cell.phase-contact-highlight {
   animation: none;
 }
 /* ユーザー要望「移動先ハイライト時、範囲外のトーンを落としてください。ジャンプ台の時と
-   同じように」。card-effect-picking-cellsと同じ「候補以外を暗くする」仕組み。 */
-body.phase-move-picking .cell:not(.phase-move-highlight):not(.phase-contact-highlight) {
-  filter: brightness(0.45) saturate(0.6);
-  transition: filter 0.2s ease;
+   同じように」。card-effect-picking-cellsと同じ「候補以外を暗くする」演出だが、ここでは
+   filter/opacityを使わない。理由（ユーザー報告、2件）:
+   ① filterを.cellへ直接かけると.board-card（カード画像）はなぜか暗くならず、マス自体しか
+      暗くならなかった。
+   ② .cellはpreserve-3dで自分の駒(.piece、buildCubePieceの立方体技法)を子に持つことがあり、
+      filter/opacityはCSS仕様上その要素を独立した合成レイヤーへ強制分離してしまうため、
+      中の3D立体駒が平面化（ペっちゃんこ）して描画される（前回のパルス演出と同じ既知の罠）。
+   代わりに、::after擬似要素で半透明の黒を「一番最後に重ねて描く」オーバーレイ方式にする。
+   擬似要素は他のfilter/opacity系プロパティを一切使わないため合成レイヤー分離が起きず、
+   かつ通常のDOM子要素より必ず後に描画される（＝マスの背景にもカード画像にも重なって
+   両方きちんと暗く見える）。box-shadow: insetも試したが、不透明なカード画像の「下」に
+   描かれてしまい見た目に反映されなかったため採用しなかった。 */
+body.phase-move-picking .cell:not(.phase-move-highlight):not(.phase-contact-highlight)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
 }
 
 /* フェイズ自動スキップの通知モーダル（src/phase-automation.js）。confirm-modalと似た
