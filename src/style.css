@@ -1410,6 +1410,19 @@ body.diagnostic-flatten-3d.is-touch-device #phase-guide-bar {
   border-color: rgba(56, 189, 248, 0.6);
   transform: scale(1.06);
 }
+/* ユーザー報告「ホバー簡易説明がアイコンの裏に行ってしまっている」（再発）。
+   .phase-guide-tooltip自体は既にz-index:20000を持つが効いていなかった。真因:
+   #draw-button・#end-turn-button・#hand-shuffle-button等は個々に
+   position:fixed + transform（--icon-pos-*の位置調整用）+ 同じz-index:1000を持つため、
+   それぞれが独立した合成レイヤー（スタッキングコンテキスト）を形成する。ツールチップの
+   z-index:20000は「自分の属するボタンの中」でしか比較されず、隣のボタン（同じz-index:1000の
+   別のスタッキングコンテキスト）とはDOM順でしか優劣が決まらない——ツールチップ自身の
+   z-indexがどれだけ高くても、属するボタンごと隣のボタンの後ろに埋もれ得る。ホバー中の
+   ボタン自身のz-indexを引き上げ、ツールチップごと最前面に出す（各アイコンボタンの
+   z-index:1000はID詳細度を持つルールのため、!important無しでは負けてしまう）。 */
+.icon-action-button:hover {
+  z-index: 20000 !important;
+}
 /* 各アイコンボタン（手札シャッフル・盤面拡大・1枚ドロー・ターン終了・オプション・
    誤操作防止）は基本サイズを共有していたが、管理者モードから個別にサイズ調整したいという
    要望があったため、ボタンごとに専用のCSS変数を割り振った（位置調整の--icon-pos-*と

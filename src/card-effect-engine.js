@@ -393,6 +393,19 @@ export async function runHandEffect(ctx, helpers) {
   const effectDef = CARD_EFFECTS[ctx.cardId]?.handEffect;
   if (!effectDef) return false;
   if (!canUseHandEffect(ctx.cardId, ctx.cardTokenId, ctx.player)) return false;
+  // ユーザー指摘: 手札効果は「原則まず最初にそのカードを捨てて効果を発動する」。
+  // 凡例（docs/cards.md）「効果カード自身の処遇の記載がなければ、効果発動時に
+  // このカードを捨てる」の「発動時に」は、追色コストの支払いやアクション実行より
+  // 前——最初のステップだという指摘。実際、スラム上がりの役人の手札効果補足
+  // 「あなたの手札が１枚以下ならの時の手札のカウントの際にこのカード自身は含まない」
+  // の通り、後続のアクションが「捨てた後の手札状態」を参照する効果が実在するため、
+  // 単なる見た目の順序の話ではなく実際に先に捨てておく必要がある。エターナル/
+  // ファーストカードは基本効果「これの手札効果はこれがロックされていても使える」の
+  // 通り消費されない特別枠のため、このデフォルトの対象外（cardIdの命名規則で判定、
+  // main.js側の他の分岐と同じ基準）。
+  if (!ctx.cardId.startsWith("eternal-") && !ctx.cardId.startsWith("first-")) {
+    await helpers.discardAndSync(ctx.cardTokenId);
+  }
   if (effectDef.cost?.verb === VERBS.DISCARD_SAME_COLOR) {
     const color = getCardDefinition(ctx.cardId)?.color;
     const candidates = findSameColorDiscardCandidates(ctx.cardTokenId, color, ctx.player);
@@ -412,12 +425,5 @@ export async function runHandEffect(ctx, helpers) {
     await runAction(action, runCtx, helpers);
   }
   recordHandEffectUsage(ctx.cardId, ctx.player);
-  // 凡例（docs/cards.md）「手札効果において、効果カード自身の処遇の記載がなければ、
-  // 効果発動時にこのカードを捨てる」。エターナル/ファーストカードは基本効果
-  // 「これの手札効果はこれがロックされていても使える」の通り消費されない特別枠のため、
-  // このデフォルトの対象外（cardIdの命名規則で判定、main.js側の他の分岐と同じ基準）。
-  if (!ctx.cardId.startsWith("eternal-") && !ctx.cardId.startsWith("first-")) {
-    await helpers.discardAndSync(ctx.cardTokenId);
-  }
   return true;
 }

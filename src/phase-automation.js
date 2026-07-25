@@ -157,7 +157,19 @@ function updateLockPhaseHandHighlight(player) {
 // ユーザー要望「その旨をモーダルで伝えてください」。confirm-modal（main.js）と似た
 // 見た目だが、OKを待たせず数秒で自動的に消える（フェイズ自動スキップは1ターンに
 // 複数回起こり得るため、毎回クリックを要求すると煩雑になる。クリックでも即消せる）。
+// ユーザー報告「ロックもハンドも連続でスキップされる時、ハンドのスキップ表示が
+// 出なかったりする」の対応: 前回分がまだ残っていたら（連続スキップで2回目が
+// 呼ばれた場合等）先に消してから出し直す。showCardArrivalModal等、既存の
+// 「前のモーダルを消してから最新を出す」パターンと同じ考え方。
+let currentSkipModal = null;
+let currentSkipModalTimer = null;
 function showPhaseSkipModal(message) {
+  if (currentSkipModal) {
+    clearTimeout(currentSkipModalTimer);
+    currentSkipModal.backdrop.remove();
+    currentSkipModal.modal.remove();
+    currentSkipModal = null;
+  }
   const backdrop = document.createElement("div");
   backdrop.className = "phase-skip-modal-backdrop";
   const modal = document.createElement("div");
@@ -166,12 +178,27 @@ function showPhaseSkipModal(message) {
   const dismiss = () => {
     backdrop.remove();
     modal.remove();
+    if (currentSkipModal?.modal === modal) currentSkipModal = null;
   };
   backdrop.addEventListener("click", dismiss);
   modal.addEventListener("click", dismiss);
   document.body.appendChild(backdrop);
   document.body.appendChild(modal);
-  setTimeout(dismiss, 2800);
+  currentSkipModal = { backdrop, modal };
+  currentSkipModalTimer = setTimeout(dismiss, 2800);
+}
+
+// ユーザー報告「フェイズが自動スキップされる時、次のフェイズタイトルモーダルが出るまで
+// もう少し間があった方が良い。ロックもハンドもスキップの場合、ハンドのフェイズタイトルが
+// 表示されなかったりする」。以前はshowPhaseSkipModal()の直後に同期的にadvancePhase()を
+// 呼んでいたため、ロック→ハンドと連続でスキップされる場合、ロックのスキップ表示・
+// ハンドのスキップ表示・（両方スキップなら）ムーブの告知トーストが同じ一瞬に折り重なって
+// 出ていた。スキップからの遷移だけ、次のフェイズの判定に移るまで一呼吸置く
+// （実際に手札効果を使った・ロックした等の「本物の進行」によるadvancePhase()呼び出し
+// （reconcilePhaseAutomation参照）は従来通り即時のまま）。
+const PHASE_SKIP_ADVANCE_DELAY_MS = 1500;
+function advancePhaseAfterSkip() {
+  setTimeout(() => advancePhase(), PHASE_SKIP_ADVANCE_DELAY_MS);
 }
 
 function countLockedCards(player) {
@@ -289,12 +316,12 @@ function enterPhase(phase, player) {
   // 通常のフェイズ告知は出さずスキップの旨だけモーダルで伝えて次へ進む。
   if (phase === "lock" && !hasLockableCard(player)) {
     showPhaseSkipModal("ロックできるカードが無いため、ロックフェイズを自動的にスキップしました。");
-    advancePhase();
+    advancePhaseAfterSkip();
     return;
   }
   if (phase === "hand" && handIsEmpty(player)) {
     showPhaseSkipModal("手札が無いため、ハンドフェイズを自動的にスキップしました。");
-    advancePhase();
+    advancePhaseAfterSkip();
     return;
   }
 
