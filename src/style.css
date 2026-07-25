@@ -5336,6 +5336,23 @@ body.phase-move-picking .cell:not(.phase-move-highlight):not(.phase-contact-high
   pointer-events: none;
 }
 
+/* ユーザー要望「ロックフェイズではロックできるカードのみ手札内でハイライトし、それ以外は
+   トーンオフしてほしい」。.hand-cardは（.cellと違い）preserve-3dの3D立体駒を子に持つ
+   ことがないため、filterを直接かけても平面化の罠は無い（既存のcard-effect-picking-hand
+   と同じ、実績のある方式をそのまま流用する）。 */
+.hand-card.phase-lock-highlight {
+  outline: 3px solid rgba(74, 222, 128, 0.9);
+  outline-offset: 2px;
+  animation: phase-move-highlight-pulse 1.4s ease-in-out infinite;
+}
+body.reduce-glow .hand-card.phase-lock-highlight {
+  animation: none;
+}
+body.phase-lock-picking .hand-card:not(.phase-lock-highlight) {
+  filter: brightness(0.45) saturate(0.6);
+  transition: filter 0.2s ease;
+}
+
 /* フェイズ自動スキップの通知モーダル（src/phase-automation.js）。confirm-modalと似た
    見た目だが、クリック不要で数秒後に自動的に消える（1ターンに複数回起こり得るため）。 */
 .phase-skip-modal-backdrop {

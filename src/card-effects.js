@@ -25,6 +25,7 @@ export const VERBS = {
   PICKUP_TO_HAND: "pickup_to_hand", // 盤面上のカードを手札に加える
   PLACE_CARD: "place_card", // 手札または山札からマスにカードを置く
   DISCARD_SAME_COLOR: "discard_same_color", // 「追色」コスト: 同色のカードを手札から捨てる
+  SWAP_POSITION: "swap_position", // 自分の駒と、範囲内にいる相手の駒の位置を入れ替える（「移動」ではない）
 };
 
 // 効果の主語（誰が対象か）。「自分」以外は今回のパイロットでは「相手全員」だけ登場する。
@@ -111,6 +112,95 @@ export const CARD_EFFECTS = {
       ],
     },
   },
+
+  // 6. なないろの欠片（虹、通常カード） 手札効果: 「以下の効果のうち１つ得る。
+  // ・１枚ドロー。・これを含めた「なないろの欠片」が２枚、あなたの手札にある時に
+  // 使える。その２枚を任意の１箇所にロックする。２枚ドロー。」
+  // 選択肢のうち「１枚ドロー」（コスト無し）だけを今回DSL化する。もう一方
+  // （２枚集めて任意の１箇所にロックする）は、通常のロックフェイズ判定を経ない
+  // 特殊なロック処理が必要でDSLの現在の語彙では表現しづらいため、引き続き
+  // 自己申告のままにする（ユーザー確認の上での意図的な部分対応）。
+  "rainbow-shard": {
+    handEffect: {
+      actions: [{ verb: VERBS.DRAW, count: 1, target: TARGETS.SELF }],
+    },
+  },
+
+  // 7. 終わりなき化学 ゲンテクニーク（紫、エターナルカード） 手札効果:
+  // 「【追色１】任意の１マスの１枚をあなたの手札に加える。そのマスに山札から
+  // １枚裏向きで置く。」——収穫と種まきと同じ「拾う→同じマスに置き直す」の形だが、
+  // 置き直す方の出どころが手札ではなく山札。
+  "eternal-purple": {
+    handEffect: {
+      cost: { verb: VERBS.DISCARD_SAME_COLOR, count: 1 },
+      actions: [
+        {
+          verb: VERBS.PICKUP_TO_HAND,
+          count: 1,
+          target: { zone: "cell", selection: TARGET_SELECTIONS.CHOOSE, count: 1, saveAs: "chosenCell" },
+        },
+        {
+          verb: VERBS.PLACE_CARD,
+          count: 1,
+          source: "deck",
+          faceUp: false,
+          destination: { zone: "cell", selection: TARGET_SELECTIONS.SAME_AS, ref: "chosenCell" },
+        },
+      ],
+    },
+  },
+
+  // 8. 月下の漂流船 プリドゥエン（青、エターナルカード） 手札効果:
+  // 「【追色１】任意の２マスに山札から１枚ずつ裏向きで置く。」
+  "eternal-blue": {
+    handEffect: {
+      cost: { verb: VERBS.DISCARD_SAME_COLOR, count: 1 },
+      actions: [
+        {
+          verb: VERBS.PLACE_CARD,
+          count: 2,
+          source: "deck",
+          faceUp: false,
+          destination: { zone: "cell", selection: TARGET_SELECTIONS.CHOOSE },
+        },
+      ],
+    },
+  },
+
+  // 9. マスチェンジ（橙、通常カード） 到達効果: 「３マス以内の相手のいる場所と
+  // あなたのいる場所を入れ替える。相手はこのカードの到達効果を得ない。」／
+  // 手札効果: 「【追色１】上記の到達時の効果を得る。」——同じ入れ替え効果を
+  // 到達・手札の両方から呼べるよう、アクション自体を共有する。
+  // 「入れ替える」は「移動」ではないため、入れ替え先のカードはオープンせず
+  // 到達判定も連鎖しない（docs/cards.md 到達効果補足）。
+  "orange-mass-change": {
+    arrival: {
+      actions: [{ verb: VERBS.SWAP_POSITION, count: 3 }],
+    },
+    handEffect: {
+      cost: { verb: VERBS.DISCARD_SAME_COLOR, count: 1 },
+      actions: [{ verb: VERBS.SWAP_POSITION, count: 3 }],
+    },
+  },
+
+  // 10. 橙のキューブ ハーベスト（橙、ファーストカード） 手札効果:
+  // 「【追色１】２マス以内のカードを１枚あなたの手札に加える。」
+  // cardIdはcards-data.js（FIRST_CARDS）の実際のid「first-orange」に合わせる
+  // （「色-first」ではなく「first-色」——main.js側のクリック判定
+  // (cardId?.startsWith("first-"))もこの命名規則に依存している）。
+  "first-orange": {
+    handEffect: {
+      cost: { verb: VERBS.DISCARD_SAME_COLOR, count: 1 },
+      actions: [
+        {
+          verb: VERBS.PICKUP_TO_HAND,
+          count: 1,
+          withinCells: 2,
+          target: { zone: "cell", selection: TARGET_SELECTIONS.CHOOSE, count: 1 },
+        },
+      ],
+    },
+  },
 };
 
 // --- 効果データ → 表示テキスト生成 -----------------------------------------------------
@@ -144,17 +234,28 @@ function renderAction(action, context) {
     case VERBS.DRAW:
       return `${renderTargetLabel(action.target)}${count}枚ドロー。`;
     case VERBS.PICKUP_TO_HAND: {
-      const zoneLabel =
-        action.target?.selection === TARGET_SELECTIONS.CHOOSE ? `任意の${toFullWidthNumber(action.target.count)}マスの` : "";
+      const zoneLabel = action.withinCells
+        ? `${toFullWidthNumber(action.withinCells)}マス以内の`
+        : action.target?.selection === TARGET_SELECTIONS.CHOOSE
+          ? `任意の${toFullWidthNumber(action.target.count)}マスの`
+          : "";
       if (action.target?.saveAs) context.selections[action.target.saveAs] = action.target;
       return `${zoneLabel}${count}枚をあなたの手札に加える。`;
     }
     case VERBS.PLACE_CARD: {
       const sourceLabel = action.source === "hand" ? "手札から" : "山札から";
       const faceLabel = action.faceUp ? "表向きで" : "裏向きで";
-      const destLabel = action.destination?.selection === TARGET_SELECTIONS.SAME_AS ? "そのマスに" : "任意のマスに";
-      return `${sourceLabel}${count}枚を${destLabel}${faceLabel}置く。`;
+      const destLabel =
+        action.destination?.selection === TARGET_SELECTIONS.SAME_AS
+          ? "そのマスに"
+          : action.count > 1
+            ? `任意の${count}マスに`
+            : "任意のマスに";
+      const perCardCount = action.destination?.selection === TARGET_SELECTIONS.SAME_AS ? count : "１";
+      return `${destLabel}${sourceLabel}${perCardCount}枚${action.count > 1 ? "ずつ" : ""}${faceLabel}置く。`;
     }
+    case VERBS.SWAP_POSITION:
+      return `${count}マス以内の相手のいる場所とあなたのいる場所を入れ替える。`;
     default:
       return `（未対応の動詞: ${action.verb}）`;
   }

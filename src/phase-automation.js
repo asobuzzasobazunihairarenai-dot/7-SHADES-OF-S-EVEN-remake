@@ -117,14 +117,41 @@ function isLockSlotOccupied(player, color) {
     (t) => t.kind === "card" && t.location.zone === "lock" && SIDE_TO_SEAT[t.location.side] === player && t.location.index === colorIndex
   );
 }
+// 1枚のカードがロックフェイズで実際にロックできるか（hasLockableCard/ハイライトの両方が
+// 使う共通の判定）。
+function isCardLockable(token, player) {
+  if (token.cardId === "rainbow-shard") return false; // ロックフェイズでは常にロック不可
+  const color = getCardDefinition(token.cardId)?.color;
+  if (!color || color === "white" || color === "black") return false; // 無色は「ロックした」扱いにならない
+  return !isLockSlotOccupied(player, color);
+}
 function hasLockableCard(player) {
   const hand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
-  return hand.some((t) => {
-    if (t.cardId === "rainbow-shard") return false; // ロックフェイズでは常にロック不可
-    const color = getCardDefinition(t.cardId)?.color;
-    if (!color || color === "white" || color === "black") return false; // 無色は「ロックした」扱いにならない
-    return !isLockSlotOccupied(player, color);
-  });
+  return hand.some((t) => isCardLockable(t, player));
+}
+
+// ユーザー要望「ロックフェイズではロックできるカードのみ手札内でハイライトし、それ以外は
+// トーンオフしてほしい」。ムーブフェイズのマスハイライト（reconcileMovePhase）と同じ
+// 「render()のたびに呼び直す」パターンを、盤面マスの代わり自分の手札カードに適用する。
+let highlightedLockCardEls = [];
+function clearLockHandHighlight() {
+  for (const el of highlightedLockCardEls) el.classList.remove("phase-lock-highlight");
+  highlightedLockCardEls = [];
+  document.body.classList.remove("phase-lock-picking");
+}
+function updateLockPhaseHandHighlight(player) {
+  clearLockHandHighlight();
+  const handArea = document.querySelector(`.hand-area[data-player="${player}"]`);
+  if (!handArea) return;
+  const hand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
+  const lockableIds = new Set(hand.filter((t) => isCardLockable(t, player)).map((t) => t.id));
+  document.body.classList.toggle("phase-lock-picking", lockableIds.size > 0);
+  for (const el of handArea.querySelectorAll(".hand-card")) {
+    if (lockableIds.has(el.dataset.tokenId)) {
+      el.classList.add("phase-lock-highlight");
+      highlightedLockCardEls.push(el);
+    }
+  }
 }
 
 // ユーザー要望「その旨をモーダルで伝えてください」。confirm-modal（main.js）と似た
@@ -274,6 +301,8 @@ function enterPhase(phase, player) {
   announcePhase(phase);
   updatePhaseGuideGlow();
   updateSkipButtonVisibility();
+  if (phase === "lock") updateLockPhaseHandHighlight(player);
+  else clearLockHandHighlight();
   if (phase === "move") reconcileMovePhase(player);
 }
 
@@ -289,6 +318,7 @@ function clearPhase() {
   updatePhaseGuideGlow();
   updateSkipButtonVisibility();
   clearMovableHighlights();
+  clearLockHandHighlight();
 }
 
 // render()のたびに呼ばれ、今のフェイズで「もう次へ進めるか」を判定する。
@@ -310,7 +340,13 @@ export function reconcilePhaseAutomation() {
     return;
   }
   if (currentPhase === "lock") {
-    if (countLockedCards(player) > lockCountAtPhaseStart) advancePhase();
+    if (countLockedCards(player) > lockCountAtPhaseStart) {
+      advancePhase();
+      return;
+    }
+    // render()のたびにハンドエリアのDOMが作り直されるため、ハイライトも毎回再適用する
+    // （reconcileMovePhaseがマスハイライトを毎回再適用しているのと同じ考え方）。
+    updateLockPhaseHandHighlight(player);
     return;
   }
   if (currentPhase === "hand") {

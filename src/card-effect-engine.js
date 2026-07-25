@@ -199,6 +199,54 @@ export function getAnyCellWithCardCandidates() {
   return candidates;
 }
 
+// 「任意のNマス」（カードの有無を問わない、山札から置く先を選ばせる効果向け）の候補一覧。
+function getAllCellCandidates() {
+  const candidates = [];
+  for (let row = 0; row <= 6; row++) {
+    for (let col = 0; col <= 6; col++) candidates.push({ zone: "cell", row, col });
+  }
+  return candidates;
+}
+
+// enumerateManhattanRing（ちょうど距離N）を0からNまで積み重ねた「N マス以内」
+// （自分のいるマスも含む、距離0〜N全て）の候補。「２マス以内」等の効果文の実際の判定範囲
+// （docs/cards.md「仮にNマス移動する場合に移動できる範囲」）に対応する。
+function enumerateManhattanDisk(maxCount) {
+  const offsets = [];
+  for (let d = 0; d <= maxCount; d++) offsets.push(...enumerateManhattanRing(d));
+  return offsets;
+}
+
+// 「Nマス以内のカードがあるマス」の候補（橙のキューブ ハーベスト等）。
+function getCellsWithCardWithinRange(fromLocation, range) {
+  const candidates = [];
+  for (const { dr, dc } of enumerateManhattanDisk(range)) {
+    const row = fromLocation.row + dr;
+    const col = fromLocation.col + dc;
+    if (!inBounds(row, col)) continue;
+    if (!hasCardAt(row, col)) continue;
+    candidates.push({ zone: "cell", row, col });
+  }
+  return candidates;
+}
+
+// 「Nマス以内にいる相手の駒のマス」の候補（マスチェンジ等）。自分のいるマス自身は
+// 対象外（自分自身との入れ替えは意味を成さないため）。
+function getOpponentPieceCellsWithinRange(fromLocation, range, player) {
+  const candidates = [];
+  for (const { dr, dc } of enumerateManhattanDisk(range)) {
+    if (dr === 0 && dc === 0) continue;
+    const row = fromLocation.row + dr;
+    const col = fromLocation.col + dc;
+    if (!inBounds(row, col)) continue;
+    const piece = getState().tokens.find(
+      (t) => t.kind === "piece" && t.location.zone === "cell" && t.location.row === row && t.location.col === col && t.player !== player
+    );
+    if (piece) candidates.push({ zone: "cell", row, col });
+  }
+  return candidates;
+}
+
 // 1つのactionを実行する。helpers:
 //   moveAndSync(tokenId, location): 実際にトークンを動かし、オンライン中の同期・
 //     再描画まで面倒を見る（main.jsのaddArrivedCardToHand等と同じ責務）。
@@ -234,7 +282,10 @@ async function runAction(action, ctx, helpers) {
       return;
     }
     case VERBS.PICKUP_TO_HAND: {
-      const candidates = getAnyCellWithCardCandidates();
+      // withinCells指定時（橙のキューブ ハーベスト等）は「Nマス以内」に絞る。未指定なら
+      // 従来通り盤面全体（収穫と種まき等）。
+      const candidates =
+        action.withinCells != null ? getCellsWithCardWithinRange(ctx.pieceLocation, action.withinCells) : getAnyCellWithCardCandidates();
       if (candidates.length === 0) return;
       const chosen =
         candidates.length === 1 ? candidates[0] : await helpers.pickLocation(candidates, "手札に加えるカードのあるマスを選択してください");
@@ -257,17 +308,46 @@ async function runAction(action, ctx, helpers) {
       return;
     }
     case VERBS.PLACE_CARD: {
-      // 今回のパイロット（収穫と種まき）はdestination.selection===SAME_ASの1パターンのみ。
-      // 「任意のマスに置く」（selection未指定）はまだ未対応（該当するパイロットが無いため）。
-      if (action.destination?.selection !== TARGET_SELECTIONS.SAME_AS) {
+      // destination.selection: SAME_AS（収穫と種まき・終わりなき化学ゲンテクニーク等、
+      // 同じ効果内の別アクションで既に選んだマスへ置き直す）／CHOOSE（月下の漂流船
+      // プリドゥエン等、その場でN個のマスを選ばせる。action.countがマス数）。
+      let destinations = [];
+      if (action.destination?.selection === TARGET_SELECTIONS.SAME_AS) {
+        const dest = ctx.selections[action.destination.ref];
+        if (dest) destinations = [dest];
+      } else if (action.destination?.selection === TARGET_SELECTIONS.CHOOSE) {
+        const pickCount = action.count ?? 1;
+        for (let i = 0; i < pickCount; i++) {
+          const dest = await helpers.pickLocation(getAllCellCandidates(), "カードを置くマスを選択してください");
+          if (!dest) break;
+          destinations.push(dest);
+        }
+      } else {
         console.warn("card-effect-engine: place_cardのdestination.selectionが未対応です", action);
         return;
       }
-      const dest = ctx.selections[action.destination.ref];
-      if (!dest) return;
-      const handToken = await helpers.pickHandCard(ctx.player, "そのマスに置くカードを手札から選択してください");
-      if (!handToken) return;
-      await helpers.moveAndSync(handToken.id, { zone: "cell", row: dest.row, col: dest.col });
+      for (const dest of destinations) {
+        if (action.source === "hand") {
+          const handToken = await helpers.pickHandCard(ctx.player, "そのマスに置くカードを手札から選択してください");
+          if (!handToken) continue;
+          await helpers.moveAndSync(handToken.id, { zone: "cell", row: dest.row, col: dest.col });
+        } else {
+          // "deck"（山札）: 手札からではなく山札の一番上を直接そのマスへ置く。
+          await helpers.placeFromDeck(dest);
+        }
+      }
+      return;
+    }
+    case VERBS.SWAP_POSITION: {
+      // 「入れ替え」であり「移動」ではないため（docs/cards.md補足）、到達判定は連鎖させない
+      // （ctx.arrivedAtをセットしない）。
+      const candidates = getOpponentPieceCellsWithinRange(ctx.pieceLocation, action.count, ctx.player);
+      if (candidates.length === 0) return;
+      const target =
+        candidates.length === 1 ? candidates[0] : await helpers.pickLocation(candidates, "入れ替える相手のマスを選択してください");
+      if (!target) return;
+      await helpers.swapPieces(ctx.pieceTokenId, ctx.pieceLocation, target);
+      ctx.pieceLocation = target;
       return;
     }
     default:
@@ -299,6 +379,14 @@ export async function runArrivalEffect(ctx, helpers) {
 //   pickDiscardCost(candidates, hint): 追色コストの候補（同色の手札トークン配列）から
 //     1枚選ばせる（候補が1枚ならこの関数自体呼ばれず自動採用——呼び出し元の裁量）。
 //   drawCards(player, count): 山札からplayerの手札へcount枚引く（オンライン同期込み）。
+//   placeFromDeck(location): 山札の一番上を直接そのマスへ裏向きで置く（オンライン同期込み、
+//     PLACE_CARDのsource:"deck"用）。
+//   swapPieces(pieceTokenId, fromLocation, toLocation): 自分の駒と、toLocationにいる相手の
+//     駒の位置を入れ替える（SWAP_POSITION用）。
+// マスチェンジ等、手札効果でも到達効果と同じアクション（PICKUP_TO_HAND・PLACE_CARD・
+// SWAP_POSITION等）を使うカードが出てきたため、到達効果と同じrunAction()ディスパッチャを
+// 共有する。自分の駒はplayerから引ける（盤面上に必ず1つだけ存在するため、呼び出し元から
+// 別途渡してもらう必要は無い）。
 // 戻り値: 実際に発動できた（コストを払えた）ならtrue、使用回数制限・コスト不足等で
 // 発動できなかったならfalse（呼び出し元がその旨を案内するために使う）。
 export async function runHandEffect(ctx, helpers) {
@@ -312,17 +400,24 @@ export async function runHandEffect(ctx, helpers) {
     if (!chosen) return false;
     await helpers.discardAndSync(chosen.id);
   }
+  const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === ctx.player);
+  const runCtx = {
+    player: ctx.player,
+    pieceTokenId: piece?.id ?? null,
+    pieceLocation: piece?.location ?? null,
+    selections: {},
+    arrivedAt: null,
+  };
   for (const action of effectDef.actions) {
-    if (action.verb === VERBS.DRAW) {
-      const players =
-        action.target === TARGETS.ALL_OPPONENTS ? getState().activePlayers.filter((p) => p !== ctx.player) : [ctx.player];
-      for (const p of players) {
-        await helpers.drawCards(p, action.count);
-      }
-    } else {
-      console.warn(`card-effect-engine: 手札効果の未対応の動詞 "${action.verb}"`);
-    }
+    await runAction(action, runCtx, helpers);
   }
   recordHandEffectUsage(ctx.cardId, ctx.player);
+  // 凡例（docs/cards.md）「手札効果において、効果カード自身の処遇の記載がなければ、
+  // 効果発動時にこのカードを捨てる」。エターナル/ファーストカードは基本効果
+  // 「これの手札効果はこれがロックされていても使える」の通り消費されない特別枠のため、
+  // このデフォルトの対象外（cardIdの命名規則で判定、main.js側の他の分岐と同じ基準）。
+  if (!ctx.cardId.startsWith("eternal-") && !ctx.cardId.startsWith("first-")) {
+    await helpers.discardAndSync(ctx.cardTokenId);
+  }
   return true;
 }

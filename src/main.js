@@ -24,6 +24,7 @@ import {
   runHandEffect,
   canPayHandEffectCost,
   hasHandEffectData,
+  isAutoProcessingEnabled,
 } from "./card-effect-engine.js";
 import {
   reconcilePhaseAutomation,
@@ -825,6 +826,39 @@ async function moveAndSyncForEffect(tokenId, location) {
   }
 }
 
+// PLACE_CARDのsource:"deck"用（終わりなき化学ゲンテクニーク・月下の漂流船プリドゥエン等）。
+// 山札の一番上を、手札を経由せず直接そのマスへ裏向きで置く（performMoveFallbackAndEndTurn
+// と同じ考え方）。
+async function placeFromDeckForEffect(location) {
+  if (isOnlineMode()) {
+    try {
+      await drawFromPile("deck", location);
+      await fetchAndHydrate(getCurrentGameId());
+    } catch (err) {
+      console.error("placeFromDeckForEffect failed", err);
+      return;
+    }
+  } else {
+    drawFromPile("deck", location);
+  }
+  playSound("cardPlace");
+}
+
+// SWAP_POSITION用（マスチェンジ等）。自分の駒と、targetLocationにいる相手の駒の位置を
+// 入れ替える。「移動」ではないため（docs/cards.md補足）、到達判定・自動オープンは
+// 一切行わない——呼び出し元（card-effect-engine.jsのrunAction）もctx.arrivedAtを
+// セットしないため、これ単体で完結する。
+async function swapPiecesForEffect(pieceTokenId, fromLocation, targetLocation) {
+  const opponentPiece = getState().tokens.find(
+    (t) => t.kind === "piece" && t.location.zone === "cell" && t.location.row === targetLocation.row && t.location.col === targetLocation.col
+  );
+  if (!opponentPiece) return;
+  await moveAndSyncForEffect(opponentPiece.id, { zone: "cell", row: fromLocation.row, col: fromLocation.col });
+  await moveAndSyncForEffect(pieceTokenId, targetLocation);
+  playSound("piecePlace");
+  render();
+}
+
 // ユーザー報告「移動先候補のハイライトをクリックしても自動で移動しない」の原因調査で
 // 判明: この盤面は3D的な傾き（テーブル演出）を持つため、駒・カードのドラッグは
 // ネイティブのclickイベント（当たり判定がズレる。initDragHandlers直前のコメント参照）
@@ -1109,8 +1143,16 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         discardAndSync: discardFromHandReveal,
         drawCards: drawCardsForEffect,
         pickDiscardCost: (candidates, hint) => requestHandCardChoiceForEffect(player, hint, new Set(candidates.map((t) => t.id))),
+        moveAndSync: moveAndSyncForEffect,
+        pickLocation: requestCellChoiceForEffect,
+        pickHandCard: requestHandCardChoiceForEffect,
+        onCardAcquiredToHand: onEffectCardAcquiredToHand,
+        markPlacementTarget: markEffectPlacementTarget,
+        placeFromDeck: placeFromDeckForEffect,
+        swapPieces: swapPiecesForEffect,
       }
     );
+    clearEffectUiHighlights();
     render();
   } finally {
     setHandEffectBusy(false);
@@ -1129,6 +1171,8 @@ async function runAutoArrivalEffect(cardId, location, player) {
       pickHandCard: requestHandCardChoiceForEffect,
       onCardAcquiredToHand: onEffectCardAcquiredToHand,
       markPlacementTarget: markEffectPlacementTarget,
+      placeFromDeck: placeFromDeckForEffect,
+      swapPieces: swapPiecesForEffect,
     }
   );
   clearEffectUiHighlights();
@@ -3727,6 +3771,24 @@ async function onDragEnd(e) {
         } else if (!canPayHandEffectCost(draggedToken.cardId, draggedToken.id, cardSourceLocation.player)) {
           alert("捨てられる同じ色のカードが手札にありません。");
         }
+        return;
+      }
+    }
+    // ユーザー要望「ロックするときも該当のロックエリア以外には置けないようにしてください」
+    // （自動処理モード限定）。このアプリは元々「ルール適用は一切しない」自由配置方針
+    // （findDropTarget付近のコメント参照）だが、自動処理モードはフェイズの流れ自体を
+    // 積極的に案内・制御する方針のため、そちらに限りロックスロットの色不一致を弾く
+    // （スナップバックのみ、通常のmoveTokenへは進ませない）。なないろの欠片は基本効果
+    // 「ロックフェイズではロックできない」の通り常に対象外。無色（白/黒）カードは
+    // 「置いても『ロックした』扱いにならない」ため、どのスロットに置いても実害が無く
+    // 対象外のまま。
+    if (kind === "card" && dropTarget.zone === "lock" && isAutoProcessingEnabled()) {
+      const draggedToken = getState().tokens.find((t) => t.id === tokenId);
+      const color = draggedToken ? getCardDefinition(draggedToken.cardId)?.color : null;
+      const isRainbow = draggedToken?.cardId === "rainbow-shard";
+      const isColorless = color === "white" || color === "black";
+      if (isRainbow || (!isColorless && color && COLORS[dropTarget.index] !== color)) {
+        render();
         return;
       }
     }
