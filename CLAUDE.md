@@ -7256,4 +7256,11 @@ https://asobuzzasobazunihairarenai-dot.github.io/7-SHADES-OF-S-EVEN-remake/
   チュートリアルの「ムーブフェイズ」ステップが短い箇条書き＋挿絵で表示されることを
   確認済み。
 
+### 2026-07-25（続き7）：タブレット2D表示推奨モーダルにブラウザ推奨を追記
+
+- **ユーザー要望「タブレットでの2D表示の切り替え推奨モーダルに『ブラウザはGoogleが
+  推奨です』を追加したい」**: `tablet-2d-warning.js`の警告モーダルに、Google Chrome
+  を推奨する一文を追加した（iPhone/iPadはブラウザの種類を問わずApple製の同じ描画
+  エンジンを使う仕組みのため効果は限定的である旨も併記）。
+
 

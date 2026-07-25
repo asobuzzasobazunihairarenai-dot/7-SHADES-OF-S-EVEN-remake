@@ -41,8 +41,17 @@ export function maybeShowTablet2dWarning() {
   const body = document.createElement("div");
   body.textContent =
     "端末によっては、特にスマホ・タブレットでは手札が見えなくなったりチカチカしたりする場合があります。その場合は下のボタンから2D表示に切り替えてください。これは画面右上のオプションからもいつでも切り替えられます。";
-  body.style.cssText = "line-height: 1.6; margin-bottom: 1rem;";
+  body.style.cssText = "line-height: 1.6; margin-bottom: 0.6rem;";
   modal.appendChild(body);
+
+  // ユーザー要望「ブラウザはGoogleが推奨です、を追加したい」への対応。iPhone/iPadでは
+  // どのブラウザ（Safari/Chrome/Edge等）も内部的にAppleの同じ描画エンジンを使う仕組み
+  // のため効果は限定的だが、Androidタブレットでは端末標準ブラウザよりGoogle Chromeの方が
+  // 3D描画・GPU合成の実装が新しく安定していることが多い。
+  const browserNote = document.createElement("div");
+  browserNote.textContent = "ブラウザはGoogle Chromeを推奨します（iPhone/iPadでは他のブラウザでも同じ描画エンジンのため効果は限定的です）。";
+  browserNote.style.cssText = "line-height: 1.6; margin-bottom: 1rem; font-size: 0.8rem; color: #94a3b8;";
+  modal.appendChild(browserNote);
 
   const btnRow = document.createElement("div");
   btnRow.style.cssText = "display: flex; gap: 0.5rem; justify-content: flex-end;";
