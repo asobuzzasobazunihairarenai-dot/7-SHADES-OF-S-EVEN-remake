@@ -16,6 +16,7 @@ import { getState, moveToken, flipToken, isOnlineMode } from "./state.js";
 import { getSelfSeat, getCurrentGameId, fetchAndHydrate } from "./online.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
 import { stageDelta, toStageLocalRect } from "./main.js";
+import { setAutoProcessingEnabled } from "./card-effect-engine.js";
 
 // main.js側のtriggerCardArrival（自己申告モーダル／自動処理の分岐を持つ本体）は
 // main.js内にしか無いため、他の箇所と同じ「register helper」注入パターンで
@@ -214,10 +215,14 @@ export function initCardDevMode() {
     backdrop.style.display = "none";
     miniIcon.style.display = "none";
   }
+  // ユーザー要望「カード開発モードを開いたら自動で『カード効果を自動処理する』を
+  // オンにしてほしい」。開発モードを開く目的はほぼ常にこの自動処理のテストのため、
+  // 毎回オプションを別途開いてトグルする手間を省く。
   function open() {
     panel.style.display = "block";
     backdrop.style.display = "block";
     miniIcon.style.display = "none";
+    setAutoProcessingEnabled(true);
   }
   // ユーザー要望「縮小ボタンをつけて縮小するとミニアイコンになり、それをクリックすると
   // 再表示されるように」への対応。closeと違い、位置・サイズ（ドラッグ/resizeで

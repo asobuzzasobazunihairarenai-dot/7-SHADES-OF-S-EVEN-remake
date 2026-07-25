@@ -376,6 +376,10 @@ function buildPlayerZone(side, player, isSelf) {
       if (cardColor === "white" || cardColor === "black") {
         cardEl.classList.add("has-mystic-aura", `aura-${cardColor}`);
       }
+      // ユーザー要望「収穫と種まき等で獲得したカードを、手札の中で効果が終わるまで
+      // 光らせてほしい」。render()はtable.innerHTML=""で毎回作り直されるため、DOM要素の
+      // 参照ではなくtokenIdで状態を持ち、描画のたびにここで再適用する。
+      if (token.id === glowingEffectHandTokenId) cardEl.classList.add("card-effect-just-acquired-glow");
     } else {
       cardEl.className = "hand-card is-facedown";
       cardEl.style.backgroundImage = `url("${getCardBackImagePath(token.cardId)}")`;
@@ -819,6 +823,13 @@ async function moveAndSyncForEffect(tokenId, location) {
 // 移動候補しかクリックできないようにする」にも対応）。
 let activeEffectPicker = null; // { type: "cell", candidates, resolve } | { type: "hand", tokenIds: Set, resolve }
 
+// ユーザー要望「収穫と種まきで獲得したカードを手札の中で効果が終わるまで光らせる」
+// 「置き直す先のマスをハイライトして忘れないようにする」への対応。render()が
+// table.innerHTML=""で毎回作り直すため、DOM要素の参照ではなくtokenId/locationで
+// 状態を持ち、buildPlayerZone（手札）とrender()末尾（マス）でその都度再適用する。
+let glowingEffectHandTokenId = null;
+let pendingPlacementLocation = null;
+
 document.addEventListener(
   "pointerdown",
   (e) => {
@@ -928,6 +939,28 @@ function requestHandCardChoiceForEffect(player, hint) {
   });
 }
 
+// ユーザー要望「収穫と種まきについて獲得したカードを何を獲得したかモーダルで表示し、
+// 手札の中で効果が終わるまで光らせてください」。既存のannounceHandPickups（他の
+// カード獲得と同じ見た目のトースト）で「何を得たか」を知らせ、glowingEffectHandTokenIdを
+// 立てて手札内で光らせ続ける（clearEffectUiHighlightsが呼ばれるまで）。
+function onEffectCardAcquiredToHand(tokenId, cardId, wasFaceUp) {
+  announceHandPickups(getSelfSeat(), [{ cardId, wasPublic: wasFaceUp }]);
+  glowingEffectHandTokenId = tokenId;
+  render();
+}
+
+// ユーザー要望「どこに置かれるのかを忘れないように置かれるマスをハイライトしてください」。
+function markEffectPlacementTarget(location) {
+  pendingPlacementLocation = location;
+  render();
+}
+
+// 効果全体（例: 収穫と種まきの2段階）が完了した後、上の2つのハイライトをクリアする。
+function clearEffectUiHighlights() {
+  glowingEffectHandTokenId = null;
+  pendingPlacementLocation = null;
+}
+
 async function runAutoArrivalEffect(cardId, location, player) {
   const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === player);
   const cardToken = findTopCardAt(location);
@@ -938,8 +971,11 @@ async function runAutoArrivalEffect(cardId, location, player) {
       moveAndSync: moveAndSyncForEffect,
       pickLocation: requestCellChoiceForEffect,
       pickHandCard: requestHandCardChoiceForEffect,
+      onCardAcquiredToHand: onEffectCardAcquiredToHand,
+      markPlacementTarget: markEffectPlacementTarget,
     }
   );
+  clearEffectUiHighlights();
   render();
   // moveアクションの結果、新しいマスへ「到達」した場合は、通常の移動と同じように続けて
   // そのマスの到達判定を行う（次のカードも構造化データを持っていればそのまま自動処理が
@@ -1866,6 +1902,14 @@ function render() {
   // DOM要素ではなく論理的な位置で覚えているので、作り直した直後にそれをこの新しい
   // 要素へ再度貼り付け直してもらう。
   reapplyActiveHighlights(table);
+  // ユーザー要望「収穫と種まきの置き直し先を忘れないようにハイライトしてほしい」。
+  // pendingPlacementLocationが選択の対象候補（activeEffectPicker）とは別に、
+  // PLACE_CARDが完了する（main.jsのclearEffectUiHighlightsが呼ばれる）まで
+  // 再表示のたびに貼り直す。
+  if (pendingPlacementLocation) {
+    const targetEl = findLocationElement(table, pendingPlacementLocation);
+    if (targetEl) targetEl.classList.add("card-effect-placement-target");
+  }
   fitTableToViewport();
   updateEndTurnButton();
   updateDrawButton();

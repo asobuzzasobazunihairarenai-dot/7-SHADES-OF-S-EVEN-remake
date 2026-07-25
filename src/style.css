@@ -6665,6 +6665,45 @@ body.reduce-glow .cell.card-effect-target-cell .board-card {
 #card-effect-picker-hint.show {
   opacity: 1;
   transform: translate(-50%, 0);
+  /* ユーザー要望「画面上部にあるため目立つように枠を点滅させる等の工夫をしてほしい」。
+     出現時のフェードインとは別に、表示中はずっと枠が点滅し続けて視線を誘導する。 */
+  animation: card-effect-picker-hint-blink 1.1s ease-in-out infinite;
+}
+@keyframes card-effect-picker-hint-blink {
+  0%, 100% { border-color: #facc15; box-shadow: 0 0 1.5rem rgba(250, 204, 21, 0.4), 0 10px 25px rgba(0, 0, 0, 0.5); }
+  50% { border-color: #fff7cc; box-shadow: 0 0 2.6rem rgba(250, 204, 21, 0.9), 0 10px 25px rgba(0, 0, 0, 0.5); }
+}
+body.reduce-glow #card-effect-picker-hint.show {
+  animation: none;
+}
+/* ユーザー要望「収穫と種まきで獲得したカードを手札の中で効果が終わるまで光らせて
+   ほしい」。既存のhas-mystic-auraとは別に、緑系の「獲得しました」を表す光。 */
+.hand-card.card-effect-just-acquired-glow {
+  animation: card-effect-hand-acquired-glow 1.4s ease-in-out infinite;
+}
+@keyframes card-effect-hand-acquired-glow {
+  0%, 100% { box-shadow: 0 0 0.6rem 0.15rem rgba(74, 222, 128, 0.7); }
+  50% { box-shadow: 0 0 1.4rem 0.5rem rgba(74, 222, 128, 0.95); }
+}
+body.reduce-glow .hand-card.card-effect-just-acquired-glow {
+  animation: none;
+  box-shadow: 0 0 0.5rem 0.15rem rgba(74, 222, 128, 0.6);
+}
+/* ユーザー要望「どこに置かれるのかを忘れないように置かれるマスをハイライトして
+   ほしい」。クリックして選ぶ候補（黄色、.card-effect-target-cell）とは見た目を変え、
+   「あなたが選んだ結果、ここに戻ってくる」という情報表示専用（クリック対象ではない）
+   ことが分かるよう青系にする。 */
+.cell.card-effect-placement-target {
+  outline: 3px dashed rgba(56, 189, 248, 0.9);
+  outline-offset: -3px;
+  animation: card-effect-placement-target-pulse 1.6s ease-in-out infinite;
+}
+@keyframes card-effect-placement-target-pulse {
+  0%, 100% { box-shadow: inset 0 0 0.6rem rgba(56, 189, 248, 0.3); }
+  50% { box-shadow: inset 0 0 1.2rem rgba(56, 189, 248, 0.6); }
+}
+body.reduce-glow .cell.card-effect-placement-target {
+  animation: none;
 }
 #tutorial-callout {
   position: fixed;

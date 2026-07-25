@@ -7565,3 +7565,34 @@ https://asobuzzasobazunihairarenai-dot.github.io/7-SHADES-OF-S-EVEN-remake/
   `minimize`を呼ぶよう変更し、外側クリックでも必ずミニアイコンから復帰できるように
   した。ブラウザで実際にbackdropクリック→ミニアイコンが表示されることを確認済み。
 
+### 2026-07-25（続き16）：開発モード自動ON、移動先の占有チェック修正、収穫と種まきの獲得演出、案内バナーの点滅
+
+- **ユーザー要望「カード開発モードを開いたら自動で『カード効果を自動処理する』を
+  オンにしてほしい」**: `card-dev-mode.js`の`open()`で`setAutoProcessingEnabled(true)`を
+  呼ぶよう追加。オプションパネルは開くたびに中身を作り直す既存実装（`options-menu.js`の
+  `renderContent()`）のため、チェックボックスの見た目も自動的に一致する。
+- **ユーザー報告「ジャンプ台で駒のあるマスを選べてしまう」**: `docs/rulebook.md`の
+  「移動」の定義（189/317行目）を確認したところ、「移動」は常に"カードの置かれた"別の
+  マスへ置くことを指し、カードの無いマスへも置けるのは「強制移動」という別概念だった。
+  atOnce（一気に）が免除するのは「1マス目（経路途中）のカード・駒の有無」（289行目
+  補足）のみで、最終的な移動先には適用されない。旧実装は`atOnce`時に移動先の
+  `hasCardAt`/`hasPieceAt`判定自体を丸ごとスキップしていたため、駒のいるマスや
+  空きマスまで候補に出てしまうバグだった。`card-effect-engine.js`の
+  `getMoveCandidates`を修正し、移動先の「カードあり・駒なし」判定を`atOnce`の
+  有無に関わらず常に課すようにした。
+- **ユーザー要望「収穫と種まきで獲得したカードを何を獲得したかモーダルで表示し、
+  手札の中で効果が終わるまで光らせる。置かれるマスもハイライトする」**:
+  `card-effect-engine.js`の`PICKUP_TO_HAND`実行後に新しいhelperフック
+  `onCardAcquiredToHand(tokenId, cardId, wasFaceUp)`/`markPlacementTarget(location)`を
+  呼ぶよう追加。`main.js`側の実装は、既存の`announceHandPickups`（他のカード獲得と
+  同じ見た目のトースト）で「何を得たか」を知らせつつ、`glowingEffectHandTokenId`/
+  `pendingPlacementLocation`という状態変数を立てる。`render()`は`table.innerHTML=""`で
+  毎回作り直すため、DOM参照ではなくtokenId/locationで状態を持ち、`buildPlayerZone`
+  （手札構築）と`render()`末尾（マス）でその都度再適用する。効果全体が完了した後
+  （`runAutoArrivalEffect`内、`runArrivalEffect`のawait直後）に`clearEffectUiHighlights()`
+  で両方クリアする。ブラウザで、獲得トースト表示→手札内で緑に光る→置き直すマスが
+  青い点線でハイライトされ続ける→置き直し完了で両方消えることを確認済み。
+- **ユーザー要望「選択案内バナーが画面上部で目立たない。枠を点滅させる等の工夫を」**:
+  `#card-effect-picker-hint.show`にパルスするbox-shadow/border-colorアニメーションを
+  追加（`body.reduce-glow`では静止表示に戻す）。
+

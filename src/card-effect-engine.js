@@ -73,11 +73,15 @@ function enumerateManhattanRing(count) {
   return offsets;
 }
 
-// moveの候補マスを計算する（純粋関数、DOM不要）。atOnce（一気に）の場合は中間マスの
-// カード・駒の有無を問わない（ユーザー確認済みのルール解釈）だけでなく、斜め隣接マスも
-// 候補に含める（上記enumerateManhattanRing参照）。atOnceでない場合（今回のパイロット
-// 範囲ではcount:1のみ）は、通常の移動ルール通り「移動先にカードが必要、駒が既にいる
-// マスは不可」を課す（count:1では従来の4方向のみのDIRECTIONSと結果は同じ）。
+// moveの候補マスを計算する（純粋関数、DOM不要）。ユーザー指摘を受けdocs/rulebook.mdの
+// 「移動」の定義を確認: 「移動」とは自分の駒を、現在のマスから"カードの置かれた"別のマスに
+// 置くこと（カードの無いマスにも置けるのは「強制移動」という別の用語で、ジャンプ台の
+// 効果文にその語は出てこない）。またルール上、駒は物理的に1マスに1つまでなので、既に
+// 駒がいるマスへは移動できない。atOnce（一気に）が唯一免除するのは「1マス目（＝経路の
+// 途中のマス）のカード・駒の有無」（rulebook.md 289行目補足）であり、最終的な移動先
+// （このコードが計算する候補そのもの）には適用されない。そのため、移動先が「カードあり・
+// 駒なし」であることは、atOnceの有無に関わらず常に課す（旧実装はatOnce時にこの判定自体を
+// 丸ごとスキップしており、駒のいるマスや空きマスまで候補に出てしまうバグだった）。
 export function getMoveCandidates(fromLocation, count, atOnce) {
   const candidates = [];
   const offsets = atOnce
@@ -87,9 +91,7 @@ export function getMoveCandidates(fromLocation, count, atOnce) {
     const row = fromLocation.row + dr;
     const col = fromLocation.col + dc;
     if (!inBounds(row, col)) continue;
-    if (!atOnce) {
-      if (!hasCardAt(row, col) || hasPieceAt(row, col)) continue;
-    }
+    if (!hasCardAt(row, col) || hasPieceAt(row, col)) continue;
     candidates.push({ zone: "cell", row, col });
   }
   return candidates;
@@ -114,6 +116,10 @@ export function getAnyCellWithCardCandidates() {
 //     「何を選ぶ場面か」をプレイヤーに案内する短い文（ユーザー要望「移動先のマスを
 //     選択してください、等の案内を出してほしい」への対応）。
 //   pickHandCard(player, hint): プレイヤーに自分の手札から1枚選んでもらう（手札トークンを返す）。
+//   onCardAcquiredToHand(tokenId, cardId): PICKUP_TO_HANDで手札に加わったカードを
+//     「何を獲得したか」表示し、後で置き直すまで手札内で光らせる（ユーザー要望）。省略可。
+//   markPlacementTarget(location): PICKUP_TO_HANDで拾った元のマスを「ここに置き直す」
+//     目印としてハイライトし続ける（ユーザー要望「どこに置かれるか忘れないように」）。省略可。
 async function runAction(action, ctx, helpers) {
   switch (action.verb) {
     case VERBS.MOVE: {
@@ -146,8 +152,13 @@ async function runAction(action, ctx, helpers) {
           t.location.col === chosen.col
       );
       if (!token) return;
+      const wasFaceUp = token.faceUp; // 手札に入ると自動で表向きになるため、移動前の状態を保持しておく
       await helpers.moveAndSync(token.id, { zone: "hand", player: ctx.player });
-      if (action.target?.saveAs) ctx.selections[action.target.saveAs] = chosen;
+      helpers.onCardAcquiredToHand?.(token.id, token.cardId, wasFaceUp);
+      if (action.target?.saveAs) {
+        ctx.selections[action.target.saveAs] = chosen;
+        helpers.markPlacementTarget?.(chosen);
+      }
       return;
     }
     case VERBS.PLACE_CARD: {
