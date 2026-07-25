@@ -5233,15 +5233,18 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   box-shadow: 0 0 1.2rem rgba(250, 204, 21, 0.4), 0 10px 25px rgba(0, 0, 0, 0.5);
 }
 
-/* 常設のスキップボタン。ユーザー要望「スキップはフェイズ案内板の右あたりに強調して
-   表示」。#phase-guide-bar（bottom:0rem; right:2.3rem）の少し上に置く。ムーブフェイズは
-   「移動」か「接触」を必ず行う必要があるルールのため対象外（JS側でdisplay制御）。 */
+/* 常設のスキップボタン。ユーザー報告「他のアイコンと被っている」への対応で、固定座標
+   ではなく#phase-guide-bar（flexコンテナ）内でロックボタンの直後（＝右隣）にDOM上の
+   兄弟として挿入する方式に変更した（phase-automation.js側）。ここでは通常のflexアイテム
+   として振る舞わせるだけでよく、position:fixedは不要になった。ムーブフェイズは
+   「移動」か「接触」を必ず行う必要があるルールのため対象外（JS側でdisplay制御）。
+   ユーザー要望「難しければ管理者モードに位置調整を追加してほしい」への対応で、
+   微調整用のオフセットCSS変数（--phase-skip-button-offset-x/-y、admin.js）も
+   pulseアニメーションのtransformに含めてある。 */
 #phase-automation-skip-button {
-  position: fixed;
-  bottom: 5.2rem;
-  right: 2.3rem;
   z-index: 1001;
   display: none;
+  align-self: center;
   padding: 0.5rem 1.1rem;
   background: linear-gradient(160deg, #facc15, #f59e0b);
   border: none;
@@ -5255,8 +5258,8 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   animation: phase-automation-skip-pulse 1.6s ease-in-out infinite;
 }
 @keyframes phase-automation-skip-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.06); }
+  0%, 100% { transform: translate(var(--phase-skip-button-offset-x, 0rem), var(--phase-skip-button-offset-y, 0rem)) scale(1); }
+  50% { transform: translate(var(--phase-skip-button-offset-x, 0rem), var(--phase-skip-button-offset-y, 0rem)) scale(1.06); }
 }
 #phase-automation-skip-button:hover {
   filter: brightness(1.1);
@@ -5300,6 +5303,40 @@ body.reduce-glow #phase-guide-bar button.is-current-phase {
 body.reduce-glow .cell.phase-move-highlight,
 body.reduce-glow .cell.phase-contact-highlight {
   animation: none;
+}
+/* ユーザー要望「移動先ハイライト時、範囲外のトーンを落としてください。ジャンプ台の時と
+   同じように」。card-effect-picking-cellsと同じ「候補以外を暗くする」仕組み
+   （inset box-shadowを使う理由は同箇所のコメント参照——filter/opacityがこの3D階層で
+   効かないため）。 */
+body.phase-move-picking .cell:not(.phase-move-highlight):not(.phase-contact-highlight) {
+  box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.55);
+  transition: box-shadow 0.2s ease;
+}
+
+/* フェイズ自動スキップの通知モーダル（src/phase-automation.js）。confirm-modalと似た
+   見た目だが、クリック不要で数秒後に自動的に消える（1ターンに複数回起こり得るため）。 */
+.phase-skip-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10002;
+  background: rgba(0, 0, 0, 0.35);
+}
+.phase-skip-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10003;
+  background: rgba(15, 23, 32, 0.98);
+  border: 2px solid rgba(148, 163, 184, 0.5);
+  border-radius: 0.6rem;
+  padding: 1rem 1.6rem;
+  color: #e2e8f0;
+  font-family: sans-serif;
+  font-size: 0.9rem;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
 }
 
 /* 7色ロック達成時の勝利モーダル。金色のグロー＋トロフィーで祝う演出。 */
@@ -6739,14 +6776,19 @@ body.reduce-glow .hand-card.card-effect-target-cell {
 }
 /* ユーザー要望「移動先候補が少しわかりずらい。ほかのマスのトーンを落として、カードの面も
    ハイライトされるようにしたい」への対応。候補選択中は他の全マス/手札カードを暗くし、
-   候補の中の実際のカード画像自体にも光彩を足す（枠線だけだと目に入りにくいため）。 */
+   候補の中の実際のカード画像自体にも光彩を足す（枠線だけだと目に入りにくいため）。
+   ハマりどころ: 盤面のこれらの要素は3D階層（perspective/preserve-3d）の中にあり、
+   filter・opacityのどちらを指定してもこの環境ではcomputed styleに一切反映されない
+   （原因不明の3D階層特有の挙動、テストで確認済み——同じ階層でもbox-shadow・
+   background-colorは正しく効く）。そのため暗くする手段として、要素全体を覆う
+   inset box-shadowを使う（見た目の効果としてはopacityで暗くするのとほぼ同じ）。 */
 body.card-effect-picking-cells .cell:not(.card-effect-target-cell) {
-  filter: brightness(0.45) saturate(0.6);
-  transition: filter 0.2s ease;
+  box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.55);
+  transition: box-shadow 0.2s ease;
 }
 body.card-effect-picking-hand .hand-card:not(.card-effect-target-cell) {
-  filter: brightness(0.45) saturate(0.6);
-  transition: filter 0.2s ease;
+  box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.55);
+  transition: box-shadow 0.2s ease;
 }
 .cell.card-effect-target-cell .board-card {
   box-shadow: 0 0 1.2rem 0.3rem rgba(250, 204, 21, 0.85);

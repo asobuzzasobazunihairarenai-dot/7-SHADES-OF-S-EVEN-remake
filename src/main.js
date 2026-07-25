@@ -30,6 +30,8 @@ import {
   registerPhaseAutomationHelpers,
   isHandPhaseActive,
   setHandEffectBusy,
+  isMovePhaseActive,
+  markPhaseMoveActionTaken,
 } from "./phase-automation.js";
 import { initHelpButton } from "./help.js";
 import { initCurrencyDisplay, refreshCurrencyDisplay } from "./currency-display.js";
@@ -846,7 +848,39 @@ let pendingPlacementLocation = null;
 document.addEventListener(
   "pointerdown",
   (e) => {
-    if (!activeEffectPicker || e.button !== 0) return;
+    if (e.button !== 0) return;
+    if (!activeEffectPicker) {
+      // ユーザー要望「ムーブフェイズでの移動先ハイライトをクリックしたら自動で移動する」。
+      // カード効果の候補選択（activeEffectPicker）と同じ「3D傾き演出のためネイティブ
+      // clickは使えず、elementsFromPoint()による自前の当たり判定＋captureフェーズで
+      // 他の全ての盤面操作より先に割り込む」手法をそのまま使う。
+      if (isMovePhaseActive()) {
+        const elements = document.elementsFromPoint(e.clientX, e.clientY);
+        for (const el of elements) {
+          const cellEl = el.closest(".cell");
+          if (!cellEl) continue;
+          const isMoveTarget = cellEl.classList.contains("phase-move-highlight");
+          const isContactTarget = cellEl.classList.contains("phase-contact-highlight");
+          if (isMoveTarget || isContactTarget) {
+            e.preventDefault();
+            e.stopPropagation();
+            const location = { zone: "cell", row: Number(cellEl.dataset.row), col: Number(cellEl.dataset.col) };
+            // ハマりどころ: markPhaseMoveActionTaken()はハイライトのクラス（.phase-move-
+            // highlight等）をすぐに剥がすため、isMoveTarget/isContactTargetは呼ぶ前に
+            // 判定・変数へ保存しておく必要がある（後から判定するとクラスが既に無く
+            // なっていて、意図せず「接触」扱いになってしまうバグがあった）。
+            markPhaseMoveActionTaken();
+            if (isMoveTarget) {
+              performPhaseMoveToCell(location);
+            } else {
+              performPhaseContact(location);
+            }
+          }
+          return;
+        }
+      }
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     const picker = activeEffectPicker;
@@ -881,6 +915,63 @@ document.addEventListener(
   },
   { capture: true }
 );
+
+// ユーザー要望「ムーブフェイズでの移動先ハイライトをクリックしたら自動で移動し、移動先が
+// 裏向きだったら自動でオープンしてほしい」への対応。通常のドラッグ移動と違い、裏向き
+// カードでも「オープンする/しない」を尋ねず自動で開く（runAutoArrivalEffectの連鎖時と
+// 同じ考え方——フェイズ自動進行の一部なので、着地後の判断もそこまで自動で進めるのが自然）。
+async function performPhaseMoveToCell(location) {
+  const player = getSelfSeat();
+  const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === player);
+  if (!piece) return;
+  if (isOnlineMode()) {
+    try {
+      await moveToken(piece.id, location);
+      markSelfHandled([piece.id]);
+      await fetchAndHydrate(getCurrentGameId());
+    } catch (err) {
+      console.error("performPhaseMoveToCell failed", err);
+      render();
+      return;
+    }
+  } else {
+    moveToken(piece.id, location);
+  }
+  playSound("piecePlace");
+  render();
+  const card = findTopCardAt(location);
+  if (!card) return;
+  if (!card.faceUp) {
+    if (isOnlineMode()) {
+      try {
+        await flipToken(card.id);
+        markSelfHandled([card.id]);
+        await fetchAndHydrate(getCurrentGameId());
+      } catch (err) {
+        console.error("performPhaseMoveToCell auto-open failed", err);
+        return;
+      }
+    } else {
+      flipToken(card.id);
+    }
+    playSound("cardFlip");
+    render();
+  }
+  const freshCard = getState().tokens.find((t) => t.id === card.id);
+  if (freshCard) triggerCardArrival(freshCard.cardId, location);
+}
+
+// ムーブフェイズの接触可能ハイライトをクリックした時。接触の実処理自体は既存の
+// 「接触する/しない」確認プロンプトへそのままつなぐ（接触は他プレイヤーの承認が
+// 絡む・DSL自動処理のスコープ外のため、ここでは宣言の入口だけを自動化する）。
+function performPhaseContact(location) {
+  const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === getSelfSeat());
+  const opponentPiece = getState().tokens.find(
+    (t) => t.kind === "piece" && t.location.zone === "cell" && t.location.row === location.row && t.location.col === location.col
+  );
+  if (!piece || !opponentPiece) return;
+  showContactPrompt(piece.player, opponentPiece.player, opponentPiece.id);
+}
 
 // ユーザー要望「プレイヤーに作業をさせる場合は『移動先のマスを選択してください』などの
 // モーダルを出して案内するようにしてほしい」への対応。ハイライトだけでは何をすればいいか

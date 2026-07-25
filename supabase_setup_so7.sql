@@ -914,6 +914,12 @@ alter table so7_user_profiles add column if not exists last_seen_at timestamptz;
 -- 影響しない）。
 alter table so7_user_profiles add column if not exists sound_volume_bgm numeric;
 
+-- ユーザー要望「オプションの基本設定はすべてアカウントに紐づけるようにしてください」への
+-- 対応。2D表示切り替え（タブレット点滅対策）とカード効果の自動処理ON/OFFも、他の基本設定
+-- （効果音量・アニメーション設定等）と同じくアカウントへ保存するようにする。
+alter table so7_user_profiles add column if not exists flatten_2d_mode boolean;
+alter table so7_user_profiles add column if not exists card_auto_processing_enabled boolean;
+
 create or replace function so7_touch_presence()
 returns void
 language plpgsql

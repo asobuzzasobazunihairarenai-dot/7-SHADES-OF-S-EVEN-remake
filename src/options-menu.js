@@ -423,6 +423,7 @@ export function initOptionsMenu() {
     panel.appendChild(
       buildCheckboxRow("2D表示に切り替える（タブレットの点滅対策）", isFlatten2dMode(), (checked) => {
         setFlatten2dMode(checked);
+        saveMyPreference({ flatten_2d_mode: checked });
       })
     );
 
@@ -473,21 +474,22 @@ export function initOptionsMenu() {
     );
 
     // ユーザー要望「この自動処理を適用するかしないかを基本設定で変えれるようにもしたい」
-    // への対応。デフォルトOFF（既存の自己申告プレイのまま）。対象は今のところ
-    // src/card-effects.jsに構造化データがあるパイロットカード（到達効果のみ、手札効果は
-    // まだトリガーの仕組みが無く対象外）に限られるため、その旨を注記に明記した。
-    // ページ再読み込みでOFFに戻る仕様（motion-prefs.jsの「アニメーションを減らす」と
-    // 同じ、まだ試験運用中のためアカウントへの永続化はしていない）。
+    // への対応。対象カードは今のところ到達効果3枚・手札効果2枚（src/card-effects.jsに
+    // 構造化データがあるもの）。ユーザー要望「オプションの基本設定はすべてアカウントに
+    // 紐づけるように」への対応で、他の基本設定と同じくsaveMyPreferenceで保存する
+    // （以前は試験運用中のためセッション限りだったが、この機能自体が実用段階に
+    // 達したため account 保存に切り替えた）。
     panel.appendChild(
       buildCollapsibleSection("カード効果の自動処理（試験運用中）", (content) => {
         const note = document.createElement("div");
         note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.5rem; line-height: 1.5;";
         note.textContent =
-          "ONにすると、対応済みのカード（現在3枚、到達効果のみ）は承認モーダルの代わりに効果が自動で実行されます。それ以外のカードは今まで通り自己申告のままです。";
+          "ONにすると、対応済みのカードは承認モーダルの代わりに効果が自動で実行され、フェイズも自動で進行します。それ以外のカードは今まで通り自己申告のままです。";
         content.appendChild(note);
         content.appendChild(
           buildCheckboxRow("カード効果を自動処理する", isAutoProcessingEnabled(), (checked) => {
             setAutoProcessingEnabled(checked);
+            saveMyPreference({ card_auto_processing_enabled: checked });
           })
         );
       })

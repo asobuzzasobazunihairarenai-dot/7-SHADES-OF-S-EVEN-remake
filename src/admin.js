@@ -390,6 +390,18 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー報告「スキップボタンが他のアイコンと被っている」への対応。基本は
+    // フェイズ案内板のロックボタンの直後に自動で並ぶ（phase-automation.js）が、
+    // それでもズレる場合の微調整用（style.cssの#phase-automation-skip-buttonの
+    // pulseアニメーションに組み込んである）。
+    title: "フェイズ自動進行：スキップボタンの位置微調整",
+    category: "position-ui",
+    controls: [
+      { key: "--phase-skip-button-offset-x", label: "位置X（微調整）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--phase-skip-button-offset-y", label: "位置Y（微調整）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+    ],
+  },
+  {
     title: "ターンタイマー：中央ロープの位置調整",
     category: "position-ui",
     controls: [

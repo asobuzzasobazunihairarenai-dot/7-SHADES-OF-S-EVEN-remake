@@ -36,7 +36,9 @@ import {
 } from "./admin.js";
 import { setLockAreaBarVisible } from "./lock-area-bar.js";
 import { setLockColorVisible } from "./lock-color.js";
-import { setSoundVolume } from "./sound.js";
+import { setSoundVolume, setBgmVolume } from "./sound.js";
+import { setFlatten2dMode } from "./tablet-2d-mode.js";
+import { setAutoProcessingEnabled } from "./card-effect-engine.js";
 import {
   setFlightAnimationDisabled,
   setArrivalEffectDisabled,
@@ -570,10 +572,11 @@ export async function loadMyPreferences() {
   const { data, error } = await client
     .from("so7_user_profiles")
     .select(
-      "lock_area_bar_visible, lock_color_visible, sound_volume, flight_animation_disabled, " +
+      "lock_area_bar_visible, lock_color_visible, sound_volume, sound_volume_bgm, flight_animation_disabled, " +
         "arrival_effect_disabled, continuous_glow_disabled, gate_invasion_modal_duration, " +
         "card_arrival_modal_duration, hand_pickup_toast_duration, shortcuts, " +
-        "display_name, avatar, piece_skin_index, playmat_id, card_back_set_index, background_id"
+        "display_name, avatar, piece_skin_index, playmat_id, card_back_set_index, background_id, " +
+        "flatten_2d_mode, card_auto_processing_enabled"
     )
     .eq("user_id", cachedUser.id)
     .maybeSingle();
@@ -594,6 +597,13 @@ export async function loadMyPreferences() {
   if (typeof data.lock_area_bar_visible === "boolean") setLockAreaBarVisible(data.lock_area_bar_visible);
   if (typeof data.lock_color_visible === "boolean") setLockColorVisible(data.lock_color_visible);
   if (typeof data.sound_volume === "number") setSoundVolume(data.sound_volume);
+  // ユーザー要望「オプションの基本設定はすべてアカウントに紐づけるように」への対応。
+  // sound_volume_bgmは以前から保存だけ有効化されていたが、supabase_setup_so7.sqlの
+  // 列追加が済むまでSELECTに含めていなかった（未実行環境で丸ごと読み込み失敗する
+  // リスクのため）。2D表示・カード効果自動処理も同じ列追加が前提。
+  if (typeof data.sound_volume_bgm === "number") setBgmVolume(data.sound_volume_bgm / 100);
+  if (typeof data.flatten_2d_mode === "boolean") setFlatten2dMode(data.flatten_2d_mode);
+  if (typeof data.card_auto_processing_enabled === "boolean") setAutoProcessingEnabled(data.card_auto_processing_enabled);
   if (typeof data.flight_animation_disabled === "boolean") setFlightAnimationDisabled(data.flight_animation_disabled);
   if (typeof data.arrival_effect_disabled === "boolean") setArrivalEffectDisabled(data.arrival_effect_disabled);
   if (typeof data.continuous_glow_disabled === "boolean") {

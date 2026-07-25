@@ -15,7 +15,7 @@
 import { getState, isOnlineMode, drawFromPile, flipToken, nextTurn } from "./state.js";
 import { getSelfSeat, getCurrentGameId, fetchAndHydrate } from "./online.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
-import { isAutoProcessingEnabled, getMoveCandidates, hasUsableHandEffect } from "./card-effect-engine.js";
+import { isAutoProcessingEnabled, getMoveCandidates } from "./card-effect-engine.js";
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
 import { playSound } from "./sound.js";
 import { announceHandPickups } from "./hand-announcer.js";
@@ -36,12 +36,25 @@ let currentPhase = null; // null | "lock" | "hand" | "move"
 let lockCountAtPhaseStart = 0;
 let performingFallback = false; // ムーブフェイズの自動処理（カード設置＋ターン終了）の二重発火防止
 let handEffectBusy = false; // 手札効果の解決中（コスト選択待ち等）はフェイズを進めない
+// ユーザー報告「ムーブフェイズでの移動後、移動したにもかかわらずまた隣のマスに
+// ハイライトが表示される」。「移動」か「接触」のどちらか一方を必ず1回だけ行う
+// ルールのため、このフェイズで既に行動したら（クリック実行時にmarkPhaseMoveActionTaken
+// を呼んでもらう）、以後は再計算・再ハイライトも救済フォールバックも一切行わない
+// （手動で「ターン終了」ボタンを押すのを待つだけの状態になる）。
+let moveActionTaken = false;
 
 export function getCurrentPhase() {
   return currentPhase;
 }
 export function isHandPhaseActive() {
   return currentPhase === "hand";
+}
+export function isMovePhaseActive() {
+  return currentPhase === "move" && !moveActionTaken;
+}
+export function markPhaseMoveActionTaken() {
+  moveActionTaken = true;
+  clearMovableHighlights();
 }
 // main.jsの手札効果トリガー（Task 5）が、コスト選択等で待っている間はフェイズの
 // 自動進行を一時止める（選んでいる最中にハンドフェイズが終わってしまうのを防ぐ）。
@@ -67,6 +80,35 @@ function hasPieceAt(row, col) {
 
 function getSelfPiece(player) {
   return getState().tokens.find((t) => t.kind === "piece" && t.player === player);
+}
+
+// ユーザー要望「手札がないロックフェイズを自動でスキップしてください」「手札があるのに
+// ハンドフェイズが飛ばされました」。以前のハンドフェイズは構造化データ(DSL)を持つ
+// カードだけを見るhasUsableHandEffect()で自動スキップしていたが、まだDSL化されていない
+// 効果カードの手札を見落として飛ばしてしまうバグがあった。ロック・ハンドとも
+// 「手札が本当に空かどうか」だけを見るシンプルな判定に統一する。
+function handIsEmpty(player) {
+  return !getState().tokens.some((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
+}
+
+// ユーザー要望「その旨をモーダルで伝えてください」。confirm-modal（main.js）と似た
+// 見た目だが、OKを待たせず数秒で自動的に消える（フェイズ自動スキップは1ターンに
+// 複数回起こり得るため、毎回クリックを要求すると煩雑になる。クリックでも即消せる）。
+function showPhaseSkipModal(message) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "phase-skip-modal-backdrop";
+  const modal = document.createElement("div");
+  modal.className = "phase-skip-modal";
+  modal.textContent = message;
+  const dismiss = () => {
+    backdrop.remove();
+    modal.remove();
+  };
+  backdrop.addEventListener("click", dismiss);
+  modal.addEventListener("click", dismiss);
+  document.body.appendChild(backdrop);
+  document.body.appendChild(modal);
+  setTimeout(dismiss, 2800);
 }
 
 function countLockedCards(player) {
@@ -149,7 +191,17 @@ function ensureSkipButton() {
     if (handEffectBusy) return;
     advancePhase();
   });
-  document.body.appendChild(skipButtonEl);
+  // ユーザー報告「スキップボタンが他のアイコンと被っています。フェイズ案内板の
+  // ロックフェイズアイコンの右隣に置いてください」。固定座標での配置をやめ、
+  // #phase-guide-bar（flexコンテナ）のロックボタンの直後にDOM上の兄弟として挿入する。
+  // これでフェイズ案内板自体の位置調整（タブレット別オーバーライド含む）にそのまま
+  // 追従する。念のためmain.js初期化順の都合でまだ無い場合はbody直下へフォールバックする。
+  const lockBtn = document.getElementById("phase-guide-lock-button");
+  if (lockBtn) {
+    lockBtn.insertAdjacentElement("afterend", skipButtonEl);
+  } else {
+    document.body.appendChild(skipButtonEl);
+  }
   return skipButtonEl;
 }
 function updateSkipButtonVisibility() {
@@ -163,6 +215,19 @@ function updateSkipButtonVisibility() {
 function enterPhase(phase, player) {
   currentPhase = phase;
   if (phase === "lock") lockCountAtPhaseStart = countLockedCards(player);
+  if (phase === "move") moveActionTaken = false;
+
+  // ユーザー要望「手札がないロックフェイズを自動でスキップしてください。その際その旨を
+  // モーダルで伝えてください」。ロック・ハンドどちらも「手札に何もない」時は本当に
+  // 何もできないため、通常のフェイズ告知は出さずスキップの旨だけモーダルで伝えて
+  // 次へ進む。
+  if ((phase === "lock" || phase === "hand") && handIsEmpty(player)) {
+    const label = phase === "lock" ? "ロック" : "ハンド";
+    showPhaseSkipModal(`手札が無いため、${label}フェイズを自動的にスキップしました。`);
+    advancePhase();
+    return;
+  }
+
   announcePhase(phase);
   updatePhaseGuideGlow();
   updateSkipButtonVisibility();
@@ -202,7 +267,12 @@ export function reconcilePhaseAutomation() {
     return;
   }
   if (currentPhase === "hand") {
-    if (!handEffectBusy && !hasUsableHandEffect(player)) advancePhase();
+    // ユーザー報告「手札があるのにハンドフェイズが飛ばされました」の修正。以前は
+    // hasUsableHandEffect()（DSL構造化データを持つカードだけ）を見て自動スキップ
+    // していたが、まだDSL化されていない手札効果カードを見落として飛ばしてしまう
+    // バグだった。手札が空になった（コスト等で使い切った）場合だけ自動で進み、
+    // それ以外はスキップボタン（手動）を待つ。
+    if (!handEffectBusy && handIsEmpty(player)) advancePhase();
     return;
   }
   if (currentPhase === "move") {
@@ -216,15 +286,19 @@ let highlightedMoveCellEls = [];
 function clearMovableHighlights() {
   for (const el of highlightedMoveCellEls) el.classList.remove("phase-move-highlight", "phase-contact-highlight");
   highlightedMoveCellEls = [];
+  document.body.classList.remove("phase-move-picking");
 }
 
 function reconcileMovePhase(player) {
-  if (performingFallback) return;
+  if (performingFallback || moveActionTaken) return;
   const piece = getSelfPiece(player);
   if (!piece || piece.location.zone !== "cell") return;
   const moveCandidates = getMoveCandidates(piece.location, 1, false);
   const contactCandidates = getContactableCells(piece.location, player);
   clearMovableHighlights();
+  // ユーザー要望「移動先ハイライト時、範囲外のトーンを落としてほしい。ジャンプ台の時と
+  // 同じように」。card-effect-picking-cellsと同じ「候補以外を暗くする」bodyクラスを流用する。
+  document.body.classList.toggle("phase-move-picking", moveCandidates.length > 0 || contactCandidates.length > 0);
   const table = document.getElementById("game-table");
   if (table) {
     for (const loc of moveCandidates) {
