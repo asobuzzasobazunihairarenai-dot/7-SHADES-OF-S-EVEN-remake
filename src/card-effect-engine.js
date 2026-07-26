@@ -675,8 +675,19 @@ async function runAction(action, ctx, helpers) {
           ((t.location.zone === "hand" && t.location.player === ctx.player) ||
             (t.location.zone === "publicDraw" && t.location.player === ctx.player))
       );
+      // ユーザー報告「宣言色が出た時に手札がすべて捨てられず止まってしまっている」への
+      // 対応。1枚ごとのdiscardAndSyncのどこかで例外が起きると（オンライン中の通信
+      // エラー等）、そこでこのループ自体が中断し、残りのカードが手札に残ったまま
+      // 効果全体が停止してしまう（catchが無いとrunArrivalEffectの外まで例外が伝播し、
+      // 呼び出し元main.jsのtriggerCardArrivalではconsole.errorに落ちるだけで、
+      // ユーザーからは何も起きなくなったように見える）。1枚失敗しても残りは
+      // 続けて捨てられるようにする。
       for (const token of toDiscard) {
-        await helpers.discardAndSync(token.id);
+        try {
+          await helpers.discardAndSync(token.id);
+        } catch (err) {
+          console.error("DISCARD_HAND_IF_REVEALED_MATCHES_DECLARED: discardAndSync failed for", token.id, err);
+        }
       }
       return true;
     }

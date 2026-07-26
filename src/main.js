@@ -107,6 +107,7 @@ import {
   handleHydrate as handleRemoteMoveHydrate,
   skipNextHydrateDiff,
   reapplyActiveHighlights,
+  suppressNextHandDrawDiff,
 } from "./remote-move-animator.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
 import {
@@ -1943,6 +1944,12 @@ async function drawCardsForEffect(player, count) {
     );
     if (isOnlineMode()) {
       try {
+        // ユーザー要望「ドローという事象に共通のアニメを設定したほうがいいのでは」
+        // への対応で追加したremote-move-animator.jsの汎用ドロー演出（他プレイヤー・
+        // 観戦者向け）が、この直後のfetchAndHydrate()で自分自身の画面にも二重に
+        // 発火してしまわないよう、先に1回分だけ抑制を予約しておく（自分の分は
+        // この下で直接flyDrawnCardToHandを呼んで演出済みのため）。
+        suppressNextHandDrawDiff(player);
         const result = await drawFromPile("deck", { zone: "hand", player });
         if (result?.revealedCardId) {
           playSound("cardDraw");

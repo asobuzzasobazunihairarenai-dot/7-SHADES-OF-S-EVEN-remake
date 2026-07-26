@@ -57,6 +57,24 @@ export function skipNextHydrateDiff() {
   skipNextDiff = true;
 }
 
+// ユーザー要望「カードごとにドローアニメーションを設定するのではなく、『ドロー』という
+// 事象に共通のアニメを設定するようにしたほうがいいのでは」への対応で、山から手札への
+// 新規出現（＝ドロー）もこのモジュールの差分検知で汎用的にアニメーションするように
+// なった。ただし「1枚ドロー」ボタン・drawCardsForEffect等、自分自身の操作による
+// ドローは既にmain.js側で直接flyDrawnCardToHand等を呼んで演出済みのため、同じ
+// トークンをここでも処理すると二重にゴーストが飛んでしまう。move等の既存の重複防止
+// （markSelfHandled、トークンidベース）は、ドローの場合まだ新しいトークンidが
+// 決まっていない（サーバーへの問い合わせ結果を待つ必要がある）タイミングでは使えない
+// ため、代わりにプレイヤー単位で「次の1回だけ、このプレイヤーの新規ドロー分は
+// スキップしてほしい」と予約できるようにした。drawFromPile()を呼ぶ直前に呼び、
+// 次のhandleHydrate()呼び出し1回だけで自動的に消費される（同じプレイヤーへの
+// 複数回連続ドローは、呼び出し元が1回ずつawaitして直列に行う前提のため、
+// 取りこぼしは起きない）。
+let suppressedHandDrawPlayers = new Set();
+export function suppressNextHandDrawDiff(player) {
+  suppressedHandDrawPlayers.add(player);
+}
+
 function isTableZone(location) {
   return location.zone === "cell" || location.zone === "lock";
 }
@@ -311,10 +329,25 @@ function processMovedOrNew(items, table) {
     for (const item of items) {
       if (item.kind === "pickup") {
         // 盤面/ロックから手札へ「取られた」場合、取られた側のマスを↑で点滅させる
-        // （ユーザー要望：置いた時と同様、取った時も分かりやすくしたい）。山から直接
-        // 手札へ引いた場合（prevLocationが無い）は該当マスが無いので対象外。
+        // （ユーザー要望：置いた時と同様、取った時も分かりやすくしたい）。
         if (item.prevLocation && isTableZone(item.prevLocation)) {
           blinkLocation(item.prevLocation, table2, "up");
+          continue;
+        }
+        // ユーザー要望「カードごとにドローアニメーションを設定するのではなく、
+        // 『ドロー』という事象に共通のアニメを設定するようにしたほうがいいのでは」
+        // への対応。山から直接手札へ引かれた場合（prevLocationが無い＝盤面上の
+        // 移動元が無い）は、山札の位置から実際の手札の描画位置まで飛翔させる。
+        // 自分自身の操作（main.jsのdrawCardsForEffect等）はmarkSelfHandledで
+        // ここに来ないよう既に除外されているため、これは常に「他プレイヤー・
+        // 観戦者から見た誰かのドロー」向け——ユーザー報告「プレゼントのドロー
+        // 効果でドローアニメーションがない」の原因は、複数プレイヤーを対象にする
+        // 効果（プレゼント等）でドローした本人以外（効果の使用者）の画面では
+        // このジェネリックな差分検知にしか頼れず、以前はこの経路にアニメーションが
+        // 全く無かったこと。
+        if (!item.prevLocation) {
+          const fromRect = getOriginPileRect(item.token.cardId);
+          flyAndReveal(item, fromRect, table2, false); // 個々の飛翔は並行に進めてよいためawaitしない
         }
         continue;
       }
@@ -374,8 +407,12 @@ export function handleHydrate() {
         // 分類対象から漏れており、他プレイヤーがカードを引いても誰の画面にも獲得通知が
         // 出ないバグの原因だった（既存の"pickup"は「テーブル上のカードが手札へ移った」場合
         // しか扱っていない）。"pickup"kindをそのまま再利用する——山からのドローは必ず
-        // 非公開情報として扱う（announceHandPickupsのwasPublic=false）。
-        items.push({ id: token.id, token, kind: "pickup", prevFaceUp: false });
+        // 非公開情報として扱う（announceHandPickupsのwasPublic=false）。suppressNextHandDrawDiff
+        // で予約されている（＝自分自身の操作で、main.js側が既に直接演出済み）プレイヤー分は
+        // 二重演出を避けるため対象外にする。
+        if (!suppressedHandDrawPlayers.has(token.location.player)) {
+          items.push({ id: token.id, token, kind: "pickup", prevFaceUp: false });
+        }
       }
       continue;
     }
@@ -405,6 +442,11 @@ export function handleHydrate() {
     }
     // 手札→手札、手札→山等、その他の遷移は対象外（山へ送る操作はローカル版でも演出無し）。
   }
+
+  // 予約は1回のhandleHydrate()呼び出し分だけ有効（呼び出し元は1回のドローごとに
+  // await drawFromPile→await fetchAndHydrateを直列で行う前提のため、次のドロー時には
+  // 新しく予約し直される）。
+  suppressedHandDrawPlayers.clear();
 
   previousTokensById = snapshotOf(state);
 
