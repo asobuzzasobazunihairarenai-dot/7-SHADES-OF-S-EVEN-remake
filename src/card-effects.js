@@ -210,6 +210,21 @@ export const CARD_EFFECTS = {
         },
       ],
     },
+    // 手札効果: 「これを任意のマスに裏向きで置く。」ジャンプ台の手札効果と同じ
+    // PLACE_CARD(source:"self")パターン（ゲート除外は無い・裏向き指定のみ違う）。
+    // このカード自身が「置かれる」対象になるため、既定の「使用時にこのカードを
+    // 捨てる」の対象外にする（keepsCardOnUse）。
+    handEffect: {
+      keepsCardOnUse: true,
+      actions: [
+        {
+          verb: VERBS.PLACE_CARD,
+          source: "self",
+          faceUp: false,
+          destination: { selection: TARGET_SELECTIONS.CHOOSE },
+        },
+      ],
+    },
   },
 
   // 4. 収穫と種まき（橙、通常カード）
@@ -441,6 +456,16 @@ export const CARD_EFFECTS = {
         { verb: VERBS.RITUAL_PLACE_MOVE_REPEAT },
       ],
     },
+    // 手札効果: 「上記の到達時の効果を得る。」到達効果と全く同じactionsを
+    // そのまま実行する（inheritsArrival、続き29のマスチェンジ・手品師の技と
+    // 同じパターン）。
+    handEffect: {
+      inheritsArrival: true,
+      actions: [
+        { verb: VERBS.DECLARE_COLORS, count: 3 },
+        { verb: VERBS.RITUAL_PLACE_MOVE_REPEAT },
+      ],
+    },
   },
 
   // 合同建設（緑、通常カード） 到達効果: 「全員は何もない２マスに山札または手札から
@@ -450,6 +475,11 @@ export const CARD_EFFECTS = {
   // （オンライン中は対象プレイヤー本人の画面へ委任するbroadcast往復）に委ねる。
   "green-joint-construction": {
     arrival: {
+      actions: [{ verb: VERBS.ALL_PLAYERS_PLACE_TWO_CARDS_IN_EMPTY_CELLS }],
+    },
+    // 手札効果: 「上記の到達時の効果を得る。」到達効果と同じ（inheritsArrival）。
+    handEffect: {
+      inheritsArrival: true,
       actions: [{ verb: VERBS.ALL_PLAYERS_PLACE_TWO_CARDS_IN_EMPTY_CELLS }],
     },
   },
@@ -772,13 +802,25 @@ if (typeof process !== "undefined" && process.argv[1] && process.argv[1].endsWit
     "  実際: 色を３色宣言する。あなたの隣に山札から１枚表向きで置く。そのマスに移動し、移動先の到達効果は得ない。置いたカードが宣言色ならこの効果を繰り返す。\n"
   );
 
+  console.log("[試練の儀式 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["purple-trial-ritual"].handEffect));
+  console.log("  実際: 上記の到達時の効果を得る。\n");
+
   console.log("[黒の契約の烙印 到達効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["black-contract-brand"].arrival));
   console.log("  実際: あなたの空いているロックエリアに、これを表向きで置く。\n");
 
+  console.log("[黒の契約の烙印 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["black-contract-brand"].handEffect));
+  console.log("  実際: これを任意のマスに裏向きで置く。\n");
+
   console.log("[合同建設 到達効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["green-joint-construction"].arrival));
   console.log("  実際: 全員は何もない２マスに山札または手札から１枚裏向きで置く。\n");
+
+  console.log("[合同建設 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["green-joint-construction"].handEffect));
+  console.log("  実際: 上記の到達時の効果を得る。\n");
 
   console.log("[スラム上がりの役人 到達効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["blue-slum-official"].arrival));

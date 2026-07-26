@@ -194,6 +194,7 @@ const PILOT_CARDS = [
   { cardId: "white-radiance", kind: "arrival", actual: "全員、3枚ドロー。このカードを捨てる。" },
   { cardId: "black-faded-cat", kind: "arrival", actual: "これを捨てる。全員、手札を全て捨て、１枚ドロー。" },
   { cardId: "black-contract-brand", kind: "arrival", actual: "あなたの空いているロックエリアに、これを表向きで置く。" },
+  { cardId: "black-contract-brand", kind: "handEffect", actual: "これを任意のマスに裏向きで置く。" },
   {
     cardId: "blue-choosable-trap",
     kind: "arrivalOptions",
@@ -209,11 +210,13 @@ const PILOT_CARDS = [
     kind: "arrival",
     actual: "色を３色宣言する。あなたの隣に山札から１枚表向きで置く。そのマスに移動し、移動先の到達効果は得ない。置いたカードが宣言色ならこの効果を繰り返す。",
   },
+  { cardId: "purple-trial-ritual", kind: "handEffect", actual: "上記の到達時の効果を得る。" },
   {
     cardId: "green-joint-construction",
     kind: "arrival",
     actual: "全員は何もない２マスに山札または手札から１枚裏向きで置く。",
   },
+  { cardId: "green-joint-construction", kind: "handEffect", actual: "上記の到達時の効果を得る。" },
   {
     cardId: "blue-slum-official",
     kind: "arrival",

@@ -2090,6 +2090,12 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         pickPlayer: requestPlayerChoiceForEffect,
         swapRandomHandCard: swapHandCardWithOpponentForEffect,
         announceEffectReason: announceEffectReasonForEffect,
+        // 試練の儀式・合同建設の手札効果（「上記の到達時の効果を得る」で到達効果と
+        // 同じactionsをそのまま実行する、inheritsArrival参照）用。到達効果側には
+        // 既にあったが、手札効果側にはまだ無かったので追加した。
+        declareColors: declareColorsForEffect,
+        placeFromDeckFaceUp: placeFromDeckFaceUpForEffect,
+        delegateToPlayer: delegateToPlayerForEffect,
       }
     );
     clearEffectUiHighlights();

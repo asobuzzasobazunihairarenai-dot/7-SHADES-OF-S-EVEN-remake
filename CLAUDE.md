@@ -9163,3 +9163,33 @@ Material Designのブレークポイントと同じ600px未満ならスマホ、
   送受信自体は、この環境では2クライアントを同時に開けないため検証できて
   いません。実際のオンライン対戦での動作確認（②のドラッグ操作含む）を
   お願いします。
+
+### 2026-07-26（続き37）：手札効果を3枚追加実装（試練の儀式・合同建設・黒の契約の烙印）
+
+- **手札効果を3枚追加実装**（ユーザー要望「自動処理モードで手札効果を３つほど
+  追加実装しよう！開発モードウィンドウに追加するのも忘れずにね」）。到達効果と
+  同じ処理をそのまま流用できる2枚（続き29の`inheritsArrival`パターン）と、
+  既存のPLACE_CARD(source:"self")パターンを流用できる1枚を選んだ。
+  - **試練の儀式**:「上記の到達時の効果を得る。」到達効果と全く同じ
+    `actions`（DECLARE_COLORS+RITUAL_PLACE_MOVE_REPEAT）を`inheritsArrival:true`
+    で再利用。
+  - **合同建設**:「上記の到達時の効果を得る。」同じく到達効果と同じ
+    `actions`（ALL_PLAYERS_PLACE_TWO_CARDS_IN_EMPTY_CELLS）を再利用。手札効果
+    経由でも`delegateToPlayer`が正しく機能するよう、`runAutoHandEffect`の
+    helpersオブジェクトに`declareColors`/`placeFromDeckFaceUp`/
+    `delegateToPlayer`を追加した（今まで到達効果側のhelpersにしか無く、
+    手札効果側は素通りだった）。
+  - **黒の契約の烙印**:「これを任意のマスに裏向きで置く。」ジャンプ台の
+    手札効果と同じPLACE_CARD(source:"self")パターン（ゲート除外は無し・
+    裏向き指定のみ違う）。
+- **card-dev-mode.jsのPILOT_CARDSにも追加**（ユーザー念押し通り）: 3枚とも
+  `handEffect`種別のエントリを追加した。
+- **検証について**: `node src/card-effects.js`で3枚とも生成文がdocs/cards.md
+  と完全一致することを確認した。`card-effect-engine.js`の`runHandEffect`を
+  直接importし、フェイクhelpersで各カードを検証した: 黒の契約の烙印が
+  49マス全て（ゲート含む）を候補として提示し選んだマスへ裏向きで置くこと
+  （`keepsCardOnUse`によりこのカード自身は捨てられないこと）、試練の儀式が
+  到達効果と同じく色宣言→配置→判定→再宣言の繰り返しを正しく行うこと
+  （このカード自身は既定通り使用時に捨てられること）、合同建設が
+  `delegateToPlayer`を効果の使用者から時計回りの順で全参加プレイヤー分
+  正しく呼ぶこと（このカード自身も既定通り捨てられること）を確認した。
