@@ -159,12 +159,17 @@ export async function signInWithMagicLink(email) {
 // emailRedirectToで指定したこのページへ戻ってくる（マジックリンクと違い、ページ遷移を
 // 伴う）。事前にSupabaseダッシュボード「Authentication > Sign In / Providers > Google」で
 // Google Cloud Console発行のクライアントID/シークレットを設定し有効化しておく必要がある。
+// ユーザー報告「ログアウトして再度ログインすると自動で以前のアカウントにログイン
+// されてしまい、別のGoogleアカウントに切り替えられない」への対応。ブラウザに
+// Google側のセッションが残っていると、アカウント選択画面を出さずそのまま前回の
+// アカウントでサイレントログインしてしまうため、prompt: "select_account"を渡して
+// 毎回Googleのアカウント選択画面を強制表示させる。
 export async function signInWithGoogle() {
   return withLog("Googleログイン", async () => {
     if (!client) throw new Error("Supabaseクライアントが初期化されていません");
     const { error } = await client.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: cleanRedirectUrl() },
+      options: { redirectTo: cleanRedirectUrl(), queryParams: { prompt: "select_account" } },
     });
     if (error) throw error;
   });
