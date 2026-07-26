@@ -189,16 +189,40 @@ const PILOT_CARDS = [
   { cardId: "white-radiance", kind: "arrival", actual: "全員、3枚ドロー。このカードを捨てる。" },
   { cardId: "black-faded-cat", kind: "arrival", actual: "これを捨てる。全員、手札を全て捨て、１枚ドロー。" },
   { cardId: "black-contract-brand", kind: "arrival", actual: "あなたの空いているロックエリアに、これを表向きで置く。" },
+  {
+    cardId: "blue-choosable-trap",
+    kind: "arrivalOptions",
+    actual: "以下の効果のうち1つ得る。・あなたの手札を半分捨てる。・あなたのゲートに強制移動する。・あなたのロックしているカードを1枚捨てる。",
+  },
+  {
+    cardId: "yellow-gamble",
+    kind: "arrival",
+    actual: "２色以上、色を宣言する。その色の種類の数分ドローし公開する。それらの中に宣言色があるなら、あなたの手札を全て捨てる。",
+  },
+  {
+    cardId: "purple-trial-ritual",
+    kind: "arrival",
+    actual: "色を３色宣言する。あなたの隣に山札から１枚表向きで置く。そのマスに移動し、移動先の到達効果は得ない。置いたカードが宣言色ならこの効果を繰り返す。",
+  },
 ];
 
-const KIND_LABEL = { arrival: "到達効果", handEffect: "手札効果", handEffectOptions: "手札効果（選択式）" };
+const KIND_LABEL = {
+  arrival: "到達効果",
+  handEffect: "手札効果",
+  handEffectOptions: "手札効果（選択式）",
+  // 選べる罠専用: 到達効果自身が複数選択肢から1つ選ぶ形（arrivalOptions、
+  // card-effects.js参照）。
+  arrivalOptions: "到達効果（選択式）",
+};
 
 function buildPilotRow(pilot, minimize) {
   const def = getCardDefinition(pilot.cardId);
   const generated =
     pilot.kind === "handEffectOptions"
       ? generateHandEffectOptionsText(CARD_EFFECTS[pilot.cardId]?.handEffectOptions, def?.name)
-      : generateEffectText(CARD_EFFECTS[pilot.cardId]?.[pilot.kind]);
+      : pilot.kind === "arrivalOptions"
+        ? generateHandEffectOptionsText(CARD_EFFECTS[pilot.cardId]?.arrivalOptions)
+        : generateEffectText(CARD_EFFECTS[pilot.cardId]?.[pilot.kind]);
   const matches = generated === pilot.actual;
 
   const row = document.createElement("div");
@@ -225,14 +249,16 @@ function buildPilotRow(pilot, minimize) {
   summonBtn.type = "button";
   summonBtn.className = "card-dev-mode-summon-btn";
   summonBtn.textContent =
-    pilot.kind === "arrival" ? "🧪 自分の駒の位置に呼び出してテスト" : "🧪 自分の手札に呼び出してテスト";
+    pilot.kind === "arrival" || pilot.kind === "arrivalOptions"
+      ? "🧪 自分の駒の位置に呼び出してテスト"
+      : "🧪 自分の手札に呼び出してテスト";
   // 効果によっては直後にマス/手札を選ぶ候補ハイライトが出るため、このパネル自体の
   // 背面（z-index高め）が盤面へのクリックを塞がないよう、実行前にパネルを閉じる。
   // closeではなくminimizeにしているのは、ユーザー要望「毎回開くのが面倒」への対応で、
   // 効果確認後すぐミニアイコンから同じ位置・サイズのまま再度開けるようにするため。
   summonBtn.addEventListener("click", () => {
     minimize();
-    if (pilot.kind === "arrival") {
+    if (pilot.kind === "arrival" || pilot.kind === "arrivalOptions") {
       summonAndTriggerArrival(pilot.cardId);
     } else {
       summonAndTriggerHandEffect(pilot.cardId);

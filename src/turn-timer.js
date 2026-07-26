@@ -888,6 +888,20 @@ function ensureInitializedIfNeeded() {
   prevTurnPlayer = state.turnPlayer;
 }
 
+// ユーザー要望「接触されたプレイヤーは自分のゲートに強制移動しますが、その際、
+// 一度そのプレイヤーに優先権を移してください。強制移動もカードをオープンして到達
+// 効果が発動するので、その処理が終われば優先権をターンプレイヤーに戻しましょう」。
+// 優先権譲渡ボタン（上のグリッド生成コード）とまったく同じ書き込みを、プログラムから
+// 呼べるようにしたもの。この対局でまだ一度も優先権が初期化されていない（＝ターン
+// タイマー機能自体が無効、admin.jsのデフォルトOFF）場合はstate.priorityPlayerが
+// ずっとnullのままなので、その場合は何もしない（優先権という概念自体が使われて
+// いない対局に、この呼び出しだけでpriorityPlayerを生やしてしまわないようにする）。
+export function transferPriorityTo(player) {
+  const state = getState();
+  if (!state.priorityPlayer) return;
+  fireAndForget(setPriorityState({ player, deadline: freshBaseDeadlineFor(player), phase: "base" }));
+}
+
 export function initTurnTimer() {
   buildSelfStock();
   buildBaseClock();

@@ -93,7 +93,7 @@ import { initPlayerButtons } from "./player-buttons.js";
 import { initQuickStart } from "./quick-start.js";
 import { initPhaseGuide } from "./phase-guide.js";
 import { initTutorialAutoStart, registerTutorialStageHelpers } from "./tutorial.js";
-import { initTurnTimer } from "./turn-timer.js";
+import { initTurnTimer, transferPriorityTo } from "./turn-timer.js";
 import { initIconRearrange } from "./icon-rearrange.js";
 import { initSelfStatusRearrange } from "./self-status-rearrange.js";
 import { initInteractionModeToggle } from "./interaction-mode.js";
@@ -997,6 +997,150 @@ async function announceEffectFizzleForEffect(cardId, addsToHand) {
   await wait(1200);
 }
 
+// なないろの欠片のhandEffectOptionsピッカーと全く同じUI（showHandEffectOptionPicker）を
+// 選べる罠の到達効果でも流用する。「手札効果」専用に見える関数名だが実際は
+// cardId・{id,label,usable}の配列だけを見る汎用コンポーネントのため問題なく使い回せる。
+async function pickArrivalOptionForEffect(cardId, optionsWithUsability) {
+  return showHandEffectOptionPicker(cardId, optionsWithUsability);
+}
+
+// ザ・ギャンブル/試練の儀式専用: 色を宣言する（複数選択）モーダル。requirement:
+// {minCount}なら「N色以上」（Nより多く選んでもよい）、{exactCount}なら「ちょうどN色」。
+// COLORS（７色、白黒無色・虹は対象外）から選ばせ、確定ボタンは条件を満たすまで無効。
+// backdrop/×でキャンセルするとnullを返す（呼び出し元は効果全体を安全に中断する）。
+const COLOR_LABEL_JA = { red: "赤", orange: "橙", yellow: "黄", green: "緑", blue: "青", pink: "桃", purple: "紫" };
+function declareColorsForEffect(requirement) {
+  return new Promise((resolve) => {
+    const selected = new Set();
+    const isExact = requirement.exactCount != null;
+    const required = isExact ? requirement.exactCount : requirement.minCount;
+
+    let settled = false;
+    function finish(result) {
+      if (settled) return;
+      settled = true;
+      backdrop.remove();
+      modal.remove();
+      resolve(result);
+    }
+    const backdrop = createBackdrop(() => finish(null), { dim: true, zIndex: 10630 });
+    const modal = document.createElement("div");
+    modal.className = "declare-colors-modal";
+
+    const title = document.createElement("div");
+    title.className = "declare-colors-modal-title";
+    title.textContent = isExact ? `色を${required}色宣言してください` : `${required}色以上、色を宣言してください`;
+    modal.appendChild(title);
+
+    const grid = document.createElement("div");
+    grid.className = "declare-colors-modal-grid";
+    const swatchButtons = [];
+    for (const color of COLORS) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "declare-colors-modal-swatch";
+      btn.style.setProperty("--swatch-color", `var(--color-${color})`);
+      btn.title = COLOR_LABEL_JA[color] ?? color;
+      btn.addEventListener("click", () => {
+        if (selected.has(color)) selected.delete(color);
+        else selected.add(color);
+        btn.classList.toggle("is-selected", selected.has(color));
+        updateConfirmState();
+      });
+      swatchButtons.push(btn);
+      grid.appendChild(btn);
+    }
+    modal.appendChild(grid);
+
+    const confirmBtn = document.createElement("button");
+    confirmBtn.type = "button";
+    confirmBtn.className = "declare-colors-modal-confirm";
+    confirmBtn.textContent = "宣言する";
+    confirmBtn.addEventListener("click", () => finish([...selected]));
+    modal.appendChild(confirmBtn);
+
+    function updateConfirmState() {
+      const ok = isExact ? selected.size === required : selected.size >= required;
+      confirmBtn.disabled = !ok;
+    }
+    updateConfirmState();
+
+    modal.appendChild(createModalCloseX(() => finish(null)));
+    document.body.appendChild(backdrop);
+    document.body.appendChild(modal);
+  });
+}
+
+// ザ・ギャンブル専用: player分の公開ドロー（表向き、publicDrawゾーン）をcount回行う。
+// 「公開ドロー」ボタン（buildPublicDrawButton）と同じ経路（drawFromPile("deck",
+// {zone:"publicDraw",player})）をcount回ループするだけの、効果専用の一般化版。
+// 山札が途中で尽きたらそこで打ち切る（善処の原則）。戻り値は実際に引けたcardIdの配列。
+async function publicDrawForEffect(player, count) {
+  const drawnCardIds = [];
+  for (let i = 0; i < count; i++) {
+    if (isOnlineMode()) {
+      try {
+        const result = await drawFromPile("deck", { zone: "publicDraw", player });
+        if (result?.revealedCardId) drawnCardIds.push(result.revealedCardId);
+        await fetchAndHydrate(getCurrentGameId());
+      } catch (err) {
+        console.error("publicDrawForEffect failed", err);
+        break;
+      }
+    } else {
+      const pileArray = getState().piles.deck;
+      if (pileArray.length === 0) break;
+      const cardId = pileArray[pileArray.length - 1];
+      drawFromPile("deck", { zone: "publicDraw", player });
+      drawnCardIds.push(cardId);
+    }
+  }
+  if (drawnCardIds.length > 0) {
+    playSound("cardDraw");
+    announceHandPickups(player, drawnCardIds.map((cardId) => ({ cardId, wasPublic: true })));
+  }
+  render();
+  return drawnCardIds;
+}
+
+// 試練の儀式専用: 山札の一番上を指定マスへ表向きで直接置き、置いたカードのcardIdを
+// 返す（RITUAL_PLACE_MOVE_REPEATが置いたカードの色を判定するために必要）。
+// placeFromDeckForEffect（増殖する樹々等、裏向き専用）とは別に用意した表向き版。
+async function placeFromDeckFaceUpForEffect(location) {
+  if (isOnlineMode()) {
+    try {
+      await drawFromPile("deck", location);
+      await fetchAndHydrate(getCurrentGameId());
+    } catch (err) {
+      console.error("placeFromDeckFaceUpForEffect failed", err);
+      return null;
+    }
+  } else {
+    drawFromPile("deck", location);
+  }
+  let token = findTopCardAt(location);
+  if (!token) return null;
+  if (!token.faceUp) {
+    if (isOnlineMode()) {
+      try {
+        await flipToken(token.id);
+        markSelfHandled([token.id]);
+        await fetchAndHydrate(getCurrentGameId());
+      } catch (err) {
+        console.error("placeFromDeckFaceUpForEffect flip failed", err);
+        return null;
+      }
+    } else {
+      flipToken(token.id);
+    }
+    playSound("cardFlip");
+  }
+  playSound("cardPlace");
+  render();
+  token = findTopCardAt(location);
+  return token?.cardId ?? null;
+}
+
 // ユーザー報告「移動先候補のハイライトをクリックしても自動で移動しない」の原因調査で
 // 判明: この盤面は3D的な傾き（テーブル演出）を持つため、駒・カードのドラッグは
 // ネイティブのclickイベント（当たり判定がズレる。initDragHandlers直前のコメント参照）
@@ -1587,6 +1731,11 @@ async function runAutoArrivalEffect(cardId, location, player) {
       // ユーザー要望「効果が不発だった場合は『不発のためこのカードを手札に加えます』
       // 的なモーダルを出す」用。
       announceFizzle: announceEffectFizzleForEffect,
+      // 選べる罠（arrivalOptions）・ザ・ギャンブル・試練の儀式用。
+      pickArrivalOption: pickArrivalOptionForEffect,
+      declareColors: declareColorsForEffect,
+      publicDraw: publicDrawForEffect,
+      placeFromDeckFaceUp: placeFromDeckFaceUpForEffect,
     }
   );
   clearEffectUiHighlights();
@@ -1625,7 +1774,10 @@ async function runAutoArrivalEffect(cardId, location, player) {
 // 到達演出一式（右上モーダル＋そのマス自体が発光する柱状のオーラ＋効果音）をまとめて行う。
 // 柱の色はカード自身の色に合わせる（--color-*をそのまま使う）。到達した駒の持ち主にだけ
 // 「このカードを手札に加える」ボタンを出す（ユーザー要望）。
-function triggerCardArrival(cardId, location) {
+// onFullyResolved（省略可）: maybeTriggerCardArrival参照。自動処理なら実際の
+// 非同期処理が終わるまで待ってから、手動（ボタン）モードならモーダルを出した
+// 時点ですぐに呼ぶ（クリックそのものは待たない——onResolvedと同じ精度）。
+function triggerCardArrival(cardId, location, onFullyResolved) {
   const player = getPieceOwnerAt(location);
   const showAddToHand = !!player && player === getSelfSeat();
 
@@ -1636,7 +1788,9 @@ function triggerCardArrival(cardId, location) {
   // （ボタン無し・自動で消える表示専用の）同じ拡大モーダルを出す——効果は自動で
   // 進んでも、自分がどのカードに到達したかは見えないと分かりにくいため。
   if (showAddToHand && canAutoProcessArrival(cardId)) {
-    runAutoArrivalEffect(cardId, location, player).catch((err) => console.error("runAutoArrivalEffect failed", err));
+    runAutoArrivalEffect(cardId, location, player)
+      .catch((err) => console.error("runAutoArrivalEffect failed", err))
+      .finally(() => onFullyResolved?.());
     showCardArrivalModal(cardId, { showAddToHand: false });
     playSound("arrivalEffect");
     const table = document.getElementById("game-table");
@@ -1649,6 +1803,7 @@ function triggerCardArrival(cardId, location) {
     showAddToHand,
     onAddToHand: () => addArrivedCardToHand(location, player),
   });
+  onFullyResolved?.();
   playSound("arrivalEffect");
   const table = document.getElementById("game-table");
   const hostEl = findLocationElement(table, location);
@@ -1704,21 +1859,28 @@ function triggerLockEffect(cardId, location) {
 // 不透明な結果モーダルの下に選択肢が隠れて見えなくなる」への対応として、respondToContact
 // （main.js）がこれを使い、結果モーダルの表示を「オープンする/しないの決着後」まで
 // 遅らせる。
-function maybeTriggerCardArrival(dropTarget, pieceTokenId, onResolved) {
+// onFullyResolved（省略可）: onResolvedより後、実際の到達効果処理そのものが
+// 完全に終わった（自動処理ならその非同期処理まで含めて）タイミングで呼ばれる。
+// onResolved自体は「オープンする/しないの選択が決着した瞬間」に発火するだけで、
+// 自動処理の非同期処理はまだ走っている最中のことが多いため、優先権の返却
+// （respondToContact参照）のような「本当に全部終わってから」が必要な用途向け。
+function maybeTriggerCardArrival(dropTarget, pieceTokenId, onResolved, onFullyResolved) {
   if (!dropTarget) {
     onResolved?.();
+    onFullyResolved?.();
     return;
   }
   const card = findTopCardAt(dropTarget);
   if (!card) {
     onResolved?.();
+    onFullyResolved?.();
     return;
   }
   if (!card.faceUp) {
-    promptCardOpen(pieceTokenId, card, onResolved);
+    promptCardOpen(pieceTokenId, card, onResolved, onFullyResolved);
     return;
   }
-  triggerCardArrival(card.cardId, card.location);
+  triggerCardArrival(card.cardId, card.location, onFullyResolved);
   onResolved?.();
 }
 
@@ -1768,11 +1930,12 @@ function closeOpenPrompt() {
   }
 }
 
-function promptCardOpen(pieceTokenId, card, onResolved) {
+function promptCardOpen(pieceTokenId, card, onResolved, onFullyResolved) {
   closeOpenPrompt();
   const pieceEl = document.querySelector(`.piece[data-token-id="${pieceTokenId}"]`);
   if (!pieceEl) {
     onResolved?.();
+    onFullyResolved?.();
     return;
   }
   // getBoundingClientRect()は実画面座標だが、promptはposition:fixedでステージ内に
@@ -1802,6 +1965,7 @@ function promptCardOpen(pieceTokenId, card, onResolved) {
         console.error("flipToken failed", err);
         render();
         onResolved?.();
+        onFullyResolved?.();
         return;
       }
     } else {
@@ -1816,7 +1980,8 @@ function promptCardOpen(pieceTokenId, card, onResolved) {
     // が失敗する（オープンした本人の画面だけ到達演出が出ないバグの原因だった）。
     // fetchAndHydrate()後のフレッシュな状態から改めて取得する。
     const freshCard = getState().tokens.find((t) => t.id === card.id);
-    if (freshCard) triggerCardArrival(freshCard.cardId, freshCard.location);
+    if (freshCard) triggerCardArrival(freshCard.cardId, freshCard.location, onFullyResolved);
+    else onFullyResolved?.();
     onResolved?.();
   });
 
@@ -1826,6 +1991,7 @@ function promptCardOpen(pieceTokenId, card, onResolved) {
   noBtn.addEventListener("click", () => {
     closeOpenPrompt();
     onResolved?.();
+    onFullyResolved?.();
   });
 
   prompt.appendChild(yesBtn);
@@ -2421,8 +2587,21 @@ async function respondToContact(approve) {
         cardId: stolen?.cardId ?? null,
       });
     };
-    if (defenderPiece) maybeTriggerCardArrival(defenderPiece.location, defenderPiece.id, showResultModal);
-    else showResultModal();
+    // ユーザー要望「接触されたプレイヤーは自分のゲートに強制移動しますが、その際、
+    // 一度そのプレイヤーに優先権を移してください。強制移動もカードをオープンして
+    // 到達効果が発動するので、その処理が終われば優先権をターンプレイヤーに戻し
+    // ましょう」。defenderの強制移動によるオープン/到達効果解決の間だけ、優先権を
+    // defenderへ一時的に移す（ターンプレイヤーがその間にターン終了ボタンを押して
+    // defenderの解決を置き去りにしないよう、updateEndTurnButton側で優先権を
+    // 持たないプレイヤーのターン終了ボタンを無効化している）。
+    transferPriorityTo(defender);
+    const returnPriorityToTurnPlayer = () => transferPriorityTo(getState().turnPlayer);
+    if (defenderPiece)
+      maybeTriggerCardArrival(defenderPiece.location, defenderPiece.id, showResultModal, returnPriorityToTurnPlayer);
+    else {
+      showResultModal();
+      returnPriorityToTurnPlayer();
+    }
   }
 }
 
@@ -4558,10 +4737,14 @@ function buildEndTurnButton() {
       "相手のゲートに自分の駒が乗っている場合、ターン終了時に「相手ゲート侵攻ボーナス」が自動的に処理されます。",
     ],
     onAction: () => {
-      // オンライン中、自分の手番でない間はupdateEndTurnButton()側でdisabled=trueに
-      // しているはずだが、念のためここでも二重にガードする（他人のターンを勝手に
-      // 終了させられてしまうバグの再発防止）。
-      if (isOnlineMode() && getSelfSeat() !== getState().turnPlayer) return;
+      // オンライン中、自分の手番でない間・優先権を持っていない間はupdateEndTurnButton()側で
+      // disabled=trueにしているはずだが、念のためここでも二重にガードする（他人のターンを
+      // 勝手に終了させられてしまうバグの再発防止）。
+      {
+        const s = getState();
+        if (isOnlineMode() && getSelfSeat() !== s.turnPlayer) return;
+        if (isOnlineMode() && s.priorityPlayer && getSelfSeat() !== s.priorityPlayer) return;
+      }
       // ゲート侵攻ボーナス(GATE_INVASION_*)は、so7-apply-action.ts側でNEXT_TURN処理に
       // 統合済み（サーバー側で自動判定・自動適用される）。オンライン中にrunGateInvasionsIfNeeded()
       // を呼ぶとローカルだけに二重適用されサーバーの状態と食い違ってしまうため、
@@ -4587,7 +4770,8 @@ function buildEndTurnButton() {
 
 function updateEndTurnButton() {
   if (!endTurnButtonEl) return;
-  const turnPlayer = getState().turnPlayer;
+  const state = getState();
+  const turnPlayer = state.turnPlayer;
   if (!turnPlayer) {
     endTurnButtonEl.style.display = "none";
     return;
@@ -4598,8 +4782,17 @@ function updateEndTurnButton() {
   // 1人で全座席を操作する前提のため、従来通り常に有効・宛先の座席名を表示する。
   // 動的な文言はキャプション（常に「ターン終了」固定）ではなく、ホバー時のツールチップへ
   // 表示するようにした（キャプションは他の右下ボタンと揃えて短く固定したいため）。
+  // ユーザー要望「優先権が無い間はターン終了ボタンを押せないことにします」。接触の
+  // 強制ゲート移動で一時的にdefenderへ優先権を渡している最中（transferPriorityTo参照）に
+  // turnPlayer本人がターンを終了してしまうと、defender側の到達効果解決を置き去りに
+  // してしまうため。priorityPlayerがまだ一度も初期化されていない（＝ターンタイマー機能
+  // 自体が無効、admin.jsのデフォルトOFF）場合はstate.priorityPlayerがnullのままなので、
+  // その場合は従来通りturnPlayer判定だけで制限しない。
   if (isOnlineMode() && getSelfSeat() !== turnPlayer) {
     if (endTurnTooltipEl) endTurnTooltipEl.textContent = `今は${getPlayerName(turnPlayer)}のターン中です`;
+    endTurnButtonEl.disabled = true;
+  } else if (isOnlineMode() && state.priorityPlayer && getSelfSeat() !== state.priorityPlayer) {
+    if (endTurnTooltipEl) endTurnTooltipEl.textContent = `今は${getPlayerName(state.priorityPlayer)}が優先権を持っています`;
     endTurnButtonEl.disabled = true;
   } else {
     if (endTurnTooltipEl) {

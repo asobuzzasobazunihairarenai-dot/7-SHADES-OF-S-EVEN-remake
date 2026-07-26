@@ -5768,6 +5768,71 @@ body.phase-lock-picking .hand-card:not(.phase-lock-highlight) {
   cursor: not-allowed;
 }
 
+/* ザ・ギャンブル/試練の儀式の「色を宣言する」モーダル。 */
+.declare-colors-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10631;
+  width: min(20rem, 90vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  background: rgba(15, 23, 32, 0.98);
+  border: 2px solid rgba(148, 163, 184, 0.5);
+  border-radius: 0.6rem;
+  padding: 1.2rem;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+.declare-colors-modal-title {
+  font-family: sans-serif;
+  font-size: 0.9rem;
+  color: #e2e8f0;
+  text-align: center;
+}
+.declare-colors-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.6rem;
+}
+.declare-colors-modal-swatch {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: var(--swatch-color);
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.declare-colors-modal-swatch:hover {
+  transform: scale(1.08);
+}
+.declare-colors-modal-swatch.is-selected {
+  border-color: #facc15;
+  box-shadow: 0 0 12px rgba(250, 204, 21, 0.7);
+}
+.declare-colors-modal-confirm {
+  padding: 0.6rem 1.2rem;
+  background: rgba(56, 189, 248, 0.2);
+  color: #e2e8f0;
+  border: 1px solid rgba(56, 189, 248, 0.6);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-family: sans-serif;
+  font-size: 0.85rem;
+}
+.declare-colors-modal-confirm:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.4);
+}
+.declare-colors-modal-confirm:disabled {
+  background: rgba(100, 116, 139, 0.15);
+  color: rgba(226, 232, 240, 0.4);
+  border-color: rgba(100, 116, 139, 0.35);
+  cursor: not-allowed;
+}
+
 /* ユーザー要望「配置後ここに配置したよがわかるように配置場所をしっかりハイライトして
    ください。マスの枠だけでなくカードの面もね」。マスの枠はoutline（3D立体駒を巻き込む
    filter/opacity系の罠を避けるため、既存のphase-move-highlight-pulseと同じ手法を流用）、

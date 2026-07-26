@@ -33,6 +33,13 @@ export const VERBS = {
   DISCARD_ALL_FACEUP_ON_BOARD: "discard_all_faceup_on_board", // 白の意思の覚醒専用: 盤面（マス）にある表向きのカードを全て捨てる
   DISCARD_SELF: "discard_self", // このカード自身を捨てる（既定動作「手札に加える」の代わり）
   ALL_PLAYERS_DISCARD_HAND_AND_DRAW: "all_players_discard_hand_and_draw", // 色落ちキャット専用: 全員が手札を全て捨ててから指定枚数ドローする
+  DISCARD_HALF_HAND: "discard_half_hand", // 選べる罠専用: 自分の手札を半分（端数切り捨て）、自分で選んで捨てる
+  FORCED_MOVE_TO_OWN_GATE: "forced_move_to_own_gate", // 選べる罠専用: 自分のゲートへ強制移動する（「移動」なので到達判定は連鎖する）
+  DISCARD_ONE_LOCKED_CARD: "discard_one_locked_card", // 選べる罠専用: 自分のロックしているカードから1枚選んで捨てる
+  DECLARE_COLORS: "declare_colors", // ザ・ギャンブル/試練の儀式専用: 色を宣言する（宣言数は固定/以上のどちらかをaction側で指定）
+  PUBLIC_DRAW_MATCHING_DECLARED_COLOR_COUNT: "public_draw_matching_declared_color_count", // ザ・ギャンブル専用: 直前に宣言した色の種類数分、公開ドローする
+  DISCARD_HAND_IF_REVEALED_MATCHES_DECLARED: "discard_hand_if_revealed_matches_declared", // ザ・ギャンブル専用: 公開したカードの中に宣言色があれば手札を全て捨てる
+  RITUAL_PLACE_MOVE_REPEAT: "ritual_place_move_repeat", // 試練の儀式専用: 隣に山札から1枚表向きで置く→そこへ移動（到達効果無し）→宣言色なら繰り返す
 };
 
 // 効果の主語（誰が対象か）。
@@ -359,6 +366,71 @@ export const CARD_EFFECTS = {
       ],
     },
   },
+
+  // 選べる罠（青、通常カード） 到達効果: 「以下の効果のうち1つ得る。・あなたの手札を
+  // 半分捨てる。・あなたのゲートに強制移動する。・あなたのロックしているカードを1枚
+  // 捨てる。」なないろの欠片のhandEffectOptionsと同じ「複数選択肢から1つ」の考え方だが、
+  // こちらは手札効果ではなく到達効果自身の選択のため、専用の`arrivalOptions`という
+  // 別のトップレベルキーで表現する（`arrival`とは排他、runArrivalEffect側で分岐する）。
+  // 善処の原則（docs/cards.md補足）で各選択肢に条件があり、選べる選択肢が1つも無い
+  // 場合は不発（続き26で実装したannounceFizzle経由でプレイヤーに伝わる）。
+  "blue-choosable-trap": {
+    arrivalOptions: [
+      {
+        id: "discard-half-hand",
+        label: "あなたの手札を半分捨てる。",
+        // 手札枚数が１枚以下のときは選べない（docs/cards.md補足）。
+        requiresMinHandSize: 2,
+        actions: [{ verb: VERBS.DISCARD_HALF_HAND }],
+      },
+      {
+        id: "forced-move-to-own-gate",
+        label: "あなたのゲートに強制移動する。",
+        // 自分のゲートにいるときは選べない（docs/cards.md補足）。
+        requiresNotAtOwnGate: true,
+        actions: [{ verb: VERBS.FORCED_MOVE_TO_OWN_GATE }],
+      },
+      {
+        id: "discard-one-locked-card",
+        label: "あなたのロックしているカードを1枚捨てる。",
+        // 捨てれるロックカードが無いときは選べない（docs/cards.md補足）。
+        requiresHasLockedCard: true,
+        actions: [{ verb: VERBS.DISCARD_ONE_LOCKED_CARD }],
+      },
+    ],
+  },
+
+  // ザ・ギャンブル（黄、通常カード） 到達効果: 「２色以上、色を宣言する。その色の種類の
+  // 数分ドローし公開する。それらの中に宣言色があるなら、あなたの手札を全て捨てる。」
+  // 「ドロー」＝「山札から手札に加える」ため、この効果でドローしたカードも「手札を
+  // 全て捨てる」の対象（docs/cards.md補足）——実装上は、ドローを「公開ドロー」
+  // （state.jsの既存publicDrawゾーン、手札シャッフル/ターン終了まで手札に合流しない
+  // 表向き専用ゾーン）として行い、DISCARD_HAND_IF_REVEALED_MATCHES_DECLAREDが
+  // 手札＋公開ドロー分の両方をまとめて対象にすることで、この補足を素直に満たす。
+  "yellow-gamble": {
+    arrival: {
+      actions: [
+        { verb: VERBS.DECLARE_COLORS, minCount: 2 },
+        { verb: VERBS.PUBLIC_DRAW_MATCHING_DECLARED_COLOR_COUNT },
+        { verb: VERBS.DISCARD_HAND_IF_REVEALED_MATCHES_DECLARED },
+      ],
+    },
+  },
+
+  // 試練の儀式（紫、通常カード） 到達効果: 「色を３色宣言する。あなたの隣に山札から
+  // １枚表向きで置く。そのマスに移動し、移動先の到達効果は得ない。置いたカードが
+  // 宣言色ならこの効果を繰り返す。」置く→移動→判定→（該当すれば）繰り返す、という
+  // 一連の流れ全体をRITUAL_PLACE_MOVE_REPEAT 1つの動詞にまとめている（各繰り返しの
+  // 隣接マスをその都度選ばせる必要があり、PLACE_CARD等の既存動詞を機械的に組み合わせる
+  // よりも専用動詞の方がシンプルなため）。
+  "purple-trial-ritual": {
+    arrival: {
+      actions: [
+        { verb: VERBS.DECLARE_COLORS, count: 3 },
+        { verb: VERBS.RITUAL_PLACE_MOVE_REPEAT },
+      ],
+    },
+  },
 };
 
 // --- 効果データ → 表示テキスト生成 -----------------------------------------------------
@@ -460,6 +532,25 @@ function renderAction(action, context) {
       return `${action.selfLabel ?? "このカード"}を捨てる。`;
     case VERBS.ALL_PLAYERS_DISCARD_HAND_AND_DRAW:
       return `全員、手札を全て捨て、${count}枚ドロー。`;
+    case VERBS.DISCARD_HALF_HAND:
+      return "あなたの手札を半分捨てる。";
+    case VERBS.FORCED_MOVE_TO_OWN_GATE:
+      return "あなたのゲートに強制移動する。";
+    case VERBS.DISCARD_ONE_LOCKED_CARD:
+      return "あなたのロックしているカードを1枚捨てる。";
+    case VERBS.DECLARE_COLORS:
+      // ザ・ギャンブル（「以上」＝下限のみ指定、count自体はプレイヤーが選ぶ）と
+      // 試練の儀式（固定数）とで実際の文言の語順が違う（docs/cards.md）ため、
+      // action.minCount/countのどちらが指定されているかで文型を分ける。
+      return action.minCount != null
+        ? `${toFullWidthNumber(action.minCount)}色以上、色を宣言する。`
+        : `色を${toFullWidthNumber(action.count)}色宣言する。`;
+    case VERBS.PUBLIC_DRAW_MATCHING_DECLARED_COLOR_COUNT:
+      return "その色の種類の数分ドローし公開する。";
+    case VERBS.DISCARD_HAND_IF_REVEALED_MATCHES_DECLARED:
+      return "それらの中に宣言色があるなら、あなたの手札を全て捨てる。";
+    case VERBS.RITUAL_PLACE_MOVE_REPEAT:
+      return "あなたの隣に山札から１枚表向きで置く。そのマスに移動し、移動先の到達効果は得ない。置いたカードが宣言色ならこの効果を繰り返す。";
     default:
       return `（未対応の動詞: ${action.verb}）`;
   }
@@ -591,6 +682,26 @@ if (typeof process !== "undefined" && process.argv[1] && process.argv[1].endsWit
   console.log("[色落ちキャット 到達効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["black-faded-cat"].arrival));
   console.log("  実際: これを捨てる。全員、手札を全て捨て、１枚ドロー。\n");
+
+  console.log("[選べる罠 到達効果]");
+  console.log(
+    "  生成: " + generateHandEffectOptionsText(CARD_EFFECTS["blue-choosable-trap"].arrivalOptions)
+  );
+  console.log(
+    "  実際: 以下の効果のうち1つ得る。・あなたの手札を半分捨てる。・あなたのゲートに強制移動する。・あなたのロックしているカードを1枚捨てる。\n"
+  );
+
+  console.log("[ザ・ギャンブル 到達効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["yellow-gamble"].arrival));
+  console.log(
+    "  実際: ２色以上、色を宣言する。その色の種類の数分ドローし公開する。それらの中に宣言色があるなら、あなたの手札を全て捨てる。\n"
+  );
+
+  console.log("[試練の儀式 到達効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["purple-trial-ritual"].arrival));
+  console.log(
+    "  実際: 色を３色宣言する。あなたの隣に山札から１枚表向きで置く。そのマスに移動し、移動先の到達効果は得ない。置いたカードが宣言色ならこの効果を繰り返す。\n"
+  );
 
   console.log("[黒の契約の烙印 到達効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["black-contract-brand"].arrival));

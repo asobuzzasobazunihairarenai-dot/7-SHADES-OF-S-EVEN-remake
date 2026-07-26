@@ -32,8 +32,10 @@ export function setAutoProcessingEnabled(v) {
 }
 
 // このカードの到達効果を自動処理してよいか（設定がON、かつ構造化データを持っている）。
+// 選べる罠のように`arrival`ではなく`arrivalOptions`（複数選択肢から1つ選ぶ形の
+// 到達効果）でデータを持つカードも対象に含める。
 export function canAutoProcessArrival(cardId) {
-  return autoProcessingEnabled && !!CARD_EFFECTS[cardId]?.arrival;
+  return autoProcessingEnabled && !!(CARD_EFFECTS[cardId]?.arrival || CARD_EFFECTS[cardId]?.arrivalOptions);
 }
 
 // ユーザー確認済み「手品師の技の『いつでも使える』はゲート侵攻処理を含む効果の処理中
@@ -149,6 +151,26 @@ export function canPayHandEffectCost(cardId, cardTokenId, player) {
     const color = getCardDefinition(cardId)?.color;
     return findSameColorDiscardCandidates(cardTokenId, color, player).length >= opt.cost.count;
   });
+}
+
+// 選べる罠専用: arrivalOptionsの1つの選択肢が今選べるか（docs/cards.mdの善処の原則
+// 条件を満たすか）。requiresMinHandSize/requiresNotAtOwnGate/requiresHasLockedCardの
+// いずれかを満たさなければ選べない（指定の無い条件はチェックしない）。
+function isArrivalOptionUsable(player, pieceLocation, option) {
+  if (option.requiresMinHandSize != null) {
+    const count = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player).length;
+    if (count < option.requiresMinHandSize) return false;
+  }
+  if (option.requiresNotAtOwnGate) {
+    const gate = GATE_POSITIONS[SEAT_TO_SIDE[player]];
+    if (pieceLocation && pieceLocation.row === gate.row && pieceLocation.col === gate.col) return false;
+  }
+  if (option.requiresHasLockedCard) {
+    const side = SEAT_TO_SIDE[player];
+    const hasLocked = getState().tokens.some((t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side);
+    if (!hasLocked) return false;
+  }
+  return true;
 }
 
 // 自分の手札の中に、今すぐ使える手札効果カードが1枚でもあるか（Hand Phaseの自動スキップ
@@ -559,16 +581,160 @@ async function runAction(action, ctx, helpers) {
       }
       return true;
     }
+    case VERBS.DISCARD_HALF_HAND: {
+      // 選べる罠専用: 手札の半分（端数切り捨て、docs/rulebook.md「手札の半分」の
+      // 定義通り）を、自分で選んで捨てる（ゲート侵攻ボーナスの「無作為に奪う」とは
+      // 違い、これは自分自身の手札を自分で選ぶ効果のため隠し情報の抽選は不要）。
+      const handTokens = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === ctx.player);
+      const discardCount = Math.floor(handTokens.length / 2);
+      if (discardCount === 0) return false;
+      for (let i = 0; i < discardCount; i++) {
+        const chosen = await helpers.pickHandCard(ctx.player, `捨てるカードを手札から選択してください（残り${discardCount - i}枚）`);
+        if (!chosen) break;
+        await helpers.discardAndSync(chosen.id);
+      }
+      return true;
+    }
+    case VERBS.FORCED_MOVE_TO_OWN_GATE: {
+      // 選べる罠専用: 自分のゲートへ強制移動する。「移動」であり接触の強制移動と同じく
+      // 到達判定は連鎖する（docs/cards.mdにSWAP_POSITION等のような「到達効果を得ない」
+      // 旨の記載が無いため）。
+      const gate = GATE_POSITIONS[SEAT_TO_SIDE[ctx.player]];
+      const dest = { zone: "cell", row: gate.row, col: gate.col };
+      if (ctx.pieceLocation.row === dest.row && ctx.pieceLocation.col === dest.col) return false; // 善処の原則: 既に自分のゲートにいるなら何もしない
+      await helpers.moveAndSync(ctx.pieceTokenId, dest);
+      ctx.pieceLocation = dest;
+      ctx.arrivedAt = dest;
+      return true;
+    }
+    case VERBS.DISCARD_ONE_LOCKED_CARD: {
+      // 選べる罠専用: 自分のロックしているカードから1枚選んで捨てる。lock_pair等と同じく
+      // ロックスロットの形（{zone:"lock",side,index}）をそのままpickLocationの候補として使う。
+      const side = SEAT_TO_SIDE[ctx.player];
+      const lockedTokens = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side);
+      if (lockedTokens.length === 0) return false;
+      const candidates = lockedTokens.map((t) => t.location);
+      const dest = candidates.length === 1 ? candidates[0] : await helpers.pickLocation(candidates, "捨てるロックカードを選択してください");
+      if (!dest) return false;
+      const chosen = lockedTokens.find((t) => t.location.side === dest.side && t.location.index === dest.index);
+      if (!chosen) return false;
+      await helpers.discardAndSync(chosen.id);
+      return true;
+    }
+    case VERBS.DECLARE_COLORS: {
+      // ザ・ギャンブル（action.minCount、以上）/試練の儀式（action.count、固定数）
+      // 共通。実際の選択UI（複数色から選ばせる）はhelpers側（main.jsのdeclareColorsForEffect）
+      // に委ねる。選んだ色はctx.selectionsに保存し、後続のアクションから参照する。
+      const chosen = await helpers.declareColors(action.minCount != null ? { minCount: action.minCount } : { exactCount: action.count });
+      if (!chosen || chosen.length === 0) return false;
+      ctx.selections.declaredColors = chosen;
+      return true;
+    }
+    case VERBS.PUBLIC_DRAW_MATCHING_DECLARED_COLOR_COUNT: {
+      // ザ・ギャンブル専用: 直前のDECLARE_COLORSで宣言した色の種類数分、公開ドローする。
+      const declaredColors = ctx.selections.declaredColors;
+      if (!declaredColors?.length) return false;
+      const revealedCardIds = await helpers.publicDraw(ctx.player, declaredColors.length);
+      ctx.selections.revealedCardIds = revealedCardIds;
+      return revealedCardIds.length > 0;
+    }
+    case VERBS.DISCARD_HAND_IF_REVEALED_MATCHES_DECLARED: {
+      // ザ・ギャンブル専用: 公開ドローした中に宣言色が1つでもあれば、手札を全て捨てる。
+      // 「ドロー」＝「山札から手札に加える」ため、この効果でドローしたカード（＝まだ
+      // publicDrawゾーンにあり通常の手札には合流していない分）も対象に含める
+      // （docs/cards.md補足）。
+      const declaredColors = ctx.selections.declaredColors ?? [];
+      const revealedCardIds = ctx.selections.revealedCardIds ?? [];
+      const matches = revealedCardIds.some((cardId) => declaredColors.includes(getCardDefinition(cardId)?.color));
+      if (!matches) return false;
+      await helpers.announceEffectReason?.(ctx.cardId, "公開した中に宣言した色があったため、手札を全て捨てます。");
+      const toDiscard = getState().tokens.filter(
+        (t) =>
+          t.kind === "card" &&
+          ((t.location.zone === "hand" && t.location.player === ctx.player) ||
+            (t.location.zone === "publicDraw" && t.location.player === ctx.player))
+      );
+      for (const token of toDiscard) {
+        await helpers.discardAndSync(token.id);
+      }
+      return true;
+    }
+    case VERBS.RITUAL_PLACE_MOVE_REPEAT: {
+      // 試練の儀式専用: 隣接する何もないマスへ山札から1枚表向きで置く→そこへ移動
+      // （到達効果は得ない、ctx.arrivedAtはセットしない）→置いたカードの色が宣言色
+      // なら繰り返す。無限ループの安全弁として最大回数を設ける（実際には盤面の広さ・
+      // 山札の残り枚数で自然に制限されるが、念のため）。
+      const declaredColors = ctx.selections.declaredColors;
+      if (!declaredColors?.length) return false;
+      let placedAny = false;
+      const MAX_ITERATIONS = 20;
+      for (let i = 0; i < MAX_ITERATIONS; i++) {
+        const adjacentEmptyCells = enumerateManhattanRing(1)
+          .map(({ dr, dc }) => ({ row: ctx.pieceLocation.row + dr, col: ctx.pieceLocation.col + dc }))
+          .filter(({ row, col }) => inBounds(row, col) && !hasCardAt(row, col) && !hasPieceAt(row, col))
+          .map(({ row, col }) => ({ zone: "cell", row, col }));
+        if (adjacentEmptyCells.length === 0) break; // 善処の原則: 置ける隣接マスが無ければそこで終わる
+        const dest =
+          adjacentEmptyCells.length === 1 ? adjacentEmptyCells[0] : await helpers.pickLocation(adjacentEmptyCells, "カードを置く隣接マスを選択してください");
+        if (!dest) break;
+        const placedCardId = await helpers.placeFromDeckFaceUp(dest);
+        if (!placedCardId) break; // 山札切れ等
+        placedAny = true;
+        await helpers.moveAndSync(ctx.pieceTokenId, dest);
+        ctx.pieceLocation = { row: dest.row, col: dest.col };
+        const placedColor = getCardDefinition(placedCardId)?.color;
+        if (!declaredColors.includes(placedColor)) break;
+      }
+      return placedAny;
+    }
     default:
       console.warn(`card-effect-engine: 未対応の動詞 "${action.verb}"`);
       return false;
   }
 }
 
+// 選べる罠専用: 「以下の効果のうち1つ得る」形の到達効果（arrivalOptions）を処理する。
+// なないろの欠片のhandEffectOptionsと同じ考え方だが、選ぶのはこのカードの到達効果
+// 自身なので、使えるプレイヤーは常にeffectの使用者本人（対象選択は不要）。
+async function runArrivalOptionsEffect(ctx, options, helpers) {
+  const runCtx = {
+    player: ctx.player,
+    cardId: ctx.cardId,
+    cardTokenId: ctx.cardTokenId,
+    pieceTokenId: ctx.pieceTokenId,
+    pieceLocation: ctx.pieceLocation,
+    selections: {},
+    arrivedAt: null,
+  };
+  const usableOptions = options.filter((opt) => isArrivalOptionUsable(runCtx.player, runCtx.pieceLocation, opt));
+  let hadEffect = false;
+  if (usableOptions.length > 0) {
+    const optionsWithUsability = options.map((opt) => ({ ...opt, usable: usableOptions.includes(opt) }));
+    const chosen = await helpers.pickArrivalOption(ctx.cardId, optionsWithUsability);
+    if (chosen) {
+      for (const action of chosen.actions) {
+        if (await runAction(action, runCtx, helpers)) hadEffect = true;
+      }
+    }
+  }
+  // docs/cards.md補足「全て選べないときは効果は不発となる。効果が不発の時は、この
+  // カードをあなたの手札に加えるだけである」。選べる選択肢自体が無い場合に加え、
+  // 選択肢はあったが（プレイヤーがピッカーをキャンセルした等で）結局何も起きなかった
+  // 場合も同じ扱いにする。
+  if (!hadEffect) {
+    await helpers.announceFizzle?.(ctx.cardId, true);
+  }
+  await helpers.moveAndSync(ctx.cardTokenId, { zone: "hand", player: ctx.player });
+  return runCtx.arrivedAt;
+}
+
 // 到達効果を自動処理する。ctx: { cardId, player, pieceTokenId, cardTokenId, pieceLocation }。
 // 戻り値: 効果中にmoveが発生し新しいマスへ到達した場合はその場所（呼び出し元が続けて
 // そのマスの到達判定を行うために使う）、それ以外はnull。
 export async function runArrivalEffect(ctx, helpers) {
+  // 選べる罠専用: `arrival`ではなく`arrivalOptions`でデータを持つカードは別経路。
+  const arrivalOptions = CARD_EFFECTS[ctx.cardId]?.arrivalOptions;
+  if (arrivalOptions) return runArrivalOptionsEffect(ctx, arrivalOptions, helpers);
   const effectDef = CARD_EFFECTS[ctx.cardId]?.arrival;
   if (!effectDef) return null;
   // ハマりどころ: このctx（このファイル冒頭のドキュメントコメント通り本来
