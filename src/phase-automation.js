@@ -75,6 +75,22 @@ export function setTurnAnnounceActive(v) {
   if (!turnAnnounceActive) reconcilePhaseAutomation();
 }
 
+// ユーザー要望「セットアップが完全に終わってからフェイズのモーダルを表示するように
+// してください」への対応。turnAnnounceActiveと同じ考え方だが、こちらは対局最初の
+// ターン開始時が対象。game-setup.jsのrunStep3()はsetTurnPlayer()（turnPlayerが
+// null→非null）した直後に「３：スタートプレイヤー決定」モーダル
+// （showStartPlayerModal、8秒で自動的に消える）を出すが、turnPlayerの変化自体は
+// その前の同期的なnotifyChange()で既に発火済みのため、上のturnAnnounceActiveが
+// 対象にしていない「対局開始1回目」のケースでは、このモーダルとフェイズ告知
+// （announcePhase("lock")等）が同時に表示され重なってしまっていた。
+// game-setup.js側がshowStartPlayerModal表示中はtrueにし、モーダルが消えた
+// コールバックでfalseに戻す（その際reconcileし直す）。
+let setupRevealActive = false;
+export function setSetupRevealActive(v) {
+  setupRevealActive = !!v;
+  if (!setupRevealActive) reconcilePhaseAutomation();
+}
+
 const DIRECTIONS = [
   { dr: -1, dc: 0 },
   { dr: 1, dc: 0 },
@@ -376,10 +392,11 @@ export function reconcilePhaseAutomation() {
     return;
   }
   if (currentPhase === null) {
-    // 「○○のターン」トースト表示中はフェイズ開始（LOCKフェイズ告知）を待たせる。
-    // setTurnAnnounceActive(false)で改めてreconcilePhaseAutomation()が呼ばれるので、
-    // トーストが消え次第ここに戻ってくる。
-    if (turnAnnounceActive) return;
+    // 「○○のターン」トースト・「スタートプレイヤー決定」モーダル表示中はフェイズ開始
+    // （LOCKフェイズ告知）を待たせる。setTurnAnnounceActive(false)/
+    // setSetupRevealActive(false)で改めてreconcilePhaseAutomation()が呼ばれるので、
+    // 表示が消え次第ここに戻ってくる。
+    if (turnAnnounceActive || setupRevealActive) return;
     enterPhase("lock", player);
     return;
   }

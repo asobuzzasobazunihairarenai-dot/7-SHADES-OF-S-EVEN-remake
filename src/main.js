@@ -56,6 +56,7 @@ import {
   buildContactApprovalModal,
   updateContactApprovalModal,
   registerContactApprovalHandler,
+  hideContactApprovalModalImmediately,
 } from "./contact-approval.js";
 import {
   getSkinImagePath,
@@ -2069,6 +2070,12 @@ async function playContactTackleForBystander({ attackerPieceId, defenderPieceId,
   // 素の飛翔ゴーストとの二重演出を防ぐために必要。
   markSelfHandled([defenderPieceId]);
   suppressGenericRenderForContactTackle = true;
+  // ユーザー報告「接触アニメ中に接触した側の画面にモーダルが表示されたままになる」
+  // への対応。このクライアント（attacker・傍観者）では、汎用render()が上のフラグで
+  // 演出終了まで止まるため、その間にstate.pendingContactがnullになってもモーダルの
+  // 更新が届かない。演出を始める時点でcontact-approval.js側へ直接、即座に隠すよう
+  // 伝える（defender本人が承認/拒否ボタンを押した時のhideImmediately()と同じ考え方）。
+  hideContactApprovalModalImmediately();
   try {
     await playContactLunge({
       attackerEl,

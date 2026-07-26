@@ -383,11 +383,12 @@ async function runAction(action, ctx, helpers) {
       const candidates = getOpponentPieceCellsWithinRange(ctx.pieceLocation, action.count, ctx.player);
       if (candidates.length === 0) return;
       // ユーザー要望「３マス以内の相手をハイライトしてプレイヤーに選ばせるステップを
-      // 踏んでください（対象が１人でも）」。
-      const target =
-        candidates.length === 1 && !ctx.forcePrompt
-          ? candidates[0]
-          : await helpers.pickLocation(candidates, "入れ替える相手のマスを選択してください");
+      // 踏んでください（対象が１人でも）」＋「到達効果でも手札効果と同じように相手を
+      // 選ぶステップを入れてください」。他のアクション（MOVE等）は「候補が1つなら
+      // テンポ優先で自動採用、手札効果だけforcePromptで強制」という設計だが、
+      // 入れ替えは結果の重さが違うため、到達・手札のどちらの経路でも
+      // （ctx.forcePromptに関係なく）常にプレイヤーに選ばせる。
+      const target = await helpers.pickLocation(candidates, "入れ替える相手のマスを選択してください");
       if (!target) return;
       await helpers.swapPieces(ctx.pieceTokenId, ctx.pieceLocation, target);
       ctx.pieceLocation = target;

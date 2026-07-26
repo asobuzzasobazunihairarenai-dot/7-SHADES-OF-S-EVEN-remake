@@ -97,6 +97,17 @@ export function updateContactApprovalModal() {
 // 一時停止されるため、state.pendingContactの消滅を待つupdateContactApprovalModal()任せに
 // すると演出が終わるまでこのモーダルが残ってしまっていた。ボタンを押した時点で応答は
 // 確定しているので、state更新を待たずその場で即座に隠す。
+//
+// ユーザー報告「接触アニメ中に接触した側（attacker・傍観者）の画面にモーダルが
+// 表示されたままになる」への対応で、main.jsのplayContactTackleForBystander
+// （defender以外の全クライアントが接触タックル演出を再生する関数）からも
+// 同じタイミングで呼べるようexportした。あちら側も同様にsuppressGenericRender
+// ForContactTackleで汎用render()を止めて演出中の状態変化での作り直しを防いでいるため、
+// 演出が終わってrender()が再開するまでこのモーダルの更新が届かず、演出中ずっと
+// 残ってしまっていた。演出を始める時点でこちらも即座に隠す。
+export function hideContactApprovalModalImmediately() {
+  hideImmediately();
+}
 function hideImmediately() {
   modalEl?.classList.remove("is-visible");
   if (backdropEl) {

@@ -3059,10 +3059,34 @@ body.is-phone-device #option-area {
    バラバラでも見た目の横幅が揃うよう、幅を固定して中央寄せにする（山札一覧/セットアップの
    トグルボタンはdeck-viewer.js/game-setup.jsでinline style.cssTextとして定義されているため、
    このクラスを付けて共通化する）。 */
+/* ユーザー報告「『ゲームを開始する』ボタンがボタンっぽくなくて少しわかりにくい」
+   への対応。#game-setup-toggle-buttonは自前のインラインスタイル（背景・枠線・
+   角丸）で見た目を持っていたが、textButton()（online-ui.js、「ゲームを開始する」
+   「部屋を作成」「この部屋を離れる」等）はこのクラスの見た目（幅・中央寄せのみ）
+   にしか頼っておらず、ブラウザの素の<button>のままで押せることが分かりにくかった。
+   共通クラス自体に見た目を持たせ、両方に同じ「押せそうな」外観を与える
+   （インラインスタイルを個別に持つボタンは、そちらが優先されるため見た目は
+   変わらない）。 */
 .header-tool-button {
   min-width: 8rem;
   text-align: center;
   white-space: nowrap;
+  padding: 0.4rem 0.7rem;
+  background: rgba(15, 23, 32, 0.85);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-family: sans-serif;
+  font-size: 0.75rem;
+}
+.header-tool-button:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.6);
+}
+.header-tool-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* 画面の最も右上（ラウンド数表示の右隣）に、歯車アイコンだけの小さいボタンとして配置する。
@@ -7096,10 +7120,21 @@ body.reduce-glow .hand-card.card-effect-target-cell {
 }
 /* ユーザー要望「移動先候補が少しわかりずらい。ほかのマスのトーンを落として、カードの面も
    ハイライトされるようにしたい」への対応。候補選択中は他の全マス/手札カードを暗くし、
-   候補の中の実際のカード画像自体にも光彩を足す（枠線だけだと目に入りにくいため）。 */
-body.card-effect-picking-cells .cell:not(.card-effect-target-cell) {
-  filter: brightness(0.45) saturate(0.6);
-  transition: filter 0.2s ease;
+   候補の中の実際のカード画像自体にも光彩を足す（枠線だけだと目に入りにくいため）。
+   ユーザー報告「マスチェンジの手札効果で入れ替える相手を選ぶ時、自分の駒がぺっちゃんこに
+   なっている」への対応: `.cell`はpreserve-3dで自分の駒(.piece、buildCubePieceの立方体
+   技法)を子に持つことがあり、filter/opacityを直接かけるとCSSの仕様上その要素が独立した
+   合成レイヤーへ強制分離され、中の3D立体駒が平面化してしまう（phase-move-picking側で
+   既に踏んだのと同じ罠——あちらは::afterオーバーレイ方式へ切り替えて解決済みだった。
+   詳しい経緯は下のbody.phase-move-picking .cell::afterのコメント参照）。同じ理由で
+   ここも::afterの半透明オーバーレイへ切り替える。 */
+body.card-effect-picking-cells .cell:not(.card-effect-target-cell)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
 }
 body.card-effect-picking-hand .hand-card:not(.card-effect-target-cell) {
   filter: brightness(0.45) saturate(0.6);

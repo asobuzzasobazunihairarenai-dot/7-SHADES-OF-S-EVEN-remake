@@ -161,7 +161,7 @@ function buildPilotRow(pilot, minimize) {
   const def = getCardDefinition(pilot.cardId);
   const generated =
     pilot.kind === "handEffectOptions"
-      ? generateHandEffectOptionsText(CARD_EFFECTS[pilot.cardId]?.handEffectOptions)
+      ? generateHandEffectOptionsText(CARD_EFFECTS[pilot.cardId]?.handEffectOptions, def?.name)
       : generateEffectText(CARD_EFFECTS[pilot.cardId]?.[pilot.kind]);
   const matches = generated === pilot.actual;
 

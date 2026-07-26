@@ -8395,3 +8395,54 @@ Material Designのブレークポイントと同じ600px未満ならスマホ、
   確認したが、実際に直っているかどうかは実機での確認が必要。もしこれでも
   直らない場合は、猜疑的な修正を繰り返すより、発生条件（毎回起きるか一部の駒だけか、
   2D表示に切り替えた直後だけか等）を詳しく伺った方が良いかもしれません。
+
+### 2026-07-26（続き18）：「ゲームを開始する」ボタンの見た目、接触演出中のモーダル残留、セットアップ完了前のフェイズ表示、なないろの欠片の生成文、マスチェンジの駒平面化バグと選択ステップ追加
+
+ユーザー報告5件への対応。
+
+- **「ゲームを開始する」ボタンがボタンっぽくない**: `textButton()`（online-ui.js、
+  「部屋を作成」「ゲームを開始する」「この部屋を離れる」等）が使う共通クラス
+  `.header-tool-button`は、幅・中央寄せ等のレイアウトしか持たず見た目（背景・
+  枠線）を一切持っていなかった（`#game-setup-toggle-button`は自前のインライン
+  スタイルで見た目を持っていたため気づかれていなかった）。クラス自体に背景・
+  枠線・角丸・ホバー時のハイライトを持たせ、ブラウザの素の`<button>`のままに
+  ならないようにした。
+- **接触アニメ中に接触した側の画面でモーダルが残る**: `contact-approval.js`には
+  既に「承認/拒否ボタンを押した本人（defender）は即座にモーダルを隠す」対策
+  （`hideImmediately`）があったが、attacker・傍観者側は自分の接触タックル演出
+  （`main.js`の`playContactTackleForBystander`）の間`suppressGenericRenderFor
+  ContactTackle`で汎用render()を止めているため、その間にstateが変わっても
+  モーダルの更新が届かず、演出が終わるまで残ってしまっていた。`hideImmediately`
+  を`hideContactApprovalModalImmediately`としてexportし、演出開始時点で
+  attacker・傍観者側からも直接呼ぶようにした。
+- **自動処理モードでセットアップ完了前にフェイズのモーダルが出る**:
+  `game-setup.js`の`runStep3()`は`setTurnPlayer()`（turnPlayerがnull→非null）の
+  直後に「スタートプレイヤー決定」モーダルを出すが、turnPlayerの変化自体は
+  その前の同期的な`notifyChange()`で既に発火しており、自動処理モードの
+  `reconcilePhaseAutomation()`が「○○のターン」トースト用の`turnAnnounceActive`
+  ガードでは守られない対局開始1回目にすぐ反応し、LOCKフェイズの告知と
+  「スタートプレイヤー決定」モーダルが重なっていた。同じ仕組みの
+  `setSetupRevealActive`を`phase-automation.js`に追加し、`runStep3()`が
+  モーダル表示中はフェイズ開始を待たせ、モーダルが消えたタイミング
+  （自動タイムアウト/閉じるボタンいずれも）で改めて判定させるようにした。
+- **なないろの欠片の生成文の「その」が不明瞭**: `card-dev-mode.js`の生成/実際
+  テキスト比較機能で、「２枚をロックする」選択肢の`requiresPairInHand`
+  （これを含めた同名2枚が手札に揃っている時だけ選べる特殊条件）が
+  `generateEffectText`側で文章化されておらず、生成文がいきなり「その２枚を〜」
+  から始まり指示語の先行詞が無い状態になっていた。`generateHandEffectOptionsText`
+  にカード名を渡せるようにし、`requiresPairInHand`を持つ選択肢には
+  docs/cards.mdと同じ「これを含めた「カード名」が２枚、あなたの手札にある時に
+  使える。」を先頭に補うようにした（`node src/card-effects.js`の自己チェックで
+  実際の文章と完全一致することを確認）。
+- **マスチェンジ**: (1) 手札効果で入れ替える相手を選ぶ時、自分の駒が平面化
+  （ぺっちゃんこ）していた。原因はphase-move-pickingで既に踏んだのと同じ罠——
+  候補以外を暗くする`card-effect-picking-cells`が`.cell`へ直接`filter`をかけて
+  おり、`.cell`がpreserve-3dで持つ駒(.piece)を独立した合成レイヤーへ強制分離
+  してしまっていた。phase-move-picking側が採用済みの「::afterオーバーレイ」
+  方式に統一し、`.piece`の`preserve-3d`が保たれることを確認した。
+  (2) 到達効果にも手札効果と同じ「相手を選ぶステップ」を追加してほしいとの
+  要望に対応。`card-effect-engine.js`の`SWAP_POSITION`は元々「候補が1つなら
+  自動採用、手札効果だけforcePromptで強制」という設計だったが、入れ替え効果は
+  結果の重さが違うため、到達・手札どちらの経路でも常にプレイヤーに選ばせる
+  よう変更した。
+

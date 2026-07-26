@@ -23,6 +23,7 @@ import { PLAYMAT_OPTIONS, getSelectedPlaymatId, setSelectedPlaymatId } from "./p
 import { animateFirstCardsDealt, animateBoardFilled } from "./setup-animation.js";
 import { applyAvatarContent } from "./avatar-render.js";
 import { getSelfSeat } from "./online.js";
+import { setSetupRevealActive } from "./phase-automation.js";
 
 // 2人/3人プレイ時、座席自動選択モード（管理者モードのトグルがオフの時）で使う座席。
 // 2人=対面(A・C)、3人=Dを除いた3隅。4人は常に全員。
@@ -353,9 +354,17 @@ async function runStep2() {
 function runStep3() {
   const players = activePlayersOrdered();
   const startPlayer = players[Math.floor(Math.random() * players.length)];
+  // ユーザー要望「セットアップが完全に終わってからフェイズのモーダルを表示するように
+  // してください」。setTurnPlayer()・notifyChange()の時点でturnPlayerがnull→非nullに
+  // 変わり、自動処理モードのreconcilePhaseAutomation()（phase-automation.js）が
+  // 同期的に反応してLOCKフェイズの告知を出そうとしてしまう。この直後に出す
+  // 「スタートプレイヤー決定」モーダルとの重なりを防ぐため、notifyChange()より前に
+  // フラグを立てて待たせ、モーダルが消えた（自動タイムアウト/閉じる操作いずれも）
+  // タイミングで戻す。
+  setSetupRevealActive(true);
   setTurnPlayer(startPlayer);
   notifyChange();
-  showStartPlayerModal(startPlayer);
+  showStartPlayerModal(startPlayer, { onClose: () => setSetupRevealActive(false) });
 }
 
 async function runAll() {

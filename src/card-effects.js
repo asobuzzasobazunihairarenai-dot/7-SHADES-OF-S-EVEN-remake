@@ -307,9 +307,23 @@ export function generateEffectText(effectDef) {
 // handEffectOptions（複数選択肢を持つ手札効果、なないろの欠片等）専用。各選択肢を
 // 「以下の効果のうち１つ得る。」の書式でまとめてテキスト化する（card-dev-mode.jsの
 // 生成/実際テキスト比較用）。
-export function generateHandEffectOptionsText(options) {
+//
+// ユーザー指摘「生成文の『その』が文脈的に何を指すかわからない」への対応。
+// requiresPairInHand（このカードを含めて同名2枚が手札に揃っている時だけ選べる、
+// なないろの欠片の「２枚をロックする」選択肢用の特殊条件）は、選択肢が「使えるか
+// どうか」の判定（card-effect-engine.jsのisHandEffectOptionUsable）にしか使われて
+// おらず、generateEffectText側にはこの条件を文章化する仕組みが無かった。そのため
+// 生成文はいきなり「その２枚を〜」から始まってしまい、「その」の指す相手（＝この
+// カードを含めた同名2枚）がdocs/cards.mdの実際の文章と違って説明されないまま
+// 欠けていた。requiresPairInHandを持つ選択肢には、cardNameを使って
+// 「これを含めた「カード名」が２枚、あなたの手札にある時に使える。」という一文を
+// 先頭に補うようにした（docs/cards.mdの実際の文言と同じ形）。
+export function generateHandEffectOptionsText(options, cardName) {
   if (!options?.length) return "";
-  const lines = options.map((opt) => `・${generateEffectText(opt)}`);
+  const lines = options.map((opt) => {
+    const prefix = opt.requiresPairInHand && cardName ? `これを含めた「${cardName}」が２枚、あなたの手札にある時に使える。` : "";
+    return `・${prefix}${generateEffectText(opt)}`;
+  });
   return `以下の効果のうち１つ得る。${lines.join("")}`;
 }
 
@@ -337,4 +351,10 @@ if (typeof process !== "undefined" && process.argv[1] && process.argv[1].endsWit
   console.log("[黄金の宮殿 ドムス・ネロ 手札効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["eternal-yellow"].handEffect));
   console.log("  実際: 【追色１】２枚ドロー。相手全員は１枚ドロー。この効果は１ターンに１度のみ得られる。\n");
+
+  console.log("[なないろの欠片 手札効果]");
+  console.log("  生成: " + generateHandEffectOptionsText(CARD_EFFECTS["rainbow-shard"].handEffectOptions, "なないろの欠片"));
+  console.log(
+    "  実際: 以下の効果のうち１つ得る。・１枚ドロー。・これを含めた「なないろの欠片」が２枚、あなたの手札にある時に使える。その２枚を任意の１箇所にロックする。２枚ドロー。\n"
+  );
 }
