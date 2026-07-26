@@ -2992,10 +2992,24 @@ body.spotlight-mode #spotlight-overlay {
 #option-area {
   position: fixed;
   top: 0;
-  right: 0;
-  width: 0;
-  height: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   z-index: 900;
+  /* ハマりどころ（ユーザー報告「オプションエリアの見た目がめちゃくちゃ崩れてる」）:
+     最初は幅0×高さ0のアンカー要素にしていたが、#turn-round-counter（明示的な
+     widthを持たないテキストdiv）のような「shrink-to-fitで自分の幅を決める」子要素は、
+     containing blockの幅が0だとshrink-to-fit計算そのものが破綻し、1文字ずつ縦に
+     折り返す崩れた表示になってしまった（アイコン勢のズレ・重なりも同じ原因）。
+     containing blockの幅・高さを画面いっぱい(100%、position:fixedなのでbody基準＝
+     従来この5要素が個別にposition:fixedだった時と同じ基準)にすることで、子要素の
+     shrink-to-fit計算が正しく機能するようにした。画面いっぱいになった分、
+     下の盤面のクリックを奪ってしまわないようpointer-events:noneにし、実際に押せる
+     必要がある子要素（5つ）だけ子孫セレクタで再度autoに戻している。 */
+  pointer-events: none;
+}
+#option-area > * {
+  pointer-events: auto;
 }
 body.is-phone-device #option-area {
   transform-origin: top right;
