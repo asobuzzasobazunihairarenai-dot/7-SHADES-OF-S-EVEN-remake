@@ -1507,10 +1507,13 @@ body.is-touch-device #options-menu-button .icon-action-button-icon-wrap {
    --icon-size-options-touch(6rem)はタブレットの大きいタップ領域を狙って調整
    された値だが、スマホもis-touch-deviceに該当するため、そのまま巻き込まれて
    マイページ・ヘルプ（どちらもタッチ専用の上書きが無く2.6remのまま）だけ
-   size違いになっていた。スマホ限定でPCと同じ基準サイズに戻す。 */
+   size違いになっていた。スマホ限定でPCと同じ基準サイズ(2.6rem)へ戻しつつ、
+   ユーザー要望「スマホ用のオプションアイコンの個別の位置サイズ調整を復活させて」
+   に応じて、この基準値自体をさらにスマホ専用の値(--icon-size-options-phone)で
+   個別に上書きできるようにした（管理者モードのスライダー参照）。 */
 body.is-phone-device #options-menu-button .icon-action-button-icon-wrap {
-  width: var(--icon-size-options, 2.6rem);
-  height: var(--icon-size-options, 2.6rem);
+  width: var(--icon-size-options-phone, var(--icon-size-options, 2.6rem));
+  height: var(--icon-size-options-phone, var(--icon-size-options, 2.6rem));
 }
 /* ホバーで簡易説明（phase-guide-tooltip、フェイズ案内板・優先権譲渡と共用）を表示する。 */
 .icon-action-button:hover .phase-guide-tooltip {
@@ -3076,6 +3079,16 @@ body.is-touch-device #options-menu-button {
   transform: translate(
     var(--icon-pos-options-touch-x, var(--icon-pos-options-x, 0rem)),
     var(--icon-pos-options-touch-y, var(--icon-pos-options-y, 0rem))
+  );
+}
+/* ユーザー要望「スマホ用のオプションアイコンの個別の位置サイズ調整を復活させて」
+   （オプションエリアの一括調整とは別に、この1つだけ自分で細かく動かしたいとのこと）。
+   グループ全体の位置・拡大率（#option-area、body.is-phone-device #option-area参照）は
+   引き続き効いたまま、その上でこのアイコン1つだけさらに個別に動かせるようにする。 */
+body.is-phone-device #options-menu-button {
+  transform: translate(
+    var(--icon-pos-options-phone-x, var(--icon-pos-options-touch-x, var(--icon-pos-options-x, 0rem))),
+    var(--icon-pos-options-phone-y, var(--icon-pos-options-touch-y, var(--icon-pos-options-y, 0rem)))
   );
 }
 /* ユーザー要望により、オプションボタンだけキャプション文字と丸い縁取りを非表示にする
