@@ -5877,6 +5877,52 @@ body.phase-lock-picking .hand-card:not(.phase-lock-highlight) {
   cursor: not-allowed;
 }
 
+/* ユーザー要望「全員のマウスカーソルの位置が全員に見える化したい。アバターとその
+   プレイヤーの色、名前が載っているとわかりやすい」（main.jsのensureRemoteCursorEl/
+   onCursorPositionEvents参照）。document.bodyの直下に置くことで、既存のステージの
+   scale/offset transform（applyViewportStage）をそのまま自動的に受け継ぐ
+   （left/topはstageClientToLocalで変換したステージのローカル座標＝1600x900基準）。 */
+.remote-cursor {
+  position: fixed;
+  z-index: 10700;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  pointer-events: none;
+  transform: translate(0.6rem, 0.6rem);
+  transition: left 0.08s linear, top 0.08s linear;
+}
+.remote-cursor-avatar {
+  width: 1.8rem;
+  height: 1.8rem;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  border-radius: 50%;
+  border: 2px solid var(--cursor-color, #94a3b8);
+  overflow: hidden;
+  background: #1e293b;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.remote-cursor-avatar .avatar-image {
+  width: 100%;
+  height: 100%;
+}
+.remote-cursor-name {
+  font-family: sans-serif;
+  font-size: 0.7rem;
+  font-weight: bold;
+  color: #fff;
+  background: rgba(15, 23, 32, 0.85);
+  border: 1px solid var(--cursor-color, #94a3b8);
+  padding: 0.1rem 0.5rem;
+  border-radius: 0.3rem;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
 /* ユーザー要望「配置後ここに配置したよがわかるように配置場所をしっかりハイライトして
    ください。マスの枠だけでなくカードの面もね」。マスの枠はoutline（3D立体駒を巻き込む
    filter/opacity系の罠を避けるため、既存のphase-move-highlight-pulseと同じ手法を流用）、

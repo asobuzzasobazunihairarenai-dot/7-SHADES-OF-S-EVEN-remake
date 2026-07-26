@@ -368,6 +368,23 @@ export function broadcastArrivalDelegateResolved(payload) {
     broadcastChannel.send({ type: "broadcast", event: "arrival_delegate_resolved", payload });
   }
 }
+
+// ユーザー要望「全員のマウスカーソルの位置が全員に見える化したい。アバターと
+// そのプレイヤーの色、名前が載っているとわかりやすい」。状態は一切変えない、
+// 見た目の合図だけの高頻度broadcast（他の合図と違い、mousemoveのたびに毎回
+// 送るのではなく呼び出し側で間引く前提——updateOwnCursorPositionForEffect参照）。
+let cursorPositionEventListeners = [];
+export function onCursorPositionEvents(fn) {
+  cursorPositionEventListeners.push(fn);
+  return () => {
+    cursorPositionEventListeners = cursorPositionEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastCursorPosition(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "cursor_position", payload });
+  }
+}
 // main.jsのヘッダーボタン（「🌐 オンライン」）のラベルを、ログイン状態が分かるように
 // 動的に変える時など、awaitせず同期的に「今ログイン中かどうか」を知りたい場面のために
 // キャッシュしておく（getCurrentUser()は毎回サーバーに問い合わせる非同期関数のため）。
@@ -1748,6 +1765,10 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     })
     .on("broadcast", { event: "arrival_delegate_resolved" }, ({ payload }) => {
       for (const fn of arrivalDelegateResolvedEventListeners) fn(payload);
+    })
+    // マウスカーソル位置の共有（broadcastCursorPosition参照）。
+    .on("broadcast", { event: "cursor_position" }, ({ payload }) => {
+      for (const fn of cursorPositionEventListeners) fn(payload);
     })
     .subscribe((status) => {
       // ユーザー要望「部屋に入ってきたら、待機中の他メンバーにもリアルタイムで（＝

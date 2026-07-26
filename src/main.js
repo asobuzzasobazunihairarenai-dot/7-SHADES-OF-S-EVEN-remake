@@ -151,6 +151,8 @@ import {
   onArrivalDelegateRequestEvents,
   broadcastArrivalDelegateResolved,
   onArrivalDelegateResolvedEvents,
+  broadcastCursorPosition,
+  onCursorPositionEvents,
   getSyncedIdentity,
   getGoogleAvatarUrl,
   getGoogleDisplayName,
@@ -1044,6 +1046,62 @@ onRitualPickHoverEvents(({ targetPlayer, index }) => {
 onRitualPickEndedEvents(({ targetPlayer }) => {
   if (getSelfSeat() !== targetPlayer) return;
   closeRitualPickWatch();
+});
+
+// ユーザー要望「全員のマウスカーソルの位置が全員に見える化したい。アバターとその
+// プレイヤーの色、名前が載っているとわかりやすい」。オンライン中だけ、自分の
+// マウス位置をステージのローカル座標（stageClientToLocal、STAGE_WIDTH×STAGE_HEIGHTの
+// 固定仮想解像度——実際のウィンドウサイズに関わらず全クライアント共通の座標系）に
+// 変換して間引きながら送信し（mousemoveはそのままだと頻度が高すぎるため）、他
+// プレイヤーの位置を自分の画面にアバター・色・名前付きで表示する。ローカル対戦は
+// 1画面共有のため対象外（isOnlineMode()チェック）。
+const CURSOR_BROADCAST_INTERVAL_MS = 80;
+let lastCursorBroadcastAt = 0;
+window.addEventListener("mousemove", (e) => {
+  if (!isOnlineMode()) return;
+  const now = Date.now();
+  if (now - lastCursorBroadcastAt < CURSOR_BROADCAST_INTERVAL_MS) return;
+  lastCursorBroadcastAt = now;
+  const { x, y } = stageClientToLocal(e.clientX, e.clientY);
+  broadcastCursorPosition({ player: getSelfSeat(), x, y });
+});
+
+const remoteCursorEls = new Map(); // player -> { el, hideTimer }
+const REMOTE_CURSOR_HIDE_MS = 3000; // 相手のカーソルがしばらく動かない/届かなくなったら消す
+
+function ensureRemoteCursorEl(player) {
+  let entry = remoteCursorEls.get(player);
+  if (entry) return entry;
+  const el = document.createElement("div");
+  el.className = "remote-cursor";
+  const avatarEl = document.createElement("div");
+  avatarEl.className = "remote-cursor-avatar";
+  applyAvatarContent(avatarEl, getPlayerAvatar(player));
+  const nameEl = document.createElement("div");
+  nameEl.className = "remote-cursor-name";
+  nameEl.textContent = getPlayerName(player);
+  el.appendChild(avatarEl);
+  el.appendChild(nameEl);
+  document.body.appendChild(el);
+  entry = { el, hideTimer: null };
+  remoteCursorEls.set(player, entry);
+  return entry;
+}
+onCursorPositionEvents(({ player, x, y }) => {
+  if (getSelfSeat() === player) return;
+  if (!getState().activePlayers.includes(player)) return;
+  const entry = ensureRemoteCursorEl(player);
+  // 駒の色は対局中に変わらないが、駒自体がまだ配置されていない（セットアップ中）
+  // 場合もあるため、届くたびに読み直す（一度も見つからなければ無地のまま）。
+  const color = getState().tokens.find((t) => t.kind === "piece" && t.player === player)?.color;
+  if (color) entry.el.style.setProperty("--cursor-color", `var(--color-${color})`);
+  entry.el.style.left = `${x}px`;
+  entry.el.style.top = `${y}px`;
+  entry.el.style.display = "flex";
+  clearTimeout(entry.hideTimer);
+  entry.hideTimer = setTimeout(() => {
+    entry.el.style.display = "none";
+  }, REMOTE_CURSOR_HIDE_MS);
 });
 
 // SWAP_RANDOM_HAND_CARD用（手品師の技）。docs/cards.mdの実際の順序は「相手の
@@ -4834,7 +4892,16 @@ async function onDragEnd(e) {
     // ユーザー報告により、この「処理中」はゲート侵攻処理だけでなく、他の効果の
     // 対象選択待ちや手札効果の解決中も含む（isAnyEffectProcessingBusy参照、
     // docs/rulebook.md「いつでも使える」の定義通り）。
+    // ユーザー報告「自動処理モードでないときにスリカエがロックエリアや場に置けない」
+    // の原因: この分岐全体が自動処理ON/OFFを問わず素通りしていたため、OFF中に
+    // スリカエをドラッグすると（isUsableAnytimeがtrueのまま、canUseHandEffect等の
+    // 判定はautoProcessingEnabledをチェックして常にfalseを返すため）何もせず
+    // returnしてしまい、通常のドロップ（ロックエリア/盤面への配置）まで到達
+    // できなくなっていた。自動処理OFF中はこの特別扱い自体が不要（手札効果の自動
+    // 発動という概念自体が自動処理モードの機能のため）なので、isAutoProcessing
+    // Enabled()もまとめてガードする。
     if (
+      isAutoProcessingEnabled() &&
       kind === "card" &&
       cardSourceLocation?.zone === "hand" &&
       cardSourceLocation.player === getSelfSeat() &&
