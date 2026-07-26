@@ -6961,18 +6961,22 @@ body.is-online-mode #quick-start-bar {
   --hand-a-pos-touch-y: 2.6rem;
   /* ユーザー要望「オプション・マイページ・ヘルプ・金額表示・ターンラウンド数を
      『オプションエリア』としてまとめて位置・サイズ調整」に伴い、個別の
-     --icon-pos-help-phone-x等は廃止し、まずは「一度PCと同じ配置に戻して」との
-     指示通りグループのオフセット無し(0,0)・等倍(1)をデフォルトにした。 */
+     --icon-pos-help-phone-x等は廃止し、その後ユーザーが管理者モードで実機に
+     合わせて調整した値（「スマホ関係の位置サイズを以下の通り調整しました」との
+     報告、:root一括コピー）をここへ反映した。 */
   --option-area-pos-phone-x: 0rem;
   --option-area-pos-phone-y: 0rem;
-  --option-area-scale-phone: 1;
-  /* 自分の手札の位置・サイズ・回転（スマホ・2D表示時限定）は、ユーザーが値を
-     いろいろ実験中のため、ここでは元のデフォルト値のまま確定させていない
-     （ユーザー確認済み：「自分の手札はいろいろいじりましたが無視してください」）。 */
-  --hand-a-pos-phone-x: 0rem;
-  --hand-a-pos-phone-y: 5.8rem;
-  --hand-a-size-phone: 17rem;
-  --hand-a-rotate-z-phone: 0deg;
+  --option-area-scale-phone: 1.65;
+  /* オプションアイコン単体の追加調整（続き12参照）。 */
+  --icon-pos-options-phone-x: 1rem;
+  --icon-pos-options-phone-y: 0rem;
+  --icon-size-options-phone: 4.5rem;
+  /* 自分の手札の位置・サイズ・回転（スマホ・2D表示時限定）も、上記と同じ
+     ユーザー調整済みの値を反映した。 */
+  --hand-a-pos-phone-x: -28.4rem;
+  --hand-a-pos-phone-y: -10.5rem;
+  --hand-a-size-phone: 15rem;
+  --hand-a-rotate-z-phone: 48deg;
   --camera-perspective-touch: 1090px;
   --camera-perspective-origin-y-touch: 8.4rem;
   --self-status-scale-touch: 1.5;
