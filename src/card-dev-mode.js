@@ -156,6 +156,11 @@ const PILOT_CARDS = [
     kind: "arrival",
     actual: "３マス以内の相手のいる場所とあなたのいる場所を入れ替える。相手はこのカードの到達効果を得ない。",
   },
+  // ユーザー要望「マスチェンジのように『上記の到達時の効果を得る』で生成文を
+  // 整理できないか」への対応でinheritsArrival:trueを追加し、実際に生成文へ
+  // 「上記の到達時の効果を得る。」が出るようになった（続き29）。「1」（半角）と
+  // 「１」（全角）だけ、docs/cards.md側の表記揺れ（なないろの巨光と同種）で
+  // ⚠️のまま残るが、これはdocs側の入力ミスであり生成側の不具合ではない。
   { cardId: "orange-mass-change", kind: "handEffect", actual: "【追色1】上記の到達時の効果を得る。" },
   // 生成文「２マス以内の１枚をあなたの手札に加える。」は、docs/cards.mdの実際の
   // 文言「２マス以内のカードを１枚あなたの手札に加える。」と「カードを」の有無・
@@ -168,10 +173,10 @@ const PILOT_CARDS = [
     kind: "arrival",
     actual: "相手１人の手札から無作為に１枚、あなたの手札に加える。あなたの手札から１枚、その相手の手札に加える。",
   },
-  // handEffectの「この効果はいつでも使える。」はusableAnytime:trueというフラグ
-  // （main.js側の発動タイミング制御にのみ影響）で、generateEffectText自体は
-  // これを文章化しない設計のため、mass-changeの「上記の...効果を得る」と同じく
-  // 生成文とは意図的に一致しない（⚠️表示が正常）。
+  // 続き29でusableAnytime:true（「この効果はいつでも使える。」）と
+  // inheritsArrival:true（「上記の到達時の効果を得る。」）の両方を
+  // generateEffectTextが文章化するようになったため、以前は意図的な⚠️表示
+  // だったこのカードも今は✅で一致する。
   {
     cardId: "yellow-sleight-of-hand",
     kind: "handEffect",

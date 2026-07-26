@@ -62,6 +62,11 @@ export function markPhaseMoveActionTaken() {
 export function setHandEffectBusy(v) {
   handEffectBusy = !!v;
 }
+// ユーザー報告「『いつでも使える』が効果の処理中にも使えてしまう」への対応で
+// main.js側が判定に使う（docs/rulebook.md「いつでも使える」の定義参照）。
+export function isHandEffectBusy() {
+  return handEffectBusy;
+}
 
 // ユーザー報告「『○○のターン』の表示がちゃんと消えてからフェイズのモーダル表示に
 // 移ってほしい」。ターン切替時、announceTurnChange()（turn-announce.js）のトーストと

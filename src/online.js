@@ -288,6 +288,51 @@ export function broadcastContactPickResolved(payload) {
     broadcastChannel.send({ type: "broadcast", event: "contact_pick_resolved", payload });
   }
 }
+
+// ユーザー要望「スリカエなどで手札を選ぶとき、奪われる側にも表向きで表示されて
+// 相手のマウスがどこにホバーされているかわかるようにしてほしい（奪われる側も
+// ドキドキできるように）」。requestOpponentHandRitualPick（main.js）が、選ぶ側の
+// クリック待ちの間、対象（targetPlayer）自身の画面に「今どのカードにカーソルが
+// 乗っているか」を実況する。状態は一切変えない見た目の合図だけの3種類
+// （開始＝両者が同じ並び順を共有するためtoken id配列を送る／ホバー移動／終了）。
+let ritualPickStartedEventListeners = [];
+export function onRitualPickStartedEvents(fn) {
+  ritualPickStartedEventListeners.push(fn);
+  return () => {
+    ritualPickStartedEventListeners = ritualPickStartedEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastRitualPickStarted(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "ritual_pick_started", payload });
+  }
+}
+
+let ritualPickHoverEventListeners = [];
+export function onRitualPickHoverEvents(fn) {
+  ritualPickHoverEventListeners.push(fn);
+  return () => {
+    ritualPickHoverEventListeners = ritualPickHoverEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastRitualPickHover(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "ritual_pick_hover", payload });
+  }
+}
+
+let ritualPickEndedEventListeners = [];
+export function onRitualPickEndedEvents(fn) {
+  ritualPickEndedEventListeners.push(fn);
+  return () => {
+    ritualPickEndedEventListeners = ritualPickEndedEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastRitualPickEnded(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "ritual_pick_ended", payload });
+  }
+}
 // main.jsのヘッダーボタン（「🌐 オンライン」）のラベルを、ログイン状態が分かるように
 // 動的に変える時など、awaitせず同期的に「今ログイン中かどうか」を知りたい場面のために
 // キャッシュしておく（getCurrentUser()は毎回サーバーに問い合わせる非同期関数のため）。
@@ -1651,6 +1696,16 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     })
     .on("broadcast", { event: "contact_pick_resolved" }, ({ payload }) => {
       for (const fn of contactPickResolvedEventListeners) fn(payload);
+    })
+    // 儀式的ピック中の実況3種（broadcastRitualPickStarted/Hover/Ended参照）。
+    .on("broadcast", { event: "ritual_pick_started" }, ({ payload }) => {
+      for (const fn of ritualPickStartedEventListeners) fn(payload);
+    })
+    .on("broadcast", { event: "ritual_pick_hover" }, ({ payload }) => {
+      for (const fn of ritualPickHoverEventListeners) fn(payload);
+    })
+    .on("broadcast", { event: "ritual_pick_ended" }, ({ payload }) => {
+      for (const fn of ritualPickEndedEventListeners) fn(payload);
     })
     .subscribe((status) => {
       // ユーザー要望「部屋に入ってきたら、待機中の他メンバーにもリアルタイムで（＝

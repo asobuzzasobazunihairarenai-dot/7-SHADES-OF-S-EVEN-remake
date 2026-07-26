@@ -260,6 +260,10 @@ export const CARD_EFFECTS = {
     },
     handEffect: {
       usableAnytime: true,
+      // inheritsArrival: 到達効果と全く同じactionsを実行するが、生成テキストは
+      // 「上記の到達時の効果を得る。」になる（docs/cards.md「■ この効果はいつでも
+      // 使える。上記の到達時の効果を得る。」）。
+      inheritsArrival: true,
       actions: [{ verb: VERBS.SWAP_RANDOM_HAND_CARD }],
     },
   },
@@ -344,6 +348,10 @@ export const CARD_EFFECTS = {
     },
     handEffect: {
       cost: { verb: VERBS.DISCARD_SAME_COLOR, count: 1 },
+      // inheritsArrival: 実際の実行はarrivalと同じactionsをそのまま使うが、
+      // 生成テキストは「上記の到達時の効果を得る。」という参照文になる
+      // （docs/cards.md、renderAction()参照）。
+      inheritsArrival: true,
       actions: [{ verb: VERBS.SWAP_POSITION, count: 3 }],
     },
   },
@@ -583,10 +591,24 @@ export function generateEffectText(effectDef) {
     (a) => a.verb === VERBS.DISCARD_SELF || (a.verb === VERBS.PLACE_CARD && a.source === "self")
   );
   if (effectDef.addsCardToHandAfter === false && !actionsHandleSelf) parts.push("これはあなたの手札に加えない。");
+  // ユーザー要望「マスチェンジのように『上記の到達時の効果を得る』で生成文を整理
+  // できないか。到達効果の文面を手札効果が踏襲している場合この文言を使用する
+  // ように」。手品師の技の「この効果はいつでも使える。」も同じく、今まで
+  // generateEffectTextが素通りしていたフラグだったため、あわせて文章化する。
+  if (effectDef.usableAnytime) parts.push("この効果はいつでも使える。");
   const costText = renderCost(effectDef.cost);
   if (costText) parts.push(costText);
-  for (const action of effectDef.actions) {
-    parts.push(renderAction(action, context));
+  // inheritsArrival: true（マスチェンジ・手品師の技の手札効果等）は、実際の
+  // アクション配列（エンジン実行用にactionsは引き続き持つ）をテキスト化せず、
+  // 代わりに「上記の到達時の効果を得る。」という参照文だけを出す
+  // （docs/cards.mdの凡例通り、到達効果と全く同じ処理を手札効果からも呼べる
+  // カードに共通の言い回し）。
+  if (effectDef.inheritsArrival) {
+    parts.push("上記の到達時の効果を得る。");
+  } else {
+    for (const action of effectDef.actions) {
+      parts.push(renderAction(action, context));
+    }
   }
   const limitText = renderUsageLimit(effectDef.usageLimit);
   if (limitText) parts.push(limitText);
@@ -674,6 +696,14 @@ if (typeof process !== "undefined" && process.argv[1] && process.argv[1].endsWit
   console.log("[マスチェンジ 到達効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["orange-mass-change"].arrival));
   console.log("  実際: ３マス以内の相手のいる場所とあなたのいる場所を入れ替える。相手はこのカードの到達効果を得ない。\n");
+
+  console.log("[マスチェンジ 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["orange-mass-change"].handEffect));
+  console.log("  実際: 【追色1】上記の到達時の効果を得る。\n");
+
+  console.log("[手品師の技 -スリカエ- 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["yellow-sleight-of-hand"].handEffect));
+  console.log("  実際: この効果はいつでも使える。上記の到達時の効果を得る。\n");
 
   console.log("[なないろの巨光 到達効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["white-radiance"].arrival));

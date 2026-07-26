@@ -5369,8 +5369,9 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   flex-wrap: wrap;
 }
 .sleight-ritual-card {
-  width: 5rem;
-  height: 7rem;
+  /* ユーザー報告「手札を選ぶときのカードが正方形になっていない」への対応。 */
+  width: 6rem;
+  height: 6rem;
   background-size: cover;
   background-position: center;
   border-radius: 0.3rem;
@@ -5380,6 +5381,14 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
 }
 .sleight-ritual-card:hover {
   transform: translateY(-0.4rem) scale(1.05);
+}
+/* ユーザー要望「奪われる側にも表向きで表示されて相手のマウスがどこにホバー
+   されているかわかるようにしてほしい」。相手側の画面から届いたホバー位置に
+   対応するカードを光らせる（main.jsのopenRitualPickWatch/onRitualPickHoverEvents）。 */
+.sleight-ritual-card.is-hovered {
+  transform: translateY(-0.4rem) scale(1.05);
+  box-shadow: 0 0 1rem rgba(250, 204, 21, 0.9), 0 4px 10px rgba(0, 0, 0, 0.5);
+  outline: 3px solid #facc15;
 }
 
 /* ターン終了時の中央告知（src/turn-announce.js）。ゲーム操作を妨げないよう
@@ -5657,11 +5666,15 @@ body.phase-lock-picking .hand-card:not(.phase-lock-highlight) {
 }
 
 /* 効果の発動理由を説明するモーダル（src/hand-effect-ui.jsのshowEffectReasonModal、
-   例: カウンターロックの「あなたは１番少なくロックしているので１枚ドローします」）。
-   到達モーダル（右上）・使用モーダル（左上）と重ならないよう、画面下中央に出す。 */
+   例: カウンターロックの「あなたは１番少なくロックしているので１枚ドローします」・
+   不発の案内）。ユーザー要望「すぐ消える一時的なモーダルは画面中央に表示させて
+   ください」への対応で画面中央に出す（以前は到達モーダル（右上）・使用モーダル
+   （左上）との重なりを避けるため画面下中央にしていたが、このモーダル自体は毎回
+   awaitして単独で表示されるタイミングでしか出さないため、中央に出しても他の
+   モーダルと同時に重なることは無い）。 */
 .effect-reason-modal {
   position: fixed;
-  bottom: 2rem;
+  top: 50%;
   left: 50%;
   z-index: 10600;
   width: min(20rem, 80vw);
@@ -5670,7 +5683,7 @@ body.phase-lock-picking .hand-card:not(.phase-lock-highlight) {
   border: 1px solid rgba(56, 189, 248, 0.6);
   border-radius: 0.6rem;
   text-align: center;
-  transform: translate(-50%, 0.6rem);
+  transform: translate(-50%, -50%) scale(0.94);
   opacity: 0;
   pointer-events: auto;
   cursor: pointer;
@@ -5679,7 +5692,7 @@ body.phase-lock-picking .hand-card:not(.phase-lock-highlight) {
 }
 .effect-reason-modal.show {
   opacity: 1;
-  transform: translate(-50%, 0);
+  transform: translate(-50%, -50%) scale(1);
 }
 .effect-reason-modal-name {
   font-family: sans-serif;

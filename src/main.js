@@ -32,6 +32,7 @@ import {
   registerPhaseAutomationHelpers,
   isHandPhaseActive,
   setHandEffectBusy,
+  isHandEffectBusy,
   isMovePhaseActive,
   markPhaseMoveActionTaken,
   setTurnAnnounceActive,
@@ -138,6 +139,12 @@ import {
   onContactApprovedEvents,
   broadcastContactPickResolved,
   onContactPickResolvedEvents,
+  broadcastRitualPickStarted,
+  onRitualPickStartedEvents,
+  broadcastRitualPickHover,
+  onRitualPickHoverEvents,
+  broadcastRitualPickEnded,
+  onRitualPickEndedEvents,
   getSyncedIdentity,
   getGoogleAvatarUrl,
   getGoogleDisplayName,
@@ -928,9 +935,21 @@ function requestOpponentHandRitualPick(targetPlayer, hint) {
       return;
     }
     const shuffled = [...theirHand].sort(() => Math.random() - 0.5);
+    // ユーザー要望「奪われる側もドキドキできるように、奪われる側にも表向きで表示
+    // されて相手のマウスがどこにホバーされているかわかるようにしてほしい」。
+    // targetPlayerが本物の相手（自分の手札を自分で見せているcontactのdefenderの
+    // ケースは対象外＝targetPlayer===自分の時は覗き見にならないためそもそも実況
+    // 不要）の時だけ、開始・ホバー移動・終了の3つの合図を送る。並び順（token id
+    // 配列）を一緒に送ることで、相手の画面でも同じ左右位置に同じカードを表向きで
+    // 表示でき、「今どの位置にカーソルがあるか」をindexだけで一致させられる。
+    const isRitualBroadcastTarget = isOnlineMode() && targetPlayer !== getSelfSeat();
+    if (isRitualBroadcastTarget) {
+      broadcastRitualPickStarted({ targetPlayer, order: shuffled.map((t) => t.id) });
+    }
     function cleanup() {
       backdrop.remove();
       modal.remove();
+      if (isRitualBroadcastTarget) broadcastRitualPickEnded({ targetPlayer });
     }
     const backdrop = createBackdrop(() => {
       cleanup();
@@ -944,21 +963,77 @@ function requestOpponentHandRitualPick(targetPlayer, hint) {
     modal.appendChild(title);
     const cardsWrap = document.createElement("div");
     cardsWrap.className = "sleight-ritual-cards";
-    for (const token of shuffled) {
+    shuffled.forEach((token, index) => {
       const cardEl = document.createElement("div");
       cardEl.className = "sleight-ritual-card";
       cardEl.style.backgroundImage = `url("${getCardBackImagePath(token.cardId)}")`;
+      if (isRitualBroadcastTarget) {
+        cardEl.addEventListener("pointerenter", () => broadcastRitualPickHover({ targetPlayer, index }));
+      }
       cardEl.addEventListener("click", () => {
         cleanup();
         resolve(token);
       });
       cardsWrap.appendChild(cardEl);
-    }
+    });
     modal.appendChild(cardsWrap);
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
   });
 }
+
+// requestOpponentHandRitualPickの実況を受け取る側（対象＝targetPlayer自身）専用の
+// 表示。自分の手札は自分にはもともと全て見えている情報のため、ここでは実際の
+// cardIdを使って表向きで表示してよい（隠し情報の覗き見にはならない）。相手の
+// マウス位置（broadcastRitualPickHoverのindex）に対応する位置のカードだけ光らせる。
+let ritualPickWatchBackdrop = null;
+let ritualPickWatchModal = null;
+let ritualPickWatchCardEls = [];
+function closeRitualPickWatch() {
+  ritualPickWatchBackdrop?.remove();
+  ritualPickWatchModal?.remove();
+  ritualPickWatchBackdrop = null;
+  ritualPickWatchModal = null;
+  ritualPickWatchCardEls = [];
+}
+function openRitualPickWatch(order) {
+  closeRitualPickWatch();
+  const player = getSelfSeat();
+  const tokensById = new Map(getState().tokens.filter((t) => t.kind === "card").map((t) => [t.id, t]));
+  ritualPickWatchBackdrop = createBackdrop(() => {}, { dim: true, zIndex: 10619 });
+  ritualPickWatchModal = document.createElement("div");
+  ritualPickWatchModal.id = "sleight-ritual-modal";
+  const title = document.createElement("div");
+  title.className = "sleight-ritual-title";
+  title.textContent = "相手があなたの手札から1枚選んでいます…";
+  ritualPickWatchModal.appendChild(title);
+  const cardsWrap = document.createElement("div");
+  cardsWrap.className = "sleight-ritual-cards";
+  ritualPickWatchCardEls = order.map((tokenId) => {
+    const token = tokensById.get(tokenId);
+    const cardEl = document.createElement("div");
+    cardEl.className = "sleight-ritual-card";
+    cardEl.style.backgroundImage = `url("${token ? getCardImagePath(token.cardId) : getCardBackImagePath(null)}")`;
+    cardsWrap.appendChild(cardEl);
+    return cardEl;
+  });
+  ritualPickWatchModal.appendChild(cardsWrap);
+  document.body.appendChild(ritualPickWatchBackdrop);
+  document.body.appendChild(ritualPickWatchModal);
+}
+onRitualPickStartedEvents(({ targetPlayer, order }) => {
+  if (getSelfSeat() !== targetPlayer) return;
+  openRitualPickWatch(order);
+});
+onRitualPickHoverEvents(({ targetPlayer, index }) => {
+  if (getSelfSeat() !== targetPlayer) return;
+  for (const el of ritualPickWatchCardEls) el.classList.remove("is-hovered");
+  ritualPickWatchCardEls[index]?.classList.add("is-hovered");
+});
+onRitualPickEndedEvents(({ targetPlayer }) => {
+  if (getSelfSeat() !== targetPlayer) return;
+  closeRitualPickWatch();
+});
 
 // SWAP_RANDOM_HAND_CARD用（手品師の技）。相手からは上のリチュアル演出で無作為に
 // 1枚もらい、自分から渡すカードはユーザー確認済み「自分から相手に何を返すかは
@@ -1154,6 +1229,34 @@ async function placeFromDeckFaceUpForEffect(location) {
 // ヒットテスト・ドラッグ開始を一切通さない（ユーザー要望「盤面全体49マスに対し
 // 移動候補しかクリックできないようにする」にも対応）。
 let activeEffectPicker = null; // { type: "cell", candidates, resolve } | { type: "hand", tokenIds: Set, resolve } | { type: "player", players: Set, resolve }
+
+// ユーザー報告「ジャンプ台の到達効果の移動先ハイライト時、ブラウザを最小化して
+// また開きなおすとハイライトが消えてしまっている」。render()はstateが変わる
+// たびに盤面（マス・手札・アバター）のDOM要素を丸ごと作り直すため、選択待ち中に
+// 何らかの理由でrender()が呼ばれる（最小化からの復帰でも起こり得る）と、
+// requestCellChoiceForEffect等が直接付けたハイライトclassは古い（今はもう
+// 画面に無い）要素に残ったまま、新しい要素には引き継がれない。
+// pendingPlacementLocation/justPlacedLocationsと同じ「render()の末尾で毎回
+// 論理的な候補から貼り直す」パターンをactiveEffectPickerにも適用する。
+function reapplyEffectPickerHighlights(table) {
+  if (!activeEffectPicker) return;
+  if (activeEffectPicker.type === "cell") {
+    for (const loc of activeEffectPicker.candidates) {
+      const el = findLocationElement(table, loc);
+      if (el) el.classList.add("card-effect-target-cell");
+    }
+  } else if (activeEffectPicker.type === "hand") {
+    for (const tokenId of activeEffectPicker.tokenIds) {
+      const el = document.querySelector(`.hand-card[data-token-id="${tokenId}"]`);
+      if (el) el.classList.add("card-effect-target-cell");
+    }
+  } else if (activeEffectPicker.type === "player") {
+    for (const player of activeEffectPicker.players) {
+      const el = document.querySelector(`.player-avatar[data-player="${player}"]`);
+      if (el) el.classList.add("card-effect-target-avatar");
+    }
+  }
+}
 
 // ユーザー要望「収穫と種まきで獲得したカードを手札の中で効果が終わるまで光らせる」
 // 「置き直す先のマスをハイライトして忘れないようにする」への対応。render()が
@@ -1602,13 +1705,26 @@ let pendingAnytimeHandEffectReservation = null;
 function reserveAnytimeHandEffectUse(cardId, cardTokenId, player) {
   pendingAnytimeHandEffectReservation = { cardId, cardTokenId, player };
 }
-// ゲート侵攻モーダル列が空になった（もう処理中ではなくなった）タイミングで、予約が
-// あれば確認モーダルを出す。main.js側で既に同じ仕組み（ターン告知の重なり防止）を
-// 使っているため、registerOnGateInvasionQueueDrained側を複数登録できるよう
-// 別途対応済み（gate-invasion-modal.js参照）。
-registerOnGateInvasionQueueDrained(() => {
+// docs/rulebook.md「いつでも使える」の定義: 「効果等の何らかの『処理中』は使用
+// できない（ゲート侵攻ボーナスも処理中に含まれる）」。ゲート侵攻だけでなく、
+// 他の効果の対象選択待ち（activeEffectPicker）・手札効果の解決中
+// （phase-automation.jsのhandEffectBusy）も全て「処理中」に含まれる
+// （ユーザー報告「手札0枚でスリカエを奪い、その返却選択中にその奪ったスリカエ
+// 自身の『いつでも使える』でまた発動できてしまった」の原因はここが漏れていた
+// ため——返却選択待ちはactiveEffectPicker.type==="hand"の状態）。
+function isAnyEffectProcessingBusy() {
+  return isGateInvasionPending() || isGateInvasionQueueActive() || isHandEffectBusy() || activeEffectPicker !== null;
+}
+// 処理中でなくなったタイミングで、予約があれば確認モーダルを出す。「処理中で
+// なくなったタイミング」を個別に全部拾うのは漏れの元（実際に上のバグはゲート侵攻
+// 以外の処理中を見落としていたために起きた）なので、代わりにrender()の末尾
+// （ほぼ全ての状態変化のたびに呼ばれる）で毎回チェックする「呼び出し元がrender()
+// の末尾で毎回再判定する」既存パターンに合わせる。まだ処理中なら何もせず、次回の
+// render()でまた判定される。
+function checkAnytimeHandEffectReservation() {
   const reservation = pendingAnytimeHandEffectReservation;
   if (!reservation) return;
+  if (isAnyEffectProcessingBusy()) return;
   pendingAnytimeHandEffectReservation = null;
   // 予約後に何らかの理由でカード自体が手札から無くなっている（他の効果で捨てられた等）
   // 可能性もゼロではないため、確認モーダルを出す前に念のため今も使える状態か確かめる。
@@ -1617,7 +1733,11 @@ registerOnGateInvasionQueueDrained(() => {
   );
   if (!stillInHand || !canUseHandEffect(reservation.cardId, reservation.cardTokenId, reservation.player)) return;
   showAnytimeHandEffectConfirmModal(reservation);
-});
+}
+// main.js側で既に同じ仕組み（ターン告知の重なり防止）を使っているため、
+// registerOnGateInvasionQueueDrained側を複数登録できるよう別途対応済み
+// （gate-invasion-modal.js参照）。
+registerOnGateInvasionQueueDrained(checkAnytimeHandEffectReservation);
 
 function showAnytimeHandEffectConfirmModal({ cardId, cardTokenId, player }) {
   const backdrop = createBackdrop(() => {}, { dim: true, zIndex: 10610 });
@@ -2805,6 +2925,7 @@ function render() {
   // DOM要素ではなく論理的な位置で覚えているので、作り直した直後にそれをこの新しい
   // 要素へ再度貼り付け直してもらう。
   reapplyActiveHighlights(table);
+  reapplyEffectPickerHighlights(table);
   // ユーザー要望「収穫と種まきの置き直し先を忘れないようにハイライトしてほしい」。
   // pendingPlacementLocationが選択の対象候補（activeEffectPicker）とは別に、
   // PLACE_CARDが完了する（main.jsのclearEffectUiHighlightsが呼ばれる）まで
@@ -2831,6 +2952,11 @@ function render() {
   updateContactApprovalModal();
   checkContactAttackerResolution();
   checkForVictory();
+  // ユーザー報告「『いつでも使える』の予約が、ゲート侵攻以外の処理中は解除されず
+  // 使えてしまう」の修正。個々の「処理が終わった」タイミングを全部拾うのではなく、
+  // render()のたびに「もう処理中でなくなったか」を判定する（他の再適用系処理と
+  // 同じ設計）。
+  checkAnytimeHandEffectReservation();
   // ユーザー要望「効果自動処理がオンの時はフェイズも自動で流れるようにしよう」。
   // render()のたびに「今のフェイズでもう次へ進めるか」を判定する（他の再適用系処理
   // ・reapplyActiveHighlights等と同じ「呼び出し元がrender()の末尾で毎回呼ぶ」設計）。
@@ -4466,8 +4592,11 @@ async function onDragEnd(e) {
     // 既存パターンと同じ考え方）。エターナル/ファーストカードは②のクリック方式を
     // 使うためここでは対象外（is-usable-while-lockedの光る演出と同じ判定基準を流用）。
     // ユーザー要望「スリカエ（『いつでも使える』手札効果）はハンドフェイズ以外でも
-    // ドラッグで発動できるようにしてほしい。ただしゲート侵攻処理中は不可、その間に
+    // ドラッグで発動できるようにしてほしい。ただし効果の処理中は不可、その間に
     // ドラッグしたら予約扱いにして、使えるタイミングになったら確認モーダルを出す」。
+    // ユーザー報告により、この「処理中」はゲート侵攻処理だけでなく、他の効果の
+    // 対象選択待ちや手札効果の解決中も含む（isAnyEffectProcessingBusy参照、
+    // docs/rulebook.md「いつでも使える」の定義通り）。
     if (
       kind === "card" &&
       cardSourceLocation?.zone === "hand" &&
@@ -4476,16 +4605,16 @@ async function onDragEnd(e) {
     ) {
       const draggedToken = getState().tokens.find((t) => t.id === tokenId);
       const isUsableAnytime = draggedToken && isHandEffectUsableAnytime(draggedToken.cardId);
-      const gateInvasionBusy = isGateInvasionPending() || isGateInvasionQueueActive();
-      if (isUsableAnytime && gateInvasionBusy) {
-        // 予約: 今は解決できない（ゲート侵攻処理中）ので、盤面には何も反映せず
+      const effectProcessingBusy = isAnyEffectProcessingBusy();
+      if (isUsableAnytime && effectProcessingBusy) {
+        // 予約: 今は解決できない（何らかの効果の処理中）ので、盤面には何も反映せず
         // （手札からも減らさない）覚えておくだけにする。処理が終わったタイミングで
         // 改めて「使用しますか？」の確認モーダルを出す（reserveSleightOfHandUse参照）。
         reserveAnytimeHandEffectUse(draggedToken.cardId, draggedToken.id, cardSourceLocation.player);
         render();
         return;
       }
-      if (draggedToken && (isHandPhaseActive() || (isUsableAnytime && !gateInvasionBusy))) {
+      if (draggedToken && (isHandPhaseActive() || (isUsableAnytime && !effectProcessingBusy))) {
         if (
           !draggedToken.cardId?.startsWith("eternal-") &&
           !draggedToken.cardId?.startsWith("first-") &&
