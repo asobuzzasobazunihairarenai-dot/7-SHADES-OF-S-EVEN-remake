@@ -370,9 +370,15 @@ function buildPlayerZone(side, player, isSelf) {
   // bottom位置に座席B/C/Dが来ることがあるため、player.toLowerCase()ではなくsideから
   // 変数名を組み立てる必要がある）。
   const HAND_VAR_LETTER = { bottom: "a", left: "b", top: "c", right: "d" };
-  const baseSize = parseFloat(
-    getComputedStyle(document.documentElement).getPropertyValue(`--hand-${HAND_VAR_LETTER[side]}-size`)
-  );
+  // ユーザー要望「管理者モードにスマホ用の調整項目を追加、自分の手札のサイズも」。
+  // --hand-a-sizeはCSSのvar()フォールバックチェーンではなくここでJSが直接読んで
+  // インラインwidth/heightに反映する実装のため、スマホ専用の上書きもJS側で
+  // 「スマホなら-phone値を優先、未設定なら通常値」という同じ考え方で判定する。
+  const rootStyle = getComputedStyle(document.documentElement);
+  const phoneOverrideRaw = document.body.classList.contains("is-phone-device")
+    ? rootStyle.getPropertyValue(`--hand-${HAND_VAR_LETTER[side]}-size-phone`).trim()
+    : "";
+  const baseSize = parseFloat(phoneOverrideRaw || rootStyle.getPropertyValue(`--hand-${HAND_VAR_LETTER[side]}-size`));
   const scale = Math.max(handTokens.length, 2) / 3;
   const sizeRem = (Number.isNaN(baseSize) ? 10 : baseSize) * scale;
   if (orientation === "horizontal") handEl.style.width = `${sizeRem}rem`;

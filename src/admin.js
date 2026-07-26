@@ -158,6 +158,7 @@ function renderAdminOnlySectionContent(content) {
 // `category`もこの新しいキーに合わせて振り直し済み）。
 const CATEGORIES = [
   { key: "tablet", label: "📱 タブレット" },
+  { key: "phone", label: "📱 スマホ" },
   { key: "position-board", label: "📐 位置合わせ：盤面・カメラ・山" },
   { key: "position-self", label: "📐 位置合わせ：自分のステータス・手札" },
   { key: "position-players", label: "📐 位置合わせ：相手プレイヤー表示" },
@@ -755,6 +756,46 @@ const GROUPS = [
       { key: "--self-status-icon-online-size-touch", label: "オンラインアイコン サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 3.2 },
       { key: "--hand-a-pos-touch-x", label: "自分の手札 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--hand-a-pos-touch-y", label: "自分の手札 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 2.6 },
+    ],
+  },
+  {
+    // ユーザー要望「管理者モードにスマホ用の調整項目を追加してください。調整したいのは
+    // 画面右上のヘルプ、金額、オプション、ターンラウンド数、の位置サイズ」。上のタブレット
+    // 専用グループと同じ考え方だが、body.is-phone-device（device-detect.js、タッチ端末の
+    // 中でも画面が小さい方）だけに効く。フォールバックチェーンはスマホ専用値→タブレット
+    // 専用値（存在すれば）→PC値→決め打ちの順（style.css側のvar()参照）。
+    title: "📱 スマホ専用の位置・サイズ調整（PC・タブレットには影響しません）",
+    category: "phone",
+    controls: [
+      { key: "--icon-pos-help-phone-x", label: "ヘルプ 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-help-phone-y", label: "ヘルプ 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-size-help-phone", label: "ヘルプ サイズ（スマホ）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--currency-display-pos-phone-x", label: "通貨表示 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--currency-display-pos-phone-y", label: "通貨表示 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--currency-display-scale-phone", label: "通貨表示 サイズ倍率（スマホ）", unit: "", min: 0.3, max: 2.5, step: 0.05, default: 1 },
+      { key: "--icon-pos-options-phone-x", label: "オプション 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-pos-options-phone-y", label: "オプション 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--icon-size-options-phone", label: "オプション サイズ（スマホ）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--turn-round-counter-top-phone", label: "ターン/ラウンド Y位置（スマホ）", unit: "rem", min: 0, max: 20, step: 0.1, default: 3.1 },
+      { key: "--turn-round-counter-right-phone", label: "ターン/ラウンド X位置（スマホ）", unit: "rem", min: 0, max: 30, step: 0.1, default: 1.6 },
+      { key: "--turn-round-counter-font-size-phone", label: "ターン/ラウンド 文字サイズ（スマホ）", unit: "rem", min: 0.4, max: 3, step: 0.05, default: 0.65 },
+    ],
+  },
+  {
+    // ユーザー要望「自分の手札については全体を回転させれるようにもしてください」。
+    // 既存のrotateX（傾き角度、タブレット専用グループ参照）とは別軸で、盤面に対して
+    // 平面内で回転させるZ軸のrotate()を新規追加した（PC/タブレットにはこの軸自体が
+    // 無いため、スマホ専用の新しい調整項目になる）。サイズ(--hand-a-size-phone)は
+    // main.jsのbuildPlayerZoneがgetComputedStyleで直接読むJS実装のため、CSSのvar()
+    // フォールバックチェーンではなくJS側で「スマホなら-phone値、無ければ通常値」を
+    // 判定している。
+    title: "📱 スマホ専用：自分の手札の位置・サイズ・回転",
+    category: "phone",
+    controls: [
+      { key: "--hand-a-pos-phone-x", label: "自分の手札 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--hand-a-pos-phone-y", label: "自分の手札 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 2.6 },
+      { key: "--hand-a-size-phone", label: "自分の手札 サイズ（スマホ）", unit: "rem", min: 4, max: 30, step: 0.5, default: 17 },
+      { key: "--hand-a-rotate-z-phone", label: "自分の手札 回転（スマホ、平面内での回転）", unit: "deg", min: -180, max: 180, step: 1, default: 0 },
     ],
   },
   {

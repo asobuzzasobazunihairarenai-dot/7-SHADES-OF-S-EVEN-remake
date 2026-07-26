@@ -408,6 +408,21 @@ body.is-touch-device .zone-bottom .hand-area {
     translate(var(--hand-a-pos-touch-x, var(--hand-a-pos-x)), var(--hand-a-pos-touch-y, var(--hand-a-pos-y)))
     rotateX(var(--hand-a-rotate-x-touch, -40deg)) translateZ(var(--hand-a-translate-z-touch, 2.4rem));
 }
+/* ユーザー要望「管理者モードにスマホ用の調整項目を追加。自分の手札については全体を
+   回転させれるようにもしてください」。位置はタブレット専用値→PC値のチェーンをさらに
+   上書きし、回転はrotate()（Z軸、盤面に対して平面内での回転）を新規に追加する
+   （既存のrotateXは「傾き角度」で別軸のため、両方同時に効かせられる）。サイズ
+   （--hand-a-size-phone）はJS側（main.jsのbuildPlayerZone）で読んでいるためここには
+   変数が出てこない。 */
+body.is-phone-device .zone-bottom .hand-area {
+  transform: translate(-50%, -50%)
+    translate(
+      var(--hand-a-pos-phone-x, var(--hand-a-pos-touch-x, var(--hand-a-pos-x))),
+      var(--hand-a-pos-phone-y, var(--hand-a-pos-touch-y, var(--hand-a-pos-y)))
+    )
+    rotate(var(--hand-a-rotate-z-phone, 0deg))
+    rotateX(var(--hand-a-rotate-x-touch, -40deg)) translateZ(var(--hand-a-translate-z-touch, 2.4rem));
+}
 /* ユーザー報告「タブレットで手札が高速に点滅する」への対応（未検証・実機のGPUでしか
    起きない現象のため、この環境では再現確認できていない）。手札のクリッピング対策
    （applyNormalFit）でタブレット等の縦幅が狭い画面では自動フィットのscaleが以前より
@@ -1476,6 +1491,12 @@ body.is-touch-device #end-turn-button .icon-action-button-icon-wrap {
 body.is-touch-device #options-menu-button .icon-action-button-icon-wrap {
   width: var(--icon-size-options-touch, var(--icon-size-options, 2.6rem));
   height: var(--icon-size-options-touch, var(--icon-size-options, 2.6rem));
+}
+/* ユーザー要望「管理者モードにスマホ用の調整項目を追加」。スマホ専用値→タブレット専用値
+   →PC値→決め打ちの順（上のタブレット用ルールより後に置くことで優先させる）。 */
+body.is-phone-device #options-menu-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-options-phone, var(--icon-size-options-touch, var(--icon-size-options, 2.6rem)));
+  height: var(--icon-size-options-phone, var(--icon-size-options-touch, var(--icon-size-options, 2.6rem)));
 }
 /* ホバーで簡易説明（phase-guide-tooltip、フェイズ案内板・優先権譲渡と共用）を表示する。 */
 .icon-action-button:hover .phase-guide-tooltip {
@@ -2966,6 +2987,13 @@ body.spotlight-mode #spotlight-overlay {
   pointer-events: none;
   display: none;
 }
+/* ユーザー要望「管理者モードにスマホ用の調整項目を追加」。タブレット専用の上書き自体が
+   元々無かったため、スマホ専用値→PC値→決め打ちの2段フォールバックになる。 */
+body.is-phone-device #turn-round-counter {
+  top: var(--turn-round-counter-top-phone, var(--turn-round-counter-top, 3.1rem));
+  right: var(--turn-round-counter-right-phone, var(--turn-round-counter-right, 1.6rem));
+  font-size: var(--turn-round-counter-font-size-phone, var(--turn-round-counter-font-size, 0.65rem));
+}
 
 /* 「⚙ オプション」ボタンとそのドロップダウン（管理者モードの呼び出し口をここに統合した）。
    山札一覧・セットアップと同じ右上の並びに、その下へ積む形で配置する。 */
@@ -3000,6 +3028,12 @@ body.is-touch-device #options-menu-button {
   transform: translate(
     var(--icon-pos-options-touch-x, var(--icon-pos-options-x, 0rem)),
     var(--icon-pos-options-touch-y, var(--icon-pos-options-y, 0rem))
+  );
+}
+body.is-phone-device #options-menu-button {
+  transform: translate(
+    var(--icon-pos-options-phone-x, var(--icon-pos-options-touch-x, var(--icon-pos-options-x, 0rem))),
+    var(--icon-pos-options-phone-y, var(--icon-pos-options-touch-y, var(--icon-pos-options-y, 0rem)))
   );
 }
 /* ユーザー要望により、オプションボタンだけキャプション文字と丸い縁取りを非表示にする
@@ -3050,6 +3084,11 @@ body.is-touch-device #options-menu-button {
   z-index: 900;
   transform: translate(var(--icon-pos-help-x, 0rem), var(--icon-pos-help-y, 0rem));
 }
+/* ユーザー要望「管理者モードにスマホ用の調整項目を追加」。ヘルプボタンはタブレット専用の
+   上書き自体が元々無かったため、スマホ専用値→PC値→決め打ちの2段フォールバックになる。 */
+body.is-phone-device #help-button {
+  transform: translate(var(--icon-pos-help-phone-x, var(--icon-pos-help-x, 0rem)), var(--icon-pos-help-phone-y, var(--icon-pos-help-y, 0rem)));
+}
 #help-button .icon-action-button-caption {
   display: none;
 }
@@ -3059,6 +3098,10 @@ body.is-touch-device #options-menu-button {
   background: none;
   border: none;
   box-shadow: none;
+}
+body.is-phone-device #help-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-help-phone, var(--icon-size-help, 2.6rem));
+  height: var(--icon-size-help-phone, var(--icon-size-help, 2.6rem));
 }
 #help-button:hover .icon-action-button-icon-wrap {
   background: none;
@@ -3087,6 +3130,14 @@ body.is-touch-device #options-menu-button {
   font-weight: bold;
   color: #fde68a;
   transform: translate(var(--currency-display-pos-x, 0rem), var(--currency-display-pos-y, 0rem));
+}
+/* ユーザー要望「管理者モードにスマホ用の調整項目を追加」。通貨表示はアイコン画像・文字が
+   別々のサイズ指定のため、個別に変数を増やすのではなくバッジ全体をscale()で拡大縮小する
+   （ファイル冒頭のGROUPSコメント「scaleは基準サイズを100%とした拡大率」と同じ考え方）。
+   位置のtranslateと同じtransformプロパティに追記するだけなので、位置調整とも共存できる。 */
+body.is-phone-device #currency-display {
+  transform: translate(var(--currency-display-pos-phone-x, var(--currency-display-pos-x, 0rem)), var(--currency-display-pos-phone-y, var(--currency-display-pos-y, 0rem)))
+    scale(var(--currency-display-scale-phone, 1));
 }
 #currency-display-icon {
   width: 1.2rem;
