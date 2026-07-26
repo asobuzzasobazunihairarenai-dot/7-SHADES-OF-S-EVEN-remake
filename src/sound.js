@@ -163,8 +163,10 @@ export function initGameBgmAutoStart() {
 }
 
 // マスター音量（0〜1）。オプションメニューの「基本設定」から調整できる（効果音のみ、
-// BGMはmasterBgmVolume参照）。
-let masterVolume = 0.8;
+// BGMはmasterBgmVolume参照）。ユーザー要望「BGMと効果音の初期音量を50%にしてほしい」
+// への対応でデフォルトを0.5にした（効果音は毎回new Audio()で鳴らす時に参照するため、
+// この値を変えるだけで次に鳴る音から反映される）。
+let masterVolume = 0.5;
 
 export function getSoundVolume() {
   return masterVolume;
@@ -180,14 +182,39 @@ export function setSoundVolume(next) {
 // （各playXBgm()参照）。管理者モードの「効果音の音量（個別）」にある4つの個別BGM
 // スライダー（--sound-volume-*-bgm）は、このマスター値に対する相対的な微調整として
 // そのまま残す（効果音の個別スライダーと同じ「マスター×個別」の二段構え）。
-let masterBgmVolume = 0.8;
+// デフォルトはユーザー要望により0.5（初期音量50%）。
+let masterBgmVolume = 0.5;
 
 export function getBgmVolume() {
   return masterBgmVolume;
 }
 
+// ユーザー報告「基本設定でBGM音量を操作してもBGMに変化がありません」の原因: BGMは
+// オープニング/ゲーム中/待機中それぞれ使い回しの単一Audioインスタンス（openingBgmAudio
+// 等）を持ち、.volumeは各playXBgm()を"呼んだ瞬間"にしか設定していなかった。効果音
+// （playSound、毎回new Audio()を使い捨てる方式）と違い、既に再生中のBGMはスライダーを
+// 動かしても音量がそのまま変わらなかった。setBgmVolume自体で、今まさに再生中の
+// 全BGMインスタンスの.volumeをその場で更新するようにして解決する。
 export function setBgmVolume(next) {
   masterBgmVolume = Math.min(1, Math.max(0, next));
+  applyLiveBgmVolume();
+}
+
+// 現在再生中（生成済み）の各BGM Audioインスタンスへ、最新のmasterBgmVolume×個別音量を
+// 即座に反映する。フェードアウト中（bgmFadeIntervalId等が動いている間）は、フェードの
+// 方が.volumeを継続的に上書きするため、ここでの変更はフェードに飲まれるが実害は無い
+// （フェード終了＝停止するだけなので、フェード中に音量を変えたいという要求自体が
+// 稀なケース）。
+function applyLiveBgmVolume() {
+  if (openingBgmAudio && !openingBgmAudio.paused) {
+    openingBgmAudio.volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-opening-bgm")));
+  }
+  if (gameBgmAudio && !gameBgmAudio.paused) {
+    gameBgmAudio.volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-game-bgm")));
+  }
+  if (waitingBgmAudio && !waitingBgmAudio.paused) {
+    waitingBgmAudio.volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-waiting-bgm")));
+  }
 }
 
 function getPerSoundVolume(cssVar) {

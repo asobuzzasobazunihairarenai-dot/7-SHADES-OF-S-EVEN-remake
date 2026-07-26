@@ -48,7 +48,12 @@ import { initCurrencyDisplay, refreshCurrencyDisplay } from "./currency-display.
 import { initShop, openShopPanel } from "./shop.js";
 import { initGameSetup, previewStartPlayerModal } from "./game-setup.js";
 import { initOptionsMenu } from "./options-menu.js";
-import { runGateInvasionsIfNeeded, registerEternalAnimHelpers, registerGateInvasionStealHelper } from "./gate-invasion.js";
+import {
+  runGateInvasionsIfNeeded,
+  registerEternalAnimHelpers,
+  registerGateInvasionStealHelper,
+  hasAnyGateInvasionCandidate,
+} from "./gate-invasion.js";
 import { announceHandPickups, announceCardLocked, announceDrawCount } from "./hand-announcer.js";
 import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking } from "./victory.js";
@@ -1264,11 +1269,11 @@ async function pickArrivalOptionForEffect(cardId, optionsWithUsability) {
 // ザ・ギャンブル/試練の儀式専用: 色を宣言する（複数選択）モーダル。requirement:
 // {minCount}なら「N色以上」（Nより多く選んでもよい）、{exactCount}なら「ちょうどN色」。
 // COLORS（７色、白黒無色・虹は対象外）から選ばせ、確定ボタンは条件を満たすまで無効。
-// ×でキャンセルするとnullを返す（呼び出し元は効果全体を安全に中断する）。
-// ユーザー報告「画面の関係のないところをクリックしたらモーダルが消えちゃいました」
-// への対応: 色宣言は必須の作業（既にコストを払って効果を発動済みの状態）のため、
-// backdropクリックでは何も起きないようにする（誤ってキャンセルされてしまうのを防ぐ、
-// ×ボタンだけが明示的なキャンセル手段として残る）。
+// ユーザー報告「画面の関係のないところをクリックしたらモーダルが消えちゃいました」＋
+// 「カード効果は原則キャンセルできません。✕ボタンは不要です」への対応: 色宣言は必須の
+// 作業（既にコストを払って効果を発動済みの状態）のため、キャンセルする手段を一切
+// 設けない（backdropクリック・✕ボタン共に無し）。「宣言する」ボタンを押すまで
+// 必ずこのモーダルに留まる。
 const COLOR_LABEL_JA = { red: "赤", orange: "橙", yellow: "黄", green: "緑", blue: "青", pink: "桃", purple: "紫" };
 function declareColorsForEffect(requirement) {
   return new Promise((resolve) => {
@@ -1353,7 +1358,6 @@ function declareColorsForEffect(requirement) {
     }
     updateConfirmState();
 
-    modal.appendChild(createModalCloseX(() => finish(null)));
     document.body.appendChild(peekHint);
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
@@ -1455,7 +1459,13 @@ function requestPlaceSourceChoiceForEffect() {
       modal.remove();
       resolve(result);
     }
-    const backdrop = createBackdrop(() => finish(null), { dim: true, zIndex: 10625 });
+    // ユーザー報告「山札も手札もグレーアウトして押すことができません」の原因: このbackdropの
+    // z-index（10625）が、流用しているモーダル本体（#sleight-ritual-modal、CSS側の
+    // 固定z-index:10621）より高かったため、backdropがモーダルの手前に重なってしまい、
+    // ボタンへのクリックが全てbackdrop側（＝キャンセル扱い）に奪われていた。
+    // requestOpponentHandRitualPick等、同じ#sleight-ritual-modalを使う他の箇所と同じ
+    // 10620（モーダル本体より低い値）に合わせて修正。
+    const backdrop = createBackdrop(() => finish(null), { dim: true, zIndex: 10620 });
     const modal = document.createElement("div");
     // 見た目は儀式的ピックモーダルと同じ紫系スタイルを流用する。
     modal.id = "sleight-ritual-modal";
@@ -1489,7 +1499,10 @@ async function runJointConstructionTask(player) {
   for (let i = 0; i < 2; i++) {
     const emptyCells = getEmptyCellCandidatesForEffect();
     if (emptyCells.length === 0) break; // 善処の原則: 置ける空きマスが無ければそこで終わる
-    const dest = await requestCellChoiceForEffect(emptyCells, `空いているマスを選択してください（${i + 1}/2）`);
+    // ユーザー指摘「『空いてるマス』ではなく『何もないマス』」——getEmptyCellCandidatesForEffect
+    // 自体は元々「カードも駒も無いマス」を正しく候補にしていたが、案内文の言葉遣いだけ
+    // 「空いている」になっていた。docs/cards.mdの表記に合わせて「何もない」に統一する。
+    const dest = await requestCellChoiceForEffect(emptyCells, `何もないマスを選択してください（${i + 1}/2）`);
     if (!dest) break;
     const source = await requestPlaceSourceChoiceForEffect();
     if (!source) break;
@@ -1544,6 +1557,15 @@ async function runPartyOptionTask(player) {
     const dest = moveCandidates.length === 1 ? moveCandidates[0] : await requestCellChoiceForEffect(moveCandidates, "移動先のマスを選択してください");
     if (!dest) return false;
     await moveAndSyncForEffect(piece.id, dest);
+    // ユーザー指摘「『移動』の定義にはオープンまで含まれる」（docs/rulebook.md「移動:
+    // 自分の駒を、現在のマスからカードの置かれた別のマスに置き、そのカードが裏向きなら、
+    // オープンする。」）。この選択肢は「移動先の到達効果は得ない」だけで「移動」自体は
+    // 通常通り行うため、到達効果（triggerCardArrival）は呼ばないまま、移動先が裏向き
+    // カードだった場合はオープンだけ行う。
+    const destToken = findTopCardAt(dest);
+    if (destToken && !destToken.faceUp) {
+      await flipToFaceUpForEffect(destToken.id);
+    }
     return true;
   }
   if (chosen.id === "pickup") {
@@ -2098,6 +2120,45 @@ async function drawCardsForEffect(player, count) {
   if (drawnTokenIds.length > 0) glowHandTokensBriefly(drawnTokenIds);
 }
 
+// 赤のキューブ フェニックス専用（PICKUP_DISCARD_SECOND_FROM_TOP、card-effect-engine.js
+// 参照）: 捨て場の一番上を1枚、playerの手札へ引く。drawCardsForEffectの「山札」版と
+// 同じ考え方だが、対象が「捨て場」（既に表向き公開済みの情報）である点だけが違う。
+// DRAW_FROM_PILEアクション自体はpile名を問わない汎用アクション（ローカルのstate.js・
+// サーバー側so7-apply-action.ts両方とも同じ）で、"revealedCardId"もdestinationが
+// hand zoneでありさえすれば返るため、"discard"を指定するだけでサーバー側の変更なしに
+// そのまま使える。戻り値は実際に引けたトークン（山が尽きていれば無いのでnull）。
+async function drawFromDiscardForEffect(player) {
+  const handBefore = new Set(
+    getState()
+      .tokens.filter((t) => t.location.zone === "hand" && t.location.player === player)
+      .map((t) => t.id)
+  );
+  if (isOnlineMode()) {
+    try {
+      const result = await drawFromPile("discard", { zone: "hand", player });
+      if (!result?.revealedCardId) return null;
+      await fetchAndHydrate(getCurrentGameId());
+    } catch (err) {
+      console.error("drawFromDiscardForEffect failed", err);
+      return null;
+    }
+  } else {
+    if (getState().piles.discard.length === 0) return null;
+    drawFromPile("discard", { zone: "hand", player });
+  }
+  render();
+  const newTokenId = findNewHandTokenIds(player, handBefore)[0];
+  return newTokenId ? getState().tokens.find((t) => t.id === newTokenId) : null;
+}
+
+// 青のキューブ セレスティア専用（DISCARD_RANDOM_FROM_QUALIFYING_OPPONENTS）:
+// targetPlayerの裏向きの手札から、儀式的に（見た目上ランダムに）1枚選ぶ。中身を
+// 手札に加えるのではなく捨てるための選出のため、requestOpponentHandRitualPick
+// そのままでよい（選んだ後どう処理するかは呼び出し元＝card-effect-engine.js側の責務）。
+function pickRandomFromOpponentHandForEffect(targetPlayer) {
+  return requestOpponentHandRitualPick(targetPlayer, `${getPlayerName(targetPlayer)}の手札（裏向き）から無作為に1枚選んでください`);
+}
+
 // ユーザー要望「スリカエ（『いつでも使える』手札効果）をゲート侵攻処理中に使おうとした
 // 場合は予約扱いにし、使えるタイミングになったら『使用しますか？』の確認モーダルを
 // 出す」への対応。予約は1件だけ保持する（同時に複数の『いつでも使える』カードを
@@ -2232,6 +2293,10 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         // 手札全捨て・フェイズ終了）が一切実行されないまま効果全体が静かに
         // 止まっていた（コンソールにエラーは出るがユーザー画面には何も表示されない）。
         publicDraw: publicDrawForEffect,
+        // 赤のキューブ フェニックス（PICKUP_DISCARD_SECOND_FROM_TOP）・青のキューブ
+        // セレスティア（DISCARD_RANDOM_FROM_QUALIFYING_OPPONENTS）用。
+        drawFromDiscard: drawFromDiscardForEffect,
+        pickRandomFromOpponentHand: pickRandomFromOpponentHandForEffect,
       }
     );
     clearEffectUiHighlights();
@@ -5306,6 +5371,58 @@ function updateSelfStatusOnlineWidget() {
 let endTurnButtonEl = null;
 let endTurnTooltipEl = null;
 
+// ユーザー要望「自動処理モードでないときに、ゲート侵攻成功条件を満たした状態で
+// ターン終了ボタンを押したら『ゲート侵攻処理を自動で行いますか？』的な確認モーダルを
+// 画面中央に出してほしい」。#contact-confirm-modal（接触の申込確認）と同じ画面中央・
+// キャンセル/OK2択のスタイルを流用する（backdrop/✕クリックは「いいえ」扱い——こちらは
+// 単に「自分で処理する」という有効な選択肢のため、キャンセル不可にする必要はない）。
+function showGateInvasionAutoProcessConfirmModal(onYes, onNo) {
+  const modal = document.createElement("div");
+  modal.id = "contact-confirm-modal";
+  let settled = false;
+  const close = (result) => {
+    if (settled) return;
+    settled = true;
+    backdrop.remove();
+    modal.remove();
+    if (result) onYes();
+    else onNo();
+  };
+  const backdrop = createBackdrop(() => close(false), { dim: true, zIndex: 10600 });
+
+  const title = document.createElement("div");
+  title.className = "contact-confirm-title";
+  title.textContent = "ゲート侵攻ボーナス";
+
+  const body = document.createElement("div");
+  body.className = "contact-confirm-body";
+  body.textContent = "相手ゲート侵攻ボーナスの発生条件を満たしています。自動で処理しますか？";
+
+  const btnRow = document.createElement("div");
+  btnRow.className = "contact-confirm-buttons";
+
+  const noBtn = document.createElement("button");
+  noBtn.className = "contact-confirm-cancel";
+  noBtn.type = "button";
+  noBtn.textContent = "いいえ（自分で処理する）";
+  noBtn.addEventListener("click", () => close(false));
+
+  const yesBtn = document.createElement("button");
+  yesBtn.className = "contact-confirm-ok";
+  yesBtn.type = "button";
+  yesBtn.textContent = "自動で処理する";
+  yesBtn.addEventListener("click", () => close(true));
+
+  btnRow.appendChild(noBtn);
+  btnRow.appendChild(yesBtn);
+  modal.appendChild(title);
+  modal.appendChild(body);
+  modal.appendChild(btnRow);
+  modal.appendChild(createModalCloseX(() => close(false)));
+  document.body.appendChild(backdrop);
+  document.body.appendChild(modal);
+}
+
 function buildEndTurnButton() {
   const btn = document.createElement("button");
   btn.id = "end-turn-button";
@@ -5343,6 +5460,25 @@ function buildEndTurnButton() {
       // （手番プレイヤー本人とは限らない。効果等で自分のターンでなくても相手ゲートに
       // 駒がいることはあり得るため、手番プレイヤーに限らず全参加プレイヤーを対象にする）
       // ボーナス処理の3つのポップアップが終わってから初めてnextTurn()が呼ばれる。
+      // ユーザー要望「自動処理モードでないときに、ゲート侵攻成功条件を満たした状態で
+      // ターン終了ボタンを押したら『自動で行いますか？』的な確認モーダルを出してほしい」。
+      // 自動処理モードOFF＝プレイヤーが自分でルールを適用する方針のため、条件を満たして
+      // いる場合だけ先に確認を挟む（満たしていなければ従来通り即座にnextTurn()）。
+      if (!isAutoProcessingEnabled() && hasAnyGateInvasionCandidate()) {
+        showGateInvasionAutoProcessConfirmModal(
+          () => {
+            runGateInvasionsIfNeeded(() => {
+              nextTurn();
+              render();
+            });
+          },
+          () => {
+            nextTurn();
+            render();
+          }
+        );
+        return;
+      }
       runGateInvasionsIfNeeded(() => {
         nextTurn();
         render();

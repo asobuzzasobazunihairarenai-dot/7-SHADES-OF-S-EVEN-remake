@@ -168,6 +168,14 @@ const PILOT_CARDS = [
   // 一度入れたがユーザー判断で元の生成文のままに戻した（2026-07-26）。
   // 意図的な⚠️表示。
   { cardId: "first-orange", kind: "handEffect", actual: "【追色１】２マス以内のカードを１枚あなたの手札に加える。" },
+  { cardId: "first-red", kind: "handEffect", actual: "【追色１】捨て場の１番上から２番目のカードをあなたの手札に加える。" },
+  { cardId: "first-yellow", kind: "handEffect", actual: "【追色１】２マス以内のカードを４枚までオープンしてもよい。" },
+  {
+    cardId: "first-blue",
+    kind: "handEffect",
+    actual: "【追色１】手札が２枚以上ある相手全員の手札から、無作為に１枚ずつ選び、それらを捨てる。",
+  },
+  { cardId: "eternal-red", kind: "handEffect", actual: "【追色１】任意の１マスのカードをすべて捨てる。" },
   {
     cardId: "yellow-sleight-of-hand",
     kind: "arrival",

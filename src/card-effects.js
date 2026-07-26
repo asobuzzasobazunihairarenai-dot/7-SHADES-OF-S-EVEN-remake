@@ -55,6 +55,11 @@ export const VERBS = {
   // どれも「上記の到達時の効果を得る」だけで完結する）とは別に、actions配列の中の
   // 1アクションとして「到達効果のactionsをそのまま呼ぶ」を表現できるようにした。
   INHERIT_ARRIVAL_ACTIONS: "inherit_arrival_actions",
+  // ここから続き43（ファースト/エターナルカードの手札効果を4枚追加）で新設した動詞。
+  PICKUP_DISCARD_SECOND_FROM_TOP: "pickup_discard_second_from_top", // 赤のキューブ フェニックス専用: 捨て場の上から2番目のカードを手札に加える
+  FLIP_UP_TO_N_WITHIN_RANGE: "flip_up_to_n_within_range", // 黄のキューブ サフラン専用: Nマス以内の裏向きカードを、M枚まで（してもよい）オープンする
+  DISCARD_RANDOM_FROM_QUALIFYING_OPPONENTS: "discard_random_from_qualifying_opponents", // 青のキューブ セレスティア専用: 手札が指定枚数以上ある相手全員から無作為に1枚ずつ捨てる
+  DISCARD_ALL_AT_CHOSEN_CELL: "discard_all_at_chosen_cell", // 紅蓮の火山 ワイナウエア専用: 任意の1マスのカードを全て捨てる
 };
 
 // 効果の主語（誰が対象か）。
@@ -451,6 +456,43 @@ export const CARD_EFFECTS = {
     },
   },
 
+  // 赤のキューブ フェニックス（赤、ファーストカード） 手札効果:
+  // 「【追色１】捨て場の１番上から２番目のカードをあなたの手札に加える。」
+  "first-red": {
+    handEffect: {
+      cost: { verb: VERBS.DISCARD_SAME_COLOR, count: 1 },
+      actions: [{ verb: VERBS.PICKUP_DISCARD_SECOND_FROM_TOP }],
+    },
+  },
+
+  // 黄のキューブ サフラン（黄、ファーストカード） 手札効果:
+  // 「【追色１】２マス以内のカードを４枚までオープンしてもよい。」
+  "first-yellow": {
+    handEffect: {
+      cost: { verb: VERBS.DISCARD_SAME_COLOR, count: 1 },
+      actions: [{ verb: VERBS.FLIP_UP_TO_N_WITHIN_RANGE, withinCells: 2, maxCount: 4 }],
+    },
+  },
+
+  // 青のキューブ セレスティア（青、ファーストカード） 手札効果:
+  // 「【追色１】手札が２枚以上ある相手全員の手札から、無作為に１枚ずつ選び、
+  // それらを捨てる。」
+  "first-blue": {
+    handEffect: {
+      cost: { verb: VERBS.DISCARD_SAME_COLOR, count: 1 },
+      actions: [{ verb: VERBS.DISCARD_RANDOM_FROM_QUALIFYING_OPPONENTS, minHandSize: 2 }],
+    },
+  },
+
+  // 紅蓮の火山 ワイナウエア（赤、エターナルカード） 手札効果:
+  // 「《紅色の雨》：【追色１】任意の１マスのカードをすべて捨てる。」
+  "eternal-red": {
+    handEffect: {
+      cost: { verb: VERBS.DISCARD_SAME_COLOR, count: 1 },
+      actions: [{ verb: VERBS.DISCARD_ALL_AT_CHOSEN_CELL }],
+    },
+  },
+
   // 選べる罠（青、通常カード） 到達効果: 「以下の効果のうち1つ得る。・あなたの手札を
   // 半分捨てる。・あなたのゲートに強制移動する。・あなたのロックしているカードを1枚
   // 捨てる。」なないろの欠片のhandEffectOptionsと同じ「複数選択肢から1つ」の考え方だが、
@@ -644,6 +686,14 @@ function renderAction(action, context) {
       return action.atOnce ? `${count}マス先に一気に移動する。` : `${count}マス移動する。`;
     case VERBS.DRAW:
       return `${renderTargetLabel(action.target)}${count}枚ドロー。`;
+    case VERBS.PICKUP_DISCARD_SECOND_FROM_TOP:
+      return "捨て場の１番上から２番目のカードをあなたの手札に加える。";
+    case VERBS.FLIP_UP_TO_N_WITHIN_RANGE:
+      return `${toFullWidthNumber(action.withinCells)}マス以内のカードを${toFullWidthNumber(action.maxCount)}枚までオープンしてもよい。`;
+    case VERBS.DISCARD_RANDOM_FROM_QUALIFYING_OPPONENTS:
+      return `手札が${toFullWidthNumber(action.minHandSize)}枚以上ある相手全員の手札から、無作為に１枚ずつ選び、それらを捨てる。`;
+    case VERBS.DISCARD_ALL_AT_CHOSEN_CELL:
+      return "任意の１マスのカードをすべて捨てる。";
     case VERBS.PICKUP_TO_HAND: {
       const zoneLabel = action.withinCells
         ? `${toFullWidthNumber(action.withinCells)}マス以内の`
@@ -991,4 +1041,20 @@ if (typeof process !== "undefined" && process.argv[1] && process.argv[1].endsWit
   console.log("[ザ・ギャンブル 手札効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["yellow-gamble"].handEffect));
   console.log("  実際: あなたは手札を１枚捨てる。上記の到達時の効果を得る。このフェイズを終了する。\n");
+
+  console.log("[赤のキューブ フェニックス 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["first-red"].handEffect));
+  console.log("  実際: 【追色１】捨て場の１番上から２番目のカードをあなたの手札に加える。\n");
+
+  console.log("[黄のキューブ サフラン 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["first-yellow"].handEffect));
+  console.log("  実際: 【追色１】２マス以内のカードを４枚までオープンしてもよい。\n");
+
+  console.log("[青のキューブ セレスティア 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["first-blue"].handEffect));
+  console.log("  実際: 【追色１】手札が２枚以上ある相手全員の手札から、無作為に１枚ずつ選び、それらを捨てる。\n");
+
+  console.log("[紅蓮の火山 ワイナウエア 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["eternal-red"].handEffect));
+  console.log("  実際: 【追色１】任意の１マスのカードをすべて捨てる。\n");
 }

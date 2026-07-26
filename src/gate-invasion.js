@@ -38,6 +38,15 @@ function findInvadedDefender(attacker) {
   return null;
 }
 
+// ユーザー要望「自動処理モードでないときに、ゲート侵攻成功条件を満たした状態で
+// ターン終了ボタンを押したら『ゲート侵攻処理を自動で行いますか？』的な確認モーダルを
+// 出してほしい」。main.js側が、実際にrunGateInvasionsIfNeededを呼ぶ前に「そもそも
+// 該当者がいるか」だけを判定するための軽量チェック（findInvadedDefenderの判定を
+// 全プレイヤー分繰り返すだけで、実際の処理は一切行わない）。
+export function hasAnyGateInvasionCandidate() {
+  return SEAT_ORDER.filter((p) => getState().activePlayers.includes(p)).some((attacker) => findInvadedDefender(attacker) !== null);
+}
+
 function showBonusStepModal(text, onOk) {
   const backdrop = document.createElement("div");
   backdrop.style.cssText = "position: fixed; inset: 0; z-index: 10001; background: rgba(0, 0, 0, 0.55);";

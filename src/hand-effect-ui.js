@@ -211,8 +211,10 @@ export function showCardReceivedModal(cardId, subtitle) {
   currentReceivedModalTimer = setTimeout(dismiss, RECEIVED_MODAL_DURATION_MS);
 }
 
-// optionsWithUsability: [{ id, label, usable, ... }]。選ばれたoptionを解決するPromiseを返す
-// （閉じるボタン・背景クリックではnullを解決する）。
+// optionsWithUsability: [{ id, label, usable, ... }]。選ばれたoptionを解決するPromiseを返す。
+// カード効果は原則キャンセルできない（ユーザー方針）ため、使える選択肢のどれかを
+// 選ぶまでこのモーダルから抜けられない（呼び出し元は必ず1つ以上usable:trueの選択肢が
+// ある状態でだけこの関数を呼ぶこと）。
 export function showHandEffectOptionPicker(cardId, optionsWithUsability) {
   return new Promise((resolve) => {
     const def = getCardDefinition(cardId);
@@ -286,13 +288,13 @@ export function showHandEffectOptionPicker(cardId, optionsWithUsability) {
     }
     modal.appendChild(list);
 
-    modal.appendChild(createModalCloseX(() => finish(null)));
+    // ユーザー報告「パーティの効果選択モーダルも、関係ないとこをクリックすると
+    // 消えちゃいます」＋「カード効果は原則キャンセルできません」。declareColorsForEffect
+    // と同じ理由でキャンセル手段を一切設けない（backdropクリック・✕ボタン共に無し）。
+    // backdropのクリックは「盤面を覗いている最中なら元に戻す」だけの役割に限定する
+    // （setPeeking(true)でない限り、backdropクリックは何も起きない）。
     backdrop.addEventListener("click", () => {
-      if (isPeeking) {
-        setPeeking(false);
-        return;
-      }
-      finish(null);
+      if (isPeeking) setPeeking(false);
     });
 
     document.body.appendChild(backdrop);

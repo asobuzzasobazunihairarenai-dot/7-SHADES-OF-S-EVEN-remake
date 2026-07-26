@@ -299,6 +299,28 @@ function getCellsWithCardWithinRange(fromLocation, range) {
   return candidates;
 }
 
+// 指定マスに重なっているカードのうち一番上（１番上の原則、main.jsのfindTopCardAtと
+// 同じ「トークン配列の末尾＝一番最後に動かされた＝一番上」という考え方）のトークンを
+// 返す。無ければnull。PICKUP_TO_HANDの過去のバグ（Array#findで一番下を拾っていた）と
+// 同じ間違いを繰り返さないよう、盤面マスの特定カードを1枚だけ取り出す箇所は必ずこれを使う。
+function findTopCardAtCell(row, col) {
+  const stack = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "cell" && t.location.row === row && t.location.col === col);
+  return stack.length > 0 ? stack[stack.length - 1] : null;
+}
+
+// 「Nマス以内の、一番上が裏向きのカードがあるマス」の候補（黄のキューブ サフラン専用）。
+function getCellsWithFaceDownCardWithinRange(fromLocation, range) {
+  const candidates = [];
+  for (const { dr, dc } of enumerateManhattanDisk(range)) {
+    const row = fromLocation.row + dr;
+    const col = fromLocation.col + dc;
+    if (!inBounds(row, col)) continue;
+    const top = findTopCardAtCell(row, col);
+    if (top && !top.faceUp) candidates.push({ zone: "cell", row, col });
+  }
+  return candidates;
+}
+
 // 「Nマス以内にいる相手の駒のマス」の候補（マスチェンジ等）。自分のいるマス自身は
 // 対象外（自分自身との入れ替えは意味を成さないため）。
 function getOpponentPieceCellsWithinRange(fromLocation, range, player) {
@@ -402,6 +424,81 @@ async function runAction(action, ctx, helpers) {
       }
       return true;
     }
+    case VERBS.PICKUP_DISCARD_SECOND_FROM_TOP: {
+      // 赤のキューブ フェニックス専用: 捨て場の１番上から２番目のカードを手札に加える。
+      // 捨て場は「一番上を引く」（DRAW_FROM_PILE）操作しか無く、途中のインデックスを
+      // 直接指定する手段が無い（サーバー側so7-apply-action.tsも同様）。新しいアクション
+      // 型を追加せず、既存の「一番上を引く」を2回使う（1回目＝退避、2回目＝本来の対象）
+      // →退避した分を捨て場へ戻す、という3ステップで実現する。
+      if (getState().piles.discard.length < 2) return false; // 善処の原則
+      const setAsideToken = await helpers.drawFromDiscard(ctx.player);
+      if (!setAsideToken) return false;
+      const targetToken = await helpers.drawFromDiscard(ctx.player);
+      if (!targetToken) {
+        // 2枚目が引けなかった場合（同時操作等でスタック枚数がズレた等）、退避した分を
+        // 捨て場へ戻して原状回復する。
+        await helpers.discardAndSync(setAsideToken.id);
+        return false;
+      }
+      await helpers.discardAndSync(setAsideToken.id);
+      return true;
+    }
+    case VERBS.FLIP_UP_TO_N_WITHIN_RANGE: {
+      // 黄のキューブ サフラン専用: あなたからwithinCellsマス以内の裏向きカードを、
+      // maxCountまで（0枚でもよい＝「してもよい」）オープンする。候補が尽きるか、
+      // maxCountに達するか、プレイヤーがこれ以上選ばない（pickLocationでnull）まで
+      // 繰り返す。
+      let flippedCount = 0;
+      for (let i = 0; i < action.maxCount; i++) {
+        const candidates = getCellsWithFaceDownCardWithinRange(ctx.pieceLocation, action.withinCells);
+        if (candidates.length === 0) break;
+        const chosen = await helpers.pickLocation(
+          candidates,
+          `オープンするマスを選択してください（任意、あと${action.maxCount - i}枚まで）`
+        );
+        if (!chosen) break; // 「してもよい」なので、これ以上選ばない＝正常終了
+        const token = findTopCardAtCell(chosen.row, chosen.col);
+        if (!token) break;
+        await helpers.flipCard(token.id);
+        flippedCount++;
+      }
+      return flippedCount > 0;
+    }
+    case VERBS.DISCARD_RANDOM_FROM_QUALIFYING_OPPONENTS: {
+      // 青のキューブ セレスティア専用: 手札がminHandSize枚以上ある相手全員から、
+      // 無作為に１枚ずつ選んで捨てる。「無作為に」は隠し情報（相手の手札の中身）が
+      // 絡むため、スリカエ・接触の強奪と同じ「儀式的ピック」（相手の裏向きの手札から
+      // 見た目上ランダムに選ぶ）で実現する（helpers.pickRandomFromOpponentHand）。
+      // 処理順の原則に沿ってctx.playerから時計回りに1人ずつ。
+      let hadEffect = false;
+      for (const p of rotatedActivePlayersFrom(ctx.player)) {
+        if (p === ctx.player) continue;
+        const handCount = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === p).length;
+        if (handCount < action.minHandSize) continue;
+        const picked = await helpers.pickRandomFromOpponentHand(p);
+        if (!picked) continue;
+        await helpers.discardAndSync(picked.id);
+        hadEffect = true;
+      }
+      return hadEffect;
+    }
+    case VERBS.DISCARD_ALL_AT_CHOSEN_CELL: {
+      // 紅蓮の火山 ワイナウエア専用: 任意の１マスの、そこにあるカード全て（スタック分
+      // 含め全部、表裏問わず）を捨てる。
+      const candidates = getAnyCellWithCardCandidates();
+      if (candidates.length === 0) return false;
+      const chosen =
+        candidates.length === 1 && !ctx.forcePrompt ? candidates[0] : await helpers.pickLocation(candidates, "カードをすべて捨てるマスを選択してください");
+      if (!chosen) return false;
+      const stack = getState().tokens.filter(
+        (t) => t.kind === "card" && t.location.zone === "cell" && t.location.row === chosen.row && t.location.col === chosen.col
+      );
+      if (stack.length === 0) return false;
+      for (const token of stack) {
+        await helpers.discardAndSync(token.id);
+      }
+      return true;
+    }
     case VERBS.PICKUP_TO_HAND: {
       // withinCells指定時（橙のキューブ ハーベスト等）は「Nマス以内」に絞る。未指定なら
       // 従来通り盤面全体（収穫と種まき等）。
@@ -413,13 +510,20 @@ async function runAction(action, ctx, helpers) {
           ? candidates[0]
           : await helpers.pickLocation(candidates, "手札に加えるカードのあるマスを選択してください");
       if (!chosen) return false;
-      const token = getState().tokens.find(
+      // ユーザー報告「収穫と種まきで場のカードを取るとき、そのマスがスタックされて
+      // いたら一番上ではなく上から2枚目のカードを取ってしまう」の原因: Array#find()は
+      // 配列内で最初に見つかった要素（＝一番古く積まれた、スタックの一番下）を返して
+      // しまっていた。main.jsのfindTopCardAt/getCardStackGroupsと同じ「トークン配列の
+      // 末尾＝一番最後に動かされた＝一番上」という１番上の原則に合わせ、該当マスの
+      // トークンを全て集めてから配列の最後（一番上）を選ぶよう修正した。
+      const stackAtCell = getState().tokens.filter(
         (t) =>
           t.kind === "card" &&
           t.location.zone === "cell" &&
           t.location.row === chosen.row &&
           t.location.col === chosen.col
       );
+      const token = stackAtCell[stackAtCell.length - 1];
       if (!token) return false;
       const wasFaceUp = token.faceUp; // 手札に入ると自動で表向きになるため、移動前の状態を保持しておく
       await helpers.moveAndSync(token.id, { zone: "hand", player: ctx.player });
