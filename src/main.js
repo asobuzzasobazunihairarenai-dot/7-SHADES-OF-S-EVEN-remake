@@ -2116,21 +2116,26 @@ function renderBoardTokens(table) {
     // 一度でも作り直せば正しく描けることは分かっているため、appendChild直後に
     // display一時トグルで強制的に作り直させ、初回描画を確定させる。
     if (token.kind === "piece" && document.body.classList.contains("diagnostic-flatten-3d")) {
-      // ハマりどころ: 最初はappendChild直後に同期的にdisplayをトグルしていたが、
-      // ユーザーから「やはり直っていない」との報告があった。同期的トグルだと、
-      // ブラウザ自身がこの要素を初めてペイントしようとする"前"に強制再描画をかけて
-      // しまっており、まだ何も壊れていない（＝直しようがない）タイミングで
-      // 空振りしていたと考えられる。ブラウザの最初の（失敗する）ペイント試行が
-      // 実際に起きた"後"に強制再描画をかける必要があるため、2フレーム分
-      // requestAnimationFrameで遅らせてから同じdisplayトグルを行うようにした
-      // （1フレームだと環境によってはまだ最初のペイント前のことがあるため、
-      // 念のため2フレーム待つ）。
+      // ハマりどころ: 2回試した「同じ要素のdisplayを一瞬トグルして強制再描画」
+      // （同期的トグル→ダメ、2フレーム遅延トグル→それでも直らないとの報告）は
+      // どちらも効かなかった。「触る（掴んで動かす）と直る」の実体は、render()が
+      // 状態変化のたびにDOMを"作り直す"こと——つまり同じ要素へのdisplayトグル程度
+      // ではなく、要素そのものを一度捨てて真新しいDOM要素に置き換えることで
+      // 初めて直っている。displayトグルは同じ要素・同じコンポジットレイヤーの
+      // 使い回しのままなので、レイヤー確立自体が壊れている場合は効果が無かったと
+      // 考えられる。実際に「作り直す」動作を再現するため、appendChildした直後の
+      // 要素を（数フレーム後に）丸ごと破棄し、buildCubePieceで新規に組み立て直した
+      // 要素へ差し替える。
+      const classNameSnapshot = el.className;
+      const styleCssTextSnapshot = el.style.cssText;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          if (!el.isConnected) return;
-          el.style.display = "none";
-          void el.offsetHeight;
-          el.style.display = "";
+          if (!el.isConnected || !el.parentNode) return;
+          const replacement = buildCubePiece(token.color, token.player);
+          replacement.dataset.tokenId = token.id;
+          replacement.className = classNameSnapshot;
+          replacement.style.cssText = styleCssTextSnapshot;
+          el.parentNode.replaceChild(replacement, el);
         });
       });
     }

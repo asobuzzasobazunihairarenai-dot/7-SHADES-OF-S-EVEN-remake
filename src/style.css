@@ -6968,9 +6968,9 @@ body.is-online-mode #quick-start-bar {
   --option-area-pos-phone-y: 0rem;
   --option-area-scale-phone: 1.65;
   /* オプションアイコン単体の追加調整（続き12参照）。 */
-  --icon-pos-options-phone-x: -1rem;
-  --icon-pos-options-phone-y: 0rem;
-  --icon-size-options-phone: 4.5rem;
+  --icon-pos-options-phone-x: 0.7rem;
+  --icon-pos-options-phone-y: -0.7rem;
+  --icon-size-options-phone: 3.9rem;
   /* 自分の手札の位置・サイズ・回転（スマホ・2D表示時限定）も、上記と同じ
      ユーザー調整済みの値を反映した。 */
   --hand-a-pos-phone-x: -28.4rem;

@@ -1625,53 +1625,12 @@ const TOGGLE_SECTIONS = [
   },
 ];
 
-// ユーザー報告「調整しても調整してもおかしくなります」への対応。原因: スライダーの値は
-// document.documentElement.style.setProperty()でその場に効かせているだけで、どこにも
-// 永続化していなかった。ページを再読み込みする（スマホでアプリを切り替えて戻る・
-// バックグラウンドでタブが破棄される等、PCよりずっと頻繁に起こる）たびに調整が全て
-// 消え、style.cssに焼き込まれた（開発者へ伝えた時点の）古いデフォルト値まで巻き戻って
-// しまい、「直したはずなのにまた元に戻る」ように見えていた。tablet-2d-mode.js・
-// device-detect.jsと同じ「この端末固有の見た目調整はlocalStorageへ」という方針に
-// 揃え、スライダーの値をこの端末に保存し、次回開いた時も自動で復元されるようにする
-// （アカウントには紐づけない。他の端末にまで同じ調整を引き継ぐべきものではないため）。
-const ADMIN_VARS_STORAGE_KEY = "so7-admin-css-vars";
-
-function loadSavedAdminVars() {
-  try {
-    const raw = localStorage.getItem(ADMIN_VARS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch (err) {
-    return {};
-  }
-}
-
-function saveAdminVar(key, valueWithUnit) {
-  try {
-    const saved = loadSavedAdminVars();
-    saved[key] = valueWithUnit;
-    localStorage.setItem(ADMIN_VARS_STORAGE_KEY, JSON.stringify(saved));
-  } catch (err) {
-    // 保存できなくても（プライベートブラウズ等）その場の調整自体は今まで通り効く
-  }
-}
-
-function clearSavedAdminVar(key) {
-  try {
-    const saved = loadSavedAdminVars();
-    delete saved[key];
-    localStorage.setItem(ADMIN_VARS_STORAGE_KEY, JSON.stringify(saved));
-  } catch (err) {
-    // ignore
-  }
-}
-
-// このモジュールが読み込まれた時点（できるだけ早いタイミング）で、保存済みの調整を
-// 復元しておく。他のモジュールが初期レイアウトのためにgetComputedStyleを読む前に
-// 反映しておきたいため、GROUPS等の定義を待たずファイル読み込み時点で即実行する。
-for (const [key, value] of Object.entries(loadSavedAdminVars())) {
-  document.documentElement.style.setProperty(key, value);
-}
-
+// ユーザー判断により、localStorageへの永続化は撤回した（一時導入していたが
+// 「管理者モードは一般ユーザーが触れない領域なので端末保存は不要。大元のデータ
+// （style.css）を書き換えた時にそれが優先されず、端末側の古い値を再現してしまう
+// 方が心配」との指摘を受けたため）。管理者モードでの調整はこのセッション内だけ
+// その場に効き、確定した値は従来通り「出力をコピー」で開発者に伝えてstyle.css側の
+// :root（大元のデータ）へ反映してもらう運用に戻す。
 function currentValue(key, fallback) {
   const inline = document.documentElement.style.getPropertyValue(key).trim();
   if (inline) return parseFloat(inline);
@@ -1681,9 +1640,7 @@ function currentValue(key, fallback) {
 }
 
 function setVar(key, value, unit) {
-  const full = `${value}${unit}`;
-  document.documentElement.style.setProperty(key, full);
-  saveAdminVar(key, full);
+  document.documentElement.style.setProperty(key, `${value}${unit}`);
 }
 
 // 項目が増えて縦に長くなりすぎないよう、各セクションを<details>で開閉できるようにする
@@ -1837,16 +1794,11 @@ function buildPanel(rebuildSlidersRef) {
   resetBtn.textContent = "リセット";
   resetBtn.style.cssText = "flex: 1; padding: 0.3rem; background: #334155; color: #fff; border: none; border-radius: 0.25rem; cursor: pointer;";
   resetBtn.addEventListener("click", () => {
-    // ハマりどころ: 以前はsetVar(c.key, c.default, ...)でJS側の初期値を書き込んで
-    // いたが、これだとlocalStorageへの保存(setVar参照)によって「リセット」を押した
-    // 時点のc.default値がこの端末に永久に固定されてしまい、後日style.css側の
-    // デフォルト値そのものを改善しても（フォールバックチェーンより常にlocalStorage
-    // の保存値が優先されるため）二度と反映されなくなる。「リセット」の本来の意図は
-    // 「調整前の状態（CSS本来のフォールバックチェーン）に戻す」ことなので、
-    // インライン上書きと保存済みの値を両方消し、cascadeへ委ねる形にした。
+    // 「リセット」の意図は「調整前の状態（CSS本来のフォールバックチェーン）に戻す」
+    // ことなので、JS側の初期値(c.default)を書き込むのではなく、インライン上書きを
+    // 消してcascade（style.css側の本来のデフォルト値）へ委ねる形にしている。
     for (const c of CONTROLS) {
       document.documentElement.style.removeProperty(c.key);
-      clearSavedAdminVar(c.key);
     }
     rebuildSlidersRef.current();
     updateExport();
