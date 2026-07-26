@@ -1041,18 +1041,26 @@ onRitualPickEndedEvents(({ targetPlayer }) => {
   closeRitualPickWatch();
 });
 
-// SWAP_RANDOM_HAND_CARD用（手品師の技）。相手からは上のリチュアル演出で無作為に
-// 1枚もらい、自分から渡すカードはユーザー確認済み「自分から相手に何を返すかは
-// 自分で選べる」通り、他の手札選択（追色コスト等）と同じrequestHandCardChoiceFor
-// Effectで選ばせる（フィルタ無し＝手札全体が対象）。どちらかで選択をキャンセル
-// （backdropクリック等）した場合は、まだ何も動かしていないためそのまま何もせず
-// 終わる（効果全体を安全にキャンセルできる）。
+// SWAP_RANDOM_HAND_CARD用（手品師の技）。docs/cards.mdの実際の順序は「相手の
+// 手札から無作為に1枚、あなたの手札に加える」→「あなたの手札から1枚、その相手の
+// 手札に加える」で、返すカードは"受け取った後"の自分の手札から選ぶ——つまり直前に
+// 奪ったカード自身も返却候補に含まれる。
+// ユーザー報告「直前に奪ったカードも返すカードとして選べるはずなのに、奪った
+// カードが手札に加わっていない状態で返すカードを選ばされる」への対応で、先に
+// theirCardを自分の手札へ実際に移してから（オンライン中はここでfetchAndHydrateが
+// 走り、盗んだカードの正体が自分のクライアントに正しく反映される）、返すカードを
+// 選ばせる順序に変更した。返却選択をキャンセル（backdropクリック等）した場合は、
+// 受け取りも巻き戻して効果全体を安全に中断できるようにする（以前の「まだ何も
+// 動かしていない」前提が崩れるため、この巻き戻しが必要になった）。
 async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
   const theirCard = await requestOpponentHandRitualPick(targetPlayer, `${getPlayerName(targetPlayer)}の手札（裏向き）から1枚選んでください`);
   if (!theirCard) return;
-  const myCard = await requestHandCardChoiceForEffect(player, "相手に渡すカードを手札から選択してください");
-  if (!myCard) return;
   await moveAndSyncForEffect(theirCard.id, { zone: "hand", player });
+  const myCard = await requestHandCardChoiceForEffect(player, "相手に渡すカードを手札から選択してください");
+  if (!myCard) {
+    await moveAndSyncForEffect(theirCard.id, { zone: "hand", player: targetPlayer });
+    return;
+  }
   await moveAndSyncForEffect(myCard.id, { zone: "hand", player: targetPlayer });
   playSound("cardPlace");
   render();

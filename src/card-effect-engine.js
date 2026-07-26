@@ -153,6 +153,13 @@ export function canPayHandEffectCost(cardId, cardTokenId, player) {
   });
 }
 
+// docs/rulebook.md「ファーストカード/エターナルカード: 他のカードの効果の対象に
+// ならない（奪われたり捨てることはできない）」。ロックされていても、選べる罠の
+// 「ロックしているカードを1枚捨てる」のような他カードの効果からは常に除外する。
+function isTargetableByOtherCardEffects(cardId) {
+  return !cardId?.startsWith("eternal-") && !cardId?.startsWith("first-");
+}
+
 // 選べる罠専用: arrivalOptionsの1つの選択肢が今選べるか（docs/cards.mdの善処の原則
 // 条件を満たすか）。requiresMinHandSize/requiresNotAtOwnGate/requiresHasLockedCardの
 // いずれかを満たさなければ選べない（指定の無い条件はチェックしない）。
@@ -166,8 +173,14 @@ function isArrivalOptionUsable(player, pieceLocation, option) {
     if (pieceLocation && pieceLocation.row === gate.row && pieceLocation.col === gate.col) return false;
   }
   if (option.requiresHasLockedCard) {
+    // ユーザー報告「ファーストカード1枚しかロックしていないのに『ロックしている
+    // カードを1枚捨てる』を選べてしまっている」。ファースト/エターナルカードは
+    // 他のカードの効果の対象にならないため、それらを除いた「捨てられるロック
+    // カード」の有無で判定する。
     const side = SEAT_TO_SIDE[player];
-    const hasLocked = getState().tokens.some((t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side);
+    const hasLocked = getState().tokens.some(
+      (t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side && isTargetableByOtherCardEffects(t.cardId)
+    );
     if (!hasLocked) return false;
   }
   return true;
@@ -614,8 +627,12 @@ async function runAction(action, ctx, helpers) {
     case VERBS.DISCARD_ONE_LOCKED_CARD: {
       // 選べる罠専用: 自分のロックしているカードから1枚選んで捨てる。lock_pair等と同じく
       // ロックスロットの形（{zone:"lock",side,index}）をそのままpickLocationの候補として使う。
+      // ファースト/エターナルカードは他のカードの効果の対象にならないため候補から除外する
+      // （docs/rulebook.md、isArrivalOptionUsableのrequiresHasLockedCard判定と揃える）。
       const side = SEAT_TO_SIDE[ctx.player];
-      const lockedTokens = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side);
+      const lockedTokens = getState().tokens.filter(
+        (t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side && isTargetableByOtherCardEffects(t.cardId)
+      );
       if (lockedTokens.length === 0) return false;
       const candidates = lockedTokens.map((t) => t.location);
       const dest = candidates.length === 1 ? candidates[0] : await helpers.pickLocation(candidates, "捨てるロックカードを選択してください");
