@@ -682,21 +682,20 @@ async function runAction(action, ctx, helpers) {
     }
     case VERBS.RITUAL_PLACE_MOVE_REPEAT: {
       // 試練の儀式専用: 隣接するマスへ山札から1枚表向きで置く→そこへ移動
-      // （到達効果は得ない、ctx.arrivedAtはセットしない）→置いたカードの色が宣言色
-      // なら繰り返す。無限ループの安全弁として最大回数を設ける（実際には盤面の広さ・
-      // 山札の残り枚数で自然に制限されるが、念のため）。
-      // ユーザー報告「色を３色宣言しただけで終わってしまっている」の原因: 合同建設・
-      // 増殖する樹々は実際の文言に明示的に「何もないマス」とあるためカードの無い
-      // マスに限定していたが、試練の儀式の実際の文言「あなたの隣に山札から１枚
-      // 表向きで置く。」にはその限定が無い（docs/cards.mdの「１番上の原則」の通り、
-      // 既にカードのあるマスにも上から重ねて置ける）。誤ってhasCardAtでも候補を
-      // 除外していたため、盤面がある程度埋まっている実戦ではほぼ常に候補0件になり、
-      // 色宣言の直後で効果が止まってしまっていた。駒は1マスにつき1つまで
-      // （docs/rulebook.md）なのでhasPieceAtの除外だけ残す。
-      const declaredColors = ctx.selections.declaredColors;
+      // （到達効果は得ない、ctx.arrivedAtはセットしない・置いたカードは手札にも
+      // 加えない＝盤面に置かれたままになる）→置いたカードが宣言色なら「また色を
+      // 宣言するところから」繰り返す。ユーザー補足:
+      // ・なないろの欠片は「すべての色」を兼ねるため、出た時点で常に宣言色扱い
+      //   （宣言した3色が何であっても関係なく続行する）。
+      // ・「繰り返す」は同じ宣言色のまま置き直すことではなく、毎回改めて3色を
+      //   宣言し直すこと。当たり続ける限り理論上いつまでも続けられる
+      //   （実際には山札の残り枚数・盤面の広さで自然に打ち止めになる）。
+      // 無限ループの安全弁の上限も、上記の「理論上いつまでも」を尊重して余裕を
+      // 持たせてある（実戦で現実的に到達し得ない回数）。
+      let declaredColors = ctx.selections.declaredColors;
       if (!declaredColors?.length) return false;
       let placedAny = false;
-      const MAX_ITERATIONS = 20;
+      const MAX_ITERATIONS = 300;
       for (let i = 0; i < MAX_ITERATIONS; i++) {
         const adjacentCandidateCells = enumerateManhattanRing(1)
           .map(({ dr, dc }) => ({ row: ctx.pieceLocation.row + dr, col: ctx.pieceLocation.col + dc }))
@@ -714,7 +713,12 @@ async function runAction(action, ctx, helpers) {
         await helpers.moveAndSync(ctx.pieceTokenId, dest);
         ctx.pieceLocation = { row: dest.row, col: dest.col };
         const placedColor = getCardDefinition(placedCardId)?.color;
-        if (!declaredColors.includes(placedColor)) break;
+        const isMatch = placedCardId === "rainbow-shard" || declaredColors.includes(placedColor);
+        if (!isMatch) break;
+        const redeclared = await helpers.declareColors({ exactCount: 3 });
+        if (!redeclared || redeclared.length === 0) break; // 善処の原則: 再宣言をキャンセルしたらそこで終わる
+        declaredColors = redeclared;
+        ctx.selections.declaredColors = declaredColors;
       }
       return placedAny;
     }
