@@ -35,6 +35,8 @@ import {
   isMovePhaseActive,
   markPhaseMoveActionTaken,
   setTurnAnnounceActive,
+  getCurrentPhase,
+  isCardLockable,
 } from "./phase-automation.js";
 import { initHelpButton } from "./help.js";
 import { getOptionArea } from "./option-area.js";
@@ -85,8 +87,8 @@ import { isLockAreaBarVisible, setLockAreaBarVisible } from "./lock-area-bar.js"
 import { isLockColorVisible } from "./lock-color.js";
 import { isArrivalEffectDisabled, isFlightAnimationDisabled } from "./motion-prefs.js";
 import { rectCenter, flyGhost } from "./ghost-flight.js";
-import { showCardArrivalModal } from "./card-arrival.js";
-import { showHandEffectUseModal, showHandEffectOptionPicker } from "./hand-effect-ui.js";
+import { showCardArrivalModal, hideCardArrivalModalImmediately } from "./card-arrival.js";
+import { showHandEffectUseModal, showHandEffectOptionPicker, showEffectReasonModal } from "./hand-effect-ui.js";
 import { initPlayerButtons } from "./player-buttons.js";
 import { initQuickStart } from "./quick-start.js";
 import { initPhaseGuide } from "./phase-guide.js";
@@ -413,7 +415,7 @@ function buildPlayerZone(side, player, isSelf) {
       // ユーザー要望「収穫と種まき等で獲得したカードを、手札の中で効果が終わるまで
       // 光らせてほしい」。render()はtable.innerHTML=""で毎回作り直されるため、DOM要素の
       // 参照ではなくtokenIdで状態を持ち、描画のたびにここで再適用する。
-      if (token.id === glowingEffectHandTokenId) cardEl.classList.add("card-effect-just-acquired-glow");
+      if (token.id === glowingEffectHandTokenId || glowingDrawnHandTokenIds.has(token.id)) cardEl.classList.add("card-effect-just-acquired-glow");
       // ユーザー要望「スリカエを所持しているときは常に手札のスリカエに対し特殊な
       // EFFECTでめだたせてください」。「いつでも使える」＝持っている間ずっと使用可能な
       // ことを伝える常設演出（is-anytime-usable-glow、style.css参照）。
@@ -904,11 +906,16 @@ async function swapPiecesForEffect(pieceTokenId, fromLocation, targetLocation) {
   render();
 }
 
-// 手品師の技専用。ユーザー要望「一応、儀式的に相手の手札が裏向きの状態のまま画面
-// 中央に拡大表示されてその中から選ぶ方式にしたい」への対応。docs/cards.mdの
-// 「無作為に」を満たす必要があるため、実際にどのカードが取られるかは表示"順"を
-// シャッフルすることで保証する——プレイヤーは裏向きのカードを見た目上選んでいるが、
-// 中身（＝どの位置に何があるか）は分からないため、実質的に無作為な選択になる。
+// 元々は手品師の技専用（ユーザー要望「一応、儀式的に相手の手札が裏向きの状態のまま
+// 画面中央に拡大表示されてその中から選ぶ方式にしたい」）だったが、respondToContact
+// （接触でカードを奪う時、ユーザー要望「スリカエの時同様、儀式的に裏向きの手札から
+// カードを奪うステップを入れてください」）からも呼ばれる汎用の関数になった。
+// targetPlayerは「相手」とは限らない——接触の場合はdefender自身の手札を、defender
+// 自身の画面でこの通り儀式的に見せて選ばせる（自分の手札なので隠し情報の覗き見には
+// ならない）。どちらの用途でも、ルール上「無作為に」を満たす必要があるため、実際に
+// どのカードが選ばれるかは表示"順"をシャッフルすることで保証する——プレイヤーは
+// 裏向きのカードを見た目上選んでいるが、中身（＝どの位置に何があるか）は分からない
+// ため、実質的に無作為な選択になる。
 function requestOpponentHandRitualPick(targetPlayer, hint) {
   return new Promise((resolve) => {
     const theirHand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === targetPlayer);
@@ -966,6 +973,16 @@ async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
   render();
 }
 
+// ユーザー要望「カウンターロックの到達効果について『あなたは１番少なくロックしている
+// ので１枚ドローします』みたいなモーダルを出してからドローしてください。ほかの効果も
+// プレイヤーが何が起きたのかわかるようになるべくモーダルで教えてあげてください」への
+// 対応。モーダルを一瞬見せてから続きの処理へ進めるよう、少し間を空けてから返す
+// （PHASE_SKIP_ADVANCE_DELAY_MSと同じ「読む時間を確保する」考え方）。
+async function announceEffectReasonForEffect(cardId, text) {
+  showEffectReasonModal(cardId, text);
+  await wait(1200);
+}
+
 // ユーザー報告「移動先候補のハイライトをクリックしても自動で移動しない」の原因調査で
 // 判明: この盤面は3D的な傾き（テーブル演出）を持つため、駒・カードのドラッグは
 // ネイティブのclickイベント（当たり判定がズレる。initDragHandlers直前のコメント参照）
@@ -984,6 +1001,22 @@ let activeEffectPicker = null; // { type: "cell", candidates, resolve } | { type
 // 「置き直す先のマスをハイライトして忘れないようにする」への対応。render()が
 // table.innerHTML=""で毎回作り直すため、DOM要素の参照ではなくtokenId/locationで
 // 状態を持ち、buildPlayerZone（手札）とrender()末尾（マス）でその都度再適用する。
+// ユーザー要望「ドローで得たカードは手札の中で数秒ハイライトしてください（これは
+// ほかのドローの時も共通です）」への対応で、単一のtokenIdではなく複数同時に光らせ
+// られるSetに拡張し、各トークンごとに固定時間（DRAW_GLOW_HIGHLIGHT_MS）で自動的に
+// 消えるようにした（効果全体の完了を待つ旧仕様のglowingEffectHandTokenIdとは別物）。
+const glowingDrawnHandTokenIds = new Set();
+const DRAW_GLOW_HIGHLIGHT_MS = 4000;
+function glowHandTokensBriefly(tokenIds) {
+  const ids = tokenIds.filter(Boolean);
+  if (ids.length === 0) return;
+  for (const id of ids) glowingDrawnHandTokenIds.add(id);
+  render();
+  setTimeout(() => {
+    for (const id of ids) glowingDrawnHandTokenIds.delete(id);
+    render();
+  }, DRAW_GLOW_HIGHLIGHT_MS);
+}
 let glowingEffectHandTokenId = null;
 let pendingPlacementLocation = null;
 // ユーザー要望「配置系効果は配置後ここに配置したよがわかるように配置場所をしっかり
@@ -1024,6 +1057,23 @@ document.addEventListener(
             } else {
               performPhaseContact(location);
             }
+          }
+          return;
+        }
+      }
+      // ユーザー要望「ロックフェイズでロックできるカードが光りますが、クリックで自動で
+      // ロックされるようにもしてください。ドロップでもロックできるのは継続で」。
+      // ハイライト（.phase-lock-highlight）を光らせている判定基準と同じisCardLockable()
+      // をそのまま使い、クリックされたカードを対応する色のロックスロットへ直接動かす。
+      if (getCurrentPhase() === "lock") {
+        const elements = document.elementsFromPoint(e.clientX, e.clientY);
+        for (const el of elements) {
+          const cardEl = el.closest(".hand-card");
+          if (!cardEl) continue;
+          if (cardEl.classList.contains("phase-lock-highlight")) {
+            e.preventDefault();
+            e.stopPropagation();
+            performLockPhaseClick(cardEl.dataset.tokenId);
           }
           return;
         }
@@ -1135,6 +1185,35 @@ async function performPhaseMoveToCell(location) {
   }
   const freshCard = getState().tokens.find((t) => t.id === card.id);
   if (freshCard) triggerCardArrival(freshCard.cardId, location);
+}
+
+// ロックフェイズのロック可能ハイライト（.phase-lock-highlight）をクリックした時。
+// ドラッグ&ドロップでロックスロットへ動かした時（onDragEndのkind==="card"分岐、
+// maybeAnnounceLock参照）と全く同じ結果になるよう、同じ関数・同じ順序（移動→
+// 効果音→render()→ロック演出）で処理する。ロック先はカード自身の色に対応する
+// 1つのスロットに一意に決まる（isCardLockableと同じ判定基準）。
+async function performLockPhaseClick(tokenId) {
+  const player = getSelfSeat();
+  const token = getState().tokens.find((t) => t.id === tokenId);
+  if (!token || !isCardLockable(token, player)) return;
+  const color = getCardDefinition(token.cardId).color;
+  const dropTarget = { zone: "lock", side: SEAT_TO_SIDE[player], index: COLORS.indexOf(color) };
+  if (isOnlineMode()) {
+    try {
+      await moveToken(tokenId, dropTarget);
+      markSelfHandled([tokenId]);
+      await fetchAndHydrate(getCurrentGameId());
+    } catch (err) {
+      console.error("performLockPhaseClick failed", err);
+      render();
+      return;
+    }
+  } else {
+    moveToken(tokenId, dropTarget);
+  }
+  playSound("cardPlace");
+  render();
+  maybeAnnounceLock(dropTarget, token.cardId, false);
 }
 
 // ムーブフェイズの接触可能ハイライトをクリックした時。接触の実処理自体は既存の
@@ -1311,7 +1390,16 @@ async function flyDrawnCardToHand(player, cardId) {
 async function drawCardsForEffect(player, count) {
   if (count > 0) announceDrawCount(player, count);
   const pickups = [];
+  const drawnTokenIds = [];
   for (let i = 0; i < count; i++) {
+    // ユーザー要望「ドローで得たカードは手札の中で数秒ハイライトしてください」用に、
+    // ドロー前後の手札トークンidの差分から新しく増えた1枚を特定する（山札からの
+    // 応答自体にトークンidが含まれないため、findNewHandTokenIdsと同じ考え方）。
+    const handBefore = new Set(
+      getState()
+        .tokens.filter((t) => t.location.zone === "hand" && t.location.player === player)
+        .map((t) => t.id)
+    );
     if (isOnlineMode()) {
       try {
         const result = await drawFromPile("deck", { zone: "hand", player });
@@ -1324,6 +1412,7 @@ async function drawCardsForEffect(player, count) {
           pickups.push({ cardId: result.revealedCardId, wasPublic: false });
         }
         await fetchAndHydrate(getCurrentGameId());
+        drawnTokenIds.push(...findNewHandTokenIds(player, handBefore));
       } catch (err) {
         console.error("drawCardsForEffect failed", err);
         break;
@@ -1337,11 +1426,13 @@ async function drawCardsForEffect(player, count) {
       await flyDrawnCardToHand(player, cardId);
       render();
       pickups.push({ cardId, wasPublic: false });
+      drawnTokenIds.push(...findNewHandTokenIds(player, handBefore));
     }
   }
   // ユーザー要望「獲得ポップアップは1枚ずつ出るのではなく、まとめて1回出てほしい」
   // （複数枚ドローする効果で連続表示が煩雑だったため）。
   if (pickups.length > 0) announceHandPickups(player, pickups);
+  if (drawnTokenIds.length > 0) glowHandTokensBriefly(drawnTokenIds);
 }
 
 // ユーザー要望「スリカエ（『いつでも使える』手札効果）をゲート侵攻処理中に使おうとした
@@ -1440,6 +1531,7 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         // 手品師の技の効果（アバターで相手を選び、手札を1枚ずつ交換する）用。
         pickPlayer: requestPlayerChoiceForEffect,
         swapRandomHandCard: swapHandCardWithOpponentForEffect,
+        announceEffectReason: announceEffectReasonForEffect,
       }
     );
     clearEffectUiHighlights();
@@ -1471,6 +1563,13 @@ async function runAutoArrivalEffect(cardId, location, player) {
       // 手品師の技の到達効果（アバターで相手を選び、手札を1枚ずつ交換する）用。
       pickPlayer: requestPlayerChoiceForEffect,
       swapRandomHandCard: swapHandCardWithOpponentForEffect,
+      // カウンターロックの「あなたは１番少なくロックしているので1枚ドローします」等、
+      // 発動理由を一言説明するモーダル用。
+      announceEffectReason: announceEffectReasonForEffect,
+      // 白の意思の覚醒（場の全ての表向きのカードを捨てる）用。手札効果側は
+      // 追色コストの支払いで元々discardAndSyncを持っていたが、到達効果側には
+      // まだ無かったので追加した。
+      discardAndSync: discardFromHandReveal,
     }
   );
   clearEffectUiHighlights();
@@ -2147,6 +2246,22 @@ async function respondToContact(approve) {
     return defenderHandBefore.find((t) => !afterIds.has(t.id)) ?? null;
   }
 
+  // ユーザー要望「接触でカードを奪うときも、スリカエの時同様、儀式的に裏向きの手札
+  // からカードを奪うステップを入れてください」への対応。respondToContact()は必ず
+  // defender自身の画面から（contact-approval.jsのcanRespond判定により、承認ボタンは
+  // defender本人にしか出ない）呼ばれるため、ここで見せる「裏向きの手札」は常に
+  // このクライアント自身が既に中身を知っている自分の手札——他プレイヤーの隠し情報を
+  // 覗くことにはならない。表示順をシャッフルすることで「無作為に」を満たしつつ、
+  // スリカエと同じ儀式的な「選ぶ」体験にする。キャンセル（backdropクリック等）した
+  // 場合は何も変えずそのまま中断し、pendingContactは残したままにする（承認ボタンを
+  // もう一度押せばやり直せる）。
+  let stolenCardId;
+  if (approve && defenderHandBefore.length > 0) {
+    const chosenCard = await requestOpponentHandRitualPick(defender, "あなたの手札（裏向き）から奪われる1枚を選んでください");
+    if (!chosenCard) return;
+    stolenCardId = chosenCard.id;
+  }
+
   // タックル演出のため、状態を変える(respondContact)前に「動く前」のDOM情報を確保して
   // おく——stateが変わった瞬間、下の汎用render()リスナー(subscribe)が同期的にDOMを
   // 作り直してしまうため、後から取り直すことができない。「移動アニメーション」設定が
@@ -2198,7 +2313,7 @@ async function respondToContact(approve) {
 
   if (isOnlineMode()) {
     try {
-      await respondContact(approve);
+      await respondContact(approve, stolenCardId);
       // ユーザー要望「接触でゲートに飛ばされる際、カードが裏向きならオープンするか
       // しないかのボタンを出す」への対応。承認した本人（defender自身の画面）だけ、
       // 通常の移動と同じ完全な到達判定（maybeTriggerCardArrival、裏向きなら
@@ -2215,7 +2330,7 @@ async function respondToContact(approve) {
       return;
     }
   } else {
-    respondContact(approve);
+    respondContact(approve, stolenCardId);
   }
 
   if (tackle) {
@@ -2383,6 +2498,17 @@ function renderBoardTokens(table) {
   }
 }
 
+// ハマりどころ: この2つは元々render()の定義よりずっと後ろ（オンライン対戦の入り口
+// 付近）で宣言されていた。render()自身は「関数宣言」なのでファイルのどこからでも
+// 呼べてしまうため、何らかの経路でrender()の定義より後ろ・この宣言より前のタイミングで
+// 呼ばれると、let変数の初期化前アクセス（TDZ）でReferenceErrorになる実害があった
+// （テスト用にhydrateState()を直接叩いた時に発覚）。render()自身がこの2つを参照する
+// ため、render()の定義より前（＝実行時に必ず先に評価される位置）へ移した。
+let suppressGenericRenderForOnlineStart = false;
+// respondToContact()のタックル演出（playContactLunge/playContactFlight）中、同じ理由で
+// 汎用render()リスナー・remote-move-animator.jsを一時停止するためのフラグ。
+let suppressGenericRenderForContactTackle = false;
+
 function render() {
   // オンライン対戦（第一弾）ではまだサーバー側にポートしていないアクション（セットアップ
   // ウィザード・クイックスタート・手札シャッフル）に繋がるボタンを隠す（style.css参照）。
@@ -2471,7 +2597,15 @@ function render() {
   // ユーザー要望「効果自動処理がオンの時はフェイズも自動で流れるようにしよう」。
   // render()のたびに「今のフェイズでもう次へ進めるか」を判定する（他の再適用系処理
   // ・reapplyActiveHighlights等と同じ「呼び出し元がrender()の末尾で毎回呼ぶ」設計）。
-  reconcilePhaseAutomation();
+  // ユーザー報告「オンラインでゲームを開始した後、盤面にカードを並べている間に
+  // フェイズモーダルが始まってしまう」の原因: オンライン配布演出
+  // （animateFirstCardsDealt/animateBoardFilled）は演出の見た目を進めるため自前で
+  // 直接render()を呼ぶ（subscribe(render)経由の汎用リスナー自体はsuppressGeneric
+  // RenderForOnlineStartで止めてあるが、演出関数自身の直接呼び出しはその対象外）。
+  // render()がそのたびに無条件でreconcilePhaseAutomation()を呼んでいたため、
+  // turnPlayerが既に非nullになっている配布演出の最中でも反応してしまっていた。
+  // 演出中はこの判定自体をスキップする。
+  if (!suppressGenericRenderForOnlineStart) reconcilePhaseAutomation();
 }
 
 // 画面サイズが変わっても手札などが見切れないよう、テーブル全体をビューポートに収まる
@@ -4959,16 +5093,26 @@ function buildDrawButton() {
           } catch (err) {
             console.error("fetchAndHydrate failed", err);
           }
-          markSelfHandled(findNewHandTokenIds(player, handBefore));
+          const newTokenIds = findNewHandTokenIds(player, handBefore);
+          markSelfHandled(newTokenIds);
+          // ユーザー要望「ドローで得たカードは手札の中で数秒ハイライトしてください
+          // （ほかのドローの時も共通）」。
+          glowHandTokensBriefly(newTokenIds);
           return;
         }
         const pileArray = getState().piles.deck;
         if (pileArray.length === 0) return; // 捨て場も空で、これ以上引けるカードが無い
         const cardId = pileArray[pileArray.length - 1];
+        const handBeforeLocal = new Set(
+          getState()
+            .tokens.filter((t) => t.location.zone === "hand" && t.location.player === player)
+            .map((t) => t.id)
+        );
         drawFromPile("deck", { zone: "hand", player });
         playSound("cardDraw");
         announceHandPickups(player, [{ cardId, wasPublic: false }]);
         render();
+        glowHandTokensBriefly(findNewHandTokenIds(player, handBeforeLocal));
       });
     },
   });
@@ -5596,10 +5740,6 @@ updateTurnRoundCounter();
 // 自前で呼ぶhelpers.render()（このsubscribe()経由ではない直接呼び出し）は
 // このフラグの影響を受けないため、配布アニメーション自体は今まで通り正しく動く。
 let wasOnlineGameStarted = false;
-let suppressGenericRenderForOnlineStart = false;
-// respondToContact()のタックル演出（playContactLunge/playContactFlight）中、同じ理由で
-// 汎用render()リスナー・remote-move-animator.jsを一時停止するためのフラグ。
-let suppressGenericRenderForContactTackle = false;
 subscribe(() => {
   const started = Boolean(getState().turnPlayer);
   if (isOnlineMode() && started && !wasOnlineGameStarted) {
@@ -5615,6 +5755,11 @@ subscribe(() => {
         // 見えてしまい、駒を初めて動かした瞬間にゲーム開始時のロック演出が再発生する
         // バグの原因になっていた）。
         skipNextHydrateDiff();
+        // 演出中はrender()内のreconcilePhaseAutomation()呼び出しを丸ごとスキップして
+        // いた（上のsuppressGenericRenderForOnlineStart参照）ため、演出が終わった今
+        // 改めて呼んでおかないと、フェイズ自動進行がいつまでも始まらないままになって
+        // しまう（演出最後のrender()呼び出し自体はこのflagがまだtrueの間に起きるため）。
+        reconcilePhaseAutomation();
       });
   }
   wasOnlineGameStarted = started;
@@ -5658,6 +5803,10 @@ subscribe(() => {
   if (suppressGenericRenderForOnlineStart || suppressGenericRenderForContactTackle) return;
   const { turnPlayer } = getState();
   if (prevTurnPlayerForAnnouncement !== null && turnPlayer !== null && turnPlayer !== prevTurnPlayerForAnnouncement) {
+    // ユーザー要望「ターンを終了したら、出っ放しの到達拡大モーダルがあれば全員閉じる
+    // ようにしてください」。turnPlayerの変化はオンライン中も全クライアントに同期される
+    // ため、ここで閉じれば「全員」の画面で閉じることになる。
+    hideCardArrivalModalImmediately();
     if (isGateInvasionPending() || isGateInvasionQueueActive()) {
       pendingTurnAnnouncePlayer = turnPlayer;
     } else {

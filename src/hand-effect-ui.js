@@ -57,6 +57,55 @@ export function showHandEffectUseModal(cardId, optionLabel) {
   currentUseModalTimer = setTimeout(dismiss, USE_MODAL_DURATION_MS);
 }
 
+let currentReasonModal = null;
+let currentReasonModalTimer = null;
+const REASON_MODAL_DURATION_MS = 2600;
+
+// ユーザー要望「カウンターロックの到達効果について『あなたは１番少なくロックしている
+// ので１枚ドローします』みたいなモーダルを出してからドローしてください。ほかの効果も
+// プレイヤーが何が起きたのかわかるようになるべくモーダルで教えてあげてください」への
+// 対応。showHandEffectUseModalと同じ「使い捨てDOM要素、数秒で自動的に消える」
+// パターンだが、こちらは「このカードを使う」ではなく「なぜこの効果が発動したか」を
+// 説明する自由文を表示する。対象を選ぶ・マスを選ぶ等それ自体で結果が見て分かる効果には
+// 使わず、盤面全体の状況判断（カウンターロックの「一番少ない」等）が必要な効果にだけ
+// 使う想定。
+export function showEffectReasonModal(cardId, text) {
+  if (currentReasonModal) {
+    clearTimeout(currentReasonModalTimer);
+    currentReasonModal.remove();
+    currentReasonModal = null;
+  }
+  const def = getCardDefinition(cardId);
+  const modal = document.createElement("div");
+  modal.className = "effect-reason-modal";
+
+  function dismiss() {
+    modal.classList.remove("show");
+    setTimeout(() => {
+      modal.remove();
+      if (currentReasonModal === modal) currentReasonModal = null;
+    }, 300);
+  }
+
+  const nameEl = document.createElement("div");
+  nameEl.className = "effect-reason-modal-name";
+  nameEl.textContent = def?.name ?? cardId;
+  modal.appendChild(nameEl);
+
+  const textEl = document.createElement("div");
+  textEl.className = "effect-reason-modal-text";
+  textEl.textContent = text;
+  modal.appendChild(textEl);
+
+  modal.appendChild(createModalCloseX(dismiss));
+  modal.addEventListener("click", dismiss);
+
+  document.body.appendChild(modal);
+  currentReasonModal = modal;
+  requestAnimationFrame(() => modal.classList.add("show"));
+  currentReasonModalTimer = setTimeout(dismiss, REASON_MODAL_DURATION_MS);
+}
+
 // optionsWithUsability: [{ id, label, usable, ... }]。選ばれたoptionを解決するPromiseを返す
 // （閉じるボタン・背景クリックではnullを解決する）。
 export function showHandEffectOptionPicker(cardId, optionsWithUsability) {

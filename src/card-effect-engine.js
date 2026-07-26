@@ -18,7 +18,7 @@
 import { getState } from "./state.js";
 import { VERBS, TARGETS, TARGET_SELECTIONS, CARD_EFFECTS } from "./card-effects.js";
 import { getCardDefinition } from "./cards-data.js";
-import { COLORS, SEAT_TO_SIDE, SIDE_TO_SEAT, GATE_POSITIONS } from "./board-layout.js";
+import { COLORS, SEAT_TO_SIDE, SIDE_TO_SEAT, GATE_POSITIONS, SEAT_ORDER } from "./board-layout.js";
 
 // ユーザー確認済み「効果自動処理は基本設定でON/OFFを選べるように」。他の「アニメーションを
 // 減らす」設定（motion-prefs.js）と同じくセッション限りの設定（ページ再読み込みで
@@ -388,6 +388,18 @@ async function runAction(action, ctx, helpers) {
           if (!dest) break;
           destinations.push(dest);
         }
+      } else if (action.destination?.selection === TARGET_SELECTIONS.ALL_WITHIN_RANGE) {
+        // 増殖する樹々専用: プレイヤーが選ぶのではなく、範囲内の「何もないマス」
+        // （カードも駒も無いマス）全てが自動的に対象になる。自分がいるマスは自分の
+        // 駒があるため、hasPieceAtの判定で自然に除外される（特別扱い不要）。
+        const range = action.destination.withinCells ?? 0;
+        for (const { dr, dc } of enumerateManhattanDisk(range)) {
+          const row = ctx.pieceLocation.row + dr;
+          const col = ctx.pieceLocation.col + dc;
+          if (!inBounds(row, col)) continue;
+          if (hasCardAt(row, col) || hasPieceAt(row, col)) continue;
+          destinations.push({ zone: "cell", row, col });
+        }
       } else {
         console.warn("card-effect-engine: place_cardのdestination.selectionが未対応です", action);
         return;
@@ -447,6 +459,11 @@ async function runAction(action, ctx, helpers) {
     }
     case VERBS.DRAW_IF_FEWEST_LOCKED: {
       if (isFewestLocked(ctx.player)) {
+        // ユーザー要望「カウンターロックの到達効果について『あなたは１番少なくロック
+        // しているので１枚ドローします』みたいなモーダルを出してからドローして
+        // ください」。判定条件（盤面全体のロック枚数比較）は見ただけでは分からないため、
+        // 先に理由を説明してから実際にドローする。
+        await helpers.announceEffectReason?.(ctx.cardId, "あなたは１番少なくロックしているので１枚ドローします。");
         await helpers.drawCards(ctx.player, 1);
       }
       return;
@@ -462,6 +479,35 @@ async function runAction(action, ctx, helpers) {
       const targetPlayer = await helpers.pickPlayer(opponents, "手札を交換する相手を選んでください（アバターをクリック）");
       if (!targetPlayer) return;
       await helpers.swapRandomHandCard(ctx.player, targetPlayer);
+      return;
+    }
+    case VERBS.DRAW_ALL_FEWEST_LOCKED: {
+      // プレゼント専用: カウンターロック（DRAW_IF_FEWEST_LOCKED、効果の使用者本人だけ
+      // 判定）と違い、「該当する全員」がそれぞれドローする。処理順の原則（docs/cards.md
+      // 「複数のプレイヤーを対象にした効果は原則、効果の使用者から時計回りに処理する」）
+      // に沿うよう、SEAT_ORDERをctx.playerから時計回りに並べ替えてから絞り込む。
+      const order = SEAT_ORDER.filter((p) => getState().activePlayers.includes(p));
+      const startIdx = order.indexOf(ctx.player);
+      const rotatedOrder = startIdx >= 0 ? [...order.slice(startIdx), ...order.slice(0, startIdx)] : order;
+      const qualifying = rotatedOrder.filter((p) => isFewestLocked(p));
+      if (qualifying.length === 0) return;
+      await helpers.announceEffectReason?.(ctx.cardId, "１番少なくロックしている全員が１枚ドローします。");
+      for (const p of qualifying) {
+        await helpers.drawCards(p, 1);
+      }
+      return;
+    }
+    case VERBS.DISCARD_ALL_FACEUP_ON_BOARD: {
+      // 白の意思の覚醒専用: 盤面マスにある表向きのカード全てを捨てる（１番上の原則により
+      // 「場」＝盤面マスの一番上のカードだけが対象、という前提はgetState().tokensの
+      // location.zone==="cell"フィルタで自然に満たされる——重なりの下側は元々別トークンの
+      // faceUp状態を問わず対象に含めてよいわけではないが、この効果は「表向きのカード」
+      // 全部が対象という素直な読みのため、重なりの上下は区別せずfaceUp:trueの盤面
+      // カード全てを対象にする）。
+      const candidates = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "cell" && t.faceUp);
+      for (const token of candidates) {
+        await helpers.discardAndSync(token.id);
+      }
       return;
     }
     default:
@@ -481,6 +527,7 @@ export async function runArrivalEffect(ctx, helpers) {
   // を受け取ってしまうバグだったため、ここで明示的に引き継ぐ。
   const runCtx = {
     player: ctx.player,
+    cardId: ctx.cardId,
     cardTokenId: ctx.cardTokenId,
     pieceTokenId: ctx.pieceTokenId,
     pieceLocation: ctx.pieceLocation,
@@ -535,6 +582,7 @@ async function runHandEffectOption(ctx, option, helpers) {
   // 常にtrueになり除外が効かなくなる）。ctx.cardTokenIdをそのまま引き継ぐ。
   const runCtx = {
     player: ctx.player,
+    cardId: ctx.cardId,
     cardTokenId: ctx.cardTokenId,
     pieceTokenId: piece?.id ?? null,
     pieceLocation: piece?.location ?? null,

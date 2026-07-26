@@ -29,6 +29,8 @@ export const VERBS = {
   LOCK_PAIR: "lock_pair", // なないろの欠片専用: 手札の同名2枚を任意のロックスロットへまとめてロックする
   DRAW_IF_FEWEST_LOCKED: "draw_if_fewest_locked", // カウンターロック専用: 自分のロック枚数が全員中で最少（同率含む）なら1枚ドロー
   SWAP_RANDOM_HAND_CARD: "swap_random_hand_card", // 手品師の技専用: 選んだ相手と、互いの手札から無作為に1枚ずつ交換する
+  DRAW_ALL_FEWEST_LOCKED: "draw_all_fewest_locked", // プレゼント専用: ロック枚数が全員中で最少（同率含む）の全員がそれぞれ1枚ドロー
+  DISCARD_ALL_FACEUP_ON_BOARD: "discard_all_faceup_on_board", // 白の意思の覚醒専用: 盤面（マス）にある表向きのカードを全て捨てる
 };
 
 // 効果の主語（誰が対象か）。「自分」以外は今回のパイロットでは「相手全員」だけ登場する。
@@ -43,6 +45,9 @@ export const TARGETS = {
 export const TARGET_SELECTIONS = {
   CHOOSE: "choose",
   SAME_AS: "same_as",
+  // 増殖する樹々専用: プレイヤーが選ぶのではなく、範囲内の該当マス全てが自動的に対象になる
+  // （destination.withinCellsと組み合わせて使う）。
+  ALL_WITHIN_RANGE: "all_within_range",
 };
 
 // --- パイロットカード5枚 --------------------------------------------------------------
@@ -106,6 +111,43 @@ export const CARD_EFFECTS = {
   "red-counter-lock": {
     arrival: {
       actions: [{ verb: VERBS.DRAW_IF_FEWEST_LOCKED }],
+    },
+  },
+
+  // プレゼント（桃、通常カード） 到達効果: 「１番少なくロックしている全員は、
+  // １枚ドロー。」カウンターロックと違い、効果の使用者だけでなく「該当する
+  // 全員」がそれぞれドローする（DRAW_ALL_FEWEST_LOCKED）。
+  // 手札効果（「これを相手の隣に裏向きで置く。1枚ドロー。」）は「相手を選ぶ→隣接する
+  // 空きマスを選ぶ」という新しい対象選択の組み合わせが必要なため今回は対象外。
+  "pink-present": {
+    arrival: {
+      actions: [{ verb: VERBS.DRAW_ALL_FEWEST_LOCKED }],
+    },
+  },
+
+  // 白の意思の覚醒（白、通常カード） 到達効果: 「場の全ての表向きのカードを
+  // 捨てる。」（補足: カードの下にある表向きのカードは対象外＝１番上の原則、
+  // つまり元々「場」＝盤面マスの一番上のカードしか意味を持たないため、対象は
+  // 単純に「盤面マスにある表向きカード全部」でよい）。
+  "white-awakening": {
+    arrival: {
+      actions: [{ verb: VERBS.DISCARD_ALL_FACEUP_ON_BOARD }],
+    },
+  },
+
+  // 増殖する樹々（緑、通常カード） 到達効果: 「２マス以内の何もない全てのマスに
+  // 山札からカードを１枚ずつ裏向きで置く。」プレイヤーが選ぶのではなく、範囲内の
+  // 該当マス全てが自動的に対象になる（destination.selection: ALL_WITHIN_RANGE）。
+  "green-growing-trees": {
+    arrival: {
+      actions: [
+        {
+          verb: VERBS.PLACE_CARD,
+          source: "deck",
+          faceUp: false,
+          destination: { selection: TARGET_SELECTIONS.ALL_WITHIN_RANGE, withinCells: 2 },
+        },
+      ],
     },
   },
 
@@ -316,6 +358,14 @@ function renderAction(action, context) {
         return `これを${destLabel}${faceLabel}置く。`;
       }
       const sourceLabel = action.source === "hand" ? "手札から" : "山札から";
+      // 増殖する樹々専用: 範囲内の「何もないマス」全てが自動的に対象になる（プレイヤーが
+      // 選ぶ必要が無い）ため、他の選択式（choose/same_as）とは別の専用の文型になる。
+      if (action.destination?.selection === TARGET_SELECTIONS.ALL_WITHIN_RANGE) {
+        // 「１枚ずつ」は該当マス1つあたりの枚数を指す固定値で、action.count（無指定＝
+        // undefined）とは無関係のため、上のcount変数は使わずここだけ決め打ちにする。
+        const rangeLabel = action.destination.withinCells ? `${toFullWidthNumber(action.destination.withinCells)}マス以内の` : "";
+        return `${rangeLabel}何もない全てのマスに${sourceLabel}カードを１枚ずつ${faceLabel}置く。`;
+      }
       const destLabel =
         action.destination?.selection === TARGET_SELECTIONS.SAME_AS
           ? "そのマスに"
@@ -340,6 +390,10 @@ function renderAction(action, context) {
       return "１番少なくロックしているなら1枚ドロー。";
     case VERBS.SWAP_RANDOM_HAND_CARD:
       return "相手１人の手札から無作為に１枚、あなたの手札に加える。あなたの手札から１枚、その相手の手札に加える。";
+    case VERBS.DRAW_ALL_FEWEST_LOCKED:
+      return "１番少なくロックしている全員は、１枚ドロー。";
+    case VERBS.DISCARD_ALL_FACEUP_ON_BOARD:
+      return "場の全ての表向きのカードを捨てる。";
     default:
       return `（未対応の動詞: ${action.verb}）`;
   }
@@ -410,6 +464,18 @@ if (typeof process !== "undefined" && process.argv[1] && process.argv[1].endsWit
   console.log("[手品師の技 -スリカエ- 到達効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["yellow-sleight-of-hand"].arrival));
   console.log("  実際: 相手１人の手札から無作為に１枚、あなたの手札に加える。あなたの手札から１枚、その相手の手札に加える。\n");
+
+  console.log("[プレゼント 到達効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["pink-present"].arrival));
+  console.log("  実際: １番少なくロックしている全員は、１枚ドロー。\n");
+
+  console.log("[白の意思の覚醒 到達効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["white-awakening"].arrival));
+  console.log("  実際: 場の全ての表向きのカードを捨てる。\n");
+
+  console.log("[増殖する樹々 到達効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["green-growing-trees"].arrival));
+  console.log("  実際: ２マス以内の何もない全てのマスに山札からカードを１枚ずつ裏向きで置く。\n");
 
   console.log("[奇跡の森 マンズウッド 手札効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["eternal-green"].handEffect));

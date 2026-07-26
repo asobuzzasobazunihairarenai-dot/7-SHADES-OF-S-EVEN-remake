@@ -249,7 +249,16 @@ function reduce(current: GameState, action: any): GameState {
       );
       let tokens = current.tokens;
       if (defenderHand.length > 0) {
-        const stolen = shuffled(defenderHand)[0];
+        // ユーザー要望「接触でカードを奪うときも、スリカエの時同様、儀式的に裏向きの
+        // 手札からカードを奪うステップを入れてください」への対応（src/main.jsの
+        // requestOpponentHandRitualPick）。action.stolenCardIdが渡された場合はそれを
+        // 使う——これはdefender自身のクライアントが、defender自身の手札（元々全て
+        // 見えている自分の手札）を裏向き・シャッフル表示して選ばせた結果のため、
+        // 隠し情報の抽選という点での公平性は損なわない（サーバー側で改めて乱数を
+        // 引き直す必要がない）。渡されなかった場合は従来通りサーバー側でランダムに選ぶ
+        // （フォールバック、クライアントが未対応の場合の保険）。
+        const chosen = action.stolenCardId ? defenderHand.find((t) => t.id === action.stolenCardId) : null;
+        const stolen = chosen ?? shuffled(defenderHand)[0];
         tokens = tokens.map((t) =>
           t.id === stolen.id
             ? {

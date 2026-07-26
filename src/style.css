@@ -5656,6 +5656,45 @@ body.phase-lock-picking .hand-card:not(.phase-lock-highlight) {
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
 }
 
+/* 効果の発動理由を説明するモーダル（src/hand-effect-ui.jsのshowEffectReasonModal、
+   例: カウンターロックの「あなたは１番少なくロックしているので１枚ドローします」）。
+   到達モーダル（右上）・使用モーダル（左上）と重ならないよう、画面下中央に出す。 */
+.effect-reason-modal {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  z-index: 10600;
+  width: min(20rem, 80vw);
+  padding: 0.7rem 1rem;
+  background: rgba(15, 23, 32, 0.92);
+  border: 1px solid rgba(56, 189, 248, 0.6);
+  border-radius: 0.6rem;
+  text-align: center;
+  transform: translate(-50%, 0.6rem);
+  opacity: 0;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+.effect-reason-modal.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.effect-reason-modal-name {
+  font-family: sans-serif;
+  font-weight: bold;
+  font-size: 0.75rem;
+  color: #7dd3fc;
+  margin-bottom: 0.3rem;
+}
+.effect-reason-modal-text {
+  font-family: sans-serif;
+  font-size: 0.8rem;
+  color: #e2e8f0;
+  line-height: 1.5;
+}
+
 /* 手札効果の選択肢モーダル（なないろの欠片等、src/hand-effect-ui.js）。使用できない
    選択肢はグレー表示・クリック不可にする（ユーザー要望）。 */
 .hand-effect-option-picker-backdrop {

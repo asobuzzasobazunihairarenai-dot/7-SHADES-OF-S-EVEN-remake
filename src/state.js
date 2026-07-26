@@ -286,6 +286,13 @@ function reduce(current, action) {
     // onlineTransport（so7-apply-action.tsのRESPOND_CONTACTケース、サーバー側で抽選）を
     // 経由する（この関数の冒頭のonlineMode分岐参照）。ローカルモードは全員分の手札を
     // 1つのブラウザで見ているだけなので、ここでのクライアント側抽選で問題ない。
+    // ユーザー要望「接触でカードを奪うときも、スリカエの時同様、儀式的に裏向きの手札
+    // からカードを奪うステップを入れてください」への対応で、action.stolenCardIdが
+    // 渡された場合はそれを優先する（main.jsが承認前に、defender自身の手札を裏向き・
+    // シャッフル表示して選ばせる「儀式」演出から得たトークンid）。これは自分自身の
+    // 手札からの選択のため、抽選の公平性を損なわない（他プレイヤーの隠し情報を
+    // 覗き見ているわけではない）。渡されなかった場合は従来通りランダムに選ぶ
+    // （フォールバック）。
     case "RESPOND_CONTACT": {
       const pending = current.pendingContact;
       if (!pending) return current;
@@ -297,7 +304,8 @@ function reduce(current, action) {
       );
       let tokens = current.tokens;
       if (defenderHand.length > 0) {
-        const stolen = shuffled(defenderHand)[0];
+        const chosen = action.stolenCardId ? defenderHand.find((t) => t.id === action.stolenCardId) : null;
+        const stolen = chosen ?? shuffled(defenderHand)[0];
         tokens = tokens.map((t) =>
           t.id === stolen.id
             ? {
@@ -608,10 +616,12 @@ export function requestContact(attacker, defender) {
   dispatch({ type: "REQUEST_CONTACT", attacker, defender });
 }
 
-// 接触された側（defender）が承認/拒否モーダルで応答した時に呼ばれる。
-export function respondContact(approve) {
-  if (onlineMode && onlineTransport) return onlineTransport({ type: "RESPOND_CONTACT", approve });
-  dispatch({ type: "RESPOND_CONTACT", approve });
+// 接触された側（defender）が承認/拒否モーダルで応答した時に呼ばれる。stolenCardId
+// （省略可）は「儀式的に裏向きの手札から選ぶ」演出（main.jsのrequestOpponentHand
+// RitualPick）で選ばれたトークンid。
+export function respondContact(approve, stolenCardId) {
+  if (onlineMode && onlineTransport) return onlineTransport({ type: "RESPOND_CONTACT", approve, stolenCardId });
+  dispatch({ type: "RESPOND_CONTACT", approve, stolenCardId });
 }
 
 export function resetGame() {

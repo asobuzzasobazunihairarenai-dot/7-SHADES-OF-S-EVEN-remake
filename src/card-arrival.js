@@ -19,6 +19,18 @@ function getDurationMs() {
 let currentModal = null;
 let currentTimer = null;
 
+// ユーザー要望「ターンを終了したら、出っ放しの到達拡大モーダルがあれば全員閉じるように
+// してください」への対応。デフォルトでは消えない設定（isCardArrivalModalPersistent）の
+// ため、効果処理中に見ながら操作している間はよいが、ターンが終わっても開いたままだと
+// 次のプレイヤーの邪魔になる。main.js側がturnPlayerの変化（＝全クライアントに同期される
+// タイミング）を検知して呼ぶ。
+export function hideCardArrivalModalImmediately() {
+  if (!currentModal) return;
+  clearTimeout(currentTimer);
+  currentModal.remove();
+  currentModal = null;
+}
+
 // options.showAddToHand: 到達した駒の持ち主が自分自身の時だけtrue（main.jsのtriggerCardArrival
 // 側で判定済み、ここでは受け取った真偽値をそのまま反映するだけ）。
 // options.onAddToHand: ボタンを押した時に呼ぶコールバック（実際の状態変更・同期はmain.js側の

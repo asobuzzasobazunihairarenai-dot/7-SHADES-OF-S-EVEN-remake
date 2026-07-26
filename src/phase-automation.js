@@ -134,8 +134,10 @@ function isLockSlotOccupied(player, color) {
   );
 }
 // 1枚のカードがロックフェイズで実際にロックできるか（hasLockableCard/ハイライトの両方が
-// 使う共通の判定）。
-function isCardLockable(token, player) {
+// 使う共通の判定）。ユーザー要望「ロックフェイズでロックできるカードが光りますが、
+// クリックで自動でロックされるようにもしてください」への対応で、main.jsのクリック
+// ハンドラからも判定できるようexportした。
+export function isCardLockable(token, player) {
   if (token.cardId === "rainbow-shard") return false; // ロックフェイズでは常にロック不可
   const color = getCardDefinition(token.cardId)?.color;
   if (!color || color === "white" || color === "black") return false; // 無色は「ロックした」扱いにならない
