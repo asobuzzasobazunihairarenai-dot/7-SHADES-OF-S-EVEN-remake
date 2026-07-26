@@ -36,6 +36,14 @@ export function canAutoProcessArrival(cardId) {
   return autoProcessingEnabled && !!CARD_EFFECTS[cardId]?.arrival;
 }
 
+// ユーザー確認済み「手品師の技の『いつでも使える』はゲート侵攻処理を含む効果の処理中
+// 以外はいつでも使えるという意味」。main.js側がこれを見て、ハンドフェイズ以外でも
+// ドラッグでの発動を許可するかどうかを判断する（handEffectOptionsを持つカード
+// ＝複数選択肢のあるカードにはこの概念は今のところ無いため対象外）。
+export function isHandEffectUsableAnytime(cardId) {
+  return !!CARD_EFFECTS[cardId]?.handEffect?.usableAnytime;
+}
+
 // --- 手札効果（■）の自動処理 -----------------------------------------------------------
 // 「１ターンに１度のみ」等の使用回数制限（黄金の宮殿）は、セッション限りの試験運用の方針
 // （アカウントには一切保存しない）に合わせ、このモジュール内のメモリだけで追跡する。
@@ -273,6 +281,15 @@ function getOpponentPieceCellsWithinRange(fromLocation, range, player) {
   return candidates;
 }
 
+// 手品師の技専用: 距離を問わず、盤面上にいる相手全員の駒のマス（マスチェンジの
+// 「Nマス以内」と違い範囲指定が無いカードのため、getOpponentPieceCellsWithinRangeは
+// 使わず全マス走査する）。
+function getAllOpponentPieceCells(player) {
+  return getState()
+    .tokens.filter((t) => t.kind === "piece" && t.location.zone === "cell" && t.player !== player)
+    .map((t) => ({ zone: "cell", row: t.location.row, col: t.location.col }));
+}
+
 // なないろの欠片のLOCK_PAIR専用: 自分のロックエリアの7色スロット全部（埋まっている
 // スロットも含む——通常の「1色1枚まで」占有チェックの対象外の特殊ロックのため）。
 function getOwnLockSlotCandidates(player) {
@@ -441,6 +458,20 @@ async function runAction(action, ctx, helpers) {
       if (isFewestLocked(ctx.player)) {
         await helpers.drawCards(ctx.player, 1);
       }
+      return;
+    }
+    case VERBS.SWAP_RANDOM_HAND_CARD: {
+      // 手品師の技専用: マスチェンジのSWAP_POSITIONと同じ「相手の駒をクリックして
+      // 選ぶ」UIを流用する（範囲制限が無いので候補は全相手の駒）。
+      const candidates = getAllOpponentPieceCells(ctx.player);
+      if (candidates.length === 0) return;
+      const target = await helpers.pickLocation(candidates, "手札を交換する相手を選択してください");
+      if (!target) return;
+      const targetPiece = getState().tokens.find(
+        (t) => t.kind === "piece" && t.location.zone === "cell" && t.location.row === target.row && t.location.col === target.col
+      );
+      if (!targetPiece) return;
+      await helpers.swapRandomHandCard(ctx.player, targetPiece.player);
       return;
     }
     default:

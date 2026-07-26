@@ -5297,6 +5297,28 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   background: rgba(153, 27, 27, 0.95);
 }
 
+/* スリカエ等「いつでも使える」手札効果をゲート侵攻処理中にドラッグした時の予約通知
+   （main.jsのshowAnytimeHandEffectConfirmModal）。#contact-approval-modalと同じ
+   「中央固定・.contact-approval-*クラスを使い回す」構成だが、こちらは表示のたびに
+   appendChild/removeで出し入れするだけの単純な作りのため、opacityのフェード制御
+   （is-visibleトグル）は不要——最初から見える状態でよい。 */
+#anytime-hand-effect-confirm-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(26rem, 90vw);
+  z-index: 10611;
+  background: linear-gradient(160deg, #422006, #1c1004);
+  border: 2px solid #facc15;
+  border-radius: 0.7rem;
+  padding: 1rem 1.4rem;
+  text-align: center;
+  font-family: sans-serif;
+  color: #fef3c7;
+  box-shadow: 0 0 1.5rem rgba(250, 204, 21, 0.5), 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+
 /* ターン終了時の中央告知（src/turn-announce.js）。ゲーム操作を妨げないよう
    pointer-events:noneにし、一瞬だけ画面中央に大きく次のプレイヤー名を表示してから
    自動的に消える（クリック不要のトースト、victory-modalとは違い操作を待たない）。 */
@@ -7196,6 +7218,21 @@ body.reduce-glow #card-effect-picker-hint.show {
 body.reduce-glow .hand-card.card-effect-just-acquired-glow {
   animation: none;
   box-shadow: 0 0 0.5rem 0.15rem rgba(74, 222, 128, 0.6);
+}
+/* ユーザー要望「スリカエを所持しているときは常に手札のスリカエに対し特殊なEFFECTで
+   めだたせてください」。「いつでも使える」＝手札に持っている間ずっと使用可能という
+   特殊な状態を伝える常設演出のため、上のcard-effect-just-acquired-glow（一時的な
+   「獲得した」演出、緑）とは別の色（金）にして意味の違いを見た目でも区別する。 */
+.hand-card.is-anytime-usable-glow {
+  animation: card-effect-anytime-usable-glow 1.8s ease-in-out infinite;
+}
+@keyframes card-effect-anytime-usable-glow {
+  0%, 100% { box-shadow: 0 0 0.6rem 0.15rem rgba(250, 204, 21, 0.7); }
+  50% { box-shadow: 0 0 1.4rem 0.5rem rgba(250, 204, 21, 0.95); }
+}
+body.reduce-glow .hand-card.is-anytime-usable-glow {
+  animation: none;
+  box-shadow: 0 0 0.5rem 0.15rem rgba(250, 204, 21, 0.6);
 }
 /* ユーザー要望「どこに置かれるのかを忘れないように置かれるマスをハイライトして
    ほしい」。クリックして選ぶ候補（黄色、.card-effect-target-cell）とは見た目を変え、

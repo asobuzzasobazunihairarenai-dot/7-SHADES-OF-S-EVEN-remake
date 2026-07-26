@@ -110,9 +110,21 @@ export function isGateInvasionQueueActive() {
   return queue.length > 0 || !!modalEl;
 }
 
-let onQueueDrainedFn = null;
+// ユーザー要望「スリカエ（いつでも使える手札効果）をゲート侵攻処理中に使おうとした
+// 場合は予約扱いにし、使えるタイミングになったら確認モーダルを出す」への対応で、
+// main.jsの「ターン告知の重なり防止」に続く2つ目の利用者が現れたため、単一の
+// コールバックを上書きする方式から複数登録できるリスナー配列方式に変更した
+// （state.jsのsubscribe()・tablet-2d-mode.jsのonFlatten2dModeChange()と同じ形）。
+const queueDrainedListeners = [];
 export function registerOnGateInvasionQueueDrained(fn) {
-  onQueueDrainedFn = fn;
+  queueDrainedListeners.push(fn);
+  return () => {
+    const i = queueDrainedListeners.indexOf(fn);
+    if (i >= 0) queueDrainedListeners.splice(i, 1);
+  };
+}
+function notifyQueueDrained() {
+  for (const fn of queueDrainedListeners) fn();
 }
 
 function closeCurrent() {
@@ -154,13 +166,13 @@ function showStep(step) {
   skipBtn.addEventListener("click", () => {
     queue = [];
     closeCurrent();
-    onQueueDrainedFn?.();
+    notifyQueueDrained();
   });
 
   modalEl.appendChild(createModalCloseX(() => {
     queue = [];
     closeCurrent();
-    onQueueDrainedFn?.();
+    notifyQueueDrained();
   }));
   modalEl.appendChild(title);
   modalEl.appendChild(body);
@@ -182,7 +194,7 @@ function showStep(step) {
 
 function advance() {
   if (queue.length === 0) {
-    onQueueDrainedFn?.();
+    notifyQueueDrained();
     return;
   }
   const step = queue.shift();

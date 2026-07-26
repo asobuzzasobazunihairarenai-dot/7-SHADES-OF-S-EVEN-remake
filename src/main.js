@@ -25,6 +25,7 @@ import {
   canPayHandEffectCost,
   hasHandEffectData,
   isAutoProcessingEnabled,
+  isHandEffectUsableAnytime,
 } from "./card-effect-engine.js";
 import {
   reconcilePhaseAutomation,
@@ -409,6 +410,10 @@ function buildPlayerZone(side, player, isSelf) {
       // 光らせてほしい」。render()はtable.innerHTML=""で毎回作り直されるため、DOM要素の
       // 参照ではなくtokenIdで状態を持ち、描画のたびにここで再適用する。
       if (token.id === glowingEffectHandTokenId) cardEl.classList.add("card-effect-just-acquired-glow");
+      // ユーザー要望「スリカエを所持しているときは常に手札のスリカエに対し特殊な
+      // EFFECTでめだたせてください」。「いつでも使える」＝持っている間ずっと使用可能な
+      // ことを伝える常設演出（is-anytime-usable-glow、style.css参照）。
+      if (isHandEffectUsableAnytime(token.cardId)) cardEl.classList.add("is-anytime-usable-glow");
     } else {
       cardEl.className = "hand-card is-facedown";
       cardEl.style.backgroundImage = `url("${getCardBackImagePath(token.cardId)}")`;
@@ -895,6 +900,21 @@ async function swapPiecesForEffect(pieceTokenId, fromLocation, targetLocation) {
   render();
 }
 
+// SWAP_RANDOM_HAND_CARD用（手品師の技）。player・targetPlayer双方の「交換前」の手札から
+// 同時にランダムな1枚ずつを選んでから両方動かす（片方を動かしてから相手側を選ぶと、
+// 今動かしたばかりのカードが相手の手札に混ざった状態で選ばれてしまいかねないため）。
+async function swapRandomHandCardForEffect(player, targetPlayer) {
+  const myHand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
+  const theirHand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === targetPlayer);
+  if (myHand.length === 0 || theirHand.length === 0) return;
+  const myCard = myHand[Math.floor(Math.random() * myHand.length)];
+  const theirCard = theirHand[Math.floor(Math.random() * theirHand.length)];
+  await moveAndSyncForEffect(theirCard.id, { zone: "hand", player });
+  await moveAndSyncForEffect(myCard.id, { zone: "hand", player: targetPlayer });
+  playSound("cardPlace");
+  render();
+}
+
 // ユーザー報告「移動先候補のハイライトをクリックしても自動で移動しない」の原因調査で
 // 判明: この盤面は3D的な傾き（テーブル演出）を持つため、駒・カードのドラッグは
 // ネイティブのclickイベント（当たり判定がズレる。initDragHandlers直前のコメント参照）
@@ -1233,6 +1253,75 @@ async function drawCardsForEffect(player, count) {
   if (pickups.length > 0) announceHandPickups(player, pickups);
 }
 
+// ユーザー要望「スリカエ（『いつでも使える』手札効果）をゲート侵攻処理中に使おうとした
+// 場合は予約扱いにし、使えるタイミングになったら『使用しますか？』の確認モーダルを
+// 出す」への対応。予約は1件だけ保持する（同時に複数の『いつでも使える』カードを
+// ゲート侵攻処理中に連続で予約するような状況は想定しにくく、シンプルさを優先した——
+// 新しい予約が来たら古い方は単に上書きされる）。
+let pendingAnytimeHandEffectReservation = null;
+function reserveAnytimeHandEffectUse(cardId, cardTokenId, player) {
+  pendingAnytimeHandEffectReservation = { cardId, cardTokenId, player };
+}
+// ゲート侵攻モーダル列が空になった（もう処理中ではなくなった）タイミングで、予約が
+// あれば確認モーダルを出す。main.js側で既に同じ仕組み（ターン告知の重なり防止）を
+// 使っているため、registerOnGateInvasionQueueDrained側を複数登録できるよう
+// 別途対応済み（gate-invasion-modal.js参照）。
+registerOnGateInvasionQueueDrained(() => {
+  const reservation = pendingAnytimeHandEffectReservation;
+  if (!reservation) return;
+  pendingAnytimeHandEffectReservation = null;
+  // 予約後に何らかの理由でカード自体が手札から無くなっている（他の効果で捨てられた等）
+  // 可能性もゼロではないため、確認モーダルを出す前に念のため今も使える状態か確かめる。
+  const stillInHand = getState().tokens.some(
+    (t) => t.id === reservation.cardTokenId && t.kind === "card" && t.location.zone === "hand" && t.location.player === reservation.player
+  );
+  if (!stillInHand || !canUseHandEffect(reservation.cardId, reservation.cardTokenId, reservation.player)) return;
+  showAnytimeHandEffectConfirmModal(reservation);
+});
+
+function showAnytimeHandEffectConfirmModal({ cardId, cardTokenId, player }) {
+  const backdrop = createBackdrop(() => {}, { dim: true, zIndex: 10610 });
+  const modal = document.createElement("div");
+  modal.id = "anytime-hand-effect-confirm-modal";
+
+  const title = document.createElement("div");
+  title.className = "contact-approval-title";
+  title.textContent = `${getCardDefinition(cardId).name}を使用しますか？`;
+  modal.appendChild(title);
+
+  const body = document.createElement("div");
+  body.className = "contact-approval-body";
+  body.textContent = "先ほど手札から出そうとした効果が、今使えるようになりました。";
+  modal.appendChild(body);
+
+  const buttons = document.createElement("div");
+  buttons.className = "contact-approval-buttons";
+  const yesBtn = document.createElement("button");
+  yesBtn.className = "contact-approval-approve";
+  yesBtn.type = "button";
+  yesBtn.textContent = "✅ 使用する";
+  yesBtn.addEventListener("click", () => {
+    backdrop.remove();
+    modal.remove();
+    render();
+    runAutoHandEffect(cardId, cardTokenId, player);
+  });
+  const noBtn = document.createElement("button");
+  noBtn.className = "contact-approval-reject";
+  noBtn.type = "button";
+  noBtn.textContent = "🚫 使用しない";
+  noBtn.addEventListener("click", () => {
+    backdrop.remove();
+    modal.remove();
+  });
+  buttons.appendChild(yesBtn);
+  buttons.appendChild(noBtn);
+  modal.appendChild(buttons);
+
+  document.body.appendChild(backdrop);
+  document.body.appendChild(modal);
+}
+
 // ユーザー要望「①通常の手札カードは、ハンドフェイズかつ手札エリア外で放すと手札効果が
 // 発動する」「②エターナル/ファーストカードは、ハンドフェイズでクリックすると追色コストを
 // 選ぶ流れに移行する」への対応の実行部。cardTokenIdは効果を使うカード自身。
@@ -1257,6 +1346,8 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         pickHandEffectOption: showHandEffectOptionPicker,
         // ジャンプ台の手札効果（これをゲート以外の任意のマスに表向きで置く）用。
         flipCard: flipToFaceUpForEffect,
+        // 手品師の技の効果（相手を選び互いの手札から無作為に1枚ずつ交換する）用。
+        swapRandomHandCard: swapRandomHandCardForEffect,
       }
     );
     clearEffectUiHighlights();
@@ -1285,6 +1376,8 @@ async function runAutoArrivalEffect(cardId, location, player) {
       // 手札効果側（runAutoHandEffect）は既にdrawCardsを持っていたが、到達効果側には
       // まだ無かったので追加した。
       drawCards: drawCardsForEffect,
+      // 手品師の技の到達効果（相手を選び互いの手札から無作為に1枚ずつ交換する）用。
+      swapRandomHandCard: swapRandomHandCardForEffect,
     }
   );
   clearEffectUiHighlights();
@@ -3908,27 +4001,40 @@ async function onDragEnd(e) {
     // ＝隣の相手駒へドロップしても実際には移動させず専用フローへ切り替える、という
     // 既存パターンと同じ考え方）。エターナル/ファーストカードは②のクリック方式を
     // 使うためここでは対象外（is-usable-while-lockedの光る演出と同じ判定基準を流用）。
+    // ユーザー要望「スリカエ（『いつでも使える』手札効果）はハンドフェイズ以外でも
+    // ドラッグで発動できるようにしてほしい。ただしゲート侵攻処理中は不可、その間に
+    // ドラッグしたら予約扱いにして、使えるタイミングになったら確認モーダルを出す」。
     if (
       kind === "card" &&
       cardSourceLocation?.zone === "hand" &&
       cardSourceLocation.player === getSelfSeat() &&
-      dropTarget.zone !== "hand" &&
-      isHandPhaseActive()
+      dropTarget.zone !== "hand"
     ) {
       const draggedToken = getState().tokens.find((t) => t.id === tokenId);
-      if (
-        draggedToken &&
-        !draggedToken.cardId?.startsWith("eternal-") &&
-        !draggedToken.cardId?.startsWith("first-") &&
-        hasHandEffectData(draggedToken.cardId)
-      ) {
+      const isUsableAnytime = draggedToken && isHandEffectUsableAnytime(draggedToken.cardId);
+      const gateInvasionBusy = isGateInvasionPending() || isGateInvasionQueueActive();
+      if (isUsableAnytime && gateInvasionBusy) {
+        // 予約: 今は解決できない（ゲート侵攻処理中）ので、盤面には何も反映せず
+        // （手札からも減らさない）覚えておくだけにする。処理が終わったタイミングで
+        // 改めて「使用しますか？」の確認モーダルを出す（reserveSleightOfHandUse参照）。
+        reserveAnytimeHandEffectUse(draggedToken.cardId, draggedToken.id, cardSourceLocation.player);
         render();
-        if (canUseHandEffect(draggedToken.cardId, draggedToken.id, cardSourceLocation.player)) {
-          runAutoHandEffect(draggedToken.cardId, draggedToken.id, cardSourceLocation.player);
-        } else if (!canPayHandEffectCost(draggedToken.cardId, draggedToken.id, cardSourceLocation.player)) {
-          alert("捨てられる同じ色のカードが手札にありません。");
-        }
         return;
+      }
+      if (draggedToken && (isHandPhaseActive() || (isUsableAnytime && !gateInvasionBusy))) {
+        if (
+          !draggedToken.cardId?.startsWith("eternal-") &&
+          !draggedToken.cardId?.startsWith("first-") &&
+          hasHandEffectData(draggedToken.cardId)
+        ) {
+          render();
+          if (canUseHandEffect(draggedToken.cardId, draggedToken.id, cardSourceLocation.player)) {
+            runAutoHandEffect(draggedToken.cardId, draggedToken.id, cardSourceLocation.player);
+          } else if (!canPayHandEffectCost(draggedToken.cardId, draggedToken.id, cardSourceLocation.player)) {
+            alert("捨てられる同じ色のカードが手札にありません。");
+          }
+          return;
+        }
       }
     }
     // ユーザー要望「ロックするときも該当のロックエリア以外には置けないようにしてください」

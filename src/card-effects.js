@@ -28,6 +28,7 @@ export const VERBS = {
   SWAP_POSITION: "swap_position", // 自分の駒と、範囲内にいる相手の駒の位置を入れ替える（「移動」ではない）
   LOCK_PAIR: "lock_pair", // なないろの欠片専用: 手札の同名2枚を任意のロックスロットへまとめてロックする
   DRAW_IF_FEWEST_LOCKED: "draw_if_fewest_locked", // カウンターロック専用: 自分のロック枚数が全員中で最少（同率含む）なら1枚ドロー
+  SWAP_RANDOM_HAND_CARD: "swap_random_hand_card", // 手品師の技専用: 選んだ相手と、互いの手札から無作為に1枚ずつ交換する
 };
 
 // 効果の主語（誰が対象か）。「自分」以外は今回のパイロットでは「相手全員」だけ登場する。
@@ -141,6 +142,25 @@ export const CARD_EFFECTS = {
         { verb: VERBS.DRAW, count: 2, target: TARGETS.SELF },
         { verb: VERBS.DRAW, count: 1, target: TARGETS.ALL_OPPONENTS },
       ],
+    },
+  },
+
+  // 手品師の技 -スリカエ-（黄、通常カード）
+  // 到達効果: 「相手１人の手札から無作為に１枚、あなたの手札に加える。あなたの手札から
+  // １枚、その相手の手札に加える。」
+  // 手札効果: 「この効果はいつでも使える。上記の到達時の効果を得る。」——コスト無し。
+  // ユーザー確認済み「『いつでも使える』はゲート侵攻処理を含む効果の処理中以外は
+  // いつでも使えるという意味」。usableAnytime:trueを見て、main.js側がハンドフェイズ
+  // 以外でもドラッグでの発動を許可し、ゲート侵攻処理中にドラッグされた場合だけ
+  // 予約扱いにして処理が終わった後で確認モーダルを出す（card-effect-engine.jsの
+  // 実行ロジック自体は他の手札効果と同じrunHandEffectOptionを共有する）。
+  "yellow-sleight-of-hand": {
+    arrival: {
+      actions: [{ verb: VERBS.SWAP_RANDOM_HAND_CARD }],
+    },
+    handEffect: {
+      usableAnytime: true,
+      actions: [{ verb: VERBS.SWAP_RANDOM_HAND_CARD }],
     },
   },
 
@@ -318,6 +338,8 @@ function renderAction(action, context) {
       return "その２枚を任意の１箇所にロックする。";
     case VERBS.DRAW_IF_FEWEST_LOCKED:
       return "１番少なくロックしているなら1枚ドロー。";
+    case VERBS.SWAP_RANDOM_HAND_CARD:
+      return "相手１人の手札から無作為に１枚、あなたの手札に加える。あなたの手札から１枚、その相手の手札に加える。";
     default:
       return `（未対応の動詞: ${action.verb}）`;
   }
@@ -384,6 +406,10 @@ if (typeof process !== "undefined" && process.argv[1] && process.argv[1].endsWit
   console.log("[ゴメンナサイッ！到達効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["purple-sorry"].arrival));
   console.log("  実際: １マス移動する。\n");
+
+  console.log("[手品師の技 -スリカエ- 到達効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["yellow-sleight-of-hand"].arrival));
+  console.log("  実際: 相手１人の手札から無作為に１枚、あなたの手札に加える。あなたの手札から１枚、その相手の手札に加える。\n");
 
   console.log("[奇跡の森 マンズウッド 手札効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["eternal-green"].handEffect));
