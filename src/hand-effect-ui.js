@@ -1,19 +1,28 @@
 // 手札効果の自動処理まわりのUI部品2つ。
 // ①showHandEffectUseModal: 「このカードを使用します」の告知モーダル（ユーザー要望
 //   「手札効果を使用したら、このカードが使用されるよ！って知らしめるモーダルをしっかりと
-//   出したい」への対応）。card-arrival.jsのshowCardArrivalModalと同じ「使い捨てDOM要素、
-//   数秒で自動的に消える」パターンだが、ラベルが「到達」ではなく「使用」になる。
+//   出したい」への対応、続き42で「到達拡大モーダルの位置に表示・同じく消えないように・
+//   全員に見えるように」という要望に合わせて位置・消え方をcard-arrival.jsの
+//   showCardArrivalModalと完全に揃えた——ただし独立したDOM/タイマーを持つ別コンポーネント
+//   のままにしてある（到達モーダルと同時に出ても片方がもう片方を意図せず消してしまわない
+//   ように）。全員に見せる部分（オンライン中の配信）はmain.js側の責務
+//   （broadcastHandEffectUse/onHandEffectUseEvents）。
 // ②showHandEffectOptionPicker: 選択肢が2つ以上ある手札効果（なないろの欠片等）で、
 //   どれを使うか選ばせるモーダル（ユーザー要望「効果選択モーダルを出してください。
 //   使用できない方はグレー表示。」）。
 
 import { getCardDefinition, getCardImagePath } from "./cards-data.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { isCardArrivalModalPersistent } from "./admin.js";
+
+function getUseModalDurationMs() {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue("--card-arrival-modal-duration").trim();
+  const seconds = parseFloat(raw);
+  return (Number.isNaN(seconds) ? 3 : seconds) * 1000;
+}
 
 let currentUseModal = null;
 let currentUseModalTimer = null;
-
-const USE_MODAL_DURATION_MS = 2200;
 
 export function showHandEffectUseModal(cardId, optionLabel) {
   if (currentUseModal) {
@@ -48,13 +57,40 @@ export function showHandEffectUseModal(cardId, optionLabel) {
   nameEl.textContent = optionLabel ? `${def?.name ?? cardId}（${optionLabel}）` : (def?.name ?? cardId);
   modal.appendChild(nameEl);
 
+  const persistent = isCardArrivalModalPersistent();
+  if (!persistent) {
+    // card-arrival.jsのpinBtnと同じ「消えないようにする」ボタン（デフォルトの
+    // 「消えない」設定の間は最初から消えないため、このボタン自体が不要）。
+    const pinBtn = document.createElement("button");
+    pinBtn.className = "card-arrival-modal-pin";
+    pinBtn.textContent = "📌 消えないようにする";
+    pinBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      clearTimeout(currentUseModalTimer);
+      pinBtn.remove();
+    });
+    modal.appendChild(pinBtn);
+  }
+
   modal.appendChild(createModalCloseX(dismiss));
   modal.addEventListener("click", dismiss);
 
   document.body.appendChild(modal);
   currentUseModal = modal;
   requestAnimationFrame(() => modal.classList.add("show"));
-  currentUseModalTimer = setTimeout(dismiss, USE_MODAL_DURATION_MS);
+  if (!persistent) {
+    currentUseModalTimer = setTimeout(dismiss, getUseModalDurationMs());
+  }
+}
+
+// ユーザー要望「ターンを終了したら、出っ放しの到達拡大モーダルがあれば全員閉じる
+// ようにしてください」と同じ理由で、この使用モーダルも即座に閉じられるようにする
+// （main.jsのturnPlayer変化検知から呼ばれる、hideCardArrivalModalImmediatelyと対）。
+export function hideHandEffectUseModalImmediately() {
+  if (!currentUseModal) return;
+  clearTimeout(currentUseModalTimer);
+  currentUseModal.remove();
+  currentUseModal = null;
 }
 
 let currentReasonModal = null;

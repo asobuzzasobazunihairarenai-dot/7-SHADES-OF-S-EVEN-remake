@@ -352,6 +352,25 @@ export function broadcastCardReceived(payload) {
   }
 }
 
+// ユーザー要望「カード効果を使用するために手札から使用するカードをドロップした時は、
+// 自分を含め何のカードの使用が宣言されたか全員にわかるように表示してほしい」。
+// 手札効果を使ったプレイヤー（fromPlayer）自身のクライアントで実行される
+// main.jsのannounceHandEffectUseForEffectが、自分はローカルで即座に表示しつつ、
+// 他の全プレイヤーの画面にも同じ「使用」モーダルを出すための合図。状態は一切
+// 変えない見た目だけの合図（他のritual_pick_*/card_receivedと同じパターン）。
+let handEffectUseEventListeners = [];
+export function onHandEffectUseEvents(fn) {
+  handEffectUseEventListeners.push(fn);
+  return () => {
+    handEffectUseEventListeners = handEffectUseEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastHandEffectUse(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "hand_effect_use", payload });
+  }
+}
+
 // 合同建設・スラム上がりの役人・パーティーのように「全員がそれぞれ自分の選択を
 // する」到達効果用。効果の使用者（コーディネーター）が対象プレイヤーへ
 // 「あなたの番です、これを解決してください」と伝え（broadcastArrivalDelegateRequest）、
@@ -1780,6 +1799,10 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // 受け取ったカードの通知（broadcastCardReceived参照）。
     .on("broadcast", { event: "card_received" }, ({ payload }) => {
       for (const fn of cardReceivedEventListeners) fn(payload);
+    })
+    // 手札効果を使用した通知（broadcastHandEffectUse参照）。
+    .on("broadcast", { event: "hand_effect_use" }, ({ payload }) => {
+      for (const fn of handEffectUseEventListeners) fn(payload);
     })
     // 「全員がそれぞれ選ぶ」到達効果の委任2種（broadcastArrivalDelegateRequest/Resolved参照）。
     .on("broadcast", { event: "arrival_delegate_request" }, ({ payload }) => {

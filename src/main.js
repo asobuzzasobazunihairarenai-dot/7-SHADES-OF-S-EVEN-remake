@@ -92,7 +92,13 @@ import { isLockColorVisible } from "./lock-color.js";
 import { isArrivalEffectDisabled, isFlightAnimationDisabled } from "./motion-prefs.js";
 import { rectCenter, flyGhost } from "./ghost-flight.js";
 import { showCardArrivalModal, hideCardArrivalModalImmediately } from "./card-arrival.js";
-import { showHandEffectUseModal, showHandEffectOptionPicker, showEffectReasonModal, showCardReceivedModal } from "./hand-effect-ui.js";
+import {
+  showHandEffectUseModal,
+  hideHandEffectUseModalImmediately,
+  showHandEffectOptionPicker,
+  showEffectReasonModal,
+  showCardReceivedModal,
+} from "./hand-effect-ui.js";
 import { initPlayerButtons } from "./player-buttons.js";
 import { initQuickStart } from "./quick-start.js";
 import { initPhaseGuide } from "./phase-guide.js";
@@ -151,6 +157,8 @@ import {
   onRitualPickEndedEvents,
   broadcastCardReceived,
   onCardReceivedEvents,
+  broadcastHandEffectUse,
+  onHandEffectUseEvents,
   broadcastArrivalDelegateRequest,
   onArrivalDelegateRequestEvents,
   broadcastArrivalDelegateResolved,
@@ -1093,6 +1101,14 @@ onCardReceivedEvents(({ targetPlayer, cardId, subtitle }) => {
   if (getSelfSeat() !== targetPlayer) return;
   showCardReceivedModal(cardId, subtitle);
 });
+// ユーザー要望「カード効果を使用するために手札から使用するカードをドロップした時は、
+// 自分を含め何のカードの使用が宣言されたか全員にわかるように表示してほしい」。
+// 使った本人（fromPlayer）は既にannounceHandEffectUseForEffect内でローカル表示済み
+// なので、ここでは自分以外からの通知だけを表示する。
+onHandEffectUseEvents(({ fromPlayer, cardId, optionLabel }) => {
+  if (fromPlayer === getSelfSeat()) return;
+  showHandEffectUseModal(cardId, optionLabel);
+});
 
 // ユーザー要望「全員のマウスカーソルの位置が全員に見える化したい。アバターとその
 // プレイヤーの色、名前が載っているとわかりやすい」。オンライン中だけ、自分の
@@ -1205,6 +1221,19 @@ async function stealHandCardsRitualForGateInvasion(defender, count) {
   return stolen;
 }
 
+// ユーザー要望「カード効果を使用するために手札から使用するカードをドロップした時は、
+// 自分を含め何のカードの使用が宣言されたか全員にわかるように表示してください」。
+// 自分の画面ではその場でshowHandEffectUseModalを表示しつつ、オンライン中は
+// broadcastHandEffectUseで他の全プレイヤーへも同じ通知を送る（onHandEffectUseEvents
+// 参照、自分自身の分は二重表示にならないよう除外している）。ローカル対戦は1画面
+// 共有のため、ローカル表示だけで全員に見えている。
+function announceHandEffectUseForEffect(cardId, optionLabel) {
+  showHandEffectUseModal(cardId, optionLabel);
+  if (isOnlineMode()) {
+    broadcastHandEffectUse({ fromPlayer: getSelfSeat(), cardId, optionLabel });
+  }
+}
+
 // ユーザー要望「カウンターロックの到達効果について『あなたは１番少なくロックしている
 // ので１枚ドローします』みたいなモーダルを出してからドローしてください。ほかの効果も
 // プレイヤーが何が起きたのかわかるようになるべくモーダルで教えてあげてください」への
@@ -1235,7 +1264,11 @@ async function pickArrivalOptionForEffect(cardId, optionsWithUsability) {
 // ザ・ギャンブル/試練の儀式専用: 色を宣言する（複数選択）モーダル。requirement:
 // {minCount}なら「N色以上」（Nより多く選んでもよい）、{exactCount}なら「ちょうどN色」。
 // COLORS（７色、白黒無色・虹は対象外）から選ばせ、確定ボタンは条件を満たすまで無効。
-// backdrop/×でキャンセルするとnullを返す（呼び出し元は効果全体を安全に中断する）。
+// ×でキャンセルするとnullを返す（呼び出し元は効果全体を安全に中断する）。
+// ユーザー報告「画面の関係のないところをクリックしたらモーダルが消えちゃいました」
+// への対応: 色宣言は必須の作業（既にコストを払って効果を発動済みの状態）のため、
+// backdropクリックでは何も起きないようにする（誤ってキャンセルされてしまうのを防ぐ、
+// ×ボタンだけが明示的なキャンセル手段として残る）。
 const COLOR_LABEL_JA = { red: "赤", orange: "橙", yellow: "黄", green: "緑", blue: "青", pink: "桃", purple: "紫" };
 function declareColorsForEffect(requirement) {
   return new Promise((resolve) => {
@@ -1244,14 +1277,31 @@ function declareColorsForEffect(requirement) {
     const required = isExact ? requirement.exactCount : requirement.minCount;
 
     let settled = false;
+    let isPeeking = false;
     function finish(result) {
       if (settled) return;
       settled = true;
       backdrop.remove();
       modal.remove();
+      peekHint.remove();
       resolve(result);
     }
-    const backdrop = createBackdrop(() => finish(null), { dim: true, zIndex: 10630 });
+    // ユーザー要望「作業を促すモーダルには『盤面を見る』ボタンをつけてほしい」
+    // （showHandEffectOptionPickerと同じ仕組み）。createBackdrop()はinlineスタイルで
+    // 背景色を付けているため、CSSクラスの切り替えではなく直接styleを書き換える。
+    function setPeeking(value) {
+      isPeeking = value;
+      backdrop.style.background = value ? "transparent" : "rgba(0, 0, 0, 0.6)";
+      modal.classList.toggle("is-peeking", value);
+      peekHint.classList.toggle("show", value);
+    }
+    const peekHint = document.createElement("div");
+    peekHint.className = "hand-effect-option-picker-peek-hint";
+    peekHint.textContent = "盤面を確認中…クリックで選択画面に戻ります";
+
+    const backdrop = createBackdrop(() => {
+      if (isPeeking) setPeeking(false);
+    }, { dim: true, zIndex: 10630 });
     const modal = document.createElement("div");
     modal.className = "declare-colors-modal";
 
@@ -1259,6 +1309,16 @@ function declareColorsForEffect(requirement) {
     title.className = "declare-colors-modal-title";
     title.textContent = isExact ? `色を${required}色宣言してください` : `${required}色以上、色を宣言してください`;
     modal.appendChild(title);
+
+    const peekBtn = document.createElement("button");
+    peekBtn.type = "button";
+    peekBtn.className = "hand-effect-option-picker-peek-btn";
+    peekBtn.textContent = "盤面を見る";
+    peekBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setPeeking(true);
+    });
+    modal.appendChild(peekBtn);
 
     const grid = document.createElement("div");
     grid.className = "declare-colors-modal-grid";
@@ -1294,6 +1354,7 @@ function declareColorsForEffect(requirement) {
     updateConfirmState();
 
     modal.appendChild(createModalCloseX(() => finish(null)));
+    document.body.appendChild(peekHint);
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
   });
@@ -2143,7 +2204,7 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         markPlacedLocation: markEffectJustPlaced,
         placeFromDeck: placeFromDeckForEffect,
         swapPieces: swapPiecesForEffect,
-        announceUse: showHandEffectUseModal,
+        announceUse: announceHandEffectUseForEffect,
         pickHandEffectOption: showHandEffectOptionPicker,
         // ジャンプ台の手札効果（これをゲート以外の任意のマスに表向きで置く）用。
         flipCard: flipToFaceUpForEffect,
@@ -6593,8 +6654,10 @@ subscribe(() => {
   if (prevTurnPlayerForAnnouncement !== null && turnPlayer !== null && turnPlayer !== prevTurnPlayerForAnnouncement) {
     // ユーザー要望「ターンを終了したら、出っ放しの到達拡大モーダルがあれば全員閉じる
     // ようにしてください」。turnPlayerの変化はオンライン中も全クライアントに同期される
-    // ため、ここで閉じれば「全員」の画面で閉じることになる。
+    // ため、ここで閉じれば「全員」の画面で閉じることになる。使用モーダルも同じ位置・
+    // 同じ「消えない」設定を共有するようになった（続き42）ため、一緒に閉じる。
     hideCardArrivalModalImmediately();
+    hideHandEffectUseModalImmediately();
     if (isGateInvasionPending() || isGateInvasionQueueActive()) {
       pendingTurnAnnouncePlayer = turnPlayer;
     } else {

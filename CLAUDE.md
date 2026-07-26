@@ -9420,3 +9420,60 @@ Material Designのブレークポイントと同じ600px未満ならスマホ、
   main.js:5036）も同じガードを持つ。コードレビューの限りでは退行していないが、
   具体的な再現手順（ロックエリアと盤面どちらで起きるか、スナップバックするのか
   何も起きないのか等）があれば教えてほしい。
+
+### 2026-07-27（続き42）：色宣言モーダルの誤操作対策・使用モーダルの全員通知化・作業促しモーダルの中央寄せ
+
+ユーザー要望「①ザギャンブルの色宣言モーダルが、画面の関係ないところをクリックしたら
+消えてしまう。②手札効果を使用するためにカードをドロップした時、何が使用宣言された
+か『到達拡大モーダル』の位置に、同じく消えないように、自分を含め全員に見えるように
+表示してほしい。③スラム上がりの役人の『手札が3枚になるまで捨ててください』モーダルは
+画面中央に表示してほしい。今後も作業を促すモーダルは基本画面中央に。状況によっては
+『盤面を見る』的なボタンをつけてほしい、どう？」への対応。
+
+- **①`declareColorsForEffect`（main.js）のbackdropクリックによる誤キャンセルを防止**:
+  色宣言は既にコストを払って効果が発動済みの必須ステップのため、backdropクリックでは
+  何も起きないようにした（×ボタンだけが明示的なキャンセル手段として残る）。合わせて
+  `showHandEffectOptionPicker`と同じ「盤面を見る」ボタン（backdropを透明化して
+  modalだけ隠す、クリックで選択画面に戻る）も追加した——`createBackdrop`はinline
+  スタイルで背景色を付けているため、CSSクラスの切り替えではなく`backdrop.style.
+  background`を直接書き換える方式にした（optionPicker側はCSSクラスで済んだが、
+  こちらはinlineスタイルとの優先順位の都合で直接操作が必要だった）。
+- **②手札効果「使用」モーダルを到達拡大モーダルと同じ位置・消え方・全員通知に統一**:
+  `hand-effect-ui.js`の`showHandEffectUseModal`が、独自の左上・9rem・固定2.2秒消滅
+  だったのを、`card-arrival-modal`と同じCSS変数（`--card-arrival-modal-top/right/
+  size/duration`）・同じ「デフォルトは消えない、📌ボタンで明示固定」パターン
+  （`isCardArrivalModalPersistent()`を共有）に統一した。ただし到達モーダルとは
+  別々のDOM/タイマーで管理する独立実装のまま（片方がもう片方を意図せず消してしまわ
+  ないように）——同時に出た場合はDOM追加順で手前に重なる。「全員に見えるように」は
+  新設のonHandEffectUseEvents/broadcastHandEffectUse（online.js、他のritual_pick_*・
+  card_receivedと同じ「状態を変えないただの見た目の合図」パターン）で対応: 使った
+  本人はローカルでその場で表示しつつ、オンライン中は他の全プレイヤーへも同じ内容を
+  ブロードキャストする（`announceHandEffectUseForEffect`、main.js）。ローカル対戦は
+  1画面共有のためローカル表示だけで全員に見えている。ターン終了時に到達モーダルを
+  全員分閉じる既存の仕組み（`hideCardArrivalModalImmediately`、turnPlayerの変化を
+  検知するsubscribe）に、新設した`hideHandEffectUseModalImmediately`も並べて呼ぶ
+  ようにし、使用モーダルも同じタイミングで一緒に閉じるようにした。
+- **③`#card-effect-picker-hint`（main.jsのshowEffectPickerHint、スラム上がりの役人の
+  「手札が3枚になるまで捨ててください」を含む、マス/手札カードを選ばせる全ての場面で
+  共通利用）を画面上部から画面中央へ移動**。今後の「作業を促すモーダルは画面中央に」
+  という方針も踏まえた変更。ただし1点補足: このヒントは元々`pointer-events: none`の
+  非ブロッキングなバナー（実際の操作対象＝ハイライトされた盤面のマスや手札カード自体を
+  直接クリックしてもらう設計のため、クリックを奪ってしまうと逆に操作できなくなる）で、
+  画面中央に移しても背後の盤面/手札のクリックは今まで通り一切妨げない。そのため
+  「盤面を見る」ボタンは付けていない——ボタンで隠す/見せるを切り替えるまでもなく、
+  最初から透けて操作できる設計だったため。一方、①のdeclareColorsForEffectや
+  showHandEffectOptionPickerのような「独自の選択ボタンを持つ本当のモーダル」
+  （クリックを奪う必要がある＝backdropで盤面操作をブロックする設計）については、
+  引き続き「盤面を見る」ボタンを付ける対応が適切と判断し、今回①でも追加した。
+- **検証について**: ブラウザ上で確認した。`declare-colors-modal`への`is-peeking`
+  クラス付与＋backdropの`background`直接書き換えで、modal側のopacity/pointer-events・
+  backdrop側の背景色が意図通り変化することを確認（`showHandEffectOptionPicker`側の
+  同等の仕組みは前回セッションで実際のPromiseベースAPIごとend-to-endで確認済み）。
+  `showHandEffectUseModal`は実際に呼び出し、生成されたDOMのtop/right/widthが
+  `--card-arrival-modal-*`の既定値（3rem/1rem/25rem）と一致すること、デフォルトの
+  「消えない」設定時は📌ボタンが出ないこと（`isCardArrivalModalPersistent()`が
+  trueの間は不要なボタンのため）を確認した。`broadcastHandEffectUse`/
+  `onHandEffectUseEvents`はonline.js内の他のritual_pick_*と全く同じ配線パターンの
+  ため個別の実オンライン間テストはしていない（Supabase接続が必要でこの環境では
+  再現できないため）。ページの再読み込みとコンソールエラー確認で、今回の変更が
+  起動時エラーを起こしていないことは確認済み。
