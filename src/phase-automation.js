@@ -228,8 +228,25 @@ function showPhaseSkipModal(message) {
 // （実際に手札効果を使った・ロックした等の「本物の進行」によるadvancePhase()呼び出し
 // （reconcilePhaseAutomation参照）は従来通り即時のまま）。
 const PHASE_SKIP_ADVANCE_DELAY_MS = 1500;
+// ユーザー報告「ロックフェイズでロックはできて、ハンドフェイズに手札が無い時、
+// ハンドフェイズの自動スキップモーダルが出ていない」の原因: ロック→ハンドの
+// 自動遷移はstate.jsの汎用render()購読（moveToken等の状態変更のたびに同期的に
+// 発火する）経由でreconcilePhaseAutomation()が呼ばれてenterPhase("hand",...)に
+// 到達し、そこでこのadvancePhaseAfterSkip()（1500ms後に実際の遷移）が予約される。
+// ところがperformLockPhaseClick等の呼び出し元は、その直後に自分でも明示的に
+// render()を呼んでおり、その2回目のreconcilePhaseAutomation()が「currentPhase===
+// "hand" && handIsEmpty」を見てそのまま即座に（1500ms待たず）advancePhase()して
+// しまい、enterPhase("move",...)の先頭のdismissSkipModal()で、表示された直後の
+// スキップモーダルを一瞬で消してしまっていた（ユーザーからは「出ていない」ように
+// 見える）。予約中はこのフラグで「もう次への遷移は予約済み」と示し、reconcile側の
+// 別経路からの即時advancePhase()を抑止する。
+let skipTransitionPending = false;
 function advancePhaseAfterSkip() {
-  setTimeout(() => advancePhase(), PHASE_SKIP_ADVANCE_DELAY_MS);
+  skipTransitionPending = true;
+  setTimeout(() => {
+    skipTransitionPending = false;
+    advancePhase();
+  }, PHASE_SKIP_ADVANCE_DELAY_MS);
 }
 
 function countLockedCards(player) {
@@ -418,7 +435,7 @@ export function reconcilePhaseAutomation() {
     // していたが、まだDSL化されていない手札効果カードを見落として飛ばしてしまう
     // バグだった。手札が空になった（コスト等で使い切った）場合だけ自動で進み、
     // それ以外はスキップボタン（手動）を待つ。
-    if (!handEffectBusy && handIsEmpty(player)) advancePhase();
+    if (!handEffectBusy && !skipTransitionPending && handIsEmpty(player)) advancePhase();
     return;
   }
   if (currentPhase === "move") {

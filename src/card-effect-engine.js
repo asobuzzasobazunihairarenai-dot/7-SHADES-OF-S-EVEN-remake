@@ -323,21 +323,25 @@ function isFewestLocked(player) {
 //     「何を獲得したか」表示し、後で置き直すまで手札内で光らせる（ユーザー要望）。省略可。
 //   markPlacementTarget(location): PICKUP_TO_HANDで拾った元のマスを「ここに置き直す」
 //     目印としてハイライトし続ける（ユーザー要望「どこに置かれるか忘れないように」）。省略可。
+// 戻り値: 実際に何かが起きたか（true）、候補が無い等で「善処の原則」により何も
+// 起きなかったか（false）。ユーザー要望「効果が不発だった場合は『不発のためこのカードを
+// 手札に加えます』的なモーダルを出してほしい」への対応でrunArrivalEffect側が使う
+// （runHandEffectOption側は今のところこの戻り値を見ていない）。
 async function runAction(action, ctx, helpers) {
   switch (action.verb) {
     case VERBS.MOVE: {
       const candidates = getMoveCandidates(ctx.pieceLocation, action.count, !!action.atOnce);
-      if (candidates.length === 0) return; // 善処の原則: 選べる先が無ければ何もしない
+      if (candidates.length === 0) return false; // 善処の原則: 選べる先が無ければ何もしない
       const dest =
         candidates.length === 1 && !ctx.forcePrompt ? candidates[0] : await helpers.pickLocation(candidates, "移動先のマスを選択してください");
-      if (!dest) return;
+      if (!dest) return false;
       // ユーザー要望「ジャンプ台で移動するときに専用の効果音を使ってください」。
       // action.sound（DSL側で指定した場合のみ）をそのままhelpers.moveAndSyncへ
       // 渡す。指定が無い他のMOVEアクションは従来通り無音のまま。
       await helpers.moveAndSync(ctx.pieceTokenId, dest, action.sound);
       ctx.pieceLocation = dest;
       ctx.arrivedAt = dest; // 呼び出し元が「移動の結果、新しいマスに到達した」連鎖判定に使う
-      return;
+      return true;
     }
     case VERBS.DRAW: {
       // target: SELF（自分だけ）/ALL_OPPONENTS（対象は自分以外の参加座席それぞれ、
@@ -351,19 +355,19 @@ async function runAction(action, ctx, helpers) {
       for (const p of players) {
         await helpers.drawCards(p, action.count);
       }
-      return;
+      return true;
     }
     case VERBS.PICKUP_TO_HAND: {
       // withinCells指定時（橙のキューブ ハーベスト等）は「Nマス以内」に絞る。未指定なら
       // 従来通り盤面全体（収穫と種まき等）。
       const candidates =
         action.withinCells != null ? getCellsWithCardWithinRange(ctx.pieceLocation, action.withinCells) : getAnyCellWithCardCandidates();
-      if (candidates.length === 0) return;
+      if (candidates.length === 0) return false;
       const chosen =
         candidates.length === 1 && !ctx.forcePrompt
           ? candidates[0]
           : await helpers.pickLocation(candidates, "手札に加えるカードのあるマスを選択してください");
-      if (!chosen) return;
+      if (!chosen) return false;
       const token = getState().tokens.find(
         (t) =>
           t.kind === "card" &&
@@ -371,7 +375,7 @@ async function runAction(action, ctx, helpers) {
           t.location.row === chosen.row &&
           t.location.col === chosen.col
       );
-      if (!token) return;
+      if (!token) return false;
       const wasFaceUp = token.faceUp; // 手札に入ると自動で表向きになるため、移動前の状態を保持しておく
       await helpers.moveAndSync(token.id, { zone: "hand", player: ctx.player });
       helpers.onCardAcquiredToHand?.(token.id, token.cardId, wasFaceUp);
@@ -379,7 +383,7 @@ async function runAction(action, ctx, helpers) {
         ctx.selections[action.target.saveAs] = chosen;
         helpers.markPlacementTarget?.(chosen);
       }
-      return;
+      return true;
     }
     case VERBS.PLACE_CARD: {
       // destination.selection: SAME_AS（収穫と種まき・終わりなき化学ゲンテクニーク等、
@@ -416,13 +420,14 @@ async function runAction(action, ctx, helpers) {
       } else if (action.destination?.selection === TARGET_SELECTIONS.OWN_EMPTY_LOCK_SLOTS) {
         // 黒の契約の烙印専用: 自分のロックエリアの空いているスロット（色不問）から選ぶ。
         const candidates = getOwnEmptyLockSlotCandidates(ctx.player);
-        if (candidates.length === 0) return; // 善処の原則: 空きが無ければ何もしない
+        if (candidates.length === 0) return false; // 善処の原則: 空きが無ければ何もしない
         const dest = await helpers.pickLocation(candidates, "カードを置くロックエリアを選択してください");
         if (dest) destinations = [dest];
       } else {
         console.warn("card-effect-engine: place_cardのdestination.selectionが未対応です", action);
-        return;
+        return false;
       }
+      if (destinations.length === 0) return false;
       for (const dest of destinations) {
         if (action.source === "self") {
           // ジャンプ台の手札効果／黒の契約の烙印の到達効果専用: このカード自身
@@ -447,13 +452,13 @@ async function runAction(action, ctx, helpers) {
         // 対象外——row/colを持たないロックスロットは元々この演出の対象外）。
         if (dest.zone === "cell") helpers.markPlacedLocation?.(dest);
       }
-      return;
+      return true;
     }
     case VERBS.SWAP_POSITION: {
       // 「入れ替え」であり「移動」ではないため（docs/cards.md補足）、到達判定は連鎖させない
       // （ctx.arrivedAtをセットしない）。
       const candidates = getOpponentPieceCellsWithinRange(ctx.pieceLocation, action.count, ctx.player);
-      if (candidates.length === 0) return;
+      if (candidates.length === 0) return false;
       // ユーザー要望「３マス以内の相手をハイライトしてプレイヤーに選ばせるステップを
       // 踏んでください（対象が１人でも）」＋「到達効果でも手札効果と同じように相手を
       // 選ぶステップを入れてください」。他のアクション（MOVE等）は「候補が1つなら
@@ -461,10 +466,10 @@ async function runAction(action, ctx, helpers) {
       // 入れ替えは結果の重さが違うため、到達・手札のどちらの経路でも
       // （ctx.forcePromptに関係なく）常にプレイヤーに選ばせる。
       const target = await helpers.pickLocation(candidates, "入れ替える相手のマスを選択してください");
-      if (!target) return;
+      if (!target) return false;
       await helpers.swapPieces(ctx.pieceTokenId, ctx.pieceLocation, target);
       ctx.pieceLocation = target;
-      return;
+      return true;
     }
     case VERBS.LOCK_PAIR: {
       // なないろの欠片専用: これを含めた同名2枚を、任意の1箇所（自分のロックエリアの
@@ -472,24 +477,23 @@ async function runAction(action, ctx, helpers) {
       const partner = getState().tokens.find(
         (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === ctx.player && t.cardId === "rainbow-shard" && t.id !== ctx.cardTokenId
       );
-      if (!partner) return;
+      if (!partner) return false;
       const candidates = getOwnLockSlotCandidates(ctx.player);
       const dest = await helpers.pickLocation(candidates, "ロックする場所を選択してください");
-      if (!dest) return;
+      if (!dest) return false;
       await helpers.moveAndSync(ctx.cardTokenId, dest);
       await helpers.moveAndSync(partner.id, dest);
-      return;
+      return true;
     }
     case VERBS.DRAW_IF_FEWEST_LOCKED: {
-      if (isFewestLocked(ctx.player)) {
-        // ユーザー要望「カウンターロックの到達効果について『あなたは１番少なくロック
-        // しているので１枚ドローします』みたいなモーダルを出してからドローして
-        // ください」。判定条件（盤面全体のロック枚数比較）は見ただけでは分からないため、
-        // 先に理由を説明してから実際にドローする。
-        await helpers.announceEffectReason?.(ctx.cardId, "あなたは１番少なくロックしているので１枚ドローします。");
-        await helpers.drawCards(ctx.player, 1);
-      }
-      return;
+      if (!isFewestLocked(ctx.player)) return false;
+      // ユーザー要望「カウンターロックの到達効果について『あなたは１番少なくロック
+      // しているので１枚ドローします』みたいなモーダルを出してからドローして
+      // ください」。判定条件（盤面全体のロック枚数比較）は見ただけでは分からないため、
+      // 先に理由を説明してから実際にドローする。
+      await helpers.announceEffectReason?.(ctx.cardId, "あなたは１番少なくロックしているので１枚ドローします。");
+      await helpers.drawCards(ctx.player, 1);
+      return true;
     }
     case VERBS.SWAP_RANDOM_HAND_CARD: {
       // 手品師の技専用。ユーザー要望「駒ではなくアバターを選択して相手を選ぶ」への
@@ -498,11 +502,11 @@ async function runAction(action, ctx, helpers) {
       // 表示して選ばせる「儀式」演出＋自分から渡すカードは自分で選べる）はhelpers側
       // （main.jsのswapHandCardWithOpponentForEffect）に委ねる。
       const opponents = getState().activePlayers.filter((p) => p !== ctx.player);
-      if (opponents.length === 0) return;
+      if (opponents.length === 0) return false;
       const targetPlayer = await helpers.pickPlayer(opponents, "手札を交換する相手を選んでください（アバターをクリック）");
-      if (!targetPlayer) return;
+      if (!targetPlayer) return false;
       await helpers.swapRandomHandCard(ctx.player, targetPlayer);
-      return;
+      return true;
     }
     case VERBS.DRAW_ALL_FEWEST_LOCKED: {
       // プレゼント専用: カウンターロック（DRAW_IF_FEWEST_LOCKED、効果の使用者本人だけ
@@ -513,12 +517,12 @@ async function runAction(action, ctx, helpers) {
       const startIdx = order.indexOf(ctx.player);
       const rotatedOrder = startIdx >= 0 ? [...order.slice(startIdx), ...order.slice(0, startIdx)] : order;
       const qualifying = rotatedOrder.filter((p) => isFewestLocked(p));
-      if (qualifying.length === 0) return;
+      if (qualifying.length === 0) return false;
       await helpers.announceEffectReason?.(ctx.cardId, "１番少なくロックしている全員が１枚ドローします。");
       for (const p of qualifying) {
         await helpers.drawCards(p, 1);
       }
-      return;
+      return true;
     }
     case VERBS.DISCARD_ALL_FACEUP_ON_BOARD: {
       // 白の意思の覚醒専用: 盤面マスにある表向きのカード全てを捨てる（１番上の原則により
@@ -528,16 +532,17 @@ async function runAction(action, ctx, helpers) {
       // 全部が対象という素直な読みのため、重なりの上下は区別せずfaceUp:trueの盤面
       // カード全てを対象にする）。
       const candidates = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "cell" && t.faceUp);
+      if (candidates.length === 0) return false;
       for (const token of candidates) {
         await helpers.discardAndSync(token.id);
       }
-      return;
+      return true;
     }
     case VERBS.DISCARD_SELF: {
       // なないろの巨光・色落ちキャット専用: 既定動作（手札に加える）の代わりに
       // このカード自身を捨てる（effectDef.addsCardToHandAfter:falseと対で使う）。
       await helpers.discardAndSync(ctx.cardTokenId);
-      return;
+      return true;
     }
     case VERBS.ALL_PLAYERS_DISCARD_HAND_AND_DRAW: {
       // 色落ちキャット専用: 参加者全員が手札を全て捨ててから指定枚数ドローする
@@ -552,10 +557,11 @@ async function runAction(action, ctx, helpers) {
         }
         await helpers.drawCards(p, action.count);
       }
-      return;
+      return true;
     }
     default:
       console.warn(`card-effect-engine: 未対応の動詞 "${action.verb}"`);
+      return false;
   }
 }
 
@@ -578,8 +584,17 @@ export async function runArrivalEffect(ctx, helpers) {
     selections: {},
     arrivedAt: null,
   };
+  let hadEffect = false;
   for (const action of effectDef.actions) {
-    await runAction(action, runCtx, helpers);
+    if (await runAction(action, runCtx, helpers)) hadEffect = true;
+  }
+  // ユーザー要望「効果が不発だった場合（例: マスチェンジで３マス以内に相手がいない等）
+  // は『不発のためこのカードを手札に加えます』的なモーダルを出しましょう」。アクションが
+  // 1つ以上あるのに1つも実際には起きなかった場合だけが対象——なないろの欠片のように
+  // actions:[]（＝到達効果自体が元々存在しないカード）は「不発」ではなく仕様通りの
+  // 「何もしない」なので、こちらは対象外にする。
+  if (effectDef.actions.length > 0 && !hadEffect) {
+    await helpers.announceFizzle?.(ctx.cardId, effectDef.addsCardToHandAfter !== false);
   }
   // 既定動作（到達効果処理後にこのカード自身を手札に加える）。明示的にfalseの時だけ省略する
   // （docs/cards.mdの凡例通り）。

@@ -8743,3 +8743,67 @@ Material Designのブレークポイントと同じ600px未満ならスマホ、
   なないろの巨光・マスチェンジ手札効果・手品師の技手札効果と同様、この2枚の
   ⚠️表示は「意図的なもの」として`card-dev-mode.js`の`PILOT_CARDS`に説明
   コメントを追記し、以後この2件を不具合として再度拾わないようにした。
+
+### 2026-07-26（続き26）：接触のピック主体をattacker側に訂正、効果不発モーダル、ハンドフェイズ自動スキップの見逃しバグ修正
+
+- **①接触の儀式的ピックの主体を訂正**: ユーザー指摘「接触では、接触した側
+  (attacker)が裏向きの手札から１枚選ぶべきなのに、今は接触された側
+  (defender)が選ぶ形になっている」。続き22で「スリカエと同じ儀式的ピック」を
+  接触にも入れた際、`respondToContact()`がdefender本人の画面からしか呼ばれない
+  （承認/拒否ボタンがdefenderにしか出ない設計）ことに引きずられ、儀式的ピック
+  （`requestOpponentHandRitualPick`）もdefenderの画面でdefender自身の手札に
+  対して行ってしまっていた。正しくは「defenderの裏向きの手札を覗いて選ぶ」の
+  でattacker側の画面で行う必要がある。承認ボタン自体は引き続きdefenderにしか
+  出さない（既存の設計を変えない）ため、間に2つの合図を追加した
+  （`online.js`の`broadcastContactApproved`/`broadcastContactPickResolved`、
+  既存の`broadcastContactTackle`と全く同じ「状態は変えない見た目の合図だけ」
+  パターン）: ①defenderが承認した瞬間、「選んでいいよ」とattacker側へ伝える。
+  ②attacker側が儀式的ピックを終えたら、選んだtoken idをdefender側へ送り返す。
+  defender側は届いたtoken idでそのまま従来通り`respondContact(true, stolenCardId)`
+  を呼ぶ（タックル演出等の残りの処理は一切変更なし）。attacker側がピックを
+  キャンセルした場合はサーバー側のフォールバック（無作為に1枚）に委ねる。
+  ローカル対戦（1画面共有）はこの往復が不要なため、従来通り
+  `requestOpponentHandRitualPick`を直接呼ぶだけだが、案内文を
+  「(attacker名)が、(defender名)の手札（裏向き）から奪う1枚を選んでください」
+  に変更し、選ぶ主体がattackerであることが分かるようにした。
+  **オンライン側の実際の2クライアント間の往復はこの環境では検証できないため、
+  実際のオンライン対戦での確認をお願いします。**
+- **②効果不発時の案内モーダル**: ユーザー要望「効果が不発だった場合（例:
+  マスチェンジで３マス以内に相手がいない等）は『不発のためこのカードを手札に
+  加えます』的なモーダルを出しましょう」。`card-effect-engine.js`の`runAction()`
+  の全動詞が、実際に何かが起きたか（true）「善処の原則」で候補が無く何も
+  起きなかったか（false）を返すようにし、`runArrivalEffect()`側でアクションが
+  1つ以上あるのに1つも実際に起きなかった場合だけ`helpers.announceFizzle(cardId,
+  addsToHand)`を呼ぶようにした（なないろの欠片のように`actions:[]`＝元々
+  到達効果自体が無いカードは対象外）。`addsToHand`は`effectDef.
+  addsCardToHandAfter`に対応し、ジャンプ台や黒の契約の烙印のように既定動作
+  （手札に加える）を上書きしているカードが不発になった場合は「不発のため、
+  このカードを手札に加えます。」ではなく「不発のため、何も起きませんでした。」
+  （盤面にそのまま残る）と文言を分けた。表示自体はカウンターロックの理由
+  モーダル（`showEffectReasonModal`）を再利用した。
+- **③ハンドフェイズ自動スキップモーダルが一瞬で消えて見えなかったバグの修正**:
+  ユーザー報告「ロックフェイズでロックはできて、ハンドフェイズに手札が無い時、
+  ハンドフェイズの自動スキップモーダルが出ていない」。原因調査の結果、
+  ロック→ハンドの自動遷移時に発生する二重呼び出しレースだと判明した:
+  moveTokenの状態変更が汎用render()購読を同期発火し`reconcilePhaseAutomation()`
+  →`enterPhase("hand",...)`に到達してスキップモーダルを表示・`advancePhaseAfterSkip()`
+  で1500ms後の遷移を予約するが、呼び出し元（`performLockPhaseClick`等）が
+  その直後にもう一度明示的に`render()`を呼んでおり、その2回目の
+  `reconcilePhaseAutomation()`が「`currentPhase==="hand"`かつ手札が空」を見て
+  1500ms待たずに即座に`advancePhase()`してしまい、次のフェイズへ入る
+  `enterPhase()`先頭の`dismissSkipModal()`で、表示された直後のスキップ
+  モーダルを一瞬で消してしまっていた。`phase-automation.js`に
+  `skipTransitionPending`フラグを追加し、`advancePhaseAfterSkip()`で
+  遷移予約中はtrueにして、`reconcilePhaseAutomation()`のハンドフェイズ
+  reconcile側の即時advanceをこの間だけ抑止するようにした。
+- **検証について**: ②③は`hydrateState`＋フェイクhelpers（またはこのブラウザに
+  実際に読み込まれているアプリ本体へ`state.js`を直接import）で検証した。
+  ②はマスチェンジが不発時（３マス以内に相手なし）に`announceFizzle`が
+  `addsToHand:true`で呼ばれカードが手札に加わること、成功時（隣接あり）は
+  `announceFizzle`が呼ばれないこと、黒の契約の烙印が全ロックスロット占有時に
+  `announceFizzle`が`addsToHand:false`で呼ばれカードが手札に加わらないことを
+  それぞれ確認した。③は実際にロック１枚だけの手札を用意し、`state.js`の
+  `moveToken`を呼んでロック→ハンドの自動遷移を実際に発生させ、スキップ
+  モーダルが（修正前のように即座に消えるのではなく）約1500ms後まで画面に
+  残り続けてから正しく消えることをDOM上で確認した。①のオンライン2クライアント
+  間の往復のみ、この環境では検証できていない。

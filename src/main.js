@@ -134,6 +134,10 @@ import {
   onGateInvasionEvents,
   broadcastContactTackle,
   onContactTackleEvents,
+  broadcastContactApproved,
+  onContactApprovedEvents,
+  broadcastContactPickResolved,
+  onContactPickResolvedEvents,
   getSyncedIdentity,
   getGoogleAvatarUrl,
   getGoogleDisplayName,
@@ -983,6 +987,16 @@ async function announceEffectReasonForEffect(cardId, text) {
   await wait(1200);
 }
 
+// ユーザー要望「効果が不発だった場合（例: マスチェンジで３マス以内に相手がいない等）は
+// 『不発のためこのカードを手札に加えます』的なモーダルを出しましょう」。addsToHandは
+// card-effects.jsのeffectDef.addsCardToHandAfterに対応する（false指定のカード＝
+// ジャンプ台や黒の契約の烙印が不発になった場合は、このカード自身が手札には加わらない
+// ため文言を分ける——盤面にそのまま残る）。
+async function announceEffectFizzleForEffect(cardId, addsToHand) {
+  showEffectReasonModal(cardId, addsToHand ? "不発のため、このカードを手札に加えます。" : "不発のため、何も起きませんでした。");
+  await wait(1200);
+}
+
 // ユーザー報告「移動先候補のハイライトをクリックしても自動で移動しない」の原因調査で
 // 判明: この盤面は3D的な傾き（テーブル演出）を持つため、駒・カードのドラッグは
 // ネイティブのclickイベント（当たり判定がズレる。initDragHandlers直前のコメント参照）
@@ -1570,6 +1584,9 @@ async function runAutoArrivalEffect(cardId, location, player) {
       // 追色コストの支払いで元々discardAndSyncを持っていたが、到達効果側には
       // まだ無かったので追加した。
       discardAndSync: discardFromHandReveal,
+      // ユーザー要望「効果が不発だった場合は『不発のためこのカードを手札に加えます』
+      // 的なモーダルを出す」用。
+      announceFizzle: announceEffectFizzleForEffect,
     }
   );
   clearEffectUiHighlights();
@@ -2219,6 +2236,31 @@ async function playEternalAcquisitionAnim(attacker, cardId, cardDef, onDone) {
   onDone();
 }
 
+// broadcastContactApprovedを受けたattacker側が、儀式的ピックを終えて
+// broadcastContactPickResolvedを送り返すまでの間、defender側で待つためのPromise。
+// attacker/defenderの組み合わせが今のpendingContactと一致する初回の1件だけを拾う
+// （複数回発火することは無い想定だが、念のため一致確認する）。
+function waitForContactPickResolved(attacker, defender) {
+  return new Promise((resolve) => {
+    const unregister = onContactPickResolvedEvents((payload) => {
+      if (payload.attacker !== attacker || payload.defender !== defender) return;
+      unregister();
+      resolve(payload.stolenCardId ?? null);
+    });
+  });
+}
+
+// broadcastContactApprovedを受け取ったattacker本人の画面で、defenderの裏向きの手札
+// から儀式的に1枚選び、その結果（token id）をdefenderへ送り返す。攻撃されたdefender
+// が承認した瞬間に呼ばれる（respondToContact参照）。
+async function resolveContactRitualPickAsAttacker({ attacker, defender }) {
+  const stolen = await requestOpponentHandRitualPick(
+    defender,
+    `${getPlayerName(defender)}の手札（裏向き）から奪う1枚を選んでください`
+  );
+  broadcastContactPickResolved({ attacker, defender, stolenCardId: stolen?.id ?? null });
+}
+
 // 接触されたプレイヤー（defender）が承認/拒否モーダル（contact-approval.js）で応答した
 // 時に呼ばれる。承認された場合だけ、respondToFinalLockと同じ理由でローカルモードは
 // 明示的に到達判定を呼ぶ必要がある（remote-move-animator.jsはisOnlineMode()で早期return
@@ -2247,19 +2289,35 @@ async function respondToContact(approve) {
   }
 
   // ユーザー要望「接触でカードを奪うときも、スリカエの時同様、儀式的に裏向きの手札
-  // からカードを奪うステップを入れてください」への対応。respondToContact()は必ず
-  // defender自身の画面から（contact-approval.jsのcanRespond判定により、承認ボタンは
-  // defender本人にしか出ない）呼ばれるため、ここで見せる「裏向きの手札」は常に
-  // このクライアント自身が既に中身を知っている自分の手札——他プレイヤーの隠し情報を
-  // 覗くことにはならない。表示順をシャッフルすることで「無作為に」を満たしつつ、
-  // スリカエと同じ儀式的な「選ぶ」体験にする。キャンセル（backdropクリック等）した
-  // 場合は何も変えずそのまま中断し、pendingContactは残したままにする（承認ボタンを
-  // もう一度押せばやり直せる）。
+  // からカードを奪うステップを入れてください」＋その後の訂正「接触した側(attacker)が
+  // 裏向きの手札から選ぶべきで、接触された側(defender)が選ぶ形になっているのは
+  // 逆」への対応。実際に選ぶ主体は常にattacker（defenderの裏向きの手札を覗いて選ぶ）
+  // にする必要がある。respondToContact()自体はcontact-approval.jsのcanRespond判定で
+  // defender本人の画面からしか呼ばれない（承認/拒否ボタンがdefenderにしか出ない）ため、
+  // オンライン中はここでattacker側の画面へ「選んでいいよ」の合図
+  // （broadcastContactApproved）を送り、attacker側が選び終えた結果
+  // （broadcastContactPickResolved）が届くまで待つ。ローカル対戦は1画面を全員で
+  // 共有しているため、この往復は不要——そのままattacker視点の案内文でdefenderの
+  // 手札を選ばせる（requestOpponentHandRitualPick自体はtargetPlayer＝defenderの
+  // 手札を見せるだけで、呼び出し元が誰であるかは問わない）。
   let stolenCardId;
   if (approve && defenderHandBefore.length > 0) {
-    const chosenCard = await requestOpponentHandRitualPick(defender, "あなたの手札（裏向き）から奪われる1枚を選んでください");
-    if (!chosenCard) return;
-    stolenCardId = chosenCard.id;
+    if (isOnlineMode()) {
+      broadcastContactApproved({ attacker, defender });
+      // attacker側がbackdropクリック等でピックをキャンセルした場合はstolenCardId:null
+      // が届く。ここでdefenderをいつまでも待たせるわけにいかないため、その場合は
+      // サーバー側のフォールバック（無作為に1枚）に委ねる（RESPOND_CONTACTケース
+      // 参照、stolenCardIdが渡らなければ従来通りサーバーが乱数で選ぶ）。
+      const resolved = await waitForContactPickResolved(attacker, defender);
+      stolenCardId = resolved ?? undefined;
+    } else {
+      const chosenCard = await requestOpponentHandRitualPick(
+        defender,
+        `${getPlayerName(attacker)}が、${getPlayerName(defender)}の手札（裏向き）から奪う1枚を選んでください`
+      );
+      if (!chosenCard) return;
+      stolenCardId = chosenCard.id;
+    }
   }
 
   // タックル演出のため、状態を変える(respondContact)前に「動く前」のDOM情報を確保して
@@ -5989,4 +6047,12 @@ onGateInvasionEvents((events) => {
 onContactTackleEvents((payload) => {
   if (getSelfSeat() === payload.defenderSeat) return;
   playContactTackleForBystander(payload).catch((err) => console.error("playContactTackleForBystander failed", err));
+});
+
+// ユーザー要望「接触した側(attacker)が裏向きの手札から選ぶように」への対応。
+// defenderが承認した瞬間に届く合図（broadcastContactApproved）を全クライアントが
+// 受け取るが、実際に儀式的ピックを行うのは自分がattacker本人の時だけ。
+onContactApprovedEvents((payload) => {
+  if (getSelfSeat() !== payload.attacker) return;
+  resolveContactRitualPickAsAttacker(payload).catch((err) => console.error("resolveContactRitualPickAsAttacker failed", err));
 });

@@ -252,6 +252,42 @@ export function broadcastContactTackle(payload) {
     broadcastChannel.send({ type: "broadcast", event: "contact_tackle", payload });
   }
 }
+
+// ユーザー要望「接触では、接触した側(attacker)が裏向きの手札から1枚選ぶようにして
+// ほしい。今は接触された側(defender)が選ぶ形になってしまっている」。実際に奪う
+// カードを決める「儀式的ピック」演出はdefenderの手札を覗く形になるため、覗く本人
+// （attacker）の画面で行う必要がある。しかし接触を最終的に確定させる（respondContact
+// の呼び出し・タックル演出の再生）のは引き続きdefenderの画面側（元々の実装をそのまま
+// 流用、承認/拒否ボタン自体もdefenderにしか出ない設計）に残すため、間に2つの合図が
+// 要る: ①defenderが承認した瞬間、「今choiceして良い」とattackerへ伝える
+// （broadcastContactApproved）。②attackerが選び終えたら、その結果（token id）を
+// defenderへ送り返す（broadcastContactPickResolved）。どちらも状態は一切変えない
+// 見た目の合図だけの送受信で、contact_tackleと全く同じパターン。
+let contactApprovedEventListeners = [];
+export function onContactApprovedEvents(fn) {
+  contactApprovedEventListeners.push(fn);
+  return () => {
+    contactApprovedEventListeners = contactApprovedEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastContactApproved(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "contact_approved", payload });
+  }
+}
+
+let contactPickResolvedEventListeners = [];
+export function onContactPickResolvedEvents(fn) {
+  contactPickResolvedEventListeners.push(fn);
+  return () => {
+    contactPickResolvedEventListeners = contactPickResolvedEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastContactPickResolved(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "contact_pick_resolved", payload });
+  }
+}
 // main.jsのヘッダーボタン（「🌐 オンライン」）のラベルを、ログイン状態が分かるように
 // 動的に変える時など、awaitせず同期的に「今ログイン中かどうか」を知りたい場面のために
 // キャッシュしておく（getCurrentUser()は毎回サーバーに問い合わせる非同期関数のため）。
@@ -1608,6 +1644,13 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // 接触のタックル演出開始の合図（broadcastContactTackle参照）。
     .on("broadcast", { event: "contact_tackle" }, ({ payload }) => {
       for (const fn of contactTackleEventListeners) fn(payload);
+    })
+    // 接触の儀式的ピックの合図2種（broadcastContactApproved/broadcastContactPickResolved参照）。
+    .on("broadcast", { event: "contact_approved" }, ({ payload }) => {
+      for (const fn of contactApprovedEventListeners) fn(payload);
+    })
+    .on("broadcast", { event: "contact_pick_resolved" }, ({ payload }) => {
+      for (const fn of contactPickResolvedEventListeners) fn(payload);
     })
     .subscribe((status) => {
       // ユーザー要望「部屋に入ってきたら、待機中の他メンバーにもリアルタイムで（＝
