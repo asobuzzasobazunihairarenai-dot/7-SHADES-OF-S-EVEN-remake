@@ -664,22 +664,32 @@ async function runAction(action, ctx, helpers) {
       return true;
     }
     case VERBS.RITUAL_PLACE_MOVE_REPEAT: {
-      // 試練の儀式専用: 隣接する何もないマスへ山札から1枚表向きで置く→そこへ移動
+      // 試練の儀式専用: 隣接するマスへ山札から1枚表向きで置く→そこへ移動
       // （到達効果は得ない、ctx.arrivedAtはセットしない）→置いたカードの色が宣言色
       // なら繰り返す。無限ループの安全弁として最大回数を設ける（実際には盤面の広さ・
       // 山札の残り枚数で自然に制限されるが、念のため）。
+      // ユーザー報告「色を３色宣言しただけで終わってしまっている」の原因: 合同建設・
+      // 増殖する樹々は実際の文言に明示的に「何もないマス」とあるためカードの無い
+      // マスに限定していたが、試練の儀式の実際の文言「あなたの隣に山札から１枚
+      // 表向きで置く。」にはその限定が無い（docs/cards.mdの「１番上の原則」の通り、
+      // 既にカードのあるマスにも上から重ねて置ける）。誤ってhasCardAtでも候補を
+      // 除外していたため、盤面がある程度埋まっている実戦ではほぼ常に候補0件になり、
+      // 色宣言の直後で効果が止まってしまっていた。駒は1マスにつき1つまで
+      // （docs/rulebook.md）なのでhasPieceAtの除外だけ残す。
       const declaredColors = ctx.selections.declaredColors;
       if (!declaredColors?.length) return false;
       let placedAny = false;
       const MAX_ITERATIONS = 20;
       for (let i = 0; i < MAX_ITERATIONS; i++) {
-        const adjacentEmptyCells = enumerateManhattanRing(1)
+        const adjacentCandidateCells = enumerateManhattanRing(1)
           .map(({ dr, dc }) => ({ row: ctx.pieceLocation.row + dr, col: ctx.pieceLocation.col + dc }))
-          .filter(({ row, col }) => inBounds(row, col) && !hasCardAt(row, col) && !hasPieceAt(row, col))
+          .filter(({ row, col }) => inBounds(row, col) && !hasPieceAt(row, col))
           .map(({ row, col }) => ({ zone: "cell", row, col }));
-        if (adjacentEmptyCells.length === 0) break; // 善処の原則: 置ける隣接マスが無ければそこで終わる
+        if (adjacentCandidateCells.length === 0) break; // 善処の原則: 置ける隣接マスが無ければそこで終わる
         const dest =
-          adjacentEmptyCells.length === 1 ? adjacentEmptyCells[0] : await helpers.pickLocation(adjacentEmptyCells, "カードを置く隣接マスを選択してください");
+          adjacentCandidateCells.length === 1
+            ? adjacentCandidateCells[0]
+            : await helpers.pickLocation(adjacentCandidateCells, "カードを置く隣接マスを選択してください");
         if (!dest) break;
         const placedCardId = await helpers.placeFromDeckFaceUp(dest);
         if (!placedCardId) break; // 山札切れ等
