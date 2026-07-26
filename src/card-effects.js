@@ -31,12 +31,15 @@ export const VERBS = {
   SWAP_RANDOM_HAND_CARD: "swap_random_hand_card", // 手品師の技専用: 選んだ相手と、互いの手札から無作為に1枚ずつ交換する
   DRAW_ALL_FEWEST_LOCKED: "draw_all_fewest_locked", // プレゼント専用: ロック枚数が全員中で最少（同率含む）の全員がそれぞれ1枚ドロー
   DISCARD_ALL_FACEUP_ON_BOARD: "discard_all_faceup_on_board", // 白の意思の覚醒専用: 盤面（マス）にある表向きのカードを全て捨てる
+  DISCARD_SELF: "discard_self", // このカード自身を捨てる（既定動作「手札に加える」の代わり）
+  ALL_PLAYERS_DISCARD_HAND_AND_DRAW: "all_players_discard_hand_and_draw", // 色落ちキャット専用: 全員が手札を全て捨ててから指定枚数ドローする
 };
 
-// 効果の主語（誰が対象か）。「自分」以外は今回のパイロットでは「相手全員」だけ登場する。
+// 効果の主語（誰が対象か）。
 export const TARGETS = {
   SELF: "self",
   ALL_OPPONENTS: "all_opponents",
+  ALL_PLAYERS: "all_players", // なないろの巨光専用: 自分を含む参加者全員
 };
 
 // カードを置くマスの選び方。「choose」はプレイヤーが実際にマスを選ぶ（UIでの対象選択が
@@ -48,6 +51,9 @@ export const TARGET_SELECTIONS = {
   // 増殖する樹々専用: プレイヤーが選ぶのではなく、範囲内の該当マス全てが自動的に対象になる
   // （destination.withinCellsと組み合わせて使う）。
   ALL_WITHIN_RANGE: "all_within_range",
+  // 黒の契約の烙印専用: 自分のロックエリアの空いているスロット（通常のロックと違い色を
+  // 問わない）から選ぶ。
+  OWN_EMPTY_LOCK_SLOTS: "own_empty_lock_slots",
 };
 
 // --- パイロットカード5枚 --------------------------------------------------------------
@@ -146,6 +152,51 @@ export const CARD_EFFECTS = {
           source: "deck",
           faceUp: false,
           destination: { selection: TARGET_SELECTIONS.ALL_WITHIN_RANGE, withinCells: 2 },
+        },
+      ],
+    },
+  },
+
+  // なないろの巨光（白、通常カード） 到達効果: 「全員、3枚ドロー。このカードを
+  // 捨てる。」既定動作（処理後に手札へ加える）を上書きし、代わりに捨てる
+  // （DISCARD_SELF）。
+  "white-radiance": {
+    arrival: {
+      addsCardToHandAfter: false,
+      actions: [
+        { verb: VERBS.DRAW, count: 3, target: TARGETS.ALL_PLAYERS },
+        { verb: VERBS.DISCARD_SELF },
+      ],
+    },
+  },
+
+  // 色落ちキャット（黒、通常カード） 到達効果: 「これを捨てる。全員、手札を全て
+  // 捨て、１枚ドロー。」なないろの巨光と同じ「捨てる」だが実際の文言が
+  // 「これを」なのでselfLabelで上書きする。
+  "black-faded-cat": {
+    arrival: {
+      addsCardToHandAfter: false,
+      actions: [
+        { verb: VERBS.DISCARD_SELF, selfLabel: "これ" },
+        { verb: VERBS.ALL_PLAYERS_DISCARD_HAND_AND_DRAW, count: 1 },
+      ],
+    },
+  },
+
+  // 黒の契約の烙印（黒、通常カード） 到達効果: 「あなたの空いているロックエリアに、
+  // これを表向きで置く。」（補足: 「置く」であって「ロックした」扱いにはならない
+  // ため、通常のロックの色制限は関係なく空いていればどの色のスロットでもよい）。
+  // ★（あなたのロックフェイズにロックしないなら〜）・■（これを任意のマスに裏向きで
+  // 置く）は基本効果・手札効果の話で、いずれも今回のスコープ外。
+  "black-contract-brand": {
+    arrival: {
+      addsCardToHandAfter: false,
+      actions: [
+        {
+          verb: VERBS.PLACE_CARD,
+          source: "self",
+          faceUp: true,
+          destination: { selection: TARGET_SELECTIONS.OWN_EMPTY_LOCK_SLOTS },
         },
       ],
     },
@@ -327,6 +378,9 @@ function toFullWidthNumber(n) {
 
 function renderTargetLabel(target) {
   if (target === TARGETS.ALL_OPPONENTS) return "相手全員は";
+  // なないろの巨光専用: docs/cards.mdの実際の文言は「全員は」ではなく「全員、」
+  // （読点区切り）になっている。ALL_OPPONENTSとは別の言い回しのため区別する。
+  if (target === TARGETS.ALL_PLAYERS) return "全員、";
   return ""; // 自分が主語の場合、既存の説明書と同じく主語を省略する
 }
 
@@ -354,6 +408,11 @@ function renderAction(action, context) {
       // source: "self"（ジャンプ台の手札効果等）: 「手札から／山札から○枚」ではなく
       // 「これを」で始まる、このカード自身を指す専用の文型になる。
       if (action.source === "self") {
+        // 黒の契約の烙印専用: 実際の文言は「これを」始まりではなく「あなたの空いている
+        // ロックエリアに、これを〜置く」という置き場所（ロックエリア）が先に来る語順。
+        if (action.destination?.selection === TARGET_SELECTIONS.OWN_EMPTY_LOCK_SLOTS) {
+          return `あなたの空いているロックエリアに、これを${faceLabel}置く。`;
+        }
         const destLabel = action.destination?.excludeGates ? "ゲート以外の任意のマスに" : "任意のマスに";
         return `これを${destLabel}${faceLabel}置く。`;
       }
@@ -394,6 +453,13 @@ function renderAction(action, context) {
       return "１番少なくロックしている全員は、１枚ドロー。";
     case VERBS.DISCARD_ALL_FACEUP_ON_BOARD:
       return "場の全ての表向きのカードを捨てる。";
+    case VERBS.DISCARD_SELF:
+      // なないろの巨光は「このカードを捨てる。」、色落ちキャットは「これを捨てる。」と
+      // 実際の文言が違う（docs/cards.mdの表記ゆれ）ため、action.selfLabelで選べるように
+      // した（既定は「このカード」）。
+      return `${action.selfLabel ?? "このカード"}を捨てる。`;
+    case VERBS.ALL_PLAYERS_DISCARD_HAND_AND_DRAW:
+      return `全員、手札を全て捨て、${count}枚ドロー。`;
     default:
       return `（未対応の動詞: ${action.verb}）`;
   }
@@ -417,8 +483,15 @@ export function generateEffectText(effectDef) {
   const context = { selections: {} };
   const parts = [];
   // docs/cards.mdの凡例通り、既定動作（到達効果処理後にこのカード自身を手札に加える）を
-  // 上書きしている場合だけ、その旨を明示する一文を先頭に足す（ジャンプ台等）。
-  if (effectDef.addsCardToHandAfter === false) parts.push("これはあなたの手札に加えない。");
+  // 上書きしている場合だけ、その旨を明示する一文を先頭に足す（ジャンプ台等）。ただし
+  // DISCARD_SELFやPLACE_CARD(source:"self")のように、アクション自体が既にこのカードの
+  // 行方を明示している場合は、docs/cards.md側にも「これは手札に加えない」の一文が
+  // 存在しない（なないろの巨光・色落ちキャット・黒の契約の烙印で確認済み）ため、
+  // 冗長な一文を足さない。
+  const actionsHandleSelf = effectDef.actions?.some(
+    (a) => a.verb === VERBS.DISCARD_SELF || (a.verb === VERBS.PLACE_CARD && a.source === "self")
+  );
+  if (effectDef.addsCardToHandAfter === false && !actionsHandleSelf) parts.push("これはあなたの手札に加えない。");
   const costText = renderCost(effectDef.cost);
   if (costText) parts.push(costText);
   for (const action of effectDef.actions) {
@@ -510,4 +583,16 @@ if (typeof process !== "undefined" && process.argv[1] && process.argv[1].endsWit
   console.log("[マスチェンジ 到達効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["orange-mass-change"].arrival));
   console.log("  実際: ３マス以内の相手のいる場所とあなたのいる場所を入れ替える。相手はこのカードの到達効果を得ない。\n");
+
+  console.log("[なないろの巨光 到達効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["white-radiance"].arrival));
+  console.log("  実際: 全員、3枚ドロー。このカードを捨てる。\n");
+
+  console.log("[色落ちキャット 到達効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["black-faded-cat"].arrival));
+  console.log("  実際: これを捨てる。全員、手札を全て捨て、１枚ドロー。\n");
+
+  console.log("[黒の契約の烙印 到達効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["black-contract-brand"].arrival));
+  console.log("  実際: あなたの空いているロックエリアに、これを表向きで置く。\n");
 }

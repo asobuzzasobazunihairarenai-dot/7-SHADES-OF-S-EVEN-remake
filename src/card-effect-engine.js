@@ -288,6 +288,15 @@ function getOwnLockSlotCandidates(player) {
   return COLORS.map((_, index) => ({ zone: "lock", side, index }));
 }
 
+// 黒の契約の烙印専用: 自分のロックエリアの「空いている」スロットだけ（通常のロックと
+// 違い色は問わない、getOwnLockSlotCandidatesと違って占有中のスロットは除外する）。
+function getOwnEmptyLockSlotCandidates(player) {
+  const side = SEAT_TO_SIDE[player];
+  return getOwnLockSlotCandidates(player).filter(
+    (slot) => !getState().tokens.some((t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side && t.location.index === slot.index)
+  );
+}
+
 // カウンターロック専用: 指定プレイヤーが実際にロックしている枚数。
 function countLockedCardsFor(player) {
   return getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "lock" && SIDE_TO_SEAT[t.location.side] === player).length;
@@ -334,7 +343,11 @@ async function runAction(action, ctx, helpers) {
       // target: SELF（自分だけ）/ALL_OPPONENTS（対象は自分以外の参加座席それぞれ、
       // 1人ずつ指定枚数）。helpers.drawCards(player, count)はplayerごとに1回呼ぶ。
       const players =
-        action.target === TARGETS.ALL_OPPONENTS ? getState().activePlayers.filter((p) => p !== ctx.player) : [ctx.player];
+        action.target === TARGETS.ALL_OPPONENTS
+          ? getState().activePlayers.filter((p) => p !== ctx.player)
+          : action.target === TARGETS.ALL_PLAYERS
+            ? getState().activePlayers
+            : [ctx.player];
       for (const p of players) {
         await helpers.drawCards(p, action.count);
       }
@@ -400,15 +413,23 @@ async function runAction(action, ctx, helpers) {
           if (hasCardAt(row, col) || hasPieceAt(row, col)) continue;
           destinations.push({ zone: "cell", row, col });
         }
+      } else if (action.destination?.selection === TARGET_SELECTIONS.OWN_EMPTY_LOCK_SLOTS) {
+        // 黒の契約の烙印専用: 自分のロックエリアの空いているスロット（色不問）から選ぶ。
+        const candidates = getOwnEmptyLockSlotCandidates(ctx.player);
+        if (candidates.length === 0) return; // 善処の原則: 空きが無ければ何もしない
+        const dest = await helpers.pickLocation(candidates, "カードを置くロックエリアを選択してください");
+        if (dest) destinations = [dest];
       } else {
         console.warn("card-effect-engine: place_cardのdestination.selectionが未対応です", action);
         return;
       }
       for (const dest of destinations) {
         if (action.source === "self") {
-          // ジャンプ台の手札効果専用: このカード自身（手札にある効果カード本体）を
-          // 盤面へ置く。他の手札からの選択とは違い相手に選ばせる必要が無い。
-          await helpers.moveAndSync(ctx.cardTokenId, { zone: "cell", row: dest.row, col: dest.col });
+          // ジャンプ台の手札効果／黒の契約の烙印の到達効果専用: このカード自身
+          // （効果カード本体）を盤面またはロックエリアへ置く。他の手札からの選択とは
+          // 違い相手に選ばせる必要が無い。destは既に正しい形（cellまたはlock）で
+          // 渡ってくるため、ここで作り直さずそのまま使う。
+          await helpers.moveAndSync(ctx.cardTokenId, dest);
           // 手札→マスの移動は既定で裏向きになる（state.jsのfaceUpForLocation）ため、
           // 表向き指定の時だけ明示的にめくる。
           if (action.faceUp) await helpers.flipCard?.(ctx.cardTokenId);
@@ -421,8 +442,10 @@ async function runAction(action, ctx, helpers) {
           await helpers.placeFromDeck(dest);
         }
         // ユーザー要望「配置後ここに配置したよがわかるように配置場所をしっかり
-        // ハイライトしてください。マスの枠だけでなくカードの面も」。
-        helpers.markPlacedLocation?.(dest);
+        // ハイライトしてください。マスの枠だけでなくカードの面も」。マスハイライト用の
+        // ため、盤面（cell）への配置の時だけ呼ぶ（黒の契約の烙印のロックエリア配置は
+        // 対象外——row/colを持たないロックスロットは元々この演出の対象外）。
+        if (dest.zone === "cell") helpers.markPlacedLocation?.(dest);
       }
       return;
     }
@@ -507,6 +530,27 @@ async function runAction(action, ctx, helpers) {
       const candidates = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "cell" && t.faceUp);
       for (const token of candidates) {
         await helpers.discardAndSync(token.id);
+      }
+      return;
+    }
+    case VERBS.DISCARD_SELF: {
+      // なないろの巨光・色落ちキャット専用: 既定動作（手札に加える）の代わりに
+      // このカード自身を捨てる（effectDef.addsCardToHandAfter:falseと対で使う）。
+      await helpers.discardAndSync(ctx.cardTokenId);
+      return;
+    }
+    case VERBS.ALL_PLAYERS_DISCARD_HAND_AND_DRAW: {
+      // 色落ちキャット専用: 参加者全員が手札を全て捨ててから指定枚数ドローする
+      // （処理順の原則に沿い、効果の使用者から時計回りに1人ずつ処理する）。
+      const order = SEAT_ORDER.filter((p) => getState().activePlayers.includes(p));
+      const startIdx = order.indexOf(ctx.player);
+      const rotatedOrder = startIdx >= 0 ? [...order.slice(startIdx), ...order.slice(0, startIdx)] : order;
+      for (const p of rotatedOrder) {
+        const handTokens = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === p);
+        for (const token of handTokens) {
+          await helpers.discardAndSync(token.id);
+        }
+        await helpers.drawCards(p, action.count);
       }
       return;
     }
