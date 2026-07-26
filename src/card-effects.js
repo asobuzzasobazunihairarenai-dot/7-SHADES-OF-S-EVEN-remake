@@ -43,6 +43,18 @@ export const VERBS = {
   ALL_PLAYERS_PLACE_TWO_CARDS_IN_EMPTY_CELLS: "all_players_place_two_cards_in_empty_cells", // 合同建設専用: 全員がそれぞれ、何もない2マスに山札または手札から1枚ずつ裏向きで置く
   ALL_PLAYERS_DISCARD_TO_THREE: "all_players_discard_to_three", // スラム上がりの役人専用: 全員がそれぞれ、手札が3枚になるまで自分で選んで捨てる
   ALL_PLAYERS_CHOOSE_PARTY_OPTION: "all_players_choose_party_option", // パーティー専用: 全員がそれぞれ、3つの選択肢から1つ選んで得る
+  END_CURRENT_PHASE: "end_current_phase", // なないろの巨光・スラム上がりの役人・ザ・ギャンブル専用: 現在のフェイズを強制的に終了する
+  PLACE_SELF_ADJACENT_TO_CHOSEN_OPPONENT: "place_self_adjacent_to_chosen_opponent", // プレゼント専用: 相手を選び、その隣に自分自身を裏向きで置く
+  PLACE_DECK_CARD_ON_ALL_FACEUP_CELLS: "place_deck_card_on_all_faceup_cells", // 白の意思の覚醒専用: 場の全ての表向きのカードの上に山札から1枚ずつ裏向きで置く
+  DISCARD_OWN_HAND: "discard_own_hand", // 色落ちキャット専用: 自分の手札を全て捨てる（全員対象のALL_PLAYERS_DISCARD_HAND_AND_DRAWと違い自分だけ）
+  DISCARD_ONE_HAND_CARD: "discard_one_hand_card", // ザ・ギャンブル専用: 手札から1枚を選んで捨てる（追色コストと違い色の制約は無い）
+  DRAW_IF_HAND_AT_MOST: "draw_if_hand_at_most", // スラム上がりの役人専用: 自分の手札が指定枚数以下ならドローする
+  // ザ・ギャンブルの手札効果専用: 「上記の到達時の効果を得る」の前後に別のアクション
+  // （手札を1枚捨てる・このフェイズを終了する）が挟まるカード用。既存のeffectDef単位の
+  // inheritsArrivalフラグ（マスチェンジ・手品師の技・試練の儀式・合同建設の手札効果、
+  // どれも「上記の到達時の効果を得る」だけで完結する）とは別に、actions配列の中の
+  // 1アクションとして「到達効果のactionsをそのまま呼ぶ」を表現できるようにした。
+  INHERIT_ARRIVAL_ACTIONS: "inherit_arrival_actions",
 };
 
 // 効果の主語（誰が対象か）。
@@ -139,6 +151,16 @@ export const CARD_EFFECTS = {
     arrival: {
       actions: [{ verb: VERBS.DRAW_ALL_FEWEST_LOCKED }],
     },
+    // 手札効果: 「これを相手の隣に裏向きで置く。1枚ドロー。」相手を選び、その隣接
+    // マスへこのカード自身を置く（このカード自身が「置かれる」対象になるため
+    // keepsCardOnUse）。
+    handEffect: {
+      keepsCardOnUse: true,
+      actions: [
+        { verb: VERBS.PLACE_SELF_ADJACENT_TO_CHOSEN_OPPONENT },
+        { verb: VERBS.DRAW, count: 1, target: TARGETS.SELF },
+      ],
+    },
   },
 
   // 白の意思の覚醒（白、通常カード） 到達効果: 「場の全ての表向きのカードを
@@ -148,6 +170,10 @@ export const CARD_EFFECTS = {
   "white-awakening": {
     arrival: {
       actions: [{ verb: VERBS.DISCARD_ALL_FACEUP_ON_BOARD }],
+    },
+    // 手札効果: 「場の全ての表向きのカードの上に山札から１枚ずつ裏向きで置く。」
+    handEffect: {
+      actions: [{ verb: VERBS.PLACE_DECK_CARD_ON_ALL_FACEUP_CELLS }],
     },
   },
 
@@ -165,6 +191,22 @@ export const CARD_EFFECTS = {
         },
       ],
     },
+    // 手札効果: 「任意の3マスに山札からカードを裏向きで1枚ずつ置く。」既存のPLACE_CARD
+    // （source:"deck"・CHOOSE・count:3）をそのまま使う。生成文「任意の３マスに山札から
+    // １枚ずつ裏向きで置く。」は「カードを」の有無・語順・数字の全角半角がdocs/cards.md
+    // と少し違うが、収穫と種まき等と同じ理由（ユーザー判断で生成文の語順統一を優先、
+    // 続き25参照）で意図的に許容する。
+    handEffect: {
+      actions: [
+        {
+          verb: VERBS.PLACE_CARD,
+          count: 3,
+          source: "deck",
+          faceUp: false,
+          destination: { selection: TARGET_SELECTIONS.CHOOSE },
+        },
+      ],
+    },
   },
 
   // なないろの巨光（白、通常カード） 到達効果: 「全員、3枚ドロー。このカードを
@@ -178,6 +220,14 @@ export const CARD_EFFECTS = {
         { verb: VERBS.DISCARD_SELF },
       ],
     },
+    // 手札効果: 「全員、３枚ドロー。このフェイズを終了する。」到達効果と違い自分自身は
+    // 捨てない（手札効果の既定「使用時にこのカードを捨てる」がそのまま適用される）。
+    handEffect: {
+      actions: [
+        { verb: VERBS.DRAW, count: 3, target: TARGETS.ALL_PLAYERS },
+        { verb: VERBS.END_CURRENT_PHASE },
+      ],
+    },
   },
 
   // 色落ちキャット（黒、通常カード） 到達効果: 「これを捨てる。全員、手札を全て
@@ -189,6 +239,14 @@ export const CARD_EFFECTS = {
       actions: [
         { verb: VERBS.DISCARD_SELF, selfLabel: "これ" },
         { verb: VERBS.ALL_PLAYERS_DISCARD_HAND_AND_DRAW, count: 1 },
+      ],
+    },
+    // 手札効果: 「あなたの手札をすべて捨てる。１枚ドロー。」到達効果と違い自分だけが
+    // 対象（DISCARD_OWN_HAND、ALL_PLAYERS版と違い他プレイヤーへの委任は不要）。
+    handEffect: {
+      actions: [
+        { verb: VERBS.DISCARD_OWN_HAND },
+        { verb: VERBS.DRAW, count: 1, target: TARGETS.SELF },
       ],
     },
   },
@@ -424,6 +482,21 @@ export const CARD_EFFECTS = {
         actions: [{ verb: VERBS.DISCARD_ONE_LOCKED_CARD }],
       },
     ],
+    // 手札効果: 「このカードを任意のマスに裏向きで置く。」黒の契約の烙印・パーティーと
+    // 同じPLACE_CARD(source:"self")パターンだが、実際の文言が「これを」ではなく
+    // 「このカードを」なのでselfLabelで上書きする。
+    handEffect: {
+      keepsCardOnUse: true,
+      actions: [
+        {
+          verb: VERBS.PLACE_CARD,
+          source: "self",
+          faceUp: false,
+          selfLabel: "このカード",
+          destination: { selection: TARGET_SELECTIONS.CHOOSE },
+        },
+      ],
+    },
   },
 
   // ザ・ギャンブル（黄、通常カード） 到達効果: 「２色以上、色を宣言する。その色の種類の
@@ -439,6 +512,17 @@ export const CARD_EFFECTS = {
         { verb: VERBS.DECLARE_COLORS, minCount: 2 },
         { verb: VERBS.PUBLIC_DRAW_MATCHING_DECLARED_COLOR_COUNT },
         { verb: VERBS.DISCARD_HAND_IF_REVEALED_MATCHES_DECLARED },
+      ],
+    },
+    // 手札効果: 「あなたは手札を１枚捨てる。上記の到達時の効果を得る。このフェイズを
+    // 終了する。」到達効果と全く同じ処理をINHERIT_ARRIVAL_ACTIONSで挟み込む
+    // （前後に「1枚捨てる」「フェイズ終了」が付くため、続き29のeffectDef単位の
+    // inheritsArrivalフラグでは表現できず、アクション単位の新しい動詞にした）。
+    handEffect: {
+      actions: [
+        { verb: VERBS.DISCARD_ONE_HAND_CARD },
+        { verb: VERBS.INHERIT_ARRIVAL_ACTIONS },
+        { verb: VERBS.END_CURRENT_PHASE },
       ],
     },
   },
@@ -490,6 +574,15 @@ export const CARD_EFFECTS = {
     arrival: {
       actions: [{ verb: VERBS.ALL_PLAYERS_DISCARD_TO_THREE }],
     },
+    // 手札効果: 「あなたの手札が１枚以下なら２枚ドロー。このフェイズを終了する。」
+    // 手札効果は原則使用時に自分自身を先に捨てるため（docs/cards.md補足）、この
+    // 「１枚以下」判定の時点でこのカード自身は既に手札から居ない。
+    handEffect: {
+      actions: [
+        { verb: VERBS.DRAW_IF_HAND_AT_MOST, maxHandSize: 1, count: 2 },
+        { verb: VERBS.END_CURRENT_PHASE },
+      ],
+    },
   },
 
   // パーティー（桃、通常カード） 到達効果: 「全員は以下の効果のうち１つ得る。
@@ -501,7 +594,21 @@ export const CARD_EFFECTS = {
     arrival: {
       actions: [{ verb: VERBS.ALL_PLAYERS_CHOOSE_PARTY_OPTION }],
     },
+    // 手札効果: 「これを任意のマスに裏向きで置く。」黒の契約の烙印の手札効果と
+    // 全く同じPLACE_CARD(source:"self")パターン。
+    handEffect: {
+      keepsCardOnUse: true,
+      actions: [
+        {
+          verb: VERBS.PLACE_CARD,
+          source: "self",
+          faceUp: false,
+          destination: { selection: TARGET_SELECTIONS.CHOOSE },
+        },
+      ],
+    },
   },
+
 };
 
 // --- 効果データ → 表示テキスト生成 -----------------------------------------------------
@@ -557,7 +664,10 @@ function renderAction(action, context) {
           return `あなたの空いているロックエリアに、これを${faceLabel}置く。`;
         }
         const destLabel = action.destination?.excludeGates ? "ゲート以外の任意のマスに" : "任意のマスに";
-        return `これを${destLabel}${faceLabel}置く。`;
+        // 選べる罠専用: 実際の文言が「これを」ではなく「このカードを」なので、
+        // action.selfLabelで上書きできるようにした（既定は「これ」のまま、
+        // 黒の契約の烙印・パーティー等の既存カードには影響しない）。
+        return `${action.selfLabel ?? "これ"}を${destLabel}${faceLabel}置く。`;
       }
       const sourceLabel = action.source === "hand" ? "手札から" : "山札から";
       // 増殖する樹々専用: 範囲内の「何もないマス」全てが自動的に対象になる（プレイヤーが
@@ -628,6 +738,20 @@ function renderAction(action, context) {
       return "全員は手札が３枚になるように捨てる。";
     case VERBS.ALL_PLAYERS_CHOOSE_PARTY_OPTION:
       return "全員は以下の効果のうち１つ得る。・１マス移動し、移動先の到達効果は得ない。・場の任意の１枚をあなたの手札に加える。・場の任意の２枚をオープンする。";
+    case VERBS.END_CURRENT_PHASE:
+      return "このフェイズを終了する。";
+    case VERBS.PLACE_SELF_ADJACENT_TO_CHOSEN_OPPONENT:
+      return "これを相手の隣に裏向きで置く。";
+    case VERBS.PLACE_DECK_CARD_ON_ALL_FACEUP_CELLS:
+      return "場の全ての表向きのカードの上に山札から１枚ずつ裏向きで置く。";
+    case VERBS.DISCARD_OWN_HAND:
+      return "あなたの手札をすべて捨てる。";
+    case VERBS.DISCARD_ONE_HAND_CARD:
+      return "あなたは手札を１枚捨てる。";
+    case VERBS.DRAW_IF_HAND_AT_MOST:
+      return `あなたの手札が${toFullWidthNumber(action.maxHandSize)}枚以下なら${count}枚ドロー。`;
+    case VERBS.INHERIT_ARRIVAL_ACTIONS:
+      return "上記の到達時の効果を得る。";
     default:
       return `（未対応の動詞: ${action.verb}）`;
   }
@@ -831,4 +955,40 @@ if (typeof process !== "undefined" && process.argv[1] && process.argv[1].endsWit
   console.log(
     "  実際: 全員は以下の効果のうち１つ得る。・１マス移動し、移動先の到達効果は得ない。・場の任意の１枚をあなたの手札に加える。・場の任意の２枚をオープンする。\n"
   );
+
+  console.log("[パーティー 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["pink-party"].handEffect));
+  console.log("  実際: これを任意のマスに裏向きで置く。\n");
+
+  console.log("[増殖する樹々 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["green-growing-trees"].handEffect));
+  console.log("  実際: 任意の3マスに山札からカードを裏向きで1枚ずつ置く。\n");
+
+  console.log("[選べる罠 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["blue-choosable-trap"].handEffect));
+  console.log("  実際: このカードを任意のマスに裏向きで置く。\n");
+
+  console.log("[色落ちキャット 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["black-faded-cat"].handEffect));
+  console.log("  実際: あなたの手札をすべて捨てる。１枚ドロー。\n");
+
+  console.log("[白の意思の覚醒 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["white-awakening"].handEffect));
+  console.log("  実際: 場の全ての表向きのカードの上に山札から１枚ずつ裏向きで置く。\n");
+
+  console.log("[プレゼント 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["pink-present"].handEffect));
+  console.log("  実際: これを相手の隣に裏向きで置く。1枚ドロー。\n");
+
+  console.log("[なないろの巨光 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["white-radiance"].handEffect));
+  console.log("  実際: 全員、３枚ドロー。このフェイズを終了する。\n");
+
+  console.log("[スラム上がりの役人 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["blue-slum-official"].handEffect));
+  console.log("  実際: あなたの手札が１枚以下なら２枚ドロー。このフェイズを終了する。\n");
+
+  console.log("[ザ・ギャンブル 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["yellow-gamble"].handEffect));
+  console.log("  実際: あなたは手札を１枚捨てる。上記の到達時の効果を得る。このフェイズを終了する。\n");
 }

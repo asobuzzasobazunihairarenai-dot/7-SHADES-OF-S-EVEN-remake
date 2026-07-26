@@ -40,6 +40,7 @@ import {
   setTurnAnnounceActive,
   getCurrentPhase,
   isCardLockable,
+  forceEndCurrentPhase,
 } from "./phase-automation.js";
 import { initHelpButton } from "./help.js";
 import { getOptionArea } from "./option-area.js";
@@ -2103,6 +2104,9 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         declareColors: declareColorsForEffect,
         placeFromDeckFaceUp: placeFromDeckFaceUpForEffect,
         delegateToPlayer: delegateToPlayerForEffect,
+        // なないろの巨光・スラム上がりの役人・ザ・ギャンブルの「このフェイズを
+        // 終了する。」用。
+        endCurrentPhase: forceEndCurrentPhase,
       }
     );
     clearEffectUiHighlights();

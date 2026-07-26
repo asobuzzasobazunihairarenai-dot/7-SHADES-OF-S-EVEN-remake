@@ -763,6 +763,85 @@ async function runAction(action, ctx, helpers) {
       }
       return hadEffect;
     }
+    case VERBS.END_CURRENT_PHASE: {
+      // なないろの巨光・スラム上がりの役人・ザ・ギャンブルの手札効果専用。
+      helpers.endCurrentPhase?.();
+      return true;
+    }
+    case VERBS.PLACE_SELF_ADJACENT_TO_CHOSEN_OPPONENT: {
+      // プレゼント専用: 相手を選び、その隣接マス（4方向、docs/cards.mdに「何もない」の
+      // 限定が無いため占有状況は問わない）へこのカード自身を裏向きで置く。
+      const opponents = getState().activePlayers.filter((p) => p !== ctx.player);
+      if (opponents.length === 0) return false;
+      const targetPlayer = await helpers.pickPlayer(opponents, "隣に置く相手を選んでください（アバターをクリック）");
+      if (!targetPlayer) return false;
+      const targetPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === targetPlayer);
+      if (!targetPiece || targetPiece.location.zone !== "cell") return false;
+      const adjacentCells = enumerateManhattanRing(1)
+        .map(({ dr, dc }) => ({ row: targetPiece.location.row + dr, col: targetPiece.location.col + dc }))
+        .filter(({ row, col }) => inBounds(row, col))
+        .map(({ row, col }) => ({ zone: "cell", row, col }));
+      if (adjacentCells.length === 0) return false; // 善処の原則: 盤面端で隣接マスが無い場合
+      const dest =
+        adjacentCells.length === 1 ? adjacentCells[0] : await helpers.pickLocation(adjacentCells, "カードを置く隣接マスを選択してください");
+      if (!dest) return false;
+      await helpers.moveAndSync(ctx.cardTokenId, dest);
+      return true;
+    }
+    case VERBS.PLACE_DECK_CARD_ON_ALL_FACEUP_CELLS: {
+      // 白の意思の覚醒専用: 場の全ての表向きのカードの上に山札から1枚ずつ裏向きで置く
+      // （１番上の原則により対象は盤面マスのトークンのみでよい、白の意思の覚醒の
+      // 到達効果DISCARD_ALL_FACEUP_ON_BOARDと同じ判定基準）。
+      const faceUpCells = getState()
+        .tokens.filter((t) => t.kind === "card" && t.location.zone === "cell" && t.faceUp)
+        .map((t) => ({ zone: "cell", row: t.location.row, col: t.location.col }));
+      if (faceUpCells.length === 0) return false;
+      for (const dest of faceUpCells) {
+        await helpers.placeFromDeck(dest);
+      }
+      return true;
+    }
+    case VERBS.DISCARD_OWN_HAND: {
+      // 色落ちキャットの手札効果専用: 全員対象のALL_PLAYERS_DISCARD_HAND_AND_DRAWと
+      // 違い、自分の手札だけを全て捨てる。
+      const handTokens = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === ctx.player);
+      if (handTokens.length === 0) return false;
+      for (const token of handTokens) {
+        await helpers.discardAndSync(token.id);
+      }
+      return true;
+    }
+    case VERBS.DISCARD_ONE_HAND_CARD: {
+      // ザ・ギャンブルの手札効果専用コスト: 追色（同色限定）と違い、手札からどの色でも
+      // 1枚選んで捨てる。
+      const handTokens = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === ctx.player);
+      if (handTokens.length === 0) return false;
+      const chosen = await helpers.pickHandCard(ctx.player, "捨てるカードを手札から選択してください");
+      if (!chosen) return false;
+      await helpers.discardAndSync(chosen.id);
+      return true;
+    }
+    case VERBS.DRAW_IF_HAND_AT_MOST: {
+      // スラム上がりの役人専用: 手札効果は先にこのカード自身を捨ててから残りの
+      // アクションが実行されるため（docs/cards.md補足）、ここでの手札枚数カウントには
+      // このカード自身は含まれない。
+      const handCount = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === ctx.player).length;
+      if (handCount > action.maxHandSize) return false;
+      await helpers.drawCards(ctx.player, action.count);
+      return true;
+    }
+    case VERBS.INHERIT_ARRIVAL_ACTIONS: {
+      // ザ・ギャンブルの手札効果専用: 到達効果と全く同じactionsをそのまま実行する
+      // （続き29のeffectDef単位inheritsArrivalフラグと違い、前後に別のアクションを
+      // 挟めるアクション単位の仕組み）。
+      const arrivalDef = CARD_EFFECTS[ctx.cardId]?.arrival;
+      if (!arrivalDef?.actions?.length) return false;
+      let hadEffect = false;
+      for (const a of arrivalDef.actions) {
+        if (await runAction(a, ctx, helpers)) hadEffect = true;
+      }
+      return hadEffect;
+    }
     default:
       console.warn(`card-effect-engine: 未対応の動詞 "${action.verb}"`);
       return false;

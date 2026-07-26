@@ -185,14 +185,23 @@ const PILOT_CARDS = [
   { cardId: "red-jump-pad", kind: "handEffect", actual: "これをゲート以外の任意のマスに表向きで置く。" },
   { cardId: "red-counter-lock", kind: "arrival", actual: "１番少なくロックしているなら1枚ドロー。" },
   { cardId: "pink-present", kind: "arrival", actual: "１番少なくロックしている全員は、１枚ドロー。" },
+  { cardId: "pink-present", kind: "handEffect", actual: "これを相手の隣に裏向きで置く。1枚ドロー。" },
   { cardId: "white-awakening", kind: "arrival", actual: "場の全ての表向きのカードを捨てる。" },
+  { cardId: "white-awakening", kind: "handEffect", actual: "場の全ての表向きのカードの上に山札から１枚ずつ裏向きで置く。" },
   {
     cardId: "green-growing-trees",
     kind: "arrival",
     actual: "２マス以内の何もない全てのマスに山札からカードを１枚ずつ裏向きで置く。",
   },
+  // 生成文「任意の３マスに山札から１枚ずつ裏向きで置く。」は、docs/cards.mdの実際の
+  // 文言「任意の3マスに山札からカードを裏向きで1枚ずつ置く。」と「カードを」の有無・
+  // 語順・数字の全角半角が違う（意味は同じ）。収穫と種まき・橙のキューブ ハーベストと
+  // 同じ理由（続き25）で意図的な⚠️表示。
+  { cardId: "green-growing-trees", kind: "handEffect", actual: "任意の3マスに山札からカードを裏向きで1枚ずつ置く。" },
   { cardId: "white-radiance", kind: "arrival", actual: "全員、3枚ドロー。このカードを捨てる。" },
+  { cardId: "white-radiance", kind: "handEffect", actual: "全員、３枚ドロー。このフェイズを終了する。" },
   { cardId: "black-faded-cat", kind: "arrival", actual: "これを捨てる。全員、手札を全て捨て、１枚ドロー。" },
+  { cardId: "black-faded-cat", kind: "handEffect", actual: "あなたの手札をすべて捨てる。１枚ドロー。" },
   { cardId: "black-contract-brand", kind: "arrival", actual: "あなたの空いているロックエリアに、これを表向きで置く。" },
   { cardId: "black-contract-brand", kind: "handEffect", actual: "これを任意のマスに裏向きで置く。" },
   {
@@ -200,10 +209,16 @@ const PILOT_CARDS = [
     kind: "arrivalOptions",
     actual: "以下の効果のうち1つ得る。・あなたの手札を半分捨てる。・あなたのゲートに強制移動する。・あなたのロックしているカードを1枚捨てる。",
   },
+  { cardId: "blue-choosable-trap", kind: "handEffect", actual: "このカードを任意のマスに裏向きで置く。" },
   {
     cardId: "yellow-gamble",
     kind: "arrival",
     actual: "２色以上、色を宣言する。その色の種類の数分ドローし公開する。それらの中に宣言色があるなら、あなたの手札を全て捨てる。",
+  },
+  {
+    cardId: "yellow-gamble",
+    kind: "handEffect",
+    actual: "あなたは手札を１枚捨てる。上記の到達時の効果を得る。このフェイズを終了する。",
   },
   {
     cardId: "purple-trial-ritual",
@@ -223,10 +238,16 @@ const PILOT_CARDS = [
     actual: "全員は手札が３枚になるように捨てる。",
   },
   {
+    cardId: "blue-slum-official",
+    kind: "handEffect",
+    actual: "あなたの手札が１枚以下なら２枚ドロー。このフェイズを終了する。",
+  },
+  {
     cardId: "pink-party",
     kind: "arrival",
     actual: "全員は以下の効果のうち１つ得る。・１マス移動し、移動先の到達効果は得ない。・場の任意の１枚をあなたの手札に加える。・場の任意の２枚をオープンする。",
   },
+  { cardId: "pink-party", kind: "handEffect", actual: "これを任意のマスに裏向きで置く。" },
 ];
 
 const KIND_LABEL = {

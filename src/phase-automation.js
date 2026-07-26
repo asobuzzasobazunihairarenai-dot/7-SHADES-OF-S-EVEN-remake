@@ -396,6 +396,14 @@ function advancePhase() {
   enterPhase(PHASES[idx + 1], getSelfSeat());
 }
 
+// なないろの巨光・スラム上がりの役人・ザ・ギャンブルの手札効果「このフェイズを
+// 終了する。」用。カード効果側から強制的に次のフェイズへ進める（通常の
+// reconcilePhaseAutomation()による「手札が空になったら」等の自然な進行を待たず、
+// 即座に終了する）。
+export function forceEndCurrentPhase() {
+  advancePhase();
+}
+
 function clearPhase() {
   if (currentPhase === null) return;
   currentPhase = null;
