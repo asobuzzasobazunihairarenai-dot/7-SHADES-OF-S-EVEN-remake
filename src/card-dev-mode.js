@@ -153,6 +153,32 @@ const PILOT_CARDS = [
   },
   { cardId: "orange-mass-change", kind: "handEffect", actual: "【追色1】上記の到達時の効果を得る。" },
   { cardId: "first-orange", kind: "handEffect", actual: "【追色１】２マス以内のカードを１枚あなたの手札に加える。" },
+  {
+    cardId: "yellow-sleight-of-hand",
+    kind: "arrival",
+    actual: "相手１人の手札から無作為に１枚、あなたの手札に加える。あなたの手札から１枚、その相手の手札に加える。",
+  },
+  // handEffectの「この効果はいつでも使える。」はusableAnytime:trueというフラグ
+  // （main.js側の発動タイミング制御にのみ影響）で、generateEffectText自体は
+  // これを文章化しない設計のため、mass-changeの「上記の...効果を得る」と同じく
+  // 生成文とは意図的に一致しない（⚠️表示が正常）。
+  {
+    cardId: "yellow-sleight-of-hand",
+    kind: "handEffect",
+    actual: "この効果はいつでも使える。上記の到達時の効果を得る。",
+  },
+  { cardId: "red-jump-pad", kind: "handEffect", actual: "これをゲート以外の任意のマスに表向きで置く。" },
+  { cardId: "red-counter-lock", kind: "arrival", actual: "１番少なくロックしているなら1枚ドロー。" },
+  { cardId: "pink-present", kind: "arrival", actual: "１番少なくロックしている全員は、１枚ドロー。" },
+  { cardId: "white-awakening", kind: "arrival", actual: "場の全ての表向きのカードを捨てる。" },
+  {
+    cardId: "green-growing-trees",
+    kind: "arrival",
+    actual: "２マス以内の何もない全てのマスに山札からカードを１枚ずつ裏向きで置く。",
+  },
+  { cardId: "white-radiance", kind: "arrival", actual: "全員、3枚ドロー。このカードを捨てる。" },
+  { cardId: "black-faded-cat", kind: "arrival", actual: "これを捨てる。全員、手札を全て捨て、１枚ドロー。" },
+  { cardId: "black-contract-brand", kind: "arrival", actual: "あなたの空いているロックエリアに、これを表向きで置く。" },
 ];
 
 const KIND_LABEL = { arrival: "到達効果", handEffect: "手札効果", handEffectOptions: "手札効果（選択式）" };
