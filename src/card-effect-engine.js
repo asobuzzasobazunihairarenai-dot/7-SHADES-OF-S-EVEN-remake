@@ -333,6 +333,16 @@ function isFewestLocked(player) {
   return countLockedCardsFor(player) === Math.min(...counts);
 }
 
+// 処理順の原則（docs/cards.md「複数のプレイヤーを対象にした効果は原則、効果の
+// 使用者から時計回りに効果を処理する」）: SEAT_ORDERをplayerから始まるように
+// 回転させる。プレゼント・色落ちキャット等、複数箇所で同じ回転を個別に書いて
+// いたのをここへ集約した。
+function rotatedActivePlayersFrom(player) {
+  const order = SEAT_ORDER.filter((p) => getState().activePlayers.includes(p));
+  const startIdx = order.indexOf(player);
+  return startIdx >= 0 ? [...order.slice(startIdx), ...order.slice(0, startIdx)] : order;
+}
+
 // 1つのactionを実行する。helpers:
 //   moveAndSync(tokenId, location): 実際にトークンを動かし、オンライン中の同期・
 //     再描画まで面倒を見る（main.jsのaddArrivedCardToHand等と同じ責務）。
@@ -535,10 +545,7 @@ async function runAction(action, ctx, helpers) {
       // 判定）と違い、「該当する全員」がそれぞれドローする。処理順の原則（docs/cards.md
       // 「複数のプレイヤーを対象にした効果は原則、効果の使用者から時計回りに処理する」）
       // に沿うよう、SEAT_ORDERをctx.playerから時計回りに並べ替えてから絞り込む。
-      const order = SEAT_ORDER.filter((p) => getState().activePlayers.includes(p));
-      const startIdx = order.indexOf(ctx.player);
-      const rotatedOrder = startIdx >= 0 ? [...order.slice(startIdx), ...order.slice(0, startIdx)] : order;
-      const qualifying = rotatedOrder.filter((p) => isFewestLocked(p));
+      const qualifying = rotatedActivePlayersFrom(ctx.player).filter((p) => isFewestLocked(p));
       if (qualifying.length === 0) return false;
       await helpers.announceEffectReason?.(ctx.cardId, "１番少なくロックしている全員が１枚ドローします。");
       for (const p of qualifying) {
@@ -569,10 +576,7 @@ async function runAction(action, ctx, helpers) {
     case VERBS.ALL_PLAYERS_DISCARD_HAND_AND_DRAW: {
       // 色落ちキャット専用: 参加者全員が手札を全て捨ててから指定枚数ドローする
       // （処理順の原則に沿い、効果の使用者から時計回りに1人ずつ処理する）。
-      const order = SEAT_ORDER.filter((p) => getState().activePlayers.includes(p));
-      const startIdx = order.indexOf(ctx.player);
-      const rotatedOrder = startIdx >= 0 ? [...order.slice(startIdx), ...order.slice(0, startIdx)] : order;
-      for (const p of rotatedOrder) {
+      for (const p of rotatedActivePlayersFrom(ctx.player)) {
         const handTokens = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === p);
         for (const token of handTokens) {
           await helpers.discardAndSync(token.id);
@@ -686,6 +690,36 @@ async function runAction(action, ctx, helpers) {
         if (!declaredColors.includes(placedColor)) break;
       }
       return placedAny;
+    }
+    case VERBS.ALL_PLAYERS_PLACE_TWO_CARDS_IN_EMPTY_CELLS: {
+      // 合同建設専用: 全員がそれぞれ「何もない2マスに山札または手札から1枚裏向きで
+      // 置く」を、処理順の原則に沿って1人ずつ行う。各プレイヤー自身の選択
+      // （マス・山札か手札か・どのカードか）はhelpers.delegateToPlayerに委ねる
+      // （main.js側：自分の番ならその場で、他プレイヤーの番ならオンライン中継で
+      // 対象プレイヤー本人の画面に委任する）。
+      let hadEffect = false;
+      for (const p of rotatedActivePlayersFrom(ctx.player)) {
+        if (await helpers.delegateToPlayer(p, "joint-construction")) hadEffect = true;
+      }
+      return hadEffect;
+    }
+    case VERBS.ALL_PLAYERS_DISCARD_TO_THREE: {
+      // スラム上がりの役人専用: 全員がそれぞれ「手札が3枚になるまで自分で選んで
+      // 捨てる」を、処理順の原則に沿って1人ずつ行う。
+      let hadEffect = false;
+      for (const p of rotatedActivePlayersFrom(ctx.player)) {
+        if (await helpers.delegateToPlayer(p, "slum-official-discard")) hadEffect = true;
+      }
+      return hadEffect;
+    }
+    case VERBS.ALL_PLAYERS_CHOOSE_PARTY_OPTION: {
+      // パーティー専用: 全員がそれぞれ3択から1つ選んで得る、を処理順の原則に沿って
+      // 1人ずつ行う。
+      let hadEffect = false;
+      for (const p of rotatedActivePlayersFrom(ctx.player)) {
+        if (await helpers.delegateToPlayer(p, "party-option")) hadEffect = true;
+      }
+      return hadEffect;
     }
     default:
       console.warn(`card-effect-engine: 未対応の動詞 "${action.verb}"`);

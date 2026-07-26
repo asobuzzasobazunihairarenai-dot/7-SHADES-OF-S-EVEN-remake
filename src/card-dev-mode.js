@@ -209,6 +209,21 @@ const PILOT_CARDS = [
     kind: "arrival",
     actual: "色を３色宣言する。あなたの隣に山札から１枚表向きで置く。そのマスに移動し、移動先の到達効果は得ない。置いたカードが宣言色ならこの効果を繰り返す。",
   },
+  {
+    cardId: "green-joint-construction",
+    kind: "arrival",
+    actual: "全員は何もない２マスに山札または手札から１枚裏向きで置く。",
+  },
+  {
+    cardId: "blue-slum-official",
+    kind: "arrival",
+    actual: "全員は手札が３枚になるように捨てる。",
+  },
+  {
+    cardId: "pink-party",
+    kind: "arrival",
+    actual: "全員は以下の効果のうち１つ得る。・１マス移動し、移動先の到達効果は得ない。・場の任意の１枚をあなたの手札に加える。・場の任意の２枚をオープンする。",
+  },
 ];
 
 const KIND_LABEL = {

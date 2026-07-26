@@ -26,6 +26,8 @@ import {
   hasHandEffectData,
   isAutoProcessingEnabled,
   isHandEffectUsableAnytime,
+  getMoveCandidates,
+  getAnyCellWithCardCandidates,
 } from "./card-effect-engine.js";
 import {
   reconcilePhaseAutomation,
@@ -145,6 +147,10 @@ import {
   onRitualPickHoverEvents,
   broadcastRitualPickEnded,
   onRitualPickEndedEvents,
+  broadcastArrivalDelegateRequest,
+  onArrivalDelegateRequestEvents,
+  broadcastArrivalDelegateResolved,
+  onArrivalDelegateResolvedEvents,
   getSyncedIdentity,
   getGoogleAvatarUrl,
   getGoogleDisplayName,
@@ -1216,6 +1222,188 @@ async function placeFromDeckFaceUpForEffect(location) {
   return token?.cardId ?? null;
 }
 
+// 合同建設専用: 「何もないマス」＝カードも駒も無いマス全て（範囲制限なし、盤面全体）。
+function getEmptyCellCandidatesForEffect() {
+  const candidates = [];
+  for (let row = 0; row <= 6; row++) {
+    for (let col = 0; col <= 6; col++) {
+      const occupied = getState().tokens.some(
+        (t) => t.location.zone === "cell" && t.location.row === row && t.location.col === col && (t.kind === "card" || t.kind === "piece")
+      );
+      if (!occupied) candidates.push({ zone: "cell", row, col });
+    }
+  }
+  return candidates;
+}
+
+// 合同建設専用: 「山札から」か「手札から」かを選ばせる小さな2択モーダル。
+function requestPlaceSourceChoiceForEffect() {
+  return new Promise((resolve) => {
+    let settled = false;
+    function finish(result) {
+      if (settled) return;
+      settled = true;
+      backdrop.remove();
+      modal.remove();
+      resolve(result);
+    }
+    const backdrop = createBackdrop(() => finish(null), { dim: true, zIndex: 10625 });
+    const modal = document.createElement("div");
+    // 見た目は儀式的ピックモーダルと同じ紫系スタイルを流用する。
+    modal.id = "sleight-ritual-modal";
+    const title = document.createElement("div");
+    title.className = "sleight-ritual-title";
+    title.textContent = "どこから置きますか？";
+    modal.appendChild(title);
+    const buttonsWrap = document.createElement("div");
+    buttonsWrap.className = "place-source-choice-buttons";
+    const deckBtn = document.createElement("button");
+    deckBtn.type = "button";
+    deckBtn.textContent = "🂠 山札から";
+    deckBtn.addEventListener("click", () => finish("deck"));
+    const handBtn = document.createElement("button");
+    handBtn.type = "button";
+    handBtn.textContent = "🖐 手札から";
+    handBtn.addEventListener("click", () => finish("hand"));
+    buttonsWrap.appendChild(deckBtn);
+    buttonsWrap.appendChild(handBtn);
+    modal.appendChild(buttonsWrap);
+    document.body.appendChild(backdrop);
+    document.body.appendChild(modal);
+  });
+}
+
+// 合同建設専用のタスクハンドラ。「何もない2マスに山札または手札から1枚ずつ裏向きで
+// 置く」を、実際にこのプレイヤー本人の画面で（自分の番なら直接、他プレイヤーの番なら
+// delegateToPlayerForEffect経由で）解決する。
+async function runJointConstructionTask(player) {
+  let placedCount = 0;
+  for (let i = 0; i < 2; i++) {
+    const emptyCells = getEmptyCellCandidatesForEffect();
+    if (emptyCells.length === 0) break; // 善処の原則: 置ける空きマスが無ければそこで終わる
+    const dest = await requestCellChoiceForEffect(emptyCells, `空いているマスを選択してください（${i + 1}/2）`);
+    if (!dest) break;
+    const source = await requestPlaceSourceChoiceForEffect();
+    if (!source) break;
+    if (source === "hand") {
+      const handToken = await requestHandCardChoiceForEffect(player, "そのマスに置くカードを手札から選択してください");
+      if (!handToken) break;
+      await moveAndSyncForEffect(handToken.id, { zone: "cell", row: dest.row, col: dest.col });
+    } else {
+      await placeFromDeckForEffect({ zone: "cell", row: dest.row, col: dest.col });
+    }
+    placedCount++;
+  }
+  return placedCount > 0;
+}
+
+// スラム上がりの役人専用のタスクハンドラ。「手札が3枚になるまで自分で選んで捨てる」。
+async function runSlumOfficialDiscardTask(player) {
+  let discardedAny = false;
+  while (true) {
+    const handCount = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player).length;
+    if (handCount <= 3) break;
+    const chosen = await requestHandCardChoiceForEffect(player, `手札が3枚になるまで捨ててください（あと${handCount - 3}枚）`);
+    if (!chosen) break;
+    await discardFromHandReveal(chosen.id);
+    discardedAny = true;
+  }
+  return discardedAny;
+}
+
+// パーティー専用のタスクハンドラ。3択（移動/拾う/2枚オープン）から1つ選んで実行する。
+// 選べる罠と同じshowHandEffectOptionPickerを流用し、選べない選択肢（候補0件）は
+// グレー表示にする（善処の原則）。
+async function runPartyOptionTask(player) {
+  const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === player);
+  const moveCandidates = piece ? getMoveCandidates(piece.location, 1, false) : [];
+  const boardCardCells = getAnyCellWithCardCandidates();
+  const faceDownBoardCells = boardCardCells.filter((loc) => {
+    const token = getState().tokens.find(
+      (t) => t.kind === "card" && t.location.zone === "cell" && t.location.row === loc.row && t.location.col === loc.col
+    );
+    return token && !token.faceUp;
+  });
+  const options = [
+    { id: "move", label: "１マス移動し、移動先の到達効果は得ない。", usable: moveCandidates.length > 0 },
+    { id: "pickup", label: "場の任意の１枚をあなたの手札に加える。", usable: boardCardCells.length > 0 },
+    { id: "open-two", label: "場の任意の２枚をオープンする。", usable: faceDownBoardCells.length >= 2 },
+  ];
+  if (!options.some((o) => o.usable)) return false;
+  const chosen = await showHandEffectOptionPicker("pink-party", options);
+  if (!chosen) return false;
+  if (chosen.id === "move") {
+    const dest = moveCandidates.length === 1 ? moveCandidates[0] : await requestCellChoiceForEffect(moveCandidates, "移動先のマスを選択してください");
+    if (!dest) return false;
+    await moveAndSyncForEffect(piece.id, dest);
+    return true;
+  }
+  if (chosen.id === "pickup") {
+    const dest = boardCardCells.length === 1 ? boardCardCells[0] : await requestCellChoiceForEffect(boardCardCells, "手札に加えるカードのあるマスを選択してください");
+    if (!dest) return false;
+    const token = findTopCardAt(dest);
+    if (!token) return false;
+    const wasFaceUp = token.faceUp;
+    await moveAndSyncForEffect(token.id, { zone: "hand", player });
+    onEffectCardAcquiredToHand(token.id, token.cardId, wasFaceUp);
+    return true;
+  }
+  // open-two: 2枚選んでオープンする（手札に加えず、その場でめくるだけ）。
+  const firstDest = await requestCellChoiceForEffect(faceDownBoardCells, "オープンするカードのあるマスを選択してください（1/2）");
+  if (!firstDest) return false;
+  const firstToken = findTopCardAt(firstDest);
+  if (firstToken) await flipToFaceUpForEffect(firstToken.id);
+  const remaining = faceDownBoardCells.filter((c) => !(c.row === firstDest.row && c.col === firstDest.col));
+  if (remaining.length === 0) return true;
+  const secondDest =
+    remaining.length === 1 ? remaining[0] : await requestCellChoiceForEffect(remaining, "オープンするカードのあるマスを選択してください（2/2）");
+  if (!secondDest) return true;
+  const secondToken = findTopCardAt(secondDest);
+  if (secondToken) await flipToFaceUpForEffect(secondToken.id);
+  return true;
+}
+
+// 合同建設・スラム上がりの役人・パーティー共通: このタスクを「今この画面を見ている
+// プレイヤー」が実際に解決する。delegateToPlayerForEffectから、自分の番ならその場で、
+// 他プレイヤーの番ならbroadcast経由で対象プレイヤー本人の画面から呼ばれる。
+async function runDelegatedArrivalTask(player, taskType) {
+  if (taskType === "joint-construction") return runJointConstructionTask(player);
+  if (taskType === "slum-official-discard") return runSlumOfficialDiscardTask(player);
+  if (taskType === "party-option") return runPartyOptionTask(player);
+  return false;
+}
+
+// 合同建設・スラム上がりの役人・パーティー専用: 効果の使用者（コーディネーター）が
+// 対象プレイヤーへ選択を委任する。自分自身の番、またはローカル対戦（1画面共有）なら
+// その場で直接解決する。オンライン中の他プレイヤーの番は、broadcast往復
+// （online.jsのbroadcastArrivalDelegateRequest/Resolved）で対象プレイヤー本人の
+// 画面に委任し、終わるまで待つ。
+async function delegateToPlayerForEffect(player, taskType) {
+  if (!isOnlineMode() || player === getSelfSeat()) {
+    return runDelegatedArrivalTask(player, taskType);
+  }
+  const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  broadcastArrivalDelegateRequest({ player, taskType, requestId });
+  return new Promise((resolve) => {
+    const unregister = onArrivalDelegateResolvedEvents((payload) => {
+      if (payload.requestId !== requestId) return;
+      unregister();
+      resolve(payload.result);
+    });
+  });
+}
+// 受け手側: 自分宛ての委任リクエストが届いたら、このクライアント（＝対象プレイヤー
+// 本人の画面）で実際に解決し、結果を送り返す。
+onArrivalDelegateRequestEvents(({ player, taskType, requestId }) => {
+  if (getSelfSeat() !== player) return;
+  runDelegatedArrivalTask(player, taskType)
+    .then((result) => broadcastArrivalDelegateResolved({ requestId, result }))
+    .catch((err) => {
+      console.error("runDelegatedArrivalTask failed", err);
+      broadcastArrivalDelegateResolved({ requestId, result: false });
+    });
+});
+
 // ユーザー報告「移動先候補のハイライトをクリックしても自動で移動しない」の原因調査で
 // 判明: この盤面は3D的な傾き（テーブル演出）を持つため、駒・カードのドラッグは
 // ネイティブのclickイベント（当たり判定がズレる。initDragHandlers直前のコメント参照）
@@ -1856,6 +2044,8 @@ async function runAutoArrivalEffect(cardId, location, player) {
       declareColors: declareColorsForEffect,
       publicDraw: publicDrawForEffect,
       placeFromDeckFaceUp: placeFromDeckFaceUpForEffect,
+      // 合同建設・スラム上がりの役人・パーティー用。
+      delegateToPlayer: delegateToPlayerForEffect,
     }
   );
   clearEffectUiHighlights();

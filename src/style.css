@@ -5390,6 +5390,25 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   box-shadow: 0 0 1rem rgba(250, 204, 21, 0.9), 0 4px 10px rgba(0, 0, 0, 0.5);
   outline: 3px solid #facc15;
 }
+/* 合同建設の「山札から/手札から」選択（main.jsのrequestPlaceSourceChoiceForEffect）。 */
+.place-source-choice-buttons {
+  display: flex;
+  gap: 0.8rem;
+  justify-content: center;
+}
+.place-source-choice-buttons button {
+  padding: 0.6rem 1rem;
+  background: rgba(167, 139, 250, 0.2);
+  color: #ede9fe;
+  border: 1px solid rgba(167, 139, 250, 0.6);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-family: sans-serif;
+  font-size: 0.85rem;
+}
+.place-source-choice-buttons button:hover {
+  background: rgba(167, 139, 250, 0.4);
+}
 
 /* ターン終了時の中央告知（src/turn-announce.js）。ゲーム操作を妨げないよう
    pointer-events:noneにし、一瞬だけ画面中央に大きく次のプレイヤー名を表示してから

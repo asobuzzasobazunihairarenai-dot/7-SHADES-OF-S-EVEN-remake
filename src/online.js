@@ -333,6 +333,41 @@ export function broadcastRitualPickEnded(payload) {
     broadcastChannel.send({ type: "broadcast", event: "ritual_pick_ended", payload });
   }
 }
+
+// 合同建設・スラム上がりの役人・パーティーのように「全員がそれぞれ自分の選択を
+// する」到達効果用。効果の使用者（コーディネーター）が対象プレイヤーへ
+// 「あなたの番です、これを解決してください」と伝え（broadcastArrivalDelegateRequest）、
+// 対象プレイヤー自身のクライアントがそれを見て自分の手札・盤面を操作し（RLSは
+// 座席メンバーであれば誰でもmoveToken等を呼べる設計、RESPOND_CONTACTと同じ）、
+// 終わったら「終わりました」と送り返す（broadcastArrivalDelegateResolved）。
+// どちらも状態は一切変えない見た目の合図で、実際の状態変更は対象プレイヤー自身の
+// クライアントが通常のmoveToken/sendTokenToPile経由で行う（隠し情報の抽選が
+// 必要な処理はここには無いため、サーバー側での特別な処理は不要）。
+let arrivalDelegateRequestEventListeners = [];
+export function onArrivalDelegateRequestEvents(fn) {
+  arrivalDelegateRequestEventListeners.push(fn);
+  return () => {
+    arrivalDelegateRequestEventListeners = arrivalDelegateRequestEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastArrivalDelegateRequest(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "arrival_delegate_request", payload });
+  }
+}
+
+let arrivalDelegateResolvedEventListeners = [];
+export function onArrivalDelegateResolvedEvents(fn) {
+  arrivalDelegateResolvedEventListeners.push(fn);
+  return () => {
+    arrivalDelegateResolvedEventListeners = arrivalDelegateResolvedEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastArrivalDelegateResolved(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "arrival_delegate_resolved", payload });
+  }
+}
 // main.jsのヘッダーボタン（「🌐 オンライン」）のラベルを、ログイン状態が分かるように
 // 動的に変える時など、awaitせず同期的に「今ログイン中かどうか」を知りたい場面のために
 // キャッシュしておく（getCurrentUser()は毎回サーバーに問い合わせる非同期関数のため）。
@@ -1706,6 +1741,13 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     })
     .on("broadcast", { event: "ritual_pick_ended" }, ({ payload }) => {
       for (const fn of ritualPickEndedEventListeners) fn(payload);
+    })
+    // 「全員がそれぞれ選ぶ」到達効果の委任2種（broadcastArrivalDelegateRequest/Resolved参照）。
+    .on("broadcast", { event: "arrival_delegate_request" }, ({ payload }) => {
+      for (const fn of arrivalDelegateRequestEventListeners) fn(payload);
+    })
+    .on("broadcast", { event: "arrival_delegate_resolved" }, ({ payload }) => {
+      for (const fn of arrivalDelegateResolvedEventListeners) fn(payload);
     })
     .subscribe((status) => {
       // ユーザー要望「部屋に入ってきたら、待機中の他メンバーにもリアルタイムで（＝
