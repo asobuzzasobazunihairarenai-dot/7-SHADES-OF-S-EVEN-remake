@@ -2116,9 +2116,23 @@ function renderBoardTokens(table) {
     // 一度でも作り直せば正しく描けることは分かっているため、appendChild直後に
     // display一時トグルで強制的に作り直させ、初回描画を確定させる。
     if (token.kind === "piece" && document.body.classList.contains("diagnostic-flatten-3d")) {
-      el.style.display = "none";
-      void el.offsetHeight;
-      el.style.display = "";
+      // ハマりどころ: 最初はappendChild直後に同期的にdisplayをトグルしていたが、
+      // ユーザーから「やはり直っていない」との報告があった。同期的トグルだと、
+      // ブラウザ自身がこの要素を初めてペイントしようとする"前"に強制再描画をかけて
+      // しまっており、まだ何も壊れていない（＝直しようがない）タイミングで
+      // 空振りしていたと考えられる。ブラウザの最初の（失敗する）ペイント試行が
+      // 実際に起きた"後"に強制再描画をかける必要があるため、2フレーム分
+      // requestAnimationFrameで遅らせてから同じdisplayトグルを行うようにした
+      // （1フレームだと環境によってはまだ最初のペイント前のことがあるため、
+      // 念のため2フレーム待つ）。
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!el.isConnected) return;
+          el.style.display = "none";
+          void el.offsetHeight;
+          el.style.display = "";
+        });
+      });
     }
     // 駒・カードはセルより大きくはみ出すことがあるため、隣のマス（DOM順で後にあるもの）に
     // 隠されないよう最前面にする

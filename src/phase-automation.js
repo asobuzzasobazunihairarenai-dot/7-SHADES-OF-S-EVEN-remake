@@ -163,13 +163,26 @@ function updateLockPhaseHandHighlight(player) {
 // 「前のモーダルを消してから最新を出す」パターンと同じ考え方。
 let currentSkipModal = null;
 let currentSkipModalTimer = null;
+// ユーザー報告「『ロックできないのでスキップ』的なモーダルが次のハンドフェイズの
+// モーダルにかぶったりする。ハンドフェイズのスキップモーダルもムーブフェイズの
+// モーダルにかかる」の原因: このモーダル自身の自動消滅は2800ms後だが、
+// advancePhaseAfterSkip()は1500ms後には次のフェイズへ進めてしまう（PHASE_SKIP_
+// ADVANCE_DELAY_MS参照）。次のフェイズが「またスキップ」ならshowPhaseSkipModal()
+// 自身が古いモーダルを消してから出し直すので問題にならないが、次のフェイズが
+// スキップされず通常のannouncePhase()（別要素・別クラスのトースト）が出る場合、
+// announcePhase()側はこのスキップモーダルの存在を知らず消さないため、最大で
+// 2800-1500=1300ms程度、両方が同時に画面に残ってしまっていた。enterPhase()の
+// 先頭で必ずこの関数を呼び、前のフェイズのスキップモーダルが残っていれば
+// （スキップだろうと通常告知だろうと）新しいフェイズに入る前に必ず消すようにした。
+function dismissSkipModal() {
+  if (!currentSkipModal) return;
+  clearTimeout(currentSkipModalTimer);
+  currentSkipModal.backdrop.remove();
+  currentSkipModal.modal.remove();
+  currentSkipModal = null;
+}
 function showPhaseSkipModal(message) {
-  if (currentSkipModal) {
-    clearTimeout(currentSkipModalTimer);
-    currentSkipModal.backdrop.remove();
-    currentSkipModal.modal.remove();
-    currentSkipModal = null;
-  }
+  dismissSkipModal();
   const backdrop = document.createElement("div");
   backdrop.className = "phase-skip-modal-backdrop";
   const modal = document.createElement("div");
@@ -305,6 +318,10 @@ function updateSkipButtonVisibility() {
 
 // --- フェイズの開始・進行 ---------------------------------------------------------------
 function enterPhase(phase, player) {
+  // 前のフェイズのスキップモーダルがまだ残っていれば、新しいフェイズの表示
+  // （スキップモーダルであれ通常のannouncePhase()トーストであれ）とかぶらないよう
+  // ここで必ず消す（詳しい経緯はdismissSkipModal()のコメント参照）。
+  dismissSkipModal();
   currentPhase = phase;
   if (phase === "lock") lockCountAtPhaseStart = countLockedCards(player);
   if (phase === "move") moveActionTaken = false;
