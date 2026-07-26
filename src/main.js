@@ -92,7 +92,7 @@ import { isLockColorVisible } from "./lock-color.js";
 import { isArrivalEffectDisabled, isFlightAnimationDisabled } from "./motion-prefs.js";
 import { rectCenter, flyGhost } from "./ghost-flight.js";
 import { showCardArrivalModal, hideCardArrivalModalImmediately } from "./card-arrival.js";
-import { showHandEffectUseModal, showHandEffectOptionPicker, showEffectReasonModal } from "./hand-effect-ui.js";
+import { showHandEffectUseModal, showHandEffectOptionPicker, showEffectReasonModal, showCardReceivedModal } from "./hand-effect-ui.js";
 import { initPlayerButtons } from "./player-buttons.js";
 import { initQuickStart } from "./quick-start.js";
 import { initPhaseGuide } from "./phase-guide.js";
@@ -149,6 +149,8 @@ import {
   onRitualPickHoverEvents,
   broadcastRitualPickEnded,
   onRitualPickEndedEvents,
+  broadcastCardReceived,
+  onCardReceivedEvents,
   broadcastArrivalDelegateRequest,
   onArrivalDelegateRequestEvents,
   broadcastArrivalDelegateResolved,
@@ -961,13 +963,13 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds) {
     if (isRitualBroadcastTarget) {
       broadcastRitualPickStarted({ targetPlayer, order: shuffled.map((t) => t.id) });
     }
-    function cleanup() {
+    function cleanup(pickedTokenId) {
       backdrop.remove();
       modal.remove();
-      if (isRitualBroadcastTarget) broadcastRitualPickEnded({ targetPlayer });
+      if (isRitualBroadcastTarget) broadcastRitualPickEnded({ targetPlayer, pickedTokenId: pickedTokenId ?? null });
     }
     const backdrop = createBackdrop(() => {
-      cleanup();
+      cleanup(null);
       resolve(null);
     }, { dim: true, zIndex: 10620 });
     const modal = document.createElement("div");
@@ -986,7 +988,7 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds) {
         cardEl.addEventListener("pointerenter", () => broadcastRitualPickHover({ targetPlayer, index }));
       }
       cardEl.addEventListener("click", () => {
-        cleanup();
+        cleanup(token.id);
         resolve(token);
       });
       cardsWrap.appendChild(cardEl);
@@ -1003,12 +1005,17 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds) {
 // マウス位置（broadcastRitualPickHoverのindex）に対応する位置のカードだけ光らせる。
 let ritualPickWatchBackdrop = null;
 let ritualPickWatchModal = null;
+let ritualPickWatchTitleEl = null;
 let ritualPickWatchCardEls = [];
+let ritualPickWatchRevealTimer = null;
 function closeRitualPickWatch() {
+  clearTimeout(ritualPickWatchRevealTimer);
+  ritualPickWatchRevealTimer = null;
   ritualPickWatchBackdrop?.remove();
   ritualPickWatchModal?.remove();
   ritualPickWatchBackdrop = null;
   ritualPickWatchModal = null;
+  ritualPickWatchTitleEl = null;
   ritualPickWatchCardEls = [];
 }
 function openRitualPickWatch(order) {
@@ -1018,16 +1025,17 @@ function openRitualPickWatch(order) {
   ritualPickWatchBackdrop = createBackdrop(() => {}, { dim: true, zIndex: 10619 });
   ritualPickWatchModal = document.createElement("div");
   ritualPickWatchModal.id = "sleight-ritual-modal";
-  const title = document.createElement("div");
-  title.className = "sleight-ritual-title";
-  title.textContent = "相手があなたの手札から1枚選んでいます…";
-  ritualPickWatchModal.appendChild(title);
+  ritualPickWatchTitleEl = document.createElement("div");
+  ritualPickWatchTitleEl.className = "sleight-ritual-title";
+  ritualPickWatchTitleEl.textContent = "相手があなたの手札から1枚選んでいます…";
+  ritualPickWatchModal.appendChild(ritualPickWatchTitleEl);
   const cardsWrap = document.createElement("div");
   cardsWrap.className = "sleight-ritual-cards";
   ritualPickWatchCardEls = order.map((tokenId) => {
     const token = tokensById.get(tokenId);
     const cardEl = document.createElement("div");
     cardEl.className = "sleight-ritual-card";
+    cardEl.dataset.tokenId = tokenId;
     cardEl.style.backgroundImage = `url("${token ? getCardImagePath(token.cardId) : getCardBackImagePath(null)}")`;
     cardsWrap.appendChild(cardEl);
     return cardEl;
@@ -1035,6 +1043,22 @@ function openRitualPickWatch(order) {
   ritualPickWatchModal.appendChild(cardsWrap);
   document.body.appendChild(ritualPickWatchBackdrop);
   document.body.appendChild(ritualPickWatchModal);
+}
+// ユーザー要望「スリカエなどで手札が奪われる際に、奪われるカードが決まったら、
+// そのカードを拡大し『このカードが奪われました』的な感じでわかるようにして
+// ほしい」。ritual_pick_endedが選ばれたトークンid（pickedTokenId）を伴っている
+// 場合（＝キャンセルではなく実際に選ばれて終わった場合）は、即座に閉じずに
+// そのカードだけ拡大・発光させ、他のカードは薄暗くしてしばらく見せてから閉じる。
+function revealRitualPickWatchResult(pickedTokenId) {
+  if (!ritualPickWatchModal) return;
+  if (ritualPickWatchTitleEl) ritualPickWatchTitleEl.textContent = "このカードが奪われました！";
+  for (const el of ritualPickWatchCardEls) {
+    const isPicked = el.dataset.tokenId === pickedTokenId;
+    el.classList.toggle("is-stolen-reveal", isPicked);
+    el.classList.toggle("is-not-picked", !isPicked);
+  }
+  clearTimeout(ritualPickWatchRevealTimer);
+  ritualPickWatchRevealTimer = setTimeout(() => closeRitualPickWatch(), 1600);
 }
 onRitualPickStartedEvents(({ targetPlayer, order }) => {
   if (getSelfSeat() !== targetPlayer) return;
@@ -1045,9 +1069,17 @@ onRitualPickHoverEvents(({ targetPlayer, index }) => {
   for (const el of ritualPickWatchCardEls) el.classList.remove("is-hovered");
   ritualPickWatchCardEls[index]?.classList.add("is-hovered");
 });
-onRitualPickEndedEvents(({ targetPlayer }) => {
+onRitualPickEndedEvents(({ targetPlayer, pickedTokenId }) => {
   if (getSelfSeat() !== targetPlayer) return;
-  closeRitualPickWatch();
+  if (pickedTokenId) {
+    revealRitualPickWatchResult(pickedTokenId);
+  } else {
+    closeRitualPickWatch();
+  }
+});
+onCardReceivedEvents(({ targetPlayer, cardId, subtitle }) => {
+  if (getSelfSeat() !== targetPlayer) return;
+  showCardReceivedModal(cardId, subtitle);
 });
 
 // ユーザー要望「全員のマウスカーソルの位置が全員に見える化したい。アバターとその
@@ -1128,6 +1160,15 @@ async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
   }
   await moveAndSyncForEffect(myCard.id, { zone: "hand", player: targetPlayer });
   playSound("cardPlace");
+  // ユーザー要望「スリカエなどで渡されたカードは何が渡されたのか大きくモーダルで
+  // 表示してわかるようにしてほしい」。受け取る側（targetPlayer）は相手の手札の
+  // 中身を知らないため、渡し終えた直後に何を受け取ったのか大きく見せる。
+  const subtitle = `${getPlayerName(player)}から受け取りました`;
+  if (isOnlineMode() && targetPlayer !== getSelfSeat()) {
+    broadcastCardReceived({ targetPlayer, cardId: myCard.cardId, subtitle });
+  } else {
+    showCardReceivedModal(myCard.cardId, subtitle);
+  }
   render();
 }
 

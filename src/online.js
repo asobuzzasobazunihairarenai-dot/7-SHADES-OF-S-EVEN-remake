@@ -334,6 +334,24 @@ export function broadcastRitualPickEnded(payload) {
   }
 }
 
+// ユーザー要望「スリカエなどで渡されたカードは何が渡されたのか大きくモーダルで
+// 表示してわかるようにしてほしい」。渡す側（player）のクライアントで実行される
+// main.jsのswapHandCardWithOpponentForEffectが、受け取る側（targetPlayer）自身の
+// 画面にだけ「このカードを受け取りました」モーダルを出すための合図。状態は一切
+// 変えない見た目だけの合図（他のritual_pick_*と同じパターン）。
+let cardReceivedEventListeners = [];
+export function onCardReceivedEvents(fn) {
+  cardReceivedEventListeners.push(fn);
+  return () => {
+    cardReceivedEventListeners = cardReceivedEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastCardReceived(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "card_received", payload });
+  }
+}
+
 // 合同建設・スラム上がりの役人・パーティーのように「全員がそれぞれ自分の選択を
 // する」到達効果用。効果の使用者（コーディネーター）が対象プレイヤーへ
 // 「あなたの番です、これを解決してください」と伝え（broadcastArrivalDelegateRequest）、
@@ -1758,6 +1776,10 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     })
     .on("broadcast", { event: "ritual_pick_ended" }, ({ payload }) => {
       for (const fn of ritualPickEndedEventListeners) fn(payload);
+    })
+    // 受け取ったカードの通知（broadcastCardReceived参照）。
+    .on("broadcast", { event: "card_received" }, ({ payload }) => {
+      for (const fn of cardReceivedEventListeners) fn(payload);
     })
     // 「全員がそれぞれ選ぶ」到達効果の委任2種（broadcastArrivalDelegateRequest/Resolved参照）。
     .on("broadcast", { event: "arrival_delegate_request" }, ({ payload }) => {

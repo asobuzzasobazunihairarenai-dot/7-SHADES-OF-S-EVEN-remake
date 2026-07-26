@@ -5402,6 +5402,20 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   box-shadow: 0 0 1rem rgba(250, 204, 21, 0.9), 0 4px 10px rgba(0, 0, 0, 0.5);
   outline: 3px solid #facc15;
 }
+/* ユーザー要望「奪われるカードが決まったら、そのカードを拡大し『このカードが
+   奪われました』的な感じでわかるようにしてほしい」（main.jsのrevealRitualPickWatchResult）。
+   選ばれた1枚だけ赤系に発光・拡大させ、選ばれなかった残りは薄暗くして目立たなくする。 */
+.sleight-ritual-card.is-stolen-reveal {
+  transform: translateY(-0.6rem) scale(1.25);
+  box-shadow: 0 0 1.4rem rgba(248, 113, 113, 0.95), 0 6px 14px rgba(0, 0, 0, 0.6);
+  outline: 3px solid #f87171;
+  z-index: 1;
+}
+.sleight-ritual-card.is-not-picked {
+  opacity: 0.35;
+  filter: grayscale(60%);
+  transform: scale(0.92);
+}
 /* 合同建設の「山札から/手札から」選択（main.jsのrequestPlaceSourceChoiceForEffect）。 */
 .place-source-choice-buttons {
   display: flex;
@@ -5696,6 +5710,65 @@ body.phase-lock-picking .hand-card:not(.phase-lock-highlight) {
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
 }
 
+/* ユーザー要望「スリカエなどで渡されたカードは何が渡されたのか大きくモーダルで
+   表示してわかるようにしてほしい」（src/hand-effect-ui.jsのshowCardReceivedModal）。
+   儀式的ピック系モーダル（紫系）や使用告知（水色・左上）と見分けやすいよう緑系・
+   画面中央・背景ディム付きにする。 */
+.card-received-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.85);
+  z-index: 10641;
+  width: 13rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.1rem 1.3rem;
+  background: linear-gradient(160deg, #052e1f, #021208);
+  border: 2px solid #34d399;
+  border-radius: 0.9rem;
+  opacity: 0;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  box-shadow: 0 0 1.8rem rgba(52, 211, 153, 0.5), 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+.card-received-modal.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+.card-received-modal-label {
+  font-family: sans-serif;
+  font-weight: bold;
+  font-size: 1.2rem;
+  letter-spacing: 0.2em;
+  color: #6ee7b7;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+}
+.card-received-modal img {
+  width: 100%;
+  display: block;
+  border-radius: 0.6rem;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 1.2rem 3rem rgba(0, 0, 0, 0.7);
+}
+.card-received-modal-name {
+  font-family: sans-serif;
+  font-size: 0.95rem;
+  font-weight: bold;
+  color: #ecfdf5;
+  text-align: center;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+}
+.card-received-modal-subtitle {
+  font-family: sans-serif;
+  font-size: 0.75rem;
+  color: #a7f3d0;
+  text-align: center;
+}
+
 /* 効果の発動理由を説明するモーダル（src/hand-effect-ui.jsのshowEffectReasonModal、
    例: カウンターロックの「あなたは１番少なくロックしているので１枚ドローします」・
    不発の案内）。ユーザー要望「すぐ消える一時的なモーダルは画面中央に表示させて
@@ -5810,6 +5883,50 @@ body.phase-lock-picking .hand-card:not(.phase-lock-highlight) {
   color: rgba(226, 232, 240, 0.4);
   border-color: rgba(100, 116, 139, 0.35);
   cursor: not-allowed;
+}
+/* ユーザー要望「選択モーダルが盤面を隠していて見にくい。『盤面を見る』ボタンを
+   モーダル内に追加、押すと盤面を確認することができる。適当にクリックすると
+   選択モーダルに戻る」への対応（hand-effect-ui.jsのshowHandEffectOptionPicker）。 */
+.hand-effect-option-picker-backdrop.is-peeking {
+  background: transparent;
+}
+.hand-effect-option-picker.is-peeking {
+  opacity: 0;
+  pointer-events: none;
+}
+.hand-effect-option-picker-peek-btn {
+  width: 100%;
+  padding: 0.45rem 0.8rem;
+  background: rgba(148, 163, 184, 0.15);
+  color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-family: sans-serif;
+  font-size: 0.8rem;
+}
+.hand-effect-option-picker-peek-btn:hover {
+  background: rgba(148, 163, 184, 0.3);
+}
+.hand-effect-option-picker-peek-hint {
+  position: fixed;
+  top: 1.2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10006;
+  padding: 0.5rem 1rem;
+  background: rgba(15, 23, 32, 0.85);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 2rem;
+  font-family: sans-serif;
+  font-size: 0.8rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.hand-effect-option-picker-peek-hint.show {
+  opacity: 1;
 }
 
 /* ザ・ギャンブル/試練の儀式の「色を宣言する」モーダル。 */
