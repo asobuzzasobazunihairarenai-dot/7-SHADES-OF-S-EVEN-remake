@@ -788,7 +788,7 @@ const GROUPS = [
     controls: [
       { key: "--icon-pos-options-phone-x", label: "オプション 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--icon-pos-options-phone-y", label: "オプション 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--icon-size-options-phone", label: "オプション サイズ（スマホ）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
+      { key: "--icon-size-options-phone", label: "オプション サイズ（スマホ）", unit: "rem", min: 1.2, max: 8, step: 0.1, default: 6 },
     ],
   },
   {

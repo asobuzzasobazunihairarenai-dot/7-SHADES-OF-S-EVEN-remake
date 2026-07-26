@@ -1502,18 +1502,19 @@ body.is-touch-device #options-menu-button .icon-action-button-icon-wrap {
   width: var(--icon-size-options-touch, var(--icon-size-options, 2.6rem));
   height: var(--icon-size-options-touch, var(--icon-size-options, 2.6rem));
 }
-/* ユーザー報告「スマホ画面上でオプションアイコンだけ大きくなっちゃってます。隣の
-   マイページアイコンやヘルプアイコンにサイズを合わせてください」への対応。
-   --icon-size-options-touch(6rem)はタブレットの大きいタップ領域を狙って調整
-   された値だが、スマホもis-touch-deviceに該当するため、そのまま巻き込まれて
-   マイページ・ヘルプ（どちらもタッチ専用の上書きが無く2.6remのまま）だけ
-   size違いになっていた。スマホ限定でPCと同じ基準サイズ(2.6rem)へ戻しつつ、
-   ユーザー要望「スマホ用のオプションアイコンの個別の位置サイズ調整を復活させて」
-   に応じて、この基準値自体をさらにスマホ専用の値(--icon-size-options-phone)で
-   個別に上書きできるようにした（管理者モードのスライダー参照）。 */
+/* ハマりどころ（ユーザー往復の経緯）: 最初「オプションアイコンだけスマホで大きい
+   （隣のマイページ・ヘルプに揃えて）」との報告を受け、スマホ限定でPCと同じ
+   基準サイズ(2.6rem)まで戻す修正をしたが、今度は「小さすぎて管理者モードが
+   開けない（オプションボタン自体がこのアイコン）」という逆方向の報告になった。
+   --icon-size-options-touch(6rem)がそもそもタブレット/スマホ問わずタッチ端末の
+   タップ領域を確保するために用意されていた値だったことを踏まえ、フォールバック
+   チェーンを他のアイコン（ヘルプ等）と同じ「スマホ専用値→タッチ専用値→PC値」の
+   順に統一した。これでスマホの既定サイズは（未調整なら）タッチ用の6remになり
+   タップしやすさを確保しつつ、--icon-size-options-phoneで個別にさらに調整も
+   できる（管理者モードのスライダー参照）。 */
 body.is-phone-device #options-menu-button .icon-action-button-icon-wrap {
-  width: var(--icon-size-options-phone, var(--icon-size-options, 2.6rem));
-  height: var(--icon-size-options-phone, var(--icon-size-options, 2.6rem));
+  width: var(--icon-size-options-phone, var(--icon-size-options-touch, var(--icon-size-options, 2.6rem)));
+  height: var(--icon-size-options-phone, var(--icon-size-options-touch, var(--icon-size-options, 2.6rem)));
 }
 /* ホバーで簡易説明（phase-guide-tooltip、フェイズ案内板・優先権譲渡と共用）を表示する。 */
 .icon-action-button:hover .phase-guide-tooltip {
