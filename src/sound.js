@@ -17,6 +17,10 @@ const SOUND_DEFS = {
   arrivalEffect: { path: "assets/sounds/arrival-effect.mp3", cssVar: "--sound-volume-arrival-effect" },
   lock: { path: "assets/sounds/lock.mp3", cssVar: "--sound-volume-lock" },
   turnSwitch: { path: "assets/sounds/turn-switch.mp3", cssVar: "--sound-volume-turn-switch" },
+  // ユーザー要望「マスチェンジで入れ替わるときアニメで効果音を使用してください」
+  // 「ジャンプ台で移動するときに次の効果音を使ってください」への対応。
+  swap: { path: "assets/sounds/swap.wav", cssVar: "--sound-volume-swap" },
+  jump: { path: "assets/sounds/jump.mp3", cssVar: "--sound-volume-jump" },
 };
 
 // オープニングBGM（ユーザー提供、音声/BGM/オープニング.mp3）。効果音(playSound)と違い

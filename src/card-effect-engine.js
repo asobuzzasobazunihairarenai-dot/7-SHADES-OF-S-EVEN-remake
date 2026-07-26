@@ -18,7 +18,7 @@
 import { getState } from "./state.js";
 import { VERBS, TARGETS, TARGET_SELECTIONS, CARD_EFFECTS } from "./card-effects.js";
 import { getCardDefinition } from "./cards-data.js";
-import { COLORS, SEAT_TO_SIDE } from "./board-layout.js";
+import { COLORS, SEAT_TO_SIDE, SIDE_TO_SEAT, GATE_POSITIONS } from "./board-layout.js";
 
 // ユーザー確認済み「効果自動処理は基本設定でON/OFFを選べるように」。他の「アニメーションを
 // 減らす」設定（motion-prefs.js）と同じくセッション限りの設定（ページ再読み込みで
@@ -280,6 +280,20 @@ function getOwnLockSlotCandidates(player) {
   return COLORS.map((_, index) => ({ zone: "lock", side, index }));
 }
 
+// カウンターロック専用: 指定プレイヤーが実際にロックしている枚数。
+function countLockedCardsFor(player) {
+  return getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "lock" && SIDE_TO_SEAT[t.location.side] === player).length;
+}
+
+// カウンターロック専用: 「１番少なくロックしている」＝参加している全プレイヤーの中で
+// ロック枚数が最少（同率首位も含む——docs/cards.md補足「ロックしている枚数が
+// １番少ないことである」の一般的な解釈、他の「１番多い/少ない」系カードと同じ）。
+function isFewestLocked(player) {
+  const counts = getState().activePlayers.map((p) => countLockedCardsFor(p));
+  if (counts.length === 0) return false;
+  return countLockedCardsFor(player) === Math.min(...counts);
+}
+
 // 1つのactionを実行する。helpers:
 //   moveAndSync(tokenId, location): 実際にトークンを動かし、オンライン中の同期・
 //     再描画まで面倒を見る（main.jsのaddArrivedCardToHand等と同じ責務）。
@@ -300,7 +314,10 @@ async function runAction(action, ctx, helpers) {
       const dest =
         candidates.length === 1 && !ctx.forcePrompt ? candidates[0] : await helpers.pickLocation(candidates, "移動先のマスを選択してください");
       if (!dest) return;
-      await helpers.moveAndSync(ctx.pieceTokenId, dest);
+      // ユーザー要望「ジャンプ台で移動するときに専用の効果音を使ってください」。
+      // action.sound（DSL側で指定した場合のみ）をそのままhelpers.moveAndSyncへ
+      // 渡す。指定が無い他のMOVEアクションは従来通り無音のまま。
+      await helpers.moveAndSync(ctx.pieceTokenId, dest, action.sound);
       ctx.pieceLocation = dest;
       ctx.arrivedAt = dest; // 呼び出し元が「移動の結果、新しいマスに到達した」連鎖判定に使う
       return;
@@ -353,8 +370,13 @@ async function runAction(action, ctx, helpers) {
         if (dest) destinations = [dest];
       } else if (action.destination?.selection === TARGET_SELECTIONS.CHOOSE) {
         const pickCount = action.count ?? 1;
+        // ユーザー要望「ジャンプ台の手札効果」：「これをゲート以外の任意のマスに」
+        // 置く場合、ゲートマスは候補から外す（destination.excludeGates）。
+        const cellCandidates = action.destination?.excludeGates
+          ? getAllCellCandidates().filter((c) => !Object.values(GATE_POSITIONS).some((g) => g.row === c.row && g.col === c.col))
+          : getAllCellCandidates();
         for (let i = 0; i < pickCount; i++) {
-          const dest = await helpers.pickLocation(getAllCellCandidates(), "カードを置くマスを選択してください");
+          const dest = await helpers.pickLocation(cellCandidates, "カードを置くマスを選択してください");
           if (!dest) break;
           destinations.push(dest);
         }
@@ -363,7 +385,14 @@ async function runAction(action, ctx, helpers) {
         return;
       }
       for (const dest of destinations) {
-        if (action.source === "hand") {
+        if (action.source === "self") {
+          // ジャンプ台の手札効果専用: このカード自身（手札にある効果カード本体）を
+          // 盤面へ置く。他の手札からの選択とは違い相手に選ばせる必要が無い。
+          await helpers.moveAndSync(ctx.cardTokenId, { zone: "cell", row: dest.row, col: dest.col });
+          // 手札→マスの移動は既定で裏向きになる（state.jsのfaceUpForLocation）ため、
+          // 表向き指定の時だけ明示的にめくる。
+          if (action.faceUp) await helpers.flipCard?.(ctx.cardTokenId);
+        } else if (action.source === "hand") {
           const handToken = await helpers.pickHandCard(ctx.player, "そのマスに置くカードを手札から選択してください");
           if (!handToken) continue;
           await helpers.moveAndSync(handToken.id, { zone: "cell", row: dest.row, col: dest.col });
@@ -408,6 +437,12 @@ async function runAction(action, ctx, helpers) {
       await helpers.moveAndSync(partner.id, dest);
       return;
     }
+    case VERBS.DRAW_IF_FEWEST_LOCKED: {
+      if (isFewestLocked(ctx.player)) {
+        await helpers.drawCards(ctx.player, 1);
+      }
+      return;
+    }
     default:
       console.warn(`card-effect-engine: 未対応の動詞 "${action.verb}"`);
   }
@@ -419,7 +454,18 @@ async function runAction(action, ctx, helpers) {
 export async function runArrivalEffect(ctx, helpers) {
   const effectDef = CARD_EFFECTS[ctx.cardId]?.arrival;
   if (!effectDef) return null;
-  const runCtx = { player: ctx.player, pieceTokenId: ctx.pieceTokenId, pieceLocation: ctx.pieceLocation, selections: {}, arrivedAt: null };
+  // ハマりどころ: このctx（このファイル冒頭のドキュメントコメント通り本来
+  // cardTokenIdを含むはず）にcardTokenIdが抜けていた。runAction内でctx.cardTokenId
+  // を参照するアクション（現状はPLACE_CARDのsource:"self"）が実行時に必ずundefined
+  // を受け取ってしまうバグだったため、ここで明示的に引き継ぐ。
+  const runCtx = {
+    player: ctx.player,
+    cardTokenId: ctx.cardTokenId,
+    pieceTokenId: ctx.pieceTokenId,
+    pieceLocation: ctx.pieceLocation,
+    selections: {},
+    arrivedAt: null,
+  };
   for (const action of effectDef.actions) {
     await runAction(action, runCtx, helpers);
   }
@@ -461,8 +507,14 @@ async function runHandEffectOption(ctx, option, helpers) {
     await helpers.discardAndSync(chosen.id);
   }
   const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === ctx.player);
+  // ハマりどころ: このruncCtxにcardTokenIdが抜けていたため、runAction内で
+  // ctx.cardTokenIdを参照するアクション（LOCK_PAIRの「自分自身は除外して同名の
+  // もう1枚を探す」判定、PLACE_CARDのsource:"self"等）が実行時に必ずundefinedを
+  // 受け取ってしまうバグだった（LOCK_PAIRの場合、`t.id !== ctx.cardTokenId`が
+  // 常にtrueになり除外が効かなくなる）。ctx.cardTokenIdをそのまま引き継ぐ。
   const runCtx = {
     player: ctx.player,
+    cardTokenId: ctx.cardTokenId,
     pieceTokenId: piece?.id ?? null,
     pieceLocation: piece?.location ?? null,
     selections: {},

@@ -824,7 +824,11 @@ async function addArrivedCardToHand(location, player) {
 // ユーザー要望「カード効果の自動処理」への対応。card-effect-engine.jsに実際の状態変更を
 // 委譲し、ここではDOM操作が必要な3つのヘルパーだけを注入する（他の箇所と同じ「main.jsから
 // 実際の関数を渡してもらう」パターン、ただしこちらは呼び出し元が直接引数で渡す形）。
-async function moveAndSyncForEffect(tokenId, location) {
+// soundName（省略可）: card-effect-engine.jsのVERBS.MOVEがaction.soundをそのまま
+// 渡してくる。ジャンプ台等、カードごとに専用の効果音を鳴らしたい場合だけ指定される
+// （ユーザー要望「ジャンプ台で移動するときに専用の効果音を使ってください」）。未指定の
+// 他のMOVEアクションは従来通り無音のまま。
+async function moveAndSyncForEffect(tokenId, location, soundName) {
   if (isOnlineMode()) {
     try {
       await moveToken(tokenId, location);
@@ -835,6 +839,25 @@ async function moveAndSyncForEffect(tokenId, location) {
     }
   } else {
     moveToken(tokenId, location);
+  }
+  if (soundName) playSound(soundName);
+}
+
+// PLACE_CARDのsource:"self"用（ジャンプ台の手札効果等）。手札からマスへの移動は
+// 既定で裏向きになる（state.jsのfaceUpForLocation）ため、表向き指定のカードだけ
+// 移動直後にこれでめくる。移動直後は必ず裏向きになっているとstate.js側の実装から
+// 保証できるため、トグル式のflipToken()を1回呼ぶだけで確実に表向きにできる。
+async function flipToFaceUpForEffect(tokenId) {
+  if (isOnlineMode()) {
+    try {
+      await flipToken(tokenId);
+      markSelfHandled([tokenId]);
+      await fetchAndHydrate(getCurrentGameId());
+    } catch (err) {
+      console.error("flipToFaceUpForEffect failed", err);
+    }
+  } else {
+    flipToken(tokenId);
   }
 }
 
@@ -867,7 +890,8 @@ async function swapPiecesForEffect(pieceTokenId, fromLocation, targetLocation) {
   if (!opponentPiece) return;
   await moveAndSyncForEffect(opponentPiece.id, { zone: "cell", row: fromLocation.row, col: fromLocation.col });
   await moveAndSyncForEffect(pieceTokenId, targetLocation);
-  playSound("piecePlace");
+  // ユーザー要望「マスチェンジで入れ替わるときアニメで効果音を使用してください」。
+  playSound("swap");
   render();
 }
 
@@ -1231,6 +1255,8 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         swapPieces: swapPiecesForEffect,
         announceUse: showHandEffectUseModal,
         pickHandEffectOption: showHandEffectOptionPicker,
+        // ジャンプ台の手札効果（これをゲート以外の任意のマスに表向きで置く）用。
+        flipCard: flipToFaceUpForEffect,
       }
     );
     clearEffectUiHighlights();
@@ -1255,6 +1281,10 @@ async function runAutoArrivalEffect(cardId, location, player) {
       markPlacedLocation: markEffectJustPlaced,
       placeFromDeck: placeFromDeckForEffect,
       swapPieces: swapPiecesForEffect,
+      // カウンターロックの到達効果（１番少なくロックしているなら1枚ドロー）用。
+      // 手札効果側（runAutoHandEffect）は既にdrawCardsを持っていたが、到達効果側には
+      // まだ無かったので追加した。
+      drawCards: drawCardsForEffect,
     }
   );
   clearEffectUiHighlights();

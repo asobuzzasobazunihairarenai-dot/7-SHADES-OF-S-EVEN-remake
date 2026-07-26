@@ -27,6 +27,7 @@ export const VERBS = {
   DISCARD_SAME_COLOR: "discard_same_color", // 「追色」コスト: 同色のカードを手札から捨てる
   SWAP_POSITION: "swap_position", // 自分の駒と、範囲内にいる相手の駒の位置を入れ替える（「移動」ではない）
   LOCK_PAIR: "lock_pair", // なないろの欠片専用: 手札の同名2枚を任意のロックスロットへまとめてロックする
+  DRAW_IF_FEWEST_LOCKED: "draw_if_fewest_locked", // カウンターロック専用: 自分のロック枚数が全員中で最少（同率含む）なら1枚ドロー
 };
 
 // 効果の主語（誰が対象か）。「自分」以外は今回のパイロットでは「相手全員」だけ登場する。
@@ -70,11 +71,40 @@ export const CARD_EFFECTS = {
   // 通常の移動ルール＝移動先にカードが必要、が適用される）。atOnce:trueだと中間マスの
   // カード・駒の有無を問わず最終着地点まで直接ワープし、到達判定も最終着地点でのみ
   // 発生する（ノート「１マス目のカードや相手の駒等の有無は関係ない」の通り）。
+  // 手札効果: 「これをゲート以外の任意のマスに表向きで置く。」
   "red-jump-pad": {
     arrival: {
       // 既定動作（効果処理後にこのカード自身を手札に加える）を明示的に上書きする。
       addsCardToHandAfter: false,
-      actions: [{ verb: VERBS.MOVE, count: 2, atOnce: true }],
+      // soundはgenerateEffectText（テキスト生成）には一切影響しない、実行時にだけ
+      // 見るヒント（card-effect-engine.jsのVERBS.MOVE参照）。ユーザー要望
+      // 「ジャンプ台で移動するときに専用の効果音を使ってください」。
+      actions: [{ verb: VERBS.MOVE, count: 2, atOnce: true, sound: "jump" }],
+    },
+    handEffect: {
+      // このカード自身が「置かれる」対象になるため、通常の手札効果のデフォルト
+      // 「効果発動時にこのカードを捨てる」の対象外にする（なないろの欠片の
+      // 「２枚をロックする」選択肢と同じ考え方）。
+      keepsCardOnUse: true,
+      actions: [
+        {
+          verb: VERBS.PLACE_CARD,
+          source: "self",
+          faceUp: true,
+          destination: { selection: TARGET_SELECTIONS.CHOOSE, excludeGates: true },
+        },
+      ],
+    },
+  },
+
+  // カウンターロック（赤、通常カード） 到達効果: 「１番少なくロックしているなら
+  // 1枚ドロー。」（補足: 「１番少なくロックしている」＝ロックしている枚数が
+  // 参加者の中で１番少ないこと。同率首位も対象に含む一般的な解釈）。
+  // 手札効果（「あなたへの接触の宣言時に使える。その接触を無効にする。」）は、
+  // 接触の承認/拒否フロー自体への割り込みが必要な別種の実装のため今回は対象外。
+  "red-counter-lock": {
+    arrival: {
+      actions: [{ verb: VERBS.DRAW_IF_FEWEST_LOCKED }],
     },
   },
 
@@ -121,6 +151,10 @@ export const CARD_EFFECTS = {
   // 使用できない方はグレー表示。」への対応で、両方の選択肢をDSL化した
   // （handEffectOptions、複数選択肢を持つ手札効果の最初の例）。
   "rainbow-shard": {
+    // 到達効果: 「到達効果はない。」（docs/cards.md）。actions:[]にすることで
+    // runArrivalEffect()自体は動く（＝自己申告モーダルを出さず自動処理される）が
+    // 何も実行せず、既定動作（このカード自身を手札に加える）だけが起きる。
+    arrival: { actions: [] },
     handEffectOptions: [
       { id: "draw", label: "１枚ドロー", actions: [{ verb: VERBS.DRAW, count: 1, target: TARGETS.SELF }] },
       {
@@ -254,8 +288,14 @@ function renderAction(action, context) {
       return `${zoneLabel}${count}枚をあなたの手札に加える。`;
     }
     case VERBS.PLACE_CARD: {
-      const sourceLabel = action.source === "hand" ? "手札から" : "山札から";
       const faceLabel = action.faceUp ? "表向きで" : "裏向きで";
+      // source: "self"（ジャンプ台の手札効果等）: 「手札から／山札から○枚」ではなく
+      // 「これを」で始まる、このカード自身を指す専用の文型になる。
+      if (action.source === "self") {
+        const destLabel = action.destination?.excludeGates ? "ゲート以外の任意のマスに" : "任意のマスに";
+        return `これを${destLabel}${faceLabel}置く。`;
+      }
+      const sourceLabel = action.source === "hand" ? "手札から" : "山札から";
       const destLabel =
         action.destination?.selection === TARGET_SELECTIONS.SAME_AS
           ? "そのマスに"
@@ -266,9 +306,18 @@ function renderAction(action, context) {
       return `${destLabel}${sourceLabel}${perCardCount}枚${action.count > 1 ? "ずつ" : ""}${faceLabel}置く。`;
     }
     case VERBS.SWAP_POSITION:
-      return `${count}マス以内の相手のいる場所とあなたのいる場所を入れ替える。`;
+      // ユーザー指摘: 生成文に「相手はこのカードの到達効果を得ない。」が欠けていた。
+      // 入れ替えの結果、相手はこのカード（マスチェンジ）がまだ置かれたままの
+      // マス（=このカードの使用者が元いたマス）へ移動することになるが、そこで
+      // 到達判定を発生させると、相手がまた同じマスチェンジに到達→また入れ替え…と
+      // 無限ループしてしまう。それを防ぐため到達判定を連鎖させない
+      // （card-effect-engine.jsのVERBS.SWAP_POSITIONがctx.arrivedAtをセットしない）
+      // という実装は元々あったが、その挙動を説明する一文がテキスト側に無かった。
+      return `${count}マス以内の相手のいる場所とあなたのいる場所を入れ替える。相手はこのカードの到達効果を得ない。`;
     case VERBS.LOCK_PAIR:
       return "その２枚を任意の１箇所にロックする。";
+    case VERBS.DRAW_IF_FEWEST_LOCKED:
+      return "１番少なくロックしているなら1枚ドロー。";
     default:
       return `（未対応の動詞: ${action.verb}）`;
   }
@@ -344,6 +393,14 @@ if (typeof process !== "undefined" && process.argv[1] && process.argv[1].endsWit
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["red-jump-pad"].arrival));
   console.log("  実際: これはあなたの手札に加えない。２マス先に一気に移動する。\n");
 
+  console.log("[ジャンプ台 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["red-jump-pad"].handEffect));
+  console.log("  実際: これをゲート以外の任意のマスに表向きで置く。\n");
+
+  console.log("[カウンターロック 到達効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["red-counter-lock"].arrival));
+  console.log("  実際: １番少なくロックしているなら1枚ドロー。\n");
+
   console.log("[収穫と種まき 到達効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["orange-harvest-sow"].arrival));
   console.log("  実際: 任意の１マスの１枚をあなたの手札に加える。手札から１枚をそのマスに裏向きで置く。\n");
@@ -357,4 +414,8 @@ if (typeof process !== "undefined" && process.argv[1] && process.argv[1].endsWit
   console.log(
     "  実際: 以下の効果のうち１つ得る。・１枚ドロー。・これを含めた「なないろの欠片」が２枚、あなたの手札にある時に使える。その２枚を任意の１箇所にロックする。２枚ドロー。\n"
   );
+
+  console.log("[マスチェンジ 到達効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["orange-mass-change"].arrival));
+  console.log("  実際: ３マス以内の相手のいる場所とあなたのいる場所を入れ替える。相手はこのカードの到達効果を得ない。\n");
 }
