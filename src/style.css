@@ -2911,6 +2911,25 @@ body.is-touch-device .zone-right .label {
   animation: avatar-turn-glow 2.6s ease-in-out infinite;
 }
 
+/* 手品師の技（ユーザー要望「駒ではなくアバターを選択して相手を選ぶ」）。マス選択
+   （.cell.card-effect-target-cell）と同じ黄色パルスの見た目にして、カード効果の
+   対象選択であることを一目で分かるようにする。
+   ハマりどころ: .player-avatarは元々常にpointer-events:noneで、手札より背面に
+   置くための純粋な装飾要素として扱われている（クリック判定を持たない）。この
+   ままだとelementsFromPoint()が絶対に見つけられずクリックが一切効かないため、
+   このクラスが付いている間だけpointer-events:autoで上書きする。 */
+.player-avatar.card-effect-target-avatar {
+  pointer-events: auto;
+  outline: 3px solid rgba(250, 204, 21, 0.9);
+  outline-offset: 3px;
+  border-radius: 50%;
+  animation: tutorial-move-range-pulse 1.4s ease-in-out infinite;
+  cursor: pointer;
+}
+body.reduce-glow .player-avatar.card-effect-target-avatar {
+  animation: none;
+}
+
 /* 「ターンを次のプレイヤーへ渡す」ボタン。プレイヤー自身が操作するゲームプレイ上のボタン
    なので、開発者向けツール（管理者モード＝左上、山札一覧/セットアップ＝右上）とは離し、
    画面右下に配置する。state.turnPlayerがnullの間（セットアップ手順3が未実行）は
@@ -5317,6 +5336,50 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   font-family: sans-serif;
   color: #fef3c7;
   box-shadow: 0 0 1.5rem rgba(250, 204, 21, 0.5), 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+
+/* 手品師の技専用（ユーザー要望「儀式的に相手の手札が裏向きの状態のまま画面中央に
+   拡大表示されてその中から選ぶ方式にしたい」、main.jsのrequestOpponentHandRitualPick）。
+   紫系にして他の確認モーダル（金色系）と見分けやすくする。 */
+#sleight-ritual-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 90vw;
+  z-index: 10621;
+  background: linear-gradient(160deg, #1e1b4b, #0f0a24);
+  border: 2px solid #a78bfa;
+  border-radius: 0.8rem;
+  padding: 1.2rem 1.6rem;
+  text-align: center;
+  font-family: sans-serif;
+  color: #ede9fe;
+  box-shadow: 0 0 1.5rem rgba(167, 139, 250, 0.5), 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+.sleight-ritual-title {
+  font-weight: bold;
+  font-size: 0.95rem;
+  margin-bottom: 0.9rem;
+}
+.sleight-ritual-cards {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.sleight-ritual-card {
+  width: 5rem;
+  height: 7rem;
+  background-size: cover;
+  background-position: center;
+  border-radius: 0.3rem;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+.sleight-ritual-card:hover {
+  transform: translateY(-0.4rem) scale(1.05);
 }
 
 /* ターン終了時の中央告知（src/turn-announce.js）。ゲーム操作を妨げないよう

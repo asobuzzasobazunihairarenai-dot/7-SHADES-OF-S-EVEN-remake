@@ -340,6 +340,10 @@ function buildPlayerZone(side, player, isSelf) {
   const AVATAR_DIRECTION_BY_SIDE = { bottom: "front", left: "right", top: "front", right: "left" };
   const avatarEl = document.createElement("div");
   avatarEl.className = `player-avatar${player === getState().turnPlayer ? " is-turn-player" : ""}`;
+  // 手品師の技（ユーザー要望「駒ではなくアバターを選択して相手を選ぶ」）用。
+  // どのプレイヤーのアバターかをクリック判定側（requestPlayerChoiceForEffect）が
+  // 特定できるようにする。
+  avatarEl.dataset.player = player;
   let avatarSrc = getAvatarVariant(getPlayerAvatar(player), AVATAR_DIRECTION_BY_SIDE[side]);
   // ユーザー要望「残りロックエリアの数が3つになったら覚醒版(アバター2)、1つになったら
   // 激昂版(アバター3)に変更してほしい」。7色中4色ロック済み＝残り3つで覚醒、6色ロック済み
@@ -900,15 +904,62 @@ async function swapPiecesForEffect(pieceTokenId, fromLocation, targetLocation) {
   render();
 }
 
-// SWAP_RANDOM_HAND_CARD用（手品師の技）。player・targetPlayer双方の「交換前」の手札から
-// 同時にランダムな1枚ずつを選んでから両方動かす（片方を動かしてから相手側を選ぶと、
-// 今動かしたばかりのカードが相手の手札に混ざった状態で選ばれてしまいかねないため）。
-async function swapRandomHandCardForEffect(player, targetPlayer) {
-  const myHand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
-  const theirHand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === targetPlayer);
-  if (myHand.length === 0 || theirHand.length === 0) return;
-  const myCard = myHand[Math.floor(Math.random() * myHand.length)];
-  const theirCard = theirHand[Math.floor(Math.random() * theirHand.length)];
+// 手品師の技専用。ユーザー要望「一応、儀式的に相手の手札が裏向きの状態のまま画面
+// 中央に拡大表示されてその中から選ぶ方式にしたい」への対応。docs/cards.mdの
+// 「無作為に」を満たす必要があるため、実際にどのカードが取られるかは表示"順"を
+// シャッフルすることで保証する——プレイヤーは裏向きのカードを見た目上選んでいるが、
+// 中身（＝どの位置に何があるか）は分からないため、実質的に無作為な選択になる。
+function requestOpponentHandRitualPick(targetPlayer, hint) {
+  return new Promise((resolve) => {
+    const theirHand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === targetPlayer);
+    if (theirHand.length === 0) {
+      resolve(null);
+      return;
+    }
+    const shuffled = [...theirHand].sort(() => Math.random() - 0.5);
+    function cleanup() {
+      backdrop.remove();
+      modal.remove();
+    }
+    const backdrop = createBackdrop(() => {
+      cleanup();
+      resolve(null);
+    }, { dim: true, zIndex: 10620 });
+    const modal = document.createElement("div");
+    modal.id = "sleight-ritual-modal";
+    const title = document.createElement("div");
+    title.className = "sleight-ritual-title";
+    title.textContent = hint || `${getPlayerName(targetPlayer)}の手札から1枚選んでください`;
+    modal.appendChild(title);
+    const cardsWrap = document.createElement("div");
+    cardsWrap.className = "sleight-ritual-cards";
+    for (const token of shuffled) {
+      const cardEl = document.createElement("div");
+      cardEl.className = "sleight-ritual-card";
+      cardEl.style.backgroundImage = `url("${getCardBackImagePath(token.cardId)}")`;
+      cardEl.addEventListener("click", () => {
+        cleanup();
+        resolve(token);
+      });
+      cardsWrap.appendChild(cardEl);
+    }
+    modal.appendChild(cardsWrap);
+    document.body.appendChild(backdrop);
+    document.body.appendChild(modal);
+  });
+}
+
+// SWAP_RANDOM_HAND_CARD用（手品師の技）。相手からは上のリチュアル演出で無作為に
+// 1枚もらい、自分から渡すカードはユーザー確認済み「自分から相手に何を返すかは
+// 自分で選べる」通り、他の手札選択（追色コスト等）と同じrequestHandCardChoiceFor
+// Effectで選ばせる（フィルタ無し＝手札全体が対象）。どちらかで選択をキャンセル
+// （backdropクリック等）した場合は、まだ何も動かしていないためそのまま何もせず
+// 終わる（効果全体を安全にキャンセルできる）。
+async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
+  const theirCard = await requestOpponentHandRitualPick(targetPlayer, `${getPlayerName(targetPlayer)}の手札（裏向き）から1枚選んでください`);
+  if (!theirCard) return;
+  const myCard = await requestHandCardChoiceForEffect(player, "相手に渡すカードを手札から選択してください");
+  if (!myCard) return;
   await moveAndSyncForEffect(theirCard.id, { zone: "hand", player });
   await moveAndSyncForEffect(myCard.id, { zone: "hand", player: targetPlayer });
   playSound("cardPlace");
@@ -927,7 +978,7 @@ async function swapRandomHandCardForEffect(player, targetPlayer) {
 // captureフェーズのpointerdownリスナーを1つだけ用意し、選択待ち中はそれ以外の
 // ヒットテスト・ドラッグ開始を一切通さない（ユーザー要望「盤面全体49マスに対し
 // 移動候補しかクリックできないようにする」にも対応）。
-let activeEffectPicker = null; // { type: "cell", candidates, resolve } | { type: "hand", tokenIds: Set, resolve }
+let activeEffectPicker = null; // { type: "cell", candidates, resolve } | { type: "hand", tokenIds: Set, resolve } | { type: "player", players: Set, resolve }
 
 // ユーザー要望「収穫と種まきで獲得したカードを手札の中で効果が終わるまで光らせる」
 // 「置き直す先のマスをハイライトして忘れないようにする」への対応。render()が
@@ -1020,6 +1071,19 @@ document.addEventListener(
           activeEffectPicker = null;
           const token = getState().tokens.find((t) => t.id === cardEl.dataset.tokenId);
           picker.resolve(token ?? null);
+        }
+        return;
+      }
+    }
+    if (picker.type === "player") {
+      // 手品師の技（ユーザー要望「駒ではなくアバターを選択して相手を選ぶ」）用。
+      for (const el of elements) {
+        const avatarEl = el.closest(".player-avatar");
+        if (!avatarEl) continue;
+        const player = avatarEl.dataset.player;
+        if (picker.players.has(player)) {
+          activeEffectPicker = null;
+          picker.resolve(player);
         }
         return;
       }
@@ -1154,6 +1218,33 @@ function requestHandCardChoiceForEffect(player, hint, tokenIdFilter) {
         document.body.classList.remove("card-effect-picking-hand");
         hideEffectPickerHint();
         resolve(token);
+      },
+    };
+  });
+}
+
+// 手品師の技専用（ユーザー要望「駒ではなくアバターを選択して相手を選ぶ」）。
+// candidatesは座席の配列（例: ["B","C"]）。マスチェンジ等のpickLocationと同じ
+// 「候補をハイライトしてクリックを待つ」形だが、対象がマス/手札カードではなく
+// プレイヤーのアバターであるため専用の関数にした。
+function requestPlayerChoiceForEffect(candidates, hint) {
+  return new Promise((resolve) => {
+    const entries = candidates
+      .map((player) => ({ player, el: document.querySelector(`.player-avatar[data-player="${player}"]`) }))
+      .filter((e) => e.el);
+    if (entries.length === 0) {
+      resolve(null);
+      return;
+    }
+    for (const entry of entries) entry.el.classList.add("card-effect-target-avatar");
+    if (hint) showEffectPickerHint(hint);
+    activeEffectPicker = {
+      type: "player",
+      players: new Set(candidates),
+      resolve: (player) => {
+        for (const entry of entries) entry.el.classList.remove("card-effect-target-avatar");
+        hideEffectPickerHint();
+        resolve(player);
       },
     };
   });
@@ -1346,8 +1437,9 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         pickHandEffectOption: showHandEffectOptionPicker,
         // ジャンプ台の手札効果（これをゲート以外の任意のマスに表向きで置く）用。
         flipCard: flipToFaceUpForEffect,
-        // 手品師の技の効果（相手を選び互いの手札から無作為に1枚ずつ交換する）用。
-        swapRandomHandCard: swapRandomHandCardForEffect,
+        // 手品師の技の効果（アバターで相手を選び、手札を1枚ずつ交換する）用。
+        pickPlayer: requestPlayerChoiceForEffect,
+        swapRandomHandCard: swapHandCardWithOpponentForEffect,
       }
     );
     clearEffectUiHighlights();
@@ -1376,8 +1468,9 @@ async function runAutoArrivalEffect(cardId, location, player) {
       // 手札効果側（runAutoHandEffect）は既にdrawCardsを持っていたが、到達効果側には
       // まだ無かったので追加した。
       drawCards: drawCardsForEffect,
-      // 手品師の技の到達効果（相手を選び互いの手札から無作為に1枚ずつ交換する）用。
-      swapRandomHandCard: swapRandomHandCardForEffect,
+      // 手品師の技の到達効果（アバターで相手を選び、手札を1枚ずつ交換する）用。
+      pickPlayer: requestPlayerChoiceForEffect,
+      swapRandomHandCard: swapHandCardWithOpponentForEffect,
     }
   );
   clearEffectUiHighlights();

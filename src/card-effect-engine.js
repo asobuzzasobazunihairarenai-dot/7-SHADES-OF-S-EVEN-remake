@@ -281,15 +281,6 @@ function getOpponentPieceCellsWithinRange(fromLocation, range, player) {
   return candidates;
 }
 
-// 手品師の技専用: 距離を問わず、盤面上にいる相手全員の駒のマス（マスチェンジの
-// 「Nマス以内」と違い範囲指定が無いカードのため、getOpponentPieceCellsWithinRangeは
-// 使わず全マス走査する）。
-function getAllOpponentPieceCells(player) {
-  return getState()
-    .tokens.filter((t) => t.kind === "piece" && t.location.zone === "cell" && t.player !== player)
-    .map((t) => ({ zone: "cell", row: t.location.row, col: t.location.col }));
-}
-
 // なないろの欠片のLOCK_PAIR専用: 自分のロックエリアの7色スロット全部（埋まっている
 // スロットも含む——通常の「1色1枚まで」占有チェックの対象外の特殊ロックのため）。
 function getOwnLockSlotCandidates(player) {
@@ -461,17 +452,16 @@ async function runAction(action, ctx, helpers) {
       return;
     }
     case VERBS.SWAP_RANDOM_HAND_CARD: {
-      // 手品師の技専用: マスチェンジのSWAP_POSITIONと同じ「相手の駒をクリックして
-      // 選ぶ」UIを流用する（範囲制限が無いので候補は全相手の駒）。
-      const candidates = getAllOpponentPieceCells(ctx.player);
-      if (candidates.length === 0) return;
-      const target = await helpers.pickLocation(candidates, "手札を交換する相手を選択してください");
-      if (!target) return;
-      const targetPiece = getState().tokens.find(
-        (t) => t.kind === "piece" && t.location.zone === "cell" && t.location.row === target.row && t.location.col === target.col
-      );
-      if (!targetPiece) return;
-      await helpers.swapRandomHandCard(ctx.player, targetPiece.player);
+      // 手品師の技専用。ユーザー要望「駒ではなくアバターを選択して相手を選ぶ」への
+      // 対応で、マス/駒ベースのpickLocationではなく専用のpickPlayer（アバターを
+      // クリックして選ぶ）を使う。実際の手札交換（相手の手札を裏向きのまま画面中央に
+      // 表示して選ばせる「儀式」演出＋自分から渡すカードは自分で選べる）はhelpers側
+      // （main.jsのswapHandCardWithOpponentForEffect）に委ねる。
+      const opponents = getState().activePlayers.filter((p) => p !== ctx.player);
+      if (opponents.length === 0) return;
+      const targetPlayer = await helpers.pickPlayer(opponents, "手札を交換する相手を選んでください（アバターをクリック）");
+      if (!targetPlayer) return;
+      await helpers.swapRandomHandCard(ctx.player, targetPlayer);
       return;
     }
     default:
