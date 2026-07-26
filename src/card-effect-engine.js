@@ -838,13 +838,30 @@ async function runAction(action, ctx, helpers) {
       if (!arrivalDef?.actions?.length) return false;
       let hadEffect = false;
       for (const a of arrivalDef.actions) {
-        if (await runAction(a, ctx, helpers)) hadEffect = true;
+        if (await runActionSafely(a, ctx, helpers)) hadEffect = true;
       }
       return hadEffect;
     }
     default:
       console.warn(`card-effect-engine: 未対応の動詞 "${action.verb}"`);
       return false;
+  }
+}
+
+// ユーザー報告「ザ・ギャンブルで宣言色が出てしまったときに、手札がすべて捨てられず
+// 止まってしまっている」の調査で発見: runAction単体が例外を投げると（未実装の
+// helper呼び出し等）、呼び出し元のfor-of loopにtry/catchが無いため、そこで例外が
+// そのまま外まで伝播し、以降のアクション（手札を全て捨てる・フェイズを終了する等）が
+// 一切実行されないまま効果全体が静かに止まる（コンソールにエラーは出るがユーザー
+// 画面には何も表示されない）。1つのアクションの失敗が後続を道連れにしないよう、
+// runAction/runActionSafelyを呼ぶ4箇所全て（runArrivalEffect・runHandEffectOption・
+// runArrivalOptionsEffect・INHERIT_ARRIVAL_ACTIONS）でこちらを使う。
+async function runActionSafely(action, ctx, helpers) {
+  try {
+    return await runAction(action, ctx, helpers);
+  } catch (err) {
+    console.error(`card-effect-engine: アクション実行に失敗（動詞 "${action.verb}"）`, err);
+    return false;
   }
 }
 
@@ -868,7 +885,7 @@ async function runArrivalOptionsEffect(ctx, options, helpers) {
     const chosen = await helpers.pickArrivalOption(ctx.cardId, optionsWithUsability);
     if (chosen) {
       for (const action of chosen.actions) {
-        if (await runAction(action, runCtx, helpers)) hadEffect = true;
+        if (await runActionSafely(action, runCtx, helpers)) hadEffect = true;
       }
     }
   }
@@ -907,7 +924,7 @@ export async function runArrivalEffect(ctx, helpers) {
   };
   let hadEffect = false;
   for (const action of effectDef.actions) {
-    if (await runAction(action, runCtx, helpers)) hadEffect = true;
+    if (await runActionSafely(action, runCtx, helpers)) hadEffect = true;
   }
   // ユーザー要望「効果が不発だった場合（例: マスチェンジで３マス以内に相手がいない等）
   // は『不発のためこのカードを手札に加えます』的なモーダルを出しましょう」。アクションが
@@ -974,7 +991,7 @@ async function runHandEffectOption(ctx, option, helpers) {
     forcePrompt: true,
   };
   for (const action of option.actions) {
-    await runAction(action, runCtx, helpers);
+    await runActionSafely(action, runCtx, helpers);
   }
   recordHandEffectUsage(ctx.cardId, ctx.player);
   return true;

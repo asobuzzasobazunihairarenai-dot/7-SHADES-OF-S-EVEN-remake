@@ -1008,6 +1008,14 @@ let ritualPickWatchModal = null;
 let ritualPickWatchTitleEl = null;
 let ritualPickWatchCardEls = [];
 let ritualPickWatchRevealTimer = null;
+// ユーザー報告「奪う側に出る裏向きの手札と、奪われる側に出る表向きの手札の順番が
+// 異なってしまっている」の調査用の防御策。マウスを素早く複数枚の上で動かしてから
+// クリックすると、ホバー位置のbroadcast（ritual_pick_hover）が実際の結果
+// （ritual_pick_ended）より後にネットワーク経由で届くことが理論上あり得る——その
+// 場合、既にrevealRitualPickWatchResultで確定表示した後に、古いホバー位置がまた
+// is-hoveredとして再表示され、確定した「奪われたカード」と矛盾する見た目になる。
+// 一度確定した後は、以降のホバー通知を無視することでこれを防ぐ。
+let ritualPickWatchResolved = false;
 function closeRitualPickWatch() {
   clearTimeout(ritualPickWatchRevealTimer);
   ritualPickWatchRevealTimer = null;
@@ -1017,6 +1025,7 @@ function closeRitualPickWatch() {
   ritualPickWatchModal = null;
   ritualPickWatchTitleEl = null;
   ritualPickWatchCardEls = [];
+  ritualPickWatchResolved = false;
 }
 function openRitualPickWatch(order) {
   closeRitualPickWatch();
@@ -1051,9 +1060,11 @@ function openRitualPickWatch(order) {
 // そのカードだけ拡大・発光させ、他のカードは薄暗くしてしばらく見せてから閉じる。
 function revealRitualPickWatchResult(pickedTokenId) {
   if (!ritualPickWatchModal) return;
+  ritualPickWatchResolved = true;
   if (ritualPickWatchTitleEl) ritualPickWatchTitleEl.textContent = "このカードが奪われました！";
   for (const el of ritualPickWatchCardEls) {
     const isPicked = el.dataset.tokenId === pickedTokenId;
+    el.classList.remove("is-hovered");
     el.classList.toggle("is-stolen-reveal", isPicked);
     el.classList.toggle("is-not-picked", !isPicked);
   }
@@ -1066,6 +1077,7 @@ onRitualPickStartedEvents(({ targetPlayer, order }) => {
 });
 onRitualPickHoverEvents(({ targetPlayer, index }) => {
   if (getSelfSeat() !== targetPlayer) return;
+  if (ritualPickWatchResolved) return;
   for (const el of ritualPickWatchCardEls) el.classList.remove("is-hovered");
   ritualPickWatchCardEls[index]?.classList.add("is-hovered");
 });
@@ -2148,6 +2160,17 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         // なないろの巨光・スラム上がりの役人・ザ・ギャンブルの「このフェイズを
         // 終了する。」用。
         endCurrentPhase: forceEndCurrentPhase,
+        // ユーザー報告「ザ・ギャンブルで宣言色が出てしまったときに、手札がすべて
+        // 捨てられず止まってしまっている」の調査で発見: ザ・ギャンブルの手札効果
+        // （INHERIT_ARRIVAL_ACTIONS経由で到達効果のPUBLIC_DRAW_MATCHING_DECLARED_
+        // COLOR_COUNTアクションを実行する）がこのpublicDrawヘルパーを呼ぶが、
+        // 到達効果側（runAutoArrivalEffect）には元々あったのに手札効果側の
+        // このオブジェクトには無かったため、TypeError（helpers.publicDraw is not a
+        // function）が投げられ、runHandEffectOptionのアクションループに
+        // try/catchが無いことも相まって、以降のアクション（宣言色一致判定・
+        // 手札全捨て・フェイズ終了）が一切実行されないまま効果全体が静かに
+        // 止まっていた（コンソールにエラーは出るがユーザー画面には何も表示されない）。
+        publicDraw: publicDrawForEffect,
       }
     );
     clearEffectUiHighlights();
@@ -3045,12 +3068,20 @@ async function respondToContact(approve) {
     // ユーザー要望「奪われた側は何を奪われたかをモーダルで出す」への対応。オンライン中は
     // defender自身の画面にだけ表示する（attacker側はcheckContactAttackerResolution参照）。
     // ローカルモードは1画面で両者を見ているため、role:"both"で両方の文面を一度に出す。
-    // ハマりどころ（ユーザー報告「接触され側でオープンする/しないの選択が出ない（実際には
+    // ハマりどころ①（ユーザー報告「接触され側でオープンする/しないの選択が出ない（実際には
     // 出ているが、この結果モーダルの不透明な背景に隠れて見えなかった）」）: 到達判定
     // （裏向きなら「オープンする/しない」の選択）と同時にこの結果モーダルを出すと、
-    // 結果モーダルの方が手前に重なって選択肢を覆い隠してしまう。到達判定が完全に決着した
-    // 後（表向きなら即座に、裏向きならユーザーが選び終えた後）まで表示を遅らせることで
-    // 解決する（maybeTriggerCardArrivalのonResolvedコールバック参照）。
+    // 結果モーダルの方が手前に重なって選択肢を覆い隠してしまう。
+    // ハマりどころ②（ユーザー報告「接触した後、ターン終了が押せなくなっている」）:
+    // ①の対策でonResolved（オープンする/しないの決着直後）まで遅らせただけでは
+    // 不十分だった——強制移動先のカードが自動処理可能な到達効果を持ち、かつその効果が
+    // パーティー・選べる罠・ザ・ギャンブルの色宣言等プレイヤーの選択を要するものだった
+    // 場合、その選択モーダルがまだ表示されている最中にこの結果モーダル（backdrop無しだが
+    // 中央に固定表示・z-index 10621）が重なって選択肢を覆い隠し、選べなくなる
+    // →runAutoArrivalEffectが永遠に完了しない→優先権がdefenderに渡ったまま戻らず、
+    // ターンプレイヤーのターン終了ボタンが永久に無効化されたままになっていた。
+    // 到達判定・自動処理が完全に終わった後（onFullyResolved）まで表示を遅らせることで
+    // 解決する。
     const showResultModal = () => {
       const stolen = findStolenCard();
       openContactResultModal({
@@ -3068,12 +3099,14 @@ async function respondToContact(approve) {
     // defenderの解決を置き去りにしないよう、updateEndTurnButton側で優先権を
     // 持たないプレイヤーのターン終了ボタンを無効化している）。
     transferPriorityTo(defender);
-    const returnPriorityToTurnPlayer = () => transferPriorityTo(getState().turnPlayer);
-    if (defenderPiece)
-      maybeTriggerCardArrival(defenderPiece.location, defenderPiece.id, showResultModal, returnPriorityToTurnPlayer);
-    else {
+    const finishContactResolution = () => {
       showResultModal();
-      returnPriorityToTurnPlayer();
+      transferPriorityTo(getState().turnPlayer);
+    };
+    if (defenderPiece)
+      maybeTriggerCardArrival(defenderPiece.location, defenderPiece.id, undefined, finishContactResolution);
+    else {
+      finishContactResolution();
     }
   }
 }
