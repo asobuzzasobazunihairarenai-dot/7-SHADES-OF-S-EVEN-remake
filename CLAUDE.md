@@ -9063,3 +9063,44 @@ Material Designのブレークポイントと同じ600px未満ならスマホ、
   getBoundingClientRectが常に0を返す状態）では自動操作できなかった。実際の
   ゲーム画面での動作確認（特にスリカエで奪ったカードが返却候補に正しく
   出るか）をお願いします。
+
+### 2026-07-26（続き34）：到達効果処理後にターン終了ボタンを強調・ゲート侵攻の手札を半分奪う処理に儀式的ピックを追加
+
+- **①ターン終了ボタンの強調表示**: ユーザー要望「到達効果の処理が終わったら
+  原則ターンを終了します。なのでターン終了アイコンを強調してターン終了を
+  促そう」。ムーブフェイズで移動/接触した瞬間（`markPhaseMoveActionTaken()`、
+  `isMovePhaseActive()`がfalseになる）と、到達効果の自動処理が実際に完了した
+  瞬間はタイミングが違う（前者の方が先——効果の自動処理はまだ非同期で走って
+  いる最中のことが多い）ため、新しく`arrivalEffectAutoProcessing`フラグを
+  追加し、`triggerCardArrival`の自動処理分岐で処理中はtrue、`.finally()`で
+  falseに戻す（＋render()を呼んで即座に再判定させる）ようにした。
+  `updateEndTurnButton()`に、自動処理ON・ムーブフェイズ・移動/接触済み・
+  到達効果処理中でない・ボタン自体が無効化されていない、の全てを満たす時だけ
+  `#end-turn-button`に`.is-emphasized`（青系パルス、既存のタイムアウト警告
+  `.turn-timer-warning-glow`＝赤とは別の穏やかな促し）を付ける判定を追加した。
+- **②ゲート侵攻ボーナスの「手札を半分奪う」に儀式的ピックを追加**: ユーザー
+  要望「ゲート侵攻成功時、相手の手札を半分奪うときも相手の手札から実際に
+  奪うステップを入れよう！（スリカエとかみたいに）」。`gate-invasion.js`
+  （ローカル対戦専用、オンライン中の無作為抽選は引き続きサーバー側で行う）の
+  `runStealHand`が、以前はshuffle+sliceで無作為抽選した結果をそのまま告知
+  モーダルで見せるだけだったが、スリカエ・接触と同じ`requestOpponentHand
+  RitualPick`をcount回連続で呼ぶ`stealHandCardsRitualForGateInvasion`（新設）
+  に置き換えた。`requestOpponentHandRitualPick`自体にも、複数回連続で同じ
+  相手の手札から選ばせる時に既に選んだ分を次回の候補から除外する
+  `excludeTokenIds`引数を追加した（無作為性自体は表示順のシャッフルで
+  従来通り保たれる）。他の演出注入（`registerEternalAnimHelpers`）と同じ
+  「register helper」パターンで`registerGateInvasionStealHelper`から
+  main.js側の実装を渡す。
+- **検証について**: ②は`gate-invasion.js`の`registerGateInvasionStealHelper`
+  にフェイクの儀式ヘルパーを差し替え、`runGateInvasionsIfNeeded`を実際に
+  最後まで走らせて検証した——手札5枚のdefenderに対し正しくfloor(5/2)=2枚が
+  ヘルパーへ要求され、返された2枚が実際にattackerの手札へ移り、defenderの
+  手札が3枚に減ることを確認した（本物の`requestOpponentHandRitualPick`
+  自体は続き19〜21のスリカエ実装時に既に動作確認済みのため、今回はこの
+  ヘルパーへの結線を重点的に検証した）。①はコードレビューでの確認に加え、
+  `arrivalEffectAutoProcessing`が初期状態falseであることと、フラグ無関係に
+  ムーブフェイズ済み条件だけで`.is-emphasized`が正しくトグルされることを
+  DOM上で確認したが、実際に到達効果の自動処理が非同期に走っている「処理中」
+  区間でこのフラグがtrueになりボタンの強調が一時的に消えることそのものは、
+  この環境のブラウザ自動操作の制約（クリック操作・タイミング検証が困難）に
+  より確認できていない。実際のゲーム画面での動作確認をお願いします。

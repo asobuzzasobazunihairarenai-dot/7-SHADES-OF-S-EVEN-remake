@@ -47,7 +47,7 @@ import { initCurrencyDisplay, refreshCurrencyDisplay } from "./currency-display.
 import { initShop, openShopPanel } from "./shop.js";
 import { initGameSetup, previewStartPlayerModal } from "./game-setup.js";
 import { initOptionsMenu } from "./options-menu.js";
-import { runGateInvasionsIfNeeded, registerEternalAnimHelpers } from "./gate-invasion.js";
+import { runGateInvasionsIfNeeded, registerEternalAnimHelpers, registerGateInvasionStealHelper } from "./gate-invasion.js";
 import { announceHandPickups, announceCardLocked, announceDrawCount } from "./hand-announcer.js";
 import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking } from "./victory.js";
@@ -933,9 +933,14 @@ async function swapPiecesForEffect(pieceTokenId, fromLocation, targetLocation) {
 // どのカードが選ばれるかは表示"順"をシャッフルすることで保証する——プレイヤーは
 // 裏向きのカードを見た目上選んでいるが、中身（＝どの位置に何があるか）は分からない
 // ため、実質的に無作為な選択になる。
-function requestOpponentHandRitualPick(targetPlayer, hint) {
+// excludeTokenIds（省略可、Set）: ゲート侵攻ボーナスの「手札を半分奪う」のように
+// 同じ相手の手札から複数枚を連続で儀式的に選ばせる時、既に選び終えた分を次回の
+// 候補から除外するために使う（stealHandCardsRitualForGateInvasion参照）。
+function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds) {
   return new Promise((resolve) => {
-    const theirHand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === targetPlayer);
+    const theirHand = getState().tokens.filter(
+      (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === targetPlayer && !excludeTokenIds?.has(t.id)
+    );
     if (theirHand.length === 0) {
       resolve(null);
       return;
@@ -1064,6 +1069,27 @@ async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
   await moveAndSyncForEffect(myCard.id, { zone: "hand", player: targetPlayer });
   playSound("cardPlace");
   render();
+}
+
+// ゲート侵攻ボーナス①「手札を半分奪う」専用。defenderの裏向きの手札からcount枚を
+// 儀式的に選ぶ（requestOpponentHandRitualPickをcount回連続で呼ぶ、excludeTokenIds
+// で既に選んだ分を次回の候補から除外する）。gate-invasion.jsはローカル対戦専用
+// （オンライン中は無作為抽選をサーバー側で行う設計）のため、ここも1画面共有の
+// ローカル対戦だけを対象にすればよい。
+async function stealHandCardsRitualForGateInvasion(defender, count) {
+  const stolen = [];
+  const excludeTokenIds = new Set();
+  for (let i = 0; i < count; i++) {
+    const token = await requestOpponentHandRitualPick(
+      defender,
+      `${getPlayerName(defender)}の手札（裏向き）から奪うカードを選んでください（${i + 1}/${count}）`,
+      excludeTokenIds
+    );
+    if (!token) break;
+    stolen.push(token);
+    excludeTokenIds.add(token.id);
+  }
+  return stolen;
 }
 
 // ユーザー要望「カウンターロックの到達効果について『あなたは１番少なくロックしている
@@ -2089,6 +2115,14 @@ async function runAutoArrivalEffect(cardId, location, player) {
   }
 }
 
+// ユーザー要望「到達効果の処理が終わったら原則ターンを終了します。なのでターン
+// 終了アイコンを強調してターン終了を促そう」。自動処理中の到達効果が実際に処理
+// されている間はtrueにし、updateEndTurnButton()側で「処理中はまだ強調しない」
+// 判定に使う（isMovePhaseActive()がfalseになるのはmarkPhaseMoveActionTaken()の
+// 時点＝移動/接触した瞬間で、その後の到達効果処理より先に来てしまうため、
+// 「本当に全部終わったか」はこのフラグで別途追跡する必要がある）。
+let arrivalEffectAutoProcessing = false;
+
 // 到達演出一式（右上モーダル＋そのマス自体が発光する柱状のオーラ＋効果音）をまとめて行う。
 // 柱の色はカード自身の色に合わせる（--color-*をそのまま使う）。到達した駒の持ち主にだけ
 // 「このカードを手札に加える」ボタンを出す（ユーザー要望）。
@@ -2106,9 +2140,14 @@ function triggerCardArrival(cardId, location, onFullyResolved) {
   // （ボタン無し・自動で消える表示専用の）同じ拡大モーダルを出す——効果は自動で
   // 進んでも、自分がどのカードに到達したかは見えないと分かりにくいため。
   if (showAddToHand && canAutoProcessArrival(cardId)) {
+    arrivalEffectAutoProcessing = true;
     runAutoArrivalEffect(cardId, location, player)
       .catch((err) => console.error("runAutoArrivalEffect failed", err))
-      .finally(() => onFullyResolved?.());
+      .finally(() => {
+        arrivalEffectAutoProcessing = false;
+        onFullyResolved?.();
+        render();
+      });
     showCardArrivalModal(cardId, { showAddToHand: false });
     playSound("arrivalEffect");
     const table = document.getElementById("game-table");
@@ -5127,6 +5166,18 @@ function updateEndTurnButton() {
     }
     endTurnButtonEl.disabled = false;
   }
+  // ユーザー要望「到達効果の処理が終わったら原則ターンを終了します。なのでターン
+  // 終了アイコンを強調してターン終了を促そう」。ムーブフェイズで既に移動/接触
+  // した（isMovePhaseActive()がfalseになった）が、フェイズ自体はまだ"move"の
+  // まま＝到達効果の自動処理がまだ走っているかもしれない間はarrivalEffect
+  // AutoProcessingで待ち、それも終わったところで強調表示にする。
+  const shouldEmphasize =
+    isAutoProcessingEnabled() &&
+    !endTurnButtonEl.disabled &&
+    getCurrentPhase() === "move" &&
+    !isMovePhaseActive() &&
+    !arrivalEffectAutoProcessing;
+  endTurnButtonEl.classList.toggle("is-emphasized", shouldEmphasize);
 }
 
 // OKボタン1つだけのシンプルな確認モーダル（山札切れの補充確認に使う）。ゲームの状態に
@@ -6291,6 +6342,7 @@ registerRemoteMoveAnimatorHelpers({
 registerFinalLockApprovalHandler(respondToFinalLock);
 registerContactApprovalHandler(respondToContact);
 registerEternalAnimHelpers(playEternalAcquisitionAnim);
+registerGateInvasionStealHelper(stealHandCardsRitualForGateInvasion);
 buildGameTitle();
 buildSpotlightOverlay();
 buildFinalLockApprovalBanner();

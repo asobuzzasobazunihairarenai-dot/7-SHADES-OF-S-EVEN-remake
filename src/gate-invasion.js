@@ -78,6 +78,19 @@ function shuffled(array) {
   return result;
 }
 
+// ユーザー要望「ゲート侵攻成功時、相手の手札を半分奪うときも相手の手札から実際に
+// 奪うステップを入れよう！（スリカエとかみたいに）」への対応。以前はshuffle+slice
+// で無作為抽選した結果をそのままモーダルで告知するだけだったが、スリカエ・接触と
+// 同じ「裏向きの手札から儀式的に選ぶ」演出を挟む（main.jsのrequestOpponentHand
+// RitualPickをcount回連続で呼ぶ）。実際にどれが選ばれるかは表示順のシャッフルで
+// 保証されるため、無作為性はこれまで通り保たれる。main.jsのDOM操作に依存する
+// ため、他の演出（registerEternalAnimHelpers等）と同じ「register helper」注入
+// パターンで main.js から渡してもらう。
+let stealHandRitualHelper = null; // async (defender, count) => Array<token>
+export function registerGateInvasionStealHelper(fn) {
+  stealHandRitualHelper = fn;
+}
+
 // ①手札を半分（端数切り捨て）無作為に奪う。奪うカードはすべて「非公開情報」
 // （相手の手札は誰にも見えていなかった情報のため）として扱う。
 function runStealHand(attacker, defender, onDone) {
@@ -85,9 +98,14 @@ function runStealHand(attacker, defender, onDone) {
     (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === defender
   );
   const count = Math.floor(defenderHand.length / 2);
-  const stolenTokens = shuffled(defenderHand).slice(0, count);
-  const countText = count > 0 ? `${count}枚を無作為に奪います。` : "枚数が半分未満のため、奪えるカードはありません。";
-  showBonusStepModal(`${getPlayerName(attacker)}はゲート侵攻成功！\n${getPlayerName(defender)}の手札${countText}`, () => {
+  if (count === 0) {
+    showBonusStepModal(`${getPlayerName(attacker)}はゲート侵攻成功！\n${getPlayerName(defender)}の手札は枚数が半分未満のため、奪えるカードはありません。`, onDone);
+    return;
+  }
+  showBonusStepModal(`${getPlayerName(attacker)}はゲート侵攻成功！\n${getPlayerName(defender)}の手札${count}枚を無作為に奪います。`, async () => {
+    const stolenTokens = stealHandRitualHelper
+      ? await stealHandRitualHelper(defender, count)
+      : shuffled(defenderHand).slice(0, count);
     gateInvasionStealHand(attacker, stolenTokens.map((t) => t.id));
     notifyChange();
     announceHandPickups(attacker, stolenTokens.map((t) => ({ cardId: t.cardId, wasPublic: false })));

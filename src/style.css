@@ -2019,6 +2019,18 @@ body.diagnostic-flatten-3d.is-touch-device #priority-transfer-buttons {
   0%, 100% { box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), 0 0 0 0.15rem rgba(239, 68, 68, 0.9); }
   50% { box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), 0 0 0 0.3rem rgba(239, 68, 68, 0.3); }
 }
+/* ユーザー要望「到達効果の処理が終わったら原則ターンを終了します。なので
+   ターン終了アイコンを強調してターン終了を促そう」。turn-timer-warning-glow
+   （赤、タイムアウト警告＝何か問題があるような見た目）とは別に、「そろそろ
+   終了してよいですよ」という穏やかな促しのための青系パルス
+   （updateEndTurnButton参照）。 */
+#end-turn-button.is-emphasized {
+  animation: end-turn-emphasis-glow 1.2s ease-in-out infinite;
+}
+@keyframes end-turn-emphasis-glow {
+  0%, 100% { box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), 0 0 0 0.15rem rgba(56, 189, 248, 0.9); }
+  50% { box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), 0 0 0 0.35rem rgba(56, 189, 248, 0.3); }
+}
 @keyframes turn-timer-warning-blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }
