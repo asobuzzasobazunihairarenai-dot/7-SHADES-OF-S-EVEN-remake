@@ -5,6 +5,7 @@
 // （shop.js）が開く（online.jsのopenShop経由、main.jsが実際の関数を注入する）。
 
 import { getCachedUser, getMyCurrencyBalance, openShop } from "./online.js";
+import { getOptionArea } from "./option-area.js";
 
 let amountEl = null;
 
@@ -28,7 +29,7 @@ export function initCurrencyDisplay() {
   amountEl.textContent = "0";
   el.appendChild(amountEl);
 
-  document.body.appendChild(el);
+  getOptionArea().appendChild(el);
 }
 
 // 対局終了時の付与(online.jsのawardMatchCurrency)・shop.jsでの購入の後など、残高が

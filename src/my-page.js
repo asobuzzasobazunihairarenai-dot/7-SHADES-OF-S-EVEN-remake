@@ -11,6 +11,7 @@ import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { buildIconButtonContent, wireIconButtonClick, openIconDetailModal } from "./icon-action-button.js";
 import { openOnlinePanel } from "./online-ui.js";
 import { getShopCompletionStats } from "./shop-content.js";
+import { getOptionArea } from "./option-area.js";
 
 // main.jsのopenAvatarPicker()はmain.js内のローカル関数（circular importを避けるための
 // 既存パターン、admin.js等と同じ）。main.js側からregisterAvatarPickerHelper()で
@@ -254,5 +255,5 @@ export function initMyPage() {
     detailParagraphs: ["自分のアバター・戦績（対戦数・勝率・順位等）を確認できます。"],
     onAction: open,
   });
-  document.body.appendChild(launcherBtn);
+  getOptionArea().appendChild(launcherBtn);
 }

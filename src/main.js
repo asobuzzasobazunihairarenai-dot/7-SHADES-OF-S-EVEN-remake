@@ -36,6 +36,7 @@ import {
   setTurnAnnounceActive,
 } from "./phase-automation.js";
 import { initHelpButton } from "./help.js";
+import { getOptionArea } from "./option-area.js";
 import { initCurrencyDisplay, refreshCurrencyDisplay } from "./currency-display.js";
 import { initShop, openShopPanel } from "./shop.js";
 import { initGameSetup, previewStartPlayerModal } from "./game-setup.js";
@@ -370,14 +371,17 @@ function buildPlayerZone(side, player, isSelf) {
   // bottom位置に座席B/C/Dが来ることがあるため、player.toLowerCase()ではなくsideから
   // 変数名を組み立てる必要がある）。
   const HAND_VAR_LETTER = { bottom: "a", left: "b", top: "c", right: "d" };
-  // ユーザー要望「管理者モードにスマホ用の調整項目を追加、自分の手札のサイズも」。
-  // --hand-a-sizeはCSSのvar()フォールバックチェーンではなくここでJSが直接読んで
-  // インラインwidth/heightに反映する実装のため、スマホ専用の上書きもJS側で
-  // 「スマホなら-phone値を優先、未設定なら通常値」という同じ考え方で判定する。
+  // ユーザー要望「管理者モードにスマホ用の調整項目を追加、自分の手札のサイズも」→
+  // 「自分の手札位置サイズ回転は2D表示時限定にしてください」。--hand-a-sizeはCSSの
+  // var()フォールバックチェーンではなくここでJSが直接読んでインラインwidth/heightに
+  // 反映する実装のため、スマホ専用の上書きもJS側で「スマホ・かつ2D表示中なら-phone値を
+  // 優先、それ以外は通常値」という同じ考え方で判定する（CSS側のtransform/回転を
+  // body.diagnostic-flatten-3d.is-phone-deviceに揃えたのと同じ条件）。
   const rootStyle = getComputedStyle(document.documentElement);
-  const phoneOverrideRaw = document.body.classList.contains("is-phone-device")
-    ? rootStyle.getPropertyValue(`--hand-${HAND_VAR_LETTER[side]}-size-phone`).trim()
-    : "";
+  const phoneOverrideRaw =
+    document.body.classList.contains("is-phone-device") && document.body.classList.contains("diagnostic-flatten-3d")
+      ? rootStyle.getPropertyValue(`--hand-${HAND_VAR_LETTER[side]}-size-phone`).trim()
+      : "";
   const baseSize = parseFloat(phoneOverrideRaw || rootStyle.getPropertyValue(`--hand-${HAND_VAR_LETTER[side]}-size`));
   const scale = Math.max(handTokens.length, 2) / 3;
   const sizeRem = (Number.isNaN(baseSize) ? 10 : baseSize) * scale;
@@ -2103,6 +2107,19 @@ function renderBoardTokens(table) {
       el.style.setProperty("--piece-turn-glow-color", `var(--color-${token.color})`);
     }
     host.appendChild(el);
+    // ユーザー報告「スマホで2D表示時に、駒をまだ触ってない状態で駒が描画されないことが
+    // ある。見えない駒を触ると描画される」。.pieceの元々のwill-change:transformコメントに
+    // ある「初回のコンポジットレイヤー確立に失敗するWebKit系の不具合」と同系統と判断した。
+    // 2D表示(body.diagnostic-flatten-3d)は`* { transform-style: flat !important; }`で
+    // 全要素のコンポジット方式を丸ごと変えてしまうため、新しく生成される駒がこの変化後の
+    // 初回描画に失敗しやすいと考えられる。触る（render()で作り直される）と直る＝
+    // 一度でも作り直せば正しく描けることは分かっているため、appendChild直後に
+    // display一時トグルで強制的に作り直させ、初回描画を確定させる。
+    if (token.kind === "piece" && document.body.classList.contains("diagnostic-flatten-3d")) {
+      el.style.display = "none";
+      void el.offsetHeight;
+      el.style.display = "";
+    }
     // 駒・カードはセルより大きくはみ出すことがあるため、隣のマス（DOM順で後にあるもの）に
     // 隠されないよう最前面にする
     if (host.classList.contains("cell")) host.style.zIndex = "10";
@@ -4615,7 +4632,7 @@ let turnRoundCounterEl = null;
 function buildTurnRoundCounter() {
   const el = document.createElement("div");
   el.id = "turn-round-counter";
-  document.body.appendChild(el);
+  getOptionArea().appendChild(el);
   return el;
 }
 

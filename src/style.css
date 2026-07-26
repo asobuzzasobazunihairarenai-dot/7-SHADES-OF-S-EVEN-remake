@@ -408,21 +408,13 @@ body.is-touch-device .zone-bottom .hand-area {
     translate(var(--hand-a-pos-touch-x, var(--hand-a-pos-x)), var(--hand-a-pos-touch-y, var(--hand-a-pos-y)))
     rotateX(var(--hand-a-rotate-x-touch, -40deg)) translateZ(var(--hand-a-translate-z-touch, 2.4rem));
 }
-/* ユーザー要望「管理者モードにスマホ用の調整項目を追加。自分の手札については全体を
-   回転させれるようにもしてください」。位置はタブレット専用値→PC値のチェーンをさらに
-   上書きし、回転はrotate()（Z軸、盤面に対して平面内での回転）を新規に追加する
-   （既存のrotateXは「傾き角度」で別軸のため、両方同時に効かせられる）。サイズ
-   （--hand-a-size-phone）はJS側（main.jsのbuildPlayerZone）で読んでいるためここには
-   変数が出てこない。 */
-body.is-phone-device .zone-bottom .hand-area {
-  transform: translate(-50%, -50%)
-    translate(
-      var(--hand-a-pos-phone-x, var(--hand-a-pos-touch-x, var(--hand-a-pos-x))),
-      var(--hand-a-pos-phone-y, var(--hand-a-pos-touch-y, var(--hand-a-pos-y)))
-    )
-    rotate(var(--hand-a-rotate-z-phone, 0deg))
-    rotateX(var(--hand-a-rotate-x-touch, -40deg)) translateZ(var(--hand-a-translate-z-touch, 2.4rem));
-}
+/* ユーザー報告「スマホ用の手札位置・サイズ・回転が全く反映されない」の原因: 通常の
+   3D表示のまま(--hand-a-pos-phone-x等)を効かせようとしていたが、既存の2D表示用ルール
+   （下のbody.diagnostic-flatten-3d.is-touch-device、2クラスセレクタ）の方が詳細度が
+   高く、2D表示がONの端末では常にそちらが勝ってしまい上書きできていなかった。ユーザー
+   確認の上、そもそも「自分の手札の位置・サイズ・回転はスマホ・2D表示時限定でよい」と
+   方針変更したため、このルール自体は下の2D表示用ブロックへ統合した
+   （body.diagnostic-flatten-3d.is-phone-device参照）。 */
 /* ユーザー報告「タブレットで手札が高速に点滅する」への対応（未検証・実機のGPUでしか
    起きない現象のため、この環境では再現確認できていない）。手札のクリッピング対策
    （applyNormalFit）でタブレット等の縦幅が狭い画面では自動フィットのscaleが以前より
@@ -508,6 +500,24 @@ body.is-touch-device .zone-left .hand-area {
 body.diagnostic-flatten-3d.is-touch-device .zone-bottom .hand-area {
   transform: translate(-50%, -50%) translate(var(--hand-a-pos-touch-x, var(--hand-a-pos-x)), var(--hand-a-pos-touch-y, var(--hand-a-pos-y)))
     translate(var(--hand-a-flat-offset-x, 0rem), var(--hand-a-flat-offset-y, 0rem)) rotateX(var(--hand-a-rotate-x-flat, 0deg));
+}
+/* ユーザー要望「管理者モードにスマホ用の調整項目を追加。自分の手札については全体を
+   回転させれるようにもしてください」→「自分の手札位置サイズ回転は2D表示時限定に
+   してください」。上のタブレット/2D表示用ルールと同じ2クラスセレクタ（詳細度を揃え、
+   ソース順で確実に上書きする）で、body.is-phone-deviceもtrueの時だけさらに上書きする。
+   位置は上の--hand-a-flat-offset-x/yへフォールバックし、回転はrotate()（Z軸、盤面に
+   対して平面内での回転、既存のrotateX＝傾き角度とは別軸）を新規に追加する。サイズ
+   （--hand-a-size-phone）はJS側（main.jsのbuildPlayerZone、diagnostic-flatten-3dかつ
+   is-phone-deviceの時だけ適用）で読んでいるためここには変数が出てこない。 */
+body.diagnostic-flatten-3d.is-phone-device .zone-bottom .hand-area {
+  transform: translate(-50%, -50%)
+    translate(var(--hand-a-pos-touch-x, var(--hand-a-pos-x)), var(--hand-a-pos-touch-y, var(--hand-a-pos-y)))
+    translate(
+      var(--hand-a-pos-phone-x, var(--hand-a-flat-offset-x, 0rem)),
+      var(--hand-a-pos-phone-y, var(--hand-a-flat-offset-y, 0rem))
+    )
+    rotate(var(--hand-a-rotate-z-phone, 0deg))
+    rotateX(var(--hand-a-rotate-x-flat, 0deg));
 }
 body.diagnostic-flatten-3d.is-touch-device .zone-top .hand-area {
   transform: translate(-50%, -50%) translate(var(--hand-c-pos-x), var(--hand-c-pos-y))
@@ -1491,12 +1501,6 @@ body.is-touch-device #end-turn-button .icon-action-button-icon-wrap {
 body.is-touch-device #options-menu-button .icon-action-button-icon-wrap {
   width: var(--icon-size-options-touch, var(--icon-size-options, 2.6rem));
   height: var(--icon-size-options-touch, var(--icon-size-options, 2.6rem));
-}
-/* ユーザー要望「管理者モードにスマホ用の調整項目を追加」。スマホ専用値→タブレット専用値
-   →PC値→決め打ちの順（上のタブレット用ルールより後に置くことで優先させる）。 */
-body.is-phone-device #options-menu-button .icon-action-button-icon-wrap {
-  width: var(--icon-size-options-phone, var(--icon-size-options-touch, var(--icon-size-options, 2.6rem)));
-  height: var(--icon-size-options-phone, var(--icon-size-options-touch, var(--icon-size-options, 2.6rem)));
 }
 /* ホバーで簡易説明（phase-guide-tooltip、フェイズ案内板・優先権譲渡と共用）を表示する。 */
 .icon-action-button:hover .phase-guide-tooltip {
@@ -2972,8 +2976,35 @@ body.spotlight-mode #spotlight-overlay {
    小さく表示する。turnNumberが無い（まだ対戦が始まっていない）間は非表示。位置・文字
    サイズは管理者モードで調整できる（--turn-round-counter-top/-right/-font-size、
    ユーザー要望）。 */
-#turn-round-counter {
+/* ユーザー要望「オプション・マイページ・ヘルプ・金額表示・ターンラウンド数を『オプション
+   エリア』としてまとめて位置・サイズ調整できるようにしてほしい」への対応。この5要素は
+   全てここへappendChildされる（option-area.js参照）ようにし、画面右上の角(top:0;right:0)
+   を基準点とするposition:fixedの0×0のアンカー要素にした。子要素は従来通りposition:absolute
+   ＋同じtop/right値で全く同じ見た目になり（0×0の箱でも子のoffsetは箱の端＝この角を基準に
+   計算されるため）、スマホ表示時だけこの要素自体にtranslate+scaleを掛けることで、
+   5要素の相対位置関係を保ったまま「まとめて動かす・まとめて拡大縮小する」を実現する。
+   z-index:900は元々5要素それぞれが個別に持っていた値と揃えてあり（position:fixedの
+   要素は新しいスタッキングコンテキストを作るため、中の子のz-index:900はこの要素同士の
+   比較にはもう使われないが、他のパネル・背景幕等（900未満〜1002等）との前後関係は
+   この#option-area自身のz-indexで決まる）、タイトル画面表示中だけ他4要素を隠しつつ
+   オプションボタンだけ引き上げる従来の挙動は下のbody.opening-screen-active側で別途
+   対応している。 */
+#option-area {
   position: fixed;
+  top: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  z-index: 900;
+}
+body.is-phone-device #option-area {
+  transform-origin: top right;
+  transform: translate(var(--option-area-pos-phone-x, 0rem), var(--option-area-pos-phone-y, 0rem))
+    scale(var(--option-area-scale-phone, 1));
+}
+
+#turn-round-counter {
+  position: absolute;
   /* ユーザー要望により位置を変更（元はtop:0.4rem/right:3.9rem、
      オプションアイコンとの衝突回避を意図した値だった）。 */
   top: var(--turn-round-counter-top, 3.1rem);
@@ -2986,13 +3017,6 @@ body.spotlight-mode #spotlight-overlay {
   letter-spacing: 0.02em;
   pointer-events: none;
   display: none;
-}
-/* ユーザー要望「管理者モードにスマホ用の調整項目を追加」。タブレット専用の上書き自体が
-   元々無かったため、スマホ専用値→PC値→決め打ちの2段フォールバックになる。 */
-body.is-phone-device #turn-round-counter {
-  top: var(--turn-round-counter-top-phone, var(--turn-round-counter-top, 3.1rem));
-  right: var(--turn-round-counter-right-phone, var(--turn-round-counter-right, 1.6rem));
-  font-size: var(--turn-round-counter-font-size-phone, var(--turn-round-counter-font-size, 0.65rem));
 }
 
 /* 「⚙ オプション」ボタンとそのドロップダウン（管理者モードの呼び出し口をここに統合した）。
@@ -3018,7 +3042,7 @@ body.is-phone-device #turn-round-counter {
    テキスト付きボタンだったが、山札一覧をこのメニューの中へ統合したのに合わせて
    アイコンのみに整理した。 */
 #options-menu-button {
-  position: fixed;
+  position: absolute;
   top: 0.3rem;
   right: 1rem;
   z-index: 900;
@@ -3028,12 +3052,6 @@ body.is-touch-device #options-menu-button {
   transform: translate(
     var(--icon-pos-options-touch-x, var(--icon-pos-options-x, 0rem)),
     var(--icon-pos-options-touch-y, var(--icon-pos-options-y, 0rem))
-  );
-}
-body.is-phone-device #options-menu-button {
-  transform: translate(
-    var(--icon-pos-options-phone-x, var(--icon-pos-options-touch-x, var(--icon-pos-options-x, 0rem))),
-    var(--icon-pos-options-phone-y, var(--icon-pos-options-touch-y, var(--icon-pos-options-y, 0rem)))
   );
 }
 /* ユーザー要望により、オプションボタンだけキャプション文字と丸い縁取りを非表示にする
@@ -3055,7 +3073,7 @@ body.is-phone-device #options-menu-button {
    押すとマイページモーダルが開く」への対応。#options-menu-buttonと同じ高さ・同じ
    見た目（アイコンのみ、丸い縁取り無し）で、その左隣に並べる。 */
 #my-page-button {
-  position: fixed;
+  position: absolute;
   top: 0.3rem;
   right: 3.9rem;
   z-index: 900;
@@ -3078,16 +3096,11 @@ body.is-phone-device #options-menu-button {
    さらに左隣に置く。位置・サイズは管理者モードで調整できる
    （--icon-pos-help-x/-y・--icon-size-help、help.js参照）。 */
 #help-button {
-  position: fixed;
+  position: absolute;
   top: 0.3rem;
   right: 6.5rem;
   z-index: 900;
   transform: translate(var(--icon-pos-help-x, 0rem), var(--icon-pos-help-y, 0rem));
-}
-/* ユーザー要望「管理者モードにスマホ用の調整項目を追加」。ヘルプボタンはタブレット専用の
-   上書き自体が元々無かったため、スマホ専用値→PC値→決め打ちの2段フォールバックになる。 */
-body.is-phone-device #help-button {
-  transform: translate(var(--icon-pos-help-phone-x, var(--icon-pos-help-x, 0rem)), var(--icon-pos-help-phone-y, var(--icon-pos-help-y, 0rem)));
 }
 #help-button .icon-action-button-caption {
   display: none;
@@ -3098,10 +3111,6 @@ body.is-phone-device #help-button {
   background: none;
   border: none;
   box-shadow: none;
-}
-body.is-phone-device #help-button .icon-action-button-icon-wrap {
-  width: var(--icon-size-help-phone, var(--icon-size-help, 2.6rem));
-  height: var(--icon-size-help-phone, var(--icon-size-help, 2.6rem));
 }
 #help-button:hover .icon-action-button-icon-wrap {
   background: none;
@@ -3114,7 +3123,7 @@ body.is-phone-device #help-button .icon-action-button-icon-wrap {
    専用の見た目にしてある。位置は管理者モードで調整できる
    （--currency-display-pos-x/-y、admin.js参照）。 */
 #currency-display {
-  position: fixed;
+  position: absolute;
   top: 0.5rem;
   right: 9.1rem;
   z-index: 900;
@@ -3130,14 +3139,6 @@ body.is-phone-device #help-button .icon-action-button-icon-wrap {
   font-weight: bold;
   color: #fde68a;
   transform: translate(var(--currency-display-pos-x, 0rem), var(--currency-display-pos-y, 0rem));
-}
-/* ユーザー要望「管理者モードにスマホ用の調整項目を追加」。通貨表示はアイコン画像・文字が
-   別々のサイズ指定のため、個別に変数を増やすのではなくバッジ全体をscale()で拡大縮小する
-   （ファイル冒頭のGROUPSコメント「scaleは基準サイズを100%とした拡大率」と同じ考え方）。
-   位置のtranslateと同じtransformプロパティに追記するだけなので、位置調整とも共存できる。 */
-body.is-phone-device #currency-display {
-  transform: translate(var(--currency-display-pos-phone-x, var(--currency-display-pos-x, 0rem)), var(--currency-display-pos-phone-y, var(--currency-display-pos-y, 0rem)))
-    scale(var(--currency-display-scale-phone, 1));
 }
 #currency-display-icon {
   width: 1.2rem;
@@ -3704,9 +3705,24 @@ body.is-phone-device #currency-display {
    重要な設定が含まれているため）」。#opening-screen（z-index:50000）より確実に高くする。
    対局中の通常のz-index（900/1002、上のコメント参照）は崩さないよう、オープニング画面が
    実際に表示されている間だけ（body.opening-screen-active、opening-screen.js参照）
-   スコープしてある。 */
-body.opening-screen-active #options-menu-button {
+   スコープしてある。
+   ハマりどころ: #options-menu-buttonは「オプションエリア」グループ化（#option-area、
+   position:fixedで新しいスタッキングコンテキストを作る）により現在は#option-areaの
+   子要素になっているため、子自身にどれだけ高いz-indexを設定しても親(#option-area)の
+   スタッキング順位（通常900）を飛び越えて#opening-screen(50000)より手前には出せない。
+   そのため引き上げ対象を親の#option-area自体に変更した。ただし#option-areaには
+   ヘルプ・通貨表示・マイページも同居しているため、そのままではタイトル画面中に
+   この3つまで一緒に表に出てきてしまう（従来は個別のz-index:900のままなので
+   #opening-screenの裏に隠れて見えていなかった）。それを防ぐため、この3つだけは
+   タイトル画面表示中はdisplay:noneで明示的に隠し、見た目を従来通りに保っている
+   （ターン・ラウンド数表示は元々turnNumberがnullの間display:noneなので対象外で問題ない）。 */
+body.opening-screen-active #option-area {
   z-index: 50100;
+}
+body.opening-screen-active #help-button,
+body.opening-screen-active #currency-display,
+body.opening-screen-active #my-page-button {
+  display: none;
 }
 body.opening-screen-active #options-menu-panel {
   z-index: 50101;
@@ -6905,6 +6921,20 @@ body.is-online-mode #quick-start-bar {
   --self-status-icon-online-size-touch: 3.2rem;
   --hand-a-pos-touch-x: 0rem;
   --hand-a-pos-touch-y: 2.6rem;
+  /* ユーザー要望「オプション・マイページ・ヘルプ・金額表示・ターンラウンド数を
+     『オプションエリア』としてまとめて位置・サイズ調整」に伴い、個別の
+     --icon-pos-help-phone-x等は廃止し、まずは「一度PCと同じ配置に戻して」との
+     指示通りグループのオフセット無し(0,0)・等倍(1)をデフォルトにした。 */
+  --option-area-pos-phone-x: 0rem;
+  --option-area-pos-phone-y: 0rem;
+  --option-area-scale-phone: 1;
+  /* 自分の手札の位置・サイズ・回転（スマホ・2D表示時限定）は、ユーザーが値を
+     いろいろ実験中のため、ここでは元のデフォルト値のまま確定させていない
+     （ユーザー確認済み：「自分の手札はいろいろいじりましたが無視してください」）。 */
+  --hand-a-pos-phone-x: 0rem;
+  --hand-a-pos-phone-y: 5.8rem;
+  --hand-a-size-phone: 17rem;
+  --hand-a-rotate-z-phone: 0deg;
   --camera-perspective-touch: 1090px;
   --camera-perspective-origin-y-touch: 8.4rem;
   --self-status-scale-touch: 1.5;

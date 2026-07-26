@@ -759,43 +759,42 @@ const GROUPS = [
     ],
   },
   {
-    // ユーザー要望「管理者モードにスマホ用の調整項目を追加してください。調整したいのは
-    // 画面右上のヘルプ、金額、オプション、ターンラウンド数、の位置サイズ」。上のタブレット
-    // 専用グループと同じ考え方だが、body.is-phone-device（device-detect.js、タッチ端末の
-    // 中でも画面が小さい方）だけに効く。フォールバックチェーンはスマホ専用値→タブレット
-    // 専用値（存在すれば）→PC値→決め打ちの順（style.css側のvar()参照）。
-    title: "📱 スマホ専用の位置・サイズ調整（PC・タブレットには影響しません）",
+    // ユーザー要望「スマホ用位置調整について『オプション』『マイページ』『ヘルプ』
+    // 『金額表示』『ターンラウンド数』についてこれらは『オプションエリア』として一括で
+    // グループとしても位置サイズ調整ができるようにしてください」。以前はこの5つを個別に
+    // 位置・サイズ調整できる項目（--icon-pos-help-phone-x等）を用意していたが、個別調整だと
+    // 5つの相対的な位置関係（横並びの間隔）が崩れやすく、「いろいろ別で位置サイズ調整
+    // しちゃったけど一度PCと同じ配置に戻して」との要望もあったため、個別項目は廃止し、
+    // この5つをまとめて包む共通の親要素#option-area（option-area.js・style.css参照）を
+    // 新設した。ここではその親要素自体の位置(translate)とサイズ(scale)だけを調整する
+    // （5要素の相対配置はPCと全く同じまま、まとめて動く・まとめて拡大縮小する）。
+    title: "📱 スマホ専用：オプションエリア（ヘルプ・通貨・オプション・マイページ・ターン/ラウンドをまとめて位置・サイズ調整）",
     category: "phone",
     controls: [
-      { key: "--icon-pos-help-phone-x", label: "ヘルプ 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--icon-pos-help-phone-y", label: "ヘルプ 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--icon-size-help-phone", label: "ヘルプ サイズ（スマホ）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
-      { key: "--currency-display-pos-phone-x", label: "通貨表示 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--currency-display-pos-phone-y", label: "通貨表示 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--currency-display-scale-phone", label: "通貨表示 サイズ倍率（スマホ）", unit: "", min: 0.3, max: 2.5, step: 0.05, default: 1 },
-      { key: "--icon-pos-options-phone-x", label: "オプション 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--icon-pos-options-phone-y", label: "オプション 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--icon-size-options-phone", label: "オプション サイズ（スマホ）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 2.6 },
-      { key: "--turn-round-counter-top-phone", label: "ターン/ラウンド Y位置（スマホ）", unit: "rem", min: 0, max: 20, step: 0.1, default: 3.1 },
-      { key: "--turn-round-counter-right-phone", label: "ターン/ラウンド X位置（スマホ）", unit: "rem", min: 0, max: 30, step: 0.1, default: 1.6 },
-      { key: "--turn-round-counter-font-size-phone", label: "ターン/ラウンド 文字サイズ（スマホ）", unit: "rem", min: 0.4, max: 3, step: 0.05, default: 0.65 },
+      { key: "--option-area-pos-phone-x", label: "オプションエリア 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--option-area-pos-phone-y", label: "オプションエリア 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--option-area-scale-phone", label: "オプションエリア サイズ倍率（スマホ）", unit: "", min: 0.3, max: 2.5, step: 0.05, default: 1 },
     ],
   },
   {
-    // ユーザー要望「自分の手札については全体を回転させれるようにもしてください」。
-    // 既存のrotateX（傾き角度、タブレット専用グループ参照）とは別軸で、盤面に対して
-    // 平面内で回転させるZ軸のrotate()を新規追加した（PC/タブレットにはこの軸自体が
-    // 無いため、スマホ専用の新しい調整項目になる）。サイズ(--hand-a-size-phone)は
+    // ユーザー要望「自分の手札については全体を回転させれるようにもしてください」→
+    // ユーザー報告「自分の手札サイズ、位置、回転が全く反映されません」（既存の2D表示専用
+    // ルールの方が詳細度が高く常に上書きされてしまっていた）→ユーザー指摘の通り
+    // 「自分の手札位置サイズ回転は2D表示時限定」に方針変更した。そのため、ここの
+    // スライダー自体はbody.is-phone-deviceだけでなく「2D表示に切り替える」も同時に
+    // ONの端末でだけ効く（style.cssのbody.diagnostic-flatten-3d.is-phone-device参照）。
+    // 回転は既存のrotateX（傾き角度、タブレット専用グループ参照）とは別軸で、盤面に
+    // 対して平面内で回転させるZ軸のrotate()を新規追加した。サイズ(--hand-a-size-phone)は
     // main.jsのbuildPlayerZoneがgetComputedStyleで直接読むJS実装のため、CSSのvar()
-    // フォールバックチェーンではなくJS側で「スマホなら-phone値、無ければ通常値」を
-    // 判定している。
-    title: "📱 スマホ専用：自分の手札の位置・サイズ・回転",
+    // フォールバックチェーンではなくJS側で「スマホ・かつ2D表示中なら-phone値、それ以外は
+    // 通常値」を判定している。
+    title: "📱 スマホ専用：自分の手札の位置・サイズ・回転（「2D表示に切り替える」ON時のみ有効）",
     category: "phone",
     controls: [
-      { key: "--hand-a-pos-phone-x", label: "自分の手札 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--hand-a-pos-phone-y", label: "自分の手札 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 2.6 },
-      { key: "--hand-a-size-phone", label: "自分の手札 サイズ（スマホ）", unit: "rem", min: 4, max: 30, step: 0.5, default: 17 },
-      { key: "--hand-a-rotate-z-phone", label: "自分の手札 回転（スマホ、平面内での回転）", unit: "deg", min: -180, max: 180, step: 1, default: 0 },
+      { key: "--hand-a-pos-phone-x", label: "自分の手札 位置X（スマホ・2D表示時）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--hand-a-pos-phone-y", label: "自分の手札 位置Y（スマホ・2D表示時）", unit: "rem", min: -20, max: 20, step: 0.1, default: 5.8 },
+      { key: "--hand-a-size-phone", label: "自分の手札 サイズ（スマホ・2D表示時）", unit: "rem", min: 4, max: 30, step: 0.5, default: 17 },
+      { key: "--hand-a-rotate-z-phone", label: "自分の手札 回転（スマホ・2D表示時、平面内での回転）", unit: "deg", min: -180, max: 180, step: 1, default: 0 },
     ],
   },
   {

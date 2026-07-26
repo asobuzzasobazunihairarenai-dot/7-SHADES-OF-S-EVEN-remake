@@ -15,6 +15,7 @@ import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { getHelpSections, startTutorial } from "./tutorial.js";
 import { GLOSSARY, FAQ_CATEGORIES, DIGITAL_FEATURES } from "./help-content.js";
+import { getOptionArea } from "./option-area.js";
 
 // 個別の説明を表示する小さなモーダル（トップの一覧からのクリックで開く。icon-action-button.js
 // のopenIconDetailModalと同じ「1個だけ使い回す」パターンだが、ヘルプ画面自身の裏に
@@ -193,5 +194,5 @@ export function initHelpButton() {
     detailParagraphs: ["ルールの説明・用語集・よくある質問を確認できます。"],
     onAction: open,
   });
-  document.body.appendChild(launcherBtn);
+  getOptionArea().appendChild(launcherBtn);
 }

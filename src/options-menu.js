@@ -23,6 +23,7 @@ import { saveMyPreference, resetMyAppearanceSettings, isAdminUser } from "./onli
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { openStatsPlayerLinkModal } from "./stats-player-link.js";
 import { isFlatten2dMode, setFlatten2dMode } from "./tablet-2d-mode.js";
+import { getOptionArea } from "./option-area.js";
 
 function buildMenuItem(label, onClick) {
   const btn = document.createElement("button");
@@ -604,5 +605,5 @@ export function initOptionsMenu() {
 
   document.body.appendChild(backdrop);
   document.body.appendChild(panel);
-  document.body.appendChild(toggleBtn);
+  getOptionArea().appendChild(toggleBtn);
 }
