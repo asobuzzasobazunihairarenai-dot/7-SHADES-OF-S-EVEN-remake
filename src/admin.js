@@ -791,8 +791,11 @@ const GROUPS = [
     title: "📱 スマホ専用：自分の手札の位置・サイズ・回転（「2D表示に切り替える」ON時のみ有効）",
     category: "phone",
     controls: [
-      { key: "--hand-a-pos-phone-x", label: "自分の手札 位置X（スマホ・2D表示時）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--hand-a-pos-phone-y", label: "自分の手札 位置Y（スマホ・2D表示時）", unit: "rem", min: -20, max: 20, step: 0.1, default: 5.8 },
+      // ユーザー要望「自分の手札を右下の巨大アバターのあたりまで持っていきたいので
+      // 位置調整のレンジをもっと広げてください」への対応で、位置X/Yの可動域を
+      // 従来の±20remから拡張した。
+      { key: "--hand-a-pos-phone-x", label: "自分の手札 位置X（スマホ・2D表示時）", unit: "rem", min: -40, max: 40, step: 0.1, default: 0 },
+      { key: "--hand-a-pos-phone-y", label: "自分の手札 位置Y（スマホ・2D表示時）", unit: "rem", min: -20, max: 60, step: 0.1, default: 5.8 },
       { key: "--hand-a-size-phone", label: "自分の手札 サイズ（スマホ・2D表示時）", unit: "rem", min: 4, max: 30, step: 0.5, default: 17 },
       { key: "--hand-a-rotate-z-phone", label: "自分の手札 回転（スマホ・2D表示時、平面内での回転）", unit: "deg", min: -180, max: 180, step: 1, default: 0 },
     ],

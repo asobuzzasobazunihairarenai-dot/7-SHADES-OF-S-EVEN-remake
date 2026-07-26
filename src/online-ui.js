@@ -119,10 +119,10 @@ async function renderPanelContent() {
   } else {
     const gameId = getCurrentGameId();
     if (!gameId) {
-      await renderRoomChoice(user);
+      await renderRoomChoice(user, myGeneration);
       if (myGeneration !== renderGeneration) return;
     } else {
-      await renderRoomStatus(gameId);
+      await renderRoomStatus(gameId, myGeneration);
       if (myGeneration !== renderGeneration) return;
     }
   }
@@ -413,7 +413,14 @@ function buildRoomRow(room) {
   return row;
 }
 
-async function renderRoomChoice(user) {
+// ユーザー報告「ゲームを開始する画面が二つ連なって表示される」への対応。この関数は
+// 内部に複数のawait（getMyActiveGames/listOpenRooms）を持ち、その間にonRosterChange等
+// 経由でrenderPanelContent()が再度呼ばれると、古い方の呼び出しがawaitから戻った後も
+// 新しい方が既に描画し直したcontentElへ構わず追記を続けてしまい、中身が二重に積み
+// 上がるバグがあった（renderPanelContent自体の世代番号ガードは、この関数のawaitの
+// "内側"までは守ってくれない）。呼び出し元から受け取ったmyGenerationを内部のawaitの
+// 後でも都度チェックし、自分が既に古い世代なら追記せず中断するようにした。
+async function renderRoomChoice(user, myGeneration) {
   const title = document.createElement("div");
   title.style.cssText = "font-weight: bold; margin-bottom: 0.6rem;";
   // 匿名ログインの場合、user.emailはundefinedではなく空文字列になることがあるため、
@@ -427,6 +434,7 @@ async function renderRoomChoice(user) {
   // ワンクリックで再開できるようにする（so7_leave_room/so7_join_room側の変更と対）。
   try {
     const activeGames = await getMyActiveGames();
+    if (myGeneration !== renderGeneration) return;
     if (activeGames.length > 0) {
       const resumeLabel = document.createElement("div");
       resumeLabel.style.cssText = "font-size: 0.85rem; margin-bottom: 0.3rem;";
@@ -525,6 +533,7 @@ async function renderRoomChoice(user) {
 
   try {
     const rooms = await listOpenRooms();
+    if (myGeneration !== renderGeneration) return;
     if (rooms.length === 0) {
       listStatus.textContent = "現在、参加できる部屋はありません。「＋ 部屋を作成」から作ってください。";
     } else {
@@ -548,7 +557,10 @@ async function renderRoomChoice(user) {
   contentEl.appendChild(signOutBtn);
 }
 
-async function renderRoomStatus(gameId) {
+// renderRoomChoice同様、内部のawait（getRoomName/getMemberCount）の間に新しい世代の
+// 呼び出しが割り込むケースに備え、myGenerationを都度チェックする（詳しい経緯は
+// renderRoomChoiceのコメント参照）。
+async function renderRoomStatus(gameId, myGeneration) {
   const mySeat = getMySeat();
   let roomName = "セブンの部屋";
   try {
@@ -556,6 +568,7 @@ async function renderRoomStatus(gameId) {
   } catch (err) {
     // 名前が取れなくても部屋自体は表示・操作できるようにしておく
   }
+  if (myGeneration !== renderGeneration) return;
 
   const title = document.createElement("div");
   title.style.cssText = "font-weight: bold; margin-bottom: 0.4rem;";
@@ -573,6 +586,7 @@ async function renderRoomStatus(gameId) {
   } catch (err) {
     // 人数取得に失敗しても部屋自体からは出られるようにしておく
   }
+  if (myGeneration !== renderGeneration) return;
   const countEl = document.createElement("div");
   countEl.style.cssText = "font-size: 0.85rem; margin-bottom: 0.6rem;";
   countEl.textContent = mySeat

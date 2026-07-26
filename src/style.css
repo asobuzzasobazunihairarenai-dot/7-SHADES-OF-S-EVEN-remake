@@ -1502,6 +1502,16 @@ body.is-touch-device #options-menu-button .icon-action-button-icon-wrap {
   width: var(--icon-size-options-touch, var(--icon-size-options, 2.6rem));
   height: var(--icon-size-options-touch, var(--icon-size-options, 2.6rem));
 }
+/* ユーザー報告「スマホ画面上でオプションアイコンだけ大きくなっちゃってます。隣の
+   マイページアイコンやヘルプアイコンにサイズを合わせてください」への対応。
+   --icon-size-options-touch(6rem)はタブレットの大きいタップ領域を狙って調整
+   された値だが、スマホもis-touch-deviceに該当するため、そのまま巻き込まれて
+   マイページ・ヘルプ（どちらもタッチ専用の上書きが無く2.6remのまま）だけ
+   size違いになっていた。スマホ限定でPCと同じ基準サイズに戻す。 */
+body.is-phone-device #options-menu-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-options, 2.6rem);
+  height: var(--icon-size-options, 2.6rem);
+}
 /* ホバーで簡易説明（phase-guide-tooltip、フェイズ案内板・優先権譲渡と共用）を表示する。 */
 .icon-action-button:hover .phase-guide-tooltip {
   opacity: 1;
