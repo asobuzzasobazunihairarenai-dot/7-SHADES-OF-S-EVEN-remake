@@ -124,6 +124,11 @@ const PILOT_CARDS = [
   { cardId: "purple-sorry", kind: "arrival", actual: "１マス移動する。" },
   { cardId: "eternal-green", kind: "handEffect", actual: "【追色１】１枚ドロー。" },
   { cardId: "red-jump-pad", kind: "arrival", actual: "これはあなたの手札に加えない。２マス先に一気に移動する。" },
+  // 生成文「そのマスに手札から１枚裏向きで置く。」は、docs/cards.mdの実際の文言
+  // 「手札から１枚をそのマスに裏向きで置く。」と語順だけが違う（意味は同じ）。
+  // 一度word-order一致に寄せる修正を入れたが、source:"hand"だけの特殊分岐が
+  // 必要になり実装が複雑になる割に実益が薄いため、ユーザー判断で元の生成文の
+  // ままに戻した（2026-07-26）。意図的な⚠️表示。
   {
     cardId: "orange-harvest-sow",
     kind: "arrival",
@@ -152,6 +157,11 @@ const PILOT_CARDS = [
     actual: "３マス以内の相手のいる場所とあなたのいる場所を入れ替える。相手はこのカードの到達効果を得ない。",
   },
   { cardId: "orange-mass-change", kind: "handEffect", actual: "【追色1】上記の到達時の効果を得る。" },
+  // 生成文「２マス以内の１枚をあなたの手札に加える。」は、docs/cards.mdの実際の
+  // 文言「２マス以内のカードを１枚あなたの手札に加える。」と「カードを」の有無・
+  // 枚数の位置だけが違う（意味は同じ）。orange-harvest-sowと同じ理由で、修正は
+  // 一度入れたがユーザー判断で元の生成文のままに戻した（2026-07-26）。
+  // 意図的な⚠️表示。
   { cardId: "first-orange", kind: "handEffect", actual: "【追色１】２マス以内のカードを１枚あなたの手札に加える。" },
   {
     cardId: "yellow-sleight-of-hand",
