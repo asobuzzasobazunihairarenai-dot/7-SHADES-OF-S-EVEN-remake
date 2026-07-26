@@ -395,17 +395,12 @@ function renderAction(action, context) {
     case VERBS.DRAW:
       return `${renderTargetLabel(action.target)}${count}枚ドロー。`;
     case VERBS.PICKUP_TO_HAND: {
-      if (action.target?.saveAs) context.selections[action.target.saveAs] = action.target;
-      // withinCells指定（橙のキューブ ハーベスト等）: docs/cards.mdの実際の文言は
-      // 「２マス以内のカードを１枚あなたの手札に加える。」で、「カードを」が入った上に
-      // 枚数が後ろに回る、choose指定（任意のNマスの〜）とは違う語順になる。
-      if (action.withinCells) {
-        return `${toFullWidthNumber(action.withinCells)}マス以内のカードを${count}枚あなたの手札に加える。`;
-      }
-      const zoneLabel =
-        action.target?.selection === TARGET_SELECTIONS.CHOOSE
+      const zoneLabel = action.withinCells
+        ? `${toFullWidthNumber(action.withinCells)}マス以内の`
+        : action.target?.selection === TARGET_SELECTIONS.CHOOSE
           ? `任意の${toFullWidthNumber(action.target.count)}マスの`
           : "";
+      if (action.target?.saveAs) context.selections[action.target.saveAs] = action.target;
       return `${zoneLabel}${count}枚をあなたの手札に加える。`;
     }
     case VERBS.PLACE_CARD: {
@@ -429,13 +424,6 @@ function renderAction(action, context) {
         // undefined）とは無関係のため、上のcount変数は使わずここだけ決め打ちにする。
         const rangeLabel = action.destination.withinCells ? `${toFullWidthNumber(action.destination.withinCells)}マス以内の` : "";
         return `${rangeLabel}何もない全てのマスに${sourceLabel}カードを１枚ずつ${faceLabel}置く。`;
-      }
-      // 収穫と種まき専用: source:"hand" + SAME_AS destinationの組み合わせだけ、
-      // docs/cards.mdの実際の文言が「手札から１枚をそのマスに裏向きで置く。」と
-      // 語順が逆（手札from始まり）になる。source:"deck"のSAME_AS（終わりなき化学）は
-      // 「そのマスに山札から〜」のまま（destination始まり）で、この特例は対象外。
-      if (action.source === "hand" && action.destination?.selection === TARGET_SELECTIONS.SAME_AS) {
-        return `${sourceLabel}${count}枚をそのマスに${faceLabel}置く。`;
       }
       const destLabel =
         action.destination?.selection === TARGET_SELECTIONS.SAME_AS
