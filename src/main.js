@@ -2319,10 +2319,6 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         // 奇跡の森 マンズウッド（PUBLIC_DRAW_THEN_DISCARD_AT_TURN_END）用。
         publicDrawReturningTokens: publicDrawReturningTokensForEffect,
         markDiscardAtTurnEnd,
-        // 桃のキューブ セレナーデ（LOCK_ONE_HAND_CARD_EXCEPT_FINAL、「ただし最後の
-        // ロックはできない」の判定）用。victory.jsの既存の「最後のロック承認」機能
-        // （main.jsの通常ドロップ処理でも使っている）と全く同じ判定をそのまま流用する。
-        wouldCompleteLock: wouldCompleteLockWithNewIndex,
       }
     );
     clearEffectUiHighlights();

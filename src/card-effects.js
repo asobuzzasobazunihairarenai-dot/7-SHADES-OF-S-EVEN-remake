@@ -551,10 +551,15 @@ export const CARD_EFFECTS = {
   // 「【追色１】あなたの手札を１枚ロックする、ただし最後のロックはできない。
   // この効果は１ターンに１度のみ得られる。」（ユーザーがdocs/cards.mdの空欄
   // だった効果文を補完、2026-07-27）
+  // ユーザー指摘「善処の原則は発動宣言時に適用される——最後のロックしか候補が
+  // 無いなら、コストを払う前の発動宣言自体ができない」への対応で
+  // requiresLockableCardAvailable:trueを付け、isHandEffectOptionUsableの時点で
+  // 弾かれるようにしてある。
   "first-pink": {
     handEffect: {
       cost: { verb: VERBS.DISCARD_SAME_COLOR, count: 1 },
       usageLimit: { per: "turn", count: 1 },
+      requiresLockableCardAvailable: true,
       actions: [{ verb: VERBS.LOCK_ONE_HAND_CARD_EXCEPT_FINAL }],
     },
   },

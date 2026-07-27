@@ -19,6 +19,12 @@ import { getState } from "./state.js";
 import { VERBS, TARGETS, TARGET_SELECTIONS, CARD_EFFECTS } from "./card-effects.js";
 import { getCardDefinition } from "./cards-data.js";
 import { COLORS, SEAT_TO_SIDE, SIDE_TO_SEAT, GATE_POSITIONS, SEAT_ORDER } from "./board-layout.js";
+// 桃のキューブ セレナーデ専用（LOCK_ONE_HAND_CARD_EXCEPT_FINAL）:「最後のロックは
+// できない」の判定に、victory.jsの既存の「最後のロック承認」機能用の関数
+// （main.jsの通常ドロップ処理でも使っている）をそのまま流用する。victory.jsは
+// card-effect-engine.jsを（直接にも間接にも）importしていないため循環参照の
+// 心配はない。
+import { wouldCompleteLockWithNewIndex } from "./victory.js";
 
 // ユーザー確認済み「効果自動処理は基本設定でON/OFFを選べるように」。他の「アニメーションを
 // 減らす」設定（motion-prefs.js）と同じくセッション限りの設定（ページ再読み込みで
@@ -133,6 +139,13 @@ export function isHandEffectOptionUsable(cardId, cardTokenId, player, option) {
       (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player && t.cardId === cardId
     ).length;
     if (count < 2) return false;
+  }
+  // 桃のキューブ セレナーデ専用。ユーザー指摘: 「善処の原則」は発動宣言の時点で
+  // 適用される——条件を満たせないと分かっているなら、コストを払う前の発動宣言
+  // 自体ができない（コストだけ払わせて実際には何も起きない、という状態を避ける）。
+  if (option.requiresLockableCardAvailable) {
+    const { tokens } = getLockableHandTokensExceptFinal(player);
+    if (tokens.length === 0) return false;
   }
   return true;
 }
@@ -367,6 +380,31 @@ function getOwnEmptyLockSlotCandidates(player) {
   );
 }
 
+// 桃のキューブ セレナーデ専用（LOCK_ONE_HAND_CARD_EXCEPT_FINAL）: 今ロック可能な
+// （＝それをロックしても7色目＝勝利にはならない）手札カードと、それぞれの有効な
+// 置き先スロットをまとめて求める。isHandEffectOptionUsable（発動前の善処の原則
+// チェック——コストを払う前に「そもそも今使えるか」を判定する）と、実際の実行
+// （runAction内のLOCK_ONE_HAND_CARD_EXCEPT_FINAL）の両方で同じロジックを使う
+// ことで、「発動を宣言できたのに実際には何も起きない」という状態を避ける
+// （ユーザー指摘: シェイズオブセブンの「善処の原則」は、手札効果発動宣言時に
+// 条件を満たせないと分かっていたら発動自体できない、という方針）。
+function getLockableHandTokensExceptFinal(player) {
+  const emptySlots = getOwnEmptyLockSlotCandidates(player).filter((slot) => !wouldCompleteLockWithNewIndex(player, slot.index));
+  const candidateSlotsFor = (token) => {
+    if (emptySlots.length === 0) return [];
+    const color = getCardDefinition(token.cardId)?.color;
+    if (color === "white" || color === "black") return emptySlots;
+    const idx = COLORS.indexOf(color);
+    const matching = emptySlots.filter((s) => s.index === idx);
+    return idx >= 0 ? matching : [];
+  };
+  const handTokens = getState().tokens.filter(
+    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player && t.cardId !== "rainbow-shard"
+  );
+  const tokens = handTokens.filter((t) => candidateSlotsFor(t).length > 0);
+  return { candidateSlotsFor, tokens };
+}
+
 // カウンターロック専用: 指定プレイヤーが実際にロックしている枚数。
 function countLockedCardsFor(player) {
   return getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "lock" && SIDE_TO_SEAT[t.location.side] === player).length;
@@ -590,31 +628,20 @@ async function runAction(action, ctx, helpers) {
       return true;
     }
     case VERBS.LOCK_ONE_HAND_CARD_EXCEPT_FINAL: {
-      // 桃のキューブ セレナーデ専用: 手札を1枚選んでロックする。通常の色一致ルールに
-      // 従う（無色＝白/黒のカードは空いているどのスロットへも置ける、なないろの欠片は
-      // 「ロックフェイズではロックできない」＝専用のLOCK_PAIR以外の手段では対象外
-      // なので候補から除く）。「ただし最後のロックはできない」＝このカードの効果で
-      // 7色目（＝勝利）のロックを完成させることはできないため、victory.jsの
-      // wouldCompleteLockWithNewIndexで判定し、そのスロットだけ候補から除外する
-      // （helpers.wouldCompleteLock、main.js）。
-      const emptySlots = getOwnEmptyLockSlotCandidates(ctx.player).filter((slot) => !helpers.wouldCompleteLock(ctx.player, slot.index));
-      if (emptySlots.length === 0) return false; // 善処の原則
-      const emptySlotIndexSet = new Set(emptySlots.map((s) => s.index));
-      const candidateSlotsFor = (token) => {
-        const color = getCardDefinition(token.cardId)?.color;
-        if (color === "white" || color === "black") return emptySlots;
-        const idx = COLORS.indexOf(color);
-        return idx >= 0 && emptySlotIndexSet.has(idx) ? emptySlots.filter((s) => s.index === idx) : [];
-      };
-      const handTokens = getState().tokens.filter(
-        (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === ctx.player && t.cardId !== "rainbow-shard"
-      );
-      const lockableTokenIds = new Set(handTokens.filter((t) => candidateSlotsFor(t).length > 0).map((t) => t.id));
-      if (lockableTokenIds.size === 0) return false;
+      // 桃のキューブ セレナーデ専用: 手札を1枚選んでロックする（候補の求め方は
+      // getLockableHandTokensExceptFinal参照——通常の色一致ルールに従い、「最後の
+      // ロック」＝7色目になってしまうスロットは除外済み）。このチェック自体は
+      // isHandEffectOptionUsable（発動宣言前）でも同じ関数を使って行っており、
+      // 候補が無い状態ではそもそもこの効果自体が発動宣言できない（善処の原則）ため、
+      // ここに到達した時点で候補が0件になっているのは主に「宣言直後に他の効果で
+      // 状況が変わった」ような稀なケースへの保険。
+      const { candidateSlotsFor, tokens } = getLockableHandTokensExceptFinal(ctx.player);
+      if (tokens.length === 0) return false;
+      const lockableTokenIds = new Set(tokens.map((t) => t.id));
       const chosen = await helpers.pickHandCard(ctx.player, "ロックするカードを手札から選択してください", lockableTokenIds);
       if (!chosen) return false;
       const slots = candidateSlotsFor(chosen);
-      if (slots.length === 0) return false; // 選んでいる間に状況が変わった場合の保険
+      if (slots.length === 0) return false;
       const dest = slots.length === 1 && !ctx.forcePrompt ? slots[0] : await helpers.pickLocation(slots, "ロックする場所を選択してください");
       if (!dest) return false;
       await helpers.moveAndSync(chosen.id, dest);
