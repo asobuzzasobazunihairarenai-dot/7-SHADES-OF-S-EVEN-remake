@@ -181,6 +181,16 @@ export function hasHandEffectData(cardId) {
   return getHandEffectOptions(cardId).length > 0;
 }
 
+// ゴメンナサイッ！・カウンターロックのように、手札効果が「あなたへのロック/接触の
+// 宣言時に使える」等の反応時専用（Hand Phaseの自己申告では絶対に使えない）カードか。
+// これらはhandEffectデータ自体を持たない（別種の実装が必要なため今回は未対応、
+// card-effects.js参照）ため、main.js側の「hasHandEffectDataかつcanUseHandEffectが
+// false」というトーンダウン判定の対象に自然には乗らない。ユーザー報告「ハンドフェイズで
+// 通常はトーンダウンさせるべき」への対応で、この専用フラグだけを見る。
+export function isHandEffectReactiveOnly(cardId) {
+  return !!CARD_EFFECTS[cardId]?.handEffectReactiveOnly;
+}
+
 // コスト（追色）だけを見て払えるかどうか（使用回数制限・自動処理ON/OFFは問わない）。
 // ユーザー要望「追色コストになるカードが手札に無い場合はその旨の警告を出す」ための、
 // canUseHandEffectより細かい判定（何が原因で使えないかをUI側が案内できるようにする）。

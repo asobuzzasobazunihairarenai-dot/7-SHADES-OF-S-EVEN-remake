@@ -24,6 +24,7 @@ import {
   runHandEffect,
   canPayHandEffectCost,
   hasHandEffectData,
+  isHandEffectReactiveOnly,
   isAutoProcessingEnabled,
   isHandEffectUsableAnytime,
   getMoveCandidates,
@@ -103,6 +104,7 @@ import {
   showHandEffectOptionPicker,
   showEffectReasonModal,
   showCardReceivedModal,
+  REASON_MODAL_TOTAL_MS,
 } from "./hand-effect-ui.js";
 import { initPlayerButtons } from "./player-buttons.js";
 import { initQuickStart } from "./quick-start.js";
@@ -462,11 +464,17 @@ function buildPlayerZone(side, player, isSelf) {
       // canUseHandEffectがまとめて判定する）カードを視覚的に沈める。自動処理モードOFF
       // 中はcanUseHandEffect自体が常にfalseを返す（自己申告プレイの前提のため）ので、
       // 誤って全カードが沈んでしまわないようisAutoProcessingEnabled()も条件に含める。
+      // ユーザー報告「『ゴメンナサイ』や『カウンターロック』は相手がロックや接触を
+      // してこなければ使えないのでハンドフェイズで通常はトーンダウンさせるべき」への
+      // 対応。これらは反応時専用でhandEffectデータ自体を持たないため、上の
+      // hasHandEffectData前提の判定には乗らない——isHandEffectReactiveOnlyを別途見て、
+      // Hand Phase中は常にトーンダウン対象にする（反応のタイミングでない限り絶対に
+      // 使えないため、canUseHandEffect相当の可否判定は不要）。
       if (
         isAutoProcessingEnabled() &&
         isHandPhaseActive() &&
-        hasHandEffectData(token.cardId) &&
-        !canUseHandEffect(token.cardId, token.id, player)
+        ((hasHandEffectData(token.cardId) && !canUseHandEffect(token.cardId, token.id, player)) ||
+          isHandEffectReactiveOnly(token.cardId))
       ) {
         cardEl.classList.add("hand-card-effect-unusable");
       }
@@ -889,7 +897,19 @@ async function addArrivedCardToHand(location, player) {
 // 渡してくる。ジャンプ台等、カードごとに専用の効果音を鳴らしたい場合だけ指定される
 // （ユーザー要望「ジャンプ台で移動するときに専用の効果音を使ってください」）。未指定の
 // 他のMOVEアクションは従来通り無音のまま。
+// ユーザー報告「カウンターロックに到達した際、その下にマスチェンジが表向きで
+// あったのに到達コンボが発生しないまま相手のターンに移った」の原因: 自動処理
+// エンジン（card-effect-engine.jsのrunArrivalEffect）が、効果処理後にこのカード
+// 自身を手札へ動かす既定動作でこのmoveAndSyncを呼ぶが、手動処理側の
+// addArrivedCardToHand（到達モーダルの「手札に加える」ボタン）と違い、動かした
+// 元のマスで新しく一番上になったカードの到達コンボ（maybeTriggerCardArrivalFor
+// ExposedCard）を呼んでいなかった。SWAP_POSITION・FORCED_MOVE_TO_OWN_GATE等、
+// このヘルパーはカード以外（駒）の移動にも広く使われているが、
+// maybeTriggerCardArrivalForExposedCard自身が「移動元がcell/lockゾーンかつまだ
+// 駒が乗っているか」を確認してから何もしなければ安全に無視するため、移動元を
+// 記録して移動後に常に呼ぶだけで、駒の移動等の他の呼び出し元には影響しない。
 async function moveAndSyncForEffect(tokenId, location, soundName) {
+  const fromLocation = getState().tokens.find((t) => t.id === tokenId)?.location ?? null;
   if (isOnlineMode()) {
     try {
       await moveToken(tokenId, location);
@@ -902,6 +922,7 @@ async function moveAndSyncForEffect(tokenId, location, soundName) {
     moveToken(tokenId, location);
   }
   if (soundName) playSound(soundName);
+  maybeTriggerCardArrivalForExposedCard(fromLocation);
 }
 
 // PLACE_CARDのsource:"self"用（ジャンプ台の手札効果等）。手札からマスへの移動は
@@ -1313,19 +1334,28 @@ function announceHandEffectUseForEffect(cardId, optionLabel) {
 // プレイヤーが何が起きたのかわかるようになるべくモーダルで教えてあげてください」への
 // 対応。モーダルを一瞬見せてから続きの処理へ進めるよう、少し間を空けてから返す
 // （PHASE_SKIP_ADVANCE_DELAY_MSと同じ「読む時間を確保する」考え方）。
+// ユーザー報告「試練の儀式のおめでとうモーダルが出てから次の色宣言モーダルまでが早すぎて
+// 読めない」の原因: このモーダル自身の表示時間はhand-effect-ui.jsのREASON_MODAL_
+// DURATION_MS（2600ms、フェードアウト分300msを含めるとREASON_MODAL_TOTAL_MS）だが、
+// 呼び出し元はここで1200msしか待たずに次の処理（試練の儀式なら再度の色宣言モーダル）へ
+// 進んでしまい、このモーダルがまだフェードアウトし切っていないうちに次のモーダルが
+// 重なって出てしまっていた。表示モーダル自身の全表示時間と揃えて待つようにした
+// （呼び出し元全てに影響するが、「次のモーダルと重ならないようにする」という目的自体は
+// どの呼び出し元でも共通のため）。
 async function announceEffectReasonForEffect(cardId, text) {
   showEffectReasonModal(cardId, text);
-  await wait(1200);
+  await wait(REASON_MODAL_TOTAL_MS);
 }
 
 // ユーザー要望「効果が不発だった場合（例: マスチェンジで３マス以内に相手がいない等）は
 // 『不発のためこのカードを手札に加えます』的なモーダルを出しましょう」。addsToHandは
 // card-effects.jsのeffectDef.addsCardToHandAfterに対応する（false指定のカード＝
 // ジャンプ台や黒の契約の烙印が不発になった場合は、このカード自身が手札には加わらない
-// ため文言を分ける——盤面にそのまま残る）。
+// ため文言を分ける——盤面にそのまま残る）。announceEffectReasonForEffectと同じ理由で
+// モーダル自身の全表示時間と揃えて待つ。
 async function announceEffectFizzleForEffect(cardId, addsToHand) {
   showEffectReasonModal(cardId, addsToHand ? "不発のため、このカードを手札に加えます。" : "不発のため、何も起きませんでした。");
-  await wait(1200);
+  await wait(REASON_MODAL_TOTAL_MS);
 }
 
 // なないろの欠片のhandEffectOptionsピッカーと全く同じUI（showHandEffectOptionPicker）を
@@ -2574,7 +2604,19 @@ async function runAutoArrivalEffect(cardId, location, player) {
         render();
       }
       const freshCard = getState().tokens.find((t) => t.id === nextCard.id);
-      if (freshCard) triggerCardArrival(freshCard.cardId, arrivedAt);
+      // ユーザー報告「ジャンプ台→ゴメンナサイ→選べる罠の順に到達が発生した時、
+      // ゴメンナサイの移動処理が自動で行われてしまうとともにターンも切り替えられて
+      // しまった」の原因: triggerCardArrivalは呼び出し元を待たせないfire-and-forget
+      // 関数（onFullyResolvedコールバックで完了を伝える設計）のため、ここで素の呼び出し
+      // （awaitせず）にすると、この連鎖1段先（ゴメンナサイ）のtriggerCardArrivalが
+      // さらに1800ms待ってrunAutoArrivalEffectを開始する「前」に、この関数
+      // （1段前・ジャンプ台側のrunAutoArrivalEffect）のPromiseが先に解決してしまい、
+      // 呼び出し元のarrivalEffectAutoProcessingが（本当はまだ選べる罠まで連鎖が
+      // 続いているのに）falseに戻ってしまっていた。onFullyResolvedを使い、この
+      // 1段先の連鎖（選べる罠まで含む）が完全に終わるまでここで待つようにする。
+      if (freshCard) {
+        await new Promise((resolve) => triggerCardArrival(freshCard.cardId, arrivedAt, resolve));
+      }
     }
   }
 }
@@ -4184,6 +4226,31 @@ function findDiscardButtonAt(clientX, clientY) {
   return null;
 }
 
+// 手札の扇形レイアウトはrotate()で傾けているため、隣り合う2枚のカードの実際の
+// 矩形が指のかなり広い範囲で重なり合う（カード自体が大きく、扇の開き幅が狭い時ほど
+// 顕著——ユーザー報告「セレナーデをクリックしても何も起きない」の根本原因）。
+// document.elementsFromPoint()は重なっている位置ではDOM順で手前（後の兄弟）の
+// カードを常に返すため、素朴に「最初に見つかった.hand-card」を採用すると、
+// クリックした本人の意図（見た目上どのカードのつもりだったか）と食い違うことがある。
+// elementsFromPoint()の結果に含まれる.hand-card候補全てを集め、各カード自身の
+// getBoundingClientRect()の中心とクリック座標との距離が一番近いものを選ぶことで、
+// 重なりの中でも「どちらのカードに近いか」を優先させる（DOM順への依存をやめる）。
+function closestByCenter(candidates, clientX, clientY) {
+  let best = null;
+  let bestDist = Infinity;
+  for (const el of candidates) {
+    const rect = el.getBoundingClientRect();
+    const dx = clientX - (rect.left + rect.width / 2);
+    const dy = clientY - (rect.top + rect.height / 2);
+    const dist = dx * dx + dy * dy;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = el;
+    }
+  }
+  return best;
+}
+
 function findDraggableAt(clientX, clientY) {
   const elements = document.elementsFromPoint(clientX, clientY);
   for (const el of elements) {
@@ -4202,9 +4269,14 @@ function findDraggableAt(clientX, clientY) {
     const revealCard = el.closest(".hand-reveal-card");
     if (revealCard) return { el: revealCard, tokenId: revealCard.dataset.tokenId, kind: "card", isBoardCard: true };
   }
+  const handCardCandidates = new Set();
   for (const el of elements) {
     const handCard = el.closest(".hand-card");
-    if (handCard) return { el: handCard, tokenId: handCard.dataset.tokenId, kind: "card" };
+    if (handCard) handCardCandidates.add(handCard);
+  }
+  if (handCardCandidates.size > 0) {
+    const handCard = closestByCenter(handCardCandidates, clientX, clientY);
+    return { el: handCard, tokenId: handCard.dataset.tokenId, kind: "card" };
   }
   for (const el of elements) {
     const stack = el.closest(".stack[data-pile]");
@@ -4239,9 +4311,15 @@ function findHoverTarget(clientX, clientY) {
     const revealCard = el.closest(".hand-reveal-card");
     if (revealCard) return revealCard;
   }
-  for (const el of elements) {
-    const handCard = el.closest(".hand-card");
-    if (handCard) return handCard;
+  // findDraggableAtと同じ理由（扇形手札の重なり）で、DOM順の最初の1枚に決め打ちせず
+  // 中心距離が一番近いカードを選ぶ（closestByCenter参照）。
+  {
+    const handCardCandidates = new Set();
+    for (const el of elements) {
+      const handCard = el.closest(".hand-card");
+      if (handCard) handCardCandidates.add(handCard);
+    }
+    if (handCardCandidates.size > 0) return closestByCenter(handCardCandidates, clientX, clientY);
   }
   for (const el of elements) {
     const stack = el.closest(".stack[data-pile]");

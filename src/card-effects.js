@@ -96,7 +96,14 @@ export const TARGET_SELECTIONS = {
 // ようにするため）。
 export const CARD_EFFECTS = {
   // 1. ゴメンナサイッ！（紫、通常カード） 到達効果: 「１マス移動する。」
+  // 手札効果（「あなたへのロック・接触の宣言時に使える。それを無効にする。」）は、
+  // ロック/接触の承認・拒否フロー自体への割り込みが必要な別種の実装のため今回は対象外
+  // （カウンターロックと同じ理由）。handEffectデータを持たないため、ユーザー報告
+  // 「ハンドフェイズで通常はトーンダウンさせるべき」への対応で、hasHandEffectData
+  // 前提のトーンダウン判定（main.js）とは別に、常に反応時専用（Hand Phaseの自己申告
+  // では絶対に使えない）と明示するフラグを立てる。
   "purple-sorry": {
+    handEffectReactiveOnly: true,
     arrival: {
       actions: [{ verb: VERBS.MOVE, count: 1 }],
     },
@@ -148,7 +155,10 @@ export const CARD_EFFECTS = {
   // 参加者の中で１番少ないこと。同率首位も対象に含む一般的な解釈）。
   // 手札効果（「あなたへの接触の宣言時に使える。その接触を無効にする。」）は、
   // 接触の承認/拒否フロー自体への割り込みが必要な別種の実装のため今回は対象外。
+  // ゴメンナサイッ！と同じ理由でhandEffectReactiveOnlyを立てる（Hand Phaseの
+  // トーンダウン対応）。
   "red-counter-lock": {
+    handEffectReactiveOnly: true,
     arrival: {
       actions: [{ verb: VERBS.DRAW_IF_FEWEST_LOCKED }],
     },
@@ -299,9 +309,32 @@ export const CARD_EFFECTS = {
 
   // 4. 収穫と種まき（橙、通常カード）
   // 到達効果: 「任意の１マスの１枚をあなたの手札に加える。手札から１枚をそのマスに
-  // 裏向きで置く。」
+  // 裏向きで置く。」／手札効果: 「上記の到達時の効果を得る。」（docs/cards.md、
+  // コスト無し）。ユーザー報告「手札からドラッグしても使用宣言がかからず、場に
+  // 裏向きで置かれてしまう」の原因: handEffectデータ自体が無く、main.js側の
+  // hasHandEffectData判定が常にfalseを返すため、ドラッグ時の自動処理割り込み
+  // （runAutoHandEffect）に一切乗らず、通常の手札→盤面への配置にフォールスルー
+  // していた。試練の儀式・マスチェンジ等と同じinheritsArrivalパターンで、
+  // コスト無しでそのままarrivalと同じactionsを実行するhandEffectを追加する。
   "orange-harvest-sow": {
     arrival: {
+      actions: [
+        {
+          verb: VERBS.PICKUP_TO_HAND,
+          count: 1,
+          target: { zone: "cell", selection: TARGET_SELECTIONS.CHOOSE, count: 1, saveAs: "chosenCell" },
+        },
+        {
+          verb: VERBS.PLACE_CARD,
+          count: 1,
+          source: "hand",
+          faceUp: false,
+          destination: { zone: "cell", selection: TARGET_SELECTIONS.SAME_AS, ref: "chosenCell" },
+        },
+      ],
+    },
+    handEffect: {
+      inheritsArrival: true,
       actions: [
         {
           verb: VERBS.PICKUP_TO_HAND,

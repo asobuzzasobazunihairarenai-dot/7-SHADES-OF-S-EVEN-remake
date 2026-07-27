@@ -95,7 +95,14 @@ export function hideHandEffectUseModalImmediately() {
 
 let currentReasonModal = null;
 let currentReasonModalTimer = null;
-const REASON_MODAL_DURATION_MS = 2600;
+// main.jsのannounceEffectReasonForEffect/announceEffectFizzleForEffectが、次の
+// モーダル（色宣言等）を出す前にこのモーダル自身の表示・フェードアウトが完全に終わる
+// のを待つ時に使う（ユーザー報告「試練の儀式のおめでとうモーダルが出てから次の色宣言
+// モーダルまでが早すぎて読めない」——呼び出し元の待ち時間がこのモーダル自身の表示
+// 時間より短く、次のモーダルが重なって出てしまっていたのが原因）。dismiss()のフェード
+// アウト分(300ms)も含めてexportする。
+export const REASON_MODAL_DURATION_MS = 2600;
+export const REASON_MODAL_TOTAL_MS = REASON_MODAL_DURATION_MS + 300;
 
 // ユーザー要望「カウンターロックの到達効果について『あなたは１番少なくロックしている
 // ので１枚ドローします』みたいなモーダルを出してからドローしてください。ほかの効果も
