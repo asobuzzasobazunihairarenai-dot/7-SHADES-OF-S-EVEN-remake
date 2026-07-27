@@ -88,13 +88,31 @@ function isHandEffectDisabledThisTurn(tokenId) {
   return handEffectDisabledUntilTurn.get(tokenId) === getState().turnNumber;
 }
 
+// 紫のキューブ ディメンション専用（ANNOUNCE_MOVEMENT_BOOST_THIS_TURN）: 「このターンの
+// 通常の移動は２マス先に一気に移動する。」ユーザー指摘「効果文中の『通常の移動』とは
+// ムーブフェイズで通常行う移動のこと」の通り、自動処理モードのムーブフェイズが計算する
+// 移動候補（phase-automation.jsのreconcileMovePhase）自体を、このターンの間だけ
+// count:1→2・atOnce:trueに切り替える必要がある。handEffectDisabledUntilTurnと同じ
+// 「turnNumberが一致する間だけ有効」の自動失効パターン。
+const movementBoostUntilTurn = new Map(); // player -> turnNumber
+function activateMovementBoostForTurn(player) {
+  movementBoostUntilTurn.set(player, getState().turnNumber);
+}
+export function isMovementBoostActiveThisTurn(player) {
+  return movementBoostUntilTurn.get(player) === getState().turnNumber;
+}
+
 // テスト中に発覚したバグの修正: resetGame()するとstate.jsのturnNumberは1から再スタートする
 // ため、前のゲームで既に「turnNumber:1で1回使用済み」と記録されていたカードが、新しい
 // ゲームのturnNumber:1でも誤って「もう使った」扱いになってしまっていた（handEffectUsageは
 // このモジュールのメモリに残り続け、resetGame()では一切クリアされないため）。ゲームを
-// リセットする箇所（game-setup.js）から呼んでもらう。
+// リセットする箇所（game-setup.js）から呼んでもらう。他のturnNumber基準の自動失効Map
+// （handEffectDisabledUntilTurn・movementBoostUntilTurn）も同じ理由でここで一緒に
+// クリアする。
 export function resetHandEffectUsage() {
   handEffectUsage.clear();
+  handEffectDisabledUntilTurn.clear();
+  movementBoostUntilTurn.clear();
 }
 
 // 「追色」コスト（同色の別カードを手札から捨てる）で実際に捨てられる候補。cardTokenIdは
@@ -648,9 +666,13 @@ async function runAction(action, ctx, helpers) {
       return true;
     }
     case VERBS.ANNOUNCE_MOVEMENT_BOOST_THIS_TURN: {
-      // 紫のキューブ ディメンション専用: このアプリはムーブフェイズの移動先を元々
-      // 制限していない（ドラッグで盤面のどこへでも置ける、Phase 1方針）ため、
-      // 実際の移動範囲を広げる処理は不要——案内モーダルを出すだけで完結する。
+      // 紫のキューブ ディメンション専用。ユーザー指摘「効果文中の『通常の移動』とは
+      // ムーブフェイズで通常行う移動のこと。ジャンプ台みたいに２マス先がハイライト
+      // されていなければならない」への対応で、自動処理モードのムーブフェイズが計算する
+      // 移動候補（phase-automation.jsのreconcileMovePhase）自体をこのターンの間だけ
+      // 2マス先・一気に（atOnce）へ切り替えるようにした（activateMovementBoostForTurn、
+      // isMovementBoostActiveThisTurnで参照）。
+      activateMovementBoostForTurn(ctx.player);
       await helpers.announceEffectReason?.(ctx.cardId, "このターン、通常の移動を２マス先まで一気に行えます（自己申告）。");
       return true;
     }

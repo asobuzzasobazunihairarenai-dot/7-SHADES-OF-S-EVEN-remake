@@ -9971,3 +9971,45 @@ u=横方向・v=縦方向）にも使えるよう一般化した`rotateFraction(
 打ち消して送信→Bの回転(steps=3)をかけ直して表示位置を算出→その表示位置が実際に
 どの実座標を指すか逆算、という一連の流れを`rotateFraction`を直接呼んで検証し、
 最終的にAのゲート（row6,col3）と正しく一致することを確認した。
+
+### 2026-07-27（続き53）：紫のキューブの移動ブースト実装・タイマースキップ15秒回復・自動ターン終了の誤発火修正
+
+ユーザー報告4件への対応。
+
+- **①紫のキューブ ディメンションの手札効果が実際の移動範囲に反映されていない**:
+  続き50時点では「このアプリはムーブフェイズの移動先を元々制限していない」という
+  誤った前提のもと、案内モーダルを出すだけの実装になっていた。しかし実際には
+  自動処理モードのムーブフェイズは`phase-automation.js`の`reconcileMovePhase`が
+  計算した候補（`getMoveCandidates(loc, 1, false)`固定）だけをハイライト・クリック
+  可能にしている。`card-effect-engine.js`に`movementBoostUntilTurn`
+  （turnNumber基準で自動失効する、他の同種Mapと同じパターン）を追加し、
+  `isMovementBoostActiveThisTurn(player)`が立っている間は`reconcileMovePhase`側で
+  `getMoveCandidates(loc, 2, true)`（ジャンプ台と全く同じcount:2・atOnce:true）に
+  切り替えるようにした。ブラウザ上で、手札効果使用後に`isMovementBoostActiveThisTurn`
+  がtrueになること、`getMoveCandidates`が実際にマンハッタン距離2（直線・斜め双方）の
+  カードを正しく候補として拾うことを確認した。
+- **②時間切れによるスキップが発生したら15秒回復**: `performPriorityTimeoutAutoAction`
+  （main.js、続き51で新設）のロック/ハンドフェイズ自動スキップ分岐だけ、戻り値を
+  true/falseではなく専用の`"skip"`にした（ムーブフェイズの移動/接触やランダム選択は
+  実際の盤面操作を伴うため、onStateChange側の「本人の本物の操作」判定で自然に基本
+  時間がリセットされるが、スキップだけは盤面操作を伴わずリセットされないため）。
+  `turn-timer.js`側は戻り値が`"skip"`の時だけ、優先権保持者に15秒（固定）の新しい
+  基本時間を明示的に付与する。
+- **③④収穫と種まきの到達効果が始まったばかりなのに／接触を申し込んでいる最中に
+  ターンが自動で終了してしまう（続き50の自動ターン終了機能の不具合）**: 確定原因は
+  `reconcileAutoEndTurn`のタイマーが「armされた瞬間の`shouldEmphasize`」を信じたまま
+  1.5秒後にクリックしていたこと。`render()`はstate.js側のdispatch（moveToken等）が
+  起きた時にしか呼ばれないため、「移動した直後・到達効果の自動処理がまだ始まって
+  いない一瞬（`arrivalEffectAutoProcessing`がまだfalseの間）」にたまたま`render()`が
+  走ってタイマーがarmされてしまうと、その後カード効果の候補選択待ち（DOM操作のみで
+  `render()`を呼ばない）が続く間は再評価されず、armされた時の古い「安全」判定のまま
+  発火していた（収穫と種まきの2段階の候補選択、接触の承認待ちも同様）。`shouldEmphasize`
+  の計算を`computeShouldEmphasize()`として切り出し、タイマー発火時点でもこれを呼び
+  直して`arrivalEffectAutoProcessing`等のライブな値で再確認するようにした
+  （`endTurnButtonEl.disabled`のようなrender()でしか更新されないDOM属性には頼らない）。
+  あわせて`state.pendingContact`（接触承認待ち）もこの判定に追加した——乗り込んだ側の
+  到達効果処理はまだ始まってすらいないため、`arrivalEffectAutoProcessing`だけでは
+  検知できなかった。ブラウザ上で、(1) 収穫と種まきの到達効果ピッカーが開いている間
+  （移動から約9秒経過後も）ターンが終了しないこと、(2) `pendingContact`が立っている間
+  `is-emphasized`がfalseのままであること、(3) 効果が実際に完了した後は正しく自動で
+  ターンが終了することをそれぞれ確認した。

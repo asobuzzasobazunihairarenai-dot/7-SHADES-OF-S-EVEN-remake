@@ -15,7 +15,7 @@
 import { getState, isOnlineMode, drawFromPile, flipToken, nextTurn } from "./state.js";
 import { getSelfSeat, getCurrentGameId, fetchAndHydrate } from "./online.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
-import { isAutoProcessingEnabled, getMoveCandidates } from "./card-effect-engine.js";
+import { isAutoProcessingEnabled, getMoveCandidates, isMovementBoostActiveThisTurn } from "./card-effect-engine.js";
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
 import { playSound } from "./sound.js";
 import { announceHandPickups } from "./hand-announcer.js";
@@ -469,7 +469,15 @@ function reconcileMovePhase(player) {
   if (performingFallback || moveActionTaken) return;
   const piece = getSelfPiece(player);
   if (!piece || piece.location.zone !== "cell") return;
-  const moveCandidates = getMoveCandidates(piece.location, 1, false);
+  // ユーザー指摘「紫のキューブ ディメンションの効果文『通常の移動』とはムーブ
+  // フェイズで通常行う移動のこと。ジャンプ台みたいに２マス先がハイライトされて
+  // いなければならない」。isMovementBoostActiveThisTurn（card-effect-engine.js、
+  // ANNOUNCE_MOVEMENT_BOOST_THIS_TURN）が立っている間だけ、通常の1マス隣接
+  // （count:1・atOnce:false）ではなくジャンプ台と同じ2マス先・一気に（count:2・
+  // atOnce:true）で候補を計算する。接触の対象範囲（隣接のみ）はこの効果の対象外
+  // （効果文はあくまで「移動」についてであり「接触」ではないため）。
+  const boosted = isMovementBoostActiveThisTurn(player);
+  const moveCandidates = getMoveCandidates(piece.location, boosted ? 2 : 1, boosted);
   const contactCandidates = getContactableCells(piece.location, player);
   clearMovableHighlights();
   // ユーザー要望「移動先ハイライト時、範囲外のトーンを落としてほしい。ジャンプ台の時と

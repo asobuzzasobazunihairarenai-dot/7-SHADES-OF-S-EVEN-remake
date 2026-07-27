@@ -747,7 +747,18 @@ function updateTimeoutWarnings(state, isTimedOut) {
   // 起こす——ゲーム操作は本人の識別で送信する必要があるため、他クライアントからは
   // 何もしない（ローカルモードは1人が全座席を操作する前提なので、誰の番でも行う）。
   if (!timedOutAutoActionFired && (!isOnlineMode() || getSelfSeat() === state.priorityPlayer)) {
-    timedOutAutoActionFired = performPriorityTimeoutAutoAction();
+    const result = performPriorityTimeoutAutoAction();
+    timedOutAutoActionFired = !!result;
+    // ユーザー要望「時間切れによるスキップが発生したら15秒回復させてください」。
+    // ロック/ハンドフェイズの自動スキップ（"skip"）は盤面操作を一切伴わないため、
+    // ムーブフェイズの移動/接触や候補のランダム選択（moveToken等の実際の操作を
+    // 伴い、onStateChange側の「本人の本物の操作」判定で自然に基本時間がリセット
+    // される）と違って、何もしないとpriorityDeadlineが切れたままになってしまう。
+    if (result === "skip") {
+      withGuard(() =>
+        setPriorityState({ player: state.priorityPlayer, deadline: Date.now() + 15000, phase: "base" })
+      );
+    }
   }
   const priorityHolderIsTurnPlayer = state.priorityPlayer === state.turnPlayer;
   // ハマりどころ（ユーザー報告「相手にも『ムーブフェイズを終えてターンを終了してください』

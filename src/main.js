@@ -2005,6 +2005,8 @@ function pickRandomFrom(arrayOrSet) {
 // ③は「何もしなくても進められる」場面のためフェイズを進めるだけにする。該当する状況が
 // 無ければ何もしない（isAutoProcessingEnabled()がOFFでフェイズ自体を追跡していない
 // 場合等、従来通り警告表示のみに留める）。
+// 戻り値: 何も起きなければfalse、①②が起きればtrue、③（本当の意味でのスキップ）が
+// 起きれば"skip"（turn-timer.js側が15秒回復の対象を区別するための専用値）。
 export function performPriorityTimeoutAutoAction() {
   if (activeEffectPicker) {
     const picker = activeEffectPicker;
@@ -2041,7 +2043,12 @@ export function performPriorityTimeoutAutoAction() {
   }
   if (phase === "lock" || phase === "hand") {
     forceEndCurrentPhase();
-    return true;
+    // ユーザー要望「時間切れによるスキップが発生したら15秒回復させてください」。
+    // ロック/ハンドフェイズのスキップだけが本当の意味での「スキップ」（何もせず
+    // 先送りにするだけ、他の分岐のような実際の盤面操作を伴わない）ため、呼び出し元
+    // （turn-timer.js）がこの結果だけを区別して優先権の基本時間を回復できるよう、
+    // true/falseではなく専用の文字列を返す。
+    return "skip";
   }
   return false;
 }
@@ -5530,10 +5537,19 @@ function reconcileAutoEndTurn(shouldEmphasize) {
     if (autoEndTurnTimer) return;
     autoEndTurnTimer = setTimeout(() => {
       autoEndTurnTimer = null;
-      // 発火時点でボタン自身がクリック可能な状態（disabledでない）かも念のため
-      // 再確認する。wireIconButtonClick側の仕様上、target===btn自身のclick()は
-      // 常にonAction（詳細モーダルではなく本来の「ターン終了」操作）に振り分けられる。
-      if (endTurnButtonEl && !endTurnButtonEl.disabled) endTurnButtonEl.click();
+      // ユーザー報告「収穫と種まきの到達効果処理が始まったばかりなのにターンが
+      // 自動で終了してしまう」「接触を申し込んでいる最中にターンが終了してしまう」
+      // の原因: armされた時点のshouldEmphasizeを信じてそのままクリックしていたが、
+      // render()はstate.js側のdispatch（moveToken等）が起きた時にしか呼ばれない
+      // ため、「移動した直後・到達効果の自動処理がまだ始まる前（arrivalEffect
+      // AutoProcessingがまだfalseの一瞬）」にたまたまrender()が走ってarmされて
+      // しまうと、その後カード効果の候補選択待ち（DOM操作のみでrender()を呼ばない）
+      // のような「stateの変化を伴わない待ち」が続く間はshouldEmphasizeが再評価
+      // されず、armされた時の古い「安全」判定のまま1.5秒後に発火していた。発火
+      // 時点で必ずcomputeShouldEmphasize()を呼び直し、その時点のライブな状態
+      // （arrivalEffectAutoProcessing・pendingContact等、render()を経由しない
+      // プレーンなJS変数も含む）で再確認してからでないとクリックしない。
+      if (computeShouldEmphasize()) endTurnButtonEl?.click();
     }, AUTO_END_TURN_DELAY_MS);
   } else if (autoEndTurnTimer) {
     clearTimeout(autoEndTurnTimer);
@@ -5728,19 +5744,39 @@ function updateEndTurnButton() {
     }
     endTurnButtonEl.disabled = false;
   }
-  // ユーザー要望「到達効果の処理が終わったら原則ターンを終了します。なのでターン
-  // 終了アイコンを強調してターン終了を促そう」。ムーブフェイズで既に移動/接触
-  // した（isMovePhaseActive()がfalseになった）が、フェイズ自体はまだ"move"の
-  // まま＝到達効果の自動処理がまだ走っているかもしれない間はarrivalEffect
-  // AutoProcessingで待ち、それも終わったところで強調表示にする。
-  const shouldEmphasize =
-    isAutoProcessingEnabled() &&
-    !endTurnButtonEl.disabled &&
-    getCurrentPhase() === "move" &&
-    !isMovePhaseActive() &&
-    !arrivalEffectAutoProcessing;
+  const shouldEmphasize = computeShouldEmphasize();
   endTurnButtonEl.classList.toggle("is-emphasized", shouldEmphasize);
   reconcileAutoEndTurn(shouldEmphasize);
+}
+
+// ユーザー要望「到達効果の処理が終わったら原則ターンを終了します。なのでターン
+// 終了アイコンを強調してターン終了を促そう」。ムーブフェイズで既に移動/接触
+// した（isMovePhaseActive()がfalseになった）が、フェイズ自体はまだ"move"の
+// まま＝到達効果の自動処理がまだ走っているかもしれない間はarrivalEffect
+// AutoProcessingで待ち、それも終わったところで強調表示にする。ユーザー報告
+// 「接触を申し込んでいる最中にターンが終了してしまう」への対応でstate.
+// pendingContactも見る——接触は承認待ちの間、乗り込んだ側の到達効果処理が
+// まだ始まってすらいない（arrivalEffectAutoProcessingがfalseのまま）ため、
+// これが無いと承認待ち中に安全と誤判定してしまう。updateEndTurnButton()（render()
+// 経由）だけでなく、reconcileAutoEndTurn()のタイマー発火時点でも同じ関数を呼び直して
+// 「armした時点の古い判定」に頼らないようにする（endTurnButtonEl.disabledのような
+// render()でしか更新されないDOM属性ではなく、getState()等のライブな値だけを見る）。
+function isEndTurnDisabledNow(state) {
+  if (!state.turnPlayer) return true;
+  if (isOnlineMode() && getSelfSeat() !== state.turnPlayer) return true;
+  if (isOnlineMode() && state.priorityPlayer && getSelfSeat() !== state.priorityPlayer) return true;
+  return false;
+}
+function computeShouldEmphasize() {
+  const state = getState();
+  return (
+    isAutoProcessingEnabled() &&
+    !isEndTurnDisabledNow(state) &&
+    getCurrentPhase() === "move" &&
+    !isMovePhaseActive() &&
+    !arrivalEffectAutoProcessing &&
+    !state.pendingContact
+  );
 }
 
 // OKボタン1つだけのシンプルな確認モーダル（山札切れの補充確認に使う）。ゲームの状態に
