@@ -542,6 +542,15 @@ export function initOptionsMenu() {
         openDeckViewer();
       })
     );
+    // ユーザー要望「アクションログは誰でも見れてコピーできるようにしましょう」への
+    // 対応（続き60時点では管理者限定にしていたが、不具合報告の際に誰でもログを
+    // コピーして提出できた方が良いと判断し、他の管理者専用項目とは切り離した）。
+    panel.appendChild(
+      buildMenuItem("📜 アクションログ", () => {
+        close();
+        openActionLogPanel();
+      })
+    );
     // ユーザー要望「管理者モードの制限についてオプションの『管理者モード』ボタンから
     // 一般ユーザーは入れないようにしたい」への対応。位置合わせ用のスライダー等は
     // 元々「開発者が調整して出力欄の値をCSSへ反映する」ための道具であり、各プレイヤー
@@ -564,15 +573,6 @@ export function initOptionsMenu() {
         buildMenuItem("🃏 カード開発モード", () => {
           close();
           openCardDevMode();
-        })
-      );
-      // ユーザー提案「すべての選択行動結果のログを出力するようにしてそれを提出する
-      // ことで不具合を見つける」への対応（続き57で状態遷移系の不具合には有効と合意）。
-      // 上の2つと同じisAdminUser()ガードをそのまま流用する。
-      panel.appendChild(
-        buildMenuItem("📜 アクションログ", () => {
-          close();
-          openActionLogPanel();
         })
       );
     }
