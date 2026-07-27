@@ -372,6 +372,22 @@ export function broadcastHandEffectUse(payload) {
   }
 }
 
+// ザ・ギャンブル・試練の儀式の色宣言を全員に見える化する合図（続き62、ユーザー要望
+// 「色宣言するとき相手が何色を宣言したかを見える化したい」）。hand_effect_useと同じ
+// 「状態は一切変えない見た目だけの合図」パターン。
+let colorsDeclaredEventListeners = [];
+export function onColorsDeclaredEvents(fn) {
+  colorsDeclaredEventListeners.push(fn);
+  return () => {
+    colorsDeclaredEventListeners = colorsDeclaredEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastColorsDeclared(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "colors_declared", payload });
+  }
+}
+
 // 合同建設・スラム上がりの役人・パーティーのように「全員がそれぞれ自分の選択を
 // する」到達効果用。効果の使用者（コーディネーター）が対象プレイヤーへ
 // 「あなたの番です、これを解決してください」と伝え（broadcastArrivalDelegateRequest）、
@@ -1810,6 +1826,10 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // 手札効果を使用した通知（broadcastHandEffectUse参照）。
     .on("broadcast", { event: "hand_effect_use" }, ({ payload }) => {
       for (const fn of handEffectUseEventListeners) fn(payload);
+    })
+    // 色宣言の通知（broadcastColorsDeclared参照）。
+    .on("broadcast", { event: "colors_declared" }, ({ payload }) => {
+      for (const fn of colorsDeclaredEventListeners) fn(payload);
     })
     // 「全員がそれぞれ選ぶ」到達効果の委任2種（broadcastArrivalDelegateRequest/Resolved参照）。
     .on("broadcast", { event: "arrival_delegate_request" }, ({ payload }) => {

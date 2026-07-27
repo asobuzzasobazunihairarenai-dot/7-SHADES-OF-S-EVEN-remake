@@ -11,6 +11,7 @@ import { getState } from "./state.js";
 import { playSound } from "./sound.js";
 import { getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import { flyGhost } from "./ghost-flight.js";
+import { isFlatten2dMode } from "./tablet-2d-mode.js";
 
 let helpers = null; // { render }
 
@@ -234,5 +235,18 @@ export async function animateBoardFilled() {
       const hostEl = helpers.findLocationElement(table, token.location);
       if (hostEl) helpers.spawnArrivalBurst(hostEl, token.color);
     }
+  }
+  // ユーザー報告「2D表示の時、ゲーム開始時各駒が見えなくなっている。駒を移動させた後は
+  // 見えるようになる」（続き62）への対応。tablet-2d-mode.jsのapply()が2D表示の
+  // ON/OFF切り替え時に既にwindow.dispatchEvent(new Event("resize"))で同じ種類の
+  // 「3D合成レイヤーの確立に失敗したまま固まる」不具合（.pieceの`will-change:
+  // transform`コメント、セットアップ配布アニメーション終了時のペっちゃんこ固まり）を
+  // 回避しているのと同じ理屈: このis-setup-pending解除（scale(0.2)→通常表示への
+  // transition）のタイミングで、2D表示（transform-style:flatを全要素に強制）が既に
+  // 有効だとその場では合成が正しく確立されないことがある。駒を掴んで動かす（＝render()で
+  // 作り直される）と直る現象と一致するため、根本的なDOM再構築の代わりに同じresize
+  // 発火で合成をやり直させる。
+  if (isFlatten2dMode()) {
+    requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
   }
 }

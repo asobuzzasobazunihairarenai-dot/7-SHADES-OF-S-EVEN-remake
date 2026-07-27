@@ -2672,6 +2672,14 @@ body.diagnostic-flatten-3d.is-touch-device #priority-transfer-buttons {
   width: 3.2rem;
   height: 3.2rem;
   transform-style: preserve-3d;
+  /* ユーザー報告「2D表示の時、山札と捨て場のカードとエターナルカードの束、ファースト
+     カードの束が見えなくなってしまっている」（続き62）。.pieceの`will-change:
+     transform`コメント（このファイル内、駒のセットアップ配布アニメーション終了時に
+     preserve-3dの立方体が「ペっちゃんこ」に描画されたまま固まる不具合の対策）と全く
+     同じ「床+壁」の3D構築技法を使っているにもかかわらず、こちらにはこの対策が
+     漏れていた。駒と違い山札は通常のプレイ中ほとんど作り直されない（render()での
+     再構築機会が少ない）ため、一度固まると自然には直りにくい。 */
+  will-change: transform;
 }
 
 .stack-top {

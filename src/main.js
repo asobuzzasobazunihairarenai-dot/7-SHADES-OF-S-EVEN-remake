@@ -167,6 +167,8 @@ import {
   onCardReceivedEvents,
   broadcastHandEffectUse,
   onHandEffectUseEvents,
+  broadcastColorsDeclared,
+  onColorsDeclaredEvents,
   broadcastArrivalDelegateRequest,
   onArrivalDelegateRequestEvents,
   broadcastArrivalDelegateResolved,
@@ -954,6 +956,16 @@ async function flipToFaceUpForEffect(tokenId) {
   }
 }
 
+// ジャンプ台の手札効果（PLACE_CARD source:"self" faceUp:true）専用。ユーザー報告
+// 「自分の駒の下にジャンプ台を表向きに置いたのに到達効果が発動しなかった」の原因:
+// 通常のドラッグ&ドロップでの配置はmaybeTriggerCardArrivalForCardを呼んでいるが、
+// このカード自身を効果で置く経路（card-effect-engine.jsのPLACE_CARD、flipCardの後）
+// にはその呼び出しが無かった。flipToFaceUpForEffectでめくった直後の最新state
+// （faceUp/location）を読み直して、同じ判定関数にそのまま渡す。
+function maybeTriggerArrivalForPlacedCardForEffect(location, cardId) {
+  maybeTriggerCardArrivalForCard(location, cardId, true);
+}
+
 // PLACE_CARDのsource:"deck"用（終わりなき化学ゲンテクニーク・月下の漂流船プリドゥエン等）。
 // 山札の一番上を、手札を経由せず直接そのマスへ裏向きで置く（performMoveFallbackAndEndTurn
 // と同じ考え方）。
@@ -1162,6 +1174,15 @@ onCardReceivedEvents(({ targetPlayer, cardId, subtitle }) => {
 onHandEffectUseEvents(({ fromPlayer, cardId, optionLabel }) => {
   if (fromPlayer === getSelfSeat()) return;
   showHandEffectUseModal(cardId, optionLabel);
+  playSound("arrivalEffect");
+});
+// ユーザー要望「試練の儀式やザ・ギャンブルなどで色宣言するとき相手が何色を宣言したかを
+// 見える化したい」（続き62）。宣言した本人は選択モーダル自体で既に見ているため、
+// 自分以外からの通知だけを表示する（onHandEffectUseEventsと同じ考え方）。
+onColorsDeclaredEvents(({ fromPlayer, cardId, colors }) => {
+  if (fromPlayer === getSelfSeat()) return;
+  const colorText = colors.map((c) => COLOR_LABEL_JA[c] ?? c).join("・");
+  showEffectReasonModal(cardId, `${getPlayerName(fromPlayer)}が「${colorText}」を宣言しました。`);
 });
 
 // ユーザー要望「全員のマウスカーソルの位置が全員に見える化したい。アバターとその
@@ -1338,6 +1359,9 @@ async function stealHandCardsRitualForGateInvasion(defender, count) {
 // 共有のため、ローカル表示だけで全員に見えている。
 function announceHandEffectUseForEffect(cardId, optionLabel) {
   showHandEffectUseModal(cardId, optionLabel);
+  // ユーザー要望「手札効果の使用が宣言されたときの効果音が欲しい。到達時の効果音を
+  // 流用でよい」（続き62）。
+  playSound("arrivalEffect");
   if (isOnlineMode()) {
     broadcastHandEffectUse({ fromPlayer: getSelfSeat(), cardId, optionLabel });
   }
@@ -1388,7 +1412,10 @@ async function pickArrivalOptionForEffect(cardId, optionsWithUsability) {
 // 設けない（backdropクリック・✕ボタン共に無し）。「宣言する」ボタンを押すまで
 // 必ずこのモーダルに留まる。
 const COLOR_LABEL_JA = { red: "赤", orange: "橙", yellow: "黄", green: "緑", blue: "青", pink: "桃", purple: "紫" };
-function declareColorsForEffect(requirement) {
+// cardId/player（続き62）: 確定した宣言色を他プレイヤーへ見える化するための
+// broadcastColorsDeclared用。呼び出し元（card-effect-engine.jsのVERBS.DECLARE_COLORS）
+// はctx.cardId/ctx.playerを既に持っているため、そのまま渡してもらう。
+function declareColorsForEffect(requirement, cardId, player) {
   return new Promise((resolve) => {
     const selected = new Set();
     const isExact = requirement.exactCount != null;
@@ -1462,7 +1489,11 @@ function declareColorsForEffect(requirement) {
     confirmBtn.type = "button";
     confirmBtn.className = "declare-colors-modal-confirm";
     confirmBtn.textContent = "宣言する";
-    confirmBtn.addEventListener("click", () => finish([...selected]));
+    confirmBtn.addEventListener("click", () => {
+      const chosen = [...selected];
+      if (isOnlineMode()) broadcastColorsDeclared({ fromPlayer: player, cardId, colors: chosen });
+      finish(chosen);
+    });
     modal.appendChild(confirmBtn);
 
     function updateConfirmState() {
@@ -2485,6 +2516,51 @@ function showAnytimeHandEffectConfirmModal({ cardId, cardTokenId, player }) {
   document.body.appendChild(modal);
 }
 
+// ユーザー要望「スマホ・タブレットでの操作について、ロックフェイズでロックカードを選択した時
+// 『このカードをロックしますか？』の念押しモーダルが欲しい。ハンドフェイズも同様に
+// 『このカードを使用しますか？』の念押しモーダルが欲しい。これらは誤操作防止の観点から
+// です」（続き62）。PCのマウス操作は誤操作の心配が薄い（interaction-mode.jsの「駒消し/
+// カード消し」ボタンと同じ判断基準）ため、タッチ操作主体の端末（isTouchPrimaryDevice）
+// でだけ確認を挟み、PCでは従来通り一発で確定する。showAnytimeHandEffectConfirmModalと
+// 同じcontact-approval-*クラスを流用した汎用Yes/Noモーダル。
+function confirmTouchAction(title) {
+  if (!isTouchPrimaryDevice()) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const backdrop = createBackdrop(() => {}, { dim: true, zIndex: 10610 });
+    const modal = document.createElement("div");
+    modal.id = "touch-action-confirm-modal";
+
+    const titleEl = document.createElement("div");
+    titleEl.className = "contact-approval-title";
+    titleEl.textContent = title;
+    modal.appendChild(titleEl);
+
+    const buttons = document.createElement("div");
+    buttons.className = "contact-approval-buttons";
+    const yesBtn = document.createElement("button");
+    yesBtn.className = "contact-approval-approve";
+    yesBtn.type = "button";
+    yesBtn.textContent = "✅ はい";
+    const finish = (result) => {
+      backdrop.remove();
+      modal.remove();
+      resolve(result);
+    };
+    yesBtn.addEventListener("click", () => finish(true));
+    const noBtn = document.createElement("button");
+    noBtn.className = "contact-approval-reject";
+    noBtn.type = "button";
+    noBtn.textContent = "🚫 いいえ";
+    noBtn.addEventListener("click", () => finish(false));
+    buttons.appendChild(yesBtn);
+    buttons.appendChild(noBtn);
+    modal.appendChild(buttons);
+
+    document.body.appendChild(backdrop);
+    document.body.appendChild(modal);
+  });
+}
+
 // ユーザー要望「①通常の手札カードは、ハンドフェイズかつ手札エリア外で放すと手札効果が
 // 発動する」「②エターナル/ファーストカードは、ハンドフェイズでクリックすると追色コストを
 // 選ぶ流れに移行する」への対応の実行部。cardTokenIdは効果を使うカード自身。
@@ -2509,6 +2585,8 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         pickHandEffectOption: showHandEffectOptionPicker,
         // ジャンプ台の手札効果（これをゲート以外の任意のマスに表向きで置く）用。
         flipCard: flipToFaceUpForEffect,
+        // 表向きに置いた先に既に駒がいた場合の到達判定（続き62）用。
+        maybeTriggerArrivalForPlacedCard: maybeTriggerArrivalForPlacedCardForEffect,
         // 手品師の技の効果（アバターで相手を選び、手札を1枚ずつ交換する）用。
         pickPlayer: requestPlayerChoiceForEffect,
         swapRandomHandCard: swapHandCardWithOpponentForEffect,
@@ -4975,12 +5053,25 @@ function startTouchHoldOrDrag(e, hit) {
     onDragMove(ev);
   }
 
-  function onUp() {
+  function onUp(ev) {
     clearTimeout(timer);
     cleanupListeners();
     if (peeking) {
       clearHover();
       updatePreview(null);
+    } else {
+      // ユーザー報告「スマホで、ハンドフェイズにファーストカードがタップで使用できません」
+      // （続き62）。ファーストカード/エターナルカードの「動かさずクリックで使う」判定は
+      // onDragEnd側のisSameLocation分岐でしか行っていないが、タッチでは①TOUCH_HOLD_MSの
+      // 長押しでpeeking、②TOUCH_HOLD_MOVE_CANCEL_PXを超える移動でドラッグ昇格、の
+      // どちらも起きない「素早いタップ」だとstartTokenDrag自体が一度も呼ばれず、
+      // onDragEndへ到達できていなかった（マウスは常に即座にstartTokenDragするため
+      // この抜け穴が無く、タッチ特有のバグだった）。この場合はドラッグを開始してから
+      // 同じ座標のまま即座に終了させ、マウスの「動かさずクリック」と全く同じ経路
+      // （isSameLocation判定）を通す。
+      if (hit.kind === "pile") startPileDrag(e, hit.pile);
+      else startTokenDrag(e, hit.tokenId, hit.kind, hit.el);
+      onDragEnd(ev);
     }
     settled = true;
     releaseAbortSlot();
@@ -5456,7 +5547,9 @@ async function onDragEnd(e) {
         ) {
           render();
           if (canUseHandEffect(draggedToken.cardId, draggedToken.id, cardSourceLocation.player)) {
-            runAutoHandEffect(draggedToken.cardId, draggedToken.id, cardSourceLocation.player);
+            if (await confirmTouchAction(`${getCardDefinition(draggedToken.cardId).name}を使用しますか？`)) {
+              runAutoHandEffect(draggedToken.cardId, draggedToken.id, cardSourceLocation.player);
+            }
           } else if (!canPayHandEffectCost(draggedToken.cardId, draggedToken.id, cardSourceLocation.player)) {
             alert("捨てられる同じ色のカードが手札にありません。");
           }
@@ -5554,7 +5647,9 @@ async function onDragEnd(e) {
         ) {
           render();
           if (canUseHandEffect(clickedToken.cardId, clickedToken.id, clickPlayer)) {
-            runAutoHandEffect(clickedToken.cardId, clickedToken.id, clickPlayer);
+            if (await confirmTouchAction(`${getCardDefinition(clickedToken.cardId).name}を使用しますか？`)) {
+              runAutoHandEffect(clickedToken.cardId, clickedToken.id, clickPlayer);
+            }
           } else if (!canPayHandEffectCost(clickedToken.cardId, clickedToken.id, clickPlayer)) {
             alert("捨てられる同じ色のカードが手札にありません。");
           }
@@ -5566,6 +5661,12 @@ async function onDragEnd(e) {
     }
     const token = getState().tokens.find((t) => t.id === tokenId);
     const wasAlreadyLocked = !!token && token.location.zone === "lock";
+    if (kind === "card" && dropTarget.zone === "lock") {
+      if (!(await confirmTouchAction(`${getCardDefinition(token?.cardId)?.name ?? "このカード"}をロックしますか？`))) {
+        render();
+        return;
+      }
+    }
     if (isOnlineMode()) {
       // オンライン中はmoveToken()がローカルstateを書き換えないため、awaitせずすぐ
       // render()・演出関数を呼ぶと移動前の古い状態のまま判定してしまい、到達演出・

@@ -827,7 +827,13 @@ async function runAction(action, ctx, helpers) {
           await helpers.moveAndSync(ctx.cardTokenId, dest);
           // 手札→マスの移動は既定で裏向きになる（state.jsのfaceUpForLocation）ため、
           // 表向き指定の時だけ明示的にめくる。
-          if (action.faceUp) await helpers.flipCard?.(ctx.cardTokenId);
+          if (action.faceUp) {
+            await helpers.flipCard?.(ctx.cardTokenId);
+            // ユーザー報告「ジャンプ台を自分の駒の下に表向きで置いたのに到達効果が
+            // 発動しなかった」（続き62）。通常のドラッグ配置と同じく、置いた先に
+            // 既に駒がいれば到達を発動させる。
+            await helpers.maybeTriggerArrivalForPlacedCard?.(dest, ctx.cardId);
+          }
         } else if (action.source === "hand") {
           const handToken = await helpers.pickHandCard(ctx.player, "そのマスに置くカードを手札から選択してください");
           if (!handToken) continue;
@@ -991,7 +997,11 @@ async function runAction(action, ctx, helpers) {
       // ザ・ギャンブル（action.minCount、以上）/試練の儀式（action.count、固定数）
       // 共通。実際の選択UI（複数色から選ばせる）はhelpers側（main.jsのdeclareColorsForEffect）
       // に委ねる。選んだ色はctx.selectionsに保存し、後続のアクションから参照する。
-      const chosen = await helpers.declareColors(action.minCount != null ? { minCount: action.minCount } : { exactCount: action.count });
+      const chosen = await helpers.declareColors(
+        action.minCount != null ? { minCount: action.minCount } : { exactCount: action.count },
+        ctx.cardId,
+        ctx.player
+      );
       if (!chosen || chosen.length === 0) return false;
       ctx.selections.declaredColors = chosen;
       return true;
@@ -1022,8 +1032,14 @@ async function runAction(action, ctx, helpers) {
       const matches = revealedCardIds.some(
         (cardId) => cardId === "rainbow-shard" || declaredColors.includes(getCardDefinition(cardId)?.color)
       );
-      if (!matches) return false;
-      await helpers.announceEffectReason?.(ctx.cardId, "公開した中に宣言した色があったため、手札を全て捨てます。");
+      if (!matches) {
+        // ユーザー要望「ザ・ギャンブルで『おめでとうモーダルが欲しい』『残念モーダルも
+        // 欲しい』」（続き62）。宣言色が出なかった＝プレイヤーにとって良い結果
+        // （手札を捨てずに済む）なので「おめでとう」を出す。
+        await helpers.announceEffectReason?.(ctx.cardId, "おめでとうございます！公開した中に宣言した色が無かったため、手札はそのまま残ります。");
+        return false;
+      }
+      await helpers.announceEffectReason?.(ctx.cardId, "残念でした。公開した中に宣言した色があったため、手札を全て捨てます。");
       const toDiscard = getHandTokens(ctx.player);
       // ユーザー報告「宣言色が出た時に手札がすべて捨てられず止まってしまっている」への
       // 対応。1枚ごとのdiscardAndSyncのどこかで例外が起きると（オンライン中の通信
@@ -1078,12 +1094,18 @@ async function runAction(action, ctx, helpers) {
         ctx.pieceLocation = { row: dest.row, col: dest.col };
         const placedColor = getCardDefinition(placedCardId)?.color;
         const isMatch = placedCardId === "rainbow-shard" || declaredColors.includes(placedColor);
-        if (!isMatch) break;
+        if (!isMatch) {
+          // ユーザー要望「試練の儀式で『おめでとう』は出るが『残念でした』モーダルも
+          // 欲しい」（続き62）。宣言色が出なかった＝試練終了の合図として、当たった時と
+          // 対になる文言を出す。
+          await helpers.announceEffectReason?.(ctx.cardId, "残念でした。宣言した色が出なかったため、試練はここで終わりです。");
+          break;
+        }
         // ユーザー要望「見事宣言色だった場合は『おめでとう、試練を続けてください』的な
         // モーダルを出してあげたい」。再宣言モーダルが続けて出るだけだと「当たった」
         // ことが伝わりにくいため、一言はさむ。
         await helpers.announceEffectReason?.(ctx.cardId, "おめでとうございます！宣言色が出ました。引き続き試練を続けてください。");
-        const redeclared = await helpers.declareColors({ exactCount: 3 });
+        const redeclared = await helpers.declareColors({ exactCount: 3 }, ctx.cardId, ctx.player);
         if (!redeclared || redeclared.length === 0) break; // 善処の原則: 再宣言をキャンセルしたらそこで終わる
         declaredColors = redeclared;
         ctx.selections.declaredColors = declaredColors;
