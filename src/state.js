@@ -195,7 +195,19 @@ function reduce(current, action) {
     case "MOVE_TOKEN": {
       const token = current.tokens.find((t) => t.id === action.tokenId);
       if (!token) return current;
-      const next = { ...token, location: action.location };
+      // ユーザー提案（続き59）「「移動」に対し何の移動なのかをフラグ付けすればいい」への
+      // 対応。試練の儀式（RITUAL_PLACE_MOVE_REPEAT）・マスチェンジ等の入れ替え
+      // （SWAP_POSITION）は、駒がその場に乗っても「到達効果を得ない」と明示的に
+      // 定めている（docs/cards.md）。ローカルの実行者自身はctx.arrivedAtを
+      // セットしないことで正しく抑制されるが、オンライン対戦で他プレイヤーの操作を
+      // 再現するremote-move-animator.jsは「駒の位置が変わって表向きカードの上にいる
+      // ＝到達した」という単純な差分検知だけで動くため、この抑制を知らずに再現側の
+      // クライアントで到達を誤って発火させてしまっていた（実際のバグ、続き59で発見）。
+      // 駒トークン自身に「直前の移動が到達を誘発しないものだったか」を持たせ、
+      // 同期される状態の一部にすることで、remote-move-animator.js側もこれを見て
+      // 判断できるようにする。毎回のMOVE_TOKENで必ず上書きする（省略時はfalse）ため、
+      // 次に普通の移動が起きれば自然に解除される。
+      const next = { ...token, location: action.location, arrivalSuppressed: !!action.suppressArrival };
       // ロックエリアへの移動は移動元を問わず常に表向きにする（物理ルール通り）。それ以外の
       // 場・ロックエリア同士の移動（例: マス→マス、ロック→ロック）は、既に表向き/裏向きが
       // 決まっているカードをただ動かすだけなので表裏を変えない。手札から場へ出す時・
@@ -600,9 +612,12 @@ function dispatch(action) {
   for (const fn of listeners) fn(state);
 }
 
-export function moveToken(tokenId, location) {
-  if (onlineMode && onlineTransport) return onlineTransport({ type: "MOVE_TOKEN", tokenId, location });
-  dispatch({ type: "MOVE_TOKEN", tokenId, location });
+// suppressArrival（省略可）: 試練の儀式・マスチェンジ等「移動先の到達効果を得ない」
+// 効果専用（続き59、MOVE_TOKENリデューサーのコメント参照）。通常の移動では
+// 一切指定しない（falseと同じ扱いになる）。
+export function moveToken(tokenId, location, suppressArrival) {
+  if (onlineMode && onlineTransport) return onlineTransport({ type: "MOVE_TOKEN", tokenId, location, suppressArrival: !!suppressArrival });
+  dispatch({ type: "MOVE_TOKEN", tokenId, location, suppressArrival: !!suppressArrival });
 }
 
 export function sendTokenToPile(tokenId, pile) {

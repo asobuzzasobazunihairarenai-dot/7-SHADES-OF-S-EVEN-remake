@@ -129,6 +129,7 @@ type Token = {
   player?: string;
   location: Location;
   revealSource?: "manual" | "draw"; // 手札公開エリア（zone: "publicDraw"）内でのみ意味を持つ
+  arrivalSuppressed?: boolean; // 続き59: 直前のMOVE_TOKENが「到達効果を得ない」移動だったか
 };
 
 type Piles = { deck: string[]; eternal: string[]; first: string[]; discard: string[] };
@@ -183,7 +184,10 @@ function reduce(current: GameState, action: any): GameState {
     case "MOVE_TOKEN": {
       const token = current.tokens.find((t) => t.id === action.tokenId);
       if (!token) return current;
-      const next: Token = { ...token, location: action.location };
+      // src/state.jsのMOVE_TOKENケースと同じarrivalSuppressedの付与（続き59、
+      // remote-move-animator.jsが試練の儀式・マスチェンジ等「到達効果を得ない」移動を
+      // 誤って到達扱いしてしまうバグの対応）。
+      const next: Token = { ...token, location: action.location, arrivalSuppressed: !!action.suppressArrival };
       if (token.kind === "card") {
         if (action.location.zone === "lock") {
           next.faceUp = true;

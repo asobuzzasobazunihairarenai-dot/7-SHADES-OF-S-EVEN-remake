@@ -278,7 +278,15 @@ function triggerEffectsFor(item) {
     // 裏向きカードの上に他人の駒が到達した場合は、対話的な「オープンする/しない」選択肢を
     // 出さない（自分が動かしてもいない駒について開閉を選ばされる混乱を避けるため。表向き
     // カードへの到達演出のみ全員に再現する）。
-    helpers.triggerCardArrivalIfFaceUp?.(token.location);
+    // ユーザー報告「試練の儀式で本来到達効果が発動しないはずの足元のカードが、相手の
+    // ターン開始時に発動してしまう」の原因（続き59）: このモジュールは駒の位置の差分
+    // だけを見て「表向きカードの上にいる＝到達した」と判断するため、試練の儀式・
+    // マスチェンジ等「到達効果を得ない」と明示的に定められた移動（ローカルの実行者
+    // 自身はctx.arrivedAtを立てないことで正しく抑制している）を、再現側のこの
+    // クライアントだけが知らずに誤って発火させてしまっていた。state.js/
+    // so7-apply-action.tsのMOVE_TOKENが駒トークンへ付与するarrivalSuppressedフラグ
+    // （続き59で新設）を見て、この移動が最初から到達を意図していない場合はスキップする。
+    if (!token.arrivalSuppressed) helpers.triggerCardArrivalIfFaceUp?.(token.location);
   } else if (token.kind === "card") {
     helpers.maybeTriggerCardArrivalForCard?.(token.location, token.cardId, token.faceUp);
     // 他プレイヤーがカードを動かした結果、移動元のマス/ロックスロットで駒の下に別のカードが

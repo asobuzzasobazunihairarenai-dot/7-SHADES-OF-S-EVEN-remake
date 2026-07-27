@@ -166,6 +166,18 @@ export function isHandEffectOptionUsable(cardId, cardTokenId, player, option) {
     const { tokens } = getLockableHandTokensExceptFinal(player);
     if (tokens.length === 0) return false;
   }
+  // スラム上がりの役人専用（続き59）。ユーザー指摘: セレナーデと同じ「善処の原則」の
+  // 理屈で、DRAW_IF_HAND_AT_MOST（「あなたの手札が１枚以下なら２枚ドロー」）は、
+  // このカード自身を先に捨てた後の残り手札枚数がmaxHandSizeを超えると分かっている
+  // 時点で、発動宣言自体ができないはず（このカードを捨てるだけで何も起きない状態を
+  // 避ける）。actions配列にDRAW_IF_HAND_AT_MOSTが含まれる場合、実際の検証と同じ
+  // getHandTokens()の定義（手札＋公開ドロー、続き55参照）で、このカード自身を
+  // 除いた枚数がmaxHandSizeを超えていないか事前に確認する。
+  const drawIfAtMost = option.actions?.find((a) => a.verb === VERBS.DRAW_IF_HAND_AT_MOST);
+  if (drawIfAtMost) {
+    const handCountExcludingSelf = getHandTokens(player).filter((t) => t.id !== cardTokenId).length;
+    if (handCountExcludingSelf > drawIfAtMost.maxHandSize) return false;
+  }
   return true;
 }
 
@@ -1059,7 +1071,10 @@ async function runAction(action, ctx, helpers) {
         const placedCardId = await helpers.placeFromDeckFaceUp(dest);
         if (!placedCardId) break; // 山札切れ等
         placedAny = true;
-        await helpers.moveAndSync(ctx.pieceTokenId, dest);
+        // 続き59: 到達効果を得ない移動（ctx.arrivedAtを意図的にセットしない）である旨を
+        // suppressArrival=trueで伝え、オンライン対戦の相手クライアント側
+        // （remote-move-animator.js）が誤って到達を再現しないようにする。
+        await helpers.moveAndSync(ctx.pieceTokenId, dest, undefined, true);
         ctx.pieceLocation = { row: dest.row, col: dest.col };
         const placedColor = getCardDefinition(placedCardId)?.color;
         const isMatch = placedCardId === "rainbow-shard" || declaredColors.includes(placedColor);

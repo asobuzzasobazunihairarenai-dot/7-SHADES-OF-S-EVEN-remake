@@ -14,6 +14,7 @@ import { getPlayerName } from "./player-identity.js";
 import { getCardDefinition } from "./cards-data.js";
 import { announceHandPickups } from "./hand-announcer.js";
 import { isFlightAnimationDisabled, isArrivalEffectDisabled } from "./motion-prefs.js";
+import { logAction } from "./action-log.js";
 
 function notifyChange() {
   window.dispatchEvent(new CustomEvent("admin:change"));
@@ -107,6 +108,17 @@ function runStealHand(attacker, defender, onDone) {
     (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === defender
   );
   const count = Math.floor(defenderHand.length / 2);
+  // ユーザー報告「オンライン対戦でゲート侵攻の演出（儀式的な手札選び）が表示されない」の
+  // 調査用（続き59）。演出が出ない場合に「そもそもここに来ていないのか」「helperが
+  // 未登録なのか」「count=0で不発扱いになっているのか」を後から区別できるよう記録する。
+  logAction("gate-invasion", {
+    step: "steal-hand",
+    attacker,
+    defender,
+    defenderHandCount: defenderHand.length,
+    count,
+    hasRitualHelper: !!stealHandRitualHelper,
+  });
   if (count === 0) {
     showBonusStepModal(`${getPlayerName(attacker)}はゲート侵攻成功！\n${getPlayerName(defender)}の手札は枚数が半分未満のため、奪えるカードはありません。`, onDone);
     return;
@@ -138,6 +150,19 @@ export function registerEternalAnimHelpers(fn) {
 // （ロック上のカードは常に表向き＝公開情報として扱う）。
 function runEternal(attacker, onDone) {
   const eternalPile = getState().piles.eternal;
+  const willUseAnim = !!eternalAnimHelper && !isFlightAnimationDisabled() && !isArrivalEffectDisabled();
+  // ユーザー報告「オンライン対戦でゲート侵攻の演出（3Dフリップ＋色バースト）が
+  // 表示されない」の調査用（続き59）。演出条件（helper登録・アニメーション設定）を
+  // 記録し、後から「そもそも条件を満たしていないのか」を区別できるようにする。
+  logAction("gate-invasion", {
+    step: "eternal",
+    attacker,
+    eternalPileEmpty: eternalPile.length === 0,
+    hasAnimHelper: !!eternalAnimHelper,
+    flightDisabled: isFlightAnimationDisabled(),
+    arrivalEffectDisabled: isArrivalEffectDisabled(),
+    willUseAnim,
+  });
   if (eternalPile.length === 0) {
     showBonusStepModal(`${getPlayerName(attacker)}はエターナルカードを獲得するはずでしたが、盤面の外のエターナルカードはもう残っていません。`, onDone);
     return;
@@ -157,7 +182,7 @@ function runEternal(attacker, onDone) {
   }
   // 「移動アニメーション」「到達・ロック演出」のどちらかが無効化されている間は、
   // 演出を飛ばして従来通りのOKモーダルだけにする（他の演出と同じ配慮）。
-  if (eternalAnimHelper && !isFlightAnimationDisabled() && !isArrivalEffectDisabled()) {
+  if (willUseAnim) {
     eternalAnimHelper(attacker, cardId, def, applyAndFinish);
   } else {
     showBonusStepModal(`${getPlayerName(attacker)}はエターナルカード「${def.name}」を獲得！\n自分のロックエリアにロックします。`, applyAndFinish);
@@ -194,6 +219,11 @@ function runBonusFor(attacker, defender, done) {
 // 処理し、全員分終わってから初めてdone()を呼ぶ。
 export function runGateInvasionsIfNeeded(done) {
   const order = SEAT_ORDER.filter((p) => getState().activePlayers.includes(p));
+  // ユーザー報告「オンライン対戦でゲート侵攻の演出が表示されない」の調査用（続き59）。
+  // この関数自体がどのクライアントで・誰を対象に呼ばれたか（そもそも該当者を検知した
+  // かどうか）を記録し、「演出が表示されない」原因が①検知自体がされていない
+  // ②検知はされているが演出条件を満たしていない、のどちらかを後から区別できるようにする。
+  logAction("gate-invasion", { step: "check", order, candidates: order.map((p) => ({ attacker: p, defender: findInvadedDefender(p) })) });
   function processNext(index) {
     if (index >= order.length) {
       done();

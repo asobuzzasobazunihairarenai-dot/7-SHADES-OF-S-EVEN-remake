@@ -909,18 +909,28 @@ async function addArrivedCardToHand(location, player) {
 // maybeTriggerCardArrivalForExposedCard自身が「移動元がcell/lockゾーンかつまだ
 // 駒が乗っているか」を確認してから何もしなければ安全に無視するため、移動元を
 // 記録して移動後に常に呼ぶだけで、駒の移動等の他の呼び出し元には影響しない。
-async function moveAndSyncForEffect(tokenId, location, soundName) {
+// suppressArrival（省略可）: 試練の儀式（RITUAL_PLACE_MOVE_REPEAT）・マスチェンジ等の
+// 入れ替え（swapPiecesForEffect）専用（続き59）。ユーザー報告「試練の儀式で本来
+// 到達効果が発動しないはずの足元のカードが、相手のターン開始時に発動してしまう」の
+// 原因: これらの効果はローカルの実行者自身はctx.arrivedAtをセットしないことで
+// 正しく到達を抑制するが、オンライン対戦で他プレイヤーの操作を再現する
+// remote-move-animator.jsは「駒の位置が変わって表向きカードの上にいる＝到達した」
+// という単純な差分検知だけで動くため、この抑制を知らずに誤って発火させてしまって
+// いた。moveToken()にsuppressArrivalを渡し、同期される駒トークン自身に
+// arrivalSuppressedフラグとして記録することで、remote-move-animator.js側も
+// これを見て判断できるようにする。
+async function moveAndSyncForEffect(tokenId, location, soundName, suppressArrival) {
   const fromLocation = getState().tokens.find((t) => t.id === tokenId)?.location ?? null;
   if (isOnlineMode()) {
     try {
-      await moveToken(tokenId, location);
+      await moveToken(tokenId, location, suppressArrival);
       markSelfHandled([tokenId]);
       await fetchAndHydrate(getCurrentGameId());
     } catch (err) {
       console.error("moveAndSyncForEffect failed", err);
     }
   } else {
-    moveToken(tokenId, location);
+    moveToken(tokenId, location, suppressArrival);
   }
   if (soundName) playSound(soundName);
   maybeTriggerCardArrivalForExposedCard(fromLocation);
@@ -971,8 +981,11 @@ async function swapPiecesForEffect(pieceTokenId, fromLocation, targetLocation) {
     (t) => t.kind === "piece" && t.location.zone === "cell" && t.location.row === targetLocation.row && t.location.col === targetLocation.col
   );
   if (!opponentPiece) return;
-  await moveAndSyncForEffect(opponentPiece.id, { zone: "cell", row: fromLocation.row, col: fromLocation.col });
-  await moveAndSyncForEffect(pieceTokenId, targetLocation);
+  // 「入れ替え」であり「移動」ではないため到達効果を得ない（docs/cards.md補足）。
+  // 続き59のsuppressArrival（remote-move-animator.jsが誤って到達を再現しないように
+  // するためのフラグ）を、入れ替わる両方の駒に付ける。
+  await moveAndSyncForEffect(opponentPiece.id, { zone: "cell", row: fromLocation.row, col: fromLocation.col }, undefined, true);
+  await moveAndSyncForEffect(pieceTokenId, targetLocation, undefined, true);
   // ユーザー要望「マスチェンジで入れ替わるときアニメで効果音を使用してください」。
   playSound("swap");
   render();

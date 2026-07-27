@@ -15,7 +15,12 @@
 import { getState, isOnlineMode, drawFromPile, flipToken, nextTurn, setPriorityState } from "./state.js";
 import { getSelfSeat, getCurrentGameId, fetchAndHydrate } from "./online.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
-import { isAutoProcessingEnabled, getMoveCandidates, isMovementBoostActiveThisTurn } from "./card-effect-engine.js";
+import {
+  isAutoProcessingEnabled,
+  getMoveCandidates,
+  isMovementBoostActiveThisTurn,
+  isHandEffectReactiveOnly,
+} from "./card-effect-engine.js";
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
 import { playSound } from "./sound.js";
 import { announceHandPickups } from "./hand-announcer.js";
@@ -123,6 +128,20 @@ function getSelfPiece(player) {
 // 「手札が本当に空かどうか」だけを見るシンプルな判定に統一する。
 function handIsEmpty(player) {
   return !getState().tokens.some((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
+}
+
+// ユーザー報告「手札にカウンターロックのみ持っていて使えるカードがないのにムーブ
+// フェイズへ自動で移行しなかった」への対応。ゴメンナサイッ！・カウンターロックは
+// 反応時専用（あなたへのロック/接触の宣言時にしか使えない）で、Hand Phase中は
+// 絶対に使えない（card-effect-engine.jsのisHandEffectReactiveOnly参照、続き57で
+// 新設）。手札が「文字通り空」ではなくても、中身が全てこの手のカードだけなら
+// 実質「ハンドフェイズでは何もできない」ことに変わりないため、handIsEmptyと同じ
+// 扱いにする。手札に構造化データが無いカード（プレゼント等、まだ自動処理未対応の
+// 手札効果を持つ可能性があるカード）は安全側で「使えるかもしれない」扱いのまま
+// 残し、この判定の対象には含めない。
+function handHasOnlyReactiveOnlyCards(player) {
+  const hand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
+  return hand.length > 0 && hand.every((t) => isHandEffectReactiveOnly(t.cardId));
 }
 
 // ユーザー指摘: ロックフェイズのスキップ判定は「手札が空かどうか」だけでは不十分。
@@ -394,6 +413,11 @@ function enterPhase(phase, player) {
     advancePhaseAfterSkip();
     return;
   }
+  if (phase === "hand" && handHasOnlyReactiveOnlyCards(player)) {
+    showPhaseSkipModal("手札の効果は反応時にしか使えないため、ハンドフェイズを自動的にスキップしました。");
+    advancePhaseAfterSkip();
+    return;
+  }
 
   announcePhase(phase);
   updatePhaseGuideGlow();
@@ -460,8 +484,11 @@ export function reconcilePhaseAutomation() {
     // hasUsableHandEffect()（DSL構造化データを持つカードだけ）を見て自動スキップ
     // していたが、まだDSL化されていない手札効果カードを見落として飛ばしてしまう
     // バグだった。手札が空になった（コスト等で使い切った）場合だけ自動で進み、
-    // それ以外はスキップボタン（手動）を待つ。
-    if (!handEffectBusy && !skipTransitionPending && handIsEmpty(player)) advancePhase();
+    // それ以外はスキップボタン（手動）を待つ。ユーザー報告「手札にカウンターロック
+    // のみ持っていて使えるカードがないのにムーブフェイズへ自動で移行しなかった」への
+    // 対応で、反応時専用カードだけが残った場合（handHasOnlyReactiveOnlyCards）も
+    // 同様に自動で進める。
+    if (!handEffectBusy && !skipTransitionPending && (handIsEmpty(player) || handHasOnlyReactiveOnlyCards(player))) advancePhase();
     return;
   }
   if (currentPhase === "move") {
