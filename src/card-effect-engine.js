@@ -1,15 +1,15 @@
-// カード効果の自動処理エンジン（試作）。src/card-effects.jsの構造化データ（動詞＋
-// パラメータ）を実際にゲーム状態へ適用する。ユーザー確認済み方針:
+// カード効果の自動処理エンジン。src/card-effects.jsの構造化データ（動詞＋パラメータ）を
+// 実際にゲーム状態へ適用する。ユーザー確認済み方針:
 // ・基本設定でON/OFFを選べる（デフォルトOFF、既存の自己申告プレイを壊さないため）。
-// ・構造化データを持つカード（今はパイロット5枚のうち、既存の「到達」トリガーに
-//   乗せられる3枚: ゴメンナサイッ！・ジャンプ台・収穫と種まき）だけを自動処理の対象にし、
-//   それ以外の全カードは今まで通り自己申告のまま。
+// ・構造化データを持つカード（CARD_EFFECTSに.arrival/.arrivalOptions/.handEffectの
+//   いずれかを持つカード）だけを自動処理の対象にし、それ以外は今まで通り自己申告のまま。
+//   全33種類のカードは既にCARD_EFFECTSにデータを持っている（docs/cards.mdの
+//   「収録状況」参照、続き55で確認済み）。
 //
-// スコープ外（今回はまだ未対応、要フォローアップ）: 手札効果（■）の自動処理。
-// 現状のアプリには「手札効果を今使った」という宣言のプログラム的なトリガーが存在しない
-// （手札公開エリアへドラッグする、という見た目だけの自己申告に留まっている）。奇跡の森・
-// 黄金の宮殿ドムス・ネロ（どちらも手札効果のみ）はCARD_EFFECTSにデータこそあるが、今回は
-// 呼び出されない。手札効果の「使用する」ボタンのようなUIを別途作ってから対応する。
+// 手札効果（■）の自動処理も既に対応済み（下のrunHandEffect/canUseHandEffect参照。
+// main.js側のドラッグ/クリックでの発動トリガーはhasHandEffectData/canUseHandEffectを
+// 見て判定している）——このコメントは初期の設計試作時点（構造化データがパイロット5枚
+// しかなく、手札効果はまだ未着手だった頃）のもので、その後の実装で古くなっていた。
 //
 // このモジュール自身はDOM操作を一切行わない（main.jsから、実際に駒・カードを動かす
 // 関数とプレイヤーに選ばせる関数を`helpers`として渡してもらう、他の箇所と同じ
@@ -204,12 +204,27 @@ function isTargetableByOtherCardEffects(cardId) {
   return !cardId?.startsWith("eternal-") && !cardId?.startsWith("first-");
 }
 
+// ユーザー確認済み設計方針（続き55、ヴァーディアンの手札効果で公開ドローした2枚が
+// 選べる罠の「手札を半分捨てる」を選べない現象への対応）: 「ドロー」＝「山札から
+// 手札に加える」ため、公開ドロー（publicDrawゾーン、山からの公開ドロー・手札効果
+// 使用宣言の駐機のどちらの経由でも）にあるカードも、まだ通常の手札に合流していない
+// だけで「あなたの手札」であることに変わりはない（docs/cards.md補足）。ザ・ギャンブル
+// のDISCARD_HAND_IF_REVEALED_MATCHES_DECLAREDで先行導入していたこの定義を、手札の
+// 枚数を数える／手札をまとめて捨てる系の判定全てに一般化する。「今使える手札効果が
+// あるか」（hasUsableHandEffect等）はここでは対象外——公開ドロー中のカードから直接
+// 手札効果を発動するUI自体がまだ無い、別スコープの話のため意図的に含めない。
+function getHandTokens(player) {
+  return getState().tokens.filter(
+    (t) => t.kind === "card" && t.location.player === player && (t.location.zone === "hand" || t.location.zone === "publicDraw")
+  );
+}
+
 // 選べる罠専用: arrivalOptionsの1つの選択肢が今選べるか（docs/cards.mdの善処の原則
 // 条件を満たすか）。requiresMinHandSize/requiresNotAtOwnGate/requiresHasLockedCardの
 // いずれかを満たさなければ選べない（指定の無い条件はチェックしない）。
 function isArrivalOptionUsable(player, pieceLocation, option) {
   if (option.requiresMinHandSize != null) {
-    const count = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player).length;
+    const count = getHandTokens(player).length;
     if (count < option.requiresMinHandSize) return false;
   }
   if (option.requiresNotAtOwnGate) {
@@ -654,7 +669,7 @@ async function runAction(action, ctx, helpers) {
         return token.cardId === "rainbow-shard" || getCardDefinition(token.cardId)?.color === "orange";
       });
       if (hasOrange) {
-        const handTokens = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === ctx.player);
+        const handTokens = getHandTokens(ctx.player);
         for (const token of handTokens) {
           await helpers.discardAndSync(token.id);
         }
@@ -897,7 +912,7 @@ async function runAction(action, ctx, helpers) {
       // 色落ちキャット専用: 参加者全員が手札を全て捨ててから指定枚数ドローする
       // （処理順の原則に沿い、効果の使用者から時計回りに1人ずつ処理する）。
       for (const p of rotatedActivePlayersFrom(ctx.player)) {
-        const handTokens = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === p);
+        const handTokens = getHandTokens(p);
         for (const token of handTokens) {
           await helpers.discardAndSync(token.id);
         }
@@ -909,7 +924,7 @@ async function runAction(action, ctx, helpers) {
       // 選べる罠専用: 手札の半分（端数切り捨て、docs/rulebook.md「手札の半分」の
       // 定義通り）を、自分で選んで捨てる（ゲート侵攻ボーナスの「無作為に奪う」とは
       // 違い、これは自分自身の手札を自分で選ぶ効果のため隠し情報の抽選は不要）。
-      const handTokens = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === ctx.player);
+      const handTokens = getHandTokens(ctx.player);
       const discardCount = Math.floor(handTokens.length / 2);
       if (discardCount === 0) return false;
       for (let i = 0; i < discardCount; i++) {
@@ -970,7 +985,8 @@ async function runAction(action, ctx, helpers) {
       // ザ・ギャンブル専用: 公開ドローした中に宣言色が1つでもあれば、手札を全て捨てる。
       // 「ドロー」＝「山札から手札に加える」ため、この効果でドローしたカード（＝まだ
       // publicDrawゾーンにあり通常の手札には合流していない分）も対象に含める
-      // （docs/cards.md補足）。
+      // （docs/cards.md補足）。この定義はgetHandTokens()として一般化した
+      // （続き55、選べる罠の「手札を半分捨てる」にも同じ定義漏れがあったため）。
       const declaredColors = ctx.selections.declaredColors ?? [];
       const revealedCardIds = ctx.selections.revealedCardIds ?? [];
       // ユーザー報告「公開ドローの中に宣言色があるのに手札を全て捨てる処理が漏れている」
@@ -985,12 +1001,7 @@ async function runAction(action, ctx, helpers) {
       );
       if (!matches) return false;
       await helpers.announceEffectReason?.(ctx.cardId, "公開した中に宣言した色があったため、手札を全て捨てます。");
-      const toDiscard = getState().tokens.filter(
-        (t) =>
-          t.kind === "card" &&
-          ((t.location.zone === "hand" && t.location.player === ctx.player) ||
-            (t.location.zone === "publicDraw" && t.location.player === ctx.player))
-      );
+      const toDiscard = getHandTokens(ctx.player);
       // ユーザー報告「宣言色が出た時に手札がすべて捨てられず止まってしまっている」への
       // 対応。1枚ごとのdiscardAndSyncのどこかで例外が起きると（オンライン中の通信
       // エラー等）、そこでこのループ自体が中断し、残りのカードが手札に残ったまま
@@ -1127,7 +1138,7 @@ async function runAction(action, ctx, helpers) {
     case VERBS.DISCARD_OWN_HAND: {
       // 色落ちキャットの手札効果専用: 全員対象のALL_PLAYERS_DISCARD_HAND_AND_DRAWと
       // 違い、自分の手札だけを全て捨てる。
-      const handTokens = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === ctx.player);
+      const handTokens = getHandTokens(ctx.player);
       if (handTokens.length === 0) return false;
       for (const token of handTokens) {
         await helpers.discardAndSync(token.id);
@@ -1137,7 +1148,7 @@ async function runAction(action, ctx, helpers) {
     case VERBS.DISCARD_ONE_HAND_CARD: {
       // ザ・ギャンブルの手札効果専用コスト: 追色（同色限定）と違い、手札からどの色でも
       // 1枚選んで捨てる。
-      const handTokens = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === ctx.player);
+      const handTokens = getHandTokens(ctx.player);
       if (handTokens.length === 0) return false;
       const chosen = await helpers.pickHandCard(ctx.player, "捨てるカードを手札から選択してください");
       if (!chosen) return false;
@@ -1148,7 +1159,7 @@ async function runAction(action, ctx, helpers) {
       // スラム上がりの役人専用: 手札効果は先にこのカード自身を捨ててから残りの
       // アクションが実行されるため（docs/cards.md補足）、ここでの手札枚数カウントには
       // このカード自身は含まれない。
-      const handCount = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === ctx.player).length;
+      const handCount = getHandTokens(ctx.player).length;
       if (handCount > action.maxHandSize) return false;
       await helpers.drawCards(ctx.player, action.count);
       return true;

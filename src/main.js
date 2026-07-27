@@ -1604,10 +1604,15 @@ async function runJointConstructionTask(player) {
 }
 
 // スラム上がりの役人専用のタスクハンドラ。「手札が3枚になるまで自分で選んで捨てる」。
+// 「ドロー」＝「山札から手札に加える」ため、公開ドロー（publicDrawゾーン）にある
+// 分もここでの枚数カウントに含める（続き55、card-effect-engine.jsのgetHandTokens()と
+// 同じ定義）。
 async function runSlumOfficialDiscardTask(player) {
   let discardedAny = false;
   while (true) {
-    const handCount = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player).length;
+    const handCount = getState().tokens.filter(
+      (t) => t.kind === "card" && t.location.player === player && (t.location.zone === "hand" || t.location.zone === "publicDraw")
+    ).length;
     if (handCount <= 3) break;
     const chosen = await requestHandCardChoiceForEffect(player, `手札が3枚になるまで捨ててください（あと${handCount - 3}枚）`);
     if (!chosen) break;
@@ -1770,7 +1775,7 @@ function reapplyEffectPickerHighlights(table) {
     }
   } else if (activeEffectPicker.type === "hand") {
     for (const tokenId of activeEffectPicker.tokenIds) {
-      const el = document.querySelector(`.hand-card[data-token-id="${tokenId}"]`);
+      const el = document.querySelector(`.hand-card[data-token-id="${tokenId}"], .hand-reveal-card[data-token-id="${tokenId}"]`);
       if (el) el.classList.add("card-effect-target-cell");
     }
   } else if (activeEffectPicker.type === "player") {
@@ -1905,7 +1910,7 @@ document.addEventListener(
     }
     if (picker.type === "hand") {
       for (const el of elements) {
-        const cardEl = el.closest(".hand-card");
+        const cardEl = el.closest(".hand-card") ?? el.closest(".hand-reveal-card");
         if (!cardEl) continue;
         if (picker.tokenIds.has(cardEl.dataset.tokenId)) {
           activeEffectPicker = null;
@@ -2136,10 +2141,18 @@ function requestCellChoiceForEffect(candidates, hint) {
 // tokenIdFilter（Set、省略可）を渡すと、その中に含まれる手札カードだけを候補にする
 // （「追色」コストで同じ色の手札だけを選ばせる用途、ユーザー要望「捨てられる手札が
 // 無い場合は警告を出す」の前段——実際に選ばせる候補自体を絞り込む）。
+// 「ドロー」＝「山札から手札に加える」ため、公開ドロー（.hand-reveal-area、publicDraw
+// ゾーン）にある分も選択候補に含める（続き55、card-effect-engine.jsのgetHandTokens()と
+// 同じ定義。ヴァーディアンの効果で公開ドローされた2枚が選べる罠の「手札を半分捨てる」で
+// 選べなかった不具合の対応）。
 function requestHandCardChoiceForEffect(player, hint, tokenIdFilter) {
   return new Promise((resolve) => {
     const handArea = document.querySelector(`.hand-area[data-player="${player}"]`);
-    const allCardEls = handArea ? [...handArea.querySelectorAll(".hand-card")] : [];
+    const revealArea = document.querySelector(`.hand-reveal-area[data-player="${player}"]`);
+    const allCardEls = [
+      ...(handArea ? handArea.querySelectorAll(".hand-card") : []),
+      ...(revealArea ? revealArea.querySelectorAll(".hand-reveal-card") : []),
+    ];
     const cardEls = tokenIdFilter ? allCardEls.filter((el) => tokenIdFilter.has(el.dataset.tokenId)) : allCardEls;
     if (cardEls.length === 0) {
       resolve(null);
