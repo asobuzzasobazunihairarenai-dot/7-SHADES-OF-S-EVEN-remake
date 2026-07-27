@@ -19,6 +19,7 @@ import { getState } from "./state.js";
 import { VERBS, TARGETS, TARGET_SELECTIONS, CARD_EFFECTS } from "./card-effects.js";
 import { getCardDefinition } from "./cards-data.js";
 import { COLORS, SEAT_TO_SIDE, SIDE_TO_SEAT, GATE_POSITIONS, SEAT_ORDER } from "./board-layout.js";
+import { logAction } from "./action-log.js";
 // 桃のキューブ セレナーデ専用（LOCK_ONE_HAND_CARD_EXCEPT_FINAL）:「最後のロックは
 // できない」の判定に、victory.jsの既存の「最後のロック承認」機能用の関数
 // （main.jsの通常ドロップ処理でも使っている）をそのまま流用する。victory.jsは
@@ -1202,9 +1203,12 @@ async function runAction(action, ctx, helpers) {
 // runArrivalOptionsEffect・INHERIT_ARRIVAL_ACTIONS）でこちらを使う。
 async function runActionSafely(action, ctx, helpers) {
   try {
-    return await runAction(action, ctx, helpers);
+    const result = await runAction(action, ctx, helpers);
+    logAction("effect-verb", { verb: action.verb, cardId: ctx.cardId, player: ctx.player, result });
+    return result;
   } catch (err) {
     console.error(`card-effect-engine: アクション実行に失敗（動詞 "${action.verb}"）`, err);
+    logAction("effect-verb", { verb: action.verb, cardId: ctx.cardId, player: ctx.player, result: "error", error: String(err) });
     return false;
   }
 }

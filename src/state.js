@@ -8,6 +8,7 @@
 
 import { NORMAL_CARDS, ETERNAL_CARDS, FIRST_CARDS } from "./cards-data.js";
 import { COLORS, GATE_POSITIONS, SEAT_ORDER, SEAT_TO_SIDE } from "./board-layout.js";
+import { logAction } from "./action-log.js";
 
 let nextId = 1;
 const uid = (prefix) => `${prefix}-${nextId++}`;
@@ -594,6 +595,7 @@ function reduce(current, action) {
 }
 
 function dispatch(action) {
+  logAction("dispatch", action);
   state = reduce(state, action);
   for (const fn of listeners) fn(state);
 }

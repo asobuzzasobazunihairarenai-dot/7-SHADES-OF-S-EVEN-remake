@@ -3,6 +3,7 @@
 // 単独のボタンとして左上にあったが、ここに統合し、左上はゲームタイトル表示用に空けた。
 
 import { openAdminPanel } from "./admin.js";
+import { openActionLogPanel } from "./action-log.js";
 import { openCardDevMode } from "./card-dev-mode.js";
 import { isAutoProcessingEnabled, setAutoProcessingEnabled } from "./card-effect-engine.js";
 import { openDeckViewer } from "./deck-viewer.js";
@@ -563,6 +564,15 @@ export function initOptionsMenu() {
         buildMenuItem("🃏 カード開発モード", () => {
           close();
           openCardDevMode();
+        })
+      );
+      // ユーザー提案「すべての選択行動結果のログを出力するようにしてそれを提出する
+      // ことで不具合を見つける」への対応（続き57で状態遷移系の不具合には有効と合意）。
+      // 上の2つと同じisAdminUser()ガードをそのまま流用する。
+      panel.appendChild(
+        buildMenuItem("📜 アクションログ", () => {
+          close();
+          openActionLogPanel();
         })
       );
     }

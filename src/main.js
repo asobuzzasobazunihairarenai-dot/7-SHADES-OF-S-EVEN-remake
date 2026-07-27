@@ -13,6 +13,7 @@ import {
   registerAdminAuthHelpers,
   refreshAdminOnlySection,
 } from "./admin.js";
+import { logAction, initActionLogPanel } from "./action-log.js";
 import { initDeckViewer, openDeckViewer } from "./deck-viewer.js";
 import { initStatsPlayerLinkModal } from "./stats-player-link.js";
 import { initMyPage, openMyPage, registerAvatarPickerHelper } from "./my-page.js";
@@ -2644,6 +2645,7 @@ const ARRIVAL_EFFECT_START_PAUSE_MS = 400;
 function triggerCardArrival(cardId, location, onFullyResolved) {
   const player = getPieceOwnerAt(location);
   const showAddToHand = !!player && player === getSelfSeat();
+  logAction("arrival", { cardId, location, player, auto: showAddToHand && canAutoProcessArrival(cardId) });
 
   // ユーザー要望「カード効果の自動処理」。設定がONで、このカードが構造化データを持ち、
   // かつ「今まさに到達した本人の画面」の場合、「このカードを手札に加える」ボタンの
@@ -7032,6 +7034,7 @@ initDeckViewer();
 initStatsPlayerLinkModal();
 initMyPage();
 initCardDevMode();
+initActionLogPanel();
 registerCardDevModeArrivalHelpers({ triggerCardArrival, runAutoHandEffect, render });
 registerPhaseAutomationHelpers({ render, findTopCardAt });
 initHelpButton();
