@@ -1042,6 +1042,10 @@ async function runAction(action, ctx, helpers) {
         const placedColor = getCardDefinition(placedCardId)?.color;
         const isMatch = placedCardId === "rainbow-shard" || declaredColors.includes(placedColor);
         if (!isMatch) break;
+        // ユーザー要望「見事宣言色だった場合は『おめでとう、試練を続けてください』的な
+        // モーダルを出してあげたい」。再宣言モーダルが続けて出るだけだと「当たった」
+        // ことが伝わりにくいため、一言はさむ。
+        await helpers.announceEffectReason?.(ctx.cardId, "おめでとうございます！宣言色が出ました。引き続き試練を続けてください。");
         const redeclared = await helpers.declareColors({ exactCount: 3 });
         if (!redeclared || redeclared.length === 0) break; // 善処の原則: 再宣言をキャンセルしたらそこで終わる
         declaredColors = redeclared;

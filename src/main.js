@@ -203,7 +203,6 @@ import {
   getRotationSteps,
   rotateCell,
   rotateSide,
-  rotateFraction,
   getFinalLockApprovalOrder,
 } from "./board-layout.js";
 
@@ -1144,29 +1143,45 @@ window.addEventListener("mousemove", (e) => {
   const now = Date.now();
   if (now - lastCursorBroadcastAt < CURSOR_BROADCAST_INTERVAL_MS) return;
   lastCursorBroadcastAt = now;
-  const { x, y } = stageClientToLocal(e.clientX, e.clientY);
   // ユーザー報告「Aが自分のゲートを指しても、Bの画面ではBのゲートを指しているように
-  // 見える」の原因: カード・駒はrotateCell(row,col,steps)で「実座標→表示座標」を
-  // 視点ごとに個別変換しているのに、カーソルだけは生のステージ座標(x,y)をそのまま
-  // 送受信していたため、送信側の画面で「自分のゲート＝画面手前」だった位置が、
-  // 受信側の画面でもそのまま「画面手前＝受信側自身のゲート」の位置に表示されて
-  // しまっていた。盤面(#game-table)の実際の矩形を基準にした割合座標(u,v、0〜1)へ
-  // 変換した上で、送信側自身の回転(steps)を打ち消して「回転していない実座標」に
-  // 戻してから送る（受信側はrotateFractionで自分の回転をかけ直すだけでよい、
-  // onCursorPositionEvents参照）。盤面の外（手札エリア等）を指していても、そのエリア
-  // 自体が盤面と同じ回転で視点ごと配置されているため、この変換をそのまま延長して
-  // 使って問題ない。
-  const table = document.getElementById("game-table");
-  if (!table) return; // 盤面がまだ無い（セットアップ前等）間は送らない
-  const rect = toStageLocalRect(table.getBoundingClientRect());
-  const width = rect.right - rect.left;
-  const height = rect.bottom - rect.top;
-  if (width <= 0 || height <= 0) return;
-  const u = (x - rect.left) / width;
-  const v = (y - rect.top) / height;
-  const steps = getRotationSteps(getSelfSeat());
-  const canonical = rotateFraction(u, v, (4 - steps) % 4);
-  broadcastCursorPosition({ player: getSelfSeat(), u: canonical.u, v: canonical.v });
+  // 見える」への対応（続き52）で、盤面(#game-table)自身の矩形を基準にした割合座標
+  // (u,v)へ回転をかけて送受信するようにしたが、その後ユーザーが実際に2画面で比較した
+  // ところ、一方の画面ではズレていた。原因（実測で確認）: #game-table自身は
+  // rotateX(-40deg)の3D傾き演出がかかっており、その`getBoundingClientRect()`は
+  // 実際に描画されているマスの位置と単純な線形比例関係にならない（手前の行ほど
+  // 実際の間隔が広く、奥の行ほど狭い——fitTableToViewport側で「3D変形された子要素の
+  // 見た目の広がりをバウンディングボックス計算が正しく反映しない」と既に指摘・
+  // 対策されていたのと同じ系統の問題、getEffectiveFitRect参照）。そのため
+  // #game-table全体を単純に線形補間する方式では、送信側と受信側でウィンドウ
+  // サイズ等が違うと誤差の出方も変わり、ズレて見えていた。
+  // 対策: 盤面全体の矩形で線形補間するのをやめ、実際にクリック当たり判定で使って
+  // いるのと同じ`elementsFromPoint`でカーソル直下の実際の`.cell`要素を探し、その
+  // 「実座標(row,col)」＋「そのマス自身の矩形内でのどこか（0〜1の割合）」という
+  // 形で送る。マス自身の矩形はgetBoundingClientRect()で正しく実際の描画位置を
+  // 反映しており、かつdata-row/colは常に実座標（回転の影響を受けない、buildBoard
+  // 参照）なので、送受信のどちらでも回転計算が一切不要になる（受信側は自分の画面で
+  // 同じrow/colのマスを探し、その矩形に当てはめるだけでよい）。盤面上のマスを
+  // 指していない（手札エリア等）場合だけ、従来通りステージ全体の座標をそのまま送る
+  // フォールバックにする。
+  const elements = document.elementsFromPoint(e.clientX, e.clientY);
+  const cellEl = elements.map((el) => el.closest(".cell")).find(Boolean);
+  if (cellEl) {
+    const cellRect = cellEl.getBoundingClientRect();
+    if (cellRect.width <= 0 || cellRect.height <= 0) return;
+    const offsetX = (e.clientX - cellRect.left) / cellRect.width;
+    const offsetY = (e.clientY - cellRect.top) / cellRect.height;
+    broadcastCursorPosition({
+      player: getSelfSeat(),
+      mode: "cell",
+      row: Number(cellEl.dataset.row),
+      col: Number(cellEl.dataset.col),
+      offsetX,
+      offsetY,
+    });
+    return;
+  }
+  const { x, y } = stageClientToLocal(e.clientX, e.clientY);
+  broadcastCursorPosition({ player: getSelfSeat(), mode: "stage", x, y });
 });
 
 const remoteCursorEls = new Map(); // player -> { el, hideTimer }
@@ -1190,19 +1205,28 @@ function ensureRemoteCursorEl(player) {
   remoteCursorEls.set(player, entry);
   return entry;
 }
-onCursorPositionEvents(({ player, u, v }) => {
+onCursorPositionEvents((payload) => {
+  const { player } = payload;
   if (getSelfSeat() === player) return;
   if (!getState().activePlayers.includes(player)) return;
   const table = document.getElementById("game-table");
   if (!table) return;
   const entry = ensureRemoteCursorEl(player);
-  // 送信側が打ち消した回転を、今度は自分自身の回転(steps)でかけ直し、自分の盤面の
-  // 実際の矩形に当てはめる（mousemoveの送信側コメント参照）。
-  const steps = getRotationSteps(getSelfSeat());
-  const { u: du, v: dv } = rotateFraction(u, v, steps);
-  const rect = toStageLocalRect(table.getBoundingClientRect());
-  const x = rect.left + du * (rect.right - rect.left);
-  const y = rect.top + dv * (rect.bottom - rect.top);
+  // 送信側と同じ理由（mousemoveハンドラのコメント参照）で、盤面上のマスを指していた
+  // 場合（mode:"cell"）は自分の画面で同じrow/colのマスを探し、その実際の矩形に
+  // 当てはめる——回転計算は一切不要（data-row/colは常に実座標のため）。盤面外
+  // だった場合（mode:"stage"）だけ、従来通りステージ座標をそのまま使う。
+  let x, y;
+  if (payload.mode === "cell") {
+    const cellEl = table.querySelector(`.cell[data-row="${payload.row}"][data-col="${payload.col}"]`);
+    if (!cellEl) return;
+    const rect = toStageLocalRect(cellEl.getBoundingClientRect());
+    x = rect.left + payload.offsetX * (rect.right - rect.left);
+    y = rect.top + payload.offsetY * (rect.bottom - rect.top);
+  } else {
+    x = payload.x;
+    y = payload.y;
+  }
   // 駒の色は対局中に変わらないが、駒自体がまだ配置されていない（セットアップ中）
   // 場合もあるため、届くたびに読み直す（一度も見つからなければ無地のまま）。
   const color = getState().tokens.find((t) => t.kind === "piece" && t.player === player)?.color;
@@ -2540,6 +2564,12 @@ async function runAutoArrivalEffect(cardId, location, player) {
 // 「本当に全部終わったか」はこのフラグで別途追跡する必要がある）。
 let arrivalEffectAutoProcessing = false;
 
+// spawnArrivalBurstのCSSアニメーション自体の長さ（1400ms、appendEffectHostのttlMs引数と
+// 揃える）。ユーザー要望「到達アニメが完全終了して一息ついた後に効果モーダルを出す」への
+// 対応で、効果処理の開始をこの長さ＋一息つく間だけ遅らせるのに使う。
+const ARRIVAL_BURST_DURATION_MS = 1400;
+const ARRIVAL_EFFECT_START_PAUSE_MS = 400;
+
 // 到達演出一式（右上モーダル＋そのマス自体が発光する柱状のオーラ＋効果音）をまとめて行う。
 // 柱の色はカード自身の色に合わせる（--color-*をそのまま使う）。到達した駒の持ち主にだけ
 // 「このカードを手札に加える」ボタンを出す（ユーザー要望）。
@@ -2558,18 +2588,36 @@ function triggerCardArrival(cardId, location, onFullyResolved) {
   // 進んでも、自分がどのカードに到達したかは見えないと分かりにくいため。
   if (showAddToHand && canAutoProcessArrival(cardId)) {
     arrivalEffectAutoProcessing = true;
-    runAutoArrivalEffect(cardId, location, player)
-      .catch((err) => console.error("runAutoArrivalEffect failed", err))
-      .finally(() => {
-        arrivalEffectAutoProcessing = false;
-        onFullyResolved?.();
-        render();
-      });
     showCardArrivalModal(cardId, { showAddToHand: false });
     playSound("arrivalEffect");
     const table = document.getElementById("game-table");
     const hostEl = findLocationElement(table, location);
     if (hostEl) spawnArrivalBurst(hostEl, getCardDefinition(cardId).color);
+    // ユーザー要望「到達アニメが完全終了して一息ついた後に効果モーダルを出すように
+    // してください」。以前はspawnArrivalBurst（柱状のオーラ、ARRIVAL_BURST_DURATION_MS
+    // ぶんの一発演出）と同時にrunAutoArrivalEffectを並行して開始していたため、
+    // 効果自体が最初に出すモーダル（色宣言等）がまだオーラの燃え上がり中に重なって
+    // 出てしまっていた。オーラが完全に消えるまで待ち、さらに一息つく間（ARRIVAL_
+    // EFFECT_START_PAUSE_MS）を置いてから効果処理を開始する。画面右上の到達拡大
+    // モーダル（showCardArrivalModal）自体はデフォルトで自動的には消えない設定
+    // （isCardArrivalModalPersistent）のため、これは待たずそのまま表示し続ける
+    // （効果処理中も見えていてよい単なる情報表示のため）。アニメーション演出を
+    // 無効にする設定（isArrivalEffectDisabled）の間はそもそも演出が流れないため、
+    // 待たずに即座に効果処理を始める。
+    (async () => {
+      if (!isArrivalEffectDisabled()) {
+        await wait(ARRIVAL_BURST_DURATION_MS + ARRIVAL_EFFECT_START_PAUSE_MS);
+      }
+      try {
+        await runAutoArrivalEffect(cardId, location, player);
+      } catch (err) {
+        console.error("runAutoArrivalEffect failed", err);
+      } finally {
+        arrivalEffectAutoProcessing = false;
+        onFullyResolved?.();
+        render();
+      }
+    })();
     return;
   }
 
@@ -5775,7 +5823,17 @@ function computeShouldEmphasize() {
     getCurrentPhase() === "move" &&
     !isMovePhaseActive() &&
     !arrivalEffectAutoProcessing &&
-    !state.pendingContact
+    !state.pendingContact &&
+    // ユーザー要望「ほかのカードでも同様な事象が見受けられる、総チェック可能か」への
+    // 対応。isAnyEffectProcessingBusy()は「ゲート侵攻処理中・その通知ポップアップ
+    // 表示中・手札効果解決中・何らかの候補選択待ち」を1つにまとめた既存の判定
+    // （手品師の技の『いつでも使える』が処理中に発動できてしまうバグの修正で
+    // 新設済み、上のコメント参照）。到達効果の処理中（arrivalEffectAutoProcessing）
+    // 以外にも、ムーブフェイズ中に「いつでも使える」手札効果（スリカエ等）を使った
+    // 場合や、ゲート侵攻ボーナスの通知ポップアップが続いている場合など、同じ
+    // 「まだ何か処理中なのに安全と誤判定してターンを終了してしまう」構造の抜け漏れが
+    // 他にもあり得るため、既存のこの判定にもそのまま乗せることで網羅的にする。
+    !isAnyEffectProcessingBusy()
   );
 }
 

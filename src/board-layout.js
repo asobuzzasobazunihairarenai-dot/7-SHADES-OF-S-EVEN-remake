@@ -71,28 +71,6 @@ export function rotateSide(side, steps) {
   return SIDE_CW[(idx + ((steps % 4) + 4) % 4) % 4];
 }
 
-// ユーザー報告「全員のカーソル位置表示で、Aが自分のゲートを指しても、Bの画面では
-// Bのゲートを指しているように見える」の対応で追加。rotateCell(row,col,steps)の
-// 「盤面7x7マスの実座標を表示用座標へ回転」を、マスに限らず任意の連続座標（マウス
-// カーソル等）にも使えるよう一般化した版。u=横方向の割合(0=col0側／左, 1=col6側／右)、
-// v=縦方向の割合(0=row0側／上, 1=row6側／下)。rotateCellの4つの分岐をそのまま
-// 連続値へ置き換えている（N-1 → 1、row→v、col→u）。cursor-position機能専用に、
-// 「実際の(u,v)→表示用(u,v)」の変換にも「その逆（表示用→実際）」の変換にも同じ
-// この1関数を使う——逆変換はsteps側を(4-steps)%4にして呼ぶだけでよい（90度回転は
-// 逆回転で必ず打ち消せるため、rotateCellと同じ群構造）。
-export function rotateFraction(u, v, steps) {
-  switch (((steps % 4) + 4) % 4) {
-    case 1:
-      return { u: 1 - v, v: u };
-    case 2:
-      return { u: 1 - u, v: 1 - v };
-    case 3:
-      return { u: v, v: 1 - u };
-    default:
-      return { u, v };
-  }
-}
-
 // --- 最後のロック承認（全員承認制） ---------------------------------------------------
 // 最後のロックを試みたプレイヤー(attacker)の左隣から時計回りに、残りの参加プレイヤー
 // （attacker自身を除く）を並べた配列を返す。座席配置(A=南/B=西/C=北/D=東)では、
