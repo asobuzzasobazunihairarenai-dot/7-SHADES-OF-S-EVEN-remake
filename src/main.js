@@ -203,6 +203,7 @@ import {
   getRotationSteps,
   rotateCell,
   rotateSide,
+  rotateFraction,
   getFinalLockApprovalOrder,
 } from "./board-layout.js";
 
@@ -1144,7 +1145,28 @@ window.addEventListener("mousemove", (e) => {
   if (now - lastCursorBroadcastAt < CURSOR_BROADCAST_INTERVAL_MS) return;
   lastCursorBroadcastAt = now;
   const { x, y } = stageClientToLocal(e.clientX, e.clientY);
-  broadcastCursorPosition({ player: getSelfSeat(), x, y });
+  // ユーザー報告「Aが自分のゲートを指しても、Bの画面ではBのゲートを指しているように
+  // 見える」の原因: カード・駒はrotateCell(row,col,steps)で「実座標→表示座標」を
+  // 視点ごとに個別変換しているのに、カーソルだけは生のステージ座標(x,y)をそのまま
+  // 送受信していたため、送信側の画面で「自分のゲート＝画面手前」だった位置が、
+  // 受信側の画面でもそのまま「画面手前＝受信側自身のゲート」の位置に表示されて
+  // しまっていた。盤面(#game-table)の実際の矩形を基準にした割合座標(u,v、0〜1)へ
+  // 変換した上で、送信側自身の回転(steps)を打ち消して「回転していない実座標」に
+  // 戻してから送る（受信側はrotateFractionで自分の回転をかけ直すだけでよい、
+  // onCursorPositionEvents参照）。盤面の外（手札エリア等）を指していても、そのエリア
+  // 自体が盤面と同じ回転で視点ごと配置されているため、この変換をそのまま延長して
+  // 使って問題ない。
+  const table = document.getElementById("game-table");
+  if (!table) return; // 盤面がまだ無い（セットアップ前等）間は送らない
+  const rect = toStageLocalRect(table.getBoundingClientRect());
+  const width = rect.right - rect.left;
+  const height = rect.bottom - rect.top;
+  if (width <= 0 || height <= 0) return;
+  const u = (x - rect.left) / width;
+  const v = (y - rect.top) / height;
+  const steps = getRotationSteps(getSelfSeat());
+  const canonical = rotateFraction(u, v, (4 - steps) % 4);
+  broadcastCursorPosition({ player: getSelfSeat(), u: canonical.u, v: canonical.v });
 });
 
 const remoteCursorEls = new Map(); // player -> { el, hideTimer }
@@ -1168,10 +1190,19 @@ function ensureRemoteCursorEl(player) {
   remoteCursorEls.set(player, entry);
   return entry;
 }
-onCursorPositionEvents(({ player, x, y }) => {
+onCursorPositionEvents(({ player, u, v }) => {
   if (getSelfSeat() === player) return;
   if (!getState().activePlayers.includes(player)) return;
+  const table = document.getElementById("game-table");
+  if (!table) return;
   const entry = ensureRemoteCursorEl(player);
+  // 送信側が打ち消した回転を、今度は自分自身の回転(steps)でかけ直し、自分の盤面の
+  // 実際の矩形に当てはめる（mousemoveの送信側コメント参照）。
+  const steps = getRotationSteps(getSelfSeat());
+  const { u: du, v: dv } = rotateFraction(u, v, steps);
+  const rect = toStageLocalRect(table.getBoundingClientRect());
+  const x = rect.left + du * (rect.right - rect.left);
+  const y = rect.top + dv * (rect.bottom - rect.top);
   // 駒の色は対局中に変わらないが、駒自体がまだ配置されていない（セットアップ中）
   // 場合もあるため、届くたびに読み直す（一度も見つからなければ無地のまま）。
   const color = getState().tokens.find((t) => t.kind === "piece" && t.player === player)?.color;
