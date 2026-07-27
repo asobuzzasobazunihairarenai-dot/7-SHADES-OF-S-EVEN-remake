@@ -30,6 +30,7 @@ import {
   isHandEffectUsableAnytime,
   getMoveCandidates,
   getAnyCellWithCardCandidates,
+  findSameColorDiscardCandidates,
 } from "./card-effect-engine.js";
 import {
   reconcilePhaseAutomation,
@@ -66,7 +67,15 @@ import {
   buildFinalLockApprovalBanner,
   updateFinalLockApprovalBanner,
   registerFinalLockApprovalHandler,
+  registerGomennasaiHelpers,
 } from "./final-lock-approval.js";
+import {
+  buildTimerToggleButton,
+  updateTimerToggleButton,
+  buildTimerToggleBanner,
+  updateTimerToggleBanner,
+  registerTimerToggleHandlers,
+} from "./timer-toggle.js";
 import {
   buildContactApprovalModal,
   updateContactApprovalModal,
@@ -139,6 +148,8 @@ import {
   isOnlineMode,
   requestFinalLock,
   respondFinalLock,
+  requestTimerToggle,
+  respondTimerToggle,
   requestContact,
   respondContact,
 } from "./state.js";
@@ -3822,6 +3833,9 @@ function render() {
   updateSelfHandStatus();
   updateTurnRoundCounter();
   updateFinalLockApprovalBanner();
+  checkGomennasaiAutoApproval();
+  updateTimerToggleButton();
+  updateTimerToggleBanner();
   updateContactApprovalModal();
   checkContactAttackerResolution();
   checkForVictory();
@@ -5308,6 +5322,129 @@ async function respondToFinalLock(approve) {
       maybeAnnounceLock(pendingBefore.location, movedToken.cardId, false);
     }
   }
+}
+
+// ゴメンナサイの「相手が最後のロックを宣言した時に使える」手札効果（続き64）。
+// card-effects.jsのpurple-sorryのコメント参照——本来のhandEffect（Hand Phaseの
+// 自己申告）とは別種のトリガー（ロック承認フローへの割り込み）のため、通常の
+// runHandEffectには乗せず、ここに直接実装する。seatが「ゴメンナサイを手札に
+// 持っていて、かつ追色1（他の紫のカード1枚）を払えるか」を返す（払えなければnull）。
+function findGomennasaiEligibility(seat) {
+  const sorryToken = getState().tokens.find(
+    (t) => t.kind === "card" && t.cardId === "purple-sorry" && t.location.zone === "hand" && t.location.player === seat
+  );
+  if (!sorryToken) return null;
+  const costCandidates = findSameColorDiscardCandidates(sorryToken.id, "purple", seat);
+  if (costCandidates.length === 0) return null;
+  return { sorryToken, costCandidates };
+}
+
+// ユーザー確認済み方針「コストを払える人だけが却下（＝妨害）できる」への対応。
+// 承認待ちの先頭がゴメンナサイを使えない座席の場合、ボタンを見せる意味が無いため
+// 自動的に承認する（final-lock-approval.jsのcheckGomennasaiEligibility注入により
+// バナー自体も出さない）。render()のたびに毎回チェックする既存パターン
+// （checkAnytimeHandEffectReservation等）を踏襲。多重発火防止のガード付き。
+let gomennasaiAutoApprovalInFlight = false;
+function checkGomennasaiAutoApproval() {
+  const pending = getState().pendingFinalLock;
+  if (!pending || pending.queue.length === 0 || gomennasaiAutoApprovalInFlight) return;
+  const approver = pending.queue[0];
+  if (isOnlineMode() && getSelfSeat() !== approver) return;
+  if (findGomennasaiEligibility(approver)) return; // 使えるなら自動承認せず本人の選択を待つ
+  gomennasaiAutoApprovalInFlight = true;
+  Promise.resolve(respondToFinalLock(true)).finally(() => {
+    gomennasaiAutoApprovalInFlight = false;
+    // ハマりどころ: respondToFinalLock自体がrender()を呼ぶため、この承認処理の最中に
+    // 次の承認者（queue[1]）に対するcheckGomennasaiAutoApproval()の再入が一度発生するが、
+    // その時点ではまだgomennasaiAutoApprovalInFlightがtrueのままなのでガードで弾かれ、
+    // 何もしないまま終わる。その後この.finally()でフラグを戻すだけで放置すると、次に
+    // 誰かが何か操作するまで次の承認者が永遠にチェックされないまま止まってしまう
+    // （承認待ち複数人が全員ゴメンナサイを使えない場合、2人目以降で承認が止まる
+    // バグとして実機テストで発見）。フラグを戻した直後にもう一度自分自身を呼び、
+    // 次の承認者（いれば）を続けてチェックする。
+    checkGomennasaiAutoApproval();
+  });
+}
+
+// 「🍬 ゴメンナサイを使う」ボタンから呼ばれる（続き64）。相手（攻撃側）が既に
+// ロックしている1枚を選んで奪い、追色1（自分の手札から紫のカード1枚）を払ってから、
+// 通常の承認と同じ扱いで進める（card-effects.jsのpurple-sorryコメント参照——相手の
+// 新しいロック自体はその後成立するが、既存の1枚を失うため結局7色揃わない）。
+// ファースト/エターナルカードは他のカードの効果の対象にならないため候補から除外する
+// （docs/rulebook.md、card-effect-engine.jsのisTargetableByOtherCardEffectsと同じ判定）。
+async function useGomennasaiOnFinalLock() {
+  const pending = getState().pendingFinalLock;
+  if (!pending) return;
+  const selfSeat = getSelfSeat();
+  const eligibility = findGomennasaiEligibility(selfSeat);
+  if (!eligibility) return;
+  const attackerSide = SEAT_TO_SIDE[pending.attacker];
+  const attackerLockedTokens = getState().tokens.filter(
+    (t) =>
+      t.kind === "card" &&
+      t.location.zone === "lock" &&
+      t.location.side === attackerSide &&
+      !t.cardId?.startsWith("eternal-") &&
+      !t.cardId?.startsWith("first-")
+  );
+  if (attackerLockedTokens.length === 0) return; // 善処の原則: 奪える対象が無ければ何もしない
+  const candidates = attackerLockedTokens.map((t) => t.location);
+  const dest =
+    candidates.length === 1 ? candidates[0] : await requestCellChoiceForEffect(candidates, "奪うロックカードを選択してください");
+  if (!dest) return;
+  const target = attackerLockedTokens.find((t) => t.location.side === dest.side && t.location.index === dest.index);
+  if (!target) return;
+  const costChosen =
+    eligibility.costCandidates.length === 1
+      ? eligibility.costCandidates[0]
+      : await requestHandCardChoiceForEffect(
+          selfSeat,
+          "捨てる紫のカードを手札から選択してください",
+          new Set(eligibility.costCandidates.map((t) => t.id))
+        );
+  if (!costChosen) return;
+  await discardFromHandReveal(costChosen.id);
+  if (isOnlineMode()) {
+    try {
+      await moveToken(target.id, { zone: "hand", player: selfSeat });
+      markSelfHandled([target.id]);
+      await fetchAndHydrate(getCurrentGameId());
+    } catch (err) {
+      console.error("moveToken (gomennasai steal) failed", err);
+    }
+  } else {
+    moveToken(target.id, { zone: "hand", player: selfSeat });
+  }
+  announceHandPickups(selfSeat, [{ cardId: target.cardId, wasPublic: true }]);
+  render();
+  await respondToFinalLock(true);
+}
+
+// 「タイマーをオン、オフ」の承認バナーから呼ばれる（続き64）。最後のロック承認と違い、
+// 実際にtimer_config.enabledを書き換える処理自体はso7-apply-action.ts側の
+// RESPOND_TIMER_TOGGLEケースが（全員承認が完了した瞬間に）行うため、ここでは
+// fetchAndHydrate()で結果を取り込むだけでよい（オンライン専用機能のため、
+// timer-toggle.js側がisOnlineMode()でボタン自体を隠しており、ローカルモードの
+// 分岐は不要）。
+async function respondToTimerToggle(approve) {
+  if (!getState().pendingTimerToggle) return;
+  try {
+    await respondTimerToggle(approve);
+    await fetchAndHydrate(getCurrentGameId());
+  } catch (err) {
+    console.error("respondTimerToggle failed", err);
+  }
+  render();
+}
+
+async function requestTimerToggleFor(nextEnabled, queue) {
+  try {
+    await requestTimerToggle(getSelfSeat(), nextEnabled, queue);
+    await fetchAndHydrate(getCurrentGameId());
+  } catch (err) {
+    console.error("requestTimerToggle failed", err);
+  }
+  render();
 }
 
 async function onDragEnd(e) {
@@ -7217,12 +7354,16 @@ registerRemoteMoveAnimatorHelpers({
   findLocationElement,
 });
 registerFinalLockApprovalHandler(respondToFinalLock);
+registerGomennasaiHelpers({ checkEligibility: findGomennasaiEligibility, onUseGomennasai: useGomennasaiOnFinalLock });
+registerTimerToggleHandlers({ onRequest: requestTimerToggleFor, onRespond: respondToTimerToggle });
 registerContactApprovalHandler(respondToContact);
 registerEternalAnimHelpers(playEternalAcquisitionAnim);
 registerGateInvasionStealHelper(stealHandCardsRitualForGateInvasion);
 buildGameTitle();
 buildSpotlightOverlay();
 buildFinalLockApprovalBanner();
+buildTimerToggleButton();
+buildTimerToggleBanner();
 buildContactApprovalModal();
 turnRoundCounterEl = buildTurnRoundCounter();
 updateTurnRoundCounter();

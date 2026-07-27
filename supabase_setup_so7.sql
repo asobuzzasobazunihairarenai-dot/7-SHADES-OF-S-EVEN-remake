@@ -1199,3 +1199,81 @@ end;
 $$;
 revoke execute on function so7_get_admin_visit_log(int, int) from public;
 grant execute on function so7_get_admin_visit_log(int, int) to authenticated;
+
+-- 追加機能（続き64）: 「タイマーをオン、オフ」ボタン（ユーザー要望「押すと参加プレイヤー
+-- 全員に承認拒否モーダルが出る。拒否が3回連続したらそのプレイヤーはこの対局中この
+-- ボタンを押せなくなる」）。pending_final_lock/pending_contactと同じ「保留→queueの
+-- 先頭から順に承認、誰か1人でも却下すればnullに戻す」パターンをもう1つ追加する。
+-- timer_toggle_reject_streakは座席ごとの連続却下回数（jsonb、例: {"A": 2, "B": 0}）で、
+-- 誰が何回連続で却下されたかは隠す必要の無い公開情報のためマスク無しでそのまま持つ。
+alter table so7_games add column if not exists pending_timer_toggle jsonb;
+alter table so7_games add column if not exists timer_toggle_reject_streak jsonb not null default '{}'::jsonb;
+
+-- so7_apply_and_commitの再定義（pending_timer_toggle/timer_toggle_reject_streakを
+-- insert対象の列に追加しただけで、それ以外は直前の定義と同じ）。
+create or replace function so7_apply_and_commit(
+  p_game_id text,
+  p_expected_version int,
+  p_games_patch jsonb,
+  p_tokens jsonb,
+  p_piles jsonb
+) returns void
+language plpgsql
+security definer
+as $$
+declare
+  v_current_version int;
+begin
+  select version into v_current_version from so7_games where id = p_game_id for update;
+  if v_current_version is null then
+    raise exception 'game_not_found';
+  end if;
+  if v_current_version <> p_expected_version then
+    raise exception 'version_conflict';
+  end if;
+
+  delete from so7_game_tokens where game_id = p_game_id;
+  insert into so7_game_tokens (
+    game_id, token_id, kind, card_id, face_up, color, piece_player,
+    zone, row, col, side, idx, hand_player, reveal_source, arrival_suppressed, order_index
+  )
+  select
+    p_game_id,
+    t->>'token_id',
+    t->>'kind',
+    t->>'card_id',
+    coalesce((t->>'face_up')::boolean, false),
+    t->>'color',
+    t->>'piece_player',
+    t->>'zone',
+    (t->>'row')::int,
+    (t->>'col')::int,
+    t->>'side',
+    (t->>'idx')::int,
+    t->>'hand_player',
+    t->>'reveal_source',
+    coalesce((t->>'arrival_suppressed')::boolean, false),
+    coalesce((t->>'order_index')::int, 0)
+  from jsonb_array_elements(p_tokens) as t;
+
+  delete from so7_game_piles where game_id = p_game_id;
+  insert into so7_game_piles (game_id, pile_name, cards)
+  select p_game_id, p->>'pile_name', p->'cards'
+  from jsonb_array_elements(p_piles) as p;
+
+  update so7_games set
+    active_players = coalesce(p_games_patch->'active_players', active_players),
+    turn_player = coalesce(p_games_patch->>'turn_player', turn_player),
+    turn_number = coalesce((p_games_patch->>'turn_number')::int, turn_number),
+    round_number = coalesce((p_games_patch->>'round_number')::int, round_number),
+    start_player = coalesce(p_games_patch->>'start_player', start_player),
+    status = coalesce(p_games_patch->>'status', status),
+    timer_config = coalesce(p_games_patch->'timer_config', timer_config),
+    pending_final_lock = coalesce(p_games_patch->'pending_final_lock', pending_final_lock),
+    pending_contact = coalesce(p_games_patch->'pending_contact', pending_contact),
+    pending_timer_toggle = coalesce(p_games_patch->'pending_timer_toggle', pending_timer_toggle),
+    timer_toggle_reject_streak = coalesce(p_games_patch->'timer_toggle_reject_streak', timer_toggle_reject_streak),
+    version = version + 1
+  where id = p_game_id;
+end;
+$$;

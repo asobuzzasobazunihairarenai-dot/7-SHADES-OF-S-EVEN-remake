@@ -143,6 +143,19 @@ type PendingFinalLock = {
 
 type PendingContact = { attacker: string; defender: string } | null;
 
+// タイマーオン/オフの承認待ち（続き64、src/state.jsのpendingTimerToggleと同じ形）。
+type PendingTimerToggle = { requester: string; nextEnabled: boolean; queue: string[] } | null;
+
+type TimerConfig = {
+  enabled: boolean;
+  initialHourglassStock: number;
+  maxHourglassStock: number;
+  ropeBaseSeconds: number;
+  ropeExtensionSeconds: number;
+  turnsToReplenishHourglass: number;
+  reducedBaseSeconds: number;
+} | null;
+
 type GameState = {
   tokens: Token[];
   piles: Piles;
@@ -153,6 +166,9 @@ type GameState = {
   startPlayer: string | null;
   pendingFinalLock: PendingFinalLock;
   pendingContact: PendingContact;
+  pendingTimerToggle: PendingTimerToggle;
+  timerConfig: TimerConfig;
+  timerToggleRejectStreak: Record<string, number>;
 };
 
 // オンライン版では手札の表裏フラグをローカル版のような「自分がAかどうか」で決める必要が
@@ -407,6 +423,9 @@ function reduce(current: GameState, action: any): GameState {
         startPlayer,
         pendingFinalLock: null,
         pendingContact: null,
+        pendingTimerToggle: null,
+        timerConfig: action.timerConfig ?? null,
+        timerToggleRejectStreak: {},
       };
     }
     // 最後のロック承認①②（src/state.jsのREQUEST_FINAL_LOCK/RESPOND_FINAL_LOCKケースと
@@ -438,6 +457,47 @@ function reduce(current: GameState, action: any): GameState {
         return { ...current, tokens: [...rest, next], pendingFinalLock: null };
       }
       return { ...current, pendingFinalLock: { ...pending, queue } };
+    }
+    // タイマーオン/オフの承認①②（続き64、src/state.jsのREQUEST_TIMER_TOGGLE/
+    // RESPOND_TIMER_TOGGLEケースと同じ「保留→queueの先頭から順に承認、誰か1人でも
+    // 却下すればnullに戻す」パターン）。src/state.js側と違い、timer_configは
+    // このサーバー側のGameStateにしか存在しない（クライアント側はso7_games.
+    // timer_configを直接読むだけの別経路のため）ため、queueが空になった＝全員承認の
+    // 瞬間にここでtimerConfig.enabledを実際に書き換える。3連続却下でリクエスト元が
+    // 使えなくなるロックアウトも、公開情報（誰が何回連続で却下されたか）なので
+    // timerToggleRejectStreakとしてここで管理し、そのままgamesPatchへ含める。
+    case "REQUEST_TIMER_TOGGLE": {
+      if (current.pendingTimerToggle) return current;
+      if ((current.timerToggleRejectStreak?.[action.requester] ?? 0) >= 3) return current;
+      return {
+        ...current,
+        pendingTimerToggle: {
+          requester: action.requester,
+          nextEnabled: action.nextEnabled,
+          queue: action.queue,
+        },
+      };
+    }
+    case "RESPOND_TIMER_TOGGLE": {
+      const pending = current.pendingTimerToggle;
+      if (!pending) return current;
+      if (!action.approve) {
+        const streak = { ...(current.timerToggleRejectStreak ?? {}) };
+        streak[pending.requester] = (streak[pending.requester] ?? 0) + 1;
+        return { ...current, pendingTimerToggle: null, timerToggleRejectStreak: streak };
+      }
+      const queue = pending.queue.slice(1);
+      if (queue.length === 0) {
+        const streak = { ...(current.timerToggleRejectStreak ?? {}) };
+        streak[pending.requester] = 0;
+        return {
+          ...current,
+          pendingTimerToggle: null,
+          timerToggleRejectStreak: streak,
+          timerConfig: current.timerConfig ? { ...current.timerConfig, enabled: pending.nextEnabled } : current.timerConfig,
+        };
+      }
+      return { ...current, pendingTimerToggle: { ...pending, queue } };
     }
     default:
       return current;
@@ -648,6 +708,9 @@ async function loadState(db: any, gameId: string): Promise<{ state: GameState; v
       startPlayer: gameRow.start_player,
       pendingFinalLock: gameRow.pending_final_lock ?? null,
       pendingContact: gameRow.pending_contact ?? null,
+      pendingTimerToggle: gameRow.pending_timer_toggle ?? null,
+      timerConfig: gameRow.timer_config ?? null,
+      timerToggleRejectStreak: gameRow.timer_toggle_reject_streak ?? {},
     },
     version: gameRow.version,
   };
@@ -819,6 +882,16 @@ Deno.serve(async (req) => {
     // pending_contactを含める。保留解消時はnullを明示的に含める）。
     if (effectiveAction.type === "REQUEST_CONTACT" || effectiveAction.type === "RESPOND_CONTACT") {
       gamesPatch.pending_contact = next.pendingContact ?? null;
+    }
+    // タイマーオン/オフの承認（続き64）: 最後のロック承認・接触承認と同じパターンで
+    // pending_timer_toggle/timer_toggle_reject_streakを含める。加えて、この2アクションの
+    // 時だけtimer_configも常に含める（reduce()内で全員承認が完了した瞬間だけ実際に
+    // enabledが書き換わる。それ以外のタイミングでは中身が変わらないまま同じ値を
+    // 書き戻すだけなので無害）。
+    if (effectiveAction.type === "REQUEST_TIMER_TOGGLE" || effectiveAction.type === "RESPOND_TIMER_TOGGLE") {
+      gamesPatch.pending_timer_toggle = next.pendingTimerToggle ?? null;
+      gamesPatch.timer_toggle_reject_streak = next.timerToggleRejectStreak ?? {};
+      gamesPatch.timer_config = next.timerConfig ?? null;
     }
 
     const { error: commitErr } = await db.rpc("so7_apply_and_commit", {

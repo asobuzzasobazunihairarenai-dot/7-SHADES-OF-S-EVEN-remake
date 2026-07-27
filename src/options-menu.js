@@ -25,6 +25,7 @@ import {
 import { saveMyPreference, resetMyAppearanceSettings, isAdminUser, getCurrentUser, signInWithGoogle } from "./online.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { openStatsPlayerLinkModal } from "./stats-player-link.js";
+import { fetchStatsProfile } from "./stats-profile.js";
 import { isFlatten2dMode, setFlatten2dMode } from "./tablet-2d-mode.js";
 import { getOptionArea } from "./option-area.js";
 
@@ -45,11 +46,32 @@ function buildSectionTitle(text) {
 
 // 項目数が増えて縦に長くなりすぎたため、admin.jsの<details>と同じ考え方で、性質の近い
 // 項目をグループごとに開閉できるようにする。buildContent(content)で中身を組み立てる。
-function buildCollapsibleSection(title, buildContent) {
+// icon（続き64、ユーザー要望「見た目を整理するアイデアをください」への対応で追加した
+// 「セクション見出しに小さいアイコンを付けて一覧性を上げる」）: 絵文字1文字程度を想定。
+// onReset（省略可、同じくユーザー要望「セクションごとの初期設定に戻すボタン」）: 渡すと
+// summary行の右端に小さな「戻す」ボタンを出す。クリックしてもdetailsの開閉（summaryの
+// 既定動作）が起きないようstopPropagation/preventDefaultする。
+function buildCollapsibleSection(title, buildContent, { icon, onReset } = {}) {
   const details = document.createElement("details");
   details.className = "options-menu-details";
   const summary = document.createElement("summary");
-  summary.textContent = title;
+  const titleSpan = document.createElement("span");
+  titleSpan.className = "options-menu-details-title";
+  titleSpan.textContent = icon ? `${icon} ${title}` : title;
+  summary.appendChild(titleSpan);
+  if (onReset) {
+    const resetBtn = document.createElement("button");
+    resetBtn.type = "button";
+    resetBtn.className = "options-menu-section-reset-btn";
+    resetBtn.textContent = "戻す";
+    resetBtn.title = "このセクションの設定を初期値に戻します";
+    resetBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onReset();
+    });
+    summary.appendChild(resetBtn);
+  }
   details.appendChild(summary);
   const content = document.createElement("div");
   content.className = "options-menu-details-content";
@@ -256,12 +278,18 @@ function buildCardPreviewSizeRow() {
 // どのログイン方式でも実行できてしまうが、ゲスト（匿名）やマジックリンクのメール
 // アドレスはブラウザ/端末を変えると再現できず「本人確認」の意味が薄いため、
 // 最も本人性の高いGoogleログインだけに限定する。
+// ユーザー要望（続き64）「基本設定内のUIを整理したい。戦績システム連携は一番上に
+// 強調してください。連携済みであったり、戦績システムでプレイヤー承認されていれば
+// グレー表示で」。専用のカード風の見た目（options-menu-stats-link-card）にし、
+// パネルの一番上（「基本設定」タイトルのすぐ下）に単独で置く——折りたたみセクションに
+// 入れると畳まれて目立たなくなるため、他の設定グループとは別枠にした。
 function buildStatsPlayerLinkRow() {
   const row = document.createElement("div");
-  row.className = "options-menu-volume-row";
-  row.style.cssText = "flex-direction: column; align-items: stretch; white-space: normal;";
-  const labelEl = document.createElement("span");
-  labelEl.textContent = "戦績管理システムのプレイヤーと連携";
+  row.className = "options-menu-stats-link-card";
+
+  const labelEl = document.createElement("div");
+  labelEl.className = "options-menu-stats-link-title";
+  labelEl.textContent = "🏆 戦績管理システムのプレイヤーと連携";
   row.appendChild(labelEl);
 
   const actionArea = document.createElement("div");
@@ -277,18 +305,16 @@ function buildStatsPlayerLinkRow() {
   btn.addEventListener("click", openStatsPlayerLinkModal);
   actionArea.appendChild(btn);
 
-  (async () => {
-    let isGoogleLinked = false;
-    try {
-      const user = await getCurrentUser();
-      isGoogleLinked = user?.app_metadata?.provider === "google";
-    } catch (err) {
-      console.error("getCurrentUser (stats player link gate) failed", err);
-    }
-    if (isGoogleLinked) {
-      btn.disabled = false;
-      return;
-    }
+  function showLinkedState() {
+    row.classList.add("is-linked");
+    actionArea.innerHTML = "";
+    const done = document.createElement("div");
+    done.textContent = "✅ 連携済みです";
+    done.style.cssText = "font-size: 0.8rem; color: #86efac;";
+    actionArea.appendChild(done);
+  }
+
+  function showGoogleRequiredState() {
     actionArea.innerHTML = "";
     const note = document.createElement("div");
     note.textContent = "Googleアカウントでログインしていないと連携できません。";
@@ -305,6 +331,33 @@ function buildStatsPlayerLinkRow() {
     stack.appendChild(note);
     stack.appendChild(reloginBtn);
     actionArea.appendChild(stack);
+  }
+
+  (async () => {
+    let user = null;
+    try {
+      user = await getCurrentUser();
+    } catch (err) {
+      console.error("getCurrentUser (stats player link gate) failed", err);
+    }
+    const isGoogleLinked = user?.app_metadata?.provider === "google";
+    if (!isGoogleLinked) {
+      showGoogleRequiredState();
+      return;
+    }
+    // 既に戦績システム側で連携（承認）済みなら、選ぶことがもう無いのでグレー表示にする
+    // （ユーザー要望「連携済みであったり、戦績システムでプレイヤー承認されていれば
+    // グレー表示で」）。fetchStatsProfileのlinkedは承認が完了した状態を指す。
+    try {
+      const profile = await fetchStatsProfile(user.id);
+      if (profile?.linked) {
+        showLinkedState();
+        return;
+      }
+    } catch (err) {
+      console.error("fetchStatsProfile (stats player link gate) failed", err);
+    }
+    btn.disabled = false;
   })();
 
   return row;
@@ -438,100 +491,156 @@ export function initOptionsMenu() {
 
     panel.appendChild(buildSectionTitle("基本設定"));
 
-    panel.appendChild(
-      buildCollapsibleSection("ロックエリア関連", (content) => {
-        content.appendChild(
-          buildCheckboxRow("ロックエリアバーを表示する", isLockAreaBarVisible(), (checked) => {
-            setLockAreaBarVisible(checked);
-            window.dispatchEvent(new CustomEvent("admin:change"));
-            saveMyPreference({ lock_area_bar_visible: checked });
-          })
-        );
-        content.appendChild(
-          buildCheckboxRow("ロックエリアの色を表示する", isLockColorVisible(), (checked) => {
-            setLockColorVisible(checked);
-            window.dispatchEvent(new CustomEvent("admin:change"));
-            saveMyPreference({ lock_color_visible: checked });
-          })
-        );
-      })
-    );
+    // ユーザー要望（続き64）「基本設定内のUIを整理したい」への対応で、性質の近い項目を
+    // 4グループ（戦績連携カード＋音量／表示・演出／自動処理・タイマー）へ再編した。
+    // 戦績連携は折りたたまず一番上に単独表示（buildStatsPlayerLinkRow参照）。
 
-    const volumeRow = buildVolumeRow();
-    const volumeSlider = volumeRow.querySelector("input[type=range]");
-    volumeSlider.addEventListener("change", () => {
-      saveMyPreference({ sound_volume: Number(volumeSlider.value) / 100 });
-    });
-    panel.appendChild(volumeRow);
-    panel.appendChild(buildBgmVolumeRow());
-    panel.appendChild(buildCardPreviewSizeRow());
     panel.appendChild(buildStatsPlayerLinkRow());
 
-    // ユーザー要望「タブレットの点滅対策として、2D表示への切り替えを画面右上の
-    // オプションからもできるようにしたい」。実体はtablet-2d-mode.jsで管理者モードと
-    // 共有している（admin.jsの「2D表示に切り替える」トグルと同じ状態）。
     panel.appendChild(
-      buildCheckboxRow("2D表示に切り替える（タブレットの点滅対策）", isFlatten2dMode(), (checked) => {
-        setFlatten2dMode(checked);
-        saveMyPreference({ flatten_2d_mode: checked });
-      })
+      buildCollapsibleSection(
+        "音量",
+        (content) => {
+          const volumeRow = buildVolumeRow();
+          const volumeSlider = volumeRow.querySelector("input[type=range]");
+          volumeSlider.addEventListener("change", () => {
+            saveMyPreference({ sound_volume: Number(volumeSlider.value) / 100 });
+          });
+          content.appendChild(volumeRow);
+          content.appendChild(buildBgmVolumeRow());
+        },
+        {
+          icon: "🔊",
+          onReset: () => {
+            setSoundVolume(0.8);
+            setBgmVolume(0.5);
+            saveMyPreference({ sound_volume: 0.8, sound_volume_bgm: 50 });
+            renderContent();
+          },
+        }
+      )
     );
 
-    // ユーザー要望「相手の基本時間のカウントダウンを表示、非表示ボタンを基本設定に
-    // 追加してください。デフォルトは非表示で」。自分自身のカウントダウンは常に表示する
-    // （この設定の対象外）。画面中央の砂時計ロープは誰の分でも従来通り常時表示のまま
-    // （turn-timer.jsのupdateRope、この設定の対象外）。
     panel.appendChild(
-      buildCheckboxRow("相手の基本時間のカウントダウンを表示する", isOpponentBaseTimerVisible(), (checked) => {
-        setOpponentBaseTimerVisible(checked);
-        saveMyPreference({ opponent_base_timer_visible: checked });
-      })
-    );
-
-    panel.appendChild(
-      buildCollapsibleSection("モーダル表示時間", (content) => {
-        content.appendChild(
-          buildDurationRow("相手ゲート侵攻ボーナス通知", "--gate-invasion-modal-step-duration", 3.5, (value) => {
-            saveMyPreference({ gate_invasion_modal_duration: value });
-          })
-        );
-        content.appendChild(
-          buildDurationRow("到達モーダル", "--card-arrival-modal-duration", 5, (value) => {
-            saveMyPreference({ card_arrival_modal_duration: value });
-          })
-        );
-        content.appendChild(
-          buildDurationRow("カード獲得ポップアップ", "--hand-pickup-toast-duration", 5, (value) => {
-            saveMyPreference({ hand_pickup_toast_duration: value });
-          })
-        );
-      })
-    );
-
-    // パフォーマンス改善用。純粋にクライアントローカルな描画設定のため、1人がオンにしても
-    // 相手プレイヤーの画面には一切影響しない（各ブラウザは自分のstateから独立して描画する）。
-    panel.appendChild(
-      buildCollapsibleSection("アニメーションを減らす（動作が重い時に）", (content) => {
-        content.appendChild(
-          buildCheckboxRow("移動アニメーション（駒・カードの飛翔）を無効にする", isFlightAnimationDisabled(), (checked) => {
-            setFlightAnimationDisabled(checked);
-            saveMyPreference({ flight_animation_disabled: checked });
-          })
-        );
-        content.appendChild(
-          buildCheckboxRow("到達・ロック演出（光の柱・ロック画像等）を無効にする", isArrivalEffectDisabled(), (checked) => {
-            setArrivalEffectDisabled(checked);
-            saveMyPreference({ arrival_effect_disabled: checked });
-          })
-        );
-        content.appendChild(
-          buildCheckboxRow("常時光る演出（手番のグロー・砂時計ロープ等）を無効にする", isContinuousGlowDisabled(), (checked) => {
-            setContinuousGlowDisabled(checked);
-            document.body.classList.toggle("reduce-glow", checked);
-            saveMyPreference({ continuous_glow_disabled: checked });
-          })
-        );
-      })
+      buildCollapsibleSection(
+        "表示・演出",
+        (content) => {
+          content.appendChild(buildCardPreviewSizeRow());
+          // ユーザー要望「タブレットの点滅対策として、2D表示への切り替えを画面右上の
+          // オプションからもできるようにしたい」。実体はtablet-2d-mode.jsで管理者モードと
+          // 共有している（admin.jsの「2D表示に切り替える」トグルと同じ状態）。
+          content.appendChild(
+            buildCheckboxRow("2D表示に切り替える（タブレットの点滅対策）", isFlatten2dMode(), (checked) => {
+              setFlatten2dMode(checked);
+              saveMyPreference({ flatten_2d_mode: checked });
+            })
+          );
+          // ユーザー要望「相手の基本時間のカウントダウンを表示、非表示ボタンを基本設定に
+          // 追加してください。デフォルトは非表示で」。自分自身のカウントダウンは常に
+          // 表示する（この設定の対象外）。画面中央の砂時計ロープは誰の分でも従来通り
+          // 常時表示のまま（turn-timer.jsのupdateRope、この設定の対象外）。
+          content.appendChild(
+            buildCheckboxRow("相手の基本時間のカウントダウンを表示する", isOpponentBaseTimerVisible(), (checked) => {
+              setOpponentBaseTimerVisible(checked);
+              saveMyPreference({ opponent_base_timer_visible: checked });
+            })
+          );
+          content.appendChild(
+            buildCollapsibleSection("ロックエリア関連", (subContent) => {
+              subContent.appendChild(
+                buildCheckboxRow("ロックエリアバーを表示する", isLockAreaBarVisible(), (checked) => {
+                  setLockAreaBarVisible(checked);
+                  window.dispatchEvent(new CustomEvent("admin:change"));
+                  saveMyPreference({ lock_area_bar_visible: checked });
+                })
+              );
+              subContent.appendChild(
+                buildCheckboxRow("ロックエリアの色を表示する", isLockColorVisible(), (checked) => {
+                  setLockColorVisible(checked);
+                  window.dispatchEvent(new CustomEvent("admin:change"));
+                  saveMyPreference({ lock_color_visible: checked });
+                })
+              );
+            })
+          );
+          content.appendChild(
+            buildCollapsibleSection("モーダル表示時間", (subContent) => {
+              subContent.appendChild(
+                buildDurationRow("相手ゲート侵攻ボーナス通知", "--gate-invasion-modal-step-duration", 3.5, (value) => {
+                  saveMyPreference({ gate_invasion_modal_duration: value });
+                })
+              );
+              subContent.appendChild(
+                buildDurationRow("到達モーダル", "--card-arrival-modal-duration", 5, (value) => {
+                  saveMyPreference({ card_arrival_modal_duration: value });
+                })
+              );
+              subContent.appendChild(
+                buildDurationRow("カード獲得ポップアップ", "--hand-pickup-toast-duration", 5, (value) => {
+                  saveMyPreference({ hand_pickup_toast_duration: value });
+                })
+              );
+            })
+          );
+          // パフォーマンス改善用。純粋にクライアントローカルな描画設定のため、1人がONに
+          // しても相手プレイヤーの画面には一切影響しない（各ブラウザは自分のstateから
+          // 独立して描画する）。
+          content.appendChild(
+            buildCollapsibleSection("アニメーションを減らす（動作が重い時に）", (subContent) => {
+              subContent.appendChild(
+                buildCheckboxRow("移動アニメーション（駒・カードの飛翔）を無効にする", isFlightAnimationDisabled(), (checked) => {
+                  setFlightAnimationDisabled(checked);
+                  saveMyPreference({ flight_animation_disabled: checked });
+                })
+              );
+              subContent.appendChild(
+                buildCheckboxRow("到達・ロック演出（光の柱・ロック画像等）を無効にする", isArrivalEffectDisabled(), (checked) => {
+                  setArrivalEffectDisabled(checked);
+                  saveMyPreference({ arrival_effect_disabled: checked });
+                })
+              );
+              subContent.appendChild(
+                buildCheckboxRow("常時光る演出（手番のグロー・砂時計ロープ等）を無効にする", isContinuousGlowDisabled(), (checked) => {
+                  setContinuousGlowDisabled(checked);
+                  document.body.classList.toggle("reduce-glow", checked);
+                  saveMyPreference({ continuous_glow_disabled: checked });
+                })
+              );
+            })
+          );
+        },
+        {
+          icon: "🖥️",
+          onReset: () => {
+            document.documentElement.style.setProperty("--card-preview-size", "20rem");
+            setFlatten2dMode(false);
+            setOpponentBaseTimerVisible(false);
+            setLockAreaBarVisible(true);
+            setLockColorVisible(true);
+            document.documentElement.style.setProperty("--gate-invasion-modal-step-duration", "3.5");
+            document.documentElement.style.setProperty("--card-arrival-modal-duration", "5");
+            document.documentElement.style.setProperty("--hand-pickup-toast-duration", "5");
+            setFlightAnimationDisabled(false);
+            setArrivalEffectDisabled(false);
+            setContinuousGlowDisabled(false);
+            document.body.classList.remove("reduce-glow");
+            window.dispatchEvent(new CustomEvent("admin:change"));
+            saveMyPreference({
+              flatten_2d_mode: false,
+              opponent_base_timer_visible: false,
+              lock_area_bar_visible: true,
+              lock_color_visible: true,
+              gate_invasion_modal_duration: 3.5,
+              card_arrival_modal_duration: 5,
+              hand_pickup_toast_duration: 5,
+              flight_animation_disabled: false,
+              arrival_effect_disabled: false,
+              continuous_glow_disabled: false,
+            });
+            renderContent();
+          },
+        }
+      )
     );
 
     // ユーザー要望「この自動処理を適用するかしないかを基本設定で変えれるようにもしたい」
@@ -539,21 +648,32 @@ export function initOptionsMenu() {
     // 構造化データがあるもの）。ユーザー要望「オプションの基本設定はすべてアカウントに
     // 紐づけるように」への対応で、他の基本設定と同じくsaveMyPreferenceで保存する
     // （以前は試験運用中のためセッション限りだったが、この機能自体が実用段階に
-    // 達したため account 保存に切り替えた）。
+    // 達したため account 保存に切り替えた）。デフォルトON（続き63）。
     panel.appendChild(
-      buildCollapsibleSection("カード効果の自動処理（試験運用中）", (content) => {
-        const note = document.createElement("div");
-        note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.5rem; line-height: 1.5;";
-        note.textContent =
-          "ONにすると、対応済みのカードは承認モーダルの代わりに効果が自動で実行され、フェイズも自動で進行します。それ以外のカードは今まで通り自己申告のままです。";
-        content.appendChild(note);
-        content.appendChild(
-          buildCheckboxRow("カード効果を自動処理する", isAutoProcessingEnabled(), (checked) => {
-            setAutoProcessingEnabled(checked);
-            saveMyPreference({ card_auto_processing_enabled: checked });
-          })
-        );
-      })
+      buildCollapsibleSection(
+        "自動処理・タイマー",
+        (content) => {
+          const note = document.createElement("div");
+          note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.5rem; line-height: 1.5;";
+          note.textContent =
+            "ONにすると、対応済みのカードは承認モーダルの代わりに効果が自動で実行され、フェイズも自動で進行します。それ以外のカードは今まで通り自己申告のままです。";
+          content.appendChild(note);
+          content.appendChild(
+            buildCheckboxRow("カード効果を自動処理する", isAutoProcessingEnabled(), (checked) => {
+              setAutoProcessingEnabled(checked);
+              saveMyPreference({ card_auto_processing_enabled: checked });
+            })
+          );
+        },
+        {
+          icon: "⚙️",
+          onReset: () => {
+            setAutoProcessingEnabled(true);
+            saveMyPreference({ card_auto_processing_enabled: true });
+            renderContent();
+          },
+        }
+      )
     );
 
     const shortcutRows = SHORTCUT_TARGETS.map(({ id, label }) => buildShortcutRow(id, label));

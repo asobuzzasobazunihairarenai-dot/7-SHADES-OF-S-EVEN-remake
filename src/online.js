@@ -1699,6 +1699,12 @@ export async function fetchAndHydrate(gameId) {
     // あった（ユーザー報告: 「オンにしたのにゲーム開始後、何かクリックするまでタイマーが
     // 作動しない」）。
     syncedTimerConfig = gameRow.timer_config ?? null;
+    // タイマーオン/オフのロックアウト管理（続き64）。pendingTimerToggle自体は
+    // pendingFinalLock/pendingContactと同じくhydrateState()経由でstate.jsのGameStateに
+    // 含めるが、timer_toggle_reject_streakはtimer_configと同じく「クライアントの
+    // ローカル判定にしか使わない公開情報」のため、syncedTimerConfigと同じ扱いで
+    // このモジュールのローカル変数に留める。
+    syncedTimerToggleRejectStreak = gameRow.timer_toggle_reject_streak ?? {};
     hydrateState({
       tokens,
       piles,
@@ -1724,6 +1730,10 @@ export async function fetchAndHydrate(gameId) {
       // たびにstate.pendingContactがundefinedへ上書きされ、承認モーダルが常に非表示に
       // なってしまう。
       pendingContact: gameRow.pending_contact ?? null,
+      // タイマーオン/オフの承認待ち（続き64）。pendingFinalLock/pendingContactと全く
+      // 同じ理由（hydrateState()は丸ごと置き換えのため渡し忘れるとundefinedへ上書き
+      // されてしまう）でここに含める必要がある。
+      pendingTimerToggle: gameRow.pending_timer_toggle ?? null,
     });
   });
 }
@@ -1734,6 +1744,12 @@ export async function fetchAndHydrate(gameId) {
 let syncedTimerConfig = null;
 export function getSyncedTimerConfig() {
   return syncedTimerConfig;
+}
+
+// タイマーオン/オフボタンの3連続却下ロックアウト（続き64）用。座席ごとの連続却下回数。
+let syncedTimerToggleRejectStreak = {};
+export function getTimerToggleRejectStreak(seat) {
+  return syncedTimerToggleRejectStreak[seat] ?? 0;
 }
 
 function subscribeToGame(gameId, { announceJoin = false } = {}) {

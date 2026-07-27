@@ -109,6 +109,17 @@ function createInitialState() {
     // 適用する（最後のロック承認のqueueと同じ「保留→承認で確定」の考え方だが、承認者は
     // 常にdefenderの1人だけなのでqueueは持たない）。
     pendingContact: null,
+    // タイマーオン/オフの承認待ち（続き64、ユーザー要望「タイマーをオン、オフできる
+    // ボタンを追加してほしい。押すと参加プレイヤー全員に承認拒否モーダルが出る」）:
+    // null | { requester, nextEnabled, queue }。pendingFinalLockと全く同じ「queueの
+    // 先頭から順に承認、誰か1人でも却下すればnullに戻す」パターン。実際にtimer_config.
+    // enabledを書き換える処理自体はこのstate.jsの外（オンライン中はso7-apply-action.ts、
+    // ローカルモードはmain.js側がpendingBefore.queue.length===1での解決を検知して
+    // admin.jsのローカル設定を直接書き換える）。3連続却下でリクエスト元がこのボタンを
+    // 使えなくなる仕組みは、対局中ずっと有効な「ロックアウト」のためオンライン専用の
+    // 同期カラム（timer_toggle_reject_streak、online.js参照）で管理し、ここには含めない
+    // （ローカルモードは1人が全座席を操作するため、この抑止機構自体の意味が薄い）。
+    pendingTimerToggle: null,
   };
 }
 
@@ -601,6 +612,35 @@ function reduce(current, action) {
       }
       return { ...current, pendingFinalLock: { ...pending, queue } };
     }
+    // タイマーオン/オフ承認①（続き64）: main.jsがgetFinalLockApprovalOrder()と同じ
+    // 「左隣から時計回り」の並びで組み立てたqueueをそのまま受け取る。
+    case "REQUEST_TIMER_TOGGLE": {
+      if (current.pendingTimerToggle) return current;
+      return {
+        ...current,
+        pendingTimerToggle: {
+          requester: action.requester,
+          nextEnabled: action.nextEnabled,
+          queue: action.queue,
+        },
+      };
+    }
+    // タイマーオン/オフ承認②: pendingFinalLockと全く同じ「先頭が承認/却下、却下で
+    // 即nullに戻す、queueが空になったら解決」パターン。実際にtimer_config.enabledを
+    // 書き換える処理・3連続却下のロックアウト管理はこのstate.jsの外（呼び出し元の
+    // main.js/online.js、上のcreateInitialStateのコメント参照）が担当する。
+    case "RESPOND_TIMER_TOGGLE": {
+      const pending = current.pendingTimerToggle;
+      if (!pending) return current;
+      if (!action.approve) {
+        return { ...current, pendingTimerToggle: null };
+      }
+      const queue = pending.queue.slice(1);
+      if (queue.length === 0) {
+        return { ...current, pendingTimerToggle: null };
+      }
+      return { ...current, pendingTimerToggle: { ...pending, queue } };
+    }
     default:
       return current;
   }
@@ -729,6 +769,18 @@ export function requestFinalLock(tokenId, location, attacker, queue) {
 export function respondFinalLock(approve) {
   if (onlineMode && onlineTransport) return onlineTransport({ type: "RESPOND_FINAL_LOCK", approve });
   dispatch({ type: "RESPOND_FINAL_LOCK", approve });
+}
+
+// タイマーオン/オフの承認申請（続き64）。requestFinalLockと全く同じパターン
+// （queueはmain.jsがgetFinalLockApprovalOrder()で計算済み）。
+export function requestTimerToggle(requester, nextEnabled, queue) {
+  if (onlineMode && onlineTransport) return onlineTransport({ type: "REQUEST_TIMER_TOGGLE", requester, nextEnabled, queue });
+  dispatch({ type: "REQUEST_TIMER_TOGGLE", requester, nextEnabled, queue });
+}
+
+export function respondTimerToggle(approve) {
+  if (onlineMode && onlineTransport) return onlineTransport({ type: "RESPOND_TIMER_TOGGLE", approve });
+  dispatch({ type: "RESPOND_TIMER_TOGGLE", approve });
 }
 
 // tokenIds: 侵攻した側(attacker)が奪う、侵攻された側の手札トークンid（呼び出し側が無作為抽選済み）

@@ -122,7 +122,9 @@ export function resetHandEffectUsage() {
 // ユーザー指摘＋docs/cards.mdの「なないろの欠片」記載（「★ これはすべての色であり、
 // ロックフェイズではロックできない。」）確認: なないろの欠片は「すべての色」を兼ねる
 // ため、追色コストとしてはどの色の代わりにも使える。
-function findSameColorDiscardCandidates(cardTokenId, color, player) {
+// main.jsのゴメンナサイ最後のロック割り込み（続き64）が、追色コスト候補の算出に
+// そのまま再利用する。
+export function findSameColorDiscardCandidates(cardTokenId, color, player) {
   return getState().tokens.filter((t) => {
     if (t.kind !== "card" || t.location.zone !== "hand" || t.location.player !== player || t.id === cardTokenId) return false;
     if (t.cardId === "rainbow-shard") return true;

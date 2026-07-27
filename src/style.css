@@ -3942,6 +3942,10 @@ body.opening-screen-active #options-menu-panel {
   border-radius: 0.3rem;
 }
 .options-menu-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
   padding: 0.3rem 0.5rem;
   font-size: 0.72rem;
   font-weight: bold;
@@ -3952,15 +3956,57 @@ body.opening-screen-active #options-menu-panel {
 .options-menu-details > summary::-webkit-details-marker {
   display: none;
 }
-.options-menu-details > summary::before {
+.options-menu-details-title::before {
   content: "▸ ";
   color: #7dd3fc;
 }
-.options-menu-details[open] > summary::before {
+.options-menu-details[open] .options-menu-details-title::before {
   content: "▾ ";
+}
+/* セクションごとの「戻す」ボタン（続き64、ユーザー要望「セクションごとの初期設定に
+   戻すボタンも用意する」）。 */
+.options-menu-section-reset-btn {
+  flex: none;
+  font-size: 0.65rem;
+  font-weight: normal;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.3rem;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(255, 255, 255, 0.05);
+  color: #94a3b8;
+  cursor: pointer;
+}
+.options-menu-section-reset-btn:hover {
+  background: rgba(56, 189, 248, 0.2);
+  color: #e2e8f0;
 }
 .options-menu-details-content {
   padding: 0.1rem 0.2rem 0.4rem;
+}
+/* 戦績システム連携カード（続き64、ユーザー要望「戦績システム連携は一番上に強調して
+   ください」）。他の折りたたみ設定グループとは別枠にし、常に開いた状態で見える
+   ようにする。連携済みの場合はis-linkedでグレー表示にする
+   （ユーザー要望「連携済みであったり、戦績システムでプレイヤー承認されていれば
+   グレー表示で」）。 */
+.options-menu-stats-link-card {
+  margin: 0.4rem 0.3rem 0.6rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  border-radius: 0.4rem;
+  background: rgba(250, 204, 21, 0.08);
+}
+.options-menu-stats-link-card.is-linked {
+  border-color: rgba(148, 163, 184, 0.25);
+  background: rgba(255, 255, 255, 0.03);
+  opacity: 0.75;
+}
+.options-menu-stats-link-title {
+  font-size: 0.78rem;
+  font-weight: bold;
+  color: #fde68a;
+}
+.options-menu-stats-link-card.is-linked .options-menu-stats-link-title {
+  color: #cbd5e1;
 }
 .options-menu-volume-row {
   display: flex;
@@ -5331,6 +5377,56 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
 }
 .final-lock-approval-reject:hover {
   background: rgba(153, 27, 27, 0.95);
+}
+
+/* 「タイマーをオン、オフ」ボタン（src/timer-toggle.js、続き64）。フェイズ案内板
+   （#phase-guide-bar、turn-timer.jsの基本時間表示と同じ列）の中に置く小さな
+   テキストボタン。 */
+#timer-toggle-button {
+  font-family: sans-serif;
+  font-size: 0.7rem;
+  font-weight: bold;
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(15, 23, 32, 0.7);
+  color: #e2e8f0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#timer-toggle-button:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.25);
+  border-color: rgba(56, 189, 248, 0.6);
+}
+#timer-toggle-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* タイマーオン/オフの承認バナー（src/timer-toggle.js、続き64）。最後のロック承認
+   バナーと全く同じ見た目・仕組み（final-lock-approval-*クラスを流用）だが、
+   万一両方が同時に出てもさすがに完全に重ならないよう、縦位置だけ少しずらす。 */
+#timer-toggle-approval-banner {
+  position: fixed;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10440;
+  background: linear-gradient(160deg, #422006, #1c1004);
+  border: 2px solid #38bdf8;
+  border-radius: 0.7rem;
+  padding: 0.8rem 1.4rem;
+  text-align: center;
+  font-family: sans-serif;
+  color: #fef3c7;
+  box-shadow: 0 0 1.5rem rgba(56, 189, 248, 0.5), 0 10px 30px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+#timer-toggle-approval-banner.is-visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* 接触の承認/拒否モーダル（src/contact-approval.js）。final-lock-approval-bannerと同じ

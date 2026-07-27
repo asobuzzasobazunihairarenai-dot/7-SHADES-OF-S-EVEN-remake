@@ -15,9 +15,21 @@ import { getPlayerName } from "./player-identity.js";
 
 let bannerEl = null;
 let respondHandler = null;
+// ゴメンナサイの最後のロック割り込み（続き64、ユーザー確認済み方針「コストを払える
+// 人だけが却下（＝妨害）できる」）。checkEligibilityは承認者の座席を受け取り、
+// ゴメンナサイ＋追色1コストを払えるなら真を返す（main.jsのfindGomennasaiEligibility）。
+// 払えない承認者にはボタン自体を出さない（main.js側のcheckGomennasaiAutoApproval()が
+// 自動で承認する）。
+let checkGomennasaiEligibility = null;
+let useGomennasaiHandler = null;
 
 export function registerFinalLockApprovalHandler(fn) {
   respondHandler = fn;
+}
+
+export function registerGomennasaiHelpers({ checkEligibility, onUseGomennasai }) {
+  checkGomennasaiEligibility = checkEligibility;
+  useGomennasaiHandler = onUseGomennasai;
 }
 
 export function buildFinalLockApprovalBanner() {
@@ -41,6 +53,16 @@ export function updateFinalLockApprovalBanner() {
   // 何でも動かせる」方針を踏襲し、常にボタンを押せるようにする。オンライン中だけ、
   // 実際にその座席でログインしている本人にだけ操作を許可する。
   const canRespond = !isOnlineMode() || getSelfSeat() === approver;
+  // ユーザー確認済み方針「コストを払える人だけが却下（＝妨害）できる」。払えない
+  // 承認者にはボタン自体を見せず、バナー全体を隠す（main.js側のcheckGomennasaiAuto
+  // Approval()がこの承認者を検知し、自動で承認して先へ進める。「あなたの承認が
+  // 必要です」と見せておいてすぐ消えるチラつきを避けるため、最初から出さない）。
+  const isEligibleForGomennasai = canRespond && !!checkGomennasaiEligibility?.(approver);
+  if (canRespond && !isEligibleForGomennasai) {
+    bannerEl.classList.remove("is-visible");
+    bannerEl.innerHTML = "";
+    return;
+  }
   bannerEl.innerHTML = "";
 
   const title = document.createElement("div");
@@ -63,13 +85,17 @@ export function updateFinalLockApprovalBanner() {
     approveBtn.type = "button";
     approveBtn.textContent = "✅ 承認する";
     approveBtn.addEventListener("click", () => respondHandler?.(true));
-    const rejectBtn = document.createElement("button");
-    rejectBtn.className = "final-lock-approval-reject";
-    rejectBtn.type = "button";
-    rejectBtn.textContent = "🚫 却下する";
-    rejectBtn.addEventListener("click", () => respondHandler?.(false));
     buttons.appendChild(approveBtn);
-    buttons.appendChild(rejectBtn);
+    // ゴメンナサイを持っていて追色1を払える場合だけ、却下の代わりにこのボタンを出す
+    // （続き64）。使うと相手が既に持っているロック1枚を奪ってから、相手の新しい
+    // ロック自体は承認したのと同じ扱いで進む（card-effects.jsのpurple-sorryコメント
+    // 参照）。
+    const gomennasaiBtn = document.createElement("button");
+    gomennasaiBtn.className = "final-lock-approval-reject";
+    gomennasaiBtn.type = "button";
+    gomennasaiBtn.textContent = "🍬 ゴメンナサイを使う";
+    gomennasaiBtn.addEventListener("click", () => useGomennasaiHandler?.());
+    buttons.appendChild(gomennasaiBtn);
     bannerEl.appendChild(buttons);
   }
 }

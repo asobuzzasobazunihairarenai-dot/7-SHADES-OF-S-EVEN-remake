@@ -6,8 +6,7 @@
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { getOptionArea } from "./option-area.js";
 
-// ★重要: 実際の公式Discord招待URLに差し替えてください。
-const DISCORD_INVITE_URL = "https://discord.gg/";
+const DISCORD_INVITE_URL = "https://discord.gg/stP78fswKx";
 
 export function initDiscordLink() {
   const btn = document.createElement("button");
