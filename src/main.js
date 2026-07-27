@@ -181,6 +181,8 @@ import {
   onHandEffectUseEvents,
   broadcastColorsDeclared,
   onColorsDeclaredEvents,
+  broadcastColorsResolved,
+  onColorsResolvedEvents,
   broadcastArrivalDelegateRequest,
   onArrivalDelegateRequestEvents,
   broadcastArrivalDelegateResolved,
@@ -1189,12 +1191,20 @@ onHandEffectUseEvents(({ fromPlayer, cardId, optionLabel }) => {
   playSound("arrivalEffect");
 });
 // ユーザー要望「試練の儀式やザ・ギャンブルなどで色宣言するとき相手が何色を宣言したかを
-// 見える化したい」（続き62）。宣言した本人は選択モーダル自体で既に見ているため、
-// 自分以外からの通知だけを表示する（onHandEffectUseEventsと同じ考え方）。
-onColorsDeclaredEvents(({ fromPlayer, cardId, colors }) => {
+// 見える化したい」（続き62、続き65で丸い色アイコン＋常駐表示に改訂）。宣言した本人は
+// 自分の操作（confirmBtnのクリックハンドラ）で既にshowDeclaredColorsIndicatorを
+// 呼んでいるため、ここでは自分以外からの通知だけを表示する（onHandEffectUseEventsと
+// 同じ考え方）。
+onColorsDeclaredEvents(({ fromPlayer, colors }) => {
   if (fromPlayer === getSelfSeat()) return;
-  const colorText = colors.map((c) => COLOR_LABEL_JA[c] ?? c).join("・");
-  showEffectReasonModal(cardId, `${getPlayerName(fromPlayer)}が「${colorText}」を宣言しました。`);
+  showDeclaredColorsIndicator(fromPlayer, colors);
+});
+// 続き65: 色宣言の結果が判明した合図。自分自身の操作で判明した場合は
+// announceColorsResolvedForEffect側で既にローカル表示を消しているため、ここでは
+// 他プレイヤーからの通知だけを処理する（二重dismissしても実害は無いが、他の
+// on*Eventsハンドラと同じ「自分以外だけ」の考え方に揃える）。
+onColorsResolvedEvents(() => {
+  dismissDeclaredColorsIndicator();
 });
 
 // ユーザー要望「全員のマウスカーソルの位置が全員に見える化したい。アバターとその
@@ -1424,6 +1434,52 @@ async function pickArrivalOptionForEffect(cardId, optionsWithUsability) {
 // 設けない（backdropクリック・✕ボタン共に無し）。「宣言する」ボタンを押すまで
 // 必ずこのモーダルに留まる。
 const COLOR_LABEL_JA = { red: "赤", orange: "橙", yellow: "黄", green: "緑", blue: "青", pink: "桃", purple: "紫" };
+
+// ユーザー要望（続き65）「宣言色の見える化は、色の漢字より選ぶ時に出てくる丸い色
+// アイコンの方がわかりやすい。中央に表示されたらすっとそのまま画面左側にモーダルが
+// 移行するのがいい。あと実際何色が出るか変わるまではモーダルを継続したい」への対応。
+// showEffectReasonModal（数秒で自動的に消える汎用モーダル）とは別の専用UIにした
+// （結果が判明するまで消えないようにするため、タイマーを持たせられない）。
+let declaredColorsIndicatorEl = null;
+function showDeclaredColorsIndicator(fromPlayer, colors) {
+  dismissDeclaredColorsIndicator();
+  const el = document.createElement("div");
+  el.className = "declared-colors-indicator";
+  const title = document.createElement("div");
+  title.className = "declared-colors-indicator-title";
+  title.textContent = `${getPlayerName(fromPlayer)}が宣言`;
+  el.appendChild(title);
+  const swatches = document.createElement("div");
+  swatches.className = "declared-colors-indicator-swatches";
+  for (const color of colors) {
+    const dot = document.createElement("div");
+    dot.className = "declared-colors-indicator-swatch";
+    dot.style.setProperty("--swatch-color", `var(--color-${color})`);
+    dot.title = COLOR_LABEL_JA[color] ?? color;
+    swatches.appendChild(dot);
+  }
+  el.appendChild(swatches);
+  document.body.appendChild(el);
+  declaredColorsIndicatorEl = el;
+  // 画面中央に出た直後は目立たせ、少し経ったら画面左側の隅へすっと移行して常駐させる
+  // （CSSのtransitionで実際の移動アニメーションを担う、.is-cornerクラス参照）。
+  requestAnimationFrame(() => {
+    setTimeout(() => el.classList.add("is-corner"), 900);
+  });
+}
+function dismissDeclaredColorsIndicator() {
+  if (!declaredColorsIndicatorEl) return;
+  declaredColorsIndicatorEl.remove();
+  declaredColorsIndicatorEl = null;
+}
+// 色宣言の結果が判明した瞬間（試練の儀式のカードが置かれた／ザ・ギャンブルの公開ドローが
+// 終わった）にcard-effect-engine.jsから呼ばれる。ローカルの表示を消し、オンライン中は
+// 他プレイヤーにも「消してよい」と伝える。
+function announceColorsResolvedForEffect() {
+  dismissDeclaredColorsIndicator();
+  if (isOnlineMode()) broadcastColorsResolved();
+}
+
 // cardId/player（続き62）: 確定した宣言色を他プレイヤーへ見える化するための
 // broadcastColorsDeclared用。呼び出し元（card-effect-engine.jsのVERBS.DECLARE_COLORS）
 // はctx.cardId/ctx.playerを既に持っているため、そのまま渡してもらう。
@@ -1504,6 +1560,9 @@ function declareColorsForEffect(requirement, cardId, player) {
     confirmBtn.addEventListener("click", () => {
       const chosen = [...selected];
       if (isOnlineMode()) broadcastColorsDeclared({ fromPlayer: player, cardId, colors: chosen });
+      // 続き65: 宣言した本人にも、結果が判明するまで残る常駐表示を出す（再宣言を
+      // 繰り返す試練の儀式で「自分が何を宣言したか」を思い出せるように）。
+      showDeclaredColorsIndicator(player, chosen);
       finish(chosen);
     });
     modal.appendChild(confirmBtn);
@@ -2603,6 +2662,8 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         pickPlayer: requestPlayerChoiceForEffect,
         swapRandomHandCard: swapHandCardWithOpponentForEffect,
         announceEffectReason: announceEffectReasonForEffect,
+        // 色宣言の結果が判明した合図（続き65）。
+        announceColorsResolved: announceColorsResolvedForEffect,
         // 試練の儀式・合同建設の手札効果（「上記の到達時の効果を得る」で到達効果と
         // 同じactionsをそのまま実行する、inheritsArrival参照）用。到達効果側には
         // 既にあったが、手札効果側にはまだ無かったので追加した。
@@ -2664,6 +2725,8 @@ async function runAutoArrivalEffect(cardId, location, player) {
       // カウンターロックの「あなたは１番少なくロックしているので1枚ドローします」等、
       // 発動理由を一言説明するモーダル用。
       announceEffectReason: announceEffectReasonForEffect,
+      // 色宣言の結果が判明した合図（続き65）。
+      announceColorsResolved: announceColorsResolvedForEffect,
       // 白の意思の覚醒（場の全ての表向きのカードを捨てる）用。手札効果側は
       // 追色コストの支払いで元々discardAndSyncを持っていたが、到達効果側には
       // まだ無かったので追加した。
@@ -5794,6 +5857,17 @@ async function onDragEnd(e) {
           return;
         }
       }
+      render();
+      return;
+    }
+    // ユーザー要望「自動処理モードではロックエリアのカードは掴めないようにして
+    // ください」（続き65）。厳密には「掴めない」のではなく「ロックエリアから動かせ
+    // ない」——エターナル/ファーストカードをロックエリアに置いたまま使う
+    // （isSameLocationのクリック経路）は上のブロックで既に処理済みのため、ここに
+    // 到達する時点で実際に別の場所へ動かそうとしている。自動処理中に既に
+    // ロックされたカードを誤ってドラッグで動かしてしまうと盤面が壊れやすいため、
+    // その場合はスナップバックする。
+    if (kind === "card" && cardSourceLocation?.zone === "lock" && isAutoProcessingEnabled()) {
       render();
       return;
     }

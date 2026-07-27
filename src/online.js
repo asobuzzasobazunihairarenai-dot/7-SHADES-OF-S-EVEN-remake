@@ -388,6 +388,22 @@ export function broadcastColorsDeclared(payload) {
   }
 }
 
+// 色宣言の結果が判明した（試練の儀式のカードが置かれた／ザ・ギャンブルの公開ドローが
+// 終わった）合図（続き65、ユーザー要望「実際何色が出るか変わるまではモーダルを継続
+// したい」）。colors_declaredで出した表示を、これを受け取った全クライアントが消す。
+let colorsResolvedEventListeners = [];
+export function onColorsResolvedEvents(fn) {
+  colorsResolvedEventListeners.push(fn);
+  return () => {
+    colorsResolvedEventListeners = colorsResolvedEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastColorsResolved() {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "colors_resolved", payload: {} });
+  }
+}
+
 // 合同建設・スラム上がりの役人・パーティーのように「全員がそれぞれ自分の選択を
 // する」到達効果用。効果の使用者（コーディネーター）が対象プレイヤーへ
 // 「あなたの番です、これを解決してください」と伝え（broadcastArrivalDelegateRequest）、
@@ -927,6 +943,27 @@ export async function listOpenRooms() {
   const { data, error } = await client.from("so7_games_list").select("*").order("created_at", { ascending: false });
   if (error) throw error;
   return data ?? [];
+}
+
+// ユーザー要望「オンライン対戦の部屋モーダルで、リアルタイムで作成された部屋が表示
+// されるようにしたい」（続き65）。今までは開いた瞬間の1回きりの取得＋手動「🔄 更新」
+// ボタンしか無かった。onRosterChange（特定の部屋に入室済みのメンバー変更を、その部屋の
+// broadcastチャンネル経由で伝える仕組み）とは違い、こちらは「まだどの部屋にも
+// 入っていない状態で、新しい部屋が作られたこと」自体を検知する必要があるため、
+// 特定の部屋のbroadcastチャンネルではなくso7_gamesテーブル全体のPostgres Changes
+// （supabase_setup_so7.sqlで既にsupabase_realtime publicationに追加済み、
+// so7_gamesが対局中のトークン同期のstate_changed broadcastでも使われているのと
+// 同じテーブル）を購読する。INSERT/UPDATE/DELETEいずれでも一覧が変わりうるため
+// event:"*"で受け、呼び出し元（online-ui.js）が一覧を再取得する。
+export function subscribeToOpenRoomsChanges(onChange) {
+  if (!client) return () => {};
+  const channel = client
+    .channel(`open-rooms-${Date.now()}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "so7_games" }, onChange)
+    .subscribe();
+  return () => {
+    client.removeChannel(channel);
+  };
 }
 
 // 自分がまだ座席を持ったままの、対局中（status<>'open'）の部屋一覧。誤って「この部屋を
@@ -1846,6 +1883,9 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // 色宣言の通知（broadcastColorsDeclared参照）。
     .on("broadcast", { event: "colors_declared" }, ({ payload }) => {
       for (const fn of colorsDeclaredEventListeners) fn(payload);
+    })
+    .on("broadcast", { event: "colors_resolved" }, () => {
+      for (const fn of colorsResolvedEventListeners) fn();
     })
     // 「全員がそれぞれ選ぶ」到達効果の委任2種（broadcastArrivalDelegateRequest/Resolved参照）。
     .on("broadcast", { event: "arrival_delegate_request" }, ({ payload }) => {

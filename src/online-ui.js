@@ -24,6 +24,7 @@ import {
   startGame,
   getDebugLog,
   onRosterChange,
+  subscribeToOpenRoomsChanges,
 } from "./online.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { subscribe, getState, isOnlineMode, notifyListeners } from "./state.js";
@@ -40,6 +41,7 @@ const OFFICIAL_DISCORD_URL = "https://discord.gg/stP78fswKx";
 let panelEl = null;
 let backdropEl = null;
 let contentEl = null;
+let unsubscribeOpenRooms = null; // 続き65: 部屋一覧のリアルタイム購読解除関数
 
 // ユーザー報告「『オンラインで続ける』を押した直後、まだ部屋を選んでいない段階なのに
 // モーダルの背後がテストモード（ローカルのサンドボックス）盤面のまま、B/C/Dにダミーの
@@ -79,6 +81,10 @@ function closePanel() {
   panelEl = null;
   backdropEl = null;
   contentEl = null;
+  // 続き65: パネルを閉じたら部屋一覧のリアルタイム購読も止める（開いていない間まで
+  // 無駄に受信し続けないように）。
+  unsubscribeOpenRooms?.();
+  unsubscribeOpenRooms = null;
   // onlineIntentActiveは一方向のラッチのため、部屋を選ばずに閉じても盤面表示は
   // オンライン風のまま維持される（isOnlineIntentActiveのコメント参照）。それでも
   // 念のため再描画は促しておく（他の状態変化と合わせて反映させるため）。
@@ -710,6 +716,14 @@ export function openOnlinePanel() {
   document.body.appendChild(backdropEl);
   document.body.appendChild(panelEl);
   renderPanelContent();
+  // ユーザー要望「リアルタイムで作成された部屋が表示されるようにしたい」（続き65）。
+  // まだどの部屋にも入っていない間はonRosterChange（特定の部屋のbroadcast）が使えない
+  // ため、so7_gamesテーブル全体のPostgres Changesを購読し、変化のたびに一覧を含む
+  // パネルを再描画する（renderPanelContentは現在の画面がroom-choiceでなければ実質
+  // 無害に他の画面を再描画するだけなので、常に呼んで問題ない）。
+  unsubscribeOpenRooms = subscribeToOpenRoomsChanges(() => {
+    if (panelEl) renderPanelContent();
+  });
   // isOnlineIntentActive()を見ているmain.js側の盤面表示（B/C/Dのダミーアバター・
   // セットアップボタン等をローカル専用として隠す判定）を、部屋を選ぶ前のこの時点から
   // 即座に反映させる（state.js自体は変化していないが、盤面側の再描画を強制する）。

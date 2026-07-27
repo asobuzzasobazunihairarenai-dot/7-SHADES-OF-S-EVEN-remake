@@ -5047,6 +5047,33 @@ body.diagnostic-flatten-3d .scene {
 body.diagnostic-flatten-3d * {
   transform-style: flat !important;
 }
+/* ユーザー報告（続き63・続き64で再報告、PCでも発生）「2D表示の時、山札や捨て場の
+   カード、駒などが見えない」の根本原因と対策。実機スクリーンショットで確認したところ、
+   駒(.piece)・山(.stack)の「床+壁」の3D箱構築（壁は.piece-wall-*/.stack-front等、
+   rotateX/rotateZ等で90度回転させた面）は、perspectiveが無い・transform-styleが
+   flat強制の環境下では「見えない」のではなく、回転が正しく機能せず縮退した奇妙な
+   小さい塊として上面の下に紛れ込み、結果として山札・駒がまともな形に見えなくなって
+   いた（実際に見えなくなっていたのは壁の方で、上面(.piece-top/.stack-top)自体は
+   描画されていたが、崩れた壁の残骸と重なって認識しづらい見た目になっていた）。
+   2D表示中は「立体に見せる」こと自体を諦め、崩れた壁面をまるごと非表示にして、
+   上面だけを平らなアイコンとして綺麗に見せる方が実態に合っている。 */
+body.diagnostic-flatten-3d .piece-wall-back,
+body.diagnostic-flatten-3d .piece-wall-front,
+body.diagnostic-flatten-3d .piece-wall-left,
+body.diagnostic-flatten-3d .piece-wall-right,
+body.diagnostic-flatten-3d .stack-front,
+body.diagnostic-flatten-3d .stack-back,
+body.diagnostic-flatten-3d .stack-left,
+body.diagnostic-flatten-3d .stack-right {
+  display: none !important;
+}
+/* 壁を消した分、上面だけでも駒だとひと目でわかるよう縁取りを足す（山(.stack-top)には
+   既存のborderがあるため対象外）。 */
+body.diagnostic-flatten-3d .piece-top {
+  border-radius: 0.2rem;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 0.15rem 0.3rem rgba(0, 0, 0, 0.6);
+}
 .zone-bottom .player-avatar .avatar-image {
   width: var(--avatar-a-size);
   height: var(--avatar-a-size);
@@ -6166,6 +6193,49 @@ body.phase-lock-picking .hand-card:not(.phase-lock-highlight) {
 }
 .declare-colors-modal-confirm:hover:not(:disabled) {
   background: rgba(56, 189, 248, 0.4);
+}
+/* 色宣言の常駐表示（src/main.jsのshowDeclaredColorsIndicator、続き65）。画面中央に
+   出た直後、少し経つと画面左側へすっと移行して常駐する（結果が判明するまで自動では
+   消えない）。丸いアイコンは.declare-colors-modal-swatchと同じ--swatch-color変数を使う。 */
+.declared-colors-indicator {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10615;
+  background: linear-gradient(160deg, #1e293b, #0f172a);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.6rem;
+  padding: 0.6rem 1rem;
+  text-align: center;
+  font-family: sans-serif;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  transition: top 0.6s ease, left 0.6s ease, transform 0.6s ease, padding 0.6s ease;
+}
+.declared-colors-indicator.is-corner {
+  top: auto;
+  bottom: 1rem;
+  left: 1rem;
+  transform: translate(0, 0) scale(0.85);
+  transform-origin: bottom left;
+}
+.declared-colors-indicator-title {
+  font-size: 0.7rem;
+  color: #cbd5e1;
+  margin-bottom: 0.3rem;
+  white-space: nowrap;
+}
+.declared-colors-indicator-swatches {
+  display: flex;
+  gap: 0.3rem;
+  justify-content: center;
+}
+.declared-colors-indicator-swatch {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--swatch-color);
+  border: 2px solid rgba(255, 255, 255, 0.4);
 }
 /* ユーザー要望「作業を促すモーダルに『盤面を見る』ボタンをつけてほしい」への対応
    （main.jsのdeclareColorsForEffect、hand-effect-option-picker-peek-*と共通のクラスを流用）。

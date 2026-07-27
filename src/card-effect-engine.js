@@ -658,8 +658,15 @@ async function runAction(action, ctx, helpers) {
       // 盤面上の相手の駒のマスをpickLocationで選ばせる（マスチェンジと同じパターン）。
       const opponentCells = getAllOpponentPieceCells(ctx.player);
       if (opponentCells.length === 0) return false;
-      const targetCell =
-        opponentCells.length === 1 && !ctx.forcePrompt ? opponentCells[0] : await helpers.pickLocation(opponentCells, "移動させる相手の駒を選んでください");
+      let targetCell;
+      if (opponentCells.length === 1 && !ctx.forcePrompt) {
+        // ユーザー要望「選べる相手が１人しかいない場合は自動でその人を選択し、その旨を
+        // モーダルで示してほしい」（続き65）。
+        targetCell = opponentCells[0];
+        await helpers.announceEffectReason?.(ctx.cardId, "選べる相手が1人しかいないため、自動的に選択しました。");
+      } else {
+        targetCell = await helpers.pickLocation(opponentCells, "移動させる相手の駒を選んでください");
+      }
       if (!targetCell) return false;
       const targetPiece = findPieceAtCell(targetCell.row, targetCell.col);
       const selfPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === ctx.player);
@@ -902,7 +909,16 @@ async function runAction(action, ctx, helpers) {
       // （main.jsのswapHandCardWithOpponentForEffect）に委ねる。
       const opponents = getState().activePlayers.filter((p) => p !== ctx.player);
       if (opponents.length === 0) return false;
-      const targetPlayer = await helpers.pickPlayer(opponents, "手札を交換する相手を選んでください（アバターをクリック）");
+      let targetPlayer;
+      if (opponents.length === 1) {
+        // ユーザー要望「スリカエなどで相手を選ぶ効果の場合で選べる相手が１人しかいない
+        // 場合は自動でその人を選択してください。そしてその旨をモーダルで示して
+        // ください」（続き65）。
+        targetPlayer = opponents[0];
+        await helpers.announceEffectReason?.(ctx.cardId, "選べる相手が1人しかいないため、自動的に選択しました。");
+      } else {
+        targetPlayer = await helpers.pickPlayer(opponents, "手札を交換する相手を選んでください（アバターをクリック）");
+      }
       if (!targetPlayer) return false;
       await helpers.swapRandomHandCard(ctx.player, targetPlayer);
       return true;
@@ -1035,6 +1051,8 @@ async function runAction(action, ctx, helpers) {
       const matches = revealedCardIds.some(
         (cardId) => cardId === "rainbow-shard" || declaredColors.includes(getCardDefinition(cardId)?.color)
       );
+      // 続き65: 公開ドローの結果で宣言色が判明した瞬間なので、常駐していた色宣言表示を消す。
+      await helpers.announceColorsResolved?.();
       if (!matches) {
         // ユーザー要望「ザ・ギャンブルで『おめでとうモーダルが欲しい』『残念モーダルも
         // 欲しい』」（続き62）。宣言色が出なかった＝プレイヤーにとって良い結果
@@ -1097,6 +1115,9 @@ async function runAction(action, ctx, helpers) {
         ctx.pieceLocation = { row: dest.row, col: dest.col };
         const placedColor = getCardDefinition(placedCardId)?.color;
         const isMatch = placedCardId === "rainbow-shard" || declaredColors.includes(placedColor);
+        // 続き65: 置いたカードで宣言色が判明した瞬間なので、常駐していた色宣言表示を消す
+        // （当たっていた場合はこの直後にhelpers.declareColorsで新しい表示に置き換わる）。
+        await helpers.announceColorsResolved?.();
         if (!isMatch) {
           // ユーザー要望「試練の儀式で『おめでとう』は出るが『残念でした』モーダルも
           // 欲しい」（続き62）。宣言色が出なかった＝試練終了の合図として、当たった時と
@@ -1157,8 +1178,15 @@ async function runAction(action, ctx, helpers) {
       // 盤面上の相手の駒のマスをpickLocationで選ばせる（マスチェンジと同じパターン）。
       const opponentCells = getAllOpponentPieceCells(ctx.player);
       if (opponentCells.length === 0) return false;
-      const targetCell =
-        opponentCells.length === 1 && !ctx.forcePrompt ? opponentCells[0] : await helpers.pickLocation(opponentCells, "隣に置く相手の駒を選んでください");
+      let targetCell;
+      if (opponentCells.length === 1 && !ctx.forcePrompt) {
+        // ユーザー要望「選べる相手が１人しかいない場合は自動でその人を選択し、その旨を
+        // モーダルで示してほしい」（続き65）。
+        targetCell = opponentCells[0];
+        await helpers.announceEffectReason?.(ctx.cardId, "選べる相手が1人しかいないため、自動的に選択しました。");
+      } else {
+        targetCell = await helpers.pickLocation(opponentCells, "隣に置く相手の駒を選んでください");
+      }
       if (!targetCell) return false;
       const targetPiece = findPieceAtCell(targetCell.row, targetCell.col);
       if (!targetPiece || targetPiece.location.zone !== "cell") return false;
