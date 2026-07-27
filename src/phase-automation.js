@@ -12,7 +12,7 @@
 // main.js側の状態変更関数（render・findTopCardAt等）は、他のモジュールと同じ
 // 「register helper」注入パターンで main.js から渡してもらう（循環import回避）。
 
-import { getState, isOnlineMode, drawFromPile, flipToken, nextTurn } from "./state.js";
+import { getState, isOnlineMode, drawFromPile, flipToken, nextTurn, setPriorityState } from "./state.js";
 import { getSelfSeat, getCurrentGameId, fetchAndHydrate } from "./online.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
 import { isAutoProcessingEnabled, getMoveCandidates, isMovementBoostActiveThisTurn } from "./card-effect-engine.js";
@@ -332,6 +332,19 @@ function ensureSkipButton() {
   skipButtonEl.textContent = "スキップ";
   skipButtonEl.addEventListener("click", () => {
     if (handEffectBusy) return;
+    // ユーザー要望「スキップボタンを押しても時間を15秒回復させてください」。
+    // turn-timer.jsは時間切れによる自動スキップの時だけ、盤面操作を伴わないことの
+    // 埋め合わせとして優先権保持者に15秒の基本時間を明示的に付与している
+    // （performPriorityTimeoutAutoAction()が"skip"を返した時のsetPriorityState呼び出し
+    // 参照）。この常設スキップボタンを手動で押した時も、同じく盤面操作を一切伴わない
+    // （＝onStateChange側の「本人の本物の操作」判定では自然にリセットされない）ため、
+    // 同じ埋め合わせが必要。turn-timer.js側の関数は循環import（turn-timer.js→main.js→
+    // phase-automation.js）になるため呼べず、ここではstate.jsのsetPriorityStateを
+    // 直接呼んで同じパッチを適用する。
+    const priorityPlayer = getState().priorityPlayer;
+    if (priorityPlayer) {
+      setPriorityState({ player: priorityPlayer, deadline: Date.now() + 15000, phase: "base" });
+    }
     advancePhase();
   });
   // ユーザー報告「スキップボタンが他のアイコンと被っています。フェイズ案内板の

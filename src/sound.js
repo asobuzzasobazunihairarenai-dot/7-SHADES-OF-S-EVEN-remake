@@ -6,6 +6,59 @@
 
 import { getState, subscribe } from "./state.js";
 
+// ユーザー報告「iPhoneで基本設定のBGM音量を下げようとしたけど変化がありません」の
+// 原因: iOS Safariは仕様として<audio>/<video>要素の.volumeプロパティのsetterを
+// 無視する（ハードウェアの音量ボタン/サイレントスイッチだけを音量の決定権にするという
+// Apple独自のポリシーで、古いiOSからずっとそう）。そのため.volumeを直接書き換える
+// 今までの実装（applyLiveBgmVolume等）は、デスクトップ/Android等では効くがiOSだけ
+// 無反応になる。唯一の回避策はWeb Audio API（AudioContext→GainNode）を経由すること
+// ——GainNode.gain.valueはiOSでも実際の音量に反映される（Howler.js等の音声ライブラリが
+// 同じ理由でこの方式を使っている）。BGM用の使い回しAudioインスタンスをGainNode経由の
+// 出力に繋ぎ直し、以後は音量調整をGainNode側に一本化する（.volumeは常に1のままにして
+// 二重に減衰しないようにする）。
+let audioCtx = null;
+function getAudioContext() {
+  const Ctor = window.AudioContext || window.webkitAudioContext;
+  if (!Ctor) return null;
+  if (!audioCtx) audioCtx = new Ctor();
+  // iOSはユーザー操作直後でもcontextがsuspended状態のままのことがあるため、
+  // 呼ぶたびにresumeを試みておく（既にrunning中なら何もしない、無害な呼び出し）。
+  if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+  return audioCtx;
+}
+
+// audioElごとに1度しか呼べない（同じ要素で2回createMediaElementSourceを呼ぶと
+// 例外になる）ため、呼び出し側のBGM生成コード（if (!xBgmAudio) { ... }の中）で
+// Audioインスタンスの生成と同時に1回だけ呼ぶこと。AudioContext自体が使えない
+// 古い環境ではnullを返し、呼び出し側は.volumeへのフォールバックに切り替える。
+function attachGainNode(audioEl) {
+  const ctx = getAudioContext();
+  if (!ctx) return null;
+  try {
+    const source = ctx.createMediaElementSource(audioEl);
+    const gainNode = ctx.createGain();
+    source.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    return gainNode;
+  } catch (err) {
+    console.error("attachGainNode failed", err);
+    return null;
+  }
+}
+
+// GainNode経由・.volumeフォールバックのどちらでも同じ呼び方で音量を設定できるようにする
+// ヘルパー。gainNodeが使える時はそちらを正とし（iOSで確実に効くのはこちらだけ）、
+// audio.volumeは1のまま固定して二重減衰を防ぐ。gainNodeが無い（取得失敗）環境だけ、
+// 従来通りaudio.volumeに反映する。
+function setBgmTrackVolume(audioEl, gainNode, volume) {
+  if (gainNode) {
+    gainNode.gain.value = volume;
+    audioEl.volume = 1;
+  } else {
+    audioEl.volume = volume;
+  }
+}
+
 const SOUND_DEFS = {
   buttonPress: { path: "assets/sounds/button-press.mp3", cssVar: "--sound-volume-button-press" },
   handShuffle: { path: "assets/sounds/hand-shuffle.mp3", cssVar: "--sound-volume-hand-shuffle" },
@@ -28,14 +81,16 @@ const SOUND_DEFS = {
 // 自動再生制限により、ページ読み込み直後には再生できない（ユーザーの操作＝STARTボタン
 // クリックが必要）ため、opening-screen.jsがそのクリックハンドラ内から呼ぶ設計にする。
 let openingBgmAudio = null;
+let openingBgmGain = null;
 
 export function playOpeningBgm() {
   if (!openingBgmAudio) {
     openingBgmAudio = new Audio("assets/sounds/opening-bgm.mp3");
     openingBgmAudio.loop = true;
+    openingBgmGain = attachGainNode(openingBgmAudio);
   }
   const volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-opening-bgm")));
-  openingBgmAudio.volume = volume;
+  setBgmTrackVolume(openingBgmAudio, openingBgmGain, volume);
   openingBgmAudio.currentTime = 0;
   openingBgmAudio.play().catch(() => {});
 }
@@ -49,14 +104,14 @@ let bgmFadeIntervalId = null;
 export function stopOpeningBgm(durationMs = 600) {
   if (!openingBgmAudio) return;
   if (bgmFadeIntervalId) clearInterval(bgmFadeIntervalId);
-  const startVolume = openingBgmAudio.volume;
+  const startVolume = openingBgmGain ? openingBgmGain.gain.value : openingBgmAudio.volume;
   const stepMs = 30;
   const steps = Math.max(1, Math.round(durationMs / stepMs));
   let step = 0;
   bgmFadeIntervalId = setInterval(() => {
     step++;
     const ratio = Math.max(0, 1 - step / steps);
-    openingBgmAudio.volume = startVolume * ratio;
+    setBgmTrackVolume(openingBgmAudio, openingBgmGain, startVolume * ratio);
     if (step >= steps) {
       clearInterval(bgmFadeIntervalId);
       bgmFadeIntervalId = null;
@@ -70,14 +125,16 @@ export function stopOpeningBgm(durationMs = 600) {
 // への対応。オープニングBGMと同じ「使い回す単一のAudioインスタンス、ループ再生」
 // 方式にする。
 let gameBgmAudio = null;
+let gameBgmGain = null;
 
 export function playGameBgm() {
   if (!gameBgmAudio) {
     gameBgmAudio = new Audio("assets/sounds/game-bgm.mp3");
     gameBgmAudio.loop = true;
+    gameBgmGain = attachGainNode(gameBgmAudio);
   }
   const volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-game-bgm")));
-  gameBgmAudio.volume = volume;
+  setBgmTrackVolume(gameBgmAudio, gameBgmGain, volume);
   gameBgmAudio.currentTime = 0;
   gameBgmAudio.play().catch(() => {});
 }
@@ -85,14 +142,14 @@ export function playGameBgm() {
 export function stopGameBgm(durationMs = 600) {
   if (!gameBgmAudio) return;
   if (gameBgmFadeIntervalId) clearInterval(gameBgmFadeIntervalId);
-  const startVolume = gameBgmAudio.volume;
+  const startVolume = gameBgmGain ? gameBgmGain.gain.value : gameBgmAudio.volume;
   const stepMs = 30;
   const steps = Math.max(1, Math.round(durationMs / stepMs));
   let step = 0;
   gameBgmFadeIntervalId = setInterval(() => {
     step++;
     const ratio = Math.max(0, 1 - step / steps);
-    gameBgmAudio.volume = startVolume * ratio;
+    setBgmTrackVolume(gameBgmAudio, gameBgmGain, startVolume * ratio);
     if (step >= steps) {
       clearInterval(gameBgmFadeIntervalId);
       gameBgmFadeIntervalId = null;
@@ -109,14 +166,16 @@ let gameBgmFadeIntervalId = null;
 // 何度も再描画するため、既に再生中なら再スタートしない（currentTimeを巻き戻すと
 // 再描画のたびに音が飛んでしまう）よう、他のBGMと違って明示的にガードする。
 let waitingBgmAudio = null;
+let waitingBgmGain = null;
 
 export function playWaitingBgm() {
   if (!waitingBgmAudio) {
     waitingBgmAudio = new Audio("assets/sounds/waiting-bgm.mp3");
     waitingBgmAudio.loop = true;
+    waitingBgmGain = attachGainNode(waitingBgmAudio);
   }
   const volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-waiting-bgm")));
-  waitingBgmAudio.volume = volume;
+  setBgmTrackVolume(waitingBgmAudio, waitingBgmGain, volume);
   if (waitingBgmAudio.paused) {
     waitingBgmAudio.currentTime = 0;
     waitingBgmAudio.play().catch(() => {});
@@ -126,14 +185,14 @@ export function playWaitingBgm() {
 export function stopWaitingBgm(durationMs = 600) {
   if (!waitingBgmAudio || waitingBgmAudio.paused) return;
   if (waitingBgmFadeIntervalId) clearInterval(waitingBgmFadeIntervalId);
-  const startVolume = waitingBgmAudio.volume;
+  const startVolume = waitingBgmGain ? waitingBgmGain.gain.value : waitingBgmAudio.volume;
   const stepMs = 30;
   const steps = Math.max(1, Math.round(durationMs / stepMs));
   let step = 0;
   waitingBgmFadeIntervalId = setInterval(() => {
     step++;
     const ratio = Math.max(0, 1 - step / steps);
-    waitingBgmAudio.volume = startVolume * ratio;
+    setBgmTrackVolume(waitingBgmAudio, waitingBgmGain, startVolume * ratio);
     if (step >= steps) {
       clearInterval(waitingBgmFadeIntervalId);
       waitingBgmFadeIntervalId = null;
@@ -207,13 +266,13 @@ export function setBgmVolume(next) {
 // 稀なケース）。
 function applyLiveBgmVolume() {
   if (openingBgmAudio && !openingBgmAudio.paused) {
-    openingBgmAudio.volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-opening-bgm")));
+    setBgmTrackVolume(openingBgmAudio, openingBgmGain, Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-opening-bgm"))));
   }
   if (gameBgmAudio && !gameBgmAudio.paused) {
-    gameBgmAudio.volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-game-bgm")));
+    setBgmTrackVolume(gameBgmAudio, gameBgmGain, Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-game-bgm"))));
   }
   if (waitingBgmAudio && !waitingBgmAudio.paused) {
-    waitingBgmAudio.volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-waiting-bgm")));
+    setBgmTrackVolume(waitingBgmAudio, waitingBgmGain, Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-waiting-bgm"))));
   }
 }
 
@@ -234,7 +293,8 @@ export function playVictoryBgm() {
   const volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-victory-bgm")));
   if (volume <= 0) return;
   const audio = new Audio("assets/sounds/victory-bgm.mp3");
-  audio.volume = volume;
+  const gainNode = attachGainNode(audio);
+  setBgmTrackVolume(audio, gainNode, volume);
   audio.play().catch(() => {});
 }
 
