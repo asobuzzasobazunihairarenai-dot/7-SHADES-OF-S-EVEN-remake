@@ -728,6 +728,12 @@ async function runAction(action, ctx, helpers) {
           const dest = await helpers.pickLocation(cellCandidates, "カードを置くマスを選択してください");
           if (!dest) break;
           destinations.push(dest);
+          // ユーザー報告「増殖する樹々の手札効果で、マスを選択するとき、どのマスが
+          // 選択済みかがわかりづらい」。同じ効果内で複数マスを連続して選ばせる場合、
+          // 実際の配置（山札から置く処理）は全て選び終わった後にまとめて行われるため、
+          // 選んだ直後は盤面上に何の変化も無い。選ぶたびにmarkPlacementTargetで
+          // 「ここに置かれる」目印を積み重ね、次の候補選択中も消えずに残るようにする。
+          helpers.markPlacementTarget?.(dest);
         }
       } else if (action.destination?.selection === TARGET_SELECTIONS.ALL_WITHIN_RANGE) {
         // 増殖する樹々専用: プレイヤーが選ぶのではなく、範囲内の「何もないマス」

@@ -1,20 +1,26 @@
 // ゲーム内通貨の所持金額表示（ユーザー要望「ヘルプボタンの横に通貨アイコンと所持金額を
 // 表示させたい」）。#help-button・#my-page-button・#options-menu-buttonと同じ並びの
 // さらに左隣（画面右上）に置く常設ウィジェット。未ログイン・ローカルモードでは通貨自体が
-// 存在しない（アカウントに紐づく残高のため）ので0のまま表示する。クリックするとショップ
-// （shop.js）が開く（online.jsのopenShop経由、main.jsが実際の関数を注入する）。
+// 存在しない（アカウントに紐づく残高のため）ので0のまま表示する。
+// ユーザー要望「所持金表示のアイコンをクリックすると『ショップ』『所持金について』の
+// 二つのプルダウンが出るようにしてほしい」への対応で、クリック時に直接ショップ
+// （shop.js、online.jsのopenShop経由）を開くのをやめ、小さな2択メニューを出すように
+// した。「所持金について」はお金がどんな時にもらえるかの説明パネルを開く。
 
 import { getCachedUser, getMyCurrencyBalance, openShop } from "./online.js";
 import { getOptionArea } from "./option-area.js";
+import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
 
 let amountEl = null;
+let displayButtonEl = null;
 
 export function initCurrencyDisplay() {
   const el = document.createElement("button");
   el.type = "button";
   el.id = "currency-display";
-  el.title = "ショップを開きます";
-  el.addEventListener("click", () => openShop());
+  el.title = "ショップ・所持金について";
+  el.addEventListener("click", () => toggleCurrencyMenu(el));
+  displayButtonEl = el;
 
   // ユーザーが格納した専用アイコン（画像素材/アイコン/通貨.png）を使う。絵文字🪙は
   // フォールバックとして残さず、この画像に一本化した。
@@ -30,6 +36,89 @@ export function initCurrencyDisplay() {
   el.appendChild(amountEl);
 
   getOptionArea().appendChild(el);
+}
+
+// クリックのたびに開閉をトグルする小さな2択メニュー（「常駐ツールパネル向け」の
+// 非ディム背景クリックで閉じる、ui-helpers.jsのcreateBackdrop dim:false）。
+let currentMenu = null;
+let currentMenuBackdrop = null;
+function closeCurrencyMenu() {
+  currentMenu?.remove();
+  currentMenuBackdrop?.remove();
+  currentMenu = null;
+  currentMenuBackdrop = null;
+}
+function toggleCurrencyMenu(anchorEl) {
+  if (currentMenu) {
+    closeCurrencyMenu();
+    return;
+  }
+  const rect = anchorEl.getBoundingClientRect();
+  const backdrop = createBackdrop(closeCurrencyMenu, { dim: false, zIndex: 9500 });
+  const menu = document.createElement("div");
+  menu.id = "currency-dropdown-menu";
+  menu.style.top = `${rect.bottom + 6}px`;
+  menu.style.right = `${window.innerWidth - rect.right}px`;
+
+  const shopBtn = document.createElement("button");
+  shopBtn.type = "button";
+  shopBtn.textContent = "🛒 ショップ";
+  shopBtn.addEventListener("click", () => {
+    closeCurrencyMenu();
+    openShop();
+  });
+  menu.appendChild(shopBtn);
+
+  const aboutBtn = document.createElement("button");
+  aboutBtn.type = "button";
+  aboutBtn.textContent = "💰 所持金について";
+  aboutBtn.addEventListener("click", () => {
+    closeCurrencyMenu();
+    showCurrencyAboutPanel();
+  });
+  menu.appendChild(aboutBtn);
+
+  document.body.appendChild(backdrop);
+  document.body.appendChild(menu);
+  currentMenu = menu;
+  currentMenuBackdrop = backdrop;
+}
+
+// 「所持金について」——お金がどんな時にもらえるかの説明。実際の金額は
+// supabase_setup_so7.sqlのso7_award_match_currency/so7_claim_daily_login_bonusの
+// デフォルト値（呼び出し側であるonline.jsのawardMatchCurrency/claimDailyLoginBonus
+// はどちらも金額を明示せずデフォルトのまま呼んでいるため、実際に適用される値と一致）
+// をそのまま案内文に反映している。金額を変えたら、ここも一緒に直すこと。
+function showCurrencyAboutPanel() {
+  const backdrop = createBackdrop(close, { dim: true, zIndex: 9600 });
+  const panel = document.createElement("div");
+  panel.id = "currency-about-panel";
+  function close() {
+    backdrop.remove();
+    panel.remove();
+  }
+  const title = document.createElement("div");
+  title.className = "currency-about-title";
+  title.textContent = "💰 所持金について";
+  panel.appendChild(title);
+
+  const list = document.createElement("ul");
+  list.className = "currency-about-list";
+  const items = [
+    "対局が最後まで終わるたびに、参加した全員に50もらえます。",
+    "その対局に勝利すると、さらに+30のボーナスがもらえます（合計80）。",
+    "1日1回、ログインすると20もらえます（ログインボーナス）。",
+  ];
+  for (const text of items) {
+    const li = document.createElement("li");
+    li.textContent = text;
+    list.appendChild(li);
+  }
+  panel.appendChild(list);
+
+  panel.appendChild(createModalCloseX(close));
+  document.body.appendChild(backdrop);
+  document.body.appendChild(panel);
 }
 
 // 対局終了時の付与(online.jsのawardMatchCurrency)・shop.jsでの購入の後など、残高が

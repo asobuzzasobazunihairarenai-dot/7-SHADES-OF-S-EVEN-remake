@@ -17,6 +17,7 @@ import { getSelfSeat, getCurrentGameId, fetchAndHydrate } from "./online.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
 import { stageDelta, toStageLocalRect } from "./main.js";
 import { setAutoProcessingEnabled } from "./card-effect-engine.js";
+import { COLORS } from "./board-layout.js";
 
 // main.js側のtriggerCardArrival・runAutoHandEffect（自己申告モーダル／自動処理の分岐を
 // 持つ本体）はmain.js内にしか無いため、他の箇所と同じ「register helper」注入パターンで
@@ -275,6 +276,24 @@ const PILOT_CARDS = [
   { cardId: "pink-party", kind: "handEffect", actual: "これを任意のマスに裏向きで置く。" },
 ];
 
+// ユーザー要望「カード開発モードウィンドウ内のカードの並びがバラバラなので整列して」
+// への対応。PILOT_CARDS自体は実装した順に追記してきたため見た目の並びがバラバラ
+// だったが、配列そのものの記述順（他の続き番号コメント等が指す位置）は変えず、
+// 一覧描画用にソート済みコピーを別に用意する。board-layout.jsのCOLORS（赤〜紫の
+// 盤面上の並び順、docs/cards.mdの色順とも一致）に、無色系（白・黒・なないろ）を
+// 末尾に付け足した順で色ごとにグループ化し、同じ色の中はcardId（同じカードの
+// 到達効果／手札効果はcardIdが同じなので自然に隣り合う）→到達系→手札系の順にする。
+const COLOR_SORT_ORDER = [...COLORS, "white", "black", "rainbow"];
+const KIND_SORT_ORDER = { arrival: 0, arrivalOptions: 0, handEffect: 1, handEffectOptions: 1 };
+const SORTED_PILOT_CARDS = [...PILOT_CARDS].sort((a, b) => {
+  const colorA = getCardDefinition(a.cardId)?.color ?? "";
+  const colorB = getCardDefinition(b.cardId)?.color ?? "";
+  const colorDiff = COLOR_SORT_ORDER.indexOf(colorA) - COLOR_SORT_ORDER.indexOf(colorB);
+  if (colorDiff !== 0) return colorDiff;
+  if (a.cardId !== b.cardId) return a.cardId < b.cardId ? -1 : 1;
+  return (KIND_SORT_ORDER[a.kind] ?? 2) - (KIND_SORT_ORDER[b.kind] ?? 2);
+});
+
 const KIND_LABEL = {
   arrival: "到達効果",
   handEffect: "手札効果",
@@ -391,7 +410,7 @@ function buildPanel(close, minimize) {
 
   const list = document.createElement("div");
   list.id = "card-dev-mode-list";
-  for (const pilot of PILOT_CARDS) {
+  for (const pilot of SORTED_PILOT_CARDS) {
     list.appendChild(buildPilotRow(pilot, minimize));
   }
   panel.appendChild(list);

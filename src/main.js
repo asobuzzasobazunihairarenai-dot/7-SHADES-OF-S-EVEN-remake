@@ -44,7 +44,7 @@ import {
 } from "./phase-automation.js";
 import { initHelpButton } from "./help.js";
 import { getOptionArea } from "./option-area.js";
-import { initCurrencyDisplay, refreshCurrencyDisplay } from "./currency-display.js";
+import { initCurrencyDisplay, refreshCurrencyDisplay, showCurrencyAwardEffect } from "./currency-display.js";
 import { initShop, openShopPanel } from "./shop.js";
 import { initGameSetup, previewStartPlayerModal } from "./game-setup.js";
 import { initOptionsMenu } from "./options-menu.js";
@@ -1687,7 +1687,7 @@ let activeEffectPicker = null; // { type: "cell", candidates, resolve } | { type
 // 何らかの理由でrender()が呼ばれる（最小化からの復帰でも起こり得る）と、
 // requestCellChoiceForEffect等が直接付けたハイライトclassは古い（今はもう
 // 画面に無い）要素に残ったまま、新しい要素には引き継がれない。
-// pendingPlacementLocation/justPlacedLocationsと同じ「render()の末尾で毎回
+// pendingPlacementLocations/justPlacedLocationsと同じ「render()の末尾で毎回
 // 論理的な候補から貼り直す」パターンをactiveEffectPickerにも適用する。
 function reapplyEffectPickerHighlights(table) {
   if (!activeEffectPicker) return;
@@ -1730,10 +1730,16 @@ function glowHandTokensBriefly(tokenIds) {
   }, DRAW_GLOW_HIGHLIGHT_MS);
 }
 let glowingEffectHandTokenId = null;
-let pendingPlacementLocation = null;
+// ユーザー要望「収穫と種まきの置き直す先のマスをハイライトして忘れないように」に加え、
+// ユーザー報告「増殖する樹々の手札効果で、マスを選択するとき、どのマスが選択済みかが
+// わかりづらい」への対応。PICKUP_TO_HANDでは常に1件だが、PLACE_CARDのCHOOSE（同じ効果
+// 内でN回連続してマスを選ばせる場合、例: 増殖する樹々の「任意の3マスに置く」）では
+// 選ぶたびに追加されて複数同時に貼りっぱなしになるためSetで持つ（justPlacedLocationsと
+// 同じ「row,colキー文字列」形式）。
+let pendingPlacementLocations = new Set();
 // ユーザー要望「配置系効果は配置後ここに配置したよがわかるように配置場所をしっかり
 // ハイライトしてください。マスの枠だけでなくカードの面もね！」。上のpendingPlacement
-// Locationは「これから置く場所」（置く前）の目印だが、こちらは「今まさに置いた場所」
+// Locationsは「これから置く場所」（置く前）の目印だが、こちらは「今まさに置いた場所」
 // （置いた後）の目印で、効果全体の完了を待たず一定時間で自動的に消える（数秒で消える他の
 // 演出と同じ考え方、対象マスは複数になり得るためSetで持つ）。
 let justPlacedLocations = new Set();
@@ -2052,8 +2058,11 @@ function onEffectCardAcquiredToHand(tokenId, cardId, wasFaceUp) {
 }
 
 // ユーザー要望「どこに置かれるのかを忘れないように置かれるマスをハイライトしてください」。
+// PLACE_CARDのCHOOSE（増殖する樹々の手札効果等、同じ効果内でN回連続してマスを選ばせる場合）
+// では選ぶたびに呼ばれ、既存の選択は消さずに積み重なる（置き直し前提のPICKUP_TO_HANDでは
+// 従来通り1件のみ）。
 function markEffectPlacementTarget(location) {
-  pendingPlacementLocation = location;
+  pendingPlacementLocations.add(`${location.row},${location.col}`);
   render();
 }
 
@@ -2077,7 +2086,7 @@ function markEffectJustPlaced(location) {
 // （効果がすぐ終わっても、置いた場所の余韻はしばらく見えていてほしいため）。
 function clearEffectUiHighlights() {
   glowingEffectHandTokenId = null;
-  pendingPlacementLocation = null;
+  pendingPlacementLocations.clear();
 }
 
 // ドロー枚数の演出（山札から手札への飛翔ゴースト）。ユーザー要望「山札から１枚手札に
@@ -3474,12 +3483,14 @@ function render() {
   // 要素へ再度貼り付け直してもらう。
   reapplyActiveHighlights(table);
   reapplyEffectPickerHighlights(table);
-  // ユーザー要望「収穫と種まきの置き直し先を忘れないようにハイライトしてほしい」。
-  // pendingPlacementLocationが選択の対象候補（activeEffectPicker）とは別に、
+  // ユーザー要望「収穫と種まきの置き直し先を忘れないようにハイライトしてほしい」＋
+  // 「増殖する樹々の手札効果で、マスを選択するとき、どのマスが選択済みかがわかりづらい」。
+  // pendingPlacementLocationsが選択の対象候補（activeEffectPicker）とは別に、
   // PLACE_CARDが完了する（main.jsのclearEffectUiHighlightsが呼ばれる）まで
   // 再表示のたびに貼り直す。
-  if (pendingPlacementLocation) {
-    const targetEl = findLocationElement(table, pendingPlacementLocation);
+  for (const key of pendingPlacementLocations) {
+    const [row, col] = key.split(",").map(Number);
+    const targetEl = findLocationElement(table, { zone: "cell", row, col });
     if (targetEl) targetEl.classList.add("card-effect-placement-target");
   }
   // ユーザー要望「配置後ここに配置したよがわかるように配置場所をしっかりハイライト
@@ -6998,6 +7009,11 @@ onAuthChange((user) => {
       .then((amount) => {
         if (amount > 0) {
           showDailyBonusToast(amount);
+          // ユーザー要望「お金がもらえるときの演出が欲しい」——対局終了時
+          // （victory.jsのcheckForVictory）だけでなく、お金が増えるタイミング全て
+          // （このログインボーナスも含む）で同じ通貨アイコンのパルス＋「+N」演出
+          // を出し、見た目を統一する。
+          showCurrencyAwardEffect(amount);
           refreshCurrencyDisplay();
         }
       })
