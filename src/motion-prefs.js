@@ -33,3 +33,16 @@ export function isContinuousGlowDisabled() {
 export function setContinuousGlowDisabled(v) {
   continuousGlowDisabled = v;
 }
+
+// ユーザー要望「相手の基本時間のカウントダウンを表示/非表示できるようにしてほしい。
+// デフォルトは非表示で」（src/turn-timer.jsのupdateBaseClock参照）。自分自身の
+// カウントダウンは常に表示するので対象外——これは「相手の分」だけを見るかどうかの
+// 設定。画面中央の砂時計ロープ（延長時間、turn-timer.jsのupdateRope）は元々誰の分でも
+// 常時表示のままで、この設定の対象外。
+let opponentBaseTimerVisible = false;
+export function isOpponentBaseTimerVisible() {
+  return opponentBaseTimerVisible;
+}
+export function setOpponentBaseTimerVisible(v) {
+  opponentBaseTimerVisible = v;
+}

@@ -43,6 +43,7 @@ import {
   setFlightAnimationDisabled,
   setArrivalEffectDisabled,
   setContinuousGlowDisabled,
+  setOpponentBaseTimerVisible,
 } from "./motion-prefs.js";
 import { SHORTCUT_TARGETS, setShortcut } from "./player-buttons.js";
 
@@ -751,7 +752,7 @@ export async function loadMyPreferences() {
         "arrival_effect_disabled, continuous_glow_disabled, gate_invasion_modal_duration, " +
         "card_arrival_modal_duration, hand_pickup_toast_duration, shortcuts, " +
         "display_name, avatar, piece_skin_index, playmat_id, card_back_set_index, background_id, " +
-        "flatten_2d_mode, card_auto_processing_enabled"
+        "flatten_2d_mode, card_auto_processing_enabled, opponent_base_timer_visible"
     )
     .eq("user_id", cachedUser.id)
     .maybeSingle();
@@ -779,6 +780,7 @@ export async function loadMyPreferences() {
   if (typeof data.sound_volume_bgm === "number") setBgmVolume(data.sound_volume_bgm / 100);
   if (typeof data.flatten_2d_mode === "boolean") setFlatten2dMode(data.flatten_2d_mode);
   if (typeof data.card_auto_processing_enabled === "boolean") setAutoProcessingEnabled(data.card_auto_processing_enabled);
+  if (typeof data.opponent_base_timer_visible === "boolean") setOpponentBaseTimerVisible(data.opponent_base_timer_visible);
   if (typeof data.flight_animation_disabled === "boolean") setFlightAnimationDisabled(data.flight_animation_disabled);
   if (typeof data.arrival_effect_disabled === "boolean") setArrivalEffectDisabled(data.arrival_effect_disabled);
   if (typeof data.continuous_glow_disabled === "boolean") {

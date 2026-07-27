@@ -40,7 +40,7 @@ export const VERBS = {
   PUBLIC_DRAW_MATCHING_DECLARED_COLOR_COUNT: "public_draw_matching_declared_color_count", // ザ・ギャンブル専用: 直前に宣言した色の種類数分、公開ドローする
   DISCARD_HAND_IF_REVEALED_MATCHES_DECLARED: "discard_hand_if_revealed_matches_declared", // ザ・ギャンブル専用: 公開したカードの中に宣言色があれば手札を全て捨てる
   RITUAL_PLACE_MOVE_REPEAT: "ritual_place_move_repeat", // 試練の儀式専用: 隣に山札から1枚表向きで置く→そこへ移動（到達効果無し）→宣言色なら繰り返す
-  ALL_PLAYERS_PLACE_TWO_CARDS_IN_EMPTY_CELLS: "all_players_place_two_cards_in_empty_cells", // 合同建設専用: 全員がそれぞれ、何もない2マスに山札または手札から1枚ずつ裏向きで置く
+  ALL_PLAYERS_PLACE_ONE_CARD_IN_EMPTY_CELL: "all_players_place_one_card_in_empty_cell", // 合同建設専用: 全員がそれぞれ、何もない1マスに山札または手札から1枚裏向きで置く
   ALL_PLAYERS_DISCARD_TO_THREE: "all_players_discard_to_three", // スラム上がりの役人専用: 全員がそれぞれ、手札が3枚になるまで自分で選んで捨てる
   ALL_PLAYERS_CHOOSE_PARTY_OPTION: "all_players_choose_party_option", // パーティー専用: 全員がそれぞれ、3つの選択肢から1つ選んで得る
   END_CURRENT_PHASE: "end_current_phase", // なないろの巨光・スラム上がりの役人・ザ・ギャンブル専用: 現在のフェイズを強制的に終了する
@@ -665,19 +665,20 @@ export const CARD_EFFECTS = {
     },
   },
 
-  // 合同建設（緑、通常カード） 到達効果: 「全員は何もない２マスに山札または手札から
-  // １枚裏向きで置く。」処理順の原則（効果の使用者から時計回り）に沿い、各プレイヤーが
-  // 自分自身の選択（マス・山札か手札か・手札ならどのカードか）を行う。他プレイヤーの
-  // 選択は自分のクライアントでは表現できないため、main.js側のhelpers.delegateToPlayer
+  // 合同建設（緑、通常カード） 到達効果: 「全員は何もない１マスに山札または手札から
+  // １枚裏向きで置く。」（ユーザー要望によりマス数を２→１に変更、続き51）。
+  // 処理順の原則（効果の使用者から時計回り）に沿い、各プレイヤーが自分自身の選択
+  // （マス・山札か手札か・手札ならどのカードか）を行う。他プレイヤーの選択は
+  // 自分のクライアントでは表現できないため、main.js側のhelpers.delegateToPlayer
   // （オンライン中は対象プレイヤー本人の画面へ委任するbroadcast往復）に委ねる。
   "green-joint-construction": {
     arrival: {
-      actions: [{ verb: VERBS.ALL_PLAYERS_PLACE_TWO_CARDS_IN_EMPTY_CELLS }],
+      actions: [{ verb: VERBS.ALL_PLAYERS_PLACE_ONE_CARD_IN_EMPTY_CELL }],
     },
     // 手札効果: 「上記の到達時の効果を得る。」到達効果と同じ（inheritsArrival）。
     handEffect: {
       inheritsArrival: true,
-      actions: [{ verb: VERBS.ALL_PLAYERS_PLACE_TWO_CARDS_IN_EMPTY_CELLS }],
+      actions: [{ verb: VERBS.ALL_PLAYERS_PLACE_ONE_CARD_IN_EMPTY_CELL }],
     },
   },
 
@@ -863,8 +864,8 @@ function renderAction(action, context) {
       return "それらの中に宣言色があるなら、あなたの手札を全て捨てる。";
     case VERBS.RITUAL_PLACE_MOVE_REPEAT:
       return "あなたの隣に山札から１枚表向きで置く。そのマスに移動し、移動先の到達効果は得ない。置いたカードが宣言色ならこの効果を繰り返す。";
-    case VERBS.ALL_PLAYERS_PLACE_TWO_CARDS_IN_EMPTY_CELLS:
-      return "全員は何もない２マスに山札または手札から１枚裏向きで置く。";
+    case VERBS.ALL_PLAYERS_PLACE_ONE_CARD_IN_EMPTY_CELL:
+      return "全員は何もない１マスに山札または手札から１枚裏向きで置く。";
     case VERBS.ALL_PLAYERS_DISCARD_TO_THREE:
       return "全員は手札が３枚になるように捨てる。";
     case VERBS.ALL_PLAYERS_CHOOSE_PARTY_OPTION:
@@ -1071,7 +1072,7 @@ if (typeof process !== "undefined" && process.argv[1] && process.argv[1].endsWit
 
   console.log("[合同建設 到達効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["green-joint-construction"].arrival));
-  console.log("  実際: 全員は何もない２マスに山札または手札から１枚裏向きで置く。\n");
+  console.log("  実際: 全員は何もない１マスに山札または手札から１枚裏向きで置く。\n");
 
   console.log("[合同建設 手札効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["green-joint-construction"].handEffect));

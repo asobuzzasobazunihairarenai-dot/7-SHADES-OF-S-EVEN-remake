@@ -422,15 +422,6 @@ const GROUPS = [
     ],
   },
   {
-    // 左下の自分専用ステータスエリアに出す「⏳×N」表示（turn-timer.jsのbuildSelfStock参照）。
-    title: "ターンタイマー：砂時計残数バッジの位置調整",
-    category: "position-ui",
-    controls: [
-      { key: "--turn-timer-self-stock-pos-x", label: "位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: -6 },
-      { key: "--turn-timer-self-stock-pos-y", label: "位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 0 },
-    ],
-  },
-  {
     title: "駒の当たり判定（ホバーすると発光する範囲）",
     category: "position-board",
     controls: [

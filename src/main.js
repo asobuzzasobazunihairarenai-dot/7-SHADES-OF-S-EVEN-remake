@@ -1528,27 +1528,24 @@ function requestPlaceSourceChoiceForEffect() {
 // 置く」を、実際にこのプレイヤー本人の画面で（自分の番なら直接、他プレイヤーの番なら
 // delegateToPlayerForEffect経由で）解決する。
 async function runJointConstructionTask(player) {
-  let placedCount = 0;
-  for (let i = 0; i < 2; i++) {
-    const emptyCells = getEmptyCellCandidatesForEffect();
-    if (emptyCells.length === 0) break; // 善処の原則: 置ける空きマスが無ければそこで終わる
-    // ユーザー指摘「『空いてるマス』ではなく『何もないマス』」——getEmptyCellCandidatesForEffect
-    // 自体は元々「カードも駒も無いマス」を正しく候補にしていたが、案内文の言葉遣いだけ
-    // 「空いている」になっていた。docs/cards.mdの表記に合わせて「何もない」に統一する。
-    const dest = await requestCellChoiceForEffect(emptyCells, `何もないマスを選択してください（${i + 1}/2）`);
-    if (!dest) break;
-    const source = await requestPlaceSourceChoiceForEffect();
-    if (!source) break;
-    if (source === "hand") {
-      const handToken = await requestHandCardChoiceForEffect(player, "そのマスに置くカードを手札から選択してください");
-      if (!handToken) break;
-      await moveAndSyncForEffect(handToken.id, { zone: "cell", row: dest.row, col: dest.col });
-    } else {
-      await placeFromDeckForEffect({ zone: "cell", row: dest.row, col: dest.col });
-    }
-    placedCount++;
+  // ユーザー要望によりマス数を２→１に変更（続き51）。
+  const emptyCells = getEmptyCellCandidatesForEffect();
+  if (emptyCells.length === 0) return false; // 善処の原則: 置ける空きマスが無ければ何もしない
+  // ユーザー指摘「『空いてるマス』ではなく『何もないマス』」——getEmptyCellCandidatesForEffect
+  // 自体は元々「カードも駒も無いマス」を正しく候補にしていたが、案内文の言葉遣いだけ
+  // 「空いている」になっていた。docs/cards.mdの表記に合わせて「何もない」に統一する。
+  const dest = await requestCellChoiceForEffect(emptyCells, "何もないマスを選択してください");
+  if (!dest) return false;
+  const source = await requestPlaceSourceChoiceForEffect();
+  if (!source) return false;
+  if (source === "hand") {
+    const handToken = await requestHandCardChoiceForEffect(player, "そのマスに置くカードを手札から選択してください");
+    if (!handToken) return false;
+    await moveAndSyncForEffect(handToken.id, { zone: "cell", row: dest.row, col: dest.col });
+  } else {
+    await placeFromDeckForEffect({ zone: "cell", row: dest.row, col: dest.col });
   }
-  return placedCount > 0;
+  return true;
 }
 
 // スラム上がりの役人専用のタスクハンドラ。「手札が3枚になるまで自分で選んで捨てる」。
@@ -1645,15 +1642,25 @@ async function delegateToPlayerForEffect(player, taskType) {
   if (!isOnlineMode() || player === getSelfSeat()) {
     return runDelegatedArrivalTask(player, taskType);
   }
+  // ユーザー要望「手札効果で相手に選択をさせるカードなどでは優先権をその相手に渡す
+  // ようにしてください」。接触の強制移動（transferPriorityTo(defender)、上の
+  // respondContact周りの処理参照）と同じ考え方——合同建設・スラム上がりの役人・
+  // パーティー等の「全員がそれぞれ選ぶ」効果で、相手の画面が選択待ちになっている間、
+  // 手番プレイヤーがターン終了ボタンを押して相手の解決を置き去りにしてしまわないよう、
+  // 委任している間だけ優先権をその相手へ一時的に移す。
+  const turnPlayer = getState().turnPlayer;
+  transferPriorityTo(player);
   const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   broadcastArrivalDelegateRequest({ player, taskType, requestId });
-  return new Promise((resolve) => {
+  const result = await new Promise((resolve) => {
     const unregister = onArrivalDelegateResolvedEvents((payload) => {
       if (payload.requestId !== requestId) return;
       unregister();
       resolve(payload.result);
     });
   });
+  transferPriorityTo(turnPlayer);
+  return result;
 }
 // 受け手側: 自分宛ての委任リクエストが届いたら、このクライアント（＝対象プレイヤー
 // 本人の画面）で実際に解決し、結果を送り返す。
@@ -1944,6 +1951,68 @@ function performPhaseContact(location) {
   );
   if (!piece || !opponentPiece) return;
   showContactPrompt(piece.player, opponentPiece.player, opponentPiece.id);
+}
+
+function pickRandomFrom(arrayOrSet) {
+  const arr = Array.isArray(arrayOrSet) ? arrayOrSet : [...arrayOrSet];
+  if (arr.length === 0) return null;
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+// ユーザー要望「タイマーが切れた場合、自動でスキップまたはターン終了をするように
+// してください。なお移動先や効果の選択などの途中の場合はランダムで選択させるように
+// してください。ロックフェイズのロックやハンドフェイズの手札使用は任意なので普通に
+// スキップでいいです」。turn-timer.js側のtick()が、優先権保持者自身の砂時計を完全に
+// 使い切った（stock<=0、警告表示になる）瞬間に一度だけ呼ぶ（このゲーム全体の
+// 「座席を持っていれば何でも自由に操作できる、強制力の無い自己申告制」という設計
+// 方針は変えず、あくまで「本人がタイムアウトした」という自己申告的な状況の続きとして、
+// 本人のクライアント上でだけ行う——turn-timer.js側がgetSelfSeat()===priorityPlayerを
+// 確認してから呼ぶ）。
+// 優先度: ①効果解決中の候補選択待ち（activeEffectPicker、マス/手札/アバター）→
+// ②ムーブフェイズで移動/接触の候補待ち→③ロック/ハンドフェイズ（任意のため単純
+// スキップ）。①②は「必ず何かしなければならない」場面のためランダムに1つ選んで実行し、
+// ③は「何もしなくても進められる」場面のためフェイズを進めるだけにする。該当する状況が
+// 無ければ何もしない（isAutoProcessingEnabled()がOFFでフェイズ自体を追跡していない
+// 場合等、従来通り警告表示のみに留める）。
+export function performPriorityTimeoutAutoAction() {
+  if (activeEffectPicker) {
+    const picker = activeEffectPicker;
+    activeEffectPicker = null;
+    if (picker.type === "cell") {
+      const choice = pickRandomFrom(picker.candidates);
+      picker.resolve(choice);
+    } else if (picker.type === "hand") {
+      const tokenId = pickRandomFrom([...picker.tokenIds]);
+      const token = tokenId ? getState().tokens.find((t) => t.id === tokenId) : null;
+      picker.resolve(token ?? null);
+    } else if (picker.type === "player") {
+      picker.resolve(pickRandomFrom([...picker.players]));
+    }
+    return true;
+  }
+  const phase = getCurrentPhase();
+  if (phase === "move" && isMovePhaseActive()) {
+    const table = document.getElementById("game-table");
+    const candidates = table
+      ? [
+          ...[...table.querySelectorAll(".cell.phase-move-highlight")].map((el) => ({ el, isMove: true })),
+          ...[...table.querySelectorAll(".cell.phase-contact-highlight")].map((el) => ({ el, isMove: false })),
+        ]
+      : [];
+    const chosen = pickRandomFrom(candidates);
+    if (chosen) {
+      markPhaseMoveActionTaken();
+      const location = { zone: "cell", row: Number(chosen.el.dataset.row), col: Number(chosen.el.dataset.col) };
+      if (chosen.isMove) performPhaseMoveToCell(location);
+      else performPhaseContact(location);
+      return true;
+    }
+  }
+  if (phase === "lock" || phase === "hand") {
+    forceEndCurrentPhase();
+    return true;
+  }
+  return false;
 }
 
 // ユーザー要望「プレイヤーに作業をさせる場合は『移動先のマスを選択してください』などの

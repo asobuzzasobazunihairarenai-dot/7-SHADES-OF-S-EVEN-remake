@@ -255,7 +255,7 @@ const PILOT_CARDS = [
   {
     cardId: "green-joint-construction",
     kind: "arrival",
-    actual: "全員は何もない２マスに山札または手札から１枚裏向きで置く。",
+    actual: "全員は何もない１マスに山札または手札から１枚裏向きで置く。",
   },
   { cardId: "green-joint-construction", kind: "handEffect", actual: "上記の到達時の効果を得る。" },
   {

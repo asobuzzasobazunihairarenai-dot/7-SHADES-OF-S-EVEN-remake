@@ -18,6 +18,8 @@ import {
   setArrivalEffectDisabled,
   isContinuousGlowDisabled,
   setContinuousGlowDisabled,
+  isOpponentBaseTimerVisible,
+  setOpponentBaseTimerVisible,
 } from "./motion-prefs.js";
 import { saveMyPreference, resetMyAppearanceSettings, isAdminUser } from "./online.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
@@ -425,6 +427,17 @@ export function initOptionsMenu() {
       buildCheckboxRow("2D表示に切り替える（タブレットの点滅対策）", isFlatten2dMode(), (checked) => {
         setFlatten2dMode(checked);
         saveMyPreference({ flatten_2d_mode: checked });
+      })
+    );
+
+    // ユーザー要望「相手の基本時間のカウントダウンを表示、非表示ボタンを基本設定に
+    // 追加してください。デフォルトは非表示で」。自分自身のカウントダウンは常に表示する
+    // （この設定の対象外）。画面中央の砂時計ロープは誰の分でも従来通り常時表示のまま
+    // （turn-timer.jsのupdateRope、この設定の対象外）。
+    panel.appendChild(
+      buildCheckboxRow("相手の基本時間のカウントダウンを表示する", isOpponentBaseTimerVisible(), (checked) => {
+        setOpponentBaseTimerVisible(checked);
+        saveMyPreference({ opponent_base_timer_visible: checked });
       })
     );
 

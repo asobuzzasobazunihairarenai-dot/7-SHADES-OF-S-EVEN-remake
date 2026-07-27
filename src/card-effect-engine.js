@@ -1027,8 +1027,8 @@ async function runAction(action, ctx, helpers) {
       }
       return placedAny;
     }
-    case VERBS.ALL_PLAYERS_PLACE_TWO_CARDS_IN_EMPTY_CELLS: {
-      // 合同建設専用: 全員がそれぞれ「何もない2マスに山札または手札から1枚裏向きで
+    case VERBS.ALL_PLAYERS_PLACE_ONE_CARD_IN_EMPTY_CELL: {
+      // 合同建設専用: 全員がそれぞれ「何もない1マスに山札または手札から1枚裏向きで
       // 置く」を、処理順の原則に沿って1人ずつ行う。各プレイヤー自身の選択
       // （マス・山札か手札か・どのカードか）はhelpers.delegateToPlayerに委ねる
       // （main.js側：自分の番ならその場で、他プレイヤーの番ならオンライン中継で

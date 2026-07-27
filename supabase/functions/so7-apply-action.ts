@@ -839,10 +839,25 @@ Deno.serve(async (req) => {
 
     // 山から自分の手札へ引いた場合だけ、獲得ポップアップ用に実際のcardIdを返す
     // （それ以外の場合、呼び出し元に山の中身を教えてはいけない）。
+    // ユーザー報告「ザ・ギャンブルで宣言色が出ているのに手札が全て捨てられない」の
+    // 確定原因: publicDraw（表向き・全員に公開のゾーン、faceUpForLocationにより
+    // 常にtrue）はzone==="hand"ではないため、この条件が常にfalseになりrevealedCardId
+    // が常にnullで返っていた。src/card-effect-engine.jsのPUBLIC_DRAW_MATCHING_
+    // DECLARED_COLOR_COUNT（src/main.jsのpublicDrawForEffect経由）はこの戻り値だけを
+    // 頼りに宣言色との一致判定用のrevealedCardIdsを組み立てているため、オンライン対戦
+    // では公開ドローで実際に何が出ても常に「何も一致しなかった」扱いになり、手札を
+    // 全て捨てる処理が一切発動しなかった。publicDrawは元々全員に見える設計（盤面の
+    // 状態自体に平文のcardIdが乗る、RLSで隠されるのはhand/deck等の非公開ゾーンだけ）
+    // のため、ここで教えても山の中身を漏らすことにはならない。zone==="publicDraw"の
+    // 場合も対象に含める（座席の所有者チェックは不要、公開情報のため誰が引いても良い）。
     let revealedCardId: string | null = null;
-    if (action.type === "DRAW_FROM_PILE" && action.location?.zone === "hand") {
+    if (action.type === "DRAW_FROM_PILE" && (action.location?.zone === "hand" || action.location?.zone === "publicDraw")) {
       const drawnToken = next.tokens[next.tokens.length - 1];
-      if (drawnToken && drawnToken.location.zone === "hand" && drawnToken.location.player === seatRow.seat) {
+      if (
+        drawnToken &&
+        ((drawnToken.location.zone === "hand" && drawnToken.location.player === seatRow.seat) ||
+          drawnToken.location.zone === "publicDraw")
+      ) {
         revealedCardId = drawnToken.cardId ?? null;
       }
     }

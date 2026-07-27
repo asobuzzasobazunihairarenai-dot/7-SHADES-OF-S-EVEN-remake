@@ -1663,26 +1663,6 @@ body.self-status-rearrange-mode #self-status-online.is-rearranging {
   font-size: 0.85rem;
 }
 
-/* 自分専用の砂時計個数バッジ。#self-hand-status（左下ステータスエリア）の中に
-   turn-timer.js側が直接appendする。ターンタイマーが有効かつゲーム中だけ表示。 */
-.turn-timer-self-stock {
-  font-size: 0.75rem;
-  color: #94a3b8;
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-  transform: translate(var(--turn-timer-self-stock-pos-x, -6rem), var(--turn-timer-self-stock-pos-y, 0rem));
-}
-/* ユーザーがプレイヤー色別の砂時計アイコン画像を追加してくれたため、絵文字(⏳)から
-   差し替えた。自分の駒の色に応じたアイコンをJS側(updateSelfStock)で設定する。 */
-.turn-timer-self-stock-icon {
-  display: block;
-  width: 0.9rem;
-  height: 0.9rem;
-  object-fit: contain;
-}
-
 /* 画面中央、プレイマットを横断するスケールで出現する神秘的なオーラのロープ。基本時間
    （管理者モードのropeBaseSeconds、無音・無表示）が切れて初めて、延長時間（同
    ropeExtensionSeconds）ぶんだけ出現する——「1回の行動」の基本時間そのものにはロープを
@@ -7289,8 +7269,6 @@ body.is-online-mode #quick-start-bar {
   --turn-timer-rope-width: 46rem;
   --priority-transfer-pos-x: -1.6rem;
   --priority-transfer-pos-y: 1.5rem;
-  --turn-timer-self-stock-pos-x: -6rem;
-  --turn-timer-self-stock-pos-y: 0rem;
   --piece-hitbox-scale: 1;
   --playmat-scale: 1.42;
   --playmat-pos-x: 0%;

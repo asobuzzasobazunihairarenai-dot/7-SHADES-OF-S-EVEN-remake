@@ -25,7 +25,7 @@
 // online.jsのstartGame()が送るtimerConfig参照）。
 
 import { getState, subscribe, setPriorityState, isOnlineMode } from "./state.js";
-import { toStageLocalRect, STAGE_WIDTH } from "./main.js";
+import { toStageLocalRect, STAGE_WIDTH, performPriorityTimeoutAutoAction } from "./main.js";
 import { SEAT_ORDER, SEAT_TO_SIDE, getRotationSteps, rotateSide } from "./board-layout.js";
 import { getSelfSeat, getSyncedTimerConfig, getCurrentGameId, fetchAndHydrate } from "./online.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
@@ -41,6 +41,7 @@ import {
   getTurnsToReplenishHourglass as getTurnsToReplenishHourglassLocal,
   getReducedBaseSeconds as getReducedBaseSecondsLocal,
 } from "./admin.js";
+import { isOpponentBaseTimerVisible } from "./motion-prefs.js";
 
 // オンライン対戦中は、ゲーム開始時に固定された対局全体共通の設定（timer_config、
 // 部屋作成者のその時点のローカル設定を1回だけ書き込んだもの）を優先する——プレイヤーごとに
@@ -81,10 +82,7 @@ function getReducedBaseSeconds() {
 // （SET_PRIORITY_STATE自身やターン交代アクションは対象外）。
 const REAL_ACTION_TYPES = new Set(["MOVE_TOKEN", "DRAW_FROM_PILE", "FLIP_TOKEN", "SEND_TOKEN_TO_PILE"]);
 
-let selfStockEl = null; // 左下の自分専用ステータスエリアに出す、自分の砂時計個数バッジ
-let selfStockIconEl = null;
-let selfStockCountEl = null;
-let baseClockEl = null; // フェイズ案内板の中に出す、基本時間の残り秒数表示
+let baseClockEl = null; // フェイズ案内板の中に出す、基本時間の残り秒数表示（常時表示、カウント中でない時は自分の砂時計残数の表示に切り替わる）
 let baseClockLabelEl = null;
 let baseClockHourglassIconEl = null;
 let baseClockHourglassCountEl = null;
@@ -286,44 +284,13 @@ function onStateChange(state) {
   withGuard(() => setPriorityState({ player: state.priorityPlayer, deadline: freshBaseDeadlineFor(state.priorityPlayer), phase: "base" }));
 }
 
-// --- 自分専用の砂時計バッジ（左下ステータスエリア） -------------------------------------
-
-function buildSelfStock() {
-  const host = document.getElementById("self-hand-status");
-  if (!host) return;
-  selfStockEl = document.createElement("div");
-  selfStockEl.className = "turn-timer-self-stock";
-  selfStockEl.style.display = "none";
-  selfStockIconEl = document.createElement("img");
-  selfStockIconEl.className = "turn-timer-self-stock-icon";
-  selfStockIconEl.alt = "";
-  selfStockEl.appendChild(selfStockIconEl);
-  selfStockCountEl = document.createElement("span");
-  selfStockEl.appendChild(selfStockCountEl);
-  host.appendChild(selfStockEl);
-}
-
-function updateSelfStock(state) {
-  if (!selfStockEl) return;
-  if (!isTurnTimerEnabled() || !state.turnPlayer) {
-    selfStockEl.style.display = "none";
-    return;
-  }
-  const stock = state.hourglassStock[getSelfSeat()] ?? 0;
-  const iconPath = getHourglassIconPath(getPieceColor(getSelfSeat()));
-  if (iconPath) {
-    selfStockIconEl.src = iconPath;
-    selfStockIconEl.style.display = "";
-  } else {
-    selfStockIconEl.style.display = "none";
-  }
-  selfStockCountEl.textContent = `× ${stock}`;
-  selfStockEl.style.display = "block";
-}
-
 // --- フェイズ案内板の中に出す、基本時間の残り秒数表示 -----------------------------------
-// 延長中（ロープ表示中）は出さない——役割が被るため、基本時間の「音も無く静かに減っていく」
-// 感覚を伝えるための控えめな表示にとどめる。
+// ユーザー報告「画面左に砂時計残数、画面右に基本時間と目線が飛ぶ」への対応で、以前は
+// 別々だった左下の自分専用砂時計バッジ（buildSelfStock/updateSelfStock、削除済み）を
+// 廃止し、この基本時間表示1箇所に統合した。カウント中（誰かの基本時間が進行中）は
+// 従来通り秒数＋そのプレイヤーの砂時計残数を表示し、カウント中でない間（延長ロープが
+// 燃えている・優先権がまだ確定していない等）も表示自体は消さず、自分自身の砂時計残数
+// だけを静かに表示し続ける「常時表示」の器にする（updateBaseClock参照）。
 
 // ユーザー要望「ムーブフェイズの横にフェイズアイコンの丸枠と同じものの中に時間表示して
 // 統一感を出したい」への対応。従来の横長バー表示をやめ、ロック/ハンド/ムーブと同じ
@@ -363,44 +330,67 @@ function buildBaseClock() {
 
 function updateBaseClock(state) {
   if (!baseClockEl) return;
-  const showing =
-    isTurnTimerEnabled() &&
-    state.turnPlayer &&
-    state.priorityPlayer &&
-    state.priorityPhase === "base" &&
-    state.priorityDeadline &&
-    state.priorityDeadline - Date.now() > 0;
-  if (!showing) {
+  if (!isTurnTimerEnabled() || !state.turnPlayer) {
     setDisplayIfChanged(baseClockEl, "none");
     return;
   }
-  const remainingSec = Math.max(0, Math.ceil((state.priorityDeadline - Date.now()) / 1000));
-  baseClockLabelEl.textContent = `${remainingSec}`;
-  // ユーザー報告「両方のプレイヤーで基本時間が減っていくように見える」への対応。
-  // この表示はロープ（延長時間）と同じく、優先権保持者が誰であっても全プレイヤーの
-  // 画面に同じ1つの数字が見える設計（単一の共有stateをそのまま描画しているだけで、
-  // 実際に2人分独立したタイマーが動いているわけではない）。ただし従来は誰の基本時間かの
-  // 表示が無く、見ている本人には「自分の分が減っている」ように誤解されやすかった。
-  // ロープと同じ「優先権保持者の駒の色で縁取りする」方式で誰の分か色分けし、詳細は
-  // ホバー説明（title）に譲る。
-  baseClockEl.title = `${getPlayerName(state.priorityPlayer)}の基本時間`;
-  const color = getPieceColor(state.priorityPlayer);
-  baseClockEl.style.setProperty("--turn-timer-base-clock-color", color ? `var(--color-${color})` : "#38bdf8");
-  const hourglassIconPath = getHourglassIconPath(color);
-  if (hourglassIconPath) {
-    baseClockHourglassIconEl.src = hourglassIconPath;
+  baseClockEl.style.display = "flex"; // タイマー機能が有効な間は常時表示（詳しくは上のコメント参照）
+
+  const counting =
+    !!state.priorityPlayer && state.priorityPhase === "base" && !!state.priorityDeadline && state.priorityDeadline - Date.now() > 0;
+  // ユーザー要望「相手の基本時間のカウントダウンを表示/非表示できるようにしてほしい」。
+  // 自分自身の分は常に見せる。相手の分は設定（デフォルトOFF）に従う。
+  const isSelfCounting = counting && state.priorityPlayer === getSelfSeat();
+  const showCountdown = counting && (isSelfCounting || isOpponentBaseTimerVisible());
+
+  if (showCountdown) {
+    const remainingSec = Math.max(0, Math.ceil((state.priorityDeadline - Date.now()) / 1000));
+    baseClockLabelEl.textContent = `${remainingSec}`;
+    // ユーザー報告「両方のプレイヤーで基本時間が減っていくように見える」への対応。
+    // この表示はロープ（延長時間）と同じく、優先権保持者が誰であっても全プレイヤーの
+    // 画面に同じ1つの数字が見える設計（単一の共有stateをそのまま描画しているだけで、
+    // 実際に2人分独立したタイマーが動いているわけではない）。ただし従来は誰の基本時間かの
+    // 表示が無く、見ている本人には「自分の分が減っている」ように誤解されやすかった。
+    // ロープと同じ「優先権保持者の駒の色で縁取りする」方式で誰の分か色分けし、詳細は
+    // ホバー説明（title）に譲る。
+    baseClockEl.title = `${getPlayerName(state.priorityPlayer)}の基本時間`;
+    const color = getPieceColor(state.priorityPlayer);
+    baseClockEl.style.setProperty("--turn-timer-base-clock-color", color ? `var(--color-${color})` : "#38bdf8");
+    const hourglassIconPath = getHourglassIconPath(color);
+    if (hourglassIconPath) {
+      baseClockHourglassIconEl.src = hourglassIconPath;
+      baseClockHourglassIconEl.style.display = "";
+    } else {
+      baseClockHourglassIconEl.style.display = "none";
+    }
+    baseClockHourglassCountEl.textContent = state.hourglassStock[state.priorityPlayer] ?? 0;
+    const totalSeconds = hourglassUsedThisTurn[state.priorityPlayer]
+      ? Math.min(getRopeBaseSeconds(), getReducedBaseSeconds())
+      : getRopeBaseSeconds();
+    const ratio = remainingSec / totalSeconds;
+    baseClockEl.classList.toggle("is-warning", ratio <= 0.5 && ratio > 0.2);
+    baseClockEl.classList.toggle("is-critical", ratio <= 0.2);
+    return;
+  }
+
+  // カウント中でない（延長ロープが燃えている・優先権未確定・相手の基本時間が非表示設定）
+  // 間は、秒数の代わりに自分自身の砂時計残数だけを静かに表示するフォールバック状態にする
+  // （ユーザー報告「画面左に砂時計残数、画面右に基本時間と目線が飛ぶ」への対応。以前は
+  // 左下に別枠であった常設の自分専用バッジを廃止し、この1箇所へ統合した）。
+  const selfSeat = getSelfSeat();
+  baseClockLabelEl.textContent = "";
+  baseClockEl.title = "自分の砂時計残数";
+  const selfColor = getPieceColor(selfSeat);
+  baseClockEl.style.setProperty("--turn-timer-base-clock-color", selfColor ? `var(--color-${selfColor})` : "rgba(226, 232, 240, 0.5)");
+  const selfHourglassIconPath = getHourglassIconPath(selfColor);
+  if (selfHourglassIconPath) {
+    baseClockHourglassIconEl.src = selfHourglassIconPath;
     baseClockHourglassIconEl.style.display = "";
   } else {
     baseClockHourglassIconEl.style.display = "none";
   }
-  baseClockHourglassCountEl.textContent = state.hourglassStock[state.priorityPlayer] ?? 0;
-  baseClockEl.style.display = "flex";
-  const totalSeconds = hourglassUsedThisTurn[state.priorityPlayer]
-    ? Math.min(getRopeBaseSeconds(), getReducedBaseSeconds())
-    : getRopeBaseSeconds();
-  const ratio = remainingSec / totalSeconds;
-  baseClockEl.classList.toggle("is-warning", ratio <= 0.5 && ratio > 0.2);
-  baseClockEl.classList.toggle("is-critical", ratio <= 0.2);
+  baseClockHourglassCountEl.textContent = state.hourglassStock[selfSeat] ?? 0;
+  baseClockEl.classList.remove("is-warning", "is-critical");
 }
 
 // --- 画面中央のロープ（延長中だけ表示、全プレイヤーに見える） ---------------------------
@@ -732,6 +722,15 @@ function rebuildTransferButtons() {
 let ticksSincePriorityResync = 0;
 const PRIORITY_RESYNC_EVERY_TICKS = 15; // tick()は200ms間隔なので約3秒に1回
 
+// ユーザー要望「タイマーが切れた場合、自動でスキップまたはターン終了をするように
+// してください。移動先や効果の選択などの途中の場合はランダムで選択させるように」。
+// 完全にタイムアウトした（isTimedOut===true）瞬間に1回だけ試す。performPriorityTimeout
+// AutoAction()（main.js）が実際に何か行えば、その行動自体が新しい状態変化を起こし、
+// 次のtickでは（remaining>0またはstock消費で）isTimedOut=falseに戻るはずなので二重
+// 発火の心配は無い。何もしなかった場合（対応する状況が無かった）はフラグを立てず、
+// 状況が変わり次第また試せるようにする。
+let timedOutAutoActionFired = false;
+
 // タイムオーバー時、2種類の警告のどちらを出すかをまとめて切り替える。優先権保持者が
 // 手番プレイヤー本人ならupdateWarning（ムーブフェイズを終えて〜）、手番プレイヤーで
 // ない座席が優先権を持ったままタイムオーバーしているならupdatePriorityReturnWarning
@@ -739,9 +738,16 @@ const PRIORITY_RESYNC_EVERY_TICKS = 15; // tick()は200ms間隔なので約3秒�
 // 持っていてタイムオーバーになった場合」への対応。isTimedOut=falseの間は両方消す。
 function updateTimeoutWarnings(state, isTimedOut) {
   if (!isTimedOut) {
+    timedOutAutoActionFired = false;
     updateWarning(false);
     updatePriorityReturnWarning(false);
     return;
+  }
+  // 本人（今まさにタイムアウトした優先権保持者）のクライアント上でだけ自動行動を
+  // 起こす——ゲーム操作は本人の識別で送信する必要があるため、他クライアントからは
+  // 何もしない（ローカルモードは1人が全座席を操作する前提なので、誰の番でも行う）。
+  if (!timedOutAutoActionFired && (!isOnlineMode() || getSelfSeat() === state.priorityPlayer)) {
+    timedOutAutoActionFired = performPriorityTimeoutAutoAction();
   }
   const priorityHolderIsTurnPlayer = state.priorityPlayer === state.turnPlayer;
   // ハマりどころ（ユーザー報告「相手にも『ムーブフェイズを終えてターンを終了してください』
@@ -777,11 +783,22 @@ function tick() {
     }
   }
   const state = getState();
-  if (!state.turnPlayer || !state.priorityPlayer || !state.priorityDeadline) {
+  if (!state.turnPlayer) {
     updateWarning(false);
     updatePriorityReturnWarning(false);
     setDisplayIfChanged(ropeEl, "none");
     setDisplayIfChanged(baseClockEl, "none");
+    return;
+  }
+  // ユーザー要望「基本時間の砂時計残数表示を常時表示にしたい」への対応。優先権がまだ
+  // 確定していない間（対局開始直後の一瞬等）も、基本時間の表示枠自体は消さず自分の
+  // 砂時計残数だけを表示し続ける（updateBaseClockのフォールバック分岐）。ロープ・警告は
+  // 優先権が無いと意味を持たないため従来通り非表示にする。
+  if (!state.priorityPlayer || !state.priorityDeadline) {
+    updateWarning(false);
+    updatePriorityReturnWarning(false);
+    setDisplayIfChanged(ropeEl, "none");
+    updateBaseClock(state);
     return;
   }
   // ターン交代直後、新しいturnPlayerに一致するpriorityPlayerがまだ届いていない間は、
@@ -796,11 +813,10 @@ function tick() {
       updateWarning(false);
       updatePriorityReturnWarning(false);
       setDisplayIfChanged(ropeEl, "none");
-      setDisplayIfChanged(baseClockEl, "none");
+      updateBaseClock(state);
       return;
     }
   }
-  updateSelfStock(state);
   updateRope(state);
   updateBaseClock(state);
 
@@ -903,7 +919,6 @@ export function transferPriorityTo(player) {
 }
 
 export function initTurnTimer() {
-  buildSelfStock();
   buildBaseClock();
   buildRope();
   buildWarning();
@@ -911,12 +926,12 @@ export function initTurnTimer() {
   buildTransferButtons();
   subscribe((state) => {
     onStateChange(state);
-    updateSelfStock(state);
+    updateBaseClock(state);
     rebuildTransferButtons();
   });
   window.addEventListener("admin:change", () => {
     ensureInitializedIfNeeded();
-    updateSelfStock(getState());
+    updateBaseClock(getState());
     rebuildTransferButtons();
     if (!isTurnTimerEnabled()) {
       setDisplayIfChanged(ropeEl, "none");

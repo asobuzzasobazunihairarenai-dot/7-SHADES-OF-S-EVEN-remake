@@ -920,6 +920,11 @@ alter table so7_user_profiles add column if not exists sound_volume_bgm numeric;
 alter table so7_user_profiles add column if not exists flatten_2d_mode boolean;
 alter table so7_user_profiles add column if not exists card_auto_processing_enabled boolean;
 
+-- ユーザー要望「相手の基本時間のカウントダウンを表示/非表示できるようにしてほしい」
+-- （src/motion-prefs.jsのopponentBaseTimerVisible、src/options-menu.jsの基本設定）。
+-- デフォルトは非表示（列がnullの間はクライアント側のfalseデフォルトのまま）。
+alter table so7_user_profiles add column if not exists opponent_base_timer_visible boolean;
+
 create or replace function so7_touch_presence()
 returns void
 language plpgsql
