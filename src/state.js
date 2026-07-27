@@ -120,6 +120,16 @@ function createInitialState() {
     // 同期カラム（timer_toggle_reject_streak、online.js参照）で管理し、ここには含めない
     // （ローカルモードは1人が全座席を操作するため、この抑止機構自体の意味が薄い）。
     pendingTimerToggle: null,
+    // カード効果の自動処理モードのオン/オフ承認待ち（続き66、ユーザー要望「自動処理
+    // モードはデフォではオンだが、オフにする場合はタイム制同様に全プレイヤーへの
+    // 承認制にしましょう。1人だけ自動処理モードとかだと変な挙動になっちゃいそう」）:
+    // null | { requester, nextEnabled, queue }。pendingTimerToggleと全く同じパターン。
+    // isAutoProcessingEnabled自体（card-effect-engine.jsのモジュールローカル変数）は
+    // 各クライアントが個別に持つ設定のため、timer_configのような同期カラムは不要——
+    // 全員承認が完了した瞬間を各クライアントが自分でこのpendingがnullに戻ったことで
+    // 検知し、自分自身のsetAutoProcessingEnabled(nextEnabled)をそれぞれ呼ぶ
+    // （main.jsのcheckAutoProcessingToggleResolution参照）。
+    pendingAutoProcessingToggle: null,
   };
 }
 
@@ -641,6 +651,30 @@ function reduce(current, action) {
       }
       return { ...current, pendingTimerToggle: { ...pending, queue } };
     }
+    // 自動処理モードのオン/オフ承認①②（続き66、pendingTimerToggleと全く同じパターン）。
+    case "REQUEST_AUTO_PROCESSING_TOGGLE": {
+      if (current.pendingAutoProcessingToggle) return current;
+      return {
+        ...current,
+        pendingAutoProcessingToggle: {
+          requester: action.requester,
+          nextEnabled: action.nextEnabled,
+          queue: action.queue,
+        },
+      };
+    }
+    case "RESPOND_AUTO_PROCESSING_TOGGLE": {
+      const pending = current.pendingAutoProcessingToggle;
+      if (!pending) return current;
+      if (!action.approve) {
+        return { ...current, pendingAutoProcessingToggle: null };
+      }
+      const queue = pending.queue.slice(1);
+      if (queue.length === 0) {
+        return { ...current, pendingAutoProcessingToggle: null };
+      }
+      return { ...current, pendingAutoProcessingToggle: { ...pending, queue } };
+    }
     default:
       return current;
   }
@@ -781,6 +815,18 @@ export function requestTimerToggle(requester, nextEnabled, queue) {
 export function respondTimerToggle(approve) {
   if (onlineMode && onlineTransport) return onlineTransport({ type: "RESPOND_TIMER_TOGGLE", approve });
   dispatch({ type: "RESPOND_TIMER_TOGGLE", approve });
+}
+
+// 自動処理モードのオン/オフ承認申請（続き66）。requestTimerToggleと全く同じパターン。
+export function requestAutoProcessingToggle(requester, nextEnabled, queue) {
+  if (onlineMode && onlineTransport)
+    return onlineTransport({ type: "REQUEST_AUTO_PROCESSING_TOGGLE", requester, nextEnabled, queue });
+  dispatch({ type: "REQUEST_AUTO_PROCESSING_TOGGLE", requester, nextEnabled, queue });
+}
+
+export function respondAutoProcessingToggle(approve) {
+  if (onlineMode && onlineTransport) return onlineTransport({ type: "RESPOND_AUTO_PROCESSING_TOGGLE", approve });
+  dispatch({ type: "RESPOND_AUTO_PROCESSING_TOGGLE", approve });
 }
 
 // tokenIds: 侵攻した側(attacker)が奪う、侵攻された側の手札トークンid（呼び出し側が無作為抽選済み）

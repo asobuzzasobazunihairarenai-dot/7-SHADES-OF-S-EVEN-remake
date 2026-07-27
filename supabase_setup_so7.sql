@@ -99,39 +99,19 @@ create policy "so7_game_seats_insert" on so7_game_seats for insert to authentica
 --     手札の表裏はローカル版main.jsの「自分がAかどうか」という前提のハードコードで、
 --     実際のオンライン対戦では意味を持たないため)
 --   ・zone in ('cell','lock'): face_upの値だけで判定(表向きなら誰でも見える共有情報)
-create or replace view so7_game_tokens_visible as
-select
-  t.game_id,
-  t.token_id,
-  t.kind,
-  case
-    when t.zone = 'hand' then
-      case when exists (
-        select 1 from so7_game_seats s
-        where s.game_id = t.game_id and s.seat = t.hand_player and s.user_id = auth.uid()
-      ) then t.card_id else null end
-    else
-      case when t.face_up then t.card_id else null end
-  end as card_id,
-  t.face_up,
-  t.color,
-  t.piece_player,
-  t.zone,
-  t.row,
-  t.col,
-  t.side,
-  t.idx,
-  t.hand_player,
-  t.order_index,
-  -- create or replace viewは既存列の順序を変えられない（末尾への追加のみ許可）ため、
-  -- 手札公開エリア機能で後から追加したこの列は必ず一番最後に置く。
-  t.reveal_source
-from so7_game_tokens t
-where exists (
-  select 1 from so7_game_seats s where s.game_id = t.game_id and s.user_id = auth.uid()
-);
-grant select on so7_game_tokens_visible to authenticated;
-
+--
+-- 続き65: 「ERROR: 42P16: cannot drop columns from view」の修正。以前はここに
+-- create or replace viewの最初の定義（reveal_sourceまでの列）を置き、後方
+-- （このファイルの最後の方）でarrival_suppressedを追加した再定義を置いていた。
+-- create or replace functionと違い、create or replace viewは「今まさにDBに存在する
+-- ビューより列が少ない」定義を許さない（列を減らす＝dropとみなされエラーになる）ため、
+-- 既にarrival_suppressedまで反映済みのDBに対してファイル全体を再実行すると、
+-- このファイル前半にある「reveal_sourceまでしかない」古い定義が先に実行されて
+-- エラーになっていた（ユーザー報告で発覚）。create or replace functionのような
+-- 「後の定義だけが有効、前の定義は無害な上書き」という前提が views には
+-- 通用しないため、以後は同じビューを複数回再定義せず、実際の定義（reveal_source・
+-- arrival_suppressedを含む最新の列一式）はこのファイル末尾の1箇所にまとめてある。
+--
 -- 各山の中身をマスクするビュー。deck/eternal/firstは枚数のみ返し、discardは中身そのまま
 -- （捨て場はルール通り「表向きに積む」場所のため、これは公開情報）。
 create or replace view so7_game_piles_visible as
@@ -1273,6 +1253,84 @@ begin
     pending_contact = coalesce(p_games_patch->'pending_contact', pending_contact),
     pending_timer_toggle = coalesce(p_games_patch->'pending_timer_toggle', pending_timer_toggle),
     timer_toggle_reject_streak = coalesce(p_games_patch->'timer_toggle_reject_streak', timer_toggle_reject_streak),
+    version = version + 1
+  where id = p_game_id;
+end;
+$$;
+
+-- 追加機能（続き66）: 「カード効果の自動処理」モードのオン/オフも、タイマーオン/オフと
+-- 同じ「参加プレイヤー全員の承認」制にする（ユーザー要望「1人だけ自動処理モードとかだと
+-- 変な挙動になっちゃいそうなので全員が同じモードの方が良い」）。実際の有効値
+-- （isAutoProcessingEnabled）自体はtimer_configと違いサーバー側の同期カラムを持たず
+-- 各クライアントが個別に持つ設定のため、ここではpending_auto_processing_toggle
+-- （承認待ちキューの進行管理）だけを追加する。
+alter table so7_games add column if not exists pending_auto_processing_toggle jsonb;
+
+-- so7_apply_and_commitの再定義（pending_auto_processing_toggleをinsert対象の列に
+-- 追加しただけで、それ以外は直前の定義と同じ）。
+create or replace function so7_apply_and_commit(
+  p_game_id text,
+  p_expected_version int,
+  p_games_patch jsonb,
+  p_tokens jsonb,
+  p_piles jsonb
+) returns void
+language plpgsql
+security definer
+as $$
+declare
+  v_current_version int;
+begin
+  select version into v_current_version from so7_games where id = p_game_id for update;
+  if v_current_version is null then
+    raise exception 'game_not_found';
+  end if;
+  if v_current_version <> p_expected_version then
+    raise exception 'version_conflict';
+  end if;
+
+  delete from so7_game_tokens where game_id = p_game_id;
+  insert into so7_game_tokens (
+    game_id, token_id, kind, card_id, face_up, color, piece_player,
+    zone, row, col, side, idx, hand_player, reveal_source, arrival_suppressed, order_index
+  )
+  select
+    p_game_id,
+    t->>'token_id',
+    t->>'kind',
+    t->>'card_id',
+    coalesce((t->>'face_up')::boolean, false),
+    t->>'color',
+    t->>'piece_player',
+    t->>'zone',
+    (t->>'row')::int,
+    (t->>'col')::int,
+    t->>'side',
+    (t->>'idx')::int,
+    t->>'hand_player',
+    t->>'reveal_source',
+    coalesce((t->>'arrival_suppressed')::boolean, false),
+    coalesce((t->>'order_index')::int, 0)
+  from jsonb_array_elements(p_tokens) as t;
+
+  delete from so7_game_piles where game_id = p_game_id;
+  insert into so7_game_piles (game_id, pile_name, cards)
+  select p_game_id, p->>'pile_name', p->'cards'
+  from jsonb_array_elements(p_piles) as p;
+
+  update so7_games set
+    active_players = coalesce(p_games_patch->'active_players', active_players),
+    turn_player = coalesce(p_games_patch->>'turn_player', turn_player),
+    turn_number = coalesce((p_games_patch->>'turn_number')::int, turn_number),
+    round_number = coalesce((p_games_patch->>'round_number')::int, round_number),
+    start_player = coalesce(p_games_patch->>'start_player', start_player),
+    status = coalesce(p_games_patch->>'status', status),
+    timer_config = coalesce(p_games_patch->'timer_config', timer_config),
+    pending_final_lock = coalesce(p_games_patch->'pending_final_lock', pending_final_lock),
+    pending_contact = coalesce(p_games_patch->'pending_contact', pending_contact),
+    pending_timer_toggle = coalesce(p_games_patch->'pending_timer_toggle', pending_timer_toggle),
+    timer_toggle_reject_streak = coalesce(p_games_patch->'timer_toggle_reject_streak', timer_toggle_reject_streak),
+    pending_auto_processing_toggle = coalesce(p_games_patch->'pending_auto_processing_toggle', pending_auto_processing_toggle),
     version = version + 1
   where id = p_game_id;
 end;

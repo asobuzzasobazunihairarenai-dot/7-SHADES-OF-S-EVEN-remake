@@ -5456,6 +5456,31 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   pointer-events: auto;
 }
 
+/* 自動処理モードのオン/オフ承認バナー（src/main.js、続き66）。final-lock-approval-*/
+   timer-toggle-approval-bannerと同じ見た目・仕組みで、縦位置だけさらにずらす。 */
+#auto-processing-toggle-approval-banner {
+  position: fixed;
+  top: 70%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10440;
+  background: linear-gradient(160deg, #1e293b, #0f172a);
+  border: 2px solid #a78bfa;
+  border-radius: 0.7rem;
+  padding: 0.8rem 1.4rem;
+  text-align: center;
+  font-family: sans-serif;
+  color: #fef3c7;
+  box-shadow: 0 0 1.5rem rgba(167, 139, 250, 0.5), 0 10px 30px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+#auto-processing-toggle-approval-banner.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* 接触の承認/拒否モーダル（src/contact-approval.js）。final-lock-approval-bannerと同じ
    「pendingを見て自動表示」の仕組みだが、ユーザーが明示的に「モーダル」を指定したため
    バナーではなく背景を暗くする中央モーダルにしてある。承認/拒否いずれかのボタンで

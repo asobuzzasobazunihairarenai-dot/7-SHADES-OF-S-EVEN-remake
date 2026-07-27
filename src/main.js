@@ -27,6 +27,7 @@ import {
   hasHandEffectData,
   isHandEffectReactiveOnly,
   isAutoProcessingEnabled,
+  setAutoProcessingEnabled,
   isHandEffectUsableAnytime,
   getMoveCandidates,
   getAnyCellWithCardCandidates,
@@ -150,6 +151,8 @@ import {
   respondFinalLock,
   requestTimerToggle,
   respondTimerToggle,
+  requestAutoProcessingToggle,
+  respondAutoProcessingToggle,
   requestContact,
   respondContact,
 } from "./state.js";
@@ -183,6 +186,8 @@ import {
   onColorsDeclaredEvents,
   broadcastColorsResolved,
   onColorsResolvedEvents,
+  broadcastAutoProcessingResolved,
+  onAutoProcessingResolvedEvents,
   broadcastArrivalDelegateRequest,
   onArrivalDelegateRequestEvents,
   broadcastArrivalDelegateResolved,
@@ -1258,6 +1263,26 @@ window.addEventListener("mousemove", (e) => {
     });
     return;
   }
+  // ユーザー要望「カーソルの座標補正が49マスの範囲にしか及んでいない。ロックエリアにも
+  // 拡大してほしい」（続き66）への対応。盤面マスと全く同じ考え方（実座標＋マス自身の
+  // 矩形内での割合）で、ロックスロット（.lock-slot、data-side/data-indexが実座標）も
+  // 対象に加える。
+  const lockSlotEl = elements.map((el) => el.closest(".lock-slot")).find(Boolean);
+  if (lockSlotEl) {
+    const slotRect = lockSlotEl.getBoundingClientRect();
+    if (slotRect.width <= 0 || slotRect.height <= 0) return;
+    const offsetX = (e.clientX - slotRect.left) / slotRect.width;
+    const offsetY = (e.clientY - slotRect.top) / slotRect.height;
+    broadcastCursorPosition({
+      player: getSelfSeat(),
+      mode: "lock",
+      side: lockSlotEl.dataset.side,
+      index: Number(lockSlotEl.dataset.index),
+      offsetX,
+      offsetY,
+    });
+    return;
+  }
   const { x, y } = stageClientToLocal(e.clientX, e.clientY);
   broadcastCursorPosition({ player: getSelfSeat(), mode: "stage", x, y });
 });
@@ -1299,6 +1324,13 @@ onCursorPositionEvents((payload) => {
     const cellEl = table.querySelector(`.cell[data-row="${payload.row}"][data-col="${payload.col}"]`);
     if (!cellEl) return;
     const rect = toStageLocalRect(cellEl.getBoundingClientRect());
+    x = rect.left + payload.offsetX * (rect.right - rect.left);
+    y = rect.top + payload.offsetY * (rect.bottom - rect.top);
+  } else if (payload.mode === "lock") {
+    // 続き66: ロックエリアも盤面マスと同じ「実座標＋矩形内の割合」方式で復元する。
+    const lockSlotEl = table.querySelector(`.lock-slot[data-side="${payload.side}"][data-index="${payload.index}"]`);
+    if (!lockSlotEl) return;
+    const rect = toStageLocalRect(lockSlotEl.getBoundingClientRect());
     x = rect.left + payload.offsetX * (rect.right - rect.left);
     y = rect.top + payload.offsetY * (rect.bottom - rect.top);
   } else {
@@ -3899,6 +3931,7 @@ function render() {
   checkGomennasaiAutoApproval();
   updateTimerToggleButton();
   updateTimerToggleBanner();
+  updateAutoProcessingToggleBanner();
   updateContactApprovalModal();
   checkContactAttackerResolution();
   checkForVictory();
@@ -5509,6 +5542,94 @@ async function requestTimerToggleFor(nextEnabled, queue) {
   }
   render();
 }
+
+// 自動処理モードのオン/オフ承認バナー（続き66、ユーザー要望「1人だけ自動処理モード
+// とかだと変な挙動になっちゃいそうなので全員が同じモードの方が良い」）。タイマー
+// オン/オフと同じ承認キューだが、専用のボタンは持たず、options-menu.jsの既存
+// チェックボックスがオンライン中だけ承認申請を送る形にする（buildAutoProcessing
+// ToggleRow参照）。final-lock-approval-*と同じCSSクラスを流用する。
+let autoProcessingToggleBannerEl = null;
+function buildAutoProcessingToggleBanner() {
+  autoProcessingToggleBannerEl = document.createElement("div");
+  autoProcessingToggleBannerEl.id = "auto-processing-toggle-approval-banner";
+  document.body.appendChild(autoProcessingToggleBannerEl);
+}
+function updateAutoProcessingToggleBanner() {
+  const bannerEl = autoProcessingToggleBannerEl;
+  if (!bannerEl) return;
+  const pending = getState().pendingAutoProcessingToggle;
+  if (!pending || pending.queue.length === 0) {
+    bannerEl.classList.remove("is-visible");
+    bannerEl.innerHTML = "";
+    return;
+  }
+  bannerEl.classList.add("is-visible");
+  const approver = pending.queue[0];
+  const canRespond = !isOnlineMode() || getSelfSeat() === approver;
+  bannerEl.innerHTML = "";
+
+  const title = document.createElement("div");
+  title.className = "final-lock-approval-title";
+  title.textContent = `⚙️ ${getPlayerName(pending.requester)} さんが自動処理モードを${pending.nextEnabled ? "ON" : "OFF"}にすることを提案中！`;
+  bannerEl.appendChild(title);
+
+  const status = document.createElement("div");
+  status.className = "final-lock-approval-status";
+  status.textContent = canRespond
+    ? `あなた（${getPlayerName(approver)}）の承認が必要です`
+    : `${getPlayerName(approver)} さんの承認を待っています…`;
+  bannerEl.appendChild(status);
+
+  if (canRespond) {
+    const buttons = document.createElement("div");
+    buttons.className = "final-lock-approval-buttons";
+    const approveBtn = document.createElement("button");
+    approveBtn.className = "final-lock-approval-approve";
+    approveBtn.type = "button";
+    approveBtn.textContent = "✅ 承認する";
+    approveBtn.addEventListener("click", () => respondToAutoProcessingToggle(true));
+    const rejectBtn = document.createElement("button");
+    rejectBtn.className = "final-lock-approval-reject";
+    rejectBtn.type = "button";
+    rejectBtn.textContent = "🚫 却下する";
+    rejectBtn.addEventListener("click", () => respondToAutoProcessingToggle(false));
+    buttons.appendChild(approveBtn);
+    buttons.appendChild(rejectBtn);
+    bannerEl.appendChild(buttons);
+  }
+}
+// ユーザー要望通りoptions-menu.jsのチェックボックスから直接呼べるよう、main.jsの
+// windowスコープにエクスポートするのではなく、state.js経由でoptions-menu.js自身が
+// requestAutoProcessingToggleを直接呼ぶ設計にした（options-menu.buildAutoProcessing
+// ToggleRow参照）。ここでは応答（承認/却下ボタン）と、全員承認が完了した瞬間の
+// 反映だけを担当する。
+async function respondToAutoProcessingToggle(approve) {
+  const pendingBefore = getState().pendingAutoProcessingToggle;
+  if (!pendingBefore) return;
+  try {
+    await respondAutoProcessingToggle(approve);
+    await fetchAndHydrate(getCurrentGameId());
+  } catch (err) {
+    console.error("respondAutoProcessingToggle failed", err);
+  }
+  // 自分が最後の承認者だった場合（queueが1つだけ残っていて、かつ承認した場合）に反映する。
+  // ハマりどころ（実機テストで発覚）: ローカルモードにはbroadcastChannelが存在しない
+  // （online.jsのsubscribeToGame()経由でしか生成されない）ため、broadcastAutoProcessing
+  // Resolvedだけに頼ると何も起きない（そもそもoptions-menu.js側がisOnlineMode()で
+  // ローカルモードをこの承認フロー自体から外しているので通常は再現しないが、念のため
+  // 自分自身には直接反映しておく）。オンライン中は他クライアントへ伝える必要があるため
+  // 追加でbroadcastする（自分自身にも同じ値がもう一度届くが、setAutoProcessingEnabledは
+  // 同じ値を2回呼んでも無害）。
+  if (approve && pendingBefore.queue.length === 1 && !getState().pendingAutoProcessingToggle) {
+    setAutoProcessingEnabled(pendingBefore.nextEnabled);
+    if (isOnlineMode()) broadcastAutoProcessingResolved({ nextEnabled: pendingBefore.nextEnabled });
+  }
+  render();
+}
+onAutoProcessingResolvedEvents(({ nextEnabled }) => {
+  setAutoProcessingEnabled(nextEnabled);
+  render();
+});
 
 async function onDragEnd(e) {
   if (!dragSession) return;
@@ -7438,6 +7559,7 @@ buildSpotlightOverlay();
 buildFinalLockApprovalBanner();
 buildTimerToggleButton();
 buildTimerToggleBanner();
+buildAutoProcessingToggleBanner();
 buildContactApprovalModal();
 turnRoundCounterEl = buildTurnRoundCounter();
 updateTurnRoundCounter();

@@ -404,6 +404,25 @@ export function broadcastColorsResolved() {
   }
 }
 
+// 自動処理モードのオン/オフ承認が全員完了した合図（続き66）。timer_configと違い
+// サーバー側に同期カラムを持たないため、pendingAutoProcessingToggleがnullに戻った
+// ことだけでは「承認で解決したのか却下で解決したのか」を他クライアントが区別できない。
+// そのため、最後の承認をした本人のクライアントがこの合図を送り、全クライアント
+// （config.broadcast.self:trueにより自分自身も含む）がこれを受けて一斉に
+// setAutoProcessingEnabled(nextEnabled)を反映する。
+let autoProcessingResolvedEventListeners = [];
+export function onAutoProcessingResolvedEvents(fn) {
+  autoProcessingResolvedEventListeners.push(fn);
+  return () => {
+    autoProcessingResolvedEventListeners = autoProcessingResolvedEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastAutoProcessingResolved(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "auto_processing_resolved", payload });
+  }
+}
+
 // 合同建設・スラム上がりの役人・パーティーのように「全員がそれぞれ自分の選択を
 // する」到達効果用。効果の使用者（コーディネーター）が対象プレイヤーへ
 // 「あなたの番です、これを解決してください」と伝え（broadcastArrivalDelegateRequest）、
@@ -1886,6 +1905,9 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     })
     .on("broadcast", { event: "colors_resolved" }, () => {
       for (const fn of colorsResolvedEventListeners) fn();
+    })
+    .on("broadcast", { event: "auto_processing_resolved" }, ({ payload }) => {
+      for (const fn of autoProcessingResolvedEventListeners) fn(payload);
     })
     // 「全員がそれぞれ選ぶ」到達効果の委任2種（broadcastArrivalDelegateRequest/Resolved参照）。
     .on("broadcast", { event: "arrival_delegate_request" }, ({ payload }) => {

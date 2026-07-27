@@ -22,12 +22,24 @@ import {
   isOpponentBaseTimerVisible,
   setOpponentBaseTimerVisible,
 } from "./motion-prefs.js";
-import { saveMyPreference, resetMyAppearanceSettings, isAdminUser, getCurrentUser, signInWithGoogle } from "./online.js";
+import {
+  saveMyPreference,
+  resetMyAppearanceSettings,
+  isAdminUser,
+  getCurrentUser,
+  signInWithGoogle,
+  isOnlineMode,
+  getSelfSeat,
+  fetchAndHydrate,
+  getCurrentGameId,
+} from "./online.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { openStatsPlayerLinkModal } from "./stats-player-link.js";
 import { fetchStatsProfile } from "./stats-profile.js";
 import { isFlatten2dMode, setFlatten2dMode } from "./tablet-2d-mode.js";
 import { getOptionArea } from "./option-area.js";
+import { getState, requestAutoProcessingToggle } from "./state.js";
+import { getFinalLockApprovalOrder } from "./board-layout.js";
 
 function buildMenuItem(label, onClick) {
   const btn = document.createElement("button");
@@ -658,12 +670,43 @@ export function initOptionsMenu() {
           note.textContent =
             "ONにすると、対応済みのカードは承認モーダルの代わりに効果が自動で実行され、フェイズも自動で進行します。それ以外のカードは今まで通り自己申告のままです。";
           content.appendChild(note);
-          content.appendChild(
-            buildCheckboxRow("カード効果を自動処理する", isAutoProcessingEnabled(), (checked) => {
+          // ユーザー要望（続き66）「自動処理モードはデフォではオンですが、オフにする
+          // 場合はタイム制同様に全プレイヤーへの承認制にしましょう。1人だけ自動処理
+          // モードとかだと変な挙動になっちゃいそうなので全員が同じモードの方が良い」。
+          // オンライン中だけ承認申請（main.jsのbuildAutoProcessingToggleBanner等が
+          // 実際の承認バナー・反映を担当）にし、ローカルモード（1人が全座席を操作）は
+          // 従来通り即座に切り替える。
+          const autoProcessingCheckboxRow = buildCheckboxRow(
+            "カード効果を自動処理する",
+            isAutoProcessingEnabled(),
+            async (checked) => {
+              if (isOnlineMode()) {
+                const selfSeat = getSelfSeat();
+                const queue = getFinalLockApprovalOrder(selfSeat, getState().activePlayers);
+                if (getState().pendingAutoProcessingToggle) {
+                  renderContent(); // 既に別の承認待ちが進行中ならチェックボックスの見た目を元に戻す
+                  return;
+                }
+                if (queue.length === 0) {
+                  // 他に参加者がいない（承認不要で即時反映してよい）場合はそのまま切り替える。
+                  setAutoProcessingEnabled(checked);
+                  saveMyPreference({ card_auto_processing_enabled: checked });
+                  return;
+                }
+                try {
+                  await requestAutoProcessingToggle(selfSeat, checked, queue);
+                  await fetchAndHydrate(getCurrentGameId());
+                } catch (err) {
+                  console.error("requestAutoProcessingToggle failed", err);
+                }
+                renderContent(); // 承認待ちの間はチェックボックスの見た目を元の値に戻しておく
+                return;
+              }
               setAutoProcessingEnabled(checked);
               saveMyPreference({ card_auto_processing_enabled: checked });
-            })
+            }
           );
+          content.appendChild(autoProcessingCheckboxRow);
         },
         {
           icon: "⚙️",

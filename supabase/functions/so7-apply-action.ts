@@ -146,6 +146,11 @@ type PendingContact = { attacker: string; defender: string } | null;
 // タイマーオン/オフの承認待ち（続き64、src/state.jsのpendingTimerToggleと同じ形）。
 type PendingTimerToggle = { requester: string; nextEnabled: boolean; queue: string[] } | null;
 
+// 自動処理モードのオン/オフ承認待ち（続き66、src/state.jsのpendingAutoProcessingToggleと
+// 同じ形）。timerConfigと違い、実際の有効値自体はサーバー側に持たせない
+// （各クライアントが自分のisAutoProcessingEnabledを個別に持つ設定のため）。
+type PendingAutoProcessingToggle = { requester: string; nextEnabled: boolean; queue: string[] } | null;
+
 type TimerConfig = {
   enabled: boolean;
   initialHourglassStock: number;
@@ -169,6 +174,7 @@ type GameState = {
   pendingTimerToggle: PendingTimerToggle;
   timerConfig: TimerConfig;
   timerToggleRejectStreak: Record<string, number>;
+  pendingAutoProcessingToggle: PendingAutoProcessingToggle;
 };
 
 // オンライン版では手札の表裏フラグをローカル版のような「自分がAかどうか」で決める必要が
@@ -426,6 +432,7 @@ function reduce(current: GameState, action: any): GameState {
         pendingTimerToggle: null,
         timerConfig: action.timerConfig ?? null,
         timerToggleRejectStreak: {},
+        pendingAutoProcessingToggle: null,
       };
     }
     // 最後のロック承認①②（src/state.jsのREQUEST_FINAL_LOCK/RESPOND_FINAL_LOCKケースと
@@ -498,6 +505,32 @@ function reduce(current: GameState, action: any): GameState {
         };
       }
       return { ...current, pendingTimerToggle: { ...pending, queue } };
+    }
+    // 自動処理モードのオン/オフ承認①②（続き66、pendingTimerToggleと同じパターンだが、
+    // 実際に反映する値自体は各クライアントが自分で持つ設定のためサーバー側では
+    // 何も書き換えず、queueの進行管理だけを行う）。
+    case "REQUEST_AUTO_PROCESSING_TOGGLE": {
+      if (current.pendingAutoProcessingToggle) return current;
+      return {
+        ...current,
+        pendingAutoProcessingToggle: {
+          requester: action.requester,
+          nextEnabled: action.nextEnabled,
+          queue: action.queue,
+        },
+      };
+    }
+    case "RESPOND_AUTO_PROCESSING_TOGGLE": {
+      const pending = current.pendingAutoProcessingToggle;
+      if (!pending) return current;
+      if (!action.approve) {
+        return { ...current, pendingAutoProcessingToggle: null };
+      }
+      const queue = pending.queue.slice(1);
+      if (queue.length === 0) {
+        return { ...current, pendingAutoProcessingToggle: null };
+      }
+      return { ...current, pendingAutoProcessingToggle: { ...pending, queue } };
     }
     default:
       return current;
@@ -711,6 +744,7 @@ async function loadState(db: any, gameId: string): Promise<{ state: GameState; v
       pendingTimerToggle: gameRow.pending_timer_toggle ?? null,
       timerConfig: gameRow.timer_config ?? null,
       timerToggleRejectStreak: gameRow.timer_toggle_reject_streak ?? {},
+      pendingAutoProcessingToggle: gameRow.pending_auto_processing_toggle ?? null,
     },
     version: gameRow.version,
   };
@@ -892,6 +926,11 @@ Deno.serve(async (req) => {
       gamesPatch.pending_timer_toggle = next.pendingTimerToggle ?? null;
       gamesPatch.timer_toggle_reject_streak = next.timerToggleRejectStreak ?? {};
       gamesPatch.timer_config = next.timerConfig ?? null;
+    }
+    // 自動処理モードのオン/オフ承認（続き66）: 最後のロック承認・タイマーオン/オフと
+    // 同じパターン。
+    if (effectiveAction.type === "REQUEST_AUTO_PROCESSING_TOGGLE" || effectiveAction.type === "RESPOND_AUTO_PROCESSING_TOGGLE") {
+      gamesPatch.pending_auto_processing_toggle = next.pendingAutoProcessingToggle ?? null;
     }
 
     const { error: commitErr } = await db.rpc("so7_apply_and_commit", {
