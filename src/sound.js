@@ -298,6 +298,34 @@ export function playVictoryBgm() {
   audio.play().catch(() => {});
 }
 
+// ユーザー要望「管理者モードでBGMを個別調整するとき実際に音量確認でそのBGMを
+// 鳴らせるようにしてください」（続き63）。admin.jsの各BGM個別音量スライダーの
+// previewOnInteractから呼ばれる。スライダーはpointerdown時に1回、以後input（値が
+// 変わるたび＝ドラッグ中）にも毎回呼ばれる設計（admin.js側のコメント参照）ため、
+// 既に再生中ならcurrentTimeをリセットせず音量だけ更新し（毎回頭出しされて耳障りに
+// ならないように）、まだ再生していなければ各playXBgm()で最初から始める。
+export function previewBgmVolume(cssVar) {
+  const trackByVar = {
+    "--sound-volume-opening-bgm": { getAudio: () => openingBgmAudio, getGain: () => openingBgmGain, play: playOpeningBgm },
+    "--sound-volume-game-bgm": { getAudio: () => gameBgmAudio, getGain: () => gameBgmGain, play: playGameBgm },
+    "--sound-volume-waiting-bgm": { getAudio: () => waitingBgmAudio, getGain: () => waitingBgmGain, play: playWaitingBgm },
+  };
+  const track = trackByVar[cssVar];
+  if (!track) {
+    // 勝利時BGMはループ無し・使い回しインスタンスも無い一回きりの再生のため、
+    // 毎回そのまま新規再生でよい。
+    if (cssVar === "--sound-volume-victory-bgm") playVictoryBgm();
+    return;
+  }
+  const audio = track.getAudio();
+  if (audio && !audio.paused) {
+    const volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume(cssVar)));
+    setBgmTrackVolume(audio, track.getGain(), volume);
+  } else {
+    track.play();
+  }
+}
+
 export function playSound(name) {
   const def = SOUND_DEFS[name];
   if (!def) return;

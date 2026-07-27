@@ -29,8 +29,9 @@ import { wouldCompleteLockWithNewIndex } from "./victory.js";
 
 // ユーザー確認済み「効果自動処理は基本設定でON/OFFを選べるように」。他の「アニメーションを
 // 減らす」設定（motion-prefs.js）と同じくセッション限りの設定（ページ再読み込みで
-// デフォルトのOFFに戻る）。まだ試験運用中の機能のため、アカウントへの永続化はしない。
-let autoProcessingEnabled = false;
+// デフォルトに戻る）。まだ試験運用中の機能のため、アカウントへの永続化はしない。
+// ユーザー要望（続き63）によりデフォルトをONに変更（以前はOFF）。
+let autoProcessingEnabled = true;
 export function isAutoProcessingEnabled() {
   return autoProcessingEnabled;
 }

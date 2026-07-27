@@ -1139,3 +1139,63 @@ begin
   where id = p_game_id;
 end;
 $$;
+
+-- 追加機能（続き63）: 管理者ダッシュボードで「取得に失敗しました: structure of query
+-- does not match function result type」というエラーが発生していた不具合の修正。
+-- auth.usersのemail列は実際にはcharacter varying(255)型だが、以前の定義では
+-- returns table(email text)に対してu.emailをそのまま（キャスト無し）で返しており、
+-- PL/pgSQLのRETURN QUERYが要求する型の完全一致に違反していた（varcharとtextは
+-- 通常のSELECTでは区別なく扱えるが、RETURN QUERYの行タイプ照合ではこの違いが
+-- エラーになる）。u.email::textと明示キャストするだけで直る。
+create or replace function so7_get_admin_user_list()
+returns table (
+  user_id uuid,
+  email text,
+  display_name text,
+  created_at timestamptz,
+  last_seen_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  if (auth.jwt() ->> 'email') is distinct from 'asobuzz.asobazunihairarenai@gmail.com' then
+    raise exception 'not_authorized';
+  end if;
+  return query
+    select u.id, u.email::text, p.display_name, u.created_at, p.last_seen_at
+    from auth.users u
+    left join so7_user_profiles p on p.user_id = u.id
+    order by u.created_at desc;
+end;
+$$;
+revoke execute on function so7_get_admin_user_list() from public;
+grant execute on function so7_get_admin_user_list() to authenticated;
+
+create or replace function so7_get_admin_visit_log(p_limit int default 200, p_offset int default 0)
+returns table (
+  created_at timestamptz,
+  user_id uuid,
+  email text,
+  display_name text
+)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  if (auth.jwt() ->> 'email') is distinct from 'asobuzz.asobazunihairarenai@gmail.com' then
+    raise exception 'not_authorized';
+  end if;
+  return query
+    select v.created_at, v.user_id, u.email::text, p.display_name
+    from so7_visit_log v
+    left join auth.users u on u.id = v.user_id
+    left join so7_user_profiles p on p.user_id = v.user_id
+    order by v.created_at desc
+    limit p_limit offset p_offset;
+end;
+$$;
+revoke execute on function so7_get_admin_visit_log(int, int) from public;
+grant execute on function so7_get_admin_visit_log(int, int) to authenticated;

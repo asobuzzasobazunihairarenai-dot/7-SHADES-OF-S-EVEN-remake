@@ -3198,15 +3198,42 @@ body.is-phone-device #options-menu-button {
   border-color: transparent;
 }
 
+/* Discordアイコン（discord-link.js、ユーザー要望「右上のオプションエリアにDiscord
+   アイコンを追加してください。ヘルプマークの左隣に追加し、残金表示をその分左に
+   ずらしてください」）。#help-button（right:6.5rem）のさらに左隣、通貨表示が
+   元々あった位置(9.1rem)に置き、通貨表示はさらに左（11.7rem）へ押し出す。 */
+#discord-link-button {
+  position: absolute;
+  top: 0.3rem;
+  right: 9.1rem;
+  z-index: 900;
+  transform: translate(var(--icon-pos-discord-x, 0rem), var(--icon-pos-discord-y, 0rem));
+}
+#discord-link-button .icon-action-button-caption {
+  display: none;
+}
+#discord-link-button .icon-action-button-icon-wrap {
+  width: var(--icon-size-discord, 2.6rem);
+  height: var(--icon-size-discord, 2.6rem);
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+#discord-link-button:hover .icon-action-button-icon-wrap {
+  background: none;
+  border-color: transparent;
+}
+
 /* ゲーム内通貨の所持金額表示（currency-display.js、ユーザー要望「ヘルプボタンの横に
-   通貨アイコンと所持金額を表示させたい」）。#help-button（right:6.5rem）のさらに左隣に
-   置く。アイコンボタンでは無く常時表示のバッジのため、他のicon-action-buttonとは別の
-   専用の見た目にしてある。位置は管理者モードで調整できる
-   （--currency-display-pos-x/-y、admin.js参照）。 */
+   通貨アイコンと所持金額を表示させたい」）。Discordアイコン追加（続き63）に伴い、
+   #help-button（right:6.5rem）→#discord-link-button（right:9.1rem）のさらに左隣
+   （right:11.7rem）へ押し出した。アイコンボタンでは無く常時表示のバッジのため、
+   他のicon-action-buttonとは別の専用の見た目にしてある。位置は管理者モードで
+   調整できる（--currency-display-pos-x/-y、admin.js参照）。 */
 #currency-display {
   position: absolute;
   top: 0.5rem;
-  right: 9.1rem;
+  right: 11.7rem;
   z-index: 900;
   display: flex;
   align-items: center;
@@ -3863,6 +3890,7 @@ body.opening-screen-active #option-area {
   z-index: 50100;
 }
 body.opening-screen-active #help-button,
+body.opening-screen-active #discord-link-button,
 body.opening-screen-active #currency-display,
 body.opening-screen-active #my-page-button {
   display: none;
@@ -4446,15 +4474,15 @@ body.is-touch-device #self-hand-status {
   left: 0;
   top: 0;
   z-index: 0;
-  font-size: calc(var(--self-status-large-avatar-size, 13.5rem) * 0.75);
+  font-size: calc(var(--self-status-large-avatar-size, 12rem) * 0.75);
   line-height: 1;
   cursor: pointer;
   transform: translate(var(--self-status-large-avatar-pos-x, -0.86rem), var(--self-status-large-avatar-pos-y, -5.12rem));
   filter: drop-shadow(0 0.2rem 0.4rem rgba(0, 0, 0, 0.6));
 }
 .self-status-large-avatar .avatar-image {
-  width: var(--self-status-large-avatar-size, 13.5rem);
-  height: var(--self-status-large-avatar-size, 13.5rem);
+  width: var(--self-status-large-avatar-size, 12rem);
+  height: var(--self-status-large-avatar-size, 12rem);
 }
 /* ユーザー要望「戦績システムと連携しているプレイヤーはステータスエリアにランクを
    表示させたい」。姉妹プロジェクト（戦績管理システム）のgetTierInfo/renderAvatarRingHtml
@@ -4483,8 +4511,8 @@ body.is-touch-device #self-hand-status {
   position: absolute;
   top: 0;
   left: 0;
-  width: calc(var(--self-status-large-avatar-size, 13.5rem) + var(--rank-ring-thickness, 0.5rem) * 2);
-  height: calc(var(--self-status-large-avatar-size, 13.5rem) + var(--rank-ring-thickness, 0.5rem) * 2);
+  width: calc(var(--self-status-large-avatar-size, 12rem) + var(--rank-ring-thickness, 0.5rem) * 2);
+  height: calc(var(--self-status-large-avatar-size, 12rem) + var(--rank-ring-thickness, 0.5rem) * 2);
   transform: translate(
     calc(var(--self-status-large-avatar-pos-x, -0.86rem) - var(--rank-ring-thickness, 0.5rem) + var(--rank-ring-offset-x, 0rem)),
     calc(var(--self-status-large-avatar-pos-y, -5.12rem) - var(--rank-ring-thickness, 0.5rem) + var(--rank-ring-offset-y, 0rem))
@@ -7291,7 +7319,7 @@ body.is-online-mode #quick-start-bar {
   --self-status-icon-background-size: 1.5rem;
   --self-status-icon-online-size: 2.6rem;
   --self-status-icon-gap: 0.4rem;
-  --self-status-large-avatar-size: 13.5rem;
+  --self-status-large-avatar-size: 12rem;
   --self-status-large-avatar-pos-x: -0.86rem;
   --self-status-large-avatar-pos-y: -5.12rem;
   --self-status-pos-x: 0rem;

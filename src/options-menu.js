@@ -22,7 +22,7 @@ import {
   isOpponentBaseTimerVisible,
   setOpponentBaseTimerVisible,
 } from "./motion-prefs.js";
-import { saveMyPreference, resetMyAppearanceSettings, isAdminUser } from "./online.js";
+import { saveMyPreference, resetMyAppearanceSettings, isAdminUser, getCurrentUser, signInWithGoogle } from "./online.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { openStatsPlayerLinkModal } from "./stats-player-link.js";
 import { isFlatten2dMode, setFlatten2dMode } from "./tablet-2d-mode.js";
@@ -248,19 +248,65 @@ function buildCardPreviewSizeRow() {
 // ために、戦績管理システムのプレイヤー登録をアカウントに紐づける設定を設けたい。
 // オプションの基本設定内に配置する」。実際のモーダル（一覧・検索・申請）は
 // stats-player-link.jsが持つ。
+// ユーザー要望「戦績管理システムのプレイヤーと連携について、Googleアカウントでログイン
+// してないと連携できない仕様にしましょう。ゲストやマジックリンクでログインしている
+// ときは『Googleアカウントでログインしていないと連携できない』旨を表示し、かつ
+// 『Googleアカウントでログインしなおす』的なボタンもそこに置きましょう」（続き63）。
+// 連携申請（requestStatsPlayerLink）自体はuser_idさえ紐づいていれば技術的には
+// どのログイン方式でも実行できてしまうが、ゲスト（匿名）やマジックリンクのメール
+// アドレスはブラウザ/端末を変えると再現できず「本人確認」の意味が薄いため、
+// 最も本人性の高いGoogleログインだけに限定する。
 function buildStatsPlayerLinkRow() {
   const row = document.createElement("div");
   row.className = "options-menu-volume-row";
+  row.style.cssText = "flex-direction: column; align-items: stretch; white-space: normal;";
   const labelEl = document.createElement("span");
   labelEl.textContent = "戦績管理システムのプレイヤーと連携";
+  row.appendChild(labelEl);
+
+  const actionArea = document.createElement("div");
+  actionArea.style.cssText = "display: flex; align-items: center; gap: 0.4rem; margin-top: 0.3rem;";
+  row.appendChild(actionArea);
+
   const btn = document.createElement("button");
   btn.type = "button";
   btn.textContent = "選択する";
   btn.className = "options-menu-item";
   btn.style.cssText = "width: auto; flex: none; padding: 0.3rem 0.8rem;";
+  btn.disabled = true;
   btn.addEventListener("click", openStatsPlayerLinkModal);
-  row.appendChild(labelEl);
-  row.appendChild(btn);
+  actionArea.appendChild(btn);
+
+  (async () => {
+    let isGoogleLinked = false;
+    try {
+      const user = await getCurrentUser();
+      isGoogleLinked = user?.app_metadata?.provider === "google";
+    } catch (err) {
+      console.error("getCurrentUser (stats player link gate) failed", err);
+    }
+    if (isGoogleLinked) {
+      btn.disabled = false;
+      return;
+    }
+    actionArea.innerHTML = "";
+    const note = document.createElement("div");
+    note.textContent = "Googleアカウントでログインしていないと連携できません。";
+    note.style.cssText = "font-size: 0.7rem; color: #fca5a5; line-height: 1.4;";
+    const reloginBtn = document.createElement("button");
+    reloginBtn.type = "button";
+    reloginBtn.textContent = "Googleアカウントでログインしなおす";
+    reloginBtn.className = "options-menu-item";
+    reloginBtn.style.cssText = "width: auto; flex: none; padding: 0.3rem 0.8rem; margin-top: 0.3rem;";
+    reloginBtn.addEventListener("click", () => {
+      signInWithGoogle().catch((err) => console.error("signInWithGoogle failed", err));
+    });
+    const stack = document.createElement("div");
+    stack.appendChild(note);
+    stack.appendChild(reloginBtn);
+    actionArea.appendChild(stack);
+  })();
+
   return row;
 }
 

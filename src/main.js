@@ -45,6 +45,7 @@ import {
   forceEndCurrentPhase,
 } from "./phase-automation.js";
 import { initHelpButton } from "./help.js";
+import { initDiscordLink } from "./discord-link.js";
 import { getOptionArea } from "./option-area.js";
 import { initCurrencyDisplay, refreshCurrencyDisplay, showCurrencyAwardEffect } from "./currency-display.js";
 import { initShop, openShopPanel } from "./shop.js";
@@ -7152,6 +7153,7 @@ initActionLogPanel();
 registerCardDevModeArrivalHelpers({ triggerCardArrival, runAutoHandEffect, render });
 registerPhaseAutomationHelpers({ render, findTopCardAt });
 initHelpButton();
+initDiscordLink();
 initCurrencyDisplay();
 initShop();
 registerShopOpener(openShopPanel);

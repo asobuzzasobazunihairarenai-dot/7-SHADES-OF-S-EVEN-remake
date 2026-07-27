@@ -8,6 +8,7 @@ import { stageDelta, toStageLocalRect } from "./main.js";
 import { isFlatten2dMode, setFlatten2dMode } from "./tablet-2d-mode.js";
 import { getTierInfo } from "./stats-profile.js";
 import { showRankUpModal } from "./rank-up-modal.js";
+import { previewBgmVolume } from "./sound.js";
 
 // game-setup.jsは既にadmin.js（isManualSeatMode）をimportしているため、admin.js側から
 // game-setup.jsを直接importすると循環importになる。他の箇所（setup-animation.js等）と
@@ -311,14 +312,53 @@ const GROUPS = [
       // ユーザー要望「『勝利時.mp3』をBGMフォルダへ移した。音量調整ではBGMとして
       // 扱ってほしい」への対応で、専用のCSS変数（-bgm接尾辞、オープニングBGMと
       // 同じ命名規則）に切り替えた（sound.jsのplayVictoryBgm参照）。
-      { key: "--sound-volume-victory-bgm", label: "勝利時BGM", unit: "%", min: 0, max: 100, step: 5, default: 80 },
-      { key: "--sound-volume-opening-bgm", label: "オープニングBGM", unit: "%", min: 0, max: 100, step: 5, default: 80 },
+      // previewOnInteract（続き63、ユーザー要望「BGMを個別調整するとき実際に音量確認で
+      // そのBGMを鳴らせるようにしてください」）: 触るたびにsound.jsのpreviewBgmVolumeを
+      // 呼び、未再生ならそのBGMを鳴らし、既に再生中なら音量だけその場で反映する。
+      {
+        key: "--sound-volume-victory-bgm",
+        label: "勝利時BGM",
+        unit: "%",
+        min: 0,
+        max: 100,
+        step: 5,
+        default: 80,
+        previewOnInteract: () => previewBgmVolume("--sound-volume-victory-bgm"),
+      },
+      {
+        key: "--sound-volume-opening-bgm",
+        label: "オープニングBGM",
+        unit: "%",
+        min: 0,
+        max: 100,
+        step: 5,
+        default: 80,
+        previewOnInteract: () => previewBgmVolume("--sound-volume-opening-bgm"),
+      },
       // ユーザー要望「ゲーム時のBGM追加しました。ゲーム開始時から流れるようにしたい」
       // への対応（sound.jsのplayGameBgm参照）。
-      { key: "--sound-volume-game-bgm", label: "ゲーム時BGM", unit: "%", min: 0, max: 100, step: 5, default: 80 },
+      {
+        key: "--sound-volume-game-bgm",
+        label: "ゲーム時BGM",
+        unit: "%",
+        min: 0,
+        max: 100,
+        step: 5,
+        default: 80,
+        previewOnInteract: () => previewBgmVolume("--sound-volume-game-bgm"),
+      },
       // ユーザー要望「プレイヤー待機中のBGMを追加しました」への対応
       // （sound.jsのplayWaitingBgm参照）。
-      { key: "--sound-volume-waiting-bgm", label: "プレイヤー待機中BGM", unit: "%", min: 0, max: 100, step: 5, default: 80 },
+      {
+        key: "--sound-volume-waiting-bgm",
+        label: "プレイヤー待機中BGM",
+        unit: "%",
+        min: 0,
+        max: 100,
+        step: 5,
+        default: 80,
+        previewOnInteract: () => previewBgmVolume("--sound-volume-waiting-bgm"),
+      },
     ],
   },
   {
@@ -476,7 +516,7 @@ const GROUPS = [
     title: "自分専用ステータスエリア（左下）：大きいアバター（背面表示）",
     category: "position-self",
     controls: [
-      { key: "--self-status-large-avatar-size", label: "サイズ", unit: "rem", min: 2, max: 16, step: 0.1, default: 13.5 },
+      { key: "--self-status-large-avatar-size", label: "サイズ", unit: "rem", min: 2, max: 16, step: 0.1, default: 12 },
       { key: "--self-status-large-avatar-pos-x", label: "位置X", unit: "rem", min: -15, max: 20, step: 0.1, default: -0.86 },
       { key: "--self-status-large-avatar-pos-y", label: "位置Y", unit: "rem", min: -15, max: 20, step: 0.1, default: -5.12 },
     ],
