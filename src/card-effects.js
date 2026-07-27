@@ -60,6 +60,11 @@ export const VERBS = {
   FLIP_UP_TO_N_WITHIN_RANGE: "flip_up_to_n_within_range", // 黄のキューブ サフラン専用: Nマス以内の裏向きカードを、M枚まで（してもよい）オープンする
   DISCARD_RANDOM_FROM_QUALIFYING_OPPONENTS: "discard_random_from_qualifying_opponents", // 青のキューブ セレスティア専用: 手札が指定枚数以上ある相手全員から無作為に1枚ずつ捨てる
   DISCARD_ALL_AT_CHOSEN_CELL: "discard_all_at_chosen_cell", // 紅蓮の火山 ワイナウエア専用: 任意の1マスのカードを全て捨てる
+  // 続き44で新設。
+  PUBLIC_DRAW_THEN_DISCARD_AT_TURN_END: "public_draw_then_discard_at_turn_end", // 奇跡の森 マンズウッド専用: N枚公開ドローし、ターン終了時にそれらを捨てる
+  MOVE_CHOSEN_OPPONENT_ADJACENT_TO_SELF: "move_chosen_opponent_adjacent_to_self", // 結ばれの一本桜 コノハナサクヤ専用: 相手を選び、その駒をあなたの隣へ移動させる（「移動」扱い）
+  PUBLIC_DRAW_DISABLE_HAND_EFFECTS_CONDITIONAL_DISCARD: "public_draw_disable_hand_effects_conditional_discard", // 禁断の果実 マルメゴ専用: N枚公開ドロー、それらの手札効果は今ターン使用不可、橙が混ざっていたら手札全捨て＋今ターン移動不可
+  ANNOUNCE_MOVEMENT_BOOST_THIS_TURN: "announce_movement_boost_this_turn", // 紫のキューブ ディメンション専用: このターンの通常の移動が2マス一気になる（このアプリは元々移動先を制限しないため、実際には案内のみ）
 };
 
 // 効果の主語（誰が対象か）。
@@ -493,6 +498,50 @@ export const CARD_EFFECTS = {
     },
   },
 
+  // 奇跡の森 マンズウッド（緑、ファーストカード） 手札効果:
+  // 「【追色１】２枚ドローして、それらをすべて公開する。ターン終了時、それらを
+  // 捨てる。この効果は１ターンに１度のみ得られる。」
+  "first-green": {
+    handEffect: {
+      cost: { verb: VERBS.DISCARD_SAME_COLOR, count: 1 },
+      usageLimit: { per: "turn", count: 1 },
+      actions: [{ verb: VERBS.PUBLIC_DRAW_THEN_DISCARD_AT_TURN_END, count: 2 }],
+    },
+  },
+
+  // 結ばれの一本桜 コノハナサクヤ（桃、エターナルカード） 手札効果:
+  // 「《恋の訪れ》：【追色１】相手をあなたの周囲へ移動する。このターンあなたは
+  // 接触できない。」
+  "eternal-pink": {
+    handEffect: {
+      cost: { verb: VERBS.DISCARD_SAME_COLOR, count: 1 },
+      actions: [{ verb: VERBS.MOVE_CHOSEN_OPPONENT_ADJACENT_TO_SELF }],
+    },
+  },
+
+  // 禁断の果実 マルメゴ（橙、エターナルカード） 手札効果:
+  // 「《果実の提案》：【追色１】４枚ドロー。それらを公開する。それらの手札効果は
+  // このターン使うことができない。その中に橙のカードがあったなら、あなたの手札を
+  // すべて捨て、あなたはこのターン移動できない。」
+  "eternal-orange": {
+    handEffect: {
+      cost: { verb: VERBS.DISCARD_SAME_COLOR, count: 1 },
+      actions: [{ verb: VERBS.PUBLIC_DRAW_DISABLE_HAND_EFFECTS_CONDITIONAL_DISCARD, count: 4 }],
+    },
+  },
+
+  // 紫のキューブ ディメンション（紫、ファーストカード） 手札効果:
+  // 「このターンの通常の移動は２マス先に一気に移動する。」他のファーストカードと
+  // 違い追色コストの記載が無いカード（docs/cards.md確認済み）。このアプリはそもそも
+  // ムーブフェイズの移動先を制限していない（Phase 1方針「ルール適用は一切しない」、
+  // ドラッグで盤面のどこへでも置ける）ため、実際に「２マス先まで動けるようにする」
+  // ための制限緩和処理は元から不要——この手札効果は自己申告の案内として扱う。
+  "first-purple": {
+    handEffect: {
+      actions: [{ verb: VERBS.ANNOUNCE_MOVEMENT_BOOST_THIS_TURN }],
+    },
+  },
+
   // 選べる罠（青、通常カード） 到達効果: 「以下の効果のうち1つ得る。・あなたの手札を
   // 半分捨てる。・あなたのゲートに強制移動する。・あなたのロックしているカードを1枚
   // 捨てる。」なないろの欠片のhandEffectOptionsと同じ「複数選択肢から1つ」の考え方だが、
@@ -694,6 +743,14 @@ function renderAction(action, context) {
       return `手札が${toFullWidthNumber(action.minHandSize)}枚以上ある相手全員の手札から、無作為に１枚ずつ選び、それらを捨てる。`;
     case VERBS.DISCARD_ALL_AT_CHOSEN_CELL:
       return "任意の１マスのカードをすべて捨てる。";
+    case VERBS.PUBLIC_DRAW_THEN_DISCARD_AT_TURN_END:
+      return `${count}枚ドローして、それらをすべて公開する。ターン終了時、それらを捨てる。`;
+    case VERBS.MOVE_CHOSEN_OPPONENT_ADJACENT_TO_SELF:
+      return "相手をあなたの周囲へ移動する。このターンあなたは接触できない。";
+    case VERBS.PUBLIC_DRAW_DISABLE_HAND_EFFECTS_CONDITIONAL_DISCARD:
+      return `${count}枚ドロー。それらを公開する。それらの手札効果はこのターン使うことができない。その中に橙のカードがあったなら、あなたの手札をすべて捨て、あなたはこのターン移動できない。`;
+    case VERBS.ANNOUNCE_MOVEMENT_BOOST_THIS_TURN:
+      return "このターンの通常の移動は２マス先に一気に移動する。";
     case VERBS.PICKUP_TO_HAND: {
       const zoneLabel = action.withinCells
         ? `${toFullWidthNumber(action.withinCells)}マス以内の`
@@ -1057,4 +1114,22 @@ if (typeof process !== "undefined" && process.argv[1] && process.argv[1].endsWit
   console.log("[紅蓮の火山 ワイナウエア 手札効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["eternal-red"].handEffect));
   console.log("  実際: 【追色１】任意の１マスのカードをすべて捨てる。\n");
+
+  console.log("[奇跡の森 マンズウッド 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["first-green"].handEffect));
+  console.log("  実際: 【追色１】２枚ドローして、それらをすべて公開する。ターン終了時、それらを捨てる。この効果は１ターンに１度のみ得られる。\n");
+
+  console.log("[結ばれの一本桜 コノハナサクヤ 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["eternal-pink"].handEffect));
+  console.log("  実際: 【追色１】相手をあなたの周囲へ移動する。このターンあなたは接触できない。\n");
+
+  console.log("[禁断の果実 マルメゴ 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["eternal-orange"].handEffect));
+  console.log(
+    "  実際: 【追色１】４枚ドロー。それらを公開する。それらの手札効果はこのターン使うことができない。その中に橙のカードがあったなら、あなたの手札をすべて捨て、あなたはこのターン移動できない。\n"
+  );
+
+  console.log("[紫のキューブ ディメンション 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["first-purple"].handEffect));
+  console.log("  実際: このターンの通常の移動は２マス先に一気に移動する。\n");
 }

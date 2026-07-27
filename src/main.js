@@ -1396,6 +1396,25 @@ async function publicDrawForEffect(player, count) {
   return drawnCardIds;
 }
 
+// 奇跡の森 マンズウッド専用（PUBLIC_DRAW_THEN_DISCARD_AT_TURN_END）:
+// publicDrawForEffectと同じ公開ドローを行うが、戻り値がcardIdの配列ではなく実際の
+// トークンid（あとで「このターン終了時にこれを捨てる」と覚えておくために必要、
+// publicDrawForEffect自体はザ・ギャンブルの色一致判定用にcardIdの配列を返す設計の
+// ため、戻り値の形を変えずに新しい関数として用意した）。drawCardsForEffectの
+// findNewHandTokenIdsと同じ「前後の差分で新規トークンを特定する」パターンを
+// publicDrawゾーンに対して使う。
+async function publicDrawReturningTokensForEffect(player, count) {
+  const before = new Set(
+    getState()
+      .tokens.filter((t) => t.kind === "card" && t.location.zone === "publicDraw" && t.location.player === player)
+      .map((t) => t.id)
+  );
+  await publicDrawForEffect(player, count);
+  return getState()
+    .tokens.filter((t) => t.kind === "card" && t.location.zone === "publicDraw" && t.location.player === player && !before.has(t.id))
+    .map((t) => t.id);
+}
+
 // 試練の儀式専用: 山札の一番上を指定マスへ表向きで直接置き、置いたカードのcardIdを
 // 返す（RITUAL_PLACE_MOVE_REPEATが置いたカードの色を判定するために必要）。
 // placeFromDeckForEffect（増殖する樹々等、裏向き専用）とは別に用意した表向き版。
@@ -2297,6 +2316,9 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         // セレスティア（DISCARD_RANDOM_FROM_QUALIFYING_OPPONENTS）用。
         drawFromDiscard: drawFromDiscardForEffect,
         pickRandomFromOpponentHand: pickRandomFromOpponentHandForEffect,
+        // 奇跡の森 マンズウッド（PUBLIC_DRAW_THEN_DISCARD_AT_TURN_END）用。
+        publicDrawReturningTokens: publicDrawReturningTokensForEffect,
+        markDiscardAtTurnEnd,
       }
     );
     clearEffectUiHighlights();
@@ -4244,28 +4266,23 @@ function setPeekedCard(cardEl) {
   // ことを確認した。
   cardEl.style.transform = `${cardEl.dataset.baseTransform ?? ""} translateY(-${lift})`;
 }
-// カーソル/タップ座標に重なる自分の手札カードのうち、中心が最も近い1枚を返す（無ければ
-// null）。ハマりどころ: 扇状に回転したカードのgetBoundingClientRect()は、見た目の菱形より
-// かなり大きい軸並行の矩形になるため、隣接カードの矩形と広く重なり合う。「矩形に含まれる
-// 最後（DOM順）のもの」で判定すると、実際にカーソルの真下にあるカードとは違う、隣の
-// カードが選ばれてしまうことがあった（実測で確認）。矩形に含まれるものの中から、中心点との
-// 距離が最も近いものを選ぶことで、見た目通りの1枚に絞れるようにした。
+// カーソル/タップ座標にある自分の手札カードを返す（無ければnull）。
+// ユーザー報告「ひょこってなるカードと拡大されるカードが違う」の原因: 以前は
+// getBoundingClientRect()の矩形重なり＋中心点との距離で判定していたが（扇状に回転した
+// カードの軸並行矩形は見た目の菱形よりかなり大きく、隣接カードの矩形と広く重なり合う
+// ため、「矩形に含まれるものの中から中心が最も近いもの」という座標上のヒューリスティック
+// だった）、これは実際に画面上でどのカードが手前に描画されているか（＝見た目のカード
+// 拡大プレビュー、findHoverTarget参照）とは別の判定基準だったため、重なりが深い時に
+// 両者が食い違うことがあった。findHoverTargetと同じdocument.elementsFromPoint()
+// （実際の描画スタッキング順を反映する）を使うことで、拡大プレビューと必ず同じ1枚を
+// 指すようにする。
 function findSelfHandCardAt(clientX, clientY) {
-  const cards = document.querySelectorAll(".zone-bottom .hand-area .hand-card.is-self");
-  let best = null;
-  let bestDist = Infinity;
-  for (const el of cards) {
-    const r = el.getBoundingClientRect();
-    if (clientX < r.left || clientX > r.right || clientY < r.top || clientY > r.bottom) continue;
-    const cx = r.left + r.width / 2;
-    const cy = r.top + r.height / 2;
-    const dist = (clientX - cx) ** 2 + (clientY - cy) ** 2;
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = el;
-    }
+  const elements = document.elementsFromPoint(clientX, clientY);
+  for (const el of elements) {
+    const handCard = el.closest(".hand-card.is-self");
+    if (handCard && handCard.closest(".zone-bottom .hand-area")) return handCard;
   }
-  return best;
+  return null;
 }
 function initHandPeek() {
   window.addEventListener("pointermove", (e) => {
@@ -5371,6 +5388,37 @@ function updateSelfStatusOnlineWidget() {
 let endTurnButtonEl = null;
 let endTurnTooltipEl = null;
 
+// 奇跡の森 マンズウッド専用（PUBLIC_DRAW_THEN_DISCARD_AT_TURN_END）:「ターン終了時、
+// それらを捨てる」の実現方法。公開ドロー（publicDrawゾーン）自体は、ターン終了時に
+// 自動で手札へ合流する（mergePublicDrawIntoHand、state.js/so7-apply-action.ts両方に
+// 実装済み、SHUFFLE_HAND/NEXT_TURN共通）設計のため、この効果専用に「合流ではなく
+// 捨てる」動作を新しくリデューサー側（ローカル・サーバー両方）に追加するのは避け、
+// 代わりにターン終了ボタンが実際にnextTurn()を呼ぶ直前（＝合流処理が走るより前）に、
+// 対象トークンを先に捨ててしまうことで実現する（先に捨ててしまえば、後続の合流処理
+// には何も残っていない）。プレイヤーごとに「このターン終了時に捨てるべきトークンid」を
+// 覚えておくだけの、ゲーム状態には一切書き込まないメモリ上のMap（新しいサーバー
+// アクション・DBスキーマ変更が不要なため、この効果だけのためにEdge Functionへ手を
+// 入れずに済む）。
+const pendingTurnEndDiscards = new Map(); // player -> Set<tokenId>
+function markDiscardAtTurnEnd(player, tokenIds) {
+  if (!tokenIds?.length) return;
+  const set = pendingTurnEndDiscards.get(player) ?? new Set();
+  for (const id of tokenIds) set.add(id);
+  pendingTurnEndDiscards.set(player, set);
+}
+async function flushPendingTurnEndDiscards(player) {
+  const set = pendingTurnEndDiscards.get(player);
+  if (!set || set.size === 0) return;
+  pendingTurnEndDiscards.delete(player);
+  for (const tokenId of set) {
+    // 既に何らかの理由で盤面/publicDrawゾーンから無くなっている可能性もゼロではない
+    // ため（善処の原則）、現存するトークンだけ捨てる。
+    if (getState().tokens.some((t) => t.id === tokenId)) {
+      await discardFromHandReveal(tokenId);
+    }
+  }
+}
+
 // ユーザー要望「自動処理モードでないときに、ゲート侵攻成功条件を満たした状態で
 // ターン終了ボタンを押したら『ゲート侵攻処理を自動で行いますか？』的な確認モーダルを
 // 画面中央に出してほしい」。#contact-confirm-modal（接触の申込確認）と同じ画面中央・
@@ -5438,15 +5486,21 @@ function buildEndTurnButton() {
       "自分のターンを終え、次のプレイヤーへ手番を渡します。",
       "相手のゲートに自分の駒が乗っている場合、ターン終了時に「相手ゲート侵攻ボーナス」が自動的に処理されます。",
     ],
-    onAction: () => {
+    onAction: async () => {
       // オンライン中、自分の手番でない間・優先権を持っていない間はupdateEndTurnButton()側で
       // disabled=trueにしているはずだが、念のためここでも二重にガードする（他人のターンを
       // 勝手に終了させられてしまうバグの再発防止）。
+      let turnPlayerBeforeEnd;
       {
         const s = getState();
         if (isOnlineMode() && getSelfSeat() !== s.turnPlayer) return;
         if (isOnlineMode() && s.priorityPlayer && getSelfSeat() !== s.priorityPlayer) return;
+        turnPlayerBeforeEnd = s.turnPlayer;
       }
+      // 奇跡の森 マンズウッド専用: このターン中に「ターン終了時に捨てる」と予約された
+      // トークンがあれば、実際にnextTurn()を呼ぶ前（＝publicDrawの手札合流処理が走る
+      // より前）に先に捨てておく（markDiscardAtTurnEnd参照）。
+      await flushPendingTurnEndDiscards(turnPlayerBeforeEnd);
       // ゲート侵攻ボーナス(GATE_INVASION_*)は、so7-apply-action.ts側でNEXT_TURN処理に
       // 統合済み（サーバー側で自動判定・自動適用される）。オンライン中にrunGateInvasionsIfNeeded()
       // を呼ぶとローカルだけに二重適用されサーバーの状態と食い違ってしまうため、

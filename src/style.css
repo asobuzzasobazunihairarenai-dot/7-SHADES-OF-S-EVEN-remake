@@ -5889,13 +5889,16 @@ body.phase-lock-picking .hand-card:not(.phase-lock-highlight) {
 }
 /* ユーザー要望「選択モーダルが盤面を隠していて見にくい。『盤面を見る』ボタンを
    モーダル内に追加、押すと盤面を確認することができる。適当にクリックすると
-   選択モーダルに戻る」への対応（hand-effect-ui.jsのshowHandEffectOptionPicker）。 */
+   選択モーダルに戻る」への対応（hand-effect-ui.jsのshowHandEffectOptionPicker）。
+   ユーザー要望「『盤面を見る』ボタンを押したとき、モーダルは消すのではなく画面の
+   左側に移すようにしてほしい」への対応で、非表示にする代わりに画面左端へ寄せる
+   （盤面の中央〜右側が見えるようにしつつ、モーダル自体は見えたまま操作もできる）。 */
 .hand-effect-option-picker-backdrop.is-peeking {
   background: transparent;
 }
 .hand-effect-option-picker.is-peeking {
-  opacity: 0;
-  pointer-events: none;
+  left: 1.5rem;
+  transform: translate(0, -50%) scale(1);
 }
 .hand-effect-option-picker-peek-btn {
   width: 100%;
@@ -5991,10 +5994,12 @@ body.phase-lock-picking .hand-card:not(.phase-lock-highlight) {
   background: rgba(56, 189, 248, 0.4);
 }
 /* ユーザー要望「作業を促すモーダルに『盤面を見る』ボタンをつけてほしい」への対応
-   （main.jsのdeclareColorsForEffect、hand-effect-option-picker-peek-*と共通のクラスを流用）。 */
+   （main.jsのdeclareColorsForEffect、hand-effect-option-picker-peek-*と共通のクラスを流用）。
+   ユーザー要望「『盤面を見る』ボタンを押したとき、モーダルは消すのではなく画面の
+   左側に移すようにしてほしい」への対応で非表示にせず画面左端へ寄せる。 */
 .declare-colors-modal.is-peeking {
-  opacity: 0;
-  pointer-events: none;
+  left: 1.5rem;
+  transform: translate(0, -50%);
 }
 .declare-colors-modal-confirm:disabled {
   background: rgba(100, 116, 139, 0.15);

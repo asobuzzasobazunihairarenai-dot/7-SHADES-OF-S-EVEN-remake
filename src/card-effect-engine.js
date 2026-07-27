@@ -70,6 +70,18 @@ function recordHandEffectUsage(cardId, player) {
   handEffectUsage.set(usageKey(cardId, player), { turnNumber: getState().turnNumber, count: usageCountThisTurn(cardId, player) + 1 });
 }
 
+// 禁断の果実 マルメゴ専用（PUBLIC_DRAW_DISABLE_HAND_EFFECTS_CONDITIONAL_DISCARD）:
+// 「それらの手札効果はこのターン使うことができない。」を、handEffectUsageと同じ
+// 「turnNumberが一致する間だけ有効」という自動失効パターンで実現する（このカード
+// 固有のtokenId単位のため、cardId+player単位のhandEffectUsageとは別のMapにする）。
+const handEffectDisabledUntilTurn = new Map(); // tokenId -> turnNumber
+function disableHandEffectForTurn(tokenId) {
+  handEffectDisabledUntilTurn.set(tokenId, getState().turnNumber);
+}
+function isHandEffectDisabledThisTurn(tokenId) {
+  return handEffectDisabledUntilTurn.get(tokenId) === getState().turnNumber;
+}
+
 // テスト中に発覚したバグの修正: resetGame()するとstate.jsのturnNumberは1から再スタートする
 // ため、前のゲームで既に「turnNumber:1で1回使用済み」と記録されていたカードが、新しい
 // ゲームのturnNumber:1でも誤って「もう使った」扱いになってしまっていた（handEffectUsageは
@@ -109,6 +121,7 @@ export function getHandEffectOptions(cardId) {
 // requiresPairInHand等の追加条件を満たす、の全てを満たすか）。
 export function isHandEffectOptionUsable(cardId, cardTokenId, player, option) {
   if (!autoProcessingEnabled) return false;
+  if (isHandEffectDisabledThisTurn(cardTokenId)) return false;
   if (!isUnderUsageLimit(option.usageLimit, cardId, player)) return false;
   if (option.cost?.verb === VERBS.DISCARD_SAME_COLOR) {
     const color = getCardDefinition(cardId)?.color;
@@ -497,6 +510,83 @@ async function runAction(action, ctx, helpers) {
       for (const token of stack) {
         await helpers.discardAndSync(token.id);
       }
+      return true;
+    }
+    case VERBS.PUBLIC_DRAW_THEN_DISCARD_AT_TURN_END: {
+      // 奇跡の森 マンズウッド専用: N枚公開ドローし、ターン終了時にそれらを捨てる。
+      // 「ターン終了時」の実現方法はmain.jsのmarkDiscardAtTurnEnd/
+      // flushPendingTurnEndDiscards参照（新しいサーバーアクション・状態を増やさず、
+      // ターン終了ボタンが実際にnextTurn()を呼ぶ直前に先回りして捨てる方式）。ここでは
+      // 「公開ドローする」＋「捨てる予定として覚えておく」だけで完結する。
+      const tokenIds = await helpers.publicDrawReturningTokens(ctx.player, action.count);
+      if (tokenIds.length === 0) return false;
+      helpers.markDiscardAtTurnEnd?.(ctx.player, tokenIds);
+      return true;
+    }
+    case VERBS.MOVE_CHOSEN_OPPONENT_ADJACENT_TO_SELF: {
+      // 結ばれの一本桜 コノハナサクヤ専用: 相手を選び、その相手の駒をあなた自身の駒に
+      // 隣接するマスへ移動させる。「移動」扱いのため、移動先が裏向きカードならオープン
+      // する（docs/rulebook.md「移動」の定義、パーティーの「移動先の到達効果は得ない」
+      // オプションと同じ考え方）。到達効果自体は対象になった相手プレイヤー本人の
+      // クライアント側の既存の自動処理（remote-move-animator.jsが他プレイヤーの駒移動を
+      // 検知して面上のカードが表向きなら自動で到達判定する仕組み、マスチェンジ等の
+      // 「相手の駒を動かす」効果と同じ経路）に任せる——ここでは駒の移動とオープンだけを
+      // 行う。「このターンあなたは接触できない」は実際には強制せず（このアプリの
+      // Phase 1方針「ルール適用は一切しない」通り）、案内モーダルで知らせるに留める。
+      const opponents = getState().activePlayers.filter((p) => p !== ctx.player);
+      if (opponents.length === 0) return false;
+      const targetPlayer = await helpers.pickPlayer(opponents, "移動させる相手を選んでください（アバターをクリック）");
+      if (!targetPlayer) return false;
+      const targetPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === targetPlayer);
+      const selfPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === ctx.player);
+      if (!targetPiece || !selfPiece || selfPiece.location.zone !== "cell") return false;
+      const adjacentCells = enumerateManhattanRing(1)
+        .map(({ dr, dc }) => ({ row: selfPiece.location.row + dr, col: selfPiece.location.col + dc }))
+        .filter(({ row, col }) => inBounds(row, col) && !hasPieceAt(row, col))
+        .map(({ row, col }) => ({ zone: "cell", row, col }));
+      if (adjacentCells.length === 0) return false; // 善処の原則: 隣接マスが無ければ何もしない
+      const dest = adjacentCells.length === 1 ? adjacentCells[0] : await helpers.pickLocation(adjacentCells, "相手を移動させるマスを選択してください");
+      if (!dest) return false;
+      await helpers.moveAndSync(targetPiece.id, dest);
+      const destTop = findTopCardAtCell(dest.row, dest.col);
+      if (destTop && !destTop.faceUp) {
+        await helpers.flipCard(destTop.id);
+      }
+      await helpers.announceEffectReason?.(ctx.cardId, "このターンあなたは接触できません（自己申告）。");
+      return true;
+    }
+    case VERBS.PUBLIC_DRAW_DISABLE_HAND_EFFECTS_CONDITIONAL_DISCARD: {
+      // 禁断の果実 マルメゴ専用: N枚公開ドロー→それらの手札効果は今ターン使用不可
+      // （disableHandEffectForTurn、上のisHandEffectOptionUsableで参照）→その中に
+      // 橙（なないろの欠片は全色兼用のため橙としても扱う、他の効果と同じ判定基準）が
+      // あれば手札を全て捨てる。「あなたはこのターン移動できない」は他の「このターン
+      // ○○できない」系（eternal-pink参照）と同じ理由で実際には強制せず、案内モーダルで
+      // 知らせるに留める。
+      const tokenIds = await helpers.publicDrawReturningTokens(ctx.player, action.count);
+      if (tokenIds.length === 0) return false;
+      for (const tokenId of tokenIds) disableHandEffectForTurn(tokenId);
+      const hasOrange = tokenIds.some((tokenId) => {
+        const token = getState().tokens.find((t) => t.id === tokenId);
+        if (!token) return false;
+        return token.cardId === "rainbow-shard" || getCardDefinition(token.cardId)?.color === "orange";
+      });
+      if (hasOrange) {
+        const handTokens = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === ctx.player);
+        for (const token of handTokens) {
+          await helpers.discardAndSync(token.id);
+        }
+        await helpers.announceEffectReason?.(
+          ctx.cardId,
+          "公開した中に橙のカードがあったため、手札をすべて捨てます。このターンあなたは移動できません（自己申告）。"
+        );
+      }
+      return true;
+    }
+    case VERBS.ANNOUNCE_MOVEMENT_BOOST_THIS_TURN: {
+      // 紫のキューブ ディメンション専用: このアプリはムーブフェイズの移動先を元々
+      // 制限していない（ドラッグで盤面のどこへでも置ける、Phase 1方針）ため、
+      // 実際の移動範囲を広げる処理は不要——案内モーダルを出すだけで完結する。
+      await helpers.announceEffectReason?.(ctx.cardId, "このターン、通常の移動を２マス先まで一気に行えます（自己申告）。");
       return true;
     }
     case VERBS.PICKUP_TO_HAND: {

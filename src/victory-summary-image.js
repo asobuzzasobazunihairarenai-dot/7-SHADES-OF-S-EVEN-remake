@@ -25,7 +25,7 @@ import { getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import { getSkinImagePath } from "./piece-skins.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { getSelectedBackgroundPath } from "./background.js";
-import { COLORS, SEAT_TO_SIDE, SEAT_ORDER } from "./board-layout.js";
+import { COLORS, GATE_POSITIONS, SIDE_TO_SEAT, SEAT_TO_SIDE, SEAT_ORDER } from "./board-layout.js";
 
 const BOARD_N = 7;
 const CELL = 52;
@@ -59,6 +59,15 @@ function loadImage(src, { crossOrigin } = {}) {
 function getPieceColor(state, seat) {
   const piece = state.tokens.find((t) => t.kind === "piece" && t.player === seat);
   return piece ? piece.color : null;
+}
+
+// Canvas 2DのfillStyle/strokeStyleは`var(--color-red)`のようなCSS変数参照をそのまま
+// 解釈できない（DOM要素のstyleプロパティ経由でしか効かない）ため、実際に解決済みの
+// 色値を:rootから読み出す。sound.jsのgetPerSoundVolumeと同じ考え方。
+function resolveColorVar(color) {
+  if (!color) return "#94a3b8";
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(`--color-${color}`).trim();
+  return raw || "#94a3b8";
 }
 
 // ユーザー要望「背景を追加すると文字が見にくくなると思うので文字に背景を追加する
@@ -157,15 +166,17 @@ export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat }
       state.tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === seat),
     ])
   );
-  // +1はアバター分（ユーザー要望「アバターを手札の横に大きく、手札と同じくらいに」
-  // ——手札の列の先頭にアバターを1枚分の幅で置くため）。
-  const maxHandCount = Math.max(0, ...[...handTokensBySeat.values()].map((h) => h.length)) + 1;
 
   const boardPx = BOARD_N * CELL + (BOARD_N - 1) * CELL_GAP;
   const sectionGap = 10;
-  // 1プレイヤー分＝名前ラベル＋ロックエリア（7色）＋隙間＋手札ラベル＋手札の各行。
-  const playerBlockH = ROW_LABEL_H + CARD_SIZE + sectionGap + ROW_LABEL_H + CARD_SIZE + 22;
-  const cardsAcross = Math.max(COLORS.length, maxHandCount, 1);
+  // 1プレイヤー分＝名前ラベル＋（アバター＋ロックエリア7色）＋隙間＋手札枚数の
+  // テキスト行。手札は絵を描かなくなった（枚数だけ）ため、その分の高さは
+  // ROW_LABEL_Hだけで済む（続き44、ユーザー要望「手札は枚数表示だけでいい」「各
+  // ロック結果の隣にアバターを配置」）。
+  const playerBlockH = ROW_LABEL_H + CARD_SIZE + sectionGap + ROW_LABEL_H + 12;
+  // 横幅を決めるのはロック行（アバター1枠＋7色）。手札行はもう絵を描かないため
+  // 横幅には関与しない。
+  const cardsAcross = 1 + COLORS.length;
 
   const titleH = 74;
   const colGap = 36;
@@ -207,6 +218,14 @@ export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat }
   ctx.fillText(`🏆 勝者: ${getPlayerName(winnerSeat)}`, PAD, 70);
 
   // 左カラム: 盤面 7x7
+  // ユーザー要望「各ゲート誰がどのゲートかわかるようにしてください」。GATE_POSITIONSの
+  // 4マス（row,col）に、その辺の持ち主（SIDE_TO_SEAT、参加していない辺はnull）を
+  // 対応付けておき、盤面描画時にそのマスだけ持ち主の駒の色で縁取り＋名前ラベルを出す。
+  const gateSeatByCellKey = new Map();
+  for (const [side, pos] of Object.entries(GATE_POSITIONS)) {
+    const seat = SIDE_TO_SEAT[side];
+    if (seats.includes(seat)) gateSeatByCellKey.set(`${pos.row},${pos.col}`, seat);
+  }
   const boardX = PAD;
   const boardY = titleH + PAD;
   const cellTokens = state.tokens.filter((t) => t.location.zone === "cell");
@@ -216,6 +235,7 @@ export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat }
       const y = boardY + row * (CELL + CELL_GAP);
       const card = cellTokens.find((t) => t.kind === "card" && t.location.row === row && t.location.col === col);
       const piece = cellTokens.find((t) => t.kind === "piece" && t.location.row === row && t.location.col === col);
+      const gateSeat = gateSeatByCellKey.get(`${row},${col}`);
       ctx.fillStyle = "#1e293b";
       ctx.fillRect(x, y, CELL, CELL);
       if (card) {
@@ -236,6 +256,25 @@ export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat }
           ctx.fill();
         }
       }
+      if (gateSeat) {
+        const gateColor = resolveColorVar(getPieceColor(state, gateSeat));
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = gateColor;
+        ctx.strokeRect(x + 1.5, y + 1.5, CELL - 3, CELL - 3);
+        ctx.font = "bold 11px sans-serif";
+        const label = getPlayerName(gateSeat);
+        const labelW = ctx.measureText(label).width + 6;
+        ctx.fillStyle = "rgba(8, 10, 16, 0.75)";
+        ctx.fillRect(x + 2, y + 2, Math.min(labelW, CELL - 4), 14);
+        ctx.fillStyle = gateColor;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x + 2, y + 2, CELL - 4, 14);
+        ctx.clip();
+        ctx.fillText(label, x + 4, y + 12);
+        ctx.restore();
+      }
+      ctx.lineWidth = 1;
       ctx.strokeStyle = "rgba(226, 232, 240, 0.15)";
       ctx.strokeRect(x, y, CELL, CELL);
     }
@@ -255,10 +294,30 @@ export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat }
     const crown = isWinner ? "🏆 " : "";
     ctx.fillText(`${crown}${getPlayerName(seat)}${color ? `（${color}）` : ""}`, rightX, y + 16);
 
-    // ロックエリア（7色分、揃っている色だけ実際のカード絵を表示。正方形）
+    // ユーザー要望「各ロック結果の隣にアバターを配置しましょう」。以前は手札の列の
+    // 先頭に置いていたアバターを、ロックエリアの列の先頭（CARD_SIZE四方、AVATAR_SIZE
+    // と共通）に移した。
     const lockY = y + ROW_LABEL_H;
+    const avatarImg = avatarCache.get(seat);
+    const avatarCx = rightX + AVATAR_SIZE / 2;
+    const avatarCy = lockY + AVATAR_SIZE / 2;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(avatarCx, avatarCy, AVATAR_SIZE / 2, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    if (avatarImg) {
+      ctx.drawImage(avatarImg, rightX, lockY, AVATAR_SIZE, AVATAR_SIZE);
+    } else {
+      ctx.fillStyle = "#374151";
+      ctx.fillRect(rightX, lockY, AVATAR_SIZE, AVATAR_SIZE);
+    }
+    ctx.restore();
+
+    // ロックエリア（7色分、揃っている色だけ実際のカード絵を表示。正方形）。
+    // アバターの分だけ右にずらして並べる。
     for (let i = 0; i < COLORS.length; i++) {
-      const x = rightX + i * (CARD_SIZE + CARD_GAP);
+      const x = rightX + AVATAR_SIZE + CARD_GAP + i * (CARD_SIZE + CARD_GAP);
       const locked = state.tokens.find(
         (t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side && t.location.index === i
       );
@@ -272,46 +331,16 @@ export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat }
       }
     }
 
-    // 手札。ハマりどころ: ゲーム終了後でも、この証拠画像を生成しているクライアント
-    // （勝者本人の画面）から見えるgetState()には、so7_game_tokens_visibleビューが
-    // マスクした結果がそのまま入っている——自分の手札はfaceUp:true/cardIdありだが、
-    // 他プレイヤーの手札はサーバー側で常にfaceUp:false・cardId:nullにされていて、
-    // このクライアントには元々その中身を知る手段が無い（online.js冒頭のコメント
-    // 参照）。「ゲームが終わったから見せてもよいはず」という理屈はサーバー側の
-    // ビューには通用しないため、盤面のマス目と同じくtoken.faceUpに従い、見えない
-    // 手札はカード裏面（getCardBackImagePathはcardId:nullでも既定の裏面にフォール
-    // バックする）を描く。
+    // 手札。ユーザー要望「手札は枚数表示だけで何を持っていたかは無しでいい、画面が
+    // すっきりする」への対応でカード絵の列は描かず、枚数だけをテキストで示す
+    // （ハマりどころだった「他プレイヤーの手札の中身はこのクライアントから元々見えない」
+    // 問題自体も、絵を描かなくなったことで自然に解消する）。
     const handY = lockY + CARD_SIZE + sectionGap;
     const hand = handTokensBySeat.get(seat) ?? [];
     drawTextPanel(ctx, rightX - 8, handY - 2, rightColW - PAD, ROW_LABEL_H - 6, 6);
     ctx.font = "14px sans-serif";
     ctx.fillStyle = "#e2e8f0";
-    ctx.fillText(`手札（${hand.length}枚）`, rightX, handY + 12);
-    const cardsY = handY + ROW_LABEL_H;
-
-    // ユーザー要望「アバターを手札の横に大きくしたい、手札と同じくらいに」。
-    // 手札の列の先頭にアバターを1枚分（CARD_SIZE四方）として置く。
-    const avatarImg = avatarCache.get(seat);
-    const avatarCx = rightX + AVATAR_SIZE / 2;
-    const avatarCy = cardsY + AVATAR_SIZE / 2;
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(avatarCx, avatarCy, AVATAR_SIZE / 2, 0, Math.PI * 2);
-    ctx.closePath();
-    ctx.clip();
-    if (avatarImg) {
-      ctx.drawImage(avatarImg, rightX, cardsY, AVATAR_SIZE, AVATAR_SIZE);
-    } else {
-      ctx.fillStyle = "#374151";
-      ctx.fillRect(rightX, cardsY, AVATAR_SIZE, AVATAR_SIZE);
-    }
-    ctx.restore();
-
-    hand.forEach((token, i) => {
-      const x = rightX + AVATAR_SIZE + CARD_GAP + i * (CARD_SIZE + CARD_GAP);
-      const src = token.faceUp ? getCardImagePath(token.cardId) : getCardBackImagePath(token.cardId);
-      drawCover(ctx, img(src), x, cardsY, CARD_SIZE, CARD_SIZE, 4);
-    });
+    ctx.fillText(`手札: ${hand.length}枚`, rightX, handY + 12);
 
     y += playerBlockH;
   }

@@ -177,6 +177,18 @@ const PILOT_CARDS = [
   },
   { cardId: "eternal-red", kind: "handEffect", actual: "【追色１】任意の１マスのカードをすべて捨てる。" },
   {
+    cardId: "first-green",
+    kind: "handEffect",
+    actual: "【追色１】２枚ドローして、それらをすべて公開する。ターン終了時、それらを捨てる。この効果は１ターンに１度のみ得られる。",
+  },
+  { cardId: "eternal-pink", kind: "handEffect", actual: "【追色１】相手をあなたの周囲へ移動する。このターンあなたは接触できない。" },
+  {
+    cardId: "eternal-orange",
+    kind: "handEffect",
+    actual: "【追色１】４枚ドロー。それらを公開する。それらの手札効果はこのターン使うことができない。その中に橙のカードがあったなら、あなたの手札をすべて捨て、あなたはこのターン移動できない。",
+  },
+  { cardId: "first-purple", kind: "handEffect", actual: "このターンの通常の移動は２マス先に一気に移動する。" },
+  {
     cardId: "yellow-sleight-of-hand",
     kind: "arrival",
     actual: "相手１人の手札から無作為に１枚、あなたの手札に加える。あなたの手札から１枚、その相手の手札に加える。",
