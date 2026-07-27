@@ -65,6 +65,8 @@ export const VERBS = {
   MOVE_CHOSEN_OPPONENT_ADJACENT_TO_SELF: "move_chosen_opponent_adjacent_to_self", // 結ばれの一本桜 コノハナサクヤ専用: 相手を選び、その駒をあなたの隣へ移動させる（「移動」扱い）
   PUBLIC_DRAW_DISABLE_HAND_EFFECTS_CONDITIONAL_DISCARD: "public_draw_disable_hand_effects_conditional_discard", // 禁断の果実 マルメゴ専用: N枚公開ドロー、それらの手札効果は今ターン使用不可、橙が混ざっていたら手札全捨て＋今ターン移動不可
   ANNOUNCE_MOVEMENT_BOOST_THIS_TURN: "announce_movement_boost_this_turn", // 紫のキューブ ディメンション専用: このターンの通常の移動が2マス一気になる（このアプリは元々移動先を制限しないため、実際には案内のみ）
+  // 続き45（ユーザーがdocs/cards.mdの空欄だった効果文を補完）で新設。
+  LOCK_ONE_HAND_CARD_EXCEPT_FINAL: "lock_one_hand_card_except_final", // 桃のキューブ セレナーデ専用: 手札を1枚選んでロックする（通常の色一致ルール、ただし7色目＝勝利になるロックは対象外）
 };
 
 // 効果の主語（誰が対象か）。
@@ -531,14 +533,29 @@ export const CARD_EFFECTS = {
   },
 
   // 紫のキューブ ディメンション（紫、ファーストカード） 手札効果:
-  // 「このターンの通常の移動は２マス先に一気に移動する。」他のファーストカードと
-  // 違い追色コストの記載が無いカード（docs/cards.md確認済み）。このアプリはそもそも
-  // ムーブフェイズの移動先を制限していない（Phase 1方針「ルール適用は一切しない」、
-  // ドラッグで盤面のどこへでも置ける）ため、実際に「２マス先まで動けるようにする」
-  // ための制限緩和処理は元から不要——この手札効果は自己申告の案内として扱う。
+  // 「【追色１】このターンの通常の移動は２マス先に一気に移動する。」続き44時点では
+  // docs/cards.mdに追色コストの記載が無く、コスト無しとして実装していたが、ユーザーが
+  // docs/cards.mdを追色コストありに修正（2026-07-27）。このアプリはそもそもムーブ
+  // フェイズの移動先を制限していない（Phase 1方針「ルール適用は一切しない」、ドラッグで
+  // 盤面のどこへでも置ける）ため、実際に「２マス先まで動けるようにする」ための制限
+  // 緩和処理は元から不要——この手札効果は自己申告の案内として扱う（コストの支払い
+  // 自体は他のファーストカードと同じ通常の追色フローで行われる）。
   "first-purple": {
     handEffect: {
+      cost: { verb: VERBS.DISCARD_SAME_COLOR, count: 1 },
       actions: [{ verb: VERBS.ANNOUNCE_MOVEMENT_BOOST_THIS_TURN }],
+    },
+  },
+
+  // 桃のキューブ セレナーデ（桃、ファーストカード） 手札効果:
+  // 「【追色１】あなたの手札を１枚ロックする、ただし最後のロックはできない。
+  // この効果は１ターンに１度のみ得られる。」（ユーザーがdocs/cards.mdの空欄
+  // だった効果文を補完、2026-07-27）
+  "first-pink": {
+    handEffect: {
+      cost: { verb: VERBS.DISCARD_SAME_COLOR, count: 1 },
+      usageLimit: { per: "turn", count: 1 },
+      actions: [{ verb: VERBS.LOCK_ONE_HAND_CARD_EXCEPT_FINAL }],
     },
   },
 
@@ -751,6 +768,8 @@ function renderAction(action, context) {
       return `${count}枚ドロー。それらを公開する。それらの手札効果はこのターン使うことができない。その中に橙のカードがあったなら、あなたの手札をすべて捨て、あなたはこのターン移動できない。`;
     case VERBS.ANNOUNCE_MOVEMENT_BOOST_THIS_TURN:
       return "このターンの通常の移動は２マス先に一気に移動する。";
+    case VERBS.LOCK_ONE_HAND_CARD_EXCEPT_FINAL:
+      return "あなたの手札を１枚ロックする、ただし最後のロックはできない。";
     case VERBS.PICKUP_TO_HAND: {
       const zoneLabel = action.withinCells
         ? `${toFullWidthNumber(action.withinCells)}マス以内の`
@@ -1131,5 +1150,9 @@ if (typeof process !== "undefined" && process.argv[1] && process.argv[1].endsWit
 
   console.log("[紫のキューブ ディメンション 手札効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["first-purple"].handEffect));
-  console.log("  実際: このターンの通常の移動は２マス先に一気に移動する。\n");
+  console.log("  実際: 【追色１】このターンの通常の移動は２マス先に一気に移動する。\n");
+
+  console.log("[桃のキューブ セレナーデ 手札効果]");
+  console.log("  生成: " + generateEffectText(CARD_EFFECTS["first-pink"].handEffect));
+  console.log("  実際: 【追色１】あなたの手札を１枚ロックする、ただし最後のロックはできない。この効果は１ターンに１度のみ得られる。\n");
 }

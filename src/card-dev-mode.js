@@ -187,7 +187,12 @@ const PILOT_CARDS = [
     kind: "handEffect",
     actual: "【追色１】４枚ドロー。それらを公開する。それらの手札効果はこのターン使うことができない。その中に橙のカードがあったなら、あなたの手札をすべて捨て、あなたはこのターン移動できない。",
   },
-  { cardId: "first-purple", kind: "handEffect", actual: "このターンの通常の移動は２マス先に一気に移動する。" },
+  { cardId: "first-purple", kind: "handEffect", actual: "【追色１】このターンの通常の移動は２マス先に一気に移動する。" },
+  {
+    cardId: "first-pink",
+    kind: "handEffect",
+    actual: "【追色１】あなたの手札を１枚ロックする、ただし最後のロックはできない。この効果は１ターンに１度のみ得られる。",
+  },
   {
     cardId: "yellow-sleight-of-hand",
     kind: "arrival",

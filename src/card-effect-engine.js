@@ -589,6 +589,37 @@ async function runAction(action, ctx, helpers) {
       await helpers.announceEffectReason?.(ctx.cardId, "このターン、通常の移動を２マス先まで一気に行えます（自己申告）。");
       return true;
     }
+    case VERBS.LOCK_ONE_HAND_CARD_EXCEPT_FINAL: {
+      // 桃のキューブ セレナーデ専用: 手札を1枚選んでロックする。通常の色一致ルールに
+      // 従う（無色＝白/黒のカードは空いているどのスロットへも置ける、なないろの欠片は
+      // 「ロックフェイズではロックできない」＝専用のLOCK_PAIR以外の手段では対象外
+      // なので候補から除く）。「ただし最後のロックはできない」＝このカードの効果で
+      // 7色目（＝勝利）のロックを完成させることはできないため、victory.jsの
+      // wouldCompleteLockWithNewIndexで判定し、そのスロットだけ候補から除外する
+      // （helpers.wouldCompleteLock、main.js）。
+      const emptySlots = getOwnEmptyLockSlotCandidates(ctx.player).filter((slot) => !helpers.wouldCompleteLock(ctx.player, slot.index));
+      if (emptySlots.length === 0) return false; // 善処の原則
+      const emptySlotIndexSet = new Set(emptySlots.map((s) => s.index));
+      const candidateSlotsFor = (token) => {
+        const color = getCardDefinition(token.cardId)?.color;
+        if (color === "white" || color === "black") return emptySlots;
+        const idx = COLORS.indexOf(color);
+        return idx >= 0 && emptySlotIndexSet.has(idx) ? emptySlots.filter((s) => s.index === idx) : [];
+      };
+      const handTokens = getState().tokens.filter(
+        (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === ctx.player && t.cardId !== "rainbow-shard"
+      );
+      const lockableTokenIds = new Set(handTokens.filter((t) => candidateSlotsFor(t).length > 0).map((t) => t.id));
+      if (lockableTokenIds.size === 0) return false;
+      const chosen = await helpers.pickHandCard(ctx.player, "ロックするカードを手札から選択してください", lockableTokenIds);
+      if (!chosen) return false;
+      const slots = candidateSlotsFor(chosen);
+      if (slots.length === 0) return false; // 選んでいる間に状況が変わった場合の保険
+      const dest = slots.length === 1 && !ctx.forcePrompt ? slots[0] : await helpers.pickLocation(slots, "ロックする場所を選択してください");
+      if (!dest) return false;
+      await helpers.moveAndSync(chosen.id, dest);
+      return true;
+    }
     case VERBS.PICKUP_TO_HAND: {
       // withinCells指定時（橙のキューブ ハーベスト等）は「Nマス以内」に絞る。未指定なら
       // 従来通り盤面全体（収穫と種まき等）。
