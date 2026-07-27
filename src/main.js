@@ -1705,6 +1705,15 @@ async function delegateToPlayerForEffect(player, taskType) {
   // 委任している間だけ優先権をその相手へ一時的に移す。
   const turnPlayer = getState().turnPlayer;
   transferPriorityTo(player);
+  // ユーザー報告「パーティに到達して効果の処理が終わっているのにターンが自動終了
+  // せず、ターン終了ボタンも押せない」の調査で判明: 実際には「全員がそれぞれ選ぶ」
+  // 効果（パーティー・合同建設・スラム上がりの役人）が、まだ選んでいない別の
+  // プレイヤーの選択を正しく待っているだけだった（ローカルモードで両方の選択を
+  // 実際に行うと正しく終了することを確認済み）。ただしオンライン中は、その相手の
+  // 選択待ちの間、手番プレイヤーの画面には何も表示されず「固まった」ように見えて
+  // しまう（相手のピッカー自体は相手本人の画面にしか出ないため）。既存の候補選択中
+  // バナー（showEffectPickerHint）を使い、「待っている」ことだけでも伝える。
+  showEffectPickerHint(`${getPlayerName(player)}さんの選択を待っています…`);
   const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   broadcastArrivalDelegateRequest({ player, taskType, requestId });
   const result = await new Promise((resolve) => {
@@ -1714,6 +1723,7 @@ async function delegateToPlayerForEffect(player, taskType) {
       resolve(payload.result);
     });
   });
+  hideEffectPickerHint();
   transferPriorityTo(turnPlayer);
   return result;
 }

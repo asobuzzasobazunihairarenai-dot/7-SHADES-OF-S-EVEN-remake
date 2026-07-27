@@ -269,11 +269,26 @@ function reduce(current: GameState, action: any): GameState {
             : t
         );
       }
+      // src/state.jsのRESPOND_CONTACTケースと同じロジック（ユーザー確認「Aが既にBのゲートに
+      // いる状態でBに接触した場合、Bを自分のゲートへ強制移動させようとしても『1マスに駒は
+      // 1つ』のためBはその場に留まる」）。この占有チェックが無いと、A（攻撃側）がB（防御側）
+      // のゲートに乗っている間に接触が成立すると、Bの駒も同じマスへ移動させてしまい2つの駒が
+      // 同一マスに重なってしまう。
       const side = SEAT_TO_SIDE[pending.defender];
       const homeGate = GATE_POSITIONS[side];
-      tokens = tokens.map((t) =>
-        t.kind === "piece" && t.player === pending.defender ? { ...t, location: { zone: "cell", ...homeGate } } : t
+      const homeGateOccupied = tokens.some(
+        (t) =>
+          t.kind === "piece" &&
+          t.player !== pending.defender &&
+          t.location.zone === "cell" &&
+          (t.location as { row: number; col: number }).row === homeGate.row &&
+          (t.location as { row: number; col: number }).col === homeGate.col
       );
+      if (!homeGateOccupied) {
+        tokens = tokens.map((t) =>
+          t.kind === "piece" && t.player === pending.defender ? { ...t, location: { zone: "cell", ...homeGate } } : t
+        );
+      }
       return { ...current, tokens, pendingContact: null };
     }
     // src/state.jsのSHUFFLE_HANDケースと同じロジック（手札シャッフルボタン）。

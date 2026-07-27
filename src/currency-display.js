@@ -10,6 +10,7 @@
 import { getCachedUser, getMyCurrencyBalance, openShop } from "./online.js";
 import { getOptionArea } from "./option-area.js";
 import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
+import { toStageLocalRect, STAGE_WIDTH } from "./main.js";
 
 let amountEl = null;
 let displayButtonEl = null;
@@ -53,12 +54,21 @@ function toggleCurrencyMenu(anchorEl) {
     closeCurrencyMenu();
     return;
   }
-  const rect = anchorEl.getBoundingClientRect();
+  // ユーザー報告「出てくるボタンが所持金アイコンのすぐ下ではなく、大きく離れた
+  // 位置に出る」の原因: #currency-dropdown-menuはposition:fixedでdocument.body
+  // 直下に置かれるが、bodyにはステージの拡大縮小transform（applyViewportStage、
+  // main.js）がかかっており、CSSの仕様上これがposition:fixed/absoluteな子孫の
+  // 新しい基準（containing block）になる。そのためgetBoundingClientRect()が返す
+  // 生の実画面ピクセルをそのままtop/rightに使うと、実際にはステージのローカル
+  // 座標系（1600x900固定の仮想解像度）の値として再解釈されてしまい、実際の位置と
+  // ズレる（cursor-position機能やturn-timer.jsの警告バッジ位置決めで既に踏んでいた
+  // のと同じ「position:fixedな子孫はステージのローカル座標に変換してから使う」問題）。
+  const rect = toStageLocalRect(anchorEl.getBoundingClientRect());
   const backdrop = createBackdrop(closeCurrencyMenu, { dim: false, zIndex: 9500 });
   const menu = document.createElement("div");
   menu.id = "currency-dropdown-menu";
   menu.style.top = `${rect.bottom + 6}px`;
-  menu.style.right = `${window.innerWidth - rect.right}px`;
+  menu.style.right = `${STAGE_WIDTH - rect.right}px`;
 
   const shopBtn = document.createElement("button");
   shopBtn.type = "button";
