@@ -5413,6 +5413,34 @@ function updateSelfStatusOnlineWidget() {
 let endTurnButtonEl = null;
 let endTurnTooltipEl = null;
 
+// ユーザー要望「ムーブフェイズが終わったら少し間をおいて自動でターン終了をしてください。
+// ただしムーブフェイズでの移動による到達効果の処理終了が必ずしもムーブフェイズの終了では
+// ない（到達コンボやスリカエの割り込み等がある）ので、そういったものが一切なく何も
+// 起こらないことを確認してからターン終了してください」への対応。下のupdateEndTurnButton()
+// が既に算出している`shouldEmphasize`（自動処理ON・優先権あり・移動フェイズで移動/接触
+// 済み・到達効果の自動処理も完了、の全てを満たす＝「これ以上何も起きない」ことを保証する
+// 既存の判定、ボタンを光らせる演出に使っていたもの）をそのまま流用する。新しい状態管理を
+// 増やさず、「光っている＝安全」を「光り続けたら自動でクリックする」に拡張するだけにする。
+// 一定時間（他の自動遷移と合わせてPHASE_SKIP_ADVANCE_DELAY_MSと同じ1500ms）継続して
+// 初めて発火し、その間にshouldEmphasizeがfalseに戻ったら（コンボが連鎖した等）待ち直す。
+const AUTO_END_TURN_DELAY_MS = 1500;
+let autoEndTurnTimer = null;
+function reconcileAutoEndTurn(shouldEmphasize) {
+  if (shouldEmphasize) {
+    if (autoEndTurnTimer) return;
+    autoEndTurnTimer = setTimeout(() => {
+      autoEndTurnTimer = null;
+      // 発火時点でボタン自身がクリック可能な状態（disabledでない）かも念のため
+      // 再確認する。wireIconButtonClick側の仕様上、target===btn自身のclick()は
+      // 常にonAction（詳細モーダルではなく本来の「ターン終了」操作）に振り分けられる。
+      if (endTurnButtonEl && !endTurnButtonEl.disabled) endTurnButtonEl.click();
+    }, AUTO_END_TURN_DELAY_MS);
+  } else if (autoEndTurnTimer) {
+    clearTimeout(autoEndTurnTimer);
+    autoEndTurnTimer = null;
+  }
+}
+
 // 奇跡の森 マンズウッド専用（PUBLIC_DRAW_THEN_DISCARD_AT_TURN_END）:「ターン終了時、
 // それらを捨てる」の実現方法。公開ドロー（publicDrawゾーン）自体は、ターン終了時に
 // 自動で手札へ合流する（mergePublicDrawIntoHand、state.js/so7-apply-action.ts両方に
@@ -5612,6 +5640,7 @@ function updateEndTurnButton() {
     !isMovePhaseActive() &&
     !arrivalEffectAutoProcessing;
   endTurnButtonEl.classList.toggle("is-emphasized", shouldEmphasize);
+  reconcileAutoEndTurn(shouldEmphasize);
 }
 
 // OKボタン1つだけのシンプルな確認モーダル（山札切れの補充確認に使う）。ゲームの状態に
