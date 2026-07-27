@@ -10400,3 +10400,25 @@ u=横方向・v=縦方向）にも使えるよう一般化した`rotateFraction(
   なくても誰でもログをコピーして提出できることの方が、開発者専用ツールとして
   絞ることより価値があると判断。ブラウザ上で、非管理者ユーザーでもオプション
   メニューに「📜 アクションログ」が表示され、実際に開けることを確認した。
+
+- **③SQLの方は更新不要か（ユーザー再質問）**: 実は必要だった——見落としがあった。
+  続き60で追加した`arrivalSuppressed`は、駒トークンのJSオブジェクトに新しく生えた
+  プロパティだが、`so7_game_tokens`はJSONBの生ブロブではなく列が固定されたテーブル
+  （`reveal_source`等と同じ形）のため、対応する列が無いとオンライン対戦では
+  サイレントに消えてしまう（Edge Functionを再デプロイしただけでは直らない）。
+  以下を追加・修正した:
+  - `supabase_setup_so7.sql`の末尾に、①`so7_game_tokens`へ`arrival_suppressed`列を
+    追加、②`so7_game_tokens_visible`ビューの再定義（新しい列は末尾にしか置けない
+    制約があるため最後に追加、隠すべき機密情報ではないのでマスクせずそのまま公開）、
+    ③`so7_apply_and_commit`関数の再定義（insert列に`arrival_suppressed`を追加）、
+    の3点を追記した。
+  - `supabase/functions/so7-apply-action.ts`の`loadState`（DB→GameState変換）・
+    `tokenToRow`（GameState→DB変換）双方に`arrival_suppressed`⇔`arrivalSuppressed`
+    の変換を追加。
+  - `src/online.js`の`fetchAndHydrate`（`so7_game_tokens_visible`ビューを読む
+    クライアント側）にも同じ変換を追加。
+  **ユーザー側の作業が必要**: `supabase_setup_so7.sql`の追記分（末尾の3ブロック）を
+  Supabaseダッシュボードの SQL Editor で実行し、その上で`so7-apply-action.ts`の
+  最新内容をEdge Functionsダッシュボードで再デプロイしてください（SQL実行→
+  Edge Function再デプロイの順、どちらか片方だけでは`arrival_suppressed`列が
+  無い/読み書きされない状態のまま中途半端になる）。

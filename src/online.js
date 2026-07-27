@@ -1651,6 +1651,11 @@ export async function fetchAndHydrate(gameId) {
           ? { zone: "publicDraw", player: r.hand_player }
           : { zone: "hand", player: r.hand_player };
       const token = { id: r.token_id, kind: r.kind, location };
+      // 続き60のarrivalSuppressed（試練の儀式・マスチェンジ等「到達効果を得ない」移動の
+      // 目印、remote-move-animator.jsが参照）。kind問わず持ち得る汎用フラグ
+      // （state.jsのMOVE_TOKENケースと同じ扱い）なので、card/pieceどちらの分岐にも
+      // 依らずここで拾う。
+      if (r.arrival_suppressed) token.arrivalSuppressed = true;
       if (r.kind === "card") {
         token.cardId = r.card_id; // 見えない場合はnull（buildFlatCard等はcardId未確定の描画に
         // 対応していないため、この最小構成では「隠れているカードの見た目」の描画は

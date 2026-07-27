@@ -618,6 +618,9 @@ async function loadState(db: any, gameId: string): Promise<{ state: GameState; v
         ? { zone: "publicDraw", player: r.hand_player }
         : { zone: "hand", player: r.hand_player };
     const token: Token = { id: r.token_id, kind: r.kind, location };
+    // 続き60のarrivalSuppressed。kind問わず持ち得る汎用フラグ（src/state.jsの
+    // MOVE_TOKENケースと同じ扱い）なので、card/pieceどちらの分岐にも依らずここで拾う。
+    if (r.arrival_suppressed) token.arrivalSuppressed = true;
     if (r.kind === "card") {
       token.cardId = r.card_id;
       token.faceUp = r.face_up;
@@ -666,6 +669,7 @@ function tokenToRow(t: Token, orderIndex: number) {
     idx: loc.zone === "lock" ? loc.index : null,
     hand_player: loc.zone === "hand" || loc.zone === "publicDraw" ? loc.player : null,
     reveal_source: t.revealSource ?? null,
+    arrival_suppressed: t.arrivalSuppressed ?? false,
     order_index: orderIndex,
   };
 }

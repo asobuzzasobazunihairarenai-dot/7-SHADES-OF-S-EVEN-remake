@@ -1032,3 +1032,110 @@ end;
 $$;
 revoke execute on function so7_get_admin_visit_log(int, int) from public;
 grant execute on function so7_get_admin_visit_log(int, int) to authenticated;
+
+-- 追加機能（続き60）: 試練の儀式・マスチェンジ等「到達効果を得ない」移動を、駒トークン
+-- 自身に付けたarrival_suppressedフラグで表す。remote-move-animator.js（他プレイヤーの
+-- 操作を差分検知して到達を再現する仕組み）が、これを見て誤って到達を再現しないように
+-- するための目印（隠すべき情報ではない＝手札のcard_idのような機密性は無いので、
+-- 下のso7_game_tokens_visibleビューでもマスクせずそのまま公開する）。
+alter table so7_game_tokens add column if not exists arrival_suppressed boolean not null default false;
+
+-- so7_game_tokens_visibleの再定義（列の追加は末尾にしか置けない制約は既存コメント通り）。
+create or replace view so7_game_tokens_visible as
+select
+  t.game_id,
+  t.token_id,
+  t.kind,
+  case
+    when t.zone = 'hand' then
+      case when exists (
+        select 1 from so7_game_seats s
+        where s.game_id = t.game_id and s.seat = t.hand_player and s.user_id = auth.uid()
+      ) then t.card_id else null end
+    else
+      case when t.face_up then t.card_id else null end
+  end as card_id,
+  t.face_up,
+  t.color,
+  t.piece_player,
+  t.zone,
+  t.row,
+  t.col,
+  t.side,
+  t.idx,
+  t.hand_player,
+  t.order_index,
+  t.reveal_source,
+  t.arrival_suppressed
+from so7_game_tokens t
+where exists (
+  select 1 from so7_game_seats s where s.game_id = t.game_id and s.user_id = auth.uid()
+);
+grant select on so7_game_tokens_visible to authenticated;
+
+-- so7_apply_and_commitの再定義（arrival_suppressedをinsert列に追加しただけで、
+-- それ以外は直前の定義と同じ）。
+create or replace function so7_apply_and_commit(
+  p_game_id text,
+  p_expected_version int,
+  p_games_patch jsonb,
+  p_tokens jsonb,
+  p_piles jsonb
+) returns void
+language plpgsql
+security definer
+as $$
+declare
+  v_current_version int;
+begin
+  select version into v_current_version from so7_games where id = p_game_id for update;
+  if v_current_version is null then
+    raise exception 'game_not_found';
+  end if;
+  if v_current_version <> p_expected_version then
+    raise exception 'version_conflict';
+  end if;
+
+  delete from so7_game_tokens where game_id = p_game_id;
+  insert into so7_game_tokens (
+    game_id, token_id, kind, card_id, face_up, color, piece_player,
+    zone, row, col, side, idx, hand_player, reveal_source, arrival_suppressed, order_index
+  )
+  select
+    p_game_id,
+    t->>'token_id',
+    t->>'kind',
+    t->>'card_id',
+    coalesce((t->>'face_up')::boolean, false),
+    t->>'color',
+    t->>'piece_player',
+    t->>'zone',
+    (t->>'row')::int,
+    (t->>'col')::int,
+    t->>'side',
+    (t->>'idx')::int,
+    t->>'hand_player',
+    t->>'reveal_source',
+    coalesce((t->>'arrival_suppressed')::boolean, false),
+    coalesce((t->>'order_index')::int, 0)
+  from jsonb_array_elements(p_tokens) as t;
+
+  delete from so7_game_piles where game_id = p_game_id;
+  insert into so7_game_piles (game_id, pile_name, cards)
+  select p_game_id, p->>'pile_name', p->'cards'
+  from jsonb_array_elements(p_piles) as p;
+
+  update so7_games set
+    active_players = coalesce(p_games_patch->'active_players', active_players),
+    turn_player = coalesce(p_games_patch->>'turn_player', turn_player),
+    turn_number = coalesce((p_games_patch->>'turn_number')::int, turn_number),
+    round_number = coalesce((p_games_patch->>'round_number')::int, round_number),
+    start_player = coalesce(p_games_patch->>'start_player', start_player),
+    status = coalesce(p_games_patch->>'status', status),
+    timer_config = coalesce(p_games_patch->'timer_config', timer_config),
+    pending_final_lock = coalesce(p_games_patch->'pending_final_lock', pending_final_lock),
+    pending_contact = coalesce(p_games_patch->'pending_contact', pending_contact),
+    version = version + 1
+  where id = p_game_id;
+end;
+$$;
