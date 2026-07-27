@@ -456,6 +456,20 @@ function buildPlayerZone(side, player, isSelf) {
       // EFFECTでめだたせてください」。「いつでも使える」＝持っている間ずっと使用可能な
       // ことを伝える常設演出（is-anytime-usable-glow、style.css参照）。
       if (isHandEffectUsableAnytime(token.cardId)) cardEl.classList.add("is-anytime-usable-glow");
+      // ユーザー要望「ハンドフェイズに『善処の原則』等により使えない手札はトーンダウン
+      // させてください」。自動処理モード中・ハンドフェイズ中に限り、構造化された
+      // 手札効果データを持つのに今は使えない（使用回数上限・コスト不足・条件未達等、
+      // canUseHandEffectがまとめて判定する）カードを視覚的に沈める。自動処理モードOFF
+      // 中はcanUseHandEffect自体が常にfalseを返す（自己申告プレイの前提のため）ので、
+      // 誤って全カードが沈んでしまわないようisAutoProcessingEnabled()も条件に含める。
+      if (
+        isAutoProcessingEnabled() &&
+        isHandPhaseActive() &&
+        hasHandEffectData(token.cardId) &&
+        !canUseHandEffect(token.cardId, token.id, player)
+      ) {
+        cardEl.classList.add("hand-card-effect-unusable");
+      }
     } else {
       cardEl.className = "hand-card is-facedown";
       cardEl.style.backgroundImage = `url("${getCardBackImagePath(token.cardId)}")`;

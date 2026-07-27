@@ -7624,6 +7624,13 @@ body.reduce-glow .hand-card.is-anytime-usable-glow {
   animation: none;
   box-shadow: 0 0 0.5rem 0.15rem rgba(250, 204, 21, 0.6);
 }
+/* ユーザー要望「ハンドフェイズに『善処の原則』等により使えない手札はトーンダウン
+   させてください」（自動処理モード中限定、main.jsのbuildPlayerZone参照）。実際に
+   ドラッグ操作は妨げない（pointer-events:autoのまま）——あくまで見た目の判別用。 */
+.hand-card.hand-card-effect-unusable {
+  filter: grayscale(75%) brightness(0.6);
+  opacity: 0.55;
+}
 /* ユーザー要望「どこに置かれるのかを忘れないように置かれるマスをハイライトして
    ほしい」。クリックして選ぶ候補（黄色、.card-effect-target-cell）とは見た目を変え、
    「あなたが選んだ結果、ここに戻ってくる」という情報表示専用（クリック対象ではない）

@@ -918,7 +918,16 @@ async function runAction(action, ctx, helpers) {
       // （docs/cards.md補足）。
       const declaredColors = ctx.selections.declaredColors ?? [];
       const revealedCardIds = ctx.selections.revealedCardIds ?? [];
-      const matches = revealedCardIds.some((cardId) => declaredColors.includes(getCardDefinition(cardId)?.color));
+      // ユーザー報告「公開ドローの中に宣言色があるのに手札を全て捨てる処理が漏れている」
+      // の原因: なないろの欠片は「全ての色を兼ねる」（RITUAL_PLACE_MOVE_REPEAT等、
+      // 他の色一致判定と同じ既存の扱い）ため、公開ドローで出た時は宣言した色に関係なく
+      // 常に一致扱いになるはずだが、ここではcardId==="rainbow-shard"の特別扱いが
+      // 抜けており、getCardDefinition("rainbow-shard").color（実際の値は"rainbow"、
+      // 宣言できる7色のいずれとも一致しない）だけで判定していたため、公開ドローで
+      // なないろの欠片単独が出たケースで一致判定を取りこぼしていた。
+      const matches = revealedCardIds.some(
+        (cardId) => cardId === "rainbow-shard" || declaredColors.includes(getCardDefinition(cardId)?.color)
+      );
       if (!matches) return false;
       await helpers.announceEffectReason?.(ctx.cardId, "公開した中に宣言した色があったため、手札を全て捨てます。");
       const toDiscard = getState().tokens.filter(
