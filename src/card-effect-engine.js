@@ -334,6 +334,12 @@ function findTopCardAtCell(row, col) {
   return stack.length > 0 ? stack[stack.length - 1] : null;
 }
 
+// 指定マスにいる駒（あれば）を返す。getAllOpponentPieceCells/pickLocationで選ばれた
+// マスから、実際にどのプレイヤーの駒かを引き直すのに使う。
+function findPieceAtCell(row, col) {
+  return getState().tokens.find((t) => t.kind === "piece" && t.location.zone === "cell" && t.location.row === row && t.location.col === col) ?? null;
+}
+
 // 「Nマス以内の、一番上が裏向きのカードがあるマス」の候補（黄のキューブ サフラン専用）。
 function getCellsWithFaceDownCardWithinRange(fromLocation, range) {
   const candidates = [];
@@ -360,6 +366,24 @@ function getOpponentPieceCellsWithinRange(fromLocation, range, player) {
       (t) => t.kind === "piece" && t.location.zone === "cell" && t.location.row === row && t.location.col === col && t.player !== player
     );
     if (piece) candidates.push({ zone: "cell", row, col });
+  }
+  return candidates;
+}
+
+// 「相手の駒がいる全てのマス」の候補（範囲制限なし版、プレゼント・結ばれの一本桜等の
+// 「相手を選ぶ」効果用）。ユーザー要望「場に関する効果で相手を選ぶ時はアバターでは
+// なく駒を選ぶ形にしてほしい。場に関する効果は駒、相手の手札に関する効果はアバター、
+// という使い分けはどうか」への対応。マスチェンジ（getOpponentPieceCellsWithinRange）
+// と同じ「相手の駒のマスをpickLocationで選ばせる」パターンの、範囲を問わない版。
+function getAllOpponentPieceCells(player) {
+  const candidates = [];
+  for (let row = 0; row <= 6; row++) {
+    for (let col = 0; col <= 6; col++) {
+      const piece = getState().tokens.find(
+        (t) => t.kind === "piece" && t.location.zone === "cell" && t.location.row === row && t.location.col === col && t.player !== player
+      );
+      if (piece) candidates.push({ zone: "cell", row, col });
+    }
   }
   return candidates;
 }
@@ -571,11 +595,14 @@ async function runAction(action, ctx, helpers) {
       // 「相手の駒を動かす」効果と同じ経路）に任せる——ここでは駒の移動とオープンだけを
       // 行う。「このターンあなたは接触できない」は実際には強制せず（このアプリの
       // Phase 1方針「ルール適用は一切しない」通り）、案内モーダルで知らせるに留める。
-      const opponents = getState().activePlayers.filter((p) => p !== ctx.player);
-      if (opponents.length === 0) return false;
-      const targetPlayer = await helpers.pickPlayer(opponents, "移動させる相手を選んでください（アバターをクリック）");
-      if (!targetPlayer) return false;
-      const targetPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === targetPlayer);
+      // ユーザー要望「場に関する効果で相手を選ぶ時はアバターではなく駒を選ぶ形に」。
+      // 盤面上の相手の駒のマスをpickLocationで選ばせる（マスチェンジと同じパターン）。
+      const opponentCells = getAllOpponentPieceCells(ctx.player);
+      if (opponentCells.length === 0) return false;
+      const targetCell =
+        opponentCells.length === 1 && !ctx.forcePrompt ? opponentCells[0] : await helpers.pickLocation(opponentCells, "移動させる相手の駒を選んでください");
+      if (!targetCell) return false;
+      const targetPiece = findPieceAtCell(targetCell.row, targetCell.col);
       const selfPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === ctx.player);
       if (!targetPiece || !selfPiece || selfPiece.location.zone !== "cell") return false;
       const adjacentCells = enumerateManhattanRing(1)
@@ -1032,11 +1059,14 @@ async function runAction(action, ctx, helpers) {
     case VERBS.PLACE_SELF_ADJACENT_TO_CHOSEN_OPPONENT: {
       // プレゼント専用: 相手を選び、その隣接マス（4方向、docs/cards.mdに「何もない」の
       // 限定が無いため占有状況は問わない）へこのカード自身を裏向きで置く。
-      const opponents = getState().activePlayers.filter((p) => p !== ctx.player);
-      if (opponents.length === 0) return false;
-      const targetPlayer = await helpers.pickPlayer(opponents, "隣に置く相手を選んでください（アバターをクリック）");
-      if (!targetPlayer) return false;
-      const targetPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === targetPlayer);
+      // ユーザー要望「場に関する効果で相手を選ぶ時はアバターではなく駒を選ぶ形に」。
+      // 盤面上の相手の駒のマスをpickLocationで選ばせる（マスチェンジと同じパターン）。
+      const opponentCells = getAllOpponentPieceCells(ctx.player);
+      if (opponentCells.length === 0) return false;
+      const targetCell =
+        opponentCells.length === 1 && !ctx.forcePrompt ? opponentCells[0] : await helpers.pickLocation(opponentCells, "隣に置く相手の駒を選んでください");
+      if (!targetCell) return false;
+      const targetPiece = findPieceAtCell(targetCell.row, targetCell.col);
       if (!targetPiece || targetPiece.location.zone !== "cell") return false;
       const adjacentCells = enumerateManhattanRing(1)
         .map(({ dr, dc }) => ({ row: targetPiece.location.row + dr, col: targetPiece.location.col + dc }))
@@ -1157,7 +1187,13 @@ async function runArrivalOptionsEffect(ctx, options, helpers) {
   if (!hadEffect) {
     await helpers.announceFizzle?.(ctx.cardId, true);
   }
-  await helpers.moveAndSync(ctx.cardTokenId, { zone: "hand", player: ctx.player });
+  // runArrivalEffectの既定動作と同じ理由（このカード自身が、選択肢の中の「場の
+  // カードを手札に加える」系アクションで既に別プレイヤーの手札へ渡っている
+  // 可能性がある）で、まだ盤面に残っている場合だけ動かす。
+  const currentToken = getState().tokens.find((t) => t.id === ctx.cardTokenId);
+  if (currentToken && currentToken.location.zone === "cell") {
+    await helpers.moveAndSync(ctx.cardTokenId, { zone: "hand", player: ctx.player });
+  }
   return runCtx.arrivedAt;
 }
 
@@ -1197,8 +1233,21 @@ export async function runArrivalEffect(ctx, helpers) {
   }
   // 既定動作（到達効果処理後にこのカード自身を手札に加える）。明示的にfalseの時だけ省略する
   // （docs/cards.mdの凡例通り）。
+  // ユーザー報告「パーティの到達効果で場のカードを取ることを選んだ時、到達した
+  // パーティのカード自身も対象にでき取れるが、到達していないプレイヤーがそれを
+  // 取ったとき、そのプレイヤーの手札に加わらず到達プレイヤーに持っていかれて
+  // しまう」の原因: パーティー等の「全員がそれぞれ選ぶ」効果（ALL_PLAYERS_
+  // CHOOSE_PARTY_OPTION→delegateToPlayer）の中の「場の任意の１枚を手札に加える」
+  // 選択肢は、まだ盤面に残っているこのカード自身（ctx.cardTokenId）も候補に
+  // 含み得る。誰かがそれを選んで既に自分の手札へ移していても、ここの既定動作は
+  // 無条件にctx.cardTokenIdを「到達プレイヤーの手札」へ動かしてしまい、既に
+  // 別のプレイヤーへ渡っていたはずのカードを奪い返す形になっていた。このカードが
+  // まだ盤面（cellゾーン）に残っている場合だけ既定動作を行うようにする。
   if (effectDef.addsCardToHandAfter !== false) {
-    await helpers.moveAndSync(ctx.cardTokenId, { zone: "hand", player: ctx.player });
+    const currentToken = getState().tokens.find((t) => t.id === ctx.cardTokenId);
+    if (currentToken && currentToken.location.zone === "cell") {
+      await helpers.moveAndSync(ctx.cardTokenId, { zone: "hand", player: ctx.player });
+    }
   }
   return runCtx.arrivedAt;
 }
