@@ -206,3 +206,49 @@ export async function fetchLeaderboard(limit = 20) {
     winRateBorder,
   };
 }
+
+// ユーザー要望（続き87）「勝利後、まだ盤面のタイマーが…」ではなく「勝利後、自分の順位を
+// 表示させたい」への対応。fetchLeaderboard()はtoRows()でtop N（既定20件）に絞ってしまう
+// ため、20位より下の自分の順位までは分からない。fetchLeaderboard()と全く同じ集計処理を
+// 内部で流用しつつ、絞り込む前の全順位からplayerIdの行を1件だけ探す専用関数を新設した
+// （勝率ランキングは対象人数自体がwinRateBorderで絞られるため、対象外の場合はnullを返す
+// ——rank-reveal-modal.js側で「ランキング対象外」表示に回す）。
+export async function fetchPlayerRank(playerId, category = "winRate") {
+  if (!client) return null;
+
+  const [{ data: players, error: playersError }, { data: matches, error: matchesError }] = await Promise.all([
+    client.from("players").select("id, name, avatar_url, status, is_staff, seed_matches_count, seed_wins_count"),
+    client.from("matches").select("members, winner_id, status"),
+  ]);
+  if (playersError) throw playersError;
+  if (matchesError) throw matchesError;
+
+  const rankablePlayers = (players ?? []).filter((p) => p.status === "approved" && !p.is_staff);
+  const statsById = computeAllPlayerStats(rankablePlayers, matches ?? []);
+  const all = [...statsById.values()];
+
+  let ranked;
+  if (category === "wins") {
+    ranked = assignCompetitionRanks(
+      [...all].sort((a, b) => b.winsCount - a.winsCount || b.winRate - a.winRate || b.matchesCount - a.matchesCount),
+      (s) => [s.winsCount, s.winRate, s.matchesCount]
+    );
+  } else if (category === "matches") {
+    ranked = assignCompetitionRanks(
+      [...all].sort((a, b) => b.matchesCount - a.matchesCount || b.winsCount - a.winsCount || b.winRate - a.winRate),
+      (s) => [s.matchesCount, s.winsCount, s.winRate]
+    );
+  } else {
+    const { border: winRateBorder } = computeWinRateEligibilityBorder(all);
+    ranked = assignCompetitionRanks(
+      all
+        .filter((s) => s.matchesCount > winRateBorder)
+        .sort((a, b) => b.winRate - a.winRate || b.winsCount - a.winsCount || b.matchesCount - a.matchesCount),
+      (s) => [s.winRate, s.winsCount, s.matchesCount]
+    );
+  }
+
+  const found = ranked.find(({ stats }) => stats.id === playerId);
+  if (!found) return null;
+  return { rank: found.rank, totalRanked: ranked.length, ...found.stats };
+}

@@ -6832,6 +6832,111 @@ body.reduce-glow .cell.card-effect-just-placed {
   background: rgba(255, 255, 255, 0.12);
 }
 
+/* ユーザー要望（続き87）「勝利時にお金を獲得した演出モーダルが欲しい」。
+   victory.jsのcheckForVictory()から、勝利モーダルが閉じた後に出す。 */
+@keyframes currency-award-modal-pop-in {
+  0% { transform: translate(-50%, -50%) scale(0.7); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+@keyframes currency-award-modal-coin-bounce {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-0.4rem) rotate(-8deg); }
+}
+#currency-award-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(20rem, 88vw);
+  padding: 1.8rem 1.5rem;
+  border-radius: 1rem;
+  background: linear-gradient(160deg, #14532d, #052e16);
+  border: 2px solid #4ade80;
+  box-shadow: 0 0 2.5rem 0.4rem rgba(74, 222, 128, 0.5), 0 20px 60px rgba(0, 0, 0, 0.7);
+  text-align: center;
+  z-index: 10520;
+  font-family: sans-serif;
+  color: #f0fdf4;
+  animation: currency-award-modal-pop-in 0.4s ease-out;
+}
+.currency-award-modal-coin {
+  font-size: 3.4rem;
+  line-height: 1;
+  margin-bottom: 0.6rem;
+  animation: currency-award-modal-coin-bounce 1s ease-in-out infinite;
+}
+.currency-award-modal-title {
+  font-size: 1.1rem;
+  font-weight: bold;
+  margin-bottom: 0.4rem;
+  letter-spacing: 0.03em;
+  color: #86efac;
+}
+.currency-award-modal-amount {
+  font-size: 2.2rem;
+  font-weight: bold;
+  color: #facc15;
+}
+
+/* ユーザー要望（続き87）「勝利後、自分の順位を表示させたい。最下位から順位が
+   上がっていき、自分の順位のところで自分が強調されている感じがいい」。
+   通貨獲得モーダルが閉じた後に出す（rank-reveal-modal.js参照）。 */
+@keyframes rank-reveal-modal-pop-in {
+  0% { transform: translate(-50%, -50%) scale(0.7); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+@keyframes rank-reveal-modal-settle-glow {
+  0% { text-shadow: none; }
+  100% { text-shadow: 0 0 0.8rem rgba(250, 204, 21, 0.9); }
+}
+#rank-reveal-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(22rem, 88vw);
+  padding: 1.8rem 1.5rem;
+  border-radius: 1rem;
+  background: linear-gradient(160deg, #0c4a6e, #082f49);
+  border: 2px solid #38bdf8;
+  box-shadow: 0 0 2.5rem 0.4rem rgba(56, 189, 248, 0.5), 0 20px 60px rgba(0, 0, 0, 0.7);
+  text-align: center;
+  z-index: 10530;
+  font-family: sans-serif;
+  color: #f0f9ff;
+  animation: rank-reveal-modal-pop-in 0.4s ease-out;
+}
+.rank-reveal-modal-title {
+  font-size: 1.1rem;
+  font-weight: bold;
+  margin-bottom: 0.8rem;
+  letter-spacing: 0.03em;
+  color: #7dd3fc;
+}
+.rank-reveal-modal-number {
+  font-size: 2.6rem;
+  font-weight: bold;
+  color: #f0f9ff;
+  font-variant-numeric: tabular-nums;
+}
+.rank-reveal-modal-number.is-settled {
+  color: #facc15;
+  animation: rank-reveal-modal-settle-glow 0.6s ease-out forwards;
+}
+.rank-reveal-modal-delta {
+  margin-top: 0.6rem;
+  font-size: 1rem;
+  font-weight: bold;
+  min-height: 1.4rem;
+  color: #cbd5e1;
+}
+.rank-reveal-modal-delta.is-up {
+  color: #4ade80;
+}
+.rank-reveal-modal-delta.is-down {
+  color: #f87171;
+}
+
 /* 効果音ごとの音量（0〜100）。src/sound.jsがオプションメニューの「マスター音量」と
    掛け算して最終的な再生音量にする。管理者モードの「効果音の音量（個別）」グループから
    調整できる。 */
@@ -8937,7 +9042,9 @@ body.is-phone-device .declare-colors-modal,
 body.is-phone-device #victory-modal,
 body.is-phone-device #rank-up-modal,
 body.is-phone-device #opening-login-info-modal,
-body.is-phone-device #ranking-info-modal {
+body.is-phone-device #ranking-info-modal,
+body.is-phone-device #currency-award-modal,
+body.is-phone-device #rank-reveal-modal {
   transform: translate(-50%, -50%) scale(var(--center-modal-scale-phone, 1));
 }
 body.is-phone-device .card-received-modal {

@@ -11,7 +11,9 @@ import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { playVictoryBgm } from "./sound.js";
 import { showPostGamePanel } from "./post-game-panel.js";
 import { awardMatchCurrency } from "./online.js";
-import { refreshCurrencyDisplay, showCurrencyAwardEffect } from "./currency-display.js";
+import { refreshCurrencyDisplay } from "./currency-display.js";
+import { showCurrencyAwardModal } from "./currency-award-modal.js";
+import { showRankRevealModal } from "./rank-reveal-modal.js";
 
 // ユーザー要望「勝利モーダルが5秒ぐらいしっかり出た後に、『戦績確認・もう一度遊ぶ』
 // モーダル（勝利者へのコメント依頼を含む）が出るようにしてほしい」への対応。以前は
@@ -155,36 +157,39 @@ export function checkForVictory() {
     if (announcedPlayers.has(player)) continue;
     if (hasAllSevenLocked(player)) {
       announcedPlayers.add(player);
-      // ユーザー要望「対局終了毎に一定額稼げる仮想通貨を実装したい」＋「勝利時にボーナス」
-      // への対応。オンライン対戦の全クライアント（勝者本人・傍観者それぞれ）がこの分岐を
-      // 通るが、awardMatchCurrency()自身がサーバー側で「1ゲーム1回」に制限するため、
-      // 重複して呼んでも二重付与にはならない（online.jsのso7_award_match_currencyコメント
-      // 参照）。ここでのplayerは今まさに7色揃えた本人＝勝者の座席なので、そのままボーナス
-      // 対象の座席として渡す。ローカルモードは対象外（対戦記録・通貨とも意味を持つのは
-      // オンライン対戦のみ）。
-      if (isOnlineMode()) {
-        awardMatchCurrency(player)
-          .then((amount) => {
-            refreshCurrencyDisplay();
-            // ユーザー要望「対戦終了時にお金がもらえる演出を追加したい」への対応。
-            // 0は「他クライアントが先に付与済みだった」場合なので演出は出さない
-            // （online.jsのawardMatchCurrencyコメント参照）。
-            if (amount > 0) showCurrencyAwardEffect(amount);
-          })
-          .catch((err) => console.error("awardMatchCurrency failed", err));
-      }
-      // ユーザー要望「ゲーム終了時にコメント記入→戦績確認・もう一度遊ぶボタン」。
-      // オンライン対戦の全員の画面に出す（実際に戦績システムへ書き込むのは、
-      // 勝者本人の画面だけ——post-game-panel.js内でgetSelfSeat()===winnerSeatを
-      // 見て判定する）。ローカルモードでは対象外（対戦記録として意味を持つのは
-      // オンライン対戦のみのため）。勝利モーダルと同時に出すと重なって表示が
-      // ごちゃつくため、勝利モーダルが閉じてから（最低5秒後、または手動で早く
-      // 閉じた場合はその時点で）出すようにする。
-      showVictoryModal(player, () => {
-        if (isOnlineMode()) {
-          const { activePlayers } = getState();
-          showPostGamePanel({ activePlayers, winnerSeat: player });
+      // ユーザー要望「ゲーム終了時にコメント記入→戦績確認・もう一度遊ぶボタン」＋
+      // （続き87）「勝利時にお金を獲得した演出モーダルが欲しい」「勝利後、自分の順位を
+      // 表示させたい」への対応。オンライン対戦の全員の画面に出す（実際に戦績システムへ
+      // 書き込むのは勝者本人の画面だけ——post-game-panel.js内でgetSelfSeat()===
+      // winnerSeatを見て判定する）。ローカルモードでは対象外（対戦記録・通貨・
+      // ランキングいずれも意味を持つのはオンライン対戦のみのため）。
+      // 勝利モーダル→通貨獲得モーダル→順位モーダル→戦績パネル、の順に必ず1つずつ
+      // 閉じてから次を出す（続き48「勝利モーダルが5秒ぐらいしっかり出た後に次の
+      // モーダルが出るように」の教訓通り、同時に出すと画面が重なってごちゃつくため）。
+      // awardMatchCurrency()自身がサーバー側で「1ゲーム1回」に制限するため、
+      // 全クライアント（勝者本人・傍観者それぞれ）がここを通っても二重付与にはならない
+      // （online.jsのso7_award_match_currencyコメント参照）。playerは今まさに7色揃えた
+      // 本人＝勝者の座席なので、そのままボーナス対象の座席として渡す。
+      showVictoryModal(player, async () => {
+        if (!isOnlineMode()) return;
+        try {
+          const amount = await awardMatchCurrency(player);
+          refreshCurrencyDisplay();
+          // 0は「他クライアントが先に付与済みだった」場合なので演出は出さない
+          // （online.jsのawardMatchCurrencyコメント参照）。
+          if (amount > 0) await showCurrencyAwardModal(amount);
+        } catch (err) {
+          console.error("awardMatchCurrency failed", err);
         }
+        try {
+          // 戦績システムと未連携・ランキング対象外（対戦数が少なすぎる等）の場合は
+          // 何も表示せず即座に戻る（rank-reveal-modal.js参照）。
+          await showRankRevealModal();
+        } catch (err) {
+          console.error("showRankRevealModal failed", err);
+        }
+        const { activePlayers } = getState();
+        showPostGamePanel({ activePlayers, winnerSeat: player });
       });
     }
   }
