@@ -376,21 +376,25 @@ export const CARD_EFFECTS = {
   // 手品師の技 -スリカエ-（黄、通常カード）
   // 到達効果: 「相手１人の手札から無作為に１枚、あなたの手札に加える。あなたの手札から
   // １枚、その相手の手札に加える。」
-  // 手札効果: 「この効果はいつでも使える。上記の到達時の効果を得る。」——コスト無し。
-  // ユーザー確認済み「『いつでも使える』はゲート侵攻処理を含む効果の処理中以外は
-  // いつでも使えるという意味」。usableAnytime:trueを見て、main.js側がハンドフェイズ
-  // 以外でもドラッグでの発動を許可し、ゲート侵攻処理中にドラッグされた場合だけ
-  // 予約扱いにして処理が終わった後で確認モーダルを出す（card-effect-engine.jsの
-  // 実行ロジック自体は他の手札効果と同じrunHandEffectOptionを共有する）。
+  // 手札効果: 「上記の到達時の効果を得る。」——コスト無し。
+  // ユーザー要望（続き87）「一旦『スリカエ』の手札効果を『この効果はいつでも使える。
+  // 上記の到達時の効果を得る。』から『上記の到達時の効果を得る。』に変更します。
+  // そうすると事実上『いつでも使える』カードはなくなりますが、今後、そういった
+  // カードが出てくるし、スリカエをまたいつでも使えるカードにする場合があるので
+  // 『いつでも使える』ギミック自体は削除しないでください」への対応。usableAnytime:
+  // trueをこのカードから外しただけで、他の手札効果と同じ「ハンドフェイズ中のみ」に
+  // 戻る（生成テキストからも「この効果はいつでも使える。」が自動的に消える、
+  // card-effects.jsのgenerateEffectText参照）。usableAnytime自体の仕組み
+  // （main.js/card-effect-engine.js/online.jsのfireAnytimeCheckpoint等）は
+  // 一切削除していない——将来別のカードに`usableAnytime: true`を付ければそのまま
+  // 使える。
   "yellow-sleight-of-hand": {
     arrival: {
       actions: [{ verb: VERBS.SWAP_RANDOM_HAND_CARD }],
     },
     handEffect: {
-      usableAnytime: true,
       // inheritsArrival: 到達効果と全く同じactionsを実行するが、生成テキストは
-      // 「上記の到達時の効果を得る。」になる（docs/cards.md「■ この効果はいつでも
-      // 使える。上記の到達時の効果を得る。」）。
+      // 「上記の到達時の効果を得る。」になる（docs/cards.md参照）。
       inheritsArrival: true,
       actions: [{ verb: VERBS.SWAP_RANDOM_HAND_CARD }],
     },

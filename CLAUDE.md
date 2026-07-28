@@ -11508,3 +11508,24 @@ u=横方向・v=縦方向）にも使えるよう一般化した`rotateFraction(
   行ったが、実際のSupabase認証済みアカウントでのエンドツーエンド確認は
   次回オンライン対戦時にお願いしたい。
 
+### 2026-07-29（続き88）：手品師の技 -スリカエ- の手札効果から「いつでも使える」を外す
+
+- **スリカエの手札効果テキストを変更**: ユーザー要望「一旦『スリカエ』の手札効果を
+  『この効果はいつでも使える。上記の到達時の効果を得る。』から『上記の到達時の
+  効果を得る。』に変更します。そうすると事実上『いつでも使える』カードはなくなり
+  ますが、今後、そういったカードが出てくるし、スリカエをまたいつでも使える
+  カードにする場合があるので『いつでも使える』ギミック自体は削除しないでください」。
+  `card-effects.js`の`"yellow-sleight-of-hand"`の`handEffect`から`usableAnytime:
+  true`だけを削除した（`inheritsArrival: true`とactionsはそのまま）。これにより
+  生成テキストから「この効果はいつでも使える。」が自動的に消え、
+  `docs/cards.md`の該当箇所も合わせて更新した。挙動としては、このカードの手札
+  効果は他の通常カードと同じくハンドフェイズ中のみ発動可能に戻る（ゲート侵攻
+  処理中の予約扱い等、いつでも使える専用の分岐は通らなくなる）。
+  「いつでも使える」ギミック自体（`main.js`の`fireAnytimeCheckpoint`・
+  `card-effect-engine.js`の`isHandEffectUsableAnytime()`・`online.js`の
+  `anytime_checkpoint`ブロードキャスト等）は一切削除していない——将来別の
+  カードの`handEffect`に`usableAnytime: true`を付ければそのまま機能する。
+  ブラウザで`generateEffectText()`の出力が実際に「上記の到達時の効果を得る。」に
+  なること、`isHandEffectUsableAnytime("yellow-sleight-of-hand")`が`false`を
+  返すことを確認済み。
+
