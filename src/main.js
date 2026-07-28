@@ -2054,6 +2054,18 @@ document.addEventListener(
   "pointerdown",
   (e) => {
     if (e.button !== 0) return;
+    // ユーザー報告（続き76）「スマホでファーストカードサフランを使おうとタップしたら、
+    // 画面が暗めになって手札以外のタップが効かなくなった。オプションボタンも
+    // 触れなくなっていてログを渡せない」。原因判明: このリスナーはdocument全体に
+    // capture:trueで付けており、activeEffectPicker（カード効果の候補選択待ち、
+    // 例: サフランの追色コスト＝同じ色の手札を選ぶ）が立っている間は、盤面上の
+    // 候補以外へのタップも含めて無条件にe.preventDefault()/e.stopPropagation()を
+    // 呼んでいた——盤外の#option-area（オプション/ヘルプ/マイページ等）へのタップも
+    // 巻き添えで無効化されてしまい、選択に失敗すると（候補の当たり判定を外す等）
+    // 一切の復旧手段が無いまま画面全体が固まって見える状態になっていた。#option-area
+    // 内のタップだけは、盤面の選択状態に関係なく常に通常通り機能させる（ここで早期
+    // returnし、preventDefault/stopPropagationを一切呼ばない）。
+    if (e.target.closest("#option-area")) return;
     if (!activeEffectPicker) {
       // ユーザー要望「ムーブフェイズでの移動先ハイライトをクリックしたら自動で移動する」。
       // カード効果の候補選択（activeEffectPicker）と同じ「3D傾き演出のためネイティブ

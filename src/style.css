@@ -5813,9 +5813,16 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
    微調整用のオフセットCSS変数（--phase-skip-button-offset-x/-y、admin.js）も
    pulseアニメーションのtransformに含めてある。 */
 #phase-automation-skip-button {
+  /* ユーザー要望（続き76、当初は「案内板の右へ」だったが後に「案内板の上へ」に
+     変更）。#phase-guide-bar（position:fixed）の子のまま、position:absoluteで
+     フローから外し、バーの真上に浮かせる——src/timer-toggle.jsの#timer-toggle-button
+     （バーの右上に浮かぶポップオーバー）と全く同じ技法。左右が被らないよう、
+     あちらはright:0、こちらはleft:0にしてある。 */
+  position: absolute;
+  bottom: calc(100% + 0.6rem);
+  left: 0;
   z-index: 1001;
   display: none;
-  align-self: center;
   padding: 0.5rem 1.1rem;
   background: linear-gradient(160deg, #facc15, #f59e0b);
   border: none;
@@ -5834,6 +5841,26 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
 }
 #phase-automation-skip-button:hover {
   filter: brightness(1.1);
+}
+/* ユーザー要望（続き76）「スキップボタンを表示させていない時は『自分のターンです』
+   『相手のターンです』とそこに表示させておきたい」。スキップボタンと同じ枠
+   （#phase-guide-bar末尾）を共有し、どちらか一方だけ表示する（phase-automation.js
+   のupdateSkipButtonVisibility参照）。 */
+#phase-automation-turn-status {
+  /* スキップボタンと同じ「バーの真上に浮かぶ」位置（上のコメント参照）。 */
+  position: absolute;
+  bottom: calc(100% + 0.6rem);
+  left: 0;
+  display: none;
+  padding: 0.4rem 0.9rem;
+  background: rgba(15, 23, 32, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.5rem;
+  color: #e2e8f0;
+  font-family: sans-serif;
+  font-size: 0.8rem;
+  font-weight: bold;
+  white-space: nowrap;
 }
 body.reduce-glow #phase-automation-skip-button {
   animation: none;

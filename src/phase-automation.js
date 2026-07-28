@@ -343,8 +343,33 @@ function updatePhaseGuideGlow() {
 
 // --- UI: 常設のスキップボタン（フェイズ案内板の近くに表示） ---------------------------
 let skipButtonEl = null;
+// ユーザー要望（続き76）「スキップボタンを表示させていない時は『自分のターンです』
+// 『相手のターンです』とそこに表示させておきたい」。スキップボタンと同じ「フェイズ
+// 案内板の右端」の枠を共有し、どちらか一方だけを表示する。
+let turnStatusEl = null;
+// ハマりどころ（続き76、実機確認で発見）: 以前は「#phase-guide-barが無ければbody直下へ
+// フォールバックする」だけで、一度フォールバックしてしまうと（ensureXxx()自体は
+// 「既に生成済みならそのまま返す」ため）二度とbarへ移設されなかった。この続き76で
+// reconcilePhaseAutomation()の先頭からshouldBeActiveの判定に関係なく毎回呼ぶように
+// 変更した結果、main.js側でまだ#phase-guide-barが構築される前の最初のrender()で
+// このフォールバック経路に入ってしまい、bottom:calc(100% + 0.6rem)がbody全体を基準に
+// 計算されて画面の全く違う場所に表示される不具合が発生した。生成済みでも、現在の親が
+// バーと違う（＝フォールバック中）かつバーが今は存在するなら、そのタイミングで
+// バーの子へ付け替える（毎回呼ばれても親が既に一致していればappendChildは無害な
+// no-opのため、判定を省略して常に実行してよい）。
+function attachToPhaseGuideBar(el) {
+  const bar = document.getElementById("phase-guide-bar");
+  if (bar) {
+    bar.appendChild(el);
+  } else if (!el.parentElement) {
+    document.body.appendChild(el);
+  }
+}
 function ensureSkipButton() {
-  if (skipButtonEl) return skipButtonEl;
+  if (skipButtonEl) {
+    attachToPhaseGuideBar(skipButtonEl);
+    return skipButtonEl;
+  }
   skipButtonEl = document.createElement("button");
   skipButtonEl.type = "button";
   skipButtonEl.id = "phase-automation-skip-button";
@@ -366,26 +391,33 @@ function ensureSkipButton() {
     }
     advancePhase();
   });
-  // ユーザー報告「スキップボタンが他のアイコンと被っています。フェイズ案内板の
-  // ロックフェイズアイコンの左隣に置いてください」（最初afterendで右隣に置いたところ
-  // 「右側ではなく左側がいい」と指摘を受けたのでbeforebeginに変更）。固定座標での
-  // 配置をやめ、#phase-guide-bar（flexコンテナ）のロックボタンの直前にDOM上の
-  // 兄弟として挿入する。これでフェイズ案内板自体の位置調整（タブレット別
-  // オーバーライド含む）にそのまま追従する。念のためmain.js初期化順の都合でまだ
-  // 無い場合はbody直下へフォールバックする。
-  const lockBtn = document.getElementById("phase-guide-lock-button");
-  if (lockBtn) {
-    lockBtn.insertAdjacentElement("beforebegin", skipButtonEl);
-  } else {
-    document.body.appendChild(skipButtonEl);
-  }
+  attachToPhaseGuideBar(skipButtonEl);
   return skipButtonEl;
+}
+function ensureTurnStatus() {
+  if (turnStatusEl) {
+    attachToPhaseGuideBar(turnStatusEl);
+    return turnStatusEl;
+  }
+  turnStatusEl = document.createElement("div");
+  turnStatusEl.id = "phase-automation-turn-status";
+  attachToPhaseGuideBar(turnStatusEl);
+  return turnStatusEl;
 }
 function updateSkipButtonVisibility() {
   const btn = ensureSkipButton();
+  const statusEl = ensureTurnStatus();
   // ムーブフェイズは「移動」か「接触」のどちらかを必ず行う必要があり、任意にスキップできる
   // 性質のものではない（docs/rulebook.md）。スキップボタンはロック・ハンドフェイズだけに出す。
-  btn.style.display = currentPhase === "lock" || currentPhase === "hand" ? "block" : "none";
+  const showSkip = currentPhase === "lock" || currentPhase === "hand";
+  btn.style.display = showSkip ? "block" : "none";
+  const state = getState();
+  if (showSkip || !state.turnPlayer) {
+    statusEl.style.display = "none";
+  } else {
+    statusEl.style.display = "block";
+    statusEl.textContent = state.turnPlayer === getSelfSeat() ? "自分のターンです" : "相手のターンです";
+  }
 }
 
 // --- フェイズの開始・進行 ---------------------------------------------------------------
@@ -454,6 +486,15 @@ function clearPhase() {
 // カード効果自動処理と同じ「呼び出し元(main.js)がrender()の末尾で毎回呼ぶ」設計
 // （remote-move-animator.jsのreapplyActiveHighlights等と同じ考え方）。
 export function reconcilePhaseAutomation() {
+  // 続き76の修正: 以前はupdateSkipButtonVisibility()（スキップボタン/「自分の
+  // ターンです」表示の更新）がclearPhase()の中、それも「currentPhaseが既に
+  // nullでない時だけ」という早期returnの内側からしか呼ばれていなかったため、
+  // 一度も自動処理が有効化されないまま（＝shouldBeActiveが最初からずっとfalseの
+  // まま）の対局では、この2つのDOM要素自体が一度も生成されず、「自分のターンです/
+  // 相手のターンです」がどのプレイヤーの画面にも一切表示されないままになっていた。
+  // render()のたびに呼ばれるこの関数の先頭で、shouldBeActiveの判定に関係なく
+  // 毎回呼び直すようにする（軽量なDOM表示切り替えのみのため負荷は無視できる）。
+  updateSkipButtonVisibility();
   const player = getSelfSeat();
   const shouldBeActive = isAutoProcessingEnabled() && getState().turnPlayer === player;
   if (!shouldBeActive) {
