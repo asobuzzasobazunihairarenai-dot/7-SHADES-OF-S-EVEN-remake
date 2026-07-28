@@ -4793,22 +4793,25 @@ function setPeekedCard(cardEl) {
   cardEl.style.transform = `${cardEl.dataset.baseTransform ?? ""} translateY(-${lift})`;
 }
 // カーソル/タップ座標にある自分の手札カードを返す（無ければnull）。
-// ユーザー報告「ひょこってなるカードと拡大されるカードが違う」の原因: 以前は
-// getBoundingClientRect()の矩形重なり＋中心点との距離で判定していたが（扇状に回転した
-// カードの軸並行矩形は見た目の菱形よりかなり大きく、隣接カードの矩形と広く重なり合う
-// ため、「矩形に含まれるものの中から中心が最も近いもの」という座標上のヒューリスティック
-// だった）、これは実際に画面上でどのカードが手前に描画されているか（＝見た目のカード
-// 拡大プレビュー、findHoverTarget参照）とは別の判定基準だったため、重なりが深い時に
-// 両者が食い違うことがあった。findHoverTargetと同じdocument.elementsFromPoint()
-// （実際の描画スタッキング順を反映する）を使うことで、拡大プレビューと必ず同じ1枚を
-// 指すようにする。
+// ユーザー報告（続き71）「ひょこっとなっているカードと、実際にドラッグして掴める
+// カード（＝ハイライトされているカード）が違う。ユーザーは混乱する」。原因は
+// findDraggableAt/findHoverTarget（掴む対象・拡大プレビュー対象の判定、どちらも
+// elementsFromPoint()で候補を集めた後、扇状に重なるカードの中からclosestByCenterで
+// 一番中心が近い1枚を選ぶ）と、この関数（以前はelementsFromPoint()の最初の1枚＝
+// 単純なDOM描画順の最前面）とで、判定アルゴリズム自体が違っていたこと。重なりが
+// 深い場所では「見た目の最前面」と「中心が一番近い」が別のカードを指すことがあり、
+// 「ひょこっと持ち上がるカード」と「実際に掴めるカード」が食い違っていた。
+// findDraggableAt/findHoverTargetと全く同じ「elementsFromPoint()で候補を集めて
+// closestByCenterで1枚に絞る」手順に揃え、常に一致するようにする。
 function findSelfHandCardAt(clientX, clientY) {
   const elements = document.elementsFromPoint(clientX, clientY);
+  const candidates = new Set();
   for (const el of elements) {
     const handCard = el.closest(".hand-card.is-self");
-    if (handCard && handCard.closest(".zone-bottom .hand-area")) return handCard;
+    if (handCard && handCard.closest(".zone-bottom .hand-area")) candidates.add(handCard);
   }
-  return null;
+  if (candidates.size === 0) return null;
+  return closestByCenter(candidates, clientX, clientY);
 }
 function initHandPeek() {
   window.addEventListener("pointermove", (e) => {
