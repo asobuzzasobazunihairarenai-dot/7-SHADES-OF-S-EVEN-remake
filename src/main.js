@@ -182,6 +182,8 @@ import {
   onCardReceivedEvents,
   broadcastHandEffectUse,
   onHandEffectUseEvents,
+  broadcastEffectReason,
+  onEffectReasonEvents,
   broadcastColorsDeclared,
   onColorsDeclaredEvents,
   broadcastColorsResolved,
@@ -1204,6 +1206,13 @@ onHandEffectUseEvents(({ fromPlayer, cardId, optionLabel }) => {
   showHandEffectUseModal(cardId, optionLabel);
   playSound("arrivalEffect");
 });
+// ユーザー要望（続き70）「試練の儀式やザギャンブルでの結果は相手にもモーダルで
+// 教えてあげてください」。使った本人は既にannounceEffectReasonForEffect内で
+// ローカル表示済みなので、ここでは自分以外からの通知だけを表示する。
+onEffectReasonEvents(({ fromPlayer, cardId, text }) => {
+  if (fromPlayer === getSelfSeat()) return;
+  showEffectReasonModal(cardId, text);
+});
 // ユーザー要望「試練の儀式やザ・ギャンブルなどで色宣言するとき相手が何色を宣言したかを
 // 見える化したい」（続き62、続き65で丸い色アイコン＋常駐表示に改訂）。宣言した本人は
 // 自分の操作（confirmBtnのクリックハンドラ）で既にshowDeclaredColorsIndicatorを
@@ -1445,6 +1454,12 @@ function announceHandEffectUseForEffect(cardId, optionLabel) {
 // どの呼び出し元でも共通のため）。
 async function announceEffectReasonForEffect(cardId, text) {
   showEffectReasonModal(cardId, text);
+  // ユーザー要望（続き70）「試練の儀式やザギャンブルでの結果は相手にもモーダルで
+  // 教えてあげてください」。以前は実行者本人の画面にしか表示していなかった。
+  // hand_effect_useと同じ「見た目だけの合図」パターンで他プレイヤーへも中継する。
+  if (isOnlineMode()) {
+    broadcastEffectReason({ fromPlayer: getSelfSeat(), cardId, text });
+  }
   await wait(REASON_MODAL_TOTAL_MS);
 }
 
@@ -3026,8 +3041,57 @@ function closeOpenPrompt() {
   }
 }
 
+// 「オープンする」を選んだ（または自動処理モードで自動的にそう決まった）時の実処理。
+// 元はyesBtnのクリックハンドラの中身だけだったが、続き70でユーザー要望「自動処理
+// モードでは『移動』『強制移動』の場合で移動先が裏なら原則自動でオープンする」に
+// 対応するため、手動クリックと自動処理の両方から呼べるよう単独の関数に切り出した。
+async function openCardNow(card, onResolved, onFullyResolved) {
+  if (isOnlineMode()) {
+    // オンライン中はflipToken()がローカルstateを書き換えず、サーバーへの
+    // リクエストを送るだけ（Promiseを返す）。awaitせずすぐrender()すると
+    // 反転前の古い状態のまま描画・演出判定してしまうため、応答を待ってから
+    // fetchAndHydrate()で明示的に再同期してから続ける。
+    try {
+      await flipToken(card.id);
+      markSelfHandled([card.id]);
+      await fetchAndHydrate(getCurrentGameId());
+    } catch (err) {
+      console.error("flipToken failed", err);
+      render();
+      onResolved?.();
+      onFullyResolved?.();
+      return;
+    }
+  } else {
+    flipToken(card.id);
+  }
+  playSound("cardFlip");
+  closeOpenPrompt();
+  render();
+  // オンライン中、オープン前のcardは裏向き（RLSマスクによりcardIdがnull）だった時点の
+  // クロージャ値のままなので、そのまま到達演出に使うとgetCardDefinition(null)が
+  // undefinedを返しshowCardArrivalModal内でクラッシュし、演出全体（サウンド・光の柱含む）
+  // が失敗する（オープンした本人の画面だけ到達演出が出ないバグの原因だった）。
+  // fetchAndHydrate()後のフレッシュな状態から改めて取得する。
+  const freshCard = getState().tokens.find((t) => t.id === card.id);
+  if (freshCard) triggerCardArrival(freshCard.cardId, freshCard.location, onFullyResolved);
+  else onFullyResolved?.();
+  onResolved?.();
+}
+
 function promptCardOpen(pieceTokenId, card, onResolved, onFullyResolved) {
   closeOpenPrompt();
+  // ユーザー要望（続き70）「接触されたプレイヤーがゲートに強制移動するとき、ゲートの
+  // カードが裏向きなら自動でそれをオープンしてください。自動処理モードでは『移動』
+  // 『強制移動』の場合で移動先が裏なら原則自動でオープンします」。このmaybeTrigger
+  // CardArrival→promptCardOpenの経路は通常の移動(main.jsのドラッグ&ドロップ)と
+  // 接触の強制移動(respondToContact)の両方から共通で呼ばれるため、ここ1箇所で
+  // 分岐させれば両方に効く。手動の「オープンする/しない」プロンプト自体を出さず、
+  // 即座にopenCardNow()を呼ぶ。
+  if (isAutoProcessingEnabled()) {
+    openCardNow(card, onResolved, onFullyResolved);
+    return;
+  }
   const pieceEl = document.querySelector(`.piece[data-token-id="${pieceTokenId}"]`);
   if (!pieceEl) {
     onResolved?.();
@@ -3047,39 +3111,7 @@ function promptCardOpen(pieceTokenId, card, onResolved, onFullyResolved) {
   const yesBtn = document.createElement("button");
   yesBtn.className = "card-open-prompt-yes";
   yesBtn.textContent = "👁 オープンする";
-  yesBtn.addEventListener("click", async () => {
-    if (isOnlineMode()) {
-      // オンライン中はflipToken()がローカルstateを書き換えず、サーバーへの
-      // リクエストを送るだけ（Promiseを返す）。awaitせずすぐrender()すると
-      // 反転前の古い状態のまま描画・演出判定してしまうため、応答を待ってから
-      // fetchAndHydrate()で明示的に再同期してから続ける。
-      try {
-        await flipToken(card.id);
-        markSelfHandled([card.id]);
-        await fetchAndHydrate(getCurrentGameId());
-      } catch (err) {
-        console.error("flipToken failed", err);
-        render();
-        onResolved?.();
-        onFullyResolved?.();
-        return;
-      }
-    } else {
-      flipToken(card.id);
-    }
-    playSound("cardFlip");
-    closeOpenPrompt();
-    render();
-    // オンライン中、オープン前のcardは裏向き（RLSマスクによりcardIdがnull）だった時点の
-    // クロージャ値のままなので、そのまま到達演出に使うとgetCardDefinition(null)が
-    // undefinedを返しshowCardArrivalModal内でクラッシュし、演出全体（サウンド・光の柱含む）
-    // が失敗する（オープンした本人の画面だけ到達演出が出ないバグの原因だった）。
-    // fetchAndHydrate()後のフレッシュな状態から改めて取得する。
-    const freshCard = getState().tokens.find((t) => t.id === card.id);
-    if (freshCard) triggerCardArrival(freshCard.cardId, freshCard.location, onFullyResolved);
-    else onFullyResolved?.();
-    onResolved?.();
-  });
+  yesBtn.addEventListener("click", () => openCardNow(card, onResolved, onFullyResolved));
 
   const noBtn = document.createElement("button");
   noBtn.className = "card-open-prompt-no";
@@ -5852,10 +5884,15 @@ async function onDragEnd(e) {
     // できなくなっていた。自動処理OFF中はこの特別扱い自体が不要（手札効果の自動
     // 発動という概念自体が自動処理モードの機能のため）なので、isAutoProcessing
     // Enabled()もまとめてガードする。
+    // ユーザー要望（続き70）「ハンドフェイズで手札公開エリアから盤面に放り投げたら
+    // 手札から放り投げるのと同様に手札効果を発動させてください」。手札公開エリア
+    // （ザ・ギャンブルの公開ドロー等、location.zone==="publicDraw"）のカードも、
+    // 通常の手札(zone==="hand")と全く同じ「ハンドフェイズ外でドロップしたら手札効果を
+    // 発動する」対象に含める。
     if (
       isAutoProcessingEnabled() &&
       kind === "card" &&
-      cardSourceLocation?.zone === "hand" &&
+      (cardSourceLocation?.zone === "hand" || cardSourceLocation?.zone === "publicDraw") &&
       cardSourceLocation.player === getSelfSeat() &&
       dropTarget.zone !== "hand"
     ) {

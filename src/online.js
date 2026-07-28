@@ -372,6 +372,24 @@ export function broadcastHandEffectUse(payload) {
   }
 }
 
+// ユーザー要望（続き70）「試練の儀式やザ・ギャンブルでの結果は相手にもモーダルで
+// 教えてあげてください」。main.jsのannounceEffectReasonForEffect（「おめでとう
+// ございます」「残念でした」等の結果理由モーダル）は今まで実行者本人の画面にしか
+// 表示しておらず、hand_effect_useと同じ「見た目だけの合図」パターンで他プレイヤーにも
+// 中継する。
+let effectReasonEventListeners = [];
+export function onEffectReasonEvents(fn) {
+  effectReasonEventListeners.push(fn);
+  return () => {
+    effectReasonEventListeners = effectReasonEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastEffectReason(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "effect_reason", payload });
+  }
+}
+
 // ザ・ギャンブル・試練の儀式の色宣言を全員に見える化する合図（続き62、ユーザー要望
 // 「色宣言するとき相手が何色を宣言したかを見える化したい」）。hand_effect_useと同じ
 // 「状態は一切変えない見た目だけの合図」パターン。
@@ -1898,6 +1916,10 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // 手札効果を使用した通知（broadcastHandEffectUse参照）。
     .on("broadcast", { event: "hand_effect_use" }, ({ payload }) => {
       for (const fn of handEffectUseEventListeners) fn(payload);
+    })
+    // 効果の結果理由モーダルの通知（broadcastEffectReason参照）。
+    .on("broadcast", { event: "effect_reason" }, ({ payload }) => {
+      for (const fn of effectReasonEventListeners) fn(payload);
     })
     // 色宣言の通知（broadcastColorsDeclared参照）。
     .on("broadcast", { event: "colors_declared" }, ({ payload }) => {
