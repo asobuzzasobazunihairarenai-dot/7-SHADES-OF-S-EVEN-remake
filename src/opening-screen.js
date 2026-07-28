@@ -15,7 +15,8 @@
 // 変更した（カード自体にも右上の✕でボタン表示へ戻せる、開き直してもオーバーレイ全体は
 // 閉じない）。
 
-import { openOnlinePanel, markOnlineIntentActive } from "./online-ui.js";
+import { markOnlineIntentActive } from "./online-ui.js";
+import { openHomeScreen } from "./home-screen.js";
 import { maybeShowTablet2dWarning } from "./tablet-2d-warning.js";
 import {
   isOnlineAvailable,
@@ -631,7 +632,11 @@ export function initOpeningScreen() {
         // 一瞬ローカル表示のまま見えてしまうため、閉じるアニメーションを待たず
         // クリック直後に先出しする（online-ui.jsのmarkOnlineIntentActive参照）。
         markOnlineIntentActive();
-        close(openOnlinePanel);
+        // ユーザー要望（続き73）「HUERISE→タイトル画面→ホーム画面」。以前はここで
+        // 直接オンライン対戦パネル（部屋の作成/参加）を開いていたが、その手前に
+        // ナビゲーションのハブとなるホーム画面を挟む。オンライン対戦（フレンドリー
+        // マッチ）はホーム画面のタイルから改めて開く。
+        close(openHomeScreen);
       });
       row.appendChild(continueBtn);
       card.appendChild(row);

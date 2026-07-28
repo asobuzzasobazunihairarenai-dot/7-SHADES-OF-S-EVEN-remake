@@ -8166,3 +8166,123 @@ body.reduce-glow .cell.card-effect-placement-target {
   color: white;
   font-weight: bold;
 }
+
+/* ホーム画面（続き73、src/home-screen.js）。HUERISE→タイトル画面→ログイン後の
+   ナビゲーションのハブとなる画面全体のページ（モーダルではない）。opening-screen.js
+   の「オンラインで続ける」から遷移する。 */
+#home-screen {
+  position: fixed;
+  inset: 0;
+  /* ユーザー要望どおりフレンドリーマッチ/ショップを実際に開けるようにした際、
+     ショップパネル(#shop-panel、z-index:2601)がこのホーム画面より低いz-indexだと
+     裏に隠れてしまうことが実機確認で判明した。ショップ/マイページ等の既存パネルは
+     いずれも2000〜2601付近のz-indexを使っているため、ホーム画面はその全てより
+     確実に低い値にしておく（オンライン対戦パネル、z-index:10002は元々余裕がある）。 */
+  z-index: 1500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 2rem 1rem;
+  background: radial-gradient(ellipse at top, #1e293b 0%, #0f172a 60%, #060a12 100%);
+  font-family: sans-serif;
+  color: #e2e8f0;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+#home-screen-title {
+  font-size: 1.6rem;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  color: #f1f5f9;
+  text-shadow: 0 0.2rem 0.6rem rgba(0, 0, 0, 0.6);
+}
+#home-screen-subtitle {
+  font-size: 0.9rem;
+  color: #94a3b8;
+  margin-bottom: 1.6rem;
+  letter-spacing: 0.2em;
+}
+#home-screen-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 1rem;
+  width: min(52rem, 100%);
+}
+.home-screen-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.4rem 0.6rem;
+  background: linear-gradient(160deg, rgba(56, 189, 248, 0.12), rgba(15, 23, 32, 0.9));
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.7rem;
+  color: #e2e8f0;
+  font-family: sans-serif;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.home-screen-tile:hover {
+  transform: translateY(-0.2rem);
+  border-color: rgba(56, 189, 248, 0.7);
+  background: linear-gradient(160deg, rgba(56, 189, 248, 0.22), rgba(15, 23, 32, 0.9));
+}
+.home-screen-tile.is-soon {
+  background: rgba(30, 41, 59, 0.5);
+  border-color: rgba(148, 163, 184, 0.18);
+  color: rgba(226, 232, 240, 0.55);
+}
+.home-screen-tile.is-soon:hover {
+  transform: none;
+  border-color: rgba(148, 163, 184, 0.3);
+  background: rgba(30, 41, 59, 0.6);
+}
+.home-screen-tile-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+.home-screen-tile-label {
+  font-size: 0.85rem;
+  font-weight: bold;
+  text-align: center;
+  line-height: 1.4;
+}
+.home-screen-tile-badge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  font-size: 0.6rem;
+  font-weight: bold;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(250, 204, 21, 0.18);
+  border: 1px solid rgba(250, 204, 21, 0.5);
+  color: #facc15;
+  white-space: nowrap;
+}
+#home-screen-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 2.2rem;
+  transform: translate(-50%, 0.6rem);
+  z-index: 9100;
+  background: rgba(15, 23, 32, 0.95);
+  border: 1px solid rgba(250, 204, 21, 0.5);
+  border-radius: 0.5rem;
+  padding: 0.6rem 1rem;
+  font-family: sans-serif;
+  font-size: 0.8rem;
+  color: #e2e8f0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  white-space: nowrap;
+}
+#home-screen-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
