@@ -30,6 +30,16 @@ export function resetVictoryTracking() {
   announcedPlayers = new Set();
 }
 
+// ユーザー報告（続き86）「勝利後、まだ盤面のタイマーが止まらず自動処理が継続されて
+// しまっている」への対応。checkForVictory()は勝利モーダルを出すだけで、turnPlayer・
+// priorityPlayer等のゲーム進行用の状態を一切書き換えないため、ターンタイマー
+// （turn-timer.js）も自動処理（phase-automation.js）も勝利後もそれまで通り動き
+// 続けてしまっていた。誰かが既に勝利済みかどうかを、両モジュールから軽量に
+// 確認できるようにする。
+export function hasAnyoneWon() {
+  return announcedPlayers.size > 0;
+}
+
 // ユーザー報告「勝利した時、勝利モーダル、勝利BGMが鳴らなくなりました」の原因調査で
 // 発見した不具合への対応。announcedPlayers（座席A〜Dの単純な集合、部屋・対局をまたいで
 // 同じ変数を使い回す）をクリアする経路が、以前は(a)ローカルのセットアップウィザード

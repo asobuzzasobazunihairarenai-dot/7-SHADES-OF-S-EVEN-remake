@@ -65,7 +65,7 @@ import {
 } from "./gate-invasion.js";
 import { announceHandPickups, announceCardLocked, announceDrawCount } from "./hand-announcer.js";
 import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained } from "./gate-invasion-modal.js";
-import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking } from "./victory.js";
+import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking, hasAnyoneWon } from "./victory.js";
 import { registerVictoryHelpers } from "./post-game-panel.js";
 import { announceTurnChange } from "./turn-announce.js";
 import {
@@ -6698,6 +6698,9 @@ function isEndTurnDisabledNow(state) {
 // アクションログ300件の上限をあっという間に埋めてしまうため、変化点だけに絞る）。
 let lastShouldEmphasizeLogged = null;
 function computeShouldEmphasize() {
+  // ユーザー報告（続き86）「勝利後、まだ盤面のタイマーが止まらず自動処理が継続
+  // されてしまっている」。誰かが既に勝利していれば自動ターン終了も不要。
+  if (hasAnyoneWon()) return false;
   const state = getState();
   const autoProcessingEnabled = isAutoProcessingEnabled();
   const endTurnDisabled = isEndTurnDisabledNow(state);

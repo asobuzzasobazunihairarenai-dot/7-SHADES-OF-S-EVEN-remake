@@ -9,6 +9,7 @@ import { getSelfSeat } from "./online.js";
 import { isPickupVisible, getPlayerNameOrYou } from "./hand-announcer.js";
 import { createModalCloseX } from "./ui-helpers.js";
 import { getState } from "./state.js";
+import { logAction } from "./action-log.js";
 
 // 攻撃側本人の画面だけは、fetchAndHydrate()後の自分の手札として実際のcardIdが見えている
 // （RLSで自分の手札はマスクされないため）。それ以外の閲覧者には解決しない
@@ -198,14 +199,37 @@ function advance() {
     return;
   }
   const step = queue.shift();
-  showStep(step);
+  // ユーザー報告（続き86）「ゲート侵攻時の手札を選ぶやつとかの演出が表示されて
+  // いない」の調査用。このモーダル自体には元々try/catchが無く、showStep内の
+  // どこか（buildCardsHtmlが参照するgetCardDefinition/getCardImagePath等）で
+  // 想定外の値（存在しないcardId等）に当たって例外が飛ぶと、そこで静かに処理が
+  // 止まり、以後キューに積まれた分も含めて二度と表示されなくなる
+  // （queue/modalElの状態は最後に成功した時点のまま残り得るため、
+  // isGateInvasionQueueActive()はtrueのまま固まって見える）。診断ログを残し、
+  // 例外発生時はこのステップを諦めて次へ進めるようにする（無限に固まったままに
+  // ならないようにする保険）。
+  try {
+    showStep(step);
+  } catch (err) {
+    console.error("gate-invasion-modal showStep failed", err);
+    logAction("diag-gate-invasion-modal-error", { message: String(err?.message ?? err), stepText: step?.text });
+    closeCurrent();
+    advance();
+  }
 }
 
 // events: so7-apply-action.tsのstate_changed Broadcastペイロードに載っているgateInvasionEvents。
 // 既に表示中/待機中のキューがあれば、その末尾に新しいステップを追加する（連続してゲート侵攻が
 // 起きた場合でも、既存の表示を中断せず順番に見せる）。
 export function enqueueGateInvasionSteps(events) {
-  const newSteps = buildSteps(events);
+  let newSteps;
+  try {
+    newSteps = buildSteps(events);
+  } catch (err) {
+    console.error("gate-invasion-modal buildSteps failed", err);
+    logAction("diag-gate-invasion-modal-error", { message: String(err?.message ?? err), phase: "buildSteps" });
+    return;
+  }
   const wasEmpty = queue.length === 0 && !modalEl;
   queue.push(...newSteps);
   if (wasEmpty) advance();

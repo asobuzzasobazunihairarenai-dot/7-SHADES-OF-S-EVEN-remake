@@ -43,6 +43,7 @@ import {
 } from "./admin.js";
 import { isOpponentBaseTimerVisible } from "./motion-prefs.js";
 import { toggleTimerTogglePopover } from "./timer-toggle.js";
+import { hasAnyoneWon } from "./victory.js";
 
 // オンライン対戦中は、ゲーム開始時に固定された対局全体共通の設定（timer_config、
 // 部屋作成者のその時点のローカル設定を1回だけ書き込んだもの）を優先する——プレイヤーごとに
@@ -823,6 +824,16 @@ function updateTimeoutWarnings(state, isTimedOut) {
 
 function tick() {
   if (!isTurnTimerEnabled()) {
+    updateWarning(false);
+    updatePriorityReturnWarning(false);
+    setDisplayIfChanged(ropeEl, "none");
+    setDisplayIfChanged(baseClockEl, "none");
+    return;
+  }
+  // ユーザー報告（続き86）「勝利後、まだ盤面のタイマーが止まらず自動処理が継続
+  // されてしまっている」。誰かが既に勝利していれば、以後は優先権もタイマーも
+  // 意味を持たないため、表示を消して以降の処理も止める。
+  if (hasAnyoneWon()) {
     updateWarning(false);
     updatePriorityReturnWarning(false);
     setDisplayIfChanged(ropeEl, "none");

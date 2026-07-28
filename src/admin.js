@@ -421,6 +421,30 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー要望（続き87）「PC、タブレット用にもフェイズ案内エリアの一括サイズ
+    // 位置調整を管理者モードに追加してほしい」。スマホ専用（--phase-guide-scale-phone
+    // 等）は既にあったが、PC・タブレットには無かった。#phase-guide-bar自体が
+    // フェイズ案内板・スキップボタン・基本時間・ターン表示すべての共通の親要素の
+    // ため、一括のtranslate+scaleだけで足りる（style.css参照）。
+    title: "フェイズ案内エリア（フェイズ案内板・スキップボタン・基本時間・ターン表示をまとめて位置・サイズ調整）",
+    category: "position-ui",
+    controls: [
+      { key: "--phase-guide-pos-x", label: "位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--phase-guide-pos-y", label: "位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--phase-guide-scale", label: "サイズ倍率", unit: "", min: 0.3, max: 2.5, step: 0.05, default: 1 },
+    ],
+  },
+  {
+    // タブレット専用（未設定ならPC値にフォールバック、他のタブレット専用調整と同じ仕組み）。
+    title: "タブレット専用：フェイズ案内エリアの一括位置・サイズ調整",
+    category: "tablet",
+    controls: [
+      { key: "--phase-guide-pos-touch-x", label: "位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--phase-guide-pos-touch-y", label: "位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--phase-guide-scale-touch", label: "サイズ倍率（タブレット）", unit: "", min: 0.3, max: 2.5, step: 0.05, default: 1 },
+    ],
+  },
+  {
     // ユーザー要望「『ターン数、ラウンド数』の表示の位置サイズ調整を管理者モードに
     // 追加したい」への対応。元々は画面右上に固定値（top:0.4rem・right:3.9rem・
     // font-size:0.65rem）で決め打ちされていた（style.cssの#turn-round-counter参照）。

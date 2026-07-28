@@ -1327,9 +1327,23 @@ body.diagnostic-flatten-3d.is-touch-device #phase-guide-bar {
    共通の親要素になっている（turn-timer.js/phase-automation.jsがこのバーへ
    appendChildしている）ため、#option-areaと同じ「親要素ごとtranslate+scale」の
    手法だけで一括調整が実現できる。アンカー（bottom/right基準）を基準点に保つため
-   transform-originは右下にする。 */
-body.is-phone-device #phase-guide-bar {
+   transform-originは右下にする。
+   続き87でユーザー要望「PC、タブレット用にも同じ一括調整を追加してほしい」への
+   対応として、PC（無条件）・タブレット（body.is-touch-device、未設定ならPC値へ
+   フォールバック）の2段を追加した。scale(1)・translate(0,0)が既定のため、
+   従来のPC/タブレットの見た目には一切影響しない。 */
+#phase-guide-bar {
   transform-origin: bottom right;
+  transform: translate(var(--phase-guide-pos-x, 0rem), var(--phase-guide-pos-y, 0rem)) scale(var(--phase-guide-scale, 1));
+}
+body.is-touch-device #phase-guide-bar {
+  transform: translate(
+      var(--phase-guide-pos-touch-x, var(--phase-guide-pos-x, 0rem)),
+      var(--phase-guide-pos-touch-y, var(--phase-guide-pos-y, 0rem))
+    )
+    scale(var(--phase-guide-scale-touch, var(--phase-guide-scale, 1)));
+}
+body.is-phone-device #phase-guide-bar {
   transform: translate(var(--phase-guide-pos-phone-x, 0rem), var(--phase-guide-pos-phone-y, 0rem))
     scale(var(--phase-guide-scale-phone, 1));
 }
@@ -8024,10 +8038,24 @@ body.is-online-mode #quick-start-bar {
   --icon-size-options-phone: 3.9rem;
   /* 自分の手札の位置・サイズ・回転（スマホ・2D表示時限定）も、上記と同じ
      ユーザー調整済みの値を反映した。 */
-  --hand-a-pos-phone-x: -28.4rem;
+  --hand-a-pos-phone-x: -26.3rem;
   --hand-a-pos-phone-y: -10.5rem;
   --hand-a-size-phone: 15rem;
-  --hand-a-rotate-z-phone: 48deg;
+  --hand-a-rotate-z-phone: 70deg;
+  /* 続き83〜85で新設した中央モーダル一括拡大・オプションドロップダウン・フェイズ案内
+     エリア関連のスマホ調整値（ユーザーが管理者モードで実機に合わせて調整した値、
+     :root一括コピーより反映、続き87）。 */
+  --center-modal-scale-phone: 2;
+  --options-menu-scale-phone: 1;
+  --phase-guide-pos-phone-x: 0rem;
+  --phase-guide-pos-phone-y: 0rem;
+  --phase-guide-scale-phone: 2.1;
+  --phase-skip-button-pos-phone-x: 3.2rem;
+  --phase-skip-button-pos-phone-y: 0rem;
+  --phase-skip-button-scale-phone: 0.9;
+  --phase-turn-status-pos-phone-x: 1.8rem;
+  --phase-turn-status-pos-phone-y: 0rem;
+  --phase-turn-status-scale-phone: 1;
   --camera-perspective-touch: 1090px;
   --camera-perspective-origin-y-touch: 8.4rem;
   --self-status-scale-touch: 1.5;
@@ -8856,6 +8884,11 @@ body.reduce-glow .cell.card-effect-placement-target {
 /* 「割り込みモーダル再開」ボタン（続き76）。フェイズ案内板の中に置き、「今後この
    モーダルを出さない」を選んでいる間だけ表示する。 */
 #anytime-interrupt-resume-button {
+  /* ユーザー要望（続き87）「割り込みモーダル再開ボタンはフェイズ案内板の右では
+     なく左側に表示したい」。#phase-guide-bar末尾にappendChildされるため素の
+     flexだと右端に来てしまう——DOM順は変えず、CSSのorderだけで先頭（左端）に
+     見せる。 */
+  order: -1;
   align-self: center;
   padding: 0.4rem 0.8rem;
   background: rgba(250, 204, 21, 0.15);

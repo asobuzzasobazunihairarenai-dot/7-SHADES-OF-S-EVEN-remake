@@ -665,8 +665,10 @@ function renderStep() {
     finishHereBtn.style.display = "none";
     nextBtn.style.display = "";
     nextBtn.textContent = currentStepIndex >= STEPS.length - 1 ? "始める" : "次へ";
-    // 最初と最後のステップ（対象なし）はスキップする意味が薄いため、それ以外の間だけ出す。
-    skipBtn.style.visibility = currentStepIndex === 0 || currentStepIndex === STEPS.length - 1 ? "hidden" : "visible";
+    // ユーザー要望「スキップボタンを1ページ目から見えるようにしたい」への対応。
+    // 以前は最初のステップ（対象なし）でも意味が薄いとして隠していたが、
+    // 最後のステップ（このボタンを押しても次へ進むのと変わらない）だけ隠す。
+    skipBtn.style.visibility = currentStepIndex === STEPS.length - 1 ? "hidden" : "visible";
   }
   positionForCurrentStep();
 }

@@ -26,6 +26,7 @@ import { playSound } from "./sound.js";
 import { announceHandPickups } from "./hand-announcer.js";
 import { SIDE_TO_SEAT, COLORS } from "./board-layout.js";
 import { getCardDefinition } from "./cards-data.js";
+import { hasAnyoneWon } from "./victory.js";
 
 let renderHelper = null;
 let findTopCardAtHelper = null;
@@ -496,7 +497,11 @@ export function reconcilePhaseAutomation() {
   // 毎回呼び直すようにする（軽量なDOM表示切り替えのみのため負荷は無視できる）。
   updateSkipButtonVisibility();
   const player = getSelfSeat();
-  const shouldBeActive = isAutoProcessingEnabled() && getState().turnPlayer === player;
+  // ユーザー報告（続き86）「勝利後、まだ盤面のタイマーが止まらず自動処理が継続
+  // されてしまっている」。誰かが既に勝利していれば、以後のフェイズ自動進行
+  // （ロック/移動の自動ハイライト・自動ドロー・自動ターン終了等）は一切不要
+  // なため、以降は完全に停止する。
+  const shouldBeActive = !hasAnyoneWon() && isAutoProcessingEnabled() && getState().turnPlayer === player;
   if (!shouldBeActive) {
     clearPhase();
     return;
