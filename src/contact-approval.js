@@ -8,17 +8,35 @@
 //
 // 実際の状態変更（respondContact呼び出し・オンライン中のfetchAndHydrate・到達判定の発火）は
 // main.jsが握っている（既存のrespondToFinalLockと同じ理由）。
+//
+// ユーザー要望（続き89）「自動処理モードでは、カウンターロックのような接触に対する
+// リアクションカードがあるかどうかを判定し、それを持っていればそのカードを使うか
+// どうかのモーダルが出るようにしてほしい」への対応。本来ルール上「接触」自体は
+// 拒否できる行為ではなく（docs/rulebook.md参照）、この「承認/拒否」の2択はカウンター
+// ロックのような無効化カードを使うための便宜的な実装だった。自動処理モードOFF中
+// （自己申告プレイの前提）は従来通りの承認/拒否のままにするが、自動処理モードON中は
+// final-lock-approval.jsのゴメンナサイと同じパターンで、実際にリアクションカードを
+// 持っている場合だけボタンを見せ（持っていなければmain.jsのcheckCounterLockAuto
+// Approval()が自動で承認して先へ進める）、ボタンの文言も「使う/使わない」に変える。
 
 import { getState } from "./state.js";
 import { isOnlineMode, getSelfSeat } from "./online.js";
 import { getPlayerName } from "./player-identity.js";
+import { isAutoProcessingEnabled } from "./card-effect-engine.js";
 
 let modalEl = null;
 let backdropEl = null;
 let respondHandler = null;
+let checkCounterLockEligibility = null;
+let useCounterLockHandler = null;
 
 export function registerContactApprovalHandler(fn) {
   respondHandler = fn;
+}
+
+export function registerCounterLockHelpers({ checkEligibility, onUseCounterLock }) {
+  checkCounterLockEligibility = checkEligibility;
+  useCounterLockHandler = onUseCounterLock;
 }
 
 export function buildContactApprovalModal() {
@@ -50,6 +68,20 @@ export function updateContactApprovalModal() {
   // 何でも動かせる」方針を踏襲し、常にボタンを押せるようにする。オンライン中だけ、
   // 実際に接触された本人（defender）にだけ応答を許可する。
   const canRespond = !isOnlineMode() || getSelfSeat() === pending.defender;
+  const autoMode = isAutoProcessingEnabled();
+  const hasCounterLock = canRespond && autoMode && !!checkCounterLockEligibility?.(pending.defender);
+  // 自動処理モードON・応答可能・リアクションカード無し、の場合はボタン自体を出さない
+  // （main.js側のcheckCounterLockAutoApproval()が自動で承認して先へ進める。final-lock-
+  // approval.jsのゴメンナサイと同じ「使えない人にはボタンを見せてもチラつくだけ」の考え方）。
+  if (canRespond && autoMode && !hasCounterLock) {
+    modalEl.classList.remove("is-visible");
+    if (backdropEl) {
+      backdropEl.remove();
+      backdropEl = null;
+    }
+    modalEl.innerHTML = "";
+    return;
+  }
   modalEl.innerHTML = "";
 
   const title = document.createElement("div");
@@ -59,34 +91,61 @@ export function updateContactApprovalModal() {
 
   const body = document.createElement("div");
   body.className = "contact-approval-body";
-  body.textContent = canRespond
-    ? `${getPlayerName(pending.attacker)}があなた（${getPlayerName(
-        pending.defender
-      )}）に接触を申し込んでいます。承認すると、手札から無作為に1枚渡し、あなたは自分のゲートへ強制移動します。`
-    : `${getPlayerName(pending.attacker)}が${getPlayerName(pending.defender)}に接触を申し込み中… 相手の承認を待っています。`;
+  if (hasCounterLock) {
+    body.textContent = `${getPlayerName(pending.attacker)}があなた（${getPlayerName(
+      pending.defender
+    )}）に接触を申し込んでいます。あなたは「カウンターロック」を持っています。使いますか？（使うとこの接触は無効になります）`;
+  } else {
+    body.textContent = canRespond
+      ? `${getPlayerName(pending.attacker)}があなた（${getPlayerName(
+          pending.defender
+        )}）に接触を申し込んでいます。承認すると、手札から無作為に1枚渡し、あなたは自分のゲートへ強制移動します。`
+      : `${getPlayerName(pending.attacker)}が${getPlayerName(pending.defender)}に接触を申し込み中… 相手の承認を待っています。`;
+  }
   modalEl.appendChild(body);
 
   if (canRespond) {
     const buttons = document.createElement("div");
     buttons.className = "contact-approval-buttons";
-    const approveBtn = document.createElement("button");
-    approveBtn.className = "contact-approval-approve";
-    approveBtn.type = "button";
-    approveBtn.textContent = "✅ 承認する";
-    approveBtn.addEventListener("click", () => {
-      hideImmediately();
-      respondHandler?.(true);
-    });
-    const rejectBtn = document.createElement("button");
-    rejectBtn.className = "contact-approval-reject";
-    rejectBtn.type = "button";
-    rejectBtn.textContent = "🚫 拒否する";
-    rejectBtn.addEventListener("click", () => {
-      hideImmediately();
-      respondHandler?.(false);
-    });
-    buttons.appendChild(approveBtn);
-    buttons.appendChild(rejectBtn);
+    if (hasCounterLock) {
+      const useBtn = document.createElement("button");
+      useBtn.className = "contact-approval-approve";
+      useBtn.type = "button";
+      useBtn.textContent = "🛡️ カウンターロックを使う";
+      useBtn.addEventListener("click", () => {
+        hideImmediately();
+        useCounterLockHandler?.();
+      });
+      const declineBtn = document.createElement("button");
+      declineBtn.className = "contact-approval-reject";
+      declineBtn.type = "button";
+      declineBtn.textContent = "使わない（承認する）";
+      declineBtn.addEventListener("click", () => {
+        hideImmediately();
+        respondHandler?.(true);
+      });
+      buttons.appendChild(useBtn);
+      buttons.appendChild(declineBtn);
+    } else {
+      const approveBtn = document.createElement("button");
+      approveBtn.className = "contact-approval-approve";
+      approveBtn.type = "button";
+      approveBtn.textContent = "✅ 承認する";
+      approveBtn.addEventListener("click", () => {
+        hideImmediately();
+        respondHandler?.(true);
+      });
+      const rejectBtn = document.createElement("button");
+      rejectBtn.className = "contact-approval-reject";
+      rejectBtn.type = "button";
+      rejectBtn.textContent = "🚫 拒否する";
+      rejectBtn.addEventListener("click", () => {
+        hideImmediately();
+        respondHandler?.(false);
+      });
+      buttons.appendChild(approveBtn);
+      buttons.appendChild(rejectBtn);
+    }
     modalEl.appendChild(buttons);
   }
 }

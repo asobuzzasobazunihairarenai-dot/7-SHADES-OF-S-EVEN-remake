@@ -5816,7 +5816,10 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
    「画面が暗めになって手札以外のタップが効かなくなった、モーダルが出てるんだろうけど
    見えなくなっちゃってる」の原因。使われなくなっていたこのCSSルールをIDだけ
    差し替えて再利用する形で復旧した。 */
-#touch-action-confirm-modal {
+/* #generic-confirm-modal（続き89、main.jsのconfirmGenericYesNo）はconfirmTouchAction
+   と同じ見た目でよい任意選択用の汎用Yes/Noモーダルのため、同じルールを共有する。 */
+#touch-action-confirm-modal,
+#generic-confirm-modal {
   position: fixed;
   top: 50%;
   left: 50%;
@@ -9036,6 +9039,7 @@ body.is-phone-device #first-login-profile-modal,
 body.is-phone-device #final-lock-approval-banner,
 body.is-phone-device #contact-approval-modal,
 body.is-phone-device #touch-action-confirm-modal,
+body.is-phone-device #generic-confirm-modal,
 body.is-phone-device #sleight-ritual-modal,
 body.is-phone-device .phase-skip-modal,
 body.is-phone-device .declare-colors-modal,

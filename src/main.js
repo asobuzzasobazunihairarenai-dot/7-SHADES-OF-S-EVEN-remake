@@ -86,6 +86,7 @@ import {
   updateContactApprovalModal,
   registerContactApprovalHandler,
   hideContactApprovalModalImmediately,
+  registerCounterLockHelpers,
 } from "./contact-approval.js";
 import {
   getSkinImagePath,
@@ -2904,6 +2905,46 @@ function confirmTouchAction(title) {
   });
 }
 
+// confirmTouchActionと同じcontact-approval-*流用の汎用Yes/Noモーダルだが、こちらは
+// 誤操作防止用ではなく本当の任意選択（「〜してもよい」効果）向けのため、端末に関係なく
+// 常に表示する（続き89、カウンターロックの「あなたの手札を1枚ロックしてもよい」用に新設）。
+function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ" } = {}) {
+  return new Promise((resolve) => {
+    const backdrop = createBackdrop(() => resolve(false), { dim: true, zIndex: 10610 });
+    const modal = document.createElement("div");
+    modal.id = "generic-confirm-modal";
+
+    const titleEl = document.createElement("div");
+    titleEl.className = "contact-approval-title";
+    titleEl.textContent = title;
+    modal.appendChild(titleEl);
+
+    const buttons = document.createElement("div");
+    buttons.className = "contact-approval-buttons";
+    const finish = (result) => {
+      backdrop.remove();
+      modal.remove();
+      resolve(result);
+    };
+    const yesBtn = document.createElement("button");
+    yesBtn.className = "contact-approval-approve";
+    yesBtn.type = "button";
+    yesBtn.textContent = `✅ ${yesLabel}`;
+    yesBtn.addEventListener("click", () => finish(true));
+    const noBtn = document.createElement("button");
+    noBtn.className = "contact-approval-reject";
+    noBtn.type = "button";
+    noBtn.textContent = `🚫 ${noLabel}`;
+    noBtn.addEventListener("click", () => finish(false));
+    buttons.appendChild(yesBtn);
+    buttons.appendChild(noBtn);
+    modal.appendChild(buttons);
+
+    document.body.appendChild(backdrop);
+    document.body.appendChild(modal);
+  });
+}
+
 // ユーザー要望「①通常の手札カードは、ハンドフェイズかつ手札エリア外で放すと手札効果が
 // 発動する」「②エターナル/ファーストカードは、ハンドフェイズでクリックすると追色コストを
 // 選ぶ流れに移行する」への対応の実行部。cardTokenIdは効果を使うカード自身。
@@ -3996,6 +4037,98 @@ async function respondToContact(approve) {
   }
 }
 
+// ユーザー要望（続き89）「自動処理モードでは、接触に対するリアクションカード
+// （カウンターロック等）を持っているかどうかを判定し、それを持っていればそのカードを
+// 使うかどうかのモーダルが出るようにしてほしい」への対応。card-effects.jsの
+// "red-counter-lock"は手札効果データを持たない反応専用カード（handEffectReactiveOnly）
+// のため、findGomennasaiEligibility/useGomennasaiOnFinalLockと同じく専用の判定・
+// 実行関数をここに直接実装する。カウンターロックにはゴメンナサイのような追加コスト
+// （追色等）が無いため、単に手札に持っているかどうかだけを見ればよい。
+function findCounterLockToken(seat) {
+  return (
+    getState().tokens.find(
+      (t) => t.kind === "card" && t.cardId === "red-counter-lock" && t.location.zone === "hand" && t.location.player === seat
+    ) ?? null
+  );
+}
+
+// ユーザー確認済み方針（ゴメンナサイのcheckGomennasaiAutoApproval）と同じ考え方
+// 「使えない人には見せずに自動で先へ進める」を接触にも適用する。自動処理モードOFF
+// 中は従来通り常に手動の承認/拒否のままにする（自己申告プレイの前提のため、
+// このガードごと何もしない）。render()の末尾から毎回呼ばれる。
+let counterLockAutoApprovalInFlight = false;
+function checkCounterLockAutoApproval() {
+  const pending = getState().pendingContact;
+  if (!pending || counterLockAutoApprovalInFlight || !isAutoProcessingEnabled()) return;
+  if (isOnlineMode() && getSelfSeat() !== pending.defender) return;
+  if (findCounterLockToken(pending.defender)) return; // 使えるなら自動承認せず本人の選択を待つ
+  counterLockAutoApprovalInFlight = true;
+  Promise.resolve(respondToContact(true)).finally(() => {
+    counterLockAutoApprovalInFlight = false;
+  });
+}
+
+// contact-approval.jsの「🛡️ カウンターロックを使う」ボタンから呼ばれる。docs/cards.md
+// 「あなたへの接触の宣言時に使える。その接触を無効にする。あなたの手札を１枚ロック
+// してもよい。」の通り、①接触を無効化する（respondToContact(false)は既存の「拒否する」
+// ボタンと全く同じ経路——state.jsのRESPOND_CONTACTがpendingContactを消すだけで手札は
+// 奪われず強制移動も起きない）②カウンターロック自身を捨てる（手札効果は自身を捨てる
+// ことで得る、というこのゲーム共通のコスト）③「してもよい」なので、ロックできる手札が
+// 残っていれば任意でロックさせる、の順に行う。
+//
+// ハマりどころ（実機テストで発見）: 当初は①②を逆順（先に捨ててから無効化）にしていた。
+// discardFromHandReveal()はローカルモードだと同期的にrender()を呼び、その中で
+// checkCounterLockAutoApproval()も走る——この時点でまだpendingContactは残ったままだが
+// カウンターロックは既に手札から消えているため「使えるカードが無い」と誤判定され、
+// 自分のrespondToContact(false)より先に自動でrespondToContact(true)（承認）が
+// 発火してしまっていた（2回目の呼び出しはpendingContactが既にnullのため無害だが、
+// 意図した「無効化」ではなく「承認」が先に成立してしまう）。無効化を先に行い
+// pendingContactを即座にnullへ落としてから捨てることで、この競合を防ぐ。
+async function useCounterLockOnContact() {
+  const pending = getState().pendingContact;
+  if (!pending) return;
+  const defender = pending.defender;
+  const token = findCounterLockToken(defender);
+  if (!token) return;
+  await respondToContact(false);
+  await discardFromHandReveal(token.id);
+
+  const remainingHand = getState().tokens.filter(
+    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === defender
+  );
+  const lockableTokens = remainingHand.filter((t) => isCardLockable(t, defender));
+  if (lockableTokens.length === 0) return; // 善処の原則: ロックできるカードが無ければ何も聞かずに終わる
+  const wantsToLock = await confirmGenericYesNo(
+    "🛡️ カウンターロックの効果で、手札を1枚ロックエリアにロックしますか？（任意）",
+    { yesLabel: "ロックする", noLabel: "しない" }
+  );
+  if (!wantsToLock) return;
+  const lockableIds = new Set(lockableTokens.map((t) => t.id));
+  const chosen =
+    lockableTokens.length === 1
+      ? lockableTokens[0]
+      : await requestHandCardChoiceForEffect(defender, "ロックする手札を選択してください", lockableIds);
+  if (!chosen) return;
+  const color = getCardDefinition(chosen.cardId).color;
+  const dropTarget = { zone: "lock", side: SEAT_TO_SIDE[defender], index: COLORS.indexOf(color) };
+  if (isOnlineMode()) {
+    try {
+      await moveToken(chosen.id, dropTarget);
+      markSelfHandled([chosen.id]);
+      await fetchAndHydrate(getCurrentGameId());
+    } catch (err) {
+      console.error("useCounterLockOnContact (optional lock) failed", err);
+      render();
+      return;
+    }
+  } else {
+    moveToken(chosen.id, dropTarget);
+  }
+  playSound("cardPlace");
+  render();
+  maybeAnnounceLock(dropTarget, chosen.cardId, false);
+}
+
 // ユーザー要望「接触タックル演出は参加者全員の画面に表示されるようにして」への対応。
 // 承認した本人（defender、respondToContact参照）以外の全クライアント（attacker・
 // 傍観者）が、online.jsのcontact_tackle broadcastを受けてここを通る。まだ実際の
@@ -4227,6 +4360,7 @@ function render() {
   updateTimerToggleBanner();
   updateAutoProcessingToggleBanner();
   updateContactApprovalModal();
+  checkCounterLockAutoApproval();
   checkContactAttackerResolution();
   checkForVictory();
   // ユーザー要望「効果自動処理がオンの時はフェイズも自動で流れるようにしよう」。
@@ -7930,6 +8064,7 @@ registerFinalLockApprovalHandler(respondToFinalLock);
 registerGomennasaiHelpers({ checkEligibility: findGomennasaiEligibility, onUseGomennasai: useGomennasaiOnFinalLock });
 registerTimerToggleHandlers({ onRequest: requestTimerToggleFor, onRespond: respondToTimerToggle });
 registerContactApprovalHandler(respondToContact);
+registerCounterLockHelpers({ checkEligibility: findCounterLockToken, onUseCounterLock: useCounterLockOnContact });
 registerEternalAnimHelpers(playEternalAcquisitionAnim);
 registerGateInvasionStealHelper(stealHandCardsRitualForGateInvasion);
 buildGameTitle();

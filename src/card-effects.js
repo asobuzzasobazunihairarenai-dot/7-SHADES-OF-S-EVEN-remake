@@ -160,8 +160,12 @@ export const CARD_EFFECTS = {
   // カウンターロック（赤、通常カード） 到達効果: 「１番少なくロックしているなら
   // 1枚ドロー。」（補足: 「１番少なくロックしている」＝ロックしている枚数が
   // 参加者の中で１番少ないこと。同率首位も対象に含む一般的な解釈）。
-  // 手札効果（「あなたへの接触の宣言時に使える。その接触を無効にする。」）は、
-  // 接触の承認/拒否フロー自体への割り込みが必要な別種の実装のため今回は対象外。
+  // 手札効果（「あなたへの接触の宣言時に使える。その接触を無効にする。あなたの
+  // 手札を１枚ロックしてもよい。」）は、接触の承認/拒否フロー自体への割り込みが
+  // 必要な別種の発動条件のため、通常のhandEffect（Hand Phaseの自己申告で使う
+  // 一般的な仕組み）としては表現せず、ゴメンナサイッ！のfindGomennasaiEligibility/
+  // useGomennasaiOnFinalLockと同じパターンでmain.jsのfindCounterLockToken/
+  // useCounterLockOnContact/checkCounterLockAutoApprovalに直接実装した（続き89）。
   // ゴメンナサイッ！と同じ理由でhandEffectReactiveOnlyを立てる（Hand Phaseの
   // トーンダウン対応）。
   "red-counter-lock": {
