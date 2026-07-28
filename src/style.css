@@ -5067,6 +5067,18 @@ body.diagnostic-flatten-3d .stack-left,
 body.diagnostic-flatten-3d .stack-right {
   display: none !important;
 }
+/* 続き67: 上記の壁hidden対策だけでは山札・捨て場・駒がユーザー実機で「見えない」
+   （空白の四角として描画される）問題が解決しなかった。ブラウザの実描画をピクセル単位で
+   検証したところ、原因は壁ではなく上面(.piece-top/.stack-top)自体にあった：この2つは
+   本来の3D表示のために`transform: translateZ(...)`（駒の高さ/山の厚み分持ち上げる）を
+   持っているが、`transform-style: flat !important`で強制的に平坦化された環境下では、
+   この残存translateZが要素を「白紙の空箱」として描画させてしまう（background-imageが
+   一切ペイントされない）Chromium系の描画不具合を引き起こしていた。transformそのものを
+   無効化して初めて、カード裏面・駒の画像が正しく表示されることを確認した。 */
+body.diagnostic-flatten-3d .piece-top,
+body.diagnostic-flatten-3d .stack-top {
+  transform: none !important;
+}
 /* 壁を消した分、上面だけでも駒だとひと目でわかるよう縁取りを足す（山(.stack-top)には
    既存のborderがあるため対象外）。 */
 body.diagnostic-flatten-3d .piece-top {
