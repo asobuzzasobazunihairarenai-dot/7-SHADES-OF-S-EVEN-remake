@@ -11213,4 +11213,40 @@ u=横方向・v=縦方向）にも使えるよう一般化した`rotateFraction(
   要素自体をフォールバック表示先にすることで解決した（実機で`.emote-speech-bubble`が
   正しい要素に追加されることを確認済み）。
 
+### 2026-07-28（続き80）：パーティーの「移動先の到達効果を得ない」選択肢のバグ修正、タッチ端末の操作確認モーダルが見えなくなる不具合を修正
+
+- **パーティーの「１マス移動し、移動先の到達効果は得ない」を選んだ時、移動先の到達
+  効果が発動してしまう不具合を修正**: ユーザー報告、診断ログ（`diag-arrival-processing`
+  ・`diag-delegate`）付き。原因: `runPartyOptionTask`のmove分岐が
+  `moveAndSyncForEffect(piece.id, dest)`を呼ぶ際、第4引数`suppressArrival`を渡して
+  いなかった。このクライアント自身はこの後で明示的に`triggerCardArrival`を呼ばない
+  ため問題は起きないが、`remote-move-animator.js`（オンライン中、自分自身のクライアント
+  も含めて`fetchAndHydrate`後の再同期で必ず通る）は駒の位置の差分だけを見て「表向き
+  カードの上にいる＝到達した」と判断し、駒トークンの`arrivalSuppressed`フラグを見て
+  初めて抑制する仕組み（続き59、試練の儀式・マスチェンジと同じ理由）だったため、
+  フラグが立っていないと誤って到達効果を発動させてしまっていた。
+  `card-effect-engine.js`の`RITUAL_PLACE_MOVE_REPEAT`（試練の儀式、同じ「到達効果を
+  得ない移動」）に合わせて第4引数に`true`を渡すよう修正。実機で駒トークンの
+  `arrivalSuppressed:true`・`MOVE_TOKEN`ディスパッチの`suppressArrival:true`・
+  移動先カードでは`arrival`ログが一切出ないこと（オープンだけは行われる）を確認済み。
+- **タッチ端末専用の操作確認モーダル（「この効果を使用しますか？」）が見えなくなる
+  不具合を修正**: ユーザー報告「ファーストカードセレナーデを使おうとタップしたら、
+  画面が暗めになって手札以外のタップが効かなくなった。モーダルが出てるんだろうけど
+  見えなくなっちゃってるかも。オプションボタンも触れない」。原因: `confirmTouchAction`
+  （タッチ端末だけに「はい/いいえ」を挟む共通関数、続き62）が作る
+  `#touch-action-confirm-modal`自体に位置指定のCSSルールが存在しなかった——続き77で
+  「いつでも使える」予約制を廃止した際、対応する`showAnytimeHandEffectConfirmModal`
+  関数は削除したが、そのCSS（`#anytime-hand-effect-confirm-modal`、
+  `#contact-approval-modal`と同じ「中央固定」スタイル）を消し忘れて残っていた
+  一方、`confirmTouchAction`自身のモーダルには最初から対応するCSSルールが
+  無かった。中身（`.contact-approval-title`/`-buttons`）は見た目を持つが、
+  コンテナ自身が`position:fixed`で中央固定されていないため、暗転した背景
+  （`createBackdrop`、z-index:10610）だけが画面全体を覆い、肝心の「はい/いいえ」
+  ボタンはbody内のどこか別の場所に埋もれて見えなくなっていた——結果、モーダルの
+  背景（暗転）だけが見え、ボタンにも他のUI（オプションボタン含む）にも触れなくなる、
+  という報告通りの症状になっていた。使われなくなっていた
+  `#anytime-hand-effect-confirm-modal`のCSSルールをIDだけ
+  `#touch-action-confirm-modal`に差し替えて再利用する形で復旧した。実機で
+  モーダルが画面中央に正しく表示され、ボタンが押せることを確認済み。
+
 

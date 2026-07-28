@@ -1883,7 +1883,16 @@ async function runPartyOptionTask(player) {
   if (chosen.id === "move") {
     const dest = moveCandidates.length === 1 ? moveCandidates[0] : await requestCellChoiceForEffect(moveCandidates, "移動先のマスを選択してください");
     if (!dest) return false;
-    await moveAndSyncForEffect(piece.id, dest);
+    // ユーザー報告「パーティの『1マス移動し移動先の効果を得ない』で移動先の到達効果が
+    // 発動してしまう」の原因: ここでsuppressArrival(第4引数)を渡していなかったため、
+    // 移動した駒トークンのarrivalSuppressedフラグが立たないままだった。このクライアント
+    // 自身はこの下で明示的にtriggerCardArrivalを呼ばないため問題は起きないが、
+    // remote-move-animator.jsは駒の位置の差分だけを見て「表向きカードの上にいる＝
+    // 到達した」と判断し、arrivalSuppressedを見て初めて抑制する（続き59、試練の儀式・
+    // マスチェンジと同じ理由）ため、フラグが立っていないと再同期時（オンライン中は
+    // 自分自身のクライアントも含む）に誤って到達効果が発動してしまっていた。
+    // card-effect-engine.jsのRITUAL_PLACE_MOVE_REPEAT（試練の儀式）と同じくtrueを渡す。
+    await moveAndSyncForEffect(piece.id, dest, undefined, true);
     // ユーザー指摘「『移動』の定義にはオープンまで含まれる」（docs/rulebook.md「移動:
     // 自分の駒を、現在のマスからカードの置かれた別のマスに置き、そのカードが裏向きなら、
     // オープンする。」）。この選択肢は「移動先の到達効果は得ない」だけで「移動」自体は

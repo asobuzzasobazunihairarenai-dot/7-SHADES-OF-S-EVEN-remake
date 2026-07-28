@@ -5733,12 +5733,21 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   background: rgba(153, 27, 27, 0.95);
 }
 
-/* スリカエ等「いつでも使える」手札効果をゲート侵攻処理中にドラッグした時の予約通知
-   （main.jsのshowAnytimeHandEffectConfirmModal）。#contact-approval-modalと同じ
-   「中央固定・.contact-approval-*クラスを使い回す」構成だが、こちらは表示のたびに
-   appendChild/removeで出し入れするだけの単純な作りのため、opacityのフェード制御
-   （is-visibleトグル）は不要——最初から見える状態でよい。 */
-#anytime-hand-effect-confirm-modal {
+/* タッチ端末専用の操作確認モーダル（main.jsのconfirmTouchAction、続き62）。
+   #contact-approval-modalと同じ「中央固定・.contact-approval-*クラスを使い回す」
+   構成だが、こちらは表示のたびにappendChild/removeで出し入れするだけの単純な作りの
+   ため、opacityのフェード制御（is-visibleトグル）は不要——最初から見える状態でよい。
+   続き79で発覚: このCSSルール自体が無く（IDが#anytime-hand-effect-confirm-modalの
+   ままで、続き77で予約制を廃止した際に対応するJSごと削除されていた）、
+   confirmTouchAction()が作る#touch-action-confirm-modal自体には位置指定が一切
+   無いまま放置されていた。中身（.contact-approval-title/-buttons）は見た目を持つが
+   コンテナ自身がposition:fixedで中央固定されていないため、暗転した背景
+   （createBackdrop、z-index:10610）だけが画面全体を覆い、肝心のYes/Noボタンは
+   どこか別の場所（bodyの先頭付近）に埋もれて見えなくなっていた——ユーザー報告
+   「画面が暗めになって手札以外のタップが効かなくなった、モーダルが出てるんだろうけど
+   見えなくなっちゃってる」の原因。使われなくなっていたこのCSSルールをIDだけ
+   差し替えて再利用する形で復旧した。 */
+#touch-action-confirm-modal {
   position: fixed;
   top: 50%;
   left: 50%;
