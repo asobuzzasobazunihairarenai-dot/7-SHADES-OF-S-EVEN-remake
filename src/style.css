@@ -3900,6 +3900,20 @@ body.opening-screen-active #my-page-button {
 body.opening-screen-active #options-menu-panel {
   z-index: 50101;
 }
+/* ユーザー要望（続き75）「ホーム画面やプロフ全画面でも上のオプションエリアのアイコン等は
+   表示していてください」。opening-screen-activeと同じ「#option-area自体のz-indexを
+   引き上げる」手法だが、こちらはヘルプ/通貨表示/マイページを隠さない（オープニング画面と
+   違い、ホーム画面等では対局前でもこれらを見せて構わないため）。ホーム画面
+   (home-screen.js)・プロフィール全画面(profile-page.js)・ランキング全画面
+   (ranking-page.js)はいずれもz-index:1500の共通の器のため、この1つのbodyクラスを
+   共有して使う（開いている画面が開く時に付与、閉じる時に外す。3つは同時に複数開かない
+   設計のため、単純なON/OFFで足りる）。 */
+body.full-screen-page-active #option-area {
+  z-index: 1600;
+}
+body.full-screen-page-active #options-menu-panel {
+  z-index: 1601;
+}
 .options-menu-item {
   display: block;
   width: 100%;

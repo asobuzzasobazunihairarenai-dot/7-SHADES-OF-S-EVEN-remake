@@ -117,6 +117,9 @@ export function openHomeScreen() {
   overlayEl.appendChild(grid);
 
   document.body.appendChild(overlayEl);
+  // ユーザー要望（続き75）「ホーム画面やプロフ全画面でも上のオプションエリアのアイコン等は
+  // 表示していてください」。full-screen-page-active共通クラス（style.css参照）。
+  document.body.classList.add("full-screen-page-active");
 }
 
 export function closeHomeScreen() {
@@ -124,6 +127,7 @@ export function closeHomeScreen() {
   overlayEl = null;
   toastEl = null;
   clearTimeout(toastTimer);
+  document.body.classList.remove("full-screen-page-active");
 }
 
 // ユーザー報告（続き74）「『ゲームを開始する』を押してもホーム画面が消えません」。

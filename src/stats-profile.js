@@ -127,10 +127,36 @@ export async function fetchStatsProfile(userId) {
 // 対する読み取り専用クエリを1つ増やしただけ）。fetchStatsProfile()と違い、これは
 // 「自分」ではなく「プレイヤー名・アバターを含む上位N件」を返す必要があるため、
 // playersのselectにname/avatar_urlを追加している。
-// minMatches: 対戦数が極端に少ない（1〜2戦だけ）プレイヤーが勝率100%で上位を独占
-// しないよう、勝率ランキングにだけ最低対戦数のしきい値を設ける（対戦数・勝利数
-// ランキングにはそもそも不要な概念のため適用しない）。
-const MIN_MATCHES_FOR_WIN_RATE_RANKING = 3;
+//
+// ユーザー要望（続き75）「勝率ランキングは、対戦経験が極端に少ないプレイヤーが
+// 数試合だけで上位に入ってしまわないように、実際に対戦したことがあるプレイヤーの
+// 『平均対戦数』の50%を超える対戦数のプレイヤーのみが対象になる、という戦績システム
+// 側と同じルールにしてほしい」。固定の最低対戦数（続き74時点では3戦固定だった）を
+// やめ、「対戦数>0のプレイヤーの平均対戦数の50%」を動的なボーダーとして計算する。
+function computeWinRateEligibilityBorder(allStats) {
+  const withMatches = allStats.filter((s) => s.matchesCount > 0);
+  if (withMatches.length === 0) return 0;
+  const avg = withMatches.reduce((sum, s) => sum + s.matchesCount, 0) / withMatches.length;
+  return avg * 0.5;
+}
+
+// 「①勝率→②勝利数→③対戦数の順で比較し、すべて同じ場合は同順位として併記する」
+// （戦績システム側と同じ順位付けルール）。sorted配列は既にこの3キーで並べ替え済み
+// である前提で、隣り合う行のキーが完全一致していれば同じ順位を、そうでなければ
+// その時点のインデックス+1（＝標準的な競技順位、同率の分だけ次の順位が飛ぶ）を振る。
+function assignCompetitionRanks(sorted, keyOf) {
+  const ranked = [];
+  let lastKey = null;
+  let lastRank = 0;
+  sorted.forEach((s, i) => {
+    const key = keyOf(s);
+    const rank = lastKey && key.every((v, idx) => v === lastKey[idx]) ? lastRank : i + 1;
+    ranked.push({ stats: s, rank });
+    lastKey = key;
+    lastRank = rank;
+  });
+  return ranked;
+}
 
 export async function fetchLeaderboard(limit = 20) {
   if (!client) return { winRate: [], wins: [], matches: [] };
@@ -146,9 +172,9 @@ export async function fetchLeaderboard(limit = 20) {
   const statsById = computeAllPlayerStats(rankablePlayers, matches ?? []);
   const nameById = new Map(rankablePlayers.map((p) => [p.id, { name: p.name, avatarUrl: p.avatar_url }]));
 
-  function toRows(sorted) {
-    return sorted.slice(0, limit).map((s, i) => ({
-      rank: i + 1,
+  function toRows(ranked) {
+    return ranked.slice(0, limit).map(({ stats: s, rank }) => ({
+      rank,
       playerId: s.id,
       name: nameById.get(s.id)?.name ?? "?",
       avatarUrl: nameById.get(s.id)?.avatarUrl ?? null,
@@ -159,11 +185,16 @@ export async function fetchLeaderboard(limit = 20) {
   }
 
   const all = [...statsById.values()];
-  const byWinRate = all
-    .filter((s) => s.matchesCount >= MIN_MATCHES_FOR_WIN_RATE_RANKING)
+  const winRateBorder = computeWinRateEligibilityBorder(all);
+  const byWinRateSorted = all
+    .filter((s) => s.matchesCount > winRateBorder)
     .sort((a, b) => b.winRate - a.winRate || b.winsCount - a.winsCount || b.matchesCount - a.matchesCount);
-  const byWins = [...all].sort((a, b) => b.winsCount - a.winsCount || b.winRate - a.winRate || b.matchesCount - a.matchesCount);
-  const byMatches = [...all].sort((a, b) => b.matchesCount - a.matchesCount || b.winsCount - a.winsCount || b.winRate - a.winRate);
+  const byWinsSorted = [...all].sort((a, b) => b.winsCount - a.winsCount || b.winRate - a.winRate || b.matchesCount - a.matchesCount);
+  const byMatchesSorted = [...all].sort((a, b) => b.matchesCount - a.matchesCount || b.winsCount - a.winsCount || b.winRate - a.winRate);
+
+  const byWinRate = assignCompetitionRanks(byWinRateSorted, (s) => [s.winRate, s.winsCount, s.matchesCount]);
+  const byWins = assignCompetitionRanks(byWinsSorted, (s) => [s.winsCount, s.winRate, s.matchesCount]);
+  const byMatches = assignCompetitionRanks(byMatchesSorted, (s) => [s.matchesCount, s.winsCount, s.winRate]);
 
   return { winRate: toRows(byWinRate), wins: toRows(byWins), matches: toRows(byMatches) };
 }

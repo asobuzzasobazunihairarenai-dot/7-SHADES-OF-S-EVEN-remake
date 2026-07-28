@@ -1926,6 +1926,9 @@ async function delegateToPlayerForEffect(player, taskType) {
   if (!isOnlineMode() || player === getSelfSeat()) {
     return runDelegatedArrivalTask(player, taskType);
   }
+  // 続き75診断ログ: オンライン中の「全員がそれぞれ選ぶ」効果（パーティー等）の
+  // 委任がどこで止まっているかを追えるようにする。
+  logAction("diag-delegate", { phase: "request", player, taskType, turnPlayer: getState().turnPlayer });
   // ユーザー要望「手札効果で相手に選択をさせるカードなどでは優先権をその相手に渡す
   // ようにしてください」。接触の強制移動（transferPriorityTo(defender)、上の
   // respondContact周りの処理参照）と同じ考え方——合同建設・スラム上がりの役人・
@@ -1953,6 +1956,7 @@ async function delegateToPlayerForEffect(player, taskType) {
     });
   });
   hideEffectPickerHint();
+  logAction("diag-delegate", { phase: "resolved", player, taskType, result, returningPriorityTo: turnPlayer });
   transferPriorityTo(turnPlayer);
   return result;
 }
@@ -2899,6 +2903,10 @@ function triggerCardArrival(cardId, location, onFullyResolved) {
   // 進んでも、自分がどのカードに到達したかは見えないと分かりにくいため。
   if (showAddToHand && canAutoProcessArrival(cardId)) {
     arrivalEffectAutoProcessing = true;
+    // 続き75診断ログ: ユーザー報告「ムーブフェイズがきれいに終わったのにターンが
+    // 終了されなかった」の調査用。このフラグがtrueのまま戻らなくなっていないか
+    // （下のfinallyでの解除ログと突き合わせて確認する）を後から追えるようにする。
+    logAction("diag-arrival-processing", { cardId, phase: "start" });
     showCardArrivalModal(cardId, { showAddToHand: false });
     playSound("arrivalEffect");
     const table = document.getElementById("game-table");
@@ -2923,8 +2931,10 @@ function triggerCardArrival(cardId, location, onFullyResolved) {
         await runAutoArrivalEffect(cardId, location, player);
       } catch (err) {
         console.error("runAutoArrivalEffect failed", err);
+        logAction("diag-arrival-processing", { cardId, phase: "error", message: String(err?.message ?? err) });
       } finally {
         arrivalEffectAutoProcessing = false;
+        logAction("diag-arrival-processing", { cardId, phase: "end" });
         onFullyResolved?.();
         render();
       }
@@ -6441,13 +6451,25 @@ function isEndTurnDisabledNow(state) {
   if (isOnlineMode() && state.priorityPlayer && getSelfSeat() !== state.priorityPlayer) return true;
   return false;
 }
+// 続き75診断ログ用: computeShouldEmphasize()の結果（true/falseの二値）が前回の
+// render()から変わった時だけ、内訳を1件記録する（render()のたびに毎回記録すると
+// アクションログ300件の上限をあっという間に埋めてしまうため、変化点だけに絞る）。
+let lastShouldEmphasizeLogged = null;
 function computeShouldEmphasize() {
   const state = getState();
-  return (
-    isAutoProcessingEnabled() &&
-    !isEndTurnDisabledNow(state) &&
-    getCurrentPhase() === "move" &&
-    !isMovePhaseActive() &&
+  const autoProcessingEnabled = isAutoProcessingEnabled();
+  const endTurnDisabled = isEndTurnDisabledNow(state);
+  const isMovePhase = getCurrentPhase() === "move";
+  const moveStillActive = isMovePhaseActive();
+  const gateInvasionPending = isGateInvasionPending();
+  const gateInvasionQueueActive = isGateInvasionQueueActive();
+  const handEffectBusyNow = isHandEffectBusy();
+  const pickerActive = activeEffectPicker !== null;
+  const result =
+    autoProcessingEnabled &&
+    !endTurnDisabled &&
+    isMovePhase &&
+    !moveStillActive &&
     !arrivalEffectAutoProcessing &&
     !state.pendingContact &&
     // ユーザー要望「ほかのカードでも同様な事象が見受けられる、総チェック可能か」への
@@ -6459,8 +6481,27 @@ function computeShouldEmphasize() {
     // 場合や、ゲート侵攻ボーナスの通知ポップアップが続いている場合など、同じ
     // 「まだ何か処理中なのに安全と誤判定してターンを終了してしまう」構造の抜け漏れが
     // 他にもあり得るため、既存のこの判定にもそのまま乗せることで網羅的にする。
-    !isAnyEffectProcessingBusy()
-  );
+    !(gateInvasionPending || gateInvasionQueueActive || handEffectBusyNow || pickerActive);
+  if (result !== lastShouldEmphasizeLogged) {
+    lastShouldEmphasizeLogged = result;
+    logAction("diag-should-emphasize", {
+      result,
+      autoProcessingEnabled,
+      endTurnDisabled,
+      isMovePhase,
+      moveStillActive,
+      arrivalEffectAutoProcessing,
+      pendingContact: !!state.pendingContact,
+      gateInvasionPending,
+      gateInvasionQueueActive,
+      handEffectBusyNow,
+      pickerActive,
+      turnPlayer: state.turnPlayer,
+      priorityPlayer: state.priorityPlayer,
+      selfSeat: getSelfSeat(),
+    });
+  }
+  return result;
 }
 
 // OKボタン1つだけのシンプルな確認モーダル（山札切れの補充確認に使う）。ゲームの状態に
@@ -7915,6 +7956,10 @@ registerRankRingPreviewHelper(previewRankRing);
 // 知らせる（gate-invasion-modal.js）。以前は右下トーストを間隔なく連続で出していたため、
 // 何が起きたか分からないほど積み重なってしまっていた。
 onGateInvasionEvents((events) => {
+  // 続き75診断ログ: ユーザー報告「ゲート侵攻成功時の演出が作動しなかった」の調査用。
+  // online.js側のbroadcast受信ログ(diag-gate-invasion-broadcast)と突き合わせ、
+  // このクライアントまで実際に届いたか・enqueueGateInvasionStepsを呼んだかを追う。
+  logAction("diag-gate-invasion-received", { count: events?.length ?? 0 });
   enqueueGateInvasionSteps(events);
 });
 

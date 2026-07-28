@@ -37,6 +37,9 @@ export function openProfilePage(onClose) {
   card.appendChild(bodyEl);
 
   document.body.appendChild(overlayEl);
+  // ユーザー要望（続き75）「ホーム画面やプロフ全画面でも上のオプションエリアのアイコン等は
+  // 表示していてください」。full-screen-page-active共通クラス（style.css参照）。
+  document.body.classList.add("full-screen-page-active");
 
   // renderMyPageBodyの第2引数closeは「モーダルを閉じてから他の画面を開く」導線
   // （ログインする／連携するボタン等）で使われる。画面全体版でも同じ導線を保つため、
@@ -48,4 +51,5 @@ export function closeProfilePage() {
   overlayEl?.remove();
   overlayEl = null;
   bodyEl = null;
+  document.body.classList.remove("full-screen-page-active");
 }

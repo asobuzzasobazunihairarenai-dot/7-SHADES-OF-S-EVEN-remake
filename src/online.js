@@ -25,6 +25,7 @@ import { SEAT_ORDER } from "./board-layout.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
 import { setLastActionInfo } from "./last-action-info.js";
 import { setStatsProfileClient } from "./stats-profile.js";
+import { logAction } from "./action-log.js";
 import {
   isTurnTimerEnabled,
   getInitialHourglassStock,
@@ -1852,6 +1853,18 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
           ids.push(...(ev.gateCards ?? []).map((g) => g.tokenId));
         }
         markSelfHandled(ids);
+        // 続き75診断ログ: ユーザー報告「ゲート侵攻成功時の手札奪う演出、エターナル
+        // 獲得演出が作動しなかった」の調査用。サーバー側(so7-apply-action.ts)が
+        // gateInvasionEventsを実際に送ってきたかどうかをまず確認できるようにする。
+        logAction("diag-gate-invasion-broadcast", {
+          count: payload.gateInvasionEvents.length,
+          events: payload.gateInvasionEvents.map((ev) => ({
+            attacker: ev.attacker,
+            defender: ev.defender,
+            stolenCount: ev.stolenCount,
+            eternalCardId: ev.eternalCardId ?? null,
+          })),
+        });
       }
       // ユーザー報告「ターン告知がゲート侵攻モーダルと被る」への対応。turnPlayerの変化を
       // 検知するmain.jsのsubscribe()は、下のfetchAndHydrate()内部で同期的に発火するため、
