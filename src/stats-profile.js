@@ -119,3 +119,51 @@ export async function fetchStatsProfile(userId) {
     totalRankedPlayers: statsById.size,
   };
 }
+
+// ユーザー要望（続き74）「ランキングを実装しましょう。勝率ランキング/勝利数ランキング/
+// 対戦数ランキングでどうだろう？」への対応。fetchStatsProfile()が既に全プレイヤー分の
+// 集計（statsById/byMatchCount/byWinRate）を内部で計算していたことが分かったため、
+// それを流用する形で新設した（新しいテーブル・RPCは不要、姉妹プロジェクトのDBに
+// 対する読み取り専用クエリを1つ増やしただけ）。fetchStatsProfile()と違い、これは
+// 「自分」ではなく「プレイヤー名・アバターを含む上位N件」を返す必要があるため、
+// playersのselectにname/avatar_urlを追加している。
+// minMatches: 対戦数が極端に少ない（1〜2戦だけ）プレイヤーが勝率100%で上位を独占
+// しないよう、勝率ランキングにだけ最低対戦数のしきい値を設ける（対戦数・勝利数
+// ランキングにはそもそも不要な概念のため適用しない）。
+const MIN_MATCHES_FOR_WIN_RATE_RANKING = 3;
+
+export async function fetchLeaderboard(limit = 20) {
+  if (!client) return { winRate: [], wins: [], matches: [] };
+
+  const [{ data: players, error: playersError }, { data: matches, error: matchesError }] = await Promise.all([
+    client.from("players").select("id, name, avatar_url, status, is_staff, seed_matches_count, seed_wins_count"),
+    client.from("matches").select("members, winner_id, status"),
+  ]);
+  if (playersError) throw playersError;
+  if (matchesError) throw matchesError;
+
+  const rankablePlayers = (players ?? []).filter((p) => p.status === "approved" && !p.is_staff);
+  const statsById = computeAllPlayerStats(rankablePlayers, matches ?? []);
+  const nameById = new Map(rankablePlayers.map((p) => [p.id, { name: p.name, avatarUrl: p.avatar_url }]));
+
+  function toRows(sorted) {
+    return sorted.slice(0, limit).map((s, i) => ({
+      rank: i + 1,
+      playerId: s.id,
+      name: nameById.get(s.id)?.name ?? "?",
+      avatarUrl: nameById.get(s.id)?.avatarUrl ?? null,
+      matchesCount: s.matchesCount,
+      winsCount: s.winsCount,
+      winRate: s.winRate,
+    }));
+  }
+
+  const all = [...statsById.values()];
+  const byWinRate = all
+    .filter((s) => s.matchesCount >= MIN_MATCHES_FOR_WIN_RATE_RANKING)
+    .sort((a, b) => b.winRate - a.winRate || b.winsCount - a.winsCount || b.matchesCount - a.matchesCount);
+  const byWins = [...all].sort((a, b) => b.winsCount - a.winsCount || b.winRate - a.winRate || b.matchesCount - a.matchesCount);
+  const byMatches = [...all].sort((a, b) => b.matchesCount - a.matchesCount || b.winsCount - a.winsCount || b.winRate - a.winRate);
+
+  return { winRate: toRows(byWinRate), wins: toRows(byWins), matches: toRows(byMatches) };
+}

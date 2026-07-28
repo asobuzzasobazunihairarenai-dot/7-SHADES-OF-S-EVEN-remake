@@ -18,6 +18,8 @@ import { openProfilePage } from "./profile-page.js";
 // は元々「開発用ツール」と明記された既存のモーダルだが、「とりあえず」の指示のため
 // 画面全体版には作り直さず、そのまま配線するだけに留めた。
 import { openDeckViewer } from "./deck-viewer.js";
+// ユーザー要望「ランキングを実装しましょう」への対応で新設したページ。
+import { openRankingPage } from "./ranking-page.js";
 
 let overlayEl = null;
 let toastEl = null;
@@ -28,7 +30,15 @@ const TILES = [
   { icon: "🤝", label: "フレンドリーマッチ", status: "ready", onOpen: () => openOnlinePanel() },
   { icon: "🏆", label: "フリーマッチ（ランク戦）", status: "soon" },
   { icon: "🛒", label: "ショップ", status: "ready", onOpen: () => openShopPanel() },
-  { icon: "📊", label: "ランキング", status: "soon" },
+  {
+    icon: "📊",
+    label: "ランキング",
+    status: "ready",
+    onOpen: () => {
+      closeHomeScreen();
+      openRankingPage(() => openHomeScreen());
+    },
+  },
   {
     icon: "👤",
     label: "プロフィール／マイページ",
