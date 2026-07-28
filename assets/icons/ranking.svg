@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">ランキング</title>
+  <desc id="desc">トロフィーのシルエットで表した、ランキングアイコン</desc>
+  <g fill="none" stroke="var(--icon-primary, #F4F7FB)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M92 40h72v52c0 28-16 48-36 48s-36-20-36-48z"/>
+    <path d="M92 52H56c0 30 14 46 36 50" opacity=".85"/>
+    <path d="M164 52h36c0 30-14 46-36 50" opacity=".85"/>
+    <path d="M128 140v28" />
+    <path d="M92 208c4-18 18-28 36-28s32 10 36 28" />
+    <path d="M76 208h104" stroke="var(--icon-accent, #E6B94F)" stroke-width="8" opacity=".8"/>
+  </g>
+</svg>

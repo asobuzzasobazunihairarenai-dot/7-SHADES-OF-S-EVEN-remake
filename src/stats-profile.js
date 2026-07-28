@@ -133,11 +133,13 @@ export async function fetchStatsProfile(userId) {
 // 『平均対戦数』の50%を超える対戦数のプレイヤーのみが対象になる、という戦績システム
 // 側と同じルールにしてほしい」。固定の最低対戦数（続き74時点では3戦固定だった）を
 // やめ、「対戦数>0のプレイヤーの平均対戦数の50%」を動的なボーダーとして計算する。
+// 続き77: ランキングページのiマーク（ルール説明）が実際の現在値を表示できるよう、
+// ボーダーだけでなく元になった平均対戦数も一緒に返す。
 function computeWinRateEligibilityBorder(allStats) {
   const withMatches = allStats.filter((s) => s.matchesCount > 0);
-  if (withMatches.length === 0) return 0;
-  const avg = withMatches.reduce((sum, s) => sum + s.matchesCount, 0) / withMatches.length;
-  return avg * 0.5;
+  if (withMatches.length === 0) return { border: 0, average: 0 };
+  const average = withMatches.reduce((sum, s) => sum + s.matchesCount, 0) / withMatches.length;
+  return { border: average * 0.5, average };
 }
 
 // 「①勝率→②勝利数→③対戦数の順で比較し、すべて同じ場合は同順位として併記する」
@@ -185,7 +187,7 @@ export async function fetchLeaderboard(limit = 20) {
   }
 
   const all = [...statsById.values()];
-  const winRateBorder = computeWinRateEligibilityBorder(all);
+  const { border: winRateBorder, average: winRateAverageMatches } = computeWinRateEligibilityBorder(all);
   const byWinRateSorted = all
     .filter((s) => s.matchesCount > winRateBorder)
     .sort((a, b) => b.winRate - a.winRate || b.winsCount - a.winsCount || b.matchesCount - a.matchesCount);
@@ -196,5 +198,11 @@ export async function fetchLeaderboard(limit = 20) {
   const byWins = assignCompetitionRanks(byWinsSorted, (s) => [s.winsCount, s.winRate, s.matchesCount]);
   const byMatches = assignCompetitionRanks(byMatchesSorted, (s) => [s.matchesCount, s.winsCount, s.winRate]);
 
-  return { winRate: toRows(byWinRate), wins: toRows(byWins), matches: toRows(byMatches) };
+  return {
+    winRate: toRows(byWinRate),
+    wins: toRows(byWins),
+    matches: toRows(byMatches),
+    winRateAverageMatches,
+    winRateBorder,
+  };
 }

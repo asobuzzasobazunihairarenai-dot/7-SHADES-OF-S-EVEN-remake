@@ -21,6 +21,15 @@ export function registerAvatarPickerHelper(fn) {
   avatarPickerFn = fn;
 }
 
+// ユーザー要望（続き77）「オプションエリアのマイページアイコンを押しても全画面マイ
+// ページに遷移してください」。profile-page.jsのopenProfilePage()はrenderMyPageBody
+// （このファイル）を呼ぶため、直接importすると循環参照になる——avatarPickerFnと同じ
+// 注入パターンで解決する（main.js側でregisterProfilePageOpener(openProfilePage)する）。
+let profilePageOpenerFn = null;
+export function registerProfilePageOpener(fn) {
+  profilePageOpenerFn = fn;
+}
+
 function formatDate(isoString) {
   if (!isoString) return "-";
   const d = new Date(isoString);
@@ -247,6 +256,8 @@ export function initMyPage() {
   // ユーザー要望「画面右上のオプションアイコンの隣に人マークのアイコンを作り、
   // それを押すとマイページモーダルが開く」。options-menu.jsの「⚙ オプション」
   // ボタンと同じ部品（icon-action-button.js）・同じ「アイコンのみ」見た目にする。
+  // 続き77: 押した時の遷移先を、この場でのモーダル（open）から画面全体のマイページ
+  // （profile-page.js）へ変更した。
   const launcherBtn = document.createElement("button");
   launcherBtn.id = "my-page-button";
   const { captionEl } = buildIconButtonContent(launcherBtn, {
@@ -257,7 +268,7 @@ export function initMyPage() {
   wireIconButtonClick(launcherBtn, {
     detailTitle: "マイページ",
     detailParagraphs: ["自分のアバター・戦績（対戦数・勝率・順位等）を確認できます。"],
-    onAction: open,
+    onAction: () => (profilePageOpenerFn ? profilePageOpenerFn() : open()),
   });
   getOptionArea().appendChild(launcherBtn);
 }

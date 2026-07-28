@@ -3174,14 +3174,39 @@ body.is-phone-device #options-menu-button {
   border-color: transparent;
 }
 
-/* ユーザー要望「オプションの横にヘルプボタンを創設したい」への対応。#options-menu-button・
-   #my-page-buttonと同じ高さ・同じ見た目（アイコンのみ、丸い縁取り無し）で、その並びの
-   さらに左隣に置く。位置・サイズは管理者モードで調整できる
-   （--icon-pos-help-x/-y・--icon-size-help、help.js参照）。 */
-#help-button {
+/* ランキングアイコン（ranking-page.js、ユーザー要望（続き77）「オプションエリアに
+   ランキングアイコンを追加したいです。ヘルプアイコンとマイページアイコンの間に
+   お願いします」）。#my-page-button（right:3.9rem）とヘルプの間、ヘルプが元々
+   あった位置(6.5rem)に置き、ヘルプ以降（ヘルプ・Discord・通貨表示）はその分
+   さらに左へ2.6remずつ押し出す。 */
+#ranking-page-button {
   position: absolute;
   top: 0.3rem;
   right: 6.5rem;
+  z-index: 900;
+}
+#ranking-page-button .icon-action-button-caption {
+  display: none;
+}
+#ranking-page-button .icon-action-button-icon-wrap {
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+#ranking-page-button:hover .icon-action-button-icon-wrap {
+  background: none;
+  border-color: transparent;
+}
+
+/* ユーザー要望「オプションの横にヘルプボタンを創設したい」への対応。#options-menu-button・
+   #my-page-buttonと同じ高さ・同じ見た目（アイコンのみ、丸い縁取り無し）で、その並びの
+   さらに左隣に置く。位置・サイズは管理者モードで調整できる
+   （--icon-pos-help-x/-y・--icon-size-help、help.js参照）。続き77でランキングアイコンを
+   間に挟んだ分、right:6.5rem→9.1remへ押し出した。 */
+#help-button {
+  position: absolute;
+  top: 0.3rem;
+  right: 9.1rem;
   z-index: 900;
   transform: translate(var(--icon-pos-help-x, 0rem), var(--icon-pos-help-y, 0rem));
 }
@@ -3202,12 +3227,12 @@ body.is-phone-device #options-menu-button {
 
 /* Discordアイコン（discord-link.js、ユーザー要望「右上のオプションエリアにDiscord
    アイコンを追加してください。ヘルプマークの左隣に追加し、残金表示をその分左に
-   ずらしてください」）。#help-button（right:6.5rem）のさらに左隣、通貨表示が
-   元々あった位置(9.1rem)に置き、通貨表示はさらに左（11.7rem）へ押し出す。 */
+   ずらしてください」）。#help-button（続き77でright:9.1remへ）のさらに左隣、通貨表示が
+   元々あった位置(11.7rem)に置き、通貨表示はさらに左（14.3rem）へ押し出す。 */
 #discord-link-button {
   position: absolute;
   top: 0.3rem;
-  right: 9.1rem;
+  right: 11.7rem;
   z-index: 900;
   transform: translate(var(--icon-pos-discord-x, 0rem), var(--icon-pos-discord-y, 0rem));
 }
@@ -3227,15 +3252,15 @@ body.is-phone-device #options-menu-button {
 }
 
 /* ゲーム内通貨の所持金額表示（currency-display.js、ユーザー要望「ヘルプボタンの横に
-   通貨アイコンと所持金額を表示させたい」）。Discordアイコン追加（続き63）に伴い、
-   #help-button（right:6.5rem）→#discord-link-button（right:9.1rem）のさらに左隣
-   （right:11.7rem）へ押し出した。アイコンボタンでは無く常時表示のバッジのため、
+   通貨アイコンと所持金額を表示させたい」）。続き77でランキングアイコンが割り込んだ分、
+   #help-button（right:9.1rem）→#discord-link-button（right:11.7rem）のさらに左隣
+   （right:14.3rem）へ押し出した。アイコンボタンでは無く常時表示のバッジのため、
    他のicon-action-buttonとは別の専用の見た目にしてある。位置は管理者モードで
    調整できる（--currency-display-pos-x/-y、admin.js参照）。 */
 #currency-display {
   position: absolute;
   top: 0.5rem;
-  right: 11.7rem;
+  right: 14.3rem;
   z-index: 900;
   display: flex;
   align-items: center;
@@ -3894,7 +3919,8 @@ body.opening-screen-active #option-area {
 body.opening-screen-active #help-button,
 body.opening-screen-active #discord-link-button,
 body.opening-screen-active #currency-display,
-body.opening-screen-active #my-page-button {
+body.opening-screen-active #my-page-button,
+body.opening-screen-active #ranking-page-button {
   display: none;
 }
 body.opening-screen-active #options-menu-panel {
@@ -8410,6 +8436,54 @@ body.reduce-glow .cell.card-effect-placement-target {
   font-size: 1.2rem;
   font-weight: bold;
   margin-bottom: 1.4rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+#ranking-page-info-btn {
+  background: none;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 50%;
+  color: #94a3b8;
+  width: 1.4rem;
+  height: 1.4rem;
+  line-height: 1;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0;
+}
+#ranking-page-info-btn:hover {
+  border-color: rgba(56, 189, 248, 0.7);
+  color: #38bdf8;
+}
+#ranking-info-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1611;
+  width: min(24rem, 90vw);
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.6rem;
+  padding: 1rem 1.2rem;
+  font-family: sans-serif;
+  color: #e2e8f0;
+  box-sizing: border-box;
+}
+#ranking-info-modal-title {
+  font-weight: bold;
+  margin-bottom: 0.6rem;
+  padding-right: 1.6rem;
+}
+#ranking-info-modal-body p {
+  margin: 0 0 0.7rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  opacity: 0.9;
+}
+#ranking-info-modal-body p:last-child {
+  margin-bottom: 0;
 }
 #ranking-page-card {
   width: min(28rem, 92vw);

@@ -11147,4 +11147,40 @@ u=横方向・v=縦方向）にも使えるよう一般化した`rotateFraction(
   実際に効果が発動、までを診断ログ（`diag-anytime-checkpoint`、恒久的に残す）付きで
   確認済み。
 
+### 2026-07-28（続き78）：ロック・移動にも宣言/処理の2段階チェックポイントを追加、いつでも使える割り込みをオンライン中も全クライアントへ配信、ランキングのルールiマーク・オプションエリアのランキングアイコン・マイページ全画面遷移
+
+- **ロック・移動も宣言/処理の2段階チェックポイントに拡張**: ユーザー要望「ロックと
+  移動も宣言と処理に分けてください」。実際に状態を動かす直前（`performLockPhaseClick`・
+  `performPhaseMoveToCell`・メインのドラッグ&ドロップハンドラ・`requestFinalLock`の
+  呼び出し直前）を「宣言」、`maybeAnnounceLock`・到達効果解決後の`onFullyResolved`を
+  「処理」として、それぞれ1回ずつ発火するようにした。
+- **「いつでも使える」割り込みチェックポイントをオンライン中も全クライアントへ配信**:
+  ユーザー質問「新しい専用broadcastは大変か」への回答通り、既存の`hand_effect_use`等
+  （Supabase Edge Function `so7-apply-action.ts`を経由しない、クライアント間の直接
+  broadcastだけの「見た目の合図」パターン）と同じ仕組みで`anytime_checkpoint`
+  broadcastを新設（`online.js`の`broadcastAnytimeCheckpoint`/
+  `onAnytimeCheckpointEvents`）。Edge Functionの手動再配置は不要。`main.js`に
+  `fireAnytimeCheckpoint(afterPlayer)`という薄いラッパーを新設し、ロック・移動・
+  接触の宣言/処理・カード効果処理の全チェックポイント呼び出し箇所をこちらに統一、
+  オンライン中は自分以外のクライアントにも届くようにした（手札効果使用宣言だけは
+  引き続き既存のhand_effect_use経路を使用、二重配信はしない）。実機でロック（宣言→
+  処理の2件の診断ログ）・移動（宣言→到達効果の連鎖完全解決→処理、の一連）を確認済み。
+- **ランキングページにルール説明のiマークを追加**: ユーザー要望。タイトル横の
+  「ⓘ」ボタンから、勝率ランキングの参加基準（動的ボーダー）と同順位の決め方を
+  説明する簡易モーダルを開けるようにした。`fetchLeaderboard()`が
+  `winRateBorder`/`winRateAverageMatches`も返すよう拡張し、モーダルに実際の
+  現在値（例:「実対戦者の平均対戦数: 2.8回 → 参加基準(ボーダー): 1.4回を超える
+  対戦数」）を表示する。
+- **オプションエリアにランキングアイコンを追加**: ユーザー要望「ヘルプアイコンと
+  マイページアイコンの間にお願いします」。新規`assets/icons/ranking.svg`（トロフィー）
+  を使い、`ranking-page.js`に`initRankingIcon()`を新設。ヘルプ以降（ヘルプ・Discord・
+  通貨表示）の位置をそれぞれ2.6remずつ左へ押し出して間を空けた。
+- **オプションエリアのマイページアイコンを押すと全画面マイページへ遷移するよう変更**:
+  ユーザー要望。`profile-page.js`の`openProfilePage()`は`my-page.js`の
+  `renderMyPageBody()`を呼ぶため、直接importすると循環参照になる——
+  `registerAvatarPickerHelper`と同じ注入パターンで解決した（`my-page.js`に
+  `registerProfilePageOpener()`を新設し、`main.js`から`openProfilePage`を注入）。
+  左下の巨大アバターのクリック（`openMyPage`、モーダル版）は今回のスコープ外のため
+  変更していない。
+
 

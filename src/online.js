@@ -493,6 +493,24 @@ export function broadcastCursorPosition(payload) {
     broadcastChannel.send({ type: "broadcast", event: "cursor_position", payload });
   }
 }
+// 続き77:「いつでも使える」割り込みチェックポイント（ロック宣言/処理・移動宣言/処理・
+// 接触宣言/処理・カード効果処理）を、行動した本人以外の全クライアントにも伝える合図。
+// hand_effect_use（手札効果使用宣言）は既存の別経路で対応済みのため対象外。状態は
+// 一切変えない見た目だけの合図（hand_effect_use等と同じパターン）で、so7-apply-action.ts
+// （Edge Function）は経由しない——クライアント間の直接broadcastのため、追加のSupabase
+// 側の手動再配置は不要。
+let anytimeCheckpointEventListeners = [];
+export function onAnytimeCheckpointEvents(fn) {
+  anytimeCheckpointEventListeners.push(fn);
+  return () => {
+    anytimeCheckpointEventListeners = anytimeCheckpointEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastAnytimeCheckpoint(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "anytime_checkpoint", payload });
+  }
+}
 // main.jsのヘッダーボタン（「🌐 オンライン」）のラベルを、ログイン状態が分かるように
 // 動的に変える時など、awaitせず同期的に「今ログイン中かどうか」を知りたい場面のために
 // キャッシュしておく（getCurrentUser()は毎回サーバーに問い合わせる非同期関数のため）。
@@ -1954,6 +1972,10 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // マウスカーソル位置の共有（broadcastCursorPosition参照）。
     .on("broadcast", { event: "cursor_position" }, ({ payload }) => {
       for (const fn of cursorPositionEventListeners) fn(payload);
+    })
+    // 「いつでも使える」割り込みチェックポイントの通知（broadcastAnytimeCheckpoint参照）。
+    .on("broadcast", { event: "anytime_checkpoint" }, ({ payload }) => {
+      for (const fn of anytimeCheckpointEventListeners) fn(payload);
     })
     .subscribe((status) => {
       // ユーザー要望「部屋に入ってきたら、待機中の他メンバーにもリアルタイムで（＝

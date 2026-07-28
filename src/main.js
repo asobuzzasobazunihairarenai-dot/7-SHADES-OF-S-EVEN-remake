@@ -16,7 +16,9 @@ import {
 import { logAction, initActionLogPanel } from "./action-log.js";
 import { initDeckViewer, openDeckViewer } from "./deck-viewer.js";
 import { initStatsPlayerLinkModal } from "./stats-player-link.js";
-import { initMyPage, openMyPage, registerAvatarPickerHelper } from "./my-page.js";
+import { initMyPage, openMyPage, registerAvatarPickerHelper, registerProfilePageOpener } from "./my-page.js";
+import { openProfilePage } from "./profile-page.js";
+import { initRankingIcon } from "./ranking-page.js";
 import { initCardDevMode, registerCardDevModeArrivalHelpers } from "./card-dev-mode.js";
 import {
   canAutoProcessArrival,
@@ -197,6 +199,8 @@ import {
   onArrivalDelegateResolvedEvents,
   broadcastCursorPosition,
   onCursorPositionEvents,
+  broadcastAnytimeCheckpoint,
+  onAnytimeCheckpointEvents,
   getSyncedIdentity,
   getGoogleAvatarUrl,
   getGoogleDisplayName,
@@ -2193,6 +2197,10 @@ async function performPhaseMoveToCell(location) {
   const player = getSelfSeat();
   const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === player);
   if (!piece) return;
+  // ユーザー要望（続き77）「移動もロックも宣言と処理を分けてください」。実際に状態を
+  // 動かす直前を「移動宣言」の瞬間とみなして発火する（処理側は下のtriggerCardArrival
+  // 完了後、既存の通り）。
+  fireAnytimeCheckpoint(player);
   if (isOnlineMode()) {
     try {
       await moveToken(piece.id, location);
@@ -2231,8 +2239,8 @@ async function performPhaseMoveToCell(location) {
   // 自動処理が終わるまで待ってから発火させる（onFullyResolvedが無いと、到達効果の
   // 処理中フラグ(arrivalEffectAutoProcessing)がまだ立っている間にチェックポイントが
   // isAnyEffectProcessingBusy()で無条件にブロックされてしまう）。
-  if (freshCard) triggerCardArrival(freshCard.cardId, location, () => triggerAnytimeInterruptCheckpoint(player));
-  else triggerAnytimeInterruptCheckpoint(player);
+  if (freshCard) triggerCardArrival(freshCard.cardId, location, () => fireAnytimeCheckpoint(player));
+  else fireAnytimeCheckpoint(player);
 }
 
 // ロックフェイズのロック可能ハイライト（.phase-lock-highlight）をクリックした時。
@@ -2246,6 +2254,10 @@ async function performLockPhaseClick(tokenId) {
   if (!token || !isCardLockable(token, player)) return;
   const color = getCardDefinition(token.cardId).color;
   const dropTarget = { zone: "lock", side: SEAT_TO_SIDE[player], index: COLORS.indexOf(color) };
+  // ユーザー要望（続き77）「移動もロックも宣言と処理を分けてください」。実際に状態を
+  // 動かす直前を「ロック宣言」の瞬間とみなして発火する（処理側はmaybeAnnounceLock内、
+  // 既存の通り）。
+  fireAnytimeCheckpoint(player);
   if (isOnlineMode()) {
     try {
       await moveToken(tokenId, dropTarget);
@@ -2616,7 +2628,7 @@ export function isAnyEffectProcessingBusy() {
   return isGateInvasionPending() || isGateInvasionQueueActive() || isHandEffectBusy() || activeEffectPicker !== null;
 }
 
-// --- 「いつでも使える」割り込みチェックポイント（続き76、予約制の廃止） -----------------
+// --- 「いつでも使える」割り込みチェックポイント（続き76、予約制の廃止／続き77で拡張） ---
 // ユーザー要望「予約制は廃止したい。その代わり、宣言（ロック宣言・手札効果使用宣言・
 // 接触宣言・移動宣言）の直後、処理（ロック処理・カード効果処理・接触処理・移動処理）の
 // 直後に毎回、いつでも使えるカードを持っているプレイヤーには使うかどうかのモーダルを
@@ -2634,16 +2646,17 @@ export function isAnyEffectProcessingBusy() {
 //   モーダルを出さない。フェイズ案内板の「割り込みモーダル再開」ボタン
 //   （buildAnytimeInterruptResumeButton参照）で再度有効化できる。
 //
-// スコープ上の注意（実装上の割り切り）: ロック・移動は元々「宣言」と「処理」が
-// コード上分かれておらず単一の即時アクションのため、この2つはそれぞれ1回
-// （処理完了直後）だけチェックポイントを発火させる（宣言相当の単独チェックポイントは
-// 設けていない）。手札効果使用・接触は元々「宣言→処理」の2段階がコード上に実在する
-// ため、両方のタイミングで発火させる。オンライン対戦では、手札効果使用・接触の
-// 「宣言」は既存のbroadcast経路（hand_effect_use等）に乗せて全クライアントで
-// 発火させているが、ロック・移動・各種「処理完了」チェックポイントは今のところ
-// 行動した本人のクライアントでしか発火しない（他のクライアントへの新しい専用
-// broadcastが必要になるため、今回は見送った——ローカル対戦は1画面で全座席を
-// 操作するため元々この制約を受けない）。
+// 続き77: ロック・移動も、実際に状態を動かす直前（宣言）／動かした直後（処理）の
+// 2段階でチェックポイントを発火するよう拡張した（performLockPhaseClick・
+// performPhaseMoveToCell・ドラッグ&ドロップハンドラ・requestFinalLockの呼び出し
+// 直前がそれぞれ「宣言」、maybeAnnounceLock・到達効果解決後のonFullyResolvedが
+// 「処理」）。また、online.jsに新設したanytime_checkpoint broadcast
+// （broadcastAnytimeCheckpoint/onAnytimeCheckpointEvents、hand_effect_use等と同じ
+// 「見た目だけの合図」パターンでso7-apply-action.tsは経由しない）に乗せることで、
+// ロック・移動・接触・カード効果処理の全チェックポイントがオンライン中も行動した
+// 本人以外のクライアントへ届くようにした（fireAnytimeCheckpoint参照）。手札効果
+// 使用宣言だけは引き続き既存のhand_effect_use経路で届いているため、この新しい
+// broadcastには乗せていない。
 let anytimeInterruptOptedOut = false;
 let anytimeInterruptQueue = []; // ローカル対戦で複数プレイヤー分を順番に見せるための待ち行列
 let anytimeInterruptModalEl = null;
@@ -2787,6 +2800,26 @@ function triggerAnytimeInterruptCheckpoint(afterPlayer) {
   advanceAnytimeInterruptQueue();
 }
 
+// 続き77: オンライン中、ロック・移動・接触の宣言/処理チェックポイントを行動した本人
+// 以外のクライアントにも届ける薄いラッパー。手札効果使用宣言だけは既存の
+// hand_effect_use経路（announceHandEffectUseForEffect/onHandEffectUseEvents）で
+// 既に自分以外へ届いているため、ここには乗せない。呼び出し側は今後
+// triggerAnytimeInterruptCheckpointを直接呼ばず、原則こちらを使う。
+function fireAnytimeCheckpoint(afterPlayer) {
+  triggerAnytimeInterruptCheckpoint(afterPlayer);
+  if (isOnlineMode()) broadcastAnytimeCheckpoint({ afterPlayer });
+}
+// 他クライアントからの合図の受信側。自分自身が送った合図のこだま（broadcastChannelは
+// self:trueのため自分にも返ってくる）は、afterPlayerが自分の座席と一致するかでは
+// 判別できない（afterPlayerは「宣言/処理した本人」であり受信者の座席とは無関係の
+// 値のため）。ただし届いた時点で既に自分のtriggerAnytimeInterruptCheckpointが
+// （同期的に）先に呼ばれてモーダルを出し始めているのが通常のため、こちらは単に
+// 同じ関数をもう一度呼ぶだけでよい——2回目の呼び出しは「既にモーダル表示中」
+// ガードで自然にサイレントno-opになる（hand_effect_use受信側と同じ考え方）。
+onAnytimeCheckpointEvents(({ afterPlayer }) => {
+  triggerAnytimeInterruptCheckpoint(afterPlayer);
+});
+
 // ユーザー要望「スマホ・タブレットでの操作について、ロックフェイズでロックカードを選択した時
 // 『このカードをロックしますか？』の念押しモーダルが欲しい。ハンドフェイズも同様に
 // 『このカードを使用しますか？』の念押しモーダルが欲しい。これらは誤操作防止の観点から
@@ -2897,10 +2930,10 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
     render();
   } finally {
     setHandEffectBusy(false);
-    // ユーザー要望（続き76）「カード効果処理の直後にも割り込みモーダルを出す」。
-    // 今のところ行動した本人のクライアントでのみ発火する（オンライン中の他クライアント
-    // への「処理完了」専用broadcastは今回のスコープでは見送った）。
-    triggerAnytimeInterruptCheckpoint(player);
+    // ユーザー要望（続き76/77）「カード効果処理の直後にも割り込みモーダルを出す」。
+    // 続き77でanytime_checkpoint broadcastに乗せ、オンライン中も他クライアントへ届く
+    // ようにした。
+    fireAnytimeCheckpoint(player);
   }
 }
 
@@ -3451,8 +3484,8 @@ function openContactConfirmModal(attacker, defender) {
         requestContact(attacker, defender);
       }
       render();
-      // ユーザー要望（続き76）「接触宣言の直後にも割り込みモーダルを出す」。
-      triggerAnytimeInterruptCheckpoint(attacker);
+      // ユーザー要望（続き76/77）「接触宣言の直後にも割り込みモーダルを出す」。
+      fireAnytimeCheckpoint(attacker);
     } catch (err) {
       console.error("requestContact failed", err);
       contactAttackerSnapshot = null;
@@ -3890,8 +3923,8 @@ async function respondToContact(approve) {
     const finishContactResolution = () => {
       showResultModal();
       transferPriorityTo(getState().turnPlayer);
-      // ユーザー要望（続き76）「接触処理の直後にも割り込みモーダルを出す」。
-      triggerAnytimeInterruptCheckpoint(defender);
+      // ユーザー要望（続き76/77）「接触処理の直後にも割り込みモーダルを出す」。
+      fireAnytimeCheckpoint(defender);
     };
     if (defenderPiece)
       maybeTriggerCardArrival(defenderPiece.location, defenderPiece.id, undefined, finishContactResolution);
@@ -5581,11 +5614,10 @@ function maybeAnnounceLock(dropTarget, cardId, wasAlreadyLocked) {
   if (!wasAlreadyLocked) {
     const player = SIDE_TO_SEAT[dropTarget.side];
     announceCardLocked(player, cardId);
-    // ユーザー要望（続き76）「ロック処理の直後にも割り込みモーダルを出す」。ロックは
-    // 元々「宣言」と「処理」が別のタイミングとしてコード上分かれていないため、この
-    // 「実際にロックされた」タイミングの1回だけ発火させる（今のところ本人の
-    // クライアントでのみ、オンライン中の他クライアントへの専用broadcastは見送った）。
-    triggerAnytimeInterruptCheckpoint(player);
+    // ユーザー要望（続き76）「ロック処理の直後にも割り込みモーダルを出す」。宣言側は
+    // 続き77でperformLockPhaseClick・ドラッグ&ドロップハンドラ・requestFinalLock
+    // それぞれの実際に動かす直前に追加したため、ここは「処理」側の1回。
+    fireAnytimeCheckpoint(player);
   }
   triggerLockEffect(cardId, dropTarget);
 }
@@ -6120,6 +6152,11 @@ async function onDragEnd(e) {
       if (ownerSeat && wouldCompleteLockWithNewIndex(ownerSeat, dropTarget.index)) {
         const queue = getFinalLockApprovalOrder(ownerSeat, getState().activePlayers);
         if (queue.length > 0) {
+          // ユーザー要望（続き77）「移動もロックも宣言と処理を分けてください」。最後の
+          // ロックは承認を待つ特別なフローのため、実際に承認済みでロックが確定する
+          // タイミング（respondToFinalLock→maybeAnnounceLock、既存の処理側）とは別に、
+          // ここ（承認依頼を出す＝宣言した瞬間）でも発火させる。
+          fireAnytimeCheckpoint(getSelfSeat());
           if (isOnlineMode()) {
             try {
               await requestFinalLock(tokenId, dropTarget, ownerSeat, queue);
@@ -6208,6 +6245,13 @@ async function onDragEnd(e) {
         return;
       }
     }
+    // ユーザー要望（続き77）「移動もロックも宣言と処理を分けてください」。実際に状態を
+    // 動かす直前を「宣言」の瞬間とみなして発火する（処理側は下、既存の通り）。
+    if (kind === "card" && dropTarget.zone === "lock") {
+      fireAnytimeCheckpoint(getSelfSeat());
+    } else if (kind === "piece") {
+      fireAnytimeCheckpoint(token?.player ?? getSelfSeat());
+    }
     if (isOnlineMode()) {
       // オンライン中はmoveToken()がローカルstateを書き換えないため、awaitせずすぐ
       // render()・演出関数を呼ぶと移動前の古い状態のまま判定してしまい、到達演出・
@@ -6238,7 +6282,7 @@ async function onDragEnd(e) {
       // 到達効果まで含めて完全に終わった後まで待ってから発火させる（onResolvedの
       // 時点ではまだ自動処理が終わっていないことがあるため不十分）。
       maybeTriggerCardArrival(dropTarget, tokenId, undefined, () => {
-        if (token) triggerAnytimeInterruptCheckpoint(token.player);
+        if (token) fireAnytimeCheckpoint(token.player);
       });
     }
     if (kind === "card") {
@@ -7745,11 +7789,13 @@ initActionLogPanel();
 registerCardDevModeArrivalHelpers({ triggerCardArrival, runAutoHandEffect, render });
 registerPhaseAutomationHelpers({ render, findTopCardAt });
 initHelpButton();
+initRankingIcon();
 initDiscordLink();
 initCurrencyDisplay();
 initShop();
 registerShopOpener(openShopPanel);
 registerAvatarPickerHelper(openAvatarPicker);
+registerProfilePageOpener(() => openProfilePage());
 initGameSetup();
 registerStartPlayerPreviewHelper(previewStartPlayerModal);
 registerAuraPreviewHelper(previewOpeningAuras);

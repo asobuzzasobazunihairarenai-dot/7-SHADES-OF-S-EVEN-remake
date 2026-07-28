@@ -5,11 +5,16 @@
 // home-screen.js/profile-page.jsと同じ「画面全体のページ、モーダルではない」構造。
 
 import { fetchLeaderboard } from "./stats-profile.js";
+import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
+import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
+import { getOptionArea } from "./option-area.js";
 
 let overlayEl = null;
 let listEl = null;
 let statusEl = null;
 let activeTab = "winRate";
+let infoBackdropEl = null;
+let infoModalEl = null;
 
 const TABS = [
   { key: "winRate", label: "勝率", valueLabel: (row) => `${row.winRate}%` },
@@ -65,6 +70,51 @@ function renderTab() {
   for (const row of rows) listEl.appendChild(buildRow(row, tab.valueLabel));
 }
 
+// ユーザー要望（続き77）「ランキングページにランキングルールをiマークで載せておいて
+// ください」。同順位の決め方・勝率ランキングの参加基準（動的ボーダー）を説明する
+// 簡易モーダル。他の簡易モーダルと同じcreateBackdrop/createModalCloseXパターン。
+function closeInfoModal() {
+  infoBackdropEl?.remove();
+  infoBackdropEl = null;
+  infoModalEl?.remove();
+  infoModalEl = null;
+}
+
+function openInfoModal() {
+  if (infoModalEl) return;
+  infoBackdropEl = createBackdrop(closeInfoModal, { dim: true, zIndex: 1610 });
+  infoModalEl = document.createElement("div");
+  infoModalEl.id = "ranking-info-modal";
+
+  const title = document.createElement("div");
+  title.id = "ranking-info-modal-title";
+  title.textContent = "ランキングのルール";
+  infoModalEl.appendChild(title);
+
+  const body = document.createElement("div");
+  body.id = "ranking-info-modal-body";
+  const border = cachedLeaderboard?.winRateBorder;
+  const average = cachedLeaderboard?.winRateAverageMatches;
+  const borderLine =
+    typeof border === "number" && typeof average === "number"
+      ? `現在の実対戦者の平均対戦数: ${average.toFixed(1)}回 → 参加基準(ボーダー): ${border.toFixed(1)}回を超える対戦数`
+      : null;
+  const lines = [
+    "・勝率TOP3ランキングは、対戦経験が極端に少ないプレイヤーが数試合だけで上位に入ってしまわないように、実際に対戦したことがあるプレイヤーの「平均対戦数」の50%を超える対戦数のプレイヤーのみが対象になります。",
+    ...(borderLine ? [borderLine] : []),
+    "・同順位の決め方: ①勝率 → ②勝利数 → ③対戦数 の順で比較し、すべて同じ場合は同順位として併記します。",
+  ];
+  for (const line of lines) {
+    const p = document.createElement("p");
+    p.textContent = line;
+    body.appendChild(p);
+  }
+  infoModalEl.appendChild(body);
+  infoModalEl.appendChild(createModalCloseX(closeInfoModal));
+
+  document.body.appendChild(infoModalEl);
+}
+
 function buildTabs() {
   const tabsEl = document.createElement("div");
   tabsEl.id = "ranking-page-tabs";
@@ -101,7 +151,18 @@ export async function openRankingPage(onClose) {
 
   const title = document.createElement("div");
   title.id = "ranking-page-title";
-  title.textContent = "📊 ランキング";
+  const titleText = document.createElement("span");
+  titleText.textContent = "📊 ランキング";
+  title.appendChild(titleText);
+
+  const infoBtn = document.createElement("button");
+  infoBtn.type = "button";
+  infoBtn.id = "ranking-page-info-btn";
+  infoBtn.textContent = "ⓘ";
+  infoBtn.title = "ランキングのルールを見る";
+  infoBtn.addEventListener("click", openInfoModal);
+  title.appendChild(infoBtn);
+
   overlayEl.appendChild(title);
 
   const card = document.createElement("div");
@@ -136,10 +197,31 @@ export async function openRankingPage(onClose) {
 }
 
 export function closeRankingPage() {
+  closeInfoModal();
   overlayEl?.remove();
   overlayEl = null;
   listEl = null;
   statusEl = null;
   cachedLeaderboard = null;
   document.body.classList.remove("full-screen-page-active");
+}
+
+// ユーザー要望（続き77）「オプションエリアにランキングアイコンを追加したいです。
+// ヘルプアイコンとマイページアイコンの間にお願いします」。my-page.js/help.jsと同じ
+// 部品（icon-action-button.js）・同じ「アイコンのみ」見た目にする。option-areaから
+// はいつでも開けるため、戻るボタンはこのページ自体を閉じるだけでよい（onCloseなし）。
+export function initRankingIcon() {
+  const btn = document.createElement("button");
+  btn.id = "ranking-page-button";
+  const { captionEl } = buildIconButtonContent(btn, {
+    icon: "assets/icons/ranking.svg",
+    tooltip: "ランキングを開きます",
+  });
+  captionEl.textContent = "ランキング";
+  wireIconButtonClick(btn, {
+    detailTitle: "ランキング",
+    detailParagraphs: ["勝率・勝利数・対戦数のランキングを確認できます。"],
+    onAction: () => openRankingPage(),
+  });
+  getOptionArea().appendChild(btn);
 }
