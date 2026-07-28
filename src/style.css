@@ -3666,9 +3666,9 @@ body.is-phone-device #options-menu-button {
   height: 100%;
   object-fit: cover;
 }
-.shop-item-thumb.is-locked img {
-  filter: grayscale(0.85) brightness(0.55);
-}
+/* ユーザー要望（続き74）「未所持のものをグレー表示しないでください。購入者は色味も
+   見たいと思うので」。以前は.is-lockedにgrayscale+暗化フィルターをかけていたが、
+   削除した。未所持であることは🔒バッジ（.shop-item-thumb-lock）だけで十分伝わる。 */
 .shop-item-thumb-lock {
   position: absolute;
   top: 0.3rem;
@@ -8285,4 +8285,50 @@ body.reduce-glow .cell.card-effect-placement-target {
 #home-screen-toast.is-visible {
   opacity: 1;
   transform: translate(-50%, 0);
+}
+
+/* プロフィール／マイページの画面全体版（続き74、src/profile-page.js）。中身
+   （アバター・戦績等）はmy-page.jsのrenderMyPageBody()を呼んで作るため、器だけを
+   ホーム画面と揃えた見た目にする。 */
+#profile-page {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem;
+  background: radial-gradient(ellipse at top, #1e293b 0%, #0f172a 60%, #060a12 100%);
+  font-family: sans-serif;
+  color: #e2e8f0;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+#profile-page-back {
+  align-self: flex-start;
+  background: none;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.4rem;
+  color: #e2e8f0;
+  font-family: sans-serif;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  margin-bottom: 1rem;
+}
+#profile-page-back:hover {
+  border-color: rgba(56, 189, 248, 0.7);
+  background: rgba(56, 189, 248, 0.12);
+}
+#profile-page-title {
+  font-size: 1.2rem;
+  font-weight: bold;
+  margin-bottom: 1.4rem;
+}
+#profile-page-card {
+  width: min(24rem, 92vw);
+  background: rgba(15, 23, 32, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 0.6rem;
+  padding: 1.2rem;
 }

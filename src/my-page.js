@@ -119,100 +119,104 @@ function buildPanel(close) {
   const body = document.createElement("div");
   panel.appendChild(body);
 
-  async function render() {
-    body.innerHTML = "";
+  panel._render = () => renderMyPageBody(body, close);
+  return panel;
+}
 
-    const seat = getSelfSeat();
-    const avatarWrap = document.createElement("div");
-    avatarWrap.style.cssText = "display: flex; flex-direction: column; align-items: center; gap: 0.5rem; margin-bottom: 1rem;";
-    const avatarImg = document.createElement("img");
-    avatarImg.src = getPlayerAvatar(seat);
-    avatarImg.alt = "";
-    avatarImg.style.cssText = "width: 6rem; height: 6rem; border-radius: 50%; object-fit: cover;";
-    const changeBtn = document.createElement("button");
-    changeBtn.type = "button";
-    changeBtn.textContent = "アバター変更";
-    changeBtn.style.cssText = "padding: 0.3rem 0.8rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(148,163,184,0.3); border-radius: 0.3rem; color: #e2e8f0; cursor: pointer; font-size: 0.8rem;";
-    changeBtn.addEventListener("click", () => avatarPickerFn?.());
-    avatarWrap.appendChild(avatarImg);
-    avatarWrap.appendChild(changeBtn);
-    body.appendChild(avatarWrap);
+// ユーザー要望（続き74）「プロフィール／マイページを画面全体版に作り直す」への対応で、
+// モーダル(buildPanel)・画面全体版(profile-page.js)の両方から呼べるよう、中身を
+// 作る部分だけを独立した関数として切り出した（アバター・プレイヤー名・戦績の
+// 取得ロジック自体は完全に共通、見た目の器（モーダルか画面全体か）だけが違う）。
+export async function renderMyPageBody(body, close) {
+  body.innerHTML = "";
 
-    body.appendChild(buildStatRow("プレイヤー名", getPlayerName(seat)));
+  const seat = getSelfSeat();
+  const avatarWrap = document.createElement("div");
+  avatarWrap.style.cssText = "display: flex; flex-direction: column; align-items: center; gap: 0.5rem; margin-bottom: 1rem;";
+  const avatarImg = document.createElement("img");
+  avatarImg.src = getPlayerAvatar(seat);
+  avatarImg.alt = "";
+  avatarImg.style.cssText = "width: 6rem; height: 6rem; border-radius: 50%; object-fit: cover;";
+  const changeBtn = document.createElement("button");
+  changeBtn.type = "button";
+  changeBtn.textContent = "アバター変更";
+  changeBtn.style.cssText = "padding: 0.3rem 0.8rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(148,163,184,0.3); border-radius: 0.3rem; color: #e2e8f0; cursor: pointer; font-size: 0.8rem;";
+  changeBtn.addEventListener("click", () => avatarPickerFn?.());
+  avatarWrap.appendChild(avatarImg);
+  avatarWrap.appendChild(changeBtn);
+  body.appendChild(avatarWrap);
 
-    const statusEl = document.createElement("div");
-    statusEl.textContent = "戦績を読み込み中…";
-    statusEl.style.cssText = "text-align: center; color: #94a3b8; padding: 0.8rem 0;";
-    body.appendChild(statusEl);
+  body.appendChild(buildStatRow("プレイヤー名", getPlayerName(seat)));
 
-    const user = await getCurrentUser();
-    if (!user) {
-      statusEl.innerHTML = "";
-      const loginMsg = document.createElement("div");
-      loginMsg.textContent = "ログインすると戦績（対戦数・勝率・順位等）が表示されます。";
-      loginMsg.style.cssText = "margin-bottom: 0.5rem;";
-      const loginBtn = document.createElement("button");
-      loginBtn.type = "button";
-      loginBtn.textContent = "ログインする";
-      loginBtn.style.cssText =
-        "padding: 0.4rem 0.9rem; background: #be185d; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.85rem;";
-      loginBtn.addEventListener("click", () => {
-        close();
-        openOnlinePanel();
-      });
-      statusEl.appendChild(loginMsg);
-      statusEl.appendChild(loginBtn);
-      return;
-    }
+  const statusEl = document.createElement("div");
+  statusEl.textContent = "戦績を読み込み中…";
+  statusEl.style.cssText = "text-align: center; color: #94a3b8; padding: 0.8rem 0;";
+  body.appendChild(statusEl);
 
-    // ユーザー要望「ショップ画面とマイページにアイテムコンプリート率を表示したい」。
-    // 戦績システムとの連携状況とは無関係（アカウントの通貨/所持アイテムの話のため）に、
-    // ログインさえしていれば常に表示する。
-    const { owned, total, percent } = getShopCompletionStats();
-    body.appendChild(buildStatRow("アイテムコンプリート率", `${percent}%（${owned}/${total}）`));
-
-    let profile;
-    try {
-      profile = await fetchStatsProfile(user.id);
-    } catch (err) {
-      console.error("fetchStatsProfile failed", err);
-      statusEl.textContent = "戦績の取得に失敗しました。通信環境を確認してください。";
-      return;
-    }
-
-    if (!profile.linked) {
-      statusEl.innerHTML = "";
-      statusEl.style.textAlign = "left";
-      const linkMsg = document.createElement("div");
-      linkMsg.textContent =
-        "まだ戦績管理システムのプレイヤーと連携していません。既に登録済みの方は下のボタンから連携できます（未登録の方は、オンライン対戦に参加すると自動的に新規登録されます）。";
-      linkMsg.style.cssText = "margin-bottom: 0.5rem; line-height: 1.5;";
-      const linkBtn = document.createElement("button");
-      linkBtn.type = "button";
-      linkBtn.textContent = "連携する";
-      linkBtn.style.cssText = "padding: 0.4rem 0.9rem; background: #be185d; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.85rem;";
-      linkBtn.addEventListener("click", () => {
-        close();
-        openStatsPlayerLinkModal();
-      });
-      statusEl.appendChild(linkMsg);
-      statusEl.appendChild(linkBtn);
-      return;
-    }
-
-    statusEl.remove();
-    const rankText = (rank) => (rank ? `${rank}位 / ${profile.totalRankedPlayers}人中` : "集計対象外（承認待ち等）");
-    body.appendChild(buildStatRow("対戦数", `${profile.matchesCount}戦`));
-    body.appendChild(buildStatRow("勝利数", `${profile.winsCount}勝`));
-    body.appendChild(buildStatRow("勝率", `${profile.winRate}%`));
-    body.appendChild(buildStatRow("勝率順位", rankText(profile.winRateRank)));
-    body.appendChild(buildStatRow("対戦数順位", rankText(profile.matchCountRank)));
-    body.appendChild(buildStatRow("登録年月日", formatDate(profile.createdAt)));
-    body.appendChild(buildStatsSyncRow(seat));
+  const user = await getCurrentUser();
+  if (!user) {
+    statusEl.innerHTML = "";
+    const loginMsg = document.createElement("div");
+    loginMsg.textContent = "ログインすると戦績（対戦数・勝率・順位等）が表示されます。";
+    loginMsg.style.cssText = "margin-bottom: 0.5rem;";
+    const loginBtn = document.createElement("button");
+    loginBtn.type = "button";
+    loginBtn.textContent = "ログインする";
+    loginBtn.style.cssText =
+      "padding: 0.4rem 0.9rem; background: #be185d; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.85rem;";
+    loginBtn.addEventListener("click", () => {
+      close();
+      openOnlinePanel();
+    });
+    statusEl.appendChild(loginMsg);
+    statusEl.appendChild(loginBtn);
+    return;
   }
 
-  panel._render = render;
-  return panel;
+  // ユーザー要望「ショップ画面とマイページにアイテムコンプリート率を表示したい」。
+  // 戦績システムとの連携状況とは無関係（アカウントの通貨/所持アイテムの話のため）に、
+  // ログインさえしていれば常に表示する。
+  const { owned, total, percent } = getShopCompletionStats();
+  body.appendChild(buildStatRow("アイテムコンプリート率", `${percent}%（${owned}/${total}）`));
+
+  let profile;
+  try {
+    profile = await fetchStatsProfile(user.id);
+  } catch (err) {
+    console.error("fetchStatsProfile failed", err);
+    statusEl.textContent = "戦績の取得に失敗しました。通信環境を確認してください。";
+    return;
+  }
+
+  if (!profile.linked) {
+    statusEl.innerHTML = "";
+    statusEl.style.textAlign = "left";
+    const linkMsg = document.createElement("div");
+    linkMsg.textContent =
+      "まだ戦績管理システムのプレイヤーと連携していません。既に登録済みの方は下のボタンから連携できます（未登録の方は、オンライン対戦に参加すると自動的に新規登録されます）。";
+    linkMsg.style.cssText = "margin-bottom: 0.5rem; line-height: 1.5;";
+    const linkBtn = document.createElement("button");
+    linkBtn.type = "button";
+    linkBtn.textContent = "連携する";
+    linkBtn.style.cssText = "padding: 0.4rem 0.9rem; background: #be185d; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.85rem;";
+    linkBtn.addEventListener("click", () => {
+      close();
+      openStatsPlayerLinkModal();
+    });
+    statusEl.appendChild(linkMsg);
+    statusEl.appendChild(linkBtn);
+    return;
+  }
+
+  statusEl.remove();
+  const rankText = (rank) => (rank ? `${rank}位 / ${profile.totalRankedPlayers}人中` : "集計対象外（承認待ち等）");
+  body.appendChild(buildStatRow("対戦数", `${profile.matchesCount}戦`));
+  body.appendChild(buildStatRow("勝利数", `${profile.winsCount}勝`));
+  body.appendChild(buildStatRow("勝率", `${profile.winRate}%`));
+  body.appendChild(buildStatRow("勝率順位", rankText(profile.winRateRank)));
+  body.appendChild(buildStatRow("対戦数順位", rankText(profile.matchCountRank)));
+  body.appendChild(buildStatRow("登録年月日", formatDate(profile.createdAt)));
+  body.appendChild(buildStatsSyncRow(seat));
 }
 
 let openFn = null;

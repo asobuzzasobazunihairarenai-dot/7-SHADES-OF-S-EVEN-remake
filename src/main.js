@@ -6389,7 +6389,12 @@ function updateEndTurnButton() {
     endTurnButtonEl.style.display = "none";
     return;
   }
-  endTurnButtonEl.style.display = "flex";
+  // ユーザー要望（続き74）「自動処理モード時はターン終了を非表示にしてください」。
+  // 見た目を隠すだけで、この関数の残り（disabled判定・自動クリックのreconcile
+  // AutoEndTurn）はそのまま動かし続ける——非表示中もJSからの.click()は機能するため、
+  // 自動処理モードの自動ターン終了（下のreconcileAutoEndTurn参照）はこれまで通り
+  // 働く。緊急時の手動操作はoptions-menu.jsの「緊急ターン終了」ボタンに譲る。
+  endTurnButtonEl.style.display = isAutoProcessingEnabled() ? "none" : "flex";
   // オンライン中は「今誰のターンか」を明示し、自分の手番でない間は押せないようにする
   // （以前は誰でも他人のターンを終了させられてしまっていた）。ローカルモードは
   // 1人で全座席を操作する前提のため、従来通り常に有効・宛先の座席名を表示する。
@@ -6885,8 +6890,15 @@ async function animateHandShuffle(seat) {
   updateHandShuffleButton();
 }
 
+// ユーザー要望（続き74）「自動処理モード時は手札シャッフル/1枚ドロー/公開ドロー/
+// ターン終了を非表示にしてください」。これらはいずれも自動処理モードがフェイズ進行
+// ごと自動で代替する操作のため、手動版のボタンは不要かつ紛らわしい。緊急時の
+// エスケープハッチとして、ターン終了だけはoptions-menu.js側に「緊急ターン終了」を
+// 別途新設する（この関数はあくまで通常のターン終了ボタン自体を隠すだけ）。
 function updateHandShuffleButton() {
   if (!handShuffleButtonEl) return;
+  handShuffleButtonEl.style.display = isAutoProcessingEnabled() ? "none" : "flex";
+  if (isAutoProcessingEnabled()) return;
   const selfSeat = getSelfSeat();
   const handCount = getState().tokens.filter(
     (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === selfSeat
@@ -7029,7 +7041,7 @@ function buildDrawButton() {
 
 function updateDrawButton() {
   if (!drawButtonEl) return;
-  drawButtonEl.style.display = getState().turnPlayer ? "flex" : "none";
+  drawButtonEl.style.display = getState().turnPlayer && !isAutoProcessingEnabled() ? "flex" : "none";
 }
 
 let publicDrawButtonEl = null;
@@ -7092,7 +7104,7 @@ function buildPublicDrawButton() {
 
 function updatePublicDrawButton() {
   if (!publicDrawButtonEl) return;
-  publicDrawButtonEl.style.display = getState().turnPlayer ? "flex" : "none";
+  publicDrawButtonEl.style.display = getState().turnPlayer && !isAutoProcessingEnabled() ? "flex" : "none";
 }
 
 // --- 自分専用ステータス（手札枚数・名前・アバター） --------------------------------

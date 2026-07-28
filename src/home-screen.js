@@ -8,13 +8,16 @@
 // （online-ui.js/shop.jsの既存コード・見た目は一切変更しない）。それ以外の6枚は
 // クリックしても何も始まらず、「近日公開」の軽いトースト表示だけを返す。
 
+import { subscribe, getState } from "./state.js";
 import { openOnlinePanel } from "./online-ui.js";
 import { openShopPanel } from "./shop.js";
-// 注意: プロフィール／マイページは実は既存のmy-page.js（アバター変更・戦績表示等）が
-// 既に実装済みだが、モーダル形式のため今回のスコープ（ハブ画面のみ、フレンドリー
-// マッチ/ショップだけ実際に開く）では見送り、他の未実装3枚と同じ「近日公開」表示に
-// している（ユーザー要望「画面全体を使うようにしたい」との形式差があるため、
-// 画面全体版に作り直すかどうかは別途判断してもらう）。
+// ユーザー要望（続き74）「プロフィール／マイページは画面全体版にしましょう」への
+// 対応で新設したページ（profile-page.js、中身はmy-page.jsの既存ロジックを再利用）。
+import { openProfilePage } from "./profile-page.js";
+// ユーザー要望「図鑑については山札一覧をとりあえず流用してください」。deck-viewer.js
+// は元々「開発用ツール」と明記された既存のモーダルだが、「とりあえず」の指示のため
+// 画面全体版には作り直さず、そのまま配線するだけに留めた。
+import { openDeckViewer } from "./deck-viewer.js";
 
 let overlayEl = null;
 let toastEl = null;
@@ -26,8 +29,16 @@ const TILES = [
   { icon: "🏆", label: "フリーマッチ（ランク戦）", status: "soon" },
   { icon: "🛒", label: "ショップ", status: "ready", onOpen: () => openShopPanel() },
   { icon: "📊", label: "ランキング", status: "soon" },
-  { icon: "👤", label: "プロフィール／マイページ", status: "soon" },
-  { icon: "📖", label: "図鑑／ルールブック", status: "soon" },
+  {
+    icon: "👤",
+    label: "プロフィール／マイページ",
+    status: "ready",
+    onOpen: () => {
+      closeHomeScreen();
+      openProfilePage(() => openHomeScreen());
+    },
+  },
+  { icon: "📖", label: "図鑑／ルールブック", status: "ready", onOpen: () => openDeckViewer() },
   { icon: "📰", label: "お知らせ", status: "soon" },
 ];
 
@@ -104,3 +115,15 @@ export function closeHomeScreen() {
   toastEl = null;
   clearTimeout(toastTimer);
 }
+
+// ユーザー報告（続き74）「『ゲームを開始する』を押してもホーム画面が消えません」。
+// online-ui.jsのinitOnlineUi()が部屋モーダル(#online-panel)を自動で閉じるのと
+// 全く同じ「turnPlayerがnull→非nullに変わった瞬間だけを検知する」パターンを、
+// ホーム画面自身にも独立して適用する（online-ui.js側の実装に依存せず、ホーム画面が
+// 開いている間はどの経路でゲームが始まってもここで確実に閉じる）。
+let wasGameStarted = false;
+subscribe(() => {
+  const started = Boolean(getState().turnPlayer);
+  if (started && !wasGameStarted && overlayEl) closeHomeScreen();
+  wasGameStarted = started;
+});

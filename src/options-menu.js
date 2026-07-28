@@ -38,7 +38,7 @@ import { openStatsPlayerLinkModal } from "./stats-player-link.js";
 import { fetchStatsProfile } from "./stats-profile.js";
 import { isFlatten2dMode, setFlatten2dMode } from "./tablet-2d-mode.js";
 import { getOptionArea } from "./option-area.js";
-import { getState, requestAutoProcessingToggle } from "./state.js";
+import { getState, requestAutoProcessingToggle, nextTurn } from "./state.js";
 import { getFinalLockApprovalOrder } from "./board-layout.js";
 
 function buildMenuItem(label, onClick) {
@@ -707,6 +707,33 @@ export function initOptionsMenu() {
             }
           );
           content.appendChild(autoProcessingCheckboxRow);
+
+          // ユーザー要望（続き74）「自動処理モード時は手札シャッフル/1枚ドロー/公開
+          // ドロー/ターン終了を非表示にしてください。緊急のバグ発生時用としてオプ
+          // ションの基本設定の中に『緊急ターン終了』ボタンを新設してください」。
+          // 自動処理モードが自動でターンを終了してくれない不具合が起きた場合の
+          // 最後の逃げ道として、通常のターン終了ボタン（自分の手番/優先権チェックで
+          // 無効化され得る）を経由せず、state.jsのnextTurn()を直接叩く——「通常の
+          // チェックが壊れている状況」への対処が目的のため、あえてそのチェックを
+          // 迂回する。誤操作防止に確認ダイアログを挟む。通常のターン終了ボタンが
+          // 表示されている間（自動処理OFF）は不要なので、自動処理ONの間だけ出す。
+          if (isAutoProcessingEnabled()) {
+            const emergencyBtn = document.createElement("button");
+            emergencyBtn.type = "button";
+            emergencyBtn.textContent = "🚨 緊急ターン終了";
+            emergencyBtn.style.cssText =
+              "margin-top: 0.6rem; padding: 0.4rem 0.8rem; background: rgba(220, 38, 38, 0.15); " +
+              "border: 1px solid rgba(220, 38, 38, 0.5); border-radius: 0.3rem; color: #fca5a5; " +
+              "cursor: pointer; font-size: 0.8rem; width: 100%; box-sizing: border-box;";
+            emergencyBtn.title =
+              "自動処理モードでターンが自動終了しない等の不具合が起きた時のための緊急手段です。通常の確認（自分の手番かどうか等）を行わずに強制的にターンを終了します。";
+            emergencyBtn.addEventListener("click", () => {
+              if (confirm("緊急ターン終了を実行します。通常の確認を行わずに強制的にターンを終了しますが、よろしいですか？")) {
+                nextTurn();
+              }
+            });
+            content.appendChild(emergencyBtn);
+          }
         },
         {
           icon: "⚙️",
