@@ -5096,6 +5096,20 @@ body.diagnostic-flatten-3d .zone-first,
 body.diagnostic-flatten-3d .zone-discard {
   z-index: 2;
 }
+/* 続き69: 上の「駒は.board、z-index:2の中にあるため元々問題無い」という判断は
+   プレイマットとの比較に限った話で不十分だった。ユーザー報告「盤に49枚並べた直後の
+   盤面で、駒が見えておらず、駒を移動させたりすると見えるようになる」——セットアップ
+   直後は全49マスにカード(.board-card)が置かれた状態になるが、同じ.cell内でDOM順は
+   駒(.piece)が先・カードが後のため、z-index指定の無い者同士では後発のカードが手前に
+   描画され、駒が完全にカードの下へ隠れてしまっていた（通常の3D表示では駒の実際の
+   高さ(translateZ)によるpreserve-3dの奥行き合成がこのDOM順を覆い隠していたが、続き67で
+   上面のtransformを無効化した2D平坦化環境ではその奥行き合成が働かず、単純なDOM順に
+   フォールバックしてしまう）。駒を動かすと見えるようになるのは、移動先のマスに同じ
+   競合が無い、または再描画でDOM順の効果がたまたま変わるため。駒自体にカードより
+   確実に手前へ来るz-indexを与えて解決する。 */
+body.diagnostic-flatten-3d .piece {
+  z-index: 3;
+}
 /* 壁を消した分、上面だけでも駒だとひと目でわかるよう縁取りを足す（山(.stack-top)には
    既存のborderがあるため対象外）。 */
 body.diagnostic-flatten-3d .piece-top {
