@@ -5777,6 +5777,27 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   box-shadow: 0 0 1.5rem rgba(250, 204, 21, 0.5), 0 20px 50px rgba(0, 0, 0, 0.6);
 }
 
+/* ゲストログイン前の注意確認（続き83、opening-screen.jsのconfirmGuestLogin）。
+   #touch-action-confirm-modalと同じ「中央固定・.contact-approval-*クラスを
+   使い回す」構成。注意喚起の意味合いを強めるため、他の確認モーダル（金色系）とは
+   別の赤系の縁取りにする。 */
+#guest-login-confirm-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(26rem, 90vw);
+  z-index: 10611;
+  background: linear-gradient(160deg, #3f1414, #1c0808);
+  border: 2px solid #f87171;
+  border-radius: 0.7rem;
+  padding: 1rem 1.4rem;
+  text-align: center;
+  font-family: sans-serif;
+  color: #fef2f2;
+  box-shadow: 0 0 1.5rem rgba(248, 113, 113, 0.5), 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+
 /* 手品師の技専用（ユーザー要望「儀式的に相手の手札が裏向きの状態のまま画面中央に
    拡大表示されてその中から選ぶ方式にしたい」、main.jsのrequestOpponentHandRitualPick）。
    紫系にして他の確認モーダル（金色系）と見分けやすくする。 */
@@ -8787,4 +8808,55 @@ body.reduce-glow .cell.card-effect-placement-target {
 }
 #anytime-interrupt-resume-button:hover {
   background: rgba(250, 204, 21, 0.3);
+}
+
+/* ユーザー要望（続き83）「スマホ画面での画面中央に出てくるモーダルが全体的に小さく
+   感じる。管理者モードで大きさを調整できるようにしたい」。この手のモーダルは
+   ファイルをまたいで20種類以上あるが、ほぼ全て「position:fixed; top:50%; left:50%;
+   transform:translate(-50%, -50%)」という同じ中央固定パターンを個別に持っている
+   （各ファイルの元のルールはそのまま、ここでは一括りにできる新しい共通の悩み
+   （拡大率）にだけ対応する）。1つ1つに個別のスマホ用ルールを書くと20箇所以上の
+   重複になるため、ここで対象を1つのセレクタ一覧にまとめ、body.is-phone-device
+   限定で拡大率を掛け合わせるだけの薄い上書きにした。.hand-effect-option-picker・
+   .card-received-modalは元々scale(0.9)/scale(0.85)を個別に持っているため、
+   その基準倍率を保ったまま追加で掛け合わせる（calc()での乗算）。 */
+body.is-phone-device #options-menu-card-preview-demo,
+body.is-phone-device #stack-modal,
+body.is-phone-device #confirm-modal,
+body.is-phone-device #contact-confirm-modal,
+body.is-phone-device #contact-result-modal,
+body.is-phone-device #card-note-modal,
+body.is-phone-device #icon-action-detail-modal,
+body.is-phone-device #currency-about-panel,
+body.is-phone-device #help-panel,
+body.is-phone-device #help-item-modal,
+body.is-phone-device #background-picker-modal,
+body.is-phone-device #avatar-picker-modal,
+body.is-phone-device #first-login-profile-modal,
+body.is-phone-device #final-lock-approval-banner,
+body.is-phone-device #contact-approval-modal,
+body.is-phone-device #touch-action-confirm-modal,
+body.is-phone-device #sleight-ritual-modal,
+body.is-phone-device .phase-skip-modal,
+body.is-phone-device .declare-colors-modal,
+body.is-phone-device #victory-modal,
+body.is-phone-device #rank-up-modal,
+body.is-phone-device #opening-login-info-modal,
+body.is-phone-device #ranking-info-modal {
+  transform: translate(-50%, -50%) scale(var(--center-modal-scale-phone, 1));
+}
+body.is-phone-device .card-received-modal {
+  transform: translate(-50%, -50%) scale(calc(0.85 * var(--center-modal-scale-phone, 1)));
+}
+body.is-phone-device .hand-effect-option-picker {
+  transform: translate(-50%, -50%) scale(calc(0.9 * var(--center-modal-scale-phone, 1)));
+}
+/* オプションのドロップダウン（#options-menu-panel）は画面中央固定ではなく右上
+   アイコンから吊り下がる別方式のため、上の一括調整には含まれない——ユーザー
+   要望通り、こちらだけ別のつまみ（--options-menu-scale-phone）を用意する。
+   アンカー（右上の呼び出しボタン直下）を基準点に保つためtransform-originは
+   右上にする。 */
+body.is-phone-device #options-menu-panel {
+  transform-origin: top right;
+  transform: scale(var(--options-menu-scale-phone, 1));
 }

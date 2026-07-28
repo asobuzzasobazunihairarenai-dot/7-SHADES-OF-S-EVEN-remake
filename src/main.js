@@ -2634,8 +2634,18 @@ function pickRandomFromOpponentHandForEffect(targetPlayer) {
 // できない（ゲート侵攻ボーナスも処理中に含まれる）」。ゲート侵攻だけでなく、
 // 他の効果の対象選択待ち（activeEffectPicker）・手札効果の解決中
 // （phase-automation.jsのhandEffectBusy）も全て「処理中」に含まれる。
+// ユーザー報告（続き83）「『いつでも使える』の使うか確認モーダルが出ている最中に
+// ターンが切り替わってしまった。完全にモーダルが閉じられるまではほかの自動処理は
+// ストップしなければならない」への対応で、このモーダル自体の表示中
+// （anytimeInterruptModalEl）も「処理中」に含める。
 export function isAnyEffectProcessingBusy() {
-  return isGateInvasionPending() || isGateInvasionQueueActive() || isHandEffectBusy() || activeEffectPicker !== null;
+  return (
+    isGateInvasionPending() ||
+    isGateInvasionQueueActive() ||
+    isHandEffectBusy() ||
+    activeEffectPicker !== null ||
+    anytimeInterruptModalEl !== null
+  );
 }
 
 // --- 「いつでも使える」割り込みチェックポイント（続き76、予約制の廃止／続き77で拡張） ---
@@ -2756,7 +2766,18 @@ function showAnytimeInterruptModal(player, tokens) {
       anytimeInterruptQueue = [];
       closeAnytimeInterruptModal();
       render();
-      runAutoHandEffect(token.cardId, token.id, player);
+      // ユーザー報告（続き83）「相手のターン中にスリカエで割り込んだ時、使用後に
+      // 相手に優先権が戻らず自分のタイムアウトをただ待つ状況になった」の原因:
+      // respondToContact・delegateToPlayerForEffectは「一時的に優先権を相手へ移し、
+      // 終わったら手番プレイヤーへ戻す」を必ず行っているが、この「いつでも使える」
+      // 割り込みの実行経路（このuseBtnクリック）だけは元々優先権に一切触れて
+      // いなかった。手番プレイヤー以外が割り込んだ場合、その解決の間だけ優先権を
+      // 割り込んだ本人へ移し、終わったら手番プレイヤーへ戻す（同じ考え方）。
+      const turnPlayer = getState().turnPlayer;
+      if (turnPlayer) transferPriorityTo(player);
+      runAutoHandEffect(token.cardId, token.id, player).finally(() => {
+        if (turnPlayer) transferPriorityTo(turnPlayer);
+      });
     });
     row.appendChild(useBtn);
     list.appendChild(row);
@@ -3769,6 +3790,11 @@ async function respondToContact(approve) {
   // 問い合わせ直さずそのまま特定できる。
   const defenderPieceId = getState().tokens.find((t) => t.kind === "piece" && t.player === defender)?.id;
   const attackerPieceId = getState().tokens.find((t) => t.kind === "piece" && t.player === attacker)?.id;
+  // ユーザー報告「Aが既にBのゲートにいるためBが強制移動で帰れない場合、優先権が
+  // Bに移ったままAに戻らずタイムアウトになった」の原因を追うために、強制移動前の
+  // 駒の位置を確保しておく（state.jsのRESPOND_CONTACTは「1マスに駒は1つ」の原則で
+  // ゲートが埋まっている場合はdefenderの駒を一切動かさない仕様——ユーザー確認済み）。
+  const defenderLocationBefore = getState().tokens.find((t) => t.id === defenderPieceId)?.location ?? null;
   const defenderHandBefore = getState().tokens.filter(
     (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === defender
   );
@@ -3936,7 +3962,25 @@ async function respondToContact(approve) {
       // ユーザー要望（続き76/77）「接触処理の直後にも割り込みモーダルを出す」。
       fireAnytimeCheckpoint(defender);
     };
-    if (defenderPiece)
+    // ユーザー報告（続き83）「Aが既にBのゲートにいてBが強制移動で帰れない場合、
+    // 優先権がBに移ったままAに戻らずタイムアウトになった」の原因: state.jsの
+    // RESPOND_CONTACT側は「1マスに駒は1つ」の原則でゲートが埋まっている場合
+    // defenderの駒を一切動かさない仕様だが、ここでは移動の有無を見ずに常に
+    // maybeTriggerCardArrival(defenderPiece.location, ...)を呼んでいたため、
+    // 実際には動いていない（＝ずっと前からそこに立っている、既に到達済みの）
+    // 駒についてもう一度到達効果を再発火させてしまっていた。この「本来起きて
+    // いないはずの到達」の再処理が完了しない・選択待ちのまま埋もれる等で、
+    // onFullyResolved（finishContactResolution）が呼ばれず優先権が戻らなかった
+    // と考えられる。強制移動が実際に起きた場合（位置が変わった場合）だけ到達
+    // 判定を行うようにし、動かなかった場合は到達判定自体をスキップして直接
+    // 解決する。
+    const defenderActuallyMoved =
+      defenderPiece &&
+      defenderLocationBefore &&
+      (defenderLocationBefore.zone !== defenderPiece.location.zone ||
+        defenderLocationBefore.row !== defenderPiece.location.row ||
+        defenderLocationBefore.col !== defenderPiece.location.col);
+    if (defenderPiece && defenderActuallyMoved)
       maybeTriggerCardArrival(defenderPiece.location, defenderPiece.id, undefined, finishContactResolution);
     else {
       finishContactResolution();
@@ -6655,6 +6699,11 @@ function computeShouldEmphasize() {
   const gateInvasionQueueActive = isGateInvasionQueueActive();
   const handEffectBusyNow = isHandEffectBusy();
   const pickerActive = activeEffectPicker !== null;
+  // ユーザー報告（続き83）「『いつでも使える』の使うか確認モーダルが出ている最中に
+  // ターンが切り替わってしまった」。isAnyEffectProcessingBusy()には既に追加済みだが、
+  // computeShouldEmphasize()自体は同じ判定を（診断ログの内訳表示のため）自前で
+  // 再計算しているため、ここにも同じ理由で追加する必要がある。
+  const anytimeInterruptModalShowing = anytimeInterruptModalEl !== null;
   const result =
     autoProcessingEnabled &&
     !endTurnDisabled &&
@@ -6671,7 +6720,7 @@ function computeShouldEmphasize() {
     // 場合や、ゲート侵攻ボーナスの通知ポップアップが続いている場合など、同じ
     // 「まだ何か処理中なのに安全と誤判定してターンを終了してしまう」構造の抜け漏れが
     // 他にもあり得るため、既存のこの判定にもそのまま乗せることで網羅的にする。
-    !(gateInvasionPending || gateInvasionQueueActive || handEffectBusyNow || pickerActive);
+    !(gateInvasionPending || gateInvasionQueueActive || handEffectBusyNow || pickerActive || anytimeInterruptModalShowing);
   if (result !== lastShouldEmphasizeLogged) {
     lastShouldEmphasizeLogged = result;
     logAction("diag-should-emphasize", {
@@ -6686,6 +6735,7 @@ function computeShouldEmphasize() {
       gateInvasionQueueActive,
       handEffectBusyNow,
       pickerActive,
+      anytimeInterruptModalShowing,
       turnPlayer: state.turnPlayer,
       priorityPlayer: state.priorityPlayer,
       selfSeat: getSelfSeat(),

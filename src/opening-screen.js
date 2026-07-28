@@ -334,6 +334,55 @@ function ensureInfoModal() {
   document.body.appendChild(infoModalEl);
 }
 
+// ユーザー要望（続き83）「『ゲストでログイン』を押した場合はランキングとか設定記憶
+// 等々の恩恵が受けられない旨の注意警告をバシッと表示しておいて」。既存の「i」
+// ボタンは任意でクリックしないと見えない案内のため、押す前に必ず目に入る
+// Yes/No確認モーダルを新設した。main.jsのconfirmTouchAction等と同じ
+// .contact-approval-*クラス（グローバルなCSS、style.css）を流用する。
+function confirmGuestLogin() {
+  return new Promise((resolve) => {
+    const backdrop = createBackdrop(() => resolve(false), { dim: true, zIndex: 10610 });
+    const modal = document.createElement("div");
+    modal.id = "guest-login-confirm-modal";
+
+    const title = document.createElement("div");
+    title.className = "contact-approval-title";
+    title.textContent = "⚠️ ゲストでログインする前に";
+    modal.appendChild(title);
+
+    const body = document.createElement("div");
+    body.className = "contact-approval-body";
+    body.textContent =
+      "ゲストログインでは、ランキングへの参加や、名前・アバター・駒スキン等の設定の記憶といった恩恵を受けられません。" +
+      "また、一度ログアウトしたり別の端末・別のブラウザからアクセスすると、このアカウントには二度と戻れません。";
+    modal.appendChild(body);
+
+    const buttons = document.createElement("div");
+    buttons.className = "contact-approval-buttons";
+    const finish = (result) => {
+      backdrop.remove();
+      modal.remove();
+      resolve(result);
+    };
+    const yesBtn = document.createElement("button");
+    yesBtn.type = "button";
+    yesBtn.className = "contact-approval-approve";
+    yesBtn.textContent = "承知の上でゲストで始める";
+    yesBtn.addEventListener("click", () => finish(true));
+    const noBtn = document.createElement("button");
+    noBtn.type = "button";
+    noBtn.className = "contact-approval-reject";
+    noBtn.textContent = "やめる";
+    noBtn.addEventListener("click", () => finish(false));
+    buttons.appendChild(yesBtn);
+    buttons.appendChild(noBtn);
+    modal.appendChild(buttons);
+
+    document.body.appendChild(backdrop);
+    document.body.appendChild(modal);
+  });
+}
+
 function openInfoModal(title, paragraphs) {
   ensureInfoModal();
   infoModalTitleEl.textContent = title;
@@ -675,18 +724,64 @@ export function initOpeningScreen() {
       card.appendChild(testModeHint);
     }
 
-    // 未ログイン: ゲストログインを主目的にした画面。
+    // ユーザー要望（続き83）「Googleでログインを大きく表示して、ゲストでログインは
+    // 小さくしておこう」。以前は逆（ゲストログインを主目的にした画面、ゲストが
+    // primary/Googleがsecondary）だったが、アカウントを引き継げる手段を優先する
+    // 方針に変更した——見た目（.opening-login-primary-btn/-secondary-btn）だけで
+    // なく、DOM順もGoogleを先に出す。
     const status = document.createElement("div");
     status.className = "opening-login-status";
+
+    const googleRow = document.createElement("div");
+    googleRow.className = "opening-login-primary-row";
+
+    const googleBtn = document.createElement("button");
+    googleBtn.type = "button";
+    googleBtn.className = "opening-login-primary-btn";
+    googleBtn.textContent = "Googleでログイン";
+    googleBtn.addEventListener("click", async () => {
+      googleBtn.disabled = true;
+      setAwaitingLoginRedirect(true);
+      try {
+        await signInWithGoogle();
+      } catch (err) {
+        setAwaitingLoginRedirect(false);
+        status.textContent = `エラー: ${err.message ?? err}`;
+        googleBtn.disabled = false;
+      }
+    });
+    googleRow.appendChild(googleBtn);
+
+    const googleInfoBtn = document.createElement("button");
+    googleInfoBtn.type = "button";
+    googleInfoBtn.className = "opening-login-info-btn";
+    googleInfoBtn.textContent = "i";
+    googleInfoBtn.title = "アカウントでログインするメリット";
+    googleInfoBtn.addEventListener("click", () => {
+      openInfoModal("アカウントでログインするメリット", [
+        "名前・アバター・駒スキンなどの設定が、別の端末・別のブラウザからログインしても引き継がれます。",
+        "戦績管理システムのプレイヤーとの連携も、アカウントに紐づけて保存されるため、次にログインした時も選び直す必要がありません。",
+        "ゲストログインと違い、ログアウトしたり端末を変えたりしても、同じアカウントとして続けて遊べます。",
+      ]);
+    });
+    googleRow.appendChild(googleInfoBtn);
+
+    card.appendChild(googleRow);
+    card.appendChild(status);
 
     const primaryRow = document.createElement("div");
     primaryRow.className = "opening-login-primary-row";
 
     const guestBtn = document.createElement("button");
     guestBtn.type = "button";
-    guestBtn.className = "opening-login-primary-btn";
+    guestBtn.className = "opening-login-secondary-btn";
     guestBtn.textContent = "ゲストでログイン";
     guestBtn.addEventListener("click", async () => {
+      // ユーザー要望（続き83）「『ゲストでログイン』を押した場合はランキングとか
+      // 設定記憶等々の恩恵が受けられない旨の注意警告をバシッと表示しておいて」。
+      // 既存のiボタンは押さないと見えないため、実際にログインする前に必ず
+      // 目に入る確認モーダルを挟む（confirmGuestLogin参照）。
+      if (!(await confirmGuestLogin())) return;
       guestBtn.disabled = true;
       status.textContent = "ログイン中...";
       try {
@@ -718,51 +813,12 @@ export function initOpeningScreen() {
         "ただし一度ログアウトしたり、別の端末・別のブラウザからアクセスすると同じアカウントには" +
           "戻れません（ゲストアカウントを後から引き継ぐ手段は現在ありません）。",
         "何度も遊ぶ予定がある場合や、名前・アバター・駒スキン等の設定を長く使い続けたい場合は、" +
-          "下の「その他のログイン方法」からGoogleでログインすることをおすすめします。",
+          "上のGoogleでログインすることをおすすめします。",
       ]);
     });
     primaryRow.appendChild(infoBtn);
 
     card.appendChild(primaryRow);
-    card.appendChild(status);
-
-    // ユーザー要望「ゲストでログインの下にGoogleでログインを出したい。そこにiマークで
-    // アカウントでログインするとこんないいことあるよの説明を書きたい」への対応。
-    // 以前は折りたたみの「その他のログイン方法」の中（マジックリンクと一緒）に
-    // 隠れていたが、案内をより目立たせるためゲストログインのすぐ下に常設した。
-    const googleRow = document.createElement("div");
-    googleRow.className = "opening-login-primary-row";
-
-    const googleBtn = document.createElement("button");
-    googleBtn.type = "button";
-    googleBtn.className = "opening-login-secondary-btn";
-    googleBtn.textContent = "Googleでログイン";
-    googleBtn.addEventListener("click", async () => {
-      googleBtn.disabled = true;
-      setAwaitingLoginRedirect(true);
-      try {
-        await signInWithGoogle();
-      } catch (err) {
-        setAwaitingLoginRedirect(false);
-        status.textContent = `エラー: ${err.message ?? err}`;
-        googleBtn.disabled = false;
-      }
-    });
-    googleRow.appendChild(googleBtn);
-
-    const googleInfoBtn = document.createElement("button");
-    googleInfoBtn.type = "button";
-    googleInfoBtn.className = "opening-login-info-btn";
-    googleInfoBtn.textContent = "i";
-    googleInfoBtn.title = "アカウントでログインするメリット";
-    googleInfoBtn.addEventListener("click", () => {
-      openInfoModal("アカウントでログインするメリット", [
-        "名前・アバター・駒スキンなどの設定が、別の端末・別のブラウザからログインしても引き継がれます。",
-        "戦績管理システムのプレイヤーとの連携も、アカウントに紐づけて保存されるため、次にログインした時も選び直す必要がありません。",
-        "ゲストログインと違い、ログアウトしたり端末を変えたりしても、同じアカウントとして続けて遊べます。",
-      ]);
-    });
-    googleRow.appendChild(googleInfoBtn);
     card.appendChild(googleRow);
 
     // その他のログイン方法（右下、折りたたみ）: マジックリンクをここに格納する。
