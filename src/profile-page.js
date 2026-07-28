@@ -17,7 +17,9 @@ export function openProfilePage(onClose) {
   const backBtn = document.createElement("button");
   backBtn.type = "button";
   backBtn.id = "profile-page-back";
-  backBtn.textContent = "← ホームへ戻る";
+  // ユーザー指摘（続き84）「戻る場所はホームとは限らない（オプションエリアの
+  // アイコンから直接開く経路もある）ので単に『戻る』でいい」。
+  backBtn.textContent = "← 戻る";
   backBtn.addEventListener("click", () => {
     closeProfilePage();
     onClose?.();

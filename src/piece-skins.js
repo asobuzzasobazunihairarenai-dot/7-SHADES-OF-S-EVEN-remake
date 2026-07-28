@@ -58,6 +58,15 @@ function getSkinCost(idx) {
   return 80;
 }
 
+// getSkinImagePath()と同じパス組み立てロジックを、任意の色・バリエーション番号に
+// ついて呼べる形で切り出したもの（続き84、ショップの色スウォッチ切り替え用）。
+function skinImagePathFor(color, variant) {
+  return variant === 0 ? `assets/pieces/${color}.webp` : `assets/pieces/${color}-${variant}.webp`;
+}
+export function getSkinImagePathForVariant(color, variant) {
+  return skinImagePathFor(color, variant);
+}
+
 // shop-content.js（ショップのカタログ）がこのまま使えるよう、このモジュール自身の
 // SKIN_VARIANTS/NAMED_SKIN_LABELSを唯一の正としてitem一覧を組み立てて返す（二重管理を
 // 避けるため、ラベル・変化数はここだけが持つ）。
@@ -69,7 +78,14 @@ export function getSkinShopItems() {
     // ショップの一覧は特定プレイヤーの実際の色に依存させず、常に同じ代表色
     // （PREVIEW_FALLBACK_COLOR、ピッカーの「まだ色が決まっていない間」と同じ考え方）で
     // プレビューする。
-    imagePath: variant === 0 ? `assets/pieces/${PREVIEW_FALLBACK_COLOR}.webp` : `assets/pieces/${PREVIEW_FALLBACK_COLOR}-${variant}.webp`,
+    imagePath: skinImagePathFor(PREVIEW_FALLBACK_COLOR, variant),
+    // ユーザー要望（続き84）「駒スキンは1種類につき7色あるが、今は赤しか見えていない。
+    // 7色見られるようにしたい」。variant・7色分の候補をshop.js側へ渡し、サムネイル下の
+    // 色スウォッチをクリックした時にプレビュー画像だけをその場で差し替えられるようにする
+    // （実際に使う色はファーストカードで決まるゲーム内の色そのものなので、ここでの色選択は
+    // あくまで見た目の確認用）。
+    variant,
+    previewColors: COLORS,
   }));
 }
 

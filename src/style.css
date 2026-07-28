@@ -3824,6 +3824,31 @@ body.is-phone-device #options-menu-button {
   background: linear-gradient(160deg, #93c5fd, #2563eb);
   color: #0b1f45;
 }
+/* 駒スキンの色スウォッチ（続き84、shop.js参照）。ユーザー報告「駒スキンは1種類に
+   つき7色あるが今は赤しか見えていない」への対応。サムネイル下に7色の小さな丸を
+   並べ、クリックでそのカードの画像だけを差し替える（見た目の確認用、実際の色は
+   ファーストカードで決まる）。 */
+.shop-item-color-swatches {
+  display: flex;
+  justify-content: center;
+  gap: 0.3rem;
+}
+.shop-item-color-swatch {
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  background: var(--swatch-color);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  padding: 0;
+  cursor: pointer;
+}
+.shop-item-color-swatch:hover {
+  border-color: rgba(255, 255, 255, 0.55);
+}
+.shop-item-color-swatch.is-active {
+  border-color: #fff;
+  box-shadow: 0 0 0 0.15rem rgba(255, 255, 255, 0.3);
+}
 .shop-item-card-label {
   font-size: 0.85rem;
   font-weight: bold;

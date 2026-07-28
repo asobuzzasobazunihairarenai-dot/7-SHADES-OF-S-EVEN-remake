@@ -17,6 +17,7 @@ import { createModalCloseX } from "./ui-helpers.js";
 import { getCachedUser, getMyCurrencyBalance, isItemUnlocked, purchaseItem } from "./online.js";
 import { refreshCurrencyDisplay } from "./currency-display.js";
 import { SHOP_CATEGORIES, getShopCompletionStats } from "./shop-content.js";
+import { getSkinImagePathForVariant } from "./piece-skins.js";
 
 let panelEl = null;
 let balanceEl = null;
@@ -76,6 +77,36 @@ function buildItemCard(item) {
     thumb.appendChild(lockBadge);
   }
   card.appendChild(thumb);
+
+  // ユーザー要望（続き84）「駒スキンは1種類につき7色あるが、今は赤しか見えていない。
+  // 7色見られるようにしたい」。piece-skins.jsのgetSkinShopItems()が付けている
+  // previewColors/variantがある項目（駒スキンのみ）だけ、サムネイル下に色スウォッチの
+  // 行を出す。クリックするとそのカードの画像だけをその場で差し替える（実際に使う色は
+  // ファーストカードで決まるため、ここでの色選択は見た目の確認用）。
+  if (item.previewColors && typeof item.variant === "number") {
+    const swatchRow = document.createElement("div");
+    swatchRow.className = "shop-item-color-swatches";
+    let activeSwatch = null;
+    for (const color of item.previewColors) {
+      const swatch = document.createElement("button");
+      swatch.type = "button";
+      swatch.className = "shop-item-color-swatch";
+      swatch.style.setProperty("--swatch-color", `var(--color-${color})`);
+      swatch.title = color;
+      if (color === item.previewColors[0]) {
+        swatch.classList.add("is-active");
+        activeSwatch = swatch;
+      }
+      swatch.addEventListener("click", () => {
+        img.src = getSkinImagePathForVariant(color, item.variant);
+        activeSwatch?.classList.remove("is-active");
+        swatch.classList.add("is-active");
+        activeSwatch = swatch;
+      });
+      swatchRow.appendChild(swatch);
+    }
+    card.appendChild(swatchRow);
+  }
 
   const labelEl = document.createElement("div");
   labelEl.className = "shop-item-card-label";
