@@ -506,7 +506,7 @@ function isFewestLocked(player) {
 // 使用者から時計回りに効果を処理する」）: SEAT_ORDERをplayerから始まるように
 // 回転させる。プレゼント・色落ちキャット等、複数箇所で同じ回転を個別に書いて
 // いたのをここへ集約した。
-function rotatedActivePlayersFrom(player) {
+export function rotatedActivePlayersFrom(player) {
   const order = SEAT_ORDER.filter((p) => getState().activePlayers.includes(p));
   const startIdx = order.indexOf(player);
   return startIdx >= 0 ? [...order.slice(startIdx), ...order.slice(0, startIdx)] : order;
@@ -1382,7 +1382,7 @@ async function runHandEffectOption(ctx, option, helpers) {
   // ユーザー要望「手札効果を使用したら、このカードが使用されるよ！って知らしめる
   // モーダルをしっかりと出したい」。実際の状態変更（捨てる・コスト支払い等）より前、
   // 「このカードを使う」と決まった瞬間に出す。
-  helpers.announceUse?.(ctx.cardId, option.label);
+  helpers.announceUse?.(ctx.cardId, option.label, ctx.player);
   // ユーザー指摘: 手札効果は「原則まず最初にそのカードを捨てて効果を発動する」。
   // 凡例（docs/cards.md）「効果カード自身の処遇の記載がなければ、効果発動時に
   // このカードを捨てる」の「発動時に」は、追色コストの支払いやアクション実行より

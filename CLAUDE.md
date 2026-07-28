@@ -11091,4 +11091,60 @@ u=横方向・v=縦方向）にも使えるよう一般化した`rotateFraction(
   生成済みの要素でも呼ばれるたびに現在の親を確認し、バーが今は存在するなら都度
   付け替えるようにして解決した（実機で親要素の一致とバー直上への正しい表示を確認済み）。
 
+### 2026-07-28（続き77）：「いつでも使える」効果を予約制から宣言/処理チェックポイント方式へ全面刷新
+
+- **背景**: ユーザー要望「予約制は廃止したい。その代わり、宣言（ロック宣言・手札効果
+  使用宣言・接触宣言・移動宣言）の直後、処理（ロック処理・カード効果処理・接触処理・
+  移動処理）の直後に毎回、いつでも使えるカードを持っているプレイヤーには使うかどうかの
+  モーダルを出す」。3点の質問（モーダルの見た目・ブロッキングか・行動した本人も
+  対象か）への回答で仕様を固めた: ①「使う」ボタンでそのまま発動（複数枚あれば1つの
+  モーダルに全て並べる）。②数秒で自動的に閉じる非ブロッキング方式、処理順の原則
+  （時計回り）に沿って対象プレイヤーを1人ずつ順番に見せる。③行動した本人を含む全員
+  が対象。
+- **旧・予約制を完全に撤去**: `main.js`の`pendingAnytimeHandEffectReservation`・
+  `reserveAnytimeHandEffectUse`・`checkAnytimeHandEffectReservation`・
+  `showAnytimeHandEffectConfirmModal`とその呼び出し箇所（`render()`内の呼び出し、
+  `registerOnGateInvasionQueueDrained`への登録）を全て削除した。
+- **新・チェックポイント方式を実装**: `triggerAnytimeInterruptCheckpoint(afterPlayer)`
+  を新設し、以下6箇所（宣言4＋処理2、ロックと移動は元々コード上「宣言」と「処理」が
+  分かれていない単一の即時アクションのため処理完了時の1回のみ）から呼ぶようにした。
+  - 手札効果使用宣言（`announceHandEffectUseForEffect`）／手札効果処理完了
+    （`runAutoHandEffect`のfinally）
+  - 接触宣言（`openContactConfirmModal`のOK押下時）／接触処理完了
+    （`finishContactResolution`）
+  - ロック処理完了（`maybeAnnounceLock`）
+  - 移動処理完了（メインのドラッグ&ドロップハンドラ・`performPhaseMoveToCell`の
+    両方の到達判定後）
+  `isAnyEffectProcessingBusy()`（ゲート侵攻・手札効果処理中・対象選択待ちのいずれか）
+  で他の処理が進行中なら何もしない（予約なし、次のチェックポイント任せ——「処理中は
+  使用できない」といういつでも使える自体の定義と整合）。対象プレイヤーが持つ
+  いつでも使える手札は`getAnytimeUsableHandTokensFor(player)`で列挙し、1つのモーダル
+  （`#anytime-interrupt-modal`）にカードごと「使う」ボタン付きで並べる。押すと
+  `runAutoHandEffect`をそのまま起動する。モーダルは`ANYTIME_INTERRUPT_MODAL_DURATION_MS`
+  （6秒）で自動的に閉じ、閉じると`advanceAnytimeInterruptQueue()`が
+  `rotatedActivePlayersFrom(afterPlayer)`（オンラインでは自分の座席のみ）の順で次の
+  対象へ進む。「今後このモーダルを出さない」チェックボックスで`anytimeInterruptOptedOut`
+  をセットでき、以後チェックポイントは即座に何もしなくなる。フェイズ案内板に新設した
+  「🔔割り込みモーダル再開」ボタン（オプトアウト中のみ表示）で再度有効化できる。
+  `card-effect-engine.js`の`rotatedActivePlayersFrom`を`export`し、
+  `runHandEffectOption`が`helpers.announceUse?.(ctx.cardId, option.label, ctx.player)`
+  で実際の使用者を渡すよう修正（`getSelfSeat()`だけではローカル対戦で常に自席Aに
+  なってしまい、使用者が別プレイヤーの場面で誤るため）。
+- **スコープ上の割り切り（実装後にユーザーへ要説明）**: オンライン対戦では、手札効果
+  使用・接触の「宣言」は既存のbroadcast経路に乗せて全クライアントで発火させている
+  一方、ロック・移動・各種「処理完了」チェックポイントは今のところ行動した本人の
+  クライアントでしか発火しない（新しい専用broadcastが必要になるため今回は見送り。
+  ローカル対戦は1画面で全座席を操作するためこの制約を受けない）。
+- **実装中に発見・修正した非同期タイミングの不具合**: 最初の実装は移動チェックポイントを
+  `triggerCardArrival`/`maybeTriggerCardArrival`呼び出しの直後に同期的に呼んでいたが、
+  これらの関数は「到達効果を自動処理してよい」場合に`arrivalEffectAutoProcessing = true`
+  を**同期的に**（awaitより前に）立てるため、`isAnyEffectProcessingBusy()`が既に`true`に
+  なっており、毎回サイレントに（リトライなしで）ブロックされていた。両呼び出し箇所を、
+  到達効果の処理が完全に終わった後に呼ばれる`onFullyResolved`コールバック引数の中で
+  チェックポイントを呼ぶよう修正して解決した。実機で複数パターン（単純な到達効果・
+  「パーティー」の全員選択を挟む到達効果）を使い、駒移動→到達効果の完全解決→
+  正しいプレイヤー（時計回り）のいつでも使えるカードが載ったモーダル表示→「使う」で
+  実際に効果が発動、までを診断ログ（`diag-anytime-checkpoint`、恒久的に残す）付きで
+  確認済み。
+
 

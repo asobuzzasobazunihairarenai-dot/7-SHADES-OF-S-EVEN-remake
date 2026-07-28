@@ -8490,3 +8490,83 @@ body.reduce-glow .cell.card-effect-placement-target {
 .ranking-page-row-value {
   font-weight: bold;
 }
+
+/* 「いつでも使える」割り込みモーダル（続き76、src/main.js）。予約制の廃止に伴い新設。
+   非ブロッキング（数秒で自動的に閉じる、進行を止めない）ため、他の承認モーダルと違い
+   背景を暗くするbackdropは持たない——通知的な位置づけのcontact-result-modalと同じ
+   考え方。.contact-approval-titleクラスを流用している。 */
+#anytime-interrupt-modal {
+  position: fixed;
+  top: 6rem;
+  left: 50%;
+  transform: translate(-50%, 0);
+  width: min(22rem, 90vw);
+  z-index: 10450;
+  background: linear-gradient(160deg, #422006, #1c1004);
+  border: 2px solid #facc15;
+  border-radius: 0.7rem;
+  padding: 0.9rem 1.2rem;
+  text-align: center;
+  font-family: sans-serif;
+  color: #fef3c7;
+  box-shadow: 0 0 1.5rem rgba(250, 204, 21, 0.5), 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+#anytime-interrupt-modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+.anytime-interrupt-modal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 0.4rem;
+  padding: 0.3rem 0.6rem;
+}
+.anytime-interrupt-modal-row-name {
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+.anytime-interrupt-modal-row-use {
+  font-size: 0.8rem;
+  font-weight: bold;
+  padding: 0.3rem 0.9rem;
+  background: rgba(34, 172, 56, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.4rem;
+  color: #f0fdf4;
+  cursor: pointer;
+}
+.anytime-interrupt-modal-row-use:hover {
+  background: rgba(34, 172, 56, 1);
+}
+#anytime-interrupt-modal-optout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  color: rgba(254, 243, 199, 0.75);
+  cursor: pointer;
+}
+/* 「割り込みモーダル再開」ボタン（続き76）。フェイズ案内板の中に置き、「今後この
+   モーダルを出さない」を選んでいる間だけ表示する。 */
+#anytime-interrupt-resume-button {
+  align-self: center;
+  padding: 0.4rem 0.8rem;
+  background: rgba(250, 204, 21, 0.15);
+  border: 1px solid rgba(250, 204, 21, 0.5);
+  border-radius: 0.4rem;
+  color: #facc15;
+  font-family: sans-serif;
+  font-size: 0.75rem;
+  font-weight: bold;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#anytime-interrupt-resume-button:hover {
+  background: rgba(250, 204, 21, 0.3);
+}

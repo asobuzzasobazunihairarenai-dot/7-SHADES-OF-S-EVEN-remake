@@ -32,6 +32,7 @@ import {
   getMoveCandidates,
   getAnyCellWithCardCandidates,
   findSameColorDiscardCandidates,
+  rotatedActivePlayersFrom,
 } from "./card-effect-engine.js";
 import {
   reconcilePhaseAutomation,
@@ -1227,6 +1228,11 @@ onHandEffectUseEvents(({ fromPlayer, cardId, optionLabel }) => {
   if (fromPlayer === getSelfSeat()) return;
   showHandEffectUseModal(cardId, optionLabel);
   playSound("arrivalEffect");
+  // ユーザー要望（続き76）「手札効果使用宣言の直後にも割り込みモーダルを出す」。
+  // オンライン中、この宣言をした本人以外の全クライアントにもこの経路で届くため、
+  // ここでも自分自身のいつでも使えるカードを確認する（本人側はannounceHandEffect
+  // UseForEffect内で既に発火済み）。
+  triggerAnytimeInterruptCheckpoint(getSelfSeat());
 });
 // ユーザー要望（続き70）「試練の儀式やザギャンブルでの結果は相手にもモーダルで
 // 教えてあげてください」。使った本人は既にannounceEffectReasonForEffect内で
@@ -1451,7 +1457,7 @@ async function stealHandCardsRitualForGateInvasion(defender, count) {
 // broadcastHandEffectUseで他の全プレイヤーへも同じ通知を送る（onHandEffectUseEvents
 // 参照、自分自身の分は二重表示にならないよう除外している）。ローカル対戦は1画面
 // 共有のため、ローカル表示だけで全員に見えている。
-function announceHandEffectUseForEffect(cardId, optionLabel) {
+function announceHandEffectUseForEffect(cardId, optionLabel, player) {
   showHandEffectUseModal(cardId, optionLabel);
   // ユーザー要望「手札効果の使用が宣言されたときの効果音が欲しい。到達時の効果音を
   // 流用でよい」（続き62）。
@@ -1459,6 +1465,8 @@ function announceHandEffectUseForEffect(cardId, optionLabel) {
   if (isOnlineMode()) {
     broadcastHandEffectUse({ fromPlayer: getSelfSeat(), cardId, optionLabel });
   }
+  // ユーザー要望（続き76）「手札効果使用宣言の直後にも割り込みモーダルを出す」。
+  triggerAnytimeInterruptCheckpoint(player ?? getSelfSeat());
 }
 
 // ユーザー要望「カウンターロックの到達効果について『あなたは１番少なくロックしている
@@ -2219,7 +2227,12 @@ async function performPhaseMoveToCell(location) {
     render();
   }
   const freshCard = getState().tokens.find((t) => t.id === card.id);
-  if (freshCard) triggerCardArrival(freshCard.cardId, location);
+  // ユーザー要望（続き76）「移動処理の直後にも割り込みモーダルを出す」。到達効果の
+  // 自動処理が終わるまで待ってから発火させる（onFullyResolvedが無いと、到達効果の
+  // 処理中フラグ(arrivalEffectAutoProcessing)がまだ立っている間にチェックポイントが
+  // isAnyEffectProcessingBusy()で無条件にブロックされてしまう）。
+  if (freshCard) triggerCardArrival(freshCard.cardId, location, () => triggerAnytimeInterruptCheckpoint(player));
+  else triggerAnytimeInterruptCheckpoint(player);
 }
 
 // ロックフェイズのロック可能ハイライト（.phase-lock-highlight）をクリックした時。
@@ -2595,90 +2608,183 @@ function pickRandomFromOpponentHandForEffect(targetPlayer) {
   return requestOpponentHandRitualPick(targetPlayer, `${getPlayerName(targetPlayer)}の手札（裏向き）から無作為に1枚選んでください`);
 }
 
-// ユーザー要望「スリカエ（『いつでも使える』手札効果）をゲート侵攻処理中に使おうとした
-// 場合は予約扱いにし、使えるタイミングになったら『使用しますか？』の確認モーダルを
-// 出す」への対応。予約は1件だけ保持する（同時に複数の『いつでも使える』カードを
-// ゲート侵攻処理中に連続で予約するような状況は想定しにくく、シンプルさを優先した——
-// 新しい予約が来たら古い方は単に上書きされる）。
-let pendingAnytimeHandEffectReservation = null;
-function reserveAnytimeHandEffectUse(cardId, cardTokenId, player) {
-  pendingAnytimeHandEffectReservation = { cardId, cardTokenId, player };
-}
 // docs/rulebook.md「いつでも使える」の定義: 「効果等の何らかの『処理中』は使用
 // できない（ゲート侵攻ボーナスも処理中に含まれる）」。ゲート侵攻だけでなく、
 // 他の効果の対象選択待ち（activeEffectPicker）・手札効果の解決中
-// （phase-automation.jsのhandEffectBusy）も全て「処理中」に含まれる
-// （ユーザー報告「手札0枚でスリカエを奪い、その返却選択中にその奪ったスリカエ
-// 自身の『いつでも使える』でまた発動できてしまった」の原因はここが漏れていた
-// ため——返却選択待ちはactiveEffectPicker.type==="hand"の状態）。
+// （phase-automation.jsのhandEffectBusy）も全て「処理中」に含まれる。
 export function isAnyEffectProcessingBusy() {
   return isGateInvasionPending() || isGateInvasionQueueActive() || isHandEffectBusy() || activeEffectPicker !== null;
 }
-// 処理中でなくなったタイミングで、予約があれば確認モーダルを出す。「処理中で
-// なくなったタイミング」を個別に全部拾うのは漏れの元（実際に上のバグはゲート侵攻
-// 以外の処理中を見落としていたために起きた）なので、代わりにrender()の末尾
-// （ほぼ全ての状態変化のたびに呼ばれる）で毎回チェックする「呼び出し元がrender()
-// の末尾で毎回再判定する」既存パターンに合わせる。まだ処理中なら何もせず、次回の
-// render()でまた判定される。
-function checkAnytimeHandEffectReservation() {
-  const reservation = pendingAnytimeHandEffectReservation;
-  if (!reservation) return;
-  if (isAnyEffectProcessingBusy()) return;
-  pendingAnytimeHandEffectReservation = null;
-  // 予約後に何らかの理由でカード自体が手札から無くなっている（他の効果で捨てられた等）
-  // 可能性もゼロではないため、確認モーダルを出す前に念のため今も使える状態か確かめる。
-  const stillInHand = getState().tokens.some(
-    (t) => t.id === reservation.cardTokenId && t.kind === "card" && t.location.zone === "hand" && t.location.player === reservation.player
-  );
-  if (!stillInHand || !canUseHandEffect(reservation.cardId, reservation.cardTokenId, reservation.player)) return;
-  showAnytimeHandEffectConfirmModal(reservation);
-}
-// main.js側で既に同じ仕組み（ターン告知の重なり防止）を使っているため、
-// registerOnGateInvasionQueueDrained側を複数登録できるよう別途対応済み
-// （gate-invasion-modal.js参照）。
-registerOnGateInvasionQueueDrained(checkAnytimeHandEffectReservation);
 
-function showAnytimeHandEffectConfirmModal({ cardId, cardTokenId, player }) {
-  const backdrop = createBackdrop(() => {}, { dim: true, zIndex: 10610 });
+// --- 「いつでも使える」割り込みチェックポイント（続き76、予約制の廃止） -----------------
+// ユーザー要望「予約制は廃止したい。その代わり、宣言（ロック宣言・手札効果使用宣言・
+// 接触宣言・移動宣言）の直後、処理（ロック処理・カード効果処理・接触処理・移動処理）の
+// 直後に毎回、いつでも使えるカードを持っているプレイヤーには使うかどうかのモーダルを
+// 出す」への対応。
+// 質問への回答で固まった仕様:
+// ・モーダルには対象プレイヤーが持つ「いつでも使える」カード全てを並べ、各カードに
+//   「使う」ボタンを置く（押すとその場でそのまま発動、ドラッグ操作は不要）。
+// ・モーダルはブロッキングにしない。数秒で自動的に閉じ、閉じてもゲームの進行は
+//   止めない（何もしなければそのまま次へ進む）。
+// ・複数プレイヤーに見せる必要がある場面（ローカル対戦、1画面で全員操作）では、
+//   処理順の原則（効果の使用者/宣言者から時計回り）に沿って1人ずつ順番に見せる。
+// ・行動した本人を含む全員が対象（自分の宣言/処理の直後に自分自身のいつでも使える
+//   カードを使いたい場合にも対応するため）。
+// ・「今後このモーダルを出さない」を選べる。以後はチェックポイントが来ても一切
+//   モーダルを出さない。フェイズ案内板の「割り込みモーダル再開」ボタン
+//   （buildAnytimeInterruptResumeButton参照）で再度有効化できる。
+//
+// スコープ上の注意（実装上の割り切り）: ロック・移動は元々「宣言」と「処理」が
+// コード上分かれておらず単一の即時アクションのため、この2つはそれぞれ1回
+// （処理完了直後）だけチェックポイントを発火させる（宣言相当の単独チェックポイントは
+// 設けていない）。手札効果使用・接触は元々「宣言→処理」の2段階がコード上に実在する
+// ため、両方のタイミングで発火させる。オンライン対戦では、手札効果使用・接触の
+// 「宣言」は既存のbroadcast経路（hand_effect_use等）に乗せて全クライアントで
+// 発火させているが、ロック・移動・各種「処理完了」チェックポイントは今のところ
+// 行動した本人のクライアントでしか発火しない（他のクライアントへの新しい専用
+// broadcastが必要になるため、今回は見送った——ローカル対戦は1画面で全座席を
+// 操作するため元々この制約を受けない）。
+let anytimeInterruptOptedOut = false;
+let anytimeInterruptQueue = []; // ローカル対戦で複数プレイヤー分を順番に見せるための待ち行列
+let anytimeInterruptModalEl = null;
+let anytimeInterruptTimer = null;
+let resumeAnytimeInterruptButtonEl = null;
+const ANYTIME_INTERRUPT_MODAL_DURATION_MS = 6000;
+
+function getAnytimeUsableHandTokensFor(player) {
+  return getState().tokens.filter(
+    (t) =>
+      t.kind === "card" &&
+      t.location.zone === "hand" &&
+      t.location.player === player &&
+      isHandEffectUsableAnytime(t.cardId) &&
+      canUseHandEffect(t.cardId, t.id, player)
+  );
+}
+
+function closeAnytimeInterruptModal() {
+  clearTimeout(anytimeInterruptTimer);
+  anytimeInterruptTimer = null;
+  anytimeInterruptModalEl?.remove();
+  anytimeInterruptModalEl = null;
+}
+
+function updateResumeAnytimeInterruptButton() {
+  if (!resumeAnytimeInterruptButtonEl) return;
+  resumeAnytimeInterruptButtonEl.style.display = anytimeInterruptOptedOut ? "block" : "none";
+}
+
+function buildAnytimeInterruptResumeButton() {
+  const bar = document.getElementById("phase-guide-bar");
+  if (!bar) return;
+  resumeAnytimeInterruptButtonEl = document.createElement("button");
+  resumeAnytimeInterruptButtonEl.type = "button";
+  resumeAnytimeInterruptButtonEl.id = "anytime-interrupt-resume-button";
+  resumeAnytimeInterruptButtonEl.textContent = "🔔 割り込みモーダル再開";
+  resumeAnytimeInterruptButtonEl.title = "「今後このモーダルを出さない」を選んだ後、いつでも使える効果の割り込みモーダルをまた表示させます。";
+  resumeAnytimeInterruptButtonEl.style.display = "none";
+  resumeAnytimeInterruptButtonEl.addEventListener("click", () => {
+    anytimeInterruptOptedOut = false;
+    updateResumeAnytimeInterruptButton();
+  });
+  bar.appendChild(resumeAnytimeInterruptButtonEl);
+}
+
+function advanceAnytimeInterruptQueue() {
+  if (anytimeInterruptQueue.length === 0) return;
+  const player = anytimeInterruptQueue.shift();
+  const tokens = getAnytimeUsableHandTokensFor(player);
+  if (tokens.length === 0) {
+    advanceAnytimeInterruptQueue();
+    return;
+  }
+  showAnytimeInterruptModal(player, tokens);
+}
+
+function showAnytimeInterruptModal(player, tokens) {
+  closeAnytimeInterruptModal();
   const modal = document.createElement("div");
-  modal.id = "anytime-hand-effect-confirm-modal";
+  modal.id = "anytime-interrupt-modal";
 
   const title = document.createElement("div");
   title.className = "contact-approval-title";
-  title.textContent = `${getCardDefinition(cardId).name}を使用しますか？`;
+  title.textContent =
+    !isOnlineMode() && player !== getSelfSeat()
+      ? `${getPlayerName(player)}：いつでも使えるカードがあります`
+      : "いつでも使えるカードがあります";
   modal.appendChild(title);
 
-  const body = document.createElement("div");
-  body.className = "contact-approval-body";
-  body.textContent = "先ほど手札から出そうとした効果が、今使えるようになりました。";
-  modal.appendChild(body);
+  const list = document.createElement("div");
+  list.id = "anytime-interrupt-modal-list";
+  for (const token of tokens) {
+    const row = document.createElement("div");
+    row.className = "anytime-interrupt-modal-row";
+    const name = document.createElement("span");
+    name.className = "anytime-interrupt-modal-row-name";
+    name.textContent = getCardDefinition(token.cardId).name;
+    row.appendChild(name);
+    const useBtn = document.createElement("button");
+    useBtn.type = "button";
+    useBtn.className = "anytime-interrupt-modal-row-use";
+    useBtn.textContent = "使う";
+    useBtn.addEventListener("click", () => {
+      // 誰かがこのチェックポイントで割り込んだら、待ち行列の残り（他プレイヤー分）は
+      // 打ち切る——割り込みで状況自体が変わるため、古い前提のまま続けても意味が無い。
+      anytimeInterruptQueue = [];
+      closeAnytimeInterruptModal();
+      render();
+      runAutoHandEffect(token.cardId, token.id, player);
+    });
+    row.appendChild(useBtn);
+    list.appendChild(row);
+  }
+  modal.appendChild(list);
 
-  const buttons = document.createElement("div");
-  buttons.className = "contact-approval-buttons";
-  const yesBtn = document.createElement("button");
-  yesBtn.className = "contact-approval-approve";
-  yesBtn.type = "button";
-  yesBtn.textContent = "✅ 使用する";
-  yesBtn.addEventListener("click", () => {
-    backdrop.remove();
-    modal.remove();
-    render();
-    runAutoHandEffect(cardId, cardTokenId, player);
+  const optOutRow = document.createElement("label");
+  optOutRow.id = "anytime-interrupt-modal-optout";
+  const optOutCheckbox = document.createElement("input");
+  optOutCheckbox.type = "checkbox";
+  optOutCheckbox.addEventListener("change", () => {
+    if (optOutCheckbox.checked) {
+      anytimeInterruptOptedOut = true;
+      updateResumeAnytimeInterruptButton();
+    }
   });
-  const noBtn = document.createElement("button");
-  noBtn.className = "contact-approval-reject";
-  noBtn.type = "button";
-  noBtn.textContent = "🚫 使用しない";
-  noBtn.addEventListener("click", () => {
-    backdrop.remove();
-    modal.remove();
-  });
-  buttons.appendChild(yesBtn);
-  buttons.appendChild(noBtn);
-  modal.appendChild(buttons);
+  const optOutLabel = document.createElement("span");
+  optOutLabel.textContent = "今後このモーダルを出さない";
+  optOutRow.appendChild(optOutCheckbox);
+  optOutRow.appendChild(optOutLabel);
+  modal.appendChild(optOutRow);
 
-  document.body.appendChild(backdrop);
   document.body.appendChild(modal);
+  anytimeInterruptModalEl = modal;
+  anytimeInterruptTimer = setTimeout(() => {
+    closeAnytimeInterruptModal();
+    advanceAnytimeInterruptQueue();
+  }, ANYTIME_INTERRUPT_MODAL_DURATION_MS);
+}
+
+// 宣言/処理のチェックポイントから呼ぶ。afterPlayerは効果の使用者/宣言者
+// （処理順の原則の起点）。既に何か他の処理中（isAnyEffectProcessingBusy）なら、
+// その処理が終わった後の次のチェックポイントに任せて今回は何もしない
+// （「処理中は使用できない」といういつでも使える自体の定義とも整合する）。
+function triggerAnytimeInterruptCheckpoint(afterPlayer) {
+  logAction("diag-anytime-checkpoint", {
+    afterPlayer,
+    optedOut: anytimeInterruptOptedOut,
+    busy: isAnyEffectProcessingBusy(),
+    gateInvasionPending: isGateInvasionPending(),
+    gateInvasionQueueActive: isGateInvasionQueueActive(),
+    handEffectBusy: isHandEffectBusy(),
+    pickerActive: activeEffectPicker !== null,
+    modalAlreadyShowing: !!anytimeInterruptModalEl,
+  });
+  if (anytimeInterruptOptedOut) return;
+  if (isAnyEffectProcessingBusy()) return;
+  if (anytimeInterruptModalEl) return; // 既に1件表示中なら重ねない
+  const order = isOnlineMode() ? [getSelfSeat()] : rotatedActivePlayersFrom(afterPlayer);
+  anytimeInterruptQueue = order;
+  advanceAnytimeInterruptQueue();
 }
 
 // ユーザー要望「スマホ・タブレットでの操作について、ロックフェイズでロックカードを選択した時
@@ -2686,8 +2792,8 @@ function showAnytimeHandEffectConfirmModal({ cardId, cardTokenId, player }) {
 // 『このカードを使用しますか？』の念押しモーダルが欲しい。これらは誤操作防止の観点から
 // です」（続き62）。PCのマウス操作は誤操作の心配が薄い（interaction-mode.jsの「駒消し/
 // カード消し」ボタンと同じ判断基準）ため、タッチ操作主体の端末（isTouchPrimaryDevice）
-// でだけ確認を挟み、PCでは従来通り一発で確定する。showAnytimeHandEffectConfirmModalと
-// 同じcontact-approval-*クラスを流用した汎用Yes/Noモーダル。
+// でだけ確認を挟み、PCでは従来通り一発で確定する。contact-approval-*クラスを
+// 流用した汎用Yes/Noモーダル。
 function confirmTouchAction(title) {
   if (!isTouchPrimaryDevice()) return Promise.resolve(true);
   return new Promise((resolve) => {
@@ -2791,6 +2897,10 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
     render();
   } finally {
     setHandEffectBusy(false);
+    // ユーザー要望（続き76）「カード効果処理の直後にも割り込みモーダルを出す」。
+    // 今のところ行動した本人のクライアントでのみ発火する（オンライン中の他クライアント
+    // への「処理完了」専用broadcastは今回のスコープでは見送った）。
+    triggerAnytimeInterruptCheckpoint(player);
   }
 }
 
@@ -3341,6 +3451,8 @@ function openContactConfirmModal(attacker, defender) {
         requestContact(attacker, defender);
       }
       render();
+      // ユーザー要望（続き76）「接触宣言の直後にも割り込みモーダルを出す」。
+      triggerAnytimeInterruptCheckpoint(attacker);
     } catch (err) {
       console.error("requestContact failed", err);
       contactAttackerSnapshot = null;
@@ -3778,6 +3890,8 @@ async function respondToContact(approve) {
     const finishContactResolution = () => {
       showResultModal();
       transferPriorityTo(getState().turnPlayer);
+      // ユーザー要望（続き76）「接触処理の直後にも割り込みモーダルを出す」。
+      triggerAnytimeInterruptCheckpoint(defender);
     };
     if (defenderPiece)
       maybeTriggerCardArrival(defenderPiece.location, defenderPiece.id, undefined, finishContactResolution);
@@ -4020,11 +4134,6 @@ function render() {
   updateContactApprovalModal();
   checkContactAttackerResolution();
   checkForVictory();
-  // ユーザー報告「『いつでも使える』の予約が、ゲート侵攻以外の処理中は解除されず
-  // 使えてしまう」の修正。個々の「処理が終わった」タイミングを全部拾うのではなく、
-  // render()のたびに「もう処理中でなくなったか」を判定する（他の再適用系処理と
-  // 同じ設計）。
-  checkAnytimeHandEffectReservation();
   // ユーザー要望「効果自動処理がオンの時はフェイズも自動で流れるようにしよう」。
   // render()のたびに「今のフェイズでもう次へ進めるか」を判定する（他の再適用系処理
   // ・reapplyActiveHighlights等と同じ「呼び出し元がrender()の末尾で毎回呼ぶ」設計）。
@@ -5472,6 +5581,11 @@ function maybeAnnounceLock(dropTarget, cardId, wasAlreadyLocked) {
   if (!wasAlreadyLocked) {
     const player = SIDE_TO_SEAT[dropTarget.side];
     announceCardLocked(player, cardId);
+    // ユーザー要望（続き76）「ロック処理の直後にも割り込みモーダルを出す」。ロックは
+    // 元々「宣言」と「処理」が別のタイミングとしてコード上分かれていないため、この
+    // 「実際にロックされた」タイミングの1回だけ発火させる（今のところ本人の
+    // クライアントでのみ、オンライン中の他クライアントへの専用broadcastは見送った）。
+    triggerAnytimeInterruptCheckpoint(player);
   }
   triggerLockEffect(cardId, dropTarget);
 }
@@ -5526,8 +5640,8 @@ function findGomennasaiEligibility(seat) {
 // ユーザー確認済み方針「コストを払える人だけが却下（＝妨害）できる」への対応。
 // 承認待ちの先頭がゴメンナサイを使えない座席の場合、ボタンを見せる意味が無いため
 // 自動的に承認する（final-lock-approval.jsのcheckGomennasaiEligibility注入により
-// バナー自体も出さない）。render()のたびに毎回チェックする既存パターン
-// （checkAnytimeHandEffectReservation等）を踏襲。多重発火防止のガード付き。
+// バナー自体も出さない）。render()のたびに毎回チェックする既存パターンを踏襲。
+// 多重発火防止のガード付き。
 let gomennasaiAutoApprovalInFlight = false;
 function checkGomennasaiAutoApproval() {
   const pending = getState().pendingFinalLock;
@@ -5947,10 +6061,11 @@ async function onDragEnd(e) {
       const isUsableAnytime = draggedToken && isHandEffectUsableAnytime(draggedToken.cardId);
       const effectProcessingBusy = isAnyEffectProcessingBusy();
       if (isUsableAnytime && effectProcessingBusy) {
-        // 予約: 今は解決できない（何らかの効果の処理中）ので、盤面には何も反映せず
-        // （手札からも減らさない）覚えておくだけにする。処理が終わったタイミングで
-        // 改めて「使用しますか？」の確認モーダルを出す（reserveSleightOfHandUse参照）。
-        reserveAnytimeHandEffectUse(draggedToken.cardId, draggedToken.id, cardSourceLocation.player);
+        // ユーザー要望（続き76）「いつでも使える効果の予約制は廃止したい。代わりに
+        // 宣言/処理の直後に毎回、割り込みモーダルを出す」。処理中にドラッグで
+        // 割り込もうとしても、以前のような「予約」はもう行わない——正式な割り込み
+        // 手段は各チェックポイントで出る割り込みモーダルの「使う」ボタンに一本化した
+        // （triggerAnytimeInterruptCheckpoint参照）。ドラッグは元の位置へ戻すだけ。
         render();
         return;
       }
@@ -6116,7 +6231,16 @@ async function onDragEnd(e) {
     // 到達プロンプト/モーダル・ロック演出の位置決めに実際のDOM座標(getBoundingClientRect)を
     // 使うため、どちらもrender()で盤面を描き直した後でなければ呼べない。
     if (token) maybeAnnounceLock(dropTarget, token.cardId, wasAlreadyLocked);
-    if (kind === "piece") maybeTriggerCardArrival(dropTarget, tokenId);
+    if (kind === "piece") {
+      // ユーザー要望（続き76）「移動処理の直後にも割り込みモーダルを出す」。移動先の
+      // 到達効果がまだ処理中の間はisAnyEffectProcessingBusy()がtrueになり
+      // チェックポイントが無条件にブロックされてしまうため、onFullyResolvedで
+      // 到達効果まで含めて完全に終わった後まで待ってから発火させる（onResolvedの
+      // 時点ではまだ自動処理が終わっていないことがあるため不十分）。
+      maybeTriggerCardArrival(dropTarget, tokenId, undefined, () => {
+        if (token) triggerAnytimeInterruptCheckpoint(token.player);
+      });
+    }
     if (kind === "card") {
       const movedToken = getState().tokens.find((t) => t.id === tokenId);
       if (movedToken) maybeTriggerCardArrivalForCard(dropTarget, movedToken.cardId, movedToken.faceUp);
@@ -7696,6 +7820,7 @@ buildFinalLockApprovalBanner();
 buildTimerToggleButton();
 buildTimerToggleBanner();
 buildAutoProcessingToggleBanner();
+buildAnytimeInterruptResumeButton();
 buildContactApprovalModal();
 turnRoundCounterEl = buildTurnRoundCounter();
 updateTurnRoundCounter();
