@@ -19,6 +19,7 @@ import { getSkinImagePath } from "./piece-skins.js";
 import { isSelfHandled } from "./self-handled-tokens.js";
 import { getPlayerAvatar } from "./player-identity.js";
 import { applyAvatarContent, getAvatarVariant } from "./avatar-render.js";
+import { playSound } from "./sound.js";
 
 // ユーザー要望「点滅ハイライトの矢印・マスの色をそのプレイヤーの色にし、ミニアバターも
 // 添えたい」への対応。この演出はターン制ゲームにおける「今まさにターンプレイヤーが
@@ -268,7 +269,29 @@ async function flyAndReveal(item, fromRect, table, blinkDestination) {
   triggerEffectsFor(item);
 }
 
+// ユーザー報告（続き81）「オンライン対戦時、相手の到達効果音等が聞こえなかったり
+// します」の原因の1つ: 到達（arrivalEffect）・ロック（lock）の効果音は
+// triggerCardArrivalIfFaceUp/maybeAnnounceLock経由で既にこの汎用差分検知でも
+// 再現されていたが、駒/カードを「置く」「めくる」「引く」という素の操作音
+// （piecePlace/cardPlace/cardFlip/cardDraw、main.jsのonDragEnd等が自分の操作
+// について毎回鳴らしているもの）はここに一切無く、他プレイヤーの盤面操作が
+// 音無しで再現されていた。item.kindごとに対応する音を、より詳細な到達/ロック
+// 演出より前に鳴らす（onDragEnd側も「置く」音→到達判定、の順のため）。
+function playGenericSoundForItem(item) {
+  const token = item.token;
+  if (item.kind === "flip") {
+    playSound("cardFlip");
+  } else if (item.kind === "move") {
+    playSound(token.kind === "piece" ? "piecePlace" : "cardPlace");
+  } else if (item.kind === "new-lock" || item.kind === "new-cell-fade") {
+    playSound("cardPlace");
+  } else if (item.kind === "pickup") {
+    playSound("cardDraw");
+  }
+}
+
 function triggerEffectsFor(item) {
+  playGenericSoundForItem(item);
   const token = item.token;
   if (token.location.zone === "lock") {
     const wasAlreadyLocked = item.kind === "move" && item.prevLocation.zone === "lock";
@@ -340,6 +363,7 @@ function processMovedOrNew(items, table) {
         // （ユーザー要望：置いた時と同様、取った時も分かりやすくしたい）。
         if (item.prevLocation && isTableZone(item.prevLocation)) {
           blinkLocation(item.prevLocation, table2, "up");
+          playSound("cardDraw");
           continue;
         }
         // ユーザー要望「カードごとにドローアニメーションを設定するのではなく、

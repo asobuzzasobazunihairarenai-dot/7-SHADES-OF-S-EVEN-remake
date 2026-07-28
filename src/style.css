@@ -1320,6 +1320,19 @@ body.diagnostic-flatten-3d.is-touch-device #phase-guide-bar {
   bottom: calc(var(--phase-guide-bottom-touch, var(--phase-guide-bottom, 0rem)) + var(--phase-guide-bottom-flat, 0rem));
   right: calc(var(--phase-guide-right-touch, var(--phase-guide-right, 2.3rem)) + var(--phase-guide-right-flat, 0rem));
 }
+/* ユーザー要望（続き81）「フェイズ案内エリア（フェイズ案内板、スキップボタン、
+   基本時間、相手のターン自分のターン表示）についてスマホ画面での一括サイズ位置調整を
+   管理者モードに追加して」。#phase-guide-bar自体が既にこれら全て（基本時間の
+   丸アイコン・タイマートグルのポップオーバー・スキップボタン・ターン表示）の
+   共通の親要素になっている（turn-timer.js/phase-automation.jsがこのバーへ
+   appendChildしている）ため、#option-areaと同じ「親要素ごとtranslate+scale」の
+   手法だけで一括調整が実現できる。アンカー（bottom/right基準）を基準点に保つため
+   transform-originは右下にする。 */
+body.is-phone-device #phase-guide-bar {
+  transform-origin: bottom right;
+  transform: translate(var(--phase-guide-pos-phone-x, 0rem), var(--phase-guide-pos-phone-y, 0rem))
+    scale(var(--phase-guide-scale-phone, 1));
+}
 /* ターンタイマーの基本時間（無音・ロープ非表示の窓）の残り秒数を、ロック/ハンド/ムーブと
    同じ丸いアイコンボタンの見た目（icon-action-button.js共通CSS）で表示する（turn-timer.js
    側がこの箱をbar内へappendする）。アイコン画像の代わりに数字を中央に置き、優先権保持者の
@@ -5966,6 +5979,31 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
 #phase-automation-skip-button:hover {
   filter: brightness(1.1);
 }
+/* ユーザー要望（続き81）「スキップボタンについては個別でサイズ位置調整も追加して」。
+   このボタンは常時pulseアニメーション中で、通常のtransformプロパティは実行中の
+   キーフレームに丸ごと上書きされてしまう（transformの値はカスケードで合成されず、
+   実行中のアニメーションのtransformが常に勝つ）ため、スマホ専用の位置・サイズは
+   静的なtransformとしてではなく、専用のキーフレーム名に差し替える形で実現する
+   （animation-nameだけを上書きし、duration等は元のanimationショートハンドの
+   ままにする）。transform-originはボタン自身の固定辺（bottom/left）に合わせる。 */
+@keyframes phase-automation-skip-pulse-phone {
+  0%, 100% {
+    transform: translate(
+      calc(var(--phase-skip-button-offset-x, 0rem) + var(--phase-skip-button-pos-phone-x, 0rem)),
+      calc(var(--phase-skip-button-offset-y, 0rem) + var(--phase-skip-button-pos-phone-y, 0rem))
+    ) scale(var(--phase-skip-button-scale-phone, 1));
+  }
+  50% {
+    transform: translate(
+      calc(var(--phase-skip-button-offset-x, 0rem) + var(--phase-skip-button-pos-phone-x, 0rem)),
+      calc(var(--phase-skip-button-offset-y, 0rem) + var(--phase-skip-button-pos-phone-y, 0rem))
+    ) scale(calc(var(--phase-skip-button-scale-phone, 1) * 1.06));
+  }
+}
+body.is-phone-device #phase-automation-skip-button {
+  animation-name: phase-automation-skip-pulse-phone;
+  transform-origin: bottom left;
+}
 /* ユーザー要望（続き76）「スキップボタンを表示させていない時は『自分のターンです』
    『相手のターンです』とそこに表示させておきたい」。スキップボタンと同じ枠
    （#phase-guide-bar末尾）を共有し、どちらか一方だけ表示する（phase-automation.js
@@ -5985,6 +6023,14 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   font-size: 0.8rem;
   font-weight: bold;
   white-space: nowrap;
+}
+/* ユーザー要望（続き81）「相手のターン自分のターン表示についても個別でサイズ位置
+   調整も追加して」。こちらはアニメーション無しの静止要素のため、スキップボタンと
+   違い素直にtransformを重ねるだけでよい。 */
+body.is-phone-device #phase-automation-turn-status {
+  transform-origin: bottom left;
+  transform: translate(var(--phase-turn-status-pos-phone-x, 0rem), var(--phase-turn-status-pos-phone-y, 0rem))
+    scale(var(--phase-turn-status-scale-phone, 1));
 }
 body.reduce-glow #phase-automation-skip-button {
   animation: none;

@@ -837,6 +837,45 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー要望（続き81）「フェイズ案内エリア（フェイズ案内板、スキップボタン、
+    // 基本時間、相手のターン自分のターン表示）についてスマホ画面での一括サイズ位置
+    // 調整を管理者モードに追加して」。#phase-guide-bar自体がこれら全ての共通の親要素
+    // （turn-timer.js/phase-automation.jsがこのバーへappendChildしている）のため、
+    // #option-areaと同じ「親要素ごとtranslate+scale」の一括調整で足りる。
+    title: "📱 スマホ専用：フェイズ案内エリア（フェイズ案内板・スキップボタン・基本時間・ターン表示をまとめて位置・サイズ調整）",
+    category: "phone",
+    controls: [
+      { key: "--phase-guide-pos-phone-x", label: "フェイズ案内エリア 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--phase-guide-pos-phone-y", label: "フェイズ案内エリア 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--phase-guide-scale-phone", label: "フェイズ案内エリア サイズ倍率（スマホ）", unit: "", min: 0.3, max: 2.5, step: 0.05, default: 1 },
+    ],
+  },
+  {
+    // ユーザー要望（続き81）「スキップボタンについては個別でサイズ位置調整も追加して」。
+    // 上のフェイズ案内エリア一括調整はそのまま活かしつつ、スキップボタンだけさらに
+    // 個別に動かせるようにする（style.cssのbody.is-phone-device
+    // #phase-automation-skip-button参照。エリア全体の位置・拡大率の上に、この
+    // ボタンだけの追加オフセット・拡大率が重ねて適用される）。
+    title: "📱 スマホ専用：スキップボタン単体の位置・サイズ（フェイズ案内エリア全体の調整に追加で重ねがけ）",
+    category: "phone",
+    controls: [
+      { key: "--phase-skip-button-pos-phone-x", label: "スキップボタン 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--phase-skip-button-pos-phone-y", label: "スキップボタン 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--phase-skip-button-scale-phone", label: "スキップボタン サイズ倍率（スマホ）", unit: "", min: 0.3, max: 3, step: 0.05, default: 1 },
+    ],
+  },
+  {
+    // ユーザー要望（続き81）「相手のターン自分のターン表示についても個別でサイズ位置
+    // 調整も追加して」。スキップボタンと同じ「重ねがけ」の考え方。
+    title: "📱 スマホ専用：「自分/相手のターンです」表示の位置・サイズ（フェイズ案内エリア全体の調整に追加で重ねがけ）",
+    category: "phone",
+    controls: [
+      { key: "--phase-turn-status-pos-phone-x", label: "ターン表示 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--phase-turn-status-pos-phone-y", label: "ターン表示 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--phase-turn-status-scale-phone", label: "ターン表示 サイズ倍率（スマホ）", unit: "", min: 0.3, max: 3, step: 0.05, default: 1 },
+    ],
+  },
+  {
     // ユーザー要望「自分の手札については全体を回転させれるようにもしてください」→
     // ユーザー報告「自分の手札サイズ、位置、回転が全く反映されません」（既存の2D表示専用
     // ルールの方が詳細度が高く常に上書きされてしまっていた）→ユーザー指摘の通り
