@@ -2886,6 +2886,95 @@ body.is-touch-device .zone-right .label {
   transform: translate(-50%, -50%) translate(var(--avatar-d-pos-x), var(--avatar-d-pos-y));
 }
 
+/* エモートの吹き出し（emote.js、続き78）。.player-avatarが既にposition:absoluteのため、
+   その子として絶対配置するだけでアバターの真上に出せる。ワンショット演出のため
+   pointer-events不要（.player-avatar自体も終始pointer-events:noneの表示専用要素）。 */
+.emote-speech-bubble {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 0.4rem;
+  background: rgba(255, 255, 255, 0.96);
+  color: #1e293b;
+  font-family: sans-serif;
+  font-size: 0.9rem;
+  font-weight: bold;
+  white-space: nowrap;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  box-shadow: 0 0.15rem 0.4rem rgba(0, 0, 0, 0.35);
+  animation: emote-bubble-pop 0.2s ease-out;
+  z-index: 10;
+}
+.emote-speech-bubble::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 0.35rem solid transparent;
+  border-top-color: rgba(255, 255, 255, 0.96);
+}
+@keyframes emote-bubble-pop {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+/* エモート選択ポップアップ（emote.js、続き78）。他のモーダルと違い暗転させない
+   （テンポよく連投したい操作のため）。backdropは外側クリック判定専用の透明な
+   全画面レイヤー。 */
+#emote-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10500;
+  background: transparent;
+}
+#emote-picker {
+  position: fixed;
+  z-index: 10501;
+  width: min(20rem, 80vw);
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.6rem;
+  padding: 0.8rem;
+  font-family: sans-serif;
+  color: #e2e8f0;
+  box-sizing: border-box;
+  box-shadow: 0 0.4rem 1.2rem rgba(0, 0, 0, 0.5);
+}
+#emote-picker-title {
+  font-weight: bold;
+  font-size: 0.85rem;
+  margin-bottom: 0.6rem;
+  opacity: 0.85;
+}
+#emote-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+.emote-picker-btn {
+  --emote-color: var(--color-red);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--emote-color);
+  color: #e2e8f0;
+  border-radius: 0.4rem;
+  padding: 0.5rem 0.4rem;
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.emote-picker-btn:hover {
+  background: color-mix(in srgb, var(--emote-color) 25%, transparent);
+}
+
 /* ユーザー報告・要望への対応: BCD（自分＝画面手前/zone-bottom以外の3人）のアバターを
    手札より背面に描画する（Aは現状のまま=手札より手前を維持）。
    根本原因: .player-avatarには元々z-index:3（正の数）が付いており、.hand-area側は

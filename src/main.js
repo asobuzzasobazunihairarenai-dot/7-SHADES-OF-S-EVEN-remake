@@ -16,9 +16,10 @@ import {
 import { logAction, initActionLogPanel } from "./action-log.js";
 import { initDeckViewer, openDeckViewer } from "./deck-viewer.js";
 import { initStatsPlayerLinkModal } from "./stats-player-link.js";
-import { initMyPage, openMyPage, registerAvatarPickerHelper, registerProfilePageOpener } from "./my-page.js";
+import { initMyPage, registerAvatarPickerHelper, registerProfilePageOpener } from "./my-page.js";
 import { openProfilePage } from "./profile-page.js";
 import { initRankingIcon } from "./ranking-page.js";
+import { openEmotePicker } from "./emote.js";
 import { initCardDevMode, registerCardDevModeArrivalHelpers } from "./card-dev-mode.js";
 import {
   canAutoProcessArrival,
@@ -7611,11 +7612,12 @@ function buildSelfHandStatus() {
   // 右向き（"right"）のバリエーションを表示する（ユーザー指定）。
   selfStatusLargeAvatarEl = document.createElement("div");
   selfStatusLargeAvatarEl.className = "self-status-large-avatar";
-  // ユーザー要望「左下の巨大アバターを押してもマイページが開くようにしたい」。
-  // 以前はここで直接openAvatarPicker()を呼んでいたが、マイページ側に「アバター変更」
-  // ボタンとして移した（my-page.js参照）。
-  selfStatusLargeAvatarEl.addEventListener("click", openMyPage);
-  addSimpleTooltip(selfStatusLargeAvatarEl, "クリックしてマイページを開く");
+  // ユーザー要望（続き78）「左下の巨大アバターを押すとマイページではなくエモートを
+  // 選べるようにしたい」。マイページへの入口は続き77でオプションエリアのアイコンだけで
+  // 足りるようになった（ユーザー確認済み）ため、ここはエモート専用に転用する
+  // （emote.js参照）。
+  selfStatusLargeAvatarEl.addEventListener("click", () => openEmotePicker(selfStatusLargeAvatarEl));
+  addSimpleTooltip(selfStatusLargeAvatarEl, "クリックしてエモートを選ぶ");
 
   // ユーザー要望「戦績システムと連携しているプレイヤーはステータスエリアにランクを
   // 表示させたい」。stats-profile.jsのtierに従ってupdateSelfStatusRankRing()が
@@ -7714,7 +7716,7 @@ function updateSelfHandStatus() {
   // ハマりどころ: applyAvatarContent()の直後は毎回tooltip要素も一緒に消えている
   // ため（同じ理由でリングも消えていた、buildSelfHandStatusのコメント参照）、
   // ここで都度re-addする必要がある。文言はbuildSelfHandStatus側と揃える。
-  addSimpleTooltip(selfStatusLargeAvatarEl, "クリックしてマイページを開く");
+  addSimpleTooltip(selfStatusLargeAvatarEl, "クリックしてエモートを選ぶ");
 
   // セットアップ前（自分の駒の色がまだ決まっていない間）でも、選んだバリエーション番号
   // 自体は色に依存しない好みなので、先に見た目を確認・選べるよう常に表示する

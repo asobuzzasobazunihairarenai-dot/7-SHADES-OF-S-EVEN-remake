@@ -511,6 +511,21 @@ export function broadcastAnytimeCheckpoint(payload) {
     broadcastChannel.send({ type: "broadcast", event: "anytime_checkpoint", payload });
   }
 }
+// 続き78: エモート機能（emote.js）。ユーザー要望「押すと相手の画面の自分のアバターから
+// その言葉が吹き出しで出る」。状態は一切変えない見た目だけの合図で、hand_effect_use等と
+// 同じパターン（so7-apply-action.ts等のEdge Functionは経由しない）。
+let emoteEventListeners = [];
+export function onEmoteEvents(fn) {
+  emoteEventListeners.push(fn);
+  return () => {
+    emoteEventListeners = emoteEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastEmote(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "emote", payload });
+  }
+}
 // main.jsのヘッダーボタン（「🌐 オンライン」）のラベルを、ログイン状態が分かるように
 // 動的に変える時など、awaitせず同期的に「今ログイン中かどうか」を知りたい場面のために
 // キャッシュしておく（getCurrentUser()は毎回サーバーに問い合わせる非同期関数のため）。
@@ -1976,6 +1991,10 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // 「いつでも使える」割り込みチェックポイントの通知（broadcastAnytimeCheckpoint参照）。
     .on("broadcast", { event: "anytime_checkpoint" }, ({ payload }) => {
       for (const fn of anytimeCheckpointEventListeners) fn(payload);
+    })
+    // エモートの通知（broadcastEmote参照）。
+    .on("broadcast", { event: "emote" }, ({ payload }) => {
+      for (const fn of emoteEventListeners) fn(payload);
     })
     .subscribe((status) => {
       // ユーザー要望「部屋に入ってきたら、待機中の他メンバーにもリアルタイムで（＝
