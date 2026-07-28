@@ -703,6 +703,18 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー要望（続き68）「相手に表示される色宣言モーダルの、左に移動した後の位置と
+    // サイズを調整したい」。src/style.cssの.declared-colors-indicator.is-cornerが
+    // 参照する2つのCSS変数。「ガッツり移動させたいのでレンジ大きめで」との要望のため、
+    // 他の位置調整（--deck-pos-x等、±25rem程度）よりかなり広い範囲を確保した。
+    title: "色宣言モーダル（相手用、左に移行した後の位置）",
+    category: "position-ui",
+    controls: [
+      { key: "--declared-colors-corner-left", label: "左端からの位置", unit: "rem", min: -10, max: 80, step: 0.5, default: 1 },
+      { key: "--declared-colors-corner-scale", label: "大きさ", unit: "", min: 0.2, max: 3, step: 0.05, default: 0.85 },
+    ],
+  },
+  {
     // 「アイコン再配置モード」（下のTOGGLE_SECTIONS参照）でドラッグした分のズレも、
     // ここと同じCSS変数へ直接書き込む（icon-rearrange.js参照）ため、ドラッグでも
     // スライダーでも同じ値を共有し、どちらで動かしても「出力をコピー」に反映される。
@@ -1755,13 +1767,29 @@ function buildPanel(rebuildSlidersRef) {
         row.style.cssText = "margin-bottom: 0.5rem;";
 
         const labelRow = document.createElement("div");
-        labelRow.style.cssText = "display: flex; justify-content: space-between; margin-bottom: 0.15rem;";
+        labelRow.style.cssText = "display: flex; justify-content: space-between; align-items: center; gap: 0.3rem; margin-bottom: 0.15rem;";
         const label = document.createElement("span");
         label.textContent = c.label;
-        const valueLabel = document.createElement("span");
+        label.style.cssText = "flex: 1;";
+        // ユーザー要望（続き68）「移動数値などについて直接数値を入力できるといい。細かい
+        // 微調整がしやすいので」。以前はスライダーの現在値をただの<span>で表示するだけ
+        // だったが、直接編集できる<input type="number">に置き換えた（スライダーとは
+        // 双方向に同期する: ドラッグすればこちらの数字も更新され、逆にここへ直接
+        // 数値を打ち込めばスライダーとCSS変数の両方に反映される）。
+        const valueLabel = document.createElement("input");
+        valueLabel.type = "number";
         valueLabel.id = `admin-value-${c.key}`;
+        valueLabel.min = String(c.min);
+        valueLabel.max = String(c.max);
+        valueLabel.step = String(c.step);
+        valueLabel.style.cssText =
+          "width: 4.5rem; background: #0f1520; color: #f1f5f9; border: 1px solid rgba(148,163,184,0.4); border-radius: 0.25rem; padding: 0.1rem 0.3rem; text-align: right;";
+        const unitLabel = document.createElement("span");
+        unitLabel.textContent = c.unit;
+        unitLabel.style.cssText = "min-width: 1.6rem;";
         labelRow.appendChild(label);
         labelRow.appendChild(valueLabel);
+        labelRow.appendChild(unitLabel);
 
         const slider = document.createElement("input");
         slider.type = "range";
@@ -1772,7 +1800,7 @@ function buildPanel(rebuildSlidersRef) {
         slider.style.width = "100%";
         const initial = currentValue(c.key, c.default);
         slider.value = String(initial);
-        valueLabel.textContent = `${initial}${c.unit}`;
+        valueLabel.value = String(initial);
 
         // このコントロールが実際の画面上に「仮」で見た目を出すプレビュー機能を持つ場合
         // （例: スタートプレイヤー決定モーダルのアバターサイズ）、触り始めた瞬間に一度だけ
@@ -1782,9 +1810,8 @@ function buildPanel(rebuildSlidersRef) {
           slider.addEventListener("pointerdown", () => c.previewOnInteract());
         }
 
-        slider.addEventListener("input", () => {
-          setVar(c.key, slider.value, c.unit);
-          valueLabel.textContent = `${slider.value}${c.unit}`;
+        function applyValue(rawValue) {
+          setVar(c.key, rawValue, c.unit);
           updateExport();
           // 手札エリアのサイズ(--hand-*-size)等、CSSではなくJS側で読み取って適用している値は
           // CSS変数を変えるだけでは画面に反映されない。main.js側にrender()し直してもらう。
@@ -1794,6 +1821,22 @@ function buildPanel(rebuildSlidersRef) {
           // あるため、CSS変数の反映だけでは足りない）。同じ関数を毎回呼び直す
           // （既に開いていれば作り直すだけ、というのは呼び出し先の実装に任せる）。
           if (c.previewOnInteract) c.previewOnInteract();
+        }
+
+        slider.addEventListener("input", () => {
+          valueLabel.value = slider.value;
+          applyValue(slider.value);
+        });
+        valueLabel.addEventListener("change", () => {
+          const num = Number(valueLabel.value);
+          if (!Number.isFinite(num)) {
+            valueLabel.value = slider.value;
+            return;
+          }
+          const clamped = Math.min(c.max, Math.max(c.min, num));
+          valueLabel.value = String(clamped);
+          slider.value = String(clamped);
+          applyValue(clamped);
         });
 
         row.appendChild(labelRow);
@@ -1872,7 +1915,7 @@ function buildPanel(rebuildSlidersRef) {
       const value = currentValue(c.key, c.default);
       const input = panel.querySelector(`input[data-key="${c.key}"]`);
       const valueLabel = document.getElementById(`admin-value-${c.key}`);
-      if (valueLabel) valueLabel.textContent = `${value}${c.unit}`;
+      if (valueLabel) valueLabel.value = String(value);
       if (input) input.value = String(value);
     }
   }

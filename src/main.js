@@ -492,7 +492,16 @@ function buildPlayerZone(side, player, isSelf) {
       // hasHandEffectData前提の判定には乗らない——isHandEffectReactiveOnlyを別途見て、
       // Hand Phase中は常にトーンダウン対象にする（反応のタイミングでない限り絶対に
       // 使えないため、canUseHandEffect相当の可否判定は不要）。
+      // ユーザー報告（続き68）「スリカエなどの効果でカードを返す時の選択対象としては
+      // カウンターロックなども選べるはずなのに、トーンオフされたままで選びにくい」。
+      // このトーンダウンは「今このカードの手札効果を自分から使えるか」の判定であり、
+      // 「他の効果(activeEffectPicker.type==="hand")がこのカードを対象として選べるか」
+      // とは別の話——スリカエ等は使用可否に関係なく手札の中身を対象に選べる。今まさに
+      // このカードが選択待ちの候補になっている間は、トーンダウン自体を適用しない。
+      const isEffectPickerCandidate =
+        activeEffectPicker?.type === "hand" && activeEffectPicker.tokenIds.has(token.id);
       if (
+        !isEffectPickerCandidate &&
         isAutoProcessingEnabled() &&
         isHandPhaseActive() &&
         ((hasHandEffectData(token.cardId) && !canUseHandEffect(token.cardId, token.id, player)) ||
@@ -2549,7 +2558,7 @@ function reserveAnytimeHandEffectUse(cardId, cardTokenId, player) {
 // （ユーザー報告「手札0枚でスリカエを奪い、その返却選択中にその奪ったスリカエ
 // 自身の『いつでも使える』でまた発動できてしまった」の原因はここが漏れていた
 // ため——返却選択待ちはactiveEffectPicker.type==="hand"の状態）。
-function isAnyEffectProcessingBusy() {
+export function isAnyEffectProcessingBusy() {
   return isGateInvasionPending() || isGateInvasionQueueActive() || isHandEffectBusy() || activeEffectPicker !== null;
 }
 // 処理中でなくなったタイミングで、予約があれば確認モーダルを出す。「処理中で

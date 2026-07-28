@@ -476,6 +476,21 @@ function reduce(current: GameState, action: any): GameState {
     case "REQUEST_TIMER_TOGGLE": {
       if (current.pendingTimerToggle) return current;
       if ((current.timerToggleRejectStreak?.[action.requester] ?? 0) >= 3) return current;
+      // 続き68バグ修正: 承認が必要な他のアクティブプレイヤーが1人もいない
+      // （queueが最初から空）場合、以前はpendingTimerToggleを承認待ちのまま作成する
+      // だけで、それを解決するはずのRESPOND_TIMER_TOGGLEが一度も呼ばれる機会が無く
+      // （承認者がいないため）、pendingTimerToggleが永久に残り続けてしまっていた。
+      // ボタン側はpendingTimerToggleがある間ずっとdisabledになる設計のため、
+      // 「ボタンを押しても何も起きない（実際は一度だけ内部的に壊れて、以後は
+      // クリックしても早期returnするだけになっていた）」というユーザー報告の原因は
+      // これだった。RESPOND_TIMER_TOGGLE側の「queueが空になった瞬間に即timerConfig
+      // へ反映する」処理と同じことを、ここでも先に判定して行う。
+      if (action.queue.length === 0) {
+        return {
+          ...current,
+          timerConfig: current.timerConfig ? { ...current.timerConfig, enabled: action.nextEnabled } : current.timerConfig,
+        };
+      }
       return {
         ...current,
         pendingTimerToggle: {

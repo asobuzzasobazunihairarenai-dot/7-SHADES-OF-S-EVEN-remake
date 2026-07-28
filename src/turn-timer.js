@@ -25,7 +25,7 @@
 // online.jsのstartGame()が送るtimerConfig参照）。
 
 import { getState, subscribe, setPriorityState, isOnlineMode } from "./state.js";
-import { toStageLocalRect, STAGE_WIDTH, performPriorityTimeoutAutoAction } from "./main.js";
+import { toStageLocalRect, STAGE_WIDTH, performPriorityTimeoutAutoAction, isAnyEffectProcessingBusy } from "./main.js";
 import { SEAT_ORDER, SEAT_TO_SIDE, getRotationSteps, rotateSide } from "./board-layout.js";
 import { getSelfSeat, getSyncedTimerConfig, getCurrentGameId, fetchAndHydrate } from "./online.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
@@ -42,6 +42,7 @@ import {
   getReducedBaseSeconds as getReducedBaseSecondsLocal,
 } from "./admin.js";
 import { isOpponentBaseTimerVisible } from "./motion-prefs.js";
+import { toggleTimerTogglePopover } from "./timer-toggle.js";
 
 // オンライン対戦中は、ゲーム開始時に固定された対局全体共通の設定（timer_config、
 // 部屋作成者のその時点のローカル設定を1回だけ書き込んだもの）を優先する——プレイヤーごとに
@@ -325,6 +326,10 @@ function buildBaseClock() {
   caption.className = "icon-action-button-caption";
   caption.textContent = "基本時間";
   baseClockEl.appendChild(caption);
+  // ユーザー要望（続き68）「タイマーをオフにするボタンは基本時間アイコンを押すと
+  // ひょこっと出てくる仕様にしたい」。timer-toggle.js側にポップオーバーの開閉状態を
+  // 持たせ、ここではクリックをそのまま中継するだけにする。
+  baseClockEl.addEventListener("click", toggleTimerTogglePopover);
   bar.appendChild(baseClockEl);
 }
 
@@ -746,43 +751,59 @@ function updateTimeoutWarnings(state, isTimedOut) {
   // 本人（今まさにタイムアウトした優先権保持者）のクライアント上でだけ自動行動を
   // 起こす——ゲーム操作は本人の識別で送信する必要があるため、他クライアントからは
   // 何もしない（ローカルモードは1人が全座席を操作する前提なので、誰の番でも行う）。
-  if (!timedOutAutoActionFired && (!isOnlineMode() || getSelfSeat() === state.priorityPlayer)) {
-    // ユーザー要望（続き67、経緯: 当初「ハンドフェイズでタイムアウトを迎えたのに
-    // 自動スキップされない」という報告を受け、いったん「本人のタブがバックグラウンド化
-    // していると誰もスキップできない」という別の仮説で調査を進めていたが、後の
-    // やり取りで実際の意図は違うと判明した）「ターンプレイヤー以外が優先権を持って
-    // いてタイムアウトしたら、その行動をスキップして優先権をターンプレイヤーに戻す。
-    // それでターンプレイヤーに優先権が戻り、そこでタイムアウトすればそのフェイズが
-    // 自動でスキップされるように」。
-    //
-    // 手番でない座席（例: 接触の一時的な優先権譲渡等）が優先権を持ったままタイム
-    // アウトした場合、performPriorityTimeoutAutoAction()（phase-automation.jsの
-    // currentPhase参照）は何もしなかった（原因判明: currentPhase自体がターン
-    // プレイヤー本人のクライアントでしか追跡されていない値のため、手番でない
-    // 座席の画面では常にnull/無関係な値になり、moveフェイズ/lock・handフェイズの
-    // どちらの分岐にも一致せずfalseで抜けていた）。ここでその場合を先に判定し、
-    // 「本人の代わりに何かを実行する」のではなく「優先権譲渡ボタンを本人が押すのと
-    // 全く同じ書き込みで優先権をターンプレイヤーへ自動的に返す」ようにする。
-    // ターンプレイヤー側は改めて自分の基本時間からやり直せ、そこでもタイムアウト
-    // すれば下のperformPriorityTimeoutAutoAction()が通常通りフェイズを自動
-    // スキップする（この2段目は元々あったロジックがそのまま機能する）。
-    if (state.turnPlayer && state.priorityPlayer !== state.turnPlayer) {
-      timedOutAutoActionFired = true;
-      withGuard(() =>
-        setPriorityState({ player: state.turnPlayer, deadline: freshBaseDeadlineFor(state.turnPlayer), phase: "base" })
-      );
-    } else {
-      const result = performPriorityTimeoutAutoAction();
-      timedOutAutoActionFired = !!result;
-      // ユーザー要望「時間切れによるスキップが発生したら15秒回復させてください」。
-      // ロック/ハンドフェイズの自動スキップ（"skip"）は盤面操作を一切伴わないため、
-      // ムーブフェイズの移動/接触や候補のランダム選択（moveToken等の実際の操作を
-      // 伴い、onStateChange側の「本人の本物の操作」判定で自然に基本時間がリセット
-      // される）と違って、何もしないとpriorityDeadlineが切れたままになってしまう。
-      if (result === "skip") {
+  if (!isOnlineMode() || getSelfSeat() === state.priorityPlayer) {
+    // ユーザー要望（続き68）「優先権を戻す前に効果の処理中であれば効果を完了してから
+    // にしてください。例えばカードを置く場所を選んでいる途中でタイムアウトになれば、
+    // 自動で置く場所を選び、カードを置くまでを完了させてから優先権を手放してください」。
+    // isAnyEffectProcessingBusy()（activeEffectPicker等、docs/rulebook.mdの「処理中」の
+    // 判定と同じもの）が真の間は、下の「優先権をターンプレイヤーへ戻す」判定より先に
+    // performPriorityTimeoutAutoAction()の①番の分岐（activeEffectPickerをランダムに
+    // 解決する）だけを繰り返し実行する。1回の解決で効果が完全に終わるとは限らない
+    // （続けて次の選択が必要な効果もある）ため、ここではtimedOutAutoActionFiredを
+    // 立てずに即return し、200ms後の次のtick()で改めてこの分岐に入り直す——選択待ちが
+    // 無くなるまで自然に繰り返され、無くなった時点で初めて下の優先権の判定に進む。
+    if (isAnyEffectProcessingBusy()) {
+      performPriorityTimeoutAutoAction();
+      return;
+    }
+    if (!timedOutAutoActionFired) {
+      // ユーザー要望（続き67、経緯: 当初「ハンドフェイズでタイムアウトを迎えたのに
+      // 自動スキップされない」という報告を受け、いったん「本人のタブがバックグラウンド化
+      // していると誰もスキップできない」という別の仮説で調査を進めていたが、後の
+      // やり取りで実際の意図は違うと判明した）「ターンプレイヤー以外が優先権を持って
+      // いてタイムアウトしたら、その行動をスキップして優先権をターンプレイヤーに戻す。
+      // それでターンプレイヤーに優先権が戻り、そこでタイムアウトすればそのフェイズが
+      // 自動でスキップされるように」。
+      //
+      // 手番でない座席（例: 接触の一時的な優先権譲渡等）が優先権を持ったままタイム
+      // アウトした場合、performPriorityTimeoutAutoAction()（phase-automation.jsの
+      // currentPhase参照）は何もしなかった（原因判明: currentPhase自体がターン
+      // プレイヤー本人のクライアントでしか追跡されていない値のため、手番でない
+      // 座席の画面では常にnull/無関係な値になり、moveフェイズ/lock・handフェイズの
+      // どちらの分岐にも一致せずfalseで抜けていた）。ここでその場合を先に判定し、
+      // 「本人の代わりに何かを実行する」のではなく「優先権譲渡ボタンを本人が押すのと
+      // 全く同じ書き込みで優先権をターンプレイヤーへ自動的に返す」ようにする。
+      // ターンプレイヤー側は改めて自分の基本時間からやり直せ、そこでもタイムアウト
+      // すれば下のperformPriorityTimeoutAutoAction()が通常通りフェイズを自動
+      // スキップする（この2段目は元々あったロジックがそのまま機能する）。
+      if (state.turnPlayer && state.priorityPlayer !== state.turnPlayer) {
+        timedOutAutoActionFired = true;
         withGuard(() =>
-          setPriorityState({ player: state.priorityPlayer, deadline: Date.now() + 15000, phase: "base" })
+          setPriorityState({ player: state.turnPlayer, deadline: freshBaseDeadlineFor(state.turnPlayer), phase: "base" })
         );
+      } else {
+        const result = performPriorityTimeoutAutoAction();
+        timedOutAutoActionFired = !!result;
+        // ユーザー要望「時間切れによるスキップが発生したら15秒回復させてください」。
+        // ロック/ハンドフェイズの自動スキップ（"skip"）は盤面操作を一切伴わないため、
+        // ムーブフェイズの移動/接触や候補のランダム選択（moveToken等の実際の操作を
+        // 伴い、onStateChange側の「本人の本物の操作」判定で自然に基本時間がリセット
+        // される）と違って、何もしないとpriorityDeadlineが切れたままになってしまう。
+        if (result === "skip") {
+          withGuard(() =>
+            setPriorityState({ player: state.priorityPlayer, deadline: Date.now() + 15000, phase: "base" })
+          );
+        }
       }
     }
   }

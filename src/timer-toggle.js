@@ -19,10 +19,22 @@ let buttonEl = null;
 let bannerEl = null;
 let requestHandler = null; // main.jsから注入: (nextEnabled, queue) => void
 let respondHandler = null; // main.jsから注入: (approve) => void
+// ユーザー要望（続き68）「タイマーをオフにするボタンは基本時間アイコンを押すと
+// ひょこっと出てくる仕様にしたい」。以前は常時#phase-guide-bar内に並んでいたが、
+// 基本時間アイコン（turn-timer.jsのbaseClockEl）クリックで開閉するポップオーバーに
+// 変更した。この開閉状態自体はrender()のたびに失われては困るので、モジュール
+// ローカル変数として保持する。
+let popoverOpen = false;
 
 export function registerTimerToggleHandlers({ onRequest, onRespond }) {
   requestHandler = onRequest;
   respondHandler = onRespond;
+}
+
+// turn-timer.jsの基本時間アイコンから呼ばれる開閉トグル。
+export function toggleTimerTogglePopover() {
+  popoverOpen = !popoverOpen;
+  updateTimerToggleButton();
 }
 
 export function buildTimerToggleButton() {
@@ -40,12 +52,15 @@ export function buildTimerToggleButton() {
     const currentEnabled = getSyncedTimerConfig()?.enabled ?? false;
     const queue = getFinalLockApprovalOrder(selfSeat, state.activePlayers);
     requestHandler?.(!currentEnabled, queue);
+    // 申請を送ったらポップオーバーは閉じる（この後の状況はbannerEl側が引き継いで表示する）。
+    popoverOpen = false;
+    updateTimerToggleButton();
   });
 }
 
 export function updateTimerToggleButton() {
   if (!buttonEl) return;
-  if (!isOnlineMode() || !getState().turnPlayer) {
+  if (!isOnlineMode() || !getState().turnPlayer || !popoverOpen) {
     buttonEl.style.display = "none";
     return;
   }
