@@ -13,7 +13,6 @@
 // 閉じるのは右上の✕ボタンのみ。各カードの画像は各モジュールのgetXShopItems()が返す
 // imagePathをそのまま使う。
 
-import { createModalCloseX } from "./ui-helpers.js";
 import { getCachedUser, getMyCurrencyBalance, isItemUnlocked, purchaseItem } from "./online.js";
 import { refreshCurrencyDisplay } from "./currency-display.js";
 import { SHOP_CATEGORIES, getShopCompletionStats } from "./shop-content.js";
@@ -200,6 +199,16 @@ function buildPanel() {
   const header = document.createElement("div");
   header.id = "shop-panel-header";
 
+  // ユーザー要望（続き85）「ショップもほかの全画面ページに合わせ、『戻る』ボタンを
+  // 左上に設置してください。右上の×ボタンは削除で」。profile-page.js/
+  // ranking-page.jsと同じ「← 戻る」文言・左上配置に揃える。
+  const backBtn = document.createElement("button");
+  backBtn.type = "button";
+  backBtn.id = "shop-panel-back";
+  backBtn.textContent = "← 戻る";
+  backBtn.addEventListener("click", close);
+  header.appendChild(backBtn);
+
   const titleEl = document.createElement("div");
   titleEl.id = "shop-panel-title";
   const titleIcon = document.createElement("img");
@@ -219,7 +228,6 @@ function buildPanel() {
   headerInfo.appendChild(completionEl);
   header.appendChild(headerInfo);
 
-  header.appendChild(createModalCloseX(close));
   panel.appendChild(header);
 
   statusEl = document.createElement("div");

@@ -2262,6 +2262,14 @@ async function performLockPhaseClick(tokenId) {
   const player = getSelfSeat();
   const token = getState().tokens.find((t) => t.id === tokenId);
   if (!token || !isCardLockable(token, player)) return;
+  // ユーザー報告（続き85）「スマホでロックするとき手札効果の使用時同様の
+  // 『ロックしますか？』的なモーダルが出ていない。誤操作防止の観点から出して
+  // ほしい」。ドラッグ&ドロップでロックスロットへ動かした時（onDragEnd参照）は
+  // 既にconfirmTouchActionを挟んでいたが、ロックフェイズのハイライトを直接
+  // タップするこの経路（オートモード中、スマホでは主にこちらを使うと思われる）
+  // には無かった。confirmTouchAction自体がタッチ端末以外では常にtrueを即座に
+  // 返すため、PC側の挙動には影響しない。
+  if (!(await confirmTouchAction(`${getCardDefinition(token.cardId).name}をロックしますか？`))) return;
   const color = getCardDefinition(token.cardId).color;
   const dropTarget = { zone: "lock", side: SEAT_TO_SIDE[player], index: COLORS.indexOf(color) };
   // ユーザー要望（続き77）「移動もロックも宣言と処理を分けてください」。実際に状態を

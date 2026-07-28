@@ -774,7 +774,10 @@ export function initOpeningScreen() {
 
     const guestBtn = document.createElement("button");
     guestBtn.type = "button";
-    guestBtn.className = "opening-login-secondary-btn";
+    // ユーザー要望（続き85）「ゲストでログインをGoogleでログインの下にしてもっと
+    // 小さくしてください」。.opening-login-secondary-btn（マジックリンクのボタンと
+    // 共用）よりさらに控えめな、下線付きテキストリンク調の専用クラスにする。
+    guestBtn.className = "opening-login-tiny-btn";
     guestBtn.textContent = "ゲストでログイン";
     guestBtn.addEventListener("click", async () => {
       // ユーザー要望（続き83）「『ゲストでログイン』を押した場合はランキングとか
@@ -819,7 +822,6 @@ export function initOpeningScreen() {
     primaryRow.appendChild(infoBtn);
 
     card.appendChild(primaryRow);
-    card.appendChild(googleRow);
 
     // その他のログイン方法（右下、折りたたみ）: マジックリンクをここに格納する。
     const moreRow = document.createElement("div");
