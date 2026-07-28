@@ -584,6 +584,16 @@ function buildPlayerZone(side, player, isSelf) {
 
 // 手札公開エリアのカードを捨て場へ送る（各カードの「捨てる」ボタン）。ドラッグ操作の
 // sendTokenToPile呼び出し（onDragEndのpile-drop分岐）と同じパターン。
+// ユーザー報告（続き72）「ザ・ギャンブルで宣言色が出た（＝手札を全て捨てるはずの
+// ケース）のに、手札が２枚残ってしまう」。DISCARD_HAND_IF_REVEALED_MATCHES_DECLARED
+// （card-effect-engine.js）はhelpers.discardAndSync（＝この関数）を対象カードの数だけ
+// 連続してawaitする単純なforループで呼んでいる。オンライン対戦中、他プレイヤーの
+// 操作やターンタイマーの定期再同期等と重なって`version_conflict`等で1回失敗すると、
+// 以前はcatchでconsole.errorへ流すだけでリトライせず、そのカード1枚だけが手札に
+// 取り残されたまま何事もなかったかのように次のカードへ進んでいた（ローカルモードの
+// 単体テストでは再現しない、オンライン特有の競合が原因と判断）。1回だけ、最新状態を
+// 取り直してから同じ捨て操作をリトライするようにし、単発の一時的な競合では取りこぼさ
+// ないようにする。
 async function discardFromHandReveal(tokenId) {
   if (isOnlineMode()) {
     try {
@@ -591,8 +601,20 @@ async function discardFromHandReveal(tokenId) {
       markSelfHandled([tokenId]);
       await fetchAndHydrate(getCurrentGameId());
     } catch (err) {
-      console.error("sendTokenToPile failed", err);
-      render();
+      console.error("sendTokenToPile failed, retrying once after resync", err);
+      try {
+        await fetchAndHydrate(getCurrentGameId());
+        // 既に何らかの理由でこのトークンが手札/公開エリアに無ければ（他経路で既に
+        // 処理済み等）、再送する必要が無い。
+        if (getState().tokens.find((t) => t.id === tokenId)) {
+          await sendTokenToPile(tokenId, "discard");
+          markSelfHandled([tokenId]);
+          await fetchAndHydrate(getCurrentGameId());
+        }
+      } catch (retryErr) {
+        console.error("sendTokenToPile retry failed", retryErr);
+        render();
+      }
     }
     return;
   }
