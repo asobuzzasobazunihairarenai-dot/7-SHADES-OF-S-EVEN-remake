@@ -2070,6 +2070,13 @@ onArrivalDelegateRequestEvents(({ player, taskType, requestId }) => {
 // ヒットテスト用の下のpointerdownリスナーはこの3つを素通りさせる（該当箇所の
 // ガード参照）。
 let activeEffectPicker = null;
+// ユーザー報告（続き106）「優先権が委任されたまま自動プレイが反応せず止まる」の対策で
+// turn-timer.js側から使う。activeEffectPickerは「自分の画面が今まさに選択待ちか」という
+// ローカルなUI状態にすぎず、state.priorityPlayer（誰の優先権か）とは独立した概念のため、
+// 優先権を見ずにこれだけを監視する安全網（turn-timer.jsのtick()参照）に必要。
+export function hasActiveEffectPicker() {
+  return activeEffectPicker !== null;
+}
 
 // ユーザー報告「ジャンプ台の到達効果の移動先ハイライト時、ブラウザを最小化して
 // また開きなおすとハイライトが消えてしまっている」。render()はstateが変わる
@@ -2467,11 +2474,25 @@ export function performPriorityTimeoutAutoAction() {
   // ロックできるカードがあればランダムに1枚選んでロックする（performLockPhaseClick、
   // 手動クリックと全く同じ経路——確認モーダル・音・演出・オンライン同期すべて共通）。
   // ロックできるカードが無ければ、疑似CPU対象でも通常通りスキップする。
-  if (phase === "lock" && isPseudoCpuTarget(getSelfSeat())) {
+  if (phase === "lock") {
     const player = getSelfSeat();
+    const isTarget = isPseudoCpuTarget(player);
     const hand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
-    const lockable = hand.filter((t) => isCardLockable(t, player));
-    if (lockable.length > 0) {
+    const lockable = isTarget ? hand.filter((t) => isCardLockable(t, player)) : [];
+    // ユーザー報告（続き106）「ロックが1枚目から増えない・タイムアウト時の自動ロックが
+    // できていない」の原因調査用。この分岐に実際に到達したか、isPseudoCpuTargetが
+    // falseで最初からスキップされているのか、trueなのに手札のロック可能枚数が0枚
+    // だっただけなのか（0枚なら仕様通り。1枚以上なのに実際にロックされないなら別の
+    // バグ）を区別できるよう記録する。
+    logAction("diag-pseudo-cpu", {
+      phase: "lockAutoPlay-check",
+      player,
+      isPseudoCpuTarget: isTarget,
+      handCount: hand.length,
+      handColors: hand.map((t) => getCardDefinition(t.cardId)?.color ?? null),
+      lockableCount: lockable.length,
+    });
+    if (isTarget && lockable.length > 0) {
       const chosen = pickRandomFrom(lockable);
       performLockPhaseClick(chosen.id);
       return true;
@@ -3023,7 +3044,13 @@ function confirmTouchAction(title) {
 // 常に表示する（続き89、カウンターロックの「あなたの手札を1枚ロックしてもよい」用に新設）。
 function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ" } = {}) {
   return new Promise((resolve) => {
-    const backdrop = createBackdrop(() => resolve(false), { dim: true, zIndex: 10610 });
+    const finish = (result) => {
+      activeEffectPicker = null;
+      backdrop.remove();
+      modal.remove();
+      resolve(result);
+    };
+    const backdrop = createBackdrop(() => finish(false), { dim: true, zIndex: 10610 });
     const modal = document.createElement("div");
     modal.id = "generic-confirm-modal";
 
@@ -3034,11 +3061,6 @@ function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ"
 
     const buttons = document.createElement("div");
     buttons.className = "contact-approval-buttons";
-    const finish = (result) => {
-      backdrop.remove();
-      modal.remove();
-      resolve(result);
-    };
     const yesBtn = document.createElement("button");
     yesBtn.className = "contact-approval-approve";
     yesBtn.type = "button";
@@ -3055,6 +3077,20 @@ function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ"
 
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
+    // ユーザー報告（続き106）「優先権が委任されたまま自動プレイが反応せず止まる」の
+    // 調査中に発見: このモーダル（カウンターロックの「手札を1枚ロックしてもよい」等、
+    // 本当の任意選択向け汎用Yes/No）だけがactiveEffectPickerに未登録で、続き105で
+    // 修正した合同建設の「どこから置きますか？」と全く同じ穴だった。ここも同じく
+    // type:"option"（はい/いいえの2択）として登録し、疑似CPU対象がタイムアウトした
+    // 場合にランダムなusable:true選択肢へ自動解決されるようにする。
+    activeEffectPicker = {
+      type: "option",
+      options: [
+        { id: "yes", label: yesLabel, usable: true },
+        { id: "no", label: noLabel, usable: true },
+      ],
+      resolve: (option) => finish(option?.id === "yes"),
+    };
   });
 }
 
@@ -4138,7 +4174,15 @@ async function respondToContact(approve) {
     // defenderの解決を置き去りにしないよう、updateEndTurnButton側で優先権を
     // 持たないプレイヤーのターン終了ボタンを無効化している）。
     transferPriorityTo(defender);
+    // ユーザー報告（続き106）「カード効果等で優先権が委任されたまま自動プレイが
+    // 反応せず止まる」の原因調査用。delegateToPlayerForEffectには既存の
+    // "diag-delegate"ログがあるが、この接触経由の優先権委譲（transferPriorityTo
+    // (defender)〜finishContactResolution）には同種のログが無かったため追加する。
+    // "request"が記録されたのに対応する"resolved"が無いまま止まっていれば、
+    // maybeTriggerCardArrival以降のどこかで解決が完了していないことが分かる。
+    logAction("diag-delegate", { phase: "contact-request", defender, turnPlayer: getState().turnPlayer });
     const finishContactResolution = () => {
+      logAction("diag-delegate", { phase: "contact-resolved", defender, returningPriorityTo: getState().turnPlayer });
       showResultModal();
       transferPriorityTo(getState().turnPlayer);
       // ユーザー要望（続き76/77）「接触処理の直後にも割り込みモーダルを出す」。

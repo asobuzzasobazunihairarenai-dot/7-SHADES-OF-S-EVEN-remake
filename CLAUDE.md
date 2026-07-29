@@ -12214,3 +12214,51 @@ u=横方向・v=縦方向）にも使えるよう一般化した`rotateFraction(
   手動でボタンを押して進行を継続した）。修正後はGitHub Pages再デプロイ後に、
   改めて新規対局でこのカードが引かれた際にタイムアウトだけで自動解決されることを
   再検証する予定。
+
+### 2026-07-29（続き106）：優先権が委任されたまま疑似CPUが反応せず止まる不具合の根本原因を特定・修正、および関連する未登録モーダル1件・診断ログを追加
+
+- **経緯**: 続き105の検証（修正版で新規対局を作り直しての再検証）中、対局中盤で
+  ホスト・ゲストのどちらも一切反応しなくなる新しい種類のフリーズを発見した。片方の
+  画面には「相手のターンです（優先権はあなたに）」と表示されたまま、基本時間が0の
+  まま何も起きず、管理者パネルの「強制的にターンを終了する」緊急ボタンを押しても
+  解消しなかった。ページ再読み込みでも対局に復帰できず（ホーム画面に戻ってしまう）、
+  実質的な詰み状態だった。
+- **根本原因（重要な設計上の見落とし）**: `performPriorityTimeoutAutoAction()`の
+  「選択待ち（activeEffectPicker）をタイムアウトで自動解決する」処理は、
+  `turn-timer.js`の`updateTimeoutWarnings()`経由でしか呼ばれておらず、その呼び出しは
+  常に「今まさに`state.priorityPlayer`（優先権）を保持しているクライアント」だけに
+  限定するゲートの内側にあった（ゲーム操作は本人の識別でしか送信できないという
+  セキュリティ上の制約のため）。しかし「接触」で相手の手札から奪うカードを選ぶ処理
+  （`respondToContact`→`resolveContactRitualPickAsAttacker`→
+  `requestOpponentHandRitualPick`、type:"opponentHand"としてactiveEffectPickerに
+  登録される）は、実際に選ぶ本人（攻撃側=attacker）が優先権を保持していない状況でも
+  発生しうる。この場合、attacker自身の疑似CPU設定がONでも、上記ゲートを永遠に
+  通過できず自動選択されることが無く、defender側は「優先権はあなたに」の表示のまま
+  自分の画面には何も選択待ちが無いように見えるため、原因の特定が非常に難しかった。
+- **修正**: `activeEffectPicker`が「今この画面が選択待ちかどうか」という本来
+  `state.priorityPlayer`（誰の優先権か）とは独立したローカルなUI状態にすぎないことに
+  着目し、優先権の保持者を問わず独立して監視する安全網を`turn-timer.js`の`tick()`に
+  追加した。`main.js`に`hasActiveEffectPicker()`という薄いgetterをexportし、
+  `turn-timer.js`側で「自分が疑似CPU対象（`isPseudoCpuTarget(getSelfSeat())`）かつ
+  `activeEffectPicker`が一定時間（`PSEUDO_CPU_DEADLINE_MS`＝1秒相当のtick数）
+  居座り続けている」場合は、優先権の状態に関わらず`performPriorityTimeoutAutoAction()`
+  を呼んで解決するようにした。
+- **同時に発見した別の未登録モーダル**: `confirmGenericYesNo()`（カウンターロックの
+  「手札を1枚ロックしてもよい」等、本当の任意選択向けの汎用Yes/Noモーダル）が、
+  続き105で修正した「どこから置きますか？」と全く同じ穴（activeEffectPicker未登録）を
+  持っていたため、同じくtype:"option"として登録するよう修正した。
+- **診断ログの追加**（ユーザー要望「確認が難しい場合は確認できるようするためのネタを
+  アクションログに仕込んでください」への対応）: ①`pseudo-cpu-prompt.js`の「はい」
+  クリック直後に`isPseudoCpuIncludeSelf()`の実値を記録（クリックが実際に反映されたか
+  をdevtools無しで確認できるように）、②`performPriorityTimeoutAutoAction()`の
+  ロックフェイズ判定に、`isPseudoCpuTarget`の真偽・手札枚数・ロック可能枚数を記録
+  （ロックが増えない原因が「疑似CPU対象でない」からか「ロック可能な色の手札が
+  たまたま無い」だけなのかを区別できるように）、③`updateTimeoutWarnings()`の
+  優先権タイムアウト初回分岐に、優先権保持者・ターンプレイヤー・返却判定を記録、
+  ④接触経由の優先権委譲（`transferPriorityTo(defender)`〜`finishContactResolution`）
+  に、`delegateToPlayerForEffect`と同じ"diag-delegate"カテゴリでrequest/resolvedを
+  記録——を追加した。
+- 「ロックが1枚目から増えない」というユーザー報告についても、上記③の
+  `lockAutoPlay-check`ログで「疑似CPU対象と判定されているか」「手札に何色のカードが
+  あり、うち何枚がロック可能か」が直接確認できるようになったため、次回の再検証で
+  切り分ける。

@@ -25,7 +25,13 @@
 // online.jsのstartGame()が送るtimerConfig参照）。
 
 import { getState, subscribe, setPriorityState, isOnlineMode } from "./state.js";
-import { toStageLocalRect, STAGE_WIDTH, performPriorityTimeoutAutoAction, isAnyEffectProcessingBusy } from "./main.js";
+import {
+  toStageLocalRect,
+  STAGE_WIDTH,
+  performPriorityTimeoutAutoAction,
+  isAnyEffectProcessingBusy,
+  hasActiveEffectPicker,
+} from "./main.js";
 import { SEAT_ORDER, SEAT_TO_SIDE, getRotationSteps, rotateSide } from "./board-layout.js";
 import { getSelfSeat, getSyncedTimerConfig, getCurrentGameId, fetchAndHydrate } from "./online.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
@@ -791,6 +797,29 @@ function rebuildTransferButtons() {
 let ticksSincePriorityResync = 0;
 const PRIORITY_RESYNC_EVERY_TICKS = 15; // tick()は200ms間隔なので約3秒に1回
 
+// ユーザー報告（続き106、実機2クライアントテストで発見）「カード効果等で優先権が
+// 一時的に他プレイヤーへ委譲された状態のまま、疑似CPUの自動プレイが反応せず止まって
+// しまう」の根本原因: performPriorityTimeoutAutoAction()のactiveEffectPicker解決は
+// updateTimeoutWarnings経由でしか呼ばれず、それは常に「今まさにstate.priorityPlayerを
+// 保持しているクライアント」だけに限定されたゲート（本人の識別でしか操作を送信できない
+// というセキュリティ上の制約、918行目付近参照）の内側にある。しかし接触で相手の手札から
+// 奪うカードを選ぶ処理（respondToContact→resolveContactRitualPickAsAttacker、
+// requestOpponentHandRitualPickでactiveEffectPickerに登録される）は、優先権を
+// 「奪われる側（defender）」が保持している間に、「奪う側（attacker）」自身の画面で
+// 選ばせる——つまりこの選択が発生する瞬間、選ぶ本人（attacker）はstate.priorityPlayerを
+// 保持していないため、上記ゲートを永遠に通過できず、attacker自身の疑似CPU設定が
+// ONでも自動で選ばれることが無かった（defender側は「優先権はあなたに」の表示のまま、
+// 自分の画面には何も選択待ちが無いように見えるため、原因が分かりにくい）。
+// 対策として、「自分の画面で今まさに選択待ちのactiveEffectPickerがあるかどうか」は
+// 本来ゲーム上の優先権とは無関係の「自分のローカルなUI状態」でしかないという点に着目し、
+// state.priorityPlayerを見ずに独立して監視する安全網を追加する。自分が疑似CPU対象
+// （isPseudoCpuTarget(getSelfSeat())）で、かつactiveEffectPickerが一定時間
+// （PSEUDO_CPU_DEADLINE_MS相当）居座り続けていたら、優先権の状態に関わらず
+// performPriorityTimeoutAutoAction()を呼んで解決する。
+let ticksWithLocalEffectPickerPending = 0;
+const TICK_INTERVAL_MS = 200; // setInterval(tick, 200)と一致させる
+const PSEUDO_CPU_LOCAL_PICKER_TIMEOUT_TICKS = Math.max(1, Math.round(PSEUDO_CPU_DEADLINE_MS / TICK_INTERVAL_MS));
+
 // ユーザー要望「タイマーが切れた場合、自動でスキップまたはターン終了をするように
 // してください。移動先や効果の選択などの途中の場合はランダムで選択させるように」。
 // 完全にタイムアウトした（isTimedOut===true）瞬間に1回だけ試す。performPriorityTimeout
@@ -831,6 +860,23 @@ function updateTimeoutWarnings(state, isTimedOut) {
       return;
     }
     if (!timedOutAutoActionFired) {
+      // ユーザー報告（続き106、実機2クライアントテストで発見）「カード効果等で優先権が
+      // 一時的に他プレイヤーへ委譲された状態のまま、疑似CPUの自動プレイが反応せず
+      // 止まってしまう」の原因調査用。この分岐（優先権保持者≠ターンプレイヤーの
+      // タイムアウト1回目）に実際に到達しているか、どちらの経路（下のreturn-to-
+      // turnPlayer分岐か、performPriorityTimeoutAutoAction呼び出しか）を通ったかを
+      // 記録する。1回のタイムアウトにつき1回しか出ない（timedOutAutoActionFiredの
+      // ガード内のため）ので、ログを埋め尽くす心配はない。
+      logAction("diag-pseudo-cpu", {
+        phase: "updateTimeoutWarnings-firstTimeout",
+        selfSeat: getSelfSeat(),
+        priorityPlayer: state.priorityPlayer,
+        turnPlayer: state.turnPlayer,
+        priorityPhase: state.priorityPhase,
+        priorityDeadline: state.priorityDeadline,
+        isPseudoCpuTarget: isPseudoCpuTarget(state.priorityPlayer),
+        willReturnPriorityToTurnPlayer: !!(state.turnPlayer && state.priorityPlayer !== state.turnPlayer),
+      });
       // ユーザー要望（続き67、経緯: 当初「ハンドフェイズでタイムアウトを迎えたのに
       // 自動スキップされない」という報告を受け、いったん「本人のタブがバックグラウンド化
       // していると誰もスキップできない」という別の仮説で調査を進めていたが、後の
@@ -907,6 +953,21 @@ function tick() {
     setDisplayIfChanged(ropeEl, "none");
     setDisplayIfChanged(baseClockEl, "none");
     return;
+  }
+  // ユーザー報告（続き106）「優先権が委任されたまま自動プレイが反応せず止まる」の
+  // 根本原因（このファイル798行目付近の解説参照）への対策。state.priorityPlayerを
+  // 誰が保持しているかに関係なく、「自分の画面に今まさに選択待ちのactiveEffectPickerが
+  // あるか」だけを独立して監視する。疑似CPU対象で、かつ一定時間（PSEUDO_CPU_DEADLINE_MS
+  // 相当）居座っていたら、優先権の状態を問わず解決する。
+  if (isPseudoCpuTarget(getSelfSeat()) && hasActiveEffectPicker()) {
+    ticksWithLocalEffectPickerPending++;
+    if (ticksWithLocalEffectPickerPending >= PSEUDO_CPU_LOCAL_PICKER_TIMEOUT_TICKS) {
+      ticksWithLocalEffectPickerPending = 0;
+      logAction("diag-pseudo-cpu", { phase: "localEffectPicker-forceResolve", selfSeat: getSelfSeat() });
+      performPriorityTimeoutAutoAction();
+    }
+  } else {
+    ticksWithLocalEffectPickerPending = 0;
   }
   // 優先権の安全網の定期再同期（上のコメント参照）。オンライン中だけ、数秒おきに
   // fetchAndHydrate()（盤面全体の再取得、tokens/piles/priority全部含む）を呼び、

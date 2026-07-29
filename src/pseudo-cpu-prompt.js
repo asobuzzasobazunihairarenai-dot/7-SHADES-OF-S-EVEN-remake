@@ -19,7 +19,8 @@
 import { isOnlineMode, getCurrentGameId, getSyncedTimerConfig } from "./online.js";
 import { subscribe } from "./state.js";
 import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
-import { setPseudoCpuIncludeSelf } from "./admin.js";
+import { setPseudoCpuIncludeSelf, isPseudoCpuIncludeSelf } from "./admin.js";
+import { logAction } from "./action-log.js";
 
 function showPseudoCpuJoinPrompt() {
   const modal = document.createElement("div");
@@ -48,6 +49,16 @@ function showPseudoCpuJoinPrompt() {
   yesBtn.textContent = "✅ はい";
   yesBtn.addEventListener("click", () => {
     setPseudoCpuIncludeSelf(true);
+    // ユーザー報告（続き106）「『はい』を押しても基本時間が1秒に反映されないことがある」の
+    // 原因調査用。クリックハンドラ自体が実際に呼ばれ、setPseudoCpuIncludeSelf(true)の
+    // 直後にisPseudoCpuIncludeSelf()が本当にtrueへ変わっているかをアクションログに残す
+    // （devtoolsを開かずに検証できるようにするため）。falseのままならクリック自体が
+    // 届いていない/呼ばれていない別の問題、trueになっているのに以降の挙動がおかしいなら
+    // このモーダルより後段（turn-timer.js側の反映）の問題と切り分けられる。
+    logAction("diag-pseudo-cpu", {
+      phase: "pseudoCpuJoinPrompt-yesClicked",
+      isPseudoCpuIncludeSelfAfterSet: isPseudoCpuIncludeSelf(),
+    });
     window.dispatchEvent(new CustomEvent("admin:change"));
     // ユーザー要望（続き99）「ONしたら現在持っている基本時間及び砂時計は0にして
     // ください」。turn-timer.js側のリスナーが、今まさに自分の番なら即座に反映する。
