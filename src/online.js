@@ -1508,13 +1508,13 @@ export function registerVictorySummaryHelper(fn) {
 // 返す設計になっており、以前のエラーログ（upload failed等）が今回は出ていなかった
 // ことから、どの分岐で止まったのかログが無いと切り分けできない。原因が分かり次第
 // このログ群は削除する。
-async function captureVictoryScreenshot(gameId, { activePlayers, winnerSeat }) {
+async function captureVictoryScreenshot(gameId, { activePlayers, winnerSeat, durationMinutes }) {
   try {
     if (!generateVictorySummaryCanvasFn) {
       console.warn("[stats-debug] captureVictoryScreenshot: generateVictorySummaryCanvasFnが未登録");
       return null;
     }
-    const canvas = await generateVictorySummaryCanvasFn({ activePlayers, winnerSeat });
+    const canvas = await generateVictorySummaryCanvasFn({ activePlayers, winnerSeat, durationMinutes });
     console.log("[stats-debug] canvas生成完了", canvas.width, canvas.height);
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
     if (!blob) {
@@ -1577,11 +1577,13 @@ export async function uploadAvatarImage(blob) {
 
 // オンライン対戦が勝利で終わった瞬間、victory.jsから（勝者本人の画面からだけ、
 // 二重登録防止のため）呼ばれる。参加した座席全員を戦績システムのプレイヤーとして
-// 解決（未登録なら自動登録）し、対戦記録を1件登録する。ユーザー要望により、
-// 手動登録と同じく「証拠画像（勝利時の盤面スクリーンショット）を添えて、
-// 承認待ち(pending)として登録する」形にした（当初は証拠画像無し・承認不要の
-// 即時反映だったが、戦績管理システム本来の不正防止の仕組みをそのまま活かしたい
-// とのことで変更した）。
+// 解決（未登録なら自動登録）し、対戦記録を1件登録する。証拠画像（勝利時の盤面
+// スクリーンショット）は引き続き添えるが、ユーザー要望（続き95）「対戦終了時、戦績
+// システムに自動で戦績申請する際、管理者からの承認は不要とします」により、
+// status: "approved"で即時反映する形に戻した（一時、戦績管理システム本来の
+// 不正防止の仕組みに合わせて"pending"＋承認制にしていたが、デジタル版はそもそも
+// サーバー側で状態を検証した上での自動登録のため、手動申告の不正防止目的の承認制とは
+// 前提が異なるとの判断）。
 // feedbackはユーザー要望「ゲーム終了時に戦績システムにゲームのコメントを記入する
 // 記入欄を出現させる（パス可能）」への対応。post-game-panel.jsが、証拠画像の生成・
 // アップロードとは独立して、勝者の入力（または空文字＝パス）を待ってから渡す
@@ -1621,7 +1623,7 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat, feedba
   // （飛翔・到達バースト・ロックスタンプ、合計2.5秒前後）が終わるまで待つ必要があった。
   // 今はgetState()のtokensから直接描画するCanvas生成（victory-summary-image.js）に
   // 切り替えたため、状態自体は承認完了時点で既に確定しており待つ必要が無い。
-  const proofImageUrl = await captureVictoryScreenshot(currentGameId, { activePlayers, winnerSeat });
+  const proofImageUrl = await captureVictoryScreenshot(currentGameId, { activePlayers, winnerSeat, durationMinutes });
 
   // players同様、matches.idもtext主キーでDB側のデフォルトが無く、created_atもbigint
   // （姉妹プロジェクトはDate.now()のミリ秒エポックをそのまま入れている、timestamptzでは
@@ -1634,7 +1636,7 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat, feedba
     duration_minutes: durationMinutes,
     proof_image_url: proofImageUrl,
     created_at: Date.now(),
-    status: "pending",
+    status: "approved",
     source: "digital",
     feedback: feedback || "",
   });

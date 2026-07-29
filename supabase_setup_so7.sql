@@ -1335,3 +1335,68 @@ begin
   where id = p_game_id;
 end;
 $$;
+
+-- ユーザー要望（続き95）「対戦終了時、負けた方にもお金獲得演出モーダルを出したい」への
+-- 対応。so7_award_match_currencyは元々「1ゲーム1回だけ実際に残高を付与する」設計で、
+-- 2回目以降の呼び出し（同じゲームに対して他クライアントが先に付与済みだった場合）は
+-- 単純に0を返していた。オンライン対戦は勝者・敗者それぞれのクライアントがほぼ同時に
+-- checkForVictory()経由でこの関数を呼ぶため、実際には全員へ正しく残高が付与されていても
+-- 「先に実行が完了した1クライアントだけ」が非ゼロの戻り値を得て演出モーダルを表示でき、
+-- もう一方（多くの場合、勝利判定からの一連の処理が長い勝者側が先に完了しやすく、
+-- 結果的に敗者側が0を受け取って演出が出ない）は演出無しのままになっていた。
+-- 修正: 既に付与済み(v_already=true)の場合でも、残高は二重に増やさず、呼び出し元
+-- (auth.uid())自身が「本来いくら受け取ったか」を決定的に計算して返すようにした
+-- （p_amount・p_winner_bonusはランダム要素が無いため、後から計算しても一致する）。
+-- これにより、呼び出し順に関わらず勝者・敗者の両方のクライアントが自分の受取額を
+-- 正しく受け取り、victory.js側の`if (amount > 0) showCurrencyAwardModal(amount)`が
+-- 両方の画面で正しく発火するようになる。関数シグネチャ（引数・戻り値の型）は
+-- 変えていないため、online.js側の呼び出しコードの変更は不要。
+create or replace function so7_award_match_currency(
+  p_game_id text,
+  p_amount int default 50,
+  p_winner_seat text default null,
+  p_winner_bonus int default 30
+)
+returns int
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_already boolean;
+  r record;
+  v_grant int;
+  v_my_grant int := 0;
+  v_my_seat text;
+begin
+  select currency_awarded into v_already from so7_games where id = p_game_id for update;
+  if v_already is null then
+    raise exception 'game_not_found';
+  end if;
+
+  select seat into v_my_seat from so7_game_seats where game_id = p_game_id and user_id = auth.uid();
+
+  if v_already then
+    -- 既に他クライアントが付与済み。残高はもう変更せず、演出表示のためだけに
+    -- 「本来いくら受け取ったか」を計算して返す。
+    if v_my_seat is null then
+      return 0;
+    end if;
+    return p_amount + case when v_my_seat = p_winner_seat then p_winner_bonus else 0 end;
+  end if;
+
+  for r in select user_id, seat from so7_game_seats where game_id = p_game_id loop
+    v_grant := p_amount + case when r.seat = p_winner_seat then p_winner_bonus else 0 end;
+    insert into so7_user_currency (user_id, balance, updated_at)
+    values (r.user_id, v_grant, now())
+    on conflict (user_id) do update
+      set balance = so7_user_currency.balance + v_grant, updated_at = now();
+    if r.user_id = auth.uid() then
+      v_my_grant := v_grant;
+    end if;
+  end loop;
+
+  update so7_games set currency_awarded = true where id = p_game_id;
+  return v_my_grant;
+end;
+$$;

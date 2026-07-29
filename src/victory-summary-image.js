@@ -30,13 +30,20 @@ import { COLORS, GATE_POSITIONS, SIDE_TO_SEAT, SEAT_TO_SIDE, SEAT_ORDER } from "
 const BOARD_N = 7;
 const CELL = 52;
 const CELL_GAP = 3;
-const PAD = 28;
-// ユーザー要望「手札・ロックエリアのカードを正方形にして」「アバターを手札の横に
-// 大きく、手札と同じくらいに」。カード・アバターとも同じ正方形サイズを共有する。
-const CARD_SIZE = 68;
-const AVATAR_SIZE = CARD_SIZE;
-const CARD_GAP = 6;
-const ROW_LABEL_H = 26;
+const BOARD_PX = BOARD_N * CELL + (BOARD_N - 1) * CELL_GAP;
+const PAD = 24;
+// ユーザー要望（続き95）「戦績システムに貼る対戦結果画像、ロック状況などは盤面の
+// 雰囲気に合わせて盤面の各辺にあった方が自然でわかりやすい。全体を正方形画像で」。
+// 以前の「盤面を左、各プレイヤーのロックエリアを右カラムに縦積み」という横長
+// レイアウトをやめ、実際のゲーム画面と同じく「盤面を中央に置き、各プレイヤーの
+// ロックエリアをそのプレイヤーのゲートがある辺の外側に配置する」十字型レイアウトに
+// 変更した。BANDは各辺の帯の厚み（アバター・名前・ロック7色・手札枚数を収める）。
+const BAND = 96;
+const AVATAR_SIZE = 36;
+const LOCK_SLOT = 48;
+const LOCK_GAP = 3;
+const LOCK_STRIP_LEN = COLORS.length * LOCK_SLOT + (COLORS.length - 1) * LOCK_GAP;
+const TITLE_H = 92;
 
 function loadImage(src, { crossOrigin } = {}) {
   return new Promise((resolve) => {
@@ -147,44 +154,153 @@ async function preloadImages(state, seats) {
   return { cache, avatarCache, backgroundImg };
 }
 
+// 各プレイヤーの帯（ゲートのある辺の外側）を1つ描く。top/bottomは横向き（名前行＋
+// アバター/ロック7色/手札枚数を左右方向に並べる）、left/rightは縦向き（同じ内容を
+// 上下方向に並べる）。boardX/boardY/boardPxは盤面の描画位置・一辺の長さ。
+function drawSideBand(ctx, { side, seat, isWinner, state, img, avatarCache, boardX, boardY }) {
+  const color = getPieceColor(state, seat);
+  const gateColor = resolveColorVar(color);
+  const crown = isWinner ? "🏆 " : "";
+  const nameLabel = `${crown}${getPlayerName(seat)}${color ? `（${color}）` : ""}`;
+  const handCount = state.tokens.filter(
+    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === seat
+  ).length;
+  const avatarImg = avatarCache.get(seat);
+  const horizontal = side === "top" || side === "bottom";
+
+  // 帯の矩形（盤面の外側、その辺いっぱいの長さ×BANDの厚み）。
+  const rect = horizontal
+    ? { x: boardX, y: side === "top" ? boardY - BAND : boardY + BOARD_PX, w: BOARD_PX, h: BAND }
+    : { x: side === "left" ? boardX - BAND : boardX + BOARD_PX, y: boardY, w: BAND, h: BOARD_PX };
+
+  ctx.save();
+  ctx.font = "bold 15px sans-serif";
+  const nameW = ctx.measureText(nameLabel).width;
+
+  if (horizontal) {
+    // 中身（アバター＋ロック7色）の合計幅で中央寄せする（帯の幅=盤面幅より少し
+    // はみ出してもBANDの余白（コーナー部分）に収まる想定）。
+    const contentW = AVATAR_SIZE + 8 + LOCK_STRIP_LEN;
+    const contentX = rect.x + (rect.w - contentW) / 2;
+    const nameY = side === "top" ? rect.y + 16 : rect.y + BAND - 28;
+    const rowY = side === "top" ? rect.y + 26 : rect.y + 6;
+
+    drawTextPanel(ctx, rect.x + (rect.w - Math.max(nameW + 12, contentW)) / 2 - 6, nameY - 15, Math.max(nameW + 12, contentW) + 12, 20, 5);
+    ctx.fillStyle = isWinner ? "#facc15" : "#e2e8f0";
+    ctx.fillText(nameLabel, rect.x + (rect.w - nameW) / 2, nameY);
+
+    // アバター（円形）。
+    const avatarCx = contentX + AVATAR_SIZE / 2;
+    const avatarCy = rowY + AVATAR_SIZE / 2;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(avatarCx, avatarCy, AVATAR_SIZE / 2, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    if (avatarImg) ctx.drawImage(avatarImg, contentX, rowY, AVATAR_SIZE, AVATAR_SIZE);
+    else {
+      ctx.fillStyle = "#374151";
+      ctx.fillRect(contentX, rowY, AVATAR_SIZE, AVATAR_SIZE);
+    }
+    ctx.restore();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = gateColor;
+    ctx.beginPath();
+    ctx.arc(avatarCx, avatarCy, AVATAR_SIZE / 2, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // ロック7色（アバターの右隣、横並び）。
+    const lockX0 = contentX + AVATAR_SIZE + 8;
+    for (let i = 0; i < COLORS.length; i++) {
+      const x = lockX0 + i * (LOCK_SLOT + LOCK_GAP);
+      drawLockSlot(ctx, state, img, seat, i, x, rowY);
+    }
+
+    // 手札枚数（ロック行のさらに外側、帯の端の空きに小さく表示）。
+    ctx.font = "12px sans-serif";
+    ctx.fillStyle = "#e2e8f0";
+    ctx.textAlign = "right";
+    ctx.fillText(`手札${handCount}枚`, rect.x + rect.w, side === "top" ? rowY + 44 : nameY - 24);
+    ctx.textAlign = "left";
+  } else {
+    const contentH = AVATAR_SIZE + 8 + LOCK_STRIP_LEN;
+    const contentY = rect.y + (rect.h - contentH) / 2;
+    const colX = side === "left" ? rect.x + BAND - LOCK_SLOT - 14 : rect.x + 14;
+    const avatarCx = colX + LOCK_SLOT / 2;
+    const avatarCy = contentY + AVATAR_SIZE / 2;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(avatarCx, avatarCy, AVATAR_SIZE / 2, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    if (avatarImg) ctx.drawImage(avatarImg, avatarCx - AVATAR_SIZE / 2, contentY, AVATAR_SIZE, AVATAR_SIZE);
+    else {
+      ctx.fillStyle = "#374151";
+      ctx.fillRect(avatarCx - AVATAR_SIZE / 2, contentY, AVATAR_SIZE, AVATAR_SIZE);
+    }
+    ctx.restore();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = gateColor;
+    ctx.beginPath();
+    ctx.arc(avatarCx, avatarCy, AVATAR_SIZE / 2, 0, Math.PI * 2);
+    ctx.stroke();
+
+    const lockY0 = contentY + AVATAR_SIZE + 8;
+    for (let i = 0; i < COLORS.length; i++) {
+      const y = lockY0 + i * (LOCK_SLOT + LOCK_GAP);
+      drawLockSlot(ctx, state, img, seat, i, colX, y);
+    }
+
+    // 名前・手札枚数は縦帯の幅(BAND)に収まるよう回転せず短く配置する。
+    ctx.font = "bold 13px sans-serif";
+    ctx.fillStyle = isWinner ? "#facc15" : "#e2e8f0";
+    drawTextPanel(ctx, rect.x + 2, contentY - 20, rect.w - 4, 18, 5);
+    const shortName = `${crown}${getPlayerName(seat)}`;
+    const shortW = ctx.measureText(shortName).width;
+    ctx.fillText(shortName, rect.x + Math.max(2, (rect.w - shortW) / 2), contentY - 6);
+
+    ctx.font = "11px sans-serif";
+    ctx.fillStyle = "#e2e8f0";
+    const handText = `手札${handCount}枚`;
+    const handW = ctx.measureText(handText).width;
+    ctx.fillText(handText, rect.x + Math.max(2, (rect.w - handW) / 2), lockY0 + LOCK_STRIP_LEN + 16);
+  }
+  ctx.restore();
+}
+
+function drawLockSlot(ctx, state, img, seat, colorIndex, x, y) {
+  const side = SEAT_TO_SIDE[seat];
+  const locked = state.tokens.find(
+    (t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side && t.location.index === colorIndex
+  );
+  if (locked) {
+    drawCover(ctx, img(getCardImagePath(locked.cardId)), x, y, LOCK_SLOT, LOCK_SLOT, 4);
+  } else {
+    ctx.fillStyle = "rgba(148, 163, 184, 0.12)";
+    ctx.fillRect(x, y, LOCK_SLOT, LOCK_SLOT);
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.35)";
+    ctx.strokeRect(x, y, LOCK_SLOT, LOCK_SLOT);
+  }
+}
+
 // 勝利の瞬間の対戦記録の「証拠画像」を生成し、canvasを返す（アップロードはonline.js側の
 // 呼び出し元が行う）。activePlayers/winnerSeatはvictory.jsのcheckForVictoryから渡される
-// ものと同じ形。
+// ものと同じ形。durationMinutes（続き95で追加）: online.jsのsubmitStatsMatchResultが
+// 対局開始からの経過分数を計算して渡す（matches.duration_minutesと同じ値）。
 //
-// レイアウト（ユーザー要望「横長画像にしたい」）: 盤面を左カラム、各プレイヤーの
-// ロックエリア・手札を右カラムに縦に並べる横並び2カラム構成にした（以前は盤面の下に
-// 全プレイヤー分を縦に積んでいたため、正方形に近い盤面の分だけ縦長になっていた）。
-export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat }) {
+// レイアウト（続き95、ユーザー要望「盤面の各辺に各プレイヤーの情報があった方が自然」
+// 「全体を正方形に」）: 盤面を中央に据え、各プレイヤーのロックエリア・アバター・
+// 手札枚数を、そのプレイヤーのゲートがある辺（SEAT_TO_SIDE）の外側の帯に配置する
+// 十字型レイアウト。以前の「盤面＋右カラム」という横長2カラム構成をやめた。
+export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat, durationMinutes }) {
   const state = getState();
   const seats = SEAT_ORDER.filter((s) => activePlayers.includes(s));
   const { cache: images, avatarCache, backgroundImg } = await preloadImages(state, seats);
   const img = (url) => images.get(url) ?? null;
 
-  const handTokensBySeat = new Map(
-    seats.map((seat) => [
-      seat,
-      state.tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === seat),
-    ])
-  );
-
-  const boardPx = BOARD_N * CELL + (BOARD_N - 1) * CELL_GAP;
-  const sectionGap = 10;
-  // 1プレイヤー分＝名前ラベル＋（アバター＋ロックエリア7色）＋隙間＋手札枚数の
-  // テキスト行。手札は絵を描かなくなった（枚数だけ）ため、その分の高さは
-  // ROW_LABEL_Hだけで済む（続き44、ユーザー要望「手札は枚数表示だけでいい」「各
-  // ロック結果の隣にアバターを配置」）。
-  const playerBlockH = ROW_LABEL_H + CARD_SIZE + sectionGap + ROW_LABEL_H + 12;
-  // 横幅を決めるのはロック行（アバター1枠＋7色）。手札行はもう絵を描かないため
-  // 横幅には関与しない。
-  const cardsAcross = 1 + COLORS.length;
-
-  const titleH = 74;
-  const colGap = 36;
-  const leftColW = PAD * 2 + boardPx;
-  const rightColW = PAD + cardsAcross * (CARD_SIZE + CARD_GAP);
-  const width = leftColW + colGap + rightColW;
-  const bodyH = Math.max(boardPx, seats.length * playerBlockH);
-  const height = titleH + PAD + bodyH + PAD;
+  const width = PAD * 2 + BAND * 2 + BOARD_PX;
+  const height = TITLE_H + PAD + BAND * 2 + BOARD_PX + PAD;
 
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -205,29 +321,28 @@ export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat }
     ctx.fillRect(0, 0, width, height);
   }
 
-  // タイトル・日付・勝者（全幅、上部）。ユーザー要望「文字に背景を追加するなど対策」。
-  drawTextPanel(ctx, PAD - 10, 8, width - (PAD - 10) * 2, titleH - 16, 8);
+  // タイトル・日付・勝者・プレイ時間（全幅、上部）。ユーザー要望「文字に背景を追加
+  // するなど対策」＋（続き95）「画像にプレイ時間も記載してほしい」。
+  drawTextPanel(ctx, PAD - 10, 8, width - (PAD - 10) * 2, TITLE_H - 16, 8);
   ctx.fillStyle = "#f8fafc";
   ctx.font = "bold 22px sans-serif";
   ctx.fillText("7 SHADES OF S:EVEN デジタル版 - 対戦記録", PAD, 30);
   ctx.font = "14px sans-serif";
   ctx.fillStyle = "#cbd5e1";
-  ctx.fillText(new Date().toISOString().slice(0, 10), PAD, 50);
+  const durationText = durationMinutes != null ? `　プレイ時間: ${durationMinutes}分` : "";
+  ctx.fillText(`${new Date().toISOString().slice(0, 10)}${durationText}`, PAD, 50);
   ctx.font = "bold 18px sans-serif";
   ctx.fillStyle = "#facc15";
-  ctx.fillText(`🏆 勝者: ${getPlayerName(winnerSeat)}`, PAD, 70);
+  ctx.fillText(`🏆 勝者: ${getPlayerName(winnerSeat)}`, PAD, 74);
 
-  // 左カラム: 盤面 7x7
-  // ユーザー要望「各ゲート誰がどのゲートかわかるようにしてください」。GATE_POSITIONSの
-  // 4マス（row,col）に、その辺の持ち主（SIDE_TO_SEAT、参加していない辺はnull）を
-  // 対応付けておき、盤面描画時にそのマスだけ持ち主の駒の色で縁取り＋名前ラベルを出す。
+  // 盤面 7x7（中央）。
   const gateSeatByCellKey = new Map();
   for (const [side, pos] of Object.entries(GATE_POSITIONS)) {
     const seat = SIDE_TO_SEAT[side];
     if (seats.includes(seat)) gateSeatByCellKey.set(`${pos.row},${pos.col}`, seat);
   }
-  const boardX = PAD;
-  const boardY = titleH + PAD;
+  const boardX = PAD + BAND;
+  const boardY = TITLE_H + PAD + BAND;
   const cellTokens = state.tokens.filter((t) => t.location.zone === "cell");
   for (let row = 0; row < BOARD_N; row++) {
     for (let col = 0; col < BOARD_N; col++) {
@@ -261,18 +376,6 @@ export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat }
         ctx.lineWidth = 3;
         ctx.strokeStyle = gateColor;
         ctx.strokeRect(x + 1.5, y + 1.5, CELL - 3, CELL - 3);
-        ctx.font = "bold 11px sans-serif";
-        const label = getPlayerName(gateSeat);
-        const labelW = ctx.measureText(label).width + 6;
-        ctx.fillStyle = "rgba(8, 10, 16, 0.75)";
-        ctx.fillRect(x + 2, y + 2, Math.min(labelW, CELL - 4), 14);
-        ctx.fillStyle = gateColor;
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(x + 2, y + 2, CELL - 4, 14);
-        ctx.clip();
-        ctx.fillText(label, x + 4, y + 12);
-        ctx.restore();
       }
       ctx.lineWidth = 1;
       ctx.strokeStyle = "rgba(226, 232, 240, 0.15)";
@@ -280,69 +383,18 @@ export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat }
     }
   }
 
-  // 右カラム: プレイヤーごとのロックエリア・手札
-  const rightX = leftColW + colGap;
-  let y = boardY;
+  // 各プレイヤーの帯（ゲートのある辺の外側）。
   for (const seat of seats) {
-    const isWinner = seat === winnerSeat;
-    const side = SEAT_TO_SIDE[seat];
-    const color = getPieceColor(state, seat);
-
-    drawTextPanel(ctx, rightX - 8, y - 4, rightColW - PAD, ROW_LABEL_H, 6);
-    ctx.font = "bold 16px sans-serif";
-    ctx.fillStyle = isWinner ? "#facc15" : "#e2e8f0";
-    const crown = isWinner ? "🏆 " : "";
-    ctx.fillText(`${crown}${getPlayerName(seat)}${color ? `（${color}）` : ""}`, rightX, y + 16);
-
-    // ユーザー要望「各ロック結果の隣にアバターを配置しましょう」。以前は手札の列の
-    // 先頭に置いていたアバターを、ロックエリアの列の先頭（CARD_SIZE四方、AVATAR_SIZE
-    // と共通）に移した。
-    const lockY = y + ROW_LABEL_H;
-    const avatarImg = avatarCache.get(seat);
-    const avatarCx = rightX + AVATAR_SIZE / 2;
-    const avatarCy = lockY + AVATAR_SIZE / 2;
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(avatarCx, avatarCy, AVATAR_SIZE / 2, 0, Math.PI * 2);
-    ctx.closePath();
-    ctx.clip();
-    if (avatarImg) {
-      ctx.drawImage(avatarImg, rightX, lockY, AVATAR_SIZE, AVATAR_SIZE);
-    } else {
-      ctx.fillStyle = "#374151";
-      ctx.fillRect(rightX, lockY, AVATAR_SIZE, AVATAR_SIZE);
-    }
-    ctx.restore();
-
-    // ロックエリア（7色分、揃っている色だけ実際のカード絵を表示。正方形）。
-    // アバターの分だけ右にずらして並べる。
-    for (let i = 0; i < COLORS.length; i++) {
-      const x = rightX + AVATAR_SIZE + CARD_GAP + i * (CARD_SIZE + CARD_GAP);
-      const locked = state.tokens.find(
-        (t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side && t.location.index === i
-      );
-      if (locked) {
-        drawCover(ctx, img(getCardImagePath(locked.cardId)), x, lockY, CARD_SIZE, CARD_SIZE, 4);
-      } else {
-        ctx.fillStyle = "rgba(148, 163, 184, 0.12)";
-        ctx.fillRect(x, lockY, CARD_SIZE, CARD_SIZE);
-        ctx.strokeStyle = "rgba(148, 163, 184, 0.35)";
-        ctx.strokeRect(x, lockY, CARD_SIZE, CARD_SIZE);
-      }
-    }
-
-    // 手札。ユーザー要望「手札は枚数表示だけで何を持っていたかは無しでいい、画面が
-    // すっきりする」への対応でカード絵の列は描かず、枚数だけをテキストで示す
-    // （ハマりどころだった「他プレイヤーの手札の中身はこのクライアントから元々見えない」
-    // 問題自体も、絵を描かなくなったことで自然に解消する）。
-    const handY = lockY + CARD_SIZE + sectionGap;
-    const hand = handTokensBySeat.get(seat) ?? [];
-    drawTextPanel(ctx, rightX - 8, handY - 2, rightColW - PAD, ROW_LABEL_H - 6, 6);
-    ctx.font = "14px sans-serif";
-    ctx.fillStyle = "#e2e8f0";
-    ctx.fillText(`手札: ${hand.length}枚`, rightX, handY + 12);
-
-    y += playerBlockH;
+    drawSideBand(ctx, {
+      side: SEAT_TO_SIDE[seat],
+      seat,
+      isWinner: seat === winnerSeat,
+      state,
+      img,
+      avatarCache,
+      boardX,
+      boardY,
+    });
   }
 
   return canvas;

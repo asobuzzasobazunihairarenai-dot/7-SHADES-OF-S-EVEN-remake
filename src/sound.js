@@ -5,6 +5,7 @@
 // 掛け算で最終的な再生音量を決める。
 
 import { getState, subscribe } from "./state.js";
+import { logAction } from "./action-log.js";
 
 // ユーザー報告「iPhoneで基本設定のBGM音量を下げようとしたけど変化がありません」の
 // 原因: iOS Safariは仕様として<audio>/<video>要素の.volumeプロパティのsetterを
@@ -333,6 +334,15 @@ export function playSound(name) {
   if (volume <= 0) return;
   const audio = new Audio(def.path);
   audio.volume = volume;
-  // ブラウザの自動再生制限等で再生に失敗しても、ゲーム進行自体には影響させたくないので無視する。
-  audio.play().catch(() => {});
+  // ブラウザの自動再生制限等で再生に失敗しても、ゲーム進行自体には影響させたくないので
+  // 例外自体は握りつぶす（呼び出し元の処理を止めない）。ただしユーザー報告
+  // （続き95）「オンライン対戦で相手の発動した効果や到達アニメの効果音が鳴らない」の
+  // 原因調査用に、失敗理由（NotAllowedError＝ブラウザの自動再生制限で最有力候補、
+  // それ以外なら音声ファイル自体の読み込み失敗等の別原因を疑う手がかりになる）を
+  // コンソール・アクションログの両方に記録するようにした（今まではcatch(() => {})で
+  // 完全に無音のまま消えていたため、再現しても原因の当たりが一切つけられなかった）。
+  audio.play().catch((err) => {
+    console.error(`playSound("${name}") failed`, err);
+    logAction("diag-sound-play-failed", { name, errorName: err?.name ?? null, message: String(err?.message ?? err) });
+  });
 }

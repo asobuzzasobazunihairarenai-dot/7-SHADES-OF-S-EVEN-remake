@@ -14,6 +14,7 @@ import { awardMatchCurrency } from "./online.js";
 import { refreshCurrencyDisplay } from "./currency-display.js";
 import { showCurrencyAwardModal } from "./currency-award-modal.js";
 import { showRankRevealModal } from "./rank-reveal-modal.js";
+import { showMatchPersonalResultModal } from "./match-personal-result-modal.js";
 
 // ユーザー要望「勝利モーダルが5秒ぐらいしっかり出た後に、『戦績確認・もう一度遊ぶ』
 // モーダル（勝利者へのコメント依頼を含む）が出るようにしてほしい」への対応。以前は
@@ -187,6 +188,14 @@ export function checkForVictory() {
           await showRankRevealModal();
         } catch (err) {
           console.error("showRankRevealModal failed", err);
+        }
+        // ユーザー要望（続き95）「対戦終了時の個人結果を実装」。勝者/敗者を問わず
+        // 全員の画面に、今回1対局限りのスタッツ・順位（3-4人戦）を見せる
+        // （rank-reveal-modal.jsの戦績システム全体の通算順位とは別物）。
+        try {
+          await showMatchPersonalResultModal({ activePlayers: getState().activePlayers, winnerSeat: player });
+        } catch (err) {
+          console.error("showMatchPersonalResultModal failed", err);
         }
         const { activePlayers } = getState();
         showPostGamePanel({ activePlayers, winnerSeat: player });

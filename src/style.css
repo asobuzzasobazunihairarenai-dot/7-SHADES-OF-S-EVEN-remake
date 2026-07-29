@@ -7012,6 +7012,110 @@ body.reduce-glow .cell.card-effect-just-placed {
   color: #f87171;
 }
 
+/* ユーザー要望（続き95）「対戦終了時の個人結果を実装」。match-personal-result-modal.js、
+   システム順位モーダル(rank-reveal-modal)の後・戦績パネルの前に出す。 */
+@keyframes match-personal-result-modal-pop-in {
+  0% { transform: translate(-50%, -50%) scale(0.7); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+#match-personal-result-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(24rem, 90vw);
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 1.6rem 1.4rem;
+  border-radius: 1rem;
+  background: linear-gradient(160deg, #4c1d95, #1e1b4b);
+  border: 2px solid #a78bfa;
+  box-shadow: 0 0 2.5rem 0.4rem rgba(167, 139, 250, 0.5), 0 20px 60px rgba(0, 0, 0, 0.7);
+  text-align: center;
+  z-index: 10531;
+  font-family: sans-serif;
+  color: #f5f3ff;
+  animation: match-personal-result-modal-pop-in 0.4s ease-out;
+  box-sizing: border-box;
+}
+.match-personal-result-title {
+  font-size: 1.15rem;
+  font-weight: bold;
+  margin-bottom: 0.9rem;
+  letter-spacing: 0.03em;
+  color: #c4b5fd;
+}
+.match-personal-result-standings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+.match-personal-result-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.06);
+  text-align: left;
+}
+.match-personal-result-row.is-self {
+  background: rgba(167, 139, 250, 0.28);
+  border: 1px solid #c4b5fd;
+}
+.match-personal-result-rank {
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+  min-width: 2.2rem;
+  color: #ddd6fe;
+}
+.match-personal-result-row.is-winner .match-personal-result-rank {
+  color: #facc15;
+}
+.match-personal-result-avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+}
+.match-personal-result-avatar .avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.match-personal-result-name {
+  flex: 1;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.match-personal-result-locked {
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: #ddd6fe;
+}
+.match-personal-result-self {
+  padding-top: 0.8rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+.match-personal-result-self-title {
+  font-size: 0.85rem;
+  color: #c4b5fd;
+  margin-bottom: 0.3rem;
+}
+.match-personal-result-self-stats {
+  font-size: 1.05rem;
+  font-weight: bold;
+}
+
 /* 効果音ごとの音量（0〜100）。src/sound.jsがオプションメニューの「マスター音量」と
    掛け算して最終的な再生音量にする。管理者モードの「効果音の音量（個別）」グループから
    調整できる。 */
