@@ -176,7 +176,12 @@ function fireAndForget(maybePromise) {
 // 「自分も含める」がONの時の自分自身の番だけになる（他人の座席を勝手に自動操作
 // することはできない、という既存のセキュリティ上の制約はそのまま維持される）。
 const PSEUDO_CPU_DEADLINE_MS = 1000;
-function isPseudoCpuTarget(seat) {
+// ユーザー要望（続き104）「疑似CPUモードでロックフェイズも自動でロックするようにして、
+// 本当に対戦終了まで自動で行けるようにする」。main.js側のperformPriorityTimeoutAutoAction
+// （ロックフェイズのタイムアウト処理）から同じ判定を使えるようexportする（main.js⇄
+// turn-timer.jsは既に双方向importが確立済み——main.jsはtransferPriorityTo等を、
+// turn-timer.jsはperformPriorityTimeoutAutoAction等をお互いにimportしている）。
+export function isPseudoCpuTarget(seat) {
   if (!isPseudoCpuModeActive()) return false;
   return isPseudoCpuIncludeSelf() || seat !== getSelfSeat();
 }

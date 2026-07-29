@@ -129,7 +129,7 @@ import { initPlayerButtons } from "./player-buttons.js";
 import { initQuickStart } from "./quick-start.js";
 import { initPhaseGuide } from "./phase-guide.js";
 import { initTutorialAutoStart, registerTutorialStageHelpers } from "./tutorial.js";
-import { initTurnTimer, transferPriorityTo } from "./turn-timer.js";
+import { initTurnTimer, transferPriorityTo, isPseudoCpuTarget } from "./turn-timer.js";
 import { initIconRearrange } from "./icon-rearrange.js";
 import { initSelfStatusRearrange } from "./self-status-rearrange.js";
 import { initInteractionModeToggle } from "./interaction-mode.js";
@@ -2435,6 +2435,23 @@ export function performPriorityTimeoutAutoAction() {
       const location = { zone: "cell", row: Number(chosen.el.dataset.row), col: Number(chosen.el.dataset.col) };
       if (chosen.isMove) performPhaseMoveToCell(location);
       else performPhaseContact(location);
+      return true;
+    }
+  }
+  // ユーザー要望（続き104）「疑似CPUモードでロックフェイズも自動でロックするように
+  // して、本当に対戦終了まで自動で行けるようにする」。ロック自体は本来「任意」
+  // （自己申告制なので普通にスキップでいい、というのが元々のユーザー方針）だが、
+  // 疑似CPUモード対象の座席に限っては、勝利条件（7色ロック）へ実際に進めるため、
+  // ロックできるカードがあればランダムに1枚選んでロックする（performLockPhaseClick、
+  // 手動クリックと全く同じ経路——確認モーダル・音・演出・オンライン同期すべて共通）。
+  // ロックできるカードが無ければ、疑似CPU対象でも通常通りスキップする。
+  if (phase === "lock" && isPseudoCpuTarget(getSelfSeat())) {
+    const player = getSelfSeat();
+    const hand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
+    const lockable = hand.filter((t) => isCardLockable(t, player));
+    if (lockable.length > 0) {
+      const chosen = pickRandomFrom(lockable);
+      performLockPhaseClick(chosen.id);
       return true;
     }
   }
