@@ -4,9 +4,9 @@
 // 1対局限りの結果——victory.jsのcheckForVictory()から、勝者・敗者を問わず全員の
 // 画面に出す（勝者だけに絞る理由が無いため）。
 //
-// 「試合内スタッツ」は現時点ではロックした色数・手札残り枚数のみ（接触回数・使用した
-// カード枚数等は、そもそも対局中にカウントする仕組みがまだ無いため今回は対象外。
-// 必要になったら別途カウンターを追加する）。
+// 「試合内スタッツ」はロックした色数・手札残り枚数に加え（続き97）、接触回数・
+// 使用したカード枚数（match-stats-tracker.js参照、対局中の操作をリアルタイムに
+// 集計するトラッカー）も表示する。
 // 「順位」はロック色数の多い順（同数は同順位）。2人戦は勝者/敗者の2択で自明なため
 // 順位表は出さず、自分のスタッツだけを見せる。
 
@@ -16,6 +16,7 @@ import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { getSelfSeat } from "./online.js";
 import { SEAT_TO_SIDE } from "./board-layout.js";
 import { applyAvatarContent } from "./avatar-render.js";
+import { getMatchStats } from "./match-stats-tracker.js";
 
 const AUTO_CLOSE_MS = 7000;
 
@@ -105,6 +106,7 @@ export function showMatchPersonalResultModal({ activePlayers, winnerSeat }) {
     }
 
     if (selfEntry) {
+      const { contactsMade, cardsUsed } = getMatchStats(selfSeat);
       const selfBlock = document.createElement("div");
       selfBlock.className = "match-personal-result-self";
       const selfTitle = document.createElement("div");
@@ -115,6 +117,10 @@ export function showMatchPersonalResultModal({ activePlayers, winnerSeat }) {
       selfStats.className = "match-personal-result-self-stats";
       selfStats.textContent = `ロック ${selfEntry.locked}/7色・手札 ${selfEntry.hand}枚`;
       selfBlock.appendChild(selfStats);
+      const selfStats2 = document.createElement("div");
+      selfStats2.className = "match-personal-result-self-stats-sub";
+      selfStats2.textContent = `接触 ${contactsMade}回・使用したカード ${cardsUsed}枚`;
+      selfBlock.appendChild(selfStats2);
       modal.appendChild(selfBlock);
     }
 

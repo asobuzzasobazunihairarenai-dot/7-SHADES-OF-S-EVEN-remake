@@ -652,6 +652,25 @@ async function renderRoomStatus(gameId, myGeneration) {
       timerRow.appendChild(timerLabel);
       waitingBox.appendChild(timerRow);
 
+      // ユーザー要望（続き97）「『ゲームを開始する』の時に『無色カードを含める』的な
+      // チェックを追加。デフォは含めない」。ローカルモードのセットアップウィザード
+      // （game-setup.js）・クイックスタート（quick-start.js）には既にあった設定だが、
+      // オンラインの部屋作成フローにはチェックボックス自体が無く、startGame()の
+      // includeBlackWhite引数を渡していなかったため常にデフォルト値(false)のまま
+      // 固定されていた（結果的に「常に無色なし」にはなっていたが、有りを選ぶ手段が
+      // 無かった）。
+      const bwRow = document.createElement("label");
+      bwRow.style.cssText =
+        "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0.5rem; font-size: 0.85rem; text-align: left;";
+      const bwCheckbox = document.createElement("input");
+      bwCheckbox.type = "checkbox";
+      bwCheckbox.checked = false;
+      const bwLabel = document.createElement("span");
+      bwLabel.textContent = "白黒（無色）カードを山札に含める";
+      bwRow.appendChild(bwCheckbox);
+      bwRow.appendChild(bwLabel);
+      waitingBox.appendChild(bwRow);
+
       const startBtn = textButton(`ゲームを開始する（現在${count}名）`);
       // ログインパネルのボタン（renderLoginForm）と同じ理由で、display:blockを明示しないと
       // .header-tool-buttonの既定表示(inline-block)のせいで横並びになってしまう
@@ -660,7 +679,7 @@ async function renderRoomStatus(gameId, myGeneration) {
       startBtn.addEventListener("click", async () => {
         startBtn.disabled = true;
         try {
-          await startGame(gameId, { timerEnabled: timerCheckbox.checked });
+          await startGame(gameId, { timerEnabled: timerCheckbox.checked, includeBlackWhite: bwCheckbox.checked });
           closePanel();
         } catch (err) {
           alert(err.message ?? String(err));

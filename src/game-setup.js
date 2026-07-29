@@ -18,6 +18,7 @@ import { SEAT_TO_SIDE, SEAT_ORDER } from "./board-layout.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { resetVictoryTracking } from "./victory.js";
+import { resetMatchStats } from "./match-stats-tracker.js";
 import { resetHandEffectUsage } from "./card-effect-engine.js";
 import { PLAYMAT_OPTIONS, getSelectedPlaymatId, setSelectedPlaymatId } from "./playmat.js";
 import { animateFirstCardsDealt, animateBoardFilled } from "./setup-animation.js";
@@ -336,6 +337,7 @@ function renderPanelBody(forceForm = false) {
 async function runStep1() {
   resetGame();
   resetVictoryTracking(); // 新しい対戦の開始なので、以前の勝利済みプレイヤーの記録も忘れる
+  resetMatchStats(); // ユーザー要望（続き97）: 対局内スタッツ（接触回数・カード使用枚数）も同様に忘れる
   // 新しい対戦のturnNumberは1から再スタートするため、手札効果の「1ターンに1度」使用回数
   // 記録（card-effect-engine.js側でturnNumberをキーに管理）を持ち越すと、前の対戦の
   // turnNumber:1での使用済み記録により、新しい対戦のturnNumber:1でも誤って使用済み扱いに

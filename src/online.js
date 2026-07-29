@@ -407,6 +407,28 @@ export function broadcastColorsDeclared(payload) {
   }
 }
 
+// ユーザー要望（続き97）「接触回数やカード使用枚数など詳細スタッツを実装」。
+// match-stats-tracker.jsが使う合図。この統計は対戦終了時に見せる添え物であり、
+// 対局の勝敗判定・盤面状態のような「厳密な整合性が必要な公開情報」ではないため、
+// state.jsのreducer（バージョン管理・楽観的並行制御・so7-apply-action.tsでの
+// サーバー側検証付き）を経由させず、hand_effect_use等と同じ「見た目だけの合図」と
+// 同一のBroadcast経路で全クライアントへ直接飛ばし、各クライアントがローカルに
+// 集計する軽量な方式にした（サーバー側Edge Functionの変更・再デプロイが不要という
+// メリットもある）。broadcastの取りこぼしがあれば集計が実態とズレる可能性は
+// あるが、対戦記録に添える参考スタッツとしては許容範囲と判断した。
+let matchStatEventListeners = [];
+export function onMatchStatEvents(fn) {
+  matchStatEventListeners.push(fn);
+  return () => {
+    matchStatEventListeners = matchStatEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastMatchStatEvent(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "match_stat", payload });
+  }
+}
+
 // 色宣言の結果が判明した（試練の儀式のカードが置かれた／ザ・ギャンブルの公開ドローが
 // 終わった）合図（続き65、ユーザー要望「実際何色が出るか変わるまではモーダルを継続
 // したい」）。colors_declaredで出した表示を、これを受け取った全クライアントが消す。
@@ -1972,6 +1994,10 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // 色宣言の通知（broadcastColorsDeclared参照）。
     .on("broadcast", { event: "colors_declared" }, ({ payload }) => {
       for (const fn of colorsDeclaredEventListeners) fn(payload);
+    })
+    // 対局内スタッツ（接触回数・カード使用枚数）の通知（broadcastMatchStatEvent参照）。
+    .on("broadcast", { event: "match_stat" }, ({ payload }) => {
+      for (const fn of matchStatEventListeners) fn(payload);
     })
     .on("broadcast", { event: "colors_resolved" }, () => {
       for (const fn of colorsResolvedEventListeners) fn();

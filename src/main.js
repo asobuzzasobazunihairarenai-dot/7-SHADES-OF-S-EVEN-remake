@@ -66,6 +66,7 @@ import {
 import { announceHandPickups, announceCardLocked, announceDrawCount } from "./hand-announcer.js";
 import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking, hasAnyoneWon } from "./victory.js";
+import { recordContactMade, recordCardUsed, initMatchStatsTracker } from "./match-stats-tracker.js";
 import { registerVictoryHelpers } from "./post-game-panel.js";
 import { announceTurnChange } from "./turn-announce.js";
 import {
@@ -3008,7 +3009,7 @@ function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ"
 async function runAutoHandEffect(cardId, cardTokenId, player) {
   setHandEffectBusy(true);
   try {
-    await runHandEffect(
+    const usedSuccessfully = await runHandEffect(
       { cardId, cardTokenId, player },
       {
         discardAndSync: discardFromHandReveal,
@@ -3064,6 +3065,11 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
       }
     );
     clearEffectUiHighlights();
+    // ユーザー要望（続き97）「接触回数やカード使用枚数など詳細スタッツを実装」。
+    // runHandEffect()はコストが払えない・選択肢を選ばず終える等で発動できなかった
+    // 場合はfalseを返す（card-effect-engine.jsのrunHandEffect参照）ため、実際に
+    // 発動できた時だけカウントする。
+    if (usedSuccessfully) recordCardUsed(player);
   } finally {
     // ユーザー報告（続き94）「合同建設をハンドフェイズで最後に使用して手札を
     // 使い切ったのに自動でハンドフェイズが終わらなかった」の原因: 直前まではここで
@@ -3900,6 +3906,10 @@ async function respondToContact(approve) {
   const pendingBefore = getState().pendingContact;
   if (!pendingBefore) return;
   const { attacker, defender } = pendingBefore;
+  // ユーザー要望（続き97）「接触回数やカード使用枚数など詳細スタッツを実装」。
+  // 承認された（＝実際にカードを奪う・強制移動が起きる）場合だけをattacker視点の
+  // 「接触回数」としてカウントする（拒否された接触は何も起きていないため対象外）。
+  if (approve) recordContactMade(attacker);
   // 承認された場合の到達判定・奪われたカードの特定に使うため、駒のID・手札の中身は
   // 実際の効果が適用される前（＝ここではまだ何も変わっていない間）に確保しておく
   // （駒自体は消えずlocationだけ変わるのでIDは不変）。defender自身の手札は常に本人に
@@ -8104,6 +8114,7 @@ registerTutorialStageHelpers({ stageClientToLocal, stageDelta, stageWidth: STAGE
 initTutorialAutoStart();
 initGameBgmAutoStart();
 initTurnTimer();
+initMatchStatsTracker();
 initIconRearrange();
 initSelfStatusRearrange();
 initInteractionModeToggle();

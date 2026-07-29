@@ -1331,6 +1331,27 @@ export function getReducedBaseSeconds() {
   return reducedBaseSeconds;
 }
 
+// 疑似CPUモード（ユーザー要望・続き97）「自動選択のテストをしたい。対象座席の砂時計を
+// 0個・基本時間を最大1秒にして、タイムアウトを疑似的に即発生させる」。ターンタイマー
+// 機能自体（turnTimerEnabled）がONでないと意味を持たない（tick()がそもそも早期returnする）
+// ため、有効にする際はターンタイマーも合わせてONにする必要がある。
+// 上のターンタイマー本体設定と違い、これは「対局全体で固定される公平性が必要な
+// パラメータ」ではなく純粋なテスト用の個人設定のため、オンライン対戦中もsyncせず
+// 常にこのクライアントのローカル値のまま、対局中いつでも変更できるようにする
+// （turn-timer.jsのisPseudoCpuTarget参照）。
+let pseudoCpuModeEnabled = false;
+// デフォルトは「自分以外」（ユーザー確認済み）。trueにすると自分の座席も対象になり、
+// 手番が回ってきても即座にタイムアウトの自動代行が働くため、対局を最初から最後まで
+// 完全に自動進行させて観戦に徹することができる。
+let pseudoCpuIncludeSelf = false;
+
+export function isPseudoCpuModeEnabled() {
+  return pseudoCpuModeEnabled;
+}
+export function isPseudoCpuIncludeSelf() {
+  return pseudoCpuIncludeSelf;
+}
+
 // TOGGLE_SECTIONSの各buildContentはモジュール直下で定義される共有クロージャのため、
 // buildPanel()内のローカル変数であるupdateExport()を直接呼べない。「更新して」を伝える
 // 間接参照として、rebuildSlidersRefと同じ形のref経由で呼ぶ。
@@ -1732,6 +1753,53 @@ const TOGGLE_SECTIONS = [
     },
   },
   {
+    title: "疑似CPUモード（テスト用）",
+    category: "behavior",
+    buildContent: (content) => {
+      const note = document.createElement("div");
+      note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.6rem; line-height: 1.5;";
+      note.textContent =
+        "対象座席の砂時計を0個・基本時間を最大1秒として扱い、優先権のタイムアウトを疑似的に" +
+        "即発生させる（performPriorityTimeoutAutoActionによる自動代行のテスト用）。上の" +
+        "「ターンタイマー」自体がONになっている必要がある。対局全体で固定される他の" +
+        "タイマー設定と違い、これは純粋にこのブラウザだけのテスト用設定のため、オンライン" +
+        "対戦中でも同期されず、対局中いつでもON/OFFできる。";
+      content.appendChild(note);
+
+      const enableRow = document.createElement("label");
+      enableRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0.5rem;";
+      const enableCheckbox = document.createElement("input");
+      enableCheckbox.type = "checkbox";
+      enableCheckbox.checked = pseudoCpuModeEnabled;
+      enableCheckbox.addEventListener("change", () => {
+        pseudoCpuModeEnabled = enableCheckbox.checked;
+        window.dispatchEvent(new CustomEvent("admin:change"));
+        updateExportRef.current();
+      });
+      const enableLabel = document.createElement("span");
+      enableLabel.textContent = "疑似CPUモードを有効にする";
+      enableRow.appendChild(enableCheckbox);
+      enableRow.appendChild(enableLabel);
+      content.appendChild(enableRow);
+
+      const selfRow = document.createElement("label");
+      selfRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const selfCheckbox = document.createElement("input");
+      selfCheckbox.type = "checkbox";
+      selfCheckbox.checked = pseudoCpuIncludeSelf;
+      selfCheckbox.addEventListener("change", () => {
+        pseudoCpuIncludeSelf = selfCheckbox.checked;
+        window.dispatchEvent(new CustomEvent("admin:change"));
+        updateExportRef.current();
+      });
+      const selfLabel = document.createElement("span");
+      selfLabel.textContent = "自分の座席も対象に含める（ONにすると対局が最初から最後まで自動進行し、観戦に徹することができる）";
+      selfRow.appendChild(selfCheckbox);
+      selfRow.appendChild(selfLabel);
+      content.appendChild(selfRow);
+    },
+  },
+  {
     // ユーザー要望「ランクアップモーダルを検証するために何度も勝つのが手間。
     // プレビューボタンを追加してほしい」への対応。実際の戦績には一切書き込まず、
     // post-game-panel.jsの判定ロジックと同じgetTierInfo(N)→getTierInfo(N+1)の
@@ -2045,6 +2113,8 @@ function buildPanel(rebuildSlidersRef) {
       `ropeExtensionSeconds: ${ropeExtensionSeconds}`,
       `turnsToReplenishHourglass: ${turnsToReplenishHourglass}`,
       `reducedBaseSeconds: ${reducedBaseSeconds}`,
+      `pseudoCpuModeEnabled: ${pseudoCpuModeEnabled}`,
+      `pseudoCpuIncludeSelf: ${pseudoCpuIncludeSelf}`,
     ];
     exportEl.value = `:root {\n${lines.join("\n")}\n}\n\n/* 以下はCSS変数ではない設定（管理者モードのチェックボックス等） */\n${toggleLines.join("\n")}`;
   }

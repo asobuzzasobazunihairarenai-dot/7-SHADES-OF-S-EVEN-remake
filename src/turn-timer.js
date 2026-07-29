@@ -40,6 +40,8 @@ import {
   getRopeExtensionSeconds as getRopeExtensionSecondsLocal,
   getTurnsToReplenishHourglass as getTurnsToReplenishHourglassLocal,
   getReducedBaseSeconds as getReducedBaseSecondsLocal,
+  isPseudoCpuModeEnabled,
+  isPseudoCpuIncludeSelf,
 } from "./admin.js";
 import { isOpponentBaseTimerVisible } from "./motion-prefs.js";
 import { toggleTimerTogglePopover } from "./timer-toggle.js";
@@ -149,10 +151,29 @@ function fireAndForget(maybePromise) {
   Promise.resolve(maybePromise).catch(() => {});
 }
 
+// ユーザー要望（続き97）「疑似的に1秒でタイムアウトするようにする疑似CPUモード」。
+// 自動選択(performPriorityTimeoutAutoAction)のテスト用に、対象座席の基本時間を
+// 常に1秒・砂時計を常に0個扱いにして、優先権のタイムアウトを疑似的に即発生させる。
+// デフォルトの対象は「自分以外」（ユーザー確認済み）——ローカルモードでは自分(A)
+// 以外の座席が自動で進み、自分の番だけ手動操作できる。「自分も含める」をONにすると
+// 自分の番も含めて全座席が自動進行し、対局を最初から最後まで観戦に徹することができる。
+// オンライン中は、この設定自体はこのクライアントのローカル値のまま（他のターン
+// タイマー設定と違いsyncしない）で、performPriorityTimeoutAutoAction()自体が
+// 「本人（getSelfSeat()===priorityPlayer）のクライアント上でだけ実行される」という
+// 既存の制約（updateTimeoutWarnings参照）を受けるため、実際に効果があるのは
+// 「自分も含める」がONの時の自分自身の番だけになる（他人の座席を勝手に自動操作
+// することはできない、という既存のセキュリティ上の制約はそのまま維持される）。
+const PSEUDO_CPU_DEADLINE_MS = 1000;
+function isPseudoCpuTarget(seat) {
+  if (!isPseudoCpuModeEnabled()) return false;
+  return isPseudoCpuIncludeSelf() || seat !== getSelfSeat();
+}
+
 // その座席が既に砂時計を使い始めている（＝そのターン中に1個でも正式消費している）場合は、
 // 行動で得られる基本時間の窓を短く抑える（デフォルト上限10秒、管理者モードで調整可）。
 // まだ使っていなければ通常の基本時間をまるまる与える。
 function freshBaseDeadlineFor(seat) {
+  if (isPseudoCpuTarget(seat)) return Date.now() + PSEUDO_CPU_DEADLINE_MS;
   const seconds = hourglassUsedThisTurn[seat] ? Math.min(getRopeBaseSeconds(), getReducedBaseSeconds()) : getRopeBaseSeconds();
   return Date.now() + seconds * 1000;
 }
@@ -901,7 +922,9 @@ function tick() {
     return;
   }
 
-  const stock = state.hourglassStock[state.priorityPlayer] ?? 0;
+  // 疑似CPUモードの対象座席は、実際に保持している砂時計数に関わらず常に0個扱いにし、
+  // 延長ロープを一切出さず即座にタイムアウトさせる（isPseudoCpuTarget参照）。
+  const stock = isPseudoCpuTarget(state.priorityPlayer) ? 0 : (state.hourglassStock[state.priorityPlayer] ?? 0);
 
   if (state.priorityPhase === "base") {
     // 基本時間が切れた。ストックがあれば、ここで初めて延長ロープを出現させる

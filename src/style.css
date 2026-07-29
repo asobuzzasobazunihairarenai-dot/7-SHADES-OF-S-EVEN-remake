@@ -7115,6 +7115,11 @@ body.reduce-glow .cell.card-effect-just-placed {
   font-size: 1.05rem;
   font-weight: bold;
 }
+.match-personal-result-self-stats-sub {
+  font-size: 0.85rem;
+  color: #ddd6fe;
+  margin-top: 0.3rem;
+}
 
 /* 効果音ごとの音量（0〜100）。src/sound.jsがオプションメニューの「マスター音量」と
    掛け算して最終的な再生音量にする。管理者モードの「効果音の音量（個別）」グループから
