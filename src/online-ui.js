@@ -702,14 +702,12 @@ export function openOnlinePanel() {
   if (panelEl) return;
   backdropEl = createBackdrop(closePanel, { dim: true, zIndex: 10001 });
   panelEl = document.createElement("div");
+  // ユーザー報告（続き92）「部屋を作るモーダルがスマホで小さい」への対応で、位置指定を
+  // このinline styleからstyle.cssの#online-panelルールへ移した（victory-modal等、他の
+  // 画面中央モーダルと同じ構成に揃える）。inline styleのまま残すと、後で追加する
+  // body.is-phone-device #online-panel { transform: ... }（--center-modal-scale-phone
+  // 一括調整グループへの合流）がinline styleに負けて効かなくなるため。
   panelEl.id = "online-panel";
-  panelEl.style.cssText = `
-    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    width: min(22rem, 92vw); background: rgba(15, 23, 32, 0.98);
-    border: 1px solid rgba(148, 163, 184, 0.4); border-radius: 0.5rem; padding: 1rem;
-    z-index: 10002; font-family: sans-serif; color: #e2e8f0;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-  `;
   panelEl.appendChild(createModalCloseX(closePanel));
   contentEl = document.createElement("div");
   panelEl.appendChild(contentEl);

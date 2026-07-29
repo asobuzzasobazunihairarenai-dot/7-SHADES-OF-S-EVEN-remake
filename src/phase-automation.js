@@ -417,7 +417,18 @@ function updateSkipButtonVisibility() {
     statusEl.style.display = "none";
   } else {
     statusEl.style.display = "block";
-    statusEl.textContent = state.turnPlayer === getSelfSeat() ? "自分のターンです" : "相手のターンです";
+    let text = state.turnPlayer === getSelfSeat() ? "自分のターンです" : "相手のターンです";
+    // ユーザー要望（続き92）「優先権譲渡アイコンの表示は自動処理モードでは非表示でいいと
+    // 思います。その代わり優先権が相手にある間はその旨を右下の『自分のターン相手の
+    // ターン』表示のところに表示した方が良い気がします」。優先権譲渡アイコン
+    // （#priority-transfer-buttons、turn-timer.js）を自動処理モード中は隠す代わりに、
+    // 優先権がturnPlayerと一時的に食い違っている間（接触の強制移動解決中・
+    // スリカエ等の割り込み処理中等）だけ、ここに一言添える。一致している間（通常の
+    // ほとんどの時間）は「自分のターンです」だけで十分なため表示しない。
+    if (isAutoProcessingEnabled() && state.priorityPlayer && state.priorityPlayer !== state.turnPlayer) {
+      text += state.priorityPlayer === getSelfSeat() ? "（優先権はあなたにあります）" : "（優先権は相手にあります）";
+    }
+    statusEl.textContent = text;
   }
 }
 

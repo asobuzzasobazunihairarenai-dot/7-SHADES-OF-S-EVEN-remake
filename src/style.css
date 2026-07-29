@@ -1968,6 +1968,20 @@ body.diagnostic-flatten-3d.is-touch-device #priority-transfer-buttons {
   left: 0;
   transform: none;
 }
+/* ユーザー報告（続き92）「駒消し・カード消し・優先権譲渡アイコンの長押し簡易ホバー説明が
+   小さいので他の簡易ホバー説明のサイズに合わせて大きくしてほしい」。優先権譲渡は
+   #priority-transfer-buttons自体がbody.is-touch-deviceで--priority-transfer-scale-touch
+   分だけ縮小されており、親のtransform:scaleは子孫のツールチップの見た目も一緒に
+   縮小してしまう。駒消し/カード消しには同じ縮小の仕組みは無いが、3つまとめて
+   スマホ限定でフォントサイズ・パディングを引き上げ、他の簡易説明と見比べやすい
+   サイズに揃える。 */
+body.is-phone-device #piece-hide-button .phase-guide-tooltip,
+body.is-phone-device #card-hide-button .phase-guide-tooltip,
+body.is-phone-device .priority-transfer-label .phase-guide-tooltip {
+  font-size: 1rem;
+  padding: 0.6rem 0.9rem;
+  max-width: 20rem;
+}
 
 /* ユーザー報告「ホバー表示が画面の端で見切れていないか確認してほしい」で見つかった
    2件。#phase-guide-bar（画面右下、right:2.3rem）内のボタンも中央寄せのままだと
@@ -3505,6 +3519,54 @@ body.is-phone-device #options-menu-button {
   gap: 0.6rem;
   font-size: 0.9rem;
   line-height: 1.5;
+}
+
+/* オンライン対戦の部屋一覧・部屋作成モーダル（online-ui.jsのopenOnlinePanel）。
+   続き92でinline styleから移設した（body.is-phone-device #online-panelのスケール
+   調整がinline styleに負けて効かなくなるため、他の画面中央モーダルと同じ構成に揃える）。 */
+#online-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(22rem, 92vw);
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  z-index: 10002;
+  font-family: sans-serif;
+  color: #e2e8f0;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+
+/* 管理者モード：位置合わせパネル（admin.jsのbuildPanel）。続き92でinline styleから
+   移設した（理由は#online-panelと同じ）。表示/非表示はJS側（initAdminMode()の
+   open()/close()）がstyle.displayを直接切り替える。 */
+#admin-panel {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 1000;
+  background: rgba(15, 23, 32, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  width: 19rem;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+  font-family: sans-serif;
+  font-size: 0.75rem;
+  color: #e2e8f0;
+}
+/* スマホでは管理者モーダル自体が小さすぎて操作しづらいとの報告（続き92）。
+   左上固定のパネルのため、他の画面中央モーダル（translate(-50%,-50%)）とは
+   別の専用の一括調整用変数にする（transform-originを左上に固定し、左上の
+   位置は変えずに右下方向へ拡大する）。 */
+body.is-phone-device #admin-panel {
+  transform-origin: top left;
+  transform: scale(var(--admin-panel-scale-phone, 1));
 }
 
 /* ログインボーナス（日次）の通知トースト（main.jsのshowDailyBonusToast参照）。数秒で
@@ -6624,6 +6686,16 @@ body.phase-lock-picking .hand-card:not(.phase-lock-highlight):not(.card-effect-t
   left: 1.5rem;
   transform: translate(0, -50%);
 }
+/* ユーザー報告（続き92）「パーティ・選べる罠の選択モーダルで盤面を見るを押した時
+   画面左端で見切れる」と全く同じCSS詳細度の逆転が、同じ「盤面を見る」機構を使う
+   このモーダル（ザ・ギャンブル・試練の儀式の色宣言）にも起きていたため、
+   同じ考え方で修正する（.hand-effect-option-picker.is-peeking参照）。
+   transform-originも同じ理由（既定の中心基準だとscale()で左半分が画面外へ
+   はみ出す）で左端に固定する。 */
+body.is-phone-device .declare-colors-modal.is-peeking {
+  transform-origin: 0% 50%;
+  transform: translate(0, -50%) scale(var(--center-modal-scale-phone, 1));
+}
 .declare-colors-modal-confirm:disabled {
   background: rgba(100, 116, 139, 0.15);
   color: rgba(226, 232, 240, 0.4);
@@ -9048,7 +9120,8 @@ body.is-phone-device #rank-up-modal,
 body.is-phone-device #opening-login-info-modal,
 body.is-phone-device #ranking-info-modal,
 body.is-phone-device #currency-award-modal,
-body.is-phone-device #rank-reveal-modal {
+body.is-phone-device #rank-reveal-modal,
+body.is-phone-device #online-panel {
   transform: translate(-50%, -50%) scale(var(--center-modal-scale-phone, 1));
 }
 body.is-phone-device .card-received-modal {
@@ -9056,6 +9129,24 @@ body.is-phone-device .card-received-modal {
 }
 body.is-phone-device .hand-effect-option-picker {
   transform: translate(-50%, -50%) scale(calc(0.9 * var(--center-modal-scale-phone, 1)));
+}
+/* ユーザー報告（続き92）「『パーティ』『選べる罠』の選択モーダルで『盤面を見る』を
+   押したとき、選択モーダルが画面左端で見切れてしまう」。原因はCSS詳細度の逆転:
+   `.hand-effect-option-picker.is-peeking`（クラス2つ、詳細度0,2,0）が本来は
+   `left: 1.5rem; transform: translate(0, -50%) scale(1);`で左端に「くっつける」
+   はずが、すぐ上のスマホ用ルール`body.is-phone-device .hand-effect-option-picker`
+   （要素1つ+クラス2つ、詳細度0,2,1）の方が詳細度で勝ってしまい、スマホでは
+   常にtranslate(-50%, -50%)（中心基準）が適用され続けていた。left:1.5remを
+   「中心」ではなく「左端」の基準点にしてしまうため、モーダル幅の半分が画面外
+   （左）へはみ出していた。translate(0, -50%)に戻しつつ、スマホの拡大率だけは
+   維持する専用ルールをさらに詳細度の高いセレクタで追加する。
+   さらに、translate(0, -50%)だけに直しても、transform-originが既定の中心（50% 50%）
+   のままだと、scale()は要素自身の中心を基準に左右均等へ膨らむため、画面左端近くに
+   置かれたこの要素は依然として左半分が画面外にはみ出してしまう（実機確認で発覚）。
+   transform-originを左端（0% 50%）にし、拡大が常に右方向にだけ伸びるようにする。 */
+body.is-phone-device .hand-effect-option-picker.is-peeking {
+  transform-origin: 0% 50%;
+  transform: translate(0, -50%) scale(calc(0.9 * var(--center-modal-scale-phone, 1)));
 }
 /* オプションのドロップダウン（#options-menu-panel）は画面中央固定ではなく右上
    アイコンから吊り下がる別方式のため、上の一括調整には含まれない——ユーザー

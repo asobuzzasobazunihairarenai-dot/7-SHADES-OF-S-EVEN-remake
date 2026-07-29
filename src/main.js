@@ -8236,6 +8236,19 @@ function computeStateFingerprint(state) {
     // 理由で指紋に含める——盤面のトークン自体はまだ動いていないため、含めないと接触された
     // 本人以外の画面で承認モーダルの状態が更新されずに固まって見えるバグになる。
     state.pendingContact ? `${state.pendingContact.attacker}>${state.pendingContact.defender}` : "",
+    // ユーザー報告（続き92）「タイマーをOFFにすることを提案中モーダルがOFFにした後も
+    // 消えてくれません」の原因調査で発覚: pendingTimerToggle/pendingAutoProcessingToggle
+    // （timer-toggle.js/updateAutoProcessingToggleBanner参照）が指紋に含まれていな
+    // かった。承認が完了してpendingTimerToggleがnullに戻る瞬間、盤面のトークン・
+    // ターン・ロスター等は何も変わらないため指紋が変化前とバイト一致してしまい、
+    // render()自体が丸ごとスキップされてバナーが消えないまま固まっていた
+    // （pendingFinalLock/pendingContactと全く同じ理由）。
+    state.pendingTimerToggle
+      ? `${state.pendingTimerToggle.requester}|${state.pendingTimerToggle.nextEnabled ? 1 : 0}|${state.pendingTimerToggle.queue.join(",")}`
+      : "",
+    state.pendingAutoProcessingToggle
+      ? `${state.pendingAutoProcessingToggle.requester}|${state.pendingAutoProcessingToggle.nextEnabled ? 1 : 0}|${state.pendingAutoProcessingToggle.queue.join(",")}`
+      : "",
   ].join("|");
 }
 

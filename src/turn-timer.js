@@ -44,6 +44,7 @@ import {
 import { isOpponentBaseTimerVisible } from "./motion-prefs.js";
 import { toggleTimerTogglePopover } from "./timer-toggle.js";
 import { hasAnyoneWon } from "./victory.js";
+import { isAutoProcessingEnabled } from "./card-effect-engine.js";
 
 // オンライン対戦中は、ゲーム開始時に固定された対局全体共通の設定（timer_config、
 // 部屋作成者のその時点のローカル設定を1回だけ書き込んだもの）を優先する——プレイヤーごとに
@@ -631,7 +632,12 @@ function rebuildTransferButtons() {
   const grid = transferButtonsEl._grid;
   grid.innerHTML = "";
   const state = getState();
-  if (!isTurnTimerEnabled() || !state.turnPlayer) {
+  // ユーザー要望（続き92）「優先権譲渡アイコンの表示は自動処理モードでは非表示でいいと
+  // 思います。その代わり優先権が相手にある間はその旨を右下の『自分のターン相手の
+  // ターン』表示のところに表示した方が良い気がします」。自動処理モード中は自己申告の
+  // 出番自体が無い（optionally表示するphase-automation.jsのturn-status側に譲る）ため、
+  // ここでアイコン自体を丸ごと隠す。
+  if (!isTurnTimerEnabled() || !state.turnPlayer || isAutoProcessingEnabled()) {
     transferButtonsEl.style.display = "none";
     return;
   }

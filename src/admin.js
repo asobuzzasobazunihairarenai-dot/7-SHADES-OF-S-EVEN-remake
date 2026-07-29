@@ -884,6 +884,21 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー要望（続き92）「部屋を作るモーダル・オプションモーダル・管理者モーダルも
+    // 小さいので管理者モードにサイズ調整を追加して」。「部屋を作るモーダル」
+    // （online-ui.jsの#online-panel）は画面中央固定型の他のモーダルと同じ構成なので、
+    // 上の「画面中央モーダルのサイズ倍率」に統合した（--center-modal-scale-phoneが
+    // そのまま効く）。「オプションモーダル」は既にすぐ上の専用つまみ
+    // （--options-menu-scale-phone）で対応済みだった。この「管理者モーダル」
+    // （#admin-panel）だけが、画面左上固定・ドラッグ移動可能という独自の構成のため、
+    // 中央モーダル一括調整には含められず、専用のつまみを新設する。
+    title: "📱 スマホ専用：管理者モーダル（この位置合わせパネル自体）のサイズ倍率",
+    category: "phone",
+    controls: [
+      { key: "--admin-panel-scale-phone", label: "管理者モーダル サイズ倍率（スマホ）", unit: "", min: 0.5, max: 2, step: 0.05, default: 1 },
+    ],
+  },
+  {
     // ユーザー要望（続き81）「フェイズ案内エリア（フェイズ案内板、スキップボタン、
     // 基本時間、相手のターン自分のターン表示）についてスマホ画面での一括サイズ位置
     // 調整を管理者モードに追加して」。#phase-guide-bar自体がこれら全ての共通の親要素
@@ -1806,15 +1821,13 @@ function buildCategory(label) {
 
 function buildPanel(rebuildSlidersRef) {
   const panel = document.createElement("div");
+  // ユーザー報告（続き92）「管理者モーダルがスマホで小さい」への対応で、位置指定を
+  // このinline styleからstyle.cssの#admin-panelルールへ移した（online-panelと同じ
+  // 理由——body.is-phone-device #admin-panelのスケール調整がinline styleに負けて
+  // 効かなくなるため）。表示/非表示のトグル（style.display）はinitAdminMode()の
+  // open()/close()が引き続きJS側で直接制御する。
   panel.id = "admin-panel";
-  panel.style.cssText = `
-    position: fixed; top: 1rem; left: 1rem; z-index: 1000;
-    background: rgba(15, 23, 32, 0.95); border: 1px solid rgba(148,163,184,0.4);
-    border-radius: 0.5rem; padding: 0.75rem; width: 19rem; max-height: 90vh;
-    overflow-y: auto; box-sizing: border-box;
-    font-family: sans-serif; font-size: 0.75rem; color: #e2e8f0;
-    display: none;
-  `;
+  panel.style.display = "none";
 
   const title = document.createElement("div");
   title.textContent = "管理者モード：位置合わせ";
