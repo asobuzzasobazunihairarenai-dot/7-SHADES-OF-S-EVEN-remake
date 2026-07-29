@@ -106,6 +106,24 @@ function textButton(label) {
 // 描画を中断する（＝一番最後に呼ばれたものだけが実際にappendする）ことで解決した。
 let renderGeneration = 0;
 
+// ユーザー報告（続き106）「疑似CPUモードのチェックを入れてから『ゲームを開始する』を
+// 押したはずなのに、対局を開始してみるとOFFのまま（timerConfig.pseudoCpuModeEnabled
+// がfalse）になっていることがある」の原因: このパネル（部屋作成者の待機画面）は
+// 「入室・退室はonRosterChange経由でこのパネルが開いている間だけリアルタイムに
+// 再描画される」（renderRoomStatus内のコメント参照）ため、ターンタイマー/白黒カード/
+// 疑似CPUモードの3つのチェックボックスは毎回この関数内でdocument.createElementから
+// 作り直されており、チェック状態を保持する場所がどこにも無かった。ユーザーがチェックを
+// 入れた直後に（例えば相手の入室検知や再接続等で）もう一度onRosterChangeが発火して
+// 再描画されると、チェックボックスは668/667/684行目付近のハードコードされた初期値
+// （タイマーtrue、白黒false、疑似CPUfalse）へ黙って巻き戻ってしまい、その後「ゲームを
+// 開始する」を押した時にはユーザーの選択が跡形もなく消えていた。3つの選択状態を
+// このパネルの外（モジュールスコープ）に持たせ、再描画のたびにそこから初期値を
+// 復元し、ユーザーが変更するたびにそこへ書き戻すことで、再描画をまたいでも選択が
+// 保持されるようにする。
+let pendingRoomTimerEnabled = true;
+let pendingRoomIncludeBlackWhite = false;
+let pendingRoomPseudoCpuModeEnabled = false;
+
 async function renderPanelContent() {
   if (!contentEl) return;
   const myGeneration = ++renderGeneration;
@@ -645,7 +663,10 @@ async function renderRoomStatus(gameId, myGeneration) {
         "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0.5rem; font-size: 0.85rem; text-align: left;";
       const timerCheckbox = document.createElement("input");
       timerCheckbox.type = "checkbox";
-      timerCheckbox.checked = true;
+      timerCheckbox.checked = pendingRoomTimerEnabled;
+      timerCheckbox.addEventListener("change", () => {
+        pendingRoomTimerEnabled = timerCheckbox.checked;
+      });
       const timerLabel = document.createElement("span");
       timerLabel.textContent = "⏳ ターンタイマーを使用する";
       timerRow.appendChild(timerCheckbox);
@@ -664,7 +685,10 @@ async function renderRoomStatus(gameId, myGeneration) {
         "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0.5rem; font-size: 0.85rem; text-align: left;";
       const bwCheckbox = document.createElement("input");
       bwCheckbox.type = "checkbox";
-      bwCheckbox.checked = false;
+      bwCheckbox.checked = pendingRoomIncludeBlackWhite;
+      bwCheckbox.addEventListener("change", () => {
+        pendingRoomIncludeBlackWhite = bwCheckbox.checked;
+      });
       const bwLabel = document.createElement("span");
       bwLabel.textContent = "白黒（無色）カードを山札に含める";
       bwRow.appendChild(bwCheckbox);
@@ -681,7 +705,10 @@ async function renderRoomStatus(gameId, myGeneration) {
         "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0.5rem; font-size: 0.85rem; text-align: left;";
       const pseudoCpuCheckbox = document.createElement("input");
       pseudoCpuCheckbox.type = "checkbox";
-      pseudoCpuCheckbox.checked = false;
+      pseudoCpuCheckbox.checked = pendingRoomPseudoCpuModeEnabled;
+      pseudoCpuCheckbox.addEventListener("change", () => {
+        pendingRoomPseudoCpuModeEnabled = pseudoCpuCheckbox.checked;
+      });
       const pseudoCpuLabel = document.createElement("span");
       pseudoCpuLabel.textContent = "🤖 疑似CPUモード（自動選択のテスト用）を使う";
       pseudoCpuRow.appendChild(pseudoCpuCheckbox);
