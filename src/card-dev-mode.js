@@ -125,15 +125,13 @@ const PILOT_CARDS = [
   { cardId: "purple-sorry", kind: "arrival", actual: "１マス移動する。" },
   { cardId: "eternal-green", kind: "handEffect", actual: "【追色１】１枚ドロー。" },
   { cardId: "red-jump-pad", kind: "arrival", actual: "これはあなたの手札に加えない。２マス先に一気に移動する。" },
-  // 生成文「そのマスに手札から１枚裏向きで置く。」は、docs/cards.mdの実際の文言
-  // 「手札から１枚をそのマスに裏向きで置く。」と語順だけが違う（意味は同じ）。
-  // 一度word-order一致に寄せる修正を入れたが、source:"hand"だけの特殊分岐が
-  // 必要になり実装が複雑になる割に実益が薄いため、ユーザー判断で元の生成文の
-  // ままに戻した（2026-07-26）。意図的な⚠️表示。
+  // 続き90: ユーザーがカード効果テキスト.txt/docs/cards.mdを生成文の語順
+  // （「そのマスに手札から１枚裏向きで置く。」）に合わせて修正したため、
+  // ここも追従させた（以前は語順違いを意図的な⚠️として残していたが解消）。
   {
     cardId: "orange-harvest-sow",
     kind: "arrival",
-    actual: "任意の１マスの１枚をあなたの手札に加える。手札から１枚をそのマスに裏向きで置く。",
+    actual: "任意の１マスの１枚をあなたの手札に加える。そのマスに手札から１枚裏向きで置く。",
   },
   {
     cardId: "eternal-yellow",
@@ -163,12 +161,9 @@ const PILOT_CARDS = [
   // 「１」（全角）だけ、docs/cards.md側の表記揺れ（なないろの巨光と同種）で
   // ⚠️のまま残るが、これはdocs側の入力ミスであり生成側の不具合ではない。
   { cardId: "orange-mass-change", kind: "handEffect", actual: "【追色1】上記の到達時の効果を得る。" },
-  // 生成文「２マス以内の１枚をあなたの手札に加える。」は、docs/cards.mdの実際の
-  // 文言「２マス以内のカードを１枚あなたの手札に加える。」と「カードを」の有無・
-  // 枚数の位置だけが違う（意味は同じ）。orange-harvest-sowと同じ理由で、修正は
-  // 一度入れたがユーザー判断で元の生成文のままに戻した（2026-07-26）。
-  // 意図的な⚠️表示。
-  { cardId: "first-orange", kind: "handEffect", actual: "【追色１】２マス以内のカードを１枚あなたの手札に加える。" },
+  // 続き90: orange-harvest-sowと同じくカード効果テキスト.txt/docs/cards.mdを
+  // 生成文の語順に合わせて修正したため追従（以前の⚠️は解消）。
+  { cardId: "first-orange", kind: "handEffect", actual: "【追色１】２マス以内の１枚をあなたの手札に加える。" },
   { cardId: "first-red", kind: "handEffect", actual: "【追色１】捨て場の１番上から２番目のカードをあなたの手札に加える。" },
   { cardId: "first-yellow", kind: "handEffect", actual: "【追色１】２マス以内のカードを４枚までオープンしてもよい。" },
   {
@@ -199,14 +194,14 @@ const PILOT_CARDS = [
     kind: "arrival",
     actual: "相手１人の手札から無作為に１枚、あなたの手札に加える。あなたの手札から１枚、その相手の手札に加える。",
   },
-  // 続き29でusableAnytime:true（「この効果はいつでも使える。」）と
-  // inheritsArrival:true（「上記の到達時の効果を得る。」）の両方を
-  // generateEffectTextが文章化するようになったため、以前は意図的な⚠️表示
-  // だったこのカードも今は✅で一致する。
+  // 続き88でこのカードのhandEffectからusableAnytime:trueを外した
+  // （ユーザー要望「一旦スリカエの手札効果からいつでも使えるを外す」）ため、
+  // 生成文から「この効果はいつでも使える。」が消え、実際の文言も
+  // docs/cards.mdの「上記の到達時の効果を得る。」に合わせて更新した。
   {
     cardId: "yellow-sleight-of-hand",
     kind: "handEffect",
-    actual: "この効果はいつでも使える。上記の到達時の効果を得る。",
+    actual: "上記の到達時の効果を得る。",
   },
   { cardId: "red-jump-pad", kind: "handEffect", actual: "これをゲート以外の任意のマスに表向きで置く。" },
   { cardId: "red-counter-lock", kind: "arrival", actual: "１番少なくロックしているなら1枚ドロー。" },
@@ -219,11 +214,9 @@ const PILOT_CARDS = [
     kind: "arrival",
     actual: "２マス以内の何もない全てのマスに山札からカードを１枚ずつ裏向きで置く。",
   },
-  // 生成文「任意の３マスに山札から１枚ずつ裏向きで置く。」は、docs/cards.mdの実際の
-  // 文言「任意の3マスに山札からカードを裏向きで1枚ずつ置く。」と「カードを」の有無・
-  // 語順・数字の全角半角が違う（意味は同じ）。収穫と種まき・橙のキューブ ハーベストと
-  // 同じ理由（続き25）で意図的な⚠️表示。
-  { cardId: "green-growing-trees", kind: "handEffect", actual: "任意の3マスに山札からカードを裏向きで1枚ずつ置く。" },
+  // 続き90: 収穫と種まき・橙のキューブ ハーベストと同じく、カード効果テキスト.txt/
+  // docs/cards.mdを生成文の語順に合わせて修正したため追従（以前の⚠️は解消）。
+  { cardId: "green-growing-trees", kind: "handEffect", actual: "任意の３マスに山札から１枚ずつ裏向きで置く。" },
   { cardId: "white-radiance", kind: "arrival", actual: "全員、3枚ドロー。このカードを捨てる。" },
   { cardId: "white-radiance", kind: "handEffect", actual: "全員、３枚ドロー。このフェイズを終了する。" },
   { cardId: "black-faded-cat", kind: "arrival", actual: "これを捨てる。全員、手札を全て捨て、１枚ドロー。" },
