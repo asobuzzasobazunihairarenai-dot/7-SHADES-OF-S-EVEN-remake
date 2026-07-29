@@ -8285,7 +8285,11 @@ registerFinalLockApprovalHandler(respondToFinalLock);
 registerGomennasaiHelpers({ checkEligibility: findGomennasaiEligibility, onUseGomennasai: useGomennasaiOnFinalLock });
 registerTimerToggleHandlers({ onRequest: requestTimerToggleFor, onRespond: respondToTimerToggle });
 registerContactApprovalHandler(respondToContact);
-registerCounterLockHelpers({ checkEligibility: findCounterLockToken, onUseCounterLock: useCounterLockOnContact });
+registerCounterLockHelpers({
+  checkEligibility: findCounterLockToken,
+  onUseCounterLock: useCounterLockOnContact,
+  isPseudoCpuTarget,
+});
 registerEternalAnimHelpers(playEternalAcquisitionAnim);
 registerGateInvasionStealHelper(stealHandCardsRitualForGateInvasion);
 buildGameTitle();

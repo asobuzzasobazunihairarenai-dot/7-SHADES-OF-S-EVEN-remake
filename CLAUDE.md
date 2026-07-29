@@ -12330,3 +12330,24 @@ u=横方向・v=縦方向）にも使えるよう一般化した`rotateFraction(
   （`isPseudoCpuTarget(attacker)`）なら、浮遊ボタン・確認モーダルの表示自体を一切
   行わず`submitContactProposal`を直接呼んで即座に申し込むようにした（承認/拒否・
   演出・オンライン同期は既存の手動フローと完全に共通のまま）。
+
+### 2026-07-29（続き106・続き3）：接触相手がたまたまカウンターロックを持っている時の「使う/使わない」選択も未対応だったのを修正
+
+- 続き104〜106の一連の修正を反映した対局を継続観察していたところ、接触を申し込まれた
+  側（defender）がたまたま「カウンターロック」を手札に持っていた時に出る
+  「🛡️ カウンターロックを使う／使わない（承認する）」の選択モーダル（`contact-approval.js`）
+  で、疑似CPU対象の座席がまたしても永久に止まることを発見した。
+- **原因**: `main.js`の`checkCounterLockAutoApproval()`は「カウンターロックを持って
+  いる場合は自動承認せず本人の選択を待つ」という仕様上、疑似CPU対象でもここは
+  意図的に素通りする設計だった（人間のプレイヤーが実際に使うかどうかを選べるように
+  するための仕様）。しかしこの「本人の選択」自体を疑似CPU向けに代行する仕組みが
+  どこにも無かった。
+- **修正**: `contact-approval.js`は`main.js`の`isPseudoCpuTarget`（`turn-timer.js`
+  由来）を直接importすると3方向の循環参照になる（`phase-automation.js`が
+  `turn-timer.js`を直接importできないのと同じ理由）ため、既存の
+  `registerCounterLockHelpers({checkEligibility, onUseCounterLock})`という
+  「main.js側から関数を注入してもらう」パターンをそのまま拡張し、`isPseudoCpuTarget`
+  も注入できるようにした。`updateContactApprovalModal()`側で、対象の座席
+  （`pending.defender`）が疑似CPU対象なら、カウンターロードは使わず
+  （＝任意なので通常のスキップと同じ考え方）即座に承認する側へ進めるようにした
+  （`checkCounterLockAutoApproval`と同じ「同時に何度も発火させない」ガードを追加）。

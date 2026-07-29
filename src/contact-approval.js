@@ -29,14 +29,22 @@ let backdropEl = null;
 let respondHandler = null;
 let checkCounterLockEligibility = null;
 let useCounterLockHandler = null;
+let isPseudoCpuTargetCheck = null;
+let pseudoCpuCounterLockAutoDeclineInFlight = false;
 
 export function registerContactApprovalHandler(fn) {
   respondHandler = fn;
 }
 
-export function registerCounterLockHelpers({ checkEligibility, onUseCounterLock }) {
+// isPseudoCpuTarget（続き106）: main.jsのisPseudoCpuTarget（turn-timer.js由来）を
+// このファイルへ直接importすると、contact-approval.js→turn-timer.js→main.js→
+// contact-approval.jsという3方向の循環参照になってしまう（phase-automation.jsが
+// turn-timer.jsを直接importできないのと同じ理由）。checkEligibility/onUseCounterLock
+// と同じ「main.js側から関数を注入してもらう」既存パターンをそのまま拡張して回避する。
+export function registerCounterLockHelpers({ checkEligibility, onUseCounterLock, isPseudoCpuTarget }) {
   checkCounterLockEligibility = checkEligibility;
   useCounterLockHandler = onUseCounterLock;
+  isPseudoCpuTargetCheck = isPseudoCpuTarget;
 }
 
 export function buildContactApprovalModal() {
@@ -80,6 +88,21 @@ export function updateContactApprovalModal() {
       backdropEl = null;
     }
     modalEl.innerHTML = "";
+    return;
+  }
+  // ユーザー報告（続き106）「疑似CPUモードで対象の座席がたまたまカウンターロックを
+  // 持っている時、『使う/使わない』の選択がここで止まっていた」への対応。main.js側の
+  // checkCounterLockAutoApproval()は「リアクションカードを持っている場合は本人の選択を
+  // 待つ」という仕様上、疑似CPU対象でもここは素通りしてしまう。ここでその座席が
+  // 疑似CPU対象なら、カウンターロックは使わず（＝任意なのでスキップと同じ考え方）
+  // 承認する側へ即座に進める。counterLockAutoApprovalInFlightと同じ「同じ処理を
+  // 二重に発火させない」ガードをこのモジュール内に持たせる。
+  if (canRespond && hasCounterLock && isPseudoCpuTargetCheck?.(pending.defender) && !pseudoCpuCounterLockAutoDeclineInFlight) {
+    pseudoCpuCounterLockAutoDeclineInFlight = true;
+    hideImmediately();
+    Promise.resolve(respondHandler?.(true)).finally(() => {
+      pseudoCpuCounterLockAutoDeclineInFlight = false;
+    });
     return;
   }
   modalEl.innerHTML = "";
