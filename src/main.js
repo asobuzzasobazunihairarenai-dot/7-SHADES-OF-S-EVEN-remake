@@ -1813,9 +1813,15 @@ function requestPlaceSourceChoiceForEffect() {
     function finish(result) {
       if (settled) return;
       settled = true;
+      activeEffectPicker = null;
       backdrop.remove();
       modal.remove();
-      resolve(result);
+      // performPriorityTimeoutAutoAction()側（type:"option"の分岐）はoptions配列の
+      // 要素（{id,label,usable}）をそのまま渡してくるため、id部分だけ取り出す。
+      // 手動クリック側は元々"deck"/"hand"の文字列を直接渡している（呼び出し元の
+      // runJointConstructionTaskがsource==="hand"を文字列比較しているため、両者を
+      // 同じ文字列に正規化する）。
+      resolve(typeof result === "string" ? result : (result?.id ?? null));
     }
     // ユーザー報告「山札も手札もグレーアウトして押すことができません」の原因: このbackdropの
     // z-index（10625）が、流用しているモーダル本体（#sleight-ritual-modal、CSS側の
@@ -1846,6 +1852,22 @@ function requestPlaceSourceChoiceForEffect() {
     modal.appendChild(buttonsWrap);
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
+    // ユーザー報告（続き104、2クライアント実機テスト中に発見）「合同建設の『どこから
+    // 置きますか？』モーダルだけ、疑似CPU対象がタイムアウトしても永久にフリーズする」
+    // の原因: このモーダルだけactiveEffectPickerに未登録で、performPriorityTimeoutAutoAction
+    // の①番の分岐（本コメント2373行目付近）が「解決待ちの選択が存在する」ことを
+    // 検知できていなかった。cell/hand/player/colors/opponentHandと同じ登録パターンに
+    // 合わせ、type:"option"（なないろの欠片等と同じ2択以上の選択肢モーダル用）として
+    // 登録することで、他の効果選択モーダルと同じくタイムアウト時にランダムな
+    // usable:true選択肢へ自動的に解決されるようにする。
+    activeEffectPicker = {
+      type: "option",
+      options: [
+        { id: "deck", label: "山札から", usable: true },
+        { id: "hand", label: "手札から", usable: true },
+      ],
+      resolve: finish,
+    };
   });
 }
 
