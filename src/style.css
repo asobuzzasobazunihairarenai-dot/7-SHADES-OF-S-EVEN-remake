@@ -5903,14 +5903,22 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
 /* ゲストログイン前の注意確認（続き83、opening-screen.jsのconfirmGuestLogin）。
    #touch-action-confirm-modalと同じ「中央固定・.contact-approval-*クラスを
    使い回す」構成。注意喚起の意味合いを強めるため、他の確認モーダル（金色系）とは
-   別の赤系の縁取りにする。 */
+   別の赤系の縁取りにする。
+   ユーザー報告（続き103）「ゲストでログインを押しても何も起きない」の原因判明:
+   このモーダルは#opening-screen（z-index:50000）がまだ表示されている間に出る
+   （ログイン完了前の確認のため）唯一の確認モーダルだが、z-indexが他の対局中専用の
+   確認モーダル（#touch-action-confirm-modal/#generic-confirm-modal、続き89、
+   z-index:10611のまま）と同じ値を使い回していたため、#opening-screenの裏に
+   完全に隠れて見えなくなっていた。main.jsのopenFirstLoginProfileModal
+   （同じく#opening-screenより手前に出す必要がある、z-index:50100）と同じ考え方で
+   #opening-screenより確実に高いz-indexに変更した。 */
 #guest-login-confirm-modal {
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   width: min(26rem, 90vw);
-  z-index: 10611;
+  z-index: 50110;
   background: linear-gradient(160deg, #3f1414, #1c0808);
   border: 2px solid #f87171;
   border-radius: 0.7rem;
