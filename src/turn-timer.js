@@ -47,6 +47,7 @@ import { isOpponentBaseTimerVisible } from "./motion-prefs.js";
 import { toggleTimerTogglePopover } from "./timer-toggle.js";
 import { hasAnyoneWon } from "./victory.js";
 import { isAutoProcessingEnabled } from "./card-effect-engine.js";
+import { logAction } from "./action-log.js";
 
 // オンライン対戦中は、ゲーム開始時に固定された対局全体共通の設定（timer_config、
 // 部屋作成者のその時点のローカル設定を1回だけ書き込んだもの）を優先する——プレイヤーごとに
@@ -184,7 +185,26 @@ function isPseudoCpuTarget(seat) {
 // 行動で得られる基本時間の窓を短く抑える（デフォルト上限10秒、管理者モードで調整可）。
 // まだ使っていなければ通常の基本時間をまるまる与える。
 function freshBaseDeadlineFor(seat) {
-  if (isPseudoCpuTarget(seat)) return Date.now() + PSEUDO_CPU_DEADLINE_MS;
+  // ユーザー要望（続き102）「疑似CPUモードが適用されない原因をアクションログで
+  // 確認できるようにしてほしい」。優先権が渡る/基本時間を仕切り直すたびに（tick()の
+  // 200ms間隔とは違い、この関数自体は実際にターンや優先権が変わった時だけ呼ばれる
+  // ため、ログが埋まる心配は無い）、疑似CPU判定に関わる値を全部まとめて記録する。
+  // これで「サーバーから届いた値」「有効/無効の最終判定」「自分の座席かどうか」の
+  // どこで意図と食い違っているかが後から追える。
+  const synced = isOnlineMode() && getSyncedTimerConfig();
+  const target = isPseudoCpuTarget(seat);
+  logAction("diag-pseudo-cpu", {
+    phase: "freshBaseDeadlineFor",
+    seat,
+    isOnlineMode: isOnlineMode(),
+    syncedPseudoCpuModeEnabled: synced ? !!synced.pseudoCpuModeEnabled : null,
+    localPseudoCpuModeEnabled: isPseudoCpuModeEnabledLocal(),
+    isPseudoCpuModeActive: isPseudoCpuModeActive(),
+    isPseudoCpuIncludeSelf: isPseudoCpuIncludeSelf(),
+    selfSeat: getSelfSeat(),
+    isPseudoCpuTarget: target,
+  });
+  if (target) return Date.now() + PSEUDO_CPU_DEADLINE_MS;
   const seconds = hourglassUsedThisTurn[seat] ? Math.min(getRopeBaseSeconds(), getReducedBaseSeconds()) : getRopeBaseSeconds();
   return Date.now() + seconds * 1000;
 }

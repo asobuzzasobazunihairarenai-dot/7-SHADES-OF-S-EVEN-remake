@@ -1236,6 +1236,11 @@ export async function startGame(gameId, { includeBlackWhite = false, timerEnable
       reducedBaseSeconds: getReducedBaseSeconds(),
       pseudoCpuModeEnabled,
     };
+    // ユーザー要望（続き102）「疑似CPUモードが適用されない原因をアクションログで
+    // 確認できるようにしてほしい」。ゲーム開始時に送信するtimerConfig（疑似CPU
+    // モードの有効/無効を含む）をそのままログに残し、後から「サーバーに正しい値が
+    // 送られたか」を確認できるようにする。
+    logAction("diag-pseudo-cpu", { phase: "startGame-send", timerConfig });
     const result = await callAction({ type: "BOOTSTRAP_GAME", includeBlackWhite, timerConfig });
     registerParticipantsAsStatsPlayers(gameId).catch((err) =>
       console.error("registerParticipantsAsStatsPlayers failed", err)
@@ -1288,7 +1293,17 @@ export async function maybeTriggerRematch(gameId) {
   if (!allReady) return false;
   const triggerSeat = freshSeats.map((s) => s.seat).sort()[0];
   if (getSelfSeat() !== triggerSeat) return false;
-  await startGame(gameId);
+  // ユーザー報告（続き102）「疑似CPUモードが適用されない」の調査で判明した別の穴:
+  // ここは元々startGame(gameId)をオプション無しで呼んでいたため、ターンタイマー・
+  // 疑似CPUモードの設定が前の対局の値を一切引き継がず、毎回デフォルト
+  // （timerEnabledは実行者（アルファベット順最初の座席）のその時のローカル設定、
+  // pseudoCpuModeEnabledは常にfalse）に巻き戻ってしまっていた。「もう一度遊ぶ」で
+  // 同じ設定のまま続けたいはずなので、前の対局のsyncedTimerConfigから引き継ぐ。
+  const prevTimerConfig = getSyncedTimerConfig();
+  await startGame(gameId, {
+    timerEnabled: prevTimerConfig ? prevTimerConfig.enabled : undefined,
+    pseudoCpuModeEnabled: prevTimerConfig ? !!prevTimerConfig.pseudoCpuModeEnabled : false,
+  });
   return true;
 }
 
@@ -1841,6 +1856,16 @@ export async function fetchAndHydrate(gameId) {
     // あった（ユーザー報告: 「オンにしたのにゲーム開始後、何かクリックするまでタイマーが
     // 作動しない」）。
     syncedTimerConfig = gameRow.timer_config ?? null;
+    // ユーザー要望（続き102）「疑似CPUモードが適用されない原因をアクションログで
+    // 確認できるようにしてほしい」。この対局のtimerConfig（サーバーからの受信値、
+    // 疑似CPUモードの有効/無効を含む）を記録し、後から「サーバーから正しい値が
+    // 届いているか」を確認できるようにする。値が変わった時だけ記録し（毎回の
+    // fetchAndHydrateで同じ値を繰り返し記録するとログが埋まってしまうため）、
+    // ログが埋まらないようにする。
+    if (JSON.stringify(syncedTimerConfig) !== lastLoggedTimerConfigJson) {
+      lastLoggedTimerConfigJson = JSON.stringify(syncedTimerConfig);
+      logAction("diag-pseudo-cpu", { phase: "syncedTimerConfig-received", timerConfig: syncedTimerConfig });
+    }
     // タイマーオン/オフのロックアウト管理（続き64）。pendingTimerToggle自体は
     // pendingFinalLock/pendingContactと同じくhydrateState()経由でstate.jsのGameStateに
     // 含めるが、timer_toggle_reject_streakはtimer_configと同じく「クライアントの
@@ -1887,6 +1912,8 @@ let syncedTimerConfig = null;
 export function getSyncedTimerConfig() {
   return syncedTimerConfig;
 }
+// diag-pseudo-cpuログの重複記録防止用（続き102）。
+let lastLoggedTimerConfigJson = null;
 
 // タイマーオン/オフボタンの3連続却下ロックアウト（続き64）用。座席ごとの連続却下回数。
 let syncedTimerToggleRejectStreak = {};

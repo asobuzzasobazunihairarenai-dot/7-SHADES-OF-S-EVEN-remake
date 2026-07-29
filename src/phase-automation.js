@@ -28,6 +28,7 @@ import { SIDE_TO_SEAT, COLORS, SEAT_ORDER } from "./board-layout.js";
 import { getCardDefinition } from "./cards-data.js";
 import { hasAnyoneWon } from "./victory.js";
 import { isPseudoCpuModeEnabled as isPseudoCpuModeEnabledLocal, isPseudoCpuIncludeSelf } from "./admin.js";
+import { logAction } from "./action-log.js";
 
 // ユーザー報告（続き99）「疑似CPUモードの時、回復すると基本時間が15秒とかまで行って
 // しまう」。turn-timer.jsのisPseudoCpuTargetと全く同じ判定だが、循環import
@@ -407,7 +408,11 @@ function ensureSkipButton() {
     // 直接呼んで同じパッチを適用する。
     const priorityPlayer = getState().priorityPlayer;
     if (priorityPlayer) {
-      const recoveryMs = isPseudoCpuTarget(priorityPlayer) ? PSEUDO_CPU_DEADLINE_MS : 15000;
+      const target = isPseudoCpuTarget(priorityPlayer);
+      // ユーザー要望（続き102）「疑似CPUモードが適用されない原因をアクションログで
+      // 確認できるようにしてほしい」。
+      logAction("diag-pseudo-cpu", { phase: "ensureSkipButton", priorityPlayer, isPseudoCpuModeActive: isPseudoCpuModeActive(), isPseudoCpuTarget: target });
+      const recoveryMs = target ? PSEUDO_CPU_DEADLINE_MS : 15000;
       setPriorityState({ player: priorityPlayer, deadline: Date.now() + recoveryMs, phase: "base" });
     }
     advancePhase();
@@ -679,7 +684,9 @@ async function performMoveFallbackAndEndTurn(player, location) {
       const idx = order.indexOf(player);
       const nextPlayer = idx === -1 ? null : order[(idx + 1) % order.length];
       if (nextPlayer) {
-        const recoveryMs = isPseudoCpuTarget(nextPlayer) ? PSEUDO_CPU_DEADLINE_MS : 15000;
+        const target = isPseudoCpuTarget(nextPlayer);
+        logAction("diag-pseudo-cpu", { phase: "performMoveFallbackAndEndTurn", nextPlayer, isPseudoCpuModeActive: isPseudoCpuModeActive(), isPseudoCpuTarget: target });
+        const recoveryMs = target ? PSEUDO_CPU_DEADLINE_MS : 15000;
         setPriorityState({ player: nextPlayer, deadline: Date.now() + recoveryMs, phase: "base" });
       }
     }
