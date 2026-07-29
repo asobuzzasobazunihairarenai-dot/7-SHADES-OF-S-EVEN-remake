@@ -1,21 +1,27 @@
 // ユーザー要望（続き98）「疑似CPUモードを開始するを押すと、全プレイヤーに自分も
-// 疑似CPUになるかのモーダルが出るようにしてほしい」。admin.jsの疑似CPUモード
-// チェックボックス（isPseudoCpuModeEnabled、続き97）は、ONにした瞬間プレーンな
-// DOM CustomEvent（pseudo-cpu-mode-started）を投げるだけにしてある（admin.js自体は
-// online.jsを直接importしない設計を保つため）。ここでその合図を受け取り、オンライン中
-// なら他の全プレイヤーへRealtime Broadcastで伝え、受け取った側（開始した本人以外）に
-// 「あなたも疑似CPUになりますか？」の確認モーダルを出す。「はい」を選んだ人だけ、
-// 自分自身のpseudoCpuModeEnabled/pseudoCpuIncludeSelfをONにする（自分の番も含めて
-// 自動化＝完全に観戦に徹する）。開始した本人は既にチェックボックスで明示的に選択済み
-// のため対象外（自分以外にだけ届ける、hand_effect_use等の既存パターンと同じ）。
-// ローカルモードは対象外（「全プレイヤー」に意味を持つのはオンライン対戦のみ）。
+// 疑似CPUになるかのモーダルが出るようにしてほしい」。
+//
+// 続き101で設計変更: 当初は「有効化した瞬間にRealtime Broadcastで他クライアントへ
+// 伝え、確認モーダルを出す」という仕組みだったが、実機（2クライアント）テストで
+// 相手に反映されないケースがあり信頼できないと判明した
+// （ユーザー報告「やはり相手に設定が反映されません」）。timerEnabled/
+// includeBlackWhite等と同じ「部屋作成者が『ゲームを開始する』を押した瞬間の設定を
+// 対局全体の固定値としてサーバーに同期する」既存の確実な仕組みに乗せることにした
+// （online.jsのstartGame()参照）。
+//
+// このモジュールは、オンライン対戦でこの対局のtimerConfig.pseudoCpuModeEnabledが
+// trueだと初めて判明した瞬間（1対局につき1回だけ）、全員（部屋作成者自身も含む——
+// ルーム作成時のチェックボックス1つでは「自分の番も自動化するか」までは決まらない
+// 個人の選択のため）に「あなたも自分の番を自動プレイにしますか？」の確認モーダルを
+// 出す。「はい」を選んだ人だけ自分自身のpseudoCpuIncludeSelf（続き97、個人設定の
+// ままsyncしない）をONにする。
 
-import { isOnlineMode, getSelfSeat, broadcastPseudoCpuModeStarted, onPseudoCpuModeStartedEvents } from "./online.js";
-import { getPlayerName } from "./player-identity.js";
+import { isOnlineMode, getCurrentGameId, getSyncedTimerConfig } from "./online.js";
+import { subscribe } from "./state.js";
 import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
-import { setPseudoCpuModeEnabled, setPseudoCpuIncludeSelf } from "./admin.js";
+import { setPseudoCpuIncludeSelf } from "./admin.js";
 
-function showPseudoCpuJoinPrompt(fromPlayer) {
+function showPseudoCpuJoinPrompt() {
   const modal = document.createElement("div");
   modal.id = "pseudo-cpu-join-prompt";
   const close = () => {
@@ -31,9 +37,7 @@ function showPseudoCpuJoinPrompt(fromPlayer) {
 
   const body = document.createElement("div");
   body.className = "contact-approval-body";
-  body.textContent =
-    `${getPlayerName(fromPlayer)}さんが疑似CPUモード（自動選択のテスト）を開始しました。` +
-    "あなたも自分の番を自動プレイ（疑似CPU）にしますか？";
+  body.textContent = "この対局は疑似CPUモード（自動選択のテスト）が有効です。あなたも自分の番を自動プレイ（疑似CPU）にしますか？";
   modal.appendChild(body);
 
   const buttons = document.createElement("div");
@@ -43,9 +47,11 @@ function showPseudoCpuJoinPrompt(fromPlayer) {
   yesBtn.className = "contact-approval-approve";
   yesBtn.textContent = "✅ はい";
   yesBtn.addEventListener("click", () => {
-    setPseudoCpuModeEnabled(true);
     setPseudoCpuIncludeSelf(true);
     window.dispatchEvent(new CustomEvent("admin:change"));
+    // ユーザー要望（続き99）「ONしたら現在持っている基本時間及び砂時計は0にして
+    // ください」。turn-timer.js側のリスナーが、今まさに自分の番なら即座に反映する。
+    window.dispatchEvent(new CustomEvent("pseudo-cpu-settings-changed"));
     close();
   });
   const noBtn = document.createElement("button");
@@ -62,13 +68,17 @@ function showPseudoCpuJoinPrompt(fromPlayer) {
   document.body.appendChild(modal);
 }
 
+// 1対局につき1回だけ出す（同じ対局の以降の状態変化のたびに出し直さないため）。
+// 新しい対局はgame_idが変わるため、この変数の値と一致しなくなり自然に再度出せる。
+let promptedForGameId = null;
 export function initPseudoCpuPrompt() {
-  window.addEventListener("pseudo-cpu-mode-started", () => {
+  subscribe(() => {
     if (!isOnlineMode()) return;
-    broadcastPseudoCpuModeStarted({ fromPlayer: getSelfSeat() });
-  });
-  onPseudoCpuModeStartedEvents(({ fromPlayer }) => {
-    if (fromPlayer === getSelfSeat()) return;
-    showPseudoCpuJoinPrompt(fromPlayer);
+    const gameId = getCurrentGameId();
+    if (!gameId || gameId === promptedForGameId) return;
+    const synced = getSyncedTimerConfig();
+    if (!synced?.pseudoCpuModeEnabled) return;
+    promptedForGameId = gameId;
+    showPseudoCpuJoinPrompt();
   });
 }

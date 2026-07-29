@@ -13,7 +13,7 @@
 // 「register helper」注入パターンで main.js から渡してもらう（循環import回避）。
 
 import { getState, isOnlineMode, drawFromPile, flipToken, nextTurn, setPriorityState } from "./state.js";
-import { getSelfSeat, getCurrentGameId, fetchAndHydrate } from "./online.js";
+import { getSelfSeat, getCurrentGameId, fetchAndHydrate, getSyncedTimerConfig } from "./online.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
 import {
   isAutoProcessingEnabled,
@@ -27,16 +27,23 @@ import { announceHandPickups } from "./hand-announcer.js";
 import { SIDE_TO_SEAT, COLORS, SEAT_ORDER } from "./board-layout.js";
 import { getCardDefinition } from "./cards-data.js";
 import { hasAnyoneWon } from "./victory.js";
-import { isPseudoCpuModeEnabled, isPseudoCpuIncludeSelf } from "./admin.js";
+import { isPseudoCpuModeEnabled as isPseudoCpuModeEnabledLocal, isPseudoCpuIncludeSelf } from "./admin.js";
 
 // ユーザー報告（続き99）「疑似CPUモードの時、回復すると基本時間が15秒とかまで行って
 // しまう」。turn-timer.jsのisPseudoCpuTargetと全く同じ判定だが、循環import
 // （turn-timer.js→main.js→phase-automation.js）を避けるためturn-timer.js側の
 // 関数は呼べず、ここに同じロジックを複製する（ensureSkipButtonの15秒回復と同じ
 // 「turn-timer.js側の関数は呼べないので直接setPriorityStateする」既存パターンの延長）。
+// 続き101: 「有効化」自体もturnEnabled等と同じくオンライン中は対局開始時の同期値を
+// 優先するようになったため、ここもturn-timer.jsのisPseudoCpuModeActiveと同じ
+// 判定に揃える。
 const PSEUDO_CPU_DEADLINE_MS = 1000;
+function isPseudoCpuModeActive() {
+  const synced = isOnlineMode() && getSyncedTimerConfig();
+  return synced ? !!synced.pseudoCpuModeEnabled : isPseudoCpuModeEnabledLocal();
+}
 function isPseudoCpuTarget(seat) {
-  if (!isPseudoCpuModeEnabled()) return false;
+  if (!isPseudoCpuModeActive()) return false;
   return isPseudoCpuIncludeSelf() || seat !== getSelfSeat();
 }
 

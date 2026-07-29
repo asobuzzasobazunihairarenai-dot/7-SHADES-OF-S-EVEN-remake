@@ -671,6 +671,23 @@ async function renderRoomStatus(gameId, myGeneration) {
       bwRow.appendChild(bwLabel);
       waitingBox.appendChild(bwRow);
 
+      // ユーザー要望（続き101）「疑似CPUモードを開始しても相手に反映されないので、
+      // ゲーム開始ボタンを押す時に疑似CPUモードにチェックを入れるのはどう？」。
+      // 続き98の「対局中にRealtime Broadcastで伝える」設計が実機テストで信頼できないと
+      // 判明したため、timerEnabled/includeBlackWhiteと同じ「開始ボタンを押した瞬間の
+      // 設定を対局全体の固定値としてサーバーに同期する」確実な仕組みに変更した。
+      const pseudoCpuRow = document.createElement("label");
+      pseudoCpuRow.style.cssText =
+        "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0.5rem; font-size: 0.85rem; text-align: left;";
+      const pseudoCpuCheckbox = document.createElement("input");
+      pseudoCpuCheckbox.type = "checkbox";
+      pseudoCpuCheckbox.checked = false;
+      const pseudoCpuLabel = document.createElement("span");
+      pseudoCpuLabel.textContent = "🤖 疑似CPUモード（自動選択のテスト用）を使う";
+      pseudoCpuRow.appendChild(pseudoCpuCheckbox);
+      pseudoCpuRow.appendChild(pseudoCpuLabel);
+      waitingBox.appendChild(pseudoCpuRow);
+
       const startBtn = textButton(`ゲームを開始する（現在${count}名）`);
       // ログインパネルのボタン（renderLoginForm）と同じ理由で、display:blockを明示しないと
       // .header-tool-buttonの既定表示(inline-block)のせいで横並びになってしまう
@@ -679,7 +696,11 @@ async function renderRoomStatus(gameId, myGeneration) {
       startBtn.addEventListener("click", async () => {
         startBtn.disabled = true;
         try {
-          await startGame(gameId, { timerEnabled: timerCheckbox.checked, includeBlackWhite: bwCheckbox.checked });
+          await startGame(gameId, {
+            timerEnabled: timerCheckbox.checked,
+            includeBlackWhite: bwCheckbox.checked,
+            pseudoCpuModeEnabled: pseudoCpuCheckbox.checked,
+          });
           closePanel();
         } catch (err) {
           alert(err.message ?? String(err));

@@ -429,22 +429,6 @@ export function broadcastMatchStatEvent(payload) {
   }
 }
 
-// ユーザー要望（続き98）「疑似CPUモードを開始するを押すと、全プレイヤーに自分も
-// 疑似CPUになるかのモーダルが出るようにしてほしい」。pseudo-cpu-prompt.js参照。
-// 状態は一切変えない見た目だけの合図（hand_effect_use等と同じパターン）。
-let pseudoCpuModeStartedEventListeners = [];
-export function onPseudoCpuModeStartedEvents(fn) {
-  pseudoCpuModeStartedEventListeners.push(fn);
-  return () => {
-    pseudoCpuModeStartedEventListeners = pseudoCpuModeStartedEventListeners.filter((f) => f !== fn);
-  };
-}
-export function broadcastPseudoCpuModeStarted(payload) {
-  if (broadcastChannel) {
-    broadcastChannel.send({ type: "broadcast", event: "pseudo_cpu_mode_started", payload });
-  }
-}
-
 // 色宣言の結果が判明した（試練の儀式のカードが置かれた／ザ・ギャンブルの公開ドローが
 // 終わった）合図（続き65、ユーザー要望「実際何色が出るか変わるまではモーダルを継続
 // したい」）。colors_declaredで出した表示を、これを受け取った全クライアントが消す。
@@ -1221,7 +1205,7 @@ async function registerParticipantsAsStatsPlayers(gameId) {
   }
 }
 
-export async function startGame(gameId, { includeBlackWhite = false, timerEnabled } = {}) {
+export async function startGame(gameId, { includeBlackWhite = false, timerEnabled, pseudoCpuModeEnabled = false } = {}) {
   return withLog("ゲーム開始", async () => {
     const count = await getMemberCount(gameId);
     if (count < 2) throw new Error("2人以上揃ってから開始してください");
@@ -1233,6 +1217,15 @@ export async function startGame(gameId, { includeBlackWhite = false, timerEnable
     // 気づかれにくく、オンラインでタイマーが使えないという報告の原因になっていたため。
     // timerEnabledが渡されなかった場合（呼び出し元の想定外の使い方）だけ、admin.jsの
     // ローカル設定にフォールバックする。
+    // ユーザー報告（続き101）「疑似CPUモードを開始しても相手に反映されない」への対応。
+    // 続き98で追加した「有効化した瞬間にRealtime Broadcastで他クライアントへ伝え、
+    // 確認モーダルを出す」という設計は、実際の2クライアントでのテストで反映されない
+    // ケースがあり信頼できないと判明した。timerEnabled/includeBlackWhiteと同じく
+    // 「部屋作成者が開始ボタンを押す瞬間の設定を対局全体の固定値として1回だけ送る」
+    // 既存の確実な仕組みに乗せることにした（enabled自体をtimerConfigに含め、
+    // 対局中はどのクライアントでも常にこの同期値を見る）。「自分も含める」
+    // (pseudoCpuIncludeSelf)は引き続き各クライアント自身のローカル設定のまま
+    // （対局中いつでも自由に変更できる、個人の選択のため）。
     const timerConfig = {
       enabled: timerEnabled !== undefined ? timerEnabled : isTurnTimerEnabled(),
       initialHourglassStock: getInitialHourglassStock(),
@@ -1241,6 +1234,7 @@ export async function startGame(gameId, { includeBlackWhite = false, timerEnable
       ropeExtensionSeconds: getRopeExtensionSeconds(),
       turnsToReplenishHourglass: getTurnsToReplenishHourglass(),
       reducedBaseSeconds: getReducedBaseSeconds(),
+      pseudoCpuModeEnabled,
     };
     const result = await callAction({ type: "BOOTSTRAP_GAME", includeBlackWhite, timerConfig });
     registerParticipantsAsStatsPlayers(gameId).catch((err) =>
@@ -2014,10 +2008,6 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // 対局内スタッツ（接触回数・カード使用枚数）の通知（broadcastMatchStatEvent参照）。
     .on("broadcast", { event: "match_stat" }, ({ payload }) => {
       for (const fn of matchStatEventListeners) fn(payload);
-    })
-    // 疑似CPUモード開始の通知（broadcastPseudoCpuModeStarted参照）。
-    .on("broadcast", { event: "pseudo_cpu_mode_started" }, ({ payload }) => {
-      for (const fn of pseudoCpuModeStartedEventListeners) fn(payload);
     })
     .on("broadcast", { event: "colors_resolved" }, () => {
       for (const fn of colorsResolvedEventListeners) fn();

@@ -40,7 +40,7 @@ import {
   getRopeExtensionSeconds as getRopeExtensionSecondsLocal,
   getTurnsToReplenishHourglass as getTurnsToReplenishHourglassLocal,
   getReducedBaseSeconds as getReducedBaseSecondsLocal,
-  isPseudoCpuModeEnabled,
+  isPseudoCpuModeEnabled as isPseudoCpuModeEnabledLocal,
   isPseudoCpuIncludeSelf,
 } from "./admin.js";
 import { isOpponentBaseTimerVisible } from "./motion-prefs.js";
@@ -81,6 +81,17 @@ function getTurnsToReplenishHourglass() {
 function getReducedBaseSeconds() {
   const synced = isOnlineMode() && getSyncedTimerConfig();
   return synced ? synced.reducedBaseSeconds : getReducedBaseSecondsLocal();
+}
+// ユーザー報告（続き101）「疑似CPUモードを開始しても相手に反映されない」への対応。
+// 続き98の「有効化した瞬間にRealtime Broadcastで他クライアントへ伝える」設計は
+// 実機テストで反映されないケースがあり信頼できないと判明した。timerEnabled等と
+// 同じ「部屋作成者が『ゲームを開始する』を押した瞬間の設定を対局全体の固定値として
+// 使う」既存の確実な仕組みに乗せる（online.jsのstartGame()参照）。「自分も含める」
+// (isPseudoCpuIncludeSelf)は引き続き各クライアント自身のローカル設定のまま
+// （対局中いつでも自由に変更できる、個人の選択のため同期しない）。
+function isPseudoCpuModeActive() {
+  const synced = isOnlineMode() && getSyncedTimerConfig();
+  return synced ? !!synced.pseudoCpuModeEnabled : isPseudoCpuModeEnabledLocal();
 }
 
 // オンライン中、MOVE_TOKEN等の「本物のゲーム操作」だけを優先権保持者の行動とみなす
@@ -165,7 +176,7 @@ function fireAndForget(maybePromise) {
 // することはできない、という既存のセキュリティ上の制約はそのまま維持される）。
 const PSEUDO_CPU_DEADLINE_MS = 1000;
 function isPseudoCpuTarget(seat) {
-  if (!isPseudoCpuModeEnabled()) return false;
+  if (!isPseudoCpuModeActive()) return false;
   return isPseudoCpuIncludeSelf() || seat !== getSelfSeat();
 }
 
@@ -1040,6 +1051,24 @@ export function initTurnTimer() {
       setDisplayIfChanged(ropeEl, "none");
       setDisplayIfChanged(baseClockEl, "none");
     }
+  });
+  // ユーザー要望（続き99）「(疑似CPUモードを)ONしたら現在持っている基本時間及び
+  // 砂時計は0にしてください」。admin.js側の2つのチェックボックス（有効化・自分も
+  // 含める）が変わった瞬間に発火する（admin.js参照）。今まさに優先権を持っている
+  // 座席がある場合、freshBaseDeadlineFor()を通して即座に基本時間を引き直す
+  // （isPseudoCpuTargetの対象になった座席なら1秒へ縮む、対象でなければ普段通りの
+  // 値になるだけで無害）。オンライン中は、自分の座席以外にこの即時反映を及ぼすと
+  // 「自分の設定変更だけで、まだ何もしていない本物の相手の基本時間を勝手に縮める」
+  // ことになってしまう（transferPriorityToにはgetSelfSeat()ガードが無いため、
+  // 呼べば実際に書き込めてしまう）。tick()自身の受動的な監視（他クライアントが
+  // オフラインの時の保険）とは違い、こちらは「自分の設定変更」という能動的な
+  // トリガーのため、自分の座席の番の時だけに限定する（ローカルモードは1人が全座席を
+  // 操作する前提のため、従来通り誰の番でも反映してよい）。
+  window.addEventListener("pseudo-cpu-settings-changed", () => {
+    const state = getState();
+    if (!state.priorityPlayer) return;
+    if (isOnlineMode() && state.priorityPlayer !== getSelfSeat()) return;
+    fireAndForget(setPriorityState({ player: state.priorityPlayer, deadline: freshBaseDeadlineFor(state.priorityPlayer), phase: "base" }));
   });
   setInterval(tick, 200);
 }
