@@ -6,6 +6,12 @@ import { openAdminPanel } from "./admin.js";
 import { openActionLogPanel } from "./action-log.js";
 import { openCardDevMode } from "./card-dev-mode.js";
 import { isAutoProcessingEnabled, setAutoProcessingEnabled } from "./card-effect-engine.js";
+import {
+  isPseudoCpuModeEnabled,
+  setPseudoCpuModeEnabled,
+  isPseudoCpuIncludeSelf,
+  setPseudoCpuIncludeSelf,
+} from "./admin.js";
 import { openDeckViewer } from "./deck-viewer.js";
 import { isLockAreaBarVisible, setLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible, setLockColorVisible } from "./lock-color.js";
@@ -707,6 +713,41 @@ export function initOptionsMenu() {
             }
           );
           content.appendChild(autoProcessingCheckboxRow);
+
+          // ユーザー要望（続き107）「疑似CPUモードの設定を管理者以外にも触れるように
+          // オプションの直下に移設してください」への対応。以前は管理者モードの中に
+          // しかなかった2つのチェックボックス（admin.jsのisPseudoCpuModeEnabled/
+          // setPseudoCpuModeEnabled・isPseudoCpuIncludeSelf/setPseudoCpuIncludeSelfを
+          // そのまま使い回す、実体は変わらない）をここへ移設した。
+          const pseudoCpuNote = document.createElement("div");
+          pseudoCpuNote.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin: 0.6rem 0 0.3rem; line-height: 1.5;";
+          pseudoCpuNote.textContent =
+            "疑似CPUモード（自動選択のテスト用）: オンライン対戦では部屋作成時の" +
+            "チェックボックスが対局全体で優先される（下の「有効化」はローカルモード用）。" +
+            "「自分の座席も対象に含める」は各プレイヤー個人の選択で、対局中いつでも変更できる。";
+          content.appendChild(pseudoCpuNote);
+
+          const pseudoCpuEnableRow = buildCheckboxRow("疑似CPUモードを有効にする（ローカルモード用）", isPseudoCpuModeEnabled(), (checked) => {
+            setPseudoCpuModeEnabled(checked);
+            window.dispatchEvent(new CustomEvent("admin:change"));
+            // ユーザー要望（続き99）「ONにしたら現在持っている基本時間及び砂時計は0に
+            // してください」。turn-timer.js側でこのイベントを受け、今まさに優先権を
+            // 持っている座席が新しい設定で対象になったなら、待たずにその場で基本時間を
+            // 1秒へ縮める。
+            window.dispatchEvent(new CustomEvent("pseudo-cpu-settings-changed"));
+          });
+          content.appendChild(pseudoCpuEnableRow);
+
+          const pseudoCpuSelfRow = buildCheckboxRow(
+            "自分の座席も対象に含める（ONにすると対局が最初から最後まで自動進行し、観戦に徹することができる）",
+            isPseudoCpuIncludeSelf(),
+            (checked) => {
+              setPseudoCpuIncludeSelf(checked);
+              window.dispatchEvent(new CustomEvent("admin:change"));
+              window.dispatchEvent(new CustomEvent("pseudo-cpu-settings-changed"));
+            }
+          );
+          content.appendChild(pseudoCpuSelfRow);
 
           // ユーザー要望（続き74）「自動処理モード時は手札シャッフル/1枚ドロー/公開
           // ドロー/ターン終了を非表示にしてください。緊急のバグ発生時用としてオプ

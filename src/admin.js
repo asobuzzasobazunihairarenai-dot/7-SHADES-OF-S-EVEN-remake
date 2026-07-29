@@ -1762,76 +1762,12 @@ const TOGGLE_SECTIONS = [
       );
     },
   },
-  {
-    title: "疑似CPUモード（テスト用）",
-    category: "behavior",
-    buildContent: (content) => {
-      const note = document.createElement("div");
-      note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.6rem; line-height: 1.5;";
-      note.textContent =
-        "対象座席の砂時計を0個・基本時間を最大1秒として扱い、優先権のタイムアウトを疑似的に" +
-        "即発生させる（performPriorityTimeoutAutoActionによる自動代行のテスト用）。上の" +
-        "「ターンタイマー」自体がONになっている必要がある。";
-      content.appendChild(note);
-
-      // ユーザー報告（続き101）「疑似CPUモードを開始しても相手に反映されない」への対応。
-      // 続き98の「有効化した瞬間にRealtime Broadcastで伝え確認モーダルを出す」という
-      // 設計は実機テストで反映されないケースがあり信頼できないと判明したため廃止した。
-      // オンライン対戦では、この「有効化」チェックボックスはtimerEnabled/
-      // includeBlackWhiteと同じく「部屋作成者が『ゲームを開始する』を押した瞬間の
-      // 設定が対局全体の固定値としてサーバーに同期される」仕組み（online-ui.js参照）
-      // に変わったため、対局が始まった後にここを変更しても現在の対局には反映されない
-      // （ターンタイマー本体の設定と同じ扱い）。ローカルモードでは引き続きこの
-      // チェックボックスがそのまま有効/無効を決める。
-      const onlineNote = document.createElement("div");
-      onlineNote.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.6rem; line-height: 1.5;";
-      onlineNote.textContent =
-        "※ オンライン対戦では「有効化」はこの部屋の『ゲームを開始する』を押した人が押した" +
-        "瞬間の設定が対局全体で固定されるため（下のonline-ui.jsのチェックボックス参照）、" +
-        "対局が始まった後にここを変更しても現在の対局には反映されない。「自分の座席も対象に" +
-        "含める」は各プレイヤー個人の選択のため、対局中いつでも自由に変更できる。";
-      content.appendChild(onlineNote);
-
-      const enableRow = document.createElement("label");
-      enableRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0.5rem;";
-      const enableCheckbox = document.createElement("input");
-      enableCheckbox.type = "checkbox";
-      enableCheckbox.checked = pseudoCpuModeEnabled;
-      enableCheckbox.addEventListener("change", () => {
-        pseudoCpuModeEnabled = enableCheckbox.checked;
-        window.dispatchEvent(new CustomEvent("admin:change"));
-        // ユーザー要望（続き99）「ONしたら現在持っている基本時間及び砂時計は0にして
-        // ください」。turn-timer.js側でこのイベントを受け、今まさに優先権を持っている
-        // 座席が新しい設定で対象になったなら、待たずにその場で基本時間を1秒へ縮める
-        // （turn-timer.jsのtransferPriorityTo経由、循環importを避けるためここでは
-        // イベントを投げるだけ）。
-        window.dispatchEvent(new CustomEvent("pseudo-cpu-settings-changed"));
-        updateExportRef.current();
-      });
-      const enableLabel = document.createElement("span");
-      enableLabel.textContent = "疑似CPUモードを有効にする（ローカルモード用）";
-      enableRow.appendChild(enableCheckbox);
-      enableRow.appendChild(enableLabel);
-      content.appendChild(enableRow);
-
-      const selfRow = document.createElement("label");
-      selfRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
-      const selfCheckbox = document.createElement("input");
-      selfCheckbox.type = "checkbox";
-      selfCheckbox.checked = pseudoCpuIncludeSelf;
-      selfCheckbox.addEventListener("change", () => {
-        pseudoCpuIncludeSelf = selfCheckbox.checked;
-        window.dispatchEvent(new CustomEvent("admin:change"));
-        window.dispatchEvent(new CustomEvent("pseudo-cpu-settings-changed"));
-        updateExportRef.current();
-      });
-      const selfLabel = document.createElement("span");
-      selfLabel.textContent = "自分の座席も対象に含める（ONにすると対局が最初から最後まで自動進行し、観戦に徹することができる）";
-      selfRow.appendChild(selfCheckbox);
-      selfRow.appendChild(selfLabel);
-      content.appendChild(selfRow);
-    },
-  },
+  // ユーザー要望（続き107）「疑似CPUモードの設定を管理者以外にも触れるようにオプション
+  // の直下に移設してください」への対応で、ここにあった「疑似CPUモード（テスト用）」
+  // セクション（有効化チェックボックス・自分の座席を含めるチェックボックス）は
+  // options-menu.jsの基本設定「自動処理・タイマー」内へ移設した。isPseudoCpuModeEnabled
+  // /setPseudoCpuModeEnabled・isPseudoCpuIncludeSelf/setPseudoCpuIncludeSelf自体は
+  // 引き続きこのファイルからexportされる（実体は変わらず、入口が増えただけ）。
   {
     // ユーザー要望「ランクアップモーダルを検証するために何度も勝つのが手間。
     // プレビューボタンを追加してほしい」への対応。実際の戦績には一切書き込まず、

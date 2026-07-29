@@ -121,6 +121,13 @@ export function setSetupRevealActive(v) {
   setupRevealActive = !!v;
   if (!setupRevealActive) reconcilePhaseAutomation();
 }
+// ユーザー報告（続き107）「疑似CPUモードのセットアップ演出中に『はい/いいえ』の確認
+// モーダルが出て、それを押しても疑似CPUモードが適用されないことがある」への対応で
+// pseudo-cpu-prompt.js側から参照する。setSetupRevealActiveと同じ「セットアップ演出中
+// かどうか」を外部から読み取れるようにするだけの薄いgetter。
+export function isSetupRevealActive() {
+  return setupRevealActive;
+}
 
 const DIRECTIONS = [
   { dr: -1, dc: 0 },

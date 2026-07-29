@@ -21,6 +21,7 @@ import { subscribe } from "./state.js";
 import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
 import { setPseudoCpuIncludeSelf, isPseudoCpuIncludeSelf } from "./admin.js";
 import { logAction } from "./action-log.js";
+import { isSetupRevealActive } from "./phase-automation.js";
 
 function showPseudoCpuJoinPrompt() {
   const modal = document.createElement("div");
@@ -89,6 +90,16 @@ export function initPseudoCpuPrompt() {
     if (!gameId || gameId === promptedForGameId) return;
     const synced = getSyncedTimerConfig();
     if (!synced?.pseudoCpuModeEnabled) return;
+    // ユーザー報告（続き107）「疑似CPUモードのセットアップ演出（駒配布・スタート
+    // プレイヤー決定等）中にこの確認モーダルが出て、そこで『はい』を押しても疑似CPU
+    // モードが反映されないことがある」への対応。setPseudoCpuIncludeSelf(true)自体を
+    // 呼ぶコード自体に問題は無く、セットアップ演出の最中は盤面側の要素が次々作り直され
+    // ている最中のため、そこに重ねて出したモーダルのクリックだけが正しく届かない
+    // ケースがあったと考えられる。演出が完全に終わる（game-setup.jsが
+    // setSetupRevealActive(false)を呼ぶ）までは表示自体を待ち、promptedForGameIdも
+    // まだ立てない——subscribe()はセットアップ中も含め状態が変わるたびに呼ばれるため、
+    // 演出が終わった後の次の呼び出しで自然にここへ戻ってきて表示できる。
+    if (isSetupRevealActive()) return;
     promptedForGameId = gameId;
     showPseudoCpuJoinPrompt();
   });
