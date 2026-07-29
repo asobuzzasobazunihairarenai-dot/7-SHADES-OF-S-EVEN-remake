@@ -30,6 +30,17 @@ export function setActionLogEnabled(v) {
   enabled = !!v;
 }
 
+// ユーザー要望（続き94）「アクションログにターン数を記録するようにするとアクション
+// ログから探しやすいかもしれません。スクショの画面右上にターン数も表示されている」。
+// state.jsが既にこのモジュールをimportしている（dispatch()からlogActionを呼ぶ）ため、
+// ここでstate.jsを直接importし返すと循環importになる。state.js側から「今のターン/
+// ラウンド数を返す関数」を1回だけ注入してもらう、他のモジュールと同じ
+// 「register helper」パターンで回避する。
+let getTurnInfoFn = null;
+export function registerTurnInfoProvider(fn) {
+  getTurnInfoFn = fn;
+}
+
 // category: "dispatch"（state.jsのdispatch、実際に適用されたアクション）/
 // "effect-verb"（card-effect-engine.jsの動詞実行、成功/不発を含む）/
 // "arrival"（main.jsのtriggerCardArrival、連鎖の起点ごとに1件）。
@@ -37,7 +48,8 @@ export function setActionLogEnabled(v) {
 // ログが肥大化する上、個々のアクションの意味が埋もれてしまうため）。
 export function logAction(category, detail) {
   if (!enabled) return;
-  entries.push({ t: Date.now(), category, detail });
+  const turnInfo = getTurnInfoFn?.() ?? null;
+  entries.push({ t: Date.now(), turn: turnInfo?.turn ?? null, round: turnInfo?.round ?? null, category, detail });
   if (entries.length > MAX_ENTRIES) entries.splice(0, entries.length - MAX_ENTRIES);
 }
 
@@ -57,7 +69,11 @@ function formatEntry(entry) {
   } catch {
     detailText = String(entry.detail);
   }
-  return `[${hh}:${mm}:${ss}.${ms}] ${entry.category}: ${detailText}`;
+  // ユーザー要望（続き94）「スクショの画面右上のターン数と突き合わせやすいように」。
+  // ターン数が取れない時点の記録（セットアップ前等）はturnがnullのままなので、
+  // その場合は表示自体を省略する（"T?/R?"のようなノイズを増やさない）。
+  const turnLabel = entry.turn != null ? `T${entry.turn}${entry.round != null ? `/R${entry.round}` : ""} ` : "";
+  return `[${hh}:${mm}:${ss}.${ms}] ${turnLabel}${entry.category}: ${detailText}`;
 }
 
 export function getActionLogText() {

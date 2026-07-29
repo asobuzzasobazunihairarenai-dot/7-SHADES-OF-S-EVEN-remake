@@ -3007,13 +3007,24 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
       }
     );
     clearEffectUiHighlights();
-    render();
   } finally {
+    // ユーザー報告（続き94）「合同建設をハンドフェイズで最後に使用して手札を
+    // 使い切ったのに自動でハンドフェイズが終わらなかった」の原因: 直前まではここで
+    // render()を呼んだ「直後」にsetHandEffectBusy(false)していたため、この
+    // render()（→reconcilePhaseAutomation()→「手札が空か」の判定）はまだ
+    // handEffectBusy===trueのまま実行されており、判定条件
+    // `!handEffectBusy && (handIsEmpty(player) || ...)`が常にfalseになって
+    // ハンドフェイズの自動終了がブロックされていた。setHandEffectBusy(false)を
+    // 呼んだ「後」にrender()するよう順序を入れ替え、正しいbusy状態で
+    // reconcilePhaseAutomation()が判定できるようにした。合同建設・スラム上がりの
+    // 役人・パーティーのように、全員への委任(delegateToPlayer)で処理が長引く
+    // 効果ほどこの隙間に引っかかりやすかった。
     setHandEffectBusy(false);
     // ユーザー要望（続き76/77）「カード効果処理の直後にも割り込みモーダルを出す」。
     // 続き77でanytime_checkpoint broadcastに乗せ、オンライン中も他クライアントへ届く
     // ようにした。
     fireAnytimeCheckpoint(player);
+    render();
   }
 }
 

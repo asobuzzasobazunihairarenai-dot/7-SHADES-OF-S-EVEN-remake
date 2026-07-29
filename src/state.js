@@ -8,7 +8,7 @@
 
 import { NORMAL_CARDS, ETERNAL_CARDS, FIRST_CARDS } from "./cards-data.js";
 import { COLORS, GATE_POSITIONS, SEAT_ORDER, SEAT_TO_SIDE } from "./board-layout.js";
-import { logAction } from "./action-log.js";
+import { logAction, registerTurnInfoProvider } from "./action-log.js";
 
 let nextId = 1;
 const uid = (prefix) => `${prefix}-${nextId++}`;
@@ -135,6 +135,13 @@ function createInitialState() {
 
 let state = createInitialState();
 const listeners = [];
+
+// ユーザー要望（続き94）「アクションログにターン数を記録するとスクショの右上表示と
+// 突き合わせやすい」。action-log.js側からの循環import回避のため、こちらから
+// 「今のターン/ラウンド数を返す関数」を1回だけ渡す（他モジュールのregisterXxx
+// helper注入パターンと同じ考え方）。矢印関数のクロージャがこの`state`変数（let、
+// 再代入され続ける）をそのまま参照するため、呼ばれるたびに最新の値を返す。
+registerTurnInfoProvider(() => ({ turn: state.turnNumber, round: state.roundNumber }));
 
 export function getState() {
   return state;
