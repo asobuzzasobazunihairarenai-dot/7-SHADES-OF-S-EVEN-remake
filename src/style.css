@@ -5880,10 +5880,8 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
    差し替えて再利用する形で復旧した。 */
 /* #generic-confirm-modal（続き89、main.jsのconfirmGenericYesNo）はconfirmTouchAction
    と同じ見た目でよい任意選択用の汎用Yes/Noモーダルのため、同じルールを共有する。 */
-/* #pseudo-cpu-join-prompt（続き98、pseudo-cpu-prompt.js）も同じ理由で共有する。 */
 #touch-action-confirm-modal,
-#generic-confirm-modal,
-#pseudo-cpu-join-prompt {
+#generic-confirm-modal {
   position: fixed;
   top: 50%;
   left: 50%;
