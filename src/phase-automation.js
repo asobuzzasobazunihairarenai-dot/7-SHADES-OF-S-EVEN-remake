@@ -24,7 +24,7 @@ import {
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
 import { playSound } from "./sound.js";
 import { announceHandPickups } from "./hand-announcer.js";
-import { SIDE_TO_SEAT, COLORS } from "./board-layout.js";
+import { SIDE_TO_SEAT, COLORS, SEAT_ORDER } from "./board-layout.js";
 import { getCardDefinition } from "./cards-data.js";
 import { hasAnyoneWon } from "./victory.js";
 
@@ -634,6 +634,32 @@ async function performMoveFallbackAndEndTurn(player, location) {
     }
     playSound("cardPlace");
     renderHelper?.();
+    // ユーザー報告（続き95）「優先権が相手から自分に戻らない」の原因調査で判明:
+    // nextTurn()はturnPlayerを次のプレイヤーへ進めるだけで、priorityPlayerには一切
+    // 触れない（state.jsのNEXT_TURNリデューサー参照）。priorityPlayerを新しい
+    // turnPlayerへ合わせる処理は本来turn-timer.js側のhandleTurnTransition
+    // （state.turnPlayerの変化を検知して実行）に委ねられているが、オンライン中は
+    // 「次の手番になる本人のクライアントだけが送信する」設計（複数クライアントの
+    // 二重送信を避けるため）になっている。そのため、本人のブラウザがバックグラウンド
+    // タブになっていて処理が一時的に遅れている・届いていない間は、priorityPlayerが
+    // 古いプレイヤーのまま取り残されてしまう窓ができていた（このムーブフェイズの
+    // 「移動/接触候補が無い→山札から1枚置いてターン終了」というルール上の救済
+    // フォールバックは、これを実行した「元のturnPlayer」自身のクライアント上でしか
+    // 走らないため、次のturnPlayer本人のクライアントの状態に一切依存せずここで
+    // 完結させておきたい）。次のturnPlayerをNEXT_TURNリデューサーと同じSEAT_ORDER
+    // 基準で自前に計算し、このフォールバックを実行した（＝確実に動いている）
+    // クライアント自身から直接setPriorityStateを送っておくことで、その窓を埋める
+    // （下のensureSkipButtonの15秒回復と同じ「turn-timer.js側の関数は循環import
+    // （turn-timer.js→main.js→phase-automation.js）になるため呼べず、state.jsの
+    // setPriorityStateを直接呼ぶ」パターン）。
+    const priorityPlayerBeforeEnd = getState().priorityPlayer;
+    if (priorityPlayerBeforeEnd) {
+      const activePlayers = getState().activePlayers;
+      const order = SEAT_ORDER.filter((p) => activePlayers.includes(p));
+      const idx = order.indexOf(player);
+      const nextPlayer = idx === -1 ? null : order[(idx + 1) % order.length];
+      if (nextPlayer) setPriorityState({ player: nextPlayer, deadline: Date.now() + 15000, phase: "base" });
+    }
     if (isOnlineMode()) {
       nextTurn();
     } else {

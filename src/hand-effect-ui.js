@@ -222,7 +222,11 @@ export function showCardReceivedModal(cardId, subtitle) {
 // カード効果は原則キャンセルできない（ユーザー方針）ため、使える選択肢のどれかを
 // 選ぶまでこのモーダルから抜けられない（呼び出し元は必ず1つ以上usable:trueの選択肢が
 // ある状態でだけこの関数を呼ぶこと）。
-export function showHandEffectOptionPicker(cardId, optionsWithUsability) {
+// onReady（省略可）: モーダル表示直後に、外部から強制決着させるための内部finish関数を
+// 1回だけ渡すコールバック（main.jsのpickOptionForEffect参照。タイムアウトによる
+// 自動代行performPriorityTimeoutAutoActionが、このモーダルを放置されたまま固まらせず
+// 代わりに選べるようにするためのフック）。
+export function showHandEffectOptionPicker(cardId, optionsWithUsability, onReady) {
   return new Promise((resolve) => {
     const def = getCardDefinition(cardId);
     const backdrop = document.createElement("div");
@@ -243,6 +247,7 @@ export function showHandEffectOptionPicker(cardId, optionsWithUsability) {
       peekHint.remove();
       resolve(option ?? null);
     }
+    onReady?.(finish);
 
     // ユーザー要望「パーティの到達効果時の選択モーダルが盤面を隠していて見にくい。
     // 『盤面を見る』ボタンをモーダル内に追加し、押すと盤面を確認できるように

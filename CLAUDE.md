@@ -11766,3 +11766,62 @@ u=横方向・v=縦方向）にも使えるよう一般化した`rotateFraction(
   呼び、`T{turn}/R{round}`の形でログの各行に付けるようにした（セットアップ前等
   turnNumberがまだ無い時点の記録は今まで通り何も付けない）。ブラウザで実機確認し、
   ターン開始後のログ行に`T1/R1`等が正しく表示されることを確認済み。
+
+### 2026-07-29（続き95）：タイムアウト自動代行を効果選択肢/色宣言モーダルにも拡大、優先権が戻らない不具合の構造的な穴を修正
+
+- **`performPriorityTimeoutAutoAction()`の対象に「効果の選択肢」「色宣言」モーダルを追加**:
+  ユーザー要望「タイムアウトで離脱者の選択をランダム/最有力候補で自動代行する、を
+  今のperformPriorityTimeoutAutoActionの仕組みを応用して実装してください」への対応。
+  従来は`activeEffectPicker`のcell/hand/player（マス・手札・アバター選択）だけが
+  対象で、なないろの欠片・選べる罠・ザ・ギャンブル・パーティー等の「効果の選択肢」
+  モーダル（`showHandEffectOptionPicker`）と、ザ・ギャンブル/試練の儀式の「色を宣言
+  してください」モーダル（`declareColorsForEffect`）はタイムアウトの対象外のまま
+  放置され続けていた（相手のブラウザが非アクティブ/離脱した場合、これらのモーダルが
+  永遠に解決されず自動処理が完全に止まってしまう）。`showHandEffectOptionPicker`に
+  `onReady`コールバック引数を追加して内部の`finish`関数を呼び出し元へ渡せるようにし、
+  main.js側に薄いラッパー`pickOptionForEffect()`を新設して`activeEffectPicker`へ
+  `type:"option"`として登録するようにした（既存の3箇所の呼び出し元
+  ―― 選べる罠/ザ・ギャンブル等の到達効果用`pickArrivalOptionForEffect`、パーティーの
+  3択、なないろの欠片の`pickHandEffectOption` ―― を全てこのラッパー経由に統一）。
+  `declareColorsForEffect`は元々main.js内にあるため直接`activeEffectPicker`へ
+  `type:"colors"`として登録するよう変更した。`performPriorityTimeoutAutoAction()`に
+  この2つのtypeの処理を追加（option: 使える選択肢からランダムに1つ、colors:
+  COLORS7色から必要数だけランダムに重複無しで選択）。この2種類は盤面のマス/手札/
+  アバターのクリック判定を使わずモーダル自身のボタンclickで完結するため、既存の
+  盤面ヒットテスト用pointerdownリスナー（captureフェーズで`activeEffectPicker`が
+  立っている間、盤面全体のクリックを横取りする仕組み）がこの2つのtypeまで誤って
+  横取りしてしまうと、モーダル自身のボタンが押せなくなってしまう。該当箇所に
+  「cell/hand/player以外は素通りさせる」ガードを追加して回避した。ブラウザで
+  パーティー到達（選択肢モーダル）・試練の儀式到達（色宣言モーダル）の両方を実際に
+  発生させ、①`performPriorityTimeoutAutoAction()`を呼ぶとモーダルが自動で閉じ
+  効果が進むこと、②通常通りモーダル自身のボタンをクリックしても（横取りされず）
+  正しく選べることの両方をブラウザ実機で確認済み。
+- **接触/ムーブフェイズの救済フォールバック後に優先権が相手から自分に戻らない
+  不具合の構造的な穴を修正**: ユーザー報告「接触後相手から自分に優先権が戻らない」
+  （参考アクションログ2人分より、`turnPlayer`が交代した直後も`priorityPlayer`が
+  古いプレイヤーのまま取り残されている瞬間を特定）。調査の結果、`nextTurn()`は
+  `turnPlayer`を進めるだけで`priorityPlayer`には一切触れず（`state.js`の
+  `NEXT_TURN`リデューサー参照）、本来`priorityPlayer`を追従させる役目の
+  `turn-timer.js`側`handleTurnTransition`は、オンライン中「次の手番になる本人の
+  クライアントだけが送信する」設計になっていることを確認した（複数クライアントが
+  同時に書き込み合う競合を避けるための既存の意図的な制限）。このため、次の
+  turnPlayer本人のブラウザがバックグラウンドタブ化している等で処理が一時的に
+  遅れている間は、`priorityPlayer`が古いプレイヤーのまま誰からも書き直されない
+  「穴」になっていた（`phase-automation.js`の`performMoveFallbackAndEndTurn`
+  ―― 移動/接触候補が無い場合の「山札から1枚置いてターン終了」というルール上の
+  救済フォールバック ―― も、`main.js`の`buildEndTurnButton`の手動ターン終了も、
+  どちらもこの`nextTurn()`任せで同じ穴を持っていた）。両箇所に、次のturnPlayerを
+  `NEXT_TURN`リデューサーと同じ`SEAT_ORDER`基準で自前に計算し、その場で確実に
+  動いている（＝今まさにこの処理を実行している）クライアント自身から直接
+  優先権を渡す処理を追加した。`performMoveFallbackAndEndTurn`は循環import
+  （`turn-timer.js`→`main.js`→`phase-automation.js`）を避けるため`state.js`の
+  `setPriorityState`を直接呼ぶ（`ensureSkipButton`の15秒回復と同じ既存パターン）。
+  `buildEndTurnButton`は`main.js`内なので新設した`transferPriorityToNextTurnPlayer()`
+  ヘルパー経由で`turn-timer.js`の`transferPriorityTo`を呼ぶ。ブラウザ実機（ローカル
+  モード）でターン終了ボタンを押し、`priorityPlayer`が正しく次のturnPlayerへ
+  即座に更新されることを確認済み（オンライン中の「相手のタブが非アクティブな
+  間」という競合の再現自体は2クライアントが必要なため未検証だが、この追加は
+  常に正しい値を送るだけの冪等な書き込みのため、既存の動作を壊すことなく穴を
+  塞げる設計にしてある）。so7-apply-action.tsは優先権状態を一切扱わない
+  （クライアントから直接テーブルへ書き込む設計、state.jsのコメント参照）ため、
+  今回の修正にサーバー側の再デプロイは不要。

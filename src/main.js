@@ -1514,7 +1514,23 @@ async function announceEffectFizzleForEffect(cardId, addsToHand) {
 // 選べる罠の到達効果でも流用する。「手札効果」専用に見える関数名だが実際は
 // cardId・{id,label,usable}の配列だけを見る汎用コンポーネントのため問題なく使い回せる。
 async function pickArrivalOptionForEffect(cardId, optionsWithUsability) {
-  return showHandEffectOptionPicker(cardId, optionsWithUsability);
+  return pickOptionForEffect(cardId, optionsWithUsability);
+}
+
+// ユーザー要望（続き95）「タイムアウトで離脱者の選択をランダム/最有力候補で自動代行する」
+// をshowHandEffectOptionPickerにも適用するための薄いラッパー。activeEffectPicker
+// （cell/hand/player）と同じ「タイムアウト時にperformPriorityTimeoutAutoActionが
+// 代わりに解決できるよう登録する」パターンをこのモーダルにも広げる。ここで登録した
+// 選択肢自体は盤面のクリック判定（上のpointerdownリスナー）を通らない（モーダル自身の
+// ボタンclickで完結する）ため、そちらのハンドラ側でtype:"option"/"colors"は
+// 素通りさせるようガードを追加している（下のpointerdownリスナー参照）。
+function pickOptionForEffect(cardId, optionsWithUsability) {
+  return showHandEffectOptionPicker(cardId, optionsWithUsability, (resolveFn) => {
+    activeEffectPicker = { type: "option", options: optionsWithUsability, resolve: resolveFn };
+  }).then((option) => {
+    activeEffectPicker = null;
+    return option;
+  });
 }
 
 // ザ・ギャンブル/試練の儀式専用: 色を宣言する（複数選択）モーダル。requirement:
@@ -1586,11 +1602,18 @@ function declareColorsForEffect(requirement, cardId, player) {
     function finish(result) {
       if (settled) return;
       settled = true;
+      activeEffectPicker = null;
       backdrop.remove();
       modal.remove();
       peekHint.remove();
       resolve(result);
     }
+    // ユーザー要望（続き95）「タイムアウトで離脱者の選択をランダム/最有力候補で自動代行
+    // する」。activeEffectPicker（cell/hand/player/option）と同じパターンでこの色宣言
+    // モーダルもtype:"colors"として登録し、performPriorityTimeoutAutoActionが放置された
+    // 宣言を代わりに済ませられるようにする。盤面のクリック判定（pointerdownリスナー）は
+    // このtypeを素通りさせる（下のガード参照）——このモーダル自身のボタンclickで完結する。
+    activeEffectPicker = { type: "colors", requirement, resolve: finish };
     // ユーザー要望「作業を促すモーダルには『盤面を見る』ボタンをつけてほしい」
     // （showHandEffectOptionPickerと同じ仕組み）。createBackdrop()はinlineスタイルで
     // 背景色を付けているため、CSSクラスの切り替えではなく直接styleを書き換える。
@@ -1879,7 +1902,7 @@ async function runPartyOptionTask(player) {
     { id: "open-two", label: "場の任意の２枚をオープンする。", usable: faceDownBoardCells.length >= 2 },
   ];
   if (!options.some((o) => o.usable)) return false;
-  const chosen = await showHandEffectOptionPicker("pink-party", options);
+  const chosen = await pickOptionForEffect("pink-party", options);
   if (!chosen) return false;
   if (chosen.id === "move") {
     const dest = moveCandidates.length === 1 ? moveCandidates[0] : await requestCellChoiceForEffect(moveCandidates, "移動先のマスを選択してください");
@@ -2007,7 +2030,13 @@ onArrivalDelegateRequestEvents(({ player, taskType, requestId }) => {
 // captureフェーズのpointerdownリスナーを1つだけ用意し、選択待ち中はそれ以外の
 // ヒットテスト・ドラッグ開始を一切通さない（ユーザー要望「盤面全体49マスに対し
 // 移動候補しかクリックできないようにする」にも対応）。
-let activeEffectPicker = null; // { type: "cell", candidates, resolve } | { type: "hand", tokenIds: Set, resolve } | { type: "player", players: Set, resolve }
+// { type: "cell", candidates, resolve } | { type: "hand", tokenIds: Set, resolve } |
+// { type: "player", players: Set, resolve } | { type: "option", options, resolve }
+// （showHandEffectOptionPicker、続き95） | { type: "colors", requirement, resolve }
+// （declareColorsForEffect、続き95）。"option"/"colors"は盤面のクリック判定を使わず
+// モーダル自身のボタンで完結するため、盤面ヒットテスト用の下のpointerdownリスナーは
+// この2つを素通りさせる（該当箇所のガード参照）。
+let activeEffectPicker = null;
 
 // ユーザー報告「ジャンプ台の到達効果の移動先ハイライト時、ブラウザを最小化して
 // また開きなおすとハイライトが消えてしまっている」。render()はstateが変わる
@@ -2138,6 +2167,14 @@ document.addEventListener(
       }
       return;
     }
+    // ユーザー要望（続き95）「タイムアウトで離脱者の選択をランダム/最有力候補で自動
+    // 代行する」への対応でactiveEffectPickerにtype:"option"/"colors"（showHandEffect
+    // OptionPicker・declareColorsForEffectのモーダル）を追加した。この2つは盤面の
+    // マス/手札/アバターのクリック判定ではなく、モーダル自身のボタンclickで完結する
+    // ため、ここで盤面全体のクリックを丸ごと奪ってしまう（下のpreventDefault/
+    // stopPropagation）と、モーダルのボタン自体が押せなくなってしまう。cell/hand/
+    // player以外のtypeはここで素通りさせる。
+    if (activeEffectPicker.type !== "cell" && activeEffectPicker.type !== "hand" && activeEffectPicker.type !== "player") return;
     e.preventDefault();
     e.stopPropagation();
     const picker = activeEffectPicker;
@@ -2322,7 +2359,8 @@ function pickRandomFrom(arrayOrSet) {
 // 方針は変えず、あくまで「本人がタイムアウトした」という自己申告的な状況の続きとして、
 // 本人のクライアント上でだけ行う——turn-timer.js側がgetSelfSeat()===priorityPlayerを
 // 確認してから呼ぶ）。
-// 優先度: ①効果解決中の候補選択待ち（activeEffectPicker、マス/手札/アバター）→
+// 優先度: ①効果解決中の候補選択待ち（activeEffectPicker、マス/手札/アバター/効果選択肢/
+// 色宣言——続き95でoption・colorsを追加し、離脱者に放置された選択モーダル全般をカバー）→
 // ②ムーブフェイズで移動/接触の候補待ち→③ロック/ハンドフェイズ（任意のため単純
 // スキップ）。①②は「必ず何かしなければならない」場面のためランダムに1つ選んで実行し、
 // ③は「何もしなくても進められる」場面のためフェイズを進めるだけにする。該当する状況が
@@ -2343,6 +2381,25 @@ export function performPriorityTimeoutAutoAction() {
       picker.resolve(token ?? null);
     } else if (picker.type === "player") {
       picker.resolve(pickRandomFrom([...picker.players]));
+    } else if (picker.type === "option") {
+      // ユーザー要望（続き95）「タイムアウトで離脱者の選択をランダム/最有力候補で
+      // 自動代行する」。なないろの欠片・選べる罠・ザ・ギャンブル・パーティーの選択肢
+      // モーダル用。使えない選択肢（usable:false）を誤って選ばないよう、使える
+      // 選択肢だけの中からランダムに1つ選ぶ（呼び出し元は必ず1つ以上usable:trueが
+      // ある状態でしかこのモーダルを開かないため、ここが空になることは無い想定）。
+      const usable = picker.options.filter((o) => o.usable);
+      picker.resolve(pickRandomFrom(usable));
+    } else if (picker.type === "colors") {
+      // ザ・ギャンブル/試練の儀式の色宣言モーダル用。「N色以上」「ちょうどN色」の
+      // どちらでも、必要数ちょうどをCOLORS（７色）からランダムに重複無しで選べば
+      // 両方の条件を満たす。
+      const required = picker.requirement.exactCount ?? picker.requirement.minCount ?? 1;
+      const pool = [...COLORS];
+      const chosen = [];
+      for (let i = 0; i < required && pool.length > 0; i++) {
+        chosen.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+      }
+      picker.resolve(chosen);
     }
     return true;
   }
@@ -2966,7 +3023,7 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         placeFromDeck: placeFromDeckForEffect,
         swapPieces: swapPiecesForEffect,
         announceUse: announceHandEffectUseForEffect,
-        pickHandEffectOption: showHandEffectOptionPicker,
+        pickHandEffectOption: pickOptionForEffect,
         // ジャンプ台の手札効果（これをゲート以外の任意のマスに表向きで置く）用。
         flipCard: flipToFaceUpForEffect,
         // 表向きに置いた先に既に駒がいた場合の到達判定（続き62）用。
@@ -6706,6 +6763,23 @@ function showGateInvasionAutoProcessConfirmModal(onYes, onNo) {
   document.body.appendChild(modal);
 }
 
+// ユーザー報告（続き95）「接触/ムーブフェイズの救済フォールバック後、優先権が相手から
+// 自分に戻らない」の調査で判明した根本原因（phase-automation.jsのperformMoveFallback
+// AndEndTurn内の同種コメント参照）: nextTurn()はturnPlayerを進めるだけでpriorityPlayerには
+// 触れず、本来の同期役（turn-timer.jsのhandleTurnTransition）は「次のturnPlayer本人の
+// クライアントだけが送信する」設計のため、その本人のブラウザが一時的に反応できない間は
+// priorityPlayerが古いプレイヤーのまま取り残されてしまう。手動のターン終了ボタンでも
+// 同じ経路（nextTurn()を呼ぶだけ）を使っているため、同じ窓が起き得る。ここでも次の
+// turnPlayerを自前に計算し、このボタンを押した（＝確実に動いている）クライアント自身
+// から直接transferPriorityToを呼んでおくことで、その窓を埋める。
+function transferPriorityToNextTurnPlayer(currentTurnPlayer) {
+  const activePlayers = getState().activePlayers;
+  const order = SEAT_ORDER.filter((p) => activePlayers.includes(p));
+  const idx = order.indexOf(currentTurnPlayer);
+  const next = idx === -1 ? null : order[(idx + 1) % order.length];
+  if (next) transferPriorityTo(next);
+}
+
 function buildEndTurnButton() {
   const btn = document.createElement("button");
   btn.id = "end-turn-button";
@@ -6741,6 +6815,7 @@ function buildEndTurnButton() {
       // を呼ぶとローカルだけに二重適用されサーバーの状態と食い違ってしまうため、
       // オンライン中はnextTurn()だけを直接呼ぶ。
       if (isOnlineMode()) {
+        transferPriorityToNextTurnPlayer(turnPlayerBeforeEnd);
         nextTurn();
         return;
       }
@@ -6757,11 +6832,13 @@ function buildEndTurnButton() {
         showGateInvasionAutoProcessConfirmModal(
           () => {
             runGateInvasionsIfNeeded(() => {
+              transferPriorityToNextTurnPlayer(turnPlayerBeforeEnd);
               nextTurn();
               render();
             });
           },
           () => {
+            transferPriorityToNextTurnPlayer(turnPlayerBeforeEnd);
             nextTurn();
             render();
           }
@@ -6769,6 +6846,7 @@ function buildEndTurnButton() {
         return;
       }
       runGateInvasionsIfNeeded(() => {
+        transferPriorityToNextTurnPlayer(turnPlayerBeforeEnd);
         nextTurn();
         render();
       });
