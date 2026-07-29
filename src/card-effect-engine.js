@@ -865,13 +865,22 @@ async function runAction(action, ctx, helpers) {
       // （ctx.arrivedAtをセットしない）。
       const candidates = getOpponentPieceCellsWithinRange(ctx.pieceLocation, action.count, ctx.player);
       if (candidates.length === 0) return false;
-      // ユーザー要望「３マス以内の相手をハイライトしてプレイヤーに選ばせるステップを
-      // 踏んでください（対象が１人でも）」＋「到達効果でも手札効果と同じように相手を
-      // 選ぶステップを入れてください」。他のアクション（MOVE等）は「候補が1つなら
-      // テンポ優先で自動採用、手札効果だけforcePromptで強制」という設計だが、
-      // 入れ替えは結果の重さが違うため、到達・手札のどちらの経路でも
-      // （ctx.forcePromptに関係なく）常にプレイヤーに選ばせる。
-      const target = await helpers.pickLocation(candidates, "入れ替える相手のマスを選択してください");
+      // 以前（続き31）はユーザー要望「３マス以内の相手をハイライトしてプレイヤーに
+      // 選ばせるステップを踏んでください（対象が１人でも）」に沿い、候補が1人でも
+      // 常にプレイヤーに選ばせていた。ユーザー要望（続き93）「マスチェンジで対象が
+      // 1人しかいない場合はスリカエ時同様にその旨モーダルで示し自動選択で」で方針を
+      // 転換。スリカエ（SWAP_RANDOM_HAND_CARD）と全く同じ「選べる相手が1人しかいない
+      // 場合は自動選択し、その旨をモーダルで示す」パターンに揃える——スリカエ自身も
+      // 到達・手札効果どちらの経路でもforcePromptに関係なく自動選択するため、ここでも
+      // ctx.forcePromptは見ない（続き93の総点検で、「相手を選ぶ」系の効果の中で
+      // このパターンが抜けていたのはマスチェンジだけと確認済み）。
+      let target;
+      if (candidates.length === 1) {
+        target = candidates[0];
+        await helpers.announceEffectReason?.(ctx.cardId, "選べる相手が1人しかいないため、自動的に選択しました。");
+      } else {
+        target = await helpers.pickLocation(candidates, "入れ替える相手のマスを選択してください");
+      }
       if (!target) return false;
       await helpers.swapPieces(ctx.pieceTokenId, ctx.pieceLocation, target);
       ctx.pieceLocation = target;
