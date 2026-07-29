@@ -3675,6 +3675,40 @@ function checkContactAttackerResolution() {
   }
 }
 
+// ユーザー報告（続き106）「疑似CPUモードでもムーブフェイズで駒を接触可能なマスへ
+// 誘導するところまでは自動でも、その先の『接触する』浮遊ボタン→『本当に接触しますか？』
+// 確認モーダルの2段階が自動化されておらず、疑似CPU対象がここで詰んでいた」への対応。
+// 実際に接触を申し込む処理そのもの（okBtnクリックハンドラの中身）をここへ切り出し、
+// 通常のボタンクリックからも、疑似CPU対象が自動でスキップする経路からも同じ処理を
+// 呼べるようにする。
+async function submitContactProposal(attacker, defender) {
+  try {
+    if (isOnlineMode()) {
+      // checkContactAttackerResolution()参照: 承認/拒否の結果を自分の画面で知るために、
+      // 申し込んだ瞬間の自分の手札IDを覚えておく。
+      contactAttackerSnapshot = {
+        attacker,
+        defender,
+        handIdsBefore: new Set(
+          getState()
+            .tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === attacker)
+            .map((t) => t.id)
+        ),
+      };
+      await requestContact(attacker, defender);
+      await fetchAndHydrate(getCurrentGameId());
+    } else {
+      requestContact(attacker, defender);
+    }
+    render();
+    // ユーザー要望（続き76/77）「接触宣言の直後にも割り込みモーダルを出す」。
+    fireAnytimeCheckpoint(attacker);
+  } catch (err) {
+    console.error("requestContact failed", err);
+    contactAttackerSnapshot = null;
+  }
+}
+
 function openContactConfirmModal(attacker, defender) {
   const modal = document.createElement("div");
   modal.id = "contact-confirm-modal";
@@ -3711,29 +3745,7 @@ function openContactConfirmModal(attacker, defender) {
     okBtn.disabled = true;
     cancelBtn.disabled = true;
     try {
-      if (isOnlineMode()) {
-        // checkContactAttackerResolution()参照: 承認/拒否の結果を自分の画面で知るために、
-        // 申し込んだ瞬間の自分の手札IDを覚えておく。
-        contactAttackerSnapshot = {
-          attacker,
-          defender,
-          handIdsBefore: new Set(
-            getState()
-              .tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === attacker)
-              .map((t) => t.id)
-          ),
-        };
-        await requestContact(attacker, defender);
-        await fetchAndHydrate(getCurrentGameId());
-      } else {
-        requestContact(attacker, defender);
-      }
-      render();
-      // ユーザー要望（続き76/77）「接触宣言の直後にも割り込みモーダルを出す」。
-      fireAnytimeCheckpoint(attacker);
-    } catch (err) {
-      console.error("requestContact failed", err);
-      contactAttackerSnapshot = null;
+      await submitContactProposal(attacker, defender);
     } finally {
       close();
     }
@@ -3752,6 +3764,15 @@ function openContactConfirmModal(attacker, defender) {
 
 function showContactPrompt(attacker, defender, anchorPieceTokenId) {
   closeContactPrompt();
+  // ユーザー報告（続き106）「疑似CPUモードで接触可能なマスへ移動した後、『接触する』
+  // ボタン→確認モーダルの2段階が自動化されておらず詰んでいた」への対応。疑似CPU対象の
+  // 座席は、この2段階の手動確認UIを一切出さず、即座に接触を申し込む（既存の手動フローと
+  // 同じsubmitContactProposalを直接呼ぶだけなので、承認/拒否・演出・オンライン同期は
+  // すべて共通のまま）。
+  if (isPseudoCpuTarget(attacker)) {
+    submitContactProposal(attacker, defender);
+    return;
+  }
   const pieceEl = document.querySelector(`.piece[data-token-id="${anchorPieceTokenId}"]`);
   if (!pieceEl) return;
   const rect = toStageLocalRect(pieceEl.getBoundingClientRect());
