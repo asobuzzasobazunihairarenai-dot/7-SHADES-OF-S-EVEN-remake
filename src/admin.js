@@ -1351,6 +1351,16 @@ export function isPseudoCpuModeEnabled() {
 export function isPseudoCpuIncludeSelf() {
   return pseudoCpuIncludeSelf;
 }
+// ユーザー要望（続き98）「疑似CPUモードを開始するを押すと、全プレイヤーに自分も
+// 疑似CPUになるかのモーダルが出るようにしてほしい」。相手側クライアントが、この
+// モーダルで「はい」を選んだ時にpseudo-cpu-prompt.js側から呼ぶための公開セッター
+// （下のチェックボックスのUIとは別に、外部から直接値を変更できるようにする）。
+export function setPseudoCpuModeEnabled(v) {
+  pseudoCpuModeEnabled = !!v;
+}
+export function setPseudoCpuIncludeSelf(v) {
+  pseudoCpuIncludeSelf = !!v;
+}
 
 // TOGGLE_SECTIONSの各buildContentはモジュール直下で定義される共有クロージャのため、
 // buildPanel()内のローカル変数であるupdateExport()を直接呼べない。「更新して」を伝える
@@ -1774,6 +1784,15 @@ const TOGGLE_SECTIONS = [
       enableCheckbox.addEventListener("change", () => {
         pseudoCpuModeEnabled = enableCheckbox.checked;
         window.dispatchEvent(new CustomEvent("admin:change"));
+        // ユーザー要望（続き98）「疑似CPUモードを開始するを押すと、全プレイヤーに
+        // 自分も疑似CPUになるかのモーダルが出るようにしてほしい」。admin.js自体は
+        // online.jsを直接importしない設計を保つため、ここではプレーンなDOM
+        // CustomEventを投げるだけにし、実際にオンライン中かどうかの判定・
+        // 他クライアントへのbroadcast・確認モーダルの表示はpseudo-cpu-prompt.js
+        // 側に任せる。
+        if (pseudoCpuModeEnabled) {
+          window.dispatchEvent(new CustomEvent("pseudo-cpu-mode-started"));
+        }
         updateExportRef.current();
       });
       const enableLabel = document.createElement("span");

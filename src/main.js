@@ -67,6 +67,7 @@ import { announceHandPickups, announceCardLocked, announceDrawCount } from "./ha
 import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking, hasAnyoneWon } from "./victory.js";
 import { recordContactMade, recordCardUsed, initMatchStatsTracker } from "./match-stats-tracker.js";
+import { initPseudoCpuPrompt } from "./pseudo-cpu-prompt.js";
 import { registerVictoryHelpers } from "./post-game-panel.js";
 import { announceTurnChange } from "./turn-announce.js";
 import {
@@ -8115,6 +8116,7 @@ initTutorialAutoStart();
 initGameBgmAutoStart();
 initTurnTimer();
 initMatchStatsTracker();
+initPseudoCpuPrompt();
 initIconRearrange();
 initSelfStatusRearrange();
 initInteractionModeToggle();

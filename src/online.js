@@ -429,6 +429,22 @@ export function broadcastMatchStatEvent(payload) {
   }
 }
 
+// ユーザー要望（続き98）「疑似CPUモードを開始するを押すと、全プレイヤーに自分も
+// 疑似CPUになるかのモーダルが出るようにしてほしい」。pseudo-cpu-prompt.js参照。
+// 状態は一切変えない見た目だけの合図（hand_effect_use等と同じパターン）。
+let pseudoCpuModeStartedEventListeners = [];
+export function onPseudoCpuModeStartedEvents(fn) {
+  pseudoCpuModeStartedEventListeners.push(fn);
+  return () => {
+    pseudoCpuModeStartedEventListeners = pseudoCpuModeStartedEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastPseudoCpuModeStarted(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "pseudo_cpu_mode_started", payload });
+  }
+}
+
 // 色宣言の結果が判明した（試練の儀式のカードが置かれた／ザ・ギャンブルの公開ドローが
 // 終わった）合図（続き65、ユーザー要望「実際何色が出るか変わるまではモーダルを継続
 // したい」）。colors_declaredで出した表示を、これを受け取った全クライアントが消す。
@@ -1998,6 +2014,10 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // 対局内スタッツ（接触回数・カード使用枚数）の通知（broadcastMatchStatEvent参照）。
     .on("broadcast", { event: "match_stat" }, ({ payload }) => {
       for (const fn of matchStatEventListeners) fn(payload);
+    })
+    // 疑似CPUモード開始の通知（broadcastPseudoCpuModeStarted参照）。
+    .on("broadcast", { event: "pseudo_cpu_mode_started" }, ({ payload }) => {
+      for (const fn of pseudoCpuModeStartedEventListeners) fn(payload);
     })
     .on("broadcast", { event: "colors_resolved" }, () => {
       for (const fn of colorsResolvedEventListeners) fn();

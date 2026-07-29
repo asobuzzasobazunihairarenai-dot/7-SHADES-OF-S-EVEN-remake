@@ -11946,3 +11946,34 @@ u=横方向・v=縦方向）にも使えるよう一般化した`rotateFraction(
   「⏳ ターンタイマーを使用する」チェックボックスの下に「白黒（無色）カードを山札に
   含める」チェックボックス（デフォルトOFF）を追加し、`startGame(gameId,
   { timerEnabled, includeBlackWhite })`へ渡すようにした。
+
+### 2026-07-29（続き98）：疑似CPUモードを開始すると全プレイヤーに「あなたも疑似CPUになりますか？」の確認モーダルを出すようにした
+
+- ユーザー要望「疑似CPUモードを開始するを押すと全プレイヤーに自分も疑似CPUになる
+  かのモーダルが出るようにしてください」。続き97で追加した疑似CPUモードの「有効化」
+  チェックボックスをONにした瞬間、オンライン対戦中なら他の全プレイヤー（開始した
+  本人は既にチェックボックスで明示的に選択済みのため対象外）に「◯◯さんが疑似CPU
+  モード（自動選択のテスト）を開始しました。あなたも自分の番を自動プレイ（疑似CPU）
+  にしますか？」という確認モーダルを出し、「はい」を選んだ人だけ自分自身の
+  `pseudoCpuModeEnabled`/`pseudoCpuIncludeSelf`（続き97参照）を両方ONにするように
+  した（自分の番も含めて自動化＝完全に観戦に徹する）。
+  - `admin.js`側は`online.js`を直接importしない設計を保つため、チェックボックスが
+    ONになった瞬間はプレーンなDOM CustomEvent（`pseudo-cpu-mode-started`）を
+    投げるだけにし、実際のオンライン判定・他クライアントへのbroadcast・確認
+    モーダルの表示は新設した`pseudo-cpu-prompt.js`に任せた。オンライン中の伝達は
+    続き97の`match_stat`と同じ「勝敗判定等とは違い厳密な整合性が不要な情報は、
+    state.jsのreducerを経由させずhand_effect_use等と同じRealtime Broadcastの
+    『見た目だけの合図』パターンで送る」という設計方針を踏襲した
+    （`broadcastPseudoCpuModeStarted`/`onPseudoCpuModeStartedEvents`）。
+  - `admin.js`に`setPseudoCpuModeEnabled()`/`setPseudoCpuIncludeSelf()`という
+    外部から値を変更できる公開セッターを新設し（今まではチェックボックスのUI
+    ハンドラ内でしか変更できなかった）、確認モーダルの「はい」ボタンから呼ぶ。
+  - 確認モーダルの見た目は新しいCSSを書き起こさず、`contact-approval-title`/
+    `-body`/`-buttons`/`-approve`/`-reject`という既存の汎用確認モーダン用クラス
+    （`#generic-confirm-modal`等が既に使っている）をそのまま再利用した。
+  - ブラウザ実機で、①管理者パネルの疑似CPUモード有効化チェックボックスをONにすると
+    `pseudo-cpu-mode-started`イベントが正しく発火すること、②確認モーダルを模した
+    UIで「はい」を押すと`isPseudoCpuModeEnabled()`/`isPseudoCpuIncludeSelf()`が
+    両方trueになりモーダルが閉じることの両方を確認済み（2クライアントでのbroadcast
+    往復自体は1ブラウザでは再現できないため未検証だが、続き97のmatch_statと全く
+    同じ既存パターンの踏襲のため設計上の信頼度は高いと判断）。
