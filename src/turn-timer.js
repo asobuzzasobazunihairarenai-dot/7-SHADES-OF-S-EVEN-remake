@@ -828,8 +828,13 @@ function updateTimeoutWarnings(state, isTimedOut) {
         // 伴い、onStateChange側の「本人の本物の操作」判定で自然に基本時間がリセット
         // される）と違って、何もしないとpriorityDeadlineが切れたままになってしまう。
         if (result === "skip") {
+          // ユーザー報告（続き99）「疑似CPUモードの時、回復すると基本時間が15秒とか
+          // まで行ってしまう」。この15秒回復はfreshBaseDeadlineFor()を経由しない
+          // 直書きのため、isPseudoCpuTargetの対象座席にもそのまま15秒を与えてしまって
+          // いた。対象座席には通常通り1秒を与える。
+          const recoveryMs = isPseudoCpuTarget(state.priorityPlayer) ? PSEUDO_CPU_DEADLINE_MS : 15000;
           withGuard(() =>
-            setPriorityState({ player: state.priorityPlayer, deadline: Date.now() + 15000, phase: "base" })
+            setPriorityState({ player: state.priorityPlayer, deadline: Date.now() + recoveryMs, phase: "base" })
           );
         }
       }

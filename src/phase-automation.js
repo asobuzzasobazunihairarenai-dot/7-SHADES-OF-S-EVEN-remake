@@ -27,6 +27,18 @@ import { announceHandPickups } from "./hand-announcer.js";
 import { SIDE_TO_SEAT, COLORS, SEAT_ORDER } from "./board-layout.js";
 import { getCardDefinition } from "./cards-data.js";
 import { hasAnyoneWon } from "./victory.js";
+import { isPseudoCpuModeEnabled, isPseudoCpuIncludeSelf } from "./admin.js";
+
+// ユーザー報告（続き99）「疑似CPUモードの時、回復すると基本時間が15秒とかまで行って
+// しまう」。turn-timer.jsのisPseudoCpuTargetと全く同じ判定だが、循環import
+// （turn-timer.js→main.js→phase-automation.js）を避けるためturn-timer.js側の
+// 関数は呼べず、ここに同じロジックを複製する（ensureSkipButtonの15秒回復と同じ
+// 「turn-timer.js側の関数は呼べないので直接setPriorityStateする」既存パターンの延長）。
+const PSEUDO_CPU_DEADLINE_MS = 1000;
+function isPseudoCpuTarget(seat) {
+  if (!isPseudoCpuModeEnabled()) return false;
+  return isPseudoCpuIncludeSelf() || seat !== getSelfSeat();
+}
 
 let renderHelper = null;
 let findTopCardAtHelper = null;
@@ -388,7 +400,8 @@ function ensureSkipButton() {
     // 直接呼んで同じパッチを適用する。
     const priorityPlayer = getState().priorityPlayer;
     if (priorityPlayer) {
-      setPriorityState({ player: priorityPlayer, deadline: Date.now() + 15000, phase: "base" });
+      const recoveryMs = isPseudoCpuTarget(priorityPlayer) ? PSEUDO_CPU_DEADLINE_MS : 15000;
+      setPriorityState({ player: priorityPlayer, deadline: Date.now() + recoveryMs, phase: "base" });
     }
     advancePhase();
   });
@@ -658,7 +671,10 @@ async function performMoveFallbackAndEndTurn(player, location) {
       const order = SEAT_ORDER.filter((p) => activePlayers.includes(p));
       const idx = order.indexOf(player);
       const nextPlayer = idx === -1 ? null : order[(idx + 1) % order.length];
-      if (nextPlayer) setPriorityState({ player: nextPlayer, deadline: Date.now() + 15000, phase: "base" });
+      if (nextPlayer) {
+        const recoveryMs = isPseudoCpuTarget(nextPlayer) ? PSEUDO_CPU_DEADLINE_MS : 15000;
+        setPriorityState({ player: nextPlayer, deadline: Date.now() + recoveryMs, phase: "base" });
+      }
     }
     if (isOnlineMode()) {
       nextTurn();

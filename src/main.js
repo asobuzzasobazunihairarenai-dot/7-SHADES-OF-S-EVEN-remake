@@ -1098,15 +1098,24 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds) {
     if (isRitualBroadcastTarget) {
       broadcastRitualPickStarted({ targetPlayer, order: shuffled.map((t) => t.id) });
     }
-    function cleanup(pickedTokenId) {
+    // ユーザー報告（続き99）「相手の手札選択モーダルが処理されず置いてけぼりに
+    // なっている」への対応。このモーダルは活動中ずっとactiveEffectPickerに未登録
+    // だったため、performPriorityTimeoutAutoAction()（続き95でoption/colorsにも
+    // 対応済み）が代わりに解決する手段が無かった。cell/hand/player/option/colorsと
+    // 同じパターンでtype:"opponentHand"として登録し、タイムアウト時にランダムな
+    // 1枚を選べるようにする。settled二重呼び防止のため、通常のクリック/背景クリック
+    // による決着もこの同じfinish()経由に統一する。
+    let settled = false;
+    function finish(token) {
+      if (settled) return;
+      settled = true;
+      activeEffectPicker = null;
       backdrop.remove();
       modal.remove();
-      if (isRitualBroadcastTarget) broadcastRitualPickEnded({ targetPlayer, pickedTokenId: pickedTokenId ?? null });
+      if (isRitualBroadcastTarget) broadcastRitualPickEnded({ targetPlayer, pickedTokenId: token?.id ?? null });
+      resolve(token ?? null);
     }
-    const backdrop = createBackdrop(() => {
-      cleanup(null);
-      resolve(null);
-    }, { dim: true, zIndex: 10620 });
+    const backdrop = createBackdrop(() => finish(null), { dim: true, zIndex: 10620 });
     const modal = document.createElement("div");
     modal.id = "sleight-ritual-modal";
     const title = document.createElement("div");
@@ -1122,13 +1131,11 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds) {
       if (isRitualBroadcastTarget) {
         cardEl.addEventListener("pointerenter", () => broadcastRitualPickHover({ targetPlayer, index }));
       }
-      cardEl.addEventListener("click", () => {
-        cleanup(token.id);
-        resolve(token);
-      });
+      cardEl.addEventListener("click", () => finish(token));
       cardsWrap.appendChild(cardEl);
     });
     modal.appendChild(cardsWrap);
+    activeEffectPicker = { type: "opponentHand", tokens: shuffled, resolve: finish };
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
   });
@@ -2035,9 +2042,11 @@ onArrivalDelegateRequestEvents(({ player, taskType, requestId }) => {
 // { type: "cell", candidates, resolve } | { type: "hand", tokenIds: Set, resolve } |
 // { type: "player", players: Set, resolve } | { type: "option", options, resolve }
 // （showHandEffectOptionPicker、続き95） | { type: "colors", requirement, resolve }
-// （declareColorsForEffect、続き95）。"option"/"colors"は盤面のクリック判定を使わず
-// モーダル自身のボタンで完結するため、盤面ヒットテスト用の下のpointerdownリスナーは
-// この2つを素通りさせる（該当箇所のガード参照）。
+// （declareColorsForEffect、続き95） | { type: "opponentHand", tokens, resolve }
+// （requestOpponentHandRitualPick、続き99）。"option"/"colors"/"opponentHand"は
+// 盤面のクリック判定を使わずモーダル自身のボタン/カードで完結するため、盤面
+// ヒットテスト用の下のpointerdownリスナーはこの3つを素通りさせる（該当箇所の
+// ガード参照）。
 let activeEffectPicker = null;
 
 // ユーザー報告「ジャンプ台の到達効果の移動先ハイライト時、ブラウザを最小化して
@@ -2402,6 +2411,12 @@ export function performPriorityTimeoutAutoAction() {
         chosen.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
       }
       picker.resolve(chosen);
+    } else if (picker.type === "opponentHand") {
+      // ユーザー報告（続き99）「相手の手札選択モーダルが処理されず置いてけぼりに
+      // なっている」。スリカエ・接触の奪うカード選択（requestOpponentHandRitualPick）
+      // 用。裏向きの中から見た目上は等確率に選ぶだけでよいため、単純にランダムな
+      // 1枚を選ぶ。
+      picker.resolve(pickRandomFrom(picker.tokens));
     }
     return true;
   }
