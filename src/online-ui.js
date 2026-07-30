@@ -14,6 +14,8 @@ import {
   createRoom,
   joinRoom,
   listOpenRooms,
+  listSpectatableGames,
+  spectateGame,
   getMyActiveGames,
   getRoomName,
   getMemberCount,
@@ -570,6 +572,66 @@ async function renderRoomChoice(user, myGeneration) {
 
   // ユーザー要望「『部屋コードで参加』はもう削除でいい」への対応。部屋一覧・
   // URL共有(?room=)からの参加で十分カバーできているため撤去した。
+
+  // --- 観戦（進行中の対局を後から見る、ユーザー要望） ---
+  const specLabel = document.createElement("div");
+  specLabel.style.cssText = "font-size: 0.85rem; margin: 0.9rem 0 0.3rem;";
+  specLabel.textContent = "👀 観戦できる対局（進行中）:";
+  contentEl.appendChild(specLabel);
+
+  // 見え方モード（公開＝手札等は見えない / すべて＝全手札も丸見えのgod-view）。
+  const specModeRow = document.createElement("label");
+  specModeRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; color: #cbd5e1; margin-bottom: 0.4rem; cursor: pointer;";
+  const specAllCheckbox = document.createElement("input");
+  specAllCheckbox.type = "checkbox";
+  const specModeText = document.createElement("span");
+  specModeText.textContent = "すべて見える（全員の手札も見える／配信向け）";
+  specModeRow.appendChild(specAllCheckbox);
+  specModeRow.appendChild(specModeText);
+  contentEl.appendChild(specModeRow);
+
+  const specStatus = document.createElement("div");
+  specStatus.style.cssText = "font-size: 0.8rem; color: #94a3b8; min-height: 1.2em;";
+  contentEl.appendChild(specStatus);
+  const specContainer = document.createElement("div");
+  contentEl.appendChild(specContainer);
+
+  try {
+    const games = await listSpectatableGames();
+    if (myGeneration !== renderGeneration) return;
+    if (games.length === 0) {
+      specStatus.textContent = "現在、観戦できる進行中の対局はありません。";
+    } else {
+      for (const g of games) {
+        const specRowEl = document.createElement("div");
+        specRowEl.style.cssText =
+          "display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.3rem 0; border-top: 1px solid rgba(148,163,184,0.15);";
+        const info = document.createElement("span");
+        info.style.cssText = "font-size: 0.82rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;";
+        info.textContent = `${g.name || "（無名の部屋）"}（${g.member_count}人）${g.has_password ? " 🔒" : ""}`;
+        const watchBtn = document.createElement("button");
+        watchBtn.type = "button";
+        watchBtn.textContent = "👀 観戦";
+        watchBtn.style.cssText =
+          "flex: 0 0 auto; font-size: 0.78rem; padding: 0.2rem 0.6rem; background: #0e7490; color: #fff; border: none; border-radius: 0.3rem; cursor: pointer;";
+        watchBtn.addEventListener("click", async () => {
+          watchBtn.disabled = true;
+          try {
+            await spectateGame(g.id, specAllCheckbox.checked ? "all" : "public");
+            closePanel();
+          } catch (err) {
+            alert(`観戦の開始に失敗しました: ${err.message ?? err}`);
+            watchBtn.disabled = false;
+          }
+        });
+        specRowEl.appendChild(info);
+        specRowEl.appendChild(watchBtn);
+        specContainer.appendChild(specRowEl);
+      }
+    }
+  } catch (err) {
+    specStatus.textContent = `観戦一覧の取得に失敗しました: ${err.message ?? err}`;
+  }
 
   // 別の認証方法（メール/Google/匿名）を試したい時のため、ログアウトできるようにしておく
   // （一度ログインすると明示的にログアウトするまでそのブラウザにセッションが残り続ける）。

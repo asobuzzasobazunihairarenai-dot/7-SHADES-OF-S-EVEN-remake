@@ -33,7 +33,7 @@ import {
   hasActiveEffectPicker,
 } from "./main.js";
 import { SEAT_ORDER, SEAT_TO_SIDE, getRotationSteps, rotateSide } from "./board-layout.js";
-import { getSelfSeat, getSyncedTimerConfig, getCurrentGameId, fetchAndHydrate } from "./online.js";
+import { getSelfSeat, getSyncedTimerConfig, getCurrentGameId, fetchAndHydrate, isSpectatingGame } from "./online.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { consumeLastActionInfo } from "./last-action-info.js";
@@ -949,6 +949,14 @@ function updateTimeoutWarnings(state, isTimedOut) {
 }
 
 function tick() {
+  // 観戦者は読み取り専用。タイマーの自動行動・優先権書き込みを一切させない（表示も出さない）。
+  if (isSpectatingGame()) {
+    updateWarning(false);
+    updatePriorityReturnWarning(false);
+    setDisplayIfChanged(ropeEl, "none");
+    setDisplayIfChanged(baseClockEl, "none");
+    return;
+  }
   if (!isTurnTimerEnabled()) {
     updateWarning(false);
     updatePriorityReturnWarning(false);

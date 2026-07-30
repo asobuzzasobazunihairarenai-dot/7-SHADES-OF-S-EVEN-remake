@@ -90,6 +90,21 @@ let currentSeat = null;
 let broadcastChannel = null;
 let authChangeListeners = [];
 
+// 観戦（ユーザー要望「後から部屋に入った人が観戦できるように」）。座席を持たず、状態を
+// 読むだけ・一切操作しない読み取り専用クライアント。spectateMode: 'public'（公開情報のみ、
+// 手札や裏向きは見えない）| 'all'（すべて見える god-view）。spectateViewSeat は盤面をどの
+// プレイヤー視点で描くか（＝どの座席を手前に置くか）。実際に操作はできないので「自分の座席」
+// ではないが、描画の視点として使う。
+let spectating = false;
+let spectateMode = "public";
+let spectateViewSeat = null;
+export function isSpectatingGame() {
+  return spectating;
+}
+export function getSpectateMode() {
+  return spectateMode;
+}
+
 export function isOnlineAvailable() {
   return !!client;
 }
@@ -1056,8 +1071,27 @@ export async function joinRoom(gameId, passwordAttempt) {
     }
     currentGameId = gameId;
     currentSeat = null; // ゲーム開始時にランダムに割り当てられる
+    spectating = false;
     subscribeToGame(gameId, { announceJoin: true });
     startHeartbeat(gameId, user.id);
+  });
+}
+
+// 観戦を開始する（ユーザー要望）。座席は取らない（so7_join_roomは呼ばない＝参加者にならない）。
+// 状態のbroadcast購読と、観戦用ビュー（公開＝マスク済み / all＝全公開）の読み取りだけを行う
+// 読み取り専用モード。ハートビートも送らない（座席行が無いため）。操作系は isSpectatingGame() で
+// 全てブロックする（万一送信できてもEdge Function側が非座席者のアクションを弾く安全網もある）。
+export async function spectateGame(gameId, mode = "public") {
+  return withLog("観戦", async () => {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("ログインしてください");
+    currentGameId = gameId;
+    currentSeat = null;
+    spectating = true;
+    spectateMode = mode === "all" ? "all" : "public";
+    spectateViewSeat = null;
+    subscribeToGame(gameId, { announceJoin: false });
+    await fetchAndHydrate(gameId);
   });
 }
 
@@ -1077,6 +1111,17 @@ export async function listOpenRooms() {
   }
   const { data, error } = await client.from("so7_games_list").select("*").order("created_at", { ascending: false });
   if (error) throw error;
+  return data ?? [];
+}
+
+// 観戦できる（進行中の）対局の一覧（supabase_setup_spectate.sqlのso7_games_spectate_list）。
+export async function listSpectatableGames() {
+  if (!client) return [];
+  const { data, error } = await client.from("so7_games_spectate_list").select("*").order("created_at", { ascending: false });
+  if (error) {
+    console.error("listSpectatableGames failed", error);
+    return [];
+  }
   return data ?? [];
 }
 
@@ -1158,6 +1203,9 @@ export function getSelfSeat() {
   // （callAction等はcurrentSeatを直接参照するため、このデバッグ値の影響を受けない）。
   const debugSeat = new URLSearchParams(window.location.search).get("debugSeat");
   if (debugSeat && SEAT_ORDER.includes(debugSeat)) return debugSeat;
+  // 観戦中は座席を持たないが、盤面をどのプレイヤー視点で描くか（手前に置く座席）として
+  // spectateViewSeat（参加者の1人。fetchAndHydrateで確定）を使う。操作は全てブロックされる。
+  if (spectating) return spectateViewSeat || "A";
   return isOnlineMode() ? currentSeat || "A" : "A";
 }
 
@@ -1169,8 +1217,11 @@ export async function leaveGame() {
   const gameIdToLeave = currentGameId;
   const channelToClose = broadcastChannel;
   stopHeartbeat();
+  const wasSpectating = spectating;
   currentGameId = null;
   currentSeat = null;
+  spectating = false;
+  spectateViewSeat = null;
   broadcastChannel = null;
   // ハマりどころ: rosterをここでリセットしないと、退室後も直前にいた部屋の
   // メンバー情報（getSyncedIdentity）が残ったままになる。「この部屋を離れる」を
@@ -1181,7 +1232,9 @@ export async function leaveGame() {
   setOnlineMode(false);
   notifyListeners();
 
-  if (gameIdToLeave) {
+  // 観戦者は座席を持たないので、サーバー側の座席削除（so7_leave_room）は呼ばない
+  // （チャンネルだけ閉じる）。
+  if (gameIdToLeave && !wasSpectating) {
     try {
       const { error } = await client.rpc("so7_leave_room", { p_game_id: gameIdToLeave });
       if (error) console.error("so7_leave_room failed", error);
@@ -1203,6 +1256,9 @@ export async function leaveGame() {
 
 async function callAction(action) {
   return withLog(`アクション送信(${action.type})`, async () => {
+    // 観戦者は読み取り専用。万一UIのブロックをすり抜けても、ここでアクション送信を止める
+    // （サーバー側も非座席者のアクションを弾くが、二重の安全網）。
+    if (spectating) return null;
     if (!currentGameId) throw new Error("部屋に参加していません");
     // 「誰が・何をした結果か」を、この後届くブロードキャストのこだま/直後の
     // fetchAndHydrate()より前に記録しておく（turn-timer.jsのonStateChangeがオンライン中に
@@ -1917,14 +1973,18 @@ export async function updateMyIdentity({ name, avatar, pieceSkinIndex } = {}) {
 // revealedCardIdはここでは扱わない（呼び出し元がcallAction()の戻り値から直接使う）。
 export async function fetchAndHydrate(gameId) {
   return withLog("状態の取得", async () => {
+    // 観戦中は参加者しか読めない *_visible ビューではなく、観戦用ビューから読む
+    // （supabase_setup_spectate.sql）。all＝全公開のgod-view、public＝マスク済み（公開情報のみ）。
+    const tokensView = spectating ? (spectateMode === "all" ? "so7_game_tokens_all" : "so7_game_tokens_spectate") : "so7_game_tokens_visible";
+    const pilesView = spectating ? (spectateMode === "all" ? "so7_game_piles_all" : "so7_game_piles_spectate") : "so7_game_piles_visible";
     const [
       { data: gameRow, error: gameErr },
       { data: tokenRows, error: tokenErr },
       { data: pileRows, error: pileErr },
     ] = await Promise.all([
       client.from("so7_games").select("*").eq("id", gameId).maybeSingle(),
-      client.from("so7_game_tokens_visible").select("*").eq("game_id", gameId).order("order_index", { ascending: true }),
-      client.from("so7_game_piles_visible").select("*").eq("game_id", gameId),
+      client.from(tokensView).select("*").eq("game_id", gameId).order("order_index", { ascending: true }),
+      client.from(pilesView).select("*").eq("game_id", gameId),
       // 参加時点では自分の座席がまだ決まっていない（null）。「ゲームを開始する」が押されて
       // Edge Function側でランダムに割り当てられた後、この取得のたびに拾い直すことで
       // 自分の座席を知る（実際に割り当てが反映されるのはBroadcast経由でこの関数が
@@ -1995,10 +2055,15 @@ export async function fetchAndHydrate(gameId) {
     // ローカル判定にしか使わない公開情報」のため、syncedTimerConfigと同じ扱いで
     // このモジュールのローカル変数に留める。
     syncedTimerToggleRejectStreak = gameRow.timer_toggle_reject_streak ?? {};
+    const activePlayersList = gameRow.active_players ?? [];
+    // 観戦の描画視点（手前に置く座席）を、まだ決まっていなければ参加者の先頭に固定する。
+    if (spectating && !spectateViewSeat && activePlayersList.length > 0) {
+      spectateViewSeat = activePlayersList[0];
+    }
     hydrateState({
       tokens,
       piles,
-      activePlayers: gameRow.active_players ?? [],
+      activePlayers: activePlayersList,
       turnPlayer: gameRow.turn_player,
       turnNumber: gameRow.turn_number,
       roundNumber: gameRow.round_number,

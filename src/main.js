@@ -174,6 +174,9 @@ import { initOnlineUi, openOnlinePanel, isOnlineIntentActive } from "./online-ui
 import { initOpeningScreen, previewOpeningAuras } from "./opening-screen.js";
 import {
   getSelfSeat,
+  isSpectatingGame,
+  getSpectateMode,
+  leaveGame,
   getCachedUser,
   getCurrentUser,
   getCurrentGameId,
@@ -480,7 +483,18 @@ function buildPlayerZone(side, player, isSelf) {
     // 自分の手札は常に中身が見える（物理カードを自分で持っているのと同じ）。
     // 他プレイヤーの手札は中身を明かさず、常に裏向きの見た目にする。
     // カード画像自体にタイトル・色・効果まで描かれているので、背景画像を敷くだけでよい。
-    if (isSelf) {
+    const spectateAll = isSpectatingGame() && getSpectateMode() === "all";
+    if (isSpectatingGame()) {
+      // 観戦中は「自分の座席」の概念を使わない。allモードは全プレイヤーの手札を表向き
+      // （god-view）、publicモードは全て裏向き（公開情報のみ）。自分専用の演出は付けない。
+      if (spectateAll && token.cardId) {
+        cardEl.className = "hand-card is-self";
+        cardEl.style.backgroundImage = `url("${getCardImagePath(token.cardId)}")`;
+      } else {
+        cardEl.className = "hand-card is-facedown";
+        cardEl.style.backgroundImage = `url("${getCardBackImagePath(token.cardId)}")`;
+      }
+    } else if (isSelf) {
       cardEl.className = "hand-card is-self";
       cardEl.style.backgroundImage = `url("${getCardImagePath(token.cardId)}")`;
       // ユーザー要望「白と黒のカードは自分の手札内でそれぞれの色の湯気のような神秘的な
@@ -4738,7 +4752,35 @@ let suppressGenericRenderForOnlineStart = false;
 // 汎用render()リスナー・remote-move-animator.jsを一時停止するためのフラグ。
 let suppressGenericRenderForContactTackle = false;
 
+// 観戦中の告知バナー（ユーザー要望）。観戦モード（すべて/公開）を表示し、観戦をやめる導線を出す。
+let spectatorBannerEl = null;
+function updateSpectatorBanner() {
+  if (isSpectatingGame()) {
+    if (!spectatorBannerEl) {
+      spectatorBannerEl = document.createElement("div");
+      spectatorBannerEl.id = "spectator-banner";
+      const label = document.createElement("span");
+      label.className = "spectator-banner-label";
+      const exitBtn = document.createElement("button");
+      exitBtn.type = "button";
+      exitBtn.className = "spectator-banner-exit";
+      exitBtn.textContent = "観戦をやめる";
+      exitBtn.addEventListener("click", () => leaveGame().catch((err) => console.error("leaveGame (spectator) failed", err)));
+      spectatorBannerEl.appendChild(label);
+      spectatorBannerEl.appendChild(exitBtn);
+      document.body.appendChild(spectatorBannerEl);
+      spectatorBannerEl._label = label;
+    }
+    spectatorBannerEl._label.textContent =
+      getSpectateMode() === "all" ? "👀 観戦中（すべて見える）" : "👀 観戦中（公開情報のみ）";
+    spectatorBannerEl.style.display = "flex";
+  } else if (spectatorBannerEl) {
+    spectatorBannerEl.style.display = "none";
+  }
+}
+
 function render() {
+  updateSpectatorBanner();
   // オンライン対戦（第一弾）ではまだサーバー側にポートしていないアクション（セットアップ
   // ウィザード・クイックスタート・手札シャッフル）に繋がるボタンを隠す（style.css参照）。
   // 「オンラインで続ける」を押した直後、まだ部屋を選んでいない間はisOnlineMode()自体は
@@ -5347,6 +5389,8 @@ function closestByCenter(candidates, clientX, clientY) {
 }
 
 function findDraggableAt(clientX, clientY) {
+  // 観戦者は読み取り専用。掴める対象を一切返さない（ドラッグ・接触・ロック等を封じる）。
+  if (isSpectatingGame()) return null;
   const elements = document.elementsFromPoint(clientX, clientY);
   // チュートリアルCPU戦中は、掴める対象を「自分(A)の駒」と「手札カード（ロックのための
   // ドラッグに使う）」だけに絞る。ユーザー要望「盤面のカードを掴めなくして」＋「隣のCPUの駒を

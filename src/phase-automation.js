@@ -13,7 +13,7 @@
 // 「register helper」注入パターンで main.js から渡してもらう（循環import回避）。
 
 import { getState, isOnlineMode, drawFromPile, flipToken, nextTurn, setPriorityState } from "./state.js";
-import { getSelfSeat, getCurrentGameId, fetchAndHydrate, getSyncedTimerConfig, broadcastPhaseChange, onPhaseChangeEvents } from "./online.js";
+import { getSelfSeat, getCurrentGameId, fetchAndHydrate, getSyncedTimerConfig, broadcastPhaseChange, onPhaseChangeEvents, isSpectatingGame } from "./online.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
 import {
   isAutoProcessingEnabled,
@@ -575,7 +575,8 @@ export function reconcilePhaseAutomation() {
   // されてしまっている」。誰かが既に勝利していれば、以後のフェイズ自動進行
   // （ロック/移動の自動ハイライト・自動ドロー・自動ターン終了等）は一切不要
   // なため、以降は完全に停止する。
-  const shouldBeActive = !hasAnyoneWon() && isAutoProcessingEnabled() && getState().turnPlayer === player;
+  // 観戦者は読み取り専用（座席を持たず操作もしない）ため、フェイズ自動処理は一切走らせない。
+  const shouldBeActive = !hasAnyoneWon() && !isSpectatingGame() && isAutoProcessingEnabled() && getState().turnPlayer === player;
   if (!shouldBeActive) {
     clearPhase();
     return;
