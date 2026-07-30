@@ -244,6 +244,24 @@ function buildConfigForm() {
   bwNote.textContent = "説明書では、初めてプレイする時は白黒（無色）カードを外すことを勧めています（デフォルトでは含めません）。";
   wrapper.appendChild(bwNote);
 
+  // ブーストモード（ユーザー要望）: 各プレイヤーのファーストカードの左右隣の色スロットに
+  // 「効果なしファーストカード」をロックした状態で開始する（7色勝利のカウントに含む＝時短）。
+  const boostRow = document.createElement("label");
+  boostRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; margin: 0.5rem 0; cursor: pointer;";
+  const boostCheckbox = document.createElement("input");
+  boostCheckbox.type = "checkbox";
+  boostCheckbox.checked = config ? !!config.boost : false;
+  const boostSpan = document.createElement("span");
+  boostSpan.textContent = "ブーストモード（両隣に効果なしファーストカードをロックして開始）";
+  boostRow.appendChild(boostCheckbox);
+  boostRow.appendChild(boostSpan);
+  wrapper.appendChild(boostRow);
+
+  const boostNote = document.createElement("div");
+  boostNote.style.cssText = "font-size: 0.68rem; opacity: 0.7; margin-bottom: 0.7rem;";
+  boostNote.textContent = "開始時から色が埋まるので勝利までが早くなります。効果なしファーストカードは他のカードの効果の対象になりません（デザインは仮）。";
+  wrapper.appendChild(boostNote);
+
   const playmatNote = document.createElement("div");
   playmatNote.style.cssText = "font-size: 0.8rem; margin-bottom: 0.4rem;";
   playmatNote.textContent = "プレイマット：";
@@ -280,7 +298,7 @@ function buildConfigForm() {
       errorEl.style.display = "block";
       return;
     }
-    config = { activePlayers, includeBlackWhite: bwCheckbox.checked };
+    config = { activePlayers, includeBlackWhite: bwCheckbox.checked, boost: boostCheckbox.checked };
     const chosenPlaymat = PLAYMAT_OPTIONS.find((o) => playmatRadios[o.id].checked);
     setSelectedPlaymatId(chosenPlaymat ? chosenPlaymat.id : "white");
     notifyChange(); // プレイマットはこの時点で即座に見た目へ反映したい
@@ -299,7 +317,8 @@ function buildStepButtons() {
   const statusLine = document.createElement("div");
   const seatsText = activePlayersOrdered().join("・");
   const bwText = config.includeBlackWhite ? "含める" : "含めない";
-  statusLine.textContent = `設定: ${config.activePlayers.length}人（${seatsText}）／白黒カード: ${bwText}`;
+  const boostText = config.boost ? "ON" : "OFF";
+  statusLine.textContent = `設定: ${config.activePlayers.length}人（${seatsText}）／白黒カード: ${bwText}／ブースト: ${boostText}`;
   statusLine.style.cssText = "font-size: 0.72rem; opacity: 0.8; margin-bottom: 0.3rem;";
   wrapper.appendChild(statusLine);
 
@@ -344,7 +363,7 @@ async function runStep1() {
   // なってしまう（テスト中に発覚したバグ）。
   resetHandEffectUsage();
   const players = activePlayersOrdered().map((player) => ({ player, side: SEAT_TO_SIDE[player] }));
-  setupAssignFirstCards(players);
+  setupAssignFirstCards(players, !!config.boost);
   await animateFirstCardsDealt();
 }
 
@@ -381,10 +400,10 @@ async function runAll() {
 // 座席自動選択モード（管理者モードのトグルがオフ）を前提にした人数固定の座席割り当てになる
 // （手動座席選択モードの時に「2人プレイで特定の2席だけ選ぶ」といった細かい指定はできない。
 // その場合は従来通りウィザードの０から手動で設定してもらう）。
-export async function quickStart(count, includeBlackWhite) {
+export async function quickStart(count, includeBlackWhite, boost = false) {
   const activePlayers = AUTO_SEATS_BY_COUNT[count];
   if (!activePlayers) return;
-  config = { activePlayers, includeBlackWhite };
+  config = { activePlayers, includeBlackWhite, boost };
   if (bodyEl) renderPanelBody();
   await runAll();
 }

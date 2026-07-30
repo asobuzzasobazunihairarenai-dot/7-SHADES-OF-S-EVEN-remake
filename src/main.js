@@ -5827,6 +5827,46 @@ function showStackModal(tokenIds) {
   document.body.appendChild(modal);
 }
 
+// 捨て札一覧（ユーザー要望「捨て札の山を右クリックで捨て札一覧を見れるように」）。捨て場は
+// ルール上「表向きに積む」場所なので中身を隠す必要は無い。piles.discardはcardIdの配列
+// （末尾＝一番上）で、一番上（＝最後に捨てられたカード）を先頭に並べる。showStackModalと
+// 同じ見た目（#stack-modal / .stack-modal-*）を流用する。
+function showDiscardListModal() {
+  const discard = getState().piles.discard;
+  const modal = document.createElement("div");
+  modal.id = "stack-modal";
+  const close = () => {
+    backdrop.remove();
+    modal.remove();
+  };
+  const backdrop = createBackdrop(close, { zIndex: 10001 });
+  const title = document.createElement("div");
+  title.className = "stack-modal-title";
+  title.textContent = discard.length > 0 ? `捨て札一覧（${discard.length}枚・上から順）` : "捨て札一覧";
+  const list = document.createElement("div");
+  list.className = "stack-modal-list";
+  if (discard.length === 0) {
+    const empty = document.createElement("div");
+    empty.textContent = "捨て札はありません。";
+    empty.style.cssText = "color: #94a3b8; padding: 1rem;";
+    list.appendChild(empty);
+  } else {
+    for (let i = discard.length - 1; i >= 0; i--) {
+      const cardId = discard[i];
+      const card = document.createElement("div");
+      card.className = "stack-modal-card";
+      card.style.backgroundImage = `url("${getCardImagePath(cardId)}")`;
+      card.title = getCardDefinition(cardId)?.name ?? "";
+      list.appendChild(card);
+    }
+  }
+  modal.appendChild(createModalCloseX(close));
+  modal.appendChild(title);
+  modal.appendChild(list);
+  document.body.appendChild(backdrop);
+  document.body.appendChild(modal);
+}
+
 // showStackModalのクリック可能版。重なったカード（ファースト＋エターナル等）から、ハンド
 // フェイズで使う1枚をクリックで選ばせる（ユーザー要望「1色のロックエリアに2枚あるとき、
 // クリックで2枚を出してどちらを使うか選べるように。現状は上のカードしか使えない」）。
@@ -5977,6 +6017,9 @@ function initContextMenuHandlers() {
       }
       if (hit.matches(".stack[data-pile]") && hit.dataset.pile === "deck") {
         items.push({ label: "山札一覧を見る", onClick: () => openDeckViewer() });
+      }
+      if (hit.matches(".stack[data-pile]") && hit.dataset.pile === "discard") {
+        items.push({ label: "捨て札一覧を見る", onClick: () => showDiscardListModal() });
       }
       if (hit.classList.contains("piece")) {
         items.push({ label: "駒スキンを変更", onClick: () => openPieceSkinPicker() });

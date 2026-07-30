@@ -124,6 +124,7 @@ let renderGeneration = 0;
 let pendingRoomTimerEnabled = true;
 let pendingRoomIncludeBlackWhite = false;
 let pendingRoomPseudoCpuModeEnabled = false;
+let pendingRoomBoost = false;
 
 async function renderPanelContent() {
   if (!contentEl) return;
@@ -715,6 +716,23 @@ async function renderRoomStatus(gameId, myGeneration) {
       pseudoCpuRow.appendChild(pseudoCpuLabel);
       waitingBox.appendChild(pseudoCpuRow);
 
+      // ブーストモード（ユーザー要望）。timerEnabled/includeBlackWhiteと同じく「開始ボタンを
+      // 押した瞬間の設定を対局全体の固定値としてサーバー(BOOTSTRAP_GAME)へ送る」方式。
+      const boostRow = document.createElement("label");
+      boostRow.style.cssText =
+        "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0.5rem; font-size: 0.85rem; text-align: left;";
+      const boostCheckbox = document.createElement("input");
+      boostCheckbox.type = "checkbox";
+      boostCheckbox.checked = pendingRoomBoost;
+      boostCheckbox.addEventListener("change", () => {
+        pendingRoomBoost = boostCheckbox.checked;
+      });
+      const boostLabel = document.createElement("span");
+      boostLabel.textContent = "🚀 ブーストモード（両隣に効果なしファーストカードをロックして開始）";
+      boostRow.appendChild(boostCheckbox);
+      boostRow.appendChild(boostLabel);
+      waitingBox.appendChild(boostRow);
+
       const startBtn = textButton(`ゲームを開始する（現在${count}名）`);
       // ログインパネルのボタン（renderLoginForm）と同じ理由で、display:blockを明示しないと
       // .header-tool-buttonの既定表示(inline-block)のせいで横並びになってしまう
@@ -727,6 +745,7 @@ async function renderRoomStatus(gameId, myGeneration) {
             timerEnabled: timerCheckbox.checked,
             includeBlackWhite: bwCheckbox.checked,
             pseudoCpuModeEnabled: pseudoCpuCheckbox.checked,
+            boost: boostCheckbox.checked,
           });
           closePanel();
         } catch (err) {

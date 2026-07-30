@@ -1250,7 +1250,7 @@ async function registerParticipantsAsStatsPlayers(gameId) {
   }
 }
 
-export async function startGame(gameId, { includeBlackWhite = false, timerEnabled, pseudoCpuModeEnabled = false } = {}) {
+export async function startGame(gameId, { includeBlackWhite = false, timerEnabled, pseudoCpuModeEnabled = false, boost = false } = {}) {
   return withLog("ゲーム開始", async () => {
     const count = await getMemberCount(gameId);
     if (count < 2) throw new Error("2人以上揃ってから開始してください");
@@ -1286,7 +1286,9 @@ export async function startGame(gameId, { includeBlackWhite = false, timerEnable
     // モードの有効/無効を含む）をそのままログに残し、後から「サーバーに正しい値が
     // 送られたか」を確認できるようにする。
     logAction("diag-pseudo-cpu", { phase: "startGame-send", timerConfig });
-    const result = await callAction({ type: "BOOTSTRAP_GAME", includeBlackWhite, timerConfig });
+    // boost: ブーストモード（各プレイヤーのファーストカードの左右隣に効果なしファーストカードを
+    // ロックして開始）。サーバー側BOOTSTRAP_GAME（so7-apply-action.ts）で処理する。
+    const result = await callAction({ type: "BOOTSTRAP_GAME", includeBlackWhite, timerConfig, boost });
     registerParticipantsAsStatsPlayers(gameId).catch((err) =>
       console.error("registerParticipantsAsStatsPlayers failed", err)
     );

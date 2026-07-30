@@ -375,6 +375,12 @@ function reduce(current: GameState, action: any): GameState {
     case "BOOTSTRAP_GAME": {
       const players: { player: string; side: string }[] = action.players;
       const includeBlackWhite: boolean = !!action.includeBlackWhite;
+      // ブーストモード（ユーザー要望）: src/state.jsのSETUP_ASSIGN_FIRST_CARDSと同じ処理を
+      // サーバー側にもポートする。各プレイヤーのファーストカードの左右隣の色スロットに
+      // 「効果なしファーストカード」(first-blank-<color>)を表向きでロックして開始する
+      // （7色勝利のカウントに含む＝ブースト。idが"first-"始まりなので他のカードの効果の
+      // 対象にもならない）。端の色は盤内の隣だけロックする。
+      const boost: boolean = !!action.boost;
 
       const firstPile = shuffled(expandDeck(FIRST_CARDS));
       const newTokens: Token[] = [];
@@ -397,6 +403,18 @@ function reduce(current: GameState, action: any): GameState {
           player,
           location: { zone: "cell", ...GATE_POSITIONS[side] },
         });
+        if (boost) {
+          for (const nb of [colorIndex - 1, colorIndex + 1]) {
+            if (nb < 0 || nb >= COLORS.length) continue;
+            newTokens.push({
+              id: uid("card"),
+              kind: "card",
+              cardId: `first-blank-${COLORS[nb]}`,
+              faceUp: true,
+              location: { zone: "lock", side, index: nb },
+            });
+          }
+        }
       }
 
       let pool = expandDeck(NORMAL_CARDS);

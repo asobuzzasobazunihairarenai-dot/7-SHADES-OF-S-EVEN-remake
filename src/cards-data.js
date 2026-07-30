@@ -53,9 +53,38 @@ export const FIRST_CARDS = [
   { id: "first-purple", name: "紫のキューブ ディメンション", color: "purple", note: "「一気に移動」なので１マス目のカードや相手の駒等の有無は関係ない。「通常の移動」とはムーブフェイズで通常行う移動のこと。" },
 ];
 
+// ブーストモード用の「効果なしファーストカード」（ユーザー要望）。ゲーム開始時に各プレイヤーの
+// ファーストカードの左右隣の色スロットへロックされ、7色勝利のカウントに含まれる（＝ブースト）。
+// 基本効果「他のカードの効果の対象にならない」は、idが "first-" で始まることで自動的に満たす
+// （card-effect-engine.jsのisTargetableByOtherCardEffects参照）。実物の絵柄はまだ無いため、
+// デザインは仮（色のベタ塗り＋"BOOST"表記）で、getCardImagePathがSVGデータURIを返す。
+const BOOST_COLOR_JP = { red: "赤", orange: "橙", yellow: "黄", green: "緑", blue: "青", pink: "桃", purple: "紫" };
+const BOOST_COLOR_HEX = {
+  red: "#c70025", orange: "#ee781f", yellow: "#fabe00", green: "#22ac38", blue: "#1bb8ce", pink: "#f19ec2", purple: "#915da3",
+};
+export const BOOST_BLANK_FIRST_CARDS = Object.keys(BOOST_COLOR_JP).map((color) => ({
+  id: `first-blank-${color}`,
+  name: `${BOOST_COLOR_JP[color]}のブーストカード`,
+  color,
+  note: "ブーストモード用の効果なしファーストカード。効果は持たず、他のカードの効果の対象にもならない。",
+  isBlankBoost: true,
+}));
+// 仮デザイン: 色のベタ塗り＋白枠＋"BOOST"表記のSVGデータURI（差し替え用の実画像が入るまでの暫定）。
+function blankBoostCardDataUri(color) {
+  const hex = BOOST_COLOR_HEX[color] || "#888888";
+  const svg =
+    `<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'>` +
+    `<rect width='200' height='200' rx='16' fill='${hex}'/>` +
+    `<rect x='8' y='8' width='184' height='184' rx='12' fill='none' stroke='rgba(255,255,255,0.65)' stroke-width='5'/>` +
+    `<text x='100' y='98' font-size='30' font-family='sans-serif' font-weight='bold' fill='white' text-anchor='middle'>BOOST</text>` +
+    `<text x='100' y='130' font-size='17' font-family='sans-serif' fill='rgba(255,255,255,0.9)' text-anchor='middle'>効果なし</text>` +
+    `</svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 // カードid → 定義の逆引き（山札・手札等に入っている実際のトークンのcardIdから
 // 名前・色を引くために使う）。
-const ALL_CARDS = [...NORMAL_CARDS, ...ETERNAL_CARDS, ...FIRST_CARDS];
+const ALL_CARDS = [...NORMAL_CARDS, ...ETERNAL_CARDS, ...FIRST_CARDS, ...BOOST_BLANK_FIRST_CARDS];
 const CARD_BY_ID = new Map(ALL_CARDS.map((c) => [c.id, c]));
 
 export function getCardDefinition(cardId) {
@@ -67,6 +96,9 @@ export function getCardDefinition(cardId) {
 // （.gitignoreの/assets/cards/参照）。画像自体にタイトル・色・効果テキストまで描かれているため、
 // 表向きの時はこの画像を表示するだけでよく、別途テキストを重ねて表示する必要はない。
 export function getCardImagePath(cardId) {
+  // ブーストモードの効果なしファーストカードは実画像がまだ無いため、仮の色ベタ塗りSVGを返す。
+  const def = CARD_BY_ID.get(cardId);
+  if (def?.isBlankBoost) return blankBoostCardDataUri(def.color);
   return `assets/cards/${cardId}.webp`;
 }
 

@@ -504,6 +504,23 @@ function reduce(current, action) {
           player, // 相手ゲート侵攻ボーナス判定（gate-invasion.js）で「この駒は誰のものか」を引くために必要
           location: { zone: "cell", ...GATE_POSITIONS[side] },
         });
+        // ブーストモード（ユーザー要望）: ファーストカードの左右隣の色スロットに「効果なし
+        // ファーストカード」を表向きでロックした状態で開始する。7色勝利のカウントに含まれる
+        // （victory.jsは色スロット基準で数え、無色以外なら数えるため、これらは各スロットの色
+        // として数えられる）。基本効果「他のカードの効果の対象にならない」はidが"first-"始まりで
+        // 自動的に満たす。端の色（赤=0/紫=6）は片側に隣が無いので、盤内の隣だけロックする。
+        if (action.boost) {
+          for (const nb of [colorIndex - 1, colorIndex + 1]) {
+            if (nb < 0 || nb >= COLORS.length) continue;
+            newTokens.push({
+              id: uid("card"),
+              kind: "card",
+              cardId: `first-blank-${COLORS[nb]}`,
+              faceUp: true,
+              location: { zone: "lock", side, index: nb },
+            });
+          }
+        }
       }
       return {
         ...current,
@@ -825,8 +842,8 @@ export function tutorialLockCard(side, color, cardId) {
 }
 
 // players: [{ player: "A", side: "bottom" }, ...]（座席の時計回り順、game-setup.jsが組み立てる）
-export function setupAssignFirstCards(players) {
-  dispatch({ type: "SETUP_ASSIGN_FIRST_CARDS", players });
+export function setupAssignFirstCards(players, boost = false) {
+  dispatch({ type: "SETUP_ASSIGN_FIRST_CARDS", players, boost });
 }
 
 export function setupFillBoard(includeBlackWhite) {
