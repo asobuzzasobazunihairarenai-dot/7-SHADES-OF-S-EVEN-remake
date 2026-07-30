@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="t2 d2">
+  <title id="t2">2D表示</title>
+  <desc id="d2">平らな格子で表した2D表示アイコン</desc>
+  <g fill="none" stroke="var(--icon-primary, #F4F7FB)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="44" y="44" width="168" height="168" rx="16"/>
+    <path d="M44 100H212 M44 156H212 M100 44V212 M156 44V212" opacity=".5"/>
+  </g>
+</svg>

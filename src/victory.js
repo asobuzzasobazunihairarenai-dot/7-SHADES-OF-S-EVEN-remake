@@ -5,6 +5,7 @@
 
 import { getState, isOnlineMode, subscribe } from "./state.js";
 import { COLORS, SEAT_TO_SIDE } from "./board-layout.js";
+import { getCardDefinition } from "./cards-data.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { getAvatarVariant, applyAvatarContent } from "./avatar-render.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
@@ -65,23 +66,37 @@ subscribe(() => {
 
 // ユーザー要望「残りロックエリアの数が3つになったらアバターを変更したい」用。
 // そのプレイヤーの7色のロックスロットのうち、何色ロック済みかを返す（0〜7）。
-export function getLockedCount(player) {
+// 無色カード（白・黒）は、ロックエリアに「置く」ことはできてもルール上「ロック」した
+// ことにはならない（docs/cards.md「『置く』は『ロック』していることにはならない」、黒の
+// 契約の烙印の補足）。従って勝利判定・ロック数の集計では無色カードを数えない。虹（なな
+// いろの欠片, color:"rainbow"）は正式なロックなのでそのまま数える。ユーザー報告「誘惑の
+// 黒の烙印でロックエリアが色の代わりになって勝ててしまう」への対応。
+function isColorlessLockCard(cardId) {
+  const color = getCardDefinition(cardId)?.color;
+  return color === "white" || color === "black";
+}
+// そのプレイヤーのロックエリアで、実際にロック（＝無色以外）されている色スロットの集合。
+function lockedColorIndexes(player) {
   const side = SEAT_TO_SIDE[player];
-  const lockedIndexes = new Set(
+  return new Set(
     getState()
-      .tokens.filter((t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side)
+      .tokens.filter(
+        (t) =>
+          t.kind === "card" &&
+          t.location.zone === "lock" &&
+          t.location.side === side &&
+          !isColorlessLockCard(t.cardId)
+      )
       .map((t) => t.location.index)
   );
-  return lockedIndexes.size;
+}
+
+export function getLockedCount(player) {
+  return lockedColorIndexes(player).size;
 }
 
 function hasAllSevenLocked(player) {
-  const side = SEAT_TO_SIDE[player];
-  const lockedIndexes = new Set(
-    getState()
-      .tokens.filter((t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side)
-      .map((t) => t.location.index)
-  );
+  const lockedIndexes = lockedColorIndexes(player);
   return COLORS.every((_color, index) => lockedIndexes.has(index));
 }
 
@@ -90,12 +105,7 @@ function hasAllSevenLocked(player) {
 // （＝勝利になる）かどうかを判定する。既に埋まっているスロットへの判定は「今回の追加では
 // 変化なし」としてfalseを返す（置き換えではなく新規ロックのみを対象にするため）。
 export function wouldCompleteLockWithNewIndex(player, newIndex) {
-  const side = SEAT_TO_SIDE[player];
-  const lockedIndexes = new Set(
-    getState()
-      .tokens.filter((t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side)
-      .map((t) => t.location.index)
-  );
+  const lockedIndexes = lockedColorIndexes(player);
   if (lockedIndexes.has(newIndex)) return false;
   lockedIndexes.add(newIndex);
   return COLORS.every((_color, index) => lockedIndexes.has(index));

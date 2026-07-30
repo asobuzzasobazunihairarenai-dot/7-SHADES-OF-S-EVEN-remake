@@ -52,6 +52,7 @@ import {
 } from "./phase-automation.js";
 import { initHelpButton } from "./help.js";
 import { initDiscordLink } from "./discord-link.js";
+import { initBoardViewToggle } from "./board-view-toggle.js";
 import { getOptionArea } from "./option-area.js";
 import { initCurrencyDisplay, refreshCurrencyDisplay, showCurrencyAwardEffect } from "./currency-display.js";
 import { initShop, openShopPanel } from "./shop.js";
@@ -1514,6 +1515,16 @@ async function announceEffectReasonForEffect(cardId, text) {
   await wait(REASON_MODAL_TOTAL_MS);
 }
 
+// ユーザー要望「選ぶ系の効果（選べる罠・パーティ・なないろの欠片 等）で、プレイヤーが
+// 何を選んだかを全プレイヤーにモーダルで知らせる。今後の選ぶ系はすべてこの方針」。
+// 既存の「効果理由モーダル（announceEffectReason: ローカル表示＋他クライアントへ中継）」
+// をそのまま流用し、テキストだけ「○○が『△△』を選びました」に整形する。
+async function announceEffectChoiceForEffect(cardId, player, optionLabel) {
+  const label = String(optionLabel ?? "").trim();
+  const text = label ? `${getPlayerName(player)}が「${label}」を選びました。` : `${getPlayerName(player)}が選択しました。`;
+  await announceEffectReasonForEffect(cardId, text);
+}
+
 // ユーザー要望「効果が不発だった場合（例: マスチェンジで３マス以内に相手がいない等）は
 // 『不発のためこのカードを手札に加えます』的なモーダルを出しましょう」。addsToHandは
 // card-effects.jsのeffectDef.addsCardToHandAfterに対応する（false指定のカード＝
@@ -1941,6 +1952,8 @@ async function runPartyOptionTask(player) {
   if (!options.some((o) => o.usable)) return false;
   const chosen = await pickOptionForEffect("pink-party", options);
   if (!chosen) return false;
+  // パーティで各プレイヤーが選んだ内容を全員に告知（choose-effect-reveal方針）。
+  await announceEffectChoiceForEffect("pink-party", player, chosen.label);
   if (chosen.id === "move") {
     const dest = moveCandidates.length === 1 ? moveCandidates[0] : await requestCellChoiceForEffect(moveCandidates, "移動先のマスを選択してください");
     if (!dest) return false;
@@ -3205,6 +3218,7 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         pickPlayer: requestPlayerChoiceForEffect,
         swapRandomHandCard: swapHandCardWithOpponentForEffect,
         announceEffectReason: announceEffectReasonForEffect,
+        announceEffectChoice: announceEffectChoiceForEffect,
         // 色宣言の結果が判明した合図（続き65）。
         announceColorsResolved: announceColorsResolvedForEffect,
         // 試練の儀式・合同建設の手札効果（「上記の到達時の効果を得る」で到達効果と
@@ -3289,6 +3303,7 @@ async function runAutoArrivalEffect(cardId, location, player) {
       // カウンターロックの「あなたは１番少なくロックしているので1枚ドローします」等、
       // 発動理由を一言説明するモーダル用。
       announceEffectReason: announceEffectReasonForEffect,
+      announceEffectChoice: announceEffectChoiceForEffect,
       // 色宣言の結果が判明した合図（続き65）。
       announceColorsResolved: announceColorsResolvedForEffect,
       // 白の意思の覚醒（場の全ての表向きのカードを捨てる）用。手札効果側は
@@ -5655,6 +5670,45 @@ function showStackModal(tokenIds) {
   document.body.appendChild(modal);
 }
 
+// showStackModalのクリック可能版。重なったカード（ファースト＋エターナル等）から、ハンド
+// フェイズで使う1枚をクリックで選ばせる（ユーザー要望「1色のロックエリアに2枚あるとき、
+// クリックで2枚を出してどちらを使うか選べるように。現状は上のカードしか使えない」）。
+// 選ばれたトークンを返す（キャンセル＝backdrop/✕クリックはnull）。
+function pickStackedLockCard(tokens, hint) {
+  return new Promise((resolve) => {
+    const modal = document.createElement("div");
+    modal.id = "stack-modal";
+    let settled = false;
+    const finish = (val) => {
+      if (settled) return;
+      settled = true;
+      backdrop.remove();
+      modal.remove();
+      resolve(val);
+    };
+    const backdrop = createBackdrop(() => finish(null), { zIndex: 10001 });
+    const title = document.createElement("div");
+    title.className = "stack-modal-title";
+    title.textContent = hint ?? "使うカードを選んでください（下から上の順）";
+    const list = document.createElement("div");
+    list.className = "stack-modal-list";
+    for (const token of tokens) {
+      const card = document.createElement("div");
+      card.className = "stack-modal-card is-pickable";
+      const imagePath = token.faceUp ? getCardImagePath(token.cardId) : getCardBackImagePath(token.cardId);
+      card.style.backgroundImage = `url("${imagePath}")`;
+      if (token.faceUp) card.title = getCardDefinition(token.cardId)?.name ?? "";
+      card.addEventListener("click", () => finish(token));
+      list.appendChild(card);
+    }
+    modal.appendChild(createModalCloseX(() => finish(null)));
+    modal.appendChild(title);
+    modal.appendChild(list);
+    document.body.appendChild(backdrop);
+    document.body.appendChild(modal);
+  });
+}
+
 // 右クリックされた要素(.board-cardまたは.stack-badge)が2枚以上重なっているマス/ロックスロットの
 // 一部なら、そのグループの全トークンidを下から上の順で返す（重なっていなければnull）。
 function getStackTokensAt(el) {
@@ -6788,21 +6842,47 @@ async function onDragEnd(e) {
               : null;
         const isEternalOrFirst =
           clickedToken?.cardId?.startsWith("eternal-") || clickedToken?.cardId?.startsWith("first-");
+        // ユーザー要望「1色のロックエリアに2枚（ファースト＋エターナル等）ある場合、その
+        // スロットをクリックしたら2枚が出てどちらをハンドフェイズで使うか選べるように。
+        // 現状は一番上のカードしか使えない」。同じ色スロットに手札効果を使える候補（エター
+        // ナル/ファースト）が2枚以上重なっているなら、まずどれを使うかピッカーで選ばせる。
+        let useToken = clickedToken;
+        if (isHandPhaseActive() && clickPlayer === getSelfSeat() && cardSourceLocation.zone === "lock") {
+          const stacked = getState().tokens.filter(
+            (t) =>
+              t.kind === "card" &&
+              t.location.zone === "lock" &&
+              t.location.side === cardSourceLocation.side &&
+              t.location.index === cardSourceLocation.index
+          );
+          const usableStacked = stacked.filter(
+            (t) => (t.cardId.startsWith("eternal-") || t.cardId.startsWith("first-")) && hasHandEffectData(t.cardId)
+          );
+          if (usableStacked.length >= 2) {
+            const chosen = await pickStackedLockCard(stacked, "ハンドフェイズで使うカードを選んでください");
+            if (!chosen) {
+              render();
+              return;
+            }
+            useToken = chosen;
+          }
+        }
+        const useIsEternalOrFirst = useToken?.cardId?.startsWith("eternal-") || useToken?.cardId?.startsWith("first-");
         // (A) エターナル/ファースト（従来）: ハンドフェイズでそのカードをクリックすると、
         // 追色コストを手札から選ぶ流れに移行する（手札・ロックエリアのどちらにある間でも）。
         if (
           isHandPhaseActive() &&
-          clickedToken &&
+          useToken &&
           clickPlayer === getSelfSeat() &&
-          isEternalOrFirst &&
-          hasHandEffectData(clickedToken.cardId)
+          useIsEternalOrFirst &&
+          hasHandEffectData(useToken.cardId)
         ) {
           render();
-          if (canUseHandEffect(clickedToken.cardId, clickedToken.id, clickPlayer)) {
-            if (await confirmTouchAction(`${getCardDefinition(clickedToken.cardId).name}を使用しますか？`)) {
-              runAutoHandEffect(clickedToken.cardId, clickedToken.id, clickPlayer);
+          if (canUseHandEffect(useToken.cardId, useToken.id, clickPlayer)) {
+            if (await confirmTouchAction(`${getCardDefinition(useToken.cardId).name}を使用しますか？`)) {
+              runAutoHandEffect(useToken.cardId, useToken.id, clickPlayer);
             }
-          } else if (!canPayHandEffectCost(clickedToken.cardId, clickedToken.id, clickPlayer)) {
+          } else if (!canPayHandEffectCost(useToken.cardId, useToken.id, clickPlayer)) {
             alert("捨てられる同じ色のカードが手札にありません。");
           }
           return;
@@ -8447,6 +8527,7 @@ registerPhaseAutomationHelpers({ render, findTopCardAt });
 initHelpButton();
 initRankingIcon();
 initDiscordLink();
+initBoardViewToggle(); // Discordアイコンと残金表示の間に2D/3D切り替えアイコンを置く（順序＝追加順）
 initCurrencyDisplay();
 initShop();
 registerShopOpener(openShopPanel);

@@ -1310,6 +1310,8 @@ async function runArrivalOptionsEffect(ctx, options, helpers) {
     const optionsWithUsability = options.map((opt) => ({ ...opt, usable: usableOptions.includes(opt) }));
     const chosen = await helpers.pickArrivalOption(ctx.cardId, optionsWithUsability);
     if (chosen) {
+      // 選べる罠（3択から1つ得る）で選んだ内容を全員に告知（choose-effect-reveal方針）。
+      await helpers.announceEffectChoice?.(ctx.cardId, ctx.player, chosen.label);
       for (const action of chosen.actions) {
         if (await runActionSafely(action, runCtx, helpers)) hadEffect = true;
       }
@@ -1483,6 +1485,10 @@ export async function runHandEffect(ctx, helpers) {
     }));
     chosenOption = await helpers.pickHandEffectOption(ctx.cardId, optionsWithUsability);
     if (!chosenOption) return false;
+    // 「選ぶ系」の手札効果（なないろの欠片 等、複数選択肢から1つ）は、選んだ内容を全員に
+    // 告知する（ユーザー要望・choose-effect-reveal方針）。単一効果（options.length===1）は
+    // 選択ではないので告知しない。
+    await helpers.announceEffectChoice?.(ctx.cardId, ctx.player, chosenOption.label);
   }
   return runHandEffectOption(ctx, chosenOption, helpers);
 }

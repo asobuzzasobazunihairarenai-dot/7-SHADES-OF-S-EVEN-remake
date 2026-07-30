@@ -1040,6 +1040,16 @@ body.reduce-glow [style*="rainbow-shard.webp"]::after {
   background-repeat: no-repeat;
   flex-shrink: 0;
 }
+/* クリックで選べる版（pickStackedLockCard、ロック2枚重なりからハンド使用するカードを選ぶ）。 */
+.stack-modal-card.is-pickable {
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.stack-modal-card.is-pickable:hover {
+  transform: translateY(-0.3rem) scale(1.04);
+  border-color: rgba(251, 191, 36, 0.95);
+  box-shadow: 0 0.7rem 1.4rem rgba(0, 0, 0, 0.6);
+}
 /* OKボタン1つだけの汎用確認モーダル（山札切れの補充確認等に使う）。 */
 #confirm-modal {
   position: fixed;

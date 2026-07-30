@@ -54,7 +54,7 @@ export function showRankUpModal({ fromTier, toTier }) {
 
   const subtitle = document.createElement("div");
   subtitle.className = "rank-up-modal-subtitle";
-  subtitle.textContent = `「${fromTier.label}」から「${toTier.label}」になりました（対戦記録の承認後に反映されます）`;
+  subtitle.textContent = `「${fromTier.label}」から「${toTier.label}」になりました`;
   modal.appendChild(subtitle);
 
   document.body.appendChild(backdrop);
