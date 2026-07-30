@@ -575,6 +575,11 @@ async function runAction(action, ctx, helpers) {
         return false;
       }
       await helpers.discardAndSync(setAsideToken.id);
+      // お知らせ（ユーザー要望）: 誰が捨て場から何を手札に加えたか。
+      await helpers.announceEffectReason?.(
+        ctx.cardId,
+        `${helpers.getPlayerName(ctx.player)}は捨て場から「${getCardDefinition(targetToken.cardId).name}」を手札に加えました。`
+      );
       return true;
     }
     case VERBS.FLIP_UP_TO_N_WITHIN_RANGE: {
@@ -597,6 +602,8 @@ async function runAction(action, ctx, helpers) {
         await helpers.flipCard(token.id);
         flippedCount++;
       }
+      // お知らせ（ユーザー要望）: 何枚オープンしたか（優先度低だが一応）。
+      if (flippedCount > 0) await helpers.announceEffectReason?.(ctx.cardId, `${flippedCount}枚のカードをオープンしました。`);
       return flippedCount > 0;
     }
     case VERBS.DISCARD_RANDOM_FROM_QUALIFYING_OPPONENTS: {
@@ -613,6 +620,11 @@ async function runAction(action, ctx, helpers) {
         const picked = await helpers.pickRandomFromOpponentHand(p);
         if (!picked) continue;
         await helpers.discardAndSync(picked.id);
+        // お知らせ（ユーザー要望）: 誰の手札から何を捨てさせたか（隠れ情報、対象ごと）。
+        await helpers.announceEffectReason?.(
+          ctx.cardId,
+          `${helpers.getPlayerName(p)}の手札から「${getCardDefinition(picked.cardId).name}」を捨てさせました。`
+        );
         hadEffect = true;
       }
       return hadEffect;
@@ -632,6 +644,8 @@ async function runAction(action, ctx, helpers) {
       for (const token of stack) {
         await helpers.discardAndSync(token.id);
       }
+      // お知らせ（ユーザー要望）: どのマスを対象にしたか。
+      await helpers.announceEffectReason?.(ctx.cardId, "このマスのカードをすべて捨てました。");
       return true;
     }
     case VERBS.PUBLIC_DRAW_THEN_DISCARD_AT_TURN_END: {
@@ -643,6 +657,8 @@ async function runAction(action, ctx, helpers) {
       const tokenIds = await helpers.publicDrawReturningTokens(ctx.player, action.count);
       if (tokenIds.length === 0) return false;
       helpers.markDiscardAtTurnEnd?.(ctx.player, tokenIds);
+      // お知らせ（ユーザー要望「マンズウッドは公開ドローではない→○○は1枚ドロー」）。
+      await helpers.announceEffectReason?.(ctx.cardId, `${helpers.getPlayerName(ctx.player)}は${tokenIds.length}枚ドローしました。`);
       return true;
     }
     case VERBS.MOVE_CHOSEN_OPPONENT_ADJACENT_TO_SELF: {
@@ -684,7 +700,11 @@ async function runAction(action, ctx, helpers) {
       if (destTop && !destTop.faceUp) {
         await helpers.flipCard(destTop.id);
       }
-      await helpers.announceEffectReason?.(ctx.cardId, "このターンあなたは接触できません（自己申告）。");
+      // お知らせ（ユーザー要望）: 誰を誰の隣へ動かしたか＋接触制限。
+      await helpers.announceEffectReason?.(
+        ctx.cardId,
+        `${helpers.getPlayerName(targetPiece.player)}を${helpers.getPlayerName(ctx.player)}の隣へ移動させました。このターンあなたは接触できません（自己申告）。`
+      );
       return true;
     }
     case VERBS.PUBLIC_DRAW_DISABLE_HAND_EFFECTS_CONDITIONAL_DISCARD: {
@@ -707,9 +727,10 @@ async function runAction(action, ctx, helpers) {
         for (const token of handTokens) {
           await helpers.discardAndSync(token.id);
         }
+        // お知らせ（ユーザー要望）: 条件成立の結果を対象名付きで。
         await helpers.announceEffectReason?.(
           ctx.cardId,
-          "公開した中に橙のカードがあったため、手札をすべて捨てます。このターンあなたは移動できません（自己申告）。"
+          `残念、${helpers.getPlayerName(ctx.player)}は橙が出たため手札を全て捨て、このターンは移動できません（自己申告）。`
         );
       }
       return true;
@@ -883,8 +904,15 @@ async function runAction(action, ctx, helpers) {
         target = await helpers.pickLocation(candidates, "入れ替える相手のマスを選択してください");
       }
       if (!target) return false;
+      // お知らせ用に入れ替え相手を先に捕まえる（swapPieces後は駒が動くため）。
+      const swapTargetPlayer = findPieceAtCell(target.row, target.col)?.player;
       await helpers.swapPieces(ctx.pieceTokenId, ctx.pieceLocation, target);
       ctx.pieceLocation = target;
+      if (swapTargetPlayer)
+        await helpers.announceEffectReason?.(
+          ctx.cardId,
+          `${helpers.getPlayerName(ctx.player)}と${helpers.getPlayerName(swapTargetPlayer)}は駒の位置を入れ替えました。`
+        );
       return true;
     }
     case VERBS.LOCK_PAIR: {
@@ -931,6 +959,11 @@ async function runAction(action, ctx, helpers) {
       }
       if (!targetPlayer) return false;
       await helpers.swapRandomHandCard(ctx.player, targetPlayer);
+      // お知らせ（ユーザー要望）: 誰と誰が手札を交換したか。
+      await helpers.announceEffectReason?.(
+        ctx.cardId,
+        `${helpers.getPlayerName(ctx.player)}と${helpers.getPlayerName(targetPlayer)}は手札を1枚ずつ交換しました。`
+      );
       return true;
     }
     case VERBS.DRAW_ALL_FEWEST_LOCKED: {
@@ -958,6 +991,8 @@ async function runAction(action, ctx, helpers) {
       for (const token of candidates) {
         await helpers.discardAndSync(token.id);
       }
+      // お知らせ（ユーザー要望）: 盤面一括変化の要約。
+      await helpers.announceEffectReason?.(ctx.cardId, "場の表向きのカードを全て捨てました。");
       return true;
     }
     case VERBS.DISCARD_SELF: {
@@ -976,6 +1011,8 @@ async function runAction(action, ctx, helpers) {
         }
         await helpers.drawCards(p, action.count);
       }
+      // お知らせ（ユーザー要望）: 全員の手札が変わったこと。
+      await helpers.announceEffectReason?.(ctx.cardId, `全員が手札を全て捨てて、${action.count}枚ドローしました。`);
       return true;
     }
     case VERBS.DISCARD_HALF_HAND: {
@@ -1163,7 +1200,12 @@ async function runAction(action, ctx, helpers) {
       // 捨てる」を、処理順の原則に沿って1人ずつ行う。
       let hadEffect = false;
       for (const p of rotatedActivePlayersFrom(ctx.player)) {
+        const beforeCount = getHandTokens(p).length;
         if (await helpers.delegateToPlayer(p, "slum-official-discard")) hadEffect = true;
+        // お知らせ（ユーザー要望）: 誰が何枚捨てたか（対象ごと）。委任前後の手札枚数の差から算出。
+        const discarded = beforeCount - getHandTokens(p).length;
+        if (discarded > 0)
+          await helpers.announceEffectReason?.(ctx.cardId, `${helpers.getPlayerName(p)}は手札を${discarded}枚捨てました。`);
       }
       return hadEffect;
     }
@@ -1209,6 +1251,8 @@ async function runAction(action, ctx, helpers) {
         adjacentCells.length === 1 ? adjacentCells[0] : await helpers.pickLocation(adjacentCells, "カードを置く隣接マスを選択してください");
       if (!dest) return false;
       await helpers.moveAndSync(ctx.cardTokenId, dest);
+      // お知らせ（ユーザー要望）: 誰の隣にプレゼントを置いたか。
+      await helpers.announceEffectReason?.(ctx.cardId, `${helpers.getPlayerName(targetPiece.player)}の隣にプレゼントを置きました。`);
       return true;
     }
     case VERBS.PLACE_DECK_CARD_ON_ALL_FACEUP_CELLS: {

@@ -3301,6 +3301,8 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         swapRandomHandCard: swapHandCardWithOpponentForEffect,
         announceEffectReason: announceEffectReasonForEffect,
         announceEffectChoice: announceEffectChoiceForEffect,
+        // 効果結果お知らせ（続き）用に、効果側でプレイヤー名を文面へ埋め込めるようにする。
+        getPlayerName,
         // 色宣言の結果が判明した合図（続き65）。
         announceColorsResolved: announceColorsResolvedForEffect,
         // 試練の儀式・合同建設の手札効果（「上記の到達時の効果を得る」で到達効果と
@@ -3386,6 +3388,8 @@ async function runAutoArrivalEffect(cardId, location, player) {
       // 発動理由を一言説明するモーダル用。
       announceEffectReason: announceEffectReasonForEffect,
       announceEffectChoice: announceEffectChoiceForEffect,
+      // 効果結果お知らせ（続き）用に、効果側でプレイヤー名を文面へ埋め込めるようにする。
+      getPlayerName,
       // 色宣言の結果が判明した合図（続き65）。
       announceColorsResolved: announceColorsResolvedForEffect,
       // 白の意思の覚醒（場の全ての表向きのカードを捨てる）用。手札効果側は
