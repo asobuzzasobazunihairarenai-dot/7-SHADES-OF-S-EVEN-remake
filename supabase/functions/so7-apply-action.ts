@@ -225,10 +225,21 @@ function reduce(current: GameState, action: any): GameState {
       return { ...current, tokens: [...rest, next] };
     }
     case "DRAW_FROM_PILE": {
-      const pileArray = current.piles[action.pile as keyof Piles];
+      // ユーザー要望「山札がなくなったら、自動でノーシャッフルで捨て場のカードを山札に
+      // します。捨て場の一番上のカードが山札の一番下になります」。src/state.jsの
+      // DRAW_FROM_PILEと同じ自動補充をサーバー側にもポートする（オンラインでも山札切れ時に
+      // 自動で補充が効くように）。山札が空で捨て場に残りがあれば、まず捨て場をそのまま
+      // 裏向きで山札へ戻す（ノーシャッフル＝reverse。捨て場をひっくり返すので、捨て場の
+      // 一番上が新しい山札の一番下＝最後に引かれるカードになる）。
+      let piles = current.piles;
+      let pileArray = piles[action.pile as keyof Piles];
+      if (action.pile === "deck" && (!pileArray || pileArray.length === 0) && current.piles.discard.length > 0) {
+        piles = { ...current.piles, deck: [...current.piles.discard].reverse(), discard: [] };
+        pileArray = piles.deck;
+      }
       if (!pileArray || pileArray.length === 0) return current;
       const cardId = pileArray[pileArray.length - 1];
-      const piles = { ...current.piles, [action.pile]: pileArray.slice(0, -1) };
+      piles = { ...piles, [action.pile]: pileArray.slice(0, -1) };
       const faceUp = faceUpForLocation(action.location);
       const newToken: Token = { id: uid("card"), kind: "card", cardId, faceUp, location: action.location };
       if (action.location.zone === "publicDraw") newToken.revealSource = "draw";

@@ -26,6 +26,7 @@ import {
   getCurrentUser,
   signOut,
   onAuthChange,
+  getAccountDisplayLabel,
 } from "./online.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { playOpeningBgm, stopOpeningBgm } from "./sound.js";
@@ -666,7 +667,7 @@ export function initOpeningScreen() {
     if (user) {
       const title = document.createElement("div");
       title.className = "opening-login-title";
-      title.textContent = `🌐 ログイン中（${user.email || "匿名ユーザー"}）`;
+      title.textContent = `🌐 ログイン中（${getAccountDisplayLabel(user)}）`;
       card.appendChild(title);
 
       const row = document.createElement("div");

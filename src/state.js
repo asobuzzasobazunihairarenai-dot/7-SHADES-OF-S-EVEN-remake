@@ -269,10 +269,22 @@ function reduce(current, action) {
       return { ...current, tokens, piles };
     }
     case "DRAW_FROM_PILE": {
-      const pileArray = current.piles[action.pile];
+      // ユーザー要望「山札がなくなったら、自動でノーシャッフルで捨て場のカードを山札に
+      // します。捨て場の一番上のカードが山札の一番下になります」。山札から引こうとした
+      // 時に山札が空で捨て場に残りがあれば、まず捨て場をそのまま裏向きで山札へ戻す
+      // （ノーシャッフル＝REFILL_DECK_FROM_DISCARDと同じreverse。捨て場をひっくり返す
+      // ので、捨て場の一番上＝一番最近捨てたカードが新しい山札の一番下＝最後に引かれる
+      // カードになる）。この補充を引く処理の中で原子的に行うことで、確認モーダルを
+      // 挟まず自動化でき、通し方（ボタン・救済フォールバック等）を問わず必ず効く。
+      let piles = current.piles;
+      let pileArray = piles[action.pile];
+      if (action.pile === "deck" && pileArray.length === 0 && current.piles.discard.length > 0) {
+        piles = { ...current.piles, deck: [...current.piles.discard].reverse(), discard: [] };
+        pileArray = piles.deck;
+      }
       if (pileArray.length === 0) return current;
       const cardId = pileArray[pileArray.length - 1];
-      const piles = { ...current.piles, [action.pile]: pileArray.slice(0, -1) };
+      piles = { ...piles, [action.pile]: pileArray.slice(0, -1) };
       const faceUp = faceUpForLocation(action.location);
       const newToken = { id: uid("card"), kind: "card", cardId, faceUp, location: action.location };
       if (action.location.zone === "publicDraw") newToken.revealSource = "draw";

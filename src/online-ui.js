@@ -25,6 +25,7 @@ import {
   getDebugLog,
   onRosterChange,
   subscribeToOpenRoomsChanges,
+  getAccountDisplayLabel,
 } from "./online.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { subscribe, getState, isOnlineMode, notifyListeners } from "./state.js";
@@ -447,10 +448,9 @@ function buildRoomRow(room) {
 async function renderRoomChoice(user, myGeneration) {
   const title = document.createElement("div");
   title.style.cssText = "font-weight: bold; margin-bottom: 0.6rem;";
-  // 匿名ログインの場合、user.emailはundefinedではなく空文字列になることがあるため、
-  // ??ではなく||でフォールバックする（??だと""はnullish扱いされず素通りしてしまい、
-  // 「オンライン対戦（）」のように空の括弧が表示されるバグになっていた）。
-  title.textContent = `🌐 オンライン対戦（${user.email || "匿名ユーザー"}）`;
+  // 配信時にメールアドレスが画面に映るのを避けるため、getAccountDisplayLabelで
+  // 名前 or 伏せ字メール（匿名は「ゲスト」）を表示する（ユーザー要望）。
+  title.textContent = `🌐 オンライン対戦（${getAccountDisplayLabel(user)}）`;
   contentEl.appendChild(title);
 
   // 誤って「この部屋を離れる」を押した・ブラウザを閉じて放置した等で今は部屋の外にいるが、

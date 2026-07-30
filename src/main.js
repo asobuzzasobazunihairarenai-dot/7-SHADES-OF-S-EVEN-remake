@@ -568,10 +568,15 @@ function buildPlayerZone(side, player, isSelf) {
     badge.className = "hand-reveal-badge";
     badge.textContent = token.revealSource === "draw" ? "🎴 公開ドロー" : "📣 宣言";
     cardEl.appendChild(badge);
-    const discardBtn = document.createElement("button");
-    discardBtn.className = "hand-reveal-discard-btn";
-    discardBtn.type = "button";
-    discardBtn.textContent = "🗑 捨てる";
+    slot.appendChild(cardEl);
+    // ユーザー要望「自動処理モードでは、公開エリアの捨てるボタンは非表示にする」。
+    // 自動処理モードON中はターン終了時に公開カードが自動的に手札へ合流し捨て場処理も
+    // エンジン側で行うため、手動の捨てるボタンは不要（かつ誤操作の元）。
+    if (!isAutoProcessingEnabled()) {
+      const discardBtn = document.createElement("button");
+      discardBtn.className = "hand-reveal-discard-btn";
+      discardBtn.type = "button";
+      discardBtn.textContent = "🗑 捨てる";
     // ハマりどころ（ユーザー報告「捨てるボタンが押せない」の根本原因）: このボタンは
     // .hand-area/.hand-reveal-area等と同じ深いperspective+rotateXの3D階層の中にあり、
     // 実機で検証したところdocument.elementFromPoint()（単数形、実際のマウス/クリック
@@ -581,9 +586,9 @@ function buildPlayerZone(side, player, isSelf) {
     // カード/駒操作が採用しているのと同じ対策＝ネイティブのclickに頼らず、
     // #game-tableのpointerdownハンドラ側でelementsFromPoint()を使った自前判定
     // （findDiscardButtonAt参照）で拾う方式に統一する。tokenIdだけdatasetに残す。
-    discardBtn.dataset.tokenId = token.id;
-    slot.appendChild(cardEl);
-    slot.appendChild(discardBtn);
+      discardBtn.dataset.tokenId = token.id;
+      slot.appendChild(discardBtn);
+    }
     handRevealEl.appendChild(slot);
   });
 
@@ -2197,10 +2202,21 @@ document.addEventListener(
             // highlight等）をすぐに剥がすため、isMoveTarget/isContactTargetは呼ぶ前に
             // 判定・変数へ保存しておく必要がある（後から判定するとクラスが既に無く
             // なっていて、意図せず「接触」扱いになってしまうバグがあった）。
-            markPhaseMoveActionTaken();
             if (isMoveTarget) {
+              // 移動はこのクリックで確定するので、ここで行動済みにする。
+              markPhaseMoveActionTaken();
               performPhaseMoveToCell(location);
             } else {
+              // ユーザー報告「自動処理モードで、ムーブフェイズで接触しようと相手の駒を
+              // クリックしてそれをキャンセルしたら、ターン終了しちゃいました」。接触は
+              // このクリックの時点ではまだ「申し込みの確認モーダル」を出すだけで確定して
+              // いない（キャンセルできる／相手の承認も要る）。ここで先にmarkPhaseMove
+              // ActionTaken()を呼んでしまうと、moveActionTaken=trueかつpendingContactも
+              // 無い状態になり、computeShouldEmphasize()が「これ以上何も起きない」と誤判定
+              // してreconcileAutoEndTurnが自動でターンを終わらせてしまっていた。行動済みに
+              // するのは実際に接触が成立した時（submitContactProposal内、requestContact成功後）
+              // まで遅らせる。キャンセル時はハイライトも残るので、そのまま別の移動/接触を
+              // やり直せる。
               performPhaseContact(location);
             }
           }
@@ -2487,10 +2503,12 @@ export function performPriorityTimeoutAutoAction() {
       : [];
     const chosen = pickRandomFrom(candidates);
     if (chosen) {
-      markPhaseMoveActionTaken();
       const location = { zone: "cell", row: Number(chosen.el.dataset.row), col: Number(chosen.el.dataset.col) };
-      if (chosen.isMove) performPhaseMoveToCell(location);
-      else performPhaseContact(location);
+      // 接触は成立時（submitContactProposal内）まで行動済みにしない。移動はここで確定。
+      if (chosen.isMove) {
+        markPhaseMoveActionTaken();
+        performPhaseMoveToCell(location);
+      } else performPhaseContact(location);
       return true;
     }
   }
@@ -3809,6 +3827,12 @@ async function submitContactProposal(attacker, defender) {
     } else {
       requestContact(attacker, defender);
     }
+    // 接触が実際に成立した（pendingContactが立った）ので、ここで初めてムーブフェイズの
+    // 「1手」を消費済みにする。クリック/ドラッグ/疑似CPUのどの経路も最終的にここを通る
+    // ため、接触の行動済み化はこの1箇所に集約する（クリック時点で先に消費してしまうと、
+    // 確認モーダルをキャンセルした時にmoveActionTaken=trueのまま自動でターンが終わって
+    // しまう——ユーザー報告への対応）。
+    markPhaseMoveActionTaken();
     render();
     // ユーザー要望（続き76/77）「接触宣言の直後にも割り込みモーダルを出す」。
     fireAnytimeCheckpoint(attacker);
@@ -4236,6 +4260,21 @@ async function respondToContact(approve) {
     }
   }
 
+  // ユーザー報告「接触されてゲートのカードに到達して到達効果処理しないといけないけど、
+  // ターンが切り替わっちゃってる」への対応。defenderの強制移動→ゲート到達効果の解決が
+  // 終わるまで優先権をdefenderへ移すのは従来からの設計だが、以前はその移譲を
+  // タックル演出が終わった後（＝respondContactでpendingContactが既に消えた後）に
+  // 行っていた。そのため、attacker側のクライアントが「pendingContact=null かつ優先権は
+  // まだ自分」という一瞬を掴むと、reconcileAutoEndTurnが「これ以上何も起きない」と誤判定
+  // してdefenderのゲート到達効果を置き去りにしたままターンを終わらせてしまう窓があった。
+  // 優先権をdefenderへ移す処理を、pendingContactを消すrespondContactより前に繰り上げる
+  // ことで、この窓を塞ぐ（優先権の返却は従来通り finishContactResolution が行う）。
+  // ピック選択のキャンセル（上の early return）より後・状態変更より前のこの位置で行う。
+  if (approve && defenderPieceId) {
+    logAction("diag-delegate", { phase: "contact-request", defender, turnPlayer: getState().turnPlayer });
+    transferPriorityTo(defender);
+  }
+
   // タックル演出のため、状態を変える(respondContact)前に「動く前」のDOM情報を確保して
   // おく——stateが変わった瞬間、下の汎用render()リスナー(subscribe)が同期的にDOMを
   // 作り直してしまうため、後から取り直すことができない。「移動アニメーション」設定が
@@ -4352,14 +4391,9 @@ async function respondToContact(approve) {
     // defenderへ一時的に移す（ターンプレイヤーがその間にターン終了ボタンを押して
     // defenderの解決を置き去りにしないよう、updateEndTurnButton側で優先権を
     // 持たないプレイヤーのターン終了ボタンを無効化している）。
-    transferPriorityTo(defender);
-    // ユーザー報告（続き106）「カード効果等で優先権が委任されたまま自動プレイが
-    // 反応せず止まる」の原因調査用。delegateToPlayerForEffectには既存の
-    // "diag-delegate"ログがあるが、この接触経由の優先権委譲（transferPriorityTo
-    // (defender)〜finishContactResolution）には同種のログが無かったため追加する。
-    // "request"が記録されたのに対応する"resolved"が無いまま止まっていれば、
-    // maybeTriggerCardArrival以降のどこかで解決が完了していないことが分かる。
-    logAction("diag-delegate", { phase: "contact-request", defender, turnPlayer: getState().turnPlayer });
+    // ※この優先権の移譲（transferPriorityTo(defender)）と"contact-request"診断ログは、
+    //   pendingContactを消すrespondContactより前（上の「approve && defenderPieceId」ブロック）へ
+    //   繰り上げ済み。ここでは優先権の「返却」(finishContactResolution)だけを行う。
     const finishContactResolution = () => {
       logAction("diag-delegate", { phase: "contact-resolved", defender, returningPriorityTo: getState().turnPlayer });
       showResultModal();
@@ -5442,13 +5476,16 @@ function updatePileTooltip(el, clientX, clientY) {
   tooltip.style.display = "block";
 }
 
-// #card-previewの位置決め。拡大の起点は左下端（＝カーソル付近）に固定し、そこから右上方向へ
-// 広がるようにする。left/bottom（topではなく）で位置決めしているのがポイント：
-// --card-preview-size（管理者モードで調整可能）を変えてもleft/bottomの基準点自体はズレず、
-// 大きさだけが変わる。画面右端・上端をはみ出す場合だけ、表示方向を反転する
-// （盤面奥のカードをホバーすると上端で見切れる、という報告への対応）。
+// #card-previewの位置決め。既定はカーソルの右上方向に広げるが、画面端をはみ出す場合は
+// 表示方向を反転させ、さらに最後にステージ内へクランプする。
+// ユーザー報告「拡大表示が画面の端で見切れるときがある」への対応：以前は右端・上端で
+// 方向を反転するだけだったため、(1)反転後にカーソルが左端寄り/下端寄りだと今度は左端・
+// 下端で見切れる、(2)反転してもパネルがカーソル位置より大きいと反対側にはみ出す、
+// という取りこぼしがあった。left/topを算出したうえで必ずステージ内に収まるよう
+// クランプして、どの端でも見切れないようにする。
 function positionPreviewPanel(panel, clientX, clientY) {
   const offset = 20;
+  const margin = 8;
   const cs = getComputedStyle(panel);
   const panelWidthPx = parseFloat(cs.width);
   const panelHeightPx = parseFloat(cs.height);
@@ -5458,18 +5495,19 @@ function positionPreviewPanel(panel, clientX, clientY) {
   const local = stageClientToLocal(clientX, clientY);
   const { x: clientXLocal, y: clientYLocal } = local;
 
+  // 横: 既定はカーソル右。右端をはみ出すならカーソル左へ。最後にステージ内へクランプ。
   let left = clientXLocal + offset;
   if (left + panelWidthPx > STAGE_WIDTH) left = clientXLocal - offset - panelWidthPx;
-  panel.style.left = `${left}px`;
+  left = Math.max(margin, Math.min(left, STAGE_WIDTH - panelWidthPx - margin));
 
-  if (clientYLocal - offset - panelHeightPx < 0) {
-    // 上方向に広げると画面上端をはみ出す→カーソルの下方向に広げる
-    panel.style.top = `${clientYLocal + offset}px`;
-    panel.style.bottom = "";
-  } else {
-    panel.style.bottom = `${STAGE_HEIGHT - clientYLocal + offset}px`;
-    panel.style.top = "";
-  }
+  // 縦: 既定はカーソル上方向へ広げる。上端をはみ出すなら下方向へ。最後にステージ内へクランプ。
+  let top = clientYLocal - offset - panelHeightPx;
+  if (top < 0) top = clientYLocal + offset;
+  top = Math.max(margin, Math.min(top, STAGE_HEIGHT - panelHeightPx - margin));
+
+  panel.style.left = `${left}px`;
+  panel.style.top = `${top}px`;
+  panel.style.bottom = "";
 }
 
 function updatePreview(el, clientX, clientY) {
@@ -6140,10 +6178,10 @@ function startTokenDrag(e, tokenId, kind, sourceEl) {
 function startPileDrag(e, pileKey) {
   const pileArray = getState().piles[pileKey];
   if (pileArray.length === 0) {
-    // 「1枚ドロー」ボタンはensureDeckAvailable()経由で山札切れ時に補充確認モーダルを出すが、
-    // 山札を直接ドラッグして引こうとした時はこのガードで即座に抜けるだけで、モーダルが
-    // 一切出ないまま「掴んでも何も起きない」だけの挙動になっていた（ユーザー報告のバグ）。
-    // 山札(deck)が対象の時だけ、ここでも同じ補充確認を出す（捨て場も空なら何もしない）。
+    // 山札が空の時に直接ドラッグしようとした場合、このガードで即座に抜けてしまう。
+    // 山札(deck)が対象の時だけ、ここでもensureDeckAvailable()を呼んで捨て場からの
+    // 自動補充（ノーシャッフル）を走らせる（捨て場も空なら何もしない）。補充後にもう一度
+    // ドラッグすれば引ける。
     if (pileKey === "deck") ensureDeckAvailable(() => {});
     return;
   }
@@ -7419,34 +7457,6 @@ function computeShouldEmphasize() {
   return result;
 }
 
-// OKボタン1つだけのシンプルな確認モーダル（山札切れの補充確認に使う）。ゲームの状態に
-// 関わる必須の確認のため、✕ボタンや外側クリックでは閉じられないようにしてある
-// （他のパネル/モーダルの「✕＋外クリックで閉じる」統一ルールの、意図的な例外）。
-function showConfirmModal(title, text, onOk) {
-  const modal = document.createElement("div");
-  modal.id = "confirm-modal";
-  const backdrop = createBackdrop(() => {}, { dim: true, zIndex: 10001 });
-  const titleEl = document.createElement("div");
-  titleEl.className = "confirm-modal-title";
-  titleEl.textContent = title;
-  const bodyEl = document.createElement("div");
-  bodyEl.className = "confirm-modal-body";
-  bodyEl.textContent = text;
-  const okBtn = document.createElement("button");
-  okBtn.textContent = "OK";
-  okBtn.className = "confirm-modal-ok";
-  okBtn.addEventListener("click", () => {
-    backdrop.remove();
-    modal.remove();
-    onOk();
-  });
-  modal.appendChild(titleEl);
-  modal.appendChild(bodyEl);
-  modal.appendChild(okBtn);
-  document.body.appendChild(backdrop);
-  document.body.appendChild(modal);
-}
-
 // 山札が空の状態で引こうとした時のルール（docs/rulebook.md「こんな時は」）:
 // 「捨て場のカードをそのまま裏向きにして山札とする。シャッフルはしない。」
 // 山札に残りがあれば何もせずすぐにonReady()を呼ぶ。空でも捨て場が空ならこれ以上引ける
@@ -7454,26 +7464,25 @@ function showConfirmModal(title, text, onOk) {
 // 空振りするだけで安全なため）。
 function ensureDeckAvailable(onReady) {
   const state = getState();
+  // 山札に残りがある／捨て場も空でこれ以上補充できない場合は、そのまま引きに行く。
   if (state.piles.deck.length > 0 || state.piles.discard.length === 0) {
     onReady();
     return;
   }
-  // REFILL_DECK_FROM_DISCARDはオンライン対戦（第一弾）にまだポートしていないため、
-  // オンライン中はこの自動補充を行わない（山が本当に空ならサーバー側のDRAW_FROM_PILEが
-  // 何もせず返してくるだけ）。
+  // オンライン中はサーバー側のDRAW_FROM_PILE（so7-apply-action.ts）が引く直前に捨て場から
+  // 自動補充するため、ここでは何もせずそのまま引きに行く（山の中身はサーバーにしか無く
+  // 先読みもできないので、クライアント側での事前補充は不要）。
   if (isOnlineMode()) {
     onReady();
     return;
   }
-  showConfirmModal(
-    "山札が空になりました",
-    "捨て場のカードをノーシャッフルで山札にします。",
-    () => {
-      refillDeckFromDiscard();
-      render();
-      onReady();
-    }
-  );
+  // ローカル: ユーザー要望「山札がなくなったら、自動でノーシャッフルで捨て場のカードを
+  // 山札にします」。以前は確認モーダルを出していたが、確認を挟まず自動で補充する。
+  // 引く処理（onReady内）が山札の一番上を先読みしてから引くため、先にここで補充しておく。
+  // 実際の並べ替え（ノーシャッフル＝捨て場をひっくり返す）はREFILL_DECK_FROM_DISCARD側。
+  refillDeckFromDiscard();
+  render();
+  onReady();
 }
 
 // --- 「盤面拡大」ボタン ----------------------------------------------------------

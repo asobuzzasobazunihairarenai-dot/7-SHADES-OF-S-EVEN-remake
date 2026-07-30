@@ -571,6 +571,23 @@ export function getGoogleAvatarUrl() {
 export function getGoogleDisplayName() {
   return cachedUser?.user_metadata?.full_name ?? cachedUser?.user_metadata?.name ?? null;
 }
+
+// ユーザー要望「配信時にメールアドレスが画面に映るのが気になる（タイトルのログイン欄・
+// 部屋作成欄）」。ログイン中の表示は、メールアドレスをそのまま出さず、名前があれば名前、
+// 無ければメールを伏せ字化（a***@example.com）、匿名は「ゲスト」にする。
+export function getAccountDisplayLabel(user) {
+  if (!user) return "";
+  if (user.is_anonymous) return "ゲスト";
+  const name = user.user_metadata?.full_name ?? user.user_metadata?.name;
+  if (name) return name;
+  const email = user.email;
+  if (email && email.includes("@")) {
+    const [local, domain] = email.split("@");
+    const maskedLocal = local.length <= 1 ? "*" : `${local[0]}***`;
+    return `${maskedLocal}@${domain}`;
+  }
+  return "ログイン中";
+}
 if (client) {
   client.auth.onAuthStateChange((_event, session) => {
     const wasLoggedIn = !!cachedUser;

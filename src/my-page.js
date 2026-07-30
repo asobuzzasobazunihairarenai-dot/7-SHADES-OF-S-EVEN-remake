@@ -4,7 +4,7 @@
 // クリックで開く（main.js側で配線）。
 
 import { getCurrentUser, getSelfSeat, syncMyStatsProfile } from "./online.js";
-import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
+import { getPlayerName, getPlayerAvatar, setPlayerName } from "./player-identity.js";
 import { fetchStatsProfile } from "./stats-profile.js";
 import { openStatsPlayerLinkModal } from "./stats-player-link.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
@@ -92,6 +92,74 @@ function buildStatsSyncRow(seat) {
   return wrap;
 }
 
+// ユーザー要望「マイページでも名前を変えれるようにしてください」。buildStatRowと同じ
+// 見た目だが、値の右側に「✎」ボタンを置き、押すとその場で入力欄＋保存/キャンセルに
+// 切り替わる。保存時はsetPlayerName（=ローカル更新＋online.jsのupdateMyIdentity経由で
+// サーバーの座席ロスターへも反映）を呼ぶ。戦績システムへの反映は下部の同期ボタンの担当。
+function buildEditableNameRow(seat) {
+  const row = document.createElement("div");
+  row.style.cssText = "display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.3rem 0; border-bottom: 1px solid rgba(148, 163, 184, 0.12); font-size: 0.85rem;";
+
+  const labelEl = document.createElement("span");
+  labelEl.textContent = "プレイヤー名";
+  labelEl.style.cssText = "color: #94a3b8; flex: 0 0 auto;";
+  row.appendChild(labelEl);
+
+  const valueWrap = document.createElement("div");
+  valueWrap.style.cssText = "display: flex; align-items: center; gap: 0.4rem; flex: 1 1 auto; justify-content: flex-end; min-width: 0;";
+  row.appendChild(valueWrap);
+
+  function renderView() {
+    valueWrap.innerHTML = "";
+    const nameEl = document.createElement("span");
+    nameEl.textContent = getPlayerName(seat);
+    nameEl.style.cssText = "font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;";
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.textContent = "✎ 変更";
+    editBtn.style.cssText = "flex: 0 0 auto; padding: 0.15rem 0.5rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(148,163,184,0.3); border-radius: 0.3rem; color: #e2e8f0; cursor: pointer; font-size: 0.72rem;";
+    editBtn.addEventListener("click", renderEdit);
+    valueWrap.appendChild(nameEl);
+    valueWrap.appendChild(editBtn);
+  }
+
+  function renderEdit() {
+    valueWrap.innerHTML = "";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.maxLength = 20;
+    input.value = getPlayerName(seat);
+    input.style.cssText = "flex: 1 1 auto; min-width: 0; padding: 0.2rem 0.4rem; background: rgba(0,0,0,0.35); border: 1px solid rgba(148,163,184,0.4); border-radius: 0.3rem; color: #e2e8f0; font-size: 0.85rem;";
+    const saveBtn = document.createElement("button");
+    saveBtn.type = "button";
+    saveBtn.textContent = "保存";
+    saveBtn.style.cssText = "flex: 0 0 auto; padding: 0.2rem 0.6rem; background: #be185d; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.75rem;";
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.textContent = "取消";
+    cancelBtn.style.cssText = "flex: 0 0 auto; padding: 0.2rem 0.5rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(148,163,184,0.3); border-radius: 0.3rem; color: #e2e8f0; cursor: pointer; font-size: 0.75rem;";
+    const save = () => {
+      const next = input.value.trim();
+      if (next) setPlayerName(seat, next);
+      renderView();
+    };
+    saveBtn.addEventListener("click", save);
+    cancelBtn.addEventListener("click", renderView);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") save();
+      else if (e.key === "Escape") renderView();
+    });
+    valueWrap.appendChild(input);
+    valueWrap.appendChild(saveBtn);
+    valueWrap.appendChild(cancelBtn);
+    input.focus();
+    input.select();
+  }
+
+  renderView();
+  return row;
+}
+
 function buildStatRow(label, value) {
   const row = document.createElement("div");
   row.style.cssText = "display: flex; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid rgba(148, 163, 184, 0.12); font-size: 0.85rem;";
@@ -155,7 +223,7 @@ export async function renderMyPageBody(body, close) {
   avatarWrap.appendChild(changeBtn);
   body.appendChild(avatarWrap);
 
-  body.appendChild(buildStatRow("プレイヤー名", getPlayerName(seat)));
+  body.appendChild(buildEditableNameRow(seat));
 
   const statusEl = document.createElement("div");
   statusEl.textContent = "戦績を読み込み中…";
