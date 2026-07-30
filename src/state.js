@@ -508,10 +508,11 @@ function reduce(current, action) {
         // ファーストカード」を表向きでロックした状態で開始する。7色勝利のカウントに含まれる
         // （victory.jsは色スロット基準で数え、無色以外なら数えるため、これらは各スロットの色
         // として数えられる）。基本効果「他のカードの効果の対象にならない」はidが"first-"始まりで
-        // 自動的に満たす。端の色（赤=0/紫=6）は片側に隣が無いので、盤内の隣だけロックする。
+        // 自動的に満たす。両端は色相環でラップアラウンドさせる（ユーザー指定: 赤なら橙と紫、
+        // 紫なら赤と桃）——常に左右2枚ロックする。
         if (action.boost) {
-          for (const nb of [colorIndex - 1, colorIndex + 1]) {
-            if (nb < 0 || nb >= COLORS.length) continue;
+          const n = COLORS.length;
+          for (const nb of [(colorIndex - 1 + n) % n, (colorIndex + 1) % n]) {
             newTokens.push({
               id: uid("card"),
               kind: "card",

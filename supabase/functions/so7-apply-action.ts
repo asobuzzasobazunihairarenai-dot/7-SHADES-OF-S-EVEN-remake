@@ -404,8 +404,9 @@ function reduce(current: GameState, action: any): GameState {
           location: { zone: "cell", ...GATE_POSITIONS[side] },
         });
         if (boost) {
-          for (const nb of [colorIndex - 1, colorIndex + 1]) {
-            if (nb < 0 || nb >= COLORS.length) continue;
+          // 両端は色相環でラップアラウンド（赤なら橙と紫、紫なら赤と桃）。常に左右2枚ロック。
+          const n = COLORS.length;
+          for (const nb of [(colorIndex - 1 + n) % n, (colorIndex + 1) % n]) {
             newTokens.push({
               id: uid("card"),
               kind: "card",
