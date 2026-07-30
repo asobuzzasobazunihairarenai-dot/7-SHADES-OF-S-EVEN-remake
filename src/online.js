@@ -1744,6 +1744,51 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat, feedba
   if (guestNames.length > 0) matchRow.guest_names = guestNames;
   const { error: matchError } = await client.from("matches").insert(matchRow);
   if (matchError) throw matchError;
+  // ユーザー要望「対戦終了時、勝者だけでなく参加者全員がコメントできるように」。試合行を
+  // 作るのは勝者のクライアントだけなので、作成した試合IDを全参加者へ知らせ、各自が
+  // match_feedback_repliesへ自分のコメントを紐づけられるようにする（post-game-panel.js
+  // ／submitMatchComment参照）。戻り値でも返す（勝者自身のコメント投稿に使う）。
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "match_recorded", payload: { matchId: matchRow.id } });
+  }
+  return matchRow.id;
+}
+
+// 対戦終了パネル（post-game-panel.js）から、参加者各自が自分のコメントを投稿する。試合への
+// 返信(match_feedback_replies)として、自分の戦績プレイヤーIDに紐づけて保存する（ゲストは
+// player_id=null＝戦績システム側で「ゲスト」表示）。matchIdは勝者が作成しブロードキャスト
+// したもの（onMatchRecordedEvents）。
+export async function submitMatchComment(matchId, comment) {
+  if (!client || !matchId) return;
+  const text = (comment || "").trim();
+  if (!text) return;
+  let playerId = null;
+  if (cachedUser && !cachedUser.is_anonymous) {
+    try {
+      const { data } = await client.from("players").select("id").eq("user_id", cachedUser.id).maybeSingle();
+      playerId = data?.id ?? null;
+    } catch (err) {
+      playerId = null;
+    }
+  }
+  const { error } = await client.from("match_feedback_replies").insert({
+    id: `r_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    match_id: matchId,
+    player_id: playerId,
+    comment: text,
+    created_at: Date.now(),
+  });
+  if (error) throw error;
+}
+
+// 勝者が試合を記録して作成した試合IDの通知（match_recorded）。敗者側は自分のコメントを
+// この試合IDに紐づけるために待ち受ける。
+let matchRecordedListeners = [];
+export function onMatchRecordedEvents(fn) {
+  matchRecordedListeners.push(fn);
+  return () => {
+    matchRecordedListeners = matchRecordedListeners.filter((f) => f !== fn);
+  };
 }
 
 // ユーザー要望「オンラインで部屋を作ったら、入室してきた相手がCBDの順に（＝2人だけなら
@@ -2091,6 +2136,9 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // 対局内スタッツ（接触回数・カード使用枚数）の通知（broadcastMatchStatEvent参照）。
     .on("broadcast", { event: "match_stat" }, ({ payload }) => {
       for (const fn of matchStatEventListeners) fn(payload);
+    })
+    .on("broadcast", { event: "match_recorded" }, ({ payload }) => {
+      for (const fn of matchRecordedListeners) fn(payload);
     })
     .on("broadcast", { event: "colors_resolved" }, () => {
       for (const fn of colorsResolvedEventListeners) fn();

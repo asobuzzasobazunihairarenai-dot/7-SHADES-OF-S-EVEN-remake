@@ -225,8 +225,9 @@ export function initGameBgmAutoStart() {
 // マスター音量（0〜1）。オプションメニューの「基本設定」から調整できる（効果音のみ、
 // BGMはmasterBgmVolume参照）。ユーザー要望「BGMと効果音の初期音量を50%にしてほしい」
 // への対応でデフォルトを0.5にした（効果音は毎回new Audio()で鳴らす時に参照するため、
-// この値を変えるだけで次に鳴る音から反映される）。
-let masterVolume = 0.5;
+// この値を変えるだけで次に鳴る音から反映される）。ユーザー要望（2026-07-30）でデフォルトを
+// 0.3（30%）に変更（保存済み設定がある人はそちらが優先されるため、新規/未設定ユーザー向け）。
+let masterVolume = 0.3;
 
 export function getSoundVolume() {
   return masterVolume;
@@ -242,8 +243,9 @@ export function setSoundVolume(next) {
 // （各playXBgm()参照）。管理者モードの「効果音の音量（個別）」にある4つの個別BGM
 // スライダー（--sound-volume-*-bgm）は、このマスター値に対する相対的な微調整として
 // そのまま残す（効果音の個別スライダーと同じ「マスター×個別」の二段構え）。
-// デフォルトはユーザー要望により0.5（初期音量50%）。
-let masterBgmVolume = 0.5;
+// デフォルトはユーザー要望（2026-07-30）により0.3（初期音量30%）。保存済み設定がある人は
+// そちらが優先される（新規/未設定ユーザー向けの初期値）。
+let masterBgmVolume = 0.3;
 
 export function getBgmVolume() {
   return masterBgmVolume;

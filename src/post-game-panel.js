@@ -20,6 +20,8 @@ import {
   getCurrentGameId,
   getCurrentUser,
   submitStatsMatchResult,
+  submitMatchComment,
+  onMatchRecordedEvents,
   setRematchReady,
   maybeTriggerRematch,
   leaveGame,
@@ -45,6 +47,7 @@ let panelEl = null;
 let backdropEl = null;
 let pollTimerId = null;
 let unsubscribeStateWatch = null;
+let unsubscribeMatchRecorded = null; // 敗者側で試合IDのブロードキャストを待ち受けている間の解除関数
 
 function stopPolling() {
   if (pollTimerId) {
@@ -58,6 +61,10 @@ function closePanel() {
   if (unsubscribeStateWatch) {
     unsubscribeStateWatch();
     unsubscribeStateWatch = null;
+  }
+  if (unsubscribeMatchRecorded) {
+    unsubscribeMatchRecorded();
+    unsubscribeMatchRecorded = null;
   }
   backdropEl?.remove();
   panelEl?.remove();
@@ -142,11 +149,28 @@ function buildButtonsSection(gameId) {
   return col;
 }
 
-function buildCommentSection(activePlayers, winnerSeat, onDone) {
+// getterがtruthyを返すまで（または timeout まで）待つ。勝者が試合を作成し、そのIDが
+// ブロードキャストで届くまでのわずかな時間、敗者側のコメント送信を待たせるために使う。
+function waitForMatchId(getter, timeoutMs = 8000) {
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const check = () => {
+      const v = getter();
+      if (v) return resolve(v);
+      if (Date.now() - start > timeoutMs) return resolve(null);
+      setTimeout(check, 200);
+    };
+    check();
+  });
+}
+
+// 全参加者共通のコメント入力欄（案①：勝者・敗者を区別せず全員がコメントできる）。
+// onFinish(comment)には入力文字列（パス時は空文字）が渡る。
+function buildCommentSection(onFinish) {
   const wrap = document.createElement("div");
 
   const label = document.createElement("div");
-  label.textContent = "戦績システムにゲームのコメントを記入する（任意・パスできます）";
+  label.textContent = "この対戦のコメントを記入する（任意・パスできます）";
   label.style.cssText = "font-size: 0.85rem; margin-bottom: 0.5rem; line-height: 1.5;";
   wrap.appendChild(label);
 
@@ -181,13 +205,13 @@ function buildCommentSection(activePlayers, winnerSeat, onDone) {
   `;
 
   let done = false;
-  function finish(feedback) {
+  function finish(comment) {
     if (done) return;
     done = true;
     submitBtn.disabled = true;
     passBtn.disabled = true;
-    submitBtn.textContent = "登録中…";
-    onDone(feedback);
+    submitBtn.textContent = comment ? "送信中…" : "…";
+    onFinish(comment);
   }
   submitBtn.addEventListener("click", () => finish(textarea.value.trim()));
   passBtn.addEventListener("click", () => finish(""));
@@ -223,13 +247,15 @@ export function showPostGamePanel({ activePlayers, winnerSeat }) {
     body.appendChild(buildButtonsSection(gameId));
   }
 
-  if (getSelfSeat() === winnerSeat) {
-    // ユーザー要望「勝利時ランクアップした場合に何かモーダル出したい」への対応。
-    // 対戦記録(matches行)は承認待ちの状態で登録され、承認されるまでは戦績システム
-    // 側のmatchesCountは実際には増えない。承認を待ってから通知しても間に合わない
-    // （数分〜数日後、プレイヤーはもう見ていない可能性が高い）ため、パネルを開いた
-    // 時点の「対戦前」の対戦数を先に取得しておき、対戦記録が承認された場合の
-    // 見込み（対戦前+1）で楽観的にランクアップを判定する（rank-up-modal.js参照）。
+  // ユーザー要望「対戦終了時、勝者だけでなく参加者全員がコメントできるように」（案①）。
+  // 試合行(matches)を作るのは勝者のクライアントだけなので、作成された試合ID(matchId)を
+  // 取得してから、各参加者が自分のコメントをその試合に紐づけて投稿する。
+  const isWinner = getSelfSeat() === winnerSeat;
+  let matchId = null;
+
+  if (isWinner) {
+    // ユーザー要望「勝利時ランクアップした場合に何かモーダル出したい」。対戦前の対戦数を
+    // 先に取得し、承認見込み（+1）で楽観的にランクアップ判定する（rank-up-modal.js参照）。
     const beforeRankProfilePromise = (async () => {
       try {
         const user = await getCurrentUser();
@@ -240,30 +266,53 @@ export function showPostGamePanel({ activePlayers, winnerSeat }) {
         return null;
       }
     })();
-
-    body.appendChild(
-      buildCommentSection(activePlayers, winnerSeat, (feedback) => {
-        submitStatsMatchResult({ activePlayers, winnerSeat, feedback })
-          .catch((err) => console.error("submitStatsMatchResult failed", err))
-          .finally(async () => {
-            showButtons();
-            try {
-              const before = await beforeRankProfilePromise;
-              if (before?.linked && before.tier.label !== "カスタムカラー") {
-                const afterTier = getTierInfo(before.matchesCount + 1);
-                if (afterTier.label !== before.tier.label) {
-                  showRankUpModal({ fromTier: before.tier, toTier: afterTier });
-                }
-              }
-            } catch (err) {
-              console.error("rank-up check failed", err);
-            }
-          });
+    // 勝者は試合を記録する（コメントはfeedbackへ入れず、下で全員と同じくreplyとして投稿）。
+    // 戻り値の試合IDを保持し、他の参加者へはsubmitStatsMatchResult内でブロードキャストする。
+    submitStatsMatchResult({ activePlayers, winnerSeat, feedback: "" })
+      .then((id) => {
+        matchId = id || null;
       })
-    );
+      .catch((err) => console.error("submitStatsMatchResult failed", err))
+      .finally(async () => {
+        try {
+          const before = await beforeRankProfilePromise;
+          if (before?.linked && before.tier.label !== "カスタムカラー") {
+            const afterTier = getTierInfo(before.matchesCount + 1);
+            if (afterTier.label !== before.tier.label) {
+              showRankUpModal({ fromTier: before.tier, toTier: afterTier });
+            }
+          }
+        } catch (err) {
+          console.error("rank-up check failed", err);
+        }
+      });
   } else {
-    showButtons();
+    // 敗者は、勝者が作成・ブロードキャストした試合IDを待ち受ける。
+    unsubscribeMatchRecorded = onMatchRecordedEvents((payload) => {
+      if (payload?.matchId) matchId = payload.matchId;
+    });
   }
+
+  // 全員にコメント欄を表示。送信時、試合IDがまだ届いていなければ少し待ってから投稿する。
+  body.appendChild(
+    buildCommentSection(async (comment) => {
+      if (comment) {
+        const id = await waitForMatchId(() => matchId);
+        if (id) {
+          try {
+            await submitMatchComment(id, comment);
+          } catch (err) {
+            console.error("submitMatchComment failed", err);
+          }
+        }
+      }
+      if (unsubscribeMatchRecorded) {
+        unsubscribeMatchRecorded();
+        unsubscribeMatchRecorded = null;
+      }
+      showButtons();
+    })
+  );
 
   document.body.appendChild(backdropEl);
   document.body.appendChild(panelEl);
