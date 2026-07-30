@@ -1713,20 +1713,37 @@ export async function uploadAvatarImage(blob) {
 // 呼び出し元に委ねる設計にはせず、単純にfeedbackが決まってから呼んでもらう形にした
 // ——同時に2回submitStatsMatchResultが走ることは無い前提のため、シンプルさを優先）。
 export async function submitStatsMatchResult({ activePlayers, winnerSeat, feedback }) {
-  if (!client || !currentGameId) return;
+  // 一時的な調査用ログ（[stats-debug]）: ユーザー報告「戦績システムに戦績が反映されない」。
+  // DB上、source:"digital"の試合が1件も無い＝この関数が挿入まで到達していない疑い。どの
+  // 早期returnで抜けているか／挿入でエラーが出ているかを勝者のコンソールで特定する。
+  console.log("[stats-debug] submitStatsMatchResult 開始", { activePlayers, winnerSeat, hasClient: !!client, currentGameId });
+  if (!client || !currentGameId) {
+    console.warn("[stats-debug] 中断: clientまたはcurrentGameIdが無い", { hasClient: !!client, currentGameId });
+    return;
+  }
   const { data: gameRow, error: gameError } = await client
     .from("so7_games")
     .select("created_at")
     .eq("id", currentGameId)
     .maybeSingle();
-  if (gameError) throw gameError;
-  if (!gameRow) return;
+  if (gameError) {
+    console.error("[stats-debug] 中断: so7_games取得エラー", gameError);
+    throw gameError;
+  }
+  if (!gameRow) {
+    console.warn("[stats-debug] 中断: so7_gamesの行が見つからない（currentGameId）", currentGameId);
+    return;
+  }
 
   const memberIds = [];
   const guestNames = [];
   let winnerId = null;
   // 先に全座席のゲスト判定をまとめて取る（ゲストはプレイヤー登録せず、名前だけguest_namesへ）。
   const guestUserIds = await fetchGuestUserIds(activePlayers.map((s) => getSyncedIdentity(s)?.userId));
+  console.log(
+    "[stats-debug] 座席の同期ID",
+    activePlayers.map((s) => ({ seat: s, userId: getSyncedIdentity(s)?.userId ?? null, isGuest: guestUserIds.has(getSyncedIdentity(s)?.userId) }))
+  );
   for (const seat of activePlayers) {
     const identity = getSyncedIdentity(seat);
     if (!identity?.userId) continue; // 座席にログインユーザーが紐づいていない（通常は起こらない）
@@ -1749,7 +1766,10 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat, feedba
   }
   // 実プレイヤーが1人もいない（全員ゲスト）試合は戦績に記録しない。勝者がゲストの場合は
   // winnerIdがnullのまま記録する（実プレイヤーは参加＝対戦数に入るが、勝ちは誰にも付かない）。
-  if (memberIds.length === 0) return;
+  if (memberIds.length === 0) {
+    console.warn("[stats-debug] 中断: 実プレイヤーが0人（全員ゲスト扱い or userId無し）", { guestNames });
+    return;
+  }
 
   const durationMinutes = Math.max(1, Math.round((Date.now() - new Date(gameRow.created_at).getTime()) / 60000));
   // 以前はDOMを実際にスクリーンショットしていたため、最後のロックの視覚的な演出
@@ -1777,8 +1797,13 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat, feedba
   // guest_names列を参照しないため、列追加SQLをまだ実行していない環境でも記録が壊れない
   // （ゲスト入りの試合だけは列が無いとinsertに失敗するが、SQL実行後は問題なくなる）。
   if (guestNames.length > 0) matchRow.guest_names = guestNames;
+  console.log("[stats-debug] matches へinsert試行", matchRow);
   const { error: matchError } = await client.from("matches").insert(matchRow);
-  if (matchError) throw matchError;
+  if (matchError) {
+    console.error("[stats-debug] 中断: matches insertエラー（RLS/制約の可能性）", matchError);
+    throw matchError;
+  }
+  console.log("[stats-debug] matches insert成功", matchRow.id);
   // ユーザー要望「対戦終了時、勝者だけでなく参加者全員がコメントできるように」。試合行を
   // 作るのは勝者のクライアントだけなので、作成した試合IDを全参加者へ知らせ、各自が
   // match_feedback_repliesへ自分のコメントを紐づけられるようにする（post-game-panel.js
