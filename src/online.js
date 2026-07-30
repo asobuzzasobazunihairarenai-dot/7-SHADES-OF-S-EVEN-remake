@@ -392,6 +392,24 @@ export function broadcastEffectReason(payload) {
   }
 }
 
+// ユーザー要望「今相手が何のフェイズかをフェイズ案内板でわかるようにしたい」。フェイズの
+// 進行状態（ロック/ハンド/ムーブ）は各クライアントのphase-automation.jsが自分の手番の
+// 間だけローカルに持つもので共有ゲーム状態には無いため、hand_effect_useと同じ「状態は
+// 一切変えない見た目だけの合図」パターンで、手番プレイヤーが自分のフェイズが変わるたびに
+// {player, phase} を全員へ中継する（phaseがnullならそのプレイヤーのフェイズ表示を消す）。
+let phaseChangeEventListeners = [];
+export function onPhaseChangeEvents(fn) {
+  phaseChangeEventListeners.push(fn);
+  return () => {
+    phaseChangeEventListeners = phaseChangeEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastPhaseChange(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "phase_change", payload });
+  }
+}
+
 // ザ・ギャンブル・試練の儀式の色宣言を全員に見える化する合図（続き62、ユーザー要望
 // 「色宣言するとき相手が何色を宣言したかを見える化したい」）。hand_effect_useと同じ
 // 「状態は一切変えない見た目だけの合図」パターン。
@@ -2145,6 +2163,10 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // 効果の結果理由モーダルの通知（broadcastEffectReason参照）。
     .on("broadcast", { event: "effect_reason" }, ({ payload }) => {
       for (const fn of effectReasonEventListeners) fn(payload);
+    })
+    // 相手のフェイズ表示の通知（broadcastPhaseChange参照）。
+    .on("broadcast", { event: "phase_change" }, ({ payload }) => {
+      for (const fn of phaseChangeEventListeners) fn(payload);
     })
     // 色宣言の通知（broadcastColorsDeclared参照）。
     .on("broadcast", { event: "colors_declared" }, ({ payload }) => {

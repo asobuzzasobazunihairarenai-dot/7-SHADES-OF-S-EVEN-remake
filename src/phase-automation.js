@@ -13,7 +13,7 @@
 // 「register helper」注入パターンで main.js から渡してもらう（循環import回避）。
 
 import { getState, isOnlineMode, drawFromPile, flipToken, nextTurn, setPriorityState } from "./state.js";
-import { getSelfSeat, getCurrentGameId, fetchAndHydrate, getSyncedTimerConfig } from "./online.js";
+import { getSelfSeat, getCurrentGameId, fetchAndHydrate, getSyncedTimerConfig, broadcastPhaseChange, onPhaseChangeEvents } from "./online.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
 import {
   isAutoProcessingEnabled,
@@ -58,6 +58,33 @@ export function registerPhaseAutomationHelpers({ render, findTopCardAt }) {
 export const PHASES = ["lock", "hand", "move"];
 const PHASE_LABEL = { lock: "LOCK", hand: "HAND", move: "MOVE" };
 const PHASE_KATAKANA = { lock: "ロック", hand: "ハンド", move: "ムーブ" };
+
+// ユーザー要望「今相手が何のフェイズかをフェイズ案内板でわかるようにしたい」。
+// 自分のフェイズ（currentPhase）は自分の手番の間しか動かない（reconcilePhaseAutomationの
+// shouldBeActive参照）ため、他プレイヤーの手番中は案内板に何も光らない。手番プレイヤーが
+// 自分のフェイズが変わるたびにonline.jsのbroadcastPhaseChangeで{player, phase}を全員へ
+// 中継し、受け取った側は「その人が今の手番プレイヤーなら」案内板をそのフェイズで光らせる。
+// remotePhaseは直近に受け取った他プレイヤーのフェイズ（1手番に1人しか手番は無いので
+// 単一の{player, phase}で足りる。phase=nullなら消灯）。
+let remotePhase = null;
+function broadcastMyPhase() {
+  if (isOnlineMode()) broadcastPhaseChange({ player: getSelfSeat(), phase: currentPhase });
+}
+// 案内板・ターン表示に実際に反映すべきフェイズ（自分の手番なら自分のcurrentPhase、相手の
+// 手番なら中継で受け取ったremotePhase）。
+function getDisplayedPhase() {
+  const turnPlayer = getState().turnPlayer;
+  if (!turnPlayer) return null;
+  if (turnPlayer === getSelfSeat()) return currentPhase;
+  if (remotePhase && remotePhase.player === turnPlayer) return remotePhase.phase;
+  return null;
+}
+onPhaseChangeEvents((payload) => {
+  if (!payload || payload.player === getSelfSeat()) return; // 自分の中継は無視（自分はcurrentPhaseで表示）
+  remotePhase = payload.phase ? { player: payload.player, phase: payload.phase } : null;
+  updatePhaseGuideGlow();
+  updateSkipButtonVisibility();
+});
 
 let currentPhase = null; // null | "lock" | "hand" | "move"
 let lockCountAtPhaseStart = 0;
@@ -356,9 +383,10 @@ function announcePhase(phase) {
 
 // --- UI: フェイズ案内板（phase-guide.js）のボタンを、今のフェイズだけ光らせる ---------
 function updatePhaseGuideGlow() {
+  const shown = getDisplayedPhase();
   for (const p of PHASES) {
     const btn = document.getElementById(`phase-guide-${p}-button`);
-    if (btn) btn.classList.toggle("is-current-phase", p === currentPhase);
+    if (btn) btn.classList.toggle("is-current-phase", p === shown);
   }
 }
 
@@ -443,6 +471,14 @@ function updateSkipButtonVisibility() {
   } else {
     statusEl.style.display = "block";
     let text = state.turnPlayer === getSelfSeat() ? "自分のターンです" : "相手のターンです";
+    // ユーザー要望「今相手が何のフェイズかをフェイズ案内板でわかるようにしたい」。案内板の
+    // ボタン発光（updatePhaseGuideGlow）に加え、相手の手番中はこのターン表示にも相手の
+    // 現在フェイズ名を添える（中継で受け取ったremotePhaseベース。まだ届いていなければ何も
+    // 添えない）。
+    if (state.turnPlayer !== getSelfSeat()) {
+      const shown = getDisplayedPhase();
+      if (shown) text += `（${PHASE_KATAKANA[shown]}フェイズ）`;
+    }
     // ユーザー要望（続き92）「優先権譲渡アイコンの表示は自動処理モードでは非表示でいいと
     // 思います。その代わり優先権が相手にある間はその旨を右下の『自分のターン相手の
     // ターン』表示のところに表示した方が良い気がします」。優先権譲渡アイコン
@@ -490,6 +526,7 @@ function enterPhase(phase, player) {
 
   announcePhase(phase);
   updatePhaseGuideGlow();
+  broadcastMyPhase(); // 相手の案内板にも自分のフェイズを反映（オンライン時のみ）
   updateSkipButtonVisibility();
   if (phase === "lock") updateLockPhaseHandHighlight(player);
   else clearLockHandHighlight();
@@ -513,6 +550,7 @@ export function forceEndCurrentPhase() {
 function clearPhase() {
   if (currentPhase === null) return;
   currentPhase = null;
+  broadcastMyPhase(); // 自分のフェイズが終わった（＝手番が移る）ことを相手の案内板へも反映
   updatePhaseGuideGlow();
   updateSkipButtonVisibility();
   clearMovableHighlights();
