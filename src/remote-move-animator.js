@@ -105,6 +105,11 @@ function getGhostImagePath(token) {
 // （first-/eternal-/それ以外→山札）。セル行きの裏向き新規出現は出どころを特定できないため
 // この関数は呼ばない。
 function getOriginPileRect(cardId) {
+  // cardIdが不明（オンラインでマスクされている等）の場合は出どころの山を推定できないため、
+  // 飛翔演出をスキップする（nullを返す。呼び出し元は山の要素が見つからない時と同じ扱いで
+  // フォールバックする）。以前はcardId.startsWithでnull参照エラー（Uncaught in promise）に
+  // なっていた——ユーザーのオンライン対戦コンソールで確認。
+  if (!cardId) return null;
   const pileName = cardId.startsWith("first-") ? "first" : cardId.startsWith("eternal-") ? "eternal" : "deck";
   const el = document.querySelector(`.stack[data-pile="${pileName}"]`);
   return el ? el.getBoundingClientRect() : null;
