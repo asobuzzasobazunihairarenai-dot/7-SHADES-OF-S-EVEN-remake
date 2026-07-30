@@ -32,6 +32,14 @@ create unique index if not exists players_user_id_idx on players(user_id) where 
 alter table matches
   add column if not exists source text not null default 'manual';
 
+-- matches.guest_names: ゲスト（プレイヤー未登録の匿名参加者）の名前配列。ユーザー方針
+-- （2026-07-30）「ゲストはプレイヤー登録しないが、戦績上は『ゲスト（名前）』として試合の
+-- 参加者に表示したい」。members（実プレイヤーIDのみ）とは別に、この試合に参加したゲストの
+-- 表示名をここに入れる（online.jsのsubmitStatsMatchResult参照）。戦績管理システム側の
+-- 試合表示は、membersの実プレイヤーに加えてguest_namesを「ゲスト（名前）」として並べる。
+alter table matches
+  add column if not exists guest_names text[] not null default '{}';
+
 -- スクリーンショットの撮影・アップロード自体が失敗した場合（例: ブラウザの
 -- 3D描画をhtml2canvasが正しく扱えない、ネットワーク不調等）でも対戦記録の登録
 -- 自体は止めたくないため、その場合はproof_image_urlをnullのまま登録する

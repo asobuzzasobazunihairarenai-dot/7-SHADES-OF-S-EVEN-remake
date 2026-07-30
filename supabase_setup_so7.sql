@@ -909,6 +909,11 @@ alter table so7_user_profiles add column if not exists card_auto_processing_enab
 -- デフォルトは非表示（列がnullの間はクライアント側のfalseデフォルトのまま）。
 alter table so7_user_profiles add column if not exists opponent_base_timer_visible boolean;
 
+-- ユーザー方針（2026-07-30）「ゲスト（匿名ログイン）はプレイヤーとして戦績登録しない・
+-- 戦績上は『ゲスト（名前）』表示」。ログイン種別（匿名か否か）を各ユーザーのプロフィールに
+-- 記録し、戦績連携（online.jsのfetchGuestUserIds/submitStatsMatchResult）が参照する。
+alter table so7_user_profiles add column if not exists is_guest boolean not null default false;
+
 create or replace function so7_touch_presence()
 returns void
 language plpgsql

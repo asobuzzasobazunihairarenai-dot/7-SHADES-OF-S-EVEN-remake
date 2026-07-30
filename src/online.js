@@ -582,6 +582,11 @@ if (client) {
       refreshMyUnlocks().catch((err) => console.error("refreshMyUnlocks failed", err));
       touchPresence().catch((err) => console.error("touchPresence failed", err));
     }
+    // ログイン種別（ゲスト＝匿名か否か）を自分のプロフィールに記録しておく（戦績連携で
+    // 「ゲストはプレイヤー登録しない・戦績上はゲスト表示」の判定に使う。fetchGuestUserIds
+    // 参照）。so7_user_profiles.is_guest列が未追加の間はupsertがエラーになるが、ログイン
+    // 自体を壊さないよう握りつぶす（列追加SQLを実行すれば有効になる）。
+    if (cachedUser) persistMyGuestFlag().catch(() => {});
     for (const fn of authChangeListeners) fn(cachedUser);
   });
   // ユーザー要望「サイトの利用状況（ログイン数・訪問数・誰がログイン中か）がわかるように
@@ -1196,8 +1201,11 @@ async function registerParticipantsAsStatsPlayers(gameId) {
     console.error("registerParticipantsAsStatsPlayers failed", error);
     return;
   }
+  // ゲストはプレイヤー登録しない（対局開始時の自動登録もスキップ）。
+  const guestUserIds = await fetchGuestUserIds((seatRows ?? []).map((r) => r.user_id));
   for (const row of seatRows ?? []) {
     if (!row.user_id) continue;
+    if (guestUserIds.has(row.user_id)) continue;
     try {
       const avatarUrl = row.avatar ? new URL(row.avatar, window.location.href).href : null;
       await getOrCreateStatsPlayer(row.user_id, row.display_name, avatarUrl);
@@ -1395,6 +1403,33 @@ async function findPendingLinkedPlayerId(userId) {
   return data?.[0]?.id ?? null;
 }
 
+// 自分のログイン種別（ゲスト＝匿名か否か）をso7_user_profilesへ記録する（onAuthStateChange
+// から呼ぶ。ゲスト＝プレイヤー登録しない・戦績上はゲスト表示、の判定材料）。is_guest列が
+// 未追加の間はupsertがエラーになるため、呼び出し側で握りつぶす前提（列追加SQL実行で有効化）。
+async function persistMyGuestFlag() {
+  if (!client || !cachedUser) return;
+  const { error } = await client
+    .from("so7_user_profiles")
+    .upsert({ user_id: cachedUser.id, is_guest: !!cachedUser.is_anonymous, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+  if (error) throw error;
+}
+
+// 指定のuser_id群のうち「ゲスト(is_guest=true)」のuser_idの集合を返す。戦績連携でプレイヤー
+// 登録をスキップする判定に使う。列未追加・取得失敗時は空集合（＝全員実アカウント扱い、
+// 実プレイヤーを誤ってスキップして戦績を失う事故を防ぐ安全側）。
+async function fetchGuestUserIds(userIds) {
+  const ids = [...new Set((userIds ?? []).filter(Boolean))];
+  if (!client || ids.length === 0) return new Set();
+  try {
+    const { data, error } = await client.from("so7_user_profiles").select("user_id, is_guest").in("user_id", ids);
+    if (error) throw error;
+    return new Set((data ?? []).filter((r) => r.is_guest).map((r) => r.user_id));
+  } catch (err) {
+    console.error("fetchGuestUserIds failed (treating all as non-guest)", err);
+    return new Set();
+  }
+}
+
 // 認証済みユーザー(userId)に対応する戦績プレイヤー行のidを取得、無ければ作成する。
 // 一度リンクしたら以降は同じ行を使い続ける（ユーザー要望「Googleアカウント等で
 // 既に登録済みとわかれば新たに登録は行わない」への対応）。
@@ -1446,7 +1481,10 @@ async function getOrCreateStatsPlayer(userId, displayName, avatarUrl) {
       user_id: userId,
       name: displayName || "プレイヤー",
       avatar_url: avatarUrl || "",
-      status: "pending",
+      // ユーザー方針変更（2026-07-30）「ログイン済みでの対戦後は承認待ちでなく即承認で登録」。
+      // ゲスト（匿名）はそもそもここへ来ない（呼び出し側でスキップ、submitStatsMatchResult/
+      // startGame参照）ため、ここへ到達するのは実アカウント＝即approvedでよい。
+      status: "approved",
     })
     .select("id")
     .single();
@@ -1650,10 +1688,19 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat, feedba
   if (!gameRow) return;
 
   const memberIds = [];
+  const guestNames = [];
   let winnerId = null;
+  // 先に全座席のゲスト判定をまとめて取る（ゲストはプレイヤー登録せず、名前だけguest_namesへ）。
+  const guestUserIds = await fetchGuestUserIds(activePlayers.map((s) => getSyncedIdentity(s)?.userId));
   for (const seat of activePlayers) {
     const identity = getSyncedIdentity(seat);
     if (!identity?.userId) continue; // 座席にログインユーザーが紐づいていない（通常は起こらない）
+    // ゲストはplayers行を作らない。名前だけ試合のguest_namesに添える（戦績上「ゲスト（名前）」
+    // 表示用）。勝者がゲストの場合はwinner_idはnullのまま（実プレイヤーの勝ちではないため）。
+    if (guestUserIds.has(identity.userId)) {
+      guestNames.push(identity.name || "ゲスト");
+      continue;
+    }
     // identity.avatarは、Googleアカウントのアバターなら既に絶対URL、ローカルの
     // アバター選択肢（player-identity.jsのAVATAR_OPTIONS）なら"assets/avatars/..."という
     // このアプリ自身から見た相対パスのどちらかが入っている。戦績管理システムは別ドメイン/
@@ -1665,7 +1712,9 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat, feedba
     memberIds.push(playerId);
     if (seat === winnerSeat) winnerId = playerId;
   }
-  if (memberIds.length === 0 || !winnerId) return;
+  // 実プレイヤーが1人もいない（全員ゲスト）試合は戦績に記録しない。勝者がゲストの場合は
+  // winnerIdがnullのまま記録する（実プレイヤーは参加＝対戦数に入るが、勝ちは誰にも付かない）。
+  if (memberIds.length === 0) return;
 
   const durationMinutes = Math.max(1, Math.round((Date.now() - new Date(gameRow.created_at).getTime()) / 60000));
   // 以前はDOMを実際にスクリーンショットしていたため、最後のロックの視覚的な演出
@@ -1677,7 +1726,7 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat, feedba
   // players同様、matches.idもtext主キーでDB側のデフォルトが無く、created_atもbigint
   // （姉妹プロジェクトはDate.now()のミリ秒エポックをそのまま入れている、timestamptzでは
   // ない）。姉妹プロジェクト（index.html）と同じ命名規則・形式で明示的に渡す。
-  const { error: matchError } = await client.from("matches").insert({
+  const matchRow = {
     id: `m_${Date.now()}`,
     date: new Date().toISOString().slice(0, 10),
     members: memberIds,
@@ -1688,7 +1737,12 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat, feedba
     status: "approved",
     source: "digital",
     feedback: feedback || "",
-  });
+  };
+  // guest_names列は「ゲストがいる試合」だけ付ける。こうすると通常（ゲスト無し）の試合は
+  // guest_names列を参照しないため、列追加SQLをまだ実行していない環境でも記録が壊れない
+  // （ゲスト入りの試合だけは列が無いとinsertに失敗するが、SQL実行後は問題なくなる）。
+  if (guestNames.length > 0) matchRow.guest_names = guestNames;
+  const { error: matchError } = await client.from("matches").insert(matchRow);
   if (matchError) throw matchError;
 }
 
