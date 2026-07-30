@@ -2393,6 +2393,40 @@ async function performLockPhaseClick(tokenId) {
   if (!(await confirmTouchAction(`${getCardDefinition(token.cardId).name}をロックしますか？`))) return;
   const color = getCardDefinition(token.cardId).color;
   const dropTarget = { zone: "lock", side: SEAT_TO_SIDE[player], index: COLORS.indexOf(color) };
+  // 最後のロック承認: ドラッグ&ドロップ経路（onDragEndのkind==="card"分岐）と同じく、この
+  // ロックで持ち主が7色すべて揃って勝利になる場合は、通常のmoveTokenを呼ばず、他の参加
+  // プレイヤー全員の承認を待つ専用フローへ切り替える。
+  // ユーザー報告「最後のロックの時に、ゴメンナサイとなないろの欠片を持っているのに止め
+  // られなかった」の原因: この click/タップ経路（自動処理モードで主に使われる。人間の
+  // タップ＝2238、疑似CPUの自動ロック＝2542の両方がここを通る）だけがこの分岐を持って
+  // おらず、7色目のロックが承認を挟まずそのまま成立してしまい、割り込みでゴメンナサイを
+  // 使う機会（final-lock-approval.js の承認バナー）が一切出なかった。ドラッグ経路と同じ
+  // 処理をここにも移植する。ロックエリアの持ち主はロックする本人（player）自身。
+  if (getState().pendingFinalLock) {
+    render();
+    return;
+  }
+  if (wouldCompleteLockWithNewIndex(player, dropTarget.index)) {
+    const queue = getFinalLockApprovalOrder(player, getState().activePlayers);
+    if (queue.length > 0) {
+      // ロック宣言の瞬間としてチェックポイントを発火（ドラッグ経路と同じ）。
+      fireAnytimeCheckpoint(player);
+      if (isOnlineMode()) {
+        try {
+          await requestFinalLock(tokenId, dropTarget, player, queue);
+          await fetchAndHydrate(getCurrentGameId());
+        } catch (err) {
+          console.error("requestFinalLock (lock phase click) failed", err);
+        }
+      } else {
+        requestFinalLock(tokenId, dropTarget, player, queue);
+      }
+      render();
+      return;
+    }
+    // 承認すべき他の参加プレイヤーがいない（1人でのテストプレイ等）場合は、承認不要で
+    // 下の通常のロック処理へフォールスルーする。
+  }
   // ユーザー要望（続き77）「移動もロックも宣言と処理を分けてください」。実際に状態を
   // 動かす直前を「ロック宣言」の瞬間とみなして発火する（処理側はmaybeAnnounceLock内、
   // 既存の通り）。
