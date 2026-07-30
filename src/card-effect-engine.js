@@ -588,7 +588,8 @@ async function runAction(action, ctx, helpers) {
         if (candidates.length === 0) break;
         const chosen = await helpers.pickLocation(
           candidates,
-          `オープンするマスを選択してください（任意、あと${action.maxCount - i}枚まで）`
+          `オープンするマスを選択してください（任意、あと${action.maxCount - i}枚まで）`,
+          { allowSkip: true, skipLabel: "これ以上開かない" }
         );
         if (!chosen) break; // 「してもよい」なので、これ以上選ばない＝正常終了
         const token = findTopCardAtCell(chosen.row, chosen.col);
@@ -1380,6 +1381,10 @@ export async function runArrivalEffect(ctx, helpers) {
   if (effectDef.addsCardToHandAfter !== false) {
     const currentToken = getState().tokens.find((t) => t.id === ctx.cardTokenId);
     if (currentToken && currentToken.location.zone === "cell") {
+      // ユーザー要望「到達後、そのカードが実際に手札へ吸い込まれて加わるアニメを入れたい」。
+      // 実際に手札へ移す(moveAndSync)前に、盤面マスから手札へ飛翔する演出を挟む
+      // （移動アニメーションを減らす設定中はhelpers側で即nop）。
+      await helpers.flyCardToHand?.(ctx.cardTokenId, ctx.player);
       await helpers.moveAndSync(ctx.cardTokenId, { zone: "hand", player: ctx.player });
     }
   }

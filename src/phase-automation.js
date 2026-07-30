@@ -27,7 +27,7 @@ import { announceHandPickups } from "./hand-announcer.js";
 import { SIDE_TO_SEAT, COLORS, SEAT_ORDER } from "./board-layout.js";
 import { getCardDefinition } from "./cards-data.js";
 import { hasAnyoneWon } from "./victory.js";
-import { isPseudoCpuModeEnabled as isPseudoCpuModeEnabledLocal, isPseudoCpuIncludeSelf } from "./admin.js";
+import { isPseudoCpuModeEnabled as isPseudoCpuModeEnabledLocal, isPseudoCpuIncludeSelf, getPseudoCpuDeadlineMs } from "./admin.js";
 import { logAction } from "./action-log.js";
 
 // ユーザー報告（続き99）「疑似CPUモードの時、回復すると基本時間が15秒とかまで行って
@@ -38,7 +38,7 @@ import { logAction } from "./action-log.js";
 // 続き101: 「有効化」自体もturnEnabled等と同じくオンライン中は対局開始時の同期値を
 // 優先するようになったため、ここもturn-timer.jsのisPseudoCpuModeActiveと同じ
 // 判定に揃える。
-const PSEUDO_CPU_DEADLINE_MS = 1000;
+// 疑似CPUの基本時間はオプションで可変（admin.jsのgetPseudoCpuDeadlineMs、既定1000ms）。
 function isPseudoCpuModeActive() {
   const synced = isOnlineMode() && getSyncedTimerConfig();
   return synced ? !!synced.pseudoCpuModeEnabled : isPseudoCpuModeEnabledLocal();
@@ -412,7 +412,7 @@ function ensureSkipButton() {
       // ユーザー要望（続き102）「疑似CPUモードが適用されない原因をアクションログで
       // 確認できるようにしてほしい」。
       logAction("diag-pseudo-cpu", { phase: "ensureSkipButton", priorityPlayer, isPseudoCpuModeActive: isPseudoCpuModeActive(), isPseudoCpuTarget: target });
-      const recoveryMs = target ? PSEUDO_CPU_DEADLINE_MS : 15000;
+      const recoveryMs = target ? getPseudoCpuDeadlineMs() : 15000;
       setPriorityState({ player: priorityPlayer, deadline: Date.now() + recoveryMs, phase: "base" });
     }
     advancePhase();
@@ -686,7 +686,7 @@ async function performMoveFallbackAndEndTurn(player, location) {
       if (nextPlayer) {
         const target = isPseudoCpuTarget(nextPlayer);
         logAction("diag-pseudo-cpu", { phase: "performMoveFallbackAndEndTurn", nextPlayer, isPseudoCpuModeActive: isPseudoCpuModeActive(), isPseudoCpuTarget: target });
-        const recoveryMs = target ? PSEUDO_CPU_DEADLINE_MS : 15000;
+        const recoveryMs = target ? getPseudoCpuDeadlineMs() : 15000;
         setPriorityState({ player: nextPlayer, deadline: Date.now() + recoveryMs, phase: "base" });
       }
     }

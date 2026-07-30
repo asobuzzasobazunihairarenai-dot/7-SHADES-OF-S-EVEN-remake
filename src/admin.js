@@ -1362,6 +1362,29 @@ export function setPseudoCpuIncludeSelf(v) {
   pseudoCpuIncludeSelf = !!v;
 }
 
+// 疑似CPUモードの対象座席に与える「基本時間」。従来は固定1000ms（1秒）だったが、ユーザー
+// 要望「この秒数をオプション画面で変更できるように」で可変にした。turn-timer.js /
+// phase-automation.js がこの値を参照する（以前は各ファイルのローカル定数
+// PSEUDO_CPU_DEADLINE_MS=1000）。純粋なテスト用の個人設定なのでlocalStorageに保存
+// （オンラインでもsyncしない、他の疑似CPU設定と同じ扱い）。
+const PSEUDO_CPU_DEADLINE_KEY = "so7-pseudo-cpu-deadline-ms";
+let pseudoCpuDeadlineMs = 1000;
+try {
+  const saved = Number(localStorage.getItem(PSEUDO_CPU_DEADLINE_KEY));
+  if (Number.isFinite(saved) && saved > 0) pseudoCpuDeadlineMs = saved;
+} catch {}
+export function getPseudoCpuDeadlineMs() {
+  return pseudoCpuDeadlineMs;
+}
+export function setPseudoCpuDeadlineMs(ms) {
+  const v = Number(ms);
+  if (!Number.isFinite(v) || v <= 0) return;
+  pseudoCpuDeadlineMs = v;
+  try {
+    localStorage.setItem(PSEUDO_CPU_DEADLINE_KEY, String(v));
+  } catch {}
+}
+
 // TOGGLE_SECTIONSの各buildContentはモジュール直下で定義される共有クロージャのため、
 // buildPanel()内のローカル変数であるupdateExport()を直接呼べない。「更新して」を伝える
 // 間接参照として、rebuildSlidersRefと同じ形のref経由で呼ぶ。

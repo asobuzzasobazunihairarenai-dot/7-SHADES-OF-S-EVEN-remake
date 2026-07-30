@@ -11,10 +11,13 @@ import {
   setPseudoCpuModeEnabled,
   isPseudoCpuIncludeSelf,
   setPseudoCpuIncludeSelf,
+  getPseudoCpuDeadlineMs,
+  setPseudoCpuDeadlineMs,
 } from "./admin.js";
 import { openDeckViewer } from "./deck-viewer.js";
 import { isLockAreaBarVisible, setLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible, setLockColorVisible } from "./lock-color.js";
+import { isActionConfirmEnabled, setActionConfirmEnabled } from "./action-confirm-prefs.js";
 import { getSoundVolume, setSoundVolume, getBgmVolume, setBgmVolume } from "./sound.js";
 import { SHORTCUT_TARGETS, getShortcut, setShortcut, registerShortcutSettingsOpener } from "./player-buttons.js";
 import { createBackdrop } from "./ui-helpers.js";
@@ -563,6 +566,17 @@ export function initOptionsMenu() {
               saveMyPreference({ opponent_base_timer_visible: checked });
             })
           );
+          // ユーザー要望「ロック前・手札使用前の確認モーダルを全デバイスで出す。モーダルの
+          // 『今後表示しない』でオフにでき、ここから再度オンに戻せるように」。さらに要望で
+          // アカウント同期（別端末でも共有）にした——ローカル即時反映(action-confirm-prefs.js,
+          // localStorage)＋saveMyPreferenceでso7_user_profiles.action_confirm_enabledへ保存し、
+          // ログイン時にloadMyPreferencesが適用する（他の基本設定と同じパターン）。
+          content.appendChild(
+            buildCheckboxRow("ロック・手札を使う前に確認する", isActionConfirmEnabled(), (checked) => {
+              setActionConfirmEnabled(checked);
+              saveMyPreference({ action_confirm_enabled: checked });
+            })
+          );
           content.appendChild(
             buildCollapsibleSection("ロックエリア関連", (subContent) => {
               subContent.appendChild(
@@ -748,6 +762,39 @@ export function initOptionsMenu() {
             }
           );
           content.appendChild(pseudoCpuSelfRow);
+
+          // ユーザー要望「疑似CPUモードの基本時間（従来固定1秒）をオプションで変更できる
+          // ように」。対象座席がこの秒数だけで即タイムアウト→自動代行する。速くも遅くも
+          // できるよう0.2〜10秒で調整可能（admin.jsのgetPseudoCpuDeadlineMs、localStorage保存）。
+          const pseudoCpuTimeRow = document.createElement("label");
+          pseudoCpuTimeRow.style.cssText =
+            "display: flex; align-items: center; gap: 0.5rem; margin: 0.4rem 0 0.2rem; font-size: 0.85rem;";
+          const pseudoCpuTimeLabel = document.createElement("span");
+          pseudoCpuTimeLabel.textContent = "疑似CPUの基本時間";
+          pseudoCpuTimeLabel.style.cssText = "flex: 1;";
+          const pseudoCpuTimeInput = document.createElement("input");
+          pseudoCpuTimeInput.type = "number";
+          pseudoCpuTimeInput.min = "0.2";
+          pseudoCpuTimeInput.max = "10";
+          pseudoCpuTimeInput.step = "0.1";
+          pseudoCpuTimeInput.value = String(getPseudoCpuDeadlineMs() / 1000);
+          pseudoCpuTimeInput.style.cssText =
+            "width: 4.5rem; padding: 0.2rem 0.3rem; background: rgba(15,23,32,0.9); " +
+            "border: 1px solid rgba(148,163,184,0.5); border-radius: 0.3rem; color: #e2e8f0;";
+          pseudoCpuTimeInput.addEventListener("change", () => {
+            const sec = Number(pseudoCpuTimeInput.value);
+            if (Number.isFinite(sec) && sec > 0) {
+              setPseudoCpuDeadlineMs(Math.round(sec * 1000));
+              window.dispatchEvent(new CustomEvent("pseudo-cpu-settings-changed"));
+            }
+            pseudoCpuTimeInput.value = String(getPseudoCpuDeadlineMs() / 1000);
+          });
+          const pseudoCpuTimeUnit = document.createElement("span");
+          pseudoCpuTimeUnit.textContent = "秒";
+          pseudoCpuTimeRow.appendChild(pseudoCpuTimeLabel);
+          pseudoCpuTimeRow.appendChild(pseudoCpuTimeInput);
+          pseudoCpuTimeRow.appendChild(pseudoCpuTimeUnit);
+          content.appendChild(pseudoCpuTimeRow);
 
           // ユーザー要望（続き74）「自動処理モード時は手札シャッフル/1枚ドロー/公開
           // ドロー/ターン終了を非表示にしてください。緊急のバグ発生時用としてオプ

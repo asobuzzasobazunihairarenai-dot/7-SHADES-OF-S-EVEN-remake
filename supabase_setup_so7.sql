@@ -501,7 +501,11 @@ alter table so7_user_profiles
   add column if not exists gate_invasion_modal_duration numeric not null default 3.5,
   add column if not exists card_arrival_modal_duration numeric not null default 5,
   add column if not exists hand_pickup_toast_duration numeric not null default 5,
-  add column if not exists shortcuts jsonb not null default '{}'::jsonb;
+  add column if not exists shortcuts jsonb not null default '{}'::jsonb,
+  -- 「ロック前・手札使用前の確認モーダル」を表示するか（action-confirm-prefs.js）。
+  -- 既定は表示する(true)。モーダルの「今後表示しない」やオプションの基本設定から切り替え、
+  -- アカウントに紐づけて別端末でも共有する。
+  add column if not exists action_confirm_enabled boolean not null default true;
 
 -- 追加機能: ターンタイマー（ロープ・砂時計・優先権）のオンライン同期。隠す必要の無い
 -- 公開情報（誰の優先権か・残り砂時計数は全員に見えるべき情報）のため、so7-apply-action

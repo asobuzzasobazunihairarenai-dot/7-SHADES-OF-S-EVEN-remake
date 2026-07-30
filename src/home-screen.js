@@ -20,13 +20,23 @@ import { openProfilePage } from "./profile-page.js";
 import { openDeckViewer } from "./deck-viewer.js";
 // ユーザー要望「ランキングを実装しましょう」への対応で新設したページ。
 import { openRankingPage } from "./ranking-page.js";
+// チュートリアルCPU戦（台本化された練習試合）。完全ローカル機能。
+import { startTutorialBattle } from "./tutorial-battle.js";
 
 let overlayEl = null;
 let toastEl = null;
 let toastTimer = null;
 
 const TILES = [
-  { icon: "🎓", label: "チュートリアルCPU戦", status: "soon" },
+  {
+    icon: "🎓",
+    label: "チュートリアルCPU戦",
+    status: "ready",
+    onOpen: () => {
+      closeHomeScreen();
+      startTutorialBattle();
+    },
+  },
   { icon: "🤝", label: "フレンドリーマッチ", status: "ready", onOpen: () => openOnlinePanel() },
   { icon: "🏆", label: "フリーマッチ（ランク戦）", status: "soon" },
   { icon: "🛒", label: "ショップ", status: "ready", onOpen: () => openShopPanel() },

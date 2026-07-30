@@ -40,6 +40,7 @@ import { setLockColorVisible } from "./lock-color.js";
 import { setSoundVolume, setBgmVolume } from "./sound.js";
 import { setFlatten2dMode } from "./tablet-2d-mode.js";
 import { setAutoProcessingEnabled } from "./card-effect-engine.js";
+import { setActionConfirmEnabled } from "./action-confirm-prefs.js";
 import {
   setFlightAnimationDisabled,
   setArrivalEffectDisabled,
@@ -877,7 +878,7 @@ export async function loadMyPreferences() {
         "arrival_effect_disabled, continuous_glow_disabled, gate_invasion_modal_duration, " +
         "card_arrival_modal_duration, hand_pickup_toast_duration, shortcuts, " +
         "display_name, avatar, piece_skin_index, playmat_id, card_back_set_index, background_id, " +
-        "flatten_2d_mode, card_auto_processing_enabled, opponent_base_timer_visible"
+        "flatten_2d_mode, card_auto_processing_enabled, opponent_base_timer_visible, action_confirm_enabled"
     )
     .eq("user_id", cachedUser.id)
     .maybeSingle();
@@ -906,6 +907,7 @@ export async function loadMyPreferences() {
   if (typeof data.flatten_2d_mode === "boolean") setFlatten2dMode(data.flatten_2d_mode);
   if (typeof data.card_auto_processing_enabled === "boolean") setAutoProcessingEnabled(data.card_auto_processing_enabled);
   if (typeof data.opponent_base_timer_visible === "boolean") setOpponentBaseTimerVisible(data.opponent_base_timer_visible);
+  if (typeof data.action_confirm_enabled === "boolean") setActionConfirmEnabled(data.action_confirm_enabled);
   if (typeof data.flight_animation_disabled === "boolean") setFlightAnimationDisabled(data.flight_animation_disabled);
   if (typeof data.arrival_effect_disabled === "boolean") setArrivalEffectDisabled(data.arrival_effect_disabled);
   if (typeof data.continuous_glow_disabled === "boolean") {

@@ -55,7 +55,7 @@ import { initDiscordLink } from "./discord-link.js";
 import { getOptionArea } from "./option-area.js";
 import { initCurrencyDisplay, refreshCurrencyDisplay, showCurrencyAwardEffect } from "./currency-display.js";
 import { initShop, openShopPanel } from "./shop.js";
-import { initGameSetup, previewStartPlayerModal } from "./game-setup.js";
+import { initGameSetup, previewStartPlayerModal, showStartPlayerModal } from "./game-setup.js";
 import { initOptionsMenu } from "./options-menu.js";
 import {
   runGateInvasionsIfNeeded,
@@ -129,6 +129,12 @@ import { initPlayerButtons } from "./player-buttons.js";
 import { initQuickStart } from "./quick-start.js";
 import { initPhaseGuide } from "./phase-guide.js";
 import { initTutorialAutoStart, registerTutorialStageHelpers } from "./tutorial.js";
+// チュートリアルCPU戦（台本化された練習試合）へ、ロック効果アニメとステージ座標変換を注入する。
+import { registerTutorialBattleHelpers, isTutorialBattleActive } from "./tutorial-battle.js";
+// 「ロック前・手札使用前」の確認モーダルを出すかどうかの設定（全デバイス共通、
+// 「今後表示しない」でオフ・オプションの基本設定でオンに戻せる）。
+import { isActionConfirmEnabled, setActionConfirmEnabled } from "./action-confirm-prefs.js";
+import { registerTutorialBattleUiHelpers } from "./tutorial-battle-ui.js";
 import { initTurnTimer, transferPriorityTo, isPseudoCpuTarget } from "./turn-timer.js";
 import { initIconRearrange } from "./icon-rearrange.js";
 import { initSelfStatusRearrange } from "./self-status-rearrange.js";
@@ -2221,6 +2227,14 @@ document.addEventListener(
     const elements = document.elementsFromPoint(e.clientX, e.clientY);
     if (picker.type === "cell") {
       for (const el of elements) {
+        // 「これ以上選ばない」スキップボタン（任意選択の効果、requestCellChoiceForEffectの
+        // options.allowSkip参照）。このハンドラがstopPropagationするためボタン自身のclickは
+        // 届かないので、ここで拾ってresolve(null)（＝もう選ばない）にする。
+        if (el.closest("#card-effect-skip-button")) {
+          activeEffectPicker = null;
+          picker.resolve(null);
+          return;
+        }
         const cellEl = el.closest(".cell");
         if (cellEl) {
           const row = Number(cellEl.dataset.row);
@@ -2528,8 +2542,32 @@ function hideEffectPickerHint() {
   effectPickerHintEl?.classList.remove("show");
 }
 
+// 「任意選択（してもよい）」の効果——黄のキューブ サフランの『2マス以内を4枚まで開いても
+// よい』等——で、マス選択中に「これ以上選ばない／やめる」を可能にするスキップボタン。
+// ユーザー報告「サフランが4枚まで“必ず”オープンさせられる（やめられない）」への対応。
+// クリック検知は、盤面のクリックを奪うcapture:trueのpointerdownハンドラ（activeEffectPicker
+// のcell分岐）側で#card-effect-skip-buttonを拾って行う（このボタン自身に付けたclickは、
+// そのハンドラのstopPropagationで届かないため）。elementsFromPoint()で拾えるよう
+// pointer-events:auto（button既定）にしておく。
+let effectSkipButtonEl = null;
+function showEffectSkipButton(label) {
+  if (!effectSkipButtonEl) {
+    effectSkipButtonEl = document.createElement("button");
+    effectSkipButtonEl.id = "card-effect-skip-button";
+    effectSkipButtonEl.type = "button";
+    document.body.appendChild(effectSkipButtonEl);
+  }
+  effectSkipButtonEl.textContent = label;
+  effectSkipButtonEl.classList.add("show");
+}
+function hideEffectSkipButton() {
+  effectSkipButtonEl?.classList.remove("show");
+}
+
 // 効果の対象マスをプレイヤーに選ばせる（候補マスをハイライトし、クリックを待つ）。
-function requestCellChoiceForEffect(candidates, hint) {
+// options.allowSkip=true の時は「これ以上選ばない」スキップボタンを出す（optionalな
+// 「してもよい」効果で早期終了できるように）。スキップされた場合は resolve(null)。
+function requestCellChoiceForEffect(candidates, hint, options = {}) {
   return new Promise((resolve) => {
     const table = document.getElementById("game-table");
     const entries = (table ? candidates.map((loc) => ({ loc, el: findLocationElement(table, loc) })) : []).filter(
@@ -2542,6 +2580,7 @@ function requestCellChoiceForEffect(candidates, hint) {
     for (const entry of entries) entry.el.classList.add("card-effect-target-cell");
     document.body.classList.add("card-effect-picking-cells");
     if (hint) showEffectPickerHint(hint);
+    if (options.allowSkip) showEffectSkipButton(options.skipLabel ?? "これ以上選ばない");
     activeEffectPicker = {
       type: "cell",
       candidates,
@@ -2549,6 +2588,7 @@ function requestCellChoiceForEffect(candidates, hint) {
         for (const entry of entries) entry.el.classList.remove("card-effect-target-cell");
         document.body.classList.remove("card-effect-picking-cells");
         hideEffectPickerHint();
+        hideEffectSkipButton();
         resolve(loc);
       },
     };
@@ -2659,6 +2699,28 @@ function markEffectJustPlaced(location) {
 function clearEffectUiHighlights() {
   glowingEffectHandTokenId = null;
   pendingPlacementLocations.clear();
+}
+
+// 到達効果の処理後、その盤面カードが手札に加わる時の「吸い込まれる」演出（ユーザー要望
+// 「自動処理モードで到達後、カードが実際に手札へ吸い込まれて加わるアニメを入れたい」）。
+// ドロー演出(flyDrawnCardToHand)と同じ飛翔ゴースト方式だが、飛び元は山札ではなく、その
+// カードが今いる盤面マス。飛んでいる間は元のカードを隠してゴーストだけ飛ばし、着地後に
+// 呼び出し側(card-effect-engine.jsのmoveAndSync)が実際に手札へ移す。移動アニメーションを
+// 減らす設定中はスキップ。card-effect-engine.jsへhelpers.flyCardToHandとして注入する。
+async function flyBoardCardToHand(tokenId, player) {
+  if (isFlightAnimationDisabled()) return;
+  const token = getState().tokens.find((t) => t.id === tokenId);
+  if (!token) return;
+  const cardEl = document.querySelector(`.board-card[data-token-id="${tokenId}"]`);
+  const handArea = document.querySelector(`.hand-area[data-player="${player}"]`);
+  if (!cardEl || !handArea) return;
+  const fromRect = cardEl.getBoundingClientRect();
+  const toRect = handArea.getBoundingClientRect();
+  cardEl.style.visibility = "hidden"; // 元カードを隠してゴーストだけ飛ばす（着地後のrenderで消える）
+  const img = token.faceUp ? getCardImagePath(token.cardId) : getCardBackImagePath(token.cardId);
+  // ユーザー要望「もう少しゆっくり手札に入っていってほしい」。ドロー演出(500ms)より少し長め。
+  const { done } = flyGhost(fromRect, toRect, img, "setup-fly-card", 800);
+  await done;
 }
 
 // ドロー枚数の演出（山札から手札への飛翔ゴースト）。ユーザー要望「山札から１枚手札に
@@ -3001,8 +3063,13 @@ onAnytimeCheckpointEvents(({ afterPlayer }) => {
 // カード消し」ボタンと同じ判断基準）ため、タッチ操作主体の端末（isTouchPrimaryDevice）
 // でだけ確認を挟み、PCでは従来通り一発で確定する。contact-approval-*クラスを
 // 流用した汎用Yes/Noモーダル。
+// ロックする前・手札を使う前の確認モーダル。ユーザー要望で、以前は「タッチ端末のみ」
+// だったのを全デバイス共通にし、表示するかどうかを設定(isActionConfirmEnabled)で
+// 切り替えられるようにした。設定がOFF（＝今後表示しない）の間は、モーダルを出さず即実行する。
 function confirmTouchAction(title) {
-  if (!isTouchPrimaryDevice()) return Promise.resolve(true);
+  // チュートリアルCPU戦の進行中は、台本が各操作を誘導するのでこの確認は出さない
+  // （スポットライト等の演出と重なって見えなくなるのも防ぐ）。
+  if (!isActionConfirmEnabled() || isTutorialBattleActive()) return Promise.resolve(true);
   return new Promise((resolve) => {
     const backdrop = createBackdrop(() => {}, { dim: true, zIndex: 10610 });
     const modal = document.createElement("div");
@@ -3033,6 +3100,19 @@ function confirmTouchAction(title) {
     buttons.appendChild(yesBtn);
     buttons.appendChild(noBtn);
     modal.appendChild(buttons);
+
+    // 「今後このモーダルを表示しない」。押すと以後この確認を出さない設定にして、今回の
+    // 操作はそのまま実行（＝はい扱い）する。再表示はオプションの基本設定から戻せる。
+    const dontShow = document.createElement("button");
+    dontShow.id = "touch-action-confirm-dontshow";
+    dontShow.type = "button";
+    dontShow.textContent = "今後このモーダルを表示しない";
+    dontShow.addEventListener("click", () => {
+      setActionConfirmEnabled(false);
+      saveMyPreference({ action_confirm_enabled: false }); // アカウントにも保存（別端末で共有）
+      finish(true);
+    });
+    modal.appendChild(dontShow);
 
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
@@ -3107,6 +3187,7 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         drawCards: drawCardsForEffect,
         pickDiscardCost: (candidates, hint) => requestHandCardChoiceForEffect(player, hint, new Set(candidates.map((t) => t.id))),
         moveAndSync: moveAndSyncForEffect,
+        flyCardToHand: flyBoardCardToHand,
         pickLocation: requestCellChoiceForEffect,
         pickHandCard: requestHandCardChoiceForEffect,
         onCardAcquiredToHand: onEffectCardAcquiredToHand,
@@ -3190,6 +3271,7 @@ async function runAutoArrivalEffect(cardId, location, player) {
     { cardId, player, pieceTokenId: piece.id, cardTokenId: cardToken.id, pieceLocation: location },
     {
       moveAndSync: moveAndSyncForEffect,
+      flyCardToHand: flyBoardCardToHand,
       pickLocation: requestCellChoiceForEffect,
       pickHandCard: requestHandCardChoiceForEffect,
       onCardAcquiredToHand: onEffectCardAcquiredToHand,
@@ -3408,6 +3490,14 @@ function triggerLockEffect(cardId, location) {
 // 自動処理の非同期処理はまだ走っている最中のことが多いため、優先権の返却
 // （respondToContact参照）のような「本当に全部終わってから」が必要な用途向け。
 function maybeTriggerCardArrival(dropTarget, pieceTokenId, onResolved, onFullyResolved) {
+  // チュートリアルCPU戦の進行中は、到達（表向き）も「オープンする/しない」（裏向き）も
+  // 台本側(tutorial-battle.js)が制御するため、通常のドラッグ経路のこの分岐は出さない
+  // （前方以外への誤移動時に自ゲートで「オープンする/しない」が出てしまう不具合の対策）。
+  if (isTutorialBattleActive()) {
+    onResolved?.();
+    onFullyResolved?.();
+    return;
+  }
   if (!dropTarget) {
     onResolved?.();
     onFullyResolved?.();
@@ -3593,11 +3683,15 @@ function isAdjacentCell(a, b) {
 // モーダルで出す」への対応。role:"attacker"/"defender"はオンライン中に各自の画面へ、
 // role:"both"はローカルモード（1画面で両者を見ているため）に使う。cardIdがnullの場合は
 // 「相手の手札が無く何も奪えなかった/奪われなかった」の文面にする。
-function openContactResultModal({ role, attacker, defender, cardId }) {
+function openContactResultModal({ role, attacker, defender, cardId, onClose = null }) {
   const modal = document.createElement("div");
   modal.id = "contact-result-modal";
+  let closed = false;
   const close = () => {
+    if (closed) return;
+    closed = true;
     modal.remove();
+    onClose?.();
   };
   // ハマりどころ: このモーダルは承認直後、「オープンする/しないの選択」(promptCardOpen)や
   // 到達モーダル(card-arrival-modal)とほぼ同時に出ることがある。他の確認モーダルと同じ
@@ -3890,6 +3984,55 @@ async function playContactFlight(defenderPieceId, defenderFromRect) {
     await done;
   }
   setSetupPendingTokenIds(new Set());
+}
+
+// チュートリアルCPU戦（tutorial-battle.js）の「接触」を台本で忠実に再現する。実際の
+// respondToContactの承認フロー（pendingContact→承認/拒否モーダル→requestOpponentHand
+// RitualPick）には乗らず、既存のタックル演出（playContactLunge/playContactFlight）と
+// 結果モーダル（openContactResultModal）だけを流用する。状態変化（相手の手札を1枚奪う・
+// 相手をゲートへ強制移動）は、呼び出し側（tutorial-battle.js）が渡すapplyStateChange
+// コールバックで行う——本来のタックル演出が「駒を動かす前＝lunge」「動かした後＝flight」
+// に分かれている順序をそのまま保つため。全てローカルの見た目だけの処理。
+export async function playScriptedContact({ attackerPieceId, defenderPieceId, applyStateChange, attacker, defender, stolenCardId, role = "both" } = {}) {
+  let tackle = null;
+  if (!isFlightAnimationDisabled()) {
+    const table = document.getElementById("game-table");
+    const attackerEl = table?.querySelector(`.piece[data-token-id="${attackerPieceId}"]`);
+    const defenderEl = table?.querySelector(`.piece[data-token-id="${defenderPieceId}"]`);
+    const defenderToken = getState().tokens.find((t) => t.id === defenderPieceId);
+    const attackerToken = getState().tokens.find((t) => t.id === attackerPieceId);
+    if (table && attackerEl && defenderEl && defenderToken && attackerToken) {
+      tackle = {
+        attackerEl,
+        defenderFromRect: defenderEl.getBoundingClientRect(),
+        attackerRect: attackerEl.getBoundingClientRect(),
+        defenderFromLocation: defenderToken.location,
+        attackerFromLocation: attackerToken.location,
+        attackerColor: attackerToken.color,
+      };
+    }
+  }
+  if (tackle) {
+    // タックル演出中はこの後の状態変化で盤面が勝手に作り直されないよう汎用render()を止める
+    // （respondToContact本来の処理と同じパターン）。
+    suppressGenericRenderForContactTackle = true;
+    await playContactLunge(tackle);
+  }
+  // 状態変化（tutorial-battle.jsが渡す: 相手の手札を1枚奪う＋相手をゲートへ強制移動）。
+  applyStateChange?.();
+  if (tackle) {
+    await playContactFlight(defenderPieceId, tackle.defenderFromRect);
+    suppressGenericRenderForContactTackle = false;
+  } else {
+    playSound("piecePlace");
+  }
+  render();
+  // 結果モーダルは、閉じられるまで待つ（呼び出し側＝チュートリアルが、閉じたのを見てから
+  // 次のモーダルへ進めるように）。ユーザー要望「接触の結果のモーダルを閉じるタイミングを
+  // 作ってください」。
+  await new Promise((resolve) => {
+    openContactResultModal({ role, attacker, defender, cardId: stolenCardId ?? null, onClose: resolve });
+  });
 }
 
 // --- エターナルカード獲得演出（ユーザー要望「ゲート侵攻によりエターナルカードを手に
@@ -5078,30 +5221,46 @@ function closestByCenter(candidates, clientX, clientY) {
 
 function findDraggableAt(clientX, clientY) {
   const elements = document.elementsFromPoint(clientX, clientY);
+  // チュートリアルCPU戦中は、掴める対象を「自分(A)の駒」と「手札カード（ロックのための
+  // ドラッグに使う）」だけに絞る。ユーザー要望「盤面のカードを掴めなくして」＋「隣のCPUの駒を
+  // クリックしても掴むだけで接触が起こらない」への対応——相手(CPU)の駒と盤面カードを掴めなく
+  // すれば、それらへのクリックはドラッグ開始に奪われず、チュートリアル側のクリック判定
+  // （接触・移動）が正しく発火する。
+  const tutorial = isTutorialBattleActive();
   for (const el of elements) {
     const piece = el.closest(".piece");
-    if (piece) return { el: piece, tokenId: piece.dataset.tokenId, kind: "piece" };
+    if (piece) {
+      if (tutorial) {
+        const tok = getState().tokens.find((t) => t.id === piece.dataset.tokenId);
+        if (!tok || tok.player !== getSelfSeat()) continue; // 自分の駒以外は掴めない
+      }
+      return { el: piece, tokenId: piece.dataset.tokenId, kind: "piece" };
+    }
   }
   for (const el of elements) {
     // 盤面マス／ロックスロットに直接置かれたカードは、手札のカードと違ってダブルクリックで
     // 表裏を反転できる対象なので区別しておく(isBoardCard)。
     const boardCard = el.closest(".board-card");
-    if (boardCard) return { el: boardCard, tokenId: boardCard.dataset.tokenId, kind: "card", isBoardCard: true };
+    if (boardCard) {
+      if (tutorial) break; // チュートリアル中は盤面カードを掴めなくする
+      return { el: boardCard, tokenId: boardCard.dataset.tokenId, kind: "card", isBoardCard: true };
+    }
   }
   for (const el of elements) {
     // 手札公開エリアのカードも「場のカードと同じように扱えるように」というユーザー要望で、
     // .board-cardと同じ扱い（つかんで動かせる・ダブルクリックで表裏反転できる）にする。
     const revealCard = el.closest(".hand-reveal-card");
-    if (revealCard) return { el: revealCard, tokenId: revealCard.dataset.tokenId, kind: "card", isBoardCard: true };
+    if (revealCard) {
+      if (tutorial) break;
+      return { el: revealCard, tokenId: revealCard.dataset.tokenId, kind: "card", isBoardCard: true };
+    }
   }
-  const handCardCandidates = new Set();
+  // 手札は「実際に手前に見えている（elementsFromPoint()の先頭＝最前面）」カードを掴む対象に
+  // する。以前はclosestByCenter（中心距離）だったが、ユーザー要望で持ち上げ(findSelfHandCardAt)・
+  // プレビュー(findHoverTarget)と揃えて“見えているカード”方式に統一した（3つが常に一致する）。
   for (const el of elements) {
     const handCard = el.closest(".hand-card");
-    if (handCard) handCardCandidates.add(handCard);
-  }
-  if (handCardCandidates.size > 0) {
-    const handCard = closestByCenter(handCardCandidates, clientX, clientY);
-    return { el: handCard, tokenId: handCard.dataset.tokenId, kind: "card" };
+    if (handCard) return { el: handCard, tokenId: handCard.dataset.tokenId, kind: "card" };
   }
   for (const el of elements) {
     const stack = el.closest(".stack[data-pile]");
@@ -5136,15 +5295,14 @@ function findHoverTarget(clientX, clientY) {
     const revealCard = el.closest(".hand-reveal-card");
     if (revealCard) return revealCard;
   }
-  // findDraggableAtと同じ理由（扇形手札の重なり）で、DOM順の最初の1枚に決め打ちせず
-  // 中心距離が一番近いカードを選ぶ（closestByCenter参照）。
-  {
-    const handCardCandidates = new Set();
-    for (const el of elements) {
-      const handCard = el.closest(".hand-card");
-      if (handCard) handCardCandidates.add(handCard);
-    }
-    if (handCardCandidates.size > 0) return closestByCenter(handCardCandidates, clientX, clientY);
+  // ユーザー要望「手札のホバー検知を厳格に。手札は一部重なって描画されるので、実際に手前に
+  // 見えている部分をホバーした時だけ、そのカードが反応する（ひょこっと出てくる）ようにしたい」。
+  // クリック(findDraggableAt)は「掴みたいカードを中心距離で拾う」寛容な判定のままにするが、
+  // ホバー（プレビュー拡大・ハイライト）は elementsFromPoint の先頭＝実際に最前面に見えている
+  // .hand-card をそのまま採用する（見えているスリバー＝そのカード、という直感に合わせる）。
+  for (const el of elements) {
+    const handCard = el.closest(".hand-card");
+    if (handCard) return handCard;
   }
   for (const el of elements) {
     const stack = el.closest(".stack[data-pile]");
@@ -5373,25 +5531,21 @@ function setPeekedCard(cardEl) {
   cardEl.style.transform = `${cardEl.dataset.baseTransform ?? ""} translateY(-${lift})`;
 }
 // カーソル/タップ座標にある自分の手札カードを返す（無ければnull）。
-// ユーザー報告（続き71）「ひょこっとなっているカードと、実際にドラッグして掴める
-// カード（＝ハイライトされているカード）が違う。ユーザーは混乱する」。原因は
-// findDraggableAt/findHoverTarget（掴む対象・拡大プレビュー対象の判定、どちらも
-// elementsFromPoint()で候補を集めた後、扇状に重なるカードの中からclosestByCenterで
-// 一番中心が近い1枚を選ぶ）と、この関数（以前はelementsFromPoint()の最初の1枚＝
-// 単純なDOM描画順の最前面）とで、判定アルゴリズム自体が違っていたこと。重なりが
-// 深い場所では「見た目の最前面」と「中心が一番近い」が別のカードを指すことがあり、
-// 「ひょこっと持ち上がるカード」と「実際に掴めるカード」が食い違っていた。
-// findDraggableAt/findHoverTargetと全く同じ「elementsFromPoint()で候補を集めて
-// closestByCenterで1枚に絞る」手順に揃え、常に一致するようにする。
+// ユーザー要望（最新）「実際に手前に見えているカードをホバーすると、そのカードが
+// ひょこっと持ち上がるようにしたい（緑にカーソルを合わせているのに紫が持ち上がるのを直す）」。
+// 手札は扇状に一部重なって描画されるため、以前は掴む/プレビュー判定と揃える目的で
+// closestByCenter（中心距離が一番近い1枚）にしていたが、それだと「見えているスリバー」と
+// 別のカードが選ばれることがあった。elementsFromPoint()は重なり位置で「実際に最前面に
+// 描画されている（＝見えている）」カードを先頭に返すため、その先頭をそのまま採用する
+// （findHoverTarget/findDraggableAtの手札分岐も同じ“最前面”方式に統一済み——持ち上げ・
+// プレビュー・掴むが常に一致する）。
 function findSelfHandCardAt(clientX, clientY) {
   const elements = document.elementsFromPoint(clientX, clientY);
-  const candidates = new Set();
   for (const el of elements) {
     const handCard = el.closest(".hand-card.is-self");
-    if (handCard && handCard.closest(".zone-bottom .hand-area")) candidates.add(handCard);
+    if (handCard && handCard.closest(".zone-bottom .hand-area")) return handCard;
   }
-  if (candidates.size === 0) return null;
-  return closestByCenter(candidates, clientX, clientY);
+  return null;
 }
 function initHandPeek() {
   window.addEventListener("pointermove", (e) => {
@@ -5734,6 +5888,11 @@ function initDragHandlers() {
       }
     }
 
+    // ユーザー要望「ハンドフェイズで手札を掴んだら『場にドロップで手札効果が発動します』的な
+    // モーダルを中央に出して」。掴んだのが手札効果を持つ自分の手札カードなら、中央にヒントを出す
+    // （ドロップ／キャンセルで消える。maybeShowHandDropHint参照）。
+    maybeShowHandDropHint(hit);
+
     // タッチ/ペンでは「マウスホバーで拡大プレビュー」に相当する操作が無く、指で押さえても
     // 即座にドラッグ（つまむ）が始まってしまうため、中身を確認する手段が無かった
     // （ユーザー報告: タブレットで長押しすると代わりにブラウザの文字選択が出てしまう）。
@@ -5748,6 +5907,36 @@ function initDragHandlers() {
     if (hit.kind === "pile") startPileDrag(e, hit.pile);
     else startTokenDrag(e, hit.tokenId, hit.kind, hit.el);
   });
+}
+
+// ハンドフェイズで手札効果を持つ自分の手札カードを掴んだ時、「場にドロップすると手札効果が
+// 発動します」と中央に案内する（ユーザー要望）。自動処理モードON・ハンドフェイズ中のみ
+// （＝場にドロップで実際に手札効果が起動する状況のみ）。ドラッグの邪魔をしないよう
+// pointer-events:none、ドロップ/キャンセル/一定時間で消す。
+let handDropHintEl = null;
+let handDropHintTimer = null;
+function maybeShowHandDropHint(hit) {
+  if (!hit || hit.kind !== "card") return;
+  if (!isAutoProcessingEnabled() || !isHandPhaseActive()) return;
+  const token = getState().tokens.find((t) => t.id === hit.tokenId);
+  if (!token || token.location.zone !== "hand" || token.location.player !== getSelfSeat()) return;
+  if (!hasHandEffectData(token.cardId)) return;
+  showHandDropHint();
+}
+function showHandDropHint() {
+  if (!handDropHintEl) {
+    handDropHintEl = document.createElement("div");
+    handDropHintEl.id = "hand-drop-hint";
+    handDropHintEl.textContent = "そのカードを場にドロップすると、手札効果が発動します。";
+    document.body.appendChild(handDropHintEl);
+  }
+  handDropHintEl.classList.add("show");
+  clearTimeout(handDropHintTimer);
+  handDropHintTimer = setTimeout(hideHandDropHint, 4000);
+}
+function hideHandDropHint() {
+  clearTimeout(handDropHintTimer);
+  if (handDropHintEl) handDropHintEl.classList.remove("show");
 }
 
 const TOUCH_HOLD_MS = 450; // これ以上動かさずに押さえ続けたら「長押し」＝プレビュー表示
@@ -5936,6 +6125,7 @@ function onDragMove(e) {
 // 呼ぶ。onDragEnd()と違い、どこにも移動させず（stateは一切変更せず）ゴースト・ハイライトの
 // 後始末だけ行い、render()で元の状態に戻す。
 function cancelDragSession() {
+  hideHandDropHint();
   if (!dragSession) return;
   window.removeEventListener("pointermove", onDragMove);
   window.removeEventListener("pointerup", onDragEnd);
@@ -6260,6 +6450,7 @@ onAutoProcessingResolvedEvents(({ nextEnabled }) => {
 });
 
 async function onDragEnd(e) {
+  hideHandDropHint(); // 掴んだ時に出した「場にドロップで発動」ヒントを消す
   if (!dragSession) return;
   const { tokenId, kind, ghost, pileSource, highlightEl } = dragSession;
   ghost.remove();
@@ -6587,12 +6778,7 @@ async function onDragEnd(e) {
         ? cardSourceLocation.row === dropTarget.row && cardSourceLocation.col === dropTarget.col
         : cardSourceLocation.side === dropTarget.side && cardSourceLocation.index === dropTarget.index);
     if (isSameLocation) {
-      // ユーザー要望「②エターナルカード・ファーストカードは、ハンドフェイズでそのカードを
-      // クリックすると、追色コストを手札から選ぶ流れに移行する」。クリック（動かさず
-      // 離した＝isSameLocation）を検知できるのはドラッグ終了時点だけなので、ここで判定する。
-      // 手札にある間だけでなく、ロックエリアにある間（is-usable-while-lockedの光る演出は
-      // あるが、今まで実際に使う手段が無かった）も対象にする（ユーザー確認済み）。
-      if (kind === "card" && isHandPhaseActive()) {
+      if (kind === "card") {
         const clickedToken = getState().tokens.find((t) => t.id === tokenId);
         const clickPlayer =
           cardSourceLocation.zone === "hand"
@@ -6600,10 +6786,15 @@ async function onDragEnd(e) {
             : cardSourceLocation.zone === "lock"
               ? SIDE_TO_SEAT[cardSourceLocation.side]
               : null;
+        const isEternalOrFirst =
+          clickedToken?.cardId?.startsWith("eternal-") || clickedToken?.cardId?.startsWith("first-");
+        // (A) エターナル/ファースト（従来）: ハンドフェイズでそのカードをクリックすると、
+        // 追色コストを手札から選ぶ流れに移行する（手札・ロックエリアのどちらにある間でも）。
         if (
+          isHandPhaseActive() &&
           clickedToken &&
           clickPlayer === getSelfSeat() &&
-          (clickedToken.cardId?.startsWith("eternal-") || clickedToken.cardId?.startsWith("first-")) &&
+          isEternalOrFirst &&
           hasHandEffectData(clickedToken.cardId)
         ) {
           render();
@@ -6615,6 +6806,37 @@ async function onDragEnd(e) {
             alert("捨てられる同じ色のカードが手札にありません。");
           }
           return;
+        }
+        // (B) 通常の手札カード（ユーザー要望「自動処理モードで、手札を掴んで場にドロップする
+        // ほかに、手札をそのままクリックでも使用できるようにしたい」）。ドラッグで場に出して
+        // 発動する既存経路(上のdropTarget.zone!=="hand"分岐)と全く同じ判定・確認・コスト
+        // 処理を、クリック（同位置離し）でも呼べるようにする。対象は自分の手札にある
+        // エターナル/ファースト以外の、手札効果を持つカード。
+        if (
+          isAutoProcessingEnabled() &&
+          clickedToken &&
+          clickPlayer === getSelfSeat() &&
+          cardSourceLocation.zone === "hand" &&
+          !isEternalOrFirst &&
+          hasHandEffectData(clickedToken.cardId)
+        ) {
+          const isUsableAnytime = isHandEffectUsableAnytime(clickedToken.cardId);
+          const effectProcessingBusy = isAnyEffectProcessingBusy();
+          if (isUsableAnytime && effectProcessingBusy) {
+            render();
+            return;
+          }
+          if (isHandPhaseActive() || (isUsableAnytime && !effectProcessingBusy)) {
+            render();
+            if (canUseHandEffect(clickedToken.cardId, clickedToken.id, clickPlayer)) {
+              if (await confirmTouchAction(`${getCardDefinition(clickedToken.cardId).name}を使用しますか？`)) {
+                runAutoHandEffect(clickedToken.cardId, clickedToken.id, clickPlayer);
+              }
+            } else if (!canPayHandEffectCost(clickedToken.cardId, clickedToken.id, clickPlayer)) {
+              alert("捨てられる同じ色のカードが手札にありません。");
+            }
+            return;
+          }
         }
       }
       render();
@@ -6665,6 +6887,15 @@ async function onDragEnd(e) {
     }
     if (kind === "card") playSound("cardPlace");
     if (kind === "piece") playSound("piecePlace");
+    // ドラッグでの駒移動も、タップ移動（markPhaseMoveActionTaken、上の移動ハイライトの
+    // クリック経路）と同じく移動フェイズの「1手（移動 or 接触は1回だけ）」を消費させる。
+    // これが無いと、ドラッグで移動した後も移動フェイズが有効なまま残り（ハイライトも残り）、
+    // もう1マス動けて到達が連鎖してしまう——ユーザー報告「相手ゲートに移動→選べる罠に到達→
+    // 効果処理後、また移動させられた」の原因。手番プレイヤー自身の駒を移動フェイズ中に
+    // ドラッグで動かした時だけ消費する（他座席の駒・移動フェイズ外は対象外）。
+    if (kind === "piece" && token && token.player === getState().turnPlayer && isMovePhaseActive()) {
+      markPhaseMoveActionTaken();
+    }
     render();
     // 到達プロンプト/モーダル・ロック演出の位置決めに実際のDOM座標(getBoundingClientRect)を
     // 使うため、どちらもrender()で盤面を描き直した後でなければ呼べない。
@@ -8231,6 +8462,8 @@ initPlayerButtons();
 initQuickStart();
 initPhaseGuide();
 registerTutorialStageHelpers({ stageClientToLocal, stageDelta, stageWidth: STAGE_WIDTH, stageHeight: STAGE_HEIGHT });
+registerTutorialBattleUiHelpers({ stageClientToLocal, stageDelta, stageWidth: STAGE_WIDTH, stageHeight: STAGE_HEIGHT });
+registerTutorialBattleHelpers({ triggerLockEffect, playScriptedContact, flyBoardCardToHand, flyDrawnCardToHand });
 initTutorialAutoStart();
 initGameBgmAutoStart();
 initTurnTimer();
@@ -8338,6 +8571,15 @@ subscribe(() => {
         // 見えてしまい、駒を初めて動かした瞬間にゲーム開始時のロック演出が再発生する
         // バグの原因になっていた）。
         skipNextHydrateDiff();
+        // オンライン対戦では「３：スタートプレイヤー決定」モーダルがどこからも呼ばれて
+        // おらず（ローカルのgame-setup.js runStep3専用だった）、誰から始まるのかが
+        // 画面に一切告知されないままだった（ユーザー報告「自動処理モードでオンライン対戦時、
+        // スタートプレイヤー決定モーダルが表示されません」）。配布アニメーションが終わった
+        // このタイミングで、サーバーが決めたスタートプレイヤー(turnPlayer)を告知する。
+        // blocksInput:false・自動で閉じる保険付きなので、直後のreconcilePhaseAutomation()
+        // による自動処理進行を妨げない。
+        const starter = getState().turnPlayer;
+        if (starter) showStartPlayerModal(starter);
         // 演出中はrender()内のreconcilePhaseAutomation()呼び出しを丸ごとスキップして
         // いた（上のsuppressGenericRenderForOnlineStart参照）ため、演出が終わった今
         // 改めて呼んでおかないと、フェイズ自動進行がいつまでも始まらないままになって

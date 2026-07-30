@@ -25,6 +25,9 @@ import { GATE_POSITIONS, SEAT_TO_SIDE } from "./board-layout.js";
 import { getSelfSeat } from "./online.js";
 import { getCardDefinition, getCardImagePath } from "./cards-data.js";
 import { backImagePath, getCardBackSetIndex } from "./card-back-skins.js";
+// チュートリアルCPU戦（台本化された練習試合）が進行中は、この初回自動オーバーレイを
+// 出さない（チュートリアル対戦は自前の導入解説・インバトルヒントを持つため）。
+import { isTutorialBattleActive } from "./tutorial-battle.js";
 
 // ハマりどころ（ユーザー報告のスクリーンショットで発覚、実際の環境依存の不具合）:
 // このモジュールの要素（#tutorial-overlay等）はdocument.body直下に置いているが、
@@ -711,7 +714,8 @@ function finishTutorial() {
 export function initTutorialAutoStart() {
   subscribe(() => {
     const started = Boolean(getState().turnPlayer);
-    if (started && !wasGameStartedForTutorial && !hasCompletedTutorial()) {
+    // チュートリアルCPU戦の進行中は、そちらが自前の解説を出すのでこの初回オーバーレイは抑制する。
+    if (started && !wasGameStartedForTutorial && !hasCompletedTutorial() && !isTutorialBattleActive()) {
       // セットアップ完了時に自動表示される「スタートプレイヤー決定」モーダル
       // （game-setup.js）と表示タイミングが重なって騒がしくならないよう、
       // 少し間を置いてから出す。

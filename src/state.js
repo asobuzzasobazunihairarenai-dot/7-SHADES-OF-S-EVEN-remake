@@ -404,6 +404,67 @@ function reduce(current, action) {
         pendingContact: null,
       };
     }
+    // チュートリアルCPU戦（src/tutorial-battle.js）専用の決定的セットアップ。
+    // 通常のセットアップ（RESET_GAME→SETUP_ASSIGN_FIRST_CARDS→SETUP_FILL_BOARD）は
+    // すべてshuffled()（Math.random）由来で盤面がランダムになるが、チュートリアルは
+    // 「決められた展開を必ずなぞらせる」フルヤラセのため、駒・手札・ロック・盤面49マス・
+    // 各山を台本(action.scenario)で完全に指定して一括構築する（ローカル専用機能なので
+    // shuffleを一切通さずに固定値を置ける）。トークンidの採番だけは他と同じくここ(uid)で
+    // 行い、id生成を1箇所に集約する。scenario: { pieces, hands, locks, board, piles,
+    // activePlayers }（各フィールドの形はtutorial-battle.jsのbuildScenario参照）。
+    case "TUTORIAL_SCENARIO_SETUP": {
+      const s = action.scenario ?? {};
+      const tokens = [];
+      for (const p of s.pieces ?? []) {
+        tokens.push({ id: uid("piece"), kind: "piece", color: p.color, player: p.player, location: p.location });
+      }
+      for (const [player, cardIds] of Object.entries(s.hands ?? {})) {
+        for (const cardId of cardIds) {
+          // 自分(A)の手札だけ表向き（中身が見える）。既存のcreateInitialStateと同じ規約。
+          tokens.push({ id: uid("card"), kind: "card", cardId, faceUp: player === "A", location: { zone: "hand", player } });
+        }
+      }
+      for (const lock of s.locks ?? []) {
+        // ロックは常に表向き。indexはCOLORSの並び順（board-layout.js）に対応。
+        tokens.push({ id: uid("card"), kind: "card", cardId: lock.cardId, faceUp: true, location: { zone: "lock", side: lock.side, index: COLORS.indexOf(lock.color) } });
+      }
+      for (const c of s.board ?? []) {
+        tokens.push({ id: uid("card"), kind: "card", cardId: c.cardId, faceUp: !!c.faceUp, location: { zone: "cell", row: c.row, col: c.col } });
+      }
+      return {
+        tokens,
+        piles: {
+          deck: [...(s.piles?.deck ?? [])],
+          eternal: [...(s.piles?.eternal ?? [])],
+          first: [...(s.piles?.first ?? [])],
+          discard: [...(s.piles?.discard ?? [])],
+        },
+        activePlayers: s.activePlayers ?? [],
+        turnPlayer: null,
+        turnNumber: null,
+        roundNumber: null,
+        startPlayer: null,
+        priorityPlayer: null,
+        priorityDeadline: null,
+        priorityPhase: null,
+        hourglassStock: {},
+        pendingFinalLock: null,
+        pendingContact: null,
+        pendingTimerToggle: null,
+        pendingAutoProcessingToggle: null,
+      };
+    }
+    // チュートリアルCPU戦（tutorial-battle.js）専用。ロックエリアにカードを1枚追加する
+    // （導入演出「ファーストカード以外の5枚が順にロックされる」を1枚ずつ dispatch する用途）。
+    case "TUTORIAL_LOCK_CARD": {
+      return {
+        ...current,
+        tokens: [
+          ...current.tokens,
+          { id: uid("card"), kind: "card", cardId: action.cardId, faceUp: true, location: { zone: "lock", side: action.side, index: COLORS.indexOf(action.color) } },
+        ],
+      };
+    }
     // セットアップウィザードの手順1: 参加している座席（action.players、時計回り順）に
     // ファーストカードの山から1枚ずつ配り、そのカードと同色のロックエリアへ表向きでロックする
     // （物理ルール「ロックした状態でゲーム開始」）。同時に、そのカードと同色の駒を
@@ -738,6 +799,17 @@ export function respondContact(approve, stolenCardId) {
 
 export function resetGame() {
   dispatch({ type: "RESET_GAME" });
+}
+
+// チュートリアルCPU戦（src/tutorial-battle.js）専用。決定的な台本の盤面を一括構築する
+// （TUTORIAL_SCENARIO_SETUP参照）。完全ローカル機能なのでonlineTransportは経由しない。
+export function setupTutorialScenario(scenario) {
+  dispatch({ type: "TUTORIAL_SCENARIO_SETUP", scenario });
+}
+
+// チュートリアルCPU戦専用。ロックエリアに1枚ロックを追加する（導入の5枚ロック演出用）。
+export function tutorialLockCard(side, color, cardId) {
+  dispatch({ type: "TUTORIAL_LOCK_CARD", side, color, cardId });
 }
 
 // players: [{ player: "A", side: "bottom" }, ...]（座席の時計回り順、game-setup.jsが組み立てる）

@@ -105,7 +105,7 @@ function buildSimpleModal({ widthRem = 24, fadeIn = false, autoDismissMs = null,
   return { backdrop, modal, close };
 }
 
-function showStartPlayerModal(player, { onClose = null, autoDismissMs = 8000 } = {}) {
+export function showStartPlayerModal(player, { onClose = null, autoDismissMs = 8000 } = {}) {
   const { modal } = buildSimpleModal({ widthRem: 20, fadeIn: true, autoDismissMs, onClose, blocksInput: false });
   const title = document.createElement("div");
   title.style.cssText = "font-weight: bold; margin-bottom: 0.6rem; font-size: 0.95rem;";

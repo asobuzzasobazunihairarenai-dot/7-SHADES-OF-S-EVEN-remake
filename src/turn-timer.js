@@ -48,6 +48,7 @@ import {
   getReducedBaseSeconds as getReducedBaseSecondsLocal,
   isPseudoCpuModeEnabled as isPseudoCpuModeEnabledLocal,
   isPseudoCpuIncludeSelf,
+  getPseudoCpuDeadlineMs,
 } from "./admin.js";
 import { isOpponentBaseTimerVisible } from "./motion-prefs.js";
 import { toggleTimerTogglePopover } from "./timer-toggle.js";
@@ -181,7 +182,7 @@ function fireAndForget(maybePromise) {
 // 既存の制約（updateTimeoutWarnings参照）を受けるため、実際に効果があるのは
 // 「自分も含める」がONの時の自分自身の番だけになる（他人の座席を勝手に自動操作
 // することはできない、という既存のセキュリティ上の制約はそのまま維持される）。
-const PSEUDO_CPU_DEADLINE_MS = 1000;
+// 疑似CPUの基本時間はオプションで可変（admin.jsのgetPseudoCpuDeadlineMs、既定1000ms）。
 // ユーザー要望（続き104）「疑似CPUモードでロックフェイズも自動でロックするようにして、
 // 本当に対戦終了まで自動で行けるようにする」。main.js側のperformPriorityTimeoutAutoAction
 // （ロックフェイズのタイムアウト処理）から同じ判定を使えるようexportする（main.js⇄
@@ -215,7 +216,7 @@ function freshBaseDeadlineFor(seat) {
     selfSeat: getSelfSeat(),
     isPseudoCpuTarget: target,
   });
-  if (target) return Date.now() + PSEUDO_CPU_DEADLINE_MS;
+  if (target) return Date.now() + getPseudoCpuDeadlineMs();
   const seconds = hourglassUsedThisTurn[seat] ? Math.min(getRopeBaseSeconds(), getReducedBaseSeconds()) : getRopeBaseSeconds();
   return Date.now() + seconds * 1000;
 }
@@ -347,7 +348,15 @@ function onStateChange(state) {
     const remaining = state.priorityDeadline - Date.now();
     if (remaining > 0) pausedExtensionRemainingMs[state.priorityPlayer] = remaining;
   }
-  withGuard(() => setPriorityState({ player: state.priorityPlayer, deadline: freshBaseDeadlineFor(state.priorityPlayer), phase: "base" }));
+  // 重要（オンラインの委譲/優先権返却バグの根本対策）: この手の「保持者の基本時間/フェイズを
+  // 仕切り直すだけ」のリフレッシュ書き込みには player を含めない。含めると、カード効果の委譲
+  // （パーティー・合同建設・スラム上がりの役人）で一時的に相手へ優先権を貸している間、
+  // 相手クライアントの“まだ更新前の古い priorityPlayer”に基づくリフレッシュが、コーディネーター
+  // 側の「優先権を手番プレイヤーへ戻す」書き込み（player 指定あり）を last-writer-wins で
+  // 上書きしてしまい、「委譲後に優先権が即座に戻らず、相手がタイムアウトして初めて戻る」
+  // という不具合になる。優先権の保持者(player)は、明示的な譲渡/返却(transferPriorityTo)・
+  // ターン交代・座席初期化・タイムアウト時の返却でのみ書き換える。
+  withGuard(() => setPriorityState({ deadline: freshBaseDeadlineFor(state.priorityPlayer), phase: "base" }));
 }
 
 // --- フェイズ案内板の中に出す、基本時間の残り秒数表示 -----------------------------------
@@ -818,7 +827,10 @@ const PRIORITY_RESYNC_EVERY_TICKS = 15; // tick()は200ms間隔なので約3秒�
 // performPriorityTimeoutAutoAction()を呼んで解決する。
 let ticksWithLocalEffectPickerPending = 0;
 const TICK_INTERVAL_MS = 200; // setInterval(tick, 200)と一致させる
-const PSEUDO_CPU_LOCAL_PICKER_TIMEOUT_TICKS = Math.max(1, Math.round(PSEUDO_CPU_DEADLINE_MS / TICK_INTERVAL_MS));
+// 基本時間が可変になったので、判定に使うtick数も都度計算する（下のtick()内で参照）。
+function pseudoCpuLocalPickerTimeoutTicks() {
+  return Math.max(1, Math.round(getPseudoCpuDeadlineMs() / TICK_INTERVAL_MS));
+}
 
 // ユーザー要望「タイマーが切れた場合、自動でスキップまたはターン終了をするように
 // してください。移動先や効果の選択などの途中の場合はランダムで選択させるように」。
@@ -914,7 +926,7 @@ function updateTimeoutWarnings(state, isTimedOut) {
           // まで行ってしまう」。この15秒回復はfreshBaseDeadlineFor()を経由しない
           // 直書きのため、isPseudoCpuTargetの対象座席にもそのまま15秒を与えてしまって
           // いた。対象座席には通常通り1秒を与える。
-          const recoveryMs = isPseudoCpuTarget(state.priorityPlayer) ? PSEUDO_CPU_DEADLINE_MS : 15000;
+          const recoveryMs = isPseudoCpuTarget(state.priorityPlayer) ? getPseudoCpuDeadlineMs() : 15000;
           withGuard(() =>
             setPriorityState({ player: state.priorityPlayer, deadline: Date.now() + recoveryMs, phase: "base" })
           );
@@ -961,7 +973,7 @@ function tick() {
   // 相当）居座っていたら、優先権の状態を問わず解決する。
   if (isPseudoCpuTarget(getSelfSeat()) && hasActiveEffectPicker()) {
     ticksWithLocalEffectPickerPending++;
-    if (ticksWithLocalEffectPickerPending >= PSEUDO_CPU_LOCAL_PICKER_TIMEOUT_TICKS) {
+    if (ticksWithLocalEffectPickerPending >= pseudoCpuLocalPickerTimeoutTicks()) {
       ticksWithLocalEffectPickerPending = 0;
       logAction("diag-pseudo-cpu", { phase: "localEffectPicker-forceResolve", selfSeat: getSelfSeat() });
       performPriorityTimeoutAutoAction();
@@ -1043,9 +1055,9 @@ function tick() {
       hourglassUsedThisTurn[state.priorityPlayer] = true;
       // 中断された延長ロープの続きがあればそこから、無ければ満タンから燃やす
       // （extensionDurationMsFor参照）。
+      // player は含めない（保持者は変えない。上の onStateChange の書き込みのコメント参照）。
       withGuard(() =>
         setPriorityState({
-          player: state.priorityPlayer,
           deadline: Date.now() + extensionDurationMsFor(state.priorityPlayer),
           phase: "extension",
         })
@@ -1067,10 +1079,10 @@ function tick() {
   }
   const nextStock = stock - 1;
   if (nextStock > 0) {
+    // player は含めない（保持者は変えない。上の onStateChange の書き込みのコメント参照）。
     withGuard(() =>
       setPriorityState({
         hourglassStock: { [state.priorityPlayer]: nextStock },
-        player: state.priorityPlayer,
         deadline: Date.now() + getRopeExtensionSeconds() * 1000,
         phase: "extension",
       })
@@ -1080,10 +1092,10 @@ function tick() {
     // 最後の1個も使い切った。ロープを消して警告表示だけの安定状態(phase:"base")に戻す
     // （ここで一度だけdispatchすれば、以降は上のstock<=0の早期returnで毎ティックの
     // 無駄な再dispatchを避けられる）。
+    // player は含めない（保持者は変えない。上の onStateChange の書き込みのコメント参照）。
     withGuard(() =>
       setPriorityState({
         hourglassStock: { [state.priorityPlayer]: nextStock },
-        player: state.priorityPlayer,
         deadline: state.priorityDeadline,
         phase: "base",
       })

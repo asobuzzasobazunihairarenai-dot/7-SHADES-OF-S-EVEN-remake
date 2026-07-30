@@ -1137,6 +1137,34 @@ body.reduce-glow [style*="rainbow-shard.webp"]::after {
 
 /* 接触の結果（何を奪った/奪われたか）モーダル（ユーザー要望）。#contact-confirm-modalと
    同じ見た目のパターンに、奪ったカードの画像プレビューを追加した。 */
+/* ハンドフェイズで手札効果を持つカードを掴んだ時の中央ヒント（ユーザー要望）。ドラッグの
+   邪魔をしないpointer-events:none。掴んでいる間だけ.showで表示。 */
+#hand-drop-hint {
+  position: fixed;
+  top: 38%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.96);
+  width: max-content;
+  max-width: min(26rem, 90vw);
+  background: rgba(30, 41, 59, 0.96);
+  border: 1px solid rgba(251, 191, 36, 0.7);
+  border-radius: 0.6rem;
+  padding: 0.8rem 1.2rem;
+  z-index: 10600;
+  pointer-events: none;
+  font-family: sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fde68a;
+  text-align: center;
+  box-shadow: 0 0.6rem 1.8rem rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+#hand-drop-hint.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
 #contact-result-modal {
   position: fixed;
   top: 50%;
@@ -5898,6 +5926,24 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   box-shadow: 0 0 1.5rem rgba(250, 204, 21, 0.5), 0 20px 50px rgba(0, 0, 0, 0.6);
 }
 
+/* 「今後このモーダルを表示しない」（confirmTouchAction、ロック前/手札使用前の確認）。
+   Yes/Noの下に控えめな小さいテキストリンクとして置く。押すと以後この確認を出さない
+   設定にして、その回の操作はそのまま実行する（再表示はオプションの基本設定から）。 */
+#touch-action-confirm-dontshow {
+  display: block;
+  margin: 0.7rem auto 0;
+  background: none;
+  border: none;
+  color: rgba(254, 243, 199, 0.65);
+  font-family: sans-serif;
+  font-size: 0.72rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+#touch-action-confirm-dontshow:hover {
+  color: #fef3c7;
+}
+
 /* ゲストログイン前の注意確認（続き83、opening-screen.jsのconfirmGuestLogin）。
    #touch-action-confirm-modalと同じ「中央固定・.contact-approval-*クラスを
    使い回す」構成。注意喚起の意味合いを強めるため、他の確認モーダル（金色系）とは
@@ -8539,6 +8585,34 @@ body.reduce-glow .cell.card-effect-target-cell .board-card {
 }
 body.reduce-glow #card-effect-picker-hint.show {
   animation: none;
+}
+/* 「これ以上選ばない」スキップボタン（任意選択の効果。requestCellChoiceForEffectの
+   options.allowSkip / showEffectSkipButton参照）。案内バナー(#card-effect-picker-hint)の
+   すぐ下に、クリック可能(pointer-events:auto=button既定)なボタンとして出す。黄のキューブ
+   サフラン等の「してもよい」効果を途中でやめられるようにするため。 */
+#card-effect-skip-button {
+  position: fixed;
+  top: calc(50% + 2.7rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3201;
+  display: none;
+  padding: 0.4rem 1.1rem;
+  border: 1px solid rgba(250, 204, 21, 0.7);
+  border-radius: 0.5rem;
+  background: rgba(28, 16, 4, 0.95);
+  color: #fde68a;
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+#card-effect-skip-button.show {
+  display: block;
+}
+#card-effect-skip-button:hover {
+  filter: brightness(1.12);
 }
 /* ユーザー要望「収穫と種まきで獲得したカードを手札の中で効果が終わるまで光らせて
    ほしい」。既存のhas-mystic-auraとは別に、緑系の「獲得しました」を表す光。 */
