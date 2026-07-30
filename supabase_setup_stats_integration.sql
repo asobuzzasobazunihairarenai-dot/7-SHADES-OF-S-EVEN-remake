@@ -69,3 +69,12 @@ create policy "players_select_authenticated" on players for select to authentica
 -- もし実際にログイン済みユーザーからのアップロードが権限エラーで失敗する場合は、
 -- Supabaseダッシュボード > Storage > match-proofs > Policies で
 -- authenticatedロールのINSERTを許可するポリシーを追加してほしい。
+
+-- match_feedback_replies.parent_reply_id: 「みんなのコメント」を個別に返信（1段ネスト）できる
+-- ようにするための親コメントID（ユーザー要望 2026-07）。nullならトップレベルの参加者コメント、
+-- 非nullならそのコメント(id)への返信。親を消したら返信も一緒に消えるようcascadeにする。
+-- デジタル版アプリの投稿はこの列を指定しない（＝null＝トップレベル）ため、列が無くても
+-- アプリ側の投稿は壊れないが、戦績管理システム側の返信フォームはこの列を書き込むため、
+-- 返信機能を使う前にこのSQLを実行する必要がある。
+alter table match_feedback_replies
+  add column if not exists parent_reply_id text references match_feedback_replies(id) on delete cascade;
