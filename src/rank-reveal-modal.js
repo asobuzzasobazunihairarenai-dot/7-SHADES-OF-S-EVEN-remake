@@ -9,9 +9,9 @@
 // 前回順位との比較はサーバーに保存せず、localStorage（このブラウザ限定、
 // tutorial.jsのSTORAGE_KEYと同じ考え方）に前回値を持たせるだけの軽量な実装にした。
 
-import { createBackdrop } from "./ui-helpers.js";
-import { getCurrentUser } from "./online.js";
-import { fetchStatsProfile, fetchPlayerRank } from "./stats-profile.js";
+import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
+import { getCurrentUser, signInWithGoogle } from "./online.js";
+import { fetchStatsProfile, fetchPlayerRank, fetchLeaderboard } from "./stats-profile.js";
 
 const AUTO_CLOSE_MS = 6000;
 const CLIMB_DURATION_MS = 1800;
@@ -66,8 +66,12 @@ function animateClimb(numberEl, from, to, onSettled) {
 // 表示できる材料が揃わない場合（未連携・ランキング対象外・未ログイン等）は何もせず
 // 即resolveする——victory.js側の呼び出し連鎖を止めないため。
 export async function showRankRevealModal() {
+  // ユーザー要望「自分がランキングに載っていない場合でも、ランキング自体は見せつつ、なぜ
+  // 載っていないのかを説明し、原因が未ログイン/ゲストならログインを促す」。各早期returnの
+  // 代わりに、状況（reason）を添えて未ランクイン用モーダルを出す。
   const user = await getCurrentUser();
-  if (!user) return;
+  if (!user) return showNotRankedModal("not-logged-in");
+  if (user.is_anonymous) return showNotRankedModal("guest");
 
   let profile;
   try {
@@ -76,7 +80,7 @@ export async function showRankRevealModal() {
     console.error("fetchStatsProfile (rank reveal) failed", err);
     return;
   }
-  if (!profile.linked) return;
+  if (!profile.linked) return showNotRankedModal("not-linked");
 
   let rankInfo;
   try {
@@ -85,7 +89,7 @@ export async function showRankRevealModal() {
     console.error("fetchPlayerRank (rank reveal) failed", err);
     return;
   }
-  if (!rankInfo) return;
+  if (!rankInfo) return showNotRankedModal("below-border");
 
   const previousRank = getStoredLastRank();
   storeLastRank(rankInfo.rank);
@@ -133,5 +137,119 @@ export async function showRankRevealModal() {
     });
 
     const autoCloseTimer = setTimeout(close, AUTO_CLOSE_MS);
+  });
+}
+
+// 未ランクインの理由ごとの説明文と、必要ならCTA（ログイン導線）。
+function explainNotRanked(reason) {
+  switch (reason) {
+    case "not-logged-in":
+      return {
+        text: "あなたはまだランキングに参加していません。ログインすると、オンライン対戦の結果が戦績に記録され、ランキングに参加できます。",
+        ctaLabel: "Googleでログイン",
+        ctaAction: () => signInWithGoogle().catch((err) => console.error("signInWithGoogle failed", err)),
+      };
+    case "guest":
+      return {
+        text: "ゲストプレイはランキングの対象外です。Googleアカウントでログインすると、対戦結果が記録され、ランキングに参加できるようになります。",
+        ctaLabel: "Googleでログイン",
+        ctaAction: () => signInWithGoogle().catch((err) => console.error("signInWithGoogle failed", err)),
+      };
+    case "not-linked":
+      return {
+        text: "まだ戦績が登録されていません。オンライン対戦を1戦プレイすると自動的に登録され、ランキングに参加できます。",
+      };
+    case "below-border":
+      return {
+        text: "対戦数がまだ少ないため、勝率ランキングの対象外です。もう少し対戦を重ねると対象になります。",
+      };
+    default:
+      return { text: "あなたはまだランキングに参加していません。" };
+  }
+}
+
+// 自分がランキングに載っていない時：勝率ランキングの上位一覧を見せつつ、載っていない理由を
+// 説明し、原因が未ログイン/ゲストならログイン導線を出す（ユーザー要望）。表示材料が全く
+// 取れない時（通信失敗等）は何もせず即resolveする（victory.jsのエピローグ連鎖を止めない）。
+async function showNotRankedModal(reason) {
+  let topRows = [];
+  try {
+    const lb = await fetchLeaderboard(10);
+    topRows = lb.winRate || [];
+  } catch (err) {
+    console.error("fetchLeaderboard (rank reveal) failed", err);
+  }
+
+  return new Promise((resolve) => {
+    const modal = document.createElement("div");
+    modal.id = "rank-reveal-modal";
+    modal.classList.add("is-not-ranked");
+    let done = false;
+    const close = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(autoCloseTimer);
+      backdrop.remove();
+      modal.remove();
+      resolve();
+    };
+    const backdrop = createBackdrop(close, { dim: true, zIndex: 10530 });
+
+    const title = document.createElement("div");
+    title.className = "rank-reveal-modal-title";
+    title.textContent = "🏆 勝率ランキング";
+    modal.appendChild(title);
+
+    const list = document.createElement("div");
+    list.className = "rank-reveal-leaderboard";
+    if (topRows.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "rank-reveal-leaderboard-empty";
+      empty.textContent = "まだランキングデータがありません。";
+      list.appendChild(empty);
+    } else {
+      for (const row of topRows) {
+        const item = document.createElement("div");
+        item.className = "rank-reveal-leaderboard-row";
+        const rankEl = document.createElement("span");
+        rankEl.className = "rr-rank";
+        rankEl.textContent = `${row.rank}位`;
+        const nameEl = document.createElement("span");
+        nameEl.className = "rr-name";
+        nameEl.textContent = row.name; // textContentでユーザー名を安全に表示
+        const valEl = document.createElement("span");
+        valEl.className = "rr-val";
+        valEl.textContent = `勝率 ${row.winRate}%`;
+        item.appendChild(rankEl);
+        item.appendChild(nameEl);
+        item.appendChild(valEl);
+        list.appendChild(item);
+      }
+    }
+    modal.appendChild(list);
+
+    const { text, ctaLabel, ctaAction } = explainNotRanked(reason);
+    const note = document.createElement("div");
+    note.className = "rank-reveal-not-ranked-note";
+    note.textContent = text;
+    modal.appendChild(note);
+
+    if (ctaLabel && ctaAction) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "rank-reveal-cta-btn";
+      btn.textContent = ctaLabel;
+      btn.addEventListener("click", () => {
+        close();
+        ctaAction();
+      });
+      modal.appendChild(btn);
+    }
+
+    modal.appendChild(createModalCloseX(close));
+    document.body.appendChild(backdrop);
+    document.body.appendChild(modal);
+    // 一覧＋説明＋CTAを読む時間を確保しつつ、放置しても連鎖が進むよう長めの自動クローズ。
+    const autoCloseTimer = setTimeout(close, 12000);
   });
 }

@@ -7062,6 +7062,56 @@ body.reduce-glow .cell.card-effect-just-placed {
   letter-spacing: 0.03em;
   color: #7dd3fc;
 }
+/* 未ランクイン時：勝率ランキング一覧＋理由説明＋ログイン導線（showNotRankedModal）。 */
+#rank-reveal-modal.is-not-ranked {
+  text-align: left;
+  width: min(24rem, 90vw);
+}
+.rank-reveal-leaderboard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0.2rem 0 0.8rem;
+  max-height: 38vh;
+  overflow-y: auto;
+}
+.rank-reveal-leaderboard-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.4rem;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 0.85rem;
+}
+.rank-reveal-leaderboard-row .rr-rank { color: #7dd3fc; font-weight: bold; min-width: 2.6rem; }
+.rank-reveal-leaderboard-row .rr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-reveal-leaderboard-row .rr-val { color: #bae6fd; font-variant-numeric: tabular-nums; }
+.rank-reveal-leaderboard-empty { font-size: 0.85rem; color: #bae6fd; text-align: center; padding: 0.8rem 0; }
+.rank-reveal-not-ranked-note {
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: #e0f2fe;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.7rem;
+}
+.rank-reveal-cta-btn {
+  display: block;
+  width: 100%;
+  margin-top: 0.7rem;
+  padding: 0.6rem 1rem;
+  border: none;
+  border-radius: 0.6rem;
+  cursor: pointer;
+  font-family: sans-serif;
+  font-size: 0.95rem;
+  font-weight: bold;
+  background: linear-gradient(160deg, #38bdf8, #0ea5e9);
+  color: #082f49;
+}
+.rank-reveal-cta-btn:hover { filter: brightness(1.08); }
 .rank-reveal-modal-number {
   font-size: 2.6rem;
   font-weight: bold;
