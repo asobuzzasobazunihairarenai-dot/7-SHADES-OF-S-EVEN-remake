@@ -3404,6 +3404,15 @@ body.is-phone-device #options-menu-button {
   z-index: 900;
   transform: translate(var(--icon-pos-discord-x, 0rem), var(--icon-pos-discord-y, 0rem));
 }
+/* 2D/3D切り替えアイコン。Discord(11.7rem)と残金表示(16.9remへシフト)の間＝14.3rem。
+   #option-areaの子は個別にposition指定するため（未指定だと左上に落ちる）ここで固定配置する。 */
+#board-view-toggle-button {
+  position: absolute;
+  top: 0.3rem;
+  right: 14.3rem;
+  z-index: 900;
+  transform: translate(var(--icon-pos-view-toggle-x, 0rem), var(--icon-pos-view-toggle-y, 0rem));
+}
 #discord-link-button .icon-action-button-caption {
   display: none;
 }
@@ -3428,7 +3437,7 @@ body.is-phone-device #options-menu-button {
 #currency-display {
   position: absolute;
   top: 0.5rem;
-  right: 14.3rem;
+  right: 16.9rem;
   z-index: 900;
   display: flex;
   align-items: center;
@@ -4176,6 +4185,7 @@ body.opening-screen-active #option-area {
 }
 body.opening-screen-active #help-button,
 body.opening-screen-active #discord-link-button,
+body.opening-screen-active #board-view-toggle-button,
 body.opening-screen-active #currency-display,
 body.opening-screen-active #my-page-button,
 body.opening-screen-active #ranking-page-button {
@@ -7183,6 +7193,74 @@ body.reduce-glow .cell.card-effect-just-placed {
   font-size: 0.85rem;
   color: #ddd6fe;
   margin-top: 0.3rem;
+}
+/* MVPカード（全体・自分、対戦終了時の個人結果モーダル）。 */
+.match-personal-result-mvp {
+  padding-top: 0.8rem;
+  margin-top: 0.8rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+.match-personal-result-mvp-row {
+  display: flex;
+  justify-content: center;
+  gap: 1.4rem;
+  margin-top: 0.4rem;
+}
+.match-personal-result-mvp-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+}
+.match-personal-result-mvp-label {
+  font-size: 0.8rem;
+  color: #fbbf24;
+  font-weight: bold;
+}
+.match-personal-result-mvp-card {
+  width: 6rem;
+  height: auto;
+  border-radius: 0.4rem;
+  box-shadow: 0 0.3rem 0.9rem rgba(0, 0, 0, 0.5);
+}
+.match-personal-result-mvp-name {
+  font-size: 0.8rem;
+  text-align: center;
+  max-width: 8rem;
+  line-height: 1.4;
+}
+/* ターンごとのロック枚数の折れ線グラフ（対戦終了時の個人結果モーダル）。 */
+.match-personal-result-chart {
+  padding-top: 0.8rem;
+  margin-top: 0.8rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+.match-lock-chart-wrap {
+  margin-top: 0.4rem;
+}
+.match-lock-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.match-lock-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.3rem 0.9rem;
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+}
+.match-lock-chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.match-lock-chart-legend-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  display: inline-block;
 }
 
 /* 効果音ごとの音量（0〜100）。src/sound.jsがオプションメニューの「マスター音量」と

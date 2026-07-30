@@ -67,7 +67,7 @@ import {
 import { announceHandPickups, announceCardLocked, announceDrawCount } from "./hand-announcer.js";
 import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking, hasAnyoneWon } from "./victory.js";
-import { recordContactMade, recordCardUsed, initMatchStatsTracker } from "./match-stats-tracker.js";
+import { recordContactMade, recordCardUsed, recordLockSnapshot, initMatchStatsTracker } from "./match-stats-tracker.js";
 import { initPseudoCpuPrompt } from "./pseudo-cpu-prompt.js";
 import { registerVictoryHelpers } from "./post-game-panel.js";
 import { announceTurnChange } from "./turn-announce.js";
@@ -3255,7 +3255,7 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
     // runHandEffect()はコストが払えない・選択肢を選ばず終える等で発動できなかった
     // 場合はfalseを返す（card-effect-engine.jsのrunHandEffect参照）ため、実際に
     // 発動できた時だけカウントする。
-    if (usedSuccessfully) recordCardUsed(player);
+    if (usedSuccessfully) recordCardUsed(player, cardId);
   } finally {
     // ユーザー報告（続き94）「合同建設をハンドフェイズで最後に使用して手札を
     // 使い切ったのに自動でハンドフェイズが終わらなかった」の原因: 直前まではここで
@@ -8709,6 +8709,13 @@ subscribe(() => {
   if (suppressGenericRenderForOnlineStart || suppressGenericRenderForContactTackle) return;
   const { turnPlayer } = getState();
   if (prevTurnPlayerForAnnouncement !== null && turnPlayer !== null && turnPlayer !== prevTurnPlayerForAnnouncement) {
+    // ユーザー要望「ターンごとの各プレイヤーのロック枚数を折れ線グラフで」。ターンが
+    // 切り替わった＝1ターン終わった時点の全プレイヤーのロック枚数を記録する
+    // （getLockedCountは無色を除外済み＝victory.jsと同じ集計）。
+    const st = getState();
+    const counts = {};
+    for (const seat of st.activePlayers ?? []) counts[seat] = getLockedCount(seat);
+    recordLockSnapshot(st.turnNumber, counts);
     // ユーザー要望「ターンを終了したら、出っ放しの到達拡大モーダルがあれば全員閉じる
     // ようにしてください」。turnPlayerの変化はオンライン中も全クライアントに同期される
     // ため、ここで閉じれば「全員」の画面で閉じることになる。使用モーダルも同じ位置・

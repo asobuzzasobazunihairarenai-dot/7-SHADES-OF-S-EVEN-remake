@@ -16,15 +16,112 @@ import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { getSelfSeat } from "./online.js";
 import { SEAT_TO_SIDE } from "./board-layout.js";
 import { applyAvatarContent } from "./avatar-render.js";
-import { getMatchStats } from "./match-stats-tracker.js";
+import { getMatchStats, getMostUsedCardOverall, getMostUsedCardForSeat, getLockHistory } from "./match-stats-tracker.js";
+import { getCardImagePath, getCardDefinition } from "./cards-data.js";
+
+const SVGNS = "http://www.w3.org/2000/svg";
+// その座席の駒の色（＝プレイヤーの色）を実際のCSS変数値で返す（折れ線の色に使う）。
+function seatColorHex(seat) {
+  const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === seat);
+  const color = piece?.color;
+  if (!color) return "#94a3b8";
+  const v = getComputedStyle(document.documentElement).getPropertyValue(`--color-${color}`).trim();
+  return v || "#94a3b8";
+}
+
+// ターンごとの各プレイヤーのロック枚数の折れ線グラフ（SVG、外部ライブラリ不要）。
+// ユーザー要望「どこで逆転したのか見れて楽しそう」。データが2点以上ある時だけ描く。
+function buildLockLineChart(activePlayers, winnerSeat) {
+  const history = getLockHistory();
+  // 対戦終了時点（勝利の瞬間のロック）が最後のターン遷移に乗らないことがあるため、現在値を
+  // 最後の点として補う。
+  const curTurn = getState().turnNumber ?? (history.length ? history[history.length - 1].turn + 1 : 1);
+  const curCounts = {};
+  for (const seat of activePlayers) curCounts[seat] = getLockedCountForSeat(seat);
+  const points = history.slice();
+  if (!points.length || points[points.length - 1].turn !== curTurn) points.push({ turn: curTurn, counts: curCounts });
+  else points[points.length - 1] = { turn: curTurn, counts: curCounts };
+  if (points.length < 2) return null; // 短すぎて折れ線にならない
+
+  const W = 340;
+  const H = 190;
+  const padL = 26;
+  const padR = 12;
+  const padT = 12;
+  const padB = 34;
+  const x0 = padL;
+  const x1 = W - padR;
+  const y0 = H - padB; // ロック0の位置（下）
+  const y1 = padT; // ロック7の位置（上）
+  const turns = points.map((p) => p.turn);
+  const minT = Math.min(...turns);
+  const maxT = Math.max(...turns);
+  const xFor = (t) => x0 + (maxT === minT ? 0.5 : (t - minT) / (maxT - minT)) * (x1 - x0);
+  const yFor = (v) => y0 + (Math.max(0, Math.min(7, v)) / 7) * (y1 - y0);
+
+  const svg = document.createElementNS(SVGNS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("class", "match-lock-chart");
+
+  const mk = (tag, attrs) => {
+    const el = document.createElementNS(SVGNS, tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+    return el;
+  };
+  // Y軸の目盛り（0〜7）＋横グリッド線。
+  for (let v = 0; v <= 7; v++) {
+    svg.appendChild(mk("line", { x1: x0, y1: yFor(v), x2: x1, y2: yFor(v), stroke: "rgba(255,255,255,0.12)", "stroke-width": 1 }));
+    const lbl = mk("text", { x: x0 - 4, y: yFor(v) + 3, "text-anchor": "end", "font-size": 8, fill: "rgba(255,255,255,0.6)" });
+    lbl.textContent = String(v);
+    svg.appendChild(lbl);
+  }
+  // X軸ラベル（最初と最後のターン）。
+  for (const t of [minT, maxT]) {
+    const lbl = mk("text", { x: xFor(t), y: H - 20, "text-anchor": "middle", "font-size": 8, fill: "rgba(255,255,255,0.6)" });
+    lbl.textContent = `T${t}`;
+    svg.appendChild(lbl);
+  }
+  // 各プレイヤーの折れ線＋凡例。
+  const legend = document.createElement("div");
+  legend.className = "match-lock-chart-legend";
+  activePlayers.forEach((seat, i) => {
+    const color = seatColorHex(seat);
+    const isWinner = seat === winnerSeat;
+    const ptsStr = points.map((p) => `${xFor(p.turn)},${yFor(p.counts[seat] ?? 0)}`).join(" ");
+    svg.appendChild(mk("polyline", { points: ptsStr, fill: "none", stroke: color, "stroke-width": isWinner ? 3 : 2, "stroke-linejoin": "round", "stroke-linecap": "round", opacity: 0.95 }));
+    for (const p of points) svg.appendChild(mk("circle", { cx: xFor(p.turn), cy: yFor(p.counts[seat] ?? 0), r: isWinner ? 2.6 : 2, fill: color }));
+    const item = document.createElement("span");
+    item.className = "match-lock-chart-legend-item";
+    const dot = document.createElement("span");
+    dot.className = "match-lock-chart-legend-dot";
+    dot.style.background = color;
+    item.appendChild(dot);
+    item.appendChild(document.createTextNode(`${isWinner ? "🏆 " : ""}${getPlayerName(seat)}`));
+    legend.appendChild(item);
+  });
+
+  const wrap = document.createElement("div");
+  wrap.className = "match-lock-chart-wrap";
+  wrap.appendChild(svg);
+  wrap.appendChild(legend);
+  return wrap;
+}
 
 const AUTO_CLOSE_MS = 7000;
 
+// 無色カード（白・黒）はロックエリアに「置く」ことはできてもロックではない（victory.jsと
+// 同じ扱い）。順位・グラフの集計でも無色を数えない。
+function isColorlessLockCard(cardId) {
+  const color = getCardDefinition(cardId)?.color;
+  return color === "white" || color === "black";
+}
 function getLockedCountForSeat(seat) {
   const side = SEAT_TO_SIDE[seat];
   const lockedIndexes = new Set(
     getState()
-      .tokens.filter((t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side)
+      .tokens.filter(
+        (t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side && !isColorlessLockCard(t.cardId)
+      )
       .map((t) => t.location.index)
   );
   return lockedIndexes.size;
@@ -122,6 +219,63 @@ export function showMatchPersonalResultModal({ activePlayers, winnerSeat }) {
       selfStats2.textContent = `接触 ${contactsMade}回・使用したカード ${cardsUsed}枚`;
       selfBlock.appendChild(selfStats2);
       modal.appendChild(selfBlock);
+    }
+
+    // MVPカード（この対戦で最も使われたカード。全体＝全座席合計、あなた＝自分の座席）。
+    // ユーザー要望「対戦終了時に全体MVPカード・自分MVPカードを表示したい」。
+    const overallMvp = getMostUsedCardOverall();
+    const selfMvp = getMostUsedCardForSeat(selfSeat);
+    if (overallMvp || selfMvp) {
+      const mvpBlock = document.createElement("div");
+      mvpBlock.className = "match-personal-result-mvp";
+      const mvpTitle = document.createElement("div");
+      mvpTitle.className = "match-personal-result-self-title";
+      mvpTitle.textContent = "🃏 MVPカード（最も使われたカード）";
+      mvpBlock.appendChild(mvpTitle);
+      const row = document.createElement("div");
+      row.className = "match-personal-result-mvp-row";
+      const makeCol = (labelText, mvp) => {
+        const col = document.createElement("div");
+        col.className = "match-personal-result-mvp-col";
+        const lbl = document.createElement("div");
+        lbl.className = "match-personal-result-mvp-label";
+        lbl.textContent = labelText;
+        col.appendChild(lbl);
+        if (mvp) {
+          const img = document.createElement("img");
+          img.className = "match-personal-result-mvp-card";
+          img.src = getCardImagePath(mvp.cardId);
+          img.alt = getCardDefinition(mvp.cardId)?.name ?? "";
+          col.appendChild(img);
+          const name = document.createElement("div");
+          name.className = "match-personal-result-mvp-name";
+          name.textContent = `${getCardDefinition(mvp.cardId)?.name ?? mvp.cardId}（${mvp.count}回）`;
+          col.appendChild(name);
+        } else {
+          const none = document.createElement("div");
+          none.className = "match-personal-result-mvp-name";
+          none.textContent = "使用なし";
+          col.appendChild(none);
+        }
+        return col;
+      };
+      row.appendChild(makeCol("全体", overallMvp));
+      row.appendChild(makeCol("あなた", selfMvp));
+      mvpBlock.appendChild(row);
+      modal.appendChild(mvpBlock);
+    }
+
+    // ターンごとのロック枚数の折れ線グラフ（どこで逆転したか等）。
+    const chart = buildLockLineChart(activePlayers, winnerSeat);
+    if (chart) {
+      const chartBlock = document.createElement("div");
+      chartBlock.className = "match-personal-result-chart";
+      const chartTitle = document.createElement("div");
+      chartTitle.className = "match-personal-result-self-title";
+      chartTitle.textContent = "📈 ターンごとのロック枚数";
+      chartBlock.appendChild(chartTitle);
+      chartBlock.appendChild(chart);
+      modal.appendChild(chartBlock);
     }
 
     modal.appendChild(createModalCloseX(close));
