@@ -1132,14 +1132,23 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds) {
     modal.id = "sleight-ritual-modal";
     const title = document.createElement("div");
     title.className = "sleight-ritual-title";
-    title.textContent = hint || `${getPlayerName(targetPlayer)}の手札から1枚選んでください`;
+    const pickHint = hint || `${getPlayerName(targetPlayer)}の手札から1枚選んでください`;
+    // ユーザー要望「スリカエで1枚引っこ抜く前にシャッフル演出が欲しい」。まず一定時間、
+    // 裏向きの手札をシャッフルしている演出を見せてから（この間はクリック不可）、実際の
+    // 選択に移る。
+    title.textContent = "シャッフル中…";
     modal.appendChild(title);
     const cardsWrap = document.createElement("div");
     cardsWrap.className = "sleight-ritual-cards";
+    const n = shuffled.length;
     shuffled.forEach((token, index) => {
       const cardEl = document.createElement("div");
       cardEl.className = "sleight-ritual-card";
       cardEl.style.backgroundImage = `url("${getCardBackImagePath(token.cardId)}")`;
+      // シャッフル演出用: 1枚ごとに中央へ寄せる横移動量・回転（左右交互）・段差の開始遅延を設定。
+      cardEl.style.setProperty("--shuffle-x", `${((n - 1) / 2 - index) * 1.1}rem`);
+      cardEl.style.setProperty("--shuffle-rot", `${index % 2 === 0 ? 9 : -9}deg`);
+      cardEl.style.animationDelay = `${(index % 4) * 0.06}s`;
       if (isRitualBroadcastTarget) {
         cardEl.addEventListener("pointerenter", () => broadcastRitualPickHover({ targetPlayer, index }));
       }
@@ -1150,6 +1159,15 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds) {
     activeEffectPicker = { type: "opponentHand", tokens: shuffled, resolve: finish };
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
+    // シャッフル演出中はカードのクリックを無効化（is-shuffling→CSSでpointer-events:none）。
+    // 演出が終わったらクリック可能にし、案内文を本来のピック文言へ切り替える。
+    modal.classList.add("is-shuffling");
+    const SHUFFLE_MS = 1100;
+    setTimeout(() => {
+      if (settled) return;
+      modal.classList.remove("is-shuffling");
+      title.textContent = pickHint;
+    }, SHUFFLE_MS);
   });
 }
 
@@ -1356,8 +1374,10 @@ window.addEventListener("mousemove", (e) => {
     });
     return;
   }
-  const { x, y } = stageClientToLocal(e.clientX, e.clientY);
-  broadcastCursorPosition({ player: getSelfSeat(), mode: "stage", x, y });
+  // ユーザー要望「盤面の外（ロックエリアより外）ではカーソル位置を相手に表示しない」。
+  // 盤面マス（cell）でもロックスロット（lock）でもない場所（手札エリア・盤外・各種ボタン等）に
+  // カーソルがある間は、座標を送らず「盤外にいる」合図だけ送り、相手側のカーソル表示を即座に消す。
+  broadcastCursorPosition({ player: getSelfSeat(), mode: "hide" });
 });
 
 const remoteCursorEls = new Map(); // player -> { el, hideTimer }
@@ -1387,6 +1407,16 @@ onCursorPositionEvents((payload) => {
   if (!getState().activePlayers.includes(player)) return;
   const table = document.getElementById("game-table");
   if (!table) return;
+  // 盤外（mode:"hide"）の合図が来たら、その相手のカーソル表示を即座に隠す（座標が
+  // 来ないので新規生成もしない。まだ一度も出ていなければ何もしない）。
+  if (payload.mode === "hide") {
+    const existing = remoteCursorEls.get(player);
+    if (existing) {
+      clearTimeout(existing.hideTimer);
+      existing.el.style.display = "none";
+    }
+    return;
+  }
   const entry = ensureRemoteCursorEl(player);
   // 送信側と同じ理由（mousemoveハンドラのコメント参照）で、盤面上のマスを指していた
   // 場合（mode:"cell"）は自分の画面で同じrow/colのマスを探し、その実際の矩形に
@@ -3425,7 +3455,17 @@ async function runAutoArrivalEffect(cardId, location, player) {
 // 判定に使う（isMovePhaseActive()がfalseになるのはmarkPhaseMoveActionTaken()の
 // 時点＝移動/接触した瞬間で、その後の到達効果処理より先に来てしまうため、
 // 「本当に全部終わったか」はこのフラグで別途追跡する必要がある）。
-let arrivalEffectAutoProcessing = false;
+// ユーザー報告「パーティーの効果が一周する前にゲート侵攻処理が始まってターンが切り替わって
+// しまった」への対応。以前はboolean1個で「到達効果の自動処理中か」を持っていたが、到達効果の
+// 処理中に別の到達効果が入れ子で走る（例: パーティーが全員に選択を委任している最中、他プレイヤー
+// の移動が再同期されてremote-move-animator由来の到達判定が別途走る等）と、内側の処理の
+// finallyでフラグがfalseに戻され、外側のパーティーがまだ一周し切っていないのに「もう何も
+// 処理していない」と誤判定されてしまう（→自動ターン終了・ゲート侵攻処理が割り込む窓が開く）。
+// 入れ子に強いよう、boolフラグではなく深さカウンタにして「1つでも処理中なら true」とする。
+let arrivalEffectProcessingDepth = 0;
+function isArrivalEffectProcessing() {
+  return arrivalEffectProcessingDepth > 0;
+}
 
 // spawnArrivalBurstのCSSアニメーション自体の長さ（1400ms、appendEffectHostのttlMs引数と
 // 揃える）。ユーザー要望「到達アニメが完全終了して一息ついた後に効果モーダルを出す」への
@@ -3451,7 +3491,7 @@ function triggerCardArrival(cardId, location, onFullyResolved) {
   // （ボタン無し・自動で消える表示専用の）同じ拡大モーダルを出す——効果は自動で
   // 進んでも、自分がどのカードに到達したかは見えないと分かりにくいため。
   if (showAddToHand && canAutoProcessArrival(cardId)) {
-    arrivalEffectAutoProcessing = true;
+    arrivalEffectProcessingDepth++;
     // 続き75診断ログ: ユーザー報告「ムーブフェイズがきれいに終わったのにターンが
     // 終了されなかった」の調査用。このフラグがtrueのまま戻らなくなっていないか
     // （下のfinallyでの解除ログと突き合わせて確認する）を後から追えるようにする。
@@ -3482,8 +3522,8 @@ function triggerCardArrival(cardId, location, onFullyResolved) {
         console.error("runAutoArrivalEffect failed", err);
         logAction("diag-arrival-processing", { cardId, phase: "error", message: String(err?.message ?? err) });
       } finally {
-        arrivalEffectAutoProcessing = false;
-        logAction("diag-arrival-processing", { cardId, phase: "end" });
+        arrivalEffectProcessingDepth = Math.max(0, arrivalEffectProcessingDepth - 1);
+        logAction("diag-arrival-processing", { cardId, phase: "end", depth: arrivalEffectProcessingDepth });
         onFullyResolved?.();
         render();
       }
@@ -5558,11 +5598,47 @@ function updatePreview(el, clientX, clientY) {
   preview.style.display = "block";
 }
 
+// ユーザー要望「駒にカーソルをかざすと全部の駒にプレイヤー名が吹き出すようにしたい」。
+// 盤面は3Dに傾いているため駒に文字を直に載せると読みづらい。カード拡大プレビュー
+// （#card-preview）と同じく、各駒の画面上の位置をステージ座標へ変換し、駒の上に画面座標の
+// 吹き出しをかぶせる方式にする。どれか1つの駒にホバーしている間、全ての駒の名前を同時に出す。
+let pieceNameBubbleEls = [];
+let pieceNameBubblesShown = false;
+function hideAllPieceNameBubbles() {
+  for (const el of pieceNameBubbleEls) el.remove();
+  pieceNameBubbleEls = [];
+  pieceNameBubblesShown = false;
+}
+function showAllPieceNameBubbles() {
+  hideAllPieceNameBubbles();
+  const pieces = document.querySelectorAll("#game-table .piece[data-token-id]");
+  for (const pieceEl of pieces) {
+    const token = getState().tokens.find((t) => t.id === pieceEl.dataset.tokenId);
+    if (!token) continue;
+    // 通常の対局では駒トークンにplayer（座席）が入っているが、1画面検証用の初期配置
+    // （state.jsのPIECE_START）ではplayerが無くcolorだけを持つ。その場合は色→座席
+    // （COLORSの並び＝各座席の担当色）で座席を割り出してフォールバックする。
+    const player = token.player ?? SEAT_ORDER[COLORS.indexOf(token.color)] ?? null;
+    if (!player) continue;
+    const rect = toStageLocalRect(pieceEl.getBoundingClientRect());
+    const bubble = document.createElement("div");
+    bubble.className = "piece-name-bubble";
+    bubble.dataset.player = player;
+    bubble.textContent = getPlayerName(player);
+    bubble.style.left = `${(rect.left + rect.right) / 2}px`;
+    bubble.style.top = `${rect.top}px`;
+    document.body.appendChild(bubble);
+    pieceNameBubbleEls.push(bubble);
+  }
+  pieceNameBubblesShown = pieceNameBubbleEls.length > 0;
+}
+
 function updateHover(clientX, clientY) {
   // ドラッグ中はドロップ先ハイライト(.drop-target-active)と役割が被って紛らわしいので休止する。
   if (dragSession) {
     clearHover();
     updatePreview(null);
+    hideAllPieceNameBubbles();
     return;
   }
   const next = findHoverTarget(clientX, clientY);
@@ -5572,6 +5648,10 @@ function updateHover(clientX, clientY) {
     hoverEl = next;
   }
   updatePreview(next, clientX, clientY);
+  // 駒にホバーしている間だけ、全駒の名前吹き出しを出す（駒→駒の移動では作り直さない）。
+  const isPieceHover = !!(next && next.classList && next.classList.contains("piece"));
+  if (isPieceHover && !pieceNameBubblesShown) showAllPieceNameBubbles();
+  else if (!isPieceHover && pieceNameBubblesShown) hideAllPieceNameBubbles();
 }
 
 function initHoverHandlers() {
@@ -5580,6 +5660,7 @@ function initHoverHandlers() {
   table.addEventListener("pointerleave", () => {
     clearHover();
     updatePreview(null);
+    hideAllPieceNameBubbles();
   });
 }
 
@@ -7456,7 +7537,7 @@ function computeShouldEmphasize() {
     !endTurnDisabled &&
     isMovePhase &&
     !moveStillActive &&
-    !arrivalEffectAutoProcessing &&
+    !isArrivalEffectProcessing() &&
     !state.pendingContact &&
     // ユーザー要望「ほかのカードでも同様な事象が見受けられる、総チェック可能か」への
     // 対応。isAnyEffectProcessingBusy()は「ゲート侵攻処理中・その通知ポップアップ
@@ -7476,7 +7557,7 @@ function computeShouldEmphasize() {
       endTurnDisabled,
       isMovePhase,
       moveStillActive,
-      arrivalEffectAutoProcessing,
+      arrivalEffectAutoProcessing: isArrivalEffectProcessing(),
       pendingContact: !!state.pendingContact,
       gateInvasionPending,
       gateInvasionQueueActive,
