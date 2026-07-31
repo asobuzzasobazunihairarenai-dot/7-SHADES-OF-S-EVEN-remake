@@ -4682,9 +4682,11 @@ function renderBoardTokens(table) {
     el.dataset.tokenId = token.id;
     if (token.kind === "piece") {
       // 飾りペット(piece-pet.js)が「駒の自ゲート側」に立てるよう、画面上のゲート方向
-      // （盤面回転で自分が手前に来た後の表示上のside）を持たせておく。owner(player)がまだ
-      // 未確定の初期状態では設定しない（piece-pet側は既定でbottom扱いにフォールバックする）。
-      const gateSide = rotateSide(SEAT_TO_SIDE[token.player], getRotationSteps(getSelfSeat()));
+      // （盤面回転で自分が手前に来た後の表示上のside）を持たせておく。通常の対局では駒に
+      // playerが入るが、初期配置(state.jsのPIECE_START)ではplayerが無くcolorだけのため、
+      // showAllPieceNameBubblesと同じ「色→座席（COLORSの並び＝各座席の担当色）」で補う。
+      const owner = token.player ?? SEAT_ORDER[COLORS.indexOf(token.color)] ?? null;
+      const gateSide = owner ? rotateSide(SEAT_TO_SIDE[owner], getRotationSteps(getSelfSeat())) : null;
       if (gateSide) el.dataset.gateSide = gateSide;
     }
     // セットアップ配布演出中、まだ登場させたくないトークンは最初からopacity:0にしておく
