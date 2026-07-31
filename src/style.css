@@ -6728,10 +6728,14 @@ body.is-phone-device #phase-automation-skip-button {
    （#phase-guide-bar末尾）を共有し、どちらか一方だけ表示する（phase-automation.js
    のupdateSkipButtonVisibility参照）。 */
 #phase-automation-turn-status {
-  /* スキップボタンと同じ「バーの真上に浮かぶ」位置（上のコメント参照）。 */
+  /* スキップボタンと同じ「バーの真上に浮かぶ」位置（上のコメント参照）。
+     ハマりどころ（ユーザー報告「スマホでターン表示が画面右端で見切れる」）: 案内板バーは
+     画面右下(right:2.3rem)にあるため、left:0基準＋nowrapで右へ伸ばすと長文
+     （「相手のターンです（ムーブフェイズ）（優先権は相手にあります）」等）が画面右端を
+     越えて切れていた。右端基準(right:0)にして左方向へ伸ばし、画面内に収める。 */
   position: absolute;
   bottom: calc(100% + 0.6rem);
-  left: 0;
+  right: 0;
   display: none;
   padding: 0.4rem 0.9rem;
   background: rgba(15, 23, 32, 0.75);
@@ -6742,14 +6746,18 @@ body.is-phone-device #phase-automation-skip-button {
   font-size: 0.8rem;
   font-weight: bold;
   white-space: nowrap;
+  text-align: right;
 }
 /* ユーザー要望（続き81）「相手のターン自分のターン表示についても個別でサイズ位置
    調整も追加して」。こちらはアニメーション無しの静止要素のため、スキップボタンと
    違い素直にtransformを重ねるだけでよい。 */
 body.is-phone-device #phase-automation-turn-status {
-  transform-origin: bottom left;
+  transform-origin: bottom right;
   transform: translate(var(--phase-turn-status-pos-phone-x, 0rem), var(--phase-turn-status-pos-phone-y, 0rem))
     scale(var(--phase-turn-status-scale-phone, 1));
+  /* スマホでは画面幅を越える長文（フェイズ名・優先権の注記付き）は折り返して見切れを防ぐ。 */
+  white-space: normal;
+  max-width: min(80vw, 22rem);
 }
 body.reduce-glow #phase-automation-skip-button {
   animation: none;

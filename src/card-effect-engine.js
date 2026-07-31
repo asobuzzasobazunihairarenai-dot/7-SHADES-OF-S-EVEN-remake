@@ -1022,10 +1022,20 @@ async function runAction(action, ctx, helpers) {
       const handTokens = getHandTokens(ctx.player);
       const discardCount = Math.floor(handTokens.length / 2);
       if (discardCount === 0) return false;
+      const discardedNames = [];
       for (let i = 0; i < discardCount; i++) {
         const chosen = await helpers.pickHandCard(ctx.player, `捨てるカードを手札から選択してください（残り${discardCount - i}枚）`);
         if (!chosen) break;
+        discardedNames.push(getCardDefinition(chosen.cardId)?.name ?? chosen.cardId);
         await helpers.discardAndSync(chosen.id);
+      }
+      // お知らせ（ユーザー要望「選べる罠で何を捨てたか全員にモーダルで一覧表示したい」）:
+      // 捨て札は公開情報のため、捨てたカードの一覧を全員へ告知する（effect_reasonモーダル）。
+      if (discardedNames.length > 0) {
+        await helpers.announceEffectReason?.(
+          ctx.cardId,
+          `${helpers.getPlayerName(ctx.player)}は選べる罠で手札の「${discardedNames.join("」「")}」を捨てました。`
+        );
       }
       return true;
     }
@@ -1057,6 +1067,12 @@ async function runAction(action, ctx, helpers) {
       const chosen = lockedTokens.find((t) => t.location.side === dest.side && t.location.index === dest.index);
       if (!chosen) return false;
       await helpers.discardAndSync(chosen.id);
+      // お知らせ（ユーザー要望「選べる罠で何を捨てたか全員にモーダルで表示したい」）:
+      // ロック上のカードは元々公開情報。捨てたカードを全員へ告知する。
+      await helpers.announceEffectReason?.(
+        ctx.cardId,
+        `${helpers.getPlayerName(ctx.player)}は選べる罠でロックしていた「${getCardDefinition(chosen.cardId)?.name ?? chosen.cardId}」を捨てました。`
+      );
       return true;
     }
     case VERBS.DECLARE_COLORS: {
