@@ -4876,7 +4876,9 @@ function render() {
   // ゲート侵攻演出のモーダルがrender等でDOMから外れていたら貼り直す保険（オンラインで
   // 演出が出ないという報告への対応。gate-invasion-modal.jsのreapplyGateInvasionModal参照）。
   reapplyGateInvasionModal();
-  checkForVictory();
+  // チュートリアルCPU戦は台本で勝利演出を出すため、実ゲームの勝利判定（オンライン向けの
+  // 勝利モーダル・通貨・ランキング等）はスキップする。
+  if (!isTutorialBattleActive()) checkForVictory();
   // 更新バナーは対局中は保留。対局終了・ホーム復帰などで状況が変わったここで再評価する。
   reevaluateUpdateBanner();
   // ユーザー要望「効果自動処理がオンの時はフェイズも自動で流れるようにしよう」。

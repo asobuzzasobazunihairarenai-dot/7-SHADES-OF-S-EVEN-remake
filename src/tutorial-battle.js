@@ -646,13 +646,54 @@ function buildSteps() {
       tip: "相手（CPU）のターンです。ゲートから出て動きます…",
       runReveal: scriptCpuLeaveGate,
     },
-    // 21: この増分の区切り（ターン3の相手ゲート侵攻→エターナル「緑」→勝利は続けて作る）。
+    // === ターン3: 空いた相手ゲートへ侵攻 → ゲート侵攻ボーナスでエターナル「緑」→ 7色で勝利 ===
+    // 21: ターン3の導入（あなたのターン。相手ゲートが空いている）。
     {
       kind: "narrate",
-      title: "ここまで作りました（続きは制作中）",
+      title: "ターン3 ― 最後の仕上げ",
       body: [
-        "この先（ターン3で、ジャンプ台を使って空いた相手ゲートへ侵攻 → ゲート侵攻ボーナスでエターナル「緑」を獲得・ロックして7色そろえ勝利）は、続けて作り込んでいきます。",
-        "いったんここで閉じます。",
+        "あなたのターンです。CPU先生がゲートから出たので、盤面の奥にある相手のゲートが空いています。",
+        "ムーブフェイズで、その空いた相手ゲートへ攻め込みましょう。ターン終了時に相手ゲートへ自分の駒が乗っていると「相手ゲート侵攻ボーナス」が発生します。",
+      ],
+      highlights: (state) => [{ selector: cellSel(CPU_GATE), strong: true }, ...selfPieceHl(state)],
+      buttonLabel: "次へ",
+    },
+    // 22: 相手ゲートへ移動（プレイヤー操作）。台本上は一気に到達する（ジャンプ台のイメージ）。
+    {
+      kind: "playerAction",
+      tip: "空いている相手のゲート（ハイライト）をタップして攻め込みましょう。",
+      moveGate: true,
+      gateFrom: ARRIVAL_BONUS_CELL, // 現在地（{4,3}）＝差し戻し先
+      gateFront: CPU_GATE, // 受理する移動先（相手ゲート{0,3}）
+      gateSides: [],
+      gateWarn: "空いている相手のゲート（ハイライト）へ進みましょう。",
+      advanceWhen: (state) => selfPieceAt(state, CPU_GATE),
+      highlights: (state) => [{ selector: cellSel(CPU_GATE), strong: true }, ...selfPieceHl(state)],
+    },
+    // 23: ゲート到達。ターン終了でゲート侵攻ボーナス。
+    {
+      kind: "narrate",
+      title: "相手ゲートに到達！",
+      body: [
+        "相手のゲートに自分の駒が乗りました。この状態でターンを終了すると「相手ゲート侵攻ボーナス」が発生します。",
+        "ボーナスでは、相手の手札を半分奪い、盤外の「エターナルカード」を1枚獲得して自分のロックエリアにロックできます。今回は緑のエターナルカードが手に入ります。",
+      ],
+      highlights: (state) => selfPieceHl(state),
+      buttonLabel: "ターンを終了する →",
+    },
+    // 24: ゲート侵攻ボーナスの台本演出（エターナル緑を獲得＆ロック＝7色目）。
+    {
+      kind: "reveal",
+      tip: "相手ゲート侵攻ボーナス発生中… エターナルカード「緑」を獲得！",
+      runReveal: scriptGateInvasionWin,
+    },
+    // 25: 勝利。
+    {
+      kind: "narrate",
+      title: "7色そろえて勝利！ 🎉",
+      body: [
+        "エターナルカード「緑」をロックし、7色すべてがそろいました。あなたの勝ちです！",
+        "ロック・ハンド・ムーブの3フェイズ、到達効果、手札効果、接触、そして相手ゲート侵攻ボーナスまで体験できました。これで基本はバッチリです。おつかれさまでした！",
       ],
       buttonLabel: "とじる",
       isLast: true,
@@ -980,6 +1021,21 @@ async function scriptCpuLeaveGate() {
   }
   nextTurn(); // CPU(C) → あなた(A)：ターン3
   await delay(400);
+}
+
+// ターン3の相手ゲート侵攻ボーナスを台本再現する。auto-processingはOFF（実ゲート侵攻フローは
+// 走らない）なので、盤外のエターナルの山の一番上（＝eternal-green）を緑のロックスロットへ直接
+// 引き出してロックする＝「エターナル獲得＆ロック」の見せ場。これで緑（7色目）が埋まり7色そろう。
+// 勝利演出はmain.jsのcheckForVictoryをチュートリアル中はスキップしているため、次の台本ステップ
+// （勝利ナレーション）で締める。
+async function scriptGateInvasionWin() {
+  const side = SEAT_TO_SIDE[SELF_SEAT];
+  const greenIdx = COLORS.indexOf(WINNING_COLOR); // 緑
+  await delay(700);
+  drawFromPile("eternal", { zone: "lock", side, index: greenIdx });
+  await delay(450);
+  if (triggerLockEffectHelper) triggerLockEffectHelper(`eternal-${WINNING_COLOR}`, { zone: "lock", side, index: greenIdx });
+  await delay(1100);
 }
 
 // --- タップ操作（前方移動・手札効果・接触） --------------------------------------------
