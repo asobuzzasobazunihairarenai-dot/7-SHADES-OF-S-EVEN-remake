@@ -130,6 +130,16 @@ export function applyProfileLayout(container) {
     // 高さも指定せず、中身の自然なサイズを scale で一緒に拡大縮小する（枠だけ大きくなって
     // 中身が変わらない問題への対応・ユーザー要望）。
     el.style.transform = `scale(${cfg.scale})`;
+    // ユーザー報告「マイページに見えない枠ができちゃってます」。大きくscaleした装飾アバター
+    // （avatar・avatar-bg）は四角い当たり判定の透明な四隅が他要素の上に被さり、その範囲の
+    // クリックを奪って「見えない枠」になっていた。焼き込み（非編集）表示ではこの2つの装飾を
+    // クリック透過にする（変更は別ボタン avatar-change 側にあるのでアバター画像自体は
+    // クリック不要）。編集モードでは掴んで動かすため透過しない。
+    if (!editMode) {
+      el.style.pointerEvents = m.key === "avatar" || m.key === "avatar-bg" ? "none" : "";
+    } else {
+      el.style.pointerEvents = "";
+    }
     maxBottom = Math.max(maxBottom, cfg.y + el.offsetHeight * cfg.scale);
     if (editMode) makeEditable(el, container);
   }

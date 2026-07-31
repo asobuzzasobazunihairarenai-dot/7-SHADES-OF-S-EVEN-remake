@@ -117,16 +117,20 @@ function buildEditableNameRow(seat) {
 
   function renderView() {
     valueWrap.innerHTML = "";
+    // ユーザー要望「『変更』ボタンはいらない。鉛筆アイコンを小さく載せつつ、名前を直接
+    // クリックすると入力画面にする」。名前自体をクリック可能にし、隣に小さな鉛筆(✎)を添える。
     const nameEl = document.createElement("span");
     nameEl.textContent = getPlayerName(seat);
-    nameEl.style.cssText = "font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;";
-    const editBtn = document.createElement("button");
-    editBtn.type = "button";
-    editBtn.textContent = "✎ 変更";
-    editBtn.style.cssText = "flex: 0 0 auto; padding: 0.15rem 0.5rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(148,163,184,0.3); border-radius: 0.3rem; color: #e2e8f0; cursor: pointer; font-size: 0.72rem;";
-    editBtn.addEventListener("click", renderEdit);
+    nameEl.style.cssText = "font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;";
+    nameEl.title = "クリックして名前を変更";
+    nameEl.addEventListener("click", renderEdit);
+    const pencil = document.createElement("span");
+    pencil.textContent = "✎";
+    pencil.title = "名前を変更";
+    pencil.style.cssText = "flex: 0 0 auto; color: #94a3b8; cursor: pointer; font-size: 0.8rem; opacity: 0.8;";
+    pencil.addEventListener("click", renderEdit);
     valueWrap.appendChild(nameEl);
-    valueWrap.appendChild(editBtn);
+    valueWrap.appendChild(pencil);
   }
 
   function renderEdit() {
@@ -232,6 +236,7 @@ export async function renderMyPageBody(body, close) {
   avatarWrap.dataset.layoutKey = "avatar"; // レイアウト編集モードの識別子（profile-layout-editor.js）
   avatarWrap.style.cssText = "display: flex; flex-direction: column; align-items: center; gap: 0.5rem; margin-bottom: 1rem;";
   const avatarImg = document.createElement("img");
+  avatarImg.className = "my-page-avatar-img"; // アバター変更時に差し替えるための識別子（#4）
   avatarImg.src = getPlayerAvatar(seat);
   avatarImg.alt = "";
   avatarImg.style.cssText = "width: 6rem; height: 6rem; border-radius: 50%; object-fit: cover;";
@@ -386,6 +391,18 @@ export function initMyPage() {
 
   document.body.appendChild(backdrop);
   document.body.appendChild(panel);
+
+  // ユーザー報告「マイページでアバターを変更してもマイページのアバターの見た目が変わらない」。
+  // アバター等の変更はwindowの"admin:change"イベントで通知される（online.jsのupdateMyIdentity・
+  // 各着せ替えピッカー）。マイページが開いている間だけ、通知を受けて表示中のアバター画像
+  // （本体・巨大背面）を最新に差し替える（全体の再描画は戦績の再取得を伴い重いので画像だけ更新）。
+  window.addEventListener("admin:change", () => {
+    if (panel.style.display === "none") return;
+    const src = getPlayerAvatar(getSelfSeat());
+    panel.querySelectorAll(".my-page-avatar-img, .my-page-bg-avatar img").forEach((img) => {
+      img.src = src;
+    });
+  });
 
   // ユーザー要望「画面右上のオプションアイコンの隣に人マークのアイコンを作り、
   // それを押すとマイページモーダルが開く」。options-menu.jsの「⚙ オプション」

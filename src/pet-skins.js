@@ -22,12 +22,14 @@ export const PET_OPTIONS = [
 ];
 
 const STORAGE_KEY = "so7-pet-index";
-let selectedIndex = 0;
+// 既定は「なし（非表示）」（ユーザー要望）。保存値があればそれを優先する。
+const NONE_INDEX = PET_OPTIONS.findIndex((o) => o.emoji === null);
+let selectedIndex = NONE_INDEX >= 0 ? NONE_INDEX : 0;
 try {
   const s = parseInt(localStorage.getItem(STORAGE_KEY), 10);
   if (Number.isInteger(s) && PET_OPTIONS[s]) selectedIndex = s;
 } catch (e) {
-  /* 保存が読めなければ既定(0) */
+  /* 保存が読めなければ既定（なし） */
 }
 
 export function getSelectedPetIndex() {

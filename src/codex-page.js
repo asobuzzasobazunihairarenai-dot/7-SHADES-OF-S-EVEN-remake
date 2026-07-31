@@ -3,7 +3,7 @@
 // 1つの全画面ページに縦に並べる。ホーム画面(home-screen.js)から開き、戻るとホームへ帰る。
 // 器の作り方はランキング/プロフィールの全画面版と同じ（フルスクリーン・戻るボタン・中央寄せ）。
 
-import { buildDeckSections } from "./deck-viewer.js";
+import { openDeckViewer } from "./deck-viewer.js";
 import { buildHelpList } from "./help.js";
 
 let overlayEl = null;
@@ -31,11 +31,22 @@ export function openCodexPage(onClose) {
   const content = document.createElement("div");
   content.id = "codex-page-content";
 
+  // ユーザー要望「図鑑ではカード画像たちは一旦山札一覧に収納しておいて」。カードのグリッドを
+  // 直接並べる代わりに、山札一覧（deck-viewer.js、全画面）を開くボタンだけを置く。
   const deckHeading = document.createElement("div");
   deckHeading.className = "codex-section-heading";
-  deckHeading.textContent = "📋 山札一覧";
+  deckHeading.textContent = "📋 山札一覧（カード一覧）";
   content.appendChild(deckHeading);
-  content.appendChild(buildDeckSections());
+  const deckBtn = document.createElement("button");
+  deckBtn.type = "button";
+  deckBtn.className = "codex-open-deck-btn";
+  deckBtn.textContent = "📋 山札一覧を開く";
+  deckBtn.style.cssText =
+    "display: block; margin: 0.4rem 0 0.4rem; padding: 0.6rem 1.2rem; background: rgba(125,211,252,0.12); " +
+    "border: 1px solid rgba(125,211,252,0.5); border-radius: 0.5rem; color: #e2e8f0; cursor: pointer; " +
+    "font-family: sans-serif; font-size: 0.95rem;";
+  deckBtn.addEventListener("click", () => openDeckViewer());
+  content.appendChild(deckBtn);
 
   const helpHeading = document.createElement("div");
   helpHeading.className = "codex-section-heading";

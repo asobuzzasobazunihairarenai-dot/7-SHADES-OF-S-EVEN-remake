@@ -169,7 +169,9 @@ async function renderPanelContent() {
     }
   }
 
-  contentEl.appendChild(buildDebugLogSection());
+  // ユーザー要望で「ログを表示」はこの部屋パネルから撤去（アクションログはオプションの
+  // 基本設定から見られるため重複）。buildDebugLogSectionは他から呼ばれなくなるが、
+  // 将来また出したくなった時のために関数自体は残しておく。
 }
 
 // ===== 対戦ロビー（対局前の中央モーダル）: ユーザー要望のロビー刷新 =====
@@ -642,12 +644,15 @@ async function renderRoomChoice(user, myGeneration) {
     // 取れなくても部屋の作成・一覧自体は引き続き使えるようにしておく
   }
 
-  // 「部屋を作成」フォームは最初は畳んでおき、押した時だけ名前/パスワード入力を出す。
-  const createToggleBtn = textButton("＋ 部屋を作成");
-  createToggleBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box; margin-bottom: 0.6rem;";
+  // 「部屋を作成」セクション（ユーザー要望「作成／参加／観戦をはっきり分けたい」「フォームを
+  // 出しているのに『＋部屋を作成』ボタンがあるのは変」）。以前は畳んでおくトグルだったが、
+  // トグルは廃止し、見出しの下にフォームを常に表示する。
+  const createLabel = document.createElement("div");
+  createLabel.style.cssText = "font-weight: bold; font-size: 0.9rem; margin: 0 0 0.4rem;";
+  createLabel.textContent = "🆕 部屋を作成";
+  contentEl.appendChild(createLabel);
   const createForm = document.createElement("div");
-  createForm.style.cssText =
-    "display: none; margin-bottom: 0.8rem; padding: 0.5rem; border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 0.3rem;";
+  createForm.style.cssText = "margin-bottom: 0.4rem;";
   const nameInput = textInput("セブンの部屋", { isValue: true });
   nameInput.maxLength = ROOM_NAME_MAX_LENGTH;
   const passInput = textInput("パスワード（任意）");
@@ -673,34 +678,16 @@ async function renderRoomChoice(user, myGeneration) {
   createForm.appendChild(wrapWithPasswordToggle(passInput));
   createForm.appendChild(createStatus);
   createForm.appendChild(createConfirmBtn);
-  createToggleBtn.addEventListener("click", () => {
-    createForm.style.display = createForm.style.display === "none" ? "block" : "none";
-  });
-  contentEl.appendChild(createToggleBtn);
   contentEl.appendChild(createForm);
 
-  // ユーザー要望「このモーダルに『更新』（部屋が増えてないか確認）みたいなボタンが
-  // 欲しい」への対応。部屋一覧はパネルを開いた瞬間の1回きりの取得のため、開いたまま
-  // 待っていても新しい部屋には気づけなかった。renderPanelContent()自体を呼び直す
-  // （既存のrenderGenerationガードにより連打しても二重表示にはならない）。
-  const listLabelRow = document.createElement("div");
-  listLabelRow.style.cssText =
-    "display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.3rem;";
-  const listLabel = document.createElement("span");
-  listLabel.style.cssText = "font-size: 0.85rem;";
-  listLabel.textContent = "参加できる部屋:";
-  listLabelRow.appendChild(listLabel);
-  const refreshBtn = document.createElement("button");
-  refreshBtn.type = "button";
-  refreshBtn.textContent = "🔄 更新";
-  refreshBtn.style.cssText =
-    "font-size: 0.75rem; padding: 0.15rem 0.5rem; background: rgba(148, 163, 184, 0.15); " +
-    "border: 1px solid rgba(148, 163, 184, 0.4); border-radius: 0.3rem; color: #e2e8f0; cursor: pointer;";
-  refreshBtn.addEventListener("click", () => {
-    renderPanelContent();
-  });
-  listLabelRow.appendChild(refreshBtn);
-  contentEl.appendChild(listLabelRow);
+  // 「参加できる部屋」セクションの見出し（ユーザー要望「参加できる部屋／観戦できる対局が
+  // まず分かれていた方が良い」）。区切り線＋太字の見出しで観戦セクションと明確に分ける。
+  // リアルタイム更新（onRosterChange/部屋一覧の購読）になったため「🔄 更新」ボタンは撤去した。
+  const listLabel = document.createElement("div");
+  listLabel.style.cssText =
+    "font-weight: bold; font-size: 0.9rem; margin: 0.2rem 0 0.4rem; padding-top: 0.6rem; border-top: 1px solid rgba(148, 163, 184, 0.25);";
+  listLabel.textContent = "🚪 参加できる部屋";
+  contentEl.appendChild(listLabel);
 
   const listStatus = document.createElement("div");
   listStatus.style.cssText = "font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.3rem; min-height: 1.2em;";
@@ -725,9 +712,11 @@ async function renderRoomChoice(user, myGeneration) {
   // URL共有(?room=)からの参加で十分カバーできているため撤去した。
 
   // --- 観戦（進行中の対局を後から見る、ユーザー要望） ---
+  // 「参加できる部屋」とはっきり分けるため、区切り線＋太字見出しの独立セクションにする。
   const specLabel = document.createElement("div");
-  specLabel.style.cssText = "font-size: 0.85rem; margin: 0.9rem 0 0.3rem;";
-  specLabel.textContent = "👀 観戦できる対局（進行中）:";
+  specLabel.style.cssText =
+    "font-weight: bold; font-size: 0.9rem; margin: 1.1rem 0 0.4rem; padding-top: 0.8rem; border-top: 1px solid rgba(148, 163, 184, 0.25);";
+  specLabel.textContent = "👀 観戦できる対局（進行中）";
   contentEl.appendChild(specLabel);
 
   // 見え方モード（公開＝手札等は見えない / すべて＝全手札も丸見えのgod-view）。
@@ -784,15 +773,9 @@ async function renderRoomChoice(user, myGeneration) {
     specStatus.textContent = `観戦一覧の取得に失敗しました: ${err.message ?? err}`;
   }
 
-  // 別の認証方法（メール/Google/匿名）を試したい時のため、ログアウトできるようにしておく
-  // （一度ログインすると明示的にログアウトするまでそのブラウザにセッションが残り続ける）。
-  const signOutBtn = textButton("ログアウト");
-  signOutBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box; margin-top: 0.8rem;";
-  signOutBtn.addEventListener("click", async () => {
-    await signOut();
-    await renderPanelContent();
-  });
-  contentEl.appendChild(signOutBtn);
+  // ユーザー要望でこの部屋パネルからは「ログアウト」を撤去（用途が分かりづらく場違いなため）。
+  // 別アカウントに切り替えたい等でログアウトしたい場合はタイトル画面（opening-screen.js）の
+  // ログイン欄から行える。
 }
 
 // renderRoomChoice同様、内部のawait（getRoomName/getMemberCount）の間に新しい世代の
