@@ -17,6 +17,7 @@ import {
   setOnlineTransport,
   setPriorityTransport,
   hydrateState,
+  getState,
   isOnlineMode,
   notifyListeners,
   applyRemotePriorityPatch,
