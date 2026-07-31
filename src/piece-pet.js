@@ -15,7 +15,9 @@
 // ドラッグ中のゴーストや自分ステータス欄の小さな駒サムネイルはbuildCubePiece()を data-token-id
 // 無しで使うため、セレクタ .piece[data-token-id] には引っかからない＝盤面の本物の駒だけが対象。
 
-const PET_EMOJI = "🐥"; // 仮のペット（後で着せ替え／本番画像に差し替え予定・ここを変えるだけ）
+import { getPetEmojiForSeat } from "./pet-skins.js";
+
+const PET_EMOJI = "🐥"; // 既定（pet-skins.jsの選択が使えない時のフォールバック）
 
 // 位置・大きさ・追従速度は管理者モードから微調整できる（ユーザー要望）。管理者パネルの
 // スライダーは :root のCSS変数を書き換える方式（admin.jsのsetVar）なので、ここではその
@@ -113,6 +115,11 @@ function makePet() {
     nextJumpT: now + rand(1500, 5000), // 次に大ジャンプする時刻
     pausedUntil: 0, // この時刻まで立ち止まる
     nextPauseT: now + rand(3000, 8000), // 次に立ち止まる時刻
+    orbitStart: -1, // 進行中の「駒を中心に一周」開始時刻（-1で無し）
+    orbitDur: 0,
+    orbitDir: 1, // 回る向き（＋1/−1）
+    nextOrbitT: now + rand(5000, 12000), // 次に一周する時刻
+    emojiChar: "", // 現在表示中の絵文字（変わった時だけ差し替える）
   };
 }
 
@@ -152,9 +159,18 @@ function tick(now) {
       ay = cy;
     }
     ay -= tuning.lift * r.width; // 高さ微調整
-    const local = clientToLocal(ax, ay);
+    const anchor = clientToLocal(ax, ay); // 自ゲート側のアンカー（通常時の立ち位置）
+    const center = clientToLocal(cx, r.bottom - r.height * 0.2); // 駒の足元中央（一周の中心）
     const localSize = deltaToLocal(r.width);
     const fontPx = Math.max(10, localSize * tuning.size);
+
+    // ペットの絵文字を所有者の選択に合わせる（変わった時だけ差し替え）。
+    const owner = piece.dataset.owner || "";
+    const emojiChar = getPetEmojiForSeat(owner) || PET_EMOJI;
+    if (pet.emojiChar !== emojiChar) {
+      pet.emoji.textContent = emojiChar;
+      pet.emojiChar = emojiChar;
+    }
 
     // 立ち止まり（ランダムに止まる）。
     if (now >= pet.nextPauseT) {
@@ -163,31 +179,51 @@ function tick(now) {
     }
     const paused = now < pet.pausedUntil;
 
-    // うろつき（駒の周りを歩き回る）。止まっていない時だけ目標を更新して寄せる。
-    if (!paused) {
-      if (now >= pet.nextWanderT) {
-        const radius = tuning.wander * localSize;
-        const angle = Math.random() * Math.PI * 2;
-        const rr = Math.random() * radius;
-        pet.wtx = Math.cos(angle) * rr;
-        pet.wty = Math.sin(angle) * rr * 0.5; // 縦は控えめ＝地面を歩く感じ
-        pet.nextWanderT = now + rand(800, 2600);
-      }
-      pet.wx += (pet.wtx - pet.wx) * 0.03;
-      pet.wy += (pet.wty - pet.wy) * 0.03;
+    // 「駒を中心に一周テクテク」（ユーザー要望）。たまに発動し、一定時間かけて駒の周りを一周する。
+    if (now >= pet.nextOrbitT && !paused && tuning.wander > 0) {
+      pet.orbitStart = now;
+      pet.orbitDur = rand(2600, 4200);
+      pet.orbitDir = Math.random() < 0.5 ? 1 : -1;
+      pet.nextOrbitT = now + rand(7000, 15000);
     }
+    const orbiting = pet.orbitStart >= 0 && now < pet.orbitStart + pet.orbitDur;
 
-    // 追従（アンカー＋うろつきオフセットへバネで寄せる）。
-    const targetX = local.x + pet.wx;
-    const targetY = local.y + pet.wy;
-    const f = Math.min(1, Math.max(0.02, tuning.follow));
+    let targetX;
+    let targetY;
+    let ease;
+    if (orbiting) {
+      // 駒の足元中央を軸に円を描く（縦は遠近で潰す＝地面を回っているように見せる）。
+      const t = (now - pet.orbitStart) / pet.orbitDur;
+      const ang = pet.orbitDir * t * Math.PI * 2;
+      const radius = Math.max(tuning.wander, 0.5) * localSize;
+      targetX = center.x + Math.cos(ang) * radius;
+      targetY = center.y + Math.sin(ang) * radius * 0.45;
+      ease = 0.16; // 円に追いつける速さ
+    } else {
+      // 通常時: 自ゲート側アンカー＋うろつきオフセットへ。
+      if (!paused) {
+        if (now >= pet.nextWanderT) {
+          const radius = tuning.wander * localSize;
+          const angle = Math.random() * Math.PI * 2;
+          const rr = Math.random() * radius;
+          pet.wtx = Math.cos(angle) * rr;
+          pet.wty = Math.sin(angle) * rr * 0.5;
+          pet.nextWanderT = now + rand(800, 2600);
+        }
+        pet.wx += (pet.wtx - pet.wx) * 0.03;
+        pet.wy += (pet.wty - pet.wy) * 0.03;
+      }
+      targetX = anchor.x + pet.wx;
+      targetY = anchor.y + pet.wy;
+      ease = Math.min(1, Math.max(0.02, tuning.follow));
+    }
     if (!pet.placed) {
       pet.x = targetX;
       pet.y = targetY;
       pet.placed = true;
     } else {
-      pet.x += (targetX - pet.x) * f;
-      pet.y += (targetY - pet.y) * f;
+      pet.x += (targetX - pet.x) * ease;
+      pet.y += (targetY - pet.y) * ease;
     }
 
     // 大ジャンプ（たまに高く飛ぶ）。放物線で1回ぶん跳ねる。

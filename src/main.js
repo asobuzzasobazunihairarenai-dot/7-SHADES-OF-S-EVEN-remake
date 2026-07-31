@@ -108,6 +108,7 @@ import {
 } from "./card-back-skins.js";
 import { openPlaymatPicker, registerPlaymatHelpers, getSelectedPlaymatPath, setSelectedPlaymatId } from "./playmat.js";
 import { openBackgroundPicker, registerBackgroundHelpers, getSelectedBackgroundPath, setSelectedBackgroundId } from "./background.js";
+import { openPetPicker, registerPetHelpers, getSelectedPetIndex, PET_OPTIONS } from "./pet-skins.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS } from "./player-identity.js";
 import { applyAvatarContent, getAvatarVariant, getAwakenedVariant, getEnragedVariant } from "./avatar-render.js";
@@ -4688,6 +4689,7 @@ function renderBoardTokens(table) {
       const owner = token.player ?? SEAT_ORDER[COLORS.indexOf(token.color)] ?? null;
       const gateSide = owner ? rotateSide(SEAT_TO_SIDE[owner], getRotationSteps(getSelfSeat())) : null;
       if (gateSide) el.dataset.gateSide = gateSide;
+      if (owner) el.dataset.owner = owner; // 飾りペットが所有者の選択した絵文字を出すため
     }
     // セットアップ配布演出中、まだ登場させたくないトークンは最初からopacity:0にしておく
     // （setup-animation.jsのanimateFirstCardsDealt/animateBoardFilled参照）。
@@ -8382,6 +8384,7 @@ let selfStatusPieceThumbEl = null;
 let selfStatusCardBackThumbEl = null;
 let selfStatusPlaymatThumbEl = null;
 let selfStatusBackgroundThumbEl = null;
+let selfStatusPetThumbEl = null;
 let selfStatusHandCountEl = null;
 let selfStatusInfoEl = null;
 let selfStatusLargeAvatarEl = null;
@@ -8714,6 +8717,13 @@ function buildSelfHandStatus() {
   selfStatusBackgroundThumbEl.appendChild(backgroundThumbImg);
   addSimpleTooltip(selfStatusBackgroundThumbEl, "クリックして背景画像を変更");
 
+  // ペット変更アイコン（ユーザー要望「背景変更アイコンの隣にペット変更アイコンを追加」）。
+  // 駒に追従する飾りペットの絵文字を選ぶ。現在の選択を絵文字で表示する（updateSelfStatusで更新）。
+  selfStatusPetThumbEl = document.createElement("button");
+  selfStatusPetThumbEl.className = "self-status-playmat-thumb self-status-pet-thumb";
+  selfStatusPetThumbEl.addEventListener("click", openPetPicker);
+  addSimpleTooltip(selfStatusPetThumbEl, "クリックしてペットを変更");
+
   const info = document.createElement("div");
   info.className = "self-status-info";
   selfStatusInfoEl = info;
@@ -8737,6 +8747,7 @@ function buildSelfHandStatus() {
   iconGrid.appendChild(selfStatusCardBackThumbEl);
   iconGrid.appendChild(selfStatusPlaymatThumbEl);
   iconGrid.appendChild(selfStatusBackgroundThumbEl);
+  iconGrid.appendChild(selfStatusPetThumbEl);
   iconGrid.appendChild(buildSelfStatusOnlineWidget());
 
   el.appendChild(iconGrid);
@@ -8777,6 +8788,7 @@ function updateSelfHandStatus() {
   selfStatusCardBackThumbEl.querySelector("img").src = cardBackSetImagePath("normal", getCardBackSetIndex());
   selfStatusPlaymatThumbEl.querySelector("img").src = getSelectedPlaymatPath();
   selfStatusBackgroundThumbEl.querySelector("img").src = getSelectedBackgroundPath();
+  if (selfStatusPetThumbEl) selfStatusPetThumbEl.textContent = PET_OPTIONS[getSelectedPetIndex()]?.emoji ?? "🐥";
 
   // startEditingName()が.self-status-nameを一時的に<input>へ差し替えるため、render()の
   // たびに毎回ここで作り直す（差し替え後の入力欄はrender()時点で既にblur済みのはず）。
@@ -8879,6 +8891,7 @@ registerPieceSkinHelpers({ render });
 registerCardBackSkinHelpers({ render, savePreference: saveMyPreference, isItemUnlocked, openShop });
 registerPlaymatHelpers({ render });
 registerBackgroundHelpers({ render });
+registerPetHelpers({ render });
 // ログイン直後（online.jsのloadMyPreferences）に、保存済みの名前・アバター・駒スキンを
 // ローカルの表示側（player-identity.js/piece-skins.js）へ反映する。部屋に入る前は
 // getSelfSeat()が常に"A"を返すため、ここではまだ「A」という固定座席への適用でよい

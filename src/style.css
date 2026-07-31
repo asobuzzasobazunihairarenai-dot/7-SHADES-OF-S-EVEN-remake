@@ -3437,6 +3437,61 @@ body.spotlight-mode #spotlight-overlay {
   background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.38), rgba(0, 0, 0, 0) 70%);
   pointer-events: none;
 }
+/* 左下ステータスエリアの「ペット変更」アイコン（現在の選択を絵文字で表示）。プレイマット
+   アイコンと同じ器（.self-status-playmat-thumb）に、画像の代わりに絵文字を中央表示する。 */
+.self-status-pet-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  line-height: 1;
+  padding: 0;
+}
+/* ペット選択ピッカーのマス（絵文字＋ラベル）。 */
+.pet-picker-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+.pet-picker-emoji {
+  font-size: 2.4rem;
+  line-height: 1;
+}
+.pet-picker-label {
+  font-size: 0.7rem;
+  color: #cbd5e1;
+}
+/* マイページの着せ替え一式（my-page.js renderMyPageBody）。 */
+.my-page-cosmetics {
+  margin: 0.6rem 0 1rem;
+}
+.my-page-cosmetics-title {
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  margin-bottom: 0.4rem;
+  text-align: center;
+}
+.my-page-cosmetics-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+}
+.my-page-cosmetic-btn {
+  padding: 0.4rem 0.8rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 0.4rem;
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.my-page-cosmetic-btn:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.6);
+}
 /* ユーザー要望「オプションエリアのある列全部に、右端から左端まで独自のおしゃれな帯を
    敷いてほしい（背景が白系だとアイコンが見にくいため）」。#option-area自体は画面いっぱいの
    透明なアンカーなので、その最上部に横いっぱいの装飾帯を疑似要素で敷く。上部を濃く下へ

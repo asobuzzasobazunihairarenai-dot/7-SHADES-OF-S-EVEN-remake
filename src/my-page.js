@@ -12,6 +12,11 @@ import { buildIconButtonContent, wireIconButtonClick, openIconDetailModal } from
 import { openOnlinePanel } from "./online-ui.js";
 import { getShopCompletionStats } from "./shop-content.js";
 import { getOptionArea } from "./option-area.js";
+import { openPieceSkinPicker } from "./piece-skins.js";
+import { openCardBackSkinPicker } from "./card-back-skins.js";
+import { openPlaymatPicker } from "./playmat.js";
+import { openBackgroundPicker } from "./background.js";
+import { openPetPicker } from "./pet-skins.js";
 
 // main.jsのopenAvatarPicker()はmain.js内のローカル関数（circular importを避けるための
 // 既存パターン、admin.js等と同じ）。main.js側からregisterAvatarPickerHelper()で
@@ -224,6 +229,32 @@ export async function renderMyPageBody(body, close) {
   body.appendChild(avatarWrap);
 
   body.appendChild(buildEditableNameRow(seat));
+
+  // 着せ替え一式（ユーザー要望「マイページに駒スキン・カード裏・プレマ・背景・ペットの
+  // 変更できるやつを置いて」）。各ボタンは既存のピッカーを開くだけ。
+  const cosmeticsWrap = document.createElement("div");
+  cosmeticsWrap.className = "my-page-cosmetics";
+  const cosmeticsTitle = document.createElement("div");
+  cosmeticsTitle.className = "my-page-cosmetics-title";
+  cosmeticsTitle.textContent = "🎨 着せ替え";
+  cosmeticsWrap.appendChild(cosmeticsTitle);
+  const cosmeticsGrid = document.createElement("div");
+  cosmeticsGrid.className = "my-page-cosmetics-grid";
+  const addCosmetic = (label, onClick) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "my-page-cosmetic-btn";
+    b.textContent = label;
+    b.addEventListener("click", onClick);
+    cosmeticsGrid.appendChild(b);
+  };
+  addCosmetic("🎲 駒スキン", () => openPieceSkinPicker());
+  addCosmetic("🂠 カード裏", () => openCardBackSkinPicker());
+  addCosmetic("🟩 プレイマット", () => openPlaymatPicker());
+  addCosmetic("🖼 背景", () => openBackgroundPicker());
+  addCosmetic("🐥 ペット", () => openPetPicker());
+  cosmeticsWrap.appendChild(cosmeticsGrid);
+  body.appendChild(cosmeticsWrap);
 
   const statusEl = document.createElement("div");
   statusEl.textContent = "戦績を読み込み中…";
