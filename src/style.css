@@ -9183,7 +9183,11 @@ body.reduce-glow .cell.card-effect-placement-target {
   justify-content: center;
   gap: 0.4rem;
   padding: 2rem 1rem;
-  background: radial-gradient(ellipse at top, #1e293b 0%, #0f172a 60%, #060a12 100%);
+  /* ユーザー提供の背景画像（assets/home-bg.png、元は画像素材/ホーム画面/タイトル寄せ.png）。
+     読み込み前や縦横比が合わない端でも暗い背景で破綻しないよう、下地の暗色グラデーションの
+     上に画像を重ねる。 */
+  background: url("../assets/home-bg.png") center / cover no-repeat,
+    radial-gradient(ellipse at top, #1e293b 0%, #0f172a 60%, #060a12 100%);
   font-family: sans-serif;
   color: #e2e8f0;
   overflow-y: auto;

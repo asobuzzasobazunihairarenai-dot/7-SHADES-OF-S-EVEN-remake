@@ -8,6 +8,9 @@ import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { saveMyPreference, isItemUnlocked, openShop } from "./online.js";
 
 export const BACKGROUND_OPTIONS = [
+  // ユーザー指定の既定背景（assets/backgrounds/gray.webp、元は画像素材/背景/灰.webp）。
+  // 選択保存の無い人はこれで開始する（下のselectedBackgroundId初期値＝"gray"）。
+  { id: "gray", label: "灰", path: "assets/backgrounds/gray.webp" },
   { id: "1", label: "背景1", path: "assets/backgrounds/1.webp" },
   // ユーザーが追加した高画質版（元画像はpng、2.5MB超のため読み込みがやや重い点は
   // 承知の上でラインナップに追加）。
@@ -16,7 +19,7 @@ export const BACKGROUND_OPTIONS = [
   { id: "3", label: "背景3", path: "assets/backgrounds/3.webp" },
 ];
 
-let selectedBackgroundId = "1";
+let selectedBackgroundId = "gray";
 
 export function getSelectedBackgroundPath() {
   return BACKGROUND_OPTIONS.find((b) => b.id === selectedBackgroundId).path;
@@ -27,6 +30,7 @@ export function getSelectedBackgroundPath() {
 // プレースホルダー（対局終了ごとの通貨獲得額50、supabase_setup_so7.sqlの
 // so7_award_match_currency参照、が基準）。実際の値は後で調整すること。
 function getBackgroundCost(id) {
+  if (id === "gray") return 0; // 既定背景は無料
   if (id === "1") return 0;
   if (id === "1-hq") return 150;
   return 100;
