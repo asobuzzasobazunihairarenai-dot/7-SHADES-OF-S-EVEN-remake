@@ -59,8 +59,6 @@ export function applyProfileLayout(container) {
       key,
       x: Math.round((r.left - cr.left) / getStageScale() + container.scrollLeft),
       y: Math.round((r.top - cr.top) / getStageScale() + container.scrollTop),
-      w: Math.round(r.width / getStageScale()),
-      h: Math.round(r.height / getStageScale()),
     };
   });
 
@@ -69,18 +67,19 @@ export function applyProfileLayout(container) {
     let cfg = PROFILE_LAYOUT[m.key];
     if (!cfg) {
       if (!editMode) continue; // 焼き込みも編集も無ければ自然流しのまま
-      cfg = PROFILE_LAYOUT[m.key] = { x: m.x, y: m.y, w: m.w, h: m.h }; // 編集開始時に現状を取り込む
+      cfg = PROFILE_LAYOUT[m.key] = { x: m.x, y: m.y, scale: 1 }; // 編集開始時に現状を取り込む
     }
+    if (typeof cfg.scale !== "number") cfg.scale = 1;
     const el = m.el;
     el.style.position = "absolute";
     el.style.left = `${cfg.x}px`;
     el.style.top = `${cfg.y}px`;
-    el.style.width = `${cfg.w}px`;
-    el.style.height = `${cfg.h}px`;
     el.style.margin = "0";
-    el.style.boxSizing = "border-box";
-    el.style.overflow = "auto";
-    maxBottom = Math.max(maxBottom, cfg.y + cfg.h);
+    el.style.transformOrigin = "top left";
+    // 幅・高さは指定せず、中身の自然なサイズを scale で拡大縮小する（枠だけ大きくなって
+    // 中身が変わらない問題への対応・ユーザー要望）。
+    el.style.transform = `scale(${cfg.scale})`;
+    maxBottom = Math.max(maxBottom, cfg.y + el.offsetHeight * cfg.scale);
     if (editMode) makeEditable(el, container);
   }
   if (editMode || Object.keys(PROFILE_LAYOUT).length) {
@@ -130,35 +129,25 @@ function makeEditable(el) {
   }
 }
 
-function startResize(e, el, dir) {
+function startResize(e, el) {
   if (e.button !== 0) return;
   e.preventDefault();
   e.stopPropagation();
   const cfg = PROFILE_LAYOUT[el.dataset.layoutKey];
   if (!cfg) return;
-  const scale = getStageScale();
-  const sx = e.clientX;
-  const sy = e.clientY;
-  const o = { ...cfg };
+  // 要素の左上（＝transform-originの拡大基準点）を固定点にし、そこからのポインタ距離の比で
+  // 一様スケールする。これで枠だけでなく中身のアイコン・文字も一緒に拡大縮小される。
+  const rect = el.getBoundingClientRect();
+  const originX = rect.left;
+  const originY = rect.top;
+  const startDist = Math.max(8, Math.hypot(e.clientX - originX, e.clientY - originY));
+  const origScale = cfg.scale || 1;
   const move = (ev) => {
-    const dx = Math.round((ev.clientX - sx) / scale);
-    const dy = Math.round((ev.clientY - sy) / scale);
-    if (dir.includes("e")) cfg.w = Math.max(MIN_SIZE, o.w + dx);
-    if (dir.includes("s")) cfg.h = Math.max(MIN_SIZE, o.h + dy);
-    if (dir.includes("w")) {
-      const w = Math.max(MIN_SIZE, o.w - dx);
-      cfg.x = o.x + (o.w - w);
-      cfg.w = w;
-    }
-    if (dir.includes("n")) {
-      const h = Math.max(MIN_SIZE, o.h - dy);
-      cfg.y = o.y + (o.h - h);
-      cfg.h = h;
-    }
-    el.style.left = `${cfg.x}px`;
-    el.style.top = `${cfg.y}px`;
-    el.style.width = `${cfg.w}px`;
-    el.style.height = `${cfg.h}px`;
+    const curDist = Math.hypot(ev.clientX - originX, ev.clientY - originY);
+    let next = origScale * (curDist / startDist);
+    next = Math.min(6, Math.max(0.2, next));
+    cfg.scale = Math.round(next * 100) / 100;
+    el.style.transform = `scale(${cfg.scale})`;
   };
   const up = () => {
     window.removeEventListener("pointermove", move);
@@ -183,7 +172,19 @@ function ensureToolbar(container) {
   exportBtn.addEventListener("click", showExport);
   bar.appendChild(exportBtn);
 
+  // 初期化（ユーザー要望）: 焼き込み配置を全て捨てて自然な既定レイアウトへ戻す。
+  const resetBtn = document.createElement("button");
+  resetBtn.type = "button";
+  resetBtn.textContent = "初期化";
+  resetBtn.addEventListener("click", resetLayout);
+  bar.appendChild(resetBtn);
+
   container.appendChild(bar);
+}
+
+function resetLayout() {
+  for (const k of Object.keys(PROFILE_LAYOUT)) delete PROFILE_LAYOUT[k];
+  rerenderFn?.(); // 編集モード中なら自然位置を取り込み直して並べ直す
 }
 
 // 現在のPROFILE_LAYOUTを、そのままコードへ貼れるJSリテラルとして出す。
@@ -192,7 +193,7 @@ function buildExportText() {
     .sort()
     .map((k) => {
       const c = PROFILE_LAYOUT[k];
-      return `  ${JSON.stringify(k)}: { x: ${c.x}, y: ${c.y}, w: ${c.w}, h: ${c.h} },`;
+      return `  ${JSON.stringify(k)}: { x: ${c.x}, y: ${c.y}, scale: ${c.scale ?? 1} },`;
     });
   return `export const PROFILE_LAYOUT = {\n${lines.join("\n")}\n};`;
 }

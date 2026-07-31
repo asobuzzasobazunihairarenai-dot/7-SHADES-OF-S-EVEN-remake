@@ -8745,9 +8745,9 @@ function buildSelfHandStatus() {
   iconGrid.className = "self-status-icon-grid";
   iconGrid.appendChild(selfStatusPieceThumbEl);
   iconGrid.appendChild(selfStatusCardBackThumbEl);
+  iconGrid.appendChild(selfStatusPetThumbEl); // カード裏面の右隣（ユーザー要望）
   iconGrid.appendChild(selfStatusPlaymatThumbEl);
   iconGrid.appendChild(selfStatusBackgroundThumbEl);
-  iconGrid.appendChild(selfStatusPetThumbEl);
   iconGrid.appendChild(buildSelfStatusOnlineWidget());
 
   el.appendChild(iconGrid);

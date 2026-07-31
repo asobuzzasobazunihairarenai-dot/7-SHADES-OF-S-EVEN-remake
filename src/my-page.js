@@ -214,6 +214,7 @@ export async function renderMyPageBody(body, close) {
 
   const seat = getSelfSeat();
   const avatarWrap = document.createElement("div");
+  avatarWrap.dataset.layoutKey = "avatar"; // レイアウト編集モードの識別子（profile-layout-editor.js）
   avatarWrap.style.cssText = "display: flex; flex-direction: column; align-items: center; gap: 0.5rem; margin-bottom: 1rem;";
   const avatarImg = document.createElement("img");
   avatarImg.src = getPlayerAvatar(seat);
@@ -228,11 +229,14 @@ export async function renderMyPageBody(body, close) {
   avatarWrap.appendChild(changeBtn);
   body.appendChild(avatarWrap);
 
-  body.appendChild(buildEditableNameRow(seat));
+  const nameRow = buildEditableNameRow(seat);
+  nameRow.dataset.layoutKey = "name";
+  body.appendChild(nameRow);
 
   // 着せ替え一式（ユーザー要望「マイページに駒スキン・カード裏・プレマ・背景・ペットの
   // 変更できるやつを置いて」）。各ボタンは既存のピッカーを開くだけ。
   const cosmeticsWrap = document.createElement("div");
+  cosmeticsWrap.dataset.layoutKey = "cosmetics";
   cosmeticsWrap.className = "my-page-cosmetics";
   const cosmeticsTitle = document.createElement("div");
   cosmeticsTitle.className = "my-page-cosmetics-title";
@@ -256,10 +260,17 @@ export async function renderMyPageBody(body, close) {
   cosmeticsWrap.appendChild(cosmeticsGrid);
   body.appendChild(cosmeticsWrap);
 
+  // 実績・戦績のテキスト群は1つのグループにまとめる（ユーザー要望「一旦それらでグループでいい」）。
+  // レイアウト編集モードでも "stats" という1ブロックとして扱えるようにする。
+  const statsGroup = document.createElement("div");
+  statsGroup.className = "my-page-stats-group";
+  statsGroup.dataset.layoutKey = "stats";
+  body.appendChild(statsGroup);
+
   const statusEl = document.createElement("div");
   statusEl.textContent = "戦績を読み込み中…";
   statusEl.style.cssText = "text-align: center; color: #94a3b8; padding: 0.8rem 0;";
-  body.appendChild(statusEl);
+  statsGroup.appendChild(statusEl);
 
   const user = await getCurrentUser();
   if (!user) {
@@ -285,7 +296,7 @@ export async function renderMyPageBody(body, close) {
   // 戦績システムとの連携状況とは無関係（アカウントの通貨/所持アイテムの話のため）に、
   // ログインさえしていれば常に表示する。
   const { owned, total, percent } = getShopCompletionStats();
-  body.appendChild(buildStatRow("アイテムコンプリート率", `${percent}%（${owned}/${total}）`));
+  statsGroup.appendChild(buildStatRow("アイテムコンプリート率", `${percent}%（${owned}/${total}）`));
 
   let profile;
   try {
@@ -318,13 +329,13 @@ export async function renderMyPageBody(body, close) {
 
   statusEl.remove();
   const rankText = (rank) => (rank ? `${rank}位 / ${profile.totalRankedPlayers}人中` : "集計対象外（承認待ち等）");
-  body.appendChild(buildStatRow("対戦数", `${profile.matchesCount}戦`));
-  body.appendChild(buildStatRow("勝利数", `${profile.winsCount}勝`));
-  body.appendChild(buildStatRow("勝率", `${profile.winRate}%`));
-  body.appendChild(buildStatRow("勝率順位", rankText(profile.winRateRank)));
-  body.appendChild(buildStatRow("対戦数順位", rankText(profile.matchCountRank)));
-  body.appendChild(buildStatRow("登録年月日", formatDate(profile.createdAt)));
-  body.appendChild(buildStatsSyncRow(seat));
+  statsGroup.appendChild(buildStatRow("対戦数", `${profile.matchesCount}戦`));
+  statsGroup.appendChild(buildStatRow("勝利数", `${profile.winsCount}勝`));
+  statsGroup.appendChild(buildStatRow("勝率", `${profile.winRate}%`));
+  statsGroup.appendChild(buildStatRow("勝率順位", rankText(profile.winRateRank)));
+  statsGroup.appendChild(buildStatRow("対戦数順位", rankText(profile.matchCountRank)));
+  statsGroup.appendChild(buildStatRow("登録年月日", formatDate(profile.createdAt)));
+  statsGroup.appendChild(buildStatsSyncRow(seat));
 }
 
 let openFn = null;
