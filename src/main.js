@@ -9107,7 +9107,16 @@ function computeStateFingerprint(state) {
     })
     .sort()
     .join(";");
-  const rosterParts = state.activePlayers
+  // ロスターは activePlayers ではなく全席(SEAT_ORDER)を走査する。対局開始前(activePlayers==[])は
+  // online.jsのupdateIdentityRosterが入室順にプレビュー席(C→B→D)へ他プレイヤーを載せるが、
+  // activePlayersだけを見ていると、この着席がフィンガープリントに全く反映されず（tokens・
+  // turnPlayer等も変わらないためバイト一致してしまい）、後から入室した人が着席しても
+  // render()自体がスキップされて部屋主の画面に相手が出ない、というバグの原因になっていた
+  // （ユーザー報告「部屋主の画面に後から入室した人が着席しない」の真因。onRosterChange→
+  // notifyListeners()は発火していたが、このフィンガープリント重複排除で握り潰されていた）。
+  // 対局中は非参加席の同期IDが無い（updateIdentityRosterが実席のみ載せる）ため、SEAT_ORDER
+  // 全走査でも従来の挙動と一致する。
+  const rosterParts = SEAT_ORDER
     .map((seat) => {
       const identity = getSyncedIdentity(seat);
       return `${seat}:${identity?.name ?? ""}:${identity?.avatar ?? ""}:${identity?.pieceSkinIndex ?? ""}`;
