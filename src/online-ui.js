@@ -194,11 +194,15 @@ export function openLobbyModal(gameId) {
   playWaitingBgm();
   renderLobbyModal();
   // 入室・退室・座席割り当てのたびに更新。座席が付いたら（ゲーム開始）閉じる。
+  // ユーザー報告「部屋主の画面に後から入室した人が着席しない」への対応: onRosterChangeは
+  // ロスター（着席プレビュー）を更新するが盤面は再描画しないため、ここで notifyListeners() を
+  // 呼んで盤面を描き直し、C→B→Dに着席した他プレイヤーを反映させる。
   lobbyRosterUnsub = onRosterChange(() => {
     if (getMySeat()) {
       closeLobbyModal();
       return;
     }
+    notifyListeners(); // 盤面を再描画（着席した他プレイヤーを反映）
     renderLobbyModal();
   });
 }
