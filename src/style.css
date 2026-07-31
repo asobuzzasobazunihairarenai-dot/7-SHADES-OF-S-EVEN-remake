@@ -4997,7 +4997,9 @@ body.diagnostic-flatten-3d.is-touch-device #hand-shuffle-button {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: min(20rem, 90vw);
+  /* ユーザー要望「着せ替えモーダルが縦に細長いので大きく見やすく」。横幅を広げ、下のグリッドを
+     多列化して縦を短く・見やすくする。 */
+  width: min(34rem, 92vw);
   /* 駒スキンが8バリエーション(2列4行)に増えたことで、縦に長い画面でないと収まりきらず、
      画面からはみ出て閉じるボタンにも手が届かなくなっていた（ユーザー報告）。
      max-height+overflow-yで、収まらない場合はモーダル自身がスクロールするようにする。 */
@@ -5019,7 +5021,8 @@ body.diagnostic-flatten-3d.is-touch-device #hand-shuffle-button {
 }
 .piece-skin-modal-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  /* 固定2列だと縦に細長くなるため、幅に応じて列数が増える可変グリッドにする（ユーザー要望）。 */
+  grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
   gap: 0.6rem;
 }
 .piece-skin-swatch {

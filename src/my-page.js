@@ -17,6 +17,7 @@ import { openCardBackSkinPicker } from "./card-back-skins.js";
 import { openPlaymatPicker } from "./playmat.js";
 import { openBackgroundPicker } from "./background.js";
 import { openPetPicker } from "./pet-skins.js";
+import { applyProfileLayout } from "./profile-layout-editor.js";
 
 // main.jsのopenAvatarPicker()はmain.js内のローカル関数（circular importを避けるための
 // 既存パターン、admin.js等と同じ）。main.js側からregisterAvatarPickerHelper()で
@@ -288,6 +289,12 @@ export async function renderMyPageBody(body, close) {
   statusEl.textContent = "戦績を読み込み中…";
   statusEl.style.cssText = "text-align: center; color: #94a3b8; padding: 0.8rem 0;";
   statsGroup.appendChild(statusEl);
+
+  // ユーザー報告「マイページを開くと一瞬“古いレイアウト”が見える」。原因は、この関数が
+  // 要素を自然な縦並びで先に描き、戦績のawait後にようやくレイアウト（PROFILE_LAYOUT）が
+  // 適用されていたため。同期構築が終わったここで一度適用し、最初から所定位置に置く（戦績は
+  // 後から埋まるが、6ブロックは既に配置済みなのでチラつかない）。
+  applyProfileLayout(body);
 
   const user = await getCurrentUser();
   if (!user) {
