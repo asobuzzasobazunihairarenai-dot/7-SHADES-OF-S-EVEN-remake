@@ -6,8 +6,17 @@
 // version.json はコミットのたびに .git/hooks/pre-commit が自動更新する（＝デプロイのたびに必ず
 // 値が変わる）。取得は必ず cache:"no-store" ＋クエリでキャッシュを回避する。
 
+import { APP_VERSION } from "./app-version.js";
+
 const CHECK_INTERVAL_MS = 60000; // 60秒ごと
-let loadedVersion = null; // ページを開いた時点のバージョン（最初の取得で確定）
+// 基準は「今実行しているコードのバージョン」（APP_VERSION、JSと一緒にキャッシュされる）。
+// 以前は「最初にversion.jsonを取得した値」を基準にしていたが、GitHub PagesはJSを短時間
+// キャッシュする一方version.jsonはキャッシュ無視で取得するため、「古いJSが動いているのに
+// version.jsonだけ最新」というズレの時に基準が最新版になってしまい、更新を検知できず
+// バナーが出ないまま次の再検証で勝手に更新される、という不具合があった（ユーザー報告）。
+// 実行中コード自身の版を基準にすれば、古いコードが動いている限り最新version.jsonと必ず
+// 食い違うので確実に検知できる。
+let loadedVersion = APP_VERSION;
 let updateAvailable = false; // 新しいバージョンを検知済みか
 let dismissed = false; // このセッションでユーザーがバナーを閉じたか（新バージョンが来たら解除）
 
@@ -77,10 +86,6 @@ function showUpdateBanner() {
 async function check() {
   const v = await fetchVersion();
   if (!v) return;
-  if (loadedVersion === null) {
-    loadedVersion = v; // 初回＝このセッションの基準バージョン
-    return;
-  }
   if (v !== loadedVersion) {
     updateAvailable = true;
     dismissed = false; // 新バージョン検知時は、以前閉じていても改めて出せるようにする
@@ -89,7 +94,7 @@ async function check() {
 }
 
 export function initUpdateChecker() {
-  check(); // 基準バージョンを確定
+  check(); // 実行中コード(APP_VERSION)とサーバー最新版をすぐ照合
   setInterval(check, CHECK_INTERVAL_MS);
   // タブに戻ってきた時にも即チェック（放置後に戻ってきた人にすぐ気づかせる）。
   document.addEventListener("visibilitychange", () => {
