@@ -9057,7 +9057,10 @@ body.is-online-mode #quick-start-bar {
   --icon-pos-options-phone-y: -0.7rem;
   --icon-size-options-phone: 3.9rem;
   --center-modal-scale-phone: 2;
-  --options-menu-scale-phone: 1;
+  /* オプションのドロップダウンは既定1（＝拡大なし）で他より小さく感じるとの報告のため、
+     既定を少し大きくする。さらに細かくは管理者モードの「オプションのドロップダウン
+     サイズ倍率（スマホ）」スライダーで調整可能。 */
+  --options-menu-scale-phone: 1.5;
   --admin-panel-scale-phone: 1;
   --phase-guide-pos-phone-x: 0rem;
   --phase-guide-pos-phone-y: 0rem;
