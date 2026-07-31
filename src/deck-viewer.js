@@ -9,6 +9,35 @@ import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 
 let showCardModal = null; // initDeckViewer内で実体を設定する
 
+// ユーザー要望「山札一覧でホバーや長押しでカードを拡大表示できるように」。盤面の#card-preview
+// とは別に、山札一覧（全画面パネル）専用の大きな拡大プレビューを持つ。ホバー（PC）と長押し
+// （スマホ）で表示し、離すと消える。クリックは従来通り補足テキスト付きモーダル(showCardModal)。
+let deckPreviewEl = null;
+function getDeckPreviewEl() {
+  if (!deckPreviewEl) {
+    deckPreviewEl = document.createElement("img");
+    deckPreviewEl.id = "deck-viewer-card-preview";
+    deckPreviewEl.style.cssText = `
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: min(26rem, 82vw); max-height: 88vh; object-fit: contain;
+      border-radius: 0.6rem; border: 2px solid rgba(255, 255, 255, 0.75);
+      box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.75); pointer-events: none;
+      z-index: 2300; display: none;
+    `;
+    document.body.appendChild(deckPreviewEl);
+  }
+  return deckPreviewEl;
+}
+function showDeckPreview(def) {
+  const el = getDeckPreviewEl();
+  el.src = getCardImagePath(def.id);
+  el.alt = def.name;
+  el.style.display = "block";
+}
+function hideDeckPreview() {
+  if (deckPreviewEl) deckPreviewEl.style.display = "none";
+}
+
 function buildCardTile(def) {
   const tile = document.createElement("button");
   tile.type = "button";
@@ -39,7 +68,44 @@ function buildCardTile(def) {
   name.style.cssText = "font-size: 0.6rem; line-height: 1.2; max-height: 2.4em; overflow: hidden;";
   tile.appendChild(name);
 
-  tile.addEventListener("click", () => showCardModal(def));
+  // ホバー（PC）で拡大プレビュー。
+  tile.addEventListener("mouseenter", () => showDeckPreview(def));
+  tile.addEventListener("mouseleave", hideDeckPreview);
+
+  // 長押し（スマホ）で拡大プレビュー。長押しが発火した後のクリックは、補足モーダルを
+  // 開かずプレビューを閉じるだけにする（長押しとタップを区別する）。
+  let holdTimer = null;
+  let didLongPress = false;
+  tile.addEventListener(
+    "touchstart",
+    () => {
+      didLongPress = false;
+      holdTimer = setTimeout(() => {
+        didLongPress = true;
+        showDeckPreview(def);
+      }, 300);
+    },
+    { passive: true }
+  );
+  const cancelHold = () => {
+    if (holdTimer) {
+      clearTimeout(holdTimer);
+      holdTimer = null;
+    }
+    hideDeckPreview();
+  };
+  tile.addEventListener("touchend", cancelHold);
+  tile.addEventListener("touchmove", cancelHold);
+  tile.addEventListener("touchcancel", cancelHold);
+
+  tile.addEventListener("click", () => {
+    if (didLongPress) {
+      didLongPress = false;
+      return; // 長押しプレビュー後のクリックは無視
+    }
+    hideDeckPreview();
+    showCardModal(def);
+  });
 
   return tile;
 }
@@ -132,13 +198,13 @@ function buildCardModal() {
 function buildPanel(close) {
   const panel = document.createElement("div");
   panel.id = "deck-viewer-panel";
+  // ユーザー要望「山札一覧は全画面表示にしましょう」。中央モーダルではなく画面いっぱいに
+  // 広げ、中身は縦スクロールで見せる。
   panel.style.cssText = `
-    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    width: min(68rem, 96vw); max-height: 92vh; overflow-y: auto;
-    background: rgba(15, 23, 32, 0.98); border: 1px solid rgba(148, 163, 184, 0.4);
-    border-radius: 0.5rem; padding: 1rem; z-index: 2001;
+    position: fixed; inset: 0; overflow-y: auto;
+    background: rgba(15, 23, 32, 0.98);
+    padding: 1rem 1.2rem 2rem; z-index: 2001;
     font-family: sans-serif; font-size: 0.85rem; color: #e2e8f0;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
     display: none;
   `;
 
