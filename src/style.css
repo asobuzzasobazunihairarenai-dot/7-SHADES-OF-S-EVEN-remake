@@ -3404,6 +3404,39 @@ body.spotlight-mode #spotlight-overlay {
 #option-area > * {
   pointer-events: auto;
 }
+/* 駒に追従する飾りのペット（piece-pet.js）。画面全体を覆う操作を奪わないオーバーレイに、
+   各駒の足元へ絵文字＋接地影を置く。盤面より前・UIパネル(900〜)より後ろに敷く。 */
+#piece-pet-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  pointer-events: none;
+  overflow: hidden;
+}
+.piece-pet {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+  line-height: 1;
+}
+.piece-pet-emoji {
+  display: block;
+  line-height: 1;
+  filter: drop-shadow(0 0.04em 0.04em rgba(0, 0, 0, 0.45));
+  will-change: transform;
+}
+/* 足元の楕円の影（絵文字だけがホップして影は接地に残るので生き物っぽく見える）。 */
+.piece-pet-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: -0.06em;
+  width: 0.7em;
+  height: 0.2em;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.38), rgba(0, 0, 0, 0) 70%);
+  pointer-events: none;
+}
 /* ユーザー要望「オプションエリアのある列全部に、右端から左端まで独自のおしゃれな帯を
    敷いてほしい（背景が白系だとアイコンが見にくいため）」。#option-area自体は画面いっぱいの
    透明なアンカーなので、その最上部に横いっぱいの装飾帯を疑似要素で敷く。上部を濃く下へ

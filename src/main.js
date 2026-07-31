@@ -134,6 +134,7 @@ import { initTutorialAutoStart, registerTutorialStageHelpers } from "./tutorial.
 // チュートリアルCPU戦（台本化された練習試合）へ、ロック効果アニメとステージ座標変換を注入する。
 import { registerTutorialBattleHelpers, isTutorialBattleActive } from "./tutorial-battle.js";
 import { isAutoDragRestrictionEnabled } from "./auto-drag-restriction.js";
+import { initPiecePets } from "./piece-pet.js";
 // 「ロック前・手札使用前」の確認モーダルを出すかどうかの設定（全デバイス共通、
 // 「今後表示しない」でオフ・オプションの基本設定でオンに戻せる）。
 import { isActionConfirmEnabled, setActionConfirmEnabled } from "./action-confirm-prefs.js";
@@ -8825,6 +8826,7 @@ registerPhaseAutomationHelpers({ render, findTopCardAt });
 initHelpButton();
 initRankingIcon();
 initUpdateChecker(); // デプロイ検知＆更新案内バナー（version.jsonを定期チェック）
+initPiecePets(); // 駒に遅れて追従する飾りのペット（見た目だけ・ゲームには無関係）
 // ユーザー要望「更新バナーは対局中は出さない、対局が終われば出す」。対局が進行中
 // （参加者が居て・手番があり・まだ誰も勝っていない）またはチュートリアル中は保留し、
 // それ以外（ホーム画面・対局終了後）でだけ出す。判定が変わるたびrender()末尾で再評価する。
