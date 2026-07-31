@@ -29,9 +29,12 @@ let overlayEl = null;
 let toastEl = null;
 let toastTimer = null;
 
+// icon: 画像が無い時のフォールバック絵文字。image: ユーザー作成のホーム画面アイコン
+// （assets/home-icons/、枠なしでそのまま表示する）。
 const TILES = [
   {
     icon: "🎓",
+    image: "assets/home-icons/tutorial.webp",
     label: "チュートリアルCPU戦",
     status: "ready",
     onOpen: () => {
@@ -41,11 +44,12 @@ const TILES = [
       startTutorialBattle();
     },
   },
-  { icon: "🤝", label: "フレンドリーマッチ", status: "ready", onOpen: () => openOnlinePanel() },
-  { icon: "🏆", label: "フリーマッチ（ランク戦）", status: "soon" },
-  { icon: "🛒", label: "ショップ", status: "ready", onOpen: () => openShopPanel() },
+  { icon: "🤝", image: "assets/home-icons/friend-match.webp", label: "フレンドリーマッチ", status: "ready", onOpen: () => openOnlinePanel() },
+  { icon: "🏆", image: "assets/home-icons/rank-match.webp", label: "フリーマッチ（ランク戦）", status: "soon" },
+  { icon: "🛒", image: "assets/home-icons/shop.webp", label: "ショップ", status: "ready", onOpen: () => openShopPanel() },
   {
     icon: "📊",
+    image: "assets/home-icons/ranking.webp",
     label: "ランキング",
     status: "ready",
     onOpen: () => {
@@ -55,6 +59,7 @@ const TILES = [
   },
   {
     icon: "👤",
+    image: "assets/home-icons/my-page.webp",
     label: "プロフィール／マイページ",
     status: "ready",
     onOpen: () => {
@@ -62,8 +67,8 @@ const TILES = [
       openProfilePage(() => openHomeScreen());
     },
   },
-  { icon: "📖", label: "図鑑／ルールブック", status: "ready", onOpen: () => openDeckViewer() },
-  { icon: "📰", label: "お知らせ／更新情報", status: "ready", onOpen: () => openChangelogModal() },
+  { icon: "📖", image: "assets/home-icons/rulebook.webp", label: "図鑑／ルールブック", status: "ready", onOpen: () => openDeckViewer() },
+  { icon: "📰", image: "assets/home-icons/news.webp", label: "お知らせ／更新情報", status: "ready", onOpen: () => openChangelogModal() },
 ];
 
 // 「近日公開」タイルを押した時の軽いトースト。モーダルを挟むほどの重さは不要
@@ -88,7 +93,19 @@ function buildTile(tile) {
 
   const iconEl = document.createElement("div");
   iconEl.className = "home-screen-tile-icon";
-  iconEl.textContent = tile.icon;
+  if (tile.image) {
+    // ユーザー作成のアイコン画像をそのまま表示（枠なし）。読み込み失敗時は絵文字へフォールバック。
+    const img = document.createElement("img");
+    img.src = tile.image;
+    img.alt = "";
+    img.className = "home-screen-tile-icon-img";
+    img.addEventListener("error", () => {
+      iconEl.textContent = tile.icon;
+    });
+    iconEl.appendChild(img);
+  } else {
+    iconEl.textContent = tile.icon;
+  }
   btn.appendChild(iconEl);
 
   const labelEl = document.createElement("div");
