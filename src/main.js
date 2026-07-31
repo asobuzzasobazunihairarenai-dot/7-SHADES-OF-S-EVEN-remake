@@ -3504,7 +3504,19 @@ const ARRIVAL_EFFECT_START_PAUSE_MS = 400;
 function triggerCardArrival(cardId, location, onFullyResolved) {
   const player = getPieceOwnerAt(location);
   const showAddToHand = !!player && player === getSelfSeat();
-  logAction("arrival", { cardId, location, player, auto: showAddToHand && canAutoProcessArrival(cardId) });
+  // 診断（到達コンボ不発の調査）: どのブランチ（自動実行 or 手動モーダルのみ）に入るかを
+  // 決める材料を全部残す。ユーザー報告「パーティを取って露出したジャンプ台の到達効果が
+  // 起きない（モーダルは出る）」の切り分け用。auto=false ならモーダルのみ＝効果は動かない。
+  logAction("arrival", {
+    cardId,
+    location,
+    player,
+    self: getSelfSeat(),
+    showAddToHand,
+    canAuto: canAutoProcessArrival(cardId),
+    auto: showAddToHand && canAutoProcessArrival(cardId),
+    depth: arrivalEffectProcessingDepth,
+  });
 
   // ユーザー要望「カード効果の自動処理」。設定がONで、このカードが構造化データを持ち、
   // かつ「今まさに到達した本人の画面」の場合、「このカードを手札に加える」ボタンの
@@ -3676,6 +3688,17 @@ function maybeTriggerCardArrivalForCard(dropTarget, cardId, faceUp) {
 // （findTopCardAt/hasPieceAtは最新のstateを参照するため、render()自体は必須ではないが、
 // 他の到達演出呼び出しと同じタイミングに揃えてある）。
 function maybeTriggerCardArrivalForExposedCard(location) {
+  // 診断（到達コンボ不発の調査）: パーティ等で上のカードが取り除かれ、下のカードが露出
+  // した時にこの経路が実際に呼ばれ、駒がいて・表向きのカードを見つけて到達を起こせるかを
+  // 記録する。ユーザー報告「パーティを取って露出したジャンプ台の到達効果が起きない」用。
+  const top = location && (location.zone === "cell" || location.zone === "lock") ? findTopCardAt(location) : null;
+  logAction("diag-exposed-arrival", {
+    location,
+    zoneOk: !!location && (location.zone === "cell" || location.zone === "lock"),
+    hasPiece: !!location && hasPieceAt(location),
+    topCardId: top?.cardId ?? null,
+    topFaceUp: top?.faceUp ?? null,
+  });
   if (!location || (location.zone !== "cell" && location.zone !== "lock")) return;
   if (!hasPieceAt(location)) return;
   triggerCardArrivalIfFaceUp(location);
