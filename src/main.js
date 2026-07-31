@@ -65,7 +65,7 @@ import {
   hasAnyGateInvasionCandidate,
 } from "./gate-invasion.js";
 import { announceHandPickups, announceCardLocked, announceDrawCount } from "./hand-announcer.js";
-import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained } from "./gate-invasion-modal.js";
+import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained, reapplyGateInvasionModal } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking, hasAnyoneWon } from "./victory.js";
 import { recordContactMade, recordCardUsed, recordLockSnapshot, initMatchStatsTracker } from "./match-stats-tracker.js";
 import { initPseudoCpuPrompt } from "./pseudo-cpu-prompt.js";
@@ -4872,6 +4872,9 @@ function render() {
   updateContactApprovalModal();
   checkCounterLockAutoApproval();
   checkContactAttackerResolution();
+  // ゲート侵攻演出のモーダルがrender等でDOMから外れていたら貼り直す保険（オンラインで
+  // 演出が出ないという報告への対応。gate-invasion-modal.jsのreapplyGateInvasionModal参照）。
+  reapplyGateInvasionModal();
   checkForVictory();
   // ユーザー要望「効果自動処理がオンの時はフェイズも自動で流れるようにしよう」。
   // render()のたびに「今のフェイズでもう次へ進めるか」を判定する（他の再適用系処理

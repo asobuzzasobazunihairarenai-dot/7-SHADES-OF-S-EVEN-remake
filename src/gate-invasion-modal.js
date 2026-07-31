@@ -128,6 +128,18 @@ function notifyQueueDrained() {
   for (const fn of queueDrainedListeners) fn();
 }
 
+// render()から毎回呼ばれる保険（ユーザー報告「オンラインのゲート侵攻演出が出ない」対策）。
+// 表示中のはずのモーダル/背景が何らかの理由でDOMから外れていたら、同じ要素をそのまま貼り
+// 直す。timer（currentTimer）は生きたままなので、貼り直せば残りステップの自動送りも継続する。
+// remote-move-animator.jsのreapplyActiveHighlights等と同じ「render()の末尾で毎回貼り直す」方式。
+export function reapplyGateInvasionModal() {
+  if (modalEl && !document.body.contains(modalEl)) {
+    logAction("diag-gate-invasion-reattach", {});
+    if (backdropEl && !document.body.contains(backdropEl)) document.body.appendChild(backdropEl);
+    document.body.appendChild(modalEl);
+  }
+}
+
 function closeCurrent() {
   if (currentTimer) {
     clearTimeout(currentTimer);
