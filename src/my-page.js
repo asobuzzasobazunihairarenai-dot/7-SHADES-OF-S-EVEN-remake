@@ -213,6 +213,20 @@ export async function renderMyPageBody(body, close) {
   body.innerHTML = "";
 
   const seat = getSelfSeat();
+
+  // 巨大な半透明アバター（ユーザー要望）。DOMの先頭＝最背面に置く飾り。レイアウト編集モードで
+  // 位置・大きさ（scale）を自由に調整できる（もっと巨大にもできるよう scale 上限を拡大済み）。
+  // 画像を div で包む——編集モードの width:max-content が“中の画像の指定幅(12rem)”になり、
+  // scale での拡縮が予測どおりになる（生imgだと画像の実解像度が基準になり巨大化しすぎるため）。
+  const bgAvatar = document.createElement("div");
+  bgAvatar.className = "my-page-bg-avatar";
+  bgAvatar.dataset.layoutKey = "avatar-bg";
+  const bgAvatarImg = document.createElement("img");
+  bgAvatarImg.src = getPlayerAvatar(seat);
+  bgAvatarImg.alt = "";
+  bgAvatar.appendChild(bgAvatarImg);
+  body.appendChild(bgAvatar);
+
   const avatarWrap = document.createElement("div");
   avatarWrap.dataset.layoutKey = "avatar"; // レイアウト編集モードの識別子（profile-layout-editor.js）
   avatarWrap.style.cssText = "display: flex; flex-direction: column; align-items: center; gap: 0.5rem; margin-bottom: 1rem;";

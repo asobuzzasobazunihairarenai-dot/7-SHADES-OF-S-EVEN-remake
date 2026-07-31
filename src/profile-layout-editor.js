@@ -9,8 +9,17 @@
 // 注意: マイページはbodyのステージtransform(scale)の内側にあるため、ドラッグ量(実画面px)は
 // stageのscaleで割ってローカルpxへ直してから反映する。
 
-// ★製作者が焼き込む配置（key -> {x,y,w,h}、単位px）。空なら従来どおり自然な縦並び。
-export const PROFILE_LAYOUT = {};
+// ★製作者が焼き込む配置（key -> {x,y,scale}、単位px）。空なら従来どおり自然な縦並び。
+// ユーザー提供のエクスポートを焼き込み済み。avatar-bg（巨大半透明アバター）は新規追加のため
+// 仮の初期値——編集モードで位置・大きさを調整し、再エクスポートして差し替えてください。
+export const PROFILE_LAYOUT = {
+  "avatar-bg": { x: -200, y: 40, scale: 3 },
+  avatar: { x: -354, y: 62, scale: 6 },
+  "avatar-change": { x: 6, y: 588, scale: 1.97 },
+  cosmetics: { x: 418, y: 51, scale: 1.5 },
+  name: { x: -323, y: 647, scale: 3.01 },
+  stats: { x: 427, y: 197, scale: 1.88 },
+};
 
 const HANDLE_DIRS = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
 const MIN_SIZE = 24;
@@ -179,7 +188,7 @@ function startResize(e, el) {
   const move = (ev) => {
     const curDist = Math.hypot(ev.clientX - originX, ev.clientY - originY);
     let next = origScale * (curDist / startDist);
-    next = Math.min(6, Math.max(0.2, next));
+    next = Math.min(20, Math.max(0.2, next)); // 上限を拡大（巨大半透明アバターをもっと大きくできるように）
     cfg.scale = Math.round(next * 100) / 100;
     el.style.transform = `scale(${cfg.scale})`;
   };

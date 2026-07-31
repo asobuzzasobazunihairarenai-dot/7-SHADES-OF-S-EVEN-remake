@@ -3463,6 +3463,24 @@ body.spotlight-mode #spotlight-overlay {
   font-size: 0.7rem;
   color: #cbd5e1;
 }
+/* 巨大半透明アバター（my-page.js、最背面の飾り）。DOM先頭＝最背面。通常はクリックを
+   透過し（下の要素を邪魔しない）、レイアウト編集中だけ掴めるようにする。 */
+.my-page-bg-avatar {
+  opacity: 0.15;
+  pointer-events: none;
+  line-height: 0;
+}
+.my-page-bg-avatar img {
+  width: 12rem;
+  height: 12rem;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+.profile-layout-editing .my-page-bg-avatar {
+  pointer-events: auto; /* 編集中はドラッグできるように */
+  opacity: 0.28; /* 編集中は少し見やすく */
+}
 /* マイページの着せ替え一式（my-page.js renderMyPageBody）。 */
 .my-page-cosmetics {
   margin: 0.6rem 0 1rem;
@@ -9050,7 +9068,7 @@ body.is-online-mode #quick-start-bar {
   --rank-ring-orbit-size: 0.4rem;
   --rank-ring-orbit-trail-length: 23;
   --rank-ring-orbit-speed: 7.6;
-  --home-tile-icon-size: 5.5rem;
+  --home-tile-icon-size: 12rem;
 }
 
 /* チュートリアル（tutorial.js）。実際の盤面のUI要素をハイライトしながら遊び方を
@@ -9506,7 +9524,7 @@ body.reduce-glow .cell.card-effect-placement-target {
   display: grid;
   /* ユーザー要望「4個ずつ並べて（今は上5下3でバランスが悪い）」。8タイルを4×2にする。 */
   grid-template-columns: repeat(4, 1fr);
-  gap: 1.2rem 0.8rem;
+  gap: 1.6rem 1.6rem;
   /* ユーザー報告「アイコンを9.8rem以上にしても大きくならない」。原因は、グリッド幅が
      固定(46rem)で1マス≒11.5rem→中身(img)がその幅にmax-width:100%で頭打ちだったこと。
      グリッド幅をアイコンサイズに連動させ、マスがアイコンより十分広くなるようにする
@@ -9633,10 +9651,13 @@ body.reduce-glow .cell.card-effect-placement-target {
   }
 }
 .home-screen-tile-label {
-  font-size: 0.85rem;
+  font-size: 1rem;
   font-weight: bold;
   text-align: center;
-  line-height: 1.4;
+  line-height: 1.35;
+  /* アイコンが大きくなったぶん、ラベルは幅を抑えてアイコンの下にまとまるようにする。 */
+  max-width: 12rem;
+  margin-top: 0.1rem;
   /* 明るい背景で読めるよう濃色＋白いにじみ影（ユーザー報告の視認性対策）。 */
   color: #1e293b;
   text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9), 0 0 4px rgba(255, 255, 255, 0.75);
