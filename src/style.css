@@ -8729,11 +8729,27 @@ body.is-online-mode #quick-start-bar {
   --start-player-avatar-size: 12rem;
   --gate-invasion-modal-size: 28rem;
   --gate-invasion-modal-step-duration: 3.5;
+  --contact-anim-pre-delay: 1;
+  --contact-anim-runup-duration: 1.5;
+  --contact-anim-tackle-duration: 1;
+  --contact-anim-flight-duration: 1;
+  --eternal-anim-glow-duration: 1;
+  --eternal-anim-flight-duration: 1.5;
+  --eternal-anim-suspense-duration: 1.5;
+  --eternal-anim-flip-duration: 1;
+  --eternal-anim-hold-duration: 2;
+  --eternal-anim-return-duration: 1;
   --spotlight-inner-radius: 15%;
   --spotlight-outer-radius: 100%;
   --spotlight-opacity: 0.95;
   --spotlight-width: 55%;
   --spotlight-height: 50%;
+  --pet-dist: 0.7;
+  --pet-lift: 0.05;
+  --pet-size: 0.85;
+  --pet-follow: 0.16;
+  --pet-wander: 0.35;
+  --pet-liveliness: 1;
   --sound-volume-button-press: 80%;
   --sound-volume-hand-shuffle: 80%;
   --sound-volume-deck-shuffle: 80%;
@@ -8744,6 +8760,8 @@ body.is-online-mode #quick-start-bar {
   --sound-volume-arrival-effect: 80%;
   --sound-volume-lock: 80%;
   --sound-volume-turn-switch: 80%;
+  --sound-volume-swap: 80%;
+  --sound-volume-jump: 80%;
   --sound-volume-victory-bgm: 80%;
   --sound-volume-opening-bgm: 80%;
   --sound-volume-game-bgm: 80%;
@@ -8762,22 +8780,17 @@ body.is-online-mode #quick-start-bar {
   --board-zoom-2-reference-height: 1000px;
   --phase-guide-bottom: 0rem;
   --phase-guide-right: 2.3rem;
+  --phase-guide-pos-x: 0rem;
+  --phase-guide-pos-y: 0rem;
+  --phase-guide-scale: 1;
+  --phase-guide-pos-touch-x: 0rem;
+  --phase-guide-pos-touch-y: 0rem;
+  --phase-guide-scale-touch: 1;
   --turn-round-counter-top: 3.1rem;
   --turn-round-counter-right: 1.6rem;
   --turn-round-counter-font-size: 0.65rem;
-  /* 接触のタックル演出の各段階の秒数（ユーザー要望「早すぎて何が起きたか分からない」
-     への対応、main.jsのgetContactAnimSeconds参照）。 */
-  --contact-anim-pre-delay: 1;
-  --contact-anim-runup-duration: 1.5;
-  --contact-anim-tackle-duration: 1;
-  --contact-anim-flight-duration: 1;
-  /* エターナルカード獲得演出の各段階の秒数（main.jsのplayEternalAcquisitionAnim参照）。 */
-  --eternal-anim-glow-duration: 1;
-  --eternal-anim-flight-duration: 1.5;
-  --eternal-anim-suspense-duration: 1.5;
-  --eternal-anim-flip-duration: 1;
-  --eternal-anim-hold-duration: 2;
-  --eternal-anim-return-duration: 1;
+  --phase-skip-button-offset-x: 0rem;
+  --phase-skip-button-offset-y: 0rem;
   --turn-timer-rope-pos-x: 0rem;
   --turn-timer-rope-pos-y: 0rem;
   --turn-timer-rope-width: 46rem;
@@ -8797,15 +8810,13 @@ body.is-online-mode #quick-start-bar {
   --self-status-icon-background-size: 1.5rem;
   --self-status-icon-online-size: 2.6rem;
   --self-status-icon-gap: 0.4rem;
-  --self-status-large-avatar-size: 12rem;
+  --self-status-large-avatar-size: 16rem;
   --self-status-large-avatar-pos-x: -0.86rem;
-  --self-status-large-avatar-pos-y: -5.12rem;
+  --self-status-large-avatar-pos-y: -11.3rem;
   --self-status-pos-x: 0rem;
   --self-status-pos-y: 0rem;
-  --self-status-info-pos-x: -6.2rem;
-  --self-status-info-pos-y: 2.2rem;
-  /* 着せ替えアイコン群は flex で自動整列するようにしたため（.self-status-icon-grid 参照）、
-     各アイコンの個別オフセットは0にする。全体位置は下の --self-status-icons-group-* で調整。 */
+  --self-status-info-pos-x: -14.4rem;
+  --self-status-info-pos-y: -2.5rem;
   --self-status-icon-piece-pos-x: 0rem;
   --self-status-icon-piece-pos-y: 0rem;
   --self-status-icon-cardback-pos-x: 0rem;
@@ -8814,8 +8825,8 @@ body.is-online-mode #quick-start-bar {
   --self-status-icon-playmat-pos-y: 0rem;
   --self-status-icon-background-pos-x: 0rem;
   --self-status-icon-background-pos-y: 0rem;
-  --self-status-icon-online-pos-x: 0rem;
-  --self-status-icon-online-pos-y: 0rem;
+  --self-status-icon-online-pos-x: 1.42rem;
+  --self-status-icon-online-pos-y: 1.01rem;
   --self-status-icons-group-x: 0rem;
   --self-status-icons-group-y: 0rem;
   --lock-top-pos-x: 0rem;
@@ -8889,6 +8900,8 @@ body.is-online-mode #quick-start-bar {
   --first-scale: 1;
   --first-pos-x: -4.1rem;
   --first-pos-y: 1.5rem;
+  --declared-colors-corner-left: 1rem;
+  --declared-colors-corner-scale: 0.85;
   --icon-pos-hand-shuffle-x: -7.5rem;
   --icon-pos-hand-shuffle-y: 7.79rem;
   --icon-pos-board-zoom-x: 0rem;
@@ -8951,29 +8964,15 @@ body.is-online-mode #quick-start-bar {
   --self-status-icon-online-size-touch: 3.2rem;
   --hand-a-pos-touch-x: 0rem;
   --hand-a-pos-touch-y: 2.6rem;
-  /* ユーザー要望「オプション・マイページ・ヘルプ・金額表示・ターンラウンド数を
-     『オプションエリア』としてまとめて位置・サイズ調整」に伴い、個別の
-     --icon-pos-help-phone-x等は廃止し、その後ユーザーが管理者モードで実機に
-     合わせて調整した値（「スマホ関係の位置サイズを以下の通り調整しました」との
-     報告、:root一括コピー）をここへ反映した。 */
   --option-area-pos-phone-x: 0rem;
   --option-area-pos-phone-y: 0rem;
   --option-area-scale-phone: 1.65;
-  /* オプションアイコン単体の追加調整（続き12参照）。 */
   --icon-pos-options-phone-x: 0.7rem;
   --icon-pos-options-phone-y: -0.7rem;
   --icon-size-options-phone: 3.9rem;
-  /* 自分の手札の位置・サイズ・回転（スマホ・2D表示時限定）も、上記と同じ
-     ユーザー調整済みの値を反映した。 */
-  --hand-a-pos-phone-x: -26.3rem;
-  --hand-a-pos-phone-y: -10.5rem;
-  --hand-a-size-phone: 15rem;
-  --hand-a-rotate-z-phone: 70deg;
-  /* 続き83〜85で新設した中央モーダル一括拡大・オプションドロップダウン・フェイズ案内
-     エリア関連のスマホ調整値（ユーザーが管理者モードで実機に合わせて調整した値、
-     :root一括コピーより反映、続き87）。 */
   --center-modal-scale-phone: 2;
   --options-menu-scale-phone: 1;
+  --admin-panel-scale-phone: 1;
   --phase-guide-pos-phone-x: 0rem;
   --phase-guide-pos-phone-y: 0rem;
   --phase-guide-scale-phone: 2.1;
@@ -8983,19 +8982,20 @@ body.is-online-mode #quick-start-bar {
   --phase-turn-status-pos-phone-x: 1.8rem;
   --phase-turn-status-pos-phone-y: 0rem;
   --phase-turn-status-scale-phone: 1;
-  --camera-perspective-touch: 1090px;
-  --camera-perspective-origin-y-touch: 8.4rem;
-  --self-status-scale-touch: 1.5;
-  --priority-transfer-scale-touch: 1;
-  --hand-reveal-card-size: 2.9rem;
-  --hand-reveal-bottom-pos-x: -16.2rem;
-  --hand-reveal-bottom-pos-y: -0.4rem;
-  --hand-reveal-top-pos-x: 13rem;
-  --hand-reveal-top-pos-y: -2.2rem;
-  --hand-reveal-left-pos-x: -1rem;
-  --hand-reveal-left-pos-y: -13.4rem;
-  --hand-reveal-right-pos-x: -2.4rem;
-  --hand-reveal-right-pos-y: 13.5rem;
+  --hand-a-pos-phone-x: -26.3rem;
+  --hand-a-pos-phone-y: -10.5rem;
+  --hand-a-size-phone: 15rem;
+  --hand-a-rotate-z-phone: 70deg;
+  --hand-a-translate-z-touch: 2.4rem;
+  --hand-b-translate-z-touch: 0.5rem;
+  --hand-c-translate-z-touch: 0.5rem;
+  --hand-d-translate-z-touch: 0.5rem;
+  --label-translate-z-touch: 0rem;
+  --hand-a-rotate-x-touch: -40deg;
+  --table-tilt-flat: -21deg;
+  --table-scale-flat: 0.99;
+  --table-flat-offset-x: -0.1rem;
+  --table-flat-offset-y: 6.2rem;
   --hand-a-rotate-x-flat: 0deg;
   --hand-a-flat-offset-x: 0rem;
   --hand-a-flat-offset-y: 5.8rem;
@@ -9008,10 +9008,6 @@ body.is-online-mode #quick-start-bar {
   --hand-d-rotate-x-flat: 0deg;
   --hand-d-flat-offset-x: 0rem;
   --hand-d-flat-offset-y: 0rem;
-  --table-tilt-flat: -21deg;
-  --table-scale-flat: 0.99;
-  --table-flat-offset-x: -0.1rem;
-  --table-flat-offset-y: 6.2rem;
   --icon-pos-hand-shuffle-flat-x: 0rem;
   --icon-pos-hand-shuffle-flat-y: -2.3rem;
   --icon-pos-board-zoom-flat-x: 0rem;
@@ -9032,6 +9028,19 @@ body.is-online-mode #quick-start-bar {
   --phase-guide-right-flat: 0.7rem;
   --self-status-icon-online-flat-x: 0rem;
   --self-status-icon-online-flat-y: 0rem;
+  --camera-perspective-touch: 1090px;
+  --camera-perspective-origin-y-touch: 8.4rem;
+  --self-status-scale-touch: 1.5;
+  --priority-transfer-scale-touch: 1;
+  --hand-reveal-card-size: 2.9rem;
+  --hand-reveal-bottom-pos-x: -16.2rem;
+  --hand-reveal-bottom-pos-y: -0.4rem;
+  --hand-reveal-top-pos-x: 13rem;
+  --hand-reveal-top-pos-y: -2.2rem;
+  --hand-reveal-left-pos-x: -1rem;
+  --hand-reveal-left-pos-y: -13.4rem;
+  --hand-reveal-right-pos-x: -2.4rem;
+  --hand-reveal-right-pos-y: 13.5rem;
   --rank-ring-thickness: 0.4rem;
   --rank-ring-offset-x: 0rem;
   --rank-ring-offset-y: 0rem;

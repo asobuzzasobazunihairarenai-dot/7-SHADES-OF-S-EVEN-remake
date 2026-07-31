@@ -225,9 +225,12 @@ export async function renderMyPageBody(body, close) {
   changeBtn.textContent = "アバター変更";
   changeBtn.style.cssText = "padding: 0.3rem 0.8rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(148,163,184,0.3); border-radius: 0.3rem; color: #e2e8f0; cursor: pointer; font-size: 0.8rem;";
   changeBtn.addEventListener("click", () => avatarPickerFn?.());
+  // ユーザー要望「アバター変更ボタンを別にして」。レイアウト編集で個別に動かせるよう、
+  // アバター画像(avatar)とは別の要素(avatar-change)として並べる。
+  changeBtn.dataset.layoutKey = "avatar-change";
   avatarWrap.appendChild(avatarImg);
-  avatarWrap.appendChild(changeBtn);
   body.appendChild(avatarWrap);
+  body.appendChild(changeBtn);
 
   const nameRow = buildEditableNameRow(seat);
   nameRow.dataset.layoutKey = "name";
