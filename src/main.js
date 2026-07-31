@@ -133,6 +133,7 @@ import { initUpdateChecker, setUpdateBannerGate, reevaluateUpdateBanner } from "
 import { initTutorialAutoStart, registerTutorialStageHelpers } from "./tutorial.js";
 // チュートリアルCPU戦（台本化された練習試合）へ、ロック効果アニメとステージ座標変換を注入する。
 import { registerTutorialBattleHelpers, isTutorialBattleActive } from "./tutorial-battle.js";
+import { isAutoDragRestrictionEnabled } from "./auto-drag-restriction.js";
 // 「ロック前・手札使用前」の確認モーダルを出すかどうかの設定（全デバイス共通、
 // 「今後表示しない」でオフ・オプションの基本設定でオンに戻せる）。
 import { isActionConfirmEnabled, setActionConfirmEnabled } from "./action-confirm-prefs.js";
@@ -5396,10 +5397,37 @@ function closestByCenter(candidates, clientX, clientY) {
   return best;
 }
 
+// 自動処理モードの操作制限が今効いているか（ユーザー要望）。自動処理ON＋制限ON＋観戦でない
+// ＋チュートリアルでない時だけ。管理者はオプションから制限を解除できる（isAutoDragRestriction
+// Enabled）。auto-drag-restriction.js参照。
+function autoDragRestrictionActive() {
+  return (
+    isAutoProcessingEnabled() &&
+    isAutoDragRestrictionEnabled() &&
+    !isSpectatingGame() &&
+    !isTutorialBattleActive()
+  );
+}
+
+// 制限中に「掴んでよい」唯一の対象＝自分の手札カード（zone hand / publicDraw）。
+function isOwnGrabbableCard(tokenId) {
+  const t = getState().tokens.find((x) => x.id === tokenId);
+  return (
+    !!t &&
+    t.kind === "card" &&
+    (t.location.zone === "hand" || t.location.zone === "publicDraw") &&
+    t.location.player === getSelfSeat()
+  );
+}
+
 function findDraggableAt(clientX, clientY) {
   // 観戦者は読み取り専用。掴める対象を一切返さない（ドラッグ・接触・ロック等を封じる）。
   if (isSpectatingGame()) return null;
   const elements = document.elementsFromPoint(clientX, clientY);
+  // 自動処理モードの操作制限（ユーザー要望）: 掴めるのは自分の手札カードだけにし、駒・盤面/
+  // ロックのカード・山（山札/捨て場/エターナル/ファースト）・相手の手札は掴めなくする。駒の
+  // 移動は移動フェイズの移動先マスのタップ（上のcaptureハンドラ）で従来どおり可能。
+  const restrict = autoDragRestrictionActive();
   // チュートリアルCPU戦中は、掴める対象を「自分(A)の駒」と「手札カード（ロックのための
   // ドラッグに使う）」だけに絞る。ユーザー要望「盤面のカードを掴めなくして」＋「隣のCPUの駒を
   // クリックしても掴むだけで接触が起こらない」への対応——相手(CPU)の駒と盤面カードを掴めなく
@@ -5413,6 +5441,7 @@ function findDraggableAt(clientX, clientY) {
       // 掴めなくすることで、駒への操作はドラッグ開始に奪われず、チュートリアル側のタップ判定
       // （移動・接触）へそのまま渡る。
       if (tutorial) continue;
+      if (restrict) continue; // 自動処理モードの制限: 駒は掴めない（移動はタップで行う）
       return { el: piece, tokenId: piece.dataset.tokenId, kind: "piece" };
     }
   }
@@ -5422,6 +5451,7 @@ function findDraggableAt(clientX, clientY) {
     const boardCard = el.closest(".board-card");
     if (boardCard) {
       if (tutorial) break; // チュートリアル中は盤面カードを掴めなくする
+      if (restrict) break; // 自動処理モードの制限: 盤面・ロックエリアのカードは掴めない
       return { el: boardCard, tokenId: boardCard.dataset.tokenId, kind: "card", isBoardCard: true };
     }
   }
@@ -5431,6 +5461,9 @@ function findDraggableAt(clientX, clientY) {
     const revealCard = el.closest(".hand-reveal-card");
     if (revealCard) {
       if (tutorial) break;
+      // 自動処理モードの制限: 手札公開エリア（自分のもの）は掴める（効果発動のため）。
+      // 他人のものは掴めない。
+      if (restrict && !isOwnGrabbableCard(revealCard.dataset.tokenId)) break;
       return { el: revealCard, tokenId: revealCard.dataset.tokenId, kind: "card", isBoardCard: true };
     }
   }
@@ -5439,11 +5472,18 @@ function findDraggableAt(clientX, clientY) {
   // プレビュー(findHoverTarget)と揃えて“見えているカード”方式に統一した（3つが常に一致する）。
   for (const el of elements) {
     const handCard = el.closest(".hand-card");
-    if (handCard) return { el: handCard, tokenId: handCard.dataset.tokenId, kind: "card" };
+    if (handCard) {
+      // 自動処理モードの制限: 自分の手札カードだけ掴める（相手の手札は掴めない）。
+      if (restrict && !isOwnGrabbableCard(handCard.dataset.tokenId)) continue;
+      return { el: handCard, tokenId: handCard.dataset.tokenId, kind: "card" };
+    }
   }
   for (const el of elements) {
     const stack = el.closest(".stack[data-pile]");
-    if (stack) return { el: stack, kind: "pile", pile: stack.dataset.pile };
+    if (stack) {
+      if (restrict) break; // 自動処理モードの制限: 山札・捨て場・エターナル/ファースト束は掴めない
+      return { el: stack, kind: "pile", pile: stack.dataset.pile };
+    }
   }
   return null;
 }
@@ -6901,6 +6941,41 @@ async function onDragEnd(e) {
     if (draggedToken && opponentPiece) {
       render(); // moveTokenを呼んでいないので、駒は自動的に元の位置のまま描かれる(=見た目のスナップバック)
       showContactPrompt(draggedToken.player, opponentPiece.player, opponentPiece.id);
+      return;
+    }
+  }
+  // 自動処理モードの操作制限（ユーザー要望）: 自分の手札カードのドラッグは「正規の使い方」だけ
+  // 許可する——(1)自分の手札内での並べ替え、(2)ロックフェイズに正しい色スロットへロック、
+  // (3)使用可能なタイミングでの手札効果の発動（場＝手札/ロック/山以外へドロップ）。それ以外
+  // （山札/捨て場/エターナル/ファースト等の山へ置く、盤面マスへ自由配置、相手の手札へ入れる、
+  // ロック不可タイミングでのロック、使えないタイミングでの効果発動狙いドロップ）は全て
+  // スナップバックで弾く。findDraggableAtで既に「掴めるのは自分の手札カードだけ」に絞って
+  // いるが、念のためownerも確認する。実際のロック確定・重複/色チェックや効果発動は下の既存
+  // 処理が担い、ここは「不正なタイミング・行き先」を先に落とす役目。
+  if (autoDragRestrictionActive() && kind === "card" && isOwnGrabbableCard(tokenId)) {
+    const draggedToken = getState().tokens.find((t) => t.id === tokenId);
+    const cardId = draggedToken?.cardId;
+    const toOwnHand = dropTarget.zone === "hand" && dropTarget.player === getSelfSeat();
+    const cardColor = cardId ? getCardDefinition(cardId)?.color : null;
+    const toLock =
+      dropTarget.zone === "lock" &&
+      getCurrentPhase() === "lock" &&
+      cardId !== "rainbow-shard" &&
+      cardColor &&
+      COLORS[dropTarget.index] === cardColor; // ロックフェイズに一致色スロットへだけ許可
+    const isEternalOrFirst = cardId?.startsWith("eternal-") || cardId?.startsWith("first-");
+    const usableAnytime = cardId ? isHandEffectUsableAnytime(cardId) : false;
+    const effectTimingOK = isHandPhaseActive() || (usableAnytime && !isAnyEffectProcessingBusy());
+    const toBoardForEffect =
+      dropTarget.zone !== "hand" &&
+      dropTarget.zone !== "lock" &&
+      dropTarget.zone !== "pile" &&
+      !isEternalOrFirst &&
+      !!cardId &&
+      hasHandEffectData(cardId) &&
+      effectTimingOK; // 効果を今使えるカードを、場へドロップした時だけ許可
+    if (!toOwnHand && !toLock && !toBoardForEffect) {
+      render(); // 許可されない行き先はスナップバック（moveToken/sendTokenToPileへは進ませない）
       return;
     }
   }

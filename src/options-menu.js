@@ -3,6 +3,7 @@
 // 単独のボタンとして左上にあったが、ここに統合し、左上はゲームタイトル表示用に空けた。
 
 import { openAdminPanel } from "./admin.js";
+import { isAutoDragRestrictionEnabled, setAutoDragRestrictionEnabled } from "./auto-drag-restriction.js";
 import { openActionLogPanel } from "./action-log.js";
 import { openCardDevMode } from "./card-dev-mode.js";
 import { isAutoProcessingEnabled, setAutoProcessingEnabled } from "./card-effect-engine.js";
@@ -727,6 +728,23 @@ export function initOptionsMenu() {
             }
           );
           content.appendChild(autoProcessingCheckboxRow);
+
+          // ユーザー要望「自動処理モードでは駒やカードをルールに反して自由に動かせてしまうのを
+          // 制限したい。ただし管理者だけはこの制限を解除できるように（制限が無い方がテストしやすい）」。
+          // 制限ON（既定）時は、自動処理中に掴めるのは自分の手札カードだけになり、駒・盤面/ロックの
+          // カード・山・相手の手札は掴めず、不正なドロップ（ロック不可タイミングのロック等）も弾かれる
+          // （auto-drag-restriction.js / main.jsのfindDraggableAt・onDragEnd参照）。管理者にだけ
+          // 解除チェックボックスを見せる。
+          if (isAdminUser()) {
+            const dragRestrictRow = buildCheckboxRow(
+              "🔓 自動処理中も自由にドラッグする（操作制限を解除・管理者用）",
+              !isAutoDragRestrictionEnabled(),
+              (checked) => {
+                setAutoDragRestrictionEnabled(!checked);
+              }
+            );
+            content.appendChild(dragRestrictRow);
+          }
 
           // ユーザー要望（続き107）「疑似CPUモードの設定を管理者以外にも触れるように
           // オプションの直下に移設してください」への対応。以前は管理者モードの中に
