@@ -4830,10 +4830,19 @@ function render() {
   // online.jsのupdateIdentityRosterが割り当てる仮の座席）だけを表示し、
   // まだ誰も入っていない席は非表示にする。
   const isActive = (player) => {
+    const online = isOnlineMode() || isOnlineIntentActive();
+    // オンラインで「対局開始前」（＝サーバーがまだBOOTSTRAP_GAMEしておらずturnPlayerが
+    // 未設定）の間は、activePlayersがローカルの古いサンドボックス値のまま残っていることが
+    // ある（部屋主が入室前に4人ローカル対局をセットアップしていた等）。この場合に
+    // activePlayers.lengthで先に判定してしまうと、後から入室した人の仮座席（roster）が
+    // 無視され、部屋主の画面で対面の席が空のままになる（ユーザー報告「相手が着席しても
+    // 部屋主側に出ない」の原因）。開始前はactivePlayersを見ず、必ずroster/自分自身で
+    // 判定する。開始後（turnPlayerあり）は従来通りactivePlayers（＝実参加者）で判定。
+    if (online && !getState().turnPlayer) return player === self || !!getSyncedIdentity(player);
     if (activePlayers.length > 0) return activePlayers.includes(player);
     // 「オンラインで続ける」を押した直後、まだ部屋を選んでいない間もisOnlineIntentActive()で
     // 拾う（isOnlineMode()の直後の説明コメント参照）。
-    if (isOnlineMode() || isOnlineIntentActive()) return player === self || !!getSyncedIdentity(player);
+    if (online) return player === self || !!getSyncedIdentity(player);
     return true;
   };
   for (const seat of SEAT_ORDER) {
