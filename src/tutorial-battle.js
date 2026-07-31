@@ -49,6 +49,14 @@ export function registerTutorialBattleHelpers({ triggerLockEffect, playScriptedC
   flyDrawnCardToHandHelper = flyDrawnCardToHand ?? null;
 }
 
+// チュートリアル終了時にホーム画面へ戻すための注入（home-screen.jsがtutorial-battle.jsを
+// importしているため、逆向きに直接importすると循環参照になる。home-screen.js側から
+// openHomeScreenを渡してもらう）。ユーザー要望「チュートリアルが終了したらホーム画面へ」。
+let openHomeFn = null;
+export function registerTutorialHomeOpener(fn) {
+  openHomeFn = fn ?? null;
+}
+
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 // 「○○のターン」トーストが完全に消えるまでの時間（turn-announce.js: 2200ms表示＋500ms
 // フェード）＋余白。CPUの駒移動がトーストと被らないよう、これだけ待ってから動かす。
@@ -371,14 +379,15 @@ function buildSteps() {
       buttonLabel: "次へ",
     },
     // 6: ムーブ（前方誘導）。前方＝目の前の「ゴメンナサイ」。左右前方3マスをハイライトし前方を最強調。
-    //    タップでもドラッグでも移動可。前方以外へ動こうとしたら差し戻して警告する。
+    //    チュートリアル中はタップ移動のみ（駒のドラッグは無効、main.jsのfindDraggableAt参照）。
+    //    前方以外へ動こうとしたら差し戻して警告する。
     {
       kind: "playerAction",
       // ここで手番開始（自動処理はOFFなのでフェイズ待ちは起きない）。タップ移動の
       // リスナー付与はUI表示側(showStepUi)で行う（戻る操作での復帰時にも再付与するため）。
       onEnter: () => setTurnPlayer(SELF_SEAT),
       onLeave: detachTapHandler,
-      tip: "あなたの駒を、1マス前の「ゴメンナサイ」のカードへ動かしましょう（タップ、またはドラッグ＆ドロップ）。",
+      tip: "あなたの駒を、1マス前の「ゴメンナサイ」のカードへタップで動かしましょう。",
       highlights: (state) => [
         { selector: cellSel(FRONT_CELL), strong: true },
         { selector: cellSel(LEFT_CELL) },
@@ -420,7 +429,7 @@ function buildSteps() {
     // 9: ボーナス移動（プレイヤーが前方を選ぶ）。{5,3}→前方{4,3}。左右{5,2}{5,4}は警告のみ。
     {
       kind: "playerAction",
-      tip: "駒をもう1マス、奥（前方）のマスへ進めましょう（タップ、またはドラッグ＆ドロップ）。",
+      tip: "駒をもう1マス、奥（前方）のマスへタップで進めましょう。",
       highlights: (state) => [
         { selector: cellSel(BONUS_FRONT), strong: true },
         { selector: cellSel(BONUS_LEFT) },
@@ -488,7 +497,7 @@ function buildSteps() {
       kind: "narrate",
       title: "ターンを終了する",
       body: [
-        "あなたの1ターン目はここまでです。手札には「紫」と「赤（カウンターロック）」が入りました。",
+        "あなたの1ターン目はここまでです。手札には「紫（ゴメンナサイッ！）」と「赤（カウンターロック）」が入りました。",
         "自分の行動が済んだら「ターンを終了」して、相手（CPU）に手番を渡します。",
       ],
       highlights: (state) => selfPieceHl(state),
@@ -636,7 +645,6 @@ function buildSteps() {
       body: [
         "相手（CPU）の手札を1枚奪い、CPUは自分のゲート（盤面の奥）へ強制移動で戻されました。",
         "相手は自分のゲートにカードがあったので、そのカードもオープンし到達します。",
-        "これで相手のゲートが空きます。次のあなたのターンで、その相手ゲートへ攻め込みましょう。",
       ],
       buttonLabel: "ターンを終了する →",
     },
@@ -920,6 +928,22 @@ async function deliverTopDeckCard() {
 
 // CPU（相手）の台本ターン。ジャンプ台等で一気に近づき、あなたの駒の隣({3,3})へ来る。
 // ターン管理はnextTurn()で A→C→A と進める（自動処理OFFなのでフェイズ待ち等は起きない）。
+// CPUが移動した先のマスのカードをオープンして手札に加える台本演出（ユーザー要望）。実際の
+// 「移動＝移動先が裏向きならオープンし到達、そのカードは原則手札に加わる」を一応見せる。
+// オープン（表向き）を一瞬見せてから、CPUの手札へ移す（CPUの手札は裏向き＝中身は見えない）。
+async function cpuPickupCardAt(cell) {
+  const card = getState().tokens.find(
+    (t) => t.kind === "card" && t.location.zone === "cell" && t.location.row === cell.row && t.location.col === cell.col
+  );
+  if (!card) return;
+  if (!card.faceUp) {
+    flipToken(card.id);
+    await delay(700); // オープンを見せる
+  }
+  moveToken(card.id, { zone: "hand", player: CPU_SEAT }); // 手札へ（CPUの手札なので裏向きになる）
+  await delay(400);
+}
+
 async function scriptCpuApproach() {
   nextTurn(); // あなた(A) → CPU(C)：相手のターン
   // 「CPU先生のターン」トースト（turn-announce.js＝2200ms表示＋500msフェード）が完全に
@@ -931,6 +955,7 @@ async function scriptCpuApproach() {
     await delay(800);
     moveToken(cpu.id, { zone: "cell", ...CPU_ADJ_CELL }); // あなたの隣へ
     await delay(800);
+    await cpuPickupCardAt(CPU_ADJ_CELL); // 移動先のカードをオープンして手札に加える演出
   }
   nextTurn(); // CPU(C) → あなた(A)：ターン2
   await delay(500);
@@ -1018,6 +1043,7 @@ async function scriptCpuLeaveGate() {
   if (cpu) {
     moveToken(cpu.id, { zone: "cell", ...CPU_LEAVE_CELL });
     await delay(800);
+    await cpuPickupCardAt(CPU_LEAVE_CELL); // 移動先のカードをオープンして手札に加える演出
   }
   nextTurn(); // CPU(C) → あなた(A)：ターン3
   await delay(400);
@@ -1283,4 +1309,6 @@ export function finishTutorialBattle() {
     savedAutoProcessing = null;
   }
   stepIndex = -1;
+  // ユーザー要望「チュートリアルが終了したら画面を閉じてホーム画面へ」。
+  if (openHomeFn) openHomeFn();
 }

@@ -21,7 +21,7 @@ import { openDeckViewer } from "./deck-viewer.js";
 // ユーザー要望「ランキングを実装しましょう」への対応で新設したページ。
 import { openRankingPage } from "./ranking-page.js";
 // チュートリアルCPU戦（台本化された練習試合）。完全ローカル機能。
-import { startTutorialBattle } from "./tutorial-battle.js";
+import { startTutorialBattle, registerTutorialHomeOpener } from "./tutorial-battle.js";
 // お知らせ／更新情報（デプロイのたびに概要を追記）。
 import { openChangelogModal } from "./changelog.js";
 
@@ -35,6 +35,8 @@ const TILES = [
     label: "チュートリアルCPU戦",
     status: "ready",
     onOpen: () => {
+      // チュートリアル終了時にホーム画面へ戻れるよう、開くタイミングでopenHomeScreenを注入する。
+      registerTutorialHomeOpener(() => openHomeScreen());
       closeHomeScreen();
       startTutorialBattle();
     },

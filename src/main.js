@@ -5409,10 +5409,10 @@ function findDraggableAt(clientX, clientY) {
   for (const el of elements) {
     const piece = el.closest(".piece");
     if (piece) {
-      if (tutorial) {
-        const tok = getState().tokens.find((t) => t.id === piece.dataset.tokenId);
-        if (!tok || tok.player !== getSelfSeat()) continue; // 自分の駒以外は掴めない
-      }
+      // チュートリアル中は駒のドラッグ＆ドロップを無効化し、タップ移動だけにする（ユーザー要望）。
+      // 掴めなくすることで、駒への操作はドラッグ開始に奪われず、チュートリアル側のタップ判定
+      // （移動・接触）へそのまま渡る。
+      if (tutorial) continue;
       return { el: piece, tokenId: piece.dataset.tokenId, kind: "piece" };
     }
   }
