@@ -3492,6 +3492,94 @@ body.spotlight-mode #spotlight-overlay {
   background: rgba(56, 189, 248, 0.15);
   border-color: rgba(56, 189, 248, 0.6);
 }
+
+/* マイページ レイアウト編集モード（profile-layout-editor.js、管理者専用の製作者ツール）。 */
+.profile-layout-editing .profile-layout-item {
+  outline: 1px dashed rgba(56, 189, 248, 0.85);
+  cursor: move;
+}
+.profile-layout-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #38bdf8;
+  border: 1px solid #fff;
+  border-radius: 2px;
+  z-index: 5;
+}
+.handle-n { top: -6px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+.handle-s { bottom: -6px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+.handle-e { right: -6px; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
+.handle-w { left: -6px; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
+.handle-ne { top: -6px; right: -6px; cursor: nesw-resize; }
+.handle-nw { top: -6px; left: -6px; cursor: nwse-resize; }
+.handle-se { bottom: -6px; right: -6px; cursor: nwse-resize; }
+.handle-sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
+.profile-layout-toolbar {
+  position: fixed;
+  top: 0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3000;
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  background: rgba(15, 23, 32, 0.95);
+  border: 1px solid rgba(56, 189, 248, 0.6);
+  border-radius: 0.5rem;
+  padding: 0.3rem 0.8rem;
+  color: #e2e8f0;
+  font-size: 0.8rem;
+}
+.profile-layout-toolbar button {
+  padding: 0.25rem 0.7rem;
+  background: #38bdf8;
+  color: #0f172a;
+  border: none;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+#profile-layout-export {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3100;
+  width: min(90vw, 40rem);
+  background: #0f1520;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 0.5rem;
+  padding: 0.8rem;
+  box-sizing: border-box;
+}
+#profile-layout-export textarea {
+  width: 100%;
+  height: 14rem;
+  font-family: monospace;
+  font-size: 0.75rem;
+  background: #0b0f16;
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.4rem;
+  padding: 0.5rem;
+  box-sizing: border-box;
+}
+.profile-layout-export-row {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+.profile-layout-export-row button {
+  padding: 0.3rem 0.9rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.35rem;
+  color: #e2e8f0;
+  cursor: pointer;
+}
 /* ユーザー要望「オプションエリアのある列全部に、右端から左端まで独自のおしゃれな帯を
    敷いてほしい（背景が白系だとアイコンが見にくいため）」。#option-area自体は画面いっぱいの
    透明なアンカーなので、その最上部に横いっぱいの装飾帯を疑似要素で敷く。上部を濃く下へ

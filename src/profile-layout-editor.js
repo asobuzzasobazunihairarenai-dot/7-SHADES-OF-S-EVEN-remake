@@ -1,0 +1,232 @@
+// マイページのレイアウト編集モード（管理者専用・ユーザー要望）。保存はしない——管理者
+// （製作者）がドラッグで移動・端のハンドルでリサイズして配置を決め、「テキスト出力」した
+// 設定を製作者がこの PROFILE_LAYOUT へ焼き込む運用（admin.jsのCSS変数調整と同じ思想）。
+//
+// マイページ本体(renderMyPageBodyのコンテナ)の各「直下要素」を、コンテナ基準の絶対座標(px)
+// ＋サイズ(px)で配置する。各要素には data-layout-key（明示が無ければ "auto-<index>"）を割り
+// 当て、PROFILE_LAYOUT[key] があればその位置・サイズで固定する。
+//
+// 注意: マイページはbodyのステージtransform(scale)の内側にあるため、ドラッグ量(実画面px)は
+// stageのscaleで割ってローカルpxへ直してから反映する。
+
+// ★製作者が焼き込む配置（key -> {x,y,w,h}、単位px）。空なら従来どおり自然な縦並び。
+export const PROFILE_LAYOUT = {};
+
+const HANDLE_DIRS = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
+const MIN_SIZE = 24;
+
+let editMode = false;
+let rerenderFn = null;
+
+export function registerProfileLayoutHelpers({ rerender } = {}) {
+  rerenderFn = typeof rerender === "function" ? rerender : null;
+}
+export function isProfileLayoutEditMode() {
+  return editMode;
+}
+export function setProfileLayoutEditMode(on) {
+  editMode = !!on;
+  rerenderFn?.(); // マイページを描き直してハンドル/ツールバーを反映
+}
+
+// bodyのステージscaleを読む（実画面px→ローカルpx換算用）。
+function getStageScale() {
+  const t = getComputedStyle(document.body).transform;
+  const m = /matrix\(([^)]+)\)/.exec(t || "");
+  if (m) {
+    const a = parseFloat(m[1].split(",")[0]);
+    if (a > 0) return a;
+  }
+  return 1;
+}
+
+// renderMyPageBody の後に呼ぶ。PROFILE_LAYOUT適用＋（編集モードなら）ドラッグ/リサイズ配線。
+export function applyProfileLayout(container) {
+  if (!container) return;
+  container.classList.toggle("profile-layout-editing", editMode);
+  container.style.position = "relative";
+
+  const children = [...container.children].filter((el) => !el.classList.contains("profile-layout-toolbar"));
+  const cr = container.getBoundingClientRect();
+  // 絶対配置に変える前に、全要素の現在の位置・サイズをまとめて測る（1つずつ絶対化すると
+  // 後続要素の測定がズレるため）。
+  const measured = children.map((el, i) => {
+    const key = el.dataset.layoutKey || `auto-${i}`;
+    el.dataset.layoutKey = key;
+    const r = el.getBoundingClientRect();
+    return {
+      el,
+      key,
+      x: Math.round((r.left - cr.left) / getStageScale() + container.scrollLeft),
+      y: Math.round((r.top - cr.top) / getStageScale() + container.scrollTop),
+      w: Math.round(r.width / getStageScale()),
+      h: Math.round(r.height / getStageScale()),
+    };
+  });
+
+  let maxBottom = 0;
+  for (const m of measured) {
+    let cfg = PROFILE_LAYOUT[m.key];
+    if (!cfg) {
+      if (!editMode) continue; // 焼き込みも編集も無ければ自然流しのまま
+      cfg = PROFILE_LAYOUT[m.key] = { x: m.x, y: m.y, w: m.w, h: m.h }; // 編集開始時に現状を取り込む
+    }
+    const el = m.el;
+    el.style.position = "absolute";
+    el.style.left = `${cfg.x}px`;
+    el.style.top = `${cfg.y}px`;
+    el.style.width = `${cfg.w}px`;
+    el.style.height = `${cfg.h}px`;
+    el.style.margin = "0";
+    el.style.boxSizing = "border-box";
+    el.style.overflow = "auto";
+    maxBottom = Math.max(maxBottom, cfg.y + cfg.h);
+    if (editMode) makeEditable(el, container);
+  }
+  if (editMode || Object.keys(PROFILE_LAYOUT).length) {
+    container.style.minHeight = `${maxBottom + 40}px`;
+  }
+  if (editMode) ensureToolbar(container);
+}
+
+function makeEditable(el) {
+  if (el._layoutEditable) return;
+  el._layoutEditable = true;
+  el.classList.add("profile-layout-item");
+
+  // 移動: ハンドル以外を掴んでドラッグ。
+  el.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    if (e.target.closest(".profile-layout-handle")) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const cfg = PROFILE_LAYOUT[el.dataset.layoutKey];
+    if (!cfg) return;
+    const scale = getStageScale();
+    const sx = e.clientX;
+    const sy = e.clientY;
+    const ox = cfg.x;
+    const oy = cfg.y;
+    const move = (ev) => {
+      cfg.x = Math.round(ox + (ev.clientX - sx) / scale);
+      cfg.y = Math.round(oy + (ev.clientY - sy) / scale);
+      el.style.left = `${cfg.x}px`;
+      el.style.top = `${cfg.y}px`;
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  });
+
+  // リサイズ: 8方向のハンドル。
+  for (const dir of HANDLE_DIRS) {
+    const handle = document.createElement("div");
+    handle.className = `profile-layout-handle handle-${dir}`;
+    handle.addEventListener("pointerdown", (e) => startResize(e, el, dir));
+    el.appendChild(handle);
+  }
+}
+
+function startResize(e, el, dir) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const cfg = PROFILE_LAYOUT[el.dataset.layoutKey];
+  if (!cfg) return;
+  const scale = getStageScale();
+  const sx = e.clientX;
+  const sy = e.clientY;
+  const o = { ...cfg };
+  const move = (ev) => {
+    const dx = Math.round((ev.clientX - sx) / scale);
+    const dy = Math.round((ev.clientY - sy) / scale);
+    if (dir.includes("e")) cfg.w = Math.max(MIN_SIZE, o.w + dx);
+    if (dir.includes("s")) cfg.h = Math.max(MIN_SIZE, o.h + dy);
+    if (dir.includes("w")) {
+      const w = Math.max(MIN_SIZE, o.w - dx);
+      cfg.x = o.x + (o.w - w);
+      cfg.w = w;
+    }
+    if (dir.includes("n")) {
+      const h = Math.max(MIN_SIZE, o.h - dy);
+      cfg.y = o.y + (o.h - h);
+      cfg.h = h;
+    }
+    el.style.left = `${cfg.x}px`;
+    el.style.top = `${cfg.y}px`;
+    el.style.width = `${cfg.w}px`;
+    el.style.height = `${cfg.h}px`;
+  };
+  const up = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+  };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", up);
+}
+
+function ensureToolbar(container) {
+  if (container.querySelector(".profile-layout-toolbar")) return;
+  const bar = document.createElement("div");
+  bar.className = "profile-layout-toolbar";
+
+  const label = document.createElement("span");
+  label.textContent = "レイアウト編集中";
+  bar.appendChild(label);
+
+  const exportBtn = document.createElement("button");
+  exportBtn.type = "button";
+  exportBtn.textContent = "テキスト出力";
+  exportBtn.addEventListener("click", showExport);
+  bar.appendChild(exportBtn);
+
+  container.appendChild(bar);
+}
+
+// 現在のPROFILE_LAYOUTを、そのままコードへ貼れるJSリテラルとして出す。
+function buildExportText() {
+  const lines = Object.keys(PROFILE_LAYOUT)
+    .sort()
+    .map((k) => {
+      const c = PROFILE_LAYOUT[k];
+      return `  ${JSON.stringify(k)}: { x: ${c.x}, y: ${c.y}, w: ${c.w}, h: ${c.h} },`;
+    });
+  return `export const PROFILE_LAYOUT = {\n${lines.join("\n")}\n};`;
+}
+
+function showExport() {
+  const existing = document.getElementById("profile-layout-export");
+  if (existing) existing.remove();
+  const wrap = document.createElement("div");
+  wrap.id = "profile-layout-export";
+  const ta = document.createElement("textarea");
+  ta.value = buildExportText();
+  ta.readOnly = true;
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.textContent = "閉じる";
+  closeBtn.addEventListener("click", () => wrap.remove());
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.textContent = "コピー";
+  copyBtn.addEventListener("click", () => {
+    ta.select();
+    try {
+      navigator.clipboard?.writeText(ta.value);
+    } catch (err) {
+      /* clipboard不可でも選択状態にはなる */
+    }
+  });
+  wrap.appendChild(ta);
+  const row = document.createElement("div");
+  row.className = "profile-layout-export-row";
+  row.appendChild(copyBtn);
+  row.appendChild(closeBtn);
+  wrap.appendChild(row);
+  document.body.appendChild(wrap);
+  ta.focus();
+  ta.select();
+}

@@ -6,6 +6,7 @@ import { openAdminPanel } from "./admin.js";
 import { isAutoDragRestrictionEnabled, setAutoDragRestrictionEnabled } from "./auto-drag-restriction.js";
 import { openActionLogPanel } from "./action-log.js";
 import { openCardDevMode } from "./card-dev-mode.js";
+import { isProfileLayoutEditMode, setProfileLayoutEditMode } from "./profile-layout-editor.js";
 import { isAutoProcessingEnabled, setAutoProcessingEnabled } from "./card-effect-engine.js";
 import {
   isPseudoCpuModeEnabled,
@@ -926,6 +927,14 @@ export function initOptionsMenu() {
         buildMenuItem("🃏 カード開発モード", () => {
           close();
           openCardDevMode();
+        })
+      );
+      // ユーザー要望「管理者モードにマイページ内レイアウト変更モードのオンオフを追加。ONで
+      // マイページの要素をドラッグ移動・端で拡大縮小でき、設定はテキスト出力して焼き込む」。
+      // profile-layout-editor.js が実体。ONにしてマイページを開くと編集ハンドル/ツールバーが出る。
+      panel.appendChild(
+        buildCheckboxRow("🧩 マイページのレイアウト編集モード（管理者用）", isProfileLayoutEditMode(), (checked) => {
+          setProfileLayoutEditMode(checked);
         })
       );
     }

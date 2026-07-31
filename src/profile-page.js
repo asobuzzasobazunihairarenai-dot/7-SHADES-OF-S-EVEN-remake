@@ -5,9 +5,23 @@
 // 「フルスクリーンのページ、モーダルではない」見た目・構造にした。
 
 import { renderMyPageBody } from "./my-page.js";
+import { applyProfileLayout, registerProfileLayoutHelpers } from "./profile-layout-editor.js";
 
 let overlayEl = null;
 let bodyEl = null;
+
+// 編集モードのオン/オフや再描画要求で、開いていればマイページ本体を作り直す。
+registerProfileLayoutHelpers({
+  rerender: () => {
+    if (bodyEl) renderProfileBody();
+  },
+});
+
+async function renderProfileBody() {
+  if (!bodyEl) return;
+  await renderMyPageBody(bodyEl, closeProfilePage);
+  applyProfileLayout(bodyEl); // PROFILE_LAYOUT適用＋編集モードなら移動/リサイズ配線
+}
 
 export function openProfilePage(onClose) {
   if (overlayEl) return;
@@ -45,8 +59,8 @@ export function openProfilePage(onClose) {
 
   // renderMyPageBodyの第2引数closeは「モーダルを閉じてから他の画面を開く」導線
   // （ログインする／連携するボタン等）で使われる。画面全体版でも同じ導線を保つため、
-  // ここでのcloseもこのページ自体を閉じる処理にする。
-  renderMyPageBody(bodyEl, closeProfilePage);
+  // ここでのcloseもこのページ自体を閉じる処理にする。レイアウト編集モードの適用込みで描く。
+  renderProfileBody();
 }
 
 export function closeProfilePage() {
