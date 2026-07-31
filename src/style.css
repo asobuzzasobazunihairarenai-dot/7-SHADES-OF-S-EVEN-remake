@@ -3367,6 +3367,36 @@ body.spotlight-mode #spotlight-overlay {
 #option-area > * {
   pointer-events: auto;
 }
+/* ユーザー要望「オプションエリアのある列全部に、右端から左端まで独自のおしゃれな帯を
+   敷いてほしい（背景が白系だとアイコンが見にくいため）」。#option-area自体は画面いっぱいの
+   透明なアンカーなので、その最上部に横いっぱいの装飾帯を疑似要素で敷く。上部を濃く下へ
+   すっと消える縦グラデーションで、盤面の背景色に関係なくアイコン・通貨表示が読めるようにする
+   （丸い縁取りを持たないアイコン=ヘルプ/Discord/ランキング等が白背景に埋もれる問題への対策）。
+   ::before は #option-area > * に含まれず pointer-events:none のままなので盤面のクリックは
+   奪わない。アイコン群(z-index:900)より背面に自然と回る。 */
+#option-area::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--option-area-band-height, 3rem);
+  background: linear-gradient(
+    180deg,
+    rgba(13, 20, 30, 0.88) 0%,
+    rgba(13, 20, 30, 0.7) 55%,
+    rgba(13, 20, 30, 0) 100%
+  );
+  /* 端がぶつ切りに見えないよう左右をわずかにフェードさせる（横方向のマスク）。 */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
+  pointer-events: none;
+}
+/* オープニング画面中はアイコン群を隠している（下の opening-screen-active 参照）ので、
+   帯も出さない（映画的な起動演出に横帯が乗らないように）。 */
+body.opening-screen-active #option-area::before {
+  display: none;
+}
 body.is-phone-device #option-area {
   transform-origin: top right;
   transform: translate(var(--option-area-pos-phone-x, 0rem), var(--option-area-pos-phone-y, 0rem))
@@ -3565,6 +3595,22 @@ body.is-phone-device #options-menu-button {
   right: 14.3rem;
   z-index: 900;
   transform: translate(var(--icon-pos-view-toggle-x, 0rem), var(--icon-pos-view-toggle-y, 0rem));
+}
+/* ユーザー要望「2D/3D切替アイコンは丸囲み不要・下の『2D/3D』テキストも不要・ホバーで
+   簡易説明を出す」。他の縁取り無しアイコン（ヘルプ/Discord/オプション等）と同じ扱いにする。
+   ホバーの簡易説明は .icon-action-button:hover .phase-guide-tooltip で従来どおり表示される
+   （文言は board-view-toggle.js の applyState がツールチップへ設定）。 */
+#board-view-toggle-button .icon-action-button-caption {
+  display: none;
+}
+#board-view-toggle-button .icon-action-button-icon-wrap {
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+#board-view-toggle-button:hover .icon-action-button-icon-wrap {
+  background: none;
+  border-color: transparent;
 }
 #discord-link-button .icon-action-button-caption {
   display: none;
