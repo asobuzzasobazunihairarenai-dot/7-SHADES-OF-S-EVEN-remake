@@ -45,10 +45,16 @@ export function setSelectedPetIndex(i) {
   helpers?.render?.();
 }
 
-// 座席seatのペット絵文字。自分はローカル選択（「なし」を選ぶと null=非表示）、それ以外は既定。
+// 座席seatのペット絵文字。自分の座席の駒だけローカル選択（「なし」を選ぶと null=非表示）を
+// 反映し、それ以外（相手・座席不明）は既定を返す。
+// ハマりどころ（ユーザー報告「オンラインで自分のペットを変えたら相手のペットも変わる」）:
+// 以前は `!seat`（座席不明）でも自分の選択を返していたため、駒のdata-ownerが空のとき
+// （token.playerが無く色→座席の補完も外れた等）に相手の駒へ自分のペットが漏れていた。
+// 自分の選択は「seatが自分の座席と明示的に一致する時だけ」返す（座席同期は将来対応 TODO(sync)）。
 export function getPetEmojiForSeat(seat) {
-  if (!seat || seat === getSelfSeat()) return PET_OPTIONS[selectedIndex].emoji; // null なら非表示
-  return PET_OPTIONS[0].emoji; // TODO(sync): 相手の座席の選択を同期ロスターから引く
+  const self = getSelfSeat();
+  if (seat && self && seat === self) return PET_OPTIONS[selectedIndex].emoji; // null なら非表示
+  return PET_OPTIONS[0].emoji; // 相手・座席不明は既定
 }
 
 // main.jsからrender()を注入（他の着せ替えモジュールと同じ循環import回避パターン）。
