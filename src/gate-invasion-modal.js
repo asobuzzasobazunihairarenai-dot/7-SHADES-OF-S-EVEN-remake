@@ -55,7 +55,7 @@ function buildSteps(events) {
     if (ev.stolenCount > 0) {
       steps.push({
         text: `${getPlayerNameOrYou(ev.attacker)}はゲート侵攻成功！\n${getPlayerNameOrYou(ev.defender)}の手札${ev.stolenCount}枚を無作為に奪いました。`,
-        cardsHtml: buildCardsHtml(ev.attacker, ev.stolenTokenIds.map((id) => ({ cardId: resolveIfSelf(ev.attacker, id), wasPublic: false }))),
+        cardsHtml: buildCardsHtml(ev.attacker, (ev.stolenTokenIds ?? []).map((id) => ({ cardId: resolveIfSelf(ev.attacker, id), wasPublic: false }))),
       });
     } else {
       steps.push({ text: `${getPlayerNameOrYou(ev.attacker)}はゲート侵攻成功！\n${getPlayerNameOrYou(ev.defender)}の手札枚数が半分未満のため、奪えるカードはありません。` });
@@ -67,22 +67,22 @@ function buildSteps(events) {
         text: `${getPlayerNameOrYou(ev.attacker)}はエターナルカード「${def.name}」を獲得！\n自分のロックエリアにロックします。`,
         cardsHtml: buildCardsHtml(ev.attacker, [{ cardId: ev.eternalCardId, wasPublic: true }]),
       });
-      if (ev.bumpedCards.length > 0) {
+      if ((ev.bumpedCards ?? []).length > 0) {
         steps.push({
           text: `ロックスロットにあったカードが弾き出され、${getPlayerNameOrYou(ev.attacker)}の手札に加わりました。`,
-          cardsHtml: buildCardsHtml(ev.attacker, ev.bumpedCards.map((b) => ({ cardId: b.cardId, wasPublic: true }))),
+          cardsHtml: buildCardsHtml(ev.attacker, (ev.bumpedCards ?? []).map((b) => ({ cardId: b.cardId, wasPublic: true }))),
         });
       }
     } else {
       steps.push({ text: `${getPlayerNameOrYou(ev.attacker)}はエターナルカードを獲得するはずでしたが、盤面の外のエターナルカードはもう残っていません。` });
     }
 
-    if (ev.gateCards.length > 0) {
+    if ((ev.gateCards ?? []).length > 0) {
       steps.push({
         text: `${getPlayerNameOrYou(ev.attacker)}は自分のゲートにあるカードをすべて回収し、ゲートに帰還します。`,
         cardsHtml: buildCardsHtml(
           ev.attacker,
-          ev.gateCards.map((g) => ({
+          (ev.gateCards ?? []).map((g) => ({
             // 裏向きだったカード(wasPublic:false)はサーバーがcardIdを送ってこない
             // （非攻撃者に見せてはいけないため）。攻撃側自身の画面だけは、移動後の
             // 自分の手札として実際に見えているので、resolveIfSelfで解決する。
@@ -186,6 +186,8 @@ function showStep(step) {
 
   document.body.appendChild(backdropEl);
   document.body.appendChild(modalEl);
+  // 調査用: showStepが実際にモーダルをDOMへ追加できたか（ここまで来れば画面に出ているはず）。
+  logAction("diag-gate-invasion-showstep", { text: String(step?.text ?? "").slice(0, 24), inDom: document.body.contains(modalEl) });
 
   currentTimer = setTimeout(() => {
     closeCurrent();
@@ -230,7 +232,19 @@ export function enqueueGateInvasionSteps(events) {
     logAction("diag-gate-invasion-modal-error", { message: String(err?.message ?? err), phase: "buildSteps" });
     return;
   }
+  // 保険（ユーザー報告「オンラインのゲート侵攻演出が出ない」対策）: modalElが残っているのに
+  // 実際にはDOMから外れている（何らかの理由で消えた・作り直された）場合、staleとみなして
+  // リセットする。これが残ったままだと wasEmpty=false になり、以後ゲート侵攻演出が二度と
+  // 出なくなる（isGateInvasionQueueActive()だけtrueで固まる）。
+  if (modalEl && !document.body.contains(modalEl)) {
+    logAction("diag-gate-invasion-stale-modal", {});
+    closeCurrent();
+  }
   const wasEmpty = queue.length === 0 && !modalEl;
+  // 調査用（ユーザー報告「オンラインのゲート侵攻演出が出ない」）: enqueue時点でwasEmptyが
+  // falseだと、既存のmodalEl/queueが残っているとみなしてadvance()を呼ばず、演出が
+  // 出ないまま詰まる。wasEmpty・残キュー・modalElの有無を記録して原因を切り分ける。
+  logAction("diag-gate-invasion-enqueue", { newSteps: newSteps.length, wasEmpty, queueLenBefore: queue.length, hasModalEl: !!modalEl });
   queue.push(...newSteps);
   if (wasEmpty) advance();
 }
