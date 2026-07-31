@@ -4239,12 +4239,23 @@ async function playEternalAcquisitionAnim(attacker, cardId, cardDef, onDone) {
   await flightDone;
 
   // ③中央で虹色の縁取りが揺らめきながら少し溜める（まだ裏向きのまま）。
+  // ハマりどころ（ユーザー報告「エターナルカードが画面中央ではなく右下で見切れながらフリップ、
+  // 裏面画像も上下見切れ」）: .eternal-reveal-cardはposition:fixedだが、body（ステージ）に
+  // transform（translate+scale、applyViewportStage）が掛かっているためfixedはビューポートでは
+  // なくステージ基準になる。centerRect（実画面座標、window.innerWidth/2基準）をそのまま
+  // left/top/width/heightに入れるとステージのscale/offsetぶんズレて画面右下へ寄り、
+  // ビューポート端で上下も見切れていた。flyGhost（ghost-flight.js）と同じく、画面中央を
+  // stageClientToLocalでステージ座標へ、サイズをstageDeltaでステージ単位へ変換して使う
+  // （こうするとflyGhostが飛ばす着地点とも一致する）。
+  const revealLocalCenter = stageClientToLocal(window.innerWidth / 2, window.innerHeight / 2);
+  const revealLocalW = stageDelta(centerRect.width);
+  const revealLocalH = stageDelta(centerRect.height);
   const reveal = document.createElement("div");
   reveal.className = "eternal-reveal-card is-suspense";
-  reveal.style.left = `${centerRect.left}px`;
-  reveal.style.top = `${centerRect.top}px`;
-  reveal.style.width = `${centerRect.width}px`;
-  reveal.style.height = `${centerRect.height}px`;
+  reveal.style.left = `${revealLocalCenter.x - revealLocalW / 2}px`;
+  reveal.style.top = `${revealLocalCenter.y - revealLocalH / 2}px`;
+  reveal.style.width = `${revealLocalW}px`;
+  reveal.style.height = `${revealLocalH}px`;
   const inner = document.createElement("div");
   inner.className = "eternal-reveal-card-inner";
   const backFace = document.createElement("div");
