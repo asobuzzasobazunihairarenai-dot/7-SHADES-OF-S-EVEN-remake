@@ -65,7 +65,7 @@ import {
   hasAnyGateInvasionCandidate,
 } from "./gate-invasion.js";
 import { announceHandPickups, announceCardLocked, announceDrawCount } from "./hand-announcer.js";
-import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained, reapplyGateInvasionModal, registerGateInvasionModalEternalAnim } from "./gate-invasion-modal.js";
+import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained, reapplyGateInvasionModal, registerGateInvasionModalEternalAnim, registerGateInvasionModalStealAnim } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking, hasAnyoneWon } from "./victory.js";
 import { recordContactMade, recordCardUsed, recordLockSnapshot, initMatchStatsTracker } from "./match-stats-tracker.js";
 import { initPseudoCpuPrompt } from "./pseudo-cpu-prompt.js";
@@ -4283,6 +4283,31 @@ async function playEternalAcquisitionAnim(attacker, cardId, cardDef, onDone) {
     const { done: returnDone } = flyGhost(centerRect, lockRect, getCardImagePath(cardId), "setup-fly-card", returnMs);
     await returnDone;
   }
+  onDone();
+}
+
+// オンラインのゲート侵攻で「手札を奪う」演出（ユーザー要望「スリカエの時のような奪う演出を
+// オンラインでも出したい」）。ローカルは対話的な儀式ピック（stealHandCardsRitualForGateInvasion）
+// だが、オンラインはサーバーが既に無作為抽選済みのため同じ対話は再現できない。代わりに、
+// 奪われた側の手札エリアから攻撃側の手札エリアへ、count枚ぶんのカード裏ゴーストを少しずつ
+// 飛ばす純演出にする。gate-invasion-modal.jsの奪取ステップから注入経由で呼ぶ。
+async function playGateInvasionStealAnim(attacker, defender, count, onDone) {
+  const fromEl = document.querySelector(`.hand-area[data-player="${defender}"]`);
+  const toEl = document.querySelector(`.hand-area[data-player="${attacker}"]`);
+  if (isFlightAnimationDisabled() || !fromEl || !toEl || !count || count <= 0) {
+    onDone();
+    return;
+  }
+  const fromRect = fromEl.getBoundingClientRect();
+  const toRect = toEl.getBoundingClientRect();
+  playSound("arrivalEffect");
+  const flights = [];
+  for (let i = 0; i < count; i++) {
+    const { done } = flyGhost(fromRect, toRect, getCardBackImagePath(null), "setup-fly-card is-facedown", 700);
+    flights.push(done);
+    await wait(220); // 1枚ずつ間を置いて飛ばす（複数枚が重ならず「奪っている」感を出す）
+  }
+  await Promise.all(flights);
   onDone();
 }
 
@@ -8974,6 +8999,8 @@ registerGateInvasionStealHelper(stealHandCardsRitualForGateInvasion);
 // オンラインのゲート侵攻（サーバー処理→受信モーダル経路）でも、ローカルと同じエターナル獲得の
 // 派手な演出（3Dフリップ＋色バースト）を出す（ユーザー要望）。純演出関数のため両経路で共用できる。
 registerGateInvasionModalEternalAnim(playEternalAcquisitionAnim);
+// 同じくオンラインのゲート侵攻で「手札を奪う」飛翔演出を出す（ユーザー要望）。
+registerGateInvasionModalStealAnim(playGateInvasionStealAnim);
 buildGameTitle();
 buildSpotlightOverlay();
 buildFinalLockApprovalBanner();

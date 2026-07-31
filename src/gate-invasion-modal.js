@@ -21,6 +21,11 @@ let eternalAnimHelper = null; // (attacker, cardId, cardDef, onDone) => void
 export function registerGateInvasionModalEternalAnim(fn) {
   eternalAnimHelper = fn;
 }
+// 手札を奪う飛翔演出（ユーザー要望「スリカエの時のような奪う演出をオンラインでも」）。
+let stealAnimHelper = null; // (attacker, defender, count, onDone) => void
+export function registerGateInvasionModalStealAnim(fn) {
+  stealAnimHelper = fn;
+}
 
 // 攻撃側本人の画面だけは、fetchAndHydrate()後の自分の手札として実際のcardIdが見えている
 // （RLSで自分の手札はマスクされないため）。それ以外の閲覧者には解決しない
@@ -75,6 +80,8 @@ function buildSteps(events) {
       steps.push({
         text: `${getPlayerNameOrYou(ev.attacker)}はゲート侵攻成功！\n${getPlayerNameOrYou(ev.defender)}の手札${ev.stolenCount}枚を無作為に奪いました。`,
         cardsHtml: stolenCardsHtml,
+        // 奪う飛翔演出を先に見せてから、この一覧モーダルを出す。
+        stealAnim: { attacker: ev.attacker, defender: ev.defender, count: ev.stolenCount },
       });
     } else {
       steps.push({ text: `${getPlayerNameOrYou(ev.attacker)}はゲート侵攻成功！\n${getPlayerNameOrYou(ev.defender)}の手札枚数が半分未満のため、奪えるカードはありません。` });
@@ -181,10 +188,31 @@ function showStep(step) {
   if (step.eternalAnim && eternalAnimHelper && !isFlightAnimationDisabled() && !isArrivalEffectDisabled()) {
     logAction("diag-gate-invasion-eternal-anim", { attacker: step.eternalAnim.attacker, cardId: step.eternalAnim.cardId });
     const { attacker, cardId } = step.eternalAnim;
+    // ユーザー報告「演出の前にすでにエターナルカードがロックされている（見えてしまう）」。
+    // オンラインはサーバーが先に状態を適用（＝カードをロックスロットへ配置）してから演出が
+    // 走るため、演出開始時点で獲得済みのカードがロック枠に見えてしまう（ローカル版は演出後に
+    // ロックするので起きない）。演出（山札→中央でフリップ→ロックへ飛ぶ）の間だけ、実際に
+    // ロックされたそのカード要素を隠し、演出完了時に表示して「今ロックされた」ように見せる。
+    const lockedTok = getState().tokens.find(
+      (t) => t.kind === "card" && t.cardId === cardId && t.location.zone === "lock"
+    );
+    const hideLockedCard = () => {
+      const el = lockedTok ? document.querySelector(`[data-token-id="${lockedTok.id}"]`) : null;
+      if (el) el.style.visibility = "hidden";
+      return el;
+    };
+    let lockedEl = hideLockedCard();
+    // 演出中にrender()で盤面が作り直されても隠し直す保険（要素が差し替わるため参照を取り直す）。
+    const rehideTimer = setInterval(() => {
+      if (lockedTok) lockedEl = hideLockedCard();
+    }, 200);
     let advanced = false;
     const goNext = () => {
       if (advanced) return;
       advanced = true;
+      clearInterval(rehideTimer);
+      const el = lockedTok ? document.querySelector(`[data-token-id="${lockedTok.id}"]`) : null;
+      if (el) el.style.visibility = "";
       advance();
     };
     try {
@@ -192,6 +220,29 @@ function showStep(step) {
     } catch (err) {
       console.error("gate-invasion-modal eternal anim failed", err);
       goNext();
+    }
+    return;
+  }
+
+  // 手札を奪う飛翔演出（ユーザー要望）。奪取ステップでは、まず「奪う」飛翔演出を再生し、
+  // 完了してから同じステップを描画し直して奪ったカードの一覧モーダルを見せる
+  // （step._stealAnimDoneで2回目は演出を飛ばす）。演出が使えない環境ではそのまま一覧モーダルへ。
+  if (
+    step.stealAnim &&
+    stealAnimHelper &&
+    !step._stealAnimDone &&
+    (step.stealAnim.count ?? 0) > 0 &&
+    !isFlightAnimationDisabled() &&
+    !isArrivalEffectDisabled()
+  ) {
+    step._stealAnimDone = true;
+    logAction("diag-gate-invasion-steal-anim", { attacker: step.stealAnim.attacker, defender: step.stealAnim.defender, count: step.stealAnim.count });
+    const { attacker, defender, count } = step.stealAnim;
+    try {
+      stealAnimHelper(attacker, defender, count, () => showStep(step));
+    } catch (err) {
+      console.error("gate-invasion-modal steal anim failed", err);
+      showStep(step);
     }
     return;
   }
