@@ -939,6 +939,45 @@ body.reduce-glow [style*="rainbow-shard.webp"]::after {
    main.jsのshowAllPieceNameBubblesが、各駒の画面上の位置に合わせてこの吹き出しを差し込む。
    #card-previewと同じ position:fixed・pointer-events:none 方式なので、盤面の3Dの傾きに
    影響されず常に正対して読める。駒の中心の少し上に、下向きの三角（吹き出しの尻尾）付きで出す。 */
+/* デプロイ検知＆更新案内バナー（update-checker.js）。画面上部中央に固定。閉じられる。 */
+#update-available-banner {
+  position: fixed;
+  top: 0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.6rem 0.35rem 0.9rem;
+  background: rgba(190, 24, 93, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 0.6rem;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: bold;
+  z-index: 10050;
+  box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.5);
+}
+.update-banner-reload {
+  font-size: 0.78rem;
+  padding: 0.2rem 0.7rem;
+  background: #fff;
+  color: #be185d;
+  border: none;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-weight: bold;
+}
+.update-banner-close {
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 0.3rem;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+}
+
 /* 観戦中バナー（main.jsのupdateSpectatorBanner）。画面上部中央に固定。 */
 #spectator-banner {
   position: fixed;

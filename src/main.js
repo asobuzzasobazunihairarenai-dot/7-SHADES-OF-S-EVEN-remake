@@ -129,6 +129,7 @@ import {
 import { initPlayerButtons } from "./player-buttons.js";
 import { initQuickStart } from "./quick-start.js";
 import { initPhaseGuide } from "./phase-guide.js";
+import { initUpdateChecker } from "./update-checker.js";
 import { initTutorialAutoStart, registerTutorialStageHelpers } from "./tutorial.js";
 // チュートリアルCPU戦（台本化された練習試合）へ、ロック効果アニメとステージ座標変換を注入する。
 import { registerTutorialBattleHelpers, isTutorialBattleActive } from "./tutorial-battle.js";
@@ -8744,6 +8745,7 @@ registerCardDevModeArrivalHelpers({ triggerCardArrival, runAutoHandEffect, rende
 registerPhaseAutomationHelpers({ render, findTopCardAt });
 initHelpButton();
 initRankingIcon();
+initUpdateChecker(); // デプロイ検知＆更新案内バナー（version.jsonを定期チェック）
 initDiscordLink();
 initBoardViewToggle(); // Discordアイコンと残金表示の間に2D/3D切り替えアイコンを置く（順序＝追加順）
 initCurrencyDisplay();
