@@ -1763,11 +1763,17 @@ body.is-phone-device #options-menu-button .icon-action-button-icon-wrap {
 }
 .icon-action-button-caption {
   font-size: 0.65rem;
-  color: rgba(226, 232, 240, 0.85);
+  color: #f1f5f9;
   white-space: nowrap;
   cursor: pointer;
   text-decoration: underline dotted rgba(226, 232, 240, 0.4);
   text-underline-offset: 0.15rem;
+  /* ユーザー報告「盤面背景が白系だとアイコン下のテキスト（白文字）が読みづらい」。盤面の
+     色に依存せず読めるよう、文字の後ろに半透明の暗いバッジを敷き、さらに影を足す。 */
+  background: rgba(15, 23, 32, 0.72);
+  padding: 0.05rem 0.4rem;
+  border-radius: 0.4rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
 }
 .icon-action-button-caption:hover {
   color: #7dd3fc;
@@ -2202,6 +2208,22 @@ body.is-phone-device .priority-transfer-label .phase-guide-tooltip {
    最上部にもあるため、既定の「ボタンの上に出す」(bottom:calc(100% + 0.5rem))のままだと
    画面上端でも見切れてしまう。右寄せに加え、下方向に出すよう上下も反転させる。 */
 #options-menu-button .phase-guide-tooltip {
+  left: auto;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  bottom: auto;
+  transform: none;
+}
+/* ユーザー報告「オプションアイコン以外、ホバーしても簡易説明が出ない」。原因は、これらの
+   右上オプションエリアのアイコンも簡易説明のテキスト自体は持っているのに、既定の
+   phase-guide-tooltipが「ボタンの上」(bottom:calc(100%+0.5rem))に出るため、画面最上部の
+   これらでは上端の外に描画されて見えなかったこと。options-menu-buttonと同じく下方向へ
+   出し、右端側で見切れないよう右寄せにする（テキストは左へ伸びる）。 */
+#board-view-toggle-button .phase-guide-tooltip,
+#discord-link-button .phase-guide-tooltip,
+#ranking-page-button .phase-guide-tooltip,
+#help-button .phase-guide-tooltip,
+#my-page-button .phase-guide-tooltip {
   left: auto;
   right: 0;
   top: calc(100% + 0.5rem);
