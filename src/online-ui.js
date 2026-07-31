@@ -19,6 +19,7 @@ import {
   getMyActiveGames,
   getRoomName,
   getMemberCount,
+  getRoomHostInfo,
   getCurrentGameId,
   getMySeat,
   leaveGame,
@@ -150,12 +151,153 @@ async function renderPanelContent() {
       await renderRoomChoice(user, myGeneration);
       if (myGeneration !== renderGeneration) return;
     } else {
-      await renderRoomStatus(gameId, myGeneration);
-      if (myGeneration !== renderGeneration) return;
+      // ユーザー要望のロビー刷新: 部屋に入ったら待機モーダルではなく、盤面へ遷移して
+      // 中央にロビーモーダルを出す（対局前=座席未割り当てのとき）。対局中（再開）なら盤面のみ。
+      markOnlineIntentActive();
+      closePanel();
+      if (getMySeat()) {
+        closeLobbyModal(); // 対局中（再開）→ 盤面のみ
+      } else {
+        openLobbyModal(gameId);
+      }
+      return; // パネルは閉じたので以降は描画しない
     }
   }
 
   contentEl.appendChild(buildDebugLogSection());
+}
+
+// ===== 対戦ロビー（対局前の中央モーダル）: ユーザー要望のロビー刷新 =====
+// 部屋作成/入室したら盤面へ遷移し、盤面上に中央モーダルを出す。他プレイヤーの着席は
+// online.jsのupdateIdentityRoster（PREVIEW_SEAT_ORDER＝C→B→D）が既に担うため、ここは
+// 「部屋主だけ開始できる／他の人には待機表示」のモーダルだけを担当する。座席が割り当てられ
+// たら（＝ゲーム開始）ロビーモーダルは自動で閉じる。
+let lobbyModalEl = null;
+let lobbyModalGameId = null;
+let lobbyRosterUnsub = null;
+
+export function openLobbyModal(gameId) {
+  if (lobbyModalEl && lobbyModalGameId === gameId) {
+    renderLobbyModal();
+    return;
+  }
+  closeLobbyModal();
+  lobbyModalGameId = gameId;
+  lobbyModalEl = document.createElement("div");
+  lobbyModalEl.id = "online-lobby-modal";
+  document.body.appendChild(lobbyModalEl);
+  playWaitingBgm();
+  renderLobbyModal();
+  // 入室・退室・座席割り当てのたびに更新。座席が付いたら（ゲーム開始）閉じる。
+  lobbyRosterUnsub = onRosterChange(() => {
+    if (getMySeat()) {
+      closeLobbyModal();
+      return;
+    }
+    renderLobbyModal();
+  });
+}
+
+export function closeLobbyModal() {
+  lobbyRosterUnsub?.();
+  lobbyRosterUnsub = null;
+  lobbyModalEl?.remove();
+  lobbyModalEl = null;
+  lobbyModalGameId = null;
+  stopWaitingBgm();
+}
+
+// 開始オプション（タイマー/無色/疑似CPU/ブースト）の4チェックボックス。pendingRoom* に束ねる。
+function buildLobbyOptionRows() {
+  const wrap = document.createElement("div");
+  wrap.className = "online-lobby-options";
+  const addToggle = (labelText, checked, onChange) => {
+    const row = document.createElement("label");
+    row.className = "online-lobby-option-row";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = checked;
+    cb.addEventListener("change", () => onChange(cb.checked));
+    const span = document.createElement("span");
+    span.textContent = labelText;
+    row.appendChild(cb);
+    row.appendChild(span);
+    wrap.appendChild(row);
+  };
+  addToggle("⏳ ターンタイマーを使用する", pendingRoomTimerEnabled, (v) => (pendingRoomTimerEnabled = v));
+  addToggle("白黒（無色）カードを山札に含める", pendingRoomIncludeBlackWhite, (v) => (pendingRoomIncludeBlackWhite = v));
+  addToggle("🤖 疑似CPUモード（自動選択のテスト用）を使う", pendingRoomPseudoCpuModeEnabled, (v) => (pendingRoomPseudoCpuModeEnabled = v));
+  addToggle("🚀 ブーストモード（両隣に効果なしファーストカードをロックして開始）", pendingRoomBoost, (v) => (pendingRoomBoost = v));
+  return wrap;
+}
+
+async function renderLobbyModal() {
+  const el = lobbyModalEl;
+  const gameId = lobbyModalGameId;
+  if (!el) return;
+  let info;
+  try {
+    info = await getRoomHostInfo();
+  } catch (err) {
+    info = { amIHost: false, hostName: "部屋主", count: 0 };
+  }
+  if (el !== lobbyModalEl) return; // 別のロビーに切り替わっていたら中断
+
+  el.innerHTML = "";
+  const card = document.createElement("div");
+  card.className = "online-lobby-card";
+
+  const title = document.createElement("div");
+  title.className = "online-lobby-title";
+  title.textContent = "🌐 対戦ロビー";
+  card.appendChild(title);
+
+  const countEl = document.createElement("div");
+  countEl.className = "online-lobby-count";
+  countEl.textContent = `参加人数: ${info.count}人`;
+  card.appendChild(countEl);
+
+  if (info.amIHost) {
+    card.appendChild(buildLobbyOptionRows());
+    const canStart = info.count >= 2;
+    const startBtn = textButton(canStart ? `ゲームを開始する（現在${info.count}名）` : "あと1人以上でゲーム開始できます");
+    startBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box; margin-top: 0.6rem;";
+    startBtn.disabled = !canStart;
+    startBtn.addEventListener("click", async () => {
+      startBtn.disabled = true;
+      try {
+        await startGame(gameId, {
+          timerEnabled: pendingRoomTimerEnabled,
+          includeBlackWhite: pendingRoomIncludeBlackWhite,
+          pseudoCpuModeEnabled: pendingRoomPseudoCpuModeEnabled,
+          boost: pendingRoomBoost,
+        });
+        closeLobbyModal();
+      } catch (err) {
+        alert(err.message ?? String(err));
+        startBtn.disabled = false;
+      }
+    });
+    card.appendChild(startBtn);
+  } else {
+    const waiting = document.createElement("div");
+    waiting.className = "online-lobby-waiting";
+    waiting.textContent = `${info.hostName}さんがゲームを開始するのを待っています…`;
+    card.appendChild(waiting);
+  }
+
+  const leaveBtn = textButton("この部屋を離れる");
+  leaveBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box; margin-top: 0.5rem;";
+  leaveBtn.addEventListener("click", () => {
+    leaveGame();
+    closeLobbyModal();
+    setSavedRoomPassword(gameId, null);
+    history.replaceState(null, "", location.pathname);
+    openOnlinePanel(); // 部屋一覧へ戻る
+  });
+  card.appendChild(leaveBtn);
+
+  el.appendChild(card);
 }
 
 // 「Failed to send a request to the Edge Function」のような、詳細が分かりにくいエラーが

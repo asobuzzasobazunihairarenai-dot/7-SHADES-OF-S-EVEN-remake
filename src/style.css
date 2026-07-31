@@ -3463,6 +3463,59 @@ body.spotlight-mode #spotlight-overlay {
   font-size: 0.7rem;
   color: #cbd5e1;
 }
+/* 対戦ロビー（online-ui.js、対局前の中央モーダル）。盤面の上に浮かぶ中央カード。カード以外は
+   盤面を邪魔しないようクリック透過（着席していく他プレイヤーが周囲に見える）。 */
+#online-lobby-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2200;
+  pointer-events: none;
+}
+.online-lobby-card {
+  pointer-events: auto;
+  width: min(24rem, 92vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: rgba(15, 23, 32, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.6rem;
+  padding: 1rem;
+  color: #e2e8f0;
+  font-family: sans-serif;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  text-align: center;
+  box-sizing: border-box;
+}
+.online-lobby-title {
+  font-weight: bold;
+  margin-bottom: 0.4rem;
+}
+.online-lobby-count {
+  font-size: 0.9rem;
+  color: #cbd5e1;
+  margin-bottom: 0.8rem;
+}
+.online-lobby-options {
+  text-align: left;
+  margin-bottom: 0.2rem;
+}
+.online-lobby-option-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  margin-bottom: 0.45rem;
+  font-size: 0.85rem;
+}
+.online-lobby-waiting {
+  font-size: 0.95rem;
+  font-weight: bold;
+  color: #fde68a;
+  padding: 0.8rem 0.4rem;
+  line-height: 1.5;
+}
 /* 巨大半透明アバター（my-page.js、最背面の飾り）。DOM先頭＝最背面。通常はクリックを
    透過し（下の要素を邪魔しない）、レイアウト編集中だけ掴めるようにする。 */
 .my-page-bg-avatar {

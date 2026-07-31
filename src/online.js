@@ -1184,6 +1184,25 @@ export async function getMemberCount(gameId) {
   return count ?? 0;
 }
 
+// ロビー（対局前）用: 「部屋主」＝最初に入室した人（created_by等の専用列は無く、
+// createRoomが即入室するため joined_at 最古が部屋主）と、自分が部屋主か、現在の人数を返す。
+export async function getRoomHostInfo() {
+  if (!client || !currentGameId) return { amIHost: false, hostName: null, count: 0 };
+  const { data, error } = await client
+    .from("so7_game_seats")
+    .select("user_id, display_name, joined_at")
+    .eq("game_id", currentGameId)
+    .order("joined_at", { ascending: true });
+  if (error || !data || data.length === 0) return { amIHost: false, hostName: null, count: 0 };
+  const host = data[0];
+  const user = await getCurrentUser();
+  return {
+    amIHost: !!user && host.user_id === user.id,
+    hostName: host.display_name || "部屋主",
+    count: data.length,
+  };
+}
+
 export function getCurrentGameId() {
   return currentGameId;
 }
