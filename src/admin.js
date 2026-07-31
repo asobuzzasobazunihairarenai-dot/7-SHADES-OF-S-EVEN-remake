@@ -425,6 +425,15 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー要望「ホームのメニューアイコンのサイズを管理者モードで一括調整したい」。
+    // style.cssの.home-screen-tile-icon-imgが --home-tile-icon-size を使う。
+    title: "ホーム画面のメニューアイコン",
+    category: "position-ui",
+    controls: [
+      { key: "--home-tile-icon-size", label: "アイコンの大きさ（一括）", unit: "rem", min: 2, max: 12, step: 0.1, default: 5.5 },
+    ],
+  },
+  {
     // 以前は画面下部中央のテキストラベル3項目だったが、アイコン画像に差し替えて画面右下
     // （他のアイコンボタン列の近く）へ引っ越した。item-width/heightは今もturn-timer.jsの
     // 基本時間表示（⏱、テキストのまま）にだけ使われている。

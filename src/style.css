@@ -9047,6 +9047,7 @@ body.is-online-mode #quick-start-bar {
   --rank-ring-orbit-size: 0.4rem;
   --rank-ring-orbit-trail-length: 23;
   --rank-ring-orbit-speed: 7.6;
+  --home-tile-icon-size: 5.5rem;
 }
 
 /* チュートリアル（tutorial.js）。実際の盤面のUI要素をハイライトしながら遊び方を
@@ -9472,12 +9473,13 @@ body.reduce-glow .cell.card-effect-placement-target {
   gap: 0.4rem;
   padding: 2rem 1rem;
   /* ユーザー提供の背景画像（assets/home-bg.png、元は画像素材/ホーム画面/タイトル寄せ.png）。
-     読み込み前や縦横比が合わない端でも暗い背景で破綻しないよう、下地の暗色グラデーションの
-     上に画像を重ねる。 */
-  background: url("../assets/home-bg.png") center / cover no-repeat,
-    radial-gradient(ellipse at top, #1e293b 0%, #0f172a 60%, #060a12 100%);
+     ユーザー報告「ホームに入る時に一瞬“以前の黒い画面”が出て、そこへ今のホーム画面が覆い
+     かぶさるように出る」の対策として、下地の色を（旧デザインの暗色ではなく）画像に近い
+     クリーム色にした。画像の読み込みが間に合わない一瞬でも暗転せず、オープニングの黒からの
+     切替も自然になる。画像自体はhome-screen.jsで事前読み込み(preload)する。 */
+  background: url("../assets/home-bg.png") center / cover no-repeat, #ece6da;
   font-family: sans-serif;
-  color: #e2e8f0;
+  color: #1e293b;
   overflow-y: auto;
   box-sizing: border-box;
 }
@@ -9548,8 +9550,9 @@ body.reduce-glow .cell.card-effect-placement-target {
 .home-screen-tile-icon-img {
   position: relative;
   z-index: 1;
-  width: 5.5rem;
-  height: 5.5rem;
+  /* 管理者モードで一括調整できるサイズ（ユーザー要望）。admin.jsのGROUPS参照。 */
+  width: var(--home-tile-icon-size, 5.5rem);
+  height: var(--home-tile-icon-size, 5.5rem);
   object-fit: contain;
   display: block;
   /* 明るい背景でも細い線が見えるよう、暗い影で縁取りする（ユーザー報告の視認性対策）。 */

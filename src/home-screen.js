@@ -29,6 +29,11 @@ let overlayEl = null;
 let toastEl = null;
 let toastTimer = null;
 
+// ホーム背景画像(2MB超)を起動時に先読みしておく（ユーザー報告「ホームに入る時に一瞬黒い
+// 画面が出る」の対策）。読み込み済みなら、ホームを開いた瞬間から背景画像が表示され暗転しない。
+const homeBgPreload = new Image();
+homeBgPreload.src = "assets/home-bg.png";
+
 // icon: 画像が無い時のフォールバック絵文字。image: ユーザー作成のホーム画面アイコン
 // （assets/home-icons/、枠なしでそのまま表示する）。
 const TILES = [
