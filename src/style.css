@@ -4005,7 +4005,10 @@ body.is-phone-device #options-menu-button {
   position: fixed;
   top: 1rem;
   left: 1rem;
-  z-index: 1000;
+  /* ユーザー報告「ホーム画面で管理者モードを押してもウィンドウが出ない（背面に隠れる）」。
+     ホーム画面(#home-screen)はz-index:1500のため、従来のz-index:1000だと背後に回っていた。
+     ショップ/マイページ等の他パネル（2000〜2601）と同様、ホームより前に出す。 */
+  z-index: 2600;
   background: rgba(15, 23, 32, 0.95);
   border: 1px solid rgba(148, 163, 184, 0.4);
   border-radius: 0.5rem;
@@ -9646,6 +9649,31 @@ body.reduce-glow .cell.card-effect-placement-target {
   border: 1px solid rgba(250, 204, 21, 0.5);
   color: #facc15;
   white-space: nowrap;
+}
+/* 未読お知らせの「NEW」バッジ（ユーザー要望）。明るい背景でも目立つ赤＋白フチ＋鼓動。 */
+.home-screen-tile-new-badge {
+  position: absolute;
+  top: 0.1rem;
+  right: 0.9rem;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  white-space: nowrap;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8), 0 2px 5px rgba(0, 0, 0, 0.35);
+  animation: home-new-badge-pulse 1.5s ease-in-out infinite;
+}
+@keyframes home-new-badge-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.14);
+  }
 }
 #home-screen-toast {
   position: fixed;

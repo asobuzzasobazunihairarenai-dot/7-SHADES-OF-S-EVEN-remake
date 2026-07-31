@@ -10,6 +10,8 @@ export const CHANGELOG = [
   {
     date: "2026-07-31",
     items: [
+      "ホーム画面の「お知らせ／更新情報」に、未読があると「NEW」バッジが付くようにしました。開くと消えます。",
+      "ホーム画面から管理者モードを開いてもウィンドウが背面に隠れて見えない不具合を修正。",
       "チュートリアルCPU戦のターン3まで完成：ジャンプ台で空いた相手ゲートへ侵攻→ゲート侵攻ボーナスでエターナル「緑」を獲得・ロック→7色そろえて勝利、まで遊べます。文言・演出も調整（CPU移動時のカードオープン、終了後はホームへ戻る 等）。",
       "観戦機能を追加：進行中の対局を後から観戦できます（「公開情報のみ」か「すべて見える」を選択可）。",
       "オンラインでゲート侵攻の演出（エターナル獲得・手札奪う）が出ない不具合を修正。",
@@ -47,6 +49,30 @@ export const CHANGELOG = [
 let modalEl = null;
 let backdropEl = null;
 
+// 未読お知らせの判定（ユーザー要望「未読があればメニューアイコンにNEW表示」）。
+// 最新エントリの日付＋項目数＋エントリ総数を「署名」とし、開いた時にlocalStorageへ保存する。
+// 署名が保存値と違えば未読（新しいお知らせがある）とみなす。
+const CHANGELOG_READ_KEY = "so7-changelog-read";
+function currentSignature() {
+  const top = CHANGELOG[0];
+  if (!top) return "";
+  return `${top.date}|${top.items.length}|${CHANGELOG.length}`;
+}
+export function hasUnreadChangelog() {
+  try {
+    return localStorage.getItem(CHANGELOG_READ_KEY) !== currentSignature();
+  } catch (e) {
+    return false;
+  }
+}
+export function markChangelogRead() {
+  try {
+    localStorage.setItem(CHANGELOG_READ_KEY, currentSignature());
+  } catch (e) {
+    /* localStorage不可でも致命的ではない */
+  }
+}
+
 function close() {
   backdropEl?.remove();
   modalEl?.remove();
@@ -56,6 +82,7 @@ function close() {
 
 export function openChangelogModal() {
   if (modalEl) return;
+  markChangelogRead(); // 開いた時点で既読に（メニューのNEW表示を消す）
   backdropEl = createBackdrop(close, { dim: true, zIndex: 2400 });
   modalEl = document.createElement("div");
   modalEl.id = "changelog-modal";

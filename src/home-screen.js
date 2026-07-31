@@ -23,7 +23,7 @@ import { openRankingPage } from "./ranking-page.js";
 // チュートリアルCPU戦（台本化された練習試合）。完全ローカル機能。
 import { startTutorialBattle, registerTutorialHomeOpener } from "./tutorial-battle.js";
 // お知らせ／更新情報（デプロイのたびに概要を追記）。
-import { openChangelogModal } from "./changelog.js";
+import { openChangelogModal, hasUnreadChangelog } from "./changelog.js";
 
 let overlayEl = null;
 let toastEl = null;
@@ -73,7 +73,7 @@ const TILES = [
     },
   },
   { icon: "📖", image: "assets/home-icons/rulebook.webp", label: "図鑑／ルールブック", status: "ready", onOpen: () => openDeckViewer() },
-  { icon: "📰", image: "assets/home-icons/news.webp", label: "お知らせ／更新情報", status: "ready", onOpen: () => openChangelogModal() },
+  { icon: "📰", image: "assets/home-icons/news.webp", label: "お知らせ／更新情報", status: "ready", onOpen: () => openChangelogModal(), showNewIfUnread: () => hasUnreadChangelog() },
 ];
 
 // 「近日公開」タイルを押した時の軽いトースト。モーダルを挟むほどの重さは不要
@@ -125,9 +125,25 @@ function buildTile(tile) {
     btn.appendChild(badge);
   }
 
+  // 未読お知らせがあれば「NEW」バッジ（ユーザー要望）。
+  if (tile.showNewIfUnread && tile.showNewIfUnread()) {
+    const newBadge = document.createElement("div");
+    newBadge.className = "home-screen-tile-new-badge";
+    newBadge.textContent = "NEW";
+    btn.appendChild(newBadge);
+  }
+
   btn.addEventListener("click", () => {
-    if (tile.status === "ready") tile.onOpen();
-    else showComingSoonToast(tile.label);
+    if (tile.status !== "ready") {
+      showComingSoonToast(tile.label);
+      return;
+    }
+    tile.onOpen();
+    // 開いた後は未読でなくなるので、このタイルのNEWバッジを消す（お知らせはモーダルで
+    // ホーム画面の上に開くため、ホーム自体は残る）。
+    if (tile.showNewIfUnread && !tile.showNewIfUnread()) {
+      btn.querySelector(".home-screen-tile-new-badge")?.remove();
+    }
   });
   return btn;
 }
