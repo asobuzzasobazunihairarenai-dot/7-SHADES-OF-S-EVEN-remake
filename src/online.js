@@ -2159,6 +2159,21 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
           ids.push(...(ev.gateCards ?? []).map((g) => g.tokenId));
         }
         markSelfHandled(ids);
+        // ユーザー要望「ゲート侵攻で奪われた側のモーダルに、奪われたカードを一覧で出したい」。
+        // 奪われるカードは本来「非公開情報」でサーバーは攻撃者にしかcardIdを送らないが、
+        // 奪われた本人は元々自分の手札を知っているため開示してよい。手札からカードが抜かれる
+        // 前（fetchAndHydrate前）の今のローカルstateなら、自分が奪われた側の時に stolenTokenIds を
+        // 自分の手札のcardIdへ解決できる。ここで解決してイベントに添え、gate-invasion-modal.jsが
+        // 奪われた本人の画面でだけ一覧表示できるようにする（他クライアントには添えない）。
+        const preHydrateState = getState();
+        for (const ev of payload.gateInvasionEvents) {
+          if (currentSeat && ev.defender === currentSeat && (ev.stolenTokenIds ?? []).length) {
+            ev.defenderStolenCards = ev.stolenTokenIds.map((tid) => ({
+              tokenId: tid,
+              cardId: preHydrateState.tokens.find((t) => t.id === tid)?.cardId ?? null,
+            }));
+          }
+        }
         // 続き75診断ログ: ユーザー報告「ゲート侵攻成功時の手札奪う演出、エターナル
         // 獲得演出が作動しなかった」の調査用。サーバー側(so7-apply-action.ts)が
         // gateInvasionEventsを実際に送ってきたかどうかをまず確認できるようにする。

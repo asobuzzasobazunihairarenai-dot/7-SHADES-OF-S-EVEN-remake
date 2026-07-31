@@ -53,9 +53,17 @@ function buildSteps(events) {
     steps.push({ text: `${getPlayerNameOrYou(ev.attacker)}が${getPlayerNameOrYou(ev.defender)}のゲートに侵攻！` });
 
     if (ev.stolenCount > 0) {
+      // buildStepsは各クライアントで動く（getSelfSeatは自分の視点）。奪われた本人には、
+      // 奪われた自分のカードを一覧表示する（online.jsが手札消滅前に解決したdefenderStolenCards、
+      // ユーザー要望）。攻撃者本人はresolveIfSelfで解決、それ以外の閲覧者には非公開のまま。
+      const self = getSelfSeat();
+      const stolenCardsHtml =
+        self === ev.defender && ev.defenderStolenCards
+          ? buildCardsHtml(ev.defender, ev.defenderStolenCards.map((c) => ({ cardId: c.cardId, wasPublic: false })))
+          : buildCardsHtml(ev.attacker, (ev.stolenTokenIds ?? []).map((id) => ({ cardId: resolveIfSelf(ev.attacker, id), wasPublic: false })));
       steps.push({
         text: `${getPlayerNameOrYou(ev.attacker)}はゲート侵攻成功！\n${getPlayerNameOrYou(ev.defender)}の手札${ev.stolenCount}枚を無作為に奪いました。`,
-        cardsHtml: buildCardsHtml(ev.attacker, (ev.stolenTokenIds ?? []).map((id) => ({ cardId: resolveIfSelf(ev.attacker, id), wasPublic: false }))),
+        cardsHtml: stolenCardsHtml,
       });
     } else {
       steps.push({ text: `${getPlayerNameOrYou(ev.attacker)}はゲート侵攻成功！\n${getPlayerNameOrYou(ev.defender)}の手札枚数が半分未満のため、奪えるカードはありません。` });
