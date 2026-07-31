@@ -18,6 +18,7 @@ export const PET_OPTIONS = [
   { emoji: "🐹", label: "ハムスター" },
   { emoji: "🦊", label: "きつね" },
   { emoji: "🐉", label: "ドラゴン" },
+  { emoji: null, label: "なし（非表示）" }, // ペットを表示しない（ユーザー要望）
 ];
 
 const STORAGE_KEY = "so7-pet-index";
@@ -44,9 +45,9 @@ export function setSelectedPetIndex(i) {
   helpers?.render?.();
 }
 
-// 座席seatのペット絵文字。自分はローカル選択、それ以外は既定（将来は同期ロスターを見る）。
+// 座席seatのペット絵文字。自分はローカル選択（「なし」を選ぶと null=非表示）、それ以外は既定。
 export function getPetEmojiForSeat(seat) {
-  if (!seat || seat === getSelfSeat()) return PET_OPTIONS[selectedIndex].emoji;
+  if (!seat || seat === getSelfSeat()) return PET_OPTIONS[selectedIndex].emoji; // null なら非表示
   return PET_OPTIONS[0].emoji; // TODO(sync): 相手の座席の選択を同期ロスターから引く
 }
 
@@ -85,7 +86,7 @@ export function openPetPicker() {
     if (idx === selectedIndex) swatch.classList.add("is-selected");
     const face = document.createElement("span");
     face.className = "pet-picker-emoji";
-    face.textContent = opt.emoji;
+    face.textContent = opt.emoji ?? "🚫"; // 「なし」は🚫で表す
     const label = document.createElement("span");
     label.className = "pet-picker-label";
     label.textContent = opt.label;

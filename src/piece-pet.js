@@ -164,9 +164,15 @@ function tick(now) {
     const localSize = deltaToLocal(r.width);
     const fontPx = Math.max(10, localSize * tuning.size);
 
-    // ペットの絵文字を所有者の選択に合わせる（変わった時だけ差し替え）。
+    // ペットの絵文字を所有者の選択に合わせる（変わった時だけ差し替え）。「なし」選択時は
+    // getPetEmojiForSeatがnullを返す＝そのペットを非表示にする（ユーザー要望）。
     const owner = piece.dataset.owner || "";
-    const emojiChar = getPetEmojiForSeat(owner) || PET_EMOJI;
+    const emojiChar = getPetEmojiForSeat(owner);
+    if (!emojiChar) {
+      pet.el.style.display = "none";
+      continue; // このペットは表示しない
+    }
+    if (pet.el.style.display === "none") pet.el.style.display = "";
     if (pet.emojiChar !== emojiChar) {
       pet.emoji.textContent = emojiChar;
       pet.emojiChar = emojiChar;

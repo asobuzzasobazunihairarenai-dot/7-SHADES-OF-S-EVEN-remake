@@ -33,6 +33,7 @@ import {
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { subscribe, getState, isOnlineMode, notifyListeners } from "./state.js";
 import { playWaitingBgm, stopWaitingBgm } from "./sound.js";
+import { closeHomeScreen } from "./home-screen.js";
 
 // 部屋名の文字数上限。部屋一覧・ヘッダーの部屋バッジ等、限られた幅に表示する箇所が
 // 複数あるため、極端に長い部屋名で崩れないよう作成時点で制限する（サーバー側
@@ -153,6 +154,10 @@ async function renderPanelContent() {
     } else {
       // ユーザー要望のロビー刷新: 部屋に入ったら待機モーダルではなく、盤面へ遷移して
       // 中央にロビーモーダルを出す（対局前=座席未割り当てのとき）。対局中（再開）なら盤面のみ。
+      // ユーザー報告「盤面が出ない」の対応: ホーム画面(#home-screen、z-index:1500)が開いたまま
+      // だと盤面を覆ってしまうため、盤面へ移る時にホーム画面を閉じる（フレンドリーマッチは
+      // ホームを閉じずにこのパネルを開くため、ここで閉じる）。
+      closeHomeScreen();
       markOnlineIntentActive();
       closePanel();
       if (getMySeat()) {
