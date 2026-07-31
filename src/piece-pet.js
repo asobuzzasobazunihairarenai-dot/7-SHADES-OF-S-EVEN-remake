@@ -4,19 +4,53 @@
 // にする——絵文字はもともと平面のグリフなので、無理に立体化せず「足元の影＋上下のホップ」で
 // 生き物感を出す方が自然で軽い。
 //
-// 実装方針: ゲーム状態(state.js)には一切触れない純粋な装飾レイヤー。画面座標のオーバーレイ
-// (#piece-pet-layer、pointer-events:none)を1枚だけ用意し、requestAnimationFrameのループで、
-// 今DOMにある各駒の画面位置(getBoundingClientRect)へバネのように寄せていく（＝遅れて追従）。
-// 駒はrender()のたびにDOMが作り直されるが、このレイヤーは作り直さず、tokenIdでペットを対応
-// づけて位置だけ更新するので、駒の再生成やremote-move-animatorのアニメにも自然に追従する。
+// 座標系の注意（重要・実機でペットが駒とズレて出た不具合の原因）: このオーバーレイ
+// (#piece-pet-layer)はbody直下にあり、bodyにはステージのtransform（translate+scale、
+// main.jsのapplyViewportStage参照）が掛かっている。そのため中の要素は「ステージのローカル座標
+// （1600×900）」で配置される。一方 getBoundingClientRect() は実画面ピクセルを返すので、駒の
+// 画面位置をそのまま translate に使うとステージのscale/offsetぶんズレる。ドラッグゴーストと
+// 同じく stageClientToLocal() で画面座標→ステージ座標へ変換し、サイズも stageDelta() で
+// ローカル単位に直してから使う（main.jsから注入してもらう）。
 //
 // ドラッグ中のゴーストや自分ステータス欄の小さな駒サムネイルはbuildCubePiece()を data-token-id
 // 無しで使うため、セレクタ .piece[data-token-id] には引っかからない＝盤面の本物の駒だけが対象。
 
 const PET_EMOJI = "🐥"; // 仮のペット（後で着せ替え／本番画像に差し替え予定・ここを変えるだけ）
-const FOLLOW = 0.16; // 追従の強さ（小さいほど遅れて＝ゆっくり追いかける）
-const OFFSET_X = 0.55; // 駒の横幅に対する右方向オフセット（駒の右隣に立つ）
-const OFFSET_Y = 0.12; // 駒の足元より少し上に着地させる微調整
+
+// 位置・大きさ・追従速度は管理者モードから微調整できる（ユーザー要望）。管理者パネルの
+// スライダーは :root のCSS変数を書き換える方式（admin.jsのsetVar）なので、ここではその
+// CSS変数を読むだけにして統合する。値が変わるたびadmin.jsが "admin:change" を投げるので、
+// それを拾ってキャッシュし直す（毎フレームgetComputedStyleしないための最適化）。
+const DEFAULTS = {
+  offsetX: 0.55, // 駒の横幅に対する右方向オフセット（＋で右・−で左）
+  offsetY: 0.12, // 駒の足元からの縦オフセット（＋で少し上）
+  size: 0.85, // 駒の幅に対するペットの大きさ倍率
+  follow: 0.16, // 追従の強さ（小さいほど遅れて＝ゆっくり追う。0〜1）
+};
+const CSS_VARS = {
+  offsetX: "--pet-offset-x",
+  offsetY: "--pet-offset-y",
+  size: "--pet-size",
+  follow: "--pet-follow",
+};
+let tuning = { ...DEFAULTS };
+function refreshTuning() {
+  const cs = getComputedStyle(document.documentElement);
+  const next = { ...DEFAULTS };
+  for (const key in CSS_VARS) {
+    const v = parseFloat(cs.getPropertyValue(CSS_VARS[key]));
+    if (Number.isFinite(v)) next[key] = v;
+  }
+  tuning = next;
+}
+
+// 画面座標→ステージ座標の変換（main.jsから注入）。未注入時は等倍フォールバック。
+let clientToLocal = (x, y) => ({ x, y });
+let deltaToLocal = (px) => px;
+export function registerPiecePetHelpers({ stageClientToLocal, stageDelta } = {}) {
+  if (typeof stageClientToLocal === "function") clientToLocal = stageClientToLocal;
+  if (typeof stageDelta === "function") deltaToLocal = stageDelta;
+}
 
 let layerEl = null;
 const pets = new Map(); // tokenId -> { el, emoji, x, y, placed, phase }
@@ -33,6 +67,9 @@ export function initPiecePets() {
   } catch (e) {
     /* 非対応環境はホップありのまま */
   }
+  refreshTuning();
+  // 管理者スライダーで --pet-* を変えたら拾い直す（admin.jsが値変更ごとに投げる）。
+  window.addEventListener("admin:change", refreshTuning);
   running = true;
   requestAnimationFrame(tick);
 }
@@ -57,8 +94,7 @@ function tick(now) {
   if (!layerEl) return;
   const seen = new Set();
   for (const piece of document.querySelectorAll(".piece[data-token-id]")) {
-    // まだ登場前（配布演出中）の駒にはペットを出さない。
-    if (piece.classList.contains("is-setup-pending")) continue;
+    if (piece.classList.contains("is-setup-pending")) continue; // 配布演出中の駒は対象外
     const r = piece.getBoundingClientRect();
     if (r.width === 0 && r.height === 0) continue; // 非表示（レイアウト外）はスキップ
     const id = piece.dataset.tokenId;
@@ -68,27 +104,28 @@ function tick(now) {
       pet = makePet();
       pets.set(id, pet);
     }
-    const size = r.width;
-    // 目標＝駒の足元の少し右（ビルボードの底辺中央がこの点に来るようにする）
-    const tx = r.left + r.width / 2 + size * OFFSET_X;
-    const ty = r.bottom - size * OFFSET_Y;
+    // 目標＝駒の足元＋オフセット（まず実画面座標で出し、ステージ座標へ変換する）。
+    const screenX = r.left + r.width / 2 + r.width * tuning.offsetX;
+    const screenY = r.bottom - r.width * tuning.offsetY;
+    const local = clientToLocal(screenX, screenY);
     if (!pet.placed) {
-      pet.x = tx;
-      pet.y = ty;
+      pet.x = local.x;
+      pet.y = local.y;
       pet.placed = true;
     } else {
-      pet.x += (tx - pet.x) * FOLLOW;
-      pet.y += (ty - pet.y) * FOLLOW;
+      const f = Math.min(1, Math.max(0.02, tuning.follow));
+      pet.x += (local.x - pet.x) * f;
+      pet.y += (local.y - pet.y) * f;
     }
-    const fontPx = Math.max(12, size * 0.85);
+    // 大きさもステージ座標（ローカル単位）に直す。駒の画面幅→ローカル幅へ変換。
+    const localSize = deltaToLocal(r.width);
+    const fontPx = Math.max(10, localSize * tuning.size);
     const hop = reduceMotion ? 0 : Math.abs(Math.sin(now / 260 + pet.phase)) * fontPx * 0.22;
     pet.el.style.fontSize = `${fontPx}px`;
-    // 底辺中央を足元(pet.x,pet.y)に合わせる。
+    // 底辺中央を足元(pet.x,pet.y)へ。
     pet.el.style.transform = `translate(${pet.x}px, ${pet.y}px) translate(-50%, -100%)`;
-    // 絵文字だけ上下にホップ（影は足元に残るので接地感が出る）。
-    pet.emoji.style.transform = `translateY(${-hop}px)`;
+    pet.emoji.style.transform = `translateY(${-hop}px)`; // 絵文字だけホップ（影は接地に残る）
   }
-  // 盤面から消えた駒のペットは片付ける。
   for (const [id, pet] of pets) {
     if (!seen.has(id)) {
       pet.el.remove();

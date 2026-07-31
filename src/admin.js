@@ -291,6 +291,19 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー要望「駒に追従する飾りペットの位置を微調整できるように、管理者モードに位置調整を
+    // 追加して」。値は :root のCSS変数として持ち、piece-pet.jsが読む（admin:changeで反映）。
+    // 既定値はpiece-pet.jsのDEFAULTSと必ず一致させること。
+    title: "駒の追従ペット（飾り）",
+    category: "effect",
+    controls: [
+      { key: "--pet-offset-x", label: "横位置（駒幅比・＋で右／−で左）", unit: "", min: -1.5, max: 1.5, step: 0.05, default: 0.55 },
+      { key: "--pet-offset-y", label: "縦位置（駒の足元から・＋で上）", unit: "", min: -0.5, max: 1, step: 0.02, default: 0.12 },
+      { key: "--pet-size", label: "大きさ（駒幅比）", unit: "", min: 0.3, max: 2.5, step: 0.05, default: 0.85 },
+      { key: "--pet-follow", label: "追従の速さ（大きいほどキビキビ）", unit: "", min: 0.02, max: 0.6, step: 0.02, default: 0.16 },
+    ],
+  },
+  {
     title: "効果音の音量（個別）",
     category: "effect",
     controls: [

@@ -134,7 +134,7 @@ import { initTutorialAutoStart, registerTutorialStageHelpers } from "./tutorial.
 // チュートリアルCPU戦（台本化された練習試合）へ、ロック効果アニメとステージ座標変換を注入する。
 import { registerTutorialBattleHelpers, isTutorialBattleActive } from "./tutorial-battle.js";
 import { isAutoDragRestrictionEnabled } from "./auto-drag-restriction.js";
-import { initPiecePets } from "./piece-pet.js";
+import { initPiecePets, registerPiecePetHelpers } from "./piece-pet.js";
 // 「ロック前・手札使用前」の確認モーダルを出すかどうかの設定（全デバイス共通、
 // 「今後表示しない」でオフ・オプションの基本設定でオンに戻せる）。
 import { isActionConfirmEnabled, setActionConfirmEnabled } from "./action-confirm-prefs.js";
@@ -8854,6 +8854,7 @@ initQuickStart();
 initPhaseGuide();
 registerTutorialStageHelpers({ stageClientToLocal, stageDelta, stageWidth: STAGE_WIDTH, stageHeight: STAGE_HEIGHT });
 registerTutorialBattleUiHelpers({ stageClientToLocal, stageDelta, stageWidth: STAGE_WIDTH, stageHeight: STAGE_HEIGHT });
+registerPiecePetHelpers({ stageClientToLocal, stageDelta }); // 飾りペットの座標をステージ座標へ
 registerTutorialBattleHelpers({ triggerLockEffect, playScriptedContact, flyBoardCardToHand, flyDrawnCardToHand });
 initTutorialAutoStart();
 initGameBgmAutoStart();
