@@ -13,12 +13,12 @@
 // ユーザー提供のエクスポートを焼き込み済み。avatar-bg（巨大半透明アバター）は新規追加のため
 // 仮の初期値——編集モードで位置・大きさを調整し、再エクスポートして差し替えてください。
 export const PROFILE_LAYOUT = {
-  "avatar-bg": { x: -200, y: 40, scale: 3 },
-  avatar: { x: -354, y: 62, scale: 6 },
-  "avatar-change": { x: 6, y: 588, scale: 1.97 },
+  avatar: { x: -283, y: 7, scale: 6 },
+  "avatar-bg": { x: -483, y: -206, scale: 4.5 },
+  "avatar-change": { x: 135, y: 535, scale: 1.97 },
   cosmetics: { x: 418, y: 51, scale: 1.5 },
-  name: { x: -323, y: 647, scale: 3.01 },
-  stats: { x: 427, y: 197, scale: 1.88 },
+  name: { x: -268, y: 594, scale: 3.01 },
+  stats: { x: 423, y: 161, scale: 1.88 },
 };
 
 const HANDLE_DIRS = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
@@ -71,6 +71,13 @@ export function applyProfileLayout(container) {
       card.style.maxWidth = "96vw";
       card.style.background = "none";
       card.style.border = "none";
+      // ユーザー報告「マイページがマウスホイールで上下にスクロールされちゃう」。焼き込み
+      // レイアウトは絶対配置の固定コンポジションで、特に巨大な背面アバター(avatar-bg)が
+      // 負のY(上方向)に配置されるため、スクロール可能な器(my-page-panelのoverflow-y:auto)
+      // だとホイールで上下に動いてしまう。編集モードでは要素を掴んで動かすためスクロール
+      // 可能にしておくが、通常の焼き込み表示ではスクロールを止める（はみ出す背面アバターは
+      // そのままクリップ＝カードいっぱいに広がる意図どおりの見た目になる）。
+      card.style.overflow = editMode ? "auto" : "hidden";
     }
     container.style.width = "100%";
   } else {
@@ -79,6 +86,7 @@ export function applyProfileLayout(container) {
       card.style.maxWidth = "";
       card.style.background = "";
       card.style.border = "";
+      card.style.overflow = "";
     }
     container.style.width = "";
   }

@@ -501,11 +501,28 @@ export function initOptionsMenu() {
   panel.id = "options-menu-panel";
   panel.style.display = "none";
 
+  // ユーザー報告「マイページを開いた状態でオプションを出すと、他の場所をクリックしても
+  // オプションが閉じない」。オプションは透明backdrop(z-index 890)のクリックで閉じる方式だが、
+  // マイページ等のより手前のモーダル（backdrop z-index 2300）が開いていると、外側クリックが
+  // そちらに奪われてオプションのbackdropに届かず、1クリックでは閉じない。backdropの重なりに
+  // 依存しないよう、オプションが開いている間はドキュメント全体のpointerdown（キャプチャ相）で
+  // 「オプションのパネル外かつオプションボタン外」のクリックを検知して閉じる。パネル内や
+  // オプションボタン自身、およびオプションから開く子パネル（管理者/山札一覧）内のクリックは
+  // 閉じない（それらを触っている最中に裏でオプションが消えないように）。
+  function onDocPointerDown(e) {
+    const t = e.target;
+    if (panel.contains(t)) return;
+    if (document.getElementById("options-menu-button")?.contains(t)) return;
+    if (t.closest?.("#admin-panel, #deck-viewer-panel, #profile-layout-export")) return;
+    close();
+  }
   function close() {
     panel.style.display = "none";
     backdrop.style.display = "none";
+    document.removeEventListener("pointerdown", onDocPointerDown, true);
   }
   function open() {
+    document.addEventListener("pointerdown", onDocPointerDown, true);
     // 開くたびに中身を作り直す。パネルは起動時に1回だけ組み立てる方式だと、その時点では
     // まだアカウントの設定（online.jsのloadMyPreferences、ログイン直後に非同期で読み込む）が
     // 間に合っておらず、チェックボックス・スライダー・ショートカットキーの表示が起動直後の
