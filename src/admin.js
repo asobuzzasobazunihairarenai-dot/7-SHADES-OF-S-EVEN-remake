@@ -832,11 +832,11 @@ const GROUPS = [
       { key: "--icon-pos-options-touch-x", label: "オプション 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 1.7 },
       { key: "--icon-pos-options-touch-y", label: "オプション 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -0.9 },
       { key: "--icon-size-options-touch", label: "オプション サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 6 },
-      { key: "--icon-pos-piece-hide-touch-x", label: "駒消し 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--icon-pos-piece-hide-touch-y", label: "駒消し 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -20 },
+      { key: "--icon-pos-piece-hide-touch-x", label: "駒消し 位置X（タブレット）", unit: "rem", min: -40, max: 40, step: 0.1, default: 0 },
+      { key: "--icon-pos-piece-hide-touch-y", label: "駒消し 位置Y（タブレット）", unit: "rem", min: -40, max: 40, step: 0.1, default: -20 },
       { key: "--icon-size-piece-hide-touch", label: "駒消し サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 6 },
-      { key: "--icon-pos-card-hide-touch-x", label: "カード消し 位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 6.7 },
-      { key: "--icon-pos-card-hide-touch-y", label: "カード消し 位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: -16.3 },
+      { key: "--icon-pos-card-hide-touch-x", label: "カード消し 位置X（タブレット）", unit: "rem", min: -40, max: 40, step: 0.1, default: 6.7 },
+      { key: "--icon-pos-card-hide-touch-y", label: "カード消し 位置Y（タブレット）", unit: "rem", min: -40, max: 40, step: 0.1, default: -16.3 },
       { key: "--icon-size-card-hide-touch", label: "カード消し サイズ（タブレット）", unit: "rem", min: 1.2, max: 6, step: 0.1, default: 6 },
       // ユーザー要望「タブレット専用位置調整に優先権譲渡ボタン・公開ドロー・
       // フェイズ案内・オンラインアイコンを追加」への対応。
@@ -923,6 +923,17 @@ const GROUPS = [
     category: "phone",
     controls: [
       { key: "--admin-panel-scale-phone", label: "管理者モーダル サイズ倍率（スマホ）", unit: "", min: 0.5, max: 2, step: 0.05, default: 1 },
+    ],
+  },
+  {
+    // ユーザー要望「スマホでの左下のアバターをもう少し小さくしたい。管理者モードで調整
+    // できるように」。左下の自分アバター(.self-status-large-avatar)とランクリングは
+    // どちらも --self-status-large-avatar-size から算出されるため、スマホ時だけこの変数を
+    // 差し替える専用値(--self-status-large-avatar-size-phone)を調整する（style.css参照）。
+    title: "📱 スマホ専用：左下の自分アバターのサイズ",
+    category: "phone",
+    controls: [
+      { key: "--self-status-large-avatar-size-phone", label: "左下アバター サイズ（スマホ）", unit: "rem", min: 4, max: 16, step: 0.2, default: 12 },
     ],
   },
   {

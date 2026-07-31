@@ -185,6 +185,19 @@ body.is-touch-device .scene {
   -webkit-touch-callout: none;
 }
 
+/* ユーザー報告「スマホで画像を長押しすると『写真に保存/共有/コピー』のメニューが出て
+   保存できてしまう」。.game-tableに -webkit-touch-callout: none を付けていても、iOSは
+   <img>要素については祖先からの継承だけでは抑止しきれずネイティブのコールアウトメニューを
+   出すことがあるため、全画像に直接指定して長押し保存・画像ドラッグを封じる。カードの
+   長押し拡大（main.jsのstartTouchHoldOrByDragによる独自ハンドラ）はこの指定と競合しない。 */
+img {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
 .zone {
   background: transparent;
   border: none;
@@ -931,7 +944,11 @@ body.reduce-glow [style*="rainbow-shard.webp"]::after {
   background-position: center;
   background-repeat: no-repeat;
   pointer-events: none;
-  z-index: 10000;
+  /* ユーザー報告「スマホで手札を拡大している最中に『ロックしますか？』モーダルが拡大より
+     手前に出て、拡大内容が読めない」。カードの拡大プレビューは読むための最前面表示なので、
+     操作確認モーダル(#touch-action-confirm-modal, z-index:10611)より前に出す。
+     pointer-events:none のためモーダルのボタン操作は透過して妨げない。 */
+  z-index: 10700;
   display: none;
 }
 
@@ -5329,6 +5346,13 @@ body.is-touch-device #self-hand-status {
   width: var(--self-status-large-avatar-size, 12rem);
   height: var(--self-status-large-avatar-size, 12rem);
 }
+/* スマホでは左下の自分アバターのサイズ変数を専用値に差し替える（ユーザー要望「もう少し
+   小さくしたい」）。この変数はアバター本体(.avatar-image)・絵文字のfont-size・ランクリング
+   のすべての算出元なので、ここを差し替えるだけで全部まとめて縮む。管理者モードの
+   「左下アバター サイズ（スマホ）」スライダーで --self-status-large-avatar-size-phone を調整可能。 */
+body.is-phone-device {
+  --self-status-large-avatar-size: var(--self-status-large-avatar-size-phone, 12rem);
+}
 /* ユーザー要望「戦績システムと連携しているプレイヤーはステータスエリアにランクを
    表示させたい」。姉妹プロジェクト（戦績管理システム）のgetTierInfo/renderAvatarRingHtml
    と同じ見た目（対戦数に応じた色付きリング、15戦以上は虹色の回転リング）を、
@@ -8897,6 +8921,10 @@ body.is-online-mode #quick-start-bar {
   --self-status-icon-online-size: 2.6rem;
   --self-status-icon-gap: 0.4rem;
   --self-status-large-avatar-size: 16rem;
+  /* スマホでは左下の自分アバターが大きすぎるとの報告。スマホ時だけ下のbody.is-phone-device
+     ルールでサイズ変数をこの専用値に差し替える（アバター本体もランクリングも同じ変数から
+     算出されるので一緒に縮む）。管理者モードの「左下アバター サイズ（スマホ）」で調整可能。 */
+  --self-status-large-avatar-size-phone: 12rem;
   --self-status-large-avatar-pos-x: -0.86rem;
   --self-status-large-avatar-pos-y: -11.3rem;
   --self-status-pos-x: 0rem;
