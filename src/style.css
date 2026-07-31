@@ -1001,8 +1001,8 @@ body.reduce-glow [style*="rainbow-shard.webp"]::after {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  align-items: center;
-  gap: 0.6rem;
+  flex-direction: column;
+  gap: 0.3rem;
   padding: 0.35rem 0.6rem 0.35rem 0.9rem;
   background: rgba(190, 24, 93, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.4);
@@ -1012,6 +1012,21 @@ body.reduce-glow [style*="rainbow-shard.webp"]::after {
   font-weight: bold;
   z-index: 10050;
   box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.5);
+}
+/* バナー本体（ラベル・更新ボタン・閉じる）の横並び。ハードリフレッシュ案内(update-banner-hint)を
+   下に積めるよう、外側は縦積み(flex-direction:column)にしてこの行だけ横並びにする。 */
+#update-available-banner .update-banner-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+/* 前回の更新が空振りだった時だけ出すハードリフレッシュ手順（update-checker.js参照）。 */
+#update-available-banner .update-banner-hint {
+  font-size: 0.72rem;
+  font-weight: normal;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.92);
+  padding: 0 0.2rem 0.1rem;
 }
 .update-banner-reload {
   font-size: 0.78rem;

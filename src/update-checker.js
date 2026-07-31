@@ -18,7 +18,32 @@ const CHECK_INTERVAL_MS = 60000; // 60秒ごと
 // 食い違うので確実に検知できる。
 let loadedVersion = APP_VERSION;
 let updateAvailable = false; // 新しいバージョンを検知済みか
+let latestVersion = null; // サーバー側の最新版（バナーの「更新」対象。更新試行の記録に使う）
 let dismissed = false; // このセッションでユーザーがバナーを閉じたか（新バージョンが来たら解除）
+
+const UPDATE_ATTEMPT_KEY = "so7-update-attempt"; // 直近に「更新する」で目指した版（sessionStorage）
+
+// 直前の更新試行が空振りだったか（＝「更新する」を押してリロードしたのに、まだ古いコードが
+// 動いている）。GitHub Pagesは全アセットをmax-age=600でキャッシュするため、環境によっては
+// cache:"reload"での取り直しでも反映されないことがある。その場合だけハードリフレッシュを案内する。
+function priorUpdateAttemptFailed() {
+  try {
+    const attempted = sessionStorage.getItem(UPDATE_ATTEMPT_KEY);
+    return !!attempted && attempted !== APP_VERSION;
+  } catch (e) {
+    return false;
+  }
+}
+
+// 今動いているコードが、前回目指した版に追いついていたら記録を消す（更新成功）。
+function clearAttemptIfCaughtUp() {
+  try {
+    const attempted = sessionStorage.getItem(UPDATE_ATTEMPT_KEY);
+    if (attempted && attempted === APP_VERSION) sessionStorage.removeItem(UPDATE_ATTEMPT_KEY);
+  } catch (e) {
+    /* sessionStorage不可の環境では何もしない */
+  }
+}
 
 // バナーを今出してよいかの判定（ユーザー要望「対局中は出さない、終われば出す」）。main.jsが
 // setUpdateBannerGateで「対局中でない時だけtrue」を渡す。未設定なら常に出してよい扱い。
@@ -50,10 +75,54 @@ async function fetchVersion() {
   }
 }
 
+// 「更新する」の本体。GitHub Pagesはindex.html・JS・CSSを全てmax-age=600でキャッシュするため、
+// 普通のlocation.reload()（ソフト再読み込み）ではサブリソース（JS）が古いキャッシュから
+// 再利用され、コードが更新されない（＝バナーが延々と再表示される。ユーザー報告）。そこで
+// 再読み込み前に、今読み込まれている同一オリジンのJS/CSS＋index.htmlを cache:"reload" で
+// 取り直してHTTPキャッシュを最新へ更新してから reload する。これで通常はハードリフレッシュ
+// 無しで反映される。
+async function refreshCachedAssets() {
+  const urls = new Set();
+  try {
+    for (const entry of performance.getEntriesByType("resource")) {
+      const name = (entry.name || "").split("#")[0];
+      if (!name.startsWith(location.origin)) continue;
+      if (entry.initiatorType === "script" || entry.initiatorType === "link" || /\.(?:m?js|css)(?:\?|$)/.test(name)) {
+        urls.add(name);
+      }
+    }
+  } catch (e) {
+    /* performance API不可なら下のindex.htmlだけ更新して続行 */
+  }
+  urls.add(location.href.split("#")[0].split("?")[0]); // index.html自身
+  await Promise.all([...urls].map((u) => fetch(u, { cache: "reload" }).catch(() => {})));
+}
+
+async function applyUpdate(btn) {
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "更新中…";
+  }
+  try {
+    if (latestVersion) sessionStorage.setItem(UPDATE_ATTEMPT_KEY, latestVersion);
+  } catch (e) {
+    /* sessionStorage不可でも続行 */
+  }
+  try {
+    await refreshCachedAssets();
+  } catch (e) {
+    /* 取り直しに失敗してもreloadは試みる */
+  }
+  location.reload();
+}
+
 function showUpdateBanner() {
   if (document.getElementById("update-available-banner")) return;
   const banner = document.createElement("div");
   banner.id = "update-available-banner";
+
+  const row = document.createElement("div");
+  row.className = "update-banner-row";
 
   const label = document.createElement("span");
   label.className = "update-banner-label";
@@ -63,7 +132,7 @@ function showUpdateBanner() {
   reloadBtn.type = "button";
   reloadBtn.className = "update-banner-reload";
   reloadBtn.textContent = "更新する";
-  reloadBtn.addEventListener("click", () => location.reload());
+  reloadBtn.addEventListener("click", () => applyUpdate(reloadBtn));
 
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
@@ -77,15 +146,30 @@ function showUpdateBanner() {
     dismissed = true;
   });
 
-  banner.appendChild(label);
-  banner.appendChild(reloadBtn);
-  banner.appendChild(closeBtn);
+  row.appendChild(label);
+  row.appendChild(reloadBtn);
+  row.appendChild(closeBtn);
+  banner.appendChild(row);
+
+  // 前回「更新する」を押したのに反映されなかった場合だけ、ハードリフレッシュの手順を添える
+  // （ユーザー要望「戸惑わないようにハードリフレッシュの案内も入れる」）。通常は出さない。
+  if (priorUpdateAttemptFailed()) {
+    banner.classList.add("has-hint");
+    const hint = document.createElement("div");
+    hint.className = "update-banner-hint";
+    const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
+    const combo = isMac ? "⌘ + Shift + R" : "Ctrl + Shift + R";
+    hint.textContent = `うまく更新されない場合は、キーボードで ${combo} を押して再読み込みしてください。`;
+    banner.appendChild(hint);
+  }
+
   document.body.appendChild(banner);
 }
 
 async function check() {
   const v = await fetchVersion();
   if (!v) return;
+  latestVersion = v;
   if (v !== loadedVersion) {
     updateAvailable = true;
     dismissed = false; // 新バージョン検知時は、以前閉じていても改めて出せるようにする
@@ -94,6 +178,14 @@ async function check() {
 }
 
 export function initUpdateChecker() {
+  // リソース計測バッファを広げておく（既定250だと画像等で溢れてJSモジュールの記録が
+  // 取りこぼされ得るため）。refreshCachedAssets()が全JS/CSSを確実に取り直せるようにする保険。
+  try {
+    performance.setResourceTimingBufferSize(1000);
+  } catch (e) {
+    /* 非対応環境は無視 */
+  }
+  clearAttemptIfCaughtUp(); // 前回の更新が成功していれば試行記録を消す（＝ハード案内を出さない）
   check(); // 実行中コード(APP_VERSION)とサーバー最新版をすぐ照合
   setInterval(check, CHECK_INTERVAL_MS);
   // タブに戻ってきた時にも即チェック（放置後に戻ってきた人にすぐ気づかせる）。
