@@ -30,6 +30,7 @@ import {
 } from "./online.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { playOpeningBgm, stopOpeningBgm } from "./sound.js";
+import { APP_VERSION } from "./app-version.js";
 import { isFlatten2dMode } from "./tablet-2d-mode.js";
 
 // フェードアウトのCSSトランジション時間と合わせる（style.cssの#opening-screen.is-closing、
@@ -443,6 +444,15 @@ export function initOpeningScreen() {
   testModeBtn.textContent = "テストモード";
   testModeBtn.title = "1画面で複数人分を動かせる検証用の盤面へ直接進みます（開発・動作確認用）";
   overlay.appendChild(testModeBtn);
+
+  // ユーザー要望「HUERISE画面の右下にバージョン番号（年月日時間の数字）をこっそり載せて」。
+  // どの版が動いているか一目で分かるようにする（キャッシュ更新の確認用にも役立つ）。
+  // testModeBtnと同じく#opening-screenの直接の子にして画面右下（1600x900仮想解像度基準）へ。
+  const versionBadge = document.createElement("div");
+  versionBadge.className = "opening-version-badge";
+  versionBadge.textContent = `v${APP_VERSION}`;
+  versionBadge.title = "アプリのバージョン（デプロイ日時）";
+  overlay.appendChild(versionBadge);
 
   // ユーザー要望の演出一式: 起動直後は真っ白な画面+7色のオーラ+STARTボタンだけを見せ
   // （.opening-start-gateがbg/dim/contentを覆い隠す）、STARTを押した瞬間にBGM再生・

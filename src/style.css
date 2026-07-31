@@ -8131,6 +8131,23 @@ body.is-online-mode #quick-start-bar {
   background: rgba(15, 23, 32, 0.6);
   color: rgba(226, 232, 240, 0.9);
 }
+/* HUERISE画面右下の控えめなバージョン表示（opening-screen.js）。白いスタート画面(#fff、
+   .opening-start-gate z-index:10)の上に出すためz-index:11。白背景でも、その後のタイトル
+   画像（暗め）でも読めるよう、暗い文字＋白い薄縁取り(text-shadow)にする。テストモード
+   ボタン(bottom:1rem)の下にこっそり置く。 */
+.opening-version-badge {
+  position: fixed;
+  right: 0.6rem;
+  bottom: 0.3rem;
+  z-index: 11;
+  font-family: sans-serif;
+  font-size: 0.6rem;
+  letter-spacing: 0.03em;
+  color: rgba(15, 23, 32, 0.5);
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.7);
+  pointer-events: none;
+  user-select: text;
+}
 @keyframes opening-screen-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
