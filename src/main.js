@@ -65,7 +65,7 @@ import {
   hasAnyGateInvasionCandidate,
 } from "./gate-invasion.js";
 import { announceHandPickups, announceCardLocked, announceDrawCount } from "./hand-announcer.js";
-import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained, reapplyGateInvasionModal } from "./gate-invasion-modal.js";
+import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained, reapplyGateInvasionModal, registerGateInvasionModalEternalAnim } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking, hasAnyoneWon } from "./victory.js";
 import { recordContactMade, recordCardUsed, recordLockSnapshot, initMatchStatsTracker } from "./match-stats-tracker.js";
 import { initPseudoCpuPrompt } from "./pseudo-cpu-prompt.js";
@@ -8971,6 +8971,9 @@ registerCounterLockHelpers({
 });
 registerEternalAnimHelpers(playEternalAcquisitionAnim);
 registerGateInvasionStealHelper(stealHandCardsRitualForGateInvasion);
+// オンラインのゲート侵攻（サーバー処理→受信モーダル経路）でも、ローカルと同じエターナル獲得の
+// 派手な演出（3Dフリップ＋色バースト）を出す（ユーザー要望）。純演出関数のため両経路で共用できる。
+registerGateInvasionModalEternalAnim(playEternalAcquisitionAnim);
 buildGameTitle();
 buildSpotlightOverlay();
 buildFinalLockApprovalBanner();

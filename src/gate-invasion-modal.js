@@ -10,6 +10,17 @@ import { isPickupVisible, getPlayerNameOrYou } from "./hand-announcer.js";
 import { createModalCloseX } from "./ui-helpers.js";
 import { getState } from "./state.js";
 import { logAction } from "./action-log.js";
+import { isFlightAnimationDisabled, isArrivalEffectDisabled } from "./motion-prefs.js";
+
+// ユーザー要望「ゲート侵攻のエターナル獲得のド派手な演出がオンラインで出ない（テストモードでは
+// 出る）」。ローカル版(gate-invasion.js)はrunEternalでeternalAnimHelper（3Dフリップ＋色バースト）
+// を再生するが、オンラインはサーバー処理＋この受信モーダル経路のため演出が載っていなかった。
+// main.jsの純演出関数(playEternalAcquisitionAnim)をここに注入し、エターナル獲得ステップで
+// モーダルの代わりに再生する（他の演出helperと同じregister注入パターン）。
+let eternalAnimHelper = null; // (attacker, cardId, cardDef, onDone) => void
+export function registerGateInvasionModalEternalAnim(fn) {
+  eternalAnimHelper = fn;
+}
 
 // 攻撃側本人の画面だけは、fetchAndHydrate()後の自分の手札として実際のcardIdが見えている
 // （RLSで自分の手札はマスクされないため）。それ以外の閲覧者には解決しない
@@ -74,6 +85,8 @@ function buildSteps(events) {
       steps.push({
         text: `${getPlayerNameOrYou(ev.attacker)}はエターナルカード「${def.name}」を獲得！\n自分のロックエリアにロックします。`,
         cardsHtml: buildCardsHtml(ev.attacker, [{ cardId: ev.eternalCardId, wasPublic: true }]),
+        // 演出が使える環境では、このステップをモーダルの代わりに派手な3Dフリップ演出で見せる。
+        eternalAnim: { attacker: ev.attacker, cardId: ev.eternalCardId },
       });
       if ((ev.bumpedCards ?? []).length > 0) {
         steps.push({
@@ -160,6 +173,29 @@ function closeCurrent() {
 }
 
 function showStep(step) {
+  // エターナル獲得ステップは、演出（3Dフリップ＋色バースト）が使える環境では、静的な
+  // モーダルの代わりにローカル版と同じ派手な演出を再生する（ユーザー要望）。演出は盤面の
+  // エターナル山・ロックスロットのDOM位置を読むため、盤面が見えているオンライン対局中に
+  // そのまま動く。演出完了(onDone)で次のステップへ。演出が使えない設定・helper未注入の
+  // 時は従来通り下のモーダル表示にフォールバックする。
+  if (step.eternalAnim && eternalAnimHelper && !isFlightAnimationDisabled() && !isArrivalEffectDisabled()) {
+    logAction("diag-gate-invasion-eternal-anim", { attacker: step.eternalAnim.attacker, cardId: step.eternalAnim.cardId });
+    const { attacker, cardId } = step.eternalAnim;
+    let advanced = false;
+    const goNext = () => {
+      if (advanced) return;
+      advanced = true;
+      advance();
+    };
+    try {
+      eternalAnimHelper(attacker, cardId, getCardDefinition(cardId), goNext);
+    } catch (err) {
+      console.error("gate-invasion-modal eternal anim failed", err);
+      goNext();
+    }
+    return;
+  }
+
   backdropEl = document.createElement("div");
   backdropEl.style.cssText = "position: fixed; inset: 0; z-index: 10001; background: rgba(0, 0, 0, 0.55);";
 
