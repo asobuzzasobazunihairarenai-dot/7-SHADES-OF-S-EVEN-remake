@@ -960,7 +960,12 @@ export async function loadMyPreferences() {
   // リスクのため）。2D表示・カード効果自動処理も同じ列追加が前提。
   if (typeof data.sound_volume_bgm === "number") setBgmVolume(data.sound_volume_bgm / 100);
   if (typeof data.flatten_2d_mode === "boolean") setFlatten2dMode(data.flatten_2d_mode);
-  if (typeof data.card_auto_processing_enabled === "boolean") setAutoProcessingEnabled(data.card_auto_processing_enabled);
+  // カード効果自動処理は「部屋（対局）ごとの共通設定」に変更した（ユーザー要望「自動処理
+  // モードは部屋にいる人全員共通に。常にONで開始」）。以前はここでso7_user_profilesの
+  // 個人保存値を毎ログインで適用していたため、過去に一度OFFにした人は既定ONのはずが
+  // 毎回OFFで起動してしまっていた（ユーザー報告「オンがデフォだったはずがオフになる」）。
+  // 個人保存には一切依存させず、常に既定ON（card-effect-engine.jsの初期値）で始め、
+  // 対局中の変更は既存の全員承認フロー（requestAutoProcessingToggle）で全員一致させる。
   if (typeof data.opponent_base_timer_visible === "boolean") setOpponentBaseTimerVisible(data.opponent_base_timer_visible);
   if (typeof data.action_confirm_enabled === "boolean") setActionConfirmEnabled(data.action_confirm_enabled);
   if (typeof data.flight_animation_disabled === "boolean") setFlightAnimationDisabled(data.flight_animation_disabled);

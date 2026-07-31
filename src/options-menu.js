@@ -723,7 +723,6 @@ export function initOptionsMenu() {
                 if (queue.length === 0) {
                   // 他に参加者がいない（承認不要で即時反映してよい）場合はそのまま切り替える。
                   setAutoProcessingEnabled(checked);
-                  saveMyPreference({ card_auto_processing_enabled: checked });
                   return;
                 }
                 try {
@@ -736,7 +735,6 @@ export function initOptionsMenu() {
                 return;
               }
               setAutoProcessingEnabled(checked);
-              saveMyPreference({ card_auto_processing_enabled: checked });
             }
           );
           content.appendChild(autoProcessingCheckboxRow);
@@ -857,7 +855,6 @@ export function initOptionsMenu() {
           icon: "⚙️",
           onReset: () => {
             setAutoProcessingEnabled(true);
-            saveMyPreference({ card_auto_processing_enabled: true });
             renderContent();
           },
         }
