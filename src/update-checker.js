@@ -8,7 +8,27 @@
 
 const CHECK_INTERVAL_MS = 60000; // 60秒ごと
 let loadedVersion = null; // ページを開いた時点のバージョン（最初の取得で確定）
-let bannerShown = false;
+let updateAvailable = false; // 新しいバージョンを検知済みか
+let dismissed = false; // このセッションでユーザーがバナーを閉じたか（新バージョンが来たら解除）
+
+// バナーを今出してよいかの判定（ユーザー要望「対局中は出さない、終われば出す」）。main.jsが
+// setUpdateBannerGateで「対局中でない時だけtrue」を渡す。未設定なら常に出してよい扱い。
+let canShowBanner = () => true;
+export function setUpdateBannerGate(fn) {
+  canShowBanner = typeof fn === "function" ? fn : () => true;
+}
+
+// 状況（対局の終了等）が変わった時にmain.jsから呼び、出せる状態なら出す。
+export function reevaluateUpdateBanner() {
+  maybeShowBanner();
+}
+
+function maybeShowBanner() {
+  if (!updateAvailable || dismissed) return;
+  if (document.getElementById("update-available-banner")) return;
+  if (!canShowBanner()) return; // 対局中などは保留（後でreevaluateされた時に出す）
+  showUpdateBanner();
+}
 
 async function fetchVersion() {
   try {
@@ -22,8 +42,7 @@ async function fetchVersion() {
 }
 
 function showUpdateBanner() {
-  if (bannerShown || document.getElementById("update-available-banner")) return;
-  bannerShown = true;
+  if (document.getElementById("update-available-banner")) return;
   const banner = document.createElement("div");
   banner.id = "update-available-banner";
 
@@ -44,8 +63,9 @@ function showUpdateBanner() {
   closeBtn.textContent = "×";
   closeBtn.addEventListener("click", () => {
     banner.remove();
-    // 閉じても、次にバージョンがさらに変わったらまた出せるようにフラグは戻す。
-    bannerShown = false;
+    // 一度閉じたらこのセッションでは再表示しない（対局終了のたびに何度も出て煩わしくならない
+    // ように）。さらに新しいバージョンが来た時はcheck()側でdismissedを解除して再度出す。
+    dismissed = true;
   });
 
   banner.appendChild(label);
@@ -61,7 +81,11 @@ async function check() {
     loadedVersion = v; // 初回＝このセッションの基準バージョン
     return;
   }
-  if (v !== loadedVersion) showUpdateBanner();
+  if (v !== loadedVersion) {
+    updateAvailable = true;
+    dismissed = false; // 新バージョン検知時は、以前閉じていても改めて出せるようにする
+    maybeShowBanner(); // 対局中なら保留され、reevaluateUpdateBanner()で後から出る
+  }
 }
 
 export function initUpdateChecker() {

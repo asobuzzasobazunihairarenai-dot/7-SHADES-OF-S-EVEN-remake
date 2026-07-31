@@ -129,7 +129,7 @@ import {
 import { initPlayerButtons } from "./player-buttons.js";
 import { initQuickStart } from "./quick-start.js";
 import { initPhaseGuide } from "./phase-guide.js";
-import { initUpdateChecker } from "./update-checker.js";
+import { initUpdateChecker, setUpdateBannerGate, reevaluateUpdateBanner } from "./update-checker.js";
 import { initTutorialAutoStart, registerTutorialStageHelpers } from "./tutorial.js";
 // チュートリアルCPU戦（台本化された練習試合）へ、ロック効果アニメとステージ座標変換を注入する。
 import { registerTutorialBattleHelpers, isTutorialBattleActive } from "./tutorial-battle.js";
@@ -4877,6 +4877,8 @@ function render() {
   // 演出が出ないという報告への対応。gate-invasion-modal.jsのreapplyGateInvasionModal参照）。
   reapplyGateInvasionModal();
   checkForVictory();
+  // 更新バナーは対局中は保留。対局終了・ホーム復帰などで状況が変わったここで再評価する。
+  reevaluateUpdateBanner();
   // ユーザー要望「効果自動処理がオンの時はフェイズも自動で流れるようにしよう」。
   // render()のたびに「今のフェイズでもう次へ進めるか」を判定する（他の再適用系処理
   // ・reapplyActiveHighlights等と同じ「呼び出し元がrender()の末尾で毎回呼ぶ」設計）。
@@ -8746,6 +8748,15 @@ registerPhaseAutomationHelpers({ render, findTopCardAt });
 initHelpButton();
 initRankingIcon();
 initUpdateChecker(); // デプロイ検知＆更新案内バナー（version.jsonを定期チェック）
+// ユーザー要望「更新バナーは対局中は出さない、対局が終われば出す」。対局が進行中
+// （参加者が居て・手番があり・まだ誰も勝っていない）またはチュートリアル中は保留し、
+// それ以外（ホーム画面・対局終了後）でだけ出す。判定が変わるたびrender()末尾で再評価する。
+function isInGameForBanner() {
+  const st = getState();
+  const inMatch = (st.activePlayers?.length ?? 0) > 0 && !!st.turnPlayer && !hasAnyoneWon();
+  return inMatch || isTutorialBattleActive();
+}
+setUpdateBannerGate(() => !isInGameForBanner());
 initDiscordLink();
 initBoardViewToggle(); // Discordアイコンと残金表示の間に2D/3D切り替えアイコンを置く（順序＝追加順）
 initCurrencyDisplay();

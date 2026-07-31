@@ -939,6 +939,61 @@ body.reduce-glow [style*="rainbow-shard.webp"]::after {
    main.jsのshowAllPieceNameBubblesが、各駒の画面上の位置に合わせてこの吹き出しを差し込む。
    #card-previewと同じ position:fixed・pointer-events:none 方式なので、盤面の3Dの傾きに
    影響されず常に正対して読める。駒の中心の少し上に、下向きの三角（吹き出しの尻尾）付きで出す。 */
+/* お知らせ／更新情報モーダル（changelog.js）。ホーム画面の「お知らせ」タイルから開く。 */
+#changelog-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(30rem, 92vw);
+  max-height: 82vh;
+  overflow-y: auto;
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.6rem;
+  padding: 1.2rem;
+  z-index: 2401;
+  font-family: sans-serif;
+  color: #e2e8f0;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+.changelog-modal-title {
+  font-weight: bold;
+  font-size: 1rem;
+  margin-bottom: 0.8rem;
+  padding-right: 1.6rem;
+  color: #fbbf24;
+}
+.changelog-entry {
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  padding: 0.7rem 0;
+}
+.changelog-entry:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+.changelog-date {
+  font-size: 0.8rem;
+  font-weight: bold;
+  color: #7dd3fc;
+  font-family: ui-monospace, monospace;
+  margin-bottom: 0.35rem;
+}
+.changelog-items {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.changelog-items li {
+  font-size: 0.85rem;
+  line-height: 1.6;
+  margin-bottom: 0.25rem;
+}
+.changelog-empty {
+  color: #94a3b8;
+  font-size: 0.85rem;
+  padding: 0.5rem 0;
+}
+
 /* デプロイ検知＆更新案内バナー（update-checker.js）。画面上部中央に固定。閉じられる。 */
 #update-available-banner {
   position: fixed;

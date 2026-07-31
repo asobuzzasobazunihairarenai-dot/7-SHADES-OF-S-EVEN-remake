@@ -22,6 +22,8 @@ import { openDeckViewer } from "./deck-viewer.js";
 import { openRankingPage } from "./ranking-page.js";
 // チュートリアルCPU戦（台本化された練習試合）。完全ローカル機能。
 import { startTutorialBattle } from "./tutorial-battle.js";
+// お知らせ／更新情報（デプロイのたびに概要を追記）。
+import { openChangelogModal } from "./changelog.js";
 
 let overlayEl = null;
 let toastEl = null;
@@ -59,7 +61,7 @@ const TILES = [
     },
   },
   { icon: "📖", label: "図鑑／ルールブック", status: "ready", onOpen: () => openDeckViewer() },
-  { icon: "📰", label: "お知らせ", status: "soon" },
+  { icon: "📰", label: "お知らせ／更新情報", status: "ready", onOpen: () => openChangelogModal() },
 ];
 
 // 「近日公開」タイルを押した時の軽いトースト。モーダルを挟むほどの重さは不要
