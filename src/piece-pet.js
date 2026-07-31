@@ -22,16 +22,20 @@ const PET_EMOJI = "🐥"; // 仮のペット（後で着せ替え／本番画像
 // CSS変数を読むだけにして統合する。値が変わるたびadmin.jsが "admin:change" を投げるので、
 // それを拾ってキャッシュし直す（毎フレームgetComputedStyleしないための最適化）。
 const DEFAULTS = {
-  offsetX: 0.55, // 駒の横幅に対する右方向オフセット（＋で右・−で左）
-  offsetY: 0.12, // 駒の足元からの縦オフセット（＋で少し上）
+  dist: 0.7, // 駒中心からゲート方向への距離（駒幅比）
+  lift: 0.05, // 高さ微調整（＋で少し上へ）
   size: 0.85, // 駒の幅に対するペットの大きさ倍率
   follow: 0.16, // 追従の強さ（小さいほど遅れて＝ゆっくり追う。0〜1）
+  wander: 0.35, // 駒の周りをうろつく範囲（駒幅比。0で歩き回らない）
+  liveliness: 1.0, // 跳ねる／飛ぶ動きの激しさ（0で大人しい）
 };
 const CSS_VARS = {
-  offsetX: "--pet-offset-x",
-  offsetY: "--pet-offset-y",
+  dist: "--pet-dist",
+  lift: "--pet-lift",
   size: "--pet-size",
   follow: "--pet-follow",
+  wander: "--pet-wander",
+  liveliness: "--pet-liveliness",
 };
 let tuning = { ...DEFAULTS };
 function refreshTuning() {
@@ -74,6 +78,8 @@ export function initPiecePets() {
   requestAnimationFrame(tick);
 }
 
+const rand = (a, b) => a + Math.random() * (b - a);
+
 function makePet() {
   const el = document.createElement("div");
   el.className = "piece-pet";
@@ -85,7 +91,29 @@ function makePet() {
   el.appendChild(shadow);
   el.appendChild(emoji);
   layerEl.appendChild(el);
-  return { el, emoji, x: 0, y: 0, placed: false, phase: Math.random() * Math.PI * 2 };
+  const now = performance.now();
+  // 各ペットに個別のランダムな癖を持たせて、全員が同じ動きにならないようにする（ユーザー要望）。
+  return {
+    el,
+    emoji,
+    x: 0,
+    y: 0,
+    placed: false,
+    phase: Math.random() * Math.PI * 2, // 小刻みホップの位相
+    hopFreq: rand(0.6, 1.4), // ホップの速さ（個体差）
+    hopAmp: rand(0.14, 0.28), // ホップの高さ（個体差）
+    wx: 0, // 現在のうろつきオフセット
+    wy: 0,
+    wtx: 0, // うろつきの目標オフセット
+    wty: 0,
+    nextWanderT: now + rand(0, 1500), // 次に歩く先を選ぶ時刻
+    jumpStart: -1, // 進行中の大ジャンプ開始時刻（-1で無し）
+    jumpDur: 0,
+    jumpH: 0,
+    nextJumpT: now + rand(1500, 5000), // 次に大ジャンプする時刻
+    pausedUntil: 0, // この時刻まで立ち止まる
+    nextPauseT: now + rand(3000, 8000), // 次に立ち止まる時刻
+  };
 }
 
 function tick(now) {
@@ -104,25 +132,82 @@ function tick(now) {
       pet = makePet();
       pets.set(id, pet);
     }
-    // 目標＝駒の足元＋オフセット（まず実画面座標で出し、ステージ座標へ変換する）。
-    const screenX = r.left + r.width / 2 + r.width * tuning.offsetX;
-    const screenY = r.bottom - r.width * tuning.offsetY;
-    const local = clientToLocal(screenX, screenY);
-    if (!pet.placed) {
-      pet.x = local.x;
-      pet.y = local.y;
-      pet.placed = true;
-    } else {
-      const f = Math.min(1, Math.max(0.02, tuning.follow));
-      pet.x += (local.x - pet.x) * f;
-      pet.y += (local.y - pet.y) * f;
+    // アンカー＝駒の「自ゲート側」（画面上の方向。main.jsのdataset.gateSide）。実画面座標で
+    // 求めてからステージ座標へ変換する。
+    const side = piece.dataset.gateSide || "bottom";
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const dist = tuning.dist * r.width;
+    let ax = cx;
+    let ay = r.bottom;
+    if (side === "bottom") {
+      ay = r.bottom + dist; // 手前（下）へ
+    } else if (side === "top") {
+      ay = r.top - dist; // 奥（上）へ
+    } else if (side === "left") {
+      ax = r.left - dist;
+      ay = cy;
+    } else if (side === "right") {
+      ax = r.right + dist;
+      ay = cy;
     }
-    // 大きさもステージ座標（ローカル単位）に直す。駒の画面幅→ローカル幅へ変換。
+    ay -= tuning.lift * r.width; // 高さ微調整
+    const local = clientToLocal(ax, ay);
     const localSize = deltaToLocal(r.width);
     const fontPx = Math.max(10, localSize * tuning.size);
-    const hop = reduceMotion ? 0 : Math.abs(Math.sin(now / 260 + pet.phase)) * fontPx * 0.22;
+
+    // 立ち止まり（ランダムに止まる）。
+    if (now >= pet.nextPauseT) {
+      pet.pausedUntil = now + rand(500, 1800);
+      pet.nextPauseT = now + rand(3500, 9000);
+    }
+    const paused = now < pet.pausedUntil;
+
+    // うろつき（駒の周りを歩き回る）。止まっていない時だけ目標を更新して寄せる。
+    if (!paused) {
+      if (now >= pet.nextWanderT) {
+        const radius = tuning.wander * localSize;
+        const angle = Math.random() * Math.PI * 2;
+        const rr = Math.random() * radius;
+        pet.wtx = Math.cos(angle) * rr;
+        pet.wty = Math.sin(angle) * rr * 0.5; // 縦は控えめ＝地面を歩く感じ
+        pet.nextWanderT = now + rand(800, 2600);
+      }
+      pet.wx += (pet.wtx - pet.wx) * 0.03;
+      pet.wy += (pet.wty - pet.wy) * 0.03;
+    }
+
+    // 追従（アンカー＋うろつきオフセットへバネで寄せる）。
+    const targetX = local.x + pet.wx;
+    const targetY = local.y + pet.wy;
+    const f = Math.min(1, Math.max(0.02, tuning.follow));
+    if (!pet.placed) {
+      pet.x = targetX;
+      pet.y = targetY;
+      pet.placed = true;
+    } else {
+      pet.x += (targetX - pet.x) * f;
+      pet.y += (targetY - pet.y) * f;
+    }
+
+    // 大ジャンプ（たまに高く飛ぶ）。放物線で1回ぶん跳ねる。
+    if (now >= pet.nextJumpT && !paused) {
+      pet.jumpStart = now;
+      pet.jumpDur = rand(380, 680);
+      pet.jumpH = rand(1.0, 2.3) * fontPx;
+      pet.nextJumpT = now + rand(2200, 6500);
+    }
+    let jumpOffset = 0;
+    if (pet.jumpStart >= 0 && now < pet.jumpStart + pet.jumpDur) {
+      const t = (now - pet.jumpStart) / pet.jumpDur;
+      jumpOffset = pet.jumpH * 4 * t * (1 - t);
+    }
+
+    // 小刻みホップ（個体差の速さ・高さ）＋大ジャンプ。止まっている間はホップしない。
+    const baseHop = paused ? 0 : Math.abs(Math.sin((now / 260) * pet.hopFreq + pet.phase)) * fontPx * pet.hopAmp;
+    const hop = reduceMotion ? 0 : (baseHop + jumpOffset) * tuning.liveliness;
+
     pet.el.style.fontSize = `${fontPx}px`;
-    // 底辺中央を足元(pet.x,pet.y)へ。
     pet.el.style.transform = `translate(${pet.x}px, ${pet.y}px) translate(-50%, -100%)`;
     pet.emoji.style.transform = `translateY(${-hop}px)`; // 絵文字だけホップ（影は接地に残る）
   }

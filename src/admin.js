@@ -297,10 +297,12 @@ const GROUPS = [
     title: "駒の追従ペット（飾り）",
     category: "effect",
     controls: [
-      { key: "--pet-offset-x", label: "横位置（駒幅比・＋で右／−で左）", unit: "", min: -1.5, max: 1.5, step: 0.05, default: 0.55 },
-      { key: "--pet-offset-y", label: "縦位置（駒の足元から・＋で上）", unit: "", min: -0.5, max: 1, step: 0.02, default: 0.12 },
+      { key: "--pet-dist", label: "ゲート方向への距離（駒幅比）", unit: "", min: 0, max: 2, step: 0.05, default: 0.7 },
+      { key: "--pet-lift", label: "高さ微調整（＋で上）", unit: "", min: -0.5, max: 1, step: 0.02, default: 0.05 },
       { key: "--pet-size", label: "大きさ（駒幅比）", unit: "", min: 0.3, max: 2.5, step: 0.05, default: 0.85 },
       { key: "--pet-follow", label: "追従の速さ（大きいほどキビキビ）", unit: "", min: 0.02, max: 0.6, step: 0.02, default: 0.16 },
+      { key: "--pet-wander", label: "うろつく範囲（駒幅比・0で歩かない）", unit: "", min: 0, max: 1.5, step: 0.05, default: 0.35 },
+      { key: "--pet-liveliness", label: "跳ねる激しさ（0で大人しい）", unit: "", min: 0, max: 2, step: 0.1, default: 1.0 },
     ],
   },
   {
