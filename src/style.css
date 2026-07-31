@@ -9481,24 +9481,34 @@ body.reduce-glow .cell.card-effect-placement-target {
   overflow-y: auto;
   box-sizing: border-box;
 }
+/* ユーザー報告「明るい背景で文字が見えにくい」。濃色＋白いにじみ影で明るい背景でも読める
+   ようにする。 */
 #home-screen-title {
   font-size: 1.6rem;
   font-weight: bold;
   letter-spacing: 0.08em;
-  color: #f1f5f9;
-  text-shadow: 0 0.2rem 0.6rem rgba(0, 0, 0, 0.6);
+  color: #1e293b;
+  text-shadow: 0 1px 8px rgba(255, 255, 255, 0.85), 0 1px 2px rgba(255, 255, 255, 0.95);
 }
 #home-screen-subtitle {
   font-size: 0.9rem;
-  color: #94a3b8;
+  color: #334155;
   margin-bottom: 1.6rem;
   letter-spacing: 0.2em;
+  text-shadow: 0 1px 5px rgba(255, 255, 255, 0.85);
 }
 #home-screen-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: 1rem;
-  width: min(52rem, 100%);
+  /* ユーザー要望「4個ずつ並べて（今は上5下3でバランスが悪い）」。8タイルを4×2にする。 */
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.2rem 0.8rem;
+  width: min(46rem, 100%);
+}
+/* スマホなど狭い画面では2列に（4列だと窮屈なため）。 */
+@media (max-width: 34rem) {
+  #home-screen-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 /* ユーザー要望「アイコンごとの枠は不要」。従来の枠（背景グラデ・枠線・角丸）を撤去し、
    アイコン画像＋ラベルだけを表示する。ホバーは軽い浮き上がり＋明るさで示す。 */
@@ -9531,20 +9541,95 @@ body.reduce-glow .cell.card-effect-placement-target {
   filter: grayscale(0.6) opacity(0.75);
 }
 .home-screen-tile-icon {
+  position: relative;
   font-size: 2rem;
   line-height: 1;
 }
 .home-screen-tile-icon-img {
+  position: relative;
+  z-index: 1;
   width: 5.5rem;
   height: 5.5rem;
   object-fit: contain;
   display: block;
+  /* 明るい背景でも細い線が見えるよう、暗い影で縁取りする（ユーザー報告の視認性対策）。 */
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35)) drop-shadow(0 0 1px rgba(0, 0, 0, 0.4));
+}
+/* ホバー時に背面へ浮かび上がる幻想的なオーラ（ユーザー要望）。放射状の淡いグロー＋回転する
+   虹色リングの2枚重ね。どちらもアイコンの後ろ(z-index:0 < img:1)、クリックは奪わない。 */
+.home-screen-tile-icon::before,
+.home-screen-tile-icon::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+.home-screen-tile-icon::before {
+  inset: -28%;
+  background: radial-gradient(
+    circle,
+    rgba(147, 197, 253, 0.6),
+    rgba(196, 181, 253, 0.42) 42%,
+    rgba(253, 224, 71, 0.28) 66%,
+    transparent 75%
+  );
+  filter: blur(9px);
+  transform: scale(0.6);
+}
+.home-screen-tile-icon::after {
+  inset: -22%;
+  background: conic-gradient(
+    from 0deg,
+    rgba(248, 113, 113, 0.5),
+    rgba(251, 191, 36, 0.5),
+    rgba(74, 222, 128, 0.5),
+    rgba(56, 189, 248, 0.5),
+    rgba(167, 139, 250, 0.5),
+    rgba(244, 114, 182, 0.5),
+    rgba(248, 113, 113, 0.5)
+  );
+  filter: blur(8px);
+  transform: scale(0.7);
+}
+.home-screen-tile:hover .home-screen-tile-icon::before {
+  opacity: 1;
+  transform: scale(1.05);
+  animation: home-icon-aura-pulse 2.2s ease-in-out infinite;
+}
+.home-screen-tile:hover .home-screen-tile-icon::after {
+  opacity: 0.5;
+  transform: scale(0.95);
+  animation: home-icon-aura-rotate 7s linear infinite;
+}
+.home-screen-tile.is-soon:hover .home-screen-tile-icon::before,
+.home-screen-tile.is-soon:hover .home-screen-tile-icon::after {
+  opacity: 0; /* 近日公開タイルはオーラを出さない */
+}
+@keyframes home-icon-aura-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+}
+@keyframes home-icon-aura-rotate {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .home-screen-tile-label {
   font-size: 0.85rem;
   font-weight: bold;
   text-align: center;
   line-height: 1.4;
+  /* 明るい背景で読めるよう濃色＋白いにじみ影（ユーザー報告の視認性対策）。 */
+  color: #1e293b;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9), 0 0 4px rgba(255, 255, 255, 0.75);
 }
 .home-screen-tile-badge {
   position: absolute;
