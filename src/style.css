@@ -5345,17 +5345,17 @@ body.reduce-glow .self-status-rank-ring.is-rainbow .rank-ring-orbit-dot {
    下に付く分だけ、その行の高さがもう片方の行よりわずかに大きくなるが、grid-auto-rowsが
    行ごとに自動調整するため崩れない）。 */
 .self-status-icon-grid {
-  display: grid;
-  /* ハマりどころ（ユーザー報告「オンライン時とローカル時でアイコン位置が微妙に変わる」）:
-     以前はrepeat(2, auto)で列幅を内容依存にしていたため、#self-status-onlineのキャプション
-     文字（「ログイン中」/「入室中」+部屋名など、状態によって文字数が変わる）の実際の
-     横幅がその列のトラック幅を決めてしまい、同じ列を共有する他のアイコン（駒スキン等）が
-     オンライン/ローカルの状態によって数px単位で左右にズレていた。列幅を固定
-     （オンライン状態アイコンの最大サイズ基準）にすることで、キャプション文字数に関係なく
-     常に同じ位置になるようにした。 */
-  grid-template-columns: repeat(2, var(--self-status-icon-online-size, 2.6rem));
+  /* ユーザー要望「アイコン群5つの並びが崩れた、整列できる？」への対応。以前は
+     grid-template-columns: repeat(2)＋各アイコンの個別transformで位置を手調整していたが、
+     ペット追加で6個目になり grid のセル割りがズレて全部崩れてしまった。個別transformは
+     やめ、flexで自動整列するようにした（アイコンの数が増減しても崩れない）。グループ全体の
+     位置だけ1つのオフセット変数で微調整できるようにする（admin/rearrangeで動かせる）。 */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
   gap: var(--self-status-icon-gap, 0.4rem);
-  justify-items: center;
+  transform: translate(var(--self-status-icons-group-x, 0rem), var(--self-status-icons-group-y, 0rem));
   z-index: 2;
   /* ハマりどころ（ユーザー報告「名前クリックの反応範囲が限られている」）: このグリッド
      自体はz-index:2で.self-status-info（名前・手札枚数、z-index:1）より手前にあるため、
@@ -5407,7 +5407,7 @@ body.reduce-glow .self-status-rank-ring.is-rainbow .rank-ring-orbit-dot {
   display: none;
   align-items: center;
   justify-content: center;
-  transform: translate(var(--self-status-icon-piece-pos-x, 8.8rem), var(--self-status-icon-piece-pos-y, 6.29rem));
+  transform: translate(var(--self-status-icon-piece-pos-x, 0rem), var(--self-status-icon-piece-pos-y, 0rem));
 }
 .self-status-piece-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -5437,7 +5437,7 @@ body.reduce-glow .self-status-rank-ring.is-rainbow .rank-ring-orbit-dot {
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
-  transform: translate(var(--self-status-icon-cardback-pos-x, 7.6rem), var(--self-status-icon-cardback-pos-y, 6.29rem));
+  transform: translate(var(--self-status-icon-cardback-pos-x, 0rem), var(--self-status-icon-cardback-pos-y, 0rem));
 }
 .self-status-card-back-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -5465,7 +5465,7 @@ body.reduce-glow .self-status-rank-ring.is-rainbow .rank-ring-orbit-dot {
   /* ユーザー要望「4アイコンをきれいに整列させたい」。従来はプレイマット/背景が
      駒スキン/カード裏面と別々のX位置に浮いていて2x2として揃っていなかった。
      駒スキンと同じX（列）に揃え、縦にきれいな2x2グリッドになるようにした。 */
-  transform: translate(var(--self-status-icon-playmat-pos-x, 5.09rem), var(--self-status-icon-playmat-pos-y, 4.4rem));
+  transform: translate(var(--self-status-icon-playmat-pos-x, 0rem), var(--self-status-icon-playmat-pos-y, 0rem));
 }
 .self-status-playmat-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -5480,7 +5480,7 @@ body.reduce-glow .self-status-rank-ring.is-rainbow .rank-ring-orbit-dot {
   height: var(--self-status-icon-background-size, 1.5rem);
   /* カード裏面と同じX（列）に揃え、縦にきれいな2x2グリッドになるようにした
      （上の.self-status-playmat-thumbのコメント参照）。 */
-  transform: translate(var(--self-status-icon-background-pos-x, 3.88rem), var(--self-status-icon-background-pos-y, 4.4rem));
+  transform: translate(var(--self-status-icon-background-pos-x, 0rem), var(--self-status-icon-background-pos-y, 0rem));
 }
 .self-status-playmat-thumb img {
   width: 100%;
@@ -5494,7 +5494,7 @@ body.reduce-glow .self-status-rank-ring.is-rainbow .rank-ring-orbit-dot {
    （.icon-action-button-icon-wrap自体には触れない）。位置調整はボタン本体(#self-status-online)
    へのtranslateで行う（キャプション文字ごと一緒に動く）。 */
 #self-status-online {
-  transform: translate(var(--self-status-icon-online-pos-x, 0.27rem), var(--self-status-icon-online-pos-y, -4.14rem));
+  transform: translate(var(--self-status-icon-online-pos-x, 0rem), var(--self-status-icon-online-pos-y, 0rem));
 }
 .self-status-icon-grid #self-status-online .icon-action-button-icon-wrap {
   width: var(--self-status-icon-online-size, 2.6rem);
@@ -8804,16 +8804,20 @@ body.is-online-mode #quick-start-bar {
   --self-status-pos-y: 0rem;
   --self-status-info-pos-x: -6.2rem;
   --self-status-info-pos-y: 2.2rem;
-  --self-status-icon-piece-pos-x: 8.6rem;
-  --self-status-icon-piece-pos-y: 6.29rem;
-  --self-status-icon-cardback-pos-x: 7.4rem;
-  --self-status-icon-cardback-pos-y: 6.29rem;
-  --self-status-icon-playmat-pos-x: 5.09rem;
-  --self-status-icon-playmat-pos-y: 4.4rem;
-  --self-status-icon-background-pos-x: 3.88rem;
-  --self-status-icon-background-pos-y: 4.4rem;
-  --self-status-icon-online-pos-x: -0.4rem;
-  --self-status-icon-online-pos-y: -3.2rem;
+  /* 着せ替えアイコン群は flex で自動整列するようにしたため（.self-status-icon-grid 参照）、
+     各アイコンの個別オフセットは0にする。全体位置は下の --self-status-icons-group-* で調整。 */
+  --self-status-icon-piece-pos-x: 0rem;
+  --self-status-icon-piece-pos-y: 0rem;
+  --self-status-icon-cardback-pos-x: 0rem;
+  --self-status-icon-cardback-pos-y: 0rem;
+  --self-status-icon-playmat-pos-x: 0rem;
+  --self-status-icon-playmat-pos-y: 0rem;
+  --self-status-icon-background-pos-x: 0rem;
+  --self-status-icon-background-pos-y: 0rem;
+  --self-status-icon-online-pos-x: 0rem;
+  --self-status-icon-online-pos-y: 0rem;
+  --self-status-icons-group-x: 0rem;
+  --self-status-icons-group-y: 0rem;
   --lock-top-pos-x: 0rem;
   --lock-top-pos-y: -1.8rem;
   --lock-bottom-pos-x: 0rem;
