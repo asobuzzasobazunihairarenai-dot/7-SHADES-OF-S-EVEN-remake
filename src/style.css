@@ -4991,7 +4991,8 @@ body.diagnostic-flatten-3d.is-touch-device #hand-shuffle-button {
 #piece-skin-modal,
 #card-back-skin-modal,
 #playmat-picker-modal,
-#background-picker-modal {
+#background-picker-modal,
+#pet-picker-modal {
   position: fixed;
   top: 50%;
   left: 50%;
