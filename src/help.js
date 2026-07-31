@@ -121,8 +121,15 @@ function buildPanel(close) {
   });
   panel.appendChild(tutorialBtn);
 
+  panel.appendChild(buildHelpList());
+  return panel;
+}
+
+// ヘルプの索引リスト（基本ルール・デジタル版機能・用語集・よくある質問）だけを組み立てて返す。
+// 図鑑／ルールブックの全画面版（codex-page.js）からも使う。
+export function buildHelpList() {
   const list = document.createElement("div");
-  list.id = "help-panel-list";
+  list.className = "help-panel-list";
 
   // 基本ルール（tutorial.jsの説明文をそのまま流用、二重管理を避ける）。
   const ruleButtons = getHelpSections().map((section) =>
@@ -133,8 +140,6 @@ function buildPanel(close) {
   list.appendChild(buildIndexSection("📖 基本ルール", buildFlatList(ruleButtons)));
 
   // ユーザー要望「ヘルプの説明に、デジタル版独自のことも記載する項目を追加してください」。
-  // 手札から出したカードが自動で裏表になる・駒スキン等のカスタマイズなど、物理版には
-  // 無いこのデジタル版だけの機能をまとめた（help-content.js）。
   const digitalButtons = DIGITAL_FEATURES.map((entry) => buildIndexButton(entry.title, () => openItemModal(entry.title, entry.body)));
   list.appendChild(buildIndexSection("🖥️ デジタル版だけの機能", buildFlatList(digitalButtons)));
 
@@ -153,8 +158,7 @@ function buildPanel(close) {
   }
   list.appendChild(buildIndexSection("💬 よくある質問", faqList));
 
-  panel.appendChild(list);
-  return panel;
+  return list;
 }
 
 let openFn = null;

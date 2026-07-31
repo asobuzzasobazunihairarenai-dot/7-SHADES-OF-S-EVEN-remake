@@ -53,18 +53,23 @@ export function applyProfileLayout(container) {
   container.style.position = "relative";
 
   const layoutActive = editMode || Object.keys(PROFILE_LAYOUT).length > 0;
-  // 作業キャンバスを広げる（カード＝container.parentElement を含めて）。
+  // 作業キャンバスを広げ、プロフィールを囲う枠（カードの背景・枠線）は消す（ユーザー要望
+  // 「プロフィールを囲っている枠はもういらない」）。焼き込み側も同じ扱いで全ユーザー一致。
   const card = container.parentElement;
   if (layoutActive) {
     if (card) {
       card.style.width = `${CANVAS_WIDTH_PX}px`;
       card.style.maxWidth = "96vw";
+      card.style.background = "none";
+      card.style.border = "none";
     }
     container.style.width = "100%";
   } else {
     if (card) {
       card.style.width = "";
       card.style.maxWidth = "";
+      card.style.background = "";
+      card.style.border = "";
     }
     container.style.width = "";
   }
@@ -72,8 +77,10 @@ export function applyProfileLayout(container) {
   const children = [...container.children].filter((el) => !el.classList.contains("profile-layout-toolbar"));
   const cr = container.getBoundingClientRect();
   const stageScale = getStageScale();
-  // 絶対配置に変える前に、全要素の現在の位置・サイズをまとめて測る（1つずつ絶対化すると
-  // 後続要素の測定がズレるため）。幅も実寸で取り込み、右へ動かしても潰れないようにする。
+  // 絶対配置に変える前に、全要素の現在の位置をまとめて測る（1つずつ絶対化すると後続要素の
+  // 測定がズレるため）。幅は取り込まず width:max-content にする——ユーザー報告「要素に対し枠が
+  // 大きい」の原因は、フル幅(カード幅)を実寸として固定していたこと。max-contentなら枠が中身に
+  // ぴったり付き、かつ位置に依存しないので右へ動かしても潰れない。
   const measured = children.map((el, i) => {
     const key = el.dataset.layoutKey || `auto-${i}`;
     el.dataset.layoutKey = key;
@@ -83,7 +90,6 @@ export function applyProfileLayout(container) {
       key,
       x: Math.round((r.left - cr.left) / stageScale + container.scrollLeft),
       y: Math.round((r.top - cr.top) / stageScale + container.scrollTop),
-      w: Math.max(1, Math.round(r.width / stageScale)),
     };
   });
 
@@ -92,20 +98,20 @@ export function applyProfileLayout(container) {
     let cfg = PROFILE_LAYOUT[m.key];
     if (!cfg) {
       if (!editMode) continue; // 焼き込みも編集も無ければ自然流しのまま
-      cfg = PROFILE_LAYOUT[m.key] = { x: m.x, y: m.y, w: m.w, scale: 1 }; // 編集開始時に現状を取り込む
+      cfg = PROFILE_LAYOUT[m.key] = { x: m.x, y: m.y, scale: 1 }; // 編集開始時に現状を取り込む
     }
     if (typeof cfg.scale !== "number") cfg.scale = 1;
-    if (typeof cfg.w !== "number") cfg.w = m.w;
     const el = m.el;
     el.style.position = "absolute";
     el.style.left = `${cfg.x}px`;
     el.style.top = `${cfg.y}px`;
-    el.style.width = `${cfg.w}px`; // 実寸を固定＝右へ動かしても“壁”で潰れない
+    el.style.width = "max-content"; // 中身にぴったりの枠（＋位置に依存せず潰れない）
+    el.style.maxWidth = "100%";
     el.style.margin = "0";
     el.style.boxSizing = "border-box";
     el.style.transformOrigin = "top left";
-    // 高さは指定せず、中身の自然なサイズを scale で拡大縮小する（枠だけ大きくなって中身が
-    // 変わらない問題への対応・ユーザー要望）。幅は固定だがscaleで一緒に拡大される。
+    // 高さも指定せず、中身の自然なサイズを scale で一緒に拡大縮小する（枠だけ大きくなって
+    // 中身が変わらない問題への対応・ユーザー要望）。
     el.style.transform = `scale(${cfg.scale})`;
     maxBottom = Math.max(maxBottom, cfg.y + el.offsetHeight * cfg.scale);
     if (editMode) makeEditable(el, container);
@@ -221,7 +227,7 @@ function buildExportText() {
     .sort()
     .map((k) => {
       const c = PROFILE_LAYOUT[k];
-      return `  ${JSON.stringify(k)}: { x: ${c.x}, y: ${c.y}, w: ${c.w ?? 0}, scale: ${c.scale ?? 1} },`;
+      return `  ${JSON.stringify(k)}: { x: ${c.x}, y: ${c.y}, scale: ${c.scale ?? 1} },`;
     });
   return `export const PROFILE_LAYOUT = {\n${lines.join("\n")}\n};`;
 }

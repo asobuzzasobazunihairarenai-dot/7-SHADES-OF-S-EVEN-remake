@@ -18,6 +18,7 @@ import { openProfilePage } from "./profile-page.js";
 // は元々「開発用ツール」と明記された既存のモーダルだが、「とりあえず」の指示のため
 // 画面全体版には作り直さず、そのまま配線するだけに留めた。
 import { openDeckViewer } from "./deck-viewer.js";
+import { openCodexPage } from "./codex-page.js";
 // ユーザー要望「ランキングを実装しましょう」への対応で新設したページ。
 import { openRankingPage } from "./ranking-page.js";
 // チュートリアルCPU戦（台本化された練習試合）。完全ローカル機能。
@@ -72,7 +73,17 @@ const TILES = [
       openProfilePage(() => openHomeScreen());
     },
   },
-  { icon: "📖", image: "assets/home-icons/rulebook.webp", label: "図鑑／ルールブック", status: "ready", onOpen: () => openDeckViewer() },
+  {
+    icon: "📖",
+    image: "assets/home-icons/rulebook.webp",
+    label: "図鑑／ルールブック",
+    status: "ready",
+    onOpen: () => {
+      // ユーザー要望「山札一覧＋ヘルプを全画面で並べて表示」。全画面の図鑑ページを開く。
+      closeHomeScreen();
+      openCodexPage(() => openHomeScreen());
+    },
+  },
   { icon: "📰", image: "assets/home-icons/news.webp", label: "お知らせ／更新情報", status: "ready", onOpen: () => openChangelogModal(), showNewIfUnread: () => hasUnreadChangelog() },
 ];
 

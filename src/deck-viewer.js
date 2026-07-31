@@ -148,11 +148,20 @@ function buildPanel(close) {
   panel.appendChild(titleEl);
   panel.appendChild(createModalCloseX(close));
 
-  panel.appendChild(buildSection("通常カード", NORMAL_CARDS));
-  panel.appendChild(buildSection("エターナルカード", ETERNAL_CARDS));
-  panel.appendChild(buildSection("ファーストカード", FIRST_CARDS));
+  panel.appendChild(buildDeckSections());
 
   return panel;
+}
+
+// 山札一覧の中身（3セクション）だけを組み立てて返す。図鑑／ルールブックの全画面版
+// （codex-page.js）からも使う。カードのクリック→拡大は showCardModal（initDeckViewerで生成）
+// を参照するため、initDeckViewer後に呼ぶこと。
+export function buildDeckSections() {
+  const wrap = document.createElement("div");
+  wrap.appendChild(buildSection("通常カード", NORMAL_CARDS));
+  wrap.appendChild(buildSection("エターナルカード", ETERNAL_CARDS));
+  wrap.appendChild(buildSection("ファーストカード", FIRST_CARDS));
+  return wrap;
 }
 
 let openDeckViewerFn = null;

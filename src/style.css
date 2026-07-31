@@ -9507,7 +9507,11 @@ body.reduce-glow .cell.card-effect-placement-target {
   /* ユーザー要望「4個ずつ並べて（今は上5下3でバランスが悪い）」。8タイルを4×2にする。 */
   grid-template-columns: repeat(4, 1fr);
   gap: 1.2rem 0.8rem;
-  width: min(46rem, 100%);
+  /* ユーザー報告「アイコンを9.8rem以上にしても大きくならない」。原因は、グリッド幅が
+     固定(46rem)で1マス≒11.5rem→中身(img)がその幅にmax-width:100%で頭打ちだったこと。
+     グリッド幅をアイコンサイズに連動させ、マスがアイコンより十分広くなるようにする
+     （5.5rem時=46remで従来と同じ、大きくすると比例して広がる）。 */
+  width: min(100%, calc(4 * var(--home-tile-icon-size, 5.5rem) + 24rem));
 }
 /* スマホなど狭い画面では2列に（4列だと窮屈なため）。 */
 @media (max-width: 34rem) {
@@ -9674,6 +9678,55 @@ body.reduce-glow .cell.card-effect-placement-target {
   50% {
     transform: scale(1.14);
   }
+}
+/* 図鑑／ルールブックの全画面版（codex-page.js）。ランキング/プロフィール全画面と同じ器。 */
+#codex-page {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem;
+  background: radial-gradient(ellipse at top, #1e293b 0%, #0f172a 60%, #060a12 100%);
+  font-family: sans-serif;
+  color: #e2e8f0;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+#codex-page-back {
+  align-self: flex-start;
+  background: none;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.4rem;
+  color: #e2e8f0;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+#codex-page-back:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.6);
+}
+#codex-page-title {
+  font-size: 1.4rem;
+  font-weight: bold;
+  letter-spacing: 0.06em;
+  margin: 0.4rem 0 1.2rem;
+}
+#codex-page-content {
+  width: min(72rem, 100%);
+}
+.codex-section-heading {
+  font-size: 1.05rem;
+  font-weight: bold;
+  color: #7dd3fc;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.3);
+  padding-bottom: 0.3rem;
+  margin: 1.4rem 0 0.8rem;
+}
+.codex-section-heading:first-child {
+  margin-top: 0;
 }
 #home-screen-toast {
   position: fixed;
