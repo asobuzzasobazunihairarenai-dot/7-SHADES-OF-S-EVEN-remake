@@ -33,6 +33,7 @@ import {
   flashWarning,
   showRestartButton,
   hideRestartButton,
+  showQuitButton,
   teardownTutorialBattleUi,
 } from "./tutorial-battle-ui.js";
 
@@ -1270,6 +1271,13 @@ export function startTutorialBattle() {
   restStateFor = [];
   if (!unsubscribe) unsubscribe = subscribe(onDriverState);
   showRestartButton(restartTutorialBattle);
+  // 左上の「終了する」ボタン（ユーザー要望）。押すと確認のうえチュートリアルを畳んで
+  // ホーム画面へ戻る（finishTutorialBattle）。
+  showQuitButton(() => {
+    if (window.confirm("チュートリアルを終了してホーム画面に戻りますか？")) {
+      finishTutorialBattle();
+    }
+  });
   goToStep(0);
 }
 

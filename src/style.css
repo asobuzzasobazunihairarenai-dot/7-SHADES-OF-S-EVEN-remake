@@ -3387,9 +3387,8 @@ body.spotlight-mode #spotlight-overlay {
     rgba(13, 20, 30, 0.7) 55%,
     rgba(13, 20, 30, 0) 100%
   );
-  /* 端がぶつ切りに見えないよう左右をわずかにフェードさせる（横方向のマスク）。 */
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
-  mask-image: linear-gradient(90deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
+  /* ユーザー要望「両端までしっかり背景を入れて」。以前は左右をフェードさせる横マスクを
+     掛けていたが、端が届いて見えなかったため撤去し、画面の左端から右端まで隙間なく敷く。 */
   pointer-events: none;
 }
 /* オープニング画面中はアイコン群を隠している（下の opening-screen-active 参照）ので、

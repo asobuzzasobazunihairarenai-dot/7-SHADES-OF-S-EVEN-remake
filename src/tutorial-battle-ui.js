@@ -34,6 +34,7 @@ let calloutButtonEl = null;
 let tipEl = null;
 let warningEl = null;
 let restartBtnEl = null;
+let quitBtnEl = null;
 let bubbleLayerEl = null;
 
 let highlightedEls = [];
@@ -119,8 +120,18 @@ const STYLE = `
 }
 #tutorial-battle-warning.tb-show { display: block; animation: tb-warning-pop 0.25s ease-out; }
 @keyframes tb-warning-pop { from { transform: translateX(-50%) scale(0.8); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
-#tutorial-battle-restart {
+/* チュートリアルを完全に終了してホームへ戻るボタン（ユーザー要望「左上に終了ボタンを
+   新設」）。はじめから(restart)ボタンの上に積み、終了＝赤系で区別する。 */
+#tutorial-battle-quit {
   position: fixed; left: 1rem; top: 0.6rem; z-index: 40013; display: none;
+  padding: 0.35rem 0.7rem; border: 1px solid rgba(248, 113, 113, 0.6); border-radius: 0.4rem;
+  background: rgba(69, 10, 10, 0.85); color: #fecaca; cursor: pointer;
+  font-family: sans-serif; font-size: 0.75rem;
+}
+#tutorial-battle-quit:hover { filter: brightness(1.15); }
+/* 終了ボタンを上に置いた分、はじめからボタンはその下へ（重ならないよう間隔を確保）。 */
+#tutorial-battle-restart {
+  position: fixed; left: 1rem; top: 2.9rem; z-index: 40013; display: none;
   padding: 0.35rem 0.7rem; border: 1px solid rgba(148, 163, 184, 0.5); border-radius: 0.4rem;
   background: rgba(15, 23, 32, 0.85); color: #e2e8f0; cursor: pointer;
   font-family: sans-serif; font-size: 0.75rem;
@@ -195,6 +206,12 @@ function ensureUi() {
   warningEl = document.createElement("div");
   warningEl.id = "tutorial-battle-warning";
   document.body.appendChild(warningEl);
+
+  quitBtnEl = document.createElement("button");
+  quitBtnEl.type = "button";
+  quitBtnEl.id = "tutorial-battle-quit";
+  quitBtnEl.textContent = "× チュートリアルを終了する";
+  document.body.appendChild(quitBtnEl);
 
   restartBtnEl = document.createElement("button");
   restartBtnEl.type = "button";
@@ -407,6 +424,17 @@ export function hideRestartButton() {
   if (restartBtnEl) restartBtnEl.style.display = "none";
 }
 
+export function showQuitButton(onQuit) {
+  ensureUi();
+  quitBtnEl.onclick = () => {
+    if (onQuit) onQuit();
+  };
+  quitBtnEl.style.display = "block";
+}
+export function hideQuitButton() {
+  if (quitBtnEl) quitBtnEl.style.display = "none";
+}
+
 export function teardownTutorialBattleUi() {
   hideBlockingHint();
   hideTip();
@@ -419,7 +447,8 @@ export function teardownTutorialBattleUi() {
   tipEl?.remove();
   warningEl?.remove();
   restartBtnEl?.remove();
+  quitBtnEl?.remove();
   bubbleLayerEl?.remove();
-  scrimEl = spotlightEl = calloutEl = tipEl = warningEl = restartBtnEl = bubbleLayerEl = null;
+  scrimEl = spotlightEl = calloutEl = tipEl = warningEl = restartBtnEl = quitBtnEl = bubbleLayerEl = null;
   calloutTitleEl = calloutBodyEl = calloutBackEl = calloutButtonEl = null;
 }
