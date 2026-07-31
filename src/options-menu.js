@@ -362,7 +362,18 @@ function buildStatsPlayerLinkRow() {
     } catch (err) {
       console.error("getCurrentUser (stats player link gate) failed", err);
     }
-    const isGoogleLinked = user?.app_metadata?.provider === "google";
+    // ユーザー報告「Googleでログインしているのに『ログインしていない』と出る」。原因は
+    // app_metadata.provider だけを見ていたこと——Supabaseでは、アカウントの主プロバイダが
+    // email/マジックリンクでGoogleを後から連携した場合など、Google認証済みでも
+    // app_metadata.provider が "google" 以外になり得る。Googleのアイデンティティ自体が
+    // 紐づいているかを、providers配列・identities配列も含めて総合的に判定する。
+    const appMeta = user?.app_metadata ?? {};
+    const providerList = Array.isArray(appMeta.providers) ? appMeta.providers : [];
+    const identities = Array.isArray(user?.identities) ? user.identities : [];
+    const isGoogleLinked =
+      appMeta.provider === "google" ||
+      providerList.includes("google") ||
+      identities.some((identity) => identity?.provider === "google");
     if (!isGoogleLinked) {
       showGoogleRequiredState();
       return;
