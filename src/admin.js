@@ -297,12 +297,15 @@ const GROUPS = [
     title: "駒の追従ペット（飾り）",
     category: "effect",
     controls: [
-      { key: "--pet-dist", label: "ゲート方向への距離（駒幅比）", unit: "", min: 0, max: 2, step: 0.05, default: 0.7 },
+      { key: "--pet-dist", label: "ゲート方向への距離（駒幅比）", unit: "", min: 0, max: 2, step: 0.05, default: 0.9 },
       { key: "--pet-lift", label: "高さ微調整（＋で上）", unit: "", min: -0.5, max: 1, step: 0.02, default: 0.05 },
       { key: "--pet-size", label: "大きさ（駒幅比）", unit: "", min: 0.3, max: 2.5, step: 0.05, default: 0.85 },
       { key: "--pet-follow", label: "追従の速さ（大きいほどキビキビ）", unit: "", min: 0.02, max: 0.6, step: 0.02, default: 0.16 },
-      { key: "--pet-wander", label: "うろつく範囲（駒幅比・0で歩かない）", unit: "", min: 0, max: 1.5, step: 0.05, default: 0.35 },
+      { key: "--pet-wander", label: "歩き回る範囲（駒幅比・0で歩かない。ゲート側のみ）", unit: "", min: 0, max: 1.5, step: 0.05, default: 0.35 },
       { key: "--pet-liveliness", label: "跳ねる激しさ（0で大人しい）", unit: "", min: 0, max: 2, step: 0.1, default: 1.0 },
+      { key: "--pet-orbit-radius", label: "一周モーション: 半径（駒幅比）", unit: "", min: 0.3, max: 3, step: 0.05, default: 1.1 },
+      { key: "--pet-orbit-squash", label: "一周モーション: 縦の潰し（1で真円・小で平たい楕円）", unit: "", min: 0.1, max: 1, step: 0.02, default: 0.42 },
+      { key: "--pet-orbit-dur", label: "一周モーション: 一周にかける秒数", unit: "", min: 1, max: 10, step: 0.2, default: 3.4 },
     ],
   },
   {

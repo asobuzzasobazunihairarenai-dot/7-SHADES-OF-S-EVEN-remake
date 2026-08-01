@@ -24,12 +24,15 @@ const PET_EMOJI = "🐥"; // 既定（pet-skins.jsの選択が使えない時の
 // CSS変数を読むだけにして統合する。値が変わるたびadmin.jsが "admin:change" を投げるので、
 // それを拾ってキャッシュし直す（毎フレームgetComputedStyleしないための最適化）。
 const DEFAULTS = {
-  dist: 0.7, // 駒中心からゲート方向への距離（駒幅比）
+  dist: 0.9, // 駒中心からゲート方向への距離（駒幅比）。駒に乗らないよう少し離す。
   lift: 0.05, // 高さ微調整（＋で少し上へ）
   size: 0.85, // 駒の幅に対するペットの大きさ倍率
   follow: 0.16, // 追従の強さ（小さいほど遅れて＝ゆっくり追う。0〜1）
-  wander: 0.35, // 駒の周りをうろつく範囲（駒幅比。0で歩き回らない）
+  wander: 0.35, // ゲート側で歩き回る範囲（駒幅比。0で歩き回らない。駒側へは行かない）
   liveliness: 1.0, // 跳ねる／飛ぶ動きの激しさ（0で大人しい）
+  orbitRadius: 1.1, // 「駒を一周」の半径（駒幅比）
+  orbitSquash: 0.42, // 一周の縦の潰し（1=真円、小さいほど平たい楕円＝地面を回る感じ）
+  orbitDur: 3.4, // 一周にかける秒数
 };
 const CSS_VARS = {
   dist: "--pet-dist",
@@ -38,6 +41,9 @@ const CSS_VARS = {
   follow: "--pet-follow",
   wander: "--pet-wander",
   liveliness: "--pet-liveliness",
+  orbitRadius: "--pet-orbit-radius",
+  orbitSquash: "--pet-orbit-squash",
+  orbitDur: "--pet-orbit-dur",
 };
 let tuning = { ...DEFAULTS };
 function refreshTuning() {
@@ -110,29 +116,24 @@ function makePet() {
     motion: "", // 現在のモーション（walk/idle/yawn/ear/jump/static）
     vx: 0, // 平滑化した移動速度（向き・歩き判定用）
     vy: 0,
-    idleVariant: "idle", // 待機中に使うアニメ（idle/yawn/ear）を時々切り替える
-    nextIdleSwitchT: now + rand(2500, 6000),
     x: 0,
     y: 0,
     placed: false,
-    phase: Math.random() * Math.PI * 2, // 小刻みホップの位相
+    phase: Math.random() * Math.PI * 2, // 小刻みホップの位相（絵文字用）
     hopFreq: rand(0.6, 1.4), // ホップの速さ（個体差）
     hopAmp: rand(0.14, 0.28), // ホップの高さ（個体差）
-    wx: 0, // 現在のうろつきオフセット
-    wy: 0,
-    wtx: 0, // うろつきの目標オフセット
-    wty: 0,
-    nextWanderT: now + rand(0, 1500), // 次に歩く先を選ぶ時刻
-    jumpStart: -1, // 進行中の大ジャンプ開始時刻（-1で無し）
+    // 行動スケジューラ（ユーザー要望: 待機↔行動を交互に。行動の後は必ず待機を挟む）。
+    // behState: idle / walk / jump / yawn / ear / orbit。behUntilで次の遷移時刻を管理。
+    behState: "idle",
+    behUntil: now + rand(500, 1400),
+    walkTX: 0, // 歩きの目標（ステージ座標。ゲート側に限定）
+    walkTY: 0,
+    jumpStart: -1, // 進行中のジャンプ開始時刻（-1で無し）
     jumpDur: 0,
     jumpH: 0,
-    nextJumpT: now + rand(1500, 5000), // 次に大ジャンプする時刻
-    pausedUntil: 0, // この時刻まで立ち止まる
-    nextPauseT: now + rand(3000, 8000), // 次に立ち止まる時刻
-    orbitStart: -1, // 進行中の「駒を中心に一周」開始時刻（-1で無し）
+    orbitStart: -1, // 進行中の「駒を一周」開始時刻（-1で無し）
     orbitDur: 0,
     orbitDir: 1, // 回る向き（＋1/−1）
-    nextOrbitT: now + rand(5000, 12000), // 次に一周する時刻
     emojiChar: "", // 現在表示中の絵文字（変わった時だけ差し替える）
   };
 }
@@ -140,9 +141,10 @@ function makePet() {
 // スプライトペット（キュビット等）のフレームを、現在の移動速度から向き・モーションを
 // 決めて差し替える。向きは速度の大きい軸で判定（横優先）、ほぼ静止なら直前の向きを維持。
 // モーション: ジャンプ中→jump、歩行速度以上→walk、それ以外→待機（idle/yawn/earを時々切替）。
-const SPRITE_SIZE_RATIO = 2.0; // 絵文字fontPxに対する画像表示サイズ倍率（見た目を絵文字ペットに合わせる）
-function updateSprite(pet, spriteName, now, fontPx, isJumping) {
+const SPRITE_SIZE_RATIO = 1.35; // 絵文字fontPxに対する画像サイズ倍率（駒に乗らない程度に控えめ）
+function updateSprite(pet, spriteName, fontPx, behState) {
   const sp = Math.hypot(pet.vx, pet.vy);
+  // 向き: 速度の大きい軸で判定。ほぼ静止なら直前の向きを維持。
   if (sp > 0.35) {
     if (Math.abs(pet.vx) >= Math.abs(pet.vy)) {
       pet.facing = pet.vx > 0 ? "right" : "left";
@@ -150,19 +152,13 @@ function updateSprite(pet, spriteName, now, fontPx, isJumping) {
       pet.facing = pet.vy > 0 ? "front" : "back"; // 画面下へ＝手前＝正面、上へ＝奥＝後ろ
     }
   }
+  // モーション: ジャンプ中→jump、移動中→walk、それ以外は行動状態(yawn/ear)か待機(idle)。
   let motion;
-  if (isJumping) {
-    motion = "jump";
-  } else if (sp > 0.5) {
-    motion = "walk";
-  } else {
-    if (now >= pet.nextIdleSwitchT) {
-      const variants = ["idle", "yawn", "ear"];
-      pet.idleVariant = variants[Math.floor(Math.random() * variants.length)];
-      pet.nextIdleSwitchT = now + rand(2500, 6000);
-    }
-    motion = pet.idleVariant;
-  }
+  if (behState === "jump") motion = "jump";
+  else if (sp > 0.5) motion = "walk";
+  else if (behState === "yawn") motion = "yawn";
+  else if (behState === "ear") motion = "ear";
+  else motion = "idle";
   const size = Math.round(fontPx * SPRITE_SIZE_RATIO);
   pet.sprite.style.width = `${size}px`;
   pet.sprite.style.height = `${size}px`;
@@ -239,49 +235,88 @@ function tick(now) {
       }
     }
 
-    // 立ち止まり（ランダムに止まる）。
-    if (now >= pet.nextPauseT) {
-      pet.pausedUntil = now + rand(500, 1800);
-      pet.nextPauseT = now + rand(3500, 9000);
+    // ゲート側の単位ベクトル: away=駒から離れる方向、lat=ゲート側に沿った横方向。
+    // 歩き回りはこの2方向だけに限定し、駒の上へ乗らないようにする（ユーザー要望）。
+    let awayX = 0;
+    let awayY = 1;
+    let latX = 1;
+    let latY = 0;
+    if (side === "top") {
+      awayY = -1;
+    } else if (side === "left") {
+      awayX = -1;
+      awayY = 0;
+      latX = 0;
+      latY = 1;
+    } else if (side === "right") {
+      awayX = 1;
+      awayY = 0;
+      latX = 0;
+      latY = 1;
     }
-    const paused = now < pet.pausedUntil;
 
-    // 「駒を中心に一周テクテク」（ユーザー要望）。たまに発動し、一定時間かけて駒の周りを一周する。
-    if (now >= pet.nextOrbitT && !paused && tuning.wander > 0) {
-      pet.orbitStart = now;
-      pet.orbitDur = rand(2600, 4200);
-      pet.orbitDir = Math.random() < 0.5 ? 1 : -1;
-      pet.nextOrbitT = now + rand(7000, 15000);
+    // --- 行動スケジューラ（ユーザー要望: 行動の度に必ず待機を挟む）------------------------
+    // 待機↔行動を交互に。待機明けにランダムな行動を選び、行動後は必ず待機へ戻る。
+    if (now >= pet.behUntil) {
+      if (pet.behState === "idle") {
+        const roll = Math.random();
+        if (roll < 0.3) {
+          // 歩く: ゲート側を横方向 or 少し離れる方向へ（駒には近づかない）。
+          pet.behState = "walk";
+          const w = Math.max(0.12, tuning.wander) * localSize;
+          const lat = rand(-1, 1) * w;
+          const away = rand(0, 0.5) * w;
+          pet.walkTX = anchor.x + latX * lat + awayX * away;
+          pet.walkTY = anchor.y + latY * lat + awayY * away;
+          pet.behUntil = now + rand(900, 1600);
+        } else if (roll < 0.52) {
+          pet.behState = "jump";
+          pet.jumpStart = now;
+          pet.jumpDur = rand(420, 700);
+          pet.jumpH = rand(1.2, 2.4) * fontPx;
+          pet.behUntil = now + pet.jumpDur;
+        } else if (roll < 0.7) {
+          pet.behState = "yawn";
+          pet.behUntil = now + rand(1600, 2600);
+        } else if (roll < 0.86) {
+          pet.behState = "ear";
+          pet.behUntil = now + rand(1400, 2400);
+        } else {
+          // 駒を一周（軌跡は管理者モードで調整可能: --pet-orbit-radius/squash/dur）。
+          pet.behState = "orbit";
+          pet.orbitStart = now;
+          pet.orbitDur = Math.max(1000, tuning.orbitDur * 1000);
+          pet.orbitDir = Math.random() < 0.5 ? 1 : -1;
+          pet.behUntil = now + pet.orbitDur;
+        }
+      } else {
+        // 行動が終わった → 必ず待機へ戻る。
+        pet.jumpStart = -1;
+        pet.orbitStart = -1;
+        pet.behState = "idle";
+        pet.behUntil = now + rand(900, 2200);
+      }
     }
-    const orbiting = pet.orbitStart >= 0 && now < pet.orbitStart + pet.orbitDur;
 
+    // 目標位置。orbit=駒を一周、walk=ゲート側の目標、それ以外=ホーム（ゲート側アンカー）。
     let targetX;
     let targetY;
     let ease;
-    if (orbiting) {
-      // 駒の足元中央を軸に円を描く（縦は遠近で潰す＝地面を回っているように見せる）。
+    if (pet.behState === "orbit") {
       const t = (now - pet.orbitStart) / pet.orbitDur;
       const ang = pet.orbitDir * t * Math.PI * 2;
-      const radius = Math.max(tuning.wander, 0.5) * localSize;
+      const radius = tuning.orbitRadius * localSize;
       targetX = center.x + Math.cos(ang) * radius;
-      targetY = center.y + Math.sin(ang) * radius * 0.45;
-      ease = 0.16; // 円に追いつける速さ
+      targetY = center.y + Math.sin(ang) * radius * tuning.orbitSquash;
+      ease = 0.2;
+    } else if (pet.behState === "walk") {
+      targetX = pet.walkTX;
+      targetY = pet.walkTY;
+      ease = Math.min(1, Math.max(0.02, tuning.follow));
     } else {
-      // 通常時: 自ゲート側アンカー＋うろつきオフセットへ。
-      if (!paused) {
-        if (now >= pet.nextWanderT) {
-          const radius = tuning.wander * localSize;
-          const angle = Math.random() * Math.PI * 2;
-          const rr = Math.random() * radius;
-          pet.wtx = Math.cos(angle) * rr;
-          pet.wty = Math.sin(angle) * rr * 0.5;
-          pet.nextWanderT = now + rand(800, 2600);
-        }
-        pet.wx += (pet.wtx - pet.wx) * 0.03;
-        pet.wy += (pet.wty - pet.wy) * 0.03;
-      }
-      targetX = anchor.x + pet.wx;
-      targetY = anchor.y + pet.wy;
+      // idle / jump / yawn / ear: ホーム（ゲート側アンカー）に留まる。駒が動けばアンカーを追う。
+      targetX = anchor.x;
+      targetY = anchor.y;
       ease = Math.min(1, Math.max(0.02, tuning.follow));
     }
     const prevX = pet.x;
@@ -301,28 +336,24 @@ function tick(now) {
     pet.vx += (mvx - pet.vx) * 0.35;
     pet.vy += (mvy - pet.vy) * 0.35;
 
-    // 大ジャンプ（たまに高く飛ぶ）。放物線で1回ぶん跳ねる。
-    if (now >= pet.nextJumpT && !paused) {
-      pet.jumpStart = now;
-      pet.jumpDur = rand(380, 680);
-      pet.jumpH = rand(1.0, 2.3) * fontPx;
-      pet.nextJumpT = now + rand(2200, 6500);
-    }
+    // ジャンプの縦オフセット（behState==="jump"の間だけ放物線で跳ねる）。
     let jumpOffset = 0;
-    if (pet.jumpStart >= 0 && now < pet.jumpStart + pet.jumpDur) {
+    if (pet.behState === "jump" && pet.jumpStart >= 0) {
       const t = (now - pet.jumpStart) / pet.jumpDur;
       jumpOffset = pet.jumpH * 4 * t * (1 - t);
     }
-
-    // 小刻みホップ（個体差の速さ・高さ）＋大ジャンプ。止まっている間はホップしない。
-    const baseHop = paused ? 0 : Math.abs(Math.sin((now / 260) * pet.hopFreq + pet.phase)) * fontPx * pet.hopAmp;
-    const hop = reduceMotion ? 0 : (baseHop + jumpOffset) * tuning.liveliness;
+    // スプライトはwebpのアニメで生き物感が出るので、CSSの小刻みホップは足さない（ジャンプのみ）。
+    // 絵文字は待機中だけ小さくホップさせて生き物っぽさを出す。
+    const idleBob =
+      !isSprite && pet.behState === "idle"
+        ? Math.abs(Math.sin((now / 300) * pet.hopFreq + pet.phase)) * fontPx * pet.hopAmp
+        : 0;
+    const hop = reduceMotion ? 0 : (idleBob + jumpOffset) * tuning.liveliness;
 
     pet.el.style.fontSize = `${fontPx}px`;
     pet.el.style.transform = `translate(${pet.x}px, ${pet.y}px) translate(-50%, -100%)`;
     if (isSprite) {
-      const jumping = pet.jumpStart >= 0 && now < pet.jumpStart + pet.jumpDur;
-      updateSprite(pet, opt.sprite, now, fontPx, jumping);
+      updateSprite(pet, opt.sprite, fontPx, pet.behState);
       pet.sprite.style.transform = `translateY(${-hop}px)`; // 画像だけホップ（影は接地に残る）
     } else {
       pet.emoji.style.transform = `translateY(${-hop}px)`; // 絵文字だけホップ（影は接地に残る）

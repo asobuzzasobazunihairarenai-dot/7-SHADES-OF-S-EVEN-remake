@@ -9070,12 +9070,15 @@ body.is-online-mode #quick-start-bar {
   --spotlight-opacity: 0.95;
   --spotlight-width: 55%;
   --spotlight-height: 50%;
-  --pet-dist: 0.7;
+  --pet-dist: 0.9;
   --pet-lift: 0.05;
   --pet-size: 0.85;
   --pet-follow: 0.16;
   --pet-wander: 0.35;
   --pet-liveliness: 1;
+  --pet-orbit-radius: 1.1;
+  --pet-orbit-squash: 0.42;
+  --pet-orbit-dur: 3.4;
   --sound-volume-button-press: 80%;
   --sound-volume-hand-shuffle: 80%;
   --sound-volume-deck-shuffle: 80%;
