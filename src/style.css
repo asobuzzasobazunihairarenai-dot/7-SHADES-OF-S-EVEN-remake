@@ -10512,35 +10512,10 @@ body.theme-light-ingame #turn-round-counter {
   color: #6b5c3c;
 }
 
-/* プレイヤー操作アイコン（1枚ドロー・盤面拡大・シャッフル・ターン終了・誤操作防止など）の
-   丸バッジをライトに。アイコン画像は白いSVGを<img>で読み込んでいる（外部SVGなので
-   --icon-primaryは効かない）ため、filterで暗色シルエットにして白背景でも見えるようにする。
-   オプションエリアのアイコン（バッジ透明）は対象外にしたいので、操作ボタンのidに限定する。 */
-body.theme-light-ingame
-  :is(#draw-button, #public-draw-button, #board-zoom-button, #board-zoom-register-button, #hand-shuffle-button, #end-turn-button, #piece-hide-button, #card-hide-button)
-  .icon-action-button-icon-wrap {
-  background: rgba(255, 253, 247, 0.92);
-  border-color: rgba(176, 141, 63, 0.55);
-  box-shadow: 0 4px 10px rgba(120, 100, 60, 0.22);
-}
-body.theme-light-ingame
-  :is(#draw-button, #public-draw-button, #board-zoom-button, #board-zoom-register-button, #hand-shuffle-button, #end-turn-button, #piece-hide-button, #card-hide-button):hover
-  .icon-action-button-icon-wrap {
-  background: rgba(176, 141, 63, 0.22);
-  border-color: rgba(176, 141, 63, 0.85);
-}
-body.theme-light-ingame
-  :is(#draw-button, #public-draw-button, #board-zoom-button, #board-zoom-register-button, #hand-shuffle-button, #end-turn-button, #piece-hide-button, #card-hide-button)
-  .icon-action-button-icon-img {
-  filter: brightness(0) opacity(0.72);
-}
-body.theme-light-ingame
-  :is(#draw-button, #public-draw-button, #board-zoom-button, #board-zoom-register-button, #hand-shuffle-button, #end-turn-button, #piece-hide-button, #card-hide-button)
-  .icon-action-button-caption {
-  color: #3a3326;
-  background: rgba(255, 253, 247, 0.85);
-  text-decoration-color: rgba(120, 100, 60, 0.4);
-}
+/* 操作アイコン（1枚ドロー・盤面拡大・シャッフル・ターン終了等）は、白いSVGアイコンを
+   filterで暗色化すると塗りつぶし系アイコンが真っ黒の塊になり不格好だった（ユーザー報告）。
+   小さい丸バッジは明るい盤面の上でもダーク＋白アイコンの方がきれいなので、ライト化せず
+   ダークのまま残す（フェイズ案内板のボタンも同様）。 */
 /* スタートプレイヤー決定「発表」モーダルだけライトに（共通buildSimpleModalの中身はインライン
    指定のため !important。設定フォーム等の他のsimple modalは対象外＝start-player-announce限定）。 */
 body.theme-light-ingame .start-player-announce {
@@ -10553,25 +10528,49 @@ body.theme-light-ingame .start-player-announce .start-player-name {
   color: #2563eb !important; /* 薄い水色#7dd3fcは白背景で読みづらいので濃い青へ */
 }
 
-/* フェイズ案内板（#phase-guide-bar）のボタンも操作アイコンと同じ丸バッジ＋白SVG構造なので、
-   同様にライト化（バッジを明るく／白アイコンをfilterで暗色シルエット化／キャプションを暗色に）。
-   現在フェイズの水色アウトライン(is-current-phase)は白地でも視認できるのでそのまま。 */
-body.theme-light-ingame #phase-guide-bar .icon-action-button-icon-wrap {
-  background: rgba(255, 253, 247, 0.92);
-  border-color: rgba(176, 141, 63, 0.55);
-  box-shadow: 0 4px 10px rgba(120, 100, 60, 0.22);
+/* フェイズ案内板（#phase-guide-bar）のボタンも上記の操作アイコンと同じ理由でダークのまま
+   残す（塗りつぶし系アイコンをfilter暗色化すると真っ黒になり不格好なため）。 */
+
+/* カード効果関連モーダルの背景をライトに（ユーザー要望：到達拡大・手札使用拡大の背景も）。
+   スレート系のみ対象。緑/紫など意図的に色付けされたモーダル（.card-received-modal等）は
+   白背景でも成立するのでそのまま残す。 */
+body.theme-light-ingame .card-arrival-modal,
+body.theme-light-ingame .hand-effect-use-modal {
+  background: rgba(255, 253, 247, 0.62);
 }
-body.theme-light-ingame #phase-guide-bar .icon-action-button:hover .icon-action-button-icon-wrap {
-  background: rgba(176, 141, 63, 0.22);
-  border-color: rgba(176, 141, 63, 0.85);
-}
-body.theme-light-ingame #phase-guide-bar .icon-action-button-icon-img {
-  filter: brightness(0) opacity(0.72);
-}
-body.theme-light-ingame #phase-guide-bar .icon-action-button-caption {
+body.theme-light-ingame .hand-effect-use-modal-name {
   color: #3a3326;
-  background: rgba(255, 253, 247, 0.85);
-  text-decoration-color: rgba(120, 100, 60, 0.4);
+  text-shadow: none;
+}
+body.theme-light-ingame .effect-reason-modal {
+  background: rgba(255, 253, 247, 0.97);
+  border-color: rgba(176, 141, 63, 0.6);
+}
+body.theme-light-ingame .effect-reason-modal-name {
+  color: #2563eb;
+}
+body.theme-light-ingame .effect-reason-modal-text {
+  color: #3a3326;
+}
+body.theme-light-ingame .hand-effect-option-picker {
+  background: rgba(255, 253, 247, 0.98);
+  border-color: rgba(176, 141, 63, 0.5);
+}
+body.theme-light-ingame .hand-effect-option-picker-title {
+  color: #3a3326;
+}
+body.theme-light-ingame .hand-effect-option-picker-btn {
+  background: rgba(176, 141, 63, 0.15);
+  color: #3a3326;
+  border-color: rgba(176, 141, 63, 0.5);
+}
+body.theme-light-ingame .hand-effect-option-picker-btn:hover {
+  background: rgba(176, 141, 63, 0.3);
+}
+body.theme-light-ingame .hand-effect-option-picker-btn.is-unusable {
+  background: rgba(120, 100, 60, 0.1);
+  color: rgba(58, 51, 38, 0.4);
+  border-color: rgba(120, 100, 60, 0.3);
 }
 
 /* ランキングの画面全体版（続き74、src/ranking-page.js）。プロフィール画面全体版と
