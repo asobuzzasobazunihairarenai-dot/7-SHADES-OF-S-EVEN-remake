@@ -1098,18 +1098,24 @@ async function runAction(action, ctx, helpers) {
       const revealedCardIds = [];
       let remaining = total;
       while (remaining > 0) {
-        if (remaining > 1 && helpers.pickHandEffectOption) {
-          const opt = await helpers.pickHandEffectOption("yellow-gamble", [
-            { id: "one", label: "１枚公開する", usable: true },
-            { id: "all", label: `残り${remaining}枚をすべて公開する`, usable: true },
-          ]);
+        if (helpers.pickHandEffectOption) {
+          // 残り2枚以上なら「1枚公開/全部公開」、最後の1枚は「最後の1枚を公開する」を毎回出す
+          // （ユーザー要望: 最後の1枚ももったいぶりたい）。
+          const options =
+            remaining > 1
+              ? [
+                  { id: "one", label: "１枚公開する", usable: true },
+                  { id: "all", label: `残り${remaining}枚をすべて公開する`, usable: true },
+                ]
+              : [{ id: "last", label: "最後の１枚を公開する", usable: true }];
+          const opt = await helpers.pickHandEffectOption("yellow-gamble", options);
           if (opt?.id === "all") {
             const rest = await helpers.publicDraw(ctx.player, remaining);
             revealedCardIds.push(...rest);
             remaining = 0;
             break;
           }
-          // "one" またはモーダルを閉じた(null) → 1枚だけ公開して次へ。
+          // "one"/"last"/閉じた(null) → 1枚だけ公開して次へ。
         }
         const one = await helpers.publicDraw(ctx.player, 1);
         revealedCardIds.push(...one);

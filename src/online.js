@@ -622,10 +622,20 @@ export function getAccountDisplayLabel(user) {
   }
   return "ログイン中";
 }
+let visitRecorded = false;
 if (client) {
   client.auth.onAuthStateChange((_event, session) => {
     const wasLoggedIn = !!cachedUser;
     cachedUser = session?.user ?? null;
+    // 訪問ログは「認証セッションが解決した後」に1回だけ記録する。以前はinit直後に呼んで
+    // いたが、その時点ではまだcachedUserがnullでuser_idが常に空になり、管理者ダッシュ
+    // ボードのログイン履歴が全部「(匿名/未ログイン)」になっていた（ユーザー報告）。
+    // onAuthStateChangeはページ読み込み時にINITIAL_SESSION（復元済みセッション or null）で
+    // 発火するため、ここで記録すればログイン中ユーザーはuser_id付き＝名前が出る。
+    if (!visitRecorded) {
+      visitRecorded = true;
+      recordVisit().catch((err) => console.error("recordVisit failed", err));
+    }
     // ログインした瞬間（未ログイン→ログイン済みへの変化）だけ、アカウントに紐づけて
     // 保存しておいた基本設定・ショートカットを読み込んで適用する。
     if (!wasLoggedIn && cachedUser) {
@@ -641,10 +651,9 @@ if (client) {
     for (const fn of authChangeListeners) fn(cachedUser);
   });
   // ユーザー要望「サイトの利用状況（ログイン数・訪問数・誰がログイン中か）がわかるように
-  // したい」への対応。ページを開いた瞬間に1件だけ訪問ログを記録し（匿名でも記録される。
-  // ログイン中ならuser_idも一緒に残す）、ログイン中は数分おきに「まだ見ている」ことを
-  // 記録し直す（so7_touch_presence、管理者モードの「ログイン中」判定に使う）。
-  recordVisit().catch((err) => console.error("recordVisit failed", err));
+  // したい」。訪問ログの記録は上のonAuthStateChange内（セッション解決後）へ移動した
+  // （ここで呼ぶとcachedUserがまだnullでuser_idが常に空になっていたため）。ログイン中は
+  // 数分おきに「まだ見ている」ことを記録し直す（so7_touch_presence、「ログイン中」判定用）。
   setInterval(() => {
     if (cachedUser) touchPresence().catch((err) => console.error("touchPresence failed", err));
   }, 120000);
