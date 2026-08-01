@@ -6759,6 +6759,31 @@ function checkGomennasaiAutoApproval() {
   const approver = pending.queue[0];
   if (isOnlineMode() && getSelfSeat() !== approver) return;
   if (findGomennasaiEligibility(approver)) return; // 使えるなら自動承認せず本人の選択を待つ
+  // 診断ログ（ユーザー報告「ゴメンナサイと追色コストを持っているのに最後のロック承認で使えな
+  // かった」の調査用）: なぜ「使えない＝自動承認」と判定したのかを記録する。ゴメンナサイ本体が
+  // 手札に無い(hasSorryInHand:false)のか、追色に使える紫カードが手札に無い(purpleForCost が空、
+  // ゴメンナサイ自身は追色に使えない)のか、をこのログで切り分けられる。
+  {
+    const sorry = getState().tokens.find(
+      (t) => t.kind === "card" && t.cardId === "purple-sorry" && t.location.zone === "hand" && t.location.player === approver
+    );
+    const purpleForCost = getState()
+      .tokens.filter(
+        (t) =>
+          t.kind === "card" &&
+          t.location.player === approver &&
+          t.location.zone === "hand" &&
+          t.id !== sorry?.id &&
+          (t.cardId === "rainbow-shard" || getCardDefinition(t.cardId)?.color === "purple")
+      )
+      .map((t) => t.cardId);
+    logAction("diag-gomennasai", {
+      approver,
+      hasSorryInHand: !!sorry,
+      purpleForCost,
+      note: "ゴメンナサイ使用不可と判定→自動承認します",
+    });
+  }
   gomennasaiAutoApprovalInFlight = true;
   Promise.resolve(respondToFinalLock(true)).finally(() => {
     gomennasaiAutoApprovalInFlight = false;
