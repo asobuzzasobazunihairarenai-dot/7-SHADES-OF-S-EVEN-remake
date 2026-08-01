@@ -111,6 +111,7 @@ export function applyProfileLayout(container) {
   });
 
   let maxBottom = 0;
+  let maxRight = 0;
   for (const m of measured) {
     let cfg = PROFILE_LAYOUT[m.key];
     if (!cfg) {
@@ -141,10 +142,20 @@ export function applyProfileLayout(container) {
       el.style.pointerEvents = "";
     }
     maxBottom = Math.max(maxBottom, cfg.y + el.offsetHeight * cfg.scale);
+    // 内容の右端（正方向の一番右）も測る。カード幅をこれに合わせて広げることで、着せ替え等が
+    // 960pxのカード端で切れる（ユーザー報告「着せ替えが右で切れる／見えない枠」）のを防ぐ。
+    // 装飾アバターは負のx（左）に置かれ、その左方向のはみ出しはoverflow:hiddenでクリップする。
+    maxRight = Math.max(maxRight, cfg.x + el.offsetWidth * cfg.scale);
     if (editMode) makeEditable(el, container);
   }
   if (layoutActive) {
     container.style.minHeight = `${maxBottom + 40}px`;
+    if (card) {
+      // カード幅を内容の右端に合わせて広げる（着せ替え等が切れないように）。編集中は作業しやすい
+      // よう最低でも既定キャンバス幅を確保。maxWidth:96vwで画面をはみ出さないようにクランプ。
+      const fitWidth = Math.ceil(maxRight + 8);
+      card.style.width = `${editMode ? Math.max(fitWidth, CANVAS_WIDTH_PX) : fitWidth}px`;
+    }
   }
   if (editMode) ensureToolbar(container);
 }
