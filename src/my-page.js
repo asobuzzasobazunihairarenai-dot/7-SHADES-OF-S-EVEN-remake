@@ -394,14 +394,17 @@ export function initMyPage() {
   document.body.appendChild(backdrop);
   document.body.appendChild(panel);
 
-  // ユーザー報告「マイページでアバターを変更してもマイページのアバターの見た目が変わらない」。
-  // アバター等の変更はwindowの"admin:change"イベントで通知される（online.jsのupdateMyIdentity・
-  // 各着せ替えピッカー）。マイページが開いている間だけ、通知を受けて表示中のアバター画像
-  // （本体・巨大背面）を最新に差し替える（全体の再描画は戦績の再取得を伴い重いので画像だけ更新）。
+  // ユーザー報告「アバターを変更してもマイページの巨大アバターが変わらない」。アバター変更は
+  // window の "admin:change" で通知される（player-identity.jsのsetPlayerAvatar・online.jsの
+  // updateMyIdentity・各着せ替えピッカー）。マイページはモーダル版(この初期化)と全画面版
+  // (profile-page.js)の2経路があり、以前はこのモーダルのpanel内しか更新していなかったため
+  // 全画面版の巨大アバターが更新されなかった。ドキュメント全体のアバター画像(本体・巨大背面)を
+  // 最新に差し替えることで、どちらの経路でも即反映する（開いていなければ該当要素が無く何もしない）。
   window.addEventListener("admin:change", () => {
-    if (panel.style.display === "none") return;
+    const imgs = document.querySelectorAll(".my-page-avatar-img, .my-page-bg-avatar img");
+    if (imgs.length === 0) return;
     const src = getPlayerAvatar(getSelfSeat());
-    panel.querySelectorAll(".my-page-avatar-img, .my-page-bg-avatar img").forEach((img) => {
+    imgs.forEach((img) => {
       img.src = src;
     });
   });

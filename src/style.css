@@ -10074,6 +10074,37 @@ body.reduce-glow .cell.card-effect-placement-target {
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);
   font-size: 0.85rem;
 }
+/* ユーザー要望「ランキングで自分の行をハイライト点滅で強調」。自分の行を色付き背景＋
+   枠で目立たせ、ゆっくり点滅させる（見つけやすさ優先、うるさすぎない速さ）。 */
+.ranking-page-row.is-self {
+  border-radius: 0.4rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  border-bottom-color: transparent;
+  animation: ranking-self-pulse 1.6s ease-in-out infinite;
+}
+.ranking-page-row.is-self .ranking-page-row-name {
+  font-weight: bold;
+  color: #fde68a;
+}
+@keyframes ranking-self-pulse {
+  0%,
+  100% {
+    background: rgba(250, 204, 21, 0.1);
+    box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.35) inset;
+  }
+  50% {
+    background: rgba(250, 204, 21, 0.28);
+    box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.8) inset, 0 0 0.8rem rgba(250, 204, 21, 0.35);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ranking-page-row.is-self {
+    animation: none;
+    background: rgba(250, 204, 21, 0.18);
+    box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.6) inset;
+  }
+}
 .ranking-page-row-rank {
   width: 1.6rem;
   text-align: center;

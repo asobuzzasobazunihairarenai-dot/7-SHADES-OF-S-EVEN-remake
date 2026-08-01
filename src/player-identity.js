@@ -22,7 +22,24 @@ import { isOnlineMode, getSelfSeat, getSyncedIdentity, updateMyIdentity } from "
 // 常にfront版を保持し、実際に表示する場所（盤面上の席・ステータスエリア等）に応じた
 // 向きの差し替えはavatar-render.jsのgetAvatarVariant()で行う。
 const AVATAR_COLORS = ["red", "orange", "yellow", "green", "blue", "pink", "purple"];
-export const AVATAR_OPTIONS = AVATAR_COLORS.map((color) => `assets/avatars/${color}-front.webp`);
+// 追加アバター「各国の国王」（ユーザー提供、画像素材/アバター/各国の国王）。既存の色アバターと
+// 同じ命名規約（{base}-{front|left|right}.webp、覚醒=-awakened / 激昂=-enraged 接尾辞）に
+// リネームして assets/avatars/ へ配置済みなので、avatar-render.js の getAvatarVariant /
+// getAwakenedVariant / getEnragedVariant がそのまま向き・状態を導出できる。選択肢の正規値は
+// 常に front 版。
+const KING_AVATARS = [
+  "avatar-red-king",
+  "avatar-orange-fox-king",
+  "avatar-yellow-light-king",
+  "avatar-green-forest-king",
+  "avatar-blue-ice-sea-king",
+  "avatar-pink-queen",
+  "avatar-purple-elder-queen",
+];
+export const AVATAR_OPTIONS = [
+  ...AVATAR_COLORS.map((color) => `assets/avatars/${color}-front.webp`),
+  ...KING_AVATARS.map((k) => `assets/avatars/${k}-front.webp`),
+];
 
 const DEFAULT_AVATARS = {
   A: "assets/avatars/red-front.webp",
@@ -63,6 +80,10 @@ export function setPlayerAvatar(seat, avatar) {
   if (seat === getSelfSeat()) {
     updateMyIdentity({ avatar }).catch((err) => console.error("updateMyIdentity failed", err));
   }
+  // ユーザー報告「アバターを変更してもマイページの巨大アバターが変わらない」。アバター変更を
+  // 各所（盤面render・マイページ）へ即通知する。avatars[seat]は上で同期的に更新済みなので、
+  // これを受けて getPlayerAvatar() を読めば新しい値が返る。
+  window.dispatchEvent(new CustomEvent("admin:change"));
 }
 
 // 全座席分まとめて必要になる場面（アバター一括描画等）向けの便利関数。

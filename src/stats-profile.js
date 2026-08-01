@@ -164,11 +164,23 @@ export async function fetchLeaderboard(limit = 20) {
   if (!client) return { winRate: [], wins: [], matches: [] };
 
   const [{ data: players, error: playersError }, { data: matches, error: matchesError }] = await Promise.all([
-    client.from("players").select("id, name, avatar_url, status, is_staff, seed_matches_count, seed_wins_count"),
+    client.from("players").select("id, name, avatar_url, status, is_staff, seed_matches_count, seed_wins_count, user_id"),
     client.from("matches").select("members, winner_id, status"),
   ]);
   if (playersError) throw playersError;
   if (matchesError) throw matchesError;
+
+  // ユーザー要望「ランキングで自分がハイライト（点滅など）で強調されていると分かりやすい」。
+  // 今ログインしているアカウントに紐づく戦績プレイヤーのidを求め、返り値に含める
+  // （ランキングページ側で自分の行に強調クラスを付ける）。
+  let myPlayerId = null;
+  try {
+    const { data: authData } = await client.auth.getUser();
+    const uid = authData?.user?.id;
+    if (uid) myPlayerId = (players ?? []).find((p) => p.user_id === uid)?.id ?? null;
+  } catch (e) {
+    /* 取得できなくてもランキング自体は表示する */
+  }
 
   const rankablePlayers = (players ?? []).filter((p) => p.status === "approved" && !p.is_staff);
   const statsById = computeAllPlayerStats(rankablePlayers, matches ?? []);
@@ -204,6 +216,7 @@ export async function fetchLeaderboard(limit = 20) {
     matches: toRows(byMatches),
     winRateAverageMatches,
     winRateBorder,
+    myPlayerId,
   };
 }
 

@@ -28,6 +28,11 @@ function buildRow(row, valueLabel) {
   const item = document.createElement("div");
   item.className = "ranking-page-row";
   if (row.rank <= 3) item.classList.add(`is-top${row.rank}`);
+  // ユーザー要望「ランキングで自分がハイライト（点滅など）で強調されていると分かりやすい」。
+  // fetchLeaderboardが返す myPlayerId と一致する行を強調する（CSSのis-selfで点滅ハイライト）。
+  if (row.playerId && cachedLeaderboard && row.playerId === cachedLeaderboard.myPlayerId) {
+    item.classList.add("is-self");
+  }
 
   const rankEl = document.createElement("div");
   rankEl.className = "ranking-page-row-rank";
