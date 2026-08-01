@@ -8456,6 +8456,7 @@ let selfStatusPetThumbEl = null;
 let selfStatusHandCountEl = null;
 let selfStatusInfoEl = null;
 let selfStatusLargeAvatarEl = null;
+let selfStatusLargeAvatarGhostEl = null;
 let selfStatusRankRingEl = null;
 
 // ユーザー要望「戦績システムと連携しているプレイヤーはステータスエリアにランクを
@@ -8746,6 +8747,14 @@ function buildSelfHandStatus() {
   el.appendChild(selfStatusRankRingEl);
   setRankRingOrbitContainer(selfStatusRankRingEl);
 
+  // ユーザー要望「不透明アバターの背面に、少しずらして半透明のアバターも表示したい」。
+  // 本体と同じ画像をもう1枚、本体より前（DOM順で先）に追加して背面に薄く重ねる。
+  // 中身はupdateSelfHandStatus()で本体と同じsrcを流し込む（applyAvatarContentが
+  // 子要素を作り替えるため、本体と別要素にしておく）。
+  selfStatusLargeAvatarGhostEl = document.createElement("div");
+  selfStatusLargeAvatarGhostEl.className = "self-status-large-avatar-ghost";
+  el.appendChild(selfStatusLargeAvatarGhostEl);
+
   el.appendChild(selfStatusLargeAvatarEl);
 
   // 駒スキンの選択もここに集約する（以前は別の独立したボタンだった）。実際の駒と同じ
@@ -8834,6 +8843,8 @@ function updateSelfHandStatus() {
   if (selfLockedCount >= 6) selfAvatarSrc = getEnragedVariant(selfAvatarSrc);
   else if (selfLockedCount >= 4) selfAvatarSrc = getAwakenedVariant(selfAvatarSrc);
   applyAvatarContent(selfStatusLargeAvatarEl, selfAvatarSrc);
+  // 背面の半透明アバター（ユーザー要望）にも同じ画像を反映する。
+  if (selfStatusLargeAvatarGhostEl) applyAvatarContent(selfStatusLargeAvatarGhostEl, selfAvatarSrc);
   // ハマりどころ: applyAvatarContent()の直後は毎回tooltip要素も一緒に消えている
   // ため（同じ理由でリングも消えていた、buildSelfHandStatusのコメント参照）、
   // ここで都度re-addする必要がある。文言はbuildSelfHandStatus側と揃える。

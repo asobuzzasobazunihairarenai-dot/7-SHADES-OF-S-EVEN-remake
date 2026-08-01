@@ -5335,16 +5335,48 @@ body.is-touch-device #self-hand-status {
   position: absolute;
   left: 0;
   top: 0;
-  z-index: 0;
+  z-index: 1;
   font-size: calc(var(--self-status-large-avatar-size, 12rem) * 0.75);
   line-height: 1;
   cursor: pointer;
   transform: translate(var(--self-status-large-avatar-pos-x, -0.86rem), var(--self-status-large-avatar-pos-y, -5.12rem));
-  filter: drop-shadow(0 0.2rem 0.4rem rgba(0, 0, 0, 0.6));
 }
 .self-status-large-avatar .avatar-image {
   width: var(--self-status-large-avatar-size, 12rem);
   height: var(--self-status-large-avatar-size, 12rem);
+}
+/* ユーザー要望「ステータスエリアのアバターに丸枠がついてしまった。以前は無かった。
+   枠を透明にしたい（ドロップシャドウを消せばいいと思う）」。原因は共通の.avatar-imageに
+   かかっている border-radius:50% + object-fit:cover で、国王アバター（炎など不定形の
+   イラスト）が円形に切り抜かれ、その円形の輪郭に沿ってdrop-shadowが落ちることで
+   「丸い枠」に見えていた。ステータスエリアの巨大アバターだけは円形クロップをやめ、
+   イラスト全体を素の形のまま表示する（drop-shadow自体も上のルールから外した）。 */
+.self-status-large-avatar .avatar-image {
+  border-radius: 0;
+  object-fit: contain;
+}
+/* ユーザー要望「不透明アバターの背面に、少しずらして半透明のアバターも表示して
+   かっこよくしたい」。同じアバター画像をもう1枚、本体の背面に薄く・少しずらして重ねる。
+   位置は本体(.self-status-large-avatar)と同じ基準に、ずらし量(--self-status-large-avatar-ghost-*)
+   を足す。クリックは本体側で受けるのでこちらは透過させる。 */
+.self-status-large-avatar-ghost {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 0;
+  line-height: 1;
+  pointer-events: none;
+  opacity: var(--self-status-large-avatar-ghost-opacity, 0.4);
+  transform: translate(
+    calc(var(--self-status-large-avatar-pos-x, -0.86rem) + var(--self-status-large-avatar-ghost-offset-x, 1.4rem)),
+    calc(var(--self-status-large-avatar-pos-y, -5.12rem) + var(--self-status-large-avatar-ghost-offset-y, -1.1rem))
+  );
+}
+.self-status-large-avatar-ghost .avatar-image {
+  width: var(--self-status-large-avatar-size, 12rem);
+  height: var(--self-status-large-avatar-size, 12rem);
+  border-radius: 0;
+  object-fit: contain;
 }
 /* スマホでは左下の自分アバターのサイズ変数を専用値に差し替える（ユーザー要望「もう少し
    小さくしたい」）。この変数はアバター本体(.avatar-image)・絵文字のfont-size・ランクリング
