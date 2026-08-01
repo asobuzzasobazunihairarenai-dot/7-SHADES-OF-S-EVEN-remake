@@ -16,3 +16,14 @@ export function getOptionArea() {
   }
   return el;
 }
+
+// body.full-screen-page-active は「全画面ページ（ホーム/プロフィール/ランキング/図鑑）が
+// 開いている間、オプションエリアを前面に出す」ための共通クラス。以前は各ページが個別に
+// add/removeしていたが、ランキング等をホームに重ねて開いてから閉じると、ホームがまだ
+// 開いているのにクラスがremoveされてオプションエリアが盤面の裏へ回る（消える）バグがあった
+// （ユーザー報告）。開いている全画面ページが1つでも残っていればON、無ければOFFに、DOMの
+// 実状から毎回同期する。各ページのopen/closeの最後にこれを呼ぶ。
+export function syncFullScreenPageActive() {
+  const anyOpen = document.querySelector("#home-screen, #profile-page, #ranking-page, #codex-page");
+  document.body.classList.toggle("full-screen-page-active", !!anyOpen);
+}

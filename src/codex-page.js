@@ -5,6 +5,7 @@
 
 import { openDeckViewer } from "./deck-viewer.js";
 import { buildHelpList } from "./help.js";
+import { syncFullScreenPageActive } from "./option-area.js";
 
 let overlayEl = null;
 
@@ -57,11 +58,11 @@ export function openCodexPage(onClose) {
   overlayEl.appendChild(content);
   document.body.appendChild(overlayEl);
   // ホーム/プロフィール全画面と同じく、上のオプションエリアのアイコンは表示したままにする。
-  document.body.classList.add("full-screen-page-active");
+  syncFullScreenPageActive();
 }
 
 export function closeCodexPage() {
   overlayEl?.remove();
   overlayEl = null;
-  document.body.classList.remove("full-screen-page-active");
+  syncFullScreenPageActive();
 }

@@ -18,6 +18,7 @@ import { openProfilePage } from "./profile-page.js";
 // は元々「開発用ツール」と明記された既存のモーダルだが、「とりあえず」の指示のため
 // 画面全体版には作り直さず、そのまま配線するだけに留めた。
 import { openDeckViewer } from "./deck-viewer.js";
+import { syncFullScreenPageActive } from "./option-area.js";
 import { openCodexPage } from "./codex-page.js";
 // ユーザー要望「ランキングを実装しましょう」への対応で新設したページ。
 import { openRankingPage } from "./ranking-page.js";
@@ -182,7 +183,7 @@ export function openHomeScreen() {
   document.body.appendChild(overlayEl);
   // ユーザー要望（続き75）「ホーム画面やプロフ全画面でも上のオプションエリアのアイコン等は
   // 表示していてください」。full-screen-page-active共通クラス（style.css参照）。
-  document.body.classList.add("full-screen-page-active");
+  syncFullScreenPageActive();
 }
 
 export function closeHomeScreen() {
@@ -190,7 +191,7 @@ export function closeHomeScreen() {
   overlayEl = null;
   toastEl = null;
   clearTimeout(toastTimer);
-  document.body.classList.remove("full-screen-page-active");
+  syncFullScreenPageActive();
 }
 
 // ユーザー報告（続き74）「『ゲームを開始する』を押してもホーム画面が消えません」。

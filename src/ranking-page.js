@@ -7,7 +7,7 @@
 import { fetchLeaderboard } from "./stats-profile.js";
 import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
-import { getOptionArea } from "./option-area.js";
+import { getOptionArea, syncFullScreenPageActive } from "./option-area.js";
 
 let overlayEl = null;
 let listEl = null;
@@ -197,8 +197,9 @@ export async function openRankingPage(onClose) {
 
   document.body.appendChild(overlayEl);
   // ユーザー要望（続き75）「ホーム画面やプロフ全画面でも上のオプションエリアのアイコン等は
-  // 表示していてください」。full-screen-page-active共通クラス（style.css参照）。
-  document.body.classList.add("full-screen-page-active");
+  // 表示していてください」。full-screen-page-active共通クラス（style.css参照）。開いている
+  // 全画面ページの実状から同期する（重ねて開いて閉じてもオプションエリアが消えないように）。
+  syncFullScreenPageActive();
 
   try {
     cachedLeaderboard = await fetchLeaderboard();
@@ -218,7 +219,7 @@ export function closeRankingPage() {
   listEl = null;
   statusEl = null;
   cachedLeaderboard = null;
-  document.body.classList.remove("full-screen-page-active");
+  syncFullScreenPageActive();
 }
 
 // ユーザー要望（続き77）「オプションエリアにランキングアイコンを追加したいです。
