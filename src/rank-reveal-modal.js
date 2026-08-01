@@ -136,7 +136,8 @@ export async function showRankRevealModal() {
       }
     });
 
-    const autoCloseTimer = setTimeout(close, AUTO_CLOSE_MS);
+    // ユーザー要望（変更）: 対戦終了時のモーダルは自動で次へ進まない。✕/背景クリックでのみ閉じる。
+    const autoCloseTimer = null;
   });
 }
 
@@ -249,7 +250,7 @@ async function showNotRankedModal(reason) {
     modal.appendChild(createModalCloseX(close));
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
-    // 一覧＋説明＋CTAを読む時間を確保しつつ、放置しても連鎖が進むよう長めの自動クローズ。
-    const autoCloseTimer = setTimeout(close, 12000);
+    // ユーザー要望（変更）: 対戦終了時のモーダルは自動で次へ進まない。✕/背景クリックでのみ閉じる。
+    const autoCloseTimer = null;
   });
 }

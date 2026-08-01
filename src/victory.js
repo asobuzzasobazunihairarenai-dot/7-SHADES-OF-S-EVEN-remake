@@ -157,10 +157,10 @@ function showVictoryModal(player, onClose) {
   document.body.appendChild(backdrop);
   document.body.appendChild(modal);
 
-  // ユーザー要望「勝利モーダルが5秒ぐらいしっかり出た後に次のモーダルが出るように」。
-  // 早く閉じたい人のために✕/背景クリックでの手動クローズも引き続き効くが（この場合は
-  // すぐにonCloseへ進む）、何もしなければ最低でもこの時間は表示され続ける。
-  const autoCloseTimer = setTimeout(close, VICTORY_MODAL_MIN_DISPLAY_MS);
+  // ユーザー要望（変更）「対戦終了時のモーダルは自動で切り替わらないでほしい。✕か背景を
+  // クリックするまで次に行かないように」。以前は一定時間で自動クローズ→次モーダルへ進んで
+  // いたが、その自動クローズは撤去し、✕/背景クリックでのみ閉じる（=次へ進む）ようにした。
+  const autoCloseTimer = null;
 }
 
 export function checkForVictory() {

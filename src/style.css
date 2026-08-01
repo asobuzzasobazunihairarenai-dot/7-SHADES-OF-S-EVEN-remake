@@ -10006,6 +10006,32 @@ body.reduce-glow .cell.card-effect-placement-target {
   border-radius: 0.6rem;
   padding: 1.2rem;
 }
+/* ユーザー要望「3ランキングを横に同時表示・枠は不要」。囲う枠(#ranking-page-card)は使わず、
+   3カラムを横並びにする（各カラムは枠なし、見出し＋行だけ）。画面が狭ければ折り返す。 */
+#ranking-page-list {
+  display: flex;
+  gap: 1.6rem 2.4rem;
+  justify-content: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 78rem;
+  margin: 0 auto;
+}
+.ranking-page-column {
+  flex: 1 1 20rem;
+  min-width: 15rem;
+  max-width: 24rem;
+}
+.ranking-page-column-heading {
+  font-weight: bold;
+  text-align: center;
+  color: #7dd3fc;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.3);
+  padding-bottom: 0.4rem;
+  margin-bottom: 0.4rem;
+  font-size: 1rem;
+}
 #ranking-page-tabs {
   display: flex;
   gap: 0.4rem;

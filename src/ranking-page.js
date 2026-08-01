@@ -55,19 +55,31 @@ function buildRow(row, valueLabel) {
   return item;
 }
 
+// ユーザー要望「3つのランキング（勝率・勝利数・対戦数）を、タブ切替ではなく横に同時表示に。
+// 横に余白がたくさんあるし、マイページ同様に枠も不要」。listEl の中に3カラムを並べる。
 function renderTab() {
-  if (!cachedLeaderboard) return;
+  if (!cachedLeaderboard || !listEl) return;
   listEl.innerHTML = "";
-  const tab = TABS.find((t) => t.key === activeTab);
-  const rows = cachedLeaderboard[activeTab];
-  if (!rows || rows.length === 0) {
-    const empty = document.createElement("div");
-    empty.className = "ranking-page-empty";
-    empty.textContent = "まだランキング対象のプレイヤーがいません。";
-    listEl.appendChild(empty);
-    return;
+  for (const tab of TABS) {
+    const col = document.createElement("div");
+    col.className = "ranking-page-column";
+
+    const heading = document.createElement("div");
+    heading.className = "ranking-page-column-heading";
+    heading.textContent = tab.label;
+    col.appendChild(heading);
+
+    const rows = cachedLeaderboard[tab.key];
+    if (!rows || rows.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "ranking-page-empty";
+      empty.textContent = "まだ対象のプレイヤーがいません。";
+      col.appendChild(empty);
+    } else {
+      for (const row of rows) col.appendChild(buildRow(row, tab.valueLabel));
+    }
+    listEl.appendChild(col);
   }
-  for (const row of rows) listEl.appendChild(buildRow(row, tab.valueLabel));
 }
 
 // ユーザー要望（続き77）「ランキングページにランキングルールをiマークで載せておいて
@@ -167,20 +179,16 @@ export async function openRankingPage(onClose) {
 
   overlayEl.appendChild(title);
 
-  const card = document.createElement("div");
-  card.id = "ranking-page-card";
-  overlayEl.appendChild(card);
-
-  card.appendChild(buildTabs());
-
+  // ユーザー要望「枠は不要・3ランキングを横に同時表示」。囲う枠(#ranking-page-card)は撤去し、
+  // 3カラムのリスト(#ranking-page-list、CSSでflex横並び)を直接ページに置く。タブも廃止。
   statusEl = document.createElement("div");
   statusEl.id = "ranking-page-status";
   statusEl.textContent = "読み込み中…";
-  card.appendChild(statusEl);
+  overlayEl.appendChild(statusEl);
 
   listEl = document.createElement("div");
   listEl.id = "ranking-page-list";
-  card.appendChild(listEl);
+  overlayEl.appendChild(listEl);
 
   document.body.appendChild(overlayEl);
   // ユーザー要望（続き75）「ホーム画面やプロフ全画面でも上のオプションエリアのアイコン等は

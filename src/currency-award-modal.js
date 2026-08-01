@@ -44,6 +44,7 @@ export function showCurrencyAwardModal(amount) {
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
 
-    const autoCloseTimer = setTimeout(close, AUTO_CLOSE_MS);
+    // ユーザー要望（変更）: 対戦終了時のモーダルは自動で次へ進まない。✕/背景クリックでのみ閉じる。
+    const autoCloseTimer = null;
   });
 }
