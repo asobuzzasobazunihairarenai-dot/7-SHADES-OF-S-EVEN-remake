@@ -306,6 +306,8 @@ const GROUPS = [
       { key: "--pet-orbit-radius", label: "一周モーション: 半径（駒幅比）", unit: "", min: 0.3, max: 3, step: 0.05, default: 1.1 },
       { key: "--pet-orbit-squash", label: "一周モーション: 縦の潰し（1で真円・小で平たい楕円）", unit: "", min: 0.1, max: 1, step: 0.02, default: 0.42 },
       { key: "--pet-orbit-dur", label: "一周モーション: 一周にかける秒数", unit: "", min: 1, max: 10, step: 0.2, default: 3.4 },
+      { key: "--pet-orbit-offset-x", label: "一周モーション: 中心の横ずらし（駒幅比）", unit: "", min: -2, max: 2, step: 0.05, default: 0 },
+      { key: "--pet-orbit-offset-y", label: "一周モーション: 中心の縦ずらし（−で上・駒に埋まる時に調整）", unit: "", min: -2, max: 2, step: 0.05, default: 0 },
     ],
   },
   {

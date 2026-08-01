@@ -33,6 +33,8 @@ const DEFAULTS = {
   orbitRadius: 1.1, // 「駒を一周」の半径（駒幅比）
   orbitSquash: 0.42, // 一周の縦の潰し（1=真円、小さいほど平たい楕円＝地面を回る感じ）
   orbitDur: 3.4, // 一周にかける秒数
+  orbitOffsetX: 0, // 一周の中心を横にずらす（駒幅比）
+  orbitOffsetY: 0, // 一周の中心を縦にずらす（駒幅比。−で上＝奥側を持ち上げて駒に埋まらないように）
 };
 const CSS_VARS = {
   dist: "--pet-dist",
@@ -44,6 +46,8 @@ const CSS_VARS = {
   orbitRadius: "--pet-orbit-radius",
   orbitSquash: "--pet-orbit-squash",
   orbitDur: "--pet-orbit-dur",
+  orbitOffsetX: "--pet-orbit-offset-x",
+  orbitOffsetY: "--pet-orbit-offset-y",
 };
 let tuning = { ...DEFAULTS };
 function refreshTuning() {
@@ -151,6 +155,9 @@ function updateSprite(pet, spriteName, fontPx, behState) {
     } else {
       pet.facing = pet.vy > 0 ? "front" : "back"; // 画面下へ＝手前＝正面、上へ＝奥＝後ろ
     }
+  } else if ((behState === "idle" || behState === "yawn" || behState === "ear") && pet.facing === "back") {
+    // 駒を奥へ進めた後などに後ろ向きのまま固まると寂しいので、待機に入ったら正面へ向き直る。
+    pet.facing = "front";
   }
   // モーション: ジャンプ中→jump、移動中→walk、それ以外は行動状態(yawn/ear)か待機(idle)。
   let motion;
@@ -310,8 +317,11 @@ function tick(now) {
       const t = (now - pet.orbitStart) / pet.orbitDur;
       const ang = pet.orbitDir * t * Math.PI * 2;
       const radius = tuning.orbitRadius * localSize;
-      targetX = center.x + Math.cos(ang) * radius;
-      targetY = center.y + Math.sin(ang) * radius * tuning.orbitSquash;
+      // 一周の中心を管理者オフセットでずらせる（駒に埋まる時は縦を上げる＝orbitOffsetYを−に）。
+      const ocx = center.x + tuning.orbitOffsetX * localSize;
+      const ocy = center.y + tuning.orbitOffsetY * localSize;
+      targetX = ocx + Math.cos(ang) * radius;
+      targetY = ocy + Math.sin(ang) * radius * tuning.orbitSquash;
       ease = 0.2;
     } else if (pet.behState === "walk") {
       targetX = pet.walkTX;

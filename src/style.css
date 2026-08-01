@@ -9079,6 +9079,8 @@ body.is-online-mode #quick-start-bar {
   --pet-orbit-radius: 1.1;
   --pet-orbit-squash: 0.42;
   --pet-orbit-dur: 3.4;
+  --pet-orbit-offset-x: 0;
+  --pet-orbit-offset-y: 0;
   --sound-volume-button-press: 80%;
   --sound-volume-hand-shuffle: 80%;
   --sound-volume-deck-shuffle: 80%;
