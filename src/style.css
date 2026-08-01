@@ -3509,6 +3509,21 @@ body.spotlight-mode #spotlight-overlay {
   font-size: 0.7rem;
   color: #cbd5e1;
 }
+/* 画像スプライトのペット（キュビット等、piece-pet.js）。サイズはJSがwidth/heightを
+   インラインで指定する。絵文字と同じく画像だけがホップし、影は接地に残る。 */
+.piece-pet-sprite {
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 0.05em 0.08em rgba(0, 0, 0, 0.4));
+  will-change: transform;
+  pointer-events: none;
+}
+/* ペット選択ピッカーでのスプライトプレビュー（正面静止画）。 */
+.pet-picker-sprite {
+  width: 3rem;
+  height: 3rem;
+  object-fit: contain;
+}
 /* 対戦ロビー（online-ui.js、対局前の中央モーダル）。盤面の上に浮かぶ中央カード。カード以外は
    盤面を邪魔しないようクリック透過（着席していく他プレイヤーが周囲に見える）。 */
 #online-lobby-modal {

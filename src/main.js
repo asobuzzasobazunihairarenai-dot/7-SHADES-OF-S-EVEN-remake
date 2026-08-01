@@ -108,7 +108,7 @@ import {
 } from "./card-back-skins.js";
 import { openPlaymatPicker, registerPlaymatHelpers, getSelectedPlaymatPath, setSelectedPlaymatId } from "./playmat.js";
 import { openBackgroundPicker, registerBackgroundHelpers, getSelectedBackgroundPath, setSelectedBackgroundId } from "./background.js";
-import { openPetPicker, registerPetHelpers, getSelectedPetIndex, PET_OPTIONS } from "./pet-skins.js";
+import { openPetPicker, registerPetHelpers, getSelectedPetIndex, PET_OPTIONS, petSpriteSrc } from "./pet-skins.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS } from "./player-identity.js";
 import { applyAvatarContent, getAvatarVariant, getAwakenedVariant, getEnragedVariant } from "./avatar-render.js";
@@ -8869,7 +8869,23 @@ function updateSelfHandStatus() {
   selfStatusCardBackThumbEl.querySelector("img").src = cardBackSetImagePath("normal", getCardBackSetIndex());
   selfStatusPlaymatThumbEl.querySelector("img").src = getSelectedPlaymatPath();
   selfStatusBackgroundThumbEl.querySelector("img").src = getSelectedBackgroundPath();
-  if (selfStatusPetThumbEl) selfStatusPetThumbEl.textContent = PET_OPTIONS[getSelectedPetIndex()]?.emoji ?? "🐥";
+  if (selfStatusPetThumbEl) {
+    // スプライトペット（キュビット等）は画像サムネイル、絵文字ペットは文字で表示する。
+    const petOpt = PET_OPTIONS[getSelectedPetIndex()];
+    if (petOpt?.sprite) {
+      let petImg = selfStatusPetThumbEl.querySelector("img");
+      if (!petImg) {
+        selfStatusPetThumbEl.textContent = "";
+        petImg = document.createElement("img");
+        petImg.alt = "";
+        selfStatusPetThumbEl.appendChild(petImg);
+      }
+      const petSrc = petSpriteSrc(petOpt.sprite, "front", "static");
+      if (petImg.getAttribute("src") !== petSrc) petImg.src = petSrc;
+    } else {
+      selfStatusPetThumbEl.textContent = petOpt?.emoji ?? "🐥";
+    }
+  }
 
   // startEditingName()が.self-status-nameを一時的に<input>へ差し替えるため、render()の
   // たびに毎回ここで作り直す（差し替え後の入力欄はrender()時点で既にblur済みのはず）。
@@ -8924,7 +8940,7 @@ initMyPage();
 initCardDevMode();
 initActionLogPanel();
 registerCardDevModeArrivalHelpers({ triggerCardArrival, runAutoHandEffect, render });
-registerPhaseAutomationHelpers({ render, findTopCardAt });
+registerPhaseAutomationHelpers({ render, findTopCardAt, pickLocation: requestCellChoiceForEffect });
 initHelpButton();
 initRankingIcon();
 initUpdateChecker(); // デプロイ検知＆更新案内バナー（version.jsonを定期チェック）

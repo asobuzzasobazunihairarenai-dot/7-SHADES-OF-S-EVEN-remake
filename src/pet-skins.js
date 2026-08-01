@@ -9,7 +9,9 @@
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getSelfSeat } from "./online.js";
 
-// ダミーの7種（後で本番の絵／スプライトに差し替え予定）。index 0 が既定。
+// 絵文字ペット（仮）＋本番のスプライトペット。index 0 が既定。
+// sprite付きのオプションは piece-pet.js が画像スプライト（4方向×モーション）で描画する
+// （assets/pets/<sprite>/<sprite>-<front|back|left|right>-<static|walk|idle|yawn|ear|jump>.webp）。
 export const PET_OPTIONS = [
   { emoji: "🐥", label: "ひよこ" },
   { emoji: "🐱", label: "ねこ" },
@@ -18,8 +20,14 @@ export const PET_OPTIONS = [
   { emoji: "🐹", label: "ハムスター" },
   { emoji: "🦊", label: "きつね" },
   { emoji: "🐉", label: "ドラゴン" },
+  { sprite: "cubit", label: "キュビット" }, // ユーザー作成の画像スプライト（4方向×6モーション）
   { emoji: null, label: "なし（非表示）" }, // ペットを表示しない（ユーザー要望）
 ];
+
+// スプライトペットの画像パス。方向(front/back/left/right)とモーション(static/walk/idle/yawn/ear/jump)から。
+export function petSpriteSrc(sprite, dir, motion) {
+  return `assets/pets/${sprite}/${sprite}-${dir}-${motion}.webp`;
+}
 
 const STORAGE_KEY = "so7-pet-index";
 // 既定は「なし（非表示）」（ユーザー要望）。保存値があればそれを優先する。
@@ -59,6 +67,14 @@ export function getPetEmojiForSeat(seat) {
   return PET_OPTIONS[0].emoji; // 相手・座席不明は既定
 }
 
+// 座席seatのペット“オプション”（絵文字 or スプライト）。piece-pet.jsが絵文字/画像どちらで
+// 描画するか判定するために使う。getPetEmojiForSeatと同じ「自分の座席だけ自分の選択」ルール。
+export function getPetOptionForSeat(seat) {
+  const self = getSelfSeat();
+  if (seat && self && seat === self) return PET_OPTIONS[selectedIndex];
+  return PET_OPTIONS[0];
+}
+
 // main.jsからrender()を注入（他の着せ替えモジュールと同じ循環import回避パターン）。
 let helpers = null;
 export function registerPetHelpers(h) {
@@ -92,9 +108,18 @@ export function openPetPicker() {
     const swatch = document.createElement("button");
     swatch.className = "piece-skin-swatch pet-picker-swatch";
     if (idx === selectedIndex) swatch.classList.add("is-selected");
-    const face = document.createElement("span");
-    face.className = "pet-picker-emoji";
-    face.textContent = opt.emoji ?? "🚫"; // 「なし」は🚫で表す
+    let face;
+    if (opt.sprite) {
+      // スプライトペットは正面の静止画をプレビューに使う。
+      face = document.createElement("img");
+      face.className = "pet-picker-sprite";
+      face.src = petSpriteSrc(opt.sprite, "front", "static");
+      face.alt = "";
+    } else {
+      face = document.createElement("span");
+      face.className = "pet-picker-emoji";
+      face.textContent = opt.emoji ?? "🚫"; // 「なし」は🚫で表す
+    }
     const label = document.createElement("span");
     label.className = "pet-picker-label";
     label.textContent = opt.label;

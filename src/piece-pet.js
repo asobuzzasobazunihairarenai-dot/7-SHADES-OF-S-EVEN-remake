@@ -15,7 +15,7 @@
 // ドラッグ中のゴーストや自分ステータス欄の小さな駒サムネイルはbuildCubePiece()を data-token-id
 // 無しで使うため、セレクタ .piece[data-token-id] には引っかからない＝盤面の本物の駒だけが対象。
 
-import { getPetEmojiForSeat } from "./pet-skins.js";
+import { getPetOptionForSeat, petSpriteSrc } from "./pet-skins.js";
 
 const PET_EMOJI = "🐥"; // 既定（pet-skins.jsの選択が使えない時のフォールバック）
 
@@ -90,14 +90,28 @@ function makePet() {
   const emoji = document.createElement("div");
   emoji.className = "piece-pet-emoji";
   emoji.textContent = PET_EMOJI;
+  // スプライトペット（キュビット等の画像）用の<img>。絵文字ペットの時は非表示。
+  const sprite = document.createElement("img");
+  sprite.className = "piece-pet-sprite";
+  sprite.alt = "";
+  sprite.style.display = "none";
   el.appendChild(shadow);
   el.appendChild(emoji);
+  el.appendChild(sprite);
   layerEl.appendChild(el);
   const now = performance.now();
   // 各ペットに個別のランダムな癖を持たせて、全員が同じ動きにならないようにする（ユーザー要望）。
   return {
     el,
     emoji,
+    sprite,
+    spriteSrc: "", // 現在のスプライト画像パス（変わった時だけ差し替え）
+    facing: "front", // 現在の向き（front/back/left/right）
+    motion: "", // 現在のモーション（walk/idle/yawn/ear/jump/static）
+    vx: 0, // 平滑化した移動速度（向き・歩き判定用）
+    vy: 0,
+    idleVariant: "idle", // 待機中に使うアニメ（idle/yawn/ear）を時々切り替える
+    nextIdleSwitchT: now + rand(2500, 6000),
     x: 0,
     y: 0,
     placed: false,
@@ -121,6 +135,43 @@ function makePet() {
     nextOrbitT: now + rand(5000, 12000), // 次に一周する時刻
     emojiChar: "", // 現在表示中の絵文字（変わった時だけ差し替える）
   };
+}
+
+// スプライトペット（キュビット等）のフレームを、現在の移動速度から向き・モーションを
+// 決めて差し替える。向きは速度の大きい軸で判定（横優先）、ほぼ静止なら直前の向きを維持。
+// モーション: ジャンプ中→jump、歩行速度以上→walk、それ以外→待機（idle/yawn/earを時々切替）。
+const SPRITE_SIZE_RATIO = 2.0; // 絵文字fontPxに対する画像表示サイズ倍率（見た目を絵文字ペットに合わせる）
+function updateSprite(pet, spriteName, now, fontPx, isJumping) {
+  const sp = Math.hypot(pet.vx, pet.vy);
+  if (sp > 0.35) {
+    if (Math.abs(pet.vx) >= Math.abs(pet.vy)) {
+      pet.facing = pet.vx > 0 ? "right" : "left";
+    } else {
+      pet.facing = pet.vy > 0 ? "front" : "back"; // 画面下へ＝手前＝正面、上へ＝奥＝後ろ
+    }
+  }
+  let motion;
+  if (isJumping) {
+    motion = "jump";
+  } else if (sp > 0.5) {
+    motion = "walk";
+  } else {
+    if (now >= pet.nextIdleSwitchT) {
+      const variants = ["idle", "yawn", "ear"];
+      pet.idleVariant = variants[Math.floor(Math.random() * variants.length)];
+      pet.nextIdleSwitchT = now + rand(2500, 6000);
+    }
+    motion = pet.idleVariant;
+  }
+  const size = Math.round(fontPx * SPRITE_SIZE_RATIO);
+  pet.sprite.style.width = `${size}px`;
+  pet.sprite.style.height = `${size}px`;
+  const src = petSpriteSrc(spriteName, pet.facing, motion);
+  if (pet.spriteSrc !== src) {
+    pet.sprite.src = src;
+    pet.spriteSrc = src;
+    pet.motion = motion;
+  }
 }
 
 function tick(now) {
@@ -164,18 +215,28 @@ function tick(now) {
     const localSize = deltaToLocal(r.width);
     const fontPx = Math.max(10, localSize * tuning.size);
 
-    // ペットの絵文字を所有者の選択に合わせる（変わった時だけ差し替え）。「なし」選択時は
-    // getPetEmojiForSeatがnullを返す＝そのペットを非表示にする（ユーザー要望）。
+    // ペットを所有者の選択に合わせる（絵文字 or 画像スプライト）。「なし」選択時は
+    // optのemojiがnull且つspriteも無い＝そのペットを非表示にする（ユーザー要望）。
     const owner = piece.dataset.owner || "";
-    const emojiChar = getPetEmojiForSeat(owner);
-    if (!emojiChar) {
+    const opt = getPetOptionForSeat(owner);
+    const isSprite = !!(opt && opt.sprite);
+    const emojiChar = opt ? opt.emoji : null;
+    if (!isSprite && !emojiChar) {
       pet.el.style.display = "none";
       continue; // このペットは表示しない
     }
     if (pet.el.style.display === "none") pet.el.style.display = "";
-    if (pet.emojiChar !== emojiChar) {
-      pet.emoji.textContent = emojiChar;
-      pet.emojiChar = emojiChar;
+    // 絵文字表示とスプライト表示を切り替える（種類が変わった時だけDOMを触る）。
+    if (isSprite) {
+      if (pet.emoji.style.display !== "none") pet.emoji.style.display = "none";
+      if (pet.sprite.style.display === "none") pet.sprite.style.display = "";
+    } else {
+      if (pet.sprite.style.display !== "none") pet.sprite.style.display = "none";
+      if (pet.emoji.style.display === "none") pet.emoji.style.display = "";
+      if (pet.emojiChar !== emojiChar) {
+        pet.emoji.textContent = emojiChar;
+        pet.emojiChar = emojiChar;
+      }
     }
 
     // 立ち止まり（ランダムに止まる）。
@@ -223,6 +284,9 @@ function tick(now) {
       targetY = anchor.y + pet.wy;
       ease = Math.min(1, Math.max(0.02, tuning.follow));
     }
+    const prevX = pet.x;
+    const prevY = pet.y;
+    const wasPlaced = pet.placed;
     if (!pet.placed) {
       pet.x = targetX;
       pet.y = targetY;
@@ -231,6 +295,11 @@ function tick(now) {
       pet.x += (targetX - pet.x) * ease;
       pet.y += (targetY - pet.y) * ease;
     }
+    // 移動速度を平滑化（向き・歩き判定に使う）。初回配置時は0のまま。
+    const mvx = wasPlaced ? pet.x - prevX : 0;
+    const mvy = wasPlaced ? pet.y - prevY : 0;
+    pet.vx += (mvx - pet.vx) * 0.35;
+    pet.vy += (mvy - pet.vy) * 0.35;
 
     // 大ジャンプ（たまに高く飛ぶ）。放物線で1回ぶん跳ねる。
     if (now >= pet.nextJumpT && !paused) {
@@ -251,7 +320,13 @@ function tick(now) {
 
     pet.el.style.fontSize = `${fontPx}px`;
     pet.el.style.transform = `translate(${pet.x}px, ${pet.y}px) translate(-50%, -100%)`;
-    pet.emoji.style.transform = `translateY(${-hop}px)`; // 絵文字だけホップ（影は接地に残る）
+    if (isSprite) {
+      const jumping = pet.jumpStart >= 0 && now < pet.jumpStart + pet.jumpDur;
+      updateSprite(pet, opt.sprite, now, fontPx, jumping);
+      pet.sprite.style.transform = `translateY(${-hop}px)`; // 画像だけホップ（影は接地に残る）
+    } else {
+      pet.emoji.style.transform = `translateY(${-hop}px)`; // 絵文字だけホップ（影は接地に残る）
+    }
   }
   for (const [id, pet] of pets) {
     if (!seen.has(id)) {

@@ -50,10 +50,16 @@ function isPseudoCpuTarget(seat) {
 
 let renderHelper = null;
 let findTopCardAtHelper = null;
-export function registerPhaseAutomationHelpers({ render, findTopCardAt }) {
+export function registerPhaseAutomationHelpers({ render, findTopCardAt, pickLocation }) {
   renderHelper = render;
   findTopCardAtHelper = findTopCardAt;
+  pickLocationHelper = pickLocation;
 }
+// ムーブフェイズの救済（移動先も接触相手も無い時、山札から隣へ1枚置く）で、プレイヤーに
+// 置き先マスを選ばせるためのピッカー（main.jsのrequestCellChoiceForEffectを注入）。
+let pickLocationHelper = null;
+// 救済ピック中の二重発火防止（reconcileMovePhaseは何度も呼ばれるため）。
+let awaitingFallbackPick = false;
 
 export const PHASES = ["lock", "hand", "move"];
 const PHASE_LABEL = { lock: "LOCK", hand: "HAND", move: "MOVE" };
@@ -627,7 +633,7 @@ function clearMovableHighlights() {
 }
 
 function reconcileMovePhase(player) {
-  if (performingFallback || moveActionTaken) return;
+  if (performingFallback || moveActionTaken || awaitingFallbackPick) return;
   const piece = getSelfPiece(player);
   if (!piece || piece.location.zone !== "cell") return;
   // ユーザー指摘「紫のキューブ ディメンションの効果文『通常の移動』とはムーブ
@@ -663,38 +669,50 @@ function reconcileMovePhase(player) {
   }
   if (moveCandidates.length === 0 && contactCandidates.length === 0) {
     const emptyCells = getAdjacentEmptyCells(piece.location);
-    if (emptyCells.length > 0) performMoveFallbackAndEndTurn(player, emptyCells[0]);
+    if (emptyCells.length > 0) {
+      // ユーザー要望（ルール修正）: 移動先も接触相手も無い場合は「隣の任意の1マスへ山札から
+      // 1枚“裏向き”に置く」。従来は先頭マスへ自動配置＋表向き公開だったが、正しくは
+      // プレイヤー自身が置き先マスを選び、中身は誰にも分からない裏向きにする。候補が1つ
+      // だけなら選ばせる必要はないのでそのまま置く。reconcileMovePhaseは繰り返し呼ばれるため
+      // awaitingFallbackPickでピック中の再入を防ぐ（fire-and-forget）。
+      if (emptyCells.length === 1 || !pickLocationHelper) {
+        performMoveFallbackAndEndTurn(player, emptyCells[0]);
+      } else {
+        awaitingFallbackPick = true;
+        Promise.resolve()
+          .then(async () => {
+            const dest = await pickLocationHelper(
+              emptyCells,
+              "移動先も接触相手もありません。山札から裏向きに1枚置くマスを選んでください"
+            );
+            if (dest) await performMoveFallbackAndEndTurn(player, dest);
+          })
+          .catch((err) => console.error("move fallback pick failed", err))
+          .finally(() => {
+            awaitingFallbackPick = false;
+          });
+      }
+    }
   }
 }
 
 async function performMoveFallbackAndEndTurn(player, location) {
   performingFallback = true;
   try {
+    // ルール修正（ユーザー要望）: マスに置いたカードは“裏向き”のまま＝中身は誰にも
+    // 分からない。マスへの配置はstate.jsのfaceUpForLocationにより既定で裏向きになるため、
+    // 以前あったflipToken（表向きにする）とannounceHandPickups（中身を全員へ公開）は行わない。
     if (isOnlineMode()) {
       try {
         await drawFromPile("deck", location);
         await fetchAndHydrate(getCurrentGameId());
-        const token = findTopCardAtHelper?.(location);
-        if (token) {
-          await flipToken(token.id);
-          markSelfHandled([token.id]);
-          await fetchAndHydrate(getCurrentGameId());
-          announceHandPickups(player, [{ cardId: token.cardId, wasPublic: true }]);
-        }
       } catch (err) {
         console.error("performMoveFallbackAndEndTurn failed", err);
         renderHelper?.();
         return;
       }
     } else {
-      const pileArray = getState().piles.deck;
-      const cardId = pileArray.length > 0 ? pileArray[pileArray.length - 1] : null;
       drawFromPile("deck", location);
-      const token = findTopCardAtHelper?.(location);
-      if (token) {
-        flipToken(token.id);
-        if (cardId) announceHandPickups(player, [{ cardId, wasPublic: true }]);
-      }
     }
     playSound("cardPlace");
     renderHelper?.();
