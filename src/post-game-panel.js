@@ -26,7 +26,7 @@ import {
   maybeTriggerRematch,
   leaveGame,
 } from "./online.js";
-import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { createBackdrop } from "./ui-helpers.js";
 import { fetchStatsProfile, getTierInfo } from "./stats-profile.js";
 import { showRankUpModal } from "./rank-up-modal.js";
 import { setSavedRoomPassword } from "./online-ui.js";
@@ -317,7 +317,10 @@ export function showPostGamePanel({ activePlayers, winnerSeat }) {
 
   function showButtons() {
     body.innerHTML = "";
-    panelEl.appendChild(createModalCloseX(closePanel));
+    // ユーザー要望「対戦終了モーダルは✕や外側クリックでは消せないように。消すには
+    // 『この部屋を出る』か『もう一度遊ぶ』のみ」。✕ボタン(createModalCloseX)は付けない。
+    // 背景クリックも元々no-op（createBackdropの第1引数が()=>{}）なので閉じない。
+    // 『盤面を確認する』は“消す”のではなく最小化（左上🏆から復元可）なので従来どおり残す。
     body.appendChild(buildButtonsSection(gameId));
   }
 
