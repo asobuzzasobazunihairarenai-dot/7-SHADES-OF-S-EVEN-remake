@@ -104,10 +104,14 @@ function buildStatsSyncRow(seat) {
 // サーバーの座席ロスターへも反映）を呼ぶ。戦績システムへの反映は下部の同期ボタンの担当。
 function buildEditableNameRow(seat) {
   const row = document.createElement("div");
+  // ライトテーマ(body.theme-light)から色を上書きするためのクラス（既定ダークの見た目は
+  // インラインstyleのまま変わらない。style.cssの .my-page-row* 参照）。
+  row.className = "my-page-row";
   row.style.cssText = "display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.3rem 0; border-bottom: 1px solid rgba(148, 163, 184, 0.12); font-size: 0.85rem;";
 
   const labelEl = document.createElement("span");
   labelEl.textContent = "プレイヤー名";
+  labelEl.className = "my-page-row-label";
   labelEl.style.cssText = "color: #94a3b8; flex: 0 0 auto;";
   row.appendChild(labelEl);
 
@@ -121,12 +125,14 @@ function buildEditableNameRow(seat) {
     // クリックすると入力画面にする」。名前自体をクリック可能にし、隣に小さな鉛筆(✎)を添える。
     const nameEl = document.createElement("span");
     nameEl.textContent = getPlayerName(seat);
+    nameEl.className = "my-page-row-value";
     nameEl.style.cssText = "font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;";
     nameEl.title = "クリックして名前を変更";
     nameEl.addEventListener("click", renderEdit);
     const pencil = document.createElement("span");
     pencil.textContent = "✎";
     pencil.title = "名前を変更";
+    pencil.className = "my-page-name-pencil";
     pencil.style.cssText = "flex: 0 0 auto; color: #94a3b8; cursor: pointer; font-size: 0.8rem; opacity: 0.8;";
     pencil.addEventListener("click", renderEdit);
     valueWrap.appendChild(nameEl);
@@ -139,6 +145,7 @@ function buildEditableNameRow(seat) {
     input.type = "text";
     input.maxLength = 20;
     input.value = getPlayerName(seat);
+    input.className = "my-page-name-input";
     input.style.cssText = "flex: 1 1 auto; min-width: 0; padding: 0.2rem 0.4rem; background: rgba(0,0,0,0.35); border: 1px solid rgba(148,163,184,0.4); border-radius: 0.3rem; color: #e2e8f0; font-size: 0.85rem;";
     const saveBtn = document.createElement("button");
     saveBtn.type = "button";
@@ -172,12 +179,15 @@ function buildEditableNameRow(seat) {
 
 function buildStatRow(label, value) {
   const row = document.createElement("div");
+  row.className = "my-page-row";
   row.style.cssText = "display: flex; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid rgba(148, 163, 184, 0.12); font-size: 0.85rem;";
   const labelEl = document.createElement("span");
   labelEl.textContent = label;
+  labelEl.className = "my-page-row-label";
   labelEl.style.cssText = "color: #94a3b8;";
   const valueEl = document.createElement("span");
   valueEl.textContent = value;
+  valueEl.className = "my-page-row-value";
   valueEl.style.cssText = "font-weight: bold;";
   row.appendChild(labelEl);
   row.appendChild(valueEl);
@@ -243,6 +253,7 @@ export async function renderMyPageBody(body, close) {
   const changeBtn = document.createElement("button");
   changeBtn.type = "button";
   changeBtn.textContent = "アバター変更";
+  changeBtn.className = "my-page-change-btn";
   changeBtn.style.cssText = "padding: 0.3rem 0.8rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(148,163,184,0.3); border-radius: 0.3rem; color: #e2e8f0; cursor: pointer; font-size: 0.8rem;";
   changeBtn.addEventListener("click", () => avatarPickerFn?.());
   // ユーザー要望「アバター変更ボタンを別にして」。レイアウト編集で個別に動かせるよう、
@@ -292,6 +303,7 @@ export async function renderMyPageBody(body, close) {
 
   const statusEl = document.createElement("div");
   statusEl.textContent = "戦績を読み込み中…";
+  statusEl.className = "my-page-status";
   statusEl.style.cssText = "text-align: center; color: #94a3b8; padding: 0.8rem 0;";
   statsGroup.appendChild(statusEl);
 

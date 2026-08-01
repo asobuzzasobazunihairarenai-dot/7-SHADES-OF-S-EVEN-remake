@@ -567,6 +567,12 @@ const GROUPS = [
       { key: "--self-status-large-avatar-size", label: "サイズ", unit: "rem", min: 2, max: 16, step: 0.1, default: 12 },
       { key: "--self-status-large-avatar-pos-x", label: "位置X", unit: "rem", min: -15, max: 20, step: 0.1, default: -0.86 },
       { key: "--self-status-large-avatar-pos-y", label: "位置Y", unit: "rem", min: -15, max: 20, step: 0.1, default: -5.12 },
+      // 背面に薄く重ねるゴーストアバター（ユーザー要望）。本体からの相対でサイズ倍率・
+      // ずらし量・透明度を調整する（style.cssの.self-status-large-avatar-ghost参照）。
+      { key: "--self-status-large-avatar-ghost-scale", label: "背面ゴースト サイズ倍率", unit: "", min: 0.3, max: 2, step: 0.05, default: 1 },
+      { key: "--self-status-large-avatar-ghost-offset-x", label: "背面ゴースト ずらしX", unit: "rem", min: -12, max: 12, step: 0.1, default: 1.4 },
+      { key: "--self-status-large-avatar-ghost-offset-y", label: "背面ゴースト ずらしY", unit: "rem", min: -12, max: 12, step: 0.1, default: -1.1 },
+      { key: "--self-status-large-avatar-ghost-opacity", label: "背面ゴースト 透明度", unit: "", min: 0, max: 1, step: 0.05, default: 0.4 },
     ],
   },
   {
@@ -1321,6 +1327,29 @@ export function isAvatarOutlineVisible() {
   return avatarOutlineVisible;
 }
 
+// アプリのカラーテーマ（ダーク=従来 / ライト=白系）。ユーザー方針「事故防止のため今の
+// ダークUIは残し、管理者トグルでライトへ切り替えられるように。まずはマイページから」。
+// bodyに theme-light クラスを付け外しし、style.css側の `body.theme-light` 上書き
+// （現状マイページのみ対応）を効かせる。他の一時トグルと違い、テーマは見た目の好みとして
+// 再読み込み後も保持したいのでlocalStorageに保存する（PSEUDO_CPU_DEADLINE_KEYと同じ方針）。
+const THEME_MODE_KEY = "so7-theme-mode";
+let themeLightMode = (() => {
+  try {
+    return localStorage.getItem(THEME_MODE_KEY) === "light";
+  } catch (err) {
+    return false;
+  }
+})();
+function applyThemeMode() {
+  document.body.classList.toggle("theme-light", themeLightMode);
+}
+// モジュール読み込み時に一度適用する（type=module/deferのため、この時点でbodyは存在する）。
+applyThemeMode();
+
+export function isThemeLightMode() {
+  return themeLightMode;
+}
+
 // タブレットの点滅診断用（一時的なデバッグ機能）。ユーザーがZ値・傾き角度・透視投影・
 // will-changeの横展開と4種類の実験を試しても点滅が直らず、しかもFirefox/Chrome/Safari
 // 全てで同様に起きるとの報告を受け、「preserve-3d + perspectiveによる3D合成そのもの」が
@@ -1630,6 +1659,32 @@ const TOGGLE_SECTIONS = [
       selfNameRow.appendChild(selfNameCheckbox);
       selfNameRow.appendChild(selfNameLabel);
       content.appendChild(selfNameRow);
+    },
+  },
+  {
+    title: "カラーテーマ（ダーク / ライト）",
+    category: "effect",
+    buildContent: (content) => {
+      const themeRow = document.createElement("label");
+      themeRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const themeCheckbox = document.createElement("input");
+      themeCheckbox.type = "checkbox";
+      themeCheckbox.checked = themeLightMode;
+      themeCheckbox.addEventListener("change", () => {
+        themeLightMode = themeCheckbox.checked;
+        try {
+          localStorage.setItem(THEME_MODE_KEY, themeLightMode ? "light" : "dark");
+        } catch (err) {
+          /* localStorageが使えない環境でも致命的ではない（保持されないだけ） */
+        }
+        applyThemeMode();
+        updateExportRef.current();
+      });
+      const themeLabel = document.createElement("span");
+      themeLabel.textContent = "ライトモードにする（白系テーマ。現在はマイページのみ対応。オフ=従来のダーク。設定は保持されます）";
+      themeRow.appendChild(themeCheckbox);
+      themeRow.appendChild(themeLabel);
+      content.appendChild(themeRow);
     },
   },
   {

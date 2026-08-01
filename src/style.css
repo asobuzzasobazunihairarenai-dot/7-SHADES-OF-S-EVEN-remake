@@ -5373,8 +5373,9 @@ body.is-touch-device #self-hand-status {
   );
 }
 .self-status-large-avatar-ghost .avatar-image {
-  width: var(--self-status-large-avatar-size, 12rem);
-  height: var(--self-status-large-avatar-size, 12rem);
+  /* 背面ゴーストは本体サイズ × 倍率（--...-ghost-scale）で独立にサイズ調整できる（管理者モード）。 */
+  width: calc(var(--self-status-large-avatar-size, 12rem) * var(--self-status-large-avatar-ghost-scale, 1));
+  height: calc(var(--self-status-large-avatar-size, 12rem) * var(--self-status-large-avatar-ghost-scale, 1));
   border-radius: 0;
   object-fit: contain;
 }
@@ -10024,6 +10025,80 @@ body.reduce-glow .cell.card-effect-placement-target {
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 0.6rem;
   padding: 1.2rem;
+}
+
+/* =========================================================================
+   ライトテーマ（body.theme-light）— 第1弾：マイページのみ。
+   ユーザー方針「事故防止のため従来のダークUIは残し、管理者トグルでライトに切り替える。
+   まずはマイページから」。ダーク既定には一切手を入れず、theme-light が付いている時だけ
+   アイボリー／羊皮紙＋ゴールド（王家）系に上書きする。アプリの明るい水彩＋金彩の
+   絵柄となじむ配色。インラインstyleで色指定された要素だけ !important を使う。
+   ========================================================================= */
+body.theme-light #profile-page {
+  background: radial-gradient(ellipse at top, #fdfbf5 0%, #f5efe2 55%, #ece2cd 100%);
+  color: #3a3326;
+}
+body.theme-light #profile-page-title {
+  color: #3a3326;
+}
+body.theme-light #profile-page-back {
+  border-color: rgba(176, 141, 63, 0.5);
+  color: #6b5c3c;
+}
+body.theme-light #profile-page-back:hover {
+  border-color: rgba(176, 141, 63, 0.9);
+  background: rgba(176, 141, 63, 0.12);
+}
+body.theme-light #profile-page-card {
+  background: rgba(255, 253, 247, 0.92);
+  border: 1px solid rgba(176, 141, 63, 0.4);
+  box-shadow: 0 10px 30px rgba(120, 100, 60, 0.15);
+}
+/* 名前行・戦績行（インラインstyleの色を上書き）。行の値(.my-page-row-value)は
+   色指定インラインが無く親から継承するため、上でcolorを暗色にすれば自動で暗くなる。 */
+body.theme-light .my-page-row {
+  border-bottom-color: rgba(176, 141, 63, 0.25) !important;
+}
+body.theme-light .my-page-row-label {
+  color: #8a7d63 !important;
+}
+body.theme-light .my-page-name-input {
+  background: #ffffff !important;
+  border-color: rgba(176, 141, 63, 0.6) !important;
+  color: #3a3326 !important;
+}
+/* 着せ替えボタン群（.my-page-cosmetic-* はスタイルシート側のクラスなので !important 不要）。 */
+body.theme-light .my-page-cosmetics-title {
+  color: #6b5c3c;
+}
+body.theme-light .my-page-cosmetic-btn {
+  background: rgba(176, 141, 63, 0.12);
+  border-color: rgba(176, 141, 63, 0.45);
+  color: #3a3326;
+}
+body.theme-light .my-page-cosmetic-btn:hover {
+  background: rgba(176, 141, 63, 0.22);
+  border-color: rgba(176, 141, 63, 0.8);
+}
+/* アバター変更ボタン・名前の鉛筆・戦績ステータス文（いずれもインラインstyleの
+   薄い文字色のため、白背景では見えなくなる。theme-lightで暗色へ上書き）。 */
+body.theme-light .my-page-change-btn {
+  background: rgba(176, 141, 63, 0.12) !important;
+  border-color: rgba(176, 141, 63, 0.45) !important;
+  color: #3a3326 !important;
+}
+body.theme-light .my-page-name-pencil {
+  color: #8a7d63 !important;
+}
+body.theme-light .my-page-status {
+  color: #6b5c3c !important;
+}
+/* モーダル版マイページ（#my-page-panel、インラインstyleのため !important）。 */
+body.theme-light #my-page-panel {
+  background: rgba(255, 253, 247, 0.98) !important;
+  border-color: rgba(176, 141, 63, 0.4) !important;
+  color: #3a3326 !important;
+  box-shadow: 0 20px 50px rgba(120, 100, 60, 0.25) !important;
 }
 
 /* ランキングの画面全体版（続き74、src/ranking-page.js）。プロフィール画面全体版と
