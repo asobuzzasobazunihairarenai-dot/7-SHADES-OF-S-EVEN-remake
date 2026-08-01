@@ -5438,15 +5438,18 @@ body.is-touch-device #self-hand-status {
   max-width: none;
   max-height: none;
 }
-/* ユーザー要望「ステータスエリアのアバターに丸枠がついてしまった。以前は無かった。
-   枠を透明にしたい（ドロップシャドウを消せばいいと思う）」。原因は共通の.avatar-imageに
+/* ユーザー要望（最終）「アバターは丸に戻す。ただし丸の“枠線”は見せない＝ドロップシャドウ等は
+   不要」。丸く切り抜く(border-radius:50% + object-fit:cover)のは共通.avatar-imageのままでよく、
+   “丸枠”の正体は本体(.self-status-large-avatar)に付けていたdrop-shadowが円形の輪郭をなぞって
+   いたこと。drop-shadowは既に外してあるので、円形クロップだけ戻せば枠線なしの丸になる。
+   （以前の経緯コメント）原因は共通の.avatar-imageに
    かかっている border-radius:50% + object-fit:cover で、国王アバター（炎など不定形の
    イラスト）が円形に切り抜かれ、その円形の輪郭に沿ってdrop-shadowが落ちることで
    「丸い枠」に見えていた。ステータスエリアの巨大アバターだけは円形クロップをやめ、
    イラスト全体を素の形のまま表示する（drop-shadow自体も上のルールから外した）。 */
 .self-status-large-avatar .avatar-image {
-  border-radius: 0;
-  object-fit: contain;
+  border-radius: 50%;
+  object-fit: cover;
 }
 /* ユーザー要望「不透明アバターの背面に、少しずらして半透明のアバターも表示して
    かっこよくしたい」。同じアバター画像をもう1枚、本体の背面に薄く・少しずらして重ねる。
@@ -5473,8 +5476,8 @@ body.is-touch-device #self-hand-status {
      コンテナ幅で頭打ちになり、高さだけ伸びて画像が下へズレていく（ユーザー報告のバグ）。 */
   max-width: none;
   max-height: none;
-  border-radius: 0;
-  object-fit: contain;
+  border-radius: 50%;
+  object-fit: cover;
 }
 /* スマホでは左下の自分アバターのサイズ変数を専用値に差し替える（ユーザー要望「もう少し
    小さくしたい」）。この変数はアバター本体(.avatar-image)・絵文字のfont-size・ランクリング
