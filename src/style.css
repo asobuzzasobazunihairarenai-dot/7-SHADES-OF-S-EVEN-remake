@@ -3986,6 +3986,43 @@ body.is-phone-device #options-menu-button {
   object-fit: contain;
 }
 
+/* オンライン状態ウィジェットをオプションエリア（残金アイコン#currency-displayの左隣）へ
+   移設（ユーザー要望）。アイコン＋部屋名を横並びのピルにし、右端(right)基準で左へ伸ばす
+   （部屋名が長くても右詰めで収まる）。ステータスエリア時代の位置transform（#self-status-online
+   単体ルール／タブレット用ルール）は、より詳細度の高いこの #option-area #self-status-online が
+   上書きする。 */
+#option-area #self-status-online {
+  position: absolute;
+  top: 0.5rem;
+  right: 21.3rem;
+  z-index: 900;
+  transform: none;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.7rem 0.2rem 0.35rem;
+  background: rgba(15, 23, 32, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 999px;
+}
+#option-area #self-status-online .icon-action-button-icon-wrap {
+  width: 1.5rem;
+  height: 1.5rem;
+  background: none;
+  border: none;
+  box-shadow: none;
+  flex: none;
+}
+#option-area #self-status-online .icon-action-button-caption {
+  display: inline;
+  font-family: sans-serif;
+  font-size: 0.8rem;
+  font-weight: bold;
+  color: #cbd5e1;
+  white-space: nowrap;
+}
+
 /* ユーザー要望「対戦終了時にお金がもらえる演出を追加したい」への対応
    （currency-display.jsのshowCurrencyAwardEffect参照）。#currency-display自体は
    位置調整用のtransform（--currency-display-pos-x/-y）を既に持っているため、この
@@ -4718,6 +4755,7 @@ body.opening-screen-active #help-button,
 body.opening-screen-active #discord-link-button,
 body.opening-screen-active #board-view-toggle-button,
 body.opening-screen-active #currency-display,
+body.opening-screen-active #self-status-online,
 body.opening-screen-active #my-page-button,
 body.opening-screen-active #ranking-page-button {
   display: none;
@@ -5373,6 +5411,10 @@ body.is-touch-device #self-hand-status {
 .self-status-large-avatar .avatar-image {
   width: var(--self-status-large-avatar-size, 12rem);
   height: var(--self-status-large-avatar-size, 12rem);
+  /* Tailwind Preflightのimg{max-width:100%}がwidthをコンテナ幅で頭打ちにするのを解除
+     （高さだけ伸びて下へズレるのを防ぐ。ステータスエリアのアバターは明示サイズで管理する）。 */
+  max-width: none;
+  max-height: none;
 }
 /* ユーザー要望「ステータスエリアのアバターに丸枠がついてしまった。以前は無かった。
    枠を透明にしたい（ドロップシャドウを消せばいいと思う）」。原因は共通の.avatar-imageに
@@ -5405,6 +5447,10 @@ body.is-touch-device #self-hand-status {
   /* 背面ゴーストは本体サイズ × 倍率（--...-ghost-scale）で独立にサイズ調整できる（管理者モード）。 */
   width: calc(var(--self-status-large-avatar-size, 12rem) * var(--self-status-large-avatar-ghost-scale, 1));
   height: calc(var(--self-status-large-avatar-size, 12rem) * var(--self-status-large-avatar-ghost-scale, 1));
+  /* Tailwind Preflightのimg{max-width:100%}を解除。これが無いと倍率を上げた時に幅だけ
+     コンテナ幅で頭打ちになり、高さだけ伸びて画像が下へズレていく（ユーザー報告のバグ）。 */
+  max-width: none;
+  max-height: none;
   border-radius: 0;
   object-fit: contain;
 }
@@ -10231,6 +10277,22 @@ body.theme-light-ingame #stack-modal {
   background: rgba(255, 253, 247, 0.98);
   color: #3a3326;
   border-color: rgba(176, 141, 63, 0.5);
+}
+/* 常時見える対戦中の要素（トグルの効果がすぐ分かるように）。ラウンド/ターン表示は
+   薄い白文字で明るい盤面だと読みづらいので暗色へ。右上の残金・オンラインのピルもライトに。 */
+body.theme-light-ingame #turn-round-counter {
+  color: #6b5c3c;
+}
+body.theme-light-ingame #currency-display,
+body.theme-light-ingame #option-area #self-status-online {
+  background: rgba(255, 253, 247, 0.92);
+  border-color: rgba(176, 141, 63, 0.55);
+}
+body.theme-light-ingame #currency-display {
+  color: #a67c1a; /* 金額は白ピルでも読めるダークゴールドへ */
+}
+body.theme-light-ingame #option-area #self-status-online .icon-action-button-caption {
+  color: #6b5c3c;
 }
 
 /* ランキングの画面全体版（続き74、src/ranking-page.js）。プロフィール画面全体版と

@@ -17,8 +17,10 @@
 import { isSelfStatusRearrangeMode } from "./admin.js";
 import { stageDelta } from "./main.js";
 
+// #self-status-online はオプションエリア（右上）へ移設したため、ステータスエリアの
+// 再配置対象からは外した（ユーザー要望での移設に伴う）。
 const SELECTOR =
-  ".self-status-large-avatar, .self-status-piece-thumb, .self-status-card-back-thumb, .self-status-playmat-thumb, .self-status-background-thumb, #self-status-online";
+  ".self-status-large-avatar, .self-status-piece-thumb, .self-status-card-back-thumb, .self-status-playmat-thumb, .self-status-background-thumb";
 
 // posDefaultは各要素のCSS側var(--x, フォールバック値)と同じ値を持たせてある。
 // これが無いと、そのCSS変数に一度もinline styleが書き込まれていない（＝ページ読み込み

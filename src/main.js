@@ -8825,7 +8825,9 @@ function buildSelfHandStatus() {
   iconGrid.appendChild(selfStatusPetThumbEl); // カード裏面の右隣（ユーザー要望）
   iconGrid.appendChild(selfStatusPlaymatThumbEl);
   iconGrid.appendChild(selfStatusBackgroundThumbEl);
-  iconGrid.appendChild(buildSelfStatusOnlineWidget());
+  // ユーザー要望「オンラインアイコンは右上のオプションエリアへ移設（残金アイコンの左）、
+  // 部屋名はアイコンの右隣に表示」。ここ（ステータスエリア）には置かず、下の初期化で
+  // オプションエリアの#currency-displayの手前に差し込む（initOnlineStatusWidgetInOptionArea）。
 
   el.appendChild(iconGrid);
   el.appendChild(info);
@@ -8939,6 +8941,14 @@ setUpdateBannerGate(() => !isInGameForBanner());
 initDiscordLink();
 initBoardViewToggle(); // Discordアイコンと残金表示の間に2D/3D切り替えアイコンを置く（順序＝追加順）
 initCurrencyDisplay();
+// オンライン状態ウィジェットをオプションエリアの残金アイコン(#currency-display)の左隣へ
+// 差し込む（ユーザー要望「オンラインアイコンを右上に移設・部屋名はアイコンの右隣に表示」）。
+// initCurrencyDisplay()の直後なので#currency-displayは既に存在する。
+(() => {
+  const optionArea = document.getElementById("option-area");
+  const currencyEl = document.getElementById("currency-display");
+  if (optionArea) optionArea.insertBefore(buildSelfStatusOnlineWidget(), currencyEl);
+})();
 initShop();
 registerShopOpener(openShopPanel);
 registerAvatarPickerHelper(openAvatarPicker);
