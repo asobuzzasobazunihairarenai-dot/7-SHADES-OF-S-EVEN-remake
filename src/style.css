@@ -3212,6 +3212,35 @@ body.is-touch-device .zone-right .label {
     transform: translateX(-50%) scale(1);
   }
 }
+/* プレイヤーC（盤面の上側=zone-top）のエモート吹き出しは、アバター上だと画面上端で
+   見切れやすいため、アバターの左側に出す（ユーザー要望）。尻尾も右向き（アバター側）へ。 */
+.player-avatar[data-player="C"] .emote-speech-bubble {
+  bottom: auto;
+  top: 50%;
+  left: auto;
+  right: 100%;
+  transform: translateY(-50%);
+  margin-bottom: 0;
+  margin-right: 0.4rem;
+  animation: emote-bubble-pop-left 0.2s ease-out;
+}
+.player-avatar[data-player="C"] .emote-speech-bubble::after {
+  top: 50%;
+  left: 100%;
+  transform: translateY(-50%);
+  border: 0.35rem solid transparent;
+  border-left-color: rgba(255, 255, 255, 0.96);
+}
+@keyframes emote-bubble-pop-left {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+}
 
 /* エモート選択ポップアップ（emote.js、続き78）。他のモーダルと違い暗転させない
    （テンポよく連投したい操作のため）。backdropは外側クリック判定専用の透明な
@@ -5490,7 +5519,10 @@ body.reduce-glow .self-status-rank-ring.is-rainbow .rank-ring-orbit-dot {
   align-items: center;
   justify-content: center;
   gap: var(--self-status-icon-gap, 0.4rem);
-  transform: translate(var(--self-status-icons-group-x, 0rem), var(--self-status-icons-group-y, 0rem));
+  /* アイコン群（駒スキン・カード裏・プレイマット・背景・ペット・オンライン状態）を
+     まとめて位置(group-x/y)＋サイズ(group-scale)調整できる（管理者モード）。 */
+  transform: translate(var(--self-status-icons-group-x, 0rem), var(--self-status-icons-group-y, 0rem))
+    scale(var(--self-status-icons-group-scale, 1));
   z-index: 2;
   /* ハマりどころ（ユーザー報告「名前クリックの反応範囲が限られている」）: このグリッド
      自体はz-index:2で.self-status-info（名前・手札枚数、z-index:1）より手前にあるため、

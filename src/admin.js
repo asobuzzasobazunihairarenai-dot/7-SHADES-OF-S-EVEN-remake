@@ -569,7 +569,7 @@ const GROUPS = [
       { key: "--self-status-large-avatar-pos-y", label: "位置Y", unit: "rem", min: -15, max: 20, step: 0.1, default: -5.12 },
       // 背面に薄く重ねるゴーストアバター（ユーザー要望）。本体からの相対でサイズ倍率・
       // ずらし量・透明度を調整する（style.cssの.self-status-large-avatar-ghost参照）。
-      { key: "--self-status-large-avatar-ghost-scale", label: "背面ゴースト サイズ倍率", unit: "", min: 0.3, max: 2, step: 0.05, default: 1 },
+      { key: "--self-status-large-avatar-ghost-scale", label: "背面ゴースト サイズ倍率", unit: "", min: 0.3, max: 5, step: 0.05, default: 1 },
       { key: "--self-status-large-avatar-ghost-offset-x", label: "背面ゴースト ずらしX", unit: "rem", min: -12, max: 12, step: 0.1, default: 1.4 },
       { key: "--self-status-large-avatar-ghost-offset-y", label: "背面ゴースト ずらしY", unit: "rem", min: -12, max: 12, step: 0.1, default: -1.1 },
       { key: "--self-status-large-avatar-ghost-opacity", label: "背面ゴースト 透明度", unit: "", min: 0, max: 1, step: 0.05, default: 0.4 },
@@ -599,6 +599,7 @@ const GROUPS = [
       { key: "--self-status-icon-online-pos-y", label: "オンライン状態アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 0 },
       { key: "--self-status-icons-group-x", label: "アイコン群まとめて 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--self-status-icons-group-y", label: "アイコン群まとめて 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--self-status-icons-group-scale", label: "アイコン群まとめて サイズ倍率", unit: "", min: 0.3, max: 3, step: 0.05, default: 1 },
     ],
   },
   {
