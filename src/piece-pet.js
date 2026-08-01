@@ -210,6 +210,10 @@ function tick(now) {
     const center = clientToLocal(cx, r.bottom - r.height * 0.2); // 駒の足元中央（一周の中心）
     const localSize = deltaToLocal(r.width);
     const fontPx = Math.max(10, localSize * tuning.size);
+    // 「駒の裏に回ったら駒に隠れる」表現用の駒の縦位置（ステージ座標）。
+    const pieceTopLocal = clientToLocal(cx, r.top).y;
+    const pieceBottomLocal = clientToLocal(cx, r.bottom).y;
+    const pieceHalfWLocal = deltaToLocal(r.width) / 2;
 
     // ペットを所有者の選択に合わせる（絵文字 or 画像スプライト）。「なし」選択時は
     // optのemojiがnull且つspriteも無い＝そのペットを非表示にする（ユーザー要望）。
@@ -352,6 +356,18 @@ function tick(now) {
 
     pet.el.style.fontSize = `${fontPx}px`;
     pet.el.style.transform = `translate(${pet.x}px, ${pet.y}px) translate(-50%, -100%)`;
+    // 駒の裏へ回った時は駒に隠れて見えるようにする（ユーザー要望）。盤面は#sceneで1枚に
+    // 合成される3Dシーンのため、z-indexで駒とペットを個別に前後させられない。そこで、ペットが
+    // 駒より奥（＝足元が駒の底より上）かつ横位置が駒に重なっている時だけ、ペットの「駒の上端より
+    // 下（＝駒に隠れる部分）」をclipで隠し、駒の上に頭だけ出ているように見せる近似を使う。
+    const behindPiece = pet.y < pieceBottomLocal - deltaToLocal(r.height * 0.08);
+    const overlapX = Math.abs(pet.x - center.x) < pieceHalfWLocal * 1.05;
+    if (behindPiece && overlapX) {
+      const hideBottom = Math.max(0, pet.y - pieceTopLocal); // 要素の下からこのpxぶんを隠す
+      pet.el.style.clipPath = `inset(0px 0px ${hideBottom}px 0px)`;
+    } else if (pet.el.style.clipPath) {
+      pet.el.style.clipPath = "";
+    }
     if (isSprite) {
       updateSprite(pet, opt.sprite, fontPx, pet.behState);
       pet.sprite.style.transform = `translateY(${-hop}px)`; // 画像だけホップ（影は接地に残る）
