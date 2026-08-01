@@ -29,7 +29,8 @@ import {
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { fetchStatsProfile, getTierInfo } from "./stats-profile.js";
 import { showRankUpModal } from "./rank-up-modal.js";
-import { openOnlinePanel, setSavedRoomPassword } from "./online-ui.js";
+import { setSavedRoomPassword } from "./online-ui.js";
+import { openHomeScreen } from "./home-screen.js";
 
 // victory.jsはこのモジュール（showPostGamePanel）を呼ぶ側になる予定のため、ここから
 // victory.jsを直接importすると循環importになる。他の箇所（setup-animation.js等）と
@@ -48,6 +49,61 @@ let backdropEl = null;
 let pollTimerId = null;
 let unsubscribeStateWatch = null;
 let unsubscribeMatchRecorded = null; // 敗者側で試合IDのブロードキャストを待ち受けている間の解除関数
+let restoreIconEl = null; // 「盤面を確認する」で最小化した時、左上に出す復元アイコン
+
+// ユーザー要望「対戦終了モーダルに『盤面を確認する』を追加。押すと最小化の案内モーダルを出した
+// あと、画面左上に縮小されて、いつでもそこから元に戻せるように」。パネル＋背景を隠し、左上に
+// 復元アイコンを出す。アイコンを押すとパネルを元通り表示する。
+function removeRestoreIcon() {
+  restoreIconEl?.remove();
+  restoreIconEl = null;
+}
+function minimizePanel() {
+  if (backdropEl) backdropEl.style.display = "none";
+  if (panelEl) panelEl.style.display = "none";
+  removeRestoreIcon();
+  restoreIconEl = document.createElement("button");
+  restoreIconEl.id = "post-game-restore-icon";
+  restoreIconEl.type = "button";
+  restoreIconEl.textContent = "🏆";
+  restoreIconEl.title = "対戦結果メニューを開く";
+  restoreIconEl.style.cssText =
+    "position: fixed; top: 0.9rem; left: 0.9rem; z-index: 10602; width: 3rem; height: 3rem; " +
+    "border-radius: 50%; background: rgba(15,23,32,0.95); border: 1px solid rgba(250,204,21,0.7); " +
+    "color: #fde68a; font-size: 1.4rem; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.55); " +
+    "display: flex; align-items: center; justify-content: center; padding: 0; animation: post-game-restore-pulse 1.8s ease-in-out infinite;";
+  restoreIconEl.addEventListener("click", () => {
+    removeRestoreIcon();
+    if (backdropEl) backdropEl.style.display = "";
+    if (panelEl) panelEl.style.display = "";
+  });
+  document.body.appendChild(restoreIconEl);
+}
+// 最小化の案内モーダル（OKで実際に最小化する）。
+function showMinimizeNoticeThenMinimize() {
+  const nb = createBackdrop(() => {}, { dim: true, zIndex: 10610 });
+  const m = document.createElement("div");
+  m.style.cssText =
+    "position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(22rem, 90vw); " +
+    "background: rgba(15,23,32,0.98); border: 1px solid rgba(148,163,184,0.4); border-radius: 0.5rem; " +
+    "padding: 1.2rem; z-index: 10611; color: #e2e8f0; font-family: sans-serif; text-align: center;";
+  const txt = document.createElement("div");
+  txt.textContent = "このモーダルを最小化して盤面を確認します。いつでも画面左上の🏆アイコンから元に戻せます。";
+  txt.style.cssText = "margin-bottom: 1rem; line-height: 1.6; font-size: 0.9rem;";
+  const ok = document.createElement("button");
+  ok.type = "button";
+  ok.textContent = "OK";
+  ok.style.cssText = "padding: 0.4rem 1.4rem; background: #0891b2; border: none; border-radius: 0.3rem; color: #fff; cursor: pointer;";
+  ok.addEventListener("click", () => {
+    nb.remove();
+    m.remove();
+    minimizePanel();
+  });
+  m.appendChild(txt);
+  m.appendChild(ok);
+  document.body.appendChild(nb);
+  document.body.appendChild(m);
+}
 
 function stopPolling() {
   if (pollTimerId) {
@@ -66,6 +122,7 @@ function closePanel() {
     unsubscribeMatchRecorded();
     unsubscribeMatchRecorded = null;
   }
+  removeRestoreIcon();
   backdropEl?.remove();
   panelEl?.remove();
   backdropEl = null;
@@ -125,6 +182,22 @@ function buildButtonsSection(gameId) {
   // 探したい」という場合の導線が無かった。online-ui.jsの「この部屋を離れる」ボタンと
   // 同じ処理（leaveGame→保存済みパスワード削除→URLの?room=を消す）を行い、このパネルを
   // 閉じてから部屋一覧パネル（openOnlinePanel）を開き直す。
+  // ユーザー要望「盤面を確認する」ボタン。押すと案内モーダル→最小化（左上の🏆アイコンから復元）。
+  const boardBtn = document.createElement("button");
+  boardBtn.type = "button";
+  boardBtn.textContent = "盤面を確認する";
+  boardBtn.style.cssText = `
+    padding: 0.5rem 1rem; background: rgba(56, 189, 248, 0.18);
+    border: 1px solid rgba(56, 189, 248, 0.6); border-radius: 0.3rem;
+    color: #e2e8f0; cursor: pointer; font-size: 0.85rem;
+  `;
+  boardBtn.addEventListener("click", () => {
+    showMinimizeNoticeThenMinimize();
+  });
+
+  // ユーザー要望（変更）「『この部屋を出る』を押したらホーム画面に戻る」。以前は部屋一覧
+  // （openOnlinePanel）へ戻していたが、ホーム画面へ戻す。部屋からの離脱・保存パスワード削除・
+  // URLの?room=消去は従来どおり。
   const leaveBtn = document.createElement("button");
   leaveBtn.type = "button";
   leaveBtn.textContent = "この部屋を出る";
@@ -138,11 +211,12 @@ function buildButtonsSection(gameId) {
     setSavedRoomPassword(gameId, null);
     history.replaceState(null, "", location.pathname);
     closePanel();
-    openOnlinePanel();
+    openHomeScreen();
   });
 
   row.appendChild(statsBtn);
   row.appendChild(rematchBtn);
+  row.appendChild(boardBtn);
   row.appendChild(leaveBtn);
   col.appendChild(row);
   col.appendChild(waitingLabel);

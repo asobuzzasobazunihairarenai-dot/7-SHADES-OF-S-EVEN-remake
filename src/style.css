@@ -7597,6 +7597,86 @@ body.reduce-glow .cell.card-effect-just-placed {
   letter-spacing: 0.03em;
   color: #7dd3fc;
 }
+/* 対戦終了後のランキング演出（ユーザー要望「アバターと名前が連なる一覧を最下位から登っていく」）。
+   一覧をスクロール可能にし、ハイライトが下から自分の行まで上がっていく。 */
+#rank-reveal-modal.is-climb {
+  width: min(30rem, 92vw);
+}
+.rank-reveal-climb-list {
+  max-height: 55vh;
+  overflow-y: auto;
+  text-align: left;
+  margin: 0.4rem 0 0.6rem;
+  scroll-behavior: smooth;
+}
+.rank-reveal-climb-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 0.4rem;
+  font-size: 0.9rem;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+.rank-reveal-climb-row .rr-rank {
+  color: #7dd3fc;
+  font-weight: bold;
+  min-width: 2.2rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.rank-reveal-climb-row .rr-avatar {
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+.rank-reveal-climb-row .rr-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rank-reveal-climb-row .rr-val {
+  color: #bae6fd;
+  font-variant-numeric: tabular-nums;
+}
+/* 登っていく途中でフォーカスされている行（一時的な明滅）。 */
+.rank-reveal-climb-row.is-climb-focus {
+  background: rgba(56, 189, 248, 0.22);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.6) inset;
+}
+/* 自分の行（到達前は控えめにマーク）。 */
+.rank-reveal-climb-row.is-self .rr-name {
+  font-weight: bold;
+  color: #fde68a;
+}
+/* 到達＝自分の順位。強く光らせて脈動させる。 */
+.rank-reveal-climb-row.is-arrived {
+  background: rgba(250, 204, 21, 0.22);
+  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.85) inset, 0 0 1rem rgba(250, 204, 21, 0.4);
+  animation: rank-reveal-arrived-pulse 1.4s ease-in-out infinite;
+}
+@keyframes rank-reveal-arrived-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.85) inset, 0 0 0.6rem rgba(250, 204, 21, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(250, 204, 21, 1) inset, 0 0 1.4rem rgba(250, 204, 21, 0.6);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rank-reveal-climb-list {
+    scroll-behavior: auto;
+  }
+  .rank-reveal-climb-row.is-arrived {
+    animation: none;
+  }
+}
 /* 未ランクイン時：勝率ランキング一覧＋理由説明＋ログイン導線（showNotRankedModal）。 */
 #rank-reveal-modal.is-not-ranked {
   text-align: left;
@@ -10065,6 +10145,16 @@ body.reduce-glow .cell.card-effect-placement-target {
   color: #94a3b8;
   padding: 1rem 0;
   font-size: 0.85rem;
+}
+/* 対戦終了パネルを「盤面を確認する」で最小化した時、左上に出る復元アイコンの脈動。 */
+@keyframes post-game-restore-pulse {
+  0%,
+  100% {
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55), 0 0 0 0 rgba(250, 204, 21, 0.55);
+  }
+  50% {
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55), 0 0 0 0.5rem rgba(250, 204, 21, 0);
+  }
 }
 .ranking-page-row {
   display: flex;

@@ -82,26 +82,32 @@ export async function showRankRevealModal() {
   }
   if (!profile.linked) return showNotRankedModal("not-linked");
 
-  let rankInfo;
+  // ユーザー要望「対戦終了後のランキング表示は、実際のランキング画面のようなアバターと名前が
+  // 連なっているものを、最下位から登っていく見た目にしたい」。数字だけのクライミングをやめ、
+  // 勝率ランキングの全対象を一覧で出し、ハイライトを最下位から自分の順位まで登らせる。
+  let lb;
   try {
-    rankInfo = await fetchPlayerRank(profile.playerId, "winRate");
+    lb = await fetchLeaderboard(1000);
   } catch (err) {
-    console.error("fetchPlayerRank (rank reveal) failed", err);
+    console.error("fetchLeaderboard (rank reveal) failed", err);
     return;
   }
-  if (!rankInfo) return showNotRankedModal("below-border");
+  const rows = lb.winRate || [];
+  const myIndex = rows.findIndex((r) => r.playerId === profile.playerId);
+  if (myIndex < 0) return showNotRankedModal("below-border"); // 勝率ランキングの対象外
 
+  const myRank = rows[myIndex].rank;
   const previousRank = getStoredLastRank();
-  storeLastRank(rankInfo.rank);
+  storeLastRank(myRank);
 
   return new Promise((resolve) => {
     const modal = document.createElement("div");
     modal.id = "rank-reveal-modal";
+    modal.classList.add("is-climb");
     let done = false;
     const close = () => {
       if (done) return;
       done = true;
-      clearTimeout(autoCloseTimer);
       backdrop.remove();
       modal.remove();
       resolve();
@@ -113,31 +119,83 @@ export async function showRankRevealModal() {
     title.textContent = "🏆 勝率ランキング";
     modal.appendChild(title);
 
-    const numberEl = document.createElement("div");
-    numberEl.className = "rank-reveal-modal-number";
-    numberEl.textContent = `${rankInfo.totalRanked}位`;
-    modal.appendChild(numberEl);
+    const list = document.createElement("div");
+    list.className = "rank-reveal-climb-list";
+    const rowEls = rows.map((row) => {
+      const item = document.createElement("div");
+      item.className = "rank-reveal-climb-row";
+      if (row.playerId === profile.playerId) item.classList.add("is-self");
+      const rankEl = document.createElement("span");
+      rankEl.className = "rr-rank";
+      rankEl.textContent = `${row.rank}`;
+      item.appendChild(rankEl);
+      if (row.avatarUrl) {
+        const av = document.createElement("img");
+        av.className = "rr-avatar";
+        av.src = row.avatarUrl;
+        av.alt = "";
+        item.appendChild(av);
+      }
+      const nameEl = document.createElement("span");
+      nameEl.className = "rr-name";
+      nameEl.textContent = row.name; // textContentで安全に表示
+      item.appendChild(nameEl);
+      const valEl = document.createElement("span");
+      valEl.className = "rr-val";
+      valEl.textContent = `${row.winRate}%`;
+      item.appendChild(valEl);
+      list.appendChild(item);
+      return item;
+    });
+    modal.appendChild(list);
 
     const deltaEl = document.createElement("div");
     deltaEl.className = "rank-reveal-modal-delta";
     modal.appendChild(deltaEl);
 
+    modal.appendChild(createModalCloseX(close));
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
 
-    animateClimb(numberEl, rankInfo.totalRanked, rankInfo.rank, () => {
-      numberEl.classList.add("is-settled");
-      if (previousRank != null && previousRank !== rankInfo.rank) {
-        const diff = previousRank - rankInfo.rank; // 正なら順位アップ（数字が小さくなった）
-        deltaEl.textContent = diff > 0 ? `▲${diff} 上昇` : `▼${Math.abs(diff)} 下降`;
+    // ハイライトを最下位(一番下の行)から自分の行まで登らせる。各ステップでその行を中央へ
+    // スクロールして「上がっていく」動きを見せ、到達したら自分の行を強調（is-arrived）する。
+    const lastIndex = rows.length - 1;
+    let currentHi = -1;
+    const setFocus = (idx) => {
+      if (currentHi >= 0 && rowEls[currentHi]) rowEls[currentHi].classList.remove("is-climb-focus");
+      currentHi = idx;
+      const el = rowEls[idx];
+      if (el) {
+        el.classList.add("is-climb-focus");
+        el.scrollIntoView({ block: "center" });
+      }
+    };
+    const settle = () => {
+      setFocus(myIndex);
+      rowEls[myIndex]?.classList.add("is-arrived");
+      if (previousRank != null && previousRank !== myRank) {
+        const diff = previousRank - myRank; // 正なら順位アップ
+        deltaEl.textContent = diff > 0 ? `▲${diff} 上昇！` : `▼${Math.abs(diff)} 下降`;
         deltaEl.classList.add(diff > 0 ? "is-up" : "is-down");
-      } else if (previousRank === rankInfo.rank) {
+      } else if (previousRank === myRank) {
         deltaEl.textContent = "→ 前回と同じ順位";
       }
-    });
-
-    // ユーザー要望（変更）: 対戦終了時のモーダルは自動で次へ進まない。✕/背景クリックでのみ閉じる。
-    const autoCloseTimer = null;
+    };
+    setFocus(lastIndex);
+    if (lastIndex <= myIndex) {
+      settle();
+    } else {
+      const start = performance.now();
+      const frame = (now) => {
+        const t = Math.min(1, (now - start) / CLIMB_DURATION_MS);
+        const eased = easeOutCubic(t);
+        const idx = Math.round(lastIndex - (lastIndex - myIndex) * eased);
+        if (idx !== currentHi) setFocus(idx);
+        if (t < 1) requestAnimationFrame(frame);
+        else settle();
+      };
+      requestAnimationFrame(frame);
+    }
   });
 }
 
