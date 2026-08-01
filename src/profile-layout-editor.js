@@ -65,19 +65,29 @@ export function applyProfileLayout(container) {
   // 作業キャンバスを広げ、プロフィールを囲う枠（カードの背景・枠線）は消す（ユーザー要望
   // 「プロフィールを囲っている枠はもういらない」）。焼き込み側も同じ扱いで全ユーザー一致。
   const card = container.parentElement;
+  // 全画面版(#profile-page)か、モーダル版(それ以外)かを判定する。全画面版はステージ全体を
+  // 覆う器を持つ。
+  const fullScreen = card && card.id === "profile-page-card" ? document.getElementById("profile-page") : null;
   if (layoutActive) {
     if (card) {
       card.style.width = `${CANVAS_WIDTH_PX}px`;
       card.style.maxWidth = "96vw";
       card.style.background = "none";
       card.style.border = "none";
-      // ユーザー報告「マイページがマウスホイールで上下にスクロールされちゃう」。焼き込み
-      // レイアウトは絶対配置の固定コンポジションで、特に巨大な背面アバター(avatar-bg)が
-      // 負のY(上方向)に配置されるため、スクロール可能な器(my-page-panelのoverflow-y:auto)
-      // だとホイールで上下に動いてしまう。編集モードでは要素を掴んで動かすためスクロール
-      // 可能にしておくが、通常の焼き込み表示ではスクロールを止める（はみ出す背面アバターは
-      // そのままクリップ＝カードいっぱいに広がる意図どおりの見た目になる）。
-      card.style.overflow = editMode ? "auto" : "hidden";
+      // ユーザー指摘「アプリは画面比率を固定しているので、見えない枠(クリップ)は不要。要素は
+      // 左は戻るボタン・右はオプションアイコンのあたりまで、切れずに置けるようにしたい」。
+      // カード(960pxのデザイン基準・中央寄せ)は座標の基準として残すが、はみ出しをクリップ
+      // しない(overflow:visible)ことで、負のx(左)に置いた装飾アバターや右へ伸びる着せ替えが
+      // カード端で切れず、固定ステージいっぱいまで見える。実際に切れるのは画面(ステージ)端のみ。
+      // スクロール防止のクリップは、全画面版では外側の器(#profile-page＝ステージ全面)側で行う
+      // （ステージ＝画面いっぱいなので内側では何も切れない）。モーダル版(小さい中央モーダル)は
+      // 自身が器なので従来どおり自身でクリップする。編集モードは要素を掴めるようスクロール可。
+      card.style.overflow = editMode ? "auto" : fullScreen ? "visible" : "hidden";
+    }
+    // 全画面版: スクロールは出さず、切れるのは画面端のみ（焼き込み時）。編集モードはドラッグで
+    // 遠くの要素へ届くようスクロール可のまま。
+    if (fullScreen) {
+      fullScreen.style.overflow = editMode ? "auto" : "hidden";
     }
     container.style.width = "100%";
   } else {
@@ -88,6 +98,7 @@ export function applyProfileLayout(container) {
       card.style.border = "";
       card.style.overflow = "";
     }
+    if (fullScreen) fullScreen.style.overflow = "";
     container.style.width = "";
   }
 
@@ -158,39 +169,18 @@ export function applyProfileLayout(container) {
     if (editMode) makeEditable(el, container);
   }
   if (layoutActive) {
-    // ユーザー報告「着せ替えが右で切れる」「左のアバターが見えない枠で切れる」。焼き込み表示では、
-    // 左・上へはみ出した要素（負のx/yに置いたアバター等）が overflow:hidden でカード端に切られて
-    // いた。全要素を (−minLeft, −minTop) だけずらして「一番左上の要素を原点(0,0)」に持ってきて、
-    // カードを内容全体（右端 maxRight・下端 maxBottom）が入る大きさにすることで、どの要素も
-    // 切れずに表示する。overflow:hiddenは範囲計算から除外した背面アバター(avatar-bg)の
-    // はみ出しだけをクリップする（意図どおり背景として広がる）。編集モードでは座標をずらすと
-    // ドラッグ計算が狂うため、ずらさず固定キャンバスのままにする。
-    const shiftX = !editMode && Number.isFinite(minLeft) && minLeft < 0 ? -minLeft : 0;
-    const shiftY = !editMode && Number.isFinite(minTop) && minTop < 0 ? -minTop : 0;
-    if (shiftX || shiftY) {
-      for (const p of placed) {
-        p.el.style.left = `${p.cfg.x + shiftX}px`;
-        p.el.style.top = `${p.cfg.y + shiftY}px`;
-      }
-    }
-    container.style.minHeight = `${maxBottom + shiftY + 40}px`;
-    if (card) {
-      // カード幅を内容の右端（ずらし込み）に合わせて広げる。編集中は作業しやすいよう最低でも
-      // 既定キャンバス幅を確保。maxWidth:96vwで画面をはみ出さないようクランプ。
-      const fitWidth = Math.ceil(maxRight + shiftX + 24);
-      card.style.width = `${editMode ? Math.max(fitWidth, CANVAS_WIDTH_PX) : fitWidth}px`;
-      // 実測補正: maxWidth:100%キャップやサブピクセル誤差、絵文字・フォントの遅延確定等で
-      // 計算が数px足りず右端が切れることがあるため、設定後のscrollWidthで合わせ直す（今フレームと
-      // 次フレームrAFの両方。編集中はドラッグのたびに走ると幅がガタつくため焼き込み表示時のみ）。
-      if (!editMode) {
-        const fit = () => {
-          if (card.scrollWidth > card.clientWidth) card.style.width = `${card.scrollWidth + 8}px`;
-        };
-        fit();
-        requestAnimationFrame(fit);
-      }
-    }
+    // カードはクリップしない（枠を撤去）ので、幅は960pxのデザイン基準のまま中央寄せで置き、
+    // 高さだけ主要要素（背面アバターを除く）の下端に合わせておく（中央寄せ・レイアウトの基準）。
+    // 背面アバターや着せ替えがこの基準の外へはみ出しても、画面（固定ステージ）端まで切れずに
+    // 見える（外側の器 #profile-page 側でのみ画面端クリップ＝スクロール防止）。
+    container.style.minHeight = `${maxBottom + 40}px`;
   }
+  // 未使用になった計測値の参照だけ残さないよう明示（minLeft/minTop/maxRight/placedは
+  // 将来また範囲計算が要る時のために計算自体は残してある）。
+  void placed;
+  void maxRight;
+  void minLeft;
+  void minTop;
   if (editMode) ensureToolbar(container);
 }
 
