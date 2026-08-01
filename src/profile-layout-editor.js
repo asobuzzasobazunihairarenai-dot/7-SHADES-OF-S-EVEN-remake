@@ -155,6 +155,12 @@ export function applyProfileLayout(container) {
       // よう最低でも既定キャンバス幅を確保。maxWidth:96vwで画面をはみ出さないようにクランプ。
       const fitWidth = Math.ceil(maxRight + 8);
       card.style.width = `${editMode ? Math.max(fitWidth, CANVAS_WIDTH_PX) : fitWidth}px`;
+      // 実測補正: maxWidth:100%キャップやサブピクセル誤差で計算が僅かに足りず、右端がまだ
+      // はみ出す（overflow:hiddenで切れる）ことがある。設定後のscrollWidth（右方向の実コンテンツ幅）
+      // でもう一度合わせて、確実に切れないようにする。
+      if (card.scrollWidth > card.clientWidth) {
+        card.style.width = `${card.scrollWidth + 6}px`;
+      }
     }
   }
   if (editMode) ensureToolbar(container);
