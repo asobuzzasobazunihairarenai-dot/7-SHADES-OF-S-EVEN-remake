@@ -364,7 +364,9 @@ export async function renderMyPageBody(body, close) {
   statsGroup.appendChild(buildStatRow("勝率順位", rankText(profile.winRateRank)));
   statsGroup.appendChild(buildStatRow("対戦数順位", rankText(profile.matchCountRank)));
   statsGroup.appendChild(buildStatRow("登録年月日", formatDate(profile.createdAt)));
-  statsGroup.appendChild(buildStatsSyncRow(seat));
+  // ユーザー要望で手動の「戦績システムと同期する」ボタンは撤去（名前/アバターは変更した瞬間に
+  // 自動同期＝online.jsのautoSyncStatsIdentity、対局開始・勝利時の自動同期もそのまま）。
+  // buildStatsSyncRowは将来また必要になった時のため関数自体は残してある。
 }
 
 let openFn = null;

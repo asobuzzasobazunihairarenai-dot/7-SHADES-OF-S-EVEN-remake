@@ -1985,12 +1985,36 @@ export async function updateMyIdentity({ name, avatar, pieceSkinIndex } = {}) {
       };
     }
 
+    // ユーザー要望「戦績システムとの同期を自動でリアルタイムに」。名前/アバターを変えた瞬間に、
+    // 既に連携済み（戦績システムにプレイヤー行がある）なら、その行の名前/アバターも即座に更新する
+    // （手動の「同期する」ボタンを不要にする）。まだ連携していない人には何も作らない＝勝手に登録
+    // しない（登録は従来どおり対局開始・勝利時のみ）。同期失敗しても他の処理には影響させない。
+    if (name !== undefined || avatar !== undefined) {
+      autoSyncStatsIdentity({ name, avatar }).catch((err) => console.error("autoSyncStatsIdentity failed", err));
+    }
+
     // 他クライアントへ速やかに伝える（盤面のstate_changedとは無関係の情報のため別イベント名
     // にする。次の何らかの操作を待たずに、名前変更等がすぐ他プレイヤーへ伝わるようにする）。
     if (broadcastChannel) {
       broadcastChannel.send({ type: "broadcast", event: "identity_changed", payload: {} });
     }
   });
+}
+
+// 名前・アバターを変更した瞬間の「戦績システムへの自動同期」（ユーザー要望）。既に連携済みの
+// プレイヤー行がある場合だけ、その行の名前/アバターを更新する（未連携なら何もしない＝勝手に
+// 新規登録はしない。登録は startGame/victory 時のみ）。ゲスト（匿名）も対象外。
+async function autoSyncStatsIdentity({ name, avatar } = {}) {
+  if (!client || !cachedUser || cachedUser.is_anonymous) return;
+  if (name === undefined && avatar === undefined) return;
+  const { data: existing, error } = await client.from("players").select("id").eq("user_id", cachedUser.id).maybeSingle();
+  if (error || !existing) return; // 未連携なら何もしない
+  const patch = {};
+  if (name !== undefined && name) patch.name = name;
+  if (avatar !== undefined && avatar) patch.avatar_url = new URL(avatar, window.location.href).href;
+  if (Object.keys(patch).length === 0) return;
+  const { error: updErr } = await client.from("players").update(patch).eq("id", existing.id);
+  if (updErr) throw updErr;
 }
 
 // so7_games・so7_game_tokens_visible・so7_game_piles_visibleを取得し、state.jsの
