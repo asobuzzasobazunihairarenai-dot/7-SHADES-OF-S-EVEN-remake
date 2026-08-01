@@ -8730,7 +8730,17 @@ function buildSelfHandStatus() {
   // 選べるようにしたい」。マイページへの入口は続き77でオプションエリアのアイコンだけで
   // 足りるようになった（ユーザー確認済み）ため、ここはエモート専用に転用する
   // （emote.js参照）。
-  selfStatusLargeAvatarEl.addEventListener("click", () => openEmotePicker(selfStatusLargeAvatarEl));
+  // ユーザー要望「半透明の背面アバターをクリックしてもエモートは出ないように」。背面ゴースト
+  // 自体は pointer-events:none で既にクリック不可だが、本体アバターの当たり判定は四角い箱
+  // （画像は円形なので四隅は透明で、そこには背面ゴーストが透けて見える）。その透明な四隅で
+  // エモートが出ないよう、円の内側をクリックした時だけエモートを開く。
+  selfStatusLargeAvatarEl.addEventListener("click", (e) => {
+    const rect = selfStatusLargeAvatarEl.getBoundingClientRect();
+    const dx = e.clientX - (rect.left + rect.width / 2);
+    const dy = e.clientY - (rect.top + rect.height / 2);
+    if (Math.hypot(dx, dy) > Math.min(rect.width, rect.height) / 2) return; // 円の外（四隅）は無視
+    openEmotePicker(selfStatusLargeAvatarEl);
+  });
   addSimpleTooltip(selfStatusLargeAvatarEl, "クリックしてエモートを選ぶ");
 
   // ユーザー要望「戦績システムと連携しているプレイヤーはステータスエリアにランクを
