@@ -10101,6 +10101,91 @@ body.theme-light #my-page-panel {
   box-shadow: 0 20px 50px rgba(120, 100, 60, 0.25) !important;
 }
 
+/* ---- ライトテーマ：ランキング画面（#ranking-page）。全てCSSクラス/id指定なので
+   !important不要。構造はマイページ全画面版と同じ（ゴールド系アクセント）。 ---- */
+body.theme-light #ranking-page {
+  background: radial-gradient(ellipse at top, #fdfbf5 0%, #f5efe2 55%, #ece2cd 100%);
+  color: #3a3326;
+}
+body.theme-light #ranking-page-title {
+  color: #3a3326;
+}
+body.theme-light #ranking-page-back {
+  border-color: rgba(176, 141, 63, 0.5);
+  color: #6b5c3c;
+}
+body.theme-light #ranking-page-back:hover {
+  border-color: rgba(176, 141, 63, 0.9);
+  background: rgba(176, 141, 63, 0.12);
+}
+body.theme-light #ranking-page-info-btn {
+  border-color: rgba(176, 141, 63, 0.6);
+  color: #8a7d63;
+}
+body.theme-light #ranking-page-info-btn:hover {
+  border-color: rgba(176, 141, 63, 0.9);
+  color: #a67c1a;
+}
+body.theme-light #ranking-page-status,
+body.theme-light .ranking-page-empty {
+  color: #8a7d63;
+}
+body.theme-light .ranking-page-column-heading {
+  color: #a67c1a;
+  border-bottom-color: rgba(176, 141, 63, 0.35);
+}
+body.theme-light .ranking-page-row {
+  border-bottom-color: rgba(176, 141, 63, 0.2);
+}
+body.theme-light .ranking-page-row-rank {
+  color: #8a7d63;
+}
+body.theme-light .ranking-page-row.is-top1 .ranking-page-row-rank {
+  color: #b8860b; /* 金は白背景だと薄いのでダークゴールドへ */
+}
+body.theme-light .ranking-page-row.is-top2 .ranking-page-row-rank {
+  color: #6b7280; /* シルバーも白背景だと薄いので濃いグレーへ */
+}
+body.theme-light .ranking-page-row.is-self .ranking-page-row-name {
+  color: #a67c1a; /* is-selfの淡い黄名は白背景で見えないため暗いゴールドへ */
+}
+body.theme-light #ranking-info-modal {
+  background: rgba(255, 253, 247, 0.98);
+  border-color: rgba(176, 141, 63, 0.4);
+  color: #3a3326;
+}
+
+/* ---- ライトテーマ：オプションメニュー（右上ドロップダウン、#options-menu-panel）。
+   中身はCSSクラス/idなので !important 不要。 ---- */
+body.theme-light #options-menu-panel {
+  background: rgba(255, 253, 247, 0.98);
+  border-color: rgba(176, 141, 63, 0.4);
+  color: #3a3326;
+  box-shadow: 0 10px 24px rgba(120, 100, 60, 0.25);
+}
+body.theme-light .options-menu-item {
+  color: #3a3326;
+}
+body.theme-light .options-menu-item:hover {
+  background: rgba(176, 141, 63, 0.18);
+}
+body.theme-light .options-menu-section-title,
+body.theme-light .options-menu-details-title::before {
+  color: #a67c1a;
+}
+body.theme-light .options-menu-divider {
+  border-top-color: rgba(176, 141, 63, 0.3);
+}
+body.theme-light .options-menu-details {
+  border-color: rgba(176, 141, 63, 0.3);
+}
+body.theme-light .options-menu-reset-hint {
+  color: #8a7d63;
+}
+body.theme-light .options-menu-stats-link-card.is-linked .options-menu-stats-link-title {
+  color: #6b5c3c;
+}
+
 /* ランキングの画面全体版（続き74、src/ranking-page.js）。プロフィール画面全体版と
    同じ器の作り方（フルスクリーン、戻るボタン、中央のカード）を踏襲する。 */
 #ranking-page {
