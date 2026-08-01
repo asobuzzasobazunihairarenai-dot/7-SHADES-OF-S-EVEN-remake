@@ -10553,6 +10553,27 @@ body.theme-light-ingame .start-player-announce .start-player-name {
   color: #2563eb !important; /* 薄い水色#7dd3fcは白背景で読みづらいので濃い青へ */
 }
 
+/* フェイズ案内板（#phase-guide-bar）のボタンも操作アイコンと同じ丸バッジ＋白SVG構造なので、
+   同様にライト化（バッジを明るく／白アイコンをfilterで暗色シルエット化／キャプションを暗色に）。
+   現在フェイズの水色アウトライン(is-current-phase)は白地でも視認できるのでそのまま。 */
+body.theme-light-ingame #phase-guide-bar .icon-action-button-icon-wrap {
+  background: rgba(255, 253, 247, 0.92);
+  border-color: rgba(176, 141, 63, 0.55);
+  box-shadow: 0 4px 10px rgba(120, 100, 60, 0.22);
+}
+body.theme-light-ingame #phase-guide-bar .icon-action-button:hover .icon-action-button-icon-wrap {
+  background: rgba(176, 141, 63, 0.22);
+  border-color: rgba(176, 141, 63, 0.85);
+}
+body.theme-light-ingame #phase-guide-bar .icon-action-button-icon-img {
+  filter: brightness(0) opacity(0.72);
+}
+body.theme-light-ingame #phase-guide-bar .icon-action-button-caption {
+  color: #3a3326;
+  background: rgba(255, 253, 247, 0.85);
+  text-decoration-color: rgba(120, 100, 60, 0.4);
+}
+
 /* ランキングの画面全体版（続き74、src/ranking-page.js）。プロフィール画面全体版と
    同じ器の作り方（フルスクリーン、戻るボタン、中央のカード）を踏襲する。 */
 #ranking-page {
