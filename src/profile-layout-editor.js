@@ -112,6 +112,9 @@ export function applyProfileLayout(container) {
 
   let maxBottom = 0;
   let maxRight = 0;
+  let minLeft = Infinity;
+  let minTop = Infinity;
+  const placed = [];
   for (const m of measured) {
     let cfg = PROFILE_LAYOUT[m.key];
     if (!cfg) {
@@ -141,25 +144,44 @@ export function applyProfileLayout(container) {
     } else {
       el.style.pointerEvents = "";
     }
-    maxBottom = Math.max(maxBottom, cfg.y + el.offsetHeight * cfg.scale);
-    // 内容の右端（正方向の一番右）も測る。カード幅をこれに合わせて広げることで、着せ替え等が
-    // 960pxのカード端で切れる（ユーザー報告「着せ替えが右で切れる／見えない枠」）のを防ぐ。
-    // 装飾アバターは負のx（左）に置かれ、その左方向のはみ出しはoverflow:hiddenでクリップする。
-    maxRight = Math.max(maxRight, cfg.x + el.offsetWidth * cfg.scale);
+    placed.push({ el, cfg, key: m.key });
+    // 表示範囲（カードの大きさ／位置合わせ）の計算。巨大な背面アバター(avatar-bg、半透明の
+    // 飾り)は「意図的にはみ出して背景いっぱいに広がる」要素なので範囲計算からは除外する
+    // （含めると全体が大きくずれてしまう）。それ以外の要素（アバター本体・名前・着せ替え・
+    // 戦績等）は左右上下すべての端を測り、全部が切れずに収まるようにする。
+    if (m.key !== "avatar-bg") {
+      maxBottom = Math.max(maxBottom, cfg.y + el.offsetHeight * cfg.scale);
+      maxRight = Math.max(maxRight, cfg.x + el.offsetWidth * cfg.scale);
+      minLeft = Math.min(minLeft, cfg.x);
+      minTop = Math.min(minTop, cfg.y);
+    }
     if (editMode) makeEditable(el, container);
   }
   if (layoutActive) {
-    container.style.minHeight = `${maxBottom + 40}px`;
+    // ユーザー報告「着せ替えが右で切れる」「左のアバターが見えない枠で切れる」。焼き込み表示では、
+    // 左・上へはみ出した要素（負のx/yに置いたアバター等）が overflow:hidden でカード端に切られて
+    // いた。全要素を (−minLeft, −minTop) だけずらして「一番左上の要素を原点(0,0)」に持ってきて、
+    // カードを内容全体（右端 maxRight・下端 maxBottom）が入る大きさにすることで、どの要素も
+    // 切れずに表示する。overflow:hiddenは範囲計算から除外した背面アバター(avatar-bg)の
+    // はみ出しだけをクリップする（意図どおり背景として広がる）。編集モードでは座標をずらすと
+    // ドラッグ計算が狂うため、ずらさず固定キャンバスのままにする。
+    const shiftX = !editMode && Number.isFinite(minLeft) && minLeft < 0 ? -minLeft : 0;
+    const shiftY = !editMode && Number.isFinite(minTop) && minTop < 0 ? -minTop : 0;
+    if (shiftX || shiftY) {
+      for (const p of placed) {
+        p.el.style.left = `${p.cfg.x + shiftX}px`;
+        p.el.style.top = `${p.cfg.y + shiftY}px`;
+      }
+    }
+    container.style.minHeight = `${maxBottom + shiftY + 40}px`;
     if (card) {
-      // カード幅を内容の右端に合わせて広げる（着せ替え等が切れないように）。編集中は作業しやすい
-      // よう最低でも既定キャンバス幅を確保。maxWidth:96vwで画面をはみ出さないようにクランプ。
-      const fitWidth = Math.ceil(maxRight + 24);
+      // カード幅を内容の右端（ずらし込み）に合わせて広げる。編集中は作業しやすいよう最低でも
+      // 既定キャンバス幅を確保。maxWidth:96vwで画面をはみ出さないようクランプ。
+      const fitWidth = Math.ceil(maxRight + shiftX + 24);
       card.style.width = `${editMode ? Math.max(fitWidth, CANVAS_WIDTH_PX) : fitWidth}px`;
-      // 実測補正: maxWidth:100%キャップやサブピクセル誤差、さらに絵文字・フォントが遅れて
-      // 確定して幅が伸びること等で、maxRightの計算が数px足りず右端が切れる（overflow:hidden）
-      // ことがある。設定後のscrollWidth（右方向の実コンテンツ幅）で合わせ直す。今フレームと
-      // 次フレーム(rAF)の両方で行い、非同期のサイズ確定後も確実に収める（編集中はドラッグの
-      // たびに走ると幅がガタつくため焼き込み表示時のみ）。
+      // 実測補正: maxWidth:100%キャップやサブピクセル誤差、絵文字・フォントの遅延確定等で
+      // 計算が数px足りず右端が切れることがあるため、設定後のscrollWidthで合わせ直す（今フレームと
+      // 次フレームrAFの両方。編集中はドラッグのたびに走ると幅がガタつくため焼き込み表示時のみ）。
       if (!editMode) {
         const fit = () => {
           if (card.scrollWidth > card.clientWidth) card.style.width = `${card.scrollWidth + 8}px`;
