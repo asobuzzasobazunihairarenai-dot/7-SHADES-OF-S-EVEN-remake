@@ -1092,7 +1092,29 @@ async function runAction(action, ctx, helpers) {
       // ザ・ギャンブル専用: 直前のDECLARE_COLORSで宣言した色の種類数分、公開ドローする。
       const declaredColors = ctx.selections.declaredColors;
       if (!declaredColors?.length) return false;
-      const revealedCardIds = await helpers.publicDraw(ctx.player, declaredColors.length);
+      // ユーザー要望「1枚ずつもったいぶりたい。公開のたびに『1枚公開する/全部公開する』の
+      // モーダルを出す」。残り2枚以上の時だけ選ばせ、残り1枚は自動で最後の1枚を公開する。
+      const total = declaredColors.length;
+      const revealedCardIds = [];
+      let remaining = total;
+      while (remaining > 0) {
+        if (remaining > 1 && helpers.pickHandEffectOption) {
+          const opt = await helpers.pickHandEffectOption("yellow-gamble", [
+            { id: "one", label: "１枚公開する", usable: true },
+            { id: "all", label: `残り${remaining}枚をすべて公開する`, usable: true },
+          ]);
+          if (opt?.id === "all") {
+            const rest = await helpers.publicDraw(ctx.player, remaining);
+            revealedCardIds.push(...rest);
+            remaining = 0;
+            break;
+          }
+          // "one" またはモーダルを閉じた(null) → 1枚だけ公開して次へ。
+        }
+        const one = await helpers.publicDraw(ctx.player, 1);
+        revealedCardIds.push(...one);
+        remaining -= 1;
+      }
       ctx.selections.revealedCardIds = revealedCardIds;
       return revealedCardIds.length > 0;
     }

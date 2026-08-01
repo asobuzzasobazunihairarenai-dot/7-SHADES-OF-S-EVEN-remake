@@ -330,7 +330,13 @@ export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat, 
   ctx.font = "14px sans-serif";
   ctx.fillStyle = "#cbd5e1";
   const durationText = durationMinutes != null ? `　プレイ時間: ${durationMinutes}分` : "";
-  ctx.fillText(`${new Date().toISOString().slice(0, 10)}${durationText}`, PAD, 50);
+  // ユーザー要望「戦績画像にターン数とラウンド数も明記」。state.roundNumber/turnNumberは
+  // NEXT_TURNごとに更新される通算値（state.js参照）。
+  const trText =
+    state.roundNumber != null || state.turnNumber != null
+      ? `　ラウンド${state.roundNumber ?? "-"} / 通算${state.turnNumber ?? "-"}ターン`
+      : "";
+  ctx.fillText(`${new Date().toISOString().slice(0, 10)}${durationText}${trText}`, PAD, 50);
   ctx.font = "bold 18px sans-serif";
   ctx.fillStyle = "#facc15";
   ctx.fillText(`🏆 勝者: ${getPlayerName(winnerSeat)}`, PAD, 74);

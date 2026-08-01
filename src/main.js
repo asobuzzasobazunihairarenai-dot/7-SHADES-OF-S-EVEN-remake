@@ -1959,8 +1959,11 @@ async function runJointConstructionTask(player) {
     const handToken = await requestHandCardChoiceForEffect(player, "そのマスに置くカードを手札から選択してください");
     if (!handToken) return false;
     await moveAndSyncForEffect(handToken.id, { zone: "cell", row: dest.row, col: dest.col });
+    // ユーザー要望「合同建設で相手が山札から置いたのか手札から置いたのかを全員に周知」。
+    await announceEffectChoiceForEffect("green-joint-construction", player, "手札から１枚を裏向きで置く");
   } else {
     await placeFromDeckForEffect({ zone: "cell", row: dest.row, col: dest.col });
+    await announceEffectChoiceForEffect("green-joint-construction", player, "山札から１枚を裏向きで置く");
   }
   return true;
 }
