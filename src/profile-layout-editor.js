@@ -153,13 +153,19 @@ export function applyProfileLayout(container) {
     if (card) {
       // カード幅を内容の右端に合わせて広げる（着せ替え等が切れないように）。編集中は作業しやすい
       // よう最低でも既定キャンバス幅を確保。maxWidth:96vwで画面をはみ出さないようにクランプ。
-      const fitWidth = Math.ceil(maxRight + 8);
+      const fitWidth = Math.ceil(maxRight + 24);
       card.style.width = `${editMode ? Math.max(fitWidth, CANVAS_WIDTH_PX) : fitWidth}px`;
-      // 実測補正: maxWidth:100%キャップやサブピクセル誤差で計算が僅かに足りず、右端がまだ
-      // はみ出す（overflow:hiddenで切れる）ことがある。設定後のscrollWidth（右方向の実コンテンツ幅）
-      // でもう一度合わせて、確実に切れないようにする。
-      if (card.scrollWidth > card.clientWidth) {
-        card.style.width = `${card.scrollWidth + 6}px`;
+      // 実測補正: maxWidth:100%キャップやサブピクセル誤差、さらに絵文字・フォントが遅れて
+      // 確定して幅が伸びること等で、maxRightの計算が数px足りず右端が切れる（overflow:hidden）
+      // ことがある。設定後のscrollWidth（右方向の実コンテンツ幅）で合わせ直す。今フレームと
+      // 次フレーム(rAF)の両方で行い、非同期のサイズ確定後も確実に収める（編集中はドラッグの
+      // たびに走ると幅がガタつくため焼き込み表示時のみ）。
+      if (!editMode) {
+        const fit = () => {
+          if (card.scrollWidth > card.clientWidth) card.style.width = `${card.scrollWidth + 8}px`;
+        };
+        fit();
+        requestAnimationFrame(fit);
       }
     }
   }
