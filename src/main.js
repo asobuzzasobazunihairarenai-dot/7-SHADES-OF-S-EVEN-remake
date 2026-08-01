@@ -2288,6 +2288,23 @@ document.addEventListener(
           return;
         }
       }
+      // ハンドフェイズ: ロックされていても使えるカード（ファースト/エターナル、光っている
+      // is-usable-while-locked）を自分がクリックしたら効果の使用フローへ。ドラッグ制限中でも
+      // 掴めない盤面/ロックカードを使えるようにするため、掴む→放す経路ではなくここで割り込む。
+      if (isHandPhaseActive()) {
+        const elements = document.elementsFromPoint(e.clientX, e.clientY);
+        for (const el of elements) {
+          const cardEl = el.closest(".board-card.is-usable-while-locked");
+          if (!cardEl) continue;
+          const tok = getState().tokens.find((t) => t.id === cardEl.dataset.tokenId);
+          if (tok && tok.location.zone === "lock" && SIDE_TO_SEAT[tok.location.side] === getSelfSeat()) {
+            e.preventDefault();
+            e.stopPropagation();
+            void tryUseLockedUsableCard(cardEl.dataset.tokenId);
+            return;
+          }
+        }
+      }
       return;
     }
     // ユーザー要望（続き95）「タイムアウトで離脱者の選択をランダム/最有力候補で自動
@@ -3285,6 +3302,57 @@ function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ"
       resolve: (option) => finish(option?.id === "yes"),
     };
   });
+}
+
+// ロックエリアにある「ロックされていても手札効果が使えるカード」（ファースト/エターナル、
+// is-usable-while-locked）をハンドフェイズにクリックした時の使用フロー。
+// バグ修正（ユーザー報告「オンラインで橙のファースト/紫のエターナルがクリックしても使えない」）:
+// 自動処理＋ドラッグ制限（既定ON、auto-drag-restriction.js）中は盤面/ロックのカードを掴めない
+// ため、掴む→放すに依存していた従来の使用経路（下のonDragEnd内の分岐A）が発火せず、これらの
+// カードが一切使えなくなっていた。ムーブ/ロックフェイズのクリック処理と同じ「captureフェーズの
+// pointerdownで自前当たり判定して割り込む」方式で、掴めなくても使えるようにする。
+async function tryUseLockedUsableCard(tokenId) {
+  const token = getState().tokens.find((t) => t.id === tokenId);
+  if (!token || token.location.zone !== "lock") return;
+  const owner = SIDE_TO_SEAT[token.location.side];
+  if (owner !== getSelfSeat()) return;
+  // 同じ色スロットに使えるカード（ファースト＋エターナル等）が2枚以上あればどれを使うか選ばせる。
+  const stacked = getState().tokens.filter(
+    (t) =>
+      t.kind === "card" &&
+      t.location.zone === "lock" &&
+      t.location.side === token.location.side &&
+      t.location.index === token.location.index
+  );
+  const usableStacked = stacked.filter(
+    (t) => (t.cardId.startsWith("eternal-") || t.cardId.startsWith("first-")) && hasHandEffectData(t.cardId)
+  );
+  let useToken = token;
+  if (usableStacked.length >= 2) {
+    const chosen = await pickStackedLockCard(stacked, "ハンドフェイズで使うカードを選んでください");
+    if (!chosen) {
+      render();
+      return;
+    }
+    useToken = chosen;
+  }
+  if (
+    !((useToken.cardId.startsWith("eternal-") || useToken.cardId.startsWith("first-")) && hasHandEffectData(useToken.cardId))
+  ) {
+    return;
+  }
+  render();
+  if (canUseHandEffect(useToken.cardId, useToken.id, owner)) {
+    if (await confirmTouchAction(`${getCardDefinition(useToken.cardId).name}を使用しますか？`)) {
+      runAutoHandEffect(useToken.cardId, useToken.id, owner);
+    }
+  } else if (!canPayHandEffectCost(useToken.cardId, useToken.id, owner)) {
+    alert("捨てられる同じ色のカードが手札にありません。");
+  } else {
+    // 追色は払えるがcanUseHandEffectがfalse＝使用回数の上限・このターン使用済み・自動処理OFF等。
+    // 従来は何の反応も無く「使えない」ように見えていた（ユーザー報告）ので、理由を軽く案内する。
+    alert("今はこのカードの効果を使えません（使用回数の上限や、このターン使用済みの可能性があります）。");
+  }
 }
 
 // ユーザー要望「①通常の手札カードは、ハンドフェイズかつ手札エリア外で放すと手札効果が
