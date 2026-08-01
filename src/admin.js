@@ -1341,8 +1341,20 @@ let themeLightMode = (() => {
     return false;
   }
 })();
+// 対戦画面（盤面上のパネル・モーダル等）もライトにするか。ユーザー方針B「メニュー系ライトとは
+// 別トグルにして、対戦中でもワンクリックでダーク⇄ライトを見比べられるように」。theme-lightとは
+// 独立して効かせる（対戦中に単独でON/OFFして比較できるようにするため）。body.theme-light-ingame。
+const THEME_INGAME_KEY = "so7-theme-ingame";
+let themeLightIngame = (() => {
+  try {
+    return localStorage.getItem(THEME_INGAME_KEY) === "on";
+  } catch (err) {
+    return false;
+  }
+})();
 function applyThemeMode() {
   document.body.classList.toggle("theme-light", themeLightMode);
+  document.body.classList.toggle("theme-light-ingame", themeLightIngame);
 }
 // モジュール読み込み時に一度適用する（type=module/deferのため、この時点でbodyは存在する）。
 applyThemeMode();
@@ -1682,10 +1694,33 @@ const TOGGLE_SECTIONS = [
         updateExportRef.current();
       });
       const themeLabel = document.createElement("span");
-      themeLabel.textContent = "ライトモードにする（白系テーマ。現在はマイページのみ対応。オフ=従来のダーク。設定は保持されます）";
+      themeLabel.textContent = "ライトモードにする（白系テーマ。メニュー系＝マイページ/ランキング/オプション。オフ=従来のダーク。設定は保持されます）";
       themeRow.appendChild(themeCheckbox);
       themeRow.appendChild(themeLabel);
       content.appendChild(themeRow);
+
+      // 対戦画面もライトにする独立トグル（方針B）。単独でON/OFFできるので、対戦中に
+      // 押してダーク⇄ライトをその場で見比べられる。合わないと感じたらこれをオフにするだけ。
+      const ingameRow = document.createElement("label");
+      ingameRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-top: 0.4rem;";
+      const ingameCheckbox = document.createElement("input");
+      ingameCheckbox.type = "checkbox";
+      ingameCheckbox.checked = themeLightIngame;
+      ingameCheckbox.addEventListener("change", () => {
+        themeLightIngame = ingameCheckbox.checked;
+        try {
+          localStorage.setItem(THEME_INGAME_KEY, themeLightIngame ? "on" : "off");
+        } catch (err) {
+          /* 保持できないだけで致命的ではない */
+        }
+        applyThemeMode();
+        updateExportRef.current();
+      });
+      const ingameLabel = document.createElement("span");
+      ingameLabel.textContent = "対戦画面もライトにする（盤面上のパネル・モーダル類。対戦中に押して見比べOK。合わなければオフに戻すだけ）";
+      ingameRow.appendChild(ingameCheckbox);
+      ingameRow.appendChild(ingameLabel);
+      content.appendChild(ingameRow);
     },
   },
   {

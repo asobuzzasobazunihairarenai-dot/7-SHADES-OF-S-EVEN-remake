@@ -10218,6 +10218,21 @@ body.theme-light .options-menu-stats-link-card.is-linked .options-menu-stats-lin
   color: #6b5c3c;
 }
 
+/* =====================================================================
+   ライトテーマ（対戦画面）: body.theme-light-ingame（方針B、メニュー系とは独立トグル）。
+   第1弾。盤面（プレイマット）自体は元々明るいので、ここでは"冷たいスレート系"の常設
+   チェック（ターン表示・山札ツールチップ・重なりカード一覧）だけをライト化する。
+   承認/割り込み等の"暖色ゴールド系"モーダルは意図的な装飾で白背景でも馴染むため、
+   あえてダークのまま残す。全CSS指定なので !important 不要。合わなければトグルをオフに
+   するだけで従来ダークへ即戻し。今後、実際に見て気になる面を順次追加していく。 */
+body.theme-light-ingame #phase-automation-turn-status,
+body.theme-light-ingame #pile-tooltip,
+body.theme-light-ingame #stack-modal {
+  background: rgba(255, 253, 247, 0.98);
+  color: #3a3326;
+  border-color: rgba(176, 141, 63, 0.5);
+}
+
 /* ランキングの画面全体版（続き74、src/ranking-page.js）。プロフィール画面全体版と
    同じ器の作り方（フルスクリーン、戻るボタン、中央のカード）を踏襲する。 */
 #ranking-page {
