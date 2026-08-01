@@ -3241,6 +3241,22 @@ body.is-touch-device .zone-right .label {
     transform: translateY(-50%) scale(1);
   }
 }
+/* プレイヤーB(左)・D(右)のエモートはアバターの“下”に出す（アバター上だとプレイヤー名表示と
+   被って見づらいため。ユーザー要望）。尻尾は上向き（アバター側）にする。 */
+.player-avatar[data-player="B"] .emote-speech-bubble,
+.player-avatar[data-player="D"] .emote-speech-bubble {
+  bottom: auto;
+  top: 100%;
+  margin-bottom: 0;
+  margin-top: 0.4rem;
+}
+.player-avatar[data-player="B"] .emote-speech-bubble::after,
+.player-avatar[data-player="D"] .emote-speech-bubble::after {
+  top: auto;
+  bottom: 100%;
+  border-top-color: transparent;
+  border-bottom-color: rgba(255, 255, 255, 0.96);
+}
 
 /* エモート選択ポップアップ（emote.js、続き78）。他のモーダルと違い暗転させない
    （テンポよく連投したい操作のため）。backdropは外側クリック判定専用の透明な

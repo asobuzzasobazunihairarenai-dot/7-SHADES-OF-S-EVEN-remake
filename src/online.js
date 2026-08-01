@@ -1906,12 +1906,21 @@ export function onMatchRecordedEvents(fn) {
 const PREVIEW_SEAT_ORDER = ["C", "B", "D"];
 
 async function updateIdentityRoster(gameId) {
-  const { data: seatRows, error } = await client
+  let { data: seatRows, error } = await client
     .from("so7_game_seats")
-    .select("seat, user_id, display_name, avatar, piece_skin_index, joined_at")
+    .select("seat, user_id, display_name, avatar, piece_skin_index, pet_index, joined_at")
     .eq("game_id", gameId)
     .order("joined_at", { ascending: true });
-  if (error) throw error;
+  if (error) {
+    // pet_indexカラムがまだ追加されていない環境（SQLマイグレーション未適用）ではここで
+    // undefined columnエラーになるので、pet_index無しで取り直す（ペット同期は列追加後に自動で有効化）。
+    ({ data: seatRows, error } = await client
+      .from("so7_game_seats")
+      .select("seat, user_id, display_name, avatar, piece_skin_index, joined_at")
+      .eq("game_id", gameId)
+      .order("joined_at", { ascending: true }));
+    if (error) throw error;
+  }
   const nextRoster = {};
   const unseatedOthers = [];
   for (const r of seatRows ?? []) {
@@ -1920,6 +1929,7 @@ async function updateIdentityRoster(gameId) {
         name: r.display_name || null,
         avatar: r.avatar || null,
         pieceSkinIndex: r.piece_skin_index ?? 0,
+        petIndex: typeof r.pet_index === "number" ? r.pet_index : null,
         userId: r.user_id,
       };
       if (cachedUser && r.user_id === cachedUser.id) currentSeat = r.seat;
@@ -1934,6 +1944,7 @@ async function updateIdentityRoster(gameId) {
       name: r.display_name || null,
       avatar: r.avatar || null,
       pieceSkinIndex: r.piece_skin_index ?? 0,
+      petIndex: typeof r.pet_index === "number" ? r.pet_index : null,
       userId: r.user_id,
     };
   });
@@ -1943,7 +1954,7 @@ async function updateIdentityRoster(gameId) {
 
 // 名前・アバター・駒スキンは隠すべき情報ではないため、so7-apply-action Edge Functionを
 // 経由させず、joinRoom()と同じ「クライアントから直接テーブルへ書き込む」パターンを踏襲する。
-export async function updateMyIdentity({ name, avatar, pieceSkinIndex } = {}) {
+export async function updateMyIdentity({ name, avatar, pieceSkinIndex, petIndex } = {}) {
   return withLog("プレイヤー情報の更新", async () => {
     const user = await getCurrentUser();
     if (!user) return;
@@ -1951,6 +1962,7 @@ export async function updateMyIdentity({ name, avatar, pieceSkinIndex } = {}) {
     if (name !== undefined) patch.display_name = name;
     if (avatar !== undefined) patch.avatar = avatar;
     if (pieceSkinIndex !== undefined) patch.piece_skin_index = pieceSkinIndex;
+    if (petIndex !== undefined) patch.pet_index = petIndex;
     if (Object.keys(patch).length === 0) return;
 
     // ユーザーごとの永続プロフィールへは、部屋に入っているかどうかに関わらず常に反映する
@@ -1982,6 +1994,7 @@ export async function updateMyIdentity({ name, avatar, pieceSkinIndex } = {}) {
         ...(name !== undefined ? { name } : {}),
         ...(avatar !== undefined ? { avatar } : {}),
         ...(pieceSkinIndex !== undefined ? { pieceSkinIndex } : {}),
+        ...(petIndex !== undefined ? { petIndex } : {}),
       };
     }
 

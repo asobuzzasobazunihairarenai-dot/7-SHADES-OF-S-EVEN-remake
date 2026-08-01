@@ -7,7 +7,7 @@
 // （getPetEmojiForSeat が同期ロスターを見るように差し替えるだけで済むよう分離してある）。
 
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
-import { getSelfSeat } from "./online.js";
+import { getSelfSeat, getSyncedIdentity, updateMyIdentity } from "./online.js";
 
 // 絵文字ペット（仮）＋本番のスプライトペット。index 0 が既定。
 // sprite付きのオプションは piece-pet.js が画像スプライト（4方向×モーション）で描画する
@@ -51,6 +51,9 @@ export function setSelectedPetIndex(i) {
   } catch (e) {
     /* 保存できなくても実行中は反映される */
   }
+  // オンライン中は座席ロスターへ同期し、相手の画面にも自分のペットが反映されるようにする
+  // （名前/アバター/駒スキンと同じ仕組み。so7_game_seats.pet_index / so7_user_profiles.pet_index）。
+  updateMyIdentity({ petIndex: i }).catch((err) => console.error("updateMyIdentity(pet) failed", err));
   notifyChange();
   helpers?.render?.();
 }
@@ -61,18 +64,19 @@ export function setSelectedPetIndex(i) {
 // 以前は `!seat`（座席不明）でも自分の選択を返していたため、駒のdata-ownerが空のとき
 // （token.playerが無く色→座席の補完も外れた等）に相手の駒へ自分のペットが漏れていた。
 // 自分の選択は「seatが自分の座席と明示的に一致する時だけ」返す（座席同期は将来対応 TODO(sync)）。
-export function getPetEmojiForSeat(seat) {
-  const self = getSelfSeat();
-  if (seat && self && seat === self) return PET_OPTIONS[selectedIndex].emoji; // null なら非表示
-  return PET_OPTIONS[0].emoji; // 相手・座席不明は既定
-}
-
 // 座席seatのペット“オプション”（絵文字 or スプライト）。piece-pet.jsが絵文字/画像どちらで
-// 描画するか判定するために使う。getPetEmojiForSeatと同じ「自分の座席だけ自分の選択」ルール。
+// 描画するか判定するために使う。自分の座席は自分の選択、他プレイヤーはオンライン同期された
+// 選択（getSyncedIdentity().petIndex）を反映する。未同期・不明はデフォルト＝「なし」（非表示）。
 export function getPetOptionForSeat(seat) {
   const self = getSelfSeat();
   if (seat && self && seat === self) return PET_OPTIONS[selectedIndex];
-  return PET_OPTIONS[0];
+  const syncedIdx = seat ? getSyncedIdentity(seat)?.petIndex : null;
+  if (typeof syncedIdx === "number" && PET_OPTIONS[syncedIdx]) return PET_OPTIONS[syncedIdx];
+  return NONE_INDEX >= 0 ? PET_OPTIONS[NONE_INDEX] : PET_OPTIONS[0]; // 既定は「なし」
+}
+
+export function getPetEmojiForSeat(seat) {
+  return getPetOptionForSeat(seat).emoji; // null なら非表示（スプライトはpiece-pet.js側で判定）
 }
 
 // main.jsからrender()を注入（他の着せ替えモジュールと同じ循環import回避パターン）。

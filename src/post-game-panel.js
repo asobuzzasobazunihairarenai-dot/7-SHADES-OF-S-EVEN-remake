@@ -289,6 +289,15 @@ function buildCommentSection(onFinish) {
   }
   submitBtn.addEventListener("click", () => finish(textarea.value.trim()));
   passBtn.addEventListener("click", () => finish(""));
+  // ユーザー報告「コメント入力後にエンターで閉じたらコメントが反映されなかった」。原因は
+  // Enterが単に改行になるだけで送信されていなかったこと。Enter（Shift無し）で「登録する」と
+  // 同じ送信を行う（改行したい時はShift+Enter）。
+  textarea.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      finish(textarea.value.trim());
+    }
+  });
 
   btnRow.appendChild(submitBtn);
   btnRow.appendChild(passBtn);
