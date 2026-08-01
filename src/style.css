@@ -10264,6 +10264,96 @@ body.theme-light .options-menu-stats-link-card.is-linked .options-menu-stats-lin
   color: #6b5c3c;
 }
 
+/* ---- ライトテーマ：ショップ（#shop-panel、全画面）。オレンジ系のボタン/リボンは
+   そのまま（白背景でも映える）、地・カード・タブ・文字だけライト化する。 ---- */
+body.theme-light #shop-panel {
+  background: radial-gradient(circle at 50% 0%, #fdfbf5, #efe6d4 70%);
+  color: #3a3326;
+}
+body.theme-light #shop-panel-header {
+  border-bottom-color: rgba(176, 141, 63, 0.3);
+}
+body.theme-light #shop-panel-back {
+  border-color: rgba(176, 141, 63, 0.5);
+  color: #6b5c3c;
+}
+body.theme-light #shop-panel-back:hover {
+  border-color: rgba(176, 141, 63, 0.9);
+  background: rgba(176, 141, 63, 0.12);
+}
+body.theme-light #shop-panel-balance {
+  color: #a67c1a;
+}
+body.theme-light #shop-panel-completion {
+  color: #8a7d63;
+}
+body.theme-light #shop-panel-status {
+  color: #15803d;
+}
+body.theme-light #shop-panel-status.is-error {
+  color: #b91c1c;
+}
+body.theme-light .shop-tab {
+  background: rgba(176, 141, 63, 0.1);
+  color: #6b5c3c;
+  border-color: rgba(176, 141, 63, 0.4);
+}
+body.theme-light .shop-tab:hover {
+  background: rgba(176, 141, 63, 0.2);
+}
+/* .shop-tab.is-active（オレンジグラデ）はそのまま */
+body.theme-light .shop-item-card {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(176, 141, 63, 0.4);
+  box-shadow: 0 0.4rem 1rem rgba(120, 100, 60, 0.15);
+}
+body.theme-light .shop-item-card:hover {
+  border-color: rgba(176, 141, 63, 0.85);
+  box-shadow: 0 0.7rem 1.6rem rgba(120, 100, 60, 0.28);
+}
+
+/* ---- ライトテーマ：ヘルプ／ルールブック（#help-panel と #help-item-modal）。
+   シアン系の「チュートリアルを見る」ボタンはそのまま（白背景でも映える）。 ---- */
+body.theme-light #help-panel,
+body.theme-light #help-item-modal {
+  background: rgba(255, 253, 247, 0.98);
+  border-color: rgba(176, 141, 63, 0.4);
+  color: #3a3326;
+  box-shadow: 0 20px 50px rgba(120, 100, 60, 0.25);
+}
+body.theme-light .help-index-section > summary,
+body.theme-light .help-item-modal-title {
+  color: #a67c1a;
+}
+body.theme-light .help-index-subsection > summary {
+  color: #2563eb;
+}
+body.theme-light .help-index-item {
+  background: rgba(176, 141, 63, 0.1);
+  color: #3a3326;
+}
+body.theme-light .help-index-item:hover {
+  background: rgba(176, 141, 63, 0.2);
+}
+
+/* ---- ライトテーマ：図鑑（#codex-page、全画面）。中身はカード画像なので器だけライトに。 ---- */
+body.theme-light #codex-page {
+  background: radial-gradient(ellipse at top, #fdfbf5 0%, #f5efe2 55%, #ece2cd 100%);
+  color: #3a3326;
+}
+body.theme-light #codex-page-back {
+  border-color: rgba(176, 141, 63, 0.5);
+  color: #6b5c3c;
+}
+body.theme-light #codex-page-back:hover {
+  border-color: rgba(176, 141, 63, 0.9);
+  background: rgba(176, 141, 63, 0.12);
+}
+body.theme-light .codex-section-heading {
+  color: #a67c1a;
+  border-bottom-color: rgba(176, 141, 63, 0.35);
+}
+
 /* =====================================================================
    ライトテーマ（対戦画面）: body.theme-light-ingame（方針B、メニュー系とは独立トグル）。
    第1弾。盤面（プレイマット）自体は元々明るいので、ここでは"冷たいスレート系"の常設
@@ -10278,21 +10368,52 @@ body.theme-light-ingame #stack-modal {
   color: #3a3326;
   border-color: rgba(176, 141, 63, 0.5);
 }
-/* 常時見える対戦中の要素（トグルの効果がすぐ分かるように）。ラウンド/ターン表示は
-   薄い白文字で明るい盤面だと読みづらいので暗色へ。右上の残金・オンラインのピルもライトに。 */
+/* ラウンド/ターン表示は薄い白文字で明るい盤面だと読みづらいので暗色へ。
+   （右上の残金・オンラインのピルは黒系のデザインが前提で、白系にすると違和感が出るため
+   ライト化しない——ユーザー指摘。ダークのまま残す。） */
 body.theme-light-ingame #turn-round-counter {
   color: #6b5c3c;
 }
-body.theme-light-ingame #currency-display,
-body.theme-light-ingame #option-area #self-status-online {
+
+/* プレイヤー操作アイコン（1枚ドロー・盤面拡大・シャッフル・ターン終了・誤操作防止など）の
+   丸バッジをライトに。アイコン画像は白いSVGを<img>で読み込んでいる（外部SVGなので
+   --icon-primaryは効かない）ため、filterで暗色シルエットにして白背景でも見えるようにする。
+   オプションエリアのアイコン（バッジ透明）は対象外にしたいので、操作ボタンのidに限定する。 */
+body.theme-light-ingame
+  :is(#draw-button, #public-draw-button, #board-zoom-button, #board-zoom-register-button, #hand-shuffle-button, #end-turn-button, #piece-hide-button, #card-hide-button)
+  .icon-action-button-icon-wrap {
   background: rgba(255, 253, 247, 0.92);
   border-color: rgba(176, 141, 63, 0.55);
+  box-shadow: 0 4px 10px rgba(120, 100, 60, 0.22);
 }
-body.theme-light-ingame #currency-display {
-  color: #a67c1a; /* 金額は白ピルでも読めるダークゴールドへ */
+body.theme-light-ingame
+  :is(#draw-button, #public-draw-button, #board-zoom-button, #board-zoom-register-button, #hand-shuffle-button, #end-turn-button, #piece-hide-button, #card-hide-button):hover
+  .icon-action-button-icon-wrap {
+  background: rgba(176, 141, 63, 0.22);
+  border-color: rgba(176, 141, 63, 0.85);
 }
-body.theme-light-ingame #option-area #self-status-online .icon-action-button-caption {
-  color: #6b5c3c;
+body.theme-light-ingame
+  :is(#draw-button, #public-draw-button, #board-zoom-button, #board-zoom-register-button, #hand-shuffle-button, #end-turn-button, #piece-hide-button, #card-hide-button)
+  .icon-action-button-icon-img {
+  filter: brightness(0) opacity(0.72);
+}
+body.theme-light-ingame
+  :is(#draw-button, #public-draw-button, #board-zoom-button, #board-zoom-register-button, #hand-shuffle-button, #end-turn-button, #piece-hide-button, #card-hide-button)
+  .icon-action-button-caption {
+  color: #3a3326;
+  background: rgba(255, 253, 247, 0.85);
+  text-decoration-color: rgba(120, 100, 60, 0.4);
+}
+/* スタートプレイヤー決定「発表」モーダルだけライトに（共通buildSimpleModalの中身はインライン
+   指定のため !important。設定フォーム等の他のsimple modalは対象外＝start-player-announce限定）。 */
+body.theme-light-ingame .start-player-announce {
+  background: rgba(255, 253, 247, 0.98) !important;
+  border-color: rgba(176, 141, 63, 0.4) !important;
+  color: #3a3326 !important;
+  box-shadow: 0 20px 50px rgba(120, 100, 60, 0.25) !important;
+}
+body.theme-light-ingame .start-player-announce .start-player-name {
+  color: #2563eb !important; /* 薄い水色#7dd3fcは白背景で読みづらいので濃い青へ */
 }
 
 /* ランキングの画面全体版（続き74、src/ranking-page.js）。プロフィール画面全体版と

@@ -107,6 +107,9 @@ function buildSimpleModal({ widthRem = 24, fadeIn = false, autoDismissMs = null,
 
 export function showStartPlayerModal(player, { onClose = null, autoDismissMs = 8000 } = {}) {
   const { modal } = buildSimpleModal({ widthRem: 20, fadeIn: true, autoDismissMs, onClose, blocksInput: false });
+  // ライトテーマ（対戦画面）用の識別子。共通のbuildSimpleModal（設定フォーム等でも使う）
+  // 全体ではなく、この発表モーダルだけをライト化の対象にするためのクラス（style.css参照）。
+  modal.classList.add("start-player-announce");
   const title = document.createElement("div");
   title.style.cssText = "font-weight: bold; margin-bottom: 0.6rem; font-size: 0.95rem;";
   title.textContent = "３：スタートプレイヤー決定";
@@ -120,6 +123,7 @@ export function showStartPlayerModal(player, { onClose = null, autoDismissMs = 8
   applyAvatarContent(avatarEl, getPlayerAvatar(player));
 
   const nameEl = document.createElement("div");
+  nameEl.className = "start-player-name";
   nameEl.style.cssText = "font-size: 1.5rem; font-weight: bold; text-align: center; color: #7dd3fc; margin-bottom: 0.6rem;";
   nameEl.textContent = getPlayerName(player);
 
