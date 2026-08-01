@@ -9116,12 +9116,16 @@ body.is-online-mode #quick-start-bar {
      ルールでサイズ変数をこの専用値に差し替える（アバター本体もランクリングも同じ変数から
      算出されるので一緒に縮む）。管理者モードの「左下アバター サイズ（スマホ）」で調整可能。 */
   --self-status-large-avatar-size-phone: 12rem;
-  --self-status-large-avatar-pos-x: -0.86rem;
-  --self-status-large-avatar-pos-y: -11.3rem;
+  --self-status-large-avatar-pos-x: -0.7rem;
+  --self-status-large-avatar-pos-y: -11.5rem;
+  --self-status-large-avatar-ghost-scale: 1.6;
+  --self-status-large-avatar-ghost-offset-x: -1.6rem;
+  --self-status-large-avatar-ghost-offset-y: -8.1rem;
+  --self-status-large-avatar-ghost-opacity: 0.35;
   --self-status-pos-x: 0rem;
   --self-status-pos-y: 0rem;
-  --self-status-info-pos-x: -14.4rem;
-  --self-status-info-pos-y: -2.5rem;
+  --self-status-info-pos-x: -9.8rem;
+  --self-status-info-pos-y: -1.5rem;
   --self-status-icon-piece-pos-x: 0rem;
   --self-status-icon-piece-pos-y: 0rem;
   --self-status-icon-cardback-pos-x: 0rem;
@@ -9132,8 +9136,9 @@ body.is-online-mode #quick-start-bar {
   --self-status-icon-background-pos-y: 0rem;
   --self-status-icon-online-pos-x: 1.42rem;
   --self-status-icon-online-pos-y: 1.01rem;
-  --self-status-icons-group-x: 0rem;
-  --self-status-icons-group-y: 0rem;
+  --self-status-icons-group-x: 3.6rem;
+  --self-status-icons-group-y: 1.1rem;
+  --self-status-icons-group-scale: 1.45;
   --lock-top-pos-x: 0rem;
   --lock-top-pos-y: -1.8rem;
   --lock-bottom-pos-x: 0rem;
@@ -10262,6 +10267,51 @@ body.theme-light .options-menu-reset-hint {
 }
 body.theme-light .options-menu-stats-link-card.is-linked .options-menu-stats-link-title {
   color: #6b5c3c;
+}
+/* 折りたたみ見出し（音量・表示演出・自動処理タイマー・ショートカット）の薄い文字色や、
+   各ボタン（戻す／アカウント初期化／ショートカットキー）が白背景で読みづらかったのを暗色化
+   （ユーザー報告のライトモード視認性）。 */
+body.theme-light .options-menu-details > summary {
+  color: #3a3326;
+}
+body.theme-light .options-menu-details {
+  border-color: rgba(176, 141, 63, 0.3);
+}
+body.theme-light .options-menu-divider {
+  border-top-color: rgba(176, 141, 63, 0.3);
+}
+body.theme-light .options-menu-stats-link-title {
+  color: #a67c1a;
+}
+body.theme-light .options-menu-section-reset-btn {
+  color: #6b5c3c;
+  background: rgba(176, 141, 63, 0.12);
+  border-color: rgba(176, 141, 63, 0.4);
+}
+body.theme-light .options-menu-section-reset-btn:hover {
+  background: rgba(176, 141, 63, 0.22);
+  color: #3a3326;
+}
+body.theme-light .options-menu-reset-btn {
+  color: #3a3326;
+  background: rgba(176, 141, 63, 0.14);
+}
+body.theme-light .options-menu-reset-btn:hover {
+  background: rgba(176, 141, 63, 0.24);
+}
+body.theme-light .options-menu-shortcut-key,
+body.theme-light .options-menu-shortcut-clear {
+  color: #3a3326;
+  background: rgba(176, 141, 63, 0.14);
+  border-color: rgba(176, 141, 63, 0.4);
+}
+body.theme-light .options-menu-shortcut-key:hover,
+body.theme-light .options-menu-shortcut-clear:hover {
+  background: rgba(176, 141, 63, 0.24);
+}
+body.theme-light .options-menu-item:hover,
+body.theme-light .options-menu-shortcut-row.is-highlighted {
+  background: rgba(176, 141, 63, 0.18);
 }
 
 /* ---- ライトテーマ：ショップ（#shop-panel、全画面）。オレンジ系のボタン/リボンは
