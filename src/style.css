@@ -957,29 +957,38 @@ body.reduce-glow [style*="rainbow-shard.webp"]::after {
    #card-previewと同じ position:fixed・pointer-events:none 方式なので、盤面の3Dの傾きに
    影響されず常に正対して読める。駒の中心の少し上に、下向きの三角（吹き出しの尻尾）付きで出す。 */
 /* お知らせ／更新情報モーダル（changelog.js）。ホーム画面の「お知らせ」タイルから開く。 */
+/* ユーザー要望「お知らせ更新情報ウィンドウが上下で見切れる→全画面表示に」。
+   中央寄せの箱だと項目が増えるほどステージ外へはみ出て見切れるため、全画面ページ
+   （#profile-page等と同じ inset:0）にし、タイトルを上に固定して一覧だけを内側スクロール
+   させる。読みやすさのため一覧本文は中央に max-width で寄せる。 */
 #changelog-modal {
   position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: min(30rem, 92vw);
-  max-height: 82vh;
-  overflow-y: auto;
+  inset: 0;
+  transform: none;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   background: rgba(15, 23, 32, 0.98);
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  border-radius: 0.6rem;
-  padding: 1.2rem;
+  border: none;
+  border-radius: 0;
+  padding: 1.4rem clamp(1rem, 5vw, 5rem) 1.6rem;
   z-index: 2401;
   font-family: sans-serif;
   color: #e2e8f0;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
 }
 .changelog-modal-title {
+  flex-shrink: 0;
   font-weight: bold;
-  font-size: 1rem;
-  margin-bottom: 0.8rem;
+  font-size: 1.15rem;
+  margin-bottom: 0.9rem;
   padding-right: 1.6rem;
   color: #fbbf24;
+}
+.changelog-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  width: min(50rem, 100%);
+  margin: 0 auto;
 }
 .changelog-entry {
   border-top: 1px solid rgba(148, 163, 184, 0.18);
@@ -10039,33 +10048,36 @@ body.reduce-glow .cell.card-effect-placement-target {
   color: #1e293b;
   text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9), 0 0 4px rgba(255, 255, 255, 0.75);
 }
+/* ユーザー要望「近日公開／NEWバッジが小さく見づらい」→ 大きく・くっきりに。
+   近日公開は淡い半透明ではなく、濃いアンバー地＋濃い文字でコントラストを上げる。 */
 .home-screen-tile-badge {
   position: absolute;
   top: 0.5rem;
   right: 0.5rem;
-  font-size: 0.6rem;
-  font-weight: bold;
-  padding: 0.15rem 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  padding: 0.24rem 0.6rem;
   border-radius: 999px;
-  background: rgba(250, 204, 21, 0.18);
-  border: 1px solid rgba(250, 204, 21, 0.5);
-  color: #facc15;
+  background: rgba(250, 204, 21, 0.95);
+  border: 1px solid rgba(146, 100, 12, 0.7);
+  color: #3f2a00;
   white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 /* 未読お知らせの「NEW」バッジ（ユーザー要望）。明るい背景でも目立つ赤＋白フチ＋鼓動。 */
 .home-screen-tile-new-badge {
   position: absolute;
   top: 0.1rem;
   right: 0.9rem;
-  font-size: 0.6rem;
+  font-size: 0.8rem;
   font-weight: 800;
-  letter-spacing: 0.05em;
-  padding: 0.1rem 0.4rem;
+  letter-spacing: 0.06em;
+  padding: 0.16rem 0.5rem;
   border-radius: 999px;
   background: #ef4444;
   color: #fff;
   white-space: nowrap;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8), 0 2px 5px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85), 0 2px 6px rgba(0, 0, 0, 0.4);
   animation: home-new-badge-pulse 1.5s ease-in-out infinite;
 }
 @keyframes home-new-badge-pulse {

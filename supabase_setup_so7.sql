@@ -327,6 +327,16 @@ $$;
 revoke execute on function so7_create_room(text, text) from public;
 grant execute on function so7_create_room(text, text) to authenticated;
 
+-- ペット選択（駒に追従する飾りペット）も座席ロスターで同期し、相手の画面にも反映する。
+-- ユーザー報告「オンラインで自分以外のペットがみんなひよこ／相手がペットを変えても私の画面
+-- では変わらない」の原因は、この列がDBに無く同期できていなかったこと（クライアントは
+-- 列が無い環境向けにpet_index無しで取り直すフォールバックを持つが、その場合ペットは同期
+-- されない）。未設定はnull（＝相手には既定の「なし/非表示」扱い）。piece_skin_indexと違い
+-- 0はひよこを意味するため、not null default 0にすると全員ひよこに見えてしまう。よってnullable。
+-- この関数(so7_join_room)がpet_indexを参照するため、関数定義より前に列を用意しておく。
+alter table so7_game_seats add column if not exists pet_index int;
+alter table so7_user_profiles add column if not exists pet_index int;
+
 -- 部屋への参加。パスワード照合と座席行の作成をサーバー側で1つのSECURITY DEFINER関数に
 -- まとめることで、クライアントがパスワードチェックを迂回してso7_game_seatsへ直接insert
 -- してしまう経路を塞ぐ（当初案の穴。so7_game_seats_insertポリシー自体はuser_id=auth.uid()
@@ -359,11 +369,11 @@ begin
     end if;
   end if;
 
-  select display_name, avatar, piece_skin_index into profile
+  select display_name, avatar, piece_skin_index, pet_index into profile
   from so7_user_profiles where user_id = auth.uid();
 
-  insert into so7_game_seats (game_id, user_id, display_name, avatar, piece_skin_index)
-  values (p_game_id, auth.uid(), profile.display_name, profile.avatar, coalesce(profile.piece_skin_index, 0));
+  insert into so7_game_seats (game_id, user_id, display_name, avatar, piece_skin_index, pet_index)
+  values (p_game_id, auth.uid(), profile.display_name, profile.avatar, coalesce(profile.piece_skin_index, 0), profile.pet_index);
 end;
 $$;
 revoke execute on function so7_join_room(text, text) from public;

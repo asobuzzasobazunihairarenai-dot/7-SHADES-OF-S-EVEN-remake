@@ -1339,11 +1339,20 @@ export function isAvatarOutlineVisible() {
 // （現状マイページのみ対応）を効かせる。他の一時トグルと違い、テーマは見た目の好みとして
 // 再読み込み後も保持したいのでlocalStorageに保存する（PSEUDO_CPU_DEADLINE_KEYと同じ方針）。
 const THEME_MODE_KEY = "so7-theme-mode";
+// 既定をライトモードにする方針転換（ユーザー要望）。一度だけ、既存の全ユーザー
+// （これまでダーク記憶だったぶんも含む）をライトへ寄せる移行を行う。移行後はユーザーの
+// 選択（"light"/"dark"）を尊重し、保存が無ければ既定＝ライト（"dark"の明示時だけダーク）。
+const THEME_DEFAULT_LIGHT_MIGRATION_KEY = "so7-theme-default-light-v1";
 let themeLightMode = (() => {
   try {
-    return localStorage.getItem(THEME_MODE_KEY) === "light";
+    if (localStorage.getItem(THEME_DEFAULT_LIGHT_MIGRATION_KEY) !== "1") {
+      localStorage.setItem(THEME_MODE_KEY, "light");
+      localStorage.setItem(THEME_DEFAULT_LIGHT_MIGRATION_KEY, "1");
+      return true;
+    }
+    return localStorage.getItem(THEME_MODE_KEY) !== "dark";
   } catch (err) {
-    return false;
+    return true; // 既定ライト
   }
 })();
 // 対戦画面（盤面上のパネル・モーダル等）もライトにするか。ユーザー方針B「メニュー系ライトとは
