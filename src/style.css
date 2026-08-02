@@ -8654,6 +8654,40 @@ body.is-online-mode #quick-start-bar {
   background: rgba(15, 23, 32, 0.6);
   color: rgba(226, 232, 240, 0.9);
 }
+/* 管理者パネルを開くボタン（タイトル画面、テストモードの少し上）。ユーザー要望で、
+   テストモードともども管理者(body.is-admin-user)にだけ表示する。 */
+.opening-admin-btn {
+  position: fixed;
+  right: 1rem;
+  bottom: 2.7rem;
+  z-index: 2;
+  font-family: sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  padding: 0.3rem 0.7rem;
+  border-radius: 0.3rem;
+  background: rgba(15, 23, 32, 0.4);
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  color: rgba(253, 224, 71, 0.85);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: background 0.2s ease, color 0.2s ease, opacity 0.6s ease;
+}
+#opening-screen.stage-content .opening-admin-btn {
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 0.3s;
+}
+.opening-admin-btn:hover {
+  background: rgba(15, 23, 32, 0.65);
+  color: #fde68a;
+}
+/* テストモード・管理者パネルのボタンは管理者(body.is-admin-user)にだけ表示する（ユーザー要望）。 */
+body:not(.is-admin-user) .opening-test-mode-btn,
+body:not(.is-admin-user) .opening-admin-btn {
+  display: none;
+}
 /* HUERISE画面右下の控えめなバージョン表示（opening-screen.js）。白いスタート画面(#fff、
    .opening-start-gate z-index:10)の上に出すためz-index:11。白背景でも、その後のタイトル
    画像（暗め）でも読めるよう、暗い文字＋白い薄縁取り(text-shadow)にする。テストモード

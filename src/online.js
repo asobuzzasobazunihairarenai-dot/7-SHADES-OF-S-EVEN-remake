@@ -627,6 +627,13 @@ if (client) {
   client.auth.onAuthStateChange((_event, session) => {
     const wasLoggedIn = !!cachedUser;
     cachedUser = session?.user ?? null;
+    // 管理者本人だけに見せたいUI（タイトル画面のテストモード/管理者パネルのボタン等）用の
+    // bodyクラス。認証が解決するたびに付け外しする（ユーザー要望: これらは管理者だけに表示）。
+    try {
+      document.body?.classList.toggle("is-admin-user", isAdminUser());
+    } catch (e) {
+      /* body未生成などでも致命的ではない */
+    }
     // 訪問ログは「認証セッションが解決した後」に1回だけ記録する。以前はinit直後に呼んで
     // いたが、その時点ではまだcachedUserがnullでuser_idが常に空になり、管理者ダッシュ
     // ボードのログイン履歴が全部「(匿名/未ログイン)」になっていた（ユーザー報告）。
@@ -873,6 +880,11 @@ export async function getAdminStats() {
 // 気軽に毎回呼んでよい。
 export async function recordVisit() {
   if (!client) return;
+  // ユーザー要望「訪問数が実態より多い。自分（管理者）の訪問と、開発中の動作確認の訪問は
+  // カウントしないでほしい」。開発（localhost）でのリロードと、管理者本人の訪問は記録しない。
+  const host = location.hostname;
+  if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0") return;
+  if (isAdminUser()) return;
   const { error } = await client.from("so7_visit_log").insert({ user_id: cachedUser?.id ?? null });
   if (error) console.error("recordVisit failed (未実行のsupabase_setup_so7.sql追加分がある可能性)", error);
 }

@@ -18,6 +18,7 @@
 import { markOnlineIntentActive } from "./online-ui.js";
 import { openHomeScreen } from "./home-screen.js";
 import { maybeShowTablet2dWarning } from "./tablet-2d-warning.js";
+import { openAdminPanel } from "./admin.js";
 import {
   isOnlineAvailable,
   signInAnonymously,
@@ -444,6 +445,16 @@ export function initOpeningScreen() {
   testModeBtn.textContent = "テストモード";
   testModeBtn.title = "1画面で複数人分を動かせる検証用の盤面へ直接進みます（開発・動作確認用）";
   overlay.appendChild(testModeBtn);
+
+  // ユーザー要望「管理者専用（設定・利用状況）をタイトル画面のテストモードの上あたりにも」。
+  // テストモードともども、管理者(body.is-admin-user)にだけCSSで表示する。押すと管理者パネルを開く。
+  const adminBtn = document.createElement("button");
+  adminBtn.type = "button";
+  adminBtn.className = "opening-admin-btn";
+  adminBtn.textContent = "🔧 管理者パネル";
+  adminBtn.title = "管理者モード（設定・利用状況・ユーザー一覧など）を開きます";
+  adminBtn.addEventListener("click", () => openAdminPanel());
+  overlay.appendChild(adminBtn);
 
   // ユーザー要望「HUERISE画面の右下にバージョン番号（年月日時間の数字）をこっそり載せて」。
   // どの版が動いているか一目で分かるようにする（キャッシュ更新の確認用にも役立つ）。
