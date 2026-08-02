@@ -3560,6 +3560,22 @@ function isArrivalEffectProcessing() {
   return arrivalEffectProcessingDepth > 0;
 }
 
+// ユーザー報告「ゲートのマスのカードの到達処理が終わる前にゲート侵攻処理が始まってしまう」。
+// サーバー駆動のゲート侵攻ブロードキャストは、そのカードの到達効果（例: スラム役人の“全員が
+// 手札を3枚まで捨てる”）をローカルで解決している最中に届くことがあり、到達効果の解決を待たずに
+// ゲート侵攻モーダルが割り込んで出ていた。到達処理中(arrivalEffectProcessingDepth>0)は
+// イベントを一旦ためておき、到達処理が完全に終わった時点(depthが0へ戻った時)でまとめて再生する。
+let pendingGateInvasionEvents = [];
+function flushPendingGateInvasionEvents() {
+  if (pendingGateInvasionEvents.length === 0) return;
+  const buffered = pendingGateInvasionEvents;
+  pendingGateInvasionEvents = [];
+  for (const events of buffered) {
+    logAction("diag-gate-invasion-flush-after-arrival", { count: events?.length ?? 0 });
+    enqueueGateInvasionSteps(events);
+  }
+}
+
 // spawnArrivalBurstのCSSアニメーション自体の長さ（1400ms、appendEffectHostのttlMs引数と
 // 揃える）。ユーザー要望「到達アニメが完全終了して一息ついた後に効果モーダルを出す」への
 // 対応で、効果処理の開始をこの長さ＋一息つく間だけ遅らせるのに使う。
@@ -3631,6 +3647,8 @@ function triggerCardArrival(cardId, location, onFullyResolved) {
         logAction("diag-arrival-processing", { cardId, phase: "end", depth: arrivalEffectProcessingDepth });
         onFullyResolved?.();
         render();
+        // 到達処理が完全に終わったら、その間にたまっていたゲート侵攻演出を再生する（上記参照）。
+        if (arrivalEffectProcessingDepth === 0) flushPendingGateInvasionEvents();
       }
     })();
     return;
@@ -9476,6 +9494,13 @@ onGateInvasionEvents((events) => {
   // online.js側のbroadcast受信ログ(diag-gate-invasion-broadcast)と突き合わせ、
   // このクライアントまで実際に届いたか・enqueueGateInvasionStepsを呼んだかを追う。
   logAction("diag-gate-invasion-received", { count: events?.length ?? 0 });
+  // 到達効果の解決中に届いたゲート侵攻は、到達処理が終わるまで待ってから再生する
+  // （ユーザー報告「到達処理が終わる前にゲート侵攻処理が始まる」対応。上のflush参照）。
+  if (isArrivalEffectProcessing()) {
+    logAction("diag-gate-invasion-deferred", { count: events?.length ?? 0, depth: arrivalEffectProcessingDepth });
+    pendingGateInvasionEvents.push(events);
+    return;
+  }
   enqueueGateInvasionSteps(events);
 });
 
