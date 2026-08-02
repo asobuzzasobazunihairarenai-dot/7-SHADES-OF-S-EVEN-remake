@@ -2294,7 +2294,13 @@ document.addEventListener(
       // ハンドフェイズ: ロックされていても使えるカード（ファースト/エターナル、光っている
       // is-usable-while-locked）を自分がクリックしたら効果の使用フローへ。ドラッグ制限中でも
       // 掴めない盤面/ロックカードを使えるようにするため、掴む→放す経路ではなくここで割り込む。
-      if (isHandPhaseActive()) {
+      // ロックされていても使えるカード（ファースト/エターナル、is-usable-while-locked）を
+      // 自分がクリックした時。ハンドフェイズなら使用フローへ。それ以外のタイミング（相手の
+      // ターン等）では「何も起きない」と誤解されないよう、いつ使えるかを軽く案内する
+      // （ユーザー報告「ファーストカードをクリックしても何も起きない」）。上にエターナルが
+      // 重なっていても、tryUseLockedUsableCardがそのスロットの全カードから使えるものを
+      // 選ばせる（2枚以上ならピッカー）ため、下のファーストも選べる。
+      {
         const elements = document.elementsFromPoint(e.clientX, e.clientY);
         for (const el of elements) {
           const cardEl = el.closest(".board-card.is-usable-while-locked");
@@ -2303,7 +2309,11 @@ document.addEventListener(
           if (tok && tok.location.zone === "lock" && SIDE_TO_SEAT[tok.location.side] === getSelfSeat()) {
             e.preventDefault();
             e.stopPropagation();
-            void tryUseLockedUsableCard(cardEl.dataset.tokenId);
+            if (isHandPhaseActive()) {
+              void tryUseLockedUsableCard(cardEl.dataset.tokenId);
+            } else {
+              showQuickNote("このカードの効果は、あなたのハンドフェイズ（自分のターン）に使えます。");
+            }
             return;
           }
         }
@@ -3314,6 +3324,24 @@ function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ"
 // ため、掴む→放すに依存していた従来の使用経路（下のonDragEnd内の分岐A）が発火せず、これらの
 // カードが一切使えなくなっていた。ムーブ/ロックフェイズのクリック処理と同じ「captureフェーズの
 // pointerdownで自前当たり判定して割り込む」方式で、掴めなくても使えるようにする。
+// 画面中央下に短時間だけ出る軽いお知らせ（クリックしても「何も起きない」と誤解される
+// のを防ぐ用途。モーダルほど重くない）。
+let quickNoteEl = null;
+let quickNoteTimer = null;
+function showQuickNote(text) {
+  if (quickNoteTimer) clearTimeout(quickNoteTimer);
+  if (!quickNoteEl) {
+    quickNoteEl = document.createElement("div");
+    quickNoteEl.className = "quick-note-toast";
+    document.body.appendChild(quickNoteEl);
+  }
+  quickNoteEl.textContent = text;
+  quickNoteEl.classList.add("show");
+  quickNoteTimer = setTimeout(() => {
+    quickNoteEl?.classList.remove("show");
+  }, 2200);
+}
+
 async function tryUseLockedUsableCard(tokenId) {
   const token = getState().tokens.find((t) => t.id === tokenId);
   if (!token || token.location.zone !== "lock") return;
@@ -4293,14 +4321,16 @@ export async function playScriptedContact({ attackerPieceId, defenderPieceId, ap
 // 「エターナルカード獲得演出」で調整できる（--eternal-anim-*、getContactAnimSecondsは
 // 汎用実装のためそのまま流用）。
 function getEternalRevealCenterRect(pileRect) {
-  const scale = 2.1;
-  const width = pileRect.width * scale;
-  const height = pileRect.height * scale;
+  // カード画像は正方形（#card-preview参照。1:1＋background-size:cover）。エターナル束
+  // (pileRect)が少しでも縦長だと、reveal面のcoverで正方形カードの上下が切れてしまう
+  // （ユーザー報告「ゲート侵攻時のエターナルのアップカードの上下が切れる」）。revealは
+  // 束の長辺を基準にした正方形にして、カード全体がぴったり収まるようにする。
+  const size = Math.max(pileRect.width, pileRect.height) * 2.1;
   return {
-    left: window.innerWidth / 2 - width / 2,
-    top: window.innerHeight / 2 - height / 2,
-    width,
-    height,
+    left: window.innerWidth / 2 - size / 2,
+    top: window.innerHeight / 2 - size / 2,
+    width: size,
+    height: size,
   };
 }
 

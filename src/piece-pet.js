@@ -333,6 +333,14 @@ function tick(now) {
       targetY = anchor.y;
       ease = Math.min(1, Math.max(0.02, tuning.follow));
     }
+    // ユーザー要望「駒の移動についていくとき、もっとついていくと可愛い」。目標（アンカー）が
+    // 遠い＝駒が今まさに移動した時は、離れているほど強く追う（駆け足で追いかける見た目）。
+    // 近づけば通常のゆったり追従に戻る。orbit中は一定の周回イージングを保つため対象外。
+    if (pet.behState !== "orbit" && pet.placed) {
+      const dist = Math.hypot(targetX - pet.x, targetY - pet.y);
+      const farRatio = dist / Math.max(1, localSize); // 駒何個ぶん離れているか
+      ease = Math.max(ease, Math.min(0.6, tuning.follow + farRatio * 0.2));
+    }
     const prevX = pet.x;
     const prevY = pet.y;
     const wasPlaced = pet.placed;

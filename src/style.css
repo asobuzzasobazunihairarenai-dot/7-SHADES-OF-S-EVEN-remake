@@ -7304,19 +7304,46 @@ body.phase-lock-picking .hand-card:not(.phase-lock-highlight):not(.card-effect-t
   left: 1.5rem;
   transform: translate(0, -50%) scale(1);
 }
+/* ユーザー報告「『盤面を見る』が薄くて見にくい」。半透明グレーだと、特に既定のライト
+   （アイボリー）モーダル上でほぼ見えなかった。濃いスレートの単色ボタンにして両テーマで
+   はっきり読めるようにする。 */
 .hand-effect-option-picker-peek-btn {
   width: 100%;
-  padding: 0.45rem 0.8rem;
-  background: rgba(148, 163, 184, 0.15);
-  color: #cbd5e1;
-  border: 1px solid rgba(148, 163, 184, 0.5);
+  padding: 0.5rem 0.8rem;
+  background: rgba(71, 85, 105, 0.9);
+  color: #f1f5f9;
+  border: 1px solid rgba(30, 41, 59, 0.9);
   border-radius: 0.4rem;
   cursor: pointer;
   font-family: sans-serif;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+/* クリックしても「何も起きない」と誤解されないための軽いお知らせ（main.js showQuickNote）。 */
+.quick-note-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 6rem;
+  transform: translate(-50%, 1rem);
+  z-index: 10050;
+  padding: 0.7rem 1.2rem;
+  border-radius: 0.5rem;
+  background: rgba(15, 23, 32, 0.92);
+  color: #f1f5f9;
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  font-family: sans-serif;
+  font-size: 0.9rem;
+  box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.quick-note-toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 .hand-effect-option-picker-peek-btn:hover {
-  background: rgba(148, 163, 184, 0.3);
+  background: rgba(51, 65, 85, 1);
 }
 .hand-effect-option-picker-peek-hint {
   position: fixed;
@@ -9141,7 +9168,7 @@ body:not(.is-admin-user) .opening-admin-btn {
   --pet-wander: 0.35;
   --pet-liveliness: 1;
   --pet-orbit-radius: 1.1;
-  --pet-orbit-squash: 0.42;
+  --pet-orbit-squash: 0.72;
   --pet-orbit-dur: 3.4;
   --pet-orbit-offset-x: 0;
   --pet-orbit-offset-y: 0;
