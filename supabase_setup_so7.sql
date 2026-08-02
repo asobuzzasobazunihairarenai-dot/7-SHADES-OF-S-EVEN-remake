@@ -1419,3 +1419,51 @@ begin
   return v_my_grant;
 end;
 $$;
+
+-- 追加機能: アプリ内「不具合報告」（ユーザー要望）。オプションから誰でもコメントを送れ、
+-- その時点のアクションログ・コンソールログ・状況（バージョン/UA/部屋ID等）を自動で添付する。
+-- 生ログは管理者だけが読めるようにし（RLSでSELECTは誰にも開けず、so7_get_admin_bug_reports
+-- 経由の管理者だけが見られる）、INSERTは認証済みユーザーなら誰でも可（自分のuser_idで）。
+create table if not exists so7_bug_reports (
+  id bigint generated always as identity primary key,
+  created_at timestamptz not null default now(),
+  user_id uuid references auth.users(id) on delete set null,
+  comment text not null,
+  action_log text,
+  console_log text,
+  context jsonb,
+  resolved boolean not null default false
+);
+alter table so7_bug_reports enable row level security;
+-- SELECTポリシーは作らない（誰も直接は読めない。管理者は下のSECURITY DEFINER関数経由で読む）。
+drop policy if exists "so7_bug_reports_insert" on so7_bug_reports;
+create policy "so7_bug_reports_insert" on so7_bug_reports for insert to authenticated
+  with check (user_id = auth.uid() or user_id is null);
+
+-- 管理者（メール一致）だけが不具合報告の一覧を読める。so7_get_admin_visit_log等と同じ方式。
+create or replace function so7_get_admin_bug_reports()
+returns table (
+  id bigint,
+  created_at timestamptz,
+  email text,
+  display_name text,
+  comment text,
+  action_log text,
+  console_log text,
+  context jsonb,
+  resolved boolean
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select b.id, b.created_at, u.email, p.display_name,
+         b.comment, b.action_log, b.console_log, b.context, b.resolved
+  from so7_bug_reports b
+  left join auth.users u on u.id = b.user_id
+  left join so7_user_profiles p on p.user_id = b.user_id
+  where (auth.jwt() ->> 'email') = 'asobuzz.asobazunihairarenai@gmail.com'
+  order by b.created_at desc
+$$;
+revoke execute on function so7_get_admin_bug_reports() from public;
+grant execute on function so7_get_admin_bug_reports() to authenticated;

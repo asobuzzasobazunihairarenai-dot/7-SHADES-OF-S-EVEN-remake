@@ -7342,6 +7342,103 @@ body.phase-lock-picking .hand-card:not(.phase-lock-highlight):not(.card-effect-t
   opacity: 1;
   transform: translate(-50%, 0);
 }
+/* 不具合報告モーダル（bug-report.js）。 */
+#bug-report-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(34rem, 94vw);
+  z-index: 10041;
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  border-radius: 0.6rem;
+  padding: 1.3rem;
+  font-family: sans-serif;
+  color: #e2e8f0;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+.bug-report-title {
+  font-weight: bold;
+  font-size: 1.1rem;
+  color: #fbbf24;
+  margin-bottom: 0.6rem;
+  padding-right: 1.6rem;
+}
+.bug-report-desc {
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: #cbd5e1;
+  margin-bottom: 0.8rem;
+}
+.bug-report-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 0.6rem 0.7rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: rgba(2, 6, 12, 0.5);
+  color: #f1f5f9;
+  font-family: sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.bug-report-status {
+  min-height: 1.2rem;
+  font-size: 0.82rem;
+  color: #86efac;
+  margin: 0.5rem 0 0.2rem;
+}
+.bug-report-status.is-error {
+  color: #fca5a5;
+}
+.bug-report-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+.bug-report-cancel,
+.bug-report-submit {
+  padding: 0.5rem 1.3rem;
+  border: none;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  font-family: sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.bug-report-cancel {
+  background: rgba(148, 163, 184, 0.25);
+  color: #e2e8f0;
+}
+.bug-report-submit {
+  background: #f59e0b;
+  color: #201400;
+}
+.bug-report-submit:disabled,
+.bug-report-cancel:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+/* ライトテーマ（既定）でも読めるように。 */
+body.theme-light #bug-report-modal {
+  background: #fdfbf5;
+  border-color: rgba(176, 141, 63, 0.6);
+  color: #3a3326;
+}
+body.theme-light .bug-report-desc {
+  color: #6b5c3c;
+}
+body.theme-light .bug-report-title {
+  color: #a67c1a;
+}
+body.theme-light .bug-report-textarea {
+  background: #fff;
+  border-color: rgba(176, 141, 63, 0.5);
+  color: #3a3326;
+}
 .hand-effect-option-picker-peek-btn:hover {
   background: rgba(51, 65, 85, 1);
 }

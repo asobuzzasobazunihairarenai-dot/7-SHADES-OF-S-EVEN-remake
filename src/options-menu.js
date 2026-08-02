@@ -5,6 +5,7 @@
 import { openAdminPanel } from "./admin.js";
 import { isAutoDragRestrictionEnabled, setAutoDragRestrictionEnabled } from "./auto-drag-restriction.js";
 import { openActionLogPanel } from "./action-log.js";
+import { openBugReportModal } from "./bug-report.js";
 import { openCardDevMode } from "./card-dev-mode.js";
 import { isProfileLayoutEditMode, setProfileLayoutEditMode } from "./profile-layout-editor.js";
 import { isAutoProcessingEnabled, setAutoProcessingEnabled } from "./card-effect-engine.js";
@@ -917,6 +918,14 @@ export function initOptionsMenu() {
       buildMenuItem("📜 アクションログ", () => {
         close();
         openActionLogPanel();
+      })
+    );
+    // ユーザー要望「オプションエリアに不具合報告ボタンを。コメントを入力して送ると私に届く。
+    // アクションログ・コンソールも自動で添付」。誰でも送れる（bug-report.js）。
+    panel.appendChild(
+      buildMenuItem("🐛 不具合報告", () => {
+        close();
+        openBugReportModal();
       })
     );
     // ユーザー要望「管理者モードの制限についてオプションの『管理者モード』ボタンから

@@ -889,6 +889,31 @@ export async function recordVisit() {
   if (error) console.error("recordVisit failed (未実行のsupabase_setup_so7.sql追加分がある可能性)", error);
 }
 
+// アプリ内「不具合報告」（bug-report.js）から呼ぶ。認証済みならuser_id付き、未認証でも
+// null user_idで投稿できる（so7_bug_reportsのwith checkが両方許可）。ログイン必須にはしない。
+export async function submitBugReport({ comment, actionLog, consoleLog, context } = {}) {
+  if (!client) throw new Error("オンライン機能が利用できないため、不具合報告を送信できません。");
+  const { error } = await client.from("so7_bug_reports").insert({
+    user_id: cachedUser?.id ?? null,
+    comment: comment ?? "",
+    action_log: actionLog ?? null,
+    console_log: consoleLog ?? null,
+    context: context ?? null,
+  });
+  if (error) throw error;
+}
+
+// 管理者ダッシュボード用: 不具合報告の一覧（SECURITY DEFINER RPC経由、管理者のみ読める）。
+export async function fetchAdminBugReports() {
+  if (!client) return [];
+  const { data, error } = await client.rpc("so7_get_admin_bug_reports");
+  if (error) {
+    console.error("fetchAdminBugReports failed", error);
+    return [];
+  }
+  return data ?? [];
+}
+
 // ログイン中、「まだこのアカウントで見ている」ことを定期的に記録し直す
 // （so7_user_profiles.last_seen_at、管理者モードの「ログイン中」判定の基準）。
 export async function touchPresence() {
