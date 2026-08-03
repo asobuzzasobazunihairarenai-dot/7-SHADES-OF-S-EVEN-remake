@@ -3355,21 +3355,24 @@ async function tryUseLockedUsableCard(tokenId) {
       t.location.side === token.location.side &&
       t.location.index === token.location.index
   );
-  const usableStacked = stacked.filter(
-    (t) => (t.cardId.startsWith("eternal-") || t.cardId.startsWith("first-")) && hasHandEffectData(t.cardId)
-  );
   let useToken = token;
-  if (usableStacked.length >= 2) {
-    const chosen = await pickStackedLockCard(stacked, "ハンドフェイズで使うカードを選んでください");
+  // ユーザー要望「重なっているスロットは、使えないカード（ブースト等）も含めて“何が置いて
+  // あるか”を確認できるよう必ず選択モーダルを出す。使えないカードを選んだら『使えない』と
+  // 教える」。以前は“使える”カードが2枚以上ある時だけモーダルを出していたため、ドムスネロの
+  // 下にブーストがある等の状況で下に何があるか確認できなかった。スロットに2枚以上あれば常に出す。
+  if (stacked.length >= 2) {
+    const chosen = await pickStackedLockCard(stacked, "このスロットのカード（使うカードを選んでください）");
     if (!chosen) {
       render();
       return;
     }
     useToken = chosen;
   }
-  if (
-    !((useToken.cardId.startsWith("eternal-") || useToken.cardId.startsWith("first-")) && hasHandEffectData(useToken.cardId))
-  ) {
+  const isUsableKind =
+    (useToken.cardId.startsWith("eternal-") || useToken.cardId.startsWith("first-")) && hasHandEffectData(useToken.cardId);
+  if (!isUsableKind) {
+    render();
+    showQuickNote(`「${getCardDefinition(useToken.cardId).name}」は手札効果を使えないカードです。`);
     return;
   }
   render();
@@ -3520,6 +3523,10 @@ async function runAutoArrivalEffect(cardId, location, player) {
       pickArrivalOption: pickArrivalOptionForEffect,
       declareColors: declareColorsForEffect,
       publicDraw: publicDrawForEffect,
+      // ザ・ギャンブルの「1枚ずつ公開する/全部公開する」モーダル用。手札効果側
+      // (runAutoHandEffect)には元々あったが到達効果側に無く、到達で撃つと自動で
+      // 全部公開されてしまっていた（ユーザー報告）。到達側にも同じヘルパーを渡す。
+      pickHandEffectOption: pickOptionForEffect,
       placeFromDeckFaceUp: placeFromDeckFaceUpForEffect,
       // 合同建設・スラム上がりの役人・パーティー用。
       delegateToPlayer: delegateToPlayerForEffect,

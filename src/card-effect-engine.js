@@ -947,15 +947,24 @@ async function runAction(action, ctx, helpers) {
       // （main.jsのswapHandCardWithOpponentForEffect）に委ねる。
       const opponents = getState().activePlayers.filter((p) => p !== ctx.player);
       if (opponents.length === 0) return false;
+      // ユーザー要望「相手が誰も手札を持っていないときのスリカエは不発モーダルにしたい」。
+      // 交換相手として意味があるのは手札を1枚以上持つ相手だけ。全員が0枚なら不発にする
+      // （以前は相手が1人だと『相手が1人のため～』と出して空振りしていた）。
+      const handCountOf = (p) =>
+        getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === p).length;
+      const swappableOpponents = opponents.filter((p) => handCountOf(p) > 0);
+      if (swappableOpponents.length === 0) {
+        await helpers.announceFizzle?.(ctx.cardId);
+        return false;
+      }
       let targetPlayer;
-      if (opponents.length === 1) {
+      if (swappableOpponents.length === 1) {
         // ユーザー要望「スリカエなどで相手を選ぶ効果の場合で選べる相手が１人しかいない
-        // 場合は自動でその人を選択してください。そしてその旨をモーダルで示して
-        // ください」（続き65）。
-        targetPlayer = opponents[0];
-        await helpers.announceEffectReason?.(ctx.cardId, "選べる相手が1人しかいないため、自動的に選択しました。");
+        // 場合は自動でその人を選択してください。そしてその旨をモーダルで示してください」（続き65）。
+        targetPlayer = swappableOpponents[0];
+        await helpers.announceEffectReason?.(ctx.cardId, "手札を持っている相手が1人だけのため、自動的に選択しました。");
       } else {
-        targetPlayer = await helpers.pickPlayer(opponents, "手札を交換する相手を選んでください（アバターをクリック）");
+        targetPlayer = await helpers.pickPlayer(swappableOpponents, "手札を交換する相手を選んでください（アバターをクリック）");
       }
       if (!targetPlayer) return false;
       await helpers.swapRandomHandCard(ctx.player, targetPlayer);
