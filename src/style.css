@@ -1706,7 +1706,7 @@ body.is-phone-device #phase-guide-bar {
 #option-area #self-status-bug-report {
   position: absolute;
   top: 0.5rem;
-  right: 24.4rem;
+  right: 26.5rem;
   z-index: 900;
   transform: none;
 }
@@ -4088,7 +4088,8 @@ body.is-phone-device #options-menu-button {
 #option-area #self-status-online {
   position: absolute;
   top: 0.5rem;
-  right: 21.3rem;
+  /* 残金表示(#currency-display, right:16.9rem)と重ならないよう、少し左へ寄せる（ユーザー報告）。 */
+  right: 23.4rem;
   z-index: 900;
   transform: none;
   display: flex;
@@ -10272,9 +10273,9 @@ body.reduce-glow .cell.card-effect-placement-target {
    近日公開は淡い半透明ではなく、濃いアンバー地＋濃い文字でコントラストを上げる。 */
 .home-screen-tile-badge {
   position: absolute;
-  /* 位置は管理者モードで微調整できる（--home-badge-offset-x/y、admin.js）。 */
-  top: calc(0.5rem + var(--home-badge-offset-y, 0rem));
-  right: calc(0.5rem + var(--home-badge-offset-x, 0rem));
+  /* 位置は管理者モードで微調整できる（--home-badge-offset-x/y、admin.js）。既定値はユーザー調整値。 */
+  top: calc(0.5rem + var(--home-badge-offset-y, 1.6rem));
+  right: calc(0.5rem + var(--home-badge-offset-x, 2rem));
   font-size: 0.8rem;
   font-weight: 800;
   padding: 0.24rem 0.6rem;
@@ -10288,9 +10289,9 @@ body.reduce-glow .cell.card-effect-placement-target {
 /* 未読お知らせの「NEW」バッジ（ユーザー要望）。明るい背景でも目立つ赤＋白フチ＋鼓動。 */
 .home-screen-tile-new-badge {
   position: absolute;
-  /* 位置は管理者モードで微調整できる（--home-new-badge-offset-x/y、admin.js）。 */
-  top: calc(0.1rem + var(--home-new-badge-offset-y, 0rem));
-  right: calc(0.9rem + var(--home-new-badge-offset-x, 0rem));
+  /* 位置は管理者モードで微調整できる（--home-new-badge-offset-x/y、admin.js）。既定値はユーザー調整値。 */
+  top: calc(0.1rem + var(--home-new-badge-offset-y, 1.6rem));
+  right: calc(0.9rem + var(--home-new-badge-offset-x, 2rem));
   font-size: 0.8rem;
   font-weight: 800;
   letter-spacing: 0.06em;

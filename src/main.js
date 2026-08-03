@@ -1207,6 +1207,11 @@ let ritualPickWatchRevealTimer = null;
 // is-hoveredとして再表示され、確定した「奪われたカード」と矛盾する見た目になる。
 // 一度確定した後は、以降のホバー通知を無視することでこれを防ぐ。
 let ritualPickWatchResolved = false;
+// ゲート侵攻の奪取儀式で、奪われる側(defender)のモーダルキューが「儀式が終わるまで」待つための
+// resolver。攻撃側のbroadcast(ended)でwatchが閉じた時に解決する（closeRitualPickWatch）。
+// これが無いと、defender側のキューだけ先走って次の演出（エターナル獲得等）が始まってしまう
+// （ユーザー報告「相手の手札を奪う儀式の最中に次の処理が始まる」）。
+let gateInvasionStealWatchResolve = null;
 function closeRitualPickWatch() {
   clearTimeout(ritualPickWatchRevealTimer);
   ritualPickWatchRevealTimer = null;
@@ -1217,6 +1222,11 @@ function closeRitualPickWatch() {
   ritualPickWatchTitleEl = null;
   ritualPickWatchCardEls = [];
   ritualPickWatchResolved = false;
+  if (gateInvasionStealWatchResolve) {
+    const r = gateInvasionStealWatchResolve;
+    gateInvasionStealWatchResolve = null;
+    r();
+  }
 }
 // options.overrides: {tokenId: cardId} — トークン本体のcardIdが（RLSで）見えない場合に
 // 表向き表示へ使うcardIdの上書き。ゲート侵攻の儀式で、既にattackerの手札へ移動してしまった
@@ -4473,10 +4483,20 @@ async function playGateInvasionStealRitual(info, onDone) {
     // 攻撃側以外（奪われる側・観戦者）はここでは演出を持たない。奪われる側は攻撃側からの
     // broadcast（openRitualPickWatch）で表向きの手札を見る。観戦者は従来の飛翔演出を出す。
     if (self !== attacker) {
-      clearTimeout(safetyTimer);
       if (self === defender) {
-        finish(); // watchはbroadcast側で開閉する
+        // 奪われる側は、攻撃側からのbroadcastでopenRitualPickWatch（表向き＋ホバー）が開く。
+        // その儀式が終わって watch が閉じるまで待ってから次の処理へ進める（即finish()すると
+        // こちら側のキューだけ先走ってしまうユーザー報告への対応）。watchが開かない/閉じない
+        // ネットワーク異常時は safetyTimer（30秒）で必ず進む。
+        clearTimeout(safetyTimer);
+        await new Promise((resolve) => {
+          gateInvasionStealWatchResolve = resolve;
+          setTimeout(resolve, 30000);
+        });
+        gateInvasionStealWatchResolve = null;
+        finish();
       } else {
+        clearTimeout(safetyTimer);
         playGateInvasionStealAnim(attacker, defender, count, finish);
       }
       return;

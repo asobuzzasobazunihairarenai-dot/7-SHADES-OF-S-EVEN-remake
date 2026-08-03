@@ -503,10 +503,10 @@ const GROUPS = [
     title: "ホーム画面：近日公開／NEWバッジの位置",
     category: "position-ui",
     controls: [
-      { key: "--home-badge-offset-x", label: "近日公開 X位置（＋で左へ）", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
-      { key: "--home-badge-offset-y", label: "近日公開 Y位置（＋で下へ）", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
-      { key: "--home-new-badge-offset-x", label: "NEW X位置（＋で左へ）", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
-      { key: "--home-new-badge-offset-y", label: "NEW Y位置（＋で下へ）", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
+      { key: "--home-badge-offset-x", label: "近日公開 X位置（＋で左へ）", unit: "rem", min: -8, max: 8, step: 0.1, default: 2 },
+      { key: "--home-badge-offset-y", label: "近日公開 Y位置（＋で下へ）", unit: "rem", min: -8, max: 8, step: 0.1, default: 1.6 },
+      { key: "--home-new-badge-offset-x", label: "NEW X位置（＋で左へ）", unit: "rem", min: -8, max: 8, step: 0.1, default: 2 },
+      { key: "--home-new-badge-offset-y", label: "NEW Y位置（＋で下へ）", unit: "rem", min: -8, max: 8, step: 0.1, default: 1.6 },
     ],
   },
   {
