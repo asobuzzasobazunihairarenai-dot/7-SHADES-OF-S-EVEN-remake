@@ -21,6 +21,7 @@ export const PET_OPTIONS = [
   { emoji: "🦊", label: "きつね" },
   { emoji: "🐉", label: "ドラゴン" },
   { sprite: "cubit", label: "キュビット" }, // ユーザー作成の画像スプライト（4方向×6モーション）
+  { sprite: "noxael", label: "ノクスアエル幼体" }, // 同上（4方向×6モーション）
   { emoji: null, label: "なし（非表示）" }, // ペットを表示しない（ユーザー要望）
 ];
 

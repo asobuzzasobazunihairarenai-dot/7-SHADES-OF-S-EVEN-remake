@@ -35,6 +35,7 @@ import {
   getRopeExtensionSeconds,
   getTurnsToReplenishHourglass,
   getReducedBaseSeconds,
+  ensureThemeForRole,
 } from "./admin.js";
 import { setLockAreaBarVisible } from "./lock-area-bar.js";
 import { setLockColorVisible } from "./lock-color.js";
@@ -630,7 +631,10 @@ if (client) {
     // 管理者本人だけに見せたいUI（タイトル画面のテストモード/管理者パネルのボタン等）用の
     // bodyクラス。認証が解決するたびに付け外しする（ユーザー要望: これらは管理者だけに表示）。
     try {
-      document.body?.classList.toggle("is-admin-user", isAdminUser());
+      const admin = isAdminUser();
+      document.body?.classList.toggle("is-admin-user", admin);
+      // 非管理者はテーマトグルを持たないので、管理者がダークに切り替えた端末でも必ずライトに戻す。
+      ensureThemeForRole(admin);
     } catch (e) {
       /* body未生成などでも致命的ではない */
     }

@@ -1385,6 +1385,18 @@ function applyThemeMode() {
 // モジュール読み込み時に一度適用する（type=module/deferのため、この時点でbodyは存在する）。
 applyThemeMode();
 
+// ユーザー報告「管理者以外のアカウントの表示がダークのまま」。テーマの切り替えは管理者専用
+// （非管理者にはトグルが無い）なので、テーマ設定は端末のlocalStorageに保存されているものの、
+// 管理者がダーク⇄ライトを見比べるために切り替えた端末では、その値を非管理者も引き継いで
+// しまう（テーマはアカウントではなく端末単位のため）。非管理者は自分で戻せないので、認証が
+// 解決した時点で「管理者でなければ必ずライト」に強制する（管理者はトグルの選択を尊重）。
+export function ensureThemeForRole(isAdmin) {
+  if (!isAdmin && !themeLightMode) {
+    themeLightMode = true;
+    applyThemeMode();
+  }
+}
+
 export function isThemeLightMode() {
   return themeLightMode;
 }

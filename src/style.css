@@ -1706,7 +1706,8 @@ body.is-phone-device #phase-guide-bar {
 #option-area #self-status-bug-report {
   position: absolute;
   top: 0.5rem;
-  right: 29.1rem;
+  /* オンラインのピル（アイコン＋部屋名、右詰めで左へ伸びる）の左端をクリアする位置。 */
+  right: 35rem;
   z-index: 900;
   transform: none;
 }
@@ -3953,10 +3954,14 @@ body.is-phone-device #options-menu-button {
   outline: 2px solid rgba(250, 204, 21, 0.8);
   border-radius: 0.4rem;
 }
-/* 行動ログのトグルは右上に近いので、簡易説明は下側に出す（上だと画面外で見切れる）。 */
+/* 行動ログのトグルは右上の端に近いので、簡易説明は下側かつ右寄せに出す（中央寄せだと
+   右側が画面外で見切れる＝ユーザー報告）。 */
 #option-area #self-status-action-log .phase-guide-tooltip {
   bottom: auto;
   top: calc(100% + 0.5rem);
+  left: auto;
+  right: 0;
+  transform: none;
 }
 /* 行動ログウィンドウ本体（オプションエリアの下あたり、右上）。#option-area(position:fixedで
    ステージ基準の器)の子として絶対配置し、アイコン群と同じ座標系に揃える。 */
@@ -4183,12 +4188,17 @@ body.theme-light .action-log-window-title {
   flex: none;
 }
 #option-area #self-status-online .icon-action-button-caption {
-  display: inline;
+  display: inline-block;
   font-family: sans-serif;
   font-size: 0.8rem;
   font-weight: bold;
   color: #cbd5e1;
   white-space: nowrap;
+  /* 部屋名が長くてもピルが左へ伸びすぎて左隣（不具合報告アイコン）と重ならないよう上限を設ける。 */
+  max-width: 6rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
 }
 
 /* ユーザー要望「対戦終了時にお金がもらえる演出を追加したい」への対応
@@ -4962,7 +4972,8 @@ body.opening-screen-active #options-menu-panel {
    負けてタイトル/オープニングでも表示されてしまっていた（ユーザー報告）。同等以上の詳細度で
    隠し、表示はホーム画面以降からにする。 */
 body.opening-screen-active #option-area #self-status-online,
-body.opening-screen-active #option-area #self-status-bug-report {
+body.opening-screen-active #option-area #self-status-bug-report,
+body.opening-screen-active #option-area #self-status-action-log {
   display: none;
 }
 /* ユーザー要望（続き75）「ホーム画面やプロフ全画面でも上のオプションエリアのアイコン等は
@@ -6605,6 +6616,9 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   position: absolute;
   bottom: calc(100% + 0.6rem);
   right: 0;
+  /* 「自分/相手のターンです」表示(#phase-automation-skip-button, z-index:1001)より前に出す
+     （z-index未指定だと背面に回ってクリックできない＝ユーザー報告）。 */
+  z-index: 1002;
   font-family: sans-serif;
   font-size: 0.7rem;
   font-weight: bold;

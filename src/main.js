@@ -1222,11 +1222,10 @@ function closeRitualPickWatch() {
   ritualPickWatchTitleEl = null;
   ritualPickWatchCardEls = [];
   ritualPickWatchResolved = false;
-  if (gateInvasionStealWatchResolve) {
-    const r = gateInvasionStealWatchResolve;
-    gateInvasionStealWatchResolve = null;
-    r();
-  }
+  // 注意: ここ（closeRitualPickWatch）で待機を解除してはいけない。openRitualPickWatchは
+  // 冒頭でcloseRitualPickWatch()を呼んで前のwatchを掃除するため、ここで解除すると「watchが
+  // 開いた瞬間」に待機が解けてしまい、奪われる側のキューが先走る（ユーザー報告）。解除は
+  // 「奪取が終わった合図(ended broadcast)」を受けた時だけ行う（onRitualPickEndedEvents参照）。
 }
 // options.overrides: {tokenId: cardId} — トークン本体のcardIdが（RLSで）見えない場合に
 // 表向き表示へ使うcardIdの上書き。ゲート侵攻の儀式で、既にattackerの手札へ移動してしまった
@@ -1311,6 +1310,18 @@ onRitualPickEndedEvents(({ targetPlayer, pickedTokenId, pickedTokenIds }) => {
     revealRitualPickWatchResult(pickedTokenId);
   } else {
     closeRitualPickWatch();
+  }
+  // ゲート侵攻の奪取儀式が本当に終わった合図。奪われる側で待っているモーダルキューを、
+  // 奪われたカードを少し見せてから進める（closeRitualPickWatchでは解除しない。上の注意参照）。
+  if (gateInvasionStealWatchResolve) {
+    const delay = pickedTokenIds?.length ? 2300 : 200;
+    setTimeout(() => {
+      if (gateInvasionStealWatchResolve) {
+        const r = gateInvasionStealWatchResolve;
+        gateInvasionStealWatchResolve = null;
+        r();
+      }
+    }, delay);
   }
 });
 onCardReceivedEvents(({ targetPlayer, cardId, subtitle }) => {
@@ -4523,6 +4534,8 @@ async function playGateInvasionStealRitual(info, onDone) {
     const stolenTokens = (stolenTokenIds || []).map((id) => getState().tokens.find((t) => t.id === id)).filter(Boolean);
     if (isFlightAnimationDisabled() || isArrivalEffectDisabled() || stolenTokens.length === 0) {
       clearTimeout(safetyTimer);
+      // 儀式をやらない（フォールバック）時は、奪われる側が待ち続けないよう終了合図だけは送る。
+      broadcastRitualPickEnded({ targetPlayer: defender, pickedTokenIds: [] });
       playGateInvasionStealAnim(attacker, defender, count, finish);
       return;
     }
