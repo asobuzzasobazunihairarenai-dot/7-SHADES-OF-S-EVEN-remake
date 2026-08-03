@@ -81,6 +81,12 @@ export function getActionLogText() {
   return entries.map(formatEntry).join("\n");
 }
 
+// ゲーム画面の行動ログウィンドウ（main.js）が、素人にも読める日本語へ整形するために
+// 生のエントリを取得する（古い→新しい順）。技術ログ(getActionLogText)とは別用途。
+export function getActionLogEntries() {
+  return entries;
+}
+
 // --- パネルUI（deck-viewer.jsのinitDeckViewer/openDeckViewerと同じ「起動時に1回だけ
 // 生成し、以後はdisplayの切り替えだけ」パターン） -----------------------------------
 let openPanelFn = null;

@@ -13,7 +13,7 @@ import {
   registerAdminAuthHelpers,
   refreshAdminOnlySection,
 } from "./admin.js";
-import { logAction, initActionLogPanel, getActionLogText } from "./action-log.js";
+import { logAction, initActionLogPanel, getActionLogText, getActionLogEntries } from "./action-log.js";
 import { initDeckViewer, openDeckViewer } from "./deck-viewer.js";
 import { initStatsPlayerLinkModal } from "./stats-player-link.js";
 import { initMyPage, registerAvatarPickerHelper, registerProfilePageOpener } from "./my-page.js";
@@ -7836,13 +7836,36 @@ let actionLogWindowTimer = null;
 function isActionLogWindowOpen() {
   return !!actionLogWindowEl;
 }
+// ゲーム画面の行動ログは素人も読む（ユーザー要望）ため、技術ログではなく「誰が何をしたか」を
+// 日本語でシンプルに出す。ノイズ（内部診断）は除外し、カードを出した／ゲート侵攻／色宣言等
+// だけを、新しい順（上が最新）に並べる。
+function formatFriendlyActionLog() {
+  const entries = getActionLogEntries();
+  const lines = [];
+  let lastMsg = null;
+  for (const e of entries) {
+    let msg = null;
+    if (e.category === "arrival" && e.detail?.depth === 0 && e.detail?.cardId) {
+      const name = getCardDefinition(e.detail.cardId)?.name ?? e.detail.cardId;
+      msg = `${getPlayerName(e.detail.player)}が「${name}」を出しました`;
+    } else if (e.category === "diag-gate-invasion-received") {
+      msg = "ゲート侵攻が発生しました";
+    } else if (e.category === "effect-verb" && e.detail?.verb === "declare_colors" && e.detail?.result) {
+      msg = `${getPlayerName(e.detail.player)}が色を宣言しました`;
+    }
+    if (!msg || msg === lastMsg) continue; // 同内容の連続はまとめる
+    lastMsg = msg;
+    const d = new Date(e.t);
+    const time = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    lines.push(`[${time}] ${msg}`);
+  }
+  if (lines.length === 0) return "（まだ記録がありません）";
+  return lines.reverse().join("\n");
+}
 function refreshActionLogWindow() {
   if (!actionLogWindowEl) return;
   const body = actionLogWindowEl.querySelector(".action-log-window-body");
-  if (body) {
-    // 新しい順（getActionLogTextは古い→新しい）に上から読めるよう反転して表示する。
-    body.textContent = getActionLogText().split("\n").reverse().join("\n");
-  }
+  if (body) body.textContent = formatFriendlyActionLog();
 }
 function openActionLogWindow() {
   if (actionLogWindowEl) return;
@@ -9829,11 +9852,35 @@ onAuthChange((user) => {
 });
 
 function showDailyBonusToast(amount) {
-  const toast = document.createElement("div");
-  toast.id = "daily-bonus-toast";
-  toast.textContent = `🪙 ログインボーナス +${amount}！`;
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 3500);
+  // ユーザー要望「ログインでお金がもらえる時はモーダルで」。1日1回のログインボーナスを
+  // 中央モーダルで知らせる（背景/×クリックで閉じる）。
+  const close = () => {
+    backdrop.remove();
+    modal.remove();
+  };
+  const backdrop = createBackdrop(close, { dim: true, zIndex: 10060 });
+  const modal = document.createElement("div");
+  modal.id = "daily-bonus-modal";
+  const title = document.createElement("div");
+  title.className = "daily-bonus-modal-title";
+  title.textContent = "🎁 ログインボーナス";
+  const amountEl = document.createElement("div");
+  amountEl.className = "daily-bonus-modal-amount";
+  amountEl.textContent = `🪙 +${amount}`;
+  const note = document.createElement("div");
+  note.className = "daily-bonus-modal-note";
+  note.textContent = "今日もあそんでくれてありがとう！（ログインボーナスは1日1回）";
+  const okBtn = document.createElement("button");
+  okBtn.className = "daily-bonus-modal-ok";
+  okBtn.textContent = "受け取る";
+  okBtn.addEventListener("click", close);
+  modal.appendChild(createModalCloseX(close));
+  modal.appendChild(title);
+  modal.appendChild(amountEl);
+  modal.appendChild(note);
+  modal.appendChild(okBtn);
+  document.body.appendChild(backdrop);
+  document.body.appendChild(modal);
 }
 
 // 管理者モードの「ランクリングの位置・太さ」スライダー用プレビュー（admin.jsの

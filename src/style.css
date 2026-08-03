@@ -3994,9 +3994,9 @@ body.is-phone-device #options-menu-button {
 }
 .action-log-window-body {
   overflow-y: auto;
-  font-family: ui-monospace, monospace;
-  font-size: 0.7rem;
-  line-height: 1.5;
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -4371,6 +4371,51 @@ body.is-phone-device #admin-panel {
 
 /* ログインボーナス（日次）の通知トースト（main.jsのshowDailyBonusToast参照）。数秒で
    自動的に消える、押せない通知専用の小さな表示。 */
+/* ログインボーナスのモーダル（ユーザー要望「ログインでお金がもらえる時はモーダルで」）。 */
+#daily-bonus-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10061;
+  width: min(22rem, 88vw);
+  text-align: center;
+  background: linear-gradient(160deg, #1e293b, #0f172a);
+  border: 1px solid rgba(250, 204, 21, 0.6);
+  border-radius: 0.8rem;
+  padding: 1.4rem 1.2rem 1.2rem;
+  font-family: sans-serif;
+  color: #e2e8f0;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+.daily-bonus-modal-title {
+  font-weight: bold;
+  font-size: 1.1rem;
+  color: #fbbf24;
+  margin-bottom: 0.5rem;
+}
+.daily-bonus-modal-amount {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #fde68a;
+  margin: 0.3rem 0 0.5rem;
+}
+.daily-bonus-modal-note {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  line-height: 1.6;
+  margin-bottom: 1rem;
+}
+.daily-bonus-modal-ok {
+  padding: 0.5rem 1.6rem;
+  border: none;
+  border-radius: 0.4rem;
+  background: #f59e0b;
+  color: #201400;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
 #daily-bonus-toast {
   position: fixed;
   bottom: 1.5rem;
