@@ -1706,7 +1706,7 @@ body.is-phone-device #phase-guide-bar {
 #option-area #self-status-bug-report {
   position: absolute;
   top: 0.5rem;
-  right: 26.5rem;
+  right: 29.1rem;
   z-index: 900;
   transform: none;
 }
@@ -3929,10 +3929,83 @@ body.is-phone-device #options-menu-button {
 /* ユーザー要望「画面右上のオプションアイコンの隣に人マークのアイコンを作り、それを
    押すとマイページモーダルが開く」への対応。#options-menu-buttonと同じ高さ・同じ
    見た目（アイコンのみ、丸い縁取り無し）で、その左隣に並べる。 */
-#my-page-button {
+/* 行動ログのトグルアイコン（オプションアイコン right:1rem とマイページ right:6.5rem の間）。 */
+#self-status-action-log {
   position: absolute;
   top: 0.3rem;
   right: 3.9rem;
+  z-index: 900;
+  transform: none;
+}
+#self-status-action-log .icon-action-button-caption {
+  display: none;
+}
+#self-status-action-log .action-log-icon-emoji {
+  font-size: 1.4rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.6rem;
+}
+#self-status-action-log.is-active .icon-action-button-icon-wrap {
+  outline: 2px solid rgba(250, 204, 21, 0.8);
+  border-radius: 0.4rem;
+}
+/* 行動ログのトグルは右上に近いので、簡易説明は下側に出す（上だと画面外で見切れる）。 */
+#option-area #self-status-action-log .phase-guide-tooltip {
+  bottom: auto;
+  top: calc(100% + 0.5rem);
+}
+/* 行動ログウィンドウ本体（オプションエリアの下あたり、右上）。#option-area(position:fixedで
+   ステージ基準の器)の子として絶対配置し、アイコン群と同じ座標系に揃える。 */
+#action-log-window {
+  position: absolute;
+  top: 3.4rem;
+  right: 1rem;
+  width: 30rem;
+  max-width: 92vw;
+  max-height: 60vh;
+  z-index: 901;
+  background: rgba(15, 23, 32, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+  font-family: sans-serif;
+  color: #e2e8f0;
+  display: flex;
+  flex-direction: column;
+}
+.action-log-window-title {
+  flex-shrink: 0;
+  font-weight: bold;
+  color: #fbbf24;
+  font-size: 0.85rem;
+  margin-bottom: 0.4rem;
+}
+.action-log-window-body {
+  overflow-y: auto;
+  font-family: ui-monospace, monospace;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+body.theme-light #action-log-window {
+  background: #fdfbf5;
+  border-color: rgba(176, 141, 63, 0.5);
+  color: #3a3326;
+}
+body.theme-light .action-log-window-title {
+  color: #a67c1a;
+}
+/* マイページ以左のアイコンを、行動ログアイコンを差し込んだ分だけ左へずらす（+2.6rem）。 */
+#my-page-button {
+  position: absolute;
+  top: 0.3rem;
+  right: 6.5rem;
   z-index: 900;
 }
 #my-page-button .icon-action-button-caption {
@@ -3956,7 +4029,7 @@ body.is-phone-device #options-menu-button {
 #ranking-page-button {
   position: absolute;
   top: 0.3rem;
-  right: 6.5rem;
+  right: 9.1rem;
   z-index: 900;
 }
 #ranking-page-button .icon-action-button-caption {
@@ -3980,7 +4053,7 @@ body.is-phone-device #options-menu-button {
 #help-button {
   position: absolute;
   top: 0.3rem;
-  right: 9.1rem;
+  right: 11.7rem;
   z-index: 900;
   transform: translate(var(--icon-pos-help-x, 0rem), var(--icon-pos-help-y, 0rem));
 }
@@ -4006,7 +4079,7 @@ body.is-phone-device #options-menu-button {
 #discord-link-button {
   position: absolute;
   top: 0.3rem;
-  right: 11.7rem;
+  right: 14.3rem;
   z-index: 900;
   transform: translate(var(--icon-pos-discord-x, 0rem), var(--icon-pos-discord-y, 0rem));
 }
@@ -4015,7 +4088,7 @@ body.is-phone-device #options-menu-button {
 #board-view-toggle-button {
   position: absolute;
   top: 0.3rem;
-  right: 14.3rem;
+  right: 16.9rem;
   z-index: 900;
   transform: translate(var(--icon-pos-view-toggle-x, 0rem), var(--icon-pos-view-toggle-y, 0rem));
 }
@@ -4059,7 +4132,7 @@ body.is-phone-device #options-menu-button {
 #currency-display {
   position: absolute;
   top: 0.5rem;
-  right: 16.9rem;
+  right: 19.5rem;
   z-index: 900;
   display: flex;
   align-items: center;
@@ -4088,8 +4161,8 @@ body.is-phone-device #options-menu-button {
 #option-area #self-status-online {
   position: absolute;
   top: 0.5rem;
-  /* 残金表示(#currency-display, right:16.9rem)と重ならないよう、少し左へ寄せる（ユーザー報告）。 */
-  right: 23.4rem;
+  /* 残金表示(#currency-display)と重ならないよう左へ寄せる＋行動ログ挿入ぶんシフト。 */
+  right: 26rem;
   z-index: 900;
   transform: none;
   display: flex;

@@ -13,7 +13,7 @@ import {
   registerAdminAuthHelpers,
   refreshAdminOnlySection,
 } from "./admin.js";
-import { logAction, initActionLogPanel } from "./action-log.js";
+import { logAction, initActionLogPanel, getActionLogText } from "./action-log.js";
 import { initDeckViewer, openDeckViewer } from "./deck-viewer.js";
 import { initStatsPlayerLinkModal } from "./stats-player-link.js";
 import { initMyPage, registerAvatarPickerHelper, registerProfilePageOpener } from "./my-page.js";
@@ -7812,6 +7812,73 @@ function buildBugReportWidget() {
   return btn;
 }
 
+// 行動ログのトグル（ユーザー要望「途中で離席した人が戻った時に何が起きたか見返せるログを、
+// オプションアイコンとマイページアイコンの間のアイコンで開閉したい。オプションエリアの下
+// あたりにログウィンドウを出す」）。同じアイコンをもう一度押すと消す。
+let actionLogWindowEl = null;
+let actionLogWindowTimer = null;
+function isActionLogWindowOpen() {
+  return !!actionLogWindowEl;
+}
+function refreshActionLogWindow() {
+  if (!actionLogWindowEl) return;
+  const body = actionLogWindowEl.querySelector(".action-log-window-body");
+  if (body) {
+    // 新しい順（getActionLogTextは古い→新しい）に上から読めるよう反転して表示する。
+    body.textContent = getActionLogText().split("\n").reverse().join("\n");
+  }
+}
+function openActionLogWindow() {
+  if (actionLogWindowEl) return;
+  actionLogWindowEl = document.createElement("div");
+  actionLogWindowEl.id = "action-log-window";
+  const title = document.createElement("div");
+  title.className = "action-log-window-title";
+  title.textContent = "📜 行動ログ";
+  const body = document.createElement("div");
+  body.className = "action-log-window-body";
+  actionLogWindowEl.appendChild(title);
+  actionLogWindowEl.appendChild(body);
+  getOptionArea().appendChild(actionLogWindowEl);
+  document.getElementById("self-status-action-log")?.classList.add("is-active");
+  refreshActionLogWindow();
+  // 開いている間は新しい行動が追記されるたびに追随する（軽い定期更新）。
+  actionLogWindowTimer = setInterval(refreshActionLogWindow, 1500);
+}
+function closeActionLogWindow() {
+  clearInterval(actionLogWindowTimer);
+  actionLogWindowTimer = null;
+  actionLogWindowEl?.remove();
+  actionLogWindowEl = null;
+  document.getElementById("self-status-action-log")?.classList.remove("is-active");
+}
+function buildActionLogToggleWidget() {
+  const btn = document.createElement("button");
+  btn.id = "self-status-action-log";
+  btn.className = "icon-action-button";
+  const iconWrap = document.createElement("span");
+  iconWrap.className = "icon-action-button-icon-wrap";
+  const emoji = document.createElement("span");
+  emoji.className = "action-log-icon-emoji";
+  emoji.textContent = "📜";
+  iconWrap.appendChild(emoji);
+  const tooltip = document.createElement("span");
+  tooltip.className = "phase-guide-tooltip";
+  tooltip.textContent = "行動ログの表示／非表示（離席復帰時の見返し用）";
+  iconWrap.appendChild(tooltip);
+  btn.appendChild(iconWrap);
+  const caption = document.createElement("span");
+  caption.className = "icon-action-button-caption";
+  caption.textContent = "ログ";
+  btn.appendChild(caption);
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (isActionLogWindowOpen()) closeActionLogWindow();
+    else openActionLogWindow();
+  });
+  return btn;
+}
+
 function buildSelfStatusOnlineWidget() {
   const btn = document.createElement("button");
   btn.id = "self-status-online";
@@ -9366,6 +9433,8 @@ initCurrencyDisplay();
   // ユーザー要望「不具合報告は運用上重要なので、オプションメニューの中ではなく、オプション
   // エリアのオンライン表示の左隣に常設で外出しする」。オンラインアイコンの左に置く。
   optionArea.insertBefore(buildBugReportWidget(), onlineWidget);
+  // 行動ログのトグルアイコン（オプションアイコンとマイページアイコンの間、位置はCSSで指定）。
+  optionArea.appendChild(buildActionLogToggleWidget());
 })();
 initShop();
 registerShopOpener(openShopPanel);
