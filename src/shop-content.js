@@ -12,6 +12,7 @@ import { getSkinShopItems } from "./piece-skins.js";
 import { getCardBackShopItems } from "./card-back-skins.js";
 import { getPlaymatShopItems } from "./playmat.js";
 import { getBackgroundShopItems } from "./background.js";
+import { getPetShopItems } from "./pet-skins.js";
 import { isItemUnlocked } from "./online.js";
 
 export const SHOP_CATEGORIES = [
@@ -19,6 +20,8 @@ export const SHOP_CATEGORIES = [
   { key: "card-back", label: "🂠 カード裏面", items: getCardBackShopItems() },
   { key: "playmat", label: "🟩 プレイマット", items: getPlaymatShopItems() },
   { key: "background", label: "🖼️ 背景画像", items: getBackgroundShopItems() },
+  // ユーザー要望「ペットをショップに。全て有料・初期は未所持・少し高め（500）」。
+  { key: "pet", label: "🐾 ペット", items: getPetShopItems() },
 ];
 
 // ユーザー要望「ショップ画面とマイページにアイテムコンプリート率を表示したい」への対応。

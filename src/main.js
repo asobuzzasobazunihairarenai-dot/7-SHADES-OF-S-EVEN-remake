@@ -109,7 +109,7 @@ import {
 } from "./card-back-skins.js";
 import { openPlaymatPicker, registerPlaymatHelpers, getSelectedPlaymatPath, setSelectedPlaymatId } from "./playmat.js";
 import { openBackgroundPicker, registerBackgroundHelpers, getSelectedBackgroundPath, setSelectedBackgroundId } from "./background.js";
-import { openPetPicker, registerPetHelpers, getSelectedPetIndex, PET_OPTIONS, petSpriteSrc } from "./pet-skins.js";
+import { openPetPicker, registerPetHelpers, getSelectedPetIndex, PET_OPTIONS, petSpriteSrc, pushMyPetToProfile } from "./pet-skins.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS } from "./player-identity.js";
 import { applyAvatarContent, getAvatarVariant, getAwakenedVariant, getEnragedVariant } from "./avatar-render.js";
@@ -4505,7 +4505,7 @@ async function playGateInvasionStealRitual(info, onDone) {
     }
   };
   // どんな経路でも一定時間で必ず進める保険（キュー詰まり防止）。
-  const safetyTimer = setTimeout(finish, 30000);
+  const safetyTimer = setTimeout(finish, 120000);
   try {
     const { attacker, defender, count, stolenTokenIds } = info;
     const self = getSelfSeat();
@@ -4520,7 +4520,7 @@ async function playGateInvasionStealRitual(info, onDone) {
         clearTimeout(safetyTimer);
         await new Promise((resolve) => {
           gateInvasionStealWatchResolve = resolve;
-          setTimeout(resolve, 30000);
+          setTimeout(resolve, 120000);
         });
         gateInvasionStealWatchResolve = null;
         finish();
@@ -4601,7 +4601,10 @@ async function playGateInvasionStealRitual(info, onDone) {
           clearTimeout(autoTimer);
           resolve();
         };
-        const autoTimer = setTimeout(advance, 3500);
+        // クリックで1枚ずつめくる。ホバーでじらしている間に勝手にめくれないよう、自動送りは
+        // 十分長め（ユーザー報告「クリックしてないのに時間経過で勝手に選ばれる」）。反応が無い
+        // まま長時間放置された場合のみ自動で進める（キュー詰まり防止の最終手段）。
+        const autoTimer = setTimeout(advance, 20000);
         cardsWrap.addEventListener("click", advance);
       });
       const tok = stolenTokens[i];
@@ -9802,6 +9805,11 @@ onAuthChange(refreshAdminOnlySection);
 let wasLoggedInForDailyBonus = !!getCachedUser();
 onAuthChange((user) => {
   const isLoggedIn = !!user;
+  if (isLoggedIn) {
+    // ローカルのペット選択をプロフィールへ書き戻す（対局開始時の座席作成でコピーされ、
+    // 初回から相手にも反映される。ユーザー報告「開始時に相手のペットが反映されない」対応）。
+    pushMyPetToProfile();
+  }
   if (!wasLoggedInForDailyBonus && isLoggedIn) {
     claimDailyLoginBonus()
       .then((amount) => {

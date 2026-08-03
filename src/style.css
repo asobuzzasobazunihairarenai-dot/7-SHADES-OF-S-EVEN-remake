@@ -1692,13 +1692,14 @@ body.is-phone-device #phase-guide-bar {
 }
 /* 不具合報告アイコンの絵文字（imgアイコンと同じ枠内に収める）。 */
 #self-status-bug-report .bug-report-icon-emoji {
-  font-size: 1.4rem;
+  /* 他のSVGアイコンと見た目の大きさを揃える（絵文字は大きく見えがちなので少し小さく）。 */
+  font-size: 1.15rem;
   line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  height: 100%;
+  width: 2.6rem;
+  height: 2.6rem;
 }
 /* #option-areaは全画面の器で、子は各自 position:absolute で配置する決まり（flow配置では
    ないので位置指定が無いと左上に落ちる＝ユーザー報告の不具合）。ログイン中アイコン
@@ -1706,8 +1707,9 @@ body.is-phone-device #phase-guide-bar {
 #option-area #self-status-bug-report {
   position: absolute;
   top: 0.5rem;
-  /* オンラインのピル（アイコン＋部屋名、右詰めで左へ伸びる）の左端をクリアする位置。 */
-  right: 35rem;
+  /* ユーザー要望「残金(19.5→22.1rem)と2D切替(16.9rem)の間へ」。これでオンラインのピルの
+     部屋名を省略せずに伸ばせる（左隣にアイコンが無くなるため）。 */
+  right: 19.5rem;
   z-index: 900;
   transform: none;
 }
@@ -3942,7 +3944,7 @@ body.is-phone-device #options-menu-button {
   display: none;
 }
 #self-status-action-log .action-log-icon-emoji {
-  font-size: 1.4rem;
+  font-size: 1.15rem;
   line-height: 1;
   display: flex;
   align-items: center;
@@ -4137,7 +4139,7 @@ body.theme-light .action-log-window-title {
 #currency-display {
   position: absolute;
   top: 0.5rem;
-  right: 19.5rem;
+  right: 22.1rem;
   z-index: 900;
   display: flex;
   align-items: center;
@@ -4166,8 +4168,8 @@ body.theme-light .action-log-window-title {
 #option-area #self-status-online {
   position: absolute;
   top: 0.5rem;
-  /* 残金表示(#currency-display)と重ならないよう左へ寄せる＋行動ログ挿入ぶんシフト。 */
-  right: 26rem;
+  /* 残金表示(#currency-display, 22.1rem)の左隣。部屋名は省略せず左へ伸ばせる（左に他アイコン無し）。 */
+  right: 28.6rem;
   z-index: 900;
   transform: none;
   display: flex;
@@ -4194,11 +4196,6 @@ body.theme-light .action-log-window-title {
   font-weight: bold;
   color: #cbd5e1;
   white-space: nowrap;
-  /* 部屋名が長くてもピルが左へ伸びすぎて左隣（不具合報告アイコン）と重ならないよう上限を設ける。 */
-  max-width: 6rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  vertical-align: middle;
 }
 
 /* ユーザー要望「対戦終了時にお金がもらえる演出を追加したい」への対応

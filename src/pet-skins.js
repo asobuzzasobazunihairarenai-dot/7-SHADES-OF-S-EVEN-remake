@@ -7,23 +7,26 @@
 // （getPetEmojiForSeat が同期ロスターを見るように差し替えるだけで済むよう分離してある）。
 
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
-import { getSelfSeat, getSyncedIdentity, updateMyIdentity } from "./online.js";
+import { getSelfSeat, getSyncedIdentity, updateMyIdentity, isItemUnlocked, openShop } from "./online.js";
 
-// 絵文字ペット（仮）＋本番のスプライトペット。index 0 が既定。
-// sprite付きのオプションは piece-pet.js が画像スプライト（4方向×モーション）で描画する
-// （assets/pets/<sprite>/<sprite>-<front|back|left|right>-<static|walk|idle|yawn|ear|jump>.webp）。
+// ペット（駒に追従する飾り）。ユーザー要望でダミーの絵文字ペットは廃止し、スプライトペット
+// （ショップで購入）＋「なし」だけにした。sprite付きは piece-pet.js が画像スプライト
+// （4方向×モーション）で描画する。itemKey/cost はショップ連携用（shop-content.js）。
 export const PET_OPTIONS = [
-  { emoji: "🐥", label: "ひよこ" },
-  { emoji: "🐱", label: "ねこ" },
-  { emoji: "🐶", label: "いぬ" },
-  { emoji: "🐰", label: "うさぎ" },
-  { emoji: "🐹", label: "ハムスター" },
-  { emoji: "🦊", label: "きつね" },
-  { emoji: "🐉", label: "ドラゴン" },
-  { sprite: "cubit", label: "キュビット" }, // ユーザー作成の画像スプライト（4方向×6モーション）
-  { sprite: "noxael", label: "ノクスアエル幼体" }, // 同上（4方向×6モーション）
-  { emoji: null, label: "なし（非表示）" }, // ペットを表示しない（ユーザー要望）
+  { sprite: "cubit", label: "キュビット", itemKey: "pet:cubit", cost: 500 },
+  { sprite: "noxael", label: "ノクスアエル幼体", itemKey: "pet:noxael", cost: 500 },
+  { emoji: null, label: "なし（非表示）" }, // ペットを表示しない（初期値）
 ];
+
+// ショップ（shop-content.js の「ペット」カテゴリ）へ渡す商品一覧。全て有料・初期は未所持。
+export function getPetShopItems() {
+  return PET_OPTIONS.filter((o) => o.sprite).map((o) => ({
+    itemKey: o.itemKey,
+    label: o.label,
+    cost: o.cost,
+    imagePath: petSpriteSrc(o.sprite, "front", "static"),
+  }));
+}
 
 // スプライトペットの画像パス。方向(front/back/left/right)とモーション(static/walk/idle/yawn/ear/jump)から。
 export function petSpriteSrc(sprite, dir, motion) {
@@ -31,14 +34,34 @@ export function petSpriteSrc(sprite, dir, motion) {
 }
 
 const STORAGE_KEY = "so7-pet-index";
-// 既定は「なし（非表示）」（ユーザー要望）。保存値があればそれを優先する。
+// 既定は「なし（非表示）」。ショップ化に伴い、旧ダミーペットの保存インデックスは意味が
+// 変わる（並びが変わった）ため、一度だけ「なし」へ移行する（初期は所持ペット無し＝なし）。
 const NONE_INDEX = PET_OPTIONS.findIndex((o) => o.emoji === null);
+const PET_SHOP_MIGRATION_KEY = "so7-pet-shop-migrated-v1";
 let selectedIndex = NONE_INDEX >= 0 ? NONE_INDEX : 0;
 try {
-  const s = parseInt(localStorage.getItem(STORAGE_KEY), 10);
-  if (Number.isInteger(s) && PET_OPTIONS[s]) selectedIndex = s;
+  if (localStorage.getItem(PET_SHOP_MIGRATION_KEY) !== "1") {
+    localStorage.setItem(STORAGE_KEY, String(NONE_INDEX));
+    localStorage.setItem(PET_SHOP_MIGRATION_KEY, "1");
+    selectedIndex = NONE_INDEX;
+  } else {
+    const s = parseInt(localStorage.getItem(STORAGE_KEY), 10);
+    if (Number.isInteger(s) && PET_OPTIONS[s]) selectedIndex = s;
+  }
 } catch (e) {
   /* 保存が読めなければ既定（なし） */
+}
+
+// スプライトペットのitemKeyが未所持なら「なし」扱いにする（自分の表示・選択の保険）。
+function isPetOwned(opt) {
+  return !opt?.sprite || !opt.itemKey || isItemUnlocked(opt.itemKey);
+}
+
+// ログイン時に呼ぶ（main.jsのonAuthChange）。ローカルのペット選択をプロフィール（＆在室中は
+// 座席）へ書き戻す。対局開始時の座席作成はこのプロフィール値をコピーするため、これで初回から
+// 相手にもペットが反映される（ユーザー報告「開始時に相手のペットが反映されない」対応）。
+export function pushMyPetToProfile() {
+  updateMyIdentity({ petIndex: selectedIndex }).catch((err) => console.error("pushMyPetToProfile failed", err));
 }
 
 export function getSelectedPetIndex() {
@@ -70,10 +93,15 @@ export function setSelectedPetIndex(i) {
 // 選択（getSyncedIdentity().petIndex）を反映する。未同期・不明はデフォルト＝「なし」（非表示）。
 export function getPetOptionForSeat(seat) {
   const self = getSelfSeat();
-  if (seat && self && seat === self) return PET_OPTIONS[selectedIndex];
+  const none = NONE_INDEX >= 0 ? PET_OPTIONS[NONE_INDEX] : PET_OPTIONS[PET_OPTIONS.length - 1];
+  if (seat && self && seat === self) {
+    const mine = PET_OPTIONS[selectedIndex];
+    // 未所持スプライトを選んでいる状態（旧データ等）は「なし」にフォールバック。
+    return isPetOwned(mine) ? mine : none;
+  }
   const syncedIdx = seat ? getSyncedIdentity(seat)?.petIndex : null;
   if (typeof syncedIdx === "number" && PET_OPTIONS[syncedIdx]) return PET_OPTIONS[syncedIdx];
-  return NONE_INDEX >= 0 ? PET_OPTIONS[NONE_INDEX] : PET_OPTIONS[0]; // 既定は「なし」
+  return none; // 既定は「なし」
 }
 
 export function getPetEmojiForSeat(seat) {
@@ -105,7 +133,7 @@ export function openPetPicker() {
 
   const note = document.createElement("div");
   note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin: -0.4rem 0 0.8rem;";
-  note.textContent = "駒に追従する飾りのペットです（仮の絵文字7種）。ゲームには影響しません。";
+  note.textContent = "駒に追従する飾りのペットです（ショップで購入）。ゲームには影響しません。";
 
   const grid = document.createElement("div");
   grid.className = "piece-skin-modal-grid pet-picker-grid";
@@ -113,9 +141,11 @@ export function openPetPicker() {
     const swatch = document.createElement("button");
     swatch.className = "piece-skin-swatch pet-picker-swatch";
     if (idx === selectedIndex) swatch.classList.add("is-selected");
+    // 未所持のスプライトはロック表示にして、クリックでショップを開く（駒スキン等と同じ挙動）。
+    const locked = !!opt.sprite && !!opt.itemKey && !isItemUnlocked(opt.itemKey);
+    if (locked) swatch.classList.add("is-locked");
     let face;
     if (opt.sprite) {
-      // スプライトペットは正面の静止画をプレビューに使う。
       face = document.createElement("img");
       face.className = "pet-picker-sprite";
       face.src = petSpriteSrc(opt.sprite, "front", "static");
@@ -127,12 +157,16 @@ export function openPetPicker() {
     }
     const label = document.createElement("span");
     label.className = "pet-picker-label";
-    label.textContent = opt.label;
+    label.textContent = locked ? `🔒 ${opt.label}（${opt.cost}）` : opt.label;
     swatch.appendChild(face);
     swatch.appendChild(label);
     swatch.addEventListener("click", () => {
-      setSelectedPetIndex(idx);
       close();
+      if (locked) {
+        openShop?.("pet");
+      } else {
+        setSelectedPetIndex(idx);
+      }
     });
     grid.appendChild(swatch);
   });

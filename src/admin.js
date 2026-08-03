@@ -1391,8 +1391,10 @@ applyThemeMode();
 // しまう（テーマはアカウントではなく端末単位のため）。非管理者は自分で戻せないので、認証が
 // 解決した時点で「管理者でなければ必ずライト」に強制する（管理者はトグルの選択を尊重）。
 export function ensureThemeForRole(isAdmin) {
-  if (!isAdmin && !themeLightMode) {
+  if (!isAdmin && (!themeLightMode || !themeLightIngame)) {
+    // 非管理者はメニューも対戦画面もライトに統一する（対戦画面のライトは theme-light-ingame）。
     themeLightMode = true;
+    themeLightIngame = true;
     applyThemeMode();
   }
 }
