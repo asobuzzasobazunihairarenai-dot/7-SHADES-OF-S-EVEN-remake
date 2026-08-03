@@ -91,16 +91,24 @@ export async function fetchStatsProfile(userId) {
   if (playersError) throw playersError;
   if (matchesError) throw matchesError;
 
-  // 順位の対象は、姉妹プロジェクトのランキング表示と同じく承認済み・スタッフ除外。
-  const rankablePlayers = (players ?? []).filter((p) => p.status === "approved" && !p.is_staff);
-  const statsById = computeAllPlayerStats(rankablePlayers, matches ?? []);
+  // 自分の対戦数・勝利数は、スタッフであっても正しく表示する（バグ修正）。
+  // ユーザー報告「戦績システムでは YGM は 16戦11勝なのに、アプリのマイページは0戦」。
+  // 原因: 以前は「承認済み かつ スタッフ除外」のプレイヤーだけで集計し、その集計から
+  // 自分の成績(myStats)も引いていたため、自分がスタッフだと自分の対戦数まで0になっていた
+  // （戦績システム側は集計自体にはスタッフも含め、ランキングからだけ除外している）。
+  // → 集計は「承認済み全員（スタッフ含む）」で行い、スタッフ除外は“順位付けの母集団”だけに適用する。
+  const approvedPlayers = (players ?? []).filter((p) => p.status === "approved");
+  const statsById = computeAllPlayerStats(approvedPlayers, matches ?? []);
 
   const myStats = statsById.get(me.id) ?? { matchesCount: 0, winsCount: 0, winRate: 0 };
 
-  const byMatchCount = [...statsById.values()].sort(
+  // 順位は、姉妹プロジェクトのランキング表示と同じく承認済み・スタッフ除外の母集団で求める。
+  const staffIds = new Set((players ?? []).filter((p) => p.is_staff).map((p) => p.id));
+  const rankableStats = [...statsById.values()].filter((s) => !staffIds.has(s.id));
+  const byMatchCount = [...rankableStats].sort(
     (a, b) => b.matchesCount - a.matchesCount || b.winsCount - a.winsCount || b.winRate - a.winRate
   );
-  const byWinRate = [...statsById.values()].sort(
+  const byWinRate = [...rankableStats].sort(
     (a, b) => b.winRate - a.winRate || b.winsCount - a.winsCount || b.matchesCount - a.matchesCount
   );
 
@@ -116,7 +124,7 @@ export async function fetchStatsProfile(userId) {
     tier: getTierInfo(myStats.matchesCount, me.custom_triangle_color),
     matchCountRank: rankOf(byMatchCount.map((s) => s.id), me.id),
     winRateRank: rankOf(byWinRate.map((s) => s.id), me.id),
-    totalRankedPlayers: statsById.size,
+    totalRankedPlayers: rankableStats.length,
   };
 }
 
