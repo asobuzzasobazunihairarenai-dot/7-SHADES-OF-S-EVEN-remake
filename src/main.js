@@ -4589,24 +4589,29 @@ async function playGateInvasionStealRitual(info, onDone) {
     modal.classList.remove("is-shuffling");
     title.textContent = `カードをクリックして${stolenTokens.length}枚奪おう…`;
 
-    // 1枚ずつ、奪取カードをその位置でめくって奪う。クリックで進み、一定時間で自動進行もする
-    // （反応が無くてもキューが詰まらないように）。
+    // 1枚ずつ、クリックしてめくって奪う。自動送りは無し（ホバーでいくらでもじらせる。ユーザー
+    // 要望「そもそも自動送りは要る？」）。ただし、長時間まったく操作が無い（席を外した等）時だけ、
+    // ゲート侵攻モーダルのキューが詰まらないよう、残りを一気にめくって終える最終手段を用意する。
+    let aborted = false;
+    let pendingResolve = null;
+    const onCardsClick = () => {
+      if (pendingResolve) {
+        const r = pendingResolve;
+        pendingResolve = null;
+        r();
+      }
+    };
+    cardsWrap.addEventListener("click", onCardsClick);
+    const abandonTimer = setTimeout(() => {
+      aborted = true;
+      onCardsClick();
+    }, 90000);
     for (let i = 0; i < stolenTokens.length; i++) {
-      await new Promise((resolve) => {
-        let advanced = false;
-        const advance = () => {
-          if (advanced) return;
-          advanced = true;
-          cardsWrap.removeEventListener("click", advance);
-          clearTimeout(autoTimer);
-          resolve();
-        };
-        // クリックで1枚ずつめくる。ホバーでじらしている間に勝手にめくれないよう、自動送りは
-        // 十分長め（ユーザー報告「クリックしてないのに時間経過で勝手に選ばれる」）。反応が無い
-        // まま長時間放置された場合のみ自動で進める（キュー詰まり防止の最終手段）。
-        const autoTimer = setTimeout(advance, 20000);
-        cardsWrap.addEventListener("click", advance);
-      });
+      if (!aborted) {
+        await new Promise((resolve) => {
+          pendingResolve = resolve;
+        });
+      }
       const tok = stolenTokens[i];
       const el = cardEls[orderIndexOf(tok.id)];
       if (el) {
@@ -4615,8 +4620,10 @@ async function playGateInvasionStealRitual(info, onDone) {
       }
       broadcastRitualPickHover({ targetPlayer: defender, index: orderIndexOf(tok.id) });
       playSound("cardFlip");
-      await wait(500);
+      await wait(aborted ? 150 : 500);
     }
+    clearTimeout(abandonTimer);
+    cardsWrap.removeEventListener("click", onCardsClick);
 
     title.textContent = "奪いました！";
     // 奪われる側の実況に「これらが奪われた」を反映して閉じさせる。
