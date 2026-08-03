@@ -2309,6 +2309,10 @@ export function initAdminMode() {
   // ツールパネルなので背景は暗くしない（盤面を見ながら調整したいため）が、外側クリックで
   // 閉じられるようにする（今後追加するパネル/モーダルもこの閉じ方に統一する）。
   const backdrop = createBackdrop(close, { dim: false, zIndex: 999 });
+  // タイトル画面（#opening-screen, z-index:50000）から開いた時に、パネルもバックドロップも
+  // その裏に隠れてしまう（ユーザー報告「管理者パネルボタンを押しても何も起きない＝背面」）ため、
+  // opening-screen-active時だけCSSで手前へ引き上げられるようにidを付けておく。
+  backdrop.id = "admin-panel-backdrop";
   backdrop.style.display = "none";
   panel.appendChild(createModalCloseX(close));
 

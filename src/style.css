@@ -4269,6 +4269,16 @@ body.is-phone-device #options-menu-button {
   font-size: 0.75rem;
   color: #e2e8f0;
 }
+/* ユーザー報告「タイトル画面の管理者パネルボタンを押しても何も起きない（背面に行っている）」。
+   タイトル画面(#opening-screen)はz-index:50000のため、管理者パネル(2600)/バックドロップ(999)は
+   その裏に隠れていた。タイトル画面が出ている間だけ、両方を#opening-screenより手前へ引き上げる。 */
+body.opening-screen-active #admin-panel {
+  z-index: 50200;
+}
+body.opening-screen-active #admin-panel-backdrop {
+  /* createBackdrop がインラインで z-index:999 を付けるため、!important で上書きする。 */
+  z-index: 50150 !important;
+}
 /* スマホでは管理者モーダル自体が小さすぎて操作しづらいとの報告（続き92）。
    左上固定のパネルのため、他の画面中央モーダル（translate(-50%,-50%)）とは
    別の専用の一括調整用変数にする（transform-originを左上に固定し、左上の
