@@ -1700,6 +1700,23 @@ body.is-phone-device #phase-guide-bar {
   width: 100%;
   height: 100%;
 }
+/* #option-areaは全画面の器で、子は各自 position:absolute で配置する決まり（flow配置では
+   ないので位置指定が無いと左上に落ちる＝ユーザー報告の不具合）。ログイン中アイコン
+   (#self-status-online, right:21.3rem)の左隣に置く。ラベルは隠してアイコンのみにする。 */
+#option-area #self-status-bug-report {
+  position: absolute;
+  top: 0.5rem;
+  right: 24.4rem;
+  z-index: 900;
+  transform: none;
+}
+#option-area #self-status-bug-report .icon-action-button-caption {
+  display: none;
+}
+#option-area #self-status-bug-report .icon-action-button-icon-wrap {
+  width: 2.6rem;
+  height: 2.6rem;
+}
 
 /* アイコン+キャプション形式のボタン共通部品（icon-action-button.js参照）。アイコンは丸い
    バッジ、キャプションはその下に小さく表示するクリック可能な文字（点線下線でクリックできる
@@ -4844,7 +4861,8 @@ body.opening-screen-active #options-menu-panel {
    上の一括hide（body.opening-screen-active #self-status-online＝id1つ）ではdisplay:flexに
    負けてタイトル/オープニングでも表示されてしまっていた（ユーザー報告）。同等以上の詳細度で
    隠し、表示はホーム画面以降からにする。 */
-body.opening-screen-active #option-area #self-status-online {
+body.opening-screen-active #option-area #self-status-online,
+body.opening-screen-active #option-area #self-status-bug-report {
   display: none;
 }
 /* ユーザー要望（続き75）「ホーム画面やプロフ全画面でも上のオプションエリアのアイコン等は
@@ -5512,6 +5530,12 @@ body.is-touch-device #self-hand-status {
 .self-status-large-avatar .avatar-image {
   border-radius: 50%;
   object-fit: cover;
+  /* ユーザー要望「丸く縁どられているのがばれてしまう灰色の背景を消したい（でも背面
+     ゴーストは残す）」。アバター画像は背景（灰色の地）が焼き込まれているため、円形クロップの
+     ハードな縁が“灰色の円盤の枠”として見えてしまう。縁を放射状マスクでフェードさせて、
+     盤面に溶け込ませる（丸の枠線＝灰色の縁を目立たなくする）。中央のキャラクターは残る。 */
+  -webkit-mask-image: radial-gradient(circle, #000 60%, rgba(0, 0, 0, 0.35) 74%, transparent 86%);
+  mask-image: radial-gradient(circle, #000 60%, rgba(0, 0, 0, 0.35) 74%, transparent 86%);
 }
 /* ユーザー要望「不透明アバターの背面に、少しずらして半透明のアバターも表示して
    かっこよくしたい」。同じアバター画像をもう1枚、本体の背面に薄く・少しずらして重ねる。
@@ -5540,6 +5564,9 @@ body.is-touch-device #self-hand-status {
   max-height: none;
   border-radius: 50%;
   object-fit: cover;
+  /* 本体と同じく縁をフェードさせ、灰色の円盤の枠が出ないようにする（上記参照）。 */
+  -webkit-mask-image: radial-gradient(circle, #000 60%, rgba(0, 0, 0, 0.35) 74%, transparent 86%);
+  mask-image: radial-gradient(circle, #000 60%, rgba(0, 0, 0, 0.35) 74%, transparent 86%);
 }
 /* スマホでは左下の自分アバターのサイズ変数を専用値に差し替える（ユーザー要望「もう少し
    小さくしたい」）。この変数はアバター本体(.avatar-image)・絵文字のfont-size・ランクリング
@@ -9382,9 +9409,7 @@ body:not(.is-admin-user) .opening-admin-btn {
   --self-status-large-avatar-ghost-scale: 1.6;
   --self-status-large-avatar-ghost-offset-x: -1.6rem;
   --self-status-large-avatar-ghost-offset-y: -8.1rem;
-  /* 背面ゴーストは、薄いと（背景の上で）グレーの染みのように見えるとの指摘があり、既定で
-     非表示（完全透明）にする。復活させたい時は管理者モードの「背面ゴースト 透明度」を上げる。 */
-  --self-status-large-avatar-ghost-opacity: 0;
+  --self-status-large-avatar-ghost-opacity: 0.35;
   --self-status-pos-x: 0rem;
   --self-status-pos-y: 0rem;
   --self-status-info-pos-x: -9.8rem;
