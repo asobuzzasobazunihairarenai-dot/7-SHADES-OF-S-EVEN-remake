@@ -4805,27 +4805,43 @@ body.is-phone-device #admin-panel {
   background: rgba(250, 204, 21, 0.28);
 }
 
+/* ユーザー要望「オプションも全画面表示にしよう」。以前は右上から吊り下がるドロップダウン
+   だったが、他の全画面ページ（お知らせ等）と揃えて全画面(inset:0)にする。中身は読みやすい
+   幅で中央寄せし、上部に「← 戻る」ボタンを置く（options-menu.js renderContent）。 */
 #options-menu-panel {
   position: fixed;
-  top: 3.3rem;
-  right: 1rem;
-  /* 呼び出しボタン(#options-menu-button)自体は900のまま（他の常設パネルより低くして
-     "セットアップ/管理者モードが開いている間、オプションボタンがその上に乗ってしまう"
-     バグの再発を防いでいる）。パネル本体は開いている間、右下に浮かぶプレイヤー用ボタン
-     （1枚ドロー・盤面拡大・部屋ステータス等、z-index 1000〜1001）より必ず手前に来る
-     必要がある——アニメーション削減設定の追加でパネルが縦に伸び、それらのボタンと
-     画面上で重なるようになった際、ボタン側が手前に出て設定項目が隠れてしまうバグが
-     あった。ボタンより高いz-indexにすることで解決する。 */
+  inset: 0;
   z-index: 1002;
   background: rgba(15, 23, 32, 0.98);
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  border-radius: 0.4rem;
-  padding: 0.3rem;
-  min-width: 9rem;
-  max-height: 80vh;
+  border: none;
+  border-radius: 0;
+  padding: 1.2rem clamp(1rem, 5vw, 5rem) 2rem;
   overflow-y: auto;
   box-sizing: border-box;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+}
+#options-menu-panel > * {
+  max-width: 42rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+#options-menu-back {
+  display: inline-block;
+  background: none;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.4rem;
+  color: #e2e8f0;
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+  margin-bottom: 0.9rem;
+}
+#options-menu-back:hover {
+  border-color: rgba(56, 189, 248, 0.7);
+}
+body.theme-light #options-menu-back {
+  color: #3a3326;
+  border-color: rgba(176, 141, 63, 0.5);
 }
 /* ユーザー要望「オプションマークはタイトル画面から常に表示させてほしい（BGM音量など
    重要な設定が含まれているため）」。#opening-screen（z-index:50000）より確実に高くする。
@@ -10246,8 +10262,9 @@ body.reduce-glow .cell.card-effect-placement-target {
    近日公開は淡い半透明ではなく、濃いアンバー地＋濃い文字でコントラストを上げる。 */
 .home-screen-tile-badge {
   position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
+  /* 位置は管理者モードで微調整できる（--home-badge-offset-x/y、admin.js）。 */
+  top: calc(0.5rem + var(--home-badge-offset-y, 0rem));
+  right: calc(0.5rem + var(--home-badge-offset-x, 0rem));
   font-size: 0.8rem;
   font-weight: 800;
   padding: 0.24rem 0.6rem;
@@ -10261,8 +10278,9 @@ body.reduce-glow .cell.card-effect-placement-target {
 /* 未読お知らせの「NEW」バッジ（ユーザー要望）。明るい背景でも目立つ赤＋白フチ＋鼓動。 */
 .home-screen-tile-new-badge {
   position: absolute;
-  top: 0.1rem;
-  right: 0.9rem;
+  /* 位置は管理者モードで微調整できる（--home-new-badge-offset-x/y、admin.js）。 */
+  top: calc(0.1rem + var(--home-new-badge-offset-y, 0rem));
+  right: calc(0.9rem + var(--home-new-badge-offset-x, 0rem));
   font-size: 0.8rem;
   font-weight: 800;
   letter-spacing: 0.06em;

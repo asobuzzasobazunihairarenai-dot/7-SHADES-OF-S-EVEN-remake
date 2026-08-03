@@ -541,6 +541,14 @@ export function initOptionsMenu() {
   function renderContent() {
     panel.innerHTML = "";
 
+    // 全画面表示（ユーザー要望）にしたので、他の全画面ページ同様に左上へ「← 戻る」を置く。
+    const backBtn = document.createElement("button");
+    backBtn.type = "button";
+    backBtn.id = "options-menu-back";
+    backBtn.textContent = "← 戻る";
+    backBtn.addEventListener("click", close);
+    panel.appendChild(backBtn);
+
     panel.appendChild(buildSectionTitle("基本設定"));
 
     // ユーザー要望（続き64）「基本設定内のUIを整理したい」への対応で、性質の近い項目を

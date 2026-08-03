@@ -498,6 +498,18 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー要望「ホーム画面の『近日公開』『NEW』バッジの位置を管理者モードで調整したい」。
+    // 各タイル右上を起点に、右方向へずらすほどマイナス（画面内側）へ寄る（右端基準のため）。
+    title: "ホーム画面：近日公開／NEWバッジの位置",
+    category: "position-ui",
+    controls: [
+      { key: "--home-badge-offset-x", label: "近日公開 X位置（＋で左へ）", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
+      { key: "--home-badge-offset-y", label: "近日公開 Y位置（＋で下へ）", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
+      { key: "--home-new-badge-offset-x", label: "NEW X位置（＋で左へ）", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
+      { key: "--home-new-badge-offset-y", label: "NEW Y位置（＋で下へ）", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
+    ],
+  },
+  {
     title: "ターンタイマー：中央ロープの位置調整",
     category: "position-ui",
     controls: [
