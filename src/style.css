@@ -1684,10 +1684,21 @@ body.is-phone-device #phase-guide-bar {
   z-index: 20000;
 }
 /* オンライン状態アイコンは画面右上にあるため、簡易説明を上に出すと画面外で見切れる
-   （ユーザー報告）。このアイコンだけ下側に出す。 */
-#option-area #self-status-online .phase-guide-tooltip {
+   （ユーザー報告）。このアイコンと、その左隣の不具合報告アイコンだけ下側に出す。 */
+#option-area #self-status-online .phase-guide-tooltip,
+#option-area #self-status-bug-report .phase-guide-tooltip {
   bottom: auto;
   top: calc(100% + 0.5rem);
+}
+/* 不具合報告アイコンの絵文字（imgアイコンと同じ枠内に収める）。 */
+#self-status-bug-report .bug-report-icon-emoji {
+  font-size: 1.4rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 }
 
 /* アイコン+キャプション形式のボタン共通部品（icon-action-button.js参照）。アイコンは丸い

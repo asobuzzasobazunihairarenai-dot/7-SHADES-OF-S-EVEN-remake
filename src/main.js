@@ -54,6 +54,7 @@ import { initHelpButton } from "./help.js";
 import { initDiscordLink } from "./discord-link.js";
 import { initBoardViewToggle } from "./board-view-toggle.js";
 import { getOptionArea } from "./option-area.js";
+import { openBugReportModal } from "./bug-report.js";
 import { initCurrencyDisplay, refreshCurrencyDisplay, showCurrencyAwardEffect } from "./currency-display.js";
 import { initShop, openShopPanel } from "./shop.js";
 import { initGameSetup, previewStartPlayerModal, showStartPlayerModal } from "./game-setup.js";
@@ -7576,6 +7577,34 @@ const ONLINE_STATUS_ICONS = {
   inRoom: "assets/icons/status-in-room.svg",
 };
 
+// 不具合報告アイコン（オプションエリア、オンラインアイコンの左隣、ユーザー要望で外出し）。
+// 絵文字アイコンのため buildIconButtonContent（imgベース）は使わず、同じ見た目の構造を手組みする。
+function buildBugReportWidget() {
+  const btn = document.createElement("button");
+  btn.id = "self-status-bug-report";
+  btn.className = "icon-action-button";
+  const iconWrap = document.createElement("span");
+  iconWrap.className = "icon-action-button-icon-wrap";
+  const emoji = document.createElement("span");
+  emoji.className = "bug-report-icon-emoji";
+  emoji.textContent = "🐛";
+  iconWrap.appendChild(emoji);
+  const tooltip = document.createElement("span");
+  tooltip.className = "phase-guide-tooltip";
+  tooltip.textContent = "不具合報告（コメント＋ログを送信）";
+  iconWrap.appendChild(tooltip);
+  btn.appendChild(iconWrap);
+  const caption = document.createElement("span");
+  caption.className = "icon-action-button-caption";
+  caption.textContent = "不具合報告";
+  btn.appendChild(caption);
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openBugReportModal();
+  });
+  return btn;
+}
+
 function buildSelfStatusOnlineWidget() {
   const btn = document.createElement("button");
   btn.id = "self-status-online";
@@ -9124,7 +9153,12 @@ initCurrencyDisplay();
 (() => {
   const optionArea = document.getElementById("option-area");
   const currencyEl = document.getElementById("currency-display");
-  if (optionArea) optionArea.insertBefore(buildSelfStatusOnlineWidget(), currencyEl);
+  if (!optionArea) return;
+  const onlineWidget = buildSelfStatusOnlineWidget();
+  optionArea.insertBefore(onlineWidget, currencyEl);
+  // ユーザー要望「不具合報告は運用上重要なので、オプションメニューの中ではなく、オプション
+  // エリアのオンライン表示の左隣に常設で外出しする」。オンラインアイコンの左に置く。
+  optionArea.insertBefore(buildBugReportWidget(), onlineWidget);
 })();
 initShop();
 registerShopOpener(openShopPanel);

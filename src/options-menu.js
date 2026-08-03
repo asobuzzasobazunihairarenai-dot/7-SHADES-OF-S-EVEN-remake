@@ -5,7 +5,6 @@
 import { openAdminPanel } from "./admin.js";
 import { isAutoDragRestrictionEnabled, setAutoDragRestrictionEnabled } from "./auto-drag-restriction.js";
 import { openActionLogPanel } from "./action-log.js";
-import { openBugReportModal } from "./bug-report.js";
 import { openCardDevMode } from "./card-dev-mode.js";
 import { isProfileLayoutEditMode, setProfileLayoutEditMode } from "./profile-layout-editor.js";
 import { isAutoProcessingEnabled, setAutoProcessingEnabled } from "./card-effect-engine.js";
@@ -921,14 +920,8 @@ export function initOptionsMenu() {
         openActionLogPanel();
       })
     );
-    // ユーザー要望「オプションエリアに不具合報告ボタンを。コメントを入力して送ると私に届く。
-    // アクションログ・コンソールも自動で添付」。誰でも送れる（bug-report.js）。
-    panel.appendChild(
-      buildMenuItem("🐛 不具合報告", () => {
-        close();
-        openBugReportModal();
-      })
-    );
+    // 「🐛 不具合報告」はユーザー要望でオプションメニューの外（オプションエリアのオンライン
+    // アイコンの左隣、main.jsのbuildBugReportWidget）へ常設で外出ししたため、ここには置かない。
     // ユーザー要望「管理者モードの制限についてオプションの『管理者モード』ボタンから
     // 一般ユーザーは入れないようにしたい」への対応。位置合わせ用のスライダー等は
     // 元々「開発者が調整して出力欄の値をCSSへ反映する」ための道具であり、各プレイヤー
