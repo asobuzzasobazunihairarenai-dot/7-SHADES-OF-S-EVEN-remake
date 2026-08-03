@@ -8628,10 +8628,13 @@ body.is-online-mode #quick-start-bar {
   top: 0;
   z-index: 9998;
   border-radius: 0.3rem;
-  background-size: cover;
+  /* カード画像は正方形。飛翔ゴーストのサイズは飛び元の要素（ロックスロット/マス等、
+     必ずしも正方形でない）に合わせるため、cover だと縦長の時にカード上下が切れていた
+     （ユーザー報告「手札に入る時などのアニメでカードの上下が切れる」）。contain にして
+     カード全体が必ず収まるようにする。 */
+  background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
   pointer-events: none;
 }
 
