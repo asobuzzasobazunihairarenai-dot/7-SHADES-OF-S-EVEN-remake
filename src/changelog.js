@@ -4,7 +4,7 @@
 // ★運用メモ: デプロイするたびに、この CHANGELOG の先頭に { date, items } を1件追記する
 //   （新しい順＝先頭が最新）。日付は YYYY-MM-DD。itemsはその回の変更の概要（箇条書き）。
 
-import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
+import { createBackdrop } from "./ui-helpers.js";
 
 export const CHANGELOG = [
   {
@@ -147,11 +147,18 @@ export function openChangelogModal() {
   modalEl = document.createElement("div");
   modalEl.id = "changelog-modal";
 
+  // ユーザー要望「他の全画面ページ同様、左上に『← 戻る』ボタンを。右上✕は廃止」。
+  const backBtn = document.createElement("button");
+  backBtn.type = "button";
+  backBtn.id = "changelog-back";
+  backBtn.textContent = "← 戻る";
+  backBtn.addEventListener("click", close);
+  modalEl.appendChild(backBtn);
+
   const title = document.createElement("div");
   title.className = "changelog-modal-title";
   title.textContent = "📰 お知らせ／更新情報";
   modalEl.appendChild(title);
-  modalEl.appendChild(createModalCloseX(close));
 
   const list = document.createElement("div");
   list.className = "changelog-list";

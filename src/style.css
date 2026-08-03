@@ -976,6 +976,26 @@ body.reduce-glow [style*="rainbow-shard.webp"]::after {
   font-family: sans-serif;
   color: #e2e8f0;
 }
+#changelog-back {
+  flex-shrink: 0;
+  align-self: flex-start;
+  background: none;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.4rem;
+  color: #e2e8f0;
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+  margin-bottom: 0.9rem;
+}
+#changelog-back:hover {
+  border-color: rgba(56, 189, 248, 0.7);
+}
+body.theme-light #changelog-back {
+  color: #3a3326;
+  border-color: rgba(176, 141, 63, 0.5);
+}
 .changelog-modal-title {
   flex-shrink: 0;
   font-weight: bold;
@@ -1662,6 +1682,12 @@ body.is-phone-device #phase-guide-bar {
      の描画順次第でツールチップの方が奥に埋もれてしまうことがあった。ホバー中は常に
      最前面に出したいので、既存モーダル群（最大でも10701付近）より確実に高い値にする。 */
   z-index: 20000;
+}
+/* オンライン状態アイコンは画面右上にあるため、簡易説明を上に出すと画面外で見切れる
+   （ユーザー報告）。このアイコンだけ下側に出す。 */
+#option-area #self-status-online .phase-guide-tooltip {
+  bottom: auto;
+  top: calc(100% + 0.5rem);
 }
 
 /* アイコン+キャプション形式のボタン共通部品（icon-action-button.js参照）。アイコンは丸い
@@ -7536,8 +7562,10 @@ body.theme-light .bug-report-textarea {
   z-index: 10615;
   background: linear-gradient(160deg, #1e293b, #0f172a);
   border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 0.6rem;
-  padding: 0.6rem 1rem;
+  border-radius: 0.7rem;
+  /* ユーザー要望「色周知モーダルをもっと大きく」。中央に出る瞬間を大きく見せる
+     （隅へ寄った後の大きさは --declared-colors-corner-scale で従来どおり調整可能）。 */
+  padding: 1.1rem 1.8rem;
   text-align: center;
   font-family: sans-serif;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
@@ -7555,19 +7583,20 @@ body.theme-light .bug-report-textarea {
   transform-origin: center left;
 }
 .declared-colors-indicator-title {
-  font-size: 0.7rem;
-  color: #cbd5e1;
-  margin-bottom: 0.3rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin-bottom: 0.5rem;
   white-space: nowrap;
 }
 .declared-colors-indicator-swatches {
   display: flex;
-  gap: 0.3rem;
+  gap: 0.45rem;
   justify-content: center;
 }
 .declared-colors-indicator-swatch {
-  width: 1.6rem;
-  height: 1.6rem;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 50%;
   background: var(--swatch-color);
   border: 2px solid rgba(255, 255, 255, 0.4);
@@ -9339,7 +9368,9 @@ body:not(.is-admin-user) .opening-admin-btn {
   --self-status-large-avatar-ghost-scale: 1.6;
   --self-status-large-avatar-ghost-offset-x: -1.6rem;
   --self-status-large-avatar-ghost-offset-y: -8.1rem;
-  --self-status-large-avatar-ghost-opacity: 0.35;
+  /* 背面ゴーストは、薄いと（背景の上で）グレーの染みのように見えるとの指摘があり、既定で
+     非表示（完全透明）にする。復活させたい時は管理者モードの「背面ゴースト 透明度」を上げる。 */
+  --self-status-large-avatar-ghost-opacity: 0;
   --self-status-pos-x: 0rem;
   --self-status-pos-y: 0rem;
   --self-status-info-pos-x: -9.8rem;

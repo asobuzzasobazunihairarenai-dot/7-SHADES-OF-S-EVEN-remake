@@ -334,7 +334,8 @@ function buildStatsPlayerLinkRow() {
     actionArea.innerHTML = "";
     const done = document.createElement("div");
     done.textContent = "✅ 連携済みです";
-    done.style.cssText = "font-size: 0.8rem; color: #86efac;";
+    // 薄い黄緑だと（既定の）ライトテーマで視認性が悪かったので、濃い緑＋太字に（ユーザー報告）。
+    done.style.cssText = "font-size: 0.85rem; color: #15803d; font-weight: 700;";
     actionArea.appendChild(done);
   }
 

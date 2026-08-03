@@ -20,7 +20,11 @@ let consoleHooked = false;
 function installConsoleCapture() {
   if (consoleHooked) return;
   consoleHooked = true;
-  const levels = ["log", "info", "warn", "error", "debug"];
+  // console.log/info/debug は「包む」とdevtoolsの出力元表示が全部bug-report.jsになって
+  // しまい（ユーザーが貼ったログが全部 bug-report.js:45 になる不具合）デバッグの妨げに
+  // なるため、包まない。捕捉するのは重要度が高く頻度の低い warn/error だけにする
+  // （通常のログは元々アクションログ側に十分残っている）。
+  const levels = ["warn", "error"];
   for (const level of levels) {
     const original = console[level]?.bind(console);
     if (!original) continue;
