@@ -1218,31 +1218,52 @@ function closeRitualPickWatch() {
   ritualPickWatchCardEls = [];
   ritualPickWatchResolved = false;
 }
-function openRitualPickWatch(order) {
+// options.overrides: {tokenId: cardId} — トークン本体のcardIdが（RLSで）見えない場合に
+// 表向き表示へ使うcardIdの上書き。ゲート侵攻の儀式で、既にattackerの手札へ移動してしまった
+// 「奪われたカード」を、奪われた本人にも表向きで見せるために使う（サーバーがdefenderへ
+// 渡したdefenderStolenCards由来）。options.title: 見出しの差し替え。
+function openRitualPickWatch(order, options = {}) {
   closeRitualPickWatch();
-  const player = getSelfSeat();
+  const overrides = options.overrides || {};
   const tokensById = new Map(getState().tokens.filter((t) => t.kind === "card").map((t) => [t.id, t]));
   ritualPickWatchBackdrop = createBackdrop(() => {}, { dim: true, zIndex: 10619 });
   ritualPickWatchModal = document.createElement("div");
   ritualPickWatchModal.id = "sleight-ritual-modal";
   ritualPickWatchTitleEl = document.createElement("div");
   ritualPickWatchTitleEl.className = "sleight-ritual-title";
-  ritualPickWatchTitleEl.textContent = "相手があなたの手札から1枚選んでいます…";
+  ritualPickWatchTitleEl.textContent = options.title || "相手があなたの手札から1枚選んでいます…";
   ritualPickWatchModal.appendChild(ritualPickWatchTitleEl);
   const cardsWrap = document.createElement("div");
   cardsWrap.className = "sleight-ritual-cards";
   ritualPickWatchCardEls = order.map((tokenId) => {
     const token = tokensById.get(tokenId);
+    const cardId = token?.cardId ?? overrides[tokenId] ?? null;
     const cardEl = document.createElement("div");
     cardEl.className = "sleight-ritual-card";
     cardEl.dataset.tokenId = tokenId;
-    cardEl.style.backgroundImage = `url("${token ? getCardImagePath(token.cardId) : getCardBackImagePath(null)}")`;
+    cardEl.style.backgroundImage = `url("${cardId ? getCardImagePath(cardId) : getCardBackImagePath(null)}")`;
     cardsWrap.appendChild(cardEl);
     return cardEl;
   });
   ritualPickWatchModal.appendChild(cardsWrap);
   document.body.appendChild(ritualPickWatchBackdrop);
   document.body.appendChild(ritualPickWatchModal);
+}
+// ゲート侵攻の儀式用: 複数枚の「奪われたカード」を一括で強調表示してから閉じる
+// （スリカエの1枚版 revealRitualPickWatchResult の複数版）。
+function revealRitualPickWatchResultMulti(tokenIds) {
+  if (!ritualPickWatchModal) return;
+  ritualPickWatchResolved = true;
+  const stolenSet = new Set(tokenIds || []);
+  if (ritualPickWatchTitleEl) ritualPickWatchTitleEl.textContent = "これらのカードが奪われました！";
+  for (const el of ritualPickWatchCardEls) {
+    const isPicked = stolenSet.has(el.dataset.tokenId);
+    el.classList.remove("is-hovered");
+    el.classList.toggle("is-stolen-reveal", isPicked);
+    el.classList.toggle("is-not-picked", !isPicked);
+  }
+  clearTimeout(ritualPickWatchRevealTimer);
+  ritualPickWatchRevealTimer = setTimeout(() => closeRitualPickWatch(), 2200);
 }
 // ユーザー要望「スリカエなどで手札が奪われる際に、奪われるカードが決まったら、
 // そのカードを拡大し『このカードが奪われました』的な感じでわかるようにして
@@ -1262,9 +1283,9 @@ function revealRitualPickWatchResult(pickedTokenId) {
   clearTimeout(ritualPickWatchRevealTimer);
   ritualPickWatchRevealTimer = setTimeout(() => closeRitualPickWatch(), 1600);
 }
-onRitualPickStartedEvents(({ targetPlayer, order }) => {
+onRitualPickStartedEvents(({ targetPlayer, order, overrides, title }) => {
   if (getSelfSeat() !== targetPlayer) return;
-  openRitualPickWatch(order);
+  openRitualPickWatch(order, { overrides, title });
 });
 onRitualPickHoverEvents(({ targetPlayer, index }) => {
   if (getSelfSeat() !== targetPlayer) return;
@@ -1272,9 +1293,11 @@ onRitualPickHoverEvents(({ targetPlayer, index }) => {
   for (const el of ritualPickWatchCardEls) el.classList.remove("is-hovered");
   ritualPickWatchCardEls[index]?.classList.add("is-hovered");
 });
-onRitualPickEndedEvents(({ targetPlayer, pickedTokenId }) => {
+onRitualPickEndedEvents(({ targetPlayer, pickedTokenId, pickedTokenIds }) => {
   if (getSelfSeat() !== targetPlayer) return;
-  if (pickedTokenId) {
+  if (pickedTokenIds?.length) {
+    revealRitualPickWatchResultMulti(pickedTokenIds);
+  } else if (pickedTokenId) {
     revealRitualPickWatchResult(pickedTokenId);
   } else {
     closeRitualPickWatch();
@@ -4424,11 +4447,157 @@ async function playEternalAcquisitionAnim(attacker, cardId, cardDef, onDone) {
   onDone();
 }
 
+// ゲート侵攻の「相手の手札を半分奪う」を、スリカエと同じ儀式演出で見せる（ユーザー要望⑩）。
+// 攻撃側は“奪取前の手札”（相手の残り手札＝裏向き＋今まさに奪ったカード）を裏向きで並べ、
+// 1枚ずつクリックして表向きにめくって奪う。奪われる側には自分の手札が表向きで見え、攻撃側の
+// カーソル位置（ホバー）がわかる（スリカエと同じ broadcastRitualPick* を流用）。
+// オンラインではサーバーが先に無作為抽選＆移動済みのため、結果は既に確定している——本演出は
+// 純粋な見た目のみ（奪う枚数・カードは変えない）。安全のため、何があっても必ずonDone()を呼ぶ
+// （呼ばないとゲート侵攻モーダルのキューが詰まる）。
+async function playGateInvasionStealRitual(info, onDone) {
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    try {
+      onDone();
+    } catch (e) {
+      /* onDoneは次ステップへ進めるだけ。失敗しても握りつぶす */
+    }
+  };
+  // どんな経路でも一定時間で必ず進める保険（キュー詰まり防止）。
+  const safetyTimer = setTimeout(finish, 30000);
+  try {
+    const { attacker, defender, count, stolenTokenIds } = info;
+    const self = getSelfSeat();
+    // 攻撃側以外（奪われる側・観戦者）はここでは演出を持たない。奪われる側は攻撃側からの
+    // broadcast（openRitualPickWatch）で表向きの手札を見る。観戦者は従来の飛翔演出を出す。
+    if (self !== attacker) {
+      clearTimeout(safetyTimer);
+      if (self === defender) {
+        finish(); // watchはbroadcast側で開閉する
+      } else {
+        playGateInvasionStealAnim(attacker, defender, count, finish);
+      }
+      return;
+    }
+    // ここから攻撃側本人。演出が無効な設定・素材不足なら従来の飛翔演出にフォールバック。
+    const stolenTokens = (stolenTokenIds || []).map((id) => getState().tokens.find((t) => t.id === id)).filter(Boolean);
+    if (isFlightAnimationDisabled() || isArrivalEffectDisabled() || stolenTokens.length === 0) {
+      clearTimeout(safetyTimer);
+      playGateInvasionStealAnim(attacker, defender, count, finish);
+      return;
+    }
+    // 奪取前の手札 = 相手の残り手札(自分にはcardId非公開＝裏) ＋ 奪ったカード(自分の手札に来て
+    // いるのでcardIdが見える)。奪ったカードは表向きにめくれるよう、cardIdをoverridesで相手へも渡す。
+    const remaining = getState().tokens.filter(
+      (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === defender
+    );
+    const overrides = {};
+    for (const t of stolenTokens) if (t.cardId) overrides[t.id] = t.cardId;
+    const order = [...remaining.map((t) => t.id), ...stolenTokens.map((t) => t.id)].sort(() => Math.random() - 0.5);
+    const orderIndexOf = (tokenId) => order.indexOf(tokenId);
+
+    // 奪われる側の実況（表向き＋ホバー）を開始。
+    broadcastRitualPickStarted({
+      targetPlayer: defender,
+      order,
+      overrides,
+      title: `${getPlayerName(attacker)}があなたの手札から${stolenTokens.length}枚を奪います…`,
+    });
+
+    // 攻撃側のモーダル（裏向き、sleight-ritual-modalの見た目を流用）。
+    const backdrop = createBackdrop(() => {}, { dim: true, zIndex: 10620 });
+    const modal = document.createElement("div");
+    modal.id = "sleight-ritual-modal";
+    const title = document.createElement("div");
+    title.className = "sleight-ritual-title";
+    title.textContent = "シャッフル中…";
+    modal.appendChild(title);
+    const cardsWrap = document.createElement("div");
+    cardsWrap.className = "sleight-ritual-cards";
+    const n = order.length;
+    const cardEls = order.map((tokenId, index) => {
+      const el = document.createElement("div");
+      el.className = "sleight-ritual-card";
+      el.dataset.tokenId = tokenId;
+      el.style.backgroundImage = `url("${getCardBackImagePath(null)}")`;
+      el.style.setProperty("--shuffle-x", `${((n - 1) / 2 - index) * 1.1}rem`);
+      el.style.setProperty("--shuffle-rot", `${index % 2 === 0 ? 9 : -9}deg`);
+      el.style.animationDelay = `${(index % 4) * 0.06}s`;
+      el.addEventListener("pointerenter", () => broadcastRitualPickHover({ targetPlayer: defender, index }));
+      cardsWrap.appendChild(el);
+      return el;
+    });
+    modal.appendChild(cardsWrap);
+    modal.classList.add("is-shuffling");
+    document.body.appendChild(backdrop);
+    document.body.appendChild(modal);
+
+    await wait(1100); // シャッフル演出
+    modal.classList.remove("is-shuffling");
+    title.textContent = `カードをクリックして${stolenTokens.length}枚奪おう…`;
+
+    // 1枚ずつ、奪取カードをその位置でめくって奪う。クリックで進み、一定時間で自動進行もする
+    // （反応が無くてもキューが詰まらないように）。
+    for (let i = 0; i < stolenTokens.length; i++) {
+      await new Promise((resolve) => {
+        let advanced = false;
+        const advance = () => {
+          if (advanced) return;
+          advanced = true;
+          cardsWrap.removeEventListener("click", advance);
+          clearTimeout(autoTimer);
+          resolve();
+        };
+        const autoTimer = setTimeout(advance, 3500);
+        cardsWrap.addEventListener("click", advance);
+      });
+      const tok = stolenTokens[i];
+      const el = cardEls[orderIndexOf(tok.id)];
+      if (el) {
+        el.style.backgroundImage = `url("${getCardImagePath(tok.cardId)}")`;
+        el.classList.add("is-stolen-reveal");
+      }
+      broadcastRitualPickHover({ targetPlayer: defender, index: orderIndexOf(tok.id) });
+      playSound("cardFlip");
+      await wait(500);
+    }
+
+    title.textContent = "奪いました！";
+    // 奪われる側の実況に「これらが奪われた」を反映して閉じさせる。
+    broadcastRitualPickEnded({ targetPlayer: defender, pickedTokenIds: stolenTokens.map((t) => t.id) });
+    await wait(700);
+
+    // 奪ったカードを攻撃側の手札へ飛ばしてからモーダルを閉じる。
+    const toEl = document.querySelector(`.hand-area[data-player="${attacker}"]`);
+    const toRect = toEl?.getBoundingClientRect();
+    const flights = [];
+    for (const tok of stolenTokens) {
+      const el = cardEls[orderIndexOf(tok.id)];
+      if (el && toRect) {
+        const { done } = flyGhost(el.getBoundingClientRect(), toRect, getCardImagePath(tok.cardId), "setup-fly-card", 650);
+        flights.push(done);
+        await wait(160);
+      }
+    }
+    await Promise.all(flights);
+    backdrop.remove();
+    modal.remove();
+    clearTimeout(safetyTimer);
+    finish();
+  } catch (err) {
+    console.error("playGateInvasionStealRitual failed", err);
+    clearTimeout(safetyTimer);
+    finish();
+  }
+}
+
 // オンラインのゲート侵攻で「手札を奪う」演出（ユーザー要望「スリカエの時のような奪う演出を
 // オンラインでも出したい」）。ローカルは対話的な儀式ピック（stealHandCardsRitualForGateInvasion）
 // だが、オンラインはサーバーが既に無作為抽選済みのため同じ対話は再現できない。代わりに、
 // 奪われた側の手札エリアから攻撃側の手札エリアへ、count枚ぶんのカード裏ゴーストを少しずつ
-// 飛ばす純演出にする。gate-invasion-modal.jsの奪取ステップから注入経由で呼ぶ。
+// 飛ばす純演出にする（儀式演出が使えない/フォールバック時に使う）。
 async function playGateInvasionStealAnim(attacker, defender, count, onDone) {
   const fromEl = document.querySelector(`.hand-area[data-player="${defender}"]`);
   const toEl = document.querySelector(`.hand-area[data-player="${attacker}"]`);
@@ -9243,7 +9412,7 @@ registerGateInvasionStealHelper(stealHandCardsRitualForGateInvasion);
 // 派手な演出（3Dフリップ＋色バースト）を出す（ユーザー要望）。純演出関数のため両経路で共用できる。
 registerGateInvasionModalEternalAnim(playEternalAcquisitionAnim);
 // 同じくオンラインのゲート侵攻で「手札を奪う」飛翔演出を出す（ユーザー要望）。
-registerGateInvasionModalStealAnim(playGateInvasionStealAnim);
+registerGateInvasionModalStealAnim(playGateInvasionStealRitual);
 buildGameTitle();
 buildSpotlightOverlay();
 buildFinalLockApprovalBanner();

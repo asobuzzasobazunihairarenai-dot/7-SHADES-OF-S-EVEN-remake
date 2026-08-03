@@ -80,8 +80,13 @@ function buildSteps(events) {
       steps.push({
         text: `${getPlayerNameOrYou(ev.attacker)}はゲート侵攻成功！\n${getPlayerNameOrYou(ev.defender)}の手札${ev.stolenCount}枚を無作為に奪いました。`,
         cardsHtml: stolenCardsHtml,
-        // 奪う飛翔演出を先に見せてから、この一覧モーダルを出す。
-        stealAnim: { attacker: ev.attacker, defender: ev.defender, count: ev.stolenCount },
+        // 奪う演出（スリカエ風の儀式）を先に見せてから、この一覧モーダルを出す。
+        stealAnim: {
+          attacker: ev.attacker,
+          defender: ev.defender,
+          count: ev.stolenCount,
+          stolenTokenIds: ev.stolenTokenIds ?? [],
+        },
       });
     } else {
       steps.push({ text: `${getPlayerNameOrYou(ev.attacker)}はゲート侵攻成功！\n${getPlayerNameOrYou(ev.defender)}の手札枚数が半分未満のため、奪えるカードはありません。` });
@@ -237,9 +242,10 @@ function showStep(step) {
   ) {
     step._stealAnimDone = true;
     logAction("diag-gate-invasion-steal-anim", { attacker: step.stealAnim.attacker, defender: step.stealAnim.defender, count: step.stealAnim.count });
-    const { attacker, defender, count } = step.stealAnim;
     try {
-      stealAnimHelper(attacker, defender, count, () => showStep(step));
+      // stealAnimHelper（main.jsのplayGateInvasionStealRitual）にステップの奪取情報を丸ごと渡す
+      // （attacker/defender/count/stolenTokenIds）。完了後に同じステップを描き直して一覧モーダルへ。
+      stealAnimHelper(step.stealAnim, () => showStep(step));
     } catch (err) {
       console.error("gate-invasion-modal steal anim failed", err);
       showStep(step);
