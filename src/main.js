@@ -2205,7 +2205,10 @@ function reapplyEffectPickerHighlights(table) {
   } else if (activeEffectPicker.type === "hand") {
     for (const tokenId of activeEffectPicker.tokenIds) {
       const el = document.querySelector(`.hand-card[data-token-id="${tokenId}"], .hand-reveal-card[data-token-id="${tokenId}"]`);
-      if (el) el.classList.add("card-effect-target-cell");
+      if (el) {
+        el.classList.add("card-effect-target-cell");
+        el.classList.remove("hand-card-effect-unusable");
+      }
     }
   } else if (activeEffectPicker.type === "player") {
     for (const player of activeEffectPicker.players) {
@@ -2384,6 +2387,9 @@ document.addEventListener(
           if (match) {
             activeEffectPicker = null;
             picker.resolve(match);
+          } else if (picker.alertCells?.some((c) => c.row === row && c.col === col)) {
+            // 既に選択済みのマス（別々のマスに置く効果）を再度クリックした → 注意する。
+            alert(picker.alertMessage || "そのマスは選べません。");
           }
           return;
         }
@@ -2761,6 +2767,10 @@ function requestCellChoiceForEffect(candidates, hint, options = {}) {
     activeEffectPicker = {
       type: "cell",
       candidates,
+      // 既に選んだマス（候補外）をクリックした時に注意を出すため（プリドゥエン/増殖する樹々の
+      // 「別々のマスに置く」用、card-effect-engine.jsのPLACE_CARD CHOOSEから渡る）。
+      alertCells: options.alertCells ?? null,
+      alertMessage: options.alertMessage ?? null,
       resolve: (loc) => {
         for (const entry of entries) entry.el.classList.remove("card-effect-target-cell");
         document.body.classList.remove("card-effect-picking-cells");
@@ -2793,7 +2803,15 @@ function requestHandCardChoiceForEffect(player, hint, tokenIdFilter) {
       resolve(null);
       return;
     }
-    for (const el of cardEls) el.classList.add("card-effect-target-cell");
+    // 候補はハイライトし、直前のrender（activeEffectPicker未設定時）で付いた「使えない
+     // カードの暗転」(hand-card-effect-unusable)が残っていれば剥がす。これが残ると、ロック
+     // 済みカードの手札効果（tryUseLockedUsableCardが先にrender()する経路）で追色コストの
+     // 候補が“暗転したまま枠だけ光る”状態になっていた（ユーザー報告「ハイライトされずトーン
+     // オフ、でも選べる」）。以降のrenderではbuildPlayerZoneが候補を暗転対象から除外する。
+    for (const el of cardEls) {
+      el.classList.add("card-effect-target-cell");
+      el.classList.remove("hand-card-effect-unusable");
+    }
     document.body.classList.add("card-effect-picking-hand");
     if (hint) showEffectPickerHint(hint);
     activeEffectPicker = {

@@ -816,15 +816,26 @@ async function runAction(action, ctx, helpers) {
         const cellCandidates = action.destination?.excludeGates
           ? getAllCellCandidates().filter((c) => !Object.values(GATE_POSITIONS).some((g) => g.row === c.row && g.col === c.col))
           : getAllCellCandidates();
+        // ユーザー報告「プリドゥエン/増殖する樹々は『任意の“2マス”』なのに、同じ1マスに
+        // 2枚置けてしまう」。既に選んだマスは次以降の候補から除外し、別々のマスにしか
+        // 置けないようにする（＝重複マスは光らない＝選べない）。あわせて、既に選んだマスを
+        // もう一度選ぼうとした時にはアラートで知らせる（pickLocationにalertCellsを渡す）。
+        const pickedKeys = new Set();
         for (let i = 0; i < pickCount; i++) {
-          const dest = await helpers.pickLocation(cellCandidates, "カードを置くマスを選択してください");
+          const available = cellCandidates.filter((c) => !pickedKeys.has(`${c.row},${c.col}`));
+          if (available.length === 0) break;
+          const dest = await helpers.pickLocation(available, "カードを置くマスを選択してください（それぞれ別のマス）", {
+            alertCells: [...pickedKeys].map((k) => {
+              const [row, col] = k.split(",").map(Number);
+              return { row, col };
+            }),
+            alertMessage: "そのマスには既に置く予定です。別のマスを選んでください。",
+          });
           if (!dest) break;
           destinations.push(dest);
-          // ユーザー報告「増殖する樹々の手札効果で、マスを選択するとき、どのマスが
-          // 選択済みかがわかりづらい」。同じ効果内で複数マスを連続して選ばせる場合、
-          // 実際の配置（山札から置く処理）は全て選び終わった後にまとめて行われるため、
-          // 選んだ直後は盤面上に何の変化も無い。選ぶたびにmarkPlacementTargetで
-          // 「ここに置かれる」目印を積み重ね、次の候補選択中も消えずに残るようにする。
+          pickedKeys.add(`${dest.row},${dest.col}`);
+          // ユーザー報告「増殖する樹々の手札効果で、どのマスが選択済みかわかりづらい」。
+          // 選ぶたびにmarkPlacementTargetで「ここに置かれる」目印を積み重ねる。
           helpers.markPlacementTarget?.(dest);
         }
       } else if (action.destination?.selection === TARGET_SELECTIONS.ALL_WITHIN_RANGE) {
