@@ -7033,7 +7033,25 @@ function findGomennasaiEligibility(seat) {
   if (!sorryToken) return null;
   const costCandidates = findSameColorDiscardCandidates(sorryToken.id, "purple", seat);
   if (costCandidates.length === 0) return null;
-  return { sorryToken, costCandidates };
+  // 奪えるロックが攻撃側に1枚も無ければ（既存ロックが全てファースト/エターナル＝他効果の
+  // 対象外の場合等）、ゴメンナサイを使っても奪う対象が無く何も起きない。ボタンを出す意味が
+  // 無いのでnullを返し、checkGomennasaiAutoApprovalに自動承認させる（ユーザー報告「最後の
+  // ロックの承認モーダルでゴメンナサイを使うを押しても何も起きない」対応——以前は所持と
+  // コストだけ見てボタンを出していたため、奪える対象が無い局面で無反応になっていた）。
+  const pending = getState().pendingFinalLock;
+  const attackerSide = pending ? SEAT_TO_SIDE[pending.attacker] : null;
+  const stealableLocks = attackerSide
+    ? getState().tokens.filter(
+        (t) =>
+          t.kind === "card" &&
+          t.location.zone === "lock" &&
+          t.location.side === attackerSide &&
+          !t.cardId?.startsWith("eternal-") &&
+          !t.cardId?.startsWith("first-")
+      )
+    : [];
+  if (stealableLocks.length === 0) return null;
+  return { sorryToken, costCandidates, stealableLocks };
 }
 
 // ユーザー確認済み方針「コストを払える人だけが却下（＝妨害）できる」への対応。
@@ -7100,16 +7118,9 @@ async function useGomennasaiOnFinalLock() {
   const selfSeat = getSelfSeat();
   const eligibility = findGomennasaiEligibility(selfSeat);
   if (!eligibility) return;
-  const attackerSide = SEAT_TO_SIDE[pending.attacker];
-  const attackerLockedTokens = getState().tokens.filter(
-    (t) =>
-      t.kind === "card" &&
-      t.location.zone === "lock" &&
-      t.location.side === attackerSide &&
-      !t.cardId?.startsWith("eternal-") &&
-      !t.cardId?.startsWith("first-")
-  );
-  if (attackerLockedTokens.length === 0) return; // 善処の原則: 奪える対象が無ければ何もしない
+  // findGomennasaiEligibilityが「奪えるロックが1枚以上ある」ことまで確認済みなので、
+  // ここでは同じ判定を再計算せずその結果を使う（ボタンが出ている＝必ず奪える対象がある）。
+  const attackerLockedTokens = eligibility.stealableLocks;
   const candidates = attackerLockedTokens.map((t) => t.location);
   const dest =
     candidates.length === 1 ? candidates[0] : await requestCellChoiceForEffect(candidates, "奪うロックカードを選択してください");

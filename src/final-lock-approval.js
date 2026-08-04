@@ -39,15 +39,25 @@ export function buildFinalLockApprovalBanner() {
   return bannerEl;
 }
 
+// 直近に描画したバナー内容の署名。render()は対局中ひっきりなしに呼ばれ、そのたびに
+// このバナーを作り直す（innerHTML=""）と、ユーザーがボタンを押す瞬間にDOMごと差し替わり
+// クリックが取りこぼされる（ユーザー報告「ゴメンナサイを使うを押しても何も起きない」の
+// 主因）。中身が変わらない限り作り直さないよう、署名が一致する間はDOMをそのまま残す。
+let lastBannerSignature = null;
+function hideBanner() {
+  if (lastBannerSignature === null) return;
+  bannerEl.classList.remove("is-visible");
+  bannerEl.innerHTML = "";
+  lastBannerSignature = null;
+}
+
 export function updateFinalLockApprovalBanner() {
   if (!bannerEl) return;
   const pending = getState().pendingFinalLock;
   if (!pending || pending.queue.length === 0) {
-    bannerEl.classList.remove("is-visible");
-    bannerEl.innerHTML = "";
+    hideBanner();
     return;
   }
-  bannerEl.classList.add("is-visible");
   const approver = pending.queue[0];
   // ローカルモードは1人で全座席を操作するテスト用途のため、既存の「座席を持っていれば
   // 何でも動かせる」方針を踏襲し、常にボタンを押せるようにする。オンライン中だけ、
@@ -59,10 +69,25 @@ export function updateFinalLockApprovalBanner() {
   // 必要です」と見せておいてすぐ消えるチラつきを避けるため、最初から出さない）。
   const isEligibleForGomennasai = canRespond && !!checkGomennasaiEligibility?.(approver);
   if (canRespond && !isEligibleForGomennasai) {
-    bannerEl.classList.remove("is-visible");
-    bannerEl.innerHTML = "";
+    hideBanner();
     return;
   }
+  // 中身が変わらない限り作り直さない（作り直すと連打レンダーにクリックを奪われる）。
+  // 署名には表示に効く全要素（挑戦者/承認者/操作可否/ゴメンナサイ可否＋表示名）を含める。
+  const signature = [
+    pending.attacker,
+    approver,
+    canRespond,
+    isEligibleForGomennasai,
+    getPlayerName(pending.attacker),
+    getPlayerName(approver),
+  ].join("|");
+  if (signature === lastBannerSignature) {
+    bannerEl.classList.add("is-visible"); // 念のため可視状態は維持
+    return;
+  }
+  lastBannerSignature = signature;
+  bannerEl.classList.add("is-visible");
   bannerEl.innerHTML = "";
 
   const title = document.createElement("div");
