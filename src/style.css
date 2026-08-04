@@ -6087,6 +6087,26 @@ body.is-touch-device .self-status-icon-grid #self-status-online .icon-action-but
 .avatar-picker-swatch.is-selected {
   border-color: #7dd3fc;
 }
+/* 国王アバターは有料。未所持は駒スキン等と同じくモノクロ気味に沈め、右下に価格バッジを
+   重ねる（クリックするとピッカー側がショップを開く）。 */
+.avatar-picker-swatch.is-locked {
+  position: relative;
+}
+.avatar-picker-swatch.is-locked .avatar-image {
+  filter: grayscale(0.8) brightness(0.6);
+}
+.avatar-picker-swatch-lock {
+  position: absolute;
+  bottom: 0.2rem;
+  right: 0.2rem;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fde68a;
+  font-size: 0.6rem;
+  font-weight: bold;
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.6rem;
+  pointer-events: none;
+}
 
 /* ユーザー要望「アバター画像を自分でアップロードできるようにしたい」への対応
    （avatar-upload.js参照）。 */

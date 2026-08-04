@@ -111,7 +111,7 @@ import { openPlaymatPicker, registerPlaymatHelpers, getSelectedPlaymatPath, setS
 import { openBackgroundPicker, registerBackgroundHelpers, getSelectedBackgroundPath, setSelectedBackgroundId } from "./background.js";
 import { openPetPicker, registerPetHelpers, getSelectedPetIndex, PET_OPTIONS, petSpriteSrc, pushMyPetToProfile } from "./pet-skins.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
-import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS } from "./player-identity.js";
+import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS, getAvatarItemKey, KING_AVATAR_COST } from "./player-identity.js";
 import { applyAvatarContent, getAvatarVariant, getAwakenedVariant, getEnragedVariant } from "./avatar-render.js";
 import { buildIconButtonContent, wireIconButtonClick, openIconDetailModal } from "./icon-action-button.js";
 import { buildAvatarUploadSection } from "./avatar-upload.js";
@@ -9070,7 +9070,25 @@ async function openAvatarPicker() {
     swatch.className = "avatar-picker-swatch";
     if (getPlayerAvatar(getSelfSeat()) === avatar) swatch.classList.add("is-selected");
     applyAvatarContent(swatch, avatar);
+    // 国王アバターは有料（ショップで購入）。未所持ならロック表示にして、クリックで
+    // アバターカテゴリのショップを開く（ペットピッカーと同じ挙動）。色アバターは
+    // getAvatarItemKeyがnullを返す＝無料なので従来通りそのまま選べる。
+    const itemKey = getAvatarItemKey(avatar);
+    const locked = !!itemKey && !isItemUnlocked(itemKey);
+    if (locked) {
+      swatch.classList.add("is-locked");
+      swatch.title = `🔒 ${KING_AVATAR_COST}で購入`;
+      const lockBadge = document.createElement("span");
+      lockBadge.className = "avatar-picker-swatch-lock";
+      lockBadge.textContent = `🔒${KING_AVATAR_COST}`;
+      swatch.appendChild(lockBadge);
+    }
     swatch.addEventListener("click", () => {
+      if (locked) {
+        close();
+        openShop?.("avatar");
+        return;
+      }
       setPlayerAvatar(getSelfSeat(), avatar);
       render();
       close();

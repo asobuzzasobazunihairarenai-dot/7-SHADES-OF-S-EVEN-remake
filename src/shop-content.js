@@ -13,6 +13,7 @@ import { getCardBackShopItems } from "./card-back-skins.js";
 import { getPlaymatShopItems } from "./playmat.js";
 import { getBackgroundShopItems } from "./background.js";
 import { getPetShopItems } from "./pet-skins.js";
+import { getAvatarShopItems } from "./player-identity.js";
 import { isItemUnlocked } from "./online.js";
 
 export const SHOP_CATEGORIES = [
@@ -20,8 +21,11 @@ export const SHOP_CATEGORIES = [
   { key: "card-back", label: "🂠 カード裏面", items: getCardBackShopItems() },
   { key: "playmat", label: "🟩 プレイマット", items: getPlaymatShopItems() },
   { key: "background", label: "🖼️ 背景画像", items: getBackgroundShopItems() },
-  // ユーザー要望「ペットをショップに。全て有料・初期は未所持・少し高め（500）」。
+  // ユーザー要望「ペットをショップに。全て有料・初期は未所持・少し高め（500→300）」。
   { key: "pet", label: "🐾 ペット", items: getPetShopItems() },
+  // ユーザー要望「国王アバターはショップで200で有料に」。色アバターは無料のまま、
+  // 国王/女王アバターだけを有料商品として並べる（getAvatarShopItems）。
+  { key: "avatar", label: "😀 アバター", items: getAvatarShopItems() },
 ];
 
 // ユーザー要望「ショップ画面とマイページにアイテムコンプリート率を表示したい」への対応。

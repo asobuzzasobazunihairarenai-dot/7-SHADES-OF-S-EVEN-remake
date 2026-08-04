@@ -181,6 +181,17 @@ export function isHandEffectOptionUsable(cardId, cardTokenId, player, option) {
     const handCountExcludingSelf = getHandTokens(player).filter((t) => t.id !== cardTokenId).length;
     if (handCountExcludingSelf > drawIfAtMost.maxHandSize) return false;
   }
+  // ザ・ギャンブル専用（DISCARD_ONE_HAND_CARD）。手札効果はこのカード自身を先に捨てて
+  // から残りのアクションを実行するため（DRAW_IF_HAND_AT_MOSTのコメント参照）、「手札を
+  // 1枚捨てる」時点で自分以外に捨てられる手札が1枚も無いと、そこで止まって効果が完結
+  // しない。セレナーデ等と同じ善処の原則で、自分以外の手札が無いなら発動宣言自体を
+  // できないものとして扱う（ユーザー報告「ザ・ギャンブル1枚だけの時、使えないのに
+  // ハンドフェイズがスキップされない」の一因）。
+  const discardOne = option.actions?.find((a) => a.verb === VERBS.DISCARD_ONE_HAND_CARD);
+  if (discardOne) {
+    const otherHandCount = getHandTokens(player).filter((t) => t.id !== cardTokenId).length;
+    if (otherHandCount < 1) return false;
+  }
   return true;
 }
 

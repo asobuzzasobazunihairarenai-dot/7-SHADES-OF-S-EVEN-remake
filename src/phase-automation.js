@@ -20,6 +20,8 @@ import {
   getMoveCandidates,
   isMovementBoostActiveThisTurn,
   isHandEffectReactiveOnly,
+  hasHandEffectData,
+  canUseHandEffect,
 } from "./card-effect-engine.js";
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
 import { playSound } from "./sound.js";
@@ -210,6 +212,26 @@ function handIsEmpty(player) {
 function handHasOnlyReactiveOnlyCards(player) {
   const hand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
   return hand.length > 0 && hand.every((t) => isHandEffectReactiveOnly(t.cardId));
+}
+
+// ユーザー報告「手札にマスチェンジ1枚しかないのにハンドフェイズがスキップされない
+// （追色が必要で1枚では使えない）。ザ・ギャンブル1枚の時も同様」。手札が空でなくても、
+// 全ての手札カードが『今このハンドフェイズでは使えない』と確定できるなら自動スキップする。
+// handHasOnlyReactiveOnlyCardsの拡張版で、以下を「使えない」とみなす:
+//   ・反応時専用カード（ハンドフェイズでは絶対に使えない）
+//   ・構造化データ(DSL)を持つカードで、canUseHandEffectがfalse（追色コスト不足・使用回数
+//     超過・ザ・ギャンブルで捨てる手札が無い等、善処の原則で発動宣言できない）
+// 逆に、DSL未対応のカード（プレゼント等、まだ使えるか判定できない手札効果）は
+// 「使えるかもしれない」として残し、スキップしない（＝取りこぼして飛ばさない。以前
+// hasUsableHandEffectで飛ばしていたバグ、reconcilePhaseAutomationのhandコメント参照）。
+function handHasNoUsableCards(player) {
+  const hand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
+  if (hand.length === 0) return false; // 空はhandIsEmptyが担当
+  return hand.every((t) => {
+    if (isHandEffectReactiveOnly(t.cardId)) return true;
+    if (!hasHandEffectData(t.cardId)) return false; // DSL未対応 → 使えるかもしれないので残す
+    return !canUseHandEffect(t.cardId, t.id, player);
+  });
 }
 
 // ユーザー指摘: ロックフェイズのスキップ判定は「手札が空かどうか」だけでは不十分。
@@ -543,6 +565,14 @@ function enterPhase(phase, player) {
     advancePhaseAfterSkip();
     return;
   }
+  // 手札はあるが、どれも今は使えない（追色コスト不足・ザ・ギャンブルで捨てる手札が無い等）
+  // 場合も自動スキップする。反応時専用だけの場合は上で専用文言を出しているため、ここは
+  // それ以外の「使えない」ケース向けの一般的な文言にする。
+  if (phase === "hand" && handHasNoUsableCards(player)) {
+    showPhaseSkipModal("今使える手札効果が無いため、ハンドフェイズを自動的にスキップしました。");
+    advancePhaseAfterSkip();
+    return;
+  }
 
   announcePhase(phase);
   updatePhaseGuideGlow();
@@ -641,7 +671,7 @@ export function reconcilePhaseAutomation() {
     // のみ持っていて使えるカードがないのにムーブフェイズへ自動で移行しなかった」への
     // 対応で、反応時専用カードだけが残った場合（handHasOnlyReactiveOnlyCards）も
     // 同様に自動で進める。
-    if (!handEffectBusy && !skipTransitionPending && (handIsEmpty(player) || handHasOnlyReactiveOnlyCards(player))) advancePhase();
+    if (!handEffectBusy && !skipTransitionPending && (handIsEmpty(player) || handHasNoUsableCards(player))) advancePhase();
     return;
   }
   if (currentPhase === "move") {

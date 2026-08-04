@@ -41,6 +41,39 @@ export const AVATAR_OPTIONS = [
   ...KING_AVATARS.map((k) => `assets/avatars/${k}-front.webp`),
 ];
 
+// 国王アバターは有料（ショップで購入、ユーザー要望で200）。色アバターは従来通り無料。
+// 表示名は色ベースの中立的な名前にしておく（メモリ[[king-enraged-avatar-source-gaps]]の通り
+// basenameと実際の絵柄が食い違うことがあるため、狐王/氷海王等の細かな呼称は避ける）。
+export const KING_AVATAR_COST = 200;
+const KING_AVATAR_LABELS = {
+  "avatar-red-king": "赤の国王",
+  "avatar-orange-fox-king": "橙の国王",
+  "avatar-yellow-light-king": "黄の国王",
+  "avatar-green-forest-king": "緑の国王",
+  "avatar-blue-ice-sea-king": "青の国王",
+  "avatar-pink-queen": "桃の女王",
+  "avatar-purple-elder-queen": "紫の女王",
+};
+
+// アバター相対パス → ショップのitemKey。有料の国王アバターだけ非nullを返す。色アバター・
+// アップロード画像・Googleプロフィール画像はnull（無料・ロック不要）。openAvatarPicker()が
+// これでロック要否を判定する。
+export function getAvatarItemKey(avatar) {
+  const m = typeof avatar === "string" && avatar.match(/\/([^/]+)-front\.webp$/);
+  if (!m) return null;
+  return KING_AVATARS.includes(m[1]) ? `avatar:${m[1]}` : null;
+}
+
+// ショップ（shop-content.jsの「アバター」カテゴリ）へ渡す商品一覧。国王アバターのみ・全て有料。
+export function getAvatarShopItems() {
+  return KING_AVATARS.map((base) => ({
+    itemKey: `avatar:${base}`,
+    label: KING_AVATAR_LABELS[base] || base,
+    cost: KING_AVATAR_COST,
+    imagePath: `assets/avatars/${base}-front.webp`,
+  }));
+}
+
 const DEFAULT_AVATARS = {
   A: "assets/avatars/red-front.webp",
   B: "assets/avatars/orange-front.webp",
