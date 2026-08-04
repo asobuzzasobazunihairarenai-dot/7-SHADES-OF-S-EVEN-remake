@@ -9857,14 +9857,20 @@ body.reduce-glow .cell.tutorial-move-range {
    プレイヤーに選ばせる時のハイライト。tutorial-move-rangeと同じ黄色パルスの見た目だが、
    クリックで選べることを示すためcursor:pointerを明示している。 */
 .cell.card-effect-target-cell,
-.hand-card.card-effect-target-cell {
+.hand-card.card-effect-target-cell,
+/* ロックスロットも候補になり得る（ゴメンナサイで奪う相手のロックを選ぶ等）。以前は
+   .cell/.hand-cardにしか黄色ハイライトが付かず、ロックスロットを候補にすると盤面が
+   暗転するだけで「どこを押せばいいか分からない」状態だった（ユーザー報告「ゴメンナサイを
+   使うを押したら盤面がグレーになっただけで何も起きない」の主因）。 */
+.lock-slot.card-effect-target-cell {
   outline: 3px solid rgba(250, 204, 21, 0.9);
   outline-offset: -3px;
   animation: tutorial-move-range-pulse 1.4s ease-in-out infinite;
   cursor: pointer;
 }
 body.reduce-glow .cell.card-effect-target-cell,
-body.reduce-glow .hand-card.card-effect-target-cell {
+body.reduce-glow .hand-card.card-effect-target-cell,
+body.reduce-glow .lock-slot.card-effect-target-cell {
   animation: none;
 }
 /* ユーザー要望「移動先候補が少しわかりずらい。ほかのマスのトーンを落として、カードの面も
