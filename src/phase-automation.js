@@ -31,6 +31,7 @@ import { getCardDefinition } from "./cards-data.js";
 import { hasAnyoneWon } from "./victory.js";
 import { isPseudoCpuModeEnabled as isPseudoCpuModeEnabledLocal, isPseudoCpuIncludeSelf, getPseudoCpuDeadlineMs } from "./admin.js";
 import { logAction } from "./action-log.js";
+import { isAutoPhaseSkipEnabled, onAutoPhaseSkipChange } from "./auto-phase-skip-setting.js";
 
 // ユーザー報告（続き99）「疑似CPUモードの時、回復すると基本時間が15秒とかまで行って
 // しまう」。turn-timer.jsのisPseudoCpuTargetと全く同じ判定だが、循環import
@@ -553,37 +554,20 @@ function updateSkipButtonVisibility() {
   }
 }
 
-// ユーザー要望「フェイズ自動スキップのオン/オフを切り替えるボタンを、フェイズ案内板の
-// ロックアイコンの左隣に付けたい。ONなら今まで通り、することが無いフェイズを自動で
-// スキップする。OFFなら自動では飛ばさず、自分でスキップボタンを押すまでそのフェイズに
-// 留まる（例: ロックできるカードを持っていないことを自動スキップで相手に悟られないため）」。
-// この端末のみの設定（localStorage、アカウント/相手には同期しない——自分の手番の進み方を
-// 選ぶだけでゲーム状態には一切影響しないため）。自動処理モード自体がONのときにだけ意味を持つ。
-const AUTO_PHASE_SKIP_KEY = "so7-auto-phase-skip";
-let autoPhaseSkipEnabled = true;
-try {
-  if (localStorage.getItem(AUTO_PHASE_SKIP_KEY) === "0") autoPhaseSkipEnabled = false;
-} catch (e) {
-  /* localStorageが読めなければ既定ON */
-}
-export function isAutoPhaseSkipEnabled() {
-  return autoPhaseSkipEnabled;
-}
-export function setAutoPhaseSkipEnabled(v) {
-  autoPhaseSkipEnabled = !!v;
-  try {
-    localStorage.setItem(AUTO_PHASE_SKIP_KEY, autoPhaseSkipEnabled ? "1" : "0");
-  } catch (e) {
-    /* 保存できなくても実行中は反映される */
-  }
+// フェイズ自動送りのON/OFFは葉モジュール（auto-phase-skip-setting.js）が持つ。ここでは
+// その値を読み、変更時の副作用（ONに戻した瞬間に「することが無いフェイズ」を即スキップ
+// させるための再評価）だけを購読して行う。値の所有をこのモジュールから外したのは、ボタン側
+// （phase-guide.js）がphase-automation.jsをimportするとモジュール評価順が壊れて起動不能に
+// なったため（auto-phase-skip-setting.js冒頭コメント参照）。
+onAutoPhaseSkipChange((on) => {
   // ONに切り替えた瞬間、今いるフェイズが「することが無い」なら即スキップに入れるよう、
   // 自分の手番のロック/ハンドフェイズなら入り直して自動スキップ判定をやり直す（まだ
   // ロック/使用していなければ再入場は無害。詳細はenterPhaseの各自動スキップ分岐参照）。
-  if (autoPhaseSkipEnabled && getState().turnPlayer === getSelfSeat() && (currentPhase === "lock" || currentPhase === "hand")) {
+  if (on && getState().turnPlayer === getSelfSeat() && (currentPhase === "lock" || currentPhase === "hand")) {
     enterPhase(currentPhase, getSelfSeat());
   }
   updateSkipButtonVisibility();
-}
+});
 
 // --- フェイズの開始・進行 ---------------------------------------------------------------
 function enterPhase(phase, player) {
@@ -602,7 +586,7 @@ function enterPhase(phase, player) {
   // 通常のフェイズ告知は出さずスキップの旨だけモーダルで伝えて次へ進む。
   // 自動スキップがOFFのときは、することが無いフェイズでも自動では飛ばさず、通常通り
   // フェイズを開始してプレイヤーの手動スキップを待つ（ユーザー要望の情報秘匿目的）。
-  if (autoPhaseSkipEnabled) {
+  if (isAutoPhaseSkipEnabled()) {
     if (phase === "lock" && !hasLockableCard(player)) {
       showPhaseSkipModal("ロックできるカードが無いため、ロックフェイズを自動的にスキップしました。");
       advancePhaseAfterSkip();
@@ -731,7 +715,7 @@ export function reconcilePhaseAutomation() {
     // 対応で、反応時専用カードだけが残った場合（handHasOnlyReactiveOnlyCards）も
     // 同様に自動で進める。
     if (
-      autoPhaseSkipEnabled &&
+      isAutoPhaseSkipEnabled() &&
       !handEffectBusy &&
       !skipTransitionPending &&
       !hasUsableLockedFirstOrEternal(player) &&

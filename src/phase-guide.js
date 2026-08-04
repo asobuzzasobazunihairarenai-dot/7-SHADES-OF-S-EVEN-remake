@@ -10,7 +10,7 @@
 // 示せるようにする想定（そのための土台として、ボタンをフェイズidで識別できるようにしてある）。
 
 import { buildIconButtonContent, wireIconButtonClick, openIconDetailModal } from "./icon-action-button.js";
-import { isAutoPhaseSkipEnabled, setAutoPhaseSkipEnabled } from "./phase-automation.js";
+import { isAutoPhaseSkipEnabled, setAutoPhaseSkipEnabled } from "./auto-phase-skip-setting.js";
 
 // tutorial.jsのチュートリアル手順から、フェイズの説明文をそのまま使い回すためexportする
 // （説明文の二重管理を避ける）。
