@@ -13,8 +13,8 @@ import { getSelfSeat, getSyncedIdentity, updateMyIdentity, isItemUnlocked, openS
 // （ショップで購入）＋「なし」だけにした。sprite付きは piece-pet.js が画像スプライト
 // （4方向×モーション）で描画する。itemKey/cost はショップ連携用（shop-content.js）。
 export const PET_OPTIONS = [
-  { sprite: "cubit", label: "キュビット", itemKey: "pet:cubit", cost: 500 },
-  { sprite: "noxael", label: "ノクスアエル幼体", itemKey: "pet:noxael", cost: 500 },
+  { sprite: "cubit", label: "キュビット", itemKey: "pet:cubit", cost: 300 },
+  { sprite: "noxael", label: "ノクスアエル幼体", itemKey: "pet:noxael", cost: 300 },
   { emoji: null, label: "なし（非表示）" }, // ペットを表示しない（初期値）
 ];
 

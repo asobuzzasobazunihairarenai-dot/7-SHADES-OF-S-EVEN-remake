@@ -55,6 +55,11 @@ export function getPlayerName(seat) {
   if (isOnlineMode()) {
     const synced = getSyncedIdentity(seat)?.name;
     if (synced) return synced;
+    // オンライン中、自分以外の座席はローカルの customNames[]（＝この端末で入力した値）に
+    // フォールバックしない。過去のゲームで自分がこの座席に座っていた等で自分の名前が
+    // 残っていると、相手が未設定・ロスター未取得の一瞬にその名前が相手の枠へ漏れる
+    // （getPlayerAvatarと同根の不具合）。同期値が無ければ座席ラベルを返す。
+    if (seat !== getSelfSeat()) return SEAT_LABELS[seat];
   }
   return customNames[seat] || SEAT_LABELS[seat];
 }
@@ -71,6 +76,13 @@ export function getPlayerAvatar(seat) {
   if (isOnlineMode()) {
     const synced = getSyncedIdentity(seat)?.avatar;
     if (synced) return synced;
+    // オンライン中、自分以外の座席はローカルの avatars[]（＝この端末で自分が選んだ値）に
+    // フォールバックしない。avatarsは座席キーで、getSelfSeat()が過去のゲーム/待機中の
+    // プレビュー座席と変わると、以前の自分の座席キーに自分のアバターが残る。相手が
+    // 未設定・ロスター未取得の一瞬にそのキーへ相手の描画がフォールバックすると、相手の
+    // 枠へ「自分のアバター」が漏れて表示される（ユーザー報告「相手のアバターが自分の
+    // アバターになっている時がある」の原因）。同期値が無ければその座席の既定色を返す。
+    if (seat !== getSelfSeat()) return DEFAULT_AVATARS[seat] || DEFAULT_AVATARS.A;
   }
   return avatars[seat] || DEFAULT_AVATARS[seat];
 }
