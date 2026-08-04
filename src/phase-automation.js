@@ -234,6 +234,24 @@ function handHasNoUsableCards(player) {
   });
 }
 
+// ファースト/エターナルカードは「原則ロックしたカードの手札効果は使えない」の例外で、
+// ロックエリアに置いたままでもハンドフェイズで使える（buildFlatCardのis-usable-while-locked
+// 参照）。上のhandIsEmpty/handHasNoUsableCardsは手札ゾーンしか見ないため、手札が空/全部
+// 使えなくても、ロック済みのファースト/エターナルが今使えるならハンドフェイズを自動
+// スキップしてはいけない（ユーザー指摘）。使用可否は手札のときと同じcanUseHandEffectで
+// 判定する（追色コスト等。ゾーンに依存しない）。
+function hasUsableLockedFirstOrEternal(player) {
+  return getState().tokens.some(
+    (t) =>
+      t.kind === "card" &&
+      t.location.zone === "lock" &&
+      SIDE_TO_SEAT[t.location.side] === player &&
+      (t.cardId.startsWith("first-") || t.cardId.startsWith("eternal-")) &&
+      hasHandEffectData(t.cardId) &&
+      canUseHandEffect(t.cardId, t.id, player)
+  );
+}
+
 // ユーザー指摘: ロックフェイズのスキップ判定は「手札が空かどうか」だけでは不十分。
 // docs/rulebook.mdの「ロック」FAQ確認: 原則1色のロックエリアには1枚しかロックできない
 // （既に埋まっている色は対象外）。「なないろの欠片」は手札に2枚揃っていてもロック
@@ -535,6 +553,38 @@ function updateSkipButtonVisibility() {
   }
 }
 
+// ユーザー要望「フェイズ自動スキップのオン/オフを切り替えるボタンを、フェイズ案内板の
+// ロックアイコンの左隣に付けたい。ONなら今まで通り、することが無いフェイズを自動で
+// スキップする。OFFなら自動では飛ばさず、自分でスキップボタンを押すまでそのフェイズに
+// 留まる（例: ロックできるカードを持っていないことを自動スキップで相手に悟られないため）」。
+// この端末のみの設定（localStorage、アカウント/相手には同期しない——自分の手番の進み方を
+// 選ぶだけでゲーム状態には一切影響しないため）。自動処理モード自体がONのときにだけ意味を持つ。
+const AUTO_PHASE_SKIP_KEY = "so7-auto-phase-skip";
+let autoPhaseSkipEnabled = true;
+try {
+  if (localStorage.getItem(AUTO_PHASE_SKIP_KEY) === "0") autoPhaseSkipEnabled = false;
+} catch (e) {
+  /* localStorageが読めなければ既定ON */
+}
+export function isAutoPhaseSkipEnabled() {
+  return autoPhaseSkipEnabled;
+}
+export function setAutoPhaseSkipEnabled(v) {
+  autoPhaseSkipEnabled = !!v;
+  try {
+    localStorage.setItem(AUTO_PHASE_SKIP_KEY, autoPhaseSkipEnabled ? "1" : "0");
+  } catch (e) {
+    /* 保存できなくても実行中は反映される */
+  }
+  // ONに切り替えた瞬間、今いるフェイズが「することが無い」なら即スキップに入れるよう、
+  // 自分の手番のロック/ハンドフェイズなら入り直して自動スキップ判定をやり直す（まだ
+  // ロック/使用していなければ再入場は無害。詳細はenterPhaseの各自動スキップ分岐参照）。
+  if (autoPhaseSkipEnabled && getState().turnPlayer === getSelfSeat() && (currentPhase === "lock" || currentPhase === "hand")) {
+    enterPhase(currentPhase, getSelfSeat());
+  }
+  updateSkipButtonVisibility();
+}
+
 // --- フェイズの開始・進行 ---------------------------------------------------------------
 function enterPhase(phase, player) {
   // 前のフェイズのスキップモーダルがまだ残っていれば、新しいフェイズの表示
@@ -550,28 +600,37 @@ function enterPhase(phase, player) {
   // 「ロックできるカードが1枚も無い」時（手札はあっても、なないろの欠片だけ・
   // 既に埋まっている色しか無い等の場合を含む——ユーザー指摘、hasLockableCard参照）に、
   // 通常のフェイズ告知は出さずスキップの旨だけモーダルで伝えて次へ進む。
-  if (phase === "lock" && !hasLockableCard(player)) {
-    showPhaseSkipModal("ロックできるカードが無いため、ロックフェイズを自動的にスキップしました。");
-    advancePhaseAfterSkip();
-    return;
-  }
-  if (phase === "hand" && handIsEmpty(player)) {
-    showPhaseSkipModal("手札が無いため、ハンドフェイズを自動的にスキップしました。");
-    advancePhaseAfterSkip();
-    return;
-  }
-  if (phase === "hand" && handHasOnlyReactiveOnlyCards(player)) {
-    showPhaseSkipModal("手札の効果は反応時にしか使えないため、ハンドフェイズを自動的にスキップしました。");
-    advancePhaseAfterSkip();
-    return;
-  }
-  // 手札はあるが、どれも今は使えない（追色コスト不足・ザ・ギャンブルで捨てる手札が無い等）
-  // 場合も自動スキップする。反応時専用だけの場合は上で専用文言を出しているため、ここは
-  // それ以外の「使えない」ケース向けの一般的な文言にする。
-  if (phase === "hand" && handHasNoUsableCards(player)) {
-    showPhaseSkipModal("今使える手札効果が無いため、ハンドフェイズを自動的にスキップしました。");
-    advancePhaseAfterSkip();
-    return;
+  // 自動スキップがOFFのときは、することが無いフェイズでも自動では飛ばさず、通常通り
+  // フェイズを開始してプレイヤーの手動スキップを待つ（ユーザー要望の情報秘匿目的）。
+  if (autoPhaseSkipEnabled) {
+    if (phase === "lock" && !hasLockableCard(player)) {
+      showPhaseSkipModal("ロックできるカードが無いため、ロックフェイズを自動的にスキップしました。");
+      advancePhaseAfterSkip();
+      return;
+    }
+    // ハンドフェイズの自動スキップは、ロック済みのファースト/エターナルが使える場合は
+    // 行わない（手札が空/使えなくてもロック済みのF/Eをハンドフェイズで使えるため。
+    // ユーザー指摘、hasUsableLockedFirstOrEternal参照）。
+    if (phase === "hand" && !hasUsableLockedFirstOrEternal(player)) {
+      if (handIsEmpty(player)) {
+        showPhaseSkipModal("手札が無いため、ハンドフェイズを自動的にスキップしました。");
+        advancePhaseAfterSkip();
+        return;
+      }
+      if (handHasOnlyReactiveOnlyCards(player)) {
+        showPhaseSkipModal("手札の効果は反応時にしか使えないため、ハンドフェイズを自動的にスキップしました。");
+        advancePhaseAfterSkip();
+        return;
+      }
+      // 手札はあるが、どれも今は使えない（追色コスト不足・ザ・ギャンブルで捨てる手札が
+      // 無い等）場合も自動スキップする。反応時専用だけの場合は上で専用文言を出している
+      // ため、ここはそれ以外の「使えない」ケース向けの一般的な文言にする。
+      if (handHasNoUsableCards(player)) {
+        showPhaseSkipModal("今使える手札効果が無いため、ハンドフェイズを自動的にスキップしました。");
+        advancePhaseAfterSkip();
+        return;
+      }
+    }
   }
 
   announcePhase(phase);
@@ -671,7 +730,14 @@ export function reconcilePhaseAutomation() {
     // のみ持っていて使えるカードがないのにムーブフェイズへ自動で移行しなかった」への
     // 対応で、反応時専用カードだけが残った場合（handHasOnlyReactiveOnlyCards）も
     // 同様に自動で進める。
-    if (!handEffectBusy && !skipTransitionPending && (handIsEmpty(player) || handHasNoUsableCards(player))) advancePhase();
+    if (
+      autoPhaseSkipEnabled &&
+      !handEffectBusy &&
+      !skipTransitionPending &&
+      !hasUsableLockedFirstOrEternal(player) &&
+      (handIsEmpty(player) || handHasNoUsableCards(player))
+    )
+      advancePhase();
     return;
   }
   if (currentPhase === "move") {

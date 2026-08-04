@@ -10,6 +10,7 @@
 // 示せるようにする想定（そのための土台として、ボタンをフェイズidで識別できるようにしてある）。
 
 import { buildIconButtonContent, wireIconButtonClick, openIconDetailModal } from "./icon-action-button.js";
+import { isAutoPhaseSkipEnabled, setAutoPhaseSkipEnabled } from "./phase-automation.js";
 
 // tutorial.jsのチュートリアル手順から、フェイズの説明文をそのまま使い回すためexportする
 // （説明文の二重管理を避ける）。
@@ -79,9 +80,54 @@ function buildPhaseButton(phase) {
   return btn;
 }
 
+// ユーザー要望「自動フェイズスキップのオン/オフボタンを、フェイズ案内板のロックアイコンの
+// 左隣に新設したい。ONなら今まで通り自動でフェイズを送る、OFFなら自分でスキップを押すまで
+// 送らない（ロックできる手札が無いこと等を相手に悟られないため）」。スキップボタンは
+// バー末尾（右側）にappendされるため、この常設トグルはバー先頭（左側）に置いて干渉を避ける。
+function buildAutoSkipToggleButton() {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.id = "phase-auto-skip-toggle";
+  btn.classList.add("icon-action-button", "phase-auto-skip-toggle");
+
+  const iconWrap = document.createElement("span");
+  iconWrap.className = "icon-action-button-icon-wrap";
+  const glyph = document.createElement("span");
+  glyph.className = "phase-auto-skip-toggle-glyph";
+  glyph.textContent = "⏭";
+  const stateBadge = document.createElement("span");
+  stateBadge.className = "phase-auto-skip-toggle-state";
+  iconWrap.appendChild(glyph);
+  iconWrap.appendChild(stateBadge);
+
+  const caption = document.createElement("span");
+  caption.className = "icon-action-button-caption";
+  caption.textContent = "自動送り";
+
+  btn.appendChild(iconWrap);
+  btn.appendChild(caption);
+
+  const sync = () => {
+    const on = isAutoPhaseSkipEnabled();
+    btn.classList.toggle("is-on", on);
+    btn.classList.toggle("is-off", !on);
+    stateBadge.textContent = on ? "ON" : "OFF";
+    btn.title = on
+      ? "フェイズ自動送り: ON（することが無いフェイズは自動でスキップします）"
+      : "フェイズ自動送り: OFF（自分でスキップを押すまでフェイズを送りません。ロックできる手札が無いこと等を相手に悟られません）";
+  };
+  btn.addEventListener("click", () => {
+    setAutoPhaseSkipEnabled(!isAutoPhaseSkipEnabled());
+    sync();
+  });
+  sync();
+  return btn;
+}
+
 export function initPhaseGuide() {
   const bar = document.createElement("div");
   bar.id = "phase-guide-bar";
+  bar.appendChild(buildAutoSkipToggleButton()); // ロックアイコンの左隣（バー先頭）
   for (const phase of PHASES) {
     bar.appendChild(buildPhaseButton(phase));
   }

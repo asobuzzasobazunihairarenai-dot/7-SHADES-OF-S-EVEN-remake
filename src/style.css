@@ -7203,6 +7203,42 @@ body.reduce-glow #phase-guide-bar button.is-current-phase {
   animation: none;
 }
 
+/* 自動フェイズ送りトグル（フェイズ案内板の先頭）。ON＝緑枠、OFF＝暗い赤枠で状態が
+   ひと目で分かるようにし、丸アイコンの右下に ON/OFF バッジを重ねる。 */
+.phase-auto-skip-toggle .phase-auto-skip-toggle-glyph {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+.phase-auto-skip-toggle .phase-auto-skip-toggle-state {
+  position: absolute;
+  bottom: -0.15rem;
+  right: -0.15rem;
+  font-size: 0.5rem;
+  font-weight: bold;
+  padding: 0.02rem 0.22rem;
+  border-radius: 0.5rem;
+  line-height: 1.3;
+  pointer-events: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+.phase-auto-skip-toggle.is-on .icon-action-button-icon-wrap {
+  border-color: rgba(74, 222, 128, 0.9);
+}
+.phase-auto-skip-toggle.is-on .phase-auto-skip-toggle-state {
+  background: #15803d;
+  color: #dcfce7;
+}
+.phase-auto-skip-toggle.is-off .icon-action-button-icon-wrap {
+  border-color: rgba(248, 113, 113, 0.8);
+}
+.phase-auto-skip-toggle.is-off .phase-auto-skip-toggle-glyph {
+  opacity: 0.65;
+}
+.phase-auto-skip-toggle.is-off .phase-auto-skip-toggle-state {
+  background: #7f1d1d;
+  color: #fecaca;
+}
+
 /* ムーブフェイズの移動可能／接触可能ハイライト。既存のcard-effect-target-cell
    （黄色、クリックして選ぶ候補）とは別物であることが分かるよう、移動可能は緑、
    接触可能はオレンジにする。 */
