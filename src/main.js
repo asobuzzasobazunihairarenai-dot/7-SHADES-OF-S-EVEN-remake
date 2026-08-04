@@ -7137,6 +7137,20 @@ async function useGomennasaiOnFinalLock() {
         );
   if (!costChosen) return;
   await discardFromHandReveal(costChosen.id);
+  // 追色コストが本当に手札から離れたか確認する。discardFromHandRevealは内部でサーバー
+  // エラーを握りつぶす（500等の一時エラーを自前でリトライし、それも失敗したらconsole.error
+  // して静かに戻る）ため、呼び出し側からは成否が分からない。ここで確認せずに奪取・承認まで
+  // 進めると、コストを払えていないのにゴメンナサイが成立してしまう（ユーザー報告「追色
+  // コストを捨てずに発動された気がします」＝ログに so7-apply-action の500エラーあり）。
+  // まだ手札に残っていたら中止し、やり直してもらう。
+  const costStillInHand = getState().tokens.find(
+    (t) => t.id === costChosen.id && t.location.zone === "hand" && t.location.player === selfSeat
+  );
+  if (costStillInHand) {
+    alert("追色コストを捨てられませんでした（通信エラーの可能性）。もう一度「ゴメンナサイを使う」を押してください。");
+    render();
+    return;
+  }
   if (isOnlineMode()) {
     try {
       await moveToken(target.id, { zone: "hand", player: selfSeat });

@@ -93,7 +93,21 @@ onPhaseChangeEvents((payload) => {
 });
 
 let currentPhase = null; // null | "lock" | "hand" | "move"
-let lockCountAtPhaseStart = 0;
+// ロックフェイズ開始時点で自分がロック済みのカードid集合。以前は「ロック枚数」だけを
+// 覚えて『枚数が増えたら次のフェイズへ』としていたが、ゴメンナサイで最後のロックを
+// 妨害されたケース（相手が7色目をロック＝1枚増、と同時に既存ロック1枚を奪われ＝1枚減で
+// 差し引きゼロ）で枚数が変わらず、攻撃側がロックフェイズから進めなくなっていた
+// （ユーザー報告「相手はロックフェイズからハンドフェイズに移行しませんでした」）。
+// 「開始時に無かった新しいロックidが1枚でも増えたか」で判定すれば、同時に別の1枚が
+// 奪われても新しくロックした事実を取りこぼさない。
+let lockedIdsAtPhaseStart = new Set();
+function getLockedTokenIds(player) {
+  return new Set(
+    getState()
+      .tokens.filter((t) => t.kind === "card" && t.location.zone === "lock" && SIDE_TO_SEAT[t.location.side] === player)
+      .map((t) => t.id)
+  );
+}
 let performingFallback = false; // ムーブフェイズの自動処理（カード設置＋ターン終了）の二重発火防止
 let handEffectBusy = false; // 手札効果の解決中（コスト選択待ち等）はフェイズを進めない
 // ユーザー報告「ムーブフェイズでの移動後、移動したにもかかわらずまた隣のマスに
@@ -506,7 +520,7 @@ function enterPhase(phase, player) {
   // ここで必ず消す（詳しい経緯はdismissSkipModal()のコメント参照）。
   dismissSkipModal();
   currentPhase = phase;
-  if (phase === "lock") lockCountAtPhaseStart = countLockedCards(player);
+  if (phase === "lock") lockedIdsAtPhaseStart = getLockedTokenIds(player);
   if (phase === "move") moveActionTaken = false;
 
   // ユーザー要望「手札がないロックフェイズを自動でスキップしてください。その際その旨を
@@ -597,7 +611,19 @@ export function reconcilePhaseAutomation() {
     return;
   }
   if (currentPhase === "lock") {
-    if (countLockedCards(player) > lockCountAtPhaseStart) {
+    // 開始時に無かった新しいロックidが1枚でも増えていれば（＝このフェイズで新規にロック
+    // した）次へ進む。枚数比較ではなくid集合の差分で見るのは、ゴメンナサイで別の1枚を
+    // 同時に奪われても「新しくロックした」事実を取りこぼさないため（上のlockedIdsAtPhaseStart
+    // コメント参照）。
+    const nowLocked = getLockedTokenIds(player);
+    let placedNewLock = false;
+    for (const id of nowLocked) {
+      if (!lockedIdsAtPhaseStart.has(id)) {
+        placedNewLock = true;
+        break;
+      }
+    }
+    if (placedNewLock) {
       advancePhase();
       return;
     }
