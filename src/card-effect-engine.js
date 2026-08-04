@@ -601,6 +601,13 @@ async function runAction(action, ctx, helpers) {
         if (!token) break;
         await helpers.flipCard(token.id);
         flippedCount++;
+        // オープンした先に駒が乗っていれば、その駒がそのカードに「到達」したものとして
+        // 到達効果を発動する（サフランで自分の足元の裏向きカードをオープンした等）。
+        // ジャンプ台を自分の駒の下へ表向きに置いた時と同じ扱い
+        // （main.jsのmaybeTriggerArrivalForPlacedCard / maybeTriggerCardArrivalForCard）。
+        // 以前はflipCardが裏→表に反転するだけで到達を一切起こさず、ユーザー報告
+        // 「サフランで自分の足元をオープンしても到達効果が発動しない」の原因だった。
+        helpers.maybeTriggerArrivalForPlacedCard?.({ zone: "cell", row: chosen.row, col: chosen.col }, token.cardId);
       }
       // お知らせ（ユーザー要望）: 何枚オープンしたか（優先度低だが一応）。
       if (flippedCount > 0) await helpers.announceEffectReason?.(ctx.cardId, `${flippedCount}枚のカードをオープンしました。`);
