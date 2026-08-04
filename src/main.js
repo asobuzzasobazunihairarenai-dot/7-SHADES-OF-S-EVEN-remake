@@ -9426,6 +9426,7 @@ function updateSelfHandStatus() {
     // スプライトペット（キュビット等）は画像サムネイル、絵文字ペットは文字で表示する。
     const petOpt = PET_OPTIONS[getSelectedPetIndex()];
     if (petOpt?.sprite) {
+      selfStatusPetThumbEl.classList.remove("is-empty");
       let petImg = selfStatusPetThumbEl.querySelector("img");
       if (!petImg) {
         selfStatusPetThumbEl.textContent = "";
@@ -9435,8 +9436,17 @@ function updateSelfHandStatus() {
       }
       const petSrc = petSpriteSrc(petOpt.sprite, "front", "static");
       if (petImg.getAttribute("src") !== petSrc) petImg.src = petSrc;
+    } else if (petOpt?.emoji) {
+      selfStatusPetThumbEl.classList.remove("is-empty");
+      selfStatusPetThumbEl.querySelector("img")?.remove();
+      selfStatusPetThumbEl.textContent = petOpt.emoji;
     } else {
-      selfStatusPetThumbEl.textContent = petOpt?.emoji ?? "🐥";
+      // 「なし（非表示）」を選んでいる時。以前は emoji が null のフォールバックで
+      // ひよこ🐥が出てしまっていた（ユーザー報告）。実際のペットと紛らわしくないよう、
+      // クリックはできる（ペット選択を開ける）ままにしつつ、薄い肉球プレースホルダーにする。
+      selfStatusPetThumbEl.querySelector("img")?.remove();
+      selfStatusPetThumbEl.textContent = "🐾";
+      selfStatusPetThumbEl.classList.add("is-empty");
     }
   }
 

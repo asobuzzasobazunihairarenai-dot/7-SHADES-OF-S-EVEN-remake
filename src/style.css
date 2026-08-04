@@ -1692,24 +1692,26 @@ body.is-phone-device #phase-guide-bar {
 }
 /* 不具合報告アイコンの絵文字（imgアイコンと同じ枠内に収める）。 */
 #self-status-bug-report .bug-report-icon-emoji {
-  /* 他のSVGアイコンと見た目の大きさを揃える（絵文字は大きく見えがちなので少し小さく）。 */
-  font-size: 1.15rem;
+  /* 他のSVGアイコンと見た目の大きさを揃える（絵文字は大きく見えがちなので少し小さく）。
+     大きさは管理者モードの --bug-report-icon-size で調整（絵文字は枠に連動、既定2.6remで0.44倍）。 */
+  font-size: calc(var(--bug-report-icon-size, 2.6rem) * 0.44);
   line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.6rem;
-  height: 2.6rem;
+  width: var(--bug-report-icon-size, 2.6rem);
+  height: var(--bug-report-icon-size, 2.6rem);
 }
 /* #option-areaは全画面の器で、子は各自 position:absolute で配置する決まり（flow配置では
    ないので位置指定が無いと左上に落ちる＝ユーザー報告の不具合）。ログイン中アイコン
    (#self-status-online, right:21.3rem)の左隣に置く。ラベルは隠してアイコンのみにする。 */
 #option-area #self-status-bug-report {
   position: absolute;
-  top: 0.5rem;
+  /* 位置・大きさは管理者モード（不具合報告アイコンのサイズ・位置）で調整可能。 */
+  top: var(--bug-report-icon-top, 0.5rem);
   /* ユーザー要望「残金(19.5→22.1rem)と2D切替(16.9rem)の間へ」。これでオンラインのピルの
      部屋名を省略せずに伸ばせる（左隣にアイコンが無くなるため）。 */
-  right: 19.5rem;
+  right: var(--bug-report-icon-right, 19.5rem);
   z-index: 900;
   transform: none;
 }
@@ -1717,8 +1719,8 @@ body.is-phone-device #phase-guide-bar {
   display: none;
 }
 #option-area #self-status-bug-report .icon-action-button-icon-wrap {
-  width: 2.6rem;
-  height: 2.6rem;
+  width: var(--bug-report-icon-size, 2.6rem);
+  height: var(--bug-report-icon-size, 2.6rem);
 }
 
 /* アイコン+キャプション形式のボタン共通部品（icon-action-button.js参照）。アイコンは丸い
@@ -3575,6 +3577,12 @@ body.spotlight-mode #spotlight-overlay {
   line-height: 1;
   padding: 0;
 }
+/* ペット「なし」時のプレースホルダー（薄い肉球）。実際のペットと紛らわしくないよう
+   淡く沈める（ひよこ🐥の誤フォールバック修正、ユーザー報告）。クリックは可能なまま。 */
+.self-status-pet-thumb.is-empty {
+  opacity: 0.4;
+  filter: grayscale(1);
+}
 /* ペット選択ピッカーのマス（絵文字＋ラベル）。 */
 .pet-picker-swatch {
   display: flex;
@@ -3935,22 +3943,27 @@ body.is-phone-device #options-menu-button {
 /* 行動ログのトグルアイコン（オプションアイコン right:1rem とマイページ right:6.5rem の間）。 */
 #self-status-action-log {
   position: absolute;
-  top: 0.3rem;
-  right: 3.9rem;
+  /* 位置・大きさは管理者モード（行動ログアイコンのサイズ・位置）で調整可能。 */
+  top: var(--action-log-icon-top, 0.3rem);
+  right: var(--action-log-icon-right, 3.9rem);
   z-index: 900;
   transform: none;
 }
 #self-status-action-log .icon-action-button-caption {
   display: none;
 }
+#self-status-action-log .icon-action-button-icon-wrap {
+  width: var(--action-log-icon-size, 2.6rem);
+  height: var(--action-log-icon-size, 2.6rem);
+}
 #self-status-action-log .action-log-icon-emoji {
-  font-size: 1.15rem;
+  font-size: calc(var(--action-log-icon-size, 2.6rem) * 0.44);
   line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.6rem;
-  height: 2.6rem;
+  width: var(--action-log-icon-size, 2.6rem);
+  height: var(--action-log-icon-size, 2.6rem);
 }
 #self-status-action-log.is-active .icon-action-button-icon-wrap {
   outline: 2px solid rgba(250, 204, 21, 0.8);
