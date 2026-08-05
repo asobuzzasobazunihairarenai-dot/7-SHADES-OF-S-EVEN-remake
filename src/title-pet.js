@@ -9,7 +9,7 @@
 
 import { petSpriteSrc } from "./pet-skins.js";
 
-const WALKERS = ["cubit", "noxael"]; // 交互に登場する順
+const WALKERS = ["cubit", "noxael", "sept", "rubel"]; // 登場するペット（ランダムに選ぶ）
 const WALK_SPEED = 130; // px/秒（ステージ座標）。ゆっくりお散歩する速さ
 const STEP_SWAP_MS = 220; // 歩行中に walk/static を切り替えて“歩いてる感”を出す間隔
 const REDUCE =
@@ -54,7 +54,12 @@ export function startTitlePetWalk(overlay) {
   }
 
   function beginWalker() {
-    sprite = WALKERS[widx % WALKERS.length];
+    // ユーザー要望「ランダムに登場」。直前と同じにならないよう選び直す（1匹しか無ければそのまま）。
+    let next = WALKERS[Math.floor(Math.random() * WALKERS.length)];
+    if (WALKERS.length > 1) {
+      while (next === sprite) next = WALKERS[Math.floor(Math.random() * WALKERS.length)];
+    }
+    sprite = next;
     lastSrc = "";
     x = -petW() - 20;
     hop = 0;

@@ -23,6 +23,22 @@ import { applyProfileLayout } from "./profile-layout-editor.js";
 // 既存パターン、admin.js等と同じ）。main.js側からregisterAvatarPickerHelper()で
 // 注入してもらう。
 let avatarPickerFn = null;
+
+// アバター変更(admin:change)で、開いているマイページ（モーダル版・全画面版どちらも）の
+// アバター画像を即座に差し替える。モジュール読み込み時に1度だけ登録する（DOMに該当要素が
+// 無ければ何もしないのでリークしない）。以前はモーダルのopen()内でだけ登録していたため、
+// 全画面版(profile-page.js、renderMyPageBodyを直接呼ぶ)ではアバターが即時更新されず、
+// 入り直すまで変わらなかった（ユーザー報告）。
+if (typeof window !== "undefined") {
+  window.addEventListener("admin:change", () => {
+    const imgs = document.querySelectorAll(".my-page-avatar-img, .my-page-bg-avatar img");
+    if (imgs.length === 0) return;
+    const src = getPlayerAvatar(getSelfSeat());
+    imgs.forEach((img) => {
+      img.src = src;
+    });
+  });
+}
 export function registerAvatarPickerHelper(fn) {
   avatarPickerFn = fn;
 }
@@ -406,20 +422,9 @@ export function initMyPage() {
   document.body.appendChild(backdrop);
   document.body.appendChild(panel);
 
-  // ユーザー報告「アバターを変更してもマイページの巨大アバターが変わらない」。アバター変更は
-  // window の "admin:change" で通知される（player-identity.jsのsetPlayerAvatar・online.jsの
-  // updateMyIdentity・各着せ替えピッカー）。マイページはモーダル版(この初期化)と全画面版
-  // (profile-page.js)の2経路があり、以前はこのモーダルのpanel内しか更新していなかったため
-  // 全画面版の巨大アバターが更新されなかった。ドキュメント全体のアバター画像(本体・巨大背面)を
-  // 最新に差し替えることで、どちらの経路でも即反映する（開いていなければ該当要素が無く何もしない）。
-  window.addEventListener("admin:change", () => {
-    const imgs = document.querySelectorAll(".my-page-avatar-img, .my-page-bg-avatar img");
-    if (imgs.length === 0) return;
-    const src = getPlayerAvatar(getSelfSeat());
-    imgs.forEach((img) => {
-      img.src = src;
-    });
-  });
+  // アバター変更の即時反映は、モジュール先頭で1度だけ登録した admin:change リスナーが担う
+  // （モーダル版・全画面版の両方に効く。以前ここで毎回登録していたのが原因で全画面版が
+  // 更新されなかった＋開くたびに多重登録していた）。
 
   // ユーザー要望「画面右上のオプションアイコンの隣に人マークのアイコンを作り、
   // それを押すとマイページモーダルが開く」。options-menu.jsの「⚙ オプション」

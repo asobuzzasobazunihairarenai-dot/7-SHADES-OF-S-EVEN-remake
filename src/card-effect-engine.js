@@ -1296,7 +1296,11 @@ async function runAction(action, ctx, helpers) {
       // 1人ずつ行う。
       let hadEffect = false;
       for (const p of rotatedActivePlayersFrom(ctx.player)) {
-        if (await helpers.delegateToPlayer(p, "party-option")) hadEffect = true;
+        // ctx.cardTokenId（今まさに到達処理中のパーティーカード自身）を「保護トークン」として
+        // 渡し、各プレイヤーの「場の1枚を手札に加える」候補から除外させる。これが無いと、
+        // 別プレイヤーがパーティーカード自身を手札に取れてしまい、到達処理側（手番プレイヤー）が
+        // そのカードを扱えなくなって優先権が戻らず固まる（ユーザー不具合報告#4）。
+        if (await helpers.delegateToPlayer(p, "party-option", ctx.cardTokenId)) hadEffect = true;
       }
       return hadEffect;
     }

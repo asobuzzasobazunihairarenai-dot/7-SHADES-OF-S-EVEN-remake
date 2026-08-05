@@ -203,19 +203,10 @@ function freshBaseDeadlineFor(seat) {
   // ため、ログが埋まる心配は無い）、疑似CPU判定に関わる値を全部まとめて記録する。
   // これで「サーバーから届いた値」「有効/無効の最終判定」「自分の座席かどうか」の
   // どこで意図と食い違っているかが後から追える。
-  const synced = isOnlineMode() && getSyncedTimerConfig();
   const target = isPseudoCpuTarget(seat);
-  logAction("diag-pseudo-cpu", {
-    phase: "freshBaseDeadlineFor",
-    seat,
-    isOnlineMode: isOnlineMode(),
-    syncedPseudoCpuModeEnabled: synced ? !!synced.pseudoCpuModeEnabled : null,
-    localPseudoCpuModeEnabled: isPseudoCpuModeEnabledLocal(),
-    isPseudoCpuModeActive: isPseudoCpuModeActive(),
-    isPseudoCpuIncludeSelf: isPseudoCpuIncludeSelf(),
-    selfSeat: getSelfSeat(),
-    isPseudoCpuTarget: target,
-  });
+  // 以前ここに診断ログ(diag-pseudo-cpu freshBaseDeadlineFor)を毎回出していたが、頻度が高く
+  // 行動ログのリングバッファ(300件)を埋め尽くして、ゲーム画面の行動ログが「まだ記録が
+  // ありません」になる原因になっていた（ユーザー報告）。調査目的は済んだので削除する。
   if (target) return Date.now() + getPseudoCpuDeadlineMs();
   const seconds = hourglassUsedThisTurn[seat] ? Math.min(getRopeBaseSeconds(), getReducedBaseSeconds()) : getRopeBaseSeconds();
   return Date.now() + seconds * 1000;
@@ -872,23 +863,11 @@ function updateTimeoutWarnings(state, isTimedOut) {
       return;
     }
     if (!timedOutAutoActionFired) {
-      // ユーザー報告（続き106、実機2クライアントテストで発見）「カード効果等で優先権が
-      // 一時的に他プレイヤーへ委譲された状態のまま、疑似CPUの自動プレイが反応せず
-      // 止まってしまう」の原因調査用。この分岐（優先権保持者≠ターンプレイヤーの
-      // タイムアウト1回目）に実際に到達しているか、どちらの経路（下のreturn-to-
-      // turnPlayer分岐か、performPriorityTimeoutAutoAction呼び出しか）を通ったかを
-      // 記録する。1回のタイムアウトにつき1回しか出ない（timedOutAutoActionFiredの
-      // ガード内のため）ので、ログを埋め尽くす心配はない。
-      logAction("diag-pseudo-cpu", {
-        phase: "updateTimeoutWarnings-firstTimeout",
-        selfSeat: getSelfSeat(),
-        priorityPlayer: state.priorityPlayer,
-        turnPlayer: state.turnPlayer,
-        priorityPhase: state.priorityPhase,
-        priorityDeadline: state.priorityDeadline,
-        isPseudoCpuTarget: isPseudoCpuTarget(state.priorityPlayer),
-        willReturnPriorityToTurnPlayer: !!(state.turnPlayer && state.priorityPlayer !== state.turnPlayer),
-      });
+      // （以前ここに診断ログ diag-pseudo-cpu updateTimeoutWarnings-firstTimeout を出していたが、
+      // 「1タイムアウトにつき1回」という前提が崩れる場合があった——下の
+      // performPriorityTimeoutAutoAction()が何もできず false を返し続けると timedOutAutoActionFired
+      // が立たないまま毎tick再入し、行動ログを埋め尽くして「まだ記録がありません」になる
+      // 原因になっていた。ユーザー報告。調査目的は済んだので削除。）
       // ユーザー要望（続き67、経緯: 当初「ハンドフェイズでタイムアウトを迎えたのに
       // 自動スキップされない」という報告を受け、いったん「本人のタブがバックグラウンド化
       // していると誰もスキップできない」という別の仮説で調査を進めていたが、後の

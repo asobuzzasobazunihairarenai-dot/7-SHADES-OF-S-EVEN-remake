@@ -2084,10 +2084,18 @@ async function runSlumOfficialDiscardTask(player) {
 // パーティー専用のタスクハンドラ。3択（移動/拾う/2枚オープン）から1つ選んで実行する。
 // 選べる罠と同じshowHandEffectOptionPickerを流用し、選べない選択肢（候補0件）は
 // グレー表示にする（善処の原則）。
-async function runPartyOptionTask(player) {
+async function runPartyOptionTask(player, protectedTokenId) {
   const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === player);
   const moveCandidates = piece ? getMoveCandidates(piece.location, 1, false) : [];
-  const boardCardCells = getAnyCellWithCardCandidates();
+  // 今まさに到達処理中のパーティーカード自身のマスは「手札に加える」候補から除外する
+  // （そのカードを別プレイヤーが取ると手番プレイヤーの到達処理が壊れて優先権が戻らない、
+  // ユーザー不具合報告#4）。protectedTokenIdが場のセルにある場合だけそのセルを除く。
+  const protectedCell = (() => {
+    const t = protectedTokenId ? getState().tokens.find((x) => x.id === protectedTokenId) : null;
+    return t && t.location?.zone === "cell" ? { row: t.location.row, col: t.location.col } : null;
+  })();
+  const isProtectedCell = (loc) => protectedCell && loc.row === protectedCell.row && loc.col === protectedCell.col;
+  const boardCardCells = getAnyCellWithCardCandidates().filter((loc) => !isProtectedCell(loc));
   const faceDownBoardCells = boardCardCells.filter((loc) => {
     const token = getState().tokens.find(
       (t) => t.kind === "card" && t.location.zone === "cell" && t.location.row === loc.row && t.location.col === loc.col
@@ -2156,10 +2164,10 @@ async function runPartyOptionTask(player) {
 // 合同建設・スラム上がりの役人・パーティー共通: このタスクを「今この画面を見ている
 // プレイヤー」が実際に解決する。delegateToPlayerForEffectから、自分の番ならその場で、
 // 他プレイヤーの番ならbroadcast経由で対象プレイヤー本人の画面から呼ばれる。
-async function runDelegatedArrivalTask(player, taskType) {
+async function runDelegatedArrivalTask(player, taskType, protectedTokenId) {
   if (taskType === "joint-construction") return runJointConstructionTask(player);
   if (taskType === "slum-official-discard") return runSlumOfficialDiscardTask(player);
-  if (taskType === "party-option") return runPartyOptionTask(player);
+  if (taskType === "party-option") return runPartyOptionTask(player, protectedTokenId);
   return false;
 }
 
@@ -2168,9 +2176,9 @@ async function runDelegatedArrivalTask(player, taskType) {
 // その場で直接解決する。オンライン中の他プレイヤーの番は、broadcast往復
 // （online.jsのbroadcastArrivalDelegateRequest/Resolved）で対象プレイヤー本人の
 // 画面に委任し、終わるまで待つ。
-async function delegateToPlayerForEffect(player, taskType) {
+async function delegateToPlayerForEffect(player, taskType, protectedTokenId) {
   if (!isOnlineMode() || player === getSelfSeat()) {
-    return runDelegatedArrivalTask(player, taskType);
+    return runDelegatedArrivalTask(player, taskType, protectedTokenId);
   }
   // 続き75診断ログ: オンライン中の「全員がそれぞれ選ぶ」効果（パーティー等）の
   // 委任がどこで止まっているかを追えるようにする。
@@ -2193,7 +2201,7 @@ async function delegateToPlayerForEffect(player, taskType) {
   // バナー（showEffectPickerHint）を使い、「待っている」ことだけでも伝える。
   showEffectPickerHint(`${getPlayerName(player)}さんの選択を待っています…`);
   const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  broadcastArrivalDelegateRequest({ player, taskType, requestId });
+  broadcastArrivalDelegateRequest({ player, taskType, requestId, protectedTokenId });
   const result = await new Promise((resolve) => {
     const unregister = onArrivalDelegateResolvedEvents((payload) => {
       if (payload.requestId !== requestId) return;
@@ -2208,9 +2216,9 @@ async function delegateToPlayerForEffect(player, taskType) {
 }
 // 受け手側: 自分宛ての委任リクエストが届いたら、このクライアント（＝対象プレイヤー
 // 本人の画面）で実際に解決し、結果を送り返す。
-onArrivalDelegateRequestEvents(({ player, taskType, requestId }) => {
+onArrivalDelegateRequestEvents(({ player, taskType, requestId, protectedTokenId }) => {
   if (getSelfSeat() !== player) return;
-  runDelegatedArrivalTask(player, taskType)
+  runDelegatedArrivalTask(player, taskType, protectedTokenId)
     .then((result) => broadcastArrivalDelegateResolved({ requestId, result }))
     .catch((err) => {
       console.error("runDelegatedArrivalTask failed", err);
