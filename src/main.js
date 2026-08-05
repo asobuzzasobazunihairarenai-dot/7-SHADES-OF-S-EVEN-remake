@@ -2546,46 +2546,56 @@ async function performPhaseMoveToCell(location) {
   // 動かす直前を「移動宣言」の瞬間とみなして発火する（処理側は下のtriggerCardArrival
   // 完了後、既存の通り）。
   fireAnytimeCheckpoint(player);
-  if (isOnlineMode()) {
-    try {
-      await moveToken(piece.id, location);
-      markSelfHandled([piece.id]);
-      await fetchAndHydrate(getCurrentGameId());
-    } catch (err) {
-      console.error("performPhaseMoveToCell failed", err);
-      render();
-      return;
-    }
-  } else {
-    moveToken(piece.id, location);
-  }
-  playSound("piecePlace");
-  render();
-  const card = findTopCardAt(location);
-  if (!card) return;
-  if (!card.faceUp) {
+  // ユーザー報告#6: 移動確定〜到達開始の空白に自動ターン終了が割り込むのを防ぐガード
+  // （beginPostMoveArrivalGuard参照）。着地先のカードがオンライン再同期を挟んで
+  // triggerCardArrivalに至るまでの間、到達処理中扱いにしておく。finallyで必ず解除する。
+  beginPostMoveArrivalGuard();
+  try {
     if (isOnlineMode()) {
       try {
-        await flipToken(card.id);
-        markSelfHandled([card.id]);
+        await moveToken(piece.id, location);
+        markSelfHandled([piece.id]);
         await fetchAndHydrate(getCurrentGameId());
       } catch (err) {
-        console.error("performPhaseMoveToCell auto-open failed", err);
+        console.error("performPhaseMoveToCell failed", err);
+        render();
         return;
       }
     } else {
-      flipToken(card.id);
+      moveToken(piece.id, location);
     }
-    playSound("cardFlip");
+    playSound("piecePlace");
     render();
+    const card = findTopCardAt(location);
+    if (!card) return;
+    if (!card.faceUp) {
+      if (isOnlineMode()) {
+        try {
+          await flipToken(card.id);
+          markSelfHandled([card.id]);
+          await fetchAndHydrate(getCurrentGameId());
+        } catch (err) {
+          console.error("performPhaseMoveToCell auto-open failed", err);
+          return;
+        }
+      } else {
+        flipToken(card.id);
+      }
+      playSound("cardFlip");
+      render();
+    }
+    const freshCard = getState().tokens.find((t) => t.id === card.id);
+    // ユーザー要望（続き76）「移動処理の直後にも割り込みモーダルを出す」。到達効果の
+    // 自動処理が終わるまで待ってから発火させる（onFullyResolvedが無いと、到達効果の
+    // 処理中フラグ(arrivalEffectAutoProcessing)がまだ立っている間にチェックポイントが
+    // isAnyEffectProcessingBusy()で無条件にブロックされてしまう）。
+    // triggerCardArrivalは自動処理カードなら同期的にarrivalEffectProcessingDepthを上げる
+    // ため、この直後のfinallyでガードを外しても到達処理の保持は途切れない。
+    if (freshCard) triggerCardArrival(freshCard.cardId, location, () => fireAnytimeCheckpoint(player));
+    else fireAnytimeCheckpoint(player);
+  } finally {
+    endPostMoveArrivalGuard();
   }
-  const freshCard = getState().tokens.find((t) => t.id === card.id);
-  // ユーザー要望（続き76）「移動処理の直後にも割り込みモーダルを出す」。到達効果の
-  // 自動処理が終わるまで待ってから発火させる（onFullyResolvedが無いと、到達効果の
-  // 処理中フラグ(arrivalEffectAutoProcessing)がまだ立っている間にチェックポイントが
-  // isAnyEffectProcessingBusy()で無条件にブロックされてしまう）。
-  if (freshCard) triggerCardArrival(freshCard.cardId, location, () => fireAnytimeCheckpoint(player));
-  else fireAnytimeCheckpoint(player);
 }
 
 // ロックフェイズのロック可能ハイライト（.phase-lock-highlight）をクリックした時。
@@ -3761,6 +3771,29 @@ function flushPendingGateInvasionEvents() {
     logAction("diag-gate-invasion-flush-after-arrival", { count: events?.length ?? 0 });
     enqueueGateInvasionSteps(events);
   }
+}
+
+// ユーザー報告#6: ムーブフェイズでザ・ギャンブルの到達効果を処理している最中に、相手の
+// ターンへ勝手に移行してしまった（効果自体は最後まで処理できた）。
+// 原因: 移動を確定（markPhaseMoveActionTakenでisMovePhaseActive()がfalse）してから、
+// triggerCardArrivalが到達処理深度(arrivalEffectProcessingDepth)を上げるまでの間に、
+// オンライン再同期（moveToken→hydrate、着地先が裏向きなら更にflipToken→hydrate）で
+// 最大2秒ほどの空白が生じる。この空白の間はcomputeShouldEmphasize()がtrueのまま
+// （移動済み・到達処理はまだ0）になるため、自動ターン終了タイマー(AUTO_END_TURN_DELAY_MS
+// =1500ms)が到達効果の開始を待たずに発火してターンを終わらせていた。タイマー発火時の
+// computeShouldEmphasize()再確認も、その時点でまだ到達処理が始まっていないためすり抜ける。
+// 対策として「移動確定〜到達開始（または到達なしの確定）」を到達処理と同じ深度カウンタで
+// 包み、この空白を塞ぐ。深度カウンタなので自動ターン終了だけでなく、isArrivalEffect
+// Processing()で守っている割り込み（ゲート侵攻等）もまとめて抑止できる。移動経路ごとに
+// 呼ぶ（highlightタップ経路=performPhaseMoveToCell、ドラッグ経路=onDragEnd）。
+function beginPostMoveArrivalGuard() {
+  arrivalEffectProcessingDepth++;
+}
+function endPostMoveArrivalGuard() {
+  arrivalEffectProcessingDepth = Math.max(0, arrivalEffectProcessingDepth - 1);
+  // ガードを外した時点で本物の到達処理も走っていなければ、その間にためたゲート侵攻を流す
+  // （triggerCardArrivalのfinallyと同じ後始末。到達が続く場合はdepth>0のままなので流さない）。
+  if (arrivalEffectProcessingDepth === 0) flushPendingGateInvasionEvents();
 }
 
 // spawnArrivalBurstのCSSアニメーション自体の長さ（1400ms、appendEffectHostのttlMs引数と
@@ -7904,7 +7937,22 @@ async function onDragEnd(e) {
       // チェックポイントが無条件にブロックされてしまうため、onFullyResolvedで
       // 到達効果まで含めて完全に終わった後まで待ってから発火させる（onResolvedの
       // 時点ではまだ自動処理が終わっていないことがあるため不十分）。
+      // ユーザー報告#6: ドラッグ移動でも highlightタップ経路(performPhaseMoveToCell)と
+      // 同じく「移動確定〜到達開始」の空白に自動ターン終了が割り込み得るため、同じガードで
+      // 塞ぐ（beginPostMoveArrivalGuard参照）。自動処理ONの時だけ包む——自動ターン終了は
+      // 自動処理ONでしか発火せず、かつ自動処理ONなら promptCardOpen→openCardNow 経路で
+      // onFullyResolvedが必ず呼ばれるため（OFFの手動プロンプトはボタン未クリックの間
+      // onFullyResolvedが来ずガードが残り続けてしまうので包まない）。
+      const guardPostMoveArrival = isAutoProcessingEnabled();
+      if (guardPostMoveArrival) beginPostMoveArrivalGuard();
+      let postMoveGuardReleased = false;
+      const releasePostMoveGuard = () => {
+        if (!guardPostMoveArrival || postMoveGuardReleased) return;
+        postMoveGuardReleased = true;
+        endPostMoveArrivalGuard();
+      };
       maybeTriggerCardArrival(dropTarget, tokenId, undefined, () => {
+        releasePostMoveGuard();
         if (token) fireAnytimeCheckpoint(token.player);
       });
     }
