@@ -8531,7 +8531,11 @@ function buildEndTurnButton() {
   return btn;
 }
 
-function updateEndTurnButton() {
+// exportしてturn-timer.jsのtickからも呼ぶ（#8。下のreconcileAutoEndTurn／
+// computeShouldEmphasizeを、render()を伴わない非同期の状態変化＝パーティー等の委任効果で
+// 優先権が相手→自分へ戻った後などでも取りこぼさず再評価するため）。冒頭のendTurnButtonEl
+// ガードにより、まだ生成前でも安全に何もしないで戻る。
+export function updateEndTurnButton() {
   if (!endTurnButtonEl) return;
   const state = getState();
   const turnPlayer = state.turnPlayer;

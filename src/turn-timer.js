@@ -31,6 +31,7 @@ import {
   performPriorityTimeoutAutoAction,
   isAnyEffectProcessingBusy,
   hasActiveEffectPicker,
+  updateEndTurnButton,
 } from "./main.js";
 import { SEAT_ORDER, SEAT_TO_SIDE, getRotationSteps, rotateSide } from "./board-layout.js";
 import { getSelfSeat, getSyncedTimerConfig, getCurrentGameId, fetchAndHydrate, isSpectatingGame } from "./online.js";
@@ -967,6 +968,16 @@ function tick() {
   // 「処理が終わったのにターンが自動終了しない」も、render()を伴わない非同期完了を
   // ここで拾って解消する。冪等なので毎tick呼んでよい（詳細はimport箇所のコメント参照）。
   reconcilePhaseAutomation();
+  // 自動ターン終了の判定（computeShouldEmphasize→reconcileAutoEndTurn）も同じtickで
+  // 回す（#8「パーティーを相手に取られた後、優先権は自分に戻るのにターンが相手へ移行
+  // しない」）。パーティー等の委任効果は優先権を相手→自分へ非同期のbroadcastで戻すため、
+  // 到達処理のfinallyでのrender()時点ではまだ優先権がローカルに反映されておらず（＝
+  // endTurnDisabledがtrueのまま）shouldEmphasizeがfalseと評価され、自動ターン終了が
+  // arm（1.5秒タイマー）されないまま取り残されていた。優先権がローカルに戻った後は
+  // render()が必ずしも走らないため、tickで再評価して確実にarmする。reconcileAutoEndTurnは
+  // arm済みなら何もしない冪等設計＋発火時にcomputeShouldEmphasize()を再確認するので、
+  // tick頻度で呼んでも早すぎる終了は起きない。
+  updateEndTurnButton();
   // ユーザー報告（続き106）「優先権が委任されたまま自動プレイが反応せず止まる」の
   // 根本原因（このファイル798行目付近の解説参照）への対策。state.priorityPlayerを
   // 誰が保持しているかに関係なく、「自分の画面に今まさに選択待ちのactiveEffectPickerが
