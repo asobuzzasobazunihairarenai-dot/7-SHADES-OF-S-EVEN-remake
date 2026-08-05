@@ -7738,6 +7738,14 @@ body.theme-light .bug-report-textarea {
   border-color: rgba(176, 141, 63, 0.5);
   color: #3a3326;
 }
+/* ライトテーマではキャンセルボタンの文字（既定は白 #e2e8f0）が、薄いグレー地＋アイボリーの
+   モーダル背景に埋もれて読めなかった（ユーザー報告「送信ボタンの横のボタンが読めない」）。
+   ゴールド系の薄地＋濃いめの文字＋枠線で、他のライトモーダルのボタンと揃えて読めるようにする。 */
+body.theme-light .bug-report-cancel {
+  background: rgba(176, 141, 63, 0.14);
+  color: #6b5c3c;
+  border: 1px solid rgba(176, 141, 63, 0.45);
+}
 .hand-effect-option-picker-peek-btn:hover {
   background: rgba(51, 65, 85, 1);
 }
