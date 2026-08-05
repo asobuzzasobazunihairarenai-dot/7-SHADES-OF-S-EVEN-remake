@@ -314,9 +314,11 @@ function triggerEffectsFor(item) {
     // クライアントだけが知らずに誤って発火させてしまっていた。state.js/
     // so7-apply-action.tsのMOVE_TOKENが駒トークンへ付与するarrivalSuppressedフラグ
     // （続き59で新設）を見て、この移動が最初から到達を意図していない場合はスキップする。
-    if (!token.arrivalSuppressed) helpers.triggerCardArrivalIfFaceUp?.(token.location);
+    // fromDiff=true: この経路（位置差分検知）由来の到達は、#11の冪等ガードで「自席の同じ
+    // 移動の重複再発火」を無視できるよう印を付ける（自分の効果チェーンの再到達は別経路で通す）。
+    if (!token.arrivalSuppressed) helpers.triggerCardArrivalIfFaceUp?.(token.location, true);
   } else if (token.kind === "card") {
-    helpers.maybeTriggerCardArrivalForCard?.(token.location, token.cardId, token.faceUp);
+    helpers.maybeTriggerCardArrivalForCard?.(token.location, token.cardId, token.faceUp, true);
     // 他プレイヤーがカードを動かした結果、移動元のマス/ロックスロットで駒の下に別のカードが
     // 新しく露出した場合も「到達」として再現する（main.jsのonDragEndと同じ考え方）。
     // 移動元と移動先が同じマスの場合（重なりの中で並び替えただけ等）は対象外にする。
@@ -326,7 +328,7 @@ function triggerEffectsFor(item) {
         (item.prevLocation.zone === "cell"
           ? item.prevLocation.row === token.location.row && item.prevLocation.col === token.location.col
           : item.prevLocation.side === token.location.side && item.prevLocation.index === token.location.index);
-      if (!sameLocation) helpers.maybeTriggerCardArrivalForExposedCard?.(item.prevLocation);
+      if (!sameLocation) helpers.maybeTriggerCardArrivalForExposedCard?.(item.prevLocation, true);
     }
   }
 }

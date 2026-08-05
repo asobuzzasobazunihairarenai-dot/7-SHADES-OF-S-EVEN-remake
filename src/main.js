@@ -1187,7 +1187,12 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds) {
       if (isRitualBroadcastTarget) broadcastRitualPickEnded({ targetPlayer, pickedTokenId: token?.id ?? null });
       resolve(token ?? null);
     }
-    const backdrop = createBackdrop(() => finish(null), { dim: true, zIndex: 10620 });
+    // ユーザー報告#10「スリカエでカードを選ぶとき、適当な場所（＝カード以外の背景）を
+    // タップしたら、すり替えずに終わってしまった」。この儀式ピック（スリカエ・接触・ゲート
+    // 侵攻の奪取）はいずれも“必ず1枚選ぶ”必須処理なので、背景タップでキャンセル（finish(null)）
+    // されると効果が不発になってしまう。背景タップでは閉じない（＝カードを選ぶまで閉じない）
+    // ようにする。放置時はタイムアウトで無作為に1枚選ばれる（performPriorityTimeoutAutoAction）。
+    const backdrop = createBackdrop(() => {}, { dim: true, zIndex: 10620 });
     const modal = document.createElement("div");
     modal.id = "sleight-ritual-modal";
     const title = document.createElement("div");
@@ -3826,7 +3831,12 @@ const ARRIVAL_EFFECT_START_PAUSE_MS = 400;
 // によってはすり抜け、triggerCardArrivalIfFaceUpで同じ到達を再発火し得る。発火経路を全部
 // 塞ぐより、「同じカード×同じマスの到達効果が自動処理中の間は、重複した到達発火を無視する」
 // 冪等ガードを1箇所（ここ）に置くのが確実。処理開始でキーを登録し、finallyで必ず外す。
-const activeAutoArrivalKeys = new Set();
+// ただしユーザー報告#11「ジャンプ台を往復したらターンが終わった」の通り、自分の効果チェーンが
+// 同じマスへ正当に再到達する（ジャンプ台で戻る等）ケースは通す必要がある。そこで“無視”対象は
+// remote-move-animator由来の重複発火だけ（triggerCardArrivalにopts.fromDiff=trueで渡る）に
+// 限定し、自分の移動/効果チェーン(fromDiff無し)は常に処理する。往復のネストに耐えるよう、
+// キーはSetではなくカウンタ(Map)で保持する。
+const activeAutoArrivalKeys = new Map();
 function autoArrivalKey(cardId, location) {
   const loc =
     location.zone === "cell"
@@ -3843,7 +3853,9 @@ function autoArrivalKey(cardId, location) {
 // onFullyResolved（省略可）: maybeTriggerCardArrival参照。自動処理なら実際の
 // 非同期処理が終わるまで待ってから、手動（ボタン）モードならモーダルを出した
 // 時点ですぐに呼ぶ（クリックそのものは待たない——onResolvedと同じ精度）。
-function triggerCardArrival(cardId, location, onFullyResolved) {
+// opts.fromDiff: この呼び出しが remote-move-animator.js の位置差分検知（他席の移動の再現・
+// 自席の移動の取りこぼし再発火）由来かどうか。#11の冪等ガードで、fromDiffの重複だけを無視する。
+function triggerCardArrival(cardId, location, onFullyResolved, opts = {}) {
   const player = getPieceOwnerAt(location);
   const showAddToHand = !!player && player === getSelfSeat();
   // 診断（到達コンボ不発の調査）: どのブランチ（自動実行 or 手動モーダルのみ）に入るかを
@@ -3867,15 +3879,16 @@ function triggerCardArrival(cardId, location, onFullyResolved) {
   // （ボタン無し・自動で消える表示専用の）同じ拡大モーダルを出す——効果は自動で
   // 進んでも、自分がどのカードに到達したかは見えないと分かりにくいため。
   if (showAddToHand && canAutoProcessArrival(cardId)) {
-    // 冪等ガード（#7、activeAutoArrivalKeys参照）: 同じカード×マスの到達効果が既に自動処理中
-    // なら、重複した発火（remote-move-animator等の再検出）は無視する。
+    // 冪等ガード（#7/#11、activeAutoArrivalKeys参照）: 同じカード×マスの到達効果が既に自動
+    // 処理中の時、remote-move-animator由来の重複発火(opts.fromDiff)だけを無視する。自分の
+    // 効果チェーンの正当な再到達（ジャンプ台の往復など）は fromDiff 無しなので通す。
     const dedupKey = autoArrivalKey(cardId, location);
-    if (activeAutoArrivalKeys.has(dedupKey)) {
+    if (opts.fromDiff && activeAutoArrivalKeys.has(dedupKey)) {
       logAction("diag-arrival-processing", { cardId, phase: "duplicate-skip", depth: arrivalEffectProcessingDepth });
       onFullyResolved?.();
       return;
     }
-    activeAutoArrivalKeys.add(dedupKey);
+    activeAutoArrivalKeys.set(dedupKey, (activeAutoArrivalKeys.get(dedupKey) || 0) + 1);
     arrivalEffectProcessingDepth++;
     // 続き75診断ログ: ユーザー報告「ムーブフェイズがきれいに終わったのにターンが
     // 終了されなかった」の調査用。このフラグがtrueのまま戻らなくなっていないか
@@ -3908,7 +3921,9 @@ function triggerCardArrival(cardId, location, onFullyResolved) {
         logAction("diag-arrival-processing", { cardId, phase: "error", message: String(err?.message ?? err) });
       } finally {
         arrivalEffectProcessingDepth = Math.max(0, arrivalEffectProcessingDepth - 1);
-        activeAutoArrivalKeys.delete(dedupKey);
+        const remainCount = (activeAutoArrivalKeys.get(dedupKey) || 1) - 1;
+        if (remainCount <= 0) activeAutoArrivalKeys.delete(dedupKey);
+        else activeAutoArrivalKeys.set(dedupKey, remainCount);
         logAction("diag-arrival-processing", { cardId, phase: "end", depth: arrivalEffectProcessingDepth });
         onFullyResolved?.();
         render();
@@ -4016,9 +4031,9 @@ function maybeTriggerCardArrival(dropTarget, pieceTokenId, onResolved, onFullyRe
 // remote-move-animator.jsが、他プレイヤーの駒の到達を再現する時に使う——裏向きカードの
 // 場合の「オープンする/しない」対話的選択肢(promptCardOpen)は、自分が動かしてもいない駒に
 // ついて出すと混乱を招くため、あえて出さない（安全側に倒したスコープ決定）。
-function triggerCardArrivalIfFaceUp(location) {
+function triggerCardArrivalIfFaceUp(location, fromDiff = false) {
   const card = findTopCardAt(location);
-  if (card && card.faceUp) triggerCardArrival(card.cardId, card.location);
+  if (card && card.faceUp) triggerCardArrival(card.cardId, card.location, undefined, { fromDiff });
 }
 
 // 逆方向（駒が既にいるマス/ロックスロットへ、表向きのカードを新しく置いた/動かした時）にも
@@ -4026,10 +4041,10 @@ function triggerCardArrivalIfFaceUp(location) {
 // 駒の下に潜り込むケースでも同じように到達したことにしてほしい、というユーザー要望への対応。
 // 裏向きのカードの場合は対象外（駒が裏向きカードに乗った時の「オープンする/しない」選択の
 // ような自動オープンの仕組みはここでは設けない。ユーザーの要望が表向きの場合のみのため）。
-function maybeTriggerCardArrivalForCard(dropTarget, cardId, faceUp) {
+function maybeTriggerCardArrivalForCard(dropTarget, cardId, faceUp, fromDiff = false) {
   if (!dropTarget || !faceUp) return;
   if (!hasPieceAt(dropTarget)) return;
-  triggerCardArrival(cardId, dropTarget);
+  triggerCardArrival(cardId, dropTarget, undefined, { fromDiff });
 }
 
 // もう一つの逆方向: 駒が既に乗っているマス/ロックスロットで、複数枚重なったカードの
@@ -4041,7 +4056,7 @@ function maybeTriggerCardArrivalForCard(dropTarget, cardId, faceUp) {
 // 素直には乗らないため）。呼び出し元はカードの移動が確定しrender()済みの後に呼ぶこと
 // （findTopCardAt/hasPieceAtは最新のstateを参照するため、render()自体は必須ではないが、
 // 他の到達演出呼び出しと同じタイミングに揃えてある）。
-function maybeTriggerCardArrivalForExposedCard(location) {
+function maybeTriggerCardArrivalForExposedCard(location, fromDiff = false) {
   // 診断（到達コンボ不発の調査）: パーティ等で上のカードが取り除かれ、下のカードが露出
   // した時にこの経路が実際に呼ばれ、駒がいて・表向きのカードを見つけて到達を起こせるかを
   // 記録する。ユーザー報告「パーティを取って露出したジャンプ台の到達効果が起きない」用。
@@ -4055,7 +4070,7 @@ function maybeTriggerCardArrivalForExposedCard(location) {
   });
   if (!location || (location.zone !== "cell" && location.zone !== "lock")) return;
   if (!hasPieceAt(location)) return;
-  triggerCardArrivalIfFaceUp(location);
+  triggerCardArrivalIfFaceUp(location, fromDiff);
 }
 
 // 「オープンする/しない」の選択アイコン。同時に1つだけ表示する（新しく駒が別のカードに
