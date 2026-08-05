@@ -3068,6 +3068,10 @@ async function drawCardsForEffect(player, count) {
         // 発火してしまわないよう、先に1回分だけ抑制を予約しておく（自分の分は
         // この下で直接flyDrawnCardToHandを呼んで演出済みのため）。
         suppressNextHandDrawDiff(player);
+        // 飛翔ゴーストが手札へ着地するまで、汎用render()リスナーによる先回り描画を止める
+        // （#1「ドロー演出の前にもう手札にカードが加わっていた」）。drawFromPileの結果適用で
+        // 走るnotifyListeners()→subscribe(render)を、着地後の手動render()まで抑止する。
+        suppressGenericRenderForDrawFlight = true;
         const result = await drawFromPile("deck", { zone: "hand", player });
         if (result?.revealedCardId) {
           playSound("cardDraw");
@@ -3077,22 +3081,32 @@ async function drawCardsForEffect(player, count) {
           render();
           pickups.push({ cardId: result.revealedCardId, wasPublic: false });
         }
+        // 着地後は解除（この後のfetchAndHydrate等は通常通り再描画させる）。
+        suppressGenericRenderForDrawFlight = false;
         await fetchAndHydrate(getCurrentGameId());
         drawnTokenIds.push(...findNewHandTokenIds(player, handBefore));
       } catch (err) {
         console.error("drawCardsForEffect failed", err);
         break;
+      } finally {
+        suppressGenericRenderForDrawFlight = false; // 例外時も必ず解除
       }
     } else {
       const pileArray = getState().piles.deck;
       if (pileArray.length === 0) break; // 山札が尽きたら諦める（善処の原則）
       const cardId = pileArray[pileArray.length - 1];
-      drawFromPile("deck", { zone: "hand", player });
-      playSound("cardDraw");
-      await flyDrawnCardToHand(player, cardId);
-      render();
-      pickups.push({ cardId, wasPublic: false });
-      drawnTokenIds.push(...findNewHandTokenIds(player, handBefore));
+      // オフラインでもdrawFromPileのdispatch→auto-renderが先回りするため同様に抑止する。
+      suppressGenericRenderForDrawFlight = true;
+      try {
+        drawFromPile("deck", { zone: "hand", player });
+        playSound("cardDraw");
+        await flyDrawnCardToHand(player, cardId);
+        render();
+        pickups.push({ cardId, wasPublic: false });
+        drawnTokenIds.push(...findNewHandTokenIds(player, handBefore));
+      } finally {
+        suppressGenericRenderForDrawFlight = false;
+      }
     }
   }
   // ユーザー要望「獲得ポップアップは1枚ずつ出るのではなく、まとめて1回出てほしい」
@@ -5344,6 +5358,12 @@ let suppressGenericRenderForOnlineStart = false;
 // respondToContact()のタックル演出（playContactLunge/playContactFlight）中、同じ理由で
 // 汎用render()リスナー・remote-move-animator.jsを一時停止するためのフラグ。
 let suppressGenericRenderForContactTackle = false;
+// ドロー演出（flyDrawnCardToHand）の飛翔ゴーストが手札へ着地するまでの間、汎用render()
+// リスナーを一時停止するためのフラグ（ユーザー報告「プレゼントのドローで、ドロー演出の
+// 前にもう手札にカードが加わっていた」）。オンラインのdrawFromPileはonlineTransport経由で
+// 結果をローカルへ適用しnotifyListeners()を発火するため、このsubscribe(render)が飛翔前に
+// 先回りして実カードを手札に描いてしまっていた。着地後の手動render()まで抑止する。
+let suppressGenericRenderForDrawFlight = false;
 
 // 観戦中の告知バナー（ユーザー要望）。観戦モード（すべて/公開）を表示し、観戦をやめる導線を出す。
 let spectatorBannerEl = null;
@@ -10041,7 +10061,7 @@ subscribe(() => {
 // 前に登録する。オンラインゲーム開始アニメーション中は、盤面が丸ごと配布演出用に隠されて
 // いる最中のため競合しないよう休止する。
 subscribe(() => {
-  if (suppressGenericRenderForOnlineStart || suppressGenericRenderForContactTackle) return;
+  if (suppressGenericRenderForOnlineStart || suppressGenericRenderForContactTackle || suppressGenericRenderForDrawFlight) return;
   handleRemoteMoveHydrate();
 });
 
@@ -10070,7 +10090,7 @@ registerOnGateInvasionQueueDrained(() => {
   }
 });
 subscribe(() => {
-  if (suppressGenericRenderForOnlineStart || suppressGenericRenderForContactTackle) return;
+  if (suppressGenericRenderForOnlineStart || suppressGenericRenderForContactTackle || suppressGenericRenderForDrawFlight) return;
   const { turnPlayer } = getState();
   if (prevTurnPlayerForAnnouncement !== null && turnPlayer !== null && turnPlayer !== prevTurnPlayerForAnnouncement) {
     // ユーザー要望「ターンごとの各プレイヤーのロック枚数を折れ線グラフで」。ターンが
@@ -10186,7 +10206,7 @@ function computeStateFingerprint(state) {
 // render()呼び出しはローカルモードのためにそのまま残してある）。上のオンラインゲーム開始
 // アニメーション中だけは、このリスナーの発火をスキップする（理由は上のコメント参照）。
 subscribe(() => {
-  if (suppressGenericRenderForOnlineStart || suppressGenericRenderForContactTackle) return;
+  if (suppressGenericRenderForOnlineStart || suppressGenericRenderForContactTackle || suppressGenericRenderForDrawFlight) return;
   const fingerprint = computeStateFingerprint(getState());
   if (fingerprint === lastRenderedFingerprint) return;
   lastRenderedFingerprint = fingerprint;

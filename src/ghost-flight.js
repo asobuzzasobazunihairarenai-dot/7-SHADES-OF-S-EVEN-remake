@@ -62,8 +62,14 @@ export function flyGhost(fromRect, toRect, imagePath, className, durationMs) {
       ghost.style.transform = `translate(${to.x}px, ${to.y}px) translate(-50%, -50%) scale(${scale})`;
     });
     setTimeout(() => {
-      ghost.remove();
+      // ユーザー報告「カードが手札まで来て一瞬消える」。以前はここでゴーストを即消去して
+      // からresolve()していたため、消去→呼び出し側の着地後render()で実カードが現れる、の
+      // 間に1フレームの空白ができ、そこでカードが一瞬消えて見えていた。先にresolve()して
+      // 呼び出し側にrender()させ、実カードが描かれてからゴーストを消す（同じ絵柄が数フレーム
+      // だけ重なるが、空白＝ちらつきは生じない）。呼び出し側がresolve直後に同期でrender()する
+      // 前提（drawCardsForEffect等）で、2フレーム後に消せば実カードの描画は済んでいる。
       resolve();
+      requestAnimationFrame(() => requestAnimationFrame(() => ghost.remove()));
     }, durationMs + 20);
   });
   return { ghost, done };
