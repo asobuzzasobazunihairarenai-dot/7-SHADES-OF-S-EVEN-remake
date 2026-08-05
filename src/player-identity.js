@@ -16,6 +16,7 @@
 
 import { SEAT_LABELS, SEAT_ORDER } from "./board-layout.js";
 import { isOnlineMode, getSelfSeat, getSyncedIdentity, updateMyIdentity } from "./online.js";
+import { getState } from "./state.js";
 
 // 色ごとに正面(front)・左向き(left)・右向き(right)の3バリエーションが用意されている
 // （画像素材/アバター/アバター1参照）。「そのプレイヤーが選んだアバター」の正規の値としては
@@ -64,11 +65,28 @@ const PAID_AVATARS = {
 
 // 特殊アバター「記憶を失った青年」（無料）。ユーザー指定で、選んだプレイヤーの駒の色に
 // 合わせて青年の色が変わる。実体は座席ごとに解決するためセンチネル値で保持する
-// （resolveAvatarValue参照）。駒の色は座席で固定（state.jsのPIECE_START順）。
+// （resolveAvatarValue参照）。
 export const PROTAGONIST_AVATAR = "protagonist";
-const SEAT_PIECE_COLOR = { A: "red", B: "orange", C: "yellow", D: "green" };
+// ユーザー要望「青年アバターは、ゲーム開始前は灰色、開始後は自分のファーストカードの色に
+// なる」。この色＝その座席の駒の色で、駒はstate.jsのSETUP_ASSIGN_FIRST_CARDSで
+// 「配られたファーストカードと同色（piece.color=def.color）」として初めて作られる。
+// 座席固定の色（A=赤…）ではなく、ランダムに配られた実際の色を反映するのが正しい
+// （座席Aでも青のファーストカードなら青の青年になる）。よって：
+//   ・自分（その座席）に紐づく駒がまだ盤上に無い＝ゲーム開始前 → 灰色（gray）
+//   ・駒があれば → その駒の色（＝ファーストカードの色）
+// getState()は実行時にだけ呼ぶ（モジュール評価時には呼ばない）ので、state.jsとの
+// import順による初期化(TDZ)問題は起きない。
+function protagonistColorForSeat(seat) {
+  try {
+    const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === seat);
+    if (piece && piece.color) return piece.color;
+  } catch {
+    /* state未初期化などは灰色にフォールバック */
+  }
+  return "gray";
+}
 export function protagonistPathForSeat(seat) {
-  return `assets/avatars/protagonist-${SEAT_PIECE_COLOR[seat] || "gray"}-front.webp`;
+  return `assets/avatars/protagonist-${protagonistColorForSeat(seat)}-front.webp`;
 }
 // センチネル（"protagonist"）を、その座席の駒の色に対応する実際の画像パスへ解決する。
 // それ以外の値（通常のパス・Google画像・絵文字等）はそのまま返す。
