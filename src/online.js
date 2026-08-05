@@ -584,6 +584,35 @@ export function broadcastEmote(payload) {
     broadcastChannel.send({ type: "broadcast", event: "emote", payload });
   }
 }
+// ユーザー要望「不具合報告をするとき、対戦相手全員のアクションログとコンソールも取得して
+// 記載できるように」。報告者が全プレイヤーへ「今のあなたのログを送ってください」と要求し
+// （broadcastBugLogRequest）、各プレイヤーは自分のアクションログ/コンソールログを送り返す
+// （broadcastBugLogResponse）。状態は一切変えない見た目だけの合図で、他の合図と同じく
+// クライアント間の直接broadcast（Edge Functionは経由しない）。収集の実処理はbug-report.js。
+let bugLogRequestEventListeners = [];
+export function onBugLogRequestEvents(fn) {
+  bugLogRequestEventListeners.push(fn);
+  return () => {
+    bugLogRequestEventListeners = bugLogRequestEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastBugLogRequest(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "bug_log_request", payload });
+  }
+}
+let bugLogResponseEventListeners = [];
+export function onBugLogResponseEvents(fn) {
+  bugLogResponseEventListeners.push(fn);
+  return () => {
+    bugLogResponseEventListeners = bugLogResponseEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastBugLogResponse(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "bug_log_response", payload });
+  }
+}
 // main.jsのヘッダーボタン（「🌐 オンライン」）のラベルを、ログイン状態が分かるように
 // 動的に変える時など、awaitせず同期的に「今ログイン中かどうか」を知りたい場面のために
 // キャッシュしておく（getCurrentUser()は毎回サーバーに問い合わせる非同期関数のため）。
@@ -2392,6 +2421,13 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // エモートの通知（broadcastEmote参照）。
     .on("broadcast", { event: "emote" }, ({ payload }) => {
       for (const fn of emoteEventListeners) fn(payload);
+    })
+    // 不具合報告時のログ収集要求／応答（broadcastBugLogRequest/Response参照）。
+    .on("broadcast", { event: "bug_log_request" }, ({ payload }) => {
+      for (const fn of bugLogRequestEventListeners) fn(payload);
+    })
+    .on("broadcast", { event: "bug_log_response" }, ({ payload }) => {
+      for (const fn of bugLogResponseEventListeners) fn(payload);
     })
     .subscribe((status) => {
       // ユーザー要望「部屋に入ってきたら、待機中の他メンバーにもリアルタイムで（＝

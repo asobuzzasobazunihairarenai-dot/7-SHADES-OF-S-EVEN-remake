@@ -7,8 +7,17 @@
 // Edge Functionが別途必要なため、まずはDB保存＋管理者ダッシュボード表示で確実に届くように
 // している。メール送信は後からEdge Functionを足せば、このinsertをトリガーに送れる。
 
-import { submitBugReport } from "./online.js";
+import {
+  submitBugReport,
+  isOnlineMode,
+  getSelfSeat,
+  onBugLogRequestEvents,
+  broadcastBugLogRequest,
+  onBugLogResponseEvents,
+  broadcastBugLogResponse,
+} from "./online.js";
 import { getActionLogText } from "./action-log.js";
+import { getPlayerName } from "./player-identity.js";
 import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
 import { APP_VERSION } from "./app-version.js";
 
@@ -67,6 +76,72 @@ function getConsoleLogText() {
   return consoleBuffer.join("\n");
 }
 
+// ---- 対戦相手のログ収集（ユーザー要望「不具合報告時に相手全員のログも取得したい」） ----
+// このモジュールはmain.jsから起動時にeager importされる（installConsoleCaptureのため）ので、
+// ここで応答リスナーを常時登録しておけば、自分が報告者でなくても、他プレイヤーの報告時の
+// 収集要求に自分のログを返せる。状態は一切変えない、online.jsの合図の上に乗るだけの処理。
+onBugLogRequestEvents((payload) => {
+  if (!payload || !payload.requestId) return;
+  try {
+    const seat = getSelfSeat();
+    broadcastBugLogResponse({
+      requestId: payload.requestId,
+      seat,
+      name: getPlayerName(seat),
+      actionLog: getActionLogText(),
+      consoleLog: getConsoleLogText(),
+    });
+  } catch (err) {
+    console.error("bug log response failed", err);
+  }
+});
+
+// 報告者側: 全プレイヤーへ収集要求をbroadcastし、一定時間だけ応答を集める。realtimeの
+// 取りこぼし対策に何度か再送する（delegateToPlayerForEffectの再送と同じ考え方）。
+// 自分自身の応答は（送信元には基本echoされないうえ）別途本文に添付するため座席で弾く。
+async function collectPeerLogs(timeoutMs = 2500) {
+  if (!isOnlineMode()) return [];
+  const requestId = `buglog-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const selfSeat = getSelfSeat();
+  const responses = new Map(); // seat（無ければname）-> { seat, name, actionLog, consoleLog }
+  const unregister = onBugLogResponseEvents((payload) => {
+    if (!payload || payload.requestId !== requestId) return;
+    if (payload.seat && payload.seat === selfSeat) return;
+    responses.set(payload.seat ?? payload.name ?? String(responses.size), payload);
+  });
+  broadcastBugLogRequest({ requestId });
+  await new Promise((resolve) => {
+    const resend = setInterval(() => broadcastBugLogRequest({ requestId }), 800);
+    setTimeout(() => {
+      clearInterval(resend);
+      resolve();
+    }, timeoutMs);
+  });
+  unregister();
+  return [...responses.values()];
+}
+
+// 収集した自分＋相手のログを、見出し付きで1本のテキストに束ねる（so7_bug_reportsの
+// action_log/console_log列にそのまま入れる。新しい列やSQLの追加は不要）。
+function sectionLabel(name, seat, kind, extra = "") {
+  return `==== ${name ?? "?"}（${seat ?? "?"}${extra}）の${kind} ====`;
+}
+function buildCombinedLogs(peers) {
+  let actionLog = getActionLogText();
+  let consoleLog = getConsoleLogText();
+  // オフライン/単独時は従来通り自分のぶんだけをそのまま返す（見出しも付けない）。
+  if (!isOnlineMode()) return { actionLog, consoleLog };
+  const selfSeat = getSelfSeat();
+  const selfName = getPlayerName(selfSeat);
+  actionLog = `${sectionLabel(selfName, selfSeat, "アクションログ", "／報告者")}\n${actionLog || "(なし)"}`;
+  consoleLog = `${sectionLabel(selfName, selfSeat, "コンソール", "／報告者")}\n${consoleLog || "(なし)"}`;
+  for (const p of peers) {
+    actionLog += `\n\n${sectionLabel(p.name, p.seat, "アクションログ")}\n${p.actionLog || "(なし)"}`;
+    consoleLog += `\n\n${sectionLabel(p.name, p.seat, "コンソール")}\n${p.consoleLog || "(なし)"}`;
+  }
+  return { actionLog, consoleLog };
+}
+
 function gatherContext() {
   let roomId = null;
   try {
@@ -108,7 +183,7 @@ export function openBugReportModal() {
   const desc = document.createElement("div");
   desc.className = "bug-report-desc";
   desc.textContent =
-    "気づいた不具合や気になったことを書いて送ってください。送信すると、その時点のアクションログ・コンソールログ・状況（バージョン等）も自動で添付されます。";
+    "気づいた不具合や気になったことを書いて送ってください。送信すると、その時点のアクションログ・コンソールログ・状況（バージョン等）も自動で添付されます。オンライン対戦中は、同じ部屋の対戦相手全員のログもまとめて添付します。";
 
   const textarea = document.createElement("textarea");
   textarea.className = "bug-report-textarea";
@@ -141,12 +216,14 @@ export function openBugReportModal() {
     submitBtn.disabled = true;
     cancelBtn.disabled = true;
     status.classList.remove("is-error");
-    status.textContent = "送信中…";
+    status.textContent = isOnlineMode() ? "送信中…（対戦相手のログも収集しています）" : "送信中…";
     try {
+      const peers = await collectPeerLogs();
+      const { actionLog, consoleLog } = buildCombinedLogs(peers);
       await submitBugReport({
         comment,
-        actionLog: getActionLogText(),
-        consoleLog: getConsoleLogText(),
+        actionLog,
+        consoleLog,
         context: gatherContext(),
       });
       status.classList.remove("is-error");
