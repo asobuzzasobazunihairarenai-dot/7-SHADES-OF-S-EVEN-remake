@@ -60,6 +60,101 @@
   55%, 80% { transform: rotate(-90deg); }
 }
 
+/* 初回起動時のBGM設定モーダル（first-run-bgm.js）。 */
+#first-run-bgm-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(26rem, 92vw);
+  z-index: 100051; /* backdrop(100050)より前面 */
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.6rem;
+  padding: 1.4rem 1.4rem 1.2rem;
+  box-sizing: border-box;
+  color: #e2e8f0;
+  font-family: sans-serif;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  text-align: center;
+}
+.first-run-bgm-title {
+  font-size: 1.2rem;
+  font-weight: bold;
+  margin-bottom: 0.7rem;
+}
+.first-run-bgm-desc {
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: #cbd5e1;
+  margin-bottom: 1.1rem;
+  text-align: left;
+}
+.first-run-bgm-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+.first-run-bgm-label {
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.first-run-bgm-row input[type="range"] {
+  flex: 1;
+  min-width: 0;
+}
+.first-run-bgm-value {
+  font-size: 0.85rem;
+  min-width: 2.8rem;
+  text-align: right;
+  color: #94a3b8;
+}
+.first-run-bgm-preview {
+  display: inline-block;
+  width: 100%;
+  padding: 0.55rem 1rem;
+  margin-bottom: 0.8rem;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.6);
+  border-radius: 0.4rem;
+  color: #e2e8f0;
+  font-family: sans-serif;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.first-run-bgm-preview:hover {
+  background: rgba(56, 189, 248, 0.2);
+}
+.first-run-bgm-ok {
+  display: inline-block;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  background: #0891b2;
+  border: none;
+  border-radius: 0.4rem;
+  color: #fff;
+  font-family: sans-serif;
+  font-size: 0.95rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+.first-run-bgm-ok:hover {
+  background: #0ea5c4;
+}
+/* ライトテーマ対応。 */
+body.theme-light #first-run-bgm-modal {
+  background: #fdfbf5;
+  border-color: rgba(176, 141, 63, 0.6);
+  color: #3a3326;
+}
+body.theme-light .first-run-bgm-desc {
+  color: #6b5c3c;
+}
+body.theme-light .first-run-bgm-value {
+  color: #6b5c3c;
+}
+
 html, body {
   height: 100%;
   margin: 0;

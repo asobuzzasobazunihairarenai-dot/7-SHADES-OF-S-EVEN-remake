@@ -188,6 +188,7 @@ import {
 } from "./state.js";
 import { initOnlineUi, openOnlinePanel, isOnlineIntentActive } from "./online-ui.js";
 import { initOpeningScreen, previewOpeningAuras } from "./opening-screen.js";
+import { maybeShowFirstRunBgmModal } from "./first-run-bgm.js";
 import {
   getSelfSeat,
   isSpectatingGame,
@@ -9852,6 +9853,8 @@ function updateSelfHandStatus() {
 // 画面へ追加しておく。ゲーム自体はこれまで通りすぐ裏で初期化・描画されるため、後段の
 // 処理を待たせる必要はない（単純な最前面オーバーレイとしてゲート役を果たすだけ）。
 initOpeningScreen();
+// 初回起動時だけ、オープニングの手前にBGM音量の設定モーダル（試聴ボタン付き）を出す。
+maybeShowFirstRunBgmModal();
 
 // 管理者モードのスライダーには、CSS変数を変えるだけでは反映されない値（--hand-*-sizeなど、
 // JS側でgetComputedStyleして読み取り、inline styleとして適用しているもの）があるため、
