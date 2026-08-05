@@ -3802,6 +3802,25 @@ function endPostMoveArrivalGuard() {
 const ARRIVAL_BURST_DURATION_MS = 1400;
 const ARRIVAL_EFFECT_START_PAUSE_MS = 400;
 
+// ユーザー報告#7: 自分のターンで放置中に、自分のパーティ到達効果が二重に処理され（相手が
+// パーティ効果を2回得る／自分のムーブフェイズのターンが終わらない）ていた。原因は、自分の
+// 移動で発火した到達効果(triggerCardArrival)の自動処理中に、同じマス・同じカードの到達が
+// もう一度triggerCardArrivalされ二重に走ること。二重発火の主経路はremote-move-animator.jsの
+// 位置差分検知で、自席の駒の移動もmarkSelfHandledのTTL(4秒)切れやトークン再同期のタイミング
+// によってはすり抜け、triggerCardArrivalIfFaceUpで同じ到達を再発火し得る。発火経路を全部
+// 塞ぐより、「同じカード×同じマスの到達効果が自動処理中の間は、重複した到達発火を無視する」
+// 冪等ガードを1箇所（ここ）に置くのが確実。処理開始でキーを登録し、finallyで必ず外す。
+const activeAutoArrivalKeys = new Set();
+function autoArrivalKey(cardId, location) {
+  const loc =
+    location.zone === "cell"
+      ? `cell:${location.row}:${location.col}`
+      : location.zone === "lock"
+        ? `lock:${location.side}:${location.index}`
+        : String(location.zone);
+  return `${cardId}@${loc}`;
+}
+
 // 到達演出一式（右上モーダル＋そのマス自体が発光する柱状のオーラ＋効果音）をまとめて行う。
 // 柱の色はカード自身の色に合わせる（--color-*をそのまま使う）。到達した駒の持ち主にだけ
 // 「このカードを手札に加える」ボタンを出す（ユーザー要望）。
@@ -3832,6 +3851,15 @@ function triggerCardArrival(cardId, location, onFullyResolved) {
   // （ボタン無し・自動で消える表示専用の）同じ拡大モーダルを出す——効果は自動で
   // 進んでも、自分がどのカードに到達したかは見えないと分かりにくいため。
   if (showAddToHand && canAutoProcessArrival(cardId)) {
+    // 冪等ガード（#7、activeAutoArrivalKeys参照）: 同じカード×マスの到達効果が既に自動処理中
+    // なら、重複した発火（remote-move-animator等の再検出）は無視する。
+    const dedupKey = autoArrivalKey(cardId, location);
+    if (activeAutoArrivalKeys.has(dedupKey)) {
+      logAction("diag-arrival-processing", { cardId, phase: "duplicate-skip", depth: arrivalEffectProcessingDepth });
+      onFullyResolved?.();
+      return;
+    }
+    activeAutoArrivalKeys.add(dedupKey);
     arrivalEffectProcessingDepth++;
     // 続き75診断ログ: ユーザー報告「ムーブフェイズがきれいに終わったのにターンが
     // 終了されなかった」の調査用。このフラグがtrueのまま戻らなくなっていないか
@@ -3864,6 +3892,7 @@ function triggerCardArrival(cardId, location, onFullyResolved) {
         logAction("diag-arrival-processing", { cardId, phase: "error", message: String(err?.message ?? err) });
       } finally {
         arrivalEffectProcessingDepth = Math.max(0, arrivalEffectProcessingDepth - 1);
+        activeAutoArrivalKeys.delete(dedupKey);
         logAction("diag-arrival-processing", { cardId, phase: "end", depth: arrivalEffectProcessingDepth });
         onFullyResolved?.();
         render();

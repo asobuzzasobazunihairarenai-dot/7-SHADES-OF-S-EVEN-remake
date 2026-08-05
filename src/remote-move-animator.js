@@ -194,7 +194,7 @@ function applyBlinkVisual(hostEl, entry, elapsedMs) {
 // 秒数を待っても点滅・矢印が消えない」の原因特定用。ローカル環境では再現できなかったため、
 // ユーザーの実機（オンライン＋ターンタイマーON）でブラウザのコンソール出力を見せてもらう
 // 目的で追加した。原因が分かり次第、このconsole.log群は削除する）。
-const BLINK_DEBUG = true;
+const BLINK_DEBUG = false;
 function blinkDebugLog(...args) {
   if (BLINK_DEBUG) console.log("[blink-debug]", new Date().toISOString().slice(11, 23), ...args);
 }

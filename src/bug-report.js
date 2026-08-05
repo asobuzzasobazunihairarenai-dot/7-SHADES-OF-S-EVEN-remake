@@ -29,11 +29,15 @@ let consoleHooked = false;
 function installConsoleCapture() {
   if (consoleHooked) return;
   consoleHooked = true;
-  // console.log/info/debug は「包む」とdevtoolsの出力元表示が全部bug-report.jsになって
-  // しまい（ユーザーが貼ったログが全部 bug-report.js:45 になる不具合）デバッグの妨げに
-  // なるため、包まない。捕捉するのは重要度が高く頻度の低い warn/error だけにする
-  // （通常のログは元々アクションログ側に十分残っている）。
-  const levels = ["warn", "error"];
+  // ユーザー報告「不具合報告でコンソールを取得できていません」。以前は warn/error だけを
+  // 包んでいたため、console.log/info しか出ていない対局では添付が「(なし)」になっていた。
+  // 不具合報告に載せる目的では log/info も拾う必要があるので全レベルを包む。
+  // トレードオフ: console.log/info を包むと devtools の出力元表示がこの wrapper
+  // （bug-report.js）になる（本来の呼び出し元の行が見えなくなる）。ただし今はアプリが
+  // 自動でコンソールを添付するので、devtoolsを手でコピーする前提自体が薄れており許容する。
+  // なお高頻度のデバッグログ（remote-move-animatorのBLINK_DEBUG等）は既定でオフにして
+  // あるので、300件のリングバッファが無意味なログで溢れることはない。
+  const levels = ["log", "info", "warn", "error"];
   for (const level of levels) {
     const original = console[level]?.bind(console);
     if (!original) continue;
