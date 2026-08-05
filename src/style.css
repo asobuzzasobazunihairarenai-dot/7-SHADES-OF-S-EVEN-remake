@@ -1440,6 +1440,15 @@ body.theme-light #changelog-back {
 .contact-result-ok:hover {
   background: #0ea5c4;
 }
+/* ライトテーマ（body.theme-light）: 接触の結果モーダルがダークのままだったので、他の
+   ライトモーダル（#bug-report-modal等）と同じアイボリー地＋ゴールド枠＋濃い文字へ。
+   タイトル/本文の文字色はこのモーダルからの継承なので、ここで上書きすれば一緒に暗くなる。
+   「閉じる」ボタンは色付き（シアン）＋白文字でライト地でも読めるためそのまま。 */
+body.theme-light #contact-result-modal {
+  background: #fdfbf5;
+  border-color: rgba(176, 141, 63, 0.6);
+  color: #3a3326;
+}
 
 /* カード右クリックの専用メニューと、その中の「カード補足を見る」で開くモーダル。 */
 #card-context-menu {
