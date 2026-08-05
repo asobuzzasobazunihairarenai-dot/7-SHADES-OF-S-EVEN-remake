@@ -3685,6 +3685,16 @@ body.spotlight-mode #spotlight-overlay {
   pointer-events: auto; /* 編集中はドラッグできるように */
   opacity: 0.28; /* 編集中は少し見やすく */
 }
+/* マイページの表示アバター（本体・背面の巨大半透明の両方）も、左下ステータスの巨大アバターと
+   同じ理由で縁を放射状マスクでフェードさせる。アバターのイラストには灰色/白の背景が焼き込まれて
+   おり、円形クロップのハードな縁がそのまま“円盤の枠”として見える。特にライトテーマでは背景が
+   白く読めるため「プロフィールの不要な白い枠」として目立っていた（ユーザー報告）。中央の
+   キャラクターは残したまま、縁だけを背景へ溶け込ませる（.self-status-large-avatarと同一マスク）。 */
+.my-page-avatar-img,
+.my-page-bg-avatar img {
+  -webkit-mask-image: radial-gradient(circle, #000 60%, rgba(0, 0, 0, 0.35) 74%, transparent 86%);
+  mask-image: radial-gradient(circle, #000 60%, rgba(0, 0, 0, 0.35) 74%, transparent 86%);
+}
 /* マイページの着せ替え一式（my-page.js renderMyPageBody）。 */
 .my-page-cosmetics {
   margin: 0.6rem 0 1rem;
