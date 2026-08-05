@@ -519,7 +519,7 @@ function ensureTurnStatus() {
   attachToPhaseGuideBar(turnStatusEl);
   return turnStatusEl;
 }
-function updateSkipButtonVisibility() {
+export function updateSkipButtonVisibility() {
   const btn = ensureSkipButton();
   const statusEl = ensureTurnStatus();
   // ムーブフェイズは「移動」か「接触」のどちらかを必ず行う必要があり、任意にスキップできる

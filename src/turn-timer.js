@@ -34,6 +34,12 @@ import {
 } from "./main.js";
 import { SEAT_ORDER, SEAT_TO_SIDE, getRotationSteps, rotateSide } from "./board-layout.js";
 import { getSelfSeat, getSyncedTimerConfig, getCurrentGameId, fetchAndHydrate, isSpectatingGame } from "./online.js";
+// 「自分のターンです（優先権はあなたにあります）」等のターン状態表示を最新化する
+// （phase-automation.js）。優先権はtick内のsetPriorityStateやサーバー再同期で変わるが、
+// これらは必ずしもrender()を伴わないため、タイマーと同じtickで表示も更新して食い違いを防ぐ
+// （ユーザー不具合報告#5「タイマーは相手に移ったのに『優先権はあなたにあります』のまま」）。
+// turn-timer.jsとphase-automation.jsは互いにimportしていない（片方向のみ）ため循環参照は起きない。
+import { updateSkipButtonVisibility } from "./phase-automation.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { consumeLastActionInfo } from "./last-action-info.js";
@@ -953,6 +959,10 @@ function tick() {
     setDisplayIfChanged(baseClockEl, "none");
     return;
   }
+  // ターン状態表示（「自分/相手のターンです（優先権は…）」）をタイマーと同じtickで最新化して、
+  // 優先権が変わったのにタイマーだけ動いて表示文だけ取り残される食い違いを防ぐ（#5）。
+  // 中身はDOMテキストの差し替えだけで軽量。
+  updateSkipButtonVisibility();
   // ユーザー報告（続き106）「優先権が委任されたまま自動プレイが反応せず止まる」の
   // 根本原因（このファイル798行目付近の解説参照）への対策。state.priorityPlayerを
   // 誰が保持しているかに関係なく、「自分の画面に今まさに選択待ちのactiveEffectPickerが
