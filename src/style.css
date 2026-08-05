@@ -10008,7 +10008,7 @@ body:not(.is-admin-user) .opening-admin-btn {
   --hand-reveal-left-pos-y: -13.4rem;
   --hand-reveal-right-pos-x: -2.4rem;
   --hand-reveal-right-pos-y: 13.5rem;
-  --rank-ring-thickness: 0.9rem;
+  --rank-ring-thickness: 0.75rem;
   --rank-ring-offset-x: 0rem;
   --rank-ring-offset-y: 0rem;
   --rank-ring-orbit-size: 0.4rem;

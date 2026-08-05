@@ -1194,7 +1194,7 @@ const GROUPS = [
         min: 0.1,
         max: 2,
         step: 0.05,
-        default: 0.9,
+        default: 0.75,
         previewOnInteract: () => rankRingPreviewFn?.(),
       },
       {
