@@ -1606,6 +1606,9 @@ async function stealHandCardsRitualForGateInvasion(defender, count) {
 // 参照、自分自身の分は二重表示にならないよう除外している）。ローカル対戦は1画面
 // 共有のため、ローカル表示だけで全員に見えている。
 function announceHandEffectUseForEffect(cardId, optionLabel, player) {
+  // 行動ログ用（ユーザー要望「△△は〇〇の手札効果を得ました」。以前は手札効果がログに
+  // 残っていなかった）。到達効果(arrival)と同じく「誰が・どのカードの手札効果を使ったか」を記録。
+  logAction("hand-effect", { cardId, player: player ?? getSelfSeat() });
   showHandEffectUseModal(cardId, optionLabel);
   // ユーザー要望「手札効果の使用が宣言されたときの効果音が欲しい。到達時の効果音を
   // 流用でよい」（続き62）。
@@ -1760,6 +1763,8 @@ function declareColorsForEffect(requirement, cardId, player) {
       // 直接呼ぶ）でも必ず表示されるよう、確認ボタンのハンドラではなくここで行う
       // （ユーザー報告「疑似CPUが試練の儀式で何色を宣言したか分からないまま移動する」対応）。
       if (Array.isArray(result) && result.length) {
+        // 行動ログ用（ユーザー要望「選択系もログに残す」）。宣言した実際の色を記録する。
+        logAction("declare-colors", { player, cardId, colors: result });
         if (isOnlineMode()) broadcastColorsDeclared({ fromPlayer: player, cardId, colors: result });
         showDeclaredColorsIndicator(player, result);
       }
@@ -7920,33 +7925,137 @@ function isActionLogWindowOpen() {
 // ゲーム画面の行動ログは素人も読む（ユーザー要望）ため、技術ログではなく「誰が何をしたか」を
 // 日本語でシンプルに出す。ノイズ（内部診断）は除外し、カードを出した／ゲート侵攻／色宣言等
 // だけを、新しい順（上が最新）に並べる。
-function formatFriendlyActionLog() {
-  const entries = getActionLogEntries();
-  const lines = [];
-  let lastMsg = null;
-  for (const e of entries) {
+// 座席ごとのアクセント色（行動ログで「誰の手番か」を色分けするため。ユーザー要望）。
+const ACTION_LOG_SEAT_ACCENT = { A: "#f87171", B: "#fbbf24", C: "#60a5fa", D: "#4ade80" };
+// マス座標の見える化（ユーザー要望「移動先も座標でログ」）。盤面の絶対座標で、
+// 列A〜G（左から）＋行1〜7（上から）。例: セル(row2,col3) → "D3"。iマークで説明する。
+function actionLogCoordLabel(loc) {
+  if (loc && loc.zone === "cell" && Number.isInteger(loc.row) && Number.isInteger(loc.col)) {
+    return `${String.fromCharCode(65 + loc.col)}${loc.row + 1}`;
+  }
+  return null;
+}
+// 生の記録（getActionLogEntries）から、素人にも読める「誰が・何をしたか」の項目列を作る
+// （古い→新しい順）。ノイズ（内部診断）は除外。同じ内容の連続はまとめる。
+function buildFriendlyLogItems() {
+  const items = [];
+  let lastKey = null;
+  for (const e of getActionLogEntries()) {
+    let player = null;
     let msg = null;
     if (e.category === "arrival" && e.detail?.depth === 0 && e.detail?.cardId) {
+      player = e.detail.player;
       const name = getCardDefinition(e.detail.cardId)?.name ?? e.detail.cardId;
-      msg = `${getPlayerName(e.detail.player)}が「${name}」を出しました`;
+      const co = actionLogCoordLabel(e.detail.location);
+      msg = `「${name}」の到達効果を得ました${co ? `（${co}）` : ""}`;
+    } else if (e.category === "hand-effect" && e.detail?.cardId) {
+      player = e.detail.player;
+      const name = getCardDefinition(e.detail.cardId)?.name ?? e.detail.cardId;
+      msg = `「${name}」の手札効果を得ました`;
+    } else if (e.category === "declare-colors" && e.detail?.colors?.length) {
+      player = e.detail.player;
+      const cols = e.detail.colors.map((c) => COLOR_LABEL_JA[c] ?? c).join("・");
+      msg = `色を宣言しました：${cols}`;
     } else if (e.category === "diag-gate-invasion-received") {
       msg = "ゲート侵攻が発生しました";
-    } else if (e.category === "effect-verb" && e.detail?.verb === "declare_colors" && e.detail?.result) {
-      msg = `${getPlayerName(e.detail.player)}が色を宣言しました`;
+    } else {
+      continue;
     }
-    if (!msg || msg === lastMsg) continue; // 同内容の連続はまとめる
-    lastMsg = msg;
-    const d = new Date(e.t);
-    const time = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-    lines.push(`[${time}] ${msg}`);
+    const key = `${player}|${msg}`;
+    if (key === lastKey) continue;
+    lastKey = key;
+    items.push({ turn: e.turn, round: e.round, player, msg, t: e.t });
   }
-  if (lines.length === 0) return "（まだ記録がありません）";
-  return lines.reverse().join("\n");
+  return items;
+}
+function buildActionLogTurnHeader(item) {
+  const header = document.createElement("div");
+  header.className = "action-log-turn-header";
+  const accent = item.player ? ACTION_LOG_SEAT_ACCENT[item.player] : "rgba(148,163,184,0.6)";
+  header.style.setProperty("--log-accent", accent);
+  if (item.player) {
+    const av = document.createElement("img");
+    av.className = "action-log-turn-avatar";
+    av.src = getPlayerAvatar(item.player);
+    av.alt = "";
+    header.appendChild(av);
+  }
+  const label = document.createElement("span");
+  label.className = "action-log-turn-label";
+  const rt = [item.round != null ? `R${item.round}` : null, item.turn != null ? `T${item.turn}` : null].filter(Boolean).join("・");
+  label.textContent = item.player ? `${rt ? rt + "　" : ""}${getPlayerName(item.player)}のターン` : rt || "—";
+  header.appendChild(label);
+  return header;
+}
+function buildActionLogEventRow(item) {
+  const row = document.createElement("div");
+  row.className = "action-log-event";
+  const accent = item.player ? ACTION_LOG_SEAT_ACCENT[item.player] : "rgba(148,163,184,0.6)";
+  row.style.setProperty("--log-accent", accent);
+  const text = document.createElement("span");
+  text.className = "action-log-event-text";
+  text.textContent = item.player ? `${getPlayerName(item.player)}：${item.msg}` : item.msg;
+  const time = document.createElement("span");
+  time.className = "action-log-event-time";
+  const d = new Date(item.t);
+  time.textContent = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  row.appendChild(text);
+  row.appendChild(time);
+  return row;
+}
+// ユーザー要望「行動ログをターン/フェイズ/ラウンドで区切ると分かりやすい。誰のターンかを
+// 色分けやアバターで」。新しい順（上が最新）に並べ、ターン番号が変わるたびに見出しを挟む。
+function renderActionLogInto(body) {
+  body.innerHTML = "";
+  const items = buildFriendlyLogItems();
+  if (items.length === 0) {
+    body.textContent = "（まだ記録がありません）";
+    return;
+  }
+  let prevTurn;
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i];
+    if (it.turn !== prevTurn) {
+      prevTurn = it.turn;
+      body.appendChild(buildActionLogTurnHeader(it));
+    }
+    body.appendChild(buildActionLogEventRow(it));
+  }
 }
 function refreshActionLogWindow() {
   if (!actionLogWindowEl) return;
   const body = actionLogWindowEl.querySelector(".action-log-window-body");
-  if (body) body.textContent = formatFriendlyActionLog();
+  if (body) renderActionLogInto(body);
+}
+// 行動ログの説明モーダル（タイトル横のⓘから開く。ユーザー要望）。座標の読み方を中心に、
+// 何が記録されるか・並び順・色分けの意味をまとめる。
+function showActionLogInfoModal() {
+  const close = () => {
+    backdrop.remove();
+    modal.remove();
+  };
+  const backdrop = createBackdrop(close, { dim: true, zIndex: 10620 });
+  const modal = document.createElement("div");
+  modal.id = "action-log-info-modal";
+  const heading = document.createElement("div");
+  heading.className = "action-log-info-modal-title";
+  heading.textContent = "📜 行動ログの見かた";
+  modal.appendChild(heading);
+  const paras = [
+    "新しい行動ほど上に表示されます。ラウンド（R）・ターン（T）ごとに区切られ、手番のプレイヤーはアバターと色で示されます。",
+    "記録される内容：カードの到達効果、手札効果、色の宣言、ゲート侵攻 など。",
+    "マス座標（例：C3）は盤面の絶対座標です。列は左から A・B・C…G、行は上から 1・2・3…7。C3 なら「左から3列目・上から3行目」のマスを指します（盤面の向きは各プレイヤーで回転しますが、座標は共通の基準です）。",
+    "同じ内容が連続したときはまとめて1行にしています。",
+  ];
+  for (const p of paras) {
+    const el = document.createElement("p");
+    el.className = "action-log-info-modal-p";
+    el.textContent = p;
+    modal.appendChild(el);
+  }
+  modal.appendChild(createModalCloseX(close));
+  document.body.appendChild(backdrop);
+  document.body.appendChild(modal);
 }
 function openActionLogWindow() {
   if (actionLogWindowEl) return;
@@ -7954,7 +8063,20 @@ function openActionLogWindow() {
   actionLogWindowEl.id = "action-log-window";
   const title = document.createElement("div");
   title.className = "action-log-window-title";
-  title.textContent = "📜 行動ログ";
+  const titleText = document.createElement("span");
+  titleText.textContent = "📜 行動ログ";
+  title.appendChild(titleText);
+  // ユーザー要望「タイトル横にiマークで、座標のことをはじめ行動ログの詳細な説明を載せる」。
+  const infoBtn = document.createElement("button");
+  infoBtn.type = "button";
+  infoBtn.className = "action-log-info-btn";
+  infoBtn.textContent = "ⓘ";
+  infoBtn.title = "行動ログの見かた";
+  infoBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    showActionLogInfoModal();
+  });
+  title.appendChild(infoBtn);
   const body = document.createElement("div");
   body.className = "action-log-window-body";
   actionLogWindowEl.appendChild(title);

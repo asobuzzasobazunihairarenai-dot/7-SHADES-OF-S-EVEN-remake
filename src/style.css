@@ -4014,14 +4014,115 @@ body.is-phone-device #options-menu-button {
   color: #fbbf24;
   font-size: 0.85rem;
   margin-bottom: 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.action-log-info-btn {
+  background: none;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  color: inherit;
+  border-radius: 50%;
+  width: 1.15rem;
+  height: 1.15rem;
+  line-height: 1;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.action-log-info-btn:hover {
+  border-color: currentColor;
 }
 .action-log-window-body {
   overflow-y: auto;
   font-family: sans-serif;
   font-size: 0.85rem;
-  line-height: 1.7;
-  white-space: pre-wrap;
+  line-height: 1.6;
   word-break: break-word;
+}
+/* ターン区切りの見出し（ラウンド・ターン・手番プレイヤー。--log-accent は座席色）。 */
+.action-log-turn-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0.15rem;
+  padding: 0.1rem 0.35rem;
+  border-left: 3px solid var(--log-accent, #94a3b8);
+  background: rgba(148, 163, 184, 0.12);
+  border-radius: 0 0.25rem 0.25rem 0;
+  font-weight: bold;
+  font-size: 0.8rem;
+  color: var(--log-accent, inherit);
+}
+.action-log-turn-header:first-child {
+  margin-top: 0;
+}
+.action-log-turn-avatar {
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.action-log-turn-label {
+  white-space: nowrap;
+}
+/* 各行動。左に座席色の細いバー、右端に時刻。 */
+.action-log-event {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.05rem 0.35rem 0.05rem 0.6rem;
+  border-left: 3px solid var(--log-accent, #94a3b8);
+}
+.action-log-event-text {
+  flex: 1;
+}
+.action-log-event-time {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+/* 説明モーダル（ⓘ）。 */
+#action-log-info-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10621;
+  width: min(30rem, 92vw);
+  max-height: 80vh;
+  overflow-y: auto;
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.5rem;
+  padding: 1rem 1.2rem;
+  color: #e2e8f0;
+  font-family: sans-serif;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+.action-log-info-modal-title {
+  font-weight: bold;
+  color: #fbbf24;
+  margin-bottom: 0.6rem;
+  padding-right: 1.6rem;
+}
+.action-log-info-modal-p {
+  margin: 0 0 0.6rem;
+  line-height: 1.7;
+  font-size: 0.85rem;
+}
+body.theme-light #action-log-info-modal {
+  background: #fdfbf5;
+  border-color: rgba(176, 141, 63, 0.5);
+  color: #3a3326;
+}
+body.theme-light .action-log-info-modal-title {
+  color: #a67c1a;
 }
 body.theme-light #action-log-window {
   background: #fdfbf5;
