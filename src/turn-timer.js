@@ -34,12 +34,16 @@ import {
 } from "./main.js";
 import { SEAT_ORDER, SEAT_TO_SIDE, getRotationSteps, rotateSide } from "./board-layout.js";
 import { getSelfSeat, getSyncedTimerConfig, getCurrentGameId, fetchAndHydrate, isSpectatingGame } from "./online.js";
-// 「自分のターンです（優先権はあなたにあります）」等のターン状態表示を最新化する
-// （phase-automation.js）。優先権はtick内のsetPriorityStateやサーバー再同期で変わるが、
-// これらは必ずしもrender()を伴わないため、タイマーと同じtickで表示も更新して食い違いを防ぐ
-// （ユーザー不具合報告#5「タイマーは相手に移ったのに『優先権はあなたにあります』のまま」）。
+// フェイズ自動処理の再評価（phase-automation.js）。本来はrender()のたびに呼ばれるが、
+// パーティー等の「全員がそれぞれ選ぶ」効果は非同期の委任で完了し、その完了が必ずしも
+// render()を伴わない。すると優先権やフェイズが変わっても再評価されず、
+//  ・ターン状態表示が取り残される（#5「タイマーは相手に移ったのに『優先権はあなたに』のまま」）
+//  ・処理が終わったのにターンの自動終了が起きない（#5続報）
+// といった食い違いが起きる。タイマーと同じtickでも再評価を回して確実に追いつく。
+// reconcilePhaseAutomation自体が「render()のたびに何度呼ばれてもよい」冪等な設計
+// （自動アクションは実行済みガード付き）なので、tick頻度で呼んでも安全。
 // turn-timer.jsとphase-automation.jsは互いにimportしていない（片方向のみ）ため循環参照は起きない。
-import { updateSkipButtonVisibility } from "./phase-automation.js";
+import { reconcilePhaseAutomation } from "./phase-automation.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { consumeLastActionInfo } from "./last-action-info.js";
@@ -959,10 +963,10 @@ function tick() {
     setDisplayIfChanged(baseClockEl, "none");
     return;
   }
-  // ターン状態表示（「自分/相手のターンです（優先権は…）」）をタイマーと同じtickで最新化して、
-  // 優先権が変わったのにタイマーだけ動いて表示文だけ取り残される食い違いを防ぐ（#5）。
-  // 中身はDOMテキストの差し替えだけで軽量。
-  updateSkipButtonVisibility();
+  // フェイズ自動処理をタイマーと同じtickで再評価する（#5）。ターン状態表示の更新に加え、
+  // 「処理が終わったのにターンが自動終了しない」も、render()を伴わない非同期完了を
+  // ここで拾って解消する。冪等なので毎tick呼んでよい（詳細はimport箇所のコメント参照）。
+  reconcilePhaseAutomation();
   // ユーザー報告（続き106）「優先権が委任されたまま自動プレイが反応せず止まる」の
   // 根本原因（このファイル798行目付近の解説参照）への対策。state.priorityPlayerを
   // 誰が保持しているかに関係なく、「自分の画面に今まさに選択待ちのactiveEffectPickerが
