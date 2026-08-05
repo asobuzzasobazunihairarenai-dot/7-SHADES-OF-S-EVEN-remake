@@ -1860,7 +1860,17 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat, feedba
     // パスで動いているため、相対パスのままだとその側の起点で解決されて壊れる
     // （実在しない画像になる）。new URL()で常に絶対URLへ変換してから渡す
     // （既に絶対URLの場合はそのまま維持される）。
-    const avatarUrl = identity.avatar ? new URL(identity.avatar, window.location.href).href : null;
+    // 「記憶を失った青年」はセンチネル値（"protagonist"）で保持されるため、そのままだと
+    // 相対URL解決で壊れる。座席の駒色に対応する実際の画像パスへ解決してから絶対URL化する。
+    // player-identity.jsのSEAT_PIECE_COLOR/resolveAvatarValueと同義だが、online.jsから
+    // player-identity.jsをimportすると循環参照（＝以前の起動不能TDZバグと同種のリスク）に
+    // なるため、ここではその小さな対応表だけをローカルに持つ。
+    const PROTAGONIST_SEAT_COLOR = { A: "red", B: "orange", C: "yellow", D: "green" };
+    const resolvedAvatar =
+      identity.avatar === "protagonist"
+        ? `assets/avatars/protagonist-${PROTAGONIST_SEAT_COLOR[seat] || "gray"}-front.webp`
+        : identity.avatar;
+    const avatarUrl = resolvedAvatar ? new URL(resolvedAvatar, window.location.href).href : null;
     const playerId = await getOrCreateStatsPlayer(identity.userId, identity.name, avatarUrl);
     memberIds.push(playerId);
     if (seat === winnerSeat) winnerId = playerId;

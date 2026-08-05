@@ -36,15 +36,6 @@ const KING_AVATARS = [
   "avatar-pink-queen",
   "avatar-purple-elder-queen",
 ];
-export const AVATAR_OPTIONS = [
-  ...AVATAR_COLORS.map((color) => `assets/avatars/${color}-front.webp`),
-  ...KING_AVATARS.map((k) => `assets/avatars/${k}-front.webp`),
-];
-
-// 国王アバターは有料（ショップで購入、ユーザー要望で200）。色アバターは従来通り無料。
-// 表示名は色ベースの中立的な名前にしておく（メモリ[[king-enraged-avatar-source-gaps]]の通り
-// basenameと実際の絵柄が食い違うことがあるため、狐王/氷海王等の細かな呼称は避ける）。
-export const KING_AVATAR_COST = 200;
 const KING_AVATAR_LABELS = {
   "avatar-red-king": "赤の国王",
   "avatar-orange-fox-king": "橙の国王",
@@ -54,22 +45,59 @@ const KING_AVATAR_LABELS = {
   "avatar-pink-queen": "桃の女王",
   "avatar-purple-elder-queen": "紫の女王",
 };
+// 謎めいた案内人 エイドス・ノワール（1キャラ・有料500、ユーザー指定）。
+const EIDOS_NOIR = "eidos-noir";
 
-// アバター相対パス → ショップのitemKey。有料の国王アバターだけ非nullを返す。色アバター・
-// アップロード画像・Googleプロフィール画像はnull（無料・ロック不要）。openAvatarPicker()が
-// これでロック要否を判定する。
-export function getAvatarItemKey(avatar) {
-  const m = typeof avatar === "string" && avatar.match(/\/([^/]+)-front\.webp$/);
-  if (!m) return null;
-  return KING_AVATARS.includes(m[1]) ? `avatar:${m[1]}` : null;
+export const AVATAR_OPTIONS = [
+  ...AVATAR_COLORS.map((color) => `assets/avatars/${color}-front.webp`),
+  ...KING_AVATARS.map((k) => `assets/avatars/${k}-front.webp`),
+  `assets/avatars/${EIDOS_NOIR}-front.webp`,
+];
+
+// 有料アバター base → { label, cost }。国王は各200、エイドス・ノワールは500（ユーザー指定）。
+// 表示名は中立的に（メモリ[[king-enraged-avatar-source-gaps]]の通りbasenameと絵柄が食い違う
+// ことがあるため細かな呼称は避ける）。
+const PAID_AVATARS = {
+  ...Object.fromEntries(KING_AVATARS.map((b) => [b, { label: KING_AVATAR_LABELS[b] || b, cost: 200 }])),
+  [EIDOS_NOIR]: { label: "謎めいた案内人 エイドス・ノワール", cost: 500 },
+};
+
+// 特殊アバター「記憶を失った青年」（無料）。ユーザー指定で、選んだプレイヤーの駒の色に
+// 合わせて青年の色が変わる。実体は座席ごとに解決するためセンチネル値で保持する
+// （resolveAvatarValue参照）。駒の色は座席で固定（state.jsのPIECE_START順）。
+export const PROTAGONIST_AVATAR = "protagonist";
+const SEAT_PIECE_COLOR = { A: "red", B: "orange", C: "yellow", D: "green" };
+export function protagonistPathForSeat(seat) {
+  return `assets/avatars/protagonist-${SEAT_PIECE_COLOR[seat] || "gray"}-front.webp`;
+}
+// センチネル（"protagonist"）を、その座席の駒の色に対応する実際の画像パスへ解決する。
+// それ以外の値（通常のパス・Google画像・絵文字等）はそのまま返す。
+export function resolveAvatarValue(seat, raw) {
+  return raw === PROTAGONIST_AVATAR ? protagonistPathForSeat(seat) : raw;
 }
 
-// ショップ（shop-content.jsの「アバター」カテゴリ）へ渡す商品一覧。国王アバターのみ・全て有料。
+// アバター相対パスから base名（.../{base}-front.webp → base）を取り出す。
+function avatarBaseOf(avatar) {
+  const m = typeof avatar === "string" && avatar.match(/\/([^/]+)-front\.webp$/);
+  return m ? m[1] : null;
+}
+// アバター相対パス → ショップのitemKey（有料アバターだけ非null）。色アバター・青年・
+// アップロード画像・Googleプロフィール画像はnull（無料・ロック不要）。
+export function getAvatarItemKey(avatar) {
+  const base = avatarBaseOf(avatar);
+  return base && PAID_AVATARS[base] ? `avatar:${base}` : null;
+}
+// そのアバターの価格（有料なら数値、無料ならnull）。ピッカーのロックバッジ表示に使う。
+export function getAvatarCost(avatar) {
+  const base = avatarBaseOf(avatar);
+  return base && PAID_AVATARS[base] ? PAID_AVATARS[base].cost : null;
+}
+// ショップ（shop-content.jsの「アバター」カテゴリ）へ渡す商品一覧（有料アバターのみ）。
 export function getAvatarShopItems() {
-  return KING_AVATARS.map((base) => ({
+  return Object.entries(PAID_AVATARS).map(([base, info]) => ({
     itemKey: `avatar:${base}`,
-    label: KING_AVATAR_LABELS[base] || base,
-    cost: KING_AVATAR_COST,
+    label: info.label,
+    cost: info.cost,
     imagePath: `assets/avatars/${base}-front.webp`,
   }));
 }
@@ -105,7 +133,9 @@ export function setPlayerName(seat, name) {
   }
 }
 
-export function getPlayerAvatar(seat) {
+// 保存されている生のアバター値（画像パス or センチネル"protagonist" or Google画像URL等）。
+// ピッカーの選択判定（青年センチネルが選ばれているか）に使う。
+export function getRawPlayerAvatar(seat) {
   if (isOnlineMode()) {
     const synced = getSyncedIdentity(seat)?.avatar;
     if (synced) return synced;
@@ -118,6 +148,10 @@ export function getPlayerAvatar(seat) {
     if (seat !== getSelfSeat()) return DEFAULT_AVATARS[seat] || DEFAULT_AVATARS.A;
   }
   return avatars[seat] || DEFAULT_AVATARS[seat];
+}
+// 実際に描画に使うアバター（センチネル"protagonist"はその座席の駒の色の画像へ解決する）。
+export function getPlayerAvatar(seat) {
+  return resolveAvatarValue(seat, getRawPlayerAvatar(seat));
 }
 
 export function setPlayerAvatar(seat, avatar) {

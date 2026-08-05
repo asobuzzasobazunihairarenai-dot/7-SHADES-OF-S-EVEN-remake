@@ -111,7 +111,18 @@ import { openPlaymatPicker, registerPlaymatHelpers, getSelectedPlaymatPath, setS
 import { openBackgroundPicker, registerBackgroundHelpers, getSelectedBackgroundPath, setSelectedBackgroundId } from "./background.js";
 import { openPetPicker, registerPetHelpers, getSelectedPetIndex, PET_OPTIONS, petSpriteSrc, pushMyPetToProfile } from "./pet-skins.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
-import { getPlayerName, getPlayerAvatar, setPlayerName, setPlayerAvatar, AVATAR_OPTIONS, getAvatarItemKey, KING_AVATAR_COST } from "./player-identity.js";
+import {
+  getPlayerName,
+  getPlayerAvatar,
+  getRawPlayerAvatar,
+  setPlayerName,
+  setPlayerAvatar,
+  AVATAR_OPTIONS,
+  getAvatarItemKey,
+  getAvatarCost,
+  PROTAGONIST_AVATAR,
+  protagonistPathForSeat,
+} from "./player-identity.js";
 import { applyAvatarContent, getAvatarVariant, getAwakenedVariant, getEnragedVariant } from "./avatar-render.js";
 import { buildIconButtonContent, wireIconButtonClick, openIconDetailModal } from "./icon-action-button.js";
 import { buildAvatarUploadSection } from "./avatar-upload.js";
@@ -9254,11 +9265,12 @@ async function openAvatarPicker() {
     const itemKey = getAvatarItemKey(avatar);
     const locked = !!itemKey && !isItemUnlocked(itemKey);
     if (locked) {
+      const cost = getAvatarCost(avatar) ?? 0;
       swatch.classList.add("is-locked");
-      swatch.title = `🔒 ${KING_AVATAR_COST}で購入`;
+      swatch.title = `🔒 ${cost}で購入`;
       const lockBadge = document.createElement("span");
       lockBadge.className = "avatar-picker-swatch-lock";
-      lockBadge.textContent = `🔒${KING_AVATAR_COST}`;
+      lockBadge.textContent = `🔒${cost}`;
       swatch.appendChild(lockBadge);
     }
     swatch.addEventListener("click", () => {
@@ -9268,6 +9280,23 @@ async function openAvatarPicker() {
         return;
       }
       setPlayerAvatar(getSelfSeat(), avatar);
+      render();
+      close();
+    });
+    grid.appendChild(swatch);
+  }
+
+  // 特殊アバター「記憶を失った青年」（無料）。選んだプレイヤーの駒の色に合わせて色が
+  // 変わるため、保存値はセンチネル(PROTAGONIST_AVATAR)にする。プレビューは自分の座席の
+  // 駒色版を表示する。
+  {
+    const swatch = document.createElement("button");
+    swatch.className = "avatar-picker-swatch";
+    swatch.title = "記憶を失った青年（駒の色に合わせて色が変わります）";
+    if (getRawPlayerAvatar(getSelfSeat()) === PROTAGONIST_AVATAR) swatch.classList.add("is-selected");
+    applyAvatarContent(swatch, protagonistPathForSeat(getSelfSeat()));
+    swatch.addEventListener("click", () => {
+      setPlayerAvatar(getSelfSeat(), PROTAGONIST_AVATAR);
       render();
       close();
     });
