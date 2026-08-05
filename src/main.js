@@ -1755,6 +1755,14 @@ function declareColorsForEffect(requirement, cardId, player) {
       if (settled) return;
       settled = true;
       activeEffectPicker = null;
+      // 宣言色を全員に見える化する。人間が「宣言する」を押した時だけでなく、疑似CPU/
+      // タイムアウトの自動代行（performPriorityTimeoutAutoActionがpicker.resolve=finishを
+      // 直接呼ぶ）でも必ず表示されるよう、確認ボタンのハンドラではなくここで行う
+      // （ユーザー報告「疑似CPUが試練の儀式で何色を宣言したか分からないまま移動する」対応）。
+      if (Array.isArray(result) && result.length) {
+        if (isOnlineMode()) broadcastColorsDeclared({ fromPlayer: player, cardId, colors: result });
+        showDeclaredColorsIndicator(player, result);
+      }
       backdrop.remove();
       modal.remove();
       peekHint.remove();
@@ -1825,12 +1833,9 @@ function declareColorsForEffect(requirement, cardId, player) {
     confirmBtn.className = "declare-colors-modal-confirm";
     confirmBtn.textContent = "宣言する";
     confirmBtn.addEventListener("click", () => {
-      const chosen = [...selected];
-      if (isOnlineMode()) broadcastColorsDeclared({ fromPlayer: player, cardId, colors: chosen });
-      // 続き65: 宣言した本人にも、結果が判明するまで残る常駐表示を出す（再宣言を
-      // 繰り返す試練の儀式で「自分が何を宣言したか」を思い出せるように）。
-      showDeclaredColorsIndicator(player, chosen);
-      finish(chosen);
+      // 宣言色の見える化（ブロードキャスト＋常駐表示）は finish() に集約したので、ここでは
+      // 選択内容を渡して確定するだけ（人間・自動代行のどちらも同じ経路で必ず表示される）。
+      finish([...selected]);
     });
     modal.appendChild(confirmBtn);
 
@@ -2536,7 +2541,7 @@ async function performPhaseMoveToCell(location) {
 // maybeAnnounceLock参照）と全く同じ結果になるよう、同じ関数・同じ順序（移動→
 // 効果音→render()→ロック演出）で処理する。ロック先はカード自身の色に対応する
 // 1つのスロットに一意に決まる（isCardLockableと同じ判定基準）。
-async function performLockPhaseClick(tokenId) {
+async function performLockPhaseClick(tokenId, { skipConfirm = false } = {}) {
   const player = getSelfSeat();
   const token = getState().tokens.find((t) => t.id === tokenId);
   if (!token || !isCardLockable(token, player)) return;
@@ -2547,7 +2552,11 @@ async function performLockPhaseClick(tokenId) {
   // タップするこの経路（オートモード中、スマホでは主にこちらを使うと思われる）
   // には無かった。confirmTouchAction自体がタッチ端末以外では常にtrueを即座に
   // 返すため、PC側の挙動には影響しない。
-  if (!(await confirmTouchAction(`${getCardDefinition(token.cardId).name}をロックしますか？`))) return;
+  // 疑似CPUの自動ロック（performPriorityTimeoutAutoAction）等、自動実行の経路では確認
+  // モーダルを出さない。出しても押す人がおらず、そのまま停止してしまうため（ユーザー報告
+  // 「疑似CPUモードの時、ロックの確認モーダルで停止しました」）。人間のクリック/タップ経路は
+  // 従来通りskipConfirm=falseで確認を挟む（isActionConfirmEnabled設定に従う）。
+  if (!skipConfirm && !(await confirmTouchAction(`${getCardDefinition(token.cardId).name}をロックしますか？`))) return;
   const color = getCardDefinition(token.cardId).color;
   const dropTarget = { zone: "lock", side: SEAT_TO_SIDE[player], index: COLORS.indexOf(color) };
   // 最後のロック承認: ドラッグ&ドロップ経路（onDragEndのkind==="card"分岐）と同じく、この
@@ -2730,7 +2739,7 @@ export function performPriorityTimeoutAutoAction() {
     });
     if (isTarget && lockable.length > 0) {
       const chosen = pickRandomFrom(lockable);
-      performLockPhaseClick(chosen.id);
+      performLockPhaseClick(chosen.id, { skipConfirm: true }); // 自動実行なので確認モーダルは出さない
       return true;
     }
   }

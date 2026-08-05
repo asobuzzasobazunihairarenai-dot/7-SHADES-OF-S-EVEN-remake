@@ -1176,5 +1176,26 @@ export function initTurnTimer() {
     if (isOnlineMode() && state.priorityPlayer !== getSelfSeat()) return;
     fireAndForget(setPriorityState({ player: state.priorityPlayer, deadline: freshBaseDeadlineFor(state.priorityPlayer), phase: "base" }));
   });
+  startTickLoop();
+}
+
+// tick()を回すループ。素直にsetInterval(tick, 200)にすると、ブラウザのタブが非アクティブ
+// （バックグラウンド）の間はメインスレッドのタイマーが強く絞られる／事実上止まるため、
+// 疑似CPUの自動プレイやタイムアウト処理が進まなくなる（ユーザー報告「疑似CPUモードの時、
+// ブラウザがアクティブでないと止まってしまう」）。タイミングは全てDate.now()基準なので
+// 「tickが呼ばれさえすれば」よく、Web Workerのタイマー（ページ非表示でも多少絞られるだけで
+// 止まらない）から定期的にtickを叩く。Worker生成に失敗する環境では従来のsetIntervalへ
+// フォールバックする（前面では実質同じ挙動）。
+function startTickLoop() {
+  try {
+    const workerSrc = "setInterval(function(){ postMessage(0); }, 200);";
+    const blob = new Blob([workerSrc], { type: "application/javascript" });
+    const worker = new Worker(URL.createObjectURL(blob));
+    worker.onmessage = () => tick();
+    return;
+  } catch (e) {
+    // CSP等でWorker/blobが使えない環境。前面では従来通り動くフォールバック。
+    console.warn("tick worker unavailable, falling back to setInterval", e);
+  }
   setInterval(tick, 200);
 }
