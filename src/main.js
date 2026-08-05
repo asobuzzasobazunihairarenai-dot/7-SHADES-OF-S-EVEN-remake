@@ -2084,18 +2084,14 @@ async function runSlumOfficialDiscardTask(player) {
 // パーティー専用のタスクハンドラ。3択（移動/拾う/2枚オープン）から1つ選んで実行する。
 // 選べる罠と同じshowHandEffectOptionPickerを流用し、選べない選択肢（候補0件）は
 // グレー表示にする（善処の原則）。
-async function runPartyOptionTask(player, protectedTokenId) {
+async function runPartyOptionTask(player) {
   const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === player);
   const moveCandidates = piece ? getMoveCandidates(piece.location, 1, false) : [];
-  // 今まさに到達処理中のパーティーカード自身のマスは「手札に加える」候補から除外する
-  // （そのカードを別プレイヤーが取ると手番プレイヤーの到達処理が壊れて優先権が戻らない、
-  // ユーザー不具合報告#4）。protectedTokenIdが場のセルにある場合だけそのセルを除く。
-  const protectedCell = (() => {
-    const t = protectedTokenId ? getState().tokens.find((x) => x.id === protectedTokenId) : null;
-    return t && t.location?.zone === "cell" ? { row: t.location.row, col: t.location.col } : null;
-  })();
-  const isProtectedCell = (loc) => protectedCell && loc.row === protectedCell.row && loc.col === protectedCell.col;
-  const boardCardCells = getAnyCellWithCardCandidates().filter((loc) => !isProtectedCell(loc));
+  // ルール上、到達中のパーティーカード自身も「場の任意の1枚」として手札に加えてよい
+  // （ユーザー確認済み）。既定の add-to-hand 側（card-effect-engine.jsのrunArrivalEffect）が
+  // 「そのカードがまだ盤面に残っている場合だけ」動かすので、別プレイヤーがパーティー自身を
+  // 取っても手番プレイヤーが奪い返さない。よってここでは何も除外しない。
+  const boardCardCells = getAnyCellWithCardCandidates();
   const faceDownBoardCells = boardCardCells.filter((loc) => {
     const token = getState().tokens.find(
       (t) => t.kind === "card" && t.location.zone === "cell" && t.location.row === loc.row && t.location.col === loc.col
@@ -2164,10 +2160,10 @@ async function runPartyOptionTask(player, protectedTokenId) {
 // 合同建設・スラム上がりの役人・パーティー共通: このタスクを「今この画面を見ている
 // プレイヤー」が実際に解決する。delegateToPlayerForEffectから、自分の番ならその場で、
 // 他プレイヤーの番ならbroadcast経由で対象プレイヤー本人の画面から呼ばれる。
-async function runDelegatedArrivalTask(player, taskType, protectedTokenId) {
+async function runDelegatedArrivalTask(player, taskType) {
   if (taskType === "joint-construction") return runJointConstructionTask(player);
   if (taskType === "slum-official-discard") return runSlumOfficialDiscardTask(player);
-  if (taskType === "party-option") return runPartyOptionTask(player, protectedTokenId);
+  if (taskType === "party-option") return runPartyOptionTask(player);
   return false;
 }
 
@@ -2176,9 +2172,9 @@ async function runDelegatedArrivalTask(player, taskType, protectedTokenId) {
 // その場で直接解決する。オンライン中の他プレイヤーの番は、broadcast往復
 // （online.jsのbroadcastArrivalDelegateRequest/Resolved）で対象プレイヤー本人の
 // 画面に委任し、終わるまで待つ。
-async function delegateToPlayerForEffect(player, taskType, protectedTokenId) {
+async function delegateToPlayerForEffect(player, taskType) {
   if (!isOnlineMode() || player === getSelfSeat()) {
-    return runDelegatedArrivalTask(player, taskType, protectedTokenId);
+    return runDelegatedArrivalTask(player, taskType);
   }
   // 続き75診断ログ: オンライン中の「全員がそれぞれ選ぶ」効果（パーティー等）の
   // 委任がどこで止まっているかを追えるようにする。
@@ -2201,13 +2197,27 @@ async function delegateToPlayerForEffect(player, taskType, protectedTokenId) {
   // バナー（showEffectPickerHint）を使い、「待っている」ことだけでも伝える。
   showEffectPickerHint(`${getPlayerName(player)}さんの選択を待っています…`);
   const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  broadcastArrivalDelegateRequest({ player, taskType, requestId, protectedTokenId });
+  broadcastArrivalDelegateRequest({ player, taskType, requestId });
   const result = await new Promise((resolve) => {
+    let settled = false;
+    const finish = (val) => {
+      if (settled) return;
+      settled = true;
+      unregister();
+      clearInterval(retryTimer);
+      clearTimeout(giveUpTimer);
+      resolve(val);
+    };
     const unregister = onArrivalDelegateResolvedEvents((payload) => {
       if (payload.requestId !== requestId) return;
-      unregister();
-      resolve(payload.result);
+      finish(payload.result);
     });
+    // 取りこぼし対策（#4）: 応答が来るまで数秒おきにリクエストを再送する。受け手側は
+    // 同じrequestIdなら再実行せず結果を送り返すので二重実行にはならない。
+    const retryTimer = setInterval(() => broadcastArrivalDelegateRequest({ player, taskType, requestId }), 5000);
+    // それでも一定時間応答が無ければ諦めて先へ進む（永久固着を防ぐ善処の原則。実際には
+    // ここまで待つ前に再送で復帰するはず）。
+    const giveUpTimer = setTimeout(() => finish(false), 90000);
   });
   hideEffectPickerHint();
   logAction("diag-delegate", { phase: "resolved", player, taskType, result, returningPriorityTo: turnPlayer });
@@ -2216,12 +2226,30 @@ async function delegateToPlayerForEffect(player, taskType, protectedTokenId) {
 }
 // 受け手側: 自分宛ての委任リクエストが届いたら、このクライアント（＝対象プレイヤー
 // 本人の画面）で実際に解決し、結果を送り返す。
-onArrivalDelegateRequestEvents(({ player, taskType, requestId, protectedTokenId }) => {
+// 委任リクエストの重複対策（ユーザー不具合報告#4「パーティで優先権が戻らない」の対策）。
+// realtimeのブロードキャストは取りこぼされることがある（コンソールに「Realtime send()が
+// RESTへフォールバック」の警告あり）。コーディネーター側は応答が来るまでリクエストを
+// 再送するため、受け手側は同じrequestIdを二重に実行しないよう、状態を覚えておく:
+//  ・"pending": 実行中の再送 → 無視（もう一度選ばせない）
+//  ・結果あり: 完了済みの再送 → タスクを再実行せず、覚えている結果だけ送り返す
+const processedDelegations = new Map(); // requestId -> result | "pending"
+onArrivalDelegateRequestEvents(({ player, taskType, requestId }) => {
   if (getSelfSeat() !== player) return;
-  runDelegatedArrivalTask(player, taskType, protectedTokenId)
-    .then((result) => broadcastArrivalDelegateResolved({ requestId, result }))
+  const cached = processedDelegations.get(requestId);
+  if (cached === "pending") return;
+  if (cached !== undefined) {
+    broadcastArrivalDelegateResolved({ requestId, result: cached });
+    return;
+  }
+  processedDelegations.set(requestId, "pending");
+  runDelegatedArrivalTask(player, taskType)
+    .then((result) => {
+      processedDelegations.set(requestId, result);
+      broadcastArrivalDelegateResolved({ requestId, result });
+    })
     .catch((err) => {
       console.error("runDelegatedArrivalTask failed", err);
+      processedDelegations.set(requestId, false);
       broadcastArrivalDelegateResolved({ requestId, result: false });
     });
 });
