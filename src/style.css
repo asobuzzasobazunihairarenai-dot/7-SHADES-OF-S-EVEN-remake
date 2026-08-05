@@ -1694,13 +1694,13 @@ body.is-phone-device #phase-guide-bar {
 #self-status-bug-report .bug-report-icon-emoji {
   /* 他のSVGアイコンと見た目の大きさを揃える（絵文字は大きく見えがちなので少し小さく）。
      大きさは管理者モードの --bug-report-icon-size で調整（絵文字は枠に連動、既定2.6remで0.44倍）。 */
-  font-size: calc(var(--bug-report-icon-size, 2.6rem) * 0.44);
+  font-size: calc(var(--bug-report-icon-size, 1.9rem) * 0.44);
   line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--bug-report-icon-size, 2.6rem);
-  height: var(--bug-report-icon-size, 2.6rem);
+  width: var(--bug-report-icon-size, 1.9rem);
+  height: var(--bug-report-icon-size, 1.9rem);
 }
 /* #option-areaは全画面の器で、子は各自 position:absolute で配置する決まり（flow配置では
    ないので位置指定が無いと左上に落ちる＝ユーザー報告の不具合）。ログイン中アイコン
@@ -1708,7 +1708,7 @@ body.is-phone-device #phase-guide-bar {
 #option-area #self-status-bug-report {
   position: absolute;
   /* 位置・大きさは管理者モード（不具合報告アイコンのサイズ・位置）で調整可能。 */
-  top: var(--bug-report-icon-top, 0.5rem);
+  top: var(--bug-report-icon-top, 0.6rem);
   /* ユーザー要望「残金(19.5→22.1rem)と2D切替(16.9rem)の間へ」。これでオンラインのピルの
      部屋名を省略せずに伸ばせる（左隣にアイコンが無くなるため）。 */
   right: var(--bug-report-icon-right, 19.5rem);
@@ -1719,8 +1719,8 @@ body.is-phone-device #phase-guide-bar {
   display: none;
 }
 #option-area #self-status-bug-report .icon-action-button-icon-wrap {
-  width: var(--bug-report-icon-size, 2.6rem);
-  height: var(--bug-report-icon-size, 2.6rem);
+  width: var(--bug-report-icon-size, 1.9rem);
+  height: var(--bug-report-icon-size, 1.9rem);
 }
 
 /* アイコン+キャプション形式のボタン共通部品（icon-action-button.js参照）。アイコンは丸い
@@ -3954,7 +3954,7 @@ body.is-phone-device #options-menu-button {
 #self-status-action-log {
   position: absolute;
   /* 位置・大きさは管理者モード（行動ログアイコンのサイズ・位置）で調整可能。 */
-  top: var(--action-log-icon-top, 0.3rem);
+  top: var(--action-log-icon-top, 0.6rem);
   right: var(--action-log-icon-right, 3.9rem);
   z-index: 900;
   transform: none;
@@ -3963,17 +3963,17 @@ body.is-phone-device #options-menu-button {
   display: none;
 }
 #self-status-action-log .icon-action-button-icon-wrap {
-  width: var(--action-log-icon-size, 2.6rem);
-  height: var(--action-log-icon-size, 2.6rem);
+  width: var(--action-log-icon-size, 1.95rem);
+  height: var(--action-log-icon-size, 1.95rem);
 }
 #self-status-action-log .action-log-icon-emoji {
-  font-size: calc(var(--action-log-icon-size, 2.6rem) * 0.44);
+  font-size: calc(var(--action-log-icon-size, 1.95rem) * 0.44);
   line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--action-log-icon-size, 2.6rem);
-  height: var(--action-log-icon-size, 2.6rem);
+  width: var(--action-log-icon-size, 1.95rem);
+  height: var(--action-log-icon-size, 1.95rem);
 }
 #self-status-action-log.is-active .icon-action-button-icon-wrap {
   outline: 2px solid rgba(250, 204, 21, 0.8);

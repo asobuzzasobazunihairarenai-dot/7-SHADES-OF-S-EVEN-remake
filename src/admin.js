@@ -516,18 +516,18 @@ const GROUPS = [
     title: "不具合報告アイコンのサイズ・位置",
     category: "position-ui",
     controls: [
-      { key: "--bug-report-icon-size", label: "大きさ", unit: "rem", min: 1.4, max: 4, step: 0.05, default: 2.6 },
+      { key: "--bug-report-icon-size", label: "大きさ", unit: "rem", min: 1.4, max: 4, step: 0.05, default: 1.9 },
       { key: "--bug-report-icon-right", label: "横位置 right（＋で左へ）", unit: "rem", min: 0, max: 40, step: 0.1, default: 19.5 },
-      { key: "--bug-report-icon-top", label: "縦位置 top（＋で下へ）", unit: "rem", min: -2, max: 10, step: 0.1, default: 0.5 },
+      { key: "--bug-report-icon-top", label: "縦位置 top（＋で下へ）", unit: "rem", min: -2, max: 10, step: 0.1, default: 0.6 },
     ],
   },
   {
     title: "行動ログアイコンのサイズ・位置",
     category: "position-ui",
     controls: [
-      { key: "--action-log-icon-size", label: "大きさ", unit: "rem", min: 1.4, max: 4, step: 0.05, default: 2.6 },
+      { key: "--action-log-icon-size", label: "大きさ", unit: "rem", min: 1.4, max: 4, step: 0.05, default: 1.95 },
       { key: "--action-log-icon-right", label: "横位置 right（＋で左へ）", unit: "rem", min: 0, max: 40, step: 0.1, default: 3.9 },
-      { key: "--action-log-icon-top", label: "縦位置 top（＋で下へ）", unit: "rem", min: -2, max: 10, step: 0.1, default: 0.3 },
+      { key: "--action-log-icon-top", label: "縦位置 top（＋で下へ）", unit: "rem", min: -2, max: 10, step: 0.1, default: 0.6 },
     ],
   },
   {
