@@ -9295,13 +9295,40 @@ let selfStatusRankRingEl = null;
 // 中立的な色（アプリ全体で補助テキストに使っている灰色と同じ）をそのまま代わりに使う。
 const UNLINKED_RANK_TIER = { type: "ring", color: "#94a3b8", glow: null, label: "未連携" };
 
+// ユーザー報告「ランク表示（回転するオーブ）があるとアバターの背景が透明にならない。
+// ただしランクリングの太さをスライダーで少しでも変えると背面が完全に透明になり、値を
+// 元に戻しても透明なまま」。太さの“値”は無関係で、スライダー操作が:rootのカスタム
+// プロパティを書き換える＝全体のスタイル再計算＋再描画を一度起こすことが直る条件——
+// 典型的な「初回ペイントだけアバターの縁の放射状マスクが未適用」の合成バグ。オーブの
+// box-shadow／虹ティアの連続filterアニメ(hue-rotate)が、兄弟であるマスク付きアバターの
+// 初回ラスタライズに干渉して起きている。スライダーと同じ「一度きりの再描画」を、リングを
+// 表示した直後に自動で起こしてやる。初回の（未適用の）ペイントが済んだ後でないと効かない
+// ため次フレーム以降に実行し、その要素だけをdisplayトグル＋強制リフローで確実に再
+// ラスタライズさせる（同期トグルなのでちらつきは出ない）。
+function nudgeSelfStatusMaskedAvatarRepaint() {
+  const run = () => {
+    for (const host of [selfStatusLargeAvatarEl, selfStatusLargeAvatarGhostEl]) {
+      const img = host?.querySelector(".avatar-image");
+      if (!img) continue;
+      const prev = img.style.display;
+      img.style.display = "none";
+      void img.offsetHeight; // 強制リフロー（none状態を確定させ、戻した時に確実に再描画させる）
+      img.style.display = prev;
+    }
+  };
+  requestAnimationFrame(() => requestAnimationFrame(run));
+}
+
 function updateSelfStatusRankRing(tier) {
   if (!selfStatusRankRingEl) return;
+  const wasVisible = selfStatusRankRingEl.classList.contains("is-visible");
   selfStatusRankRingEl.classList.remove("is-visible", "is-solid", "is-glow", "is-rainbow");
   selfStatusRankRingEl.style.removeProperty("--rank-ring-color");
   selfStatusRankRingEl.style.removeProperty("--rank-ring-glow");
   if (!tier) tier = UNLINKED_RANK_TIER;
   selfStatusRankRingEl.classList.add("is-visible");
+  // リングが新しく表示された時だけ、マスク未適用の初回ペイントを補正する再描画を促す。
+  if (!wasVisible) nudgeSelfStatusMaskedAvatarRepaint();
   if (tier.type === "rainbow") {
     selfStatusRankRingEl.classList.add("is-rainbow");
     startRankRingOrbit();
