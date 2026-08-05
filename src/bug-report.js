@@ -29,6 +29,10 @@ let consoleHooked = false;
 function installConsoleCapture() {
   if (consoleHooked) return;
   consoleHooked = true;
+  // index.htmlの最初期インラインスクリプトが既にconsoleを包んでwindow.__so7ConsoleBufferへ
+  // 蓄積している場合は、そちら（Tailwind等のモジュール前ログも取れる）を使うのでここでは
+  // 二重に包まない。getConsoleLogText()がwindow.__so7ConsoleBufferを優先して読む。
+  if (typeof window !== "undefined" && Array.isArray(window.__so7ConsoleBuffer)) return;
   // ユーザー報告「不具合報告でコンソールを取得できていません」。以前は warn/error だけを
   // 包んでいたため、console.log/info しか出ていない対局では添付が「(なし)」になっていた。
   // 不具合報告に載せる目的では log/info も拾う必要があるので全レベルを包む。
@@ -77,7 +81,10 @@ function installConsoleCapture() {
 installConsoleCapture();
 
 function getConsoleLogText() {
-  return consoleBuffer.join("\n");
+  // 最初期インラインスクリプト（index.html）のバッファがあればそれを優先（モジュール前の
+  // ログまで含む）。無い環境（テスト等）ではこのモジュール内のフォールバックバッファを使う。
+  const early = typeof window !== "undefined" ? window.__so7ConsoleBuffer : null;
+  return (Array.isArray(early) ? early : consoleBuffer).join("\n");
 }
 
 // ---- 対戦相手のログ収集（ユーザー要望「不具合報告時に相手全員のログも取得したい」） ----

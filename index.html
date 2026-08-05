@@ -22,6 +22,48 @@
   document.addEventListener("gestureend", (e) => e.preventDefault());
 </script>
 <title>7 SHADES OF S:EVEN デジタル版</title>
+<!-- 不具合報告用のコンソール取得は、他のどのスクリプトより前に仕込まないと、この直後の
+     Tailwind CDNの警告など「モジュール(src/main.js)読み込みより前」に出るログを取りこぼす
+     （ユーザー報告「コンソールが取得できていない。手動で見たらログがあった」＝取れていたのは
+     ページ読み込み時のTailwindやfaviconのログでbugReport前だった）。最初期にconsoleを包んで
+     リングバッファ(window.__so7ConsoleBuffer)へ蓄積し、bug-report.jsはこれを読む。 -->
+<script>
+  (function () {
+    var MAX = 300;
+    var buf = (window.__so7ConsoleBuffer = []);
+    function ts() { return new Date().toISOString().slice(11, 23); }
+    function push(line) { buf.push(line); if (buf.length > MAX) buf.shift(); }
+    ["log", "info", "warn", "error"].forEach(function (lv) {
+      var orig = console[lv] ? console[lv].bind(console) : null;
+      if (!orig) return;
+      console[lv] = function () {
+        try {
+          var parts = [];
+          for (var i = 0; i < arguments.length; i++) {
+            var a = arguments[i];
+            if (typeof a === "string") parts.push(a);
+            else { try { parts.push(JSON.stringify(a)); } catch (e) { parts.push(String(a)); } }
+          }
+          push("[" + ts() + "] " + lv.toUpperCase() + ": " + parts.join(" "));
+        } catch (e) { /* 取得失敗は無視。元の出力は必ず行う */ }
+        orig.apply(console, arguments);
+      };
+    });
+    // リソース読み込み失敗（favicon 404・画像/スクリプトのロード失敗等）はcapture:trueでのみ拾える。
+    window.addEventListener("error", function (e) {
+      try {
+        if (e && e.target && e.target !== window && (e.target.src || e.target.href)) {
+          push("[" + ts() + "] RESOURCE_ERROR: " + (e.target.src || e.target.href));
+        } else {
+          push("[" + ts() + "] UNCAUGHT: " + (e && e.message) + " @ " + (e && e.filename) + ":" + (e && e.lineno));
+        }
+      } catch (er) {}
+    }, true);
+    window.addEventListener("unhandledrejection", function (e) {
+      try { push("[" + ts() + "] UNHANDLED_REJECTION: " + String((e && e.reason && (e.reason.message || e.reason)) || "")); } catch (er) {}
+    });
+  })();
+</script>
 <script src="https://cdn.tailwindcss.com"></script>
 <!-- オンライン対戦（第一弾）用。姉妹プロジェクトと同じCDN UMD版・同じSupabaseプロジェクトに
      相乗りする（詳細はsupabase_setup_so7.sql参照）。 -->
