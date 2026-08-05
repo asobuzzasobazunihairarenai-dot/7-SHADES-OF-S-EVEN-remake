@@ -9964,7 +9964,13 @@ body:not(.is-admin-user) .opening-admin-btn {
   /* オプションのドロップダウンは既定1（＝拡大なし）で他より小さく感じるとの報告のため、
      既定を少し大きくする。さらに細かくは管理者モードの「オプションのドロップダウン
      サイズ倍率（スマホ）」スライダーで調整可能。 */
-  --options-menu-scale-phone: 1.5;
+  /* スマホでオプションを開くと画面全体が左にずれて左半分が見切れる不具合の原因。
+     #options-menu-panel は position:fixed; inset:0（全画面）で、そこへ
+     transform: scale(1.5) を transform-origin:top right でかけると 150vw×150vh に
+     広がり、左50vw・下50vh が画面外へはみ出して見切れていた（全画面パネルに倍率は
+     そもそも不適切で、小さなドロップダウンだった頃の名残）。等倍(1)に戻して全画面
+     表示のままズレないようにする。 */
+  --options-menu-scale-phone: 1;
   --admin-panel-scale-phone: 1;
   --phase-guide-pos-phone-x: 0rem;
   --phase-guide-pos-phone-y: 0rem;
