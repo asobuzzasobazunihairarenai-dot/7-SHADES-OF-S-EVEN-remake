@@ -4735,9 +4735,16 @@ async function playGateInvasionStealRitual(info, onDone) {
     });
 
     // 攻撃側のモーダル（裏向き、sleight-ritual-modalの見た目を流用）。
+    // ユーザー報告#9「クリックした裏向きカードと別のカードが反応した」。ゲート侵攻の奪取は
+    // サーバーが無作為に決めており（＝プレイヤーが特定の札を選べるわけではない）、この
+    // モーダルは決定済みの札を“めくって公開する”演出。しかし従来はスリカエの本物のピックと
+    // 同じ見た目（各カードにcursor:pointer＋ホバーで浮く）だったため「この札を選んでいる」と
+    // 誤解を招き、クリックした位置と別の位置の札がめくれて見えていた。is-steal-revealで
+    // 個別カードの選択風の演出を消し（下のstyle.css）、めくりは常に左→右の順に統一する。
     const backdrop = createBackdrop(() => {}, { dim: true, zIndex: 10620 });
     const modal = document.createElement("div");
     modal.id = "sleight-ritual-modal";
+    modal.classList.add("is-steal-reveal");
     const title = document.createElement("div");
     title.className = "sleight-ritual-title";
     title.textContent = "シャッフル中…";
@@ -4764,7 +4771,10 @@ async function playGateInvasionStealRitual(info, onDone) {
 
     await wait(1100); // シャッフル演出
     modal.classList.remove("is-shuffling");
-    title.textContent = `カードをクリックして${stolenTokens.length}枚奪おう…`;
+    title.textContent = `タップして、奪う${stolenTokens.length}枚をめくろう…`;
+    // 奪う札はサーバーが無作為に決めている。めくる順は必ず位置順（左→右）に固定して、
+    // 「特定の札を選んでいる」誤解が起きないようにする（#9）。
+    const revealOrder = [...stolenTokens].sort((a, b) => orderIndexOf(a.id) - orderIndexOf(b.id));
 
     // 1枚ずつ、クリックしてめくって奪う。自動送りは無し（ホバーでいくらでもじらせる。ユーザー
     // 要望「そもそも自動送りは要る？」）。ただし、長時間まったく操作が無い（席を外した等）時だけ、
@@ -4789,7 +4799,7 @@ async function playGateInvasionStealRitual(info, onDone) {
           pendingResolve = resolve;
         });
       }
-      const tok = stolenTokens[i];
+      const tok = revealOrder[i];
       const el = cardEls[orderIndexOf(tok.id)];
       if (el) {
         el.style.backgroundImage = `url("${getCardImagePath(tok.cardId)}")`;

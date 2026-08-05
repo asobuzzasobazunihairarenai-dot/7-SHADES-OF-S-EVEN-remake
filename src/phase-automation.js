@@ -24,6 +24,7 @@ import {
   canUseHandEffect,
 } from "./card-effect-engine.js";
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
+import { isGateInvasionQueueActive } from "./gate-invasion-modal.js";
 import { playSound } from "./sound.js";
 import { announceHandPickups } from "./hand-announcer.js";
 import { SIDE_TO_SEAT, COLORS, SEAT_ORDER } from "./board-layout.js";
@@ -663,6 +664,14 @@ export function reconcilePhaseAutomation() {
   // render()のたびに呼ばれるこの関数の先頭で、shouldBeActiveの判定に関係なく
   // 毎回呼び直すようにする（軽量なDOM表示切り替えのみのため負荷は無視できる）。
   updateSkipButtonVisibility();
+  // ユーザー報告#9「エターナル演出が始まると同時くらいに次のターンへ移ってしまう。演出を
+  // 最後まで見てから移行すべき」。ゲート侵攻の一連の演出（手札奪取→エターナル獲得→帰還）は
+  // gate-invasion-modal.jsのキューで再生され、その間 isGateInvasionQueueActive() が true になる。
+  // ターンはサーバー側で侵攻とまとめて進むため、演出中に既に turnPlayer が次の人になっている
+  // ことがあり、その状態でフェイズ自動進行を回すと、演出が終わる前に次のターンのロック/移動
+  // 自動処理（＝実質的な「ターンが移った」挙動）が始まってしまう。演出キューが空になるまでは
+  // フェイズ自動進行を進めない（clearPhase()はせず、そのまま待つだけにして表示のちらつきを避ける）。
+  if (isGateInvasionQueueActive()) return;
   const player = getSelfSeat();
   // ユーザー報告（続き86）「勝利後、まだ盤面のタイマーが止まらず自動処理が継続
   // されてしまっている」。誰かが既に勝利していれば、以後のフェイズ自動進行

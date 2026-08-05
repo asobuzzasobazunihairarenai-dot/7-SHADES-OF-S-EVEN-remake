@@ -7129,6 +7129,14 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   filter: grayscale(60%);
   transform: scale(0.92);
 }
+/* ゲート侵攻の奪取（#9）はサーバーが無作為に決めた札を左→右にめくって公開するだけで、
+   スリカエの本物のピックのように個別の札を選べるわけではない。個別カードのホバーで浮く演出は
+   「この札を選んでいる」誤解を招くので消す（タップでめくる操作自体は有効なままにする）。
+   めくり終えた札(is-stolen-reveal)の拡大表示はそのまま残す。 */
+#sleight-ritual-modal.is-steal-reveal .sleight-ritual-card:not(.is-stolen-reveal):hover {
+  transform: none;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
 /* 合同建設の「山札から/手札から」選択（main.jsのrequestPlaceSourceChoiceForEffect）。 */
 .place-source-choice-buttons {
   display: flex;
