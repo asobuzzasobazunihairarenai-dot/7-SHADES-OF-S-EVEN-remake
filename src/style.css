@@ -11,6 +11,55 @@
   --color-rainbow: linear-gradient(135deg, #c70025, #ee781f, #fabe00, #22ac38, #1bb8ce, #f19ec2, #915da3);
 }
 
+/* 縦向き警告オーバーレイ（index.htmlの#rotate-device-overlay）。既定は非表示。
+   タッチ端末（hover:none かつ pointer:coarse ＝スマホ/タブレット）が縦向きの時だけ
+   全面に「横向きにしてください」を出す。デスクトップやランドスケープでは決して出さない。
+   盤面の座標計算・描画には一切干渉しない（CSSのメディアクエリで出し分けるだけ）。 */
+#rotate-device-overlay {
+  display: none;
+}
+@media (orientation: portrait) and (hover: none) and (pointer: coarse) {
+  #rotate-device-overlay {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 2147483000; /* すべてのモーダル・演出より前面 */
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    box-sizing: border-box;
+    background: #0b1016;
+    color: #e2e8f0;
+    text-align: center;
+    font-family: sans-serif;
+  }
+  #rotate-device-overlay .rotate-device-inner {
+    max-width: 22rem;
+  }
+  #rotate-device-overlay .rotate-device-icon {
+    font-size: 4rem;
+    line-height: 1;
+    margin-bottom: 1rem;
+    display: inline-block;
+    animation: rotate-device-tilt 1.8s ease-in-out infinite;
+  }
+  #rotate-device-overlay .rotate-device-title {
+    font-size: 1.3rem;
+    font-weight: bold;
+    margin-bottom: 0.8rem;
+  }
+  #rotate-device-overlay .rotate-device-sub {
+    font-size: 0.9rem;
+    line-height: 1.7;
+    color: #94a3b8;
+  }
+}
+/* 端末を横に倒す動きを示すアイコンのゆらぎ。 */
+@keyframes rotate-device-tilt {
+  0%, 100% { transform: rotate(0deg); }
+  55%, 80% { transform: rotate(-90deg); }
+}
+
 html, body {
   height: 100%;
   margin: 0;

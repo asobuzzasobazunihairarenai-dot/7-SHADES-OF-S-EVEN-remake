@@ -79,6 +79,16 @@
   <div id="scene" class="scene">
     <div id="game-table" class="game-table"></div>
   </div>
+  <!-- ユーザー要望「スマホ/タブレットで横長表示にしたい」への安全策。OSの回転ロックは
+       Webから解除できないため、縦向きのタッチ端末の時だけ「横向きにしてください」案内を
+       全面に出す（座標や描画には一切干渉しない、CSSのメディアクエリだけで出し分ける）。 -->
+  <div id="rotate-device-overlay" aria-hidden="true">
+    <div class="rotate-device-inner">
+      <div class="rotate-device-icon">📱</div>
+      <div class="rotate-device-title">端末を横向きにしてください</div>
+      <div class="rotate-device-sub">このゲームは横向き（横長）でのプレイを推奨しています。<br>画面の自動回転がロックされている場合は、解除してから横向きにしてください。</div>
+    </div>
+  </div>
   <script type="module" src="src/main.js"></script>
 </body>
 </html>
