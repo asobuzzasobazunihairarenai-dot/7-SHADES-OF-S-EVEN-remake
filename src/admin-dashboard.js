@@ -161,11 +161,23 @@ async function loadBugReports() {
 function makeBugReportRow(row) {
   const tr = document.createElement("tr");
   const reporter = row.display_name || row.email || "(匿名/未ログイン)";
-  for (const text of [formatDateTime(row.created_at), reporter, row.comment || "-"]) {
+  const cells = [formatDateTime(row.created_at), reporter, row.comment || "-"];
+  cells.forEach((text, i) => {
     const td = document.createElement("td");
     td.textContent = text;
+    // ユーザー報告「コメントが長いと表が横に伸びて『詳細』ボタンが画面外へ押し出され、
+    // 横スクロールしないと押せない」。コメント列（index 2）だけ幅を制限して1行に省略表示し
+    // （…）、全文はホバーのtitleと「詳細」ポップアップで見られるようにする。これで表全体の
+    // 横幅が一定に収まり、詳細ボタンが常に見える位置に残る。
+    if (i === 2) {
+      td.style.maxWidth = "40rem";
+      td.style.overflow = "hidden";
+      td.style.textOverflow = "ellipsis";
+      td.style.whiteSpace = "nowrap";
+      td.title = text;
+    }
     tr.appendChild(td);
-  }
+  });
   // 「詳細」: アクションログ・コンソールログ・状況を別ウィンドウで全文表示する。
   const detailTd = document.createElement("td");
   const detailBtn = document.createElement("button");
