@@ -33,6 +33,7 @@ import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { playOpeningBgm, stopOpeningBgm } from "./sound.js";
 import { APP_VERSION } from "./app-version.js";
 import { isFlatten2dMode } from "./tablet-2d-mode.js";
+import { startTitlePetWalk } from "./title-pet.js";
 
 // フェードアウトのCSSトランジション時間と合わせる（style.cssの#opening-screen.is-closing、
 // .opening-start-gate.is-closing参照）。
@@ -412,6 +413,10 @@ export function initOpeningScreen() {
   const dim = document.createElement("div");
   dim.className = "opening-screen-dim";
   overlay.appendChild(dim);
+
+  // タイトル画面のペット散歩演出（ユーザー要望。キュビット→ノクスアエル幼体が交互に
+  // 左から右へ歩いて見切れていく）。飾りのみ・クリックは透過（title-pet.js）。
+  startTitlePetWalk(overlay);
 
   const content = document.createElement("div");
   content.className = "opening-screen-content";
