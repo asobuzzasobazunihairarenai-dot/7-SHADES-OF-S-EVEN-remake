@@ -9744,9 +9744,9 @@ body:not(.is-admin-user) .opening-admin-btn {
   --sound-volume-swap: 80%;
   --sound-volume-jump: 80%;
   --sound-volume-victory-bgm: 80%;
-  --sound-volume-opening-bgm: 80%;
-  --sound-volume-game-bgm: 80%;
-  --sound-volume-waiting-bgm: 80%;
+  --sound-volume-opening-bgm: 40%;
+  --sound-volume-game-bgm: 40%;
+  --sound-volume-waiting-bgm: 40%;
   --opening-story-crawl-duration: 40;
   --opening-aura-size: 2rem;
   --opening-aura-trail-length: 25;

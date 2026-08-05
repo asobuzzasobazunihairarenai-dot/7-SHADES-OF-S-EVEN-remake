@@ -352,7 +352,7 @@ const GROUPS = [
         min: 0,
         max: 100,
         step: 5,
-        default: 80,
+        default: 40,
         previewOnInteract: () => previewBgmVolume("--sound-volume-opening-bgm"),
       },
       // ユーザー要望「ゲーム時のBGM追加しました。ゲーム開始時から流れるようにしたい」
@@ -364,7 +364,7 @@ const GROUPS = [
         min: 0,
         max: 100,
         step: 5,
-        default: 80,
+        default: 40,
         previewOnInteract: () => previewBgmVolume("--sound-volume-game-bgm"),
       },
       // ユーザー要望「プレイヤー待機中のBGMを追加しました」への対応
@@ -376,7 +376,7 @@ const GROUPS = [
         min: 0,
         max: 100,
         step: 5,
-        default: 80,
+        default: 40,
         previewOnInteract: () => previewBgmVolume("--sound-volume-waiting-bgm"),
       },
     ],

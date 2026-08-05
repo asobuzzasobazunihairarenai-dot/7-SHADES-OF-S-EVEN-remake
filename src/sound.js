@@ -220,6 +220,18 @@ export function initGameBgmAutoStart() {
     }
     wasGameStartedForBgm = started;
   });
+  // ユーザー報告「ゲームBGMが鳴っていない気がする」。上のplayGameBgm()は状態購読
+  // （＝サーバー同期などユーザー操作の“外”）から呼ばれるため、モバイルの自動再生制限で
+  // <audio>.play()がブロックされ、無音のまま .catch で握りつぶされることがある。
+  // 保険として、ユーザー操作のたびに「対局中なのに game BGM が止まっている」場合は
+  // 取り直す（操作起点なら再生が通る）。既に鳴っていれば何もしない（gameBgmAudio.pausedで判定）。
+  if (typeof window !== "undefined") {
+    const retryOnGesture = () => {
+      if (Boolean(getState().turnPlayer) && gameBgmAudio && gameBgmAudio.paused) playGameBgm();
+    };
+    window.addEventListener("pointerdown", retryOnGesture, { passive: true });
+    window.addEventListener("keydown", retryOnGesture, { passive: true });
+  }
 }
 
 // マスター音量（0〜1）。オプションメニューの「基本設定」から調整できる（効果音のみ、
