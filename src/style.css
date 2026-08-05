@@ -5893,8 +5893,17 @@ body.is-phone-device {
 .self-status-rank-ring.is-visible {
   display: block;
 }
+/* ユーザー報告「アバターの丸枠が解決しない。ランクリング表示時にドロップシャドウして
+   ないか？」。犯人はこのis-glowのbox-shadowだった。.self-status-rank-ringはborder-radius:50%
+   ＝正円なので、box-shadowはアバターの縁をなぞる“暗い丸枠”として描かれてしまう（ブラック
+   マスター＝rgba(0,0,0,0.7)だと特にはっきりした暗いリングになる）。これは周回オーブ導入前の
+   「静的な色付きリング＋グロー」時代の名残で、今はティア色は周回する発光ドット側が表現して
+   いるため、この静的なリングのグローは不要（かつ、縁を透明にフェードさせるマスクの効果を
+   丸枠で打ち消してしまう）。box-shadowを外して丸枠を消す。マスター系ティアの区別は、
+   発光ドットの色（黒#0a0a0a / 白#ffffff、各ドット自体のbox-shadowグロー付き）で引き続き付く。
+   is-glowクラス自体はJS側で付け外しされるが、ここで見た目の指定を持たないので実害はない。 */
 .self-status-rank-ring.is-glow {
-  box-shadow: 0 0 0.8rem 0.2rem var(--rank-ring-glow, transparent);
+  box-shadow: none;
 }
 /* ユーザー要望「ランクリングを、ロックエリアのファースト/エターナルカードの周回演出
    （style.cssのeffect-orbit）みたいに、枠をその色の発光体がくるくる回る感じにしたい。
