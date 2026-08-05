@@ -243,7 +243,8 @@ import { fetchStatsProfile, getTierInfo } from "./stats-profile.js";
 import { setRankRingOrbitContainer, startRankRingOrbit } from "./rank-ring-orbit.js";
 import { generateVictorySummaryCanvas } from "./victory-summary-image.js";
 import { playSound, initGameBgmAutoStart } from "./sound.js";
-import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
+import { getCardDefinition, getCardImagePath, getCardBackImagePath, getCardIllustPath } from "./cards-data.js";
+import { isBoardIllustOnly } from "./board-card-display.js";
 import {
   COLORS,
   GATE_POSITIONS,
@@ -735,7 +736,7 @@ function buildPileZone(pileKey) {
   if (count > 0) {
     imagePath =
       pileKey === "discard"
-        ? getCardImagePath(pileArray[pileArray.length - 1])
+        ? getBoardCardImagePath(pileArray[pileArray.length - 1]) // 捨て場の一番上も盤面扱い（イラストのみ設定に従う）
         : cardBackSetImagePath(config.backImageKind, getCardBackSetIndex());
   }
   const stack = buildCardStack(count, config.pileClass, imagePath);
@@ -793,11 +794,18 @@ function findLocationElement(table, location) {
 // 使えないため、セル/ロックスロットにフィットするだけの平たいカードにする）。
 // 表向きなら実際のカード画像を、裏向きなら裏面の画像を敷く。ダブルクリックで表裏を切り替えられる
 // （initFlipHandlers参照）。
+// 盤面（セル・ロックスロット・捨て場）に敷く表向きカードの画像。イラストのみ表示が
+// ONなら「イラストのみ版」を、OFFなら通常のテキストあり版を返す（ユーザー要望）。
+// ホバー拡大・手札は呼び出し側で従来通りgetCardImagePath()を使うためここは通らない。
+function getBoardCardImagePath(cardId) {
+  return isBoardIllustOnly() ? getCardIllustPath(cardId) : getCardImagePath(cardId);
+}
+
 function buildFlatCard(token) {
   const card = document.createElement("div");
   if (token.faceUp) {
     card.className = "board-card";
-    card.style.backgroundImage = `url("${getCardImagePath(token.cardId)}")`;
+    card.style.backgroundImage = `url("${getBoardCardImagePath(token.cardId)}")`;
   } else {
     card.className = "board-card is-facedown";
     card.style.backgroundImage = `url("${getCardBackImagePath(token.cardId)}")`;

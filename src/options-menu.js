@@ -20,6 +20,7 @@ import { openDeckViewer } from "./deck-viewer.js";
 import { isLockAreaBarVisible, setLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible, setLockColorVisible } from "./lock-color.js";
 import { isActionConfirmEnabled, setActionConfirmEnabled } from "./action-confirm-prefs.js";
+import { isBoardIllustOnly, setBoardIllustOnly } from "./board-card-display.js";
 import { getSoundVolume, setSoundVolume, getBgmVolume, setBgmVolume } from "./sound.js";
 import { SHORTCUT_TARGETS, getShortcut, setShortcut, registerShortcutSettingsOpener } from "./player-buttons.js";
 import { createBackdrop } from "./ui-helpers.js";
@@ -586,6 +587,14 @@ export function initOptionsMenu() {
         "表示・演出",
         (content) => {
           content.appendChild(buildCardPreviewSizeRow());
+          // ユーザー要望「盤面（場・捨て場・ロックエリア）のカードは遠景で文字が読めないので、
+          // イラストのみのカード画像で映えさせたい。ホバー拡大や手札は通常のテキストあり画像
+          // のまま」。この端末のみのローカル設定（board-card-display.js、相手には非同期）。
+          content.appendChild(
+            buildCheckboxRow("盤面のカードをイラストのみで表示（手札・拡大はそのまま）", isBoardIllustOnly(), (checked) => {
+              setBoardIllustOnly(checked);
+            })
+          );
           // ユーザー要望「タブレットの点滅対策として、2D表示への切り替えを画面右上の
           // オプションからもできるようにしたい」。実体はtablet-2d-mode.jsで管理者モードと
           // 共有している（admin.jsの「2D表示に切り替える」トグルと同じ状態）。
@@ -684,6 +693,7 @@ export function initOptionsMenu() {
           icon: "🖥️",
           onReset: () => {
             document.documentElement.style.setProperty("--card-preview-size", "20rem");
+            setBoardIllustOnly(false);
             setFlatten2dMode(false);
             setOpponentBaseTimerVisible(false);
             setLockAreaBarVisible(true);

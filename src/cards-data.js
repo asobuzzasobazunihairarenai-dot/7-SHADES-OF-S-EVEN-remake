@@ -102,6 +102,17 @@ export function getCardImagePath(cardId) {
   return `assets/cards/${cardId}.webp`;
 }
 
+// 「イラストのみ」版のカード画像（assets/cards-illust/配下、cardIdをそのままファイル名に）。
+// ユーザー要望「盤面（場・捨て場・ロックエリア）のカードは遠景でテキストが読めないので、
+// イラストだけのカード画像で表示したい。ホバー拡大や手札は通常のテキストあり画像のまま」。
+// 盤面描画側（board-card-display.jsのisBoardIllustOnly()がONのとき）だけがこれを使う。
+// 全カード分の画像が揃っているが、念のため未定義（ブーストの効果なしカード等）は通常画像へ。
+export function getCardIllustPath(cardId) {
+  const def = CARD_BY_ID.get(cardId);
+  if (def?.isBlankBoost) return blankBoostCardDataUri(def.color);
+  return `assets/cards-illust/${cardId}.webp`;
+}
+
 // 裏面は「通常カード」「エターナルカード」「ファーストカード」でデザインが違う（物理カードと
 // 同じ）。idの接頭辞（"eternal-"/"first-"）で判別する。
 // cardIdがnullの場合（オンライン対戦で、本当に中身が見えない裏向きカード・他人の手札を
