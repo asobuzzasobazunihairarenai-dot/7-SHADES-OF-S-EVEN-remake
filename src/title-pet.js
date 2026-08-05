@@ -9,7 +9,7 @@
 
 import { petSpriteSrc } from "./pet-skins.js";
 
-const WALKERS = ["cubit", "noxael", "sept", "rubel"]; // 登場するペット（ランダムに選ぶ）
+const WALKERS = ["cubit", "noxael", "sept", "rubel", "kii"]; // 登場するペット（ランダムに選ぶ）
 const WALK_SPEED = 130; // px/秒（ステージ座標）。ゆっくりお散歩する速さ
 const STEP_SWAP_MS = 220; // 歩行中に walk/static を切り替えて“歩いてる感”を出す間隔
 const REDUCE =
