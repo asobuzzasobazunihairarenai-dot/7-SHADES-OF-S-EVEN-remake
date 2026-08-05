@@ -7034,6 +7034,9 @@ function maybeAnnounceLock(dropTarget, cardId, wasAlreadyLocked) {
   if (!def || def.color === "white" || def.color === "black") return;
   if (!wasAlreadyLocked) {
     const player = SIDE_TO_SEAT[dropTarget.side];
+    // 行動ログ用（ユーザー要望「何をロックしたかを行動ログに追加」）。全ロック経路が
+    // ここを通る（performLockPhaseClick・ドラッグ&ドロップ・最後のロック承認）。
+    logAction("lock", { cardId, player });
     announceCardLocked(player, cardId);
     // ユーザー要望（続き76）「ロック処理の直後にも割り込みモーダルを出す」。宣言側は
     // 続き77でperformLockPhaseClick・ドラッグ&ドロップハンドラ・requestFinalLock
@@ -7952,6 +7955,10 @@ function buildFriendlyLogItems() {
       player = e.detail.player;
       const name = getCardDefinition(e.detail.cardId)?.name ?? e.detail.cardId;
       msg = `「${name}」の手札効果を得ました`;
+    } else if (e.category === "lock" && e.detail?.cardId) {
+      player = e.detail.player;
+      const name = getCardDefinition(e.detail.cardId)?.name ?? e.detail.cardId;
+      msg = `「${name}」をロックしました`;
     } else if (e.category === "declare-colors" && e.detail?.colors?.length) {
       player = e.detail.player;
       const cols = e.detail.colors.map((c) => COLOR_LABEL_JA[c] ?? c).join("・");
