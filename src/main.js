@@ -801,8 +801,28 @@ function getBoardCardImagePath(cardId) {
   return isBoardIllustOnly() ? getCardIllustPath(cardId) : getCardImagePath(cardId);
 }
 
+// ゲート侵攻のエターナル獲得演出中、そのエターナルが「こっそり先にロックエリアに入っている」
+// ように見えないよう、演出が⑥（ロックスロットへ着地）を終えるまで実際のロックカードの描画だけを
+// 隠す。状態自体は（オンラインではサーバーが確定済みで）既にロック済みだが、視覚だけを遅らせる。
+// ユーザー要望「演出のタイミングでロックされたように見せたい」への対応。状態自体を遅らせる方式は
+// アトミックなサーバー確定・切断時のdesync等の問題があるため採らない（playEternalAcquisitionAnim
+// 末尾コメント参照）。{side, index, cardId} の完全一致でそのカード1枚だけを対象にする。
+let suppressedEternalLockRender = null;
+function isEternalLockRenderSuppressed(token) {
+  const s = suppressedEternalLockRender;
+  return (
+    !!s &&
+    token.location?.zone === "lock" &&
+    token.location.side === s.side &&
+    token.location.index === s.index &&
+    token.cardId === s.cardId
+  );
+}
+
 function buildFlatCard(token) {
   const card = document.createElement("div");
+  // 上記の演出中は、このカードだけ場所を確保したまま不可視にする（着地演出後にrender()で戻す）。
+  if (isEternalLockRenderSuppressed(token)) card.style.visibility = "hidden";
   if (token.faceUp) {
     card.className = "board-card";
     card.style.backgroundImage = `url("${getBoardCardImagePath(token.cardId)}")`;
@@ -4425,10 +4445,16 @@ async function playEternalAcquisitionAnim(attacker, cardId, cardDef, onDone) {
   const pileRect = pileEl.getBoundingClientRect();
   const centerRect = getEternalRevealCenterRect(pileRect);
 
-  // ①エターナル山札が一瞬黒く発光する（「これから何かが起きる」予告）。
-  playSound("arrivalEffect");
-  spawnArrivalBurst(pileEl, "black");
-  await wait(getContactAnimSeconds("--eternal-anim-glow-duration", 1) * 1000);
+  // オンラインでは状態が既にロック済みで、そのままだと演出前からロックスロットにカードが
+  // 見えてしまう（ユーザー報告「初めに速攻でエターナルがこっそりロックされる」）。演出が
+  // ⑥で着地するまで、その1枚だけ描画を隠す。finallyで必ず戻す（“消えたまま”防止）。
+  suppressedEternalLockRender = { side, index: colorIndex, cardId };
+  render();
+  try {
+    // ①エターナル山札が一瞬黒く発光する（「これから何かが起きる」予告）。
+    playSound("arrivalEffect");
+    spawnArrivalBurst(pileEl, "black");
+    await wait(getContactAnimSeconds("--eternal-anim-glow-duration", 1) * 1000);
 
   // ②山札から画面中央へ、裏向きのまま飛んでいく。
   const flightMs = getContactAnimSeconds("--eternal-anim-flight-duration", 1.5) * 1000;
@@ -4482,14 +4508,20 @@ async function playEternalAcquisitionAnim(attacker, cardId, cardDef, onDone) {
   reveal.classList.add("is-revealed");
   await wait(getContactAnimSeconds("--eternal-anim-hold-duration", 2) * 1000);
 
-  // ⑥自分のロックエリアへ向けて飛んでいく。ロックスロットのDOMが見当たらない
-  // （通常起きないはずだが念のため）場合は、その場でフェードせずそのまま消す。
-  reveal.remove();
-  if (lockEl) {
-    const lockRect = lockEl.getBoundingClientRect();
-    const returnMs = getContactAnimSeconds("--eternal-anim-return-duration", 1) * 1000;
-    const { done: returnDone } = flyGhost(centerRect, lockRect, getCardImagePath(cardId), "setup-fly-card", returnMs);
-    await returnDone;
+    // ⑥自分のロックエリアへ向けて飛んでいく。ロックスロットのDOMが見当たらない
+    // （通常起きないはずだが念のため）場合は、その場でフェードせずそのまま消す。
+    reveal.remove();
+    if (lockEl) {
+      const lockRect = lockEl.getBoundingClientRect();
+      const returnMs = getContactAnimSeconds("--eternal-anim-return-duration", 1) * 1000;
+      const { done: returnDone } = flyGhost(centerRect, lockRect, getCardImagePath(cardId), "setup-fly-card", returnMs);
+      await returnDone;
+    }
+  } finally {
+    // 演出完了（⑥の着地）。ここで初めて実際のロックカードを表示へ戻す。例外・中断が起きても
+    // 必ず解除して“エターナルが消えたまま”にならないようにする。
+    suppressedEternalLockRender = null;
+    render();
   }
   onDone();
 }
