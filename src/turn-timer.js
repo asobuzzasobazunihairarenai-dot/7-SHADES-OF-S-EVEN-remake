@@ -64,7 +64,7 @@ import {
 import { isOpponentBaseTimerVisible } from "./motion-prefs.js";
 import { toggleTimerTogglePopover } from "./timer-toggle.js";
 import { hasAnyoneWon } from "./victory.js";
-import { isCpuBattleActive } from "./cpu-battle-state.js";
+import { isCpuBattleActive, getCpuStepDeadlineMs } from "./cpu-battle-state.js";
 import { isAutoProcessingEnabled } from "./card-effect-engine.js";
 import { logAction } from "./action-log.js";
 
@@ -219,7 +219,13 @@ function freshBaseDeadlineFor(seat) {
   // 以前ここに診断ログ(diag-pseudo-cpu freshBaseDeadlineFor)を毎回出していたが、頻度が高く
   // 行動ログのリングバッファ(300件)を埋め尽くして、ゲーム画面の行動ログが「まだ記録が
   // ありません」になる原因になっていた（ユーザー報告）。調査目的は済んだので削除する。
-  if (target) return Date.now() + getPseudoCpuDeadlineMs();
+  if (target) {
+    // CPU戦（ローカル1人用）では、CPUの1手ごとの持ち時間を「CPUの速さ」設定から取る
+    // （ゆっくり／普通／早い。ユーザー要望「CPUが速すぎてモーダルが読めない」）。それ以外
+    // （オンラインの疑似CPU等）は従来通り getPseudoCpuDeadlineMs()。
+    const ms = isCpuBattleActive() && !isOnlineMode() ? getCpuStepDeadlineMs() : getPseudoCpuDeadlineMs();
+    return Date.now() + ms;
+  }
   const seconds = hourglassUsedThisTurn[seat] ? Math.min(getRopeBaseSeconds(), getReducedBaseSeconds()) : getRopeBaseSeconds();
   return Date.now() + seconds * 1000;
 }

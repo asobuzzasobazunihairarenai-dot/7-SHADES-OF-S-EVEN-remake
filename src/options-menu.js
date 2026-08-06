@@ -23,6 +23,7 @@ import { isActionConfirmEnabled, setActionConfirmEnabled } from "./action-confir
 import { isBoardIllustOnly, setBoardIllustOnly } from "./board-card-display.js";
 import { getSoundVolume, setSoundVolume, getBgmVolume, setBgmVolume } from "./sound.js";
 import { setCardPreviewSize } from "./card-preview-size.js";
+import { getCpuSpeed, setCpuSpeed } from "./cpu-battle-state.js";
 import { SHORTCUT_TARGETS, getShortcut, setShortcut, registerShortcutSettingsOpener } from "./player-buttons.js";
 import { createBackdrop } from "./ui-helpers.js";
 import {
@@ -289,6 +290,44 @@ function buildCardPreviewSizeRow() {
   row.appendChild(labelEl);
   row.appendChild(slider);
   row.appendChild(valueLabel);
+  return row;
+}
+
+// CPU戦（1人用）のCPUの速さ（ゆっくり／普通／早い）を選ぶセグメント。ユーザー要望
+// 「CPUが速すぎてザ・ギャンブル等のモーダルが読み取れない」。選ぶとその場で反映され、
+// 次のCPUの手から効く（cpu-battle-state.js、端末に保存）。
+function buildCpuSpeedRow() {
+  const row = document.createElement("div");
+  row.className = "options-menu-volume-row";
+  const label = document.createElement("span");
+  label.textContent = "CPUの速さ";
+  row.appendChild(label);
+  const group = document.createElement("div");
+  group.className = "options-menu-segment";
+  const buttons = [];
+  const refresh = () => {
+    const cur = getCpuSpeed();
+    for (const b of buttons) b.classList.toggle("is-selected", b.dataset.v === cur);
+  };
+  for (const [v, text] of [
+    ["slow", "ゆっくり"],
+    ["normal", "普通"],
+    ["fast", "早い"],
+  ]) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "options-menu-segment-btn";
+    btn.dataset.v = v;
+    btn.textContent = text;
+    btn.addEventListener("click", () => {
+      setCpuSpeed(v);
+      refresh();
+    });
+    group.appendChild(btn);
+    buttons.push(btn);
+  }
+  row.appendChild(group);
+  refresh();
   return row;
 }
 
@@ -720,6 +759,24 @@ export function initOptionsMenu() {
               arrival_effect_disabled: false,
               continuous_glow_disabled: false,
             });
+            renderContent();
+          },
+        }
+      )
+    );
+
+    // CPU戦（1人用）の設定。ユーザー要望「CPUの行動が速すぎてモーダルが読めない。速さを
+    // ゆっくり／普通／早いで選べるように」。
+    panel.appendChild(
+      buildCollapsibleSection(
+        "CPU戦（1人用）",
+        (content) => {
+          content.appendChild(buildCpuSpeedRow());
+        },
+        {
+          icon: "🤖",
+          onReset: () => {
+            setCpuSpeed("normal");
             renderContent();
           },
         }
