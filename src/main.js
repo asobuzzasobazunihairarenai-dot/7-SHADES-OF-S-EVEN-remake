@@ -2237,6 +2237,20 @@ async function delegateToPlayerForEffect(player, taskType) {
         transferPriorityTo(turnPlayer);
       }
     }
+    // #27/#28: CPU戦でCPUの番に、自分（人間）へ委任された選択（パーティ・スラム上がりの役人等）が、
+    // CPUの短い持ち時間の時間切れで疑似CPU（performPriorityTimeoutAutoAction）に勝手に解決されて
+    // しまう問題への対応。自分への委任中は優先権を自分へ移し（＝人間の長い基本時間になり時間切れ
+    // しない）、人間が選び終えてから手番プレイヤー（CPU）へ優先権を戻す。通常のローカル対戦
+    // （CPU戦でない）では従来通り、その場で人間が解決する（優先権は動かさない）。
+    if (!isOnlineMode() && isCpuBattleActive() && player === getSelfSeat() && getState().turnPlayer !== getSelfSeat()) {
+      const turnPlayer = getState().turnPlayer;
+      transferPriorityTo(player);
+      try {
+        return await runDelegatedArrivalTask(player, taskType);
+      } finally {
+        transferPriorityTo(turnPlayer);
+      }
+    }
     return runDelegatedArrivalTask(player, taskType);
   }
   // 続き75診断ログ: オンライン中の「全員がそれぞれ選ぶ」効果（パーティー等）の
