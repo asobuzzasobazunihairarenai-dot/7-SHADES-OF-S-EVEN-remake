@@ -154,6 +154,16 @@ body.theme-light .first-run-bgm-desc {
 body.theme-light .first-run-bgm-value {
   color: #6b5c3c;
 }
+/* ライトテーマでは「試聴する」の薄い青地＋白文字がアイボリー地に埋もれて読めない
+   （ユーザー報告）。濃いシアン文字＋やや濃い枠でコントラストを付ける。 */
+body.theme-light .first-run-bgm-preview {
+  background: rgba(8, 145, 178, 0.1);
+  border-color: rgba(8, 145, 178, 0.55);
+  color: #0e7490;
+}
+body.theme-light .first-run-bgm-preview:hover {
+  background: rgba(8, 145, 178, 0.18);
+}
 
 html, body {
   height: 100%;
@@ -4056,6 +4066,20 @@ body.is-phone-device #option-area {
 .header-tool-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+/* ライトテーマ: 既定は暗い地＋白文字で、ライトのモーダル上でも静止時は読めるが、ホバーの
+   background: rgba(56,189,248,0.15)（ほぼ透明）だと下のライト地が透けて“薄い水色地＋白文字”に
+   なり読めなくなる（ユーザー報告「ゲームを開始する等をホバーすると見にくい」）。ライトテーマでは
+   白地＋濃い文字にし、ホバーも濃いシアン文字でコントラストを保つ。 */
+body.theme-light .header-tool-button {
+  background: #ffffff;
+  color: #3a3326;
+  border-color: rgba(176, 141, 63, 0.5);
+}
+body.theme-light .header-tool-button:hover {
+  background: rgba(8, 145, 178, 0.12);
+  border-color: rgba(8, 145, 178, 0.55);
+  color: #0e7490;
 }
 
 /* 画面の最も右上（ラウンド数表示の右隣）に、歯車アイコンだけの小さいボタンとして配置する。
