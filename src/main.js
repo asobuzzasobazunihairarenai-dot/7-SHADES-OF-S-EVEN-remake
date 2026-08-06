@@ -3913,6 +3913,10 @@ function autoArrivalKey(cardId, location) {
 function triggerCardArrival(cardId, location, onFullyResolved, opts = {}) {
   const player = getPieceOwnerAt(location);
   const showAddToHand = !!player && player === getSelfSeat();
+  // 到達効果を自動処理する対象席かどうか。通常は「自分の席」。ただしローカルCPU戦では
+  // CPU(C)が到達した時もその効果を自動処理する必要がある（不具合#21: CPUの到達効果が
+  // 発動しない）。getAutoDriveSeatはCPU戦のCPUの番なら今のターンプレイヤー(C)を返す。
+  const shouldAutoProcess = !!player && player === getAutoDriveSeat() && canAutoProcessArrival(cardId);
   // 診断（到達コンボ不発の調査）: どのブランチ（自動実行 or 手動モーダルのみ）に入るかを
   // 決める材料を全部残す。ユーザー報告「パーティを取って露出したジャンプ台の到達効果が
   // 起きない（モーダルは出る）」の切り分け用。auto=false ならモーダルのみ＝効果は動かない。
@@ -3923,7 +3927,7 @@ function triggerCardArrival(cardId, location, onFullyResolved, opts = {}) {
     self: getSelfSeat(),
     showAddToHand,
     canAuto: canAutoProcessArrival(cardId),
-    auto: showAddToHand && canAutoProcessArrival(cardId),
+    auto: shouldAutoProcess,
     depth: arrivalEffectProcessingDepth,
   });
 
@@ -3933,7 +3937,7 @@ function triggerCardArrival(cardId, location, onFullyResolved, opts = {}) {
   // 拡大モーダルが相手の画面にしか出ない」への対応として、本人の画面にも
   // （ボタン無し・自動で消える表示専用の）同じ拡大モーダルを出す——効果は自動で
   // 進んでも、自分がどのカードに到達したかは見えないと分かりにくいため。
-  if (showAddToHand && canAutoProcessArrival(cardId)) {
+  if (shouldAutoProcess) {
     // 冪等ガード（#7/#11、activeAutoArrivalKeys参照）: 同じカード×マスの到達効果が既に自動
     // 処理中の時、remote-move-animator由来の重複発火(opts.fromDiff)だけを無視する。自分の
     // 効果チェーンの正当な再到達（ジャンプ台の往復など）は fromDiff 無しなので通す。
