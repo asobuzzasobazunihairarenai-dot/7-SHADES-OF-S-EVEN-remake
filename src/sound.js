@@ -341,22 +341,91 @@ export function previewBgmVolume(cssVar) {
   }
 }
 
+// ユーザー報告「iPhoneで効果音が鳴らない（playSound failed NotAllowedError）」。iOSは
+// new Audio().play() を「ユーザー操作の外」からは弾く。しかもページが一度アンロック済みでも、
+// 毎回新しく生成する<audio>要素の再生は操作外だと弾かれ続ける。効果音は自動処理から鳴らす
+// ことが多いため、ほぼ全て無音になっていた。対策として効果音はWeb Audio(AudioContext)経由で
+// 鳴らす——一度ユーザー操作でAudioContextをresumeすれば、以後はデコード済みバッファを操作の
+// 外からでも鳴らせる（Howler.js等と同じ方式）。バッファは初回操作時（initSoundUnlock）に一括
+// デコードしてキャッシュする。未対応/未ロード時は従来の new Audio() にフォールバックする。
+const soundBufferCache = new Map(); // name -> AudioBuffer | "loading" | null(失敗)
+function loadSoundBuffer(name) {
+  const def = SOUND_DEFS[name];
+  const ctx = getAudioContext();
+  if (!def || !ctx || soundBufferCache.has(name)) return;
+  soundBufferCache.set(name, "loading");
+  fetch(def.path)
+    .then((r) => r.arrayBuffer())
+    .then((buf) => ctx.decodeAudioData(buf))
+    .then((decoded) => soundBufferCache.set(name, decoded))
+    .catch((err) => {
+      soundBufferCache.set(name, null);
+      logAction("diag-sound-play-failed", { name, phase: "decode", errorName: err?.name ?? null });
+    });
+}
+
+function playSoundViaWebAudio(name, volume) {
+  const ctx = getAudioContext(); // 呼ぶたびにresumeも試みる
+  if (!ctx) return false;
+  const buf = soundBufferCache.get(name);
+  if (buf === undefined) {
+    loadSoundBuffer(name); // 未ロードなら今から読む（今回は間に合わないが次回以降鳴る）
+    return false;
+  }
+  if (buf === "loading" || buf === null || ctx.state !== "running") return false;
+  try {
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const gain = ctx.createGain();
+    gain.gain.value = volume;
+    src.connect(gain);
+    gain.connect(ctx.destination);
+    src.start(0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// 最初のユーザー操作（タップ/クリック/キー）で、AudioContextをresumeし、全効果音バッファを
+// 事前デコードしてiOSの効果音をアンロックする。main.jsの起動時に一度呼ぶ。
+let soundUnlockInstalled = false;
+export function initSoundUnlock() {
+  if (soundUnlockInstalled || typeof window === "undefined") return;
+  soundUnlockInstalled = true;
+  const unlock = () => {
+    const ctx = getAudioContext(); // resumeを試みる
+    if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
+    for (const name of Object.keys(SOUND_DEFS)) loadSoundBuffer(name);
+    // iOSのアンロックを確実にするため、無音の1サンプルを一度鳴らす。
+    if (ctx) {
+      try {
+        const src = ctx.createBufferSource();
+        src.buffer = ctx.createBuffer(1, 1, 22050);
+        src.connect(ctx.destination);
+        src.start(0);
+      } catch {
+        /* noop */
+      }
+    }
+  };
+  window.addEventListener("pointerdown", unlock, { passive: true });
+  window.addEventListener("keydown", unlock, { passive: true });
+  window.addEventListener("touchstart", unlock, { passive: true });
+}
+
 export function playSound(name) {
   const def = SOUND_DEFS[name];
   if (!def) return;
   const volume = Math.min(1, Math.max(0, masterVolume * getPerSoundVolume(def.cssVar)));
   if (volume <= 0) return;
+  // まずWeb Audioで鳴らす（iOSでも初回操作後は確実に鳴る）。未対応/未ロード時のみ従来方式へ。
+  if (playSoundViaWebAudio(name, volume)) return;
   const audio = new Audio(def.path);
   audio.volume = volume;
-  // ブラウザの自動再生制限等で再生に失敗しても、ゲーム進行自体には影響させたくないので
-  // 例外自体は握りつぶす（呼び出し元の処理を止めない）。ただしユーザー報告
-  // （続き95）「オンライン対戦で相手の発動した効果や到達アニメの効果音が鳴らない」の
-  // 原因調査用に、失敗理由（NotAllowedError＝ブラウザの自動再生制限で最有力候補、
-  // それ以外なら音声ファイル自体の読み込み失敗等の別原因を疑う手がかりになる）を
-  // コンソール・アクションログの両方に記録するようにした（今まではcatch(() => {})で
-  // 完全に無音のまま消えていたため、再現しても原因の当たりが一切つけられなかった）。
+  // 自動再生制限等で失敗してもゲーム進行は止めない。原因調査用に理由だけ記録する
+  // （console.errorはiOSで大量に出て邪魔なため出さず、アクションログにだけ残す）。
   audio.play().catch((err) => {
-    console.error(`playSound("${name}") failed`, err);
     logAction("diag-sound-play-failed", { name, errorName: err?.name ?? null, message: String(err?.message ?? err) });
   });
 }

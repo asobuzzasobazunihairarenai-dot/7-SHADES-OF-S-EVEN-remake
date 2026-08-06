@@ -254,7 +254,7 @@ import {
 import { fetchStatsProfile, getTierInfo } from "./stats-profile.js";
 import { setRankRingOrbitContainer, startRankRingOrbit } from "./rank-ring-orbit.js";
 import { generateVictorySummaryCanvas } from "./victory-summary-image.js";
-import { playSound, initGameBgmAutoStart } from "./sound.js";
+import { playSound, initGameBgmAutoStart, initSoundUnlock } from "./sound.js";
 import { initScreenWakeLock } from "./wake-lock.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath, getCardIllustPath } from "./cards-data.js";
 import { isBoardIllustOnly } from "./board-card-display.js";
@@ -9954,6 +9954,7 @@ registerPiecePetHelpers({ stageClientToLocal, stageDelta }); // 飾りペット�
 registerTutorialBattleHelpers({ triggerLockEffect, playScriptedContact, flyBoardCardToHand, flyDrawnCardToHand });
 initTutorialAutoStart();
 initGameBgmAutoStart();
+initSoundUnlock(); // iOS等で効果音を鳴らすため、最初の操作でAudioContextをアンロック＆事前ロード
 initScreenWakeLock(); // スマホ/タブレットの自動画面オフを防ぐ（wake-lock.js、対応環境のみ）
 initTurnTimer();
 initMatchStatsTracker();
