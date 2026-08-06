@@ -11,7 +11,8 @@ import { getAvatarVariant, applyAvatarContent } from "./avatar-render.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { playVictoryBgm } from "./sound.js";
 import { showPostGamePanel } from "./post-game-panel.js";
-import { awardMatchCurrency } from "./online.js";
+import { awardMatchCurrency, awardCpuWinCurrency, getSelfSeat } from "./online.js";
+import { isCpuBattleActive } from "./cpu-battle-state.js";
 import { refreshCurrencyDisplay } from "./currency-display.js";
 import { showCurrencyAwardModal } from "./currency-award-modal.js";
 import { showRankRevealModal } from "./rank-reveal-modal.js";
@@ -182,7 +183,22 @@ export function checkForVictory() {
       // （online.jsのso7_award_match_currencyコメント参照）。playerは今まさに7色揃えた
       // 本人＝勝者の座席なので、そのままボーナス対象の座席として渡す。
       showVictoryModal(player, async () => {
-        if (!isOnlineMode()) return;
+        if (!isOnlineMode()) {
+          // ローカルCPU戦（1人用）: 人間が勝った時だけ毎回20コインを付与する
+          // （ユーザー確定方針）。CPU(C)が勝った時は付与しない。未ログイン時は
+          // awardCpuWinCurrencyが0を返すので演出も出ない（お金はアカウント紐付けのため）。
+          // 順位・戦績・ポストゲームパネルはオンライン専用のためCPU戦では出さない。
+          if (isCpuBattleActive() && player === getSelfSeat()) {
+            try {
+              const amount = await awardCpuWinCurrency();
+              refreshCurrencyDisplay();
+              if (amount > 0) await showCurrencyAwardModal(amount);
+            } catch (err) {
+              console.error("awardCpuWinCurrency failed", err);
+            }
+          }
+          return;
+        }
         try {
           const amount = await awardMatchCurrency(player);
           refreshCurrencyDisplay();

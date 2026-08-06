@@ -879,6 +879,19 @@ export async function claimDailyLoginBonus() {
   return data ?? 0;
 }
 
+// ユーザー要望「CPU戦で勝利したらお金ももらえるように」。ユーザー確定方針: 毎回20コイン
+// （上限なし）。victory.js が「人間がCPU戦で勝った時」だけ呼ぶ。未ログイン時は残高の
+// 概念が無い（アカウント紐付けのため）ので0を返し、呼び出し側は演出を出さない。
+export async function awardCpuWinCurrency() {
+  if (!client || !cachedUser) return 0;
+  const { data, error } = await client.rpc("so7_award_cpu_win");
+  if (error) {
+    console.error("so7_award_cpu_win failed (未実行のsupabase_setup_so7.sql追加分がある可能性)", error);
+    return 0;
+  }
+  return data ?? 0;
+}
+
 // --- 管理者専用機能（ユーザー要望「管理者モードで自分の通貨を自由に増やせるように」
 // 「サイトの利用状況（ログイン数・訪問数・誰がログイン中か）を見られるように」への対応）。
 // isAdminUser()はUI表示の出し分け（管理者モードにこの項目を出すかどうか）だけに使う

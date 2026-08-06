@@ -810,6 +810,35 @@ $$;
 revoke execute on function so7_claim_daily_login_bonus(int) from public;
 grant execute on function so7_claim_daily_login_bonus(int) to authenticated;
 
+-- ユーザー要望「CPU戦（1人用）で勝利したらお金ももらえるようにしてあげたい」。
+-- ユーザー確定方針: 勝つたびに毎回20コイン（1日の上限なし）。オンライン対戦の
+-- so7_award_match_currencyと違い、game_id（実際のオンライン対局）が無いローカルCPU戦
+-- 専用のため、本人（auth.uid()）の残高にそのまま加算するだけの独立関数にする。
+-- クライアント側(online.js awardCpuWinCurrency → victory.js)は「人間が勝った時」だけ
+-- 呼ぶ（CPUが勝った時は呼ばない）。未ログインならそもそもclientが無く呼ばれない。
+create or replace function so7_award_cpu_win(p_amount int default 20)
+returns int
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'not_authenticated';
+  end if;
+  insert into so7_user_currency (user_id, balance, updated_at)
+  values (v_uid, p_amount, now())
+  on conflict (user_id) do update
+    set balance = so7_user_currency.balance + p_amount,
+        updated_at = now();
+  return p_amount;
+end;
+$$;
+revoke execute on function so7_award_cpu_win(int) from public;
+grant execute on function so7_award_cpu_win(int) to authenticated;
+
 -- 購入。呼び出し元(auth.uid())自身の残高から差し引き、所持済みリストへ追加する。
 -- 残高不足・購入済みの場合は例外を投げるだけで、残高・所持リストとも一切変更しない
 -- （呼び出し側main.js/shop.jsがtry/catchでエラー内容に応じたメッセージを出す想定）。
