@@ -1603,6 +1603,45 @@ async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
 // で既に選んだ分を次回の候補から除外する）。gate-invasion.jsはローカル対戦専用
 // （オンライン中は無作為抽選をサーバー側で行う設計）のため、ここも1画面共有の
 // ローカル対戦だけを対象にすればよい。
+// ユーザー報告#18: ゲート侵攻で「奪う札を選ぶモーダル」が「ゲート侵攻成功」の告知より先に
+// 出てしまう。奪う札の選択はサーバーへNEXT_TURNを送る前（＝侵攻成功のブロードキャスト＝
+// ターン後の告知キューより前）に行う必要があるため、選ぶモーダルの直前に、攻撃側本人の画面に
+// だけ「ゲート侵攻成功！」の告知を先に出す。OK（または保険のタイムアウト）で閉じてから選択へ進む。
+function announceGateInvasionSuccessBeforeStealPick(defender, count) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(safety);
+      backdrop.remove();
+      modal.remove();
+      resolve();
+    };
+    const backdrop = createBackdrop(() => {}, { dim: true, zIndex: 10620 });
+    const modal = document.createElement("div");
+    modal.id = "gate-invasion-prepick-announce";
+    modal.style.cssText =
+      "position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(24rem, 92vw); background: rgba(15, 23, 32, 0.98); border: 1px solid rgba(251, 191, 36, 0.5); border-radius: 0.5rem; padding: 1.3rem; z-index: 10621; font-family: sans-serif; color: #e2e8f0; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6); text-align: center;";
+    const title = document.createElement("div");
+    title.textContent = "🚩 ゲート侵攻成功！";
+    title.style.cssText = "font-weight: bold; color: #fbbf24; font-size: 1.15rem; margin-bottom: 0.6rem;";
+    const body = document.createElement("div");
+    body.textContent = `${getPlayerName(defender)}の手札から、奪う${count}枚をこれから選びます。`;
+    body.style.cssText = "font-size: 0.95rem; line-height: 1.7; margin-bottom: 1rem;";
+    const okBtn = document.createElement("button");
+    okBtn.type = "button";
+    okBtn.textContent = "奪う札を選ぶ";
+    okBtn.style.cssText =
+      "padding: 0.55rem 1.6rem; background: #0891b2; border: none; border-radius: 0.35rem; color: #fff; font-weight: bold; font-size: 0.95rem; cursor: pointer;";
+    okBtn.addEventListener("click", finish);
+    modal.append(title, body, okBtn);
+    document.body.append(backdrop, modal);
+    // OKを押し忘れてもターン終了処理が詰まらないよう、一定時間で自動的に選択へ進める保険。
+    const safety = setTimeout(finish, 10000);
+  });
+}
+
 async function stealHandCardsRitualForGateInvasion(defender, count) {
   const stolen = [];
   const excludeTokenIds = new Set();
@@ -8596,6 +8635,8 @@ function buildEndTurnButton() {
             ).length;
             const stealCount = Math.floor(defenderHandCount / 2);
             if (stealCount > 0) {
+              // 「奪う札を選ぶ」前に、攻撃側へ「ゲート侵攻成功！」の告知を先に出す（#18）。
+              await announceGateInvasionSuccessBeforeStealPick(defender, stealCount);
               const chosen = await stealHandCardsRitualForGateInvasion(defender, stealCount);
               const ids = (chosen || []).map((t) => t.id);
               // 全部選べた時だけ採用（途中で相手の手札が尽きた等はサーバーの無作為に委ねる）。
