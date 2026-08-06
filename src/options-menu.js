@@ -22,6 +22,7 @@ import { isLockColorVisible, setLockColorVisible } from "./lock-color.js";
 import { isActionConfirmEnabled, setActionConfirmEnabled } from "./action-confirm-prefs.js";
 import { isBoardIllustOnly, setBoardIllustOnly } from "./board-card-display.js";
 import { getSoundVolume, setSoundVolume, getBgmVolume, setBgmVolume } from "./sound.js";
+import { setCardPreviewSize } from "./card-preview-size.js";
 import { SHORTCUT_TARGETS, getShortcut, setShortcut, registerShortcutSettingsOpener } from "./player-buttons.js";
 import { createBackdrop } from "./ui-helpers.js";
 import {
@@ -279,9 +280,10 @@ function buildCardPreviewSizeRow() {
   valueLabel.className = "options-menu-volume-value";
   valueLabel.textContent = `${slider.value}rem`;
   slider.addEventListener("input", () => {
-    document.documentElement.style.setProperty("--card-preview-size", `${slider.value}rem`);
+    // setCardPreviewSizeがCSS変数の反映＋端末への保存＋admin:changeの発火をまとめて行う
+    // （初回設定モーダルと同じ経路。どちらで変えても次回以降まで好みが保たれる）。
+    setCardPreviewSize(Number(slider.value));
     valueLabel.textContent = `${slider.value}rem`;
-    window.dispatchEvent(new CustomEvent("admin:change"));
     showCardPreviewSizeDemo();
   });
   row.appendChild(labelEl);

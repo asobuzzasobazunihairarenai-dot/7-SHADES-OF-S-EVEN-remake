@@ -77,6 +77,10 @@
   font-family: sans-serif;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
   text-align: center;
+  /* BGM・効果音・カード拡大サイズの3項目に増えて縦に長くなったため、小さい画面でも
+     はみ出さず中でスクロールできるようにする。 */
+  max-height: 90vh;
+  overflow-y: auto;
 }
 .first-run-bgm-title {
   font-size: 1.2rem;
@@ -163,6 +167,26 @@ body.theme-light .first-run-bgm-preview {
 }
 body.theme-light .first-run-bgm-preview:hover {
   background: rgba(8, 145, 178, 0.18);
+}
+/* 初回設定モーダルの「拡大サイズ」確認用デモカード（first-run-bgm.js）。実際のホバー拡大と
+   同じ --card-preview-size を共有して画面中央に出す。モーダル自身（100051）より背面かつ
+   backdrop（100050）より前面に置き、操作中はモーダルを薄くして後ろのこれを見せる。 */
+#first-run-card-preview-demo {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--card-preview-size);
+  height: var(--card-preview-size);
+  border-radius: 0.5rem;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.6);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: 100050;
+  display: none;
 }
 
 html, body {

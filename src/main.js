@@ -190,6 +190,7 @@ import {
 import { initOnlineUi, openOnlinePanel, isOnlineIntentActive } from "./online-ui.js";
 import { initOpeningScreen, previewOpeningAuras } from "./opening-screen.js";
 import { maybeShowFirstRunBgmModal } from "./first-run-bgm.js";
+import { applyStoredCardPreviewSize } from "./card-preview-size.js";
 import {
   getSelfSeat,
   isSpectatingGame,
@@ -6270,6 +6271,8 @@ function getPileTooltipText(el) {
   let label = config.label;
   if (pileKey === "discard" && count > 0) {
     label = getCardDefinition(pileArray[pileArray.length - 1]).name;
+    // 捨て場はダブルクリック／ダブルタップで一覧を開ける（右クリックの無い端末向けの導線）。
+    return `${label}　${count}枚（ダブルタップで捨て札一覧）`;
   }
   return `${label}　${count}枚`;
 }
@@ -6850,6 +6853,9 @@ function initButtonClickSound() {
 // 400ms以内に2回pointerdownがあったか」を見ることでダブルクリック相当を検出する。
 let lastFlipClick = { tokenId: null, time: 0 };
 const DOUBLE_CLICK_MS = 400;
+// 捨て場の山を「ダブルクリック／ダブルタップ」した時に捨て札一覧を開くための直近タップ時刻
+// （右クリックの無いタブレット/スマホでも一覧を見られるように。ユーザー要望）。
+let lastDiscardTapTime = 0;
 
 function initDragHandlers() {
   const table = document.getElementById("game-table");
@@ -6867,6 +6873,21 @@ function initDragHandlers() {
     const hit = findDraggableAt(e.clientX, e.clientY);
     if (!hit) return;
     e.preventDefault();
+
+    // 捨て場の山をダブルクリック／ダブルタップで捨て札一覧を開く（右クリックの無いタブレット/
+    // スマホでも見られるように。ユーザー要望）。捨て場の一番上を掴む単発ドラッグは残したいので、
+    // 盤面カードの反転と同じ「同じ対象へ一定時間内に2回」で判定する。1回目はそのまま下の通常処理
+    // へ進める（タッチの素早いタップは同じ場所へ戻すだけ・マウスは同じ場所でドロップされるだけの
+    // 無害な操作）。この判定はタッチ/マウス両方で効くよう、下のタッチ分岐より手前に置く。
+    if (hit.kind === "pile" && hit.pile === "discard") {
+      const now = Date.now();
+      const isDoubleTap = now - lastDiscardTapTime < DOUBLE_CLICK_MS;
+      lastDiscardTapTime = isDoubleTap ? 0 : now; // 3連タップを2回分に数えない
+      if (isDoubleTap) {
+        showDiscardListModal();
+        return;
+      }
+    }
 
     if (hit.isBoardCard) {
       const now = Date.now();
@@ -9921,7 +9942,10 @@ function updateSelfHandStatus() {
 // 画面へ追加しておく。ゲーム自体はこれまで通りすぐ裏で初期化・描画されるため、後段の
 // 処理を待たせる必要はない（単純な最前面オーバーレイとしてゲート役を果たすだけ）。
 initOpeningScreen();
-// 初回起動時だけ、オープニングの手前にBGM音量の設定モーダル（試聴ボタン付き）を出す。
+// カード拡大プレビューのサイズは端末に保存される好み設定。初回設定モーダルがその値を
+// 初期値として読むより先に、保存済みの値をCSS変数へ復元しておく（毎回の起動で反映）。
+applyStoredCardPreviewSize();
+// 初回起動時だけ、オープニングの手前にサウンド／表示の設定モーダル（試聴ボタン付き）を出す。
 maybeShowFirstRunBgmModal();
 
 // 管理者モードのスライダーには、CSS変数を変えるだけでは反映されない値（--hand-*-sizeなど、
