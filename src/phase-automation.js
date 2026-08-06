@@ -471,7 +471,13 @@ let turnStatusEl = null;
 function attachToPhaseGuideBar(el) {
   const bar = document.getElementById("phase-guide-bar");
   if (bar) {
-    bar.appendChild(el);
+    // ユーザー報告#12「ハンドフェイズのスキップがワンクリックで反応せず、ダブルクリックで
+    // 効いた」。この関数はrender()だけでなくタイマーtick(200ms毎、#8)からも呼ばれる。
+    // 以前は「既に子でもappendChildは無害なno-op」と考えて毎回appendChildしていたが、実際は
+    // 既存要素のappendChildは“いったんDOMから外して末尾へ入れ直す”移動になり、ちょうど
+    // クリックのmousedown〜mouseup/clickの間に起きるとそのクリックがキャンセルされる（＝
+    // 1回目が無反応になり2回目で効く）。既に正しい親(bar)にいる時は本当に何もしない。
+    if (el.parentElement !== bar) bar.appendChild(el);
   } else if (!el.parentElement) {
     document.body.appendChild(el);
   }
