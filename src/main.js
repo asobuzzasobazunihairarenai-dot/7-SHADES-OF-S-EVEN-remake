@@ -2223,6 +2223,20 @@ async function runDelegatedArrivalTask(player, taskType) {
 // 画面に委任し、終わるまで待つ。
 async function delegateToPlayerForEffect(player, taskType) {
   if (!isOnlineMode() || player === getSelfSeat()) {
+    // ローカルのCPU戦（#23）: 委任先が自分以外（＝CPU、疑似CPU対象）なら、人間が相手の選択を
+    // 代行しなくて済むよう、その席へ一時的に優先権を移して疑似CPUに自動解決させる。優先権を
+    // 移すとその席の基本時間は疑似CPUの短い持ち時間になり、選択ピッカーが時間切れで自動解決
+    // される（performPriorityTimeoutAutoAction）。終わったら手番プレイヤーへ優先権を戻す。
+    // 通常のローカル対戦（疑似CPU非対象）では従来通り、その場（人間）が解決する。
+    if (!isOnlineMode() && player !== getSelfSeat() && isPseudoCpuTarget(player)) {
+      const turnPlayer = getState().turnPlayer;
+      transferPriorityTo(player);
+      try {
+        return await runDelegatedArrivalTask(player, taskType);
+      } finally {
+        transferPriorityTo(turnPlayer);
+      }
+    }
     return runDelegatedArrivalTask(player, taskType);
   }
   // 続き75診断ログ: オンライン中の「全員がそれぞれ選ぶ」効果（パーティー等）の
