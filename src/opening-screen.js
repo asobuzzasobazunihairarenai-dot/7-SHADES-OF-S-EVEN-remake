@@ -439,11 +439,18 @@ export function initOpeningScreen() {
   cpuBattleBtn.className = "opening-screen-menu-btn opening-screen-cpu-btn";
   cpuBattleBtn.textContent = "🤖 CPU戦（1人用）";
   cpuBattleBtn.title = "ログイン不要。あなた対CPUの1人用対戦をこの端末だけで遊べます。";
-  cpuBattleBtn.addEventListener("click", () => {
-    // オープニングを閉じて盤面を見せてから、セットアップ演出が見えるようにCPU戦を開始する。
-    close(() => {
-      startCpuBattle().catch((err) => console.error("startCpuBattle failed", err));
-    });
+  cpuBattleBtn.addEventListener("click", async () => {
+    // オープニングを閉じる（盤面を見せる）前に、CPU戦の2人対戦セットアップを最後まで済ませる。
+    // 盤面はまだオープニングの裏に隠れているので、起動時の既定盤面（4人が座った状態）や
+    // セットアップ途中の状態が一切表に出ず、「開始時に一瞬4人座っている」問題を根本から防ぐ
+    // （close後にちらつきや中途半端な描画が出ないよう、完成した2人対戦盤面だけを見せる）。
+    cpuBattleBtn.disabled = true; // 二度押し防止（セットアップ中）
+    try {
+      await startCpuBattle();
+    } catch (err) {
+      console.error("startCpuBattle failed", err);
+    }
+    close();
   });
   content.appendChild(cpuBattleBtn);
 

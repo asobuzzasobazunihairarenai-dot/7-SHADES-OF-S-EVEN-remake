@@ -64,6 +64,7 @@ import {
 import { isOpponentBaseTimerVisible } from "./motion-prefs.js";
 import { toggleTimerTogglePopover } from "./timer-toggle.js";
 import { hasAnyoneWon } from "./victory.js";
+import { isCpuBattleActive } from "./cpu-battle-state.js";
 import { isAutoProcessingEnabled } from "./card-effect-engine.js";
 import { logAction } from "./action-log.js";
 
@@ -411,6 +412,12 @@ function buildBaseClock() {
 
 function updateBaseClock(state) {
   if (!baseClockEl) return;
+  // CPU戦（1人用）では、CPUを自動で動かすためにタイマー機能自体は有効にしているが、
+  // 人間側に基本時間の数字（900秒など）を見せる必要はない（ユーザー要望）。表示だけ隠す。
+  if (isCpuBattleActive()) {
+    setDisplayIfChanged(baseClockEl, "none");
+    return;
+  }
   if (!isTurnTimerEnabled() || !state.turnPlayer) {
     setDisplayIfChanged(baseClockEl, "none");
     return;
@@ -536,6 +543,11 @@ function getHourglassIconPath(color) {
 
 // tick()から高頻度に呼ばれる、DOM更新だけを行う軽量な部分（stateへのdispatchは行わない）。
 function updateRope(state) {
+  // CPU戦では基本時間・延長ロープの表示は隠す（updateBaseClockと同じ理由）。
+  if (isCpuBattleActive()) {
+    setDisplayIfChanged(ropeEl, "none");
+    return;
+  }
   const inExtension =
     isTurnTimerEnabled() && state.turnPlayer && state.priorityPlayer && state.priorityPhase === "extension";
   if (!inExtension) {
