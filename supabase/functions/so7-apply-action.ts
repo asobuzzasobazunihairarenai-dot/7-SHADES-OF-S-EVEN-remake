@@ -614,7 +614,15 @@ function findInvadedDefender(state: GameState, attacker: string): string | null 
   return null;
 }
 
-function applyGateInvasions(initial: GameState): { state: GameState; events: GateInvasionEvent[] } {
+// steals（省略可）: 攻撃側が自分で選んだ「奪う手札トークンid」の対応表（attacker座席 -> tokenId[]）。
+// ユーザー要望「ゲート侵攻でもスリカエのように奪う札を自分で選びたい」。クライアントがターン
+// 終了前に相手の裏向き手札から選び、NEXT_TURNに添えて送る（main.jsのendTurn/state.jsのnextTurn）。
+// 妥当（枚数一致＆全て相手の手札に実在）なら選択を採用し、そうでなければ従来通り無作為に奪う
+// （＝古いクライアントや不正値に対する後方互換フォールバック）。
+function applyGateInvasions(
+  initial: GameState,
+  steals?: Record<string, string[]>
+): { state: GameState; events: GateInvasionEvent[] } {
   let state = initial;
   const events: GateInvasionEvent[] = [];
   const order = SEAT_ORDER.filter((p) => state.activePlayers.includes(p));
@@ -623,12 +631,18 @@ function applyGateInvasions(initial: GameState): { state: GameState; events: Gat
     const defender = findInvadedDefender(state, attacker);
     if (!defender) continue;
 
-    // ①手札を半分（端数切り捨て）無作為に奪う
+    // ①手札を半分（端数切り捨て）奪う。攻撃側が選んだ札(steals)が妥当ならそれを、無ければ無作為に。
     const defenderHand = state.tokens.filter(
       (t) => t.kind === "card" && t.location.zone === "hand" && (t.location as { player: string }).player === defender
     );
     const stealCount = Math.floor(defenderHand.length / 2);
-    const stolen = shuffled(defenderHand).slice(0, stealCount);
+    const chosen = steals?.[attacker];
+    const chosenValid =
+      Array.isArray(chosen) &&
+      chosen.length === stealCount &&
+      new Set(chosen).size === chosen.length &&
+      chosen.every((id) => defenderHand.some((t) => t.id === id));
+    const stolen = chosenValid ? defenderHand.filter((t) => (chosen as string[]).includes(t.id)) : shuffled(defenderHand).slice(0, stealCount);
     const stolenIds = new Set(stolen.map((t) => t.id));
     state = {
       ...state,
@@ -915,7 +929,9 @@ Deno.serve(async (req) => {
     let workingState = current;
     let gateInvasionEvents: GateInvasionEvent[] = [];
     if (effectiveAction.type === "NEXT_TURN") {
-      const result = applyGateInvasions(workingState);
+      // 攻撃側が選んだ「奪う札」があれば渡す（無ければサーバーが無作為に選ぶ＝後方互換）。
+      const steals = (effectiveAction as { gateInvasionSteals?: Record<string, string[]> }).gateInvasionSteals;
+      const result = applyGateInvasions(workingState, steals);
       workingState = result.state;
       gateInvasionEvents = result.events;
     }

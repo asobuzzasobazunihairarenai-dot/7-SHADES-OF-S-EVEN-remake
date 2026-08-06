@@ -26,7 +26,9 @@ function findAttackerPiece(attacker) {
 
 // attackerの駒が、参加中の別プレイヤーのゲートに乗っているか判定する。
 // 乗っていればそのプレイヤー（侵攻された側）の座席を返し、そうでなければnull。
-function findInvadedDefender(attacker) {
+// exportして、オンラインでターン終了前に「自分が今侵攻しているか」を判定し、奪う札を
+// 事前に選ばせる（main.jsのendTurn、ゲート侵攻の自分で選ぶ機能）のに使う。
+export function findInvadedDefender(attacker) {
   const piece = findAttackerPiece(attacker);
   if (!piece || piece.location.zone !== "cell") return null;
   for (const [side, pos] of Object.entries(GATE_POSITIONS)) {

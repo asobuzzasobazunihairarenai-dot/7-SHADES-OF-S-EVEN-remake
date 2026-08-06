@@ -64,6 +64,7 @@ import {
   registerEternalAnimHelpers,
   registerGateInvasionStealHelper,
   hasAnyGateInvasionCandidate,
+  findInvadedDefender,
 } from "./gate-invasion.js";
 import { announceHandPickups, announceCardLocked, announceDrawCount } from "./hand-announcer.js";
 import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained, reapplyGateInvasionModal, registerGateInvasionModalEternalAnim, registerGateInvasionModalStealAnim } from "./gate-invasion-modal.js";
@@ -8537,8 +8538,32 @@ function buildEndTurnButton() {
       // を呼ぶとローカルだけに二重適用されサーバーの状態と食い違ってしまうため、
       // オンライン中はnextTurn()だけを直接呼ぶ。
       if (isOnlineMode()) {
+        // ユーザー要望「ゲート侵攻でもスリカエのように奪う札を自分で選びたい」。自分
+        // (turnPlayerBeforeEnd)が今まさに相手のゲートに乗って侵攻しているなら、NEXT_TURNを
+        // 送る前に、スリカエと同じ選択UI（相手の裏向き手札からクリックで選ぶ／相手側には
+        // ライブで見える）で奪う札を選ぶ。選んだtoken idをNEXT_TURNに添えて渡すと、サーバーが
+        // その札を奪う（無ければ無作為＝後方互換。so7-apply-action.tsのapplyGateInvasions参照）。
+        let gateInvasionSteals;
+        try {
+          const defender = findInvadedDefender(turnPlayerBeforeEnd);
+          if (defender) {
+            const defenderHandCount = getState().tokens.filter(
+              (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === defender
+            ).length;
+            const stealCount = Math.floor(defenderHandCount / 2);
+            if (stealCount > 0) {
+              const chosen = await stealHandCardsRitualForGateInvasion(defender, stealCount);
+              const ids = (chosen || []).map((t) => t.id);
+              // 全部選べた時だけ採用（途中で相手の手札が尽きた等はサーバーの無作為に委ねる）。
+              if (ids.length === stealCount) gateInvasionSteals = { [turnPlayerBeforeEnd]: ids };
+            }
+          }
+        } catch (err) {
+          console.error("gate invasion pre-pick failed", err);
+          // 失敗時は steals 無し＝サーバー側の無作為フォールバックに任せる（詰まらせない）。
+        }
         transferPriorityToNextTurnPlayer(turnPlayerBeforeEnd);
-        nextTurn();
+        nextTurn(gateInvasionSteals ? { gateInvasionSteals } : undefined);
         return;
       }
       // 侵攻条件を満たしている参加プレイヤーが誰もいなければrunGateInvasionsIfNeededは
@@ -10020,7 +10045,14 @@ registerGateInvasionStealHelper(stealHandCardsRitualForGateInvasion);
 // 派手な演出（3Dフリップ＋色バースト）を出す（ユーザー要望）。純演出関数のため両経路で共用できる。
 registerGateInvasionModalEternalAnim(playEternalAcquisitionAnim);
 // 同じくオンラインのゲート侵攻で「手札を奪う」飛翔演出を出す（ユーザー要望）。
-registerGateInvasionModalStealAnim(playGateInvasionStealRitual);
+// 奪う札は攻撃側がターン終了前に自分で選ぶ（endTurnの事前ピック）ようにしたため、この受信
+// キュー側では「選ぶ」対話は繰り返さず飛翔だけを出す（二重に選ばせない）。事前ピックが無い
+// 場合（サーバーの無作為フォールバック・非手番プレイヤーの侵攻等）も、中身は非公開なので
+// 飛翔だけで十分。以前のplayGateInvasionStealRitual（キュー側でも選ばせる版）は使わない。
+function playGateInvasionStealFlyOnly(info, onDone) {
+  playGateInvasionStealAnim(info.attacker, info.defender, info.count, () => onDone?.());
+}
+registerGateInvasionModalStealAnim(playGateInvasionStealFlyOnly);
 buildGameTitle();
 buildSpotlightOverlay();
 buildFinalLockApprovalBanner();

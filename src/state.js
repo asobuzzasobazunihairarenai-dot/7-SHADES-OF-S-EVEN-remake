@@ -860,8 +860,10 @@ export function setTurnPlayer(player) {
   dispatch({ type: "SET_TURN_PLAYER", player });
 }
 
-export function nextTurn() {
-  if (onlineMode && onlineTransport) return onlineTransport({ type: "NEXT_TURN" });
+// extra（省略可）: NEXT_TURNアクションに添える追加フィールド。ゲート侵攻で攻撃側が
+// 自分で選んだ「奪う札」（gateInvasionSteals）をサーバーへ渡すのに使う（so7-apply-action.ts）。
+export function nextTurn(extra) {
+  if (onlineMode && onlineTransport) return onlineTransport({ type: "NEXT_TURN", ...(extra || {}) });
   dispatch({ type: "NEXT_TURN" });
 }
 
