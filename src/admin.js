@@ -1453,6 +1453,17 @@ let reducedBaseSeconds = 10;
 export function isTurnTimerEnabled() {
   return turnTimerEnabled;
 }
+// ローカルのCPU戦（cpu-battle.js）から、疑似CPUの自動プレイを駆動するためにターンタイマーを
+// プログラムから有効化するためのセッター（管理者パネルのチェックボックスと同じ値を書く）。
+export function setTurnTimerEnabled(v) {
+  turnTimerEnabled = !!v;
+}
+// 同じくCPU戦から、あなた(A)側が時間切れで急かされないよう基本時間を長めに設定するための
+// セッター。疑似CPU対象(CPU席)はこの値ではなくgetPseudoCpuDeadlineMs()を使うため影響しない。
+export function setRopeBaseSeconds(sec) {
+  const n = Number(sec);
+  if (Number.isFinite(n) && n > 0) ropeBaseSeconds = n;
+}
 export function getInitialHourglassStock() {
   return initialHourglassStock;
 }

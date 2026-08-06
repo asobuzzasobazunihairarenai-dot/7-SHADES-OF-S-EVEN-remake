@@ -33,6 +33,16 @@ import { hasAnyoneWon } from "./victory.js";
 import { isPseudoCpuModeEnabled as isPseudoCpuModeEnabledLocal, isPseudoCpuIncludeSelf, getPseudoCpuDeadlineMs } from "./admin.js";
 import { logAction } from "./action-log.js";
 import { isAutoPhaseSkipEnabled, onAutoPhaseSkipChange } from "./auto-phase-skip-setting.js";
+import { isCpuBattleActive } from "./cpu-battle-state.js";
+
+// フェイズ自動進行が「今どの席を対象に動くか」。通常は自分の席（getSelfSeat）。ただしローカルの
+// CPU戦では、自分(A)だけでなくCPU(C)の番も自動で流したいので、その時だけ「今のターン
+// プレイヤー」を対象にする（オンラインは各クライアントが自分の席だけを動かすので対象外）。
+// main.js の performPriorityTimeoutAutoAction 側にも同じ考え方の getAutoDriveSeat がある。
+function getAutoDriveSeat() {
+  if (isCpuBattleActive() && !isOnlineMode()) return getState().turnPlayer || getSelfSeat();
+  return getSelfSeat();
+}
 
 // ユーザー報告（続き99）「疑似CPUモードの時、回復すると基本時間が15秒とかまで行って
 // しまう」。turn-timer.jsのisPseudoCpuTargetと全く同じ判定だが、循環import
@@ -678,7 +688,8 @@ export function reconcilePhaseAutomation() {
   // 自動処理（＝実質的な「ターンが移った」挙動）が始まってしまう。演出キューが空になるまでは
   // フェイズ自動進行を進めない（clearPhase()はせず、そのまま待つだけにして表示のちらつきを避ける）。
   if (isGateInvasionQueueActive()) return;
-  const player = getSelfSeat();
+  // ローカルCPU戦ではCPU(C)の番も駆動対象にする（それ以外は自分の席）。
+  const player = getAutoDriveSeat();
   // ユーザー報告（続き86）「勝利後、まだ盤面のタイマーが止まらず自動処理が継続
   // されてしまっている」。誰かが既に勝利していれば、以後のフェイズ自動進行
   // （ロック/移動の自動ハイライト・自動ドロー・自動ターン終了等）は一切不要

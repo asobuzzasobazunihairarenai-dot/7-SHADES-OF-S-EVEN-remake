@@ -9407,6 +9407,18 @@ body.is-online-mode #quick-start-bar {
   border-color: rgba(56, 189, 248, 0.85);
   transform: translateY(-0.15rem);
 }
+/* ローカル1人用「CPU戦」の入口ボタン（cpu-battle.js）。ログインボタンの下に少し離して置き、
+   遊びの導線だと分かるようシアン寄りの控えめなアクセントにする。 */
+.opening-screen-cpu-btn {
+  margin-top: 0.9rem;
+  font-size: 0.95rem;
+  padding: 0.7rem 1.9rem;
+  background: rgba(8, 145, 178, 0.4);
+  border-color: rgba(56, 189, 248, 0.7);
+}
+.opening-screen-cpu-btn:hover {
+  background: rgba(8, 145, 178, 0.6);
+}
 /* ユーザー要望「1画面で複数人が遊べるモードは、実際にそういう遊び方をさせる予定が
    無いのでテストモード画面とし、右下に小さく置きたい」。ログイン導線（.opening-screen-menu-btn）
    とは違い、あえて目立たせない見た目にする。#opening-screenがposition:fixed要素の

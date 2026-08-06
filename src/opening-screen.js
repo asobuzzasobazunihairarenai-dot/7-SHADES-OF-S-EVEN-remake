@@ -34,6 +34,7 @@ import { playOpeningBgm, stopOpeningBgm } from "./sound.js";
 import { APP_VERSION } from "./app-version.js";
 import { isFlatten2dMode } from "./tablet-2d-mode.js";
 import { startTitlePetWalk } from "./title-pet.js";
+import { startCpuBattle } from "./cpu-battle.js";
 
 // フェードアウトのCSSトランジション時間と合わせる（style.cssの#opening-screen.is-closing、
 // .opening-start-gate.is-closing参照）。
@@ -430,6 +431,22 @@ export function initOpeningScreen() {
   loginToggleBtn.textContent = "ログイン";
   content.appendChild(loginToggleBtn);
 
+  // ローカル1人用「CPU戦」への入口（ログイン不要）。押すとオープニングを閉じて、あなた(A)対
+  // CPU(C)の2人対戦をローカルで開始する（cpu-battle.js）。ログインボタンと同じ「メニュー階層」
+  // なので、ログインカードを開いている間は一緒に隠す（showCard/hideCard）。
+  const cpuBattleBtn = document.createElement("button");
+  cpuBattleBtn.type = "button";
+  cpuBattleBtn.className = "opening-screen-menu-btn opening-screen-cpu-btn";
+  cpuBattleBtn.textContent = "🤖 CPU戦（1人用）";
+  cpuBattleBtn.title = "ログイン不要。あなた対CPUの1人用対戦をこの端末だけで遊べます。";
+  cpuBattleBtn.addEventListener("click", () => {
+    // オープニングを閉じて盤面を見せてから、セットアップ演出が見えるようにCPU戦を開始する。
+    close(() => {
+      startCpuBattle().catch((err) => console.error("startCpuBattle failed", err));
+    });
+  });
+  content.appendChild(cpuBattleBtn);
+
   const card = document.createElement("div");
   card.className = "opening-login-card";
   card.style.display = "none";
@@ -617,6 +634,7 @@ export function initOpeningScreen() {
 
   function showCard() {
     loginToggleBtn.style.display = "none";
+    cpuBattleBtn.style.display = "none";
     card.style.display = "flex";
     renderCard();
   }
@@ -624,6 +642,7 @@ export function initOpeningScreen() {
   function hideCard() {
     card.style.display = "none";
     loginToggleBtn.style.display = "inline-block";
+    cpuBattleBtn.style.display = "inline-block";
     // カードを✕で閉じた（＝ログインを完了せずに引き返した）場合、テストモード経由で
     // あったという記憶は捨てる。捨てておかないと、この後に通常の「ログイン」ボタンから
     // 入り直してログインした時、本来出るはずの「オンラインで続ける」カードが誤って

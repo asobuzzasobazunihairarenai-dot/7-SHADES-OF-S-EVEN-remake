@@ -191,6 +191,7 @@ import { initOnlineUi, openOnlinePanel, isOnlineIntentActive } from "./online-ui
 import { initOpeningScreen, previewOpeningAuras } from "./opening-screen.js";
 import { maybeShowFirstRunBgmModal } from "./first-run-bgm.js";
 import { applyStoredCardPreviewSize } from "./card-preview-size.js";
+import { isCpuBattleActive } from "./cpu-battle-state.js";
 import {
   getSelfSeat,
   isSpectatingGame,
@@ -2586,8 +2587,9 @@ document.addEventListener(
 // 裏向きだったら自動でオープンしてほしい」への対応。通常のドラッグ移動と違い、裏向き
 // カードでも「オープンする/しない」を尋ねず自動で開く（runAutoArrivalEffectの連鎖時と
 // 同じ考え方——フェイズ自動進行の一部なので、着地後の判断もそこまで自動で進めるのが自然）。
-async function performPhaseMoveToCell(location) {
-  const player = getSelfSeat();
+async function performPhaseMoveToCell(location, actingSeat = getSelfSeat()) {
+  // actingSeat: 通常は自分の席。ローカルCPU戦では自動処理がCPU(C)の席を渡してくる。
+  const player = actingSeat;
   const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === player);
   if (!piece) return;
   // ユーザー要望（続き77）「移動もロックも宣言と処理を分けてください」。実際に状態を
@@ -2651,8 +2653,9 @@ async function performPhaseMoveToCell(location) {
 // maybeAnnounceLock参照）と全く同じ結果になるよう、同じ関数・同じ順序（移動→
 // 効果音→render()→ロック演出）で処理する。ロック先はカード自身の色に対応する
 // 1つのスロットに一意に決まる（isCardLockableと同じ判定基準）。
-async function performLockPhaseClick(tokenId, { skipConfirm = false } = {}) {
-  const player = getSelfSeat();
+async function performLockPhaseClick(tokenId, { skipConfirm = false, actingSeat = getSelfSeat() } = {}) {
+  // actingSeat: 通常は自分の席。ローカルCPU戦では自動処理がCPU(C)の席を渡してくる。
+  const player = actingSeat;
   const token = getState().tokens.find((t) => t.id === tokenId);
   if (!token || !isCardLockable(token, player)) return;
   // ユーザー報告（続き85）「スマホでロックするとき手札効果の使用時同様の
@@ -2728,8 +2731,9 @@ async function performLockPhaseClick(tokenId, { skipConfirm = false } = {}) {
 // ムーブフェイズの接触可能ハイライトをクリックした時。接触の実処理自体は既存の
 // 「接触する/しない」確認プロンプトへそのままつなぐ（接触は他プレイヤーの承認が
 // 絡む・DSL自動処理のスコープ外のため、ここでは宣言の入口だけを自動化する）。
-function performPhaseContact(location) {
-  const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === getSelfSeat());
+function performPhaseContact(location, actingSeat = getSelfSeat()) {
+  // actingSeat: 通常は自分の席。ローカルCPU戦では自動処理がCPU(C)の席を渡してくる。
+  const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === actingSeat);
   const opponentPiece = getState().tokens.find(
     (t) => t.kind === "piece" && t.location.zone === "cell" && t.location.row === location.row && t.location.col === location.col
   );
@@ -2761,7 +2765,17 @@ function pickRandomFrom(arrayOrSet) {
 // 場合等、従来通り警告表示のみに留める）。
 // 戻り値: 何も起きなければfalse、①②が起きればtrue、③（本当の意味でのスキップ）が
 // 起きれば"skip"（turn-timer.js側が15秒回復の対象を区別するための専用値）。
+// 自動処理が「今どの席を代行するか」。通常は自分の席。ローカルCPU戦ではCPU(C)の番も
+// 自動で流すため、その時だけ今のターンプレイヤーを対象にする（phase-automation.js側の
+// getAutoDriveSeatと同じ考え方。ここでは移動・ロック・接触の実行対象席として使う）。
+function getAutoDriveSeat() {
+  if (isCpuBattleActive() && !isOnlineMode()) return getState().turnPlayer || getSelfSeat();
+  return getSelfSeat();
+}
+
 export function performPriorityTimeoutAutoAction() {
+  // ローカルCPU戦ではCPU(C)の番を、それ以外は自分の席を代行する。
+  const driveSeat = getAutoDriveSeat();
   if (activeEffectPicker) {
     const picker = activeEffectPicker;
     activeEffectPicker = null;
@@ -2817,8 +2831,8 @@ export function performPriorityTimeoutAutoAction() {
       // 接触は成立時（submitContactProposal内）まで行動済みにしない。移動はここで確定。
       if (chosen.isMove) {
         markPhaseMoveActionTaken();
-        performPhaseMoveToCell(location);
-      } else performPhaseContact(location);
+        performPhaseMoveToCell(location, driveSeat);
+      } else performPhaseContact(location, driveSeat);
       return true;
     }
   }
@@ -2830,7 +2844,7 @@ export function performPriorityTimeoutAutoAction() {
   // 手動クリックと全く同じ経路——確認モーダル・音・演出・オンライン同期すべて共通）。
   // ロックできるカードが無ければ、疑似CPU対象でも通常通りスキップする。
   if (phase === "lock") {
-    const player = getSelfSeat();
+    const player = driveSeat;
     const isTarget = isPseudoCpuTarget(player);
     const hand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
     const lockable = isTarget ? hand.filter((t) => isCardLockable(t, player)) : [];
@@ -2849,7 +2863,7 @@ export function performPriorityTimeoutAutoAction() {
     });
     if (isTarget && lockable.length > 0) {
       const chosen = pickRandomFrom(lockable);
-      performLockPhaseClick(chosen.id, { skipConfirm: true }); // 自動実行なので確認モーダルは出さない
+      performLockPhaseClick(chosen.id, { skipConfirm: true, actingSeat: player }); // 自動実行なので確認モーダルは出さない
       return true;
     }
   }
