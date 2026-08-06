@@ -107,6 +107,10 @@ onPhaseChangeEvents((payload) => {
 });
 
 let currentPhase = null; // null | "lock" | "hand" | "move"
+// currentPhaseが「どの席のフェイズか」。通常プレイでは常に自分の席だが、ローカルCPU戦では
+// A/C両方の席を順に駆動するため、ターンが変わったのに前のターンのcurrentPhaseが残って
+// しまうと即ターン終了ループになる（不具合#19）。ターン境界でこれを見てリセットする。
+let phaseOwner = null;
 // ロックフェイズ開始時点で自分がロック済みのカードid集合。以前は「ロック枚数」だけを
 // 覚えて『枚数が増えたら次のフェイズへ』としていたが、ゴメンナサイで最後のロックを
 // 妨害されたケース（相手が7色目をロック＝1枚増、と同時に既存ロック1枚を奪われ＝1枚減で
@@ -593,6 +597,7 @@ function enterPhase(phase, player) {
   // ここで必ず消す（詳しい経緯はdismissSkipModal()のコメント参照）。
   dismissSkipModal();
   currentPhase = phase;
+  phaseOwner = player; // このフェイズがどの席のものか（ターン境界のリセット判定に使う。#19）
   if (phase === "lock") lockedIdsAtPhaseStart = getLockedTokenIds(player);
   if (phase === "move") moveActionTaken = false;
 
@@ -646,7 +651,9 @@ function enterPhase(phase, player) {
 function advancePhase() {
   const idx = PHASES.indexOf(currentPhase);
   if (idx === -1 || idx === PHASES.length - 1) return;
-  enterPhase(PHASES[idx + 1], getSelfSeat());
+  // ローカルCPU戦ではCPU(C)のフェイズも進めるため、自分の席固定ではなく駆動対象席へ進める
+  // （通常プレイでは getAutoDriveSeat() は自分の席を返すので従来通り）。
+  enterPhase(PHASES[idx + 1], getAutoDriveSeat());
 }
 
 // なないろの巨光・スラム上がりの役人・ザ・ギャンブルの手札効果「このフェイズを
@@ -660,6 +667,7 @@ export function forceEndCurrentPhase() {
 function clearPhase() {
   if (currentPhase === null) return;
   currentPhase = null;
+  phaseOwner = null;
   broadcastMyPhase(); // 自分のフェイズが終わった（＝手番が移る）ことを相手の案内板へも反映
   updatePhaseGuideGlow();
   updateSkipButtonVisibility();
@@ -699,6 +707,15 @@ export function reconcilePhaseAutomation() {
   if (!shouldBeActive) {
     clearPhase();
     return;
+  }
+  // 不具合#19: ローカルCPU戦ではA/C両方の席を駆動するため shouldBeActive が常にtrueになり、
+  // 「相手の番の間にshouldBeActive=falseでclearPhaseされる」という通常のターン境界リセットが
+  // 起きない。その結果、前のターンのcurrentPhase（例:"move"＋moveActionTaken）が残ったまま
+  // 次のターンに入り、computeShouldEmphasizeが即trueになって延々とターンが自動終了し続けて
+  // いた。フェイズの持ち主(phaseOwner)が今の駆動対象(player)と食い違っていたら、新しいターンの
+  // 先頭としてリセットする（通常プレイではplayerは常に自分なので発火せず無害）。
+  if (currentPhase !== null && phaseOwner !== null && phaseOwner !== player) {
+    clearPhase();
   }
   if (currentPhase === null) {
     // 「○○のターン」トースト・「スタートプレイヤー決定」モーダル表示中はフェイズ開始
