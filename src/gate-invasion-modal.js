@@ -26,6 +26,16 @@ let stealAnimHelper = null; // (attacker, defender, count, onDone) => void
 export function registerGateInvasionModalStealAnim(fn) {
   stealAnimHelper = fn;
 }
+// 獲得予定エターナルの描画を「キューに積んだ時点」で先に隠すための注入
+// （ユーザー報告「演出の前にエターナルがロックされて見えてしまい、演出直前に急に消える」）。
+// オンラインはサーバーが先にロック状態を確定するため、演出が回ってくるまでの数秒間、獲得済み
+// エターナルがロックエリアに見えてしまう。main.js側のrender抑制(suppressedEternalLockRender)を
+// enqueue時点で立て、演出（着地）で「今ロックされた」ように見せる。解除は演出末尾と、保険として
+// キュー枯渇時(registerOnGateInvasionQueueDrainedにmain.jsが登録)で行う。
+let eternalPreHideHelper = null; // (attacker, cardId) => void
+export function registerGateInvasionModalEternalPreHide(fn) {
+  eternalPreHideHelper = fn;
+}
 
 // 攻撃側本人の画面だけは、fetchAndHydrate()後の自分の手札として実際のcardIdが見えている
 // （RLSで自分の手札はマスクされないため）。それ以外の閲覧者には解決しない
@@ -77,10 +87,17 @@ function buildSteps(events) {
         self === ev.defender && ev.defenderStolenCards
           ? buildCardsHtml(ev.defender, ev.defenderStolenCards.map((c) => ({ cardId: c.cardId, wasPublic: false })))
           : buildCardsHtml(ev.attacker, (ev.stolenTokenIds ?? []).map((id) => ({ cardId: resolveIfSelf(ev.attacker, id), wasPublic: false })));
+      // ①まず「ゲート侵攻成功！」の告知モーダルを出す（ユーザー報告「奪う演出が
+      // 『ゲート侵攻成功』モーダルより先に出てしまう」への対応で、告知→演出→結果の順に
+      // 並べ替えた。以前は告知＋一覧＋奪う演出を1ステップに詰め、演出を先に流していた）。
       steps.push({
-        text: `${getPlayerNameOrYou(ev.attacker)}はゲート侵攻成功！\n${getPlayerNameOrYou(ev.defender)}の手札${ev.stolenCount}枚を無作為に奪いました。`,
+        text: `${getPlayerNameOrYou(ev.attacker)}はゲート侵攻成功！\n${getPlayerNameOrYou(ev.defender)}の手札${ev.stolenCount}枚を無作為に奪います。`,
+      });
+      // ②告知のあとに奪う飛翔演出（スリカエ風の儀式）を再生し、完了してから奪ったカードの
+      // 一覧モーダルを見せる（showStepがstealAnimを先に再生→同じステップを描き直す）。
+      steps.push({
+        text: `${getPlayerNameOrYou(ev.attacker)}は${getPlayerNameOrYou(ev.defender)}の手札${ev.stolenCount}枚を奪いました。`,
         cardsHtml: stolenCardsHtml,
-        // 奪う演出（スリカエ風の儀式）を先に見せてから、この一覧モーダルを出す。
         stealAnim: {
           attacker: ev.attacker,
           defender: ev.defender,
@@ -359,5 +376,17 @@ export function enqueueGateInvasionSteps(events) {
   // 出ないまま詰まる。wasEmpty・残キュー・modalElの有無を記録して原因を切り分ける。
   logAction("diag-gate-invasion-enqueue", { newSteps: newSteps.length, wasEmpty, queueLenBefore: queue.length, hasModalEl: !!modalEl });
   queue.push(...newSteps);
+  // 新規シーケンス開始時のみ、獲得予定エターナルを先に隠す（issue: 演出前の見え／急な消え）。
+  // 既存キューへの追加時は、進行中の演出が使う単一の抑制状態を上書きしないよう触らない。
+  if (wasEmpty && eternalPreHideHelper) {
+    const firstEternal = events.find((ev) => ev.eternalCardId);
+    if (firstEternal) {
+      try {
+        eternalPreHideHelper(firstEternal.attacker, firstEternal.eternalCardId);
+      } catch (err) {
+        console.error("gate-invasion-modal eternal pre-hide failed", err);
+      }
+    }
+  }
   if (wasEmpty) advance();
 }

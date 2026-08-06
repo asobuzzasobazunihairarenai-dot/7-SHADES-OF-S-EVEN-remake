@@ -67,7 +67,7 @@ import {
   findInvadedDefender,
 } from "./gate-invasion.js";
 import { announceHandPickups, announceCardLocked, announceDrawCount } from "./hand-announcer.js";
-import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained, reapplyGateInvasionModal, registerGateInvasionModalEternalAnim, registerGateInvasionModalStealAnim } from "./gate-invasion-modal.js";
+import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained, reapplyGateInvasionModal, registerGateInvasionModalEternalAnim, registerGateInvasionModalStealAnim, registerGateInvasionModalEternalPreHide } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking, hasAnyoneWon } from "./victory.js";
 import { recordContactMade, recordCardUsed, recordLockSnapshot, initMatchStatsTracker } from "./match-stats-tracker.js";
 import { initPseudoCpuPrompt } from "./pseudo-cpu-prompt.js";
@@ -4596,7 +4596,8 @@ async function playEternalAcquisitionAnim(attacker, cardId, cardDef, onDone) {
   }
   const side = SEAT_TO_SIDE[attacker];
   const colorIndex = COLORS.indexOf(cardDef.color);
-  const lockEl = findLocationElement(table, { zone: "lock", side, index: colorIndex });
+  // 着地先のロックスロットは、render()で盤面が作り直されると参照が切れるため、ここでは
+  // 取得せず、着地する⑥の直前にライブな盤面から取り直す（下部コメント参照）。
   const pileRect = pileEl.getBoundingClientRect();
   const centerRect = getEternalRevealCenterRect(pileRect);
 
@@ -4666,8 +4667,15 @@ async function playEternalAcquisitionAnim(attacker, cardId, cardDef, onDone) {
     // ⑥自分のロックエリアへ向けて飛んでいく。ロックスロットのDOMが見当たらない
     // （通常起きないはずだが念のため）場合は、その場でフェードせずそのまま消す。
     reveal.remove();
-    if (lockEl) {
-      const lockRect = lockEl.getBoundingClientRect();
+    // ハマりどころ（ユーザー報告「フリップ公開されたエターナルがロックエリアではなく画面
+    // 左上に消えていく」）: 冒頭(line 4599)で取得したlockElは、その直後のrender()や演出中の
+    // tick再描画で盤面が作り直され、既にDOMから切り離されている。切り離された要素の
+    // getBoundingClientRect()は全て0を返すため、着地点が(0,0)＝画面左上になっていた。
+    // 着地直前に必ずライブな盤面からロックスロットを取り直す。
+    const liveTable = document.getElementById("game-table");
+    const lockElNow = liveTable ? findLocationElement(liveTable, { zone: "lock", side, index: colorIndex }) : null;
+    if (lockElNow) {
+      const lockRect = lockElNow.getBoundingClientRect();
       const returnMs = getContactAnimSeconds("--eternal-anim-return-duration", 1) * 1000;
       const { done: returnDone } = flyGhost(centerRect, lockRect, getCardImagePath(cardId), "setup-fly-card", returnMs);
       await returnDone;
@@ -6274,7 +6282,10 @@ function getHandTooltipText(el) {
   if (!token) return null;
   const player = token.location.player;
   const count = getState().tokens.filter(
-    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player
+    (t) =>
+      t.kind === "card" &&
+      (t.location.zone === "hand" || t.location.zone === "publicDraw") &&
+      t.location.player === player
   ).length;
   return `${getPlayerName(player)}　手札${count}枚`;
 }
@@ -9825,8 +9836,13 @@ function buildSelfHandStatus() {
 
 function updateSelfHandStatus() {
   if (!selfHandStatusEl) return;
+  // ヴァーディアン等の「公開ドロー」で加えた札（publicDrawゾーン）も、ターン終了まで
+  // 実質的に手札の一部（スラム上がりの役人の手札数え等も同様に扱う）なので枚数に含める。
   const count = getState().tokens.filter(
-    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === getSelfSeat()
+    (t) =>
+      t.kind === "card" &&
+      (t.location.zone === "hand" || t.location.zone === "publicDraw") &&
+      t.location.player === getSelfSeat()
   ).length;
   let selfAvatarSrc = getAvatarVariant(getPlayerAvatar(getSelfSeat()), "right");
   const selfLockedCount = getLockedCount(getSelfSeat());
@@ -10065,6 +10081,22 @@ function playGateInvasionStealFlyOnly(info, onDone) {
   playGateInvasionStealAnim(info.attacker, info.defender, info.count, () => onDone?.());
 }
 registerGateInvasionModalStealAnim(playGateInvasionStealFlyOnly);
+// ユーザー報告「エターナル演出の前にエターナルがロックされて見えてしまい、演出直前に急に消える」。
+// ゲート侵攻のステップをキューに積んだ時点で、獲得予定エターナル1枚の描画を先に抑制しておく
+// （数秒後の演出が回ってくるまでロックエリアに見えてしまうのを防ぐ）。演出（着地）で復帰する。
+registerGateInvasionModalEternalPreHide((attacker, cardId) => {
+  const def = getCardDefinition(cardId);
+  suppressedEternalLockRender = { side: SEAT_TO_SIDE[attacker], index: COLORS.indexOf(def.color), cardId };
+  render();
+});
+// 保険: 演出が無効・素材不足でplayEternalAcquisitionAnimが走らずに抑制が解除されない事故を防ぐ。
+// ゲート侵攻演出のキューが空（スキップ・閉じるも含む）になったら、残っている抑制を必ず解除する。
+registerOnGateInvasionQueueDrained(() => {
+  if (suppressedEternalLockRender) {
+    suppressedEternalLockRender = null;
+    render();
+  }
+});
 buildGameTitle();
 buildSpotlightOverlay();
 buildFinalLockApprovalBanner();
