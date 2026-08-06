@@ -6307,9 +6307,10 @@ function getPileTooltipText(el) {
   const config = PILE_CONFIG[pileKey];
   const pileArray = getState().piles[pileKey];
   const count = pileArray.length;
-  let label = config.label;
+  const label = config.label;
   if (pileKey === "discard" && count > 0) {
-    label = getCardDefinition(pileArray[pileArray.length - 1]).name;
+    // ユーザー要望: 捨て場のツールチップは一番上のカード名ではなく「捨て場」と枚数を出す
+    // （拡大プレビュー画像で一番上のカードは分かるため、テキストは山の名前でよい）。
     // 捨て場はダブルクリック／ダブルタップで一覧を開ける（右クリックの無い端末向けの導線）。
     return `${label}　${count}枚（ダブルタップで捨て札一覧）`;
   }
