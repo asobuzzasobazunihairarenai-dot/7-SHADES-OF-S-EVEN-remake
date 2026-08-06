@@ -5092,15 +5092,6 @@ async function respondToContact(approve) {
     // ターンプレイヤーのターン終了ボタンが永久に無効化されたままになっていた。
     // 到達判定・自動処理が完全に終わった後（onFullyResolved）まで表示を遅らせることで
     // 解決する。
-    const showResultModal = () => {
-      const stolen = findStolenCard();
-      openContactResultModal({
-        role: isOnlineMode() ? "defender" : "both",
-        attacker,
-        defender,
-        cardId: stolen?.cardId ?? null,
-      });
-    };
     // ユーザー要望「接触されたプレイヤーは自分のゲートに強制移動しますが、その際、
     // 一度そのプレイヤーに優先権を移してください。強制移動もカードをオープンして
     // 到達効果が発動するので、その処理が終われば優先権をターンプレイヤーに戻し
@@ -5111,9 +5102,10 @@ async function respondToContact(approve) {
     // ※この優先権の移譲（transferPriorityTo(defender)）と"contact-request"診断ログは、
     //   pendingContactを消すrespondContactより前（上の「approve && defenderPieceId」ブロック）へ
     //   繰り上げ済み。ここでは優先権の「返却」(finishContactResolution)だけを行う。
+    // #13: 強制移動の到達処理が終わったら優先権をターンプレイヤーへ返す（結果モーダルは
+    // 到達より前に出すよう変更したため、ここでは結果モーダルは出さない。下参照）。
     const finishContactResolution = () => {
       logAction("diag-delegate", { phase: "contact-resolved", defender, returningPriorityTo: getState().turnPlayer });
-      showResultModal();
       transferPriorityTo(getState().turnPlayer);
       // ユーザー要望（続き76/77）「接触処理の直後にも割り込みモーダルを出す」。
       fireAnytimeCheckpoint(defender);
@@ -5136,11 +5128,31 @@ async function respondToContact(approve) {
       (defenderLocationBefore.zone !== defenderPiece.location.zone ||
         defenderLocationBefore.row !== defenderPiece.location.row ||
         defenderLocationBefore.col !== defenderPiece.location.col);
-    if (defenderPiece && defenderActuallyMoved)
-      maybeTriggerCardArrival(defenderPiece.location, defenderPiece.id, undefined, finishContactResolution);
-    else {
-      finishContactResolution();
-    }
+    const startForcedMoveArrival = () => {
+      if (defenderPiece && defenderActuallyMoved)
+        maybeTriggerCardArrival(defenderPiece.location, defenderPiece.id, undefined, finishContactResolution);
+      else finishContactResolution();
+    };
+    // ユーザー報告#13「接触処理（何を奪われたかのモーダルも出て終わってから）、接触による
+    // 強制移動の到達処理を行いたい」。順序を「結果モーダル→（閉じたら）強制移動の到達処理」に
+    // する。結果モーダルを閉じてから到達を始めるので、到達効果の選択モーダルと結果モーダルが
+    // 重ならず、以前この重なりを避けるため順序を「到達→結果」にしていた不具合も起きない。
+    // 閉じ忘れで優先権がdefenderに残ったまま詰まらないよう、安全タイマーでも先へ進める。
+    let forcedArrivalStarted = false;
+    const proceedToForcedArrivalOnce = () => {
+      if (forcedArrivalStarted) return;
+      forcedArrivalStarted = true;
+      startForcedMoveArrival();
+    };
+    const stolenForModal = findStolenCard();
+    openContactResultModal({
+      role: isOnlineMode() ? "defender" : "both",
+      attacker,
+      defender,
+      cardId: stolenForModal?.cardId ?? null,
+      onClose: proceedToForcedArrivalOnce,
+    });
+    setTimeout(proceedToForcedArrivalOnce, 12000);
   }
 }
 
