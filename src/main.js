@@ -10098,6 +10098,12 @@ initPiecePets(); // 駒に遅れて追従する飾りのペット（見た目だ
 // （参加者が居て・手番があり・まだ誰も勝っていない）またはチュートリアル中は保留し、
 // それ以外（ホーム画面・対局終了後）でだけ出す。判定が変わるたびrender()末尾で再評価する。
 function isInGameForBanner() {
+  // CPU戦（1人用の気軽なソロ）は「対局中は保留」の対象から外し、更新バナーを出す。
+  // オンライン対戦と違い、CPU戦は延々と続いても区切り（勝利・ホーム復帰）に来ないことが多く、
+  // 対局中扱いだと新バージョンの通知が一度も出ないまま古い版で遊び続けてしまうため
+  // （ユーザー報告: 修正済みなのに古い版で不具合を踏み続ける）。小さな上部バナーの通知で、
+  // 押すかどうかはユーザー任せなので、CPU戦中に出ても実害は無い。
+  if (isCpuBattleActive()) return false;
   const st = getState();
   const inMatch = (st.activePlayers?.length ?? 0) > 0 && !!st.turnPlayer && !hasAnyoneWon();
   return inMatch || isTutorialBattleActive();
