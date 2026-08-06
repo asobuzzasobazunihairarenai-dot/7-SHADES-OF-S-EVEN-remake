@@ -47,3 +47,42 @@ export function setCpuSpeed(v) {
 export function getCpuStepDeadlineMs() {
   return SPEED_MS[cpuSpeed] ?? SPEED_MS.normal;
 }
+
+// --- CPU自動スキップ ON/OFF ＋ 手動送りの1手チケット -----------------------------------
+// ユーザー要望「CPUの行動が速すぎて読み取れない（特にザ・ギャンブル）。適当な場所を
+// クリックするまでCPUのモーダルを進めない仕様がほしい」。ONなら従来通りCPUがモーダルを
+// 自動で進める。OFFなら、CPUのモーダルは画面クリックで「1手ずつ」進む。
+// 実装: main.js の performPriorityTimeoutAutoAction のモーダル解決(branch①)を、OFF時は
+// 「チケットが1枚あるときだけ」解決するように門番する。画面クリックで1枚発券(releaseCpuStep)、
+// モーダル1つ解決するごとに1枚消費(consumeCpuStep)。移動やロック等モーダル以外は従来通り。
+const AUTOSKIP_KEY = "so7-cpu-battle-autoskip"; // 'on' | 'off'
+let autoSkip = true;
+try {
+  if (localStorage.getItem(AUTOSKIP_KEY) === "off") autoSkip = false;
+} catch {
+  /* 使えなくても既定(ON)で動く */
+}
+export function isCpuAutoSkipEnabled() {
+  return autoSkip;
+}
+export function setCpuAutoSkipEnabled(v) {
+  autoSkip = !!v;
+  try {
+    localStorage.setItem(AUTOSKIP_KEY, autoSkip ? "on" : "off");
+  } catch {
+    /* 保存できなくてもそのセッションでは効く */
+  }
+  if (autoSkip) stepTicket = false; // ONに戻したら未消費チケットは破棄
+}
+
+let stepTicket = false;
+export function releaseCpuStep() {
+  stepTicket = true;
+}
+export function consumeCpuStep() {
+  if (stepTicket) {
+    stepTicket = false;
+    return true;
+  }
+  return false;
+}

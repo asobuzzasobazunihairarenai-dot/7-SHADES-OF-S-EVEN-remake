@@ -191,7 +191,7 @@ import { initOnlineUi, openOnlinePanel, isOnlineIntentActive } from "./online-ui
 import { initOpeningScreen, previewOpeningAuras } from "./opening-screen.js";
 import { maybeShowFirstRunBgmModal } from "./first-run-bgm.js";
 import { applyStoredCardPreviewSize } from "./card-preview-size.js";
-import { isCpuBattleActive } from "./cpu-battle-state.js";
+import { isCpuBattleActive, isCpuAutoSkipEnabled, releaseCpuStep, consumeCpuStep } from "./cpu-battle-state.js";
 import {
   getSelfSeat,
   isSpectatingGame,
@@ -2804,7 +2804,21 @@ function getAutoDriveSeat() {
 export function performPriorityTimeoutAutoAction() {
   // ローカルCPU戦ではCPU(C)の番を、それ以外は自分の席を代行する。
   const driveSeat = getAutoDriveSeat();
+  // モーダルが無くなったら「クリックで進める」ヒントを消す（安全網）。
+  if (!activeEffectPicker) hideCpuStepHint();
   if (activeEffectPicker) {
+    // CPU自動スキップOFFの時は、CPUのモーダル(branch①)を勝手に解決せず、画面クリックで
+    // 発券された「1手チケット」がある時だけ1つ解決する。無ければヒントを出して待つ。
+    // 対象はCPU席(疑似CPU)が優先権を持っている＝CPU自身のモーダルの時だけ。人間の
+    // 委任選択（優先権が人間に移っている）には掛けない。
+    const pickerOwner = getState().priorityPlayer || driveSeat;
+    const waitForManualStep =
+      isCpuBattleActive() && !isOnlineMode() && !isCpuAutoSkipEnabled() && isPseudoCpuTarget(pickerOwner);
+    if (waitForManualStep && !consumeCpuStep()) {
+      showCpuStepHint();
+      return false;
+    }
+    hideCpuStepHint();
     const picker = activeEffectPicker;
     activeEffectPicker = null;
     if (picker.type === "cell") {
@@ -2906,6 +2920,38 @@ export function performPriorityTimeoutAutoAction() {
   }
   return false;
 }
+
+// CPU自動スキップOFF（オプションの「CPU戦」で設定）の時に、CPUのモーダルが解決待ちで
+// 止まっている間だけ「画面をクリックして進める」案内を出す。ザ・ギャンブル等をゆっくり
+// 読むための機能。クリックはページ全体で拾う（下のリスナー）。
+let cpuStepHintEl = null;
+function showCpuStepHint() {
+  if (!cpuStepHintEl) {
+    cpuStepHintEl = document.createElement("div");
+    cpuStepHintEl.id = "cpu-step-hint";
+    cpuStepHintEl.textContent = "▶ 画面をクリックしてCPUの手を進める";
+    document.body.appendChild(cpuStepHintEl);
+  }
+  cpuStepHintEl.classList.add("show");
+}
+function hideCpuStepHint() {
+  if (cpuStepHintEl) cpuStepHintEl.classList.remove("show");
+}
+// CPU自動スキップOFF中、CPUのモーダルが待機している時に画面のどこをクリックしても
+// 「1手」だけ発券して進める。CPUのモーダルの下にあるUIには伝えない（capture段階で握る）。
+document.addEventListener(
+  "click",
+  (e) => {
+    if (!isCpuBattleActive() || isOnlineMode() || isCpuAutoSkipEnabled()) return;
+    if (!activeEffectPicker) return;
+    const owner = getState().priorityPlayer || getAutoDriveSeat();
+    if (!isPseudoCpuTarget(owner)) return; // 人間の選択待ちなら邪魔しない
+    e.preventDefault();
+    e.stopPropagation();
+    releaseCpuStep();
+  },
+  true
+);
 
 // ユーザー要望「プレイヤーに作業をさせる場合は『移動先のマスを選択してください』などの
 // モーダルを出して案内するようにしてほしい」への対応。ハイライトだけでは何をすればいいか

@@ -23,7 +23,7 @@ import { isActionConfirmEnabled, setActionConfirmEnabled } from "./action-confir
 import { isBoardIllustOnly, setBoardIllustOnly } from "./board-card-display.js";
 import { getSoundVolume, setSoundVolume, getBgmVolume, setBgmVolume } from "./sound.js";
 import { setCardPreviewSize } from "./card-preview-size.js";
-import { getCpuSpeed, setCpuSpeed } from "./cpu-battle-state.js";
+import { getCpuSpeed, setCpuSpeed, isCpuAutoSkipEnabled, setCpuAutoSkipEnabled } from "./cpu-battle-state.js";
 import { SHORTCUT_TARGETS, getShortcut, setShortcut, registerShortcutSettingsOpener } from "./player-buttons.js";
 import { createBackdrop } from "./ui-helpers.js";
 import {
@@ -771,12 +771,18 @@ export function initOptionsMenu() {
       buildCollapsibleSection(
         "CPU戦（1人用）",
         (content) => {
+          content.appendChild(
+            buildCheckboxRow("CPUのモーダルを自動で進める（OFFにするとクリックで1手ずつ進む）", isCpuAutoSkipEnabled(), (checked) => {
+              setCpuAutoSkipEnabled(checked);
+            })
+          );
           content.appendChild(buildCpuSpeedRow());
         },
         {
           icon: "🤖",
           onReset: () => {
             setCpuSpeed("normal");
+            setCpuAutoSkipEnabled(true);
             renderContent();
           },
         }
