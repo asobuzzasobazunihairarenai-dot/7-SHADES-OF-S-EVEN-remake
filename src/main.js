@@ -8476,6 +8476,12 @@ let endTurnTooltipEl = null;
 // 初めて発火し、その間にshouldEmphasizeがfalseに戻ったら（コンボが連鎖した等）待ち直す。
 const AUTO_END_TURN_DELAY_MS = 1500;
 let autoEndTurnTimer = null;
+// 不具合#20: ターン終了のonActionは非同期（ゲート侵攻の「奪う札を選ぶ」告知モーダル・
+// ピック等でawaitする）。その待ち時間の一部はpickerActive等の「処理中」フラグが立たない
+// ため、自動ターン終了(reconcileAutoEndTurn)がその隙にendTurnButtonEl.click()を繰り返し、
+// onActionが多重に走ってモーダル/背景の重複・NEXT_TURNの連打・手札シャッフルの点滅を
+// 起こしていた。onAction実行中は再入を弾くためのガード。
+let endTurnActionInProgress = false;
 function reconcileAutoEndTurn(shouldEmphasize) {
   if (shouldEmphasize) {
     if (autoEndTurnTimer) return;
@@ -8617,6 +8623,10 @@ function buildEndTurnButton() {
       "相手のゲートに自分の駒が乗っている場合、ターン終了時に「相手ゲート侵攻ボーナス」が自動的に処理されます。",
     ],
     onAction: async () => {
+      // 不具合#20: 実行中の再入を弾く（ゲート侵攻の告知/ピック等でawaitする間に自動ターン終了が
+      // 再クリックして多重実行するのを防ぐ）。「自分の手番でない」等の正当な早期returnは、
+      // ガードを立てる前に済ませておく（それらは副作用が無いため）。
+      if (endTurnActionInProgress) return;
       // オンライン中、自分の手番でない間・優先権を持っていない間はupdateEndTurnButton()側で
       // disabled=trueにしているはずだが、念のためここでも二重にガードする（他人のターンを
       // 勝手に終了させられてしまうバグの再発防止）。
@@ -8627,6 +8637,8 @@ function buildEndTurnButton() {
         if (isOnlineMode() && s.priorityPlayer && getSelfSeat() !== s.priorityPlayer) return;
         turnPlayerBeforeEnd = s.turnPlayer;
       }
+      endTurnActionInProgress = true;
+      try {
       // 奇跡の森 マンズウッド専用: このターン中に「ターン終了時に捨てる」と予約された
       // トークンがあれば、実際にnextTurn()を呼ぶ前（＝publicDrawの手札合流処理が走る
       // より前）に先に捨てておく（markDiscardAtTurnEnd参照）。
@@ -8697,6 +8709,13 @@ function buildEndTurnButton() {
         nextTurn();
         render();
       });
+      } finally {
+        // オンライン経路はnextTurn()の直後にreturnし、その前にtransferPriorityToNextTurnPlayerで
+        // 優先権が移る（＝computeShouldEmphasizeがfalseになる）ため、ここで解除しても直後に
+        // 再発火しない。ローカル経路のrunGateInvasionsIfNeededは非同期だが、その間は
+        // gateInvasion系フラグでcomputeShouldEmphasizeが抑止される。
+        endTurnActionInProgress = false;
+      }
     },
   });
   document.body.appendChild(btn);
