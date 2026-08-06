@@ -8642,6 +8642,18 @@ function buildEndTurnButton() {
         turnPlayerBeforeEnd = s.turnPlayer;
       }
       endTurnActionInProgress = true;
+      // 不具合#25: ガードは「NEXT_TURNまで完了した時点」で解除する。オンライン経路は同期的に
+      // nextTurn後、ローカルのゲート侵攻経路はrunGateInvasionsIfNeededの完了コールバック後に解除
+      // （runGateInvasionsIfNeededはfire-and-forgetなので、finallyで即解除すると侵攻演出の最中に
+      // 自動ターン終了が再クリックして多重処理していた——OK連打・背景暗転・エターナル演出の連発）。
+      // 万一どのコールバックにも到達しない事故に備え、安全タイムアウトでも必ず解除する。
+      const guardSafety = setTimeout(() => {
+        endTurnActionInProgress = false;
+      }, 60000);
+      const releaseGuard = () => {
+        clearTimeout(guardSafety);
+        endTurnActionInProgress = false;
+      };
       try {
       // 奇跡の森 マンズウッド専用: このターン中に「ターン終了時に捨てる」と予約された
       // トークンがあれば、実際にnextTurn()を呼ぶ前（＝publicDrawの手札合流処理が走る
@@ -8680,6 +8692,7 @@ function buildEndTurnButton() {
         }
         transferPriorityToNextTurnPlayer(turnPlayerBeforeEnd);
         nextTurn(gateInvasionSteals ? { gateInvasionSteals } : undefined);
+        releaseGuard();
         return;
       }
       // 侵攻条件を満たしている参加プレイヤーが誰もいなければrunGateInvasionsIfNeededは
@@ -8698,27 +8711,30 @@ function buildEndTurnButton() {
               transferPriorityToNextTurnPlayer(turnPlayerBeforeEnd);
               nextTurn();
               render();
+              releaseGuard();
             });
           },
           () => {
             transferPriorityToNextTurnPlayer(turnPlayerBeforeEnd);
             nextTurn();
             render();
+            releaseGuard();
           }
         );
-        return;
+        return; // ガードは確認モーダルのコールバックで解除する（それまで再入を弾き続ける）
       }
+      // ローカルのゲート侵攻はrunGateInvasionsIfNeededの完了コールバックまでガードを保持する
+      // （侵攻演出中の自動ターン終了の多重発火を防ぐ。#25）。
       runGateInvasionsIfNeeded(() => {
         transferPriorityToNextTurnPlayer(turnPlayerBeforeEnd);
         nextTurn();
         render();
+        releaseGuard();
       });
-      } finally {
-        // オンライン経路はnextTurn()の直後にreturnし、その前にtransferPriorityToNextTurnPlayerで
-        // 優先権が移る（＝computeShouldEmphasizeがfalseになる）ため、ここで解除しても直後に
-        // 再発火しない。ローカル経路のrunGateInvasionsIfNeededは非同期だが、その間は
-        // gateInvasion系フラグでcomputeShouldEmphasizeが抑止される。
-        endTurnActionInProgress = false;
+      } catch (err) {
+        // 例外時は必ずガードを解除（詰まらせない）。正常系は各経路のreleaseGuardで解除済み。
+        releaseGuard();
+        throw err;
       }
     },
   });
