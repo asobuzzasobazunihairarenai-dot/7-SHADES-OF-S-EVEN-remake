@@ -1123,21 +1123,98 @@ async function placeFromDeckForEffect(location) {
   playSound("cardPlace");
 }
 
+// マスチェンジの入れ替え演出（ユーザー要望2026-08-08「お互いの駒が発光し、不安定な電撃の
+// ような光で結ばれて入れ替わる」）。2駒の中心を、ジグザグの稲妻（一定間隔で形を作り直して
+// “不安定”に見せる）で結ぶSVGを、ステージ座標に重ねる。呼び出し側が.remove()で消す。
+function createSwapArc(rectA, rectB) {
+  const la = stageClientToLocal(rectA.left + rectA.width / 2, rectA.top + rectA.height / 2);
+  const lb = stageClientToLocal(rectB.left + rectB.width / 2, rectB.top + rectB.height / 2);
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("class", "swap-arc-svg");
+  svg.style.cssText = `position:fixed; left:0; top:0; width:${STAGE_WIDTH}px; height:${STAGE_HEIGHT}px; pointer-events:none; z-index:9998; overflow:visible;`;
+  const glow = document.createElementNS(NS, "polyline");
+  glow.setAttribute("class", "swap-arc-bolt swap-arc-bolt-glow");
+  const bolt = document.createElementNS(NS, "polyline");
+  bolt.setAttribute("class", "swap-arc-bolt");
+  svg.appendChild(glow);
+  svg.appendChild(bolt);
+  document.body.appendChild(svg);
+  const dx = lb.x - la.x;
+  const dy = lb.y - la.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const px = -dy / len; // 進行方向に垂直な単位ベクトル（ジグザグのぶれ方向）
+  const py = dx / len;
+  const regen = () => {
+    const segs = 9;
+    const pts = [];
+    for (let i = 0; i <= segs; i++) {
+      const t = i / segs;
+      const x = la.x + dx * t;
+      const y = la.y + dy * t;
+      const jitter = i === 0 || i === segs ? 0 : (Math.random() * 2 - 1) * 26;
+      pts.push(`${(x + px * jitter).toFixed(1)},${(y + py * jitter).toFixed(1)}`);
+    }
+    const s = pts.join(" ");
+    bolt.setAttribute("points", s);
+    glow.setAttribute("points", s);
+  };
+  regen();
+  const flickerId = setInterval(regen, 65); // 65msごとに形を作り直して“不安定な電撃”に
+  return {
+    remove() {
+      clearInterval(flickerId);
+      svg.remove();
+    },
+  };
+}
+
+// マスチェンジの入れ替え演出本体。①両駒を発光→②電撃アークで結ぶ→③実駒を隠してゴーストで
+// お互いの位置へ飛翔。終了時、実駒は隠したまま（pending）にして呼び出し側の状態入れ替え＋
+// renderで新しい位置に現れるようにする。演出オフ時は何もしない。
+async function playMassChangeSwapAnimation(pieceAId, pieceBId) {
+  if (isFlightAnimationDisabled()) return;
+  const table = document.getElementById("game-table");
+  const elA = table?.querySelector(`.piece[data-token-id="${pieceAId}"]`);
+  const elB = table?.querySelector(`.piece[data-token-id="${pieceBId}"]`);
+  const tokA = getState().tokens.find((t) => t.id === pieceAId);
+  const tokB = getState().tokens.find((t) => t.id === pieceBId);
+  if (!elA || !elB || !tokA || !tokB) return;
+  const rectA = elA.getBoundingClientRect();
+  const rectB = elB.getBoundingClientRect();
+  // ①発光＋②電撃アーク。
+  elA.classList.add("piece-swap-glow");
+  elB.classList.add("piece-swap-glow");
+  const arc = createSwapArc(rectA, rectB);
+  playSound("swap");
+  await wait(getContactAnimSeconds("--swap-anim-charge-duration", 0.8) * 1000);
+  // ③実駒を隠してゴーストで入れ替え飛翔（お互いの位置へ）。
+  setSetupPendingTokenIds(new Set([pieceAId, pieceBId]));
+  render();
+  const durMs = getContactAnimSeconds("--swap-anim-flight-duration", 0.6) * 1000;
+  const gA = flyGhost(rectA, rectB, getSkinImagePath(tokA.color, tokA.player), "setup-fly-card", durMs);
+  const gB = flyGhost(rectB, rectA, getSkinImagePath(tokB.color, tokB.player), "setup-fly-card", durMs);
+  await Promise.all([gA.done, gB.done]);
+  arc.remove();
+  // pendingはここでは解除しない——呼び出し側が状態を入れ替えてrenderした後に解除する。
+}
+
 // SWAP_POSITION用（マスチェンジ等）。自分の駒と、targetLocationにいる相手の駒の位置を
-// 入れ替える。「移動」ではないため（docs/cards.md補足）、到達判定・自動オープンは
-// 一切行わない——呼び出し元（card-effect-engine.jsのrunAction）もctx.arrivedAtを
-// セットしないため、これ単体で完結する。
+// 入れ替える。「移動」ではないため（docs/cards.md補足）、この関数自体は到達判定・自動オープンを
+// 行わない（到達効果の発動はcard-effect-engine.jsのSWAP_POSITION側でルールに沿って行う）。
 async function swapPiecesForEffect(pieceTokenId, fromLocation, targetLocation) {
   const opponentPiece = getState().tokens.find(
     (t) => t.kind === "piece" && t.location.zone === "cell" && t.location.row === targetLocation.row && t.location.col === targetLocation.col
   );
   if (!opponentPiece) return;
+  // 入れ替え演出（発光＋電撃アーク＋飛翔）。終了時、両駒はpendingで隠れている（演出ON時）。
+  await playMassChangeSwapAnimation(pieceTokenId, opponentPiece.id);
   // 「入れ替え」であり「移動」ではないため到達効果を得ない（docs/cards.md補足）。
   // 続き59のsuppressArrival（remote-move-animator.jsが誤って到達を再現しないように
   // するためのフラグ）を、入れ替わる両方の駒に付ける。
   await moveAndSyncForEffect(opponentPiece.id, { zone: "cell", row: fromLocation.row, col: fromLocation.col }, undefined, true);
   await moveAndSyncForEffect(pieceTokenId, targetLocation, undefined, true);
-  // ユーザー要望「マスチェンジで入れ替わるときアニメで効果音を使用してください」。
+  setSetupPendingTokenIds(new Set()); // 演出で隠していた分を解除
   playSound("swap");
   render();
 }
@@ -9117,6 +9194,18 @@ function openActionLogWindow() {
     showActionLogInfoModal();
   });
   title.appendChild(infoBtn);
+  // ユーザー要望2026-08-08「行動ログウィンドウに✕ボタンをつけて」。📜トグルだけでなく、
+  // ウィンドウ自身の右上からも閉じられるようにする。
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "action-log-window-close";
+  closeBtn.textContent = "✕";
+  closeBtn.title = "閉じる";
+  closeBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeActionLogWindow();
+  });
+  title.appendChild(closeBtn);
   const body = document.createElement("div");
   body.className = "action-log-window-body";
   actionLogWindowEl.appendChild(title);

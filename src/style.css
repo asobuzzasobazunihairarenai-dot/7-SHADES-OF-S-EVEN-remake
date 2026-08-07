@@ -4435,6 +4435,25 @@ body.is-phone-device #options-menu-button {
 .action-log-info-btn:hover {
   border-color: currentColor;
 }
+/* 行動ログウィンドウ右上の✕（ユーザー要望2026-08-08）。タイトル行の右端へ寄せる。 */
+.action-log-window-close {
+  margin-left: auto;
+  background: none;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  color: inherit;
+  border-radius: 50%;
+  width: 1.15rem;
+  height: 1.15rem;
+  line-height: 1;
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+.action-log-window-close:hover {
+  border-color: currentColor;
+  background: rgba(148, 163, 184, 0.2);
+}
 .action-log-window-body {
   overflow-y: auto;
   font-family: sans-serif;
@@ -9432,6 +9451,41 @@ body.reduce-glow .cell.card-effect-just-placed {
 }
 body.reduce-glow .result-celebration-confetti i,
 body.reduce-glow .result-celebration-headline {
+  animation: none;
+}
+
+/* マスチェンジの入れ替え演出（ユーザー要望2026-08-08: 発光＋不安定な電撃で結ばれて入れ替わる）。 */
+:root {
+  --swap-anim-charge-duration: 0.8; /* 発光＋電撃の“溜め”（秒） */
+  --swap-anim-flight-duration: 0.6; /* 入れ替え飛翔（秒） */
+}
+.piece-swap-glow {
+  filter: drop-shadow(0 0 0.35rem #67e8f9) drop-shadow(0 0 0.8rem #ffffff);
+  animation: piece-swap-glow-pulse 0.5s ease-in-out infinite alternate;
+}
+@keyframes piece-swap-glow-pulse {
+  from {
+    filter: drop-shadow(0 0 0.25rem #67e8f9) drop-shadow(0 0 0.5rem #ffffff);
+  }
+  to {
+    filter: drop-shadow(0 0 0.55rem #a5f3fc) drop-shadow(0 0 1.1rem #ffffff);
+  }
+}
+.swap-arc-bolt {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2.2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 3px #67e8f9);
+}
+.swap-arc-bolt-glow {
+  stroke: #22d3ee;
+  stroke-width: 7;
+  opacity: 0.45;
+  filter: blur(3px);
+}
+body.reduce-glow .piece-swap-glow {
   animation: none;
 }
 
