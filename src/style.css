@@ -6980,6 +6980,28 @@ body.diagnostic-flatten-3d .piece-top {
 .card-arrival-modal-pin:hover {
   background: rgba(56, 189, 248, 0.2);
 }
+/* 「キープ」ボタン（ユーザー要望2026-08-08）。押すとターンを跨いでも残る。 */
+.card-arrival-modal-keep {
+  padding: 0.35rem 0.9rem;
+  background: rgba(15, 23, 32, 0.85);
+  color: #fde68a;
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-family: sans-serif;
+  font-size: 0.75rem;
+}
+.card-arrival-modal-keep:hover {
+  background: rgba(251, 191, 36, 0.2);
+}
+/* キープ中は、新たに右上へ出る到達モーダルと重ならないよう左上へ寄せ、複数キープは斜めに
+   少しずつずらして重ね置きする（--kept-indexはcard-arrival.jsが採番）。 */
+.card-arrival-modal.is-kept {
+  right: auto;
+  left: calc(var(--card-arrival-modal-right, 1rem) + var(--kept-index, 0) * 1.4rem);
+  top: calc(var(--card-arrival-modal-top, 1rem) + var(--kept-index, 0) * 1.4rem);
+  transform-origin: top left;
+}
 /* 到達した駒の持ち主にだけ表示される「このカードを手札に加える」ボタン。モーダル右下に
    配置する（ユーザー指定）。 */
 .card-arrival-modal-add-to-hand {

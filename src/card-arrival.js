@@ -19,6 +19,19 @@ function getDurationMs() {
 let currentModal = null;
 let currentTimer = null;
 
+// ユーザー要望2026-08-08「到達カードモーダルはターン終了で消えるが、まだ読みたい人もいる。
+// 『キープ』ボタンを新設し、押したらそのカードはターンを跨いでも消えないように」。キープした
+// モーダルはcurrentModal管理から外し（自動消滅・ターン終了の一括クローズ・次の到達での置き換えの
+// 対象外にし）、✕で手動で閉じるまで残す。複数キープした時に重ならないよう縦に少しずつずらす。
+const keptModals = new Set();
+function repositionKeptModals() {
+  let i = 0;
+  for (const m of keptModals) {
+    m.style.setProperty("--kept-index", String(i));
+    i += 1;
+  }
+}
+
 // ユーザー要望「ターンを終了したら、出っ放しの到達拡大モーダルがあれば全員閉じるように
 // してください」への対応。デフォルトでは消えない設定（isCardArrivalModalPersistent）の
 // ため、効果処理中に見ながら操作している間はよいが、ターンが終わっても開いたままだと
@@ -46,11 +59,13 @@ export function showCardArrivalModal(cardId, options = {}) {
   const modal = document.createElement("div");
   modal.className = "card-arrival-modal";
 
+  let kept = false; // 「キープ」で残す指定にしたか
   function dismiss() {
     modal.classList.remove("show");
     setTimeout(() => {
       modal.remove();
       if (currentModal === modal) currentModal = null;
+      if (keptModals.delete(modal)) repositionKeptModals();
     }, 300);
   }
 
@@ -81,6 +96,26 @@ export function showCardArrivalModal(cardId, options = {}) {
 
   modal.appendChild(createModalCloseX(dismiss));
 
+  // 「キープ」ボタン（ユーザー要望2026-08-08）。押すと自動消滅タイマーを止め、currentModal管理
+  // から外して、ターン終了の一括クローズや次の到達での置き換えの対象外にする（＝ターンを跨いでも
+  // ✕で閉じるまで残る）。押した後はボタン自体を消す。
+  const keepBtn = document.createElement("button");
+  keepBtn.className = "card-arrival-modal-keep";
+  keepBtn.textContent = "📌 キープ";
+  keepBtn.addEventListener("click", (e) => {
+    e.stopPropagation(); // モーダル本体クリックでの即クローズを防ぐ
+    kept = true;
+    clearTimeout(currentTimer);
+    if (currentModal === modal) currentModal = null; // 管理スロットから外す
+    modal.classList.add("is-kept");
+    keptModals.add(modal);
+    repositionKeptModals();
+    keepBtn.remove();
+    const pin = modal.querySelector(".card-arrival-modal-pin");
+    if (pin) pin.remove(); // 「消えないように」はキープに包含されるので不要
+  });
+  modal.appendChild(keepBtn);
+
   // 到達した駒の持ち主が自分自身の時だけ表示する（main.jsのtriggerCardArrivalで判定済み）。
   // 右下に配置（ユーザー指定）。
   if (options.showAddToHand) {
@@ -96,8 +131,11 @@ export function showCardArrivalModal(cardId, options = {}) {
   }
 
   // カードを見ながら到達効果を処理し終えたら、モーダルに触れるだけで閉じられるようにする
-  // （「デフォルトは消えない」設定と対になる操作）。
-  modal.addEventListener("click", dismiss);
+  // （「デフォルトは消えない」設定と対になる操作）。ただしキープ中は、誤って本体クリックで
+  // 閉じてしまわないよう✕でのみ閉じる。
+  modal.addEventListener("click", () => {
+    if (!kept) dismiss();
+  });
 
   document.body.appendChild(modal);
   currentModal = modal;

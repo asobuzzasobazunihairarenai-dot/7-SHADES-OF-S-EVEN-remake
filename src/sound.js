@@ -414,6 +414,59 @@ export function initSoundUnlock() {
   window.addEventListener("touchstart", unlock, { passive: true });
 }
 
+// ユーザー要望2026-08-08「ザ・ギャンブルや試練の儀式のとき、心臓の鼓動の効果音を入れたい」。
+// 専用の音源ファイルは持たず、AudioContextで「ドクッ…ドクッ」（lub-dub）を合成してループする。
+// 効果音マスター音量(masterVolume)に連動。startHeartbeat/stopHeartbeatで囲んで使う（緊張場面で
+// 鳴らし、結果が出たら止める）。多重startは無視、stopは冪等。
+let heartbeatActive = false;
+let heartbeatTimer = null;
+function scheduleThump(ctx, when, freq, peak) {
+  try {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(freq, when);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(20, freq * 0.6), when + 0.14);
+    gain.gain.setValueAtTime(0.0001, when);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), when + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, when + 0.18);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(when);
+    osc.stop(when + 0.22);
+  } catch {
+    /* 合成に失敗しても進行は止めない */
+  }
+}
+export function startHeartbeat() {
+  if (heartbeatActive) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+  heartbeatActive = true;
+  const periodMs = 900;
+  const beat = () => {
+    if (!heartbeatActive) return;
+    const c = getAudioContext();
+    if (c && c.state === "running") {
+      const peak = Math.min(0.5, Math.max(0, masterVolume) * 0.9);
+      if (peak > 0) {
+        const t = c.currentTime + 0.02;
+        scheduleThump(c, t, 62, peak); // ドク（lub）
+        scheduleThump(c, t + 0.19, 48, peak * 0.72); // ドクッ（dub）
+      }
+    }
+    heartbeatTimer = setTimeout(beat, periodMs);
+  };
+  beat();
+}
+export function stopHeartbeat() {
+  heartbeatActive = false;
+  if (heartbeatTimer) {
+    clearTimeout(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+}
+
 export function playSound(name) {
   const def = SOUND_DEFS[name];
   if (!def) return;

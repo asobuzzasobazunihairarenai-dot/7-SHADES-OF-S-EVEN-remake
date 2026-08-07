@@ -1148,6 +1148,10 @@ async function runAction(action, ctx, helpers) {
       const total = declaredColors.length;
       const revealedCardIds = [];
       let remaining = total;
+      // ユーザー要望2026-08-08: 公開のたびに、そのカードを画面中央に大きく“じらしてフリップ”で
+      // 見せる（helpers.gambleReveal）。緊張感を出すため心臓の鼓動（helpers.startSuspenseSound）を
+      // 鳴らし始め、結果が出るDISCARD_HAND側で止める。
+      helpers.startSuspenseSound?.();
       while (remaining > 0) {
         if (helpers.pickHandEffectOption) {
           // 残り2枚以上なら「1枚公開/全部公開」、最後の1枚は「最後の1枚を公開する」を毎回出す
@@ -1162,14 +1166,20 @@ async function runAction(action, ctx, helpers) {
           const opt = await helpers.pickHandEffectOption("yellow-gamble", options);
           if (opt?.id === "all") {
             const rest = await helpers.publicDraw(ctx.player, remaining);
-            revealedCardIds.push(...rest);
+            for (const cid of rest) {
+              await helpers.gambleReveal?.(cid);
+              revealedCardIds.push(cid);
+            }
             remaining = 0;
             break;
           }
           // "one"/"last"/閉じた(null) → 1枚だけ公開して次へ。
         }
         const one = await helpers.publicDraw(ctx.player, 1);
-        revealedCardIds.push(...one);
+        for (const cid of one) {
+          await helpers.gambleReveal?.(cid);
+          revealedCardIds.push(cid);
+        }
         remaining -= 1;
       }
       ctx.selections.revealedCardIds = revealedCardIds;
@@ -1195,6 +1205,7 @@ async function runAction(action, ctx, helpers) {
       );
       // 続き65: 公開ドローの結果で宣言色が判明した瞬間なので、常駐していた色宣言表示を消す。
       await helpers.announceColorsResolved?.();
+      helpers.stopSuspenseSound?.(); // 結果が出たので鼓動を止める
       if (!matches) {
         // ユーザー要望2026-08-07: 宣言色が出なかった＝良い結果（手札を捨てずに済む）を、
         // 紙吹雪＋大きな英語見出しでお祝いする（案A、「おめでとう」ではなく英語で）。
@@ -1244,6 +1255,8 @@ async function runAction(action, ctx, helpers) {
       let placedAny = false;
       let successCount = 0; // 宣言色に当たった回数（試練は必ずハズレで終わるので、最後にまとめて祝う）
       const MAX_ITERATIONS = 300;
+      // ユーザー要望2026-08-08: 試練の緊張感を出すため心臓の鼓動を鳴らし、最後（結果表示前）に止める。
+      helpers.startSuspenseSound?.();
       for (let i = 0; i < MAX_ITERATIONS; i++) {
         const adjacentCandidateCells = enumerateManhattanRing(1)
           .map(({ dr, dc }) => ({ row: ctx.pieceLocation.row + dr, col: ctx.pieceLocation.col + dc }))
@@ -1255,6 +1268,9 @@ async function runAction(action, ctx, helpers) {
             ? adjacentCandidateCells[0]
             : await helpers.pickLocation(adjacentCandidateCells, "カードを置く隣接マスを選択してください");
         if (!dest) break;
+        // ユーザー要望2026-08-08「CPUの色選択後から移動・カード捲りまでが早すぎる」。宣言色が
+        // 決まってから実際に置いて捲るまで、鼓動とともに“ため”を作る（読みやすさと緊張感）。
+        await helpers.delay?.(750);
         const placedCardId = await helpers.placeFromDeckFaceUp(dest);
         if (!placedCardId) break; // 山札切れ等
         placedAny = true;
@@ -1281,6 +1297,7 @@ async function runAction(action, ctx, helpers) {
         declaredColors = redeclared;
         ctx.selections.declaredColors = declaredColors;
       }
+      helpers.stopSuspenseSound?.(); // 結果表示前に鼓動を止める
       // ユーザー要望2026-08-07: 試練は必ずハズレで終わるので、最後に「〇回成功！」を出す。
       // 1回以上当てていれば紙吹雪でお祝い、0回なら控えめに残念を出す。
       if (successCount > 0) {

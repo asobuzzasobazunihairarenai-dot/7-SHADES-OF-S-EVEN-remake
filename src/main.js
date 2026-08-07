@@ -260,7 +260,7 @@ import {
 import { fetchStatsProfile, getTierInfo } from "./stats-profile.js";
 import { setRankRingOrbitContainer, startRankRingOrbit } from "./rank-ring-orbit.js";
 import { generateVictorySummaryCanvas } from "./victory-summary-image.js";
-import { playSound, initGameBgmAutoStart, initSoundUnlock } from "./sound.js";
+import { playSound, initGameBgmAutoStart, initSoundUnlock, startHeartbeat, stopHeartbeat } from "./sound.js";
 import { initScreenWakeLock } from "./wake-lock.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath, getCardIllustPath } from "./cards-data.js";
 import { isBoardIllustOnly } from "./board-card-display.js";
@@ -2406,7 +2406,12 @@ async function runPartyOptionTask(player) {
   const chosen = await pickOptionForEffect("pink-party", options);
   if (!chosen) return false;
   // パーティで各プレイヤーが選んだ内容を全員に告知（choose-effect-reveal方針）。
-  await announceEffectChoiceForEffect("pink-party", player, chosen.label);
+  // ユーザー要望2026-08-08「選択してからマスがハイライトされるまでの間が長い。『○○を選択
+  // しました』モーダル中にすぐハイライトされていてもOK」。告知は待たずに走らせ（announced）、
+  // すぐ下のマス選択（ハイライト）へ進む。ペーシング/CPU結果ホールドを保つため、最後に告知の
+  // 完了をawaitしてから返す。
+  const announced = announceEffectChoiceForEffect("pink-party", player, chosen.label);
+  const result = await (async () => {
   if (chosen.id === "move") {
     const dest = moveCandidates.length === 1 ? moveCandidates[0] : await requestCellChoiceForEffect(moveCandidates, "移動先のマスを選択してください");
     if (!dest) return false;
@@ -2454,6 +2459,9 @@ async function runPartyOptionTask(player) {
   const secondToken = findTopCardAt(secondDest);
   if (secondToken) await flipToFaceUpForEffect(secondToken.id);
   return true;
+  })();
+  await announced;
+  return result;
 }
 
 // 合同建設・スラム上がりの役人・パーティー共通: このタスクを「今この画面を見ている
@@ -4071,6 +4079,10 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         swapRandomHandCard: swapHandCardWithOpponentForEffect,
         announceEffectReason: announceEffectReasonForEffect,
         celebrate: celebrateForEffect,
+        gambleReveal: (cardId) => playCenterCardFlipReveal(cardId, { labelText: "ギャンブル公開" }),
+        startSuspenseSound: startHeartbeat,
+        stopSuspenseSound: stopHeartbeat,
+        delay: (ms) => wait(ms),
         announceEffectChoice: announceEffectChoiceForEffect,
         // 効果結果お知らせ（続き）用に、効果側でプレイヤー名を文面へ埋め込めるようにする。
         getPlayerName,
@@ -4165,6 +4177,10 @@ async function runAutoArrivalEffect(cardId, location, player) {
       // 発動理由を一言説明するモーダル用。
       announceEffectReason: announceEffectReasonForEffect,
       celebrate: celebrateForEffect,
+      gambleReveal: (cardId) => playCenterCardFlipReveal(cardId, { labelText: "ギャンブル公開" }),
+      startSuspenseSound: startHeartbeat,
+      stopSuspenseSound: stopHeartbeat,
+      delay: (ms) => wait(ms),
       announceEffectChoice: announceEffectChoiceForEffect,
       // プレゼントの到達効果等で「誰がドロー対象か」を画面中央にアバターで周知する用。
       announceDrawTargets: announceDrawTargetsForEffect,
@@ -4403,6 +4419,9 @@ function triggerCardArrival(cardId, location, onFullyResolved, opts = {}) {
         console.error("runAutoArrivalEffect failed", err);
         logAction("diag-arrival-processing", { cardId, phase: "error", message: String(err?.message ?? err) });
       } finally {
+        // 安全弁: ザ・ギャンブル/試練の儀式の鼓動が、途中で例外が起きても鳴りっぱなしに
+        // ならないよう、到達効果の完了時に必ず止める（stopHeartbeatは冪等）。
+        stopHeartbeat();
         arrivalEffectProcessingDepth = Math.max(0, arrivalEffectProcessingDepth - 1);
         const remainCount = (activeAutoArrivalKeys.get(dedupKey) || 1) - 1;
         if (remainCount <= 0) activeAutoArrivalKeys.delete(dedupKey);
@@ -5084,6 +5103,60 @@ function getEternalRevealCenterRect(pileRect) {
     width: size,
     height: size,
   };
+}
+
+// ザ・ギャンブルの公開カードを、画面中央に大きく“じらしてフリップ”で見せる（ユーザー要望
+// 2026-08-08「公開エリアだけでなく画面中央に大々的に、少しじらしてフリップして開く感じ」）。
+// エターナル獲得と同じ正方形スケールXフリップを流用した簡易版（飛翔・ロック着地は無し）。
+// 演出オフ設定中は既存のカード受け取りモーダルで簡潔に見せる。
+async function playCenterCardFlipReveal(cardId, { labelText = "公開", suspenseMs = 850, holdMs = 850 } = {}) {
+  if (isArrivalEffectDisabled()) {
+    await showCardReceivedModal(cardId, "", { labelText });
+    return;
+  }
+  const size = Math.min(window.innerWidth, window.innerHeight) * 0.5;
+  const localCenter = stageClientToLocal(window.innerWidth / 2, window.innerHeight / 2);
+  const w = stageDelta(size);
+  const h = stageDelta(size);
+  const reveal = document.createElement("div");
+  reveal.className = "eternal-reveal-card is-suspense";
+  reveal.style.left = `${localCenter.x - w / 2}px`;
+  reveal.style.top = `${localCenter.y - h / 2}px`;
+  reveal.style.width = `${w}px`;
+  reveal.style.height = `${h}px`;
+  const inner = document.createElement("div");
+  inner.className = "eternal-reveal-card-inner";
+  const back = document.createElement("div");
+  back.className = "eternal-reveal-card-face is-back";
+  back.style.backgroundImage = `url("${getCardBackImagePath(cardId)}")`;
+  const front = document.createElement("div");
+  front.className = "eternal-reveal-card-face is-front";
+  front.style.backgroundImage = `url("${getCardImagePath(cardId)}")`;
+  front.style.opacity = "0";
+  inner.append(back, front);
+  reveal.appendChild(inner);
+  document.body.appendChild(reveal);
+  // ①じらし（裏向きのまま虹色の縁で少しためる）。
+  await wait(suspenseMs);
+  // ②スケールXフリップで表向きに（正方形なので上下は切れない）。
+  reveal.classList.remove("is-suspense");
+  const color = getCardDefinition(cardId)?.color;
+  if (color) reveal.style.setProperty("--eternal-reveal-color", `var(--color-${color})`);
+  playSound("cardFlip");
+  reveal.classList.add("is-bursting");
+  const half = 260;
+  inner.style.transition = `transform ${half}ms ease-in`;
+  inner.style.transform = "scaleX(0)";
+  await wait(half);
+  back.style.opacity = "0";
+  front.style.opacity = "1";
+  inner.style.transition = `transform ${half}ms ease-out`;
+  inner.style.transform = "scaleX(1)";
+  await wait(half);
+  reveal.classList.remove("is-bursting");
+  reveal.classList.add("is-revealed");
+  await wait(holdMs);
+  reveal.remove();
 }
 
 async function playEternalAcquisitionAnim(attacker, cardId, cardDef, onDone) {
