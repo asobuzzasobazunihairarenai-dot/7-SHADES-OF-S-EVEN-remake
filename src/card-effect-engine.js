@@ -694,9 +694,12 @@ async function runAction(action, ctx, helpers) {
       const opponentCells = getAllOpponentPieceCells(ctx.player);
       if (opponentCells.length === 0) return false;
       let targetCell;
-      if (opponentCells.length === 1 && !ctx.forcePrompt) {
+      if (opponentCells.length === 1) {
         // ユーザー要望「選べる相手が１人しかいない場合は自動でその人を選択し、その旨を
-        // モーダルで示してほしい」（続き65）。
+        // モーダルで示してほしい」（続き65／プレゼント等の再要望 2026-08-07）。スリカエ・
+        // マスチェンジ等の「相手を選ぶ」系と揃え、手札効果のforcePrompt（対象1人でも選ばせる）
+        // に関係なく自動選択する——相手が1人なら実質的に選択の余地が無いため（続き93の
+        // 総点検ではマスチェンジだけを直したが、この「相手の駒を選ぶ」系にも抜けが残っていた）。
         targetCell = opponentCells[0];
         await helpers.announceEffectReason?.(ctx.cardId, "選べる相手が1人しかいないため、自動的に選択しました。");
       } else {
@@ -1313,9 +1316,12 @@ async function runAction(action, ctx, helpers) {
       const opponentCells = getAllOpponentPieceCells(ctx.player);
       if (opponentCells.length === 0) return false;
       let targetCell;
-      if (opponentCells.length === 1 && !ctx.forcePrompt) {
+      if (opponentCells.length === 1) {
         // ユーザー要望「選べる相手が１人しかいない場合は自動でその人を選択し、その旨を
-        // モーダルで示してほしい」（続き65）。
+        // モーダルで示してほしい」（続き65／プレゼント等の再要望 2026-08-07）。スリカエ・
+        // マスチェンジ等の「相手を選ぶ」系と揃え、手札効果のforcePrompt（対象1人でも選ばせる）
+        // に関係なく自動選択する——相手が1人なら実質的に選択の余地が無いため（続き93の
+        // 総点検ではマスチェンジだけを直したが、この「相手の駒を選ぶ」系にも抜けが残っていた）。
         targetCell = opponentCells[0];
         await helpers.announceEffectReason?.(ctx.cardId, "選べる相手が1人しかいないため、自動的に選択しました。");
       } else {

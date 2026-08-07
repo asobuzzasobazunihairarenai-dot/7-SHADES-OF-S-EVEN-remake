@@ -32,6 +32,7 @@ import {
   isAnyEffectProcessingBusy,
   hasActiveEffectPicker,
   updateEndTurnButton,
+  syncCpuStepHint,
 } from "./main.js";
 import { SEAT_ORDER, SEAT_TO_SIDE, getRotationSteps, rotateSide } from "./board-layout.js";
 import { getSelfSeat, getSyncedTimerConfig, getCurrentGameId, fetchAndHydrate, isSpectatingGame } from "./online.js";
@@ -933,11 +934,16 @@ function updateTimeoutWarnings(state, isTimedOut) {
           // ユーザー報告（続き99）「疑似CPUモードの時、回復すると基本時間が15秒とか
           // まで行ってしまう」。この15秒回復はfreshBaseDeadlineFor()を経由しない
           // 直書きのため、isPseudoCpuTargetの対象座席にもそのまま15秒を与えてしまって
-          // いた。対象座席には通常通り1秒を与える。
-          const recoveryMs = isPseudoCpuTarget(state.priorityPlayer) ? getPseudoCpuDeadlineMs() : 15000;
-          withGuard(() =>
-            setPriorityState({ player: state.priorityPlayer, deadline: Date.now() + recoveryMs, phase: "base" })
-          );
+          // いた。対象座席にはfreshBaseDeadlineFor経由で通常の持ち時間を与える。
+          // ユーザー要望（2026-08-07）「CPUがロックした後、食い気味でハンドフェイズに
+          // 移行する。『ゆっくり』の時は少し間を持たせたい」——ここを固定のpseudo持ち時間
+          // (1.3秒)で直書きしていたため、速度設定に関係なくロック→ハンドの間が短かった。
+          // freshBaseDeadlineForはCPU戦のCPU席にgetCpuStepDeadlineMs()（速度設定）を返すので、
+          // 「ゆっくり」なら間もその分長くなる。
+          const deadline = isPseudoCpuTarget(state.priorityPlayer)
+            ? freshBaseDeadlineFor(state.priorityPlayer)
+            : Date.now() + 15000;
+          withGuard(() => setPriorityState({ player: state.priorityPlayer, deadline, phase: "base" }));
         }
       }
     }
@@ -957,6 +963,9 @@ function updateTimeoutWarnings(state, isTimedOut) {
 }
 
 function tick() {
+  // CPU戦の「クリックで進める」案内は、現在の状態から毎tick出し消しする（#29/#30対策。
+  // main.js syncCpuStepHint参照）。以降の早期returnに関係なく必ず更新したいので先頭で呼ぶ。
+  syncCpuStepHint();
   // 観戦者は読み取り専用。タイマーの自動行動・優先権書き込みを一切させない（表示も出さない）。
   if (isSpectatingGame()) {
     updateWarning(false);

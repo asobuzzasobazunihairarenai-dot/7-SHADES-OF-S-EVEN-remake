@@ -2937,6 +2937,22 @@ function showCpuStepHint() {
 function hideCpuStepHint() {
   if (cpuStepHintEl) cpuStepHintEl.classList.remove("show");
 }
+// 「画面をクリックしてCPUの手を進める」案内は、CPU(疑似CPU)が選択待ちのモーダルを持って
+// いる間だけ出す。以前は performPriorityTimeoutAutoAction（CPUの時間切れ時にしか呼ばれない）
+// の中でしか出し消ししていなかったため、CPUの番が終わって自分の番になっても消えず残る
+// （不具合#29「自分のターンなのにヒントが出る」）＋自分自身の選択（パーティ等、全員が選ぶ
+// 効果での自分の分）中にも残って「CPUの選択を代行させられている」ように見える（#30）原因に
+// なっていた。turn-timerのtick（約200msごと）から毎回この関数で現在の状態を見て出し消しする。
+export function syncCpuStepHint() {
+  const waiting =
+    isCpuBattleActive() &&
+    !isOnlineMode() &&
+    !isCpuAutoSkipEnabled() &&
+    !!activeEffectPicker &&
+    isPseudoCpuTarget(getState().priorityPlayer || getAutoDriveSeat());
+  if (waiting) showCpuStepHint();
+  else hideCpuStepHint();
+}
 // ローカルCPU戦で、CPU(疑似CPU)が選択待ちのモーダル（パーティ等の選択肢・色宣言・
 // 到達のマス選択など、activeEffectPickerで登録されるもの）を持っている間は、人間が
 // その選択を代わりに押せないようにする（ユーザー報告「CPUの選択肢を私が押せてしまう」）。
