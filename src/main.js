@@ -2937,18 +2937,23 @@ function showCpuStepHint() {
 function hideCpuStepHint() {
   if (cpuStepHintEl) cpuStepHintEl.classList.remove("show");
 }
-// CPU自動スキップOFF中、CPUのモーダルが待機している時に画面のどこをクリックしても
-// 「1手」だけ発券して進める。CPUのモーダルの下にあるUIには伝えない（capture段階で握る）。
+// ローカルCPU戦で、CPU(疑似CPU)が選択待ちのモーダル（パーティ等の選択肢・色宣言・
+// 到達のマス選択など、activeEffectPickerで登録されるもの）を持っている間は、人間が
+// その選択を代わりに押せないようにする（ユーザー報告「CPUの選択肢を私が押せてしまう」）。
+// capture段階でクリックを握り、下のモーダルのボタン等へは一切伝えない。
+// - 自動スキップON（既定）: クリックしても何も起きない。CPUの手はタイマーが自動で解決する。
+// - 自動スキップOFF: このクリックで「1手」だけ発券して進める（クリックで1手ずつ読む機能）。
 document.addEventListener(
   "click",
   (e) => {
-    if (!isCpuBattleActive() || isOnlineMode() || isCpuAutoSkipEnabled()) return;
+    if (!isCpuBattleActive() || isOnlineMode()) return;
     if (!activeEffectPicker) return;
     const owner = getState().priorityPlayer || getAutoDriveSeat();
     if (!isPseudoCpuTarget(owner)) return; // 人間の選択待ちなら邪魔しない
     e.preventDefault();
     e.stopPropagation();
-    releaseCpuStep();
+    // 自動スキップOFFの時だけ、このクリックを「1手進める」発券に使う。
+    if (!isCpuAutoSkipEnabled()) releaseCpuStep();
   },
   true
 );
