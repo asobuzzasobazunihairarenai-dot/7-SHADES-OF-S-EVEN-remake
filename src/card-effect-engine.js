@@ -1296,8 +1296,10 @@ async function runAction(action, ctx, helpers) {
         // （remote-move-animator.js）が誤って到達を再現しないようにする。
         await helpers.moveAndSync(ctx.pieceTokenId, dest, undefined, true);
         ctx.pieceLocation = { row: dest.row, col: dest.col };
-        // ユーザー要望2026-08-07「試練の儀式で何を踏んだか画面中央に出して知らしめたい」。
-        // 踏んだ（置いて移動した）カードを中央に大きく見せてから、宣言色に当たったか判定する。
+        // ユーザー要望2026-08-08「移動先をしっかり周知した後、じらしフリップで」。駒が移動先へ
+        // 進んだ姿を一拍見せて（周知）から、中央のじらしフリップで踏んだカードを公開する。
+        await helpers.delay?.(500);
+        // 踏んだ（置いて移動した）カードを中央に大きく“じらしてフリップ”で見せてから、当たり判定へ。
         await helpers.announceSteppedCard?.(placedCardId);
         const placedColor = getCardDefinition(placedCardId)?.color;
         const isMatch = placedCardId === "rainbow-shard" || declaredColors.includes(placedColor);

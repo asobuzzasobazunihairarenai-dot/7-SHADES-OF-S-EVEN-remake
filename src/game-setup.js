@@ -106,7 +106,11 @@ function buildSimpleModal({ widthRem = 24, fadeIn = false, autoDismissMs = null,
 }
 
 export function showStartPlayerModal(player, { onClose = null, autoDismissMs = 8000 } = {}) {
-  const { modal } = buildSimpleModal({ widthRem: 20, fadeIn: true, autoDismissMs, onClose, blocksInput: false });
+  const { modal, close } = buildSimpleModal({ widthRem: 20, fadeIn: true, autoDismissMs, onClose, blocksInput: false });
+  // ユーザー要望2026-08-08「スタートプレイヤー決定モーダルを適当な場所クリックで閉じたい」。
+  // このモーダルはお知らせ的（blocksInput:false）で背景クリックは盤面へ素通しする設計のため、
+  // モーダル本体のどこをクリックしても閉じられるようにする（✕クリックも同じcloseに集約）。
+  modal.addEventListener("click", close);
   // ライトテーマ（対戦画面）用の識別子。共通のbuildSimpleModal（設定フォーム等でも使う）
   // 全体ではなく、この発表モーダルだけをライト化の対象にするためのクラス（style.css参照）。
   modal.classList.add("start-player-announce");

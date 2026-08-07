@@ -1994,7 +1994,9 @@ async function announceEffectFizzleForEffect(cardId, addsToHand) {
 // （ユーザー要望2026-08-07「試練の儀式で何を踏んだか画面中央に出して知らしめたい」）。
 // showCardReceivedModal（awaitable）を「踏んだ」ラベルで流用する。
 function announceSteppedCardForEffect(cardId) {
-  return showCardReceivedModal(cardId, "試練の儀式で踏みました", { labelText: "踏んだ" });
+  // ユーザー要望2026-08-08「試練の儀式も、移動先をしっかり周知した後、じらしフリップで」。
+  // ザ・ギャンブルと同じ中央“じらしフリップ”で踏んだカードを公開する（静的な受け取りモーダルから変更）。
+  return playCenterCardFlipReveal(cardId, { labelText: "踏んだ" });
 }
 
 // プレゼントの到達効果（１番少なくロックしている全員がドロー）等で、「誰が対象か」を

@@ -10404,7 +10404,7 @@ body:not(.is-admin-user) .opening-admin-btn {
   --sound-volume-turn-switch: 80%;
   --sound-volume-swap: 80%;
   --sound-volume-jump: 80%;
-  --sound-volume-victory-bgm: 80%;
+  --sound-volume-victory-bgm: 40%;
   --sound-volume-opening-bgm: 40%;
   --sound-volume-game-bgm: 40%;
   --sound-volume-waiting-bgm: 40%;

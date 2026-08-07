@@ -304,13 +304,66 @@ function getPerSoundVolume(cssVar) {
 // CSS変数（--sound-volume-victory-bgm）で音量を管理する。ループはしない（勝利の瞬間に
 // 1回だけ再生するBGM）ため、オープニングBGMのような使い回しAudioインスタンスは不要で、
 // 効果音と同じ「毎回new Audio()」のままでよい。
-export function playVictoryBgm() {
+// 使い回す単一インスタンスにして、管理者モードの試聴（トグル）で止められるようにする
+// （ユーザー要望2026-08-08「試聴開始したら停止ボタンに変わるように」）。実際の勝利時は
+// loop=falseの一回きり、試聴時はloop=trueで止めるまでループする。
+let victoryBgmAudio = null;
+let victoryBgmGain = null;
+let victoryBgmFadeIntervalId = null;
+export function playVictoryBgm(loop = false) {
   const volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-victory-bgm")));
-  if (volume <= 0) return;
-  const audio = new Audio("assets/sounds/victory-bgm.mp3");
-  const gainNode = attachGainNode(audio);
-  setBgmTrackVolume(audio, gainNode, volume);
-  audio.play().catch(() => {});
+  if (volume <= 0 && !loop) return; // 実際の勝利時は音量0なら鳴らさない（従来通り）
+  if (!victoryBgmAudio) {
+    victoryBgmAudio = new Audio("assets/sounds/victory-bgm.mp3");
+    victoryBgmGain = attachGainNode(victoryBgmAudio);
+  }
+  if (victoryBgmFadeIntervalId) {
+    clearInterval(victoryBgmFadeIntervalId);
+    victoryBgmFadeIntervalId = null;
+  }
+  victoryBgmAudio.loop = loop;
+  setBgmTrackVolume(victoryBgmAudio, victoryBgmGain, volume);
+  victoryBgmAudio.currentTime = 0;
+  victoryBgmAudio.play().catch(() => {});
+}
+export function stopVictoryBgm(durationMs = 300) {
+  if (!victoryBgmAudio || victoryBgmAudio.paused) return;
+  if (victoryBgmFadeIntervalId) clearInterval(victoryBgmFadeIntervalId);
+  const startVolume = victoryBgmGain ? victoryBgmGain.gain.value : victoryBgmAudio.volume;
+  const stepMs = 30;
+  const steps = Math.max(1, Math.round(durationMs / stepMs));
+  let step = 0;
+  victoryBgmFadeIntervalId = setInterval(() => {
+    step++;
+    const ratio = Math.max(0, 1 - step / steps);
+    setBgmTrackVolume(victoryBgmAudio, victoryBgmGain, startVolume * ratio);
+    if (step >= steps) {
+      clearInterval(victoryBgmFadeIntervalId);
+      victoryBgmFadeIntervalId = null;
+      victoryBgmAudio.pause();
+      victoryBgmAudio.currentTime = 0;
+    }
+  }, stepMs);
+}
+
+// 管理者モードの各BGMスライダーの「▶ 試聴 / ⏹ 停止」トグル用（ユーザー要望2026-08-08）。
+// 再生中なら止めてfalseを、止まっていたら鳴らしてtrueを返す（呼び出し側がボタン表示を切り替える）。
+// 勝利時BGMだけは試聴中ループさせて、止めるまで鳴り続けるようにする。
+export function toggleBgmPreview(cssVar) {
+  const ctrl = {
+    "--sound-volume-opening-bgm": { getAudio: () => openingBgmAudio, play: playOpeningBgm, stop: stopOpeningBgm },
+    "--sound-volume-game-bgm": { getAudio: () => gameBgmAudio, play: playGameBgm, stop: stopGameBgm },
+    "--sound-volume-waiting-bgm": { getAudio: () => waitingBgmAudio, play: playWaitingBgm, stop: stopWaitingBgm },
+    "--sound-volume-victory-bgm": { getAudio: () => victoryBgmAudio, play: () => playVictoryBgm(true), stop: stopVictoryBgm },
+  }[cssVar];
+  if (!ctrl) return false;
+  const audio = ctrl.getAudio();
+  if (audio && !audio.paused) {
+    ctrl.stop(0);
+    return false;
+  }
+  ctrl.play();
+  return true;
 }
 
 // ユーザー要望「管理者モードでBGMを個別調整するとき実際に音量確認でそのBGMを
@@ -320,24 +373,20 @@ export function playVictoryBgm() {
 // 既に再生中ならcurrentTimeをリセットせず音量だけ更新し（毎回頭出しされて耳障りに
 // ならないように）、まだ再生していなければ各playXBgm()で最初から始める。
 export function previewBgmVolume(cssVar) {
+  // 開始/停止は「▶ 試聴」トグル（toggleBgmPreview）が担うので、ここではスライダー操作中に
+  // 「今試聴で鳴っているBGMの音量をその場で更新する」だけにする（鳴っていなければ何もしない）。
   const trackByVar = {
-    "--sound-volume-opening-bgm": { getAudio: () => openingBgmAudio, getGain: () => openingBgmGain, play: playOpeningBgm },
-    "--sound-volume-game-bgm": { getAudio: () => gameBgmAudio, getGain: () => gameBgmGain, play: playGameBgm },
-    "--sound-volume-waiting-bgm": { getAudio: () => waitingBgmAudio, getGain: () => waitingBgmGain, play: playWaitingBgm },
+    "--sound-volume-opening-bgm": { getAudio: () => openingBgmAudio, getGain: () => openingBgmGain },
+    "--sound-volume-game-bgm": { getAudio: () => gameBgmAudio, getGain: () => gameBgmGain },
+    "--sound-volume-waiting-bgm": { getAudio: () => waitingBgmAudio, getGain: () => waitingBgmGain },
+    "--sound-volume-victory-bgm": { getAudio: () => victoryBgmAudio, getGain: () => victoryBgmGain },
   };
   const track = trackByVar[cssVar];
-  if (!track) {
-    // 勝利時BGMはループ無し・使い回しインスタンスも無い一回きりの再生のため、
-    // 毎回そのまま新規再生でよい。
-    if (cssVar === "--sound-volume-victory-bgm") playVictoryBgm();
-    return;
-  }
+  if (!track) return;
   const audio = track.getAudio();
   if (audio && !audio.paused) {
     const volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume(cssVar)));
     setBgmTrackVolume(audio, track.getGain(), volume);
-  } else {
-    track.play();
   }
 }
 
