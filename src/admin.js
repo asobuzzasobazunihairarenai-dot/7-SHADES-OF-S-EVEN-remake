@@ -1069,10 +1069,10 @@ const GROUPS = [
     title: "📱 スマホ専用：手札の画面下固定トレイの位置・サイズ・回転（「手札を画面下に固定する」ON時）",
     category: "phone",
     controls: [
-      { key: "--fixed-hand-bottom-phone", label: "下からの位置（スマホ）", unit: "rem", min: -4, max: 40, step: 0.1, default: 0.5 },
-      { key: "--fixed-hand-x-offset-phone", label: "横方向のずれ（スマホ）", unit: "rem", min: -40, max: 40, step: 0.1, default: 0 },
+      { key: "--fixed-hand-bottom-phone", label: "下からの位置（スマホ）", unit: "rem", min: -4, max: 40, step: 0.1, default: 19.5 },
+      { key: "--fixed-hand-x-offset-phone", label: "横方向のずれ（スマホ）", unit: "rem", min: -40, max: 40, step: 0.1, default: -33.4 },
       { key: "--fixed-hand-scale-phone", label: "全体サイズ（倍率・スマホ）", unit: "", min: 0.3, max: 3, step: 0.05, default: 1 },
-      { key: "--fixed-hand-rotate-phone", label: "回転（平面内・スマホ）", unit: "deg", min: -180, max: 180, step: 1, default: 0 },
+      { key: "--fixed-hand-rotate-phone", label: "回転（平面内・スマホ）", unit: "deg", min: -180, max: 180, step: 1, default: 64 },
     ],
   },
   {
