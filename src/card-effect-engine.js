@@ -819,7 +819,7 @@ async function runAction(action, ctx, helpers) {
       if (!token) return false;
       const wasFaceUp = token.faceUp; // 手札に入ると自動で表向きになるため、移動前の状態を保持しておく
       await helpers.moveAndSync(token.id, { zone: "hand", player: ctx.player });
-      helpers.onCardAcquiredToHand?.(token.id, token.cardId, wasFaceUp);
+      helpers.onCardAcquiredToHand?.(token.id, token.cardId, wasFaceUp, ctx.player);
       if (action.target?.saveAs) {
         ctx.selections[action.target.saveAs] = chosen;
         helpers.markPlacementTarget?.(chosen);

@@ -628,7 +628,7 @@ body.fixed-hand-mode #mini-lock-area {
 #mini-lock-area-top {
   position: fixed;
   left: 50%;
-  top: var(--mini-lock-top, 0.5rem);
+  top: var(--mini-lock-top, 2.2rem);
   /* 相手のミニロックは独自の横ずれ(--mini-lock-top-x-offset)で調整できる。未設定なら
      従来通り自分と共通の--mini-lock-x-offsetにフォールバック（ユーザー要望2026-08-07）。 */
   transform: translateX(calc(-50% + var(--mini-lock-top-x-offset, var(--mini-lock-x-offset, 0rem))));
@@ -7005,7 +7005,12 @@ body.diagnostic-flatten-3d .piece-top {
 .card-open-prompt {
   position: fixed;
   transform: translate(-50%, calc(-100% - 0.5rem));
-  z-index: 10400;
+  /* 不具合#34「接触するボタンの左端しか反応しない」。このプロンプトはbody直下のz-index
+     10400だが、フローティングUI全部を載せる #option-area がz-index 50100のbody兄弟のため、
+     その中の操作可能な子（特に盤面上部にある相手プレイヤーのステータス/アバターパネル）が
+     プロンプトより前面に来て、相手の近くで出る接触ボタンの右側のクリックを奪っていた。
+     #option-areaより前面へ上げ、ボタン全域が確実にクリックできるようにする。 */
+  z-index: 50200;
   display: flex;
   gap: 0.4rem;
   background: rgba(15, 23, 32, 0.92);

@@ -2346,7 +2346,7 @@ async function runPartyOptionTask(player) {
     if (!token) return false;
     const wasFaceUp = token.faceUp;
     await moveAndSyncForEffect(token.id, { zone: "hand", player });
-    onEffectCardAcquiredToHand(token.id, token.cardId, wasFaceUp);
+    onEffectCardAcquiredToHand(token.id, token.cardId, wasFaceUp, player);
     return true;
   }
   // open-two: 2枚選んでオープンする（手札に加えず、その場でめくるだけ）。
@@ -3337,7 +3337,13 @@ function requestPlayerChoiceForEffect(candidates, hint, options = {}) {
 // 手札の中で効果が終わるまで光らせてください」。既存のannounceHandPickups（他の
 // カード獲得と同じ見た目のトースト）で「何を得たか」を知らせ、glowingEffectHandTokenIdを
 // 立てて手札内で光らせ続ける（clearEffectUiHighlightsが呼ばれるまで）。
-function onEffectCardAcquiredToHand(tokenId, cardId, wasFaceUp) {
+// 不具合#35: 収穫と種まき等のPICKUP_TO_HANDで手札に加わったカードのお知らせ＋手札での発光。
+// 以前は取得プレイヤーに関わらず getSelfSeat() で通知＆発光していたため、CPU戦でCPU(C)が
+// 収穫と種まきで取ったカードが「あなた（＝画面の持ち主）が獲得」として中身ごと表示され、
+// CPUの手札がバレていた。実際に取った player を受け取り、自分（この画面の席）が取った時
+// だけ通知＆発光する（他席が取った時は何もしない——CPUの取得は伏せたまま）。
+function onEffectCardAcquiredToHand(tokenId, cardId, wasFaceUp, player) {
+  if (player !== undefined && player !== getSelfSeat()) return;
   announceHandPickups(getSelfSeat(), [{ cardId, wasPublic: wasFaceUp }]);
   glowingEffectHandTokenId = tokenId;
   render();
