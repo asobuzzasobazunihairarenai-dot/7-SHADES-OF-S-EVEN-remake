@@ -6774,48 +6774,55 @@ function updateMiniLockArea() {
     return;
   }
   miniLockAreaEl.style.display = "";
-  // 自分のロック状況（色スロットindex → {cardId, tokenId}）。location.sideは実座標の側（回転前）。
-  const selfSide = SEAT_TO_SIDE[self];
-  const lockedByIndex = {};
+  // ユーザー要望2026-08-07「ミニロックエリアを相手プレイヤーにも」。全参加プレイヤーのロック
+  // 状況を出す。並びは「相手→自分」で、自分が一番下（画面手前）に来るようにする。
+  // 各プレイヤーのロック状況（player → {index: {cardId, tokenId}}）。location.sideは実座標の側。
+  const active = state.activePlayers ?? [];
+  const lockByPlayer = {};
   for (const t of state.tokens) {
-    if (t.kind === "card" && t.location.zone === "lock" && t.location.side === selfSide) {
-      lockedByIndex[t.location.index] = { cardId: t.cardId, tokenId: t.id };
-    }
+    if (t.kind !== "card" || t.location.zone !== "lock") continue;
+    const p = SIDE_TO_SEAT[t.location.side];
+    if (!p || !active.includes(p)) continue;
+    (lockByPlayer[p] ??= {})[t.location.index] = { cardId: t.cardId, tokenId: t.id };
   }
-  // ロック中でも使えるカード（ファースト/エターナル）はクリックで使えるようにするため、
-  // その有無もシグネチャに含める（作り直しの判定用）。
-  const sig = COLORS.map((c, i) => lockedByIndex[i]?.cardId || "").join("|");
-  if (sig === miniLockAreaSig) return; // 中身が変わっていなければ作り直さない（パン中の無駄を防ぐ）
+  const ordered = [...active.filter((p) => p !== self), ...(active.includes(self) ? [self] : [])];
+  // シグネチャ（中身が変わっていなければ作り直さない）は全プレイヤーのロック内容から作る。
+  const sig = ordered.map((p) => p + ":" + COLORS.map((c, i) => lockByPlayer[p]?.[i]?.cardId || "").join(",")).join("|");
+  if (sig === miniLockAreaSig) return;
   miniLockAreaSig = sig;
   miniLockAreaEl.innerHTML = "";
-  const lockedCount = Object.keys(lockedByIndex).length;
-  const label = document.createElement("div");
-  label.className = "mini-lock-area-label";
-  label.textContent = `ロック ${lockedCount}/7`;
-  miniLockAreaEl.appendChild(label);
-  const row = document.createElement("div");
-  row.className = "mini-lock-area-slots";
-  COLORS.forEach((color, index) => {
-    const slot = document.createElement("div");
-    slot.className = "mini-lock-slot";
-    slot.style.setProperty("--slot-color", `var(--color-${color})`);
-    const entry = lockedByIndex[index];
-    if (entry) {
-      slot.classList.add("is-locked");
-      slot.style.backgroundImage = `url("${getCardImagePath(entry.cardId)}")`;
-      // ユーザー要望2026-08-07「ミニロックエリアのファーストカード等もクリックで使えるように」。
-      // ロック中でも使えるカード（ファースト/エターナル）は、実ロックエリアと同じ
-      // tryUseLockedUsableCardの使用フローへ。クリックできるようpointer-events:autoにする
-      // （#mini-lock-area自体はpointer-events:none）。使用可否・タイミングはtryUse側が判定する。
-      if (entry.cardId && (entry.cardId.startsWith("first-") || entry.cardId.startsWith("eternal-"))) {
-        slot.classList.add("is-usable");
-        slot.dataset.tokenId = entry.tokenId;
-        slot.addEventListener("click", () => void tryUseLockedUsableCard(entry.tokenId));
+  for (const p of ordered) {
+    const isSelf = p === self;
+    const locked = lockByPlayer[p] ?? {};
+    const playerRow = document.createElement("div");
+    playerRow.className = `mini-lock-player${isSelf ? " is-self" : ""}`;
+    const label = document.createElement("div");
+    label.className = "mini-lock-area-label";
+    label.textContent = `${isSelf ? "自分" : getPlayerName(p)} ${Object.keys(locked).length}/7`;
+    playerRow.appendChild(label);
+    const slots = document.createElement("div");
+    slots.className = "mini-lock-area-slots";
+    COLORS.forEach((color, index) => {
+      const slot = document.createElement("div");
+      slot.className = "mini-lock-slot";
+      slot.style.setProperty("--slot-color", `var(--color-${color})`);
+      const entry = locked[index];
+      if (entry) {
+        slot.classList.add("is-locked");
+        slot.style.backgroundImage = `url("${getCardImagePath(entry.cardId)}")`;
+        // ロック中でも使えるカード（ファースト/エターナル）は、自分の分だけクリックで使える
+        // （実ロックエリアと同じtryUseLockedUsableCard。相手の分は表示のみ）。
+        if (isSelf && entry.cardId && (entry.cardId.startsWith("first-") || entry.cardId.startsWith("eternal-"))) {
+          slot.classList.add("is-usable");
+          slot.dataset.tokenId = entry.tokenId;
+          slot.addEventListener("click", () => void tryUseLockedUsableCard(entry.tokenId));
+        }
       }
-    }
-    row.appendChild(slot);
-  });
-  miniLockAreaEl.appendChild(row);
+      slots.appendChild(slot);
+    });
+    playerRow.appendChild(slots);
+    miniLockAreaEl.appendChild(playerRow);
+  }
 }
 
 // 自分の手札をあえて画面下部で見切れさせている場合向け（ユーザー要望）: PCではホバーで、

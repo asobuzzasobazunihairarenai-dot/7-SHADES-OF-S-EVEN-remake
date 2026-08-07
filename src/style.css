@@ -628,8 +628,23 @@ body.fixed-hand-mode #mini-lock-area {
   font-family: sans-serif;
   font-size: 0.72rem;
   font-weight: bold;
-  color: #e2e8f0;
+  color: #cbd5e1;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  min-width: 5.5rem;
+  max-width: 8rem;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* プレイヤー1人分の行（相手も含め全員分を積む。ユーザー要望2026-08-07）。自分の行を強調。 */
+.mini-lock-player {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.mini-lock-player.is-self .mini-lock-area-label {
+  color: #fde68a;
 }
 .mini-lock-area-slots {
   display: flex;
