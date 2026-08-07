@@ -728,6 +728,15 @@ const GROUPS = [
     ],
   },
   {
+    title: "手札を画面下に固定する時のトレイ（手札＋公開エリアの位置・全体サイズ）",
+    category: "position-self",
+    controls: [
+      { key: "--fixed-hand-bottom", label: "下からの位置", unit: "rem", min: -2, max: 20, step: 0.1, default: 0.5 },
+      { key: "--fixed-hand-x-offset", label: "横方向のずれ", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--fixed-hand-scale", label: "全体サイズ（倍率）", unit: "", min: 0.4, max: 2, step: 0.05, default: 1 },
+    ],
+  },
+  {
     title: "手札エリアのサイズ（手札3枚時が基準。枚数に応じて自動で伸縮）",
     category: "position-self",
     controls: [

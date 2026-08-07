@@ -562,8 +562,10 @@ img {
 #self-hand-overlay {
   position: fixed;
   left: 50%;
-  bottom: 0.5rem;
-  transform: translateX(-50%);
+  /* 位置・全体サイズは管理者モードで調整可能（ユーザー要望2026-08-07）。 */
+  bottom: var(--fixed-hand-bottom, 0.5rem);
+  transform: translateX(calc(-50% + var(--fixed-hand-x-offset, 0rem))) scale(var(--fixed-hand-scale, 1));
+  transform-origin: bottom center;
   z-index: 60;
   display: flex;
   flex-direction: column-reverse;
@@ -638,6 +640,22 @@ body.fixed-hand-mode #mini-lock-area {
 }
 .mini-lock-slot.is-locked {
   opacity: 1;
+}
+/* ロック中でも使えるカード（ファースト/エターナル）はミニロックエリアでもクリックできる。
+   #mini-lock-areaはpointer-events:noneなので、このスロットだけ有効化＋使えることを光って示す。 */
+.mini-lock-slot.is-usable {
+  pointer-events: auto;
+  cursor: pointer;
+  border-color: #fde68a;
+  box-shadow: 0 0 0.5rem #fde68a, 0 0 0.9rem var(--slot-color, transparent);
+  animation: mini-lock-usable-pulse 1.3s ease-in-out infinite;
+}
+@keyframes mini-lock-usable-pulse {
+  0%, 100% { box-shadow: 0 0 0.4rem #fde68a, 0 0 0.7rem var(--slot-color, transparent); }
+  50% { box-shadow: 0 0 0.8rem #fff7cc, 0 0 1.3rem var(--slot-color, transparent); }
+}
+body.reduce-glow .mini-lock-slot.is-usable {
+  animation: none;
 }
 
 /* 各プレイヤーの手札が盤面中心からどれだけ離れているか（＝手札ゾーンの画面上の位置）を

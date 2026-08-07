@@ -1255,6 +1255,9 @@ async function runAction(action, ctx, helpers) {
         // （remote-move-animator.js）が誤って到達を再現しないようにする。
         await helpers.moveAndSync(ctx.pieceTokenId, dest, undefined, true);
         ctx.pieceLocation = { row: dest.row, col: dest.col };
+        // ユーザー要望2026-08-07「試練の儀式で何を踏んだか画面中央に出して知らしめたい」。
+        // 踏んだ（置いて移動した）カードを中央に大きく見せてから、宣言色に当たったか判定する。
+        await helpers.announceSteppedCard?.(placedCardId);
         const placedColor = getCardDefinition(placedCardId)?.color;
         const isMatch = placedCardId === "rainbow-shard" || declaredColors.includes(placedColor);
         // 続き65: 置いたカードで宣言色が判明した瞬間なので、常駐していた色宣言表示を消す

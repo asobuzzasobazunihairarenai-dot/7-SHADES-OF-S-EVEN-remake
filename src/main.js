@@ -1666,7 +1666,11 @@ function announceGateInvasionSuccessBeforeStealPick(defender, count) {
   });
 }
 
-async function stealHandCardsRitualForGateInvasion(defender, count) {
+// onPicked（省略可）: 1枚選ぶ（＋中央に「奪った」表示）ごとに呼ばれる。ローカルのゲート侵攻は
+// これで「1枚ごとに実際に自分の手札へ移す」（ユーザー要望2026-08-07「複数枚奪う時、1枚ずつ
+// 手札に描画。今はまとめて最後に加わる」）。オンラインは奪う札のidを集めるだけ（実際の移動は
+// サーバー）なので onPicked を渡さない＝従来通りまとめて。
+async function stealHandCardsRitualForGateInvasion(defender, count, onPicked) {
   const stolen = [];
   const excludeTokenIds = new Set();
   for (let i = 0; i < count; i++) {
@@ -1678,6 +1682,7 @@ async function stealHandCardsRitualForGateInvasion(defender, count) {
     if (!token) break;
     stolen.push(token);
     excludeTokenIds.add(token.id);
+    if (onPicked) await onPicked(token);
   }
   return stolen;
 }
@@ -1767,6 +1772,13 @@ async function announceEffectChoiceForEffect(cardId, player, optionLabel) {
 async function announceEffectFizzleForEffect(cardId, addsToHand) {
   await showAndAwaitEffectReason(cardId, addsToHand ? "不発のため、このカードを手札に加えます。" : "不発のため、何も起きませんでした。");
   return;
+}
+
+// 試練の儀式で「踏んだ（隣に置いて移動した）カード」が何かを画面中央に大きく見せて周知する
+// （ユーザー要望2026-08-07「試練の儀式で何を踏んだか画面中央に出して知らしめたい」）。
+// showCardReceivedModal（awaitable）を「踏んだ」ラベルで流用する。
+function announceSteppedCardForEffect(cardId) {
+  return showCardReceivedModal(cardId, "試練の儀式で踏みました", { labelText: "踏んだ" });
 }
 
 // プレゼントの到達効果（１番少なくロックしている全員がドロー）等で、「誰が対象か」を
@@ -3919,6 +3931,8 @@ async function runAutoArrivalEffect(cardId, location, player) {
       announceEffectChoice: announceEffectChoiceForEffect,
       // プレゼントの到達効果等で「誰がドロー対象か」を画面中央にアバターで周知する用。
       announceDrawTargets: announceDrawTargetsForEffect,
+      // 試練の儀式で「踏んだカード」を画面中央に見せる用。
+      announceSteppedCard: announceSteppedCardForEffect,
       // 効果結果お知らせ（続き）用に、効果側でプレイヤー名を文面へ埋め込めるようにする。
       getPlayerName,
       // 色宣言の結果が判明した合図（続き65）。
@@ -6747,15 +6761,17 @@ function updateMiniLockArea() {
     return;
   }
   miniLockAreaEl.style.display = "";
-  // 自分のロック状況（色スロットindex → cardId）。location.sideは実座標の側（回転前）。
+  // 自分のロック状況（色スロットindex → {cardId, tokenId}）。location.sideは実座標の側（回転前）。
   const selfSide = SEAT_TO_SIDE[self];
   const lockedByIndex = {};
   for (const t of state.tokens) {
     if (t.kind === "card" && t.location.zone === "lock" && t.location.side === selfSide) {
-      lockedByIndex[t.location.index] = t.cardId;
+      lockedByIndex[t.location.index] = { cardId: t.cardId, tokenId: t.id };
     }
   }
-  const sig = COLORS.map((c, i) => lockedByIndex[i] || "").join("|");
+  // ロック中でも使えるカード（ファースト/エターナル）はクリックで使えるようにするため、
+  // その有無もシグネチャに含める（作り直しの判定用）。
+  const sig = COLORS.map((c, i) => lockedByIndex[i]?.cardId || "").join("|");
   if (sig === miniLockAreaSig) return; // 中身が変わっていなければ作り直さない（パン中の無駄を防ぐ）
   miniLockAreaSig = sig;
   miniLockAreaEl.innerHTML = "";
@@ -6770,10 +6786,19 @@ function updateMiniLockArea() {
     const slot = document.createElement("div");
     slot.className = "mini-lock-slot";
     slot.style.setProperty("--slot-color", `var(--color-${color})`);
-    const cardId = lockedByIndex[index];
-    if (cardId) {
+    const entry = lockedByIndex[index];
+    if (entry) {
       slot.classList.add("is-locked");
-      slot.style.backgroundImage = `url("${getCardImagePath(cardId)}")`;
+      slot.style.backgroundImage = `url("${getCardImagePath(entry.cardId)}")`;
+      // ユーザー要望2026-08-07「ミニロックエリアのファーストカード等もクリックで使えるように」。
+      // ロック中でも使えるカード（ファースト/エターナル）は、実ロックエリアと同じ
+      // tryUseLockedUsableCardの使用フローへ。クリックできるようpointer-events:autoにする
+      // （#mini-lock-area自体はpointer-events:none）。使用可否・タイミングはtryUse側が判定する。
+      if (entry.cardId && (entry.cardId.startsWith("first-") || entry.cardId.startsWith("eternal-"))) {
+        slot.classList.add("is-usable");
+        slot.dataset.tokenId = entry.tokenId;
+        slot.addEventListener("click", () => void tryUseLockedUsableCard(entry.tokenId));
+      }
     }
     row.appendChild(slot);
   });

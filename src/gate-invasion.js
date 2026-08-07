@@ -126,10 +126,16 @@ function runStealHand(attacker, defender, onDone) {
     return;
   }
   showBonusStepModal(`${getPlayerName(attacker)}はゲート侵攻成功！\n${getPlayerName(defender)}の手札${count}枚を無作為に奪います。`, async () => {
+    // ユーザー要望2026-08-07「複数枚奪う時、1枚ごとに実際に自分の手札へ描画。今はまとめて最後」。
+    // 儀式ヘルパー（1枚ずつ選んで中央に見せる）経由なら、選ぶたびにその1枚を手札へ移して再描画する。
     const stolenTokens = stealHandRitualHelper
-      ? await stealHandRitualHelper(defender, count)
+      ? await stealHandRitualHelper(defender, count, (t) => {
+          gateInvasionStealHand(attacker, [t.id]);
+          notifyChange();
+        })
       : shuffled(defenderHand).slice(0, count);
-    gateInvasionStealHand(attacker, stolenTokens.map((t) => t.id));
+    // ヘルパーが無いフォールバック（無作為・儀式なし）の時だけ、ここでまとめて移す。
+    if (!stealHandRitualHelper) gateInvasionStealHand(attacker, stolenTokens.map((t) => t.id));
     notifyChange();
     announceHandPickups(attacker, stolenTokens.map((t) => ({ cardId: t.cardId, wasPublic: false })));
     onDone();
