@@ -1018,7 +1018,13 @@ async function runAction(action, ctx, helpers) {
       // に沿うよう、SEAT_ORDERをctx.playerから時計回りに並べ替えてから絞り込む。
       const qualifying = rotatedActivePlayersFrom(ctx.player).filter((p) => isFewestLocked(p));
       if (qualifying.length === 0) return false;
-      await helpers.announceEffectReason?.(ctx.cardId, "１番少なくロックしている全員が１枚ドローします。");
+      // ユーザー要望2026-08-07「プレゼントの到達効果で誰がドロー対象なのか画面中央にアバターで
+      // 周知したい」。対象者のアバターを並べて見せる（未対応環境では従来のテキスト通知に戻す）。
+      if (helpers.announceDrawTargets) {
+        await helpers.announceDrawTargets(qualifying, "１番少なくロックしている人が１枚ドロー");
+      } else {
+        await helpers.announceEffectReason?.(ctx.cardId, "１番少なくロックしている全員が１枚ドローします。");
+      }
       for (const p of qualifying) {
         await helpers.drawCards(p, 1);
       }

@@ -1152,7 +1152,7 @@ async function swapPiecesForEffect(pieceTokenId, fromLocation, targetLocation) {
 // excludeTokenIds（省略可、Set）: ゲート侵攻ボーナスの「手札を半分奪う」のように
 // 同じ相手の手札から複数枚を連続で儀式的に選ばせる時、既に選び終えた分を次回の
 // 候補から除外するために使う（stealHandCardsRitualForGateInvasion参照）。
-function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds) {
+function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, revealLabel = "奪った") {
   return new Promise((resolve) => {
     const theirHand = getState().tokens.filter(
       (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === targetPlayer && !excludeTokenIds?.has(t.id)
@@ -1181,13 +1181,23 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds) {
     // 1枚を選べるようにする。settled二重呼び防止のため、通常のクリック/背景クリック
     // による決着もこの同じfinish()経由に統一する。
     let settled = false;
-    function finish(token) {
+    async function finish(token) {
       if (settled) return;
       settled = true;
       activeEffectPicker = null;
       backdrop.remove();
       modal.remove();
       if (isRitualBroadcastTarget) broadcastRitualPickEnded({ targetPlayer, pickedTokenId: token?.id ?? null });
+      // 奪った（受け取った）カードが何かを、画面中央に大きく見せて周知する（奪う側は裏向きしか
+      // 見ていないため。ユーザー要望2026-08-07「スリカエ・ゲート侵攻で何を奪ったか分かるように」）。
+      // showCardReceivedModalはこの画面にだけ出す（ブロードキャストしない）ので、1画面共有の
+      // ローカルでもオンラインの引いた本人でも、それぞれの画面で見える。閉じる（クリック/自動）まで
+      // 待ってから解決するので、複数枚（ゲート侵攻）でも1枚ずつ順番に見せられる。
+      if (token) {
+        const actor = getState().turnPlayer;
+        const sub = actor && actor !== targetPlayer ? `${getPlayerName(actor)}が${getPlayerName(targetPlayer)}から` : `${getPlayerName(targetPlayer)}から`;
+        await showCardReceivedModal(token.cardId, sub, { labelText: revealLabel });
+      }
       resolve(token ?? null);
     }
     // ユーザー報告#10「スリカエでカードを選ぶとき、適当な場所（＝カード以外の背景）を
@@ -1577,7 +1587,14 @@ onCursorPositionEvents((payload) => {
 // 受け取りも巻き戻して効果全体を安全に中断できるようにする（以前の「まだ何も
 // 動かしていない」前提が崩れるため、この巻き戻しが必要になった）。
 async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
-  const theirCard = await requestOpponentHandRitualPick(targetPlayer, `${getPlayerName(targetPlayer)}の手札（裏向き）から1枚選んでください`);
+  // スリカエは交換なので、奪ったカードの中央表示ラベルは「受け取った」にする（ゲート侵攻の
+  // 一方的な奪取は既定の「奪った」）。requestOpponentHandRitualPick 側で theirCard を中央に見せる。
+  const theirCard = await requestOpponentHandRitualPick(
+    targetPlayer,
+    `${getPlayerName(targetPlayer)}の手札（裏向き）から1枚選んでください`,
+    undefined,
+    "受け取った"
+  );
   if (!theirCard) return;
   await moveAndSyncForEffect(theirCard.id, { zone: "hand", player });
   const myCard = await requestHandCardChoiceForEffect(player, "相手に渡すカードを手札から選択してください");
@@ -1749,6 +1766,57 @@ async function announceEffectChoiceForEffect(cardId, player, optionLabel) {
 async function announceEffectFizzleForEffect(cardId, addsToHand) {
   await showAndAwaitEffectReason(cardId, addsToHand ? "不発のため、このカードを手札に加えます。" : "不発のため、何も起きませんでした。");
   return;
+}
+
+// プレゼントの到達効果（１番少なくロックしている全員がドロー）等で、「誰が対象か」を
+// 画面中央にアバターで並べて周知する。ユーザー要望2026-08-07。CPU戦の自動スキップOFFで
+// CPUの番のときはクリック待ちで表示（cpuResultHoldActive）、それ以外は一定時間で自動的に閉じる。
+async function announceDrawTargetsForEffect(players, title) {
+  const list = (players ?? []).filter(Boolean);
+  if (list.length === 0) return;
+  const hold =
+    isCpuBattleActive() && !isOnlineMode() && !isCpuAutoSkipEnabled() && isPseudoCpuTarget(getState().turnPlayer);
+  await new Promise((resolve) => {
+    let settled = false;
+    function finish() {
+      if (settled) return;
+      settled = true;
+      cpuResultHoldActive = false;
+      backdrop.remove();
+      modal.remove();
+      resolve();
+    }
+    const backdrop = createBackdrop(finish, { dim: true, zIndex: 10640 });
+    const modal = document.createElement("div");
+    modal.className = "draw-targets-modal";
+    const titleEl = document.createElement("div");
+    titleEl.className = "draw-targets-modal-title";
+    titleEl.textContent = title;
+    modal.appendChild(titleEl);
+    const row = document.createElement("div");
+    row.className = "draw-targets-modal-avatars";
+    for (const p of list) {
+      const item = document.createElement("div");
+      item.className = "draw-targets-modal-item";
+      const avatarEl = document.createElement("div");
+      avatarEl.className = "draw-targets-modal-avatar";
+      applyAvatarContent(avatarEl, getPlayerAvatar(p));
+      const nameEl = document.createElement("div");
+      nameEl.className = "draw-targets-modal-name";
+      nameEl.textContent = getPlayerName(p);
+      item.appendChild(avatarEl);
+      item.appendChild(nameEl);
+      row.appendChild(item);
+    }
+    modal.appendChild(row);
+    modal.appendChild(createModalCloseX(finish));
+    modal.addEventListener("click", finish);
+    document.body.appendChild(backdrop);
+    document.body.appendChild(modal);
+    requestAnimationFrame(() => modal.classList.add("show"));
+    if (hold) cpuResultHoldActive = true;
+    else setTimeout(finish, 2900);
+  });
 }
 
 // なないろの欠片のhandEffectOptionsピッカーと全く同じUI（showHandEffectOptionPicker）を
@@ -3848,6 +3916,8 @@ async function runAutoArrivalEffect(cardId, location, player) {
       // 発動理由を一言説明するモーダル用。
       announceEffectReason: announceEffectReasonForEffect,
       announceEffectChoice: announceEffectChoiceForEffect,
+      // プレゼントの到達効果等で「誰がドロー対象か」を画面中央にアバターで周知する用。
+      announceDrawTargets: announceDrawTargetsForEffect,
       // 効果結果お知らせ（続き）用に、効果側でプレイヤー名を文面へ埋め込めるようにする。
       getPlayerName,
       // 色宣言の結果が判明した合図（続き65）。

@@ -194,49 +194,57 @@ export function showCardReceivedModal(cardId, subtitle, { labelText = "受け取
   const modal = document.createElement("div");
   modal.className = "card-received-modal";
 
-  function dismiss() {
-    modal.classList.remove("show");
-    currentReceivedModalBackdrop?.remove();
-    currentReceivedModalBackdrop = null;
-    setTimeout(() => {
-      modal.remove();
-      if (currentReceivedModal === modal) currentReceivedModal = null;
-    }, 300);
-  }
+  // 戻り値は「閉じたら解決するPromise」（呼び出し側が複数枚を順番に見せたい時に await できる）。
+  return new Promise((resolve) => {
+    let settled = false;
+    function dismiss() {
+      modal.classList.remove("show");
+      currentReceivedModalBackdrop?.remove();
+      currentReceivedModalBackdrop = null;
+      setTimeout(() => {
+        modal.remove();
+        if (currentReceivedModal === modal) currentReceivedModal = null;
+      }, 300);
+      if (!settled) {
+        settled = true;
+        resolve();
+      }
+    }
 
-  const backdrop = createBackdrop(dismiss, { dim: true, zIndex: 10640 });
-  currentReceivedModalBackdrop = backdrop;
+    const backdrop = createBackdrop(dismiss, { dim: true, zIndex: 10640 });
+    currentReceivedModalBackdrop = backdrop;
 
-  const label = document.createElement("div");
-  label.className = "card-received-modal-label";
-  label.textContent = labelText;
-  modal.appendChild(label);
+    const label = document.createElement("div");
+    label.className = "card-received-modal-label";
+    label.textContent = labelText;
+    modal.appendChild(label);
 
-  const img = document.createElement("img");
-  img.src = getCardImagePath(cardId);
-  img.alt = def?.name ?? cardId;
-  modal.appendChild(img);
+    const img = document.createElement("img");
+    img.src = getCardImagePath(cardId);
+    img.alt = def?.name ?? cardId;
+    modal.appendChild(img);
 
-  const nameEl = document.createElement("div");
-  nameEl.className = "card-received-modal-name";
-  nameEl.textContent = def?.name ?? cardId;
-  modal.appendChild(nameEl);
+    const nameEl = document.createElement("div");
+    nameEl.className = "card-received-modal-name";
+    nameEl.textContent = def?.name ?? cardId;
+    modal.appendChild(nameEl);
 
-  if (subtitle) {
-    const subtitleEl = document.createElement("div");
-    subtitleEl.className = "card-received-modal-subtitle";
-    subtitleEl.textContent = subtitle;
-    modal.appendChild(subtitleEl);
-  }
+    if (subtitle) {
+      const subtitleEl = document.createElement("div");
+      subtitleEl.className = "card-received-modal-subtitle";
+      subtitleEl.textContent = subtitle;
+      modal.appendChild(subtitleEl);
+    }
 
-  modal.appendChild(createModalCloseX(dismiss));
-  modal.addEventListener("click", dismiss);
+    modal.appendChild(createModalCloseX(dismiss));
+    modal.addEventListener("click", dismiss);
 
-  document.body.appendChild(backdrop);
-  document.body.appendChild(modal);
-  currentReceivedModal = modal;
-  requestAnimationFrame(() => modal.classList.add("show"));
-  currentReceivedModalTimer = setTimeout(dismiss, RECEIVED_MODAL_DURATION_MS);
+    document.body.appendChild(backdrop);
+    document.body.appendChild(modal);
+    currentReceivedModal = modal;
+    requestAnimationFrame(() => modal.classList.add("show"));
+    currentReceivedModalTimer = setTimeout(dismiss, RECEIVED_MODAL_DURATION_MS);
+  });
 }
 
 // optionsWithUsability: [{ id, label, usable, ... }]。選ばれたoptionを解決するPromiseを返す。

@@ -7816,6 +7816,78 @@ body.phase-lock-picking .hand-card:not(.phase-lock-highlight):not(.card-effect-t
   text-align: center;
 }
 
+/* プレゼントの到達効果等で「誰がドロー対象か」をアバターで画面中央に周知するモーダル
+   （main.jsのannounceDrawTargetsForEffect）。ユーザー要望2026-08-07。 */
+.draw-targets-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.85);
+  z-index: 10641;
+  max-width: min(30rem, 92vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1.2rem 1.5rem;
+  background: linear-gradient(160deg, #0b2e4a, #041524);
+  border: 2px solid #38bdf8;
+  border-radius: 0.9rem;
+  opacity: 0;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  box-shadow: 0 0 1.8rem rgba(56, 189, 248, 0.5), 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+.draw-targets-modal.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+.draw-targets-modal-title {
+  font-family: sans-serif;
+  font-weight: bold;
+  font-size: 1rem;
+  color: #bae6fd;
+  text-align: center;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+}
+.draw-targets-modal-avatars {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+}
+.draw-targets-modal-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+.draw-targets-modal-avatar {
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0.6rem 1.5rem rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.3);
+}
+.draw-targets-modal-avatar img,
+.draw-targets-modal-avatar svg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.draw-targets-modal-name {
+  font-family: sans-serif;
+  font-size: 0.8rem;
+  font-weight: bold;
+  color: #e0f2fe;
+  text-align: center;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+}
+
 /* 効果の発動理由を説明するモーダル（src/hand-effect-ui.jsのshowEffectReasonModal、
    例: カウンターロックの「あなたは１番少なくロックしているので１枚ドローします」・
    不発の案内）。ユーザー要望「すぐ消える一時的なモーダルは画面中央に表示させて
