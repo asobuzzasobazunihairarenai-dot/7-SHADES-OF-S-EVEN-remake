@@ -5650,6 +5650,10 @@ function render() {
     // 「オンラインで続ける」を押した直後、まだ部屋を選んでいない間もisOnlineIntentActive()で
     // 拾う（isOnlineMode()の直後の説明コメント参照）。
     if (online) return player === self || !!getSyncedIdentity(player);
+    // CPU戦（ローカル1人用）はA対Cの2人固定。セットアップ前（activePlayers==[]、盤面を空に
+    // した直後～配布演出開始まで）に下の「4人プレビュー」を出すと、B・Dの席が一瞬見えて
+    // しまう（ユーザー報告2026-08-07「一瞬やはりBとDが描画される」）。CPU戦の間はA/Cだけ表示する。
+    if (isCpuBattleActive()) return player === "A" || player === "C";
     return true;
   };
   for (const seat of SEAT_ORDER) {
