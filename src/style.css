@@ -637,6 +637,13 @@ body.fixed-hand-mode #mini-lock-area {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* CPUが選ぶ番の選択モーダル（色宣言・選択肢・儀式ピック等）とその背景を丸ごと隠す用
+   （ユーザー要望2026-08-07: CPUの選択モーダルは非表示。結果モーダルは別クラスなので出る）。
+   各モーダル生成関数が、CPU選択中(isCpuSelectingNow)なら本体と背景にこのクラスを付ける。 */
+.is-cpu-hidden {
+  display: none !important;
+}
+
 /* プレイヤー1人分の行（相手も含め全員分を積む。ユーザー要望2026-08-07）。自分の行を強調。 */
 .mini-lock-player {
   display: flex;

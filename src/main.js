@@ -1238,6 +1238,12 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, reve
     activeEffectPicker = { type: "opponentHand", tokens: shuffled, resolve: finish };
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
+    // CPUが奪う札を選ぶ番はこの儀式ピックモーダルを表示しない（自動で選ばれる。奪った結果は
+    // 中央のカード表示で別途出る）。
+    if (isCpuSelectingNow()) {
+      backdrop.classList.add("is-cpu-hidden");
+      modal.classList.add("is-cpu-hidden");
+    }
     // シャッフル演出中はカードのクリックを無効化（is-shuffling→CSSでpointer-events:none）。
     // 演出が終わったらクリック可能にし、案内文を本来のピック文言へ切り替える。
     modal.classList.add("is-shuffling");
@@ -1847,9 +1853,16 @@ async function pickArrivalOptionForEffect(cardId, optionsWithUsability) {
 // ボタンclickで完結する）ため、そちらのハンドラ側でtype:"option"/"colors"は
 // 素通りさせるようガードを追加している（下のpointerdownリスナー参照）。
 function pickOptionForEffect(cardId, optionsWithUsability) {
-  return showHandEffectOptionPicker(cardId, optionsWithUsability, (resolveFn) => {
-    activeEffectPicker = { type: "option", options: optionsWithUsability, resolve: resolveFn };
-  }).then((option) => {
+  // CPUが選ぶ番はこの選択肢モーダルを表示しない（自動で選ばれる。結果は別途通知）。
+  const hidden = isCpuSelectingNow();
+  return showHandEffectOptionPicker(
+    cardId,
+    optionsWithUsability,
+    (resolveFn) => {
+      activeEffectPicker = { type: "option", options: optionsWithUsability, resolve: resolveFn };
+    },
+    { hidden }
+  ).then((option) => {
     activeEffectPicker = null;
     return option;
   });
@@ -2020,6 +2033,13 @@ function declareColorsForEffect(requirement, cardId, player) {
     document.body.appendChild(peekHint);
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
+    // CPUが宣言する番はこの色宣言モーダルを表示しない（自動で宣言・解決される。人間が
+    // 選ぶのかと混乱するため。結果は宣言色インジケータ／結果モーダルで別途出る）。
+    if (isCpuSelectingNow()) {
+      backdrop.classList.add("is-cpu-hidden");
+      modal.classList.add("is-cpu-hidden");
+      peekHint.classList.add("is-cpu-hidden");
+    }
   });
 }
 
@@ -2172,6 +2192,11 @@ function requestPlaceSourceChoiceForEffect() {
     modal.appendChild(buttonsWrap);
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
+    // CPUが選ぶ番は「どこから置きますか？」モーダルを表示しない（自動で選ばれる）。
+    if (isCpuSelectingNow()) {
+      backdrop.classList.add("is-cpu-hidden");
+      modal.classList.add("is-cpu-hidden");
+    }
     // ユーザー報告（続き104、2クライアント実機テスト中に発見）「合同建設の『どこから
     // 置きますか？』モーダルだけ、疑似CPU対象がタイムアウトしても永久にフリーズする」
     // の原因: このモーダルだけactiveEffectPickerに未登録で、performPriorityTimeoutAutoAction
@@ -3176,11 +3201,14 @@ function requestHandCardChoiceForEffect(player, hint, tokenIdFilter) {
      // 済みカードの手札効果（tryUseLockedUsableCardが先にrender()する経路）で追色コストの
      // 候補が“暗転したまま枠だけ光る”状態になっていた（ユーザー報告「ハイライトされずトーン
      // オフ、でも選べる」）。以降のrenderではbuildPlayerZoneが候補を暗転対象から除外する。
-    for (const el of cardEls) {
-      el.classList.add("card-effect-target-cell");
-      el.classList.remove("hand-card-effect-unusable");
+    // CPUが選ぶ番は手札候補のハイライトを出さない（自動で選ばれる。混乱防止）。
+    if (!isCpuSelectingNow()) {
+      for (const el of cardEls) {
+        el.classList.add("card-effect-target-cell");
+        el.classList.remove("hand-card-effect-unusable");
+      }
+      document.body.classList.add("card-effect-picking-hand");
     }
-    document.body.classList.add("card-effect-picking-hand");
     if (hint) showEffectPickerHint(hint);
     activeEffectPicker = {
       type: "hand",
@@ -3208,7 +3236,10 @@ function requestPlayerChoiceForEffect(candidates, hint) {
       resolve(null);
       return;
     }
-    for (const entry of entries) entry.el.classList.add("card-effect-target-avatar");
+    // CPUが選ぶ番は相手アバターのハイライトを出さない（自動で選ばれる。混乱防止）。
+    if (!isCpuSelectingNow()) {
+      for (const entry of entries) entry.el.classList.add("card-effect-target-avatar");
+    }
     if (hint) showEffectPickerHint(hint);
     activeEffectPicker = {
       type: "player",
@@ -3734,6 +3765,12 @@ function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ"
 
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
+    // CPUが答える番（CPUが防御側の接触承認・任意のはい/いいえ等）はこのモーダルを表示しない
+    // （自動で解決される。人間が答えるのかと混乱するため）。
+    if (isCpuSelectingNow()) {
+      backdrop.classList.add("is-cpu-hidden");
+      modal.classList.add("is-cpu-hidden");
+    }
     // ユーザー報告（続き106）「優先権が委任されたまま自動プレイが反応せず止まる」の
     // 調査中に発見: このモーダル（カウンターロックの「手札を1枚ロックしてもよい」等、
     // 本当の任意選択向け汎用Yes/No）だけがactiveEffectPickerに未登録で、続き105で

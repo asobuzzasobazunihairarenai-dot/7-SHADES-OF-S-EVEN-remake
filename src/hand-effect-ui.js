@@ -255,13 +255,13 @@ export function showCardReceivedModal(cardId, subtitle, { labelText = "受け取
 // 1回だけ渡すコールバック（main.jsのpickOptionForEffect参照。タイムアウトによる
 // 自動代行performPriorityTimeoutAutoActionが、このモーダルを放置されたまま固まらせず
 // 代わりに選べるようにするためのフック）。
-export function showHandEffectOptionPicker(cardId, optionsWithUsability, onReady) {
+export function showHandEffectOptionPicker(cardId, optionsWithUsability, onReady, { hidden = false } = {}) {
   return new Promise((resolve) => {
     const def = getCardDefinition(cardId);
     const backdrop = document.createElement("div");
-    backdrop.className = "hand-effect-option-picker-backdrop";
+    backdrop.className = `hand-effect-option-picker-backdrop${hidden ? " is-cpu-hidden" : ""}`;
     const modal = document.createElement("div");
-    modal.className = "hand-effect-option-picker";
+    modal.className = `hand-effect-option-picker${hidden ? " is-cpu-hidden" : ""}`;
     const peekHint = document.createElement("div");
     peekHint.className = "hand-effect-option-picker-peek-hint";
     peekHint.textContent = "盤面を確認中…クリックで選択画面に戻ります";
