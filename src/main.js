@@ -4809,7 +4809,12 @@ function getEternalRevealCenterRect(pileRect) {
   // (pileRect)が少しでも縦長だと、reveal面のcoverで正方形カードの上下が切れてしまう
   // （ユーザー報告「ゲート侵攻時のエターナルのアップカードの上下が切れる」）。revealは
   // 束の長辺を基準にした正方形にして、カード全体がぴったり収まるようにする。
-  const size = Math.max(pileRect.width, pileRect.height) * 2.1;
+  // ユーザー報告2026-08-07「盤面を拡大した状態でエターナル演出が入ると、フリップする
+  // エターナルが画面からはみ出す」。原因: pileRectは盤面ズームで拡大された実サイズなので、
+  // ズームすると2.1倍のサイズが巨大化して画面外へはみ出していた。中央に出す演出なので、
+  // ビューポートの短辺の一定割合を上限にして、ズーム倍率に関わらず必ず画面内に収める。
+  const maxSize = Math.min(window.innerWidth, window.innerHeight) * 0.6;
+  const size = Math.min(Math.max(pileRect.width, pileRect.height) * 2.1, maxSize);
   return {
     left: window.innerWidth / 2 - size / 2,
     top: window.innerHeight / 2 - size / 2,
@@ -5808,9 +5813,12 @@ function render() {
 function fitTableToViewport() {
   if (boardZoomLevel > 0) {
     applyBoardZoomFit(boardZoomLevel);
-    return;
+  } else {
+    applyNormalFit();
   }
-  applyNormalFit();
+  // ズーム/パン/リサイズ/再描画のたびに、自分のロックエリアが画面外へ出ていないか見て、
+  // 出ていれば画面下中央のミニロックエリアを出す（ユーザー要望2026-08-07）。
+  updateMiniLockArea();
 }
 
 // ユーザー報告「タブレットで自分の手札が見えない」の根本原因（実測で特定）:
@@ -6703,6 +6711,73 @@ function syncFixedHandOverlay(table) {
   if (handArea) selfHandOverlayEl.appendChild(handArea);
   const revealArea = table.querySelector(`.hand-reveal-area[data-player="${self}"]`);
   if (revealArea) selfHandOverlayEl.appendChild(revealArea);
+}
+
+// ユーザー要望2026-08-07「ロックエリアが見えなくなるくらい盤面を拡大した時、画面下中央に
+// ミニロックエリアを出したい」。自分のロックエリア(.lock-area.lock-bottom＝視点回転で自分は
+// 常に手前=bottom)の画面内可視率を測り、半分以上見えなくなったら、盤面ズームの外側の固定
+// オーバーレイ(#mini-lock-area)に7色スロットのロック状況（勝利まであと何色か）を出す。
+// fitTableToViewport（ズーム/パン/リサイズ/描画のたびに走る）から呼ばれる。
+let miniLockAreaEl = null;
+let miniLockAreaSig = null;
+function updateMiniLockArea() {
+  if (!miniLockAreaEl) {
+    miniLockAreaEl = document.createElement("div");
+    miniLockAreaEl.id = "mini-lock-area";
+    document.body.appendChild(miniLockAreaEl);
+  }
+  const table = document.getElementById("game-table");
+  const state = getState();
+  const self = getSelfSeat();
+  const inGame = !!table && !!state.activePlayers?.includes(self) && !!state.turnPlayer && !isSpectatingGame();
+  const lockAreaEl = inGame ? table.querySelector(".lock-area.lock-bottom") : null;
+  let visibleFrac = 1;
+  if (lockAreaEl) {
+    const r = lockAreaEl.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) {
+      const ix = Math.max(0, Math.min(r.right, window.innerWidth) - Math.max(r.left, 0));
+      const iy = Math.max(0, Math.min(r.bottom, window.innerHeight) - Math.max(r.top, 0));
+      visibleFrac = (ix * iy) / (r.width * r.height);
+    }
+  }
+  // 自分のロックエリアが半分以上見えていれば出さない（通常時・軽いズームでは邪魔しない）。
+  if (!lockAreaEl || visibleFrac >= 0.5) {
+    if (miniLockAreaEl.style.display !== "none") miniLockAreaEl.style.display = "none";
+    miniLockAreaSig = null;
+    return;
+  }
+  miniLockAreaEl.style.display = "";
+  // 自分のロック状況（色スロットindex → cardId）。location.sideは実座標の側（回転前）。
+  const selfSide = SEAT_TO_SIDE[self];
+  const lockedByIndex = {};
+  for (const t of state.tokens) {
+    if (t.kind === "card" && t.location.zone === "lock" && t.location.side === selfSide) {
+      lockedByIndex[t.location.index] = t.cardId;
+    }
+  }
+  const sig = COLORS.map((c, i) => lockedByIndex[i] || "").join("|");
+  if (sig === miniLockAreaSig) return; // 中身が変わっていなければ作り直さない（パン中の無駄を防ぐ）
+  miniLockAreaSig = sig;
+  miniLockAreaEl.innerHTML = "";
+  const lockedCount = Object.keys(lockedByIndex).length;
+  const label = document.createElement("div");
+  label.className = "mini-lock-area-label";
+  label.textContent = `ロック ${lockedCount}/7`;
+  miniLockAreaEl.appendChild(label);
+  const row = document.createElement("div");
+  row.className = "mini-lock-area-slots";
+  COLORS.forEach((color, index) => {
+    const slot = document.createElement("div");
+    slot.className = "mini-lock-slot";
+    slot.style.setProperty("--slot-color", `var(--color-${color})`);
+    const cardId = lockedByIndex[index];
+    if (cardId) {
+      slot.classList.add("is-locked");
+      slot.style.backgroundImage = `url("${getCardImagePath(cardId)}")`;
+    }
+    row.appendChild(slot);
+  });
+  miniLockAreaEl.appendChild(row);
 }
 
 // 自分の手札をあえて画面下部で見切れさせている場合向け（ユーザー要望）: PCではホバーで、
