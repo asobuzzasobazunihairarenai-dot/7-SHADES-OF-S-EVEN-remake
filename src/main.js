@@ -2972,6 +2972,14 @@ export function performPriorityTimeoutAutoAction() {
   // ローカルCPU戦ではCPU(C)の番を、それ以外は自分の席を代行する。
   const driveSeat = getAutoDriveSeat();
   if (activeEffectPicker) {
+    // 不具合#33: ローカルCPU戦で、CPUのターン中でも“人間”が使うリアクション選択
+    // （ゴメンナサイ等）は、優先権保持者がCPU(C)のままでもCPUのものではない。owner が
+    // 疑似CPU対象でない席（＝人間）なら、CPUの時間切れ自動処理で勝手にランダム解決しない
+    // （人間がじっくり選べるよう、その選択には手を出さず戻る）。オンライン等は owner を
+    // 持たない/自席owner なので従来通り。
+    if (isCpuBattleActive() && !isOnlineMode() && activeEffectPicker.owner && !isPseudoCpuTarget(activeEffectPicker.owner)) {
+      return false;
+    }
     // CPUの「選ぶ」モーダル（選択肢・色宣言・マス選択等）は、自動スキップON/OFFに関わらず
     // 常にここで自動解決する。ユーザー要望（2026-08-07）「CPUが選ぶ時は自動で進めて、
     // 選んだ結果の通知モーダルで泊まるように。じゃないと自分が選ぶのかと錯覚する」——
@@ -3153,8 +3161,15 @@ let effectPickerHintEl = null;
 // CPU戦で、今まさにCPU(疑似CPU)が優先権を持って選択中か（＝その選択は自動で解決される）。
 // この間は「○○を選択してください」等の案内・候補ハイライトを人間に見せない（人間が自分で
 // 選ぶのかと混乱するため。ユーザー要望2026-08-07「CPUの選択モーダルは非表示でよい。結果は欲しい」）。
-function isCpuSelectingNow() {
-  return isCpuBattleActive() && !isOnlineMode() && isPseudoCpuTarget(getState().priorityPlayer);
+// この「選ぶ」場面が、CPU（疑似CPU対象席）自身のものか。owner未指定なら現在の優先権保持者で
+// 判定する（＝従来挙動：CPU自身のターン中の効果選択）。 owner を明示すると、その席が選ぶ主体
+// として扱う——不具合#33: CPUのターン中に“人間”がゴメンナサイ等のリアクションを使うと、
+// 優先権保持者はCPU(C)のままなので、owner未指定だと「CPUが選んでいる」と誤判定し、人間の
+// 選択モーダルを隠して勝手にランダム自動解決してしまっていた。owner=人間の席 を渡せば誤判定を防ぐ。
+function isCpuSelectingNow(owner) {
+  if (!isCpuBattleActive() || isOnlineMode()) return false;
+  const seat = owner ?? getState().priorityPlayer;
+  return isPseudoCpuTarget(seat);
 }
 function showEffectPickerHint(text) {
   // CPUが選択中の「○○を選択してください」案内は出さない（結果通知は別途出す）。
@@ -3207,14 +3222,18 @@ function requestCellChoiceForEffect(candidates, hint, options = {}) {
       return;
     }
     // CPUが選ぶ番はハイライト・案内・スキップボタンを出さない（自動で解決される。混乱防止）。
-    if (!isCpuSelectingNow()) {
+    // owner（この選択の主体）を渡せる——ゴメンナサイ等、CPUのターン中に人間が使うリアクション
+    // 選択では owner=人間の席 を明示し、CPUのものと誤判定して隠さない/勝手に解決しないようにする(#33)。
+    const cpuSelecting = isCpuSelectingNow(options.owner);
+    if (!cpuSelecting) {
       for (const entry of entries) entry.el.classList.add("card-effect-target-cell");
       document.body.classList.add("card-effect-picking-cells");
     }
     if (hint) showEffectPickerHint(hint); // showEffectPickerHint内でCPU中は自動スキップ
-    if (options.allowSkip && !isCpuSelectingNow()) showEffectSkipButton(options.skipLabel ?? "これ以上選ばない");
+    if (options.allowSkip && !cpuSelecting) showEffectSkipButton(options.skipLabel ?? "これ以上選ばない");
     activeEffectPicker = {
       type: "cell",
+      owner: options.owner ?? null,
       candidates,
       // 既に選んだマス（候補外）をクリックした時に注意を出すため（プリドゥエン/増殖する樹々の
       // 「別々のマスに置く」用、card-effect-engine.jsのPLACE_CARD CHOOSEから渡る）。
@@ -3257,8 +3276,10 @@ function requestHandCardChoiceForEffect(player, hint, tokenIdFilter) {
      // 済みカードの手札効果（tryUseLockedUsableCardが先にrender()する経路）で追色コストの
      // 候補が“暗転したまま枠だけ光る”状態になっていた（ユーザー報告「ハイライトされずトーン
      // オフ、でも選べる」）。以降のrenderではbuildPlayerZoneが候補を暗転対象から除外する。
-    // CPUが選ぶ番は手札候補のハイライトを出さない（自動で選ばれる。混乱防止）。
-    if (!isCpuSelectingNow()) {
+    // CPUが選ぶ番は手札候補のハイライトを出さない（自動で選ばれる。混乱防止）。手札の選択は
+    // 常にその手札の持ち主(player)が選ぶ主体なので、ownerはplayer。CPUのターン中でも人間の手札
+    // 選択（ゴメンナサイの追色コスト等）はplayerが人間なら誤って自動解決しない(#33)。
+    if (!isCpuSelectingNow(player)) {
       for (const el of cardEls) {
         el.classList.add("card-effect-target-cell");
         el.classList.remove("hand-card-effect-unusable");
@@ -3268,6 +3289,7 @@ function requestHandCardChoiceForEffect(player, hint, tokenIdFilter) {
     if (hint) showEffectPickerHint(hint);
     activeEffectPicker = {
       type: "hand",
+      owner: player,
       tokenIds: new Set(cardEls.map((el) => el.dataset.tokenId)),
       resolve: (token) => {
         for (const el of cardEls) el.classList.remove("card-effect-target-cell");
@@ -3283,7 +3305,7 @@ function requestHandCardChoiceForEffect(player, hint, tokenIdFilter) {
 // candidatesは座席の配列（例: ["B","C"]）。マスチェンジ等のpickLocationと同じ
 // 「候補をハイライトしてクリックを待つ」形だが、対象がマス/手札カードではなく
 // プレイヤーのアバターであるため専用の関数にした。
-function requestPlayerChoiceForEffect(candidates, hint) {
+function requestPlayerChoiceForEffect(candidates, hint, options = {}) {
   return new Promise((resolve) => {
     const entries = candidates
       .map((player) => ({ player, el: document.querySelector(`.player-avatar[data-player="${player}"]`) }))
@@ -3293,12 +3315,14 @@ function requestPlayerChoiceForEffect(candidates, hint) {
       return;
     }
     // CPUが選ぶ番は相手アバターのハイライトを出さない（自動で選ばれる。混乱防止）。
-    if (!isCpuSelectingNow()) {
+    // owner（選ぶ主体）を渡せる（#33、ゴメンナサイ等の人間リアクション対応）。
+    if (!isCpuSelectingNow(options.owner)) {
       for (const entry of entries) entry.el.classList.add("card-effect-target-avatar");
     }
     if (hint) showEffectPickerHint(hint);
     activeEffectPicker = {
       type: "player",
+      owner: options.owner ?? null,
       players: new Set(candidates),
       resolve: (player) => {
         for (const entry of entries) entry.el.classList.remove("card-effect-target-avatar");
@@ -4021,6 +4045,12 @@ async function runAutoArrivalEffect(cardId, location, player) {
       pickLocation: requestCellChoiceForEffect,
       pickHandCard: requestHandCardChoiceForEffect,
       onCardAcquiredToHand: onEffectCardAcquiredToHand,
+      // 到達効果の既定動作でこのカード自身を手札へ加えた時のカード獲得トースト（右下）。
+      // 自分（この画面の見ている席）の獲得だけ出す——CPU戦でCPUの獲得まで毎回出すと煩いため。
+      announceCardAddedToHand: (cardId, seat, wasFaceUp) => {
+        if (seat !== getSelfSeat()) return;
+        announceHandPickups(seat, [{ cardId, wasPublic: wasFaceUp }]);
+      },
       markPlacementTarget: markEffectPlacementTarget,
       markPlacedLocation: markEffectJustPlaced,
       placeFromDeck: placeFromDeckForEffect,
@@ -7964,7 +7994,9 @@ async function useGomennasaiOnFinalLock() {
   const attackerLockedTokens = eligibility.stealableLocks;
   const candidates = attackerLockedTokens.map((t) => t.location);
   const dest =
-    candidates.length === 1 ? candidates[0] : await requestCellChoiceForEffect(candidates, "奪うロックカードを選択してください");
+    candidates.length === 1
+      ? candidates[0]
+      : await requestCellChoiceForEffect(candidates, "奪うロックカードを選択してください", { owner: selfSeat });
   if (!dest) return;
   const target = attackerLockedTokens.find((t) => t.location.side === dest.side && t.location.index === dest.index);
   if (!target) return;

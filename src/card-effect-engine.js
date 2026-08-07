@@ -1528,11 +1528,18 @@ export async function runArrivalEffect(ctx, helpers) {
   if (effectDef.addsCardToHandAfter !== false) {
     const currentToken = getState().tokens.find((t) => t.id === ctx.cardTokenId);
     if (currentToken && currentToken.location.zone === "cell") {
+      // 手札へ移す前に、獲得するカードのidと公開状態を控えておく（移動後はcellから消えるため）。
+      const addedCardId = currentToken.cardId;
+      const wasFaceUp = !!currentToken.faceUp;
       // ユーザー要望「到達後、そのカードが実際に手札へ吸い込まれて加わるアニメを入れたい」。
       // 実際に手札へ移す(moveAndSync)前に、盤面マスから手札へ飛翔する演出を挟む
       // （移動アニメーションを減らす設定中はhelpers側で即nop）。
       await helpers.flyCardToHand?.(ctx.cardTokenId, ctx.player);
       await helpers.moveAndSync(ctx.cardTokenId, { zone: "hand", player: ctx.player });
+      // ユーザー報告2026-08-07「到達したカードを獲得した時、右下のカード獲得トーストが
+      // 出ていない気がする」。手動の到達（addArrivedCardToHand）は announceHandPickups で
+      // 通知していたが、自動処理経由のこの既定動作では通知が漏れていた。同じトーストを出す。
+      helpers.announceCardAddedToHand?.(addedCardId, ctx.player, wasFaceUp);
     }
   }
   return runCtx.arrivedAt;
