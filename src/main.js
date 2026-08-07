@@ -1153,7 +1153,11 @@ async function swapPiecesForEffect(pieceTokenId, fromLocation, targetLocation) {
 // excludeTokenIds（省略可、Set）: ゲート侵攻ボーナスの「手札を半分奪う」のように
 // 同じ相手の手札から複数枚を連続で儀式的に選ばせる時、既に選び終えた分を次回の
 // 候補から除外するために使う（stealHandCardsRitualForGateInvasion参照）。
-function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, revealLabel = "奪った") {
+// revealLabels: 奪った札の中央表示ラベルを「自分視点」で出し分ける。takes=自分が取った時
+// （奪った/受け取った）、loses=自分が奪われた/渡した時（奪われた/渡した）。1画面共有の
+// ローカルでは見ているのは常に自分なので、CPUが自分から奪う時に「奪った」ではなく「奪われた」と
+// 出す（ユーザー報告2026-08-07: スリカエで自分が受け取ったのに「渡した」と出て紛らわしい）。
+function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, revealLabels = { takes: "奪った", loses: "奪われた" }) {
   return new Promise((resolve) => {
     const theirHand = getState().tokens.filter(
       (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === targetPlayer && !excludeTokenIds?.has(t.id)
@@ -1195,9 +1199,23 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, reve
       // ローカルでもオンラインの引いた本人でも、それぞれの画面で見える。閉じる（クリック/自動）まで
       // 待ってから解決するので、複数枚（ゲート侵攻）でも1枚ずつ順番に見せられる。
       if (token) {
+        // 自分視点でラベル・文面を出し分ける。この札は targetPlayer → actor(手番) へ移る。
         const actor = getState().turnPlayer;
-        const sub = actor && actor !== targetPlayer ? `${getPlayerName(actor)}が${getPlayerName(targetPlayer)}から` : `${getPlayerName(targetPlayer)}から`;
-        await showCardReceivedModal(token.cardId, sub, { labelText: revealLabel });
+        const self = getSelfSeat();
+        let labelText, sub;
+        if (targetPlayer === self) {
+          // 自分の手札が奪われる／渡す側。
+          labelText = revealLabels.loses;
+          sub = actor ? `${getPlayerName(actor)}に` : "";
+        } else {
+          // 取る側（自分が取る、または4人戦で他者が他者から取る）。
+          labelText = revealLabels.takes;
+          sub =
+            actor && actor !== self && actor !== targetPlayer
+              ? `${getPlayerName(actor)}が${getPlayerName(targetPlayer)}から`
+              : `${getPlayerName(targetPlayer)}から`;
+        }
+        await showCardReceivedModal(token.cardId, sub, { labelText });
       }
       resolve(token ?? null);
     }
@@ -1600,7 +1618,7 @@ async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
     targetPlayer,
     `${getPlayerName(targetPlayer)}の手札（裏向き）から1枚選んでください`,
     undefined,
-    "受け取った"
+    { takes: "受け取った", loses: "渡した" }
   );
   if (!theirCard) return;
   await moveAndSyncForEffect(theirCard.id, { zone: "hand", player });
@@ -1619,11 +1637,17 @@ async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
     // オンライン: 受け取る相手(targetPlayer)本人の画面に、その相手が受け取ったカードを見せる。
     broadcastCardReceived({ targetPlayer, cardId: myCard.cardId, subtitle });
   } else {
-    // ローカル対戦（CPU戦・ホットシート）は1画面共有で、この画面を見ているのはスリカエを
-    // 使った側(player＝渡した側)。以前は「相手に渡したカード(myCard)」を『受け取った』として
-    // 見せていたため「渡したはずなのに自分が受け取った？」と誤解を招いていた（ユーザー報告
-    // 2026-08-07）。渡した側には『渡した』表記で、相手へ渡したカードを見せる。
-    showCardReceivedModal(myCard.cardId, `${getPlayerName(targetPlayer)}に渡しました`, { labelText: "渡した" });
+    // ローカル（CPU戦・ホットシート）は1画面共有で、見ているのは常に自分。myCardは
+    // player(実行者)→targetPlayerへ渡るので、自分視点でラベルを出し分ける（ユーザー報告
+    // 2026-08-07: CPUが自分にスリカエした時、自分が受け取ったのに「渡した」と出て逆で紛らわしい）。
+    const self = getSelfSeat();
+    if (targetPlayer === self) {
+      // 自分が受け取る（相手が自分に渡した）。
+      showCardReceivedModal(myCard.cardId, `${getPlayerName(player)}から受け取りました`, { labelText: "受け取った" });
+    } else {
+      // 自分（または実行者）が相手へ渡す。
+      showCardReceivedModal(myCard.cardId, `${getPlayerName(targetPlayer)}に渡しました`, { labelText: "渡した" });
+    }
   }
   render();
 }
@@ -8634,7 +8658,12 @@ function buildFriendlyLogItems() {
   for (const e of getActionLogEntries()) {
     let player = null;
     let msg = null;
-    if (e.category === "arrival" && e.detail?.depth === 0 && e.detail?.cardId) {
+    if (e.category === "arrival" && e.detail?.cardId) {
+      // 以前は depth===0 だけを載せていたが、移動で到達した効果は beginPostMoveArrivalGuard が
+      // 先に深度を1へ上げてから記録されるため depth は 1 以上になり、ほとんどの到達が
+      // ログに出ていなかった（ユーザー報告2026-08-07「到達効果が発動したのに記録されてない
+      // 時がある」＝手動オープンだけ depth 0 で出ていた）。深度は内部制御用なので、到達は
+      // 深度に関わらず全部載せる（連鎖到達も含む。同一内容の連続は下の dedup でまとめる）。
       player = e.detail.player;
       const name = getCardDefinition(e.detail.cardId)?.name ?? e.detail.cardId;
       const co = actionLogCoordLabel(e.detail.location);
