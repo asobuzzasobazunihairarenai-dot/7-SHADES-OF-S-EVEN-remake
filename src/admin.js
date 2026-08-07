@@ -344,6 +344,7 @@ const GROUPS = [
         step: 5,
         default: 80,
         previewOnInteract: () => previewBgmVolume("--sound-volume-victory-bgm"),
+        previewButtonLabel: "▶ 試聴",
       },
       {
         key: "--sound-volume-opening-bgm",
@@ -354,6 +355,7 @@ const GROUPS = [
         step: 5,
         default: 40,
         previewOnInteract: () => previewBgmVolume("--sound-volume-opening-bgm"),
+        previewButtonLabel: "▶ 試聴",
       },
       // ユーザー要望「ゲーム時のBGM追加しました。ゲーム開始時から流れるようにしたい」
       // への対応（sound.jsのplayGameBgm参照）。
@@ -366,6 +368,7 @@ const GROUPS = [
         step: 5,
         default: 40,
         previewOnInteract: () => previewBgmVolume("--sound-volume-game-bgm"),
+        previewButtonLabel: "▶ 試聴",
       },
       // ユーザー要望「プレイヤー待機中のBGMを追加しました」への対応
       // （sound.jsのplayWaitingBgm参照）。
@@ -378,6 +381,7 @@ const GROUPS = [
         step: 5,
         default: 40,
         previewOnInteract: () => previewBgmVolume("--sound-volume-waiting-bgm"),
+        previewButtonLabel: "▶ 試聴",
       },
     ],
   },
@@ -2234,6 +2238,18 @@ function buildPanel(rebuildSlidersRef) {
 
         row.appendChild(labelRow);
         row.appendChild(slider);
+        // ユーザー要望2026-08-08「各BGMのマスターボリューム調整時に音量を確かめたいので試聴
+        // ボタンを実装してください」。previewButtonLabel を持つコントロールには、スライダーを
+        // 動かさなくても現在の音量で鳴らせる専用ボタンを出す（previewOnInteractを流用）。
+        if (c.previewButtonLabel && c.previewOnInteract) {
+          const previewBtn = document.createElement("button");
+          previewBtn.type = "button";
+          previewBtn.textContent = c.previewButtonLabel;
+          previewBtn.style.cssText =
+            "align-self: flex-start; margin-top: 0.3rem; padding: 0.2rem 0.7rem; background: #0891b2; color: #fff; border: none; border-radius: 0.25rem; cursor: pointer; font-size: 0.75rem;";
+          previewBtn.addEventListener("click", () => c.previewOnInteract());
+          row.appendChild(previewBtn);
+        }
         content.appendChild(row);
       }
     });

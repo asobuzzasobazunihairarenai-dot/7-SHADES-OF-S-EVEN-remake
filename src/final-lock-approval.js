@@ -23,6 +23,14 @@ let respondHandler = null;
 let checkGomennasaiEligibility = null;
 let useGomennasaiHandler = null;
 
+// ユーザー要望2026-08-08（#36a）「『ゴメンナサイを使う』を押した後は『ロックエリアの奪う
+// カードを選んでください』的な案内に切り替わってほしい」。押してから奪う札を選び終えるまでの間、
+// main.js側がこれをtrueにする。その間バナーは承認/ゴメンナサイのボタンを引っ込め、案内だけ出す。
+let gomennasaiPicking = false;
+export function setGomennasaiPicking(v) {
+  gomennasaiPicking = !!v;
+}
+
 export function registerFinalLockApprovalHandler(fn) {
   respondHandler = fn;
 }
@@ -63,6 +71,27 @@ export function updateFinalLockApprovalBanner() {
   // 何でも動かせる」方針を踏襲し、常にボタンを押せるようにする。オンライン中だけ、
   // 実際にその座席でログインしている本人にだけ操作を許可する。
   const canRespond = !isOnlineMode() || getSelfSeat() === approver;
+  // #36a: 「ゴメンナサイを使う」を押して奪う札を選んでいる最中は、承認/却下ボタンを引っ込め、
+  // 「ロックエリアから奪うカードを選んでください」の案内だけに切り替える。
+  if (gomennasaiPicking && canRespond) {
+    const signature = "gomennasai-picking|" + approver;
+    if (signature === lastBannerSignature) {
+      bannerEl.classList.add("is-visible");
+      return;
+    }
+    lastBannerSignature = signature;
+    bannerEl.classList.add("is-visible");
+    bannerEl.innerHTML = "";
+    const title = document.createElement("div");
+    title.className = "final-lock-approval-title";
+    title.textContent = "🍬 ゴメンナサイ";
+    bannerEl.appendChild(title);
+    const status = document.createElement("div");
+    status.className = "final-lock-approval-status";
+    status.textContent = "ロックエリアから奪うカードを選んでください";
+    bannerEl.appendChild(status);
+    return;
+  }
   // ユーザー確認済み方針「コストを払える人だけが却下（＝妨害）できる」。払えない
   // 承認者にはボタン自体を見せず、バナー全体を隠す（main.js側のcheckGomennasaiAuto
   // Approval()がこの承認者を検知し、自動で承認して先へ進める。「あなたの承認が

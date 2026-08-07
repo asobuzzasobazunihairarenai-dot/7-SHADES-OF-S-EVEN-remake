@@ -5,6 +5,7 @@
 
 import { getState, isOnlineMode, subscribe } from "./state.js";
 import { COLORS, SEAT_TO_SIDE } from "./board-layout.js";
+import { logAction } from "./action-log.js";
 import { getCardDefinition } from "./cards-data.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { getAvatarVariant, applyAvatarContent } from "./avatar-render.js";
@@ -169,6 +170,19 @@ export function checkForVictory() {
     if (announcedPlayers.has(player)) continue;
     if (hasAllSevenLocked(player)) {
       announcedPlayers.add(player);
+      // 不具合#36診断: 勝利判定が成立した瞬間の、勝者の7色スロットの中身を記録する
+      // （ゴメンナサイでロックを奪ったのに相手が勝ってしまう報告の追跡用。どの色が実際に
+      // 埋まっていたか＝奪ったはずの色が本当に空いていたかを、後から確認できるようにする）。
+      {
+        const side = SEAT_TO_SIDE[player];
+        const slots = COLORS.map((color, index) => {
+          const tok = getState().tokens.find(
+            (t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side && t.location.index === index
+          );
+          return { color, cardId: tok?.cardId ?? null };
+        });
+        logAction("diag-victory", { player, lockedCount: getLockedCount(player), slots });
+      }
       // ユーザー要望「ゲーム終了時にコメント記入→戦績確認・もう一度遊ぶボタン」＋
       // （続き87）「勝利時にお金を獲得した演出モーダルが欲しい」「勝利後、自分の順位を
       // 表示させたい」への対応。オンライン対戦の全員の画面に出す（実際に戦績システムへ

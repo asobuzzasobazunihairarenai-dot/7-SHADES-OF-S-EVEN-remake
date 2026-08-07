@@ -79,6 +79,7 @@ import {
   updateFinalLockApprovalBanner,
   registerFinalLockApprovalHandler,
   registerGomennasaiHelpers,
+  setGomennasaiPicking,
 } from "./final-lock-approval.js";
 import {
   buildTimerToggleButton,
@@ -8279,6 +8280,11 @@ async function useGomennasaiOnFinalLock() {
   const selfSeat = getSelfSeat();
   const eligibility = findGomennasaiEligibility(selfSeat);
   if (!eligibility) return;
+  // #36a: 「ゴメンナサイを使う」を押した瞬間から、承認バナーを「ロックエリアから奪うカードを
+  // 選んでください」の案内に切り替える（奪う札を選び終える/中止するまで）。finallyで必ず戻す。
+  setGomennasaiPicking(true);
+  updateFinalLockApprovalBanner();
+  try {
   // findGomennasaiEligibilityが「奪えるロックが1枚以上ある」ことまで確認済みなので、
   // ここでは同じ判定を再計算せずその結果を使う（ボタンが出ている＝必ず奪える対象がある）。
   const attackerLockedTokens = eligibility.stealableLocks;
@@ -8314,6 +8320,15 @@ async function useGomennasaiOnFinalLock() {
     render();
     return;
   }
+  // 不具合#36診断: ゴメンナサイで奪ったカード・奪う前後の攻撃側ロック内容を記録する
+  // （奪ったのに相手が勝ってしまう報告の追跡用）。
+  const attackerSeat = pending.attacker;
+  const attackerSideForLog = SEAT_TO_SIDE[attackerSeat];
+  const locksSnapshot = () =>
+    getState()
+      .tokens.filter((t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === attackerSideForLog)
+      .map((t) => ({ index: t.location.index, cardId: t.cardId }));
+  logAction("diag-gomennasai-steal", { attacker: attackerSeat, stealingCardId: target.cardId, stealIndex: target.location.index, attackerLocksBefore: locksSnapshot() });
   if (isOnlineMode()) {
     try {
       await moveToken(target.id, { zone: "hand", player: selfSeat });
@@ -8327,7 +8342,13 @@ async function useGomennasaiOnFinalLock() {
   }
   announceHandPickups(selfSeat, [{ cardId: target.cardId, wasPublic: true }]);
   render();
+  logAction("diag-gomennasai-steal", { attacker: attackerSeat, phase: "afterSteal", attackerLocksAfter: locksSnapshot() });
   await respondToFinalLock(true);
+  logAction("diag-gomennasai-steal", { attacker: attackerSeat, phase: "afterFinalLock", attackerLocksAfter: locksSnapshot() });
+  } finally {
+    setGomennasaiPicking(false);
+    updateFinalLockApprovalBanner();
+  }
 }
 
 // 「タイマーをオン、オフ」の承認バナーから呼ばれる（続き64）。最後のロック承認と違い、
