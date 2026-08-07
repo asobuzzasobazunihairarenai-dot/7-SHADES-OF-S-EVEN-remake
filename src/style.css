@@ -9200,6 +9200,15 @@ body.is-online-mode #game-setup-toggle-button,
 body.is-online-mode #quick-start-bar {
   display: none;
 }
+/* CPU戦（1人用）の間は、右上の「🎲 セットアップ」ウィザードのボタン／パネル／人数バーを
+   隠す（ユーザー要望2026-08-07: CPU対戦時は不要）。パネルのボタンはopen/closeでinlineの
+   displayを付け外しするため、!importantでCSSを優先させる。cpu-battle.jsがbodyに
+   cpu-battle-modeクラスを付ける。 */
+body.cpu-battle-mode #game-setup-toggle-button,
+body.cpu-battle-mode #game-setup-panel,
+body.cpu-battle-mode #quick-start-bar {
+  display: none !important;
+}
 
 /* セットアップアニメーション（src/setup-animation.js）: ファーストカード配布・盤面への
    カード配置を、山/ファーストカードの位置から各マス/ロックスロットへ飛んでいく演出で見せる。 */

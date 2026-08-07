@@ -1592,9 +1592,14 @@ async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
   // 中身を知らないため、渡し終えた直後に何を受け取ったのか大きく見せる。
   const subtitle = `${getPlayerName(player)}から受け取りました`;
   if (isOnlineMode() && targetPlayer !== getSelfSeat()) {
+    // オンライン: 受け取る相手(targetPlayer)本人の画面に、その相手が受け取ったカードを見せる。
     broadcastCardReceived({ targetPlayer, cardId: myCard.cardId, subtitle });
   } else {
-    showCardReceivedModal(myCard.cardId, subtitle);
+    // ローカル対戦（CPU戦・ホットシート）は1画面共有で、この画面を見ているのはスリカエを
+    // 使った側(player＝渡した側)。以前は「相手に渡したカード(myCard)」を『受け取った』として
+    // 見せていたため「渡したはずなのに自分が受け取った？」と誤解を招いていた（ユーザー報告
+    // 2026-08-07）。渡した側には『渡した』表記で、相手へ渡したカードを見せる。
+    showCardReceivedModal(myCard.cardId, `${getPlayerName(targetPlayer)}に渡しました`, { labelText: "渡した" });
   }
   render();
 }

@@ -782,7 +782,11 @@ async function runAction(action, ctx, helpers) {
       if (!chosen) return false;
       const slots = candidateSlotsFor(chosen);
       if (slots.length === 0) return false;
-      const dest = slots.length === 1 && !ctx.forcePrompt ? slots[0] : await helpers.pickLocation(slots, "ロックする場所を選択してください");
+      // ロック先スロットが1つに定まっているカード（通常の色カードは自分の色スロット1つ）は
+      // 選ぶ余地が無いので、手札効果のforcePromptに関係なくモーダルを出さず自動でそこへ置く。
+      // 七色の欠片のように複数スロットが候補になる（虹＝任意の欠色に置ける）カードだけ、
+      // 「ロックする場所を選択してください」を出す。ユーザー要望（2026-08-07）。
+      const dest = slots.length === 1 ? slots[0] : await helpers.pickLocation(slots, "ロックする場所を選択してください");
       if (!dest) return false;
       await helpers.moveAndSync(chosen.id, dest);
       return true;

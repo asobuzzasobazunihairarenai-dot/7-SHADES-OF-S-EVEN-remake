@@ -34,7 +34,7 @@ import { playOpeningBgm, stopOpeningBgm } from "./sound.js";
 import { APP_VERSION } from "./app-version.js";
 import { isFlatten2dMode } from "./tablet-2d-mode.js";
 import { startTitlePetWalk } from "./title-pet.js";
-import { startCpuBattle } from "./cpu-battle.js";
+import { startCpuBattle, runCpuBattleSetup } from "./cpu-battle.js";
 
 // フェードアウトのCSSトランジション時間と合わせる（style.cssの#opening-screen.is-closing、
 // .opening-start-gate.is-closing参照）。
@@ -440,17 +440,23 @@ export function initOpeningScreen() {
   cpuBattleBtn.textContent = "🤖 CPU戦（1人用）";
   cpuBattleBtn.title = "ログイン不要。あなた対CPUの1人用対戦をこの端末だけで遊べます。";
   cpuBattleBtn.addEventListener("click", async () => {
-    // オープニングを閉じる（盤面を見せる）前に、CPU戦の2人対戦セットアップを最後まで済ませる。
-    // 盤面はまだオープニングの裏に隠れているので、起動時の既定盤面（4人が座った状態）や
-    // セットアップ途中の状態が一切表に出ず、「開始時に一瞬4人座っている」問題を根本から防ぐ
-    // （close後にちらつきや中途半端な描画が出ないよう、完成した2人対戦盤面だけを見せる）。
-    cpuBattleBtn.disabled = true; // 二度押し防止（セットアップ中）
+    // ①設定＋盤面を空にする（オープニングの裏で）。起動時の既定盤面（4人が座った状態）を
+    //   ここで消しておくので、close()で盤面を見せた瞬間に4人がちらつかない。
+    // ②close()で空の盤面を見せる。③フェードが終わってから、その空の盤面の上でセットアップ
+    //   演出（ファースト配布→盤面配置アニメ）付きに対戦を開始する（ユーザー要望2026-08-07:
+    //   CPU対戦でもセットアップ演出が欲しい）。
+    cpuBattleBtn.disabled = true; // 二度押し防止
     try {
       await startCpuBattle();
     } catch (err) {
       console.error("startCpuBattle failed", err);
     }
     close();
+    // オープニングのフェードアウト（CLOSE_TRANSITION_MS）が終わり、盤面が完全に見えてから
+    // 配布演出を始める（フェード中にゴーストカードが飛ぶのを避ける）。
+    setTimeout(() => {
+      runCpuBattleSetup().catch((err) => console.error("runCpuBattleSetup failed", err));
+    }, CLOSE_TRANSITION_MS);
   });
   content.appendChild(cpuBattleBtn);
 

@@ -182,7 +182,7 @@ const RECEIVED_MODAL_DURATION_MS = 3200;
 // とは違い見逃されると困る情報のため、儀式的ピック系モーダルと同じく画面中央・
 // 背景ディム付きにする（main.jsのswapHandCardWithOpponentForEffect、およびオンライン
 // 時はbroadcastCardReceived/onCardReceivedEvents経由で受け取る側自身の画面にだけ出す）。
-export function showCardReceivedModal(cardId, subtitle) {
+export function showCardReceivedModal(cardId, subtitle, { labelText = "受け取った" } = {}) {
   if (currentReceivedModal) {
     clearTimeout(currentReceivedModalTimer);
     currentReceivedModalBackdrop?.remove();
@@ -209,7 +209,7 @@ export function showCardReceivedModal(cardId, subtitle) {
 
   const label = document.createElement("div");
   label.className = "card-received-modal-label";
-  label.textContent = "受け取った";
+  label.textContent = labelText;
   modal.appendChild(label);
 
   const img = document.createElement("img");
