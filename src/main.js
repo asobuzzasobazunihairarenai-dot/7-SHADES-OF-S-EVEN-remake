@@ -191,7 +191,7 @@ import { initOnlineUi, openOnlinePanel, isOnlineIntentActive } from "./online-ui
 import { initOpeningScreen, previewOpeningAuras } from "./opening-screen.js";
 import { maybeShowFirstRunBgmModal } from "./first-run-bgm.js";
 import { applyStoredCardPreviewSize } from "./card-preview-size.js";
-import { isCpuBattleActive, isCpuAutoSkipEnabled, releaseCpuStep, consumeCpuStep } from "./cpu-battle-state.js";
+import { isCpuBattleActive, isCpuAutoSkipEnabled } from "./cpu-battle-state.js";
 import {
   getSelfSeat,
   isSpectatingGame,
@@ -1693,15 +1693,36 @@ function announceHandEffectUseForEffect(cardId, optionLabel, player) {
 // 重なって出てしまっていた。表示モーダル自身の全表示時間と揃えて待つようにした
 // （呼び出し元全てに影響するが、「次のモーダルと重ならないようにする」という目的自体は
 // どの呼び出し元でも共通のため）。
+// CPU戦の自動スキップOFF中、CPUの番の「結果通知モーダル」をプレイヤーが読み終える（＝
+// 画面をクリックする）まで止めているか。true の間だけ syncCpuStepHint が「クリックで次へ」
+// の案内を出す。ユーザー要望（2026-08-07）「CPUが選ぶ時は自動で進めて、選んだ結果の通知
+// モーダルで泊まるように。じゃないと自分が選ぶのかと錯覚する」。
+let cpuResultHoldActive = false;
+// 結果通知モーダルを、CPU戦の自動スキップOFF＋CPUの番のときはクリック待ちで表示し、
+// それ以外は従来通り一定時間で自動的に消す。共通処理。
+async function showAndAwaitEffectReason(cardId, text) {
+  const hold =
+    isCpuBattleActive() && !isOnlineMode() && !isCpuAutoSkipEnabled() && isPseudoCpuTarget(getState().turnPlayer);
+  const done = showEffectReasonModal(cardId, text, { holdUntilClick: hold });
+  if (hold) {
+    cpuResultHoldActive = true;
+    try {
+      await done;
+    } finally {
+      cpuResultHoldActive = false;
+    }
+  } else {
+    await wait(REASON_MODAL_TOTAL_MS);
+  }
+}
 async function announceEffectReasonForEffect(cardId, text) {
-  showEffectReasonModal(cardId, text);
   // ユーザー要望（続き70）「試練の儀式やザギャンブルでの結果は相手にもモーダルで
   // 教えてあげてください」。以前は実行者本人の画面にしか表示していなかった。
   // hand_effect_useと同じ「見た目だけの合図」パターンで他プレイヤーへも中継する。
   if (isOnlineMode()) {
     broadcastEffectReason({ fromPlayer: getSelfSeat(), cardId, text });
   }
-  await wait(REASON_MODAL_TOTAL_MS);
+  await showAndAwaitEffectReason(cardId, text);
 }
 
 // ユーザー要望「選ぶ系の効果（選べる罠・パーティ・なないろの欠片 等）で、プレイヤーが
@@ -1721,8 +1742,8 @@ async function announceEffectChoiceForEffect(cardId, player, optionLabel) {
 // ため文言を分ける——盤面にそのまま残る）。announceEffectReasonForEffectと同じ理由で
 // モーダル自身の全表示時間と揃えて待つ。
 async function announceEffectFizzleForEffect(cardId, addsToHand) {
-  showEffectReasonModal(cardId, addsToHand ? "不発のため、このカードを手札に加えます。" : "不発のため、何も起きませんでした。");
-  await wait(REASON_MODAL_TOTAL_MS);
+  await showAndAwaitEffectReason(cardId, addsToHand ? "不発のため、このカードを手札に加えます。" : "不発のため、何も起きませんでした。");
+  return;
 }
 
 // なないろの欠片のhandEffectOptionsピッカーと全く同じUI（showHandEffectOptionPicker）を
@@ -2804,21 +2825,12 @@ function getAutoDriveSeat() {
 export function performPriorityTimeoutAutoAction() {
   // ローカルCPU戦ではCPU(C)の番を、それ以外は自分の席を代行する。
   const driveSeat = getAutoDriveSeat();
-  // モーダルが無くなったら「クリックで進める」ヒントを消す（安全網）。
-  if (!activeEffectPicker) hideCpuStepHint();
   if (activeEffectPicker) {
-    // CPU自動スキップOFFの時は、CPUのモーダル(branch①)を勝手に解決せず、画面クリックで
-    // 発券された「1手チケット」がある時だけ1つ解決する。無ければヒントを出して待つ。
-    // 対象はCPU席(疑似CPU)が優先権を持っている＝CPU自身のモーダルの時だけ。人間の
-    // 委任選択（優先権が人間に移っている）には掛けない。
-    const pickerOwner = getState().priorityPlayer || driveSeat;
-    const waitForManualStep =
-      isCpuBattleActive() && !isOnlineMode() && !isCpuAutoSkipEnabled() && isPseudoCpuTarget(pickerOwner);
-    if (waitForManualStep && !consumeCpuStep()) {
-      showCpuStepHint();
-      return false;
-    }
-    hideCpuStepHint();
+    // CPUの「選ぶ」モーダル（選択肢・色宣言・マス選択等）は、自動スキップON/OFFに関わらず
+    // 常にここで自動解決する。ユーザー要望（2026-08-07）「CPUが選ぶ時は自動で進めて、
+    // 選んだ結果の通知モーダルで泊まるように。じゃないと自分が選ぶのかと錯覚する」——
+    // 以前はOFF時にこの選択モーダル自体をクリック待ちで止めていたため錯覚の原因になって
+    // いた。止めるのは結果通知モーダル側（showAndAwaitEffectReason）に移した。
     const picker = activeEffectPicker;
     activeEffectPicker = null;
     if (picker.type === "cell") {
@@ -2921,15 +2933,15 @@ export function performPriorityTimeoutAutoAction() {
   return false;
 }
 
-// CPU自動スキップOFF（オプションの「CPU戦」で設定）の時に、CPUのモーダルが解決待ちで
-// 止まっている間だけ「画面をクリックして進める」案内を出す。ザ・ギャンブル等をゆっくり
-// 読むための機能。クリックはページ全体で拾う（下のリスナー）。
+// CPU自動スキップOFFの時に、CPUの「結果通知モーダル」がクリック待ちで止まっている間だけ
+// 「クリックして次へ」の案内を出す。CPUの選ぶモーダルは自動で解決されるので案内は出さない
+// （ユーザー要望2026-08-07: 選ぶ所は自動、結果通知で止める）。
 let cpuStepHintEl = null;
 function showCpuStepHint() {
   if (!cpuStepHintEl) {
     cpuStepHintEl = document.createElement("div");
     cpuStepHintEl.id = "cpu-step-hint";
-    cpuStepHintEl.textContent = "▶ 画面をクリックしてCPUの手を進める";
+    cpuStepHintEl.textContent = "▶ クリックして次へ";
     document.body.appendChild(cpuStepHintEl);
   }
   cpuStepHintEl.classList.add("show");
@@ -2937,28 +2949,20 @@ function showCpuStepHint() {
 function hideCpuStepHint() {
   if (cpuStepHintEl) cpuStepHintEl.classList.remove("show");
 }
-// 「画面をクリックしてCPUの手を進める」案内は、CPU(疑似CPU)が選択待ちのモーダルを持って
-// いる間だけ出す。以前は performPriorityTimeoutAutoAction（CPUの時間切れ時にしか呼ばれない）
-// の中でしか出し消ししていなかったため、CPUの番が終わって自分の番になっても消えず残る
-// （不具合#29「自分のターンなのにヒントが出る」）＋自分自身の選択（パーティ等、全員が選ぶ
-// 効果での自分の分）中にも残って「CPUの選択を代行させられている」ように見える（#30）原因に
-// なっていた。turn-timerのtick（約200msごと）から毎回この関数で現在の状態を見て出し消しする。
+// 案内は、CPU戦の自動スキップOFFで、CPUの番の結果通知モーダルがクリック待ちの間だけ出す
+// （cpuResultHoldActive、showAndAwaitEffectReason参照）。turn-timerのtick（約200msごと）から
+// 毎回呼び、CPUの番が終わって自分の番になったら確実に消えるようにする（#29/#30対策）。
 export function syncCpuStepHint() {
-  const waiting =
-    isCpuBattleActive() &&
-    !isOnlineMode() &&
-    !isCpuAutoSkipEnabled() &&
-    !!activeEffectPicker &&
-    isPseudoCpuTarget(getState().priorityPlayer || getAutoDriveSeat());
-  if (waiting) showCpuStepHint();
+  if (cpuResultHoldActive) showCpuStepHint();
   else hideCpuStepHint();
 }
 // ローカルCPU戦で、CPU(疑似CPU)が選択待ちのモーダル（パーティ等の選択肢・色宣言・
 // 到達のマス選択など、activeEffectPickerで登録されるもの）を持っている間は、人間が
 // その選択を代わりに押せないようにする（ユーザー報告「CPUの選択肢を私が押せてしまう」）。
-// capture段階でクリックを握り、下のモーダルのボタン等へは一切伝えない。
-// - 自動スキップON（既定）: クリックしても何も起きない。CPUの手はタイマーが自動で解決する。
-// - 自動スキップOFF: このクリックで「1手」だけ発券して進める（クリックで1手ずつ読む機能）。
+// capture段階でクリックを握り、下のモーダルのボタン等へは一切伝えない。CPUの選ぶモーダルは
+// 自動スキップON/OFFに関わらずタイマーが自動で解決するので、その解決までのわずかな表示中に
+// 人間が誤って（または結果通知だと思って）CPUの選択肢を押してしまわないよう握るだけ。
+// （自分自身の選択＝優先権が人間の時は握らない）。
 document.addEventListener(
   "click",
   (e) => {
@@ -2968,8 +2972,6 @@ document.addEventListener(
     if (!isPseudoCpuTarget(owner)) return; // 人間の選択待ちなら邪魔しない
     e.preventDefault();
     e.stopPropagation();
-    // 自動スキップOFFの時だけ、このクリックを「1手進める」発券に使う。
-    if (!isCpuAutoSkipEnabled()) releaseCpuStep();
   },
   true
 );

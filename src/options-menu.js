@@ -772,7 +772,7 @@ export function initOptionsMenu() {
         "CPU戦（1人用）",
         (content) => {
           content.appendChild(
-            buildCheckboxRow("CPUのモーダルを自動で進める（OFFにするとクリックで1手ずつ進む）", isCpuAutoSkipEnabled(), (checked) => {
+            buildCheckboxRow("CPUの結果通知を自動で進める（OFFにするとクリックするまで表示）", isCpuAutoSkipEnabled(), (checked) => {
               setCpuAutoSkipEnabled(checked);
             })
           );

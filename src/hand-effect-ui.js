@@ -112,7 +112,10 @@ export const REASON_MODAL_TOTAL_MS = REASON_MODAL_DURATION_MS + 300;
 // 説明する自由文を表示する。対象を選ぶ・マスを選ぶ等それ自体で結果が見て分かる効果には
 // 使わず、盤面全体の状況判断（カウンターロックの「一番少ない」等）が必要な効果にだけ
 // 使う想定。
-export function showEffectReasonModal(cardId, text) {
+// holdUntilClick=true の時は自動で消えず、モーダルのクリック／✕／画面どこかのクリックで
+// 初めて閉じる（＝CPU戦の自動スキップOFFで、CPUの結果通知をプレイヤーが読み終えるまで
+// 止めるため）。戻り値は「閉じたら解決するPromise」（呼び出し側が待てるように）。
+export function showEffectReasonModal(cardId, text, { holdUntilClick = false } = {}) {
   if (currentReasonModal) {
     clearTimeout(currentReasonModalTimer);
     currentReasonModal.remove();
@@ -122,31 +125,49 @@ export function showEffectReasonModal(cardId, text) {
   const modal = document.createElement("div");
   modal.className = "effect-reason-modal";
 
-  function dismiss() {
-    modal.classList.remove("show");
-    setTimeout(() => {
-      modal.remove();
-      if (currentReasonModal === modal) currentReasonModal = null;
-    }, 300);
-  }
+  return new Promise((resolve) => {
+    let settled = false;
+    let docClickHandler = null;
+    function dismiss() {
+      if (settled) return;
+      settled = true;
+      if (docClickHandler) document.removeEventListener("click", docClickHandler, true);
+      modal.classList.remove("show");
+      setTimeout(() => {
+        modal.remove();
+        if (currentReasonModal === modal) currentReasonModal = null;
+      }, 300);
+      resolve();
+    }
 
-  const nameEl = document.createElement("div");
-  nameEl.className = "effect-reason-modal-name";
-  nameEl.textContent = def?.name ?? cardId;
-  modal.appendChild(nameEl);
+    const nameEl = document.createElement("div");
+    nameEl.className = "effect-reason-modal-name";
+    nameEl.textContent = def?.name ?? cardId;
+    modal.appendChild(nameEl);
 
-  const textEl = document.createElement("div");
-  textEl.className = "effect-reason-modal-text";
-  textEl.textContent = text;
-  modal.appendChild(textEl);
+    const textEl = document.createElement("div");
+    textEl.className = "effect-reason-modal-text";
+    textEl.textContent = text;
+    modal.appendChild(textEl);
 
-  modal.appendChild(createModalCloseX(dismiss));
-  modal.addEventListener("click", dismiss);
+    modal.appendChild(createModalCloseX(dismiss));
+    modal.addEventListener("click", dismiss);
 
-  document.body.appendChild(modal);
-  currentReasonModal = modal;
-  requestAnimationFrame(() => modal.classList.add("show"));
-  currentReasonModalTimer = setTimeout(dismiss, REASON_MODAL_DURATION_MS);
+    document.body.appendChild(modal);
+    currentReasonModal = modal;
+    requestAnimationFrame(() => modal.classList.add("show"));
+    if (holdUntilClick) {
+      // 自動で消さず、画面のどこをクリックしても閉じる。モーダル出現の同一クリックで
+      // 即閉じしないよう、次フレームからリスナーを付ける。
+      requestAnimationFrame(() => {
+        if (settled) return;
+        docClickHandler = () => dismiss();
+        document.addEventListener("click", docClickHandler, true);
+      });
+    } else {
+      currentReasonModalTimer = setTimeout(dismiss, REASON_MODAL_DURATION_MS);
+    }
+  });
 }
 
 let currentReceivedModal = null;
