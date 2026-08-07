@@ -120,11 +120,14 @@ export function getAvatarShopItems() {
   }));
 }
 
+// ユーザー要望2026-08-07「アバターのデフォを『記憶を失った青年』に」。全席の既定を青年
+// （PROTAGONIST_AVATARセンチネル）にする。getPlayerAvatar→resolveAvatarValueが、その席の
+// 駒の色（ゲーム開始前は灰色）の画像へ解決する。未選択のユーザー・座席はこれが既定になる。
 const DEFAULT_AVATARS = {
-  A: "assets/avatars/red-front.webp",
-  B: "assets/avatars/orange-front.webp",
-  C: "assets/avatars/yellow-front.webp",
-  D: "assets/avatars/green-front.webp",
+  A: PROTAGONIST_AVATAR,
+  B: PROTAGONIST_AVATAR,
+  C: PROTAGONIST_AVATAR,
+  D: PROTAGONIST_AVATAR,
 };
 
 let customNames = {};

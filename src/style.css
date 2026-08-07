@@ -595,8 +595,9 @@ img {
 #mini-lock-area {
   position: fixed;
   left: 50%;
-  bottom: 0.5rem;
-  transform: translateX(-50%);
+  /* 既定は画面最下部（ユーザー要望2026-08-07）。位置は管理者モードで調整可能。 */
+  bottom: var(--mini-lock-bottom, 0rem);
+  transform: translateX(calc(-50% + var(--mini-lock-x-offset, 0rem)));
   z-index: 62;
   display: flex;
   flex-direction: column;
@@ -611,7 +612,7 @@ img {
 }
 /* 「手札を画面下に固定する」ONの時は下部に手札トレイが来るので、その上へ重ねる。 */
 body.fixed-hand-mode #mini-lock-area {
-  bottom: 12rem;
+  bottom: var(--mini-lock-bottom-fixed-hand, 12rem);
 }
 .mini-lock-area-label {
   font-family: sans-serif;
