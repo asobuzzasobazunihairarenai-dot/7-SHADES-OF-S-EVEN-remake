@@ -722,9 +722,9 @@ const GROUPS = [
     title: "ミニロックエリアの位置（拡大でロックエリアが隠れた時に画面下中央へ出る表示）",
     category: "position-self",
     controls: [
-      { key: "--mini-lock-bottom", label: "下からの位置", unit: "rem", min: -2, max: 20, step: 0.1, default: 0 },
+      { key: "--mini-lock-bottom", label: "下からの位置", unit: "rem", min: -2, max: 20, step: 0.1, default: -0.2 },
       { key: "--mini-lock-x-offset", label: "横方向のずれ", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
-      { key: "--mini-lock-bottom-fixed-hand", label: "下からの位置（手札固定ON時）", unit: "rem", min: 0, max: 26, step: 0.1, default: 12 },
+      { key: "--mini-lock-bottom-fixed-hand", label: "下からの位置（手札固定ON時）", unit: "rem", min: 0, max: 26, step: 0.1, default: 0 },
     ],
   },
   {
