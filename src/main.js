@@ -195,7 +195,7 @@ import { maybeShowFirstRunBgmModal } from "./first-run-bgm.js";
 import { applyStoredCardPreviewSize, getCardPreviewSide } from "./card-preview-size.js";
 import { isFixedHandEnabled, applyStoredFixedHand } from "./fixed-hand.js";
 import { isCpuBattleActive, isCpuAutoSkipEnabled, isCpuBrainSmart } from "./cpu-battle-state.js";
-import { chooseMoveCandidate, chooseDeclaredColors } from "./cpu-brain.js";
+import { chooseMoveCandidate, chooseDeclaredColors, chooseEffectOption } from "./cpu-brain.js";
 import {
   getSelfSeat,
   isSpectatingGame,
@@ -2071,7 +2071,8 @@ function pickOptionForEffect(cardId, optionsWithUsability) {
     cardId,
     optionsWithUsability,
     (resolveFn) => {
-      activeEffectPicker = { type: "option", options: optionsWithUsability, resolve: resolveFn };
+      // cardIdも持たせる（賢いCPUがカードごとに選択肢を評価するため。chooseEffectOption参照）。
+      activeEffectPicker = { type: "option", options: optionsWithUsability, cardId, resolve: resolveFn };
     },
     { hidden }
   ).then((option) => {
@@ -3209,7 +3210,13 @@ export function performPriorityTimeoutAutoAction() {
       // 選択肢だけの中からランダムに1つ選ぶ（呼び出し元は必ず1つ以上usable:trueが
       // ある状態でしかこのモーダルを開かないため、ここが空になることは無い想定）。
       const usable = picker.options.filter((o) => o.usable);
-      picker.resolve(pickRandomFrom(usable));
+      // 賢いCPU（中級以上）は、カードごとに選択肢を評価して選ぶ（パーティ=拾う優先/選べる罠=被害最小
+      // 等。chooseEffectOption参照）。新人・未対応カードは従来通りランダム。
+      if (isCpuBrainDriving(driveSeat)) {
+        picker.resolve(chooseEffectOption(picker.cardId, usable, driveSeat));
+      } else {
+        picker.resolve(pickRandomFrom(usable));
+      }
     } else if (picker.type === "colors") {
       // ザ・ギャンブル/試練の儀式の色宣言モーダル用。「N色以上」「ちょうどN色」の
       // どちらでも、必要数ちょうどをCOLORS（７色）から重複無しで選べば両方の条件を満たす。

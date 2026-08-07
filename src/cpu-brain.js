@@ -198,3 +198,36 @@ export function chooseDeclaredColors(cardId, requiredCount, driveSeat) {
   const sorted = COLORS.slice().sort((a, b) => remaining[b] - remaining[a]); // 多い順
   return seek ? sorted.slice(0, n) : sorted.slice(-n);
 }
+
+// --- 効果の選択肢（パーティ／選べる罠 等）の思考 ------------------------------------------
+// 選択肢はカードごとに意味が違うため、id で分かるカードだけ賢く選び、不明なカードは usable の
+// 中からランダム（新人相当）にフォールバックする。usableCandidates は usable:true のものだけが
+// 渡ってくる前提（呼び出し側で絞り込み済み）。
+const OPTION_RANK = {
+  // パーティー（pink-party）: 場のカードを手札に得る(pickup)＞1マス移動(move)＞2枚オープン(open-two)。
+  // 高いほど良い。
+  "pink-party": { pickup: 3, move: 2, "open-two": 1 },
+  // 選べる罠（blue-choosable-trap）: いずれも損だが、被害の小さい順に。ゲート強制移動(カード損失
+  // 無し)＞手札半分捨て（札は失うがロックは無事）＞ロックを1枚捨て（色が減る＝勝利が遠のく最悪）。
+  "blue-choosable-trap": { "forced-move-to-own-gate": 3, "discard-half-hand": 2, "discard-one-locked-card": 1 },
+};
+
+export function chooseEffectOption(cardId, usableCandidates, driveSeat) {
+  if (!usableCandidates || usableCandidates.length === 0) return null;
+  const rankMap = OPTION_RANK[cardId];
+  if (!rankMap) {
+    // 未対応のカード（ザ・ギャンブルの公開方式・なないろの欠片のロック先等）は無理に評価せず
+    // ランダム（新人相当）。
+    return usableCandidates[Math.floor(Math.random() * usableCandidates.length)];
+  }
+  let best = null;
+  let bestScore = -Infinity;
+  for (const opt of usableCandidates) {
+    const score = rankMap[opt.id] ?? 0;
+    if (score > bestScore) {
+      bestScore = score;
+      best = opt;
+    }
+  }
+  return best ?? usableCandidates[0];
+}
