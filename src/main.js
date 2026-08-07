@@ -1251,7 +1251,7 @@ async function swapPiecesForEffect(pieceTokenId, fromLocation, targetLocation) {
 // （奪った/受け取った）、loses=自分が奪われた/渡した時（奪われた/渡した）。1画面共有の
 // ローカルでは見ているのは常に自分なので、CPUが自分から奪う時に「奪った」ではなく「奪われた」と
 // 出す（ユーザー報告2026-08-07: スリカエで自分が受け取ったのに「渡した」と出て紛らわしい）。
-function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, revealLabels = { takes: "奪った", loses: "奪われた" }) {
+function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, revealLabels = { takes: "奪った", loses: "奪われた" }, options = {}) {
   return new Promise((resolve) => {
     const theirHand = getState().tokens.filter(
       (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === targetPlayer && !excludeTokenIds?.has(t.id)
@@ -1293,6 +1293,17 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, reve
       // ローカルでもオンラインの引いた本人でも、それぞれの画面で見える。閉じる（クリック/自動）まで
       // 待ってから解決するので、複数枚（ゲート侵攻）でも1枚ずつ順番に見せられる。
       if (token) {
+        // ユーザー要望2026-08-08「接触の“奪った”モーダルが出るタイミングで実際に手札へ加えたい」。
+        // 呼び出し側が指定した時だけ、reveal（下）を出す前にこの1枚を実際に手札へ移す
+        // （＝奪ったモーダルが出た時点で既に自分の手札に入っている）。RESPOND_CONTACTは
+        // 「既に攻撃側の手札にある札は二重に奪わない」ように対応済み（state.js）。
+        if (options?.onPickedBeforeReveal) {
+          try {
+            await options.onPickedBeforeReveal(token);
+          } catch (err) {
+            console.error("onPickedBeforeReveal failed", err);
+          }
+        }
         // 自分視点でラベル・文面を出し分ける。この札は targetPlayer → actor(手番) へ移る。
         const actor = getState().turnPlayer;
         const self = getSelfSeat();
@@ -5674,7 +5685,18 @@ async function respondToContact(approve) {
     } else {
       const chosenCard = await requestOpponentHandRitualPick(
         defender,
-        `${getPlayerName(attacker)}が、${getPlayerName(defender)}の手札（裏向き）から奪う1枚を選んでください`
+        `${getPlayerName(attacker)}が、${getPlayerName(defender)}の手札（裏向き）から奪う1枚を選んでください`,
+        undefined,
+        undefined,
+        {
+          // 「奪った」モーダルが出るその瞬間に、実際に攻撃側の手札へ加える（ユーザー要望2026-08-08）。
+          // ローカル専用（オンラインはサーバーのRESPOND_CONTACTが権威。ここで先に動かすと二重管理に
+          // なるため）。RESPOND_CONTACT（state.js）は既に手札にある札を二重に奪わないよう対応済み。
+          onPickedBeforeReveal: (token) => {
+            moveToken(token.id, { zone: "hand", player: attacker });
+            render();
+          },
+        }
       );
       if (!chosenCard) return;
       stolenCardId = chosenCard.id;

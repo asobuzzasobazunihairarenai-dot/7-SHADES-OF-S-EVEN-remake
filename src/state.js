@@ -356,7 +356,15 @@ function reduce(current, action) {
         (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === pending.defender
       );
       let tokens = current.tokens;
-      if (defenderHand.length > 0) {
+      // ユーザー要望2026-08-08「接触の“奪った”モーダルが出るタイミングで手札に実際に加えたい」への
+      // 対応で、ローカルでは奪う札(stolenCardId)を先に攻撃側の手札へ移してからこのRESPOND_CONTACTを
+      // 呼ぶことがある。その場合は既に攻撃側の手札にあるので、二重に別の札を奪わないようスキップする。
+      const alreadyStolen =
+        action.stolenCardId &&
+        current.tokens.some(
+          (t) => t.id === action.stolenCardId && t.location.zone === "hand" && t.location.player === pending.attacker
+        );
+      if (!alreadyStolen && defenderHand.length > 0) {
         const chosen = action.stolenCardId ? defenderHand.find((t) => t.id === action.stolenCardId) : null;
         const stolen = chosen ?? shuffled(defenderHand)[0];
         tokens = tokens.map((t) =>
