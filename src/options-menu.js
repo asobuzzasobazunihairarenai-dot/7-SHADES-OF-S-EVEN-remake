@@ -23,7 +23,7 @@ import { isActionConfirmEnabled, setActionConfirmEnabled } from "./action-confir
 import { isBoardIllustOnly, setBoardIllustOnly } from "./board-card-display.js";
 import { isFixedHandEnabled, setFixedHandEnabled } from "./fixed-hand.js";
 import { getSoundVolume, setSoundVolume, getBgmVolume, setBgmVolume } from "./sound.js";
-import { setCardPreviewSize } from "./card-preview-size.js";
+import { setCardPreviewSize, getCardPreviewSide, setCardPreviewSide } from "./card-preview-size.js";
 import { getCpuSpeed, setCpuSpeed, isCpuAutoSkipEnabled, setCpuAutoSkipEnabled, getCpuDifficulty, setCpuDifficulty } from "./cpu-battle-state.js";
 import { SHORTCUT_TARGETS, getShortcut, setShortcut, registerShortcutSettingsOpener } from "./player-buttons.js";
 import { createBackdrop } from "./ui-helpers.js";
@@ -291,6 +291,42 @@ function buildCardPreviewSizeRow() {
   row.appendChild(labelEl);
   row.appendChild(slider);
   row.appendChild(valueLabel);
+  return row;
+}
+
+// カード拡大プレビューを、指の長タップ／マウスホバー位置の右・左どちらに出すかを選ぶ
+// セグメント（ユーザー要望2026-08-07: スマホ・PCとも右拡大/左拡大を選べるように。既定は右）。
+function buildCardPreviewSideRow() {
+  const row = document.createElement("div");
+  row.className = "options-menu-volume-row";
+  const label = document.createElement("span");
+  label.textContent = "カード拡大を出す向き";
+  row.appendChild(label);
+  const group = document.createElement("div");
+  group.className = "options-menu-segment";
+  const buttons = [];
+  const refresh = () => {
+    const cur = getCardPreviewSide();
+    for (const b of buttons) b.classList.toggle("is-selected", b.dataset.v === cur);
+  };
+  for (const [v, text] of [
+    ["right", "右に拡大"],
+    ["left", "左に拡大"],
+  ]) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "options-menu-segment-btn";
+    btn.dataset.v = v;
+    btn.textContent = text;
+    btn.addEventListener("click", () => {
+      setCardPreviewSide(v);
+      refresh();
+    });
+    group.appendChild(btn);
+    buttons.push(btn);
+  }
+  row.appendChild(group);
+  refresh();
   return row;
 }
 
@@ -668,6 +704,7 @@ export function initOptionsMenu() {
         "表示・演出",
         (content) => {
           content.appendChild(buildCardPreviewSizeRow());
+          content.appendChild(buildCardPreviewSideRow());
           // ユーザー要望「盤面（場・捨て場・ロックエリア）のカードは遠景で文字が読めないので、
           // イラストのみのカード画像で映えさせたい。ホバー拡大や手札は通常のテキストあり画像
           // のまま」。この端末のみのローカル設定（board-card-display.js、相手には非同期）。

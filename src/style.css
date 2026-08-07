@@ -9336,6 +9336,83 @@ body.reduce-glow .cell.card-effect-just-placed {
    カード1枚を、裏向き待機(is-suspense、虹色の縁取りが脈打つ)→3Dフリップ(is-flipped)→
    表向きで色付きに脈打つ(is-revealed)、と切り替えていく。flyGhostの.setup-fly-cardと
    違い、こちらは「止まって見せる」区間を持つため専用のクラスにしてある。 */
+/* ザ・ギャンブル成功／試練の儀式「〇回成功！」のお祝い演出（案A: 紙吹雪＋大きな見出し）。
+   ユーザー要望2026-08-07。tone-success=紙吹雪あり、tone-fail=控えめ。 */
+.result-celebration {
+  position: fixed;
+  inset: 0;
+  z-index: 10650;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.result-celebration.show {
+  opacity: 1;
+}
+.result-celebration-card {
+  text-align: center;
+  transform: scale(0.6);
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  padding: 1.2rem 2rem;
+}
+.result-celebration.show .result-celebration-card {
+  transform: scale(1);
+}
+.result-celebration-headline {
+  font-family: "Arial Black", sans-serif;
+  font-weight: 900;
+  font-size: clamp(2.4rem, 9vw, 5rem);
+  letter-spacing: 0.02em;
+  color: #fde68a;
+  text-shadow: 0 2px 0 #b45309, 0 0 1.4rem rgba(251, 191, 36, 0.9), 0 6px 18px rgba(0, 0, 0, 0.6);
+  animation: celebration-pop 0.6s ease-out;
+}
+.result-celebration.tone-fail .result-celebration-headline {
+  color: #cbd5e1;
+  text-shadow: 0 2px 0 #334155, 0 6px 18px rgba(0, 0, 0, 0.6);
+  font-size: clamp(1.8rem, 6vw, 3.2rem);
+}
+.result-celebration-sub {
+  margin-top: 0.8rem;
+  font-family: sans-serif;
+  font-size: clamp(0.9rem, 2.4vw, 1.15rem);
+  font-weight: bold;
+  color: #f1f5f9;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+}
+@keyframes celebration-pop {
+  0% { transform: scale(0.5); }
+  60% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+.result-celebration-confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.result-celebration-confetti i {
+  position: absolute;
+  top: -8%;
+  width: 0.6rem;
+  height: 1rem;
+  border-radius: 1px;
+  opacity: 0.95;
+  animation-name: confetti-fall;
+  animation-timing-function: ease-in;
+  animation-iteration-count: 1;
+}
+@keyframes confetti-fall {
+  0% { transform: translateY(-10vh) translateX(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(112vh) translateX(var(--drift, 0)) rotate(var(--rot, 360deg)); opacity: 0.9; }
+}
+body.reduce-glow .result-celebration-confetti i,
+body.reduce-glow .result-celebration-headline {
+  animation: none;
+}
+
 .eternal-reveal-card {
   position: fixed;
   z-index: 9999;

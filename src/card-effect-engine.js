@@ -1196,10 +1196,17 @@ async function runAction(action, ctx, helpers) {
       // 続き65: 公開ドローの結果で宣言色が判明した瞬間なので、常駐していた色宣言表示を消す。
       await helpers.announceColorsResolved?.();
       if (!matches) {
-        // ユーザー要望「ザ・ギャンブルで『おめでとうモーダルが欲しい』『残念モーダルも
-        // 欲しい』」（続き62）。宣言色が出なかった＝プレイヤーにとって良い結果
-        // （手札を捨てずに済む）なので「おめでとう」を出す。
-        await helpers.announceEffectReason?.(ctx.cardId, "おめでとうございます！公開した中に宣言した色が無かったため、手札はそのまま残ります。");
+        // ユーザー要望2026-08-07: 宣言色が出なかった＝良い結果（手札を捨てずに済む）を、
+        // 紙吹雪＋大きな英語見出しでお祝いする（案A、「おめでとう」ではなく英語で）。
+        if (helpers.celebrate) {
+          await helpers.celebrate(ctx.cardId, {
+            tone: "success",
+            headline: "CONGRATULATIONS!",
+            sub: "公開した中に宣言した色はありませんでした。手札はそのまま残ります！",
+          });
+        } else {
+          await helpers.announceEffectReason?.(ctx.cardId, "おめでとうございます！公開した中に宣言した色が無かったため、手札はそのまま残ります。");
+        }
         return false;
       }
       await helpers.announceEffectReason?.(ctx.cardId, "残念でした。公開した中に宣言した色があったため、手札を全て捨てます。");
@@ -1235,6 +1242,7 @@ async function runAction(action, ctx, helpers) {
       let declaredColors = ctx.selections.declaredColors;
       if (!declaredColors?.length) return false;
       let placedAny = false;
+      let successCount = 0; // 宣言色に当たった回数（試練は必ずハズレで終わるので、最後にまとめて祝う）
       const MAX_ITERATIONS = 300;
       for (let i = 0; i < MAX_ITERATIONS; i++) {
         const adjacentCandidateCells = enumerateManhattanRing(1)
@@ -1263,21 +1271,26 @@ async function runAction(action, ctx, helpers) {
         // 続き65: 置いたカードで宣言色が判明した瞬間なので、常駐していた色宣言表示を消す
         // （当たっていた場合はこの直後にhelpers.declareColorsで新しい表示に置き換わる）。
         await helpers.announceColorsResolved?.();
-        if (!isMatch) {
-          // ユーザー要望「試練の儀式で『おめでとう』は出るが『残念でした』モーダルも
-          // 欲しい」（続き62）。宣言色が出なかった＝試練終了の合図として、当たった時と
-          // 対になる文言を出す。
-          await helpers.announceEffectReason?.(ctx.cardId, "残念でした。宣言した色が出なかったため、試練はここで終わりです。");
-          break;
-        }
-        // ユーザー要望「見事宣言色だった場合は『おめでとう、試練を続けてください』的な
-        // モーダルを出してあげたい」。再宣言モーダルが続けて出るだけだと「当たった」
-        // ことが伝わりにくいため、一言はさむ。
-        await helpers.announceEffectReason?.(ctx.cardId, "おめでとうございます！宣言色が出ました。引き続き試練を続けてください。");
+        if (!isMatch) break; // 宣言色が出なかった＝試練終了。結果はループ後にまとめて出す。
+        // 当たり。踏んだカード自体は announceSteppedCard で中央に見せているので、ここでは
+        // 「おめでとう」モーダルは挟まず（ユーザー: おめでとうはダサい／最後にまとめて出す）、
+        // 回数だけ数えて次の色宣言へ進む。
+        successCount += 1;
         const redeclared = await helpers.declareColors({ exactCount: 3 }, ctx.cardId, ctx.player);
         if (!redeclared || redeclared.length === 0) break; // 善処の原則: 再宣言をキャンセルしたらそこで終わる
         declaredColors = redeclared;
         ctx.selections.declaredColors = declaredColors;
+      }
+      // ユーザー要望2026-08-07: 試練は必ずハズレで終わるので、最後に「〇回成功！」を出す。
+      // 1回以上当てていれば紙吹雪でお祝い、0回なら控えめに残念を出す。
+      if (successCount > 0) {
+        if (helpers.celebrate) {
+          await helpers.celebrate(ctx.cardId, { tone: "success", headline: `${successCount}回成功！`, sub: "試練を耐え抜きました！" });
+        } else {
+          await helpers.announceEffectReason?.(ctx.cardId, `${successCount}回成功！試練を耐え抜きました！`);
+        }
+      } else {
+        await helpers.announceEffectReason?.(ctx.cardId, "残念でした。宣言した色が出ませんでした。");
       }
       return placedAny;
     }

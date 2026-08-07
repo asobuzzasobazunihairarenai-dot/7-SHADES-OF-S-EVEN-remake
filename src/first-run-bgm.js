@@ -76,10 +76,12 @@ export function maybeShowFirstRunBgmModal() {
   title.className = "first-run-bgm-title";
   title.textContent = "🎵 サウンドと表示の設定";
 
+  // ユーザー要望2026-08-07「初回設定モーダルがスクロール必要な状態。2段階に分けて
+  // スクロール不要にして」。①サウンド（BGM／効果音）→②表示（カード拡大サイズ）の2ステップに分ける。
   const desc = document.createElement("div");
   desc.className = "first-run-bgm-desc";
   desc.textContent =
-    "このアプリにはBGMと効果音があります。それぞれお好みの音量に調整してください（「試聴」で実際の音を確認できます）。最後に、カードを拡大表示したときの大きさも、文字が読みやすいサイズに調整してください。これらの設定は、あとからオプションの「基本設定」でいつでも変更できます。";
+    "このアプリにはBGMと効果音があります。それぞれお好みの音量に調整してください（「試聴」で実際の音を確認できます）。あとからオプションの「基本設定」でいつでも変更できます。";
 
   // --- BGM 音量 ---
   const bgm = buildVolumeRow("BGMの音量", getBgmVolume(), (v) => setBgmVolume(v)); // 再生中なら即反映(sound.js)
@@ -164,10 +166,16 @@ export function maybeShowFirstRunBgmModal() {
   });
   sizeRow.append(sizeName, sizeSlider, sizeValue);
 
+  // ステップ①（サウンド）→②（表示）へ進む「次へ」ボタン。
+  const nextBtn = document.createElement("button");
+  nextBtn.type = "button";
+  nextBtn.className = "first-run-bgm-ok";
+  nextBtn.textContent = "次へ（1/2）";
+
   const okBtn = document.createElement("button");
   okBtn.type = "button";
   okBtn.className = "first-run-bgm-ok";
-  okBtn.textContent = "この設定ではじめる";
+  okBtn.textContent = "この設定ではじめる（2/2）";
   okBtn.addEventListener("click", () => {
     // 試聴中のBGMは止める（この後オープニング側で改めて鳴らすため、二重再生を避ける）。
     if (bgmPreviewing) stopOpeningBgm(0);
@@ -180,16 +188,22 @@ export function maybeShowFirstRunBgmModal() {
     modal.remove();
   });
 
-  modal.append(
-    title,
-    desc,
-    bgm.row,
-    bgmPreviewBtn,
-    sfx.row,
-    sfxPreviewBtn,
-    sizeLabel,
-    sizeRow,
-    okBtn
-  );
+  // ①サウンドのステップ、②表示（拡大サイズ）のステップに分けてスクロール不要にする。
+  const step1 = document.createElement("div");
+  step1.className = "first-run-bgm-step";
+  step1.append(desc, bgm.row, bgmPreviewBtn, sfx.row, sfxPreviewBtn, nextBtn);
+
+  const step2 = document.createElement("div");
+  step2.className = "first-run-bgm-step";
+  step2.style.display = "none";
+  step2.append(sizeLabel, sizeRow, okBtn);
+
+  nextBtn.addEventListener("click", () => {
+    if (bgmPreviewing) stopOpeningBgm(0); // ステップを離れる時は試聴BGMを止める
+    step1.style.display = "none";
+    step2.style.display = "";
+  });
+
+  modal.append(title, step1, step2);
   document.body.append(backdrop, modal);
 }

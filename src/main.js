@@ -191,7 +191,7 @@ import {
 import { initOnlineUi, openOnlinePanel, isOnlineIntentActive } from "./online-ui.js";
 import { initOpeningScreen, previewOpeningAuras } from "./opening-screen.js";
 import { maybeShowFirstRunBgmModal } from "./first-run-bgm.js";
-import { applyStoredCardPreviewSize } from "./card-preview-size.js";
+import { applyStoredCardPreviewSize, getCardPreviewSide } from "./card-preview-size.js";
 import { isFixedHandEnabled, applyStoredFixedHand } from "./fixed-hand.js";
 import { isCpuBattleActive, isCpuAutoSkipEnabled, isCpuBrainSmart } from "./cpu-battle-state.js";
 import { chooseMoveCandidate } from "./cpu-brain.js";
@@ -1783,6 +1783,87 @@ async function announceEffectReasonForEffect(cardId, text) {
     broadcastEffectReason({ fromPlayer: getSelfSeat(), cardId, text });
   }
   await showAndAwaitEffectReason(cardId, text);
+}
+
+// ユーザー要望2026-08-07「ザ・ギャンブルや試練の儀式で成功した時の“おめでとう”演出が
+// 欲しい（案A＝紙吹雪＋大きな文字＋効果音）。ただし『おめでとう』はダサいので英語で。
+// 試練は必ずハズレで終わるので、最後に『〇回成功！』を出す」。紙吹雪＋大きな見出しの
+// お祝いオーバーレイ。tone:"success"は紙吹雪あり、"fail"は控えめ（残念用）。CPU戦の
+// 結果ホールド（自動スキップOFF時はクリックまで表示）にも合わせる。
+function showCelebrationModal(headline, sub, tone, { holdUntilClick } = {}) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = `result-celebration tone-${tone}`;
+    if (tone === "success") {
+      const conf = document.createElement("div");
+      conf.className = "result-celebration-confetti";
+      const colors = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#ec4899", "#a855f7"];
+      for (let i = 0; i < 56; i++) {
+        const p = document.createElement("i");
+        p.style.left = Math.random() * 100 + "%";
+        p.style.background = colors[i % colors.length];
+        p.style.animationDelay = Math.random() * 0.6 + "s";
+        p.style.animationDuration = 1.7 + Math.random() * 1.3 + "s";
+        p.style.setProperty("--drift", (Math.random() * 2 - 1) * 140 + "px");
+        p.style.setProperty("--rot", Math.random() * 720 - 360 + "deg");
+        conf.appendChild(p);
+      }
+      overlay.appendChild(conf);
+    }
+    const card = document.createElement("div");
+    card.className = "result-celebration-card";
+    const h = document.createElement("div");
+    h.className = "result-celebration-headline";
+    h.textContent = headline;
+    card.appendChild(h);
+    if (sub) {
+      const s = document.createElement("div");
+      s.className = "result-celebration-sub";
+      s.textContent = sub;
+      card.appendChild(s);
+    }
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    // 既存SFX流用の祝福/残念の合図（専用ファンファーレ音源は未追加）。
+    playSound(tone === "success" ? "lock" : "cardFlip");
+    requestAnimationFrame(() => overlay.classList.add("show"));
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      overlay.classList.remove("show");
+      setTimeout(() => overlay.remove(), 350);
+      resolve();
+    };
+    if (holdUntilClick) {
+      const onClick = () => {
+        document.removeEventListener("pointerdown", onClick, true);
+        finish();
+      };
+      // 出た瞬間の誤クリックで即閉じないよう少し待ってから受け付ける。
+      setTimeout(() => document.addEventListener("pointerdown", onClick, true), 300);
+    } else {
+      setTimeout(finish, tone === "success" ? 2900 : 2200);
+    }
+  });
+}
+
+async function celebrateForEffect(cardId, { tone = "success", headline, sub } = {}) {
+  // オンラインでは実行者の画面で紙吹雪を出し、相手には従来の結果テキストモーダルを中継する
+  // （紙吹雪自体のブロードキャストは未対応。announceEffectReasonと同じ考え方）。
+  if (isOnlineMode()) broadcastEffectReason({ fromPlayer: getSelfSeat(), cardId, text: sub || headline });
+  const hold =
+    isCpuBattleActive() && !isOnlineMode() && !isCpuAutoSkipEnabled() && isPseudoCpuTarget(getState().turnPlayer);
+  if (hold) {
+    cpuResultHoldActive = true;
+    try {
+      await showCelebrationModal(headline, sub, tone, { holdUntilClick: true });
+    } finally {
+      cpuResultHoldActive = false;
+    }
+  } else {
+    await showCelebrationModal(headline, sub, tone, {});
+  }
 }
 
 // ユーザー要望「選ぶ系の効果（選べる罠・パーティ・なないろの欠片 等）で、プレイヤーが
@@ -3989,6 +4070,7 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         pickPlayer: requestPlayerChoiceForEffect,
         swapRandomHandCard: swapHandCardWithOpponentForEffect,
         announceEffectReason: announceEffectReasonForEffect,
+        celebrate: celebrateForEffect,
         announceEffectChoice: announceEffectChoiceForEffect,
         // 効果結果お知らせ（続き）用に、効果側でプレイヤー名を文面へ埋め込めるようにする。
         getPlayerName,
@@ -4082,6 +4164,7 @@ async function runAutoArrivalEffect(cardId, location, player) {
       // カウンターロックの「あなたは１番少なくロックしているので1枚ドローします」等、
       // 発動理由を一言説明するモーダル用。
       announceEffectReason: announceEffectReasonForEffect,
+      celebrate: celebrateForEffect,
       announceEffectChoice: announceEffectChoiceForEffect,
       // プレゼントの到達効果等で「誰がドロー対象か」を画面中央にアバターで周知する用。
       announceDrawTargets: announceDrawTargetsForEffect,
@@ -6789,9 +6872,16 @@ function positionPreviewPanel(panel, clientX, clientY) {
   const local = stageClientToLocal(clientX, clientY);
   const { x: clientXLocal, y: clientYLocal } = local;
 
-  // 横: 既定はカーソル右。右端をはみ出すならカーソル左へ。最後にステージ内へクランプ。
-  let left = clientXLocal + offset;
-  if (left + panelWidthPx > STAGE_WIDTH) left = clientXLocal - offset - panelWidthPx;
+  // 横: 既定の展開方向はユーザー設定（右／左、既定は右）。設定側にはみ出す場合だけ反対側へ
+  // 反転し、最後にステージ内へクランプする（ユーザー要望2026-08-07: 右拡大/左拡大を選べる）。
+  let left;
+  if (getCardPreviewSide() === "left") {
+    left = clientXLocal - offset - panelWidthPx;
+    if (left < 0) left = clientXLocal + offset; // 左がはみ出すなら右へ
+  } else {
+    left = clientXLocal + offset;
+    if (left + panelWidthPx > STAGE_WIDTH) left = clientXLocal - offset - panelWidthPx; // 右がはみ出すなら左へ
+  }
   left = Math.max(margin, Math.min(left, STAGE_WIDTH - panelWidthPx - margin));
 
   // 縦: 既定はカーソル上方向へ広げる。上端をはみ出すなら下方向へ。最後にステージ内へクランプ。

@@ -39,3 +39,29 @@ export function setCardPreviewSize(rem) {
   window.dispatchEvent(new CustomEvent("admin:change"));
   return v;
 }
+
+// カード拡大プレビューを、カーソル/長タップ位置の「右」に出すか「左」に出すか（ユーザー要望
+// 2026-08-07: スマホの長タップ・PCのホバーどちらも、右拡大/左拡大を選べるように。既定は右）。
+// main.jsのpositionPreviewPanelが既定の展開方向としてこれを使う（画面端でははみ出す側と反対へ
+// 自動反転するのは従来通り）。純粋な見た目の好みなので端末に保存する。
+const SIDE_KEY = "so7-card-preview-side"; // "right" | "left"
+let previewSide = "right";
+try {
+  const s = localStorage.getItem(SIDE_KEY);
+  if (s === "left" || s === "right") previewSide = s;
+} catch {
+  /* 使えなくても既定(右)で動く */
+}
+export function getCardPreviewSide() {
+  return previewSide;
+}
+export function setCardPreviewSide(side) {
+  if (side !== "left" && side !== "right") return;
+  previewSide = side;
+  try {
+    localStorage.setItem(SIDE_KEY, side);
+  } catch {
+    /* 保存できなくてもそのセッションでは効く */
+  }
+  window.dispatchEvent(new CustomEvent("admin:change"));
+}
