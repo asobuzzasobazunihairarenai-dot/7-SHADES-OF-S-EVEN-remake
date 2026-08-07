@@ -942,6 +942,7 @@ async function runAction(action, ctx, helpers) {
       if (!target) return false;
       // お知らせ用に入れ替え相手を先に捕まえる（swapPieces後は駒が動くため）。
       const swapTargetPlayer = findPieceAtCell(target.row, target.col)?.player;
+      const fromLoc = { zone: "cell", row: ctx.pieceLocation.row, col: ctx.pieceLocation.col }; // 発動者の元マス(M)。相手はここへ入れ替わる。
       await helpers.swapPieces(ctx.pieceTokenId, ctx.pieceLocation, target);
       ctx.pieceLocation = target;
       if (swapTargetPlayer)
@@ -949,6 +950,22 @@ async function runAction(action, ctx, helpers) {
           ctx.cardId,
           `${helpers.getPlayerName(ctx.player)}と${helpers.getPlayerName(swapTargetPlayer)}は駒の位置を入れ替えました。`
         );
+      // ユーザー指定ルール2026-08-08（マスチェンジの入れ替えと到達効果）:
+      // ・入れ替えは「移動」ではないので裏向きカードは開かない（表向きの時だけ到達効果が発動）。
+      // ・発動者は入れ替わり先(target)の表向きカードの到達効果を得る。
+      // ・相手は入れ替わり先(M)の表向きカードの到達効果を得る。ただし到達版ではMの一番上は今
+      //   このマスチェンジ自身で、それ自体は再発動しない(処理順の都合で発動者側と二重発動しない)。
+      //   到達版はこの後の既定動作「このカードを手札に加える」でマスチェンジがMから外れ、その下の
+      //   表向きカードが露出した時にexposed-comboで相手ぶんが自動発動する。手札効果版はマスチェンジが
+      //   盤上に無い（発動時に捨て済み）ので、Mの表向きカードをここで相手ぶんとして発動する。
+      // ・入れ替えは同時なので両者の入れ替わり先に表向きカードがあれば両者発動。処理順は処理順の
+      //   原則（発動者→時計回り）に従うため、先に発動者(自分)ぶんを処理する。
+      await helpers.triggerArrivalAtIfFaceUp?.(target, ctx.player);
+      const massChangeStillOnBoard =
+        getState().tokens.find((t) => t.id === ctx.cardTokenId)?.location?.zone === "cell";
+      if (!massChangeStillOnBoard && swapTargetPlayer) {
+        await helpers.triggerArrivalAtIfFaceUp?.(fromLoc, swapTargetPlayer);
+      }
       return true;
     }
     case VERBS.LOCK_PAIR: {

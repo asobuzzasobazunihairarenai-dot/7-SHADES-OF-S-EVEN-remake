@@ -1105,6 +1105,20 @@ function maybeTriggerArrivalForPlacedCardForEffect(location, cardId) {
   maybeTriggerCardArrivalForCard(location, cardId, true);
 }
 
+// マスチェンジの入れ替えルール（ユーザー指定2026-08-08）用。指定マスの一番上のカードが
+// 「表向き」で、かつ期待する駒(expectedPlayer)がそこにいる時だけ、その到達効果を発動して
+// 完了まで待つ。「入れ替え」は移動ではないため裏向きは開かない＝表向きの時だけ発動する。
+// 発動対象席がその効果の自動処理対象(getAutoDriveSeat)でない場合はtriggerCardArrival側が
+// 拡大モーダルのみ出してonFullyResolvedを呼ぶ（既存の非自動到達と同じ挙動）ため、awaitは詰まらない。
+async function triggerArrivalAtIfFaceUpForEffect(location, expectedPlayer) {
+  if (!location) return;
+  const top = findTopCardAt(location);
+  if (!top || !top.faceUp) return;
+  const owner = getPieceOwnerAt(location);
+  if (!owner || (expectedPlayer && owner !== expectedPlayer)) return;
+  await new Promise((resolve) => triggerCardArrival(top.cardId, location, resolve));
+}
+
 // PLACE_CARDのsource:"deck"用（終わりなき化学ゲンテクニーク・月下の漂流船プリドゥエン等）。
 // 山札の一番上を、手札を経由せず直接そのマスへ裏向きで置く（performMoveFallbackAndEndTurn
 // と同じ考え方）。
@@ -4151,6 +4165,7 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         markPlacedLocation: markEffectJustPlaced,
         placeFromDeck: placeFromDeckForEffect,
         swapPieces: swapPiecesForEffect,
+        triggerArrivalAtIfFaceUp: triggerArrivalAtIfFaceUpForEffect,
         announceUse: announceHandEffectUseForEffect,
         pickHandEffectOption: pickOptionForEffect,
         // ジャンプ台の手札効果（これをゲート以外の任意のマスに表向きで置く）用。
@@ -4249,6 +4264,7 @@ async function runAutoArrivalEffect(cardId, location, player) {
       markPlacedLocation: markEffectJustPlaced,
       placeFromDeck: placeFromDeckForEffect,
       swapPieces: swapPiecesForEffect,
+      triggerArrivalAtIfFaceUp: triggerArrivalAtIfFaceUpForEffect,
       // カウンターロックの到達効果（１番少なくロックしているなら1枚ドロー）用。
       // 手札効果側（runAutoHandEffect）は既にdrawCardsを持っていたが、到達効果側には
       // まだ無かったので追加した。
