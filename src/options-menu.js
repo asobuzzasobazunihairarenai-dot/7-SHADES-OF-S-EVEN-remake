@@ -21,6 +21,7 @@ import { isLockAreaBarVisible, setLockAreaBarVisible } from "./lock-area-bar.js"
 import { isLockColorVisible, setLockColorVisible } from "./lock-color.js";
 import { isActionConfirmEnabled, setActionConfirmEnabled } from "./action-confirm-prefs.js";
 import { isBoardIllustOnly, setBoardIllustOnly } from "./board-card-display.js";
+import { isFixedHandEnabled, setFixedHandEnabled } from "./fixed-hand.js";
 import { getSoundVolume, setSoundVolume, getBgmVolume, setBgmVolume } from "./sound.js";
 import { setCardPreviewSize } from "./card-preview-size.js";
 import { getCpuSpeed, setCpuSpeed, isCpuAutoSkipEnabled, setCpuAutoSkipEnabled } from "./cpu-battle-state.js";
@@ -634,6 +635,14 @@ export function initOptionsMenu() {
           content.appendChild(
             buildCheckboxRow("盤面のカードをイラストのみで表示（手札・拡大はそのまま）", isBoardIllustOnly(), (checked) => {
               setBoardIllustOnly(checked);
+            })
+          );
+          // ユーザー要望2026-08-07「マウスホイールで盤面を拡大すると自分の手札が見切れる。
+          // ステータスエリアのように画角固定できないか」。ONで自分の手札を盤面ズームの外側の
+          // 固定トレイ（画面下）に出す（fixed-hand.js）。見た目は平らな手札トレイになる。
+          content.appendChild(
+            buildCheckboxRow("自分の手札を画面下に固定する（盤面を拡大しても見切れない）", isFixedHandEnabled(), (checked) => {
+              setFixedHandEnabled(checked);
             })
           );
           // ユーザー要望「タブレットの点滅対策として、2D表示への切り替えを画面右上の

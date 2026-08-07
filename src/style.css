@@ -555,6 +555,40 @@ img {
   transform-style: preserve-3d;
 }
 
+/* 「手札を画面下に固定する」ON（fixed-hand.js / body.fixed-hand-mode）時の、盤面ズームの外側に
+   置く固定手札トレイ（main.jsのsyncFixedHandOverlayが自分の.hand-area/.hand-reveal-areaをここへ
+   移す）。ステージ(body)基準でfixedなので盤面のズーム・パンの影響を受けない。3Dの傾きは打ち消して
+   フラットに扇を並べる。位置・サイズは実機で調整予定。 */
+#self-hand-overlay {
+  position: fixed;
+  left: 50%;
+  bottom: 0.5rem;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 0.4rem;
+  pointer-events: none;
+}
+#self-hand-overlay .hand-area,
+#self-hand-overlay .hand-reveal-area {
+  pointer-events: auto;
+}
+/* 盤面ゾーン用の「中心基準に絶対配置＋3D傾き」を解除し、トレイ内で通常フロー＋フラットにする。 */
+#self-hand-overlay .hand-area {
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  transform: none !important;
+  transform-style: flat;
+  height: var(--hand-a-thickness);
+  margin: 0 auto;
+}
+#self-hand-overlay .hand-fan {
+  transform-style: flat;
+}
+
 /* 各プレイヤーの手札が盤面中心からどれだけ離れているか（＝手札ゾーンの画面上の位置）を
    独立に調整できるようにする。translateを先頭（＝最後に適用）に置くことで、
    カメラ目線に傾けた後の画面座標系でシフトするようにしている。 */

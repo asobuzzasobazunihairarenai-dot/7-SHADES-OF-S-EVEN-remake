@@ -191,6 +191,7 @@ import { initOnlineUi, openOnlinePanel, isOnlineIntentActive } from "./online-ui
 import { initOpeningScreen, previewOpeningAuras } from "./opening-screen.js";
 import { maybeShowFirstRunBgmModal } from "./first-run-bgm.js";
 import { applyStoredCardPreviewSize } from "./card-preview-size.js";
+import { isFixedHandEnabled, applyStoredFixedHand } from "./fixed-hand.js";
 import { isCpuBattleActive, isCpuAutoSkipEnabled } from "./cpu-battle-state.js";
 import {
   getSelfSeat,
@@ -5762,6 +5763,9 @@ function render() {
     if (targetEl) targetEl.classList.add("card-effect-just-placed");
   }
   fitTableToViewport();
+  // 「手札を画面下に固定する」設定がONなら、自分の手札(扇＋公開ドロー)を盤面ズームの外側の
+  // 固定オーバーレイへ移す（ユーザー要望2026-08-07）。OFFなら盤面内のまま。
+  syncFixedHandOverlay(table);
   updateEndTurnButton();
   updateDrawButton();
   updatePublicDrawButton();
@@ -6668,6 +6672,39 @@ function initHoverHandlers() {
   });
 }
 
+// 「手札を画面下に固定する」設定用（fixed-hand.js、body.fixed-hand-mode）。ONの時、render()で
+// 組み立て直した自分の手札(扇 .hand-area と公開ドロー .hand-reveal-area)を、盤面(#game-table、
+// 盤面ズームのtransformが掛かる)の中から、盤面ズームの外側の固定オーバーレイ(#self-hand-overlay、
+// bodyの子＝ステージ基準でfixed)へ移し替える。ドラッグ・持ち上げ・掴む・ドロップ・飛翔は全て
+// 座標ベース(elementsFromPoint / getBoundingClientRect)なので、DOMの所属が変わっても機能する。
+// オーバーレイはbody直下に1つだけ作って使い回し（render()毎に中身を空にして入れ替える）。
+let selfHandOverlayEl = null;
+function syncFixedHandOverlay(table) {
+  if (!selfHandOverlayEl) {
+    selfHandOverlayEl = document.createElement("div");
+    selfHandOverlayEl.id = "self-hand-overlay";
+    document.body.appendChild(selfHandOverlayEl);
+    // 盤面(table)側のホバーリスナーはここには届かないため、拡大プレビュー用に独自に付ける
+    // （updateHoverは座標ベースなのでそのまま使える）。
+    selfHandOverlayEl.addEventListener("pointermove", (e) => updateHover(e.clientX, e.clientY));
+    selfHandOverlayEl.addEventListener("pointerleave", () => {
+      clearHover();
+      updatePreview(null);
+    });
+  }
+  selfHandOverlayEl.innerHTML = "";
+  if (!isFixedHandEnabled()) {
+    selfHandOverlayEl.style.display = "none";
+    return;
+  }
+  selfHandOverlayEl.style.display = "";
+  const self = getSelfSeat();
+  const handArea = table.querySelector(`.hand-area[data-player="${self}"]`);
+  if (handArea) selfHandOverlayEl.appendChild(handArea);
+  const revealArea = table.querySelector(`.hand-reveal-area[data-player="${self}"]`);
+  if (revealArea) selfHandOverlayEl.appendChild(revealArea);
+}
+
 // 自分の手札をあえて画面下部で見切れさせている場合向け（ユーザー要望）: PCではホバーで、
 // タブレットではタップで、カーソル/タップ位置にある1枚だけが「ひょこっと」持ち上がる
 // （--hand-a-peek-liftで持ち上げ量を管理者モードから調整可能）。以前は手札全体を
@@ -6715,7 +6752,9 @@ function findSelfHandCardAt(clientX, clientY) {
   const elements = document.elementsFromPoint(clientX, clientY);
   for (const el of elements) {
     const handCard = el.closest(".hand-card.is-self");
-    if (handCard && handCard.closest(".zone-bottom .hand-area")) return handCard;
+    // 通常は盤面下部(.zone-bottom)の手札。「手札を画面下に固定する」ON時は固定オーバーレイ
+    // (#self-hand-overlay)へ移しているので、そちらも持ち上げ対象にする。
+    if (handCard && handCard.closest(".zone-bottom .hand-area, #self-hand-overlay")) return handCard;
   }
   return null;
 }
@@ -7093,7 +7132,11 @@ let lastDiscardTapTime = 0;
 
 function initDragHandlers() {
   const table = document.getElementById("game-table");
-  table.addEventListener("pointerdown", async (e) => {
+  // 掴む判定は findDraggableAt（座標ベース elementsFromPoint）なので、リスナーは document に付ける。
+  // こうすると「手札を画面下に固定する」ONで自分の手札が盤面(table)の外の固定オーバーレイに
+  // 移っていても、その手札を掴んでドラッグできる（tableに付けたままだとオーバーレイ上の
+  // pointerdownがtableへ伝播せず掴めない）。掴める対象が無ければ即returnするので盤外への影響は無い。
+  document.addEventListener("pointerdown", async (e) => {
     if (e.button !== 0) return;
     // 「捨てる」ボタンはfindDraggableAtの対象外（駒でもカードでも山でもない）だが、
     // 同じ3D階層のヒットテスト問題を受けるため、先に専用の当たり判定で拾っておく
@@ -10216,6 +10259,8 @@ initOpeningScreen();
 // カード拡大プレビューのサイズは端末に保存される好み設定。初回設定モーダルがその値を
 // 初期値として読むより先に、保存済みの値をCSS変数へ復元しておく（毎回の起動で反映）。
 applyStoredCardPreviewSize();
+// 「手札を画面下に固定する」設定を body クラスへ復元（render()がこれを見て手札の描画先を決める）。
+applyStoredFixedHand();
 // 初回起動時だけ、オープニングの手前にサウンド／表示の設定モーダル（試聴ボタン付き）を出す。
 maybeShowFirstRunBgmModal();
 
