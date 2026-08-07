@@ -9354,7 +9354,10 @@ body.reduce-glow .cell.card-effect-just-placed {
 .eternal-reveal-card-face {
   position: absolute;
   inset: 0;
-  background-size: cover;
+  /* カードは正方形で reveal も正方形なので cover でも切れないが、万一枠と絵の比率が
+     ずれても上下左右が絶対に切れないよう contain にする（ユーザー報告: フリップ時に上下が
+     見切れる、への保険）。 */
+  background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
   border-radius: 0.5rem;

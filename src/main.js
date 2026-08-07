@@ -2254,6 +2254,17 @@ async function runJointConstructionTask(player) {
   // 「空いている」になっていた。docs/cards.mdの表記に合わせて「何もない」に統一する。
   const dest = await requestCellChoiceForEffect(emptyCells, "何もないマスを選択してください");
   if (!dest) return false;
+  // ユーザー要望2026-08-07: 手札（公開ドロー含む）が無い時は「山札から/手札から」を聞いても
+  // 「手札から」は選べず無意味なので、その選択を出さず自動で山札から置き、「手札がないため
+  // 山札から置きました」と全員に周知する（choose-effect-reveal方針に合わせ同じ告知モーダルを流用）。
+  const handTokens = getState().tokens.filter(
+    (t) => t.kind === "card" && t.location.player === player && (t.location.zone === "hand" || t.location.zone === "publicDraw")
+  );
+  if (handTokens.length === 0) {
+    await placeFromDeckForEffect({ zone: "cell", row: dest.row, col: dest.col });
+    await announceEffectChoiceForEffect("green-joint-construction", player, "手札がないため山札から置く");
+    return true;
+  }
   const source = await requestPlaceSourceChoiceForEffect();
   if (!source) return false;
   if (source === "hand") {
@@ -4975,18 +4986,20 @@ function getEternalRevealCenterRect(pileRect) {
   // 縦横比のまま横幅比で一様拡大して着地する。着地した縦長カード→正方形revealへ受け渡す際、
   // ①縦横比が違うためサイズがカクッと変わり、②background-size:coverの正方形にカード絵を
   // 敷くと上下が切れて絵が拡大表示されるため「きゅっと拡大」して見えていた。
-  // ゴーストと同じ「pileRectを一様拡大した縦長カード」を返すことで、受け渡しを継ぎ目なくし
-  // （flyGhostのscale=toRect.width/fromRect.widthと縦横比が一致する）、cover表示の切り取り・
-  // 拡大も無くす。倍率2.1を基本とし、ビューポート短辺の60%に収まるよう一様に抑える。
-  const targetScale = 2.1;
-  const scale = Math.min(targetScale, (window.innerWidth * 0.6) / pileRect.width, (window.innerHeight * 0.6) / pileRect.height);
-  const width = pileRect.width * scale;
-  const height = pileRect.height * scale;
+  // ユーザー報告2026-08-07（続き）「ゲート侵攻でエターナルがフリップするタイミングで上下が
+  // 見切れる」。原因: 直前の修正で reveal を束pileRectの縦横比に合わせたが、エターナル束の
+  // 要素は横長（実測 約245×199）である一方、カード画像は正方形(1:1、433×433)。横長の枠に
+  // background-size:cover で正方形カードを敷くと上下が切れていた。カードが正方形なので reveal
+  // も必ず正方形にする。飛翔ゴーストの始点も正方形にする（呼び出し側 squarePileRect）ので、
+  // 受け渡しで縦横比が変わらず「きゅっと拡大」も起きない。大きさは束の短辺を基準に十分大きく、
+  // かつビューポート短辺の60%以内（盤面ズームで巨大化して画面外へ出るのを防ぐ）。
+  const base = Math.min(pileRect.width, pileRect.height);
+  const size = Math.min(base * 2.6, Math.min(window.innerWidth, window.innerHeight) * 0.6);
   return {
-    left: window.innerWidth / 2 - width / 2,
-    top: window.innerHeight / 2 - height / 2,
-    width,
-    height,
+    left: window.innerWidth / 2 - size / 2,
+    top: window.innerHeight / 2 - size / 2,
+    width: size,
+    height: size,
   };
 }
 
@@ -5002,6 +5015,15 @@ async function playEternalAcquisitionAnim(attacker, cardId, cardDef, onDone) {
   // 着地先のロックスロットは、render()で盤面が作り直されると参照が切れるため、ここでは
   // 取得せず、着地する⑥の直前にライブな盤面から取り直す（下部コメント参照）。
   const pileRect = pileEl.getBoundingClientRect();
+  // カードは正方形。飛翔の始点も束の中心を基準にした正方形にして、reveal(正方形)への
+  // 受け渡しで縦横比が変わらない（上下が切れない・変形しない）ようにする。
+  const srcSide = Math.min(pileRect.width, pileRect.height);
+  const squarePileRect = {
+    left: pileRect.left + (pileRect.width - srcSide) / 2,
+    top: pileRect.top + (pileRect.height - srcSide) / 2,
+    width: srcSide,
+    height: srcSide,
+  };
   const centerRect = getEternalRevealCenterRect(pileRect);
 
   // オンラインでは状態が既にロック済みで、そのままだと演出前からロックスロットにカードが
@@ -5017,7 +5039,7 @@ async function playEternalAcquisitionAnim(attacker, cardId, cardDef, onDone) {
 
   // ②山札から画面中央へ、裏向きのまま飛んでいく。
   const flightMs = getContactAnimSeconds("--eternal-anim-flight-duration", 1.5) * 1000;
-  const { done: flightDone } = flyGhost(pileRect, centerRect, getCardBackImagePath(cardId), "setup-fly-card", flightMs);
+  const { done: flightDone } = flyGhost(squarePileRect, centerRect, getCardBackImagePath(cardId), "setup-fly-card", flightMs);
   await flightDone;
 
   // ③中央で虹色の縁取りが揺らめきながら少し溜める（まだ裏向きのまま）。
