@@ -6782,13 +6782,21 @@ function syncFixedHandOverlay(table) {
 // 常に手前=bottom)の画面内可視率を測り、半分以上見えなくなったら、盤面ズームの外側の固定
 // オーバーレイ(#mini-lock-area)に7色スロットのロック状況（勝利まであと何色か）を出す。
 // fitTableToViewport（ズーム/パン/リサイズ/描画のたびに走る）から呼ばれる。
+// 下(#mini-lock-area)＝自分＋ミニ捨て場、上(#mini-lock-area-top)＝相手プレイヤー（ユーザー要望
+// 2026-08-07「相手のミニロックエリアは画面最上部に」）。名前の隣は「N/7」ではなく手札枚数を出す。
 let miniLockAreaEl = null;
+let miniLockAreaTopEl = null;
 let miniLockAreaSig = null;
 function updateMiniLockArea() {
   if (!miniLockAreaEl) {
     miniLockAreaEl = document.createElement("div");
     miniLockAreaEl.id = "mini-lock-area";
     document.body.appendChild(miniLockAreaEl);
+  }
+  if (!miniLockAreaTopEl) {
+    miniLockAreaTopEl = document.createElement("div");
+    miniLockAreaTopEl.id = "mini-lock-area-top";
+    document.body.appendChild(miniLockAreaTopEl);
   }
   const table = document.getElementById("game-table");
   const state = getState();
@@ -6807,14 +6815,14 @@ function updateMiniLockArea() {
   // 自分のロックエリアが半分以上見えていれば出さない（通常時・軽いズームでは邪魔しない）。
   if (!lockAreaEl || visibleFrac >= 0.5) {
     if (miniLockAreaEl.style.display !== "none") miniLockAreaEl.style.display = "none";
+    if (miniLockAreaTopEl.style.display !== "none") miniLockAreaTopEl.style.display = "none";
     miniLockAreaSig = null;
     return;
   }
   miniLockAreaEl.style.display = "";
-  // ユーザー要望2026-08-07「ミニロックエリアを相手プレイヤーにも」。全参加プレイヤーのロック
-  // 状況を出す。並びは「相手→自分」で、自分が一番下（画面手前）に来るようにする。
-  // 各プレイヤーのロック状況（player → {index: {cardId, tokenId}}）。location.sideは実座標の側。
+  miniLockAreaTopEl.style.display = "";
   const active = state.activePlayers ?? [];
+  // 各プレイヤーのロック状況（player → {index: {cardId, tokenId}}）。location.sideは実座標の側。
   const lockByPlayer = {};
   for (const t of state.tokens) {
     if (t.kind !== "card" || t.location.zone !== "lock") continue;
@@ -6822,20 +6830,25 @@ function updateMiniLockArea() {
     if (!p || !active.includes(p)) continue;
     (lockByPlayer[p] ??= {})[t.location.index] = { cardId: t.cardId, tokenId: t.id };
   }
-  const ordered = [...active.filter((p) => p !== self), ...(active.includes(self) ? [self] : [])];
-  // シグネチャ（中身が変わっていなければ作り直さない）は全プレイヤーのロック内容から作る。
-  const sig = ordered.map((p) => p + ":" + COLORS.map((c, i) => lockByPlayer[p]?.[i]?.cardId || "").join(",")).join("|");
+  const handCountOf = (p) =>
+    state.tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === p).length;
+  const opponents = active.filter((p) => p !== self);
+  const discard = state.piles?.discard ?? [];
+  const discardTop = discard.length ? discard[discard.length - 1] : null;
+  // シグネチャ（変わっていなければ作り直さない）: 全員のロック内容＋手札枚数＋捨て場。
+  const sig =
+    active.map((p) => p + ":" + COLORS.map((c, i) => lockByPlayer[p]?.[i]?.cardId || "").join(",") + ":h" + handCountOf(p)).join("|") +
+    "|d" + discard.length + ":" + (discardTop || "");
   if (sig === miniLockAreaSig) return;
   miniLockAreaSig = sig;
-  miniLockAreaEl.innerHTML = "";
-  for (const p of ordered) {
-    const isSelf = p === self;
+
+  const buildRow = (p, isSelf) => {
     const locked = lockByPlayer[p] ?? {};
     const playerRow = document.createElement("div");
     playerRow.className = `mini-lock-player${isSelf ? " is-self" : ""}`;
     const label = document.createElement("div");
     label.className = "mini-lock-area-label";
-    label.textContent = `${isSelf ? "自分" : getPlayerName(p)} ${Object.keys(locked).length}/7`;
+    label.textContent = `${isSelf ? "自分" : getPlayerName(p)} 手札${handCountOf(p)}`;
     playerRow.appendChild(label);
     const slots = document.createElement("div");
     slots.className = "mini-lock-area-slots";
@@ -6847,8 +6860,7 @@ function updateMiniLockArea() {
       if (entry) {
         slot.classList.add("is-locked");
         slot.style.backgroundImage = `url("${getCardImagePath(entry.cardId)}")`;
-        // ロック中でも使えるカード（ファースト/エターナル）は、自分の分だけクリックで使える
-        // （実ロックエリアと同じtryUseLockedUsableCard。相手の分は表示のみ）。
+        // ロック中でも使えるカード（ファースト/エターナル）は、自分の分だけクリックで使える。
         if (isSelf && entry.cardId && (entry.cardId.startsWith("first-") || entry.cardId.startsWith("eternal-"))) {
           slot.classList.add("is-usable");
           slot.dataset.tokenId = entry.tokenId;
@@ -6858,8 +6870,34 @@ function updateMiniLockArea() {
       slots.appendChild(slot);
     });
     playerRow.appendChild(slots);
-    miniLockAreaEl.appendChild(playerRow);
+    return playerRow;
+  };
+
+  // 下（自分）＝自分のミニロック＋その右隣にミニ捨て場。
+  miniLockAreaEl.innerHTML = "";
+  if (active.includes(self)) {
+    const wrap = document.createElement("div");
+    wrap.className = "mini-lock-self-wrap";
+    wrap.appendChild(buildRow(self, true));
+    const disc = document.createElement("div");
+    disc.className = "mini-discard";
+    const discLabel = document.createElement("div");
+    discLabel.className = "mini-lock-area-label";
+    discLabel.textContent = `捨て場 ${discard.length}`;
+    const discCard = document.createElement("div");
+    discCard.className = "mini-discard-card";
+    if (discardTop) {
+      discCard.classList.add("has-card");
+      discCard.style.backgroundImage = `url("${getCardImagePath(discardTop)}")`;
+    }
+    disc.appendChild(discLabel);
+    disc.appendChild(discCard);
+    wrap.appendChild(disc);
+    miniLockAreaEl.appendChild(wrap);
   }
+  // 上（相手）。
+  miniLockAreaTopEl.innerHTML = "";
+  for (const p of opponents) miniLockAreaTopEl.appendChild(buildRow(p, false));
 }
 
 // 自分の手札をあえて画面下部で見切れさせている場合向け（ユーザー要望）: PCではホバーで、

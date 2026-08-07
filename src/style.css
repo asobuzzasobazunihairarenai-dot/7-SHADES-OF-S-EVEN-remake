@@ -624,6 +624,48 @@ body.is-phone-device #self-hand-overlay {
 body.fixed-hand-mode #mini-lock-area {
   bottom: var(--mini-lock-bottom-fixed-hand, 0rem);
 }
+/* 相手プレイヤーのミニロックエリアは画面最上部に出す（ユーザー要望2026-08-07）。 */
+#mini-lock-area-top {
+  position: fixed;
+  left: 50%;
+  top: var(--mini-lock-top, 0.5rem);
+  transform: translateX(calc(-50% + var(--mini-lock-x-offset, 0rem)));
+  z-index: 62;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.4rem 0.6rem;
+  background: rgba(10, 16, 24, 0.86);
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 0.5rem;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+/* 自分のミニロックと、その右隣のミニ捨て場を横並びにする。 */
+.mini-lock-self-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+}
+.mini-discard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+.mini-discard-card {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 0.25rem;
+  border: 2px solid rgba(148, 163, 184, 0.7);
+  background-color: rgba(0, 0, 0, 0.4);
+  background-size: cover;
+  background-position: center;
+}
+.mini-discard-card.has-card {
+  border-color: rgba(226, 232, 240, 0.85);
+}
 .mini-lock-area-label {
   font-family: sans-serif;
   font-size: 0.72rem;
