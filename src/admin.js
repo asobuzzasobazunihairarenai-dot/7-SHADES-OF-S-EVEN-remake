@@ -1063,6 +1063,19 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー要望2026-08-07「手札の画面固定について、スマホでの位置・サイズ・回転を管理者モードで」。
+    // 「自分の手札を画面下に固定する」ON時の固定トレイ(#self-hand-overlay)の、スマホ専用の
+    // 位置・全体サイズ・回転。style.cssのbody.is-phone-device.fixed-hand-mode #self-hand-overlayが使う。
+    title: "📱 スマホ専用：手札の画面下固定トレイの位置・サイズ・回転（「手札を画面下に固定する」ON時）",
+    category: "phone",
+    controls: [
+      { key: "--fixed-hand-bottom-phone", label: "下からの位置（スマホ）", unit: "rem", min: -4, max: 40, step: 0.1, default: 0.5 },
+      { key: "--fixed-hand-x-offset-phone", label: "横方向のずれ（スマホ）", unit: "rem", min: -40, max: 40, step: 0.1, default: 0 },
+      { key: "--fixed-hand-scale-phone", label: "全体サイズ（倍率・スマホ）", unit: "", min: 0.3, max: 3, step: 0.05, default: 1 },
+      { key: "--fixed-hand-rotate-phone", label: "回転（平面内・スマホ）", unit: "deg", min: -180, max: 180, step: 1, default: 0 },
+    ],
+  },
+  {
     // ユーザー報告「タブレットで画角によって手札・名前が見えなくなる」への対応。手札
     // (translateZ 2.4rem/0.5rem)と名前ラベル(Z値無し=実質0)がpreserve-3d階層内で近い
     // Z値に固まっており、GPUの深度バッファ精度によってはz-fightingで「消えた」ように

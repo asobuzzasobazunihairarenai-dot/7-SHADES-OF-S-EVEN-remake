@@ -917,7 +917,16 @@ function updateTimeoutWarnings(state, isTimedOut) {
       // ターンプレイヤー側は改めて自分の基本時間からやり直せ、そこでもタイムアウト
       // すれば下のperformPriorityTimeoutAutoAction()が通常通りフェイズを自動
       // スキップする（この2段目は元々あったロジックがそのまま機能する）。
-      if (state.turnPlayer && state.priorityPlayer !== state.turnPlayer) {
+      // ただし、優先権を持っているのが疑似CPU（CPU戦のCPU席）の場合は、ここで手番プレイヤーへ
+      // 返してはいけない（不具合#31）。パーティ・合同建設などの委任効果でCPUに一時的に優先権を
+      // 渡している最中、「選んだ結果の通知モーダル」を数秒表示している間は activeEffectPicker が
+      // 一瞬 null になり isAnyEffectProcessingBusy() が false になる。その隙にこの分岐が発火して
+      // CPUから手番プレイヤー（人間）へ優先権を奪い返してしまうと、その直後にCPUが出す次の選択
+      // ピッカー（例: パーティ「2枚オープン」のマス選択）が、人間の長い持ち時間の優先権のまま
+      // 誰にも自動解決されず永久に止まる。CPUの委任中はここでは返さず、下の
+      // performPriorityTimeoutAutoAction に任せる（ピッカーが出れば解決、無ければ何もしないだけ。
+      // 委任が終われば delegateToPlayerForEffect の finally が優先権を手番プレイヤーへ戻す）。
+      if (state.turnPlayer && state.priorityPlayer !== state.turnPlayer && !isPseudoCpuTarget(state.priorityPlayer)) {
         timedOutAutoActionFired = true;
         withGuard(() =>
           setPriorityState({ player: state.turnPlayer, deadline: freshBaseDeadlineFor(state.turnPlayer), phase: "base" })

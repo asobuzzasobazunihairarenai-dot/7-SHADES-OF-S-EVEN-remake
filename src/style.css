@@ -577,6 +577,13 @@ img {
 #self-hand-overlay .hand-reveal-area {
   pointer-events: auto;
 }
+/* スマホ専用の位置・全体サイズ・回転（管理者モードで調整。ユーザー要望2026-08-07）。
+   PC/タブレット用の値とは別に、スマホだけこちらで上書きする。 */
+body.is-phone-device #self-hand-overlay {
+  bottom: var(--fixed-hand-bottom-phone, 0.5rem);
+  transform: translateX(calc(-50% + var(--fixed-hand-x-offset-phone, 0rem)))
+    scale(var(--fixed-hand-scale-phone, 1)) rotate(var(--fixed-hand-rotate-phone, 0deg));
+}
 /* 盤面ゾーン用の「中心基準に絶対配置＋3D傾き」を解除し、トレイ内で通常フロー＋フラットにする。 */
 #self-hand-overlay .hand-area {
   position: relative !important;

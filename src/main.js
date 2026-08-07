@@ -2477,6 +2477,8 @@ export function hasActiveEffectPicker() {
 // 論理的な候補から貼り直す」パターンをactiveEffectPickerにも適用する。
 function reapplyEffectPickerHighlights(table) {
   if (!activeEffectPicker) return;
+  // CPUが選択中は候補ハイライトを貼り直さない（人間に「選べる」ように見せない。混乱防止）。
+  if (isCpuSelectingNow()) return;
   if (activeEffectPicker.type === "cell") {
     for (const loc of activeEffectPicker.candidates) {
       const el = findLocationElement(table, loc);
@@ -3067,7 +3069,15 @@ document.addEventListener(
 // 分かりにくいという指摘のため、選択中は画面上部に案内文を出す（盤面操作の邪魔をしない
 // pointer-events:noneのバナー、モーダルのように操作を止めない）。
 let effectPickerHintEl = null;
+// CPU戦で、今まさにCPU(疑似CPU)が優先権を持って選択中か（＝その選択は自動で解決される）。
+// この間は「○○を選択してください」等の案内・候補ハイライトを人間に見せない（人間が自分で
+// 選ぶのかと混乱するため。ユーザー要望2026-08-07「CPUの選択モーダルは非表示でよい。結果は欲しい」）。
+function isCpuSelectingNow() {
+  return isCpuBattleActive() && !isOnlineMode() && isPseudoCpuTarget(getState().priorityPlayer);
+}
 function showEffectPickerHint(text) {
+  // CPUが選択中の「○○を選択してください」案内は出さない（結果通知は別途出す）。
+  if (isCpuSelectingNow()) return;
   if (!effectPickerHintEl) {
     effectPickerHintEl = document.createElement("div");
     effectPickerHintEl.id = "card-effect-picker-hint";
@@ -3115,10 +3125,13 @@ function requestCellChoiceForEffect(candidates, hint, options = {}) {
       resolve(null);
       return;
     }
-    for (const entry of entries) entry.el.classList.add("card-effect-target-cell");
-    document.body.classList.add("card-effect-picking-cells");
-    if (hint) showEffectPickerHint(hint);
-    if (options.allowSkip) showEffectSkipButton(options.skipLabel ?? "これ以上選ばない");
+    // CPUが選ぶ番はハイライト・案内・スキップボタンを出さない（自動で解決される。混乱防止）。
+    if (!isCpuSelectingNow()) {
+      for (const entry of entries) entry.el.classList.add("card-effect-target-cell");
+      document.body.classList.add("card-effect-picking-cells");
+    }
+    if (hint) showEffectPickerHint(hint); // showEffectPickerHint内でCPU中は自動スキップ
+    if (options.allowSkip && !isCpuSelectingNow()) showEffectSkipButton(options.skipLabel ?? "これ以上選ばない");
     activeEffectPicker = {
       type: "cell",
       candidates,
