@@ -116,3 +116,85 @@ export function chooseMoveCandidate(candidates, driveSeat) {
   const top = scored.filter((x) => x.s >= best - 0.01).map((x) => x.c);
   return top[Math.floor(Math.random() * top.length)];
 }
+
+// --- 色宣言（ザ・ギャンブル／試練の儀式）の思考 ---------------------------------------------
+// ザ・ギャンブル(yellow-gamble): 宣言色が公開ドローに出ると手札を全部捨てる＝「当てたくない」。
+//   → 引かれにくい（残りが少ない）色を最少数だけ宣言する。
+// 試練の儀式(purple-trial-ritual): 置いたカードが宣言色なら儀式が続く＝「当てたい」。
+//   → 出やすい（残りが多い）色を宣言する。
+// 中級・上級は公開情報から各色の残り枚数を推定（フェア）。最強のみ山札(順序)をのぞき見して確実な宣言。
+
+const TOTAL_PER_COLOR = 14; // 各7色 = 2種 × 7枚（通常カードのみが山札に入る）
+
+// 公開情報から推定した「まだ引かれ得る各色の枚数」。CPUから見えているカード（ロック・表向きの
+// 盤面・自分の手札・公開ドロー・捨て場）を全体(14)から引く。相手の手札・伏せカードは不明として残す。
+function remainingByColorFair(state, seat) {
+  const gone = {};
+  for (const c of COLORS) gone[c] = 0;
+  const bump = (cardId) => {
+    const col = getCardDefinition(cardId)?.color;
+    if (COLORS.includes(col)) gone[col] += 1;
+  };
+  for (const t of state.tokens) {
+    if (t.kind !== "card") continue;
+    const loc = t.location;
+    const visible =
+      loc.zone === "lock" ||
+      (loc.zone === "cell" && t.faceUp) ||
+      loc.zone === "publicDraw" ||
+      (loc.zone === "hand" && loc.player === seat);
+    if (visible) bump(t.cardId);
+  }
+  for (const cardId of state.piles?.discard ?? []) bump(cardId);
+  const remaining = {};
+  for (const c of COLORS) remaining[c] = Math.max(0, TOTAL_PER_COLOR - gone[c]);
+  return remaining;
+}
+
+// base に足りない分を、残り枚数の多い(common=true)／少ない(false)順で重複なく補って n 色にする。
+function fillColors(base, n, state, seat, common) {
+  const remaining = remainingByColorFair(state, seat);
+  const sorted = COLORS.slice().sort((a, b) => (common ? remaining[b] - remaining[a] : remaining[a] - remaining[b]));
+  const out = [...base];
+  for (const c of sorted) {
+    if (out.length >= n) break;
+    if (!out.includes(c)) out.push(c);
+  }
+  return out.slice(0, n);
+}
+
+export function chooseDeclaredColors(cardId, requiredCount, driveSeat) {
+  const state = getState();
+  const seek = cardId !== "yellow-gamble"; // ギャンブルだけ「当てたくない」、それ以外(試練)は「当てたい」
+  const n = Math.max(1, requiredCount || 1);
+
+  // 最強: 山札の一番上（次に引かれる/置かれる）をのぞき見して確実に宣言する。
+  if (isCpuPeekAllowed()) {
+    const deck = state.piles?.deck ?? [];
+    const topColors = [];
+    for (let i = 0; i < n && i < deck.length; i++) {
+      topColors.push(getCardDefinition(deck[deck.length - 1 - i])?.color);
+    }
+    if (seek) {
+      // 試練: 次に置かれる山札の一番上の色を宣言に含める（虹＝全色扱いなら何を宣言しても当たる）。
+      const top = topColors[0];
+      const base = top && COLORS.includes(top) ? [top] : [];
+      return fillColors(base, n, state, driveSeat, true);
+    }
+    // ギャンブル: これから引かれる n 枚の色を避けて宣言する（虹があれば全色に当たるので避けられない）。
+    const hasRainbow = topColors.includes("rainbow");
+    if (!hasRainbow) {
+      const drawn = new Set(topColors.filter((c) => COLORS.includes(c)));
+      const remaining = remainingByColorFair(state, driveSeat);
+      // 引かれない色の中から、さらに残りが少ない色を優先して n 色選ぶ（この先の再抽選にも強い）。
+      const safe = COLORS.filter((c) => !drawn.has(c)).sort((a, b) => remaining[a] - remaining[b]);
+      if (safe.length >= n) return safe.slice(0, n);
+    }
+    // 避けられない場合は下の一般ロジック（残り最少）で妥協。
+  }
+
+  // 中級・上級: スカーシティ推定で宣言。seek=残りが多い色、avoid=残りが少ない色。
+  const remaining = remainingByColorFair(state, driveSeat);
+  const sorted = COLORS.slice().sort((a, b) => remaining[b] - remaining[a]); // 多い順
+  return seek ? sorted.slice(0, n) : sorted.slice(-n);
+}

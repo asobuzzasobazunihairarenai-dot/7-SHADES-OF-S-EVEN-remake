@@ -194,7 +194,7 @@ import { maybeShowFirstRunBgmModal } from "./first-run-bgm.js";
 import { applyStoredCardPreviewSize, getCardPreviewSide } from "./card-preview-size.js";
 import { isFixedHandEnabled, applyStoredFixedHand } from "./fixed-hand.js";
 import { isCpuBattleActive, isCpuAutoSkipEnabled, isCpuBrainSmart } from "./cpu-battle-state.js";
-import { chooseMoveCandidate } from "./cpu-brain.js";
+import { chooseMoveCandidate, chooseDeclaredColors } from "./cpu-brain.js";
 import {
   getSelfSeat,
   isSpectatingGame,
@@ -2065,7 +2065,8 @@ function declareColorsForEffect(requirement, cardId, player) {
     // モーダルもtype:"colors"として登録し、performPriorityTimeoutAutoActionが放置された
     // 宣言を代わりに済ませられるようにする。盤面のクリック判定（pointerdownリスナー）は
     // このtypeを素通りさせる（下のガード参照）——このモーダル自身のボタンclickで完結する。
-    activeEffectPicker = { type: "colors", requirement, resolve: finish };
+    // cardIdも持たせる（賢いCPUの色宣言が、ザ・ギャンブル=避ける/試練=当てる を区別するため）。
+    activeEffectPicker = { type: "colors", requirement, cardId, resolve: finish };
     // ユーザー要望「作業を促すモーダルには『盤面を見る』ボタンをつけてほしい」
     // （showHandEffectOptionPickerと同じ仕組み）。createBackdrop()はinlineスタイルで
     // 背景色を付けているため、CSSクラスの切り替えではなく直接styleを書き換える。
@@ -3106,15 +3107,20 @@ export function performPriorityTimeoutAutoAction() {
       picker.resolve(pickRandomFrom(usable));
     } else if (picker.type === "colors") {
       // ザ・ギャンブル/試練の儀式の色宣言モーダル用。「N色以上」「ちょうどN色」の
-      // どちらでも、必要数ちょうどをCOLORS（７色）からランダムに重複無しで選べば
-      // 両方の条件を満たす。
+      // どちらでも、必要数ちょうどをCOLORS（７色）から重複無しで選べば両方の条件を満たす。
       const required = picker.requirement.exactCount ?? picker.requirement.minCount ?? 1;
-      const pool = [...COLORS];
-      const chosen = [];
-      for (let i = 0; i < required && pool.length > 0; i++) {
-        chosen.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+      // 賢いCPU（中級以上）は、ギャンブル=当てない/試練=当てる を狙って色を選ぶ。新人・その他は
+      // 従来通りランダム。
+      if (isCpuBrainDriving(driveSeat)) {
+        picker.resolve(chooseDeclaredColors(picker.cardId, required, driveSeat));
+      } else {
+        const pool = [...COLORS];
+        const chosen = [];
+        for (let i = 0; i < required && pool.length > 0; i++) {
+          chosen.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+        }
+        picker.resolve(chosen);
       }
-      picker.resolve(chosen);
     } else if (picker.type === "opponentHand") {
       // ユーザー報告（続き99）「相手の手札選択モーダルが処理されず置いてけぼりに
       // なっている」。スリカエ・接触の奪うカード選択（requestOpponentHandRitualPick）
