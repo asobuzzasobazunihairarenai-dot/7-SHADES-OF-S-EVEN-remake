@@ -24,7 +24,7 @@ import { isBoardIllustOnly, setBoardIllustOnly } from "./board-card-display.js";
 import { isFixedHandEnabled, setFixedHandEnabled } from "./fixed-hand.js";
 import { getSoundVolume, setSoundVolume, getBgmVolume, setBgmVolume } from "./sound.js";
 import { setCardPreviewSize } from "./card-preview-size.js";
-import { getCpuSpeed, setCpuSpeed, isCpuAutoSkipEnabled, setCpuAutoSkipEnabled } from "./cpu-battle-state.js";
+import { getCpuSpeed, setCpuSpeed, isCpuAutoSkipEnabled, setCpuAutoSkipEnabled, getCpuDifficulty, setCpuDifficulty } from "./cpu-battle-state.js";
 import { SHORTCUT_TARGETS, getShortcut, setShortcut, registerShortcutSettingsOpener } from "./player-buttons.js";
 import { createBackdrop } from "./ui-helpers.js";
 import {
@@ -322,6 +322,45 @@ function buildCpuSpeedRow() {
     btn.textContent = text;
     btn.addEventListener("click", () => {
       setCpuSpeed(v);
+      refresh();
+    });
+    group.appendChild(btn);
+    buttons.push(btn);
+  }
+  row.appendChild(group);
+  refresh();
+  return row;
+}
+
+// CPU戦のCPUの強さ（新人／中級／上級／最強）を選ぶセグメント。ユーザー要望2026-08-07
+// 「CPUを賢くしたい。現状の完全ランダムを新人とし段階的に強く、最強だけのぞき見OK」。
+// 選ぶとその場で反映され、次のCPUの手から効く（cpu-battle-state.js、端末に保存）。
+function buildCpuDifficultyRow() {
+  const row = document.createElement("div");
+  row.className = "options-menu-volume-row";
+  const label = document.createElement("span");
+  label.textContent = "CPUの強さ";
+  row.appendChild(label);
+  const group = document.createElement("div");
+  group.className = "options-menu-segment";
+  const buttons = [];
+  const refresh = () => {
+    const cur = getCpuDifficulty();
+    for (const b of buttons) b.classList.toggle("is-selected", b.dataset.v === cur);
+  };
+  for (const [v, text] of [
+    ["rookie", "新人"],
+    ["intermediate", "中級"],
+    ["advanced", "上級"],
+    ["master", "最強"],
+  ]) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "options-menu-segment-btn";
+    btn.dataset.v = v;
+    btn.textContent = text;
+    btn.addEventListener("click", () => {
+      setCpuDifficulty(v);
       refresh();
     });
     group.appendChild(btn);
@@ -780,6 +819,12 @@ export function initOptionsMenu() {
       buildCollapsibleSection(
         "CPU戦（1人用）",
         (content) => {
+          content.appendChild(buildCpuDifficultyRow());
+          const diffNote = document.createElement("div");
+          diffNote.style.cssText = "font-size: 0.72rem; color: #94a3b8; margin: 0.1rem 0 0.5rem; line-height: 1.5;";
+          diffNote.textContent =
+            "新人＝完全ランダム。中級＝移動先を評価（相手ゲート侵攻・自滅マス回避・必要な色）。上級＝さらに相手の進行度を見て接触で妨害。最強＝上級＋伏せカードののぞき見。";
+          content.appendChild(diffNote);
           content.appendChild(
             buildCheckboxRow("CPUの結果通知を自動で進める（OFFにするとクリックするまで表示）", isCpuAutoSkipEnabled(), (checked) => {
               setCpuAutoSkipEnabled(checked);
@@ -792,6 +837,7 @@ export function initOptionsMenu() {
           onReset: () => {
             setCpuSpeed("normal");
             setCpuAutoSkipEnabled(true);
+            setCpuDifficulty("rookie");
             renderContent();
           },
         }

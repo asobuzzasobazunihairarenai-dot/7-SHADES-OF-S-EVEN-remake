@@ -65,6 +65,7 @@ import {
   registerGateInvasionStealHelper,
   hasAnyGateInvasionCandidate,
   findInvadedDefender,
+  isLocalGateInvasionActive,
 } from "./gate-invasion.js";
 import { announceHandPickups, announceCardLocked, announceDrawCount } from "./hand-announcer.js";
 import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained, reapplyGateInvasionModal, registerGateInvasionModalEternalAnim, registerGateInvasionModalStealAnim, registerGateInvasionModalEternalPreHide } from "./gate-invasion-modal.js";
@@ -192,7 +193,8 @@ import { initOpeningScreen, previewOpeningAuras } from "./opening-screen.js";
 import { maybeShowFirstRunBgmModal } from "./first-run-bgm.js";
 import { applyStoredCardPreviewSize } from "./card-preview-size.js";
 import { isFixedHandEnabled, applyStoredFixedHand } from "./fixed-hand.js";
-import { isCpuBattleActive, isCpuAutoSkipEnabled } from "./cpu-battle-state.js";
+import { isCpuBattleActive, isCpuAutoSkipEnabled, isCpuBrainSmart } from "./cpu-battle-state.js";
+import { chooseMoveCandidate } from "./cpu-brain.js";
 import {
   getSelfSeat,
   isSpectatingGame,
@@ -2959,6 +2961,13 @@ function getAutoDriveSeat() {
   return getSelfSeat();
 }
 
+// CPU戦で「賢いCPU（cpu-brain.js）」がこの席の手を選ぶべきか。ローカルCPU戦のCPU席
+// （疑似CPU対象）で、難易度が新人より上（isCpuBrainSmart）の時だけtrue。オンラインの
+// 離脱者代行など他の経路の挙動は一切変えない（従来通りランダム）。
+function isCpuBrainDriving(seat) {
+  return isCpuBattleActive() && !isOnlineMode() && isPseudoCpuTarget(seat) && isCpuBrainSmart();
+}
+
 export function performPriorityTimeoutAutoAction() {
   // ローカルCPU戦ではCPU(C)の番を、それ以外は自分の席を代行する。
   const driveSeat = getAutoDriveSeat();
@@ -3016,7 +3025,30 @@ export function performPriorityTimeoutAutoAction() {
           ...[...table.querySelectorAll(".cell.phase-contact-highlight")].map((el) => ({ el, isMove: false })),
         ]
       : [];
-    const chosen = pickRandomFrom(candidates);
+    // 賢いCPU（中級以上）は移動先を評価して選ぶ。着地マスの一番上のカード・駒の持ち主は
+    // DOM/スタック順に依存するため、ここ（main.js）で調べて cpu-brain へ渡す。それ以外の
+    // 経路（新人・オンライン離脱者代行等）は従来通りランダム。
+    let chosen;
+    if (isCpuBrainDriving(driveSeat) && candidates.length > 0) {
+      const enriched = candidates.map((c) => {
+        const row = Number(c.el.dataset.row);
+        const col = Number(c.el.dataset.col);
+        const location = { zone: "cell", row, col };
+        const top = findTopCardAt(location);
+        return {
+          el: c.el,
+          isMove: c.isMove,
+          row,
+          col,
+          topCardId: top?.cardId ?? null,
+          topFaceUp: !!top?.faceUp,
+          occupantPlayer: getPieceOwnerAt(location),
+        };
+      });
+      chosen = chooseMoveCandidate(enriched, driveSeat) || pickRandomFrom(candidates);
+    } else {
+      chosen = pickRandomFrom(candidates);
+    }
     if (chosen) {
       const location = { zone: "cell", row: Number(chosen.el.dataset.row), col: Number(chosen.el.dataset.col) };
       // 接触は成立時（submitContactProposal内）まで行動済みにしない。移動はここで確定。
@@ -3479,6 +3511,7 @@ export function isAnyEffectProcessingBusy() {
   return (
     isGateInvasionPending() ||
     isGateInvasionQueueActive() ||
+    isLocalGateInvasionActive() ||
     isHandEffectBusy() ||
     activeEffectPicker !== null ||
     anytimeInterruptModalEl !== null
@@ -4901,13 +4934,23 @@ function getEternalRevealCenterRect(pileRect) {
   // エターナルが画面からはみ出す」。原因: pileRectは盤面ズームで拡大された実サイズなので、
   // ズームすると2.1倍のサイズが巨大化して画面外へはみ出していた。中央に出す演出なので、
   // ビューポートの短辺の一定割合を上限にして、ズーム倍率に関わらず必ず画面内に収める。
-  const maxSize = Math.min(window.innerWidth, window.innerHeight) * 0.6;
-  const size = Math.min(Math.max(pileRect.width, pileRect.height) * 2.1, maxSize);
+  // ユーザー報告2026-08-07「画面中央で止まった後、少しきゅっと拡大してからフリップする」。
+  // 原因: 以前はここで正方形(size×size)を返していたが、飛翔ゴースト(flyGhost)はカードの
+  // 縦横比のまま横幅比で一様拡大して着地する。着地した縦長カード→正方形revealへ受け渡す際、
+  // ①縦横比が違うためサイズがカクッと変わり、②background-size:coverの正方形にカード絵を
+  // 敷くと上下が切れて絵が拡大表示されるため「きゅっと拡大」して見えていた。
+  // ゴーストと同じ「pileRectを一様拡大した縦長カード」を返すことで、受け渡しを継ぎ目なくし
+  // （flyGhostのscale=toRect.width/fromRect.widthと縦横比が一致する）、cover表示の切り取り・
+  // 拡大も無くす。倍率2.1を基本とし、ビューポート短辺の60%に収まるよう一様に抑える。
+  const targetScale = 2.1;
+  const scale = Math.min(targetScale, (window.innerWidth * 0.6) / pileRect.width, (window.innerHeight * 0.6) / pileRect.height);
+  const width = pileRect.width * scale;
+  const height = pileRect.height * scale;
   return {
-    left: window.innerWidth / 2 - size / 2,
-    top: window.innerHeight / 2 - size / 2,
-    width: size,
-    height: size,
+    left: window.innerWidth / 2 - width / 2,
+    top: window.innerHeight / 2 - height / 2,
+    width,
+    height,
   };
 }
 
@@ -4961,27 +5004,42 @@ async function playEternalAcquisitionAnim(attacker, cardId, cardDef, onDone) {
   reveal.style.height = `${revealLocalH}px`;
   const inner = document.createElement("div");
   inner.className = "eternal-reveal-card-inner";
+  // 裏面・表面を重ねて置き、不透明度の切り替えで差し替える（3Dの回転・backface-visibilityは
+  // 使わない——下の④参照）。初期は裏面のみ表示。
   const backFace = document.createElement("div");
   backFace.className = "eternal-reveal-card-face is-back";
   backFace.style.backgroundImage = `url("${getCardBackImagePath(cardId)}")`;
   const frontFace = document.createElement("div");
   frontFace.className = "eternal-reveal-card-face is-front";
   frontFace.style.backgroundImage = `url("${getCardImagePath(cardId)}")`;
+  frontFace.style.opacity = "0";
   inner.appendChild(backFace);
   inner.appendChild(frontFace);
   reveal.appendChild(inner);
   document.body.appendChild(reveal);
   await wait(getContactAnimSeconds("--eternal-anim-suspense-duration", 1.5) * 1000);
 
-  // ④3Dフリップで表向きに反転。反転と同時にそのカードの色でバースト演出＋効果音。
+  // ④横回転（scaleX）で表向きに反転。反転と同時にそのカードの色でバースト演出＋効果音。
+  // ユーザー報告2026-08-07「スマホでフリップしても表にならず裏向きのまま」。原因は
+  // rotateY＋backface-visibility＋preserve-3dの3Dフリップが一部モバイルで効かない
+  // （bodyにステージ変形が掛かっていることも相まってpreserve-3dがフラット化し、裏面が
+  // 表示されたままになる）こと。3Dに依存しない「横幅を0までつぶす→中間で絵を裏→表に
+  // 差し替える→横幅を戻す」方式に変更し、全端末で確実に表向きになるようにした。
   reveal.classList.remove("is-suspense");
   reveal.style.setProperty("--eternal-reveal-color", `var(--color-${cardDef.color})`);
   playSound("arrivalEffect");
   reveal.classList.add("is-bursting");
   const flipMs = getContactAnimSeconds("--eternal-anim-flip-duration", 1) * 1000;
-  inner.style.transitionDuration = `${flipMs}ms`;
-  inner.classList.add("is-flipped");
-  await wait(flipMs);
+  const halfFlip = flipMs / 2;
+  inner.style.transition = `transform ${halfFlip}ms ease-in`;
+  inner.style.transform = "scaleX(0)";
+  await wait(halfFlip);
+  // 見えない瞬間（横幅0）で裏→表に差し替える。
+  backFace.style.opacity = "0";
+  frontFace.style.opacity = "1";
+  inner.style.transition = `transform ${halfFlip}ms ease-out`;
+  inner.style.transform = "scaleX(1)";
+  await wait(halfFlip);
   reveal.classList.remove("is-bursting");
 
   // ⑤その色でしばらく脈打つように光る。
@@ -6856,12 +6914,30 @@ function updateMiniLockArea() {
   }
   const handCountOf = (p) =>
     state.tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === p).length;
+  // ユーザー要望2026-08-07「手札公開エリア（publicDraw）も、ミニロックの左隣に左揃えで
+  // ミニ手札公開エリアとして出したい（自分も相手も）」。各プレイヤーの公開ドローを集める。
+  const revealByPlayer = {};
+  for (const t of state.tokens) {
+    if (t.kind !== "card" || t.location.zone !== "publicDraw") continue;
+    const p = t.location.player;
+    if (!active.includes(p)) continue;
+    (revealByPlayer[p] ??= []).push(t);
+  }
   const opponents = active.filter((p) => p !== self);
   const discard = state.piles?.discard ?? [];
   const discardTop = discard.length ? discard[discard.length - 1] : null;
-  // シグネチャ（変わっていなければ作り直さない）: 全員のロック内容＋手札枚数＋捨て場。
+  // シグネチャ（変わっていなければ作り直さない）: 全員のロック内容＋手札枚数＋公開ドロー＋捨て場。
   const sig =
-    active.map((p) => p + ":" + COLORS.map((c, i) => lockByPlayer[p]?.[i]?.cardId || "").join(",") + ":h" + handCountOf(p)).join("|") +
+    active
+      .map(
+        (p) =>
+          p +
+          ":" +
+          COLORS.map((c, i) => lockByPlayer[p]?.[i]?.cardId || "").join(",") +
+          ":h" + handCountOf(p) +
+          ":r" + (revealByPlayer[p] ?? []).map((t) => t.cardId).join(",")
+      )
+      .join("|") +
     "|d" + discard.length + ":" + (discardTop || "");
   if (sig === miniLockAreaSig) return;
   miniLockAreaSig = sig;
@@ -6870,6 +6946,17 @@ function updateMiniLockArea() {
     const locked = lockByPlayer[p] ?? {};
     const playerRow = document.createElement("div");
     playerRow.className = `mini-lock-player${isSelf ? " is-self" : ""}`;
+    // ミニ手札公開エリア（publicDraw）を最左に左揃えで置く（ユーザー要望2026-08-07）。
+    const revealCards = revealByPlayer[p] ?? [];
+    const miniReveal = document.createElement("div");
+    miniReveal.className = "mini-hand-reveal";
+    for (const t of revealCards) {
+      const rc = document.createElement("div");
+      rc.className = "mini-hand-reveal-card";
+      rc.style.backgroundImage = `url("${getCardImagePath(t.cardId)}")`;
+      miniReveal.appendChild(rc);
+    }
+    playerRow.appendChild(miniReveal);
     const label = document.createElement("div");
     label.className = "mini-lock-area-label";
     label.textContent = `${isSelf ? "自分" : getPlayerName(p)} 手札${handCountOf(p)}`;
@@ -9263,7 +9350,7 @@ function computeShouldEmphasize() {
   const isMovePhase = getCurrentPhase() === "move";
   const moveStillActive = isMovePhaseActive();
   const gateInvasionPending = isGateInvasionPending();
-  const gateInvasionQueueActive = isGateInvasionQueueActive();
+  const gateInvasionQueueActive = isGateInvasionQueueActive() || isLocalGateInvasionActive();
   const handEffectBusyNow = isHandEffectBusy();
   const pickerActive = activeEffectPicker !== null;
   // ユーザー報告（続き83）「『いつでも使える』の使うか確認モーダルが出ている最中に

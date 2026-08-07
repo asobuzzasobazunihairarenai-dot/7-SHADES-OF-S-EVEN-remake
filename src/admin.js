@@ -723,8 +723,9 @@ const GROUPS = [
     category: "position-self",
     controls: [
       { key: "--mini-lock-bottom", label: "自分：下からの位置", unit: "rem", min: -2, max: 20, step: 0.1, default: -0.2 },
+      { key: "--mini-lock-x-offset", label: "自分：横方向のずれ", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
       { key: "--mini-lock-top", label: "相手：上からの位置", unit: "rem", min: -2, max: 20, step: 0.1, default: 0.5 },
-      { key: "--mini-lock-x-offset", label: "横方向のずれ（上下共通）", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--mini-lock-top-x-offset", label: "相手：横方向のずれ", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
       { key: "--mini-lock-bottom-fixed-hand", label: "自分：下からの位置（手札固定ON時）", unit: "rem", min: 0, max: 26, step: 0.1, default: 0 },
     ],
   },

@@ -629,7 +629,9 @@ body.fixed-hand-mode #mini-lock-area {
   position: fixed;
   left: 50%;
   top: var(--mini-lock-top, 0.5rem);
-  transform: translateX(calc(-50% + var(--mini-lock-x-offset, 0rem)));
+  /* 相手のミニロックは独自の横ずれ(--mini-lock-top-x-offset)で調整できる。未設定なら
+     従来通り自分と共通の--mini-lock-x-offsetにフォールバック（ユーザー要望2026-08-07）。 */
+  transform: translateX(calc(-50% + var(--mini-lock-top-x-offset, var(--mini-lock-x-offset, 0rem))));
   z-index: 62;
   display: flex;
   flex-direction: column;
@@ -691,6 +693,27 @@ body.fixed-hand-mode #mini-lock-area {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+}
+/* ミニ手札公開エリア（publicDrawの縮小版）。ミニロックの左隣に左揃えで並べる
+   （ユーザー要望2026-08-07）。カードが無ければ幅0で場所を取らない。 */
+.mini-hand-reveal {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.2rem;
+}
+.mini-hand-reveal:empty {
+  display: none;
+}
+.mini-hand-reveal-card {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.2rem;
+  border: 1px solid rgba(226, 232, 240, 0.7);
+  background-color: rgba(0, 0, 0, 0.4);
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 .mini-lock-player.is-self .mini-lock-area-label {
   color: #fde68a;
@@ -9311,31 +9334,26 @@ body.reduce-glow .cell.card-effect-just-placed {
 .eternal-reveal-card {
   position: fixed;
   z-index: 9999;
-  perspective: 1600px;
   pointer-events: none;
 }
+/* スマホの一部ブラウザでrotateY＋backface-visibility＋preserve-3dのフリップが効かず
+   「裏向きのまま」になる報告への対応で、3Dを使わず横スケール(scaleX)＋絵の差し替えで
+   反転する方式に変更（JS側 playEternalAcquisitionAnim 参照）。transform-originを中央に
+   して、横幅が中央から0へつぶれて戻るようにする。 */
 .eternal-reveal-card-inner {
   position: relative;
   width: 100%;
   height: 100%;
-  transform-style: preserve-3d;
-  transition: transform 1s ease-in-out;
-}
-.eternal-reveal-card-inner.is-flipped {
-  transform: rotateY(180deg);
+  transform-origin: center center;
 }
 .eternal-reveal-card-face {
   position: absolute;
   inset: 0;
-  backface-visibility: hidden;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
   border-radius: 0.5rem;
   box-shadow: 0 1rem 2.4rem rgba(0, 0, 0, 0.6);
-}
-.eternal-reveal-card-face.is-front {
-  transform: rotateY(180deg);
 }
 .eternal-reveal-card.is-suspense::before {
   content: "";

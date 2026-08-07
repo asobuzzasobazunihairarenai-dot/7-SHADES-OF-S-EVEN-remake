@@ -221,6 +221,19 @@ function runBonusFor(attacker, defender, done) {
   });
 }
 
+// 不具合#32: ローカル（CPU戦含む）のゲート侵攻フローが進行中かどうかのフラグ。
+// 攻撃側が人間のとき「奪う札を選ぶ」ピックに時間がかかると、自動ターン終了ガード
+// （main.jsのendTurnActionInProgress）の安全タイムアウト（60秒）が切れてガードが解け、
+// その隙にreconcileAutoEndTurnが再びターン終了を発火→runGateInvasionsIfNeededが二重に
+// 走り、相手の手札を全部奪ってしまう（本来は半分＝1枚）／エターナルも複数回獲得して
+// いた。computeShouldEmphasize()はローカル侵攻フロー中を検知する術が無かった
+// （isGateInvasionQueueActive()はオンラインのモーダルキュー専用）ため、この専用フラグを
+// main.jsのcomputeShouldEmphasize()に組み込み、侵攻フロー中は自動ターン終了を抑止する。
+let localGateInvasionActive = false;
+export function isLocalGateInvasionActive() {
+  return localGateInvasionActive;
+}
+
 // 「ターン終了」ボタンから呼ぶ。参加中の全プレイヤー（時計回り順）を対象に、相手ゲートに
 // 駒が乗っているかどうかを判定する。該当者がいなければ即座にdone()を呼ぶ（＝通常通りすぐ
 // 次のプレイヤーへターンを渡してよい）。複数人が同時に該当する場合は時計回り順に1人ずつ
@@ -232,9 +245,18 @@ export function runGateInvasionsIfNeeded(done) {
   // かどうか）を記録し、「演出が表示されない」原因が①検知自体がされていない
   // ②検知はされているが演出条件を満たしていない、のどちらかを後から区別できるようにする。
   logAction("gate-invasion", { step: "check", order, candidates: order.map((p) => ({ attacker: p, defender: findInvadedDefender(p) })) });
+  // 不具合#32: 既にローカルのゲート侵攻フローが進行中なら、二重に始めない。
+  // done()も呼ばない——進行中のフローが自前のdone()（＝nextTurn）を必ず呼ぶため、ここで
+  // 呼ぶと二重にターンが進んで相手の手札を全部奪う・エターナルを複数回獲得してしまう。
+  if (localGateInvasionActive) return;
+  localGateInvasionActive = true;
+  const finish = () => {
+    localGateInvasionActive = false;
+    done();
+  };
   function processNext(index) {
     if (index >= order.length) {
-      done();
+      finish();
       return;
     }
     const attacker = order[index];

@@ -75,6 +75,48 @@ export function setCpuAutoSkipEnabled(v) {
   if (autoSkip) stepTicket = false; // ONに戻したら未消費チケットは破棄
 }
 
+// --- CPUの強さ（思考レベル） -----------------------------------------------------------
+// ユーザー要望2026-08-07「CPUを賢くしたい。現状の完全ランダムを『新人』とし、段階的に
+// 強くする。最上位の『最強』だけは伏せカードののぞき見OK」。
+//   rookie（新人）     : 現状どおり完全ランダム（既存の疑似CPU挙動）。
+//   intermediate（中級）: 移動先を評価（相手ゲート侵攻・自分がまだ必要な色・自滅カード回避）。
+//   advanced（上級）    : 中級＋相手の進行度を見て接触で妨害する等の相手考慮。
+//   master（最強）      : 上級＋伏せカードののぞき見（非公開情報も使って最善手を選ぶ）。
+// 実際の手選びは cpu-brain.js が担当し、performPriorityTimeoutAutoAction（main.js）から使う。
+const DIFFICULTY_KEY = "so7-cpu-battle-difficulty"; // 'rookie' | 'intermediate' | 'advanced' | 'master'
+const DIFFICULTIES = ["rookie", "intermediate", "advanced", "master"];
+let cpuDifficulty = "rookie";
+try {
+  const saved = localStorage.getItem(DIFFICULTY_KEY);
+  if (saved && DIFFICULTIES.includes(saved)) cpuDifficulty = saved;
+} catch {
+  /* localStorageが使えなくても既定(新人)で動く */
+}
+export function getCpuDifficulty() {
+  return cpuDifficulty;
+}
+export function setCpuDifficulty(v) {
+  if (!DIFFICULTIES.includes(v)) return;
+  cpuDifficulty = v;
+  try {
+    localStorage.setItem(DIFFICULTY_KEY, v);
+  } catch {
+    /* 保存できなくてもそのセッションでは効く */
+  }
+}
+// 賢い思考を使うか（新人以外）。
+export function isCpuBrainSmart() {
+  return cpuDifficulty !== "rookie";
+}
+// 非公開情報（伏せカード等）ののぞき見を許すか（最強のみ）。
+export function isCpuPeekAllowed() {
+  return cpuDifficulty === "master";
+}
+// 相手プレイヤーの状況を考慮するか（上級以上）。
+export function isCpuOpponentAware() {
+  return cpuDifficulty === "advanced" || cpuDifficulty === "master";
+}
+
 let stepTicket = false;
 export function releaseCpuStep() {
   stepTicket = true;
