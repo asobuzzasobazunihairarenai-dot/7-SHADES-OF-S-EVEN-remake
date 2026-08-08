@@ -210,35 +210,22 @@ function remainingByColorFair(state, seat) {
   return remaining;
 }
 
-// base に足りない分を、残り枚数の多い(common=true)／少ない(false)順で重複なく補って n 色にする。
-function fillColors(base, n, state, seat, common) {
-  const remaining = remainingByColorFair(state, seat);
-  const sorted = COLORS.slice().sort((a, b) => (common ? remaining[b] - remaining[a] : remaining[a] - remaining[b]));
-  const out = [...base];
-  for (const c of sorted) {
-    if (out.length >= n) break;
-    if (!out.includes(c)) out.push(c);
-  }
-  return out.slice(0, n);
-}
-
 export function chooseDeclaredColors(cardId, requiredCount, driveSeat) {
   const state = getState();
   const seek = cardId !== "yellow-gamble"; // ギャンブルだけ「当てたくない」、それ以外(試練)は「当てたい」
   const n = Math.max(1, requiredCount || 1);
 
-  // 最強: 山札の一番上（次に引かれる/置かれる）をのぞき見して確実に宣言する。
-  if (isCpuPeekAllowed()) {
+  // 最強: 山札の一番上（次に引かれる/置かれる）をのぞき見する。ただし不具合報告#53
+  // 「最強CPUだと試練の儀式などを当てすぎる」への対応で、seek（試練の儀式＝当てたい）側では
+  // のぞき見しない。のぞき見すると宣言色が必ず当たり続けて儀式が延々と続き（実測40連続以上、
+  // 盤面を延々と移動）、強すぎて理不尽になるため。seek側は下の「フェアな残り枚数推定」に任せ、
+  // 最強でも「確率的に賢く当てにいく」程度に留める。のぞき見はギャンブル（当てたくない＝自分の
+  // 不利を避けたいだけで無限連鎖にはならない）側でのみ使う。
+  if (isCpuPeekAllowed() && !seek) {
     const deck = state.piles?.deck ?? [];
     const topColors = [];
     for (let i = 0; i < n && i < deck.length; i++) {
       topColors.push(getCardDefinition(deck[deck.length - 1 - i])?.color);
-    }
-    if (seek) {
-      // 試練: 次に置かれる山札の一番上の色を宣言に含める（虹＝全色扱いなら何を宣言しても当たる）。
-      const top = topColors[0];
-      const base = top && COLORS.includes(top) ? [top] : [];
-      return fillColors(base, n, state, driveSeat, true);
     }
     // ギャンブル: これから引かれる n 枚の色を避けて宣言する（虹があれば全色に当たるので避けられない）。
     const hasRainbow = topColors.includes("rainbow");
