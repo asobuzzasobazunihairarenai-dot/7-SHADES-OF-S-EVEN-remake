@@ -10915,7 +10915,7 @@ body:not(.is-admin-user) .opening-admin-btn {
   --icon-size-options-phone: 3.9rem;
   --center-modal-scale-phone: 2;
   --options-menu-scale-phone: 1;
-  --admin-panel-scale-phone: 1;
+  --admin-panel-scale-phone: 1.45;
   --self-status-large-avatar-size-phone: 12rem;
   --phase-guide-pos-phone-x: 0rem;
   --phase-guide-pos-phone-y: 0rem;
@@ -10934,6 +10934,16 @@ body:not(.is-admin-user) .opening-admin-btn {
   --fixed-hand-x-offset-phone: -33.4rem;
   --fixed-hand-scale-phone: 1;
   --fixed-hand-rotate-phone: 64deg;
+  --eraser-icons-pos-phone-x: 2.8rem;
+  --eraser-icons-pos-phone-y: 11.9rem;
+  --eraser-icons-size-phone: 5.3rem;
+  --mini-lock-top-phone: 4.3rem;
+  --mini-lock-top-x-offset-phone: 0rem;
+  --mini-lock-top-scale-phone: 1;
+  --hand-reveal-fixed-phone-x: 13.2rem;
+  --hand-reveal-fixed-phone-y: -5.4rem;
+  --hand-reveal-fixed-phone-scale: 1.4;
+  --hand-reveal-fixed-phone-rotate: -64deg;
   --hand-a-translate-z-touch: 2.4rem;
   --hand-b-translate-z-touch: 0.5rem;
   --hand-c-translate-z-touch: 0.5rem;
