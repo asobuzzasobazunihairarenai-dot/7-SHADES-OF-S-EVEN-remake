@@ -28,6 +28,8 @@ let activeCategoryKey = SHOP_CATEGORIES[0]?.key ?? null;
 
 function close() {
   if (panelEl) panelEl.style.display = "none";
+  // ショップを閉じたら上部オプションエリアの前面化フラグも外す。
+  document.body.classList.remove("shop-open");
 }
 
 function setStatus(text, isError) {
@@ -280,6 +282,10 @@ export function openShopPanel(initialCategoryKey) {
   renderGrid();
   refreshBalance();
   panelEl.style.display = "flex";
+  // ユーザー報告2026-08-08「ショップで画面上端の黒帯（オプションエリア）が見えない」。ショップは
+  // z-index:2601でオプションエリア(通常900/全画面ページ時1600)を覆うため、開いている間だけ
+  // オプションエリアをショップより前面へ引き上げる（style.cssの body.shop-open #option-area 参照）。
+  document.body.classList.add("shop-open");
 }
 
 export function initShop() {

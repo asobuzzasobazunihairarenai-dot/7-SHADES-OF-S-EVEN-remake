@@ -6024,6 +6024,16 @@ body.full-screen-page-active #option-area {
 body.full-screen-page-active #options-menu-panel {
   z-index: 1601;
 }
+/* ショップ(#shop-panel, z-index:2601)は他の全画面ページ(1500)より高いので、開いている間だけ
+   オプションエリア（上端の黒帯）をショップより前面へ引き上げて見えるようにする（ユーザー報告
+   2026-08-08）。#option-area自体は pointer-events:none（子アイコンだけauto）なので盤面/ショップの
+   クリックは妨げない。 */
+body.shop-open #option-area {
+  z-index: 2700;
+}
+body.shop-open #options-menu-panel {
+  z-index: 2701;
+}
 .options-menu-item {
   display: block;
   width: 100%;
@@ -12137,7 +12147,7 @@ body.theme-light .home-match-choice-option:hover {
    絵柄となじむ配色。インラインstyleで色指定された要素だけ !important を使う。
    ========================================================================= */
 body.theme-light #profile-page {
-  background: radial-gradient(ellipse at top, #fdfbf5 0%, #f5efe2 55%, #ece2cd 100%);
+  background: url("../assets/backgrounds/page-bg-light.webp") center / cover no-repeat, #f0e8d6;
   color: #3a3326;
 }
 body.theme-light #profile-page-title {
@@ -12215,7 +12225,7 @@ body.theme-light .modal-close-x:hover {
 /* ---- ライトテーマ：ランキング画面（#ranking-page）。全てCSSクラス/id指定なので
    !important不要。構造はマイページ全画面版と同じ（ゴールド系アクセント）。 ---- */
 body.theme-light #ranking-page {
-  background: radial-gradient(ellipse at top, #fdfbf5 0%, #f5efe2 55%, #ece2cd 100%);
+  background: url("../assets/backgrounds/page-bg-light.webp") center / cover no-repeat, #f0e8d6;
   color: #3a3326;
 }
 body.theme-light #ranking-page-title {
@@ -12369,7 +12379,7 @@ body.theme-light .codex-open-deck-btn {
 
 /* ---- ライトテーマ：お知らせ／更新情報（#changelog-modal）。 ---- */
 body.theme-light #changelog-modal {
-  background: rgba(255, 253, 247, 0.98);
+  background: url("../assets/backgrounds/page-bg-light.webp") center / cover no-repeat, #f0e8d6;
   border-color: rgba(176, 141, 63, 0.4);
   color: #3a3326;
   box-shadow: 0 20px 50px rgba(120, 100, 60, 0.25);
@@ -12416,7 +12426,7 @@ body.theme-light .tutorial-callout-back {
 /* ---- ライトテーマ：ショップ（#shop-panel、全画面）。オレンジ系のボタン/リボンは
    そのまま（白背景でも映える）、地・カード・タブ・文字だけライト化する。 ---- */
 body.theme-light #shop-panel {
-  background: radial-gradient(circle at 50% 0%, #fdfbf5, #efe6d4 70%);
+  background: url("../assets/backgrounds/page-bg-light.webp") center / cover no-repeat, #f0e8d6;
   color: #3a3326;
 }
 body.theme-light #shop-panel-header {
@@ -12487,7 +12497,7 @@ body.theme-light .help-index-item:hover {
 
 /* ---- ライトテーマ：図鑑（#codex-page、全画面）。中身はカード画像なので器だけライトに。 ---- */
 body.theme-light #codex-page {
-  background: radial-gradient(ellipse at top, #fdfbf5 0%, #f5efe2 55%, #ece2cd 100%);
+  background: url("../assets/backgrounds/page-bg-light.webp") center / cover no-repeat, #f0e8d6;
   color: #3a3326;
 }
 body.theme-light #codex-page-back {
