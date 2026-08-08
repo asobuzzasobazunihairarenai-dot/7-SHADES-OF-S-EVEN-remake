@@ -1372,9 +1372,15 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, reve
         // 呼び出し側が指定した時だけ、reveal（下）を出す前にこの1枚を実際に手札へ移す
         // （＝奪ったモーダルが出た時点で既に自分の手札に入っている）。RESPOND_CONTACTは
         // 「既に攻撃側の手札にある札は二重に奪わない」ように対応済み（state.js）。
+        let revealCardId = token.cardId;
         if (options?.onPickedBeforeReveal) {
           try {
             await options.onPickedBeforeReveal(token);
+            // 不具合#44: オンラインでは相手の手札のカードの中身(cardId)はRLSで隠れており、選んだ
+            // 時点の token.cardId は null（→ null.webp）。onPickedBeforeReveal で自分の手札へ移した
+            // 後は中身が判明するので、移動後の最新状態から cardId を取り直して正しく見せる。
+            const fresh = getState().tokens.find((t) => t.id === token.id);
+            if (fresh?.cardId) revealCardId = fresh.cardId;
           } catch (err) {
             console.error("onPickedBeforeReveal failed", err);
           }
@@ -1395,7 +1401,7 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, reve
               ? `${getPlayerName(actor)}が${getPlayerName(targetPlayer)}から`
               : `${getPlayerName(targetPlayer)}から`;
         }
-        await showCardReceivedModal(token.cardId, sub, { labelText });
+        await showCardReceivedModal(revealCardId, sub, { labelText });
       }
       resolve(token ?? null);
     }
@@ -1616,9 +1622,9 @@ onEffectReasonEvents(({ fromPlayer, cardId, text }) => {
 // 試練の儀式「踏んだカード」の中央じらしフリップ演出を、実行者以外の全プレイヤーにも再生する
 // （ユーザー要望2026-08-08。踏んだカードは公開情報。本人はannounceSteppedCardForEffect内で
 // ローカル再生済みなので、ここでは自分以外からの通知だけを再生する）。
-onSteppedCardRevealEvents(({ fromPlayer, cardId }) => {
+onSteppedCardRevealEvents(({ fromPlayer, cardId, labelText }) => {
   if (fromPlayer === getSelfSeat()) return;
-  playCenterCardFlipReveal(cardId, { labelText: "踏んだ" });
+  playCenterCardFlipReveal(cardId, { labelText: labelText || "踏んだ" });
 });
 // 不具合#43: マスチェンジの入れ替え電撃演出を、実行者以外の全プレイヤーでも再生する。
 // （実行者はswapPiecesForEffect内でローカル再生済み。受信側は入れ替え前の元位置間にアークを描く。）
@@ -1807,14 +1813,17 @@ onCursorPositionEvents((payload) => {
 async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
   // スリカエは交換なので、奪ったカードの中央表示ラベルは「受け取った」にする（ゲート侵攻の
   // 一方的な奪取は既定の「奪った」）。requestOpponentHandRitualPick 側で theirCard を中央に見せる。
+  // 不具合#44: 奪う札は「中央で見せる前」に自分の手札へ移す（onPickedBeforeReveal）。オンラインでは
+  // 相手の手札の中身(cardId)がRLSで隠れており、移す前だと reveal が null.webp になるため、移動後に
+  // 中身が判明した状態で見せる。移動はここで済むので、後段の重複した moveAndSync は行わない。
   const theirCard = await requestOpponentHandRitualPick(
     targetPlayer,
     `${getPlayerName(targetPlayer)}の手札（裏向き）から1枚選んでください`,
     undefined,
-    { takes: "受け取った", loses: "渡した" }
+    { takes: "受け取った", loses: "渡した" },
+    { onPickedBeforeReveal: async (token) => moveAndSyncForEffect(token.id, { zone: "hand", player }) }
   );
   if (!theirCard) return;
-  await moveAndSyncForEffect(theirCard.id, { zone: "hand", player });
   // 賢いCPUが渡す側の時は、渡す札を賢く選ぶ（ユーザー要望2026-08-08「未ロック＝まだ要る色は
   // なるべく渡さない」。自分の要る色・相手の要る色・貴重札を避け、双方ロック済みの色を優先）。
   // それ以外（人間・オンライン離脱代行）は従来どおり対話ピッカーで選ぶ。
@@ -2092,14 +2101,17 @@ async function announceEffectFizzleForEffect(cardId, addsToHand) {
 
 // 試練の儀式で「踏んだ（隣に置いて移動した）カード」が何かを画面中央に大きく見せて周知する
 // （ユーザー要望2026-08-07「試練の儀式で何を踏んだか画面中央に出して知らしめたい」）。
+// 中央カード“じらしフリップ”公開演出を、オンラインでは全プレイヤーに配信して再生する共通ヘルパー
+// （ユーザー要望2026-08-08「他のカード効果の演出も同様に相手にも見せて」）。試練で踏んだカード・
+// ギャンブルの公開カードなど、いずれも公開情報。実行者はローカルでも再生（awaitで待てる）、他
+// クライアントは受信側で同じ演出を再生する（stepped_card_revealブロードキャスト）。
+function revealCenterCardForAll(cardId, labelText) {
+  if (isOnlineMode()) broadcastSteppedCardReveal({ fromPlayer: getSelfSeat(), cardId, labelText });
+  return playCenterCardFlipReveal(cardId, { labelText });
+}
 // showCardReceivedModal（awaitable）を「踏んだ」ラベルで流用する。
 function announceSteppedCardForEffect(cardId) {
-  // ユーザー要望2026-08-08「試練の儀式も、移動先をしっかり周知した後、じらしフリップで」。
-  // ザ・ギャンブルと同じ中央“じらしフリップ”で踏んだカードを公開する（静的な受け取りモーダルから変更）。
-  // 踏んだカードは公開情報なので、オンラインでは全プレイヤーに配信して同じ演出を見せる
-  // （ユーザー要望2026-08-08。本人はこの後ローカルでも再生する。他クライアントは受信側で再生）。
-  if (isOnlineMode()) broadcastSteppedCardReveal({ fromPlayer: getSelfSeat(), cardId });
-  return playCenterCardFlipReveal(cardId, { labelText: "踏んだ" });
+  return revealCenterCardForAll(cardId, "踏んだ");
 }
 
 // プレゼントの到達効果（１番少なくロックしている全員がドロー）等で、「誰が対象か」を
@@ -4406,7 +4418,7 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         swapRandomHandCard: swapHandCardWithOpponentForEffect,
         announceEffectReason: announceEffectReasonForEffect,
         celebrate: celebrateForEffect,
-        gambleReveal: (cardId) => playCenterCardFlipReveal(cardId, { labelText: "ギャンブル公開" }),
+        gambleReveal: (cardId) => revealCenterCardForAll(cardId, "ギャンブル公開"),
         startSuspenseSound: startHeartbeat,
         stopSuspenseSound: stopHeartbeat,
         delay: (ms) => wait(ms),
@@ -4506,7 +4518,7 @@ async function runAutoArrivalEffect(cardId, location, player) {
       // 発動理由を一言説明するモーダル用。
       announceEffectReason: announceEffectReasonForEffect,
       celebrate: celebrateForEffect,
-      gambleReveal: (cardId) => playCenterCardFlipReveal(cardId, { labelText: "ギャンブル公開" }),
+      gambleReveal: (cardId) => revealCenterCardForAll(cardId, "ギャンブル公開"),
       startSuspenseSound: startHeartbeat,
       stopSuspenseSound: stopHeartbeat,
       delay: (ms) => wait(ms),
