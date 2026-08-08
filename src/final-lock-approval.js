@@ -22,6 +22,14 @@ let respondHandler = null;
 // 自動で承認する）。
 let checkGomennasaiEligibility = null;
 let useGomennasaiHandler = null;
+// 【CPU強化 2026-08-08】承認者がローカルCPU戦のCPU席の時に真を返す判定（main.jsから注入）。
+// 真の時はバナーの承認/ゴメンナサイのボタンを人間に出さず「CPUの承認を待っています…」表示に
+// する（人間がCPUの代わりに承認・発動してしまうのを防ぐ。実際の承認/ゴメンナサイ発動は
+// main.jsのcheckCpuFinalLockApprovalが自動で行う）。
+let isApproverAutoDriven = null;
+export function registerApproverAutoDrivenCheck(fn) {
+  isApproverAutoDriven = fn;
+}
 
 // ユーザー要望2026-08-08（#36a）「『ゴメンナサイを使う』を押した後は『ロックエリアの奪う
 // カードを選んでください』的な案内に切り替わってほしい」。押してから奪う札を選び終えるまでの間、
@@ -70,7 +78,9 @@ export function updateFinalLockApprovalBanner() {
   // ローカルモードは1人で全座席を操作するテスト用途のため、既存の「座席を持っていれば
   // 何でも動かせる」方針を踏襲し、常にボタンを押せるようにする。オンライン中だけ、
   // 実際にその座席でログインしている本人にだけ操作を許可する。
-  const canRespond = !isOnlineMode() || getSelfSeat() === approver;
+  // ローカルCPU戦でCPU席が承認者の時は、人間に操作させず「待っています…」表示にする。
+  const autoDriven = !!isApproverAutoDriven?.(approver);
+  const canRespond = (!isOnlineMode() || getSelfSeat() === approver) && !autoDriven;
   // #36a: 「ゴメンナサイを使う」を押して奪う札を選んでいる最中は、承認/却下ボタンを引っ込め、
   // 「ロックエリアから奪うカードを選んでください」の案内だけに切り替える。
   if (gomennasaiPicking && canRespond) {

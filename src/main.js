@@ -80,6 +80,7 @@ import {
   updateFinalLockApprovalBanner,
   registerFinalLockApprovalHandler,
   registerGomennasaiHelpers,
+  registerApproverAutoDrivenCheck,
   setGomennasaiPicking,
 } from "./final-lock-approval.js";
 import {
@@ -6344,6 +6345,7 @@ function render() {
   updateTurnRoundCounter();
   updateFinalLockApprovalBanner();
   checkGomennasaiAutoApproval();
+  checkCpuFinalLockApproval();
   updateTimerToggleButton();
   updateTimerToggleBanner();
   updateAutoProcessingToggleBanner();
@@ -8388,6 +8390,105 @@ function checkGomennasaiAutoApproval() {
     // 次の承認者（いれば）を続けてチェックする。
     checkGomennasaiAutoApproval();
   });
+}
+
+// 【CPU強化 2026-08-08】ローカルCPU戦で、相手（人間）が最後のロックを宣言し、承認キューの
+// 先頭がCPU席（疑似CPU対象）になった時の自動処理。以前はこの局面で承認バナーの「承認/ゴメン
+// ナサイを使う」ボタンが人間側に見えてしまい（canRespondがローカルでは常にtrue）、CPUが自分の
+// ゴメンナサイで人間の勝利を阻止することが一切なく、しかもCPUがゴメンナサイを持っている場合は
+// checkGomennasaiAutoApprovalが自動承認を保留するため承認が止まる恐れがあった。
+// 賢いCPU（中級以上）はゴメンナサイを使えるなら必ず使って相手の勝利ロックを阻止する
+// （負けを防ぐのは常に得なので難易度に依らず発動が正解）。新人CPUは使わずそのまま承認する。
+// checkGomennasaiAutoApprovalが「ゴメンナサイを使えない席」は既に自動承認しているので、
+// ここで扱うのは「先頭がCPU席かつゴメンナサイを使える」局面だけ。
+let cpuFinalLockInFlight = false;
+function checkCpuFinalLockApproval() {
+  if (cpuFinalLockInFlight || gomennasaiAutoApprovalInFlight) return;
+  const pending = getState().pendingFinalLock;
+  if (!pending || pending.queue.length === 0) return;
+  if (isOnlineMode() || !isCpuBattleActive()) return;
+  const approver = pending.queue[0];
+  if (!isPseudoCpuTarget(approver)) return; // 人間の承認は自動化しない（本人が選ぶ）
+  const eligible = findGomennasaiEligibility(approver);
+  if (!eligible) return; // 使えない席はcheckGomennasaiAutoApprovalが自動承認する
+  cpuFinalLockInFlight = true;
+  Promise.resolve()
+    .then(async () => {
+      if (isCpuBrainDriving(approver)) {
+        await cpuUseGomennasaiOnFinalLock(approver, eligible, pending.attacker);
+      } else {
+        // 新人CPU: ゴメンナサイを持っていても防御に使わずそのまま承認（弱いCPUとして）。
+        await respondToFinalLock(true);
+      }
+    })
+    .finally(() => {
+      cpuFinalLockInFlight = false;
+      // gomennasaiAutoApprovalと同様、処理中のrender()で弾かれた再チェックを拾い直す。
+      checkCpuFinalLockApproval();
+    });
+}
+
+// CPUがゴメンナサイで奪うロックカードを選ぶ。奪うと攻撃側の7色が崩れて勝利を阻止でき、
+// さらに自分の手札に加わる。①自分がまだロックしていない色（後で自分がロックできる）＞
+// ②貴重カード（なないろの欠片等）＞③先頭、の優先で選ぶ。
+function pickCpuGomennasaiStealTarget(seat, stealableLocks) {
+  const mySide = SEAT_TO_SIDE[seat];
+  const myLockedColors = new Set(
+    getState()
+      .tokens.filter((t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === mySide)
+      .map((t) => getCardDefinition(t.cardId).color)
+  );
+  const preciousIds = new Set(["rainbow-shard", "purple-sorry", "red-counter-lock"]);
+  const scoreOf = (t) => {
+    let s = 0;
+    const def = getCardDefinition(t.cardId);
+    if (!myLockedColors.has(def.color)) s += 3; // 自分がまだ持っていない色は再ロックの種になる
+    if (preciousIds.has(t.cardId) || t.cardId?.startsWith("first-") || t.cardId?.startsWith("eternal-")) s += 2;
+    return s;
+  };
+  return [...stealableLocks].sort((a, b) => scoreOf(b) - scoreOf(a))[0];
+}
+
+// CPUがゴメンナサイの追色コストとして捨てる紫カードを選ぶ。貴重なカードは温存し、
+// なるべく価値の低い紫を捨てる。
+function pickCpuGomennasaiCost(costCandidates) {
+  const preciousIds = new Set(["rainbow-shard", "purple-sorry", "red-counter-lock"]);
+  const scoreOf = (t) => {
+    let s = 0;
+    if (preciousIds.has(t.cardId) || t.cardId?.startsWith("first-") || t.cardId?.startsWith("eternal-")) s -= 3;
+    return s;
+  };
+  return [...costCandidates].sort((a, b) => scoreOf(b) - scoreOf(a))[0];
+}
+
+// 賢いCPUがゴメンナサイを自動発動する（ローカルCPU戦専用）。useGomennasaiOnFinalLockの
+// ローカル分岐を、対話ピッカーの代わりにCPUの自動選択で置き換えたもの。攻撃側のロックを
+// 1枚奪い、追色1を払ってから通常どおり承認する（奪取で7色が崩れるため相手は勝利しない）。
+async function cpuUseGomennasaiOnFinalLock(seat, eligibility, attacker) {
+  if (!getState().pendingFinalLock) return;
+  const target = pickCpuGomennasaiStealTarget(seat, eligibility.stealableLocks);
+  const cost = pickCpuGomennasaiCost(eligibility.costCandidates);
+  if (!target || !cost) {
+    await respondToFinalLock(true);
+    return;
+  }
+  await announceEffectReasonForEffect(
+    "purple-sorry",
+    `${getPlayerName(seat)}はゴメンナサイを使い、${getPlayerName(attacker)}のロックを1枚奪って最後のロックを阻止します！`
+  );
+  await discardFromHandReveal(cost.id);
+  const costStillInHand = getState().tokens.find(
+    (t) => t.id === cost.id && t.location.zone === "hand" && t.location.player === seat
+  );
+  if (costStillInHand) {
+    // コストを払えなかった（想定外）。安全側に倒して普通に承認する。
+    await respondToFinalLock(true);
+    return;
+  }
+  moveToken(target.id, { zone: "hand", player: seat });
+  announceHandPickups(seat, [{ cardId: target.cardId, wasPublic: true }]);
+  render();
+  await respondToFinalLock(true);
 }
 
 // 「🍬 ゴメンナサイを使う」ボタンから呼ばれる（続き64）。相手（攻撃側）が既に
@@ -11194,6 +11295,8 @@ registerRemoteMoveAnimatorHelpers({
 });
 registerFinalLockApprovalHandler(respondToFinalLock);
 registerGomennasaiHelpers({ checkEligibility: findGomennasaiEligibility, onUseGomennasai: useGomennasaiOnFinalLock });
+// ローカルCPU戦のCPU席が最後のロック承認者の時は、バナーを人間操作不可（待機表示）にする。
+registerApproverAutoDrivenCheck((seat) => isCpuBattleActive() && !isOnlineMode() && isPseudoCpuTarget(seat));
 registerTimerToggleHandlers({ onRequest: requestTimerToggleFor, onRespond: respondToTimerToggle });
 registerContactApprovalHandler(respondToContact);
 registerCounterLockHelpers({
