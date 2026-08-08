@@ -217,6 +217,8 @@ const GROUPS = [
       { key: "--shop-badge-x", label: "無料/所持済み・南京錠 位置X", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
       { key: "--shop-badge-y", label: "無料/所持済み・南京錠 位置Y", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
       { key: "--shop-badge-scale", label: "無料/所持済み・南京錠 サイズ", unit: "", min: 0.5, max: 3, step: 0.05, default: 1 },
+      // ユーザー要望2026-08-08: 商品カードの白い塗りつぶし背景の不透明度（ライトテーマ時）。
+      { key: "--shop-card-bg-alpha", label: "カード背景（白）の不透明度（ライト時）", unit: "", min: 0, max: 1, step: 0.02, default: 0.72 },
     ],
   },
   {
@@ -1719,6 +1721,32 @@ async function adminPlayEidosScene(startId, chain) {
 
 const TOGGLE_SECTIONS = [
   {
+    // ユーザー要望2026-08-08「ショップの位置調整をスライダーだけでなく実際に画像を触って
+    // ドラッグでも」。ON中(body.shop-adjust-mode)は、ショップを開いて商品画像をドラッグ=商品画像位置、
+    // 商品画像以外のカード上をドラッグ=商品背景位置を調整（shop.jsのwireShopAdjustDrag）。
+    title: "🛒 ショップ：画像をドラッグで位置調整",
+    category: "shop",
+    buildContent: (content) => {
+      const note = document.createElement("div");
+      note.style.cssText = "font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.5rem; line-height: 1.5;";
+      note.textContent =
+        "ONの間、ショップを開いて『商品画像』をドラッグすると商品画像の位置、『商品画像以外のカード上』をドラッグすると商品背景の位置を調整できます（全商品連動）。調整中は購入できません。スライダーとも連動します。";
+      content.appendChild(note);
+      const row = document.createElement("label");
+      row.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-size: 0.85rem;";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = document.body.classList.contains("shop-adjust-mode");
+      cb.addEventListener("change", () => {
+        document.body.classList.toggle("shop-adjust-mode", cb.checked);
+      });
+      const lbl = document.createElement("span");
+      lbl.textContent = "商品画像／背景をドラッグで位置調整する";
+      row.append(cb, lbl);
+      content.appendChild(row);
+    },
+  },
+  {
     // ユーザー要望2026-08-08「実機でエイドス会話演出を確認したい。管理者のみ好きな箇所の
     // シーンを再生できる常設パネルを」。ボタンを押すと管理者パネルを閉じて会話UIを再生する。
     // ※プレビュー専用: 進行状況の保存・セプト付与などの本番処理は行わない。
@@ -2537,6 +2565,12 @@ export function initAdminMode() {
   });
   // self-status-rearrange.jsが、ドラッグ/ホイール操作が少し落ち着いた時に発火する。
   window.addEventListener("admin:self-status-rearrange-change", () => {
+    rebuildSlidersRef.current();
+    updateExportRef.current();
+  });
+  // ショップの画像ドラッグ位置調整（shop.js wireShopAdjustDrag）で --shop-* を書き換えた時、
+  // スライダー表示・出力欄を追従させる（上の2つと同じパターン）。
+  window.addEventListener("admin:shop-adjust-change", () => {
     rebuildSlidersRef.current();
     updateExportRef.current();
   });

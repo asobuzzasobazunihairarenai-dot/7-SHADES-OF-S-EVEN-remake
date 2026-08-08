@@ -222,6 +222,7 @@ function wireHorizontalScroll(el) {
   let movedPx = 0;
   let pid = null;
   el.addEventListener("pointerdown", (e) => {
+    if (document.body.classList.contains("shop-adjust-mode")) return; // 位置調整モード中はドラッグ=画像調整
     if (e.pointerType !== "mouse" || e.button !== 0) return; // タッチはネイティブ横スワイプ
     if (el.scrollWidth <= el.clientWidth) return;
     dragging = true;
@@ -257,6 +258,57 @@ function wireHorizontalScroll(el) {
     },
     true
   );
+}
+
+// ユーザー要望2026-08-08「位置調整はスライダーだけでなく実際に画像を触ってドラッグでも」。
+// 管理者モードの「ショップ：画像をドラッグで位置調整」ON（body.shop-adjust-mode）中だけ有効。
+// 商品画像(.shop-item-thumb)上のドラッグ→--shop-thumb-x/y、それ以外のカード上→--shop-bg-x/y を
+// 更新する（全商品連動）。値は :root のインラインCSS変数に書き（スライダーと同じ経路）、
+// admin:shop-adjust-change を投げて管理者パネルのスライダー表示・出力を追従させる。
+function wireShopAdjustDrag(el) {
+  let adj = null;
+  const remOf = (name) => {
+    const n = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
+    return Number.isFinite(n) ? n : 0;
+  };
+  el.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (!document.body.classList.contains("shop-adjust-mode")) return;
+      const card = e.target.closest(".shop-item-card");
+      if (!card) return;
+      const onThumb = !!e.target.closest(".shop-item-thumb");
+      const xVar = onThumb ? "--shop-thumb-x" : "--shop-bg-x";
+      const yVar = onThumb ? "--shop-thumb-y" : "--shop-bg-y";
+      adj = {
+        xVar,
+        yVar,
+        startX: e.clientX,
+        startY: e.clientY,
+        startXRem: remOf(xVar),
+        startYRem: remOf(yVar),
+        pid: e.pointerId,
+        root: parseFloat(getComputedStyle(document.documentElement).fontSize) || 16,
+      };
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    true // capture: 横スクロールドラッグ・購入クリックより先に奪う
+  );
+  const move = (e) => {
+    if (!adj || e.pointerId !== adj.pid) return;
+    const dx = (e.clientX - adj.startX) / adj.root;
+    const dy = (e.clientY - adj.startY) / adj.root;
+    document.documentElement.style.setProperty(adj.xVar, (adj.startXRem + dx).toFixed(2) + "rem");
+    document.documentElement.style.setProperty(adj.yVar, (adj.startYRem + dy).toFixed(2) + "rem");
+    window.dispatchEvent(new CustomEvent("admin:shop-adjust-change"));
+  };
+  const up = (e) => {
+    if (adj && e.pointerId === adj.pid) adj = null;
+  };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", up);
+  window.addEventListener("pointercancel", up);
 }
 
 // （タイトル・残高・達成率・閉じるボタン）を上部に固定し、タブ＋商品グリッドは
@@ -310,6 +362,7 @@ function buildPanel() {
   gridEl = document.createElement("div");
   gridEl.id = "shop-panel-grid";
   wireHorizontalScroll(gridEl);
+  wireShopAdjustDrag(gridEl);
   panel.appendChild(gridEl);
 
   return panel;
