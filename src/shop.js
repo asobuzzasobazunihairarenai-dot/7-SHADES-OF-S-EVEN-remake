@@ -50,6 +50,14 @@ function buildItemCard(item) {
   const card = document.createElement("div");
   card.className = "shop-item-card";
 
+  // ユーザー要望2026-08-08「MTGAストアのように、商品ごとに背景を用意したい。暫定として
+  // 商品そのものを半透明で巨大化した画像を背景にする」。商品画像を拡大・ぼかし・半透明で
+  // カード背面に敷く（下端はマスクで薄くして文字を読みやすく）。CSSは .shop-item-bg 参照。
+  const bg = document.createElement("div");
+  bg.className = "shop-item-bg";
+  bg.style.backgroundImage = `url("${item.imagePath}")`;
+  card.appendChild(bg);
+
   const thumb = document.createElement("div");
   thumb.className = "shop-item-thumb";
   const img = document.createElement("img");
@@ -240,6 +248,18 @@ function buildPanel() {
 
   gridEl = document.createElement("div");
   gridEl.id = "shop-panel-grid";
+  // MTGA風の横スクロール帯（ユーザー要望2026-08-08）。PCでは縦ホイールを横スクロールへ変換して
+  // 直感的に流せるようにする（横方向にはみ出している時だけ。タッチは横スワイプでそのまま動く）。
+  gridEl.addEventListener(
+    "wheel",
+    (e) => {
+      if (e.deltaY === 0 || e.deltaX !== 0) return; // 元々横入力（トラックパッド等）はそのまま
+      if (gridEl.scrollWidth <= gridEl.clientWidth) return; // 横に溢れていなければ何もしない
+      gridEl.scrollLeft += e.deltaY;
+      e.preventDefault();
+    },
+    { passive: false }
+  );
   panel.appendChild(gridEl);
 
   return panel;

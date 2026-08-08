@@ -5581,27 +5581,59 @@ body.theme-light .daily-bonus-modal-note {
   font-weight: bold;
   box-shadow: 0 0 0.9rem rgba(245, 158, 11, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
+/* ユーザー要望2026-08-08「MTGAストアのように横スクロールで大きな商品カードを並べたい」。
+   縦グリッド→横1列のスクロール帯にする（各カテゴリ内で左右にスクロール）。 */
 #shop-panel-grid {
   flex: 1;
-  overflow-y: auto;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
-  gap: 1.6rem;
-  padding: 0.8rem 1.6rem 2.4rem;
-  align-content: start;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 2rem;
+  padding: 2rem 2.4rem 2.6rem;
+  scroll-snap-type: x proximity;
 }
 .shop-item-card {
   position: relative;
+  /* 横スクロール用に固定幅・縮まない。MTGA風にゆったり大きめ。 */
+  flex: 0 0 17rem;
+  width: 17rem;
+  scroll-snap-align: start;
   display: flex;
   flex-direction: column;
   background: linear-gradient(160deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.02));
   border: 1px solid rgba(148, 163, 184, 0.28);
-  border-radius: 0.85rem;
-  padding: 0.75rem;
-  gap: 0.6rem;
+  border-radius: 0.9rem;
+  padding: 0.9rem;
+  gap: 0.7rem;
   overflow: hidden;
   box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transition: transform 0.16s ease-out, box-shadow 0.16s ease-out, border-color 0.16s ease-out;
+}
+/* 暫定の商品背景（ユーザー案）: 商品画像そのものを拡大・ぼかし・半透明でカード背面に敷く。
+   下側（ラベル・価格）に向けてマスクでフェードし、文字を読みやすく保つ。 */
+.shop-item-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center 35%;
+  transform: scale(1.35);
+  filter: blur(15px) saturate(1.18);
+  opacity: 0.42;
+  -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.5) 46%, transparent 80%);
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.5) 46%, transparent 80%);
+  pointer-events: none;
+}
+.shop-item-card:hover .shop-item-bg {
+  opacity: 0.55;
+}
+/* 中身（サムネ・ラベル・価格・スウォッチ）は背景より前面へ。 */
+.shop-item-card > *:not(.shop-item-bg) {
+  position: relative;
+  z-index: 1;
 }
 /* カード上端のゴールドの飾りバー（高級ストア風の見出し帯）。 */
 .shop-item-card::before {
