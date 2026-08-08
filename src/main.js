@@ -152,8 +152,9 @@ import { initUpdateChecker, setUpdateBannerGate, reevaluateUpdateBanner } from "
 import { initTutorialAutoStart, registerTutorialStageHelpers } from "./tutorial.js";
 // チュートリアルCPU戦（台本化された練習試合）へ、ロック効果アニメとステージ座標変換を注入する。
 import { registerTutorialBattleHelpers, isTutorialBattleActive } from "./tutorial-battle.js";
-// 開発用: エイドス会話パネルのプレビュー（本番導線からは呼ばない。コンソールで __eidosDialogueDemo()）。
-import { runEidosDialogueDemo } from "./eidos-dialogue-fixtures.js";
+// 開発用: エイドス会話パネルのプレビュー（本番導線からは呼ばない。コンソールで __eidosDialogueDemo()
+// / __eidosPlayScene("eidos_first_encounter") ）。
+import { runEidosDialogueDemo, playEidosScene } from "./eidos-dialogue-fixtures.js";
 import { isAutoDragRestrictionEnabled } from "./auto-drag-restriction.js";
 import { initPiecePets, registerPiecePetHelpers } from "./piece-pet.js";
 // 「ロック前・手札使用前」の確認モーダルを出すかどうかの設定（全デバイス共通、
@@ -11693,7 +11694,10 @@ function exitAfkCpuSubstitution() {
 buildAfkCpuBanner();
 // 開発用のみ: エイドス会話パネルのプレビューをコンソールから呼べるようにする（本番のボタン・
 // フローからは一切呼ばない。決定稿投入前の表示確認用）。
-if (typeof window !== "undefined") window.__eidosDialogueDemo = runEidosDialogueDemo;
+if (typeof window !== "undefined") {
+  window.__eidosDialogueDemo = runEidosDialogueDemo;
+  window.__eidosPlayScene = playEidosScene;
+}
 // しきい値到達（turn-timer.jsが連続タイムアップを数えて発火）→ 自席をCPU代行に切替。
 window.addEventListener("afk-cpu-threshold-reached", enterAfkCpuSubstitution);
 // 手動操作（在席の証拠）があれば連続タイムアップのカウンタをリセット。ただし既に代行中の間は

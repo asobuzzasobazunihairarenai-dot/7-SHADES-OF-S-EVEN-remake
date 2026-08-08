@@ -1,33 +1,41 @@
-// エイドスとの会話を表示する、再利用可能な会話パネル（ユーザー要望2026-08-08）。
+// エイドスとの物語会話を表示する、再利用可能な会話パネル（ユーザー要望2026-08-08 / 決定稿）。
 // 役割分離: ルール/操作の説明は既存の説明モーダル・吹き出しのまま。この会話UIは導入・場面転換・
-// 評価・勝敗後など「物語性が必要な場面」専用。
+// 評価・勝敗後など「物語性が必要な場面」専用（既存の説明UIとは混在させない）。
+//
+// 表示方針（決定稿の共通表示方針）:
+//   ・主人公（記憶を失った青年）= 画面左 / エイドス = 画面右 / セプト = 中央下（必要な時だけ）。
+//   ・発話者は明度100%・不透明度100%・わずかに前へ拡大。聞き手は明度70〜80%・不透明度75〜85%。
+//   ・発話していない側も原則消さない。話者名と本文は発話者側に寄せる。
+//   ・選択肢表示中は両者を通常の明るさへ戻す。立ち絵切り替えは短いフェードで、強い点滅はさせない。
 //
 // 使い方（低レベルAPI）:
-//   const result = await runEidosDialogue(steps, { onStepShown });
-//   steps: 会話ステップ配列（スキーマはeidos-dialogue-scenes.js参照）。
+//   const result = await runEidosDialogue(steps, { onStepShown, fadeInFromBlack });
 //   戻り値 result: { endedBy: "finished"|"choice", choice: <選んだ選択肢のvalue|null>, lastStepId }
-//   選択肢を持つステップに到達したら、その選択を待って resolve（選択肢のvalueを返す）。
-//   選択肢が無ければ最後まで送って resolve（choice:null）。
+//   ステップ内分岐: choice.next / step.next に「遷移先ステップID」を指定すると、そのIDへジャンプして続行。
+//   choice.value だけ（nextなし）なら、その値を返して会話終了（呼び出し側がゲームイベントを解釈）。
 //
 // 操作: パネルのタップ/クリック、またはEnter/Spaceで進行。文字送り中のタップ＝全文即時表示、
 // 全文表示後のタップ＝次のセリフへ。会話中は盤面操作をロック（透明オーバーレイで吸収）、終了で解放。
-// スマホでは画面下部の帯レイアウトにして盤面を隠しすぎない（CSS: #eidos-dialogue-panel）。
 //
-// 画像は必ず eidos-portraits.js 経由で解決（パス直書き禁止）。素材未配置IDは既定画像へフォールバック。
+// 画像は必ず eidos-portraits.js 経由で解決（パス直書き禁止）。専用素材が無いIDは近い実絵へフォールバック。
 
-import { resolveEidosPortrait, resolveSeptPortrait } from "./eidos-portraits.js";
+import { resolveEidosPortrait, resolveProtagonistPortrait, resolveSeptPortrait } from "./eidos-portraits.js";
 
 const TYPEWRITER_MS_PER_CHAR = 24;
 
 let activeSession = null; // 多重起動防止（同時に1つだけ）
 
-// 会話を再生する。stepsは配列。optionsは任意。Promiseを返す。
 export function runEidosDialogue(steps, options = {}) {
   if (!Array.isArray(steps) || steps.length === 0) {
     return Promise.resolve({ endedBy: "finished", choice: null, lastStepId: null });
   }
-  // 既に会話中なら、前のをキャンセル扱いで畳んでから始める（実戦では基本起きない）。
   if (activeSession) activeSession.forceClose();
+
+  // ステップID → 配列index。分岐（next / choice.next）でジャンプするために使う。
+  const idToIndex = new Map();
+  steps.forEach((s, i) => {
+    if (s.id != null) idToIndex.set(String(s.id), i);
+  });
 
   return new Promise((resolve) => {
     const els = buildPanelDom();
@@ -40,32 +48,54 @@ export function runEidosDialogue(steps, options = {}) {
     function cleanup() {
       if (typeTimer) clearTimeout(typeTimer);
       window.removeEventListener("keydown", onKey, true);
-      els.remove();
+      els.root.remove();
       document.body.classList.remove("eidos-dialogue-open");
       activeSession = null;
     }
     function finish(payload) {
       if (resolved) return;
       resolved = true;
-      cleanup();
-      resolve(payload);
+      // 退場フェード（強い点滅を避け、静かに閉じる）。
+      els.root.classList.add("is-closing");
+      setTimeout(() => {
+        cleanup();
+        resolve(payload);
+      }, 200);
+    }
+
+    function applyPortraits(step) {
+      // 両者とも原則表示。step未指定側は既定の向き（主人公=右向き / エイドス=左向き）へ。
+      const pPath = resolveProtagonistPortrait(step.protagonist || "youth_normal");
+      const ePath = resolveEidosPortrait(step.eidos || "normal_left");
+      setPortraitImage(els.left, pPath);
+      setPortraitImage(els.right, ePath);
+      // セプト（中央下）。sept にIDが入っている時だけ表示。
+      const septId = typeof step.sept === "string" ? step.sept : null;
+      const septPath = septId ? resolveSeptPortrait(septId) : null;
+      if (septPath) {
+        setPortraitImage(els.sept, septPath);
+        els.sept.classList.add("is-shown");
+      } else {
+        els.sept.classList.remove("is-shown");
+      }
+      // 発話者ハイライト。side: "left"(主人公) / "right"(エイドス) / "sept"。
+      const side = step.side === "right" ? "right" : step.side === "sept" ? "sept" : "left";
+      // 選択肢待ちのステップは両者を通常の明るさへ戻す（決定稿）。
+      const neutral = !!step.choices?.length;
+      setSpeaking(els.left, !neutral && side === "left");
+      setSpeaking(els.right, !neutral && side === "right");
+      setSpeaking(els.sept, !neutral && side === "sept");
+      els.panel.dataset.speakerSide = side;
+      // 演出フック（best-effort。未スタイルでも無害なクラスだけ付ける）。
+      els.root.classList.toggle("fx-bg-dim", !!step.fx?.bgDim);
+      els.root.classList.toggle("fx-aura-dark", !!step.fx?.auraDark);
+      els.root.classList.toggle("fx-aura-gray", !!step.fx?.auraGray);
     }
 
     function renderStep(step) {
-      // 立ち絵（位置: portraitSide "left"|"right"、既定 left）。
-      const side = step.portraitSide === "right" ? "right" : "left";
-      els.panel.dataset.portraitSide = side;
-      els.portrait.style.backgroundImage = `url("${resolveEidosPortrait(step.portrait || "normal_front")}")`;
-      // セプト（任意）。sept:true かつ画像が解決できれば出す。
-      const septPath = step.sept ? resolveSeptPortrait(step.septPortrait || "sept_normal") : null;
-      if (septPath) {
-        els.sept.style.backgroundImage = `url("${septPath}")`;
-        els.sept.style.display = "";
-      } else {
-        els.sept.style.display = "none";
-      }
+      applyPortraits(step);
       els.name.textContent = step.speaker || "";
-      // 本文（文字送り有無）。typewriterが明示false以外は文字送りする。
+      els.name.style.visibility = step.speaker ? "" : "hidden";
       fullText = step.text || "";
       els.choices.innerHTML = "";
       els.choices.style.display = "none";
@@ -101,11 +131,22 @@ export function runEidosDialogue(steps, options = {}) {
       if (typeTimer) clearTimeout(typeTimer);
       typing = false;
       els.text.textContent = fullText;
-      showChoicesIfAny(steps[index]);
+      const step = steps[index];
+      // 選択肢待ちに切り替わったら両者を通常の明るさへ戻す。
+      if (step?.choices?.length) {
+        setSpeaking(els.left, false);
+        setSpeaking(els.right, false);
+        setSpeaking(els.sept, false);
+      }
+      showChoicesIfAny(step);
     }
 
     function showChoicesIfAny(step) {
       if (!step?.choices?.length) return;
+      // 選択肢表示中は両者を通常の明るさへ戻す（決定稿）。
+      setSpeaking(els.left, false);
+      setSpeaking(els.right, false);
+      setSpeaking(els.sept, false);
       els.hint.style.display = "none";
       els.choices.innerHTML = "";
       els.choices.style.display = "";
@@ -116,27 +157,38 @@ export function runEidosDialogue(steps, options = {}) {
         btn.textContent = c.label;
         btn.addEventListener("click", (ev) => {
           ev.stopPropagation();
-          finish({ endedBy: "choice", choice: c.value ?? c.next ?? null, lastStepId: step.id ?? null });
+          if (c.next != null && idToIndex.has(String(c.next))) {
+            goTo(idToIndex.get(String(c.next)));
+          } else {
+            finish({ endedBy: "choice", choice: c.value ?? c.next ?? null, lastStepId: step.id ?? null });
+          }
         });
         els.choices.appendChild(btn);
       });
     }
 
-    // タップ/クリック/キーで「進める」。
+    function goTo(i) {
+      index = i;
+      renderStep(steps[index]);
+    }
+
     function advance() {
       const step = steps[index];
-      if (step?.choices?.length && !typing) return; // 選択肢待ちはタップで進めない（ボタンで選ぶ）
+      if (step?.choices?.length && !typing) return; // 選択肢待ちはタップで進めない
       if (typing) {
         completeTypewriter();
         return;
       }
-      // 全文表示済み → 次へ。
+      // step.next（明示遷移先）優先。無ければ配列の次へ。末尾なら終了。
+      if (step?.next != null && idToIndex.has(String(step.next))) {
+        goTo(idToIndex.get(String(step.next)));
+        return;
+      }
       if (index >= steps.length - 1) {
         finish({ endedBy: "finished", choice: null, lastStepId: step?.id ?? null });
         return;
       }
-      index++;
-      renderStep(steps[index]);
+      goTo(index + 1);
     }
 
     function onKey(e) {
@@ -153,9 +205,10 @@ export function runEidosDialogue(steps, options = {}) {
     activeSession = { forceClose: () => finish({ endedBy: "finished", choice: null, lastStepId: null }) };
     document.body.classList.add("eidos-dialogue-open");
     document.body.appendChild(els.root);
-    // 最初のステップへ。
-    index = 0;
-    renderStep(steps[0]);
+    // 暗転→徐々に明るく（SCENE1の会話開始前の演出。fadeInFromBlackで有効化）。
+    if (options.fadeInFromBlack) els.root.classList.add("from-black");
+    requestAnimationFrame(() => els.root.classList.add("is-open"));
+    goTo(0);
   });
 }
 
@@ -163,12 +216,29 @@ export function isEidosDialogueOpen() {
   return !!activeSession;
 }
 
+// 立ち絵の画像を差し替える。強い点滅を避けるため、同一要素の背景を差し替えるだけ（要素自体は
+// 消えないので出入りのフラッシュが起きない）。明暗・拡大のトランジションはCSSが担当する。
+function setPortraitImage(el, path) {
+  if (!path) {
+    el.style.backgroundImage = "";
+    return;
+  }
+  const next = `url("${path}")`;
+  if (el.style.backgroundImage === next) return;
+  el.style.backgroundImage = next;
+}
+
+// 発話者/聞き手の明暗を切り替える。
+function setSpeaking(el, speaking) {
+  el.classList.toggle("is-speaking", speaking);
+  el.classList.toggle("is-listening", !speaking);
+}
+
 // パネル一式のDOMを組む。root = 盤面ロック用オーバーレイ＋会話パネル。
 function buildPanelDom() {
   const root = document.createElement("div");
   root.id = "eidos-dialogue-root";
 
-  // 盤面操作ロック用の透明オーバーレイ（会話中は盤面クリックを吸収）。パネルより後ろ。
   const blocker = document.createElement("div");
   blocker.id = "eidos-dialogue-blocker";
   blocker.addEventListener("click", (e) => e.stopPropagation());
@@ -177,12 +247,15 @@ function buildPanelDom() {
   const panel = document.createElement("div");
   panel.id = "eidos-dialogue-panel";
 
-  const portrait = document.createElement("div");
-  portrait.className = "eidos-dialogue-portrait";
-
+  const stage = document.createElement("div");
+  stage.className = "eidos-dialogue-stage";
+  const left = document.createElement("div");
+  left.className = "eidos-dialogue-portrait eidos-dialogue-portrait-left";
+  const right = document.createElement("div");
+  right.className = "eidos-dialogue-portrait eidos-dialogue-portrait-right";
   const sept = document.createElement("div");
   sept.className = "eidos-dialogue-sept";
-  sept.style.display = "none";
+  stage.append(left, right, sept);
 
   const body = document.createElement("div");
   body.className = "eidos-dialogue-body";
@@ -198,18 +271,8 @@ function buildPanelDom() {
   hint.textContent = "▶ タップ / Enter / Space で進む";
   body.append(name, text, choices, hint);
 
-  panel.append(portrait, sept, body);
+  panel.append(stage, body);
   root.appendChild(panel);
 
-  return {
-    root,
-    panel,
-    portrait,
-    sept,
-    name,
-    text,
-    choices,
-    hint,
-    remove: () => root.remove(),
-  };
+  return { root, panel, stage, left, right, sept, name, text, choices, hint };
 }

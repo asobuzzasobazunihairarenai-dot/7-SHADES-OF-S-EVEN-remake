@@ -5047,66 +5047,141 @@ body.is-phone-device #admin-panel {
   font-weight: bold;
 }
 
-/* エイドス会話パネル（eidos-dialogue-ui.js、ユーザー要望2026-08-08）。物語用の会話UI。
-   既存の説明モーダル/吹き出しとは別役割。スマホでは画面下部の帯にして盤面を隠しすぎない。 */
+/* エイドス会話パネル（eidos-dialogue-ui.js、ユーザー要望2026-08-08 / 決定稿）。物語用の会話UI。
+   主人公=左 / エイドス=右 が向き合い、セプトは中央下。発話者は明るく前へ、聞き手は暗く。
+   既存の説明モーダル/吹き出しとは別役割。 */
 #eidos-dialogue-root {
   position: fixed;
   inset: 0;
   z-index: 10700; /* 盤面・多くのUIより前面。最上位のオープニング/回転案内よりは下。 */
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+#eidos-dialogue-root.is-open {
+  opacity: 1;
+}
+#eidos-dialogue-root.is-closing {
+  opacity: 0;
 }
 #eidos-dialogue-blocker {
   position: absolute;
   inset: 0;
   pointer-events: auto; /* 会話中は盤面クリックを吸収（盤面操作ロック）。 */
-  background: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.18);
+  transition: background 0.6s ease;
+}
+/* SCENE1: 暗転から徐々に明るく（開始時は黒→is-openで薄暗いオーバーレイへ）。 */
+#eidos-dialogue-root.from-black #eidos-dialogue-blocker {
+  background: rgba(0, 0, 0, 0.96);
+}
+#eidos-dialogue-root.from-black.is-open #eidos-dialogue-blocker {
+  background: rgba(0, 0, 0, 0.18);
+}
+/* 演出: 背景を少し暗くする（fx.bgDim）。 */
+#eidos-dialogue-root.fx-bg-dim.is-open #eidos-dialogue-blocker {
+  background: rgba(0, 0, 0, 0.45);
 }
 #eidos-dialogue-panel {
   position: absolute;
-  left: 50%;
-  bottom: 1.2rem;
-  transform: translateX(-50%);
-  width: min(48rem, 94vw);
-  min-height: 8rem;
+  left: 0;
+  right: 0;
+  bottom: 0;
   box-sizing: border-box;
   display: flex;
-  align-items: flex-end;
-  gap: 0.8rem;
-  padding: 0.9rem 1.1rem;
-  background: linear-gradient(160deg, rgba(15, 23, 32, 0.97), rgba(4, 12, 20, 0.97));
-  border: 2px solid #7c5cff;
-  border-radius: 0.9rem;
-  box-shadow: 0 0 1.6rem rgba(124, 92, 255, 0.45), 0 20px 50px rgba(0, 0, 0, 0.6);
+  flex-direction: column;
+  align-items: stretch;
   pointer-events: auto;
   cursor: pointer;
   font-family: sans-serif;
   color: #e2e8f0;
 }
-#eidos-dialogue-panel[data-portrait-side="right"] {
-  flex-direction: row-reverse;
+/* 立ち絵の舞台。テキスト帯の上に、左右へ立ち絵を、中央下にセプトを配置する。 */
+.eidos-dialogue-stage {
+  position: relative;
+  height: min(46vh, 26rem);
+  pointer-events: none;
 }
 .eidos-dialogue-portrait {
-  flex: 0 0 auto;
-  width: 7rem;
-  height: 9rem;
-  align-self: flex-end;
+  position: absolute;
+  bottom: 0;
+  width: min(24rem, 42vw);
+  height: 100%;
   background-size: contain;
   background-repeat: no-repeat;
-  background-position: bottom center;
-  filter: drop-shadow(0 0.4rem 0.8rem rgba(0, 0, 0, 0.6));
+  transition: filter 0.28s ease, opacity 0.28s ease, transform 0.28s ease;
+}
+.eidos-dialogue-portrait-left {
+  left: 1.5vw;
+  background-position: left bottom;
+  transform-origin: left bottom;
+}
+.eidos-dialogue-portrait-right {
+  right: 1.5vw;
+  background-position: right bottom;
+  transform-origin: right bottom;
+}
+.eidos-dialogue-portrait.is-speaking {
+  opacity: 1;
+  filter: brightness(1) drop-shadow(0 0.5rem 1rem rgba(0, 0, 0, 0.55));
+  transform: scale(1.04);
+}
+.eidos-dialogue-portrait.is-listening {
+  opacity: 0.8;
+  filter: brightness(0.75);
+  transform: scale(1);
+}
+/* 演出: エイドス側の黒い気配 / 主人公側の灰色のオーラ（best-effort、控えめ）。 */
+#eidos-dialogue-root.fx-aura-dark .eidos-dialogue-portrait-right {
+  filter: brightness(0.95) drop-shadow(0 0 1.4rem rgba(88, 40, 160, 0.8));
+}
+#eidos-dialogue-root.fx-aura-gray .eidos-dialogue-portrait-left {
+  filter: brightness(1) drop-shadow(0 0 1.2rem rgba(180, 180, 190, 0.7));
 }
 .eidos-dialogue-sept {
-  flex: 0 0 auto;
-  width: 3.4rem;
-  height: 3.4rem;
-  align-self: flex-end;
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 7rem;
+  height: 7rem;
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center bottom;
+  opacity: 0;
+  transform: translateX(-50%) scale(0.9);
+  transition: opacity 0.28s ease, transform 0.28s ease;
+  pointer-events: none;
 }
+.eidos-dialogue-sept.is-shown {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+.eidos-dialogue-sept.is-shown.is-speaking {
+  transform: translateX(-50%) scale(1.12);
+}
+/* テキスト帯。 */
 .eidos-dialogue-body {
-  flex: 1 1 auto;
-  min-width: 0;
+  position: relative;
+  margin: 0 auto;
+  width: min(52rem, 96vw);
+  box-sizing: border-box;
+  min-height: 7rem;
+  padding: 0.9rem 1.2rem 1rem;
+  background: linear-gradient(160deg, rgba(15, 23, 32, 0.97), rgba(4, 12, 20, 0.97));
+  border: 2px solid #7c5cff;
+  border-radius: 0.9rem 0.9rem 0 0;
+  box-shadow: 0 0 1.6rem rgba(124, 92, 255, 0.4), 0 -6px 24px rgba(0, 0, 0, 0.5);
+}
+/* 話者名・本文は発話者側へ寄せる（決定稿）。 */
+#eidos-dialogue-panel[data-speaker-side="right"] .eidos-dialogue-name,
+#eidos-dialogue-panel[data-speaker-side="right"] .eidos-dialogue-text {
+  text-align: right;
+}
+#eidos-dialogue-panel[data-speaker-side="left"] .eidos-dialogue-name,
+#eidos-dialogue-panel[data-speaker-side="left"] .eidos-dialogue-text,
+#eidos-dialogue-panel[data-speaker-side="sept"] .eidos-dialogue-name,
+#eidos-dialogue-panel[data-speaker-side="sept"] .eidos-dialogue-text {
+  text-align: left;
 }
 .eidos-dialogue-name {
   font-weight: bold;
@@ -5115,7 +5190,7 @@ body.is-phone-device #admin-panel {
   margin-bottom: 0.3rem;
 }
 .eidos-dialogue-text {
-  font-size: 1rem;
+  font-size: 1.05rem;
   line-height: 1.6;
   min-height: 3rem;
   white-space: pre-wrap;
@@ -5125,6 +5200,7 @@ body.is-phone-device #admin-panel {
   flex-wrap: wrap;
   gap: 0.6rem;
   margin-top: 0.6rem;
+  justify-content: center;
 }
 .eidos-dialogue-choice {
   padding: 0.5rem 1.1rem;
@@ -5133,7 +5209,7 @@ body.is-phone-device #admin-panel {
   background: rgba(124, 92, 255, 0.15);
   color: #e9e5ff;
   font-weight: bold;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   cursor: pointer;
 }
 .eidos-dialogue-choice:hover {
@@ -5146,23 +5222,29 @@ body.is-phone-device #admin-panel {
   text-align: right;
 }
 @media (max-width: 768px) {
-  #eidos-dialogue-panel {
-    width: 96vw;
-    bottom: 0.5rem;
-    padding: 0.6rem 0.7rem;
-    gap: 0.5rem;
+  .eidos-dialogue-stage {
+    height: min(40vh, 20rem);
   }
   .eidos-dialogue-portrait {
-    width: 5rem;
-    height: 6.5rem;
+    width: 46vw;
+  }
+  .eidos-dialogue-sept {
+    width: 5.2rem;
+    height: 5.2rem;
+  }
+  .eidos-dialogue-body {
+    width: 100vw;
+    border-radius: 0;
+    min-height: 6rem;
+    padding: 0.7rem 0.9rem 0.9rem;
   }
   .eidos-dialogue-text {
-    font-size: 0.95rem;
+    font-size: 1rem;
     min-height: 2.6rem;
   }
 }
 /* ライトテーマ: 会話パネルもアイボリー地＋紫アクセントに（他モーダルと系統を合わせる）。 */
-body.theme-light #eidos-dialogue-panel {
+body.theme-light .eidos-dialogue-body {
   background: linear-gradient(160deg, #fffdf7, #f3edff);
   color: #33304a;
 }
