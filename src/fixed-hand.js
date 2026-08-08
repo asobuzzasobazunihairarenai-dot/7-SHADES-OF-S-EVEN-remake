@@ -8,11 +8,14 @@
 
 const KEY = "so7-fixed-hand";
 
-let enabled = false;
+// ユーザー要望2026-08-08: 既定をON（手札を画面下に固定）にする。未設定（新規端末）はON、
+// 明示的にOFF("off")にしたことがある端末はその選択を尊重する。
+let enabled = true;
 try {
-  enabled = localStorage.getItem(KEY) === "on";
+  const stored = localStorage.getItem(KEY);
+  enabled = stored === null ? true : stored === "on";
 } catch {
-  /* 使えなくても既定(OFF)で動く */
+  /* 使えなくても既定(ON)で動く */
 }
 
 export function isFixedHandEnabled() {

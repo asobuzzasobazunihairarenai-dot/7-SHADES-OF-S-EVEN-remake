@@ -5471,7 +5471,11 @@ body.theme-light .daily-bonus-modal-note {
   z-index: 2601;
   display: flex;
   flex-direction: column;
-  background: radial-gradient(circle at 50% 0%, rgba(30, 41, 59, 0.98), rgba(9, 12, 18, 0.99) 70%);
+  /* ユーザー要望2026-08-08「陳列がダサい、もっとかっこよく」。上部に暖色の光、全体に
+     奥行きのあるビネットを重ねた高級ストア風の背景。 */
+  background:
+    radial-gradient(1200px 420px at 50% -8%, rgba(245, 158, 11, 0.14), transparent 62%),
+    radial-gradient(circle at 50% 12%, rgba(30, 41, 59, 0.98), rgba(7, 10, 16, 0.99) 72%);
   font-family: sans-serif;
   color: #e2e8f0;
 }
@@ -5503,10 +5507,20 @@ body.theme-light .daily-bonus-modal-note {
 }
 #shop-panel-title {
   font-weight: bold;
-  font-size: 1.3rem;
+  font-size: 1.45rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  letter-spacing: 0.04em;
+}
+/* タイトル文字をゴールドグラデーションに（アイコン画像は別要素なので影響しない）。 */
+#shop-panel-title {
+  background: linear-gradient(180deg, #fff3c4, #f59e0b 55%, #b45309);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  text-shadow: 0 0 1.2rem rgba(245, 158, 11, 0.25);
 }
 #shop-panel-title img {
   width: 1.6rem;
@@ -5565,44 +5579,81 @@ body.theme-light .daily-bonus-modal-note {
   color: #fff;
   border-color: transparent;
   font-weight: bold;
+  box-shadow: 0 0 0.9rem rgba(245, 158, 11, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 #shop-panel-grid {
   flex: 1;
   overflow-y: auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
-  gap: 1.4rem;
-  padding: 0.5rem 1.4rem 2rem;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 1.6rem;
+  padding: 0.8rem 1.6rem 2.4rem;
   align-content: start;
 }
 .shop-item-card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 0.7rem;
-  padding: 0.7rem;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 0.85rem;
+  padding: 0.75rem;
   gap: 0.6rem;
-  box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.35);
-  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out, border-color 0.15s ease-out;
+  overflow: hidden;
+  box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: transform 0.16s ease-out, box-shadow 0.16s ease-out, border-color 0.16s ease-out;
+}
+/* カード上端のゴールドの飾りバー（高級ストア風の見出し帯）。 */
+.shop-item-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, rgba(250, 204, 21, 0.85), transparent);
+  opacity: 0.55;
+  transition: opacity 0.16s ease-out;
 }
 .shop-item-card:hover {
-  transform: translateY(-0.2rem);
-  border-color: rgba(250, 204, 21, 0.6);
-  box-shadow: 0 0.7rem 1.6rem rgba(0, 0, 0, 0.5);
+  transform: translateY(-0.35rem);
+  border-color: rgba(250, 204, 21, 0.65);
+  box-shadow: 0 0.9rem 2rem rgba(0, 0, 0, 0.55), 0 0 1.4rem rgba(245, 158, 11, 0.25);
+}
+.shop-item-card:hover::before {
+  opacity: 1;
 }
 .shop-item-thumb {
   position: relative;
   aspect-ratio: 1 / 1;
-  border-radius: 0.5rem;
+  border-radius: 0.6rem;
   overflow: hidden;
-  background: rgba(0, 0, 0, 0.3);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  background: radial-gradient(circle at 50% 40%, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.35) 75%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 -1.2rem 2rem rgba(0, 0, 0, 0.35);
 }
 .shop-item-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.32s ease;
+}
+/* ホバーで画像を少しズーム（陳列に動きを出す）。 */
+.shop-item-card:hover .shop-item-thumb img {
+  transform: scale(1.06);
+}
+/* ホバーで光沢が横切る演出（sheen）。バッジ類より下に敷く。 */
+.shop-item-thumb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, 0.28) 46%, transparent 60%);
+  transform: translateX(-130%);
+  transition: transform 0.6s ease;
+}
+.shop-item-card:hover .shop-item-thumb::after {
+  transform: translateX(130%);
 }
 /* ユーザー要望（続き74）「未所持のものをグレー表示しないでください。購入者は色味も
    見たいと思うので」。以前は.is-lockedにgrayscale+暗化フィルターをかけていたが、
@@ -5611,6 +5662,7 @@ body.theme-light .daily-bonus-modal-note {
   position: absolute;
   top: 0.3rem;
   right: 0.4rem;
+  z-index: 2; /* 光沢(sheen, z-index:1)より前面 */
   font-size: 1.1rem;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
 }
@@ -5619,6 +5671,7 @@ body.theme-light .daily-bonus-modal-note {
   position: absolute;
   top: 0.5rem;
   left: -0.4rem;
+  z-index: 2; /* 光沢(sheen, z-index:1)より前面 */
   padding: 0.15rem 0.6rem;
   font-size: 0.68rem;
   font-weight: bold;
@@ -5673,21 +5726,37 @@ body.theme-light .daily-bonus-modal-note {
   min-height: 1.9rem;
 }
 .shop-item-buy {
-  padding: 0.4rem 0.7rem;
-  background: linear-gradient(160deg, #f59e0b, #b45309);
+  position: relative;
+  overflow: hidden;
+  padding: 0.5rem 0.7rem;
+  background: linear-gradient(160deg, #f7b733, #b45309);
   color: #fff;
-  border: none;
-  border-radius: 0.4rem;
+  border: 1px solid rgba(255, 220, 150, 0.5);
+  border-radius: 0.5rem;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   font-weight: bold;
+  letter-spacing: 0.02em;
   white-space: nowrap;
   font-family: sans-serif;
   width: 100%;
-  box-shadow: 0 0.3rem 0.7rem rgba(180, 83, 9, 0.4);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0.3rem 0.7rem rgba(180, 83, 9, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+/* コイン風のツヤ（上半分のハイライト）。 */
+.shop-item-buy::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.38), transparent);
+  pointer-events: none;
 }
 .shop-item-buy:hover {
-  background: linear-gradient(160deg, #fbbf24, #d97706);
+  background: linear-gradient(160deg, #fcd34d, #d97706);
+  box-shadow: 0 0.4rem 0.9rem rgba(180, 83, 9, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 .shop-item-buy:disabled {
   opacity: 0.5;

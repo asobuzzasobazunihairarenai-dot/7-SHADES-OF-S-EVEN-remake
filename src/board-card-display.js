@@ -8,11 +8,14 @@
 // 問題が起きないようにする。
 
 const STORAGE_KEY = "so7-board-illust-only";
-let illustOnly = false;
+// ユーザー要望2026-08-08: 既定をON（イラストのみ表示）にする。未設定（新規端末）はON、
+// 明示的にOFF("0")にしたことがある端末はその選択を尊重する。
+let illustOnly = true;
 try {
-  illustOnly = localStorage.getItem(STORAGE_KEY) === "1";
+  const stored = localStorage.getItem(STORAGE_KEY);
+  illustOnly = stored === null ? true : stored === "1";
 } catch (e) {
-  /* localStorageが読めなければ既定OFF（通常のテキストあり画像） */
+  /* localStorageが読めなければ既定ON */
 }
 
 export function isBoardIllustOnly() {
