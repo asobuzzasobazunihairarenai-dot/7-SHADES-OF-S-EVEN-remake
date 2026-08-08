@@ -764,7 +764,7 @@ async function runAction(action, ctx, helpers) {
       // 2マス先・一気に（atOnce）へ切り替えるようにした（activateMovementBoostForTurn、
       // isMovementBoostActiveThisTurnで参照）。
       activateMovementBoostForTurn(ctx.player);
-      await helpers.announceEffectReason?.(ctx.cardId, "このターン、通常の移動を２マス先まで一気に行えます（自己申告）。");
+      await helpers.announceEffectReason?.(ctx.cardId, `${helpers.getPlayerName(ctx.player)}はこのターン、通常の移動を２マス先まで一気に行えます（自己申告）。`);
       return true;
     }
     case VERBS.LOCK_ONE_HAND_CARD_EXCEPT_FINAL: {
@@ -1230,6 +1230,9 @@ async function runAction(action, ctx, helpers) {
       // 続き65: 公開ドローの結果で宣言色が判明した瞬間なので、常駐していた色宣言表示を消す。
       await helpers.announceColorsResolved?.();
       helpers.stopSuspenseSound?.(); // 結果が出たので鼓動を止める
+      // 誰の結果かが分かるように発動者名を主語に添える（相手が発動した時に自分の画面で
+      // 「自分が成功した」ように見えないように。ユーザー要望2026-08-08の総点検）。
+      const gambleName = helpers.getPlayerName?.(ctx.player) ?? "";
       if (!matches) {
         // ユーザー要望2026-08-07: 宣言色が出なかった＝良い結果（手札を捨てずに済む）を、
         // 紙吹雪＋大きな英語見出しでお祝いする（案A、「おめでとう」ではなく英語で）。
@@ -1237,14 +1240,14 @@ async function runAction(action, ctx, helpers) {
           await helpers.celebrate(ctx.cardId, {
             tone: "success",
             headline: "CONGRATULATIONS!",
-            sub: "公開した中に宣言した色はありませんでした。手札はそのまま残ります！",
+            sub: `${gambleName}は公開した中に宣言した色がありませんでした。手札はそのまま残ります！`,
           });
         } else {
-          await helpers.announceEffectReason?.(ctx.cardId, "おめでとうございます！公開した中に宣言した色が無かったため、手札はそのまま残ります。");
+          await helpers.announceEffectReason?.(ctx.cardId, `${gambleName}は公開した中に宣言した色が無かったため、手札はそのまま残ります。`);
         }
         return false;
       }
-      await helpers.announceEffectReason?.(ctx.cardId, "残念でした。公開した中に宣言した色があったため、手札を全て捨てます。");
+      await helpers.announceEffectReason?.(ctx.cardId, `残念でした。${gambleName}の公開した中に宣言した色があったため、手札を全て捨てます。`);
       const toDiscard = getHandTokens(ctx.player);
       // ユーザー報告「宣言色が出た時に手札がすべて捨てられず止まってしまっている」への
       // 対応。1枚ごとのdiscardAndSyncのどこかで例外が起きると（オンライン中の通信
@@ -1295,7 +1298,15 @@ async function runAction(action, ctx, helpers) {
         // ユーザー要望2026-08-08「CPUの色選択後から移動・カード捲りまでが早すぎる」。宣言色が
         // 決まってから実際に置いて捲るまで、鼓動とともに“ため”を作る（読みやすさと緊張感）。
         await helpers.delay?.(750);
-        const placedCardId = await helpers.placeFromDeckFaceUp(dest);
+        // ユーザー要望2026-08-08「フリップする時に盤面のカードが先にオープンされていてドキドキ感が
+        // ない」。山札から“裏向き”で置き（盤面ではまだ中身が見えない）、下で中央じらしフリップで
+        // 公開してから盤面のカードも表向きにする。裏向き置き（placeFromDeck）は戻り値でcardIdを
+        // 返さないため、置いたカードは盤面のそのマスの一番上（DRAW_FROM_PILEは末尾に追加）から取る。
+        await helpers.placeFromDeck?.(dest);
+        const placedToken = getState()
+          .tokens.filter((t) => t.kind === "card" && t.location.zone === "cell" && t.location.row === dest.row && t.location.col === dest.col)
+          .slice(-1)[0];
+        const placedCardId = placedToken?.cardId;
         if (!placedCardId) break; // 山札切れ等
         placedAny = true;
         // 続き59: 到達効果を得ない移動（ctx.arrivedAtを意図的にセットしない）である旨を
@@ -1306,8 +1317,10 @@ async function runAction(action, ctx, helpers) {
         // ユーザー要望2026-08-08「移動先をしっかり周知した後、じらしフリップで」。駒が移動先へ
         // 進んだ姿を一拍見せて（周知）から、中央のじらしフリップで踏んだカードを公開する。
         await helpers.delay?.(500);
-        // 踏んだ（置いて移動した）カードを中央に大きく“じらしてフリップ”で見せてから、当たり判定へ。
+        // 踏んだカードを中央に大きく“じらしてフリップ”で見せ、その後で盤面のカードも表向きにする
+        // （試練で踏んだカードは表向きで盤面に残る）。
         await helpers.announceSteppedCard?.(placedCardId);
+        await helpers.flipCard?.(placedToken.id);
         const placedColor = getCardDefinition(placedCardId)?.color;
         const isMatch = placedCardId === "rainbow-shard" || declaredColors.includes(placedColor);
         // 続き65: 置いたカードで宣言色が判明した瞬間なので、常駐していた色宣言表示を消す
@@ -1326,14 +1339,16 @@ async function runAction(action, ctx, helpers) {
       helpers.stopSuspenseSound?.(); // 結果表示前に鼓動を止める
       // ユーザー要望2026-08-07: 試練は必ずハズレで終わるので、最後に「〇回成功！」を出す。
       // 1回以上当てていれば紙吹雪でお祝い、0回なら控えめに残念を出す。
+      // 誰の結果かが分かるように発動者名を主語に添える（総点検、ユーザー要望2026-08-08）。
+      const ritualName = helpers.getPlayerName?.(ctx.player) ?? "";
       if (successCount > 0) {
         if (helpers.celebrate) {
-          await helpers.celebrate(ctx.cardId, { tone: "success", headline: `${successCount}回成功！`, sub: "試練を耐え抜きました！" });
+          await helpers.celebrate(ctx.cardId, { tone: "success", headline: `${successCount}回成功！`, sub: `${ritualName}が試練を耐え抜きました！` });
         } else {
-          await helpers.announceEffectReason?.(ctx.cardId, `${successCount}回成功！試練を耐え抜きました！`);
+          await helpers.announceEffectReason?.(ctx.cardId, `${ritualName}が${successCount}回成功！試練を耐え抜きました！`);
         }
       } else {
-        await helpers.announceEffectReason?.(ctx.cardId, "残念でした。宣言した色が出ませんでした。");
+        await helpers.announceEffectReason?.(ctx.cardId, `残念でした。${ritualName}は宣言した色が出ませんでした。`);
       }
       return placedAny;
     }

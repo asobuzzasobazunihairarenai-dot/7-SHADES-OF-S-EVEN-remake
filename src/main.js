@@ -4260,6 +4260,8 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         pickHandEffectOption: pickOptionForEffect,
         // ジャンプ台の手札効果（これをゲート以外の任意のマスに表向きで置く）用。
         flipCard: flipToFaceUpForEffect,
+        // 試練の儀式で「踏んだカード」を中央にじらしフリップで見せる用（手札効果版でも使う）。
+        announceSteppedCard: announceSteppedCardForEffect,
         // 表向きに置いた先に既に駒がいた場合の到達判定（続き62）用。
         maybeTriggerArrivalForPlacedCard: maybeTriggerArrivalForPlacedCardForEffect,
         // 手品師の技の効果（アバターで相手を選び、手札を1枚ずつ交換する）用。
@@ -4375,6 +4377,8 @@ async function runAutoArrivalEffect(cardId, location, player) {
       announceDrawTargets: announceDrawTargetsForEffect,
       // 試練の儀式で「踏んだカード」を画面中央に見せる用。
       announceSteppedCard: announceSteppedCardForEffect,
+      // 試練の儀式で、裏向きで置いたカードを中央フリップ公開後に盤面でも表向きにする用。
+      flipCard: flipToFaceUpForEffect,
       // 効果結果お知らせ（続き）用に、効果側でプレイヤー名を文面へ埋め込めるようにする。
       getPlayerName,
       // 色宣言の結果が判明した合図（続き65）。
