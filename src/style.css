@@ -33,23 +33,26 @@
     text-align: center;
     font-family: sans-serif;
   }
+  /* ユーザー要望2026-08-08「なるべく画面全体に大きく表示させたい」。縦向きスマホの広い余白を
+     埋めるよう、内容を画面幅・高さに追従して大きくする（clamp+vw/vmin）。 */
   #rotate-device-overlay .rotate-device-inner {
-    max-width: 22rem;
+    max-width: min(92vw, 34rem);
+    width: 100%;
   }
   #rotate-device-overlay .rotate-device-icon {
-    font-size: 4rem;
+    font-size: clamp(5rem, 34vw, 13rem);
     line-height: 1;
-    margin-bottom: 1rem;
+    margin-bottom: clamp(1rem, 5vw, 2.5rem);
     display: inline-block;
     animation: rotate-device-tilt 1.8s ease-in-out infinite;
   }
   #rotate-device-overlay .rotate-device-title {
-    font-size: 1.3rem;
+    font-size: clamp(1.6rem, 8vw, 3rem);
     font-weight: bold;
-    margin-bottom: 0.8rem;
+    margin-bottom: clamp(0.8rem, 3.5vw, 1.6rem);
   }
   #rotate-device-overlay .rotate-device-sub {
-    font-size: 0.9rem;
+    font-size: clamp(1rem, 4.4vw, 1.5rem);
     line-height: 1.7;
     color: #94a3b8;
   }
