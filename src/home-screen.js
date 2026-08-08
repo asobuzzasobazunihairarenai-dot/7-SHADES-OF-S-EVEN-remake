@@ -24,10 +24,11 @@ import { openCodexPage } from "./codex-page.js";
 import { openRankingPage } from "./ranking-page.js";
 // チュートリアルCPU戦（台本化された練習試合）。完全ローカル機能。
 import { startTutorialBattle, registerTutorialHomeOpener } from "./tutorial-battle.js";
-// ローカル1人用CPU戦（cpu-battle.js）。ホームの「CPUマッチ＆フレンドリーマッチ」タイルから
-// 選べるようにする（ユーザー要望2026-08-08）。opening-screen.js のCPU戦ボタンと同じ
-// 「startCpuBattle→盤面を見せる→runCpuBattleSetup」の順で開始する。
-import { startCpuBattle, runCpuBattleSetup } from "./cpu-battle.js";
+// ローカル1人用CPU戦（cpu-battle.js）はCPU選択時に動的import（下の openMatchChoiceModal 参照）。
+// ※静的importにすると、cpu-battle.js が芋づる式に読み込む依存（game-setup.js→…）でモジュール
+//   評価順が変わり、online.js↔phase-automation.js の循環参照が表面化して
+//   「Cannot access 'phaseChangeEventListeners' before initialization」で起動時に真っ黒になった
+//   （不具合2026-08-08）。必要時だけ読み込む動的importにして静的な依存辺を作らない。
 // お知らせ／更新情報（デプロイのたびに概要を追記）。
 import { openChangelogModal, hasUnreadChangelog } from "./changelog.js";
 
@@ -160,14 +161,16 @@ function openMatchChoiceModal() {
     closeMatchChoiceModal();
     closeHomeScreen();
     try {
+      // 動的import（静的依存辺を作らないため。上の import 撤去のコメント参照）。
+      const { startCpuBattle, runCpuBattleSetup } = await import("./cpu-battle.js");
       await startCpuBattle();
+      // 盤面が見えてからセットアップ演出（ファースト配布→盤面配置）を始める。
+      setTimeout(() => {
+        runCpuBattleSetup().catch((err) => console.error("runCpuBattleSetup failed", err));
+      }, 60);
     } catch (err) {
-      console.error("startCpuBattle failed", err);
+      console.error("CPU battle start failed", err);
     }
-    // 盤面が見えてからセットアップ演出（ファースト配布→盤面配置）を始める。
-    setTimeout(() => {
-      runCpuBattleSetup().catch((err) => console.error("runCpuBattleSetup failed", err));
-    }, 60);
   });
 
   panel.appendChild(options);
