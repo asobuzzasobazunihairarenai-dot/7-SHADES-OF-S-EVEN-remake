@@ -3361,6 +3361,17 @@ function getAutoDriveSeat() {
   return getSelfSeat();
 }
 
+// 「自分のハンドフェイズ」か（＝自分のターン かつ ハンドフェイズ）。不具合報告2026-08-08:
+// ローカルCPU戦では phase-automation が相手(C)のターン中も currentPhase を "hand" にする
+// （A/C両席を1クライアントで駆動するため）。そのため isHandPhaseActive() だけを見ていた人間の
+// 手札効果トリガー（タップ/ドラッグ）が、相手のハンドフェイズ中に自分の手札をタップしただけで
+// 「このカードを使用しますか？」を出してしまっていた。人間の手札効果発動は自分のターンの
+// ハンドフェイズに限定する（「いつでも使える」カードは別分岐なので影響しない）。オンラインでは
+// 相手ターン中は currentPhase がターン境界でリセットされ isHandPhaseActive()=false のため元々出ない。
+function isSelfHandPhase() {
+  return isHandPhaseActive() && getState().turnPlayer === getSelfSeat();
+}
+
 // CPU戦で「賢いCPU（cpu-brain.js）」がこの席の手を選ぶべきか。ローカルCPU戦のCPU席
 // （疑似CPU対象）で、難易度が新人より上（isCpuBrainSmart）の時だけtrue。
 // あわせて、AFK代行中は自分の席をオンラインでも賢いCPUで駆動する（ユーザー要望2026-08-08。
@@ -9230,7 +9241,7 @@ async function onDragEnd(e) {
         render();
         return;
       }
-      if (draggedToken && (isHandPhaseActive() || (isUsableAnytime && !effectProcessingBusy))) {
+      if (draggedToken && (isSelfHandPhase() || (isUsableAnytime && !effectProcessingBusy))) {
         if (
           !draggedToken.cardId?.startsWith("eternal-") &&
           !draggedToken.cardId?.startsWith("first-") &&
@@ -9337,7 +9348,7 @@ async function onDragEnd(e) {
         // 現状は一番上のカードしか使えない」。同じ色スロットに手札効果を使える候補（エター
         // ナル/ファースト）が2枚以上重なっているなら、まずどれを使うかピッカーで選ばせる。
         let useToken = clickedToken;
-        if (isHandPhaseActive() && clickPlayer === getSelfSeat() && cardSourceLocation.zone === "lock") {
+        if (isSelfHandPhase() && clickPlayer === getSelfSeat() && cardSourceLocation.zone === "lock") {
           const stacked = getState().tokens.filter(
             (t) =>
               t.kind === "card" &&
@@ -9361,7 +9372,7 @@ async function onDragEnd(e) {
         // (A) エターナル/ファースト（従来）: ハンドフェイズでそのカードをクリックすると、
         // 追色コストを手札から選ぶ流れに移行する（手札・ロックエリアのどちらにある間でも）。
         if (
-          isHandPhaseActive() &&
+          isSelfHandPhase() &&
           useToken &&
           clickPlayer === getSelfSeat() &&
           useIsEternalOrFirst &&
@@ -9396,7 +9407,7 @@ async function onDragEnd(e) {
             render();
             return;
           }
-          if (isHandPhaseActive() || (isUsableAnytime && !effectProcessingBusy)) {
+          if (isSelfHandPhase() || (isUsableAnytime && !effectProcessingBusy)) {
             render();
             if (canUseHandEffect(clickedToken.cardId, clickedToken.id, clickPlayer)) {
               if (await confirmTouchAction(`${getCardDefinition(clickedToken.cardId).name}を使用しますか？`)) {
