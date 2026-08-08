@@ -11920,6 +11920,119 @@ body.reduce-glow .cell.card-effect-placement-target {
   transform: translate(-50%, 0);
 }
 
+/* 対戦モード選択モーダル（home-screen.js openMatchChoiceModal、ユーザー要望2026-08-08）。
+   「CPUマッチ＆フレンドリーマッチ」を押すと出る、フレンドリー/CPUを選ぶ巨大モーダル。 */
+#home-match-choice {
+  position: fixed;
+  inset: 0;
+  z-index: 9200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 8, 14, 0.72);
+  backdrop-filter: blur(3px);
+  font-family: sans-serif;
+  animation: home-match-choice-fade 0.2s ease-out;
+}
+@keyframes home-match-choice-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.home-match-choice-panel {
+  width: min(46rem, 94vw);
+  box-sizing: border-box;
+  padding: 2rem 1.6rem 1.6rem;
+  background: radial-gradient(1000px 300px at 50% -10%, rgba(56, 189, 248, 0.12), transparent 60%),
+    linear-gradient(160deg, rgba(20, 28, 40, 0.98), rgba(8, 12, 20, 0.99));
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 1rem;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
+  color: #e2e8f0;
+  text-align: center;
+}
+.home-match-choice-title {
+  font-size: 1.5rem;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+  margin-bottom: 1.4rem;
+}
+.home-match-choice-options {
+  display: flex;
+  gap: 1.2rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.home-match-choice-option {
+  flex: 1 1 16rem;
+  min-width: 13rem;
+  max-width: 20rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.6rem 1.2rem;
+  cursor: pointer;
+  color: #e6edf6;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.9rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out, border-color 0.15s ease-out;
+}
+.home-match-choice-option:hover {
+  transform: translateY(-0.3rem);
+  border-color: rgba(56, 189, 248, 0.7);
+  box-shadow: 0 0.8rem 1.8rem rgba(0, 0, 0, 0.5), 0 0 1.2rem rgba(56, 189, 248, 0.25);
+}
+.home-match-choice-option-icon {
+  font-size: 3.4rem;
+  line-height: 1;
+}
+.home-match-choice-option-label {
+  font-size: 1.15rem;
+  font-weight: bold;
+}
+.home-match-choice-option-desc {
+  font-size: 0.82rem;
+  color: #9fb0c3;
+  line-height: 1.5;
+}
+.home-match-choice-cancel {
+  margin-top: 1.4rem;
+  background: none;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.4rem;
+  color: #cbd5e1;
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  padding: 0.4rem 1rem;
+  cursor: pointer;
+}
+.home-match-choice-cancel:hover {
+  border-color: rgba(56, 189, 248, 0.7);
+  background: rgba(56, 189, 248, 0.12);
+}
+/* ライトテーマ */
+body.theme-light #home-match-choice {
+  background: rgba(60, 51, 38, 0.5);
+}
+body.theme-light .home-match-choice-panel {
+  background: linear-gradient(160deg, #fffdf7, #f3ecdd);
+  border-color: rgba(176, 141, 63, 0.4);
+  color: #3a3326;
+}
+body.theme-light .home-match-choice-option {
+  background: rgba(255, 253, 247, 0.9);
+  border-color: rgba(176, 141, 63, 0.4);
+  color: #3a3326;
+}
+body.theme-light .home-match-choice-option-desc {
+  color: #6b5c3c;
+}
+body.theme-light .home-match-choice-option:hover {
+  border-color: rgba(176, 141, 63, 0.9);
+}
+
 /* プロフィール／マイページの画面全体版（続き74、src/profile-page.js）。中身
    （アバター・戦績等）はmy-page.jsのrenderMyPageBody()を呼んで作るため、器だけを
    ホーム画面と揃えた見た目にする。 */

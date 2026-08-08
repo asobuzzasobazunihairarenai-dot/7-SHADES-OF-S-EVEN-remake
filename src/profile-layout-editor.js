@@ -74,6 +74,10 @@ export function applyProfileLayout(container) {
       card.style.maxWidth = "96vw";
       card.style.background = "none";
       card.style.border = "none";
+      // ライトテーマの #profile-page-card は box-shadow を持つため、border/background を消しても
+      // 透明な作業キャンバス(約960px)の周りにソフトな影が“白い枠”として残っていた（ユーザー報告
+      // 2026-08-08）。枠を完全に消すため box-shadow も無効化する。
+      card.style.boxShadow = "none";
       // ユーザー指摘「アプリは画面比率を固定しているので、見えない枠(クリップ)は不要。要素は
       // 左は戻るボタン・右はオプションアイコンのあたりまで、切れずに置けるようにしたい」。
       // カード(960pxのデザイン基準・中央寄せ)は座標の基準として残すが、はみ出しをクリップ
@@ -96,6 +100,7 @@ export function applyProfileLayout(container) {
       card.style.maxWidth = "";
       card.style.background = "";
       card.style.border = "";
+      card.style.boxShadow = "";
       card.style.overflow = "";
     }
     if (fullScreen) fullScreen.style.overflow = "";

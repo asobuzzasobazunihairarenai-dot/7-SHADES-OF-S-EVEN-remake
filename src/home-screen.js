@@ -24,6 +24,10 @@ import { openCodexPage } from "./codex-page.js";
 import { openRankingPage } from "./ranking-page.js";
 // チュートリアルCPU戦（台本化された練習試合）。完全ローカル機能。
 import { startTutorialBattle, registerTutorialHomeOpener } from "./tutorial-battle.js";
+// ローカル1人用CPU戦（cpu-battle.js）。ホームの「CPUマッチ＆フレンドリーマッチ」タイルから
+// 選べるようにする（ユーザー要望2026-08-08）。opening-screen.js のCPU戦ボタンと同じ
+// 「startCpuBattle→盤面を見せる→runCpuBattleSetup」の順で開始する。
+import { startCpuBattle, runCpuBattleSetup } from "./cpu-battle.js";
 // お知らせ／更新情報（デプロイのたびに概要を追記）。
 import { openChangelogModal, hasUnreadChangelog } from "./changelog.js";
 
@@ -51,7 +55,7 @@ const TILES = [
       startTutorialBattle();
     },
   },
-  { icon: "🤝", image: "assets/home-icons/friend-match.webp", label: "フレンドリーマッチ", status: "ready", onOpen: () => openOnlinePanel() },
+  { icon: "🤝", image: "assets/home-icons/friend-match.webp", label: "CPUマッチ＆フレンドリーマッチ", status: "ready", onOpen: () => openMatchChoiceModal() },
   { icon: "🏆", image: "assets/home-icons/rank-match.webp", label: "フリーマッチ（ランク戦）", status: "soon" },
   { icon: "🛒", image: "assets/home-icons/shop.webp", label: "ショップ", status: "ready", onOpen: () => openShopPanel() },
   {
@@ -101,6 +105,87 @@ function showComingSoonToast(label) {
   toastEl.textContent = `「${label}」は近日公開予定です。お楽しみに！`;
   toastEl.classList.add("is-visible");
   toastTimer = setTimeout(() => toastEl?.classList.remove("is-visible"), 2400);
+}
+
+// ユーザー要望2026-08-08「ホームの『フレンドリーマッチ』を『CPUマッチ＆フレンドリーマッチ』に
+// 変更し、押すとフレンドリーマッチかCPU戦かを選ぶ巨大モーダルを出す。その後は既存のモーダル/
+// フローへ」。ここでその選択モーダルを出す。選んだ後はそれぞれ既存の導線に合流する:
+//   ・フレンドリーマッチ → openOnlinePanel()（既存の部屋作成/参加パネル）
+//   ・CPU戦 → opening-screen.js のCPU戦ボタンと同じ startCpuBattle→盤面表示→runCpuBattleSetup
+let matchChoiceEl = null;
+function closeMatchChoiceModal() {
+  matchChoiceEl?.remove();
+  matchChoiceEl = null;
+}
+function openMatchChoiceModal() {
+  if (!overlayEl || matchChoiceEl) return;
+  const back = document.createElement("div");
+  back.id = "home-match-choice";
+
+  const panel = document.createElement("div");
+  panel.className = "home-match-choice-panel";
+
+  const title = document.createElement("div");
+  title.className = "home-match-choice-title";
+  title.textContent = "対戦モードを選択";
+  panel.appendChild(title);
+
+  const options = document.createElement("div");
+  options.className = "home-match-choice-options";
+
+  const makeOption = (icon, label, desc, onPick) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "home-match-choice-option";
+    const iconEl = document.createElement("div");
+    iconEl.className = "home-match-choice-option-icon";
+    iconEl.textContent = icon;
+    const labelEl = document.createElement("div");
+    labelEl.className = "home-match-choice-option-label";
+    labelEl.textContent = label;
+    const descEl = document.createElement("div");
+    descEl.className = "home-match-choice-option-desc";
+    descEl.textContent = desc;
+    btn.append(iconEl, labelEl, descEl);
+    btn.addEventListener("click", onPick);
+    options.appendChild(btn);
+    return btn;
+  };
+
+  makeOption("🤝", "フレンドリーマッチ", "オンラインで対戦（部屋を作る／参加する）", () => {
+    closeMatchChoiceModal();
+    openOnlinePanel(); // 既存の部屋モーダルへ（ホームは背後に残り、対局開始で自動で閉じる）
+  });
+  makeOption("🤖", "CPU戦（1人用）", "この端末でCPUと対戦（ログイン不要）", async () => {
+    closeMatchChoiceModal();
+    closeHomeScreen();
+    try {
+      await startCpuBattle();
+    } catch (err) {
+      console.error("startCpuBattle failed", err);
+    }
+    // 盤面が見えてからセットアップ演出（ファースト配布→盤面配置）を始める。
+    setTimeout(() => {
+      runCpuBattleSetup().catch((err) => console.error("runCpuBattleSetup failed", err));
+    }, 60);
+  });
+
+  panel.appendChild(options);
+
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "home-match-choice-cancel";
+  cancel.textContent = "← 戻る";
+  cancel.addEventListener("click", closeMatchChoiceModal);
+  panel.appendChild(cancel);
+
+  // 背景クリックでも閉じる（パネル内クリックは伝播させない）。
+  back.addEventListener("click", closeMatchChoiceModal);
+  panel.addEventListener("click", (e) => e.stopPropagation());
+
+  back.appendChild(panel);
+  overlayEl.appendChild(back);
+  matchChoiceEl = back;
 }
 
 function buildTile(tile) {
@@ -190,6 +275,7 @@ export function closeHomeScreen() {
   overlayEl?.remove();
   overlayEl = null;
   toastEl = null;
+  matchChoiceEl = null; // overlayElごと消えるので参照だけリセット
   clearTimeout(toastTimer);
   syncFullScreenPageActive();
 }
