@@ -1158,10 +1158,15 @@ function createSwapArc(rectA, rectB) {
   const svg = document.createElementNS(NS, "svg");
   svg.setAttribute("class", "swap-arc-svg");
   svg.style.cssText = `position:fixed; left:0; top:0; width:${STAGE_WIDTH}px; height:${STAGE_HEIGHT}px; pointer-events:none; z-index:9998; overflow:visible;`;
+  // ユーザー要望2026-08-08: 鋭い実線の電撃ではなく「ぼやけた湯気のようなオーラの電撃」に。
+  // 外側から aura(広くぼかしたオーラ)→glow(発光)→bolt(柔らかい芯) の3層で霞んだ光にする。
+  const aura = document.createElementNS(NS, "polyline");
+  aura.setAttribute("class", "swap-arc-bolt swap-arc-bolt-aura");
   const glow = document.createElementNS(NS, "polyline");
   glow.setAttribute("class", "swap-arc-bolt swap-arc-bolt-glow");
   const bolt = document.createElementNS(NS, "polyline");
   bolt.setAttribute("class", "swap-arc-bolt");
+  svg.appendChild(aura);
   svg.appendChild(glow);
   svg.appendChild(bolt);
   document.body.appendChild(svg);
@@ -1177,15 +1182,16 @@ function createSwapArc(rectA, rectB) {
       const t = i / segs;
       const x = la.x + dx * t;
       const y = la.y + dy * t;
-      const jitter = i === 0 || i === segs ? 0 : (Math.random() * 2 - 1) * 26;
+      const jitter = i === 0 || i === segs ? 0 : (Math.random() * 2 - 1) * 20;
       pts.push(`${(x + px * jitter).toFixed(1)},${(y + py * jitter).toFixed(1)}`);
     }
     const s = pts.join(" ");
     bolt.setAttribute("points", s);
     glow.setAttribute("points", s);
+    aura.setAttribute("points", s);
   };
   regen();
-  const flickerId = setInterval(regen, 65); // 65msごとに形を作り直して“不安定な電撃”に
+  const flickerId = setInterval(regen, 95); // 95msごとに形を作り直して“ゆらめく湯気のような電撃”に
   return {
     remove() {
       clearInterval(flickerId);

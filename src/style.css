@@ -9487,20 +9487,29 @@ body.reduce-glow .result-celebration-headline {
     filter: drop-shadow(0 0 0.6rem #fb923c) drop-shadow(0 0 1.2rem #fed7aa);
   }
 }
-/* ユーザー要望2026-08-08: 電撃を橙色に、線が細いのでもっと太く。 */
+/* ユーザー要望2026-08-08: 鋭い実線の電撃ではなく「ぼやけた湯気のようなオーラの電撃」に。
+   芯(bolt)も白ではなく暖色にしてぼかし、外側にglow・auraの2層のにじみを重ねて霞ませる。 */
 .swap-arc-bolt {
   fill: none;
-  stroke: #fff7ed; /* 中心は明るい芯（橙の発光は下のglowとdrop-shadowで） */
-  stroke-width: 5;
+  stroke: #fed7aa; /* 芯も白ではなく淡い橙にして柔らかく */
+  stroke-width: 6;
   stroke-linejoin: round;
   stroke-linecap: round;
-  filter: drop-shadow(0 0 4px #fb923c) drop-shadow(0 0 8px #f97316);
+  opacity: 0.85;
+  filter: blur(2.5px) drop-shadow(0 0 6px #fb923c) drop-shadow(0 0 12px #f97316);
 }
 .swap-arc-bolt-glow {
   stroke: #f97316;
-  stroke-width: 15;
-  opacity: 0.5;
-  filter: blur(4px);
+  stroke-width: 22;
+  opacity: 0.3;
+  filter: blur(9px);
+}
+/* いちばん外側の、広くぼかした“湯気のようなオーラ” */
+.swap-arc-bolt-aura {
+  stroke: #fdba74;
+  stroke-width: 40;
+  opacity: 0.18;
+  filter: blur(18px);
 }
 body.reduce-glow .piece-swap-glow {
   animation: none;
