@@ -84,6 +84,17 @@ function scoreMove(c, seat, ctx) {
       const def = getCardDefinition(c.topCardId);
       if (def && ctx.needed.has(def.color)) score += 1; // まだ要る色
     }
+    // ⑤方向性（ユーザー要望2026-08-08「ゲート侵攻/接触/自ゲート防衛を狙う動きを」）。ランダムで
+    // うろつかず、目的を持って動くよう、相手ゲート・相手駒への“近づき度”を加点する。
+    const here = { row: c.row, col: c.col };
+    if (ctx.myCell && ctx.oppGates.length > 0) {
+      // 相手ゲートへ近づく手を優先（ゲート侵攻を狙う動き）。1マス近づく＝+1.5。
+      score += (minDistTo(ctx.myCell, ctx.oppGates) - minDistTo(here, ctx.oppGates)) * 1.5;
+    }
+    if (ctx.myCell && ctx.oppPieceCells.length > 0) {
+      // 相手駒へ近づく手を軽く優先（接触を狙う動き）。上級以上はやや強め。
+      score += (minDistTo(ctx.myCell, ctx.oppPieceCells) - minDistTo(here, ctx.oppPieceCells)) * (ctx.oppAware ? 0.8 : 0.4);
+    }
   } else if (c.occupantPlayer && c.occupantPlayer !== seat) {
     // ④接触（体当たり）＝相手をゲートへ戻す妨害。上級以上は相手が自分以上に進んでいれば
     // 高評価。中級でも妨害自体は概ね悪くないので軽く前向き。
@@ -91,8 +102,20 @@ function scoreMove(c, seat, ctx) {
     const myLocks = ctx.locks[seat] ?? 0;
     if (ctx.oppAware && theirLocks >= myLocks) score += 2;
     else score += 0.3;
+    // 自ゲート防衛: その相手が自分のゲートに乗って侵攻しようとしているなら、接触で追い返す。
+    if (ctx.myGate && c.row === ctx.myGate.row && c.col === ctx.myGate.col) score += 3;
   }
   return score;
+}
+
+// cell から cells 群への最小マンハッタン距離。
+function minDistTo(cell, cells) {
+  let m = Infinity;
+  for (const g of cells) {
+    const d = Math.abs(g.row - cell.row) + Math.abs(g.col - cell.col);
+    if (d < m) m = d;
+  }
+  return m;
 }
 
 // 移動/接触の候補（enriched: {el, isMove, row, col, topCardId, topFaceUp, occupantPlayer}）から
@@ -100,12 +123,22 @@ function scoreMove(c, seat, ctx) {
 export function chooseMoveCandidate(candidates, driveSeat) {
   if (!candidates || candidates.length === 0) return null;
   const state = getState();
+  const active = state.activePlayers ?? [];
+  const oppPieceCells = state.tokens
+    .filter((t) => t.kind === "piece" && t.player !== driveSeat && active.includes(t.player) && t.location.zone === "cell")
+    .map((t) => ({ row: t.location.row, col: t.location.col }));
+  const myGatePos = GATE_POSITIONS[SEAT_TO_SIDE[driveSeat]] || null;
   const ctx = {
     peek: isCpuPeekAllowed(),
     oppAware: isCpuOpponentAware(),
-    activePlayers: state.activePlayers ?? [],
+    activePlayers: active,
     locks: lockCountBySeat(state),
     needed: neededColors(state, driveSeat),
+    // 方向性スコア用（ユーザー要望2026-08-08）。
+    myCell: pieceCellOf(state, driveSeat),
+    oppGates: activeOpponentGateCells(state, driveSeat),
+    oppPieceCells,
+    myGate: myGatePos ? { row: myGatePos.row, col: myGatePos.col } : null,
   };
   let best = -Infinity;
   const scored = candidates.map((c) => {
