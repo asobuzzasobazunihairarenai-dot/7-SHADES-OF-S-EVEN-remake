@@ -4948,6 +4948,15 @@ body.opening-screen-active #admin-panel-backdrop {
   /* createBackdrop がインラインで z-index:999 を付けるため、!important で上書きする。 */
   z-index: 50150 !important;
 }
+/* ユーザー報告2026-08-08「ショップページで管理者モードのウィンドウが背面に隠れて出ない」。
+   ショップ(#shop-panel, z-index:2601)より管理者パネル(2600)がわずかに低く隠れていた。ショップを
+   開いている間だけ、管理者パネル/バックドロップをショップ・オプションエリア(2700)より前へ出す。 */
+body.shop-open #admin-panel {
+  z-index: 2800;
+}
+body.shop-open #admin-panel-backdrop {
+  z-index: 2799 !important;
+}
 /* スマホでは管理者モーダル自体が小さすぎて操作しづらいとの報告（続き92）。
    左上固定のパネルのため、他の画面中央モーダル（translate(-50%,-50%)）とは
    別の専用の一括調整用変数にする（transform-originを左上に固定し、左上の
@@ -5484,7 +5493,8 @@ body.theme-light .daily-bonus-modal-note {
   align-items: center;
   gap: 1.2rem;
   flex-wrap: wrap;
-  padding: 1rem 1.4rem;
+  /* 上端のオプションエリア（黒帯）と重ならないよう、ヘッダーを少し下げる（ユーザー報告2026-08-08）。 */
+  padding: 3.6rem 1.4rem 1rem;
   border-bottom: 1px solid rgba(148, 163, 184, 0.25);
   position: relative;
 }
@@ -5593,14 +5603,19 @@ body.theme-light .daily-bonus-modal-note {
   overflow-y: hidden;
   gap: 2rem;
   padding: 2rem 2.4rem 2.6rem;
-  scroll-snap-type: x proximity;
+  /* scroll-snapは横スクロールを不安定にしていたため撤去（ユーザー報告2026-08-08）。掴んで
+     ドラッグ（shop.js wireHorizontalScroll）で自由に流せるよう cursor:grab に。 */
+  cursor: grab;
+  user-select: none;
+}
+#shop-panel-grid.is-dragging {
+  cursor: grabbing;
 }
 .shop-item-card {
   position: relative;
   /* 横スクロール用に固定幅・縮まない。MTGA風にゆったり大きめ。 */
   flex: 0 0 17rem;
   width: 17rem;
-  scroll-snap-align: start;
   display: flex;
   flex-direction: column;
   background: linear-gradient(160deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.02));

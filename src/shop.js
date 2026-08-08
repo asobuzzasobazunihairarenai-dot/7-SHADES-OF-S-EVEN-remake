@@ -200,6 +200,65 @@ async function refreshBalance() {
 }
 
 // ユーザー要望「モーダルではなく画面全体を使って表示させよう」への対応。ヘッダー
+// MTGA風の横スクロール帯の操作（ユーザー要望2026-08-08）。①マウスホイール(縦)→横スクロール
+// （横入力=トラックパッド等はネイティブに任せる）。②「適当な場所を掴んでドラッグ」で横へ流せる
+// （マウスのみ。タッチはネイティブの横スワイプがそのまま効く）。ドラッグ後のクリックは無効化して
+// 「掴んで流しただけで購入される」誤操作を防ぐ。scroll-snapは外し（不安定の原因）、自由スクロール。
+function wireHorizontalScroll(el) {
+  el.addEventListener(
+    "wheel",
+    (e) => {
+      if (el.scrollWidth <= el.clientWidth) return; // 横に溢れていなければ何もしない
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return; // 横入力はネイティブへ
+      el.scrollLeft += e.deltaY;
+      e.preventDefault();
+    },
+    { passive: false }
+  );
+
+  let dragging = false;
+  let startX = 0;
+  let startScroll = 0;
+  let movedPx = 0;
+  let pid = null;
+  el.addEventListener("pointerdown", (e) => {
+    if (e.pointerType !== "mouse" || e.button !== 0) return; // タッチはネイティブ横スワイプ
+    if (el.scrollWidth <= el.clientWidth) return;
+    dragging = true;
+    movedPx = 0;
+    startX = e.clientX;
+    startScroll = el.scrollLeft;
+    pid = e.pointerId;
+    el.classList.add("is-dragging");
+  });
+  const onMove = (e) => {
+    if (!dragging || e.pointerId !== pid) return;
+    const dx = e.clientX - startX;
+    if (Math.abs(dx) > movedPx) movedPx = Math.abs(dx);
+    el.scrollLeft = startScroll - dx;
+  };
+  const onUp = (e) => {
+    if (!dragging || e.pointerId !== pid) return;
+    dragging = false;
+    el.classList.remove("is-dragging");
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", onUp);
+  // 6px以上ドラッグしていたら、その直後のクリック（購入等）は無効化する。
+  el.addEventListener(
+    "click",
+    (e) => {
+      if (movedPx > 6) {
+        e.stopPropagation();
+        e.preventDefault();
+        movedPx = 0;
+      }
+    },
+    true
+  );
+}
+
 // （タイトル・残高・達成率・閉じるボタン）を上部に固定し、タブ＋商品グリッドは
 // その下の残り全高を使ってスクロールする、という2段構成にした。
 function buildPanel() {
@@ -250,18 +309,7 @@ function buildPanel() {
 
   gridEl = document.createElement("div");
   gridEl.id = "shop-panel-grid";
-  // MTGA風の横スクロール帯（ユーザー要望2026-08-08）。PCでは縦ホイールを横スクロールへ変換して
-  // 直感的に流せるようにする（横方向にはみ出している時だけ。タッチは横スワイプでそのまま動く）。
-  gridEl.addEventListener(
-    "wheel",
-    (e) => {
-      if (e.deltaY === 0 || e.deltaX !== 0) return; // 元々横入力（トラックパッド等）はそのまま
-      if (gridEl.scrollWidth <= gridEl.clientWidth) return; // 横に溢れていなければ何もしない
-      gridEl.scrollLeft += e.deltaY;
-      e.preventDefault();
-    },
-    { passive: false }
-  );
+  wireHorizontalScroll(gridEl);
   panel.appendChild(gridEl);
 
   return panel;
