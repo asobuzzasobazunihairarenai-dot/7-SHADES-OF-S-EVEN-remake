@@ -8211,6 +8211,21 @@ body.phase-lock-picking .hand-card:not(.phase-lock-highlight):not(.card-effect-t
   text-align: center;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
 }
+/* ライトテーマ（body.theme-light）: プレゼント等の「ドロー対象周知」モーダルがダークのままだった
+   ので、他のライトモーダルと同じアイボリー地＋ゴールド枠＋濃い文字へ（ユーザー報告2026-08-08）。 */
+body.theme-light .draw-targets-modal {
+  background: linear-gradient(160deg, #fffdf7, #f6efdd);
+  border-color: rgba(176, 141, 63, 0.7);
+  box-shadow: 0 0 1.4rem rgba(176, 141, 63, 0.3), 0 20px 50px rgba(0, 0, 0, 0.25);
+}
+body.theme-light .draw-targets-modal-title {
+  color: #6b4e0a;
+  text-shadow: none;
+}
+body.theme-light .draw-targets-modal-name {
+  color: #3a3326;
+  text-shadow: none;
+}
 
 /* 効果の発動理由を説明するモーダル（src/hand-effect-ui.jsのshowEffectReasonModal、
    例: カウンターロックの「あなたは１番少なくロックしているので１枚ドローします」・
