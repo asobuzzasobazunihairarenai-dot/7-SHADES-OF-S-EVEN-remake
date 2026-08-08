@@ -2453,6 +2453,41 @@ async function runJointConstructionTask(player) {
   // ユーザー要望によりマス数を２→１に変更（続き51）。
   const emptyCells = getEmptyCellCandidatesForEffect();
   if (emptyCells.length === 0) return false; // 善処の原則: 置ける空きマスが無ければ何もしない
+
+  // 【CPU強化 2026-08-08】賢いCPUは「置く効果」を目的的に使う。移動は“カードがあるマス”にしか
+  // 行けない（card-effect-engine.js getMoveCandidates）ため:
+  // ・相手ゲートが空きなら、そこへ山札から置いて「自分が侵攻するための足場」を作るのが最も有効。
+  //   足場が無ければ空ゲートには着地できず＝侵攻できないため。相手ゲートに近い空きマスほど
+  //   侵攻ルートの前進になる。
+  // ・自分のゲートには置かない。空の自ゲートは着地不能で既に安全なのに、置くと相手に着地の
+  //   足場を与えてしまう（自滅）。
+  // ・山札から置く（手札を温存）。
+  if (isCpuBrainDriving(player)) {
+    const active = getState().activePlayers ?? [];
+    const oppGates = [];
+    for (const [side, pos] of Object.entries(GATE_POSITIONS)) {
+      const owner = SIDE_TO_SEAT[side];
+      if (owner && owner !== player && active.includes(owner)) oppGates.push({ row: pos.row, col: pos.col });
+    }
+    const myGatePos = GATE_POSITIONS[SEAT_TO_SIDE[player]];
+    const isMyGate = (c) => myGatePos && c.row === myGatePos.row && c.col === myGatePos.col;
+    const safe = emptyCells.filter((c) => !isMyGate(c));
+    const pool = safe.length > 0 ? safe : emptyCells; // 万一自ゲートしか無ければやむを得ずそこ
+    let dest;
+    if (oppGates.length > 0) {
+      // 相手ゲートに最も近い空きマス（相手ゲートそのものが空きなら距離0で最優先＝侵攻の足場）。
+      const minDist = (c) => oppGates.reduce((m, g) => Math.min(m, Math.abs(g.row - c.row) + Math.abs(g.col - c.col)), Infinity);
+      let best = Infinity;
+      const scored = pool.map((c) => { const d = minDist(c); if (d < best) best = d; return { c, d }; });
+      const closest = scored.filter((x) => x.d <= best).map((x) => x.c);
+      dest = closest[Math.floor(Math.random() * closest.length)];
+    } else {
+      dest = pool[Math.floor(Math.random() * pool.length)];
+    }
+    await placeFromDeckForEffect({ zone: "cell", row: dest.row, col: dest.col });
+    await announceEffectChoiceForEffect("green-joint-construction", player, "山札から１枚を裏向きで置く");
+    return true;
+  }
   // ユーザー指摘「『空いてるマス』ではなく『何もないマス』」——getEmptyCellCandidatesForEffect
   // 自体は元々「カードも駒も無いマス」を正しく候補にしていたが、案内文の言葉遣いだけ
   // 「空いている」になっていた。docs/cards.mdの表記に合わせて「何もない」に統一する。
