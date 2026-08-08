@@ -5689,17 +5689,22 @@ body.shop-adjust-mode .shop-item-color-swatch {
 }
 .shop-item-thumb {
   position: relative;
-  aspect-ratio: 1 / 1;
+  /* ユーザー要望2026-08-08「商品枠は正方形ではなく縦長の全範囲に」。1:1固定をやめ、カードの
+     縦方向の余白いっぱいまで伸ばす（下のラベル・価格を除いた全域）。商品画像はこの縦長枠の
+     中央に収める（img: object-fit:contain）ので、縦長枠の中央に配置できる。 */
+  flex: 1 1 auto;
+  min-height: 8rem;
   border-radius: 0.6rem;
   overflow: hidden;
-  /* ユーザー要望2026-08-08「商品の周りの黒い半透明の枠は不要」。商品画像の透明部分から
-     透けて見えていた暗いradial背景＋内側の暗い影を撤去（透明にしてカード背景を透かす）。 */
+  /* 商品の周りの黒い半透明枠は不要（透明にしてカード背景を透かす）。 */
   background: transparent;
 }
 .shop-item-thumb img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* 縦長枠の中央に商品を収める（cropしないので縦長に伸びない）。ユーザー要望2026-08-08。 */
+  object-fit: contain;
+  object-position: center;
   transition: transform 0.32s ease;
   /* 商品画像の位置・サイズは管理者モードで全商品連動調整（--shop-thumb-*）。thumbは overflow:hidden
      なので、枠からはみ出したぶんは商品枠でわざと見切れる（ユーザー要望2026-08-08）。 */
