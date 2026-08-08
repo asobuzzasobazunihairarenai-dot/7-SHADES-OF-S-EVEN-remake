@@ -63,6 +63,7 @@ import {
   runGateInvasionsIfNeeded,
   registerEternalAnimHelpers,
   registerGateInvasionStealHelper,
+  registerReturnHomeRevealHelper,
   hasAnyGateInvasionCandidate,
   findInvadedDefender,
   isLocalGateInvasionActive,
@@ -11202,6 +11203,14 @@ registerCounterLockHelpers({
 });
 registerEternalAnimHelpers(playEternalAcquisitionAnim);
 registerGateInvasionStealHelper(stealHandCardsRitualForGateInvasion);
+// ユーザー要望2026-08-08: ゲート侵攻で自ゲートのカードを回収した時、何を得たかを回収した本人の
+// 画面だけに中央で大きく見せる（1枚ずつ、閉じる/タイムアップで次へ）。
+registerReturnHomeRevealHelper(async (attacker, cards) => {
+  if (attacker !== getSelfSeat()) return; // 回収した本人（自分）だけに見せる
+  for (const c of cards) {
+    await showCardReceivedModal(c.cardId, "自分のゲートから回収しました", { labelText: "回収した" });
+  }
+});
 // オンラインのゲート侵攻（サーバー処理→受信モーダル経路）でも、ローカルと同じエターナル獲得の
 // 派手な演出（3Dフリップ＋色バースト）を出す（ユーザー要望）。純演出関数のため両経路で共用できる。
 registerGateInvasionModalEternalAnim(playEternalAcquisitionAnim);

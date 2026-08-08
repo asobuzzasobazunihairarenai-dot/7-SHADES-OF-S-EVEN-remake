@@ -197,6 +197,15 @@ function runEternal(attacker, onDone) {
   }
 }
 
+// ユーザー要望2026-08-08「自ゲートのカードを全て回収しましたモーダルの時、何を得たのか
+// 自分にだけ中央にカードのビューを出したい」。回収したカードを中央に大きく見せる演出を
+// main.jsから注入してもらう（getSelfSeat判定・showCardReceivedModal等の依存が向こうにあるため。
+// registerEternalAnimHelpers等と同じ「register helper」パターン）。attacker本人の画面だけで出す。
+let returnHomeRevealHelper = null; // async (attacker, cards:[{cardId,faceUp}]) => void
+export function registerReturnHomeRevealHelper(fn) {
+  returnHomeRevealHelper = fn;
+}
+
 // ③④自分のゲートにあるカードを全て手札に加え、ゲートに帰還する。
 // ゲート上のカードは表向き/裏向きどちらもあり得るため、各カード自身のfaceUpに従う。
 function runReturnHome(attacker, onDone) {
@@ -205,10 +214,13 @@ function runReturnHome(attacker, onDone) {
   const gateTokens = getState().tokens.filter(
     (t) => t.kind === "card" && t.location.zone === "cell" && t.location.row === homeGate.row && t.location.col === homeGate.col
   );
-  showBonusStepModal(`${getPlayerName(attacker)}は自分のゲートにあるカードをすべて回収し、ゲートに帰還します。`, () => {
+  const collected = gateTokens.map((t) => ({ cardId: t.cardId, faceUp: t.faceUp }));
+  showBonusStepModal(`${getPlayerName(attacker)}は自分のゲートにあるカードをすべて回収し、ゲートに帰還します。`, async () => {
     gateInvasionReturnHome(attacker);
     notifyChange();
-    announceHandPickups(attacker, gateTokens.map((t) => ({ cardId: t.cardId, wasPublic: t.faceUp })));
+    announceHandPickups(attacker, collected.map((c) => ({ cardId: c.cardId, wasPublic: c.faceUp })));
+    // 何を回収したのかを、回収した本人の画面だけに中央で大きく見せる。
+    if (returnHomeRevealHelper && collected.length > 0) await returnHomeRevealHelper(attacker, collected);
     onDone();
   });
 }
