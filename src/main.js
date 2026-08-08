@@ -4653,8 +4653,11 @@ function isArrivalEffectProcessing() {
 
 // 無意味なループ防止（#49、ユーザー方針「セブンではルール上無意味なループは禁止」）。1つの到達連鎖
 // （ジャンプ台の連続移動等）で駒が通ったマスを記録し、そこへ戻る移動先を「ループ先」として扱う。
-// 連鎖の起点（arrivalEffectProcessingDepth===0）でクリアする。card-effect-engineのMOVEが
-// recordMoveVisited/isLoopMoveDestを使って、CPUはループ先を選ばず、人間には警告して選ばせない。
+// リセットは「1回の移動アクションの起点」で行う（#50/#51）: (1)プレイヤーの移動（タップ/ドラッグ）は
+// beginPostMoveArrivalGuardで、(2)効果由来の到達連鎖はtriggerCardArrivalの起点(depth===0)で。
+// 移動アクション中は記録を保持して連鎖内の出戻りだけを検知し、次のアクションで必ずリセットされる。
+// card-effect-engineのMOVEがrecordMoveVisited/isLoopMoveDestを使い、CPUはループ先を選ばず、
+// 人間には警告して選ばせない。
 let moveChainVisitedCells = new Set();
 function recordMoveVisited(cell) {
   if (cell && cell.zone === "cell") moveChainVisitedCells.add(`${cell.row},${cell.col}`);
@@ -4702,6 +4705,13 @@ function flushPendingGateInvasionEvents() {
 // Processing()で守っている割り込み（ゲート侵攻等）もまとめて抑止できる。移動経路ごとに
 // 呼ぶ（highlightタップ経路=performPhaseMoveToCell、ドラッグ経路=onDragEnd）。
 function beginPostMoveArrivalGuard() {
+  // 不具合#50/#51: 移動→到達連鎖の間はこのガードで arrivalEffectProcessingDepth>0 に
+  // なっているため、triggerCardArrival 側の「連鎖起点(depth===0)でループ記録をクリア」が
+  // 効かず、前ターン/前アクションのマスが moveChainVisitedCells に残り続けて、同じジャンプ台の
+  // 再利用（#50）や相手ゲートへのジャンプ（#51）が誤って「無意味なループ」と判定されていた。
+  // ここが1回の移動アクションの起点なので、最外周（まだ到達処理が走っていない）の時だけ
+  // ループ記録をリセットする。効果内のネスト移動（depth>0）では連鎖内ループ検知のため消さない。
+  if (arrivalEffectProcessingDepth === 0) moveChainVisitedCells.clear();
   arrivalEffectProcessingDepth++;
 }
 function endPostMoveArrivalGuard() {
