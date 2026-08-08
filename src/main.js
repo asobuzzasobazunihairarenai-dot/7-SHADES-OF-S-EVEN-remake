@@ -195,7 +195,15 @@ import { maybeShowFirstRunBgmModal } from "./first-run-bgm.js";
 import { applyStoredCardPreviewSize, getCardPreviewSide } from "./card-preview-size.js";
 import { isFixedHandEnabled, applyStoredFixedHand } from "./fixed-hand.js";
 import { isCpuBattleActive, isCpuAutoSkipEnabled, isCpuBrainSmart } from "./cpu-battle-state.js";
-import { chooseMoveCandidate, chooseDeclaredColors, chooseEffectOption, chooseEffectCell, chooseHandEffectCard } from "./cpu-brain.js";
+import {
+  chooseMoveCandidate,
+  chooseDeclaredColors,
+  chooseEffectOption,
+  chooseEffectCell,
+  chooseHandEffectCard,
+  chooseHandCardToken,
+  chooseOpponentHandCardToSteal,
+} from "./cpu-brain.js";
 import {
   getSelfSeat,
   isSpectatingGame,
@@ -3216,7 +3224,11 @@ export function performPriorityTimeoutAutoAction() {
         : pickRandomFrom(picker.candidates);
       picker.resolve(choice);
     } else if (picker.type === "hand") {
-      const tokenId = pickRandomFrom([...picker.tokenIds]);
+      // 賢いCPU（中級以上）は、手放してよいカード（ロック済みの色＝冗長 等）を優先して選ぶ。
+      // 新人は従来通りランダム。
+      const tokenId = isCpuBrainDriving(driveSeat)
+        ? chooseHandCardToken(picker.tokenIds, driveSeat)
+        : pickRandomFrom([...picker.tokenIds]);
       const token = tokenId ? getState().tokens.find((t) => t.id === tokenId) : null;
       picker.resolve(token ?? null);
     } else if (picker.type === "player") {
@@ -3252,11 +3264,13 @@ export function performPriorityTimeoutAutoAction() {
         picker.resolve(chosen);
       }
     } else if (picker.type === "opponentHand") {
-      // ユーザー報告（続き99）「相手の手札選択モーダルが処理されず置いてけぼりに
-      // なっている」。スリカエ・接触の奪うカード選択（requestOpponentHandRitualPick）
-      // 用。裏向きの中から見た目上は等確率に選ぶだけでよいため、単純にランダムな
-      // 1枚を選ぶ。
-      picker.resolve(pickRandomFrom(picker.tokens));
+      // スリカエ・接触・ゲート侵攻の奪うカード選択（requestOpponentHandRitualPick）用。
+      // 中級・上級は相手の手札が見えない（非公開）ためランダム。最強のみのぞき見して一番価値の
+      // 高い札を奪う（chooseOpponentHandCardToStealが最強以外はランダムを返す）。新人はランダム。
+      const choice = isCpuBrainDriving(driveSeat)
+        ? chooseOpponentHandCardToSteal(picker.tokens, driveSeat)
+        : pickRandomFrom(picker.tokens);
+      picker.resolve(choice);
     }
     return true;
   }

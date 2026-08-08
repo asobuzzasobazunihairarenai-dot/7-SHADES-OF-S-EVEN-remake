@@ -304,3 +304,55 @@ export function chooseHandEffectCard(usableCards, driveSeat) {
   }
   return best;
 }
+
+// 強い/残しておきたいカード（リアクション札・虹・ファースト/エターナル）。手放す時は避け、
+// 奪う時は狙う。
+function isPreciousCard(cardId) {
+  return (
+    cardId === "rainbow-shard" ||
+    cardId === "purple-sorry" ||
+    cardId === "red-counter-lock" ||
+    (cardId || "").startsWith("first-") ||
+    (cardId || "").startsWith("eternal-")
+  );
+}
+
+// 手札から1枚「手放す」時（コスト支払い・場に置く・捨てる等、requestHandCardChoiceForEffectの
+// 自動代行）に、一番手放してよいカードを選ぶ。ロック済みの色＝冗長で手放しやすい、まだ要る色・
+// 強い札＝残したい。候補は tokenId の集合（Set/配列）。
+export function chooseHandCardToken(tokenIds, driveSeat) {
+  const ids = [...(tokenIds || [])];
+  if (ids.length === 0) return null;
+  const state = getState();
+  const needed = neededColors(state, driveSeat); // まだロックしていない色
+  const tokens = ids.map((id) => state.tokens.find((t) => t.id === id)).filter(Boolean);
+  if (tokens.length === 0) return ids[0];
+  const discardability = (t) => {
+    const color = getCardDefinition(t.cardId)?.color;
+    let d = 0;
+    if (color && COLORS.includes(color)) d += needed.has(color) ? -2 : 2; // 要る色は残す/ロック済みは手放してよい
+    if (isPreciousCard(t.cardId)) d -= 3; // 強い/リアクション札は残す
+    return d;
+  };
+  tokens.sort((a, b) => discardability(b) - discardability(a));
+  return tokens[0].id;
+}
+
+// 相手の手札から1枚奪う（スリカエ・接触・ゲート侵攻）自動代行。中級・上級は相手の手札の中身が
+// 見えない（非公開）ためランダム。最強のみ、のぞき見して一番価値の高い札を奪う（自分がまだ要る色＝
+// 奪えば自分がロックできる／相手の強いリアクション札を無力化／強力なカード）。
+export function chooseOpponentHandCardToSteal(tokens, driveSeat) {
+  const arr = [...(tokens || [])];
+  if (arr.length === 0) return null;
+  if (!isCpuPeekAllowed()) return arr[Math.floor(Math.random() * arr.length)];
+  const state = getState();
+  const needed = neededColors(state, driveSeat);
+  const value = (t) => {
+    const color = getCardDefinition(t.cardId)?.color;
+    let v = 0;
+    if (color && COLORS.includes(color) && needed.has(color)) v += 3; // まだ要る色を奪えば自分がロックできる
+    if (isPreciousCard(t.cardId)) v += 2; // 強い/リアクション札を奪って無力化
+    return v;
+  };
+  return arr.slice().sort((a, b) => value(b) - value(a))[0];
+}
