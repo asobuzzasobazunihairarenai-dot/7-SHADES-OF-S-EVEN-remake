@@ -4974,6 +4974,24 @@ body.is-phone-device #admin-panel {
   font-size: 0.95rem;
   cursor: pointer;
 }
+/* ライトテーマ（body.theme-light）: ログインボーナスのモーダルがダークのままだったので、他の
+   ライトモーダル（#contact-result-modal等）と同じアイボリー地＋ゴールド枠＋濃い文字へ
+   （ユーザー報告2026-08-08）。金額/タイトルのゴールド系文字はライト地でも読めるためそのまま、
+   薄すぎた注記文字だけ濃いめに上書きする。 */
+body.theme-light #daily-bonus-modal {
+  background: linear-gradient(160deg, #fffdf7, #f6efdd);
+  border-color: rgba(176, 141, 63, 0.6);
+  color: #3a3326;
+}
+body.theme-light .daily-bonus-modal-title {
+  color: #b8860b;
+}
+body.theme-light .daily-bonus-modal-amount {
+  color: #a9740a;
+}
+body.theme-light .daily-bonus-modal-note {
+  color: #6b5f47;
+}
 #daily-bonus-toast {
   position: fixed;
   bottom: 1.5rem;
