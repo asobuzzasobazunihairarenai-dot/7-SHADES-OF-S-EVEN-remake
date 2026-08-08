@@ -2946,6 +2946,20 @@ document.addEventListener(
           }
           return;
         }
+        // ユーザー要望2026-08-08: 盤面拡大でロックエリアが画面外の時、ミニロックエリアの
+        // スロットからも「捨てる/奪うロックカード」を選べるようにする（updateMiniLockAreaが
+        // 候補スロットに data-side/data-index と .is-pick-target を付与している）。
+        const miniLockSlotEl = el.closest(".mini-lock-slot.is-pick-target");
+        if (miniLockSlotEl) {
+          const side = miniLockSlotEl.dataset.side;
+          const index = Number(miniLockSlotEl.dataset.index);
+          const match = picker.candidates.find((c) => c.zone === "lock" && c.side === side && c.index === index);
+          if (match) {
+            activeEffectPicker = null;
+            picker.resolve(match);
+          }
+          return;
+        }
       }
       return;
     }
@@ -3467,8 +3481,13 @@ function requestCellChoiceForEffect(candidates, hint, options = {}) {
         hideEffectPickerHint();
         hideEffectSkipButton();
         resolve(loc);
+        // ロック候補のミニロックハイライトを即座に消す（解決後）。
+        updateMiniLockArea();
       },
     };
+    // ロックスロットが候補の時、盤面拡大中でも即座にミニロックエリアへ選択ハイライトを反映する
+    // （ユーザー要望2026-08-08。render()待ちにならないよう明示的に更新）。
+    if (candidates.some((c) => c.zone === "lock")) updateMiniLockArea();
   });
 }
 
@@ -7289,7 +7308,16 @@ function updateMiniLockArea() {
   const opponents = active.filter((p) => p !== self);
   const discard = state.piles?.discard ?? [];
   const discardTop = discard.length ? discard[discard.length - 1] : null;
-  // シグネチャ（変わっていなければ作り直さない）: 全員のロック内容＋手札枚数＋公開ドロー＋捨て場。
+  // ユーザー要望2026-08-08「捨てるロックカードを選ぶ時、ミニロックエリアでも選べるように」。
+  // アクティブな「ロックカードを選ぶ」ピッカー（選べる罠のロック捨て・ゴメンナサイの奪取等、
+  // candidatesがロックスロットのcell picker）の候補を拾い、該当ミニロックスロットを選択可能にする。
+  const lockPickTargets =
+    activeEffectPicker && activeEffectPicker.type === "cell"
+      ? (activeEffectPicker.candidates || []).filter((c) => c.zone === "lock")
+      : [];
+  const isLockPickTarget = (side, index) => lockPickTargets.some((c) => c.side === side && c.index === index);
+  // シグネチャ（変わっていなければ作り直さない）: 全員のロック内容＋手札枚数＋公開ドロー＋捨て場
+  // ＋今選べるロック候補（ピッカーの出入りでハイライトを付け外しするため）。
   const sig =
     active
       .map(
@@ -7301,7 +7329,8 @@ function updateMiniLockArea() {
           ":r" + (revealByPlayer[p] ?? []).map((t) => t.cardId).join(",")
       )
       .join("|") +
-    "|d" + discard.length + ":" + (discardTop || "");
+    "|d" + discard.length + ":" + (discardTop || "") +
+    "|pick" + lockPickTargets.map((c) => `${c.side}${c.index}`).join(",");
   if (sig === miniLockAreaSig) return;
   miniLockAreaSig = sig;
 
@@ -7326,10 +7355,14 @@ function updateMiniLockArea() {
     playerRow.appendChild(label);
     const slots = document.createElement("div");
     slots.className = "mini-lock-area-slots";
+    const side = SEAT_TO_SIDE[p];
     COLORS.forEach((color, index) => {
       const slot = document.createElement("div");
       slot.className = "mini-lock-slot";
       slot.style.setProperty("--slot-color", `var(--color-${color})`);
+      // ロックの場所（side/index）を持たせ、ロック選択ピッカー中はミニロックからも選べるようにする。
+      slot.dataset.side = side;
+      slot.dataset.index = String(index);
       const entry = locked[index];
       if (entry) {
         slot.classList.add("is-locked");
@@ -7340,6 +7373,9 @@ function updateMiniLockArea() {
           slot.dataset.tokenId = entry.tokenId;
           slot.addEventListener("click", () => void tryUseLockedUsableCard(entry.tokenId));
         }
+        // 「捨てる/奪うロックカードを選ぶ」ピッカーの候補なら、ミニロックでも選べるよう光らせる
+        // （実際のクリック解決は下部のcell picker用ドキュメントハンドラが .mini-lock-slot を見て行う）。
+        if (isLockPickTarget(side, index)) slot.classList.add("is-pick-target");
       }
       slots.appendChild(slot);
     });

@@ -752,6 +752,22 @@ body.fixed-hand-mode #mini-lock-area {
 body.reduce-glow .mini-lock-slot.is-usable {
   animation: none;
 }
+/* 「捨てる/奪うロックカードを選ぶ」ピッカー中、ミニロックエリアでも選べる候補スロット
+   （ユーザー要望2026-08-08）。pointer-events:auto でクリック可能にし、赤系で選択対象を示す。 */
+.mini-lock-slot.is-pick-target {
+  pointer-events: auto;
+  cursor: pointer;
+  border-color: #f87171;
+  box-shadow: 0 0 0.5rem #f87171, 0 0 0.9rem var(--slot-color, transparent);
+  animation: mini-lock-pick-pulse 1.1s ease-in-out infinite;
+}
+@keyframes mini-lock-pick-pulse {
+  0%, 100% { box-shadow: 0 0 0.4rem #f87171, 0 0 0.7rem var(--slot-color, transparent); }
+  50% { box-shadow: 0 0 0.9rem #fca5a5, 0 0 1.4rem var(--slot-color, transparent); }
+}
+body.reduce-glow .mini-lock-slot.is-pick-target {
+  animation: none;
+}
 
 /* 各プレイヤーの手札が盤面中心からどれだけ離れているか（＝手札ゾーンの画面上の位置）を
    独立に調整できるようにする。translateを先頭（＝最後に適用）に置くことで、
