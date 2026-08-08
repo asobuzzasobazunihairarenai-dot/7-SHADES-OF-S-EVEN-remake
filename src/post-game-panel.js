@@ -21,6 +21,7 @@ import {
   getCurrentUser,
   submitStatsMatchResult,
   submitMatchComment,
+  fetchMyRecentMatchId,
   onMatchRecordedEvents,
   setRematchReady,
   maybeTriggerRematch,
@@ -383,13 +384,18 @@ export function showPostGamePanel({ activePlayers, winnerSeat }) {
   body.appendChild(
     buildCommentSection(async (comment) => {
       if (comment) {
-        const id = await waitForMatchId(() => matchId);
+        // まず勝者からの試合IDブロードキャストを待つ。取りこぼした場合（#42）は matches を
+        // 直接引くフォールバックで試合IDを得てから投稿する（黙ってコメントを捨てない）。
+        let id = await waitForMatchId(() => matchId);
+        if (!id) id = await fetchMyRecentMatchId();
         if (id) {
           try {
             await submitMatchComment(id, comment);
           } catch (err) {
             console.error("submitMatchComment failed", err);
           }
+        } else {
+          console.error("#42: 試合IDを取得できず、コメントを投稿できませんでした（ブロードキャスト取りこぼし＋フォールバックも失敗）");
         }
       }
       if (unsubscribeMatchRecorded) {

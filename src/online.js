@@ -2005,6 +2005,38 @@ export async function submitMatchComment(matchId, comment) {
   if (error) throw error;
 }
 
+// 不具合#42: 敗者は勝者からの match_recorded ブロードキャストで試合IDを受け取るが、Realtime
+// broadcast は取りこぼし得る（実機で「Realtime send() is automatically falling back to REST API」
+// の警告あり）。取りこぼすと waitForMatchId が8秒で諦め、コメントが黙って捨てられていた。
+// フォールバックとして、自分の戦績プレイヤーIDを含む直近（数分以内）の試合を matches から
+// 直接引いて試合IDを得る（勝者が作った試合行は members に全員のIDを含む）。ゲスト/未ログインは
+// プレイヤーIDが無いため対象外（従来どおりブロードキャスト頼み）。
+export async function fetchMyRecentMatchId() {
+  if (!client || !cachedUser || cachedUser.is_anonymous) return null;
+  let playerId = null;
+  try {
+    const { data } = await client.from("players").select("id").eq("user_id", cachedUser.id).maybeSingle();
+    playerId = data?.id ?? null;
+  } catch (err) {
+    return null;
+  }
+  if (!playerId) return null;
+  const cutoff = Date.now() - 5 * 60 * 1000; // 直近5分以内に作られた試合だけを対象（別の過去試合を拾わない）
+  try {
+    const { data, error } = await client
+      .from("matches")
+      .select("id, created_at")
+      .contains("members", [playerId])
+      .gte("created_at", cutoff)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (error || !data || data.length === 0) return null;
+    return data[0].id;
+  } catch (err) {
+    return null;
+  }
+}
+
 // 勝者が試合を記録して作成した試合IDの通知（match_recorded）。敗者側は自分のコメントを
 // この試合IDに紐づけるために待ち受ける。
 let matchRecordedListeners = [];
