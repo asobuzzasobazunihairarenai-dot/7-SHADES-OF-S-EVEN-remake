@@ -3905,6 +3905,11 @@ function pickRandomFromOpponentHandForEffect(targetPlayer) {
 // ターンが切り替わってしまった。完全にモーダルが閉じられるまではほかの自動処理は
 // ストップしなければならない」への対応で、このモーダル自体の表示中
 // （anytimeInterruptModalEl）も「処理中」に含める。
+// 接触の結果モーダル（openContactResultModal）が1つでも開いている間はカウントが正になる。
+// ユーザー要望2026-08-08（#40）「接触結果モーダルが閉じる前に次のターンが始まってしまう。
+// ちゃんと閉じてから次のターンへ」——開いている間は自動ターン終了を止める。
+let openContactResultModals = 0;
+
 export function isAnyEffectProcessingBusy() {
   return (
     isGateInvasionPending() ||
@@ -3912,7 +3917,8 @@ export function isAnyEffectProcessingBusy() {
     isLocalGateInvasionActive() ||
     isHandEffectBusy() ||
     activeEffectPicker !== null ||
-    anytimeInterruptModalEl !== null
+    anytimeInterruptModalEl !== null ||
+    openContactResultModals > 0
   );
 }
 
@@ -4985,13 +4991,23 @@ function isAdjacentCell(a, b) {
 function openContactResultModal({ role, attacker, defender, cardId, onClose = null }) {
   const modal = document.createElement("div");
   modal.id = "contact-result-modal";
+  // #40: 開いている間は自動ターン終了を止める（isAnyEffectProcessingBusy/computeShouldEmphasize
+  // が openContactResultModals を見る）ため、開いた数を数える。
+  openContactResultModals += 1;
+  // 時間でも閉じる（ユーザー要望#40）。ただしCPU戦（ローカルの疑似CPU対戦）では、結果を
+  // しっかり確認できるよう自動では閉じず、クリックするまで残す（CPU結果ホールドと同じ方針）。
+  const autoCloseMs = isCpuBattleActive() && !isOnlineMode() ? 0 : 5000;
+  let autoCloseTimer = null;
   let closed = false;
   const close = () => {
     if (closed) return;
     closed = true;
+    if (autoCloseTimer) clearTimeout(autoCloseTimer);
+    openContactResultModals = Math.max(0, openContactResultModals - 1);
     modal.remove();
     onClose?.();
   };
+  if (autoCloseMs > 0) autoCloseTimer = setTimeout(close, autoCloseMs);
   // ハマりどころ: このモーダルは承認直後、「オープンする/しないの選択」(promptCardOpen)や
   // 到達モーダル(card-arrival-modal)とほぼ同時に出ることがある。他の確認モーダルと同じ
   // 全画面の暗いbackdrop（クリックで閉じる）を付けると、それらの後ろに隠れた対話的
@@ -10017,6 +10033,8 @@ function computeShouldEmphasize() {
   // computeShouldEmphasize()自体は同じ判定を（診断ログの内訳表示のため）自前で
   // 再計算しているため、ここにも同じ理由で追加する必要がある。
   const anytimeInterruptModalShowing = anytimeInterruptModalEl !== null;
+  // #40: 接触結果モーダルが開いている間は自動ターン終了を止める（閉じてから次のターンへ）。
+  const contactResultModalShowing = openContactResultModals > 0;
   const result =
     autoProcessingEnabled &&
     !endTurnDisabled &&
@@ -10024,6 +10042,7 @@ function computeShouldEmphasize() {
     !moveStillActive &&
     !isArrivalEffectProcessing() &&
     !state.pendingContact &&
+    !contactResultModalShowing &&
     // ユーザー要望「ほかのカードでも同様な事象が見受けられる、総チェック可能か」への
     // 対応。isAnyEffectProcessingBusy()は「ゲート侵攻処理中・その通知ポップアップ
     // 表示中・手札効果解決中・何らかの候補選択待ち」を1つにまとめた既存の判定
