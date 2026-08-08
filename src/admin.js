@@ -13,6 +13,8 @@ import { previewBgmVolume, toggleBgmPreview } from "./sound.js";
 // importしていないため循環参照は起きない。
 import { runEidosDialogue } from "./eidos-dialogue-ui.js";
 import { EIDOS_SCENE, getEidosScene } from "./eidos-dialogue-scenes.js";
+// 対戦ロビーの「疑似CPUモード」チェックの表示/非表示（cpu-battle-state.jsはleafなので循環しない）。
+import { isLobbyPseudoCpuToggleVisible, setLobbyPseudoCpuToggleVisible } from "./cpu-battle-state.js";
 
 // game-setup.jsは既にadmin.js（isManualSeatMode）をimportしているため、admin.js側から
 // game-setup.jsを直接importすると循環importになる。他の箇所（setup-animation.js等）と
@@ -1256,10 +1258,24 @@ const GROUPS = [
     // 名前欄・オンラインアイコン）をまとめて拡大縮小できるようにする。基準点は左下
     // （パネル自体の固定アンカー）に合わせてあるので、拡大してもパネルの左下位置は
     // ズレない。PC版はこのCSS変数を参照しないため影響しない。
-    title: "タブレット専用：ステータスエリア群の一括拡大",
+    title: "タブレット専用：ステータスエリア群の一括拡大・位置",
     category: "tablet",
     controls: [
       { key: "--self-status-scale-touch", label: "拡大率", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 1.5 },
+      // ユーザー要望2026-08-08「位置も調整できるように」。未設定ならPC位置へフォールバック。
+      { key: "--self-status-pos-touch-x", label: "位置X（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--self-status-pos-touch-y", label: "位置Y（タブレット）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+    ],
+  },
+  {
+    // ユーザー要望2026-08-08「スマホ用にも（ステータスエリア群の一括拡大・位置を）追加してほしい」。
+    // style.cssの body.is-phone-device #self-hand-status が使う。未設定はタブレット値→PC値へフォールバック。
+    title: "📱 スマホ専用：ステータスエリア群の一括拡大・位置",
+    category: "phone",
+    controls: [
+      { key: "--self-status-scale-phone", label: "拡大率（スマホ）", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 1.5 },
+      { key: "--self-status-pos-phone-x", label: "位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--self-status-pos-phone-y", label: "位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
     ],
   },
   {
@@ -1742,6 +1758,25 @@ const TOGGLE_SECTIONS = [
       });
       const lbl = document.createElement("span");
       lbl.textContent = "商品画像／背景をドラッグで位置調整する";
+      row.append(cb, lbl);
+      content.appendChild(row);
+    },
+  },
+  {
+    // ユーザー要望2026-08-08「対戦ロビーの『🤖 疑似CPUモード（テスト用）を使う』はいったん不要。
+    // 管理者モードで表示/非表示でき、既定は非表示に」。online-ui.js が isLobbyPseudoCpuToggleVisible()
+    // を見て、ロビー/待機ボックスの疑似CPUチェックを出すか決める。
+    title: "対戦ロビー：疑似CPUモードのチェックを表示する",
+    category: "behavior",
+    buildContent: (content) => {
+      const row = document.createElement("label");
+      row.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-size: 0.85rem;";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = isLobbyPseudoCpuToggleVisible();
+      cb.addEventListener("change", () => setLobbyPseudoCpuToggleVisible(cb.checked));
+      const lbl = document.createElement("span");
+      lbl.textContent = "ロビーに「🤖 疑似CPUモード（自動選択のテスト用）を使う」を表示する（既定OFF）";
       row.append(cb, lbl);
       content.appendChild(row);
     },

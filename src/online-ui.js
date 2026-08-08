@@ -30,6 +30,7 @@ import {
   subscribeToOpenRoomsChanges,
   getAccountDisplayLabel,
 } from "./online.js";
+import { isLobbyPseudoCpuToggleVisible } from "./cpu-battle-state.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { subscribe, getState, isOnlineMode, notifyListeners } from "./state.js";
 import { playWaitingBgm, stopWaitingBgm } from "./sound.js";
@@ -237,7 +238,10 @@ function buildLobbyOptionRows() {
   };
   addToggle("⏳ ターンタイマーを使用する", pendingRoomTimerEnabled, (v) => (pendingRoomTimerEnabled = v));
   addToggle("白黒（無色）カードを山札に含める", pendingRoomIncludeBlackWhite, (v) => (pendingRoomIncludeBlackWhite = v));
-  addToggle("🤖 疑似CPUモード（自動選択のテスト用）を使う", pendingRoomPseudoCpuModeEnabled, (v) => (pendingRoomPseudoCpuModeEnabled = v));
+  // 疑似CPUモードのチェックは管理者モードで表示ONの時だけ出す（既定は非表示。ユーザー要望2026-08-08）。
+  if (isLobbyPseudoCpuToggleVisible()) {
+    addToggle("🤖 疑似CPUモード（自動選択のテスト用）を使う", pendingRoomPseudoCpuModeEnabled, (v) => (pendingRoomPseudoCpuModeEnabled = v));
+  }
   addToggle("🚀 ブーストモード（両隣に効果なしファーストカードをロックして開始）", pendingRoomBoost, (v) => (pendingRoomBoost = v));
   return wrap;
 }
@@ -897,20 +901,23 @@ async function renderRoomStatus(gameId, myGeneration) {
       // 続き98の「対局中にRealtime Broadcastで伝える」設計が実機テストで信頼できないと
       // 判明したため、timerEnabled/includeBlackWhiteと同じ「開始ボタンを押した瞬間の
       // 設定を対局全体の固定値としてサーバーに同期する」確実な仕組みに変更した。
-      const pseudoCpuRow = document.createElement("label");
-      pseudoCpuRow.style.cssText =
-        "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0.5rem; font-size: 0.85rem; text-align: left;";
-      const pseudoCpuCheckbox = document.createElement("input");
-      pseudoCpuCheckbox.type = "checkbox";
-      pseudoCpuCheckbox.checked = pendingRoomPseudoCpuModeEnabled;
-      pseudoCpuCheckbox.addEventListener("change", () => {
-        pendingRoomPseudoCpuModeEnabled = pseudoCpuCheckbox.checked;
-      });
-      const pseudoCpuLabel = document.createElement("span");
-      pseudoCpuLabel.textContent = "🤖 疑似CPUモード（自動選択のテスト用）を使う";
-      pseudoCpuRow.appendChild(pseudoCpuCheckbox);
-      pseudoCpuRow.appendChild(pseudoCpuLabel);
-      waitingBox.appendChild(pseudoCpuRow);
+      // 疑似CPUモードのチェックは管理者モードで表示ONの時だけ出す（既定は非表示。ユーザー要望2026-08-08）。
+      if (isLobbyPseudoCpuToggleVisible()) {
+        const pseudoCpuRow = document.createElement("label");
+        pseudoCpuRow.style.cssText =
+          "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0.5rem; font-size: 0.85rem; text-align: left;";
+        const pseudoCpuCheckbox = document.createElement("input");
+        pseudoCpuCheckbox.type = "checkbox";
+        pseudoCpuCheckbox.checked = pendingRoomPseudoCpuModeEnabled;
+        pseudoCpuCheckbox.addEventListener("change", () => {
+          pendingRoomPseudoCpuModeEnabled = pseudoCpuCheckbox.checked;
+        });
+        const pseudoCpuLabel = document.createElement("span");
+        pseudoCpuLabel.textContent = "🤖 疑似CPUモード（自動選択のテスト用）を使う";
+        pseudoCpuRow.appendChild(pseudoCpuCheckbox);
+        pseudoCpuRow.appendChild(pseudoCpuLabel);
+        waitingBox.appendChild(pseudoCpuRow);
+      }
 
       // ブーストモード（ユーザー要望）。timerEnabled/includeBlackWhiteと同じく「開始ボタンを
       // 押した瞬間の設定を対局全体の固定値としてサーバー(BOOTSTRAP_GAME)へ送る」方式。

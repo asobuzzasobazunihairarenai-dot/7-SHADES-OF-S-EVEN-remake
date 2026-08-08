@@ -211,3 +211,26 @@ export function consumeCpuStep() {
   }
   return false;
 }
+
+// ユーザー要望2026-08-08: 対戦ロビーの「🤖 疑似CPUモード（テスト用）を使う」チェックボックスは
+// いったん不要なので、管理者モードで表示/非表示を切り替えられるように。既定は非表示。
+// この端末のみの設定（localStorage）。leafモジュール(cpu-battle-state.js)に置くことで、
+// online-ui.js（表示側）と admin.js（切替UI側）の両方から循環importなしに参照できる。
+const LOBBY_PSEUDO_CPU_TOGGLE_KEY = "so7-lobby-pseudo-cpu-toggle-visible";
+let lobbyPseudoCpuToggleVisible = false;
+try {
+  lobbyPseudoCpuToggleVisible = localStorage.getItem(LOBBY_PSEUDO_CPU_TOGGLE_KEY) === "1";
+} catch {
+  /* 読めなくても既定(非表示)で動く */
+}
+export function isLobbyPseudoCpuToggleVisible() {
+  return lobbyPseudoCpuToggleVisible;
+}
+export function setLobbyPseudoCpuToggleVisible(v) {
+  lobbyPseudoCpuToggleVisible = !!v;
+  try {
+    localStorage.setItem(LOBBY_PSEUDO_CPU_TOGGLE_KEY, v ? "1" : "0");
+  } catch {
+    /* 保存できなくてもそのセッションでは効く */
+  }
+}

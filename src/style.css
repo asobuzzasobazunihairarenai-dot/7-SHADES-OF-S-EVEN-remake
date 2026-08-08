@@ -6715,7 +6715,23 @@ body.cards-interaction-hidden .board-card {
    合わせ、拡大してもパネルの左下の位置がズレないようにした。PC版はこのCSS変数を
    参照しないため影響しない。 */
 body.is-touch-device #self-hand-status {
-  transform: translate(var(--self-status-pos-x, 0rem), var(--self-status-pos-y, 0rem)) scale(var(--self-status-scale-touch, 1));
+  /* タブレット専用の一括位置(--self-status-pos-touch-*)＋一括拡大。未設定ならPC位置(--self-status-pos-*)
+     へフォールバック（ユーザー要望2026-08-08で位置も調整可能に）。 */
+  transform: translate(
+      var(--self-status-pos-touch-x, var(--self-status-pos-x, 0rem)),
+      var(--self-status-pos-touch-y, var(--self-status-pos-y, 0rem))
+    )
+    scale(var(--self-status-scale-touch, 1));
+  transform-origin: bottom left;
+}
+/* スマホ専用の一括位置・拡大（ユーザー要望2026-08-08）。is-phone-deviceはis-touch-deviceでもあるため、
+   同詳細度のこのルールを後に置いて上書きする。未設定はタブレット値→PC値の順でフォールバック。 */
+body.is-phone-device #self-hand-status {
+  transform: translate(
+      var(--self-status-pos-phone-x, var(--self-status-pos-touch-x, var(--self-status-pos-x, 0rem))),
+      var(--self-status-pos-phone-y, var(--self-status-pos-touch-y, var(--self-status-pos-y, 0rem)))
+    )
+    scale(var(--self-status-scale-phone, var(--self-status-scale-touch, 1)));
   transform-origin: bottom left;
 }
 /* 背面に大きく表示する自分専用アバター。ステータスエリアの他の要素（アイコン・名前欄）を
