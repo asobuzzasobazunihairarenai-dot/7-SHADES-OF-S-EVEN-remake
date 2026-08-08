@@ -20,6 +20,8 @@ import { getActionLogText } from "./action-log.js";
 import { getPlayerName } from "./player-identity.js";
 import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
 import { APP_VERSION } from "./app-version.js";
+import { getState } from "./state.js";
+import { isCpuBattleActive, isSelfCpuSubstituted } from "./cpu-battle-state.js";
 
 // ---- コンソールログの簡易リングバッファ（起動時にconsoleをフックして直近を保持する） ----
 const CONSOLE_BUFFER_MAX = 300;
@@ -161,6 +163,21 @@ function gatherContext() {
   } catch {
     /* noop */
   }
+  // ユーザー要望2026-08-08（#48）: 不具合報告に「オンライン/ローカル/CPU戦のどれか」「各座席が
+  // 人間かCPUか」等の対局コンテキストを載せる（後から状況を切り分けやすくするため）。
+  let gameContext = null;
+  try {
+    const st = getState();
+    gameContext = {
+      mode: isOnlineMode() ? "online" : isCpuBattleActive() ? "cpu-battle(1P)" : "local",
+      selfSeat: getSelfSeat(),
+      activePlayers: st?.activePlayers ?? null,
+      turnPlayer: st?.turnPlayer ?? null,
+      selfCpuSubstituted: isSelfCpuSubstituted(), // 自席がAFKでCPU代行中か
+    };
+  } catch {
+    /* noop */
+  }
   return {
     version: APP_VERSION,
     userAgent: navigator.userAgent,
@@ -168,6 +185,7 @@ function gatherContext() {
     href: location.href,
     roomId,
     at: new Date().toISOString(),
+    gameContext,
   };
 }
 

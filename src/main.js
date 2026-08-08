@@ -4748,6 +4748,16 @@ function triggerCardArrival(cardId, location, onFullyResolved, opts = {}) {
   // （ボタン無し・自動で消える表示専用の）同じ拡大モーダルを出す——効果は自動で
   // 進んでも、自分がどのカードに到達したかは見えないと分かりにくいため。
   if (shouldAutoProcess) {
+    // 不具合#49: ジャンプ台が2つちょうど2マス離れて置かれていると、着地→2マス移動→もう一方の
+    // ジャンプ台に着地→2マス移動…と到達効果が無限に連鎖して固まる（実機で深度45+を確認）。
+    // 到達効果の入れ子（連鎖）が異常に深くなったら安全弁として打ち切る。正当な連鎖（ジャンプ台→
+    // パーティ→…等）は十数段で収まるため、余裕を持って20で止める。打ち切り時は駒はその場に留まる。
+    const MAX_ARRIVAL_CHAIN_DEPTH = 20;
+    if (arrivalEffectProcessingDepth >= MAX_ARRIVAL_CHAIN_DEPTH) {
+      logAction("diag-arrival-processing", { cardId, phase: "max-depth-abort", depth: arrivalEffectProcessingDepth });
+      onFullyResolved?.();
+      return;
+    }
     // 冪等ガード（#7/#11、activeAutoArrivalKeys参照）: 同じカード×マスの到達効果が既に自動
     // 処理中の時、remote-move-animator由来の重複発火(opts.fromDiff)だけを無視する。自分の
     // 効果チェーンの正当な再到達（ジャンプ台の往復など）は fromDiff 無しなので通す。
