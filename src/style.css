@@ -10463,7 +10463,7 @@ body:not(.is-admin-user) .opening-admin-btn {
   --camera-perspective-origin-y: 8.4rem;
   --camera-offset-y: -4.2rem;
   --camera-zoom: 0.93;
-  --card-preview-size: 20rem;
+  --card-preview-size: 32rem;
   --hand-pickup-toast-scale: 1.3;
   --hand-pickup-toast-duration: 5;
   --card-arrival-modal-size: 25rem;
@@ -10531,6 +10531,7 @@ body:not(.is-admin-user) .opening-admin-btn {
   --board-zoom-2-offset-x: 0rem;
   --board-zoom-2-offset-y: -2.5rem;
   --board-zoom-2-reference-height: 1000px;
+  --home-tile-icon-size: 12rem;
   --phase-guide-bottom: 0rem;
   --phase-guide-right: 2.3rem;
   --phase-guide-pos-x: 0rem;
@@ -10544,6 +10545,16 @@ body:not(.is-admin-user) .opening-admin-btn {
   --turn-round-counter-font-size: 0.65rem;
   --phase-skip-button-offset-x: 0rem;
   --phase-skip-button-offset-y: 0rem;
+  --home-badge-offset-x: 2rem;
+  --home-badge-offset-y: 1.6rem;
+  --home-new-badge-offset-x: 2rem;
+  --home-new-badge-offset-y: 1.6rem;
+  --bug-report-icon-size: 1.9rem;
+  --bug-report-icon-right: 19.5rem;
+  --bug-report-icon-top: 0.6rem;
+  --action-log-icon-size: 1.95rem;
+  --action-log-icon-right: 3.9rem;
+  --action-log-icon-top: 0.6rem;
   --turn-timer-rope-pos-x: 0rem;
   --turn-timer-rope-pos-y: 0rem;
   --turn-timer-rope-width: 46rem;
@@ -10564,10 +10575,6 @@ body:not(.is-admin-user) .opening-admin-btn {
   --self-status-icon-online-size: 2.6rem;
   --self-status-icon-gap: 0.4rem;
   --self-status-large-avatar-size: 16rem;
-  /* スマホでは左下の自分アバターが大きすぎるとの報告。スマホ時だけ下のbody.is-phone-device
-     ルールでサイズ変数をこの専用値に差し替える（アバター本体もランクリングも同じ変数から
-     算出されるので一緒に縮む）。管理者モードの「左下アバター サイズ（スマホ）」で調整可能。 */
-  --self-status-large-avatar-size-phone: 12rem;
   --self-status-large-avatar-pos-x: -0.7rem;
   --self-status-large-avatar-pos-y: -11.5rem;
   --self-status-large-avatar-ghost-scale: 1.6;
@@ -10639,6 +10646,14 @@ body:not(.is-admin-user) .opening-admin-btn {
   --hand-c-pos-y: -3rem;
   --hand-d-pos-x: 0rem;
   --hand-d-pos-y: 0rem;
+  --mini-lock-bottom: -0.2rem;
+  --mini-lock-x-offset: 0rem;
+  --mini-lock-top: 2.2rem;
+  --mini-lock-top-x-offset: 0rem;
+  --mini-lock-bottom-fixed-hand: 0rem;
+  --fixed-hand-bottom: 0.5rem;
+  --fixed-hand-x-offset: 0rem;
+  --fixed-hand-scale: 1;
   --hand-a-size: 17rem;
   --hand-b-size: 7rem;
   --hand-c-size: 7rem;
@@ -10733,30 +10748,26 @@ body:not(.is-admin-user) .opening-admin-btn {
   --icon-pos-options-phone-y: -0.7rem;
   --icon-size-options-phone: 3.9rem;
   --center-modal-scale-phone: 2;
-  /* オプションのドロップダウンは既定1（＝拡大なし）で他より小さく感じるとの報告のため、
-     既定を少し大きくする。さらに細かくは管理者モードの「オプションのドロップダウン
-     サイズ倍率（スマホ）」スライダーで調整可能。 */
-  /* スマホでオプションを開くと画面全体が左にずれて左半分が見切れる不具合の原因。
-     #options-menu-panel は position:fixed; inset:0（全画面）で、そこへ
-     transform: scale(1.5) を transform-origin:top right でかけると 150vw×150vh に
-     広がり、左50vw・下50vh が画面外へはみ出して見切れていた（全画面パネルに倍率は
-     そもそも不適切で、小さなドロップダウンだった頃の名残）。等倍(1)に戻して全画面
-     表示のままズレないようにする。 */
   --options-menu-scale-phone: 1;
   --admin-panel-scale-phone: 1;
+  --self-status-large-avatar-size-phone: 12rem;
   --phase-guide-pos-phone-x: 0rem;
   --phase-guide-pos-phone-y: 0rem;
   --phase-guide-scale-phone: 2.1;
   --phase-skip-button-pos-phone-x: 3.2rem;
   --phase-skip-button-pos-phone-y: 0rem;
   --phase-skip-button-scale-phone: 0.9;
-  --phase-turn-status-pos-phone-x: 1.8rem;
+  --phase-turn-status-pos-phone-x: -4.3rem;
   --phase-turn-status-pos-phone-y: 0rem;
-  --phase-turn-status-scale-phone: 1;
+  --phase-turn-status-scale-phone: 0.6;
   --hand-a-pos-phone-x: -26.3rem;
   --hand-a-pos-phone-y: -10.5rem;
   --hand-a-size-phone: 15rem;
   --hand-a-rotate-z-phone: 70deg;
+  --fixed-hand-bottom-phone: 19.5rem;
+  --fixed-hand-x-offset-phone: -33.4rem;
+  --fixed-hand-scale-phone: 1;
+  --fixed-hand-rotate-phone: 64deg;
   --hand-a-translate-z-touch: 2.4rem;
   --hand-b-translate-z-touch: 0.5rem;
   --hand-c-translate-z-touch: 0.5rem;
@@ -10818,7 +10829,6 @@ body:not(.is-admin-user) .opening-admin-btn {
   --rank-ring-orbit-size: 0.4rem;
   --rank-ring-orbit-trail-length: 23;
   --rank-ring-orbit-speed: 7.6;
-  --home-tile-icon-size: 12rem;
 }
 
 /* チュートリアル（tutorial.js）。実際の盤面のUI要素をハイライトしながら遊び方を
