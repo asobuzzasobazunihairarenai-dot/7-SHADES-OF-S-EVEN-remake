@@ -85,25 +85,41 @@ function scoreMove(c, seat, ctx) {
       if (def && ctx.needed.has(def.color)) score += 1; // まだ要る色
     }
     // ⑤方向性（ユーザー要望2026-08-08「ゲート侵攻/接触/自ゲート防衛を狙う動きを」）。ランダムで
-    // うろつかず、目的を持って動くよう、相手ゲート・相手駒への“近づき度”を加点する。
+    // うろつかず、目的を持って動くよう、相手ゲートへの“近づき度”を強めに加点する。
+    // 不具合#38「最短ルートを選ばない」対応: 途中のカード拾い（要る色+1／収穫+2等）に負けて
+    // 寄り道しないよう、1マス近づく＝+3（旧+1.5から増強）。ゲート直行を明確に優先させる。
     const here = { row: c.row, col: c.col };
     if (ctx.myCell && ctx.oppGates.length > 0) {
-      // 相手ゲートへ近づく手を優先（ゲート侵攻を狙う動き）。1マス近づく＝+1.5。
-      score += (minDistTo(ctx.myCell, ctx.oppGates) - minDistTo(here, ctx.oppGates)) * 1.5;
+      score += (minDistTo(ctx.myCell, ctx.oppGates) - minDistTo(here, ctx.oppGates)) * 3;
     }
-    if (ctx.myCell && ctx.oppPieceCells.length > 0) {
-      // 相手駒へ近づく手を軽く優先（接触を狙う動き）。上級以上はやや強め。
+    // 接触狙い（相手駒へ近づく）は「カウンターロック所持時のみ」（ユーザー方針2026-08-08:
+    // カウンターロックが無いのにむやみに相手の隣へ行かない＝接触は相手に主導権を渡すと危険）。
+    if (ctx.hasCounterLock && ctx.myCell && ctx.oppPieceCells.length > 0) {
       score += (minDistTo(ctx.myCell, ctx.oppPieceCells) - minDistTo(here, ctx.oppPieceCells)) * (ctx.oppAware ? 0.8 : 0.4);
     }
+    // カウンターロック未所持時は、相手駒の隣（＝接触されうる位置）に留まるのを避ける。
+    // ただし自ゲート上（＝侵入者を迎え撃つ防衛位置）は例外で避けない。
+    if (!ctx.hasCounterLock && ctx.oppPieceCells.length > 0) {
+      const adjToOpp = ctx.oppPieceCells.some((p) => Math.abs(p.row - here.row) + Math.abs(p.col - here.col) === 1);
+      const onMyGate = ctx.myGate && here.row === ctx.myGate.row && here.col === ctx.myGate.col;
+      if (adjToOpp && !onMyGate) score -= 1.5;
+    }
   } else if (c.occupantPlayer && c.occupantPlayer !== seat) {
-    // ④接触（体当たり）＝相手をゲートへ戻す妨害。上級以上は相手が自分以上に進んでいれば
-    // 高評価。中級でも妨害自体は概ね悪くないので軽く前向き。
-    const theirLocks = ctx.locks[c.occupantPlayer] ?? 0;
-    const myLocks = ctx.locks[seat] ?? 0;
-    if (ctx.oppAware && theirLocks >= myLocks) score += 2;
-    else score += 0.3;
-    // 自ゲート防衛: その相手が自分のゲートに乗って侵攻しようとしているなら、接触で追い返す。
-    if (ctx.myGate && c.row === ctx.myGate.row && c.col === ctx.myGate.col) score += 3;
+    // ④接触（体当たり）＝相手をゲートへ戻す妨害。
+    // 自ゲート防衛: その相手が自分のゲートに乗って侵攻しようとしているなら、カウンターロックの
+    // 有無に関わらず接触で追い返す（防衛は常に有効。ユーザー方針の例外「接触で相手の侵攻を阻止
+    // できるなら隣接可」に相当）。
+    const onMyGate = ctx.myGate && c.row === ctx.myGate.row && c.col === ctx.myGate.col;
+    if (onMyGate) {
+      score += 3;
+    } else if (ctx.hasCounterLock) {
+      // 攻めの体当たりはカウンターロック所持時のみ（未所持で不用意に接触しない）。上級以上は
+      // 相手が自分以上に進んでいれば高評価。
+      const theirLocks = ctx.locks[c.occupantPlayer] ?? 0;
+      const myLocks = ctx.locks[seat] ?? 0;
+      if (ctx.oppAware && theirLocks >= myLocks) score += 2;
+      else score += 0.3;
+    }
   }
   return score;
 }
@@ -139,6 +155,10 @@ export function chooseMoveCandidate(candidates, driveSeat) {
     oppGates: activeOpponentGateCells(state, driveSeat),
     oppPieceCells,
     myGate: myGatePos ? { row: myGatePos.row, col: myGatePos.col } : null,
+    // カウンターロックを手札に持っているか（接触の攻め/守りの判断に使う。ユーザー方針2026-08-08）。
+    hasCounterLock: state.tokens.some(
+      (t) => t.kind === "card" && t.cardId === "red-counter-lock" && t.location.zone === "hand" && t.location.player === driveSeat
+    ),
   };
   let best = -Infinity;
   const scored = candidates.map((c) => {
@@ -358,7 +378,21 @@ export function chooseEffectCell(candidates, driveSeat) {
     return card?.color && needed.has(card.color);
   });
   if (neededCardCandidates.length > 0) return rand(neededCardCandidates);
-  // それ以外はランダム（新人相当）。
+  // 優先5: 目的の無いマス選択（パーティの2枚オープンの伏せマス等、上の表向き条件に当てはまらない
+  // 場合）でも、完全ランダムで“無関係なところ”を選ばない（不具合#39対応）。相手ゲートに最も近い
+  // マスを選ぶ＝侵攻ルート上の伏せカードを偵察する、という目的を持たせる。相手ゲートが無ければ
+  // 従来どおりランダム。
+  const gateCells = activeOpponentGateCells(state, driveSeat);
+  if (gateCells.length > 0) {
+    let best = Infinity;
+    const scored = candidates.map((c) => {
+      const d = minDistTo({ row: c.row, col: c.col }, gateCells);
+      if (d < best) best = d;
+      return { c, d };
+    });
+    const closest = scored.filter((x) => x.d <= best).map((x) => x.c);
+    return rand(closest);
+  }
   return rand(candidates);
 }
 
