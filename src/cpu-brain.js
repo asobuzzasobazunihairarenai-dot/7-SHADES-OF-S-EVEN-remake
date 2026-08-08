@@ -306,13 +306,35 @@ export function chooseEffectOption(cardId, usableCandidates, driveSeat) {
 // 効果中のマス選択（type:"cell"の自動代行）用。候補に相手ゲートがあればそこを最優先で選ぶ
 // （パーティの1マス移動先・試練の隣接マス等でゲートへ向かう＝侵攻セットアップ）。無ければ
 // ランダム（新人相当）。ユーザー要望2026-08-08「ゲート侵攻に重きを」。
-// そのマスの一番上のカードが表向きなら、その色を返す（表向きは公開情報＝フェア）。
-function topFaceUpColorAt(state, row, col) {
+// そのマスの一番上の“表向き”カード（{cardId, color}）。裏向き/無しはnull（表向きは公開情報＝フェア）。
+function topFaceUpCardAt(state, row, col) {
   const cards = state.tokens.filter(
     (t) => t.kind === "card" && t.location.zone === "cell" && t.location.row === row && t.location.col === col
   );
   const top = cards[cards.length - 1]; // 末尾＝一番上（1番上の原則）
-  return top && top.faceUp ? getCardDefinition(top.cardId)?.color : null;
+  if (!top || !top.faceUp) return null;
+  return { cardId: top.cardId, color: getCardDefinition(top.cardId)?.color ?? null };
+}
+
+// そのマスのカードを取り除くと、相手のゲート侵攻の踏み台を1つ潰せるか（ユーザー要望2026-08-08
+// 「人間のゲート侵攻を予測して移動予定先のカードを無くす」）。移動は移動先にカードが必要なため、
+// 侵攻経路上のカードを拾ってしまえば相手はそのマスへ進めない。判定: 自分のゲートを脅かしている
+// （近い）相手駒に隣接し、かつ自分のゲートにその相手駒より近いマス＝相手の“次の一歩”。
+function blocksOpponentInvasionStep(state, seat, cell) {
+  const gatePos = GATE_POSITIONS[SEAT_TO_SIDE[seat]];
+  if (!gatePos) return false;
+  const gateCell = { row: gatePos.row, col: gatePos.col };
+  const distToGate = (p) => Math.abs(p.row - gateCell.row) + Math.abs(p.col - gateCell.col);
+  const cellDist = distToGate(cell);
+  const active = state.activePlayers ?? [];
+  for (const t of state.tokens) {
+    if (t.kind !== "piece" || t.player === seat || !active.includes(t.player) || t.location.zone !== "cell") continue;
+    const opp = { row: t.location.row, col: t.location.col };
+    const oppDist = distToGate(opp);
+    const adjacent = Math.abs(cell.row - opp.row) + Math.abs(cell.col - opp.col) === 1;
+    if (oppDist <= 4 && adjacent && cellDist < oppDist) return true; // 相手が侵攻中で、cellはその踏み台
+  }
+  return false;
 }
 
 export function chooseEffectCell(candidates, driveSeat) {
@@ -323,11 +345,17 @@ export function chooseEffectCell(candidates, driveSeat) {
   const gates = activeOpponentGateCells(state, driveSeat);
   const gateCandidates = candidates.filter((c) => gates.some((g) => g.row === c.row && g.col === c.col));
   if (gateCandidates.length > 0) return rand(gateCandidates);
-  // 優先2: まだ要る色の“表向き”カードがあるマス（収穫と種まき等でそれを拾えば7色勝利へ前進）。
+  // 優先2: 自ゲート防衛。相手の侵攻経路上のカードがあれば拾って踏み台を潰す（進めなくする）。
+  const defensiveCandidates = candidates.filter((c) => topFaceUpCardAt(state, c.row, c.col) && blocksOpponentInvasionStep(state, driveSeat, c));
+  if (defensiveCandidates.length > 0) return rand(defensiveCandidates);
+  // 優先3: 場のジャンプ台は積極的に手札に加える（ユーザー要望2026-08-08。機動力/防衛の道具）。
+  const jumpPadCandidates = candidates.filter((c) => topFaceUpCardAt(state, c.row, c.col)?.cardId === "red-jump-pad");
+  if (jumpPadCandidates.length > 0) return rand(jumpPadCandidates);
+  // 優先4: まだ要る色の“表向き”カードがあるマス（拾えば7色勝利へ前進）。
   const needed = neededColors(state, driveSeat);
   const neededCardCandidates = candidates.filter((c) => {
-    const col = topFaceUpColorAt(state, c.row, c.col);
-    return col && needed.has(col);
+    const card = topFaceUpCardAt(state, c.row, c.col);
+    return card?.color && needed.has(card.color);
   });
   if (neededCardCandidates.length > 0) return rand(neededCardCandidates);
   // それ以外はランダム（新人相当）。
