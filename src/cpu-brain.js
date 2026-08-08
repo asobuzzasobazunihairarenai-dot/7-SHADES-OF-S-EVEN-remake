@@ -306,13 +306,32 @@ export function chooseEffectOption(cardId, usableCandidates, driveSeat) {
 // 効果中のマス選択（type:"cell"の自動代行）用。候補に相手ゲートがあればそこを最優先で選ぶ
 // （パーティの1マス移動先・試練の隣接マス等でゲートへ向かう＝侵攻セットアップ）。無ければ
 // ランダム（新人相当）。ユーザー要望2026-08-08「ゲート侵攻に重きを」。
+// そのマスの一番上のカードが表向きなら、その色を返す（表向きは公開情報＝フェア）。
+function topFaceUpColorAt(state, row, col) {
+  const cards = state.tokens.filter(
+    (t) => t.kind === "card" && t.location.zone === "cell" && t.location.row === row && t.location.col === col
+  );
+  const top = cards[cards.length - 1]; // 末尾＝一番上（1番上の原則）
+  return top && top.faceUp ? getCardDefinition(top.cardId)?.color : null;
+}
+
 export function chooseEffectCell(candidates, driveSeat) {
   if (!candidates || candidates.length === 0) return null;
   const state = getState();
+  const rand = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  // 優先1: 相手ゲートに乗れる候補（ゲート侵攻セットアップ）。
   const gates = activeOpponentGateCells(state, driveSeat);
   const gateCandidates = candidates.filter((c) => gates.some((g) => g.row === c.row && g.col === c.col));
-  const pool = gateCandidates.length > 0 ? gateCandidates : candidates;
-  return pool[Math.floor(Math.random() * pool.length)];
+  if (gateCandidates.length > 0) return rand(gateCandidates);
+  // 優先2: まだ要る色の“表向き”カードがあるマス（収穫と種まき等でそれを拾えば7色勝利へ前進）。
+  const needed = neededColors(state, driveSeat);
+  const neededCardCandidates = candidates.filter((c) => {
+    const col = topFaceUpColorAt(state, c.row, c.col);
+    return col && needed.has(col);
+  });
+  if (neededCardCandidates.length > 0) return rand(neededCardCandidates);
+  // それ以外はランダム（新人相当）。
+  return rand(candidates);
 }
 
 // --- 手札効果の能動使用（ユーザー要望2026-08-08「CPUに手札効果を使わせる」）-----------------
@@ -326,10 +345,21 @@ const HAND_EFFECT_VALUE = {
 
 export function chooseHandEffectCard(usableCards, driveSeat) {
   if (!usableCards || usableCards.length === 0) return null;
+  const state = getState();
+  const handCount = state.tokens.filter(
+    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === driveSeat
+  ).length;
+  const valueOf = (t) => {
+    let v = HAND_EFFECT_VALUE[t.cardId] ?? 0;
+    // スラム上がりの役人: 使用時にこのカードを捨ててから「手札が1枚以下なら2枚ドロー」を判定する
+    // （＝使用前の手札が2枚以下の時だけ得。3枚以上だと不発でただ1枚失うので使わない）。
+    if (t.cardId === "blue-slum-official") v = handCount <= 2 ? 2 : 0;
+    return v;
+  };
   let best = null;
-  let bestScore = 0; // 0以下（未登録＝使わない）は採用しない
+  let bestScore = 0; // 0以下（未登録／今は使うべきでない）は採用しない
   for (const t of usableCards) {
-    const score = HAND_EFFECT_VALUE[t.cardId] ?? 0;
+    const score = valueOf(t);
     if (score > bestScore) {
       bestScore = score;
       best = t;
