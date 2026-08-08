@@ -988,7 +988,14 @@ async function runAction(action, ctx, helpers) {
       // しているので１枚ドローします』みたいなモーダルを出してからドローして
       // ください」。判定条件（盤面全体のロック枚数比較）は見ただけでは分からないため、
       // 先に理由を説明してから実際にドローする。
-      await helpers.announceEffectReason?.(ctx.cardId, "あなたは１番少なくロックしているので１枚ドローします。");
+      // ユーザー要望2026-08-08「相手がカウンターロックに到達した時、自分の画面で『あなた』ではなく
+      // そのプレイヤー名を表示してほしい」。効果の主語は発動者(ctx.player)。オンラインではこの文言を
+      // 全員へ中継する（announceEffectReason）ため、「あなた」だと受け手全員に「あなた」と出て
+      // しまう。常に発動者の名前で表示する。
+      await helpers.announceEffectReason?.(
+        ctx.cardId,
+        `${helpers.getPlayerName(ctx.player)}は１番少なくロックしているので１枚ドローします。`
+      );
       await helpers.drawCards(ctx.player, 1);
       return true;
     }
