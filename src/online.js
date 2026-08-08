@@ -409,6 +409,22 @@ export function broadcastEffectReason(payload) {
   }
 }
 
+// 試練の儀式で「踏んだカード」の中央じらしフリップ演出を全員に配信する（ユーザー要望2026-08-08:
+// 踏んだカードは公開情報なので、実行者だけでなく全プレイヤーが同じ演出を見られるように）。
+// hand_effect_use/effect_reasonと同じ「状態は変えない見た目だけの合図」パターン。
+let steppedCardRevealEventListeners = [];
+export function onSteppedCardRevealEvents(fn) {
+  steppedCardRevealEventListeners.push(fn);
+  return () => {
+    steppedCardRevealEventListeners = steppedCardRevealEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastSteppedCardReveal(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "stepped_card_reveal", payload });
+  }
+}
+
 // ユーザー要望「今相手が何のフェイズかをフェイズ案内板でわかるようにしたい」。フェイズの
 // 進行状態（ロック/ハンド/ムーブ）は各クライアントのphase-automation.jsが自分の手番の
 // 間だけローカルに持つもので共有ゲーム状態には無いため、hand_effect_useと同じ「状態は
@@ -2397,6 +2413,10 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // 効果の結果理由モーダルの通知（broadcastEffectReason参照）。
     .on("broadcast", { event: "effect_reason" }, ({ payload }) => {
       for (const fn of effectReasonEventListeners) fn(payload);
+    })
+    // 試練の儀式「踏んだカード」の中央じらしフリップ演出の通知（broadcastSteppedCardReveal参照）。
+    .on("broadcast", { event: "stepped_card_reveal" }, ({ payload }) => {
+      for (const fn of steppedCardRevealEventListeners) fn(payload);
     })
     // 相手のフェイズ表示の通知（broadcastPhaseChange参照）。
     .on("broadcast", { event: "phase_change" }, ({ payload }) => {

@@ -236,6 +236,8 @@ import {
   onHandEffectUseEvents,
   broadcastEffectReason,
   onEffectReasonEvents,
+  broadcastSteppedCardReveal,
+  onSteppedCardRevealEvents,
   broadcastColorsDeclared,
   onColorsDeclaredEvents,
   broadcastColorsResolved,
@@ -1580,6 +1582,13 @@ onEffectReasonEvents(({ fromPlayer, cardId, text }) => {
   if (fromPlayer === getSelfSeat()) return;
   showEffectReasonModal(cardId, text);
 });
+// 試練の儀式「踏んだカード」の中央じらしフリップ演出を、実行者以外の全プレイヤーにも再生する
+// （ユーザー要望2026-08-08。踏んだカードは公開情報。本人はannounceSteppedCardForEffect内で
+// ローカル再生済みなので、ここでは自分以外からの通知だけを再生する）。
+onSteppedCardRevealEvents(({ fromPlayer, cardId }) => {
+  if (fromPlayer === getSelfSeat()) return;
+  playCenterCardFlipReveal(cardId, { labelText: "踏んだ" });
+});
 // ユーザー要望「試練の儀式やザ・ギャンブルなどで色宣言するとき相手が何色を宣言したかを
 // 見える化したい」（続き62、続き65で丸い色アイコン＋常駐表示に改訂）。宣言した本人は
 // 自分の操作（confirmBtnのクリックハンドラ）で既にshowDeclaredColorsIndicatorを
@@ -2050,6 +2059,9 @@ async function announceEffectFizzleForEffect(cardId, addsToHand) {
 function announceSteppedCardForEffect(cardId) {
   // ユーザー要望2026-08-08「試練の儀式も、移動先をしっかり周知した後、じらしフリップで」。
   // ザ・ギャンブルと同じ中央“じらしフリップ”で踏んだカードを公開する（静的な受け取りモーダルから変更）。
+  // 踏んだカードは公開情報なので、オンラインでは全プレイヤーに配信して同じ演出を見せる
+  // （ユーザー要望2026-08-08。本人はこの後ローカルでも再生する。他クライアントは受信側で再生）。
+  if (isOnlineMode()) broadcastSteppedCardReveal({ fromPlayer: getSelfSeat(), cardId });
   return playCenterCardFlipReveal(cardId, { labelText: "踏んだ" });
 }
 
