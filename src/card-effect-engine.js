@@ -540,13 +540,20 @@ function getLockableHandTokensExceptFinal(player) {
   const candidateSlotsFor = (token) => {
     if (emptySlots.length === 0) return [];
     const color = getCardDefinition(token.cardId)?.color;
-    if (color === "white" || color === "black") return emptySlots;
+    // 無色（白・黒）と虹（なないろの欠片）は特定の色スロットに縛られないので、空いている
+    // どのスロットにも置ける（プレイヤーがどの色にするか選ぶ）。虹をセレナーデでロックする
+    // 場合は「色を選んで1枚だけ」ロックする（不具合#52、serenade-rainbow-shard-lock-rule。
+    // 虹本来の手札効果=2枚ロックとは別で、ここでは単体を1スロットに置く＝勝利判定でも1色）。
+    if (color === "white" || color === "black" || color === "rainbow") return emptySlots;
     const idx = COLORS.indexOf(color);
     const matching = emptySlots.filter((s) => s.index === idx);
     return idx >= 0 ? matching : [];
   };
+  // 以前はなないろの欠片を候補から一律除外していたが、ユーザー報告#52「ピンクを追色コストに
+  // 払い、なないろの欠片をロックできる状況なのにセレナーデが使えない」への対応で、虹も
+  // セレナーデのロック対象に含める（色は上のcandidateSlotsForでプレイヤーが選ぶ）。
   const handTokens = getState().tokens.filter(
-    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player && t.cardId !== "rainbow-shard"
+    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player
   );
   const tokens = handTokens.filter((t) => candidateSlotsFor(t).length > 0);
   return { candidateSlotsFor, tokens };
