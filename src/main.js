@@ -27,6 +27,7 @@ import {
   canUseHandEffect,
   runHandEffect,
   canPayHandEffectCost,
+  getHandEffectUnusableReason,
   hasHandEffectData,
   isHandEffectReactiveOnly,
   isAutoProcessingEnabled,
@@ -4405,9 +4406,13 @@ async function tryUseLockedUsableCard(tokenId) {
   } else if (!canPayHandEffectCost(useToken.cardId, useToken.id, owner)) {
     alert("捨てられる同じ色のカードが手札にありません。");
   } else {
-    // 追色は払えるがcanUseHandEffectがfalse＝使用回数の上限・このターン使用済み・自動処理OFF等。
-    // 従来は何の反応も無く「使えない」ように見えていた（ユーザー報告）ので、理由を軽く案内する。
-    alert("今はこのカードの効果を使えません（使用回数の上限や、このターン使用済みの可能性があります）。");
+    // 追色は払えるがcanUseHandEffectがfalse。不具合報告#52（まだ使っていないのに「使用済みの
+    // 可能性がある」と出る）への対応で、正確な不許可理由を出す（使用回数だけでなく、ロックできる
+    // 手札が無い／最後の1色＝勝利になるロックはできない等、実際の理由を伝える）。
+    const reason =
+      getHandEffectUnusableReason(useToken.cardId, useToken.id, owner) ||
+      "今はこのカードの効果を使えません。";
+    alert(reason);
   }
 }
 

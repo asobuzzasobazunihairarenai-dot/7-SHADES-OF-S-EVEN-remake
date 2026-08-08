@@ -201,6 +201,53 @@ export function isHandEffectOptionUsable(cardId, cardTokenId, player, option) {
   return true;
 }
 
+// 1つの選択肢が「今使えない理由」を日本語で返す（使えるならnull）。isHandEffectOptionUsableと
+// 全く同じ順序・同じ条件で判定し、最初に引っかかった理由の説明文を返す。ユーザー報告#52
+// 「まだセレナーデを一度も使っていないのに『使用済みの可能性がある』と出て使えない」への対応
+// ——実際の不許可理由（追色コスト不足／ロックできる手札が無い／このカードでは勝利になる
+// 最後のロックはできない、等）を正確に伝え、誤解を招く定型文を出さないようにするため。
+function explainHandEffectOptionUnusable(cardId, cardTokenId, player, option) {
+  if (!autoProcessingEnabled) return "自動処理モードがOFFのため、手札効果を自動では使えません。";
+  if (isHandEffectDisabledThisTurn(cardTokenId)) return "このターンは別の効果によって、このカードの手札効果が封じられています。";
+  if (!isUnderUsageLimit(option.usageLimit, cardId, player)) return "この効果はこのターンに使える回数の上限に達しています（このターン使用済みです）。";
+  if (option.cost?.verb === VERBS.DISCARD_SAME_COLOR) {
+    const color = getCardDefinition(cardId)?.color;
+    const candidates = findSameColorDiscardCandidates(cardTokenId, color, player);
+    if (candidates.length < option.cost.count) return "追色コストを払えません（コストとして捨てられる同じ色の手札がありません）。";
+  }
+  if (option.requiresPairInHand) {
+    const count = getState().tokens.filter(
+      (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player && t.cardId === cardId
+    ).length;
+    if (count < 2) return "この効果を使うには、同じカードが手札に2枚必要です。";
+  }
+  if (option.requiresLockableCardAvailable) {
+    const { tokens } = getLockableHandTokensExceptFinal(player);
+    if (tokens.length === 0)
+      return "今ロックできる手札がありません（空きスロットが無い・色が合わない、またはこのカードでは最後の1色＝勝利になるロックはできないためです）。";
+  }
+  const drawIfAtMost = option.actions?.find((a) => a.verb === VERBS.DRAW_IF_HAND_AT_MOST);
+  if (drawIfAtMost) {
+    const handCountExcludingSelf = getHandTokens(player).filter((t) => t.id !== cardTokenId).length;
+    if (handCountExcludingSelf > drawIfAtMost.maxHandSize) return "手札が多いため、この効果（手札が少ない時にドローする効果）は今は使えません。";
+  }
+  const discardOne = option.actions?.find((a) => a.verb === VERBS.DISCARD_ONE_HAND_CARD);
+  if (discardOne) {
+    const otherHandCount = getHandTokens(player).filter((t) => t.id !== cardTokenId).length;
+    if (otherHandCount < 1) return "手札に他のカードが無いため、この効果を使えません。";
+  }
+  return null;
+}
+
+// このカードの手札効果が今使えない場合の理由（使えるならnull）。どれか1つでも使える選択肢が
+// あればnull（＝使える）。全て使えない時は最初の選択肢の理由を返す（大半のカードは選択肢1つ）。
+export function getHandEffectUnusableReason(cardId, cardTokenId, player) {
+  const options = getHandEffectOptions(cardId);
+  if (options.length === 0) return "このカードは手札効果を持っていません。";
+  if (options.some((opt) => isHandEffectOptionUsable(cardId, cardTokenId, player, opt))) return null;
+  return explainHandEffectOptionUnusable(cardId, cardTokenId, player, options[0]);
+}
+
 // このカードの手札効果を今使ってよいか（いずれかの選択肢が使えるか）。トリガーUI側
 // （main.js）が「使用する」操作を有効にするかどうかの判定にも、Hand Phaseの自動
 // スキップ判定にも使う共通関数。
