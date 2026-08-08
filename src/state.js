@@ -805,8 +805,12 @@ export function sendTokenToPile(tokenId, pile) {
   dispatch({ type: "SEND_TOKEN_TO_PILE", tokenId, pile });
 }
 
-export function drawFromPile(pile, location) {
-  if (onlineMode && onlineTransport) return onlineTransport({ type: "DRAW_FROM_PILE", pile, location });
+// revealToActor: 試練の儀式専用。山札から盤面(cell)へ“裏向き”で置いたカードの中身を、引いた
+// 本人（リクエスト元）にだけサーバー応答で返してもらうフラグ（盤面は伏せたまま＝他プレイヤーには
+// 見えない。オンラインでもローカル同様のじらしフリップを実現するため。so7-apply-action.ts参照）。
+export function drawFromPile(pile, location, revealToActor = false) {
+  if (onlineMode && onlineTransport)
+    return onlineTransport({ type: "DRAW_FROM_PILE", pile, location, ...(revealToActor ? { revealToActor: true } : {}) });
   dispatch({ type: "DRAW_FROM_PILE", pile, location });
 }
 

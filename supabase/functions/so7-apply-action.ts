@@ -1056,6 +1056,13 @@ Deno.serve(async (req) => {
       ) {
         revealedCardId = drawnToken.cardId ?? null;
       }
+    } else if (action.type === "DRAW_FROM_PILE" && action.revealToActor && action.location?.zone === "cell") {
+      // 試練の儀式専用（ユーザー要望2026-08-08「オンラインもローカル同様のじらしフリップに」）。
+      // 山札から盤面(cell)へ“裏向き”で置いたカードの中身を、引いた本人（＝このリクエスト元）にだけ
+      // 応答で返す。盤面のカード自体は伏せたまま（faceUpForLocationでcell=裏向き）＝他プレイヤーの
+      // ビューには中身が出ない。応答はリクエストした本人にしか返らないため山札の中身は漏れない。
+      const drawnToken = next.tokens[next.tokens.length - 1];
+      if (drawnToken && drawnToken.location.zone === "cell") revealedCardId = drawnToken.cardId ?? null;
     }
 
     return json({ ok: true, revealedCardId });

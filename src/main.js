@@ -1149,6 +1149,31 @@ async function placeFromDeckForEffect(location) {
   playSound("cardPlace");
 }
 
+// 試練の儀式専用（ユーザー要望2026-08-08「オンラインもローカル同様のじらしフリップに」）。
+// 山札の一番上を指定マスへ“裏向きのまま”置き、置いたカードのcardIdを返す。オンラインでは
+// 伏せカードの中身がRLSで隠れて盤面から読めないため、revealToActorでサーバーに頼み、引いた
+// 本人（リクエスト元）にだけ中身を返してもらう（盤面は伏せたまま＝他プレイヤーには見えない）。
+// これで盤面を先にめくらずに中央じらしフリップができる。サーバー未再デプロイ時はnullを返し、
+// 呼び出し側（RITUAL_PLACE_MOVE_REPEAT）が従来の「先に表向きにして判明」経路へフォールバックする。
+async function placeFromDeckRevealForEffect(location) {
+  let revealedCardId = null;
+  if (isOnlineMode()) {
+    try {
+      const result = await drawFromPile("deck", location, true);
+      revealedCardId = result?.revealedCardId ?? null;
+      await fetchAndHydrate(getCurrentGameId());
+    } catch (err) {
+      console.error("placeFromDeckRevealForEffect failed", err);
+      return null;
+    }
+  } else {
+    drawFromPile("deck", location);
+    revealedCardId = findTopCardAt(location)?.cardId ?? null; // ローカルは全state可視で中身が読める
+  }
+  playSound("cardPlace");
+  return revealedCardId;
+}
+
 // マスチェンジの入れ替え演出（ユーザー要望2026-08-08「お互いの駒が発光し、不安定な電撃の
 // ような光で結ばれて入れ替わる」）。2駒の中心を、ジグザグの稲妻（一定間隔で形を作り直して
 // “不安定”に見せる）で結ぶSVGを、ステージ座標に重ねる。呼び出し側が.remove()で消す。
@@ -4310,6 +4335,7 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         markPlacementTarget: markEffectPlacementTarget,
         markPlacedLocation: markEffectJustPlaced,
         placeFromDeck: placeFromDeckForEffect,
+        placeFromDeckReveal: placeFromDeckRevealForEffect,
         swapPieces: swapPiecesForEffect,
         triggerArrivalAtIfFaceUp: triggerArrivalAtIfFaceUpForEffect,
         announceUse: announceHandEffectUseForEffect,
@@ -4411,6 +4437,7 @@ async function runAutoArrivalEffect(cardId, location, player) {
       markPlacementTarget: markEffectPlacementTarget,
       markPlacedLocation: markEffectJustPlaced,
       placeFromDeck: placeFromDeckForEffect,
+      placeFromDeckReveal: placeFromDeckRevealForEffect,
       swapPieces: swapPiecesForEffect,
       triggerArrivalAtIfFaceUp: triggerArrivalAtIfFaceUpForEffect,
       // カウンターロックの到達効果（１番少なくロックしているなら1枚ドロー）用。

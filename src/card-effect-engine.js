@@ -1302,22 +1302,26 @@ async function runAction(action, ctx, helpers) {
         // ない」。山札から“裏向き”で置き（盤面ではまだ中身が見えない）、下で中央じらしフリップで
         // 公開してから盤面のカードも表向きにする。裏向き置き（placeFromDeck）は戻り値でcardIdを
         // 返さないため、置いたカードは盤面のそのマスの一番上（DRAW_FROM_PILEは末尾に追加）から取る。
-        await helpers.placeFromDeck?.(dest);
+        // 山札から“裏向き”で置く（盤面ではまだ中身が見えない）。オンラインでもローカル同様の
+        // じらしフリップにするため（ユーザー要望2026-08-08）、placeFromDeckRevealは「引いた本人
+        // だけに中身(cardId)を返す」——サーバーが revealToActor でリクエスト元にのみcardIdを返し、
+        // 盤面のカードは伏せたまま（他プレイヤーには見えない）。これにより下の中央じらしフリップ→
+        // 盤面フリップの順で、オンラインでもドキドキ感が出る。
+        const revealedCardId = (await helpers.placeFromDeckReveal?.(dest)) ?? null;
         const topCardAtDest = () =>
           getState()
             .tokens.filter((t) => t.kind === "card" && t.location.zone === "cell" && t.location.row === dest.row && t.location.col === dest.col)
             .slice(-1)[0];
         let placedToken = topCardAtDest();
-        // 不具合#41（オンライン）: 伏せて置いたカードの中身(cardId)はオンラインではRLSで隠され、
-        // クライアントからは読めない（＝undefined）。読めないと色判定ができず即中断→移動もフリップも
-        // 起きず「残念でした」で終わっていた（ローカルは全状態が見えるため中身が読めて動作＝オンライン
-        // だけ壊れていた）。中身が読めない時は先に盤面のカードを表向きにして判明させ、位置で引き直す
-        // （この場合だけ盤面が先に見え“じらし”は効かない。ローカルは従来どおり伏せたままじらせる）。
-        if (placedToken && !placedToken.cardId) {
+        let placedCardId = revealedCardId ?? placedToken?.cardId;
+        // フォールバック（不具合#41）: サーバー未再デプロイ等で中身が返らず、かつオンラインでは
+        // 伏せカードの中身がRLSで隠れて盤面からも読めない場合は、先に盤面のカードを表向きにして
+        // 判明させる（この時だけ盤面が先に見え“じらし”は効かないが、不発にはならず正常動作する）。
+        if (placedToken && !placedCardId) {
           await helpers.flipCard?.(placedToken.id);
           placedToken = topCardAtDest();
+          placedCardId = placedToken?.cardId;
         }
-        const placedCardId = placedToken?.cardId;
         if (!placedCardId) break; // 山札切れ等
         placedAny = true;
         // 続き59: 到達効果を得ない移動（ctx.arrivedAtを意図的にセットしない）である旨を
