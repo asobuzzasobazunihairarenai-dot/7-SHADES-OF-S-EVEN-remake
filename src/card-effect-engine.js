@@ -32,6 +32,12 @@ import { wouldCompleteLockWithNewIndex } from "./victory.js";
 // デフォルトに戻る）。まだ試験運用中の機能のため、アカウントへの永続化はしない。
 // ユーザー要望（続き63）によりデフォルトをONに変更（以前はOFF）。
 let autoProcessingEnabled = true;
+
+// 試練の儀式（RITUAL_PLACE_MOVE_REPEAT）の再入ガード（不具合#46）。オンラインで到達効果が二重に
+// 発火する（同じカードの arrival が depth1/depth2 で連続して起きる）と、儀式が二重に走って色宣言
+// モーダルが重なり「選択しても閉じない」等の異常になっていた。儀式は同時に2つ走ることは無いので、
+// 既に処理中なら2つ目は即座に何もしないで抜ける。
+let ritualPlaceMoveInProgress = false;
 export function isAutoProcessingEnabled() {
   return autoProcessingEnabled;
 }
@@ -1279,6 +1285,10 @@ async function runAction(action, ctx, helpers) {
       // 持たせてある（実戦で現実的に到達し得ない回数）。
       let declaredColors = ctx.selections.declaredColors;
       if (!declaredColors?.length) return false;
+      // 不具合#46: 到達効果の二重発火で儀式が2つ同時に走らないようにする（再入ガード）。
+      if (ritualPlaceMoveInProgress) return false;
+      ritualPlaceMoveInProgress = true;
+      try {
       let placedAny = false;
       let successCount = 0; // 宣言色に当たった回数（試練は必ずハズレで終わるので、最後にまとめて祝う）
       const MAX_ITERATIONS = 300;
@@ -1369,6 +1379,9 @@ async function runAction(action, ctx, helpers) {
         await helpers.announceEffectReason?.(ctx.cardId, `残念でした。${ritualName}は宣言した色が出ませんでした。`);
       }
       return placedAny;
+      } finally {
+        ritualPlaceMoveInProgress = false;
+      }
     }
     case VERBS.ALL_PLAYERS_PLACE_ONE_CARD_IN_EMPTY_CELL: {
       // 合同建設専用: 全員がそれぞれ「何もない1マスに山札または手札から1枚裏向きで
