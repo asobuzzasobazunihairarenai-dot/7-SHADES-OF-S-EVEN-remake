@@ -97,24 +97,30 @@ function scoreMove(c, seat, ctx) {
     if (ctx.hasCounterLock && ctx.myCell && ctx.oppPieceCells.length > 0) {
       score += (minDistTo(ctx.myCell, ctx.oppPieceCells) - minDistTo(here, ctx.oppPieceCells)) * (ctx.oppAware ? 0.8 : 0.4);
     }
+    // 自ゲート防衛（占有）。ユーザー指摘2026-08-08「自ゲートに乗られた時点で侵攻はもう手遅れ」。
+    // 実効的な防御は“乗られる前に自駒で自ゲートを占有する”こと——相手は占有マスへ着地できず
+    // 接触どまりになり（main.jsの移動候補は占有マスを除外）、接触では攻撃側はその場に留まる
+    // （state.js RESPOND_CONTACT）ため、ゲート侵攻（＝ゲートへの着地）が成立しない。よって相手駒が
+    // 自ゲートに接近（マンハッタン距離≤2）している時に自ゲートへ移動する手を高く評価する。
+    const onMyGateHere = ctx.myGate && here.row === ctx.myGate.row && here.col === ctx.myGate.col;
+    if (onMyGateHere) {
+      const threatened = ctx.oppPieceCells.some(
+        (p) => Math.abs(p.row - ctx.myGate.row) + Math.abs(p.col - ctx.myGate.col) <= 2
+      );
+      if (threatened) score += 5; // 侵攻が迫っている時だけ自ゲートを固める（普段は前進を優先）
+    }
     // カウンターロック未所持時は、相手駒の隣（＝接触されうる位置）に留まるのを避ける。
-    // ただし自ゲート上（＝侵入者を迎え撃つ防衛位置）は例外で避けない。
+    // ただし自ゲート占有（上の防衛）位置は例外で避けない。
     if (!ctx.hasCounterLock && ctx.oppPieceCells.length > 0) {
       const adjToOpp = ctx.oppPieceCells.some((p) => Math.abs(p.row - here.row) + Math.abs(p.col - here.col) === 1);
-      const onMyGate = ctx.myGate && here.row === ctx.myGate.row && here.col === ctx.myGate.col;
-      if (adjToOpp && !onMyGate) score -= 1.5;
+      if (adjToOpp && !onMyGateHere) score -= 1.5;
     }
   } else if (c.occupantPlayer && c.occupantPlayer !== seat) {
-    // ④接触（体当たり）＝相手をゲートへ戻す妨害。
-    // 自ゲート防衛: その相手が自分のゲートに乗って侵攻しようとしているなら、カウンターロックの
-    // 有無に関わらず接触で追い返す（防衛は常に有効。ユーザー方針の例外「接触で相手の侵攻を阻止
-    // できるなら隣接可」に相当）。
-    const onMyGate = ctx.myGate && c.row === ctx.myGate.row && c.col === ctx.myGate.col;
-    if (onMyGate) {
-      score += 3;
-    } else if (ctx.hasCounterLock) {
-      // 攻めの体当たりはカウンターロック所持時のみ（未所持で不用意に接触しない）。上級以上は
-      // 相手が自分以上に進んでいれば高評価。
+    // ④接触（体当たり）。攻めの体当たりはカウンターロック所持時のみ（未所持で不用意に接触しない、
+    // ユーザー方針2026-08-08）。上級以上は相手が自分以上に進んでいれば高評価。
+    // ※「自ゲート上の侵入者への体当たり」は、相手のターン終了時に侵攻が既に解決しているため
+    //   そもそも発生しない“手遅れ”の状況（ユーザー指摘）。ここでは特別扱いしない。
+    if (ctx.hasCounterLock) {
       const theirLocks = ctx.locks[c.occupantPlayer] ?? 0;
       const myLocks = ctx.locks[seat] ?? 0;
       if (ctx.oppAware && theirLocks >= myLocks) score += 2;
