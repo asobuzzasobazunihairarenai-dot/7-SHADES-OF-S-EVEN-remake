@@ -10443,14 +10443,26 @@ function initCameraControls() {
   // （maximum-scale=1.0, user-scalable=no）＋.sceneのtouch-action:noneで無効化済みのため、
   // ここでは.scene上の指の動きだけを見て、代わりにmanualZoomを直接動かす（マウスホイールと
   // 全く同じ入り口）。
+  // ユーザー要望2026-08-08「スマホで指二本タップ状態で盤面を自由に画角調整できるように
+  // してほしい。PCではマウスホイール押し込み(中クリックドラッグ)でできる」。以前は2本指は
+  // ピンチ=ズームのみだったが、2本指の中点(重心)の移動でパン(manualPanX/Y)も同時に動かす
+  // ようにして、中クリックドラッグと同じ自由な画角調整を指2本でできるようにした。
   const activeTouches = new Map(); // pointerId -> {x, y}
   let pinchStartDist = null;
   let pinchStartZoom = 1;
+  let pinchStartCentroid = null; // {x, y} 実画面ピクセル
+  let pinchStartPanX = 0;
+  let pinchStartPanY = 0;
 
   function touchDistance() {
     const pts = Array.from(activeTouches.values());
     if (pts.length < 2) return null;
     return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+  }
+  function touchCentroid() {
+    const pts = Array.from(activeTouches.values());
+    if (pts.length < 2) return null;
+    return { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
   }
 
   scene.addEventListener("pointerdown", (e) => {
@@ -10470,13 +10482,23 @@ function initCameraControls() {
     activeTouches.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (activeTouches.size !== 2) return;
     const dist = touchDistance();
-    if (dist == null) return;
+    const centroid = touchCentroid();
+    if (dist == null || centroid == null) return;
     if (pinchStartDist == null) {
+      // 2本指が揃った瞬間を基準に取り直す（ズーム=指間距離、パン=中点の移動）。
       pinchStartDist = dist;
       pinchStartZoom = manualZoom;
+      pinchStartCentroid = centroid;
+      pinchStartPanX = manualPanX;
+      pinchStartPanY = manualPanY;
       return;
     }
     manualZoom = Math.min(4, Math.max(0.3, pinchStartZoom * (dist / pinchStartDist)));
+    // 2本指の中点の移動ぶんだけパンする。中クリックドラッグと同じく、実画面ピクセルの差分を
+    // ステージのローカルピクセルへ変換(stageDelta)してからremへ換算する。
+    const rootFontSizePx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    manualPanX = pinchStartPanX + stageDelta(centroid.x - pinchStartCentroid.x) / rootFontSizePx;
+    manualPanY = pinchStartPanY + stageDelta(centroid.y - pinchStartCentroid.y) / rootFontSizePx;
     hasManualView = true;
     fitTableToViewport();
     updateBoardZoomButtonLabel();
@@ -10484,7 +10506,10 @@ function initCameraControls() {
   function releaseTouch(e) {
     if (e.pointerType !== "touch") return;
     activeTouches.delete(e.pointerId);
-    if (activeTouches.size < 2) pinchStartDist = null;
+    if (activeTouches.size < 2) {
+      pinchStartDist = null;
+      pinchStartCentroid = null;
+    }
   }
   window.addEventListener("pointerup", releaseTouch);
   window.addEventListener("pointercancel", releaseTouch);

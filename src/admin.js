@@ -1082,6 +1082,47 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー要望2026-08-08「スマホでの『駒消し』『カード消し』アイコンの一括位置調整を管理者
+    // モードに追加してほしい」。2つのボタン(#piece-hide-button/#card-hide-button)を同じ量だけ
+    // まとめて動かす（縦の並び間隔は保つ）。style.cssはbody.is-phone-deviceでleft/bottomに
+    // だけ効かせ、既存のタッチ用transformオフセットとは干渉しない。
+    title: "📱 スマホ専用：駒消し／カード消しアイコンの一括位置・サイズ",
+    category: "phone",
+    controls: [
+      { key: "--eraser-icons-pos-phone-x", label: "位置X（＋で右へ・一括）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--eraser-icons-pos-phone-y", label: "位置Y（＋で上へ・一括）", unit: "rem", min: -20, max: 30, step: 0.1, default: 0 },
+      { key: "--eraser-icons-size-phone", label: "アイコンの大きさ（一括）", unit: "rem", min: 1.4, max: 6, step: 0.1, default: 2.6 },
+    ],
+  },
+  {
+    // ユーザー要望2026-08-08「スマホでの相手のミニロックエリアの位置調整を管理者モードに追加
+    // してほしい」。相手側ミニロック(#mini-lock-area-top)のスマホ専用の位置・サイズ。未設定なら
+    // 従来の共通値(--mini-lock-top / --mini-lock-top-x-offset)へフォールバックする
+    // （style.cssのbody.is-phone-device #mini-lock-area-top参照）。
+    title: "📱 スマホ専用：相手のミニロックエリアの位置・サイズ",
+    category: "phone",
+    controls: [
+      { key: "--mini-lock-top-phone", label: "上からの位置（スマホ）", unit: "rem", min: -2, max: 24, step: 0.1, default: 2.2 },
+      { key: "--mini-lock-top-x-offset-phone", label: "横方向のずれ（スマホ）", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--mini-lock-top-scale-phone", label: "サイズ倍率（スマホ）", unit: "", min: 0.4, max: 2.5, step: 0.05, default: 1 },
+    ],
+  },
+  {
+    // ユーザー要望2026-08-08「スマホでの自分の手札固定時の手札公開エリアの位置・サイズ・回転を
+    // 管理者モードに追加してほしい」。手札固定ON時、公開エリア(.hand-reveal-area)は固定トレイ
+    // (#self-hand-overlay)へ移動する。トレイ全体(--fixed-hand-*-phone)とは別に、公開エリア
+    // だけをここで微調整する（style.cssのbody.is-phone-device.fixed-hand-mode
+    // #self-hand-overlay .hand-reveal-area参照。トレイ側の回転を打ち消す/上乗せする相対値）。
+    title: "📱 スマホ専用：手札固定ON時の手札公開エリアの位置・サイズ・回転",
+    category: "phone",
+    controls: [
+      { key: "--hand-reveal-fixed-phone-x", label: "位置X（スマホ）", unit: "rem", min: -40, max: 40, step: 0.1, default: 0 },
+      { key: "--hand-reveal-fixed-phone-y", label: "位置Y（スマホ）", unit: "rem", min: -40, max: 40, step: 0.1, default: 0 },
+      { key: "--hand-reveal-fixed-phone-scale", label: "サイズ倍率（スマホ）", unit: "", min: 0.3, max: 3, step: 0.05, default: 1 },
+      { key: "--hand-reveal-fixed-phone-rotate", label: "回転（平面内・スマホ）", unit: "deg", min: -180, max: 180, step: 1, default: 0 },
+    ],
+  },
+  {
     // ユーザー報告「タブレットで画角によって手札・名前が見えなくなる」への対応。手札
     // (translateZ 2.4rem/0.5rem)と名前ラベル(Z値無し=実質0)がpreserve-3d階層内で近い
     // Z値に固まっており、GPUの深度バッファ精度によってはz-fightingで「消えた」ように

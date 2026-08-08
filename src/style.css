@@ -594,6 +594,16 @@ body.is-phone-device #self-hand-overlay {
   transform: translateX(calc(-50% + var(--fixed-hand-x-offset-phone, -33.4rem)))
     scale(var(--fixed-hand-scale-phone, 1)) rotate(var(--fixed-hand-rotate-phone, 64deg));
 }
+/* スマホ＋手札固定ON時の、自分の手札公開エリア（宣言カード/公開ドロー）の位置・サイズ・回転を
+   トレイ全体(--fixed-hand-*-phone)とは別に個別調整（管理者モード、ユーザー要望2026-08-08）。
+   トレイは既に64deg回転しているので、この回転はその上に乗る相対値（既定0＝トレイ通り）。
+   .hand-reveal-bottom等が持つ既定transformを完全に置き換えるため!important。 */
+body.is-phone-device.fixed-hand-mode #self-hand-overlay .hand-reveal-area {
+  transform: translate(var(--hand-reveal-fixed-phone-x, 0rem), var(--hand-reveal-fixed-phone-y, 0rem))
+    scale(var(--hand-reveal-fixed-phone-scale, 1))
+    rotate(var(--hand-reveal-fixed-phone-rotate, 0deg)) !important;
+  transform-origin: center center;
+}
 /* 盤面ゾーン用の「中心基準に絶対配置＋3D傾き」を解除し、トレイ内で通常フロー＋フラットにする。 */
 #self-hand-overlay .hand-area {
   position: relative !important;
@@ -652,6 +662,17 @@ body.fixed-hand-mode #mini-lock-area {
   border-radius: 0.5rem;
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5);
   pointer-events: none;
+}
+/* スマホ専用: 相手のミニロックエリアの位置・サイズ（管理者モード、ユーザー要望2026-08-08）。
+   未設定なら従来の共通値(--mini-lock-top / --mini-lock-top-x-offset / --mini-lock-x-offset)へ
+   フォールバックする。詳細度がベース(#id)より高い(#id + .class)ので確実に上書きされる。 */
+body.is-phone-device #mini-lock-area-top {
+  top: var(--mini-lock-top-phone, var(--mini-lock-top, 2.2rem));
+  transform: translateX(
+      calc(-50% + var(--mini-lock-top-x-offset-phone, var(--mini-lock-top-x-offset, var(--mini-lock-x-offset, 0rem))))
+    )
+    scale(var(--mini-lock-top-scale-phone, 1));
+  transform-origin: top center;
 }
 /* 自分のミニロックと、その右隣のミニ捨て場を横並びにする。 */
 .mini-lock-self-wrap {
@@ -6346,6 +6367,25 @@ body.is-touch-device #piece-hide-button .icon-action-button-icon-wrap {
 body.is-touch-device #card-hide-button .icon-action-button-icon-wrap {
   width: var(--icon-size-card-hide-touch, var(--icon-size-card-hide, 2.6rem));
   height: var(--icon-size-card-hide-touch, var(--icon-size-card-hide, 2.6rem));
+}
+/* スマホ専用: 駒消し/カード消しアイコンの一括位置・サイズ調整（管理者モード、ユーザー要望
+   2026-08-08）。left/bottomにだけ効かせるので、上のタッチ用transformオフセットとは干渉せず、
+   2つのボタンを同じ量だけまとめて動かせる（縦の並び間隔は保たれる）。+Yで上へ・+Xで右へ。
+   これらの行はis-touch-deviceのルールより後に来るので、スマホでの同詳細度の上書きが効く。 */
+body.is-phone-device #piece-hide-button,
+body.is-phone-device #card-hide-button {
+  left: calc(1.2rem + var(--eraser-icons-pos-phone-x, 0rem));
+}
+body.is-phone-device #piece-hide-button {
+  bottom: calc(5.6rem + var(--eraser-icons-pos-phone-y, 0rem));
+}
+body.is-phone-device #card-hide-button {
+  bottom: calc(9.2rem + var(--eraser-icons-pos-phone-y, 0rem));
+}
+body.is-phone-device #piece-hide-button .icon-action-button-icon-wrap,
+body.is-phone-device #card-hide-button .icon-action-button-icon-wrap {
+  width: var(--eraser-icons-size-phone, 2.6rem);
+  height: var(--eraser-icons-size-phone, 2.6rem);
 }
 @keyframes icon-mode-active-glow {
   0%, 100% { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4), 0 0 0 0.15rem rgba(250, 204, 21, 0.9); }
