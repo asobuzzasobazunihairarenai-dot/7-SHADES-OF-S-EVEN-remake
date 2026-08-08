@@ -9,6 +9,10 @@ import { isFlatten2dMode, setFlatten2dMode } from "./tablet-2d-mode.js";
 import { getTierInfo } from "./stats-profile.js";
 import { showRankUpModal } from "./rank-up-modal.js";
 import { previewBgmVolume, toggleBgmPreview } from "./sound.js";
+// エイドス会話プレビュー（実機で演出確認用）。eidos-dialogue-* は admin.js を（直接にも間接にも）
+// importしていないため循環参照は起きない。
+import { runEidosDialogue } from "./eidos-dialogue-ui.js";
+import { EIDOS_SCENE, getEidosScene } from "./eidos-dialogue-scenes.js";
 
 // game-setup.jsは既にadmin.js（isManualSeatMode）をimportしているため、admin.js側から
 // game-setup.jsを直接importすると循環importになる。他の箇所（setup-animation.js等）と
@@ -1659,7 +1663,73 @@ function buildNumberRow(label, value, { min, max, step = 1, unit = "" }, onChang
 // 単純なON/OFFトグル系のセクション（GROUPSのCSS変数スライダーとは性質が異なる）も、
 // カテゴリ分けの対象にするためこの配列にまとめておく。buildPanel()がcategoryごとに
 // GROUPSと合わせて振り分ける。
+// エイドス会話プレビュー用のシーン一覧（表示順・ラベル）。ユーザー要望2026-08-08「管理者のみ
+// 好きな箇所のシーンを実機で再生できる常設パネル」。
+const EIDOS_PREVIEW_SCENES = [
+  [EIDOS_SCENE.FIRST_ENCOUNTER, "SCENE1 エイドス初登場（暗転から）"],
+  [EIDOS_SCENE.OPERATION_TUTORIAL_COMPLETE, "SCENE2 操作チュートリアル終了後"],
+  [EIDOS_SCENE.INTERMEDIATE_FIRST_WIN, "SCENE3 易しい戦・勝利（→5へ連続）"],
+  [EIDOS_SCENE.INTERMEDIATE_LOSS, "SCENE4 易しい戦・敗北"],
+  [EIDOS_SCENE.ADVANCED_UNLOCKED, "SCENE5 強い戦・解放"],
+  [EIDOS_SCENE.ADVANCED_LOSS, "SCENE6 強い戦・敗北"],
+  [EIDOS_SCENE.ADVANCED_FIRST_WIN, "SCENE7 強い戦・初勝利（→8へ連続）"],
+  [EIDOS_SCENE.SEPT_REWARD, "SCENE8 セプト獲得"],
+];
+
+// 管理者パネルを閉じてから会話を再生する（会話UIを前面で見えるようにするため）。chainがtrueなら
+// nextScene（3→5 / 7→8）も続けて再生する。プレビューのみ＝進行状況の保存や報酬付与は行わない。
+async function adminPlayEidosScene(startId, chain) {
+  closeAdminPanelFn?.();
+  await new Promise((r) => setTimeout(r, 60));
+  let cur = startId;
+  while (cur) {
+    const scene = getEidosScene(cur);
+    if (!scene) break;
+    // eslint-disable-next-line no-await-in-loop
+    const result = await runEidosDialogue(scene.steps, { fadeInFromBlack: !!scene.fadeInFromBlack });
+    // 選択肢で終わった場合は本番導線が分岐する所。プレビューでは nextScene だけ辿る。
+    cur = chain && result?.endedBy !== "choice" ? scene.nextScene || null : null;
+  }
+}
+
 const TOGGLE_SECTIONS = [
+  {
+    // ユーザー要望2026-08-08「実機でエイドス会話演出を確認したい。管理者のみ好きな箇所の
+    // シーンを再生できる常設パネルを」。ボタンを押すと管理者パネルを閉じて会話UIを再生する。
+    // ※プレビュー専用: 進行状況の保存・セプト付与などの本番処理は行わない。
+    title: "🎬 エイドス会話プレビュー（実機確認用）",
+    category: "admin-only",
+    buildContent: (content) => {
+      const note = document.createElement("div");
+      note.style.cssText = "font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.5rem; line-height: 1.5;";
+      note.textContent =
+        "各シーンの会話演出を実機で確認できます（プレビュー。進行状況の保存やセプト付与などは行いません）。ボタンを押すと管理者パネルを閉じて再生します。";
+      content.appendChild(note);
+
+      const chainRow = document.createElement("label");
+      chainRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0.6rem; font-size: 0.85rem;";
+      const chainCb = document.createElement("input");
+      chainCb.type = "checkbox";
+      chainCb.checked = true;
+      const chainLabel = document.createElement("span");
+      chainLabel.textContent = "続けて次シーンも再生する（3→5 / 7→8）";
+      chainRow.append(chainCb, chainLabel);
+      content.appendChild(chainRow);
+
+      const grid = document.createElement("div");
+      grid.style.cssText = "display: flex; flex-direction: column; gap: 0.35rem;";
+      EIDOS_PREVIEW_SCENES.forEach(([id, label]) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = "▶ " + label;
+        btn.style.cssText =
+          "text-align: left; padding: 0.4rem 0.7rem; background: rgba(124, 92, 255, 0.18); color: #e9e5ff; border: 1px solid rgba(124, 92, 255, 0.6); border-radius: 0.4rem; cursor: pointer; font-size: 0.85rem;";
+        btn.addEventListener("click", () => adminPlayEidosScene(id, chainCb.checked));
+        grid.appendChild(btn);
+      });
+      content.appendChild(grid);
+    },
+  },
   {
     // ユーザー要望「管理者モードで自分の通貨を自由に増やせるように」「サイトの利用状況
     // （ログイン数・訪問数・誰がログイン中か）を見られるように」への対応。
@@ -2420,6 +2490,8 @@ function buildPanel(rebuildSlidersRef) {
 }
 
 let openAdminPanelFn = null;
+// 会話プレビュー時に管理者パネルを一旦閉じて、会話UI（z-index:10700）を前面で見えるようにする。
+let closeAdminPanelFn = null;
 
 // options-menu.js（右上「⚙ オプション」の中の「管理者モード」項目）から呼ぶ。
 // 以前はこのモジュール自身が左上に専用の呼び出しボタンを持っていたが、オプションメニューに
@@ -2453,6 +2525,7 @@ export function initAdminMode() {
     backdrop.style.display = "block";
   }
   openAdminPanelFn = open;
+  closeAdminPanelFn = close;
 
   // ツールパネルなので背景は暗くしない（盤面を見ながら調整したいため）が、外側クリックで
   // 閉じられるようにする（今後追加するパネル/モーダルもこの閉じ方に統一する）。
