@@ -8592,8 +8592,20 @@ function checkCpuFinalLockApproval() {
   if (cpuFinalLockInFlight || gomennasaiAutoApprovalInFlight) return;
   const pending = getState().pendingFinalLock;
   if (!pending || pending.queue.length === 0) return;
-  if (isOnlineMode() || !isCpuBattleActive()) return;
   const approver = pending.queue[0];
+  // AFK代行（オンライン）: 承認者が自席で代行中なら、人間用のオンライン対応済み
+  // useGomennasaiOnFinalLock を自動起動する（内部の奪う札/コストのピッカーはturn-timerの
+  // 強制解決＋brainで自動解決される）。使えなければ checkGomennasaiAutoApproval が自動承認する。
+  if (isSelfCpuSubstituted() && approver === getSelfSeat()) {
+    if (!findGomennasaiEligibility(approver)) return;
+    cpuFinalLockInFlight = true;
+    Promise.resolve(useGomennasaiOnFinalLock()).finally(() => {
+      cpuFinalLockInFlight = false;
+      checkCpuFinalLockApproval();
+    });
+    return;
+  }
+  if (isOnlineMode() || !isCpuBattleActive()) return;
   if (!isPseudoCpuTarget(approver)) return; // 人間の承認は自動化しない（本人が選ぶ）
   const eligible = findGomennasaiEligibility(approver);
   if (!eligible) return; // 使えない席はcheckGomennasaiAutoApprovalが自動承認する
@@ -11492,6 +11504,7 @@ registerCounterLockHelpers({
   checkEligibility: findCounterLockToken,
   onUseCounterLock: useCounterLockOnContact,
   isPseudoCpuTarget,
+  isSelfCpuSubstituted,
 });
 registerEternalAnimHelpers(playEternalAcquisitionAnim);
 registerGateInvasionStealHelper(stealHandCardsRitualForGateInvasion);

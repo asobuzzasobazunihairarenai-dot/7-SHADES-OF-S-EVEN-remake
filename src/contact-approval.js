@@ -30,6 +30,7 @@ let respondHandler = null;
 let checkCounterLockEligibility = null;
 let useCounterLockHandler = null;
 let isPseudoCpuTargetCheck = null;
+let isSelfCpuSubstitutedCheck = null; // AFK代行中の自席か（main.jsから注入）
 let pseudoCpuCounterLockAutoDeclineInFlight = false;
 
 export function registerContactApprovalHandler(fn) {
@@ -41,10 +42,11 @@ export function registerContactApprovalHandler(fn) {
 // contact-approval.jsという3方向の循環参照になってしまう（phase-automation.jsが
 // turn-timer.jsを直接importできないのと同じ理由）。checkEligibility/onUseCounterLock
 // と同じ「main.js側から関数を注入してもらう」既存パターンをそのまま拡張して回避する。
-export function registerCounterLockHelpers({ checkEligibility, onUseCounterLock, isPseudoCpuTarget }) {
+export function registerCounterLockHelpers({ checkEligibility, onUseCounterLock, isPseudoCpuTarget, isSelfCpuSubstituted }) {
   checkCounterLockEligibility = checkEligibility;
   useCounterLockHandler = onUseCounterLock;
   isPseudoCpuTargetCheck = isPseudoCpuTarget;
+  if (isSelfCpuSubstituted) isSelfCpuSubstitutedCheck = isSelfCpuSubstituted;
 }
 
 export function buildContactApprovalModal() {
@@ -97,7 +99,12 @@ export function updateContactApprovalModal() {
   // 疑似CPU対象なら、カウンターロックは使わず（＝任意なのでスキップと同じ考え方）
   // 承認する側へ即座に進める。counterLockAutoApprovalInFlightと同じ「同じ処理を
   // 二重に発火させない」ガードをこのモジュール内に持たせる。
-  if (canRespond && hasCounterLock && isPseudoCpuTargetCheck?.(pending.defender) && !pseudoCpuCounterLockAutoDeclineInFlight) {
+  // AFK代行中の自席が接触された時も、カウンターロックを持っていても使わずに承認する（CPU戦と
+  // 同じ挙動。放置で止まらないように。ユーザー要望2026-08-08）。
+  const autoDeclineDefender =
+    isPseudoCpuTargetCheck?.(pending.defender) ||
+    (isSelfCpuSubstitutedCheck?.() && pending.defender === getSelfSeat());
+  if (canRespond && hasCounterLock && autoDeclineDefender && !pseudoCpuCounterLockAutoDeclineInFlight) {
     pseudoCpuCounterLockAutoDeclineInFlight = true;
     hideImmediately();
     Promise.resolve(respondHandler?.(true)).finally(() => {

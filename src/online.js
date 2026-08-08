@@ -2013,27 +2013,72 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat, feedba
 // 返信(match_feedback_replies)として、自分の戦績プレイヤーIDに紐づけて保存する（ゲストは
 // player_id=null＝戦績システム側で「ゲスト」表示）。matchIdは勝者が作成しブロードキャスト
 // したもの（onMatchRecordedEvents）。
+// userIdから戦績プレイヤーIDを引く（無ければnull）。
+async function lookupStatsPlayerId(userId) {
+  if (!userId) return null;
+  try {
+    const { data } = await client.from("players").select("id").eq("user_id", userId).maybeSingle();
+    return data?.id ?? null;
+  } catch (err) {
+    return null;
+  }
+}
+
+// 返信IDを (試合ID × プレイヤー) で決定的にする（#45）。同じコメントを「本人が直接投稿」する経路と
+// 「勝者が代理投稿」する経路の両方が走っても、同じIDになるためPK重複で片方が弾かれ、二重投稿に
+// ならない（upsert ignoreDuplicates）。プレイヤーID不明（ゲスト）は決定的にできないのでランダム。
+function deterministicReplyId(matchId, playerId) {
+  return playerId ? `r_${matchId}_${playerId}` : `r_${matchId}_g_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+async function insertMatchReply(matchId, playerId, text) {
+  const { error } = await client.from("match_feedback_replies").upsert(
+    {
+      id: deterministicReplyId(matchId, playerId),
+      match_id: matchId,
+      player_id: playerId,
+      comment: text,
+      created_at: Date.now(),
+    },
+    { onConflict: "id", ignoreDuplicates: true }
+  );
+  if (error) throw error;
+}
+
+// 対戦終了パネル（post-game-panel.js）から、自分のコメントを投稿する（自分の戦績プレイヤーIDに
+// 紐づけて match_feedback_replies へ。ゲストは player_id=null）。matchIdは勝者が作成したもの。
 export async function submitMatchComment(matchId, comment) {
   if (!client || !matchId) return;
   const text = (comment || "").trim();
   if (!text) return;
-  let playerId = null;
-  if (cachedUser && !cachedUser.is_anonymous) {
-    try {
-      const { data } = await client.from("players").select("id").eq("user_id", cachedUser.id).maybeSingle();
-      playerId = data?.id ?? null;
-    } catch (err) {
-      playerId = null;
-    }
+  const playerId = cachedUser && !cachedUser.is_anonymous ? await lookupStatsPlayerId(cachedUser.id) : null;
+  await insertMatchReply(matchId, playerId, text);
+}
+
+// #45: 敗者のコメントを、matchIdを確実に持っている勝者が“代理投稿”する経路（敗者からの
+// ブロードキャストを受けて呼ぶ）。seatの戦績プレイヤーIDを解決して紐づける。決定的IDにより、
+// 敗者本人の直接投稿と重複してもPK重複で弾かれ二重にならない。
+export async function submitMatchCommentForSeat(matchId, seat, comment) {
+  if (!client || !matchId) return;
+  const text = (comment || "").trim();
+  if (!text) return;
+  const identity = getSyncedIdentity(seat);
+  const playerId = await lookupStatsPlayerId(identity?.userId);
+  await insertMatchReply(matchId, playerId, text);
+}
+
+// 敗者→勝者へコメントを中継する（#45）。勝者側（matchId所持）が submitMatchCommentForSeat で投稿する。
+let matchCommentEventListeners = [];
+export function onMatchCommentEvents(fn) {
+  matchCommentEventListeners.push(fn);
+  return () => {
+    matchCommentEventListeners = matchCommentEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastMatchComment(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "match_comment", payload });
   }
-  const { error } = await client.from("match_feedback_replies").insert({
-    id: `r_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    match_id: matchId,
-    player_id: playerId,
-    comment: text,
-    created_at: Date.now(),
-  });
-  if (error) throw error;
 }
 
 // 不具合#42: 敗者は勝者からの match_recorded ブロードキャストで試合IDを受け取るが、Realtime
@@ -2043,16 +2088,21 @@ export async function submitMatchComment(matchId, comment) {
 // 直接引いて試合IDを得る（勝者が作った試合行は members に全員のIDを含む）。ゲスト/未ログインは
 // プレイヤーIDが無いため対象外（従来どおりブロードキャスト頼み）。
 export async function fetchMyRecentMatchId() {
-  if (!client || !cachedUser || cachedUser.is_anonymous) return null;
-  let playerId = null;
-  try {
-    const { data } = await client.from("players").select("id").eq("user_id", cachedUser.id).maybeSingle();
-    playerId = data?.id ?? null;
-  } catch (err) {
-    return null;
+  if (!client) return null;
+  // cachedUserが未設定のこともあるので getCurrentUser でも補う（#45: フォールバックが常に失敗して
+  // いた一因の可能性）。
+  let user = cachedUser;
+  if (!user) {
+    try {
+      user = await getCurrentUser();
+    } catch {
+      user = null;
+    }
   }
+  if (!user || user.is_anonymous) return null;
+  const playerId = await lookupStatsPlayerId(user.id);
   if (!playerId) return null;
-  const cutoff = Date.now() - 5 * 60 * 1000; // 直近5分以内に作られた試合だけを対象（別の過去試合を拾わない）
+  const cutoff = Date.now() - 30 * 60 * 1000; // 直近30分以内（クロックずれ・投稿までの時間に余裕を持たせる）
   try {
     const { data, error } = await client
       .from("matches")
@@ -2488,6 +2538,10 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // AFK代行状態の通知（broadcastAfkCpuStatus参照）。
     .on("broadcast", { event: "afk_cpu_status" }, ({ payload }) => {
       for (const fn of afkCpuStatusEventListeners) fn(payload);
+    })
+    // 敗者→勝者へのコメント中継（broadcastMatchComment参照、#45）。
+    .on("broadcast", { event: "match_comment" }, ({ payload }) => {
+      for (const fn of matchCommentEventListeners) fn(payload);
     })
     // 相手のフェイズ表示の通知（broadcastPhaseChange参照）。
     .on("broadcast", { event: "phase_change" }, ({ payload }) => {

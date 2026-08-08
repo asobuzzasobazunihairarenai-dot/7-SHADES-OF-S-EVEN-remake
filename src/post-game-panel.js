@@ -21,8 +21,11 @@ import {
   getCurrentUser,
   submitStatsMatchResult,
   submitMatchComment,
+  submitMatchCommentForSeat,
   fetchMyRecentMatchId,
   onMatchRecordedEvents,
+  onMatchCommentEvents,
+  broadcastMatchComment,
   setRematchReady,
   maybeTriggerRematch,
   leaveGame,
@@ -50,6 +53,7 @@ let backdropEl = null;
 let pollTimerId = null;
 let unsubscribeStateWatch = null;
 let unsubscribeMatchRecorded = null; // 敗者側で試合IDのブロードキャストを待ち受けている間の解除関数
+let unsubscribeMatchComment = null; // 勝者側で敗者コメントの中継を待ち受けている間の解除関数（#45）
 let restoreIconEl = null; // 「盤面を確認する」で最小化した時、左上に出す復元アイコン
 
 // ユーザー要望「対戦終了モーダルに『盤面を確認する』を追加。押すと最小化の案内モーダルを出した
@@ -122,6 +126,10 @@ function closePanel() {
   if (unsubscribeMatchRecorded) {
     unsubscribeMatchRecorded();
     unsubscribeMatchRecorded = null;
+  }
+  if (unsubscribeMatchComment) {
+    unsubscribeMatchComment();
+    unsubscribeMatchComment = null;
   }
   removeRestoreIcon();
   backdropEl?.remove();
@@ -340,6 +348,30 @@ export function showPostGamePanel({ activePlayers, winnerSeat }) {
   const isWinner = getSelfSeat() === winnerSeat;
   let matchId = null;
 
+  // #45: 敗者のコメントは Realtime ブロードキャスト（試合ID受信）だけに頼ると取りこぼしで
+  // 失われることがあった。勝者は matchId を確実に持っているので、敗者はコメントを勝者へも
+  // 中継し、勝者が代理投稿する。あわせて敗者本人の直接投稿も試みる（返信IDが決定的なので
+  // 二重投稿にはならない）。勝者側は受信したコメントを matchId 確定後に投稿する（バッファ）。
+  const pendingLoserComments = [];
+  async function flushPendingLoserComments() {
+    if (!matchId) return;
+    while (pendingLoserComments.length > 0) {
+      const c = pendingLoserComments.shift();
+      try {
+        await submitMatchCommentForSeat(matchId, c.fromPlayer, c.comment);
+      } catch (err) {
+        console.error("submitMatchCommentForSeat failed", err);
+      }
+    }
+  }
+  if (isWinner) {
+    unsubscribeMatchComment = onMatchCommentEvents((payload) => {
+      if (!payload?.comment || payload.fromPlayer === getSelfSeat()) return;
+      pendingLoserComments.push({ fromPlayer: payload.fromPlayer, comment: payload.comment });
+      flushPendingLoserComments();
+    });
+  }
+
   if (isWinner) {
     // ユーザー要望「勝利時ランクアップした場合に何かモーダル出したい」。対戦前の対戦数を
     // 先に取得し、承認見込み（+1）で楽観的にランクアップ判定する（rank-up-modal.js参照）。
@@ -358,6 +390,7 @@ export function showPostGamePanel({ activePlayers, winnerSeat }) {
     submitStatsMatchResult({ activePlayers, winnerSeat, feedback: "" })
       .then((id) => {
         matchId = id || null;
+        flushPendingLoserComments(); // 先に届いていた敗者コメントを投稿する（#45）
       })
       .catch((err) => console.error("submitStatsMatchResult failed", err))
       .finally(async () => {
@@ -384,18 +417,31 @@ export function showPostGamePanel({ activePlayers, winnerSeat }) {
   body.appendChild(
     buildCommentSection(async (comment) => {
       if (comment) {
-        // まず勝者からの試合IDブロードキャストを待つ。取りこぼした場合（#42）は matches を
-        // 直接引くフォールバックで試合IDを得てから投稿する（黙ってコメントを捨てない）。
-        let id = await waitForMatchId(() => matchId);
-        if (!id) id = await fetchMyRecentMatchId();
-        if (id) {
-          try {
-            await submitMatchComment(id, comment);
-          } catch (err) {
-            console.error("submitMatchComment failed", err);
+        if (isWinner) {
+          // 勝者は matchId を確実に持っている。届くのを待って自分のコメントを投稿。
+          const id = await waitForMatchId(() => matchId);
+          if (id) {
+            try {
+              await submitMatchComment(id, comment);
+            } catch (err) {
+              console.error("submitMatchComment failed", err);
+            }
           }
         } else {
-          console.error("#42: 試合IDを取得できず、コメントを投稿できませんでした（ブロードキャスト取りこぼし＋フォールバックも失敗）");
+          // 敗者（#42/#45）: 2経路で確実に届ける。①勝者へブロードキャスト中継（勝者が代理投稿）。
+          // ②自分でも試合IDを取得して直接投稿（ブロードキャスト受信 or matches検索）。返信IDが
+          // 決定的なので、両方成功しても二重投稿にはならない（PK重複で片方が弾かれる）。
+          broadcastMatchComment({ fromPlayer: getSelfSeat(), comment });
+          let id = await waitForMatchId(() => matchId, 6000);
+          if (!id) id = await fetchMyRecentMatchId();
+          if (id) {
+            try {
+              await submitMatchComment(id, comment);
+            } catch (err) {
+              console.error("submitMatchComment failed", err);
+            }
+          }
+          // 直接投稿できなくても、勝者側の中継投稿が働くので黙って捨てることにはならない。
         }
       }
       if (unsubscribeMatchRecorded) {

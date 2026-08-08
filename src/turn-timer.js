@@ -1032,7 +1032,9 @@ function tick() {
   // 誰が保持しているかに関係なく、「自分の画面に今まさに選択待ちのactiveEffectPickerが
   // あるか」だけを独立して監視する。疑似CPU対象で、かつ一定時間（PSEUDO_CPU_DEADLINE_MS
   // 相当）居座っていたら、優先権の状態を問わず解決する。
-  if (isPseudoCpuTarget(getSelfSeat()) && hasActiveEffectPicker()) {
+  // AFK代行中の自席も同様に、居座っている選択待ちを自動解決する（ユーザー要望2026-08-08。
+  // ゴメンナサイの奪う札/追色コスト選択など、リアクション処理中のピッカーもここで解決される）。
+  if ((isPseudoCpuTarget(getSelfSeat()) || isSelfCpuSubstituted()) && hasActiveEffectPicker()) {
     ticksWithLocalEffectPickerPending++;
     if (ticksWithLocalEffectPickerPending >= pseudoCpuLocalPickerTimeoutTicks()) {
       ticksWithLocalEffectPickerPending = 0;
