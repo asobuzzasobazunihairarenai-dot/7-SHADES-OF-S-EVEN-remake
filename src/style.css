@@ -5026,6 +5026,132 @@ body.is-phone-device #admin-panel {
   font-weight: bold;
 }
 
+/* エイドス会話パネル（eidos-dialogue-ui.js、ユーザー要望2026-08-08）。物語用の会話UI。
+   既存の説明モーダル/吹き出しとは別役割。スマホでは画面下部の帯にして盤面を隠しすぎない。 */
+#eidos-dialogue-root {
+  position: fixed;
+  inset: 0;
+  z-index: 10700; /* 盤面・多くのUIより前面。最上位のオープニング/回転案内よりは下。 */
+  pointer-events: none;
+}
+#eidos-dialogue-blocker {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto; /* 会話中は盤面クリックを吸収（盤面操作ロック）。 */
+  background: rgba(0, 0, 0, 0.12);
+}
+#eidos-dialogue-panel {
+  position: absolute;
+  left: 50%;
+  bottom: 1.2rem;
+  transform: translateX(-50%);
+  width: min(48rem, 94vw);
+  min-height: 8rem;
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.8rem;
+  padding: 0.9rem 1.1rem;
+  background: linear-gradient(160deg, rgba(15, 23, 32, 0.97), rgba(4, 12, 20, 0.97));
+  border: 2px solid #7c5cff;
+  border-radius: 0.9rem;
+  box-shadow: 0 0 1.6rem rgba(124, 92, 255, 0.45), 0 20px 50px rgba(0, 0, 0, 0.6);
+  pointer-events: auto;
+  cursor: pointer;
+  font-family: sans-serif;
+  color: #e2e8f0;
+}
+#eidos-dialogue-panel[data-portrait-side="right"] {
+  flex-direction: row-reverse;
+}
+.eidos-dialogue-portrait {
+  flex: 0 0 auto;
+  width: 7rem;
+  height: 9rem;
+  align-self: flex-end;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: bottom center;
+  filter: drop-shadow(0 0.4rem 0.8rem rgba(0, 0, 0, 0.6));
+}
+.eidos-dialogue-sept {
+  flex: 0 0 auto;
+  width: 3.4rem;
+  height: 3.4rem;
+  align-self: flex-end;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center bottom;
+}
+.eidos-dialogue-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.eidos-dialogue-name {
+  font-weight: bold;
+  color: #c4b5fd;
+  font-size: 0.95rem;
+  margin-bottom: 0.3rem;
+}
+.eidos-dialogue-text {
+  font-size: 1rem;
+  line-height: 1.6;
+  min-height: 3rem;
+  white-space: pre-wrap;
+}
+.eidos-dialogue-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+.eidos-dialogue-choice {
+  padding: 0.5rem 1.1rem;
+  border: 1px solid #7c5cff;
+  border-radius: 0.5rem;
+  background: rgba(124, 92, 255, 0.15);
+  color: #e9e5ff;
+  font-weight: bold;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.eidos-dialogue-choice:hover {
+  background: rgba(124, 92, 255, 0.3);
+}
+.eidos-dialogue-hint {
+  margin-top: 0.5rem;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  text-align: right;
+}
+@media (max-width: 768px) {
+  #eidos-dialogue-panel {
+    width: 96vw;
+    bottom: 0.5rem;
+    padding: 0.6rem 0.7rem;
+    gap: 0.5rem;
+  }
+  .eidos-dialogue-portrait {
+    width: 5rem;
+    height: 6.5rem;
+  }
+  .eidos-dialogue-text {
+    font-size: 0.95rem;
+    min-height: 2.6rem;
+  }
+}
+/* ライトテーマ: 会話パネルもアイボリー地＋紫アクセントに（他モーダルと系統を合わせる）。 */
+body.theme-light #eidos-dialogue-panel {
+  background: linear-gradient(160deg, #fffdf7, #f3edff);
+  color: #33304a;
+}
+body.theme-light .eidos-dialogue-name {
+  color: #6d28d9;
+}
+body.theme-light .eidos-dialogue-hint {
+  color: #6b6484;
+}
+
 /* ライトテーマ（body.theme-light）: ログインボーナスのモーダルがダークのままだったので、他の
    ライトモーダル（#contact-result-modal等）と同じアイボリー地＋ゴールド枠＋濃い文字へ
    （ユーザー報告2026-08-08）。金額/タイトルのゴールド系文字はライト地でも読めるためそのまま、
