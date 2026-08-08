@@ -5620,7 +5620,11 @@ body.theme-light .daily-bonus-modal-note {
   z-index: 0;
   background-size: cover;
   background-position: center 35%;
-  transform: scale(1.35);
+  /* 位置・サイズ・回転は管理者モードで全商品連動調整（--shop-bg-*、ユーザー要望2026-08-08）。
+     カードは overflow:hidden なので、はみ出しは商品枠でわざと見切れる。 */
+  transform: translate(var(--shop-bg-x, 0rem), var(--shop-bg-y, 0rem)) scale(var(--shop-bg-scale, 1.35))
+    rotate(var(--shop-bg-rotate, 0deg));
+  transform-origin: center center;
   filter: blur(15px) saturate(1.18);
   opacity: 0.42;
   -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.5) 46%, transparent 80%);
@@ -5668,10 +5672,14 @@ body.theme-light .daily-bonus-modal-note {
   height: 100%;
   object-fit: cover;
   transition: transform 0.32s ease;
+  /* 商品画像の位置・サイズは管理者モードで全商品連動調整（--shop-thumb-*）。thumbは overflow:hidden
+     なので、枠からはみ出したぶんは商品枠でわざと見切れる（ユーザー要望2026-08-08）。 */
+  transform: translate(var(--shop-thumb-x, 0rem), var(--shop-thumb-y, 0rem)) scale(var(--shop-thumb-scale, 1));
 }
-/* ホバーで画像を少しズーム（陳列に動きを出す）。 */
+/* ホバーで画像を少しズーム（陳列に動きを出す）。調整後のサイズに1.06倍を上乗せ。 */
 .shop-item-card:hover .shop-item-thumb img {
-  transform: scale(1.06);
+  transform: translate(var(--shop-thumb-x, 0rem), var(--shop-thumb-y, 0rem))
+    scale(calc(var(--shop-thumb-scale, 1) * 1.06));
 }
 /* ホバーで光沢が横切る演出（sheen）。バッジ類より下に敷く。 */
 .shop-item-thumb::after {
@@ -5697,6 +5705,9 @@ body.theme-light .daily-bonus-modal-note {
   z-index: 2; /* 光沢(sheen, z-index:1)より前面 */
   font-size: 1.1rem;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+  /* 南京錠マークの位置・サイズは管理者モードで全商品連動調整（--shop-badge-*）。 */
+  transform: translate(var(--shop-badge-x, 0rem), var(--shop-badge-y, 0rem)) scale(var(--shop-badge-scale, 1));
+  transform-origin: top right;
 }
 /* MTGAストアの左上リボン（「大人気」等）と同じ発想の所持状況バッジ。 */
 .shop-item-ribbon {
@@ -5711,6 +5722,9 @@ body.theme-light .daily-bonus-modal-note {
   border-radius: 0.2rem;
   box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.5);
   white-space: nowrap;
+  /* 無料/所持済みリボンの位置・サイズも南京錠と同じ --shop-badge-* で全商品連動調整。 */
+  transform: translate(var(--shop-badge-x, 0rem), var(--shop-badge-y, 0rem)) scale(var(--shop-badge-scale, 1));
+  transform-origin: top left;
 }
 .shop-item-ribbon.is-free {
   background: linear-gradient(160deg, #86efac, #16a34a);
@@ -5774,6 +5788,10 @@ body.theme-light .daily-bonus-modal-note {
   width: 100%;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
   box-shadow: 0 0.3rem 0.7rem rgba(180, 83, 9, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  /* 金額ボタンの位置・サイズは管理者モードで全商品連動調整（--shop-price-*）。transformは
+     レイアウトに影響しないので、動かしても隣接要素はズレない（ユーザー要望2026-08-08）。 */
+  transform: translate(var(--shop-price-x, 0rem), var(--shop-price-y, 0rem)) scale(var(--shop-price-scale, 1));
+  transform-origin: center;
 }
 /* コイン風のツヤ（上半分のハイライト）。 */
 .shop-item-buy::after {

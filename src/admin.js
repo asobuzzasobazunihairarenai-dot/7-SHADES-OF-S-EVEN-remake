@@ -168,6 +168,7 @@ const CATEGORIES = [
   { key: "position-self", label: "📐 位置合わせ：自分のステータス・手札" },
   { key: "position-players", label: "📐 位置合わせ：相手プレイヤー表示" },
   { key: "position-ui", label: "📐 位置合わせ：アイコン・案内・タイマー" },
+  { key: "shop", label: "🛒 ショップ" },
   { key: "effect", label: "✨ 演出" },
   { key: "behavior", label: "⚙ セットアップ・挙動" },
   { key: "admin-only", label: "🔐 管理者専用" },
@@ -192,6 +193,30 @@ const GROUPS = [
     category: "position-board",
     controls: [
       { key: "--card-preview-size", label: "サイズ", unit: "rem", min: 8, max: 36, step: 0.5, default: 20 },
+    ],
+  },
+  {
+    // ユーザー要望2026-08-08「ショップの商品カードの各要素を全商品連動で位置・サイズ調整
+    // したい。枠からはみ出す場合は商品枠でわざと見切れるように」。CSS変数(--shop-*)を1つ
+    // 動かすと全カードが連動する（style.cssの .shop-item-* が var()で読む。カードは
+    // overflow:hidden なので、はみ出しは商品枠でクリップされる）。調整中はショップを開いて
+    // おくと反映が見える。既定値はstyle.cssのvar()フォールバックと必ず一致させること。
+    title: "ショップ：商品カードの各要素（全商品連動）",
+    category: "shop",
+    controls: [
+      { key: "--shop-thumb-x", label: "商品画像 位置X", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
+      { key: "--shop-thumb-y", label: "商品画像 位置Y", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
+      { key: "--shop-thumb-scale", label: "商品画像 サイズ", unit: "", min: 0.3, max: 3, step: 0.05, default: 1 },
+      { key: "--shop-bg-x", label: "商品背景（半透明） 位置X", unit: "rem", min: -12, max: 12, step: 0.1, default: 0 },
+      { key: "--shop-bg-y", label: "商品背景（半透明） 位置Y", unit: "rem", min: -12, max: 12, step: 0.1, default: 0 },
+      { key: "--shop-bg-scale", label: "商品背景（半透明） サイズ", unit: "", min: 0.5, max: 4, step: 0.05, default: 1.35 },
+      { key: "--shop-bg-rotate", label: "商品背景（半透明） 回転", unit: "deg", min: -180, max: 180, step: 1, default: 0 },
+      { key: "--shop-price-x", label: "金額ボタン 位置X", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
+      { key: "--shop-price-y", label: "金額ボタン 位置Y", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
+      { key: "--shop-price-scale", label: "金額ボタン サイズ", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 1 },
+      { key: "--shop-badge-x", label: "無料/所持済み・南京錠 位置X", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
+      { key: "--shop-badge-y", label: "無料/所持済み・南京錠 位置Y", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
+      { key: "--shop-badge-scale", label: "無料/所持済み・南京錠 サイズ", unit: "", min: 0.5, max: 3, step: 0.05, default: 1 },
     ],
   },
   {
