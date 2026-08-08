@@ -15,7 +15,9 @@ import { getSelfSeat, getSyncedIdentity, updateMyIdentity, isItemUnlocked, openS
 export const PET_OPTIONS = [
   { sprite: "cubit", label: "キュビット", itemKey: "pet:cubit", cost: 300 },
   { sprite: "noxael", label: "ノクスアエル幼体", itemKey: "pet:noxael", cost: 300 },
-  { sprite: "sept", label: "セプト", itemKey: "pet:sept", cost: 300 },
+  // セプトは非売品（チュートリアルのエイドス戦報酬でのみ入手）。ショップには出さないが、所持
+  // すれば装備できるよう PET_OPTIONS には残す（getPetShopItems が nonSellable を除外する）。
+  { sprite: "sept", label: "セプト", itemKey: "pet:sept", nonSellable: true },
   { sprite: "rubel", label: "ルベル", itemKey: "pet:rubel", cost: 300 },
   { sprite: "kii", label: "キィ", itemKey: "pet:kii", cost: 300 },
   { emoji: null, label: "なし（非表示）" }, // ペットを表示しない（初期値）
@@ -23,7 +25,7 @@ export const PET_OPTIONS = [
 
 // ショップ（shop-content.js の「ペット」カテゴリ）へ渡す商品一覧。全て有料・初期は未所持。
 export function getPetShopItems() {
-  return PET_OPTIONS.filter((o) => o.sprite).map((o) => ({
+  return PET_OPTIONS.filter((o) => o.sprite && !o.nonSellable).map((o) => ({
     itemKey: o.itemKey,
     label: o.label,
     cost: o.cost,

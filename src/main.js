@@ -4773,7 +4773,15 @@ function triggerCardArrival(cardId, location, onFullyResolved, opts = {}) {
   // 到達効果を自動処理する対象席かどうか。通常は「自分の席」。ただしローカルCPU戦では
   // CPU(C)が到達した時もその効果を自動処理する必要がある（不具合#21: CPUの到達効果が
   // 発動しない）。getAutoDriveSeatはCPU戦のCPUの番なら今のターンプレイヤー(C)を返す。
-  const shouldAutoProcess = !!player && player === getAutoDriveSeat() && canAutoProcessArrival(cardId);
+  // 不具合#54: 接触の強制移動で、接触された相手(=ローカルCPU戦のCPU席)が自分のゲートの
+  // カードに到達しても到達効果が処理されない（auto:false）ままだった。原因は、attackerの
+  // ターン中は getAutoDriveSeat() が turnPlayer(=attacker) を返すため、強制移動で優先権が
+  // 一時的にdefender(CPU席)へ移っていても、到達した本人(defender)が自動処理対象と見なされ
+  // なかったこと。強制解決中は「今まさに優先権を持つ疑似CPU席」も自動処理対象に含める
+  // （通常ターンは priorityPlayer===turnPlayer のため挙動は変わらない）。
+  const forcedCpuArrival =
+    isCpuBattleActive() && !isOnlineMode() && !!player && isPseudoCpuTarget(player) && getState().priorityPlayer === player;
+  const shouldAutoProcess = !!player && (player === getAutoDriveSeat() || forcedCpuArrival) && canAutoProcessArrival(cardId);
   // 診断（到達コンボ不発の調査）: どのブランチ（自動実行 or 手動モーダルのみ）に入るかを
   // 決める材料を全部残す。ユーザー報告「パーティを取って露出したジャンプ台の到達効果が
   // 起きない（モーダルは出る）」の切り分け用。auto=false ならモーダルのみ＝効果は動かない。
