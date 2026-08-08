@@ -9460,30 +9460,31 @@ body.reduce-glow .result-celebration-headline {
   --swap-anim-flight-duration: 0.6; /* 入れ替え飛翔（秒） */
 }
 .piece-swap-glow {
-  filter: drop-shadow(0 0 0.35rem #67e8f9) drop-shadow(0 0 0.8rem #ffffff);
+  filter: drop-shadow(0 0 0.35rem #fb923c) drop-shadow(0 0 0.8rem #fdba74);
   animation: piece-swap-glow-pulse 0.5s ease-in-out infinite alternate;
 }
 @keyframes piece-swap-glow-pulse {
   from {
-    filter: drop-shadow(0 0 0.25rem #67e8f9) drop-shadow(0 0 0.5rem #ffffff);
+    filter: drop-shadow(0 0 0.25rem #f97316) drop-shadow(0 0 0.5rem #fdba74);
   }
   to {
-    filter: drop-shadow(0 0 0.55rem #a5f3fc) drop-shadow(0 0 1.1rem #ffffff);
+    filter: drop-shadow(0 0 0.6rem #fb923c) drop-shadow(0 0 1.2rem #fed7aa);
   }
 }
+/* ユーザー要望2026-08-08: 電撃を橙色に、線が細いのでもっと太く。 */
 .swap-arc-bolt {
   fill: none;
-  stroke: #ffffff;
-  stroke-width: 2.2;
+  stroke: #fff7ed; /* 中心は明るい芯（橙の発光は下のglowとdrop-shadowで） */
+  stroke-width: 5;
   stroke-linejoin: round;
   stroke-linecap: round;
-  filter: drop-shadow(0 0 3px #67e8f9);
+  filter: drop-shadow(0 0 4px #fb923c) drop-shadow(0 0 8px #f97316);
 }
 .swap-arc-bolt-glow {
-  stroke: #22d3ee;
-  stroke-width: 7;
-  opacity: 0.45;
-  filter: blur(3px);
+  stroke: #f97316;
+  stroke-width: 15;
+  opacity: 0.5;
+  filter: blur(4px);
 }
 body.reduce-glow .piece-swap-glow {
   animation: none;

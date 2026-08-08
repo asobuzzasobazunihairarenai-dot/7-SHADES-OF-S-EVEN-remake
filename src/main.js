@@ -195,7 +195,7 @@ import { maybeShowFirstRunBgmModal } from "./first-run-bgm.js";
 import { applyStoredCardPreviewSize, getCardPreviewSide } from "./card-preview-size.js";
 import { isFixedHandEnabled, applyStoredFixedHand } from "./fixed-hand.js";
 import { isCpuBattleActive, isCpuAutoSkipEnabled, isCpuBrainSmart } from "./cpu-battle-state.js";
-import { chooseMoveCandidate, chooseDeclaredColors, chooseEffectOption } from "./cpu-brain.js";
+import { chooseMoveCandidate, chooseDeclaredColors, chooseEffectOption, chooseEffectCell } from "./cpu-brain.js";
 import {
   getSelfSeat,
   isSpectatingGame,
@@ -3195,7 +3195,11 @@ export function performPriorityTimeoutAutoAction() {
     const picker = activeEffectPicker;
     activeEffectPicker = null;
     if (picker.type === "cell") {
-      const choice = pickRandomFrom(picker.candidates);
+      // 賢いCPU（中級以上）は、候補に相手ゲートがあればそこを選ぶ（ゲート侵攻セットアップ）。
+      // 新人・その他はランダム（従来通り）。
+      const choice = isCpuBrainDriving(driveSeat)
+        ? chooseEffectCell(picker.candidates, driveSeat)
+        : pickRandomFrom(picker.candidates);
       picker.resolve(choice);
     } else if (picker.type === "hand") {
       const tokenId = pickRandomFrom([...picker.tokenIds]);
@@ -3744,7 +3748,14 @@ async function drawFromDiscardForEffect(player) {
 // 手札に加えるのではなく捨てるための選出のため、requestOpponentHandRitualPick
 // そのままでよい（選んだ後どう処理するかは呼び出し元＝card-effect-engine.js側の責務）。
 function pickRandomFromOpponentHandForEffect(targetPlayer) {
-  return requestOpponentHandRitualPick(targetPlayer, `${getPlayerName(targetPlayer)}の手札（裏向き）から無作為に1枚選んでください`);
+  // ユーザー要望2026-08-08: セレスティアは相手の手札を「捨てさせる」効果で、自分の手札には
+  // 加わらないため、中央の周知は「奪った／奪われた」ではなく「捨てさせた／捨てさせられた」にする。
+  return requestOpponentHandRitualPick(
+    targetPlayer,
+    `${getPlayerName(targetPlayer)}の手札（裏向き）から無作為に1枚選んでください`,
+    undefined,
+    { takes: "捨てさせた", loses: "捨てさせられた" }
+  );
 }
 
 // docs/rulebook.md「いつでも使える」の定義: 「効果等の何らかの『処理中』は使用

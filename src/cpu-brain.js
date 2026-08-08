@@ -212,6 +212,33 @@ const OPTION_RANK = {
   "blue-choosable-trap": { "forced-move-to-own-gate": 3, "discard-half-hand": 2, "discard-one-locked-card": 1 },
 };
 
+// --- ゲート侵攻の状況判断（ユーザー要望2026-08-08「ゲート侵攻に重きを」） ---------------------
+function pieceCellOf(state, seat) {
+  const p = state.tokens.find((t) => t.kind === "piece" && t.player === seat);
+  return p && p.location.zone === "cell" ? { row: p.location.row, col: p.location.col } : null;
+}
+function activeOpponentGateCells(state, seat) {
+  const active = state.activePlayers ?? [];
+  const cells = [];
+  for (const [side, pos] of Object.entries(GATE_POSITIONS)) {
+    const owner = SIDE_TO_SEAT[side];
+    if (owner && owner !== seat && active.includes(owner)) cells.push({ row: pos.row, col: pos.col });
+  }
+  return cells;
+}
+// 今まさに相手ゲートに乗っている（＝このままターン終了でゲート侵攻できる）か。
+function isOnActiveOpponentGate(state, seat) {
+  const cell = pieceCellOf(state, seat);
+  if (!cell) return false;
+  return activeOpponentGateCells(state, seat).some((g) => g.row === cell.row && g.col === cell.col);
+}
+// 1マス（上下左右）移動で相手ゲートに乗れるか。
+function canReachOpponentGateInOneStep(state, seat) {
+  const cell = pieceCellOf(state, seat);
+  if (!cell) return false;
+  return activeOpponentGateCells(state, seat).some((g) => Math.abs(g.row - cell.row) + Math.abs(g.col - cell.col) === 1);
+}
+
 export function chooseEffectOption(cardId, usableCandidates, driveSeat) {
   if (!usableCandidates || usableCandidates.length === 0) return null;
   const rankMap = OPTION_RANK[cardId];
@@ -220,14 +247,37 @@ export function chooseEffectOption(cardId, usableCandidates, driveSeat) {
     // ランダム（新人相当）。
     return usableCandidates[Math.floor(Math.random() * usableCandidates.length)];
   }
+  const state = getState();
+  const rankOf = (opt) => {
+    let r = rankMap[opt.id] ?? 0;
+    // ゲート侵攻重視（ユーザー要望2026-08-08）:
+    // ・パーティの「1マス移動」で相手ゲートに乗れるなら、拾うより移動を優先（侵攻セットアップ）。
+    if (cardId === "pink-party" && opt.id === "move" && canReachOpponentGateInOneStep(state, driveSeat)) r = 5;
+    // ・選べる罠の「自ゲートへ強制移動」は、今まさに相手ゲートに乗って侵攻できる状況なら避ける
+    //   （自ゲートへ戻ると侵攻が消える）。手札半分捨て等の方がマシ。
+    if (cardId === "blue-choosable-trap" && opt.id === "forced-move-to-own-gate" && isOnActiveOpponentGate(state, driveSeat)) r = -1;
+    return r;
+  };
   let best = null;
   let bestScore = -Infinity;
   for (const opt of usableCandidates) {
-    const score = rankMap[opt.id] ?? 0;
+    const score = rankOf(opt);
     if (score > bestScore) {
       bestScore = score;
       best = opt;
     }
   }
   return best ?? usableCandidates[0];
+}
+
+// 効果中のマス選択（type:"cell"の自動代行）用。候補に相手ゲートがあればそこを最優先で選ぶ
+// （パーティの1マス移動先・試練の隣接マス等でゲートへ向かう＝侵攻セットアップ）。無ければ
+// ランダム（新人相当）。ユーザー要望2026-08-08「ゲート侵攻に重きを」。
+export function chooseEffectCell(candidates, driveSeat) {
+  if (!candidates || candidates.length === 0) return null;
+  const state = getState();
+  const gates = activeOpponentGateCells(state, driveSeat);
+  const gateCandidates = candidates.filter((c) => gates.some((g) => g.row === c.row && g.col === c.col));
+  const pool = gateCandidates.length > 0 ? gateCandidates : candidates;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
