@@ -99,11 +99,19 @@ function getDisplayedPhase() {
   if (remotePhase && remotePhase.player === turnPlayer) return remotePhase.phase;
   return null;
 }
-onPhaseChangeEvents((payload) => {
-  if (!payload || payload.player === getSelfSeat()) return; // 自分の中継は無視（自分はcurrentPhaseで表示）
-  remotePhase = payload.phase ? { player: payload.player, phase: payload.phase } : null;
-  updatePhaseGuideGlow();
-  updateSkipButtonVisibility();
+// 登録はモジュール評価が全て終わってから行う（queueMicrotask）。不具合2026-08-08「更新したら
+// 画面真っ黒」の原因: online.js↔（admin.js→main.js経由の）循環importで、online.jsの評価が
+// 終わる前にこのトップレベル呼び出しが走ると online.js の `phaseChangeEventListeners`(let)が
+// TDZで「Cannot access ... before initialization」を投げ、アプリ全体が起動時にクラッシュしていた。
+// マイクロタスクへ遅らせれば、同期的なモジュール評価が全て完了した後（online.js初期化済み）に
+// 登録されるため、import順に依存せず安全（フェイズ中継の受信はゲーム開始後なので遅延は無害）。
+queueMicrotask(() => {
+  onPhaseChangeEvents((payload) => {
+    if (!payload || payload.player === getSelfSeat()) return; // 自分の中継は無視（自分はcurrentPhaseで表示）
+    remotePhase = payload.phase ? { player: payload.player, phase: payload.phase } : null;
+    updatePhaseGuideGlow();
+    updateSkipButtonVisibility();
+  });
 });
 
 let currentPhase = null; // null | "lock" | "hand" | "move"
