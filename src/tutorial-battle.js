@@ -20,7 +20,13 @@ import { resetMatchStats } from "./match-stats-tracker.js";
 import { resetHandEffectUsage, isAutoProcessingEnabled, setAutoProcessingEnabled } from "./card-effect-engine.js";
 import { SEAT_TO_SIDE, GATE_POSITIONS, COLORS } from "./board-layout.js";
 import { getCardImagePath } from "./cards-data.js";
-import { setPlayerName } from "./player-identity.js";
+import { setPlayerName, setPlayerAvatar } from "./player-identity.js";
+
+// チュートリアルCPU戦の相手（案内人エイドス）の表示名とアバター（ユーザー要望2026-08-08）。
+// 正式名は「謎めいた案内人 エイドス・ノワール」、通称「案内人エイドス」。アバターは既存の
+// 有料アバター eidos-noir（front/left/right・盤面の向きは自動で切替）を流用する。
+const EIDOS_NAME = "案内人エイドス";
+const EIDOS_AVATAR = "assets/avatars/eidos-noir-front.webp";
 import {
   showBlockingHint,
   hideBlockingHint,
@@ -1262,7 +1268,8 @@ export function startTutorialBattle() {
 
   battleActive = true;
   setupTutorialScenario(buildScenario());
-  setPlayerName(CPU_SEAT, "CPU先生"); // 相手(C)の表示名（終了時にリセット）
+  setPlayerName(CPU_SEAT, EIDOS_NAME); // 相手(C)の表示名＝案内人エイドス（終了時にリセット）
+  setPlayerAvatar(CPU_SEAT, EIDOS_AVATAR);
   // 手番をあなた(A)にしておく。フェイズ案内板（#phase-guide-bar）はturnPlayerがnullの間は
   // 非表示のため、導入のフェイズ説明でスポットライトを当てられるよう最初から表示させる。
   setTurnPlayer(SELF_SEAT);
@@ -1295,7 +1302,8 @@ export function restartTutorialBattle() {
   resetHandEffectUsage();
   battleActive = true;
   setupTutorialScenario(buildScenario());
-  setPlayerName(CPU_SEAT, "CPU先生");
+  setPlayerName(CPU_SEAT, EIDOS_NAME);
+  setPlayerAvatar(CPU_SEAT, EIDOS_AVATAR);
   setTurnPlayer(SELF_SEAT); // フェイズ案内板を最初から表示（startTutorialBattle参照）
   steps = buildSteps();
   restStateFor = [];
@@ -1306,7 +1314,8 @@ export function restartTutorialBattle() {
 export function finishTutorialBattle() {
   battleActive = false;
   detachTapHandler();
-  setPlayerName(CPU_SEAT, ""); // 「CPU先生」の表示名をリセット（通常対戦に持ち越さない）
+  setPlayerName(CPU_SEAT, ""); // 案内人エイドスの表示名をリセット（通常対戦に持ち越さない）
+  setPlayerAvatar(CPU_SEAT, null); // アバターも既定へ戻す
   teardownTutorialBattleUi();
   if (unsubscribe) {
     unsubscribe();
