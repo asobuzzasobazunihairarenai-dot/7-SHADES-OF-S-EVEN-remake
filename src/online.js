@@ -425,6 +425,22 @@ export function broadcastSteppedCardReveal(payload) {
   }
 }
 
+// マスチェンジの入れ替え電撃演出を相手クライアントにも見せる（不具合#43: 実行者本人の画面でしか
+// アークが出ていなかった）。stepped_card_revealと同じ「状態は変えない見た目だけの合図」パターン。
+// 実際の駒の移動は通常の状態同期＋remote-move-animatorが担い、ここではアーク＋発光だけを再生する。
+let massChangeSwapEventListeners = [];
+export function onMassChangeSwapEvents(fn) {
+  massChangeSwapEventListeners.push(fn);
+  return () => {
+    massChangeSwapEventListeners = massChangeSwapEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastMassChangeSwap(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "mass_change_swap", payload });
+  }
+}
+
 // ユーザー要望「今相手が何のフェイズかをフェイズ案内板でわかるようにしたい」。フェイズの
 // 進行状態（ロック/ハンド/ムーブ）は各クライアントのphase-automation.jsが自分の手番の
 // 間だけローカルに持つもので共有ゲーム状態には無いため、hand_effect_useと同じ「状態は
@@ -2449,6 +2465,10 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // 試練の儀式「踏んだカード」の中央じらしフリップ演出の通知（broadcastSteppedCardReveal参照）。
     .on("broadcast", { event: "stepped_card_reveal" }, ({ payload }) => {
       for (const fn of steppedCardRevealEventListeners) fn(payload);
+    })
+    // マスチェンジの入れ替え電撃演出の通知（broadcastMassChangeSwap参照）。
+    .on("broadcast", { event: "mass_change_swap" }, ({ payload }) => {
+      for (const fn of massChangeSwapEventListeners) fn(payload);
     })
     // 相手のフェイズ表示の通知（broadcastPhaseChange参照）。
     .on("broadcast", { event: "phase_change" }, ({ payload }) => {

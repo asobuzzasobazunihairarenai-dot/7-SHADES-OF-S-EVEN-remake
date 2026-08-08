@@ -238,6 +238,8 @@ import {
   onEffectReasonEvents,
   broadcastSteppedCardReveal,
   onSteppedCardRevealEvents,
+  broadcastMassChangeSwap,
+  onMassChangeSwapEvents,
   broadcastColorsDeclared,
   onColorsDeclaredEvents,
   broadcastColorsResolved,
@@ -1258,6 +1260,32 @@ async function playMassChangeSwapAnimation(pieceAId, pieceBId) {
   // pendingはここでは解除しない——呼び出し側が状態を入れ替えてrenderした後に解除する。
 }
 
+// 不具合#43: マスチェンジの入れ替え電撃演出を、実行者以外のクライアントでも見せる。実際の駒の
+// 移動は通常の状態同期＋remote-move-animatorが担うため、ここでは駒を隠さず（ゴースト飛翔もせず）
+// 両駒の発光＋電撃アークだけを一定時間重ねて見せる。ブロードキャスト受信時（入れ替え前＝駒がまだ
+// 元の位置にいる間）に呼ばれる想定。
+async function playMassChangeArcForRemote(pieceAId, pieceBId) {
+  if (isFlightAnimationDisabled()) return;
+  const table = document.getElementById("game-table");
+  const elA = table?.querySelector(`.piece[data-token-id="${pieceAId}"]`);
+  const elB = table?.querySelector(`.piece[data-token-id="${pieceBId}"]`);
+  if (!elA || !elB) return;
+  const rectA = elA.getBoundingClientRect();
+  const rectB = elB.getBoundingClientRect();
+  elA.classList.add("piece-swap-glow");
+  elB.classList.add("piece-swap-glow");
+  const arc = createSwapArc(rectA, rectB);
+  playSound("swap");
+  // チャージ＋飛翔ぶんの時間、アークと発光を見せる（実駒の入れ替えはこの間に状態同期で届き、
+  // remote-move-animatorが飛翔させる）。
+  const chargeMs = getContactAnimSeconds("--swap-anim-charge-duration", 0.8) * 1000;
+  const flightMs = getContactAnimSeconds("--swap-anim-flight-duration", 0.6) * 1000;
+  await wait(chargeMs + flightMs);
+  arc.remove();
+  elA.classList.remove("piece-swap-glow");
+  elB.classList.remove("piece-swap-glow");
+}
+
 // SWAP_POSITION用（マスチェンジ等）。自分の駒と、targetLocationにいる相手の駒の位置を
 // 入れ替える。「移動」ではないため（docs/cards.md補足）、この関数自体は到達判定・自動オープンを
 // 行わない（到達効果の発動はcard-effect-engine.jsのSWAP_POSITION側でルールに沿って行う）。
@@ -1266,6 +1294,9 @@ async function swapPiecesForEffect(pieceTokenId, fromLocation, targetLocation) {
     (t) => t.kind === "piece" && t.location.zone === "cell" && t.location.row === targetLocation.row && t.location.col === targetLocation.col
   );
   if (!opponentPiece) return;
+  // 不具合#43: 相手クライアントにも電撃アークを見せる。入れ替え（moveAndSync）の状態同期が届く
+  // 前＝両駒がまだ元の位置にいる間に、ブロードキャストしておく（受信側は元位置間にアークを描く）。
+  if (isOnlineMode()) broadcastMassChangeSwap({ fromPlayer: getSelfSeat(), pieceAId: pieceTokenId, pieceBId: opponentPiece.id });
   // 入れ替え演出（発光＋電撃アーク＋飛翔）。終了時、両駒はpendingで隠れている（演出ON時）。
   await playMassChangeSwapAnimation(pieceTokenId, opponentPiece.id);
   // 「入れ替え」であり「移動」ではないため到達効果を得ない（docs/cards.md補足）。
@@ -1588,6 +1619,12 @@ onEffectReasonEvents(({ fromPlayer, cardId, text }) => {
 onSteppedCardRevealEvents(({ fromPlayer, cardId }) => {
   if (fromPlayer === getSelfSeat()) return;
   playCenterCardFlipReveal(cardId, { labelText: "踏んだ" });
+});
+// 不具合#43: マスチェンジの入れ替え電撃演出を、実行者以外の全プレイヤーでも再生する。
+// （実行者はswapPiecesForEffect内でローカル再生済み。受信側は入れ替え前の元位置間にアークを描く。）
+onMassChangeSwapEvents(({ fromPlayer, pieceAId, pieceBId }) => {
+  if (fromPlayer === getSelfSeat()) return; // 実行者本人はローカル再生済み
+  playMassChangeArcForRemote(pieceAId, pieceBId);
 });
 // ユーザー要望「試練の儀式やザ・ギャンブルなどで色宣言するとき相手が何色を宣言したかを
 // 見える化したい」（続き62、続き65で丸い色アイコン＋常駐表示に改訂）。宣言した本人は
