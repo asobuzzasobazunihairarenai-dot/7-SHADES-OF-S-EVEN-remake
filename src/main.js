@@ -4422,6 +4422,9 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         drawCards: drawCardsForEffect,
         pickDiscardCost: (candidates, hint) => requestHandCardChoiceForEffect(player, hint, new Set(candidates.map((t) => t.id))),
         moveAndSync: moveAndSyncForEffect,
+        recordMoveVisited,
+        isLoopMoveDest,
+        isCpuDriving: isSeatAutoDriven,
         flyCardToHand: flyBoardCardToHand,
         pickLocation: requestCellChoiceForEffect,
         pickHandCard: requestHandCardChoiceForEffect,
@@ -4518,6 +4521,9 @@ async function runAutoArrivalEffect(cardId, location, player) {
     { cardId, player, pieceTokenId: piece.id, cardTokenId: cardToken.id, pieceLocation: location },
     {
       moveAndSync: moveAndSyncForEffect,
+      recordMoveVisited,
+      isLoopMoveDest,
+      isCpuDriving: isSeatAutoDriven,
       flyCardToHand: flyBoardCardToHand,
       pickLocation: requestCellChoiceForEffect,
       pickHandCard: requestHandCardChoiceForEffect,
@@ -4643,6 +4649,27 @@ function isArrivalEffectProcessing() {
   return arrivalEffectProcessingDepth > 0;
 }
 
+// 無意味なループ防止（#49、ユーザー方針「セブンではルール上無意味なループは禁止」）。1つの到達連鎖
+// （ジャンプ台の連続移動等）で駒が通ったマスを記録し、そこへ戻る移動先を「ループ先」として扱う。
+// 連鎖の起点（arrivalEffectProcessingDepth===0）でクリアする。card-effect-engineのMOVEが
+// recordMoveVisited/isLoopMoveDestを使って、CPUはループ先を選ばず、人間には警告して選ばせない。
+let moveChainVisitedCells = new Set();
+function recordMoveVisited(cell) {
+  if (cell && cell.zone === "cell") moveChainVisitedCells.add(`${cell.row},${cell.col}`);
+  else if (cell && typeof cell.row === "number") moveChainVisitedCells.add(`${cell.row},${cell.col}`);
+}
+function isLoopMoveDest(cell) {
+  return !!cell && typeof cell.row === "number" && moveChainVisitedCells.has(`${cell.row},${cell.col}`);
+}
+// その座席が自動操作（CPU戦のCPU席 or AFK代行中の自席）で駆動されているか。ループ先を人間に警告
+// するのか、自動で避けるのかの分岐に使う。
+function isSeatAutoDriven(seat) {
+  return (
+    (isCpuBattleActive() && !isOnlineMode() && isPseudoCpuTarget(seat)) ||
+    (isSelfCpuSubstituted() && seat === getSelfSeat())
+  );
+}
+
 // ユーザー報告「ゲートのマスのカードの到達処理が終わる前にゲート侵攻処理が始まってしまう」。
 // サーバー駆動のゲート侵攻ブロードキャストは、そのカードの到達効果（例: スラム役人の“全員が
 // 手札を3枚まで捨てる”）をローカルで解決している最中に届くことがあり、到達効果の解決を待たずに
@@ -4721,6 +4748,8 @@ function autoArrivalKey(cardId, location) {
 // opts.fromDiff: この呼び出しが remote-move-animator.js の位置差分検知（他席の移動の再現・
 // 自席の移動の取りこぼし再発火）由来かどうか。#11の冪等ガードで、fromDiffの重複だけを無視する。
 function triggerCardArrival(cardId, location, onFullyResolved, opts = {}) {
+  // 新しい到達連鎖の起点でループ記録をリセットする（#49。連鎖中に通ったマスへの出戻りを検知するため）。
+  if (arrivalEffectProcessingDepth === 0) moveChainVisitedCells.clear();
   const player = getPieceOwnerAt(location);
   const showAddToHand = !!player && player === getSelfSeat();
   // 到達効果を自動処理する対象席かどうか。通常は「自分の席」。ただしローカルCPU戦では

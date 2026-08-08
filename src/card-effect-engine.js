@@ -550,13 +550,40 @@ async function runAction(action, ctx, helpers) {
     case VERBS.MOVE: {
       const candidates = getMoveCandidates(ctx.pieceLocation, action.count, !!action.atOnce);
       if (candidates.length === 0) return false; // 善処の原則: 選べる先が無ければ何もしない
-      const dest =
-        candidates.length === 1 && !ctx.forcePrompt ? candidates[0] : await helpers.pickLocation(candidates, "移動先のマスを選択してください");
+      // 無意味なループ防止（#49、ユーザー方針「セブンではルール上無意味なループは禁止」）。この移動
+      // 連鎖で既に通ったマス（出発マス含む）へ戻る候補を「ループ先」として扱う。ジャンプ台の連続移動で
+      // 2つのジャンプ台を永遠に往復する等を防ぐ。
+      helpers.recordMoveVisited?.(ctx.pieceLocation); // 出発マスを記録（この連鎖で通った印）
+      const isLoop = (c) => !!helpers.isLoopMoveDest?.(c);
+      const freshCells = candidates.filter((c) => !isLoop(c));
+      const loopCells = candidates.filter(isLoop);
+      let dest;
+      if (helpers.isCpuDriving?.(ctx.player)) {
+        // CPU（CPU戦のCPU席・AFK代行の自席）はループ先を選ばない。非ループの行き先が無ければ移動
+        // しない（連鎖はここで自然終了。駒は直前に着地した現在地＝正当なマスに留まる）。
+        if (freshCells.length === 0) return false;
+        dest =
+          freshCells.length === 1 && !ctx.forcePrompt
+            ? freshCells[0]
+            : await helpers.pickLocation(freshCells, "移動先のマスを選択してください");
+      } else {
+        // 人間: ループ先は警告して選べないようにする（alertCellsでクリック時に注意を出し選択させない）。
+        // 非ループの行き先が1つも無ければ移動しない（＝実質行き先なし。駒は現在地に留まる）。
+        if (freshCells.length === 0) return false;
+        dest =
+          freshCells.length === 1 && !ctx.forcePrompt
+            ? freshCells[0]
+            : await helpers.pickLocation(freshCells, "移動先のマスを選択してください", {
+                alertCells: loopCells,
+                alertMessage: "無意味なループになるため、そのマスへは移動できません。",
+              });
+      }
       if (!dest) return false;
       // ユーザー要望「ジャンプ台で移動するときに専用の効果音を使ってください」。
       // action.sound（DSL側で指定した場合のみ）をそのままhelpers.moveAndSyncへ
       // 渡す。指定が無い他のMOVEアクションは従来通り無音のまま。
       await helpers.moveAndSync(ctx.pieceTokenId, dest, action.sound);
+      helpers.recordMoveVisited?.(dest); // 到達マスも記録（次の連鎖でここへ戻る＝ループとして検知）
       ctx.pieceLocation = dest;
       ctx.arrivedAt = dest; // 呼び出し元が「移動の結果、新しいマスに到達した」連鎖判定に使う
       return true;
