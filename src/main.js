@@ -205,6 +205,7 @@ import {
   chooseHandEffectCard,
   chooseHandCardToken,
   chooseOpponentHandCardToSteal,
+  chooseSwapGiveCard,
 } from "./cpu-brain.js";
 import {
   getSelfSeat,
@@ -1743,7 +1744,19 @@ async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
   );
   if (!theirCard) return;
   await moveAndSyncForEffect(theirCard.id, { zone: "hand", player });
-  const myCard = await requestHandCardChoiceForEffect(player, "相手に渡すカードを手札から選択してください");
+  // 賢いCPUが渡す側の時は、渡す札を賢く選ぶ（ユーザー要望2026-08-08「未ロック＝まだ要る色は
+  // なるべく渡さない」。自分の要る色・相手の要る色・貴重札を避け、双方ロック済みの色を優先）。
+  // それ以外（人間・オンライン離脱代行）は従来どおり対話ピッカーで選ぶ。
+  let myCard;
+  if (isCpuBrainDriving(player)) {
+    const handIds = getState()
+      .tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player)
+      .map((t) => t.id);
+    const giveId = chooseSwapGiveCard(handIds, player, targetPlayer);
+    myCard = getState().tokens.find((t) => t.id === giveId) || null;
+  } else {
+    myCard = await requestHandCardChoiceForEffect(player, "相手に渡すカードを手札から選択してください");
+  }
   if (!myCard) {
     await moveAndSyncForEffect(theirCard.id, { zone: "hand", player: targetPlayer });
     return;

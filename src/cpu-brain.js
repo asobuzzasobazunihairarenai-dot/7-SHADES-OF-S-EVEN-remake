@@ -469,6 +469,34 @@ export function chooseHandCardToken(tokenIds, driveSeat) {
   return tokens[0].id;
 }
 
+// スリカエ（手品師の技）で相手に「渡す」1枚を選ぶ自動代行（ユーザー要望2026-08-08
+// 「未ロック＝まだ要る色のカードはなるべく渡さない」）。渡す＝失う＋相手に与える、の両面から
+// 一番渡してよい札を選ぶ: ①自分がまだ要る色は渡さない（進行を失う）②相手がまだ要る色も渡さない
+// （相手を助ける）③自分も相手もロック済みの色＝双方に無害＝最も渡してよい。強い/貴重札は温存。
+export function chooseSwapGiveCard(tokenIds, giverSeat, targetSeat) {
+  const ids = [...(tokenIds || [])];
+  if (ids.length === 0) return null;
+  const state = getState();
+  const myNeeded = neededColors(state, giverSeat);
+  const theirNeeded = neededColors(state, targetSeat);
+  const tokens = ids.map((id) => state.tokens.find((t) => t.id === id)).filter(Boolean);
+  if (tokens.length === 0) return ids[0];
+  const giveability = (t) => {
+    const color = getCardDefinition(t.cardId)?.color;
+    let g = 0;
+    if (color && COLORS.includes(color)) {
+      if (myNeeded.has(color)) g -= 3; // 自分がまだ要る色は渡したくない
+      else g += 2; // 自分はロック済み＝手放してよい
+      if (theirNeeded.has(color)) g -= 2; // 相手がまだ要る色は与えたくない（助けない）
+      else g += 1; // 相手もロック済み＝与えても無害
+    }
+    if (isPreciousCard(t.cardId)) g -= 4; // 強い/リアクション/虹/ファースト/エターナルは温存
+    return g;
+  };
+  tokens.sort((a, b) => giveability(b) - giveability(a));
+  return tokens[0].id;
+}
+
 // 相手の手札から1枚奪う（スリカエ・接触・ゲート侵攻）自動代行。中級・上級は相手の手札の中身が
 // 見えない（非公開）ためランダム。最強のみ、のぞき見して一番価値の高い札を奪う（自分がまだ要る色＝
 // 奪えば自分がロックできる／相手の強いリアクション札を無力化／強力なカード）。
