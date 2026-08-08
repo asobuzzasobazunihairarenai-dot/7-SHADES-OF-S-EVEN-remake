@@ -5142,8 +5142,9 @@ body.is-phone-device #admin-panel {
   position: absolute;
   bottom: 0;
   left: 50%;
-  width: 7rem;
-  height: 7rem;
+  /* ユーザー要望2026-08-08「中央に出るセプトをもっと大きく」。 */
+  width: 12rem;
+  height: 12rem;
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center bottom;
@@ -5152,12 +5153,27 @@ body.is-phone-device #admin-panel {
   transition: opacity 0.28s ease, transform 0.28s ease;
   pointer-events: none;
 }
+/* セプトは真っ黒なので、後ろにライト系の光背を敷いて背景に埋もれないようにする（ユーザー要望
+   2026-08-08）。背景画像(JSがbackground-imageで設定)とは別レイヤーにするため::beforeで描く。 */
+.eidos-dialogue-sept::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0.6rem;
+  width: 120%;
+  height: 120%;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 55%, rgba(255, 252, 245, 0.95), rgba(255, 244, 214, 0.55) 42%, rgba(255, 255, 255, 0) 72%);
+  z-index: -1;
+  pointer-events: none;
+}
 .eidos-dialogue-sept.is-shown {
   opacity: 1;
   transform: translateX(-50%) scale(1);
 }
 .eidos-dialogue-sept.is-shown.is-speaking {
-  transform: translateX(-50%) scale(1.12);
+  transform: translateX(-50%) scale(1.15);
 }
 /* テキスト帯。 */
 .eidos-dialogue-body {
@@ -5229,8 +5245,8 @@ body.is-phone-device #admin-panel {
     width: 46vw;
   }
   .eidos-dialogue-sept {
-    width: 5.2rem;
-    height: 5.2rem;
+    width: 9rem;
+    height: 9rem;
   }
   .eidos-dialogue-body {
     width: 100vw;
