@@ -281,3 +281,26 @@ export function chooseEffectCell(candidates, driveSeat) {
   const pool = gateCandidates.length > 0 ? gateCandidates : candidates;
   return pool[Math.floor(Math.random() * pool.length)];
 }
+
+// --- 手札効果の能動使用（ユーザー要望2026-08-08「CPUに手札効果を使わせる」）-----------------
+// まずは「明確に得で安全な効果」だけを能動的に使う保守的な第一歩。リスクのある効果
+// （ザ・ギャンブル＝手札全捨ての危険、対象が読みにくい効果 等）は使わない（テーブルに載せない）。
+// 値が正のカードの中で最も高いものを使う。無ければ null（使わずスキップ）。
+const HAND_EFFECT_VALUE = {
+  "orange-harvest-sow": 2, // 収穫と種まき: 場のカードを1枚手札に得て1枚置く＝手札の質を上げる（安全）
+  "green-growing-trees": 1, // 増殖する樹々: 何もないマスに山札から置く＝盤面展開（軽い得）
+};
+
+export function chooseHandEffectCard(usableCards, driveSeat) {
+  if (!usableCards || usableCards.length === 0) return null;
+  let best = null;
+  let bestScore = 0; // 0以下（未登録＝使わない）は採用しない
+  for (const t of usableCards) {
+    const score = HAND_EFFECT_VALUE[t.cardId] ?? 0;
+    if (score > bestScore) {
+      bestScore = score;
+      best = t;
+    }
+  }
+  return best;
+}

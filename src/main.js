@@ -195,7 +195,7 @@ import { maybeShowFirstRunBgmModal } from "./first-run-bgm.js";
 import { applyStoredCardPreviewSize, getCardPreviewSide } from "./card-preview-size.js";
 import { isFixedHandEnabled, applyStoredFixedHand } from "./fixed-hand.js";
 import { isCpuBattleActive, isCpuAutoSkipEnabled, isCpuBrainSmart } from "./cpu-battle-state.js";
-import { chooseMoveCandidate, chooseDeclaredColors, chooseEffectOption, chooseEffectCell } from "./cpu-brain.js";
+import { chooseMoveCandidate, chooseDeclaredColors, chooseEffectOption, chooseEffectCell, chooseHandEffectCard } from "./cpu-brain.js";
 import {
   getSelfSeat,
   isSpectatingGame,
@@ -3334,6 +3334,31 @@ export function performPriorityTimeoutAutoAction() {
       return true;
     }
   }
+  // ユーザー要望2026-08-08「CPUに手札効果を能動的に使わせたい」。ハンドフェイズで、賢いCPU
+  // （中級以上）は明確に得な手札効果があれば使う。runAutoHandEffectは人間のクリック使用と
+  // 同じ経路で、内部の選択（マス/手札/色/選択肢）は後続のtickで自動代行が解決する。使うかどうか・
+  // どのカードかは canUseHandEffect（使用回数・追色コスト・自動処理設定を考慮）＋cpu-brainの
+  // 評価（得な効果だけ、無ければ使わない）で決める。
+  if (phase === "hand" && isCpuBrainDriving(driveSeat) && !isHandEffectBusy()) {
+    const player = driveSeat;
+    const usable = getState().tokens.filter(
+      (t) =>
+        t.kind === "card" &&
+        t.location.zone === "hand" &&
+        t.location.player === player &&
+        hasHandEffectData(t.cardId) &&
+        canUseHandEffect(t.cardId, t.id, player)
+    );
+    const chosen = chooseHandEffectCard(usable, player);
+    if (chosen) {
+      // fire-and-forget（内部の選択待ちは後続tickの自動代行で解決される）。
+      runAutoHandEffect(chosen.cardId, chosen.id, player);
+      return true;
+    }
+  }
+  // 手札効果を解決中（まだ選択モーダルは出ていないが処理中）の間は、フェイズを終わらせずに待つ
+  // （CPUが手札効果を使い始めた直後の一瞬など。上のactiveEffectPicker分岐が選択を順次解決する）。
+  if (isHandEffectBusy()) return false;
   if (phase === "lock" || phase === "hand") {
     forceEndCurrentPhase();
     // ユーザー要望「時間切れによるスキップが発生したら15秒回復させてください」。
