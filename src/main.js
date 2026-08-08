@@ -7551,11 +7551,17 @@ function updateMiniLockArea() {
   if (!lockAreaEl || visibleFrac >= 0.5) {
     if (miniLockAreaEl.style.display !== "none") miniLockAreaEl.style.display = "none";
     if (miniLockAreaTopEl.style.display !== "none") miniLockAreaTopEl.style.display = "none";
+    // ミニロック非表示 → 盤面の通常の手札公開エリアを元通り表示する。
+    document.body.classList.remove("mini-lock-active");
     miniLockAreaSig = null;
     return;
   }
   miniLockAreaEl.style.display = "";
   miniLockAreaTopEl.style.display = "";
+  // ユーザー要望2026-08-08: ミニロックエリア表示中は、自分（下側）の通常の手札公開エリアを隠す
+  // （ミニロックの左隣にミニ手札公開エリアを出しており重複＝邪魔になるため）。CSSで .hand-reveal-bottom
+  // を非表示にする（body.mini-lock-active）。相手側の公開エリアはそのまま。
+  document.body.classList.add("mini-lock-active");
   const active = state.activePlayers ?? [];
   // 各プレイヤーのロック状況（player → {index: {cardId, tokenId}}）。location.sideは実座標の側。
   const lockByPlayer = {};

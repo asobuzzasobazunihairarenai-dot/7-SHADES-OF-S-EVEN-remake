@@ -482,6 +482,12 @@ img {
 .hand-reveal-bottom {
   transform: translate(0, -50%) translate(var(--hand-reveal-bottom-pos-x, -16.2rem), var(--hand-reveal-bottom-pos-y, 0.4rem));
 }
+/* ユーザー要望2026-08-08: ミニロックエリア表示中（盤面拡大でロックエリアが画面外＝画面下中央に
+   ミニロック＋ミニ手札公開エリアを出している間）は、自分（下側）の通常の手札公開エリアを隠す
+   （重複するため）。相手側（top/left/right）はそのまま。 */
+body.mini-lock-active .hand-reveal-bottom {
+  display: none;
+}
 /* ユーザー要望「各プレイヤーとも公開方向はロックエリアの向きに合わせる」により、
    B=時計回り90度・C=180度・D=反時計回り90度を追加した（position(translate)の後に
    付けることで、位置調整自体は回転の影響を受けない画面座標のまま行える）。 */
