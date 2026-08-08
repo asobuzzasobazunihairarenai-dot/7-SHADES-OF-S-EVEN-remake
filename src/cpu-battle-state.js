@@ -104,17 +104,100 @@ export function setCpuDifficulty(v) {
     /* 保存できなくてもそのセッションでは効く */
   }
 }
+
+// --- AFK時のCPU代行（ユーザー要望2026-08-08） ------------------------------------------------
+// タイマーが連続で規定回数タイムアップしたプレイヤーを、そのプレイヤー自身の端末が疑似CPUに
+// 切り替えて代行する（本人が接続中で放置＝AFKのケースが主対象）。本人には「CPUに切替中です。
+// 復帰しますか？」を表示し、押せば操作権が戻る。回数のしきい値・代行CPUの強さは管理者だけが
+// 基本設定から変更できる（下のgetter/setter、options-menu.jsで管理者にだけ表示）。
+// 実際の駆動は main.js の isCpuBrainDriving がこの isSelfCpuSubstituted() を見て行う。
+const AFK_ENABLED_KEY = "so7-afk-cpu-enabled"; // 'on' | 'off'
+const AFK_THRESHOLD_KEY = "so7-afk-cpu-threshold"; // 連続タイムアップ回数
+const AFK_DIFFICULTY_KEY = "so7-afk-cpu-difficulty"; // 代行CPUの強さ（DIFFICULTIESのいずれか）
+let afkEnabled = true;
+let afkThreshold = 3;
+let afkDifficulty = "intermediate";
+try {
+  if (localStorage.getItem(AFK_ENABLED_KEY) === "off") afkEnabled = false;
+  const t = parseInt(localStorage.getItem(AFK_THRESHOLD_KEY) || "", 10);
+  if (Number.isFinite(t) && t >= 1 && t <= 20) afkThreshold = t;
+  const d = localStorage.getItem(AFK_DIFFICULTY_KEY);
+  if (d && DIFFICULTIES.includes(d)) afkDifficulty = d;
+} catch {
+  /* 既定値で動く */
+}
+export function isAfkCpuTakeoverEnabled() {
+  return afkEnabled;
+}
+export function setAfkCpuTakeoverEnabled(v) {
+  afkEnabled = !!v;
+  try {
+    localStorage.setItem(AFK_ENABLED_KEY, afkEnabled ? "on" : "off");
+  } catch {}
+}
+export function getAfkTimeoutThreshold() {
+  return afkThreshold;
+}
+export function setAfkTimeoutThreshold(n) {
+  const v = Math.round(Number(n));
+  if (!Number.isFinite(v) || v < 1 || v > 20) return;
+  afkThreshold = v;
+  try {
+    localStorage.setItem(AFK_THRESHOLD_KEY, String(v));
+  } catch {}
+}
+export function getAfkCpuDifficulty() {
+  return afkDifficulty;
+}
+export function setAfkCpuDifficulty(v) {
+  if (!DIFFICULTIES.includes(v)) return;
+  afkDifficulty = v;
+  try {
+    localStorage.setItem(AFK_DIFFICULTY_KEY, v);
+  } catch {}
+}
+
+// 自席がAFK代行中か（このクライアント自身の状態。オンラインでも自分の席だけを対象にする）。
+let selfCpuSubstituted = false;
+// 連続タイムアップ回数（手動操作でリセット）。
+let consecutiveTimeouts = 0;
+export function isSelfCpuSubstituted() {
+  return selfCpuSubstituted;
+}
+export function setSelfCpuSubstituted(v) {
+  selfCpuSubstituted = !!v;
+  if (!selfCpuSubstituted) consecutiveTimeouts = 0;
+}
+export function getConsecutiveTimeouts() {
+  return consecutiveTimeouts;
+}
+// 自席のタイムアップを1回記録。しきい値に達したらtrue（＝代行開始すべき）を返す。
+export function recordSelfTimeout() {
+  consecutiveTimeouts += 1;
+  return afkEnabled && consecutiveTimeouts >= afkThreshold;
+}
+// 手動操作があった（＝本人在席）のでカウンタをリセット。代行中は解除しない（復帰ボタン専用）。
+export function resetTimeoutStreak() {
+  consecutiveTimeouts = 0;
+}
+
+// 実効の難易度（AFK代行中はAFK用の強さ、それ以外はCPU戦の強さ）。cpu-brain.jsが使う思考レベルの
+// 判定（isCpuBrainSmart/isCpuPeekAllowed/isCpuOpponentAware）はこれを基準にするので、代行中は
+// 自動的にAFK用の強さで指す。
+function activeDifficulty() {
+  return selfCpuSubstituted ? afkDifficulty : cpuDifficulty;
+}
 // 賢い思考を使うか（新人以外）。
 export function isCpuBrainSmart() {
-  return cpuDifficulty !== "rookie";
+  return activeDifficulty() !== "rookie";
 }
 // 非公開情報（伏せカード等）ののぞき見を許すか（最強のみ）。
 export function isCpuPeekAllowed() {
-  return cpuDifficulty === "master";
+  return activeDifficulty() === "master";
 }
 // 相手プレイヤーの状況を考慮するか（上級以上）。
 export function isCpuOpponentAware() {
-  return cpuDifficulty === "advanced" || cpuDifficulty === "master";
+  return activeDifficulty() === "advanced" || activeDifficulty() === "master";
 }
 
 let stepTicket = false;

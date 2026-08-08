@@ -196,7 +196,14 @@ import { initOpeningScreen, previewOpeningAuras } from "./opening-screen.js";
 import { maybeShowFirstRunBgmModal } from "./first-run-bgm.js";
 import { applyStoredCardPreviewSize, getCardPreviewSide } from "./card-preview-size.js";
 import { isFixedHandEnabled, applyStoredFixedHand } from "./fixed-hand.js";
-import { isCpuBattleActive, isCpuAutoSkipEnabled, isCpuBrainSmart } from "./cpu-battle-state.js";
+import {
+  isCpuBattleActive,
+  isCpuAutoSkipEnabled,
+  isCpuBrainSmart,
+  isSelfCpuSubstituted,
+  setSelfCpuSubstituted,
+  resetTimeoutStreak,
+} from "./cpu-battle-state.js";
 import {
   chooseMoveCandidate,
   chooseDeclaredColors,
@@ -240,6 +247,8 @@ import {
   onSteppedCardRevealEvents,
   broadcastMassChangeSwap,
   onMassChangeSwapEvents,
+  broadcastAfkCpuStatus,
+  onAfkCpuStatusEvents,
   broadcastColorsDeclared,
   onColorsDeclaredEvents,
   broadcastColorsResolved,
@@ -449,12 +458,28 @@ function layoutFan(count, orientation, isSelf, side) {
   });
 }
 
+// AFK代行の状態（ユーザー要望2026-08-08）。モジュール評価の早い段階（最初のrender前）で初期化して
+// おく必要があるため、ここで宣言する（buildPlayerZone/renderのupdateAfkCpuBannerが参照）。
+const afkCpuStatusBySeat = {}; // 相手席の代行状態（seat -> bool）。自席は isSelfCpuSubstituted() を見る。
+let afkCpuBannerEl = null;
+function isAfkCpuSubstitutedSeat(seat) {
+  if (seat === getSelfSeat()) return isSelfCpuSubstituted();
+  return !!afkCpuStatusBySeat[seat];
+}
+
 function buildPlayerZone(side, player, isSelf) {
   const zone = document.createElement("div");
   zone.className = `zone zone-${side} player-zone`;
   const nameEl = document.createElement("div");
   nameEl.className = `label${player === getState().turnPlayer ? " is-turn-player" : ""}`;
   nameEl.textContent = getPlayerName(player);
+  // AFK代行中の席には「🤖CPU操作中」を名前に添える（ユーザー要望2026-08-08。相手にも分かるように）。
+  if (isAfkCpuSubstitutedSeat(player)) {
+    const tag = document.createElement("span");
+    tag.className = "afk-cpu-tag";
+    tag.textContent = " 🤖CPU操作中";
+    nameEl.appendChild(tag);
+  }
 
   // アバターは「手札の後ろ側」に見えるよう、手札(.hand-area)より先にDOMへ足す
   // （同じ場所で重なった時、後から足した手札側が手前に描画される）。管理者モードで
@@ -3333,9 +3358,11 @@ function getAutoDriveSeat() {
 }
 
 // CPU戦で「賢いCPU（cpu-brain.js）」がこの席の手を選ぶべきか。ローカルCPU戦のCPU席
-// （疑似CPU対象）で、難易度が新人より上（isCpuBrainSmart）の時だけtrue。オンラインの
-// 離脱者代行など他の経路の挙動は一切変えない（従来通りランダム）。
+// （疑似CPU対象）で、難易度が新人より上（isCpuBrainSmart）の時だけtrue。
+// あわせて、AFK代行中は自分の席をオンラインでも賢いCPUで駆動する（ユーザー要望2026-08-08。
+// isCpuBrainSmartは代行中はAFK用の強さを見るので、AFK難易度が新人ならランダムになる）。
 function isCpuBrainDriving(seat) {
+  if (isSelfCpuSubstituted() && seat === getSelfSeat()) return isCpuBrainSmart();
   return isCpuBattleActive() && !isOnlineMode() && isPseudoCpuTarget(seat) && isCpuBrainSmart();
 }
 
@@ -6501,6 +6528,7 @@ function render() {
   updateHandShuffleButton();
   updateSelfHandStatus();
   updateTurnRoundCounter();
+  updateAfkCpuBanner();
   updateFinalLockApprovalBanner();
   checkGomennasaiAutoApproval();
   checkCpuFinalLockApproval();
@@ -11513,6 +11541,72 @@ buildAnytimeInterruptResumeButton();
 buildContactApprovalModal();
 turnRoundCounterEl = buildTurnRoundCounter();
 updateTurnRoundCounter();
+
+// ===== AFK時のCPU代行（ユーザー要望2026-08-08） =====================================
+// タイマーが連続で規定回数タイムアップした自席を、疑似CPUで代行する。本人には「CPUに
+// 切替中です。復帰しますか？」バナーを出し、押せば操作権が戻る。相手席の代行状態は
+// broadcastで受け取り、名前に「🤖CPU操作中」を添える（buildPlayerZone）。afkCpuStatusBySeat/
+// afkCpuBannerEl/isAfkCpuSubstitutedSeat はファイル前半（buildPlayerZone付近）で宣言済み。
+function buildAfkCpuBanner() {
+  afkCpuBannerEl = document.createElement("div");
+  afkCpuBannerEl.id = "afk-cpu-banner";
+  document.body.appendChild(afkCpuBannerEl);
+}
+function updateAfkCpuBanner() {
+  if (!afkCpuBannerEl) return;
+  if (!isSelfCpuSubstituted()) {
+    afkCpuBannerEl.classList.remove("is-visible");
+    afkCpuBannerEl.innerHTML = "";
+    return;
+  }
+  if (afkCpuBannerEl.classList.contains("is-visible")) return; // 既に表示中なら作り直さない
+  afkCpuBannerEl.classList.add("is-visible");
+  afkCpuBannerEl.innerHTML = "";
+  const text = document.createElement("div");
+  text.className = "afk-cpu-banner-text";
+  text.textContent = "🤖 CPUに切替中です（放置のため自動操作中）。";
+  afkCpuBannerEl.appendChild(text);
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "afk-cpu-banner-btn";
+  btn.textContent = "復帰する";
+  btn.addEventListener("click", exitAfkCpuSubstitution);
+  afkCpuBannerEl.appendChild(btn);
+}
+function enterAfkCpuSubstitution() {
+  if (isSelfCpuSubstituted()) return;
+  setSelfCpuSubstituted(true);
+  if (isOnlineMode()) broadcastAfkCpuStatus({ seat: getSelfSeat(), substituted: true });
+  updateAfkCpuBanner();
+  render();
+}
+function exitAfkCpuSubstitution() {
+  if (!isSelfCpuSubstituted()) return;
+  setSelfCpuSubstituted(false); // カウンタも0に戻る（setterの仕様）
+  if (isOnlineMode()) broadcastAfkCpuStatus({ seat: getSelfSeat(), substituted: false });
+  updateAfkCpuBanner();
+  // 自分の手番中なら、疑似CPUの短い持ち時間ではなく通常の基本時間からやり直せるよう優先権を仕切り直す。
+  const st = getState();
+  if (st.priorityPlayer === getSelfSeat()) transferPriorityTo(getSelfSeat());
+  render();
+}
+buildAfkCpuBanner();
+// しきい値到達（turn-timer.jsが連続タイムアップを数えて発火）→ 自席をCPU代行に切替。
+window.addEventListener("afk-cpu-threshold-reached", enterAfkCpuSubstitution);
+// 手動操作（在席の証拠）があれば連続タイムアップのカウンタをリセット。ただし既に代行中の間は
+// 解除しない（誤って触れただけで戻さない。復帰は明示ボタンのみ）。captureで拾い、バナーの
+// 「復帰する」ボタン自身のクリックも通常どおり動く（resetは代行中は何もしないため干渉しない）。
+["pointerdown", "keydown"].forEach((ev) =>
+  window.addEventListener(ev, () => {
+    if (!isSelfCpuSubstituted()) resetTimeoutStreak();
+  }, true)
+);
+// 相手席の代行状態を受信 → 表示に反映。
+onAfkCpuStatusEvents(({ seat, substituted }) => {
+  if (!seat || seat === getSelfSeat()) return;
+  afkCpuStatusBySeat[seat] = !!substituted;
+  render();
+});
 
 // オンラインでゲームが開始された瞬間（turnPlayerがnull→非nullに変わった瞬間、
 // online-ui.jsの部屋モーダル自動クローズと同じ検知方法）に、ローカル版のセットアップ配布

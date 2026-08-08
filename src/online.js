@@ -441,6 +441,21 @@ export function broadcastMassChangeSwap(payload) {
   }
 }
 
+// AFK代行の状態（ある席がCPU代行中か）を全員に知らせる（ユーザー要望2026-08-08。相手画面に
+// 「CPU操作中」を表示するため）。状態は変えない見た目だけの合図パターン。
+let afkCpuStatusEventListeners = [];
+export function onAfkCpuStatusEvents(fn) {
+  afkCpuStatusEventListeners.push(fn);
+  return () => {
+    afkCpuStatusEventListeners = afkCpuStatusEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastAfkCpuStatus(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "afk_cpu_status", payload });
+  }
+}
+
 // ユーザー要望「今相手が何のフェイズかをフェイズ案内板でわかるようにしたい」。フェイズの
 // 進行状態（ロック/ハンド/ムーブ）は各クライアントのphase-automation.jsが自分の手番の
 // 間だけローカルに持つもので共有ゲーム状態には無いため、hand_effect_useと同じ「状態は
@@ -2469,6 +2484,10 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // マスチェンジの入れ替え電撃演出の通知（broadcastMassChangeSwap参照）。
     .on("broadcast", { event: "mass_change_swap" }, ({ payload }) => {
       for (const fn of massChangeSwapEventListeners) fn(payload);
+    })
+    // AFK代行状態の通知（broadcastAfkCpuStatus参照）。
+    .on("broadcast", { event: "afk_cpu_status" }, ({ payload }) => {
+      for (const fn of afkCpuStatusEventListeners) fn(payload);
     })
     // 相手のフェイズ表示の通知（broadcastPhaseChange参照）。
     .on("broadcast", { event: "phase_change" }, ({ payload }) => {

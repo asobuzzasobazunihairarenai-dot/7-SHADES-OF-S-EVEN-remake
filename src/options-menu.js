@@ -24,7 +24,20 @@ import { isBoardIllustOnly, setBoardIllustOnly } from "./board-card-display.js";
 import { isFixedHandEnabled, setFixedHandEnabled } from "./fixed-hand.js";
 import { getSoundVolume, setSoundVolume, getBgmVolume, setBgmVolume } from "./sound.js";
 import { setCardPreviewSize, getCardPreviewSide, setCardPreviewSide } from "./card-preview-size.js";
-import { getCpuSpeed, setCpuSpeed, isCpuAutoSkipEnabled, setCpuAutoSkipEnabled, getCpuDifficulty, setCpuDifficulty } from "./cpu-battle-state.js";
+import {
+  getCpuSpeed,
+  setCpuSpeed,
+  isCpuAutoSkipEnabled,
+  setCpuAutoSkipEnabled,
+  getCpuDifficulty,
+  setCpuDifficulty,
+  isAfkCpuTakeoverEnabled,
+  setAfkCpuTakeoverEnabled,
+  getAfkTimeoutThreshold,
+  setAfkTimeoutThreshold,
+  getAfkCpuDifficulty,
+  setAfkCpuDifficulty,
+} from "./cpu-battle-state.js";
 import { SHORTCUT_TARGETS, getShortcut, setShortcut, registerShortcutSettingsOpener } from "./player-buttons.js";
 import { createBackdrop } from "./ui-helpers.js";
 import {
@@ -1042,6 +1055,68 @@ export function initOptionsMenu() {
               }
             });
             content.appendChild(emergencyBtn);
+          }
+
+          // AFK時のCPU代行（ユーザー要望2026-08-08）。連続タイムアップ回数のしきい値・代行CPUの
+          // 強さは管理者だけが調整できる（基本設定内・管理者のみ表示）。切替そのものの挙動は
+          // turn-timer.js/main.jsが担い、ここは設定値の編集だけ。
+          if (isAdminUser()) {
+            const afkTitle = document.createElement("div");
+            afkTitle.style.cssText = "font-size: 0.78rem; color: #fbbf24; margin: 0.9rem 0 0.3rem; font-weight: bold;";
+            afkTitle.textContent = "AFK時のCPU代行（管理者のみ）";
+            content.appendChild(afkTitle);
+
+            content.appendChild(
+              buildCheckboxRow("連続タイムアップで自動的にCPU代行へ切り替える", isAfkCpuTakeoverEnabled(), (checked) =>
+                setAfkCpuTakeoverEnabled(checked)
+              )
+            );
+
+            const afkThRow = document.createElement("label");
+            afkThRow.style.cssText = "display:flex; align-items:center; gap:0.5rem; margin:0.4rem 0 0.2rem; font-size:0.85rem;";
+            const afkThLabel = document.createElement("span");
+            afkThLabel.textContent = "CPU代行へ切り替える連続タイムアップ回数";
+            afkThLabel.style.cssText = "flex:1;";
+            const afkThInput = document.createElement("input");
+            afkThInput.type = "number";
+            afkThInput.min = "1";
+            afkThInput.max = "20";
+            afkThInput.step = "1";
+            afkThInput.value = String(getAfkTimeoutThreshold());
+            afkThInput.style.cssText =
+              "width:4rem; padding:0.2rem 0.3rem; background:rgba(15,23,32,0.9); border:1px solid rgba(148,163,184,0.5); border-radius:0.3rem; color:#e2e8f0;";
+            afkThInput.addEventListener("change", () => {
+              setAfkTimeoutThreshold(afkThInput.value);
+              afkThInput.value = String(getAfkTimeoutThreshold());
+            });
+            const afkThUnit = document.createElement("span");
+            afkThUnit.textContent = "回";
+            afkThRow.append(afkThLabel, afkThInput, afkThUnit);
+            content.appendChild(afkThRow);
+
+            const afkDiffRow = document.createElement("label");
+            afkDiffRow.style.cssText = "display:flex; align-items:center; gap:0.5rem; margin:0.2rem 0; font-size:0.85rem;";
+            const afkDiffLabel = document.createElement("span");
+            afkDiffLabel.textContent = "代行CPUの強さ";
+            afkDiffLabel.style.cssText = "flex:1;";
+            const afkDiffSel = document.createElement("select");
+            afkDiffSel.style.cssText =
+              "padding:0.2rem 0.3rem; background:rgba(15,23,32,0.9); border:1px solid rgba(148,163,184,0.5); border-radius:0.3rem; color:#e2e8f0;";
+            [
+              ["rookie", "新人"],
+              ["intermediate", "中級"],
+              ["advanced", "上級"],
+              ["master", "最強"],
+            ].forEach(([v, label]) => {
+              const opt = document.createElement("option");
+              opt.value = v;
+              opt.textContent = label;
+              if (v === getAfkCpuDifficulty()) opt.selected = true;
+              afkDiffSel.appendChild(opt);
+            });
+            afkDiffSel.addEventListener("change", () => setAfkCpuDifficulty(afkDiffSel.value));
+            afkDiffRow.append(afkDiffLabel, afkDiffSel);
+            content.appendChild(afkDiffRow);
           }
         },
         {

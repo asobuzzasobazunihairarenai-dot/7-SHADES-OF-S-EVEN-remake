@@ -4977,6 +4977,49 @@ body.is-phone-device #admin-panel {
   font-size: 0.95rem;
   cursor: pointer;
 }
+/* AFK時のCPU代行（ユーザー要望2026-08-08）。自席が代行中の間、画面下中央に「復帰する」バナーを出す。 */
+#afk-cpu-banner {
+  display: none;
+  position: fixed;
+  left: 50%;
+  bottom: 1.2rem;
+  transform: translateX(-50%);
+  z-index: 100060;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.6rem 1rem;
+  background: rgba(15, 23, 32, 0.96);
+  border: 1px solid rgba(250, 204, 21, 0.7);
+  border-radius: 999px;
+  box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5);
+  font-family: sans-serif;
+  color: #fde68a;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+#afk-cpu-banner.is-visible {
+  display: flex;
+}
+.afk-cpu-banner-btn {
+  padding: 0.4rem 1.1rem;
+  border: none;
+  border-radius: 999px;
+  background: #22c55e;
+  color: #062312;
+  font-weight: 800;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.afk-cpu-banner-btn:hover {
+  background: #16a34a;
+}
+/* 相手席の名前に添える「🤖CPU操作中」タグ。 */
+.afk-cpu-tag {
+  color: #fbbf24;
+  font-size: 0.8em;
+  font-weight: bold;
+}
+
 /* ライトテーマ（body.theme-light）: ログインボーナスのモーダルがダークのままだったので、他の
    ライトモーダル（#contact-result-modal等）と同じアイボリー地＋ゴールド枠＋濃い文字へ
    （ユーザー報告2026-08-08）。金額/タイトルのゴールド系文字はライト地でも読めるためそのまま、

@@ -65,7 +65,7 @@ import {
 import { isOpponentBaseTimerVisible } from "./motion-prefs.js";
 import { toggleTimerTogglePopover } from "./timer-toggle.js";
 import { hasAnyoneWon } from "./victory.js";
-import { isCpuBattleActive, getCpuStepDeadlineMs } from "./cpu-battle-state.js";
+import { isCpuBattleActive, getCpuStepDeadlineMs, isSelfCpuSubstituted, recordSelfTimeout } from "./cpu-battle-state.js";
 import { isAutoProcessingEnabled } from "./card-effect-engine.js";
 import { logAction } from "./action-log.js";
 
@@ -216,6 +216,11 @@ function freshBaseDeadlineFor(seat) {
   // ため、ログが埋まる心配は無い）、疑似CPU判定に関わる値を全部まとめて記録する。
   // これで「サーバーから届いた値」「有効/無効の最終判定」「自分の座席かどうか」の
   // どこで意図と食い違っているかが後から追える。
+  // AFK代行中の自席は、CPUがすぐ指せるよう短い持ち時間にする（疑似CPUと同じ持ち時間。
+  // ユーザー要望2026-08-08）。オンラインでも自分の席だけが対象。
+  if (isSelfCpuSubstituted() && seat === getSelfSeat()) {
+    return Date.now() + getPseudoCpuDeadlineMs();
+  }
   const target = isPseudoCpuTarget(seat);
   // 以前ここに診断ログ(diag-pseudo-cpu freshBaseDeadlineFor)を毎回出していたが、頻度が高く
   // 行動ログのリングバッファ(300件)を埋め尽くして、ゲーム画面の行動ログが「まだ記録が
@@ -934,6 +939,14 @@ function updateTimeoutWarnings(state, isTimedOut) {
       } else {
         const result = performPriorityTimeoutAutoAction();
         timedOutAutoActionFired = !!result;
+        // AFK代行（ユーザー要望2026-08-08）: オンラインで自席が時間切れ自動処理された回数を数え、
+        // しきい値に達したら自席をCPU代行に切り替える（main.js側でフラグON・「復帰しますか？」
+        // モーダル表示・相手への通知を行う）。代行中の（CPUの短時間）タイムアウトは数えない。
+        if (result && isOnlineMode() && getSelfSeat() === state.priorityPlayer && !isSelfCpuSubstituted()) {
+          if (recordSelfTimeout()) {
+            window.dispatchEvent(new CustomEvent("afk-cpu-threshold-reached"));
+          }
+        }
         // ユーザー要望「時間切れによるスキップが発生したら15秒回復させてください」。
         // ロック/ハンドフェイズの自動スキップ（"skip"）は盤面操作を一切伴わないため、
         // ムーブフェイズの移動/接触や候補のランダム選択（moveToken等の実際の操作を
