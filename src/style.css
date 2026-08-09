@@ -5709,6 +5709,12 @@ body.shop-adjust-mode .shop-item-color-swatch {
   /* 商品画像の位置・サイズは管理者モードで全商品連動調整（--shop-thumb-*）。thumbは overflow:hidden
      なので、枠からはみ出したぶんは商品枠でわざと見切れる（ユーザー要望2026-08-08）。 */
   transform: translate(var(--shop-thumb-x, 0rem), var(--shop-thumb-y, 0rem)) scale(var(--shop-thumb-scale, 1));
+  /* 商品のドロップシャドウ（ユーザー要望2026-08-09）。drop-shadowは透明部分を無視して商品の
+     シルエットに影を落とす。強さ/ぼかし/下方向オフセットは管理者モードで調整（0で影なし）。 */
+  filter: drop-shadow(
+    0 var(--shop-thumb-shadow-y, 0.35rem) var(--shop-thumb-shadow-blur, 0.5rem)
+      rgba(0, 0, 0, var(--shop-thumb-shadow-alpha, 0.4))
+  );
 }
 /* ホバーで画像を少しズーム（陳列に動きを出す）。調整後のサイズに1.06倍を上乗せ。 */
 .shop-item-card:hover .shop-item-thumb img {

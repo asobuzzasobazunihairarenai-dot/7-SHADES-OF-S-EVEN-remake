@@ -221,6 +221,10 @@ const GROUPS = [
       { key: "--shop-badge-scale", label: "無料/所持済み・南京錠 サイズ", unit: "", min: 0.5, max: 3, step: 0.05, default: 1 },
       // ユーザー要望2026-08-08: 商品カードの白い塗りつぶし背景の不透明度（ライトテーマ時）。
       { key: "--shop-card-bg-alpha", label: "カード背景（白）の不透明度（ライト時）", unit: "", min: 0, max: 1, step: 0.02, default: 0.72 },
+      // ユーザー要望2026-08-09: 商品のドロップシャドウ（0で影なし）。
+      { key: "--shop-thumb-shadow-alpha", label: "商品の影の濃さ（0で影なし）", unit: "", min: 0, max: 1, step: 0.02, default: 0.4 },
+      { key: "--shop-thumb-shadow-blur", label: "商品の影のぼかし", unit: "rem", min: 0, max: 3, step: 0.05, default: 0.5 },
+      { key: "--shop-thumb-shadow-y", label: "商品の影の下方向オフセット", unit: "rem", min: -1, max: 3, step: 0.05, default: 0.35 },
     ],
   },
   {
