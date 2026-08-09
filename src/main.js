@@ -4296,7 +4296,7 @@ function confirmTouchAction(title) {
 // confirmTouchActionと同じcontact-approval-*流用の汎用Yes/Noモーダルだが、こちらは
 // 誤操作防止用ではなく本当の任意選択（「〜してもよい」効果）向けのため、端末に関係なく
 // 常に表示する（続き89、カウンターロックの「あなたの手札を1枚ロックしてもよい」用に新設）。
-function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ" } = {}) {
+function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ", owner = null } = {}) {
   return new Promise((resolve) => {
     const finish = (result) => {
       activeEffectPicker = null;
@@ -4332,8 +4332,11 @@ function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ"
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
     // CPUが答える番（CPUが防御側の接触承認・任意のはい/いいえ等）はこのモーダルを表示しない
-    // （自動で解決される。人間が答えるのかと混乱するため）。
-    if (isCpuSelectingNow()) {
+    // （自動で解決される。人間が答えるのかと混乱するため）。owner（この選択の主体）を渡せる——
+    // カウンターロックの「手札を1枚ロックしてもよい」等、相手（CPU）のターン中に人間の防御側が
+    // 使うリアクションでは owner=人間の席 を明示する。そうしないと優先権保持者（＝攻撃側CPU）が
+    // 選ぶと誤判定され、モーダルを隠して勝手に自動解決してしまう（不具合#58、#33と同根）。
+    if (isCpuSelectingNow(owner)) {
       backdrop.classList.add("is-cpu-hidden");
       modal.classList.add("is-cpu-hidden");
     }
@@ -4345,6 +4348,7 @@ function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ"
     // 場合にランダムなusable:true選択肢へ自動解決されるようにする。
     activeEffectPicker = {
       type: "option",
+      owner, // 人間の防御側リアクション（#58）等では owner=人間の席。CPUの自動解決から守る。
       options: [
         { id: "yes", label: yesLabel, usable: true },
         { id: "no", label: noLabel, usable: true },
@@ -6294,12 +6298,16 @@ async function useCounterLockOnContact() {
   // できない手札だと、isCardLockableが虹を除外するせいで案内モーダルが出なかった）。
   const { candidateSlotsFor, tokens: lockableTokens } = getLockableHandTokensExceptFinal(defender);
   if (lockableTokens.length === 0) return; // 善処の原則: ロックできるカードが無ければ何も聞かずに終わる
+  // owner=defender を明示（不具合#58）。カウンターロックは相手（CPU）のターン中に人間の
+  // 防御側が使うため、owner を渡さないと優先権保持者＝攻撃側CPUの選択と誤判定され、この
+  // モーダル・ピッカーが隠されてCPUの自動処理に勝手に解決されてしまう（#33と同根）。
   const wantsToLock = await confirmGenericYesNo(
     "🛡️ カウンターロックの効果で、手札を1枚ロックエリアにロックしますか？（任意）",
-    { yesLabel: "ロックする", noLabel: "しない" }
+    { yesLabel: "ロックする", noLabel: "しない", owner: defender }
   );
   if (!wantsToLock) return;
   const lockableIds = new Set(lockableTokens.map((t) => t.id));
+  // requestHandCardChoiceForEffect は owner=player(=defender) を自動で設定するのでそのままでよい。
   const chosen =
     lockableTokens.length === 1
       ? lockableTokens[0]
@@ -6309,7 +6317,8 @@ async function useCounterLockOnContact() {
   // （候補が1つなら自動、複数なら「ロックする場所を選択してください」。セレナーデと同じ扱い）。
   const slots = candidateSlotsFor(chosen);
   if (slots.length === 0) return;
-  const dropTarget = slots.length === 1 ? slots[0] : await requestCellChoiceForEffect(slots, "ロックする場所を選択してください");
+  const dropTarget =
+    slots.length === 1 ? slots[0] : await requestCellChoiceForEffect(slots, "ロックする場所を選択してください", { owner: defender });
   if (!dropTarget) return;
   if (isOnlineMode()) {
     try {
