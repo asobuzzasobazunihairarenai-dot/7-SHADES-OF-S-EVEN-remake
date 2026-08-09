@@ -85,10 +85,26 @@ function protagonistColorForSeat(seat) {
 export function protagonistPathForSeat(seat) {
   return `assets/avatars/protagonist-${protagonistColorForSeat(seat)}-front.webp`;
 }
-// センチネル（"protagonist"）を、その座席の駒の色に対応する実際の画像パスへ解決する。
-// それ以外の値（通常のパス・Google画像・絵文字等）はそのまま返す。
+
+// 「（基本）託された者たち」アバター（基本7色アバター＝assets/avatars/${color}-front.webp）。
+// ユーザー要望2026-08-09「CPU戦のCPUアバターは、CPUのファーストカードの色によって
+// 『（基本）託された者たち』のアバターにしたい」への対応。青年（PROTAGONIST_AVATAR）と全く
+// 同じく、その座席の駒の色（＝配られたファーストカードの色）に描画時へ解決するセンチネル。
+// 色アバターは覚醒/激昂・左右向きのバリエーションも揃っている（avatar-render.jsが導出）。
+export const ENTRUSTED_AVATAR = "entrusted";
+export function entrustedPathForSeat(seat) {
+  const color = protagonistColorForSeat(seat); // 駒の色。駒がまだ無ければ "gray"
+  if (AVATAR_COLORS.includes(color)) return `assets/avatars/${color}-front.webp`;
+  // 駒がまだ配られていない（色未確定）一瞬のプレースホルダ。基本セットに gray は無いため、
+  // 中立的な青年の灰色を流用する（駒が置かれ次第、上の色アバターへ解決される）。
+  return "assets/avatars/protagonist-gray-front.webp";
+}
+// センチネル（"protagonist"／"entrusted"）を、その座席の駒の色に対応する実際の画像パスへ
+// 解決する。それ以外の値（通常のパス・Google画像・絵文字等）はそのまま返す。
 export function resolveAvatarValue(seat, raw) {
-  return raw === PROTAGONIST_AVATAR ? protagonistPathForSeat(seat) : raw;
+  if (raw === PROTAGONIST_AVATAR) return protagonistPathForSeat(seat);
+  if (raw === ENTRUSTED_AVATAR) return entrustedPathForSeat(seat);
+  return raw;
 }
 
 // アバター相対パスから base名（.../{base}-front.webp → base）を取り出す。

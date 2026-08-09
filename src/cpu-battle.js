@@ -20,7 +20,7 @@ import {
   setRopeBaseSeconds,
 } from "./admin.js";
 import { quickStart } from "./game-setup.js";
-import { setPlayerName } from "./player-identity.js";
+import { setPlayerName, setPlayerAvatar, ENTRUSTED_AVATAR } from "./player-identity.js";
 import { setAutoProcessingEnabled } from "./card-effect-engine.js";
 import { setCpuBattleActive } from "./cpu-battle-state.js";
 import { resetGame } from "./state.js";
@@ -56,6 +56,10 @@ export async function startCpuBattle() {
   setRopeBaseSeconds(HUMAN_BASE_SECONDS);
   // 相手席の表示名を「CPU」に（tutorial-battle.js と同じ setPlayerName の使い方）。
   setPlayerName(CPU_SEAT, "CPU");
+  // CPUのアバターは「（基本）託された者たち」＝基本7色アバターを、CPUのファーストカードの色に
+  // 連動させる（ユーザー要望2026-08-09）。青年と同じセンチネル方式で、駒が配られ次第その色の
+  // アバターへ描画時に解決される（player-identity.js entrustedPathForSeat）。
+  setPlayerAvatar(CPU_SEAT, ENTRUSTED_AVATAR);
   // 起動時の既定盤面（テスト用に4人が座った状態）を空にしておく。こうすると close() で
   // 盤面を見せた瞬間に4人がちらつかず、空の盤面から配布演出を見せられる。
   resetGame();
