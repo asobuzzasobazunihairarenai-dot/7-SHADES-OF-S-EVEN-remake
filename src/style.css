@@ -10915,9 +10915,9 @@ body:not(.is-admin-user) .opening-admin-btn {
   --card-preview-size: 32rem;
   --shop-thumb-x: 0rem;
   --shop-thumb-y: 0rem;
-  --shop-thumb-scale: 1;
+  --shop-thumb-scale: 0.6;
   --shop-bg-x: 0rem;
-  --shop-bg-y: 0rem;
+  --shop-bg-y: -3.5rem;
   --shop-bg-scale: 1.35;
   --shop-bg-rotate: 0deg;
   --shop-price-x: 0rem;
@@ -10926,7 +10926,7 @@ body:not(.is-admin-user) .opening-admin-btn {
   --shop-badge-x: 0rem;
   --shop-badge-y: 0rem;
   --shop-badge-scale: 1;
-  --shop-card-bg-alpha: 0.72;
+  --shop-card-bg-alpha: 0.04;
   --hand-pickup-toast-scale: 1.3;
   --hand-pickup-toast-duration: 5;
   --card-arrival-modal-size: 25rem;
