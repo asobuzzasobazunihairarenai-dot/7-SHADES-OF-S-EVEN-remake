@@ -37,6 +37,7 @@ import {
   getAnyCellWithCardCandidates,
   findSameColorDiscardCandidates,
   rotatedActivePlayersFrom,
+  isMovementDisabledThisTurn,
 } from "./card-effect-engine.js";
 import {
   reconcilePhaseAutomation,
@@ -9145,6 +9146,22 @@ async function onDragEnd(e) {
     if (draggedToken && opponentPiece) {
       render(); // moveTokenを呼んでいないので、駒は自動的に元の位置のまま描かれる(=見た目のスナップバック)
       showContactPrompt(draggedToken.player, opponentPiece.player, opponentPiece.id);
+      return;
+    }
+  }
+  // マルメゴで橙が出た時の「このターン移動できない」を手動移動でも強制する（不具合#57）。
+  // 上の接触ブロックは既にreturn済みなので接触は弾かない。手番プレイヤー自身の駒を、
+  // ムーブフェイズ中に、別のマスへ動かそうとした時だけ弾く（同じマスへ落とすだけ＝実質移動なしは許可）。
+  if (
+    kind === "piece" &&
+    dropTarget.zone === "cell" &&
+    cardSourceLocation?.zone === "cell" &&
+    (cardSourceLocation.row !== dropTarget.row || cardSourceLocation.col !== dropTarget.col)
+  ) {
+    const movingToken = getState().tokens.find((t) => t.id === tokenId);
+    if (movingToken && movingToken.player === getState().turnPlayer && isMovePhaseActive() && isMovementDisabledThisTurn(movingToken.player)) {
+      render(); // moveTokenを呼んでいないので駒は元のマスへ戻る（スナップバック）
+      alert("禁断の果実 マルメゴで橙が出たため、このターンは移動できません（接触は可能です）。");
       return;
     }
   }

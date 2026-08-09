@@ -110,6 +110,22 @@ export function isMovementBoostActiveThisTurn(player) {
   return movementBoostUntilTurn.get(player) === getState().turnNumber;
 }
 
+// 禁断の果実 マルメゴ専用（PUBLIC_DRAW_DISABLE_HAND_EFFECTS_CONDITIONAL_DISCARD）: 公開ドローの
+// 中に橙があった時の「あなたはこのターン移動できない。」を実際に強制する（不具合#57: 以前は
+// 案内するだけで、その後のムーブフェイズで移動できてしまっていた）。他の「このターン○○
+// できない」系（eternal-pinkの接触できない等）は自己申告のままだが、マルメゴの移動禁止は
+// ムーブフェイズのハイライト（phase-automation.js reconcileMovePhase）と、人間の手動移動
+// （main.jsのドラッグ/タップ移動の確定）で実際に弾く。movementBoostUntilTurnと同じ
+// 「turnNumberが一致する間だけ有効」の自動失効パターン。移動禁止は移動だけが対象で、接触は
+// 禁止しない（効果文はあくまで「移動できない」であり接触には触れていないため）。
+const movementDisabledUntilTurn = new Map(); // player -> turnNumber
+function disableMovementForTurn(player) {
+  movementDisabledUntilTurn.set(player, getState().turnNumber);
+}
+export function isMovementDisabledThisTurn(player) {
+  return movementDisabledUntilTurn.get(player) === getState().turnNumber;
+}
+
 // テスト中に発覚したバグの修正: resetGame()するとstate.jsのturnNumberは1から再スタートする
 // ため、前のゲームで既に「turnNumber:1で1回使用済み」と記録されていたカードが、新しい
 // ゲームのturnNumber:1でも誤って「もう使った」扱いになってしまっていた（handEffectUsageは
@@ -120,6 +136,7 @@ export function isMovementBoostActiveThisTurn(player) {
 export function resetHandEffectUsage() {
   handEffectUsage.clear();
   handEffectDisabledUntilTurn.clear();
+  movementDisabledUntilTurn.clear();
   movementBoostUntilTurn.clear();
 }
 
@@ -884,10 +901,14 @@ async function runAction(action, ctx, helpers) {
         for (const token of handTokens) {
           await helpers.discardAndSync(token.id);
         }
+        // 「あなたはこのターン移動できない」を実際に強制する（不具合#57）。ムーブフェイズの
+        // ハイライトと人間の手動移動の確定で弾く（reconcileMovePhase / main.jsのドラッグ・
+        // タップ移動、isMovementDisabledThisTurnを参照）。接触は禁止しない（効果文は移動のみ）。
+        disableMovementForTurn(ctx.player);
         // お知らせ（ユーザー要望）: 条件成立の結果を対象名付きで。
         await helpers.announceEffectReason?.(
           ctx.cardId,
-          `残念、${helpers.getPlayerName(ctx.player)}は橙が出たため手札を全て捨て、このターンは移動できません（自己申告）。`
+          `残念、${helpers.getPlayerName(ctx.player)}は橙が出たため手札を全て捨て、このターンは移動できません。`
         );
       } else if (helpers.celebrate) {
         // 橙が出なかった＝手札を捨てずに済んだ（成功）。ザ・ギャンブルの「宣言色が出なかった

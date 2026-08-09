@@ -19,6 +19,7 @@ import {
   isAutoProcessingEnabled,
   getMoveCandidates,
   isMovementBoostActiveThisTurn,
+  isMovementDisabledThisTurn,
   isHandEffectReactiveOnly,
   hasHandEffectData,
   canUseHandEffect,
@@ -801,7 +802,12 @@ function reconcileMovePhase(player) {
   // atOnce:true）で候補を計算する。接触の対象範囲（隣接のみ）はこの効果の対象外
   // （効果文はあくまで「移動」についてであり「接触」ではないため）。
   const boosted = isMovementBoostActiveThisTurn(player);
-  const moveCandidates = getMoveCandidates(piece.location, boosted ? 2 : 1, boosted);
+  // マルメゴで橙が出た時の「このターン移動できない」を強制する（不具合#57）。移動候補を空にして
+  // ハイライトを出さず（＝タップ移動も発火しない）、下の手動ドラッグ移動もmain.js側で弾く。
+  // 接触は禁止しない（効果文は移動のみ）ので contactCandidates はそのまま計算する。移動候補も
+  // 接触相手も無い場合は既存のフォールバック（隣へ山札から1枚裏向きに置く＝「移動先が無い」時と
+  // 同じ扱い、ルール上も妥当）が働く。
+  const moveCandidates = isMovementDisabledThisTurn(player) ? [] : getMoveCandidates(piece.location, boosted ? 2 : 1, boosted);
   const contactCandidates = getContactableCells(piece.location, player);
   clearMovableHighlights();
   // ユーザー要望「移動先ハイライト時、範囲外のトーンを落としてほしい。ジャンプ台の時と
