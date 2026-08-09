@@ -198,6 +198,15 @@ export function isHandEffectOptionUsable(cardId, cardTokenId, player, option) {
     const otherHandCount = getHandTokens(player).filter((t) => t.id !== cardTokenId).length;
     if (otherHandCount < 1) return false;
   }
+  // マスチェンジ専用（SWAP_POSITION）。セレナーデ等と同じ「善処の原則」で、指定マス数
+  // 以内（３マス以内）に入れ替えられる相手の駒が1つも無ければ、対象がおらず効果が何も
+  // 起きない（SWAP_POSITIONの実装は候補0でfalseを返す）ため、発動宣言自体をできない
+  // ものとして扱う＝ハンドフェイズでトーンオフする（ユーザー要望2026-08-09）。
+  const swap = option.actions?.find((a) => a.verb === VERBS.SWAP_POSITION);
+  if (swap) {
+    const selfPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === player);
+    if (!selfPiece?.location || getOpponentPieceCellsWithinRange(selfPiece.location, swap.count, player).length === 0) return false;
+  }
   return true;
 }
 
@@ -235,6 +244,12 @@ function explainHandEffectOptionUnusable(cardId, cardTokenId, player, option) {
   if (discardOne) {
     const otherHandCount = getHandTokens(player).filter((t) => t.id !== cardTokenId).length;
     if (otherHandCount < 1) return "手札に他のカードが無いため、この効果を使えません。";
+  }
+  const swap = option.actions?.find((a) => a.verb === VERBS.SWAP_POSITION);
+  if (swap) {
+    const selfPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === player);
+    if (!selfPiece?.location || getOpponentPieceCellsWithinRange(selfPiece.location, swap.count, player).length === 0)
+      return `${swap.count}マス以内に入れ替えられる相手の駒がいないため、この効果は今は使えません。`;
   }
   return null;
 }
