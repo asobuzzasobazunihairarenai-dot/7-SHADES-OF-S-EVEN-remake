@@ -393,10 +393,68 @@ export function chooseEffectCell(candidates, driveSeat) {
 // まずは「明確に得で安全な効果」だけを能動的に使う保守的な第一歩。リスクのある効果
 // （ザ・ギャンブル＝手札全捨ての危険、対象が読みにくい効果 等）は使わない（テーブルに載せない）。
 // 値が正のカードの中で最も高いものを使う。無ければ null（使わずスキップ）。
-const HAND_EFFECT_VALUE = {
-  "orange-harvest-sow": 2, // 収穫と種まき: 場のカードを1枚手札に得て1枚置く＝手札の質を上げる（安全）
-  "green-growing-trees": 1, // 増殖する樹々: 何もないマスに山札から置く＝盤面展開（軽い得）
-};
+// --- CPUの手札効果の価値評価（ユーザー要望2026-08-09「Bをやって最終的に全カード」） ----------
+// chooseHandEffectCard が使う「そのカードの手札効果を今使うと得か」の評価。0以下は使わない。
+// canUseHandEffect（追色コスト・使用回数・自動処理ON）は呼び出し元(main.js)で既にフィルタ済み
+// なので、ここでは「コストは払える前提で、実際に意味のある効果か（対象がいる/不発でない/損しない）」
+// を状況で評価する。カードごとにswitchで足していく＝段階的に全カードへ広げられる構造にした。
+// 未対応カードは default:0（＝使わない）。載っていない＝バグではなく「まだ賢く撃てない」状態。
+
+// CPUの駒のマス（盤上に無ければ null）。
+function ownPieceCell(state, seat) {
+  const p = state.tokens.find((t) => t.kind === "piece" && t.player === seat && t.location.zone === "cell");
+  return p ? p.location : null;
+}
+// 盤面のカードのあるマスが、駒から withinCells 以内（マンハッタン距離）に1つでもあるか。
+// withinCells=Infinity で盤面全体（＝カードが1枚でも場にあるか）。回収系（収穫と種まき・
+// ハーベスト・ゲンテクニーク）が空撃ちで追色を無駄にしないためのガード。
+function boardHasPickableCardWithin(state, seat, withinCells) {
+  const cardCells = state.tokens.filter((t) => t.kind === "card" && t.location.zone === "cell");
+  if (cardCells.length === 0) return false;
+  if (!Number.isFinite(withinCells)) return true;
+  const loc = ownPieceCell(state, seat);
+  if (!loc) return false;
+  return cardCells.some((t) => Math.abs(t.location.row - loc.row) + Math.abs(t.location.col - loc.col) <= withinCells);
+}
+// 手札が min 枚以上の相手が1人でもいるか（セレスティア等の妨害が実際に効くか）。手札枚数は
+// 公開情報なので難易度に依らず判定してよい。
+function anyOpponentHandAtLeast(state, seat, min) {
+  const opps = (state.activePlayers || []).filter((p) => p !== seat);
+  return opps.some(
+    (p) => state.tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === p).length >= min
+  );
+}
+
+// 1枚の手札効果カードの価値（大きいほど優先。0以下は使わない）。
+function handEffectValueFor(card, seat, state, handCount) {
+  switch (card.cardId) {
+    // --- 既存（維持。回収系は空撃ち防止のガードを追加）---
+    case "orange-harvest-sow": // 収穫と種まき: 盤面の1枚を回収して1枚置く（手札の質UP）
+      return boardHasPickableCardWithin(state, seat, Infinity) ? 2 : 0;
+    case "green-growing-trees": // 増殖する樹々: 山札から3枚を裏向き配置（軽い盤面展開）
+      return 1;
+    case "blue-slum-official": // スラム上がり: 自分を捨ててから「手札1枚以下なら2枚ドロー」。使用前2枚以下の時だけ得
+      return handCount <= 2 ? 2 : 0;
+    // --- B: 明快で得なカード（ユーザー要望2026-08-09）---
+    case "eternal-yellow": // ドムス・ネロ: 2枚ドロー（相手全員は1枚）。1v1でも純増。1/turn・コストはcanUseHandEffect担保
+      return 3;
+    case "first-red": // フェニックス: 捨て場の上から2番目を回収。捨て場が2枚以上ある時だけ有効
+      return (state.piles?.discard?.length ?? 0) >= 2 ? 2 : 0;
+    case "first-orange": // ハーベスト: 2マス以内の1枚を回収
+      return boardHasPickableCardWithin(state, seat, 2) ? 2 : 0;
+    case "eternal-purple": // ゲンテクニーク: 任意の1マスを回収して山札から置き直す
+      return boardHasPickableCardWithin(state, seat, Infinity) ? 2 : 0;
+    case "first-blue": // セレスティア: 手札2枚以上の相手全員から1枚ずつ捨てさせる（妨害）。対象がいる時だけ
+      return anyOpponentHandAtLeast(state, seat, 2) ? 2 : 0;
+    case "eternal-green": // マンズウッド: 1枚ドロー（微益・手札循環）
+      return 1;
+    case "eternal-blue": // プリドゥエン: 山札から2枚を裏向き配置（軽い盤面展開）
+      return 1;
+    // --- 以降は段階的に対応予定（マスチェンジ/試練の儀式/プレゼント/ザ・ギャンブル等）。今は使わない ---
+    default:
+      return 0;
+  }
+}
 
 export function chooseHandEffectCard(usableCards, driveSeat) {
   if (!usableCards || usableCards.length === 0) return null;
@@ -404,17 +462,10 @@ export function chooseHandEffectCard(usableCards, driveSeat) {
   const handCount = state.tokens.filter(
     (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === driveSeat
   ).length;
-  const valueOf = (t) => {
-    let v = HAND_EFFECT_VALUE[t.cardId] ?? 0;
-    // スラム上がりの役人: 使用時にこのカードを捨ててから「手札が1枚以下なら2枚ドロー」を判定する
-    // （＝使用前の手札が2枚以下の時だけ得。3枚以上だと不発でただ1枚失うので使わない）。
-    if (t.cardId === "blue-slum-official") v = handCount <= 2 ? 2 : 0;
-    return v;
-  };
   let best = null;
-  let bestScore = 0; // 0以下（未登録／今は使うべきでない）は採用しない
+  let bestScore = 0; // 0以下（未対応／今は使うべきでない）は採用しない
   for (const t of usableCards) {
-    const score = valueOf(t);
+    const score = handEffectValueFor(t, driveSeat, state, handCount);
     if (score > bestScore) {
       bestScore = score;
       best = t;
