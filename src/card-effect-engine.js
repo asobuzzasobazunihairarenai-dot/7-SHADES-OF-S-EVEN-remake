@@ -837,7 +837,41 @@ async function runAction(action, ctx, helpers) {
       // あれば手札を全て捨てる。「あなたはこのターン移動できない」は他の「このターン
       // ○○できない」系（eternal-pink参照）と同じ理由で実際には強制せず、案内モーダルで
       // 知らせるに留める。
-      const tokenIds = await helpers.publicDrawReturningTokens(ctx.player, action.count);
+      // ユーザー要望2026-08-09「４枚ドローの演出をザ・ギャンブルと同様に」への対応。
+      // ザ・ギャンブル（PUBLIC_DRAW_MATCHING_DECLARED_COLOR_COUNT）と全く同じ
+      // 「鼓動SE→1枚ずつ中央でじらしフリップ公開（残り2枚以上なら『1枚公開/全部公開』の
+      // モーダルでもったいぶれる）→結果」の流れにする。マルメゴは「橙が出るか（＝手札全捨て）」
+      // のドキドキがギャンブルの「宣言色が出るか」とちょうど同じ構図なので、成功（橙なし）は
+      // ギャンブル同様に紙吹雪で祝い、失敗（橙あり）は従来どおり結果モーダルで知らせる。
+      // publicDrawReturningTokensはtokenIdを返す（手札効果封じ・橙判定に必要）。中央フリップ
+      // 公開（gambleReveal）はcardIdを取るので、引いたtokenからcardIdを引き当てて渡す。
+      helpers.startSuspenseSound?.();
+      const tokenIds = [];
+      const revealDrawn = async (ids) => {
+        for (const tid of ids) {
+          const t = getState().tokens.find((x) => x.id === tid);
+          if (t) await helpers.gambleReveal?.(t.cardId);
+          tokenIds.push(tid);
+        }
+      };
+      let remaining = action.count;
+      while (remaining > 0) {
+        if (helpers.pickHandEffectOption && remaining > 1) {
+          const opt = await helpers.pickHandEffectOption(ctx.cardId, [
+            { id: "one", label: "１枚公開する", usable: true },
+            { id: "all", label: `残り${remaining}枚をすべて公開する`, usable: true },
+          ]);
+          if (opt?.id === "all") {
+            await revealDrawn(await helpers.publicDrawReturningTokens(ctx.player, remaining));
+            remaining = 0;
+            break;
+          }
+          // "one"/閉じた(null) → 1枚だけ公開して次へ。
+        }
+        await revealDrawn(await helpers.publicDrawReturningTokens(ctx.player, 1));
+        remaining -= 1;
+      }
+      helpers.stopSuspenseSound?.(); // 結果が出るので鼓動を止める
       if (tokenIds.length === 0) return false;
       for (const tokenId of tokenIds) disableHandEffectForTurn(tokenId);
       const hasOrange = tokenIds.some((tokenId) => {
@@ -855,6 +889,14 @@ async function runAction(action, ctx, helpers) {
           ctx.cardId,
           `残念、${helpers.getPlayerName(ctx.player)}は橙が出たため手札を全て捨て、このターンは移動できません（自己申告）。`
         );
+      } else if (helpers.celebrate) {
+        // 橙が出なかった＝手札を捨てずに済んだ（成功）。ザ・ギャンブルの「宣言色が出なかった
+        // 時」と同様に紙吹雪＋英語見出しで祝う。
+        await helpers.celebrate(ctx.cardId, {
+          tone: "success",
+          headline: "CONGRATULATIONS!",
+          sub: `${helpers.getPlayerName(ctx.player)}は橙が出ませんでした。手札はそのまま残ります！`,
+        });
       }
       return true;
     }
