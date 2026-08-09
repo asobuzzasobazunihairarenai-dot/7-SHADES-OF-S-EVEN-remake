@@ -5116,6 +5116,7 @@ function promptCardOpen(pieceTokenId, card, onResolved, onFullyResolved) {
   prompt.appendChild(yesBtn);
   prompt.appendChild(noBtn);
   document.body.appendChild(prompt);
+  clampFloatingPromptIntoView(prompt); // 画面外はみ出しで一部しか押せなくなるのを防ぐ（#55）
   openPromptEl = prompt;
 }
 
@@ -5371,6 +5372,7 @@ function showContactPrompt(attacker, defender, anchorPieceTokenId) {
 
   prompt.appendChild(contactBtn);
   document.body.appendChild(prompt);
+  clampFloatingPromptIntoView(prompt); // 画面外はみ出しで一部しか押せなくなるのを防ぐ（#55）
   contactPromptEl = prompt;
 }
 
@@ -6672,6 +6674,34 @@ export function toStageLocalRect(r) {
     left: (r.left - currentStageOffsetX) / currentStageScale,
     right: (r.right - currentStageOffsetX) / currentStageScale,
   };
+}
+
+// 相手の駒の真上に出すフローティングプロンプト（接触する／オープンする等）が画面外へ
+// はみ出して一部しか押せなくなる問題への対応（不具合#55「接触するボタンが端っこしか
+// 反応しない」）。これらは駒のtop中央を基準に transform: translate(-50%, -100%…) で
+// 上へ持ち上げて出すため、対象の駒が盤面の上端近く（CPU戦の相手＝盤面奥＝画面上側など）に
+// あると、ボタンが画面上端よりさらに上へ飛び出し、見えている下端しかクリックできなく
+// なる（＝「端っこしか反応しない」）。#34で相手ステータスパネルとの前後関係（z-index）は
+// 解決済みで、これはそれとは別の「画面外はみ出し」が原因。
+// promptはposition:fixedだが body 自体が stage 変形（translate+scale）を持つため、
+// 画面座標で測った必要シフト量を stageスケールで割ってから left/top（ステージローカル座標）へ
+// 足し込む。append 直後の実測矩形（getBoundingClientRect＝変形適用後の画面座標）を使う。
+function clampFloatingPromptIntoView(promptEl) {
+  const margin = 6; // 画面端からの最小余白(px)
+  const r = promptEl.getBoundingClientRect();
+  if (!r.width || !r.height) return; // 非表示・未レイアウト時は何もしない
+  let dxScreen = 0;
+  let dyScreen = 0;
+  if (r.left < margin) dxScreen = margin - r.left;
+  else if (r.right > window.innerWidth - margin) dxScreen = window.innerWidth - margin - r.right;
+  if (r.top < margin) dyScreen = margin - r.top;
+  else if (r.bottom > window.innerHeight - margin) dyScreen = window.innerHeight - margin - r.bottom;
+  if (!dxScreen && !dyScreen) return;
+  const scale = currentStageScale || 1;
+  const curLeft = parseFloat(promptEl.style.left) || 0;
+  const curTop = parseFloat(promptEl.style.top) || 0;
+  promptEl.style.left = `${curLeft + dxScreen / scale}px`;
+  promptEl.style.top = `${curTop + dyScreen / scale}px`;
 }
 
 function getEffectiveFitRect(table) {
