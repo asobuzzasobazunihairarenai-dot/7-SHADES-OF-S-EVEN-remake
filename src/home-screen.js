@@ -31,6 +31,10 @@ import { startTutorialBattle, registerTutorialHomeOpener } from "./tutorial-batt
 //   （不具合2026-08-08）。必要時だけ読み込む動的importにして静的な依存辺を作らない。
 // お知らせ／更新情報（デプロイのたびに概要を追記）。
 import { openChangelogModal, hasUnreadChangelog } from "./changelog.js";
+// CPU戦の強さ選択（対戦モード選択モーダルで選べるようにする。ユーザー要望2026-08-09）。
+// cpu-battle-state.js は依存ゼロの葉モジュールなので静的importでも循環参照の心配はない
+// （cpu-battle.js 本体の動的importとは別物）。選んだ値は端末に保存され、CPU戦開始時に効く。
+import { getCpuDifficulty, setCpuDifficulty } from "./cpu-battle-state.js";
 
 let overlayEl = null;
 let toastEl = null;
@@ -174,6 +178,49 @@ function openMatchChoiceModal() {
   });
 
   panel.appendChild(options);
+
+  // CPU戦用の「CPUの強さ」選択（ユーザー要望2026-08-09）。ここで選ぶと即 setCpuDifficulty で
+  // 端末に保存され、上の「CPU戦（1人用）」を押した時にその強さで始まる。フレンドリーマッチには
+  // 影響しない（CPU戦専用の設定）。基本設定のセグメント（options-menu.js buildCpuDifficultyRow）
+  // と同じ選択肢・同じ保存先を使うので、どちらで変えても一貫する。
+  const diff = document.createElement("div");
+  diff.className = "home-match-choice-difficulty";
+  const diffLabel = document.createElement("div");
+  diffLabel.className = "home-match-choice-difficulty-label";
+  diffLabel.textContent = "🤖 CPUの強さ（CPU戦のみ）";
+  diff.appendChild(diffLabel);
+  const seg = document.createElement("div");
+  seg.className = "home-match-choice-segment";
+  const segButtons = [];
+  const refreshSeg = () => {
+    const cur = getCpuDifficulty();
+    for (const b of segButtons) b.classList.toggle("is-selected", b.dataset.v === cur);
+  };
+  for (const [v, text] of [
+    ["rookie", "新人"],
+    ["intermediate", "中級"],
+    ["advanced", "上級"],
+    ["master", "最強"],
+  ]) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "home-match-choice-segment-btn";
+    b.dataset.v = v;
+    b.textContent = text;
+    b.addEventListener("click", () => {
+      setCpuDifficulty(v);
+      refreshSeg();
+    });
+    seg.appendChild(b);
+    segButtons.push(b);
+  }
+  diff.appendChild(seg);
+  const diffHint = document.createElement("div");
+  diffHint.className = "home-match-choice-difficulty-hint";
+  diffHint.textContent = "新人＝ランダム／中級・上級＝賢い思考／最強＝伏せカードののぞき見あり";
+  diff.appendChild(diffHint);
+  refreshSeg();
+  panel.appendChild(diff);
 
   const cancel = document.createElement("button");
   cancel.type = "button";
