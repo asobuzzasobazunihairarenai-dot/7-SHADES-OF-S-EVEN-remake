@@ -400,19 +400,14 @@ export function chooseEffectCell(candidates, driveSeat) {
 // を状況で評価する。カードごとにswitchで足していく＝段階的に全カードへ広げられる構造にした。
 // 未対応カードは default:0（＝使わない）。載っていない＝バグではなく「まだ賢く撃てない」状態。
 
-// CPUの駒のマス（盤上に無ければ null）。
-function ownPieceCell(state, seat) {
-  const p = state.tokens.find((t) => t.kind === "piece" && t.player === seat && t.location.zone === "cell");
-  return p ? p.location : null;
-}
 // 盤面のカードのあるマスが、駒から withinCells 以内（マンハッタン距離）に1つでもあるか。
 // withinCells=Infinity で盤面全体（＝カードが1枚でも場にあるか）。回収系（収穫と種まき・
-// ハーベスト・ゲンテクニーク）が空撃ちで追色を無駄にしないためのガード。
+// ハーベスト・ゲンテクニーク）が空撃ちで追色を無駄にしないためのガード。駒位置は既存のpieceCellOf。
 function boardHasPickableCardWithin(state, seat, withinCells) {
   const cardCells = state.tokens.filter((t) => t.kind === "card" && t.location.zone === "cell");
   if (cardCells.length === 0) return false;
   if (!Number.isFinite(withinCells)) return true;
-  const loc = ownPieceCell(state, seat);
+  const loc = pieceCellOf(state, seat);
   if (!loc) return false;
   return cardCells.some((t) => Math.abs(t.location.row - loc.row) + Math.abs(t.location.col - loc.col) <= withinCells);
 }
@@ -423,6 +418,24 @@ function anyOpponentHandAtLeast(state, seat, min) {
   return opps.some(
     (p) => state.tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === p).length >= min
   );
+}
+function manhattan(a, b) {
+  return Math.abs(a.row - b.row) + Math.abs(a.col - b.col);
+}
+// 相手ゲートまでの最短距離（activeOpponentGateCellsは既存のものを再利用。{row,col}の配列を返す）。
+function distToNearestOppGate(cell, state, seat) {
+  const gates = activeOpponentGateCells(state, seat);
+  if (!cell || gates.length === 0) return Infinity;
+  return Math.min(...gates.map((g) => manhattan(cell, g)));
+}
+// 相手の駒のマスのうち、CPUの駒から range 以内（マンハッタン）のもの（マスチェンジの対象候補）。
+function opponentPieceCellsWithin(state, seat, range) {
+  const loc = pieceCellOf(state, seat);
+  if (!loc) return [];
+  const opps = (state.activePlayers || []).filter((p) => p !== seat);
+  return state.tokens
+    .filter((t) => t.kind === "piece" && t.location.zone === "cell" && opps.includes(t.player) && manhattan(t.location, loc) <= range)
+    .map((t) => t.location);
 }
 
 // 1枚の手札効果カードの価値（大きいほど優先。0以下は使わない）。
@@ -450,7 +463,24 @@ function handEffectValueFor(card, seat, state, handCount) {
       return 1;
     case "eternal-blue": // プリドゥエン: 山札から2枚を裏向き配置（軽い盤面展開）
       return 1;
-    // --- 以降は段階的に対応予定（マスチェンジ/試練の儀式/プレゼント/ザ・ギャンブル等）。今は使わない ---
+    // --- C: 妨害・攻撃系（ユーザー要望2026-08-09、状況ガード付き。実行は共にマス選択で自動解決可）---
+    case "orange-mass-change": { // マスチェンジ: 3マス以内の相手と位置入替。相手ゲートに近づく時だけ（機動＝ゲート侵攻へ前進）
+      const loc = pieceCellOf(state, seat);
+      if (!loc) return 0;
+      const myDist = distToNearestOppGate(loc, state, seat);
+      return opponentPieceCellsWithin(state, seat, 3).some((c) => distToNearestOppGate(c, state, seat) < myDist) ? 2 : 0;
+    }
+    case "eternal-red": { // ワイナウエア: 任意の1マスのカードを全捨て。2枚以上積まれたマス（clutter）がある時だけ、低優先
+      const stacks = {};
+      for (const t of state.tokens) {
+        if (t.kind === "card" && t.location.zone === "cell") {
+          const k = t.location.row + "," + t.location.col;
+          stacks[k] = (stacks[k] ?? 0) + 1;
+        }
+      }
+      return Object.values(stacks).some((n) => n >= 2) ? 1 : 0;
+    }
+    // --- 以降は段階的に対応予定（試練の儀式/プレゼント/配置系/ザ・ギャンブル等）。今は使わない ---
     default:
       return 0;
   }
