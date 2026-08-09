@@ -38,6 +38,7 @@ import {
   findSameColorDiscardCandidates,
   rotatedActivePlayersFrom,
   isMovementDisabledThisTurn,
+  getLockableHandTokensExceptFinal,
 } from "./card-effect-engine.js";
 import {
   reconcilePhaseAutomation,
@@ -6286,10 +6287,12 @@ async function useCounterLockOnContact() {
   await respondToContact(false);
   await discardFromHandReveal(token.id);
 
-  const remainingHand = getState().tokens.filter(
-    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === defender
-  );
-  const lockableTokens = remainingHand.filter((t) => isCardLockable(t, defender));
+  // カウンターロックの「あなたの手札を１枚ロックしてもよい」のロック可否は、通常のロック
+  // フェイズの判定（isCardLockable。七色の欠片は常にロック不可）ではなく、ハンドフェイズの
+  // 特殊ロック（セレナーデ等と同じ getLockableHandTokensExceptFinal）で判定する——カウンター
+  // ロックは七色の欠片も単体でロックできる特殊効果だから（不具合#58: 七色の欠片しかロック
+  // できない手札だと、isCardLockableが虹を除外するせいで案内モーダルが出なかった）。
+  const { candidateSlotsFor, tokens: lockableTokens } = getLockableHandTokensExceptFinal(defender);
   if (lockableTokens.length === 0) return; // 善処の原則: ロックできるカードが無ければ何も聞かずに終わる
   const wantsToLock = await confirmGenericYesNo(
     "🛡️ カウンターロックの効果で、手札を1枚ロックエリアにロックしますか？（任意）",
@@ -6302,8 +6305,12 @@ async function useCounterLockOnContact() {
       ? lockableTokens[0]
       : await requestHandCardChoiceForEffect(defender, "ロックする手札を選択してください", lockableIds);
   if (!chosen) return;
-  const color = getCardDefinition(chosen.cardId).color;
-  const dropTarget = { zone: "lock", side: SEAT_TO_SIDE[defender], index: COLORS.indexOf(color) };
+  // 七色の欠片・無色は色スロットが一意に定まらないので、置ける空きスロットから選ばせる
+  // （候補が1つなら自動、複数なら「ロックする場所を選択してください」。セレナーデと同じ扱い）。
+  const slots = candidateSlotsFor(chosen);
+  if (slots.length === 0) return;
+  const dropTarget = slots.length === 1 ? slots[0] : await requestCellChoiceForEffect(slots, "ロックする場所を選択してください");
+  if (!dropTarget) return;
   if (isOnlineMode()) {
     try {
       await moveToken(chosen.id, dropTarget);

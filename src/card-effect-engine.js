@@ -567,7 +567,7 @@ function getOwnEmptyLockSlotCandidates(player) {
 // ことで、「発動を宣言できたのに実際には何も起きない」という状態を避ける
 // （ユーザー指摘: シェイズオブセブンの「善処の原則」は、手札効果発動宣言時に
 // 条件を満たせないと分かっていたら発動自体できない、という方針）。
-function getLockableHandTokensExceptFinal(player) {
+export function getLockableHandTokensExceptFinal(player) {
   const emptySlots = getOwnEmptyLockSlotCandidates(player).filter((slot) => !wouldCompleteLockWithNewIndex(player, slot.index));
   const candidateSlotsFor = (token) => {
     if (emptySlots.length === 0) return [];
