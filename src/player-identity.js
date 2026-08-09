@@ -46,13 +46,11 @@ const KING_AVATAR_LABELS = {
   "avatar-pink-queen": "桃の女王",
   "avatar-purple-elder-queen": "紫の女王",
 };
-// 謎めいた案内人 エイドス・ノワール（1キャラ・有料500、ユーザー指定）。
-const EIDOS_NOIR = "eidos-noir";
-
 export const AVATAR_OPTIONS = [
   ...AVATAR_COLORS.map((color) => `assets/avatars/${color}-front.webp`),
   ...KING_AVATARS.map((k) => `assets/avatars/${k}-front.webp`),
-  `assets/avatars/${EIDOS_NOIR}-front.webp`,
+  // エイドス・ノワールはショップ/アバター選択肢から除外（NPC専用。ユーザー要望2026-08-09）。
+  // チュートリアルは tutorial-battle.js が画像パスを直接使うため、この除外の影響を受けない。
 ];
 
 // 有料アバター base → { label, cost }。国王は各200、エイドス・ノワールは500（ユーザー指定）。
@@ -60,7 +58,6 @@ export const AVATAR_OPTIONS = [
 // ことがあるため細かな呼称は避ける）。
 const PAID_AVATARS = {
   ...Object.fromEntries(KING_AVATARS.map((b) => [b, { label: KING_AVATAR_LABELS[b] || b, cost: 200 }])),
-  [EIDOS_NOIR]: { label: "謎めいた案内人 エイドス・ノワール", cost: 500 },
 };
 
 // 特殊アバター「記憶を失った青年」（無料）。ユーザー指定で、選んだプレイヤーの駒の色に
