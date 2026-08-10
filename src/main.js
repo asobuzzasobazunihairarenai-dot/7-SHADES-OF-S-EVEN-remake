@@ -8669,12 +8669,16 @@ function maybeAnnounceLock(dropTarget, cardId, wasAlreadyLocked) {
     // 続き77でperformLockPhaseドラッグ&ドロップハンドラ・requestFinalLock
     // それぞれの実際に動かす直前に追加したため、ここは「処理」側の1回。
     fireAnytimeCheckpoint(player);
-    // 黒の契約の烙印の★(b): この烙印が自分のロックエリアにある状態でロックしたら、手札2枚捨て
-    // ＋烙印を盤面へ裏向きで移す（ユーザー要望2026-08-09）。全ロック経路がここを通る。烙印自身の
-    // ●配置（moveAndSync経由でここは通らない）や、烙印を色としてロック（＝ありえない）は対象外。
+    // 黒の契約の烙印の★(b): 「これの置かれた“色”のロックエリアにロックしたなら、手札2枚捨て、
+    // これを任意のマスに裏向きで置く」（ユーザー訂正2026-08-09）。烙印は特定の色枠を塞いでおり、
+    // その色をロックした時だけ外れる（他の色をロックしても外れない）。dropTarget.index は今ロック
+    // した色スロット、brand.location.index は烙印の色枠。両者が一致した時だけ発動する。全ロック
+    // 経路がここを通る（烙印自身の●配置は moveAndSync 経由でここは通らない）。
     if (cardId !== "black-contract-brand") {
       const brand = findContractBrandInLockAreaOf(player);
-      if (brand) runContractBrandCurseOnLock(player, brand.id); // fire-and-forget（同期のロック処理は止めない）
+      if (brand && dropTarget.index === brand.location.index) {
+        runContractBrandCurseOnLock(player, brand.id); // fire-and-forget（同期のロック処理は止めない）
+      }
     }
   }
   triggerLockEffect(cardId, dropTarget);

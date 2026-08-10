@@ -305,7 +305,19 @@ export function isCardLockable(token, player) {
   if (token.cardId === "rainbow-shard") return false; // ロックフェイズでは常にロック不可
   const color = getCardDefinition(token.cardId)?.color;
   if (!color || color === "white" || color === "black") return false; // 無色は「ロックした」扱いにならない
-  return !isLockSlotOccupied(player, color);
+  if (!isLockSlotOccupied(player, color)) return true;
+  // 黒の契約の烙印がその色スロットを塞いでいるだけなら、その色はロックできる（ロックすると烙印が
+  // 外れる＝★(b)。ユーザー訂正2026-08-09「その色をロックしなければ烙印は外れない」）。これが無いと
+  // 塞がれた色を永久にロックできず、烙印が外せない詰みになる。
+  return isSlotOccupiedOnlyByContractBrand(player, color);
+}
+function isSlotOccupiedOnlyByContractBrand(player, color) {
+  const colorIndex = COLORS.indexOf(color);
+  if (colorIndex === -1) return false;
+  const occupants = getState().tokens.filter(
+    (t) => t.kind === "card" && t.location.zone === "lock" && SIDE_TO_SEAT[t.location.side] === player && t.location.index === colorIndex
+  );
+  return occupants.length > 0 && occupants.every((t) => t.cardId === "black-contract-brand");
 }
 function hasLockableCard(player) {
   const hand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
