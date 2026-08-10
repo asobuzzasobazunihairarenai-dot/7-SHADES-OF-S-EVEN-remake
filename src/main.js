@@ -1420,23 +1420,32 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, reve
             console.error("onPickedBeforeReveal failed", err);
           }
         }
-        // 自分視点でラベル・文面を出し分ける。この札は targetPlayer → actor(手番) へ移る。
-        const actor = getState().turnPlayer;
-        const self = getSelfSeat();
-        let labelText, sub;
-        if (targetPlayer === self) {
-          // 自分の手札が奪われる／渡す側。
-          labelText = revealLabels.loses;
-          sub = actor ? `${getPlayerName(actor)}に` : "";
-        } else {
-          // 取る側（自分が取る、または4人戦で他者が他者から取る）。
-          labelText = revealLabels.takes;
-          sub =
-            actor && actor !== self && actor !== targetPlayer
-              ? `${getPlayerName(actor)}が${getPlayerName(targetPlayer)}から`
-              : `${getPlayerName(targetPlayer)}から`;
+        // #67: オンラインの接触で攻撃側が奪う場合、相手の手札は裏向き（cardId が RLS で隠れ
+        // null）で、この経路には onPickedBeforeReveal も無いため revealCardId が null になり
+        // 「奪った」モーダルが null.webp の壊れた画像になる。しかも直後に
+        // checkContactAttackerResolution() が“実際に手札へ入った本物のカード”で正しい結果
+        // モーダルを出すので、この公開モーダルは冗長。呼び出し側が suppressReceivedReveal を
+        // 指定した時はこの中央公開だけを省く（ライブのホバー実況 broadcast や実際のピックは
+        // そのまま行う）。
+        if (!options?.suppressReceivedReveal) {
+          // 自分視点でラベル・文面を出し分ける。この札は targetPlayer → actor(手番) へ移る。
+          const actor = getState().turnPlayer;
+          const self = getSelfSeat();
+          let labelText, sub;
+          if (targetPlayer === self) {
+            // 自分の手札が奪われる／渡す側。
+            labelText = revealLabels.loses;
+            sub = actor ? `${getPlayerName(actor)}に` : "";
+          } else {
+            // 取る側（自分が取る、または4人戦で他者が他者から取る）。
+            labelText = revealLabels.takes;
+            sub =
+              actor && actor !== self && actor !== targetPlayer
+                ? `${getPlayerName(actor)}が${getPlayerName(targetPlayer)}から`
+                : `${getPlayerName(targetPlayer)}から`;
+          }
+          await showCardReceivedModal(revealCardId, sub, { labelText });
         }
-        await showCardReceivedModal(revealCardId, sub, { labelText });
       }
       resolve(token ?? null);
     }
@@ -5985,7 +5994,13 @@ function waitForContactPickResolved(attacker, defender) {
 async function resolveContactRitualPickAsAttacker({ attacker, defender }) {
   const stolen = await requestOpponentHandRitualPick(
     defender,
-    `${getPlayerName(defender)}の手札（裏向き）から奪う1枚を選んでください`
+    `${getPlayerName(defender)}の手札（裏向き）から奪う1枚を選んでください`,
+    undefined,
+    undefined,
+    // #67: オンラインでは相手の手札が裏向き（cardId=null）なので、この時点の中央「奪った」
+    // 公開は null.webp の壊れ画像になる。奪った本物のカードは直後に
+    // checkContactAttackerResolution() が正しく中央表示するため、こちらの公開は省く。
+    { suppressReceivedReveal: true }
   );
   broadcastContactPickResolved({ attacker, defender, stolenCardId: stolen?.id ?? null });
 }

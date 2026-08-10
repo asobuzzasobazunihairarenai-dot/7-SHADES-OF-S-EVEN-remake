@@ -96,6 +96,10 @@ export function getCardDefinition(cardId) {
 // （.gitignoreの/assets/cards/参照）。画像自体にタイトル・色・効果テキストまで描かれているため、
 // 表向きの時はこの画像を表示するだけでよく、別途テキストを重ねて表示する必要はない。
 export function getCardImagePath(cardId) {
+  // cardIdがnull（オンラインで中身が隠れた裏向き札・特定できなかった札など）の時に
+  // `assets/cards/null.webp` を取りに行って404になるのを防ぐ（#67ほか、コンソール/不具合
+  // 報告のノイズ源）。中身不明の札は「表画像の代わりに裏面」を返すのが最も無難なフォールバック。
+  if (!cardId) return getCardBackImagePath(null);
   // ブーストモードの効果なしファーストカードは実画像がまだ無いため、仮の色ベタ塗りSVGを返す。
   const def = CARD_BY_ID.get(cardId);
   if (def?.isBlankBoost) return blankBoostCardDataUri(def.color);
