@@ -560,7 +560,35 @@ function handEffectValueFor(card, seat, state, handCount) {
     case "first-pink": // セレナーデ: 【追色1】手札を1枚ロック（最後のロック以外）。ロックフェイズとは別にもう1色進む＝
       // 勝利へ明確に前進。使用可否（ロックできる手札あり＋追色コスト＋1ターン1回）はcanUseHandEffectが担保。
       return 3;
-    // --- 以降は段階的に対応予定（配置トラップ/ザ・ギャンブル/マルメゴ等）。今は使わない ---
+    // --- F: ハイリスク系（ユーザー要望2026-08-10。厳しめ条件で、危険が低い時だけ使う）---
+    case "yellow-gamble": { // ザ・ギャンブル: 宣言色が公開ドローに出ると手札全捨て。CPUは残枚数が最少の2色を宣言する
+      // ので、その2色が枯れかけ（推定残り合計≤2）＝当たる危険が低い時だけ使う（実質ほぼ安全なドロー）。
+      // 手札2枚以上（DISCARD_ONE）はcanUseHandEffectが担保。
+      const rem = remainingByColorFair(state, seat);
+      const twoLowestSum = Object.values(rem).sort((a, b) => a - b).slice(0, 2).reduce((s, n) => s + n, 0);
+      return twoLowestSum <= 2 ? 2 : 0;
+    }
+    case "eternal-orange": { // マルメゴ: 4枚ドロー、橙が出たら手札全捨て＋移動不可。橙が枯れかけ（推定残り≤1）かつ
+      // 手札が少ない（≤2＝外れても失う分が小さく、むしろ補充したい）時だけ使う。追色（橙）はcanUseHandEffect担保。
+      const rem = remainingByColorFair(state, seat);
+      return (rem.orange ?? 99) <= 1 && handCount <= 2 ? 3 : 0;
+    }
+    case "black-faded-cat": { // 色落ちキャット(手札): 手札を全捨てして1枚ドロー。捨てて損する札（まだ要る色・貴重札）が
+      // 他に1枚も無い＝手札が全部“不要札”の時だけ、入れ替えのために使う。
+      const others = state.tokens.filter(
+        (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === seat && t.id !== card.id
+      );
+      if (others.length === 0) return 0; // 捨てる他札が無い＝ただの自己捨て+1ドローで無意味
+      const needed = neededColors(state, seat);
+      const allJunk = others.every((t) => {
+        if (isPreciousCard(t.cardId)) return false; // 貴重札は残す
+        const col = getCardDefinition(t.cardId)?.color;
+        if (!col || !COLORS.includes(col)) return false; // 白黒虹等は安全側で「捨ててよくない」
+        return !needed.has(col); // 既にロック済みの色＝不要
+      });
+      return allJunk ? 1 : 0;
+    }
+    // --- 意図的に自動使用しない: なないろの巨光/first-green(全員・一時ドロー＝相手を利する/益が薄い) ほか ---
     default:
       return 0;
   }
