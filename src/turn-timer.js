@@ -1185,11 +1185,21 @@ function ensureInitializedIfNeeded() {
 // 優先権譲渡ボタン（上のグリッド生成コード）とまったく同じ書き込みを、プログラムから
 // 呼べるようにしたもの。この対局でまだ一度も優先権が初期化されていない（＝ターン
 // タイマー機能自体が無効、admin.jsのデフォルトOFF）場合はstate.priorityPlayerが
-// ずっとnullのままなので、その場合は何もしない（優先権という概念自体が使われて
+// ずっとnullのままなので、その場合は原則何もしない（優先権という概念自体が使われて
 // いない対局に、この呼び出しだけでpriorityPlayerを生やしてしまわないようにする）。
-export function transferPriorityTo(player) {
+//
+// #61（2026-08-10）: 接触解決中の「防御側へ優先権を移してターンを保持する」仕組みは、
+// この early-return のせいでタイマーOFFの対局（priorityPlayer が終始 null）では
+// 丸ごと無効化され、防御側の到達効果処理中にターンプレイヤーが NEXT_TURN を送って
+// しまう不具合になっていた。接触解決のように「タイマーOFFでも一時的に優先権で手番を
+// 保持したい」ケースだけ initializeIfUnset:true を渡し、null からでも初期化できるように
+// する。タイマーOFFでは tick() が早期returnするためタイマー自体は起動せず（表示・
+// enforcement なし）、優先権譲渡ボタン/返却警告も isTurnTimerEnabled() で隠れるため、
+// 見た目・時間制限は一切変わらない。効くのは isEndTurnDisabledNow() 等の「優先権を
+// 持たない席のターン終了を止める」ガードだけ＝まさに必要な保持だけが有効になる。
+export function transferPriorityTo(player, { initializeIfUnset = false } = {}) {
   const state = getState();
-  if (!state.priorityPlayer) return;
+  if (!state.priorityPlayer && !initializeIfUnset) return;
   fireAndForget(setPriorityState({ player, deadline: freshBaseDeadlineFor(player), phase: "base" }));
 }
 

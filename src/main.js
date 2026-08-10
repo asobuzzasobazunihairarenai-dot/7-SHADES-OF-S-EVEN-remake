@@ -6082,7 +6082,27 @@ async function respondToContact(approve) {
   if (approve && defenderPieceId) {
     const priorityBeforeTransfer = getState().priorityPlayer;
     logAction("diag-delegate", { phase: "contact-request", defender, turnPlayer: getState().turnPlayer });
-    transferPriorityTo(defender);
+    // #61修正: タイマーOFFの対局では priorityPlayer が null のままで、通常の
+    // transferPriorityTo() は何もしない（＝接触解決中のターン保持が効かず、防御側の
+    // 到達効果処理中にターンが進んでしまう）。ここは「タイマーOFFでも一時的に優先権で
+    // 手番を保持したい」ケースなので initializeIfUnset:true で null からでも移譲する。
+    transferPriorityTo(defender, { initializeIfUnset: true });
+    // #61保険: タイマーOFFでは優先権返却の安全タイマー（turn-timerのtick）が動かないため、
+    // 万一この後の解決(finishContactResolution)が呼ばれず優先権が防御側に残っても、ターンが
+    // 恒久的に進めなくならないよう保険を仕込む。十分な猶予後に「まだ防御側が保持したまま・
+    // 到達処理も終わっている」場合だけ手番プレイヤーへ強制返却する（正常時は既に返却済みで
+    // 条件に掛からず無害）。この接触解決コードは防御側の端末で走るので isArrivalEffectProcessing()
+    // はその端末の実状を正しく見られる。優先権の書き込みはサーバー永続でターンプレイヤーへ伝播する。
+    {
+      const heldTurnPlayer = getState().turnPlayer;
+      setTimeout(() => {
+        const s = getState();
+        if (s.priorityPlayer === defender && s.turnPlayer === heldTurnPlayer && !isArrivalEffectProcessing()) {
+          logAction("diag-contact-priority", { phase: "safety-return", defender, turnPlayer: heldTurnPlayer });
+          transferPriorityTo(heldTurnPlayer);
+        }
+      }, 20000);
+    }
     // #61診断: 接触解決中の「防御側へ優先権を移してターンを保持する」仕組みが効いたかを記録する。
     // タイマーOFFの対局では state.priorityPlayer が終始 null で、transferPriorityTo() は
     // 早期return（何もしない）。その場合 took:false になり、ターンプレイヤー側の
