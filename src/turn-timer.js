@@ -996,12 +996,19 @@ function tick() {
     setDisplayIfChanged(baseClockEl, "none");
     return;
   }
+  // タイマーOFF時はロープ・基本時間・警告の表示は出さない。ただし #66 対策として、この後の
+  // 自動処理の再評価（reconcilePhaseAutomation / updateEndTurnButton）・選択待ちの強制解決・
+  // オンラインの優先権リシンクは、タイマーONと同様に tick でも回す必要がある。でないと、接触
+  // 解決で優先権が非同期のBroadcastで手番プレイヤーへ戻った後、render依存だけでは再評価を
+  // 取りこぼし「効果は終わったのにターンが進まない」状態で固まる（#66。timerONなら元々tickが
+  // 拾っていた#8対策と同じ穴が、timerOFFのtick早期returnで塞がれていなかった）。ここでは表示を
+  // 消すだけにして return せず、下のバックストップ群まで進む。ロープ/基本時間/デッドラインの
+  // enforcement はこの関数末尾手前の `if (!isTurnTimerEnabled()) return;` で確実にスキップする。
   if (!isTurnTimerEnabled()) {
     updateWarning(false);
     updatePriorityReturnWarning(false);
     setDisplayIfChanged(ropeEl, "none");
     setDisplayIfChanged(baseClockEl, "none");
-    return;
   }
   // ユーザー報告（続き86）「勝利後、まだ盤面のタイマーが止まらず自動処理が継続
   // されてしまっている」。誰かが既に勝利していれば、以後は優先権もタイマーも
@@ -1055,6 +1062,10 @@ function tick() {
       if (gameId) fetchAndHydrate(gameId).catch(() => {});
     }
   }
+  // #66: タイマーOFFはここまで（自動処理の再評価・選択待ち解決・優先権リシンクのバックストップ）
+  // だけ回し、以降のロープ/基本時間/デッドラインの表示・時間制限（enforcement）は一切行わない。
+  // 表示は上の冒頭ブロックで既に消してある。
+  if (!isTurnTimerEnabled()) return;
   const state = getState();
   if (!state.turnPlayer) {
     updateWarning(false);
