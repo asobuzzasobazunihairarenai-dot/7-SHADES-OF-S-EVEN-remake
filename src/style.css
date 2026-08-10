@@ -13593,24 +13593,18 @@ body.theme-light #my-deck-page-save {
   justify-content: center;
   font-family: sans-serif;
 }
-#bug-report-intro-ring {
-  position: fixed;
-  box-sizing: border-box;
-  border: 2px solid rgba(56, 189, 248, 0.95);
-  border-radius: 0.6rem;
-  background: rgba(56, 189, 248, 0.12);
+/* 実アイコン(#self-status-bug-report)そのものを光らせてフォーカスする（#62/#63: 座標計算での
+   複製リングは実機で位置がズレたため廃止。実要素を光らせるのでズレない）。ID2つ＋classで
+   ベースの見た目に勝つ。position:relative + 高いz-indexで、前面へ上げた#option-area(10062)の
+   中でさらに手前に出す。 */
+#option-area #self-status-bug-report.bug-report-intro-focus {
+  position: relative;
+  z-index: 10063;
+  border-radius: 0.5rem;
+  outline: 2px solid rgba(56, 189, 248, 0.95);
+  outline-offset: 3px;
   box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.35), 0 0 22px 6px rgba(56, 189, 248, 0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
   animation: bug-report-intro-pulse 1.3s ease-in-out infinite;
-}
-.bug-report-intro-ring-img {
-  width: 62%;
-  height: 62%;
-  object-fit: contain;
-  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.6));
 }
 @keyframes bug-report-intro-pulse {
   0%, 100% { box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.3), 0 0 18px 4px rgba(56, 189, 248, 0.45); }

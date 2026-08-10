@@ -1,19 +1,20 @@
 // オンライン対戦のゲーム開始時に一度だけ出す「不具合報告のお願い」案内（ユーザー要望
 // 2026-08-10）。画面を暗転し、オプションエリアの不具合報告アイコン(#self-status-bug-report)
-// の位置をスポットライト（リング＋アイコンの複製）で浮かび上がらせて説明する。
-// 「今後は表示しない」を押すと以後は二度と出さない（localStorage）。
+// をフォーカス（光らせて）説明する。「今後は表示しない」を押すと以後は二度と出さない。
 //
-// 実アイコンをそのまま暗転の上へ透かすのは重ね順（#option-areaの独自スタッキング）に依存して
-// 崩れやすいため、暗転レイヤーの上に「同じアイコン画像の複製＋光るリング」を実アイコンの座標に
-// 重ねて描く方式にした（重ね順に左右されず確実にフォーカスが当たって見える）。
+// #62/#63（2026-08-11）: 初版は「暗転レイヤーの上にアイコンの複製リングを座標計算(fixed+
+// getBoundingClientRect)で重ねる」方式だったが、実機で位置がアイコンとズレる報告が出た
+// （一度きりの座標計測がレイアウトと合わない／再現条件が読めない）。座標計算をやめ、
+// 実アイコンそのものにフォーカス用クラスを付けて光らせ、#option-area を暗転より前面へ
+// 一時的に上げて見せる方式へ変更した。実要素をそのまま光らせるので原理的にズレない。
 
 import { createModalCloseX } from "./ui-helpers.js";
 
 const HIDE_KEY = "so7-bug-report-intro-hidden-v1";
-const BUG_ICON_SRC = "assets/icons/bug-report.svg";
 
 let rootEl = null;
-let ringEl = null;
+let focusedIconEl = null;
+let prevOptionAreaZ = null;
 
 export function isBugReportIntroHidden() {
   try {
@@ -23,31 +24,17 @@ export function isBugReportIntroHidden() {
   }
 }
 
-function positionRing() {
-  if (!ringEl) return;
-  const icon = document.getElementById("self-status-bug-report");
-  if (!icon) {
-    ringEl.style.display = "none";
-    return;
-  }
-  const r = icon.getBoundingClientRect();
-  if (!r.width || !r.height) {
-    ringEl.style.display = "none";
-    return;
-  }
-  const pad = 10;
-  ringEl.style.display = "flex";
-  ringEl.style.left = `${r.left - pad}px`;
-  ringEl.style.top = `${r.top - pad}px`;
-  ringEl.style.width = `${r.width + pad * 2}px`;
-  ringEl.style.height = `${r.height + pad * 2}px`;
-}
-
 function closeIntro() {
-  window.removeEventListener("resize", positionRing);
+  if (focusedIconEl) {
+    focusedIconEl.classList.remove("bug-report-intro-focus");
+    focusedIconEl = null;
+  }
+  // #option-area の z-index を元に戻す（暗転より前面へ上げていた分）。
+  const oa = document.getElementById("option-area");
+  if (oa && prevOptionAreaZ !== null) oa.style.zIndex = prevOptionAreaZ;
+  prevOptionAreaZ = null;
   rootEl?.remove();
   rootEl = null;
-  ringEl = null;
 }
 
 // 開始告知（showStartPlayerModal）が閉じた直後などに呼ぶ。既に非表示設定・アイコン未構築なら
@@ -64,15 +51,16 @@ export function maybeShowBugReportIntro() {
   // 暗転部分のクリックで閉じる（モーダル本体はstopPropagationで閉じない）。
   rootEl.addEventListener("click", closeIntro);
 
-  // フォーカス用リング＋アイコン複製。
-  ringEl = document.createElement("div");
-  ringEl.id = "bug-report-intro-ring";
-  const ringImg = document.createElement("img");
-  ringImg.className = "bug-report-intro-ring-img";
-  ringImg.src = BUG_ICON_SRC;
-  ringImg.alt = "";
-  ringEl.appendChild(ringImg);
-  rootEl.appendChild(ringEl);
+  // 実アイコンをそのまま光らせてフォーカス（座標計算をしないので絶対にズレない）。
+  focusedIconEl = icon;
+  icon.classList.add("bug-report-intro-focus");
+  // #option-area(z:900)は暗転(rootEl z:10060)の裏に隠れてしまうので、暗転より前面へ一時的に
+  // 上げて、光らせたアイコン（と上部の帯）を見せる。子はpointer-events:autoのまま。閉じる時に戻す。
+  const oa = document.getElementById("option-area");
+  if (oa) {
+    prevOptionAreaZ = oa.style.zIndex || "";
+    oa.style.zIndex = "10062";
+  }
 
   // 説明モーダル。
   const modal = document.createElement("div");
@@ -121,6 +109,4 @@ export function maybeShowBugReportIntro() {
   rootEl.appendChild(modal);
 
   document.body.appendChild(rootEl);
-  positionRing();
-  window.addEventListener("resize", positionRing);
 }

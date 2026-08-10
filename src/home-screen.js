@@ -99,8 +99,9 @@ const TILES = [
   },
   { icon: "📰", image: "assets/home-icons/news.webp", label: "お知らせ／更新情報", status: "ready", onOpen: () => openChangelogModal(), showNewIfUnread: () => hasUnreadChangelog() },
   {
+    // 専用アイコン画像(assets/home-icons/my-deck.webp)はまだ無いので絵文字で表示する
+    // （imageを指定すると404がコンソール/不具合報告に載るため。用意できたらimageを足す）。
     icon: "🃏",
-    image: "assets/home-icons/my-deck.webp",
     label: "マイデッキ編成",
     status: "ready",
     onOpen: () => {
