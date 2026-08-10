@@ -502,6 +502,27 @@ function distinctLockedColorCount(state, seat) {
 function cpuHandHas(state, seat, cardId) {
   return state.tokens.some((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === seat && t.cardId === cardId);
 }
+// 相手が「7色目リーチ(6色ロック)で、かつ欠けている色のカード（または虹）を手札に実際に持っている
+// ＝次ターン勝てる」ことが“分かる”か。相手の手札は非公開なので、のぞき見できる最強(isCpuPeekAllowed)の
+// 時だけ確定判定する（ユーザー指定2026-08-10「相手が最後のロックカードを持っていると分かる時のみ」）。
+function opponentCanWinNextTurn(state, seat) {
+  if (!isCpuPeekAllowed()) return false; // 相手の手札を見られない＝持っているか分からない
+  for (const p of (state.activePlayers || []).filter((x) => x !== seat)) {
+    if (distinctLockedColorCount(state, p) < COLORS.length - 1) continue; // 6色未満はリーチでない
+    const side = SEAT_TO_SIDE[p];
+    const locked = new Set();
+    for (const t of state.tokens) {
+      if (t.kind === "card" && t.location.zone === "lock" && t.location.side === side) {
+        const col = getCardDefinition(t.cardId)?.color;
+        if (col && COLORS.includes(col)) locked.add(col);
+      }
+    }
+    const missing = COLORS.filter((c) => !locked.has(c));
+    const hand = state.tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === p);
+    if (hand.some((t) => t.cardId === "rainbow-shard" || missing.includes(getCardDefinition(t.cardId)?.color))) return true;
+  }
+  return false;
+}
 // ディメンション判定: 1マスでは届かない「マンハッタン距離ちょうど2」のマスに、相手ゲート、または
 // 表向きでまだ要る色のカードがある（＝2マス移動がちょうど得になる）か。カードがあり駒がいないマスのみ。
 function beneficialTwoMoveExists(state, seat) {
@@ -627,12 +648,11 @@ function handEffectValueFor(card, seat, state, handCount) {
       return allJunk ? 1 : 0;
     }
     // --- 追加（ユーザー案2026-08-10。条件が明確に判定できるものだけ）---
-    case "white-radiance": { // なないろの巨光: 全員3枚ドロー＋フェイズ終了。通常は相手も利するので使わないが、相手が
-      // 7色目リーチ（6色ロック＝次ターン勝ちそう）で、かつ自分がゴメンナサイ非所持の“詰み”の時だけ、
-      // ゴメンナサイを引き当てて勝利ロックを阻止するための決死のドローとして使う（ユーザー案）。
-      const oppAboutToWin = (state.activePlayers || []).some((p) => p !== seat && distinctLockedColorCount(state, p) >= COLORS.length - 1);
-      return oppAboutToWin && !cpuHandHas(state, seat, "purple-sorry") ? 3 : 0;
-    }
+    case "white-radiance": // なないろの巨光: 全員3枚ドロー＋フェイズ終了。通常は相手も利するので使わないが、相手が
+      // 次ターン確実に勝てる（6色リーチ＋欠け色を手札に所持）と“分かって”いて、かつ自分がゴメンナサイ
+      // 非所持の“詰み”の時だけ、ゴメンナサイを引き当てて阻止するための決死のドローに使う（ユーザー指定で
+      // 「相手が最後のロックカードを持っていると分かる時のみ」＝相手手札が見える最強のみ発動）。
+      return opponentCanWinNextTurn(state, seat) && !cpuHandHas(state, seat, "purple-sorry") ? 3 : 0;
     case "rainbow-shard": { // なないろの欠片: 貴重札なので通常は温存(0)。2枚揃った時だけ「2枚ロック＋2枚ドロー」で使う
       // （lock-pairはOPTION_RANKで優先。単体温存は追色コスト/セレナーデのロック対象として手動で活かす想定）。
       const shardCount = state.tokens.filter(
@@ -697,6 +717,29 @@ export function chooseHandCardToken(tokenIds, driveSeat) {
     return d;
   };
   tokens.sort((a, b) => discardability(b) - discardability(a));
+  return tokens[0].id;
+}
+
+// セレナーデ/カウンターロック等の「手札を1枚ロックする」時に、どれをロックするかの選択（ユーザー
+// 要望2026-08-10）。ロックは“手放す”のと真逆で、価値の高い札こそロックしたい。優先:
+//   ①なないろの欠片（本来ロックしづらい貴重札を1色に変換できる＝一番活かせる）
+//   ②まだ要る色のカード（ロックすれば7色勝利へ前進）
+//   ③その他。
+// chooseHandCardToken（手放す用）とは逆基準。候補は tokenId の集合（呼び出し側でロック可能札に絞り済み）。
+export function chooseHandCardToLock(tokenIds, driveSeat) {
+  const ids = [...(tokenIds || [])];
+  if (ids.length === 0) return null;
+  const state = getState();
+  const needed = neededColors(state, driveSeat);
+  const tokens = ids.map((id) => state.tokens.find((t) => t.id === id)).filter(Boolean);
+  if (tokens.length === 0) return ids[0];
+  const lockValue = (t) => {
+    if (t.cardId === "rainbow-shard") return 3; // 虹を1色に変換＝最優先（他の手段ではロックしづらい）
+    const color = getCardDefinition(t.cardId)?.color;
+    if (color && COLORS.includes(color) && needed.has(color)) return 2; // まだ要る色
+    return 1;
+  };
+  tokens.sort((a, b) => lockValue(b) - lockValue(a));
   return tokens[0].id;
 }
 

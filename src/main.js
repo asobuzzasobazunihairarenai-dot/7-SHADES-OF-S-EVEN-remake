@@ -218,6 +218,7 @@ import {
   chooseEffectCell,
   chooseHandEffectCard,
   chooseHandCardToken,
+  chooseHandCardToLock,
   chooseOpponentHandCardToSteal,
   chooseSwapGiveCard,
 } from "./cpu-brain.js";
@@ -3411,10 +3412,13 @@ export function performPriorityTimeoutAutoAction() {
         : pickRandomFrom(picker.candidates);
       picker.resolve(choice);
     } else if (picker.type === "hand") {
-      // 賢いCPU（中級以上）は、手放してよいカード（ロック済みの色＝冗長 等）を優先して選ぶ。
-      // 新人は従来通りランダム。
+      // 賢いCPU（中級以上）は用途に応じて選ぶ。purpose:"lock"（セレナーデ/カウンターロックのロック対象）は
+      // 「ロックしたい札＝虹や要る色を優先」(chooseHandCardToLock)、それ以外（追色コスト等で手放す）は
+      // 「手放してよい札＝ロック済みの色等」(chooseHandCardToken)。新人は従来通りランダム。
       const tokenId = isCpuBrainDriving(driveSeat)
-        ? chooseHandCardToken(picker.tokenIds, driveSeat)
+        ? picker.purpose === "lock"
+          ? chooseHandCardToLock(picker.tokenIds, driveSeat)
+          : chooseHandCardToken(picker.tokenIds, driveSeat)
         : pickRandomFrom([...picker.tokenIds]);
       const token = tokenId ? getState().tokens.find((t) => t.id === tokenId) : null;
       picker.resolve(token ?? null);
@@ -3725,7 +3729,7 @@ function requestCellChoiceForEffect(candidates, hint, options = {}) {
 // ゾーン）にある分も選択候補に含める（続き55、card-effect-engine.jsのgetHandTokens()と
 // 同じ定義。ヴァーディアンの効果で公開ドローされた2枚が選べる罠の「手札を半分捨てる」で
 // 選べなかった不具合の対応）。
-function requestHandCardChoiceForEffect(player, hint, tokenIdFilter) {
+function requestHandCardChoiceForEffect(player, hint, tokenIdFilter, options = {}) {
   return new Promise((resolve) => {
     const handArea = document.querySelector(`.hand-area[data-player="${player}"]`);
     const revealArea = document.querySelector(`.hand-reveal-area[data-player="${player}"]`);
@@ -3757,6 +3761,9 @@ function requestHandCardChoiceForEffect(player, hint, tokenIdFilter) {
     activeEffectPicker = {
       type: "hand",
       owner: player,
+      // purpose:"lock" の時、CPUの自動解決は「手放す用(chooseHandCardToken)」ではなく「ロックする用
+      // (chooseHandCardToLock＝虹や要る色を優先)」で選ぶ。セレナーデ/カウンターロックのロック対象選択用。
+      purpose: options.purpose ?? null,
       tokenIds: new Set(cardEls.map((el) => el.dataset.tokenId)),
       resolve: (token) => {
         for (const el of cardEls) el.classList.remove("card-effect-target-cell");
@@ -6404,7 +6411,7 @@ async function useCounterLockOnContact() {
   const chosen =
     lockableTokens.length === 1
       ? lockableTokens[0]
-      : await requestHandCardChoiceForEffect(defender, "ロックする手札を選択してください", lockableIds);
+      : await requestHandCardChoiceForEffect(defender, "ロックする手札を選択してください", lockableIds, { purpose: "lock" });
   if (!chosen) return;
   // 七色の欠片・無色は色スロットが一意に定まらないので、置ける空きスロットから選ばせる
   // （候補が1つなら自動、複数なら「ロックする場所を選択してください」。セレナーデと同じ扱い）。

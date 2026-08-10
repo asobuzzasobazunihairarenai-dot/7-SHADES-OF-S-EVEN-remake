@@ -943,7 +943,8 @@ async function runAction(action, ctx, helpers) {
       const { candidateSlotsFor, tokens } = getLockableHandTokensExceptFinal(ctx.player);
       if (tokens.length === 0) return false;
       const lockableTokenIds = new Set(tokens.map((t) => t.id));
-      const chosen = await helpers.pickHandCard(ctx.player, "ロックするカードを手札から選択してください", lockableTokenIds);
+      // purpose:"lock" でCPUは「ロックしたい札（虹・要る色）優先」で自動選択（ユーザー要望2026-08-10）。
+      const chosen = await helpers.pickHandCard(ctx.player, "ロックするカードを手札から選択してください", lockableTokenIds, { purpose: "lock" });
       if (!chosen) return false;
       const slots = candidateSlotsFor(chosen);
       if (slots.length === 0) return false;
