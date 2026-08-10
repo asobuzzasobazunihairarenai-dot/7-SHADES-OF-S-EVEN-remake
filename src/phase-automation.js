@@ -128,6 +128,13 @@ let phaseOwner = null;
 // 「開始時に無かった新しいロックidが1枚でも増えたか」で判定すれば、同時に別の1枚が
 // 奪われても新しくロックした事実を取りこぼさない。
 let lockedIdsAtPhaseStart = new Set();
+// 黒の契約の烙印の★(a)「ロックしないなら1枚ドローしてもよい」用（ユーザー要望2026-08-09）。
+// lock→hand遷移で「このロックフェイズに新規ロックが無かった」時に呼ぶ、main.js側の任意ドロー
+// モーダル。循環参照を避けるためmain.jsから注入する（他のregisterXHelpersと同じ方式）。
+let contractBrandOnLockPhaseEnded = null;
+export function registerContractBrandHandler(onLockPhaseEndedWithoutLock) {
+  contractBrandOnLockPhaseEnded = onLockPhaseEndedWithoutLock;
+}
 function getLockedTokenIds(player) {
   return new Set(
     getState()
@@ -605,10 +612,27 @@ function enterPhase(phase, player) {
   // （スキップモーダルであれ通常のannouncePhase()トーストであれ）とかぶらないよう
   // ここで必ず消す（詳しい経緯はdismissSkipModal()のコメント参照）。
   dismissSkipModal();
+  const prevPhase = currentPhase;
   currentPhase = phase;
   phaseOwner = player; // このフェイズがどの席のものか（ターン境界のリセット判定に使う。#19）
   if (phase === "lock") lockedIdsAtPhaseStart = getLockedTokenIds(player);
   if (phase === "move") moveActionTaken = false;
+  // 黒の契約の烙印の★(a): lock→hand へ移る時、このロックフェイズに新規ロックが1枚も無ければ
+  // （＝ロックしなかった）、烙印所持者は1枚ドローしてよい（main.js側で任意モーダル、fire-and-forget）。
+  // 新規ロックの有無は開始時スナップショット(lockedIdsAtPhaseStart)との差分で見る（枚数ではなくid集合。
+  // reconcilePhaseAutomationのplacedNewLock判定と同じ理由）。ロックして進んだ場合はここは通らない
+  // （その場合★(b)が発動する）ので二重発動しない。
+  if (prevPhase === "lock" && phase === "hand") {
+    const nowLocked = getLockedTokenIds(player);
+    let placedNewLock = false;
+    for (const id of nowLocked) {
+      if (!lockedIdsAtPhaseStart.has(id)) {
+        placedNewLock = true;
+        break;
+      }
+    }
+    if (!placedNewLock) contractBrandOnLockPhaseEnded?.(player);
+  }
 
   // ユーザー要望「手札がないロックフェイズを自動でスキップしてください。その際その旨を
   // モーダルで伝えてください」。ハンドフェイズは「手札に何もない」時、ロックフェイズは

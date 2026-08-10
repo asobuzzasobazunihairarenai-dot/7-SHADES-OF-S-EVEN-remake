@@ -52,6 +52,7 @@ import {
   getCurrentPhase,
   isCardLockable,
   forceEndCurrentPhase,
+  registerContractBrandHandler,
 } from "./phase-automation.js";
 import { initHelpButton } from "./help.js";
 import { initDiscordLink } from "./discord-link.js";
@@ -6235,6 +6236,88 @@ async function respondToContact(approve) {
   }
 }
 
+// --- 黒の契約の烙印の★基本効果（ユーザー要望2026-08-09。従来は未実装だった） ------------------
+// 効果文: 「★あなたのロックフェイズにロックしないなら１枚ドローしてもよい。これの置かれた
+// ロックエリアにロックしたなら、あなたの手札を２枚捨て、これを任意のマスに裏向きで置く。」
+// ★は「基本効果（常時適用）」で、この烙印が“あなたのロックエリアに置かれている”間だけ働く。
+// ●到達でロックエリアに置かれる（＝1枠を塞ぐ）ので、その呪いを解く/緩和する挙動を与える。
+//   (b) ロックしたら: 手札2枚（色不問）を捨て、烙印を盤面へ裏向きで移す（＝枠が空く）。
+//   (a) ロックしないなら: 1枚ドローしてもよい（枠を塞がれている見返り。clause aはlock→handの
+//       遷移でphase-automationから onLockPhaseEndedWithoutLock 経由で呼ぶ）。
+function findContractBrandInLockAreaOf(player) {
+  const side = SEAT_TO_SIDE[player];
+  return (
+    getState().tokens.find(
+      (t) => t.kind === "card" && t.cardId === "black-contract-brand" && t.location.zone === "lock" && t.location.side === side
+    ) || null
+  );
+}
+let contractBrandBusy = false;
+// (b) ロックした時の処理。maybeAnnounceLockからfire-and-forgetで呼ぶ（同期のロック確定処理は
+// 止めない）。手札2枚を捨て（CPUは自動、人間は選択。ownerはロックした本人＝turnPlayerなので
+// #58のような他者ターン誤判定は起きない）、烙印を任意マスへ裏向き（faceUpForLocationでcellは
+// 自動的に裏向き）で移す。
+async function runContractBrandCurseOnLock(player, brandId) {
+  if (contractBrandBusy) return;
+  contractBrandBusy = true;
+  try {
+    await announceEffectReasonForEffect(
+      "black-contract-brand",
+      `${getPlayerName(player)}は黒の契約の烙印のあるロックエリアにロックしたため、手札を2枚捨て、烙印を盤面に裏向きで置きます。`
+    );
+    for (let i = 0; i < 2; i++) {
+      const hand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
+      if (hand.length === 0) break; // 手札が尽きたらそれ以上は捨てられない（善処）
+      const ids = new Set(hand.map((t) => t.id));
+      const chosen = hand.length === 1 ? hand[0] : await requestHandCardChoiceForEffect(player, "黒の契約の烙印：捨てる手札を選択してください", ids);
+      if (!chosen) break;
+      await discardFromHandReveal(chosen.id);
+    }
+    const brand = getState().tokens.find((t) => t.id === brandId);
+    if (brand && brand.location.zone === "lock") {
+      const cells = [];
+      for (let r = 0; r <= 6; r++) for (let c = 0; c <= 6; c++) cells.push({ zone: "cell", row: r, col: c });
+      const dest = await requestCellChoiceForEffect(cells, "黒の契約の烙印を裏向きで置くマスを選択してください", { owner: player });
+      if (dest) {
+        if (isOnlineMode()) {
+          try {
+            await moveToken(brandId, dest);
+            markSelfHandled([brandId]);
+            await fetchAndHydrate(getCurrentGameId());
+          } catch (err) {
+            console.error("runContractBrandCurseOnLock (relocate) failed", err);
+          }
+        } else {
+          moveToken(brandId, dest);
+        }
+      }
+    }
+    render();
+  } finally {
+    contractBrandBusy = false;
+  }
+}
+// (a) ロックフェイズを「ロックせずに」終えた時、烙印が自分のロックエリアにあるなら1枚ドローしてよい
+// （任意）。phase-automation.jsのlock→hand遷移から呼ばれる（registerContractBrandHelpers）。
+async function offerContractBrandDrawIfNoLock(player) {
+  if (contractBrandBusy) return;
+  if (!findContractBrandInLockAreaOf(player)) return;
+  contractBrandBusy = true;
+  try {
+    const wantsDraw = await confirmGenericYesNo("🖋 黒の契約の烙印：ロックしなかったので1枚ドローできます。ドローしますか？（任意）", {
+      yesLabel: "ドローする",
+      noLabel: "しない",
+      owner: player,
+    });
+    if (wantsDraw) {
+      await drawCardsForEffect(player, 1);
+      render();
+    }
+  } finally {
+    contractBrandBusy = false;
+  }
+}
+
 // ユーザー要望（続き89）「自動処理モードでは、接触に対するリアクションカード
 // （カウンターロック等）を持っているかどうかを判定し、それを持っていればそのカードを
 // 使うかどうかのモーダルが出るようにしてほしい」への対応。card-effects.jsの
@@ -8583,9 +8666,16 @@ function maybeAnnounceLock(dropTarget, cardId, wasAlreadyLocked) {
     logAction("lock", { cardId, player });
     announceCardLocked(player, cardId);
     // ユーザー要望（続き76）「ロック処理の直後にも割り込みモーダルを出す」。宣言側は
-    // 続き77でperformLockPhaseClick・ドラッグ&ドロップハンドラ・requestFinalLock
+    // 続き77でperformLockPhaseドラッグ&ドロップハンドラ・requestFinalLock
     // それぞれの実際に動かす直前に追加したため、ここは「処理」側の1回。
     fireAnytimeCheckpoint(player);
+    // 黒の契約の烙印の★(b): この烙印が自分のロックエリアにある状態でロックしたら、手札2枚捨て
+    // ＋烙印を盤面へ裏向きで移す（ユーザー要望2026-08-09）。全ロック経路がここを通る。烙印自身の
+    // ●配置（moveAndSync経由でここは通らない）や、烙印を色としてロック（＝ありえない）は対象外。
+    if (cardId !== "black-contract-brand") {
+      const brand = findContractBrandInLockAreaOf(player);
+      if (brand) runContractBrandCurseOnLock(player, brand.id); // fire-and-forget（同期のロック処理は止めない）
+    }
   }
   triggerLockEffect(cardId, dropTarget);
 }
@@ -11678,6 +11768,8 @@ registerCounterLockHelpers({
 });
 registerEternalAnimHelpers(playEternalAcquisitionAnim);
 registerGateInvasionStealHelper(stealHandCardsRitualForGateInvasion);
+// 黒の契約の烙印の★(a)「ロックしないなら1枚ドローしてよい」（ユーザー要望2026-08-09）。
+registerContractBrandHandler(offerContractBrandDrawIfNoLock);
 // ユーザー要望2026-08-08: ゲート侵攻で自ゲートのカードを回収した時、何を得たかを回収した本人の
 // 画面だけに中央で大きく見せる（1枚ずつ、閉じる/タイムアップで次へ）。
 registerReturnHomeRevealHelper(async (attacker, cards) => {
