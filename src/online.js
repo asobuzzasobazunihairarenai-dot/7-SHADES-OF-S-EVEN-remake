@@ -24,6 +24,9 @@ import {
 } from "./state.js";
 import { SEAT_ORDER } from "./board-layout.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
+// マイデッキ戦: ログイン時にアカウント保存のデッキを復元する（my-deck.jsはcards-data.jsのみ
+// 依存の葉モジュールなので、online.jsから直接importしても循環参照にならない）。
+import { setMyDeckFromAccount } from "./my-deck.js";
 import { setLastActionInfo } from "./last-action-info.js";
 import { setStatsProfileClient } from "./stats-profile.js";
 import { logAction } from "./action-log.js";
@@ -1135,6 +1138,23 @@ export async function loadMyPreferences() {
     backgroundId: data.background_id || null,
   });
   window.dispatchEvent(new CustomEvent("admin:change"));
+
+  // マイデッキ戦: 保存済みのマイデッキをアカウントから復元する。my_deck列はまだ本番に
+  // 無い環境があり得るため、上の大きなSELECTには混ぜず（1列でも未存在だと全設定の読み込みが
+  // 丸ごと失敗する既知の落とし穴。custom_avatar_urlと同じ理由）、別クエリで安全に読み、
+  // 失敗しても他設定へ影響させない。未ログイン/未保存ならlocalStorageの値のまま。
+  try {
+    const { data: deckRow, error: deckErr } = await client
+      .from("so7_user_profiles")
+      .select("my_deck")
+      .eq("user_id", cachedUser.id)
+      .maybeSingle();
+    if (!deckErr && deckRow && deckRow.my_deck && typeof deckRow.my_deck === "object") {
+      setMyDeckFromAccount(deckRow.my_deck);
+    }
+  } catch (err) {
+    console.error("マイデッキの読み込みに失敗しました（my_deck列が未追加の可能性）", err);
+  }
 }
 
 // --- 部屋の作成・参加・一覧 ---------------------------------------------------------

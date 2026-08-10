@@ -61,6 +61,9 @@ import { getOptionArea } from "./option-area.js";
 import { openBugReportModal } from "./bug-report.js";
 // オンライン対戦開始時に一度だけ出す「不具合報告のお願い」案内（開始告知が閉じた直後に表示）。
 import { maybeShowBugReportIntro } from "./bug-report-intro.js";
+// マイデッキ戦: 保存したデッキをアカウント(so7_user_profiles.my_deck)へ反映する注入（下の
+// registerMyDeckPersistence参照）。my-deck.js は cards-data.js のみ依存の葉モジュール。
+import { registerMyDeckPersistence } from "./my-deck.js";
 import { initCurrencyDisplay, refreshCurrencyDisplay, showCurrencyAwardEffect } from "./currency-display.js";
 import { initShop, openShopPanel } from "./shop.js";
 import { initGameSetup, previewStartPlayerModal, showStartPlayerModal } from "./game-setup.js";
@@ -11790,6 +11793,10 @@ initDeviceDetect();
 registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocationElement, setSetupPendingTokenIds });
 registerPieceSkinHelpers({ render });
 registerCardBackSkinHelpers({ render, savePreference: saveMyPreference, isItemUnlocked, openShop });
+// マイデッキ戦（マイデッキ.txt）: デッキビルダーの保存をアカウント(so7_user_profiles.my_deck)へ
+// も反映する。オンライン対戦開始時にサーバー(so7-apply-action)が各席のこの値を読み、シャッフル
+// して配るため保存が必須。未ログイン/列未追加でもlocalStorageには保存済みで、ここは失敗しても無害。
+registerMyDeckPersistence((deck) => saveMyPreference({ my_deck: deck }));
 registerPlaymatHelpers({ render });
 registerBackgroundHelpers({ render });
 registerPetHelpers({ render });
