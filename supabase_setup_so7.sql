@@ -1506,3 +1506,11 @@ grant execute on function so7_get_admin_bug_reports() to authenticated;
 -- 配る想定（プロフィール直読みではない。so7_user_profiles_selectがusing(user_id=auth.uid())で
 -- 他人の行を読めないため）。
 alter table so7_user_profiles add column if not exists my_deck jsonb;
+
+-- マイデッキ戦かどうかを対局ごとに保持する（部屋作成者が対戦ロビーのトグルでON、
+-- BOOTSTRAP_GAME時に1回だけ書き込む。timer_config等と同じ「対局全体で固定」の扱い）。
+-- 全クライアントはこれを見て、ロックフェイズの3択（ロック／マイデッキから1枚／スキップ）を
+-- 出すかどうかを決める。マイデッキ本体は so7_game_piles に "myDeck-<seat>" というパイル名で
+-- 入り、so7_game_piles_visible は discard 以外の中身を返さない（枚数だけ公開）ので、相手や
+-- 本人にも並び順・中身は見えず「残り枚数」だけが分かる（マイデッキ.txtの想定通り）。
+alter table so7_games add column if not exists my_deck_mode boolean not null default false;

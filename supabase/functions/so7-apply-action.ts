@@ -107,6 +107,21 @@ function expandDeck(defs: { id: string; count?: number }[]): string[] {
   return ids;
 }
 
+// マイデッキ戦: プロフィールの my_deck（{ "<cardId>": <枚数>, ... } 形式）を cardId の配列へ
+// 展開する。通常カード(NORMAL_CARDS)のidのみ受け付け、不正な値・負数は無視する
+// （クライアント側 my-deck.js でも検証済みだが、サーバーでも防御的にフィルタする）。
+const NORMAL_CARD_ID_SET = new Set(NORMAL_CARDS.map((c) => c.id));
+function expandMyDeck(raw: any): string[] {
+  if (!raw || typeof raw !== "object") return [];
+  const ids: string[] = [];
+  for (const [cardId, count] of Object.entries(raw)) {
+    if (!NORMAL_CARD_ID_SET.has(cardId)) continue;
+    const n = Math.max(0, Math.floor(Number(count) || 0));
+    for (let i = 0; i < n; i++) ids.push(cardId);
+  }
+  return ids;
+}
+
 function uid(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`;
 }
@@ -132,7 +147,9 @@ type Token = {
   arrivalSuppressed?: boolean; // 続き59: 直前のMOVE_TOKENが「到達効果を得ない」移動だったか
 };
 
-type Piles = { deck: string[]; eternal: string[]; first: string[]; discard: string[] };
+// マイデッキ戦では "myDeck-<seat>"（例 "myDeck-A"）というパイルも動的に持つため、
+// 固定キーに加えて任意の文字列キーを許す（loadState/commitはObject.entriesで汎用的に扱う）。
+type Piles = { deck: string[]; eternal: string[]; first: string[]; discard: string[]; [key: string]: string[] };
 
 type PendingFinalLock = {
   tokenId: string;
@@ -175,6 +192,7 @@ type GameState = {
   timerConfig: TimerConfig;
   timerToggleRejectStreak: Record<string, number>;
   pendingAutoProcessingToggle: PendingAutoProcessingToggle;
+  myDeckMode: boolean; // マイデッキ戦か（BOOTSTRAP_GAMEで確定、対局中は不変）
 };
 
 // オンライン版では手札の表裏フラグをローカル版のような「自分がAかどうか」で決める必要が
@@ -243,6 +261,21 @@ function reduce(current: GameState, action: any): GameState {
       const faceUp = faceUpForLocation(action.location);
       const newToken: Token = { id: uid("card"), kind: "card", cardId, faceUp, location: action.location };
       if (action.location.zone === "publicDraw") newToken.revealSource = "draw";
+      return { ...current, piles, tokens: [...current.tokens, newToken] };
+    }
+    case "DRAW_FROM_MY_DECK": {
+      // マイデッキ戦: ロックする代わりに、自分のマイデッキ("myDeck-<seat>")の一番上から
+      // 1枚を手札へ加える（マイデッキ.txt）。マイデッキは山札ではないので補充はしない
+      // （空なら何も起きない＝currentをそのまま返す）。seatは呼び出し元が自分の席を渡す。
+      const seat: string = action.seat;
+      const pileName = `myDeck-${seat}`;
+      const myDeck = current.piles[pileName];
+      if (!myDeck || myDeck.length === 0) return current;
+      const cardId = myDeck[myDeck.length - 1];
+      const piles = { ...current.piles, [pileName]: myDeck.slice(0, -1) };
+      // マイデッキから引いた札は手札へ（location.zoneは通常 "hand"）。faceUpForLocationに従う。
+      const faceUp = faceUpForLocation(action.location);
+      const newToken: Token = { id: uid("card"), kind: "card", cardId, faceUp, location: action.location };
       return { ...current, piles, tokens: [...current.tokens, newToken] };
     }
     case "SEND_TOKEN_TO_PILE": {
@@ -444,14 +477,23 @@ function reduce(current: GameState, action: any): GameState {
       const activePlayers = players.map((p) => p.player);
       const startPlayer = activePlayers[Math.floor(Math.random() * activePlayers.length)];
 
+      const piles: Piles = {
+        deck: remainingDeck,
+        eternal: shuffled(expandDeck(FIRST_CARDS.map((c) => ({ id: c.id, count: 1 })))), // placeholder, overwritten below
+        first: firstPile,
+        discard: [],
+      };
+      // マイデッキ戦: 各席の持ち込みデッキ（handlerがプロフィールの my_deck から読んで
+      // シャッフル済みの cardId 配列）を "myDeck-<seat>" パイルとして持たせる。中身は
+      // so7_game_piles_visible が discard 以外は返さない（枚数のみ公開）ので、相手にも本人にも
+      // 並び順・中身は見えず、残り枚数だけが分かる。
+      const myDecks: Record<string, string[]> = action.myDecks ?? {};
+      for (const seat of Object.keys(myDecks)) {
+        piles[`myDeck-${seat}`] = Array.isArray(myDecks[seat]) ? myDecks[seat] : [];
+      }
       return {
         tokens: newTokens,
-        piles: {
-          deck: remainingDeck,
-          eternal: shuffled(expandDeck(FIRST_CARDS.map((c) => ({ id: c.id, count: 1 })))), // placeholder, overwritten below
-          first: firstPile,
-          discard: [],
-        },
+        piles,
         activePlayers,
         turnPlayer: startPlayer,
         turnNumber: 1,
@@ -463,6 +505,7 @@ function reduce(current: GameState, action: any): GameState {
         timerConfig: action.timerConfig ?? null,
         timerToggleRejectStreak: {},
         pendingAutoProcessingToggle: null,
+        myDeckMode: !!action.myDeckMode,
       };
     }
     // 最後のロック承認①②（src/state.jsのREQUEST_FINAL_LOCK/RESPOND_FINAL_LOCKケースと
@@ -804,6 +847,7 @@ async function loadState(db: any, gameId: string): Promise<{ state: GameState; v
       timerConfig: gameRow.timer_config ?? null,
       timerToggleRejectStreak: gameRow.timer_toggle_reject_streak ?? {},
       pendingAutoProcessingToggle: gameRow.pending_auto_processing_toggle ?? null,
+      myDeckMode: gameRow.my_deck_mode ?? false,
     },
     version: gameRow.version,
   };
@@ -917,8 +961,24 @@ Deno.serve(async (req) => {
           .eq("user_id", a.userId);
         if (updErr) return json({ ok: false, error: updErr.message }, 500);
       }
+      // マイデッキ戦: 各席のユーザーが保存した my_deck を読み、シャッフルして席ごとの
+      // デッキ(cardId配列)にする。プロフィールは本人しか読めないRLSだが、この関数は
+      // サービスロール(db)で動くので全員分まとめて読める。読めなかった/空のデッキは空配列＝
+      // 「マイデッキが無い」状態（ドローしても何も起きない、で無害。マイデッキ.txt）。
+      let myDecks: Record<string, string[]> | undefined;
+      if (action.myDeckMode) {
+        myDecks = {};
+        const { data: profRows } = await db
+          .from("so7_user_profiles")
+          .select("user_id, my_deck")
+          .in("user_id", assignments.map((a) => a.userId));
+        const deckByUser = new Map((profRows ?? []).map((r: any) => [r.user_id as string, r.my_deck]));
+        for (const a of assignments) {
+          myDecks[a.seat] = shuffled(expandMyDeck(deckByUser.get(a.userId)));
+        }
+      }
       const players = assignments.map((a) => ({ player: a.seat, side: SEAT_TO_SIDE[a.seat] }));
-      effectiveAction = { ...action, players };
+      effectiveAction = { ...action, players, myDecks, myDeckMode: !!action.myDeckMode };
     }
 
     const { state: current, version } = await loadState(db, gameId);
@@ -966,6 +1026,10 @@ Deno.serve(async (req) => {
     // パターンで別途同期する（隠す必要の無い公開情報のため）。
     if (action.type === "BOOTSTRAP_GAME" && action.timerConfig) {
       gamesPatch.timer_config = action.timerConfig;
+    }
+    // マイデッキ戦フラグを対局全体の固定値として1回だけ書き込む（timer_configと同じ扱い）。
+    if (action.type === "BOOTSTRAP_GAME") {
+      gamesPatch.my_deck_mode = !!action.myDeckMode;
     }
     // 最後のロック承認: このアクションの時だけpending_final_lockを含める（保留が解消
     // された時はnullを明示的に含める）。それ以外のアクションはキー自体を含めないため、
