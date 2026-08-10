@@ -422,6 +422,10 @@ function anyOpponentHandAtLeast(state, seat, min) {
 function manhattan(a, b) {
   return Math.abs(a.row - b.row) + Math.abs(a.col - b.col);
 }
+// 盤面に駒がいる相手が1人でもいるか（プレゼント等「相手の隣に置く」系が空撃ちしないためのガード）。
+function anyOpponentPieceOnBoard(state, seat) {
+  return (state.activePlayers || []).some((p) => p !== seat && !!pieceCellOf(state, p));
+}
 // 相手ゲートまでの最短距離（activeOpponentGateCellsは既存のものを再利用。{row,col}の配列を返す）。
 function distToNearestOppGate(cell, state, seat) {
   const gates = activeOpponentGateCells(state, seat);
@@ -464,23 +468,42 @@ function handEffectValueFor(card, seat, state, handCount) {
     case "eternal-blue": // プリドゥエン: 山札から2枚を裏向き配置（軽い盤面展開）
       return 1;
     // --- C: 妨害・攻撃系（ユーザー要望2026-08-09、状況ガード付き。実行は共にマス選択で自動解決可）---
-    case "orange-mass-change": { // マスチェンジ: 3マス以内の相手と位置入替。相手ゲートに近づく時だけ（機動＝ゲート侵攻へ前進）
-      const loc = pieceCellOf(state, seat);
-      if (!loc) return 0;
-      const myDist = distToNearestOppGate(loc, state, seat);
-      return opponentPieceCellsWithin(state, seat, 3).some((c) => distToNearestOppGate(c, state, seat) < myDist) ? 2 : 0;
-    }
-    case "eternal-red": { // ワイナウエア: 任意の1マスのカードを全捨て。2枚以上積まれたマス（clutter）がある時だけ、低優先
-      const stacks = {};
-      for (const t of state.tokens) {
-        if (t.kind === "card" && t.location.zone === "cell") {
-          const k = t.location.row + "," + t.location.col;
-          stacks[k] = (stacks[k] ?? 0) + 1;
-        }
+    case "orange-mass-change": { // マスチェンジ: 3マス以内の相手と入替。CPUが相手ゲートに近づき、かつ入替後に
+      // 相手（CPUの元マスへ移る）がCPUより侵攻に近くならない時だけ使う（ユーザー要望2026-08-09:
+      // 入替で相手の方がゲートに近づいてしまうなら、相手を利するのでやらない）。
+      const myCell = pieceCellOf(state, seat);
+      if (!myCell) return 0;
+      const myOldDist = distToNearestOppGate(myCell, state, seat);
+      for (const p of (state.activePlayers || []).filter((x) => x !== seat)) {
+        const oppCell = pieceCellOf(state, p);
+        if (!oppCell || manhattan(oppCell, myCell) > 3) continue;
+        const cpuNewDist = distToNearestOppGate(oppCell, state, seat); // CPUはoppCellへ移る
+        if (!(cpuNewDist < myOldDist)) continue; // 前進しないなら不要
+        const oppNewInvadeDist = distToNearestOppGate(myCell, state, p); // 相手はmyCellへ→相手が侵攻できるゲートまでの距離
+        if (oppNewInvadeDist < cpuNewDist) continue; // 相手の方がゲートに近くなる＝相手を利する→やらない
+        return 2;
       }
-      return Object.values(stacks).some((n) => n >= 2) ? 1 : 0;
+      return 0;
     }
-    // --- 以降は段階的に対応予定（試練の儀式/プレゼント/配置系/ザ・ギャンブル等）。今は使わない ---
+    case "eternal-red": { // ワイナウエア: 任意の1マスのカードを全捨て。(1)2枚以上積まれたマス（clutter）か、
+      // (2)相手がまだ必要な色の“表向き”盤面カード（拾われると相手を利する）を潰せる時だけ、低優先。
+      // 注意: eternal-redは盤面マスのカードのみ対象で、ロックエリアのロック済みカードは壊せない
+      //（ユーザー案「相手のロックした色を破壊」はこのカードでは不可）。
+      const cardCells = state.tokens.filter((t) => t.kind === "card" && t.location.zone === "cell");
+      const stacks = {};
+      for (const t of cardCells) {
+        const k = t.location.row + "," + t.location.col;
+        stacks[k] = (stacks[k] ?? 0) + 1;
+      }
+      if (Object.values(stacks).some((n) => n >= 2)) return 1;
+      const oppNeeds = new Set();
+      for (const p of (state.activePlayers || []).filter((x) => x !== seat)) for (const c of neededColors(state, p)) oppNeeds.add(c);
+      return cardCells.some((t) => t.faceUp && oppNeeds.has(getCardDefinition(t.cardId)?.color)) ? 1 : 0;
+    }
+    // --- D: 配置・トラップ系（ユーザー要望2026-08-09。カード枚数が減らない=実質お得なものを先行）---
+    case "pink-present": // プレゼント: 相手の隣に伏せて置き1枚ドロー（keepsCardOnUseで手札枚数±0＋ドローの上振れ）。相手が盤上にいる時だけ
+      return anyOpponentPieceOnBoard(state, seat) ? 1 : 0;
+    // --- 以降は段階的に対応予定（試練の儀式/配置トラップ/ザ・ギャンブル等）。今は使わない ---
     default:
       return 0;
   }
