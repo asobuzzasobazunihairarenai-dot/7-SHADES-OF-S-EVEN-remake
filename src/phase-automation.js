@@ -573,7 +573,11 @@ export function updateSkipButtonVisibility() {
   const statusEl = ensureTurnStatus();
   // ムーブフェイズは「移動」か「接触」のどちらかを必ず行う必要があり、任意にスキップできる
   // 性質のものではない（docs/rulebook.md）。スキップボタンはロック・ハンドフェイズだけに出す。
-  const showSkip = currentPhase === "lock" || currentPhase === "hand";
+  // 不具合#60: ローカルCPU戦は1クライアントが両席のフェイズを進めるため、CPU(C)のロック/ハンド
+  // フェイズ中も currentPhase が "lock"/"hand" になり、人間の画面にスキップボタンが出てしまっていた。
+  // そのフェイズの持ち主(phaseOwner)が疑似CPU対象（＝CPUが自動で進める席）の時は出さない。
+  // 通常のオンライン/ホットシート（疑似CPU非対象）では isPseudoCpuTarget が常にfalseなので従来通り。
+  const showSkip = (currentPhase === "lock" || currentPhase === "hand") && !isPseudoCpuTarget(phaseOwner);
   btn.style.display = showSkip ? "block" : "none";
   const state = getState();
   if (showSkip || !state.turnPlayer) {
