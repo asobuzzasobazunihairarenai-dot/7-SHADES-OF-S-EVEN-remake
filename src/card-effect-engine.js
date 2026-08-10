@@ -180,9 +180,9 @@ export function isHandEffectOptionUsable(cardId, cardTokenId, player, option) {
     if (candidates.length < option.cost.count) return false;
   }
   if (option.requiresPairInHand) {
-    const count = getState().tokens.filter(
-      (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player && t.cardId === cardId
-    ).length;
+    // 手札公開エリア(publicDraw)のカードもルール上「手札」（getHandTokensの定義、続き55）。
+    // なないろの欠片の2枚判定でも公開中の欠片を数える（ユーザー指摘2026-08-10）。
+    const count = getHandTokens(player).filter((t) => t.cardId === cardId).length;
     if (count < 2) return false;
   }
   // 桃のキューブ セレナーデ専用。ユーザー指摘: 「善処の原則」は発動宣言の時点で
@@ -242,9 +242,8 @@ function explainHandEffectOptionUnusable(cardId, cardTokenId, player, option) {
     if (candidates.length < option.cost.count) return "追色コストを払えません（コストとして捨てられる同じ色の手札がありません）。";
   }
   if (option.requiresPairInHand) {
-    const count = getState().tokens.filter(
-      (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player && t.cardId === cardId
-    ).length;
+    // publicDrawの同名カードも手札としてカウントする（isHandEffectOptionUsableと同じ）。
+    const count = getHandTokens(player).filter((t) => t.cardId === cardId).length;
     if (count < 2) return "この効果を使うには、同じカードが手札に2枚必要です。";
   }
   if (option.requiresLockableCardAvailable) {

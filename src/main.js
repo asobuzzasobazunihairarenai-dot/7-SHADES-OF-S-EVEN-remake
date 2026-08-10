@@ -3546,10 +3546,13 @@ export function performPriorityTimeoutAutoAction() {
   // 評価（得な効果だけ、無ければ使わない）で決める。
   if (phase === "hand" && isCpuBrainDriving(driveSeat) && !isHandEffectBusy()) {
     const player = driveSeat;
+    // 手札公開エリア(publicDraw)のカードもルール上は「手札」（getHandTokensの定義と同じ扱い、
+    // ユーザー指摘2026-08-10）。CPUも公開中のカード（奇跡の森 first-greenの一時ドロー等）の
+    // 手札効果を使えるようにzoneに publicDraw を含める。
     const usable = getState().tokens.filter(
       (t) =>
         t.kind === "card" &&
-        t.location.zone === "hand" &&
+        (t.location.zone === "hand" || t.location.zone === "publicDraw") &&
         t.location.player === player &&
         hasHandEffectData(t.cardId) &&
         canUseHandEffect(t.cardId, t.id, player)

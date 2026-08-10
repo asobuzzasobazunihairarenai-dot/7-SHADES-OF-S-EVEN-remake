@@ -663,7 +663,12 @@ function handEffectValueFor(card, seat, state, handCount) {
     case "first-purple": // ディメンション: 【追色1】このターン2マス移動。1マスでは届かない距離2のマスが相手ゲート/表向きの
       // 要る色の時だけ使う（ちょうど届く時のみ得。ユーザー案）。追色コストはcanUseHandEffect担保。
       return beneficialTwoMoveExists(state, seat) ? 2 : 0;
-    // --- 意図的に自動使用しない: first-green(一時ドローで益が薄い)／配置トラップ系(専用コンボ要) ほか ---
+    case "first-green": // 奇跡の森(first): 【追色1】2枚公開ドロー（ターン終了で捨てる、1/turn）。引いた札はこのターン
+      // 使える（publicDrawも手札扱いにしたのでCPUも使用可能になった。ユーザー指摘2026-08-10）。緑が既に
+      // ロック済み＝追色コストが実質タダの時だけ、「引いて今ターン使えるものがあれば使う」ために撃つ。
+      // 緑がまだ要る色なら温存。使用可否（別の緑あり＋1/turn）はcanUseHandEffectが担保。
+      return !neededColors(state, seat).has("green") ? 1 : 0;
+    // --- 意図的に自動使用しない: 配置トラップ系(専用コンボ要) ほか ---
     default:
       return 0;
   }
