@@ -34,7 +34,7 @@ import { isLobbyPseudoCpuToggleVisible } from "./cpu-battle-state.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { subscribe, getState, isOnlineMode, notifyListeners } from "./state.js";
 import { playWaitingBgm, stopWaitingBgm } from "./sound.js";
-import { closeHomeScreen } from "./home-screen.js";
+import { closeHomeScreen, openHomeScreen } from "./home-screen.js";
 
 // 部屋名の文字数上限。部屋一覧・ヘッダーの部屋バッジ等、限られた幅に表示する箇所が
 // 複数あるため、極端に長い部屋名で崩れないよう作成時点で制限する（サーバー側
@@ -1027,6 +1027,17 @@ export function openOnlinePanel() {
   // 一括調整グループへの合流）がinline styleに負けて効かなくなるため。
   panelEl.id = "online-panel";
   panelEl.appendChild(createModalCloseX(closePanel));
+  // 「ホームに戻る」ボタン（ユーザー要望2026-08-10）。パネルを閉じてホーム画面へ戻る。
+  // openHomeScreenは冪等（既に開いていれば何もしない）なので、背後にホームが残っていても二重表示しない。
+  const homeBtn = document.createElement("button");
+  homeBtn.id = "online-panel-home-btn";
+  homeBtn.type = "button";
+  homeBtn.textContent = "← ホームに戻る";
+  homeBtn.addEventListener("click", () => {
+    closePanel();
+    openHomeScreen();
+  });
+  panelEl.appendChild(homeBtn);
   contentEl = document.createElement("div");
   panelEl.appendChild(contentEl);
   document.body.appendChild(backdropEl);

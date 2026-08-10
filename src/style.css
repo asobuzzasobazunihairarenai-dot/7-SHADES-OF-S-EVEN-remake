@@ -2153,6 +2153,21 @@ body.is-phone-device #phase-guide-bar {
   width: var(--bug-report-icon-size, 1.9rem);
   height: var(--bug-report-icon-size, 1.9rem);
 }
+/* 不具合報告・行動ログアイコンは丸枠・背景塗りつぶし・影を出さず、画像単体で見せる
+   （ユーザー要望2026-08-10）。ID+classでベースの.icon-action-button-icon-wrapに勝つ。 */
+#self-status-bug-report .icon-action-button-icon-wrap,
+#self-status-action-log .icon-action-button-icon-wrap {
+  background: none;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+#self-status-bug-report:hover .icon-action-button-icon-wrap,
+#self-status-action-log:hover .icon-action-button-icon-wrap {
+  background: none;
+  border-color: transparent;
+  box-shadow: none;
+}
 
 /* アイコン+キャプション形式のボタン共通部品（icon-action-button.js参照）。アイコンは丸い
    バッジ、キャプションはその下に小さく表示するクリック可能な文字（点線下線でクリックできる
@@ -4993,6 +5008,37 @@ body.theme-light .action-log-window-title {
   font-family: sans-serif;
   color: #e2e8f0;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+/* オンライン対戦ウィンドウの「ホームに戻る」ボタン（ユーザー要望2026-08-10）。パネル上部・左寄せ。
+   ✕（右上・絶対配置）とは重ならない。 */
+#online-panel-home-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 0.6rem;
+  padding: 0.3rem 0.75rem;
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 0.4rem;
+  color: #e2e8f0;
+  font-family: sans-serif;
+  font-size: 0.8rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+#online-panel-home-btn:hover {
+  border-color: rgba(56, 189, 248, 0.7);
+  background: rgba(56, 189, 248, 0.15);
+}
+body.theme-light #online-panel-home-btn {
+  background: rgba(176, 141, 63, 0.12);
+  border-color: rgba(176, 141, 63, 0.5);
+  color: #4a3f28;
+}
+body.theme-light #online-panel-home-btn:hover {
+  border-color: rgba(176, 141, 63, 0.95);
+  background: rgba(176, 141, 63, 0.2);
 }
 
 /* 管理者モード：位置合わせパネル（admin.jsのbuildPanel）。続き92でinline styleから
