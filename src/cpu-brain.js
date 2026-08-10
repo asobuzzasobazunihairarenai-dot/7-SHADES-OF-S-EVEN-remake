@@ -109,11 +109,16 @@ function scoreMove(c, seat, ctx) {
       );
       if (threatened) score += 5; // 侵攻が迫っている時だけ自ゲートを固める（普段は前進を優先）
     }
-    // カウンターロック未所持時は、相手駒の隣（＝接触されうる位置）に留まるのを避ける。
-    // ただし自ゲート占有（上の防衛）位置は例外で避けない。
+    // カウンターロック未所持時は、相手駒の隣（＝次の相手ターンに接触され、手札を奪われ自ゲートへ
+    // 戻される危険な位置）で終わるのを避ける（ユーザー報告#59-②「無防備なのに隣に来る」）。ペナルティは
+    // ゲート接近1マス分(+3)を上回る−4にして、単なる前進のために不用意に隣で終わらないようにする。
+    // 例外1: 自ゲート占有（上の防衛）は避けない。例外2: 相手ゲートへの着地（＝ゲート侵攻）は、
+    // 侵攻がこのターン終了時に解決してから相手の手番が来るため、その後に隣接していても手遅れで
+    // 無関係。侵攻(+6)を潰さないようペナルティ対象外にする。
     if (!ctx.hasCounterLock && ctx.oppPieceCells.length > 0) {
       const adjToOpp = ctx.oppPieceCells.some((p) => Math.abs(p.row - here.row) + Math.abs(p.col - here.col) === 1);
-      if (adjToOpp && !onMyGateHere) score -= 1.5;
+      const landingOnOppGate = gateSeat && gateSeat !== seat && ctx.activePlayers.includes(gateSeat);
+      if (adjToOpp && !onMyGateHere && !landingOnOppGate) score -= 4;
     }
   } else if (c.occupantPlayer && c.occupantPlayer !== seat) {
     // ④接触（体当たり）。攻めの体当たりはカウンターロック所持時のみ（未所持で不用意に接触しない、
