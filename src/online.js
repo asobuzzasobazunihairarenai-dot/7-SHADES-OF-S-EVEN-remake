@@ -1457,6 +1457,16 @@ async function callAction(action) {
   });
 }
 
+// マイデッキ戦: ロックフェイズで「ロックする代わりに」自分のマイデッキから1枚を手札へ
+// 加える（マイデッキ.txtの3択の1つ）。サーバーが "myDeck-<seat>" の一番上を手札へ移す
+// （空なら何も起きない）。送信後に自分の画面も即反映するため fetchAndHydrate する
+// （submitContactProposal等と同じパターン。他プレイヤーへはサーバーのstate_changed
+// Broadcastで届く）。
+export async function drawFromMyDeck(seat) {
+  await callAction({ type: "DRAW_FROM_MY_DECK", seat, location: { zone: "hand", player: seat } });
+  if (currentGameId) await fetchAndHydrate(currentGameId);
+}
+
 // ゲーム開始（セットアップウィザードの代わり）。座席の割り当てはso7-apply-action
 // Edge Function側が部屋の参加者を見てランダムに行う（クライアント側では組み立てない）。
 // ユーザー要望「（戦績管理システムに）勝利しなくても対戦に参加すれば登録されるように
@@ -1490,7 +1500,7 @@ async function registerParticipantsAsStatsPlayers(gameId) {
   }
 }
 
-export async function startGame(gameId, { includeBlackWhite = false, timerEnabled, pseudoCpuModeEnabled = false, boost = false } = {}) {
+export async function startGame(gameId, { includeBlackWhite = false, timerEnabled, pseudoCpuModeEnabled = false, boost = false, myDeckMode = false } = {}) {
   return withLog("ゲーム開始", async () => {
     const count = await getMemberCount(gameId);
     if (count < 2) throw new Error("2人以上揃ってから開始してください");
@@ -1528,7 +1538,9 @@ export async function startGame(gameId, { includeBlackWhite = false, timerEnable
     logAction("diag-pseudo-cpu", { phase: "startGame-send", timerConfig });
     // boost: ブーストモード（各プレイヤーのファーストカードの左右隣に効果なしファーストカードを
     // ロックして開始）。サーバー側BOOTSTRAP_GAME（so7-apply-action.ts）で処理する。
-    const result = await callAction({ type: "BOOTSTRAP_GAME", includeBlackWhite, timerConfig, boost });
+    // myDeckMode: マイデッキ戦（対戦ロビーのトグル）。timerConfig等と同じく開始時に1回だけ
+    // 送り、サーバーが各席のプロフィールの my_deck を読んでシャッフル配布する（so7-apply-action）。
+    const result = await callAction({ type: "BOOTSTRAP_GAME", includeBlackWhite, timerConfig, boost, myDeckMode });
     registerParticipantsAsStatsPlayers(gameId).catch((err) =>
       console.error("registerParticipantsAsStatsPlayers failed", err)
     );
@@ -2405,6 +2417,10 @@ export async function fetchAndHydrate(gameId) {
       // 同じ理由（hydrateState()は丸ごと置き換えのため渡し忘れるとundefinedへ上書き
       // されてしまう）でここに含める必要がある。
       pendingTimerToggle: gameRow.pending_timer_toggle ?? null,
+      // マイデッキ戦か（BOOTSTRAP_GAMEでサーバーが確定・対局中は不変）。select("*")なので
+      // my_deck_mode列が未追加の環境ではundefined→false（後方互換）。pendingFinalLock等と
+      // 同じく、hydrateStateは丸ごと置き換えなので渡し忘れるとundefinedへ上書きされる。
+      myDeckMode: gameRow.my_deck_mode ?? false,
     });
   });
 }

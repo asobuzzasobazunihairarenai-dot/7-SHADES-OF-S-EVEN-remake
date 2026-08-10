@@ -13,7 +13,7 @@
 // 「register helper」注入パターンで main.js から渡してもらう（循環import回避）。
 
 import { getState, isOnlineMode, drawFromPile, flipToken, nextTurn, setPriorityState } from "./state.js";
-import { getSelfSeat, getCurrentGameId, fetchAndHydrate, getSyncedTimerConfig, broadcastPhaseChange, onPhaseChangeEvents, isSpectatingGame } from "./online.js";
+import { getSelfSeat, getCurrentGameId, fetchAndHydrate, getSyncedTimerConfig, broadcastPhaseChange, onPhaseChangeEvents, isSpectatingGame, drawFromMyDeck } from "./online.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
 import {
   isAutoProcessingEnabled,
@@ -568,6 +568,34 @@ function ensureTurnStatus() {
   attachToPhaseGuideBar(turnStatusEl);
   return turnStatusEl;
 }
+// マイデッキ戦（マイデッキ.txt）: ロックフェイズで「ロックする代わりにマイデッキから1枚引く」
+// ボタン。スキップボタンと同じフェイズ案内板の枠に並べる。押すと自分のマイデッキの一番上を
+// 手札へ加え（drawFromMyDeck）、ロックフェイズを終える（advancePhase）＝ロックの代替。
+let myDeckButtonEl = null;
+function ensureMyDeckButton() {
+  if (myDeckButtonEl) {
+    attachToPhaseGuideBar(myDeckButtonEl);
+    return myDeckButtonEl;
+  }
+  myDeckButtonEl = document.createElement("button");
+  myDeckButtonEl.type = "button";
+  myDeckButtonEl.id = "phase-automation-mydeck-button";
+  myDeckButtonEl.addEventListener("click", () => {
+    if (handEffectBusy) return;
+    const seat = getSelfSeat();
+    const pile = getState().piles?.[`myDeck-${seat}`];
+    if (!pile || pile.length === 0) return;
+    myDeckButtonEl.disabled = true;
+    drawFromMyDeck(seat)
+      .then(() => advancePhase()) // ロックの代わりに引いたので、ロックフェイズを終える
+      .catch((err) => console.error("drawFromMyDeck failed", err))
+      .finally(() => {
+        if (myDeckButtonEl) myDeckButtonEl.disabled = false;
+      });
+  });
+  attachToPhaseGuideBar(myDeckButtonEl);
+  return myDeckButtonEl;
+}
 export function updateSkipButtonVisibility() {
   const btn = ensureSkipButton();
   const statusEl = ensureTurnStatus();
@@ -580,6 +608,21 @@ export function updateSkipButtonVisibility() {
   const showSkip = (currentPhase === "lock" || currentPhase === "hand") && !isPseudoCpuTarget(phaseOwner);
   btn.style.display = showSkip ? "block" : "none";
   const state = getState();
+  // マイデッキ戦: 自分のロックフェイズで、マイデッキに残りがあれば「マイデッキ (残枚数)」
+  // ボタンを出す（ロックする代わりに1枚引ける）。オンライン専用。残枚数はサーバーの
+  // "myDeck-<seat>" パイル（so7_game_piles_visibleが枚数だけ公開）から取る。
+  const myDeckBtn = ensureMyDeckButton();
+  const selfSeat = getSelfSeat();
+  const myDeckCount = (state.piles?.[`myDeck-${selfSeat}`] || []).length;
+  const showMyDeck =
+    isOnlineMode() &&
+    state.myDeckMode &&
+    currentPhase === "lock" &&
+    state.turnPlayer === selfSeat &&
+    !isPseudoCpuTarget(phaseOwner) &&
+    myDeckCount > 0;
+  myDeckBtn.style.display = showMyDeck ? "block" : "none";
+  if (showMyDeck) myDeckBtn.textContent = `マイデッキ (${myDeckCount})`;
   if (showSkip || !state.turnPlayer) {
     statusEl.style.display = "none";
   } else {

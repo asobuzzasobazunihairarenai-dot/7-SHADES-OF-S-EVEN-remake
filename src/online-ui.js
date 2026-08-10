@@ -130,6 +130,8 @@ let pendingRoomTimerEnabled = true;
 let pendingRoomIncludeBlackWhite = false;
 let pendingRoomPseudoCpuModeEnabled = false;
 let pendingRoomBoost = false;
+// マイデッキ戦（マイデッキ.txt）: ロックする代わりに各自の持ち込みデッキから1枚引ける。
+let pendingRoomMyDeck = false;
 
 async function renderPanelContent() {
   if (!contentEl) return;
@@ -256,6 +258,7 @@ function buildLobbyOptionRows() {
   addIconToggle("assets/icons/turn-timer.svg", "ターンタイマー", pendingRoomTimerEnabled, (v) => (pendingRoomTimerEnabled = v));
   addIconToggle("assets/icons/bw-card.svg", "白黒カード", pendingRoomIncludeBlackWhite, (v) => (pendingRoomIncludeBlackWhite = v));
   addIconToggle("assets/icons/boost-mode.svg", "ブーストモード", pendingRoomBoost, (v) => (pendingRoomBoost = v));
+  addIconToggle("assets/icons/my-deck.svg", "マイデッキ戦", pendingRoomMyDeck, (v) => (pendingRoomMyDeck = v));
   wrap.appendChild(iconRow);
   // 疑似CPUモードのチェックは管理者モードで表示ONの時だけ出す（既定は非表示。ユーザー要望2026-08-08）。
   // アイコン素材が無いため従来のチェックボックスのまま。
@@ -315,6 +318,7 @@ async function renderLobbyModal() {
           includeBlackWhite: pendingRoomIncludeBlackWhite,
           pseudoCpuModeEnabled: pendingRoomPseudoCpuModeEnabled,
           boost: pendingRoomBoost,
+          myDeckMode: pendingRoomMyDeck,
         });
         closeLobbyModal();
       } catch (err) {

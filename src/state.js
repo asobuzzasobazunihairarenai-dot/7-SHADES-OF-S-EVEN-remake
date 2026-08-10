@@ -130,6 +130,9 @@ function createInitialState() {
     // 検知し、自分自身のsetAutoProcessingEnabled(nextEnabled)をそれぞれ呼ぶ
     // （main.jsのcheckAutoProcessingToggleResolution参照）。
     pendingAutoProcessingToggle: null,
+    // マイデッキ戦か（オンライン専用。ローカル/CPU戦は常にfalse）。オンラインでは
+    // fetchAndHydrate()がサーバーの my_deck_mode を毎回渡す。
+    myDeckMode: false,
   };
 }
 

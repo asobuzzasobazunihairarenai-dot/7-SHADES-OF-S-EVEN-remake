@@ -1379,6 +1379,8 @@ begin
     pending_timer_toggle = coalesce(p_games_patch->'pending_timer_toggle', pending_timer_toggle),
     timer_toggle_reject_streak = coalesce(p_games_patch->'timer_toggle_reject_streak', timer_toggle_reject_streak),
     pending_auto_processing_toggle = coalesce(p_games_patch->'pending_auto_processing_toggle', pending_auto_processing_toggle),
+    -- マイデッキ戦フラグ（BOOTSTRAP_GAME時にだけ patch に含まれる。boolean列なので ->> して ::boolean）。
+    my_deck_mode = coalesce((p_games_patch->>'my_deck_mode')::boolean, my_deck_mode),
     version = version + 1
   where id = p_game_id;
 end;

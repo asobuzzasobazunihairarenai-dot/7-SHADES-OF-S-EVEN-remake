@@ -8396,6 +8396,34 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
 #phase-automation-skip-button:hover {
   filter: brightness(1.1);
 }
+/* マイデッキ戦（マイデッキ.txt）: ロックフェイズの「マイデッキから1枚引く」ボタン。
+   スキップボタン(left:0, 案内板の真上)と縦に段積みして重ならないよう、さらに一段上に置く。
+   スキップ(黄)と区別できるよう青系にする。 */
+#phase-automation-mydeck-button {
+  position: absolute;
+  bottom: calc(100% + 3.2rem);
+  left: 0;
+  z-index: 1001;
+  display: none;
+  padding: 0.5rem 1.1rem;
+  background: linear-gradient(160deg, #38bdf8, #0ea5e9);
+  border: none;
+  border-radius: 0.5rem;
+  color: #04121f;
+  font-weight: bold;
+  font-family: sans-serif;
+  font-size: 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 0 1rem rgba(56, 189, 248, 0.55), 0 6px 14px rgba(0, 0, 0, 0.5);
+}
+#phase-automation-mydeck-button:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+#phase-automation-mydeck-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 /* ユーザー要望（続き81）「スキップボタンについては個別でサイズ位置調整も追加して」。
    このボタンは常時pulseアニメーション中で、通常のtransformプロパティは実行中の
    キーフレームに丸ごと上書きされてしまう（transformの値はカスケードで合成されず、
