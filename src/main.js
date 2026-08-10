@@ -6080,8 +6080,22 @@ async function respondToContact(approve) {
   // ことで、この窓を塞ぐ（優先権の返却は従来通り finishContactResolution が行う）。
   // ピック選択のキャンセル（上の early return）より後・状態変更より前のこの位置で行う。
   if (approve && defenderPieceId) {
+    const priorityBeforeTransfer = getState().priorityPlayer;
     logAction("diag-delegate", { phase: "contact-request", defender, turnPlayer: getState().turnPlayer });
     transferPriorityTo(defender);
+    // #61診断: 接触解決中の「防御側へ優先権を移してターンを保持する」仕組みが効いたかを記録する。
+    // タイマーOFFの対局では state.priorityPlayer が終始 null で、transferPriorityTo() は
+    // 早期return（何もしない）。その場合 took:false になり、ターンプレイヤー側の
+    // ターン終了ガード(isEndTurnDisabledNow)も効かず、防御側の到達効果処理中にターンが
+    // 進んでしまう（=#61）。次回発生時にこの1行で確定できる。
+    logAction("diag-contact-priority", {
+      phase: "transfer-to-defender",
+      defender,
+      turnPlayer: getState().turnPlayer,
+      priorityBefore: priorityBeforeTransfer,
+      priorityAfter: getState().priorityPlayer,
+      took: getState().priorityPlayer === defender,
+    });
   }
 
   // タックル演出のため、状態を変える(respondContact)前に「動く前」のDOM情報を確保して
@@ -6198,6 +6212,15 @@ async function respondToContact(approve) {
     // 到達より前に出すよう変更したため、ここでは結果モーダルは出さない。下参照）。
     const finishContactResolution = () => {
       logAction("diag-delegate", { phase: "contact-resolved", defender, returningPriorityTo: getState().turnPlayer });
+      // #61診断: 接触の到達効果解決が終わった時刻・状態を記録（diag-next-turnと突き合わせて
+      // 「解決前にNEXT_TURNが飛んでいないか」を確認する）。
+      logAction("diag-contact-priority", {
+        phase: "finish",
+        defender,
+        priorityPlayer: getState().priorityPlayer,
+        arrivalProcessing: isArrivalEffectProcessing(),
+        turnPlayer: getState().turnPlayer,
+      });
       transferPriorityTo(getState().turnPlayer);
       // ユーザー要望（続き76/77）「接触処理の直後にも割り込みモーダルを出す」。
       fireAnytimeCheckpoint(defender);
@@ -10236,6 +10259,18 @@ function buildEndTurnButton() {
           console.error("gate invasion pre-pick failed", err);
           // 失敗時は steals 無し＝サーバー側の無作為フォールバックに任せる（詰まらせない）。
         }
+        // #61診断: オンラインでNEXT_TURNを送る直前の状態を記録する。防御側の接触到達効果が
+        // まだ処理中（他端末）なのにここへ来ていないか、優先権がnull（タイマーOFF＝保持機構が
+        // 無効）でないかを、diag-contact-priority群と時刻で突き合わせて確定する。
+        logAction("diag-next-turn", {
+          turnPlayer: turnPlayerBeforeEnd,
+          selfSeat: getSelfSeat(),
+          priorityPlayer: getState().priorityPlayer,
+          phase: getCurrentPhase(),
+          arrivalProcessing: isArrivalEffectProcessing(),
+          pendingContact: !!getState().pendingContact,
+          contactResultModals: openContactResultModals,
+        });
         transferPriorityToNextTurnPlayer(turnPlayerBeforeEnd);
         nextTurn(gateInvasionSteals ? { gateInvasionSteals } : undefined);
         releaseGuard();
