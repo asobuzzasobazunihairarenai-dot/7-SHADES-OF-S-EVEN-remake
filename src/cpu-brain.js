@@ -446,6 +446,45 @@ function opponentPieceCellsWithin(state, seat, range) {
     .filter((t) => t.kind === "piece" && t.location.zone === "cell" && opps.includes(t.player) && manhattan(t.location, loc) <= range)
     .map((t) => t.location);
 }
+// --- E: 進行・ロック系＋パーティのゲート侵攻コンボ用ヘルパー（ユーザー要望2026-08-09）---
+function ownGateCell(seat) {
+  const g = GATE_POSITIONS[SEAT_TO_SIDE[seat]];
+  return g ? { row: g.row, col: g.col } : null;
+}
+function cellHasCard(state, row, col) {
+  return state.tokens.some((t) => t.kind === "card" && t.location.zone === "cell" && t.location.row === row && t.location.col === col);
+}
+function cellHasPiece(state, row, col) {
+  return state.tokens.some((t) => t.kind === "piece" && t.location.zone === "cell" && t.location.row === row && t.location.col === col);
+}
+// 相手の駒が自分のゲートから within 以内にいる（＝ゲート侵攻が迫っている）か。コノハナサクヤで
+// 引き剥がす判断に使う（ユーザー案: 相手の自ゲート侵攻間近に引き剥がす）。
+function opponentThreateningOwnGate(state, seat, within) {
+  const gate = ownGateCell(seat);
+  if (!gate) return false;
+  const opps = (state.activePlayers || []).filter((p) => p !== seat);
+  return state.tokens.some(
+    (t) => t.kind === "piece" && t.location.zone === "cell" && opps.includes(t.player) && manhattan(t.location, gate) <= within
+  );
+}
+// CPUの駒の within 以内（マンハッタン）に伏せカードがあるか（サフランで進行先を偵察する判断）。
+function faceDownCardWithin(state, seat, within) {
+  const loc = pieceCellOf(state, seat);
+  if (!loc) return false;
+  return state.tokens.some(
+    (t) => t.kind === "card" && t.location.zone === "cell" && !t.faceUp && manhattan(t.location, loc) <= within
+  );
+}
+// パーティのゲート侵攻コンボ: CPUの駒が「カードも駒も無い相手ゲート」の隣にいるか。そこにパーティを
+// 伏せて置けば、同ターンのムーブフェイズでそのゲートへ乗れて（移動はカードのあるマスにしか行けない）、
+// パーティは踏んでも安全（選択肢式）なので確実にゲート侵攻できる。
+function adjacentToCardlessOpponentGate(state, seat) {
+  const loc = pieceCellOf(state, seat);
+  if (!loc) return false;
+  return activeOpponentGateCells(state, seat).some(
+    (g) => manhattan(loc, g) === 1 && !cellHasCard(state, g.row, g.col) && !cellHasPiece(state, g.row, g.col)
+  );
+}
 
 // 1枚の手札効果カードの価値（大きいほど優先。0以下は使わない）。
 function handEffectValueFor(card, seat, state, handCount) {
@@ -508,7 +547,17 @@ function handEffectValueFor(card, seat, state, handCount) {
     // --- D: 配置・トラップ系（ユーザー要望2026-08-09。カード枚数が減らない=実質お得なものを先行）---
     case "pink-present": // プレゼント: 相手の隣に伏せて置き1枚ドロー（keepsCardOnUseで手札枚数±0＋ドローの上振れ）。相手が盤上にいる時だけ
       return anyOpponentPieceOnBoard(state, seat) ? 1 : 0;
-    // --- 以降は段階的に対応予定（試練の儀式/配置トラップ/ザ・ギャンブル等）。今は使わない ---
+    // --- E: 進行・ロック系＋パーティのゲート侵攻コンボ（ユーザー要望2026-08-09）---
+    case "pink-party": // パーティ: ゲート侵攻コンボ。カードも駒も無い相手ゲートの隣にいる時だけ、そのゲートに
+      // パーティを伏せて置く→同ターンに乗って侵攻（踏んでも安全）。それ以外はカード損なので使わない。最優先級。
+      return adjacentToCardlessOpponentGate(state, seat) ? 4 : 0;
+    case "purple-trial-ritual": // 試練の儀式: 山札から隣に置いて移動、宣言色が続けば連鎖＝無償の機動力＋盤面前進（宣言はchooseDeclaredColorsが担当）
+      return 2;
+    case "eternal-pink": // コノハナサクヤ: 相手を自分の隣へ引き寄せる。相手が自ゲート侵攻間近（2マス以内）な時に引き剥がすのが有効。追色はcanUseHandEffect担保
+      return opponentThreateningOwnGate(state, seat, 2) ? 2 : 0;
+    case "first-yellow": // サフラン: 2マス以内を最大4枚オープン。最強はのぞき見済で無意味なので非対象。進行先に伏せカードがある時だけ（同ターンの移動判断に活きる）
+      return !isCpuPeekAllowed() && faceDownCardWithin(state, seat, 2) ? 1 : 0;
+    // --- 以降は段階的に対応予定（配置トラップ/ザ・ギャンブル/マルメゴ等）。今は使わない ---
     default:
       return 0;
   }
