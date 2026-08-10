@@ -59,6 +59,8 @@ import { initDiscordLink } from "./discord-link.js";
 import { initBoardViewToggle } from "./board-view-toggle.js";
 import { getOptionArea } from "./option-area.js";
 import { openBugReportModal } from "./bug-report.js";
+// オンライン対戦開始時に一度だけ出す「不具合報告のお願い」案内（開始告知が閉じた直後に表示）。
+import { maybeShowBugReportIntro } from "./bug-report-intro.js";
 import { initCurrencyDisplay, refreshCurrencyDisplay, showCurrencyAwardEffect } from "./currency-display.js";
 import { initShop, openShopPanel } from "./shop.js";
 import { initGameSetup, previewStartPlayerModal, showStartPlayerModal } from "./game-setup.js";
@@ -11936,7 +11938,11 @@ subscribe(() => {
         // blocksInput:false・自動で閉じる保険付きなので、直後のreconcilePhaseAutomation()
         // による自動処理進行を妨げない。
         const starter = getState().turnPlayer;
-        if (starter) showStartPlayerModal(starter);
+        // スタートプレイヤー告知が閉じた（自動8秒 or クリック）直後に、不具合報告の案内を
+        // 一度だけ出す（未設定・非表示指定なら空振り。ユーザー要望2026-08-10）。モーダルが
+        // 重ならないよう告知のonCloseに繋ぐ。
+        if (starter) showStartPlayerModal(starter, { onClose: () => maybeShowBugReportIntro() });
+        else maybeShowBugReportIntro();
         // 演出中はrender()内のreconcilePhaseAutomation()呼び出しを丸ごとスキップして
         // いた（上のsuppressGenericRenderForOnlineStart参照）ため、演出が終わった今
         // 改めて呼んでおかないと、フェイズ自動進行がいつまでも始まらないままになって

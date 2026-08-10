@@ -22,6 +22,9 @@ import { syncFullScreenPageActive } from "./option-area.js";
 import { openCodexPage } from "./codex-page.js";
 // ユーザー要望「ランキングを実装しましょう」への対応で新設したページ。
 import { openRankingPage } from "./ranking-page.js";
+// マイデッキ戦（マイデッキ.txt）用のデッキ編成ページ。編成はオフラインでも可能なので
+// ここから開けるようにする（対戦でのオンオフは対戦ロビー側で行う）。
+import { openMyDeckBuilder } from "./my-deck-builder.js";
 // チュートリアルCPU戦（台本化された練習試合）。完全ローカル機能。
 import { startTutorialBattle, registerTutorialHomeOpener } from "./tutorial-battle.js";
 // ローカル1人用CPU戦（cpu-battle.js）はCPU選択時に動的import（下の openMatchChoiceModal 参照）。
@@ -95,6 +98,16 @@ const TILES = [
     },
   },
   { icon: "📰", image: "assets/home-icons/news.webp", label: "お知らせ／更新情報", status: "ready", onOpen: () => openChangelogModal(), showNewIfUnread: () => hasUnreadChangelog() },
+  {
+    icon: "🃏",
+    image: "assets/home-icons/my-deck.webp",
+    label: "マイデッキ編成",
+    status: "ready",
+    onOpen: () => {
+      closeHomeScreen();
+      openMyDeckBuilder(() => openHomeScreen());
+    },
+  },
 ];
 
 // 「近日公開」タイルを押した時の軽いトースト。モーダルを挟むほどの重さは不要

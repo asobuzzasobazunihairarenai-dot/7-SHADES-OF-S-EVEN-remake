@@ -1496,3 +1496,13 @@ as $$
 $$;
 revoke execute on function so7_get_admin_bug_reports() from public;
 grant execute on function so7_get_admin_bug_reports() to authenticated;
+
+-- ── マイデッキ戦（マイデッキ.txt）: プレイヤーごとの持ち込みデッキを永続化する ──────────
+-- デッキは { "<cardId>": <枚数>, ... } のJSONで持つ（例: {"rainbow-shard":7,"red-jump-pad":7}）。
+-- 検証（7枚以上・同名7枚まで・スペシャルの3:1税・所持数）はクライアント(my-deck.js)で行い、
+-- ここは素の保存先。so7_user_profilesは既にuser_id=auth.uid()のみ読み書きできるRLSなので、
+-- デッキの中身（何を仕込んだか）は本人以外に漏れない。対戦中に相手へ見せるのは「マイデッキの
+-- カードである」ことを示す裏面だけで、それは既存のアバター/名前と同様に対戦ステートへ載せて
+-- 配る想定（プロフィール直読みではない。so7_user_profiles_selectがusing(user_id=auth.uid())で
+-- 他人の行を読めないため）。
+alter table so7_user_profiles add column if not exists my_deck jsonb;
