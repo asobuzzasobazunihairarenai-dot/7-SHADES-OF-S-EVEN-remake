@@ -6333,6 +6333,16 @@ function findCounterLockToken(seat) {
   );
 }
 
+// #59-①: CPU防御側がカウンターロックを使うべきか（接触された時の判断。contact-approval.jsから
+// 注入される cpuDecider）。新人（ブレイン非駆動）は使わない。中級以上は、今ロックできる手札が
+// あれば「接触を無効化＋手札1枚ロック」でロック前進の分だけ明確に得なので使う。ロックできる
+// 手札が無ければ温存して承認する（カウンターロックは貴重札のため）。判定時点でカウンターロック
+// 自体は所持済み（呼び出し側の hasCounterLock で担保）。
+function decideCpuUseCounterLock(defender) {
+  if (!isCpuBrainDriving(defender)) return false;
+  return getLockableHandTokensExceptFinal(defender).tokens.length > 0;
+}
+
 // ユーザー確認済み方針（ゴメンナサイのcheckGomennasaiAutoApproval）と同じ考え方
 // 「使えない人には見せずに自動で先へ進める」を接触にも適用する。自動処理モードOFF
 // 中は従来通り常に手動の承認/拒否のままにする（自己申告プレイの前提のため、
@@ -11769,6 +11779,7 @@ registerCounterLockHelpers({
   onUseCounterLock: useCounterLockOnContact,
   isPseudoCpuTarget,
   isSelfCpuSubstituted,
+  cpuDecider: decideCpuUseCounterLock, // #59-①: CPUが接触された時にカウンターロックを使うか
 });
 registerEternalAnimHelpers(playEternalAcquisitionAnim);
 registerGateInvasionStealHelper(stealHandCardsRitualForGateInvasion);

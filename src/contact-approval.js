@@ -31,6 +31,7 @@ let checkCounterLockEligibility = null;
 let useCounterLockHandler = null;
 let isPseudoCpuTargetCheck = null;
 let isSelfCpuSubstitutedCheck = null; // AFK代行中の自席か（main.jsから注入）
+let cpuCounterLockDecider = null; // CPU防御側がカウンターロックを使うべきか（main.jsのブレインから注入。#59-①）
 let pseudoCpuCounterLockAutoDeclineInFlight = false;
 
 export function registerContactApprovalHandler(fn) {
@@ -42,11 +43,12 @@ export function registerContactApprovalHandler(fn) {
 // contact-approval.jsという3方向の循環参照になってしまう（phase-automation.jsが
 // turn-timer.jsを直接importできないのと同じ理由）。checkEligibility/onUseCounterLock
 // と同じ「main.js側から関数を注入してもらう」既存パターンをそのまま拡張して回避する。
-export function registerCounterLockHelpers({ checkEligibility, onUseCounterLock, isPseudoCpuTarget, isSelfCpuSubstituted }) {
+export function registerCounterLockHelpers({ checkEligibility, onUseCounterLock, isPseudoCpuTarget, isSelfCpuSubstituted, cpuDecider }) {
   checkCounterLockEligibility = checkEligibility;
   useCounterLockHandler = onUseCounterLock;
   isPseudoCpuTargetCheck = isPseudoCpuTarget;
   if (isSelfCpuSubstituted) isSelfCpuSubstitutedCheck = isSelfCpuSubstituted;
+  if (cpuDecider) cpuCounterLockDecider = cpuDecider;
 }
 
 export function buildContactApprovalModal() {
@@ -104,12 +106,20 @@ export function updateContactApprovalModal() {
   const autoDeclineDefender =
     isPseudoCpuTargetCheck?.(pending.defender) ||
     (isSelfCpuSubstitutedCheck?.() && pending.defender === getSelfSeat());
-  if (canRespond && hasCounterLock && autoDeclineDefender && !pseudoCpuCounterLockAutoDeclineInFlight) {
-    pseudoCpuCounterLockAutoDeclineInFlight = true;
+  // CPU（または自席AFK代行）が防御側でカウンターロックを持っている時は、その判断を完全自動化し、
+  // 人間には絶対にモーダルを見せない（#59-③: 人間がCPUに接触した時に「カウンターロックを使い
+  // ますか？」モーダルが漏れて出ていた）。ブレインが「使う」と判断すれば実際に使い（#59-①）、
+  // でなければ承認する。多重発火はinFlightで防ぐが、in-flight中でもモーダルは組み立てずに返す
+  // （＝どのタイミングでも人間に判断モーダルを漏らさない）。
+  if (canRespond && hasCounterLock && autoDeclineDefender) {
     hideImmediately();
-    Promise.resolve(respondHandler?.(true)).finally(() => {
-      pseudoCpuCounterLockAutoDeclineInFlight = false;
-    });
+    if (!pseudoCpuCounterLockAutoDeclineInFlight) {
+      pseudoCpuCounterLockAutoDeclineInFlight = true;
+      const useIt = !!cpuCounterLockDecider?.(pending.defender);
+      Promise.resolve(useIt ? useCounterLockHandler?.() : respondHandler?.(true)).finally(() => {
+        pseudoCpuCounterLockAutoDeclineInFlight = false;
+      });
+    }
     return;
   }
   modalEl.innerHTML = "";
