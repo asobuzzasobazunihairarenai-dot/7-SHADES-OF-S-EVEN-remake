@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">行動ログ</title>
+  <desc id="desc">白い記録用紙と金色の時系列ラインで行動履歴を表すアイコン</desc>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke="var(--icon-primary, #F4F7FB)" stroke-width="11">
+      <path d="M75 32h82l32 32v151c0 9-7 16-16 16H75c-9 0-16-7-16-16V48c0-9 7-16 16-16Z"/>
+      <path d="M157 32v32h32"/>
+      <path d="M116 91h43M116 133h43M116 175h43" opacity=".78"/>
+    </g>
+    <g stroke="var(--icon-accent, #E6B94F)" stroke-width="9">
+      <path d="M91 91v84" opacity=".72"/>
+      <circle cx="91" cy="91" r="8" fill="var(--icon-accent, #E6B94F)" stroke="none"/>
+      <circle cx="91" cy="133" r="8" fill="var(--icon-accent, #E6B94F)" stroke="none"/>
+      <circle cx="91" cy="175" r="8" fill="var(--icon-accent, #E6B94F)" stroke="none"/>
+    </g>
+  </g>
+</svg>

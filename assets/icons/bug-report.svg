@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">不具合報告</title>
+  <desc id="desc">白いバグの輪郭と中央の金色の警告記号で不具合報告を表すアイコン</desc>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke="var(--icon-primary, #F4F7FB)" stroke-width="11">
+      <path d="M92 76c0-22 15-38 36-38s36 16 36 38"/>
+      <path d="M79 99c0-13 11-24 24-24h50c13 0 24 11 24 24v54c0 33-22 60-49 60s-49-27-49-60Z" fill="var(--icon-badge, #16202D)" opacity=".96"/>
+      <path d="M79 112H48M177 112h31M79 151H43M177 151h36M88 190l-25 24M168 190l25 24"/>
+      <path d="M128 77v132" opacity=".35"/>
+    </g>
+    <g stroke="var(--icon-accent, #E6B94F)" stroke-width="12">
+      <path d="M128 105v52"/>
+      <circle cx="128" cy="180" r="6" fill="var(--icon-accent, #E6B94F)" stroke="none"/>
+    </g>
+  </g>
+</svg>

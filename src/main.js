@@ -9709,26 +9709,16 @@ const ONLINE_STATUS_ICONS = {
 };
 
 // 不具合報告アイコン（オプションエリア、オンラインアイコンの左隣、ユーザー要望で外出し）。
-// 絵文字アイコンのため buildIconButtonContent（imgベース）は使わず、同じ見た目の構造を手組みする。
+// ユーザー提供のSVGアイコンに差し替え（2026-08-10）。他のアイコンと同じ buildIconButtonContent
+// （imgベース）で組む。
 function buildBugReportWidget() {
   const btn = document.createElement("button");
   btn.id = "self-status-bug-report";
-  btn.className = "icon-action-button";
-  const iconWrap = document.createElement("span");
-  iconWrap.className = "icon-action-button-icon-wrap";
-  const emoji = document.createElement("span");
-  emoji.className = "bug-report-icon-emoji";
-  emoji.textContent = "🐛";
-  iconWrap.appendChild(emoji);
-  const tooltip = document.createElement("span");
-  tooltip.className = "phase-guide-tooltip";
-  tooltip.textContent = "不具合報告（コメント＋ログを送信）";
-  iconWrap.appendChild(tooltip);
-  btn.appendChild(iconWrap);
-  const caption = document.createElement("span");
-  caption.className = "icon-action-button-caption";
-  caption.textContent = "不具合報告";
-  btn.appendChild(caption);
+  const { captionEl } = buildIconButtonContent(btn, {
+    icon: "assets/icons/bug-report.svg",
+    tooltip: "不具合報告（コメント＋ログを送信）",
+  });
+  captionEl.textContent = "不具合報告";
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
     openBugReportModal();
@@ -9940,22 +9930,11 @@ function closeActionLogWindow() {
 function buildActionLogToggleWidget() {
   const btn = document.createElement("button");
   btn.id = "self-status-action-log";
-  btn.className = "icon-action-button";
-  const iconWrap = document.createElement("span");
-  iconWrap.className = "icon-action-button-icon-wrap";
-  const emoji = document.createElement("span");
-  emoji.className = "action-log-icon-emoji";
-  emoji.textContent = "📜";
-  iconWrap.appendChild(emoji);
-  const tooltip = document.createElement("span");
-  tooltip.className = "phase-guide-tooltip";
-  tooltip.textContent = "行動ログの表示／非表示（離席復帰時の見返し用）";
-  iconWrap.appendChild(tooltip);
-  btn.appendChild(iconWrap);
-  const caption = document.createElement("span");
-  caption.className = "icon-action-button-caption";
-  caption.textContent = "ログ";
-  btn.appendChild(caption);
+  const { captionEl } = buildIconButtonContent(btn, {
+    icon: "assets/icons/action-log.svg",
+    tooltip: "行動ログの表示／非表示（離席復帰時の見返し用）",
+  });
+  captionEl.textContent = "ログ";
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
     if (isActionLogWindowOpen()) closeActionLogWindow();
