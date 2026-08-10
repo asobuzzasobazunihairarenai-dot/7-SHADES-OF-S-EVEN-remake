@@ -557,6 +557,9 @@ function handEffectValueFor(card, seat, state, handCount) {
       return opponentThreateningOwnGate(state, seat, 2) ? 2 : 0;
     case "first-yellow": // サフラン: 2マス以内を最大4枚オープン。最強はのぞき見済で無意味なので非対象。進行先に伏せカードがある時だけ（同ターンの移動判断に活きる）
       return !isCpuPeekAllowed() && faceDownCardWithin(state, seat, 2) ? 1 : 0;
+    case "first-pink": // セレナーデ: 【追色1】手札を1枚ロック（最後のロック以外）。ロックフェイズとは別にもう1色進む＝
+      // 勝利へ明確に前進。使用可否（ロックできる手札あり＋追色コスト＋1ターン1回）はcanUseHandEffectが担保。
+      return 3;
     // --- 以降は段階的に対応予定（配置トラップ/ザ・ギャンブル/マルメゴ等）。今は使わない ---
     default:
       return 0;
