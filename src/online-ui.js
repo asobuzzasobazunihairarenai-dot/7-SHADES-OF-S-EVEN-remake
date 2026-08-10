@@ -219,30 +219,59 @@ export function closeLobbyModal() {
   stopWaitingBgm();
 }
 
-// 開始オプション（タイマー/無色/疑似CPU/ブースト）の4チェックボックス。pendingRoom* に束ねる。
+// 開始オプション。ユーザー要望2026-08-10: タイマー/白黒カード/ブーストは「大きいアイコンを
+// クリックでオン/オフ」に変更（ON＝点灯、OFF＝グレーアウト）。挙動（pendingRoom*）は不変で見た目だけ変更。
+// 疑似CPU（管理者表示ONの時のみ）はアイコン素材が無いので従来のチェックボックスのまま。
 function buildLobbyOptionRows() {
   const wrap = document.createElement("div");
   wrap.className = "online-lobby-options";
-  const addToggle = (labelText, checked, onChange) => {
+  const iconRow = document.createElement("div");
+  iconRow.className = "lobby-icon-toggle-row";
+  const addIconToggle = (icon, label, checked, onChange) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "lobby-icon-toggle" + (checked ? " is-on" : "");
+    btn.setAttribute("aria-pressed", checked ? "true" : "false");
+    const img = document.createElement("img");
+    img.className = "lobby-icon-toggle-img";
+    img.src = icon;
+    img.alt = "";
+    const cap = document.createElement("span");
+    cap.className = "lobby-icon-toggle-label";
+    cap.textContent = label;
+    const state = document.createElement("span");
+    state.className = "lobby-icon-toggle-state";
+    state.textContent = checked ? "ON" : "OFF";
+    btn.append(img, cap, state);
+    let on = checked;
+    btn.addEventListener("click", () => {
+      on = !on;
+      btn.classList.toggle("is-on", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      state.textContent = on ? "ON" : "OFF";
+      onChange(on);
+    });
+    iconRow.appendChild(btn);
+  };
+  addIconToggle("assets/icons/turn-timer.svg", "ターンタイマー", pendingRoomTimerEnabled, (v) => (pendingRoomTimerEnabled = v));
+  addIconToggle("assets/icons/bw-card.svg", "白黒カード", pendingRoomIncludeBlackWhite, (v) => (pendingRoomIncludeBlackWhite = v));
+  addIconToggle("assets/icons/boost-mode.svg", "ブーストモード", pendingRoomBoost, (v) => (pendingRoomBoost = v));
+  wrap.appendChild(iconRow);
+  // 疑似CPUモードのチェックは管理者モードで表示ONの時だけ出す（既定は非表示。ユーザー要望2026-08-08）。
+  // アイコン素材が無いため従来のチェックボックスのまま。
+  if (isLobbyPseudoCpuToggleVisible()) {
     const row = document.createElement("label");
     row.className = "online-lobby-option-row";
     const cb = document.createElement("input");
     cb.type = "checkbox";
-    cb.checked = checked;
-    cb.addEventListener("change", () => onChange(cb.checked));
+    cb.checked = pendingRoomPseudoCpuModeEnabled;
+    cb.addEventListener("change", () => (pendingRoomPseudoCpuModeEnabled = cb.checked));
     const span = document.createElement("span");
-    span.textContent = labelText;
+    span.textContent = "🤖 疑似CPUモード（自動選択のテスト用）を使う";
     row.appendChild(cb);
     row.appendChild(span);
     wrap.appendChild(row);
-  };
-  addToggle("⏳ ターンタイマーを使用する", pendingRoomTimerEnabled, (v) => (pendingRoomTimerEnabled = v));
-  addToggle("白黒（無色）カードを山札に含める", pendingRoomIncludeBlackWhite, (v) => (pendingRoomIncludeBlackWhite = v));
-  // 疑似CPUモードのチェックは管理者モードで表示ONの時だけ出す（既定は非表示。ユーザー要望2026-08-08）。
-  if (isLobbyPseudoCpuToggleVisible()) {
-    addToggle("🤖 疑似CPUモード（自動選択のテスト用）を使う", pendingRoomPseudoCpuModeEnabled, (v) => (pendingRoomPseudoCpuModeEnabled = v));
   }
-  addToggle("🚀 ブーストモード（両隣に効果なしファーストカードをロックして開始）", pendingRoomBoost, (v) => (pendingRoomBoost = v));
   return wrap;
 }
 

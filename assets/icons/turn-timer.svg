@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">タイマー設定</title>
+  <desc id="desc">白いストップウォッチと金色の針でタイマーの有無を表すアイコン</desc>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke="#F4F7FB" stroke-width="11">
+      <path d="M105 28h46"/>
+      <path d="M128 28v24"/>
+      <path d="M177 54l19 19"/>
+      <path d="M184 66l-13 13"/>
+      <circle cx="128" cy="139" r="76"/>
+      <path d="M128 78v10M189 139h-10M128 200v-10M67 139h10" opacity=".78"/>
+    </g>
+    <g stroke="#E6B94F" stroke-width="10">
+      <path d="M128 139V96"/>
+      <path d="M128 139l31 23"/>
+      <circle cx="128" cy="139" r="8" fill="#E6B94F" stroke="none"/>
+    </g>
+  </g>
+</svg>

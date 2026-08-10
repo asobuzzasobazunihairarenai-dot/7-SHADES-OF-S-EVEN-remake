@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">白黒カード設定・正方形強力版</title>
+  <desc id="desc">重なった正方形の白黒カードと中央の金色の強い光</desc>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <!-- 奥の黒い正方形カード -->
+    <path d="M92 48 L205 64 Q216 66 214 77 L198 190 Q196 201 185 199 L72 183 Q61 181 63 170 L79 57 Q81 46 92 48 Z"
+          fill="#16191F" stroke="#F4F7FB" stroke-width="10"/>
+
+    <!-- 手前の白い正方形カード -->
+    <path d="M49 88 L161 74 Q172 73 173 84 L187 196 Q188 207 177 208 L65 222 Q54 223 53 212 L39 100 Q38 89 49 88 Z"
+          fill="#F4F7FB" stroke="#F4F7FB" stroke-width="10"/>
+    <path d="M66 104 L148 94 Q155 93 156 100 L166 182 Q167 189 160 190 L78 200 Q71 201 70 194 L60 112 Q59 105 66 104 Z"
+          fill="none" stroke="#16191F" stroke-width="7"/>
+
+    <!-- 強力さを示す金色の光 -->
+    <g fill="#E6B94F" stroke="#E6B94F">
+      <path d="M128 84 L143 113 L172 128 L143 143 L128 172 L113 143 L84 128 L113 113 Z" stroke="none"/>
+      <path d="M128 67 V86 M128 170 V189 M67 128 H86 M170 128 H189"
+            fill="none" stroke-width="8"/>
+    </g>
+    <path d="M128 108 L148 128 L128 148 L108 128 Z" fill="#F4F7FB"/>
+    <path d="M128 116 L140 128 L128 140 L116 128 Z" fill="#E6B94F"/>
+  </g>
+</svg>

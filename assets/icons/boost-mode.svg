@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">ブーストモード FIRST F版</title>
+  <desc id="desc">黄色、緑、青の3枚の正方形カード。左右はロックされ、中央の緑カードにはFIRSTを表す金色のFがある</desc>
+
+  <g stroke="#F4F7FB" stroke-width="8" stroke-linejoin="round">
+    <rect x="18" y="91" width="76" height="76" rx="9" fill="#E7C94A"/>
+    <rect x="162" y="91" width="76" height="76" rx="9" fill="#397AC6"/>
+    <rect x="86" y="73" width="84" height="84" rx="10" fill="#4E9A63"/>
+  </g>
+
+  <!-- FIRSTの頭文字。フォント非依存のオリジナル・パス -->
+  <path d="M108 91 H151 L145 101 H121 V112 H142 L136 122 H121 V143 H108 Z"
+        fill="#E6B94F" stroke="#FFF4CF" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M109.5 92.5 H148.2" fill="none" stroke="#FFE6A1" stroke-width="2.2" stroke-linecap="round" opacity=".65"/>
+
+  <!-- 左右カードのみロック済み -->
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <path d="M39.5 112.5 L72.5 145.5 M72.5 112.5 L39.5 145.5" fill="none" stroke="#F4F7FB" stroke-width="8.6"/>
+    <path d="M39.5 112.5 L72.5 145.5 M72.5 112.5 L39.5 145.5" fill="none" stroke="#151821" stroke-width="5"/>
+    <circle cx="56" cy="129" r="8.6" fill="#151821" stroke="#E6B94F" stroke-width="3"/>
+    <path d="M56 125.4 C53.1 125.4 51.7 127.6 51.7 129.7 C51.7 131.9 53.1 133.3 54.6 134 L52.4 139.8 H59.6 L57.4 134 C58.9 133.3 60.3 131.9 60.3 129.7 C60.3 127.6 58.9 125.4 56 125.4 Z" fill="#E6B94F"/>
+
+    <path d="M183.5 112.5 L216.5 145.5 M216.5 112.5 L183.5 145.5" fill="none" stroke="#F4F7FB" stroke-width="8.6"/>
+    <path d="M183.5 112.5 L216.5 145.5 M216.5 112.5 L183.5 145.5" fill="none" stroke="#151821" stroke-width="5"/>
+    <circle cx="200" cy="129" r="8.6" fill="#151821" stroke="#E6B94F" stroke-width="3"/>
+    <path d="M200 125.4 C197.1 125.4 195.7 127.6 195.7 129.7 C195.7 131.9 197.1 133.3 198.6 134 L196.4 139.8 H203.6 L201.4 134 C202.9 133.3 204.3 131.9 204.3 129.7 C204.3 127.6 202.9 125.4 200 125.4 Z" fill="#E6B94F"/>
+  </g>
+</svg>

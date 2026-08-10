@@ -4091,6 +4091,86 @@ body.spotlight-mode #spotlight-overlay {
   margin-bottom: 0.45rem;
   font-size: 0.85rem;
 }
+/* ロビーの開始オプションを「大きいアイコンをクリックでオン/オフ」に（ユーザー要望2026-08-10）。
+   ON＝点灯（色つき枠＋発光、フル表示）／OFF＝グレーアウト（減光＋グレースケール）でひと目で分かる。 */
+.lobby-icon-toggle-row {
+  display: flex;
+  justify-content: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+.lobby-icon-toggle {
+  flex: 1 1 5rem;
+  max-width: 7rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.6rem 0.4rem 0.45rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1.5px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.6rem;
+  cursor: pointer;
+  font-family: sans-serif;
+  color: #cbd5e1;
+  transition: border-color 0.15s ease, background 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease;
+  /* OFF（既定）＝減光＋グレースケール */
+  opacity: 0.5;
+  filter: grayscale(1);
+}
+.lobby-icon-toggle:hover {
+  opacity: 0.75;
+}
+.lobby-icon-toggle.is-on {
+  opacity: 1;
+  filter: none;
+  border-color: rgba(56, 189, 248, 0.85);
+  background: rgba(56, 189, 248, 0.14);
+  box-shadow: 0 0 0.7rem rgba(56, 189, 248, 0.35);
+  color: #e2e8f0;
+}
+.lobby-icon-toggle-img {
+  width: 2.9rem;
+  height: 2.9rem;
+  object-fit: contain;
+  pointer-events: none;
+}
+.lobby-icon-toggle-label {
+  font-size: 0.72rem;
+  font-weight: bold;
+  line-height: 1.2;
+  text-align: center;
+}
+.lobby-icon-toggle-state {
+  font-size: 0.62rem;
+  font-weight: bold;
+  letter-spacing: 0.06em;
+  padding: 0.02rem 0.4rem;
+  border-radius: 0.6rem;
+  background: rgba(148, 163, 184, 0.3);
+  color: #94a3b8;
+}
+.lobby-icon-toggle.is-on .lobby-icon-toggle-state {
+  background: rgba(56, 189, 248, 0.9);
+  color: #06202e;
+}
+/* ライトテーマ */
+body.theme-light .lobby-icon-toggle {
+  background: rgba(176, 141, 63, 0.08);
+  border-color: rgba(176, 141, 63, 0.4);
+  color: #6b5c3c;
+}
+body.theme-light .lobby-icon-toggle.is-on {
+  border-color: rgba(176, 141, 63, 0.95);
+  background: rgba(176, 141, 63, 0.18);
+  box-shadow: 0 0 0.7rem rgba(176, 141, 63, 0.3);
+  color: #3a3326;
+}
+body.theme-light .lobby-icon-toggle.is-on .lobby-icon-toggle-state {
+  background: linear-gradient(160deg, #d9b45a, #b8933f);
+  color: #3a2f15;
+}
 .online-lobby-waiting {
   font-size: 0.95rem;
   font-weight: bold;
