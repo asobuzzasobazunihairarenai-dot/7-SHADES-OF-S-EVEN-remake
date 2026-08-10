@@ -1478,7 +1478,11 @@ body.theme-light #changelog-back {
   color: #fff;
   font-size: 0.85rem;
   font-weight: bold;
-  z-index: 10050;
+  /* タイトル/オープニング画面(#opening-screen)は z-index:50000 の全画面オーバーレイなので、
+     以前(10050)ではバナーがその裏に隠れ、ホームに移って初めて見える状態だった（ユーザー
+     指摘2026-08-10「タイトル画面から出せないか／ホームでだけ出る理由は？」）。タイトルでも
+     見えるよう、オープニングより前面へ出す。 */
+  z-index: 50001;
   box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.5);
 }
 /* バナー本体（ラベル・更新ボタン・閉じる）の横並び。ハードリフレッシュ案内(update-banner-hint)を
