@@ -261,6 +261,9 @@ const OPTION_RANK = {
   // 選べる罠（blue-choosable-trap）: いずれも損だが、被害の小さい順に。ゲート強制移動(カード損失
   // 無し)＞手札半分捨て（札は失うがロックは無事）＞ロックを1枚捨て（色が減る＝勝利が遠のく最悪）。
   "blue-choosable-trap": { "forced-move-to-own-gate": 3, "discard-half-hand": 2, "discard-one-locked-card": 1 },
+  // なないろの欠片（rainbow-shard）: 2枚揃った時に使う想定なので、単なる1枚ドローより「2枚ロック＋2枚
+  // ドロー」を優先（handEffectValueForで2枚所持時のみ価値を付けているため、通常ここはlock-pairが選ばれる）。
+  "rainbow-shard": { "lock-pair": 2, draw: 1 },
 };
 
 // --- ゲート侵攻の状況判断（ユーザー要望2026-08-08「ゲート侵攻に重きを」） ---------------------
@@ -485,6 +488,41 @@ function adjacentToCardlessOpponentGate(state, seat) {
     (g) => manhattan(loc, g) === 1 && !cellHasCard(state, g.row, g.col) && !cellHasPiece(state, g.row, g.col)
   );
 }
+// そのプレイヤーが実際にロックしている“色”の数（無色カードは除外＝勝利判定と同じ数え方）。7で勝利。
+function distinctLockedColorCount(state, seat) {
+  const side = SEAT_TO_SIDE[seat];
+  const idxs = new Set();
+  for (const t of state.tokens) {
+    if (t.kind !== "card" || t.location.zone !== "lock" || t.location.side !== side) continue;
+    const col = getCardDefinition(t.cardId)?.color;
+    if (col && COLORS.includes(col)) idxs.add(t.location.index);
+  }
+  return idxs.size;
+}
+function cpuHandHas(state, seat, cardId) {
+  return state.tokens.some((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === seat && t.cardId === cardId);
+}
+// ディメンション判定: 1マスでは届かない「マンハッタン距離ちょうど2」のマスに、相手ゲート、または
+// 表向きでまだ要る色のカードがある（＝2マス移動がちょうど得になる）か。カードがあり駒がいないマスのみ。
+function beneficialTwoMoveExists(state, seat) {
+  const loc = pieceCellOf(state, seat);
+  if (!loc) return false;
+  const gates = activeOpponentGateCells(state, seat);
+  const needed = neededColors(state, seat);
+  for (let dr = -2; dr <= 2; dr++) {
+    for (let dc = -2; dc <= 2; dc++) {
+      if (Math.abs(dr) + Math.abs(dc) !== 2) continue;
+      const row = loc.row + dr;
+      const col = loc.col + dc;
+      if (row < 0 || row > 6 || col < 0 || col > 6) continue;
+      if (!cellHasCard(state, row, col) || cellHasPiece(state, row, col)) continue;
+      if (gates.some((g) => g.row === row && g.col === col)) return true; // 相手ゲートに2マスで乗れる＝侵攻
+      const top = topFaceUpCardAt(state, row, col);
+      if (top?.color && needed.has(top.color)) return true; // 表向きの要る色に2マスで届く
+    }
+  }
+  return false;
+}
 
 // 1枚の手札効果カードの価値（大きいほど優先。0以下は使わない）。
 function handEffectValueFor(card, seat, state, handCount) {
@@ -588,7 +626,24 @@ function handEffectValueFor(card, seat, state, handCount) {
       });
       return allJunk ? 1 : 0;
     }
-    // --- 意図的に自動使用しない: なないろの巨光/first-green(全員・一時ドロー＝相手を利する/益が薄い) ほか ---
+    // --- 追加（ユーザー案2026-08-10。条件が明確に判定できるものだけ）---
+    case "white-radiance": { // なないろの巨光: 全員3枚ドロー＋フェイズ終了。通常は相手も利するので使わないが、相手が
+      // 7色目リーチ（6色ロック＝次ターン勝ちそう）で、かつ自分がゴメンナサイ非所持の“詰み”の時だけ、
+      // ゴメンナサイを引き当てて勝利ロックを阻止するための決死のドローとして使う（ユーザー案）。
+      const oppAboutToWin = (state.activePlayers || []).some((p) => p !== seat && distinctLockedColorCount(state, p) >= COLORS.length - 1);
+      return oppAboutToWin && !cpuHandHas(state, seat, "purple-sorry") ? 3 : 0;
+    }
+    case "rainbow-shard": { // なないろの欠片: 貴重札なので通常は温存(0)。2枚揃った時だけ「2枚ロック＋2枚ドロー」で使う
+      // （lock-pairはOPTION_RANKで優先。単体温存は追色コスト/セレナーデのロック対象として手動で活かす想定）。
+      const shardCount = state.tokens.filter(
+        (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === seat && t.cardId === "rainbow-shard"
+      ).length;
+      return shardCount >= 2 ? 2 : 0;
+    }
+    case "first-purple": // ディメンション: 【追色1】このターン2マス移動。1マスでは届かない距離2のマスが相手ゲート/表向きの
+      // 要る色の時だけ使う（ちょうど届く時のみ得。ユーザー案）。追色コストはcanUseHandEffect担保。
+      return beneficialTwoMoveExists(state, seat) ? 2 : 0;
+    // --- 意図的に自動使用しない: first-green(一時ドローで益が薄い)／配置トラップ系(専用コンボ要) ほか ---
     default:
       return 0;
   }
