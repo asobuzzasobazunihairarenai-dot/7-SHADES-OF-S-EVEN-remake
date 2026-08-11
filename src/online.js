@@ -1505,7 +1505,9 @@ async function runDeckSelectionPhase(gameId) {
   const deadline = Date.now() + DECK_SELECT_MS;
   broadcastDeckSelectionStart({ deadline });
   try {
-    // broadcastは送信元にはechoされないため、ホストのオーバーレイはここで直接出す。
+    // このチャンネルは self:true（送信元にもechoされる）なので、ホストのオーバーレイは
+    // onDeckSelectionStartEvents経由でも開くが、echo取りこぼしに備えてここでも確実に直接開く。
+    // 二重に開かないよう、showDeckSelect側が isDeckSelectOpen() でガードしている（不具合#70）。
     deckSelectHandler?.(deadline);
   } catch (err) {
     console.error("deckSelectHandler failed", err);
@@ -1558,8 +1560,16 @@ async function registerParticipantsAsStatsPlayers(gameId) {
   }
 }
 
+let startGameInFlight = false;
 export async function startGame(gameId, { includeBlackWhite = false, timerEnabled, pseudoCpuModeEnabled = false, boost = false, myDeckMode = false } = {}) {
-  return withLog("ゲーム開始", async () => {
+  // 二重起動防止（不具合#70）: マイデッキ戦では開始直後に「デッキ選択フェイズ」(最大60秒)を
+  // 回すため、このstartGameのPromiseがすぐには解決しない。その間にロビーが再描画されて開始
+  // ボタンが作り直され再クリックされる等でstartGameが二重に走ると、デッキ選択オーバーレイが
+  // 2回出て BOOTSTRAP_GAME も二重送信されてしまう。既に進行中なら黙って無視する。
+  if (startGameInFlight) return;
+  startGameInFlight = true;
+  try {
+    return await withLog("ゲーム開始", async () => {
     const count = await getMemberCount(gameId);
     if (count < 2) throw new Error("2人以上揃ってから開始してください");
     // ターンタイマー設定（基本時間・延長時間・初期/最大砂時計数・補充ターン数・有効/無効）は
@@ -1606,7 +1616,10 @@ export async function startGame(gameId, { includeBlackWhite = false, timerEnable
       console.error("registerParticipantsAsStatsPlayers failed", err)
     );
     return result;
-  });
+    });
+  } finally {
+    startGameInFlight = false;
+  }
 }
 
 // --- 「もう一度遊ぶ」（ユーザー要望） -----------------------------------------------
