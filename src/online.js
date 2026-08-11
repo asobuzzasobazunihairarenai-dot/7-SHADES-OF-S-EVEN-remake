@@ -2174,7 +2174,7 @@ const PREVIEW_SEAT_ORDER = ["C", "B", "D"];
 async function updateIdentityRoster(gameId) {
   let { data: seatRows, error } = await client
     .from("so7_game_seats")
-    .select("seat, user_id, display_name, avatar, piece_skin_index, pet_index, joined_at")
+    .select("seat, user_id, display_name, avatar, piece_skin_index, pet_index, card_back_set_index, joined_at")
     .eq("game_id", gameId)
     .order("joined_at", { ascending: true });
   if (error) {
@@ -2196,6 +2196,7 @@ async function updateIdentityRoster(gameId) {
         avatar: r.avatar || null,
         pieceSkinIndex: r.piece_skin_index ?? 0,
         petIndex: typeof r.pet_index === "number" ? r.pet_index : null,
+        cardBackSetIndex: typeof r.card_back_set_index === "number" ? r.card_back_set_index : null,
         userId: r.user_id,
       };
       if (cachedUser && r.user_id === cachedUser.id) currentSeat = r.seat;
@@ -2340,6 +2341,9 @@ export async function fetchAndHydrate(gameId) {
       // （state.jsのMOVE_TOKENケースと同じ扱い）なので、card/pieceどちらの分岐にも
       // 依らずここで拾う。
       if (r.arrival_suppressed) token.arrivalSuppressed = true;
+      // マイデッキ戦フェーズ5: 所有者の印（so7_game_tokens_visibleがマスクせず公開）。
+      // これがある札は、裏向き（cardId不明）でも所有者の裏面で描画する（描画側で参照）。
+      if (r.my_deck_owner) token.myDeckOwner = r.my_deck_owner;
       if (r.kind === "card") {
         token.cardId = r.card_id; // 見えない場合はnull（buildFlatCard等はcardId未確定の描画に
         // 対応していないため、この最小構成では「隠れているカードの見た目」の描画は

@@ -572,7 +572,7 @@ function buildPlayerZone(side, player, isSelf) {
         cardEl.style.backgroundImage = `url("${getCardImagePath(token.cardId)}")`;
       } else {
         cardEl.className = "hand-card is-facedown";
-        cardEl.style.backgroundImage = `url("${getCardBackImagePath(token.cardId)}")`;
+        cardEl.style.backgroundImage = `url("${cardBackImageForToken(token)}")`;
       }
     } else if (isSelf) {
       cardEl.className = "hand-card is-self";
@@ -623,7 +623,7 @@ function buildPlayerZone(side, player, isSelf) {
       }
     } else {
       cardEl.className = "hand-card is-facedown";
-      cardEl.style.backgroundImage = `url("${getCardBackImagePath(token.cardId)}")`;
+      cardEl.style.backgroundImage = `url("${cardBackImageForToken(token)}")`;
     }
     cardEl.dataset.tokenId = token.id;
     const card = layout[i];
@@ -902,7 +902,7 @@ function buildFlatCard(token) {
     card.style.backgroundImage = `url("${getBoardCardImagePath(token.cardId)}")`;
   } else {
     card.className = "board-card is-facedown";
-    card.style.backgroundImage = `url("${getCardBackImagePath(token.cardId)}")`;
+    card.style.backgroundImage = `url("${cardBackImageForToken(token)}")`;
   }
   // ロックしていても手札効果が使えるカード（ファーストカード・エターナルカード）は、
   // ロックエリア内にある間だけ定期的に目立たせる（普段は「原則ロックしたカードの手札効果は
@@ -1475,7 +1475,7 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, reve
     shuffled.forEach((token, index) => {
       const cardEl = document.createElement("div");
       cardEl.className = "sleight-ritual-card";
-      cardEl.style.backgroundImage = `url("${getCardBackImagePath(token.cardId)}")`;
+      cardEl.style.backgroundImage = `url("${cardBackImageForToken(token)}")`;
       // シャッフル演出用: 1枚ごとに中央へ寄せる横移動量・回転（左右交互）・段差の開始遅延を設定。
       cardEl.style.setProperty("--shuffle-x", `${((n - 1) / 2 - index) * 1.1}rem`);
       cardEl.style.setProperty("--shuffle-rot", `${index % 2 === 0 ? 9 : -9}deg`);
@@ -3889,7 +3889,7 @@ async function flyBoardCardToHand(tokenId, player) {
   const fromRect = cardEl.getBoundingClientRect();
   const toRect = handArea.getBoundingClientRect();
   cardEl.style.visibility = "hidden"; // 元カードを隠してゴーストだけ飛ばす（着地後のrenderで消える）
-  const img = token.faceUp ? getCardImagePath(token.cardId) : getCardBackImagePath(token.cardId);
+  const img = token.faceUp ? getCardImagePath(token.cardId) : cardBackImageForToken(token);
   // ユーザー要望「もう少しゆっくり手札に入っていってほしい」。ドロー演出(500ms)より少し長め。
   const { done } = flyGhost(fromRect, toRect, img, "setup-fly-card", 800);
   await done;
@@ -8103,7 +8103,7 @@ function showStackModal(tokenIds) {
   for (const token of tokens) {
     const card = document.createElement("div");
     card.className = "stack-modal-card";
-    const imagePath = token.faceUp ? getCardImagePath(token.cardId) : getCardBackImagePath(token.cardId);
+    const imagePath = token.faceUp ? getCardImagePath(token.cardId) : cardBackImageForToken(token);
     card.style.backgroundImage = `url("${imagePath}")`;
     list.appendChild(card);
   }
@@ -8179,7 +8179,7 @@ function pickStackedLockCard(tokens, hint) {
     for (const token of tokens) {
       const card = document.createElement("div");
       card.className = "stack-modal-card is-pickable";
-      const imagePath = token.faceUp ? getCardImagePath(token.cardId) : getCardBackImagePath(token.cardId);
+      const imagePath = token.faceUp ? getCardImagePath(token.cardId) : cardBackImageForToken(token);
       card.style.backgroundImage = `url("${imagePath}")`;
       if (token.faceUp) card.title = getCardDefinition(token.cardId)?.name ?? "";
       card.addEventListener("click", () => finish(token));
@@ -8608,7 +8608,7 @@ function createGhost(kind, tokenId) {
   // 対応するクラスが無くて判定を誤るため、必ずstateの実データ(faceUp)を見て決める。
   const faceClass = token && token.faceUp ? "is-self" : "is-facedown";
   ghost.className = `hand-card ${faceClass} drag-ghost`;
-  const imagePath = token.faceUp ? getCardImagePath(token.cardId) : getCardBackImagePath(token.cardId);
+  const imagePath = token.faceUp ? getCardImagePath(token.cardId) : cardBackImageForToken(token);
   ghost.style.backgroundImage = `url("${imagePath}")`;
   document.body.appendChild(ghost);
   return ghost;
@@ -12362,3 +12362,16 @@ onContactApprovedEvents((payload) => {
   if (getSelfSeat() !== payload.attacker) return;
   resolveContactRitualPickAsAttacker(payload).catch((err) => console.error("resolveContactRitualPickAsAttacker failed", err));
 });
+
+// マイデッキ戦フェーズ5（裏面の印）: トークンの裏面画像を返す。マイデッキ由来の札
+// （token.myDeckOwner が付いている）は、所有者が設定した裏面セットで全員に見せる
+// （roster=getSyncedIdentity に載っている各席の cardBackSetIndex を使う）。所有者の
+// 裏面が不明（未同期・SQL未適用等）なら通常どおり自分の裏面設定にフォールバックする。
+// cardBackImageForToken(token) を使っていた各描画箇所をこれに置き換える。
+function cardBackImageForToken(token) {
+  if (token && token.myDeckOwner) {
+    const idx = getSyncedIdentity(token.myDeckOwner)?.cardBackSetIndex;
+    if (typeof idx === "number") return getCardBackImagePath(token.cardId, idx);
+  }
+  return getCardBackImagePath(token ? token.cardId : null);
+}

@@ -145,6 +145,7 @@ type Token = {
   location: Location;
   revealSource?: "manual" | "draw"; // 手札公開エリア（zone: "publicDraw"）内でのみ意味を持つ
   arrivalSuppressed?: boolean; // 続き59: 直前のMOVE_TOKENが「到達効果を得ない」移動だったか
+  myDeckOwner?: string; // マイデッキ戦: このカードがどの席のマイデッキ由来か（裏面の印。手札→盤面→奪取後も保持）
 };
 
 // マイデッキ戦では "myDeck-<seat>"（例 "myDeck-A"）というパイルも動的に持つため、
@@ -275,7 +276,9 @@ function reduce(current: GameState, action: any): GameState {
       const piles = { ...current.piles, [pileName]: myDeck.slice(0, -1) };
       // マイデッキから引いた札は手札へ（location.zoneは通常 "hand"）。faceUpForLocationに従う。
       const faceUp = faceUpForLocation(action.location);
-      const newToken: Token = { id: uid("card"), kind: "card", cardId, faceUp, location: action.location };
+      // myDeckOwner: この札がマイデッキ由来であることの印（フェーズ5の裏面の印）。手札→盤面→
+      // 奪取後もトークンに付いて回り、全員が所有者の裏面で見られる（マスクしない公開情報）。
+      const newToken: Token = { id: uid("card"), kind: "card", cardId, faceUp, location: action.location, myDeckOwner: seat };
       return { ...current, piles, tokens: [...current.tokens, newToken] };
     }
     case "SEND_TOKEN_TO_PILE": {
@@ -816,6 +819,8 @@ async function loadState(db: any, gameId: string): Promise<{ state: GameState; v
     // 続き60のarrivalSuppressed。kind問わず持ち得る汎用フラグ（src/state.jsの
     // MOVE_TOKENケースと同じ扱い）なので、card/pieceどちらの分岐にも依らずここで拾う。
     if (r.arrival_suppressed) token.arrivalSuppressed = true;
+    // マイデッキ戦の所有者印（フェーズ5）。次回の書き戻しでも保持されるよう必ず拾う。
+    if (r.my_deck_owner) token.myDeckOwner = r.my_deck_owner;
     if (r.kind === "card") {
       token.cardId = r.card_id;
       token.faceUp = r.face_up;
@@ -870,6 +875,7 @@ function tokenToRow(t: Token, orderIndex: number) {
     hand_player: loc.zone === "hand" || loc.zone === "publicDraw" ? loc.player : null,
     reveal_source: t.revealSource ?? null,
     arrival_suppressed: t.arrivalSuppressed ?? false,
+    my_deck_owner: t.myDeckOwner ?? null,
     order_index: orderIndex,
   };
 }
@@ -970,11 +976,21 @@ Deno.serve(async (req) => {
         myDecks = {};
         const { data: profRows } = await db
           .from("so7_user_profiles")
-          .select("user_id, my_deck")
+          .select("user_id, my_deck, card_back_set_index")
           .in("user_id", assignments.map((a) => a.userId));
-        const deckByUser = new Map((profRows ?? []).map((r: any) => [r.user_id as string, r.my_deck]));
+        const profByUser = new Map((profRows ?? []).map((r: any) => [r.user_id as string, r]));
         for (const a of assignments) {
-          myDecks[a.seat] = shuffled(expandMyDeck(deckByUser.get(a.userId)));
+          const prof = profByUser.get(a.userId);
+          myDecks[a.seat] = shuffled(expandMyDeck(prof?.my_deck));
+          // フェーズ5: 各席のカード裏面セットを座席行へ写しておき、全員がマイデッキ札を
+          // 「所有者の裏面」で描画できるようにする（roster経由でクライアントが読む）。
+          if (prof && typeof prof.card_back_set_index === "number") {
+            await db
+              .from("so7_game_seats")
+              .update({ card_back_set_index: prof.card_back_set_index })
+              .eq("game_id", gameId)
+              .eq("user_id", a.userId);
+          }
         }
       }
       const players = assignments.map((a) => ({ player: a.seat, side: SEAT_TO_SIDE[a.seat] }));

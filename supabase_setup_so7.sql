@@ -1094,7 +1094,10 @@ select
   t.hand_player,
   t.order_index,
   t.reveal_source,
-  t.arrival_suppressed
+  t.arrival_suppressed,
+  -- マイデッキ戦の「所有者の印」。隠す情報ではない（全員がその札を所有者の裏面で見るため）
+  -- のでマスクせず公開する。card_idは従来通り上のcaseでマスクされる。
+  t.my_deck_owner
 from so7_game_tokens t
 where exists (
   select 1 from so7_game_seats s where s.game_id = t.game_id and s.user_id = auth.uid()
@@ -1127,7 +1130,7 @@ begin
   delete from so7_game_tokens where game_id = p_game_id;
   insert into so7_game_tokens (
     game_id, token_id, kind, card_id, face_up, color, piece_player,
-    zone, row, col, side, idx, hand_player, reveal_source, arrival_suppressed, order_index
+    zone, row, col, side, idx, hand_player, reveal_source, arrival_suppressed, my_deck_owner, order_index
   )
   select
     p_game_id,
@@ -1145,6 +1148,7 @@ begin
     t->>'hand_player',
     t->>'reveal_source',
     coalesce((t->>'arrival_suppressed')::boolean, false),
+    t->>'my_deck_owner',
     coalesce((t->>'order_index')::int, 0)
   from jsonb_array_elements(p_tokens) as t;
 
@@ -1263,7 +1267,7 @@ begin
   delete from so7_game_tokens where game_id = p_game_id;
   insert into so7_game_tokens (
     game_id, token_id, kind, card_id, face_up, color, piece_player,
-    zone, row, col, side, idx, hand_player, reveal_source, arrival_suppressed, order_index
+    zone, row, col, side, idx, hand_player, reveal_source, arrival_suppressed, my_deck_owner, order_index
   )
   select
     p_game_id,
@@ -1281,6 +1285,7 @@ begin
     t->>'hand_player',
     t->>'reveal_source',
     coalesce((t->>'arrival_suppressed')::boolean, false),
+    t->>'my_deck_owner',
     coalesce((t->>'order_index')::int, 0)
   from jsonb_array_elements(p_tokens) as t;
 
@@ -1340,7 +1345,7 @@ begin
   delete from so7_game_tokens where game_id = p_game_id;
   insert into so7_game_tokens (
     game_id, token_id, kind, card_id, face_up, color, piece_player,
-    zone, row, col, side, idx, hand_player, reveal_source, arrival_suppressed, order_index
+    zone, row, col, side, idx, hand_player, reveal_source, arrival_suppressed, my_deck_owner, order_index
   )
   select
     p_game_id,
@@ -1358,6 +1363,7 @@ begin
     t->>'hand_player',
     t->>'reveal_source',
     coalesce((t->>'arrival_suppressed')::boolean, false),
+    t->>'my_deck_owner',
     coalesce((t->>'order_index')::int, 0)
   from jsonb_array_elements(p_tokens) as t;
 
@@ -1516,3 +1522,12 @@ alter table so7_user_profiles add column if not exists my_deck jsonb;
 -- 入り、so7_game_piles_visible は discard 以外の中身を返さない（枚数だけ公開）ので、相手や
 -- 本人にも並び順・中身は見えず「残り枚数」だけが分かる（マイデッキ.txtの想定通り）。
 alter table so7_games add column if not exists my_deck_mode boolean not null default false;
+
+-- マイデッキ戦フェーズ5（裏面の印）: マイデッキから引いた札には「所有者の席」を印として付けて回す
+-- （手札→盤面→奪取後も保持）。これにより、その札が誰のマイデッキ由来かを全員が判別でき、
+-- 描画側は所有者の裏面(card_back_set_index)で見せられる（マイデッキ.txt）。所有者印は隠す情報では
+-- ないため so7_game_tokens_visible でもマスクせず公開する（card_id はマスクのまま）。
+alter table so7_game_tokens add column if not exists my_deck_owner text;
+-- 各席が選んでいるカード裏面セット。マイデッキ札を「所有者の裏面」で全員に見せるために、
+-- 座席行にも持たせて全員が読めるようにする（名前・アバター・駒スキンと同じ公開情報の扱い）。
+alter table so7_game_seats add column if not exists card_back_set_index int;

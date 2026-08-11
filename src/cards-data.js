@@ -123,11 +123,14 @@ export function getCardIllustPath(cardId) {
 // 描画する時。so7_game_tokens_visibleビューがマスクした結果、真にcardIdが分からない）は
 // 通常カードの裏面にフォールバックする（このオンライン対戦の第一弾では盤面49マスは
 // 通常カードのみで構成されるため、実用上はこれで正しい）。
-// どの「セット」の裏面画像を使うかは、プレイヤー自身だけのローカルな見た目の好み
-// （card-back-skins.js、他プレイヤーには一切反映されない）に従う。
-export function getCardBackImagePath(cardId) {
-  if (!cardId) return backImagePath("normal", getCardBackSetIndex());
-  if (cardId.startsWith("eternal-")) return backImagePath("eternal", getCardBackSetIndex());
-  if (cardId.startsWith("first-")) return backImagePath("first", getCardBackSetIndex());
-  return backImagePath("normal", getCardBackSetIndex());
+// どの「セット」の裏面画像を使うかは、通常はプレイヤー自身だけのローカルな見た目の好み
+// （card-back-skins.js）に従う。ただしマイデッキ戦フェーズ5では、マイデッキ由来の札は
+// 「所有者が設定した裏面」で全員に見せる必要があるため、backSetIndexOverride で所有者の
+// 裏面セットindexを渡せるようにする（呼び出し側 main.js の cardBackImageForToken 参照）。
+export function getCardBackImagePath(cardId, backSetIndexOverride) {
+  const idx = typeof backSetIndexOverride === "number" ? backSetIndexOverride : getCardBackSetIndex();
+  if (!cardId) return backImagePath("normal", idx);
+  if (cardId.startsWith("eternal-")) return backImagePath("eternal", idx);
+  if (cardId.startsWith("first-")) return backImagePath("first", idx);
+  return backImagePath("normal", idx);
 }
