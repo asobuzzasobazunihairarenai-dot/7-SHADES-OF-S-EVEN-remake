@@ -6483,6 +6483,18 @@ async function useCounterLockOnContact() {
   const defender = pending.defender;
   const token = findCounterLockToken(defender);
   if (!token) return;
+  // 診断（カウンターロックの「ロックしますか？」で両ボタン押せず詰み、CPU戦報告）: どの席が
+  // 使ったか・優先権・疑似CPU対象かを残す。再発時にログから原因（モーダルがCPU扱いで隠れた
+  // /別のpickerがクリックを奪った等）を切り分けるため。
+  logAction("diag-counter-lock", {
+    phase: "use-start",
+    defender,
+    attacker: pending.attacker,
+    priorityPlayer: getState().priorityPlayer,
+    turnPlayer: getState().turnPlayer,
+    selfSeat: getSelfSeat(),
+    isPseudoCpuTargetDefender: isPseudoCpuTarget(defender),
+  });
   await respondToContact(false);
   await discardFromHandReveal(token.id);
 
@@ -6492,6 +6504,14 @@ async function useCounterLockOnContact() {
   // ロックは七色の欠片も単体でロックできる特殊効果だから（不具合#58: 七色の欠片しかロック
   // できない手札だと、isCardLockableが虹を除外するせいで案内モーダルが出なかった）。
   const { candidateSlotsFor, tokens: lockableTokens } = getLockableHandTokensExceptFinal(defender);
+  logAction("diag-counter-lock", {
+    phase: "before-confirm",
+    defender,
+    lockableCount: lockableTokens.length,
+    // isCpuSelectingNow(defender) が true だとモーダルが is-cpu-hidden で隠れる（人間の防御側なら
+    // false のはず）。activeEffectPicker.type が cell/hand/player だとクリックが奪われうる。
+    activeEffectPickerType: activeEffectPicker ? activeEffectPicker.type : "none",
+  });
   if (lockableTokens.length === 0) return; // 善処の原則: ロックできるカードが無ければ何も聞かずに終わる
   // owner=defender を明示（不具合#58）。カウンターロックは相手（CPU）のターン中に人間の
   // 防御側が使うため、owner を渡さないと優先権保持者＝攻撃側CPUの選択と誤判定され、この
