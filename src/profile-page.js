@@ -7,6 +7,8 @@
 import { renderMyPageBody } from "./my-page.js";
 import { applyProfileLayout, registerProfileLayoutHelpers } from "./profile-layout-editor.js";
 import { syncFullScreenPageActive } from "./option-area.js";
+// マイデッキ編集はマイページ内の大ボタンへ移設（ユーザー要望2026-08-11）。
+import { openMyDeckList } from "./my-deck-list.js";
 
 let overlayEl = null;
 let bodyEl = null;
@@ -43,8 +45,21 @@ export function openProfilePage(onClose) {
 
   const title = document.createElement("div");
   title.id = "profile-page-title";
-  title.textContent = "👤 プロフィール／マイページ";
+  title.textContent = "👤 マイページ";
   overlayEl.appendChild(title);
+
+  // でかでかとした「マイデッキ編集」ボタン（ユーザー要望2026-08-11）。位置・サイズは
+  // 管理者モードのCSS変数(--profile-mydeck-*)で調整可能（admin.js参照）。押すとデッキ一覧へ、
+  // 戻る時はこのマイページを開き直す（元のonClose＝ホームへの導線は保つ）。
+  const mydeckBtn = document.createElement("button");
+  mydeckBtn.type = "button";
+  mydeckBtn.id = "profile-mydeck-btn";
+  mydeckBtn.innerHTML = `<span class="profile-mydeck-icon">🃏</span><span class="profile-mydeck-label">マイデッキ編集</span>`;
+  mydeckBtn.addEventListener("click", () => {
+    closeProfilePage();
+    openMyDeckList(() => openProfilePage(onClose));
+  });
+  overlayEl.appendChild(mydeckBtn);
 
   const card = document.createElement("div");
   card.id = "profile-page-card";

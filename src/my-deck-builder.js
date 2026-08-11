@@ -4,7 +4,7 @@
 // （色順に並ぶ ×N のミニカード、クリックで1枚削除）、上部バーに合計・有効判定・「完了」。
 // 検証（7枚以上・同名7まで・所持超過・スペシャルの3:1税）と保存は my-deck.js のまま活かす。
 
-import { getCardImagePath } from "./cards-data.js";
+import { getCardImagePath, getCardDefinition } from "./cards-data.js";
 import { syncFullScreenPageActive } from "./option-area.js";
 import {
   getDeckableCards,
@@ -75,6 +75,117 @@ function showToast(msg) {
   toastTimer = setTimeout(() => toast?.classList.remove("is-visible"), 2200);
 }
 
+// ── ホバー拡大プレビュー・右クリックのカード補足（ゲーム画面と同等。ユーザー要望2026-08-11）──
+let previewEl = null;
+function getPreviewEl() {
+  if (!previewEl) {
+    previewEl = document.createElement("div");
+    previewEl.id = "mdb-preview";
+    const img = document.createElement("img");
+    previewEl.appendChild(img);
+    document.body.appendChild(previewEl);
+  }
+  return previewEl;
+}
+function showPreview(cardId, x, y) {
+  const p = getPreviewEl();
+  p.querySelector("img").src = getCardImagePath(cardId);
+  p.classList.add("is-visible");
+  movePreview(x, y);
+}
+function movePreview(x, y) {
+  if (!previewEl) return;
+  const w = previewEl.offsetWidth || 240;
+  const h = previewEl.offsetHeight || 240;
+  const pad = 18;
+  let left = x + pad;
+  let top = y - h / 2;
+  if (left + w > window.innerWidth - 6) left = x - w - pad;
+  if (left < 6) left = 6;
+  if (top < 6) top = 6;
+  if (top + h > window.innerHeight - 6) top = window.innerHeight - h - 6;
+  previewEl.style.left = `${left}px`;
+  previewEl.style.top = `${top}px`;
+}
+function hidePreview() {
+  previewEl?.classList.remove("is-visible");
+}
+// カード要素にホバー拡大を付ける共通処理。
+function attachHoverPreview(el, cardId) {
+  el.addEventListener("mouseenter", (e) => showPreview(cardId, e.clientX, e.clientY));
+  el.addEventListener("mousemove", (e) => movePreview(e.clientX, e.clientY));
+  el.addEventListener("mouseleave", hidePreview);
+}
+
+let noteMenuEl = null;
+function hideNoteMenu() {
+  noteMenuEl?.remove();
+  noteMenuEl = null;
+}
+function showNoteMenu(cardId, x, y) {
+  hideNoteMenu();
+  hidePreview();
+  noteMenuEl = document.createElement("div");
+  noteMenuEl.id = "mdb-note-menu";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "mdb-note-menu-btn";
+  btn.textContent = "📄 カード補足を見る";
+  btn.addEventListener("click", () => {
+    hideNoteMenu();
+    showCardNoteModal(cardId);
+  });
+  noteMenuEl.appendChild(btn);
+  document.body.appendChild(noteMenuEl);
+  const w = noteMenuEl.offsetWidth || 170;
+  const h = noteMenuEl.offsetHeight || 44;
+  noteMenuEl.style.left = `${Math.min(x, window.innerWidth - w - 6)}px`;
+  noteMenuEl.style.top = `${Math.min(y, window.innerHeight - h - 6)}px`;
+  // メニュー外クリック／右クリックで閉じる（次のイベントで）。
+  setTimeout(() => {
+    document.addEventListener("click", hideNoteMenu, { once: true });
+    document.addEventListener("contextmenu", hideNoteMenu, { once: true });
+  }, 0);
+}
+// 右クリックで補足メニュー→カード補足モーダル（ゲーム画面の showCardNoteModal と同じ見た目。
+// #card-note-modal* のCSSを流用）。
+function showCardNoteModal(cardId) {
+  const def = getCardDefinition(cardId);
+  if (!def) return;
+  const backdrop = document.createElement("div");
+  backdrop.id = "card-note-modal-backdrop";
+  const modal = document.createElement("div");
+  modal.id = "card-note-modal";
+  const content = document.createElement("div");
+  content.className = "card-note-content";
+  const img = document.createElement("img");
+  img.className = "card-note-image";
+  img.src = getCardImagePath(cardId);
+  img.alt = def.name;
+  const textCol = document.createElement("div");
+  textCol.className = "card-note-text-col";
+  const title = document.createElement("div");
+  title.className = "card-note-title";
+  title.textContent = def.name;
+  const body = document.createElement("div");
+  body.className = "card-note-body";
+  body.textContent = def.note || "（補足なし）";
+  textCol.append(title, body);
+  content.append(img, textCol);
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "card-note-close";
+  closeBtn.type = "button";
+  closeBtn.textContent = "閉じる";
+  const close = () => {
+    backdrop.remove();
+    modal.remove();
+  };
+  closeBtn.addEventListener("click", close);
+  backdrop.addEventListener("click", close);
+  modal.append(content, closeBtn);
+  document.body.append(backdrop, modal);
+}
+
 // ── コレクション（上段） ─────────────────────────────────────────────────
 function buildCollectionCard(card) {
   const tile = document.createElement("button");
@@ -120,12 +231,13 @@ function buildCollectionCard(card) {
   name.textContent = card.name;
   tile.appendChild(name);
 
-  // 左クリックで追加、右クリックで1枚削除（MTGA風）。
+  // 左クリックで追加。右クリックはカード補足メニュー。ホバーで拡大プレビュー（ゲーム画面と同等）。
   tile.addEventListener("click", () => addCard(card));
   tile.addEventListener("contextmenu", (e) => {
     e.preventDefault();
-    removeCard(card);
+    showNoteMenu(card.id, e.clientX, e.clientY);
   });
+  attachHoverPreview(tile, card.id);
 
   collectionTiles.set(card.id, tile);
   refreshCollectionCard(card);
@@ -191,8 +303,9 @@ function rebuildDeckList() {
     entry.addEventListener("click", () => removeCard(card));
     entry.addEventListener("contextmenu", (e) => {
       e.preventDefault();
-      addCard(card); // 右クリックで1枚増やす（対称）
+      showNoteMenu(card.id, e.clientX, e.clientY);
     });
+    attachHoverPreview(entry, card.id);
     deckListEl.appendChild(entry);
   }
 }
@@ -231,6 +344,7 @@ function refreshSummary() {
 
 // 追加/削除のたびに、変わったカードのコレクション表示・デッキ一覧・サマリーを更新する。
 function onDeckChanged() {
+  hidePreview(); // クリックで要素が作り直されるので、古い拡大プレビューは消しておく
   for (const card of getDeckableCards()) refreshCollectionCard(card);
   rebuildDeckList();
   refreshSummary();
@@ -329,6 +443,9 @@ export function openMyDeckBuilder(deckId, onClose) {
 export function closeMyDeckBuilder() {
   clearTimeout(toastTimer);
   collectionTiles.clear();
+  hideNoteMenu();
+  previewEl?.remove();
+  previewEl = null;
   overlayEl?.remove();
   overlayEl = null;
   collectionEl = null;

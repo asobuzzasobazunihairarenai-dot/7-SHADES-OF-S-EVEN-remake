@@ -572,6 +572,19 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー要望2026-08-11「マイページ内のマイデッキ編集ボタンの位置・サイズを管理者モードで調整」。
+    // #profile-mydeck-btn（profile-page.js）が var() で読む。既定値はstyle.cssのfallbackと一致させること。
+    title: "マイページ：マイデッキ編集ボタンの位置・サイズ",
+    category: "position-ui",
+    controls: [
+      { key: "--profile-mydeck-top", label: "縦位置 top（＋で下へ）", unit: "rem", min: 0, max: 40, step: 0.1, default: 4.6 },
+      { key: "--profile-mydeck-right", label: "横位置 right（＋で左へ）", unit: "rem", min: 0, max: 50, step: 0.1, default: 2 },
+      { key: "--profile-mydeck-width", label: "幅", unit: "rem", min: 8, max: 34, step: 0.5, default: 17 },
+      { key: "--profile-mydeck-height", label: "高さ", unit: "rem", min: 2.5, max: 12, step: 0.1, default: 5.4 },
+      { key: "--profile-mydeck-font", label: "文字サイズ", unit: "rem", min: 0.8, max: 2.6, step: 0.05, default: 1.35 },
+    ],
+  },
+  {
     title: "ターンタイマー：中央ロープの位置調整",
     category: "position-ui",
     controls: [

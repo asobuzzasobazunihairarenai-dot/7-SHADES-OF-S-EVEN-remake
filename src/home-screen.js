@@ -22,9 +22,6 @@ import { syncFullScreenPageActive } from "./option-area.js";
 import { openCodexPage } from "./codex-page.js";
 // ユーザー要望「ランキングを実装しましょう」への対応で新設したページ。
 import { openRankingPage } from "./ranking-page.js";
-// マイデッキ戦（マイデッキ.txt）用のデッキ一覧ページ（複数デッキ）。編成はオフラインでも
-// 可能なのでここから開けるようにする（対戦でのオンオフは対戦ロビー側で行う）。
-import { openMyDeckList } from "./my-deck-list.js";
 // チュートリアルCPU戦（台本化された練習試合）。完全ローカル機能。
 import { startTutorialBattle, registerTutorialHomeOpener } from "./tutorial-battle.js";
 // ローカル1人用CPU戦（cpu-battle.js）はCPU選択時に動的import（下の openMatchChoiceModal 参照）。
@@ -79,7 +76,8 @@ const TILES = [
   {
     icon: "👤",
     image: "assets/home-icons/my-page.webp",
-    label: "プロフィール／マイページ",
+    // マイデッキ編集はマイページ内の大ボタンへ移設（ユーザー要望2026-08-11）。ラベルもそれに合わせる。
+    label: "マイページ／マイデッキ編集",
     status: "ready",
     onOpen: () => {
       closeHomeScreen();
@@ -98,17 +96,6 @@ const TILES = [
     },
   },
   { icon: "📰", image: "assets/home-icons/news.webp", label: "お知らせ／更新情報", status: "ready", onOpen: () => openChangelogModal(), showNewIfUnread: () => hasUnreadChangelog() },
-  {
-    // 専用アイコン画像(assets/home-icons/my-deck.webp)はまだ無いので絵文字で表示する
-    // （imageを指定すると404がコンソール/不具合報告に載るため。用意できたらimageを足す）。
-    icon: "🃏",
-    label: "マイデッキ編成",
-    status: "ready",
-    onOpen: () => {
-      closeHomeScreen();
-      openMyDeckList(() => openHomeScreen());
-    },
-  },
 ];
 
 // 「近日公開」タイルを押した時の軽いトースト。モーダルを挟むほどの重さは不要
