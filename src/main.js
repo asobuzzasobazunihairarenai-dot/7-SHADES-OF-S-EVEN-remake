@@ -12367,11 +12367,81 @@ onContactApprovedEvents((payload) => {
 // （token.myDeckOwner が付いている）は、所有者が設定した裏面セットで全員に見せる
 // （roster=getSyncedIdentity に載っている各席の cardBackSetIndex を使う）。所有者の
 // 裏面が不明（未同期・SQL未適用等）なら通常どおり自分の裏面設定にフォールバックする。
-// cardBackImageForToken(token) を使っていた各描画箇所をこれに置き換える。
+// getCardBackImagePath(token.cardId) を使っていた各描画箇所をこれに置き換えてある。
+//
+// ユーザー要望2026-08-11: 所有者が裏面を特に設定していない（標準=0/未設定）場合は、
+// 所有者のファーストカードの色に合わせた色テーマ裏面（追加赤〜追加紫、index 2〜8）を
+// 自動適用する（そのスキンを所持していなくても＝描画は所持と無関係）。プレイヤー同士で
+// 裏面が被っても、駒の色で見分けやすくするため。
+const MYDECK_COLOR_BACK_INDEX = { red: 2, orange: 3, yellow: 4, green: 5, blue: 6, pink: 7, purple: 8 };
+function myDeckOwnerPieceColor(seat) {
+  return getState().tokens.find((t) => t.kind === "piece" && t.player === seat)?.color ?? null;
+}
 function cardBackImageForToken(token) {
   if (token && token.myDeckOwner) {
-    const idx = getSyncedIdentity(token.myDeckOwner)?.cardBackSetIndex;
+    let idx = getSyncedIdentity(token.myDeckOwner)?.cardBackSetIndex;
+    if (!idx) {
+      // 未設定/標準 → ファーストカード（＝駒）の色テーマ裏面を自動適用。
+      const color = myDeckOwnerPieceColor(token.myDeckOwner);
+      const colorIdx = color ? MYDECK_COLOR_BACK_INDEX[color] : undefined;
+      if (typeof colorIdx === "number") idx = colorIdx;
+    }
     if (typeof idx === "number") return getCardBackImagePath(token.cardId, idx);
   }
   return getCardBackImagePath(token ? token.cardId : null);
 }
+
+// マイデッキ戦フェーズ5: 場・手札のマイデッキ札をホバーすると、その札の所有者のアバターと
+// 名前を出す（ユーザー要望2026-08-11。プレイヤー同士で裏面スキンが被った時の判別用）。
+// カード要素は data-token-id を持つので、document への委譲リスナー1つで全カードを拾う
+// （token.myDeckOwner を持つトークンだけ対象＝マイデッキ札のみ）。
+let myDeckOwnerTooltipEl = null;
+function ensureMyDeckOwnerTooltip() {
+  if (myDeckOwnerTooltipEl) return myDeckOwnerTooltipEl;
+  const el = document.createElement("div");
+  el.id = "my-deck-owner-tooltip";
+  const av = document.createElement("div");
+  av.className = "my-deck-owner-tooltip-avatar";
+  const nm = document.createElement("div");
+  nm.className = "my-deck-owner-tooltip-name";
+  const label = document.createElement("div");
+  label.className = "my-deck-owner-tooltip-label";
+  label.textContent = "マイデッキ";
+  el.append(av, nm, label);
+  el._avatarEl = av;
+  el._nameEl = nm;
+  document.body.appendChild(el);
+  myDeckOwnerTooltipEl = el;
+  return el;
+}
+function positionMyDeckOwnerTooltip(x, y) {
+  const el = myDeckOwnerTooltipEl;
+  if (!el) return;
+  const pad = 14;
+  const w = el.offsetWidth || 120;
+  const h = el.offsetHeight || 64;
+  let left = x + pad;
+  let top = y - h - pad;
+  if (left + w > window.innerWidth - 4) left = x - w - pad;
+  if (top < 4) top = y + pad;
+  el.style.left = `${left}px`;
+  el.style.top = `${top}px`;
+}
+document.addEventListener("mouseover", (e) => {
+  const cardEl = e.target?.closest?.("[data-token-id]");
+  if (!cardEl) {
+    myDeckOwnerTooltipEl?.classList.remove("is-visible");
+    return;
+  }
+  const token = getState().tokens.find((t) => t.id === cardEl.dataset.tokenId);
+  const owner = token?.myDeckOwner;
+  if (!owner) {
+    myDeckOwnerTooltipEl?.classList.remove("is-visible");
+    return;
+  }
+  const el = ensureMyDeckOwnerTooltip();
+  applyAvatarContent(el._avatarEl, getPlayerAvatar(owner));
+  el._nameEl.textContent = getPlayerName(owner);
+  positionMyDeckOwnerTooltip(e.clientX, e.clientY);
+  el.classList.add("is-visible");
+});
