@@ -13822,3 +13822,233 @@ body.theme-light #mdb-save {
   color: #38bdf8;
   letter-spacing: 0.04em;
 }
+
+/* ── マイデッキ名入力（エディタのヘッダー、my-deck-builder.js）─────────────── */
+#mdb-name-input {
+  flex: 0 0 auto;
+  width: 12rem;
+  max-width: 30vw;
+  background: rgba(6, 10, 18, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.4rem;
+  color: #f1f5f9;
+  font-family: sans-serif;
+  font-size: 0.95rem;
+  font-weight: bold;
+  padding: 0.4rem 0.7rem;
+}
+#mdb-name-input:focus {
+  outline: none;
+  border-color: rgba(242, 201, 76, 0.8);
+  background: rgba(6, 10, 18, 0.85);
+}
+body.theme-light #mdb-name-input {
+  background: rgba(255, 251, 240, 0.9);
+  border-color: rgba(176, 141, 63, 0.5);
+  color: #3a3326;
+}
+
+/* ── マイデッキ一覧（複数デッキ、my-deck-list.js）MTGAのデッキ箱一覧風 ──────── */
+#my-deck-list-page {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(ellipse at 50% -10%, #22303f 0%, #0f172a 55%, #05080e 100%);
+  font-family: sans-serif;
+  color: #e2e8f0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+#mdl-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.8rem 1.2rem;
+  border-bottom: 1px solid rgba(176, 141, 63, 0.35);
+  background: linear-gradient(180deg, rgba(13, 20, 30, 0.96), rgba(13, 20, 30, 0.7));
+}
+#mdl-back {
+  background: none;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.4rem;
+  color: #e2e8f0;
+  font-family: sans-serif;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+}
+#mdl-back:hover {
+  border-color: rgba(212, 175, 90, 0.8);
+  background: rgba(212, 175, 90, 0.14);
+}
+#mdl-title {
+  font-size: 1.15rem;
+  font-weight: bold;
+  letter-spacing: 0.02em;
+}
+#mdl-grid {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr));
+  gap: 1rem;
+  align-content: start;
+  padding: 1.2rem;
+}
+.mdl-deck {
+  position: relative;
+  border-radius: 0.6rem;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  cursor: pointer;
+  transition: border-color 0.14s, transform 0.1s, box-shadow 0.14s;
+  display: flex;
+  flex-direction: column;
+}
+.mdl-deck:hover {
+  border-color: rgba(212, 175, 90, 0.8);
+  transform: translateY(-2px);
+  box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.5);
+}
+.mdl-deck-art {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--mdl-accent, #334155), #0b1220);
+}
+.mdl-deck-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 22%;
+  opacity: 0.92;
+}
+.mdl-deck-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 -2.6rem 2.2rem -1.4rem rgba(6, 10, 18, 0.95),
+    inset 0 0 0 3px color-mix(in srgb, var(--mdl-accent, #334155) 55%, transparent);
+  pointer-events: none;
+}
+.mdl-deck-name {
+  padding: 0.5rem 0.7rem 0.15rem;
+  font-size: 0.92rem;
+  font-weight: bold;
+  color: #f1f5f9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mdl-deck-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0 0.7rem 0.6rem;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+.mdl-deck-chip {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+.mdl-deck-count {
+  font-weight: bold;
+  color: #cbd5e1;
+}
+.mdl-deck-valid {
+  margin-left: auto;
+  font-weight: bold;
+}
+.mdl-deck-valid.is-ok {
+  color: #4ade80;
+}
+.mdl-deck-valid.is-ng {
+  color: #fbbf24;
+}
+.mdl-deck-actions {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  display: flex;
+  gap: 0.3rem;
+  opacity: 0;
+  transition: opacity 0.14s;
+}
+.mdl-deck:hover .mdl-deck-actions {
+  opacity: 1;
+}
+.mdl-deck-action {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 0.35rem;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: rgba(6, 10, 18, 0.85);
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mdl-deck-action:hover {
+  border-color: rgba(212, 175, 90, 0.85);
+  background: rgba(212, 175, 90, 0.2);
+}
+.mdl-deck-action-del:hover {
+  border-color: rgba(248, 113, 113, 0.85);
+  background: rgba(248, 113, 113, 0.2);
+}
+/* 新規作成の箱 */
+.mdl-deck-new {
+  align-items: center;
+  justify-content: center;
+  min-height: 13rem;
+  border: 2px dashed rgba(148, 163, 184, 0.4);
+  background: rgba(15, 23, 42, 0.4);
+  color: #94a3b8;
+  font-family: sans-serif;
+}
+.mdl-deck-new:hover {
+  border-color: rgba(242, 201, 76, 0.8);
+  color: #f2c94c;
+}
+.mdl-deck-new-plus {
+  font-size: 2.6rem;
+  font-weight: bold;
+  line-height: 1;
+}
+.mdl-deck-new-label {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+body.theme-light #my-deck-list-page {
+  background: url("../assets/backgrounds/page-bg-light.webp") center / cover no-repeat, #f0e8d6;
+  color: #3a3326;
+}
+body.theme-light #mdl-header {
+  background: linear-gradient(180deg, rgba(240, 232, 214, 0.97), rgba(240, 232, 214, 0.8));
+  border-bottom-color: rgba(176, 141, 63, 0.5);
+}
+body.theme-light #mdl-title,
+body.theme-light .mdl-deck-name {
+  color: #3a3326;
+}
+body.theme-light #mdl-back {
+  border-color: rgba(176, 141, 63, 0.5);
+  color: #6b5c3c;
+}
+body.theme-light .mdl-deck {
+  background: rgba(255, 251, 240, 0.75);
+  border-color: rgba(176, 141, 63, 0.3);
+}

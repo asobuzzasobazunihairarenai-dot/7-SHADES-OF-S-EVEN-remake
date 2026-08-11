@@ -12,8 +12,8 @@ import {
   maxCopiesFor,
   isSpecialDeckCard,
   validateDeck,
-  getMyDeck,
-  saveMyDeck,
+  getDeckById,
+  saveDeck,
   MIN_DECK_SIZE,
   SPECIAL_TAX_RATIO,
 } from "./my-deck.js";
@@ -26,7 +26,10 @@ let collectionEl = null;
 let deckListEl = null;
 let summaryEl = null;
 let saveBtn = null;
+let nameInput = null;
 let toastTimer = null;
+// 編集中のデッキ（メタ情報。cardsはworkingDeckで別管理し、保存時に合流）。
+let currentDeck = null;
 // 編集中のデッキ（{ [cardId]: count }）。開いた時点でのgetMyDeck()のコピーを編集し、保存で確定。
 let workingDeck = {};
 // cardId → コレクションカードのDOM（変更時に状態だけ更新するため保持）。
@@ -233,16 +236,22 @@ function onDeckChanged() {
   refreshSummary();
 }
 
-export function openMyDeckBuilder(onClose) {
+export function openMyDeckBuilder(deckId, onClose) {
   if (overlayEl) return;
-  workingDeck = getMyDeck();
+  currentDeck = getDeckById(deckId);
+  if (!currentDeck) {
+    // 万一デッキが見つからない場合は一覧へ戻す。
+    onClose?.();
+    return;
+  }
+  workingDeck = { ...currentDeck.cards };
   collectionTiles.clear();
 
   overlayEl = document.createElement("div");
   overlayEl.id = "my-deck-page";
   overlayEl.classList.add("mdb-mtga");
 
-  // 上部バー: 戻る／タイトル／サマリー／完了。
+  // 上部バー: 戻る／デッキ名入力／サマリー／完了。
   const header = document.createElement("div");
   header.id = "mdb-header";
 
@@ -256,10 +265,14 @@ export function openMyDeckBuilder(onClose) {
   });
   header.appendChild(backBtn);
 
-  const title = document.createElement("div");
-  title.id = "mdb-title";
-  title.textContent = "🃏 マイデッキ編成";
-  header.appendChild(title);
+  nameInput = document.createElement("input");
+  nameInput.id = "mdb-name-input";
+  nameInput.type = "text";
+  nameInput.maxLength = 24;
+  nameInput.value = currentDeck.name || "";
+  nameInput.placeholder = "デッキ名";
+  nameInput.setAttribute("aria-label", "デッキ名");
+  header.appendChild(nameInput);
 
   summaryEl = document.createElement("div");
   summaryEl.id = "mdb-summary";
@@ -275,7 +288,9 @@ export function openMyDeckBuilder(onClose) {
       showToast("ルールを満たしていないため保存できません。");
       return;
     }
-    saveMyDeck(workingDeck);
+    const name = (nameInput?.value || "").trim() || "マイデッキ";
+    saveDeck({ ...currentDeck, name, cards: workingDeck });
+    currentDeck.name = name;
     showToast("マイデッキを保存しました。");
   });
   header.appendChild(saveBtn);
@@ -320,4 +335,6 @@ export function closeMyDeckBuilder() {
   deckListEl = null;
   summaryEl = null;
   saveBtn = null;
+  nameInput = null;
+  currentDeck = null;
 }
