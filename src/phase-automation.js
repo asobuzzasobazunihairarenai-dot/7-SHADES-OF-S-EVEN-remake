@@ -242,8 +242,18 @@ function getSelfPiece(player) {
 // カードだけを見るhasUsableHandEffect()で自動スキップしていたが、まだDSL化されていない
 // 効果カードの手札を見落として飛ばしてしまうバグがあった。ロック・ハンドとも
 // 「手札が本当に空かどうか」だけを見るシンプルな判定に統一する。
+// 「手札」とみなすカード。公開ドロー（publicDraw ゾーン）の札も手札として数える
+// （不具合#81: ヴァーディアン等で公開ドローした札しか持っていない時に、手札ゾーンだけ見て
+// 「手札が空」と誤判定し、ハンドフェイズをムーブへ自動スキップしてしまっていた。公開ドロー
+// した札も手札。card-effect-engine.jsのgetHandTokensが手札効果の対象に publicDraw を含めるのと
+// 定義を揃える）。
+function handZoneCards(player) {
+  return getState().tokens.filter(
+    (t) => t.kind === "card" && (t.location.zone === "hand" || t.location.zone === "publicDraw") && t.location.player === player
+  );
+}
 function handIsEmpty(player) {
-  return !getState().tokens.some((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
+  return handZoneCards(player).length === 0;
 }
 
 // ユーザー報告「手札にカウンターロックのみ持っていて使えるカードがないのにムーブ
@@ -256,7 +266,7 @@ function handIsEmpty(player) {
 // 手札効果を持つ可能性があるカード）は安全側で「使えるかもしれない」扱いのまま
 // 残し、この判定の対象には含めない。
 function handHasOnlyReactiveOnlyCards(player) {
-  const hand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
+  const hand = handZoneCards(player); // 公開ドロー札も手札として数える(#81)
   return hand.length > 0 && hand.every((t) => isHandEffectReactiveOnly(t.cardId));
 }
 
@@ -271,7 +281,7 @@ function handHasOnlyReactiveOnlyCards(player) {
 // 「使えるかもしれない」として残し、スキップしない（＝取りこぼして飛ばさない。以前
 // hasUsableHandEffectで飛ばしていたバグ、reconcilePhaseAutomationのhandコメント参照）。
 function handHasNoUsableCards(player) {
-  const hand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
+  const hand = handZoneCards(player); // 公開ドロー札も手札として数える(#81)
   if (hand.length === 0) return false; // 空はhandIsEmptyが担当
   return hand.every((t) => {
     if (isHandEffectReactiveOnly(t.cardId)) return true;
