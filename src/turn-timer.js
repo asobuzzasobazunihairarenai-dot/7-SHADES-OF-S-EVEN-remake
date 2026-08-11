@@ -45,7 +45,7 @@ import { getSelfSeat, getSyncedTimerConfig, getCurrentGameId, fetchAndHydrate, i
 // reconcilePhaseAutomation自体が「render()のたびに何度呼ばれてもよい」冪等な設計
 // （自動アクションは実行済みガード付き）なので、tick頻度で呼んでも安全。
 // turn-timer.jsとphase-automation.jsは互いにimportしていない（片方向のみ）ため循環参照は起きない。
-import { reconcilePhaseAutomation } from "./phase-automation.js";
+import { reconcilePhaseAutomation, isSetupRevealActive } from "./phase-automation.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { consumeLastActionInfo } from "./last-action-info.js";
@@ -302,6 +302,11 @@ function handleTurnTransition(prevPlayer, nextPlayer, activePlayers) {
 function onStateChange(state) {
   if (applyingOwnUpdate) return;
   if (!isTurnTimerEnabled()) return;
+  // セットアップ完了（スタートプレイヤー告知が閉じる）までは、turnPlayerが確定していても
+  // タイマーを初期化しない（ユーザー要望2026-08-11「セットアップが完全に完了してから
+  // タイマースタート」）。完了後は tick() の ensureInitializedIfNeeded() が新鮮な持ち時間で
+  // 起動する。ここで初期化してしまうと、告知が閉じるまでの数秒〜8秒が持ち時間から削られる。
+  if (isSetupRevealActive()) return;
   const tp = state.turnPlayer;
   if (tp !== prevTurnPlayer) {
     if (prevTurnPlayer === null && state.priorityPlayer) {
@@ -996,6 +1001,20 @@ function tick() {
     setDisplayIfChanged(baseClockEl, "none");
     return;
   }
+  // セットアップ完了（スタートプレイヤー告知が閉じる）まではタイマーを一切動かさない
+  // （ユーザー要望2026-08-11）。表示もカウントも自動処理の再評価も行わず、完了後の
+  // 次tickから通常動作＋下の ensureInitializedIfNeeded() で新鮮な持ち時間で起動する。
+  if (isSetupRevealActive()) {
+    updateWarning(false);
+    updatePriorityReturnWarning(false);
+    setDisplayIfChanged(ropeEl, "none");
+    setDisplayIfChanged(baseClockEl, "none");
+    return;
+  }
+  // セットアップ完了直後にターン1のタイマーを起動する（onStateChangeはセットアップ中の
+  // turnPlayer確定を無視しているため、ここで初期化する）。初期化済み・優先権保持中・
+  // タイマーOFFのときは self-guard で no-op なので毎tick呼んでよい。
+  ensureInitializedIfNeeded();
   // タイマーOFF時はロープ・基本時間・警告の表示は出さない。ただし #66 対策として、この後の
   // 自動処理の再評価（reconcilePhaseAutomation / updateEndTurnButton）・選択待ちの強制解決・
   // オンラインの優先権リシンクは、タイマーONと同様に tick でも回す必要がある。でないと、接触

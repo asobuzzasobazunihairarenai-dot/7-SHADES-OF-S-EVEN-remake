@@ -63,6 +63,14 @@ function isPseudoCpuTarget(seat) {
   return isPseudoCpuIncludeSelf() || seat !== getSelfSeat();
 }
 
+// マイデッキ戦（マイデッキ.txt）: この席が「ロックする代わりにマイデッキから引く」を
+// まだできるか。オンライン専用（state.myDeckModeはオンラインでのみtrue）。残枚数は
+// マスクされた "myDeck-<seat>" パイル（so7_game_piles_visibleが枚数だけ公開）から見る。
+function canDrawFromMyDeck(seat) {
+  const s = getState();
+  return !!s.myDeckMode && (s.piles?.[`myDeck-${seat}`] || []).length > 0;
+}
+
 let renderHelper = null;
 let findTopCardAtHelper = null;
 export function registerPhaseAutomationHelpers({ render, findTopCardAt, pickLocation }) {
@@ -201,6 +209,12 @@ let setupRevealActive = false;
 export function setSetupRevealActive(v) {
   setupRevealActive = !!v;
   if (!setupRevealActive) reconcilePhaseAutomation();
+}
+// ターンタイマー(turn-timer.js)がセットアップ中はカウントを始めないために参照する
+// （ユーザー要望2026-08-11「セットアップが完全に完了してからタイマースタート」）。
+// turn-timer.js→phase-automation.jsの依存は既にある（reconcilePhaseAutomationをimport済み）。
+export function isSetupRevealActive() {
+  return setupRevealActive;
 }
 
 const DIRECTIONS = [
@@ -701,7 +715,10 @@ function enterPhase(phase, player) {
   // 自動スキップがOFFのときは、することが無いフェイズでも自動では飛ばさず、通常通り
   // フェイズを開始してプレイヤーの手動スキップを待つ（ユーザー要望の情報秘匿目的）。
   if (isAutoPhaseSkipEnabled()) {
-    if (phase === "lock" && !hasLockableCard(player)) {
+    // #68: マイデッキ戦では「ロックする代わりにマイデッキから1枚引く」選択があるため、
+    // ロックできるカードが無くてもマイデッキに残りがあればロックフェイズを飛ばさない
+    // （引く機会を奪わない）。マイデッキも空なら従来通りスキップ。
+    if (phase === "lock" && !hasLockableCard(player) && !canDrawFromMyDeck(player)) {
       showPhaseSkipModal("ロックできるカードが無いため、ロックフェイズを自動的にスキップしました。");
       advancePhaseAfterSkip();
       return;

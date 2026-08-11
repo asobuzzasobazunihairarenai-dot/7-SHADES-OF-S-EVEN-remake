@@ -53,6 +53,7 @@ import {
   isCardLockable,
   forceEndCurrentPhase,
   registerContractBrandHandler,
+  setSetupRevealActive,
 } from "./phase-automation.js";
 import { initHelpButton } from "./help.js";
 import { initDiscordLink } from "./discord-link.js";
@@ -11996,6 +11997,12 @@ subscribe(() => {
   const started = Boolean(getState().turnPlayer);
   if (isOnlineMode() && started && !wasOnlineGameStarted) {
     suppressGenericRenderForOnlineStart = true;
+    // セットアップ演出〜スタートプレイヤー告知が閉じるまでは「セットアップ中」扱いにして、
+    // フェイズ自動処理（＝ムーブフェイズの移動可能マスのハイライト）とターンタイマーを
+    // 止めておく（ユーザー要望2026-08-11。ローカルのgame-setup.js runStep3と同じgate。
+    // オンライン経路ではこれをセットしておらず、セットアップ完了前にハイライト・タイマーが
+    // 走ってしまっていた）。告知onCloseでfalseに戻し、そこで初めて自動処理を開始する。
+    setSetupRevealActive(true);
     setSetupPendingTokenIds(new Set(getState().tokens.map((t) => t.id)));
     animateFirstCardsDealt()
       .then(() => animateBoardFilled())
@@ -12015,16 +12022,17 @@ subscribe(() => {
         // blocksInput:false・自動で閉じる保険付きなので、直後のreconcilePhaseAutomation()
         // による自動処理進行を妨げない。
         const starter = getState().turnPlayer;
-        // スタートプレイヤー告知が閉じた（自動8秒 or クリック）直後に、不具合報告の案内を
-        // 一度だけ出す（未設定・非表示指定なら空振り。ユーザー要望2026-08-10）。モーダルが
+        // スタートプレイヤー告知が閉じた（自動8秒 or クリック）直後に、セットアップ完了として
+        // フェイズ自動処理を解禁（setSetupRevealActive(false)がreconcilePhaseAutomation()を
+        // 呼ぶ＝ここで初めて盤面ハイライト・タイマーが始まる）＋不具合報告の案内を一度だけ出す
+        // （ユーザー要望2026-08-11「告知が閉じてからハイライト／タイマー開始」）。モーダルが
         // 重ならないよう告知のonCloseに繋ぐ。
-        if (starter) showStartPlayerModal(starter, { onClose: () => maybeShowBugReportIntro() });
-        else maybeShowBugReportIntro();
-        // 演出中はrender()内のreconcilePhaseAutomation()呼び出しを丸ごとスキップして
-        // いた（上のsuppressGenericRenderForOnlineStart参照）ため、演出が終わった今
-        // 改めて呼んでおかないと、フェイズ自動進行がいつまでも始まらないままになって
-        // しまう（演出最後のrender()呼び出し自体はこのflagがまだtrueの間に起きるため）。
-        reconcilePhaseAutomation();
+        const onSetupRevealDone = () => {
+          setSetupRevealActive(false); // 内部で reconcilePhaseAutomation() を呼ぶ
+          maybeShowBugReportIntro();
+        };
+        if (starter) showStartPlayerModal(starter, { onClose: onSetupRevealDone });
+        else onSetupRevealDone();
       });
   }
   wasOnlineGameStarted = started;
