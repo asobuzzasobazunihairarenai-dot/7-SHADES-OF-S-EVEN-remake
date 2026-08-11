@@ -699,17 +699,47 @@ body.is-phone-device #mini-lock-area-top {
   border-color: rgba(226, 232, 240, 0.85);
 }
 .mini-lock-area-label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
   font-family: sans-serif;
   font-size: 0.72rem;
   font-weight: bold;
   color: #cbd5e1;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
   min-width: 5.5rem;
-  max-width: 8rem;
+  max-width: 9rem;
   text-align: right;
   white-space: nowrap;
+}
+.mini-lock-area-name {
   overflow: hidden;
   text-overflow: ellipsis;
+  opacity: 0.85;
+}
+/* 手札枚数を大きく・アイコニックに（ユーザー要望）。カード風のバッジ＋大きめの数字。 */
+.mini-lock-hand-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex: none;
+  padding: 0.05rem 0.35rem;
+  border-radius: 0.4rem;
+  background: rgba(15, 23, 32, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+}
+.mini-lock-hand-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+.mini-lock-hand-count {
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #fde68a;
+  min-width: 0.9rem;
+  text-align: center;
 }
 /* CPUが選ぶ番の選択モーダル（色宣言・選択肢・儀式ピック等）とその背景を丸ごと隠す用
    （ユーザー要望2026-08-07: CPUの選択モーダルは非表示。結果モーダルは別クラスなので出る）。

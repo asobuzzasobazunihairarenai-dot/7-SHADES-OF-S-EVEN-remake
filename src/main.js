@@ -7927,7 +7927,24 @@ function updateMiniLockArea() {
     playerRow.appendChild(miniReveal);
     const label = document.createElement("div");
     label.className = "mini-lock-area-label";
-    label.textContent = `${isSelf ? "自分" : getPlayerName(p)} 手札${handCountOf(p)}`;
+    // 名前は控えめに、手札枚数は大きくアイコニックに（ユーザー要望「ミニロックの手札枚数が
+    // 数字が小さくわかりづらい。少し大きめにアイコニックな表示に」）。
+    const nameEl = document.createElement("span");
+    nameEl.className = "mini-lock-area-name";
+    nameEl.textContent = isSelf ? "自分" : getPlayerName(p);
+    const handBadge = document.createElement("span");
+    handBadge.className = "mini-lock-hand-badge";
+    handBadge.title = "手札の枚数";
+    const handIcon = document.createElement("span");
+    handIcon.className = "mini-lock-hand-icon";
+    handIcon.textContent = "🂠";
+    const handNum = document.createElement("span");
+    handNum.className = "mini-lock-hand-count";
+    handNum.textContent = String(handCountOf(p));
+    handBadge.appendChild(handIcon);
+    handBadge.appendChild(handNum);
+    label.appendChild(nameEl);
+    label.appendChild(handBadge);
     playerRow.appendChild(label);
     const slots = document.createElement("div");
     slots.className = "mini-lock-area-slots";
