@@ -55,6 +55,9 @@ create index if not exists so7_game_tokens_game_id_idx on so7_game_tokens(game_i
 -- 手札公開エリア機能の追加時、既存のso7_game_tokensテーブルには無い列のため後から追加。
 -- 新規にこのSQL全体を実行する環境では上のcreate table側で既に存在するため実質no-op。
 alter table so7_game_tokens add column if not exists reveal_source text;
+-- マイデッキ戦F5「裏面の印」。so7_game_tokens_visibleビュー（下で t.my_deck_owner を参照）が
+-- 使うため、必ずそのビュー定義より前でこの列を追加しておく（初回実行でビュー作成が失敗しないよう）。
+alter table so7_game_tokens add column if not exists my_deck_owner text;
 
 -- 各山の中身（state.jsのpilesに相当。cardsは末尾=一番上のcardId配列）。
 create table if not exists so7_game_piles (
@@ -1523,11 +1526,9 @@ alter table so7_user_profiles add column if not exists my_deck jsonb;
 -- 本人にも並び順・中身は見えず「残り枚数」だけが分かる（マイデッキ.txtの想定通り）。
 alter table so7_games add column if not exists my_deck_mode boolean not null default false;
 
--- マイデッキ戦フェーズ5（裏面の印）: マイデッキから引いた札には「所有者の席」を印として付けて回す
--- （手札→盤面→奪取後も保持）。これにより、その札が誰のマイデッキ由来かを全員が判別でき、
--- 描画側は所有者の裏面(card_back_set_index)で見せられる（マイデッキ.txt）。所有者印は隠す情報では
--- ないため so7_game_tokens_visible でもマスクせず公開する（card_id はマスクのまま）。
-alter table so7_game_tokens add column if not exists my_deck_owner text;
+-- マイデッキ戦フェーズ5（裏面の印）: マイデッキ由来の札に付ける「所有者の席」印
+-- （so7_game_tokens.my_deck_owner）は、so7_game_tokens_visibleビューが参照する都合上、上の
+-- テーブル定義直後（reveal_source付近）で既に追加済み。ここでは重複防止のため何もしない。
 -- 各席が選んでいるカード裏面セット。マイデッキ札を「所有者の裏面」で全員に見せるために、
 -- 座席行にも持たせて全員が読めるようにする（名前・アバター・駒スキンと同じ公開情報の扱い）。
 alter table so7_game_seats add column if not exists card_back_set_index int;
