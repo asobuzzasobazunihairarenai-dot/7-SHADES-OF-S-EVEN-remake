@@ -122,7 +122,11 @@ function notifyChange() {
   window.dispatchEvent(new CustomEvent("admin:change"));
 }
 
-export function openPetPicker() {
+// options（マイデッキ編集から使う。ユーザー要望2026-08-11「デッキごとにペットを設定」）:
+//   onSelect(idx): 指定するとグローバル設定を変えず、選んだindexをコールバックで返して閉じる。
+//   selectedIndex: 現在の選択（ハイライト用）。
+export function openPetPicker(options = {}) {
+  const selectedIdx = typeof options.selectedIndex === "number" ? options.selectedIndex : selectedIndex;
   const modal = document.createElement("div");
   modal.id = "pet-picker-modal";
   modal.className = "piece-skin-modal"; // 既存のピッカー見た目を流用
@@ -145,7 +149,7 @@ export function openPetPicker() {
   PET_OPTIONS.forEach((opt, idx) => {
     const swatch = document.createElement("button");
     swatch.className = "piece-skin-swatch pet-picker-swatch";
-    if (idx === selectedIndex) swatch.classList.add("is-selected");
+    if (idx === selectedIdx) swatch.classList.add("is-selected");
     // 未所持のスプライトはロック表示にして、クリックでショップを開く（駒スキン等と同じ挙動）。
     const locked = !!opt.sprite && !!opt.itemKey && !isItemUnlocked(opt.itemKey);
     if (locked) swatch.classList.add("is-locked");
@@ -169,9 +173,14 @@ export function openPetPicker() {
       close();
       if (locked) {
         openShop?.("pet");
-      } else {
-        setSelectedPetIndex(idx);
+        return;
       }
+      // マイデッキ編集: グローバル設定は変えず、選んだindexをデッキへ返す。
+      if (options.onSelect) {
+        options.onSelect(idx);
+        return;
+      }
+      setSelectedPetIndex(idx);
     });
     grid.appendChild(swatch);
   });

@@ -138,9 +138,13 @@ function notifyChange() {
   window.dispatchEvent(new CustomEvent("admin:change"));
 }
 
-export function openPieceSkinPicker() {
-  const realColor = getMyPieceColor();
+// options（マイデッキ編集から使う。ユーザー要望2026-08-11「デッキごとに駒スキンを設定」）:
+//   onSelect(idx): 指定するとグローバル設定を変えず、選んだindexをコールバックで返して閉じる。
+//   selectedIndex: 現在の選択（ハイライト用）。previewColor: プレビューに使う色（デッキのファースト色）。
+export function openPieceSkinPicker(options = {}) {
+  const realColor = options.previewColor || getMyPieceColor();
   const color = realColor || PREVIEW_FALLBACK_COLOR;
+  const selectedIdx = typeof options.selectedIndex === "number" ? options.selectedIndex : hasLocalPreference ? preferredSkinIndex : 0;
 
   const modal = document.createElement("div");
   modal.id = "piece-skin-modal";
@@ -165,7 +169,7 @@ export function openPieceSkinPicker() {
   for (const idx of SKIN_VARIANTS) {
     const swatch = document.createElement("button");
     swatch.className = "piece-skin-swatch";
-    if ((hasLocalPreference ? preferredSkinIndex : 0) === idx) swatch.classList.add("is-selected");
+    if (selectedIdx === idx) swatch.classList.add("is-selected");
     const img = document.createElement("img");
     img.src = idx === 0 ? `assets/pieces/${color}.webp` : `assets/pieces/${color}-${idx}.webp`;
     img.alt = idx === 0 ? "標準" : (NAMED_SKIN_LABELS[idx] ?? `追加${idx}`);
@@ -186,6 +190,12 @@ export function openPieceSkinPicker() {
       if (locked) {
         close();
         openShop("piece-skin");
+        return;
+      }
+      // マイデッキ編集: グローバル設定は変えず、選んだindexをデッキへ返す。
+      if (options.onSelect) {
+        options.onSelect(idx);
+        close();
         return;
       }
       setLocalPreferredSkinIndex(idx);

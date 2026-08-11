@@ -14,9 +14,36 @@ import {
   validateDeck,
   getDeckById,
   saveDeck,
+  FIRST_COLORS,
   MIN_DECK_SIZE,
   SPECIAL_TAX_RATIO,
 } from "./my-deck.js";
+// デッキごとの駒スキン・ペット・裏面の選択に使うピッカー（onSelectでグローバルを変えず値だけ
+// 受け取る）は、クリック時に動的importする。静的importにすると piece-skins→shop-content→
+// piece-skins の循環でモジュール評価順が崩れ、SKIN_VARIANTS のTDZ→起動時ブラックスクリーンに
+// なるため（[[circular-import-tdz-and-no-cache-bust]]。実際にハーネスで発生を確認）。
+// サムネイル用の値も同様に、必要な軽い分だけインライン化／pet-skinsは遅延ロードする。
+
+// カード裏面画像のパス（card-back-skins.js backImagePath と同じロジックをインライン化して
+// 静的importを避ける）。
+function backPathFor(idx) {
+  const suffix = idx === 0 ? "" : `-${idx}`;
+  const ext = idx === 0 || idx === 10 ? "webp" : "png";
+  return `assets/cards/back-normal${suffix}.${ext}`;
+}
+// ペットのサムネ用に pet-skins を遅延ロードして保持（{ PET_OPTIONS, petSpriteSrc }）。
+let petMod = null;
+
+// ファースト色のチップ表示色。
+const MDB_COLOR_HEX = {
+  red: "#c70025",
+  orange: "#ee781f",
+  yellow: "#fabe00",
+  green: "#22ac38",
+  blue: "#1bb8ce",
+  pink: "#f19ec2",
+  purple: "#915da3",
+};
 
 // デッキ一覧の並び順（色→スペシャル）。MTGAのように種類ごとにまとめて見せる。
 const COLOR_ORDER = ["red", "orange", "yellow", "green", "blue", "pink", "purple", "rainbow", "white", "black"];
@@ -27,6 +54,7 @@ let deckListEl = null;
 let summaryEl = null;
 let saveBtn = null;
 let nameInput = null;
+let settingsEl = null;
 let toastTimer = null;
 // 編集中のデッキ（メタ情報。cardsはworkingDeckで別管理し、保存時に合流）。
 let currentDeck = null;
@@ -350,6 +378,143 @@ function onDeckChanged() {
   refreshSummary();
 }
 
+// ── デッキ設定（ファースト色・駒スキン・ペット・裏面。ユーザー要望2026-08-11）────────
+function pieceThumbSrc(color, idx) {
+  const c = color || "red"; // 色未定（ランダム）は赤で仮表示
+  return idx ? `assets/pieces/${c}-${idx}.webp` : `assets/pieces/${c}.webp`;
+}
+function refreshSettingsRow() {
+  if (!settingsEl || !currentDeck) return;
+  settingsEl.querySelectorAll(".mdb-color-chip").forEach((chip) => {
+    chip.classList.toggle("is-selected", (chip.dataset.color || "") === (currentDeck.firstColor || ""));
+  });
+  const pieceImg = settingsEl.querySelector(".mdb-setting-piece img");
+  if (pieceImg) pieceImg.src = pieceThumbSrc(currentDeck.firstColor, currentDeck.pieceSkinIndex ?? 0);
+  const backImg = settingsEl.querySelector(".mdb-setting-back img");
+  if (backImg) backImg.src = backPathFor(currentDeck.cardBackSetIndex ?? 0);
+  const petFace = settingsEl.querySelector(".mdb-setting-pet .mdb-setting-face");
+  if (petFace) {
+    petFace.innerHTML = "";
+    const idx = currentDeck.petIndex ?? 0;
+    if (petMod) {
+      const opt = petMod.PET_OPTIONS[idx] || petMod.PET_OPTIONS[0];
+      if (opt?.sprite) {
+        const im = document.createElement("img");
+        im.src = petMod.petSpriteSrc(opt.sprite, "front", "static");
+        im.alt = "";
+        petFace.appendChild(im);
+      } else {
+        petFace.textContent = opt?.emoji ?? "🚫";
+      }
+    } else {
+      // pet-skins 読み込み前は仮アイコン（読み込み後にrefreshで差し替わる）。
+      petFace.textContent = "🐾";
+    }
+  }
+}
+function buildSettingsRow() {
+  const wrap = document.createElement("div");
+  wrap.id = "mdb-settings";
+
+  // ファースト色（ランダム＋7色）。マイデッキ戦ではこの色のファースト＆駒で戦う。
+  const colorSetting = document.createElement("div");
+  colorSetting.className = "mdb-setting mdb-setting-color";
+  const colorLabel = document.createElement("span");
+  colorLabel.className = "mdb-setting-label";
+  colorLabel.textContent = "ファースト色";
+  colorSetting.appendChild(colorLabel);
+  const chips = document.createElement("div");
+  chips.className = "mdb-color-chips";
+  const rnd = document.createElement("button");
+  rnd.type = "button";
+  rnd.className = "mdb-color-chip mdb-color-chip-random";
+  rnd.dataset.color = "";
+  rnd.title = "ランダム（対戦開始時に決定）";
+  rnd.textContent = "ランダム";
+  rnd.addEventListener("click", () => {
+    currentDeck.firstColor = null;
+    refreshSettingsRow();
+  });
+  chips.appendChild(rnd);
+  for (const color of FIRST_COLORS) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "mdb-color-chip";
+    chip.dataset.color = color;
+    chip.style.background = MDB_COLOR_HEX[color];
+    chip.title = color;
+    chip.addEventListener("click", () => {
+      currentDeck.firstColor = color;
+      refreshSettingsRow();
+    });
+    chips.appendChild(chip);
+  }
+  colorSetting.appendChild(chips);
+  wrap.appendChild(colorSetting);
+
+  const pieceBtn = document.createElement("button");
+  pieceBtn.type = "button";
+  pieceBtn.className = "mdb-setting-btn mdb-setting-piece";
+  pieceBtn.innerHTML = `<span class="mdb-setting-thumb"><img alt=""></span><span class="mdb-setting-label">駒スキン</span>`;
+  pieceBtn.addEventListener("click", async () => {
+    const { openPieceSkinPicker } = await import("./piece-skins.js");
+    openPieceSkinPicker({
+      previewColor: currentDeck.firstColor || undefined,
+      selectedIndex: currentDeck.pieceSkinIndex ?? 0,
+      onSelect: (idx) => {
+        currentDeck.pieceSkinIndex = idx;
+        refreshSettingsRow();
+      },
+    });
+  });
+  wrap.appendChild(pieceBtn);
+
+  const petBtn = document.createElement("button");
+  petBtn.type = "button";
+  petBtn.className = "mdb-setting-btn mdb-setting-pet";
+  petBtn.innerHTML = `<span class="mdb-setting-face"></span><span class="mdb-setting-label">ペット</span>`;
+  petBtn.addEventListener("click", async () => {
+    const { openPetPicker } = await import("./pet-skins.js");
+    openPetPicker({
+      selectedIndex: currentDeck.petIndex ?? 0,
+      onSelect: (idx) => {
+        currentDeck.petIndex = idx;
+        refreshSettingsRow();
+      },
+    });
+  });
+  wrap.appendChild(petBtn);
+
+  const backBtn = document.createElement("button");
+  backBtn.type = "button";
+  backBtn.className = "mdb-setting-btn mdb-setting-back";
+  backBtn.innerHTML = `<span class="mdb-setting-thumb"><img alt=""></span><span class="mdb-setting-label">裏面</span>`;
+  backBtn.addEventListener("click", async () => {
+    const { openCardBackSkinPicker } = await import("./card-back-skins.js");
+    openCardBackSkinPicker({
+      selectedIndex: currentDeck.cardBackSetIndex ?? 0,
+      onSelect: (idx) => {
+        currentDeck.cardBackSetIndex = idx;
+        refreshSettingsRow();
+      },
+    });
+  });
+  wrap.appendChild(backBtn);
+
+  settingsEl = wrap;
+  refreshSettingsRow();
+  // ペットのサムネ用に pet-skins を遅延ロード（静的importを避けるため。読み込めたら差し替え）。
+  if (!petMod) {
+    import("./pet-skins.js")
+      .then((m) => {
+        petMod = m;
+        refreshSettingsRow();
+      })
+      .catch(() => {});
+  }
+  return wrap;
+}
+
 export function openMyDeckBuilder(deckId, onClose) {
   if (overlayEl) return;
   currentDeck = getDeckById(deckId);
@@ -414,8 +579,11 @@ export function openMyDeckBuilder(deckId, onClose) {
   const hint = document.createElement("div");
   hint.id = "mdb-hint";
   hint.textContent =
-    `所持カードをクリックで追加・右クリックで削除。${MIN_DECK_SIZE}枚以上／同名7まで／SP1枚につき非SPを${SPECIAL_TAX_RATIO}枚。`;
+    `所持カードをクリックで追加・右クリックで補足。ホバーで拡大。${MIN_DECK_SIZE}枚以上／同名7まで／SP1枚につき非SPを${SPECIAL_TAX_RATIO}枚。`;
   overlayEl.appendChild(hint);
+
+  // デッキ設定（ファースト色・駒スキン・ペット・裏面）。
+  overlayEl.appendChild(buildSettingsRow());
 
   // 上段: コレクション。
   collectionEl = document.createElement("div");
@@ -453,5 +621,6 @@ export function closeMyDeckBuilder() {
   summaryEl = null;
   saveBtn = null;
   nameInput = null;
+  settingsEl = null;
   currentDeck = null;
 }

@@ -112,7 +112,11 @@ export function registerCardBackSkinHelpers(h) {
   helpers = h;
 }
 
-export function openCardBackSkinPicker() {
+// options（マイデッキ編集から使う。ユーザー要望2026-08-11「デッキごとに裏面スキンを設定」）:
+//   onSelect(idx): 指定するとグローバル設定を変えず、選んだindexをコールバックで返して閉じる。
+//   selectedIndex: 現在の選択（ハイライト用）。
+export function openCardBackSkinPicker(options = {}) {
+  const selectedIdx = typeof options.selectedIndex === "number" ? options.selectedIndex : selectedSetIndex;
   const modal = document.createElement("div");
   modal.id = "card-back-skin-modal";
   const close = () => {
@@ -123,14 +127,14 @@ export function openCardBackSkinPicker() {
 
   const title = document.createElement("div");
   title.className = "piece-skin-modal-title";
-  title.textContent = "カード裏面を選択（自分の画面にだけ反映されます）";
+  title.textContent = options.onSelect ? "デッキの裏面を選択" : "カード裏面を選択（自分の画面にだけ反映されます）";
 
   const grid = document.createElement("div");
   grid.className = "piece-skin-modal-grid";
   for (const idx of CARD_BACK_SETS) {
     const swatch = document.createElement("button");
     swatch.className = "piece-skin-swatch";
-    if (selectedSetIndex === idx) swatch.classList.add("is-selected");
+    if (selectedIdx === idx) swatch.classList.add("is-selected");
     const img = document.createElement("img");
     img.src = backImagePath("normal", idx);
     img.alt = SET_LABELS[idx] ?? `追加${idx}`;
@@ -151,6 +155,12 @@ export function openCardBackSkinPicker() {
       if (locked) {
         close();
         helpers?.openShop?.("card-back");
+        return;
+      }
+      // マイデッキ編集: グローバル設定は変えず、選んだindexをデッキへ返す。
+      if (options.onSelect) {
+        options.onSelect(idx);
+        close();
         return;
       }
       setCardBackSetIndex(idx);
