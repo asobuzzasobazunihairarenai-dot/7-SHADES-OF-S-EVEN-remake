@@ -85,6 +85,8 @@ export function setCardBackSetIndex(idx) {
   if (!CARD_BACK_SETS.includes(idx)) return;
   selectedSetIndex = idx;
   helpers?.render();
+  // マイページ着せ替えの「選択中」サムネを即時更新するための合図（piece/petと同じ admin:change）。
+  window.dispatchEvent(new CustomEvent("admin:change"));
 }
 
 export function backImagePath(kind, idx) {

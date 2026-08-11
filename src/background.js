@@ -53,6 +53,7 @@ export function setSelectedBackgroundId(id) {
   if (!BACKGROUND_OPTIONS.some((b) => b.id === id)) return;
   selectedBackgroundId = id;
   helpers?.render();
+  window.dispatchEvent(new CustomEvent("admin:change")); // マイページ着せ替えのサムネ即時更新用
 }
 
 // setup-animation.js/playmat.js等と同じ「main.jsから自分のrenderを注入してもらう」

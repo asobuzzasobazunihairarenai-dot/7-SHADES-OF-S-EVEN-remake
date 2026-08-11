@@ -12,17 +12,32 @@ import { buildIconButtonContent, wireIconButtonClick, openIconDetailModal } from
 import { openOnlinePanel } from "./online-ui.js";
 import { getShopCompletionStats } from "./shop-content.js";
 import { getOptionArea } from "./option-area.js";
-import { openPieceSkinPicker } from "./piece-skins.js";
-import { openCardBackSkinPicker } from "./card-back-skins.js";
-import { openPlaymatPicker } from "./playmat.js";
-import { openBackgroundPicker } from "./background.js";
-import { openPetPicker } from "./pet-skins.js";
+import { openPieceSkinPicker, getSkinImagePath, getMyPieceColor } from "./piece-skins.js";
+import { openCardBackSkinPicker, getCardBackSetIndex, backImagePath } from "./card-back-skins.js";
+import { openPlaymatPicker, getSelectedPlaymatPath } from "./playmat.js";
+import { openBackgroundPicker, getSelectedBackgroundPath } from "./background.js";
+import { openPetPicker, getSelectedPetIndex, PET_OPTIONS, petSpriteSrc } from "./pet-skins.js";
 import { applyProfileLayout } from "./profile-layout-editor.js";
 
 // main.jsのopenAvatarPicker()はmain.js内のローカル関数（circular importを避けるための
 // 既存パターン、admin.js等と同じ）。main.js側からregisterAvatarPickerHelper()で
 // 注入してもらう。
 let avatarPickerFn = null;
+
+// マイページ着せ替えの「選択中」サムネ更新用（ユーザー要望「それぞれ何に着せ替え中か
+// 分かるように」）。各ボタンが自分のサムネを描き直す関数を登録し、着せ替え変更の合図
+// （各モジュールが飛ばす window "admin:change"）で全部まとめて更新する。リスナーは1個だけ
+// 張り（多重登録防止）、参照する配列はマイページを開くたびに作り直す（＝閉じた後の古い
+// ボタンを触らない・リークしない）。
+let cosmeticThumbRefreshers = [];
+let cosmeticChangeHooked = false;
+function ensureCosmeticChangeHook() {
+  if (cosmeticChangeHooked) return;
+  cosmeticChangeHooked = true;
+  window.addEventListener("admin:change", () => {
+    for (const fn of cosmeticThumbRefreshers) fn();
+  });
+}
 
 // アバター変更(admin:change)で、開いているマイページ（モーダル版・全画面版どちらも）の
 // アバター画像を即座に差し替える。モジュール読み込み時に1度だけ登録する（DOMに該当要素が
@@ -294,19 +309,53 @@ export async function renderMyPageBody(body, close) {
   cosmeticsWrap.appendChild(cosmeticsTitle);
   const cosmeticsGrid = document.createElement("div");
   cosmeticsGrid.className = "my-page-cosmetics-grid";
-  const addCosmetic = (label, onClick) => {
+  // このマイページ分のサムネ更新関数を貯め直す（開くたびにリセット）。
+  cosmeticThumbRefreshers = [];
+  ensureCosmeticChangeHook();
+  const addCosmetic = (label, onClick, thumbSrcFn) => {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "my-page-cosmetic-btn";
-    b.textContent = label;
+    const labelEl = document.createElement("span");
+    labelEl.className = "my-page-cosmetic-label";
+    labelEl.textContent = label;
+    const thumb = document.createElement("span");
+    thumb.className = "my-page-cosmetic-thumb";
+    const refresh = () => {
+      let src = null;
+      try {
+        src = thumbSrcFn?.();
+      } catch {
+        src = null;
+      }
+      thumb.innerHTML = "";
+      if (src) {
+        thumb.classList.remove("is-none");
+        const img = document.createElement("img");
+        img.src = src;
+        img.alt = "";
+        thumb.appendChild(img);
+      } else {
+        thumb.classList.add("is-none");
+        thumb.textContent = "なし";
+      }
+    };
+    refresh();
+    cosmeticThumbRefreshers.push(refresh);
+    b.appendChild(labelEl);
+    b.appendChild(thumb);
     b.addEventListener("click", onClick);
     cosmeticsGrid.appendChild(b);
   };
-  addCosmetic("🎲 駒スキン", () => openPieceSkinPicker());
-  addCosmetic("🂠 カード裏", () => openCardBackSkinPicker());
-  addCosmetic("🟩 プレイマット", () => openPlaymatPicker());
-  addCosmetic("🖼 背景", () => openBackgroundPicker());
-  addCosmetic("🐥 ペット", () => openPetPicker());
+  // thumbSrcFn: 今選択中のアイテムの画像パス（無し/取得不可なら null → 「なし」表示）。
+  addCosmetic("🎲 駒スキン", () => openPieceSkinPicker(), () => getSkinImagePath(getMyPieceColor() || "red"));
+  addCosmetic("🂠 カード裏", () => openCardBackSkinPicker(), () => backImagePath("normal", getCardBackSetIndex()));
+  addCosmetic("🟩 プレイマット", () => openPlaymatPicker(), () => getSelectedPlaymatPath());
+  addCosmetic("🖼 背景", () => openBackgroundPicker(), () => getSelectedBackgroundPath());
+  addCosmetic("🐥 ペット", () => openPetPicker(), () => {
+    const o = PET_OPTIONS[getSelectedPetIndex()];
+    return o?.sprite ? petSpriteSrc(o.sprite, "front", "static") : null;
+  });
   cosmeticsWrap.appendChild(cosmeticsGrid);
   body.appendChild(cosmeticsWrap);
 

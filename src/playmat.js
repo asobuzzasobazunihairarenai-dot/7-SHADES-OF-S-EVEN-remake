@@ -43,6 +43,7 @@ export function setSelectedPlaymatId(id) {
   if (!PLAYMAT_OPTIONS.some((p) => p.id === id)) return;
   selectedPlaymatId = id;
   helpers?.render();
+  window.dispatchEvent(new CustomEvent("admin:change")); // マイページ着せ替えのサムネ即時更新用
 }
 
 export function getSelectedPlaymatPath() {
