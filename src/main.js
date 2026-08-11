@@ -11786,8 +11786,15 @@ initCurrencyDisplay();
   const onlineWidget = buildSelfStatusOnlineWidget();
   optionArea.insertBefore(onlineWidget, currencyEl);
   // ユーザー要望「不具合報告は運用上重要なので、オプションメニューの中ではなく、オプション
-  // エリアのオンライン表示の左隣に常設で外出しする」。オンラインアイコンの左に置く。
-  optionArea.insertBefore(buildBugReportWidget(), onlineWidget);
+  // エリアのオンライン表示の左隣に常設で外出しする」。見た目上はオンラインアイコンの左の
+  // 位置（CSSの top/right で固定）に置くが、DOM上は #option-area ではなく body 直下へ付ける。
+  // 理由（ユーザー要望「不具合報告ボタンだけ常に最前面に」）: #option-area は z-index:900 の
+  // スタッキングコンテキストのため、その子であるこのボタンはゲーム中のモーダル(10500〜)より
+  // 前面に出せず、モーダルの詰み時に押せなかった（＝ログを送れない）。body直下＋高いz-indexに
+  // することで、どんなモーダルが出ていても常に押せて報告できる（フェイズ操作ボタン等は
+  // #option-area のまま＝モーダルより後ろのままなので、リアクション中に誤操作でズレる副作用は
+  // 出さない）。CSSは position:fixed のままなのでDOMの親が変わっても表示位置は同じ。
+  document.body.appendChild(buildBugReportWidget());
   // 行動ログのトグルアイコン（オプションアイコンとマイページアイコンの間、位置はCSSで指定）。
   optionArea.appendChild(buildActionLogToggleWidget());
 })();
