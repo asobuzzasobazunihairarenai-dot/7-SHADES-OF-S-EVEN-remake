@@ -65,6 +65,9 @@ import { maybeShowBugReportIntro } from "./bug-report-intro.js";
 // マイデッキ戦: 保存したデッキをアカウント(so7_user_profiles.my_deck)へ反映する注入（下の
 // registerMyDeckPersistence参照）。my-deck.js は cards-data.js のみ依存の葉モジュール。
 import { registerMyDeckPersistence } from "./my-deck.js";
+// マイデッキ戦F4: 開始時のデッキ選択オーバーレイ（my-deck-select.jsはmy-deck.js/cards-data.jsのみ
+// 依存の葉。ピッカーは内部で動的importするのでここは静的でも循環しない）。
+import { openDeckSelect, closeDeckSelect, isDeckSelectOpen } from "./my-deck-select.js";
 import { initCurrencyDisplay, refreshCurrencyDisplay, showCurrencyAwardEffect } from "./currency-display.js";
 import { initShop, openShopPanel } from "./shop.js";
 import { initGameSetup, previewStartPlayerModal, showStartPlayerModal } from "./game-setup.js";
@@ -241,6 +244,9 @@ import {
   onGateInvasionEvents,
   broadcastContactTackle,
   onContactTackleEvents,
+  registerDeckSelectHandler,
+  onDeckSelectionStartEvents,
+  writeSelectedDeck,
   broadcastContactApproved,
   onContactApprovedEvents,
   broadcastContactPickResolved,
@@ -11813,6 +11819,15 @@ registerCardBackSkinHelpers({ render, savePreference: saveMyPreference, isItemUn
 // も反映する。オンライン対戦開始時にサーバー(so7-apply-action)が各席のこの値を読み、シャッフル
 // して配るため保存が必須。未ログイン/列未追加でもlocalStorageには保存済みで、ここは失敗しても無害。
 registerMyDeckPersistence((deck) => saveMyPreference({ my_deck: deck }));
+// マイデッキ戦F4: 開始時のデッキ選択オーバーレイを出す関数（ホストはonline.jsから直接、
+// 非ホストはdeck_selection_start broadcastで呼ばれる）。選んだ結果を自分の座席へ保存する。
+const showDeckSelect = (deadline) => {
+  if (isDeckSelectOpen()) return;
+  const durationSec = Math.max(5, Math.ceil(((deadline ?? Date.now() + 60000) - Date.now()) / 1000));
+  openDeckSelect({ durationSec, onResolved: (r) => writeSelectedDeck(r) });
+};
+registerDeckSelectHandler(showDeckSelect);
+onDeckSelectionStartEvents((payload) => showDeckSelect(payload?.deadline));
 registerPlaymatHelpers({ render });
 registerBackgroundHelpers({ render });
 registerPetHelpers({ render });
@@ -12011,6 +12026,8 @@ let wasOnlineGameStarted = false;
 subscribe(() => {
   const started = Boolean(getState().turnPlayer);
   if (isOnlineMode() && started && !wasOnlineGameStarted) {
+    // マイデッキ戦: 選択オーバーレイが残っていれば閉じる（BOOTSTRAPで盤面が始まったため）。
+    if (isDeckSelectOpen()) closeDeckSelect();
     suppressGenericRenderForOnlineStart = true;
     // セットアップ演出〜スタートプレイヤー告知が閉じるまでは「セットアップ中」扱いにして、
     // フェイズ自動処理（＝ムーブフェイズの移動可能マスのハイライト）とターンタイマーを

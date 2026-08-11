@@ -276,6 +276,37 @@ export function broadcastContactTackle(payload) {
   }
 }
 
+// マイデッキ戦F4: 開始時の「デッキ選択」フェイズ。ホストが開始をbroadcastし、全員が選択
+// オーバーレイ（60秒）を出す。各自が選んだ解決済みデッキを自分の座席行(selected_deck)へ書き、
+// ホストは全員選択or時間切れでBOOTSTRAP_GAMEを送る（BOOTSTRAP側が selected_deck を読む）。
+let deckSelectionStartListeners = [];
+export function onDeckSelectionStartEvents(fn) {
+  deckSelectionStartListeners.push(fn);
+  return () => {
+    deckSelectionStartListeners = deckSelectionStartListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastDeckSelectionStart(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "deck_selection_start", payload });
+  }
+}
+// 選択オーバーレイをどう出すかは main.js から注入（online.jsはUIを持たない。ホスト側の直接表示に使う）。
+let deckSelectHandler = null;
+export function registerDeckSelectHandler(fn) {
+  deckSelectHandler = fn;
+}
+// 自分の座席へ、選択で解決したデッキ（{cards, firstColor, skins...}）を保存する。
+export async function writeSelectedDeck(resolved) {
+  if (!currentGameId || !cachedUser) return;
+  const { error } = await client
+    .from("so7_game_seats")
+    .update({ selected_deck: resolved })
+    .eq("game_id", currentGameId)
+    .eq("user_id", cachedUser.id);
+  if (error) console.error("writeSelectedDeck failed", error);
+}
+
 // ユーザー要望「接触では、接触した側(attacker)が裏向きの手札から1枚選ぶようにして
 // ほしい。今は接触された側(defender)が選ぶ形になってしまっている」。実際に奪う
 // カードを決める「儀式的ピック」演出はdefenderの手札を覗く形になるため、覗く本人
@@ -1467,6 +1498,33 @@ export async function drawFromMyDeck(seat) {
   if (currentGameId) await fetchAndHydrate(currentGameId);
 }
 
+// マイデッキ戦F4: 開始時のデッキ選択フェイズ（ホストが呼ぶ）。全員へ開始をbroadcastし、
+// ホスト自身もオーバーレイを出す。全員が selected_deck を書く or 60秒経過で抜ける。
+const DECK_SELECT_MS = 60000;
+async function runDeckSelectionPhase(gameId) {
+  const deadline = Date.now() + DECK_SELECT_MS;
+  broadcastDeckSelectionStart({ deadline });
+  try {
+    // broadcastは送信元にはechoされないため、ホストのオーバーレイはここで直接出す。
+    deckSelectHandler?.(deadline);
+  } catch (err) {
+    console.error("deckSelectHandler failed", err);
+  }
+  await waitForAllSelectedOrDeadline(gameId, deadline);
+}
+async function waitForAllSelectedOrDeadline(gameId, deadline) {
+  while (Date.now() < deadline) {
+    try {
+      const { data } = await client.from("so7_game_seats").select("user_id, selected_deck").eq("game_id", gameId);
+      const rows = data ?? [];
+      if (rows.length > 0 && rows.every((r) => r.selected_deck != null)) return;
+    } catch (err) {
+      console.error("waitForAllSelectedOrDeadline poll failed", err);
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+}
+
 // ゲーム開始（セットアップウィザードの代わり）。座席の割り当てはso7-apply-action
 // Edge Function側が部屋の参加者を見てランダムに行う（クライアント側では組み立てない）。
 // ユーザー要望「（戦績管理システムに）勝利しなくても対戦に参加すれば登録されるように
@@ -1538,8 +1596,11 @@ export async function startGame(gameId, { includeBlackWhite = false, timerEnable
     logAction("diag-pseudo-cpu", { phase: "startGame-send", timerConfig });
     // boost: ブーストモード（各プレイヤーのファーストカードの左右隣に効果なしファーストカードを
     // ロックして開始）。サーバー側BOOTSTRAP_GAME（so7-apply-action.ts）で処理する。
+    // マイデッキ戦: BOOTSTRAPの前に「デッキ選択フェイズ」を回す。ホストが開始を全員へbroadcastし、
+    // 各自が選んだデッキを座席へ保存。全員選択or60秒でここを抜け、BOOTSTRAPが座席のselected_deckを読む。
+    if (myDeckMode) await runDeckSelectionPhase(gameId);
     // myDeckMode: マイデッキ戦（対戦ロビーのトグル）。timerConfig等と同じく開始時に1回だけ
-    // 送り、サーバーが各席のプロフィールの my_deck を読んでシャッフル配布する（so7-apply-action）。
+    // 送り、サーバーが各席の selected_deck を読んでシャッフル配布する（so7-apply-action）。
     const result = await callAction({ type: "BOOTSTRAP_GAME", includeBlackWhite, timerConfig, boost, myDeckMode });
     registerParticipantsAsStatsPlayers(gameId).catch((err) =>
       console.error("registerParticipantsAsStatsPlayers failed", err)
@@ -2537,6 +2598,10 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // 接触のタックル演出開始の合図（broadcastContactTackle参照）。
     .on("broadcast", { event: "contact_tackle" }, ({ payload }) => {
       for (const fn of contactTackleEventListeners) fn(payload);
+    })
+    // マイデッキ戦: デッキ選択フェイズ開始の合図（broadcastDeckSelectionStart参照）。
+    .on("broadcast", { event: "deck_selection_start" }, ({ payload }) => {
+      for (const fn of deckSelectionStartListeners) fn(payload);
     })
     // 接触の儀式的ピックの合図2種（broadcastContactApproved/broadcastContactPickResolved参照）。
     .on("broadcast", { event: "contact_approved" }, ({ payload }) => {

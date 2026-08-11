@@ -122,6 +122,47 @@ function expandMyDeck(raw: any): string[] {
   return ids;
 }
 
+// マイデッキ戦F4/F5: ファースト色・ランダムデッキのサーバー側ロジック（src/my-deck.jsと揃える）。
+const MYDECK_SPECIAL_COLORS = new Set(["white", "black", "rainbow"]);
+const NON_SPECIAL_CARD_IDS = NORMAL_CARDS.filter((c) => !MYDECK_SPECIAL_COLORS.has(c.color)).map((c) => c.id);
+const FIRST_COLORS = ["red", "orange", "yellow", "green", "blue", "pink", "purple"];
+function randomFirstColor(): string {
+  return FIRST_COLORS[Math.floor(Math.random() * FIRST_COLORS.length)];
+}
+// おまかせ/タイムアップ/未選択のフォールバック: 非スペシャル通常7枚（同名7まで）。
+function randomDeckCards(): Record<string, number> {
+  const cards: Record<string, number> = {};
+  for (let i = 0; i < 7; i++) {
+    const pool = NON_SPECIAL_CARD_IDS.filter((id) => (cards[id] ?? 0) < 7);
+    if (pool.length === 0) break;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    cards[pick] = (cards[pick] ?? 0) + 1;
+  }
+  return cards;
+}
+// 座席の selected_deck（クライアントが書いた解決済みデッキ）を安全に解釈する。無ければランダム。
+function resolveSelectedDeck(raw: any): {
+  cards: Record<string, number>;
+  firstColor: string;
+  pieceSkinIndex: number | null;
+  petIndex: number | null;
+  cardBackSetIndex: number | null;
+} {
+  const validColor = raw && FIRST_COLORS.includes(raw.firstColor) ? raw.firstColor : null;
+  const cards = raw && raw.cards && typeof raw.cards === "object" ? raw.cards : null;
+  const num = (v: any) => (typeof v === "number" ? v : null);
+  if (cards && Object.keys(cards).length > 0) {
+    return {
+      cards,
+      firstColor: validColor || randomFirstColor(),
+      pieceSkinIndex: num(raw.pieceSkinIndex),
+      petIndex: num(raw.petIndex),
+      cardBackSetIndex: num(raw.cardBackSetIndex),
+    };
+  }
+  return { cards: randomDeckCards(), firstColor: validColor || randomFirstColor(), pieceSkinIndex: null, petIndex: null, cardBackSetIndex: null };
+}
+
 function uid(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`;
 }
@@ -409,7 +450,7 @@ function reduce(current: GameState, action: any): GameState {
     // 山札を裏向きで配り、無作為にスタートプレイヤーを決める、という一連の初期化を
     // まとめて行う（SETUP_ASSIGN_FIRST_CARDS + SETUP_FILL_BOARD + SET_TURN_PLAYERの合体版）。
     case "BOOTSTRAP_GAME": {
-      const players: { player: string; side: string }[] = action.players;
+      const players: { player: string; side: string; firstColor?: string }[] = action.players;
       const includeBlackWhite: boolean = !!action.includeBlackWhite;
       // ブーストモード（ユーザー要望）: src/state.jsのSETUP_ASSIGN_FIRST_CARDSと同じ処理を
       // サーバー側にもポートする。各プレイヤーのファーストカードの左右隣の色スロットに
@@ -420,11 +461,20 @@ function reduce(current: GameState, action: any): GameState {
 
       const firstPile = shuffled(expandDeck(FIRST_CARDS));
       const newTokens: Token[] = [];
-      for (const { player, side } of players) {
-        if (firstPile.length === 0) break;
-        const cardId = firstPile.pop()!;
-        const def = FIRST_CARDS.find((c) => c.id === cardId)!;
-        const colorIndex = COLORS.indexOf(def.color);
+      for (const { player, side, firstColor } of players) {
+        // マイデッキ戦: ファーストは各自が選んだデッキの色（first-<color>）で配る。同じ色が
+        // 被ってもよい（共有の firstPile からは取らない）。通常戦は従来通り無作為に配る。
+        let cardId: string;
+        let color: string;
+        if (action.myDeckMode && firstColor && COLORS.includes(firstColor)) {
+          color = firstColor;
+          cardId = `first-${firstColor}`;
+        } else {
+          if (firstPile.length === 0) break;
+          cardId = firstPile.pop()!;
+          color = FIRST_CARDS.find((c) => c.id === cardId)!.color;
+        }
+        const colorIndex = COLORS.indexOf(color);
         newTokens.push({
           id: uid("card"),
           kind: "card",
@@ -435,7 +485,7 @@ function reduce(current: GameState, action: any): GameState {
         newTokens.push({
           id: uid("piece"),
           kind: "piece",
-          color: def.color,
+          color,
           player,
           location: { zone: "cell", ...GATE_POSITIONS[side] },
         });
@@ -972,28 +1022,37 @@ Deno.serve(async (req) => {
       // サービスロール(db)で動くので全員分まとめて読める。読めなかった/空のデッキは空配列＝
       // 「マイデッキが無い」状態（ドローしても何も起きない、で無害。マイデッキ.txt）。
       let myDecks: Record<string, string[]> | undefined;
+      const firstColorBySeat: Record<string, string> = {};
       if (action.myDeckMode) {
         myDecks = {};
-        const { data: profRows } = await db
-          .from("so7_user_profiles")
-          .select("user_id, my_deck, card_back_set_index")
+        // F4/F5: 各席が「デッキ選択」で書いた selected_deck を読む（座席行はサービスロールで
+        // 全員分読める）。未選択/空ならランダム7枚＋ランダム色にフォールバック。
+        const { data: seatRows2 } = await db
+          .from("so7_game_seats")
+          .select("user_id, selected_deck")
+          .eq("game_id", gameId)
           .in("user_id", assignments.map((a) => a.userId));
-        const profByUser = new Map((profRows ?? []).map((r: any) => [r.user_id as string, r]));
+        const selByUser = new Map((seatRows2 ?? []).map((r: any) => [r.user_id as string, r.selected_deck]));
         for (const a of assignments) {
-          const prof = profByUser.get(a.userId);
-          myDecks[a.seat] = shuffled(expandMyDeck(prof?.my_deck));
-          // フェーズ5: 各席のカード裏面セットを座席行へ写しておき、全員がマイデッキ札を
-          // 「所有者の裏面」で描画できるようにする（roster経由でクライアントが読む）。
-          if (prof && typeof prof.card_back_set_index === "number") {
-            await db
-              .from("so7_game_seats")
-              .update({ card_back_set_index: prof.card_back_set_index })
-              .eq("game_id", gameId)
-              .eq("user_id", a.userId);
+          const sel = resolveSelectedDeck(selByUser.get(a.userId));
+          myDecks[a.seat] = shuffled(expandMyDeck(sel.cards));
+          firstColorBySeat[a.seat] = sel.firstColor;
+          // デッキの駒/ペット/裏面スキンを座席行へ一時上書き（非nullのみ。roster経由で全員の
+          // 描画に反映される。プロフィール既定は書き換えない＝この対戦だけ）。
+          const skinPatch: Record<string, number> = {};
+          if (typeof sel.pieceSkinIndex === "number") skinPatch.piece_skin_index = sel.pieceSkinIndex;
+          if (typeof sel.petIndex === "number") skinPatch.pet_index = sel.petIndex;
+          if (typeof sel.cardBackSetIndex === "number") skinPatch.card_back_set_index = sel.cardBackSetIndex;
+          if (Object.keys(skinPatch).length > 0) {
+            await db.from("so7_game_seats").update(skinPatch).eq("game_id", gameId).eq("user_id", a.userId);
           }
         }
       }
-      const players = assignments.map((a) => ({ player: a.seat, side: SEAT_TO_SIDE[a.seat] }));
+      const players = assignments.map((a) => ({
+        player: a.seat,
+        side: SEAT_TO_SIDE[a.seat],
+        firstColor: firstColorBySeat[a.seat],
+      }));
       effectiveAction = { ...action, players, myDecks, myDeckMode: !!action.myDeckMode };
     }
 
