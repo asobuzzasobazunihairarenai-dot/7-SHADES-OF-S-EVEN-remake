@@ -11,7 +11,7 @@ import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { getAvatarVariant, applyAvatarContent } from "./avatar-render.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { playVictoryBgm } from "./sound.js";
-import { showPostGamePanel } from "./post-game-panel.js";
+import { showPostGamePanel, showCpuBattleEndPanel } from "./post-game-panel.js";
 import { awardMatchCurrency, awardCpuWinCurrency, getSelfSeat } from "./online.js";
 import { isCpuBattleActive } from "./cpu-battle-state.js";
 import { refreshCurrencyDisplay } from "./currency-display.js";
@@ -211,6 +211,9 @@ export function checkForVictory() {
               console.error("awardCpuWinCurrency failed", err);
             }
           }
+          // ユーザー要望2026-08-12「CPU戦終了時に もう一度戦う／ホームに戻る／盤面を見る(最小化) を
+          // 出す」。勝敗どちらでも（人間A勝ち・CPU C勝ちのどちらでも）CPU戦なら終了パネルを出す。
+          if (isCpuBattleActive()) showCpuBattleEndPanel({ winnerSeat: player });
           return;
         }
         try {

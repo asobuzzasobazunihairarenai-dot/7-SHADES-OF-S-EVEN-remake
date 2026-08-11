@@ -35,6 +35,9 @@ import { fetchStatsProfile, getTierInfo } from "./stats-profile.js";
 import { showRankUpModal } from "./rank-up-modal.js";
 import { setSavedRoomPassword } from "./online-ui.js";
 import { openHomeScreen } from "./home-screen.js";
+// cpu-battle-state.js は依存ゼロの葉モジュール（循環importの心配なし）。CPU戦終了パネルの
+// 「ホームに戻る」でCPU戦フラグを下ろすのに使う。
+import { setCpuBattleActive } from "./cpu-battle-state.js";
 
 // victory.jsはこのモジュール（showPostGamePanel）を呼ぶ側になる予定のため、ここから
 // victory.jsを直接importすると循環importになる。他の箇所（setup-animation.js等）と
@@ -312,6 +315,87 @@ function buildCommentSection(onFinish) {
   btnRow.appendChild(passBtn);
   wrap.appendChild(btnRow);
   return wrap;
+}
+
+// ローカルCPU戦（1人用）専用の終了パネル（ユーザー要望2026-08-12）。オンラインの
+// showPostGamePanel（戦績連携・もう一度遊ぶの部屋同期・コメント等）はCPU戦には重すぎるため、
+// 「もう一度戦う／盤面を見る（最小化）／ホームに戻る」の3つだけのシンプルなパネルにする。
+// 最小化（盤面を見る）と復元アイコンは online 版と同じ minimizePanel/restoreIcon をそのまま流用する。
+export function showCpuBattleEndPanel({ winnerSeat }) {
+  if (panelEl) return; // 多重表示防止
+  const iWon = winnerSeat === getSelfSeat();
+
+  backdropEl = createBackdrop(() => {}, { dim: true, zIndex: 10600 }); // 外側クリックでは閉じない
+  panelEl = document.createElement("div");
+  panelEl.style.cssText = `
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: min(24rem, 92vw); background: rgba(15, 23, 32, 0.98);
+    border: 1px solid rgba(148, 163, 184, 0.4); border-radius: 0.6rem;
+    padding: 1.2rem; z-index: 10601; font-family: sans-serif; font-size: 0.85rem;
+    color: #e2e8f0; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  `;
+
+  const title = document.createElement("div");
+  title.style.cssText = "font-size: 1.15rem; font-weight: bold; text-align: center; margin-bottom: 0.2rem;";
+  title.textContent = iWon ? "🏆 あなたの勝ち！" : "🤖 CPUの勝ち…";
+  const sub = document.createElement("div");
+  sub.style.cssText = "font-size: 0.75rem; color: #94a3b8; text-align: center; margin-bottom: 1rem;";
+  sub.textContent = "CPU戦（1人用）";
+  panelEl.appendChild(title);
+  panelEl.appendChild(sub);
+
+  const row = document.createElement("div");
+  row.style.cssText = "display: flex; gap: 0.6rem; flex-wrap: wrap; justify-content: center;";
+
+  const rematchBtn = document.createElement("button");
+  rematchBtn.type = "button";
+  rematchBtn.textContent = "もう一度戦う";
+  rematchBtn.style.cssText =
+    "padding: 0.5rem 1rem; background: #15803d; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.85rem;";
+  rematchBtn.addEventListener("click", async () => {
+    rematchBtn.disabled = true;
+    closePanel();
+    try {
+      // 動的import（cpu-battle.js は重い依存を芋づるで持つため。home-screen.js と同じパターン）。
+      const { startCpuBattle, runCpuBattleSetup } = await import("./cpu-battle.js");
+      await startCpuBattle(); // resetGame 込みで新しい対局を用意する
+      setTimeout(() => {
+        runCpuBattleSetup().catch((err) => console.error("runCpuBattleSetup failed", err));
+      }, 60);
+    } catch (err) {
+      console.error("CPU rematch failed", err);
+    }
+  });
+
+  const boardBtn = document.createElement("button");
+  boardBtn.type = "button";
+  boardBtn.textContent = "盤面を見る";
+  boardBtn.style.cssText =
+    "padding: 0.5rem 1rem; background: rgba(56, 189, 248, 0.18); border: 1px solid rgba(56, 189, 248, 0.6); border-radius: 0.3rem; color: #e2e8f0; cursor: pointer; font-size: 0.85rem;";
+  boardBtn.addEventListener("click", () => {
+    showMinimizeNoticeThenMinimize(); // 左上の🏆アイコンから復元できる（online版と共通）
+  });
+
+  const homeBtn = document.createElement("button");
+  homeBtn.type = "button";
+  homeBtn.textContent = "ホームに戻る";
+  homeBtn.style.cssText =
+    "padding: 0.5rem 1rem; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 0.3rem; color: #e2e8f0; cursor: pointer; font-size: 0.85rem;";
+  homeBtn.addEventListener("click", () => {
+    setCpuBattleActive(false); // CPU戦フラグを下ろす（自動処理を止める）
+    document.body.classList.remove("cpu-battle-mode");
+    resetVictoryTrackingFn?.(); // 次にまた勝利演出が出るように勝利記録をクリア
+    closePanel();
+    openHomeScreen();
+  });
+
+  row.appendChild(rematchBtn);
+  row.appendChild(boardBtn);
+  row.appendChild(homeBtn);
+  panelEl.appendChild(row);
+
+  document.body.appendChild(backdropEl);
+  document.body.appendChild(panelEl);
 }
 
 export function showPostGamePanel({ activePlayers, winnerSeat }) {
