@@ -1531,3 +1531,8 @@ alter table so7_game_tokens add column if not exists my_deck_owner text;
 -- 各席が選んでいるカード裏面セット。マイデッキ札を「所有者の裏面」で全員に見せるために、
 -- 座席行にも持たせて全員が読めるようにする（名前・アバター・駒スキンと同じ公開情報の扱い）。
 alter table so7_game_seats add column if not exists card_back_set_index int;
+-- マイデッキ戦F4: 開始時の「デッキ選択」で各席が選んだデッキ（解決済み）を保存する。
+-- 形: { cards:{cardId:count}, firstColor, pieceSkinIndex, petIndex, cardBackSetIndex }。
+-- BOOTSTRAP_GAMEがこれを読み、マイデッキ配布・ファースト色・駒/ペット/裏面スキンの一時上書きに使う。
+-- 隠す必要のある「中身」はBOOTSTRAP時にサーバー内で処理する（座席行は本人しか読めないRLS）。
+alter table so7_game_seats add column if not exists selected_deck jsonb;

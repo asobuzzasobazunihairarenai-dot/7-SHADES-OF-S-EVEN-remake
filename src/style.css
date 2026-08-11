@@ -14240,3 +14240,131 @@ body.theme-light .mdb-setting-btn {
   border-color: rgba(176, 141, 63, 0.4);
   color: #3a3326;
 }
+
+/* ── マイデッキ戦: デッキ選択オーバーレイ（my-deck-select.js）───────────────── */
+#my-deck-select {
+  position: fixed;
+  inset: 0;
+  z-index: 10070;
+  background: rgba(3, 6, 12, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: sans-serif;
+}
+#mds-panel {
+  width: min(56rem, 94vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: radial-gradient(ellipse at 50% -10%, #22303f 0%, #0f172a 70%);
+  border: 1px solid rgba(176, 141, 63, 0.45);
+  border-radius: 0.8rem;
+  padding: 1.2rem 1.3rem 1.4rem;
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.7);
+  color: #e2e8f0;
+}
+#mds-title {
+  font-size: 1.25rem;
+  font-weight: bold;
+  text-align: center;
+}
+#mds-subtitle {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  text-align: center;
+  margin-top: 0.3rem;
+}
+#mds-countdown {
+  margin: 0.6rem auto 0;
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: bold;
+  color: #f2c94c;
+}
+#mds-body {
+  margin-top: 1rem;
+}
+.mds-empty {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 1.5rem 0.5rem;
+}
+.mds-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 0.8rem;
+}
+.mds-deck {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 0.55rem;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.7);
+  cursor: pointer;
+  font-family: sans-serif;
+  color: #e2e8f0;
+}
+.mds-deck:hover:not(:disabled) {
+  border-color: rgba(242, 201, 76, 0.85);
+  transform: translateY(-2px);
+}
+.mds-deck.is-invalid {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.mds-deck-art {
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--mds-accent, #334155), #0b1220);
+}
+.mds-deck-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 22%;
+}
+.mds-deck-name {
+  padding: 0.35rem 0.5rem 0.1rem;
+  font-size: 0.82rem;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mds-deck-meta {
+  padding: 0 0.5rem 0.45rem;
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+#mds-actions {
+  display: flex;
+  gap: 0.7rem;
+  justify-content: center;
+  margin-top: 1.2rem;
+  flex-wrap: wrap;
+}
+.mds-action {
+  padding: 0.6rem 1.3rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-family: sans-serif;
+  font-size: 0.92rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+.mds-action-random {
+  background: linear-gradient(180deg, #38bdf8, #0ea5e9);
+  color: #04121f;
+}
+.mds-action-new {
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  color: #e2e8f0;
+}
+.mds-action:hover {
+  filter: brightness(1.08);
+}
