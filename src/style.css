@@ -13454,7 +13454,7 @@ body.is-phone-device #options-menu-panel {
 .mdb-col-card-art {
   position: relative;
   width: 100%;
-  aspect-ratio: 5 / 7;
+  aspect-ratio: 1 / 1;
   border-radius: 0.45rem;
   overflow: hidden;
   background: rgba(0, 0, 0, 0.4);
@@ -13581,7 +13581,7 @@ body.is-phone-device #options-menu-panel {
 .mdb-deck-entry-art {
   position: relative;
   width: 100%;
-  aspect-ratio: 5 / 7;
+  aspect-ratio: 1 / 1;
   border-radius: 0.35rem;
   overflow: hidden;
   border: 1px solid rgba(148, 163, 184, 0.3);
