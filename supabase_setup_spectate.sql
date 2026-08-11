@@ -13,7 +13,9 @@ select
   -- 観戦者はどの座席の持ち主でもないため、手札は常に隠す。cell/lock は face_up の時だけ見える。
   case when t.zone = 'hand' then null else (case when t.face_up then t.card_id else null end) end as card_id,
   t.face_up, t.color, t.piece_player, t.zone, t.row, t.col, t.side, t.idx,
-  t.hand_player, t.order_index, t.reveal_source, t.arrival_suppressed
+  t.hand_player, t.order_index, t.reveal_source, t.arrival_suppressed,
+  -- マイデッキ戦F5「裏面の印」: 観戦者にもマイデッキ札を所有者の裏面で見せる（card_idはマスクのまま）。
+  t.my_deck_owner
 from so7_game_tokens t;
 grant select on so7_game_tokens_spectate to authenticated;
 
@@ -34,7 +36,8 @@ grant select on so7_game_piles_spectate to authenticated;
 create or replace view so7_game_tokens_all as
 select
   t.game_id, t.token_id, t.kind, t.card_id, t.face_up, t.color, t.piece_player,
-  t.zone, t.row, t.col, t.side, t.idx, t.hand_player, t.order_index, t.reveal_source, t.arrival_suppressed
+  t.zone, t.row, t.col, t.side, t.idx, t.hand_player, t.order_index, t.reveal_source, t.arrival_suppressed,
+  t.my_deck_owner
 from so7_game_tokens t;
 grant select on so7_game_tokens_all to authenticated;
 
