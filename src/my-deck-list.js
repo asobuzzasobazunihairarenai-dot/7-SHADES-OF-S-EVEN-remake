@@ -4,8 +4,15 @@
 
 import { syncFullScreenPageActive } from "./option-area.js";
 import { getCardImagePath } from "./cards-data.js";
-import { getAllDecks, createDeck, deleteDeck, duplicateDeck, validateDeck, deckTotal } from "./my-deck.js";
+import { getAllDecks, createDeck, deleteDeck, duplicateDeck, validateDeck, deckTotal, maxDeckSlots } from "./my-deck.js";
 import { openMyDeckBuilder } from "./my-deck-builder.js";
+import { isItemUnlocked } from "./online.js";
+
+// 作成できるマイデッキ数の上限（基本2、ショップで「マイデッキ枠 ＋2」を購入で4）。未ログイン/
+// オフラインでは isItemUnlocked が常にtrueを返す＝上限4（ローカルプレイを制限しない既存方針）。
+function currentDeckSlotLimit() {
+  return maxDeckSlots(isItemUnlocked("mydeck-extra-slots"));
+}
 
 // デッキ箱のアクセント色（ファーストカードの色）。
 const MDL_COLOR_HEX = {
@@ -136,7 +143,11 @@ function buildDeckBox(deck) {
   dupBtn.textContent = "⧉";
   dupBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    duplicateDeck(deck.id);
+    const dup = duplicateDeck(deck.id, currentDeckSlotLimit());
+    if (!dup) {
+      alert("マイデッキの作成上限に達しています。ショップの「🃏 マイデッキ枠 ＋2」を購入すると増やせます。");
+      return;
+    }
     renderGrid();
   });
   const delBtn = document.createElement("button");
@@ -171,17 +182,40 @@ function buildNewBox() {
   label.textContent = "新しいデッキ";
   box.appendChild(label);
   box.addEventListener("click", () => {
-    const deck = createDeck("新しいデッキ");
+    const deck = createDeck("新しいデッキ", currentDeckSlotLimit());
+    if (!deck) {
+      // renderGridが上限時はこの箱を出さない想定だが、念のための保険。
+      alert("マイデッキの作成上限に達しています。ショップの「🃏 マイデッキ枠 ＋2」を購入すると増やせます。");
+      return;
+    }
     editDeck(deck.id);
   });
+  return box;
+}
+
+// 作成上限に達した時に「＋新規作成」の代わりに出す案内箱（ショップで増やせる旨）。
+function buildLimitReachedBox(limit) {
+  const box = document.createElement("div");
+  box.className = "mdl-deck mdl-deck-new mdl-deck-limit";
+  const icon = document.createElement("div");
+  icon.className = "mdl-deck-new-plus";
+  icon.textContent = "🔒";
+  box.appendChild(icon);
+  const label = document.createElement("div");
+  label.className = "mdl-deck-new-label";
+  label.textContent = `上限${limit}個（ショップで枠を増やせます）`;
+  box.appendChild(label);
   return box;
 }
 
 function renderGrid() {
   if (!gridEl) return;
   gridEl.innerHTML = "";
-  gridEl.appendChild(buildNewBox());
-  for (const deck of getAllDecks()) gridEl.appendChild(buildDeckBox(deck));
+  const decks = getAllDecks();
+  const limit = currentDeckSlotLimit();
+  // 上限未満のときだけ「＋新規作成」を出す。上限到達時はロック案内箱に差し替える。
+  gridEl.appendChild(decks.length < limit ? buildNewBox() : buildLimitReachedBox(limit));
+  for (const deck of decks) gridEl.appendChild(buildDeckBox(deck));
   // ペットのサムネ用に pet-skins を遅延ロード（読み込めたら一覧を描き直して差し替え）。
   if (!petMod) {
     import("./pet-skins.js")

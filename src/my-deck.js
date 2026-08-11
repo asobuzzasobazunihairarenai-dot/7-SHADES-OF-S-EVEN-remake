@@ -30,6 +30,16 @@ export const MAX_SAME_NAME_COUNT = 7;
 export const SPECIAL_TAX_RATIO = 3;
 export const RANDOM_DECK_SIZE = 7; // おまかせ/タイムアップ時のランダムデッキ枚数
 
+// 作成できるマイデッキの上限（ユーザー要望2026-08-12）。基本2個、ショップで+2枠を購入すると
+// 増える（itemKey "mydeck-extra-slots"、100コイン）。実際の上限判定は maxDeckSlots(購入済みか)
+// で行い、購入済みかどうか（isItemUnlocked）はUI側（my-deck-list.js）が渡す——このモジュールは
+// online.jsに依存させない（循環import/TDZ回避）。
+export const MYDECK_BASE_SLOTS = 2;
+export const MYDECK_EXTRA_SLOTS = 2; // ショップ購入1回分で増える枠数
+export function maxDeckSlots(hasExtraSlots) {
+  return MYDECK_BASE_SLOTS + (hasExtraSlots ? MYDECK_EXTRA_SLOTS : 0);
+}
+
 const NORMAL_BY_ID = new Map(NORMAL_CARDS.map((c) => [c.id, c]));
 const NON_SPECIAL_CARDS = NORMAL_CARDS.filter((c) => !SPECIAL_CARD_COLORS.has(c.color));
 
@@ -223,16 +233,19 @@ export function setSelectedDeckId(id) {
     persistStore();
   }
 }
-export function createDeck(name) {
+// limit: 作成上限（超えていたら作らずnullを返す）。呼び出し側(UI)が maxDeckSlots(...) を渡す。
+export function createDeck(name, limit = Infinity) {
   const store = loadStore();
+  if (store.decks.length >= limit) return null; // 上限超過（UIが枠上限を伝える）
   const d = makeEmptyDeck(name);
   store.decks.push(d);
   store.selectedId = d.id;
   persistStore();
   return { ...d, cards: { ...d.cards } };
 }
-export function duplicateDeck(id) {
+export function duplicateDeck(id, limit = Infinity) {
   const store = loadStore();
+  if (store.decks.length >= limit) return null; // 上限超過
   const src = store.decks.find((d) => d.id === id);
   if (!src) return null;
   const copy = normalizeDeck({ ...src, cards: { ...src.cards } });

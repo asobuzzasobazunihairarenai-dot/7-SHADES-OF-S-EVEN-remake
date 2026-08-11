@@ -26,6 +26,21 @@ export const SHOP_CATEGORIES = [
   // ユーザー要望「国王アバターはショップで200で有料に」。色アバターは無料のまま、
   // 国王/女王アバターだけを有料商品として並べる（getAvatarShopItems）。
   { key: "avatar", label: "😀 アバター", items: getAvatarShopItems() },
+  // ユーザー要望2026-08-12「作成できるマイデッキは基本2個。ショップで上限を+2できる（100コイン）」。
+  // 購入するとisItemUnlocked("mydeck-extra-slots")がtrueになり、my-deck-list.jsが maxDeckSlots で
+  // 作成上限を2→4に上げる。見た目上の画像はマイデッキアイコンを流用。
+  {
+    key: "mydeck",
+    label: "🃏 マイデッキ枠",
+    items: [
+      {
+        itemKey: "mydeck-extra-slots",
+        label: "マイデッキ枠 ＋2",
+        cost: 100,
+        imagePath: "assets/icons/my-deck.svg",
+      },
+    ],
+  },
 ];
 
 // ユーザー要望「ショップ画面とマイページにアイテムコンプリート率を表示したい」への対応。
