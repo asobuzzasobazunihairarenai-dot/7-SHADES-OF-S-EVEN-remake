@@ -736,7 +736,16 @@ async function runAction(action, ctx, helpers) {
         // （main.jsのmaybeTriggerArrivalForPlacedCard / maybeTriggerCardArrivalForCard）。
         // 以前はflipCardが裏→表に反転するだけで到達を一切起こさず、ユーザー報告
         // 「サフランで自分の足元をオープンしても到達効果が発動しない」の原因だった。
-        helpers.maybeTriggerArrivalForPlacedCard?.({ zone: "cell", row: chosen.row, col: chosen.col }, token.cardId);
+        // 不具合#76: オンラインでは反転前の裏向きカードのcardIdはマスクされ null のため、
+        // ここで上のtoken.cardId（=null）をそのまま渡すと到達判定内の getCardDefinition(null)
+        // で「Cannot read properties of undefined (reading 'name')」で落ち、到達効果も不発だった。
+        // flipCardは（オンラインでも）反転後にfetchAndHydrateまで待つので、最新stateから
+        // 表向きになったカードのcardIdを読み直して渡す。
+        const revealedTop = findTopCardAtCell(chosen.row, chosen.col);
+        const revealedCardId = revealedTop?.cardId ?? token.cardId;
+        if (revealedCardId) {
+          helpers.maybeTriggerArrivalForPlacedCard?.({ zone: "cell", row: chosen.row, col: chosen.col }, revealedCardId);
+        }
       }
       // お知らせ（ユーザー要望）: 何枚オープンしたか（優先度低だが一応）。
       if (flippedCount > 0) await helpers.announceEffectReason?.(ctx.cardId, `${flippedCount}枚のカードをオープンしました。`);
@@ -1058,13 +1067,22 @@ async function runAction(action, ctx, helpers) {
           // 違い相手に選ばせる必要が無い。destは既に正しい形（cellまたはlock）で
           // 渡ってくるため、ここで作り直さずそのまま使う。
           await helpers.moveAndSync(ctx.cardTokenId, dest);
-          // 手札→マスの移動は既定で裏向きになる（state.jsのfaceUpForLocation）ため、
-          // 表向き指定の時だけ明示的にめくる。
+          // 表向き指定の時だけ明示的にめくる。ただしflipCardはトグルなので、置いた先の
+          // 既定の向き(state.jsのfaceUpForLocation)によって向きが変わる:
+          //   - cell/手札 … 既定は裏向き → flipで表向きになる（ジャンプ台の手札効果等、正しい）
+          //   - lock     … 既定は表向き(faceUpForLocation lock=true) → ここで無条件にflipすると
+          //                 逆に裏返ってしまう（不具合#71: 黒の契約の烙印がロックエリアに裏向きで
+          //                 置かれた）。
+          // よって「今まさに裏向きの時だけ表にする」ようにして、ゾーンによらず必ず表向きで
+          // 終わるようにする。
           if (action.faceUp) {
-            await helpers.flipCard?.(ctx.cardTokenId);
+            const placed = getState().tokens.find((t) => t.id === ctx.cardTokenId);
+            if (placed && placed.faceUp === false) {
+              await helpers.flipCard?.(ctx.cardTokenId);
+            }
             // ユーザー報告「ジャンプ台を自分の駒の下に表向きで置いたのに到達効果が
             // 発動しなかった」（続き62）。通常のドラッグ配置と同じく、置いた先に
-            // 既に駒がいれば到達を発動させる。
+            // 既に駒がいれば到達を発動させる（ロックエリアには駒がいないので実質cellのみ）。
             await helpers.maybeTriggerArrivalForPlacedCard?.(dest, ctx.cardId);
           }
         } else if (action.source === "hand") {

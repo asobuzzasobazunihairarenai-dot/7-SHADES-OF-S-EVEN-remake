@@ -5029,6 +5029,10 @@ function triggerCardArrivalIfFaceUp(location, fromDiff = false) {
 // ような自動オープンの仕組みはここでは設けない。ユーザーの要望が表向きの場合のみのため）。
 function maybeTriggerCardArrivalForCard(dropTarget, cardId, faceUp, fromDiff = false) {
   if (!dropTarget || !faceUp) return;
+  // 安全弁（不具合#76）: cardIdが未確定(null/undefined)のまま到達判定に入ると、
+  // triggerCardArrival配下のgetCardDefinition(cardId).name等で落ちる。呼び出し側で
+  // 反転後の最新cardIdを渡すのが本筋だが、万一nullが来たらここで黙って何もしない。
+  if (!cardId) return;
   if (!hasPieceAt(dropTarget)) return;
   triggerCardArrival(cardId, dropTarget, undefined, { fromDiff });
 }
