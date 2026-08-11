@@ -21,6 +21,19 @@ const MDL_COLOR_HEX = {
 let overlayEl = null;
 let gridEl = null;
 let onCloseCb = null;
+// ペットのサムネ用に pet-skins を遅延ロード（静的importの循環TDZ回避。ピッカーと同じ方針）。
+let petMod = null;
+
+// 駒画像パス（色＋スキンindex）。裏面画像パス（card-back-skins backImagePath 同等をインライン化）。
+function pieceThumbSrc(color, idx) {
+  const c = color || "red";
+  return idx ? `assets/pieces/${c}-${idx}.webp` : `assets/pieces/${c}.webp`;
+}
+function backPathFor(idx) {
+  const suffix = idx === 0 ? "" : `-${idx}`;
+  const ext = idx === 0 || idx === 10 ? "webp" : "png";
+  return `assets/cards/back-normal${suffix}.${ext}`;
+}
 
 // デッキの代表カード（枚数が最多、同数なら並び順が先）のcardId。空なら null。
 function representativeCardId(deck) {
@@ -70,6 +83,45 @@ function buildDeckBox(deck) {
     `${colorChip}<span class="mdl-deck-count">${total}枚</span>` +
     `<span class="mdl-deck-valid ${valid ? "is-ok" : "is-ng"}">${valid ? "✓" : "未完成"}</span>`;
   box.appendChild(meta);
+
+  // 選択中のスキン（駒・ペット・裏面）を画像で並べる（ユーザー要望2026-08-11）。
+  const cos = document.createElement("div");
+  cos.className = "mdl-deck-cosmetics";
+  const pieceCos = document.createElement("div");
+  pieceCos.className = "mdl-cos";
+  pieceCos.title = "駒スキン";
+  const pieceImg = document.createElement("img");
+  pieceImg.src = pieceThumbSrc(deck.firstColor, deck.pieceSkinIndex ?? 0);
+  pieceImg.alt = "";
+  pieceImg.loading = "lazy";
+  pieceCos.appendChild(pieceImg);
+  const petCos = document.createElement("div");
+  petCos.className = "mdl-cos mdl-cos-pet";
+  petCos.title = "ペット";
+  const petIdx = deck.petIndex ?? 0;
+  if (petMod) {
+    const opt = petMod.PET_OPTIONS[petIdx] || petMod.PET_OPTIONS[0];
+    if (opt?.sprite) {
+      const im = document.createElement("img");
+      im.src = petMod.petSpriteSrc(opt.sprite, "front", "static");
+      im.alt = "";
+      petCos.appendChild(im);
+    } else {
+      petCos.textContent = opt?.emoji ?? "🚫";
+    }
+  } else {
+    petCos.textContent = "🐾";
+  }
+  const backCos = document.createElement("div");
+  backCos.className = "mdl-cos";
+  backCos.title = "裏面スキン";
+  const backImg = document.createElement("img");
+  backImg.src = backPathFor(deck.cardBackSetIndex ?? 0);
+  backImg.alt = "";
+  backImg.loading = "lazy";
+  backCos.appendChild(backImg);
+  cos.append(pieceCos, petCos, backCos);
+  box.appendChild(cos);
 
   // 箱クリックで編集。
   box.addEventListener("click", () => editDeck(deck.id));
@@ -130,6 +182,15 @@ function renderGrid() {
   gridEl.innerHTML = "";
   gridEl.appendChild(buildNewBox());
   for (const deck of getAllDecks()) gridEl.appendChild(buildDeckBox(deck));
+  // ペットのサムネ用に pet-skins を遅延ロード（読み込めたら一覧を描き直して差し替え）。
+  if (!petMod) {
+    import("./pet-skins.js")
+      .then((m) => {
+        petMod = m;
+        renderGrid();
+      })
+      .catch(() => {});
+  }
 }
 
 // 編集画面へ（一覧を閉じ、戻る時に一覧を開き直す）。

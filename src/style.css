@@ -14368,3 +14368,69 @@ body.theme-light .mdb-setting-btn {
 .mds-action:hover {
   filter: brightness(1.08);
 }
+
+/* ── マイデッキ編集: ファーストカード選択（画像を並べる＋ホバー拡大）───────────── */
+.mdb-first-picks {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+.mdb-first-pick {
+  padding: 0;
+  border: 2px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.35rem;
+  background: rgba(15, 23, 42, 0.6);
+  cursor: pointer;
+  overflow: hidden;
+}
+.mdb-first-pick.is-selected {
+  border-color: #f2c94c;
+  box-shadow: 0 0 0 2px rgba(242, 201, 76, 0.4);
+}
+.mdb-first-card {
+  width: 2.7rem;
+  height: 2.7rem;
+  line-height: 0;
+}
+.mdb-first-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.mdb-first-pick-random {
+  height: 2.7rem;
+  padding: 0 0.5rem;
+  color: #cbd5e1;
+  font-size: 0.7rem;
+  font-weight: bold;
+  font-family: sans-serif;
+}
+
+/* ── マイデッキ一覧: 各デッキの選択スキン（駒・ペット・裏面）を画像で表示 ───────── */
+.mdl-deck-cosmetics {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.7rem 0.55rem;
+}
+.mdl-cos {
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 0.3rem;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+.mdl-cos img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.mdl-cos.mdl-cos-pet {
+  font-size: 1rem;
+}

@@ -385,7 +385,7 @@ function pieceThumbSrc(color, idx) {
 }
 function refreshSettingsRow() {
   if (!settingsEl || !currentDeck) return;
-  settingsEl.querySelectorAll(".mdb-color-chip").forEach((chip) => {
+  settingsEl.querySelectorAll(".mdb-first-pick").forEach((chip) => {
     chip.classList.toggle("is-selected", (chip.dataset.color || "") === (currentDeck.firstColor || ""));
   });
   const pieceImg = settingsEl.querySelector(".mdb-setting-piece img");
@@ -423,11 +423,12 @@ function buildSettingsRow() {
   colorLabel.className = "mdb-setting-label";
   colorLabel.textContent = "ファースト色";
   colorSetting.appendChild(colorLabel);
+  // ユーザー要望2026-08-11: 色チップではなく、実際のファーストカードを小さく並べる。ホバーで拡大。
   const chips = document.createElement("div");
-  chips.className = "mdb-color-chips";
+  chips.className = "mdb-first-picks";
   const rnd = document.createElement("button");
   rnd.type = "button";
-  rnd.className = "mdb-color-chip mdb-color-chip-random";
+  rnd.className = "mdb-first-pick mdb-first-pick-random";
   rnd.dataset.color = "";
   rnd.title = "ランダム（対戦開始時に決定）";
   rnd.textContent = "ランダム";
@@ -439,14 +440,18 @@ function buildSettingsRow() {
   for (const color of FIRST_COLORS) {
     const chip = document.createElement("button");
     chip.type = "button";
-    chip.className = "mdb-color-chip";
+    chip.className = "mdb-first-pick mdb-first-card";
     chip.dataset.color = color;
-    chip.style.background = MDB_COLOR_HEX[color];
-    chip.title = color;
+    const img = document.createElement("img");
+    img.src = getCardImagePath(`first-${color}`);
+    img.alt = color;
+    img.loading = "lazy";
+    chip.appendChild(img);
     chip.addEventListener("click", () => {
       currentDeck.firstColor = color;
       refreshSettingsRow();
     });
+    attachHoverPreview(chip, `first-${color}`); // ホバーで拡大プレビュー
     chips.appendChild(chip);
   }
   colorSetting.appendChild(chips);
