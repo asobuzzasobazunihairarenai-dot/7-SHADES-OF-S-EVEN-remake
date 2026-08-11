@@ -4822,15 +4822,18 @@ function triggerCardArrival(cardId, location, onFullyResolved, opts = {}) {
   // 到達効果を自動処理する対象席かどうか。通常は「自分の席」。ただしローカルCPU戦では
   // CPU(C)が到達した時もその効果を自動処理する必要がある（不具合#21: CPUの到達効果が
   // 発動しない）。getAutoDriveSeatはCPU戦のCPUの番なら今のターンプレイヤー(C)を返す。
-  // 不具合#54: 接触の強制移動で、接触された相手(=ローカルCPU戦のCPU席)が自分のゲートの
-  // カードに到達しても到達効果が処理されない（auto:false）ままだった。原因は、attackerの
-  // ターン中は getAutoDriveSeat() が turnPlayer(=attacker) を返すため、強制移動で優先権が
-  // 一時的にdefender(CPU席)へ移っていても、到達した本人(defender)が自動処理対象と見なされ
-  // なかったこと。強制解決中は「今まさに優先権を持つ疑似CPU席」も自動処理対象に含める
-  // （通常ターンは priorityPlayer===turnPlayer のため挙動は変わらない）。
-  const forcedCpuArrival =
-    isCpuBattleActive() && !isOnlineMode() && !!player && isPseudoCpuTarget(player) && getState().priorityPlayer === player;
-  const shouldAutoProcess = !!player && (player === getAutoDriveSeat() || forcedCpuArrival) && canAutoProcessArrival(cardId);
+  // 不具合#54/#75: 接触の強制移動で、接触された相手(defender)が自分のゲートのカードに到達
+  // しても到達効果が処理されない（auto:false）ままだった。原因は、attackerのターン中は
+  // getAutoDriveSeat() が turnPlayer(=attacker) を返すため、強制移動で優先権が一時的に
+  // defenderへ移っていても、到達した本人(defender)が自動処理対象と見なされなかったこと。
+  // #54では防御側がCPU席(isPseudoCpuTarget)の時だけ救済していたが、#75で「防御側が人間
+  // (seat A)でも同じく不発（ゲートのジャンプ台の到達が動かない）」と判明。ローカル
+  // （オンライン以外＝1クライアントで全員を操作）では、今まさに優先権を持つ人の到達は
+  // CPU・人間を問わず自動処理する（通常ターンは priorityPlayer===turnPlayer のため挙動は
+  // 変わらない。オンラインは各クライアントが自分の席の到達を処理する別経路のため対象外）。
+  const forcedLocalPriorityArrival =
+    !isOnlineMode() && !!player && getState().priorityPlayer === player;
+  const shouldAutoProcess = !!player && (player === getAutoDriveSeat() || forcedLocalPriorityArrival) && canAutoProcessArrival(cardId);
   // 診断（到達コンボ不発の調査）: どのブランチ（自動実行 or 手動モーダルのみ）に入るかを
   // 決める材料を全部残す。ユーザー報告「パーティを取って露出したジャンプ台の到達効果が
   // 起きない（モーダルは出る）」の切り分け用。auto=false ならモーダルのみ＝効果は動かない。
