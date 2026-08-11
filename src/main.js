@@ -6098,6 +6098,12 @@ async function respondToContact(approve) {
   // 優先権をdefenderへ移す処理を、pendingContactを消すrespondContactより前に繰り上げる
   // ことで、この窓を塞ぐ（優先権の返却は従来通り finishContactResolution が行う）。
   // ピック選択のキャンセル（上の early return）より後・状態変更より前のこの位置で行う。
+  // #69: 下の「保険タイマー」のidを関数スコープに置き、正常に finishContactResolution が
+  // 走ったらキャンセルできるようにする（でないと、接触解決が正常に終わって次のターンへ
+  // 移った後に保険が遅れて発火し、たまたま次の優先権保持者が defender と一致していると
+  // 優先権を誤って手番プレイヤーへ戻し、余計なNEXT_TURN＝相手ターン飛ばし・優先権表示の
+  // 乱れを起こす。#61で入れた保険が誤爆していた）。
+  let contactSafetyTimer = null;
   if (approve && defenderPieceId) {
     const priorityBeforeTransfer = getState().priorityPlayer;
     logAction("diag-delegate", { phase: "contact-request", defender, turnPlayer: getState().turnPlayer });
@@ -6114,8 +6120,11 @@ async function respondToContact(approve) {
     // はその端末の実状を正しく見られる。優先権の書き込みはサーバー永続でターンプレイヤーへ伝播する。
     {
       const heldTurnPlayer = getState().turnPlayer;
-      setTimeout(() => {
+      contactSafetyTimer = setTimeout(() => {
+        contactSafetyTimer = null;
         const s = getState();
+        // 正常時は finishContactResolution が既にこのタイマーをクリアしているので、ここへは
+        // 「本当に解決が返って来なかった（stuck）」場合しか来ない。念のため条件でも二重確認する。
         if (s.priorityPlayer === defender && s.turnPlayer === heldTurnPlayer && !isArrivalEffectProcessing()) {
           logAction("diag-contact-priority", { phase: "safety-return", defender, turnPlayer: heldTurnPlayer });
           transferPriorityTo(heldTurnPlayer);
@@ -6250,6 +6259,12 @@ async function respondToContact(approve) {
     // #13: 強制移動の到達処理が終わったら優先権をターンプレイヤーへ返す（結果モーダルは
     // 到達より前に出すよう変更したため、ここでは結果モーダルは出さない。下参照）。
     const finishContactResolution = () => {
+      // #69: 正常に解決できたので保険タイマーをキャンセルする（遅れて誤発火し、次のターンの
+      // 優先権を巻き戻す事故を防ぐ）。
+      if (contactSafetyTimer) {
+        clearTimeout(contactSafetyTimer);
+        contactSafetyTimer = null;
+      }
       logAction("diag-delegate", { phase: "contact-resolved", defender, returningPriorityTo: getState().turnPlayer });
       // #61診断: 接触の到達効果解決が終わった時刻・状態を記録（diag-next-turnと突き合わせて
       // 「解決前にNEXT_TURNが飛んでいないか」を確認する）。
