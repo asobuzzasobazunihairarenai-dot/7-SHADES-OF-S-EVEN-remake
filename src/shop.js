@@ -107,7 +107,11 @@ function buildItemCard(item) {
         activeSwatch = swatch;
       }
       swatch.addEventListener("click", () => {
-        img.src = getSkinImagePathForVariant(color, item.variant);
+        const path = getSkinImagePathForVariant(color, item.variant);
+        img.src = path;
+        // 背景の半透明スキン画像も選んだ色に追従させる（不具合報告: 色を変えても背景が
+        // 赤(既定のitem.imagePath)のままだった。サムネイルだけ差し替えて背景を忘れていた）。
+        bg.style.backgroundImage = `url("${path}")`;
         activeSwatch?.classList.remove("is-active");
         swatch.classList.add("is-active");
         activeSwatch = swatch;
