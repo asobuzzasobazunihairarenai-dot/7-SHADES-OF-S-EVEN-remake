@@ -84,6 +84,28 @@ function recordHandEffectUsage(cardId, player) {
   handEffectUsage.set(usageKey(cardId, player), { turnNumber: getState().turnNumber, count: usageCountThisTurn(cardId, player) + 1 });
 }
 
+// 赤のキューブ フェニックス（first-red）無限ループ防止（不具合#72）。
+// カード注記: 「複数回使用は可、意味のないループ行為は禁止」。ping-pong無限ループの本質は
+// 「first-redの追色コストで捨てたカードを、次のfirst-redで second-from-top として拾い直す」
+// こと（例: なないろの欠片1と2を交互に捨て⇄回収）。そこで「そのターンに first-red の追色
+// コストとして捨てた cardId は、同じターンの first-red では拾い直せない」ようにする——これで
+// 2枚をぐるぐる回すループだけを止め、別の（コストにしていない）カードを拾う正当な複数回使用は
+// 一切妨げない。捨て場はトークンIDを保持しない（捨てると cardId で積まれ、引くと新トークンに
+// なる）ため、tokenIdではなく cardId で追跡する。turnNumberで自動失効（handEffectUsageと同じ方式）。
+let phoenixCostTurnNumber = -1;
+const phoenixCostCardIds = new Set();
+function notePhoenixCostCard(cardId) {
+  const turn = getState().turnNumber;
+  if (phoenixCostTurnNumber !== turn) {
+    phoenixCostTurnNumber = turn;
+    phoenixCostCardIds.clear();
+  }
+  phoenixCostCardIds.add(cardId);
+}
+function isPhoenixCostCardThisTurn(cardId) {
+  return phoenixCostTurnNumber === getState().turnNumber && phoenixCostCardIds.has(cardId);
+}
+
 // 禁断の果実 マルメゴ専用（PUBLIC_DRAW_DISABLE_HAND_EFFECTS_CONDITIONAL_DISCARD）:
 // 「それらの手札効果はこのターン使うことができない。」を、handEffectUsageと同じ
 // 「turnNumberが一致する間だけ有効」という自動失効パターンで実現する（このカード
@@ -1845,6 +1867,22 @@ async function runHandEffectOption(ctx, option, helpers) {
     await helpers.discardAndSync(ctx.cardTokenId);
   }
   if (option.cost?.verb === VERBS.DISCARD_SAME_COLOR) {
+    // フェニックス(first-red)ループ防止(#72): これから追色コストを払うと、その後の
+    // PICKUP_DISCARD_SECOND_FROM_TOP が拾うのは「今の捨て場の一番上」(discard[len-1])に
+    // なる。それがこのターン既に first-red の追色コストとして捨てた cardId なら、2枚を
+    // ぐるぐる回す無限ループになるため、コストを払う前にここで使用を止める（コスト札を
+    // 無駄にしない。別のカードを拾う正当な複数回使用は一切妨げない）。
+    if (ctx.cardId === "first-red") {
+      const discardPile = getState().piles.discard;
+      const futureTargetCardId = discardPile.length >= 1 ? discardPile[discardPile.length - 1] : null;
+      if (futureTargetCardId && isPhoenixCostCardThisTurn(futureTargetCardId)) {
+        await helpers.announceEffectReason?.(
+          ctx.cardId,
+          "このターンにフェニックスの追色コストとして捨てたカードを、再びフェニックスで拾い直すこと（ループ）はできません。"
+        );
+        return false;
+      }
+    }
     const color = getCardDefinition(ctx.cardId)?.color;
     const candidates = findSameColorDiscardCandidates(ctx.cardTokenId, color, ctx.player);
     // ユーザー要望「追色カードを手札から選択するステップを踏んでください」。候補が
@@ -1852,6 +1890,8 @@ async function runHandEffectOption(ctx, option, helpers) {
     const chosen = await helpers.pickDiscardCost(candidates, `捨てる${color === "white" || color === "black" ? "" : "同じ色の"}カードを手札から選択してください`);
     if (!chosen) return false;
     await helpers.discardAndSync(chosen.id);
+    // このコストで捨てた cardId を、first-red のときだけ記録（上のループ防止判定で使う）。
+    if (ctx.cardId === "first-red") notePhoenixCostCard(chosen.cardId);
   }
   const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === ctx.player);
   // ハマりどころ: このruncCtxにcardTokenIdが抜けていたため、runAction内で
