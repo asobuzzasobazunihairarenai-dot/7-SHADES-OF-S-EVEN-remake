@@ -321,6 +321,20 @@ function rebuildDeckList() {
     cnt.className = "mdb-deck-entry-count";
     cnt.textContent = `×${n}`;
     art.appendChild(cnt);
+    // 立体ケースの表紙（メインカード）を選ぶ★トグル（ユーザー要望2026-08-12）。クリックで設定/解除。
+    const star = document.createElement("span");
+    star.className = "mdb-deck-entry-main";
+    const isMain = !!currentDeck && currentDeck.mainCardId === card.id;
+    star.classList.toggle("is-main", isMain);
+    star.textContent = isMain ? "★" : "☆";
+    star.title = "立体ケースの表紙（メインカード）に設定";
+    star.addEventListener("click", (e) => {
+      e.stopPropagation(); // カード除去（entryのclick）を発火させない
+      if (!currentDeck) return;
+      currentDeck.mainCardId = currentDeck.mainCardId === card.id ? null : card.id;
+      rebuildDeckList();
+    });
+    art.appendChild(star);
     entry.appendChild(art);
 
     const nm = document.createElement("div");

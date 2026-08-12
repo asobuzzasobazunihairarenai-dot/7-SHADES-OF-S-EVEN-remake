@@ -42,8 +42,10 @@ function backPathFor(idx) {
   return `assets/cards/back-normal${suffix}.${ext}`;
 }
 
-// デッキの代表カード（枚数が最多、同数なら並び順が先）のcardId。空なら null。
+// 立体ケースの表面に貼るカード。編集で選んだメインカード(deck.mainCardId)があり、実際に
+// デッキに入っていればそれ。無ければ代表カード（枚数最多、同数なら並び順が先）。空なら null。
 function representativeCardId(deck) {
+  if (deck.mainCardId && (deck.cards?.[deck.mainCardId] ?? 0) > 0) return deck.mainCardId;
   let best = null;
   let bestCount = 0;
   for (const [cardId, count] of Object.entries(deck.cards || {})) {
@@ -63,13 +65,17 @@ function buildDeckBox(deck) {
   const art = document.createElement("div");
   art.className = "mdl-deck-art";
   const rep = representativeCardId(deck);
+  // MTGAデッキボックス風の立体ケース（斜め・厚み・影）。表面(.mdl-deck-case)にメインカードを貼る。
+  const caseEl = document.createElement("div");
+  caseEl.className = "mdl-deck-case";
   if (rep) {
     const img = document.createElement("img");
     img.src = getCardImagePath(rep);
     img.alt = "";
     img.loading = "lazy";
-    art.appendChild(img);
+    caseEl.appendChild(img);
   }
+  art.appendChild(caseEl);
   const accent = deck.firstColor ? MDL_COLOR_HEX[deck.firstColor] : "#64748b";
   art.style.setProperty("--mdl-accent", accent);
   box.appendChild(art);

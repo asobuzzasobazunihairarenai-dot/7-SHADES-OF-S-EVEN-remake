@@ -103,6 +103,7 @@ export function makeEmptyDeck(name) {
     pieceSkinIndex: null, // null = プロフィール既定
     petIndex: null,
     cardBackSetIndex: null,
+    mainCardId: null, // マイデッキ一覧の立体ケース表面に貼るカード（null=自動＝最多枚数のカード）
   };
 }
 // おまかせ/タイムアップ用: 非スペシャルの通常カードから7枚ジャスト＋ファースト色ランダム。
@@ -148,6 +149,8 @@ function normalizeDeck(d) {
     pieceSkinIndex: typeof d.pieceSkinIndex === "number" ? d.pieceSkinIndex : null,
     petIndex: typeof d.petIndex === "number" ? d.petIndex : null,
     cardBackSetIndex: typeof d.cardBackSetIndex === "number" ? d.cardBackSetIndex : null,
+    // メインカードは実際にデッキに入っている時だけ有効（抜けたら自動フォールバックに戻す）。
+    mainCardId: typeof d.mainCardId === "string" && cards[d.mainCardId] ? d.mainCardId : null,
   };
 }
 
