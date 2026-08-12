@@ -5915,6 +5915,94 @@ body.shop-adjust-mode .shop-item-color-swatch {
   transform: translate(var(--shop-thumb-x, 0rem), var(--shop-thumb-y, 0rem))
     scale(calc(var(--shop-thumb-scale, 1) * 1.06));
 }
+
+/* 駒スキンを立方体（キューブ）で見せる（ユーザー要望2026-08-12）。同じ駒画像を上・前・右の
+   3面に貼り、面ごとの明度差で立体的に。色スウォッチで3面ともまとめて差し替わる（shop.js）。 */
+.shop-item-thumb.shop-thumb-cube {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 820px;
+}
+.shop-cube {
+  position: relative;
+  width: 4.8rem;
+  height: 4.8rem;
+  transform-style: preserve-3d;
+  transform: rotateX(-24deg) rotateY(-36deg);
+  transition: transform 0.4s ease;
+  filter: drop-shadow(0 0.55rem 0.5rem rgba(0, 0, 0, 0.45));
+}
+.shop-item-card:hover .shop-cube {
+  transform: rotateX(-20deg) rotateY(-52deg);
+}
+.shop-cube-face {
+  position: absolute;
+  width: 4.8rem;
+  height: 4.8rem;
+  background-size: cover;
+  background-position: center;
+  border-radius: 0.3rem;
+  backface-visibility: hidden;
+}
+.shop-cube-front {
+  transform: translateZ(2.4rem);
+  filter: brightness(0.92);
+}
+.shop-cube-top {
+  transform: rotateX(90deg) translateZ(2.4rem);
+  filter: brightness(1.15);
+}
+.shop-cube-right {
+  transform: rotateY(90deg) translateZ(2.4rem);
+  filter: brightness(0.64);
+}
+
+/* マイデッキ枠(+2): 箱風のミニ画像を2つ並べる（ユーザー要望2026-08-12。＋2枠＝箱2つ）。 */
+.shop-item-thumb.shop-thumb-slotboxes {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  perspective: 720px;
+}
+.shop-slot-box {
+  position: relative;
+  width: 3.1rem;
+  height: 3.9rem;
+  border-radius: 0.35rem;
+  background: linear-gradient(160deg, #2a3a52, #0e1626);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  transform: rotateY(-17deg) rotateX(4deg);
+  box-shadow: 3px 0 0 #101a2b, 6px 1px 0 #0a1120, -6px 8px 10px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.shop-slot-box:nth-child(2) {
+  transform: rotateY(-17deg) rotateX(4deg) translateY(0.32rem);
+}
+.shop-slot-box::before {
+  /* 少し開いた蓋風の上端。 */
+  content: "";
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  top: -0.28rem;
+  height: 0.5rem;
+  border-radius: 0.2rem 0.2rem 0 0;
+  background: linear-gradient(180deg, #3a4d6b, #223046);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-bottom: none;
+}
+.shop-slot-box-face {
+  width: 66%;
+  height: 66%;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  opacity: 0.92;
+}
 /* ホバーで光沢が横切る演出（sheen）。バッジ類より下に敷く。 */
 .shop-item-thumb::after {
   content: "";

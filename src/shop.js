@@ -62,10 +62,40 @@ function buildItemCard(item) {
 
   const thumb = document.createElement("div");
   thumb.className = "shop-item-thumb";
-  const img = document.createElement("img");
-  img.src = item.imagePath;
-  img.alt = item.label;
-  thumb.appendChild(img);
+  const isPieceSkin = item.previewColors && typeof item.variant === "number";
+  let img = null;
+  let cubeFaces = null; // 駒スキンのキューブ3面（色スウォッチで差し替えるため保持）
+  if (item.itemKey === "mydeck-extra-slots") {
+    // マイデッキ枠(+2): 箱風のミニ画像を2つ並べる（ユーザー要望2026-08-12）。
+    thumb.classList.add("shop-thumb-slotboxes");
+    for (let i = 0; i < 2; i++) {
+      const box = document.createElement("div");
+      box.className = "shop-slot-box";
+      const face = document.createElement("div");
+      face.className = "shop-slot-box-face";
+      face.style.backgroundImage = `url("${item.imagePath}")`;
+      box.appendChild(face);
+      thumb.appendChild(box);
+    }
+  } else if (isPieceSkin) {
+    // 駒スキン: 立方体（キューブ）に見えるよう、同じ駒画像を上・前・右の3面に貼る（ユーザー要望）。
+    thumb.classList.add("shop-thumb-cube");
+    const cube = document.createElement("div");
+    cube.className = "shop-cube";
+    cubeFaces = ["top", "front", "right"].map((f) => {
+      const face = document.createElement("div");
+      face.className = "shop-cube-face shop-cube-" + f;
+      face.style.backgroundImage = `url("${item.imagePath}")`;
+      cube.appendChild(face);
+      return face;
+    });
+    thumb.appendChild(cube);
+  } else {
+    img = document.createElement("img");
+    img.src = item.imagePath;
+    img.alt = item.label;
+    thumb.appendChild(img);
+  }
 
   const owned = item.cost === 0 || isItemUnlocked(item.itemKey);
   // ユーザー要望「ショップのビジュアルはMTGA(Magic: The Gathering Arena)ストアの感じを
@@ -108,7 +138,9 @@ function buildItemCard(item) {
       }
       swatch.addEventListener("click", () => {
         const path = getSkinImagePathForVariant(color, item.variant);
-        img.src = path;
+        // 駒スキンはキューブ3面を、それ以外は通常のimgを差し替える。
+        if (cubeFaces) cubeFaces.forEach((f) => (f.style.backgroundImage = `url("${path}")`));
+        else if (img) img.src = path;
         // 背景の半透明スキン画像も選んだ色に追従させる（不具合報告: 色を変えても背景が
         // 赤(既定のitem.imagePath)のままだった。サムネイルだけ差し替えて背景を忘れていた）。
         bg.style.backgroundImage = `url("${path}")`;
