@@ -8905,9 +8905,15 @@ function findGomennasaiEligibility(seat) {
 // バナー自体も出さない）。render()のたびに毎回チェックする既存パターンを踏襲。
 // 多重発火防止のガード付き。
 let gomennasaiAutoApprovalInFlight = false;
+// 不具合#36/#83: 人間が「ゴメンナサイを使う」を押して useGomennasaiOnFinalLock が進行している間、
+// その処理の途中で追色コストを捨てた“瞬間”に findGomennasaiEligibility が一時的に null になる
+// （紫カードが手札から消えるため）。この隙に checkGomennasaiAutoApproval が「使えない＝自動承認」
+// と誤判定して先に承認→勝利確定してしまい、その後のゴメンナサイの奪取で相手のロックが1色欠けても
+// 手遅れ（既に勝利宣言済み）になっていた。手動使用が進行中の間は自動承認を絶対にさせないフラグ。
+let gomennasaiManualUseInFlight = false;
 function checkGomennasaiAutoApproval() {
   const pending = getState().pendingFinalLock;
-  if (!pending || pending.queue.length === 0 || gomennasaiAutoApprovalInFlight) return;
+  if (!pending || pending.queue.length === 0 || gomennasaiAutoApprovalInFlight || gomennasaiManualUseInFlight) return;
   const approver = pending.queue[0];
   if (isOnlineMode() && getSelfSeat() !== approver) return;
   if (findGomennasaiEligibility(approver)) return; // 使えるなら自動承認せず本人の選択を待つ
@@ -8962,7 +8968,7 @@ function checkGomennasaiAutoApproval() {
 // ここで扱うのは「先頭がCPU席かつゴメンナサイを使える」局面だけ。
 let cpuFinalLockInFlight = false;
 function checkCpuFinalLockApproval() {
-  if (cpuFinalLockInFlight || gomennasaiAutoApprovalInFlight) return;
+  if (cpuFinalLockInFlight || gomennasaiAutoApprovalInFlight || gomennasaiManualUseInFlight) return;
   const pending = getState().pendingFinalLock;
   if (!pending || pending.queue.length === 0) return;
   const approver = pending.queue[0];
@@ -9074,6 +9080,9 @@ async function useGomennasaiOnFinalLock() {
   const selfSeat = getSelfSeat();
   const eligibility = findGomennasaiEligibility(selfSeat);
   if (!eligibility) return;
+  // #36/#83: この使用が終わるまで自動承認を止める（追色コストを捨てた隙に自動承認→先に勝利
+  // 宣言されるのを防ぐ）。以降のあらゆる経路（早期return・例外含む）で必ず下のfinallyで戻す。
+  gomennasaiManualUseInFlight = true;
   // #36a: 「ゴメンナサイを使う」を押した瞬間から、承認バナーを「ロックエリアから奪うカードを
   // 選んでください」の案内に切り替える（奪う札を選び終える/中止するまで）。finallyで必ず戻す。
   setGomennasaiPicking(true);
@@ -9140,6 +9149,7 @@ async function useGomennasaiOnFinalLock() {
   await respondToFinalLock(true);
   logAction("diag-gomennasai-steal", { attacker: attackerSeat, phase: "afterFinalLock", attackerLocksAfter: locksSnapshot() });
   } finally {
+    gomennasaiManualUseInFlight = false;
     setGomennasaiPicking(false);
     updateFinalLockApprovalBanner();
   }
