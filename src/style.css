@@ -5923,6 +5923,9 @@ body.shop-adjust-mode .shop-item-color-swatch {
   align-items: center;
   justify-content: center;
   perspective: 820px;
+  /* 影は3Dを潰さないよう、perspective親(=この要素、preserve-3dではない)側に置く。
+     preserve-3d要素に filter を付けると仕様上flatに潰れ、キューブが1面になる（不具合報告）。 */
+  filter: drop-shadow(0 0.55rem 0.5rem rgba(0, 0, 0, 0.4));
 }
 .shop-cube {
   position: relative;
@@ -5931,7 +5934,6 @@ body.shop-adjust-mode .shop-item-color-swatch {
   transform-style: preserve-3d;
   transform: rotateX(-24deg) rotateY(-36deg);
   transition: transform 0.4s ease;
-  filter: drop-shadow(0 0.55rem 0.5rem rgba(0, 0, 0, 0.45));
 }
 .shop-item-card:hover .shop-cube {
   transform: rotateX(-20deg) rotateY(-52deg);
@@ -14238,7 +14240,8 @@ body.theme-light #mdb-name-input {
   aspect-ratio: 1 / 1; /* 前面を正方形に（ユーザー要望2026-08-12） */
   transform-style: preserve-3d;
   transform: rotateX(9deg) rotateY(-18deg);
-  filter: drop-shadow(-11px 16px 13px rgba(0, 0, 0, 0.55));
+  /* filter はここに置かない: preserve-3d要素に filter を付けると仕様上flatに潰れ、
+     箱が平面になる（＝「箱感が薄い」原因）。落ち影は下の .mdl-deck-front の box-shadow で出す。 */
 }
 /* 箱の前面（＝顔。メインカードを貼る）。右側にカードの束の厚みを重ねる。 */
 .mdl-deck-front {
@@ -14249,7 +14252,8 @@ body.theme-light #mdb-name-input {
   background: #0b1220;
   border: 1px solid color-mix(in srgb, var(--mdl-accent, #334155) 62%, #ffffff 12%);
   transform: translateZ(16px);
-  box-shadow: 2px 0 0 #1b2740, 4px 1px 0 #151f33, 6px 1px 0 #101827, 8px 2px 0 #0b111d, 10px 2px 0 #080d16;
+  box-shadow: 2px 0 0 #1b2740, 4px 1px 0 #151f33, 6px 1px 0 #101827, 8px 2px 0 #0b111d, 10px 2px 0 #080d16,
+    -11px 16px 16px rgba(0, 0, 0, 0.5); /* 落ち影（filterを使わないのでbox-shadowで） */
 }
 .mdl-deck-front img {
   width: 100%;
