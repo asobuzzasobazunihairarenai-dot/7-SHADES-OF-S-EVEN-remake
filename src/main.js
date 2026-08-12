@@ -61,7 +61,8 @@ import { initBoardViewToggle } from "./board-view-toggle.js";
 import { getOptionArea } from "./option-area.js";
 import { openBugReportModal } from "./bug-report.js";
 // オンライン対戦開始時に一度だけ出す「不具合報告のお願い」案内（開始告知が閉じた直後に表示）。
-import { maybeShowBugReportIntro } from "./bug-report-intro.js";
+import { maybeShowBugReportIntro, isBugReportIntroHidden } from "./bug-report-intro.js";
+import { maybeShowGameStartIntros } from "./game-intros.js";
 // マイデッキ戦: 保存したデッキをアカウント(so7_user_profiles.my_deck)へ反映する注入（下の
 // registerMyDeckPersistence参照）。my-deck.js は cards-data.js のみ依存の葉モジュール。
 import { registerMyDeckPersistence } from "./my-deck.js";
@@ -12113,6 +12114,9 @@ subscribe(() => {
         const onSetupRevealDone = () => {
           setSetupRevealActive(false); // 内部で reconcilePhaseAutomation() を呼ぶ
           maybeShowBugReportIntro();
+          // 操作説明モーダル（game-intros.js）を1つ出す。ただし不具合報告の案内がまだ出る
+          // ゲーム（未非表示）では重なるので、それが消えてから（既に非表示設定なら）出す。
+          if (isBugReportIntroHidden()) void maybeShowGameStartIntros();
         };
         if (starter) showStartPlayerModal(starter, { onClose: onSetupRevealDone });
         else onSetupRevealDone();

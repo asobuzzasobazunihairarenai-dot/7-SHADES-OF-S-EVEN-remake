@@ -25,6 +25,7 @@ import { animateFirstCardsDealt, animateBoardFilled } from "./setup-animation.js
 import { applyAvatarContent } from "./avatar-render.js";
 import { getSelfSeat } from "./online.js";
 import { setSetupRevealActive } from "./phase-automation.js";
+import { maybeShowGameStartIntros } from "./game-intros.js";
 
 // 2人/3人プレイ時、座席自動選択モード（管理者モードのトグルがオフの時）で使う座席。
 // 2人=対面(A・C)、3人=Dを除いた3隅。4人は常に全員。
@@ -393,7 +394,13 @@ function runStep3() {
   setSetupRevealActive(true);
   setTurnPlayer(startPlayer);
   notifyChange();
-  showStartPlayerModal(startPlayer, { onClose: () => setSetupRevealActive(false) });
+  showStartPlayerModal(startPlayer, {
+    onClose: () => {
+      setSetupRevealActive(false);
+      // ローカル/CPU戦の開始時にも操作説明モーダルを1つ出す（オンラインはmain.js側で出す）。
+      void maybeShowGameStartIntros();
+    },
+  });
 }
 
 async function runAll() {
