@@ -738,6 +738,14 @@ if (client) {
   client.auth.onAuthStateChange((_event, session) => {
     const wasLoggedIn = !!cachedUser;
     cachedUser = session?.user ?? null;
+    // 不具合#77診断: スマホで通信断→タイトルに戻る原因追跡。認証状態の遷移（SIGNED_OUT や
+    // セッション失効など）で画面がリセットされている疑いがあるため、イベント種別と前後の
+    // ログイン状態を記録する。挙動は変えない（次の不具合報告のログで切り分ける）。
+    try {
+      logAction("diag-auth", { event: _event, wasLoggedIn, nowLoggedIn: !!cachedUser });
+    } catch {
+      /* ログ失敗は無視 */
+    }
     // 管理者本人だけに見せたいUI（タイトル画面のテストモード/管理者パネルのボタン等）用の
     // bodyクラス。認証が解決するたびに付け外しする（ユーザー要望: これらは管理者だけに表示）。
     try {
@@ -2709,6 +2717,10 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
       for (const fn of bugLogResponseEventListeners) fn(payload);
     })
     .subscribe((status) => {
+      // 不具合#77診断: スマホで「何度も通信が切れてタイトルに戻る」の原因追跡用に、
+      // Realtimeチャンネルの状態遷移（SUBSCRIBED/CHANNEL_ERROR/TIMED_OUT/CLOSED）を記録する。
+      // 次の不具合報告のログで、切断の種類・頻度・再購読の有無が分かる。挙動は変えない。
+      if (status !== "SUBSCRIBED") logAction("diag-realtime", { status, gameId });
       // ユーザー要望「部屋に入ってきたら、待機中の他メンバーにもリアルタイムで（＝
       // 相手側が何か操作するのを待たずに）伝わってほしい」への対応。channel購読が
       // 実際に確立してから送らないと、.subscribe()呼び出し直後はまだサーバー側の
