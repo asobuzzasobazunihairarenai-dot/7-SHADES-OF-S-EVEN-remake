@@ -39,12 +39,19 @@ function closeIntro() {
 
 // 開始告知（showStartPlayerModal）が閉じた直後などに呼ぶ。既に非表示設定・アイコン未構築なら
 // 何もしない（安全に空振りする）。
+// このページ読み込み（セッション）中に一度でも出したか。不具合#77: スマホで通信が頻繁に
+// 切れて再接続するたびにゲーム開始フローが再実行され、この案内が何度も出てしまう報告への対策。
+// 永続の「今後は表示しない」とは別に、1セッションでは最大1回だけ出す（再接続で連発しない）。
+let shownThisSession = false;
+
 export function maybeShowBugReportIntro() {
   if (rootEl) return;
+  if (shownThisSession) return; // 再接続等でゲーム開始が再実行されても連発させない(#77)
   if (isBugReportIntroHidden()) return;
   // アイコンがまだレイアウトされていない場合は案内しない（指す対象が無いため）。
   const icon = document.getElementById("self-status-bug-report");
   if (!icon) return;
+  shownThisSession = true;
 
   rootEl = document.createElement("div");
   rootEl.id = "bug-report-intro";
