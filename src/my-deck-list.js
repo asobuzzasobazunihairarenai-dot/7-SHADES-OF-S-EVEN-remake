@@ -3,7 +3,7 @@
 // 各箱の複製/削除ができる。編集は my-deck-builder.js（1デッキを編集）を開く。
 
 import { syncFullScreenPageActive } from "./option-area.js";
-import { getCardImagePath } from "./cards-data.js";
+import { getCardImagePath, getCardIllustPath } from "./cards-data.js";
 import { getAllDecks, createDeck, deleteDeck, duplicateDeck, validateDeck, deckTotal, maxDeckSlots } from "./my-deck.js";
 import { openMyDeckBuilder } from "./my-deck-builder.js";
 import { isItemUnlocked } from "./online.js";
@@ -79,7 +79,11 @@ function buildDeckBox(deck) {
   front.className = "mdl-deck-front";
   if (rep) {
     const img = document.createElement("img");
-    img.src = getCardImagePath(rep);
+    // 箱の表面は「イラストのみ」版を使う（テキスト無しでケースの絵柄として綺麗。ユーザー要望
+    // 2026-08-12）。イラスト版が無いカードは getCardIllustPath 内で通常画像へフォールバック。
+    img.src = getCardIllustPath(rep);
+    // イラスト版が404だった時だけ通常のテキストあり画像へ退避（未生成カードの保険）。
+    img.addEventListener("error", () => { img.src = getCardImagePath(rep); }, { once: true });
     img.alt = "";
     img.loading = "lazy";
     front.appendChild(img);

@@ -5960,6 +5960,22 @@ body.shop-adjust-mode .shop-item-color-swatch {
   filter: brightness(0.64);
 }
 
+/* ペット商品: 画像クリックでアクション再生（shop.js attachPetPlayground）。クリックできる
+   ことが伝わるよう指カーソル＋ホバーで軽く拡大。jumpの時だけ .shop-pet-bounce でひと跳ね。 */
+.shop-item-thumb.shop-thumb-pet img {
+  cursor: pointer;
+}
+.shop-pet-bounce {
+  animation: shop-pet-bounce 0.62s ease;
+}
+@keyframes shop-pet-bounce {
+  0% { transform: translate(var(--shop-thumb-x, 0rem), var(--shop-thumb-y, 0rem)) scale(var(--shop-thumb-scale, 1)) translateY(0); }
+  35% { transform: translate(var(--shop-thumb-x, 0rem), var(--shop-thumb-y, 0rem)) scale(var(--shop-thumb-scale, 1)) translateY(-26%); }
+  60% { transform: translate(var(--shop-thumb-x, 0rem), var(--shop-thumb-y, 0rem)) scale(var(--shop-thumb-scale, 1)) translateY(0); }
+  75% { transform: translate(var(--shop-thumb-x, 0rem), var(--shop-thumb-y, 0rem)) scale(var(--shop-thumb-scale, 1)) translateY(-10%); }
+  100% { transform: translate(var(--shop-thumb-x, 0rem), var(--shop-thumb-y, 0rem)) scale(var(--shop-thumb-scale, 1)) translateY(0); }
+}
+
 /* マイデッキ枠(+2): 箱風のミニ画像を2つ並べる（ユーザー要望2026-08-12。＋2枠＝箱2つ）。 */
 .shop-item-thumb.shop-thumb-slotboxes {
   display: flex;

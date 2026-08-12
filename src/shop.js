@@ -17,6 +17,7 @@ import { getCachedUser, getMyCurrencyBalance, isItemUnlocked, purchaseItem } fro
 import { refreshCurrencyDisplay } from "./currency-display.js";
 import { SHOP_CATEGORIES, getShopCompletionStats } from "./shop-content.js";
 import { getSkinImagePathForVariant } from "./piece-skins.js";
+import { petSpriteSrc } from "./pet-skins.js";
 
 let panelEl = null;
 let balanceEl = null;
@@ -46,6 +47,41 @@ function describePurchaseError(err) {
   if (message.includes("already_owned")) return "既に所持しています。";
   if (message.includes("not_authenticated")) return "ログインしてください。";
   return `購入に失敗しました（${message}）`;
+}
+
+// ショップのペット画像をクリックするとアクションを1つ再生する（ユーザー要望2026-08-12
+// 「ペット画像をクリックすると欠伸等のいろんなアクションをしてくれるように」）。クリックの
+// たびに順番でアクションが変わり、再生し終えると通常姿(static)へ戻る。アニメ素材(webp)は
+// それ自体がループ再生されるので、src差し替え＋一定時間後に戻すだけでよい。jumpは静止1コマ
+// のためCSSのバウンス(.shop-pet-bounce)を併用してはねて見せる。
+const PET_ACTIONS = [
+  { motion: "jump", dir: "front", ms: 640, bounce: true },
+  { motion: "yawn", dir: "front", ms: 1700 },
+  { motion: "walk", dir: "right", ms: 1400 },
+  { motion: "ear", dir: "front", ms: 1500 },
+  { motion: "walk", dir: "left", ms: 1400 },
+  { motion: "idle", dir: "front", ms: 1700 },
+];
+function attachPetPlayground(thumb, img, sprite) {
+  thumb.classList.add("shop-thumb-pet");
+  img.title = "クリックで動くよ";
+  let ai = 0;
+  let revertTimer = null;
+  const toStatic = () => {
+    img.src = petSpriteSrc(sprite, "front", "static");
+    img.classList.remove("shop-pet-bounce");
+  };
+  img.addEventListener("click", (e) => {
+    e.stopPropagation(); // カード全体やロックのクリック挙動と混ざらないように。
+    const a = PET_ACTIONS[ai % PET_ACTIONS.length];
+    ai += 1;
+    if (revertTimer) clearTimeout(revertTimer);
+    img.classList.remove("shop-pet-bounce");
+    void img.offsetWidth; // 連打時もバウンスを再度効かせるためのreflow。
+    img.src = petSpriteSrc(sprite, a.dir, a.motion);
+    if (a.bounce) img.classList.add("shop-pet-bounce");
+    revertTimer = setTimeout(toStatic, a.ms);
+  });
 }
 
 function buildItemCard(item) {
@@ -95,6 +131,9 @@ function buildItemCard(item) {
     img.src = item.imagePath;
     img.alt = item.label;
     thumb.appendChild(img);
+    // ペット商品は画像クリックで色々なアクション（ジャンプ/欠伸/歩行/耳ピク/固有待機）を
+    // 順番に見せる（ユーザー要望2026-08-12）。sprite付き商品（getPetShopItems）だけ有効。
+    if (item.sprite) attachPetPlayground(thumb, img, item.sprite);
   }
 
   const owned = item.cost === 0 || isItemUnlocked(item.itemKey);

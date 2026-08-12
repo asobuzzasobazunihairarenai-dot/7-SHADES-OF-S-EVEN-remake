@@ -30,6 +30,7 @@ export function getPetShopItems() {
     itemKey: o.itemKey,
     label: o.label,
     cost: o.cost,
+    sprite: o.sprite, // ショップでクリック時にモーション再生するために渡す（shop.js参照）
     imagePath: petSpriteSrc(o.sprite, "front", "static"),
   }));
 }
