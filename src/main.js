@@ -3015,6 +3015,12 @@ document.addEventListener(
     // 内のタップだけは、盤面の選択状態に関係なく常に通常通り機能させる（ここで早期
     // returnし、preventDefault/stopPropagationを一切呼ばない）。
     if (e.target.closest("#option-area")) return;
+    // 不具合#82: 駒の上に出る「🤝 接触する」ボタン(.card-open-prompt)は駒の中心に置かれ、
+    // 右側が“隣の移動先ハイライトのマス”に重なる。このcapture:trueハンドラはボタンを無視して
+    // elementsFromPoint()で下のマスを拾うため、ボタンの右側を押すと「接触」ではなく「右へ移動」
+    // が発火し、しかもボタン自身のclickは奪われて反応しない（＝左端しか効かない）。プロンプト上の
+    // タップはボタン本来のclickに任せる（#option-areaと同じく早期return）。
+    if (e.target.closest(".card-open-prompt")) return;
     if (!activeEffectPicker) {
       // ユーザー要望「ムーブフェイズでの移動先ハイライトをクリックしたら自動で移動する」。
       // カード効果の候補選択（activeEffectPicker）と同じ「3D傾き演出のためネイティブ
