@@ -30,7 +30,9 @@ import { COLORS } from "./board-layout.js";
 // 値（バリエーション番号の選択自体は色に依存しないため、どの色で見せても選択結果は同じ）。
 const PREVIEW_FALLBACK_COLOR = COLORS[0];
 
-const SKIN_VARIANTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]; // 0=標準（assets/pieces/${color}.webp）
+// 10〜14はユーザーが新規追加した駒スキン（2026-08-12適用）。10=0thオリジナル/11=0thリメイク
+// （静止webp）、12〜14はアニメーションwebp（動く駒。<img>/background-imageのままGIF同様に動く）。
+const SKIN_VARIANTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]; // 0=標準（assets/pieces/${color}.webp）
 
 // ユーザー要望「商品の名前が『追加1』とかでは寂しいのでフォルダで名前を付けました」への
 // 対応。画像素材/駒スキン/配下の各サブフォルダ名（基本=1、キュート=2、黒線=3、白面=4、
@@ -47,6 +49,11 @@ const NAMED_SKIN_LABELS = {
   7: "色文字",
   8: "大航海時代風",
   9: "遊びの王様風",
+  10: "0thオリジナル",
+  11: "0thリメイク",
+  12: "ギア（動く）",
+  13: "ステンドグラス（動く）",
+  14: "液体（動く）",
 };
 
 // ユーザー要望「駒スキンを購入できるようにする」への対応。標準(0)は無料、大航海時代風/
@@ -55,7 +62,10 @@ const NAMED_SKIN_LABELS = {
 // so7_award_match_currency参照、が基準）。実際の値は後で調整すること。
 function getSkinCost(idx) {
   if (idx === 0) return 0;
-  if (idx >= 8) return 120;
+  // 大航海時代風/遊びの王様風(8,9)と動くスキン(12〜14)は特別扱いで少し高め。
+  // 0thオリジナル/リメイク(10,11)は静止画のため通常価格。
+  const animated = idx === 12 || idx === 13 || idx === 14;
+  if (idx === 8 || idx === 9 || animated) return 120;
   return 80;
 }
 

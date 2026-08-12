@@ -38,7 +38,7 @@ function pieceThumbSrc(color, idx) {
 }
 function backPathFor(idx) {
   const suffix = idx === 0 ? "" : `-${idx}`;
-  const ext = idx === 0 || idx === 10 ? "webp" : "png";
+  const ext = idx === 0 || idx === 10 || idx === 11 ? "webp" : "png";
   return `assets/cards/back-normal${suffix}.${ext}`;
 }
 
