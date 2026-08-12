@@ -8248,6 +8248,61 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   color: #cbd5e1;
 }
 
+/* 用語リンク（glossary-linkify.js）。ルール説明・チュートリアル文中の基本用語をクリック可能に。 */
+.glossary-term {
+  color: #7dd3fc;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.glossary-term:hover {
+  color: #bae6fd;
+  text-decoration-style: solid;
+}
+.glossary-popup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(24rem, 92vw);
+  max-height: 80vh;
+  overflow-y: auto;
+  z-index: 10701;
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  border-radius: 0.7rem;
+  padding: 1.1rem 1.2rem 1rem;
+  color: #e2e8f0;
+  font-family: sans-serif;
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.65);
+}
+.glossary-popup-title {
+  font-size: 1.05rem;
+  font-weight: bold;
+  margin-bottom: 0.6rem;
+  color: #bae6fd;
+}
+.glossary-popup-paragraph {
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: #cbd5e1;
+  margin: 0 0 0.6rem;
+}
+.glossary-popup-close {
+  display: block;
+  margin: 0.4rem 0 0 auto;
+  padding: 0.4rem 1.1rem;
+  background: rgba(56, 189, 248, 0.18);
+  border: 1px solid rgba(56, 189, 248, 0.6);
+  border-radius: 0.4rem;
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.glossary-popup-close:hover {
+  filter: brightness(1.12);
+}
+
 /* 「今後このモーダルを表示しない」（confirmTouchAction、ロック前/手札使用前の確認）。
    Yes/Noの下に控えめな小さいテキストリンクとして置く。押すと以後この確認を出さない
    設定にして、その回の操作はそのまま実行する（再表示はオプションの基本設定から）。 */

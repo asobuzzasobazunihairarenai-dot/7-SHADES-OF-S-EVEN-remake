@@ -15,6 +15,7 @@ import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { getHelpSections, startTutorial } from "./tutorial.js";
 import { GLOSSARY, FAQ_CATEGORIES, DIGITAL_FEATURES } from "./help-content.js";
+import { linkifyGlossary } from "./glossary-linkify.js";
 import { getOptionArea } from "./option-area.js";
 
 // 個別の説明を表示する小さなモーダル（トップの一覧からのクリックで開く。icon-action-button.js
@@ -67,7 +68,8 @@ function openItemModal(title, bodyParagraphs, icon) {
   for (const paragraph of bodyParagraphs) {
     const p = document.createElement("p");
     p.className = "help-item-modal-paragraph";
-    p.textContent = paragraph;
+    // 文中の基本用語集の用語をクリック可能にする（押すと定義ポップアップ。ユーザー要望）。
+    linkifyGlossary(p, paragraph);
     itemModalBodyEl.appendChild(p);
   }
   itemModalBackdrop.style.display = "block";

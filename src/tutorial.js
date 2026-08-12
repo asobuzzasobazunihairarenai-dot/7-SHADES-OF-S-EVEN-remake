@@ -21,6 +21,7 @@
 
 import { getState, subscribe } from "./state.js";
 import { PHASES } from "./phase-guide.js";
+import { linkifyGlossary } from "./glossary-linkify.js";
 import { GATE_POSITIONS, SEAT_TO_SIDE } from "./board-layout.js";
 import { getSelfSeat } from "./online.js";
 import { getCardDefinition, getCardImagePath } from "./cards-data.js";
@@ -642,7 +643,7 @@ function renderStep() {
   bodyEl.innerHTML = "";
   for (const paragraph of step.body) {
     const p = document.createElement("p");
-    p.textContent = paragraph;
+    linkifyGlossary(p, paragraph); // 文中の基本用語をクリック可能に（用語定義ポップアップ）
     bodyEl.appendChild(p);
   }
   step.renderExtra?.(bodyEl);
@@ -650,7 +651,7 @@ function renderStep() {
     for (const paragraph of step.footer) {
       const p = document.createElement("p");
       p.className = "tutorial-callout-footer";
-      p.textContent = paragraph;
+      linkifyGlossary(p, paragraph);
       bodyEl.appendChild(p);
     }
   }
