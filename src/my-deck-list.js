@@ -65,16 +65,26 @@ function buildDeckBox(deck) {
   const art = document.createElement("div");
   art.className = "mdl-deck-art";
   const rep = representativeCardId(deck);
-  // MTGAデッキボックス風の立体ケース（斜め・厚み・影）。表面(.mdl-deck-case)にメインカードを貼る。
+  // MTGAデッキボックス風の立体ケース（斜め・厚み・少し開いた蓋・上から覗くカードの束）。
+  // 前面(.mdl-deck-front)にメインカードを貼る。層: peek(覗くカード) → lid(蓋) → front(前面)。
   const caseEl = document.createElement("div");
   caseEl.className = "mdl-deck-case";
+  const peek = document.createElement("div");
+  peek.className = "mdl-deck-peek";
+  caseEl.appendChild(peek);
+  const lid = document.createElement("div");
+  lid.className = "mdl-deck-lid";
+  caseEl.appendChild(lid);
+  const front = document.createElement("div");
+  front.className = "mdl-deck-front";
   if (rep) {
     const img = document.createElement("img");
     img.src = getCardImagePath(rep);
     img.alt = "";
     img.loading = "lazy";
-    caseEl.appendChild(img);
+    front.appendChild(img);
   }
+  caseEl.appendChild(front);
   art.appendChild(caseEl);
   const accent = deck.firstColor ? MDL_COLOR_HEX[deck.firstColor] : "#64748b";
   art.style.setProperty("--mdl-accent", accent);

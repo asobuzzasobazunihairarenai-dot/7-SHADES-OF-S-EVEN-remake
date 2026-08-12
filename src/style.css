@@ -14124,54 +14124,90 @@ body.theme-light #mdb-name-input {
   transform: translateY(-2px);
   box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.5);
 }
-/* MTGAデッキボックス風の立体カードケース（ユーザー要望2026-08-12）。斜めに立てた1枚に、右側へ
-   カードの束の厚みを重ね、落ち影を付ける。表面(.mdl-deck-case)に選んだメインカードを貼る。 */
+/* MTGAデッキボックス風の立体カードケース（ユーザー要望2026-08-12）。正方形タイルの中に、
+   斜めに立てた“箱”を置く。箱=前面(メインカード)＋右側のカードの束の厚み＋上から覗くカード＋
+   少し開いた蓋。表面(.mdl-deck-front)に選んだメインカードを貼る。 */
 .mdl-deck-art {
   position: relative;
   width: 100%;
-  aspect-ratio: 3 / 2;
+  aspect-ratio: 1 / 1; /* 正方形（ユーザー要望） */
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.5rem 0.9rem;
-  perspective: 820px;
-  background: radial-gradient(130% 120% at 32% 18%, color-mix(in srgb, var(--mdl-accent, #334155) 32%, #0b1220), #05080f);
+  padding: 1.1rem 0.7rem 0.7rem;
+  perspective: 1000px;
+  background: radial-gradient(125% 115% at 32% 14%, color-mix(in srgb, var(--mdl-accent, #334155) 28%, #0b1220), #05080f);
 }
 .mdl-deck-case {
   position: relative;
-  height: 90%;
-  aspect-ratio: 63 / 88; /* トレカ縦横比 */
-  border-radius: 0.35rem;
+  width: 58%;
+  aspect-ratio: 63 / 84;
+  transform-style: preserve-3d;
+  transform: rotateX(9deg) rotateY(-18deg);
+  filter: drop-shadow(-11px 16px 13px rgba(0, 0, 0, 0.55));
+}
+/* 箱の前面（＝顔。メインカードを貼る）。右側にカードの束の厚みを重ねる。 */
+.mdl-deck-front {
+  position: absolute;
+  inset: 0;
+  border-radius: 0.35rem 0.35rem 0.45rem 0.45rem;
   overflow: hidden;
   background: #0b1220;
-  border: 1px solid color-mix(in srgb, var(--mdl-accent, #334155) 60%, #ffffff 12%);
-  transform: rotateY(-21deg) rotateX(3deg);
-  transform-origin: center;
-  /* 右側の“束”の厚み（何枚も重なった側面）＋落ち影 */
-  box-shadow:
-    2px 0 0 #1b2740, 4px 1px 0 #151f33, 6px 1px 0 #101827, 8px 2px 0 #0b111d, 10px 2px 0 #080d16,
-    -12px 15px 20px rgba(0, 0, 0, 0.62);
+  border: 1px solid color-mix(in srgb, var(--mdl-accent, #334155) 62%, #ffffff 12%);
+  transform: translateZ(16px);
+  box-shadow: 2px 0 0 #1b2740, 4px 1px 0 #151f33, 6px 1px 0 #101827, 8px 2px 0 #0b111d, 10px 2px 0 #080d16;
 }
-.mdl-deck-case img {
+.mdl-deck-front img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center 16%;
+  object-position: center 30%;
 }
-.mdl-deck-case::after {
-  /* 前面の縁・下部グラデ・斜めの光沢 */
+.mdl-deck-front::after {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
   box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--mdl-accent, #334155) 55%, transparent),
-    inset 0 -1.6rem 1.4rem -1.1rem rgba(5, 9, 16, 0.92);
-  background: linear-gradient(115deg, rgba(255, 255, 255, 0.16), transparent 42%);
+    inset 0 -1.5rem 1.3rem -1rem rgba(5, 9, 16, 0.9);
+  background: linear-gradient(118deg, rgba(255, 255, 255, 0.16), transparent 42%);
+}
+/* 上から覗くカードの束（前面の後ろ・上端から少しだけ出る）。 */
+.mdl-deck-peek {
+  position: absolute;
+  left: 9%;
+  right: 9%;
+  top: -7%;
+  height: 15%;
+  border-radius: 0.18rem 0.18rem 0 0;
+  transform: translateZ(9px);
+  background: repeating-linear-gradient(90deg, #e9eef4 0 5.5%, #c4cdd9 5.5% 6.5%);
+  border: 1px solid rgba(120, 130, 145, 0.75);
+  border-bottom: none;
+  box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.4), inset 0 2px 3px rgba(255, 255, 255, 0.5);
+}
+/* 少し開いた蓋（背面上端にヒンジ、後ろへパカッと開く）。 */
+.mdl-deck-lid {
+  position: absolute;
+  left: -2%;
+  right: -2%;
+  top: 0;
+  height: 25%;
+  transform-origin: top center;
+  transform: translateZ(16px) rotateX(-58deg);
+  border-radius: 0.35rem 0.35rem 0.15rem 0.15rem;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--mdl-accent, #334155) 68%, #000 22%),
+    color-mix(in srgb, var(--mdl-accent, #334155) 42%, #000 42%)
+  );
+  border: 1px solid color-mix(in srgb, var(--mdl-accent, #334155) 60%, #ffffff 10%);
+  box-shadow: inset 0 -0.5rem 0.6rem rgba(0, 0, 0, 0.5);
 }
 .mdl-deck:hover .mdl-deck-case {
-  transform: rotateY(-14deg) rotateX(2deg);
+  transform: rotateX(6deg) rotateY(-11deg);
 }
 .mdl-deck-name {
   padding: 0.5rem 0.7rem 0.15rem;
@@ -14288,6 +14324,19 @@ body.theme-light #mdl-back {
 body.theme-light .mdl-deck {
   background: rgba(255, 251, 240, 0.75);
   border-color: rgba(176, 141, 63, 0.3);
+}
+/* ライトモード（ユーザー報告「マイデッキ一覧がライトモードなのにダーク」）: ページ背景・
+   箱の後ろの敷き・メタ文字を明色にする。箱の前面(メインカード)自体はそのまま。 */
+body.theme-light #my-deck-list-page {
+  background: radial-gradient(ellipse at 50% -10%, #fbf6ea 0%, #efe6d2 55%, #e6d9bd 100%);
+  color: #3a3326;
+}
+body.theme-light .mdl-deck-art {
+  background: radial-gradient(125% 115% at 32% 14%, color-mix(in srgb, var(--mdl-accent, #334155) 20%, #efe6d2), #d8c9a9);
+}
+body.theme-light .mdl-deck-meta,
+body.theme-light .mdl-deck-count {
+  color: #6b5c3c;
 }
 
 /* ── マイデッキ編集: ホバー拡大プレビュー＋右クリックのカード補足メニュー ─────────── */

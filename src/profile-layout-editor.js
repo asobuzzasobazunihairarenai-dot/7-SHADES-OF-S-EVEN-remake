@@ -18,7 +18,7 @@ export const PROFILE_LAYOUT = {
   "avatar-change": { x: 135, y: 535, scale: 1.97 },
   cosmetics: { x: 418, y: 51, scale: 1.5 },
   name: { x: -268, y: 594, scale: 3.01 },
-  stats: { x: 423, y: 161, scale: 1.88 },
+  stats: { x: 415, y: 255, scale: 1.88 },
 };
 
 const HANDLE_DIRS = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
