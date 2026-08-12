@@ -87,7 +87,7 @@ function buildDeckBox(deck) {
   caseEl.appendChild(front);
   art.appendChild(caseEl);
   const accent = deck.firstColor ? MDL_COLOR_HEX[deck.firstColor] : "#64748b";
-  art.style.setProperty("--mdl-accent", accent);
+  box.style.setProperty("--mdl-accent", accent); // タイル全体で使う（背景を下まで伸ばすため）
   box.appendChild(art);
 
   const nameRow = document.createElement("div");

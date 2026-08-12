@@ -12684,7 +12684,10 @@ body.theme-light .home-match-choice-cancel:hover {
 #profile-page {
   position: fixed;
   inset: 0;
-  z-index: 1500;
+  /* 不具合#84: ショップ(#shop-panel z:2601)を開いたままオプションエリアのマイページを押すと、
+     マイページ(旧z:1500)がショップの裏に開いて見えなかった。ショップ/管理者パネル(2600)より
+     前面へ上げ、どこから開いても最前面に出す（閉じると元の画面＝ショップ/ホームへ戻る）。 */
+  z-index: 2650;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -14200,7 +14203,9 @@ body.theme-light #mdb-name-input {
   position: relative;
   border-radius: 0.6rem;
   overflow: hidden;
-  background: rgba(15, 23, 42, 0.7);
+  /* 箱の背景（シーン）をタイル下端まで伸ばす（ユーザー要望2026-08-12: 名前/枚数の白背景が
+     ダサい→箱背景を下まで＋中央ぞろえ）。--mdl-accent はJSで .mdl-deck に付与。 */
+  background: radial-gradient(135% 125% at 32% 6%, color-mix(in srgb, var(--mdl-accent, #334155) 26%, #0b1220), #05080f);
   border: 1px solid rgba(148, 163, 184, 0.25);
   cursor: pointer;
   transition: border-color 0.14s, transform 0.1s, box-shadow 0.14s;
@@ -14223,14 +14228,14 @@ body.theme-light #mdb-name-input {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1.1rem 0.7rem 0.7rem;
+  padding: 1.1rem 0.7rem 0.4rem;
   perspective: 1000px;
-  background: radial-gradient(125% 115% at 32% 14%, color-mix(in srgb, var(--mdl-accent, #334155) 28%, #0b1220), #05080f);
+  background: transparent; /* タイル(.mdl-deck)のシーン背景を下まで通す */
 }
 .mdl-deck-case {
   position: relative;
-  width: 58%;
-  aspect-ratio: 63 / 84;
+  width: 66%;
+  aspect-ratio: 1 / 1; /* 前面を正方形に（ユーザー要望2026-08-12） */
   transform-style: preserve-3d;
   transform: rotateX(9deg) rotateY(-18deg);
   filter: drop-shadow(-11px 16px 13px rgba(0, 0, 0, 0.55));
@@ -14262,19 +14267,27 @@ body.theme-light #mdb-name-input {
     inset 0 -1.5rem 1.3rem -1rem rgba(5, 9, 16, 0.9);
   background: linear-gradient(118deg, rgba(255, 255, 255, 0.16), transparent 42%);
 }
-/* 上から覗くカードの束（前面の後ろ・上端から少しだけ出る）。 */
+/* 上から覗くカードの束（前面の後ろ・上端から少しだけ出る）。方眼紙に見えないよう、細かい
+   縦縞ではなく“数枚重なったカードの上端”＝横方向の層で表現する（ユーザー要望2026-08-12）。 */
 .mdl-deck-peek {
   position: absolute;
   left: 9%;
   right: 9%;
-  top: -7%;
-  height: 15%;
+  top: -6%;
+  height: 13%;
   border-radius: 0.18rem 0.18rem 0 0;
   transform: translateZ(9px);
-  background: repeating-linear-gradient(90deg, #e9eef4 0 5.5%, #c4cdd9 5.5% 6.5%);
+  background: linear-gradient(
+    180deg,
+    #f4f7fb 0 30%,
+    #d7deea 30% 34%,
+    #eef2f8 34% 64%,
+    #d1d9e6 64% 68%,
+    #e7edf5 68% 100%
+  );
   border: 1px solid rgba(120, 130, 145, 0.75);
   border-bottom: none;
-  box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.4), inset 0 2px 3px rgba(255, 255, 255, 0.5);
+  box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.35), inset 0 2px 2px rgba(255, 255, 255, 0.6);
 }
 /* 少し開いた蓋（背面上端にヒンジ、後ろへパカッと開く）。 */
 .mdl-deck-lid {
@@ -14298,21 +14311,25 @@ body.theme-light #mdb-name-input {
   transform: rotateX(6deg) rotateY(-11deg);
 }
 .mdl-deck-name {
-  padding: 0.5rem 0.7rem 0.15rem;
+  padding: 0.35rem 0.7rem 0.15rem;
   font-size: 0.92rem;
   font-weight: bold;
   color: #f1f5f9;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-align: center; /* 中央ぞろえ（ユーザー要望2026-08-12） */
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 .mdl-deck-meta {
   display: flex;
   align-items: center;
+  justify-content: center; /* 中央ぞろえ */
   gap: 0.45rem;
-  padding: 0 0.7rem 0.6rem;
+  padding: 0 0.7rem 0.55rem;
   font-size: 0.78rem;
-  color: #94a3b8;
+  color: #cbd5e1;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 .mdl-deck-chip {
   width: 0.7rem;
@@ -14409,22 +14426,27 @@ body.theme-light #mdl-back {
   border-color: rgba(176, 141, 63, 0.5);
   color: #6b5c3c;
 }
-body.theme-light .mdl-deck {
-  background: rgba(255, 251, 240, 0.75);
-  border-color: rgba(176, 141, 63, 0.3);
-}
 /* ライトモード（ユーザー報告「マイデッキ一覧がライトモードなのにダーク」）: ページ背景・
-   箱の後ろの敷き・メタ文字を明色にする。箱の前面(メインカード)自体はそのまま。 */
+   タイルのシーン背景・メタ文字を明色にする。箱の前面(メインカード)自体はそのまま。
+   タイル(.mdl-deck)がシーン背景を持ち、.mdl-deck-art は透明で下端まで通す（中央ぞろえ）。 */
+body.theme-light .mdl-deck {
+  background: radial-gradient(135% 125% at 32% 6%, color-mix(in srgb, var(--mdl-accent, #334155) 22%, #efe6d2), #d8c9a9);
+  border-color: rgba(176, 141, 63, 0.35);
+}
 body.theme-light #my-deck-list-page {
   background: radial-gradient(ellipse at 50% -10%, #fbf6ea 0%, #efe6d2 55%, #e6d9bd 100%);
   color: #3a3326;
 }
 body.theme-light .mdl-deck-art {
-  background: radial-gradient(125% 115% at 32% 14%, color-mix(in srgb, var(--mdl-accent, #334155) 20%, #efe6d2), #d8c9a9);
+  background: transparent;
+}
+body.theme-light .mdl-deck-name {
+  text-shadow: none;
 }
 body.theme-light .mdl-deck-meta,
 body.theme-light .mdl-deck-count {
   color: #6b5c3c;
+  text-shadow: none;
 }
 
 /* ── マイデッキ編集: ホバー拡大プレビュー＋右クリックのカード補足メニュー ─────────── */
@@ -14786,8 +14808,9 @@ body.theme-light .mdb-setting-btn {
 .mdl-deck-cosmetics {
   display: flex;
   align-items: center;
+  justify-content: center; /* 中央ぞろえ（ユーザー要望2026-08-12） */
   gap: 0.35rem;
-  padding: 0 0.7rem 0.55rem;
+  padding: 0 0.7rem 0.65rem;
 }
 .mdl-cos {
   width: 1.7rem;
