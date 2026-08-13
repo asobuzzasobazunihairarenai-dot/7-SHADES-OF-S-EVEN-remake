@@ -260,18 +260,23 @@ export function reapplyActiveHighlights(table) {
   }
 }
 
-async function flyAndReveal(item, fromRect, table, blinkDestination) {
+async function flyAndReveal(item, fromRect, table, blinkDestination, blinkOnly = false) {
   const el = table.querySelector(`[data-token-id="${item.id}"]`);
   if (!el) return;
   const toRect = el.getBoundingClientRect();
-  if (fromRect) {
+  // blinkOnly（CPU戦の配置インジケータ）は飛翔ゴーストを出さない（駒の移動はエンジンが既に
+  // render()で反映済み。ここは点滅で「どこに置いたか」を示すだけ）。
+  if (!blinkOnly && fromRect) {
     const { done } = flyGhost(fromRect, toRect, getGhostImagePath(item.token), "setup-fly-card", FLIGHT_MS);
     await done;
   }
   el.classList.remove("is-setup-pending");
   // 場に「置かれた」到着マスなので常に↓（置いた）の矢印を出す。
   if (blinkDestination) blinkLocation(item.token.location, table, "down");
-  triggerEffectsFor(item);
+  // blinkOnly の時は効果を再発火しない。CPU戦ではCPUの効果（到達・ロック・獲得等）をエンジンが
+  // 直接処理済みなので、ここで triggerEffectsFor まで呼ぶと二重発火する。特に試練の儀式・マス
+  // チェンジ等の「到達効果を得ない」フリップ露出まで発火してしまう（#86/#87の原因）。点滅のみ行う。
+  if (!blinkOnly) triggerEffectsFor(item);
 }
 
 // ユーザー報告（続き81）「オンライン対戦時、相手の到達効果音等が聞こえなかったり
@@ -333,7 +338,9 @@ function triggerEffectsFor(item) {
   }
 }
 
-function processMovedOrNew(items, table) {
+// blinkOnly=true（CPU戦の配置インジケータ）: 点滅（と矢印）だけ出し、効果の再発火・獲得通知・
+// 飛翔ゴーストは行わない。CPUの操作はエンジンが直接処理済みで、それらを重ねると二重発火になる。
+function processMovedOrNew(items, table, blinkOnly = false) {
   const fromRects = new Map();
   for (const item of items) {
     if (item.kind === "move") {
@@ -343,17 +350,20 @@ function processMovedOrNew(items, table) {
   }
 
   // flipは位置が変わらずrender()時点で既に正しい（開いた後の）見た目になっているため、
-  // 隠す必要がない（隠すと一瞬opacity:0になるだけ無駄なちらつきになる）。
-  const hideIds = items.filter((i) => i.kind !== "pickup" && i.kind !== "flip").map((i) => i.id);
+  // 隠す必要がない（隠すと一瞬opacity:0になるだけ無駄なちらつきになる）。blinkOnlyは飛翔しない
+  // ので隠す必要も無い。
+  const hideIds = blinkOnly ? [] : items.filter((i) => i.kind !== "pickup" && i.kind !== "flip").map((i) => i.id);
   if (hideIds.length > 0 && helpers.setSetupPendingTokenIds) {
     helpers.setSetupPendingTokenIds(new Set(hideIds));
   }
 
   // 手札への移動（獲得）は表示位置が動的なため飛翔させず、通知だけ出す（renderのタイミングは
-  // 問わないのですぐ呼んでよい）。
-  for (const item of items) {
-    if (item.kind === "pickup") {
-      helpers.announceHandPickups?.(item.token.location.player, [{ cardId: item.token.cardId, wasPublic: !!item.prevFaceUp }]);
+  // 問わないのですぐ呼んでよい）。blinkOnly（CPU戦）はエンジンが既に獲得通知を出すので出さない。
+  if (!blinkOnly) {
+    for (const item of items) {
+      if (item.kind === "pickup") {
+        helpers.announceHandPickups?.(item.token.location.player, [{ cardId: item.token.cardId, wasPublic: !!item.prevFaceUp }]);
+      }
     }
   }
 
@@ -386,14 +396,16 @@ function processMovedOrNew(items, table) {
         // 全く無かったこと。
         if (!item.prevLocation) {
           const fromRect = getOriginPileRect(item.token.cardId);
-          flyAndReveal(item, fromRect, table2, false); // 個々の飛翔は並行に進めてよいためawaitしない
+          flyAndReveal(item, fromRect, table2, false, blinkOnly); // 個々の飛翔は並行に進めてよいためawaitしない
         }
         continue;
       }
       if (item.kind === "flip") {
         // 移動が無い＝飛翔ゴースト（document.body直下の2Dオーバーレイ）を経由する意味が
-        // 無いため、その場で演出だけ直接発火する。
-        triggerEffectsFor(item);
+        // 無いため、その場で演出だけ直接発火する。blinkOnly（CPU戦）は効果を再発火しない
+        // ——エンジンが既に処理済み。特にここが試練の儀式・マスチェンジの「到達効果を得ない」
+        // フリップ露出を誤発火させていた（#86/#87）。フリップは配置ではないので点滅もしない。
+        if (!blinkOnly) triggerEffectsFor(item);
         continue;
       }
       let fromRect = null;
@@ -407,7 +419,7 @@ function processMovedOrNew(items, table) {
       // move/new-lock/new-cell-fadeはいずれも「場に何かが現れた/置かれた」ケースなので
       // 到着マスに↓（置いた）を出す。
       const blinkDestination = item.kind === "move" || item.kind === "new-lock" || item.kind === "new-cell-fade";
-      flyAndReveal(item, fromRect, table2, blinkDestination); // 個々の飛翔は並行に進めてよいためawaitしない
+      flyAndReveal(item, fromRect, table2, blinkDestination, blinkOnly); // 個々の飛翔は並行に進めてよいためawaitしない
     }
   });
 }
@@ -499,5 +511,9 @@ export function handleHydrate() {
   if (items.length === 0) return;
   const table = document.getElementById("game-table");
   if (!table) return;
-  processMovedOrNew(items, table);
+  // オンラインは他プレイヤーの操作を差分から「効果ごと」再現する必要がある（full）。CPU戦の
+  // ローカル差分（localOpponentMoves）は、CPUの効果をエンジンが直接処理済みなので点滅のみに
+  // する（blinkOnly）。これをしないと到達等が二重発火し、試練の儀式のフリップ露出到達まで
+  // 誤発火する（#86/#87、ユーザー報告「今まで試練の儀式うまくいってた」）。
+  processMovedOrNew(items, table, !isOnlineMode());
 }
