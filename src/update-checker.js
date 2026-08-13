@@ -168,13 +168,24 @@ function showUpdateBanner() {
   document.body.appendChild(banner);
 }
 
-async function check() {
+// isInitial: ページ読み込み直後の初回チェックか。初回はまだタイトル画面で失うものが無いため、
+// 新版を検知したら「更新する」を押させずに自動で1回だけ更新してよい（＝再訪ユーザーが常に最新で
+// 始められる。ユーザー要望「バージョン付き等で常に最新が届くように」への、無ビルドでの対応）。
+async function check(isInitial = false) {
   const v = await fetchVersion();
   if (!v) return;
   latestVersion = v;
   if (v !== loadedVersion) {
     updateAvailable = true;
     dismissed = false; // 新バージョン検知時は、以前閉じていても改めて出せるようにする
+    // 自動更新の条件: 初回（読み込み直後）＆ 対局中でない（canShowBanner）＆ 直前の更新試行が
+    // 空振りでない（priorUpdateAttemptFailed=false）。空振り済みなら自動でループさせず、
+    // バナー＋ハードリフレッシュ案内に委ねる。既存のUPDATE_ATTEMPT_KEYで「自動更新は最大1回」に
+    // 制限され、applyUpdate内でmarkCleanExit()するのでブラックボックスに落下と誤検知されない。
+    if (isInitial && canShowBanner() && !priorUpdateAttemptFailed()) {
+      applyUpdate();
+      return;
+    }
     maybeShowBanner(); // 対局中なら保留され、reevaluateUpdateBanner()で後から出る
   }
 }
@@ -188,10 +199,10 @@ export function initUpdateChecker() {
     /* 非対応環境は無視 */
   }
   clearAttemptIfCaughtUp(); // 前回の更新が成功していれば試行記録を消す（＝ハード案内を出さない）
-  check(); // 実行中コード(APP_VERSION)とサーバー最新版をすぐ照合
-  setInterval(check, CHECK_INTERVAL_MS);
-  // タブに戻ってきた時にも即チェック（放置後に戻ってきた人にすぐ気づかせる）。
+  check(true); // 初回＝読み込み直後。新版なら（対局中でなければ）自動で最新へ更新する
+  setInterval(() => check(false), CHECK_INTERVAL_MS); // 以降はバナーのみ（勝手に画面を切り替えない）
+  // タブに戻ってきた時にも即チェック（放置後に戻ってきた人にすぐ気づかせる）。バナー提示のみ。
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) check();
+    if (!document.hidden) check(false);
   });
 }
