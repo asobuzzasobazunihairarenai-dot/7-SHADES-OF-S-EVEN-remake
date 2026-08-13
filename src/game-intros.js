@@ -6,6 +6,7 @@
 // したい人向けに「この手の説明はもう出さない」も用意する。既読/全オフは端末のlocalStorageに保存。
 
 import { createBackdrop } from "./ui-helpers.js";
+import { isFlatten2dMode } from "./tablet-2d-mode.js";
 
 const SEEN_PREFIX = "so7-intro-seen-";
 const ALL_OFF_KEY = "so7-intros-all-off";
@@ -70,6 +71,16 @@ const INTROS = [
     body:
       "画面上部のアイコンで、盤面の見た目を2D（真上から）と3D（斜め見下ろし）に切り替えられます。" +
       "見やすい方でお楽しみください。",
+  },
+  {
+    // 3D表示のときだけ出す（condition）。ユーザー要望2026-08-13「3D表示の時に、画面が
+    // ちらつく場合は2Dが有効、という案内モーダルを出したい」。既に2Dの人には不要なので出さない。
+    key: "flicker-2d-v1",
+    title: "✨ 表示がちらつくときは2Dへ",
+    body:
+      "3D表示（斜め見下ろし）は端末によって画面がちらついたり重くなることがあります。" +
+      "その場合は画面上部のアイコンで2D表示（真上から）に切り替えると安定します。見やすい方でどうぞ。",
+    condition: () => !isFlatten2dMode(), // 現在3D表示のときだけ表示
   },
   {
     key: "keep-v1",
@@ -147,7 +158,8 @@ function showOne(intro) {
 export async function maybeShowGameStartIntros() {
   if (showing) return;
   if (isAllOff()) return;
-  const next = INTROS.find((i) => !isSeen(i.key));
+  // condition付きの説明（例: 3D表示のときだけ出す flicker-2d-v1）は、条件を満たす時だけ対象にする。
+  const next = INTROS.find((i) => !isSeen(i.key) && (!i.condition || i.condition()));
   if (!next) return;
   showing = true;
   try {
