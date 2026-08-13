@@ -12090,6 +12090,11 @@ registerRemoteMoveAnimatorHelpers({
   triggerCardArrivalIfFaceUp,
   announceHandPickups,
   findLocationElement,
+  // CPU戦で「CPU（自分以外の手番）の盤面操作」だけ、オンラインと同じ点滅＋矢印を出すための判定
+  // （ユーザー要望2026-08-13）。remote-move-animator.jsのhandleHydrateが参照する。自分の手番中は
+  // 差分検知しない＝自分の操作は点滅させない。
+  shouldDiffLocalMoves: () =>
+    isCpuBattleActive() && !isOnlineMode() && !!getState().turnPlayer && getState().turnPlayer !== getSelfSeat(),
 });
 registerFinalLockApprovalHandler(respondToFinalLock);
 registerGomennasaiHelpers({ checkEligibility: findGomennasaiEligibility, onUseGomennasai: useGomennasaiOnFinalLock });

@@ -416,7 +416,14 @@ function processMovedOrNew(items, table) {
 // ようmain.js側でガード済み）から、hydrateState()のたびに呼ばれる。
 export function handleHydrate() {
   const state = getState();
-  if (!isOnlineMode()) {
+  // オンラインでない時は通常、差分検知（他プレイヤーの盤面操作の点滅＋矢印再現）を行わない。
+  // ただしCPU戦では「CPU（＝自分以外の手番）がどのマスにカードを置いた/取ったか」を、
+  // オンラインと同じ点滅＋矢印で分かるようにしたい（ユーザー要望2026-08-13）。色・アバターは
+  // getState().turnPlayer から決まるためローカルでもそのまま出せる。判定（CPU戦かつCPUの手番か）は
+  // main.jsから注入された helpers.shouldDiffLocalMoves() が担う（自分の手番中の自分の操作は
+  // ドラッグで手応えがあるので点滅させない＝従来通りスナップショットのみ）。
+  const localOpponentMoves = !isOnlineMode() && !!helpers?.shouldDiffLocalMoves?.();
+  if (!isOnlineMode() && !localOpponentMoves) {
     previousTokensById = snapshotOf(state);
     skipNextDiff = true;
     return;
