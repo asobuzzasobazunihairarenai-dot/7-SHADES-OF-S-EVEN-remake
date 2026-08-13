@@ -1014,7 +1014,11 @@ async function runAction(action, ctx, helpers) {
       const token = stackAtCell[stackAtCell.length - 1];
       if (!token) return false;
       const wasFaceUp = token.faceUp; // 手札に入ると自動で表向きになるため、移動前の状態を保持しておく
-      await helpers.moveAndSync(token.id, { zone: "hand", player: ctx.player });
+      // 収穫と種まき等: 拾ったことで下のカードが露出して到達（コンボ）が起きる場合、その到達を
+      // 完全に解決してから次のアクション（PLACE＝種まき/同じマスへ置き直す）へ進む。第5引数true。
+      // これをしないと露出到達と種まきの手札選択が並行して走り、手札が全トーンオフのまま固着する
+      // （ユーザー確認済みルール #85）。
+      await helpers.moveAndSync(token.id, { zone: "hand", player: ctx.player }, undefined, undefined, true);
       helpers.onCardAcquiredToHand?.(token.id, token.cardId, wasFaceUp, ctx.player);
       if (action.target?.saveAs) {
         ctx.selections[action.target.saveAs] = chosen;

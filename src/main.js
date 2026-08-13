@@ -1126,7 +1126,13 @@ async function addArrivedCardToHand(location, player) {
 // いた。moveToken()にsuppressArrivalを渡し、同期される駒トークン自身に
 // arrivalSuppressedフラグとして記録することで、remote-move-animator.js側も
 // これを見て判断できるようにする。
-async function moveAndSyncForEffect(tokenId, location, soundName, suppressArrival) {
+// awaitExposedArrival（省略時false）: 移動で下のカードが露出して到達（コンボ）が起きる場合に、
+// それを完全に解決してから呼び出し元へ戻す。収穫と種まき（PICKUP_TO_HAND）のように「拾う→露出
+// 到達を割り込み解決→種まき（同じマスへ置き直す）へ復帰」というルール（#85、ユーザー確認済み）を
+// 満たすために使う。これをawaitしないと、露出到達と直後のPLACE（種まきの手札選択）が並行して走り、
+// 種まきのピッカーが宙に浮く（手札が全部トーンオフのまま固着）不具合になっていた。他の呼び出し元は
+// 従来通り撃ちっぱなし（false）で挙動を変えない。
+async function moveAndSyncForEffect(tokenId, location, soundName, suppressArrival, awaitExposedArrival = false) {
   const fromLocation = getState().tokens.find((t) => t.id === tokenId)?.location ?? null;
   if (isOnlineMode()) {
     try {
@@ -1140,7 +1146,8 @@ async function moveAndSyncForEffect(tokenId, location, soundName, suppressArriva
     moveToken(tokenId, location, suppressArrival);
   }
   if (soundName) playSound(soundName);
-  maybeTriggerCardArrivalForExposedCard(fromLocation);
+  const exposedArrival = maybeTriggerCardArrivalForExposedCard(fromLocation);
+  if (awaitExposedArrival) await exposedArrival;
 }
 
 // PLACE_CARDのsource:"self"用（ジャンプ台の手札効果等）。手札からマスへの移動は
@@ -5185,9 +5192,16 @@ function maybeTriggerCardArrival(dropTarget, pieceTokenId, onResolved, onFullyRe
 // remote-move-animator.jsが、他プレイヤーの駒の到達を再現する時に使う——裏向きカードの
 // 場合の「オープンする/しない」対話的選択肢(promptCardOpen)は、自分が動かしてもいない駒に
 // ついて出すと混乱を招くため、あえて出さない（安全側に倒したスコープ決定）。
+// 露出したカードの到達を発火する。呼び出し元が「到達（コンボ）が完全に解決してから続けたい」
+// 場合に await できるよう、到達の完全解決で解決するPromiseを返す（triggerCardArrivalの
+// onFullyResolvedは全経路で必ず呼ばれる＝5082行のfinally等、デッドロックしない）。await
+// しない従来の呼び出し元は戻り値を無視するだけで挙動は変わらない。
 function triggerCardArrivalIfFaceUp(location, fromDiff = false) {
   const card = findTopCardAt(location);
-  if (card && card.faceUp) triggerCardArrival(card.cardId, card.location, undefined, { fromDiff });
+  if (card && card.faceUp) {
+    return new Promise((resolve) => triggerCardArrival(card.cardId, card.location, resolve, { fromDiff }));
+  }
+  return Promise.resolve();
 }
 
 // 逆方向（駒が既にいるマス/ロックスロットへ、表向きのカードを新しく置いた/動かした時）にも
@@ -5226,9 +5240,10 @@ function maybeTriggerCardArrivalForExposedCard(location, fromDiff = false) {
     topCardId: top?.cardId ?? null,
     topFaceUp: top?.faceUp ?? null,
   });
-  if (!location || (location.zone !== "cell" && location.zone !== "lock")) return;
-  if (!hasPieceAt(location)) return;
-  triggerCardArrivalIfFaceUp(location, fromDiff);
+  if (!location || (location.zone !== "cell" && location.zone !== "lock")) return Promise.resolve();
+  if (!hasPieceAt(location)) return Promise.resolve();
+  // 到達（コンボ）の完全解決で解決するPromiseを返す（await可能。#85）。
+  return triggerCardArrivalIfFaceUp(location, fromDiff);
 }
 
 // 「オープンする/しない」の選択アイコン。同時に1つだけ表示する（新しく駒が別のカードに
