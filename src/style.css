@@ -4440,6 +4440,25 @@ body.is-phone-device #option-area {
   transform: translate(var(--option-area-pos-phone-x, 0rem), var(--option-area-pos-phone-y, 0rem))
     scale(var(--option-area-scale-phone, 1));
 }
+/* 不具合報告ボタンはbody直下の固定配置で（z-indexを常に最前面にするため。上の
+   #self-status-bug-report参照）、スマホで#option-area全体が1.65倍(--option-area-scale-phone)に
+   拡大されてもそれに乗らず、他アイコンより小さく・位置もズレていた（ユーザー報告2026-08-13
+   「スマホでオプションエリアの不具合報告ボタンが小さく場所もおかしい」）。#option-areaは
+   top-right基準で拡大されるため、固定配置のこのボタンも位置(top/right)とアイコンサイズを
+   同じ倍率で拡大すれば、拡大後の他アイコンと大きさ・位置が揃う。 */
+body.is-phone-device #self-status-bug-report {
+  top: calc(var(--bug-report-icon-top, 0.6rem) * var(--option-area-scale-phone, 1.65));
+  right: calc(var(--bug-report-icon-right, 19.5rem) * var(--option-area-scale-phone, 1.65));
+}
+body.is-phone-device #self-status-bug-report .icon-action-button-icon-wrap {
+  width: calc(var(--bug-report-icon-size, 1.9rem) * var(--option-area-scale-phone, 1.65));
+  height: calc(var(--bug-report-icon-size, 1.9rem) * var(--option-area-scale-phone, 1.65));
+}
+body.is-phone-device #self-status-bug-report .bug-report-icon-emoji {
+  width: calc(var(--bug-report-icon-size, 1.9rem) * var(--option-area-scale-phone, 1.65));
+  height: calc(var(--bug-report-icon-size, 1.9rem) * var(--option-area-scale-phone, 1.65));
+  font-size: calc(var(--bug-report-icon-size, 1.9rem) * 0.44 * var(--option-area-scale-phone, 1.65));
+}
 
 #turn-round-counter {
   position: absolute;
