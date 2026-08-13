@@ -115,7 +115,7 @@ function showOne(intro) {
     const ok = document.createElement("button");
     ok.type = "button";
     ok.className = "game-intro-ok";
-    ok.textContent = "わかった（今後表示しない）";
+    ok.textContent = "わかった";
     ok.addEventListener("click", () => {
       markSeen(intro.key);
       close();
@@ -124,7 +124,7 @@ function showOne(intro) {
     const allOff = document.createElement("button");
     allOff.type = "button";
     allOff.className = "game-intro-alloff";
-    allOff.textContent = "この手の説明はもう出さない";
+    allOff.textContent = "今後このモーダルを表示しない";
     allOff.addEventListener("click", () => {
       setAllOff();
       close();

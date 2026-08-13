@@ -216,6 +216,10 @@ export function initGameBgmAutoStart() {
     const started = Boolean(getState().turnPlayer);
     if (started && !wasGameStartedForBgm) {
       stopWaitingBgm();
+      // 勝利BGMも止める。「もう一度戦う」（CPU戦）やオンラインの再戦で新しい対局が始まった時、
+      // 勝利ファンファーレが鳴りっぱなしのままゲームBGMと重なる不具合への対応（ユーザー報告
+      // 2026-08-13、CPU戦で勝利BGM中に再戦すると消えなかった）。
+      stopVictoryBgm();
       playGameBgm();
     }
     wasGameStartedForBgm = started;
