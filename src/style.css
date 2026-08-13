@@ -8315,6 +8315,17 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   color: #fef3c7;
   box-shadow: 0 0 1.5rem rgba(250, 204, 21, 0.5), 0 20px 50px rgba(0, 0, 0, 0.6);
 }
+/* 確認モーダルに添えるカード画像（confirmTouchActionにcardIdを渡した時。ユーザー要望2026-08-13
+   「このカードを選びますか等の確認モーダルにカード画像も添えたい」）。タイトルとボタンの間。 */
+#touch-action-confirm-modal .touch-action-confirm-card {
+  display: block;
+  width: auto;
+  max-width: 60%;
+  max-height: 40vh;
+  margin: 0.7rem auto 0.2rem;
+  border-radius: 0.4rem;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.55);
+}
 
 /* ゲーム開始時の操作説明モーダル（game-intros.js、ユーザー要望2026-08-12）。 */
 .game-intro-modal {

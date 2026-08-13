@@ -3303,7 +3303,7 @@ document.addEventListener(
           // （ユーザー要望2026-08-13。追色コスト・収穫と種まき等の手札選択が対象）。設定
           // (isActionConfirmEnabled)がOFFなら confirmTouchAction は即trueを返すので実質素通り。
           // 確認が閉じるまで activeEffectPicker は残す＝拒否したら選び直せる／候補ハイライトも保持。
-          confirmTouchAction(picker.confirmTitle ?? "このカードを選びますか？").then((ok) => {
+          confirmTouchAction(picker.confirmTitle ?? "このカードを選びますか？", { cardId: token?.cardId }).then((ok) => {
             if (!ok) return; // いいえ＝ピッカー維持、選び直せる
             if (activeEffectPicker !== picker) return; // 念のため（待機中に状況が変わった場合）
             activeEffectPicker = null;
@@ -3416,7 +3416,7 @@ async function performLockPhaseClick(tokenId, { skipConfirm = false, actingSeat 
   // モーダルを出さない。出しても押す人がおらず、そのまま停止してしまうため（ユーザー報告
   // 「疑似CPUモードの時、ロックの確認モーダルで停止しました」）。人間のクリック/タップ経路は
   // 従来通りskipConfirm=falseで確認を挟む（isActionConfirmEnabled設定に従う）。
-  if (!skipConfirm && !(await confirmTouchAction(`${getCardDefinition(token.cardId).name}をロックしますか？`))) return;
+  if (!skipConfirm && !(await confirmTouchAction(`${getCardDefinition(token.cardId).name}をロックしますか？`, { cardId: token.cardId }))) return;
   const color = getCardDefinition(token.cardId).color;
   const dropTarget = { zone: "lock", side: SEAT_TO_SIDE[player], index: COLORS.indexOf(color) };
   // 最後のロック承認: ドラッグ&ドロップ経路（onDragEndのkind==="card"分岐）と同じく、この
@@ -4415,7 +4415,7 @@ onAnytimeCheckpointEvents(({ afterPlayer }) => {
 // ロックする前・手札を使う前の確認モーダル。ユーザー要望で、以前は「タッチ端末のみ」
 // だったのを全デバイス共通にし、表示するかどうかを設定(isActionConfirmEnabled)で
 // 切り替えられるようにした。設定がOFF（＝今後表示しない）の間は、モーダルを出さず即実行する。
-function confirmTouchAction(title) {
+function confirmTouchAction(title, { cardId = null } = {}) {
   // チュートリアルCPU戦の進行中は、台本が各操作を誘導するのでこの確認は出さない
   // （スポットライト等の演出と重なって見えなくなるのも防ぐ）。
   if (!isActionConfirmEnabled() || isTutorialBattleActive()) return Promise.resolve(true);
@@ -4428,6 +4428,16 @@ function confirmTouchAction(title) {
     titleEl.className = "contact-approval-title";
     titleEl.textContent = title;
     modal.appendChild(titleEl);
+
+    // 対象カードの画像を添える（ユーザー要望2026-08-13「このカードを選びますか等の確認モーダルに
+    // カード画像も添えたい」）。cardIdが渡された時だけ。ロック/使用/選択いずれの確認でも共通。
+    if (cardId) {
+      const cardImg = document.createElement("img");
+      cardImg.className = "touch-action-confirm-card";
+      cardImg.src = getCardImagePath(cardId);
+      cardImg.alt = "";
+      modal.appendChild(cardImg);
+    }
 
     const buttons = document.createElement("div");
     buttons.className = "contact-approval-buttons";
@@ -4593,7 +4603,7 @@ async function tryUseLockedUsableCard(tokenId) {
   }
   render();
   if (canUseHandEffect(useToken.cardId, useToken.id, owner)) {
-    if (await confirmTouchAction(`${getCardDefinition(useToken.cardId).name}を使用しますか？`)) {
+    if (await confirmTouchAction(`${getCardDefinition(useToken.cardId).name}を使用しますか？`, { cardId: useToken.cardId })) {
       runAutoHandEffect(useToken.cardId, useToken.id, owner);
     }
   } else if (!canPayHandEffectCost(useToken.cardId, useToken.id, owner)) {
@@ -9708,7 +9718,7 @@ async function onDragEnd(e) {
         ) {
           render();
           if (canUseHandEffect(draggedToken.cardId, draggedToken.id, cardSourceLocation.player)) {
-            if (await confirmTouchAction(`${getCardDefinition(draggedToken.cardId).name}を使用しますか？`)) {
+            if (await confirmTouchAction(`${getCardDefinition(draggedToken.cardId).name}を使用しますか？`, { cardId: draggedToken.cardId })) {
               runAutoHandEffect(draggedToken.cardId, draggedToken.id, cardSourceLocation.player);
             }
           } else if (!canPayHandEffectCost(draggedToken.cardId, draggedToken.id, cardSourceLocation.player)) {
@@ -9839,7 +9849,7 @@ async function onDragEnd(e) {
         ) {
           render();
           if (canUseHandEffect(useToken.cardId, useToken.id, clickPlayer)) {
-            if (await confirmTouchAction(`${getCardDefinition(useToken.cardId).name}を使用しますか？`)) {
+            if (await confirmTouchAction(`${getCardDefinition(useToken.cardId).name}を使用しますか？`, { cardId: useToken.cardId })) {
               runAutoHandEffect(useToken.cardId, useToken.id, clickPlayer);
             }
           } else if (!canPayHandEffectCost(useToken.cardId, useToken.id, clickPlayer)) {
@@ -9869,7 +9879,7 @@ async function onDragEnd(e) {
           if (isSelfHandPhase() || (isUsableAnytime && !effectProcessingBusy)) {
             render();
             if (canUseHandEffect(clickedToken.cardId, clickedToken.id, clickPlayer)) {
-              if (await confirmTouchAction(`${getCardDefinition(clickedToken.cardId).name}を使用しますか？`)) {
+              if (await confirmTouchAction(`${getCardDefinition(clickedToken.cardId).name}を使用しますか？`, { cardId: clickedToken.cardId })) {
                 runAutoHandEffect(clickedToken.cardId, clickedToken.id, clickPlayer);
               }
             } else if (!canPayHandEffectCost(clickedToken.cardId, clickedToken.id, clickPlayer)) {
@@ -9896,7 +9906,7 @@ async function onDragEnd(e) {
     const token = getState().tokens.find((t) => t.id === tokenId);
     const wasAlreadyLocked = !!token && token.location.zone === "lock";
     if (kind === "card" && dropTarget.zone === "lock") {
-      if (!(await confirmTouchAction(`${getCardDefinition(token?.cardId)?.name ?? "このカード"}をロックしますか？`))) {
+      if (!(await confirmTouchAction(`${getCardDefinition(token?.cardId)?.name ?? "このカード"}をロックしますか？`, { cardId: token?.cardId }))) {
         render();
         return;
       }
