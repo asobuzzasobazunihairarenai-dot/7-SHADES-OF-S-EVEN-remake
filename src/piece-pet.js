@@ -16,6 +16,7 @@
 // 無しで使うため、セレクタ .piece[data-token-id] には引っかからない＝盤面の本物の駒だけが対象。
 
 import { getPetOptionForSeat, petSpriteSrc } from "./pet-skins.js";
+import { onFlatten2dModeChange } from "./tablet-2d-mode.js"; // 2D切替時の診断ログ用（#2調査）
 
 const PET_EMOJI = "🐥"; // 既定（pet-skins.jsの選択が使えない時のフォールバック）
 
@@ -88,6 +89,46 @@ export function initPiecePets() {
   window.addEventListener("admin:change", refreshTuning);
   running = true;
   requestAnimationFrame(tick);
+
+  // 診断（ユーザー報告2026-08-13「スマホの2Dでペットが描画されない」#2）: この環境（デスクトップ/
+  // モバイルエミュ）では2Dでもペットは正常表示され再現できないため、実機での実態を掴む用。
+  // 2D/3D切替の少し後に、各ペットの表示状態・実画面位置・レイヤーの矩形をコンソールへ出す
+  // （bug-report.jsが自動でコンソールを不具合報告に添付する）。ログのみで挙動は変えない。
+  try {
+    onFlatten2dModeChange?.((is2d) => {
+      setTimeout(() => {
+        try {
+          const layer = document.getElementById("piece-pet-layer");
+          const lr = layer?.getBoundingClientRect();
+          const vw = window.innerWidth, vh = window.innerHeight;
+          const petInfo = [...pets.values()].map((p) => {
+            const cs = getComputedStyle(p.el);
+            const r = p.el.getBoundingClientRect();
+            const spOn = p.sprite.style.display !== "none";
+            return {
+              disp: cs.display,
+              spr: spOn ? (p.sprite.getAttribute("src") || "").split("/").pop() : "emoji:" + (p.emojiChar || ""),
+              x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height),
+              onScreen: r.right > 0 && r.bottom > 0 && r.x < vw && r.y < vh,
+            };
+          });
+          console.log(
+            "[diag-pet-2d]",
+            JSON.stringify({
+              is2d,
+              viewport: `${vw}x${vh}`,
+              layer: lr ? { x: Math.round(lr.x), y: Math.round(lr.y), w: Math.round(lr.width), h: Math.round(lr.height), disp: layer ? getComputedStyle(layer).display : "?" } : "no-layer",
+              pets: petInfo,
+            })
+          );
+        } catch (e) {
+          /* 診断失敗は無視 */
+        }
+      }, 900);
+    });
+  } catch (e) {
+    /* onFlatten2dModeChange未提供でも無害 */
+  }
 }
 
 const rand = (a, b) => a + Math.random() * (b - a);
