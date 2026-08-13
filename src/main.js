@@ -3182,9 +3182,17 @@ document.addEventListener(
         const cardEl = el.closest(".hand-card") ?? el.closest(".hand-reveal-card");
         if (!cardEl) continue;
         if (picker.tokenIds.has(cardEl.dataset.tokenId)) {
-          activeEffectPicker = null;
           const token = getState().tokens.find((t) => t.id === cardEl.dataset.tokenId);
-          picker.resolve(token ?? null);
+          // 自分の手札からカードを選ぶ確定操作にも、ロック/手札使用と同じ確認モーダルを挟む
+          // （ユーザー要望2026-08-13。追色コスト・収穫と種まき等の手札選択が対象）。設定
+          // (isActionConfirmEnabled)がOFFなら confirmTouchAction は即trueを返すので実質素通り。
+          // 確認が閉じるまで activeEffectPicker は残す＝拒否したら選び直せる／候補ハイライトも保持。
+          confirmTouchAction(picker.confirmTitle ?? "このカードを選びますか？").then((ok) => {
+            if (!ok) return; // いいえ＝ピッカー維持、選び直せる
+            if (activeEffectPicker !== picker) return; // 念のため（待機中に状況が変わった場合）
+            activeEffectPicker = null;
+            picker.resolve(token ?? null);
+          });
         }
         return;
       }
