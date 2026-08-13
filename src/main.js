@@ -60,6 +60,9 @@ import { initDiscordLink } from "./discord-link.js";
 import { initBoardViewToggle } from "./board-view-toggle.js";
 import { getOptionArea } from "./option-area.js";
 import { openBugReportModal } from "./bug-report.js";
+// リロードを跨ぐ“ブラックボックス”（「スマホでたまに落ちてタイトルに戻る」原因追跡用）。
+// import した時点で自己初期化（心拍・エラー捕捉開始＋前回セッションの不審終了判定）される。
+import { getBlackboxBootReport, setBlackboxContext } from "./crash-blackbox.js";
 // オンライン対戦開始時に一度だけ出す「不具合報告のお願い」案内（開始告知が閉じた直後に表示）。
 import { maybeShowBugReportIntro, isBugReportIntroHidden } from "./bug-report-intro.js";
 import { maybeShowGameStartIntros } from "./game-intros.js";
@@ -11806,6 +11809,26 @@ initStatsPlayerLinkModal();
 initMyPage();
 initCardDevMode();
 initActionLogPanel();
+// ブラックボックス: 前回セッションが不審に終わっていた（＝落ちてタイトルに戻った疑い）場合、
+// その内訳（メモリのピーク・CPU戦/オンライン・遷移種別・直前エラー）をアクションログへ残す。
+// こうしておくと、次に落ちた後に送られる不具合報告のログでその1行を見れば原因を絞り込める。
+try {
+  const bb = getBlackboxBootReport();
+  if (bb) logAction("diag-crash-recovery", bb);
+} catch {
+  /* 診断ログの失敗はアプリ本体に影響させない */
+}
+// 現在が「対局中か・CPU戦かオンラインか」をブラックボックスへ随時反映（落ちた時にどの画面
+// だったか分かるように）。変化時だけ書き込む（setBlackboxContext内でdedup）。
+subscribe(() => {
+  try {
+    const started = Boolean(getState().turnPlayer);
+    const mode = !started ? "title" : isOnlineMode() ? "online" : isCpuBattleActive() ? "cpu" : "local";
+    setBlackboxContext({ inGame: started, mode });
+  } catch {
+    /* ignore */
+  }
+});
 registerCardDevModeArrivalHelpers({ triggerCardArrival, runAutoHandEffect, render });
 registerPhaseAutomationHelpers({ render, findTopCardAt, pickLocation: requestCellChoiceForEffect });
 initHelpButton();

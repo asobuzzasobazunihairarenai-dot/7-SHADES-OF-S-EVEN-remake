@@ -21,6 +21,7 @@ import {
   isOnlineMode,
   notifyListeners,
   applyRemotePriorityPatch,
+  resetGame,
 } from "./state.js";
 import { SEAT_ORDER } from "./board-layout.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
@@ -1453,6 +1454,11 @@ export async function leaveGame() {
   // ロスターのせいで既にいない部屋のダミーアバターが残り続けてしまう。
   roster = {};
   setOnlineMode(false);
+  // 退室したらローカルのゲーム状態も初期化する。これをしないと turnPlayer 等が「対局中」の
+  // まま残り、ホーム/タイトルに戻った後の再描画で、ゲーム開始に紐づくオーバーレイ（チュートリアル
+  // 自動開始・不具合報告のお願い）が誤って再発火することがある（実際に確認済み）。resetGame は
+  // ローカル専用アクション（サーバーへは送られない）なので、退室後のこの時点で呼んで安全。
+  resetGame();
   notifyListeners();
 
   // 観戦者は座席を持たないので、サーバー側の座席削除（so7_leave_room）は呼ばない

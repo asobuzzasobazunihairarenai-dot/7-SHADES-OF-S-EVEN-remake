@@ -17,6 +17,7 @@ import {
   broadcastBugLogResponse,
 } from "./online.js";
 import { getActionLogText } from "./action-log.js";
+import { getBlackboxSummary } from "./crash-blackbox.js";
 import { getPlayerName } from "./player-identity.js";
 import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
 import { APP_VERSION } from "./app-version.js";
@@ -186,6 +187,15 @@ function gatherContext() {
     roomId,
     at: new Date().toISOString(),
     gameContext,
+    // リロードを跨ぐブラックボックス（crash-blackbox.js）: メモリのピーク・遷移種別・前回セッションの
+    // 不審終了（＝落ちてタイトルに戻った疑い）を載せる。「スマホでたまに落ちる」原因追跡用。
+    blackbox: (() => {
+      try {
+        return getBlackboxSummary();
+      } catch {
+        return null;
+      }
+    })(),
   };
 }
 

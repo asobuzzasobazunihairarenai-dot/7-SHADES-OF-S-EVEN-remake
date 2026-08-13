@@ -5,6 +5,7 @@
 import { openAdminPanel } from "./admin.js";
 import { isAutoDragRestrictionEnabled, setAutoDragRestrictionEnabled } from "./auto-drag-restriction.js";
 import { openActionLogPanel } from "./action-log.js";
+import { markCleanExit } from "./crash-blackbox.js";
 import { openCardDevMode } from "./card-dev-mode.js";
 import { isProfileLayoutEditMode, setProfileLayoutEditMode } from "./profile-layout-editor.js";
 import { isAutoProcessingEnabled, setAutoProcessingEnabled } from "./card-effect-engine.js";
@@ -239,6 +240,7 @@ function buildResetAppearanceRow() {
     btn.textContent = "初期化中…";
     try {
       await resetMyAppearanceSettings();
+      markCleanExit(); // 意図的なリロード＝ブラックボックスに「不審な落下」と誤検知させない。
       window.location.reload();
     } catch (err) {
       console.error("resetMyAppearanceSettings failed", err);
@@ -1212,6 +1214,7 @@ export function initOptionsMenu() {
     // サーバー側に残るため、「進行中の対局を再開」から戻ってこられる。
     panel.appendChild(
       buildMenuItem("🏠 タイトルに戻る", () => {
+        markCleanExit(); // 意図的なリロード＝ブラックボックスに「不審な落下」と誤検知させない。
         window.location.reload();
       })
     );

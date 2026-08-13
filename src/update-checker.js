@@ -7,6 +7,7 @@
 // 値が変わる）。取得は必ず cache:"no-store" ＋クエリでキャッシュを回避する。
 
 import { APP_VERSION } from "./app-version.js";
+import { markCleanExit } from "./crash-blackbox.js";
 
 const CHECK_INTERVAL_MS = 60000; // 60秒ごと
 // 基準は「今実行しているコードのバージョン」（APP_VERSION、JSと一緒にキャッシュされる）。
@@ -113,6 +114,7 @@ async function applyUpdate(btn) {
   } catch (e) {
     /* 取り直しに失敗してもreloadは試みる */
   }
+  markCleanExit(); // 更新リロードは意図的＝ブラックボックスに「不審な落下」と誤検知させない。
   location.reload();
 }
 
