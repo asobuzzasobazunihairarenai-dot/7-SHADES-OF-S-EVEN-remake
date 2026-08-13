@@ -115,18 +115,19 @@ function showOne(intro) {
     const ok = document.createElement("button");
     ok.type = "button";
     ok.className = "game-intro-ok";
+    // 「わかった」は既読にしない＝閉じるだけ。次の対戦でまた出る（ユーザー要望2026-08-13）。
     ok.textContent = "わかった";
     ok.addEventListener("click", () => {
-      markSeen(intro.key);
       close();
     });
 
+    // 「今後このモーダルを表示しない」でこのモーダルを既読にする＝以後出さない（ユーザー要望）。
     const allOff = document.createElement("button");
     allOff.type = "button";
     allOff.className = "game-intro-alloff";
     allOff.textContent = "今後このモーダルを表示しない";
     allOff.addEventListener("click", () => {
-      setAllOff();
+      markSeen(intro.key);
       close();
     });
 
