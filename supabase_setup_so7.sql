@@ -772,7 +772,10 @@ begin
     end if;
   end loop;
 
-  update so7_games set currency_awarded = true where id = p_game_id;
+  -- 対局が終わったので status を 'finished' にする（currency_awardedと同じ「1ゲーム1回」の
+  -- タイミング）。これで終了した対局が getMyActiveGames()（status<>'open'）の「再接続で続けられる
+  -- 対局」一覧に残り続けず、掃除を待たずに消える（#77の副次対応。BOOTSTRAP側のstatus='playing'と対）。
+  update so7_games set currency_awarded = true, status = 'finished' where id = p_game_id;
   return v_my_grant;
 end;
 $$;
@@ -1455,7 +1458,10 @@ begin
     end if;
   end loop;
 
-  update so7_games set currency_awarded = true where id = p_game_id;
+  -- 対局が終わったので status を 'finished' にする（currency_awardedと同じ「1ゲーム1回」の
+  -- タイミング）。これで終了した対局が getMyActiveGames()（status<>'open'）の「再接続で続けられる
+  -- 対局」一覧に残り続けず、掃除を待たずに消える（#77の副次対応。BOOTSTRAP側のstatus='playing'と対）。
+  update so7_games set currency_awarded = true, status = 'finished' where id = p_game_id;
   return v_my_grant;
 end;
 $$;

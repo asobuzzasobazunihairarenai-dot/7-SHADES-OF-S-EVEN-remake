@@ -1106,6 +1106,15 @@ Deno.serve(async (req) => {
     if (action.type === "BOOTSTRAP_GAME") {
       gamesPatch.my_deck_mode = !!action.myDeckMode;
     }
+    // 対局が始まったら status を 'open'（＝ロビー・参加募集中）から 'playing'（＝対局中）へ進める。
+    // これが今まで書かれておらず、開始後も status='open' のままだったため、(1) getMyActiveGames()
+    // が status<>'open' で絞る「再接続で続けられる対局」の一覧に出ず、通信が切れて再読込すると
+    // 進行中の対局が見つからずタイトルに戻る（#77の主因）、(2) 開始済みの部屋が listOpenRooms の
+    // 参加募集一覧に残り続ける、という2つの症状が出ていた。SQLのcommit RPCは
+    // status = coalesce(p_games_patch->>'status', status) なので、この1行で正しく遷移する。
+    if (action.type === "BOOTSTRAP_GAME") {
+      gamesPatch.status = "playing";
+    }
     // 最後のロック承認: このアクションの時だけpending_final_lockを含める（保留が解消
     // された時はnullを明示的に含める）。それ以外のアクションはキー自体を含めないため、
     // SQL側のcoalesce()が現在値をそのまま維持する（supabase_setup_so7.sql参照）。
