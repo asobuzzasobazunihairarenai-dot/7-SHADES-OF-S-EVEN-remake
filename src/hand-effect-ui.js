@@ -247,6 +247,79 @@ export function showCardReceivedModal(cardId, subtitle, { labelText = "受け取
   });
 }
 
+// 複数枚を1つの中央モーダルにまとめて見せる（ユーザー要望2026-08-13「ゲート侵攻で奪ったカードは
+// 複数枚でも画面中央にモーダルで表示したい」）。showCardReceivedModalの複数枚版。cardIdがnull
+// （オンラインの非公開札）はgetCardImagePath側が裏面を返す。閉じたら解決するPromiseを返す。
+export function showMultipleCardsReceivedModal(cardIds, subtitle, { labelText = "奪った" } = {}) {
+  if (currentReceivedModal) {
+    clearTimeout(currentReceivedModalTimer);
+    currentReceivedModalBackdrop?.remove();
+    currentReceivedModal.remove();
+    currentReceivedModal = null;
+    currentReceivedModalBackdrop = null;
+  }
+  const ids = Array.isArray(cardIds) ? cardIds : [];
+  const modal = document.createElement("div");
+  modal.className = "card-received-modal card-received-modal-multi";
+  return new Promise((resolve) => {
+    let settled = false;
+    function dismiss() {
+      modal.classList.remove("show");
+      currentReceivedModalBackdrop?.remove();
+      currentReceivedModalBackdrop = null;
+      setTimeout(() => {
+        modal.remove();
+        if (currentReceivedModal === modal) currentReceivedModal = null;
+      }, 300);
+      if (!settled) {
+        settled = true;
+        resolve();
+      }
+    }
+    const backdrop = createBackdrop(dismiss, { dim: true, zIndex: 10640 });
+    currentReceivedModalBackdrop = backdrop;
+
+    const label = document.createElement("div");
+    label.className = "card-received-modal-label";
+    label.textContent = `${labelText}（${ids.length}枚）`;
+    modal.appendChild(label);
+
+    const row = document.createElement("div");
+    row.className = "card-received-modal-cards";
+    for (const cardId of ids) {
+      const def = getCardDefinition(cardId);
+      const cell = document.createElement("div");
+      cell.className = "card-received-modal-card";
+      const img = document.createElement("img");
+      img.src = getCardImagePath(cardId);
+      img.alt = def?.name ?? cardId ?? "";
+      cell.appendChild(img);
+      const nm = document.createElement("div");
+      nm.className = "card-received-modal-name";
+      nm.textContent = def?.name ?? "";
+      cell.appendChild(nm);
+      row.appendChild(cell);
+    }
+    modal.appendChild(row);
+
+    if (subtitle) {
+      const subtitleEl = document.createElement("div");
+      subtitleEl.className = "card-received-modal-subtitle";
+      subtitleEl.textContent = subtitle;
+      modal.appendChild(subtitleEl);
+    }
+
+    modal.appendChild(createModalCloseX(dismiss));
+    modal.addEventListener("click", dismiss);
+
+    document.body.appendChild(backdrop);
+    document.body.appendChild(modal);
+    currentReceivedModal = modal;
+    requestAnimationFrame(() => modal.classList.add("show"));
+    currentReceivedModalTimer = setTimeout(dismiss, RECEIVED_MODAL_DURATION_MS);
+  });
+}
+
 // optionsWithUsability: [{ id, label, usable, ... }]。選ばれたoptionを解決するPromiseを返す。
 // カード効果は原則キャンセルできない（ユーザー方針）ため、使える選択肢のどれかを
 // 選ぶまでこのモーダルから抜けられない（呼び出し元は必ず1つ以上usable:trueの選択肢が

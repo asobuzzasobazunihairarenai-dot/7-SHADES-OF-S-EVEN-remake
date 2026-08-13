@@ -159,6 +159,7 @@ import {
   showHandEffectOptionPicker,
   showEffectReasonModal,
   showCardReceivedModal,
+  showMultipleCardsReceivedModal,
   REASON_MODAL_TOTAL_MS,
 } from "./hand-effect-ui.js";
 import { initPlayerButtons } from "./player-buttons.js";
@@ -2086,6 +2087,17 @@ async function stealHandCardsRitualForGateInvasion(defender, count, onPicked) {
     // ローカルは onPicked で1枚ずつ実際に手札へ移す（オンラインはidを集めるだけ＝サーバーが移す）。
     if (onPicked) {
       for (const token of tokens) await onPicked(token);
+    }
+    // 奪ったカードを画面中央のモーダルで、複数枚まとめて見せる（ユーザー要望2026-08-13
+    // 「複数枚でも中央に奪ったカードが何かモーダルで表示したい」）。onPickedで手札へ移った後の
+    // 最新cardIdを使う（ローカルは判明。オンラインは非公開でnull→getCardImagePathが裏面を返す）。
+    const cardIds = tokens
+      .map((t) => getState().tokens.find((x) => x.id === t.id)?.cardId ?? t.cardId ?? null)
+      .filter(Boolean);
+    if (cardIds.length > 0) {
+      const self = getSelfSeat();
+      const sub = self === defender ? "" : `${getPlayerName(defender)}から`;
+      await showMultipleCardsReceivedModal(cardIds, sub, { labelText: "奪った" });
     }
     return tokens;
   }

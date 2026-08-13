@@ -9084,6 +9084,27 @@ body.phase-lock-picking .hand-card:not(.phase-lock-highlight):not(.card-effect-t
   color: #a7f3d0;
   text-align: center;
 }
+/* 複数枚をまとめて見せる中央モーダル（showMultipleCardsReceivedModal、ゲート侵攻の複数枚奪取。
+   ユーザー要望2026-08-13）。カードを横並び（枚数が多ければ折り返す）。 */
+.card-received-modal-multi {
+  width: auto;
+  max-width: min(46rem, 94vw);
+  cursor: pointer;
+}
+.card-received-modal-cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.7rem;
+}
+.card-received-modal-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  width: 8rem;
+  max-width: 40vw;
+}
 
 /* プレゼントの到達効果等で「誰がドロー対象か」をアバターで画面中央に周知するモーダル
    （main.jsのannounceDrawTargetsForEffect）。ユーザー要望2026-08-07。 */
