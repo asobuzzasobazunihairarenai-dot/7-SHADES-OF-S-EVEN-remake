@@ -8521,6 +8521,22 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
 .sleight-ritual-card:hover {
   transform: translateY(-0.4rem) scale(1.05);
 }
+/* ゲート侵攻の複数枚奪取（requestOpponentHandRitualMultiPick）: タップで選択中のカードを
+   金色で強調。確定ボタンは必要枚数に達するまで無効（ユーザー要望2026-08-13）。 */
+.sleight-ritual-card.is-selected {
+  transform: translateY(-0.6rem) scale(1.1);
+  box-shadow: 0 0 1.2rem rgba(250, 204, 21, 0.95), 0 6px 14px rgba(0, 0, 0, 0.6);
+  outline: 3px solid #facc15;
+  z-index: 1;
+}
+#sleight-ritual-multi-confirm {
+  margin-top: 1rem;
+  align-self: center;
+}
+#sleight-ritual-multi-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 /* ユーザー要望「スリカエで1枚引っこ抜く前にシャッフル演出が欲しい」。ピック開始前の
    一定時間だけ、裏向きの手札を中央へ寄せて戻す動きを繰り返し、シャッフルしている様子を
    見せる（この間はクリック不可＝pointer-events:none）。各カードの--shuffle-x/--shuffle-rotと

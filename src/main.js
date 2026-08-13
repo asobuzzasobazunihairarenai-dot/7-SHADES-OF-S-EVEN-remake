@@ -1968,11 +1968,127 @@ function announceGateInvasionSuccessBeforeStealPick(defender, count) {
   });
 }
 
+// ゲート侵攻の複数枚奪取用（ユーザー要望2026-08-13「複数枚奪える時は1枚ずつでなく一度に
+// 複数選択したい」）。requestOpponentHandRitualPick（単発）を複数選択に拡張した版。相手の
+// 裏向き手札をシャッフル演出後に表示し、必要枚数だけタップで選ぶ→確定でまとめて解決する。
+// 「奪ったカードの確認」は呼び出し側(gate-invasion.js)の announceHandPickups が全枚数を1つの
+// トーストにまとめて表示するので、ここでは1枚ずつの「奪った」中央モーダルは出さない
+// （＝ユーザー要望「確認も複数枚同時に1つのモーダルで」を満たす）。オンラインは開始/終了だけ
+// 実況し（1枚ずつのライブホバーは複数選択では煩雑なので省略）、結果はサーバー同期に委ねる。
+function requestOpponentHandRitualMultiPick(targetPlayer, count) {
+  return new Promise((resolve) => {
+    const theirHand = getState().tokens.filter(
+      (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === targetPlayer
+    );
+    if (theirHand.length === 0) {
+      resolve([]);
+      return;
+    }
+    const need = Math.min(count, theirHand.length);
+    const shuffled = [...theirHand].sort(() => Math.random() - 0.5);
+    const isRitualBroadcastTarget = isOnlineMode() && targetPlayer !== getSelfSeat();
+    if (isRitualBroadcastTarget) broadcastRitualPickStarted({ targetPlayer, order: shuffled.map((t) => t.id) });
+
+    let settled = false;
+    const finish = (tokens) => {
+      if (settled) return;
+      settled = true;
+      activeEffectPicker = null;
+      backdrop.remove();
+      modal.remove();
+      if (isRitualBroadcastTarget) broadcastRitualPickEnded({ targetPlayer, pickedTokenId: null });
+      resolve(tokens);
+    };
+
+    // 背景タップでは閉じない（必ず選ぶ必須処理。単発版と同じ方針）。放置時はタイムアウトで無作為。
+    const backdrop = createBackdrop(() => {}, { dim: true, zIndex: 10620 });
+    const modal = document.createElement("div");
+    modal.id = "sleight-ritual-modal";
+    modal.classList.add("is-multi-pick");
+    const title = document.createElement("div");
+    title.className = "sleight-ritual-title";
+    title.textContent = "シャッフル中…";
+    modal.appendChild(title);
+    const cardsWrap = document.createElement("div");
+    cardsWrap.className = "sleight-ritual-cards";
+    const n = shuffled.length;
+    const selected = new Set(); // tokenId
+    const confirmBtn = document.createElement("button");
+    confirmBtn.id = "sleight-ritual-multi-confirm";
+    confirmBtn.type = "button";
+    confirmBtn.className = "contact-approval-approve";
+    const updateUi = () => {
+      title.textContent = `奪うカードを${need}枚選んでください（${selected.size}/${need}）`;
+      confirmBtn.textContent = `✅ 決定（${selected.size}/${need}枚）`;
+      confirmBtn.disabled = selected.size !== need;
+    };
+    shuffled.forEach((token, index) => {
+      const cardEl = document.createElement("div");
+      cardEl.className = "sleight-ritual-card";
+      cardEl.style.backgroundImage = `url("${cardBackImageForToken(token)}")`;
+      cardEl.style.setProperty("--shuffle-x", `${((n - 1) / 2 - index) * 1.1}rem`);
+      cardEl.style.setProperty("--shuffle-rot", `${index % 2 === 0 ? 9 : -9}deg`);
+      cardEl.style.animationDelay = `${(index % 4) * 0.06}s`;
+      cardEl.addEventListener("click", () => {
+        if (modal.classList.contains("is-shuffling")) return; // 演出中は不可
+        if (selected.has(token.id)) {
+          selected.delete(token.id);
+          cardEl.classList.remove("is-selected");
+        } else {
+          if (selected.size >= need) return; // 必要枚数まで
+          selected.add(token.id);
+          cardEl.classList.add("is-selected");
+        }
+        updateUi();
+      });
+      cardsWrap.appendChild(cardEl);
+    });
+    modal.appendChild(cardsWrap);
+    confirmBtn.addEventListener("click", () => {
+      if (selected.size !== need) return;
+      finish(shuffled.filter((t) => selected.has(t.id)));
+    });
+    modal.appendChild(confirmBtn);
+
+    // タイムアウト自動解決（opponentHandMulti）: need枚を無作為に選んで確定。
+    activeEffectPicker = {
+      type: "opponentHandMulti",
+      tokens: shuffled,
+      count: need,
+      resolve: (tokens) => finish(tokens),
+    };
+    document.body.appendChild(backdrop);
+    document.body.appendChild(modal);
+    if (isCpuSelectingNow()) {
+      backdrop.classList.add("is-cpu-hidden");
+      modal.classList.add("is-cpu-hidden");
+    }
+    // シャッフル演出中はクリック不可（単発版と同じ1100ms）。終わったら選択案内へ。
+    modal.classList.add("is-shuffling");
+    setTimeout(() => {
+      if (settled) return;
+      modal.classList.remove("is-shuffling");
+      updateUi();
+    }, 1100);
+  });
+}
+
 // onPicked（省略可）: 1枚選ぶ（＋中央に「奪った」表示）ごとに呼ばれる。ローカルのゲート侵攻は
 // これで「1枚ごとに実際に自分の手札へ移す」（ユーザー要望2026-08-07「複数枚奪う時、1枚ずつ
 // 手札に描画。今はまとめて最後に加わる」）。オンラインは奪う札のidを集めるだけ（実際の移動は
 // サーバー）なので onPicked を渡さない＝従来通りまとめて。
 async function stealHandCardsRitualForGateInvasion(defender, count, onPicked) {
+  // 2枚以上奪う時は複数選択UIでまとめて選ぶ（ユーザー要望2026-08-13。マイ異数が多いと1枚ずつは
+  // 面倒）。1枚ずつの「奪った」中央モーダルは出さず、選び終えたら呼び出し側(gate-invasion.js)の
+  // announceHandPickupsが全枚数を1トーストで見せる。1枚だけなら従来の単発ピック（シンプル）。
+  if (count >= 2) {
+    const tokens = await requestOpponentHandRitualMultiPick(defender, count);
+    // ローカルは onPicked で1枚ずつ実際に手札へ移す（オンラインはidを集めるだけ＝サーバーが移す）。
+    if (onPicked) {
+      for (const token of tokens) await onPicked(token);
+    }
+    return tokens;
+  }
   const stolen = [];
   const excludeTokenIds = new Set();
   for (let i = 0; i < count; i++) {
@@ -3501,6 +3617,15 @@ export function performPriorityTimeoutAutoAction() {
         ? chooseOpponentHandCardToSteal(picker.tokens, driveSeat)
         : pickRandomFrom(picker.tokens);
       picker.resolve(choice);
+    } else if (picker.type === "opponentHandMulti") {
+      // ゲート侵攻の複数枚奪取（requestOpponentHandRitualMultiPick）のタイムアウト/自動解決。
+      // 相手の手札は非公開のため、需要枚数(count)を無作為に選んでまとめて確定する。
+      const pool = [...picker.tokens];
+      const chosen = [];
+      for (let i = 0; i < picker.count && pool.length > 0; i++) {
+        chosen.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+      }
+      picker.resolve(chosen);
     }
     return true;
   }
