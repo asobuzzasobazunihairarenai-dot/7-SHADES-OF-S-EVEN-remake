@@ -174,13 +174,24 @@ export function markPhaseMoveActionTaken() {
 }
 // main.jsの手札効果トリガー（Task 5）が、コスト選択等で待っている間はフェイズの
 // 自動進行を一時止める（選んでいる最中にハンドフェイズが終わってしまうのを防ぐ）。
+// #93: handEffectBusy が「取り残し」で恒久的に true のまま詰まる稀ケース（ジャンプ台→選べる罠
+// の連鎖など）に備え、false→true になった時刻を控えておく。main.js のウォッチドッグが
+// 「ピッカーも到達処理もモーダルも無いのに長時間 busy のまま」を検知して安全に解除するのに使う。
+let handEffectBusySince = 0;
 export function setHandEffectBusy(v) {
-  handEffectBusy = !!v;
+  const next = !!v;
+  if (next && !handEffectBusy) handEffectBusySince = Date.now();
+  else if (!next) handEffectBusySince = 0;
+  handEffectBusy = next;
 }
 // ユーザー報告「『いつでも使える』が効果の処理中にも使えてしまう」への対応で
 // main.js側が判定に使う（docs/rulebook.md「いつでも使える」の定義参照）。
 export function isHandEffectBusy() {
   return handEffectBusy;
+}
+// busy が連続で true のまま経過したミリ秒（busy でなければ 0）。#93ウォッチドッグ用。
+export function getHandEffectBusyStuckMs() {
+  return handEffectBusy && handEffectBusySince ? Date.now() - handEffectBusySince : 0;
 }
 
 // ユーザー報告「『○○のターン』の表示がちゃんと消えてからフェイズのモーダル表示に

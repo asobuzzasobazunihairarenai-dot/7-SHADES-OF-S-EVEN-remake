@@ -46,6 +46,7 @@ import {
   isHandPhaseActive,
   setHandEffectBusy,
   isHandEffectBusy,
+  getHandEffectBusyStuckMs,
   isMovePhaseActive,
   markPhaseMoveActionTaken,
   setTurnAnnounceActive,
@@ -12016,6 +12017,34 @@ initAdminMode();
   updateAdminBodyClass();
   onAuthChange(updateAdminBodyClass); // 管理者アカウントでログイン/ログアウトした時に出し分けを更新
 })();
+
+// #93セーフティ・ウォッチドッグ: 手札効果解決フラグ(handEffectBusy)が「取り残し」で
+// 恒久的に true のまま残ると、盤面が全カード・トーンオフのまま／スキップ不可で永久に詰む
+// （実機報告#93: ジャンプ台の手札効果→連鎖到達で選べる罠まで解決した後、busyが解除されず停止）。
+// 選択待ちの間は必ず activeEffectPicker が立つ（pickOptionForEffect等）ため、ピッカーも到達処理も
+// 各種モーダルもゲート侵攻も一切無いのに一定時間 busy のままなら「取り残し」と断定し、安全に解除して
+// 盤面を復帰させる（進行中の効果を中断するわけではなく、あくまで宙に浮いたフラグの後始末）。
+// 根本原因の特定用に diag ログも残す。
+setInterval(() => {
+  try {
+    if (getHandEffectBusyStuckMs() < 20000) return;
+    // 何かが本当に処理待ち/表示中なら手を出さない（誤解除防止）。
+    if (activeEffectPicker) return;
+    if (isArrivalEffectProcessing()) return;
+    if (openContactResultModals > 0) return;
+    if (anytimeInterruptModalEl) return;
+    if (isGateInvasionPending() || isGateInvasionQueueActive() || isLocalGateInvasionActive()) return;
+    if (getState().pendingContact) return;
+    logAction("diag-handeffect-busy-watchdog", {
+      stuckMs: getHandEffectBusyStuckMs(),
+      turnPlayer: getState().turnPlayer,
+      selfSeat: getSelfSeat(),
+    });
+    setHandEffectBusy(false);
+    render();
+  } catch { /* noop: ウォッチドッグ自身で例外を投げても進行を止めない */ }
+}, 5000);
+
 initDeckViewer();
 initStatsPlayerLinkModal();
 initMyPage();
