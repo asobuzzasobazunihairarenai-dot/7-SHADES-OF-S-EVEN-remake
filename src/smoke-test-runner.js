@@ -41,6 +41,21 @@ async function runInAppSmokeTest(onLog) {
   try {
     const cpu = await import("./cpu-battle.js");
     const admin = await import("./admin.js");
+
+    // タイトル（オープニング）画面を先に閉じてから対局を始める。ボタンはタイトル画面から
+    // 押されるが、opening-screen.jsのclose()はモジュール内クロージャで外から呼べないため、
+    // 同等のこと（オーバーレイを隠す＋body classを外す）をここで行う。これをしないと、
+    // ①盤面がオープニングの裏に隠れて効果音だけ鳴る（見えない）②到達選択や接触などの
+    // モーダルがオープニングの背後に出て、自己対戦がそこで止まる（ユーザー報告: turn 4で詰み）。
+    try {
+      document.body.classList.remove("opening-screen-active");
+      const opening = document.getElementById("opening-screen");
+      if (opening) opening.style.display = "none";
+      // ホーム画面から起動された場合にも隠す（今は管理者用ボタンがタイトルにしか出ないが保険）。
+      const home = document.getElementById("home-screen-overlay") || document.getElementById("home-screen");
+      if (home) home.style.display = "none";
+    } catch {}
+
     onLog?.("CPU戦を開始（両席とも自動＝自己対戦）…");
     admin.setPseudoCpuModeEnabled?.(true);
     await cpu.startCpuBattle();
@@ -84,7 +99,50 @@ async function runInAppSmokeTest(onLog) {
     window.removeEventListener("error", onErr);
     window.removeEventListener("unhandledrejection", onRej);
   }
+  // 失敗（特に「詰み」）した時は、どこで止まったかを突き止められるよう、アクションログの
+  // 末尾を出す（Node版 test/smoke.mjs と同じ診断）。詰みは疑似CPUの反応判断でごくたまに
+  // 起きるため、最後の数十行から「どのカード効果/接触/選択で止まったか」を読み取れる。
+  if (!pass) {
+    try {
+      const al = await import("./action-log.js");
+      const tail = (al.getActionLogText?.() ?? "").split("\n").filter(Boolean).slice(-25);
+      if (tail.length) {
+        onLog?.("──── アクションログ末尾（診断用） ────");
+        for (const line of tail) onLog?.(line);
+      }
+    } catch {}
+  }
   return { pass, reason, turnsReached: lastTurn, errors };
+}
+
+// 詰みの原因究明用に「全アクションログ＋エラー＋結果＋環境情報」を1つのテキストにまとめる。
+// 末尾だけだと到達コンボ・接触の連鎖など“数十手前から始まる”原因を追い切れないことがあるため、
+// 全ログを丸ごと渡せるようにする（ユーザー指摘2026-08-14）。
+async function collectFullDiagnostics(res) {
+  let logText = "";
+  try {
+    const al = await import("./action-log.js");
+    logText = al.getActionLogText?.() ?? "";
+  } catch {}
+  let version = "";
+  try {
+    version = (await import("./app-version.js")).APP_VERSION ?? "";
+  } catch {}
+  const header = [
+    "==== スモークテスト診断情報 ====",
+    `日時: ${new Date().toISOString()}`,
+    version ? `バージョン: ${version}` : null,
+    `結果: ${res?.pass ? "PASS" : "FAIL"} — ${res?.reason ?? ""}`,
+    `到達ターン: ${res?.turnsReached ?? "?"}`,
+    `画面: ${window.innerWidth}x${window.innerHeight} / hidden=${document.hidden}`,
+    `UA: ${navigator.userAgent}`,
+    "",
+    "---- エラー/例外 ----",
+    (res?.errors && res.errors.length) ? res.errors.join("\n") : "（なし）",
+    "",
+    "---- アクションログ（全件） ----",
+  ].filter((x) => x !== null).join("\n");
+  return header + "\n" + logText;
 }
 
 let panelOpen = false;
@@ -154,6 +212,49 @@ export function openSmokeTestPanel() {
     const res = await runInAppSmokeTest(addLog);
     resultEl.classList.add(res.pass ? "is-pass" : "is-fail");
     resultEl.textContent = res.pass ? `✅ PASS — ${res.reason}` : `❌ FAIL — ${res.reason}`;
+
+    // 診断情報（全アクションログ＋エラー＋環境）をまるごと渡せるように、コピー／ダウンロード
+    // ボタンを出す（末尾だけでは追い切れない詰み対策。ユーザー指摘2026-08-14）。詰みの原因究明に
+    // 特に有用なので、FAIL時は目立たせる。PASS時も一応残す（後から確認したい時のため）。
+    const fullText = await collectFullDiagnostics(res);
+    const copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className = "smoke-test-copy";
+    copyBtn.textContent = "📋 診断情報を全部コピー";
+    copyBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(fullText);
+        copyBtn.textContent = "✅ コピーしました";
+      } catch {
+        // クリップボード権限が無い環境向けのフォールバック: テキストエリアで選択→手動コピー。
+        const ta = document.createElement("textarea");
+        ta.value = fullText;
+        ta.className = "smoke-test-copy-fallback";
+        panel.insertBefore(ta, actions);
+        ta.focus();
+        ta.select();
+        copyBtn.textContent = "↑ を選択してコピーしてください";
+      }
+      setTimeout(() => { copyBtn.textContent = "📋 診断情報を全部コピー"; }, 4000);
+    });
+    const dlBtn = document.createElement("button");
+    dlBtn.type = "button";
+    dlBtn.className = "smoke-test-download";
+    dlBtn.textContent = "⬇ 全ログをダウンロード";
+    dlBtn.addEventListener("click", () => {
+      const blob = new Blob([fullText], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `smoke-test-${new Date().toISOString().replace(/[:.]/g, "-")}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+    actions.insertBefore(copyBtn, closeBtn);
+    actions.insertBefore(dlBtn, closeBtn);
+
     // テストは盤面を作り替えるので、終わったらタイトルへ戻す導線に差し替える。
     runBtn.remove();
     closeBtn.disabled = false;

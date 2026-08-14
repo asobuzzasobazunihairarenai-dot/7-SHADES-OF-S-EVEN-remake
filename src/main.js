@@ -6688,6 +6688,14 @@ async function useCounterLockOnContact() {
   await respondToContact(false);
   await discardFromHandReveal(token.id);
 
+  // #90: 接触をカウンターロックで無効化したことを全プレイヤーに知らせる（[[effect-result-
+  // notification-policy]]）。announceEffectReasonForEffectはオンラインでは全員へ中継し、
+  // カウンターロックのカード画像付きモーダルを出す（CPU戦では結果ホールドでクリックまで残す）。
+  await announceEffectReasonForEffect(
+    "red-counter-lock",
+    `${getPlayerName(defender)}のカウンターロックで、${getPlayerName(pending.attacker)}の接触は無効になりました。`
+  );
+
   // カウンターロックの「あなたの手札を１枚ロックしてもよい」のロック可否は、通常のロック
   // フェイズの判定（isCardLockable。七色の欠片は常にロック不可）ではなく、ハンドフェイズの
   // 特殊ロック（セレナーデ等と同じ getLockableHandTokensExceptFinal）で判定する——カウンター

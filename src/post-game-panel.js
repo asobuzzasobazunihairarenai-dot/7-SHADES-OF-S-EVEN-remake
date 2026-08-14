@@ -38,6 +38,9 @@ import { openHomeScreen } from "./home-screen.js";
 // cpu-battle-state.js は依存ゼロの葉モジュール（循環importの心配なし）。CPU戦終了パネルの
 // 「ホームに戻る」でCPU戦フラグを下ろすのに使う。
 import { setCpuBattleActive } from "./cpu-battle-state.js";
+// 勝利BGMを「もう一度遊ぶ/戦う」押下の“その瞬間”に止めるために使う（#88）。sound.jsは
+// state.js/action-log.jsしかimportしない葉に近いモジュールなので循環importの心配はない。
+import { stopVictoryBgm } from "./sound.js";
 
 // victory.jsはこのモジュール（showPostGamePanel）を呼ぶ側になる予定のため、ここから
 // victory.jsを直接importすると循環importになる。他の箇所（setup-animation.js等）と
@@ -174,6 +177,9 @@ function buildButtonsSection(gameId) {
   waitingLabel.textContent = "他の参加者を待っています…（誰かが部屋を抜けたらその人数で再開します）";
 
   rematchBtn.addEventListener("click", async () => {
+    // #88: 「もう一度遊ぶ」を押した“その瞬間”に勝利BGMを止める（従来は次の対局がSET_TURN_PLAYER
+    // まで進んで初めてinitGameBgmAutoStartが止めていたため、セットアップ完了まで鳴り続けていた）。
+    stopVictoryBgm();
     rematchBtn.disabled = true;
     rematchBtn.textContent = "待機中…";
     waitingLabel.style.display = "block";
@@ -353,6 +359,8 @@ export function showCpuBattleEndPanel({ winnerSeat }) {
   rematchBtn.style.cssText =
     "padding: 0.5rem 1rem; background: #15803d; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.85rem;";
   rematchBtn.addEventListener("click", async () => {
+    // #88: CPU戦の「もう一度戦う」でも、押した瞬間に勝利BGMを止める（セットアップ完了を待たない）。
+    stopVictoryBgm();
     rematchBtn.disabled = true;
     closePanel();
     try {
