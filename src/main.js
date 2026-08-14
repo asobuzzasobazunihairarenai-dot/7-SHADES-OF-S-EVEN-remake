@@ -2600,6 +2600,54 @@ async function publicDrawForEffect(player, count) {
   return drawnCardIds;
 }
 
+// #95: ザ・ギャンブルの公開ドロー。通常の publicDrawForEffect は「公開エリアに表向きで置いて
+// 即描画」→ その後に中央じらしフリップ、の順で、フリップ前に公開エリアで見えてしまっていた。
+// ここでは「①山から確定（オンラインはサーバー、ローカルはstate）だが公開エリアにはまだ描画しない
+// →②中央じらしフリップで公開→③公開エリアに表向きで描画」の順に組み替える。戻り値は
+// publicDrawForEffect と同じ cardId 配列（呼び出し側の宣言色一致判定はそのまま使える）。
+async function publicDrawThenRevealForEffect(player, count) {
+  const drawnCardIds = [];
+  for (let i = 0; i < count; i++) {
+    if (isOnlineMode()) {
+      let cardId = null;
+      try {
+        // サーバーに公開ドローを確定させる（revealedCardIdは返るが、fetchAndHydrateするまで
+        // このクライアントのstate/描画には反映されない＝公開エリアにはまだ出ない）。
+        const result = await drawFromPile("deck", { zone: "publicDraw", player });
+        cardId = result?.revealedCardId ?? null;
+      } catch (err) {
+        console.error("publicDrawThenRevealForEffect (online draw) failed", err);
+        break;
+      }
+      if (!cardId) break;
+      // 公開エリアに出す前に中央フリップで公開（全員に配信）。
+      await revealCenterCardForAll(cardId, "ギャンブル公開");
+      // ここで初めて公開エリアに表向きで描画する。
+      try {
+        await fetchAndHydrate(getCurrentGameId());
+      } catch (err) {
+        console.error("publicDrawThenRevealForEffect (hydrate) failed", err);
+      }
+      drawnCardIds.push(cardId);
+    } else {
+      const pileArray = getState().piles.deck;
+      if (pileArray.length === 0) break;
+      const cardId = pileArray[pileArray.length - 1];
+      // まだ山にあるうちに中央フリップで公開してから、公開エリアへ移して描画する。
+      await revealCenterCardForAll(cardId, "ギャンブル公開");
+      drawFromPile("deck", { zone: "publicDraw", player });
+      render();
+      drawnCardIds.push(cardId);
+    }
+  }
+  if (drawnCardIds.length > 0) {
+    playSound("cardDraw");
+    announceHandPickups(player, drawnCardIds.map((cardId) => ({ cardId, wasPublic: true })));
+  }
+  render();
+  return drawnCardIds;
+}
+
 // 奇跡の森 マンズウッド専用（PUBLIC_DRAW_THEN_DISCARD_AT_TURN_END）:
 // publicDrawForEffectと同じ公開ドローを行うが、戻り値がcardIdの配列ではなく実際の
 // トークンid（あとで「このターン終了時にこれを捨てる」と覚えておくために必要、
@@ -4717,6 +4765,8 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         // 手札全捨て・フェイズ終了）が一切実行されないまま効果全体が静かに
         // 止まっていた（コンソールにエラーは出るがユーザー画面には何も表示されない）。
         publicDraw: publicDrawForEffect,
+        // #95: ザ・ギャンブルの公開ドローは、公開エリアに出す前に中央じらしフリップで公開する版を使う。
+        publicDrawThenReveal: publicDrawThenRevealForEffect,
         // 赤のキューブ フェニックス（PICKUP_DISCARD_SECOND_FROM_TOP）・青のキューブ
         // セレスティア（DISCARD_RANDOM_FROM_QUALIFYING_OPPONENTS）用。
         drawFromDiscard: drawFromDiscardForEffect,
@@ -4817,6 +4867,8 @@ async function runAutoArrivalEffect(cardId, location, player) {
       pickArrivalOption: pickArrivalOptionForEffect,
       declareColors: declareColorsForEffect,
       publicDraw: publicDrawForEffect,
+      // #95: ザ・ギャンブルの公開ドローは、公開エリアに出す前に中央じらしフリップで公開する版を使う。
+      publicDrawThenReveal: publicDrawThenRevealForEffect,
       // ザ・ギャンブルの「1枚ずつ公開する/全部公開する」モーダル用。手札効果側
       // (runAutoHandEffect)には元々あったが到達効果側に無く、到達で撃つと自動で
       // 全部公開されてしまっていた（ユーザー報告）。到達側にも同じヘルパーを渡す。

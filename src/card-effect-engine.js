@@ -1398,20 +1398,33 @@ async function runAction(action, ctx, helpers) {
               : [{ id: "last", label: "最後の１枚を公開する", usable: true }];
           const opt = await helpers.pickHandEffectOption("yellow-gamble", options);
           if (opt?.id === "all") {
-            const rest = await helpers.publicDraw(ctx.player, remaining);
-            for (const cid of rest) {
-              await helpers.gambleReveal?.(cid);
-              revealedCardIds.push(cid);
+            // #95: publicDrawThenReveal は「山から確定→中央じらしフリップで公開→公開エリアへ表向き
+            // 描画」の順で、公開エリアに先に見えてしまう問題を解消する（内部で公開演出まで行うので
+            // gambleReveal は呼ばない）。未提供の環境向けに従来経路のフォールバックも残す。
+            if (helpers.publicDrawThenReveal) {
+              const rest = await helpers.publicDrawThenReveal(ctx.player, remaining);
+              revealedCardIds.push(...rest);
+            } else {
+              const rest = await helpers.publicDraw(ctx.player, remaining);
+              for (const cid of rest) {
+                await helpers.gambleReveal?.(cid);
+                revealedCardIds.push(cid);
+              }
             }
             remaining = 0;
             break;
           }
           // "one"/"last"/閉じた(null) → 1枚だけ公開して次へ。
         }
-        const one = await helpers.publicDraw(ctx.player, 1);
-        for (const cid of one) {
-          await helpers.gambleReveal?.(cid);
-          revealedCardIds.push(cid);
+        if (helpers.publicDrawThenReveal) {
+          const one = await helpers.publicDrawThenReveal(ctx.player, 1);
+          revealedCardIds.push(...one);
+        } else {
+          const one = await helpers.publicDraw(ctx.player, 1);
+          for (const cid of one) {
+            await helpers.gambleReveal?.(cid);
+            revealedCardIds.push(cid);
+          }
         }
         remaining -= 1;
       }
