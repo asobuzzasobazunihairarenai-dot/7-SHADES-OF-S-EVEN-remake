@@ -5444,14 +5444,23 @@ body.is-phone-device #admin-panel {
   padding: 0.5rem 1.1rem;
   border: 1px solid #7c5cff;
   border-radius: 0.5rem;
-  background: rgba(124, 92, 255, 0.15);
-  color: #e9e5ff;
+  /* ユーザー報告2026-08-14: 以前は薄い紫地＋ほぼ白文字(#e9e5ff)で、ライトテーマ時にパネルが
+     明るいと文字が見えなかった。ソリッドな紫地＋白文字にして両テーマで確実に読めるようにする。 */
+  background: #7c5cff;
+  color: #ffffff;
   font-weight: bold;
   font-size: 0.95rem;
   cursor: pointer;
 }
 .eidos-dialogue-choice:hover {
-  background: rgba(124, 92, 255, 0.3);
+  background: #6a4cff;
+}
+
+/* ユーザー報告2026-08-14: 会話中はステータスエリアのアバター（手前の自分・相手・半透明の
+   プレースホルダ含む）を隠す。会話の立ち絵（#eidos-dialogue-panel内の別要素）と重複して
+   不自然に見えるため。eidos-dialogue-open は eidos-dialogue-ui.js が開閉時に付け外しする。 */
+body.eidos-dialogue-open .player-avatar {
+  display: none;
 }
 .eidos-dialogue-hint {
   margin-top: 0.5rem;

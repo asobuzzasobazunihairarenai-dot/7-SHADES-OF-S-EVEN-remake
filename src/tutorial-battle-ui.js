@@ -80,6 +80,15 @@ const STYLE = `
   border-radius: 0.6rem; box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,0.55);
   animation: tb-card-pop 0.35s ease-out;
 }
+/* #4: ホバー／長押しで出すカード拡大ポップアップ。チュートリアルのモーダル(spotlight z:40001)より
+   前面・画面中央・クリック透過。縦長カード比率のまま高さを画面に合わせて大きく見せる。 */
+.tb-body-card-zoom {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  height: min(80vh, 34rem); width: auto; max-width: 92vw;
+  border-radius: 0.8rem; box-shadow: 0 1rem 3rem rgba(0,0,0,0.7);
+  z-index: 100300; pointer-events: none;
+  animation: tb-card-pop 0.18s ease-out;
+}
 /* アイコン＋説明文の横並び（到達効果アイコンの拡大図を文の左に置く）。 */
 #tutorial-battle-callout .tb-callout-body .tb-body-icontext {
   display: flex; align-items: center; gap: 0.7rem; margin: 0.2rem 0 0.6rem;
@@ -253,6 +262,24 @@ export function showBlockingHint({ title, body = [], buttonLabel = "次へ", onN
       img.className = "tb-body-card";
       img.src = paragraph.cardImage;
       img.alt = "";
+      // #4（ユーザー要望2026-08-14）: ホバー（PC）／長押し（モバイル）でカードをさらに大きく
+      // 画面中央に拡大表示する。モーダル(spotlight z:40001)より前面(z:100300)・クリック透過。
+      img.style.cursor = "zoom-in";
+      img.title = "ホバー／長押しで拡大";
+      const showZoom = () => {
+        document.querySelectorAll(".tb-body-card-zoom").forEach((el) => el.remove());
+        const z = document.createElement("img");
+        z.className = "tb-body-card-zoom";
+        z.src = paragraph.cardImage;
+        z.alt = "";
+        document.body.appendChild(z);
+      };
+      const hideZoom = () => document.querySelectorAll(".tb-body-card-zoom").forEach((el) => el.remove());
+      img.addEventListener("mouseenter", showZoom);
+      img.addEventListener("mouseleave", hideZoom);
+      img.addEventListener("touchstart", (e) => { e.preventDefault(); showZoom(); }, { passive: false });
+      img.addEventListener("touchend", hideZoom);
+      img.addEventListener("touchcancel", hideZoom);
       calloutBodyEl.appendChild(img);
     } else if (paragraph.iconText) {
       // アイコンと説明文を横並びにする（縦に積むとスクロールが必要になる対策。

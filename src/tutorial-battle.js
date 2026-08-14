@@ -283,6 +283,16 @@ function selfPieceHl(state, { strong = true } = {}) {
   if (!p || p.location.zone !== "cell") return [];
   return [{ selector: `${cellSel({ row: p.location.row, col: p.location.col })} .piece`, strong }];
 }
+// 相手（CPU=エイドス）の駒＋アバターを照らす（ユーザー要望2026-08-14: 相手のターンの案内で
+// 画面フォーカスを相手のアバターと駒に当てる）。駒は現在地のマス、アバターは data-player 指定。
+function cpuPieceAndAvatarHl(state, { strong = true } = {}) {
+  const hls = [{ selector: `.player-avatar[data-player="${CPU_SEAT}"]`, strong }];
+  const p = state.tokens.find((t) => t.kind === "piece" && t.player === CPU_SEAT);
+  if (p && p.location.zone === "cell") {
+    hls.push({ selector: `${cellSel({ row: p.location.row, col: p.location.col })} .piece`, strong });
+  }
+  return hls;
+}
 // 盤面のマスにある指定カード（cardId）のDOMセレクタ（拡大表示ではなく点滅ハイライト用）。
 function boardCardSelectorAt(cell) {
   return `${cellSel(cell)} .board-card`;
@@ -303,7 +313,7 @@ function buildSteps() {
     // 1: 目標＋ロックエリアの位置（点滅ハイライト）。
     {
       kind: "narrate",
-      title: "目標",
+      title: "目標・勝利条件",
       body: [
         "目標は、自分のロックエリアに7色すべてのカードを集めてロックすることです。",
         "あなたのロックエリアはここです。",
@@ -519,7 +529,8 @@ function buildSteps() {
         "ここからは相手（CPU）の番です。本来CPUは自分のゲートから少しずつ近づいてきますが、",
         "このチュートリアルでは、接触を体験してもらうため、CPUの駒を一気にあなたの駒の隣へ移動させます。",
       ],
-      highlights: (state) => selfPieceHl(state, { strong: false }),
+      // #5: 相手の番なので、画面フォーカスを相手（エイドス）のアバターと駒に当てる。
+      highlights: (state) => cpuPieceAndAvatarHl(state, { strong: true }),
       buttonLabel: "CPUを動かす →",
       afterNext: scriptCpuApproach, // 「次へ」で実際にCPUを動かす
     },
@@ -1015,14 +1026,9 @@ async function scriptContact() {
   const applyStateChange = () => {
     // 相手の手札を1枚あなたの手札へ（MOVE_TOKENが手札(A)への移動で自動的に表向きにする）。
     if (stolen) moveToken(stolen.id, { zone: "hand", player: SELF_SEAT });
-    // 相手を自分のゲートへ強制移動。強制移動も「移動」なので、移動先が裏向きならオープンする。
-    if (defender) {
-      moveToken(defender.id, { zone: "cell", ...CPU_GATE });
-      const gateCard = getState().tokens.find(
-        (t) => t.kind === "card" && t.location.zone === "cell" && t.location.row === CPU_GATE.row && t.location.col === CPU_GATE.col
-      );
-      if (gateCard && !gateCard.faceUp) flipToken(gateCard.id);
-    }
+    // 相手を自分のゲートへ強制移動する（ゲートのカードへの到達＝オープン＆手札入りは、タックル
+    // 演出が終わった後に下の cpuPickupCardAt で行う）。
+    if (defender) moveToken(defender.id, { zone: "cell", ...CPU_GATE });
   };
 
   if (playScriptedContactHelper) {
@@ -1038,6 +1044,10 @@ async function scriptContact() {
   } else {
     applyStateChange();
   }
+  // #6（ユーザー報告2026-08-14）: 強制移動は「移動」なので、移動先＝エイドスのゲートのカードに
+  // 到達する。以前は表向きにするだけで場に残っていたので、オープンしてエイドスの手札に加える
+  // （到達後の既定処理＝カードを手札へ。CPUの移動先ピックアップと同じ cpuPickupCardAt を流用）。
+  if (defender) await cpuPickupCardAt(CPU_GATE);
   await delay(300);
 }
 
