@@ -1178,7 +1178,8 @@ async function flipToFaceUpForEffect(tokenId) {
 // にはその呼び出しが無かった。flipToFaceUpForEffectでめくった直後の最新state
 // （faceUp/location）を読み直して、同じ判定関数にそのまま渡す。
 function maybeTriggerArrivalForPlacedCardForEffect(location, cardId) {
-  maybeTriggerCardArrivalForCard(location, cardId, true);
+  // #93: 到達の完全解決で解決するPromiseをそのまま返す（engine側がawaitで待ち切れるように）。
+  return maybeTriggerCardArrivalForCard(location, cardId, true);
 }
 
 // マスチェンジの入れ替えルール（ユーザー指定2026-08-08）用。指定マスの一番上のカードが
@@ -5359,15 +5360,20 @@ function maybeTriggerCardArrivalForCard(dropTarget, cardId, faceUp, fromDiff = f
   if (fromDiff && arrivalEffectProcessingDepth > 0) {
     pendingDiffArrivalTriggers.push({ kind: "card", dropTarget, cardId, faceUp });
     logAction("diag-diff-arrival-defer", { kind: "card", cardId, location: dropTarget, depth: arrivalEffectProcessingDepth });
-    return;
+    return Promise.resolve();
   }
-  if (!dropTarget || !faceUp) return;
+  if (!dropTarget || !faceUp) return Promise.resolve();
   // 安全弁（不具合#76）: cardIdが未確定(null/undefined)のまま到達判定に入ると、
   // triggerCardArrival配下のgetCardDefinition(cardId).name等で落ちる。呼び出し側で
   // 反転後の最新cardIdを渡すのが本筋だが、万一nullが来たらここで黙って何もしない。
-  if (!cardId) return;
-  if (!hasPieceAt(dropTarget)) return;
-  triggerCardArrival(cardId, dropTarget, undefined, { fromDiff });
+  if (!cardId) return Promise.resolve();
+  if (!hasPieceAt(dropTarget)) return Promise.resolve();
+  // キュー化第二歩(#93): 効果側（PLACE_CARDの表向き配置＝ジャンプ台や、複数オープン）がawaitして
+  // 内側の到達チェーンを最後まで待ち切れるよう、到達の完全解決で解決するPromiseを返す。従来の
+  // fire-and-forgetな呼び出し元（ドラッグ配置・remote-move-animator）は戻り値を無視するだけで挙動不変。
+  // onFullyResolvedはtriggerCardArrivalの全経路で必ず呼ばれる（自動処理はfinally、非自動も明示呼び）
+  // ためawaitがデッドロックすることは無い（#85と同じ実証済みパターン）。
+  return new Promise((resolve) => triggerCardArrival(cardId, dropTarget, resolve, { fromDiff }));
 }
 
 // もう一つの逆方向: 駒が既に乗っているマス/ロックスロットで、複数枚重なったカードの

@@ -766,7 +766,8 @@ async function runAction(action, ctx, helpers) {
         const revealedTop = findTopCardAtCell(chosen.row, chosen.col);
         const revealedCardId = revealedTop?.cardId ?? token.cardId;
         if (revealedCardId) {
-          helpers.maybeTriggerArrivalForPlacedCard?.({ zone: "cell", row: chosen.row, col: chosen.col }, revealedCardId);
+          // #93: 内側の到達チェーンを最後まで待ってから次の1枚へ（fire-and-forgetにしない）。
+          await helpers.maybeTriggerArrivalForPlacedCard?.({ zone: "cell", row: chosen.row, col: chosen.col }, revealedCardId);
         }
       }
       // お知らせ（ユーザー要望）: 何枚オープンしたか（優先度低だが一応）。
