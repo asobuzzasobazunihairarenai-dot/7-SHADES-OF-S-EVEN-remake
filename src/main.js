@@ -63,6 +63,8 @@ import { openBugReportModal } from "./bug-report.js";
 // リロードを跨ぐ“ブラックボックス”（「スマホでたまに落ちてタイトルに戻る」原因追跡用）。
 // import した時点で自己初期化（心拍・エラー捕捉開始＋前回セッションの不審終了判定）される。
 import { getBlackboxBootReport, setBlackboxContext } from "./crash-blackbox.js";
+// アプリ内スモークテスト（タイトル右下・管理者のみ。ユーザー要望2026-08-14）。
+import { openSmokeTestPanel } from "./smoke-test-runner.js";
 // オンライン対戦開始時に一度だけ出す「不具合報告のお願い」案内（開始告知が閉じた直後に表示）。
 import { maybeShowBugReportIntro, isBugReportIntroHidden } from "./bug-report-intro.js";
 import { maybeShowGameStartIntros } from "./game-intros.js";
@@ -3318,6 +3320,14 @@ document.addEventListener(
         if (!cardEl) continue;
         if (picker.tokenIds.has(cardEl.dataset.tokenId)) {
           const token = getState().tokens.find((t) => t.id === cardEl.dataset.tokenId);
+          // 選べる候補が1枚しかない時は選択間違いの余地が無いので確認モーダルを出さず即確定する
+          // （ユーザー要望2026-08-14）。tokenIdsは実際に選べる候補の集合（追色コスト等で絞られている
+          // 場合はその枚数）なので、手札が1枚の時だけでなく「有効候補が1枚」の時も素通しになる。
+          if (picker.tokenIds.size <= 1) {
+            activeEffectPicker = null;
+            picker.resolve(token ?? null);
+            return;
+          }
           // 自分の手札からカードを選ぶ確定操作にも、ロック/手札使用と同じ確認モーダルを挟む
           // （ユーザー要望2026-08-13。追色コスト・収穫と種まき等の手札選択が対象）。設定
           // (isActionConfirmEnabled)がOFFなら confirmTouchAction は即trueを返すので実質素通り。
@@ -11974,6 +11984,23 @@ initCameraControls();
 // 「読み込み中...」の内容のまま固まってしまう）。
 registerAdminAuthHelpers({ isAdminUser, adminGrantCurrency, getAdminStats });
 initAdminMode();
+// アプリ内スモークテストの起動ボタン（タイトル右下・管理者ログイン時のみ。ユーザー要望2026-08-14）。
+// 表示はCSSで body.opening-screen-active.is-admin-user の時だけ（下の updateAdminBodyClass が
+// 認証変化に応じて is-admin-user を付け外しする）。押すと自己対戦スモークのパネルを開く。
+(() => {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.id = "smoke-test-launch-btn";
+  btn.textContent = "🧪 スモークテスト";
+  btn.title = "自己対戦でエラー・詰みを自動チェック（管理者用）";
+  btn.addEventListener("click", () => openSmokeTestPanel());
+  document.body.appendChild(btn);
+  const updateAdminBodyClass = () => {
+    try { document.body.classList.toggle("is-admin-user", !!isAdminUser()); } catch { /* noop */ }
+  };
+  updateAdminBodyClass();
+  onAuthChange(updateAdminBodyClass); // 管理者アカウントでログイン/ログアウトした時に出し分けを更新
+})();
 initDeckViewer();
 initStatsPlayerLinkModal();
 initMyPage();
