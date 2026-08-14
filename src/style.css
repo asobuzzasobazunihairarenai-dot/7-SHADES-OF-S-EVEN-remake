@@ -5459,7 +5459,9 @@ body.is-phone-device #admin-panel {
 /* ユーザー報告2026-08-14: 会話中はステータスエリアのアバター（手前の自分・相手・半透明の
    プレースホルダ含む）を隠す。会話の立ち絵（#eidos-dialogue-panel内の別要素）と重複して
    不自然に見えるため。eidos-dialogue-open は eidos-dialogue-ui.js が開閉時に付け外しする。 */
-body.eidos-dialogue-open .player-avatar {
+body.eidos-dialogue-open .player-avatar,
+body.eidos-dialogue-open .self-status-large-avatar,
+body.eidos-dialogue-open .self-status-large-avatar-ghost {
   display: none;
 }
 .eidos-dialogue-hint {
