@@ -2622,7 +2622,8 @@ async function publicDrawThenRevealForEffect(player, count) {
       if (!cardId) break;
       // 公開エリアに出す前に中央フリップで公開（全員に配信）。
       await revealCenterCardForAll(cardId, "ギャンブル公開");
-      // ここで初めて公開エリアに表向きで描画する。
+      // state を最新化する。defer中は汎用render()が抑制されているので公開エリアにはまだ出ない
+      // （最後に endPublicDrawDefer でまとめて描画する）。defer外なら従来どおりこの時点で出る。
       try {
         await fetchAndHydrate(getCurrentGameId());
       } catch (err) {
@@ -2633,19 +2634,44 @@ async function publicDrawThenRevealForEffect(player, count) {
       const pileArray = getState().piles.deck;
       if (pileArray.length === 0) break;
       const cardId = pileArray[pileArray.length - 1];
-      // まだ山にあるうちに中央フリップで公開してから、公開エリアへ移して描画する。
+      // まだ山にあるうちに中央フリップで公開してから、公開エリアへ移す。
       await revealCenterCardForAll(cardId, "ギャンブル公開");
       drawFromPile("deck", { zone: "publicDraw", player });
-      render();
+      // defer中は描画しない（最後にまとめて）。defer外なら従来どおり即描画。
+      if (!publicDrawDeferActive) render();
       drawnCardIds.push(cardId);
     }
   }
-  if (drawnCardIds.length > 0) {
-    playSound("cardDraw");
-    announceHandPickups(player, drawnCardIds.map((cardId) => ({ cardId, wasPublic: true })));
+  // defer中は通知・描画を endPublicDrawDefer 側でまとめて行うので、ここでは何もしない
+  // （＝じらしフリップが全部終わってから公開エリアに一斉に並ぶ。ユーザー要望2026-08-14）。
+  if (!publicDrawDeferActive) {
+    if (drawnCardIds.length > 0) {
+      playSound("cardDraw");
+      announceHandPickups(player, drawnCardIds.map((cardId) => ({ cardId, wasPublic: true })));
+    }
+    render();
   }
-  render();
   return drawnCardIds;
+}
+
+// #95改: ザ・ギャンブルの公開ドロー中は「公開エリアへの描画」を全部の公開演出が終わるまで
+// 遅延させる（ユーザー要望「全員にフリップで見せて、公開エリアへは演出が全部終わった後に並べる」）。
+// begin で汎用render()を抑制（suppressGenericRenderForDrawFlight を流用）、end でまとめて描画する。
+let publicDrawDeferActive = false;
+let publicDrawDeferPrevSuppress = false;
+function beginPublicDrawDeferForEffect() {
+  publicDrawDeferActive = true;
+  publicDrawDeferPrevSuppress = suppressGenericRenderForDrawFlight;
+  suppressGenericRenderForDrawFlight = true;
+}
+function endPublicDrawDeferForEffect(player, revealedCardIds) {
+  publicDrawDeferActive = false;
+  suppressGenericRenderForDrawFlight = publicDrawDeferPrevSuppress;
+  if (revealedCardIds && revealedCardIds.length > 0) {
+    playSound("cardDraw");
+    announceHandPickups(player, revealedCardIds.map((cardId) => ({ cardId, wasPublic: true })));
+  }
+  render(); // ここで初めて、公開したカードを公開エリアに一斉に並べる。
 }
 
 // 奇跡の森 マンズウッド専用（PUBLIC_DRAW_THEN_DISCARD_AT_TURN_END）:
@@ -4767,6 +4793,9 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         publicDraw: publicDrawForEffect,
         // #95: ザ・ギャンブルの公開ドローは、公開エリアに出す前に中央じらしフリップで公開する版を使う。
         publicDrawThenReveal: publicDrawThenRevealForEffect,
+        // #95改: 公開エリアへの描画を「全部の公開演出が終わってから」まとめて行うための開始/終了。
+        beginPublicDrawDefer: beginPublicDrawDeferForEffect,
+        endPublicDrawDefer: endPublicDrawDeferForEffect,
         // 赤のキューブ フェニックス（PICKUP_DISCARD_SECOND_FROM_TOP）・青のキューブ
         // セレスティア（DISCARD_RANDOM_FROM_QUALIFYING_OPPONENTS）用。
         drawFromDiscard: drawFromDiscardForEffect,
@@ -4869,6 +4898,9 @@ async function runAutoArrivalEffect(cardId, location, player) {
       publicDraw: publicDrawForEffect,
       // #95: ザ・ギャンブルの公開ドローは、公開エリアに出す前に中央じらしフリップで公開する版を使う。
       publicDrawThenReveal: publicDrawThenRevealForEffect,
+      // #95改: 公開エリアへの描画を「全部の公開演出が終わってから」まとめて行うための開始/終了。
+      beginPublicDrawDefer: beginPublicDrawDeferForEffect,
+      endPublicDrawDefer: endPublicDrawDeferForEffect,
       // ザ・ギャンブルの「1枚ずつ公開する/全部公開する」モーダル用。手札効果側
       // (runAutoHandEffect)には元々あったが到達効果側に無く、到達で撃つと自動で
       // 全部公開されてしまっていた（ユーザー報告）。到達側にも同じヘルパーを渡す。

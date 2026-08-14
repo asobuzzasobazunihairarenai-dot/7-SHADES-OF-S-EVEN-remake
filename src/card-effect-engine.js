@@ -1385,6 +1385,10 @@ async function runAction(action, ctx, helpers) {
       // 見せる（helpers.gambleReveal）。緊張感を出すため心臓の鼓動（helpers.startSuspenseSound）を
       // 鳴らし始め、結果が出るDISCARD_HAND側で止める。
       helpers.startSuspenseSound?.();
+      // #95改（ユーザー要望2026-08-14）: 公開したカードは「全部の中央じらしフリップが終わってから」
+      // 公開エリアに一斉に並べる。begin〜end の間は公開エリアへの描画を遅延する。
+      helpers.beginPublicDrawDefer?.();
+      try {
       while (remaining > 0) {
         if (helpers.pickHandEffectOption) {
           // 残り2枚以上なら「1枚公開/全部公開」、最後の1枚は「最後の1枚を公開する」を毎回出す
@@ -1427,6 +1431,10 @@ async function runAction(action, ctx, helpers) {
           }
         }
         remaining -= 1;
+      }
+      } finally {
+        // 全部の公開演出が終わった今、公開エリアにまとめて並べる（描画遅延を解除）。
+        await helpers.endPublicDrawDefer?.(ctx.player, revealedCardIds);
       }
       ctx.selections.revealedCardIds = revealedCardIds;
       return revealedCardIds.length > 0;
