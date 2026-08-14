@@ -58,10 +58,13 @@ async function playScene(sceneId) {
 export async function startEidosStory({ openHome } = {}) {
   // 操作チュートリアル終了時の戻り先（既存挙動）を維持する。
   registerTutorialHomeOpener(() => openHome?.());
-  // 初回だけ導入シーン（案内人エイドスとの邂逅）を再生してから操作チュートリアルへ。
-  if (!isEidosProgress("intro_seen")) {
+  // 導入シーン（案内人エイドスとの邂逅）は「まだ操作チュートリアルを完了していない間」は毎回
+  // 再生し、完了すると出さない（tutorial_completed は後続の増分で完了時にセットする）。以前は
+  // intro_seen（一度でも見たら二度と出さない）でゲートしていたが、一度見ると再表示できず
+  // 「会話が出ずチュートリアルから始まる」状態になっていた（ユーザー報告2026-08-14）。
+  if (!isEidosProgress("tutorial_completed")) {
     await playScene(EIDOS_SCENE.FIRST_ENCOUNTER);
-    setEidosProgress("intro_seen", true);
+    setEidosProgress("intro_seen", true); // 記録用（今のゲートは tutorial_completed 側）
   }
   startTutorialBattle();
 }
