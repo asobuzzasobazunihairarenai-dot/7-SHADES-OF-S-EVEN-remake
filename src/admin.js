@@ -176,6 +176,18 @@ const CATEGORIES = [
   { key: "admin-only", label: "🔐 管理者専用" },
 ];
 
+// スモークテスト起動ボタンの位置・サイズを調整するスライダーを触っている間、タイトル画面以外でも
+// ボタンを一時的に見せて調整結果を確認できるようにする（下のGROUPSのpreviewOnInteractから呼ぶ）。
+// function宣言なのでGROUPSの配列リテラルより後方で定義されていても巻き上げで参照できる。
+let smokeTestBtnPreviewTimer = null;
+function previewSmokeTestBtn() {
+  const btn = document.getElementById("smoke-test-launch-btn");
+  if (!btn) return;
+  btn.classList.add("force-preview");
+  if (smokeTestBtnPreviewTimer) clearTimeout(smokeTestBtnPreviewTimer);
+  smokeTestBtnPreviewTimer = setTimeout(() => btn.classList.remove("force-preview"), 2500);
+}
+
 // scaleは基準サイズ（プレイマットなら盤面、各山ならカード1枚分）を100%とした拡大率。
 // pos-x/pos-yは中心からのずれ。どちらもtransform: scale/translateなので、拡大しても見切れない。
 const GROUPS = [
@@ -582,6 +594,19 @@ const GROUPS = [
       { key: "--profile-mydeck-width", label: "幅", unit: "rem", min: 8, max: 34, step: 0.5, default: 17 },
       { key: "--profile-mydeck-height", label: "高さ", unit: "rem", min: 2.5, max: 12, step: 0.1, default: 5.4 },
       { key: "--profile-mydeck-font", label: "文字サイズ", unit: "rem", min: 0.8, max: 2.6, step: 0.05, default: 1.35 },
+    ],
+  },
+  {
+    // ユーザー要望2026-08-14「スモークテストボタンの位置・サイズ調整を管理者モードに追加して」。
+    // #smoke-test-launch-btn（main.js）が var() で読む。既定値はstyle.cssのfallbackと一致させること。
+    // ボタンは通常タイトル画面(opening-screen-active)＋管理者のときだけ出るが、スライダーを触って
+    // いる間はpreviewSmokeTestBtnが force-preview クラスを付けて、どの画面でも一時的に見せて確認できる。
+    title: "スモークテスト起動ボタンの位置・サイズ（タイトル右下・管理者のみ）",
+    category: "position-ui",
+    controls: [
+      { key: "--smoke-test-btn-right", label: "横位置 right（＋で左へ）", unit: "rem", min: 0, max: 40, step: 0.1, default: 0.8, previewOnInteract: previewSmokeTestBtn },
+      { key: "--smoke-test-btn-bottom", label: "縦位置 bottom（＋で上へ）", unit: "rem", min: 0, max: 30, step: 0.1, default: 0.8, previewOnInteract: previewSmokeTestBtn },
+      { key: "--smoke-test-btn-font-size", label: "大きさ（文字＋余白が連動）", unit: "rem", min: 0.5, max: 2.5, step: 0.05, default: 0.85, previewOnInteract: previewSmokeTestBtn },
     ],
   },
   {

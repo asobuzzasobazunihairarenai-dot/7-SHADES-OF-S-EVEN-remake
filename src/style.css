@@ -14921,24 +14921,32 @@ body.theme-light .mdb-setting-btn {
 
 /* アプリ内スモークテスト（ユーザー要望2026-08-14）。タイトル画面(opening-screen-active)で
    管理者ログイン中(is-admin-user、main.jsがonAuthChangeで付け外し)の時だけ右下に出す起動ボタン。 */
+/* 位置(right/bottom)・大きさ(font-size)は管理者モードの「📐 位置合わせ」で調整可能
+   （admin.jsがvarを書き込む。既定値は下のfallbackと一致させること）。padding/border-radiusは
+   emにして、font-sizeを変えるとボタン全体が連動して拡縮するようにしてある。 */
 #smoke-test-launch-btn {
   display: none;
   position: fixed;
-  right: 0.8rem;
-  bottom: 0.8rem;
+  right: var(--smoke-test-btn-right, 0.8rem);
+  bottom: var(--smoke-test-btn-bottom, 0.8rem);
   z-index: 50200;
-  padding: 0.5rem 0.9rem;
+  padding: 0.59em 1.06em;
   font-family: sans-serif;
-  font-size: 0.85rem;
+  font-size: var(--smoke-test-btn-font-size, 0.85rem);
   font-weight: 700;
   color: #0e1218;
   background: linear-gradient(160deg, #e3b64a, #c99a2e);
   border: 1px solid rgba(0, 0, 0, 0.3);
-  border-radius: 0.6rem;
+  border-radius: 0.7em;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
   cursor: pointer;
 }
 body.opening-screen-active.is-admin-user #smoke-test-launch-btn {
+  display: block;
+}
+/* 管理者モードで位置・サイズのスライダーを触っている間は、タイトル画面以外でも一時的に
+   ボタンを見せて調整結果を確認できるようにする（admin.jsのpreviewSmokeTestBtnが付け外し）。 */
+#smoke-test-launch-btn.force-preview {
   display: block;
 }
 #smoke-test-launch-btn:hover {
