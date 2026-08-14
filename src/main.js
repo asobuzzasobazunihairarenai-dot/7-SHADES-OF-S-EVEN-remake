@@ -6667,10 +6667,32 @@ async function respondToContact(approve) {
       (defenderLocationBefore.zone !== defenderPiece.location.zone ||
         defenderLocationBefore.row !== defenderPiece.location.row ||
         defenderLocationBefore.col !== defenderPiece.location.col);
-    const startForcedMoveArrival = () => {
-      if (defenderPiece && defenderActuallyMoved)
+    const startForcedMoveArrival = async () => {
+      if (defenderPiece && defenderActuallyMoved) {
+        // #40-2: 接触の強制移動は「移動」なので、移動先が裏向きなら（防御側に「開く/開かない」を
+        // 選ばせず）必ずオープンして到達効果を発動する（docs/rulebook.md「移動: …裏向きなら、
+        // オープンする」）。従来は maybeTriggerCardArrival が裏向きに promptCardOpen を出していて、
+        // 防御側が自ゲートに置かれた罠を開かず回避できてしまう／オンラインでは差分レースで
+        // player:null になり不発だった。ここで先に必ず表向きにしてから到達判定へ渡す。
+        const forcedCard = findTopCardAt(defenderPiece.location);
+        if (forcedCard && !forcedCard.faceUp) {
+          if (isOnlineMode()) {
+            try {
+              await flipToken(forcedCard.id);
+              markSelfHandled([forcedCard.id]); // remote-move-animatorの差分再発火で二重にならないように
+              await fetchAndHydrate(getCurrentGameId());
+            } catch (err) {
+              console.error("forced-move auto-open failed", err);
+            }
+          } else {
+            flipToken(forcedCard.id);
+            render();
+          }
+        }
+        // 表向きになったので maybeTriggerCardArrival は promptCardOpen ではなく triggerCardArrival
+        // 経路へ進む（防御側の到達として自動処理される）。
         maybeTriggerCardArrival(defenderPiece.location, defenderPiece.id, undefined, finishContactResolution);
-      else finishContactResolution();
+      } else finishContactResolution();
     };
     // ユーザー報告#13「接触処理（何を奪われたかのモーダルも出て終わってから）、接触による
     // 強制移動の到達処理を行いたい」。順序を「結果モーダル→（閉じたら）強制移動の到達処理」に
