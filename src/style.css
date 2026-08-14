@@ -14952,17 +14952,13 @@ body.opening-screen-active.is-admin-user #smoke-test-launch-btn {
 #smoke-test-launch-btn:hover {
   filter: brightness(1.08);
 }
-.smoke-test-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 100090;
-  background: rgba(0, 0, 0, 0.6);
-}
+/* ユーザー要望2026-08-14: 全画面の暗いバックドロップは廃止し、ドラッグで動かせる浮遊ウィンドウに
+   した（自己対戦の盤面を見られるように）。既定位置は邪魔にならない左上。JS(smoke-test-runner.js)が
+   left/topを書き換えてドラッグ移動する。 */
 .smoke-test-panel {
   position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 0.8rem;
+  left: 0.8rem;
   z-index: 100091;
   width: min(30rem, 92vw);
   background: linear-gradient(160deg, #161c25, #0e1218);
@@ -14977,6 +14973,9 @@ body.opening-screen-active.is-admin-user #smoke-test-launch-btn {
   font-size: 1.05rem;
   font-weight: 700;
   margin-bottom: 0.4rem;
+  cursor: move; /* タイトルバーを掴んでドラッグ移動 */
+  user-select: none;
+  touch-action: none;
 }
 .smoke-test-desc {
   font-size: 0.82rem;

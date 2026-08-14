@@ -34,7 +34,8 @@ import { playOpeningBgm, stopOpeningBgm } from "./sound.js";
 import { APP_VERSION } from "./app-version.js";
 import { isFlatten2dMode } from "./tablet-2d-mode.js";
 import { startTitlePetWalk } from "./title-pet.js";
-import { startCpuBattle, runCpuBattleSetup } from "./cpu-battle.js";
+// （旧CPU戦ボタン撤去に伴い cpu-battle.js の静的importも撤去。これで opening-screen.js が
+//  cpu-battle.js を芋づるで静的に読み込む依存辺が消え、循環import由来の黒画面リスクも下がる。）
 
 // フェードアウトのCSSトランジション時間と合わせる（style.cssの#opening-screen.is-closing、
 // .opening-start-gate.is-closing参照）。
@@ -431,34 +432,8 @@ export function initOpeningScreen() {
   loginToggleBtn.textContent = "ログイン";
   content.appendChild(loginToggleBtn);
 
-  // ローカル1人用「CPU戦」への入口（ログイン不要）。押すとオープニングを閉じて、あなた(A)対
-  // CPU(C)の2人対戦をローカルで開始する（cpu-battle.js）。ログインボタンと同じ「メニュー階層」
-  // なので、ログインカードを開いている間は一緒に隠す（showCard/hideCard）。
-  const cpuBattleBtn = document.createElement("button");
-  cpuBattleBtn.type = "button";
-  cpuBattleBtn.className = "opening-screen-menu-btn opening-screen-cpu-btn";
-  cpuBattleBtn.textContent = "🤖 CPU戦（1人用）";
-  cpuBattleBtn.title = "ログイン不要。あなた対CPUの1人用対戦をこの端末だけで遊べます。";
-  cpuBattleBtn.addEventListener("click", async () => {
-    // ①設定＋盤面を空にする（オープニングの裏で）。起動時の既定盤面（4人が座った状態）を
-    //   ここで消しておくので、close()で盤面を見せた瞬間に4人がちらつかない。
-    // ②close()で空の盤面を見せる。③フェードが終わってから、その空の盤面の上でセットアップ
-    //   演出（ファースト配布→盤面配置アニメ）付きに対戦を開始する（ユーザー要望2026-08-07:
-    //   CPU対戦でもセットアップ演出が欲しい）。
-    cpuBattleBtn.disabled = true; // 二度押し防止
-    try {
-      await startCpuBattle();
-    } catch (err) {
-      console.error("startCpuBattle failed", err);
-    }
-    close();
-    // オープニングのフェードアウト（CLOSE_TRANSITION_MS）が終わり、盤面が完全に見えてから
-    // 配布演出を始める（フェード中にゴーストカードが飛ぶのを避ける）。
-    setTimeout(() => {
-      runCpuBattleSetup().catch((err) => console.error("runCpuBattleSetup failed", err));
-    }, CLOSE_TRANSITION_MS);
-  });
-  content.appendChild(cpuBattleBtn);
+  // （旧「🤖 CPU戦（1人用）」ボタンはユーザー要望2026-08-14で撤去。CPU戦はログイン後の
+  //  ホーム画面「CPUマッチ＆フレンドリーマッチ」から開始できる。）
 
   const card = document.createElement("div");
   card.className = "opening-login-card";
@@ -647,7 +622,6 @@ export function initOpeningScreen() {
 
   function showCard() {
     loginToggleBtn.style.display = "none";
-    cpuBattleBtn.style.display = "none";
     card.style.display = "flex";
     renderCard();
   }
@@ -655,7 +629,6 @@ export function initOpeningScreen() {
   function hideCard() {
     card.style.display = "none";
     loginToggleBtn.style.display = "inline-block";
-    cpuBattleBtn.style.display = "inline-block";
     // カードを✕で閉じた（＝ログインを完了せずに引き返した）場合、テストモード経由で
     // あったという記憶は捨てる。捨てておかないと、この後に通常の「ログイン」ボタンから
     // 入り直してログインした時、本来出るはずの「オンラインで続ける」カードが誤って

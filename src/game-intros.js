@@ -150,6 +150,14 @@ function showOne(intro) {
 export async function maybeShowGameStartIntros() {
   if (showing) return;
   if (isAllOff()) return;
+  // 自己対戦（両席が疑似CPU＝スモークテスト等）では、操作する人間がいないうえ、説明モーダルの
+  // 暗幕が盤面を暗くし続けてしまうため出さない（ユーザー報告2026-08-14「スモークテスト中に画面が
+  // どんどん暗くなる」の主因の一つ）。admin.jsを静的importすると循環になるので動的importで確認
+  // （[[circular-import-tdz-and-no-cache-bust]]。対局開始後なので全モジュール評価済みで安全）。
+  try {
+    const { isPseudoCpuIncludeSelf } = await import("./admin.js");
+    if (isPseudoCpuIncludeSelf?.()) return;
+  } catch { /* 取得失敗時は従来どおり出す */ }
   // condition付きの説明（例: 3D表示のときだけ出す flicker-2d-v1）は、条件を満たす時だけ対象にする。
   const next = INTROS.find((i) => !isSeen(i.key) && (!i.condition || i.condition()));
   if (!next) return;

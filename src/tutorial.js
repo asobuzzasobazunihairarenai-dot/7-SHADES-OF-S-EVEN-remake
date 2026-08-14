@@ -720,7 +720,18 @@ export function initTutorialAutoStart() {
       // セットアップ完了時に自動表示される「スタートプレイヤー決定」モーダル
       // （game-setup.js）と表示タイミングが重なって騒がしくならないよう、
       // 少し間を置いてから出す。
-      setTimeout(() => startTutorial(), 1200);
+      setTimeout(async () => {
+        // 自己対戦（両席が疑似CPU＝スモークテスト等）では、操作する人間がいないうえ、
+        // チュートリアルの暗幕(#tutorial-scrim)が盤面をどんどん暗くしてしまうため出さない
+        // （ユーザー報告2026-08-14）。admin.jsを静的importすると admin→main→tutorial の
+        // 循環になるので、対局開始後（全モジュール評価済み）に動的importで確認する
+        // （[[circular-import-tdz-and-no-cache-bust]]）。
+        try {
+          const { isPseudoCpuIncludeSelf } = await import("./admin.js");
+          if (isPseudoCpuIncludeSelf?.()) return;
+        } catch { /* 取得失敗時は従来どおり出す */ }
+        startTutorial();
+      }, 1200);
     }
     wasGameStartedForTutorial = started;
   });

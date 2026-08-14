@@ -5396,7 +5396,14 @@ function openContactResultModal({ role, attacker, defender, cardId, onClose = nu
   openContactResultModals += 1;
   // 時間でも閉じる（ユーザー要望#40）。ただしCPU戦（ローカルの疑似CPU対戦）では、結果を
   // しっかり確認できるよう自動では閉じず、クリックするまで残す（CPU結果ホールドと同じ方針）。
-  const autoCloseMs = isCpuBattleActive() && !isOnlineMode() ? 0 : 5000;
+  // ただし——「閉じる操作をする人間がいない席」が防御側の時（自己対戦＝両席疑似CPUのスモーク
+  // テストや、離席AI代行で防御側が疑似CPUのとき）は、このモーダルのonCloseが優先権返却
+  // （finishContactResolution）のトリガーなのに誰もクリックせず、優先権が防御側に残ったまま
+  // 手番プレイヤーへ戻らず詰む（実測: 12秒の保険タイマーより先に停止する）。その場合だけは
+  // 0（無期限保持）にせず短時間で自動的に閉じて優先権を返す。人間が防御側の通常CPU戦では
+  // 従来どおりクリックまで保持する。
+  const defenderIsAuto = typeof isPseudoCpuTarget === "function" && isPseudoCpuTarget(defender);
+  const autoCloseMs = defenderIsAuto ? 3500 : (isCpuBattleActive() && !isOnlineMode() ? 0 : 5000);
   let autoCloseTimer = null;
   let closed = false;
   const close = () => {

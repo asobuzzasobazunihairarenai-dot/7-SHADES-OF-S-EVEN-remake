@@ -153,15 +153,47 @@ export function openSmokeTestPanel() {
   if (panelOpen) return;
   panelOpen = true;
 
-  const backdrop = document.createElement("div");
-  backdrop.className = "smoke-test-backdrop";
+  // ユーザー要望2026-08-14: 全画面バックドロップは廃止（盤面を見られるように）。パネルは
+  // タイトルバーを掴んでドラッグ移動できる浮遊ウィンドウ。既定位置はCSSで左上。
   const panel = document.createElement("div");
   panel.className = "smoke-test-panel";
 
   const title = document.createElement("div");
   title.className = "smoke-test-title";
-  title.textContent = "🧪 スモークテスト（自己対戦で自動チェック）";
+  title.textContent = "🧪 スモークテスト（ドラッグで移動可）";
   panel.appendChild(title);
+
+  // タイトルバーのドラッグでパネルを移動（left/topを直接書き換え）。ポインタキャプチャで
+  // ボタンの外へ出ても追従する。
+  (() => {
+    let dragging = false;
+    let startX = 0, startY = 0, baseLeft = 0, baseTop = 0;
+    title.addEventListener("pointerdown", (e) => {
+      dragging = true;
+      const rect = panel.getBoundingClientRect();
+      baseLeft = rect.left;
+      baseTop = rect.top;
+      startX = e.clientX;
+      startY = e.clientY;
+      panel.style.left = baseLeft + "px";
+      panel.style.top = baseTop + "px";
+      title.setPointerCapture?.(e.pointerId);
+      e.preventDefault();
+    });
+    title.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      let nl = baseLeft + (e.clientX - startX);
+      let nt = baseTop + (e.clientY - startY);
+      // 画面外に出しすぎない（タイトルバーは常に掴める位置に留める）。
+      nl = Math.max(-panel.offsetWidth + 60, Math.min(window.innerWidth - 60, nl));
+      nt = Math.max(0, Math.min(window.innerHeight - 40, nt));
+      panel.style.left = nl + "px";
+      panel.style.top = nt + "px";
+    });
+    const endDrag = (e) => { dragging = false; title.releasePointerCapture?.(e.pointerId); };
+    title.addEventListener("pointerup", endDrag);
+    title.addEventListener("pointercancel", endDrag);
+  })();
 
   const desc = document.createElement("div");
   desc.className = "smoke-test-desc";
@@ -193,7 +225,6 @@ export function openSmokeTestPanel() {
   closeBtn.className = "smoke-test-close";
   closeBtn.textContent = "閉じる";
   const close = () => {
-    backdrop.remove();
     panel.remove();
     panelOpen = false;
   };
@@ -265,6 +296,5 @@ export function openSmokeTestPanel() {
     };
   });
 
-  document.body.appendChild(backdrop);
   document.body.appendChild(panel);
 }
