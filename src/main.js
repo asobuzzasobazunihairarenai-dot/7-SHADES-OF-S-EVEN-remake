@@ -302,6 +302,7 @@ import {
   saveMyPreference,
   registerVictorySummaryHelper,
   registerShopOpener,
+  registerGameGoneHandler,
   isItemUnlocked,
   openShop,
   claimDailyLoginBonus,
@@ -12297,6 +12298,17 @@ initCurrencyDisplay();
 })();
 initShop();
 registerShopOpener(openShopPanel);
+// 戻り時ガード（ユーザー要望2026-08-14）: 参加中の対局が掃除で消えていた場合、online.jsが後始末
+// (leaveGame)を済ませた後にこれを呼ぶ。黒画面のまま固まらせず、通知してホームへ戻す。home-screen.jsは
+// 動的importで読む（静的importにすると循環になりうるため。[[circular-import-tdz-and-no-cache-bust]]）。
+registerGameGoneHandler(() => {
+  try {
+    alert("この対局は終了しました（部屋が閉じられました）。ホームに戻ります。");
+  } catch { /* noop */ }
+  import("./home-screen.js")
+    .then((m) => m.openHomeScreen?.())
+    .catch((err) => console.error("openHomeScreen after game-gone failed", err));
+});
 registerAvatarPickerHelper(openAvatarPicker);
 registerProfilePageOpener(() => openProfilePage());
 initGameSetup();

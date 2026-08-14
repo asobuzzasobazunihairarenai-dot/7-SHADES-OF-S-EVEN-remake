@@ -2402,6 +2402,14 @@ async function autoSyncStatsIdentity({ name, avatar } = {}) {
 // so7_games・so7_game_tokens_visible・so7_game_piles_visibleを取得し、state.jsの
 // getState()と同じ形に組み直してhydrateState()へ渡す。DRAW_FROM_PILEの応答に含まれる
 // revealedCardIdはここでは扱わない（呼び出し元がcallAction()の戻り値から直接使う）。
+// 戻り時ガード用（上記 fetchAndHydrate 参照）。main.js が「この対局は終了しました」の通知＋ホーム
+// 遷移を登録する。onGameGone は後始末(leaveGame)が終わった後に呼ばれる。
+let gameGoneHandler = null;
+let gameGoneInFlight = false;
+export function registerGameGoneHandler(fn) {
+  gameGoneHandler = fn;
+}
+
 export async function fetchAndHydrate(gameId) {
   return withLog("状態の取得", async () => {
     // 観戦中は参加者しか読めない *_visible ビューではなく、観戦用ビューから読む
@@ -2426,7 +2434,24 @@ export async function fetchAndHydrate(gameId) {
     if (gameErr) throw gameErr;
     if (tokenErr) throw tokenErr;
     if (pileErr) throw pileErr;
-    if (!gameRow) return;
+    if (!gameRow) {
+      // 戻り時ガード（ユーザー要望2026-08-14）: 自分が参加中の対局の行がサーバーから消えている
+      // ＝掃除(so7_cleanup_stale_rooms、全座席が30分非アクティブ)等で部屋ごと削除された。黙って
+      // 古い盤面のまま固まらせず、後始末してから「この対局は終了しました」と知らせてホームへ戻す。
+      // gameErrはthrow済みなのでここは「行が本当に無い（クリーンなnot-found）」＝一時エラーではない。
+      // 観戦中や、まだ現在の対局でないgameId（別部屋の先読み等）では発火しない。leaveGameが
+      // currentGameIdをnullにするので多重発火もしない。
+      if (!spectating && gameId && gameId === currentGameId && !gameGoneInFlight) {
+        gameGoneInFlight = true;
+        try {
+          await leaveGame();
+        } finally {
+          gameGoneInFlight = false;
+        }
+        gameGoneHandler?.();
+      }
+      return;
+    }
 
     const tokens = (tokenRows ?? []).map((r) => {
       const location =

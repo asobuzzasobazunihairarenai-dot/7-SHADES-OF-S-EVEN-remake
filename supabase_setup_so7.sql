@@ -469,14 +469,19 @@ begin
   delete from so7_games g
   where g.status = 'open' and not exists (select 1 from so7_game_seats s where s.game_id = g.id);
 
-  -- 対局中: 個々の座席は触らず、全員のlast_seenが24時間以上更新されていない（＝座席が
+  -- 対局中: 個々の座席は触らず、全員のlast_seenが一定時間以上更新されていない（＝座席が
   -- 無い、または全座席とも更新が無い）部屋だけ、まるごと削除する（座席・パスワード・
   -- カード・山札はso7_gamesへのon delete cascadeで一緒に消える）。
+  -- ユーザー要望2026-08-14「全員が途中退出したら部屋を消す」。猶予を24時間→30分に短縮。
+  -- 30分は、スマホの画面ロック/バックグラウンドでハートビート(setInterval, 25秒間隔)が
+  -- 止まる・電波瞬断などの一時的な離席で誤って消さないための余裕（「ちょっと席外し」は耐え、
+  -- 本当に放棄された部屋だけ消える）。※万一この削除中に裏に回していたクライアントが戻った
+  -- 場合は、online.js側のガード（対局が消えていたら「この対局は終了しました」でタイトルへ）が拾う。
   delete from so7_games g
   where g.status <> 'open'
     and not exists (
       select 1 from so7_game_seats s
-      where s.game_id = g.id and s.last_seen >= now() - interval '24 hours'
+      where s.game_id = g.id and s.last_seen >= now() - interval '30 minutes'
     );
 end;
 $$;
