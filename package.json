@@ -1,0 +1,12 @@
+{
+  "name": "so7-shades-of-seven",
+  "version": "1.0.0",
+  "private": true,
+  "description": "7 SHADES OF S:EVEN デジタル版。無ビルドのバニラESM（index.html が src/main.js を読み込む）。この package.json は開発用スモークテスト（Playwright）専用で、デプロイ（GitHub Pages）には一切影響しない。",
+  "scripts": {
+    "smoke": "node test/smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}

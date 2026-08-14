@@ -3,3 +3,6 @@
 /画像素材/
 /音声/
 /.netlify/
+# 開発用スモークテスト（Playwright）。実行時にだけ使う・デプロイには含めない。
+/node_modules/
+/test-results/
