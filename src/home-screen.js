@@ -24,6 +24,8 @@ import { openCodexPage } from "./codex-page.js";
 import { openRankingPage } from "./ranking-page.js";
 // チュートリアルCPU戦（台本化された練習試合）。完全ローカル機能。
 import { startTutorialBattle, registerTutorialHomeOpener } from "./tutorial-battle.js";
+// 案内人エイドスの物語チュートリアル（オンボーディング）のフロー制御。🎓タイルはこの入口へ。
+import { startEidosStory } from "./eidos-story.js";
 // ローカル1人用CPU戦（cpu-battle.js）はCPU選択時に動的import（下の openMatchChoiceModal 参照）。
 // ※静的importにすると、cpu-battle.js が芋づる式に読み込む依存（game-setup.js→…）でモジュール
 //   評価順が変わり、online.js↔phase-automation.js の循環参照が表面化して
@@ -51,13 +53,14 @@ const TILES = [
   {
     icon: "🎓",
     image: "assets/home-icons/tutorial.webp",
-    label: "チュートリアルCPU戦",
+    label: "物語チュートリアル",
     status: "ready",
     onOpen: () => {
-      // チュートリアル終了時にホーム画面へ戻れるよう、開くタイミングでopenHomeScreenを注入する。
-      registerTutorialHomeOpener(() => openHomeScreen());
+      // 案内人エイドスの物語オーケストレーターへ。初回は導入シーン→操作チュートリアルの順で進む。
+      // 終了/中断時にホームへ戻れるよう openHomeScreen を渡す（startEidosStoryが内部で
+      // registerTutorialHomeOpenerに配線する）。
       closeHomeScreen();
-      startTutorialBattle();
+      startEidosStory({ openHome: () => openHomeScreen() });
     },
   },
   { icon: "🤝", image: "assets/home-icons/friend-match.webp", label: "CPUマッチ＆フレンドリーマッチ", status: "ready", onOpen: () => openMatchChoiceModal() },
