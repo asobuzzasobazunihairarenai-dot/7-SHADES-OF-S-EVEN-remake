@@ -5013,6 +5013,26 @@ function flushPendingGateInvasionEvents() {
   }
 }
 
+// 【効果エンジンのキュー化・第一歩】remote-move-animator（他プレイヤー/CPUの手の再現＝差分検知）
+// 由来の到達トリガ(fromDiff=true)は、こちらのエンジンが既に到達/効果チェーンを処理している
+// 最中(arrivalEffectProcessingDepth>0)に割り込んで「別チェーン」を並行起動すると、同じ到達が
+// 二重に走る（#86/#87/#96の二重発火の根）。そこで、処理中に来た差分トリガは即実行せず一旦
+// 溜めておき、チェーンが完全に終わってdepthが0へ戻った時にまとめてflushする（既存の
+// pendingGateInvasionEventsと同じdefer-flushパターン）。差分トリガはどこからもawaitされない
+// （remote-move-animatorは投げっぱなし）ため遅延しても呼び出し側の待ち合わせは壊れない。flush時は
+// maybe*関数がその時点のstateを再評価するので、エンジン側で既に解決済みの到達は自然に空振りする。
+let pendingDiffArrivalTriggers = [];
+function flushPendingDiffArrivalTriggers() {
+  if (pendingDiffArrivalTriggers.length === 0) return;
+  const buffered = pendingDiffArrivalTriggers;
+  pendingDiffArrivalTriggers = [];
+  logAction("diag-diff-arrival-flush", { count: buffered.length });
+  for (const item of buffered) {
+    if (item.kind === "card") maybeTriggerCardArrivalForCard(item.dropTarget, item.cardId, item.faceUp, true);
+    else if (item.kind === "exposed") maybeTriggerCardArrivalForExposedCard(item.location, true);
+  }
+}
+
 // ユーザー報告#6: ムーブフェイズでザ・ギャンブルの到達効果を処理している最中に、相手の
 // ターンへ勝手に移行してしまった（効果自体は最後まで処理できた）。
 // 原因: 移動を確定（markPhaseMoveActionTakenでisMovePhaseActive()がfalse）してから、
@@ -5210,7 +5230,11 @@ function triggerCardArrival(cardId, location, onFullyResolved, opts = {}) {
         onFullyResolved?.();
         render();
         // 到達処理が完全に終わったら、その間にたまっていたゲート侵攻演出を再生する（上記参照）。
-        if (arrivalEffectProcessingDepth === 0) flushPendingGateInvasionEvents();
+        // あわせて、処理中に溜めておいた差分検知由来の到達トリガもここでflushする（二重発火防止）。
+        if (arrivalEffectProcessingDepth === 0) {
+          flushPendingGateInvasionEvents();
+          flushPendingDiffArrivalTriggers();
+        }
       }
     })();
     return;
@@ -5331,6 +5355,12 @@ function triggerCardArrivalIfFaceUp(location, fromDiff = false) {
 // 裏向きのカードの場合は対象外（駒が裏向きカードに乗った時の「オープンする/しない」選択の
 // ような自動オープンの仕組みはここでは設けない。ユーザーの要望が表向きの場合のみのため）。
 function maybeTriggerCardArrivalForCard(dropTarget, cardId, faceUp, fromDiff = false) {
+  // キュー化第一歩: 効果チェーン処理中に来た差分由来トリガは溜めてdepth0でflush（二重発火防止）。
+  if (fromDiff && arrivalEffectProcessingDepth > 0) {
+    pendingDiffArrivalTriggers.push({ kind: "card", dropTarget, cardId, faceUp });
+    logAction("diag-diff-arrival-defer", { kind: "card", cardId, location: dropTarget, depth: arrivalEffectProcessingDepth });
+    return;
+  }
   if (!dropTarget || !faceUp) return;
   // 安全弁（不具合#76）: cardIdが未確定(null/undefined)のまま到達判定に入ると、
   // triggerCardArrival配下のgetCardDefinition(cardId).name等で落ちる。呼び出し側で
@@ -5350,6 +5380,14 @@ function maybeTriggerCardArrivalForCard(dropTarget, cardId, faceUp, fromDiff = f
 // （findTopCardAt/hasPieceAtは最新のstateを参照するため、render()自体は必須ではないが、
 // 他の到達演出呼び出しと同じタイミングに揃えてある）。
 function maybeTriggerCardArrivalForExposedCard(location, fromDiff = false) {
+  // キュー化第一歩: 効果チェーン処理中に来た差分由来トリガは溜めてdepth0でflush（二重発火防止）。
+  // この差分経路(fromDiff=true)はremote-move-animatorが投げっぱなしで呼ぶ＝戻り値をawaitしないため、
+  // 遅延してPromise.resolve()を返しても待ち合わせは壊れない（#85のawaitはfromDiff=falseの別経路）。
+  if (fromDiff && arrivalEffectProcessingDepth > 0) {
+    pendingDiffArrivalTriggers.push({ kind: "exposed", location });
+    logAction("diag-diff-arrival-defer", { kind: "exposed", location, depth: arrivalEffectProcessingDepth });
+    return Promise.resolve();
+  }
   // 診断（到達コンボ不発の調査）: パーティ等で上のカードが取り除かれ、下のカードが露出
   // した時にこの経路が実際に呼ばれ、駒がいて・表向きのカードを見つけて到達を起こせるかを
   // 記録する。ユーザー報告「パーティを取って露出したジャンプ台の到達効果が起きない」用。
