@@ -199,14 +199,16 @@ function blinkDebugLog(...args) {
   if (BLINK_DEBUG) console.log("[blink-debug]", new Date().toISOString().slice(11, 23), ...args);
 }
 
-function blinkLocation(location, table, arrow = null) {
+function blinkLocation(location, table, arrow = null, actorOverride = null) {
   const hostEl = helpers.findLocationElement?.(table, location);
   if (!hostEl) return;
   const durationMs = getMoveBlinkDurationMs();
-  // ユーザー要望「点滅・矢印はそれを行ったプレイヤーの色にしたい、ミニアバターも
-  // 添えたい」。この演出は常に「今のターンプレイヤーが行った操作」の再現なので、
-  // その時点のturnPlayerを実行者とみなして色・アバターを決める。
-  const actor = getState().turnPlayer;
+  // ユーザー要望「点滅・矢印はそれを行ったプレイヤーの色にしたい、ミニアバターも添えたい」。
+  // 既定はその時点のturnPlayer（＝手番の操作の再現）だが、「取られた(↑)」演出では、取った本人が
+  // 手番プレイヤーとは限らない（例: 相手のパーティ効果で“自分”が場のカードを取る）。その場合は
+  // actorOverride に取った本人（カードの移動先＝手札の持ち主）を渡してもらい、そちらを優先する
+  // （ユーザー報告2026-08-14: 相手のパーティで自分が取ったのに相手のアバターがマスに出る）。
+  const actor = actorOverride || getState().turnPlayer;
   const color = actor ? getPieceColor(actor) : null;
 
   const key = locationKey(location);
@@ -379,7 +381,8 @@ function processMovedOrNew(items, table, blinkOnly = false) {
         // 盤面/ロックから手札へ「取られた」場合、取られた側のマスを↑で点滅させる
         // （ユーザー要望：置いた時と同様、取った時も分かりやすくしたい）。
         if (item.prevLocation && isTableZone(item.prevLocation)) {
-          blinkLocation(item.prevLocation, table2, "up");
+          // 取った本人＝このカードの移動先（手札の持ち主）。手番プレイヤーとは限らない（パーティ委任等）。
+          blinkLocation(item.prevLocation, table2, "up", item.token.location?.player);
           playSound("cardDraw");
           continue;
         }
@@ -413,7 +416,8 @@ function processMovedOrNew(items, table, blinkOnly = false) {
         fromRect = fromRects.get(item.id) || null;
         // 移動元は手札の場合もある（手札からロックへ等）。手札には点滅させる実マスが
         // 無いため、盤面/ロックからの移動の時だけ移動元も光らせる（↑＝取られた）。
-        if (isTableZone(item.prevLocation)) blinkLocation(item.prevLocation, table2, "up");
+        // 移動先が手札なら取った本人（手札の持ち主）を、盤面/ロックなら undefined→turnPlayer にフォールバック。
+        if (isTableZone(item.prevLocation)) blinkLocation(item.prevLocation, table2, "up", item.token.location?.player);
       } else if (item.kind === "new-lock") fromRect = getOriginPileRect(item.token.cardId);
       // new-cell-fadeはfromRectなし＝その場でフェードインするだけ。
       // move/new-lock/new-cell-fadeはいずれも「場に何かが現れた/置かれた」ケースなので
