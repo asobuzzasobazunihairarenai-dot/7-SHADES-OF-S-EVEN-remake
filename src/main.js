@@ -4979,6 +4979,12 @@ const ARRIVAL_EFFECT_START_PAUSE_MS = 400;
 // 限定し、自分の移動/効果チェーン(fromDiff無し)は常に処理する。往復のネストに耐えるよう、
 // キーはSetではなくカウンタ(Map)で保持する。
 const activeAutoArrivalKeys = new Map();
+// #96: 同じ到達キーで「現在アクティブな処理のうち fromDiff（差分検知）由来のもの」の数。
+// オンラインでは moveAndSync の fetchAndHydrate 由来の差分到達が move-chain より先に走ることが
+// あり、順序次第で fromDiff→非fromDiff の並びになって「fromDiffの重複だけ弾く」既存ガードを
+// すり抜けて二重実行される（ザ・ギャンブルの色宣言・公開・「1枚ずつ公開」モーダルが二重化した）。
+// これを使い「どちらが先でも、片方が fromDiff で同じ到達が処理中なら二重発火として無視」する。
+const activeAutoArrivalFromDiffKeys = new Map();
 function autoArrivalKey(cardId, location) {
   const loc =
     location.zone === "cell"
@@ -5052,12 +5058,26 @@ function triggerCardArrival(cardId, location, onFullyResolved, opts = {}) {
     // 処理中の時、remote-move-animator由来の重複発火(opts.fromDiff)だけを無視する。自分の
     // 効果チェーンの正当な再到達（ジャンプ台の往復など）は fromDiff 無しなので通す。
     const dedupKey = autoArrivalKey(cardId, location);
-    if (opts.fromDiff && activeAutoArrivalKeys.has(dedupKey)) {
-      logAction("diag-arrival-processing", { cardId, phase: "duplicate-skip", depth: arrivalEffectProcessingDepth });
+    const dedupKeyActive = activeAutoArrivalKeys.has(dedupKey);
+    const dedupFromDiffActive = (activeAutoArrivalFromDiffKeys.get(dedupKey) || 0) > 0;
+    // #7/#11/#96: 差分検知(fromDiff)と自分の効果チェーンが同じ到達を二重に発火するのを防ぐ。
+    // どちらが先でも、片方が fromDiff で既にこの到達が処理中なら二重発火とみなして無視する
+    // （#96: オンラインで fetchAndHydrate 由来の差分到達が move-chain より先に走り、その後
+    // move-chain が非fromDiffで再発火して二重化した）。純粋な効果チェーン同士の再到達
+    // （どちらも非fromDiff。ジャンプ台往復・入れ替え/接触で同マスへ戻る等）は従来どおり通す。
+    if (dedupKeyActive && (opts.fromDiff || dedupFromDiffActive)) {
+      logAction("diag-arrival-processing", {
+        cardId,
+        phase: "duplicate-skip",
+        depth: arrivalEffectProcessingDepth,
+        fromDiff: !!opts.fromDiff,
+        fromDiffActive: dedupFromDiffActive,
+      });
       onFullyResolved?.();
       return;
     }
     activeAutoArrivalKeys.set(dedupKey, (activeAutoArrivalKeys.get(dedupKey) || 0) + 1);
+    if (opts.fromDiff) activeAutoArrivalFromDiffKeys.set(dedupKey, (activeAutoArrivalFromDiffKeys.get(dedupKey) || 0) + 1);
     arrivalEffectProcessingDepth++;
     // 続き75診断ログ: ユーザー報告「ムーブフェイズがきれいに終わったのにターンが
     // 終了されなかった」の調査用。このフラグがtrueのまま戻らなくなっていないか
@@ -5096,6 +5116,12 @@ function triggerCardArrival(cardId, location, onFullyResolved, opts = {}) {
         const remainCount = (activeAutoArrivalKeys.get(dedupKey) || 1) - 1;
         if (remainCount <= 0) activeAutoArrivalKeys.delete(dedupKey);
         else activeAutoArrivalKeys.set(dedupKey, remainCount);
+        // #96: fromDiff由来のアクティブ数も対で減らす。
+        if (opts.fromDiff) {
+          const remainFromDiff = (activeAutoArrivalFromDiffKeys.get(dedupKey) || 1) - 1;
+          if (remainFromDiff <= 0) activeAutoArrivalFromDiffKeys.delete(dedupKey);
+          else activeAutoArrivalFromDiffKeys.set(dedupKey, remainFromDiff);
+        }
         logAction("diag-arrival-processing", { cardId, phase: "end", depth: arrivalEffectProcessingDepth });
         onFullyResolved?.();
         render();
