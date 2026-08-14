@@ -9412,10 +9412,16 @@ async function cpuUseGomennasaiOnFinalLock(seat, eligibility, attacker) {
     await respondToFinalLock(true);
     return;
   }
+  // #102: 手札効果の使用宣言モーダル（＋行動ログに hand-effect を残す）を出す。以前は理由モーダル
+  // だけで、ゴメンナサイを使った合図（手札効果使用モーダル）が出ていなかった。
+  announceHandEffectUseForEffect("purple-sorry", "相手の最後のロックを阻止する", seat);
   await announceEffectReasonForEffect(
     "purple-sorry",
     `${getPlayerName(seat)}はゴメンナサイを使い、${getPlayerName(attacker)}のロックを1枚奪って最後のロックを阻止します！`
   );
+  // #102: ゴメンナサイは手札効果＝発動時にこのカード自身を捨てる（追色コストとは別の話）。以前は
+  // 追色コストしか捨てておらず、使ったゴメンナサイが手札に残ったままだった。本体→追色の順に捨てる。
+  await discardFromHandReveal(eligibility.sorryToken.id);
   await discardFromHandReveal(cost.id);
   const costStillInHand = getState().tokens.find(
     (t) => t.id === cost.id && t.location.zone === "hand" && t.location.player === seat
@@ -9426,6 +9432,12 @@ async function cpuUseGomennasaiOnFinalLock(seat, eligibility, attacker) {
     return;
   }
   moveToken(target.id, { zone: "hand", player: seat });
+  // #102: 何を奪ったかを画面中央のモーダルで見せる（従来は小さいトーストだけだった）。
+  showCardReceivedModal(
+    target.cardId,
+    `${getPlayerName(seat)}が${getPlayerName(attacker)}のロックエリアから奪いました`,
+    { labelText: "奪った" }
+  );
   announceHandPickups(seat, [{ cardId: target.cardId, wasPublic: true }]);
   render();
   await respondToFinalLock(true);
@@ -9486,6 +9498,9 @@ async function useGomennasaiOnFinalLock() {
     render();
     return;
   }
+  // #102: ゴメンナサイは手札効果＝発動時にこのカード自身も捨てる（追色コストとは別）。追色コストの
+  // 支払いが確定した後に、ゴメンナサイ本体を捨てる（以前は本体が手札に残っていた）。
+  await discardFromHandReveal(eligibility.sorryToken.id);
   // 不具合#36診断: ゴメンナサイで奪ったカード・奪う前後の攻撃側ロック内容を記録する
   // （奪ったのに相手が勝ってしまう報告の追跡用）。
   const attackerSeat = pending.attacker;
@@ -9506,6 +9521,12 @@ async function useGomennasaiOnFinalLock() {
   } else {
     moveToken(target.id, { zone: "hand", player: selfSeat });
   }
+  // #102: 何を奪ったかを画面中央のモーダルで見せる（従来は小さいトーストだけだった）。
+  showCardReceivedModal(
+    target.cardId,
+    `${getPlayerName(selfSeat)}が${getPlayerName(attackerSeat)}のロックエリアから奪いました`,
+    { labelText: "奪った" }
+  );
   announceHandPickups(selfSeat, [{ cardId: target.cardId, wasPublic: true }]);
   render();
   logAction("diag-gomennasai-steal", { attacker: attackerSeat, phase: "afterSteal", attackerLocksAfter: locksSnapshot() });
