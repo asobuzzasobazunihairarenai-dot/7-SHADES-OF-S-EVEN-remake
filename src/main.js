@@ -4727,6 +4727,10 @@ async function tryUseLockedUsableCard(tokenId) {
 // ユーザー要望「①通常の手札カードは、ハンドフェイズかつ手札エリア外で放すと手札効果が
 // 発動する」「②エターナル/ファーストカードは、ハンドフェイズでクリックすると追色コストを
 // 選ぶ流れに移行する」への対応の実行部。cardTokenIdは効果を使うカード自身。
+// （Step 3で手札効果の起動を直列化するラッパーを試したが、runAutoHandEffectが「常にトップレベル
+//   起動」という前提が崩れており＝どこかで再入的に呼ばれる経路があり、直列化するとその再入が自分の
+//   スロットを待って詰む＝スモークテストで2/4回STALLしたため撤回。並行実行の実害はStep1/2で
+//   個別に塞いだので、危険な総直列化はしない。see [[effect-engine-queue]]。）
 async function runAutoHandEffect(cardId, cardTokenId, player) {
   setHandEffectBusy(true);
   try {
