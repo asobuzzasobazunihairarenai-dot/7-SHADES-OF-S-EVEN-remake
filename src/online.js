@@ -1515,8 +1515,12 @@ export async function drawFromMyDeck(seat) {
 // マイデッキ戦F4: 開始時のデッキ選択フェイズ（ホストが呼ぶ）。全員へ開始をbroadcastし、
 // ホスト自身もオーバーレイを出す。全員が selected_deck を書く or 60秒経過で抜ける。
 const DECK_SELECT_MS = 60000;
-async function runDeckSelectionPhase(gameId) {
-  const deadline = Date.now() + DECK_SELECT_MS;
+async function runDeckSelectionPhase(gameId, timerEnabled = true) {
+  // ユーザー要望2026-08-14「タイマー無しの対局では、マイデッキ選択の60秒カウントダウンも無しに」。
+  // タイマー無しの時は deadline を null にして全クライアントに「カウントダウン無し（全員が選ぶまで
+  // 待つ）」を伝える。ホスト側の待機は、万一誰かが延々と選ばない事故に備えて十分に長い安全上限
+  // （15分）だけ設けておく（カウントダウンとしては見せない）。
+  const deadline = timerEnabled ? Date.now() + DECK_SELECT_MS : null;
   broadcastDeckSelectionStart({ deadline });
   try {
     // このチャンネルは self:true（送信元にもechoされる）なので、ホストのオーバーレイは
@@ -1526,7 +1530,7 @@ async function runDeckSelectionPhase(gameId) {
   } catch (err) {
     console.error("deckSelectHandler failed", err);
   }
-  await waitForAllSelectedOrDeadline(gameId, deadline);
+  await waitForAllSelectedOrDeadline(gameId, deadline ?? Date.now() + 15 * 60 * 1000);
 }
 async function waitForAllSelectedOrDeadline(gameId, deadline) {
   while (Date.now() < deadline) {
@@ -1622,7 +1626,7 @@ export async function startGame(gameId, { includeBlackWhite = false, timerEnable
     // ロックして開始）。サーバー側BOOTSTRAP_GAME（so7-apply-action.ts）で処理する。
     // マイデッキ戦: BOOTSTRAPの前に「デッキ選択フェイズ」を回す。ホストが開始を全員へbroadcastし、
     // 各自が選んだデッキを座席へ保存。全員選択or60秒でここを抜け、BOOTSTRAPが座席のselected_deckを読む。
-    if (myDeckMode) await runDeckSelectionPhase(gameId);
+    if (myDeckMode) await runDeckSelectionPhase(gameId, timerConfig.enabled);
     // myDeckMode: マイデッキ戦（対戦ロビーのトグル）。timerConfig等と同じく開始時に1回だけ
     // 送り、サーバーが各席の selected_deck を読んでシャッフル配布する（so7-apply-action）。
     const result = await callAction({ type: "BOOTSTRAP_GAME", includeBlackWhite, timerConfig, boost, myDeckMode });

@@ -12265,7 +12265,9 @@ registerMyDeckPersistence((deck) => saveMyPreference({ my_deck: deck }));
 // 非ホストはdeck_selection_start broadcastで呼ばれる）。選んだ結果を自分の座席へ保存する。
 const showDeckSelect = (deadline) => {
   if (isDeckSelectOpen()) return;
-  const durationSec = Math.max(5, Math.ceil(((deadline ?? Date.now() + 60000) - Date.now()) / 1000));
+  // deadlineが無い（null/未指定）＝タイマー無しの対局。カウントダウンを出さず、選ぶまで待つ
+  // （durationSec 0 で my-deck-select 側がカウントダウン無しモードになる。ユーザー要望2026-08-14）。
+  const durationSec = deadline ? Math.max(5, Math.ceil((deadline - Date.now()) / 1000)) : 0;
   openDeckSelect({ durationSec, onResolved: (r) => writeSelectedDeck(r) });
 };
 registerDeckSelectHandler(showDeckSelect);
