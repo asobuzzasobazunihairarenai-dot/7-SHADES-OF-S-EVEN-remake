@@ -17,6 +17,7 @@ import {
   listSpectatableGames,
   spectateGame,
   getMyActiveGames,
+  leaveGameById,
   getRoomName,
   getMemberCount,
   getRoomHostInfo,
@@ -658,8 +659,12 @@ async function renderRoomChoice(user, myGeneration) {
       resumeLabel.textContent = "進行中の対局（途中退出した部屋）:";
       contentEl.appendChild(resumeLabel);
       for (const game of activeGames) {
+        // 「▶ 再開」と「✕ 抜ける」を横並びに。抜ける＝この部屋の自分の座席をサーバーから消す
+        // （全員抜ければ部屋自体も片付く）。放棄した古い部屋がこの一覧に残り続ける件への対応。
+        const row = document.createElement("div");
+        row.style.cssText = "display: flex; gap: 0.4rem; margin-bottom: 0.4rem;";
         const resumeBtn = textButton(`▶ ${game.name} を再開`);
-        resumeBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box; margin-bottom: 0.4rem;";
+        resumeBtn.style.cssText = "flex: 1; box-sizing: border-box; min-width: 0;";
         resumeBtn.addEventListener("click", async () => {
           resumeBtn.disabled = true;
           try {
@@ -671,7 +676,25 @@ async function renderRoomChoice(user, myGeneration) {
             resumeBtn.disabled = false;
           }
         });
-        contentEl.appendChild(resumeBtn);
+        const leaveBtn = textButton("✕ 抜ける");
+        leaveBtn.title = "この部屋の自分の座席を消します（全員が抜けた部屋は消えます）。もう再開はできなくなります。";
+        leaveBtn.style.cssText = "flex: 0 0 auto; box-sizing: border-box;";
+        leaveBtn.addEventListener("click", async () => {
+          if (!confirm(`「${game.name}」から抜けますか？（この対局はもう再開できなくなります）`)) return;
+          leaveBtn.disabled = true;
+          resumeBtn.disabled = true;
+          try {
+            await leaveGameById(game.id);
+            await renderPanelContent();
+          } catch (err) {
+            alert(`退出に失敗しました: ${err.message ?? err}`);
+            leaveBtn.disabled = false;
+            resumeBtn.disabled = false;
+          }
+        });
+        row.appendChild(resumeBtn);
+        row.appendChild(leaveBtn);
+        contentEl.appendChild(row);
       }
       const resumeDivider = document.createElement("div");
       resumeDivider.style.cssText = "border-top: 1px solid rgba(148, 163, 184, 0.3); margin: 0.6rem 0;";

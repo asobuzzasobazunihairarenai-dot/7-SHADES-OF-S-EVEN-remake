@@ -58,5 +58,15 @@ select
   (select count(*) from so7_game_seats s where s.game_id = g.id) as member_count
 from so7_games g
 left join so7_game_passwords p on p.game_id = g.id
-where g.status = 'playing';
+where g.status = 'playing'
+  -- ユーザー要望2026-08-14「部屋に入っていた全員がその部屋に対して非アクティブになったら
+  -- （観戦）一覧から消える」。誰の座席も直近2分間 last_seen が更新されていない＝全員がブラウザを
+  -- 閉じた/席を立った“放棄された対局”は観戦一覧に出さない。ハートビート(online.js startHeartbeat)は
+  -- 25秒間隔で、ユーザー操作に関係なく動くため、対局中の長考で誤って消えることはない（2分は数回分の
+  -- 猶予）。※ここは観戦“表示”のフィルタで、対局自体の削除ではない（再開用に部屋はしばらく残す。
+  -- 実体の掃除は so7_cleanup_stale_rooms が行う）。
+  and exists (
+    select 1 from so7_game_seats s
+    where s.game_id = g.id and s.last_seen >= now() - interval '2 minutes'
+  );
 grant select on so7_games_spectate_list to authenticated;

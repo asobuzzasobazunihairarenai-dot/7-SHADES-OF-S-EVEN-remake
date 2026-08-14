@@ -1369,6 +1369,16 @@ export async function getMyActiveGames() {
     .map((row) => ({ id: row.game_id, name: row.so7_games.name || "セブンの部屋" }));
 }
 
+// 「途中退出した部屋」一覧から、今いない別の部屋の座席をワンクリックで抜けるための関数
+// （放棄部屋が一覧に残り続ける件への対応）。leaveGame()は「今いる部屋」を離れる用でローカル状態も
+// 片付けるが、こちらは今の画面とは無関係な別の部屋の座席をサーバー側で消すだけ。so7_leave_roomは
+// 呼び出しユーザー(auth.uid())の座席を消し、全員抜けたら部屋自体も片付ける（SECURITY DEFINER）。
+export async function leaveGameById(gameId) {
+  if (!client || !gameId) return;
+  const { error } = await client.rpc("so7_leave_room", { p_game_id: gameId });
+  if (error) throw error;
+}
+
 // 部屋名（ゲーム開始後も含め、部屋にいる間ずっと表示するため）。so7_games_listは
 // status='openの部屋しか含まないため、開始後の部屋にも使えるようso7_gamesから直接取る
 // （name列自体は秘匿の必要が無い、既存のso7_games_select using(true)のまま読める）。
