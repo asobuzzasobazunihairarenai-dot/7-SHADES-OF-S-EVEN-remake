@@ -14928,7 +14928,7 @@ body.theme-light .mdb-setting-btn {
   display: none;
   position: fixed;
   right: var(--smoke-test-btn-right, 0.8rem);
-  bottom: var(--smoke-test-btn-bottom, 0.8rem);
+  bottom: var(--smoke-test-btn-bottom, 4.9rem);
   z-index: 50200;
   padding: 0.59em 1.06em;
   font-family: sans-serif;

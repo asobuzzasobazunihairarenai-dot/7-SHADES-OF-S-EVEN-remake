@@ -605,7 +605,7 @@ const GROUPS = [
     category: "position-ui",
     controls: [
       { key: "--smoke-test-btn-right", label: "横位置 right（＋で左へ）", unit: "rem", min: 0, max: 40, step: 0.1, default: 0.8, previewOnInteract: previewSmokeTestBtn },
-      { key: "--smoke-test-btn-bottom", label: "縦位置 bottom（＋で上へ）", unit: "rem", min: 0, max: 30, step: 0.1, default: 0.8, previewOnInteract: previewSmokeTestBtn },
+      { key: "--smoke-test-btn-bottom", label: "縦位置 bottom（＋で上へ）", unit: "rem", min: 0, max: 30, step: 0.1, default: 4.9, previewOnInteract: previewSmokeTestBtn },
       { key: "--smoke-test-btn-font-size", label: "大きさ（文字＋余白が連動）", unit: "rem", min: 0.5, max: 2.5, step: 0.05, default: 0.85, previewOnInteract: previewSmokeTestBtn },
     ],
   },
