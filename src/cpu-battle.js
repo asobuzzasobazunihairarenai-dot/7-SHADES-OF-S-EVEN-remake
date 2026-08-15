@@ -23,7 +23,10 @@ import { quickStart } from "./game-setup.js";
 import { setPlayerName, setPlayerAvatar, ENTRUSTED_AVATAR } from "./player-identity.js";
 import { setAutoProcessingEnabled } from "./card-effect-engine.js";
 import { setCpuBattleActive } from "./cpu-battle-state.js";
-import { resetGame } from "./state.js";
+import { resetGame, setupMyDeckMode } from "./state.js";
+// マイデッキ戦（本気エイドス戦）用。my-deck.jsはcards-data.jsだけに依存する葉モジュールなので
+// ここから安全にimportできる（online.js等は経由しない）。
+import { getSelectedDeckId, getDeckById, makeRandomDeck } from "./my-deck.js";
 
 const CPU_SEAT = "C"; // 2人対戦の相手席（AUTO_SEATS_BY_COUNT[2] = ["A","C"]）
 
@@ -67,9 +70,34 @@ export async function startCpuBattle() {
 
 // オープニングを閉じて盤面を見せた「後」に呼ぶ。空の盤面の上で、2人対戦(A/C)のセットアップ
 // を演出付き（quickStartのファースト配布・盤面配置アニメ）で実際に見せながら開始する。
-export async function runCpuBattleSetup({ noirSeat = null, noirBrands = false } = {}) {
+export async function runCpuBattleSetup({ noirSeat = null, noirBrands = false, myDeck = false } = {}) {
   // noirSeat: エイドス物語戦で相手(C)のファースト・駒を黒(noir)にする（配布アニメーションの前に
   // 適用されるので最初から黒く見える）。通常のCPU戦ではnull（＝差し替えなし）。
   // noirBrands: 本気エイドス戦で、ノワールの両端スロットに「誘惑の黒の烙印」を置いて開始する。
+  // myDeck: 本気エイドス戦でマイデッキ戦（マイデッキ戦.txt）を有効化する。
   await quickStart(2, false, false, noirSeat, noirBrands);
+  if (myDeck) {
+    // A(あなた): 現在選択中のマイデッキ（無ければおまかせランダム）。C(エイドス): おまかせランダム
+    // （ユーザー合意: エイドスのデッキは一旦ランダム）。cardsは{cardId:count}なので展開＋シャッフルして
+    // 「一番上=末尾」のcardId配列にしてから setupMyDeckMode でパイルとして持たせる。
+    const selId = getSelectedDeckId();
+    const deckA = selId ? getDeckById(selId) : null;
+    const cardsA = deckA?.cards && Object.keys(deckA.cards).length > 0 ? deckA.cards : makeRandomDeck().cards;
+    const cardsC = makeRandomDeck().cards;
+    setupMyDeckMode({ A: expandAndShuffleDeck(cardsA), C: expandAndShuffleDeck(cardsC) });
+  }
+}
+
+// {cardId:count} を、シャッフル済みの cardId 配列（末尾＝一番上）へ展開する。state.jsの内部
+// shuffled()に相当する処理をここに小さく持つ（state.jsをmy-deck.jsに依存させないための分担）。
+function expandAndShuffleDeck(cards) {
+  const flat = [];
+  for (const [cardId, count] of Object.entries(cards || {})) {
+    for (let i = 0; i < count; i++) flat.push(cardId);
+  }
+  for (let i = flat.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [flat[i], flat[j]] = [flat[j], flat[i]];
+  }
+  return flat;
 }

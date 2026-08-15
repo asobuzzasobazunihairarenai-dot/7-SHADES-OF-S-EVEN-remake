@@ -232,7 +232,7 @@ async function startStoryBattle(stage, { practice = false } = {}) {
       // （#108: 以前はセットアップ完了後に差し替えていたため配布中は元の色＝黄色等が見えていた）。
       // 本気(advanced)エイドス戦だけ、ノワールの両端に「誘惑の黒の烙印」を置いて開始する
       // （ユーザー要望2026-08-15）。易しい(intermediate)戦では置かない。
-      runCpuBattleSetup({ noirSeat: "C", noirBrands: stage === "advanced" }).catch((err) =>
+      runCpuBattleSetup({ noirSeat: "C", noirBrands: stage === "advanced", myDeck: stage === "advanced" }).catch((err) =>
         console.error("runCpuBattleSetup(story) failed", err)
       );
     }, 60);

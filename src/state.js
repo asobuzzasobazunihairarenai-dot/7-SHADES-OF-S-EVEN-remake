@@ -293,6 +293,32 @@ function reduce(current, action) {
       if (action.location.zone === "publicDraw") newToken.revealSource = "draw";
       return { ...current, piles, tokens: [...current.tokens, newToken] };
     }
+    // マイデッキ戦（マイデッキ戦.txt）: ロックフェイズで「ロックする代わりにマイデッキから
+    // 1枚手札に加える」。オンラインではso7-apply-action.tsの同名アクションが担当するが、
+    // ローカルの本気エイドス戦でも同じ挙動を再現するためここに移植した（サーバーと同じく
+    // "myDeck-<seat>"パイルの一番上を手札へ移す。空なら何も起きない＝currentをそのまま返す）。
+    // 引いたトークンには myDeckOwner を付ける——マイデッキ札は所有者の裏面で全員に見える
+    // （奪う時・盤面配置時にマイデッキ札と分かる）というルール上の可視化のため。
+    case "DRAW_FROM_MY_DECK": {
+      const pileName = `myDeck-${action.seat}`;
+      const pileArray = current.piles[pileName];
+      if (!pileArray || pileArray.length === 0) return current;
+      const cardId = pileArray[pileArray.length - 1];
+      const piles = { ...current.piles, [pileName]: pileArray.slice(0, -1) };
+      const faceUp = faceUpForLocation(action.location);
+      const newToken = { id: uid("card"), kind: "card", cardId, faceUp, location: action.location, myDeckOwner: action.seat };
+      return { ...current, piles, tokens: [...current.tokens, newToken] };
+    }
+    // マイデッキ戦をローカルで有効化する（オンラインはBOOTSTRAP_GAMEが担当）。呼び出し側が
+    // 事前にシャッフル・展開した cardId 配列（action.piles = { A:[...], C:[...] }）を渡す
+    // （state.jsをmy-deck.jsに依存させないため。setupAssignFirstCards等と同じローカル専用アクション）。
+    case "SETUP_MY_DECK_MODE": {
+      const piles = { ...current.piles };
+      for (const seat of Object.keys(action.piles || {})) {
+        piles[`myDeck-${seat}`] = [...(action.piles[seat] || [])];
+      }
+      return { ...current, piles, myDeckMode: true };
+    }
     // 自分の手札を並べ替える（画面左下の「手札シャッフル」ボタン）。カード自体の入れ替わりは
     // 無い（顔ぶれは変わらない）ので、どのカードを持っているかを推測されにくくする、
     // 見た目上の並び替え演出。handTokens内の相対順だけをシャッフルし、他のトークンとの
@@ -425,6 +451,10 @@ function reduce(current, action) {
         hourglassStock: {},
         pendingFinalLock: null,
         pendingContact: null,
+        // マイデッキ戦の後始末: pilesを新規に作り直す（"myDeck-*"パイルは引き継がない）ので
+        // 自動的にクリアされるが、myDeckModeフラグも明示的にfalseへ戻す（本気エイドス戦→通常戦の
+        // やり直し等で残らないように）。
+        myDeckMode: false,
       };
     }
     // チュートリアルCPU戦（src/tutorial-battle.js）専用の決定的セットアップ。
@@ -918,6 +948,20 @@ export function applySeatNoir(seat, brands = false) {
 
 export function setupFillBoard(includeBlackWhite) {
   dispatch({ type: "SETUP_FILL_BOARD", includeBlackWhite });
+}
+
+// マイデッキ戦（ローカル）を有効化する。pilesBySeat = { A:[...cardId], C:[...cardId] }（既にシャッフル
+// 済みの配列）。呼び出し側（cpu-battle.js）がmy-deck.jsを使ってデッキを展開・シャッフルして渡す
+// （state.jsをmy-deck.jsに依存させないための分担）。ローカル専用なのでonlineTransportは経由しない。
+export function setupMyDeckMode(pilesBySeat) {
+  dispatch({ type: "SETUP_MY_DECK_MODE", piles: pilesBySeat });
+}
+
+// マイデッキから1枚引く（ローカル）。オンラインはonline.jsのdrawFromMyDeckがサーバーへ送るが、
+// ローカルの本気エイドス戦ではこれを直接dispatchする（moveToken/drawFromPileと同じ「オンラインで
+// ないならローカルにdispatch」の考え方。online.jsのdrawFromMyDeckがオフライン時にこれへ委譲する）。
+export function drawFromMyDeckLocal(seat) {
+  dispatch({ type: "DRAW_FROM_MY_DECK", seat, location: { zone: "hand", player: seat } });
 }
 
 export function refillDeckFromDiscard() {

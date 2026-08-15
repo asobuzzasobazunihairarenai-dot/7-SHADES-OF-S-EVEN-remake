@@ -63,10 +63,11 @@ function isPseudoCpuTarget(seat) {
   return isPseudoCpuIncludeSelf() || seat !== getSelfSeat();
 }
 
-// マイデッキ戦（マイデッキ.txt）: この席が「ロックする代わりにマイデッキから引く」を
-// まだできるか。オンライン専用（state.myDeckModeはオンラインでのみtrue）。残枚数は
-// マスクされた "myDeck-<seat>" パイル（so7_game_piles_visibleが枚数だけ公開）から見る。
-function canDrawFromMyDeck(seat) {
+// マイデッキ戦（マイデッキ戦.txt）: この席が「ロックする代わりにマイデッキから引く」を
+// まだできるか。オンライン（マスクされた "myDeck-<seat>" パイルが枚数を公開）でも、ローカルの
+// 本気エイドス戦（state.jsのSETUP_MY_DECK_MODEで実配列を持つ）でも、同じく残枚数>0で判定できる。
+// main.jsのCPU（ロック不可の時にマイデッキから引く）からも使うためexportした。
+export function canDrawFromMyDeck(seat) {
   const s = getState();
   return !!s.myDeckMode && (s.piles?.[`myDeck-${seat}`] || []).length > 0;
 }
@@ -664,8 +665,10 @@ export function updateSkipButtonVisibility() {
   const myDeckBtn = ensureMyDeckButton();
   const selfSeat = getSelfSeat();
   const myDeckCount = (state.piles?.[`myDeck-${selfSeat}`] || []).length;
+  // オンラインだけでなく、ローカルの本気エイドス戦（マイデッキ戦）でも自分(A)のロックフェイズに
+  // 出す（state.myDeckModeはオンライン or この本気エイドス戦でのみtrueなので、モードの緩和だけでよい）。
   const showMyDeck =
-    isOnlineMode() &&
+    (isOnlineMode() || isCpuBattleActive()) &&
     state.myDeckMode &&
     currentPhase === "lock" &&
     state.turnPlayer === selfSeat &&

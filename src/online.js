@@ -22,6 +22,7 @@ import {
   notifyListeners,
   applyRemotePriorityPatch,
   resetGame,
+  drawFromMyDeckLocal,
 } from "./state.js";
 import { SEAT_ORDER } from "./board-layout.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
@@ -1518,6 +1519,12 @@ async function callAction(action) {
 // （submitContactProposal等と同じパターン。他プレイヤーへはサーバーのstate_changed
 // Broadcastで届く）。
 export async function drawFromMyDeck(seat) {
+  // ローカルの本気エイドス戦（マイデッキ戦）ではサーバーを介さず直接dispatchする
+  // （phase-automation.jsのボタン・main.jsのCPUが共通してこの関数を呼ぶため、ここで分岐する）。
+  if (!isOnlineMode()) {
+    drawFromMyDeckLocal(seat);
+    return;
+  }
   await callAction({ type: "DRAW_FROM_MY_DECK", seat, location: { zone: "hand", player: seat } });
   if (currentGameId) await fetchAndHydrate(currentGameId);
 }

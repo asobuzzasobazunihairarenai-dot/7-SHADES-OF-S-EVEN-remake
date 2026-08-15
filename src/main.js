@@ -55,6 +55,7 @@ import {
   forceEndCurrentPhase,
   registerContractBrandHandler,
   setSetupRevealActive,
+  canDrawFromMyDeck,
 } from "./phase-automation.js";
 import { initHelpButton } from "./help.js";
 import { initDiscordLink } from "./discord-link.js";
@@ -214,6 +215,7 @@ import {
   respondAutoProcessingToggle,
   requestContact,
   respondContact,
+  drawFromMyDeckLocal,
 } from "./state.js";
 import { initOnlineUi, openOnlinePanel, isOnlineIntentActive } from "./online-ui.js";
 import { initOpeningScreen, previewOpeningAuras } from "./opening-screen.js";
@@ -3806,6 +3808,15 @@ export function performPriorityTimeoutAutoAction() {
     if (isTarget && lockable.length > 0) {
       const chosen = pickRandomFrom(lockable);
       performLockPhaseClick(chosen.id, { skipConfirm: true, actingSeat: player }); // 自動実行なので確認モーダルは出さない
+      return true;
+    }
+    // マイデッキ戦（ローカルの本気エイドス戦）: 「ロックする代わりにマイデッキから1枚引く」。
+    // CPU(疑似CPU)は、ロックできるカードが無い時だけマイデッキから引く（＝ロックできる時は
+    // 7色を揃える方を優先。単純方針、後で強化余地あり）。引いた後はロックの代替なので
+    // ロックフェイズを終える（人間のマイデッキボタンが drawFromMyDeck→advancePhase するのと同じ）。
+    if (isTarget && lockable.length === 0 && canDrawFromMyDeck(player)) {
+      drawFromMyDeckLocal(player);
+      forceEndCurrentPhase();
       return true;
     }
   }
@@ -13043,7 +13054,9 @@ onContactApprovedEvents((payload) => {
 // 所有者のファーストカードの色に合わせた色テーマ裏面（追加赤〜追加紫、index 2〜8）を
 // 自動適用する（そのスキンを所持していなくても＝描画は所持と無関係）。プレイヤー同士で
 // 裏面が被っても、駒の色で見分けやすくするため。
-const MYDECK_COLOR_BACK_INDEX = { red: 2, orange: 3, yellow: 4, green: 5, blue: 6, pink: 7, purple: 8 };
+// noir=9（黒の裏面セット）。本気エイドス(C)は駒色が"noir"なので、マイデッキ札を黒裏面で見せる
+// （ローカルではgetSyncedIdentityにcardBackSetIndexが無いため、駒色ベースのこの対応表で解決する）。
+const MYDECK_COLOR_BACK_INDEX = { red: 2, orange: 3, yellow: 4, green: 5, blue: 6, pink: 7, purple: 8, noir: 9 };
 function myDeckOwnerPieceColor(seat) {
   return getState().tokens.find((t) => t.kind === "piece" && t.player === seat)?.color ?? null;
 }
