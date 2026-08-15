@@ -8,6 +8,7 @@
 
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getSelfSeat, getSyncedIdentity, updateMyIdentity, isItemUnlocked, openShop } from "./online.js";
+import { getSeatLoadout } from "./cpu-battle-state.js";
 
 // ペット（駒に追従する飾り）。ユーザー要望でダミーの絵文字ペットは廃止し、スプライトペット
 // （ショップで購入）＋「なし」だけにした。sprite付きは piece-pet.js が画像スプライト
@@ -101,6 +102,12 @@ export function setSelectedPetIndex(i) {
 export function getPetOptionForSeat(seat) {
   const self = getSelfSeat();
   const none = NONE_INDEX >= 0 ? PET_OPTIONS[NONE_INDEX] : PET_OPTIONS[PET_OPTIONS.length - 1];
+  // 本気エイドス戦（マイデッキ）: 選んだデッキのペットを座席ごとに一時上書き（グローバル設定を
+  // 汚さない）。自分/同期ロスターより優先。
+  const loadout = seat ? getSeatLoadout(seat) : null;
+  if (loadout && typeof loadout.petIndex === "number" && PET_OPTIONS[loadout.petIndex]) {
+    return PET_OPTIONS[loadout.petIndex];
+  }
   if (seat && self && seat === self) {
     const mine = PET_OPTIONS[selectedIndex];
     // 未所持スプライトを選んでいる状態（旧データ等）は「なし」にフォールバック。

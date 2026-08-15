@@ -526,9 +526,20 @@ function reduce(current, action) {
     case "SETUP_ASSIGN_FIRST_CARDS": {
       const firstPile = [...current.piles.first];
       const newTokens = [];
+      // 本気エイドス戦（マイデッキ）で、選んだデッキの開始色をAのファーストカードに反映する
+      // （ユーザー要望2026-08-16「オンライン戦同様にファーストカードも反映」）。action.forcedColors
+      // ={player:color}。指定があれば山からその色のファーストを取り出す（無ければ従来通り一番上）。
+      const forcedColors = action.forcedColors || {};
       for (const { player, side } of action.players) {
         if (firstPile.length === 0) break;
-        const cardId = firstPile.pop();
+        let cardId;
+        const wantColor = forcedColors[player];
+        if (wantColor) {
+          const fi = firstPile.findIndex((id) => FIRST_CARDS.find((c) => c.id === id)?.color === wantColor);
+          cardId = fi >= 0 ? firstPile.splice(fi, 1)[0] : firstPile.pop();
+        } else {
+          cardId = firstPile.pop();
+        }
         const def = FIRST_CARDS.find((c) => c.id === cardId);
         const colorIndex = COLORS.indexOf(def.color);
         newTokens.push({
@@ -935,8 +946,9 @@ export function tutorialLockCard(side, color, cardId) {
 }
 
 // players: [{ player: "A", side: "bottom" }, ...]（座席の時計回り順、game-setup.jsが組み立てる）
-export function setupAssignFirstCards(players, boost = false) {
-  dispatch({ type: "SETUP_ASSIGN_FIRST_CARDS", players, boost });
+// forcedColors: {player:color}（本気エイドス戦でAの開始色をデッキの色に合わせる。省略可）。
+export function setupAssignFirstCards(players, boost = false, forcedColors = null) {
+  dispatch({ type: "SETUP_ASSIGN_FIRST_CARDS", players, boost, forcedColors });
 }
 
 // エイドス物語戦専用: 指定席の駒スキン＋ファーストカードを黒（noir）へ差し替える（eidos-story.jsが

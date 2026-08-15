@@ -33,6 +33,7 @@ import {
   setEidosStoryStage,
   setStoryDifficultyOverride,
   registerEidosStoryResultHandler,
+  clearSeatLoadouts,
 } from "./cpu-battle-state.js";
 
 // 相手(C)の物語上の表示名・アバター（tutorial-battle.js と同じもの）。
@@ -230,23 +231,24 @@ async function startStoryBattle(stage, { practice = false } = {}) {
     // 黒（noir）へ（ユーザー要望2026-08-15）。配布アニメーションの前（setupAssignFirstCards直後）に
     // 適用されるので、最初から黒いカードが飛ぶ（#108）。本気(advanced)戦だけノワールの両端に
     // 「誘惑の黒の烙印」を置く。myDeckCardsA: 本気戦のデッキ選択ウィンドウで確定したデッキ。
-    const beginSetup = (myDeckCardsA = null) => {
+    const beginSetup = (myDeckA = null) => {
       setTimeout(() => {
-        runCpuBattleSetup({ noirSeat: "C", noirBrands: stage === "advanced", myDeck: stage === "advanced", myDeckCardsA }).catch((err) =>
+        runCpuBattleSetup({ noirSeat: "C", noirBrands: stage === "advanced", myDeck: stage === "advanced", myDeckA }).catch((err) =>
           console.error("runCpuBattleSetup(story) failed", err)
         );
       }, 60);
     };
     if (stage === "advanced") {
       // ユーザー要望2026-08-16「本気のエイドス戦でも、オンライン戦同様にマイデッキを選択できる
-      // ウィンドウを表示してほしい」。配布演出の前に openDeckSelect を出し、確定したデッキの
-      // カードを A のデッキとして渡す。単人プレイなのでカウントダウン無し（durationSec:0）で
+      // ウィンドウを表示し、ファースト（開始色）・駒スキン・ペット・裏面まで全部反映してほしい」。
+      // 配布演出の前に openDeckSelect を出し、確定した解決済みデッキ（cards＋見た目一式）を
+      // そのまま runCpuBattleSetup に渡す。単人プレイなのでカウントダウン無し（durationSec:0）で
       // 好きなだけ選べる。おまかせ/新規作成も従来通り使える。
       const { openDeckSelect } = await import("./my-deck-select.js");
       openDeckSelect({
         durationSec: 0,
         subtitle: "本気のエイドス戦で使うマイデッキを選んでください。「おまかせ」でランダムも可。",
-        onResolved: (resolved) => beginSetup(resolved?.cards ?? null),
+        onResolved: (resolved) => beginSetup(resolved ?? null),
       });
     } else {
       beginSetup();
@@ -264,6 +266,9 @@ async function teardownStoryBattle() {
   document.body.classList.remove("cpu-battle-mode");
   setStoryDifficultyOverride(null);
   setEidosStoryStage(null);
+  // 本気エイドス戦のデッキ見た目オーバーライド（駒スキン・ペット・裏面）を解除して、次から
+  // プレイヤーのグローバル設定に戻す。
+  clearSeatLoadouts();
   setPlayerName("C", "");
   setPlayerAvatar("C", null);
   // #104: 勝利状態（7色ロック済み）の盤面を「同期的に」消す。これをやらないと、この後の

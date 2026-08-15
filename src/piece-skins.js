@@ -23,6 +23,7 @@ import { getState } from "./state.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getSelfSeat, isOnlineMode, getSyncedIdentity, updateMyIdentity, isItemUnlocked, openShop } from "./online.js";
 import { COLORS } from "./board-layout.js";
+import { getSeatLoadout } from "./cpu-battle-state.js";
 
 // セットアップ前（自分の駒の色がまだファーストカードで決まっていない間）でも、左下の
 // ステータスエリアからスキンだけ先に選べるようにするための仮のプレビュー色。実際の色が
@@ -128,6 +129,13 @@ export function registerPieceSkinHelpers(h) {
 // 他の座席は常に同期ロスターのみを見る（自分の好みのバリエーション番号を他人に押し付け
 // ないため）。
 export function getSkinImagePath(color, seat) {
+  // 本気エイドス戦（マイデッキ）: 選んだデッキの駒スキンを座席ごとに一時上書き（グローバル設定を
+  // 汚さない）。自分/同期ロスターより優先（cpu-battle.jsがsetSeatLoadoutで設定、teardownで消す）。
+  const loadout = seat ? getSeatLoadout(seat) : null;
+  if (loadout && typeof loadout.pieceSkinIndex === "number") {
+    const li = loadout.pieceSkinIndex;
+    return li === 0 ? `assets/pieces/${color}.webp` : `assets/pieces/${color}-${li}.webp`;
+  }
   const isSelf = !seat || seat === getSelfSeat();
   let idx = 0;
   if (isSelf && hasLocalPreference) {

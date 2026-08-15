@@ -22,7 +22,7 @@ import {
 import { quickStart } from "./game-setup.js";
 import { setPlayerName, setPlayerAvatar, ENTRUSTED_AVATAR } from "./player-identity.js";
 import { setAutoProcessingEnabled } from "./card-effect-engine.js";
-import { setCpuBattleActive } from "./cpu-battle-state.js";
+import { setCpuBattleActive, setSeatLoadout, clearSeatLoadouts } from "./cpu-battle-state.js";
 import { resetGame, setupMyDeckMode } from "./state.js";
 // マイデッキ戦（本気エイドス戦）用。my-deck.jsはcards-data.jsだけに依存する葉モジュールなので
 // ここから安全にimportできる（online.js等は経由しない）。
@@ -63,6 +63,9 @@ export async function startCpuBattle() {
   // 連動させる（ユーザー要望2026-08-09）。青年と同じセンチネル方式で、駒が配られ次第その色の
   // アバターへ描画時に解決される（player-identity.js entrustedPathForSeat）。
   setPlayerAvatar(CPU_SEAT, ENTRUSTED_AVATAR);
+  // 前回の対戦のデッキ見た目オーバーライドが残らないようクリア（本気エイドス戦で座席ごとに
+  // 設定→teardownで消すが、念のため開始時にも消す）。
+  clearSeatLoadouts();
   // 起動時の既定盤面（テスト用に4人が座った状態）を空にしておく。こうすると close() で
   // 盤面を見せた瞬間に4人がちらつかず、空の盤面から配布演出を見せられる。
   resetGame();
@@ -70,29 +73,45 @@ export async function startCpuBattle() {
 
 // オープニングを閉じて盤面を見せた「後」に呼ぶ。空の盤面の上で、2人対戦(A/C)のセットアップ
 // を演出付き（quickStartのファースト配布・盤面配置アニメ）で実際に見せながら開始する。
-export async function runCpuBattleSetup({ noirSeat = null, noirBrands = false, myDeck = false, myDeckCardsA = null } = {}) {
+export async function runCpuBattleSetup({ noirSeat = null, noirBrands = false, myDeck = false, myDeckA = null } = {}) {
   // noirSeat: エイドス物語戦で相手(C)のファースト・駒を黒(noir)にする（配布アニメーションの前に
   // 適用されるので最初から黒く見える）。通常のCPU戦ではnull（＝差し替えなし）。
   // noirBrands: 本気エイドス戦で、ノワールの両端スロットに「誘惑の黒の烙印」を置いて開始する。
   // myDeck: 本気エイドス戦でマイデッキ戦（マイデッキ戦.txt）を有効化する。
-  // myDeckCardsA: ユーザー要望2026-08-16「本気エイドス戦でもオンライン戦同様にマイデッキを選ぶ
-  //   ウィンドウを出したい」。呼び出し側(eidos-story.js)がデッキ選択ウィンドウ(openDeckSelect)で
-  //   確定した {cardId:count} を渡す。指定があればそれを、無ければ従来通り「現在選択中のマイデッキ」
-  //   （それも無ければおまかせランダム）を A のデッキにする。
-  await quickStart(2, false, false, noirSeat, noirBrands);
+  // myDeckA: ユーザー要望2026-08-16「本気エイドス戦でもオンライン戦同様に、マイデッキを選ぶ
+  //   ウィンドウを出し、ファースト（開始色）・駒スキン・ペット・裏面まで全部反映してほしい」。
+  //   呼び出し側(eidos-story.js)がデッキ選択ウィンドウ(openDeckSelect)で確定した「解決済みデッキ」
+  //   {cards, firstColor, pieceSkinIndex, petIndex, cardBackSetIndex} を渡す。無ければ従来通り
+  //   「現在選択中のマイデッキ」→おまかせランダムにフォールバックする。
+  //
+  // まず A のデッキを確定する（開始色を quickStart へ渡す必要があるので配布前に決める）。
+  let deckA = null;
   if (myDeck) {
-    // A(あなた): 選択ウィンドウで確定したデッキ（無ければ現在選択中→おまかせランダム）。
-    // C(エイドス): おまかせランダム（ユーザー合意: エイドスのデッキは一旦ランダム）。cardsは
-    // {cardId:count}なので展開＋シャッフルして「一番上=末尾」のcardId配列にしてから
-    // setupMyDeckMode でパイルとして持たせる。
-    let cardsA = myDeckCardsA && Object.keys(myDeckCardsA).length > 0 ? myDeckCardsA : null;
-    if (!cardsA) {
+    deckA = myDeckA && myDeckA.cards && Object.keys(myDeckA.cards).length > 0 ? myDeckA : null;
+    if (!deckA) {
       const selId = getSelectedDeckId();
-      const deckA = selId ? getDeckById(selId) : null;
-      cardsA = deckA?.cards && Object.keys(deckA.cards).length > 0 ? deckA.cards : makeRandomDeck().cards;
+      const saved = selId ? getDeckById(selId) : null;
+      deckA = saved?.cards && Object.keys(saved.cards).length > 0 ? saved : { cards: makeRandomDeck().cards };
     }
+    // 選んだデッキの見た目（駒スキン・ペット・裏面）を A の座席へ一時オーバーライド（グローバル
+    // 設定は汚さない。piece-skins/pet-skins/main.jsのcardBackImageForTokenが参照）。配布演出の前に
+    // 設定しておくことで、最初の駒・裏面から正しい見た目になる。
+    setSeatLoadout("A", {
+      pieceSkinIndex: deckA.pieceSkinIndex,
+      petIndex: deckA.petIndex,
+      cardBackSetIndex: deckA.cardBackSetIndex,
+    });
+  }
+  // 開始色（ファーストカード）を A に反映（デッキに色があれば。おまかせデッキも resolveDeck で
+  // ランダム色が確定しているので常に色が入る）。C はノワールへ差し替わるので指定しない。
+  const firstColors = deckA?.firstColor ? { A: deckA.firstColor } : null;
+  await quickStart(2, false, false, noirSeat, noirBrands, firstColors);
+  if (myDeck && deckA) {
+    // A: 確定したデッキ、C(エイドス): おまかせランダム（ユーザー合意: エイドスのデッキは一旦
+    // ランダム）。cardsは{cardId:count}なので展開＋シャッフルして「一番上=末尾」のcardId配列に
+    // してから setupMyDeckMode でパイルとして持たせる。
     const cardsC = makeRandomDeck().cards;
-    setupMyDeckMode({ A: expandAndShuffleDeck(cardsA), C: expandAndShuffleDeck(cardsC) });
+    setupMyDeckMode({ A: expandAndShuffleDeck(deckA.cards), C: expandAndShuffleDeck(cardsC) });
   }
 }
 

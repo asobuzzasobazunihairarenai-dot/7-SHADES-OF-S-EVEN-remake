@@ -12672,3 +12672,30 @@ u=横方向・v=縦方向）にも使えるよう一般化した`rotateFraction(
   セットアップが始まらないこと、(2)確定後にAのmyDeck-Aパイルが選択デッキ通り（例: {red-jump-pad:5,
   red-counter-lock:2}）になること、(3)本気エイドス戦の一連（noir＋烙印2枚＋おまかせデッキ選択→配布）が
   正しく走ることを確認。サーバー側（Supabase）の変更は無い。
+
+### 2026-08-16（続き117）：本気エイドス戦で選んだデッキの見た目一式（開始色・駒スキン・ペット・裏面）を反映
+
+続き116の続き。ユーザー要望「オンライン戦同様にファーストカードも駒スキンもペットも裏面も全部
+反映させたい」。本気エイドス戦のデッキ選択で確定した「解決済みデッキ」の見た目一式をAの座席へ
+反映するようにした。グローバル設定（プレイヤーの永続の好み）は汚さない。
+- **per-seat 見た目オーバーライド（cpu-battle-state.js）**: 依存ゼロのleafに`setSeatLoadout(seat,
+  {pieceSkinIndex,petIndex,cardBackSetIndex})`/`getSeatLoadout`/`clearSeatLoadouts`を追加。オンライン戦が
+  `getSyncedIdentity(seat)`で座席ごとの見た目を出しているのと同じ役割を、ローカルCPU戦で果たす。
+  - `piece-skins.js getSkinImagePath`・`pet-skins.js getPetOptionForSeat`・`main.js cardBackImageForToken`が、
+    自分/同期ロスター/色テーマより先にこのオーバーライドを見る（該当が number の時だけ）。
+- **開始色（ファーストカード）**: `state.js`の`SETUP_ASSIGN_FIRST_CARDS`に`forcedColors={player:color}`を
+  追加（指定色のファーストを山から取り出す。無ければ従来通り一番上）。`game-setup.js`の`quickStart`→
+  `config`→`runStep1`→`setupAssignFirstCards`へ`firstColors`を通す（全て省略可・後方互換）。
+- **cpu-battle.js**: `runCpuBattleSetup`の引数を`myDeckCardsA`（カードのみ）から`myDeckA`（解決済み
+  デッキ一式）に変更。Aのデッキを配布前に確定し、見た目を`setSeatLoadout("A", …)`、開始色を
+  `quickStart(…, {A: firstColor})`で反映。`startCpuBattle`と`eidos-story.js`の`teardownStoryBattle`で
+  `clearSeatLoadouts()`して次戦・グローバル設定へ戻す。
+- **eidos-story.js**: `openDeckSelect`の`onResolved(resolved)`で解決済みデッキをそのまま
+  `runCpuBattleSetup({myDeckA: resolved})`へ渡す。
+- **割り切り**: おまかせ（ランダム）デッキは、カード＝ランダム／開始色＝ランダム確定（resolveDeck）／
+  見た目＝未指定なのでプレイヤーのグローバル設定のまま。保存済みデッキで見た目を設定していれば4点とも反映。
+- **検証**: ブラウザで、デッキ`{firstColor:blue, pieceSkinIndex:3, petIndex:1, cardBackSetIndex:5}`で
+  本気戦を開始→(1)Aの駒色=blue・ファースト=blueスロット、(2)駒スキン=blue-3.webp、(3)ペット=index1、
+  (4)Aのマイデッキ札の裏面=back-normal-5.png、を確認。teardown/clearでオーバーライドが消え、駒スキンが
+  グローバル既定(blue.webp)へ戻ることも確認。`node test/smoke.mjs`（標準セットアップ）PASS＝
+  forcedColors/loadoutが無い通常戦に回帰なし。サーバー側（Supabase）の変更は無い。

@@ -230,6 +230,7 @@ import {
   isSelfCpuSubstituted,
   setSelfCpuSubstituted,
   resetTimeoutStreak,
+  getSeatLoadout,
 } from "./cpu-battle-state.js";
 import {
   chooseMoveCandidate,
@@ -13209,7 +13210,10 @@ function myDeckOwnerPieceColor(seat) {
 }
 function cardBackImageForToken(token) {
   if (token && token.myDeckOwner) {
-    let idx = getSyncedIdentity(token.myDeckOwner)?.cardBackSetIndex;
+    // 本気エイドス戦（マイデッキ）: 選んだデッキの裏面セットを座席ごとに一時上書き（グローバル
+    // 設定を汚さない）。同期ロスター／色テーマより優先。
+    const loadout = getSeatLoadout(token.myDeckOwner);
+    let idx = loadout && typeof loadout.cardBackSetIndex === "number" ? loadout.cardBackSetIndex : getSyncedIdentity(token.myDeckOwner)?.cardBackSetIndex;
     if (!idx) {
       // 未設定/標準 → ファーストカード（＝駒）の色テーマ裏面を自動適用。
       const color = myDeckOwnerPieceColor(token.myDeckOwner);

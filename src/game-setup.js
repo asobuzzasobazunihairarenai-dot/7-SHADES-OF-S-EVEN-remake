@@ -381,7 +381,7 @@ async function runStep1() {
   // なってしまう（テスト中に発覚したバグ）。
   resetHandEffectUsage();
   const players = activePlayersOrdered().map((player) => ({ player, side: SEAT_TO_SIDE[player] }));
-  setupAssignFirstCards(players, !!config.boost);
+  setupAssignFirstCards(players, !!config.boost, config.firstColors || null);
   // エイドス物語戦: 指定席(C)のファースト・駒を黒(noir)へ差し替える。配布アニメーション(下の
   // animateFirstCardsDealt)が始まる「前」に同期的に適用することで、最初から黒いカードが飛ぶ
   // （以前はセットアップ完了後に差し替えていたため、配布中は元の色のカードが見えていた＝#108）。
@@ -428,10 +428,11 @@ async function runAll() {
 // 座席自動選択モード（管理者モードのトグルがオフ）を前提にした人数固定の座席割り当てになる
 // （手動座席選択モードの時に「2人プレイで特定の2席だけ選ぶ」といった細かい指定はできない。
 // その場合は従来通りウィザードの０から手動で設定してもらう）。
-export async function quickStart(count, includeBlackWhite, boost = false, noirSeat = null, noirBrands = false) {
+export async function quickStart(count, includeBlackWhite, boost = false, noirSeat = null, noirBrands = false, firstColors = null) {
   const activePlayers = AUTO_SEATS_BY_COUNT[count];
   if (!activePlayers) return;
-  config = { activePlayers, includeBlackWhite, boost, noirSeat, noirBrands };
+  // firstColors={player:color}（本気エイドス戦でAの開始色をデッキの色に合わせる。省略可）。
+  config = { activePlayers, includeBlackWhite, boost, noirSeat, noirBrands, firstColors };
   if (bodyEl) renderPanelBody();
   await runAll();
 }

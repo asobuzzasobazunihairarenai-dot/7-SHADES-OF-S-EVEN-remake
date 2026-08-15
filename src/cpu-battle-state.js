@@ -15,6 +15,26 @@ export function setCpuBattleActive(v) {
   active = !!v;
 }
 
+// --- 座席ごとの「デッキの見た目」オーバーライド（ユーザー要望2026-08-16） ---------------------
+// 本気エイドス戦（マイデッキ）で、選んだデッキの見た目（駒スキン・ペット・裏面）を座席ごとに
+// 一時的に上書きする。グローバル設定（piece-skinsのpreferredSkinIndex等、＝プレイヤーの永続の
+// 好み）を汚さずに、この対戦の間だけ効かせるための per-seat オーバーライド。オンライン戦が
+// getSyncedIdentity(seat) で座席ごとの見た目を出しているのと同じ役割を、ローカルCPU戦で果たす。
+// piece-skins.js（getSkinImagePath）・pet-skins.js（getPetOptionForSeat）・main.js
+// （cardBackImageForToken）が、自分/同期ロスターより先にこれを見る。依存ゼロのこのleafに置く
+// ことで、それらのモジュールから循環importなしに参照できる。
+let seatLoadouts = {};
+export function setSeatLoadout(seat, loadout) {
+  if (!seat) return;
+  seatLoadouts[seat] = { ...(loadout || {}) };
+}
+export function getSeatLoadout(seat) {
+  return seat ? seatLoadouts[seat] ?? null : null;
+}
+export function clearSeatLoadouts() {
+  seatLoadouts = {};
+}
+
 // --- CPUの速さ（1手ごとの「考える間」＝疑似CPUの持ち時間） ---------------------------------
 // ユーザー要望「CPUの行動が早すぎて（ザ・ギャンブル等の）モーダルが読み取れない。速度を
 // ゆっくり／普通／早いで選べるようにしたい」。値は「CPUがその席で1手打つまでの持ち時間(ms)」で、
