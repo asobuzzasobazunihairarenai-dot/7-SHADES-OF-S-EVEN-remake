@@ -94,8 +94,11 @@ export function runEidosDialogue(steps, options = {}) {
 
     function renderStep(step) {
       applyPortraits(step);
-      els.name.textContent = step.speaker || "";
-      els.name.style.visibility = step.speaker ? "" : "hidden";
+      // 話者名は呼び出し側(options.resolveSpeaker)が解決したものを優先（主人公は名前設定後
+      // 「記憶を失った青年ー○○」と表示する、等）。空話者のステップは非表示のまま。
+      const speakerLabel = options.resolveSpeaker ? options.resolveSpeaker(step) : step.speaker || "";
+      els.name.textContent = speakerLabel || "";
+      els.name.style.visibility = speakerLabel ? "" : "hidden";
       fullText = step.text || "";
       els.choices.innerHTML = "";
       els.choices.style.display = "none";
@@ -156,7 +159,10 @@ export function runEidosDialogue(steps, options = {}) {
       input.type = "text";
       input.className = "eidos-dialogue-input";
       input.maxLength = step.input.maxLength || 12;
-      input.value = step.input.default || "";
+      // 初期値は呼び出し側(options.getInputDefault)が解決したものを優先（既に本人が名前を
+      // 設定済みならその名前を初期値にする、等）。無ければステップ定義の既定値。
+      const resolvedDefault = options.getInputDefault ? options.getInputDefault(step) : null;
+      input.value = resolvedDefault ?? step.input.default ?? "";
       if (step.input.placeholder) input.placeholder = step.input.placeholder;
       input.addEventListener("click", (e) => e.stopPropagation());
       const btn = document.createElement("button");

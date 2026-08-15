@@ -25,7 +25,8 @@
 import { runEidosDialogue } from "./eidos-dialogue-ui.js";
 import { getEidosScene, EIDOS_SCENE } from "./eidos-dialogue-scenes.js";
 import { startTutorialBattle, registerTutorialHomeOpener, registerTutorialCompleteHandler } from "./tutorial-battle.js";
-import { setPlayerName, setPlayerAvatar } from "./player-identity.js";
+import { setPlayerName, setPlayerAvatar, getPlayerName } from "./player-identity.js";
+import { SEAT_LABELS } from "./board-layout.js";
 import {
   setCpuBattleActive,
   setEidosStoryStage,
@@ -63,6 +64,41 @@ export function setEidosProgress(flag, value) {
 export function getEidosProgress() {
   return readProgress();
 }
+// 進捗を全消去（管理者用「チュートリアル実績リセット」）。次回タイル起動で導入から演出し直す。
+// プレイヤーの表示名（別保存）はここでは消さない。
+export function resetEidosProgress() {
+  try {
+    localStorage.removeItem(PROGRESS_KEY);
+  } catch {
+    /* 消せなくても致命的ではない */
+  }
+}
+
+// 主人公（記憶を失った青年）の話者名の基準。名前入力後は「記憶を失った青年ー○○」と表示する。
+const YOUTH_SPEAKER = "記憶を失った青年";
+// 自席（ローカルは"A"固定だがオンライン下でも堅牢にするため起動時に解決してキャッシュ）。
+let storySelfSeat = "A";
+
+// 自席の現在の表示名が「本人が設定した名前」か（座席ラベルのままなら未設定とみなす）。
+function currentSelfName() {
+  const cur = getPlayerName(storySelfSeat);
+  if (cur && cur !== SEAT_LABELS[storySelfSeat]) return cur;
+  return null;
+}
+// 会話の入力ステップの初期値を解決。名前入力は、既に本人が名前を設定済みならそれを、無ければ
+// 「アッシュ」を初期値にする（ユーザー要望2026-08-15）。
+function getDialogueInputDefault(step) {
+  if (step?.input?.field === "playerName") return currentSelfName() || "アッシュ";
+  return step?.input?.default ?? "";
+}
+// 会話の話者名を解決。主人公の発話は、名前設定後は「記憶を失った青年ー○○」と表示する。
+function resolveDialogueSpeaker(step) {
+  if (step?.speaker === YOUTH_SPEAKER) {
+    const name = currentSelfName();
+    if (name) return `${YOUTH_SPEAKER}ー${name}`;
+  }
+  return step?.speaker ?? "";
+}
 
 // 操作チュートリアルを終了/中断した時の戻り先（home-screen.jsから注入）。結果ハンドラや各分岐の
 // 「あとで/ホームへ」からも使う。
@@ -76,14 +112,9 @@ function goHome() {
 function onDialogueInput(value, step) {
   if (step?.input?.field === "playerName") applyPlayerName(value);
 }
-async function applyPlayerName(value) {
+function applyPlayerName(value) {
   const name = (value || "").trim() || "アッシュ";
-  try {
-    const { getSelfSeat } = await import("./online.js");
-    setPlayerName(getSelfSeat(), name);
-  } catch {
-    setPlayerName("A", name); // ローカルでは自席=A
-  }
+  setPlayerName(storySelfSeat, name); // storySelfSeatはstartEidosStoryで解決済み（自席ならupdateMyIdentityで永続化）
 }
 
 // 単一シーンを再生（nextScene連鎖はしない。導入SCENE1のように単発のシーン用）。
@@ -91,7 +122,12 @@ async function playScene(sceneId) {
   const scene = getEidosScene(sceneId);
   if (!scene) return null;
   try {
-    const res = await runEidosDialogue(scene.steps, { fadeInFromBlack: !!scene.fadeInFromBlack, onInput: onDialogueInput });
+    const res = await runEidosDialogue(scene.steps, {
+      fadeInFromBlack: !!scene.fadeInFromBlack,
+      onInput: onDialogueInput,
+      getInputDefault: getDialogueInputDefault,
+      resolveSpeaker: resolveDialogueSpeaker,
+    });
     if (Array.isArray(scene.stateUpdate)) for (const f of scene.stateUpdate) setEidosProgress(f, true);
     if (scene.grantItem) await grantStoryItem(scene.grantItem);
     return res?.choice ?? null;
@@ -123,7 +159,12 @@ async function playSceneChain(startSceneId) {
   }
   let result = null;
   try {
-    result = await runEidosDialogue(merged, { fadeInFromBlack, onInput: onDialogueInput });
+    result = await runEidosDialogue(merged, {
+      fadeInFromBlack,
+      onInput: onDialogueInput,
+      getInputDefault: getDialogueInputDefault,
+      resolveSpeaker: resolveDialogueSpeaker,
+    });
   } catch (err) {
     console.error("runEidosDialogue(chain) failed", err);
   }
@@ -244,6 +285,13 @@ async function onOperationTutorialComplete() {
 // openHome: 操作チュートリアルを終了/中断した時、および各分岐でホームへ戻る時の戻り先。
 export async function startEidosStory({ openHome } = {}) {
   homeOpener = () => openHome?.();
+  // 自席を解決してキャッシュ（名前入力の初期値・話者名の解決に使う。ローカルは"A"）。
+  try {
+    const { getSelfSeat } = await import("./online.js");
+    storySelfSeat = getSelfSeat() || "A";
+  } catch {
+    storySelfSeat = "A";
+  }
   // 操作チュートリアル終了時の戻り先（中断時のホーム復帰）と、完了時のハンドラ（完了シーン→
   // エイドス戦）、CPU戦の結果ハンドラ（勝敗シーン）を注入する。
   registerTutorialHomeOpener(homeOpener);

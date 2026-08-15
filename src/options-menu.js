@@ -1206,6 +1206,22 @@ export function initOptionsMenu() {
           setProfileLayoutEditMode(checked);
         })
       );
+      // ユーザー要望2026-08-15「前半チュートリアルを済ませていると物語チュートリアルが最初から
+      // 演出されない。管理者だけが押せる『チュートリアル実績リセット』が欲しい」。物語進捗
+      // (so7-eidos-progress-v1)を消して、次回タイル起動で導入から演出し直せるようにする。表示名は消さない。
+      panel.appendChild(
+        buildMenuItem("🎓 チュートリアル実績をリセット（管理者用）", async () => {
+          close();
+          if (!window.confirm("物語チュートリアルの進行状況（導入既読・クリア状況など）をリセットしますか？\n次回タイル起動時に最初から演出されます（プレイヤー名は消えません）。")) return;
+          try {
+            const { resetEidosProgress } = await import("./eidos-story.js");
+            resetEidosProgress();
+            window.alert("チュートリアル実績をリセットしました。");
+          } catch (err) {
+            console.error("resetEidosProgress failed", err);
+          }
+        })
+      );
     }
     // ユーザー要望「オプション画面に『タイトルに戻る』があってもいいかも」への対応。
     // 対局中の状態（盤面・オンライン接続等）を個別に片付けるより、ページを丸ごと
