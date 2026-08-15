@@ -71,12 +71,27 @@ function goHome() {
   if (typeof homeOpener === "function") homeOpener();
 }
 
+// 会話中の入力ステップ（step.input）の決定時に呼ばれる。今は「名前入力」（field:"playerName"）
+// のみ。入力値を自分の表示名として設定＝永続化（setPlayerNameが自席ならupdateMyIdentityで保存）。
+function onDialogueInput(value, step) {
+  if (step?.input?.field === "playerName") applyPlayerName(value);
+}
+async function applyPlayerName(value) {
+  const name = (value || "").trim() || "アッシュ";
+  try {
+    const { getSelfSeat } = await import("./online.js");
+    setPlayerName(getSelfSeat(), name);
+  } catch {
+    setPlayerName("A", name); // ローカルでは自席=A
+  }
+}
+
 // 単一シーンを再生（nextScene連鎖はしない。導入SCENE1のように単発のシーン用）。
 async function playScene(sceneId) {
   const scene = getEidosScene(sceneId);
   if (!scene) return null;
   try {
-    const res = await runEidosDialogue(scene.steps, { fadeInFromBlack: !!scene.fadeInFromBlack });
+    const res = await runEidosDialogue(scene.steps, { fadeInFromBlack: !!scene.fadeInFromBlack, onInput: onDialogueInput });
     if (Array.isArray(scene.stateUpdate)) for (const f of scene.stateUpdate) setEidosProgress(f, true);
     if (scene.grantItem) await grantStoryItem(scene.grantItem);
     return res?.choice ?? null;
@@ -108,7 +123,7 @@ async function playSceneChain(startSceneId) {
   }
   let result = null;
   try {
-    result = await runEidosDialogue(merged, { fadeInFromBlack });
+    result = await runEidosDialogue(merged, { fadeInFromBlack, onInput: onDialogueInput });
   } catch (err) {
     console.error("runEidosDialogue(chain) failed", err);
   }

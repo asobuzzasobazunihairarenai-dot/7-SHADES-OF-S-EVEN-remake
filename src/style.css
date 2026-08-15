@@ -5456,6 +5456,29 @@ body.is-phone-device #admin-panel {
   background: #6a4cff;
 }
 
+/* 会話中の入力ステップ（名前入力など）。入力欄＋決定ボタンを横並び（狭い画面では縦積み）。 */
+.eidos-dialogue-input-wrap {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.eidos-dialogue-input {
+  padding: 0.5rem 0.8rem;
+  border: 1px solid #7c5cff;
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.95);
+  color: #201a3a;
+  font-size: 1rem;
+  font-weight: bold;
+  min-width: 9rem;
+  max-width: 14rem;
+}
+.eidos-dialogue-input:focus {
+  outline: 2px solid #7c5cff;
+  outline-offset: 1px;
+}
+
 /* ユーザー報告2026-08-14: 会話中はステータスエリアのアバター（手前の自分・相手・半透明の
    プレースホルダ含む）を隠す。会話の立ち絵（#eidos-dialogue-panel内の別要素）と重複して
    不自然に見えるため。eidos-dialogue-open は eidos-dialogue-ui.js が開閉時に付け外しする。 */

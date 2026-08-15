@@ -49,11 +49,13 @@ let triggerLockEffectHelper = null;
 let playScriptedContactHelper = null;
 let flyBoardCardToHandHelper = null;
 let flyDrawnCardToHandHelper = null;
-export function registerTutorialBattleHelpers({ triggerLockEffect, playScriptedContact, flyBoardCardToHand, flyDrawnCardToHand } = {}) {
+let flyHandCardBetweenSeatsHelper = null;
+export function registerTutorialBattleHelpers({ triggerLockEffect, playScriptedContact, flyBoardCardToHand, flyDrawnCardToHand, flyHandCardBetweenSeats } = {}) {
   triggerLockEffectHelper = triggerLockEffect ?? null;
   playScriptedContactHelper = playScriptedContact ?? null;
   flyBoardCardToHandHelper = flyBoardCardToHand ?? null;
   flyDrawnCardToHandHelper = flyDrawnCardToHand ?? null;
+  flyHandCardBetweenSeatsHelper = flyHandCardBetweenSeats ?? null;
 }
 
 // チュートリアル終了時にホーム画面へ戻すための注入（home-screen.jsがtutorial-battle.jsを
@@ -1095,7 +1097,10 @@ async function scriptGateInvasionWin() {
     for (let i = 0; i < stealCount; i++) {
       const card = cpuHand[i];
       if (!card) break;
-      if (flyDrawnCardToHandHelper) await flyDrawnCardToHandHelper(SELF_SEAT, card.cardId);
+      // 相手（CPU）の手札エリアから自分の手札エリアへ「奪う」軌道で飛ばす（オンラインの
+      // playGateInvasionStealAnimと同じ、相手の手札からの飛翔）。飛んでいる間は裏向き、着地で
+      // moveTokenが自分の手札へ移す＝表向きになる（奪ってみて中身が分かる、という見せ方）。
+      if (flyHandCardBetweenSeatsHelper) await flyHandCardBetweenSeatsHelper(CPU_SEAT, SELF_SEAT, card.cardId, false);
       moveToken(card.id, { zone: "hand", player: SELF_SEAT });
       await delay(320);
     }

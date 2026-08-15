@@ -141,7 +141,73 @@ export function runEidosDialogue(steps, options = {}) {
       showChoicesIfAny(step);
     }
 
+    // 入力ステップ（名前入力など）: choicesコンテナを流用してテキスト入力＋決定ボタンを出す。
+    // 決定でoptions.onInput(value,step)を呼び、通常ステップと同じ要領で次へ進む。
+    function showInputField(step) {
+      setSpeaking(els.left, false);
+      setSpeaking(els.right, false);
+      setSpeaking(els.sept, false);
+      els.hint.style.display = "none";
+      els.choices.innerHTML = "";
+      els.choices.style.display = "";
+      const wrap = document.createElement("div");
+      wrap.className = "eidos-dialogue-input-wrap";
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "eidos-dialogue-input";
+      input.maxLength = step.input.maxLength || 12;
+      input.value = step.input.default || "";
+      if (step.input.placeholder) input.placeholder = step.input.placeholder;
+      input.addEventListener("click", (e) => e.stopPropagation());
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "eidos-dialogue-choice";
+      btn.textContent = step.input.confirmLabel || "決定";
+      const submit = () => {
+        const v = (input.value || "").trim() || (step.input.default || "");
+        try {
+          options.onInput?.(v, step);
+        } catch (e) {
+          console.error("onInput failed", e);
+        }
+        if (step.next != null && idToIndex.has(String(step.next))) {
+          goTo(idToIndex.get(String(step.next)));
+          return;
+        }
+        if (index >= steps.length - 1) {
+          finish({ endedBy: "finished", choice: null, lastStepId: step.id ?? null });
+          return;
+        }
+        goTo(index + 1);
+      };
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        submit();
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          e.stopPropagation();
+          submit();
+        }
+      });
+      wrap.append(input, btn);
+      els.choices.appendChild(wrap);
+      setTimeout(() => {
+        try {
+          input.focus();
+          input.select();
+        } catch {
+          /* focus不可でも入力は可能 */
+        }
+      }, 60);
+    }
+
     function showChoicesIfAny(step) {
+      if (step?.input) {
+        showInputField(step);
+        return;
+      }
       if (!step?.choices?.length) return;
       // 選択肢表示中は両者を通常の明るさへ戻す（決定稿）。
       setSpeaking(els.left, false);
@@ -174,7 +240,7 @@ export function runEidosDialogue(steps, options = {}) {
 
     function advance() {
       const step = steps[index];
-      if (step?.choices?.length && !typing) return; // 選択肢待ちはタップで進めない
+      if ((step?.choices?.length || step?.input) && !typing) return; // 選択肢・入力待ちはタップで進めない
       if (typing) {
         completeTypewriter();
         return;
@@ -192,6 +258,10 @@ export function runEidosDialogue(steps, options = {}) {
     }
 
     function onKey(e) {
+      // 入力欄にフォーカス中は、スペースやEnterを会話送りに奪わせない（名前入力の妨げ防止。
+      // Enterは入力欄自身のhandlerが決定として拾う）。
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
       if (e.key === "Enter" || e.key === " " || e.code === "Space") {
         e.preventDefault();
         e.stopPropagation();

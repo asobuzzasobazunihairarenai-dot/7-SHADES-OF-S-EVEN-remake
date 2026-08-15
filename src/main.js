@@ -4165,6 +4165,21 @@ async function flyDrawnCardToHand(player, cardId) {
   await done;
 }
 
+// 手札→手札の飛翔（ある席の手札エリアから別の席の手札エリアへカード1枚ぶんのゴーストを飛ばす）。
+// ゲート侵攻/接触の「相手の手札を奪う」演出（オンラインのplayGateInvasionStealAnimと同じ考え方）を、
+// チュートリアルでも“相手の手札から自分の手札へ”正しい軌道で見せるために注入する。faceUpなら表画像、
+// でなければ裏画像で飛ばす。飛翔演出OFF・要素が無い時は何もしない（呼び出し側で実移動は別途行う）。
+async function flyHandCardBetweenSeats(fromSeat, toSeat, cardId, faceUp = false) {
+  if (isFlightAnimationDisabled()) return;
+  const fromEl = document.querySelector(`.hand-area[data-player="${fromSeat}"]`);
+  const toEl = document.querySelector(`.hand-area[data-player="${toSeat}"]`);
+  if (!fromEl || !toEl) return;
+  const img = faceUp ? getCardImagePath(cardId) : getCardBackImagePath(null);
+  const cls = faceUp ? "setup-fly-card" : "setup-fly-card is-facedown";
+  const { done } = flyGhost(fromEl.getBoundingClientRect(), toEl.getBoundingClientRect(), img, cls, 650);
+  await done;
+}
+
 // 手札効果のDRAW動詞用。playerの手札へ山札からcount枚引く（オンライン同期込み、
 // 「1枚ドロー」ボタンと同じ考え方をcount回・任意のplayer向けに一般化したもの）。
 // ユーザー要望「「●枚ドローします。」的なモーダルも欲しいです。全員に。」「山札から
@@ -12345,7 +12360,7 @@ initPhaseGuide();
 registerTutorialStageHelpers({ stageClientToLocal, stageDelta, stageWidth: STAGE_WIDTH, stageHeight: STAGE_HEIGHT });
 registerTutorialBattleUiHelpers({ stageClientToLocal, stageDelta, stageWidth: STAGE_WIDTH, stageHeight: STAGE_HEIGHT });
 registerPiecePetHelpers({ stageClientToLocal, stageDelta }); // 飾りペットの座標をステージ座標へ
-registerTutorialBattleHelpers({ triggerLockEffect, playScriptedContact, flyBoardCardToHand, flyDrawnCardToHand });
+registerTutorialBattleHelpers({ triggerLockEffect, playScriptedContact, flyBoardCardToHand, flyDrawnCardToHand, flyHandCardBetweenSeats });
 initTutorialAutoStart();
 initGameBgmAutoStart();
 initSoundUnlock(); // iOS等で効果音を鳴らすため、最初の操作でAudioContextをアンロック＆事前ロード
