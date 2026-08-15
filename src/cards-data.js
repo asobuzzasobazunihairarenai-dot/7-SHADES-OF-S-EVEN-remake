@@ -90,9 +90,9 @@ function blankBoostCardDataUri(color) {
 // 配られることはない（state.jsのAPPLY_SEAT_NOIRでエイドスのファーストだけ差し替える）。
 export const NOIR_FIRST_CARD = {
   id: "first-noir",
-  name: "ノワール・エイドス",
+  name: "黒のキューブ　ノワール",
   color: "noir",
-  note: "エイドス専用の効果なしファーストカード。効果は持たず、他のカードの効果の対象にもならない。",
+  note: "エイドス専用のファーストカード。基本効果: これは他のカードの効果の対象にならない。これの手札効果はこれがロックエリアに置かれていても使える。手札効果: このカードの置かれた色のロックエリアにカードを１枚ロックする。そうしたなら、１枚ドローし、１マス移動する。",
   isNoir: true,
 };
 
