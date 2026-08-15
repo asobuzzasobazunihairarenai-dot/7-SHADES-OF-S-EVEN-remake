@@ -3791,7 +3791,18 @@ export function performPriorityTimeoutAutoAction() {
     const player = driveSeat;
     const isTarget = isPseudoCpuTarget(player);
     const hand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
-    const lockable = isTarget ? hand.filter((t) => isCardLockable(t, player)) : [];
+    // #116: ノワール(first-noir)が“置いてある”色スロットへは、ロックフェイズで普通にロックしない
+    // （その色のカードで塞ぐと、ノワールの手札効果「そのマスにロック＋1ドロー＋1移動」の得な
+    // ボーナスを捨ててしまう。ハンドフェイズでノワール効果を使う方が常に得——下のline 3828〜で
+    // CPUは既にそれを最優先で使う）。ノワールの置かれた色スロットを予約し、その色の手札は
+    // ロックフェイズの自動ロック候補から除外する（ノワール効果側が同じスロットを埋める）。
+    const noirTok = getState().tokens.find(
+      (t) => t.cardId === "first-noir" && t.location.zone === "lock" && SIDE_TO_SEAT[t.location.side] === player && t.placed
+    );
+    const noirReservedColor = noirTok ? COLORS[noirTok.location.index] ?? null : null;
+    const lockable = isTarget
+      ? hand.filter((t) => isCardLockable(t, player) && getCardDefinition(t.cardId)?.color !== noirReservedColor)
+      : [];
     // ユーザー報告（続き106）「ロックが1枚目から増えない・タイムアウト時の自動ロックが
     // できていない」の原因調査用。この分岐に実際に到達したか、isPseudoCpuTargetが
     // falseで最初からスキップされているのか、trueなのに手札のロック可能枚数が0枚

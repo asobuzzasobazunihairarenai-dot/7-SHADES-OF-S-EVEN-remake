@@ -95,6 +95,10 @@ export function hideHandEffectUseModalImmediately() {
 
 let currentReasonModal = null;
 let currentReasonModalTimer = null;
+// 直前のモーダルの dismiss（Promise解決＋document capture click リスナー除去）への参照。
+// 別の効果理由モーダルが割り込んで来た時、古いモーダルをDOMから消すだけでなく、その
+// await を必ず解決しリスナーも外すために使う（下記の「Promiseリーク」修正、不具合#1関連）。
+let currentReasonModalDismiss = null;
 // main.jsのannounceEffectReasonForEffect/announceEffectFizzleForEffectが、次の
 // モーダル（色宣言等）を出す前にこのモーダル自身の表示・フェードアウトが完全に終わる
 // のを待つ時に使う（ユーザー報告「試練の儀式のおめでとうモーダルが出てから次の色宣言
@@ -118,6 +122,17 @@ export const REASON_MODAL_TOTAL_MS = REASON_MODAL_DURATION_MS + 300;
 export function showEffectReasonModal(cardId, text, { holdUntilClick = false } = {}) {
   if (currentReasonModal) {
     clearTimeout(currentReasonModalTimer);
+    // 不具合#1（関連）: 以前はここで currentReasonModal.remove() でDOMから消すだけで、
+    // その Promise を resolve せず docClickHandler も外していなかった。そのため、CPUが
+    // 概念上並行して別の効果理由モーダル（例: 烙印ドローの告知）を出すと、held=true で
+    // クリック待ちだったカウンターロックの announce がここで“置き換え”られて promise が
+    // 永久に未解決になり、useCounterLockOnContact の await announceEffectReasonForEffect が
+    // ハングして「手札を1枚ロックしますか？」まで進めなくなる窓があった。前のモーダルの
+    // dismiss を必ず呼んで await を解決＋リスナー除去する（見た目上は即消えるだけ）。
+    if (currentReasonModalDismiss) {
+      currentReasonModalDismiss();
+      currentReasonModalDismiss = null;
+    }
     currentReasonModal.remove();
     currentReasonModal = null;
   }
@@ -131,6 +146,7 @@ export function showEffectReasonModal(cardId, text, { holdUntilClick = false } =
     function dismiss() {
       if (settled) return;
       settled = true;
+      if (currentReasonModalDismiss === dismiss) currentReasonModalDismiss = null;
       if (docClickHandler) document.removeEventListener("click", docClickHandler, true);
       modal.classList.remove("show");
       setTimeout(() => {
@@ -155,6 +171,7 @@ export function showEffectReasonModal(cardId, text, { holdUntilClick = false } =
 
     document.body.appendChild(modal);
     currentReasonModal = modal;
+    currentReasonModalDismiss = dismiss;
     requestAnimationFrame(() => modal.classList.add("show"));
     if (holdUntilClick) {
       // 自動で消さず、画面のどこをクリックしても閉じる。モーダル出現の同一クリックで

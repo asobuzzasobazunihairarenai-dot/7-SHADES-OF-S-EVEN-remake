@@ -264,6 +264,10 @@ const OPTION_RANK = {
   // なないろの欠片（rainbow-shard）: 2枚揃った時に使う想定なので、単なる1枚ドローより「2枚ロック＋2枚
   // ドロー」を優先（handEffectValueForで2枚所持時のみ価値を付けているため、通常ここはlock-pairが選ばれる）。
   "rainbow-shard": { "lock-pair": 2, draw: 1 },
+  // 誘惑の黒の烙印★(a)「ロックしなかったら1枚ドローしてよい」のはい/いいえ（confirmGenericYesNoの
+  // id="yes"/"no"）。ただの無料ドローで損は無いので、CPUは常に「ドローする」を選ぶ（不具合#115:
+  // これが未登録だとchooseEffectOptionが50/50のランダムになり、烙印2枚でも0〜2枚とばらついていた）。
+  "black-contract-brand": { yes: 1, no: 0 },
 };
 
 // --- ゲート侵攻の状況判断（ユーザー要望2026-08-08「ゲート侵攻に重きを」） ---------------------
