@@ -6782,15 +6782,18 @@ async function runContractBrandCurseOnLock(player, brandId) {
   if (contractBrandBusy) return;
   contractBrandBusy = true;
   try {
+    const brandName = getCardDefinition("black-contract-brand")?.name || "誘惑の黒の烙印";
+    // (1) 「烙印スロットにロックした→手札2枚捨てる」を明示（ユーザー要望2026-08-15
+    //     「今は何が起きたかあまりわからないまま過ぎていく」）。
     await announceEffectReasonForEffect(
       "black-contract-brand",
-      `${getPlayerName(player)}は黒の契約の烙印のあるロックエリアにロックしたため、手札を2枚捨て、烙印を盤面に裏向きで置きます。`
+      `${getPlayerName(player)}が${brandName}の色のロックエリアにロックしました。${brandName}の効果で手札を2枚捨てます。`
     );
     for (let i = 0; i < 2; i++) {
       const hand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
       if (hand.length === 0) break; // 手札が尽きたらそれ以上は捨てられない（善処）
       const ids = new Set(hand.map((t) => t.id));
-      const chosen = hand.length === 1 ? hand[0] : await requestHandCardChoiceForEffect(player, "黒の契約の烙印：捨てる手札を選択してください", ids);
+      const chosen = hand.length === 1 ? hand[0] : await requestHandCardChoiceForEffect(player, `${brandName}：捨てる手札を選択してください`, ids);
       if (!chosen) break;
       await discardFromHandReveal(chosen.id);
     }
@@ -6798,7 +6801,7 @@ async function runContractBrandCurseOnLock(player, brandId) {
     if (brand && brand.location.zone === "lock") {
       const cells = [];
       for (let r = 0; r <= 6; r++) for (let c = 0; c <= 6; c++) cells.push({ zone: "cell", row: r, col: c });
-      const dest = await requestCellChoiceForEffect(cells, "黒の契約の烙印を裏向きで置くマスを選択してください", { owner: player });
+      const dest = await requestCellChoiceForEffect(cells, `${brandName}を裏向きで置くマスを選択してください`, { owner: player });
       if (dest) {
         if (isOnlineMode()) {
           try {
@@ -6811,6 +6814,10 @@ async function runContractBrandCurseOnLock(player, brandId) {
         } else {
           moveToken(brandId, dest);
         }
+        render();
+        // (2) 「烙印を盤面へ裏向きで置いた」を明示。ロックエリアから外れて盤面に移ったことが
+        //     一目でわからないので、移動後に別モーダルで知らせる。
+        await announceEffectReasonForEffect("black-contract-brand", `${brandName}を盤面に裏向きで置きました。`);
       }
     }
     render();
@@ -6825,7 +6832,8 @@ async function offerContractBrandDrawIfNoLock(player) {
   if (!findContractBrandInLockAreaOf(player)) return;
   contractBrandBusy = true;
   try {
-    const wantsDraw = await confirmGenericYesNo("🖋 黒の契約の烙印：ロックしなかったので1枚ドローできます。ドローしますか？（任意）", {
+    const brandName = getCardDefinition("black-contract-brand")?.name || "誘惑の黒の烙印";
+    const wantsDraw = await confirmGenericYesNo(`🖋 ${brandName}：ロックしなかったので1枚ドローできます。ドローしますか？（任意）`, {
       yesLabel: "ドローする",
       noLabel: "しない",
       owner: player,
@@ -6833,6 +6841,10 @@ async function offerContractBrandDrawIfNoLock(player) {
     if (wantsDraw) {
       await drawCardsForEffect(player, 1);
       render();
+      // ★(a)ドローが実際に起きたことを明示（ユーザー要望2026-08-15「烙印ドローがわかりづらい」）。
+      // CPU/疑似CPUは上のYes/Noが自動応答されるため、観戦者にはドローしたことが見えない。オンライン
+      // 相手にも中継される（announceEffectReasonForEffectがbroadcastする）。
+      await announceEffectReasonForEffect("black-contract-brand", `${getPlayerName(player)}はロックしなかったので、${brandName}の効果で1枚ドローしました。`);
     }
   } finally {
     contractBrandBusy = false;
