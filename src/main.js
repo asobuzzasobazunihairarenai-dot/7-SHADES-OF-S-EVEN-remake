@@ -9272,12 +9272,24 @@ function maybeAnnounceLock(dropTarget, cardId, wasAlreadyLocked) {
     fireAnytimeCheckpoint(player);
     // 黒の契約の烙印の★(b): 「これの置かれた“色”のロックエリアにロックしたなら、手札2枚捨て、
     // これを任意のマスに裏向きで置く」（ユーザー訂正2026-08-09）。烙印は特定の色枠を塞いでおり、
-    // その色をロックした時だけ外れる（他の色をロックしても外れない）。dropTarget.index は今ロック
-    // した色スロット、brand.location.index は烙印の色枠。両者が一致した時だけ発動する。全ロック
-    // 経路がここを通る（烙印自身の●配置は moveAndSync 経由でここは通らない）。
+    // その色をロックした時だけ外れる（他の色をロックしても外れない）。全ロック経路がここを通る
+    // （烙印自身の●配置は moveAndSync 経由でここは通らない）。
+    //
+    // #111修正（2026-08-15）: 本気エイドスはノワールの両端に烙印を2枚置く。以前は
+    // findContractBrandInLockAreaOf（先頭1枚しか返さない）を使い dropTarget.index と一致した時
+    // だけ発火していたため、今ロックした色と“別の”烙印が先に見つかると★(b)が発火せず、烙印の
+    // 上にカードがそのまま重なってしまっていた（＝烙印が外れず、見た目も崩れる）。今ロックした
+    // 色スロット（side＋index）に置かれている烙印そのものを直接探すよう修正し、複数枚に対応。
     if (cardId !== "black-contract-brand") {
-      const brand = findContractBrandInLockAreaOf(player);
-      if (brand && dropTarget.index === brand.location.index) {
+      const brand = getState().tokens.find(
+        (t) =>
+          t.kind === "card" &&
+          t.cardId === "black-contract-brand" &&
+          t.location.zone === "lock" &&
+          t.location.side === dropTarget.side &&
+          t.location.index === dropTarget.index
+      );
+      if (brand) {
         runContractBrandCurseOnLock(player, brand.id); // fire-and-forget（同期のロック処理は止めない）
       }
     }
