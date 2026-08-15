@@ -25,7 +25,7 @@ import { logAction } from "./action-log.js";
 // （main.jsの通常ドロップ処理でも使っている）をそのまま流用する。victory.jsは
 // card-effect-engine.jsを（直接にも間接にも）importしていないため循環参照の
 // 心配はない。
-import { wouldCompleteLockWithNewIndex } from "./victory.js";
+import { wouldCompleteLockWithNewIndex, getLockedCount } from "./victory.js";
 
 // ユーザー確認済み「効果自動処理は基本設定でON/OFFを選べるように」。他の「アニメーションを
 // 減らす」設定（motion-prefs.js）と同じくセッション限りの設定（ページ再読み込みで
@@ -638,9 +638,13 @@ export function getLockableHandTokensExceptFinal(player) {
   return { candidateSlotsFor, tokens };
 }
 
-// カウンターロック専用: 指定プレイヤーが実際にロックしている枚数。
+// カウンターロック／プレゼント専用: 指定プレイヤーが実際に「ロックしている」色数。victory.jsの
+// getLockedCountに一本化する（#109: 以前はロックエリアの全カードを素で数えていたため、ノワール
+// の「置いている」プレースホルダーや無色の「置いている」カードまでロック扱いで数えてしまい、
+// 「１番少なくロックしている」の判定が狂っていた。getLockedCountはplaced・無色を除外し、正式に
+// ロックされた色スロットだけを数える＝勝利判定と同じ基準）。
 function countLockedCardsFor(player) {
-  return getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "lock" && SIDE_TO_SEAT[t.location.side] === player).length;
+  return getLockedCount(player);
 }
 
 // カウンターロック専用: 「１番少なくロックしている」＝参加している全プレイヤーの中で
