@@ -70,19 +70,27 @@ export async function startCpuBattle() {
 
 // オープニングを閉じて盤面を見せた「後」に呼ぶ。空の盤面の上で、2人対戦(A/C)のセットアップ
 // を演出付き（quickStartのファースト配布・盤面配置アニメ）で実際に見せながら開始する。
-export async function runCpuBattleSetup({ noirSeat = null, noirBrands = false, myDeck = false } = {}) {
+export async function runCpuBattleSetup({ noirSeat = null, noirBrands = false, myDeck = false, myDeckCardsA = null } = {}) {
   // noirSeat: エイドス物語戦で相手(C)のファースト・駒を黒(noir)にする（配布アニメーションの前に
   // 適用されるので最初から黒く見える）。通常のCPU戦ではnull（＝差し替えなし）。
   // noirBrands: 本気エイドス戦で、ノワールの両端スロットに「誘惑の黒の烙印」を置いて開始する。
   // myDeck: 本気エイドス戦でマイデッキ戦（マイデッキ戦.txt）を有効化する。
+  // myDeckCardsA: ユーザー要望2026-08-16「本気エイドス戦でもオンライン戦同様にマイデッキを選ぶ
+  //   ウィンドウを出したい」。呼び出し側(eidos-story.js)がデッキ選択ウィンドウ(openDeckSelect)で
+  //   確定した {cardId:count} を渡す。指定があればそれを、無ければ従来通り「現在選択中のマイデッキ」
+  //   （それも無ければおまかせランダム）を A のデッキにする。
   await quickStart(2, false, false, noirSeat, noirBrands);
   if (myDeck) {
-    // A(あなた): 現在選択中のマイデッキ（無ければおまかせランダム）。C(エイドス): おまかせランダム
-    // （ユーザー合意: エイドスのデッキは一旦ランダム）。cardsは{cardId:count}なので展開＋シャッフルして
-    // 「一番上=末尾」のcardId配列にしてから setupMyDeckMode でパイルとして持たせる。
-    const selId = getSelectedDeckId();
-    const deckA = selId ? getDeckById(selId) : null;
-    const cardsA = deckA?.cards && Object.keys(deckA.cards).length > 0 ? deckA.cards : makeRandomDeck().cards;
+    // A(あなた): 選択ウィンドウで確定したデッキ（無ければ現在選択中→おまかせランダム）。
+    // C(エイドス): おまかせランダム（ユーザー合意: エイドスのデッキは一旦ランダム）。cardsは
+    // {cardId:count}なので展開＋シャッフルして「一番上=末尾」のcardId配列にしてから
+    // setupMyDeckMode でパイルとして持たせる。
+    let cardsA = myDeckCardsA && Object.keys(myDeckCardsA).length > 0 ? myDeckCardsA : null;
+    if (!cardsA) {
+      const selId = getSelectedDeckId();
+      const deckA = selId ? getDeckById(selId) : null;
+      cardsA = deckA?.cards && Object.keys(deckA.cards).length > 0 ? deckA.cards : makeRandomDeck().cards;
+    }
     const cardsC = makeRandomDeck().cards;
     setupMyDeckMode({ A: expandAndShuffleDeck(cardsA), C: expandAndShuffleDeck(cardsC) });
   }

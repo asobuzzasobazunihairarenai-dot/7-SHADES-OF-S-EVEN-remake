@@ -226,16 +226,31 @@ async function startStoryBattle(stage, { practice = false } = {}) {
     // 相手(C)の表示を案内人エイドスへ上書き（セットアップ描画の前に）。
     setPlayerName("C", EIDOS_NAME);
     setPlayerAvatar("C", EIDOS_AVATAR);
-    setTimeout(() => {
-      // エイドス(C)の駒スキンとファーストカードを黒（noir）へ（ユーザー要望2026-08-15）。配布
-      // アニメーションの前（setupAssignFirstCards直後）に適用されるので、最初から黒いカードが飛ぶ
-      // （#108: 以前はセットアップ完了後に差し替えていたため配布中は元の色＝黄色等が見えていた）。
-      // 本気(advanced)エイドス戦だけ、ノワールの両端に「誘惑の黒の烙印」を置いて開始する
-      // （ユーザー要望2026-08-15）。易しい(intermediate)戦では置かない。
-      runCpuBattleSetup({ noirSeat: "C", noirBrands: stage === "advanced", myDeck: stage === "advanced" }).catch((err) =>
-        console.error("runCpuBattleSetup(story) failed", err)
-      );
-    }, 60);
+    // 実際にセットアップ（配布演出）を始めるヘルパー。エイドス(C)の駒スキンとファーストカードを
+    // 黒（noir）へ（ユーザー要望2026-08-15）。配布アニメーションの前（setupAssignFirstCards直後）に
+    // 適用されるので、最初から黒いカードが飛ぶ（#108）。本気(advanced)戦だけノワールの両端に
+    // 「誘惑の黒の烙印」を置く。myDeckCardsA: 本気戦のデッキ選択ウィンドウで確定したデッキ。
+    const beginSetup = (myDeckCardsA = null) => {
+      setTimeout(() => {
+        runCpuBattleSetup({ noirSeat: "C", noirBrands: stage === "advanced", myDeck: stage === "advanced", myDeckCardsA }).catch((err) =>
+          console.error("runCpuBattleSetup(story) failed", err)
+        );
+      }, 60);
+    };
+    if (stage === "advanced") {
+      // ユーザー要望2026-08-16「本気のエイドス戦でも、オンライン戦同様にマイデッキを選択できる
+      // ウィンドウを表示してほしい」。配布演出の前に openDeckSelect を出し、確定したデッキの
+      // カードを A のデッキとして渡す。単人プレイなのでカウントダウン無し（durationSec:0）で
+      // 好きなだけ選べる。おまかせ/新規作成も従来通り使える。
+      const { openDeckSelect } = await import("./my-deck-select.js");
+      openDeckSelect({
+        durationSec: 0,
+        subtitle: "本気のエイドス戦で使うマイデッキを選んでください。「おまかせ」でランダムも可。",
+        onResolved: (resolved) => beginSetup(resolved?.cards ?? null),
+      });
+    } else {
+      beginSetup();
+    }
   } catch (err) {
     console.error("startStoryBattle failed", err);
     await teardownStoryBattle();
