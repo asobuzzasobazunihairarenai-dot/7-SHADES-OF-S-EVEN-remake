@@ -269,7 +269,10 @@ export function isHandEffectOptionUsable(cardId, cardTokenId, player, option) {
         !t.placed
     );
     if (alreadyLocked) return false;
-    if (getHandTokens(player).length === 0) return false;
+    // #119: ノワールのスロット（＝ある色）にロックできるのは、その色に一致する手札（＋虹）だけ。
+    // 一致する手札が1枚も無ければ使えない（善処の原則）。以前は「手札が1枚でもあれば使える」
+    // だったため、色違いのカードを色無視でロックできてしまっていた。
+    if (!getHandTokens(player).some((t) => cardCanLockIntoColorIndex(t.cardId, index))) return false;
   }
   return true;
 }
@@ -590,6 +593,18 @@ function getAllOpponentPieceCells(player) {
   return candidates;
 }
 
+// あるカードが「index番目の色スロット」にロックできるか（＝そのスロットの色に一致するか）。
+// 不具合#119（ユーザー訂正2026-08-15）: ロックは特に指定が無ければ原則そのロックエリアの色の
+// カードしかロックできない。ノワールの手札効果は「その置かれた“色”のロックエリアにカードを
+// ロックする」＝色縛りが効く（以前は色を問わず置けてしまっていた）。なないろの欠片（虹）は
+// 「すべての色である」ので任意の色スロットに一致する。無色（白/黒/noir）はロック対象外。
+function cardCanLockIntoColorIndex(cardId, index) {
+  if (cardId === "rainbow-shard") return true; // ★これはすべての色である
+  const color = getCardDefinition(cardId)?.color;
+  if (!color || ["white", "black", "noir", "rainbow"].includes(color)) return false;
+  return COLORS.indexOf(color) === index;
+}
+
 // なないろの欠片のLOCK_PAIR専用: 自分のロックエリアの7色スロット全部（埋まっている
 // スロットも含む——通常の「1色1枚まで」占有チェックの対象外の特殊ロックのため）。
 function getOwnLockSlotCandidates(player) {
@@ -743,10 +758,12 @@ async function runAction(action, ctx, helpers) {
       return true;
     }
     case VERBS.LOCK_HAND_CARD_INTO_NOIR_SLOT: {
-      // 黒のキューブ ノワール(first-noir)専用: ノワールの置かれた色スロットへ、手札のカードを
-      // 1枚ロックする（色一致は問わない＝ノワールのスロットに任意のカードを置ける）。ノワール
-      // 自身は「置いている」プレースホルダーとしてそのまま残る。スロットに既にロック札（非placed）
-      // があれば何もしない（善処の原則。除去されて空けば再度使える）。手札が無くても何もしない。
+      // 黒のキューブ ノワール(first-noir)専用: ノワールの置かれた“色”スロットへ、手札のカードを
+      // 1枚ロックする。#119（ユーザー訂正2026-08-15）: ロックは原則そのロックエリアの色のカード
+      // しかできない——ノワールの効果文も「その置かれた色のロックエリアにカードをロックする」で
+      // 色を問わないとは書いていないため、色縛りが効く（虹＝すべての色は可）。ノワール自身は
+      // 「置いている」プレースホルダーとしてそのまま残る。スロットに既にロック札（非placed）が
+      // あれば何もしない（善処の原則。除去されて空けば再度使える）。一致する手札が無くても何もしない。
       const noir = getState().tokens.find((t) => t.id === ctx.cardTokenId);
       if (!noir || noir.location.zone !== "lock") return false;
       const { side, index } = noir.location;
@@ -760,23 +777,15 @@ async function runAction(action, ctx, helpers) {
           !t.placed
       );
       if (alreadyLocked) return false;
-      const handTokens = getHandTokens(ctx.player);
-      if (handTokens.length === 0) return false;
-      const handIds = new Set(handTokens.map((t) => t.id));
+      // そのスロットの色に一致する手札（＋虹）だけを候補にする（色縛り）。
+      const lockable = getHandTokens(ctx.player).filter((t) => cardCanLockIntoColorIndex(t.cardId, index));
+      if (lockable.length === 0) return false;
+      const handIds = new Set(lockable.map((t) => t.id));
       const chosen = await helpers.pickHandCard(ctx.player, "ノワールのスロットにロックするカードを手札から選択してください", handIds, {
         purpose: "lock",
       });
       if (!chosen) return false;
       await helpers.moveAndSync(chosen.id, { zone: "lock", side, index });
-      // お知らせ（不具合報告#118/#119: ノワールのスロット＝ある色スロットに、色の違うカードが
-      // ロックされて「色縛りが効いていない」ように見える、という報告への対応）。ノワールの効果は
-      // 仕様上「色を問わずノワールのスロットに置ける」ため、それが起きたことを明示して誤解を防ぐ。
-      const slotColorName =
-        { red: "赤", orange: "橙", yellow: "黄", green: "緑", blue: "青", pink: "桃", purple: "紫" }[COLORS[index]] || COLORS[index];
-      await helpers.announceEffectReason?.(
-        ctx.cardId,
-        `${helpers.getPlayerName(ctx.player)}は「黒キューブ ノワール」の効果で、手札の「${getCardDefinition(chosen.cardId).name}」をノワールのスロット（${slotColorName}）にロックしました。ノワールのスロットには色を問わず置けます。`
-      );
       return true;
     }
     case VERBS.PICKUP_DISCARD_SECOND_FROM_TOP: {
