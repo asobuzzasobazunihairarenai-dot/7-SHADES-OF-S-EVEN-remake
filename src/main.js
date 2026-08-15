@@ -5001,13 +5001,19 @@ function isArrivalEffectProcessing() {
 // 移動アクション中は記録を保持して連鎖内の出戻りだけを検知し、次のアクションで必ずリセットされる。
 // card-effect-engineのMOVEがrecordMoveVisited/isLoopMoveDestを使い、CPUはループ先を選ばず、
 // 人間には警告して選ばせない。
-let moveChainVisitedCells = new Set();
+// ユーザー要望2026-08-15: 以前は「この連鎖で1回でも通ったマスへは戻れない」だったが、周囲が
+// 全部ジャンプ台で「起点のジャンプ台へ毎回戻る」ような正当な繰り返しをしたい場合がある。そこで
+// 「一度でも禁止」ではなく「同じマスへは上限回数まで戻れる」回数制にする（真の無限ループは防ぎ
+// つつ有限回の繰り返しは許す）。人間の上限は card-effect-engine.js の HUMAN_MOVE_REVISIT_LIMIT。
+// CPUは無駄なバウンドを避けるため従来どおり厳格（limit=1）。判定側(isLoopMoveDest)に上限を渡す。
+let moveChainVisitedCells = new Map(); // "row,col" → この連鎖でそのマスを通った回数
 function recordMoveVisited(cell) {
-  if (cell && cell.zone === "cell") moveChainVisitedCells.add(`${cell.row},${cell.col}`);
-  else if (cell && typeof cell.row === "number") moveChainVisitedCells.add(`${cell.row},${cell.col}`);
+  const key = cell && typeof cell.row === "number" ? `${cell.row},${cell.col}` : null;
+  if (key) moveChainVisitedCells.set(key, (moveChainVisitedCells.get(key) || 0) + 1);
 }
-function isLoopMoveDest(cell) {
-  return !!cell && typeof cell.row === "number" && moveChainVisitedCells.has(`${cell.row},${cell.col}`);
+function isLoopMoveDest(cell, limit = 1) {
+  if (!cell || typeof cell.row !== "number") return false;
+  return (moveChainVisitedCells.get(`${cell.row},${cell.col}`) || 0) >= limit;
 }
 // その座席が自動操作（CPU戦のCPU席 or AFK代行中の自席）で駆動されているか。ループ先を人間に警告
 // するのか、自動で避けるのかの分岐に使う。
@@ -6877,6 +6883,15 @@ async function useCounterLockOnContact() {
   const defender = pending.defender;
   const token = findCounterLockToken(defender);
   if (!token) return;
+  // #106: カウンターロックの反応（①接触無効化→②カウンターロックを捨てる→③無効化の告知→
+  // ④「手札を1枚ロックしますか？」の確認/選択）が全部終わるまで、相手(CPU)の手番が自動終了
+  // しないように handEffectBusy を立てておく（computeShouldEmphasize が handEffectBusy を見て
+  // 自動ターン終了を止める）。これをやらないと、①respondToContact(false) で pendingContact が
+  // 消えた瞬間にCPUの自動ターン終了(NEXT_TURN)が走り、④の確認モーダルが相手のムーブフェイズ
+  // 終了後（次の自分の手番）にずれて出てしまう（ユーザー報告#106）。finally で必ず下ろす
+  // （取り残しは#93のセーフティ・ウォッチドッグも保険で解除する）。
+  setHandEffectBusy(true);
+  try {
   // 診断（カウンターロックの「ロックしますか？」で両ボタン押せず詰み、CPU戦報告）: どの席が
   // 使ったか・優先権・疑似CPU対象かを残す。再発時にログから原因（モーダルがCPU扱いで隠れた
   // /別のpickerがクリックを奪った等）を切り分けるため。
@@ -6953,6 +6968,10 @@ async function useCounterLockOnContact() {
   playSound("cardPlace");
   render();
   maybeAnnounceLock(dropTarget, chosen.cardId, false);
+  } finally {
+    // #106: 反応が全経路（途中returnも含む）で終わったら handEffectBusy を必ず下ろす。
+    setHandEffectBusy(false);
+  }
 }
 
 // ユーザー要望「接触タックル演出は参加者全員の画面に表示されるようにして」への対応。

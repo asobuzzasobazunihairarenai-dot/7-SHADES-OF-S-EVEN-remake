@@ -33,6 +33,11 @@ import { wouldCompleteLockWithNewIndex } from "./victory.js";
 // ユーザー要望（続き63）によりデフォルトをONに変更（以前はOFF）。
 let autoProcessingEnabled = true;
 
+// 無意味なループ防止（#49）で人間が「同じマスへ戻れる」上限回数。ジャンプ台の連鎖で、周囲が
+// 全部ジャンプ台のときに起点へ何度か戻る等の正当な繰り返しを許すため（ユーザー要望2026-08-15、
+// 安全率込みで10回）。真の無限ループはこの上限で必ず止まる。CPUは1回に固定（runAction参照）。
+const HUMAN_MOVE_REVISIT_LIMIT = 10;
+
 // 試練の儀式（RITUAL_PLACE_MOVE_REPEAT）の再入ガード（不具合#46）。オンラインで到達効果が二重に
 // 発火する（同じカードの arrival が depth1/depth2 で連続して起きる）と、儀式が二重に走って色宣言
 // モーダルが重なり「選択しても閉じない」等の異常になっていた。儀式は同時に2つ走ることは無いので、
@@ -660,8 +665,11 @@ async function runAction(action, ctx, helpers) {
       // 無意味なループ防止（#49、ユーザー方針「セブンではルール上無意味なループは禁止」）。この移動
       // 連鎖で既に通ったマス（出発マス含む）へ戻る候補を「ループ先」として扱う。ジャンプ台の連続移動で
       // 2つのジャンプ台を永遠に往復する等を防ぐ。
-      helpers.recordMoveVisited?.(ctx.pieceLocation); // 出発マスを記録（この連鎖で通った印）
-      const isLoop = (c) => !!helpers.isLoopMoveDest?.(c);
+      helpers.recordMoveVisited?.(ctx.pieceLocation); // 出発マスを記録（この連鎖で通った回数を++）
+      // 同じマスへ戻れる上限回数。人間は起点のジャンプ台へ何度か戻れるように余裕を持たせる
+      // （ユーザー要望2026-08-15、安全率込みで10回）。CPUは無駄なバウンドを避けるため厳格に1回。
+      const revisitLimit = helpers.isCpuDriving?.(ctx.player) ? 1 : HUMAN_MOVE_REVISIT_LIMIT;
+      const isLoop = (c) => !!helpers.isLoopMoveDest?.(c, revisitLimit);
       const freshCells = candidates.filter((c) => !isLoop(c));
       const loopCells = candidates.filter(isLoop);
       let dest;
