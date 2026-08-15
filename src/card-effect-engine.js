@@ -768,6 +768,15 @@ async function runAction(action, ctx, helpers) {
       });
       if (!chosen) return false;
       await helpers.moveAndSync(chosen.id, { zone: "lock", side, index });
+      // お知らせ（不具合報告#118/#119: ノワールのスロット＝ある色スロットに、色の違うカードが
+      // ロックされて「色縛りが効いていない」ように見える、という報告への対応）。ノワールの効果は
+      // 仕様上「色を問わずノワールのスロットに置ける」ため、それが起きたことを明示して誤解を防ぐ。
+      const slotColorName =
+        { red: "赤", orange: "橙", yellow: "黄", green: "緑", blue: "青", pink: "桃", purple: "紫" }[COLORS[index]] || COLORS[index];
+      await helpers.announceEffectReason?.(
+        ctx.cardId,
+        `${helpers.getPlayerName(ctx.player)}は「黒キューブ ノワール」の効果で、手札の「${getCardDefinition(chosen.cardId).name}」をノワールのスロット（${slotColorName}）にロックしました。ノワールのスロットには色を問わず置けます。`
+      );
       return true;
     }
     case VERBS.PICKUP_DISCARD_SECOND_FROM_TOP: {

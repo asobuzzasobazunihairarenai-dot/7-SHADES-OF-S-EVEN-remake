@@ -156,10 +156,14 @@ export function showEffectReasonModal(cardId, text, { holdUntilClick = false } =
       resolve();
     }
 
-    const nameEl = document.createElement("div");
-    nameEl.className = "effect-reason-modal-name";
-    nameEl.textContent = def?.name ?? cardId;
-    modal.appendChild(nameEl);
+    // カードに紐づかない汎用のお知らせ（マイデッキからのドロー等、cardIdがカード定義に無い場合）は
+    // カード名行を出さず本文だけを見せる（「null」等が出ないように）。
+    if (def) {
+      const nameEl = document.createElement("div");
+      nameEl.className = "effect-reason-modal-name";
+      nameEl.textContent = def.name ?? cardId;
+      modal.appendChild(nameEl);
+    }
 
     const textEl = document.createElement("div");
     textEl.className = "effect-reason-modal-text";

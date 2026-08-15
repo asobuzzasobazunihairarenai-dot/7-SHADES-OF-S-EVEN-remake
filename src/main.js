@@ -54,6 +54,7 @@ import {
   isCardLockable,
   forceEndCurrentPhase,
   registerContractBrandHandler,
+  registerMyDeckDrawAnnouncer,
   setSetupRevealActive,
   canDrawFromMyDeck,
 } from "./phase-automation.js";
@@ -3832,6 +3833,7 @@ export function performPriorityTimeoutAutoAction() {
     // ロックフェイズを終える（人間のマイデッキボタンが drawFromMyDeck→advancePhase するのと同じ）。
     if (isTarget && lockable.length === 0 && canDrawFromMyDeck(player)) {
       drawFromMyDeckLocal(player);
+      announceMyDeckDraw(player); // 行動ログ＋中央モーダルで全プレイヤーに知らせる（ユーザー要望2026-08-15）
       forceEndCurrentPhase();
       return true;
     }
@@ -6898,6 +6900,9 @@ async function offerContractBrandDrawIfNoLock(player) {
       if (!wantsDraw) continue;
       await drawCardsForEffect(player, 1);
       render();
+      // 行動ログに烙印ドローを明示（ユーザー要望2026-08-15）。マイデッキと違い烙印ドローは
+      // 共有山札からなので pile:"deck"。
+      logAction("brand-draw", { player, brandCount });
       // ★(a)ドローが実際に起きたことを明示（ユーザー要望2026-08-15「烙印ドローがわかりづらい」）。
       // CPU/疑似CPUは上のYes/Noが自動応答されるため、観戦者にはドローしたことが見えない。オンライン
       // 相手にも中継される（announceEffectReasonForEffectがbroadcastする）。
@@ -6906,6 +6911,16 @@ async function offerContractBrandDrawIfNoLock(player) {
   } finally {
     contractBrandBusy = false;
   }
+}
+
+// マイデッキ戦（マイデッキ.txt）で「ロックする代わりにマイデッキから1枚引く」を行った時の
+// お知らせ（ユーザー要望2026-08-15「マイデッキからのドローも行動ログに載せ、中央モーダルで
+// 全プレイヤーに知らせて」）。マイデッキの中身は秘匿（各自の裏面で伏せる）なので、引いた
+// カード名は明かさず「1枚引いた」事実だけを伝える。announceEffectReasonForEffectは中央モーダル
+// ＋オンライン中は全プレイヤーへ中継（cardId=nullなのでカード名行は出ず本文だけ表示）。
+function announceMyDeckDraw(player) {
+  logAction("my-deck-draw", { player });
+  void announceEffectReasonForEffect(null, `${getPlayerName(player)}がマイデッキから1枚ドローしました。`);
 }
 
 // ユーザー要望（続き89）「自動処理モードでは、接触に対するリアクションカード
@@ -12570,6 +12585,7 @@ registerEternalAnimHelpers(playEternalAcquisitionAnim);
 registerGateInvasionStealHelper(stealHandCardsRitualForGateInvasion);
 // 黒の契約の烙印の★(a)「ロックしないなら1枚ドローしてよい」（ユーザー要望2026-08-09）。
 registerContractBrandHandler(offerContractBrandDrawIfNoLock);
+registerMyDeckDrawAnnouncer(announceMyDeckDraw);
 // ユーザー要望2026-08-08: ゲート侵攻で自ゲートのカードを回収した時、何を得たかを回収した本人の
 // 画面だけに中央で大きく見せる（1枚ずつ、閉じる/タイムアップで次へ）。
 registerReturnHomeRevealHelper(async (attacker, cards) => {

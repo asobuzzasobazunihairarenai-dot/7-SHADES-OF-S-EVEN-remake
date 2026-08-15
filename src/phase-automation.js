@@ -144,6 +144,12 @@ let contractBrandOnLockPhaseEnded = null;
 export function registerContractBrandHandler(onLockPhaseEndedWithoutLock) {
   contractBrandOnLockPhaseEnded = onLockPhaseEndedWithoutLock;
 }
+// マイデッキから引いた時のお知らせ（行動ログ＋中央モーダル）をmain.jsから注入してもらう
+// （ユーザー要望2026-08-15。main.jsのannounceMyDeckDrawを直接importすると循環になるため）。
+let myDeckDrawAnnouncer = null;
+export function registerMyDeckDrawAnnouncer(fn) {
+  myDeckDrawAnnouncer = fn;
+}
 function getLockedTokenIds(player) {
   return new Set(
     getState()
@@ -638,7 +644,10 @@ function ensureMyDeckButton() {
     if (!pile || pile.length === 0) return;
     myDeckButtonEl.disabled = true;
     drawFromMyDeck(seat)
-      .then(() => advancePhase()) // ロックの代わりに引いたので、ロックフェイズを終える
+      .then(() => {
+        myDeckDrawAnnouncer?.(seat); // 行動ログ＋中央モーダルで全プレイヤーに知らせる（ユーザー要望2026-08-15）
+        advancePhase(); // ロックの代わりに引いたので、ロックフェイズを終える
+      })
       .catch((err) => console.error("drawFromMyDeck failed", err))
       .finally(() => {
         if (myDeckButtonEl) myDeckButtonEl.disabled = false;
