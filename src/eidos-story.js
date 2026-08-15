@@ -167,7 +167,8 @@ async function playScene(sceneId) {
 // nextScene を辿ってstepsを連結し、1回の会話として途切れなく再生する（SCENE3→SCENE5、
 // SCENE7→SCENE8 のように「会話を閉じず続けて再生する」連鎖）。stateUpdate/grantItem は連鎖に
 // 含まれる全シーン分を、会話が終わってからまとめて適用する。戻り値=最後に選ばれた選択肢のvalue。
-async function playSceneChain(startSceneId) {
+// preview:true なら進行フラグ・アイテム付与を適用せず「再生だけ」する（名場面の追体験用）。
+async function playSceneChain(startSceneId, { preview = false } = {}) {
   const merged = [];
   const stateFlags = [];
   const grantItems = [];
@@ -195,8 +196,10 @@ async function playSceneChain(startSceneId) {
   } catch (err) {
     console.error("runEidosDialogue(chain) failed", err);
   }
-  for (const f of stateFlags) setEidosProgress(f, true);
-  for (const item of grantItems) await grantStoryItem(item);
+  if (!preview) {
+    for (const f of stateFlags) setEidosProgress(f, true);
+    for (const item of grantItems) await grantStoryItem(item);
+  }
   return result?.choice ?? null;
 }
 
@@ -209,7 +212,12 @@ async function grantStoryItem(item) {
 // エイドス物語戦を開始する。stage: "intermediate"（易しい）/ "advanced"（本気）。CPU戦の薄い
 // ラッパー(cpu-battle.js)を使い、相手(C)の名前・アバターを案内人エイドスに、難易度を非永続の
 // オーバーライドで設定する。勝敗確定時は victory.js が結果ハンドラ(handleStoryResult)へ委譲する。
-async function startStoryBattle(stage) {
+// 全クリ後の「物語メニュー」からの練習再戦かどうか。trueの間は、勝敗確定時に勝敗シーンや
+// 締めの暗転演出を出さず、片付けて物語メニューへ戻るだけにする（ユーザー合意2026-08-15）。
+let storyPracticeMode = false;
+
+async function startStoryBattle(stage, { practice = false } = {}) {
+  storyPracticeMode = practice;
   setEidosStoryStage(stage);
   setStoryDifficultyOverride(stage === "advanced" ? "advanced" : "intermediate");
   try {
@@ -276,6 +284,13 @@ async function isSelfWinner(winnerSeat) {
 async function handleStoryResult({ winnerSeat, stage }) {
   const iWon = await isSelfWinner(winnerSeat);
   await teardownStoryBattle();
+
+  // 練習再戦（物語メニュー由来）は勝敗シーンも締めの演出も出さず、そのまま物語メニューへ戻る。
+  if (storyPracticeMode) {
+    storyPracticeMode = false;
+    showStoryMenu();
+    return;
+  }
 
   if (stage === "intermediate") {
     if (iWon) {
@@ -360,7 +375,75 @@ export async function startEidosStory({ openHome } = {}) {
 }
 
 // 操作チュートリアル完了後にタイルを開き直した時の再開フロー。進捗で易しい/本気を出し分ける。
+// 全クリ後の「物語メニュー」で追体験できる名場面（本編の流れ順）。startは連鎖の起点シーンで、
+// 3→5 / 7→8 はnextSceneでそのまま繋がって再生される（playSceneChain）。
+const STORY_CHAPTERS = [
+  { start: EIDOS_SCENE.FIRST_ENCOUNTER, label: "出会い" },
+  { start: EIDOS_SCENE.OPERATION_TUTORIAL_COMPLETE, label: "手ほどき" },
+  { start: EIDOS_SCENE.INTERMEDIATE_FIRST_WIN, label: "はじめての勝利" },
+  { start: EIDOS_SCENE.ADVANCED_UNLOCKED, label: "本気のエイドス" },
+  { start: EIDOS_SCENE.ADVANCED_FIRST_WIN, label: "決着、そしてセプト" },
+];
+
+// 簡易オーバーレイ。タイトル＋ボタン群を縦に並べる。ボタンは {label, onClick}。
+function buildStoryOverlay(title, buttons) {
+  const overlay = document.createElement("div");
+  overlay.className = "eidos-story-menu";
+  const panel = document.createElement("div");
+  panel.className = "eidos-story-menu-panel";
+  const h = document.createElement("div");
+  h.className = "eidos-story-menu-title";
+  h.textContent = title;
+  panel.appendChild(h);
+  for (const b of buttons) {
+    const btn = document.createElement("button");
+    btn.className = "eidos-story-menu-btn" + (b.primary ? " is-primary" : "");
+    btn.textContent = b.label;
+    btn.addEventListener("click", () => b.onClick(overlay));
+    panel.appendChild(btn);
+  }
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add("is-shown"));
+  return overlay;
+}
+function closeStoryOverlay(overlay) {
+  if (!overlay) return;
+  overlay.classList.remove("is-shown");
+  setTimeout(() => overlay.remove(), 260);
+}
+
+// 物語メニュー（全クリ後）。名場面の追体験／エイドスと再戦（易しい・本気）／ホーム。
+function showStoryMenu() {
+  buildStoryOverlay("物語メニュー", [
+    { label: "📖 名場面を追体験", primary: true, onClick: (o) => { closeStoryOverlay(o); showChapterSelect(); } },
+    { label: "⚔️ エイドスと再戦（易しい）", onClick: (o) => { closeStoryOverlay(o); startStoryBattle("intermediate", { practice: true }); } },
+    { label: "⚔️ エイドスと再戦（本気）", onClick: (o) => { closeStoryOverlay(o); startStoryBattle("advanced", { practice: true }); } },
+    { label: "🏠 ホームへ戻る", onClick: (o) => { closeStoryOverlay(o); goHome(); } },
+  ]);
+}
+
+// 名場面の追体験（チャプター選択）。選ぶとそのシーンを「再生だけ」（進捗・報酬は変化なし）。
+function showChapterSelect() {
+  const buttons = STORY_CHAPTERS.map((ch) => ({
+    label: ch.label,
+    onClick: async (o) => {
+      closeStoryOverlay(o);
+      await playSceneChain(ch.start, { preview: true });
+      showChapterSelect(); // 見終わったらチャプター選択へ戻る
+    },
+  }));
+  buttons.push({ label: "← 物語メニューへ戻る", onClick: (o) => { closeStoryOverlay(o); showStoryMenu(); } });
+  buildStoryOverlay("名場面を追体験", buttons);
+}
+
 async function resumeEidosBattles() {
+  // 全クリ（本気エイドスに勝ってセプト獲得済み）なら、いきなり戦闘に入らず「物語メニュー」を出す
+  // （名場面の追体験／エイドスと再戦。ユーザー要望2026-08-15）。
+  if (isEidosProgress("sept_awarded")) {
+    showStoryMenu();
+    return;
+  }
   if (isEidosProgress("eidos_hard_unlocked")) {
     // 易しい戦クリア済み → 本気戦の解放シーン(SCENE5)→ 本気エイドス戦。
     const choice = await playSceneChain(EIDOS_SCENE.ADVANCED_UNLOCKED);

@@ -5422,6 +5422,65 @@ body.is-phone-device #admin-panel {
 .eidos-story-ending-text.is-shown {
   opacity: 1;
 }
+
+/* 全クリ後の物語メニュー／チャプター選択オーバーレイ（ユーザー要望2026-08-15）。 */
+.eidos-story-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 55000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 8, 14, 0.72);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.eidos-story-menu.is-shown {
+  opacity: 1;
+}
+.eidos-story-menu-panel {
+  width: min(24rem, 92vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: linear-gradient(180deg, rgba(30, 27, 46, 0.98), rgba(18, 16, 28, 0.98));
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.8rem;
+  padding: 1.2rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  box-shadow: 0 1.4rem 3rem rgba(0, 0, 0, 0.6);
+}
+.eidos-story-menu-title {
+  color: #f1e9ff;
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
+  font-size: 1.25rem;
+  letter-spacing: 0.06em;
+  text-align: center;
+  margin-bottom: 0.4rem;
+}
+.eidos-story-menu-btn {
+  padding: 0.7rem 0.9rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(51, 45, 74, 0.85);
+  color: #e9e4f5;
+  font-family: sans-serif;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.05s ease;
+}
+.eidos-story-menu-btn:hover {
+  background: rgba(78, 66, 112, 0.95);
+}
+.eidos-story-menu-btn:active {
+  transform: translateY(1px);
+}
+.eidos-story-menu-btn.is-primary {
+  background: linear-gradient(90deg, #7c5cbf, #915da3);
+  border-color: rgba(200, 180, 240, 0.6);
+  color: #fff;
+}
 .eidos-dialogue-sept.is-shown.is-speaking {
   transform: translateX(-50%) scale(1.15);
 }
