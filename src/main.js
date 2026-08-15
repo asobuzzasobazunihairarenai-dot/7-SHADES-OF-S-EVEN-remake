@@ -6875,9 +6875,16 @@ async function runContractBrandCurseOnLock(player, brandId) {
           if (getState().tokens.find((t) => t.id === brandId)?.faceUp) flipToken(brandId);
         }
         render();
+        // ユーザー要望2026-08-16「置く系の効果はどこに置いたか行動ログに記載してほしい」。烙印は
+        // ロックエリアに表向きで見えていた公開カードなので、名前と座標を出してよい（revealName:true）。
+        const brandCoord = actionLogCoordLabel(dest);
+        logAction("place", { player, cardId: "black-contract-brand", location: dest, faceDown: true, revealName: true });
         // (2) 「烙印を盤面へ裏向きで置いた」を明示。ロックエリアから外れて盤面に移ったことが
-        //     一目でわからないので、移動後に別モーダルで知らせる。
-        await announceEffectReasonForEffect("black-contract-brand", `${brandName}を盤面に裏向きで置きました。`);
+        //     一目でわからないので、移動後に別モーダルで知らせる（どのマスに置いたかも添える）。
+        await announceEffectReasonForEffect(
+          "black-contract-brand",
+          `${brandName}を盤面${brandCoord ? `の${brandCoord}` : ""}に裏向きで置きました。`
+        );
       }
     }
     render();
@@ -10512,6 +10519,20 @@ function buildFriendlyLogItems() {
       player = e.detail.player;
       const bc = e.detail.brandCount || 1;
       msg = bc > 1 ? `誘惑の黒の烙印の効果で1枚ドローしました（${e.detail.index || 1}枚目）` : "誘惑の黒の烙印の効果で1枚ドローしました";
+    } else if (e.category === "place" && e.detail?.location) {
+      // ユーザー要望2026-08-16「置く系の効果（例えば烙印）はどこに置いたか行動ログに記載してほしい」。
+      // 座標を明示する。隠し情報保護のため、公開カード（烙印・効果カード自身・表向き配置）だけ
+      // 名前を出し、山札/手札から裏向きで置いた（＝中身が非公開の）カードは名前を伏せて「カード」とする。
+      player = e.detail.player;
+      const co = actionLogCoordLabel(e.detail.location);
+      const fd = e.detail.faceDown ? "裏向きで" : "";
+      const where = co ? `（${co}）` : e.detail.location.zone === "lock" ? "（ロックエリア）" : "";
+      if (e.detail.revealName && e.detail.cardId) {
+        const name = getCardDefinition(e.detail.cardId)?.name ?? e.detail.cardId;
+        msg = `「${name}」を${fd}置きました${where}`;
+      } else {
+        msg = `カードを${fd}置きました${where}`;
+      }
     } else if (e.category === "diag-gate-invasion-received") {
       msg = "ゲート侵攻が発生しました";
     } else {

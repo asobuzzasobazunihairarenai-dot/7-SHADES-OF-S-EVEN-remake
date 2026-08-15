@@ -1191,13 +1191,20 @@ async function runAction(action, ctx, helpers) {
             // 既に駒がいれば到達を発動させる（ロックエリアには駒がいないので実質cellのみ）。
             await helpers.maybeTriggerArrivalForPlacedCard?.(dest, ctx.cardId);
           }
+          // ユーザー要望2026-08-16「置く系の効果はどこに置いたか行動ログに記載してほしい」。
+          // source:"self"は効果カード自身＝公開情報なので名前を出す（faceUp指定なら表向き）。
+          logAction("place", { player: ctx.player, cardId: ctx.cardId, location: dest, faceDown: !action.faceUp, revealName: true });
         } else if (action.source === "hand") {
           const handToken = await helpers.pickHandCard(ctx.player, "そのマスに置くカードを手札から選択してください");
           if (!handToken) continue;
           await helpers.moveAndSync(handToken.id, { zone: "cell", row: dest.row, col: dest.col });
+          // 手札から裏向きで置いた＝中身は非公開。座標だけ記録し、名前は伏せる（cardIdを含めない）。
+          logAction("place", { player: ctx.player, location: { zone: "cell", row: dest.row, col: dest.col }, faceDown: true, revealName: false });
         } else {
           // "deck"（山札）: 手札からではなく山札の一番上を直接そのマスへ置く。
           await helpers.placeFromDeck(dest);
+          // 山札から裏向きで置いた＝中身は非公開。座標だけ記録し、名前は伏せる。
+          logAction("place", { player: ctx.player, location: dest, faceDown: true, revealName: false });
         }
         // ユーザー要望「配置後ここに配置したよがわかるように配置場所をしっかり
         // ハイライトしてください。マスの枠だけでなくカードの面も」。マスハイライト用の
