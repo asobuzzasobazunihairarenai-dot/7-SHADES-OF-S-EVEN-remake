@@ -201,6 +201,13 @@ function closeCurrent() {
   backdropEl = null;
 }
 
+// 残っているゲート侵攻モーダル（キュー＋表示中の1枚）を強制的に片付ける。勝利等でゲート侵攻の
+// 途中で対局が終了/リセットされ、モーダルが盤面に取り残される事故(#107)の後始末に使う。
+export function forceCloseGateInvasionModal() {
+  queue = [];
+  closeCurrent();
+}
+
 function showStep(step) {
   // エターナル獲得ステップは、演出（3Dフリップ＋色バースト）が使える環境では、静的な
   // モーダルの代わりにローカル版と同じ派手な演出を再生する（ユーザー要望）。演出は盤面の

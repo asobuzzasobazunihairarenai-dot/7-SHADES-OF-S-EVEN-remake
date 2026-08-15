@@ -216,6 +216,14 @@ async function teardownStoryBattle() {
   // 閉じるコールバックが再戦開始後に走って勝敗会話が誤って再生される。resetGame を先に（同期で）
   // 呼んで盤面を空にしてから記録をクリアする（間に非同期の隙を作らない）。
   resetGame();
+  // #107: 勝利がゲート侵攻の最中に確定すると、ゲート侵攻モーダルがキュー途中で取り残されて
+  // 盤面に残ることがある。物語戦の後始末で必ず片付ける。
+  try {
+    const { forceCloseGateInvasionModal } = await import("./gate-invasion-modal.js");
+    forceCloseGateInvasionModal();
+  } catch (err) {
+    console.error("forceCloseGateInvasionModal failed", err);
+  }
   try {
     const { resetVictoryTracking } = await import("./victory.js");
     resetVictoryTracking(); // 次にまた勝利演出が出るように勝利記録をクリア
@@ -304,13 +312,40 @@ export async function startEidosStory({ openHome } = {}) {
   registerTutorialHomeOpener(homeOpener);
   registerTutorialCompleteHandler(onOperationTutorialComplete);
   registerEidosStoryResultHandler(handleStoryResult);
-  // 導入シーンSCENE1（案内人エイドスとの邂逅）は「まだ操作チュートリアルを完了していない間」は
-  // 毎回再生し、完了すると出さない。以前は intro_seen（一度でも見たら二度と出さない）でゲート
-  // していたが、一度見ると再表示できず「会話が出ずチュートリアルから始まる」状態になっていた
-  // （ユーザー報告2026-08-14）。
+  // 進捗に応じて出し分ける（ユーザー要望2026-08-15「エイドス戦まで進んでいるなら、再度開いた時は
+  // エイドス戦から始めたい」。以前は tutorial_completed でも常に操作チュートリアルから始まっていた）。
   if (!isEidosProgress("tutorial_completed")) {
+    // まだ操作チュートリアル未完了: 導入SCENE1（毎回）→ 操作チュートリアル。
+    // 以前は intro_seen（一度でも見たら二度と出さない）でゲートしていたが、一度見ると再表示できず
+    // 「会話が出ずチュートリアルから始まる」状態になっていた（ユーザー報告2026-08-14）。
     await playScene(EIDOS_SCENE.FIRST_ENCOUNTER);
     setEidosProgress("intro_seen", true); // 記録用（今のゲートは tutorial_completed 側）
+    startTutorialBattle();
+    return;
   }
-  startTutorialBattle();
+  // 操作チュートリアルは完了済み: エイドス戦から再開する。易しい戦をクリアして本気戦が解放済み
+  // (eidos_hard_unlocked) なら本気戦へ、まだなら易しい戦へ。それぞれ対応する導入シーンを出し、
+  // 「挑戦する」で戦闘開始／「あとで」でホームへ。
+  await resumeEidosBattles();
+}
+
+// 操作チュートリアル完了後にタイルを開き直した時の再開フロー。進捗で易しい/本気を出し分ける。
+async function resumeEidosBattles() {
+  if (isEidosProgress("eidos_hard_unlocked")) {
+    // 易しい戦クリア済み → 本気戦の解放シーン(SCENE5)→ 本気エイドス戦。
+    const choice = await playSceneChain(EIDOS_SCENE.ADVANCED_UNLOCKED);
+    if (choice === "start-advanced-battle") {
+      startStoryBattle("advanced");
+      return;
+    }
+    goHome();
+    return;
+  }
+  // まだ易しい戦をクリアしていない → 完了シーン(SCENE2)→ 易しいエイドス戦。
+  const choice = await playSceneChain(EIDOS_SCENE.OPERATION_TUTORIAL_COMPLETE);
+  if (choice === "start-intermediate-battle") {
+    startStoryBattle("intermediate");
+    return;
+  }
+  goHome();
 }
