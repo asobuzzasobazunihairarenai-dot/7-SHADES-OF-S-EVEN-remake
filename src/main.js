@@ -12360,7 +12360,7 @@ initPhaseGuide();
 registerTutorialStageHelpers({ stageClientToLocal, stageDelta, stageWidth: STAGE_WIDTH, stageHeight: STAGE_HEIGHT });
 registerTutorialBattleUiHelpers({ stageClientToLocal, stageDelta, stageWidth: STAGE_WIDTH, stageHeight: STAGE_HEIGHT });
 registerPiecePetHelpers({ stageClientToLocal, stageDelta }); // 飾りペットの座標をステージ座標へ
-registerTutorialBattleHelpers({ triggerLockEffect, playScriptedContact, flyBoardCardToHand, flyDrawnCardToHand, flyHandCardBetweenSeats });
+registerTutorialBattleHelpers({ triggerLockEffect, playScriptedContact, flyBoardCardToHand, flyDrawnCardToHand, flyHandCardBetweenSeats, playEternalAcquisitionAnim });
 initTutorialAutoStart();
 initGameBgmAutoStart();
 initSoundUnlock(); // iOS等で効果音を鳴らすため、最初の操作でAudioContextをアンロック＆事前ロード

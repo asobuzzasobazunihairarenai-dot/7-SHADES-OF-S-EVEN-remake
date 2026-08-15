@@ -14,7 +14,7 @@
 //
 // 完全ローカル機能（サーバー/オンライン非関与）。
 
-import { setupTutorialScenario, setTurnPlayer, subscribe, getState, moveToken, tutorialLockCard, hydrateState, flipToken, nextTurn, drawFromPile } from "./state.js";
+import { setupTutorialScenario, setTurnPlayer, subscribe, getState, moveToken, tutorialLockCard, hydrateState, flipToken, nextTurn, drawFromPile, resetGame } from "./state.js";
 import { resetVictoryTracking } from "./victory.js";
 import { resetMatchStats } from "./match-stats-tracker.js";
 import { resetHandEffectUsage, isAutoProcessingEnabled, setAutoProcessingEnabled } from "./card-effect-engine.js";
@@ -50,12 +50,14 @@ let playScriptedContactHelper = null;
 let flyBoardCardToHandHelper = null;
 let flyDrawnCardToHandHelper = null;
 let flyHandCardBetweenSeatsHelper = null;
-export function registerTutorialBattleHelpers({ triggerLockEffect, playScriptedContact, flyBoardCardToHand, flyDrawnCardToHand, flyHandCardBetweenSeats } = {}) {
+let playEternalAcquisitionAnimHelper = null;
+export function registerTutorialBattleHelpers({ triggerLockEffect, playScriptedContact, flyBoardCardToHand, flyDrawnCardToHand, flyHandCardBetweenSeats, playEternalAcquisitionAnim } = {}) {
   triggerLockEffectHelper = triggerLockEffect ?? null;
   playScriptedContactHelper = playScriptedContact ?? null;
   flyBoardCardToHandHelper = flyBoardCardToHand ?? null;
   flyDrawnCardToHandHelper = flyDrawnCardToHand ?? null;
   flyHandCardBetweenSeatsHelper = flyHandCardBetweenSeats ?? null;
+  playEternalAcquisitionAnimHelper = playEternalAcquisitionAnim ?? null;
 }
 
 // チュートリアル終了時にホーム画面へ戻すための注入（home-screen.jsがtutorial-battle.jsを
@@ -1107,14 +1109,34 @@ async function scriptGateInvasionWin() {
     await delay(500);
   }
 
-  // 演出②: 盤外の「エターナルカード（緑）」を獲得し、7色目としてロックする。ドロー→ロックの間を
-  // 取り、ロック効果アニメで締める。ユーザー要望「エターナル獲得演出が欲しい」。
+  // 演出②: 盤外の「エターナルカード（緑）」を獲得し、7色目としてロックする。本番のゲート侵攻と
+  // 同じ3Dフリップ＋色バースト演出(playEternalAcquisitionAnim)を再生してから、実際にロックする
+  // （ユーザー要望#103「チュートリアルでもエターナルのフリップ演出を入れてほしい」）。演出が
+  // 無効／ヘルパー未注入なら、そのまま即ロックにフォールバックする。
   showTip("盤外のエターナルカード「緑」を獲得！ 7色コンプリートまであと1枚…");
-  await delay(600);
+  await delay(400);
+  // 本番同様「先に7色目をロック」→ 演出がそのカードを着地まで隠す(suppressedEternalLockRender)、
+  // の順にする（逆にすると着地前にロックスロットへ先に見えてしまう）。チュートリアル中は
+  // isTutorialBattleActive()==true なので、このロックで checkForVictory は発火しない。
   drawFromPile("eternal", { zone: "lock", side, index: greenIdx });
-  await delay(550);
+  if (playEternalAcquisitionAnimHelper) {
+    await new Promise((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        resolve();
+      };
+      try {
+        playEternalAcquisitionAnimHelper(SELF_SEAT, `eternal-${WINNING_COLOR}`, { color: WINNING_COLOR }, finish);
+      } catch (e) {
+        finish();
+      }
+      setTimeout(finish, 8000); // 保険（演出が完了コールバックを呼ばない事故でも先へ進む）
+    });
+  }
   if (triggerLockEffectHelper) triggerLockEffectHelper(`eternal-${WINNING_COLOR}`, { zone: "lock", side, index: greenIdx });
-  await delay(1400);
+  await delay(1000);
 }
 
 // --- タップ操作（前方移動・手札効果・接触） --------------------------------------------
@@ -1361,6 +1383,17 @@ export function restartTutorialBattle() {
 // 物語ハンドラ(onCompleteFn)が注入されていれば、ホームへは戻さずそのハンドラ（完了シーン→
 // エイドス戦）へ委譲する。それ以外は従来どおりホームへ戻る。
 export function finishTutorialBattle(reason = "aborted") {
+  // #103: 完了時は、チュートリアルの「7色ロック済み」の勝利状態を、まだ battleActive=true の
+  // うちにリセットしておく（このリセット中の再描画は isTutorialBattleActive()==true なので
+  // main.jsの checkForVictory 呼び出しが抑止される）。これをやらないと、battleActive を false に
+  // した直後に続く会話(SCENE2)の描画で checkForVictory が発火し、勝利モーダルが出てしまう
+  // （さらにそのモーダルの閉じるコールバックがエイドス戦開始後に走ると、対戦後の会話が誤って
+  // 始まり二重セットアップになる）。勝利記録(announcedPlayers)も消して、続くエイドス戦の勝利
+  // 判定が正しく最初から動くようにする。
+  if (reason === "completed") {
+    resetGame();
+    resetVictoryTracking();
+  }
   battleActive = false;
   detachTapHandler();
   setPlayerName(CPU_SEAT, ""); // 案内人エイドスの表示名をリセット（通常対戦に持ち越さない）
