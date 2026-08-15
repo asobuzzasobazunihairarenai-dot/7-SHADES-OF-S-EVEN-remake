@@ -108,6 +108,32 @@ function goHome() {
   if (typeof homeOpener === "function") homeOpener();
 }
 
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// 物語チュートリアルの締めくくり（本気エイドス戦に勝利し、セプトを得た後）。ユーザー要望
+// 2026-08-15「最後はゆっくりフェード暗転で、画面中央に枠無しで『あなたの物語は、今、はじまる。』」。
+// ゆっくり暗転→中央テキストをフェードイン→少し見せる→裏でホームを開いて暗転を解除して現す。
+async function playStoryEnding() {
+  const overlay = document.createElement("div");
+  overlay.className = "eidos-story-ending";
+  const text = document.createElement("div");
+  text.className = "eidos-story-ending-text";
+  text.textContent = "あなたの物語は、今、はじまる。";
+  overlay.appendChild(text);
+  document.body.appendChild(overlay);
+  // 2フレーム待ってからクラス付与＝transitionを確実に効かせる。
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  overlay.classList.add("is-black"); // ゆっくり暗転（CSS: opacity 0→1）
+  await wait(2600);
+  text.classList.add("is-shown"); // テキストをフェードイン
+  await wait(3600);
+  goHome(); // 暗転の裏でホームを開く
+  await wait(500);
+  overlay.classList.add("is-fading-out"); // 暗転を解除してホームを現す
+  await wait(1000);
+  overlay.remove();
+}
+
 // 会話中の入力ステップ（step.input）の決定時に呼ばれる。今は「名前入力」（field:"playerName"）
 // のみ。入力値を自分の表示名として設定＝永続化（setPlayerNameが自席ならupdateMyIdentityで保存）。
 function onDialogueInput(value, step) {
@@ -276,7 +302,8 @@ async function handleStoryResult({ winnerSeat, stage }) {
     // SCENE7（初勝利）→ SCENE8（セプト獲得。grantItem: pet:sept）。選択: セット / あとで。
     const choice = await playSceneChain(EIDOS_SCENE.ADVANCED_FIRST_WIN);
     if (choice === "set-sept") setEidosProgress("sept_set", true);
-    goHome();
+    // 物語チュートリアルの締めくくり: ゆっくりフェード暗転→中央テキスト→ホーム（goHomeは内部で呼ぶ）。
+    await playStoryEnding();
   } else {
     const choice = await playSceneChain(EIDOS_SCENE.ADVANCED_LOSS);
     if (choice === "retry-advanced-battle") {

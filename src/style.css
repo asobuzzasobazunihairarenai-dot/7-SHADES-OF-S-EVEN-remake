@@ -5376,25 +5376,51 @@ body.is-phone-device #admin-panel {
   transform: translateX(-50%) scale(0.9);
   transition: opacity 0.28s ease, transform 0.28s ease;
   pointer-events: none;
-}
-/* セプトは真っ黒なので、後ろにライト系の光背を敷いて背景に埋もれないようにする（ユーザー要望
-   2026-08-08）。背景画像(JSがbackground-imageで設定)とは別レイヤーにするため::beforeで描く。 */
-.eidos-dialogue-sept::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: 0.6rem;
-  width: 120%;
-  height: 120%;
-  transform: translateX(-50%);
-  border-radius: 50%;
-  background: radial-gradient(circle at 50% 55%, rgba(255, 252, 245, 0.95), rgba(255, 244, 214, 0.55) 42%, rgba(255, 255, 255, 0) 72%);
-  z-index: -1;
-  pointer-events: none;
+  /* セプトは真っ黒なので、光背を敷いて背景に埋もれないようにする（ユーザー要望2026-08-08）。
+     以前は::before（z-index:-1）で描いていたが、セプトの絵柄が要素の background-image のため、
+     CSS仕様上「要素の背景 → 負のz-indexの疑似要素」の順で描かれ、光背がセプトより手前に来て
+     しまっていた（ユーザー報告2026-08-15）。drop-shadowは常に要素の描画内容の背面に出るので、
+     セプトのシルエットに沿った光背が確実に後ろへ回る。 */
+  filter: drop-shadow(0 0 1.4rem rgba(255, 252, 245, 0.95)) drop-shadow(0 0 2.6rem rgba(255, 244, 214, 0.6));
 }
 .eidos-dialogue-sept.is-shown {
   opacity: 1;
   transform: translateX(-50%) scale(1);
+}
+
+/* 物語チュートリアルの締めくくり（本気戦勝利＋セプト獲得後）のフェード暗転＋中央テキスト。
+   ユーザー要望2026-08-15。オープニング画面(z-index 50000)より上に出す。 */
+.eidos-story-ending {
+  position: fixed;
+  inset: 0;
+  z-index: 60000;
+  background: #000;
+  opacity: 0;
+  transition: opacity 2.4s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.eidos-story-ending.is-black {
+  opacity: 1;
+}
+.eidos-story-ending.is-fading-out {
+  opacity: 0;
+  transition: opacity 1s ease;
+}
+/* 枠無し・中央・白文字（ユーザー要望「画面中央に枠無しで」）。 */
+.eidos-story-ending-text {
+  color: #f5f5f5;
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
+  font-size: 1.9rem;
+  letter-spacing: 0.12em;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 1.6s ease;
+}
+.eidos-story-ending-text.is-shown {
+  opacity: 1;
 }
 .eidos-dialogue-sept.is-shown.is-speaking {
   transform: translateX(-50%) scale(1.15);
