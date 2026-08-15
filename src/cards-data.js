@@ -28,7 +28,7 @@ export const NORMAL_CARDS = [
   { id: "white-radiance", name: "なないろの巨光", color: "white", count: 2, note: "複数のプレイヤーを対象にした効果は原則、効果の使用者から時計回りに効果を処理する（処理順の原則）。「フェイズ」とは「ロックフェイズ」「ハンドフェイズ」「ムーブフェイズ」のことである。" },
   { id: "white-awakening", name: "白の意思の覚醒", color: "white", count: 2, note: "カードの下にある表向きのカードは対象ではない。（１番上の原則）" },
   { id: "black-faded-cat", name: "色落ちキャット", color: "black", count: 1, note: "複数のプレイヤーを対象にした効果は原則、効果の使用者から時計回りに効果を処理する（処理順の原則）。" },
-  { id: "black-contract-brand", name: "黒の契約の烙印", color: "black", count: 2, note: "基本効果補足: ロックする際の捨てる２枚の手札の色は問わない。到達効果補足: 「置く」は「ロック」していることにはならない。" },
+  { id: "black-contract-brand", name: "誘惑の黒の烙印", color: "black", count: 2, note: "基本効果補足: ロックする際の捨てる２枚の手札の色は問わない。到達効果補足: 「置く」は「ロック」していることにはならない。（旧名: 黒の契約の烙印。idはblack-contract-brandのまま）" },
 ];
 
 // エターナルカード7種、各色1種・1枚（相手ゲート侵攻ボーナスで獲得するボーナスカード）。
