@@ -329,7 +329,22 @@ function isLockSlotOccupied(player, color) {
   const colorIndex = COLORS.indexOf(color);
   if (colorIndex === -1) return false;
   return getState().tokens.some(
-    (t) => t.kind === "card" && t.location.zone === "lock" && SIDE_TO_SEAT[t.location.side] === player && t.location.index === colorIndex
+    (t) =>
+      t.kind === "card" &&
+      t.location.zone === "lock" &&
+      SIDE_TO_SEAT[t.location.side] === player &&
+      t.location.index === colorIndex &&
+      // 「置いている」だけのカード（ノワール／誘惑の黒の烙印）は正式なロックではないので、その色は
+      // ロックフェイズでロック可能として扱う（ユーザー訂正2026-08-15「ノワールのロックエリアへの
+      // ロックフェイズでのロックは可能。ロック不可とはどこにも書いていない」）。
+      //
+      // 重要: これは烙印の★(b)コストをバイパスしない。烙印スロットにロックすると、
+      // maybeAnnounceLock 側の runContractBrandCurseOnLock が isLockSlotOccupied とは独立に
+      // 発火し、手札2枚捨て＋烙印移動を必ず行う（トリガーは findContractBrandInLockAreaOf ＋
+      // dropTarget.index 一致で判定、placed には依存しない）。ここで placed を「空き」扱いに
+      // しても、ノワール（★を持たない純粋な置物）がコスト無しでロックできるようになるだけで、
+      // 烙印のコストは温存される。
+      !t.placed
   );
 }
 // 1枚のカードがロックフェイズで実際にロックできるか（hasLockableCard/ハイライトの両方が
