@@ -64,6 +64,15 @@ export function registerTutorialHomeOpener(fn) {
   openHomeFn = fn ?? null;
 }
 
+// 操作チュートリアルを「最後まで完了」した時に呼ぶハンドラ（eidos-story.jsが注入）。中断
+// （左上の「終了する」ボタン等）ではなく、最終ステップ「とじる」まで到達した時だけ呼ばれる。
+// 物語オンボーディング(eidos-story.js)は、これを受けて完了シーン→エイドス戦へ繋ぐ。未注入なら
+// 従来どおりホームへ戻る。
+let onCompleteFn = null;
+export function registerTutorialCompleteHandler(fn) {
+  onCompleteFn = fn ?? null;
+}
+
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 // 「○○のターン」トーストが完全に消えるまでの時間（turn-announce.js: 2200ms表示＋500ms
 // フェード）＋余白。CPUの駒移動がトーストと被らないよう、これだけ待ってから動かす。
@@ -763,7 +772,7 @@ function showStepUi(step, index) {
       onBack: () => goBack(index),
       onNext: async () => {
         if (step.isLast) {
-          finishTutorialBattle();
+          finishTutorialBattle("completed");
           return;
         }
         // afterNext（例: カードを手札へゆっくり吸い込むアニメ）があれば、モーダルを閉じて
@@ -1321,7 +1330,10 @@ export function restartTutorialBattle() {
 }
 
 // チュートリアル対戦を終了/中断する（UIを片付け、監視を解除し、設定を元へ戻す）。
-export function finishTutorialBattle() {
+// reason: "completed"（最終ステップまで到達）/ "aborted"（途中で「終了する」等）。completedかつ
+// 物語ハンドラ(onCompleteFn)が注入されていれば、ホームへは戻さずそのハンドラ（完了シーン→
+// エイドス戦）へ委譲する。それ以外は従来どおりホームへ戻る。
+export function finishTutorialBattle(reason = "aborted") {
   battleActive = false;
   detachTapHandler();
   setPlayerName(CPU_SEAT, ""); // 案内人エイドスの表示名をリセット（通常対戦に持ち越さない）
@@ -1336,6 +1348,10 @@ export function finishTutorialBattle() {
     savedAutoProcessing = null;
   }
   stepIndex = -1;
-  // ユーザー要望「チュートリアルが終了したら画面を閉じてホーム画面へ」。
-  if (openHomeFn) openHomeFn();
+  // 完了時は物語ハンドラへ、中断時（またはハンドラ未注入）はホームへ。
+  if (reason === "completed" && onCompleteFn) {
+    onCompleteFn();
+  } else if (openHomeFn) {
+    openHomeFn();
+  }
 }

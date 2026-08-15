@@ -13,7 +13,7 @@ import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { playVictoryBgm } from "./sound.js";
 import { showPostGamePanel, showCpuBattleEndPanel } from "./post-game-panel.js";
 import { awardMatchCurrency, awardCpuWinCurrency, getSelfSeat } from "./online.js";
-import { isCpuBattleActive } from "./cpu-battle-state.js";
+import { isCpuBattleActive, getEidosStoryStage, getEidosStoryResultHandler } from "./cpu-battle-state.js";
 import { refreshCurrencyDisplay } from "./currency-display.js";
 import { showCurrencyAwardModal } from "./currency-award-modal.js";
 import { showRankRevealModal } from "./rank-reveal-modal.js";
@@ -202,6 +202,14 @@ export function checkForVictory() {
           // （ユーザー確定方針）。CPU(C)が勝った時は付与しない。未ログイン時は
           // awardCpuWinCurrencyが0を返すので演出も出ない（お金はアカウント紐付けのため）。
           // 順位・戦績・ポストゲームパネルはオンライン専用のためCPU戦では出さない。
+          // 物語オンボーディングのエイドス戦中は、コイン付与も汎用終了パネルも出さず、勝敗を
+          // eidos-story.js の結果ハンドラへ委譲する（勝敗シーン→次の戦い/セプト獲得/ホームへ）。
+          const storyStage = getEidosStoryStage();
+          const storyHandler = getEidosStoryResultHandler();
+          if (isCpuBattleActive() && storyStage && storyHandler) {
+            storyHandler({ winnerSeat: player, stage: storyStage });
+            return;
+          }
           if (isCpuBattleActive() && player === getSelfSeat()) {
             try {
               const amount = await awardCpuWinCurrency();

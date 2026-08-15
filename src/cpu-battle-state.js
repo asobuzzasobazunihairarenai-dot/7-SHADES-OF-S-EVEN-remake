@@ -181,11 +181,46 @@ export function resetTimeoutStreak() {
   consecutiveTimeouts = 0;
 }
 
-// 実効の難易度（AFK代行中はAFK用の強さ、それ以外はCPU戦の強さ）。cpu-brain.jsが使う思考レベルの
-// 判定（isCpuBrainSmart/isCpuPeekAllowed/isCpuOpponentAware）はこれを基準にするので、代行中は
-// 自動的にAFK用の強さで指す。
+// --- エイドス物語チュートリアルのCPU戦（eidos-story.js） --------------------------------------
+// 物語オンボーディング中のエイドス戦は、ユーザーが基本設定で選んだCPU強さ(cpuDifficulty)とは
+// 独立に難易度を決める（易しいエイドス=intermediate / 本気エイドス=advanced）。ただし
+// setCpuDifficultyはlocalStorageへ永続化してしまい、ユーザーの好みを書き換えてしまうため、
+// ここでは永続化しない一時オーバーライドとして持つ（物語戦の開始でセット、終了でnullに戻す）。
+let storyDifficultyOverride = null;
+export function setStoryDifficultyOverride(v) {
+  storyDifficultyOverride = v && DIFFICULTIES.includes(v) ? v : null;
+}
+export function getStoryDifficultyOverride() {
+  return storyDifficultyOverride;
+}
+
+// 進行中のエイドス物語戦のステージ（null | "intermediate" | "advanced"）と、勝敗が確定した時に
+// 呼ぶ結果ハンドラ。victory.jsのcheckForVictoryが、CPU戦の勝敗確定時に、通常のCPU終了パネル
+// (showCpuBattleEndPanel)の代わりにこのハンドラへ委譲するために参照する。eidos-story.jsは重い
+// 依存(tutorial-battle/cpu-battle)を芋づるで持つため、victory.jsから直接importせず、この極小
+// leafモジュール経由でハンドラだけを受け渡す（循環importを避ける）。
+let eidosStoryStage = null;
+export function getEidosStoryStage() {
+  return eidosStoryStage;
+}
+export function setEidosStoryStage(v) {
+  eidosStoryStage = v || null;
+}
+let eidosStoryResultHandler = null;
+export function registerEidosStoryResultHandler(fn) {
+  eidosStoryResultHandler = typeof fn === "function" ? fn : null;
+}
+export function getEidosStoryResultHandler() {
+  return eidosStoryResultHandler;
+}
+
+// 実効の難易度（AFK代行中はAFK用の強さ、物語戦中はそのオーバーライド、それ以外はCPU戦の強さ）。
+// cpu-brain.jsが使う思考レベルの判定(isCpuBrainSmart/isCpuPeekAllowed/isCpuOpponentAware)は
+// これを基準にするので、代行中はAFK用、物語戦中は物語用の強さで指す。
 function activeDifficulty() {
-  return selfCpuSubstituted ? afkDifficulty : cpuDifficulty;
+  if (selfCpuSubstituted) return afkDifficulty;
+  if (storyDifficultyOverride) return storyDifficultyOverride;
+  return cpuDifficulty;
 }
 // 賢い思考を使うか（新人以外）。
 export function isCpuBrainSmart() {
