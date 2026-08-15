@@ -27,7 +27,7 @@ import { getEidosScene, EIDOS_SCENE } from "./eidos-dialogue-scenes.js";
 import { startTutorialBattle, registerTutorialHomeOpener, registerTutorialCompleteHandler } from "./tutorial-battle.js";
 import { setPlayerName, setPlayerAvatar, getPlayerName } from "./player-identity.js";
 import { SEAT_LABELS } from "./board-layout.js";
-import { resetGame } from "./state.js";
+import { resetGame, applySeatNoir } from "./state.js";
 import {
   setCpuBattleActive,
   setEidosStoryStage,
@@ -193,7 +193,12 @@ async function startStoryBattle(stage) {
     setPlayerName("C", EIDOS_NAME);
     setPlayerAvatar("C", EIDOS_AVATAR);
     setTimeout(() => {
-      runCpuBattleSetup().catch((err) => console.error("runCpuBattleSetup(story) failed", err));
+      runCpuBattleSetup()
+        // エイドス(C)の駒スキンとファーストカードを黒（noir）へ差し替える（ユーザー要望2026-08-15）。
+        // 通常のセットアップ（ファースト配布・盤面配置）が終わった後に一度だけ適用する。ロック済みの
+        // 色スロットはそのまま維持するので7色勝利のカウントには影響しない。
+        .then(() => applySeatNoir("C"))
+        .catch((err) => console.error("runCpuBattleSetup(story) failed", err));
     }, 60);
   } catch (err) {
     console.error("startStoryBattle failed", err);

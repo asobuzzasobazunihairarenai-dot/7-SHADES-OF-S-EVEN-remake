@@ -541,6 +541,30 @@ function reduce(current, action) {
         activePlayers: action.players.map((p) => p.player),
       };
     }
+    // エイドス物語戦専用（ユーザー要望2026-08-15）: 指定席(エイドス=C)のファーストカードを
+    // 「効果なしの黒いファースト(first-noir)」へ、駒スキンを黒(noir)へ差し替える。ロックされている
+    // 色スロット(location.index)はそのまま維持するので、7色勝利のカウントには従来どおり数えられる
+    // （＝色は元のまま・見た目とcardIdだけ黒に差し替える）。first-noirは効果を持たず、idが"first-"
+    // 始まりなので他のカードの効果の対象にもならない。通常のセットアップ完了後に一度だけ適用する。
+    case "APPLY_SEAT_NOIR": {
+      const side = SEAT_TO_SIDE[action.seat];
+      const tokens = current.tokens.map((t) => {
+        if (
+          t.kind === "card" &&
+          t.location.zone === "lock" &&
+          t.location.side === side &&
+          typeof t.cardId === "string" &&
+          t.cardId.startsWith("first-")
+        ) {
+          return { ...t, cardId: "first-noir" };
+        }
+        if (t.kind === "piece" && t.player === action.seat) {
+          return { ...t, color: "noir" };
+        }
+        return t;
+      });
+      return { ...current, tokens };
+    }
     // セットアップウィザードの手順3: ターンプレイヤーを設定する（無作為に選ぶのはgame-setup.js側）。
     // ここが「ターン」という概念の起点なので、通算ターン数・ラウンド数も1から始める。
     // startPlayerも記録しておく（NEXT_TURNで「一周した」を判定する基準にするため。
@@ -860,6 +884,12 @@ export function tutorialLockCard(side, color, cardId) {
 // players: [{ player: "A", side: "bottom" }, ...]（座席の時計回り順、game-setup.jsが組み立てる）
 export function setupAssignFirstCards(players, boost = false) {
   dispatch({ type: "SETUP_ASSIGN_FIRST_CARDS", players, boost });
+}
+
+// エイドス物語戦専用: 指定席の駒スキン＋ファーストカードを黒（noir）へ差し替える（eidos-story.jsが
+// 通常のセットアップ完了後に一度呼ぶ）。ローカル専用機能なのでonlineTransportは経由しない。
+export function applySeatNoir(seat) {
+  dispatch({ type: "APPLY_SEAT_NOIR", seat });
 }
 
 export function setupFillBoard(includeBlackWhite) {

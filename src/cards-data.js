@@ -82,9 +82,23 @@ function blankBoostCardDataUri(color) {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
+// エイドス物語戦専用の「効果なしの黒いファーストカード」（ユーザー要望2026-08-15）。エイドス(C)は
+// 通常の色付きファーストの代わりにこれを持つ。効果は一切持たず（CARD_EFFECTSに登録しない）、
+// idが "first-" で始まるので他のカードの効果の対象にもならない（isTargetableByOtherCardEffects）。
+// 絵柄はノワール・エイドス専用の駒スキンをそのまま使う（assets/cards/first-noir.webp、駒は
+// assets/pieces/noir.webp）。FIRST_CARDS（通常の配布用の山）には入れないので、普通の対戦で
+// 配られることはない（state.jsのAPPLY_SEAT_NOIRでエイドスのファーストだけ差し替える）。
+export const NOIR_FIRST_CARD = {
+  id: "first-noir",
+  name: "ノワール・エイドス",
+  color: "noir",
+  note: "エイドス専用の効果なしファーストカード。効果は持たず、他のカードの効果の対象にもならない。",
+  isNoir: true,
+};
+
 // カードid → 定義の逆引き（山札・手札等に入っている実際のトークンのcardIdから
 // 名前・色を引くために使う）。
-const ALL_CARDS = [...NORMAL_CARDS, ...ETERNAL_CARDS, ...FIRST_CARDS, ...BOOST_BLANK_FIRST_CARDS];
+const ALL_CARDS = [...NORMAL_CARDS, ...ETERNAL_CARDS, ...FIRST_CARDS, ...BOOST_BLANK_FIRST_CARDS, NOIR_FIRST_CARD];
 const CARD_BY_ID = new Map(ALL_CARDS.map((c) => [c.id, c]));
 
 export function getCardDefinition(cardId) {

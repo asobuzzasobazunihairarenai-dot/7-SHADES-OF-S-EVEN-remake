@@ -8,6 +8,8 @@
   --color-purple: #915da3;
   --color-white: #e2e8f0;
   --color-black: #1e293b;
+  /* エイドス物語戦専用の黒い駒(noir)の手番グロー色。7色には含まれない見た目専用の色。 */
+  --color-noir: #4b3f66;
   --color-rainbow: linear-gradient(135deg, #c70025, #ee781f, #fabe00, #22ac38, #1bb8ce, #f19ec2, #915da3);
 }
 
