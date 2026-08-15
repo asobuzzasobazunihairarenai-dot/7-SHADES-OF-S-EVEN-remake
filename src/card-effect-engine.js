@@ -15,7 +15,7 @@
 // 関数とプレイヤーに選ばせる関数を`helpers`として渡してもらう、他の箇所と同じ
 // 「呼び出し元に注入してもらう」設計）。
 
-import { getState, lockPlacedCard } from "./state.js";
+import { getState } from "./state.js";
 import { VERBS, TARGETS, TARGET_SELECTIONS, CARD_EFFECTS } from "./card-effects.js";
 import { getCardDefinition } from "./cards-data.js";
 import { COLORS, SEAT_TO_SIDE, SIDE_TO_SEAT, GATE_POSITIONS, SEAT_ORDER } from "./board-layout.js";
@@ -251,12 +251,25 @@ export function isHandEffectOptionUsable(cardId, cardTokenId, player, option) {
     const selfPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === player);
     if (!selfPiece?.location || getOpponentPieceCellsWithinRange(selfPiece.location, swap.count, player).length === 0) return false;
   }
-  // 黒のキューブ ノワール(first-noir, LOCK_SELF_PLACED)専用: このカードが「置いている」状態
-  // （placed:true、まだ正式ロックしていない）の時だけ使える。一度ロックしたら二度目は使えない。
-  const lockSelf = option.actions?.find((a) => a.verb === VERBS.LOCK_SELF_PLACED);
-  if (lockSelf) {
-    const tok = getState().tokens.find((t) => t.id === cardTokenId);
-    if (!tok || tok.location.zone !== "lock" || !tok.placed) return false;
+  // 黒のキューブ ノワール(first-noir, LOCK_HAND_CARD_INTO_NOIR_SLOT)専用: ノワールの置かれた
+  // 色スロットにまだロック札（非placed）が無く、かつ手札にロックできるカードがある時だけ使える。
+  // 一度ロックするとスロットが埋まって使えなくなり、そのロック札が除去されて空けば再度使える。
+  const lockIntoNoir = option.actions?.find((a) => a.verb === VERBS.LOCK_HAND_CARD_INTO_NOIR_SLOT);
+  if (lockIntoNoir) {
+    const noir = getState().tokens.find((t) => t.id === cardTokenId);
+    if (!noir || noir.location.zone !== "lock") return false;
+    const { side, index } = noir.location;
+    const alreadyLocked = getState().tokens.some(
+      (t) =>
+        t.kind === "card" &&
+        t.id !== noir.id &&
+        t.location.zone === "lock" &&
+        t.location.side === side &&
+        t.location.index === index &&
+        !t.placed
+    );
+    if (alreadyLocked) return false;
+    if (getHandTokens(player).length === 0) return false;
   }
   return true;
 }
@@ -725,15 +738,32 @@ async function runAction(action, ctx, helpers) {
       }
       return true;
     }
-    case VERBS.LOCK_SELF_PLACED: {
-      // 黒のキューブ ノワール(first-noir)専用: このカードは「置いている」状態でロックエリアにある。
-      // その色スロットに正式にロックする（placedフラグを外す→victoryのロック数に数えられるように
-      // なる）。既にロック済み（placedでない）なら何もしない（善処の原則）。後続のDRAW/MOVEは
-      // 「そうしたなら（＝このロックが成立したら）」の部分（この効果はplaced時のみ発動する＝
-      // canUseHandEffectがplacedをゲートするので、実際に走る時は必ず成立する）。
-      const tok = getState().tokens.find((t) => t.id === ctx.cardTokenId);
-      if (!tok || tok.location.zone !== "lock" || !tok.placed) return false;
-      lockPlacedCard(ctx.cardTokenId);
+    case VERBS.LOCK_HAND_CARD_INTO_NOIR_SLOT: {
+      // 黒のキューブ ノワール(first-noir)専用: ノワールの置かれた色スロットへ、手札のカードを
+      // 1枚ロックする（色一致は問わない＝ノワールのスロットに任意のカードを置ける）。ノワール
+      // 自身は「置いている」プレースホルダーとしてそのまま残る。スロットに既にロック札（非placed）
+      // があれば何もしない（善処の原則。除去されて空けば再度使える）。手札が無くても何もしない。
+      const noir = getState().tokens.find((t) => t.id === ctx.cardTokenId);
+      if (!noir || noir.location.zone !== "lock") return false;
+      const { side, index } = noir.location;
+      const alreadyLocked = getState().tokens.some(
+        (t) =>
+          t.kind === "card" &&
+          t.id !== noir.id &&
+          t.location.zone === "lock" &&
+          t.location.side === side &&
+          t.location.index === index &&
+          !t.placed
+      );
+      if (alreadyLocked) return false;
+      const handTokens = getHandTokens(ctx.player);
+      if (handTokens.length === 0) return false;
+      const handIds = new Set(handTokens.map((t) => t.id));
+      const chosen = await helpers.pickHandCard(ctx.player, "ノワールのスロットにロックするカードを手札から選択してください", handIds, {
+        purpose: "lock",
+      });
+      if (!chosen) return false;
+      await helpers.moveAndSync(chosen.id, { zone: "lock", side, index });
       return true;
     }
     case VERBS.PICKUP_DISCARD_SECOND_FROM_TOP: {
