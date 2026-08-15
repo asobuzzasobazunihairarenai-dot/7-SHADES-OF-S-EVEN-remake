@@ -15,8 +15,8 @@
 // 関数とプレイヤーに選ばせる関数を`helpers`として渡してもらう、他の箇所と同じ
 // 「呼び出し元に注入してもらう」設計）。
 
-import { getState } from "./state.js";
-import { VERBS, TARGETS, TARGET_SELECTIONS, CARD_EFFECTS } from "./card-effects.js";
+import { getState, lockPlacedCard } from "./state.js";
+import { VERBS, TARGETS, TARGET_SELECTIONS, CARD_EFFECTS, generateEffectText } from "./card-effects.js";
 import { getCardDefinition } from "./cards-data.js";
 import { COLORS, SEAT_TO_SIDE, SIDE_TO_SEAT, GATE_POSITIONS, SEAT_ORDER } from "./board-layout.js";
 import { logAction } from "./action-log.js";
@@ -251,6 +251,13 @@ export function isHandEffectOptionUsable(cardId, cardTokenId, player, option) {
     const selfPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === player);
     if (!selfPiece?.location || getOpponentPieceCellsWithinRange(selfPiece.location, swap.count, player).length === 0) return false;
   }
+  // ノワール・エイドス(first-noir, LOCK_SELF_PLACED_DRAW)専用: このカードが「置いている」状態
+  // （placed:true、まだ正式ロックしていない）の時だけ使える。一度ロックしたら二度目は使えない。
+  const lockSelf = option.actions?.find((a) => a.verb === VERBS.LOCK_SELF_PLACED_DRAW);
+  if (lockSelf) {
+    const tok = getState().tokens.find((t) => t.id === cardTokenId);
+    if (!tok || tok.location.zone !== "lock" || !tok.placed) return false;
+  }
   return true;
 }
 
@@ -317,6 +324,14 @@ export function canUseHandEffect(cardId, cardTokenId, player) {
 // main.js側の「クリックしたが手札効果自体を持っていないカードなら何もしない」判定用。
 export function hasHandEffectData(cardId) {
   return getHandEffectOptions(cardId).length > 0;
+}
+
+// ホバー時に見せる手札効果の説明文（ノワール・エイドス等、カード画像に効果テキストが印刷されて
+// いないカード用。ユーザー要望#108「ホバーで効果説明が出るように」）。手札効果データが無ければnull。
+export function getCardHandEffectText(cardId) {
+  const def = CARD_EFFECTS[cardId];
+  if (!def?.handEffect) return null;
+  return generateEffectText(def.handEffect);
 }
 
 // ゴメンナサイッ！・カウンターロックのように、手札効果が「あなたへのロック/接触の
@@ -715,6 +730,16 @@ async function runAction(action, ctx, helpers) {
       for (const p of players) {
         await helpers.drawCards(p, action.count);
       }
+      return true;
+    }
+    case VERBS.LOCK_SELF_PLACED_DRAW: {
+      // ノワール・エイドス(first-noir)専用: このカードは「置いている」状態でロックエリアにある。
+      // そのマスに正式にロックし（placedフラグを外す→victoryのロック数に数えられるようになる）、
+      // そうしたなら指定枚数ドローする。既にロック済み（placedでない）なら何もしない（善処の原則）。
+      const tok = getState().tokens.find((t) => t.id === ctx.cardTokenId);
+      if (!tok || tok.location.zone !== "lock" || !tok.placed) return false;
+      lockPlacedCard(ctx.cardTokenId);
+      await helpers.drawCards(ctx.player, action.count ?? 3);
       return true;
     }
     case VERBS.PICKUP_DISCARD_SECOND_FROM_TOP: {

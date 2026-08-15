@@ -39,6 +39,7 @@ import {
   rotatedActivePlayersFrom,
   isMovementDisabledThisTurn,
   getLockableHandTokensExceptFinal,
+  getCardHandEffectText,
 } from "./card-effect-engine.js";
 import {
   reconcilePhaseAutomation,
@@ -3806,6 +3807,25 @@ export function performPriorityTimeoutAutoAction() {
     if (isTarget && lockable.length > 0) {
       const chosen = pickRandomFrom(lockable);
       performLockPhaseClick(chosen.id, { skipConfirm: true, actingSeat: player }); // 自動実行なので確認モーダルは出さない
+      return true;
+    }
+  }
+  // #108: エイドスのノワール(first-noir)は開始時「置いている」だけの状態（まだ正式ロックでない＝
+  // 7色カウント外）。その手札効果「そのマスにロックする＋3ドロー」は常に得なので、ロックエリアに
+  // ある使えるfirst-noirがあればCPUは最優先で使う。CPUの一般的な手札効果スキャン（下）は手札/公開
+  // エリアしか見ずロックエリアのこのカードを拾わないため、ここで別途拾う（これをやらないと本気戦の
+  // エイドスはそのスロットを永久に埋められず7色を揃えられない）。
+  if (phase === "hand" && !isHandEffectBusy() && (isCpuBrainDriving(driveSeat) || isPseudoCpuTarget(driveSeat))) {
+    const noir = getState().tokens.find(
+      (t) =>
+        t.kind === "card" &&
+        t.cardId === "first-noir" &&
+        t.location.zone === "lock" &&
+        SIDE_TO_SEAT[t.location.side] === driveSeat &&
+        canUseHandEffect(t.cardId, t.id, driveSeat)
+    );
+    if (noir) {
+      runAutoHandEffect(noir.cardId, noir.id, driveSeat);
       return true;
     }
   }
@@ -8129,8 +8149,32 @@ function updatePreview(el, clientX, clientY) {
     return;
   }
   preview.style.backgroundImage = `url("${imagePath}")`;
+  // ノワール・エイドス(first-noir)等、カード画像に効果テキストが印刷されていないカードは、
+  // ホバー時に効果説明をキャプションとして重ねて出す（ユーザー要望#108）。それ以外のカードは
+  // 画像自体に効果文が描かれているのでキャプションは出さない。
+  const cardId = getVisibleCardId(el);
+  const effectText = cardId === "first-noir" ? getCardHandEffectText(cardId) : null;
+  updatePreviewEffectCaption(preview, effectText);
   positionPreviewPanel(preview, clientX, clientY);
   preview.style.display = "block";
+}
+
+// #card-preview の下部に重ねる効果説明キャプション（first-noir用）。effectTextがnullなら消す。
+let previewCaptionEl = null;
+function updatePreviewEffectCaption(preview, effectText) {
+  if (!effectText) {
+    if (previewCaptionEl) previewCaptionEl.style.display = "none";
+    return;
+  }
+  if (!previewCaptionEl) {
+    previewCaptionEl = document.createElement("div");
+    previewCaptionEl.id = "card-preview-effect-caption";
+    preview.appendChild(previewCaptionEl);
+  } else if (previewCaptionEl.parentElement !== preview) {
+    preview.appendChild(previewCaptionEl);
+  }
+  previewCaptionEl.textContent = effectText;
+  previewCaptionEl.style.display = "block";
 }
 
 // ユーザー要望「駒にカーソルをかざすと全部の駒にプレイヤー名が吹き出すようにしたい」。

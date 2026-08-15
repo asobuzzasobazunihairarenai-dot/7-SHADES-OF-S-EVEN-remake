@@ -556,13 +556,24 @@ function reduce(current, action) {
           typeof t.cardId === "string" &&
           t.cardId.startsWith("first-")
         ) {
-          return { ...t, cardId: "first-noir" };
+          // placed:true ＝「置いている」状態（＝まだ正式にロックしていない）。victory.jsの
+          // ロック数集計はこのフラグを除外するので、手札効果(LOCK_SELF_PLACED_DRAW)で
+          // 正式ロックするまで7色勝利のカウントに含まれない（ユーザー要望#108）。
+          return { ...t, cardId: "first-noir", placed: true };
         }
         if (t.kind === "piece" && t.player === action.seat) {
           return { ...t, color: "noir" };
         }
         return t;
       });
+      return { ...current, tokens };
+    }
+    // ノワール・エイドス(first-noir)の手札効果: 「置いている」カードをそのマスに正式にロックする
+    // （placedフラグを外す）。card-effect-engine.jsのLOCK_SELF_PLACED_DRAWから呼ばれる。
+    case "LOCK_PLACED_CARD": {
+      const tokens = current.tokens.map((t) =>
+        t.id === action.tokenId && t.placed ? { ...t, placed: false } : t
+      );
       return { ...current, tokens };
     }
     // セットアップウィザードの手順3: ターンプレイヤーを設定する（無作為に選ぶのはgame-setup.js側）。
@@ -890,6 +901,12 @@ export function setupAssignFirstCards(players, boost = false) {
 // 通常のセットアップ完了後に一度呼ぶ）。ローカル専用機能なのでonlineTransportは経由しない。
 export function applySeatNoir(seat) {
   dispatch({ type: "APPLY_SEAT_NOIR", seat });
+}
+
+// ノワール・エイドス(first-noir)の手札効果専用: 「置いている」カードをそのマスに正式ロックする
+// （placedを外す）。ローカル専用（エイドス物語戦のみ）なのでonlineTransportは経由しない。
+export function lockPlacedCard(tokenId) {
+  dispatch({ type: "LOCK_PLACED_CARD", tokenId });
 }
 
 export function setupFillBoard(includeBlackWhite) {

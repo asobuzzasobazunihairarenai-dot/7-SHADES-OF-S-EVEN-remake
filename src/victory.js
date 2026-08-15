@@ -87,7 +87,10 @@ function lockedColorIndexes(player) {
           t.kind === "card" &&
           t.location.zone === "lock" &&
           t.location.side === side &&
-          !isColorlessLockCard(t.cardId)
+          !isColorlessLockCard(t.cardId) &&
+          // ノワール・エイドス(first-noir)は「置いている」状態(placed)の間はまだ正式にロックして
+          // いないので数えない（手札効果でロックするとplacedが外れて数えられる）。ユーザー要望#108。
+          !t.placed
       )
       .map((t) => t.location.index)
   );

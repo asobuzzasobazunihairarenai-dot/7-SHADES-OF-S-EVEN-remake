@@ -67,6 +67,9 @@ export const VERBS = {
   ANNOUNCE_MOVEMENT_BOOST_THIS_TURN: "announce_movement_boost_this_turn", // 紫のキューブ ディメンション専用: このターンの通常の移動が2マス一気になる（このアプリは元々移動先を制限しないため、実際には案内のみ）
   // 続き45（ユーザーがdocs/cards.mdの空欄だった効果文を補完）で新設。
   LOCK_ONE_HAND_CARD_EXCEPT_FINAL: "lock_one_hand_card_except_final", // 桃のキューブ セレナーデ専用: 手札を1枚選んでロックする（通常の色一致ルール、ただし7色目＝勝利になるロックは対象外）
+  // ノワール・エイドス(first-noir)専用: このカードは「置いている」状態でロックエリアに置かれて
+  // いる（＝まだロックされていない）。この効果でそのマスに正式にロックし、そうしたなら3枚ドロー。
+  LOCK_SELF_PLACED_DRAW: "lock_self_placed_draw",
 };
 
 // 効果の主語（誰が対象か）。
@@ -611,6 +614,18 @@ export const CARD_EFFECTS = {
     },
   },
 
+  // ノワール・エイドス（黒、エイドス物語戦専用のファーストカード）。ユーザー要望2026-08-15。
+  // このカードは開始時からエイドスのロックエリアに「置いている」状態（＝まだロックしていない・
+  // 7色勝利のカウントに含まれない）。手札効果で、そのマスに正式にロックし、そうしたなら3枚
+  // ドローする。追色コストは無し。ロックエリアに置かれていても使える（idが"first-"始まりなので
+  // is-usable-while-lockedの光る演出＋クリック使用フローの対象に自動的に乗る）。1度ロックしたら
+  // 「置いている」状態ではなくなるので二度目は使えない（isHandEffectOptionUsableでガード）。
+  "first-noir": {
+    handEffect: {
+      actions: [{ verb: VERBS.LOCK_SELF_PLACED_DRAW, count: 3 }],
+    },
+  },
+
   // 選べる罠（青、通常カード） 到達効果: 「以下の効果のうち1つ得る。・あなたの手札を
   // 半分捨てる。・あなたのゲートに強制移動する。・あなたのロックしているカードを1枚
   // 捨てる。」なないろの欠片のhandEffectOptionsと同じ「複数選択肢から1つ」の考え方だが、
@@ -823,6 +838,8 @@ function renderAction(action, context) {
       return "このターンの通常の移動は２マス先に一気に移動する。";
     case VERBS.LOCK_ONE_HAND_CARD_EXCEPT_FINAL:
       return "あなたの手札を１枚ロックする、ただし最後のロックはできない。";
+    case VERBS.LOCK_SELF_PLACED_DRAW:
+      return `このカードが置かれたロックエリアにロックする。そうしたなら${toFullWidthNumber(action.count ?? 3)}枚ドロー。`;
     case VERBS.PICKUP_TO_HAND: {
       const zoneLabel = action.withinCells
         ? `${toFullWidthNumber(action.withinCells)}マス以内の`
