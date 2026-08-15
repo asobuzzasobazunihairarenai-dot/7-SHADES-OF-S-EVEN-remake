@@ -19,7 +19,10 @@
 
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 
-const MAX_ENTRIES = 300;
+// 診断ログ(diag-*)が多く、300件だとバグ報告時に肝心の履歴（dispatch/arrival/effect-verb等）が
+// すぐ押し出されてしまっていた。診断ログ自体は継続中のバグ調査に有用なので消さず、代わりに
+// バッファを広げて有用な履歴が長く残るようにする（1件は小さなオブジェクトなのでメモリ影響は軽微）。
+const MAX_ENTRIES = 800;
 let entries = [];
 let enabled = true;
 
