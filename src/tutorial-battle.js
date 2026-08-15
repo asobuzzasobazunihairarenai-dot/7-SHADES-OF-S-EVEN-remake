@@ -689,6 +689,7 @@ function buildSteps() {
       body: [
         "あなたのターンです。CPU先生がゲートから出たので、盤面の奥にある相手のゲートが空いています。",
         "ムーブフェイズで、その空いた相手ゲートへ攻め込みましょう。ターン終了時に相手ゲートへ自分の駒が乗っていると「相手ゲート侵攻ボーナス」が発生します。",
+        "※本来ムーブは1マスずつしか進めませんが、今回は特別に、タップした相手ゲートまで一気に進みます（本番では複数ターンかけて近づきます）。",
       ],
       highlights: (state) => [{ selector: cellSel(CPU_GATE), strong: true }, ...selfPieceHl(state)],
       buttonLabel: "次へ",
@@ -716,22 +717,15 @@ function buildSteps() {
       highlights: (state) => selfPieceHl(state),
       buttonLabel: "ターンを終了する →",
     },
-    // 24: ゲート侵攻ボーナスの台本演出（エターナル緑を獲得＆ロック＝7色目）。
+    // 24: ゲート侵攻ボーナスの台本演出（相手手札を半分奪取＋エターナル緑を獲得＆ロック＝7色目）。
+    // これが最後のステップ。以前はこの後に「7色そろえて勝利！🎉」の勝利モーダル(narrate)を出して
+    // いたが、ユーザー要望2026-08-15で削除（演出の直後に物語の完了シーンSCENE2へ繋ぐため、勝利
+    // モーダルは冗長）。演出が終わると goToStep が末尾を超え、finishTutorialBattle("completed")
+    // ＝完了ハンドラ（eidos-story.jsの完了シーン→エイドス戦）へ遷移する。
     {
       kind: "reveal",
-      tip: "相手ゲート侵攻ボーナス発生中… エターナルカード「緑」を獲得！",
+      tip: "相手ゲート侵攻ボーナス発生中…",
       runReveal: scriptGateInvasionWin,
-    },
-    // 25: 勝利。
-    {
-      kind: "narrate",
-      title: "7色そろえて勝利！ 🎉",
-      body: [
-        "エターナルカード「緑」をロックし、7色すべてがそろいました。あなたの勝ちです！",
-        "ロック・ハンド・ムーブの3フェイズ、到達効果、手札効果、接触、そして相手ゲート侵攻ボーナスまで体験できました。これで基本はバッチリです。おつかれさまでした！",
-      ],
-      buttonLabel: "とじる",
-      isLast: true,
     },
   ];
 }
@@ -809,7 +803,10 @@ async function goToStep(index) {
   stepIndex = index;
   const step = steps[index];
   if (!step) {
-    finishTutorialBattle();
+    // 末尾を超えた＝最終ステップまで到達し切った＝完了。中断（「終了する」ボタン）とは区別し、
+    // 完了ハンドラ（物語の完了シーン→エイドス戦）へ遷移する。最終ステップの演出(reveal)の後は
+    // isLast の「とじる」ボタンを廃したため、この経路が正規の完了経路になる。
+    finishTutorialBattle("completed");
     return;
   }
   if (step.onEnter) step.onEnter();
@@ -1083,11 +1080,36 @@ async function scriptCpuLeaveGate() {
 async function scriptGateInvasionWin() {
   const side = SEAT_TO_SIDE[SELF_SEAT];
   const greenIdx = COLORS.indexOf(WINNING_COLOR); // 緑
-  await delay(700);
+  await delay(500);
+
+  // 演出①: 相手ゲート侵攻ボーナス＝相手の手札を半分（切り上げ）奪う。CPUの手札から1枚ずつ、
+  // 自分の手札へ飛翔アニメ（ドロー演出を流用＝裏向きゴースト）で移す。CPUの手札は裏向きなので、
+  // 奪った瞬間に自分の手札で表向きになる。ユーザー要望「実際に半分手札を奪う演出が欲しい」。
+  const cpuHand = getState().tokens.filter(
+    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === CPU_SEAT
+  );
+  const stealCount = Math.ceil(cpuHand.length / 2);
+  if (stealCount > 0) {
+    showTip(`相手ゲート侵攻ボーナス！ 相手の手札を半分（${stealCount}枚）奪取！`);
+    await delay(500);
+    for (let i = 0; i < stealCount; i++) {
+      const card = cpuHand[i];
+      if (!card) break;
+      if (flyDrawnCardToHandHelper) await flyDrawnCardToHandHelper(SELF_SEAT, card.cardId);
+      moveToken(card.id, { zone: "hand", player: SELF_SEAT });
+      await delay(320);
+    }
+    await delay(500);
+  }
+
+  // 演出②: 盤外の「エターナルカード（緑）」を獲得し、7色目としてロックする。ドロー→ロックの間を
+  // 取り、ロック効果アニメで締める。ユーザー要望「エターナル獲得演出が欲しい」。
+  showTip("盤外のエターナルカード「緑」を獲得！ 7色コンプリートまであと1枚…");
+  await delay(600);
   drawFromPile("eternal", { zone: "lock", side, index: greenIdx });
-  await delay(450);
+  await delay(550);
   if (triggerLockEffectHelper) triggerLockEffectHelper(`eternal-${WINNING_COLOR}`, { zone: "lock", side, index: greenIdx });
-  await delay(1100);
+  await delay(1400);
 }
 
 // --- タップ操作（前方移動・手札効果・接触） --------------------------------------------

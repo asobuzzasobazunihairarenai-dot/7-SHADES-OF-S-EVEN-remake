@@ -5464,6 +5464,14 @@ body.eidos-dialogue-open .self-status-large-avatar,
 body.eidos-dialogue-open .self-status-large-avatar-ghost {
   display: none;
 }
+/* ユーザー報告2026-08-15: 会話（特に導入SCENE1）の背後に見えている自分の手札が邪魔なので、
+   会話中は手札も隠す。盤面下の手札(.zone-bottom .hand-area)と、手札固定オプション時の
+   固定オーバーレイ(#self-hand-overlay)の両方。会話中は盤面操作をロックしているため手札を
+   隠しても支障はない。 */
+body.eidos-dialogue-open .zone-bottom .hand-area,
+body.eidos-dialogue-open #self-hand-overlay {
+  display: none;
+}
 .eidos-dialogue-hint {
   margin-top: 0.5rem;
   font-size: 0.72rem;
