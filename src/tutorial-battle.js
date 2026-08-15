@@ -1103,7 +1103,10 @@ async function scriptGateInvasionWin() {
   const cpuHand = getState().tokens.filter(
     (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === CPU_SEAT
   );
-  const stealCount = Math.ceil(cpuHand.length / 2);
+  // 本番のゲート侵攻と同じ「半分（端数切り捨て）」に合わせる（gate-invasion.js の
+  // Math.floor(defenderHand.length / 2)）。以前は Math.ceil で、5枚のとき3枚奪ってしまっていた
+  // （ユーザー報告2026-08-15。正しくは2枚）。
+  const stealCount = Math.floor(cpuHand.length / 2);
   if (stealCount > 0) {
     showTip(`相手ゲート侵攻ボーナス！ 相手の手札を半分（${stealCount}枚）奪取！`);
     await delay(500);

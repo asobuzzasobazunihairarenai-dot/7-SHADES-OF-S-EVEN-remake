@@ -61,7 +61,16 @@ function buildSimpleModal({ widthRem = 24, fadeIn = false, autoDismissMs = null,
     border-radius: 0.5rem; padding: 1rem; z-index: 10002;
     font-family: sans-serif; color: #e2e8f0; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
   `;
+  // #105: close は複数の経路（背景クリック・モーダルクリック・✕・自動タイムアウト）から呼ばれ得る。
+  // 以前は毎回 onClose を呼んでいたため、手動で閉じた後に自動タイムアウトのタイマーが再度 close を
+  // 呼び、onClose（＝maybeShowGameStartIntros 等の副作用）が二重に走っていた（説明モーダルが1ゲームで
+  // 2回出る）。冪等化し、自動タイムアウトのタイマーも閉じる時に必ず解除して、onClose を一度だけ呼ぶ。
+  let closed = false;
+  let dismissTimer = null;
   const close = () => {
+    if (closed) return;
+    closed = true;
+    if (dismissTimer) clearTimeout(dismissTimer);
     backdrop.remove();
     modal.remove();
     onClose?.();
@@ -101,7 +110,7 @@ function buildSimpleModal({ widthRem = 24, fadeIn = false, autoDismissMs = null,
   // あり閉じ忘れやすく、「何をクリックしても反応しない」という形で発覚しがちなため、
   // 一定時間で自動的に閉じる保険を用意した（ユーザーが閉じ忘れても詰まない安全策）。
   if (autoDismissMs) {
-    setTimeout(close, autoDismissMs);
+    dismissTimer = setTimeout(close, autoDismissMs);
   }
   return { backdrop, modal, close };
 }
