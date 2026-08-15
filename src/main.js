@@ -6827,18 +6827,29 @@ async function runContractBrandCurseOnLock(player, brandId) {
 }
 // (a) ロックフェイズを「ロックせずに」終えた時、烙印が自分のロックエリアにあるなら1枚ドローしてよい
 // （任意）。phase-automation.jsのlock→hand遷移から呼ばれる（registerContractBrandHelpers）。
+// #112（ユーザー要望2026-08-15）: ★は烙印1枚ごとの効果。本気エイドスはノワールの両端に烙印を
+// 2枚置くため、ロックしなかった場合はロックエリアの烙印枚数分（＝2枚）ドローできる。1枚ずつ任意
+// なので、枚数分だけ独立に「引くか？」を尋ねる（1枚目は引いて2枚目は見送る、も可能）。
 async function offerContractBrandDrawIfNoLock(player) {
   if (contractBrandBusy) return;
-  if (!findContractBrandInLockAreaOf(player)) return;
+  const brandCount = getState().tokens.filter(
+    (t) => t.kind === "card" && t.cardId === "black-contract-brand" && t.location.zone === "lock" && t.location.side === SEAT_TO_SIDE[player]
+  ).length;
+  if (brandCount === 0) return;
   contractBrandBusy = true;
   try {
     const brandName = getCardDefinition("black-contract-brand")?.name || "誘惑の黒の烙印";
-    const wantsDraw = await confirmGenericYesNo(`🖋 ${brandName}：ロックしなかったので1枚ドローできます。ドローしますか？（任意）`, {
-      yesLabel: "ドローする",
-      noLabel: "しない",
-      owner: player,
-    });
-    if (wantsDraw) {
+    for (let i = 0; i < brandCount; i++) {
+      const label =
+        brandCount > 1
+          ? `🖋 ${brandName}：ロックしなかったので、烙印${brandCount}枚のうち${i + 1}枚目のドローができます。ドローしますか？（任意）`
+          : `🖋 ${brandName}：ロックしなかったので1枚ドローできます。ドローしますか？（任意）`;
+      const wantsDraw = await confirmGenericYesNo(label, {
+        yesLabel: "ドローする",
+        noLabel: "しない",
+        owner: player,
+      });
+      if (!wantsDraw) continue;
       await drawCardsForEffect(player, 1);
       render();
       // ★(a)ドローが実際に起きたことを明示（ユーザー要望2026-08-15「烙印ドローがわかりづらい」）。

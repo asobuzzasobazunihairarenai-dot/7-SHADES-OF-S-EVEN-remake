@@ -39,7 +39,7 @@ import {
   flashWarning,
   showRestartButton,
   hideRestartButton,
-  showQuitButton,
+  showSkipButton,
   teardownTutorialBattleUi,
 } from "./tutorial-battle-ui.js";
 
@@ -1360,11 +1360,14 @@ export function startTutorialBattle() {
   restStateFor = [];
   if (!unsubscribe) unsubscribe = subscribe(onDriverState);
   showRestartButton(restartTutorialBattle);
-  // 左上の「終了する」ボタン（ユーザー要望）。押すと確認のうえチュートリアルを畳んで
-  // ホーム画面へ戻る（finishTutorialBattle）。
-  showQuitButton(() => {
-    if (window.confirm("チュートリアルを終了してホーム画面に戻りますか？")) {
-      finishTutorialBattle();
+  // 「遊び方を知っているのでスキップ」ボタン（ユーザー要望2026-08-15: 従来の「終了する」＝
+  // ホームへ戻るを廃止し、操作チュートリアルを飛ばして先の物語（SCENE2→エイドス戦）へ進める
+  // スキップに置き換え）。startTutorialBattleの間ずっと表示される（＝常に表示）。押すと確認の
+  // うえ finishTutorialBattle("completed") を呼び、通常クリアと同じ完了ハンドラ（onCompleteFn）
+  // へ委譲する（ホームには戻らない）。
+  showSkipButton(() => {
+    if (window.confirm("遊び方を知っているので、操作チュートリアルをスキップして先へ進みますか？")) {
+      finishTutorialBattle("completed");
     }
   });
   goToStep(0);
