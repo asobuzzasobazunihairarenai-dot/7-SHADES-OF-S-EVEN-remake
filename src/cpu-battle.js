@@ -67,8 +67,9 @@ export async function startCpuBattle() {
 
 // オープニングを閉じて盤面を見せた「後」に呼ぶ。空の盤面の上で、2人対戦(A/C)のセットアップ
 // を演出付き（quickStartのファースト配布・盤面配置アニメ）で実際に見せながら開始する。
-export async function runCpuBattleSetup({ noirSeat = null } = {}) {
+export async function runCpuBattleSetup({ noirSeat = null, noirBrands = false } = {}) {
   // noirSeat: エイドス物語戦で相手(C)のファースト・駒を黒(noir)にする（配布アニメーションの前に
   // 適用されるので最初から黒く見える）。通常のCPU戦ではnull（＝差し替えなし）。
-  await quickStart(2, false, false, noirSeat);
+  // noirBrands: 本気エイドス戦で、ノワールの両端スロットに「誘惑の黒の烙印」を置いて開始する。
+  await quickStart(2, false, false, noirSeat, noirBrands);
 }

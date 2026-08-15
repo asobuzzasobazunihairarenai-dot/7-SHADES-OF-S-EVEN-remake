@@ -230,7 +230,11 @@ async function startStoryBattle(stage, { practice = false } = {}) {
       // エイドス(C)の駒スキンとファーストカードを黒（noir）へ（ユーザー要望2026-08-15）。配布
       // アニメーションの前（setupAssignFirstCards直後）に適用されるので、最初から黒いカードが飛ぶ
       // （#108: 以前はセットアップ完了後に差し替えていたため配布中は元の色＝黄色等が見えていた）。
-      runCpuBattleSetup({ noirSeat: "C" }).catch((err) => console.error("runCpuBattleSetup(story) failed", err));
+      // 本気(advanced)エイドス戦だけ、ノワールの両端に「誘惑の黒の烙印」を置いて開始する
+      // （ユーザー要望2026-08-15）。易しい(intermediate)戦では置かない。
+      runCpuBattleSetup({ noirSeat: "C", noirBrands: stage === "advanced" }).catch((err) =>
+        console.error("runCpuBattleSetup(story) failed", err)
+      );
     }, 60);
   } catch (err) {
     console.error("startStoryBattle failed", err);

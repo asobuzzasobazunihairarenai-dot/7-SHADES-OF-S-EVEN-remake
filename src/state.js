@@ -548,6 +548,7 @@ function reduce(current, action) {
     // 始まりなので他のカードの効果の対象にもならない。通常のセットアップ完了後に一度だけ適用する。
     case "APPLY_SEAT_NOIR": {
       const side = SEAT_TO_SIDE[action.seat];
+      let noirIndex = null;
       const tokens = current.tokens.map((t) => {
         if (
           t.kind === "card" &&
@@ -560,6 +561,7 @@ function reduce(current, action) {
           // この状態でずっと残り、victory.jsのロック数集計はこのフラグを除外するので7色勝利の
           // カウントには含まれない。ノワールの手札効果は、この置かれた色スロットへ手札のカードを
           // 別途ロックする（そのロック札はplacedでないので数えられる。#108/ユーザー補足2026-08-15）。
+          noirIndex = t.location.index;
           return { ...t, cardId: "first-noir", placed: true };
         }
         if (t.kind === "piece" && t.player === action.seat) {
@@ -567,7 +569,24 @@ function reduce(current, action) {
         }
         return t;
       });
-      return { ...current, tokens };
+      // brands:true（本気エイドス戦）: ノワールの両端の色スロットに「誘惑の黒の烙印」を
+      // 「置いている」状態(placed)で配置する（ユーザー要望2026-08-15）。黒＝無色なので7色勝利の
+      // カウントには元々入らず、placedも付けるので「置いている」扱い。両端は色相環でラップアラウンド。
+      const brandTokens = [];
+      if (action.brands && noirIndex !== null) {
+        const n = COLORS.length;
+        for (const nb of [(noirIndex - 1 + n) % n, (noirIndex + 1) % n]) {
+          brandTokens.push({
+            id: uid("card"),
+            kind: "card",
+            cardId: "black-contract-brand",
+            faceUp: true,
+            placed: true,
+            location: { zone: "lock", side, index: nb },
+          });
+        }
+      }
+      return { ...current, tokens: [...tokens, ...brandTokens] };
     }
     // セットアップウィザードの手順3: ターンプレイヤーを設定する（無作為に選ぶのはgame-setup.js側）。
     // ここが「ターン」という概念の起点なので、通算ターン数・ラウンド数も1から始める。
@@ -892,8 +911,8 @@ export function setupAssignFirstCards(players, boost = false) {
 
 // エイドス物語戦専用: 指定席の駒スキン＋ファーストカードを黒（noir）へ差し替える（eidos-story.jsが
 // 通常のセットアップ完了後に一度呼ぶ）。ローカル専用機能なのでonlineTransportは経由しない。
-export function applySeatNoir(seat) {
-  dispatch({ type: "APPLY_SEAT_NOIR", seat });
+export function applySeatNoir(seat, brands = false) {
+  dispatch({ type: "APPLY_SEAT_NOIR", seat, brands });
 }
 
 

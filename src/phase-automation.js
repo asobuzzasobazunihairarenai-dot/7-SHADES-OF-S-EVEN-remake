@@ -329,7 +329,15 @@ function isLockSlotOccupied(player, color) {
   const colorIndex = COLORS.indexOf(color);
   if (colorIndex === -1) return false;
   return getState().tokens.some(
-    (t) => t.kind === "card" && t.location.zone === "lock" && SIDE_TO_SEAT[t.location.side] === player && t.location.index === colorIndex
+    (t) =>
+      t.kind === "card" &&
+      t.location.zone === "lock" &&
+      SIDE_TO_SEAT[t.location.side] === player &&
+      t.location.index === colorIndex &&
+      // 「置いている」だけのカード（ノワール／誘惑の黒の烙印）は正式なロックではないので、その
+      // スロットはまだ「空き」＝ロック可能として扱う（でないと本気エイドスは烙印を置いた色を
+      // 一生ロックできず勝てない。ユーザー要望2026-08-15）。
+      !t.placed
   );
 }
 // 1枚のカードがロックフェイズで実際にロックできるか（hasLockableCard/ハイライトの両方が

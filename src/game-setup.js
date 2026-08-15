@@ -385,7 +385,7 @@ async function runStep1() {
   // エイドス物語戦: 指定席(C)のファースト・駒を黒(noir)へ差し替える。配布アニメーション(下の
   // animateFirstCardsDealt)が始まる「前」に同期的に適用することで、最初から黒いカードが飛ぶ
   // （以前はセットアップ完了後に差し替えていたため、配布中は元の色のカードが見えていた＝#108）。
-  if (config.noirSeat) applySeatNoir(config.noirSeat);
+  if (config.noirSeat) applySeatNoir(config.noirSeat, !!config.noirBrands);
   await animateFirstCardsDealt();
 }
 
@@ -428,10 +428,10 @@ async function runAll() {
 // 座席自動選択モード（管理者モードのトグルがオフ）を前提にした人数固定の座席割り当てになる
 // （手動座席選択モードの時に「2人プレイで特定の2席だけ選ぶ」といった細かい指定はできない。
 // その場合は従来通りウィザードの０から手動で設定してもらう）。
-export async function quickStart(count, includeBlackWhite, boost = false, noirSeat = null) {
+export async function quickStart(count, includeBlackWhite, boost = false, noirSeat = null, noirBrands = false) {
   const activePlayers = AUTO_SEATS_BY_COUNT[count];
   if (!activePlayers) return;
-  config = { activePlayers, includeBlackWhite, boost, noirSeat };
+  config = { activePlayers, includeBlackWhite, boost, noirSeat, noirBrands };
   if (bodyEl) renderPanelBody();
   await runAll();
 }
