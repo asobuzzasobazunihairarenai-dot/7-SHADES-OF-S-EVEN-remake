@@ -27,6 +27,7 @@ import { getEidosScene, EIDOS_SCENE } from "./eidos-dialogue-scenes.js";
 import { startTutorialBattle, registerTutorialHomeOpener, registerTutorialCompleteHandler } from "./tutorial-battle.js";
 import { setPlayerName, setPlayerAvatar, getPlayerName } from "./player-identity.js";
 import { SEAT_LABELS } from "./board-layout.js";
+import { resetGame } from "./state.js";
 import {
   setCpuBattleActive,
   setEidosStoryStage,
@@ -209,6 +210,12 @@ async function teardownStoryBattle() {
   setEidosStoryStage(null);
   setPlayerName("C", "");
   setPlayerAvatar("C", null);
+  // #104: 勝利状態（7色ロック済み）の盤面を「同期的に」消す。これをやらないと、この後の
+  // resetVictoryTracking で勝利記録(announcedPlayers)が消えた後、勝敗シーンの描画中に
+  // checkForVictory が同じ勝者を再検出し、勝利モーダルが二重に出る／その二度目のモーダルの
+  // 閉じるコールバックが再戦開始後に走って勝敗会話が誤って再生される。resetGame を先に（同期で）
+  // 呼んで盤面を空にしてから記録をクリアする（間に非同期の隙を作らない）。
+  resetGame();
   try {
     const { resetVictoryTracking } = await import("./victory.js");
     resetVictoryTracking(); // 次にまた勝利演出が出るように勝利記録をクリア

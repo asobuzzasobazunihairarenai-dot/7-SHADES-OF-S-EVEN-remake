@@ -196,20 +196,26 @@ export function checkForVictory() {
       // 全クライアント（勝者本人・傍観者それぞれ）がここを通っても二重付与にはならない
       // （online.jsのso7_award_match_currencyコメント参照）。playerは今まさに7色揃えた
       // 本人＝勝者の座席なので、そのままボーナス対象の座席として渡す。
+      // 物語オンボーディングのエイドス戦中は、汎用の勝利モーダル自体を出さず、勝敗を
+      // eidos-story.js の結果ハンドラ（勝敗シーン→次の戦い/セプト獲得/ホームへ）へその場で
+      // 直接委譲する。以前は勝利モーダルの「閉じるコールバック」内で委譲していたが、その汎用
+      // モーダルが再戦開始後に閉じると誤って再委譲される・盤面の勝利状態が残って同じ勝者が
+      // 再検出され二重に出る、という事故があった(#104)。勝者確定のその場で委譲し、汎用の
+      // 勝利モーダルは一切挟まない（勝敗の告知はストーリーの勝敗シーンが担う）。
+      {
+        const storyStage = getEidosStoryStage();
+        const storyHandler = getEidosStoryResultHandler();
+        if (!isOnlineMode() && isCpuBattleActive() && storyStage && storyHandler) {
+          storyHandler({ winnerSeat: player, stage: storyStage });
+          return;
+        }
+      }
       showVictoryModal(player, async () => {
         if (!isOnlineMode()) {
           // ローカルCPU戦（1人用）: 人間が勝った時だけ毎回20コインを付与する
           // （ユーザー確定方針）。CPU(C)が勝った時は付与しない。未ログイン時は
           // awardCpuWinCurrencyが0を返すので演出も出ない（お金はアカウント紐付けのため）。
           // 順位・戦績・ポストゲームパネルはオンライン専用のためCPU戦では出さない。
-          // 物語オンボーディングのエイドス戦中は、コイン付与も汎用終了パネルも出さず、勝敗を
-          // eidos-story.js の結果ハンドラへ委譲する（勝敗シーン→次の戦い/セプト獲得/ホームへ）。
-          const storyStage = getEidosStoryStage();
-          const storyHandler = getEidosStoryResultHandler();
-          if (isCpuBattleActive() && storyStage && storyHandler) {
-            storyHandler({ winnerSeat: player, stage: storyStage });
-            return;
-          }
           if (isCpuBattleActive() && player === getSelfSeat()) {
             try {
               const amount = await awardCpuWinCurrency();

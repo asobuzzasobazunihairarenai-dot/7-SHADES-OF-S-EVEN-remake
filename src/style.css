@@ -5403,7 +5403,7 @@ body.is-phone-device #admin-panel {
   margin: 0 auto;
   width: min(52rem, 96vw);
   box-sizing: border-box;
-  min-height: 7rem;
+  min-height: 8rem;
   padding: 0.9rem 1.2rem 1rem;
   background: linear-gradient(160deg, rgba(15, 23, 32, 0.97), rgba(4, 12, 20, 0.97));
   border: 2px solid #7c5cff;
@@ -5430,7 +5430,10 @@ body.is-phone-device #admin-panel {
 .eidos-dialogue-text {
   font-size: 1.05rem;
   line-height: 1.6;
-  min-height: 3rem;
+  /* ユーザー報告2026-08-15「会話の度にウィンドウが微妙に上下する」。原因は本文の行数(1行/2行)で
+     本文帯の高さが変わり、その上に載る立ち絵・窓が上下していたこと。台本は概ね2行以内なので、
+     本文領域を2行分(=1.05rem×1.6×2≈3.4rem)で固定し、1行でも2行でも同じ高さにしてブレを無くす。 */
+  min-height: 3.4rem;
   white-space: pre-wrap;
 }
 .eidos-dialogue-choices {
@@ -5439,6 +5442,10 @@ body.is-phone-device #admin-panel {
   gap: 0.6rem;
   margin-top: 0.6rem;
   justify-content: center;
+  /* ヒント↔選択肢/入力の切替でも窓の高さが変わらないよう、フッター領域の高さを予約する
+     （選択肢の無い会話ステップでは下の .eidos-dialogue-hint が同じ高さを占める）。 */
+  min-height: 2.4rem;
+  align-items: center;
 }
 .eidos-dialogue-choice {
   padding: 0.5rem 1.1rem;
@@ -5500,6 +5507,11 @@ body.eidos-dialogue-open #self-hand-overlay {
   font-size: 0.72rem;
   color: #94a3b8;
   text-align: right;
+  /* 選択肢が出る時と同じ高さを占め、フッターの高さを一定に保つ（窓の上下ブレ防止）。 */
+  min-height: 2.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 @media (max-width: 768px) {
   .eidos-dialogue-stage {
@@ -5515,12 +5527,13 @@ body.eidos-dialogue-open #self-hand-overlay {
   .eidos-dialogue-body {
     width: 100vw;
     border-radius: 0;
-    min-height: 6rem;
+    min-height: 7rem;
     padding: 0.7rem 0.9rem 0.9rem;
   }
   .eidos-dialogue-text {
     font-size: 1rem;
-    min-height: 2.6rem;
+    /* 2行分(1rem×1.6×2=3.2rem)で固定して行数によるブレを無くす（デスクトップと同方針）。 */
+    min-height: 3.2rem;
   }
 }
 /* ライトテーマ: 会話パネルもアイボリー地＋紫アクセントに（他モーダルと系統を合わせる）。 */
