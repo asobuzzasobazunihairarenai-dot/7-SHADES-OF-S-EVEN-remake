@@ -4691,6 +4691,41 @@ function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ"
 
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
+    // 診断＋自己防衛（ユーザー報告2026-08-16「カウンターロックの『ロックしますか？』でボタンも
+    // 不具合報告アイコンも押せなくなった。PC・本気エイドス」）: このYes/Noモーダルは重要な確認の
+    // ため、表示直後にボタンが「別の要素に覆われていないか」を自前でヒットテストする。覆われて
+    // いたら (1)その要素の id/class/z-index/大きさ/pointer-events を行動ログに残し（再発時に犯人を
+    // 特定できるように）、(2)それが「透明・全画面級・このモーダル外」の“幽霊オーバーレイ”なら
+    // pointer-events:none を当てて無害化し、詰みを回避する（見た目のある要素・このモーダルの一部は
+    // 触らない）。owner がCPU（is-cpu-hidden）の時は表示しないので対象外。
+    const runBlockerSelfCheck = () => {
+      if (!modal.isConnected || modal.classList.contains("is-cpu-hidden")) return;
+      for (const btn of [yesBtn, noBtn]) {
+        const r = btn.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) continue;
+        const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        if (!top || top === btn || btn.contains(top) || modal.contains(top)) continue;
+        const cs = getComputedStyle(top);
+        const tr = top.getBoundingClientRect();
+        const desc = { id: top.id || null, cls: typeof top.className === "string" ? top.className : null, tag: top.tagName, z: cs.zIndex, pe: cs.pointerEvents, w: Math.round(tr.width), h: Math.round(tr.height) };
+        logAction("diag-modal-blocked", { modal: "generic-confirm", ...desc });
+        // 「見えないのにクリックを奪う」幽霊オーバーレイだけを無害化する。elementFromPointは
+        // pointer-events:none の要素を素通りするので、ここで返る＝pointer-eventsを持って“捕まえて
+        // いる”要素。かつ背景/不透明度が無い（＝目に見えない）なら、正規のモーダル/背景ではなく
+        // 取り残された捕獲レイヤーとみなして pointer-events:none を当て、詰みを解く（見た目のある
+        // 要素・このモーダル自身の背景 backdrop は触らない。stage の transform で大きさが当てに
+        // ならないため面積は条件にしない）。
+        const invisible = (cs.backgroundColor === "rgba(0, 0, 0, 0)" || cs.backgroundColor === "transparent" || parseFloat(cs.opacity) === 0) && cs.backgroundImage === "none";
+        if (invisible && top !== backdrop) {
+          top.style.pointerEvents = "none";
+          logAction("diag-modal-blocked", { modal: "generic-confirm", action: "neutralized-pointer-events", id: desc.id, cls: desc.cls });
+        }
+        break;
+      }
+    };
+    // 表示直後と少し後（オーバーレイが遅れて出るケース）に確認する。
+    requestAnimationFrame(() => setTimeout(runBlockerSelfCheck, 60));
+    setTimeout(runBlockerSelfCheck, 400);
     // CPUが答える番（CPUが防御側の接触承認・任意のはい/いいえ等）はこのモーダルを表示しない
     // （自動で解決される。人間が答えるのかと混乱するため）。owner（この選択の主体）を渡せる——
     // カウンターロックの「手札を1枚ロックしてもよい」等、相手（CPU）のターン中に人間の防御側が
