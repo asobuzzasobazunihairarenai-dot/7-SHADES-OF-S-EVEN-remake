@@ -7,6 +7,7 @@
 import { renderMyPageBody } from "./my-page.js";
 import { applyProfileLayout, registerProfileLayoutHelpers } from "./profile-layout-editor.js";
 import { syncFullScreenPageActive } from "./option-area.js";
+import { closeShopPanel } from "./shop.js";
 // マイデッキ編集はマイページ内の大ボタンへ移設（ユーザー要望2026-08-11）。
 import { openMyDeckList } from "./my-deck-list.js";
 
@@ -28,6 +29,9 @@ async function renderProfileBody() {
 
 export function openProfilePage(onClose) {
   if (overlayEl) return;
+  // #2026-08-16: ショップを開いたままだと裏に残るため、遷移先を開く時はショップを閉じる
+  // （プロフィールはショップより前面だが、他ページと挙動を揃える。ショップ未表示なら安全なno-op）。
+  closeShopPanel();
   overlayEl = document.createElement("div");
   overlayEl.id = "profile-page";
 

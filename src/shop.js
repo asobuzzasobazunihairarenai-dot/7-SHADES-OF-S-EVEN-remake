@@ -464,6 +464,15 @@ export function openShopPanel(initialCategoryKey) {
   document.body.classList.add("shop-open");
 }
 
+// ユーザー報告2026-08-16「ショップ画面でオプションエリアのランキング/ヘルプを押しても画面遷移
+// しない（背面に行っている）」。ランキング(#ranking-page z-index:1500)・ヘルプ(#help-panel 2501)は
+// ショップ(#shop-panel 2601)より背面のため、ショップを開いたまま開くと裏に隠れて見えない。
+// これらの遷移先を開く時にショップを閉じてから開くため、外から閉じられるようexportする
+// （shop未起動・未表示でも安全なno-op。close内でガード済み）。
+export function closeShopPanel() {
+  close();
+}
+
 export function initShop() {
   panelEl = buildPanel();
   panelEl.style.display = "none";

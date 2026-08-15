@@ -8,6 +8,7 @@ import { fetchLeaderboard } from "./stats-profile.js";
 import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { getOptionArea, syncFullScreenPageActive } from "./option-area.js";
+import { closeShopPanel } from "./shop.js";
 
 let overlayEl = null;
 let listEl = null;
@@ -153,6 +154,9 @@ function buildTabs() {
 
 export async function openRankingPage(onClose) {
   if (overlayEl) return;
+  // #2026-08-16: ショップから開くとランキング(1500)がショップ(2601)の背面に隠れるため、
+  // 先にショップを閉じてから開く（ショップ未表示なら安全なno-op）。ヘルプ/プロフィールも同様。
+  closeShopPanel();
   overlayEl = document.createElement("div");
   overlayEl.id = "ranking-page";
 

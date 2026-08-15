@@ -17,6 +17,7 @@ import { getHelpSections, startTutorial } from "./tutorial.js";
 import { GLOSSARY, FAQ_CATEGORIES, DIGITAL_FEATURES } from "./help-content.js";
 import { linkifyGlossary } from "./glossary-linkify.js";
 import { getOptionArea } from "./option-area.js";
+import { closeShopPanel } from "./shop.js";
 
 // 個別の説明を表示する小さなモーダル（トップの一覧からのクリックで開く。icon-action-button.js
 // のopenIconDetailModalと同じ「1個だけ使い回す」パターンだが、ヘルプ画面自身の裏に
@@ -166,6 +167,9 @@ export function buildHelpList() {
 let openFn = null;
 
 export function openHelpPanel() {
+  // #2026-08-16: ショップから開くとヘルプ(2501)がショップ(2601)の背面に隠れるため、先に
+  // ショップを閉じてから開く（ショップ未表示なら安全なno-op）。
+  closeShopPanel();
   openFn?.();
 }
 
