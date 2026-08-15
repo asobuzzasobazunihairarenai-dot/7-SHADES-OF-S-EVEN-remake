@@ -12551,3 +12551,45 @@ u=横方向・v=縦方向）にも使えるよう一般化した`rotateFraction(
   （黄のザ・ギャンブル）を加えると使用可能（=true）になることを確認。実際にCPUに使わせると、黄の
   スロットへ黄のカードがロックされ（色一致）、色違反0件になることを確認。`node --check`通過、
   `node test/smoke.mjs`はこの後確認。サーバー側（Supabase）の変更は無い。
+
+### 2026-08-16（続き113）：#120 — マイデッキ/烙印ドローが「📜行動ログ」に出ない・烙印が2枚とも引かれない（3件の修正）
+
+ユーザー報告#120（本気エイドス戦、マイデッキ有効）:「行動ログにマイデッキからのドローが出ていない。
+エイドスは相変わらず烙印ドローをしていない気がする」。3つの独立した原因を特定・修正した。
+
+- **①マイデッキ/烙印ドローが「📜行動ログ」窓に出ない**: アクションログには2系統の表示がある——
+  技術用パネル（openActionLogPanel、生の`category: {json}`をそのまま出す。ユーザーが貼るのはこれ）と、
+  ゲーム画面の友好ログ窓（📜行動ログ、`buildFriendlyLogItems`で日本語に整形）。ユーザーが貼った生ログには
+  `my-deck-draw`/`brand-draw`が確かに出ていたが、`buildFriendlyLogItems`が`arrival`/`hand-effect`/`lock`/
+  `declare-colors`/`diag-gate-invasion-received`しかケースを持たず、それ以外は`else→continue`で捨てて
+  いたため、友好ログ窓（＝ユーザーが見ている画面）にはマイデッキ/烙印ドローが一切出ていなかった。
+  両ケースを追加（「マイデッキから1枚ドローしました」「誘惑の黒の烙印の効果で1枚ドローしました（N枚目）」）。
+  複数枚の烙印ドローが友好ログ窓の連続dedupで1行にまとまらないよう、`brand-draw`のdetailに`index`(1..N)を
+  持たせ、メッセージに「N枚目」を付けて別行で見えるようにした。
+
+- **②烙印の★(a)ドローが2枚のうち1枚しか引かれない（レース）**: `offerContractBrandDrawIfNoLock`は
+  烙印の枚数分ループして各回Yes/Noを尋ねる非同期処理だが、lock→hand遷移からfire-and-forgetで呼ばれ、
+  以前は`contractBrandBusy`しか立てず`handEffectBusy`を立てていなかった。そのためループ途中でCPUの
+  ハンドフェイズのアクション（ノワールの手札効果等）が並行して割り込み、2枚目のドローが失われていた
+  （#117/#118の★(b)と同根）。★(b)と同じく`setHandEffectBusy(true)`（finallyで解除）を追加し、烙印ドローが
+  全部終わるまでフェイズ進行・CPUの次アクションを止めるようにした。
+
+- **③そもそもCPUが烙印ドローの「引く」を50%でしか選ばない（新人難易度＝既定）**: 烙印ドローのYes/Noは
+  `confirmGenericYesNo`が`activeEffectPicker(type:"option")`として登録し、`performPriorityTimeoutAutoAction`が
+  自動解決する。賢いCPU（中級以上）は`chooseEffectOption(picker.cardId, ...)`で選ぶが、
+  `confirmGenericYesNo`が`cardId`を渡していなかったため`chooseEffectOption(undefined,...)`となりOPTION_RANKに
+  載らず常にランダム。さらに既定難易度は「新人(rookie)」で、新人はそもそも`chooseEffectOption`を通らず
+  完全ランダム（yes/no 50%）だった。#115で足したOPTION_RANKの`black-contract-brand:{yes:1,no:0}`はこの
+  経路に効いていなかった。修正: `confirmGenericYesNo`に`cardId`と`cpuAutoResolveId`を渡せるようにし、
+  option解決に「`cpuAutoResolveId`があれば難易度に関わらず必ずその選択肢にする」分岐を追加。烙印ドローには
+  `cpuAutoResolveId:"yes"`を渡し、無条件で得な烙印ドローを新人CPUでも取りこぼさないようにした。
+
+- **検証**: ブラウザで本気エイドス戦（既定=新人難易度）を再現。(1)C(エイドス)が烙印ドローの局面で、
+  `brand-draw`が index=[1,2] の2件記録され、両方引かれることを確認。(2)友好ログ窓（📜行動ログ）に
+  「マイデッキから1枚ドローしました」「誘惑の黒の烙印の効果で1枚ドローしました」が表示されることを確認。
+  (3)レースケース（Cにノワールスロット色と一致する札を持たせてノワール効果を競合させる）で、
+  行動順が my-deck-draw → brand-draw#1 → brand-draw#2 → hand-effect(ノワール) となり、2枚とも
+  ノワール効果の前に引かれる（handEffectBusyが保持）ことを確認。`node test/smoke.mjs`は4回中3回PASS。
+  1回だけ「試練の儀式→合同建設（delegate/どこから置くか選択）」の連鎖でstall（既存のまれなフレーク、
+  #120の変更はこの連鎖に触れていない——合同建設の場所選択pickerはcpuAutoResolveId未指定のため今回の
+  option分岐を素通りする）。#120本体の3修正とは無関係。サーバー側（Supabase）の変更は無い。

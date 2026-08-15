@@ -3695,9 +3695,15 @@ export function performPriorityTimeoutAutoAction() {
       // 選択肢だけの中からランダムに1つ選ぶ（呼び出し元は必ず1つ以上usable:trueが
       // ある状態でしかこのモーダルを開かないため、ここが空になることは無い想定）。
       const usable = picker.options.filter((o) => o.usable);
-      // 賢いCPU（中級以上）は、カードごとに選択肢を評価して選ぶ（パーティ=拾う優先/選べる罠=被害最小
-      // 等。chooseEffectOption参照）。新人・未対応カードは従来通りランダム。
-      if (isCpuBrainDriving(driveSeat)) {
+      // #120: cpuAutoResolveId が指定されていれば、難易度（新人/中級/…）に関わらず必ずその選択肢に
+      // する。烙印ドローの「ドローする」のように、無条件で得な（戦略的な迷いが無い）選択を、
+      // 新人CPUのランダムで取りこぼさないようにするため（既定=新人だと烙印を2枚引かないことがあった）。
+      const forced = picker.cpuAutoResolveId ? usable.find((o) => o.id === picker.cpuAutoResolveId) : null;
+      if (forced) {
+        picker.resolve(forced);
+      } else if (isCpuBrainDriving(driveSeat)) {
+        // 賢いCPU（中級以上）は、カードごとに選択肢を評価して選ぶ（パーティ=拾う優先/選べる罠=被害最小
+        // 等。chooseEffectOption参照）。新人・未対応カードは従来通りランダム。
         picker.resolve(chooseEffectOption(picker.cardId, usable, driveSeat));
       } else {
         picker.resolve(pickRandomFrom(usable));
@@ -4650,7 +4656,7 @@ function confirmTouchAction(title, { cardId = null } = {}) {
 // confirmTouchActionと同じcontact-approval-*流用の汎用Yes/Noモーダルだが、こちらは
 // 誤操作防止用ではなく本当の任意選択（「〜してもよい」効果）向けのため、端末に関係なく
 // 常に表示する（続き89、カウンターロックの「あなたの手札を1枚ロックしてもよい」用に新設）。
-function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ", owner = null } = {}) {
+function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ", owner = null, cardId = null, cpuAutoResolveId = null } = {}) {
   return new Promise((resolve) => {
     const finish = (result) => {
       activeEffectPicker = null;
@@ -4703,6 +4709,13 @@ function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ"
     activeEffectPicker = {
       type: "option",
       owner, // 人間の防御側リアクション（#58）等では owner=人間の席。CPUの自動解決から守る。
+      // #120: cardIdを渡せるようにする。以前は未指定だったため、賢いCPUのoption解決
+      // （chooseEffectOption(picker.cardId, ...)）がcardId=undefinedでOPTION_RANKに載らず、
+      // 常にランダム（yes/no 50%）になっていた。烙印ドローのYes/Noに cardId:"black-contract-brand"
+      // を渡すと、OPTION_RANKの{yes:1,no:0}が効いて必ず「ドローする」になる（＝2枚とも引く）。
+      cardId,
+      // #120: 難易度に関わらずCPUが必ずこの選択肢を選ぶ（烙印ドロー=常に「ドローする」等）。
+      cpuAutoResolveId,
       options: [
         { id: "yes", label: yesLabel, usable: true },
         { id: "no", label: noLabel, usable: true },
@@ -6885,6 +6898,13 @@ async function offerContractBrandDrawIfNoLock(player) {
   ).length;
   if (brandCount === 0) return;
   contractBrandBusy = true;
+  // #120: ★(a)は烙印の枚数分ループして各回「引くか？」を尋ねる非同期処理だが、lock→hand遷移から
+  // fire-and-forgetで呼ばれるため、以前はhandEffectBusyを立てておらず、ループの途中でCPUのハンド
+  // フェイズのアクション（ノワールの手札効果等）が並行して割り込み、2枚目の烙印ドローが失われて
+  // いた（＝2枚あるのに1枚しか引かない）。★(b)と同じく handEffectBusy を立てて、烙印ドローが全部
+  // 終わるまでフェイズ進行・CPUの次アクションを止める（performPriorityTimeoutAutoActionはpicker
+  // 解決の後にhandEffectBusyで早期returnするので、この間もYes/Noの自動応答自体は解決される）。
+  setHandEffectBusy(true);
   try {
     const brandName = getCardDefinition("black-contract-brand")?.name || "誘惑の黒の烙印";
     for (let i = 0; i < brandCount; i++) {
@@ -6896,13 +6916,17 @@ async function offerContractBrandDrawIfNoLock(player) {
         yesLabel: "ドローする",
         noLabel: "しない",
         owner: player,
+        cardId: "black-contract-brand",
+        // #120: 難易度=新人でも必ず「ドローする」に。烙印ドローは無条件で得なので取りこぼさない。
+        cpuAutoResolveId: "yes",
       });
       if (!wantsDraw) continue;
       await drawCardsForEffect(player, 1);
       render();
       // 行動ログに烙印ドローを明示（ユーザー要望2026-08-15）。マイデッキと違い烙印ドローは
-      // 共有山札からなので pile:"deck"。
-      logAction("brand-draw", { player, brandCount });
+      // 共有山札からなので pile:"deck"。indexを持たせて、複数枚の烙印ドローが友好ログ窓の
+      // 連続dedupで1行にまとまらないようにする（#120: 2枚引いたのが2行で見えるように）。
+      logAction("brand-draw", { player, brandCount, index: i + 1 });
       // ★(a)ドローが実際に起きたことを明示（ユーザー要望2026-08-15「烙印ドローがわかりづらい」）。
       // CPU/疑似CPUは上のYes/Noが自動応答されるため、観戦者にはドローしたことが見えない。オンライン
       // 相手にも中継される（announceEffectReasonForEffectがbroadcastする）。
@@ -6910,6 +6934,7 @@ async function offerContractBrandDrawIfNoLock(player) {
     }
   } finally {
     contractBrandBusy = false;
+    setHandEffectBusy(false);
   }
 }
 
@@ -10476,6 +10501,17 @@ function buildFriendlyLogItems() {
       player = e.detail.player;
       const cols = e.detail.colors.map((c) => COLOR_LABEL_JA[c] ?? c).join("・");
       msg = `色を宣言しました：${cols}`;
+    } else if (e.category === "my-deck-draw" && e.detail?.player) {
+      // ユーザー報告#120: マイデッキからのドローが「📜行動ログ」（この友好ログ窓）に出ていなかった。
+      // buildFriendlyLogItemsが my-deck-draw のケースを持たず else→continue で捨てていたため。
+      player = e.detail.player;
+      msg = "マイデッキから1枚ドローしました";
+    } else if (e.category === "brand-draw" && e.detail?.player) {
+      // ユーザー報告#120: 烙印ドローも同様に出ていなかった。brand-draw は1エントリ＝1枚のドロー。
+      // 複数枚のときは「N枚目」を付けて、2枚とも別行で見えるようにする（連続dedud回避）。
+      player = e.detail.player;
+      const bc = e.detail.brandCount || 1;
+      msg = bc > 1 ? `誘惑の黒の烙印の効果で1枚ドローしました（${e.detail.index || 1}枚目）` : "誘惑の黒の烙印の効果で1枚ドローしました";
     } else if (e.category === "diag-gate-invasion-received") {
       msg = "ゲート侵攻が発生しました";
     } else {
