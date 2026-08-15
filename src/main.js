@@ -4658,8 +4658,10 @@ function confirmTouchAction(title, { cardId = null } = {}) {
 // 常に表示する（続き89、カウンターロックの「あなたの手札を1枚ロックしてもよい」用に新設）。
 function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ", owner = null, cardId = null, cpuAutoResolveId = null } = {}) {
   return new Promise((resolve) => {
+    let blockerCheckTimer = null;
     const finish = (result) => {
       activeEffectPicker = null;
+      if (blockerCheckTimer) clearInterval(blockerCheckTimer);
       backdrop.remove();
       modal.remove();
       resolve(result);
@@ -4698,6 +4700,7 @@ function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ"
     // 特定できるように）、(2)それが「透明・全画面級・このモーダル外」の“幽霊オーバーレイ”なら
     // pointer-events:none を当てて無害化し、詰みを回避する（見た目のある要素・このモーダルの一部は
     // 触らない）。owner がCPU（is-cpu-hidden）の時は表示しないので対象外。
+    let blockerReported = false;
     const runBlockerSelfCheck = () => {
       if (!modal.isConnected || modal.classList.contains("is-cpu-hidden")) return;
       for (const btn of [yesBtn, noBtn]) {
@@ -4709,23 +4712,34 @@ function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ"
         const tr = top.getBoundingClientRect();
         const desc = { id: top.id || null, cls: typeof top.className === "string" ? top.className : null, tag: top.tagName, z: cs.zIndex, pe: cs.pointerEvents, w: Math.round(tr.width), h: Math.round(tr.height) };
         logAction("diag-modal-blocked", { modal: "generic-confirm", ...desc });
+        // ユーザー確認2026-08-16「同じ現象だと行動ログも押せない。F12コンソールなら確認できる」。
+        // 画面全体が固まっていると📜行動ログ窓を開けずログをコピーできないため、犯人の情報を
+        // F12コンソールにも必ず出す（何度も出ないよう1回だけ）。ユーザーはF12ログを貼れる。
+        if (!blockerReported) {
+          blockerReported = true;
+          console.error("[so7][diag-modal-blocked] 確認モーダルのボタンが別要素に覆われています:", JSON.stringify(desc));
+        }
         // 「見えないのにクリックを奪う」幽霊オーバーレイだけを無害化する。elementFromPointは
         // pointer-events:none の要素を素通りするので、ここで返る＝pointer-eventsを持って“捕まえて
         // いる”要素。かつ背景/不透明度が無い（＝目に見えない）なら、正規のモーダル/背景ではなく
         // 取り残された捕獲レイヤーとみなして pointer-events:none を当て、詰みを解く（見た目のある
         // 要素・このモーダル自身の背景 backdrop は触らない。stage の transform で大きさが当てに
-        // ならないため面積は条件にしない）。
+        // ならないため面積は条件にしない）。無害化すると幽霊が画面全体でクリックを奪わなくなるため、
+        // 確認ボタンだけでなく📜行動ログ・不具合報告アイコンも再び押せるようになる。
         const invisible = (cs.backgroundColor === "rgba(0, 0, 0, 0)" || cs.backgroundColor === "transparent" || parseFloat(cs.opacity) === 0) && cs.backgroundImage === "none";
         if (invisible && top !== backdrop) {
           top.style.pointerEvents = "none";
           logAction("diag-modal-blocked", { modal: "generic-confirm", action: "neutralized-pointer-events", id: desc.id, cls: desc.cls });
+          console.error("[so7][diag-modal-blocked] 透明な捕獲レイヤーを無害化しました（pointer-events:none）:", JSON.stringify({ id: desc.id, cls: desc.cls, z: desc.z }));
         }
         break;
       }
     };
-    // 表示直後と少し後（オーバーレイが遅れて出るケース）に確認する。
+    // 表示直後と少し後、以降はモーダルが閉じるまで一定間隔で確認する（幽霊オーバーレイが
+    // 遅れて出るケースにも対応。finishでclearInterval）。
     requestAnimationFrame(() => setTimeout(runBlockerSelfCheck, 60));
     setTimeout(runBlockerSelfCheck, 400);
+    blockerCheckTimer = setInterval(runBlockerSelfCheck, 500);
     // CPUが答える番（CPUが防御側の接触承認・任意のはい/いいえ等）はこのモーダルを表示しない
     // （自動で解決される。人間が答えるのかと混乱するため）。owner（この選択の主体）を渡せる——
     // カウンターロックの「手札を1枚ロックしてもよい」等、相手（CPU）のターン中に人間の防御側が
