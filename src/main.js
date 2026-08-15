@@ -6803,16 +6803,26 @@ async function runContractBrandCurseOnLock(player, brandId) {
       for (let r = 0; r <= 6; r++) for (let c = 0; c <= 6; c++) cells.push({ zone: "cell", row: r, col: c });
       const dest = await requestCellChoiceForEffect(cells, `${brandName}を裏向きで置くマスを選択してください`, { owner: player });
       if (dest) {
+        // #114（ユーザー要望2026-08-15）: ★(b)は「これを任意のマスに裏向きで置く」。ところが
+        // MOVE_TOKENは「場(ロック)→場(マス)」の移動では表裏を変えない仕様（state.js参照）のため、
+        // ●で表向きに置かれていた烙印が表向きのままマスに残ってしまっていた。移動後に表向きなら
+        // flipToken で裏向きへ倒す（烙印は★(b)発火時点で常にロックエリアの表向きなので実質必ず倒す）。
         if (isOnlineMode()) {
           try {
             await moveToken(brandId, dest);
             markSelfHandled([brandId]);
             await fetchAndHydrate(getCurrentGameId());
+            if (getState().tokens.find((t) => t.id === brandId)?.faceUp) {
+              await flipToken(brandId);
+              markSelfHandled([brandId]);
+              await fetchAndHydrate(getCurrentGameId());
+            }
           } catch (err) {
             console.error("runContractBrandCurseOnLock (relocate) failed", err);
           }
         } else {
           moveToken(brandId, dest);
+          if (getState().tokens.find((t) => t.id === brandId)?.faceUp) flipToken(brandId);
         }
         render();
         // (2) 「烙印を盤面へ裏向きで置いた」を明示。ロックエリアから外れて盤面に移ったことが
