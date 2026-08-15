@@ -3737,6 +3737,11 @@ export function performPriorityTimeoutAutoAction() {
     }
     return true;
   }
+  // #117/#118: 手札効果の解決中（烙印★(b)の「2枚捨て＋烙印を場へ」を含む）は、CPUの次の
+  // フェイズアクション（移動・ロック）を始めない。上のpicker解決ブロックはこのgateより前に
+  // あるので、解決待ちの選択（★(b)の捨て札選択・置くマス選択等）は引き続き自動代行される。
+  // フェイズ自動進行(lock→hand→move)自体もphase-automation.js側でhandEffectBusyを見て止まる。
+  if (isHandEffectBusy()) return false;
   const phase = getCurrentPhase();
   if (phase === "move" && isMovePhaseActive()) {
     const table = document.getElementById("game-table");
@@ -6803,6 +6808,14 @@ let contractBrandBusy = false;
 async function runContractBrandCurseOnLock(player, brandId) {
   if (contractBrandBusy) return;
   contractBrandBusy = true;
+  // #117/#118: ★(b)は「手札2枚捨て＋烙印を任意マスへ裏向きで置く」を非同期（捨てる札の選択・
+  // 置くマスの選択を含む）で行う。maybeAnnounceLockからfire-and-forgetで呼ばれるため、以前は
+  // このマルチステップ処理が終わる前に、フェイズ自動進行（lock→hand→move）やCPUの次のロック/
+  // 移動が並行して走り、「烙印を場に置く前にムーブフェイズになる」(#117)・処理中の別ロックで
+  // 状態が乱れる(#118)不具合があった。handEffectBusy を立てて、★(b)が完全に終わるまでフェイズ
+  // 進行・CPUの次アクション・自動ターン終了を止める（カウンターロック#106と同じ考え方。
+  // performPriorityTimeoutAutoActionもpicker解決の後にhandEffectBusyで早期returnするよう対にした）。
+  setHandEffectBusy(true);
   try {
     const brandName = getCardDefinition("black-contract-brand")?.name || "誘惑の黒の烙印";
     // (1) 「烙印スロットにロックした→手札2枚捨てる」を明示（ユーザー要望2026-08-15
@@ -6855,6 +6868,7 @@ async function runContractBrandCurseOnLock(player, brandId) {
     render();
   } finally {
     contractBrandBusy = false;
+    setHandEffectBusy(false); // #117/#118: ★(b)が完全に終わったのでフェイズ進行を再開させる
   }
 }
 // (a) ロックフェイズを「ロックせずに」終えた時、烙印が自分のロックエリアにあるなら1枚ドローしてよい
