@@ -4,8 +4,11 @@
 // 昇格でない場合は「反映後の現在ランク＋勝敗」を確実に見せる。
 
 import { createBackdrop } from "./ui-helpers.js";
-import { buildRankShowcase } from "./rank-showcase.js";
+import { buildRankShowcase, lightGem, dimGem } from "./rank-showcase.js";
 import { isContinuousGlowDisabled } from "./motion-prefs.js";
+
+const GEM_STEP_MS = 520; // ジェムを1個ずつ点灯/消灯する間隔（ゆっくり）
+const GEM_START_DELAY = 500; // モーダルが出てから最初のジェムが灯るまでの溜め
 
 const RANK_NAMES = ["ブロンズ", "シルバー", "ゴールド", "プラチナ", "ダイヤモンド", "マスター", "レジェンド"];
 
@@ -13,8 +16,10 @@ const RANK_NAMES = ["ブロンズ", "シルバー", "ゴールド", "プラチ�
 // promotedFrom が数値かつ rank より小さい時＝昇格として昇格演出を出す（シーズン中は降格なしなので
 // rank 増加＝昇格のみ）。閉じたら解決する Promise を返す（victory.jsが順番にモーダルを見せるために
 // awaitできる）。note は放置敗北など「なぜこの結果か」を1行添える任意のテキスト。
-export function showRankedResultModal({ won, rank, gauge, legendPoints, note, promotedFrom }) {
+export function showRankedResultModal({ won, rank, gauge, legendPoints, note, promotedFrom, fromRank, fromGauge }) {
   const promoted = typeof promotedFrom === "number" && promotedFrom < rank;
+  // ジェムを1個ずつ増減させる演出ができるか（開始ゲージが分かる＆レジェンド＝LPでない）。
+  const canAnimateGems = rank < 6 && typeof fromGauge === "number";
   return new Promise((resolve) => {
     let backdrop = null;
     let modal = null;
@@ -45,8 +50,9 @@ export function showRankedResultModal({ won, rank, gauge, legendPoints, note, pr
       inner.appendChild(noteEl);
     }
 
-    // 称号バッジ＋U型ゲージ＋宝石の合成ヒーロー表示。昇格時は before→after のクロスフェードで
-    // 「ゲージ完成→称号変化」を見せる。
+    // 称号バッジ＋U型ゲージ＋宝石の合成ヒーロー表示。ジェムは開始ゲージから1個ずつ増える演出を出す
+    // （ユーザー要望「ゲージをもらうときゆっくり1個ずつもらう演出」）。昇格時は before(旧ランク)の
+    // ゲージを完成→称号変化→after(新ランク)の繰越ゲージを1個ずつ、という流れにする。
     const stage = document.createElement("div");
     stage.className = "ranked-result-showcase-stage" + (promoted ? " is-promote" : "");
     if (promoted) {
@@ -54,22 +60,61 @@ export function showRankedResultModal({ won, rank, gauge, legendPoints, note, pr
       const burst = document.createElement("div");
       burst.className = "ranked-result-burst" + (isContinuousGlowDisabled() ? " is-static" : "");
       stage.appendChild(burst);
-      // 昇格前バッジ：旧ランク＋七色ゲージ満杯（＝ゲージ完成の瞬間）。最初に表示し、後でフェードアウト。
-      const beforeShowcase = buildRankShowcase(promotedFrom, 7, 0, { animated: false });
+      // 昇格前バッジ：旧ランク。開始ゲージ(fromGauge)から表示し、7まで1個ずつ点灯させてゲージ完成を見せる。
+      const beforeStartGauge = canAnimateGems ? fromGauge : 7;
+      const beforeShowcase = buildRankShowcase(promotedFrom, beforeStartGauge, 0, { animated: false });
       beforeShowcase.classList.add("ranked-result-before");
-      // 昇格後バッジ：新ランク＋繰越ゲージ（アニメ版）。最初は小さく透明→ポップして出現。
-      const afterShowcase = buildRankShowcase(rank, gauge, legendPoints, { animated: true });
+      // 昇格後バッジ：新ランク＋繰越ゲージ（アニメ版）。演出時は0から始め、後で1個ずつ点灯。
+      const afterStartGauge = canAnimateGems ? 0 : gauge;
+      const afterShowcase = buildRankShowcase(rank, afterStartGauge, legendPoints, { animated: true });
       afterShowcase.classList.add("ranked-result-after");
       stage.appendChild(beforeShowcase);
       stage.appendChild(afterShowcase);
-      // 一拍おいてから crossfade（ゲージ完成を見せてから称号が変わる）。
-      timers.push(
-        setTimeout(() => {
-          stage.classList.add("is-transitioned");
-        }, 1400)
-      );
+
+      if (canAnimateGems) {
+        // 1) before のゲージを fromGauge → 7 まで1個ずつ点灯（ゲージ完成）。
+        let t = GEM_START_DELAY;
+        for (let i = fromGauge; i < 7; i++) {
+          const idx = i;
+          timers.push(setTimeout(() => lightGem(beforeShowcase, idx), t));
+          t += GEM_STEP_MS;
+        }
+        // 2) 完成を少し味わってから crossfade（称号が変わる）。
+        const transitionAt = t + 450;
+        timers.push(setTimeout(() => stage.classList.add("is-transitioned"), transitionAt));
+        // 3) crossfade後、after の繰越ゲージ 0 → gauge を1個ずつ点灯。
+        let t2 = transitionAt + 750;
+        for (let i = 0; i < gauge; i++) {
+          const idx = i;
+          timers.push(setTimeout(() => lightGem(afterShowcase, idx), t2));
+          t2 += GEM_STEP_MS;
+        }
+      } else {
+        // 開始ゲージ不明（reconnect等）：従来通り一拍おいて crossfade するだけ。
+        timers.push(setTimeout(() => stage.classList.add("is-transitioned"), 1400));
+      }
     } else {
-      stage.appendChild(buildRankShowcase(rank, gauge, legendPoints, { animated: true }));
+      // 昇格なし：開始ゲージから最終ゲージへ1個ずつ増減させる。
+      const startGauge = canAnimateGems ? fromGauge : gauge;
+      const showcase = buildRankShowcase(rank, startGauge, legendPoints, { animated: true });
+      stage.appendChild(showcase);
+      if (canAnimateGems && gauge !== fromGauge) {
+        let t = GEM_START_DELAY;
+        if (gauge > fromGauge) {
+          for (let i = fromGauge; i < gauge; i++) {
+            const idx = i;
+            timers.push(setTimeout(() => lightGem(showcase, idx), t));
+            t += GEM_STEP_MS;
+          }
+        } else {
+          // 減少（敗北）：後ろ（右側＝紫寄り）から1個ずつ消灯。
+          for (let i = fromGauge - 1; i >= gauge; i--) {
+            const idx = i;
+            timers.push(setTimeout(() => dimGem(showcase, idx), t));
+            t += GEM_STEP_MS;
+          }
+        }
+      }
     }
     inner.appendChild(stage);
 

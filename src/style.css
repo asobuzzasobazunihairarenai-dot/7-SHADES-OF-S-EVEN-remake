@@ -15825,6 +15825,45 @@ body.reduce-glow .rank-ugauge-gem { animation: none; }
   transform: translate(-50%, -50%);
   filter: drop-shadow(0 0 6px rgba(255, 220, 150, 0.55));
 }
+/* ランク結果モーダルの「ジェムを1個ずつもらう」演出（続き165）。点灯＝pop＋光のフラッシュ、
+   消灯＝縮んで消える。transform に translate(-50%,-50%) を含めないと中心がズレるので各キーで明記。 */
+.rank-showcase-gem.is-lighting {
+  animation: rank-gem-light 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes rank-gem-light {
+  0% {
+    transform: translate(-50%, -50%) scale(0.2);
+    opacity: 0;
+    filter: drop-shadow(0 0 2px rgba(255, 220, 150, 0.4)) brightness(2.4);
+  }
+  55% {
+    transform: translate(-50%, -50%) scale(1.38);
+    opacity: 1;
+    filter: drop-shadow(0 0 18px rgba(255, 236, 172, 0.95)) brightness(1.8);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+    filter: drop-shadow(0 0 6px rgba(255, 220, 150, 0.55)) brightness(1);
+  }
+}
+.rank-showcase-gem.is-dimming {
+  animation: rank-gem-dim 0.42s ease-in both;
+}
+@keyframes rank-gem-dim {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0.3);
+    opacity: 0;
+  }
+}
+body.reduce-glow .rank-showcase-gem.is-lighting,
+body.reduce-glow .rank-showcase-gem.is-dimming {
+  animation: none;
+}
 .rank-showcase-badge {
   position: absolute;
   transform: translate(-50%, -50%);

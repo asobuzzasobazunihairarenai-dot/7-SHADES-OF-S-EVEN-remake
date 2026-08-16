@@ -13973,3 +13973,29 @@ badge/bg top `calc(50% - 4.2rem)`・socket0 13.1%/38.7% 等）ことを確認。
   すべて検知し、noir（placed:true）は正しくlock-color対象外になることを確認。ブラウザで
   `game-invariants.js`/`smoke-test-runner.js`の動的importが成功（循環import無し）・アプリ本体も
   コンソールエラー無しでロードを確認。サーバー側（Supabase）の変更は無い。
+
+### 2026-08-17（続き165）：ランク結果モーダルの七色ゲージを「ジェムを1個ずつもらう」演出に
+
+ユーザー要望「ランク戦終了時にジェムをもらうとき、ゆっくり1個ずつもらう演出にできますか？」。従来は
+反映後の最終ゲージを一度に表示していたのを、対局前のゲージから最終ゲージへ1個ずつ点灯（勝利）／消灯
+（敗北）させる演出にした。
+- **[src/rank-showcase.js](src/rank-showcase.js) にヘルパーを追加**: `lightGem(showcaseEl, index)`
+  （宝石を表示＋pop＋光のフラッシュ`is-lighting`）・`dimGem(showcaseEl, index)`（縮んで消える
+  `is-dimming`後に非表示）。`buildRankShowcase`の戻り値（`.rank-showcase`本体でも`.rank-showcase-scale`
+  ラッパーでも）を受けて内部の宝石を`data-gem-index`で特定する。
+- **[src/ranked-result-modal.js](src/ranked-result-modal.js)**: `fromRank`/`fromGauge`（対局前の
+  ランク・ゲージ）を受け取り、`canAnimateGems`（rank<6＝レジェンドでない＆fromGaugeが数値）の時だけ
+  ジェムを1個ずつ動かす。①昇格なし・勝利＝開始ゲージから最終ゲージへ`GEM_STEP_MS`(520ms)間隔で点灯、
+  ②昇格なし・敗北＝右（紫寄り）から1個ずつ消灯、③昇格＝before(旧ランク)のゲージをfromGauge→7まで
+  1個ずつ点灯してゲージ完成→少し溜めてcrossfade（称号変化）→after(新ランク)の繰越ゲージ0→gaugeを
+  1個ずつ点灯。開始ゲージ不明（reconnect等）なら従来通り最終状態を即表示（昇格は1400msでcrossfade）。
+- **[src/victory.js](src/victory.js)**: `getRankedPreMatchRank()`の`before`から`fromRank`/`fromGauge`を
+  モーダルへ渡すよう追加（無ければnullで演出なしにフォールバック）。
+- **[src/style.css](src/style.css)**: `.rank-showcase-gem.is-lighting`＝`rank-gem-light`（scale0.2→1.38→1
+  ＋brightnessフラッシュ、`translate(-50%,-50%)`を各キーに明記して中心保持）、`.is-dimming`＝
+  `rank-gem-dim`（縮小フェードアウト）。`body.reduce-glow`ではアニメを無効化（即表示/非表示）。
+- **検証**: `node --check`通過。ブラウザで`buildRankShowcase(2,2,0)`が宝石0,1のみ表示・2〜6非表示、
+  `lightGem(sc,2/3)`で2,3が表示＋`is-lighting`（computed animation-name=`rank-gem-light`）、`dimGem(sc,4)`で
+  `is-dimming`（=`rank-gem-dim`）になることを実測確認。モーダル自体のsetTimeout駆動の連続点灯は、この
+  開発環境（隠しペイン）ではタイマーがスロットリングされ通しでは確認できないが、実機フォアグラウンド
+  では通常速度で動く（ヘルパー単体・CSSキーフレームは確認済み）。サーバー側の変更は無い。

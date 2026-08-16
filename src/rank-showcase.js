@@ -142,6 +142,37 @@ export function buildRankShowcase(rank, gauge, legendPoints, { animated = false,
   return box;
 }
 
+// ── ジェム点灯/消灯の演出ヘルパー（ランク結果モーダルの「1個ずつもらう」演出用、続き165）──
+// showcaseEl は buildRankShowcase の戻り値（.rank-showcase 本体、または scale時の .rank-showcase-scale
+// ラッパー）どちらでも受ける。
+function showcaseBox(showcaseEl) {
+  if (!showcaseEl) return null;
+  return showcaseEl.classList.contains("rank-showcase") ? showcaseEl : showcaseEl.querySelector(".rank-showcase");
+}
+// 宝石 index を点灯させる（pop＋光の演出クラス付き）。既に表示されていても付け直して再生する。
+export function lightGem(showcaseEl, index) {
+  const box = showcaseBox(showcaseEl);
+  const gem = box?.querySelector(`.rank-showcase-gem[data-gem-index="${index}"]`);
+  if (!gem) return;
+  gem.style.display = "";
+  gem.classList.remove("is-dimming", "is-lighting");
+  void gem.offsetWidth; // reflowでアニメを再トリガ
+  gem.classList.add("is-lighting");
+}
+// 宝石 index を消灯（フェードアウト後に非表示）。ゲージ減少（敗北）の演出用。
+export function dimGem(showcaseEl, index) {
+  const box = showcaseBox(showcaseEl);
+  const gem = box?.querySelector(`.rank-showcase-gem[data-gem-index="${index}"]`);
+  if (!gem) return;
+  gem.classList.remove("is-lighting");
+  void gem.offsetWidth;
+  gem.classList.add("is-dimming");
+  setTimeout(() => {
+    gem.style.display = "none";
+    gem.classList.remove("is-dimming");
+  }, 420);
+}
+
 // 編集モードのサイズ変更（ホイール／ボタン共通）。which: "badge"|"gem"|"gauge"、dir: +1/-1。
 function resizeShowcase(box, which, dir) {
   const cfg = RANK_SHOWCASE;

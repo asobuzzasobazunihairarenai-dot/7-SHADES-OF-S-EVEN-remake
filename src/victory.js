@@ -280,6 +280,9 @@ export function checkForVictory() {
                 gauge: myRank.gauge,
                 legendPoints: myRank.legend_points,
                 promotedFrom,
+                // 対局前のランク・ゲージ（ジェムを1個ずつ増える演出の開始点。無ければ演出なし）。
+                fromRank: before && typeof before.rank === "number" ? before.rank : null,
+                fromGauge: before && typeof before.gauge === "number" ? before.gauge : null,
               });
             }
           }
