@@ -9,7 +9,10 @@ import { applyProfileLayout, registerProfileLayoutHelpers } from "./profile-layo
 import { syncFullScreenPageActive } from "./option-area.js";
 import { closeShopPanel } from "./shop.js";
 // マイデッキ編集はマイページ内の大ボタンへ移設（ユーザー要望2026-08-11）。
-import { openMyDeckList } from "./my-deck-list.js";
+// ユーザー要望2026-08-16「ボタンの代わりにメインデッキのビジュアルを置き、その下に編集ボタン」。
+import { openMyDeckList, representativeCardId } from "./my-deck-list.js";
+import { getSelectedDeckId, getDeckById, getAllDecks } from "./my-deck.js";
+import { getCardIllustPath, getCardImagePath } from "./cards-data.js";
 
 let overlayEl = null;
 let bodyEl = null;
@@ -52,18 +55,59 @@ export function openProfilePage(onClose) {
   title.textContent = "👤 マイページ";
   overlayEl.appendChild(title);
 
-  // でかでかとした「マイデッキ編集」ボタン（ユーザー要望2026-08-11）。位置・サイズは
-  // 管理者モードのCSS変数(--profile-mydeck-*)で調整可能（admin.js参照）。押すとデッキ一覧へ、
-  // 戻る時はこのマイページを開き直す（元のonClose＝ホームへの導線は保つ）。
-  const mydeckBtn = document.createElement("button");
-  mydeckBtn.type = "button";
-  mydeckBtn.id = "profile-mydeck-btn";
-  mydeckBtn.innerHTML = `<span class="profile-mydeck-icon">🃏</span><span class="profile-mydeck-label">マイデッキ編集</span>`;
-  mydeckBtn.addEventListener("click", () => {
+  // マイページ右下：メインデッキのビジュアル＋その下に「マイデッキ編集」ボタン
+  // （ユーザー要望2026-08-16）。ビジュアル・ボタンどちらを押してもデッキ一覧（編集画面）へ。
+  // 位置・サイズは管理者モードのCSS変数(--profile-maindeck-*、admin.js)で調整可能。
+  const openEditor = () => {
     closeProfilePage();
     openMyDeckList(() => openProfilePage(onClose));
-  });
-  overlayEl.appendChild(mydeckBtn);
+  };
+  const mydeckWrap = document.createElement("div");
+  mydeckWrap.id = "profile-maindeck";
+
+  const badge = document.createElement("div");
+  badge.className = "profile-maindeck-badge";
+  badge.textContent = "🏅 メインデッキ";
+  mydeckWrap.appendChild(badge);
+
+  const cover = document.createElement("button");
+  cover.type = "button";
+  cover.className = "profile-maindeck-cover";
+  cover.title = "マイデッキを編集する";
+  cover.addEventListener("click", openEditor);
+  // メインデッキ（getSelectedDeckId）を表示。無ければ先頭のデッキ、それも無ければ「未設定」。
+  const mainDeck = getDeckById(getSelectedDeckId()) || getAllDecks()[0] || null;
+  if (mainDeck) {
+    if (mainDeck.firstColor) cover.style.setProperty("--maindeck-accent", `var(--color-${mainDeck.firstColor})`);
+    const art = document.createElement("div");
+    art.className = "profile-maindeck-art";
+    const rep = representativeCardId(mainDeck);
+    if (rep) {
+      const img = document.createElement("img");
+      img.src = getCardIllustPath(rep); // テキスト無しのイラスト版（ケース表面と同じ）
+      img.addEventListener("error", () => { img.src = getCardImagePath(rep); }, { once: true });
+      img.alt = "";
+      art.appendChild(img);
+    }
+    cover.appendChild(art);
+    const nm = document.createElement("div");
+    nm.className = "profile-maindeck-name";
+    nm.textContent = mainDeck.name || "マイデッキ";
+    cover.appendChild(nm);
+  } else {
+    cover.classList.add("is-empty");
+    cover.textContent = "メインデッキ未設定";
+  }
+  mydeckWrap.appendChild(cover);
+
+  const editBtn = document.createElement("button");
+  editBtn.type = "button";
+  editBtn.id = "profile-maindeck-edit";
+  editBtn.innerHTML = `<span class="profile-maindeck-edit-icon">🃏</span><span>マイデッキ編集</span>`;
+  editBtn.addEventListener("click", openEditor);
+  mydeckWrap.appendChild(editBtn);
+
+  overlayEl.appendChild(mydeckWrap);
 
   const card = document.createElement("div");
   card.id = "profile-page-card";

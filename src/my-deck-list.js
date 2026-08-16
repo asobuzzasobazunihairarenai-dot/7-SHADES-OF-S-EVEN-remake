@@ -4,7 +4,7 @@
 
 import { syncFullScreenPageActive } from "./option-area.js";
 import { getCardImagePath, getCardIllustPath } from "./cards-data.js";
-import { getAllDecks, createDeck, deleteDeck, duplicateDeck, validateDeck, deckTotal, maxDeckSlots } from "./my-deck.js";
+import { getAllDecks, createDeck, deleteDeck, duplicateDeck, validateDeck, deckTotal, maxDeckSlots, getSelectedDeckId, setSelectedDeckId } from "./my-deck.js";
 import { openMyDeckBuilder } from "./my-deck-builder.js";
 import { isItemUnlocked } from "./online.js";
 
@@ -44,7 +44,8 @@ function backPathFor(idx) {
 
 // 立体ケースの表面に貼るカード。編集で選んだメインカード(deck.mainCardId)があり、実際に
 // デッキに入っていればそれ。無ければ代表カード（枚数最多、同数なら並び順が先）。空なら null。
-function representativeCardId(deck) {
+// profile-page.js（マイページのメインデッキビジュアル）からも使うためexport。
+export function representativeCardId(deck) {
   if (deck.mainCardId && (deck.cards?.[deck.mainCardId] ?? 0) > 0) return deck.mainCardId;
   let best = null;
   let bestCount = 0;
@@ -61,6 +62,16 @@ function buildDeckBox(deck) {
   const box = document.createElement("div");
   box.className = "mdl-deck";
   if (deck.firstColor) box.dataset.color = deck.firstColor;
+
+  // メインデッキ（getSelectedDeckId）はCPU戦・ランク戦で実際に使うデッキ。バッジで明示。
+  const isMain = deck.id === getSelectedDeckId();
+  if (isMain) {
+    box.classList.add("is-main");
+    const badge = document.createElement("div");
+    badge.className = "mdl-deck-main-badge";
+    badge.textContent = "★ メイン";
+    box.appendChild(badge);
+  }
 
   const art = document.createElement("div");
   art.className = "mdl-deck-art";
@@ -153,9 +164,21 @@ function buildDeckBox(deck) {
   // 箱クリックで編集。
   box.addEventListener("click", () => editDeck(deck.id));
 
-  // 複製・削除（箱の隅の小ボタン。クリックは箱の編集へ伝播させない）。
+  // メイン設定・複製・削除（箱の隅の小ボタン。クリックは箱の編集へ伝播させない）。
   const actions = document.createElement("div");
   actions.className = "mdl-deck-actions";
+  // メインデッキにする（★＝メイン中／☆＝メインにする）。ユーザー要望「メインデッキを設定できるように」。
+  const mainBtn = document.createElement("button");
+  mainBtn.type = "button";
+  mainBtn.className = "mdl-deck-action mdl-deck-action-main" + (isMain ? " is-main" : "");
+  mainBtn.title = isMain ? "メインデッキ（CPU戦・ランク戦で使うデッキ）" : "メインデッキにする";
+  mainBtn.textContent = isMain ? "★" : "☆";
+  mainBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (isMain) return; // 既にメイン
+    setSelectedDeckId(deck.id);
+    renderGrid();
+  });
   const dupBtn = document.createElement("button");
   dupBtn.type = "button";
   dupBtn.className = "mdl-deck-action";
@@ -182,7 +205,7 @@ function buildDeckBox(deck) {
       renderGrid();
     }
   });
-  actions.append(dupBtn, delBtn);
+  actions.append(mainBtn, dupBtn, delBtn);
   box.appendChild(actions);
 
   return box;

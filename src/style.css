@@ -14775,38 +14775,108 @@ body.theme-light .mdl-deck-count {
   background: rgba(56, 189, 248, 0.2);
 }
 
-/* ── マイページ内の「マイデッキ編集」大ボタン（profile-page.js）───────────────
-   位置・サイズは管理者モードのCSS変数(--profile-mydeck-*, admin.js)で調整。fallbackはadmin.jsの
+/* ── マイページ右下：メインデッキのビジュアル＋「マイデッキ編集」ボタン（profile-page.js）──
+   ユーザー要望2026-08-16。ビジュアル・ボタンどちらを押してもデッキ一覧（編集画面）へ。
+   位置・サイズは管理者モードのCSS変数(--profile-maindeck-*, admin.js)で調整。fallbackはadmin.jsの
    defaultと一致させること。 */
-#profile-mydeck-btn {
+#profile-maindeck {
   position: absolute;
-  top: var(--profile-mydeck-top, 4.6rem);
-  right: var(--profile-mydeck-right, 2rem);
-  width: var(--profile-mydeck-width, 17rem);
-  height: var(--profile-mydeck-height, 5.4rem);
+  right: var(--profile-maindeck-right, 2.5rem);
+  bottom: var(--profile-maindeck-bottom, 2.5rem);
   z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  width: var(--profile-maindeck-width, 12rem);
+  transform: scale(var(--profile-maindeck-scale, 1));
+  transform-origin: bottom right;
+}
+.profile-maindeck-badge {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #ffe6a8;
+  letter-spacing: 0.05em;
+}
+body.theme-light #profile-maindeck .profile-maindeck-badge { color: #92660a; }
+.profile-maindeck-cover {
+  width: 100%;
+  padding: 0;
+  cursor: pointer;
+  background: linear-gradient(150deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.96));
+  border: 2px solid var(--maindeck-accent, #64748b);
+  border-radius: 0.8rem;
+  overflow: hidden;
+  box-shadow: 0 0.5rem 1.4rem rgba(0, 0, 0, 0.4);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.profile-maindeck-cover:hover { transform: translateY(-2px); box-shadow: 0 0.7rem 1.8rem rgba(0, 0, 0, 0.5); }
+.profile-maindeck-art {
+  width: 100%;
+  height: 7.5rem;
+  background: #0b0f18;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.6rem;
+  overflow: hidden;
+}
+.profile-maindeck-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.profile-maindeck-name {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-top: 1px solid var(--maindeck-accent, #64748b);
+}
+.profile-maindeck-cover.is-empty {
+  height: 6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 0.9rem;
+  border-style: dashed;
+}
+#profile-maindeck-edit {
+  width: 100%;
+  padding: 0.55rem 0.6rem;
   border: none;
-  border-radius: 0.7rem;
+  border-radius: 0.6rem;
   background: linear-gradient(150deg, #f2c94c, #d97706);
   color: #241300;
   font-family: sans-serif;
-  font-size: var(--profile-mydeck-font, 1.35rem);
+  font-size: 0.95rem;
   font-weight: bold;
   cursor: pointer;
-  box-shadow: 0 0.4rem 1.1rem rgba(217, 119, 6, 0.45), inset 0 0 0 2px rgba(255, 255, 255, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  box-shadow: 0 0.3rem 0.9rem rgba(217, 119, 6, 0.45), inset 0 0 0 2px rgba(255, 255, 255, 0.25);
 }
-#profile-mydeck-btn:hover {
-  filter: brightness(1.07);
-  transform: translateY(-1px);
+#profile-maindeck-edit:hover { filter: brightness(1.07); transform: translateY(-1px); }
+#profile-maindeck-edit .profile-maindeck-edit-icon { font-size: 1.15em; line-height: 1; }
+
+/* デッキ一覧: メインデッキ（getSelectedDeckId）のバッジ＋★トグル（my-deck-list.js）。 */
+.mdl-deck.is-main { box-shadow: 0 0 0 2px #f2c94c, 0 0.4rem 1rem rgba(0, 0, 0, 0.35); }
+.mdl-deck-main-badge {
+  position: absolute;
+  top: 0.4rem;
+  left: 0.4rem;
+  z-index: 3;
+  background: linear-gradient(150deg, #f2c94c, #d97706);
+  color: #241300;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 0.15rem 0.5rem;
+  border-radius: 0.4rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
 }
-#profile-mydeck-btn .profile-mydeck-icon {
-  font-size: 1.5em;
-  line-height: 1;
-}
+.mdl-deck-action-main.is-main { color: #f2c94c; }
 
 /* ── マイデッキ編集: デッキ設定バー（ファースト色・駒スキン・ペット・裏面）─────────── */
 #mdb-settings {

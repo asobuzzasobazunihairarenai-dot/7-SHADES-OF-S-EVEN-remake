@@ -600,16 +600,16 @@ const GROUPS = [
     ],
   },
   {
-    // ユーザー要望2026-08-11「マイページ内のマイデッキ編集ボタンの位置・サイズを管理者モードで調整」。
-    // #profile-mydeck-btn（profile-page.js）が var() で読む。既定値はstyle.cssのfallbackと一致させること。
-    title: "マイページ：マイデッキ編集ボタンの位置・サイズ",
+    // ユーザー要望2026-08-16「マイページ右下のメインデッキ表示（ビジュアル＋編集ボタン）の
+    // 位置・サイズを管理者モードで調整」。#profile-maindeck（profile-page.js）が var() で読む。
+    // 既定値はstyle.cssのfallbackと一致させること。調整中はマイページを開いておくと反映が見える。
+    title: "マイページ：メインデッキ表示（右下）の位置・サイズ",
     category: "position-ui",
     controls: [
-      { key: "--profile-mydeck-top", label: "縦位置 top（＋で下へ）", unit: "rem", min: 0, max: 40, step: 0.1, default: 4.6 },
-      { key: "--profile-mydeck-right", label: "横位置 right（＋で左へ）", unit: "rem", min: 0, max: 50, step: 0.1, default: 2 },
-      { key: "--profile-mydeck-width", label: "幅", unit: "rem", min: 8, max: 34, step: 0.5, default: 17 },
-      { key: "--profile-mydeck-height", label: "高さ", unit: "rem", min: 2.5, max: 12, step: 0.1, default: 5.4 },
-      { key: "--profile-mydeck-font", label: "文字サイズ", unit: "rem", min: 0.8, max: 2.6, step: 0.05, default: 1.35 },
+      { key: "--profile-maindeck-right", label: "横位置 right（＋で左へ）", unit: "rem", min: 0, max: 50, step: 0.1, default: 2.5 },
+      { key: "--profile-maindeck-bottom", label: "縦位置 bottom（＋で上へ）", unit: "rem", min: 0, max: 40, step: 0.1, default: 2.5 },
+      { key: "--profile-maindeck-width", label: "幅", unit: "rem", min: 7, max: 24, step: 0.5, default: 12 },
+      { key: "--profile-maindeck-scale", label: "全体サイズ", unit: "", min: 0.5, max: 2, step: 0.05, default: 1 },
     ],
   },
   {
