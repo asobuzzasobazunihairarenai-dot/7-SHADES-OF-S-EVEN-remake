@@ -13923,3 +13923,24 @@ badge/bg top `calc(50% - 4.2rem)`・socket0 13.1%/38.7% 等）ことを確認。
   2アカウント（片方がキューに入る）＋ランクSQLデプロイ済み環境での確認が必要。サーバー側の
   変更は無い（既存の `so7_ranked_poll` を読むだけ）。次フェーズ＝閉じていても届くWeb Push
   （Service Worker＋Edge Function）。
+
+### 2026-08-17（続き163）：2D表示でペットが見えない（一瞬たまに見える）不具合を修正
+
+ユーザー報告「2D表示（body.diagnostic-flatten-3d）でペットが見えない。一瞬たまに見えるときがある」。
+- **原因（強い仮説）**: piece-pet.jsの`tick()`にある「駒の裏へ回ったペットを隠す」clip-path
+  （`inset(0 0 hideBottom 0)`）は、盤面が#sceneで1枚に合成される3Dシーンでの疑似オクルージョン。
+  2D表示は`perspective:none`＋`* { transform-style: flat !important }`で盤面が平面化されるため、
+  この幾何（pet.yと駒の上端/下端の上下関係）が崩れて`hideBottom`が大きくなり、ペットの大半が
+  clipで隠れてしまう。歩行/ジャンプでpet.yが動いた瞬間だけclipから外れて「一瞬たまに見える」に
+  なる（＝per-frameで条件的に見た目を隠すのはこのclipだけ、という点と症状が一致）。実機の診断
+  ログ（`diag-pet-2d`）でも、ペットを持つプレイヤーは2Dで`disp:block・onScreen:true・有効な
+  スプライトsrc`＝display/画面外/src切れは否定されており、残るのはclip等の見た目上の隠れ。
+- **修正**: 2D表示中（`body.diagnostic-flatten-3d`）は`behindPiece`を常にfalseにして疑似
+  オクルージョンのclipを一切掛けない（2Dでは隠すべき3Dの奥行き自体が無いので不要）。3D表示は
+  `flat2d=false`で従来通り（回帰なし）。
+- **検証**: この開発環境（バックグラウンドタブ）はペットのアニメを回す`requestAnimationFrame`が
+  強くスロットリングされ、ペット自体が全く描画されない（layerChildren=0）ため live 再現は
+  できなかった。上記の実機診断ログ＋「一瞬たまに見える」症状＋clipがper-frameの唯一の条件的
+  隠しである点から、最も確度の高い仮説として対処。`node --check`通過・新規コンソールエラー無し。
+  実機2Dでの改善確認をお願いしたい（もしこれでも直らない場合、次の容疑はスプライト`<img>`の
+  2Dでのコンポジット失敗＝駒/山と同じ現象で、要素の作り直しが必要になる可能性）。

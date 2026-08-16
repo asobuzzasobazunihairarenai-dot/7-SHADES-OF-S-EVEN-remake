@@ -419,7 +419,14 @@ function tick(now) {
     // 合成される3Dシーンのため、z-indexで駒とペットを個別に前後させられない。そこで、ペットが
     // 駒より奥（＝足元が駒の底より上）かつ横位置が駒に重なっている時だけ、ペットの「駒の上端より
     // 下（＝駒に隠れる部分）」をclipで隠し、駒の上に頭だけ出ているように見せる近似を使う。
-    const behindPiece = pet.y < pieceBottomLocal - deltaToLocal(r.height * 0.08);
+    // ユーザー報告2026-08-17「2D表示でペットが見えない。一瞬たまに見える」。この「駒の裏へ
+    // 回ったら隠す」clipは、盤面が1枚に合成される3Dシーンでの疑似オクルージョン。2D表示
+    // （body.diagnostic-flatten-3d、perspective:none＋全要素transform-style:flat）では盤面が
+    // 平面化され、この幾何（pet.yと駒の上端/下端の上下関係）が崩れて hideBottom が大きくなり、
+    // ペットの大半がclipで隠れてしまう（歩行/ジャンプでpet.yが動いた瞬間だけclipから外れて
+    // 「一瞬たまに見える」）。2D表示では疑似オクルージョン自体が無意味なのでclipを掛けない。
+    const flat2d = document.body.classList.contains("diagnostic-flatten-3d");
+    const behindPiece = !flat2d && pet.y < pieceBottomLocal - deltaToLocal(r.height * 0.08);
     const overlapX = Math.abs(pet.x - center.x) < pieceHalfWLocal * 1.05;
     if (behindPiece && overlapX) {
       const hideBottom = Math.max(0, pet.y - pieceTopLocal); // 要素の下からこのpxぶんを隠す
