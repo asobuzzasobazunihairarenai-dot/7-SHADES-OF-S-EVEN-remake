@@ -13653,3 +13653,36 @@ style.css の var() fallback の両方へ反映した。
   ドラッグで bgX/bgY・left が更新、③編集時 bg が `pointer-events:auto`/`cursor:grab` で最背面ヒット、
   ④7宝石すべて grabbable（下中央も）・バッジも露出部で grabbable、⑤出力に bgSize/bgX/bgY が含まれる、
   を実測確認。`node --check` 通過。サーバー側の変更は無い。
+
+### 2026-08-16（続き150）：#130「相手のターンが飛ばされた」/#131「ハンドフェイズがスキップされた」——オンラインで自動ターン終了がNEXT_TURNを連打していた不具合を修正
+
+オンライン2人戦（自動処理ON・タイマーOFF・疑似CPUなし）の2件の報告。C（YGM）のアクションログの
+`diag-next-turn` が決定的だった:
+```
+22:52:47.846 T1/R1 diag-next-turn: turnPlayer:C   ← 自動ターン終了 発火#1
+22:52:49.386 T1/R1 diag-next-turn: turnPlayer:C   ← 発火#2（1.5秒後、ローカルはまだC！）
+22:52:50.922 T1/R1 diag-next-turn: turnPlayer:C   ← 発火#3
+22:52:52.557 T3/R2 diag-next-turn: turnPlayer:C   ← turnNumberが1→3に飛び、A(T2)が丸ごとスキップ
+```
+- **根本原因**: オンライン中、`nextTurn()`はEdge Functionへの往復（非同期）で、ローカルの
+  `turnPlayer`/`turnNumber`はサーバーの結果が`state_changed`ブロードキャスト→hydrateで戻るまで
+  変わらない（`callAction`自身はhydrateしない）。ところが自動ターン終了(`reconcileAutoEndTurn`)は
+  `computeShouldEmphasize()`がtrueの間1.5秒ごとにタイマーを再arm・再clickする設計で、往復が返る
+  前もローカル状態が不変＝shouldEmphasizeがtrueのままのため、**同じターンに対してNEXT_TURNを
+  何度も送っていた**。ターン終了ボタンの`onAction`オンライン分岐は`nextTurn()`をfire-and-forgetで
+  呼んだ直後に`releaseGuard()`で再入ガード（`endTurnActionInProgress`）を即解除しており、この
+  ガードも役に立っていなかった。サーバーで複数のNEXT_TURNが順に適用され、C(T1)→A(T2)→C(T3)と
+  2ターン進んでA(T2)が飛ぶ＝#130「相手のターンが飛ばされた」。飛ばされた側から見ると自分のターン
+  （ロック/ハンド/ムーブの全フェイズ）ごと消える＝#131「ハンドフェイズがスキップされた」。フェイズ
+  自体はローカル状態（phase-automation.jsのモジュール変数）でサーバー同期しないため、非同期送信の
+  対象は「ターン交代」だけ＝両報告は同一原因。
+- **修正**（`main.js`）: `turnNumber`をキーにした「ターン交代の反映待ち」ゲートを新設
+  （`autoEndTurnPendingForTurn`・`isEndTurnAdvancePending()`・`markEndTurnAdvancePending()`）。
+  オンラインでNEXT_TURNを送った瞬間にそのturnNumberを記録し、**実際にターンが進む（turnNumberが
+  変わる）まで**`reconcileAutoEndTurn`のタイマー発火・手動クリックの両方で再送を止める。万一
+  NEXT_TURNが失われて進まない場合に永久ロックしないよう8秒の安全タイムアウトで解除。マーカーは
+  オンライン分岐でしか立てないため、ローカル/CPU戦/疑似CPU（`isOnlineMode()`がfalse）の挙動は不変。
+- **検証**: `node --check`通過。ブラウザでリロードしコンソールエラー無しを確認（変更はオンライン
+  限定・ローカル再生には影響しないため、ローカルでの回帰なし）。実際の2クライアントでの「相手の
+  ターンが飛ばない／ハンドフェイズが飛ばない」の最終確認は、ユーザーの実オンライン対戦でお願いしたい
+  （この環境では2アカウント＋Edge Functionの往復遅延を再現できないため）。サーバー側の変更は無い。

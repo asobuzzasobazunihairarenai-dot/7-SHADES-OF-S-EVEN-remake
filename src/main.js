@@ -10868,11 +10868,43 @@ let autoEndTurnTimer = null;
 // onActionが多重に走ってモーダル/背景の重複・NEXT_TURNの連打・手札シャッフルの点滅を
 // 起こしていた。onAction実行中は再入を弾くためのガード。
 let endTurnActionInProgress = false;
+// #130: オンライン中、nextTurn()はEdge Functionへの往復（非同期）で、ローカルの
+// turnPlayer/turnNumberはサーバーの結果がhydrateで戻るまで変わらない。reconcileAutoEndTurnは
+// shouldEmphasizeがtrueの間1.5秒ごとに再arm・再clickするため、往復が返る前に何度もNEXT_TURNを
+// 送ってしまい、サーバーで順に適用されて相手のターンが飛ぶ（ログ実測: T1→T3、A(T2)が丸ごと
+// スキップ）。「自動ターン終了を1回送ったら、実際にターンが進む（turnNumberが変わる）まで
+// 再送しない」ためのゲート。万一NEXT_TURNが失われて進まなかった場合に永久ロックしないよう
+// 安全タイムアウトで解除する。
+let autoEndTurnPendingForTurn = null;
+let autoEndTurnPendingSince = 0;
+const AUTO_END_TURN_PENDING_TIMEOUT_MS = 8000;
+function isEndTurnAdvancePending() {
+  if (autoEndTurnPendingForTurn == null) return false;
+  // 実際にターンが進んだ（turnNumberが変わった）＝反映済み。
+  if (getState().turnNumber !== autoEndTurnPendingForTurn) {
+    autoEndTurnPendingForTurn = null;
+    return false;
+  }
+  // 安全タイムアウト（NEXT_TURNが失われて進まなかった場合の回復）。
+  if (Date.now() - autoEndTurnPendingSince > AUTO_END_TURN_PENDING_TIMEOUT_MS) {
+    autoEndTurnPendingForTurn = null;
+    return false;
+  }
+  return true;
+}
+function markEndTurnAdvancePending() {
+  autoEndTurnPendingForTurn = getState().turnNumber;
+  autoEndTurnPendingSince = Date.now();
+}
 function reconcileAutoEndTurn(shouldEmphasize) {
   if (shouldEmphasize) {
     if (autoEndTurnTimer) return;
     autoEndTurnTimer = setTimeout(() => {
       autoEndTurnTimer = null;
+      // #130: 直前に自動ターン終了を送っていて、まだサーバーからターン交代が
+      // 戻ってきていない（turnNumberが変わっていない）間は再クリックしない。
+      // これをしないとオンライン往復の遅延中にNEXT_TURNを連打して相手のターンが飛ぶ。
+      if (isEndTurnAdvancePending()) return;
       // ユーザー報告「収穫と種まきの到達効果処理が始まったばかりなのにターンが
       // 自動で終了してしまう」「接触を申し込んでいる最中にターンが終了してしまう」
       // の原因: armされた時点のshouldEmphasizeを信じてそのままクリックしていたが、
@@ -11046,6 +11078,12 @@ function buildEndTurnButton() {
       // を呼ぶとローカルだけに二重適用されサーバーの状態と食い違ってしまうため、
       // オンライン中はnextTurn()だけを直接呼ぶ。
       if (isOnlineMode()) {
+        // #130: 直前の自動/手動ターン終了がまだサーバーから戻ってきていない（ターンが
+        // 進んでいない）間は、二重にNEXT_TURNを送らない（相手のターンが飛ぶのを防ぐ）。
+        if (isEndTurnAdvancePending()) {
+          releaseGuard();
+          return;
+        }
         // ゲート侵攻で奪う札は、ルール通りサーバーが「無作為に」決める。奪う演出（相手の
         // 裏向き手札から儀式的にめくる／相手側にはライブで見える）は、以前のような
         // ターン終了時の事前ピックではなく、侵攻ボーナスの受信キュー
@@ -11065,6 +11103,9 @@ function buildEndTurnButton() {
           pendingContact: !!getState().pendingContact,
           contactResultModals: openContactResultModals,
         });
+        // #130: このターン(turnNumber)への NEXT_TURN を送った印を付ける。ターンが実際に
+        // 進む（turnNumberが変わる）まで、reconcileAutoEndTurn/手動クリックの再送を止める。
+        markEndTurnAdvancePending();
         transferPriorityToNextTurnPlayer(turnPlayerBeforeEnd);
         nextTurn();
         releaseGuard();
