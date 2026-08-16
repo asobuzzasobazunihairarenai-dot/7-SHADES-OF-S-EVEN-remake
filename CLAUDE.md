@@ -13020,3 +13020,43 @@ await client.rpc(...)`」パターンに合わせた。
 （基本時間ブランチが実測で正しいことを根拠にした構造的等価）。実対局（特にロープ出現後の挙動・オンラインの
 色宣言/選択肢/マイデッキドローでの回復）はユーザー側での実プレイ確認をお願いしたい。サーバー側
 （Supabase）の変更は無い。
+
+### 2026-08-16（続き131）：フェイズ移行でもタイマー回復＋保留不具合の対応（#121 ランク相手アバターのセンチネル解決／#122 アクション送信のリトライ／#123 は再現できず要スクショ）
+
+**フェイズ移行でもタイマー回復（ユーザー要望2026-08-16）**: 続き130の行動回復（`notifyPlayerDecision`）を、
+フェイズが実際に開始した時にも1回呼ぶようにした。`phase-automation.js` は turn-timer.js を import できない
+（循環）ため、`registerPhaseAutomationHelpers` に `notifyPlayerDecision` を追加して main.js から注入し、
+`enterPhase()` の `announcePhase(phase)` 直後（＝自動スキップで飛ばされたフェイズは early-return で通らない
+＝実際に開始したフェイズだけ）で `getState().priorityPlayer === player` の時だけ呼ぶ（委譲中に誤って相手の
+時間を回復しないためのガード）。ロック→ハンド→ムーブの移行で基本時間/ロープが回復する。ブラウザで
+`notifyPlayerDecision` のエンドツーエンド（4秒+20=24秒）とアプリ正常ロードを再確認。
+
+**#121 ランク対局のレディチェックで相手アバターが崩れる（"protagonist"）**: `"protagonist"`/`"entrusted"` は
+青年/託された者たちアバターの**センチネル値**で、`player-identity.js` の `resolveAvatarValue(seat, raw)` が
+その座席の駒の色に応じた実画像パス（`assets/avatars/protagonist-{色}-front.webp`）へ解決する正規の
+アバター。盤面はこれを解決していたが、ランクのレディチェック（続き127）は生値のまま `isImageAvatar`
+判定に落として🎮フォールバックしていた。`ranked-match.js` で表示前に `resolveAvatarValue("__ranked_
+opponent__", res.opponent_avatar)` で解決するよう修正（レディチェック時点では座席・駒色が無いため、駒の
+無いダミー座席→灰色版 `protagonist-gray-front.webp` に解決）。ブラウザで `"protagonist"`→gray画像パス・
+`isImageAvatar`=true（＝画像表示）、絵文字は素通りを確認。
+
+**#122 相手ターンなのに優先権が自分にある（＋NEXT_TURN の Edge Function 送信失敗）**: ログの直接原因は
+`NEXT_TURN` の `Failed to send a request to the Edge Function`（＝リクエスト送信自体が失敗＝サーバーに
+届かず未処理）。`online.js` の `callAction` は従来エラー即throwでリトライ無しだったため、この一過性の
+ネットワーク事象でターン交代が失われていた。「送信失敗（FunctionsFetchError／"failed to send a request"）」
+は**サーバー未処理が確実＝リトライ安全（二重適用なし）**なので、最大3回・400ms→800msバックオフで
+リトライするようにした（非2xx=FunctionsHttpError や data.ok=false=version_conflict 等の決定的失敗は
+従来通り即throw）。優先権のミスマッチ自体（turnPlayer≠priorityPlayer）は既存の自己修復（タイムアウト時の
+turnPlayerへの返却＋tickの定期 fetchAndHydrate 再同期）に委ねる。
+
+**#123 2D表示でプレイヤーCのエモートがアバターの上に出る（3D同様に左にしたい）**: エモート位置のCSSは
+座席（`[data-player="C"]`）ベースで**位置がモード非依存**。ブラウザで3経路（Cが相手＝zone-top／Cが自分＝
+zone-bottomに盤面アバター注入／自分の大アバターへのフォールバック）を 3D/2D で実測したが、盤面アバターは
+両モードとも「左」、大アバターのフォールバックは両モードとも「上」で、**「3Dは左・2Dは上」を再現
+できなかった**。投機的なCSS変更は既存の正常動作（左）を壊すリスクがあるため今回は変更を見送り、実際の
+2D画面のスクショで再現条件（自分の盤面アバターON/OFF・どのアバターか）の確認をユーザーに依頼する。
+
+**検証**: `node --check` 全ファイル通過、アプリ正常ロード・新規JSエラー無し。サーバー側（Supabase/Edge
+Function）の変更は無い（#122 はクライアント側のリトライのみ）。フェイズ移行回復・#121 はブラウザ実測済み。
+#122 のリトライは実際の一過性失敗の再現がサンドボックスでは難しいため、実オンライン対戦での確認をお願い
+したい。

@@ -12559,7 +12559,7 @@ subscribe(() => {
   }
 });
 registerCardDevModeArrivalHelpers({ triggerCardArrival, runAutoHandEffect, render });
-registerPhaseAutomationHelpers({ render, findTopCardAt, pickLocation: requestCellChoiceForEffect });
+registerPhaseAutomationHelpers({ render, findTopCardAt, pickLocation: requestCellChoiceForEffect, notifyPlayerDecision });
 initHelpButton();
 initRankingIcon();
 initUpdateChecker(); // デプロイ検知＆更新案内バナー（version.jsonを定期チェック）

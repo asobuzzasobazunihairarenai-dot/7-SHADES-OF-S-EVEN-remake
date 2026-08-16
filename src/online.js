@@ -1569,12 +1569,33 @@ async function callAction(action) {
     // fetchAndHydrate()より前に記録しておく（turn-timer.jsのonStateChangeがオンライン中に
     // 「本当に優先権保持者本人の操作か」を判定するのに使う。last-action-info.js参照）。
     setLastActionInfo({ actorSeat: getSelfSeat(), actionType: action.type });
-    const { data, error } = await client.functions.invoke(EDGE_FUNCTION_NAME, {
-      body: { game_id: currentGameId, action },
-    });
-    if (error) throw error;
-    if (!data?.ok) throw new Error(data?.error ?? "アクションが失敗しました");
-    return data;
+    // #122: ユーザー報告「相手ターンなのに優先権が自分にある」の直接原因はログの
+    // `NEXT_TURN` の `Failed to send a request to the Edge Function`（＝リクエスト送信自体が
+    // 失敗＝サーバーに届いておらず未処理）。この「送信失敗（FunctionsFetchError）」は一過性の
+    // ネットワーク事象で、サーバーは何も適用していないため**リトライが安全**（二重適用にならない）。
+    // 一方、非2xx（FunctionsHttpError）や data.ok=false（version_conflict 等）は決定的な失敗
+    // なので即throw（リトライしても同じ結果＝サーバーに届いた上でのアプリケーションエラー）。
+    const MAX_ATTEMPTS = 3;
+    let lastErr = null;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const { data, error } = await client.functions.invoke(EDGE_FUNCTION_NAME, {
+        body: { game_id: currentGameId, action },
+      });
+      if (!error) {
+        if (!data?.ok) throw new Error(data?.error ?? "アクションが失敗しました");
+        return data;
+      }
+      lastErr = error;
+      // 「送信できなかった」種類のエラーだけリトライ（届いていない＝未処理が確実なもの）。
+      const sendFailed =
+        error?.name === "FunctionsFetchError" || /failed to send a request/i.test(error?.message || "");
+      if (!sendFailed || attempt === MAX_ATTEMPTS) throw error;
+      await new Promise((r) => setTimeout(r, 400 * attempt)); // 400ms→800ms のバックオフ
+      // 次の試行の前に last-action-info を張り直す（万一この間に何かが消費していても、
+      // 成功した試行のブロードキャスト/ハイドレートで正しく行動として扱われるように）。
+      setLastActionInfo({ actorSeat: getSelfSeat(), actionType: action.type });
+    }
+    throw lastErr;
   });
 }
 

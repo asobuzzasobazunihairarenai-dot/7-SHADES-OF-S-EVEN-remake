@@ -26,6 +26,7 @@ import {
 import { openDeckSelect } from "./my-deck-select.js";
 import { playSound } from "./sound.js";
 import { applyAvatarContent, isImageAvatar } from "./avatar-render.js";
+import { resolveAvatarValue } from "./player-identity.js";
 
 const POLL_INTERVAL_MS = 2500;
 const READY_WINDOW_SEC = 60; // サーバー側so7_ranked_pollの解散閾値と揃える（見た目のカウントダウン用）
@@ -254,8 +255,11 @@ function showReadyModal(res) {
   const avatar = document.createElement("div");
   avatar.className = "ranked-ready-avatar";
   // 相手アバターが画像として認識できない値だと生テキスト（パス/URL断片）で出てしまう不具合の対策。
+  // まずセンチネル（"protagonist"／"entrusted"＝青年/託された者たちアバター）を実際の画像パスへ解決する
+  // （#121: これらは生値のままだと画像/絵文字判定に落ちて🎮になっていた）。レディチェック時点では
+  // まだ座席・駒の色が無いため、駒の無いダミー座席を渡して灰色版（protagonist-gray-front.webp）に解決する。
   // 画像 or 短い絵文字（≤2コードポイント）ならそのまま、それ以外は生値を見せず絵文字にフォールバック。
-  const oppAvatar = res.opponent_avatar;
+  const oppAvatar = resolveAvatarValue("__ranked_opponent__", res.opponent_avatar);
   const safeAvatar =
     isImageAvatar(oppAvatar) || (typeof oppAvatar === "string" && [...oppAvatar].length <= 2 && oppAvatar.length > 0)
       ? oppAvatar

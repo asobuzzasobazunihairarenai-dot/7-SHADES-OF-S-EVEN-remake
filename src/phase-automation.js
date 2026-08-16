@@ -74,10 +74,15 @@ export function canDrawFromMyDeck(seat) {
 
 let renderHelper = null;
 let findTopCardAtHelper = null;
-export function registerPhaseAutomationHelpers({ render, findTopCardAt, pickLocation }) {
+// ユーザー要望2026-08-16「フェイズの移行でも回復するようにしたい」。turn-timer.jsの
+// notifyPlayerDecision（applyActionRecoveryを優先権保持者本人に適用）を注入してもらい、
+// 実際にフェイズが開始した時に1回呼ぶ（循環import回避のため直接importせず注入）。
+let notifyPlayerDecisionHelper = null;
+export function registerPhaseAutomationHelpers({ render, findTopCardAt, pickLocation, notifyPlayerDecision }) {
   renderHelper = render;
   findTopCardAtHelper = findTopCardAt;
   pickLocationHelper = pickLocation;
+  notifyPlayerDecisionHelper = notifyPlayerDecision;
 }
 // ムーブフェイズの救済（移動先も接触相手も無い時、山札から隣へ1枚置く）で、プレイヤーに
 // 置き先マスを選ばせるためのピッカー（main.jsのrequestCellChoiceForEffectを注入）。
@@ -797,6 +802,10 @@ function enterPhase(phase, player) {
   }
 
   announcePhase(phase);
+  // フェイズ移行も「行動」として扱いタイマー回復（ユーザー要望2026-08-16）。自動スキップで
+  // 飛ばされたフェイズは上のearly-returnでここに来ないため、実際に開始したフェイズでのみ発火。
+  // 優先権保持者本人＝このフェイズの持ち主の時だけ（委譲中に誤って相手の時間を回復しない）。
+  if (getState().priorityPlayer === player) notifyPlayerDecisionHelper?.();
   updatePhaseGuideGlow();
   broadcastMyPhase(); // 相手の案内板にも自分のフェイズを反映（オンライン時のみ）
   updateSkipButtonVisibility();
