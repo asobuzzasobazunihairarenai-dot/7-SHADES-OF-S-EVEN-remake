@@ -281,6 +281,11 @@ import {
   onMassChangeSwapEvents,
   broadcastAfkCpuStatus,
   onAfkCpuStatusEvents,
+  isRankedGame,
+  broadcastRankedForfeit,
+  onRankedForfeitEvents,
+  reportRankedResult,
+  getSelfRank,
   broadcastColorsDeclared,
   onColorsDeclaredEvents,
   broadcastColorsResolved,
@@ -12818,6 +12823,62 @@ function exitAfkCpuSubstitution() {
   if (st.priorityPlayer === getSelfSeat()) transferPriorityTo(getSelfSeat());
   render();
 }
+// #127（ユーザー要望2026-08-16）「ランク戦ではCPU切替ではなく敗北にしましょう」。
+// ランク対局でAFK（連続タイムアップしきい値到達）した場合は、CPU代替に切り替えず、その席を
+// 放置敗北（相手の勝ち）にする。放置した本人・相手の両方がこの finishRankedForfeit を呼ぶ
+// （本人＝しきい値到達で、相手＝ranked_forfeit broadcast受信で）。reportRankedResultは
+// ranked_result_applied で冪等なので二重反映にはならない。1クライアント内でも一度だけ実行する。
+let rankedForfeitHandled = false;
+async function finishRankedForfeit(loserSeat) {
+  if (rankedForfeitHandled) return;
+  rankedForfeitHandled = true;
+  const gameId = getCurrentGameId();
+  const active = getState().activePlayers || [];
+  const winnerSeat = active.find((p) => p !== loserSeat) || null;
+  const iWon = getSelfSeat() !== loserSeat;
+  try {
+    if (gameId && winnerSeat) await reportRankedResult(gameId, winnerSeat);
+  } catch (e) {
+    console.error("reportRankedResult (forfeit) failed", e);
+  }
+  try {
+    const { showRankedResultModal } = await import("./ranked-result-modal.js");
+    const myRank = await getSelfRank();
+    const note = iWon ? "相手が放置により敗北したため、あなたの勝ちです。" : "放置（時間切れが続いた）ため、あなたの敗北です。";
+    await showRankedResultModal({
+      won: iWon,
+      rank: myRank ? myRank.rank : 0,
+      gauge: myRank ? myRank.gauge : 0,
+      legendPoints: myRank ? myRank.legend_points : 0,
+      note,
+    });
+  } catch (e) {
+    console.error("forfeit result modal failed", e);
+  }
+  try {
+    await leaveGame();
+  } catch (e) {
+    console.error("leaveGame (forfeit) failed", e);
+  }
+  try {
+    const home = await import("./home-screen.js");
+    home.openHomeScreen?.();
+  } catch (e) {
+    console.error("openHomeScreen (forfeit) failed", e);
+  }
+}
+// AFKしきい値到達時のハンドラ。ランク対局なら放置敗北、それ以外は従来通りCPU代替。
+function onAfkThresholdReached() {
+  if (isOnlineMode() && isRankedGame()) {
+    const loserSeat = getSelfSeat();
+    broadcastRankedForfeit({ loserSeat }); // 相手へ「放置敗北した」合図
+    finishRankedForfeit(loserSeat);
+    return;
+  }
+  enterAfkCpuSubstitution();
+}
+// 相手がランク対局で放置敗北した合図を受けたら、こちら（勝者）も結果反映＆表示してホームへ。
+onRankedForfeitEvents(({ loserSeat }) => finishRankedForfeit(loserSeat));
 buildAfkCpuBanner();
 // 開発用のみ: エイドス会話パネルのプレビューをコンソールから呼べるようにする（本番のボタン・
 // フローからは一切呼ばない。決定稿投入前の表示確認用）。
@@ -12825,8 +12886,8 @@ if (typeof window !== "undefined") {
   window.__eidosDialogueDemo = runEidosDialogueDemo;
   window.__eidosPlayScene = playEidosScene;
 }
-// しきい値到達（turn-timer.jsが連続タイムアップを数えて発火）→ 自席をCPU代行に切替。
-window.addEventListener("afk-cpu-threshold-reached", enterAfkCpuSubstitution);
+// しきい値到達（turn-timer.jsが連続タイムアップを数えて発火）→ ランクなら放置敗北、それ以外はCPU代行。
+window.addEventListener("afk-cpu-threshold-reached", onAfkThresholdReached);
 // 手動操作（在席の証拠）があれば連続タイムアップのカウンタをリセット。ただし既に代行中の間は
 // 解除しない（誤って触れただけで戻さない。復帰は明示ボタンのみ）。captureで拾い、バナーの
 // 「復帰する」ボタン自身のクリックも通常どおり動く（resetは代行中は何もしないため干渉しない）。

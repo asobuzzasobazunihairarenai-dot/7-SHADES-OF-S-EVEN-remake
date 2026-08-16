@@ -15362,6 +15362,7 @@ body.opening-screen-active.is-admin-user #smoke-test-launch-btn {
 .ranked-result-heading { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.9rem; }
 .ranked-result-heading.is-win { color: #ffd77a; }
 .ranked-result-heading.is-lose { color: #9fb0c8; }
+.ranked-result-note { font-size: 0.9rem; color: #cbd5e1; margin-bottom: 0.9rem; line-height: 1.4; }
 .ranked-result-rank { font-size: 1.6rem; font-weight: 800; letter-spacing: 0.04em; margin-bottom: 0.9rem; }
 .ranked-result-gauge { display: flex; justify-content: center; gap: 0.4rem; margin-bottom: 0.5rem; }
 .ranked-result-dot {

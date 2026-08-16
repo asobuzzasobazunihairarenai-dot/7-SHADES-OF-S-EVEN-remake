@@ -8,9 +8,10 @@ import { createBackdrop } from "./ui-helpers.js";
 const RANK_NAMES = ["ブロンズ", "シルバー", "ゴールド", "プラチナ", "ダイヤモンド", "マスター", "レジェンド"];
 const GAUGE_COLORS = ["red", "orange", "yellow", "green", "blue", "pink", "purple"];
 
-// { won:boolean, rank:0..6, gauge:0..6, legendPoints:int }。閉じたら解決するPromiseを返す
-// （victory.jsが順番にモーダルを見せるためにawaitできる）。
-export function showRankedResultModal({ won, rank, gauge, legendPoints }) {
+// { won:boolean, rank:0..6, gauge:0..6, legendPoints:int, note?:string }。閉じたら解決する
+// Promiseを返す（victory.jsが順番にモーダルを見せるためにawaitできる）。note は放置敗北など
+// 「なぜこの結果か」を1行添える任意のテキスト。
+export function showRankedResultModal({ won, rank, gauge, legendPoints, note }) {
   return new Promise((resolve) => {
     let backdrop = null;
     let modal = null;
@@ -31,6 +32,13 @@ export function showRankedResultModal({ won, rank, gauge, legendPoints }) {
     heading.className = "ranked-result-heading " + (won ? "is-win" : "is-lose");
     heading.textContent = won ? "🏆 勝利！ ランクポイント獲得" : "ランクポイント減少";
     inner.appendChild(heading);
+
+    if (note) {
+      const noteEl = document.createElement("div");
+      noteEl.className = "ranked-result-note";
+      noteEl.textContent = note;
+      inner.appendChild(noteEl);
+    }
 
     const rankName = document.createElement("div");
     rankName.className = "ranked-result-rank";

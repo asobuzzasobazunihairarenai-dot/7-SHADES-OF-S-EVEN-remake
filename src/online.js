@@ -2593,6 +2593,7 @@ export async function fetchAndHydrate(gameId) {
     // あった（ユーザー報告: 「オンにしたのにゲーム開始後、何かクリックするまでタイマーが
     // 作動しない」）。
     syncedTimerConfig = gameRow.timer_config ?? null;
+    currentGameIsRanked = !!gameRow.is_ranked; // #127: ランク対局か（AFKでCPU代替せず敗北にするため）
     // ユーザー要望（続き102）「疑似CPUモードが適用されない原因をアクションログで
     // 確認できるようにしてほしい」。この対局のtimerConfig（サーバーからの受信値、
     // 疑似CPUモードの有効/無効を含む）を記録し、後から「サーバーから正しい値が
@@ -2657,6 +2658,26 @@ export async function fetchAndHydrate(gameId) {
 let syncedTimerConfig = null;
 export function getSyncedTimerConfig() {
   return syncedTimerConfig;
+}
+// #127: この対局がランク対局か（so7_games.is_ranked）。ランクではAFKでCPU代替せず敗北にする。
+let currentGameIsRanked = false;
+export function isRankedGame() {
+  return currentGameIsRanked;
+}
+// #127: ランク対局でAFK（連続タイムアップしきい値）に達したプレイヤーが放置敗北した合図を、
+// 相手クライアントへ配信する（相手は自分の勝ち＋レート反映を見てホームへ戻る）。他のbroadcast
+// （effect_reason等）と同じ「状態は変えない見た目だけの合図」パターン。
+let rankedForfeitEventListeners = [];
+export function onRankedForfeitEvents(fn) {
+  rankedForfeitEventListeners.push(fn);
+  return () => {
+    rankedForfeitEventListeners = rankedForfeitEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastRankedForfeit(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "ranked_forfeit", payload });
+  }
 }
 // diag-pseudo-cpuログの重複記録防止用（続き102）。
 let lastLoggedTimerConfigJson = null;
@@ -2848,6 +2869,10 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // エモートの通知（broadcastEmote参照）。
     .on("broadcast", { event: "emote" }, ({ payload }) => {
       for (const fn of emoteEventListeners) fn(payload);
+    })
+    // #127: 相手がランク対局でAFK放置敗北した合図（broadcastRankedForfeit参照）。
+    .on("broadcast", { event: "ranked_forfeit" }, ({ payload }) => {
+      for (const fn of rankedForfeitEventListeners) fn(payload);
     })
     // 不具合報告時のログ収集要求／応答（broadcastBugLogRequest/Response参照）。
     .on("broadcast", { event: "bug_log_request" }, ({ payload }) => {
