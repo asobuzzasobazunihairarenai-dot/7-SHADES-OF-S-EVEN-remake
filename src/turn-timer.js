@@ -116,8 +116,14 @@ function isPseudoCpuModeActive() {
 }
 
 // オンライン中、MOVE_TOKEN等の「本物のゲーム操作」だけを優先権保持者の行動とみなす
-// （SET_PRIORITY_STATE自身やターン交代アクションは対象外）。
-const REAL_ACTION_TYPES = new Set(["MOVE_TOKEN", "DRAW_FROM_PILE", "FLIP_TOKEN", "SEND_TOKEN_TO_PILE"]);
+// （SET_PRIORITY_STATE自身やターン交代アクションは対象外）。DRAW_FROM_MY_DECKは
+// マイデッキ戦（ランク戦含む）の「ロックする代わりにマイデッキから1枚引く」——これも
+// 意思決定を伴う行動なので回復対象に含める（ユーザー要望2026-08-16）。ローカルモードは
+// そもそもactionType判定を通らない（下のonStateChange参照）ため元から回復対象。
+const REAL_ACTION_TYPES = new Set(["MOVE_TOKEN", "DRAW_FROM_PILE", "FLIP_TOKEN", "SEND_TOKEN_TO_PILE", "DRAW_FROM_MY_DECK"]);
+
+// 「何かアクション」時の回復量（秒）。ユーザー確定仕様2026-08-16。
+const ACTION_RECOVERY_SECONDS = 20;
 
 let baseClockEl = null; // フェイズ案内板の中に出す、基本時間の残り秒数表示（常時表示、カウント中でない時は自分の砂時計残数の表示に切り替わる）
 let baseClockLabelEl = null;
@@ -248,6 +254,60 @@ function extensionDurationMsFor(seat) {
   return getRopeExtensionSeconds() * 1000;
 }
 
+// 「何かアクション」時の回復（ユーザー確定仕様2026-08-16）。
+//  ・ロープ未出現（そのターンまだ砂時計を使い始めていない = hourglassUsedThisTurn=false）:
+//      基本時間の残りに +20秒。ただし上限は基本時間の初期値（ropeBaseSeconds、既定30秒）。
+//      ＝残りが多い時は30秒で頭打ち、少ない時は+20秒される。
+//  ・ロープ出現後（hourglassUsedThisTurn=true）:
+//      基本時間はもう回復しない（凍結）。代わりにロープ（延長）の残りに +20秒。上限は
+//      延長の満タン（ropeExtensionSeconds、既定30秒）。砂時計は減らさない（＝アクションで
+//      ロープを保たせる／持ち越しではなく現在のロープを継ぎ足す）。砂時計が尽きている
+//      （stock<=0）場合はもう回復できない（タイムアウトのまま）。
+// 砂時計の消費（ロープが行動なく燃え尽きたら1個）・補充（3ターン無消費で+1）は従来のまま。
+function applyActionRecovery(state) {
+  const seat = state.priorityPlayer;
+  if (!seat) return;
+  // 疑似CPU/AFK代行席は、行動しても短い持ち時間のまま（すぐ次の自動手へ）。
+  // freshBaseDeadlineForがこれらの席に短い値（getPseudoCpuDeadlineMs/getCpuStepDeadlineMs）を返す。
+  if (isPseudoCpuTarget(seat) || (isSelfCpuSubstituted() && seat === getSelfSeat())) {
+    withGuard(() => setPriorityState({ deadline: freshBaseDeadlineFor(seat), phase: "base" }));
+    return;
+  }
+  const now = Date.now();
+  if (!hourglassUsedThisTurn[seat]) {
+    // ロープ未出現: 基本時間を追加回復（上限 = 基本時間の初期値）。
+    const capMs = getRopeBaseSeconds() * 1000;
+    const leftMs = state.priorityDeadline - now;
+    const newMs = Math.min(leftMs + ACTION_RECOVERY_SECONDS * 1000, capMs);
+    // player は含めない（保持者は変えない。onStateChange/tickの書き込みコメント参照）。
+    withGuard(() => setPriorityState({ deadline: now + newMs, phase: "base" }));
+  } else {
+    // ロープ出現後: 基本時間は凍結、ロープを追加回復（上限 = 延長の満タン）。砂時計残0なら回復不可。
+    const stock = state.hourglassStock[seat] ?? 0;
+    if (stock <= 0) return;
+    const capMs = getRopeExtensionSeconds() * 1000;
+    // 今ロープが燃えている（phase extension）ならその残りに加算、そうでなければ0から。
+    const leftMs = state.priorityPhase === "extension" ? Math.max(0, state.priorityDeadline - now) : 0;
+    const newMs = Math.min(leftMs + ACTION_RECOVERY_SECONDS * 1000, capMs);
+    withGuard(() => setPriorityState({ deadline: now + newMs, phase: "extension" }));
+  }
+}
+
+// カード効果の意思決定（色宣言・選択肢の確定など、盤面dispatchを伴わない純粋な選択）を
+// プレイヤーが行った時に、外部（main.js）から呼んでもらう回復フック。onStateChangeの
+// dispatch経路（MOVE_TOKEN等）と同じapplyActionRecoveryを共有する。「1つの意思決定が
+// 確定した時に1回だけ」呼ぶこと（複数選択の途中クリックごとには呼ばない＝無限回復防止。
+// マス/手札/奪う手札の複数選択はここではなく実際のdispatchで回復するので、こちらには
+// 付けない）。
+export function notifyPlayerDecision() {
+  if (!isTurnTimerEnabled()) return;
+  const state = getState();
+  if (!state.priorityPlayer) return;
+  // オンライン中は優先権保持者本人のクライアントだけが書き込む（onStateChangeと同じ方針）。
+  if (isOnlineMode() && getSelfSeat() !== state.priorityPlayer) return;
+  applyActionRecovery(state);
+}
+
 // ターンプレイヤーの交代（ゲーム開始時のnull→非nullも含む）を検知した時の処理。
 // hourglassUsedThisTurn/turnsWithoutHourglass/pausedExtensionRemainingMsはタブごとの
 // ローカル変数のため、全クライアントが同じ順序で同じonStateChangeを処理する限り自然に
@@ -359,24 +419,16 @@ function onStateChange(state) {
     if (getSelfSeat() !== state.priorityPlayer) return;
   }
 
-  // 優先権を持つ座席が何か行動した＝基本時間の窓へリセットする（延長中に行動した場合、
-  // 仮消費していた砂時計は「ロープが完全に無くならなければ持ち越せる」仕様通り、
-  // 何も減らさずそのまま戻る）。
-  // 延長ロープが燃えている最中に中断された場合、その時点の残り時間を覚えておき、
-  // 次にこの座席の延長ロープが再開する時は満タンではなくこの続きから燃えるようにする。
-  if (state.priorityPhase === "extension" && state.priorityDeadline) {
-    const remaining = state.priorityDeadline - Date.now();
-    if (remaining > 0) pausedExtensionRemainingMs[state.priorityPlayer] = remaining;
-  }
-  // 重要（オンラインの委譲/優先権返却バグの根本対策）: この手の「保持者の基本時間/フェイズを
-  // 仕切り直すだけ」のリフレッシュ書き込みには player を含めない。含めると、カード効果の委譲
-  // （パーティー・合同建設・スラム上がりの役人）で一時的に相手へ優先権を貸している間、
-  // 相手クライアントの“まだ更新前の古い priorityPlayer”に基づくリフレッシュが、コーディネーター
-  // 側の「優先権を手番プレイヤーへ戻す」書き込み（player 指定あり）を last-writer-wins で
-  // 上書きしてしまい、「委譲後に優先権が即座に戻らず、相手がタイムアウトして初めて戻る」
-  // という不具合になる。優先権の保持者(player)は、明示的な譲渡/返却(transferPriorityTo)・
-  // ターン交代・座席初期化・タイムアウト時の返却でのみ書き換える。
-  withGuard(() => setPriorityState({ deadline: freshBaseDeadlineFor(state.priorityPlayer), phase: "base" }));
+  // 優先権を持つ座席が何か行動した＝行動回復（applyActionRecovery：ロープ未出現なら基本時間
+  // に+20秒、ロープ出現後ならロープに+20秒。ユーザー確定仕様2026-08-16）。
+  // 重要（オンラインの委譲/優先権返却バグの根本対策）: applyActionRecoveryの書き込みには
+  // player を含めない。含めると、カード効果の委譲（パーティー・合同建設・スラム上がりの役人）で
+  // 一時的に相手へ優先権を貸している間、相手クライアントの“まだ更新前の古い priorityPlayer”に
+  // 基づくリフレッシュが、コーディネーター側の「優先権を手番プレイヤーへ戻す」書き込み
+  // （player 指定あり）を last-writer-wins で上書きしてしまい、「委譲後に優先権が即座に戻らず、
+  // 相手がタイムアウトして初めて戻る」という不具合になる。優先権の保持者(player)は、明示的な
+  // 譲渡/返却(transferPriorityTo)・ターン交代・座席初期化・タイムアウト時の返却でのみ書き換える。
+  applyActionRecovery(state);
 }
 
 // --- フェイズ案内板の中に出す、基本時間の残り秒数表示 -----------------------------------

@@ -183,7 +183,7 @@ import { initPiecePets, registerPiecePetHelpers } from "./piece-pet.js";
 // 「今後表示しない」でオフ・オプションの基本設定でオンに戻せる）。
 import { isActionConfirmEnabled, setActionConfirmEnabled } from "./action-confirm-prefs.js";
 import { registerTutorialBattleUiHelpers } from "./tutorial-battle-ui.js";
-import { initTurnTimer, transferPriorityTo, isPseudoCpuTarget } from "./turn-timer.js";
+import { initTurnTimer, transferPriorityTo, isPseudoCpuTarget, notifyPlayerDecision } from "./turn-timer.js";
 import { initIconRearrange } from "./icon-rearrange.js";
 import { initSelfStatusRearrange } from "./self-status-rearrange.js";
 import { initInteractionModeToggle } from "./interaction-mode.js";
@@ -2394,6 +2394,9 @@ function pickOptionForEffect(cardId, optionsWithUsability) {
     { hidden }
   ).then((option) => {
     activeEffectPicker = null;
+    // 意思決定（選択肢の確定）＝行動として扱いタイマー回復（ユーザー要望2026-08-16）。
+    // 選択肢モーダルは1回の確定で解決する単一決定なので、複数選択の無限回復にはならない。
+    notifyPlayerDecision();
     return option;
   });
 }
@@ -2477,6 +2480,9 @@ function declareColorsForEffect(requirement, cardId, player) {
         logAction("declare-colors", { player, cardId, colors: result });
         if (isOnlineMode()) broadcastColorsDeclared({ fromPlayer: player, cardId, colors: result });
         showDeclaredColorsIndicator(player, result);
+        // 意思決定（色宣言の確定）＝行動として扱いタイマー回復（ユーザー要望2026-08-16）。
+        // 1回の「宣言する」で確定する単一決定なので、複数選択の無限回復にはならない。
+        notifyPlayerDecision();
       }
       backdrop.remove();
       modal.remove();
