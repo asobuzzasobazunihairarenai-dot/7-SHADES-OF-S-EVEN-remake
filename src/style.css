@@ -3767,9 +3767,12 @@ body.is-touch-device .zone-right .label {
     transform: translateX(-50%) scale(1);
   }
 }
-/* プレイヤーC（盤面の上側=zone-top）のエモート吹き出しは、アバター上だと画面上端で
-   見切れやすいため、アバターの左側に出す（ユーザー要望）。尻尾も右向き（アバター側）へ。 */
-.player-avatar[data-player="C"] .emote-speech-bubble {
+/* 盤面の奥側（zone-top＝相手が最も奥に表示される席）のエモート吹き出しは、アバターの上だと
+   画面上端で見切れやすい（＋その画角では手札とも干渉する）ため、アバターの左側に出す。
+   #123: 以前は座席（data-player="C"）ベースだったが、盤面は自視点で回転するため、奥に来る席は
+   viewerによって変わる。表示ゾーン（.zone-top等）基準にすることで、どのviewer/座席でも
+   「奥のアバターは左」になる。尻尾も右向き（アバター側）へ。 */
+.zone-top .emote-speech-bubble {
   bottom: auto;
   top: 50%;
   left: auto;
@@ -3779,7 +3782,7 @@ body.is-touch-device .zone-right .label {
   margin-right: 0.4rem;
   animation: emote-bubble-pop-left 0.2s ease-out;
 }
-.player-avatar[data-player="C"] .emote-speech-bubble::after {
+.zone-top .emote-speech-bubble::after {
   top: 50%;
   left: 100%;
   transform: translateY(-50%);
@@ -3796,41 +3799,21 @@ body.is-touch-device .zone-right .label {
     transform: translateY(-50%) scale(1);
   }
 }
-/* プレイヤーB(左)・D(右)のエモートはアバターの“下”に出す（アバター上だとプレイヤー名表示と
-   被って見づらいため。ユーザー要望）。尻尾は上向き（アバター側）にする。 */
-.player-avatar[data-player="B"] .emote-speech-bubble,
-.player-avatar[data-player="D"] .emote-speech-bubble {
+/* 盤面の左右（zone-left / zone-right）に表示される席のエモートはアバターの“下”に出す
+   （アバター上だとプレイヤー名表示と被って見づらいため）。尻尾は上向き（アバター側）にする。
+   #123: 座席（data-player="B"/"D"）ではなく表示ゾーン基準にして、viewerに依らず「左右の席は下」に。 */
+.zone-left .emote-speech-bubble,
+.zone-right .emote-speech-bubble {
   bottom: auto;
   top: 100%;
   margin-bottom: 0;
   margin-top: 0.4rem;
 }
-.player-avatar[data-player="B"] .emote-speech-bubble::after,
-.player-avatar[data-player="D"] .emote-speech-bubble::after {
+.zone-left .emote-speech-bubble::after,
+.zone-right .emote-speech-bubble::after {
   top: auto;
   bottom: 100%;
   border-top-color: transparent;
-  border-bottom-color: rgba(255, 255, 255, 0.96);
-}
-/* #123: 吹き出しが画面上端で見切れる時だけJS（emote.js）が付与する。座席別ルールを上書きして
-   アバターの下側・中央に出し、尻尾を上向き（アバター側）にする。読みやすさ優先の見切れ回避。
-   座席別ルール（[data-player="C"]等）と同じ詳細度なので、ソース上これより後に置いて勝たせる。 */
-.player-avatar .emote-speech-bubble.is-below {
-  top: 100%;
-  bottom: auto;
-  left: 50%;
-  right: auto;
-  margin: 0.4rem 0 0 0;
-  transform: translateX(-50%);
-  animation: none;
-}
-.player-avatar .emote-speech-bubble.is-below::after {
-  top: auto;
-  bottom: 100%;
-  left: 50%;
-  right: auto;
-  transform: translateX(-50%);
-  border: 0.35rem solid transparent;
   border-bottom-color: rgba(255, 255, 255, 0.96);
 }
 
