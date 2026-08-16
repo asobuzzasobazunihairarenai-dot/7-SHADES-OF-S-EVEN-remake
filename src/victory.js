@@ -12,7 +12,9 @@ import { getAvatarVariant, applyAvatarContent } from "./avatar-render.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { playVictoryBgm, stopVictoryBgm } from "./sound.js";
 import { showPostGamePanel, showCpuBattleEndPanel } from "./post-game-panel.js";
-import { awardMatchCurrency, awardCpuWinCurrency, getSelfSeat } from "./online.js";
+import { awardMatchCurrency, awardCpuWinCurrency, getSelfSeat, getCurrentGameId, reportRankedResult, getSelfRank } from "./online.js";
+// フェーズ3: ランク対局の結果表示（新ランク・七色ゲージ・勝敗）。
+import { showRankedResultModal } from "./ranked-result-modal.js";
 import { isCpuBattleActive, getEidosStoryStage, getEidosStoryResultHandler } from "./cpu-battle-state.js";
 import { refreshCurrencyDisplay } from "./currency-display.js";
 import { showCurrencyAwardModal } from "./currency-award-modal.js";
@@ -254,6 +256,27 @@ export function checkForVictory() {
           await showMatchPersonalResultModal({ activePlayers: getState().activePlayers, winnerSeat: player });
         } catch (err) {
           console.error("showMatchPersonalResultModal failed", err);
+        }
+        // フェーズ3: ランク対局なら結果からレートを反映し、自分の新しいランク（段位・七色ゲージ）を
+        // 簡易表示する。非ランク対局はサーバー側でskip（冪等）。全クライアント（勝者本人・傍観者）が
+        // 呼んでもranked_result_appliedで1回だけ反映される。skipped!=='not_ranked'（適用済み含む）で
+        // 「ランク対局だった」を判定し、各クライアントは自分の新ランク(getSelfRank)を表示する。
+        try {
+          const rankedGameId = getCurrentGameId();
+          const rankedRes = rankedGameId ? await reportRankedResult(rankedGameId, player) : null;
+          if (rankedRes && rankedRes.skipped !== "not_ranked") {
+            const myRank = await getSelfRank();
+            if (myRank) {
+              await showRankedResultModal({
+                won: player === getSelfSeat(),
+                rank: myRank.rank,
+                gauge: myRank.gauge,
+                legendPoints: myRank.legend_points,
+              });
+            }
+          }
+        } catch (err) {
+          console.error("ranked result reflect failed", err);
         }
         const { activePlayers } = getState();
         showPostGamePanel({ activePlayers, winnerSeat: player });

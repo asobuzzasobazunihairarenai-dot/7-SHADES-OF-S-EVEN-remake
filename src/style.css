@@ -15314,3 +15314,57 @@ body.opening-screen-active.is-admin-user #smoke-test-launch-btn {
 }
 .ranked-ready-start:hover { filter: brightness(1.08); }
 .ranked-ready-start:disabled { opacity: 0.6; cursor: default; filter: grayscale(0.4); }
+
+/* ランク対局の結果モーダル（フェーズ3、ranked-result-modal.js） */
+#ranked-result-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20110;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none; /* モーダル自身は透過。inner(auto)がボタンを拾い、外側は下のbackdropへ */
+}
+.ranked-result-inner {
+  pointer-events: auto;
+  background: linear-gradient(160deg, #232c3d, #141a26);
+  border: 2px solid #ffd77a;
+  border-radius: 1rem;
+  box-shadow: 0 0 40px rgba(255, 200, 90, 0.35);
+  padding: 1.8rem 2.2rem;
+  text-align: center;
+  color: #f1f5f9;
+  min-width: 18rem;
+  max-width: 24rem;
+  animation: ranked-ready-pop 0.3s ease;
+}
+.ranked-result-heading { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.9rem; }
+.ranked-result-heading.is-win { color: #ffd77a; }
+.ranked-result-heading.is-lose { color: #9fb0c8; }
+.ranked-result-rank { font-size: 1.6rem; font-weight: 800; letter-spacing: 0.04em; margin-bottom: 0.9rem; }
+.ranked-result-gauge { display: flex; justify-content: center; gap: 0.4rem; margin-bottom: 0.5rem; }
+.ranked-result-dot {
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.ranked-result-dot.is-lit {
+  background: var(--dot-color);
+  border-color: transparent;
+  box-shadow: 0 0 8px var(--dot-color);
+}
+.ranked-result-gauge-text { font-size: 0.9rem; color: #9fb0c8; margin-bottom: 1.1rem; }
+.ranked-result-lp { font-size: 1.1rem; color: #ffd77a; margin-bottom: 1.1rem; }
+.ranked-result-ok {
+  padding: 0.55rem 2.2rem;
+  border: none;
+  border-radius: 0.6rem;
+  background: linear-gradient(160deg, #ffd77a, #f0a93a);
+  color: #241a08;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ranked-result-ok:hover { filter: brightness(1.08); }

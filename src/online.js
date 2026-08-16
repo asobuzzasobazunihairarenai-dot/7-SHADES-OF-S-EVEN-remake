@@ -1030,6 +1030,24 @@ export async function leaveRankedQueue() {
   if (error) console.error("so7_ranked_leave failed", error);
 }
 
+// ランク対局の結果を反映する（勝敗→ポイント）。victory.jsの勝利時フックから呼ぶ。
+// 全クライアント（勝者本人・傍観者）が呼んでもサーバー側の冪等フラグ(ranked_result_applied)で
+// 1回だけ反映される（awardMatchCurrencyと同じ）。戻り値: {winner_delta, loser_delta, ...} か
+// {skipped:'not_ranked'|'already_applied'}、失敗時null。呼び出し側は skipped!=='not_ranked' で
+// 「ランク対局だった」を判定する（適用済みでもランク対局なので自分のランクを表示する）。
+export async function reportRankedResult(gameId, winnerSeat) {
+  if (!client || !cachedUser || !gameId || !winnerSeat) return null;
+  const { data, error } = await client.rpc("so7_ranked_report_result", {
+    p_game_id: gameId,
+    p_winner_seat: winnerSeat,
+  });
+  if (error) {
+    console.error("so7_ranked_report_result failed", error);
+    return null;
+  }
+  return data ?? null;
+}
+
 // --- 管理者専用機能（ユーザー要望「管理者モードで自分の通貨を自由に増やせるように」
 // 「サイトの利用状況（ログイン数・訪問数・誰がログイン中か）を見られるように」への対応）。
 // isAdminUser()はUI表示の出し分け（管理者モードにこの項目を出すかどうか）だけに使う

@@ -12949,3 +12949,25 @@ await client.rpc(...)`」パターンに合わせた。
 - **次（フェーズ3のクライアント配線）**：online.js に `reportRankedResult(gameId, winnerSeat)` ラッパー、
   victory.js の勝利時フック（awardMatchCurrency と同じ場所）から呼んでポイント反映＋ランク変動の
   簡易表示（新ランク・ゲージ・勝敗）。あわせて is_ranked 対局での自動処理の強制ON、合言葉フレンド戦。
+
+### 2026-08-16（続き129）：ランク戦フェーズ3のクライアント配線（勝敗→レート反映＋簡易ランク表示）
+
+続き128のSQL（so7_ranked_report_result）をクライアントに繋いだ。これで**ランク対局に勝つと実際に
+ランク（ゲージ）が動く**（＝本当の「ランク戦」になった）。
+- **online.js `reportRankedResult(gameId, winnerSeat)`**：so7_ranked_report_result の薄いラッパー。
+  戻り値 {winner_delta,...} か {skipped:'not_ranked'|'already_applied'}。
+- **victory.js**：オンライン勝利時のフック（awardMatchCurrency と同じ場所、勝利モーダル→通貨→戦績順位
+  →個人結果の後・ポストゲームパネルの前）で `reportRankedResult(getCurrentGameId(), player)` を呼ぶ。
+  非ランク対局はサーバー側で skip（冪等）。`skipped!=='not_ranked'`（適用済み含む）なら「ランク対局
+  だった」と判定し、各クライアントが自分の新ランクを `getSelfRank()` で取得して結果モーダルを出す
+  （全クライアントが呼んでも ranked_result_applied で二重反映にはならない）。
+- **新規 [src/ranked-result-modal.js](src/ranked-result-modal.js)**：`showRankedResultModal({won, rank,
+  gauge, legendPoints})`。段位名・七色ゲージ（7ドット、gauge 個点灯、色は --color-* を使用）・勝敗を
+  表示。レジェンド(rank6)はゲージの代わりにレジェンドポイント。昇格演出（ゲージ完成→称号変化）や
+  before→after アニメはフェーズ6（称号アート）で。
+- **検証**：`node --check` 通過、ブラウザでアプリ正常起動（victory.js→ranked-result-modal.js の静的
+  importチェーンが全て通る＝循環import無し）、結果モーダルの描画（勝利＝ゴールド・7ドット中4点灯・
+  「勝利！」／レジェンド＝LP表示・ゲージ非表示・敗北）とOKでの閉じを実測確認。実際に勝敗でポイントが
+  動くかの end-to-end は、フェーズ1〜3 の SQL 実行＋2アカウントでのランク対局が必要なのでそちらで確認。
+- **残り**：is_ranked 対局での自動処理の強制ON、合言葉フレンドランク戦、待機中CPU練習、ランク表示UI
+  （ホーム/マイページに現ランク常時表示）、昇格演出（称号アート）。
