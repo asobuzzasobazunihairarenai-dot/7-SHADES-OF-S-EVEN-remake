@@ -122,8 +122,42 @@ function attachBubble(targetEl, text) {
   bubble.className = "emote-speech-bubble";
   bubble.textContent = text;
   targetEl.appendChild(bubble);
+  // #123: プレイヤーC（盤面奥）のアバターを画面上端すれすれで表示する画角だと、左寄せ／上寄せの
+  // 吹き出しがアバターと同じ高さ（＝画面上端）で見切れて読めない、という報告への対策。
+  // 位置が座席（data-player）ベースで決まる既定のCSSに任せた上で、実際に描画された吹き出しが
+  // 画面上端で見切れていたら、その時だけアバターの「下側」へ回して必ず読めるようにする
+  // （読みやすさ優先。ポップアニメーション完了後に測って、外れている時だけ位置を上書きする）。
+  setTimeout(() => keepEmoteBubbleOnScreen(bubble), 240);
   setTimeout(() => bubble.remove(), EMOTE_BUBBLE_DURATION_MS);
   return true;
+}
+// 吹き出しが画面上端で見切れていたら、アバターの下側へ回す（is-below）。左右のはみ出しも
+// 軽く補正する。stageのscale変換下でもgetBoundingClientRectは実画面px（変換後）を返すため、
+// 画面端(0〜innerWidth/Height)との比較でそのまま判定できる。
+function keepEmoteBubbleOnScreen(bubble) {
+  if (!bubble.isConnected) return;
+  const margin = 8;
+  const r = bubble.getBoundingClientRect();
+  if (r.top < margin) {
+    // 上端で見切れ → アバターの下側へ回す（座席別ルールを上書き。尻尾も上向きにする）。
+    bubble.classList.add("is-below");
+    // 下へ回した後に左右がはみ出していないかは、CSS(is-below)側で中央寄せ(left:50%)にするため
+    // 通常は収まる。念のため再測して左右だけ微補正する。
+    const r2 = bubble.getBoundingClientRect();
+    nudgeHorizontally(bubble, r2, margin);
+  } else {
+    nudgeHorizontally(bubble, r, margin);
+  }
+}
+function nudgeHorizontally(bubble, r, margin) {
+  let shift = 0;
+  if (r.left < margin) shift = margin - r.left;
+  else if (r.right > window.innerWidth - margin) shift = window.innerWidth - margin - r.right;
+  if (!shift) return;
+  // stageのscale下では local px = screen px / scale。おおよそのscaleをbubble幅から逆算するのは
+  // 面倒なので、marginLeft（レイアウトに効くinline、transformアニメと衝突しない）で寄せる。
+  const prev = parseFloat(bubble.style.marginLeft || "0") || 0;
+  bubble.style.marginLeft = `${prev + shift}px`;
 }
 export function showEmoteBubble(player, text) {
   return attachBubble(document.querySelector(`.player-avatar[data-player="${player}"]`), text);

@@ -3812,6 +3812,27 @@ body.is-touch-device .zone-right .label {
   border-top-color: transparent;
   border-bottom-color: rgba(255, 255, 255, 0.96);
 }
+/* #123: 吹き出しが画面上端で見切れる時だけJS（emote.js）が付与する。座席別ルールを上書きして
+   アバターの下側・中央に出し、尻尾を上向き（アバター側）にする。読みやすさ優先の見切れ回避。
+   座席別ルール（[data-player="C"]等）と同じ詳細度なので、ソース上これより後に置いて勝たせる。 */
+.player-avatar .emote-speech-bubble.is-below {
+  top: 100%;
+  bottom: auto;
+  left: 50%;
+  right: auto;
+  margin: 0.4rem 0 0 0;
+  transform: translateX(-50%);
+  animation: none;
+}
+.player-avatar .emote-speech-bubble.is-below::after {
+  top: auto;
+  bottom: 100%;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  border: 0.35rem solid transparent;
+  border-bottom-color: rgba(255, 255, 255, 0.96);
+}
 
 /* エモート選択ポップアップ（emote.js、続き78）。他のモーダルと違い暗転させない
    （テンポよく連投したい操作のため）。backdropは外側クリック判定専用の透明な

@@ -238,8 +238,15 @@ function freshBaseDeadlineFor(seat) {
     const ms = isCpuBattleActive() && !isOnlineMode() ? getCpuStepDeadlineMs() : getPseudoCpuDeadlineMs();
     return Date.now() + ms;
   }
-  const seconds = hourglassUsedThisTurn[seat] ? Math.min(getRopeBaseSeconds(), getReducedBaseSeconds()) : getRopeBaseSeconds();
-  return Date.now() + seconds * 1000;
+  // #125（ユーザー要望2026-08-16）「相手のパーティの到達効果などで自分に優先権が移るとき
+  // 基本時間30秒から始まるようにしてほしい」。freshBaseDeadlineForは、ターン開始・優先権
+  // 譲渡（transferPriorityTo）といった「新しい持ち時間を与える」grant経路で使われる。以前は
+  // hourglassUsedThisTurnがtrueの席には短縮上限（reducedBaseSeconds=10秒）を適用していたが、
+  // 続き130の新しい回復モデル（行動で基本時間に+20 or ロープに+20）では「砂時計を使い始めた
+  // 後は基本時間を短縮する」という旧概念自体が行動回復側に置き換わっており、grant経路まで
+  // 短縮する必要はもう無い。譲渡された優先権も常に満額の基本時間から始める（getReducedBaseSeconds
+  // の管理者スライダーは無害なので残置するが、この経路では参照しない）。
+  return Date.now() + getRopeBaseSeconds() * 1000;
 }
 
 // 延長ロープを（再）開始する時に使う長さ（ミリ秒）。中断されて一時停止中の残り時間が
