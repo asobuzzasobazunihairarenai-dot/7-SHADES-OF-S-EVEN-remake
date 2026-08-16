@@ -15516,3 +15516,29 @@ body.opening-screen-active.is-admin-user #smoke-test-launch-btn {
   box-shadow: 0 0 7px var(--dot-color);
 }
 .rank-badge-lp { font-size: 1rem; font-weight: 700; color: #ffd77a; }
+
+/* U型の七色ゲージ（rank-badge.js buildUGauge、ユーザー提供素材2026-08-16）。豪華な枠に7つの
+   宝石ソケット。ゲージが貯まるほど左（赤）→右（紫）へ宝石が点灯する。 */
+.rank-ugauge {
+  position: relative;
+  aspect-ratio: 1536 / 1024;
+  background-image: url("../assets/rank-gauge/frame-u.webp");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.5));
+}
+.rank-ugauge-gem {
+  position: absolute;
+  /* 枠幅に対する宝石の大きさ（ソケットにフィット）。--rank-ugauge-gem で微調整可。 */
+  width: var(--rank-ugauge-gem, 15%);
+  height: auto;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 0 6px rgba(255, 220, 150, 0.55));
+  animation: rank-ugauge-gem-in 0.4s var(--gem-delay, 0s) both;
+}
+@keyframes rank-ugauge-gem-in {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+  70% { transform: translate(-50%, -50%) scale(1.12); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+body.reduce-glow .rank-ugauge-gem { animation: none; }
