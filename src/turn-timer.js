@@ -312,6 +312,15 @@ export function notifyPlayerDecision() {
   if (!state.priorityPlayer) return;
   // オンライン中は優先権保持者本人のクライアントだけが書き込む（onStateChangeと同じ方針）。
   if (isOnlineMode() && getSelfSeat() !== state.priorityPlayer) return;
+  // 疑似CPU/CPU/AFK代行席は、この「意思決定・フェイズ移行時の追加回復」を行わない。これらの
+  // ボット席にとって「持ち時間の残り」＝次の自動手までの思考時間であり、回復は人間のための
+  // 便宜。フェイズ移行（特に空フェイズの自動スキップ）や意思決定のたびに締切を新しい持ち時間へ
+  // リセットすると、ボットが1手ごとに余分に待たされて極端に遅くなる（スモークテストが7ターンで
+  // 150秒タイムアウトする原因＝続き131でこの回復を追加した副作用）。1手ごとのペース配分は
+  // onStateChange（実際のdispatch）側のapplyActionRecoveryが担うので、こちらの追加回復は
+  // ボットにはスキップしてよい（人間プレイヤーの回復挙動は従来通り）。
+  const seat = state.priorityPlayer;
+  if (isPseudoCpuTarget(seat) || (isSelfCpuSubstituted() && seat === getSelfSeat())) return;
   applyActionRecovery(state);
 }
 
