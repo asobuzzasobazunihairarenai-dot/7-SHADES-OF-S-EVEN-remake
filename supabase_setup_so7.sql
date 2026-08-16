@@ -1717,3 +1717,269 @@ grant execute on function so7_ranked_admin_apply_delta(uuid, int) to authenticat
 --     -- 期待: rank=3のまま, gauge=0
 --
 --   -- 検証が済んだら消してよい: delete from so7_ranked_players where user_id = '<あなたのuuid>';
+
+-- ============================================================================
+-- ランク戦フェーズ2: マッチメイキング（待機キュー＋原子的ペアリング＋レディチェック）
+-- ============================================================================
+-- 2026-08-16、docs/ranked-spec.md参照。専用サーバーは無いのでポーリング方式の待機キュー。
+-- 低母数対策の核＝レディチェック：マッチ成立＝即開始にせず、両者が「対戦開始」を押して
+-- 初めてランク対局を作成する（AFKで即敗北を防ぐ）。書き込みは全部SECURITY DEFINERのRPC経由。
+
+-- ランク対局の印。クライアントはこれを見て自動処理・タイマーを強制ONし、終了時にレート反映
+-- （フェーズ3）する。合言葉フレンド戦もこの印を使う。公開ロビー一覧には出さない。
+alter table so7_games add column if not exists is_ranked boolean not null default false;
+
+-- 部屋一覧からランク対局を除外（ランクのキュー戦・合言葉戦は独自の入場経路を持つため、
+-- 公開の「参加できる部屋」には出さない）。列を変えないのでcreate or replaceで安全。
+create or replace view so7_games_list as
+select
+  g.id, g.name, g.status, g.created_at,
+  (p.game_id is not null) as has_password,
+  (select count(*) from so7_game_seats s where s.game_id = g.id) as member_count
+from so7_games g
+left join so7_game_passwords p on p.game_id = g.id
+where g.status = 'open' and not g.is_ranked;
+
+-- 待機中プレイヤー。RLSは有効化するがポリシーを付与しない（デフォルト拒否）＝直接読み書き
+-- 不可、下のRPC経由のみ。deckはこの対局で使う解決済みデッキ（席へ引き継ぐ）。
+create table if not exists so7_ranked_queue (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  deck jsonb,
+  enqueued_at timestamptz not null default now(),
+  last_seen timestamptz not null default now(),
+  status text not null default 'waiting',   -- 'waiting' | 'matched'
+  match_id uuid                             -- 組まれたペアID（matched時）
+);
+alter table so7_ranked_queue enable row level security;
+
+-- レディチェック待ちのペア。同じくRLSポリシー無し（RPC経由のみ）。
+create table if not exists so7_ranked_pending_match (
+  id uuid primary key default gen_random_uuid(),
+  player_a uuid not null references auth.users(id) on delete cascade,
+  player_b uuid not null references auth.users(id) on delete cascade,
+  ready_a boolean not null default false,
+  ready_b boolean not null default false,
+  created_at timestamptz not null default now(),
+  game_id text                             -- 両者ready後に作られた対局ID
+);
+alter table so7_ranked_pending_match enable row level security;
+
+-- キューに 'waiting' で登録（再登録は待機状態にリセット）。
+create or replace function so7_ranked_enqueue(p_deck jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare v_uid uuid := auth.uid();
+begin
+  if v_uid is null then raise exception 'not_authenticated'; end if;
+  insert into so7_ranked_queue (user_id, deck, enqueued_at, last_seen, status, match_id)
+  values (v_uid, p_deck, now(), now(), 'waiting', null)
+  on conflict (user_id) do update
+    set deck = excluded.deck, enqueued_at = now(), last_seen = now(),
+        status = 'waiting', match_id = null;
+end;
+$$;
+revoke execute on function so7_ranked_enqueue(jsonb) from public;
+grant execute on function so7_ranked_enqueue(jsonb) to authenticated;
+
+-- 待機中に数秒ごとに呼ぶ。①ハートビート ②掃除 ③ペア成立試行 ④自分の状態＋待機人数を返す。
+-- #variable_conflict use_column: OUT列名(match_id/game_id等)と同名のテーブル列を、SQL内では
+-- 列として解決させる（あいまいさ回避）。OUT列への代入は := で明示的に行う。
+create or replace function so7_ranked_poll()
+returns table(
+  state text, match_id uuid, game_id text, waiting_count int,
+  opponent_user_id uuid, opponent_name text, opponent_avatar text, opponent_rank smallint
+)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+#variable_conflict use_column
+declare
+  v_uid uuid := auth.uid();
+  v_status text;
+  v_match uuid;
+  v_ids uuid[] := '{}';
+  v_new uuid;
+  r record;
+  v_pa uuid; v_pb uuid; v_game text; v_opp uuid;
+begin
+  if v_uid is null then raise exception 'not_authenticated'; end if;
+
+  -- (1) ハートビート
+  update so7_ranked_queue set last_seen = now() where user_id = v_uid;
+
+  -- (2-1) 離脱者（待機中でハートビートが古い）を削除
+  delete from so7_ranked_queue
+    where status = 'waiting' and last_seen < now() - interval '25 seconds';
+
+  -- (2-2) レディチェック期限切れ（60秒・両者readyでない）を解散
+  for r in
+    select * from so7_ranked_pending_match
+    where game_id is null and created_at < now() - interval '60 seconds'
+    for update skip locked
+  loop
+    if r.ready_a then
+      update so7_ranked_queue set status='waiting', match_id=null where user_id=r.player_a;
+    else
+      delete from so7_ranked_queue where user_id=r.player_a;
+    end if;
+    if r.ready_b then
+      update so7_ranked_queue set status='waiting', match_id=null where user_id=r.player_b;
+    else
+      delete from so7_ranked_queue where user_id=r.player_b;
+    end if;
+    delete from so7_ranked_pending_match where id=r.id;
+  end loop;
+
+  -- (2-3) 対局作成済みの古いペア（クライアントが入場済みのはず）を後始末
+  for r in
+    select id, player_a, player_b from so7_ranked_pending_match
+    where game_id is not null and created_at < now() - interval '3 minutes'
+  loop
+    delete from so7_ranked_queue q
+      where q.user_id in (r.player_a, r.player_b) and q.status='matched' and q.match_id=r.id;
+    delete from so7_ranked_pending_match where id=r.id;
+  end loop;
+
+  -- (3) 自分が waiting なら、待機中の最古2人をペアにする（原子的）
+  select status into v_status from so7_ranked_queue where user_id = v_uid;
+  if v_status = 'waiting' then
+    for r in
+      select user_id from so7_ranked_queue
+      where status='waiting' and last_seen > now() - interval '25 seconds'
+      order by enqueued_at
+      limit 2
+      for update skip locked
+    loop
+      v_ids := array_append(v_ids, r.user_id);
+    end loop;
+    if array_length(v_ids, 1) = 2 then
+      v_new := gen_random_uuid();
+      insert into so7_ranked_pending_match (id, player_a, player_b, ready_a, ready_b, created_at)
+      values (v_new, v_ids[1], v_ids[2], false, false, now());
+      update so7_ranked_queue set status='matched', match_id=v_new
+        where user_id in (v_ids[1], v_ids[2]);
+    end if;
+  end if;
+
+  -- (4) 自分の状態を組み立てて返す
+  select status, match_id into v_status, v_match from so7_ranked_queue where user_id = v_uid;
+
+  if v_status is null then
+    state := 'none';
+  elsif v_status = 'waiting' then
+    state := 'waiting';
+  elsif v_status = 'matched' then
+    select player_a, player_b, game_id into v_pa, v_pb, v_game
+      from so7_ranked_pending_match where id = v_match;
+    if v_pa is null then
+      -- ペアが解散済みなのに自分のrowがmatchedのまま（レース）→ waitingに戻す
+      update so7_ranked_queue set status='waiting', match_id=null where user_id=v_uid;
+      state := 'waiting';
+    else
+      v_opp := case when v_pa = v_uid then v_pb else v_pa end;
+      if v_game is not null then state := 'ingame'; else state := 'matched'; end if;
+      match_id := v_match;
+      game_id := v_game;
+      opponent_user_id := v_opp;
+      select display_name, avatar into opponent_name, opponent_avatar
+        from so7_user_profiles where user_id = v_opp;
+      select rank into opponent_rank from so7_ranked_players where user_id = v_opp;
+    end if;
+  end if;
+
+  waiting_count := (select count(*) from so7_ranked_queue
+                    where status='waiting' and last_seen > now() - interval '25 seconds');
+  return next;
+end;
+$$;
+revoke execute on function so7_ranked_poll() from public;
+grant execute on function so7_ranked_poll() to authenticated;
+
+-- 自分の ready を立てる。両者 ready になった瞬間にランク対局（so7_games＋2席、各自のデッキを
+-- 席へ）を原子的に作成し game_id を書き込む（戻り値＝game_id、まだ相手待ちならnull）。
+create or replace function so7_ranked_ready(p_match_id uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+#variable_conflict use_column
+declare
+  v_uid uuid := auth.uid();
+  v_pa uuid; v_pb uuid;
+  v_ra boolean; v_rb boolean;
+  v_game text;
+  v_p uuid; v_deck jsonb;
+  v_prof record;
+begin
+  if v_uid is null then raise exception 'not_authenticated'; end if;
+  select player_a, player_b, ready_a, ready_b, game_id
+    into v_pa, v_pb, v_ra, v_rb, v_game
+    from so7_ranked_pending_match where id = p_match_id for update;
+  if v_pa is null then raise exception 'match_not_found'; end if;
+  if v_uid <> v_pa and v_uid <> v_pb then raise exception 'not_in_match'; end if;
+  if v_game is not null then return v_game; end if;  -- 既に作成済み（冪等）
+
+  if v_uid = v_pa then v_ra := true; else v_rb := true; end if;
+  update so7_ranked_pending_match set ready_a = v_ra, ready_b = v_rb where id = p_match_id;
+
+  if v_ra and v_rb then
+    v_game := 'r_' || replace(gen_random_uuid()::text, '-', '');
+    insert into so7_games (id, name, status, is_ranked, my_deck_mode, timer_config)
+    values (v_game, 'ランク戦', 'open', true, true,
+            '{"enabled": true, "pseudoCpuModeEnabled": false}'::jsonb);
+    foreach v_p in array array[v_pa, v_pb]
+    loop
+      select display_name, avatar, piece_skin_index, pet_index into v_prof
+        from so7_user_profiles where user_id = v_p;
+      select deck into v_deck from so7_ranked_queue where user_id = v_p;
+      insert into so7_game_seats
+        (game_id, user_id, display_name, avatar, piece_skin_index, pet_index, selected_deck)
+      values
+        (v_game, v_p, v_prof.display_name, v_prof.avatar,
+         coalesce(v_prof.piece_skin_index, 0), v_prof.pet_index, v_deck);
+    end loop;
+    update so7_ranked_pending_match set game_id = v_game where id = p_match_id;
+    return v_game;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function so7_ranked_ready(uuid) from public;
+grant execute on function so7_ranked_ready(uuid) to authenticated;
+
+-- キャンセル（キューを抜ける／ペア解散）。対局作成前のキャンセルなら相手を待機に戻す。
+create or replace function so7_ranked_leave()
+returns void
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+#variable_conflict use_column
+declare
+  v_uid uuid := auth.uid();
+  v_match uuid;
+  v_pa uuid; v_pb uuid; v_game text; v_partner uuid;
+begin
+  if v_uid is null then raise exception 'not_authenticated'; end if;
+  select match_id into v_match from so7_ranked_queue where user_id = v_uid;
+  if v_match is not null then
+    select player_a, player_b, game_id into v_pa, v_pb, v_game
+      from so7_ranked_pending_match where id = v_match;
+    if v_pa is not null and v_game is null then
+      -- 対局作成前のキャンセル → ペア解散・相手は待機に戻す
+      v_partner := case when v_pa = v_uid then v_pb else v_pa end;
+      update so7_ranked_queue set status='waiting', match_id=null where user_id = v_partner;
+      delete from so7_ranked_pending_match where id = v_match;
+    end if;
+    -- game_idが既にある（対局作成済み）＝入場後のクリーンな離脱なら、相手/ペアは触らない
+  end if;
+  delete from so7_ranked_queue where user_id = v_uid;
+end;
+$$;
+revoke execute on function so7_ranked_leave() from public;
+grant execute on function so7_ranked_leave() to authenticated;

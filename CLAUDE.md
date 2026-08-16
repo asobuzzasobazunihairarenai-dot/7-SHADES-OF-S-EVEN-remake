@@ -12797,3 +12797,34 @@ u=横方向・v=縦方向）にも使えるよう一般化した`rotateFraction(
   Supabase ダッシュボードの SQL Editor で実行する必要がある。`so7-apply-action.ts` の変更は無いため
   Edge Function の再デプロイは不要。
 - 次はフェーズ2（マッチメイキングの待機キュー＋原子的ペアリング＋レディチェック）。
+
+### 2026-08-16（続き123）：ランク戦フェーズ2（マッチメイキング）のデータ/RPC を実装（supabase_setup_so7.sql）
+
+[docs/ranked-spec.md](docs/ranked-spec.md) のマッチメイキング（待機キュー＋原子的ペアリング＋
+レディチェック方式）のサーバー側（データ/RPC）を `supabase_setup_so7.sql` の末尾に実装した。
+専用サーバーが無いためポーリング方式。書き込みは全て SECURITY DEFINER の RPC 経由（キュー2
+テーブルは RLS 有効・ポリシー無し＝直接読み書き不可）。
+- **`so7_games.is_ranked`（新規列）**：ランク対局の印。クライアントはこれを見て自動処理・タイマーを
+  強制ON、終了時にレート反映（フェーズ3）する。合言葉フレンド戦も同じ印を使う。あわせて `so7_games_list`
+  ビューを `and not g.is_ranked` で更新し、ランク対局を公開ロビー一覧から除外。
+- **`so7_ranked_queue`**（user_id・deck jsonb・enqueued_at・last_seen・status 'waiting'/'matched'・
+  match_id）：待機中プレイヤー。
+- **`so7_ranked_pending_match`**（id・player_a/b・ready_a/b・created_at・game_id）：レディチェック待ちの
+  ペア。
+- **`so7_ranked_enqueue(deck)`**：キューに 'waiting' 登録（deck＝解決済みデッキ、席へ引き継ぐ）。
+- **`so7_ranked_poll()`**（待機中に数秒ごと呼ぶ・`#variable_conflict use_column`）：①ハートビート
+  ②掃除（離脱者＝25秒・期限切れペア＝60秒・対局作成済みの古いペア＝3分）③自分が waiting なら
+  待機中の最古2人を `for update skip locked` で原子的にペア化 ④自分の状態（none/waiting/matched/ingame）
+  ＋待機人数＋相手情報（名前・アバター・ランク）を返す。
+- **`so7_ranked_ready(match_id)`**：自分の ready を立てる。両者 ready の瞬間にランク対局
+  （`so7_games` status='open'・is_ranked・my_deck_mode＋各自のデッキを載せた2席、seat=null）を原子的に
+  作成し game_id を書き込む（席は BOOTSTRAP が A/C＝対面に割り当て・配布）。冪等（既に作成済みなら
+  game_id を返す）。
+- **`so7_ranked_leave()`**：キャンセル（対局作成前ならペア解散・相手を待機に戻す。作成後の入場クリーン
+  離脱なら相手/ペアは触らない）。
+- **ユーザー側の作業が必要**：`supabase_setup_so7.sql`（追記分またはファイル全体＝再実行安全）を
+  Supabase ダッシュボードの SQL Editor で実行。`so7-apply-action.ts` は未変更のため Edge Function の
+  再デプロイは不要。※このフェーズのRPCは auth.uid() 前提のため SQL Editor 単体では検証しづらい。実際の
+  検証は次のクライアント実装（フェーズ2b：ホームのランク戦タイル→デッキ確認→待機画面→レディチェック
+  →自動開始、＋待機人数/CPU練習/通知）を入れてから2ブラウザで行う。
+- 次はフェーズ2b（クライアントのマッチメイキングUI＋低母数対策4つ）。
