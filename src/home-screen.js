@@ -373,12 +373,10 @@ async function renderHomeRank(container) {
     buildRankBadge(info.rank ?? 0, info.gauge ?? 0, info.legend_points ?? 0, { animated: false, size: "4.2rem" })
   );
   container.style.display = "flex";
-  container.style.cursor = "pointer";
-  container.title = "ランキングを見る";
-  container.onclick = () => {
-    closeHomeScreen();
-    openRankingPage(() => openHomeScreen());
-  };
+  // 表示専用（ユーザー指摘）。以前はクリックで勝率等のランキング画面へ遷移していたが、
+  // それは戦績システムの「順位」であって、ここに出しているランク戦の段位とは別物のため
+  // 紛らわしい。ランク戦専用のランキング（レジェンド内ランキング等）ができるまでは
+  // 押しても何もしない表示専用にしておく。
 }
 
 export function closeHomeScreen() {

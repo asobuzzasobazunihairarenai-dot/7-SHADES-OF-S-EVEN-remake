@@ -210,6 +210,22 @@ const GROUPS = [
     ],
   },
   {
+    // ランク戦の現ランク表示（rank-badge.js、フェーズ4/6）。ホーム画面・マイページの段位バッジの
+    // 位置・サイズ。transform: translate/scale なので拡大しても見切れない。調整中は該当画面
+    // （ホーム or マイページ）を開いておくと反映が見える（管理者パネルはz-index:2600でホーム画面
+    // の上に出る）。既定値はstyle.cssのvar()フォールバック（0rem/1）と必ず一致させること。
+    title: "🏆 ランク表示（ホーム／マイページ）",
+    category: "position-ui",
+    controls: [
+      { key: "--home-rank-pos-x", label: "ホーム：位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--home-rank-pos-y", label: "ホーム：位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--home-rank-scale", label: "ホーム：サイズ", unit: "", min: 0.4, max: 3, step: 0.05, default: 1 },
+      { key: "--mypage-rank-pos-x", label: "マイページ：位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--mypage-rank-pos-y", label: "マイページ：位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--mypage-rank-scale", label: "マイページ：サイズ", unit: "", min: 0.4, max: 3, step: 0.05, default: 1 },
+    ],
+  },
+  {
     // ユーザー要望2026-08-08「ショップの商品カードの各要素を全商品連動で位置・サイズ調整
     // したい。枠からはみ出す場合は商品枠でわざと見切れるように」。CSS変数(--shop-*)を1つ
     // 動かすと全カードが連動する（style.cssの .shop-item-* が var()で読む。カードは
