@@ -220,12 +220,26 @@ function wireShowcaseEditing(box, badge, gems, bg, onChange) {
   // 背景は最背面＝空いた領域（宝石・バッジ以外）を掴んで移動できる。
   bg.addEventListener("pointerdown", (e) => startDrag(bg, e));
 
-  // ── ホイールでサイズ変更（宝石の上＝宝石、バッジの上＝バッジ、枠の上＝ゲージ全体）──
+  // ── ホイールでサイズ変更 ──
+  // 宝石の上＝宝石、バッジの上＝バッジ、背景（魔法陣）の上＝背景、それ以外（背景の外側の
+  // 枠内領域）＝ゲージ全体。
+  // ユーザー報告2026-08-17「背景単体でサイズ調整したいのにゲージも一緒に変わる」。原因は
+  // 背景に "bg" 判定が無く "gauge" に落ちていたこと——枠(box)を拡縮すると、背景は枠幅に対する
+  // %のため一緒に拡縮していた。編集モードでは枠(.rank-showcase-frame)がpointer-events:none・
+  // 背景(.rank-showcase-bg)がpointer-events:autoで枠いっぱいを覆うため、空き領域のホイールは
+  // 背景に当たる。背景の上のホイールは背景だけを拡縮する（ゲージは専用の「ゲージ」ボタンで）。
   function onWheel(e) {
     e.preventDefault();
     const dir = e.deltaY < 0 ? 1 : -1;
     const t = e.target;
-    const which = t === badge ? "badge" : t && t.classList && t.classList.contains("rank-showcase-gem") ? "gem" : "gauge";
+    const which =
+      t === badge
+        ? "badge"
+        : t && t.classList && t.classList.contains("rank-showcase-gem")
+          ? "gem"
+          : t === bg || (t && t.classList && t.classList.contains("rank-showcase-bg"))
+            ? "bg"
+            : "gauge";
     resizeShowcase(box, which, dir);
     notify();
   }
