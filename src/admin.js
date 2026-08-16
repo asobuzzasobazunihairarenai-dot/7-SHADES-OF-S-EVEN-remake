@@ -220,12 +220,20 @@ const GROUPS = [
     //   transform で管理する要素になったため、CSS変数(--mypage-rank-*)はinlineに負けて効かない。
     //   マイページ側の位置・サイズはアバター/名前/戦績等と同じくレイアウト編集モードで調整する
     //   （ユーザー報告2026-08-16「マイページのランクのスライダーが効かない」への対応で撤去）。
-    title: "🏆 ランク表示（ホーム画面）",
+    title: "🏆 ランク表示（ホーム／段位名テキスト）",
     category: "position-ui",
     controls: [
       { key: "--home-rank-pos-x", label: "ホーム：位置X", unit: "rem", min: -50, max: 50, step: 0.1, default: 43.8 },
       { key: "--home-rank-pos-y", label: "ホーム：位置Y", unit: "rem", min: -50, max: 50, step: 0.1, default: 13.1 },
       { key: "--home-rank-scale", label: "ホーム：サイズ", unit: "", min: 0.4, max: 3, step: 0.05, default: 1 },
+      // 段位名テキスト（「ブロンズ」等）の位置。ショーケース本体とは独立にtransformで動かす
+      // （ユーザー要望2026-08-17）。マイページ側は段位名だけが子要素のCSS変数なので、レイアウト
+      // 編集モードのinline transform（＝グループ全体の配置）とは衝突せず効く。既定はstyle.cssの
+      // var()フォールバック（0rem）と一致。
+      { key: "--home-rank-name-pos-x", label: "ホーム：段位名テキストの位置X", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--home-rank-name-pos-y", label: "ホーム：段位名テキストの位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--mypage-rank-name-pos-x", label: "マイページ：段位名テキストの位置X", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--mypage-rank-name-pos-y", label: "マイページ：段位名テキストの位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
     ],
   },
   {

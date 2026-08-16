@@ -4330,7 +4330,7 @@ body.theme-light .lobby-icon-toggle.is-on .lobby-icon-toggle-state {
   margin: 0.4rem 0 0.8rem;
 }
 .my-page-rank-title { font-size: 0.85rem; color: #ffe6a8; letter-spacing: 0.04em; }
-.my-page-rank-name { font-size: 1rem; font-weight: 800; color: #ffe6a8; }
+.my-page-rank-name { font-size: 1rem; font-weight: 800; color: #ffe6a8; transform: translate(var(--mypage-rank-name-pos-x, 0rem), var(--mypage-rank-name-pos-y, 0rem)); }
 body.theme-light .my-page-rank-name { color: #92660a; }
 .my-page-rank-none { font-size: 0.78rem; color: #94a3b8; }
 body.theme-light .my-page-rank-none { color: #64748b; }
@@ -12580,6 +12580,9 @@ body.reduce-glow .cell.card-effect-placement-target {
   font-weight: 800;
   color: #1e293b;
   text-shadow: 0 1px 4px rgba(255, 255, 255, 0.9);
+  /* 段位名テキスト（「ブロンズ」等）の位置を管理者モードで調整（ユーザー要望2026-08-17）。
+     transformなのでレイアウトに影響せずショーケースとは独立に動かせる。 */
+  transform: translate(var(--home-rank-name-pos-x, 0rem), var(--home-rank-name-pos-y, 0rem));
 }
 
 #home-screen-grid {

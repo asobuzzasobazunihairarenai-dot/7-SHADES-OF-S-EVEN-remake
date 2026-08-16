@@ -481,7 +481,7 @@ async function renderMyPageRankedRank(container) {
   container.innerHTML = "";
   const title = document.createElement("div");
   title.className = "my-page-rank-title";
-  title.textContent = "🏆 ランク戦の段位";
+  title.textContent = "ランク戦の段位";
   container.appendChild(title);
   if (info) {
     // バッジ＋U型ゲージ＋宝石の合成表示（rank-showcase.js）をコンパクトに縮小して出す。
