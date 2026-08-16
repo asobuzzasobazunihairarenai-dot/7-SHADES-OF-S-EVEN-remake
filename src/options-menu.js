@@ -61,6 +61,7 @@ import {
   getSelfSeat,
   fetchAndHydrate,
   getCurrentGameId,
+  isRankedGame,
 } from "./online.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { openStatsPlayerLinkModal } from "./stats-player-link.js";
@@ -917,10 +918,19 @@ export function initOptionsMenu() {
           // オンライン中だけ承認申請（main.jsのbuildAutoProcessingToggleBanner等が
           // 実際の承認バナー・反映を担当）にし、ローカルモード（1人が全座席を操作）は
           // 従来通り即座に切り替える。
+          // ランク戦は自動処理必須（docs/ranked-spec.md）。ランク対局中はONで固定し、
+          // オフにできないようにする（承認申請の経路にも入れない。状態の最終担保はmain.jsの
+          // render末尾の強制ON）。
+          const inRankedGame = isOnlineMode() && isRankedGame();
           const autoProcessingCheckboxRow = buildCheckboxRow(
             "カード効果を自動処理する",
-            isAutoProcessingEnabled(),
+            inRankedGame ? true : isAutoProcessingEnabled(),
             async (checked) => {
+              if (inRankedGame) {
+                // ランク戦ではオフにさせない。チェックを元に戻して終わる。
+                renderContent();
+                return;
+              }
               if (isOnlineMode()) {
                 const selfSeat = getSelfSeat();
                 const queue = getFinalLockApprovalOrder(selfSeat, getState().activePlayers);
@@ -945,7 +955,21 @@ export function initOptionsMenu() {
               setAutoProcessingEnabled(checked);
             }
           );
-          content.appendChild(autoProcessingCheckboxRow);
+          if (inRankedGame) {
+            const input = autoProcessingCheckboxRow.querySelector("input");
+            if (input) {
+              input.checked = true;
+              input.disabled = true;
+            }
+            autoProcessingCheckboxRow.style.opacity = "0.75";
+            const rankedNote = document.createElement("div");
+            rankedNote.style.cssText = "font-size: 0.72rem; color: #fbbf24; margin: 0.2rem 0 0.5rem 0;";
+            rankedNote.textContent = "ランク戦では自動処理は常にONで固定されます。";
+            content.appendChild(autoProcessingCheckboxRow);
+            content.appendChild(rankedNote);
+          } else {
+            content.appendChild(autoProcessingCheckboxRow);
+          }
 
           // ユーザー要望「自動処理モードでは駒やカードをルールに反して自由に動かせてしまうのを
           // 制限したい。ただし管理者だけはこの制限を解除できるように（制限が無い方がテストしやすい）」。

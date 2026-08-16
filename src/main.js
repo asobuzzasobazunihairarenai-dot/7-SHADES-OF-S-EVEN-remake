@@ -7527,6 +7527,15 @@ function render() {
   updateContactApprovalModal();
   checkCounterLockAutoApproval();
   checkContactAttackerResolution();
+  // ランク戦は自動処理必須（docs/ranked-spec.md「自動処理必須・タイマー必須」）。タイマーは
+  // サーバー同期のtimerConfigで強制されるが、自動処理はクライアントローカルの設定
+  // （card-effect-engine.js）なので、ランク対局中はここで常にONへ強制する（reconnect・
+  // 誤操作・オフ承認の取りこぼし対策）。setAutoProcessingEnabledは副作用の無い純粋な
+  // ローカルsetterなので、毎render idempotentに呼んで安全。UI側（options-menu.js）でも
+  // ランク中はトグルを固定するが、状態の最終的な担保はここで行う。
+  if (isOnlineMode() && isRankedGame() && !isAutoProcessingEnabled()) {
+    setAutoProcessingEnabled(true);
+  }
   // ゲート侵攻演出のモーダルがrender等でDOMから外れていたら貼り直す保険（オンラインで
   // 演出が出ないという報告への対応。gate-invasion-modal.jsのreapplyGateInvasionModal参照）。
   reapplyGateInvasionModal();

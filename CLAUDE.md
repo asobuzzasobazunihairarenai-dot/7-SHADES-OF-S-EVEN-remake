@@ -13838,3 +13838,20 @@ badge/bg top `calc(50% - 4.2rem)`・socket0 13.1%/38.7% 等）ことを確認。
   ranked-rank・stats。ユーザーがレイアウト編集モードで再配置した値）。
 - 検証: メガ:rootブロック(433)・admin.js default とも、ダンプに対して機械的差分0を確認。
   `node --check` 通過・新規コンソールエラー無し。サーバー側の変更は無い。
+
+### 2026-08-17（続き159）：ランク戦で自動処理を常時ONに強制（仕様「自動処理必須」の担保）
+
+ランク戦実装の続き。docs/ranked-spec.md「ランク戦は自動処理必須・タイマー必須」のうち、タイマーは
+サーバー同期の`timerConfig`（`so7_ranked_ready`＋`startGame(timerEnabled:true)`）で強制済みだが、
+**自動処理の強制ONが抜けていた**（自動処理はクライアントローカルの設定。片方がOFFだとランク対局が
+破綻する）。2箇所で担保した:
+- **状態の最終担保（main.js render末尾）**: `isOnlineMode() && isRankedGame() && !isAutoProcessingEnabled()`
+  ならその場でONへ強制。`setAutoProcessingEnabled`は副作用の無い純粋なローカルsetter（card-effect-engine.js、
+  `autoProcessingEnabled = !!v`のみ）なので毎render idempotentに呼んで安全。reconnect・誤操作・OFF承認の
+  取りこぼしも次のrenderで必ずON へ戻る。`isRankedGame()`は`fetchAndHydrate`が`so7_games.is_ranked`を
+  読んで保持する既存の仕組み（#127）。
+- **UI（options-menu.js）**: ランク対局中は「カード効果を自動処理する」チェックボックスをON＋disabledで
+  固定し、オフ承認申請の経路にも入れない（「ランク戦では自動処理は常にONで固定されます。」の注記付き）。
+- **検証**: ローカル（非ランク）では `isRankedGame()=false`・`isOnlineMode()=false` で強制が一切発火せず
+  回帰が無いことを実測。`node --check` 通過・新規コンソールエラー無し。実際のランク対局での挙動
+  （両クライアントで自動処理が固定されるか）は2アカウントでの確認が必要。サーバー側の変更は無い。
