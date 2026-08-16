@@ -58,6 +58,39 @@ export function representativeCardId(deck) {
   return best;
 }
 
+// デッキの3D立体ケース（MTGAデッキボックス風。斜め・厚み・少し開いた蓋・上から覗くカードの束）を
+// 返す共通部品。マイデッキ一覧の各箱と、マイページのメインデッキビジュアル（profile-page.js）の
+// 両方で使う。--mdl-accent を自身に設定するので、.mdl-deck の外（マイページ等）でもファースト色の
+// アクセントが効く。前面(.mdl-deck-front)にメインカードのイラストを貼る。層: peek → lid → front。
+export function buildDeckCaseArt(deck) {
+  const art = document.createElement("div");
+  art.className = "mdl-deck-art";
+  art.style.setProperty("--mdl-accent", deck.firstColor ? MDL_COLOR_HEX[deck.firstColor] : "#64748b");
+  const rep = representativeCardId(deck);
+  const caseEl = document.createElement("div");
+  caseEl.className = "mdl-deck-case";
+  const peek = document.createElement("div");
+  peek.className = "mdl-deck-peek";
+  caseEl.appendChild(peek);
+  const lid = document.createElement("div");
+  lid.className = "mdl-deck-lid";
+  caseEl.appendChild(lid);
+  const front = document.createElement("div");
+  front.className = "mdl-deck-front";
+  if (rep) {
+    const img = document.createElement("img");
+    // 箱の表面は「イラストのみ」版（テキスト無しで綺麗）。無いカードはgetCardIllustPath内で通常画像へ。
+    img.src = getCardIllustPath(rep);
+    img.addEventListener("error", () => { img.src = getCardImagePath(rep); }, { once: true }); // 404保険
+    img.alt = "";
+    img.loading = "lazy";
+    front.appendChild(img);
+  }
+  caseEl.appendChild(front);
+  art.appendChild(caseEl);
+  return art;
+}
+
 function buildDeckBox(deck) {
   const box = document.createElement("div");
   box.className = "mdl-deck";
@@ -73,34 +106,7 @@ function buildDeckBox(deck) {
     box.appendChild(badge);
   }
 
-  const art = document.createElement("div");
-  art.className = "mdl-deck-art";
-  const rep = representativeCardId(deck);
-  // MTGAデッキボックス風の立体ケース（斜め・厚み・少し開いた蓋・上から覗くカードの束）。
-  // 前面(.mdl-deck-front)にメインカードを貼る。層: peek(覗くカード) → lid(蓋) → front(前面)。
-  const caseEl = document.createElement("div");
-  caseEl.className = "mdl-deck-case";
-  const peek = document.createElement("div");
-  peek.className = "mdl-deck-peek";
-  caseEl.appendChild(peek);
-  const lid = document.createElement("div");
-  lid.className = "mdl-deck-lid";
-  caseEl.appendChild(lid);
-  const front = document.createElement("div");
-  front.className = "mdl-deck-front";
-  if (rep) {
-    const img = document.createElement("img");
-    // 箱の表面は「イラストのみ」版を使う（テキスト無しでケースの絵柄として綺麗。ユーザー要望
-    // 2026-08-12）。イラスト版が無いカードは getCardIllustPath 内で通常画像へフォールバック。
-    img.src = getCardIllustPath(rep);
-    // イラスト版が404だった時だけ通常のテキストあり画像へ退避（未生成カードの保険）。
-    img.addEventListener("error", () => { img.src = getCardImagePath(rep); }, { once: true });
-    img.alt = "";
-    img.loading = "lazy";
-    front.appendChild(img);
-  }
-  caseEl.appendChild(front);
-  art.appendChild(caseEl);
+  const art = buildDeckCaseArt(deck);
   const accent = deck.firstColor ? MDL_COLOR_HEX[deck.firstColor] : "#64748b";
   box.style.setProperty("--mdl-accent", accent); // タイル全体で使う（背景を下まで伸ばすため）
   box.appendChild(art);

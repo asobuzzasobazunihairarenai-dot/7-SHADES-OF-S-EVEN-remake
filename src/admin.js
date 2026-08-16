@@ -217,11 +217,11 @@ const GROUPS = [
     title: "🏆 ランク表示（ホーム／マイページ）",
     category: "position-ui",
     controls: [
-      { key: "--home-rank-pos-x", label: "ホーム：位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--home-rank-pos-y", label: "ホーム：位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--home-rank-pos-x", label: "ホーム：位置X", unit: "rem", min: -50, max: 50, step: 0.1, default: 0 },
+      { key: "--home-rank-pos-y", label: "ホーム：位置Y", unit: "rem", min: -50, max: 50, step: 0.1, default: 0 },
       { key: "--home-rank-scale", label: "ホーム：サイズ", unit: "", min: 0.4, max: 3, step: 0.05, default: 1 },
-      { key: "--mypage-rank-pos-x", label: "マイページ：位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--mypage-rank-pos-y", label: "マイページ：位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--mypage-rank-pos-x", label: "マイページ：位置X", unit: "rem", min: -50, max: 50, step: 0.1, default: -11.4 },
+      { key: "--mypage-rank-pos-y", label: "マイページ：位置Y", unit: "rem", min: -50, max: 50, step: 0.1, default: 4.4 },
       { key: "--mypage-rank-scale", label: "マイページ：サイズ", unit: "", min: 0.4, max: 3, step: 0.05, default: 1 },
     ],
   },
@@ -607,9 +607,9 @@ const GROUPS = [
     category: "position-ui",
     controls: [
       { key: "--profile-maindeck-right", label: "横位置 right（＋で左へ）", unit: "rem", min: 0, max: 50, step: 0.1, default: 2.5 },
-      { key: "--profile-maindeck-bottom", label: "縦位置 bottom（＋で上へ）", unit: "rem", min: 0, max: 40, step: 0.1, default: 2.5 },
-      { key: "--profile-maindeck-width", label: "幅", unit: "rem", min: 7, max: 24, step: 0.5, default: 12 },
-      { key: "--profile-maindeck-scale", label: "全体サイズ", unit: "", min: 0.5, max: 2, step: 0.05, default: 1 },
+      { key: "--profile-maindeck-bottom", label: "縦位置 bottom（＋で上へ）", unit: "rem", min: 0, max: 40, step: 0.1, default: 5.9 },
+      { key: "--profile-maindeck-width", label: "幅", unit: "rem", min: 7, max: 24, step: 0.5, default: 10.5 },
+      { key: "--profile-maindeck-scale", label: "全体サイズ", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 1.75 },
     ],
   },
   {

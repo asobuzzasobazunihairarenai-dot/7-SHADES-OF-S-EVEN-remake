@@ -9,10 +9,9 @@ import { applyProfileLayout, registerProfileLayoutHelpers } from "./profile-layo
 import { syncFullScreenPageActive } from "./option-area.js";
 import { closeShopPanel } from "./shop.js";
 // マイデッキ編集はマイページ内の大ボタンへ移設（ユーザー要望2026-08-11）。
-// ユーザー要望2026-08-16「ボタンの代わりにメインデッキのビジュアルを置き、その下に編集ボタン」。
-import { openMyDeckList, representativeCardId } from "./my-deck-list.js";
+// ユーザー要望2026-08-16「ボタンの代わりにメインデッキのビジュアル（3D箱）を置き、その下に編集ボタン」。
+import { openMyDeckList, buildDeckCaseArt } from "./my-deck-list.js";
 import { getSelectedDeckId, getDeckById, getAllDecks } from "./my-deck.js";
-import { getCardIllustPath, getCardImagePath } from "./cards-data.js";
 
 let overlayEl = null;
 let bodyEl = null;
@@ -65,9 +64,10 @@ export function openProfilePage(onClose) {
   const mydeckWrap = document.createElement("div");
   mydeckWrap.id = "profile-maindeck";
 
+  // 「メインデッキ」ラベル（ユーザー要望2026-08-16：テキスト横のアイコン🏅は不要）。
   const badge = document.createElement("div");
   badge.className = "profile-maindeck-badge";
-  badge.textContent = "🏅 メインデッキ";
+  badge.textContent = "メインデッキ";
   mydeckWrap.appendChild(badge);
 
   const cover = document.createElement("button");
@@ -75,21 +75,11 @@ export function openProfilePage(onClose) {
   cover.className = "profile-maindeck-cover";
   cover.title = "マイデッキを編集する";
   cover.addEventListener("click", openEditor);
-  // メインデッキ（getSelectedDeckId）を表示。無ければ先頭のデッキ、それも無ければ「未設定」。
+  // メインデッキ（getSelectedDeckId）を3D立体ケースで表示。無ければ先頭のデッキ、それも
+  // 無ければ「未設定」。ケースはデッキ一覧と同じ共通部品（buildDeckCaseArt）を流用。
   const mainDeck = getDeckById(getSelectedDeckId()) || getAllDecks()[0] || null;
   if (mainDeck) {
-    if (mainDeck.firstColor) cover.style.setProperty("--maindeck-accent", `var(--color-${mainDeck.firstColor})`);
-    const art = document.createElement("div");
-    art.className = "profile-maindeck-art";
-    const rep = representativeCardId(mainDeck);
-    if (rep) {
-      const img = document.createElement("img");
-      img.src = getCardIllustPath(rep); // テキスト無しのイラスト版（ケース表面と同じ）
-      img.addEventListener("error", () => { img.src = getCardImagePath(rep); }, { once: true });
-      img.alt = "";
-      art.appendChild(img);
-    }
-    cover.appendChild(art);
+    cover.appendChild(buildDeckCaseArt(mainDeck)); // 3D立体ケース（MTGAデッキボックス風）
     const nm = document.createElement("div");
     nm.className = "profile-maindeck-name";
     nm.textContent = mainDeck.name || "マイデッキ";
@@ -100,6 +90,7 @@ export function openProfilePage(onClose) {
   }
   mydeckWrap.appendChild(cover);
 
+  // 「マイデッキ編集」ボタン（ユーザー要望2026-08-16：ボタン枠は不要＝テキストリンク調）。
   const editBtn = document.createElement("button");
   editBtn.type = "button";
   editBtn.id = "profile-maindeck-edit";

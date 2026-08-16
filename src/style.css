@@ -4283,7 +4283,7 @@ body.theme-light .lobby-icon-toggle.is-on .lobby-icon-toggle-state {
   align-items: center;
   gap: 0.5rem;
   margin: 0.4rem 0 0.8rem;
-  transform: translate(var(--mypage-rank-pos-x, 0rem), var(--mypage-rank-pos-y, 0rem)) scale(var(--mypage-rank-scale, 1));
+  transform: translate(var(--mypage-rank-pos-x, -11.4rem), var(--mypage-rank-pos-y, 4.4rem)) scale(var(--mypage-rank-scale, 1));
 }
 .my-page-rank-title { font-size: 0.85rem; color: #ffe6a8; letter-spacing: 0.04em; }
 /* ライトテーマ: マイページ背景が明るいので、金色の段位名・タイトルを濃い金に、
@@ -14792,14 +14792,14 @@ body.theme-light .mdl-deck-count {
 #profile-maindeck {
   position: absolute;
   right: var(--profile-maindeck-right, 2.5rem);
-  bottom: var(--profile-maindeck-bottom, 2.5rem);
+  bottom: var(--profile-maindeck-bottom, 5.9rem);
   z-index: 5;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.45rem;
-  width: var(--profile-maindeck-width, 12rem);
-  transform: scale(var(--profile-maindeck-scale, 1));
+  width: var(--profile-maindeck-width, 10.5rem);
+  transform: scale(var(--profile-maindeck-scale, 1.75));
   transform-origin: bottom right;
 }
 .profile-maindeck-badge {
@@ -14809,39 +14809,30 @@ body.theme-light .mdl-deck-count {
   letter-spacing: 0.05em;
 }
 body.theme-light #profile-maindeck .profile-maindeck-badge { color: #92660a; }
+/* カバー = 3D立体ケース(.mdl-deck-art)＋デッキ名を包むだけのフレームレスなボタン
+   （ユーザー要望2026-08-16「ビジュアルを3Dの箱に」）。枠・背景は付けず、箱の落ち影・
+   perspective をクリップしないよう overflow:visible のまま。 */
 .profile-maindeck-cover {
   width: 100%;
   padding: 0;
+  border: none;
+  background: none;
   cursor: pointer;
-  background: linear-gradient(150deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.96));
-  border: 2px solid var(--maindeck-accent, #64748b);
-  border-radius: 0.8rem;
-  overflow: hidden;
-  box-shadow: 0 0.5rem 1.4rem rgba(0, 0, 0, 0.4);
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
-.profile-maindeck-cover:hover { transform: translateY(-2px); box-shadow: 0 0.7rem 1.8rem rgba(0, 0, 0, 0.5); }
-.profile-maindeck-art {
-  width: 100%;
-  height: 7.5rem;
-  background: #0b0f18;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-.profile-maindeck-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* カバー内の3D箱のホバー回転（.mdl-deck の外なので専用ルールで再現）。 */
+.profile-maindeck-cover:hover .mdl-deck-case { transform: rotateX(6deg) rotateY(-11deg); }
 .profile-maindeck-name {
-  padding: 0.4rem 0.6rem;
-  font-size: 0.9rem;
+  margin-top: 0.3rem;
+  font-size: 0.85rem;
   font-weight: 700;
   color: #f1f5f9;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  border-top: 1px solid var(--maindeck-accent, #64748b);
+  max-width: 100%;
 }
+body.theme-light #profile-maindeck .profile-maindeck-name { color: #1e293b; }
 .profile-maindeck-cover.is-empty {
   height: 6rem;
   display: flex;
@@ -14849,27 +14840,30 @@ body.theme-light #profile-maindeck .profile-maindeck-badge { color: #92660a; }
   justify-content: center;
   color: #94a3b8;
   font-size: 0.9rem;
-  border-style: dashed;
+  border: 2px dashed rgba(148, 163, 184, 0.4);
+  border-radius: 0.6rem;
 }
+/* 「マイデッキ編集」= テキストリンク調（ユーザー要望2026-08-16「ボタン枠は不要」）。枠・背景なし。 */
 #profile-maindeck-edit {
   width: 100%;
-  padding: 0.55rem 0.6rem;
+  padding: 0.2rem;
   border: none;
-  border-radius: 0.6rem;
-  background: linear-gradient(150deg, #f2c94c, #d97706);
-  color: #241300;
+  background: none;
+  color: #f2c94c;
   font-family: sans-serif;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: bold;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  box-shadow: 0 0.3rem 0.9rem rgba(217, 119, 6, 0.45), inset 0 0 0 2px rgba(255, 255, 255, 0.25);
+  gap: 0.35rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
-#profile-maindeck-edit:hover { filter: brightness(1.07); transform: translateY(-1px); }
-#profile-maindeck-edit .profile-maindeck-edit-icon { font-size: 1.15em; line-height: 1; }
+#profile-maindeck-edit:hover { filter: brightness(1.12); }
+body.theme-light #profile-maindeck-edit { color: #b45309; }
+#profile-maindeck-edit .profile-maindeck-edit-icon { font-size: 1.05em; line-height: 1; text-decoration: none; display: inline-block; }
 
 /* デッキ一覧: メインデッキ（getSelectedDeckId）のバッジ＋★トグル（my-deck-list.js）。 */
 .mdl-deck.is-main { box-shadow: 0 0 0 2px #f2c94c, 0 0.4rem 1rem rgba(0, 0, 0, 0.35); }

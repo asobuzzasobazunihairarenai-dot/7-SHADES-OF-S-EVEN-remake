@@ -142,14 +142,10 @@ function buildEditableNameRow(seat) {
   row.className = "my-page-row";
   row.style.cssText = "display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.3rem 0; border-bottom: 1px solid rgba(148, 163, 184, 0.12); font-size: 0.85rem;";
 
-  const labelEl = document.createElement("span");
-  labelEl.textContent = "プレイヤー名";
-  labelEl.className = "my-page-row-label";
-  labelEl.style.cssText = "color: #94a3b8; flex: 0 0 auto;";
-  row.appendChild(labelEl);
-
+  // ユーザー要望2026-08-16「『プレイヤー名○○』の『プレイヤー名』表記を無くす」。ラベルは
+  // 出さず、名前（＋鉛筆）だけを表示する。左寄せにして名前が主役になるようにする。
   const valueWrap = document.createElement("div");
-  valueWrap.style.cssText = "display: flex; align-items: center; gap: 0.4rem; flex: 1 1 auto; justify-content: flex-end; min-width: 0;";
+  valueWrap.style.cssText = "display: flex; align-items: center; gap: 0.4rem; flex: 1 1 auto; justify-content: flex-start; min-width: 0;";
   row.appendChild(valueWrap);
 
   function renderView() {
@@ -273,6 +269,14 @@ export async function renderMyPageBody(body, close) {
   bgAvatarImg.src = getPlayerAvatar(seat);
   bgAvatarImg.alt = "";
   bgAvatar.appendChild(bgAvatarImg);
+  // ユーザー要望2026-08-16「マイページのアバタークリックでアバターを変えれるように」。
+  // 大アバター（背面の飾り）自体を押してもピッカーを開く。レイアウト編集モード中は
+  // ドラッグ移動を優先したいので、編集モードでない時だけ反応させる（editMode判定は無いため
+  // pointer-events は常時autoにし、クリックでピッカーを開く。編集モードのドラッグは
+  // profile-layout-editor側がpointerdownを拾うので競合しない）。
+  bgAvatar.style.cursor = "pointer";
+  bgAvatar.title = "クリックしてアバターを変更";
+  bgAvatar.addEventListener("click", () => avatarPickerFn?.());
   body.appendChild(bgAvatar);
 
   const avatarWrap = document.createElement("div");
@@ -282,7 +286,9 @@ export async function renderMyPageBody(body, close) {
   avatarImg.className = "my-page-avatar-img"; // アバター変更時に差し替えるための識別子（#4）
   avatarImg.src = getPlayerAvatar(seat);
   avatarImg.alt = "";
-  avatarImg.style.cssText = "width: 6rem; height: 6rem; border-radius: 50%; object-fit: cover;";
+  avatarImg.style.cssText = "width: 6rem; height: 6rem; border-radius: 50%; object-fit: cover; cursor: pointer;";
+  avatarImg.title = "クリックしてアバターを変更";
+  avatarImg.addEventListener("click", () => avatarPickerFn?.()); // ユーザー要望2026-08-16
   const changeBtn = document.createElement("button");
   changeBtn.type = "button";
   changeBtn.textContent = "アバター変更";
