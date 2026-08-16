@@ -13823,3 +13823,18 @@ badge/bg top `calc(50% - 4.2rem)`・socket0 13.1%/38.7% 等）ことを確認。
 - **検証**: ブラウザで `.home-rank-name`/`.my-page-rank-name` の computed transform が各CSS変数に
   正しく反応する（例: home 2rem/-1rem→`matrix(…,32,-16)`、mypage 3rem/1.5rem→`matrix(…,48,24)`）ことを
   実測。`node --check` 通過・新規コンソールエラー無し。サーバー側の変更は無い。
+
+### 2026-08-17（続き158）：管理者モードの調整値を焼き込み（メガ:rootブロック再生成＋admin.js default同期＋PROFILE_LAYOUT）
+
+ユーザーが調整した`:root`ダンプ・PROFILE_LAYOUTを焼き込んだ。機械的に差分検出した結果:
+- **style.cssのメガ:rootブロック**を、ダンプ全433変数から再生成（従来400変数＝続き157で追加した
+  ランク段位名テキストの4変数等33個が未収録だった）。ダンプはメガブロックの上位互換（共有変数は
+  全て一致・ロストなし）のため丸ごと置き換え。これで `--home-rank-name-pos-y:-1.8rem`・
+  `--mypage-rank-name-pos-y:-2.8rem` 等が :root で正しく効く（ブラウザで実測確認）。
+- **admin.js の default フィールド**を51項目、ダンプ値へ同期（`--card-preview-size` 20→32・
+  自分専用ステータス大アバター/アイコングループ・各スマホ専用値・プロフィールメインデッキ等の
+  累積ドリフト分。リセットボタンの挙動と実際の見た目を一致させる）。
+- **PROFILE_LAYOUT**（profile-layout-editor.js）を4項目更新（avatar-change・cosmetics・
+  ranked-rank・stats。ユーザーがレイアウト編集モードで再配置した値）。
+- 検証: メガ:rootブロック(433)・admin.js default とも、ダンプに対して機械的差分0を確認。
+  `node --check` 通過・新規コンソールエラー無し。サーバー側の変更は無い。

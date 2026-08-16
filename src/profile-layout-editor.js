@@ -15,12 +15,12 @@
 export const PROFILE_LAYOUT = {
   avatar: { x: -283, y: 7, scale: 6 },
   "avatar-bg": { x: -483, y: -206, scale: 4.5 },
-  "avatar-change": { x: 174, y: 601, scale: 1.97 },
-  cosmetics: { x: 495, y: 52, scale: 1.5 },
+  "avatar-change": { x: 92, y: 610, scale: 1.97 },
+  cosmetics: { x: 571, y: 29, scale: 1.52 },
   name: { x: -268, y: 594, scale: 3.01 },
-  // ランク表示（ranked-rank）はユーザーがレイアウト編集モードで配置（2026-08-16、着せ替えの左上）。
-  "ranked-rank": { x: 347, y: 48, scale: 1 },
-  stats: { x: 414, y: 229, scale: 1.88 },
+  // ランク表示（ranked-rank）はユーザーがレイアウト編集モードで配置（2026-08-17）。
+  "ranked-rank": { x: 369, y: 1, scale: 1 },
+  stats: { x: 357, y: 257, scale: 1.88 },
 };
 
 const HANDLE_DIRS = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];

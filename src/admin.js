@@ -208,7 +208,7 @@ const GROUPS = [
     title: "カード拡大プレビュー",
     category: "position-board",
     controls: [
-      { key: "--card-preview-size", label: "サイズ", unit: "rem", min: 8, max: 36, step: 0.5, default: 20 },
+      { key: "--card-preview-size", label: "サイズ", unit: "rem", min: 8, max: 36, step: 0.5, default: 32 },
     ],
   },
   {
@@ -231,9 +231,9 @@ const GROUPS = [
       // 編集モードのinline transform（＝グループ全体の配置）とは衝突せず効く。既定はstyle.cssの
       // var()フォールバック（0rem）と一致。
       { key: "--home-rank-name-pos-x", label: "ホーム：段位名テキストの位置X", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
-      { key: "--home-rank-name-pos-y", label: "ホーム：段位名テキストの位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--home-rank-name-pos-y", label: "ホーム：段位名テキストの位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: -1.8 },
       { key: "--mypage-rank-name-pos-x", label: "マイページ：段位名テキストの位置X", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
-      { key: "--mypage-rank-name-pos-y", label: "マイページ：段位名テキストの位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--mypage-rank-name-pos-y", label: "マイページ：段位名テキストの位置Y", unit: "rem", min: -30, max: 30, step: 0.1, default: -2.8 },
     ],
   },
   {
@@ -247,9 +247,9 @@ const GROUPS = [
     controls: [
       { key: "--shop-thumb-x", label: "商品画像 位置X", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
       { key: "--shop-thumb-y", label: "商品画像 位置Y", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
-      { key: "--shop-thumb-scale", label: "商品画像 サイズ", unit: "", min: 0.3, max: 3, step: 0.05, default: 1 },
+      { key: "--shop-thumb-scale", label: "商品画像 サイズ", unit: "", min: 0.3, max: 3, step: 0.05, default: 0.6 },
       { key: "--shop-bg-x", label: "商品背景（半透明） 位置X", unit: "rem", min: -12, max: 12, step: 0.1, default: 0 },
-      { key: "--shop-bg-y", label: "商品背景（半透明） 位置Y", unit: "rem", min: -12, max: 12, step: 0.1, default: 0 },
+      { key: "--shop-bg-y", label: "商品背景（半透明） 位置Y", unit: "rem", min: -12, max: 12, step: 0.1, default: -3.5 },
       { key: "--shop-bg-scale", label: "商品背景（半透明） サイズ", unit: "", min: 0.5, max: 4, step: 0.05, default: 1.35 },
       { key: "--shop-bg-rotate", label: "商品背景（半透明） 回転", unit: "deg", min: -180, max: 180, step: 1, default: 0 },
       { key: "--shop-price-x", label: "金額ボタン 位置X", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
@@ -259,7 +259,7 @@ const GROUPS = [
       { key: "--shop-badge-y", label: "無料/所持済み・南京錠 位置Y", unit: "rem", min: -8, max: 8, step: 0.1, default: 0 },
       { key: "--shop-badge-scale", label: "無料/所持済み・南京錠 サイズ", unit: "", min: 0.5, max: 3, step: 0.05, default: 1 },
       // ユーザー要望2026-08-08: 商品カードの白い塗りつぶし背景の不透明度（ライトテーマ時）。
-      { key: "--shop-card-bg-alpha", label: "カード背景（白）の不透明度（ライト時）", unit: "", min: 0, max: 1, step: 0.02, default: 0.72 },
+      { key: "--shop-card-bg-alpha", label: "カード背景（白）の不透明度（ライト時）", unit: "", min: 0, max: 1, step: 0.02, default: 0.04 },
       // ユーザー要望2026-08-09: 商品のドロップシャドウ（0で影なし）。
       { key: "--shop-thumb-shadow-alpha", label: "商品の影の濃さ（0で影なし）", unit: "", min: 0, max: 1, step: 0.02, default: 0.4 },
       { key: "--shop-thumb-shadow-blur", label: "商品の影のぼかし", unit: "rem", min: 0, max: 3, step: 0.05, default: 0.5 },
@@ -380,7 +380,7 @@ const GROUPS = [
       { key: "--pet-wander", label: "歩き回る範囲（駒幅比・0で歩かない。ゲート側のみ）", unit: "", min: 0, max: 1.5, step: 0.05, default: 0.35 },
       { key: "--pet-liveliness", label: "跳ねる激しさ（0で大人しい）", unit: "", min: 0, max: 2, step: 0.1, default: 1.0 },
       { key: "--pet-orbit-radius", label: "一周モーション: 半径（駒幅比）", unit: "", min: 0.3, max: 3, step: 0.05, default: 1.1 },
-      { key: "--pet-orbit-squash", label: "一周モーション: 縦の潰し（1で真円・小で平たい楕円）", unit: "", min: 0.1, max: 1, step: 0.02, default: 0.42 },
+      { key: "--pet-orbit-squash", label: "一周モーション: 縦の潰し（1で真円・小で平たい楕円）", unit: "", min: 0.1, max: 1, step: 0.02, default: 0.72 },
       { key: "--pet-orbit-dur", label: "一周モーション: 一周にかける秒数", unit: "", min: 1, max: 10, step: 0.2, default: 3.4 },
       { key: "--pet-orbit-offset-x", label: "一周モーション: 中心の横ずらし（駒幅比）", unit: "", min: -2, max: 2, step: 0.05, default: 0 },
       { key: "--pet-orbit-offset-y", label: "一周モーション: 中心の縦ずらし（−で上・駒に埋まる時に調整）", unit: "", min: -2, max: 2, step: 0.05, default: 0 },
@@ -515,7 +515,7 @@ const GROUPS = [
     title: "ホーム画面のメニューアイコン",
     category: "position-ui",
     controls: [
-      { key: "--home-tile-icon-size", label: "アイコンの大きさ（一括）", unit: "rem", min: 2, max: 12, step: 0.1, default: 5.5 },
+      { key: "--home-tile-icon-size", label: "アイコンの大きさ（一括）", unit: "rem", min: 2, max: 12, step: 0.1, default: 12 },
     ],
   },
   {
@@ -638,9 +638,9 @@ const GROUPS = [
     category: "position-ui",
     controls: [
       { key: "--profile-maindeck-right", label: "横位置 right（＋で左へ）", unit: "rem", min: 0, max: 50, step: 0.1, default: 2.5 },
-      { key: "--profile-maindeck-bottom", label: "縦位置 bottom（＋で上へ）", unit: "rem", min: 0, max: 40, step: 0.1, default: 5.9 },
+      { key: "--profile-maindeck-bottom", label: "縦位置 bottom（＋で上へ）", unit: "rem", min: 0, max: 40, step: 0.1, default: 1.1 },
       { key: "--profile-maindeck-width", label: "幅", unit: "rem", min: 7, max: 24, step: 0.5, default: 10.5 },
-      { key: "--profile-maindeck-scale", label: "全体サイズ", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 1.75 },
+      { key: "--profile-maindeck-scale", label: "全体サイズ", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 2.35 },
     ],
   },
   {
@@ -746,15 +746,15 @@ const GROUPS = [
     title: "自分専用ステータスエリア（左下）：大きいアバター（背面表示）",
     category: "position-self",
     controls: [
-      { key: "--self-status-large-avatar-size", label: "サイズ", unit: "rem", min: 2, max: 16, step: 0.1, default: 12 },
-      { key: "--self-status-large-avatar-pos-x", label: "位置X", unit: "rem", min: -15, max: 20, step: 0.1, default: -0.86 },
-      { key: "--self-status-large-avatar-pos-y", label: "位置Y", unit: "rem", min: -15, max: 20, step: 0.1, default: -5.12 },
+      { key: "--self-status-large-avatar-size", label: "サイズ", unit: "rem", min: 2, max: 16, step: 0.1, default: 16 },
+      { key: "--self-status-large-avatar-pos-x", label: "位置X", unit: "rem", min: -15, max: 20, step: 0.1, default: -0.7 },
+      { key: "--self-status-large-avatar-pos-y", label: "位置Y", unit: "rem", min: -15, max: 20, step: 0.1, default: -11.5 },
       // 背面に薄く重ねるゴーストアバター（ユーザー要望）。本体からの相対でサイズ倍率・
       // ずらし量・透明度を調整する（style.cssの.self-status-large-avatar-ghost参照）。
-      { key: "--self-status-large-avatar-ghost-scale", label: "背面ゴースト サイズ倍率", unit: "", min: 0.3, max: 5, step: 0.05, default: 1 },
-      { key: "--self-status-large-avatar-ghost-offset-x", label: "背面ゴースト ずらしX", unit: "rem", min: -12, max: 12, step: 0.1, default: 1.4 },
-      { key: "--self-status-large-avatar-ghost-offset-y", label: "背面ゴースト ずらしY", unit: "rem", min: -12, max: 12, step: 0.1, default: -1.1 },
-      { key: "--self-status-large-avatar-ghost-opacity", label: "背面ゴースト 透明度", unit: "", min: 0, max: 1, step: 0.05, default: 0.4 },
+      { key: "--self-status-large-avatar-ghost-scale", label: "背面ゴースト サイズ倍率", unit: "", min: 0.3, max: 5, step: 0.05, default: 1.6 },
+      { key: "--self-status-large-avatar-ghost-offset-x", label: "背面ゴースト ずらしX", unit: "rem", min: -12, max: 12, step: 0.1, default: -1.6 },
+      { key: "--self-status-large-avatar-ghost-offset-y", label: "背面ゴースト ずらしY", unit: "rem", min: -12, max: 12, step: 0.1, default: -8.1 },
+      { key: "--self-status-large-avatar-ghost-opacity", label: "背面ゴースト 透明度", unit: "", min: 0, max: 1, step: 0.05, default: 0.35 },
     ],
   },
   {
@@ -763,8 +763,8 @@ const GROUPS = [
     controls: [
       { key: "--self-status-pos-x", label: "パネル全体 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--self-status-pos-y", label: "パネル全体 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--self-status-info-pos-x", label: "名前・手札枚数 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: -6.2 },
-      { key: "--self-status-info-pos-y", label: "名前・手札枚数 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 2.2 },
+      { key: "--self-status-info-pos-x", label: "名前・手札枚数 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: -9.8 },
+      { key: "--self-status-info-pos-y", label: "名前・手札枚数 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: -1.5 },
       // 着せ替えアイコン群は flex で自動整列するようにしたため（style.cssの
       // .self-status-icon-grid 参照・ユーザー要望「整列できる？」）、各アイコンの個別オフセットは
       // 既定0にする（0＝きれいに並んだflexの位置。ここから微調整もできる）。グループ全体は
@@ -777,11 +777,11 @@ const GROUPS = [
       { key: "--self-status-icon-playmat-pos-y", label: "プレイマットアイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 0 },
       { key: "--self-status-icon-background-pos-x", label: "背景画像アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 0 },
       { key: "--self-status-icon-background-pos-y", label: "背景画像アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 0 },
-      { key: "--self-status-icon-online-pos-x", label: "オンライン状態アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 0 },
-      { key: "--self-status-icon-online-pos-y", label: "オンライン状態アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 0 },
-      { key: "--self-status-icons-group-x", label: "アイコン群まとめて 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--self-status-icons-group-y", label: "アイコン群まとめて 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--self-status-icons-group-scale", label: "アイコン群まとめて サイズ倍率", unit: "", min: 0.3, max: 3, step: 0.05, default: 1 },
+      { key: "--self-status-icon-online-pos-x", label: "オンライン状態アイコン 位置X", unit: "rem", min: -15, max: 15, step: 0.1, default: 1.42 },
+      { key: "--self-status-icon-online-pos-y", label: "オンライン状態アイコン 位置Y", unit: "rem", min: -15, max: 15, step: 0.1, default: 1.01 },
+      { key: "--self-status-icons-group-x", label: "アイコン群まとめて 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 3.6 },
+      { key: "--self-status-icons-group-y", label: "アイコン群まとめて 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 1.1 },
+      { key: "--self-status-icons-group-scale", label: "アイコン群まとめて サイズ倍率", unit: "", min: 0.3, max: 3, step: 0.05, default: 1.45 },
     ],
   },
   {
@@ -1078,7 +1078,7 @@ const GROUPS = [
     controls: [
       { key: "--option-area-pos-phone-x", label: "オプションエリア 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--option-area-pos-phone-y", label: "オプションエリア 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--option-area-scale-phone", label: "オプションエリア サイズ倍率（スマホ）", unit: "", min: 0.3, max: 2.5, step: 0.05, default: 1 },
+      { key: "--option-area-scale-phone", label: "オプションエリア サイズ倍率（スマホ）", unit: "", min: 0.3, max: 2.5, step: 0.05, default: 1.65 },
     ],
   },
   {
@@ -1091,9 +1091,9 @@ const GROUPS = [
     title: "📱 スマホ専用：オプションアイコン単体の位置・サイズ（オプションエリア全体の調整に追加で重ねがけ）",
     category: "phone",
     controls: [
-      { key: "--icon-pos-options-phone-x", label: "オプション 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--icon-pos-options-phone-y", label: "オプション 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--icon-size-options-phone", label: "オプション サイズ（スマホ）", unit: "rem", min: 1.2, max: 8, step: 0.1, default: 6 },
+      { key: "--icon-pos-options-phone-x", label: "オプション 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0.7 },
+      { key: "--icon-pos-options-phone-y", label: "オプション 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: -0.7 },
+      { key: "--icon-size-options-phone", label: "オプション サイズ（スマホ）", unit: "rem", min: 1.2, max: 8, step: 0.1, default: 3.9 },
     ],
   },
   {
@@ -1106,7 +1106,7 @@ const GROUPS = [
     title: "📱 スマホ専用：画面中央モーダルのサイズ倍率（確認/結果/儀式的ピック等をまとめて拡大）",
     category: "phone",
     controls: [
-      { key: "--center-modal-scale-phone", label: "中央モーダル サイズ倍率（スマホ）", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 1 },
+      { key: "--center-modal-scale-phone", label: "中央モーダル サイズ倍率（スマホ）", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 2 },
     ],
   },
   {
@@ -1131,7 +1131,7 @@ const GROUPS = [
     title: "📱 スマホ専用：管理者モーダル（この位置合わせパネル自体）のサイズ倍率",
     category: "phone",
     controls: [
-      { key: "--admin-panel-scale-phone", label: "管理者モーダル サイズ倍率（スマホ）", unit: "", min: 0.5, max: 2, step: 0.05, default: 1 },
+      { key: "--admin-panel-scale-phone", label: "管理者モーダル サイズ倍率（スマホ）", unit: "", min: 0.5, max: 2, step: 0.05, default: 1.45 },
     ],
   },
   {
@@ -1156,7 +1156,7 @@ const GROUPS = [
     controls: [
       { key: "--phase-guide-pos-phone-x", label: "フェイズ案内エリア 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
       { key: "--phase-guide-pos-phone-y", label: "フェイズ案内エリア 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--phase-guide-scale-phone", label: "フェイズ案内エリア サイズ倍率（スマホ）", unit: "", min: 0.3, max: 2.5, step: 0.05, default: 1 },
+      { key: "--phase-guide-scale-phone", label: "フェイズ案内エリア サイズ倍率（スマホ）", unit: "", min: 0.3, max: 2.5, step: 0.05, default: 2.1 },
     ],
   },
   {
@@ -1168,9 +1168,9 @@ const GROUPS = [
     title: "📱 スマホ専用：スキップボタン単体の位置・サイズ（フェイズ案内エリア全体の調整に追加で重ねがけ）",
     category: "phone",
     controls: [
-      { key: "--phase-skip-button-pos-phone-x", label: "スキップボタン 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--phase-skip-button-pos-phone-x", label: "スキップボタン 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 3.2 },
       { key: "--phase-skip-button-pos-phone-y", label: "スキップボタン 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--phase-skip-button-scale-phone", label: "スキップボタン サイズ倍率（スマホ）", unit: "", min: 0.3, max: 3, step: 0.05, default: 1 },
+      { key: "--phase-skip-button-scale-phone", label: "スキップボタン サイズ倍率（スマホ）", unit: "", min: 0.3, max: 3, step: 0.05, default: 0.9 },
     ],
   },
   {
@@ -1179,9 +1179,9 @@ const GROUPS = [
     title: "📱 スマホ専用：「自分/相手のターンです」表示の位置・サイズ（フェイズ案内エリア全体の調整に追加で重ねがけ）",
     category: "phone",
     controls: [
-      { key: "--phase-turn-status-pos-phone-x", label: "ターン表示 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--phase-turn-status-pos-phone-x", label: "ターン表示 位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: -4.3 },
       { key: "--phase-turn-status-pos-phone-y", label: "ターン表示 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--phase-turn-status-scale-phone", label: "ターン表示 サイズ倍率（スマホ）", unit: "", min: 0.3, max: 3, step: 0.05, default: 1 },
+      { key: "--phase-turn-status-scale-phone", label: "ターン表示 サイズ倍率（スマホ）", unit: "", min: 0.3, max: 3, step: 0.05, default: 0.6 },
     ],
   },
   {
@@ -1202,10 +1202,10 @@ const GROUPS = [
       // ユーザー要望「自分の手札を右下の巨大アバターのあたりまで持っていきたいので
       // 位置調整のレンジをもっと広げてください」への対応で、位置X/Yの可動域を
       // 従来の±20remから拡張した。
-      { key: "--hand-a-pos-phone-x", label: "自分の手札 位置X（スマホ・2D表示時）", unit: "rem", min: -40, max: 40, step: 0.1, default: 0 },
-      { key: "--hand-a-pos-phone-y", label: "自分の手札 位置Y（スマホ・2D表示時）", unit: "rem", min: -20, max: 60, step: 0.1, default: 5.8 },
-      { key: "--hand-a-size-phone", label: "自分の手札 サイズ（スマホ・2D表示時）", unit: "rem", min: 4, max: 30, step: 0.5, default: 17 },
-      { key: "--hand-a-rotate-z-phone", label: "自分の手札 回転（スマホ・2D表示時、平面内での回転）", unit: "deg", min: -180, max: 180, step: 1, default: 0 },
+      { key: "--hand-a-pos-phone-x", label: "自分の手札 位置X（スマホ・2D表示時）", unit: "rem", min: -40, max: 40, step: 0.1, default: -26.3 },
+      { key: "--hand-a-pos-phone-y", label: "自分の手札 位置Y（スマホ・2D表示時）", unit: "rem", min: -20, max: 60, step: 0.1, default: -10.5 },
+      { key: "--hand-a-size-phone", label: "自分の手札 サイズ（スマホ・2D表示時）", unit: "rem", min: 4, max: 30, step: 0.5, default: 15 },
+      { key: "--hand-a-rotate-z-phone", label: "自分の手札 回転（スマホ・2D表示時、平面内での回転）", unit: "deg", min: -180, max: 180, step: 1, default: 70 },
     ],
   },
   {
@@ -1215,8 +1215,8 @@ const GROUPS = [
     title: "📱 スマホ専用：手札の画面下固定トレイの位置・サイズ・回転（「手札を画面下に固定する」ON時）",
     category: "phone",
     controls: [
-      { key: "--fixed-hand-bottom-phone", label: "下からの位置（スマホ）", unit: "rem", min: -4, max: 40, step: 0.1, default: 19.5 },
-      { key: "--fixed-hand-x-offset-phone", label: "横方向のずれ（スマホ）", unit: "rem", min: -40, max: 40, step: 0.1, default: -33.4 },
+      { key: "--fixed-hand-bottom-phone", label: "下からの位置（スマホ）", unit: "rem", min: -4, max: 40, step: 0.1, default: 23.9 },
+      { key: "--fixed-hand-x-offset-phone", label: "横方向のずれ（スマホ）", unit: "rem", min: -40, max: 40, step: 0.1, default: -30.4 },
       { key: "--fixed-hand-scale-phone", label: "全体サイズ（倍率・スマホ）", unit: "", min: 0.3, max: 3, step: 0.05, default: 1 },
       { key: "--fixed-hand-rotate-phone", label: "回転（平面内・スマホ）", unit: "deg", min: -180, max: 180, step: 1, default: 64 },
     ],
@@ -1229,9 +1229,9 @@ const GROUPS = [
     title: "📱 スマホ専用：駒消し／カード消しアイコンの一括位置・サイズ",
     category: "phone",
     controls: [
-      { key: "--eraser-icons-pos-phone-x", label: "位置X（＋で右へ・一括）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--eraser-icons-pos-phone-y", label: "位置Y（＋で上へ・一括）", unit: "rem", min: -20, max: 30, step: 0.1, default: 0 },
-      { key: "--eraser-icons-size-phone", label: "アイコンの大きさ（一括）", unit: "rem", min: 1.4, max: 6, step: 0.1, default: 2.6 },
+      { key: "--eraser-icons-pos-phone-x", label: "位置X（＋で右へ・一括）", unit: "rem", min: -20, max: 20, step: 0.1, default: 2.8 },
+      { key: "--eraser-icons-pos-phone-y", label: "位置Y（＋で上へ・一括）", unit: "rem", min: -20, max: 30, step: 0.1, default: 11.9 },
+      { key: "--eraser-icons-size-phone", label: "アイコンの大きさ（一括）", unit: "rem", min: 1.4, max: 6, step: 0.1, default: 5.3 },
     ],
   },
   {
@@ -1242,7 +1242,7 @@ const GROUPS = [
     title: "📱 スマホ専用：相手のミニロックエリアの位置・サイズ",
     category: "phone",
     controls: [
-      { key: "--mini-lock-top-phone", label: "上からの位置（スマホ）", unit: "rem", min: -2, max: 24, step: 0.1, default: 2.2 },
+      { key: "--mini-lock-top-phone", label: "上からの位置（スマホ）", unit: "rem", min: -2, max: 24, step: 0.1, default: 4.3 },
       { key: "--mini-lock-top-x-offset-phone", label: "横方向のずれ（スマホ）", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
       { key: "--mini-lock-top-scale-phone", label: "サイズ倍率（スマホ）", unit: "", min: 0.4, max: 2.5, step: 0.05, default: 1 },
     ],
@@ -1269,10 +1269,10 @@ const GROUPS = [
     title: "📱 スマホ専用：手札固定ON時の手札公開エリアの位置・サイズ・回転",
     category: "phone",
     controls: [
-      { key: "--hand-reveal-fixed-phone-x", label: "位置X（スマホ）", unit: "rem", min: -40, max: 40, step: 0.1, default: 0 },
-      { key: "--hand-reveal-fixed-phone-y", label: "位置Y（スマホ）", unit: "rem", min: -40, max: 40, step: 0.1, default: 0 },
-      { key: "--hand-reveal-fixed-phone-scale", label: "サイズ倍率（スマホ）", unit: "", min: 0.3, max: 3, step: 0.05, default: 1 },
-      { key: "--hand-reveal-fixed-phone-rotate", label: "回転（平面内・スマホ）", unit: "deg", min: -180, max: 180, step: 1, default: 0 },
+      { key: "--hand-reveal-fixed-phone-x", label: "位置X（スマホ）", unit: "rem", min: -40, max: 40, step: 0.1, default: 15.3 },
+      { key: "--hand-reveal-fixed-phone-y", label: "位置Y（スマホ）", unit: "rem", min: -40, max: 40, step: 0.1, default: -17.5 },
+      { key: "--hand-reveal-fixed-phone-scale", label: "サイズ倍率（スマホ）", unit: "", min: 0.3, max: 3, step: 0.05, default: 1.4 },
+      { key: "--hand-reveal-fixed-phone-rotate", label: "回転（平面内・スマホ）", unit: "deg", min: -180, max: 180, step: 1, default: -64 },
     ],
   },
   {
@@ -1393,9 +1393,9 @@ const GROUPS = [
     title: "📱 スマホ専用：ステータスエリア群の一括拡大・位置",
     category: "phone",
     controls: [
-      { key: "--self-status-scale-phone", label: "拡大率（スマホ）", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 1.5 },
+      { key: "--self-status-scale-phone", label: "拡大率（スマホ）", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 1.75 },
       { key: "--self-status-pos-phone-x", label: "位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--self-status-pos-phone-y", label: "位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--self-status-pos-phone-y", label: "位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: -1.9 },
     ],
   },
   {
