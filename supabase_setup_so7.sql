@@ -1548,3 +1548,172 @@ alter table so7_game_seats add column if not exists card_back_set_index int;
 -- BOOTSTRAP_GAMEがこれを読み、マイデッキ配布・ファースト色・駒/ペット/裏面スキンの一時上書きに使う。
 -- 隠す必要のある「中身」はBOOTSTRAP時にサーバー内で処理する（座席行は本人しか読めないRLS）。
 alter table so7_game_seats add column if not exists selected_deck jsonb;
+
+-- ============================================================================
+-- ランク戦（フリーマッチ）フェーズ1: データ土台（2026-08-16、docs/ranked-spec.md参照）
+-- ============================================================================
+-- 既存の「対戦数ティア（stats-profileのランクリング）」とは別物の競技ランク。
+-- ランク7段階（0=ブロンズ..6=レジェンド）×各ランク内の七色ゲージ（0..6、7で昇格）。
+-- ポイント・昇格・シーズン切替のロジックはすべてこの下のSECURITY DEFINER関数で確定する
+-- （クライアントを信頼しない。so7_user_currencyと同じ「SELECTだけ公開・書き込みはRPC経由」方式）。
+-- このフェーズはレート土台のみ。待機キュー（マッチメイキング）はフェーズ2、対戦結果からの
+-- 実際のポイント付与（結果検証込み）はフェーズ3で追加する。
+
+create table if not exists so7_ranked_players (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  season_id text not null,               -- 例: '2026-08'（JSTの年月）
+  rank smallint not null default 0,      -- 0=ブロンズ 1=シルバー 2=ゴールド 3=プラチナ 4=ダイヤ 5=マスター 6=レジェンド
+  gauge smallint not null default 0,     -- 次ランクまでの七色ゲージ 0..6（7で昇格）
+  legend_points int not null default 0,  -- LP（rank=6のときだけ意味を持つ）
+  updated_at timestamptz not null default now()
+);
+alter table so7_ranked_players enable row level security;
+-- ランクは公開情報（相手のランク表示・ランキング）なのでSELECTは全員可。書き込みは
+-- INSERT/UPDATEポリシーを一切付与しない（デフォルト拒否）→ 下のRPC経由のみ。
+drop policy if exists "so7_ranked_players_select" on so7_ranked_players;
+create policy "so7_ranked_players_select" on so7_ranked_players for select to authenticated
+  using (true);
+
+-- 現在のシーズンID（JSTの年月）。cronは使わず、シーズン切替は「新シーズンに初めて
+-- ランク戦に触れた時」に下の関数群が遅延で適用する。
+create or replace function so7_ranked_current_season()
+returns text
+language sql
+stable
+set search_path = public, extensions
+as $$
+  select to_char((now() at time zone 'Asia/Tokyo'), 'YYYY-MM');
+$$;
+
+-- 【内部エンジン】1人のプレイヤーにポイント差分dを適用する。docs/ranked-spec.mdの
+-- ゲージ処理（繰越・後ろから消灯=クランプ・0未満なし・シーズン中降格なし・レジェンドはLP）と
+-- シーズン切替（古いシーズンなら現ランク-2・ゲージ0・LP0を1回だけ）をすべてここで確定する。
+-- ★authenticatedにはgrantしない（クライアントから任意のdeltaを適用=不正を防ぐ）。上位の
+--   結果反映RPC（フェーズ3）やadmin/self関数からのみ内部で呼ぶ。
+create or replace function so7_ranked_apply_delta(p_user_id uuid, p_delta int)
+returns void
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_season text := so7_ranked_current_season();
+  v_row_season text;
+  v_rank smallint;
+  v_gauge smallint;
+  v_lp int;
+  v_total int;
+begin
+  -- 行が無ければ現シーズンのブロンズ0で作る
+  insert into so7_ranked_players (user_id, season_id, rank, gauge, legend_points, updated_at)
+  values (p_user_id, v_season, 0, 0, 0, now())
+  on conflict (user_id) do nothing;
+
+  select season_id, rank, gauge, legend_points
+    into v_row_season, v_rank, v_gauge, v_lp
+    from so7_ranked_players where user_id = p_user_id for update;
+
+  -- シーズン切替（古いシーズンなら現ランク-2・ゲージ0・LP0を1回だけ。何ヶ月空けても1回）
+  if v_row_season is distinct from v_season then
+    v_rank := greatest(0, v_rank - 2);
+    v_gauge := 0;
+    v_lp := 0;
+    v_row_season := v_season;
+  end if;
+
+  if v_rank >= 6 then
+    -- レジェンド: 以降はLPを積む・0未満にはしない
+    v_lp := greatest(0, v_lp + p_delta);
+  else
+    v_total := v_gauge + p_delta;
+    if v_total < 0 then
+      v_total := 0;  -- 現ランク0未満なし・シーズン中降格なし
+    end if;
+    while v_total >= 7 and v_rank < 6 loop
+      v_total := v_total - 7;  -- 7超過分を次ランクへ繰越
+      v_rank := v_rank + 1;
+    end loop;
+    if v_rank >= 6 then
+      v_lp := v_total;  -- 昇格でレジェンド入り→繰越をLPの初期値にする
+      v_gauge := 0;
+    else
+      v_gauge := v_total;  -- 0..6
+    end if;
+  end if;
+
+  update so7_ranked_players
+    set season_id = v_row_season, rank = v_rank, gauge = v_gauge,
+        legend_points = v_lp, updated_at = now()
+    where user_id = p_user_id;
+end;
+$$;
+revoke execute on function so7_ranked_apply_delta(uuid, int) from public;
+-- ★authenticatedへのgrantはしない（内部専用）
+
+-- 呼び出し元自身の現シーズンのランクを取得する（表示用）。行が無い/シーズンが古い時だけ
+-- apply_delta(0)で作成/シーズン切替を反映し、それ以外は純粋なselect。
+create or replace function so7_ranked_get_self()
+returns table(season_id text, rank smallint, gauge smallint, legend_points int)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_season text := so7_ranked_current_season();
+  v_row_season text;
+begin
+  if v_uid is null then
+    raise exception 'not_authenticated';
+  end if;
+  select p.season_id into v_row_season from so7_ranked_players p where p.user_id = v_uid;
+  if v_row_season is null or v_row_season is distinct from v_season then
+    perform so7_ranked_apply_delta(v_uid, 0);  -- ポイント変化なし・作成/シーズン切替だけ反映
+  end if;
+  return query
+    select p.season_id, p.rank, p.gauge, p.legend_points
+      from so7_ranked_players p where p.user_id = v_uid;
+end;
+$$;
+revoke execute on function so7_ranked_get_self() from public;
+grant execute on function so7_ranked_get_self() to authenticated;
+
+-- 【管理者専用】任意のプレイヤーにポイント差分を適用する（動作検証・手動補正用）。
+-- so7_admin_grant_currencyと同じく、関数内部でメールを直接チェックして本当に制限する。
+-- ★重要: このメールアドレスが実際の管理者アカウントと一致しているか確認すること。
+create or replace function so7_ranked_admin_apply_delta(p_target uuid, p_delta int)
+returns void
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_email text := auth.jwt() ->> 'email';
+begin
+  if v_uid is null or v_email is distinct from 'asobuzz.asobazunihairarenai@gmail.com' then
+    raise exception 'not_authorized';
+  end if;
+  perform so7_ranked_apply_delta(p_target, p_delta);
+end;
+$$;
+revoke execute on function so7_ranked_admin_apply_delta(uuid, int) from public;
+grant execute on function so7_ranked_admin_apply_delta(uuid, int) to authenticated;
+
+-- 【検算用メモ（SQL Editorで手動実行して確認できる）】
+-- SQL Editorはpostgres/service_roleで動くためauth.uid()/auth.jwt()が無い。内部エンジン
+-- so7_ranked_apply_deltaを直接呼んで検算する（本番はクライアントがget_self/上位RPC経由で使う）。
+-- 自分のuser_idは: select id, email from auth.users where email = 'あなたのメール';
+--
+--   -- 仕様の例（ゴールド5pt → 4人戦1位+4 → プラチナ・ゲージ2）を再現:
+--   select so7_ranked_apply_delta('<あなたのuuid>', 19);  -- 0pt→ ゴールド(rank2) ゲージ5
+--   select so7_ranked_apply_delta('<あなたのuuid>', 4);   -- +4 → プラチナ(rank3) ゲージ2
+--   select rank, gauge, legend_points from so7_ranked_players where user_id = '<あなたのuuid>';
+--     -- 期待: rank=3, gauge=2, legend_points=0
+--
+--   -- マイナスで降格しない・0未満にならないことの確認:
+--   select so7_ranked_apply_delta('<あなたのuuid>', -100);
+--   select rank, gauge from so7_ranked_players where user_id = '<あなたのuuid>';
+--     -- 期待: rank=3のまま, gauge=0
+--
+--   -- 検証が済んだら消してよい: delete from so7_ranked_players where user_id = '<あなたのuuid>';

@@ -12770,3 +12770,30 @@ u=横方向・v=縦方向）にも使えるよう一般化した`rotateFraction(
   点滅、任意でブラウザ通知）** も v1 に採用（4つとも）。
 - 次は実装フェーズ1（データ土台＝ランク/ゲージ/シーズン/LP のテーブル＋ポイント計算・昇格ロジック）の
   設計に入る。
+
+### 2026-08-16（続き122）：ランク戦フェーズ1（データ土台）の SQL を実装（supabase_setup_so7.sql）
+
+[docs/ranked-spec.md](docs/ranked-spec.md) のランク戦 v1 のうち、フェーズ1「データ土台（ランク/ゲージ/
+シーズン/LP のテーブル＋ポイント計算・昇格ロジック）」を `supabase_setup_so7.sql` の末尾に実装した。
+クライアントを信頼しない設計（`so7_user_currency` と同じ「SELECT だけ公開・書き込みは SECURITY DEFINER
+の RPC 経由のみ」）。
+- **テーブル `so7_ranked_players`**（user_id 主キー・season_id・rank 0〜6・gauge 0〜6・legend_points・
+  updated_at）。RLS：SELECT は全員可（ランクは公開情報）、INSERT/UPDATE ポリシーは付与せず（デフォルト
+  拒否）＝書き込みは RPC のみ。
+- **`so7_ranked_current_season()`**：JST の年月（`to_char(now() at time zone 'Asia/Tokyo','YYYY-MM')`）。
+  cron を使わず、シーズン切替は「新シーズンに初めてランク戦に触れた時」に関数群が遅延で適用する。
+- **`so7_ranked_apply_delta(user_id, delta)`（内部エンジン）**：ゲージ処理（繰越・後ろから消灯＝クランプ・
+  0未満なし・シーズン中降格なし・レジェンドは LP 積み上げ）とシーズン切替（古いシーズンなら現ランク −2・
+  ゲージ0・LP0 を1回だけ、何ヶ月空けても1回）を全てここで確定。**authenticated には grant しない**
+  （クライアントから任意の delta を適用させない）。上位の結果反映 RPC（フェーズ3）や下の admin/self
+  関数からのみ内部で呼ぶ。
+- **`so7_ranked_get_self()`**：呼び出し元自身の現ランク取得（表示用）。行が無い/シーズンが古い時だけ
+  `apply_delta(0)` で作成・シーズン切替を反映し、それ以外は純粋な SELECT。authenticated に grant。
+- **`so7_ranked_admin_apply_delta(target, delta)`**：管理者専用（`so7_admin_grant_currency` と同じ
+  メール直接チェック）。動作検証・手動補正用。
+- 検算用メモをコメントで同梱（SQL Editor で `so7_ranked_apply_delta` を直接呼んで、仕様の例
+  「ゴールド5pt→+4→プラチナ・ゲージ2」やマイナスで降格しないことを確認できる）。
+- **ユーザー側の作業が必要**：`supabase_setup_so7.sql`（追記分、またはファイル全体＝再実行安全）を
+  Supabase ダッシュボードの SQL Editor で実行する必要がある。`so7-apply-action.ts` の変更は無いため
+  Edge Function の再デプロイは不要。
+- 次はフェーズ2（マッチメイキングの待機キュー＋原子的ペアリング＋レディチェック）。
