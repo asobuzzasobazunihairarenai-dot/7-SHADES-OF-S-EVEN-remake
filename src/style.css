@@ -381,6 +381,19 @@ img {
   user-drag: none;
 }
 
+/* ユーザー報告2026-08-16「スマホでカードを拡大しようと長押しするとテキスト選択の青いやつになる」。
+   スマホでは手札は#self-hand-overlay、ロック済みカードは#mini-lock-area(-top)という、.game-tableの
+   外にある固定オーバーレイに移る。.game-tableに付けた文字選択・コールアウト抑止(user-select:none等)は
+   これらには効かないため、長押しでネイティブのテキスト選択が始まってしまっていた。同じ抑止を
+   これらのカード保持オーバーレイにも付ける（子孫のカードへは継承で効く）。 */
+#self-hand-overlay,
+#mini-lock-area,
+#mini-lock-area-top {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
 .zone {
   background: transparent;
   border: none;

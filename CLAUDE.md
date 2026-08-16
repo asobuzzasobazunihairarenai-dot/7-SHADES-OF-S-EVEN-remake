@@ -13743,3 +13743,17 @@ T26/R13でC が A のゲートに侵攻し3枚奪う際、A（防御側＝観戦
   更新ボタンを大きく（フォント・パディング拡大）した。実測でスマホのボタンが54×20px→82×33pxに拡大・
   バナーが下がる（top 6px→33px）ことを確認。PC表示は不変。
 - サーバー側（Supabase）の変更は無い。
+
+### 2026-08-16（続き153）：スマホでカードを長押し拡大しようとするとテキスト選択の青いやつになる不具合を修正
+
+ユーザー報告「スマホでカード拡大してみようとするとテキスト選択の青いやつになっちゃう」。スマホでは
+手札は`#self-hand-overlay`（固定トレイ、z-index:60）、ロック済みカードは`#mini-lock-area`/
+`#mini-lock-area-top`という、いずれも`.game-table`の**外**にある固定オーバーレイに移る。`.game-table`
+（line 366付近）と`img`には`user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;`が
+付いているが、これらのオーバーレイ自体には付いておらず、`.game-table`の外なので継承もされないため、
+カードを長押しするとiOS Safariのネイティブなテキスト選択（青いハイライト）＋コールアウトメニューが
+始まってしまっていた。この3プロパティを`#self-hand-overlay, #mini-lock-area, #mini-lock-area-top`にも
+付与した（子孫のカードへは継承で効く）。`img`ルールの直後に追加。
+- 検証: `#self-hand-overlay`/`#mini-lock-area`/`#mini-lock-area-top`の computed `user-select`/
+  `-webkit-touch-callout`が`none`になることを実測。実機iOSでの長押し挙動はユーザー確認。
+- サーバー側（Supabase）の変更は無い。
