@@ -4286,6 +4286,8 @@ body.theme-light .lobby-icon-toggle.is-on .lobby-icon-toggle-state {
   transform: translate(var(--mypage-rank-pos-x, -11.4rem), var(--mypage-rank-pos-y, 4.4rem)) scale(var(--mypage-rank-scale, 1));
 }
 .my-page-rank-title { font-size: 0.85rem; color: #ffe6a8; letter-spacing: 0.04em; }
+.my-page-rank-none { font-size: 0.78rem; color: #94a3b8; }
+body.theme-light .my-page-rank-none { color: #64748b; }
 /* ライトテーマ: マイページ背景が明るいので、金色の段位名・タイトルを濃い金に、
    ゲージの未点灯ドットを濃色faintにして読めるようにする。 */
 body.theme-light .my-page-rank-title,

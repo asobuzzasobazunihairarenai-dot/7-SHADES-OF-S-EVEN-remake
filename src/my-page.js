@@ -467,21 +467,31 @@ export async function renderMyPageBody(body, close) {
 // マイページのランク戦・段位バッジを非同期で描画。未ログイン（getSelfRankがundefined）や
 // ランクSQL未デプロイ（RPCエラー）の時は例外を握りつぶして非表示のままにする。
 async function renderMyPageRankedRank(container) {
+  // ユーザー報告2026-08-16「ランク表示が見当たらない。見える位置に配置して」。以前は
+  // getSelfRankが失敗（ランクSQL未デプロイ等）すると早期returnで非表示のままだったため、
+  // 「消えた」ように見えていた。常にスロットを表示し、取得できない時は未取得の一言を出す。
   let info = null;
   try {
     info = await getSelfRank();
   } catch {
-    return; // RPC未デプロイ等 → 非表示のまま
+    info = null;
   }
-  if (!info || !document.body.contains(container)) return;
+  if (!document.body.contains(container)) return;
   container.innerHTML = "";
   const title = document.createElement("div");
   title.className = "my-page-rank-title";
   title.textContent = "🏆 ランク戦の段位";
   container.appendChild(title);
-  container.appendChild(
-    buildRankBadge(info.rank ?? 0, info.gauge ?? 0, info.legend_points ?? 0, { animated: false, size: "5rem" })
-  );
+  if (info) {
+    container.appendChild(
+      buildRankBadge(info.rank ?? 0, info.gauge ?? 0, info.legend_points ?? 0, { animated: false, size: "5rem" })
+    );
+  } else {
+    const note = document.createElement("div");
+    note.className = "my-page-rank-none";
+    note.textContent = "未取得（ランク戦をプレイすると表示）";
+    container.appendChild(note);
+  }
   container.style.display = "flex";
 }
 
