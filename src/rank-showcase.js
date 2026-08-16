@@ -7,23 +7,24 @@
 // admin.jsのCSS変数調整と同じ思想）。編集モードでドラッグ移動／ホイールでサイズ変更し、
 // 「座標を出力」で得たリテラルを開発者に渡す。
 
-import { buildRankBadgeImage, rankGemPath, RANK_GAUGE_FRAME_U } from "./rank-badge.js";
+import { buildRankBadgeImage, rankGemPath, RANK_GAUGE_FRAME_U, RANK_GAUGE_BADGE_BG } from "./rank-badge.js";
 
-// ★製作者が焼き込む「バッジ＋ゲージ＋宝石」の配置（ユーザーが調整モードで調整・2026-08-16）。
+// ★製作者が焼き込む「バッジ背景＋U型ゲージ＋宝石＋バッジ」の配置（ユーザーが調整モードで調整）。
+// 枠は正方形1254×1254（U字は下側、バッジは中央）。badgeX/badgeY は枠中央からのオフセット（rem）。
 export const RANK_SHOWCASE = {
-  gaugeSize: 20, // U型枠の幅（rem）。高さは 1536:1024 のaspectで自動。
+  gaugeSize: 20, // 枠（正方形）の幅＝高さ（rem）。
   gemSize: 15, // 宝石の大きさ（枠幅に対する%）。ソケットにフィットさせる。
-  badgeSize: 16.4, // 称号バッジの大きさ（rem）。
-  badgeX: 0, // バッジの水平オフセット（rem、＋で右）。中央基準。
-  badgeY: -8.3, // バッジの垂直位置（rem、枠の上端から。U字の開いた中央に置く。負で上へはみ出す）。
+  badgeSize: 11, // 称号バッジの大きさ（rem）。中央の魔法陣内に収める。
+  badgeX: 0, // バッジの水平オフセット（rem、＋で右）。枠中央基準。
+  badgeY: 0, // バッジの垂直オフセット（rem、＋で下）。枠中央基準。
   sockets: [
-    { x: 8.6, y: 23.5 },
-    { x: 15.3, y: 49.8 },
-    { x: 29, y: 68.4 },
-    { x: 50, y: 76.2 },
-    { x: 71, y: 68.4 },
-    { x: 84.7, y: 49.4 },
-    { x: 91.1, y: 23.5 },
+    { x: 14, y: 39 },
+    { x: 21, y: 55 },
+    { x: 33.5, y: 68 },
+    { x: 50, y: 70.5 },
+    { x: 66.5, y: 68 },
+    { x: 79, y: 55 },
+    { x: 86, y: 39 },
   ],
 };
 
@@ -33,7 +34,7 @@ function litCount(rank, gauge) {
   return Math.max(0, Math.min(7, gauge ?? 0));
 }
 
-const FRAME_RATIO = 1024 / 1536; // 高さ / 幅
+const FRAME_RATIO = 1; // 正方形（高さ/幅）
 
 // バッジ／宝石／ゲージの大きさ（gaugeSize/gemSize/badgeSize）を box に反映する。ドラッグ位置は
 // 別途 buildRankShowcase / drag で反映済み。編集モードのリサイズ後の再適用にも使う。
@@ -48,16 +49,39 @@ function applyShowcaseSizes(box) {
   }
 }
 
+// バッジ上端が枠の上へはみ出す量（rem）。中央基準なので badge top = gaugeSize/2 + badgeY - badgeSize/2。
+function badgeTopOverflowRem() {
+  const cfg = RANK_SHOWCASE;
+  const badgeTop = cfg.gaugeSize / 2 + cfg.badgeY - cfg.badgeSize / 2;
+  return Math.max(0, -badgeTop);
+}
+
 // バッジ＋U型ゲージ＋宝石の合成ブロック。scale で全体を等倍縮小できる（ホーム/マイページの
 // コンパクト表示用。バッジ・宝石・ゲージの関係を保ったまま小さくなる）。
 // editable=true で編集モード（ドラッグ／ホイール）を配線し、onChange で変更を通知する。
+// レイヤーは DOM順（後ろ→前）: バッジ背景 → U型ゲージ枠 → 宝石 → バッジ。
 export function buildRankShowcase(rank, gauge, legendPoints, { animated = false, editable = false, onChange, scale = 1 } = {}) {
   const cfg = RANK_SHOWCASE;
   const box = document.createElement("div");
   box.className = "rank-showcase" + (editable ? " is-editable" : "");
   box.style.width = `${cfg.gaugeSize}rem`;
   box.style.setProperty("--rank-ugauge-gem", `${cfg.gemSize}%`);
-  box.style.backgroundImage = `url("${RANK_GAUGE_FRAME_U}")`;
+
+  // バッジ背景（魔法陣、枠いっぱい・最背面）。
+  const bg = document.createElement("img");
+  bg.className = "rank-showcase-bg";
+  bg.src = RANK_GAUGE_BADGE_BG;
+  bg.alt = "";
+  bg.draggable = false;
+  box.appendChild(bg);
+
+  // U型ゲージ枠（枠いっぱい）。
+  const frame = document.createElement("img");
+  frame.className = "rank-showcase-frame";
+  frame.src = RANK_GAUGE_FRAME_U;
+  frame.alt = "";
+  frame.draggable = false;
+  box.appendChild(frame);
 
   const lit = litCount(rank, gauge);
   const gems = [];
@@ -79,7 +103,7 @@ export function buildRankShowcase(rank, gauge, legendPoints, { animated = false,
   const badge = buildRankBadgeImage(rank, { animated, size: `${cfg.badgeSize}rem` });
   badge.classList.add("rank-showcase-badge");
   badge.style.left = `calc(50% + ${cfg.badgeX}rem)`;
-  badge.style.top = `${cfg.badgeY}rem`;
+  badge.style.top = `calc(50% + ${cfg.badgeY}rem)`;
   box.appendChild(badge);
 
   if (editable) {
@@ -89,10 +113,9 @@ export function buildRankShowcase(rank, gauge, legendPoints, { animated = false,
 
   // 等倍縮小表示（コンパクト表示）：footprintを縮小後サイズに合わせるためラッパーで包む。
   if (scale !== 1) {
-    // バッジは badgeY が負だと枠の上へはみ出す。そのぶんの高さをラッパー上部に確保しておくと、
-    // 上に置くラベル（「あなたのランク」等）がバッジと重ならない（ユーザー報告2026-08-16、
-    // どんなバッジ設定でも自動で追従）。
-    const overflowTopRem = Math.max(0, -cfg.badgeY) * scale;
+    // バッジが枠の上へはみ出す分の高さをラッパー上部に確保しておくと、上に置くラベル
+    // （「あなたのランク」等）がバッジと重ならない（どんな設定でも自動追従）。
+    const overflowTopRem = badgeTopOverflowRem() * scale;
     const frameWRem = cfg.gaugeSize * scale;
     const frameHRem = cfg.gaugeSize * FRAME_RATIO * scale;
     const wrap = document.createElement("div");
@@ -156,7 +179,7 @@ function wireShowcaseEditing(box, badge, gems, onChange) {
         cfg.badgeX = round1(base.x + dx / s / 16);
         cfg.badgeY = round1(base.y + dy / s / 16);
         badge.style.left = `calc(50% + ${cfg.badgeX}rem)`;
-        badge.style.top = `${cfg.badgeY}rem`;
+        badge.style.top = `calc(50% + ${cfg.badgeY}rem)`;
       } else {
         // 宝石：枠に対する%（frameは実画面px、dxも実画面pxなので比率はscale非依存）
         cfg.sockets[gi].x = round1(base.x + (dx / frame.width) * 100);

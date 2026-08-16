@@ -15560,7 +15560,7 @@ body.opening-screen-active.is-admin-user #smoke-test-launch-btn {
    宝石ソケット。ゲージが貯まるほど左（赤）→右（紫）へ宝石が点灯する。 */
 .rank-ugauge {
   position: relative;
-  aspect-ratio: 1536 / 1024;
+  aspect-ratio: 1 / 1;
   background-image: url("../assets/rank-gauge/frame-u.webp");
   background-size: 100% 100%;
   background-repeat: no-repeat;
@@ -15582,13 +15582,22 @@ body.opening-screen-active.is-admin-user #smoke-test-launch-btn {
 }
 body.reduce-glow .rank-ugauge-gem { animation: none; }
 
-/* バッジ＋U型ゲージ＋宝石の合成ヒーロー表示（rank-showcase.js）。 */
+/* バッジ背景＋U型ゲージ枠＋宝石＋バッジの合成ヒーロー表示（rank-showcase.js）。
+   枠は正方形（1254×1254）。レイヤーはDOM順（後ろ→前）: 背景 → 枠 → 宝石 → バッジ。 */
 .rank-showcase {
   position: relative;
-  aspect-ratio: 1536 / 1024;
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
+  aspect-ratio: 1 / 1;
   filter: drop-shadow(0 3px 12px rgba(0, 0, 0, 0.5));
+}
+/* バッジ背景（魔法陣、最背面）とU型ゲージ枠は枠いっぱいに敷く。掴めるのは宝石・バッジだけ。 */
+.rank-showcase-bg,
+.rank-showcase-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
 }
 .rank-showcase-gem {
   position: absolute;
@@ -15599,7 +15608,7 @@ body.reduce-glow .rank-ugauge-gem { animation: none; }
 }
 .rank-showcase-badge {
   position: absolute;
-  transform: translate(-50%, 0);
+  transform: translate(-50%, -50%);
   object-fit: contain;
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
 }
@@ -15689,4 +15698,5 @@ body.reduce-glow .rank-ugauge-gem { animation: none; }
   justify-content: center;
   min-height: 0;
 }
-.rank-showcase-editor-stage .rank-showcase { width: 34rem; }
+/* 枠は正方形なので、幅＝高さ。ステージの縦に収まるよう vh でも上限する。 */
+.rank-showcase-editor-stage .rank-showcase { width: min(32rem, 66vh); }

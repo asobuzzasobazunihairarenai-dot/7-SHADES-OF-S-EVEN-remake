@@ -68,6 +68,10 @@ export function buildSevenColorGauge(rank, gauge, legendPoints) {
 // （小さいスロットは従来の7ドット buildSevenColorGauge を使う）。
 export const RANK_GAUGE_FRAME_U = "assets/rank-gauge/frame-u.webp";
 export const RANK_GAUGE_FRAME_LINE = "assets/rank-gauge/frame-line.webp";
+// バッジ背景（魔法陣風の同心円、1254×1254。バッジの背面に重ねる。ユーザー追加2026-08-16）。
+export const RANK_GAUGE_BADGE_BG = "assets/rank-gauge/badge-bg.webp";
+// 枠は正方形1254×1254（旧1536×1024から差し替え。U字は下側に配置）。
+export const RANK_GAUGE_FRAME_RATIO = 1; // 高さ/幅
 export const GEM_FILES = [
   "gem-01-red",
   "gem-02-orange",
@@ -77,16 +81,16 @@ export const GEM_FILES = [
   "gem-06-pink",
   "gem-07-purple",
 ];
-// 枠(1536×1024)に対する各ソケット中心の位置（%）。U字に沿って左上→下中央→右上。左右対称。
+// 枠(正方形1254×1254)に対する各ソケット中心の位置（%）。U字は下側に配置、左上→下中央→右上。
 // ※ラスター枠に合わせた実測ベースの推定値。調整モード（rank-showcase.js）で微調整できる。
 export const DEFAULT_U_SOCKETS = [
-  { x: 9.8, y: 24.4 }, // 1 赤（左上）
-  { x: 15.6, y: 49.8 }, // 2 橙
-  { x: 29.0, y: 68.4 }, // 3 黄
-  { x: 50.0, y: 76.2 }, // 4 緑（下中央）
-  { x: 71.0, y: 68.4 }, // 5 青
-  { x: 84.4, y: 49.8 }, // 6 桃
-  { x: 90.2, y: 24.4 }, // 7 紫（右上）
+  { x: 14, y: 39 }, // 1 赤（左上）
+  { x: 21, y: 55 }, // 2 橙
+  { x: 33.5, y: 68 }, // 3 黄
+  { x: 50, y: 70.5 }, // 4 緑（下中央）
+  { x: 66.5, y: 68 }, // 5 青
+  { x: 79, y: 55 }, // 6 桃
+  { x: 86, y: 39 }, // 7 紫（右上）
 ];
 const U_SOCKETS = DEFAULT_U_SOCKETS;
 
