@@ -15,6 +15,7 @@ import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { getHelpSections, startTutorial } from "./tutorial.js";
 import { GLOSSARY, FAQ_CATEGORIES, DIGITAL_FEATURES } from "./help-content.js";
+import { RANK_EXPLAIN_SECTIONS } from "./rank-explain.js";
 import { linkifyGlossary } from "./glossary-linkify.js";
 import { getOptionArea } from "./option-area.js";
 import { closeShopPanel } from "./shop.js";
@@ -145,6 +146,10 @@ export function buildHelpList() {
   // ユーザー要望「ヘルプの説明に、デジタル版独自のことも記載する項目を追加してください」。
   const digitalButtons = DIGITAL_FEATURES.map((entry) => buildIndexButton(entry.title, () => openItemModal(entry.title, entry.body)));
   list.appendChild(buildIndexSection("🖥️ デジタル版だけの機能", buildFlatList(digitalButtons)));
+
+  // ランク戦（フリーマッチ）の説明（rank-explain.js と共有。ホーム/マイページのランク表示クリックと同じ内容）。
+  const rankedButtons = RANK_EXPLAIN_SECTIONS.map((section) => buildIndexButton(section.title, () => openItemModal(section.title, section.body)));
+  list.appendChild(buildIndexSection("🏆 ランク戦について", buildFlatList(rankedButtons)));
 
   // 用語集（help-content.js、説明書.txtの基本用語集を採録）。
   const glossaryButtons = GLOSSARY.map((entry) => buildIndexButton(entry.term, () => openItemModal(entry.term, entry.body)));

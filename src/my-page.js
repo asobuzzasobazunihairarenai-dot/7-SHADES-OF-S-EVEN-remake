@@ -7,6 +7,8 @@ import { getCurrentUser, getSelfSeat, syncMyStatsProfile, getSelfRank } from "./
 // ランク戦の現ランク（フェーズ4/6）。戦績システムの順位とは別物のランク戦専用のランク。
 import { rankName } from "./rank-badge.js";
 import { buildRankShowcase } from "./rank-showcase.js";
+import { showRankExplanationModal } from "./rank-explain.js";
+import { isProfileLayoutEditMode } from "./profile-layout-editor.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName } from "./player-identity.js";
 import { fetchStatsProfile } from "./stats-profile.js";
 import { openStatsPlayerLinkModal } from "./stats-player-link.js";
@@ -499,6 +501,14 @@ async function renderMyPageRankedRank(container) {
     container.appendChild(note);
   }
   container.style.display = "flex";
+  // クリックでランク戦の説明モーダルを開く（ユーザー要望2026-08-17）。ただしレイアウト編集モード中は
+  // この要素をドラッグ移動するので、編集中はモーダルを開かない。
+  container.style.cursor = "pointer";
+  container.title = "ランク戦について";
+  container.onclick = () => {
+    if (isProfileLayoutEditMode()) return;
+    showRankExplanationModal();
+  };
 }
 
 let openFn = null;

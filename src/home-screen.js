@@ -26,6 +26,7 @@ import { openRankingPage } from "./ranking-page.js";
 import { getSelfRank, pollRanked, getCurrentUser } from "./online.js";
 import { rankName } from "./rank-badge.js";
 import { buildRankShowcase } from "./rank-showcase.js";
+import { showRankExplanationModal } from "./rank-explain.js";
 // チュートリアルCPU戦（台本化された練習試合）。完全ローカル機能。
 import { startTutorialBattle, registerTutorialHomeOpener } from "./tutorial-battle.js";
 // 案内人エイドスの物語チュートリアル（オンボーディング）のフロー制御。🎓タイルはこの入口へ。
@@ -391,10 +392,12 @@ async function renderHomeRank(container) {
   nm.textContent = rankName(info.rank ?? 0);
   container.appendChild(nm);
   container.style.display = "flex";
-  // 表示専用（ユーザー指摘）。以前はクリックで勝率等のランキング画面へ遷移していたが、
-  // それは戦績システムの「順位」であって、ここに出しているランク戦の段位とは別物のため
-  // 紛らわしい。ランク戦専用のランキング（レジェンド内ランキング等）ができるまでは
-  // 押しても何もしない表示専用にしておく。
+  // クリックでランク戦の説明モーダルを開く（ユーザー要望2026-08-17）。以前は勝率等のランキング
+  // 画面へ遷移していたが、それは戦績システムの「順位」でランク戦の段位とは別物のため紛らわしく、
+  // 一旦「表示専用」にしていた。今回、ランクの仕組みを説明するモーダルへの入口にした。
+  container.style.cursor = "pointer";
+  container.title = "ランク戦について";
+  container.onclick = () => showRankExplanationModal();
 }
 
 // 続き162: ランク戦タイルの「今◯人が対戦相手を募集中」表示。ホーム画面が開いている間だけ、

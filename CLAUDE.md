@@ -13999,3 +13999,28 @@ badge/bg top `calc(50% - 4.2rem)`・socket0 13.1%/38.7% 等）ことを確認。
   `is-dimming`（=`rank-gem-dim`）になることを実測確認。モーダル自体のsetTimeout駆動の連続点灯は、この
   開発環境（隠しペイン）ではタイマーがスロットリングされ通しでは確認できないが、実機フォアグラウンド
   では通常速度で動く（ヘルパー単体・CSSキーフレームは確認済み）。サーバー側の変更は無い。
+
+### 2026-08-17（続き166）：ランク表示クリックで「ランク戦について」説明モーダル＋ヘルプページに項目追加
+
+ユーザー要望「ホーム画面やマイページでのランク表示をクリックしたときにランクについての説明を表示。
+またそれをヘルプページにも記載してほしい」。
+- **新規 [src/rank-explain.js](src/rank-explain.js)（ui-helpers.jsのみ依存＝葉）**: `RANK_EXPLAIN_SECTIONS`
+  （docs/ranked-spec.md v1 をプレイヤー向けにやさしく要約した6セクション＝ランク戦とは／七色ゲージと
+  昇格／勝敗でもらえるポイント2人戦／レジェンド／シーズン／対戦相手の見つけ方）と、それを1枚に
+  まとめたスクロール可能な説明モーダル`showRankExplanationModal()`をexport。タイトル・閉じる×・OKは
+  固定、本文だけスクロール。z-index 20200（ホーム1500/マイページ2650/ヘルプ2501/ショップ2601/
+  full-screen-page-activeのoption-area 2700 より前面）。
+- **[src/home-screen.js](src/home-screen.js)**: 現ランク表示（`#home-screen-rank`）を「表示専用」から
+  クリックで`showRankExplanationModal()`を開く入口に（cursor:pointer＋title）。以前は戦績システムの
+  順位画面へ遷移していたが紛らわしく一旦表示専用にしていたのを、ランクの仕組み説明へつないだ。
+- **[src/my-page.js](src/my-page.js)**: マイページの「ランク戦の段位」表示もクリックで同モーダルを開く。
+  ただしレイアウト編集モード中（`isProfileLayoutEditMode()`）はこの要素をドラッグ移動するので開かない。
+- **[src/help.js](src/help.js)**: ヘルプの索引に「🏆 ランク戦について」折りたたみを追加（デジタル版機能の
+  下）。`RANK_EXPLAIN_SECTIONS`を共有し、各セクションを既存の`openItemModal`で開く（用語リンク等も流用）。
+- **[src/style.css](src/style.css)**: `#rank-explain-modal`とその子要素（タイトル/本文スクロール/セクション
+  見出し/段落/OK）のスタイルを追加。
+- **検証**: `node --check`全ファイル通過。ブラウザで`showRankExplanationModal()`が6セクション・20段落・
+  閉じる×付きで描画され、二重呼びしても1つだけ（ガード）になること、CSS（`#rank-explain-modal`の
+  z-index 20200）が存在しstyle.css全体のブレース平衡（2212/2212）を確認。rank-explain.jsはui-helpersのみ
+  依存・profile-layout-editorは依存ゼロの葉＝循環importなし。モーダル本体の実表示（隠しペインで
+  getComputedStyleがスタック）は実機で確認をお願いしたい。サーバー側の変更は無い。
