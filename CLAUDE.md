@@ -12843,3 +12843,37 @@ await client.rpc(...)`」パターンに合わせた。
 - 次は本体：ホームのランク戦タイル → デッキ確認 → 待機画面（poll ループ・待機人数・CPU練習）→
   レディチェック → is_ranked 対局への自動入場（自動処理/タイマー強制）＋通知（音・タブ点滅）。
   既存のオンライン対局の入場/BOOTSTRAP フローと繋ぐ部分を次で作る。
+
+### 2026-08-16（続き125）：カウンターロック確認モーダルのボタンが押せない不具合を、真因非依存の堅牢策で修正
+
+ユーザー報告（本気エイドス戦・PC、続き1/115から繰り返し再発）「カウンターロックの効果で、手札を
+1枚ロックエリアにロックしますか？（✅ロックする / 🚫しない）のボタンが押せない。不具合報告アイコンも
+押せない。ホバーは効く（指カーソル＋明るくなる）。手札は掴める。F12コンソールに `diag-modal-blocked` は
+出ていない」。
+- **これまでの見立て（続き115の“透明オーバーレイ無害化”）は誤りと確定**：自己診断
+  `runBlockerSelfCheck`（confirmGenericYesNo内）が elementFromPoint でボタン中心を叩いて「ボタンが最前面
+  ＝覆う要素なし」と判定している（＝ `diag-modal-blocked` が出ない）。ホバーが効くことも覆いが無い証拠。
+- **切り分けで判明したこと**：(1)覆いは無い、(2)pointer captureも使っていない（setPointerCaptureは
+  smoke-test-runner.jsのみ）、(3)手札は掴める＝ドラッグ開始の bubble フェーズ pointerdown リスナー
+  （initDragHandlers、`document` 非capture）が動く＝capture フェーズで propagation は止まっていない、
+  (4)confirmGenericYesNo は開く時に `activeEffectPicker(type:"option", resolve)` を登録するので、
+  capture フェーズの pointerdown ハンドラ（`document` capture）は option 型を素通りする（本来ボタンは
+  効くはず）。**つまり「通常の DOM click だけが何かに握り潰されている」状態で、真因は静的解析では
+  特定しきれなかった**（他の option モーダルは効くのに confirmGenericYesNo だけ死ぬ差も未解明。再現も
+  できず）。
+- **修正（真因非依存の堅牢策）**：真因を知らなくても直る形にした。手札掴みが効く＝capture フェーズの
+  pointerdown ハンドラ（main.js の `document` capture リスナー）は確実に発火するので、その中の早い段階
+  （#option-area / .card-open-prompt の早期returnの直後）で、pointerdown が `#generic-confirm-modal` の
+  ボタン（`.contact-approval-approve` / `.contact-approval-reject`）に当たっていて、かつ
+  `activeEffectPicker.type === "option"` なら、`e.preventDefault()/stopPropagation()` して
+  `activeEffectPicker.resolve({id:"yes"|"no"})` を直接呼ぶ（confirmGenericYesNo の resolve は
+  `(o)=>finish(o?.id==="yes")`）。**click が生成される前に capture の pointerdown で確定させるので、
+  DOM click を握り潰す何かがあっても関係なく解決できる。** 既存の `#card-effect-skip-button` を
+  pointerdown で拾う手法と同じ考え方。
+- スコープは `#generic-confirm-modal`（報告された失敗）のみ。他の option/確認モーダルは DOM click のまま
+  （それらは効いているため）。#generic-confirm-modal のボタン以外の pointerdown では単なる no-op
+  （余分な closest チェック1回）なので通常操作への影響は無い。
+- 検証：`node --check` 通過、アプリ正常ロード（コンソールエラー無し）、通常の pointerdown 発火で例外
+  無しをブラウザで確認。実際の本気エイドス戦のカウンターロックでの最終確認はユーザーにお願いする
+  （こちらでは元の不具合自体を再現できないため）。真因（confirmGenericYesNo の DOM click が死ぬ理由）は
+  未解明のまま残っており、同じ握り潰しが他モーダルで出たら同じ pointerdown 方式を横展開する。

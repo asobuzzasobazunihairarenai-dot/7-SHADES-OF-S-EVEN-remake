@@ -3242,6 +3242,30 @@ document.addEventListener(
     // が発火し、しかもボタン自身のclickは奪われて反応しない（＝左端しか効かない）。プロンプト上の
     // タップはボタン本来のclickに任せる（#option-areaと同じく早期return）。
     if (e.target.closest(".card-open-prompt")) return;
+    // 不具合（ユーザー報告2026-08-16、本気エイドス戦のカウンターロック「手札を1枚ロックしますか？」で
+    // 再々発）: 確認モーダル(#generic-confirm-modal)のボタンが押せない。調査で判明したこと——(1)覆い被さる
+    // 要素は無い（続き115の自己診断runBlockerSelfCheckが「ボタンが最前面」と判定＝diag-modal-blockedが
+    // 出ない）、(2)ホバーは効く（指カーソル＋明るくなる＝pointer-eventsは届く）、(3)手札は掴める
+    // （captureフェーズのpointerdownは確実に発火している）、(4)pointer captureも使っていない。
+    // つまり「通常のDOM clickだけが何かに握り潰されている」状態で、続き115の“透明オーバーレイ無害化”は
+    // 空振り（覆いが無いので）。真因は静的解析では特定しきれなかったが、robust策として、確実に発火する
+    // captureフェーズのpointerdownでこのモーダルのボタンを直接解決する（DOM clickに一切依存しない）。
+    // confirmGenericYesNoはactiveEffectPicker(type:"option", resolve:(o)=>finish(o?.id==="yes"))を
+    // 登録済みなので、そのresolveへ回すだけでよい（ボタン=.contact-approval-approve/-reject）。
+    {
+      const confirmBtn = e.target.closest(
+        "#generic-confirm-modal .contact-approval-approve, #generic-confirm-modal .contact-approval-reject"
+      );
+      if (confirmBtn && activeEffectPicker?.type === "option" && typeof activeEffectPicker.resolve === "function") {
+        e.preventDefault();
+        e.stopPropagation();
+        const isYes = confirmBtn.classList.contains("contact-approval-approve");
+        const picker = activeEffectPicker;
+        activeEffectPicker = null;
+        picker.resolve(isYes ? { id: "yes" } : { id: "no" });
+        return;
+      }
+    }
     if (!activeEffectPicker) {
       // ユーザー要望「ムーブフェイズでの移動先ハイライトをクリックしたら自動で移動する」。
       // カード効果の候補選択（activeEffectPicker）と同じ「3D傾き演出のためネイティブ
