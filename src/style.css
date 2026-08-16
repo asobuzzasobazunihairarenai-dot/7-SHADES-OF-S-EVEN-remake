@@ -1566,6 +1566,21 @@ body.theme-light #changelog-back {
   color: rgba(255, 255, 255, 0.85);
   cursor: pointer;
 }
+/* スマホでは「更新する」が小さくて押しづらいので、大きく＆少し下げる（ユーザー要望）。 */
+body.is-phone-device #update-available-banner {
+  top: 2.6rem;
+  padding: 0.5rem 0.7rem 0.5rem 1rem;
+  font-size: 1rem;
+}
+body.is-phone-device .update-banner-reload {
+  font-size: 1.05rem;
+  padding: 0.5rem 1.3rem;
+  border-radius: 0.5rem;
+}
+body.is-phone-device .update-banner-close {
+  font-size: 1.4rem;
+  padding: 0 0.5rem;
+}
 
 /* 観戦中バナー（main.jsのupdateSpectatorBanner）。画面上部中央に固定。 */
 #spectator-banner {
@@ -8422,7 +8437,10 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   left: 50%;
   transform: translate(-50%, -50%);
   width: min(26rem, 90vw);
-  z-index: 10611;
+  /* #134: 儀式ピック/ゲート侵攻の奪取演出(#sleight-ritual-modal, z:10621)より上に置く。
+     以前は10611で、ゲート侵攻の奪取演出（sleight-ritual-card, pointer-events:auto）が
+     この確認モーダルのボタンを覆ってしまい、ゴメンナサイ等の確認が押せなかった。 */
+  z-index: 10631;
   background: linear-gradient(160deg, #422006, #1c1004);
   border: 2px solid #facc15;
   border-radius: 0.7rem;
@@ -8502,7 +8520,9 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   left: 50%;
   transform: translate(-50%, -50%);
   width: min(26rem, 90vw);
-  z-index: 10611;
+  /* #134: 儀式ピック/奪取演出(#sleight-ritual-modal, z:10621)より上（contact-approvalと同値）。
+     ゴメンナサイ等の確認ボタンが奪取演出のカードに覆われて押せない不具合を防ぐ。 */
+  z-index: 10631;
   background: linear-gradient(160deg, #422006, #1c1004);
   border: 2px solid #facc15;
   border-radius: 0.7rem;
