@@ -13376,3 +13376,36 @@ RESTにフォールバックする状況ではこの自己エコーが届かず�
   マイページランクの新デフォルト位置（translate -11.4rem/4.4rem）・メインデッキの新デフォルト
   （bottom5.9rem/scale1.75/width10.5rem）を実測確認。循環import無し・コンソールエラー無し。
   `node --check`全ファイル通過。サーバー側の変更は無い。
+
+### 2026-08-16（続き137）：マイページのランク表示消失・アバター変更ボタン位置・着せ替え枠撤去・メインデッキ各テキストの個別調整＋スモークの詰み質問への回答
+
+ユーザー報告・要望の一括対応。
+
+- **マイページのランク表示が消えた真因を特定・修正**: `PROFILE_LAYOUT`（profile-layout-editor.js、
+  マイページの各要素の焼き込み配置）に `ranked-rank` エントリが**無かった**のが原因。ランクグループ
+  (`my-page-rank-group`、`data-layout-key="ranked-rank"`)は初期 `display:none` で作られ、`getSelfRank()`
+  が解決した時だけ `display:flex` になる。ところが `applyProfileLayout` は他の全要素を `position:absolute`
+  にする（＝フローから外す）のに、cfg の無い `ranked-rank` だけは `if(!editMode) continue` で**自然フローに
+  取り残される**。表示に切り替わっても、絶対配置の兄弟に埋もれて「消えた」ように見えていた。ユーザーが
+  編集モードで実際に配置した最新の `PROFILE_LAYOUT`（`ranked-rank: {x:-451,y:-152}` を含む）を焼き込んで
+  絶対配置＝指定位置に出るようにした。DOM順で avatar-bg より後なので大アバターの上に描画される（埋もれ
+  ない）。
+- **アバター変更ボタンの位置を更新**: ユーザー調整の `avatar-change: {x:174,y:601,scale:1.97}` を焼き込み。
+- **着せ替えの項目の枠を撤去**: ユーザー要望「着せ替えの項目たちの枠も不要。ないほうがかっこいい」。
+  `.my-page-cosmetic-btn` の枠線・背景を消してサムネ画像＋ラベルだけにし、ホバーはサムネの縁だけ光らせる
+  ようにした（style.css）。
+- **メインデッキ表示の各テキストを個別に位置・サイズ調整可能に**: ユーザー要望。`#profile-maindeck` の
+  「メインデッキ」ラベル(`.profile-maindeck-badge`)・デッキ名(`.profile-maindeck-name`)・「マイデッキ編集」
+  (`#profile-maindeck-edit`)それぞれに `transform: translate(--…-x,--…-y) scale(--…-scale)` を追加
+  （transformは兄弟のフロー配置に影響しないので1つ動かしても他は不動）。管理者モードに新グループ
+  「マイページ：メインデッキ表示の各テキスト（個別）の位置・サイズ」（9スライダー、既定は全て0/1で
+  style.cssのfallbackと一致）を追加。
+- **スモークテストの「詰み後も動いていた／自己再始動はあるか」への回答**: `smoke-test-runner.js` は
+  30秒ターン無進行で `詰み` と判定して `break`（監視終了）するだけで**自己再始動の仕組みは無い**。監視は
+  止まるが**ゲーム側は裏で動き続ける**ため、yellow-gamble のような多段効果が30秒を超えてから解決すると
+  「詰み扱いのFAILだが実際にはその後も進行」という見え方になる（＝恒久ハングではなく一時的な遅さ）。
+  今回はコード変更せず、次に頻発するようなら STALL_MS 延長 or 当該効果のCPU自動解決を速める対応を検討。
+- **検証**: `node --check`（profile-layout-editor.js/admin.js）通過。編集はディスク上で反映確認（ブラウザ
+  プレビューはESMキャッシュで旧モジュールを返すため、実デプロイ/リロードで反映）。`PROFILE_LAYOUT` に
+  `ranked-rank`/新 avatar-change が入っていること、admin/style に maindeck 各テキストの新CSS変数が揃って
+  いることを実測確認。サーバー側（Supabase）の変更は無い。

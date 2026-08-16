@@ -4297,22 +4297,22 @@ body.theme-light .my-page-rank-group .rank-badge-dot { background: rgba(30, 41, 
   gap: 0.4rem;
   justify-content: center;
 }
+/* ユーザー要望2026-08-16「着せ替えの項目たちの枠も不要。ないほうがかっこいい」＝
+   ボタンの枠・背景を消して、サムネ画像とラベルだけを見せる。ホバーはサムネの縁だけ光らせる。 */
 .my-page-cosmetic-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.5rem 0.6rem;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 0.4rem;
+  padding: 0.3rem 0.4rem;
+  background: none;
+  border: none;
   color: #e2e8f0;
   cursor: pointer;
   font-size: 0.82rem;
 }
-.my-page-cosmetic-btn:hover {
-  background: rgba(56, 189, 248, 0.15);
-  border-color: rgba(56, 189, 248, 0.6);
+.my-page-cosmetic-btn:hover .my-page-cosmetic-thumb {
+  border-color: rgba(56, 189, 248, 0.7);
 }
 /* 「選択中」サムネ（ユーザー要望「それぞれ何に着せ替え中か分かるように」）。ボタン内に
    ラベルの下へ現在の選択の画像を小さく出す。ペット「なし」等は文字で示す。 */
@@ -14802,11 +14802,15 @@ body.theme-light .mdl-deck-count {
   transform: scale(var(--profile-maindeck-scale, 1.75));
   transform-origin: bottom right;
 }
+/* 「メインデッキ」ラベル・デッキ名・「マイデッキ編集」ボタンは、それぞれ管理者モードで
+   位置(x/y)・サイズ(scale)を個別調整できる（ユーザー要望2026-08-16）。transformは兄弟の
+   フロー配置に影響しないので、1つ動かしても他は動かない。fallbackはadmin.jsのdefaultと一致。 */
 .profile-maindeck-badge {
   font-size: 0.78rem;
   font-weight: 700;
   color: #ffe6a8;
   letter-spacing: 0.05em;
+  transform: translate(var(--profile-maindeck-badge-x, 0rem), var(--profile-maindeck-badge-y, 0rem)) scale(var(--profile-maindeck-badge-scale, 1));
 }
 body.theme-light #profile-maindeck .profile-maindeck-badge { color: #92660a; }
 /* カバー = 3D立体ケース(.mdl-deck-art)＋デッキ名を包むだけのフレームレスなボタン
@@ -14831,6 +14835,7 @@ body.theme-light #profile-maindeck .profile-maindeck-badge { color: #92660a; }
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+  transform: translate(var(--profile-maindeck-name-x, 0rem), var(--profile-maindeck-name-y, 0rem)) scale(var(--profile-maindeck-name-scale, 1));
 }
 body.theme-light #profile-maindeck .profile-maindeck-name { color: #1e293b; }
 .profile-maindeck-cover.is-empty {
@@ -14860,6 +14865,7 @@ body.theme-light #profile-maindeck .profile-maindeck-name { color: #1e293b; }
   gap: 0.35rem;
   text-decoration: underline;
   text-underline-offset: 3px;
+  transform: translate(var(--profile-maindeck-edit-x, 0rem), var(--profile-maindeck-edit-y, 0rem)) scale(var(--profile-maindeck-edit-scale, 1));
 }
 #profile-maindeck-edit:hover { filter: brightness(1.12); }
 body.theme-light #profile-maindeck-edit { color: #b45309; }

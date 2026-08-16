@@ -15,9 +15,13 @@
 export const PROFILE_LAYOUT = {
   avatar: { x: -283, y: 7, scale: 6 },
   "avatar-bg": { x: -483, y: -206, scale: 4.5 },
-  "avatar-change": { x: 135, y: 535, scale: 1.97 },
+  "avatar-change": { x: 174, y: 601, scale: 1.97 },
   cosmetics: { x: 418, y: 51, scale: 1.5 },
   name: { x: -268, y: 594, scale: 3.01 },
+  // ランク表示（ranked-rank）は焼き込み漏れで従来の配置に無かった＝display:none解除後も
+  // 自然流し（他要素は絶対配置で流れから外れている）で埋もれ「消えた」ように見えていた
+  // （ユーザー報告2026-08-16）。焼き込むことで指定位置に絶対配置され表示される。
+  "ranked-rank": { x: -451, y: -152, scale: 1 },
   stats: { x: 415, y: 255, scale: 1.88 },
 };
 

@@ -613,6 +613,24 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー要望2026-08-16「メインデッキ表示の『メインデッキ』『デッキ名』『マイデッキ編集』
+    // それぞれのテキスト位置・サイズを個別調整」。各要素のtransformが var() で読む。
+    // 既定値はstyle.cssのfallback（全て0/1）と一致させること。
+    title: "マイページ：メインデッキ表示の各テキスト（個別）の位置・サイズ",
+    category: "position-ui",
+    controls: [
+      { key: "--profile-maindeck-badge-x", label: "「メインデッキ」位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--profile-maindeck-badge-y", label: "「メインデッキ」位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--profile-maindeck-badge-scale", label: "「メインデッキ」サイズ", unit: "", min: 0.3, max: 3, step: 0.05, default: 1 },
+      { key: "--profile-maindeck-name-x", label: "デッキ名 位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--profile-maindeck-name-y", label: "デッキ名 位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--profile-maindeck-name-scale", label: "デッキ名 サイズ", unit: "", min: 0.3, max: 3, step: 0.05, default: 1 },
+      { key: "--profile-maindeck-edit-x", label: "「マイデッキ編集」位置X", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--profile-maindeck-edit-y", label: "「マイデッキ編集」位置Y", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
+      { key: "--profile-maindeck-edit-scale", label: "「マイデッキ編集」サイズ", unit: "", min: 0.3, max: 3, step: 0.05, default: 1 },
+    ],
+  },
+  {
     // ユーザー要望2026-08-14「スモークテストボタンの位置・サイズ調整を管理者モードに追加して」。
     // #smoke-test-launch-btn（main.js）が var() で読む。既定値はstyle.cssのfallbackと一致させること。
     // ボタンは通常タイトル画面(opening-screen-active)＋管理者のときだけ出るが、スライダーを触って
