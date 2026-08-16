@@ -13,9 +13,9 @@ import { buildRankBadgeImage, rankGemPath, RANK_GAUGE_FRAME_U } from "./rank-bad
 export const RANK_SHOWCASE = {
   gaugeSize: 20, // U型枠の幅（rem）。高さは 1536:1024 のaspectで自動。
   gemSize: 15, // 宝石の大きさ（枠幅に対する%）。ソケットにフィットさせる。
-  badgeSize: 8, // 称号バッジの大きさ（rem）。
-  badgeX: 0.1, // バッジの水平オフセット（rem、＋で右）。中央基準。
-  badgeY: -1.7, // バッジの垂直位置（rem、枠の上端から。U字の開いた中央に置く）。
+  badgeSize: 16.4, // 称号バッジの大きさ（rem）。
+  badgeX: 0, // バッジの水平オフセット（rem、＋で右）。中央基準。
+  badgeY: -8.3, // バッジの垂直位置（rem、枠の上端から。U字の開いた中央に置く。負で上へはみ出す）。
   sockets: [
     { x: 8.6, y: 23.5 },
     { x: 15.3, y: 49.8 },
@@ -89,12 +89,18 @@ export function buildRankShowcase(rank, gauge, legendPoints, { animated = false,
 
   // 等倍縮小表示（コンパクト表示）：footprintを縮小後サイズに合わせるためラッパーで包む。
   if (scale !== 1) {
+    // バッジは badgeY が負だと枠の上へはみ出す。そのぶんの高さをラッパー上部に確保しておくと、
+    // 上に置くラベル（「あなたのランク」等）がバッジと重ならない（ユーザー報告2026-08-16、
+    // どんなバッジ設定でも自動で追従）。
+    const overflowTopRem = Math.max(0, -cfg.badgeY) * scale;
+    const frameWRem = cfg.gaugeSize * scale;
+    const frameHRem = cfg.gaugeSize * FRAME_RATIO * scale;
     const wrap = document.createElement("div");
     wrap.className = "rank-showcase-scale";
-    wrap.style.width = `calc(${cfg.gaugeSize}rem * ${scale})`;
-    wrap.style.height = `calc(${cfg.gaugeSize}rem * ${FRAME_RATIO} * ${scale})`;
+    wrap.style.width = `${frameWRem}rem`;
+    wrap.style.height = `${frameHRem + overflowTopRem}rem`;
     box.style.position = "absolute";
-    box.style.top = "0";
+    box.style.top = `${overflowTopRem}rem`; // 枠を下げてバッジの上端をラッパー上端に合わせる
     box.style.left = "0";
     box.style.transformOrigin = "top left";
     box.style.transform = `scale(${scale})`;

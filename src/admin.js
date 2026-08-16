@@ -511,6 +511,15 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー報告2026-08-16「ホーム画面のゲームタイトルが上すぎる」。#home-screen-title の
+    // margin-top を --home-title-offset-y で調整（大きいほど下がる）。既定値はstyle.cssと一致。
+    title: "ホーム画面：タイトルの縦位置",
+    category: "position-ui",
+    controls: [
+      { key: "--home-title-offset-y", label: "タイトルの縦位置（大きいほど下へ）", unit: "rem", min: 0, max: 16, step: 0.1, default: 3 },
+    ],
+  },
+  {
     // 以前は画面下部中央のテキストラベル3項目だったが、アイコン画像に差し替えて画面右下
     // （他のアイコンボタン列の近く）へ引っ越した。item-width/heightは今もturn-timer.jsの
     // 基本時間表示（⏱、テキストのまま）にだけ使われている。
