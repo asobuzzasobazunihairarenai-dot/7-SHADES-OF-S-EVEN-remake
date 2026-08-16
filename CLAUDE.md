@@ -12828,3 +12828,18 @@ u=横方向・v=縦方向）にも使えるよう一般化した`rotateFraction(
   検証は次のクライアント実装（フェーズ2b：ホームのランク戦タイル→デッキ確認→待機画面→レディチェック
   →自動開始、＋待機人数/CPU練習/通知）を入れてから2ブラウザで行う。
 - 次はフェーズ2b（クライアントのマッチメイキングUI＋低母数対策4つ）。
+
+### 2026-08-16（続き124）：ランク戦フェーズ2b（クライアント）の土台——online.js に RPC ラッパーを追加
+
+フェーズ2b（クライアントのマッチメイキングUI）の土台として、`src/online.js` にフェーズ2の
+SECURITY DEFINER RPC の薄いラッパーを追加した（追加のみ・既存挙動に影響なし・まだ呼び出し元は無い）。
+既存の `claimDailyLoginBonus` 等と同じ「`if (!client || !cachedUser) return; const {data,error} =
+await client.rpc(...)`」パターンに合わせた。
+- `getSelfRank()` → `so7_ranked_get_self`（自分の現ランク {season_id, rank, gauge, legend_points}）。
+- `enqueueRanked(deck)` → `so7_ranked_enqueue`（解決済みデッキを渡してキュー登録）。
+- `pollRanked()` → `so7_ranked_poll`（状態 none/waiting/matched/ingame ＋ 待機人数 ＋ 相手情報）。
+- `readyRanked(matchId)` → `so7_ranked_ready`（両者readyで game_id が返る）。
+- `leaveRankedQueue()` → `so7_ranked_leave`（キャンセル）。
+- 次は本体：ホームのランク戦タイル → デッキ確認 → 待機画面（poll ループ・待機人数・CPU練習）→
+  レディチェック → is_ranked 対局への自動入場（自動処理/タイマー強制）＋通知（音・タブ点滅）。
+  既存のオンライン対局の入場/BOOTSTRAP フローと繋ぐ部分を次で作る。

@@ -983,6 +983,53 @@ export async function awardCpuWinCurrency() {
   return data ?? 0;
 }
 
+// --- ランク戦（フリーマッチ）。docs/ranked-spec.md参照。SQLのSECURITY DEFINER RPC
+// （so7_ranked_*）の薄いラッパー。キューの2テーブルはRLSで直接読み書き不可・全てRPC経由。--
+
+// 自分の現シーズンのランク（表示用）。{season_id, rank, gauge, legend_points} または null。
+export async function getSelfRank() {
+  if (!client || !cachedUser) return null;
+  const { data, error } = await client.rpc("so7_ranked_get_self");
+  if (error) {
+    console.error("so7_ranked_get_self failed (未実行のsupabase_setup_so7.sql追加分がある可能性)", error);
+    return null;
+  }
+  return data?.[0] ?? null;
+}
+
+// ランク戦のキューに登録する（deck＝my-deck-selectのresolveDeckが返す解決済みデッキ。席へ引き継ぐ）。
+export async function enqueueRanked(deck) {
+  if (!client || !cachedUser) return false;
+  const { error } = await client.rpc("so7_ranked_enqueue", { p_deck: deck ?? null });
+  if (error) { console.error("so7_ranked_enqueue failed", error); return false; }
+  return true;
+}
+
+// 待機中に数秒ごとに呼ぶ。返り値: { state:'none'|'waiting'|'matched'|'ingame', match_id,
+// game_id, waiting_count, opponent_user_id, opponent_name, opponent_avatar, opponent_rank } or null。
+export async function pollRanked() {
+  if (!client || !cachedUser) return null;
+  const { data, error } = await client.rpc("so7_ranked_poll");
+  if (error) { console.error("so7_ranked_poll failed", error); return null; }
+  return data?.[0] ?? null;
+}
+
+// レディチェックで「対戦開始」を押した時。両者readyになれば game_id（文字列）が返る、
+// まだ相手待ちなら null。
+export async function readyRanked(matchId) {
+  if (!client || !cachedUser) return null;
+  const { data, error } = await client.rpc("so7_ranked_ready", { p_match_id: matchId });
+  if (error) { console.error("so7_ranked_ready failed", error); return null; }
+  return data ?? null;
+}
+
+// キューを抜ける／レディチェックをキャンセルする。
+export async function leaveRankedQueue() {
+  if (!client || !cachedUser) return;
+  const { error } = await client.rpc("so7_ranked_leave");
+  if (error) console.error("so7_ranked_leave failed", error);
+}
+
 // --- 管理者専用機能（ユーザー要望「管理者モードで自分の通貨を自由に増やせるように」
 // 「サイトの利用状況（ログイン数・訪問数・誰がログイン中か）を見られるように」への対応）。
 // isAdminUser()はUI表示の出し分け（管理者モードにこの項目を出すかどうか）だけに使う
