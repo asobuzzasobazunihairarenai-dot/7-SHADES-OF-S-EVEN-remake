@@ -13130,3 +13130,37 @@ Function）の変更は無い（#127はクライアントのみ、`is_ranked` �
 ゲート侵攻にも追加し（削除はしない）、「ゲート侵攻成功」モーダルとの順序も合わせて見直す。
 
 **検証**: `node --check` 通過、アプリ正常ロード・新規JSエラー無し。サーバー側の変更は無い。
+
+### 2026-08-16（続き134）：#126 オンラインのゲート侵攻の「奪う手札を選ぶ儀式的演出」を受信キューに一本化（事前ピック撤去・順序統一）
+
+ユーザー要望「奪う手札を選択する儀式的な演出は必要です。戻してください。」＋モーダルの順序への指摘。
+オンラインのゲート侵攻の奪う演出が、以前**ターン終了時の事前ピック**（NEXT_TURN送信前に攻撃側が相手の
+裏向き手札からクリックで選ぶ）と、**受信キュー側の飛翔だけ**（`playGateInvasionStealFlyOnly`）に分かれて
+いた。この分割には2つの難点があった: (1)告知が二重（事前ピックの直前にも「ゲート侵攻成功！」を出し、
+受信キューでも「成功」ステップを出す）、(2)**手番プレイヤー以外の侵攻**（効果で自分の番でなくても相手
+ゲートに乗る）では事前ピックの条件（`findInvadedDefender(turnPlayerBeforeEnd)`＝手番プレイヤー）に
+外れ、儀式が一切出ず飛翔だけになる。
+
+**修正**: 完全な対話的儀式版 `playGateInvasionStealRitual`（元々あった実績コード。視点ごとに動く——攻撃側
+本人は裏向きの相手手札を儀式的にめくって奪う、奪われる側は broadcast でライブ実況＝表向き＋ホバー、
+観戦者は飛翔）を**受信キュー**（`gate-invasion-modal.js` → `registerGateInvasionModalStealAnim`）に戻し、
+`main.js` のターン終了処理から**事前ピックのブロックを撤去**した（`gateInvasionSteals` を NEXT_TURN に
+添えない＝奪う札はルール通りサーバーが無作為に決める。サーバーの `applyGateInvasions` は元々「steals 無し＝
+無作為」の後方互換があるため **Edge Function の変更・再デプロイは不要**）。これで儀式は受信キューの1本に
+なり、「侵攻→成功告知→奪う儀式（攻撃側ピック/防御側watch）→奪ったカード一覧→エターナル獲得→帰還」の
+正しい順で、**手番プレイヤー以外の侵攻でも**出るようになった（告知の二重・分割も解消）。奪う札は相手の
+手札が裏向きで攻撃側からは中身が見えない＝ブラインドの儀式めくりのため、事前ピック（自分で選ぶ）でも
+無作為（サーバー決定）でも攻撃側の知識上は同じで、ルールの「無作為に奪う」とも整合する。
+
+撤去に伴い `playGateInvasionStealFlyOnly`（登録用ラッパー）を削除。`playGateInvasionStealAnim`（飛翔）は
+儀式版内のフォールバックで使うため残置。`announceGateInvasionSuccessBeforeStealPick`（事前ピック前の告知）は
+未使用の死にコードになったが、隣接コメントとの境界が曖昧で誤削除リスクがあるため定義は残置（無害・
+受信キューに独自の「成功」ステップがあるため機能上も不要）。`stealHandCardsRitualForGateInvasion` は
+ローカル対戦（`gate-invasion.js`）で引き続き使用。
+
+**検証**: `node --check`（main.js/gate-invasion-modal.js）通過、アプリ正常ロード・新規JSエラー無し、儀式版が
+参照する全シンボル（`broadcastRitualPickStarted/Hover/Ended`・`gateInvasionStealWatchResolve`・
+`openRitualPickWatch`・`playGateInvasionStealAnim`・`flyGhost` 等）と受信側の複数枚対応
+（`onRitualPickEndedEvents` が `pickedTokenIds`/`pickedTokenId` 両対応）が揃っていることを確認。実際の
+オンライン2クライアントでの一連（侵攻→儀式ピック/watch→一覧→エターナル→帰還）の見え方は、この環境では
+Supabase・2アカウントが必要なため未検証——実機で確認をお願いする。サーバー側の変更は無い。

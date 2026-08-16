@@ -11046,32 +11046,13 @@ function buildEndTurnButton() {
       // を呼ぶとローカルだけに二重適用されサーバーの状態と食い違ってしまうため、
       // オンライン中はnextTurn()だけを直接呼ぶ。
       if (isOnlineMode()) {
-        // ユーザー要望「ゲート侵攻でもスリカエのように奪う札を自分で選びたい」。自分
-        // (turnPlayerBeforeEnd)が今まさに相手のゲートに乗って侵攻しているなら、NEXT_TURNを
-        // 送る前に、スリカエと同じ選択UI（相手の裏向き手札からクリックで選ぶ／相手側には
-        // ライブで見える）で奪う札を選ぶ。選んだtoken idをNEXT_TURNに添えて渡すと、サーバーが
-        // その札を奪う（無ければ無作為＝後方互換。so7-apply-action.tsのapplyGateInvasions参照）。
-        let gateInvasionSteals;
-        try {
-          const defender = findInvadedDefender(turnPlayerBeforeEnd);
-          if (defender) {
-            const defenderHandCount = getState().tokens.filter(
-              (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === defender
-            ).length;
-            const stealCount = Math.floor(defenderHandCount / 2);
-            if (stealCount > 0) {
-              // 「奪う札を選ぶ」前に、攻撃側へ「ゲート侵攻成功！」の告知を先に出す（#18）。
-              await announceGateInvasionSuccessBeforeStealPick(defender, stealCount);
-              const chosen = await stealHandCardsRitualForGateInvasion(defender, stealCount);
-              const ids = (chosen || []).map((t) => t.id);
-              // 全部選べた時だけ採用（途中で相手の手札が尽きた等はサーバーの無作為に委ねる）。
-              if (ids.length === stealCount) gateInvasionSteals = { [turnPlayerBeforeEnd]: ids };
-            }
-          }
-        } catch (err) {
-          console.error("gate invasion pre-pick failed", err);
-          // 失敗時は steals 無し＝サーバー側の無作為フォールバックに任せる（詰まらせない）。
-        }
+        // ゲート侵攻で奪う札は、ルール通りサーバーが「無作為に」決める。奪う演出（相手の
+        // 裏向き手札から儀式的にめくる／相手側にはライブで見える）は、以前のような
+        // ターン終了時の事前ピックではなく、侵攻ボーナスの受信キュー
+        // （gate-invasion-modal.js → playGateInvasionStealRitual）で、
+        // 侵攻→成功告知→奪う儀式→奪ったカード一覧→エターナル→帰還、という正しい順で見せる
+        // （ユーザー要望「奪う手札を選択する儀式的な演出は必要／モーダルの順序」#126）。
+        // これにより「手番プレイヤー以外の侵攻」でも儀式が出て、告知が二重になる問題も解消する。
         // #61診断: オンラインでNEXT_TURNを送る直前の状態を記録する。防御側の接触到達効果が
         // まだ処理中（他端末）なのにここへ来ていないか、優先権がnull（タイマーOFF＝保持機構が
         // 無効）でないかを、diag-contact-priority群と時刻で突き合わせて確定する。
@@ -11085,7 +11066,7 @@ function buildEndTurnButton() {
           contactResultModals: openContactResultModals,
         });
         transferPriorityToNextTurnPlayer(turnPlayerBeforeEnd);
-        nextTurn(gateInvasionSteals ? { gateInvasionSteals } : undefined);
+        nextTurn();
         releaseGuard();
         return;
       }
@@ -12739,15 +12720,14 @@ registerReturnHomeRevealHelper(async (attacker, cards) => {
 // オンラインのゲート侵攻（サーバー処理→受信モーダル経路）でも、ローカルと同じエターナル獲得の
 // 派手な演出（3Dフリップ＋色バースト）を出す（ユーザー要望）。純演出関数のため両経路で共用できる。
 registerGateInvasionModalEternalAnim(playEternalAcquisitionAnim);
-// 同じくオンラインのゲート侵攻で「手札を奪う」飛翔演出を出す（ユーザー要望）。
-// 奪う札は攻撃側がターン終了前に自分で選ぶ（endTurnの事前ピック）ようにしたため、この受信
-// キュー側では「選ぶ」対話は繰り返さず飛翔だけを出す（二重に選ばせない）。事前ピックが無い
-// 場合（サーバーの無作為フォールバック・非手番プレイヤーの侵攻等）も、中身は非公開なので
-// 飛翔だけで十分。以前のplayGateInvasionStealRitual（キュー側でも選ばせる版）は使わない。
-function playGateInvasionStealFlyOnly(info, onDone) {
-  playGateInvasionStealAnim(info.attacker, info.defender, info.count, () => onDone?.());
-}
-registerGateInvasionModalStealAnim(playGateInvasionStealFlyOnly);
+// オンラインのゲート侵攻で「手札を奪う」儀式的な演出（ユーザー要望「奪う手札を選択する
+// 儀式的な演出は必要／戻してください」#126）。以前はターン終了時の事前ピックに分けていたが、
+// 順序が不自然（告知が二重・非手番プレイヤーの侵攻では出ない）だったため撤去し、この受信
+// キュー側の1本に戻した。playGateInvasionStealRitualは視点ごとに動く：攻撃側本人は裏向きの
+// 相手手札を儀式的にめくって奪う（奪う札はサーバーが無作為に決定済み＝ルール通り、演出は
+// それを“めくって公開する”）、奪われる側はbroadcastでライブ実況（表向き＋ホバー）を見る、
+// 観戦者は飛翔演出。演出無効設定・素材不足時は飛翔だけにフォールバックする。
+registerGateInvasionModalStealAnim(playGateInvasionStealRitual);
 // ユーザー報告「エターナル演出の前にエターナルがロックされて見えてしまい、演出直前に急に消える」。
 // ゲート侵攻のステップをキューに積んだ時点で、獲得予定エターナル1枚の描画を先に抑制しておく
 // （数秒後の演出が回ってくるまでロックエリアに見えてしまうのを防ぐ）。演出（着地）で復帰する。
