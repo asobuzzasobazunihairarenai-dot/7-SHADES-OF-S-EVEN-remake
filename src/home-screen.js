@@ -24,7 +24,8 @@ import { openCodexPage } from "./codex-page.js";
 import { openRankingPage } from "./ranking-page.js";
 // ランク戦フェーズ4/6: 現ランクをホームに常時表示（称号バッジ静止版＋七色ゲージ）。
 import { getSelfRank } from "./online.js";
-import { buildRankBadge } from "./rank-badge.js";
+import { rankName } from "./rank-badge.js";
+import { buildRankShowcase } from "./rank-showcase.js";
 // チュートリアルCPU戦（台本化された練習試合）。完全ローカル機能。
 import { startTutorialBattle, registerTutorialHomeOpener } from "./tutorial-battle.js";
 // 案内人エイドスの物語チュートリアル（オンボーディング）のフロー制御。🎓タイルはこの入口へ。
@@ -369,9 +370,14 @@ async function renderHomeRank(container) {
   label.className = "home-rank-label";
   label.textContent = "あなたのランク";
   container.appendChild(label);
+  // バッジ＋U型ゲージ＋宝石の合成表示（rank-showcase.js）をコンパクトに縮小して出す。
   container.appendChild(
-    buildRankBadge(info.rank ?? 0, info.gauge ?? 0, info.legend_points ?? 0, { animated: false, size: "4.2rem" })
+    buildRankShowcase(info.rank ?? 0, info.gauge ?? 0, info.legend_points ?? 0, { animated: false, scale: 0.55 })
   );
+  const nm = document.createElement("div");
+  nm.className = "home-rank-name";
+  nm.textContent = rankName(info.rank ?? 0);
+  container.appendChild(nm);
   container.style.display = "flex";
   // 表示専用（ユーザー指摘）。以前はクリックで勝率等のランキング画面へ遷移していたが、
   // それは戦績システムの「順位」であって、ここに出しているランク戦の段位とは別物のため

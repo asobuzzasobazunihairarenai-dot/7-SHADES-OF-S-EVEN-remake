@@ -7,22 +7,24 @@
 // admin.jsのCSS変数調整と同じ思想）。編集モードでドラッグ移動／ホイールでサイズ変更し、
 // 「座標を出力」で得たリテラルを開発者に渡す。
 
-import {
-  buildRankBadgeImage,
-  rankGemPath,
-  RANK_GAUGE_FRAME_U,
-  DEFAULT_U_SOCKETS,
-  rankName,
-} from "./rank-badge.js";
+import { buildRankBadgeImage, rankGemPath, RANK_GAUGE_FRAME_U } from "./rank-badge.js";
 
-// ★製作者が焼き込む「バッジ＋ゲージ＋宝石」の配置。
+// ★製作者が焼き込む「バッジ＋ゲージ＋宝石」の配置（ユーザーが調整モードで調整・2026-08-16）。
 export const RANK_SHOWCASE = {
   gaugeSize: 20, // U型枠の幅（rem）。高さは 1536:1024 のaspectで自動。
   gemSize: 15, // 宝石の大きさ（枠幅に対する%）。ソケットにフィットさせる。
   badgeSize: 8, // 称号バッジの大きさ（rem）。
-  badgeX: 0, // バッジの水平オフセット（rem、＋で右）。中央基準。
-  badgeY: 2.4, // バッジの垂直位置（rem、枠の上端から。U字の開いた中央に置く）。
-  sockets: DEFAULT_U_SOCKETS.map((s) => ({ x: s.x, y: s.y })), // 各宝石の枠内位置（%）
+  badgeX: 0.1, // バッジの水平オフセット（rem、＋で右）。中央基準。
+  badgeY: -1.7, // バッジの垂直位置（rem、枠の上端から。U字の開いた中央に置く）。
+  sockets: [
+    { x: 8.6, y: 23.5 },
+    { x: 15.3, y: 49.8 },
+    { x: 29, y: 68.4 },
+    { x: 50, y: 76.2 },
+    { x: 71, y: 68.4 },
+    { x: 84.7, y: 49.4 },
+    { x: 91.1, y: 23.5 },
+  ],
 };
 
 function litCount(rank, gauge) {
@@ -31,9 +33,25 @@ function litCount(rank, gauge) {
   return Math.max(0, Math.min(7, gauge ?? 0));
 }
 
-// バッジ＋U型ゲージ＋宝石の合成ブロック。size を渡すと gaugeSize を上書きできる。
+const FRAME_RATIO = 1024 / 1536; // 高さ / 幅
+
+// バッジ／宝石／ゲージの大きさ（gaugeSize/gemSize/badgeSize）を box に反映する。ドラッグ位置は
+// 別途 buildRankShowcase / drag で反映済み。編集モードのリサイズ後の再適用にも使う。
+function applyShowcaseSizes(box) {
+  const cfg = RANK_SHOWCASE;
+  box.style.width = `${cfg.gaugeSize}rem`;
+  box.style.setProperty("--rank-ugauge-gem", `${cfg.gemSize}%`);
+  const badge = box.querySelector(".rank-showcase-badge");
+  if (badge) {
+    badge.style.width = `${cfg.badgeSize}rem`;
+    badge.style.height = `${cfg.badgeSize}rem`;
+  }
+}
+
+// バッジ＋U型ゲージ＋宝石の合成ブロック。scale で全体を等倍縮小できる（ホーム/マイページの
+// コンパクト表示用。バッジ・宝石・ゲージの関係を保ったまま小さくなる）。
 // editable=true で編集モード（ドラッグ／ホイール）を配線し、onChange で変更を通知する。
-export function buildRankShowcase(rank, gauge, legendPoints, { animated = false, editable = false, onChange } = {}) {
+export function buildRankShowcase(rank, gauge, legendPoints, { animated = false, editable = false, onChange, scale = 1 } = {}) {
   const cfg = RANK_SHOWCASE;
   const box = document.createElement("div");
   box.className = "rank-showcase" + (editable ? " is-editable" : "");
@@ -64,8 +82,35 @@ export function buildRankShowcase(rank, gauge, legendPoints, { animated = false,
   badge.style.top = `${cfg.badgeY}rem`;
   box.appendChild(badge);
 
-  if (editable) wireShowcaseEditing(box, badge, gems, onChange);
+  if (editable) {
+    wireShowcaseEditing(box, badge, gems, onChange);
+    return box;
+  }
+
+  // 等倍縮小表示（コンパクト表示）：footprintを縮小後サイズに合わせるためラッパーで包む。
+  if (scale !== 1) {
+    const wrap = document.createElement("div");
+    wrap.className = "rank-showcase-scale";
+    wrap.style.width = `calc(${cfg.gaugeSize}rem * ${scale})`;
+    wrap.style.height = `calc(${cfg.gaugeSize}rem * ${FRAME_RATIO} * ${scale})`;
+    box.style.position = "absolute";
+    box.style.top = "0";
+    box.style.left = "0";
+    box.style.transformOrigin = "top left";
+    box.style.transform = `scale(${scale})`;
+    wrap.appendChild(box);
+    return wrap;
+  }
   return box;
+}
+
+// 編集モードのサイズ変更（ホイール／ボタン共通）。which: "badge"|"gem"|"gauge"、dir: +1/-1。
+function resizeShowcase(box, which, dir) {
+  const cfg = RANK_SHOWCASE;
+  if (which === "badge") cfg.badgeSize = clamp(round1(cfg.badgeSize + dir * 0.3), 2, 24);
+  else if (which === "gem") cfg.gemSize = clamp(round1(cfg.gemSize + dir * 0.5), 4, 40);
+  else cfg.gaugeSize = clamp(round1(cfg.gaugeSize + dir * 0.5), 8, 40);
+  applyShowcaseSizes(box);
 }
 
 // bodyのステージscale（実画面px→ローカルpx換算用）。
@@ -125,23 +170,13 @@ function wireShowcaseEditing(box, badge, gems, onChange) {
   badge.addEventListener("pointerdown", (e) => startDrag(badge, e));
   for (const g of gems) g.addEventListener("pointerdown", (e) => startDrag(g, e));
 
-  // ── ホイールでサイズ変更 ──
+  // ── ホイールでサイズ変更（宝石の上＝宝石、バッジの上＝バッジ、枠の上＝ゲージ全体）──
   function onWheel(e) {
     e.preventDefault();
     const dir = e.deltaY < 0 ? 1 : -1;
     const t = e.target;
-    if (t === badge) {
-      cfg.badgeSize = clamp(round1(cfg.badgeSize + dir * 0.3), 2, 24);
-      badge.style.width = `${cfg.badgeSize}rem`;
-      badge.style.height = `${cfg.badgeSize}rem`;
-    } else if (t && t.classList && t.classList.contains("rank-showcase-gem")) {
-      cfg.gemSize = clamp(round1(cfg.gemSize + dir * 0.5), 4, 40);
-      box.style.setProperty("--rank-ugauge-gem", `${cfg.gemSize}%`);
-    } else {
-      // 枠（宝石でもバッジでもない）→ ゲージ全体の大きさ
-      cfg.gaugeSize = clamp(round1(cfg.gaugeSize + dir * 0.5), 8, 40);
-      box.style.width = `${cfg.gaugeSize}rem`;
-    }
+    const which = t === badge ? "badge" : t && t.classList && t.classList.contains("rank-showcase-gem") ? "gem" : "gauge";
+    resizeShowcase(box, which, dir);
     notify();
   }
   box.addEventListener("wheel", onWheel, { passive: false });
@@ -173,6 +208,9 @@ export function getRankShowcaseOutput() {
 
 // ── 調整モードのオーバーレイ ──
 let editorOverlay = null;
+function getEditorBox() {
+  return editorOverlay?.querySelector(".rank-showcase");
+}
 
 export function openRankShowcaseEditor() {
   if (editorOverlay) return;
@@ -184,8 +222,31 @@ export function openRankShowcaseEditor() {
   const bar = document.createElement("div");
   bar.className = "rank-showcase-editor-bar";
   const title = document.createElement("span");
-  title.textContent = "🏅 ランクバッジ・ゲージ調整モード（バッジ／宝石をドラッグで移動・ホイールでサイズ変更）";
+  title.textContent = "🏅 ランクバッジ・ゲージ調整モード（バッジ／宝石をドラッグで移動）";
   bar.appendChild(title);
+
+  // サイズ調整の＋/−ボタン（ホイールが使えない/使いにくい環境向け。ユーザー要望
+  // 「バッジをゲージに対してもう少し大きくしたい。調整できるように」2026-08-16）。
+  const sizeCtl = (label, which) => {
+    const grp = document.createElement("span");
+    grp.className = "rank-showcase-size-ctl";
+    const lbl = document.createElement("span");
+    lbl.textContent = label;
+    const minus = document.createElement("button");
+    minus.type = "button";
+    minus.textContent = "−";
+    minus.addEventListener("click", () => resizeShowcase(getEditorBox(), which, -1));
+    const plus = document.createElement("button");
+    plus.type = "button";
+    plus.textContent = "＋";
+    plus.addEventListener("click", () => resizeShowcase(getEditorBox(), which, +1));
+    grp.append(lbl, minus, plus);
+    return grp;
+  };
+  bar.appendChild(sizeCtl("バッジ", "badge"));
+  bar.appendChild(sizeCtl("ゲージ", "gauge"));
+  bar.appendChild(sizeCtl("宝石", "gem"));
+
   const outBtn = document.createElement("button");
   outBtn.type = "button";
   outBtn.textContent = "座標を出力";

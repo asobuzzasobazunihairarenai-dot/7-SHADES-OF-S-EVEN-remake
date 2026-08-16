@@ -5,7 +5,8 @@
 
 import { getCurrentUser, getSelfSeat, syncMyStatsProfile, getSelfRank } from "./online.js";
 // ランク戦の現ランク（フェーズ4/6）。戦績システムの順位とは別物のランク戦専用のランク。
-import { buildRankBadge } from "./rank-badge.js";
+import { rankName } from "./rank-badge.js";
+import { buildRankShowcase } from "./rank-showcase.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName } from "./player-identity.js";
 import { fetchStatsProfile } from "./stats-profile.js";
 import { openStatsPlayerLinkModal } from "./stats-player-link.js";
@@ -483,9 +484,14 @@ async function renderMyPageRankedRank(container) {
   title.textContent = "🏆 ランク戦の段位";
   container.appendChild(title);
   if (info) {
+    // バッジ＋U型ゲージ＋宝石の合成表示（rank-showcase.js）をコンパクトに縮小して出す。
     container.appendChild(
-      buildRankBadge(info.rank ?? 0, info.gauge ?? 0, info.legend_points ?? 0, { animated: false, size: "5rem" })
+      buildRankShowcase(info.rank ?? 0, info.gauge ?? 0, info.legend_points ?? 0, { animated: false, scale: 0.6 })
     );
+    const nm = document.createElement("div");
+    nm.className = "my-page-rank-name";
+    nm.textContent = rankName(info.rank ?? 0);
+    container.appendChild(nm);
   } else {
     const note = document.createElement("div");
     note.className = "my-page-rank-none";

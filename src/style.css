@@ -4287,6 +4287,8 @@ body.theme-light .lobby-icon-toggle.is-on .lobby-icon-toggle-state {
   margin: 0.4rem 0 0.8rem;
 }
 .my-page-rank-title { font-size: 0.85rem; color: #ffe6a8; letter-spacing: 0.04em; }
+.my-page-rank-name { font-size: 1rem; font-weight: 800; color: #ffe6a8; }
+body.theme-light .my-page-rank-name { color: #92660a; }
 .my-page-rank-none { font-size: 0.78rem; color: #94a3b8; }
 body.theme-light .my-page-rank-none { color: #64748b; }
 /* ライトテーマ: マイページ背景が明るいので、金色の段位名・タイトルを濃い金に、
@@ -12512,6 +12514,12 @@ body.reduce-glow .cell.card-effect-placement-target {
 }
 #home-screen-rank .rank-badge-name { color: #1e293b; text-shadow: 0 1px 4px rgba(255, 255, 255, 0.9); }
 #home-screen-rank .rank-badge-dot { background: rgba(30, 41, 59, 0.16); border-color: rgba(30, 41, 59, 0.28); }
+.home-rank-name {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #1e293b;
+  text-shadow: 0 1px 4px rgba(255, 255, 255, 0.9);
+}
 
 #home-screen-grid {
   display: grid;
@@ -15607,6 +15615,30 @@ body.reduce-glow .rank-ugauge-gem { animation: none; }
   font-size: 0.8rem;
 }
 .rank-showcase-editor-bar button:hover { background: #334155; }
+.rank-showcase-size-ctl {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.4rem;
+}
+.rank-showcase-size-ctl > span { font-size: 0.78rem; color: #cbd5e1; }
+.rank-showcase-size-ctl button {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  line-height: 1;
+  font-size: 1rem;
+  border-radius: 0.3rem;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: #1e293b;
+  color: #f1f5f9;
+  cursor: pointer;
+}
+.rank-showcase-size-ctl button:hover { background: #334155; }
+/* 等倍縮小ラッパー（ホーム/マイページのコンパクト表示、rank-showcase.js buildRankShowcase scale）。 */
+.rank-showcase-scale { position: relative; }
 .rank-showcase-editor-out {
   width: min(46rem, 92vw);
   height: 7rem;
