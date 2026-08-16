@@ -5191,6 +5191,16 @@ body.shop-open #admin-panel {
 body.shop-open #admin-panel-backdrop {
   z-index: 2799 !important;
 }
+/* ユーザー報告2026-08-16「マイページ（プロフィール全画面）で管理者モードのウィンドウが背面に隠れる」。
+   #profile-pageは不具合#84でz-index:2650へ引き上げてあるため、管理者パネル(2600)が負けて隠れていた
+   （ホーム/ランキング/図鑑=1500では隠れないが、プロフィール2650で発生）。ショップ時と同じく、全画面
+   ページ（プロフィール含む）が開いている間だけ管理者パネル/バックドロップを2800/2799へ前面化する。 */
+body.full-screen-page-active #admin-panel {
+  z-index: 2800;
+}
+body.full-screen-page-active #admin-panel-backdrop {
+  z-index: 2799 !important;
+}
 /* スマホでは管理者モーダル自体が小さすぎて操作しづらいとの報告（続き92）。
    左上固定のパネルのため、他の画面中央モーダル（translate(-50%,-50%)）とは
    別の専用の一括調整用変数にする（transform-originを左上に固定し、左上の
