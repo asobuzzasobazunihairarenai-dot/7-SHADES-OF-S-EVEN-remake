@@ -520,6 +520,17 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー要望2026-08-16「ホーム画面の8メニューを一括で位置調整したい」。#home-screen-grid が
+    // transform: translate/scale で読む（レイアウトに影響しないので自由に動かせる）。既定値はstyle.cssと一致。
+    title: "ホーム画面：8メニューの位置・サイズ（一括）",
+    category: "position-ui",
+    controls: [
+      { key: "--home-grid-pos-x", label: "位置X（＋で右へ）", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--home-grid-pos-y", label: "位置Y（＋で下へ）", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--home-grid-scale", label: "全体サイズ", unit: "", min: 0.4, max: 1.5, step: 0.02, default: 1 },
+    ],
+  },
+  {
     // 以前は画面下部中央のテキストラベル3項目だったが、アイコン画像に差し替えて画面右下
     // （他のアイコンボタン列の近く）へ引っ越した。item-width/heightは今もturn-timer.jsの
     // 基本時間表示（⏱、テキストのまま）にだけ使われている。

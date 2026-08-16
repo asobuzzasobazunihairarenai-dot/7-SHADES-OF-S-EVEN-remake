@@ -12500,13 +12500,24 @@ body.reduce-glow .cell.card-effect-placement-target {
 /* ホームの現ランク表示（rank-badge.js、フェーズ4/6）。ホームは常にクリーム色のライト背景なので
    枠は付けず（ユーザー要望「枠はいらないかも」）、文字はタイトルと同じ濃色＋白いにじみ影で読ませる。
    位置・サイズは管理者モードで調整（--home-rank-pos-x/y/scale）。 */
+/* ユーザー報告2026-08-16「ホーム画面が縦に大きくなってスクロールが必要」。ランク表示（大きな
+   バッジで背が高い）を flex フローから外して absolute にし、グリッド（8メニュー）を押し下げない
+   ようにする。位置は --home-rank-pos-x/y（左右・上下オフセット）で調整。#home-screen は
+   position:fixed なので絶対配置の基準になる。 */
 #home-screen-rank {
+  position: absolute;
+  /* 大きなランクバッジのヒーロー表示は背が高く、中央の8メニュー（グリッド）はほぼ全画面を使うため、
+     縦にも横にも並べると短い画面では重なる/スクロールする。既定はコンパクトに左上へ置いて重ならない
+     ようにし、位置・サイズは --home-rank-pos-x/y・--home-rank-scale で自由に調整できる（ユーザーが
+     好きな場所・大きさへ）。 */
+  top: 2%;
+  left: 2%;
   flex-direction: column;
   align-items: center;
-  gap: 0.35rem;
-  margin-bottom: 1.3rem;
+  gap: 0.2rem;
   transform: translate(var(--home-rank-pos-x, 0rem), var(--home-rank-pos-y, 0rem)) scale(var(--home-rank-scale, 1));
-  transform-origin: top center;
+  transform-origin: top left;
+  pointer-events: none; /* 表示専用。裏のグリッド等のクリックを妨げない。 */
 }
 .home-rank-label {
   font-size: 0.72rem;
@@ -12533,6 +12544,9 @@ body.reduce-glow .cell.card-effect-placement-target {
      グリッド幅をアイコンサイズに連動させ、マスがアイコンより十分広くなるようにする
      （5.5rem時=46remで従来と同じ、大きくすると比例して広がる）。 */
   width: min(100%, calc(4 * var(--home-tile-icon-size, 5.5rem) + 24rem));
+  /* 8メニューの一括位置・サイズ調整（ユーザー要望2026-08-16）。管理者モードの
+     --home-grid-pos-x/y/scale。transformなのでレイアウトに影響せず自由に動かせる。 */
+  transform: translate(var(--home-grid-pos-x, 0rem), var(--home-grid-pos-y, 0rem)) scale(var(--home-grid-scale, 1));
 }
 /* スマホなど狭い画面では2列に（4列だと窮屈なため）。 */
 @media (max-width: 34rem) {
