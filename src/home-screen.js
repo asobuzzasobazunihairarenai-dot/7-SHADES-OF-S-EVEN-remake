@@ -23,7 +23,7 @@ import { openCodexPage } from "./codex-page.js";
 // ユーザー要望「ランキングを実装しましょう」への対応で新設したページ。
 import { openRankingPage } from "./ranking-page.js";
 // ランク戦フェーズ4/6: 現ランクをホームに常時表示（称号バッジ静止版＋七色ゲージ）。
-import { getSelfRank } from "./online.js";
+import { getSelfRank, pollRanked, getCurrentUser } from "./online.js";
 import { rankName } from "./rank-badge.js";
 import { buildRankShowcase } from "./rank-showcase.js";
 // チュートリアルCPU戦（台本化された練習試合）。完全ローカル機能。
@@ -73,6 +73,7 @@ const TILES = [
     image: "assets/home-icons/rank-match.webp",
     label: "フリーマッチ（ランク戦）",
     status: "ready",
+    showWaitingCount: true, // 続き162: 今何人が対戦相手を募集中かをタイルに表示（コールドスタート対策）
     onOpen: async () => {
       // ランク戦のマッチメイキング（フェーズ2b、ranked-match.js）。cpu-battle.jsと同じく
       // 動的importで静的な依存辺を作らない（循環参照の回避）。ホームは閉じ、キャンセル/失敗時は
@@ -306,6 +307,15 @@ function buildTile(tile) {
     btn.appendChild(newBadge);
   }
 
+  // 続き162: ランク戦タイルに「今◯人が対戦相手を募集中」を表示（コールドスタート対策）。
+  // 既定は非表示。openHomeScreen の待機人数ポーラー(updateRankedWaitingBadge)が更新する。
+  if (tile.showWaitingCount) {
+    const waitBadge = document.createElement("div");
+    waitBadge.className = "home-screen-tile-waiting-badge";
+    waitBadge.style.display = "none";
+    btn.appendChild(waitBadge);
+  }
+
   btn.addEventListener("click", () => {
     if (tile.status !== "ready") {
       showComingSoonToast(tile.label);
@@ -352,6 +362,7 @@ export function openHomeScreen() {
   // ユーザー要望（続き75）「ホーム画面やプロフ全画面でも上のオプションエリアのアイコン等は
   // 表示していてください」。full-screen-page-active共通クラス（style.css参照）。
   syncFullScreenPageActive();
+  startRankedWaitingPoll(); // ランク戦タイルの待機人数表示（続き162）
 }
 
 // ホーム画面の現ランク表示を非同期で描画する。未ログイン（getSelfRankがundefined）や
@@ -386,7 +397,47 @@ async function renderHomeRank(container) {
   // 押しても何もしない表示専用にしておく。
 }
 
+// 続き162: ランク戦タイルの「今◯人が対戦相手を募集中」表示。ホーム画面が開いている間だけ、
+// 待機人数を定期取得してタイルのバッジを更新する（コールドスタート対策。入る前に状況が見える）。
+let rankedWaitTimer = null;
+async function updateRankedWaitingBadge() {
+  if (!overlayEl) return;
+  const badge = overlayEl.querySelector(".home-screen-tile-waiting-badge");
+  if (!badge) return;
+  const user = await getCurrentUser();
+  if (!user) {
+    badge.style.display = "none";
+    return;
+  }
+  let res;
+  try {
+    res = await pollRanked();
+  } catch {
+    return;
+  }
+  if (!overlayEl || !res) return;
+  const count = res.waiting_count || 0;
+  if (count >= 1) {
+    badge.textContent = `🟢 ${count}人が対戦募集中！`;
+    badge.style.display = "";
+  } else {
+    badge.style.display = "none";
+  }
+}
+function startRankedWaitingPoll() {
+  stopRankedWaitingPoll();
+  void updateRankedWaitingBadge();
+  rankedWaitTimer = setInterval(() => void updateRankedWaitingBadge(), 15000);
+}
+function stopRankedWaitingPoll() {
+  if (rankedWaitTimer) {
+    clearInterval(rankedWaitTimer);
+    rankedWaitTimer = null;
+  }
+}
+
 export function closeHomeScreen() {
+  stopRankedWaitingPoll();
   overlayEl?.remove();
   overlayEl = null;
   toastEl = null;

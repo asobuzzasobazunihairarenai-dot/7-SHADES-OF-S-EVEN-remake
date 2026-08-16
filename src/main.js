@@ -188,6 +188,7 @@ import { initIconRearrange } from "./icon-rearrange.js";
 import { initSelfStatusRearrange } from "./self-status-rearrange.js";
 import { initInteractionModeToggle } from "./interaction-mode.js";
 import { initDeviceDetect, isTouchPrimaryDevice } from "./device-detect.js";
+import { initRankedNotify } from "./ranked-notify.js";
 import { registerRenderHelpers, animateFirstCardsDealt, animateBoardFilled } from "./setup-animation.js";
 import {
   registerRemoteMoveAnimatorHelpers,
@@ -12720,6 +12721,7 @@ initIconRearrange();
 initSelfStatusRearrange();
 initInteractionModeToggle();
 initDeviceDetect();
+initRankedNotify(); // ランク戦の「待機プレイヤーが現れたら通知」（設定ONの端末のみポーリング開始）
 registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocationElement, setSetupPendingTokenIds });
 registerPieceSkinHelpers({ render });
 registerCardBackSkinHelpers({ render, savePreference: saveMyPreference, isItemUnlocked, openShop });

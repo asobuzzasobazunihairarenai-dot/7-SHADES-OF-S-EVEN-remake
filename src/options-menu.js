@@ -67,6 +67,12 @@ import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-butto
 import { openStatsPlayerLinkModal } from "./stats-player-link.js";
 import { fetchStatsProfile } from "./stats-profile.js";
 import { isFlatten2dMode, setFlatten2dMode } from "./tablet-2d-mode.js";
+import {
+  isRankedNotifyEnabled,
+  setRankedNotifyEnabled,
+  getRankedNotifyWindow,
+  setRankedNotifyWindow,
+} from "./ranked-notify.js";
 import { getOptionArea } from "./option-area.js";
 import { getState, requestAutoProcessingToggle, nextTurn } from "./state.js";
 import { getFinalLockApprovalOrder } from "./board-layout.js";
@@ -1152,6 +1158,70 @@ export function initOptionsMenu() {
             renderContent();
           },
         }
+      )
+    );
+
+    // ランク戦の「待機プレイヤーが現れたら通知」（続き162、ranked-notify.js）。プレイ人口が
+    // 少ない間のコールドスタート対策。アプリを開いている人向けの軽量版（タブ点滅＋音＋バナー）。
+    // 設定はこの端末に保存（localStorage）。閉じていても届くプッシュ通知は次フェーズ。
+    panel.appendChild(
+      buildCollapsibleSection(
+        "ランク戦の通知",
+        (content) => {
+          const note = document.createElement("div");
+          note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.5rem; line-height: 1.5;";
+          note.textContent =
+            "ONにすると、ランク戦で対戦相手を募集中の人が現れた時、この端末でアプリを開いている間に" +
+            "タブ点滅・音・バナーでお知らせします（アプリを閉じている時は届きません）。";
+          content.appendChild(note);
+
+          const enableRow = buildCheckboxRow("対戦相手が現れたら通知する", isRankedNotifyEnabled(), (checked) => {
+            setRankedNotifyEnabled(checked);
+          });
+          content.appendChild(enableRow);
+
+          // 通知してもいい時間帯（開始・終了の「時」）。
+          const win = getRankedNotifyWindow();
+          let curStart = win.start;
+          let curEnd = win.end;
+          const timeRow = document.createElement("div");
+          timeRow.style.cssText =
+            "display:flex; align-items:center; gap:0.4rem; margin:0.5rem 0 0.2rem; font-size:0.85rem; flex-wrap:wrap;";
+          const timeLabel = document.createElement("span");
+          timeLabel.textContent = "通知してもいい時間帯";
+          const mkHourSelect = (value, onChange) => {
+            const sel = document.createElement("select");
+            sel.style.cssText =
+              "padding:0.2rem 0.3rem; background:rgba(15,23,32,0.9); border:1px solid rgba(148,163,184,0.5); border-radius:0.3rem; color:#e2e8f0;";
+            for (let h = 0; h < 24; h++) {
+              const opt = document.createElement("option");
+              opt.value = String(h);
+              opt.textContent = `${h}時`;
+              if (h === value) opt.selected = true;
+              sel.appendChild(opt);
+            }
+            sel.addEventListener("change", () => onChange(parseInt(sel.value, 10)));
+            return sel;
+          };
+          const startSel = mkHourSelect(curStart, (v) => {
+            curStart = v;
+            setRankedNotifyWindow(curStart, curEnd);
+          });
+          const endSel = mkHourSelect(curEnd, (v) => {
+            curEnd = v;
+            setRankedNotifyWindow(curStart, curEnd);
+          });
+          const tilde = document.createElement("span");
+          tilde.textContent = "〜";
+          timeRow.append(timeLabel, startSel, tilde, endSel);
+          content.appendChild(timeRow);
+
+          const winNote = document.createElement("div");
+          winNote.style.cssText = "font-size:0.72rem; color:#94a3b8; margin-top:0.3rem; line-height:1.5;";
+          winNote.textContent = "開始と終了を同じ時刻にすると終日OKです。開始＞終了なら夜をまたぎます（例 22時〜6時）。";
+          content.appendChild(winNote);
+        },
+        { icon: "🏆" }
       )
     );
 
