@@ -13582,3 +13582,21 @@ style.css の var() fallback の両方へ反映した。
 - `--home-grid-pos-y`: 0 → 6.4rem（8メニューを下へ）
 - ブラウザ実測でスクロール無し・ランク/グリッドとも画面内収容を確認。`node --check` 通過。
   サーバー側の変更は無い。
+
+### 2026-08-16（続き147）：スマホで手札を巨大アバターの前面へ＋自分のミニロックエリアのスマホ専用位置・サイズ調整を追加
+
+ユーザー要望（スマホ）2件。
+- **手札が巨大半透明アバターの背面に行く → 前面へ**: スマホでは手札は固定トレイ
+  `#self-hand-overlay`（z-index:60）に移るが、自分専用ステータスエリア `#self-hand-status`
+  （z-index:1000＝巨大アバター/ゴーストを含む）より下だったため背面に隠れていた。
+  `body.is-phone-device #self-hand-overlay` に `z-index: 1001` を追加し前面化（両者ともbody直下の
+  fixedなのでz-indexで直接比較。モーダル類は10000+なので1001でも下。トレイはpointer-events:noneで
+  カード以外はクリックを通すため、下のステータスアイコンのクリックは妨げない）。実測で
+  computed z-index=1001 を確認。
+- **自分のミニロックエリアのスマホ専用調整を追加**: 相手側(#mini-lock-area-top)には既にスマホ用
+  調整があったが、自分側(#mini-lock-area)には無かった。`body.is-phone-device #mini-lock-area` を
+  新設（`--mini-lock-bottom-phone`/`--mini-lock-x-offset-phone`/`--mini-lock-scale-phone`、未設定なら
+  手札固定ON時の値→共通値へフォールバック。fixed-hand ルールと同詳細度なので後に置いて上書き）。
+  管理者モードに「📱 スマホ専用：自分のミニロックエリアの位置・サイズ」グループを追加。実測で
+  scale・bottom がスマホ専用varに反応することを確認。
+- `node --check` 通過。サーバー側の変更は無い。

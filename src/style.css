@@ -595,6 +595,12 @@ body.is-phone-device #self-hand-overlay {
   bottom: var(--fixed-hand-bottom-phone, 19.5rem);
   transform: translateX(calc(-50% + var(--fixed-hand-x-offset-phone, -33.4rem)))
     scale(var(--fixed-hand-scale-phone, 1)) rotate(var(--fixed-hand-rotate-phone, 64deg));
+  /* ユーザー報告2026-08-16「スマホで手札が巨大半透明アバターの背面に行ってしまう」。固定手札トレイ
+     (#self-hand-overlay, z-index:60) が自分専用ステータスエリア(#self-hand-status, z-index:1000＝
+     巨大アバターを含む)より下だったため。スマホでは手札を前面に出す（両者ともbody直下のfixedなので
+     z-indexで直接比較される。モーダル類は10000+なので1001でも下）。トレイはpointer-events:noneで
+     カード以外はクリックを通すので、下のステータスアイコンのクリックは妨げない。 */
+  z-index: 1001;
 }
 /* スマホ＋手札固定ON時の、自分の手札公開エリア（宣言カード/公開ドロー）の位置・サイズ・回転を
    トレイ全体(--fixed-hand-*-phone)とは別に個別調整（管理者モード、ユーザー要望2026-08-08）。
@@ -644,6 +650,15 @@ body.is-phone-device.fixed-hand-mode #self-hand-overlay .hand-reveal-area {
 /* 「手札を画面下に固定する」ONの時は下部に手札トレイが来るので、その上へ重ねる。 */
 body.fixed-hand-mode #mini-lock-area {
   bottom: var(--mini-lock-bottom-fixed-hand, 0rem);
+}
+/* スマホ専用: 自分のミニロックエリアの位置・サイズ（管理者モード、ユーザー要望2026-08-16）。
+   未設定なら手札固定ON時の値(--mini-lock-bottom-fixed-hand)→共通値へフォールバック。上の
+   fixed-hand ルールと同詳細度(0,1,1)なので、確実に上書きするためこの後に置く。 */
+body.is-phone-device #mini-lock-area {
+  bottom: var(--mini-lock-bottom-phone, var(--mini-lock-bottom-fixed-hand, var(--mini-lock-bottom, -0.2rem)));
+  transform: translateX(calc(-50% + var(--mini-lock-x-offset-phone, var(--mini-lock-x-offset, 0rem))))
+    scale(var(--mini-lock-scale-phone, 1));
+  transform-origin: bottom center;
 }
 /* 相手プレイヤーのミニロックエリアは画面最上部に出す（ユーザー要望2026-08-07）。 */
 #mini-lock-area-top {

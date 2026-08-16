@@ -1240,6 +1240,19 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー要望2026-08-16「スマホでの自分のミニロックエリアの位置・サイズを管理者モードで
+    // 調整したい」。自分側ミニロック(#mini-lock-area)のスマホ専用の位置・サイズ。未設定なら手札固定
+    // ON時の値(--mini-lock-bottom-fixed-hand)→共通値へフォールバック（style.cssのbody.is-phone-device
+    // #mini-lock-area参照）。
+    title: "📱 スマホ専用：自分のミニロックエリアの位置・サイズ",
+    category: "phone",
+    controls: [
+      { key: "--mini-lock-bottom-phone", label: "下からの位置（スマホ）", unit: "rem", min: -2, max: 30, step: 0.1, default: 0 },
+      { key: "--mini-lock-x-offset-phone", label: "横方向のずれ（スマホ）", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--mini-lock-scale-phone", label: "サイズ倍率（スマホ）", unit: "", min: 0.4, max: 2.5, step: 0.05, default: 1 },
+    ],
+  },
+  {
     // ユーザー要望2026-08-08「スマホでの自分の手札固定時の手札公開エリアの位置・サイズ・回転を
     // 管理者モードに追加してほしい」。手札固定ON時、公開エリア(.hand-reveal-area)は固定トレイ
     // (#self-hand-overlay)へ移動する。トレイ全体(--fixed-hand-*-phone)とは別に、公開エリア
