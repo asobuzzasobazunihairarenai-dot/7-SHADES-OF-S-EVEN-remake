@@ -13189,3 +13189,36 @@ dispatch）側の`applyActionRecovery`が引き続き担う（＝ボットのペ
 リングなタブ）だったのが、修正後は**隠れペイン（スロットリング下）でも約11秒/ターン**（＝約半分）に短縮。
 8ターン到達が約97秒＜150秒で余裕でパスする計算。CPU自己対戦中のコンソールエラーも無し。サーバー側
 （Supabase）の変更は無い。副次的に、疑似CPUモードや「CPUを観戦」機能もキビキビ進むようになる。
+
+### 2026-08-16（続き136）：#128 オンラインで「タイマーが完全に止まる」根本原因を特定・修正（優先権の自己書き込みをローカルへ即時反映）
+
+ユーザー報告#128「タイマーが完全に止まってしまっています」（オンライン2人戦、SHO=A/YGM=C、両者
+自動処理＋タイマーON）。両者のアクションログを突き合わせて解析した結果、**私の今セッションの#123
+（エモートCSS）・#126（ゲート侵攻）は無関係**（ゲート侵攻の儀式演出自体は`diag-gate-invasion-steal-anim`→
+「奪いました」まで正常に完走している）で、**優先権状態のオンライン同期の構造的な穴**が真因だった。
+
+**停止の様子**: T3（turnPlayer A）でC→Aのゲート侵攻演出が完了した後、Aの自動処理が再開せず、ロック
+フェイズのタイムアウトが1回（`lockAutoPlay-check player:A lockableCount:0`）発火した以降、一切のログが
+止まっていた。コンソールに **Supabase Realtimeの「send() が REST API にフォールバック」警告**があった。
+
+**根本原因**: `setPriorityState`（state.js）はオンライン中、`updatePriorityState`（online.js）＝
+①so7_gamesへの書き込み ②`priority_changed`のbroadcast、だけを行い、**書き込んだ本人のローカル状態は
+`self:true`の自己エコーが返ってきて初めて更新**される作りだった。ところがRealtimeが劣化してbroadcastが
+RESTにフォールバックする状況ではこの自己エコーが届かず、**タイマー自身の書き込み（基本時間切れ→15秒
+回復、基本時間→延長ロープへの遷移等）がローカルに一切反映されない** → `priorityDeadline`が期限切れの
+まま固定 → `tick()`は`remaining<=0`を見続けるが`timedOutAutoActionFired`が立っていて`performPriorityTimeoutAutoAction`も
+再発火せず、**タイマーが完全に凍結**していた（受信側の優先権譲渡は既存の定期`fetchAndHydrate`再同期で
+回復するが、「本人が自分の優先権へ書いた値が本人に反映されない」ケースは再同期の対象外だった）。
+
+**修正**: `updatePriorityState`の先頭で、リモート書き込み＋broadcastの前に **`applyRemotePriorityPatch(patch)`で
+ローカルへ即時（楽観的に）反映**するようにした（同期実行＝`setPriorityState`呼び出し時に即反映）。優先権
+状態を書き込む本人はその値の権威なので、ローカル反映をbroadcastの到達可否に依存させないのが正しい。
+`applyRemotePriorityPatch`は冪等（deadline/player/phaseは上書き、hourglassStockもキー上書き）なので、後から
+自己エコーが届いて二重適用されても結果は同じ（＝この変更は「自己エコーと同じローカル反映を早めるだけ」で、
+リモート書き込み・相手クライアントへの伝播・受信側の再同期には一切影響しない）。これでタイマー自身の
+書き込みはRealtimeの信頼性に依存せず即反映され、劣化時も凍結しなくなる。
+
+**検証**: `node --check`（online.js）通過、アプリ正常ロード・新規JSエラー無し、`applyRemotePriorityPatch`が
+`updatePriorityState`の`return withLog(...)`より前で同期実行されることを確認。実際の2クライアント＋Realtime
+劣化下での凍結解消は、この環境ではSupabase・2アカウント・劣化再現が必要なため未検証——実オンライン対戦で
+確認をお願いする。サーバー側（SQL・Edge Function）の変更は無い（純粋なクライアント側の修正）。

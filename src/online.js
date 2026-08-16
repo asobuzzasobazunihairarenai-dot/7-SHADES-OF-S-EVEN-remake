@@ -1811,6 +1811,17 @@ export async function maybeTriggerRematch(gameId) {
 // 値を巻き込んで上書きしないため）で、PostgRESTのUPDATEはSQL式を送れないため専用の
 // SECURITY DEFINER関数(so7_merge_hourglass_stock)経由にする。
 export async function updatePriorityState(patch) {
+  // 【重要・不具合#128「タイマーが完全に止まる」の根本対策】まずローカル状態へ即時（楽観的に）
+  // 反映する。以前はso7_gamesへの書き込み＋broadcast（priority_changed）だけで、自分の
+  // ローカル状態は self:true の自己エコーが返ってきて初めて更新される作りだった。ところが
+  // Supabase Realtimeが劣化して「send() が REST API にフォールバック」する状況では、この
+  // 自己エコーが届かず、タイマー自身の書き込み（基本時間切れ→15秒回復、ロープ延長への遷移等）が
+  // ローカルに一切反映されない → priorityDeadlineが期限切れのまま固定 → tickが remaining<=0 を
+  // 見続けるが timedOutAutoActionFired が立っていて再発火もせず、タイマーが完全に凍結していた。
+  // 書き込む本人はこの優先権状態の権威なので、ローカルへ即時反映するのが正しい（broadcastの
+  // 到達可否に依存させない）。applyRemotePriorityPatchは冪等（deadline/player/phaseは上書き、
+  // hourglassStockもキー上書き）なので、後から自己エコーが届いて二重適用されても同じ結果になる。
+  applyRemotePriorityPatch(patch);
   return withLog("優先権状態の更新", async () => {
     if (!currentGameId) return;
     const dbPatch = {};
