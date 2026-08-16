@@ -6538,11 +6538,17 @@ body.opening-screen-active #option-area #self-status-action-log {
    (ranking-page.js)はいずれもz-index:1500の共通の器のため、この1つのbodyクラスを
    共有して使う（開いている画面が開く時に付与、閉じる時に外す。3つは同時に複数開かない
    設計のため、単純なON/OFFで足りる）。 */
+/* 全画面ページ（ホーム/ランキング/図鑑=z1500）を開いている間、オプションエリア（上端の
+   アイコン列）を前面に出す。ただしプロフィール全画面(#profile-page)は不具合#84でz-index:2650へ
+   引き上げてあるため、1600では負けてオプションエリアがマイページの裏に隠れていた（ユーザー
+   報告2026-08-16）。ショップ用と同じ2700まで上げ、全画面ページ（プロフィール2650含む）すべて
+   より前面にする。#option-area自体はpointer-events:none（子アイコンだけauto）なのでクリックは
+   妨げない。 */
 body.full-screen-page-active #option-area {
-  z-index: 1600;
+  z-index: 2700;
 }
 body.full-screen-page-active #options-menu-panel {
-  z-index: 1601;
+  z-index: 2701;
 }
 /* ショップ(#shop-panel, z-index:2601)は他の全画面ページ(1500)より高いので、開いている間だけ
    オプションエリア（上端の黒帯）をショップより前面へ引き上げて見えるようにする（ユーザー報告
