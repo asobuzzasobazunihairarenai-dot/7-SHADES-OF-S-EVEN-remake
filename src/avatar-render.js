@@ -6,7 +6,10 @@
 // 1箇所にまとめた。
 
 export function isImageAvatar(avatar) {
-  return typeof avatar === "string" && (/^https?:\/\//.test(avatar) || /\.(png|jpe?g|webp|gif)$/i.test(avatar));
+  // 末尾がクエリ文字列(?v=...)やハッシュ付きでも画像として認識する（アップロード済み
+  // アバターやキャッシュ避けで path.webp?v=timestamp の形になることがある。以前は $ で
+  // 拡張子が末尾のものしか通さず、クエリ付きの画像パスが生テキストで表示されるバグがあった）。
+  return typeof avatar === "string" && (/^https?:\/\//.test(avatar) || /\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(avatar));
 }
 
 // ローカルのアバター画像は色ごとに正面(front)・左向き(left)・右向き(right)の3バリエーションが

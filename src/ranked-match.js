@@ -25,7 +25,7 @@ import {
 } from "./online.js";
 import { openDeckSelect } from "./my-deck-select.js";
 import { playSound } from "./sound.js";
-import { applyAvatarContent } from "./avatar-render.js";
+import { applyAvatarContent, isImageAvatar } from "./avatar-render.js";
 
 const POLL_INTERVAL_MS = 2500;
 const READY_WINDOW_SEC = 60; // サーバー側so7_ranked_pollの解散閾値と揃える（見た目のカウントダウン用）
@@ -253,7 +253,18 @@ function showReadyModal(res) {
   opp.className = "ranked-ready-opponent";
   const avatar = document.createElement("div");
   avatar.className = "ranked-ready-avatar";
-  applyAvatarContent(avatar, res.opponent_avatar || "🎮"); // 未設定でも崩れないようフォールバック
+  // 相手アバターが画像として認識できない値だと生テキスト（パス/URL断片）で出てしまう不具合の対策。
+  // 画像 or 短い絵文字（≤2コードポイント）ならそのまま、それ以外は生値を見せず絵文字にフォールバック。
+  const oppAvatar = res.opponent_avatar;
+  const safeAvatar =
+    isImageAvatar(oppAvatar) || (typeof oppAvatar === "string" && [...oppAvatar].length <= 2 && oppAvatar.length > 0)
+      ? oppAvatar
+      : "🎮";
+  if (oppAvatar && safeAvatar === "🎮") {
+    // 画像でも絵文字でもない想定外の値。次回の原因特定のため生値を残す（1回だけ）。
+    console.warn("[so7][ranked] 相手アバターが画像/絵文字として認識できません:", JSON.stringify(oppAvatar));
+  }
+  applyAvatarContent(avatar, safeAvatar);
   opp.appendChild(avatar);
   const info = document.createElement("div");
   info.className = "ranked-ready-info";
