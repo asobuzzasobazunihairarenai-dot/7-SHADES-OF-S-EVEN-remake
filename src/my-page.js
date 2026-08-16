@@ -3,7 +3,9 @@
 // 画面右上のオプションアイコンの隣の人マークアイコン、または左下の巨大アバターの
 // クリックで開く（main.js側で配線）。
 
-import { getCurrentUser, getSelfSeat, syncMyStatsProfile } from "./online.js";
+import { getCurrentUser, getSelfSeat, syncMyStatsProfile, getSelfRank } from "./online.js";
+// ランク戦の現ランク（フェーズ4/6）。戦績システムの順位とは別物のランク戦専用のランク。
+import { buildRankBadge } from "./rank-badge.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName } from "./player-identity.js";
 import { fetchStatsProfile } from "./stats-profile.js";
 import { openStatsPlayerLinkModal } from "./stats-player-link.js";
@@ -359,6 +361,16 @@ export async function renderMyPageBody(body, close) {
   cosmeticsWrap.appendChild(cosmeticsGrid);
   body.appendChild(cosmeticsWrap);
 
+  // ランク戦の現ランク（rank-badge.js、フェーズ4/6）。下の戦績システムの「順位」とは別物の
+  // ランク戦専用の段位。ログイン済みならgetSelfRankが行を自動作成して返すので常に表示できる
+  // （ランクSQL未デプロイ・未ログイン時は非表示のまま＝graceful）。
+  const rankGroup = document.createElement("div");
+  rankGroup.className = "my-page-rank-group";
+  rankGroup.dataset.layoutKey = "ranked-rank";
+  rankGroup.style.display = "none";
+  body.appendChild(rankGroup);
+  renderMyPageRankedRank(rankGroup);
+
   // 実績・戦績のテキスト群は1つのグループにまとめる（ユーザー要望「一旦それらでグループでいい」）。
   // レイアウト編集モードでも "stats" という1ブロックとして扱えるようにする。
   const statsGroup = document.createElement("div");
@@ -444,6 +456,27 @@ export async function renderMyPageBody(body, close) {
   // ユーザー要望で手動の「戦績システムと同期する」ボタンは撤去（名前/アバターは変更した瞬間に
   // 自動同期＝online.jsのautoSyncStatsIdentity、対局開始・勝利時の自動同期もそのまま）。
   // buildStatsSyncRowは将来また必要になった時のため関数自体は残してある。
+}
+
+// マイページのランク戦・段位バッジを非同期で描画。未ログイン（getSelfRankがundefined）や
+// ランクSQL未デプロイ（RPCエラー）の時は例外を握りつぶして非表示のままにする。
+async function renderMyPageRankedRank(container) {
+  let info = null;
+  try {
+    info = await getSelfRank();
+  } catch {
+    return; // RPC未デプロイ等 → 非表示のまま
+  }
+  if (!info || !document.body.contains(container)) return;
+  container.innerHTML = "";
+  const title = document.createElement("div");
+  title.className = "my-page-rank-title";
+  title.textContent = "🏆 ランク戦の段位";
+  container.appendChild(title);
+  container.appendChild(
+    buildRankBadge(info.rank ?? 0, info.gauge ?? 0, info.legend_points ?? 0, { animated: false, size: "5rem" })
+  );
+  container.style.display = "flex";
 }
 
 let openFn = null;

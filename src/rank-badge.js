@@ -1,0 +1,79 @@
+// ランク称号バッジの共有部品（ランク戦フェーズ6「称号アート反映」）。docs/ranked-spec.md参照。
+// 素材は assets/rank-badges/ に英名でコピー済み（静止版＝{key}.webp・アニメ版＝{key}-animated.webp）。
+// 使い分け（spec）: 常時表示の一覧・ホーム等では軽い静止版、獲得/昇格演出ではアニメ版
+// （レジェンドで約1.9MBと重いため）。
+//
+// getSelfRank()（online.js）が返すのは {season_id, rank:0..6, gauge:0..6, legend_points}。
+// rank>=6（レジェンド）はゲージの代わりにレジェンドポイント(LP)を積み上げる。
+
+export const RANK_KEYS = ["bronze", "silver", "gold", "platinum", "diamond", "master", "legend"];
+export const RANK_NAMES = ["ブロンズ", "シルバー", "ゴールド", "プラチナ", "ダイヤモンド", "マスター", "レジェンド"];
+// 七色ゲージの色（赤→橙→黄→緑→青→桃→紫。7ptで全色点灯→昇格）。
+const GAUGE_COLORS = ["red", "orange", "yellow", "green", "blue", "pink", "purple"];
+
+function clampRank(rank) {
+  const r = Number.isFinite(rank) ? Math.round(rank) : 0;
+  return Math.max(0, Math.min(RANK_KEYS.length - 1, r));
+}
+
+export function rankKey(rank) {
+  return RANK_KEYS[clampRank(rank)];
+}
+export function rankName(rank) {
+  return RANK_NAMES[clampRank(rank)];
+}
+export function rankBadgeStaticPath(rank) {
+  return `assets/rank-badges/${rankKey(rank)}.webp`;
+}
+export function rankBadgeAnimatedPath(rank) {
+  return `assets/rank-badges/${rankKey(rank)}-animated.webp`;
+}
+
+// 称号バッジの画像要素。size はCSSサイズ（例 "6rem"）。animated=trueでアニメ版。
+export function buildRankBadgeImage(rank, { animated = false, size = "6rem" } = {}) {
+  const img = document.createElement("img");
+  img.className = "rank-badge-image" + (animated ? " is-animated" : "");
+  img.src = animated ? rankBadgeAnimatedPath(rank) : rankBadgeStaticPath(rank);
+  img.alt = `${rankName(rank)}ランク`;
+  img.style.width = size;
+  img.style.height = size;
+  img.draggable = false;
+  return img;
+}
+
+// 七色ゲージ（7ドット、gauge個点灯、色は --color-* を使用）。レジェンド(rank>=6)は
+// ゲージの代わりにレジェンドポイントのテキストを返す。
+export function buildSevenColorGauge(rank, gauge, legendPoints) {
+  if (clampRank(rank) >= 6) {
+    const lp = document.createElement("div");
+    lp.className = "rank-badge-lp";
+    lp.textContent = `レジェンドポイント ${legendPoints ?? 0}`;
+    return lp;
+  }
+  const wrap = document.createElement("div");
+  wrap.className = "rank-badge-gauge";
+  const lit = Math.max(0, Math.min(7, gauge ?? 0));
+  for (let i = 0; i < 7; i++) {
+    const dot = document.createElement("div");
+    dot.className = "rank-badge-dot" + (i < lit ? " is-lit" : "");
+    dot.style.setProperty("--dot-color", `var(--color-${GAUGE_COLORS[i]})`);
+    wrap.appendChild(dot);
+  }
+  return wrap;
+}
+
+// 称号バッジ＋段位名＋七色ゲージ（or LP）をまとめた縦積みの1ブロックを返す共通部品。
+// showName/showGaugeで各要素の表示を制御（バッジだけ欲しい場面もあるため）。
+export function buildRankBadge(rank, gauge, legendPoints, { animated = false, size = "6rem", showName = true, showGauge = true } = {}) {
+  const box = document.createElement("div");
+  box.className = "rank-badge-box";
+  box.appendChild(buildRankBadgeImage(rank, { animated, size }));
+  if (showName) {
+    const name = document.createElement("div");
+    name.className = "rank-badge-name";
+    name.textContent = rankName(rank);
+    box.appendChild(name);
+  }
+  if (showGauge) box.appendChild(buildSevenColorGauge(rank, gauge, legendPoints));
+  return box;
+}

@@ -4,6 +4,7 @@
 // ここでは「反映後の現在ランク＋勝敗」を確実に見せることを目的とする。
 
 import { createBackdrop } from "./ui-helpers.js";
+import { buildRankBadgeImage } from "./rank-badge.js";
 
 const RANK_NAMES = ["ブロンズ", "シルバー", "ゴールド", "プラチナ", "ダイヤモンド", "マスター", "レジェンド"];
 const GAUGE_COLORS = ["red", "orange", "yellow", "green", "blue", "pink", "purple"];
@@ -39,6 +40,9 @@ export function showRankedResultModal({ won, rank, gauge, legendPoints, note }) 
       noteEl.textContent = note;
       inner.appendChild(noteEl);
     }
+
+    // 称号アート（獲得/昇格演出なのでアニメ版、フェーズ6）。段位名の上に大きく見せる。
+    inner.appendChild(buildRankBadgeImage(rank, { animated: true, size: "8rem" }));
 
     const rankName = document.createElement("div");
     rankName.className = "ranked-result-rank";

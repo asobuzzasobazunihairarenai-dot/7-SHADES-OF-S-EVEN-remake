@@ -22,6 +22,9 @@ import { syncFullScreenPageActive } from "./option-area.js";
 import { openCodexPage } from "./codex-page.js";
 // ユーザー要望「ランキングを実装しましょう」への対応で新設したページ。
 import { openRankingPage } from "./ranking-page.js";
+// ランク戦フェーズ4/6: 現ランクをホームに常時表示（称号バッジ静止版＋七色ゲージ）。
+import { getSelfRank } from "./online.js";
+import { buildRankBadge } from "./rank-badge.js";
 // チュートリアルCPU戦（台本化された練習試合）。完全ローカル機能。
 import { startTutorialBattle, registerTutorialHomeOpener } from "./tutorial-battle.js";
 // 案内人エイドスの物語チュートリアル（オンボーディング）のフロー制御。🎓タイルはこの入口へ。
@@ -332,6 +335,13 @@ export function openHomeScreen() {
   subtitle.textContent = "ホーム";
   overlayEl.appendChild(subtitle);
 
+  // 現ランク表示（ログイン済みかつランクデータがある時だけ非同期で出す）。押すとランキングへ。
+  const rankArea = document.createElement("div");
+  rankArea.id = "home-screen-rank";
+  rankArea.style.display = "none";
+  overlayEl.appendChild(rankArea);
+  renderHomeRank(rankArea);
+
   const grid = document.createElement("div");
   grid.id = "home-screen-grid";
   for (const tile of TILES) grid.appendChild(buildTile(tile));
@@ -341,6 +351,34 @@ export function openHomeScreen() {
   // ユーザー要望（続き75）「ホーム画面やプロフ全画面でも上のオプションエリアのアイコン等は
   // 表示していてください」。full-screen-page-active共通クラス（style.css参照）。
   syncFullScreenPageActive();
+}
+
+// ホーム画面の現ランク表示を非同期で描画する。未ログイン（getSelfRankがundefined）や
+// ランクSQL未デプロイ（RPCエラー）の時は例外を握りつぶして非表示のままにする（graceful）。
+async function renderHomeRank(container) {
+  let info = null;
+  try {
+    info = await getSelfRank();
+  } catch {
+    return; // RPC未デプロイ等 → 非表示のまま
+  }
+  // 描画中にホーム画面が閉じられていたら何もしない。
+  if (!info || !overlayEl || !overlayEl.contains(container)) return;
+  container.innerHTML = "";
+  const label = document.createElement("div");
+  label.className = "home-rank-label";
+  label.textContent = "あなたのランク";
+  container.appendChild(label);
+  container.appendChild(
+    buildRankBadge(info.rank ?? 0, info.gauge ?? 0, info.legend_points ?? 0, { animated: false, size: "4.2rem" })
+  );
+  container.style.display = "flex";
+  container.style.cursor = "pointer";
+  container.title = "ランキングを見る";
+  container.onclick = () => {
+    closeHomeScreen();
+    openRankingPage(() => openHomeScreen());
+  };
 }
 
 export function closeHomeScreen() {
