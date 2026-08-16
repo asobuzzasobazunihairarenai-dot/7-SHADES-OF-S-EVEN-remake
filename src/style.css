@@ -14813,7 +14813,7 @@ body.theme-light .mdl-deck-count {
   font-weight: 700;
   color: #ffe6a8;
   letter-spacing: 0.05em;
-  transform: translate(var(--profile-maindeck-badge-x, 0rem), var(--profile-maindeck-badge-y, 0rem)) scale(var(--profile-maindeck-badge-scale, 1));
+  transform: translate(var(--profile-maindeck-badge-x, 0rem), var(--profile-maindeck-badge-y, 2.1rem)) scale(var(--profile-maindeck-badge-scale, 0.7));
 }
 body.theme-light #profile-maindeck .profile-maindeck-badge { color: #92660a; }
 /* カバー = 3D立体ケース(.mdl-deck-art)＋デッキ名を包むだけのフレームレスなボタン
@@ -14838,7 +14838,7 @@ body.theme-light #profile-maindeck .profile-maindeck-badge { color: #92660a; }
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
-  transform: translate(var(--profile-maindeck-name-x, 0rem), var(--profile-maindeck-name-y, 0rem)) scale(var(--profile-maindeck-name-scale, 1));
+  transform: translate(var(--profile-maindeck-name-x, 0rem), var(--profile-maindeck-name-y, -1.9rem)) scale(var(--profile-maindeck-name-scale, 1));
 }
 body.theme-light #profile-maindeck .profile-maindeck-name { color: #1e293b; }
 .profile-maindeck-cover.is-empty {
@@ -14868,7 +14868,7 @@ body.theme-light #profile-maindeck .profile-maindeck-name { color: #1e293b; }
   gap: 0.35rem;
   text-decoration: underline;
   text-underline-offset: 3px;
-  transform: translate(var(--profile-maindeck-edit-x, 0rem), var(--profile-maindeck-edit-y, 0rem)) scale(var(--profile-maindeck-edit-scale, 1));
+  transform: translate(var(--profile-maindeck-edit-x, 0.3rem), var(--profile-maindeck-edit-y, -1.7rem)) scale(var(--profile-maindeck-edit-scale, 0.8));
 }
 #profile-maindeck-edit:hover { filter: brightness(1.12); }
 body.theme-light #profile-maindeck-edit { color: #b45309; }

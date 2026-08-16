@@ -16,16 +16,11 @@ export const PROFILE_LAYOUT = {
   avatar: { x: -283, y: 7, scale: 6 },
   "avatar-bg": { x: -483, y: -206, scale: 4.5 },
   "avatar-change": { x: 174, y: 601, scale: 1.97 },
-  cosmetics: { x: 418, y: 51, scale: 1.5 },
+  cosmetics: { x: 495, y: 52, scale: 1.5 },
   name: { x: -268, y: 594, scale: 3.01 },
-  // ランク表示（ranked-rank）は焼き込み漏れで従来の配置に無かった＝display:none解除後も
-  // 自然流し（他要素は絶対配置で流れから外れている）で埋もれ「消えた」ように見えていた
-  // （ユーザー報告2026-08-16）。ユーザーが編集モードで置いた (-451,-152) は画面左上で半分
-  // 見切れ＋大アバターに重なる位置だったため、「見える位置に配置して」の要望で下部中央右の
-  // 空きスペース（アバター図の右・戦績の下・メインデッキの左）へ移動。ブラウザ実測で他要素と
-  // 重ならないことを確認済み。
-  "ranked-rank": { x: 480, y: 500, scale: 1 },
-  stats: { x: 415, y: 255, scale: 1.88 },
+  // ランク表示（ranked-rank）はユーザーがレイアウト編集モードで配置（2026-08-16、着せ替えの左上）。
+  "ranked-rank": { x: 347, y: 48, scale: 1 },
+  stats: { x: 414, y: 229, scale: 1.88 },
 };
 
 const HANDLE_DIRS = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
@@ -92,13 +87,18 @@ export function applyProfileLayout(container) {
       // カード端で切れず、固定ステージいっぱいまで見える。実際に切れるのは画面(ステージ)端のみ。
       // スクロール防止のクリップは、全画面版では外側の器(#profile-page＝ステージ全面)側で行う
       // （ステージ＝画面いっぱいなので内側では何も切れない）。モーダル版(小さい中央モーダル)は
-      // 自身が器なので従来どおり自身でクリップする。編集モードは要素を掴めるようスクロール可。
-      card.style.overflow = editMode ? "auto" : fullScreen ? "visible" : "hidden";
+      // 自身が器なので従来どおり自身でクリップする。
+      // 全画面版の編集モードは、以前 overflow:auto（960pxの作業キャンバス＋スクロールバー）で
+      // 「小さい範囲しか編集できない」とユーザー報告(2026-08-16)。座標基準(960px中央寄せの原点)は
+      // 変えずに overflow:visible にすることで、要素を画面いっぱい（メインデッキの辺りまで）自由に
+      // ドラッグ配置できる。焼き込み済み座標は原点が同じなのでズレない。モーダル版は小さい器なので
+      // 従来どおり auto（スクロール）。
+      card.style.overflow = editMode ? (fullScreen ? "visible" : "auto") : fullScreen ? "visible" : "hidden";
     }
-    // 全画面版: スクロールは出さず、切れるのは画面端のみ（焼き込み時）。編集モードはドラッグで
-    // 遠くの要素へ届くようスクロール可のまま。
+    // 全画面版: スクロールは出さず、切れるのは画面端のみ。編集モードも overflow:visible にして
+    // 画面いっぱいをドラッグ配置できるようにする（bodyは overflow:clip なのでスクロールは出ない）。
     if (fullScreen) {
-      fullScreen.style.overflow = editMode ? "auto" : "hidden";
+      fullScreen.style.overflow = editMode ? "visible" : "hidden";
     }
     container.style.width = "100%";
   } else {

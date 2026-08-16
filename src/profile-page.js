@@ -94,7 +94,8 @@ export function openProfilePage(onClose) {
   const editBtn = document.createElement("button");
   editBtn.type = "button";
   editBtn.id = "profile-maindeck-edit";
-  editBtn.innerHTML = `<span class="profile-maindeck-edit-icon">🃏</span><span>マイデッキ編集</span>`;
+  // ユーザー要望2026-08-16「マイデッキ編集ボタンの絵文字アイコンは不要」。
+  editBtn.innerHTML = `<span>マイデッキ編集</span>`;
   editBtn.addEventListener("click", openEditor);
   mydeckWrap.appendChild(editBtn);
 
