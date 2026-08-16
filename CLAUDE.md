@@ -13880,3 +13880,22 @@ badge/bg top `calc(50% - 4.2rem)`・socket0 13.1%/38.7% 等）ことを確認。
   実測）、通常勝利時はバースト/before無しの単一表示になることを確認。`node --check` 通過・新規
   コンソールエラー無し。実際のランク対局での昇格発火は2アカウント＋ランクSQLデプロイ済み環境での
   確認が必要。サーバー側の変更は無い。
+
+### 2026-08-17（続き161）：ペット「モリラ」「ポヨン」を追加
+
+ユーザーが用意したペット素材（`画像素材/ペット/モリラ`・`ポヨン`、各24枚＝4方向×6モーション）を
+`assets/pets/{morira,poyon}/{sprite}-{dir}-{motion}.webp`へコピーし、`pet-skins.js`の`PET_OPTIONS`に
+追加（モヤの後・「なし」の前。既存の「スプライトを『なし』の前に追記」する慣例に合わせた）。
+各300で購入する有料ペット（`getPetShopItems`がショップの「ペット」カテゴリへ自動的に出す）。
+- **モーション名の対応**（piece-pet.jsが使う static/walk/idle/yawn/ear/jump へ揃えた）:
+  通常/standard→static、ジャンプ/jump→jump、歩行/walk→walk、待機まばたき/blink→idle、
+  固有待機/unique-idle→ear、欠伸/rest→yawn。モリラは日本語ファイル名（正面/後ろ向き/左向き/
+  右向き × 通常/ジャンプ/歩行/待機まばたき/固有待機/欠伸）、ポヨンは英語ファイル名（front/back/
+  left/right × standard/jump/walk/blink/unique-idle/rest）だったため、それぞれ対応表でリネームして
+  コピーした。
+- **インデックスのずれ**: petIndexはlocalStorage＋オンライン同期だが、「なし」の前に追記したため
+  「なし」のindexが後ろへずれる。ただし新ペットは初期未所持で`isPetOwned`が「なし」へフォール
+  バックするため、旧「なし」保存(index)が新ペットを指しても表示は「なし」のまま（moya追加時と
+  同じ扱い）。所持済みペットのindexは不変。
+- **検証**: ブラウザで48枚全て200 OKで読み込めること・PET_OPTIONS/ショップに両ペットが出ることを
+  確認。`assets/pets/`はgit追跡対象（公開リポジトリに含む）。サーバー側の変更は無い。

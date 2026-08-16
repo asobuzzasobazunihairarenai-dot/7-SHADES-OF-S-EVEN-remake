@@ -22,6 +22,8 @@ export const PET_OPTIONS = [
   { sprite: "rubel", label: "ルベル", itemKey: "pet:rubel", cost: 300 },
   { sprite: "kii", label: "キィ", itemKey: "pet:kii", cost: 300 },
   { sprite: "moya", label: "モヤ", itemKey: "pet:moya", cost: 300 }, // 2026-08-12追加
+  { sprite: "morira", label: "モリラ", itemKey: "pet:morira", cost: 300 }, // 2026-08-17追加
+  { sprite: "poyon", label: "ポヨン", itemKey: "pet:poyon", cost: 300 }, // 2026-08-17追加
   { emoji: null, label: "なし（非表示）" }, // ペットを表示しない（初期値）
 ];
 
