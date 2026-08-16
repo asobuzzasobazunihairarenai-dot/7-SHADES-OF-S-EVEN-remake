@@ -1983,3 +1983,72 @@ end;
 $$;
 revoke execute on function so7_ranked_leave() from public;
 grant execute on function so7_ranked_leave() to authenticated;
+
+-- ============================================================================
+-- ランク戦フェーズ3: 対戦結果からのレート反映（2026-08-16、docs/ranked-spec.md参照）
+-- ============================================================================
+-- ランク対局が7色ロックで終わったら、勝者=1位・敗者=2位としてポイントを反映する。
+-- v1の信頼モデル: 報告された勝者を信頼する（1対局1回だけ適用＝冪等、action-logで係争対応、
+-- 自動処理＋タイマーで不正を抑止という既存方針）。サーバー側での勝利検証（トークンの7色
+-- ロック確認）は将来のハードニング。ポイント計算・昇格・シーズン切替はフェーズ1の
+-- so7_ranked_apply_delta（内部エンジン）に委ねる。
+
+alter table so7_games add column if not exists ranked_result_applied boolean not null default false;
+
+-- 2人戦のポイント（docs/ranked-spec.md）: 1位=ブースト+3/通常+1、2位=-1（ブースト/通常とも）。
+-- ブースト/通常は勝者の現ランク（rank<=2=ゴールド以下＝ブースト）で判定する。
+-- 戻り値は反映結果（クライアントが「+N」等の演出に使う）。既に適用済み/非ランクなら skipped を返す。
+create or replace function so7_ranked_report_result(p_game_id text, p_winner_seat text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_is_ranked boolean;
+  v_applied boolean;
+  v_winner_uid uuid;
+  v_loser_uid uuid;
+  v_winner_rank smallint;
+  v_winner_delta int;
+  v_loser_delta int := -1;
+  r record;
+begin
+  select is_ranked, ranked_result_applied into v_is_ranked, v_applied
+    from so7_games where id = p_game_id for update;
+  if v_is_ranked is null then raise exception 'game_not_found'; end if;
+  if not v_is_ranked then return jsonb_build_object('skipped', 'not_ranked'); end if;
+  if v_applied then return jsonb_build_object('skipped', 'already_applied'); end if;
+
+  -- 参加者2人の user_id を取得（勝者/敗者を seat で判定）
+  for r in select seat, user_id from so7_game_seats where game_id = p_game_id loop
+    if r.seat = p_winner_seat then
+      v_winner_uid := r.user_id;
+    else
+      v_loser_uid := r.user_id;
+    end if;
+  end loop;
+  if v_winner_uid is null or v_loser_uid is null then
+    raise exception 'participants_not_found';
+  end if;
+
+  -- 勝者の現ランクでブースト/通常を判定（行が無ければブロンズ=0扱い）。
+  select rank into v_winner_rank from so7_ranked_players where user_id = v_winner_uid;
+  if v_winner_rank is null then v_winner_rank := 0; end if;
+  v_winner_delta := case when v_winner_rank <= 2 then 3 else 1 end;
+
+  perform so7_ranked_apply_delta(v_winner_uid, v_winner_delta);
+  perform so7_ranked_apply_delta(v_loser_uid, v_loser_delta);
+
+  update so7_games set ranked_result_applied = true where id = p_game_id;
+
+  return jsonb_build_object(
+    'winner_user', v_winner_uid,
+    'loser_user', v_loser_uid,
+    'winner_delta', v_winner_delta,
+    'loser_delta', v_loser_delta
+  );
+end;
+$$;
+revoke execute on function so7_ranked_report_result(text, text) from public;
+grant execute on function so7_ranked_report_result(text, text) to authenticated;
