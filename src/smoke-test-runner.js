@@ -10,6 +10,8 @@
 
 import { getState } from "./state.js";
 import { markCleanExit } from "./crash-blackbox.js";
+import { checkInvariants, countCards } from "./game-invariants.js";
+import { logAction } from "./action-log.js";
 
 const TARGET_TURN = 8; // ここまで進めば健全とみなす
 const STALL_MS = 30000; // ターンがこの時間まったく進まなければ「詰み」
@@ -38,6 +40,11 @@ async function runInAppSmokeTest(onLog) {
   let lastTurn = 0;
   let pass = false;
   let reason = "";
+  // 不変条件違反（続き164）。ゲームが止まらなくても“状態が壊れている”系のバグを毎ポーリング
+  // 検査して集める。同じ違反（code＋detail）は1度だけ記録（1.2秒ごとにスパムしない）。
+  const invariantViolations = [];
+  const seenViolations = new Set();
+  let baselineCardCount = null;
   try {
     const cpu = await import("./cpu-battle.js");
     const admin = await import("./admin.js");
@@ -63,6 +70,12 @@ async function runInAppSmokeTest(onLog) {
     await cpu.runCpuBattleSetup();
     admin.setPseudoCpuIncludeSelf?.(true);
 
+    // 設定直後のカード総数を baseline に記録（以後、総数が変われば「カードが増減した」＝バグ）。
+    try {
+      baselineCardCount = countCards(getState());
+      onLog?.(`不変条件チェック開始（カード総数 ${baselineCardCount}）`);
+    } catch {}
+
     const start = Date.now();
     let lastProgressAt = Date.now();
     while (true) {
@@ -72,18 +85,34 @@ async function runInAppSmokeTest(onLog) {
       const turn = s.turnNumber ?? 0;
       const tokens = Array.isArray(s.tokens) ? s.tokens.length : 0;
       if (tokens < 40) { capture(`盤面破損: tokens=${tokens}`); reason = "盤面が壊れています"; break; }
+
+      // 不変条件チェック（続き164）: 破れた条件を集めて診断ログにも残す。チェッカー自身の
+      // 例外で自己対戦を止めないよう try で囲む。
+      try {
+        const viols = checkInvariants(s, { baselineCardCount });
+        for (const vio of viols) {
+          const sig = vio.code + "|" + (vio.detail ? JSON.stringify(vio.detail) : vio.msg);
+          if (seenViolations.has(sig)) continue;
+          seenViolations.add(sig);
+          const entry = { turn, ...vio };
+          invariantViolations.push(entry);
+          try { logAction("diag-invariant-violation", entry); } catch {}
+          onLog?.(`❗不変条件違反[${vio.code}] T${turn}: ${vio.msg}`);
+        }
+      } catch {}
+
       let won = false;
       try {
         const pa = await import("./phase-automation.js");
         won = typeof pa.hasAnyoneWon === "function" ? pa.hasAnyoneWon() : false;
       } catch {}
-      if (won) { pass = errors.length === 0; reason = `決着（${turn}ターン）`; lastTurn = turn; break; }
+      if (won) { pass = errors.length === 0 && invariantViolations.length === 0; reason = `決着（${turn}ターン）`; lastTurn = turn; break; }
       if (turn > lastTurn) {
         lastTurn = turn;
         lastProgressAt = Date.now();
         onLog?.(`ターン ${turn}（${s.turnPlayer}）／盤面 ${tokens}`);
       }
-      if (lastTurn >= TARGET_TURN) { pass = errors.length === 0; reason = `${TARGET_TURN}ターン到達`; break; }
+      if (lastTurn >= TARGET_TURN) { pass = errors.length === 0 && invariantViolations.length === 0; reason = `${TARGET_TURN}ターン到達`; break; }
       // タブが非表示だとブラウザがタイマーを強くスロットルして進行が極端に遅くなる（自己対戦は
       // タイマー駆動のため）。その間は「詰み」判定のカウントを進めない（誤FAIL防止。テスト中は
       // タブを開いたままにするのが前提だが、うっかり別タブへ行っても失敗扱いにしない）。
@@ -99,6 +128,12 @@ async function runInAppSmokeTest(onLog) {
     window.removeEventListener("error", onErr);
     window.removeEventListener("unhandledrejection", onRej);
   }
+  // 不変条件違反があれば、たとえターン到達/決着していても FAIL 扱いにし、理由に件数を添える。
+  if (invariantViolations.length) {
+    const codes = [...new Set(invariantViolations.map((x) => x.code))].join(", ");
+    reason = `${reason}／不変条件違反 ${invariantViolations.length}件（${codes}）`;
+    onLog?.(`❗不変条件違反が合計 ${invariantViolations.length}件（${codes}）— 状態が壊れています`);
+  }
   // 失敗（特に「詰み」）した時は、どこで止まったかを突き止められるよう、アクションログの
   // 末尾を出す（Node版 test/smoke.mjs と同じ診断）。詰みは疑似CPUの反応判断でごくたまに
   // 起きるため、最後の数十行から「どのカード効果/接触/選択で止まったか」を読み取れる。
@@ -112,7 +147,7 @@ async function runInAppSmokeTest(onLog) {
       }
     } catch {}
   }
-  return { pass, reason, turnsReached: lastTurn, errors };
+  return { pass, reason, turnsReached: lastTurn, errors, invariantViolations };
 }
 
 // 詰みの原因究明用に「全アクションログ＋エラー＋結果＋環境情報」を1つのテキストにまとめる。
@@ -139,6 +174,11 @@ async function collectFullDiagnostics(res) {
     "",
     "---- エラー/例外 ----",
     (res?.errors && res.errors.length) ? res.errors.join("\n") : "（なし）",
+    "",
+    "---- 不変条件違反（状態の壊れ） ----",
+    (res?.invariantViolations && res.invariantViolations.length)
+      ? res.invariantViolations.map((x) => `[T${x.turn}] ${x.code}: ${x.msg}`).join("\n")
+      : "（なし）",
     "",
     "---- アクションログ（全件） ----",
   ].filter((x) => x !== null).join("\n");

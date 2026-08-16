@@ -13944,3 +13944,32 @@ badge/bg top `calc(50% - 4.2rem)`・socket0 13.1%/38.7% 等）ことを確認。
   隠しである点から、最も確度の高い仮説として対処。`node --check`通過・新規コンソールエラー無し。
   実機2Dでの改善確認をお願いしたい（もしこれでも直らない場合、次の容疑はスプライト`<img>`の
   2Dでのコンポジット失敗＝駒/山と同じ現象で、要素の作り直しが必要になる可能性）。
+
+### 2026-08-17（続き164）：不変条件チェッカーを新設し、スモークテストに毎手番の状態検査を組み込み
+
+ユーザー要望「①から始めてください」＝以前提案した「不変条件チェッカー（最優先・一番効く）」の実装。
+人間同士の対戦でバグ報告する負担を減らすため、「絶対に成り立つはずの条件」を毎手番チェックして、
+ゲームが止まらなくても“状態が壊れている”系のバグを、どの経路でバグっても“結果の壊れ方”で捕まえる。
+- **新規 [src/game-invariants.js](src/game-invariants.js)（依存ゼロの葉に近い純粋関数）**:
+  `checkInvariants(state, {baselineCardCount})` が破れた不変条件を `[{code, msg, detail}]` で返す。
+  検査項目: ①トークンidの重複（dup-token-id）②位置の妥当性（invalid-location：cellのrow/col範囲・
+  lockのindex/side・hand/publicDrawのplayer・未知zone）③同マス2駒（piece-overlap）④座席ごとに駒1つ
+  （piece-count、activePlayers確定後のみ）⑤⑥turnPlayer/priorityPlayerがactivePlayers内（turn-player/
+  priority-player）⑦未知cardId（unknown-cardid、`getCardDefinition`で照合、nullは対象外）⑧ロックの
+  色一致（lock-color、`COLORS[index]`とカード色。noir等のplaced・虹rainbow・無色white/blackは除外＝
+  続き112の色縛りルール）⑨カード総数の保存（card-conservation、baseline指定時のみ。カードトークン＋
+  山の合計。マイデッキ戦の`myDeck-<seat>`パイルも含むよう`countCards`はpiles配下の全配列を再帰合計）。
+  読み取り専用でstateを一切変更しない。
+- **[src/smoke-test-runner.js](src/smoke-test-runner.js) に組み込み**: 設定直後に`countCards`で
+  baselineを記録し、監視ループの毎ポーリング（1.2秒ごと）で`checkInvariants`を実行。破れた条件は
+  同一（code＋detail）につき1度だけ記録（スパム防止）し、`action-log.js`の`logAction("diag-invariant-
+  violation", ...)`で診断ログにも残す＋ログ窓に「❗不変条件違反[code]」を表示。違反があれば、ターン
+  到達/決着していても最終結果をFAIL扱いにし、理由に件数とcode一覧を添える。「診断情報を全部コピー」の
+  出力にも「不変条件違反（状態の壊れ）」セクションを追加。カード総数の一時的なズレ（効果の多段適用の
+  途中を偶然ポーリング）は detail に総数を含めて後から判断できるようにした（同じ違反が続けば本物）。
+- **検証**: `node --check`通過。合成状態でのユニット確認——健全な状態は違反0件・`countCards`正確（山3＋
+  カードトークン2＝5）・baseline一致で0件/不一致でcard-conservationを検知。壊れた状態（id重複・同マス
+  2駒・turnPlayer=B/priorityPlayer=Z不正・未知cardId・red-jump-padをorangeスロットに）で7種の違反を
+  すべて検知し、noir（placed:true）は正しくlock-color対象外になることを確認。ブラウザで
+  `game-invariants.js`/`smoke-test-runner.js`の動的importが成功（循環import無し）・アプリ本体も
+  コンソールエラー無しでロードを確認。サーバー側（Supabase）の変更は無い。
