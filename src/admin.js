@@ -210,19 +210,20 @@ const GROUPS = [
     ],
   },
   {
-    // ランク戦の現ランク表示（rank-badge.js、フェーズ4/6）。ホーム画面・マイページの段位バッジの
-    // 位置・サイズ。transform: translate/scale なので拡大しても見切れない。調整中は該当画面
-    // （ホーム or マイページ）を開いておくと反映が見える（管理者パネルはz-index:2600でホーム画面
-    // の上に出る）。既定値はstyle.cssのvar()フォールバック（0rem/1）と必ず一致させること。
-    title: "🏆 ランク表示（ホーム／マイページ）",
+    // ランク戦の現ランク表示（rank-badge.js、フェーズ4/6）。ホーム画面の段位バッジの位置・サイズ。
+    // transform: translate/scale なので拡大しても見切れない。調整中はホーム画面を開いておくと反映が
+    // 見える（管理者パネルはz-index:2600でホーム画面の上に出る）。既定値はstyle.cssのvar()フォール
+    // バック（0rem/1）と必ず一致させること。
+    // ※マイページのランクは「レイアウト編集モード」（profile-layout-editor.js）が絶対配置＋inline
+    //   transform で管理する要素になったため、CSS変数(--mypage-rank-*)はinlineに負けて効かない。
+    //   マイページ側の位置・サイズはアバター/名前/戦績等と同じくレイアウト編集モードで調整する
+    //   （ユーザー報告2026-08-16「マイページのランクのスライダーが効かない」への対応で撤去）。
+    title: "🏆 ランク表示（ホーム画面）",
     category: "position-ui",
     controls: [
       { key: "--home-rank-pos-x", label: "ホーム：位置X", unit: "rem", min: -50, max: 50, step: 0.1, default: 0 },
       { key: "--home-rank-pos-y", label: "ホーム：位置Y", unit: "rem", min: -50, max: 50, step: 0.1, default: 0 },
       { key: "--home-rank-scale", label: "ホーム：サイズ", unit: "", min: 0.4, max: 3, step: 0.05, default: 1 },
-      { key: "--mypage-rank-pos-x", label: "マイページ：位置X", unit: "rem", min: -50, max: 50, step: 0.1, default: -11.4 },
-      { key: "--mypage-rank-pos-y", label: "マイページ：位置Y", unit: "rem", min: -50, max: 50, step: 0.1, default: 4.4 },
-      { key: "--mypage-rank-scale", label: "マイページ：サイズ", unit: "", min: 0.4, max: 3, step: 0.05, default: 1 },
     ],
   },
   {

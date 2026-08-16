@@ -4277,13 +4277,14 @@ body.theme-light .lobby-icon-toggle.is-on .lobby-icon-toggle-state {
   text-align: center;
 }
 /* マイページのランク戦・段位バッジ（rank-badge.js、フェーズ4/6）。枠なし・テーマ対応。
-   位置・サイズは管理者モードで調整（--mypage-rank-pos-x/y/scale）。 */
+   位置・サイズは「レイアウト編集モード」(profile-layout-editor.js) が絶対配置＋inline transform で
+   管理する（アバター/名前/戦績等と同じ）。以前あった transform: translate/scale(var(--mypage-rank-*))
+   は layout editor の inline transform に負けて効かないため撤去（ユーザー報告2026-08-16）。 */
 .my-page-rank-group {
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
   margin: 0.4rem 0 0.8rem;
-  transform: translate(var(--mypage-rank-pos-x, -11.4rem), var(--mypage-rank-pos-y, 4.4rem)) scale(var(--mypage-rank-scale, 1));
 }
 .my-page-rank-title { font-size: 0.85rem; color: #ffe6a8; letter-spacing: 0.04em; }
 .my-page-rank-none { font-size: 0.78rem; color: #94a3b8; }
