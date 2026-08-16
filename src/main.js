@@ -1904,6 +1904,22 @@ async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
     { onPickedBeforeReveal: async (token) => moveAndSyncForEffect(token.id, { zone: "hand", player }) }
   );
   if (!theirCard) return;
+  // #132: 奪う処理（onPickedBeforeReveal内のmoveAndSyncForEffect）は、オンラインで
+  // MOVE_TOKENが送信失敗（FunctionsFetchError等）した場合でも moveAndSyncForEffect が
+  // エラーを握りつぶす（console.errorのみ）ため、theirCard は非nullで返ってしまう。
+  // そのまま「渡す」へ進むと「奪えていないのに渡すだけ」になる（ユーザー報告: スリカエで
+  // 相手から奪えず渡しただけに終わった）。ここで実際の状態を確認し、奪ったカードが自分の
+  // 手札に来ていなければ交換を中止する（渡す処理へ進まない）。ローカルモードは moveToken が
+  // 同期・失敗しないため常に true。
+  const stolen = getState().tokens.find((t) => t.id === theirCard.id);
+  const stealSucceeded = !!stolen && stolen.location.zone === "hand" && stolen.location.player === player;
+  if (!stealSucceeded) {
+    announceEffectReasonForEffect(
+      "yellow-sleight-of-hand",
+      "通信エラーで相手の手札を奪えなかったため、交換を中止しました。もう一度お試しください。"
+    );
+    return;
+  }
   // 賢いCPUが渡す側の時は、渡す札を賢く選ぶ（ユーザー要望2026-08-08「未ロック＝まだ要る色は
   // なるべく渡さない」。自分の要る色・相手の要る色・貴重札を避け、双方ロック済みの色を優先）。
   // それ以外（人間・オンライン離脱代行）は従来どおり対話ピッカーで選ぶ。

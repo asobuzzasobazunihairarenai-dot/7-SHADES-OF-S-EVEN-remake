@@ -13686,3 +13686,36 @@ style.css の var() fallback の両方へ反映した。
   限定・ローカル再生には影響しないため、ローカルでの回帰なし）。実際の2クライアントでの「相手の
   ターンが飛ばない／ハンドフェイズが飛ばない」の最終確認は、ユーザーの実オンライン対戦でお願いしたい
   （この環境では2アカウント＋Edge Functionの往復遅延を再現できないため）。サーバー側の変更は無い。
+
+### 2026-08-16（続き151）：#132「スリカエで相手から奪えず渡しただけに終わった」——通信失敗した奪取を検知せず交換を続行していた不具合を修正
+
+オンライン2人戦の報告。C（YGM）のコンソールに決定的なエラー:
+```
+[14:00:12] ERROR: アクション送信(MOVE_TOKEN) FunctionsFetchError "Failed to send a request to the Edge Function"
+[14:00:12] ERROR: moveAndSyncForEffect failed
+```
+- **原因**: 手品師の技（スリカエ、`swap_random_hand_card`）は①相手の裏向き手札から1枚を自分の手札へ
+  移す（奪取、`requestOpponentHandRitualPick`の`onPickedBeforeReveal`内の`moveAndSyncForEffect`）→
+  ②自分の手札から1枚を相手へ渡す、の2段階。`moveAndSyncForEffect`はオンラインで`moveToken`が送信失敗
+  （FunctionsFetchError等の一過性ネットワーク事象）した場合、`try/catch`で`console.error`するだけで
+  **エラーを握りつぶし正常終了と同じ形で返る**。そのため奪取が実際には失敗しても`theirCard`は非nullで
+  返り、swap関数はそのまま②の「渡す」へ進んでいた＝**奪えていないのに渡すだけ**（C視点で一方的に損）。
+  アクションログでも、奪取（A手札→C手札）の`diag-exposed-arrival`が23:00:12（＝MOVE_TOKEN失敗と同時刻）、
+  その後23:00:38に`swap_random_hand_card result:true`＋渡す処理が完了、と食い違っていた。
+- **修正**（`main.js` `swapHandCardWithOpponentForEffect`）: 握りつぶされるエラーに頼らず、`requestOpponent
+  HandRitualPick`が返った後に**実際の状態を確認**——奪ったカード（`theirCard.id`）が自分（player）の手札
+  ゾーンに実在するかをチェックし、来ていなければ`announceEffectReasonForEffect`で「通信エラーで奪えな
+  かったため交換を中止しました」と告知して`return`（②の渡す処理へ進まない）。オンラインで`moveToken`が
+  失敗した場合、ローカル状態は更新されず（失敗時は`fetchAndHydrate`もスキップ）カードは相手の手札に
+  残るため、この確認で確実に検知できる。ローカルモードは`moveToken`が同期・失敗しないため常にtrue
+  （挙動不変）。
+- **補足（#130/#131・#133）**: #130（相手のターンが飛ぶ）/#131（ハンドフェイズが飛ぶ）は続き150で修正
+  済み。#133「相手のゲート侵攻演出中に自分のターンになっていた」は、A のターン終了→サーバーが
+  ゲート侵攻＋NEXT_TURN をまとめて処理し、C の画面には侵攻イベント（約40秒の演出キュー）が届くと同時に
+  turnPlayer が既に C になっているため——アクションログ上、演出中は C の`diag-anytime-checkpoint`が
+  `busy:true / gateInvasionQueueActive:true`で自動処理は正しく待機しており、機能上の不具合ではなく
+  「ターン表示が侵攻演出と重なる」表示上の重なりのため、今回は据え置き（必要なら演出完了までターン表示を
+  抑える対応を別途検討）。
+- **検証**: `node --check`通過、ブラウザでリロードしコンソールエラー無しを確認。修正はオンラインの
+  奪取失敗時のみ分岐する（ローカルは常にstealSucceeded=trueで従来通り）ため、ローカル再生に回帰なし。
+  実際の通信失敗時の中止動作の最終確認は、ユーザーの実オンライン対戦でお願いしたい。サーバー側の変更は無い。
