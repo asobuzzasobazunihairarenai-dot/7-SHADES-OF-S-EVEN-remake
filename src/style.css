@@ -15542,3 +15542,88 @@ body.opening-screen-active.is-admin-user #smoke-test-launch-btn {
   100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 body.reduce-glow .rank-ugauge-gem { animation: none; }
+
+/* バッジ＋U型ゲージ＋宝石の合成ヒーロー表示（rank-showcase.js）。 */
+.rank-showcase {
+  position: relative;
+  aspect-ratio: 1536 / 1024;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 3px 12px rgba(0, 0, 0, 0.5));
+}
+.rank-showcase-gem {
+  position: absolute;
+  width: var(--rank-ugauge-gem, 15%);
+  height: auto;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 0 6px rgba(255, 220, 150, 0.55));
+}
+.rank-showcase-badge {
+  position: absolute;
+  transform: translate(-50%, 0);
+  object-fit: contain;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+}
+/* 編集モードでは掴めるようにカーソル＋当たり判定を明示。 */
+.rank-showcase.is-editable .rank-showcase-gem,
+.rank-showcase.is-editable .rank-showcase-badge {
+  cursor: grab;
+  touch-action: none;
+}
+.rank-showcase.is-editable .rank-showcase-gem:active,
+.rank-showcase.is-editable .rank-showcase-badge:active {
+  cursor: grabbing;
+}
+
+/* 調整モードのオーバーレイ（rank-showcase.js openRankShowcaseEditor）。 */
+#rank-showcase-editor {
+  position: fixed;
+  inset: 0;
+  z-index: 21000;
+  background: rgba(6, 8, 12, 0.82);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+.rank-showcase-editor-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+}
+.rank-showcase-editor-bar button {
+  padding: 0.35rem 0.8rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: #1e293b;
+  color: #f1f5f9;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.rank-showcase-editor-bar button:hover { background: #334155; }
+.rank-showcase-editor-out {
+  width: min(46rem, 92vw);
+  height: 7rem;
+  background: #0f1520;
+  color: #f1f5f9;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.4rem;
+  font-family: monospace;
+  font-size: 0.75rem;
+  padding: 0.5rem;
+  box-sizing: border-box;
+}
+.rank-showcase-editor-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+.rank-showcase-editor-stage .rank-showcase { width: 34rem; }

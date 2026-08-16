@@ -4,7 +4,7 @@
 // ここでは「反映後の現在ランク＋勝敗」を確実に見せることを目的とする。
 
 import { createBackdrop } from "./ui-helpers.js";
-import { buildRankBadgeImage, buildUGauge } from "./rank-badge.js";
+import { buildRankShowcase } from "./rank-showcase.js";
 
 const RANK_NAMES = ["ブロンズ", "シルバー", "ゴールド", "プラチナ", "ダイヤモンド", "マスター", "レジェンド"];
 
@@ -40,16 +40,14 @@ export function showRankedResultModal({ won, rank, gauge, legendPoints, note }) 
       inner.appendChild(noteEl);
     }
 
-    // 称号アート（獲得/昇格演出なのでアニメ版、フェーズ6）。段位名の上に大きく見せる。
-    inner.appendChild(buildRankBadgeImage(rank, { animated: true, size: "8rem" }));
+    // 称号バッジ＋U型ゲージ＋宝石の合成ヒーロー表示（rank-showcase.js、獲得演出なのでアニメ版）。
+    inner.appendChild(buildRankShowcase(rank, gauge, legendPoints, { animated: true }));
 
     const rankName = document.createElement("div");
     rankName.className = "ranked-result-rank";
     rankName.textContent = RANK_NAMES[rank] ?? "ブロンズ";
     inner.appendChild(rankName);
 
-    // 七色ゲージはU型のヒーロー表示（ユーザー提供素材2026-08-16）。
-    inner.appendChild(buildUGauge(rank, gauge, legendPoints, { size: "20rem" }));
     if (rank >= 6) {
       const lp = document.createElement("div");
       lp.className = "ranked-result-lp";

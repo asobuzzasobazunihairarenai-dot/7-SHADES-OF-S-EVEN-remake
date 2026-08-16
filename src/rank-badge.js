@@ -68,7 +68,7 @@ export function buildSevenColorGauge(rank, gauge, legendPoints) {
 // （小さいスロットは従来の7ドット buildSevenColorGauge を使う）。
 export const RANK_GAUGE_FRAME_U = "assets/rank-gauge/frame-u.webp";
 export const RANK_GAUGE_FRAME_LINE = "assets/rank-gauge/frame-line.webp";
-const GEM_FILES = [
+export const GEM_FILES = [
   "gem-01-red",
   "gem-02-orange",
   "gem-03-yellow",
@@ -78,8 +78,8 @@ const GEM_FILES = [
   "gem-07-purple",
 ];
 // 枠(1536×1024)に対する各ソケット中心の位置（%）。U字に沿って左上→下中央→右上。左右対称。
-// ※ラスター枠に合わせた実測ベースの推定値。ズレる場合は数値を微調整（ユーザーのスクショで合わせる）。
-const U_SOCKETS = [
+// ※ラスター枠に合わせた実測ベースの推定値。調整モード（rank-showcase.js）で微調整できる。
+export const DEFAULT_U_SOCKETS = [
   { x: 9.8, y: 24.4 }, // 1 赤（左上）
   { x: 15.6, y: 49.8 }, // 2 橙
   { x: 29.0, y: 68.4 }, // 3 黄
@@ -88,6 +88,7 @@ const U_SOCKETS = [
   { x: 84.4, y: 49.8 }, // 6 桃
   { x: 90.2, y: 24.4 }, // 7 紫（右上）
 ];
+const U_SOCKETS = DEFAULT_U_SOCKETS;
 
 export function rankGemPath(i) {
   return `assets/rank-gauge/${GEM_FILES[Math.max(0, Math.min(6, i))]}.webp`;

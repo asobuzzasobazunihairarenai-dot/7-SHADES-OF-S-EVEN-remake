@@ -15,6 +15,8 @@ import { runEidosDialogue } from "./eidos-dialogue-ui.js";
 import { EIDOS_SCENE, getEidosScene } from "./eidos-dialogue-scenes.js";
 // 対戦ロビーの「疑似CPUモード」チェックの表示/非表示（cpu-battle-state.jsはleafなので循環しない）。
 import { isLobbyPseudoCpuToggleVisible, setLobbyPseudoCpuToggleVisible } from "./cpu-battle-state.js";
+// ランクバッジ・ゲージ・宝石の調整モード（rank-showcase.js は rank-badge.js のみimport＝循環しない）。
+import { openRankShowcaseEditor } from "./rank-showcase.js";
 
 // game-setup.jsは既にadmin.js（isManualSeatMode）をimportしているため、admin.js側から
 // game-setup.jsを直接importすると循環importになる。他の箇所（setup-animation.js等）と
@@ -2341,6 +2343,33 @@ const TOGGLE_SECTIONS = [
         showRankUpModal({ fromTier, toTier });
       });
       content.appendChild(previewBtn);
+    },
+  },
+  {
+    // ユーザー要望2026-08-16「ランクバッジ・ランクゲージ・ランクジェムの位置サイズ調整モードを
+    // 追加。押すと実際に出てきて調整できるように」。開くと合成表示（バッジ＋U型ゲージ＋7宝石）が
+    // 出て、バッジ／宝石をドラッグで移動・ホイールでサイズ変更でき、「座標を出力」で焼き込み用の
+    // リテラルを出せる（rank-showcase.js）。
+    title: "🏅 ランクバッジ・ゲージ調整モード",
+    category: "position-ui",
+    buildContent: (content) => {
+      const note = document.createElement("div");
+      note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.5rem; line-height: 1.5;";
+      note.textContent =
+        "開くと「称号バッジ＋U型ゲージ＋7つの宝石」が実際に表示されます。バッジや宝石を" +
+        "ドラッグで移動、マウスホイールでサイズ変更（宝石の上＝宝石サイズ、バッジの上＝バッジ" +
+        "サイズ、枠の上＝ゲージ全体サイズ）できます。整え終えたら「座標を出力」を押して、その" +
+        "内容を開発者に伝えてください。";
+      content.appendChild(note);
+
+      const openBtn = document.createElement("button");
+      openBtn.type = "button";
+      openBtn.textContent = "調整モードを開く";
+      openBtn.style.cssText =
+        "display: block; width: 100%; box-sizing: border-box; padding: 0.5rem; " +
+        "background: #b45309; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.9rem;";
+      openBtn.addEventListener("click", () => openRankShowcaseEditor());
+      content.appendChild(openBtn);
     },
   },
 ];
