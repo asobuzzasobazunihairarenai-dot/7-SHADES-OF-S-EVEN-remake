@@ -15589,13 +15589,24 @@ body.reduce-glow .rank-ugauge-gem { animation: none; }
   aspect-ratio: 1 / 1;
   filter: drop-shadow(0 3px 12px rgba(0, 0, 0, 0.5));
 }
-/* バッジ背景（魔法陣、最背面）とU型ゲージ枠は枠いっぱいに敷く。掴めるのは宝石・バッジだけ。 */
-.rank-showcase-bg,
+/* U型ゲージ枠は枠いっぱいに敷く（掴めない＝座標基準）。 */
 .rank-showcase-frame {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+/* バッジ背景（魔法陣、最背面）。既定は枠いっぱい（width100%・中央）だが、調整モードで
+   大きさ・位置をずらせる（宝石・バッジと同じく枠中央基準。正方形画像なのでheightは自動）。 */
+.rank-showcase-bg {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100%;
+  height: auto;
+  transform: translate(-50%, -50%);
   object-fit: contain;
   pointer-events: none;
 }
@@ -15612,14 +15623,24 @@ body.reduce-glow .rank-ugauge-gem { animation: none; }
   object-fit: contain;
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
 }
-/* 編集モードでは掴めるようにカーソル＋当たり判定を明示。 */
+/* 編集モードでは掴めるようにカーソル＋当たり判定を明示（背景も最背面で掴めるように）。 */
 .rank-showcase.is-editable .rank-showcase-gem,
-.rank-showcase.is-editable .rank-showcase-badge {
+.rank-showcase.is-editable .rank-showcase-badge,
+.rank-showcase.is-editable .rank-showcase-bg {
   cursor: grab;
   touch-action: none;
 }
+.rank-showcase.is-editable .rank-showcase-bg {
+  pointer-events: auto;
+}
+/* 編集時のみ宝石をバッジより前面にして、バッジ下に隠れる宝石（下中央のソケット等）も
+   確実に掴めるようにする。表示（ホーム/マイページ/結果モーダル）はバッジが前面のまま。 */
+.rank-showcase.is-editable .rank-showcase-gem {
+  z-index: 5;
+}
 .rank-showcase.is-editable .rank-showcase-gem:active,
-.rank-showcase.is-editable .rank-showcase-badge:active {
+.rank-showcase.is-editable .rank-showcase-badge:active,
+.rank-showcase.is-editable .rank-showcase-bg:active {
   cursor: grabbing;
 }
 

@@ -17,6 +17,9 @@ export const RANK_SHOWCASE = {
   badgeSize: 11, // 称号バッジの大きさ（rem）。中央の魔法陣内に収める。
   badgeX: 0, // バッジの水平オフセット（rem、＋で右）。枠中央基準。
   badgeY: 0, // バッジの垂直オフセット（rem、＋で下）。枠中央基準。
+  bgSize: 100, // バッジ背景（魔法陣）の大きさ（枠幅に対する%）。既定100＝枠いっぱい。
+  bgX: 0, // 背景の水平オフセット（rem、＋で右）。枠中央基準。
+  bgY: 0, // 背景の垂直オフセット（rem、＋で下）。枠中央基準。
   sockets: [
     { x: 14, y: 39 },
     { x: 21, y: 55 },
@@ -47,6 +50,8 @@ function applyShowcaseSizes(box) {
     badge.style.width = `${cfg.badgeSize}rem`;
     badge.style.height = `${cfg.badgeSize}rem`;
   }
+  const bg = box.querySelector(".rank-showcase-bg");
+  if (bg) bg.style.width = `${cfg.bgSize}%`;
 }
 
 // バッジ上端が枠の上へはみ出す量（rem）。中央基準なので badge top = gaugeSize/2 + badgeY - badgeSize/2。
@@ -67,12 +72,16 @@ export function buildRankShowcase(rank, gauge, legendPoints, { animated = false,
   box.style.width = `${cfg.gaugeSize}rem`;
   box.style.setProperty("--rank-ugauge-gem", `${cfg.gemSize}%`);
 
-  // バッジ背景（魔法陣、枠いっぱい・最背面）。
+  // バッジ背景（魔法陣、最背面）。既定は枠いっぱい（bgSize100・中央）だが、調整モードで
+  // 大きさ・位置をずらせる（宝石・バッジと同じく枠中央基準）。
   const bg = document.createElement("img");
   bg.className = "rank-showcase-bg";
   bg.src = RANK_GAUGE_BADGE_BG;
   bg.alt = "";
   bg.draggable = false;
+  bg.style.width = `${cfg.bgSize}%`;
+  bg.style.left = `calc(50% + ${cfg.bgX}rem)`;
+  bg.style.top = `calc(50% + ${cfg.bgY}rem)`;
   box.appendChild(bg);
 
   // U型ゲージ枠（枠いっぱい）。
@@ -107,7 +116,7 @@ export function buildRankShowcase(rank, gauge, legendPoints, { animated = false,
   box.appendChild(badge);
 
   if (editable) {
-    wireShowcaseEditing(box, badge, gems, onChange);
+    wireShowcaseEditing(box, badge, gems, bg, onChange);
     return box;
   }
 
@@ -138,6 +147,7 @@ function resizeShowcase(box, which, dir) {
   const cfg = RANK_SHOWCASE;
   if (which === "badge") cfg.badgeSize = clamp(round1(cfg.badgeSize + dir * 0.3), 2, 24);
   else if (which === "gem") cfg.gemSize = clamp(round1(cfg.gemSize + dir * 0.5), 4, 40);
+  else if (which === "bg") cfg.bgSize = clamp(round1(cfg.bgSize + dir * 2), 20, 200);
   else cfg.gaugeSize = clamp(round1(cfg.gaugeSize + dir * 0.5), 8, 40);
   applyShowcaseSizes(box);
 }
@@ -154,32 +164,41 @@ function stageScale() {
 
 // 編集の配線：バッジ／宝石をドラッグで移動、ホイールでサイズ変更。RANK_SHOWCASE を直接更新し、
 // 該当要素のstyleも即時に反映する（フル再描画しない）。
-function wireShowcaseEditing(box, badge, gems, onChange) {
+function wireShowcaseEditing(box, badge, gems, bg, onChange) {
   const cfg = RANK_SHOWCASE;
   const notify = () => onChange?.();
 
-  // ── ドラッグ移動 ──
+  // ── ドラッグ移動（種別: "badge" / "bg" ＝rem中央基準、"gem" ＝枠に対する%）──
   function startDrag(target, e) {
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;
     const startY = e.clientY;
-    const gi = target === badge ? -1 : Number(target.dataset.gemIndex);
+    const kind = target === badge ? "badge" : target === bg ? "bg" : "gem";
+    const gi = kind === "gem" ? Number(target.dataset.gemIndex) : -1;
     const s = stageScale();
     const frame = box.getBoundingClientRect();
     const base =
-      gi === -1
+      kind === "badge"
         ? { x: cfg.badgeX, y: cfg.badgeY }
-        : { x: cfg.sockets[gi].x, y: cfg.sockets[gi].y };
+        : kind === "bg"
+          ? { x: cfg.bgX, y: cfg.bgY }
+          : { x: cfg.sockets[gi].x, y: cfg.sockets[gi].y };
     const move = (ev) => {
       const dx = ev.clientX - startX;
       const dy = ev.clientY - startY;
-      if (gi === -1) {
+      if (kind === "badge") {
         // バッジ：rem（実画面px→ローカルpx→rem）
         cfg.badgeX = round1(base.x + dx / s / 16);
         cfg.badgeY = round1(base.y + dy / s / 16);
         badge.style.left = `calc(50% + ${cfg.badgeX}rem)`;
         badge.style.top = `calc(50% + ${cfg.badgeY}rem)`;
+      } else if (kind === "bg") {
+        // 背景：rem（バッジと同じ中央基準）
+        cfg.bgX = round1(base.x + dx / s / 16);
+        cfg.bgY = round1(base.y + dy / s / 16);
+        bg.style.left = `calc(50% + ${cfg.bgX}rem)`;
+        bg.style.top = `calc(50% + ${cfg.bgY}rem)`;
       } else {
         // 宝石：枠に対する%（frameは実画面px、dxも実画面pxなので比率はscale非依存）
         cfg.sockets[gi].x = round1(base.x + (dx / frame.width) * 100);
@@ -198,6 +217,8 @@ function wireShowcaseEditing(box, badge, gems, onChange) {
   }
   badge.addEventListener("pointerdown", (e) => startDrag(badge, e));
   for (const g of gems) g.addEventListener("pointerdown", (e) => startDrag(g, e));
+  // 背景は最背面＝空いた領域（宝石・バッジ以外）を掴んで移動できる。
+  bg.addEventListener("pointerdown", (e) => startDrag(bg, e));
 
   // ── ホイールでサイズ変更（宝石の上＝宝石、バッジの上＝バッジ、枠の上＝ゲージ全体）──
   function onWheel(e) {
@@ -229,6 +250,9 @@ export function getRankShowcaseOutput() {
     `  badgeSize: ${c.badgeSize},\n` +
     `  badgeX: ${c.badgeX},\n` +
     `  badgeY: ${c.badgeY},\n` +
+    `  bgSize: ${c.bgSize},\n` +
+    `  bgX: ${c.bgX},\n` +
+    `  bgY: ${c.bgY},\n` +
     "  sockets: [\n" +
     sockets +
     "\n  ],\n};"
@@ -251,7 +275,7 @@ export function openRankShowcaseEditor() {
   const bar = document.createElement("div");
   bar.className = "rank-showcase-editor-bar";
   const title = document.createElement("span");
-  title.textContent = "🏅 ランクバッジ・ゲージ調整モード（バッジ／宝石をドラッグで移動）";
+  title.textContent = "🏅 ランクバッジ・ゲージ調整モード（バッジ／宝石／背景をドラッグで移動）";
   bar.appendChild(title);
 
   // サイズ調整の＋/−ボタン（ホイールが使えない/使いにくい環境向け。ユーザー要望
@@ -275,6 +299,7 @@ export function openRankShowcaseEditor() {
   bar.appendChild(sizeCtl("バッジ", "badge"));
   bar.appendChild(sizeCtl("ゲージ", "gauge"));
   bar.appendChild(sizeCtl("宝石", "gem"));
+  bar.appendChild(sizeCtl("背景", "bg"));
 
   const outBtn = document.createElement("button");
   outBtn.type = "button";

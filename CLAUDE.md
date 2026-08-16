@@ -13633,3 +13633,23 @@ style.css の var() fallback の両方へ反映した。
   アニメ版も新デザインで用意できたら差し替えたい。ソケット位置・バッジサイズは推定なので、管理者
   モードの「🏅 ランクバッジ・ゲージ調整モード」で整えて `RANK_SHOWCASE` を出力・共有してもらえれば焼き込む。
 - サーバー側（Supabase）の変更は無い。
+
+### 2026-08-16（続き149）：ランクバッジ調整モードで、バッジ背景（魔法陣）の大きさ・位置も調整できるように
+
+ユーザー要望「ランクバッジ調整モードで、バッジ背景のサイズ、位置も調整できるようにして」。
+これまで `.rank-showcase-bg`（魔法陣）は枠いっぱい固定（`inset:0; width/height:100%; pointer-events:none`）
+で調整不可だった。バッジ・宝石と同じ枠中央基準の調整対象に加えた。
+- **rank-showcase.js**: `RANK_SHOWCASE` に `bgSize`（枠幅に対する%、既定100＝枠いっぱい）・`bgX`/`bgY`
+  （枠中央からのremオフセット、既定0）を追加。`buildRankShowcase` が bg に width/left/top を適用。
+  `wireShowcaseEditing` の drag 種別を `"badge"/"bg"/"gem"` の3種に整理し、**背景は最背面＝宝石・バッジ
+  以外の空いた領域を掴んでドラッグ**（rem中央基準、バッジと同じ計算）。`resizeShowcase` に `"bg"` を追加
+  （±2%刻み、20〜200でクランプ）。編集ツールバーに「背景」の −／＋ ボタンを追加。`getRankShowcaseOutput`
+  に bgSize/bgX/bgY を追加。
+- **style.css**: `.rank-showcase-bg` を `inset:0` 固定から**中央基準**（`left/top:50%; transform:translate(-50%,-50%);
+  width:100%; height:auto`＝正方形なので既定は枠いっぱい）に。編集時だけ `pointer-events:auto; cursor:grab`。
+  加えて**編集時のみ宝石を `z-index:5` でバッジより前面**にし、バッジ下に隠れる下中央ソケットの宝石も
+  掴めるようにした（表示レンダリング＝バッジが前面は不変）。
+- **検証**: ブラウザ（新CSS反映後）で、①「背景」ボタンで bgSize 100→106・width 106% に、②bg の空き領域
+  ドラッグで bgX/bgY・left が更新、③編集時 bg が `pointer-events:auto`/`cursor:grab` で最背面ヒット、
+  ④7宝石すべて grabbable（下中央も）・バッジも露出部で grabbable、⑤出力に bgSize/bgX/bgY が含まれる、
+  を実測確認。`node --check` 通過。サーバー側の変更は無い。
