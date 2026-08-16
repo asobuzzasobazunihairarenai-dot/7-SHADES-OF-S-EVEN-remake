@@ -12877,3 +12877,37 @@ await client.rpc(...)`」パターンに合わせた。
   無しをブラウザで確認。実際の本気エイドス戦のカウンターロックでの最終確認はユーザーにお願いする
   （こちらでは元の不具合自体を再現できないため）。真因（confirmGenericYesNo の DOM click が死ぬ理由）は
   未解明のまま残っており、同じ握り潰しが他モーダルで出たら同じ pointerdown 方式を横展開する。
+
+### 2026-08-16（続き126）：ランク戦フェーズ2b（クライアントのマッチメイキング本体）を実装
+
+[docs/ranked-spec.md](docs/ranked-spec.md) のマッチメイキングのクライアント側フローを実装した
+（新規 [src/ranked-match.js](src/ranked-match.js)）。ホームの「🏆 フリーマッチ（ランク戦）」タイルを
+`status:"soon"` から有効化し、押すと（cpu-battle.js と同じ動的importで）このフローが始まる。
+- **フロー**：デッキ確認（openDeckSelect・durationSec:0）→ `enqueueRanked(deck)` でキュー登録 →
+  待機画面（`#ranked-waiting` 全画面オーバーレイ、`pollRanked()` を 2.5秒ごと）→ マッチ成立で
+  通知（音＝arrivalEffect ＋ タブタイトル点滅）＋レディチェックモーダル（相手のアバター・名前・
+  ランク・60秒カウントダウン・「対戦開始」）→ `readyRanked(matchId)` → 両者readyで `state:"ingame"`＋
+  game_id → **対局へ自動入場**。
+- **対局入場（enterRankedGame）**：`leaveRankedQueue()` でキューを抜け、`joinRoom(gameId)` で入場
+  （席は so7_ranked_ready がサーバー側で作成済み＝so7_join_room は即return、subscribeToGame が
+  online mode/transport/hydrate/heartbeat を立てる）。二重BOOTSTRAP防止のため **user_id が
+  アルファベット順で先の方だけ** `startGame(gameId, {...})` を呼ぶ（maybeTriggerRematch と同じ考え方）。
+- **`startGame` に `skipDeckSelection` パラメータを追加**（online.js）：ランクは enqueue 時に各自の
+  デッキを確定し so7_ranked_ready が席の selected_deck に入れているので、マイデッキ戦の「デッキ選択
+  フェイズ」（runDeckSelectionPhase）を回さず、そのまま BOOTSTRAP（myDeckMode:true・timerEnabled:true・
+  無色なし・boost無し）する。
+- **低母数対策**：待機人数表示（poll の waiting_count）・通知（音＋タブ点滅）はここで実装済み。
+  「待機中に CPU 練習」は盤面を CPU 戦に明け渡す関係で複雑なため**次回（フォローアップ）に回す**。
+  「合言葉でフレンドとランク戦」は既存の部屋に is_ranked 印を付けるだけなのでフェーズ3（レート反映）で。
+- home-screen.js は ranked-match.js を直接importせず、キャンセル/失敗時にホームへ戻す `openHomeScreen` を
+  onExit として注入する（cpu-battle.js と同じく動的import＋注入で循環参照を避ける）。ranked-match.js が
+  static import する online.js/my-deck-select.js/sound.js/avatar-render.js はいずれも ranked-match.js を
+  importしないので循環なし。
+- **検証**：`node --check` 通過、ブラウザで ranked-match.js を動的importして循環import無し・export正常
+  （startRankedMatchmaking）・アプリ本体もロードエラー無し（コンソールの ERR_CONNECTION_REFUSED は
+  この検証環境が Supabase 等への外部接続を遮断しているだけで、変更由来の JS エラーは無い）を確認。
+  実際のマッチメイキング（デッキ確認→待機→レディチェック→対局開始）の end-to-end は、フェーズ1・2 の
+  SQL 実行＋ログイン済み2アカウント（2ブラウザ）が必要なため、そちらで確認する。
+- **ユーザー側の作業**：（まだなら）`supabase_setup_so7.sql` を SQL Editor で実行（フェーズ1・2 分を
+  含む）。Edge Function は未変更のため再デプロイ不要。
+- 次：フェーズ2b の残り（CPU練習）、そしてフェーズ3（対戦結果からのレート反映＋合言葉フレンド戦）。

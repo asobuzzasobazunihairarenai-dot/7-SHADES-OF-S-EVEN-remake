@@ -1643,7 +1643,7 @@ async function registerParticipantsAsStatsPlayers(gameId) {
 }
 
 let startGameInFlight = false;
-export async function startGame(gameId, { includeBlackWhite = false, timerEnabled, pseudoCpuModeEnabled = false, boost = false, myDeckMode = false } = {}) {
+export async function startGame(gameId, { includeBlackWhite = false, timerEnabled, pseudoCpuModeEnabled = false, boost = false, myDeckMode = false, skipDeckSelection = false } = {}) {
   // 二重起動防止（不具合#70）: マイデッキ戦では開始直後に「デッキ選択フェイズ」(最大60秒)を
   // 回すため、このstartGameのPromiseがすぐには解決しない。その間にロビーが再描画されて開始
   // ボタンが作り直され再クリックされる等でstartGameが二重に走ると、デッキ選択オーバーレイが
@@ -1690,7 +1690,9 @@ export async function startGame(gameId, { includeBlackWhite = false, timerEnable
     // ロックして開始）。サーバー側BOOTSTRAP_GAME（so7-apply-action.ts）で処理する。
     // マイデッキ戦: BOOTSTRAPの前に「デッキ選択フェイズ」を回す。ホストが開始を全員へbroadcastし、
     // 各自が選んだデッキを座席へ保存。全員選択or60秒でここを抜け、BOOTSTRAPが座席のselected_deckを読む。
-    if (myDeckMode) await runDeckSelectionPhase(gameId, timerConfig.enabled);
+    // ランク戦（ranked-match.js）は enqueue 時に各自のデッキを確定し、席の selected_deck に
+    // 既に入っている（so7_ranked_ready がサーバー側で書き込む）ため、デッキ選択フェイズは回さない。
+    if (myDeckMode && !skipDeckSelection) await runDeckSelectionPhase(gameId, timerConfig.enabled);
     // myDeckMode: マイデッキ戦（対戦ロビーのトグル）。timerConfig等と同じく開始時に1回だけ
     // 送り、サーバーが各席の selected_deck を読んでシャッフル配布する（so7-apply-action）。
     const result = await callAction({ type: "BOOTSTRAP_GAME", includeBlackWhite, timerConfig, boost, myDeckMode });

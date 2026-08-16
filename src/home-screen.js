@@ -64,7 +64,25 @@ const TILES = [
     },
   },
   { icon: "🤝", image: "assets/home-icons/friend-match.webp", label: "CPUマッチ＆フレンドリーマッチ", status: "ready", onOpen: () => openMatchChoiceModal() },
-  { icon: "🏆", image: "assets/home-icons/rank-match.webp", label: "フリーマッチ（ランク戦）", status: "soon" },
+  {
+    icon: "🏆",
+    image: "assets/home-icons/rank-match.webp",
+    label: "フリーマッチ（ランク戦）",
+    status: "ready",
+    onOpen: async () => {
+      // ランク戦のマッチメイキング（フェーズ2b、ranked-match.js）。cpu-battle.jsと同じく
+      // 動的importで静的な依存辺を作らない（循環参照の回避）。ホームは閉じ、キャンセル/失敗時は
+      // openHomeScreen()で戻す（ranked-match.js側にonExitとして注入）。
+      closeHomeScreen();
+      try {
+        const { startRankedMatchmaking } = await import("./ranked-match.js");
+        await startRankedMatchmaking(() => openHomeScreen());
+      } catch (err) {
+        console.error("ranked matchmaking start failed", err);
+        openHomeScreen();
+      }
+    },
+  },
   { icon: "🛒", image: "assets/home-icons/shop.webp", label: "ショップ", status: "ready", onOpen: () => openShopPanel() },
   {
     icon: "📊",

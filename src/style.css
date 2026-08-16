@@ -15202,3 +15202,114 @@ body.opening-screen-active.is-admin-user #smoke-test-launch-btn {
   white-space: pre;
   overflow: auto;
 }
+
+/* ランク戦マッチメイキング（フェーズ2b、ranked-match.js）。待機画面とレディチェック。 */
+#ranked-waiting {
+  position: fixed;
+  inset: 0;
+  z-index: 20000; /* ホーム(1500)・オプションエリア等より前面。オープニング(50000)は関与しない */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem;
+  background: radial-gradient(circle at 50% 40%, #1a2130, #0a0d14 80%);
+  color: #f1f5f9;
+  text-align: center;
+  padding: 2rem;
+}
+.ranked-waiting-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #ffd77a;
+  text-shadow: 0 0 12px rgba(255, 200, 90, 0.4);
+}
+.ranked-waiting-spinner {
+  width: 3.4rem;
+  height: 3.4rem;
+  border: 0.35rem solid rgba(255, 215, 122, 0.25);
+  border-top-color: #ffd77a;
+  border-radius: 50%;
+  animation: ranked-spin 0.9s linear infinite;
+}
+@keyframes ranked-spin { to { transform: rotate(360deg); } }
+.ranked-waiting-status { font-size: 1.05rem; }
+.ranked-waiting-count { font-size: 0.95rem; color: #9fb0c8; }
+.ranked-waiting-hint { font-size: 0.8rem; color: #7c8aa0; max-width: 26rem; line-height: 1.6; }
+.ranked-waiting-cancel {
+  margin-top: 0.6rem;
+  padding: 0.6rem 1.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.6rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f1f5f9;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.ranked-waiting-cancel:hover { background: rgba(255, 255, 255, 0.12); }
+
+#ranked-ready-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20010;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+}
+.ranked-ready-inner {
+  background: linear-gradient(160deg, #232c3d, #141a26);
+  border: 2px solid #ffd77a;
+  border-radius: 1rem;
+  box-shadow: 0 0 40px rgba(255, 200, 90, 0.35);
+  padding: 1.8rem 2rem;
+  text-align: center;
+  color: #f1f5f9;
+  max-width: 24rem;
+  animation: ranked-ready-pop 0.3s ease;
+}
+@keyframes ranked-ready-pop { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.ranked-ready-heading {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #ffd77a;
+  margin-bottom: 1rem;
+}
+.ranked-ready-opponent {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  margin-bottom: 0.9rem;
+}
+.ranked-ready-avatar {
+  width: 3.4rem;
+  height: 3.4rem;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  background: rgba(255, 255, 255, 0.08);
+  flex: 0 0 auto;
+}
+.ranked-ready-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.ranked-ready-info { text-align: left; }
+.ranked-ready-name { font-size: 1.05rem; font-weight: 600; }
+.ranked-ready-rank { font-size: 0.85rem; color: #9fb0c8; }
+.ranked-ready-note { font-size: 0.8rem; color: #9fb0c8; line-height: 1.6; margin-bottom: 0.8rem; }
+.ranked-ready-countdown { font-size: 1.1rem; font-weight: 700; color: #ff9e9e; margin-bottom: 1rem; }
+.ranked-ready-start {
+  padding: 0.7rem 2.4rem;
+  border: none;
+  border-radius: 0.7rem;
+  background: linear-gradient(160deg, #ffd77a, #f0a93a);
+  color: #241a08;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(240, 169, 58, 0.5);
+}
+.ranked-ready-start:hover { filter: brightness(1.08); }
+.ranked-ready-start:disabled { opacity: 0.6; cursor: default; filter: grayscale(0.4); }
