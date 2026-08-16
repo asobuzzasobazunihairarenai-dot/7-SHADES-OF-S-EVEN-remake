@@ -223,8 +223,8 @@ const GROUPS = [
     title: "🏆 ランク表示（ホーム画面）",
     category: "position-ui",
     controls: [
-      { key: "--home-rank-pos-x", label: "ホーム：位置X", unit: "rem", min: -50, max: 50, step: 0.1, default: 0 },
-      { key: "--home-rank-pos-y", label: "ホーム：位置Y", unit: "rem", min: -50, max: 50, step: 0.1, default: 0 },
+      { key: "--home-rank-pos-x", label: "ホーム：位置X", unit: "rem", min: -50, max: 50, step: 0.1, default: 43.8 },
+      { key: "--home-rank-pos-y", label: "ホーム：位置Y", unit: "rem", min: -50, max: 50, step: 0.1, default: 13.1 },
       { key: "--home-rank-scale", label: "ホーム：サイズ", unit: "", min: 0.4, max: 3, step: 0.05, default: 1 },
     ],
   },
@@ -516,7 +516,7 @@ const GROUPS = [
     title: "ホーム画面：タイトルの縦位置",
     category: "position-ui",
     controls: [
-      { key: "--home-title-offset-y", label: "タイトルの縦位置（大きいほど下へ）", unit: "rem", min: 0, max: 16, step: 0.1, default: 3 },
+      { key: "--home-title-offset-y", label: "タイトルの縦位置（大きいほど下へ）", unit: "rem", min: 0, max: 16, step: 0.1, default: 0 },
     ],
   },
   {
@@ -526,7 +526,7 @@ const GROUPS = [
     category: "position-ui",
     controls: [
       { key: "--home-grid-pos-x", label: "位置X（＋で右へ）", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
-      { key: "--home-grid-pos-y", label: "位置Y（＋で下へ）", unit: "rem", min: -30, max: 30, step: 0.1, default: 0 },
+      { key: "--home-grid-pos-y", label: "位置Y（＋で下へ）", unit: "rem", min: -30, max: 30, step: 0.1, default: 6.4 },
       { key: "--home-grid-scale", label: "全体サイズ", unit: "", min: 0.4, max: 1.5, step: 0.02, default: 1 },
     ],
   },
