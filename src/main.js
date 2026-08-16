@@ -5156,6 +5156,25 @@ function isArrivalEffectProcessing() {
   return arrivalEffectProcessingDepth > 0;
 }
 
+// 不具合報告#135「パーティ効果処理中に到達（ゲート侵攻）ボーナス処理が発動してしまった」。
+// 原因: onGateInvasionEventsの受信時デフォルト待ちは isArrivalEffectProcessing() しか見て
+// いなかった。パーティ等の「全員選ぶ」効果で自分が委任先（delegate）としてオプション選択の
+// ピッカー(activeEffectPicker)を開いている最中は isArrivalEffectProcessing() が false のため、
+// ゲート侵攻モーダルがそのピッカーに重なって開いてしまっていた（ログ: 相手側で pickerActive:true
+// のままゲート侵攻 broadcast を受信）。到達処理に加え、選択ピッカー・手札効果処理・接触結果/
+// いつでも使えるモーダルの表示中も「処理中」とみなして待たせる。ただし isAnyEffectProcessingBusy()
+// と違いゲート侵攻自身の状態（Pending/QueueActive/Local）は含めない（含めると自分のキューで
+// 永久に待ち続ける循環になるため）。
+function isBusyForGateInvasionDeferral() {
+  return (
+    isArrivalEffectProcessing() ||
+    activeEffectPicker !== null ||
+    isHandEffectBusy() ||
+    openContactResultModals > 0 ||
+    anytimeInterruptModalEl !== null
+  );
+}
+
 // 無意味なループ防止（#49、ユーザー方針「セブンではルール上無意味なループは禁止」）。1つの到達連鎖
 // （ジャンプ台の連続移動等）で駒が通ったマスを記録し、そこへ戻る移動先を「ループ先」として扱う。
 // リセットは「1回の移動アクションの起点」で行う（#50/#51）: (1)プレイヤーの移動（タップ/ドラッグ）は
@@ -5194,6 +5213,9 @@ function isSeatAutoDriven(seat) {
 let pendingGateInvasionEvents = [];
 function flushPendingGateInvasionEvents() {
   if (pendingGateInvasionEvents.length === 0) return;
+  // #135: まだ他の処理中（ピッカー・手札効果等）なら流さず待つ。ピッカーが閉じた等で
+  // 状態が変わるたびにrender()から再度呼ばれるので、処理が空いた次のタイミングで流れる。
+  if (isBusyForGateInvasionDeferral()) return;
   const buffered = pendingGateInvasionEvents;
   pendingGateInvasionEvents = [];
   for (const events of buffered) {
@@ -7508,6 +7530,9 @@ function render() {
   // ゲート侵攻演出のモーダルがrender等でDOMから外れていたら貼り直す保険（オンラインで
   // 演出が出ないという報告への対応。gate-invasion-modal.jsのreapplyGateInvasionModal参照）。
   reapplyGateInvasionModal();
+  // #135: ピッカー・手札効果等の処理中に届いて保留していたゲート侵攻を、処理が空いた
+  // タイミング（＝状態が変わってrenderが走った今）で流す。flush自体がbusyなら何もしない。
+  flushPendingGateInvasionEvents();
   // チュートリアルCPU戦は台本で勝利演出を出すため、実ゲームの勝利判定（オンライン向けの
   // 勝利モーダル・通貨・ランキング等）はスキップする。
   if (!isTutorialBattleActive()) checkForVictory();
@@ -13295,10 +13320,11 @@ onGateInvasionEvents((events) => {
   // online.js側のbroadcast受信ログ(diag-gate-invasion-broadcast)と突き合わせ、
   // このクライアントまで実際に届いたか・enqueueGateInvasionStepsを呼んだかを追う。
   logAction("diag-gate-invasion-received", { count: events?.length ?? 0 });
-  // 到達効果の解決中に届いたゲート侵攻は、到達処理が終わるまで待ってから再生する
-  // （ユーザー報告「到達処理が終わる前にゲート侵攻処理が始まる」対応。上のflush参照）。
-  if (isArrivalEffectProcessing()) {
-    logAction("diag-gate-invasion-deferred", { count: events?.length ?? 0, depth: arrivalEffectProcessingDepth });
+  // 到達効果の解決中・選択ピッカー表示中・手札効果処理中等に届いたゲート侵攻は、その処理が
+  // 終わるまで待ってから再生する（#135「パーティ効果処理中にゲート侵攻ボーナスが発動」対応。
+  // isBusyForGateInvasionDeferral参照。flushはrender()末尾で毎回・処理が空いたタイミングで行う）。
+  if (isBusyForGateInvasionDeferral()) {
+    logAction("diag-gate-invasion-deferred", { count: events?.length ?? 0, depth: arrivalEffectProcessingDepth, picker: activeEffectPicker?.type ?? null, handEffectBusy: isHandEffectBusy() });
     pendingGateInvasionEvents.push(events);
     return;
   }

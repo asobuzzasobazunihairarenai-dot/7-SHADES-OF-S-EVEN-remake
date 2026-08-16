@@ -13757,3 +13757,30 @@ T26/R13でC が A のゲートに侵攻し3枚奪う際、A（防御側＝観戦
 - 検証: `#self-hand-overlay`/`#mini-lock-area`/`#mini-lock-area-top`の computed `user-select`/
   `-webkit-touch-callout`が`none`になることを実測。実機iOSでの長押し挙動はユーザー確認。
 - サーバー側（Supabase）の変更は無い。
+
+### 2026-08-16（続き154）：#135「パーティ効果処理中にゲート侵攻ボーナスが発動してしまった」——ゲート侵攻モーダルが選択ピッカー表示中に開いてしまう不具合を修正
+
+ユーザー報告（オンライン2人戦A/C、自動処理ON）「パーティ効果処理中に到達（ゲート侵攻）
+ボーナス処理が発動してしまった」。アクションログで、パーティ（pink-party、C が使用）の
+「全員が選ぶ」効果で**自分（A）が委任先（delegate）としてオプション選択ピッカーを開いている
+最中**（`pickerActive:true`）に、C のゲート侵攻ボーナス broadcast を受信し、ゲート侵攻モーダルが
+そのピッカーに重なって開いていた。
+- **根本原因**: `onGateInvasionEvents`（`main.js`）の受信時デフォルト待ちは
+  `isArrivalEffectProcessing()` だけを見ていた。委任先でのオプション選択ピッカー
+  （`activeEffectPicker`）表示中は `isArrivalEffectProcessing()` が false のため、待たずに
+  `enqueueGateInvasionSteps` が走ってモーダルが開いてしまう。以前に追加した「到達処理中は待つ」
+  対策の対象が狭かった（ピッカー・手札効果処理・接触結果/いつでも使えるモーダルを含んでいなかった）。
+- **修正**: 新設 `isBusyForGateInvasionDeferral()`（到達処理中・選択ピッカー表示中・手札効果処理中・
+  接触結果モーダル表示中・いつでも使えるモーダル表示中のいずれか）を導入し、`onGateInvasionEvents` の
+  デフォルト条件をこれに広げた。ただし `isAnyEffectProcessingBusy()` と違いゲート侵攻自身の状態
+  （Pending/QueueActive/Local）は含めない（含めると自分のキューで永久に待ち続ける循環になるため）。
+  保留した events の flush（`flushPendingGateInvasionEvents`）も同じ busy チェックで自己ガードし、
+  `render()` の末尾（`reapplyGateInvasionModal` の直後）から毎回呼ぶようにした——ピッカーが閉じる等で
+  状態が変わって render が走ったタイミングで、処理が空いていれば流れる。ピッカー・手札効果・
+  接触結果・いつでも使えるモーダルはいずれも数秒〜ユーザー操作で必ず解決する transient な状態
+  （既存の到達処理deferralと同じカテゴリ）なので、恒久ロックにはならない。
+- 非busy（通常）の場合はこれまで通り即座に enqueue するため、ターン終了→即ゲート侵攻という
+  正常な流れ（C側のログで確認済み）は変わらない。
+- **検証**: `node --check` 通過、アプリ正常ロード・新規コンソールエラー無し。実際の2クライアント間の
+  タイミング（委任先のピッカーとゲート侵攻の重なり解消）はこの環境では再現できないため、実オンライン
+  対戦での確認をお願いする。サーバー側（Supabase）の変更は無い。
