@@ -12,7 +12,7 @@ import { getAvatarVariant, applyAvatarContent } from "./avatar-render.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { playVictoryBgm, stopVictoryBgm } from "./sound.js";
 import { showPostGamePanel, showCpuBattleEndPanel } from "./post-game-panel.js";
-import { awardMatchCurrency, awardCpuWinCurrency, getSelfSeat, getCurrentGameId, reportRankedResult, getSelfRank } from "./online.js";
+import { awardMatchCurrency, awardCpuWinCurrency, getSelfSeat, getCurrentGameId, reportRankedResult, getSelfRank, getRankedPreMatchRank } from "./online.js";
 // フェーズ3: ランク対局の結果表示（新ランク・七色ゲージ・勝敗）。
 import { showRankedResultModal } from "./ranked-result-modal.js";
 import { isCpuBattleActive, getEidosStoryStage, getEidosStoryResultHandler } from "./cpu-battle-state.js";
@@ -267,11 +267,19 @@ export function checkForVictory() {
           if (rankedRes && rankedRes.skipped !== "not_ranked") {
             const myRank = await getSelfRank();
             if (myRank) {
+              // 昇格演出（docs/ranked-spec.md）: 対局開始時に覚えたランク(getRankedPreMatchRank)と
+              // 比べて rank が上がっていれば昇格＝結果モーダルで昇格演出を出す（シーズン中は降格
+              // なしなので rank 増加＝昇格のみ見ればよい）。before が無い（reconnect等）場合は
+              // promotedFrom=null で通常表示にフォールバックする。
+              const before = getRankedPreMatchRank();
+              const promotedFrom =
+                before && typeof before.rank === "number" && before.rank < myRank.rank ? before.rank : null;
               await showRankedResultModal({
                 won: player === getSelfSeat(),
                 rank: myRank.rank,
                 gauge: myRank.gauge,
                 legendPoints: myRank.legend_points,
+                promotedFrom,
               });
             }
           }

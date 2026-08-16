@@ -13855,3 +13855,28 @@ badge/bg top `calc(50% - 4.2rem)`・socket0 13.1%/38.7% 等）ことを確認。
 - **検証**: ローカル（非ランク）では `isRankedGame()=false`・`isOnlineMode()=false` で強制が一切発火せず
   回帰が無いことを実測。`node --check` 通過・新規コンソールエラー無し。実際のランク対局での挙動
   （両クライアントで自動処理が固定されるか）は2アカウントでの確認が必要。サーバー側の変更は無い。
+
+### 2026-08-17（続き160）：ランク戦の昇格演出（七色ゲージ完成→称号変化）を実装
+
+ランク戦実装の続き（ユーザー選択「昇格演出」）。docs/ranked-spec.md フェーズ6。ランク対局に勝って
+七色ゲージが満杯→次ランクへ昇格した瞬間、結果モーダルで「ゲージ完成→称号変化」の演出を出す。
+- **昇格判定（before/after）**: 結果反映は全クライアントが呼ぶ冪等処理で、どのクライアントが先に
+  適用するか不定＝「結果直前にbeforeを取る」のはレース。そこで**対局開始時点**（結果よりずっと前の
+  確実なタイミング）の自分のランクを覚えておき、結果反映後の `getSelfRank` と比べて **rank が上がって
+  いれば昇格**とする（シーズン中は降格なしなので rank 増加＝昇格のみ見ればよい）。
+  - `online.js`: `captureRankedPreMatchRank()`/`getRankedPreMatchRank()`/`clearRankedPreMatchRank()`
+    を新設（`leaveGame` でクリア＝次のランク対局で取り直す）。
+  - `ranked-match.js`: `enterRankedGame` の joinRoom 前に `captureRankedPreMatchRank()`。
+  - `victory.js`: `before.rank < after.rank` なら `promotedFrom` を `showRankedResultModal` へ渡す
+    （before が無い reconnect 等は promotedFrom=null で通常表示にフォールバック）。
+- **演出（ranked-result-modal.js＋style.css）**: promotedFrom 指定時は、旧ランクバッジ＋七色ゲージ
+  満杯（＝ゲージ完成の瞬間、宝石7個点灯）を先に見せ、1.4秒後に新ランクバッジ（アニメ版）へ
+  クロスフェード（旧はフェードアウト＋拡大、新は scale0.55→1 でポップ）。背後に回転する金色の
+  放射状バースト、見出し「🎉 ランクアップ！」＋「◯◯ → ◯◯ 昇格！」の行を表示。`reduce-glow`
+  時はバースト・見出しパルスを静止。昇格でない通常勝敗は従来表示のまま（バースト・before無し）。
+- **検証**: ブラウザで結果モーダルを直接呼び、昇格時（ゴールド→プラチナ）は見出し・before7宝石点灯・
+  after=platinum-animated・バースト・昇格ラインが出ること、クロスフェードの目標値（before opacity→0、
+  after opacity→1・scale→1）が正しいこと（背景タブのトランジション凍結を避けるためtransition無効化で
+  実測）、通常勝利時はバースト/before無しの単一表示になることを確認。`node --check` 通過・新規
+  コンソールエラー無し。実際のランク対局での昇格発火は2アカウント＋ランクSQLデプロイ済み環境での
+  確認が必要。サーバー側の変更は無い。

@@ -997,6 +997,26 @@ export async function getSelfRank() {
   return data?.[0] ?? null;
 }
 
+// ランク対局の「昇格演出」（docs/ranked-spec.md フェーズ6）用に、対局開始時点の自分のランクを
+// 覚えておく。結果反映後の getSelfRank と比べて rank が上がっていれば昇格＝演出を出す
+// （シーズン中は降格なしなので rank 増加＝昇格のみを見ればよい）。結果適用は全クライアントが
+// 呼ぶ冪等処理で、どのクライアントが先に適用するか不定のため「結果直前に before を取る」のは
+// レースになる。対局開始という結果よりずっと前の確実なタイミングで捕まえる。
+let rankedPreMatchRank = null; // {rank, gauge, legend_points} or null
+export async function captureRankedPreMatchRank() {
+  try {
+    rankedPreMatchRank = await getSelfRank();
+  } catch {
+    rankedPreMatchRank = null;
+  }
+}
+export function getRankedPreMatchRank() {
+  return rankedPreMatchRank;
+}
+export function clearRankedPreMatchRank() {
+  rankedPreMatchRank = null;
+}
+
 // ランク戦のキューに登録する（deck＝my-deck-selectのresolveDeckが返す解決済みデッキ。席へ引き継ぐ）。
 export async function enqueueRanked(deck) {
   if (!client || !cachedUser) return false;
@@ -1529,6 +1549,7 @@ export async function leaveGame() {
   // isOnlinePanelOpen()がtrueのまま盤面のB/C/D表示判定が続くため、この古い
   // ロスターのせいで既にいない部屋のダミーアバターが残り続けてしまう。
   roster = {};
+  clearRankedPreMatchRank(); // 昇格演出用の対局開始時ランクは、次のランク対局で取り直す
   setOnlineMode(false);
   // 退室したらローカルのゲーム状態も初期化する。これをしないと turnPlayer 等が「対局中」の
   // まま残り、ホーム/タイトルに戻った後の再描画で、ゲーム開始に紐づくオーバーレイ（チュートリアル

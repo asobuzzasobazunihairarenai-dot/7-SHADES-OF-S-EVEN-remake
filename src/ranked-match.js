@@ -22,6 +22,7 @@ import {
   getCurrentUser,
   joinRoom,
   startGame,
+  captureRankedPreMatchRank,
 } from "./online.js";
 import { openDeckSelect } from "./my-deck-select.js";
 import { playSound } from "./sound.js";
@@ -350,6 +351,9 @@ async function enterRankedGame(gameId, opponentUserId) {
   setWaitingStatus("対局を準備しています…");
   try {
     await leaveRankedQueue(); // キューからクリーンに抜ける
+    // 昇格演出（docs/ranked-spec.md）用に、対局開始時点の自分のランクを覚えておく
+    // （結果反映後と比べて rank が上がっていれば昇格。結果直前だとレースになるので開始時に取る）。
+    await captureRankedPreMatchRank();
     // 席は so7_ranked_ready がサーバー側で作成済み → so7_join_room は即return、
     // subscribeToGame が online mode/transport/hydrate/heartbeat を立てる。
     await joinRoom(gameId);

@@ -15606,6 +15606,78 @@ body.opening-screen-active.is-admin-user #smoke-test-launch-btn {
 }
 .ranked-result-ok:hover { filter: brightness(1.08); }
 
+/* ── ランクアップ昇格演出（ranked-result-modal.js の promotedFrom 指定時） ──
+   「七色ゲージ完成→称号変化」を before(旧ランク＋ゲージ満杯)→after(新ランク) のクロスフェードで見せる。 */
+.ranked-result-heading.is-promote {
+  color: #ffe08a;
+  font-size: 1.5rem;
+  text-shadow: 0 0 14px rgba(255, 210, 110, 0.7);
+  animation: ranked-promote-heading 1.6s ease infinite;
+}
+@keyframes ranked-promote-heading {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+.ranked-result-showcase-stage {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin: 0.4rem 0 0.2rem;
+}
+.ranked-result-showcase-stage.is-promote .ranked-result-before,
+.ranked-result-showcase-stage.is-promote .ranked-result-after {
+  z-index: 1;
+  transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.ranked-result-showcase-stage.is-promote .ranked-result-before {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 1;
+}
+.ranked-result-showcase-stage.is-promote .ranked-result-after {
+  opacity: 0;
+  transform: scale(0.55);
+}
+.ranked-result-showcase-stage.is-promote.is-transitioned .ranked-result-before {
+  opacity: 0;
+  transform: translateX(-50%) scale(1.2);
+}
+.ranked-result-showcase-stage.is-promote.is-transitioned .ranked-result-after {
+  opacity: 1;
+  transform: scale(1);
+}
+/* 背後で回転する金色の放射状バースト。 */
+.ranked-result-burst {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 150%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  background: repeating-conic-gradient(from 0deg, rgba(255, 214, 120, 0.34) 0deg 8deg, transparent 8deg 20deg);
+  border-radius: 50%;
+  filter: blur(1px);
+  animation: ranked-burst-spin 9s linear infinite, ranked-burst-pulse 2.4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+  mask-image: radial-gradient(circle, #000 28%, transparent 72%);
+  -webkit-mask-image: radial-gradient(circle, #000 28%, transparent 72%);
+}
+.ranked-result-burst.is-static { animation: none; opacity: 0.5; }
+@keyframes ranked-burst-spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+@keyframes ranked-burst-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.85; } }
+.ranked-result-promote-line {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #ffe08a;
+  letter-spacing: 0.03em;
+  margin: 0.2rem 0 0.7rem;
+  text-shadow: 0 0 10px rgba(255, 210, 110, 0.6);
+}
+body.reduce-glow .ranked-result-heading.is-promote { animation: none; }
+
 /* ランク称号バッジの共通部品（rank-badge.js、フェーズ6）。段位バッジ画像＋段位名＋七色ゲージ。 */
 .rank-badge-box { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
 .rank-badge-image { object-fit: contain; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.45)); }
