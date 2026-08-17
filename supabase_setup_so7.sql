@@ -959,6 +959,12 @@ alter table so7_user_profiles add column if not exists card_auto_processing_enab
 -- デフォルトは非表示（列がnullの間はクライアント側のfalseデフォルトのまま）。
 alter table so7_user_profiles add column if not exists opponent_base_timer_visible boolean;
 
+-- ユーザー報告2026-08-17「PCで物語チュートリアルを最後までやったのにスマホだと最初から（同じ
+-- アカウント）」。従来この進捗はlocalStorage（端末ローカル）にしか無かったため端末間で共有され
+-- なかった。intro_seen/tutorial_completed/eidos_easy_cleared等のフラグをjsonbでアカウントに保存し、
+-- eidos-story.jsのstartEidosStoryが起動時にfetchMyEidosProgressで取得してローカルへマージする。
+alter table so7_user_profiles add column if not exists eidos_progress jsonb;
+
 -- ユーザー方針（2026-07-30）「ゲスト（匿名ログイン）はプレイヤーとして戦績登録しない・
 -- 戦績上は『ゲスト（名前）』表示」。ログイン種別（匿名か否か）を各ユーザーのプロフィールに
 -- 記録し、戦績連携（online.jsのfetchGuestUserIds/submitStatsMatchResult）が参照する。

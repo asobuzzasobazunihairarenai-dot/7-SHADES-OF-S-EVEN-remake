@@ -912,6 +912,29 @@ export async function fetchMyCustomAvatarUrl() {
   }
 }
 
+// エイドス物語チュートリアルの進捗（intro_seen/tutorial_completed/eidos_easy_cleared等）を
+// アカウント（so7_user_profiles.eidos_progress、jsonb）から読む。ユーザー報告2026-08-17
+// 「PCでは物語チュートリアルを最後までやったのに、スマホだと最初からになる（同じアカウント）」
+// への対応——従来この進捗はlocalStorage（端末ローカル）にしか保存されておらず端末間で
+// 共有されていなかった。custom_avatar_urlと同じ理由で大きなSELECT文には混ぜず独立クエリにし、
+// 列が未追加の環境でもここだけが失敗して他に影響しないようにする。
+export async function fetchMyEidosProgress() {
+  if (!cachedUser) return null;
+  try {
+    const { data, error } = await client
+      .from("so7_user_profiles")
+      .select("eidos_progress")
+      .eq("user_id", cachedUser.id)
+      .maybeSingle();
+    if (error) throw error;
+    const p = data?.eidos_progress ?? null;
+    return p && typeof p === "object" ? p : null;
+  } catch (err) {
+    console.error("fetchMyEidosProgress failed (未実行のsupabase_setup_so7.sql追加分がある可能性)", err);
+    return null;
+  }
+}
+
 // --- ゲーム内通貨（ユーザー要望「対局終了毎に一定額稼げる仮想通貨を実装したい。将来的には
 // 課金も検討。駒スキン・アバター・カード裏面・プレイマット背景を購入できるようにする」）。
 // 残高・所持済みアイテムの実際の増減はso7_user_currency/so7_user_unlocks側のポリシーが

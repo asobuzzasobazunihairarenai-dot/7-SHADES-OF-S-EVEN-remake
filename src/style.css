@@ -11800,9 +11800,9 @@ body:not(.is-admin-user) .opening-admin-btn {
   --action-log-icon-right: 3.9rem;
   --action-log-icon-top: 0.6rem;
   --profile-maindeck-right: 2.5rem;
-  --profile-maindeck-bottom: 1.1rem;
+  --profile-maindeck-bottom: 0rem;
   --profile-maindeck-width: 10.5rem;
-  --profile-maindeck-scale: 2.35;
+  --profile-maindeck-scale: 2.25;
   --profile-maindeck-badge-x: 0rem;
   --profile-maindeck-badge-y: 2.1rem;
   --profile-maindeck-badge-scale: 0.7;
@@ -15030,14 +15030,14 @@ body.theme-light .mdl-deck-count {
 #profile-maindeck {
   position: absolute;
   right: var(--profile-maindeck-right, 2.5rem);
-  bottom: var(--profile-maindeck-bottom, 5.9rem);
+  bottom: var(--profile-maindeck-bottom, 0rem);
   z-index: 5;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.45rem;
   width: var(--profile-maindeck-width, 10.5rem);
-  transform: scale(var(--profile-maindeck-scale, 1.75));
+  transform: scale(var(--profile-maindeck-scale, 2.25));
   transform-origin: bottom right;
 }
 /* 「メインデッキ」ラベル・デッキ名・「マイデッキ編集」ボタンは、それぞれ管理者モードで

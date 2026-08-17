@@ -638,9 +638,9 @@ const GROUPS = [
     category: "position-ui",
     controls: [
       { key: "--profile-maindeck-right", label: "横位置 right（＋で左へ）", unit: "rem", min: 0, max: 50, step: 0.1, default: 2.5 },
-      { key: "--profile-maindeck-bottom", label: "縦位置 bottom（＋で上へ）", unit: "rem", min: 0, max: 40, step: 0.1, default: 1.1 },
+      { key: "--profile-maindeck-bottom", label: "縦位置 bottom（＋で上へ）", unit: "rem", min: 0, max: 40, step: 0.1, default: 0 },
       { key: "--profile-maindeck-width", label: "幅", unit: "rem", min: 7, max: 24, step: 0.5, default: 10.5 },
-      { key: "--profile-maindeck-scale", label: "全体サイズ", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 2.35 },
+      { key: "--profile-maindeck-scale", label: "全体サイズ", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 2.25 },
     ],
   },
   {

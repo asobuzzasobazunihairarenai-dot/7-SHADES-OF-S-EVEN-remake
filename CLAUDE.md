@@ -14108,3 +14108,30 @@ badge/bg top `calc(50% - 4.2rem)`・socket0 13.1%/38.7% 等）ことを確認。
 - **検証**: `node --check`全ファイル通過、アプリ正常ロード・新規コンソールエラー無し。詰み判定の
   署名ロジック・決着までモードの分岐・2カラムのflexレイアウトをそれぞれ実測確認。サーバー側（Supabase）
   の変更は無い。
+
+### 2026-08-17（続き170）：物語チュートリアルの進捗をアカウント同期（端末間で引き継ぐ）＋メインデッキ表示の調整値を反映
+
+- **物語チュートリアルの進捗が端末間で共有されない不具合を修正**（ユーザー報告「PCでは物語
+  チュートリアルを最後までやったのに、スマホだと最初からになる。同じアカウント」）: 原因は
+  eidos-story.jsの進捗フラグ（intro_seen/tutorial_completed/eidos_easy_cleared等）が`localStorage`
+  （端末ローカル）にしか保存されておらず、アカウント同期が「Phase 2」として先送りされていたこと。
+  今回アカウント同期を実装した。
+  - `supabase_setup_so7.sql`に`so7_user_profiles.eidos_progress`（jsonb）列を追加。
+  - `online.js`に`fetchMyEidosProgress()`（custom_avatar_urlと同じ「大きなSELECTに混ぜず独立クエリ・
+    列未追加でも失敗を握りつぶす」パターン）を追加。保存は既存の`saveMyPreference({eidos_progress})`。
+  - `eidos-story.js`: `setEidosProgress`がlocalStorage更新に加えてアカウントへも保存。新設の
+    `syncEidosProgressFromAccount()`（アカウントの進捗をOR結合でローカルへマージ＝一方の端末で
+    進めた分も反映され、ログイン前のローカル進捗も失わない。食い違えば書き戻して収束）を
+    `startEidosStory`の冒頭で`await`（進捗フラグを読む前に確実に反映）。online.jsはeidos-storyを
+    一切importしない下位モジュールのため、eidos-story→onlineの直接importは循環しない（確認済み）。
+  - **注意**: sept獲得/アイテム付与（sept_awarded等）もこのeidos_progressに含まれるためアカウント
+    同期されるが、実際のアイテムアンロック（so7_grant_item RPC）自体はまだ未実装（Phase 2の別課題）。
+  - **ユーザー側の作業が必要**: `supabase_setup_so7.sql`の追加分（`eidos_progress`列）をSupabase
+    SQL Editorで実行する必要がある（未実行の間はfetchMyEidosProgressがnullを返し、従来通り
+    localStorageのみ＝端末間同期されないだけで、機能自体は壊れない）。Edge Functionの変更は無し。
+- **マイページのメインデッキ表示（右下）の調整値を反映**（ユーザーが管理者モードで調整）:
+  `--profile-maindeck-bottom` 1.1rem→0rem、`--profile-maindeck-scale` 2.35→2.25（style.cssの
+  :rootブロック・var()フォールバック・admin.jsのdefaultの3箇所）。right 2.5・width 10.5は据え置き。
+- **検証**: `node --check`全ファイル通過、アプリ正常ロード・新規コンソールエラー無し、
+  eidos-story→onlineの循環import無し（syncEidosProgressFromAccount/fetchMyEidosProgressのexportを
+  ブラウザで確認）。実際の端末間同期はSQL実行＋2端末での確認が必要。

@@ -35,12 +35,17 @@ import {
   registerEidosStoryResultHandler,
   clearSeatLoadouts,
 } from "./cpu-battle-state.js";
+// 物語チュートリアルの進捗をアカウントにも保存/読込するため（端末間で引き継ぐ）。online.jsは
+// eidos-storyを一切importしない下位モジュールなので、ここから直接importしても循環しない。
+import { saveMyPreference, fetchMyEidosProgress } from "./online.js";
 
 // 相手(C)の物語上の表示名・アバター（tutorial-battle.js と同じもの）。
 const EIDOS_NAME = "案内人エイドス";
 const EIDOS_AVATAR = "assets/avatars/eidos-noir-front.webp";
 
-// 進捗フラグ（localStorage、端末ローカル。Phase 2でアカウント同期）。
+// 進捗フラグ（localStorage＋アカウント同期。ユーザー報告2026-08-17「PCで物語チュートリアルを
+// 最後までやったのにスマホだと最初から（同じアカウント）」→ 端末ローカルのみだったのを
+// アカウント(so7_user_profiles.eidos_progress)にも保存し、ログイン時に端末間でマージする）。
 // intro_seen / tutorial_completed / eidos_easy_cleared / eidos_hard_unlocked /
 // eidos_hard_cleared / sept_awarded / sept_set
 const PROGRESS_KEY = "so7-eidos-progress-v1";
@@ -51,16 +56,53 @@ function readProgress() {
     return {};
   }
 }
+function writeProgress(p) {
+  try {
+    localStorage.setItem(PROGRESS_KEY, JSON.stringify(p));
+  } catch {
+    /* 保存不可でも進行は続ける */
+  }
+}
 export function isEidosProgress(flag) {
   return !!readProgress()[flag];
 }
 export function setEidosProgress(flag, value) {
   const p = readProgress();
   p[flag] = !!value;
+  writeProgress(p);
+  // アカウントにも保存（端末をまたいで進捗を引き継ぐ）。saveMyPreferenceは未ログインなら何もせず、
+  // 列が未追加でもこの1件が失敗するだけで他に影響しない。fire-and-forgetで進行は妨げない。
+  saveMyPreference({ eidos_progress: p }).catch(() => {});
+}
+
+// アカウントに保存された進捗をローカルへマージする。フラグはOR結合（どちらかでtrueならtrue）＝
+// 一方の端末で進めた分もアカウント経由で反映され、ログイン前にローカルで進めた分も失わない。
+function applyAccountEidosProgress(accountProgress) {
+  if (!accountProgress || typeof accountProgress !== "object") return;
+  const local = readProgress();
+  const merged = { ...local };
+  let changed = false;
+  for (const [k, v] of Object.entries(accountProgress)) {
+    const nv = !!merged[k] || !!v;
+    if (nv !== !!merged[k]) changed = true;
+    merged[k] = nv;
+  }
+  writeProgress(merged);
+  // アカウント側とローカルが食い違っていたら書き戻して両者を収束させる。
+  const accountKeys = Object.keys(accountProgress);
+  const localExtra = Object.keys(merged).some((k) => merged[k] && !accountKeys.includes(k));
+  if (changed || localExtra) saveMyPreference({ eidos_progress: merged }).catch(() => {});
+}
+
+// 物語チュートリアルを始める前に、アカウントの進捗をローカルへ取り込む（別端末で進めた分を
+// 引き継ぐ）。ユーザー報告2026-08-17「PCで最後までやったのにスマホだと最初から」の修正。
+// 未ログイン/列未追加なら fetchMyEidosProgress が null を返し、何もしない（従来通りローカルのみ）。
+export async function syncEidosProgressFromAccount() {
   try {
-    localStorage.setItem(PROGRESS_KEY, JSON.stringify(p));
+    const accountProgress = await fetchMyEidosProgress();
+    if (accountProgress) applyAccountEidosProgress(accountProgress);
   } catch {
-    /* 保存不可でも進行は続ける */
+    /* 取得できなくても物語は続行（ローカルの進捗で判断） */
   }
 }
 export function getEidosProgress() {
@@ -369,6 +411,9 @@ async function onOperationTutorialComplete() {
 // openHome: 操作チュートリアルを終了/中断した時、および各分岐でホームへ戻る時の戻り先。
 export async function startEidosStory({ openHome } = {}) {
   homeOpener = () => openHome?.();
+  // 別端末で進めた進捗をアカウントから取り込んでから出し分ける（ユーザー報告2026-08-17
+  // 「PCで最後までやったのにスマホだと最初から」の修正。進捗フラグを読む前にawaitで確実に反映）。
+  await syncEidosProgressFromAccount();
   // 自席を解決してキャッシュ（名前入力の初期値・話者名の解決に使う。ローカルは"A"）。
   try {
     const { getSelfSeat } = await import("./online.js");
