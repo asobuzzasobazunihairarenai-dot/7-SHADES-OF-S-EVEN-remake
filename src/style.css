@@ -15565,6 +15565,9 @@ body.opening-screen-active.is-admin-user #smoke-test-launch-btn {
   color: #fff;
   border-color: transparent;
 }
+.smoke-test-run.smoke-test-online {
+  background: #0d9488;
+}
 .smoke-test-close {
   background: rgba(255, 255, 255, 0.06);
   color: #e9eef4;

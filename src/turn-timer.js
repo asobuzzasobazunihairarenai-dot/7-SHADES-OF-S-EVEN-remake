@@ -75,7 +75,9 @@ import { logAction } from "./action-log.js";
 // 対局が始まっていない間は、従来通り自分のadmin.jsのローカル設定を使う（getPlayerName等が
 // 既に使っている「オンラインなら同期値優先、無ければローカル値」というこのプロジェクト
 // 共通のパターンを踏襲）。
-function isTurnTimerEnabled() {
+// export: オンラインスモーク監視（smoke-test-runner.js）が「この部屋はタイマーが有効か
+// （＝自動プレイが進む前提を満たすか）」を判定するのに使う。
+export function isTurnTimerEnabled() {
   const synced = isOnlineMode() && getSyncedTimerConfig();
   return synced ? !!synced.enabled : isTurnTimerEnabledLocal();
 }

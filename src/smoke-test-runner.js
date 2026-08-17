@@ -8,7 +8,7 @@
 // 循環import/TDZ回避（[[circular-import-tdz-and-no-cache-bust]]）: 重い依存（cpu-battle.js/
 // admin.js）はボタン押下時に動的importする。state.jsは葉モジュールなので静的importでよい。
 
-import { getState } from "./state.js";
+import { getState, isOnlineMode } from "./state.js";
 import { markCleanExit } from "./crash-blackbox.js";
 import { checkInvariants, countCards } from "./game-invariants.js";
 import { logAction } from "./action-log.js";
@@ -187,6 +187,150 @@ async function runInAppSmokeTest(onLog, { runToCompletion = false } = {}) {
   return { pass, reason, turnsReached: lastTurn, errors, invariantViolations };
 }
 
+// オンライン対戦の監視モード（レベル1。ユーザー相談2026-08-17「2ブラウザでスモークを回して
+// オンライン特有のバグを拾いたい」）。ローカルスモークと違い、対局は開始しない／盤面を作り替え
+// ない——既に2ブラウザで「タイマー＋疑似CPU」を有効にして始めたオンライン対戦に“この画面だけ”を
+// アタッチして、自クライアント側のエラー・詰み・不変条件違反を監視する。オンライン特有の経路
+// （Edge Functionのreduce・broadcast同期・version_conflict・オンライン版ゲート侵攻modal・
+// 優先権同期・ランク結果反映）は、この「実際に通信させて片側を監視」でしか踏めない。
+// 各ブラウザで押せば両視点から監視できる。shouldStop() が true を返したら中断する。
+const ONLINE_STALL_MS = 90000; // オンラインはネット遅延＋重い効果ターンがあるためローカルより緩め
+const ONLINE_HARD_TIMEOUT_MS = 20 * 60 * 1000; // 監視は最長20分（決着しなくても異常なしなら終了）
+const ONLINE_WAIT_START_MS = 5 * 60 * 1000; // 対局開始をこの時間まで待つ
+
+async function runOnlineSmokeMonitor(onLog, shouldStop) {
+  const errors = [];
+  const origConsoleError = console.error;
+  const capture = (msg) => {
+    const s = String(msg).slice(0, 300);
+    errors.push(s);
+    onLog?.("⚠ " + s);
+  };
+  console.error = (...a) => {
+    try { capture(a.map((x) => (typeof x === "string" ? x : (() => { try { return JSON.stringify(x); } catch { return String(x); } })())).join(" ")); } catch {}
+    origConsoleError(...a);
+  };
+  const onErr = (e) => capture("UNCAUGHT: " + (e?.message ?? e));
+  const onRej = (e) => capture("REJECTION: " + (e?.reason?.message ?? e?.reason ?? e));
+  window.addEventListener("error", onErr);
+  window.addEventListener("unhandledrejection", onRej);
+
+  let pass = false;
+  let reason = "";
+  let lastTurn = 0;
+  const invariantViolations = [];
+  const seenViolations = new Set();
+  try {
+    // このクライアントの自席も自動化しておく（部屋が疑似CPUで開始されていれば続き108で既に
+    // includeSelf は自動ONだが、念のための保険。無害＝二重に設定しても同じ）。
+    try {
+      const admin = await import("./admin.js");
+      admin.setPseudoCpuIncludeSelf?.(true);
+    } catch {}
+    const online = await import("./online.js");
+    const tt = await import("./turn-timer.js");
+    const selfSeat = () => { try { return online.getSelfSeat?.(); } catch { return undefined; } };
+
+    onLog?.("オンライン対戦の開始を待っています…");
+    onLog?.("（2ブラウザで『⏳ターンタイマー』＋『🤖疑似CPU』の両方を有効にした部屋を作成→参加→開始してください）");
+    const waitStart = Date.now();
+    while (!(isOnlineMode() && getState().turnPlayer)) {
+      if (shouldStop()) { reason = "監視を停止しました（対局開始前）"; pass = true; return { pass, reason, turnsReached: 0, errors, invariantViolations }; }
+      if (Date.now() - waitStart > ONLINE_WAIT_START_MS) {
+        reason = "オンライン対戦が始まりませんでした（5分待機）";
+        return { pass: false, reason, turnsReached: 0, errors, invariantViolations };
+      }
+      await wait(1000);
+    }
+    onLog?.(`オンライン対戦を検知（自分の席=${selfSeat() ?? "?"}）。監視を開始します。`);
+    // 自動プレイの前提（この席が疑似CPUで駆動される＋タイマー有効）を確認して、満たさなければ警告。
+    const willAutoPlay = !!tt.isPseudoCpuTarget?.(selfSeat());
+    const timerOn = !!tt.isTurnTimerEnabled?.();
+    if (!willAutoPlay || !timerOn) {
+      onLog?.("⚠ この画面は自動プレイ条件を満たしていません（部屋を『タイマー＋疑似CPU』有効で開始する必要があります）。進行が止まる場合はこの設定を確認してください。");
+    }
+
+    const start = Date.now();
+    let lastProgressAt = Date.now();
+    let lastStateSig = "";
+    while (true) {
+      await wait(1500);
+      if (shouldStop()) { reason = `監視を停止しました（${lastTurn}ターンまで異常なし）`; pass = errors.length === 0 && invariantViolations.length === 0; break; }
+      if (!isOnlineMode()) { reason = `オンライン対戦から抜けました（${lastTurn}ターンまで異常なし）`; pass = errors.length === 0 && invariantViolations.length === 0; break; }
+      if (errors.length) { reason = "コンソールエラー/例外を検知"; break; }
+      const s = getState();
+      const turn = s.turnNumber ?? 0;
+      const tokens = Array.isArray(s.tokens) ? s.tokens.length : 0;
+      if (tokens < 40) { capture(`盤面破損: tokens=${tokens}`); reason = "盤面が壊れています"; break; }
+
+      const stateSig = stateActivitySignature(s);
+      if (stateSig !== lastStateSig) { lastStateSig = stateSig; lastProgressAt = Date.now(); }
+
+      // 不変条件（続き164）。オンラインは各クライアントが“マスク済み”の状態しか見えない
+      // （相手の手札・裏向きカードの中身がnull／山は枚数だけ）ため、カード総数の保存は検査
+      // できない＝baselineCardCount を渡さない（構造チェックのみ）。渡さなければ card-conservation は
+      // 自動でスキップされ、unknown-cardid は null をスキップ・lock-color はロックが常に公開のため安全。
+      try {
+        const viols = checkInvariants(s);
+        for (const vio of viols) {
+          const sig = vio.code + "|" + (vio.detail ? JSON.stringify(vio.detail) : vio.msg);
+          if (seenViolations.has(sig)) continue;
+          seenViolations.add(sig);
+          const entry = { turn, ...vio };
+          invariantViolations.push(entry);
+          try { logAction("diag-invariant-violation", entry); } catch {}
+          onLog?.(`❗不変条件違反[${vio.code}] T${turn}: ${vio.msg}`);
+        }
+      } catch {}
+
+      let won = false;
+      try {
+        const pa = await import("./phase-automation.js");
+        won = typeof pa.hasAnyoneWon === "function" ? pa.hasAnyoneWon() : false;
+      } catch {}
+      if (won) { pass = errors.length === 0 && invariantViolations.length === 0; reason = `決着（${turn}ターン）`; lastTurn = turn; break; }
+      if (turn > lastTurn) {
+        lastTurn = turn;
+        lastProgressAt = Date.now();
+        onLog?.(`ターン ${turn}（${s.turnPlayer}）／盤面 ${tokens}`);
+      }
+      if (document.hidden) lastProgressAt = Date.now();
+      if (Date.now() - lastProgressAt > ONLINE_STALL_MS) {
+        reason = `詰み：${ONLINE_STALL_MS / 1000}秒どのアクションも起きませんでした（${lastTurn}ターン。タイマー/疑似CPUが無効か、どちらかのクライアントが固まっている可能性）`;
+        break;
+      }
+      if (Date.now() - start > ONLINE_HARD_TIMEOUT_MS) {
+        reason = `監視タイムアウト（${lastTurn}ターン、異常なし）`;
+        pass = errors.length === 0 && invariantViolations.length === 0;
+        break;
+      }
+    }
+  } catch (err) {
+    capture("EXCEPTION: " + (err?.message ?? err));
+    reason = "実行時エラー";
+  } finally {
+    console.error = origConsoleError;
+    window.removeEventListener("error", onErr);
+    window.removeEventListener("unhandledrejection", onRej);
+  }
+  if (invariantViolations.length) {
+    const codes = [...new Set(invariantViolations.map((x) => x.code))].join(", ");
+    reason = `${reason}／不変条件違反 ${invariantViolations.length}件（${codes}）`;
+    onLog?.(`❗不変条件違反が合計 ${invariantViolations.length}件（${codes}）— 状態が壊れています`);
+  }
+  if (!pass) {
+    try {
+      const al = await import("./action-log.js");
+      const tail = (al.getActionLogText?.() ?? "").split("\n").filter(Boolean).slice(-25);
+      if (tail.length) {
+        onLog?.("──── アクションログ末尾（診断用） ────");
+        for (const line of tail) onLog?.(line);
+      }
+    } catch {}
+  }
+  return { pass, reason, turnsReached: lastTurn, errors, invariantViolations };
+}
+
 // 詰みの原因究明用に「全アクションログ＋エラー＋結果＋環境情報」を1つのテキストにまとめる。
 // 末尾だけだと到達コンボ・接触の連鎖など“数十手前から始まる”原因を追い切れないことがあるため、
 // 全ログを丸ごと渡せるようにする（ユーザー指摘2026-08-14）。
@@ -274,7 +418,7 @@ export function openSmokeTestPanel() {
 
   const desc = document.createElement("div");
   desc.className = "smoke-test-desc";
-  desc.textContent = "CPU戦を両席とも自動で回し、エラー・盤面破損・不変条件違反・詰み（一定時間まったく状態が変化しない）を監視します。「8ターン点検」は素早い健全性チェック、「決着まで実行」は勝敗が出るまで丸ごと1局回して終盤まで網羅します。実行すると今の画面は対局に切り替わります。";
+  desc.textContent = "CPU戦を両席とも自動で回し、エラー・盤面破損・不変条件違反・詰み（一定時間まったく状態が変化しない）を監視します。「8ターン点検」は素早い健全性チェック、「決着まで実行」は勝敗が出るまで丸ごと1局回して終盤まで網羅、「連続実行」は指定回数まとめて回して間欠バグの再現率を測ります（実行すると今の画面は対局に切り替わります）。「🌐 オンライン監視」は対局を開始せず、2ブラウザで『タイマー＋疑似CPU』を有効にして始めたオンライン対戦にこの画面をアタッチして、オンライン特有のバグ（同期・ゲート侵攻modal・優先権 等）を監視します。";
   panel.appendChild(desc);
 
   const logEl = document.createElement("div");
@@ -333,6 +477,13 @@ export function openSmokeTestPanel() {
   repeatBtn.type = "button";
   repeatBtn.className = "smoke-test-run";
   repeatBtn.textContent = "🔁 連続実行";
+  // オンライン監視（レベル1。ユーザー相談2026-08-17）。ローカル対戦は開始せず、既に始めた
+  // オンライン対戦にこの画面をアタッチして監視する。
+  const onlineBtn = document.createElement("button");
+  onlineBtn.type = "button";
+  onlineBtn.className = "smoke-test-run smoke-test-online";
+  onlineBtn.textContent = "🌐 オンライン監視";
+  onlineBtn.title = "2ブラウザで始めたオンライン対戦を監視（対局は開始しません）";
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.className = "smoke-test-close";
@@ -345,6 +496,7 @@ export function openSmokeTestPanel() {
   actions.appendChild(runBtn);
   actions.appendChild(runFullBtn);
   actions.appendChild(repeatBtn);
+  actions.appendChild(onlineBtn);
   actions.appendChild(closeBtn);
   panel.appendChild(actions);
 
@@ -397,6 +549,7 @@ export function openSmokeTestPanel() {
     runBtn.remove();
     runFullBtn.remove();
     repeatBtn.remove();
+    onlineBtn.remove();
     repeatRow.remove();
     closeBtn.disabled = false;
     closeBtn.textContent = "🔄 タイトルに戻る（再読み込み）";
@@ -410,6 +563,7 @@ export function openSmokeTestPanel() {
     runBtn.disabled = true;
     runFullBtn.disabled = true;
     repeatBtn.disabled = true;
+    onlineBtn.disabled = true;
     repeatInput.disabled = true;
     closeBtn.disabled = true;
     (options.runToCompletion ? runFullBtn : runBtn).textContent = "実行中…";
@@ -431,6 +585,7 @@ export function openSmokeTestPanel() {
     const toCompletion = repeatFullCheck.checked;
     runBtn.disabled = true;
     runFullBtn.disabled = true;
+    onlineBtn.disabled = true;
     repeatInput.disabled = true;
     repeatFullCheck.disabled = true;
     closeBtn.disabled = true;
@@ -474,9 +629,37 @@ export function openSmokeTestPanel() {
     swapToReload();
   };
 
+  // オンライン監視（レベル1）。ローカル対戦は開始せず、既に始めた（or これから始める）
+  // オンライン対戦にこの画面をアタッチして監視する。実行中は「⏹ 監視停止」に転用。
+  let cancelOnline = false;
+  const runOnlineMonitor = async () => {
+    runBtn.disabled = true;
+    runFullBtn.disabled = true;
+    repeatBtn.disabled = true;
+    repeatInput.disabled = true;
+    repeatFullCheck.disabled = true;
+    closeBtn.disabled = true;
+    resultEl.textContent = "";
+    resultEl.className = "smoke-test-result";
+    cancelOnline = false;
+    onlineBtn.textContent = "⏹ 監視停止";
+    onlineBtn.onclick = () => {
+      cancelOnline = true;
+      onlineBtn.disabled = true;
+      onlineBtn.textContent = "停止中…";
+    };
+    addLog("🌐 オンライン監視を開始します。");
+    const res = await runOnlineSmokeMonitor(addLog, () => cancelOnline);
+    resultEl.classList.add(res.pass ? "is-pass" : "is-fail");
+    resultEl.textContent = res.pass ? `✅ 異常なし — ${res.reason}` : `❌ 検出 — ${res.reason}`;
+    addDiagnosticsButtons(await collectFullDiagnostics(res));
+    swapToReload();
+  };
+
   runBtn.addEventListener("click", () => runTest({ runToCompletion: false }));
   runFullBtn.addEventListener("click", () => runTest({ runToCompletion: true }));
   repeatBtn.addEventListener("click", runRepeated);
+  onlineBtn.addEventListener("click", runOnlineMonitor);
 
   document.body.appendChild(panel);
 }
