@@ -14473,3 +14473,22 @@ FKエラー）。#179の同一アカウント検知では説明が付かない�
 - **ユーザー側の作業が必要**: `supabase_setup_so7.sql`をSupabase SQL Editorで実行する（今回の`so7_create_room`の
   引数変更＋続き182の`so7_ranked_get_self`のdrop/recreateを含む。ファイル全体＝再実行安全）。Edge Functionの
   変更は無いため再デプロイ不要。
+
+### 2026-08-17（続き184）：ランク戦の固定ルールを「タイマー・マイデッキ戦・白黒あり・ブースト 全ON」に統一
+
+ユーザー決定「『ランク戦にする』場合はタイマー・マイデッキ戦・白黒カード・ブーストのオンを強制。通常の
+（マッチメイクの）ランク戦もこの4つをオンにする仕様に変更」。続き183のフレンドランク戦は「タイマーON・
+無色なし・ブーストなし・マイデッキなし」だったが、この決定に合わせてフレンド／マッチメイク両方を4つ全ONに揃えた。
+- **フレンドランク戦（`online-ui.js`の`renderRoomStatus`ランク分岐）**: 開始時の`startGame`を
+  `{timerEnabled:true, includeBlackWhite:true, boost:true, myDeckMode:true}`に変更（以前は無色false・boost false・
+  myDeck無し）。`myDeckMode:true`かつ`skipDeckSelection`を渡さないので、開始すると各プレイヤーへデッキ選択
+  オーバーレイ（`runDeckSelectionPhase`、broadcastで全員に出る既存の仕組み）が出る。作成フォームの注記・
+  待機画面の注記も「タイマー・マイデッキ戦・白黒あり・ブースト全ON」に更新。
+- **マッチメイクのランク戦（`ranked-match.js`）**: `startGame`の`includeBlackWhite:false`→`true`、`boost:false`→
+  `true`に変更（`myDeckMode:true`・`timerEnabled:true`・`skipDeckSelection:true`は元から）。BOOTSTRAP_GAMEの
+  includeBlackWhite/boostはアクションペイロードで送るため、`so7_ranked_ready`（SQL）側の変更は不要
+  （`my_deck_mode=true`は元から立っている）。
+- **docs/ranked-spec.md**: 「マイデッキ戦・自動処理必須・タイマー必須・無色なし」を「4つ全ON（タイマー・
+  マイデッキ・白黒あり・ブースト）＋自動処理必須」に更新。フレンドランク戦の節も同様に修正。
+- **検証**: ブラウザで作成フォームの「🏆 ランク戦にする」注記がマイデッキ戦・白黒あり・ブーストを含むことを
+  実測。`node --check`（online-ui.js/ranked-match.js）通過。実際の対局での4設定反映は2アカウント＋SQL実行後に確認。

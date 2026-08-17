@@ -360,11 +360,13 @@ async function enterRankedGame(gameId, opponentUserId) {
     // 二重BOOTSTRAP防止: user_idがアルファベット順で先の方だけ開始をトリガーする
     // （maybeTriggerRematchと同じ考え方）。もう片方は相手のBOOTSTRAPのhydrateで盤面が出る。
     if (myUserId && opponentUserId && myUserId < opponentUserId) {
+      // ランク戦の固定ルール（ユーザー決定2026-08-17）: タイマー・マイデッキ戦・白黒（無色）カード・
+      // ブーストモードを全てON。フレンドランク戦（online-ui.js）と揃える。
       await startGame(gameId, {
-        includeBlackWhite: false,
+        includeBlackWhite: true,
         timerEnabled: true,
         pseudoCpuModeEnabled: false,
-        boost: false,
+        boost: true,
         myDeckMode: true,
         skipDeckSelection: true, // 席に既にデッキがある（enqueue時に確定）
       });

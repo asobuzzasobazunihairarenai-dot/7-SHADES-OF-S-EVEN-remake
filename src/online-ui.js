@@ -746,7 +746,7 @@ async function renderRoomChoice(user, myGeneration) {
   rankedRow.appendChild(rankedLabel);
   const rankedNote = document.createElement("div");
   rankedNote.style.cssText = "font-size: 0.72rem; color: #94a3b8; margin: -0.2rem 0 0.4rem 1.4rem; display: none;";
-  rankedNote.textContent = "タイマー・自動処理は必須。公開一覧には出ないので、部屋コードを相手に共有してください。";
+  rankedNote.textContent = "タイマー・マイデッキ戦・白黒カードあり・ブーストを全てONで固定。公開一覧には出ないので、部屋コードを相手に共有してください。";
   rankedCheckbox.addEventListener("change", () => {
     rankedNote.style.display = rankedCheckbox.checked ? "block" : "none";
   });
@@ -1013,18 +1013,22 @@ async function renderRoomStatus(gameId, myGeneration) {
         waitingBox.appendChild(readyText);
         const rulesNote = document.createElement("div");
         rulesNote.style.cssText = "font-size: 0.76rem; color: #cbd5e1; margin-bottom: 0.6rem; line-height: 1.4;";
-        rulesNote.textContent = "タイマー・自動処理は必須、無色カードなしで開始します。結果は勝者+・敗者−でレートに反映されます。";
+        rulesNote.textContent = "ランク戦は タイマー・マイデッキ戦・白黒（無色）カードあり・ブースト を全てONで固定します。開始するとまずデッキ選択になります。結果は勝者+・敗者−でレートに反映されます。";
         waitingBox.appendChild(rulesNote);
         const startBtn = textButton("🏆 ランク戦を開始する");
         startBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box;";
         startBtn.addEventListener("click", async () => {
           startBtn.disabled = true;
           try {
+            // ランク戦の固定ルール（ユーザー決定2026-08-17）: タイマー・マイデッキ戦・白黒カード・
+            // ブーストを全てON。myDeckMode:true かつ skipDeckSelection を渡さないので、開始時に
+            // 各プレイヤーへデッキ選択オーバーレイが出る（runDeckSelectionPhase）。
             await startGame(gameId, {
               timerEnabled: true,
-              includeBlackWhite: false,
+              includeBlackWhite: true,
+              boost: true,
+              myDeckMode: true,
               pseudoCpuModeEnabled: false,
-              boost: false,
             });
             closePanel();
           } catch (err) {
