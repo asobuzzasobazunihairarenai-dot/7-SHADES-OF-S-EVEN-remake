@@ -14669,3 +14669,35 @@ FKエラー）。#179の同一アカウント検知では説明が付かない�
 - **ユーザー側の作業が必要**: `supabase_setup_so7.sql`（続き188の得点計算＋今回のマッチメイク改修。
   `so7_ranked_pending_match`のdrop&recreate・各RPCの再作成を含む。ファイル全体＝再実行安全）をSupabase
   SQL Editorで実行する必要がある。Edge Functionの変更は無いため再デプロイ不要。
+
+### 2026-08-17（続き191）：オンラインのゲート侵攻「手札を奪う」演出が疑似CPU/AFKで約90秒固まる不具合＋SMOKE-AUTO-TEST部屋が進行中の対局から消えない不具合を修正
+
+ユーザーがオンラインのスモークテスト（2ブラウザ自己対戦）を実行し、2件の不具合を報告（両アカウントの
+アクションログ添付）。
+- **① ゲート侵攻の奪取演出が約90秒固まる（確定原因・修正）**: アクションログで、
+  `diag-gate-invasion-steal-anim`（22:44:18）から次の「奪いました」ステップ（22:45:51）まで**両ブラウザとも
+  約93秒**何も起きず、その後スモークテストの90秒スタン検知でRESET_GAME（＝ユーザーが見た「盤面が
+  リセットされた」）していた。原因は`main.js`の`playGateInvasionStealRitual`（オンラインのゲート侵攻の奪取
+  儀式演出）が、**攻撃側が1枚ずつクリックしてめくる**設計で、クリックが無い時の保険が**90秒のabandonTimer**
+  だったこと。他の効果ピッカー（`activeEffectPicker`）は疑似CPUのtickが自動解決するが、この奪取儀式は
+  独自のクリック待ち機構で`activeEffectPicker`に登録されていないため、疑似CPU攻撃側は誰もクリックせず
+  90秒間固まっていた。攻撃側が疑似CPU/AFK代行対象（`isPseudoCpuTarget(attacker)`）の場合、700ms間隔で
+  自動的にめくる`autoFlipTimer`を追加（人間の攻撃側は従来通りクリックでじらせ、席を外したら90秒の
+  abandonTimerで進む）。これでスモーク/CPU戦のゲート侵攻がここで固まらなくなる。
+- **② SMOKE-AUTO-TEST部屋が「進行中の対局」に残り「抜ける」ボタンで消えない（確定原因・修正）**:
+  `so7_leave_room`は対局中（status≠open）の部屋では座席を削除しない仕様（続き107の「誤って離れても
+  再参加で続きから」）のため、対局が始まったSMOKE部屋がスモーク終了後も「進行中の対局」に残り続け、
+  さらに一覧の「抜ける」（`leaveGameById`→`so7_leave_room`）も同じ理由で座席を消せず無反応だった。
+  `supabase_setup_so7.sql`の`so7_leave_room`に`p_force boolean default false`を追加し（引数追加のため
+  旧`(text)`をdropしてから`(text,boolean)`を作成、既存のleaveGame()の1引数呼び出しはデフォルトfalseで
+  従来通り）、force=trueなら対局中でも座席を強制削除するようにした。クライアント側は`leaveGameById`を
+  force=true（「進行中の対局」の抜ける＝完全放棄の意図に合致）に変更＝ユーザーの「抜けるボタンで
+  消えない」を直接修正。スモークテスト（`smoke-test-runner.js`）も、後始末（`smokeLeaveCurrent`）と起動時
+  （`cleanupLingeringSmokeRooms`、`getMyActiveGames`のSMOKE部屋をforce削除）でSMOKE部屋を確実に消すように
+  した（2回目の監視が「残り部屋」で始まらない問題も解消）。
+- **検証**: `node --check`（main.js/online.js/smoke-test-runner.js）通過・SQLのドル引用符バランス（偶数72）
+  維持・アプリ正常ロード。実際のオンライン2ブラウザでの再確認（ゲート侵攻がすぐ進む・SMOKE部屋が残らない・
+  「抜ける」で消える）は、下記SQL実行後にお願いしたい。
+- **ユーザー側の作業が必要**: `supabase_setup_so7.sql`（②の`so7_leave_room`のdrop&再作成を含む。ファイル
+  全体＝再実行安全。続き188/190のランク改修も同じファイルに入っている）をSupabase SQL Editorで実行する
+  必要がある。Edge Functionの変更は無いため再デプロイ不要（①はクライアントのみ）。

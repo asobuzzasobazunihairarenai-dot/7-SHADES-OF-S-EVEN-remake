@@ -421,7 +421,11 @@ grant update (name) on so7_games to authenticated;
 -- SECURITY DEFINER関数にまとめる——so7_create_room/so7_join_roomと同じ理由（自分の座席を
 -- 削除した直後は「自分がこの部屋の参加者である」という条件のRLSがもう成立しなくなるため、
 -- 通常のRLSポリシーだけでは「空になった部屋を削除する」権限を素直に表現しづらい）。
-create or replace function so7_leave_room(p_game_id text)
+-- 引数が増えた（p_force追加）ため旧 (text) は drop してから (text, boolean default) を作る
+-- （1引数呼び出しがambiguousにならないように）。既存の leaveGame() の1引数RPC呼び出しは
+-- p_force のデフォルト(false)で従来通り動く。
+drop function if exists so7_leave_room(text);
+create or replace function so7_leave_room(p_game_id text, p_force boolean default false)
 returns void
 language plpgsql
 security definer
@@ -437,7 +441,9 @@ begin
   -- so7_cleanup_stale_rooms()の「対局中は全座席が24時間動きが無い場合のみ削除」という
   -- 既存ルールにそのまま任せる。ロビー（開始前）の部屋は今まで通り即座に座席を削除し、
   -- 誰もいなくなれば部屋ごと削除する。
-  if game_status is not null and game_status <> 'open' then
+  -- ただし p_force=true（スモークテストの後始末等）の時は、対局中でも座席を削除する
+  -- （＝進行中の対局リストに残り続けないよう強制的に抜ける）。
+  if not p_force and game_status is not null and game_status <> 'open' then
     return;
   end if;
   delete from so7_game_seats where game_id = p_game_id and user_id = auth.uid();
@@ -446,8 +452,8 @@ begin
   end if;
 end;
 $$;
-revoke execute on function so7_leave_room(text) from public;
-grant execute on function so7_leave_room(text) to authenticated;
+revoke execute on function so7_leave_room(text, boolean) from public;
+grant execute on function so7_leave_room(text, boolean) to authenticated;
 
 -- 「ブラウザを閉じて放置」を検知するため、参加中のクライアントが一定間隔で自分の座席の
 -- last_seenを更新し続ける（online.jsのハートビート。ロビーでも対局中でも、部屋を離れる

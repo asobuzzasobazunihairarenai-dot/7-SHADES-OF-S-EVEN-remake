@@ -1504,9 +1504,12 @@ export async function getMyActiveGames() {
 // （放棄部屋が一覧に残り続ける件への対応）。leaveGame()は「今いる部屋」を離れる用でローカル状態も
 // 片付けるが、こちらは今の画面とは無関係な別の部屋の座席をサーバー側で消すだけ。so7_leave_roomは
 // 呼び出しユーザー(auth.uid())の座席を消し、全員抜けたら部屋自体も片付ける（SECURITY DEFINER）。
-export async function leaveGameById(gameId) {
+// 「途中退出した部屋」一覧の「抜ける」は“完全に放棄する”意図なので force=true で座席を
+// 強制削除する（対局中でも消す）。これをしないと so7_leave_room が対局中の座席を残すため
+// 「抜けるボタンを押しても進行中の対局リストから消えない」不具合になる（ユーザー報告2026-08-17）。
+export async function leaveGameById(gameId, force = true) {
   if (!client || !gameId) return;
-  const { error } = await client.rpc("so7_leave_room", { p_game_id: gameId });
+  const { error } = await client.rpc("so7_leave_room", { p_game_id: gameId, p_force: force });
   if (error) throw error;
 }
 

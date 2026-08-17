@@ -349,6 +349,29 @@ const ONLINE_MATCH_WAIT_MS = 5 * 60 * 1000; // マッチ成立をこの時間ま
 const MATCH_ATTEMPT_FIND2_MS = 120000;
 const MATCH_ATTEMPT_START_MS = 30000; // 1回の試行で対局が始まるのをこの時間まで待つ
 
+// スモークの後始末: 今いる部屋を離れる。対局が既に始まっている(status<>open)と so7_leave_room は
+// 座席を残す（再開用の仕様）ため、SMOKE-AUTO-TEST 部屋が「進行中の対局」に残り続ける（ユーザー
+// 報告2026-08-17「抜けるボタンを押しても消えない」）。そこで captured gameId を force 付きで強制
+// 削除して確実に消す。
+async function smokeLeaveCurrent(online) {
+  let gid = null;
+  try { gid = online.getCurrentGameId?.() ?? null; } catch { /* noop */ }
+  try { await online.leaveGame(); } catch { /* noop */ }
+  if (gid) { try { await online.leaveGameById(gid, true); } catch { /* noop */ } }
+}
+
+// 前回の中途半端な終了で「進行中の対局」に残った SMOKE-AUTO-TEST 部屋を全て強制削除する。
+async function cleanupLingeringSmokeRooms(online) {
+  try {
+    const active = await online.getMyActiveGames();
+    for (const g of active) {
+      if (g && g.name === SMOKE_ROOM_NAME) {
+        try { await online.leaveGameById(g.id, true); } catch { /* noop */ }
+      }
+    }
+  } catch { /* noop */ }
+}
+
 // 詳細ログ（ユーザー要望2026-08-17「原因が分かるようにログを仕込んでください」）。
 // listOpenRooms が返す SMOKE 部屋の一覧・人数・自分/相手の別・各操作の成否をすべて出す。
 function shortId(id) { return id == null ? "?" : String(id).slice(0, 6); }
@@ -495,7 +518,10 @@ async function runOneTouchOnlineSmoke(onLog, shouldStop) {
 
     // 前回の監視が中途半端に終わっていた場合の“残り座席／購読”をまず片付けてから始める
     // （残った SMOKE-AUTO-TEST 部屋が2回目のマッチを妨げる、というユーザー報告2026-08-17）。
+    // 対局が始まった SMOKE 部屋は so7_leave_room が座席を残すため「進行中の対局」に残り続ける。
+    // 通常の leaveGame に加えて、進行中の対局リストの SMOKE 部屋も force 削除して確実に消す。
     await online.leaveGame().catch(() => {});
+    await cleanupLingeringSmokeRooms(online);
 
     const overallStart = Date.now();
     const failedRooms = new Set(); // 開始しなかった部屋（ゴースト）を覚えて即再入を防ぐ
@@ -517,7 +543,7 @@ async function runOneTouchOnlineSmoke(onLog, shouldStop) {
       if (attempt.status === "started") {
         onLog?.(`対局開始（自分の席=${online.getSelfSeat?.() ?? "?"}）。監視に移ります。`);
         const res = await runOnlineSmokeMonitor(onLog, shouldStop);
-        await online.leaveGame().catch(() => {}); // 後始末（対局が終わっていなければ相手側は残る）
+        await smokeLeaveCurrent(online); // 後始末: 対局中でも SMOKE 部屋の座席を強制削除して残さない
         return res;
       }
       // status === "retry": この部屋は開始しなかった。覚えて抜け、少し待って作り直す。

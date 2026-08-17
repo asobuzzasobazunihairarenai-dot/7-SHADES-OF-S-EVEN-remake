@@ -6497,6 +6497,13 @@ async function playGateInvasionStealRitual(info, onDone) {
       aborted = true;
       onCardsClick();
     }, 90000);
+    // 疑似CPU/AFK代行が攻撃側の場合、誰もクリックしないので短い間隔で自動的にめくる
+    // （90秒のabandonTimerを待たない＝スモークテスト/CPU戦がここで固まらない）。人間の攻撃側は
+    // 従来通りクリックでじらせ、席を外したらabandonTimerで進む。
+    let autoFlipTimer = null;
+    if (isPseudoCpuTarget(attacker)) {
+      autoFlipTimer = setInterval(onCardsClick, 700);
+    }
     for (let i = 0; i < stolenTokens.length; i++) {
       if (!aborted) {
         await new Promise((resolve) => {
@@ -6514,6 +6521,7 @@ async function playGateInvasionStealRitual(info, onDone) {
       await wait(aborted ? 150 : 500);
     }
     clearTimeout(abandonTimer);
+    if (autoFlipTimer) clearInterval(autoFlipTimer);
     cardsWrap.removeEventListener("click", onCardsClick);
 
     title.textContent = "奪いました！";
