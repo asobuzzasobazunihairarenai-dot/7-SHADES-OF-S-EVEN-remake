@@ -23,6 +23,7 @@ import {
   joinRoom,
   startGame,
   captureRankedPreMatchRank,
+  sendPushToUsers,
 } from "./online.js";
 import { openDeckSelect } from "./my-deck-select.js";
 import { playSound } from "./sound.js";
@@ -32,6 +33,8 @@ import {
   startFaviconAlert,
   stopFaviconAlert,
 } from "./browser-notify.js";
+// Web Push（続き198）: 通知許可が取れたら購読して自席subscriptionを保存しておく。
+import { subscribeToPush } from "./push-notify.js";
 import { applyAvatarContent, isImageAvatar } from "./avatar-render.js";
 import { resolveAvatarValue } from "./player-identity.js";
 
@@ -99,6 +102,9 @@ async function beginQueue(resolved) {
   void primeNotifyPermission({
     title: "対戦相手が見つかったら通知します",
     body: "別のタブやアプリを見ていても、対戦相手が見つかった時（対戦開始の確認）に通知でお知らせします。見逃して弾かれるのを防げます。",
+  }).then((perm) => {
+    // 許可が取れたら Web Push を購読（タブ/ブラウザを閉じていてもマッチ成立を受け取れるように）。
+    if (perm === "granted") void subscribeToPush();
   });
 }
 
@@ -286,6 +292,17 @@ async function handlePollResult(res) {
       }
       notifyMatchFound();
       showReadyModal(res);
+      // タブ/ブラウザを閉じている相手にも「対戦相手が見つかった」を届ける（Web Push）。
+      // Notification API（notifyMatchFound）は“タブが生きている間”だけなので、閉じている相手は
+      // これで呼び戻す。両クライアントが送っても、SW側は同じtagで1つにまとまる／サーバー側は
+      // 同じpending_matchのメンバーにしか送らない（濫用防止）。best-effortで失敗は握りつぶす。
+      const oppIds = Array.isArray(res.opponents) ? res.opponents.map((o) => o && o.user_id).filter(Boolean) : [];
+      void sendPushToUsers(oppIds, {
+        title: "▶ 相手が見つかりました！",
+        body: "ランク戦の対戦相手が見つかりました。戻って「対戦開始」を押してください。",
+        url: "./",
+        tag: "so7-ranked-matched",
+      });
     }
     lastState = "matched";
   } else if (state === "ingame") {

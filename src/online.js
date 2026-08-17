@@ -1006,6 +1006,36 @@ export async function awardCpuWinCurrency() {
   return data ?? 0;
 }
 
+// --- Web Push（続き198）: タブ/ブラウザを閉じていても届くプッシュ通知 ------------------------
+// 自席の push subscription（endpoint＋鍵）をサーバーへ保存する（so7_save_push_subscription、
+// SECURITY DEFINER の upsert）。push-notify.js の subscribeToPush から呼ぶ。
+export async function saveMyPushSubscription({ endpoint, p256dh, auth } = {}) {
+  if (!client || !cachedUser || !endpoint) return;
+  const { error } = await client.rpc("so7_save_push_subscription", {
+    p_endpoint: endpoint,
+    p_p256dh: p256dh,
+    p_auth: auth,
+  });
+  if (error) console.error("so7_save_push_subscription failed (未実行のsupabase_setup_so7.sql追加分がある可能性)", error);
+}
+
+// 指定ユーザー（複数可）へプッシュ通知を送る（so7-send-push Edge Function 経由）。相手が
+// タブ/ブラウザを閉じていても届く。ランク戦のマッチ成立時に相手を呼び戻すのに使う。
+// 送信は best-effort（失敗しても呼び出し元のフローは止めない）。
+export async function sendPushToUsers(targetUserIds, { title, body, url, tag } = {}) {
+  if (!client || !cachedUser) return;
+  const ids = (targetUserIds || []).filter(Boolean);
+  if (ids.length === 0) return;
+  try {
+    const { error } = await client.functions.invoke("so7-send-push", {
+      body: { targetUserIds: ids, title, body, url, tag },
+    });
+    if (error) console.error("so7-send-push failed (Edge Function未デプロイ/VAPID未設定の可能性)", error);
+  } catch (err) {
+    console.error("sendPushToUsers failed", err);
+  }
+}
+
 // --- ランク戦（フリーマッチ）。docs/ranked-spec.md参照。SQLのSECURITY DEFINER RPC
 // （so7_ranked_*）の薄いラッパー。キューの2テーブルはRLSで直接読み書き不可・全てRPC経由。--
 

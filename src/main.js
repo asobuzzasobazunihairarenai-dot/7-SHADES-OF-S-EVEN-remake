@@ -192,6 +192,7 @@ import { initSelfStatusRearrange } from "./self-status-rearrange.js";
 import { initInteractionModeToggle } from "./interaction-mode.js";
 import { initDeviceDetect, isTouchPrimaryDevice } from "./device-detect.js";
 import { initRankedNotify } from "./ranked-notify.js";
+import { initPushNotify, subscribeToPush } from "./push-notify.js";
 import { registerRecommendedViewHelper } from "./tablet-2d-warning.js";
 import { registerRenderHelpers, animateFirstCardsDealt, animateBoardFilled } from "./setup-animation.js";
 import {
@@ -12782,6 +12783,13 @@ initSelfStatusRearrange();
 initInteractionModeToggle();
 initDeviceDetect();
 initRankedNotify(); // ランク戦の「待機プレイヤーが現れたら通知」（設定ONの端末のみポーリング開始）
+// Web Push（続き198）: Service Workerを登録（許可が無くても無害）。既に通知許可済みの端末
+// （前回許可した戻りユーザー）は、この時点で購読し直して自席subscriptionを保存しておく
+// （endpointが変わった時の追随＋ログイン直後の再登録のため）。VAPID未設定なら中で無害にスキップ。
+initPushNotify();
+if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+  void subscribeToPush();
+}
 registerRecommendedViewHelper(applyRecommendedMobileZoom); // タブレット2D警告の「おすすめ表示（2D＋拡大）」で盤面拡大
 registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocationElement, setSetupPendingTokenIds });
 registerPieceSkinHelpers({ render });

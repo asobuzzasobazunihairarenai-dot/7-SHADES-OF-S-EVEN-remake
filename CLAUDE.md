@@ -14960,3 +14960,50 @@ SQL Editorで再実行する必要がある**（ファイル全体＝再実行�
 - **検証**: `node --check`（main.js）通過・ブラウザでリロード時コンソールエラー無し・#145の
   ライト化を実測。#139/#140/#141/#143はオンライン専用/盤面拡大時の経路のため、実機の
   2ブラウザでの最終確認が必要。サーバー側（Supabase/Edge Function）の変更は無い。
+
+### 2026-08-18（続き198）：Web Push通知を実装（タブ/ブラウザを閉じていてもランク戦のマッチ成立が届く）
+
+ユーザー要望「タブを閉じても届く本物のプッシュ通知」。browser-notify.js の Notification API は
+“タブが生きている間”だけで、閉じると届かない。ランク戦のレディチェック（対戦開始を押さないと
+弾かれる・時間制限あり）を、別タブどころかブラウザを閉じていても受け取れるよう、Service Worker
+＋Web Push で実装した。docs/ranked-spec.md の「閉じていても届く本物のプッシュ通知（将来枠）」の実装。
+
+- **`sw.js`（リポジトリ直下・新規）**: Service Worker。`push`イベントでOS通知（`showNotification`、
+  `userVisibleOnly:true`購読なので毎回表示が必須）、`notificationclick`で既存タブをフォーカス／
+  無ければアプリを開く。**GitHub Pagesのサブパス配信（…/7-SHADES-OF-S-EVEN-remake/）でもスコープが
+  アプリ全体になるよう、必ずリポジトリ直下に置く**（src/以下だとスコープが/src/に限定される）。
+- **`src/push-notify.js`（新規）**: `initPushNotify()`（起動時にSW登録・許可不要で無害）・
+  `subscribeToPush()`（通知許可granted後に`pushManager.subscribe`して自席subscriptionをサーバー保存・
+  冪等）・`isPushSupported()`/`isPushConfigured()`。**VAPID公開鍵は`VAPID_PUBLIC_KEY`定数（現在空＝
+  機能OFFで害なくスキップ）にユーザーが貼る**。
+- **`src/online.js`**: `saveMyPushSubscription()`（`so7_save_push_subscription` RPC）・
+  `sendPushToUsers(targetUserIds,{title,body,url,tag})`（`so7-send-push` Edge Function呼び出し、best-effort）。
+- **`supabase_setup_so7.sql`**（末尾に追記）: `so7_push_subscriptions`テーブル（endpoint PK・user_id・
+  p256dh・auth_key）＋RLS（authenticatedへのポリシー無し＝直接アクセス不可、保存はRPC・読み取りは
+  Edge Functionのservice roleのみ）＋`so7_save_push_subscription`（SECURITY DEFINERのupsert）。
+- **`supabase/functions/so7-send-push.ts`（新規）**: 認証済みの呼び出し元と**同じ
+  `so7_ranked_pending_match`に居る相手にだけ**送れる（濫用防止）。対象のsubscriptionを引き、
+  `npm:web-push@3.6.7`＋VAPID（env: VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY/VAPID_SUBJECT）で送信。
+  期限切れ(404/410)のsubscriptionは削除。CORS/OPTIONS対応。
+- **配線**: `main.js`起動時に`initPushNotify()`＋既に許可済みなら`subscribeToPush()`。
+  `ranked-match.js`の`beginQueue`で通知許可がgrantedになったら`subscribeToPush()`、**マッチ成立
+  （"matched"遷移）で相手のuser_idへ`sendPushToUsers`**（同じtag"so7-ranked-matched"でNotification API側と
+  1つにまとまる。両クライアントが送っても濫用防止でpending_matchメンバー限定＝無害）。
+- **設計上の割り切り**: 「待機者が現れた」通知は、その相手が閉じていると誰もポーリングしないため
+  プッシュできない（サーバーcron無し）。マッチ成立（片方は必ずポーリング中＝存在）を主トリガーに
+  した。両者とも閉じていると誰もポーリングせずマッチ自体が組まれない（既存の段階的フィルの限界）。
+- **検証**: `node --check`（sw.js/push-notify.js/online.js/ranked-match.js/main.js）通過。ローカルで
+  sw.jsが200＋正しいMIMEで配信・`isPushSupported()`true・push未設定時は`subscribeToPush`が無害に
+  スキップ・SW登録失敗（この自動操作ブラウザ環境のサンドボックス制限）は`.catch`で握りつぶし
+  アプリは正常動作、を確認。**実際のSW登録・購読・プッシュ送受信は、下記セットアップ後の実機
+  （HTTPSのGitHub Pages＋実Chrome＋2アカウント）で確認が必要**。
+- **⚠️ ユーザー側の作業が必要（設定が済むまで機能はOFFのまま＝害なし）**:
+  1. `npx web-push generate-vapid-keys` でVAPID鍵ペアを生成。
+  2. **Public Key** を `src/push-notify.js` の `VAPID_PUBLIC_KEY` に貼る（公開OK・コミット可。教えて
+     もらえれば私が貼ります）。
+  3. **Private Key** を Supabase Edge Function のシークレット `VAPID_PRIVATE_KEY` に、`VAPID_SUBJECT` を
+     `mailto:あなたのメール` に設定（秘密。**私は秘密鍵を扱いません**）。
+  4. `supabase_setup_so7.sql`（末尾の`so7_push_subscriptions`/`so7_save_push_subscription`追記分）を
+     SQL Editorで実行。
+  5. `supabase/functions/so7-send-push.ts` をEdge Functionsダッシュボードでデプロイ（so7-apply-actionと
+     同じ手順）。

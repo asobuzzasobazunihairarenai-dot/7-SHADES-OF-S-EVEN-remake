@@ -2293,3 +2293,43 @@ end;
 $$;
 revoke execute on function so7_ranked_report_result(text, jsonb) from public;
 grant execute on function so7_ranked_report_result(text, jsonb) to authenticated;
+
+-- =====================================================================================
+-- Web Push（続き198）: タブ/ブラウザを閉じていても届くプッシュ通知の購読情報。
+-- クライアントは so7_save_push_subscription（SECURITY DEFINER）でのみ自席の subscription を
+-- 保存できる。読み取りは so7-send-push Edge Function（service role）のみ（authenticated への
+-- select/insert/update ポリシーは付与しない＝直接アクセス不可）。
+-- =====================================================================================
+create table if not exists so7_push_subscriptions (
+  endpoint text primary key,                 -- デバイスのpush endpoint（一意）
+  user_id uuid not null references auth.users(id) on delete cascade,
+  p256dh text not null,                       -- subscription.keys.p256dh
+  auth_key text not null,                     -- subscription.keys.auth（列名は auth スキーマと紛らわしいので auth_key）
+  updated_at timestamptz not null default now()
+);
+create index if not exists so7_push_subscriptions_user_idx on so7_push_subscriptions(user_id);
+alter table so7_push_subscriptions enable row level security;
+-- authenticated への RLS ポリシーは付与しない（＝直接の select/insert/update/delete は拒否）。
+
+-- 自席の push subscription を保存（upsert）。同じ endpoint（同じデバイス）は鍵を更新し、別ユーザーが
+-- 同じデバイスで購読した時は所有者（user_id）を新ユーザーに付け替える。
+create or replace function so7_save_push_subscription(p_endpoint text, p_p256dh text, p_auth text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then raise exception 'not_authenticated'; end if;
+  if p_endpoint is null or length(p_endpoint) = 0 then return; end if;
+  insert into so7_push_subscriptions (endpoint, user_id, p256dh, auth_key, updated_at)
+  values (p_endpoint, auth.uid(), p_p256dh, p_auth, now())
+  on conflict (endpoint) do update
+    set user_id = excluded.user_id,
+        p256dh = excluded.p256dh,
+        auth_key = excluded.auth_key,
+        updated_at = now();
+end;
+$$;
+revoke execute on function so7_save_push_subscription(text, text, text) from public;
+grant execute on function so7_save_push_subscription(text, text, text) to authenticated;
