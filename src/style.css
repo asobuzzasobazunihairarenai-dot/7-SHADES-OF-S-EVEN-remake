@@ -15511,6 +15511,36 @@ body.opening-screen-active.is-admin-user #smoke-test-launch-btn {
 .smoke-test-result.is-fail {
   color: #f87171;
 }
+.smoke-test-repeat-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.7rem;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+  color: #cbd5e1;
+}
+.smoke-test-repeat-label {
+  display: inline-flex;
+  align-items: center;
+}
+.smoke-test-repeat-input {
+  width: 3.4rem;
+  margin: 0 0.15rem;
+  padding: 0.2rem 0.3rem;
+  border-radius: 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: #0f1520;
+  color: #f1f5f9;
+  font-size: 0.85rem;
+  text-align: center;
+}
+.smoke-test-repeat-full {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #aeb8c4;
+}
 .smoke-test-actions {
   display: flex;
   gap: 0.6rem;

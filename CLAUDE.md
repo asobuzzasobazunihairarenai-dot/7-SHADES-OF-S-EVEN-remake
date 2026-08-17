@@ -14135,3 +14135,39 @@ badge/bg top `calc(50% - 4.2rem)`・socket0 13.1%/38.7% 等）ことを確認。
 - **検証**: `node --check`全ファイル通過、アプリ正常ロード・新規コンソールエラー無し、
   eidos-story→onlineの循環import無し（syncEidosProgressFromAccount/fetchMyEidosProgressのexportを
   ブラウザで確認）。実際の端末間同期はSQL実行＋2端末での確認が必要。
+
+### 2026-08-17（続き171）：ゲート侵攻ボーナスをCPUが自動で進めない不具合を修正＋スモークテストの連続実行機能
+
+- **ゲート侵攻処理をCPU（疑似CPU・スモークテスト自己対戦）が自動で進められない不具合を修正**
+  （ユーザー報告＋スモークテスト診断ログ。11ターン目でA→Cのゲート侵攻`steal-hand`直後に
+  `gateInvasionQueueActive:true`のまま完全停止）: 原因は`gate-invasion.js`（ローカル/CPU戦の
+  ゲート侵攻フロー。オンラインは別実装の`gate-invasion-modal.js`）が、各ステップ（①手札奪取
+  ②エターナル獲得③自ゲート帰還）の前に`showBonusStepModal`という**OKクリック待ちの告知モーダル**を
+  出すこと。CPU/疑似CPUモードでは誰もOKを押さないため、奪取の儀式ピック（`activeEffectPicker`を
+  登録する処理）へ**到達する前**に固まっていた（＝tick()の安全網`hasActiveEffectPicker()`も、
+  そもそもpickerが未登録なので発火しようがなかった）。修正: `showBonusStepModal`に攻撃側の座席を
+  渡し、`registerGateInvasionCpuChecker`（`registerEternalAnimHelpers`等と同じ注入パターン）で
+  main.jsから注入した`isCpuSelectingNow(seat)`（＝CPU戦中かつその席が疑似CPU対象。オンライン・
+  人間の席では常にfalse）が真なら、1秒後に自動でOKを押して次のステップへ進める。奪取の儀式ピック
+  （opponentHand/opponentHandMulti）と「奪った」中央モーダルは元々タイムアウト自動解決・自動消滅
+  するため、この告知モーダルの自動送りだけでゲート侵攻の全ステップがCPUで流れる。CPU戦で人間(A)が
+  攻撃側の場合は`isPseudoCpuTarget(A)`がfalse＝従来通り人間がOKを押す（回帰なし）。
+  - エターナル獲得ステップは、演出ON時は`showBonusStepModal`ではなく自動完了する演出
+    （`playEternalAcquisitionAnim`）を使うため元々自動進行していた（演出OFF時のフォールバックの
+    告知モーダルにも今回の自動送りが効く）。
+- **スモークテストに「連続実行」機能を追加**（ユーザー要望「何回も連続でテスト回す機能も欲しい」）:
+  `smoke-test-runner.js`のパネルに、回数入力（既定5・1〜50）＋「🔁 連続実行」ボタン＋「各回を
+  決着まで（遅い）」チェックを追加。指定回数まとめて自己対戦を回し（既定は8ターン点検の高速モード。
+  「詰み」等はごくたまに起きる間欠バグなので再現率を測るのに有用）、実行中は同ボタンが「⏹ 停止」に
+  変わり途中打ち切り可能。終了後に`N/M回 PASS`を表示し、**最初に失敗した回の診断情報だけ**コピー/
+  保存ボタンで出せる（原因究明用）。各回は`startCpuBattle`→`runCpuBattleSetup`が`resetGame`込みで
+  盤面を作り直すため、連続呼び出しでも独立して回る（console.error横取り・監視リスナーも1回ごとに
+  try/finallyで復元）。コピー/ダウンロードのボタン生成・「タイトルへ戻る」への差し替えは単発実行と
+  共通ヘルパー（`addDiagnosticsButtons`/`swapToReload`）に切り出して共有。
+- **検証**: `node --check`全ファイル通過、アプリ正常ロード・新規コンソールエラー無し。
+  `registerGateInvasionCpuChecker`/`openSmokeTestPanel`のexportが循環importなく解決すること、
+  スモークパネルに連続実行の入力・ボタン・チェックが正しく描画されること（アクションボタンが
+  「8ターン点検／決着まで実行／連続実行／閉じる」の4つ）をブラウザで実測。ゲート侵攻の自動進行の
+  実挙動自体は、疑似CPU自己対戦がタイマー駆動で背景タブでは強くスロットルされるためこの環境での
+  通し確認は困難だが、停止点が`showBonusStepModal`（＝pickerより前）であることが診断ログで確定して
+  おり、その4箇所すべてに正しいCPU判定付きの自動送りを入れた。サーバー側（Supabase）の変更は無い。

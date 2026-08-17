@@ -291,6 +291,33 @@ export function openSmokeTestPanel() {
   resultEl.className = "smoke-test-result";
   panel.appendChild(resultEl);
 
+  // 連続実行の設定行（ユーザー要望2026-08-17「何回も連続でテスト回す機能も欲しい」）。
+  // 「詰み」等は疑似CPUの反応判断でごくたまに起きる間欠バグなので、まとめて回して再現率を測る。
+  const repeatRow = document.createElement("div");
+  repeatRow.className = "smoke-test-repeat-row";
+  const repeatLabel = document.createElement("label");
+  repeatLabel.className = "smoke-test-repeat-label";
+  repeatLabel.textContent = "連続実行 ";
+  const repeatInput = document.createElement("input");
+  repeatInput.type = "number";
+  repeatInput.min = "1";
+  repeatInput.max = "50";
+  repeatInput.value = "5";
+  repeatInput.className = "smoke-test-repeat-input";
+  repeatLabel.appendChild(repeatInput);
+  const repeatUnit = document.createElement("span");
+  repeatUnit.textContent = " 回";
+  repeatLabel.appendChild(repeatUnit);
+  const repeatFullLabel = document.createElement("label");
+  repeatFullLabel.className = "smoke-test-repeat-full";
+  const repeatFullCheck = document.createElement("input");
+  repeatFullCheck.type = "checkbox";
+  repeatFullLabel.appendChild(repeatFullCheck);
+  repeatFullLabel.appendChild(document.createTextNode(" 各回を決着まで（遅い）"));
+  repeatRow.appendChild(repeatLabel);
+  repeatRow.appendChild(repeatFullLabel);
+  panel.appendChild(repeatRow);
+
   const actions = document.createElement("div");
   actions.className = "smoke-test-actions";
   const runBtn = document.createElement("button");
@@ -302,6 +329,10 @@ export function openSmokeTestPanel() {
   runFullBtn.type = "button";
   runFullBtn.className = "smoke-test-run";
   runFullBtn.textContent = "🏁 決着まで実行";
+  const repeatBtn = document.createElement("button");
+  repeatBtn.type = "button";
+  repeatBtn.className = "smoke-test-run";
+  repeatBtn.textContent = "🔁 連続実行";
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.className = "smoke-test-close";
@@ -313,29 +344,19 @@ export function openSmokeTestPanel() {
   closeBtn.addEventListener("click", close);
   actions.appendChild(runBtn);
   actions.appendChild(runFullBtn);
+  actions.appendChild(repeatBtn);
   actions.appendChild(closeBtn);
   panel.appendChild(actions);
 
-  const runTest = async (options) => {
-    runBtn.disabled = true;
-    runFullBtn.disabled = true;
-    closeBtn.disabled = true;
-    (options.runToCompletion ? runFullBtn : runBtn).textContent = "実行中…";
-    resultEl.textContent = "";
-    resultEl.className = "smoke-test-result";
-    addLog(options.runToCompletion ? "決着まで実行します…" : "開始します…");
-    const res = await runInAppSmokeTest(addLog, options);
-    resultEl.classList.add(res.pass ? "is-pass" : "is-fail");
-    resultEl.textContent = res.pass ? `✅ PASS — ${res.reason}` : `❌ FAIL — ${res.reason}`;
-
-    // 診断情報（全アクションログ＋エラー＋環境）をまるごと渡せるように、コピー／ダウンロード
-    // ボタンを出す（末尾だけでは追い切れない詰み対策。ユーザー指摘2026-08-14）。詰みの原因究明に
-    // 特に有用なので、FAIL時は目立たせる。PASS時も一応残す（後から確認したい時のため）。
-    const fullText = await collectFullDiagnostics(res);
+  // 診断情報（全アクションログ＋エラー＋環境）を「コピー／ダウンロード」できるボタンを
+  // actions に挿す（末尾だけでは追い切れない詰み対策。ユーザー指摘2026-08-14）。単発・連続の
+  // 両方で使う共通ヘルパー。
+  const addDiagnosticsButtons = (fullText, tag) => {
     const copyBtn = document.createElement("button");
     copyBtn.type = "button";
     copyBtn.className = "smoke-test-copy";
-    copyBtn.textContent = "📋 診断情報を全部コピー";
+    const copyLabel = tag ? `📋 ${tag}の診断をコピー` : "📋 診断情報を全部コピー";
+    copyBtn.textContent = copyLabel;
     copyBtn.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(fullText);
@@ -350,12 +371,12 @@ export function openSmokeTestPanel() {
         ta.select();
         copyBtn.textContent = "↑ を選択してコピーしてください";
       }
-      setTimeout(() => { copyBtn.textContent = "📋 診断情報を全部コピー"; }, 4000);
+      setTimeout(() => { copyBtn.textContent = copyLabel; }, 4000);
     });
     const dlBtn = document.createElement("button");
     dlBtn.type = "button";
     dlBtn.className = "smoke-test-download";
-    dlBtn.textContent = "⬇ 全ログをダウンロード";
+    dlBtn.textContent = tag ? `⬇ ${tag}のログを保存` : "⬇ 全ログをダウンロード";
     dlBtn.addEventListener("click", () => {
       const blob = new Blob([fullText], { type: "text/plain;charset=utf-8" });
       const url = URL.createObjectURL(blob);
@@ -369,10 +390,14 @@ export function openSmokeTestPanel() {
     });
     actions.insertBefore(copyBtn, closeBtn);
     actions.insertBefore(dlBtn, closeBtn);
+  };
 
-    // テストは盤面を作り替えるので、終わったらタイトルへ戻す導線に差し替える。
+  // テストは盤面を作り替えるので、終わったらタイトルへ戻す導線に差し替える（単発・連続 共通）。
+  const swapToReload = () => {
     runBtn.remove();
     runFullBtn.remove();
+    repeatBtn.remove();
+    repeatRow.remove();
     closeBtn.disabled = false;
     closeBtn.textContent = "🔄 タイトルに戻る（再読み込み）";
     closeBtn.onclick = () => {
@@ -381,8 +406,77 @@ export function openSmokeTestPanel() {
     };
   };
 
+  const runTest = async (options) => {
+    runBtn.disabled = true;
+    runFullBtn.disabled = true;
+    repeatBtn.disabled = true;
+    repeatInput.disabled = true;
+    closeBtn.disabled = true;
+    (options.runToCompletion ? runFullBtn : runBtn).textContent = "実行中…";
+    resultEl.textContent = "";
+    resultEl.className = "smoke-test-result";
+    addLog(options.runToCompletion ? "決着まで実行します…" : "開始します…");
+    const res = await runInAppSmokeTest(addLog, options);
+    resultEl.classList.add(res.pass ? "is-pass" : "is-fail");
+    resultEl.textContent = res.pass ? `✅ PASS — ${res.reason}` : `❌ FAIL — ${res.reason}`;
+    addDiagnosticsButtons(await collectFullDiagnostics(res));
+    swapToReload();
+  };
+
+  // 連続実行（ユーザー要望2026-08-17）。指定回数まとめて回して再現率を測る（間欠バグ検出）。
+  // 「⏹ 停止」で途中打ち切り。最初に失敗した回の診断情報だけコピー可能にする（原因究明用）。
+  let cancelRepeat = false;
+  const runRepeated = async () => {
+    const times = Math.max(1, Math.min(50, parseInt(repeatInput.value, 10) || 5));
+    const toCompletion = repeatFullCheck.checked;
+    runBtn.disabled = true;
+    runFullBtn.disabled = true;
+    repeatInput.disabled = true;
+    repeatFullCheck.disabled = true;
+    closeBtn.disabled = true;
+    resultEl.textContent = "";
+    resultEl.className = "smoke-test-result";
+    cancelRepeat = false;
+    // 実行中は連続ボタンを「停止」に転用する。
+    repeatBtn.textContent = "⏹ 停止";
+    repeatBtn.onclick = () => {
+      cancelRepeat = true;
+      repeatBtn.disabled = true;
+      repeatBtn.textContent = "停止中…";
+    };
+    addLog(`🔁 連続実行を開始（${times}回・${toCompletion ? "各回 決着まで" : "各回 8ターン点検"}）…`);
+    const results = [];
+    let firstFailure = null;
+    let done = 0;
+    for (let i = 1; i <= times; i++) {
+      if (cancelRepeat) { addLog(`⏹ ${done}回で停止しました。`); break; }
+      addLog(`━━━━ ${i}/${times}回目 ━━━━`);
+      const res = await runInAppSmokeTest(addLog, { runToCompletion: toCompletion });
+      results.push(res);
+      done = i;
+      addLog(`${i}回目: ${res.pass ? "✅PASS" : "❌FAIL"} — ${res.reason}`);
+      if (!res.pass && !firstFailure) firstFailure = res;
+      resultEl.classList.remove("is-pass", "is-fail");
+      const passSoFar = results.filter((r) => r.pass).length;
+      resultEl.textContent = `進行中… ${passSoFar}/${results.length} PASS`;
+      await wait(600);
+    }
+    const passCount = results.filter((r) => r.pass).length;
+    const allPass = results.length > 0 && passCount === results.length;
+    resultEl.classList.add(allPass ? "is-pass" : "is-fail");
+    resultEl.textContent = `${passCount}/${results.length} 回 PASS`;
+    addLog(`🔁 連続実行 終了: ${passCount}/${results.length} 回 PASS`);
+    // 最初に失敗した回の診断情報だけコピー可能にする（複数失敗しても代表1件で足りることが多い）。
+    if (firstFailure) {
+      addLog("❌ 失敗があった回の診断情報を下のボタンからコピーできます。");
+      addDiagnosticsButtons(await collectFullDiagnostics(firstFailure), "失敗回");
+    }
+    swapToReload();
+  };
+
   runBtn.addEventListener("click", () => runTest({ runToCompletion: false }));
   runFullBtn.addEventListener("click", () => runTest({ runToCompletion: true }));
+  repeatBtn.addEventListener("click", runRepeated);
 
   document.body.appendChild(panel);
 }

@@ -86,6 +86,7 @@ import {
   registerEternalAnimHelpers,
   registerGateInvasionStealHelper,
   registerReturnHomeRevealHelper,
+  registerGateInvasionCpuChecker,
   hasAnyGateInvasionCandidate,
   findInvadedDefender,
   isLocalGateInvasionActive,
@@ -12788,6 +12789,10 @@ registerCounterLockHelpers({
 });
 registerEternalAnimHelpers(playEternalAcquisitionAnim);
 registerGateInvasionStealHelper(stealHandCardsRitualForGateInvasion);
+// CPU戦・スモークテスト（疑似CPU自己対戦）で、ゲート侵攻ボーナスの各ステップ告知モーダル
+// （OKクリック待ち）を攻撃側がCPUなら自動で進める（ユーザー報告2026-08-17「ゲート侵攻処理を
+// CPUは自動で進めれない」。isCpuSelectingNow=CPU戦中かつその席が疑似CPU対象）。
+registerGateInvasionCpuChecker((seat) => isCpuSelectingNow(seat));
 // 黒の契約の烙印の★(a)「ロックしないなら1枚ドローしてよい」（ユーザー要望2026-08-09）。
 registerContractBrandHandler(offerContractBrandDrawIfNoLock);
 registerMyDeckDrawAnnouncer(announceMyDeckDraw);

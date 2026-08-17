@@ -50,7 +50,19 @@ export function hasAnyGateInvasionCandidate() {
   return SEAT_ORDER.filter((p) => getState().activePlayers.includes(p)).some((attacker) => findInvadedDefender(attacker) !== null);
 }
 
-function showBonusStepModal(text, onOk) {
+// 攻撃側が疑似CPU/CPUかどうかの判定を main.js から注入してもらう（isCpuSelectingNow は
+// isCpuBattleActive/isPseudoCpuTarget 等 main.js 側の依存があるため。registerEternalAnimHelpers 等と
+// 同じ「register helper」パターン）。CPU戦・スモークテスト（疑似CPU自己対戦）では、この
+// ゲート侵攻ボーナスの各ステップ告知モーダル（OKクリック待ち）を誰もクリックしないため
+// 進行が固まる（ユーザー報告2026-08-17「ゲート侵攻処理をCPUは自動で進めれない」）。
+// 攻撃側がCPUなら一定時間後に自動でOKを押して進める。
+let cpuAutoAdvanceChecker = null; // (seat) => boolean
+export function registerGateInvasionCpuChecker(fn) {
+  cpuAutoAdvanceChecker = fn;
+}
+const CPU_BONUS_MODAL_MS = 1000; // CPUが告知モーダルを読ませてから自動で閉じるまでの間
+
+function showBonusStepModal(text, onOk, attacker) {
   const backdrop = document.createElement("div");
   backdrop.style.cssText = "position: fixed; inset: 0; z-index: 10001; background: rgba(0, 0, 0, 0.55);";
   const modal = document.createElement("div");
@@ -69,16 +81,24 @@ function showBonusStepModal(text, onOk) {
   const okBtn = document.createElement("button");
   okBtn.textContent = "OK";
   okBtn.style.cssText = "padding: 0.4rem 1.4rem; background: #0891b2; color: #fff; border: none; border-radius: 0.25rem; cursor: pointer;";
-  okBtn.addEventListener("click", () => {
+  let done = false;
+  const proceed = () => {
+    if (done) return;
+    done = true;
     backdrop.remove();
     modal.remove();
     onOk();
-  });
+  };
+  okBtn.addEventListener("click", proceed);
   modal.appendChild(title);
   modal.appendChild(body);
   modal.appendChild(okBtn);
   document.body.appendChild(backdrop);
   document.body.appendChild(modal);
+  // 攻撃側がCPUなら、少し読ませてから自動でOKを押して進める（人間が観戦できる程度の間は残す）。
+  if (attacker && cpuAutoAdvanceChecker?.(attacker)) {
+    setTimeout(() => { if (!done) proceed(); }, CPU_BONUS_MODAL_MS);
+  }
 }
 
 function shuffled(array) {
@@ -122,7 +142,7 @@ function runStealHand(attacker, defender, onDone) {
     hasRitualHelper: !!stealHandRitualHelper,
   });
   if (count === 0) {
-    showBonusStepModal(`${getPlayerName(attacker)}はゲート侵攻成功！\n${getPlayerName(defender)}の手札は枚数が半分未満のため、奪えるカードはありません。`, onDone);
+    showBonusStepModal(`${getPlayerName(attacker)}はゲート侵攻成功！\n${getPlayerName(defender)}の手札は枚数が半分未満のため、奪えるカードはありません。`, onDone, attacker);
     return;
   }
   showBonusStepModal(`${getPlayerName(attacker)}はゲート侵攻成功！\n${getPlayerName(defender)}の手札${count}枚を無作為に奪います。`, async () => {
@@ -139,7 +159,7 @@ function runStealHand(attacker, defender, onDone) {
     notifyChange();
     announceHandPickups(attacker, stolenTokens.map((t) => ({ cardId: t.cardId, wasPublic: false })));
     onDone();
-  });
+  }, attacker);
 }
 
 // ユーザー要望「ゲート侵攻によりエターナルカードを手に入れるときの演出を取り入れたい」
@@ -193,7 +213,7 @@ function runEternal(attacker, onDone) {
   if (willUseAnim) {
     eternalAnimHelper(attacker, cardId, def, applyAndFinish);
   } else {
-    showBonusStepModal(`${getPlayerName(attacker)}はエターナルカード「${def.name}」を獲得！\n自分のロックエリアにロックします。`, applyAndFinish);
+    showBonusStepModal(`${getPlayerName(attacker)}はエターナルカード「${def.name}」を獲得！\n自分のロックエリアにロックします。`, applyAndFinish, attacker);
   }
 }
 
@@ -222,7 +242,7 @@ function runReturnHome(attacker, onDone) {
     // 何を回収したのかを、回収した本人の画面だけに中央で大きく見せる。
     if (returnHomeRevealHelper && collected.length > 0) await returnHomeRevealHelper(attacker, collected);
     onDone();
-  });
+  }, attacker);
 }
 
 function runBonusFor(attacker, defender, done) {
