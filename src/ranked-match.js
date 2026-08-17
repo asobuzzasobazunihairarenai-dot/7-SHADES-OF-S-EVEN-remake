@@ -293,11 +293,14 @@ async function handlePollResult(res) {
     if (practicing) await stopPractice(); // 保険（通常はmatchedで畳み済み）
     await enterRankedGame(res.game_id, res.opponents);
   } else {
-    // 'none' — キューから外れた（通常はポーリング中は起きない）。待機画面を閉じる。
+    // 'none' — キューから外れた。対戦開始を押さずに締め切りを迎え、押した人だけで対局が
+    // 始まった（＝自分はAFKで外された）場合もここに来る。レディチェックのモーダルを閉じて
+    // 待機画面を閉じる。
     if (!entering) {
+      hideReadyModal();
       stopPolling();
       stopTitleFlash();
-      setWaitingStatus("キューから外れました。");
+      setWaitingStatus("キューから外れました（対戦開始を押さなかったため）。");
       lastState = "none";
     }
   }
@@ -441,7 +444,9 @@ function showReadyModal(res) {
     remain -= 1;
     if (remain <= 0) {
       remain = 0;
-      updateCd();
+      // ユーザー要望2026-08-18「2人しか押さなくても押した人だけで開始」。締め切り時点で
+      // ready が2人以上いれば、その人たちだけで対局が始まる（サーバーの so7_ranked_poll が判定）。
+      countdown.textContent = "まもなく開始します（対戦開始を押した人だけで始まります）";
       return;
     }
     updateCd();

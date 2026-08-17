@@ -35,7 +35,7 @@ import {
   syncCpuStepHint,
 } from "./main.js";
 import { SEAT_ORDER, SEAT_TO_SIDE, getRotationSteps, rotateSide } from "./board-layout.js";
-import { getSelfSeat, getSyncedTimerConfig, getCurrentGameId, fetchAndHydrate, isSpectatingGame } from "./online.js";
+import { getSelfSeat, getSyncedTimerConfig, getCurrentGameId, fetchAndHydrate, isSpectatingGame, isRankedGame } from "./online.js";
 // フェイズ自動処理の再評価（phase-automation.js）。本来はrender()のたびに呼ばれるが、
 // パーティー等の「全員がそれぞれ選ぶ」効果は非同期の委任で完了し、その完了が必ずしも
 // render()を伴わない。すると優先権やフェイズが変わっても再評価されず、
@@ -942,6 +942,77 @@ function pseudoCpuLocalPickerTimeoutTicks() {
 // 状況が変わり次第また試せるようにする。
 let timedOutAutoActionFired = false;
 
+// #138（ユーザー要望2026-08-18）: ランク戦の「相手主導の放置敗北」。手番プレイヤーのタブが
+// 凍結する等で、その手番プレイヤー本人のクライアントでしか動かないタイムアウト自動処理が
+// 進まず対局が固まった場合、起きている側（相手）がそれを検知して勝ちを確定する
+// （spec「切断・一定時間放置 → 相手の勝ち」）。誤発火（生きているのに落ちていると誤判定）を
+// 避けるため、非常に保守的に判定する:
+//   - オンラインのランク対局で、自分は手番プレイヤーではない（＝起きて待っている側）
+//   - 手番プレイヤーが優先権を保持したまま（委譲中の一時的な状態ではない）
+//   - その優先権デッドラインが完全に切れている
+//   - かつ、ゲーム状態が「まったく変化しない」まま一定時間（OPPONENT_AFK_FORFEIT_MS）続く
+// 生きている手番プレイヤーは、デッドラインが切れれば自分のクライアントで数秒以内に自動処理
+// （フェイズスキップ＝+15秒回復でデッドライン更新／移動＝トークン変化／ターン終了＝turnNumber
+// 変化）を行い、それが下の署名を変える＝カウンタがリセットされる。よって署名が長時間まったく
+// 変わらない＝手番プレイヤーのクライアントが本当に止まっている、と判断できる。tick()自身の
+// 定期再同期(fetchAndHydrate)で状態は数秒おきに最新化されるため、古いローカル状態での誤判定も
+// 起きにくい。自分のタブが凍結していた場合の誤判定を避けるため、復帰(visibilitychange)時に
+// カウンタをリセットして手番プレイヤーに「生きている」と示す猶予を必ず与える。
+const OPPONENT_AFK_FORFEIT_MS = 110000; // 約110秒まったく進展が無ければ放置とみなす（保守的）
+let opponentAfkStaleSince = 0; // 署名が変わらなくなった時刻（0＝監視していない）
+let opponentAfkStaleSig = null;
+let opponentAfkForfeitDispatched = false;
+function opponentAfkStateSig(state) {
+  // 「手番プレイヤーが進展したか」を捉える最小の署名: ターン番号・優先権保持者・デッドライン
+  //（フェイズ進行は+15秒回復でデッドラインが変わる）＋全トークンの位置（実際の移動）。
+  let tk = "";
+  for (const t of state.tokens) {
+    const l = t.location || {};
+    tk += `${t.id}:${l.zone}${l.row ?? ""}${l.col ?? ""}${l.side ?? ""}${l.index ?? ""}${l.player ?? ""};`;
+  }
+  return `${state.turnNumber}|${state.priorityPlayer}|${state.priorityDeadline}|${tk}`;
+}
+export function resetOpponentAfkWatch() {
+  opponentAfkStaleSince = 0;
+  opponentAfkStaleSig = null;
+  // conditions が満たされない間（通常プレイ中はデッドラインが切れていない＝毎tickここに来る）に
+  // dispatchフラグも落とすことで、実質「1つの放置状況につき1回」＋新しい対局では自然にリセット。
+  opponentAfkForfeitDispatched = false;
+}
+function checkOpponentAfkForfeit(state) {
+  // 条件を満たさなければ監視をリセットして戻る。
+  if (
+    !isOnlineMode() ||
+    !isRankedGame() ||
+    !state.turnPlayer ||
+    getSelfSeat() === state.turnPlayer || // 自分が手番＝落とす対象＝ここでは対象外
+    state.priorityPlayer !== state.turnPlayer || // 委譲中（接触・全員選択等）は対象外
+    !state.priorityDeadline ||
+    Date.now() <= state.priorityDeadline // まだデッドラインが残っている＝タイムアウトしていない
+  ) {
+    resetOpponentAfkWatch();
+    return;
+  }
+  const sig = opponentAfkStateSig(state);
+  if (sig !== opponentAfkStaleSig) {
+    // 進展があった（署名が変わった）＝手番プレイヤーは生きている。監視を仕切り直す。
+    opponentAfkStaleSig = sig;
+    opponentAfkStaleSince = Date.now();
+    return;
+  }
+  // 署名が変わらないまま経過中。閾値を超えたら放置敗北を確定する。
+  if (opponentAfkStaleSince && Date.now() - opponentAfkStaleSince >= OPPONENT_AFK_FORFEIT_MS) {
+    if (opponentAfkForfeitDispatched) return; // 1対局につき1回
+    opponentAfkForfeitDispatched = true;
+    logAction("diag-ranked-opponent-afk", {
+      loserSeat: state.turnPlayer,
+      selfSeat: getSelfSeat(),
+      staleMs: Date.now() - opponentAfkStaleSince,
+    });
+    window.dispatchEvent(new CustomEvent("ranked-opponent-afk", { detail: { loserSeat: state.turnPlayer } }));
+  }
+}
+
 // タイムオーバー時、2種類の警告のどちらを出すかをまとめて切り替える。優先権保持者が
 // 手番プレイヤー本人ならupdateWarning（ムーブフェイズを終えて〜）、手番プレイヤーで
 // ない座席が優先権を持ったままタイムオーバーしているならupdatePriorityReturnWarning
@@ -1156,6 +1227,9 @@ function tick() {
   // 表示は上の冒頭ブロックで既に消してある。
   if (!isTurnTimerEnabled()) return;
   const state = getState();
+  // #138: ランク戦の相手主導の放置敗北検知（起きている側が、手番プレイヤーの完全な放置を
+  // 検知して勝ちを確定する）。timer有効＝ランク対局でも常に有効なのでここで毎tick見る。
+  checkOpponentAfkForfeit(state);
   if (!state.turnPlayer) {
     updateWarning(false);
     updatePriorityReturnWarning(false);
@@ -1354,6 +1428,9 @@ export function initTurnTimer() {
     }
     timedOutAutoActionFired = false; // 凍結中に立っていたフラグを解除して再評価させる
     ticksSincePriorityResync = 0;
+    // #138: 自分のタブが凍結していた場合、復帰直後に古い（凍結前の）状態で誤って相手を
+    // 放置敗北させないよう、相手AFK監視を仕切り直して手番プレイヤーに猶予を与える。
+    resetOpponentAfkWatch();
     tick();
   });
   startTickLoop();

@@ -2714,6 +2714,8 @@ export async function fetchAndHydrate(gameId) {
     // 作動しない」）。
     syncedTimerConfig = gameRow.timer_config ?? null;
     currentGameIsRanked = !!gameRow.is_ranked; // #127: ランク対局か（AFKでCPU代替せず敗北にするため）
+    // 放置敗北等で結果反映済みのランク対局に復帰した時の勝敗表示用（2026-08-18）。
+    currentRankedResult = { applied: !!gameRow.ranked_result_applied, winnerSeat: gameRow.ranked_winner_seat ?? null };
     // ユーザー要望（続き102）「疑似CPUモードが適用されない原因をアクションログで
     // 確認できるようにしてほしい」。この対局のtimerConfig（サーバーからの受信値、
     // 疑似CPUモードの有効/無効を含む）を記録し、後から「サーバーから正しい値が
@@ -2783,6 +2785,21 @@ export function getSyncedTimerConfig() {
 let currentGameIsRanked = false;
 export function isRankedGame() {
   return currentGameIsRanked;
+}
+// 放置敗北などで結果反映済みのランク対局に復帰した時、勝敗を表示するための情報
+// （2026-08-18）。fetchAndHydrate のたびに so7_games から拾う。
+let currentRankedResult = { applied: false, winnerSeat: null };
+export function getRankedResultInfo() {
+  return currentRankedResult;
+}
+// この対局の結果モーダルを既に表示したか（通常勝利＝victory.js／放置敗北＝finishRankedForfeit／
+// 復帰時検知＝main.js のいずれかが表示したらマーク）。復帰時検知が二重に出さないための共有ガード。
+const rankedResultShownGames = new Set();
+export function markRankedResultShown(gameId) {
+  if (gameId) rankedResultShownGames.add(gameId);
+}
+export function isRankedResultShown(gameId) {
+  return !!gameId && rankedResultShownGames.has(gameId);
 }
 // #127: ランク対局でAFK（連続タイムアップしきい値）に達したプレイヤーが放置敗北した合図を、
 // 相手クライアントへ配信する（相手は自分の勝ち＋レート反映を見てホームへ戻る）。他のbroadcast

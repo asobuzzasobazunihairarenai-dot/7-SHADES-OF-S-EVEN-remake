@@ -290,6 +290,9 @@ import {
   broadcastRankedForfeit,
   onRankedForfeitEvents,
   reportRankedResult,
+  getRankedResultInfo,
+  markRankedResultShown,
+  isRankedResultShown,
   getSelfRank,
   claimSeasonReward,
   broadcastColorsDeclared,
@@ -12956,6 +12959,7 @@ async function finishRankedForfeit(loserSeat) {
   if (rankedForfeitHandled) return;
   rankedForfeitHandled = true;
   const gameId = getCurrentGameId();
+  markRankedResultShown(gameId); // 復帰時検知が二重に出さないようマーク
   const active = getState().activePlayers || [];
   const winnerSeat = active.find((p) => p !== loserSeat) || null;
   const iWon = getSelfSeat() !== loserSeat;
@@ -13003,6 +13007,66 @@ function onAfkThresholdReached() {
 }
 // 相手がランク対局で放置敗北した合図を受けたら、こちら（勝者）も結果反映＆表示してホームへ。
 onRankedForfeitEvents(({ loserSeat }) => finishRankedForfeit(loserSeat));
+// #138: 相手主導の放置敗北。起きている側（相手）のturn-timerが、手番プレイヤーの完全な放置を
+// 検知して発火する。勝ちを確定＝相手（放置した本人）を敗者として reportRankedResult を呼ぶ
+// （この申告が両者のランクをサーバー側で確定＝放置した本人が復帰しようがしまいがランクは下がる）。
+// 放置した本人へも合図を送る（凍結中は届かないが、復帰時は下の reconnect 検知で敗北を表示する）。
+window.addEventListener("ranked-opponent-afk", (e) => {
+  const loserSeat = e.detail?.loserSeat;
+  if (!loserSeat) return;
+  if (!isOnlineMode() || !isRankedGame()) return;
+  if (getSelfSeat() === loserSeat) return; // 自分が対象＝発火側ではない（保険）
+  broadcastRankedForfeit({ loserSeat }); // 放置した本人・観戦者へ
+  finishRankedForfeit(loserSeat);
+});
+// #138: 復帰時の敗北表示。放置敗北した本人（凍結中に相手が勝ちを申告＝ランクは既に確定済み）が
+// 復帰すると、結果反映済み(ranked_result_applied)のランク対局に、結果モーダルを一度も見ずに入る。
+// これを検知して勝敗（＝敗北）を表示し、ホームへ戻す。通常勝利（victory.js）・放置敗北の申告側
+// （finishRankedForfeit）は markRankedResultShown で既に表示済みにするため、ここでは二重に出さない。
+let lastRankedResultGameId = null;
+subscribe(() => {
+  if (!isOnlineMode()) return;
+  const gameId = getCurrentGameId();
+  if (gameId !== lastRankedResultGameId) {
+    lastRankedResultGameId = gameId;
+    rankedForfeitHandled = false; // 新しい対局＝放置敗北ガードを仕切り直す（連戦でも効くように）
+  }
+  if (!gameId || !isRankedGame()) return;
+  const info = getRankedResultInfo();
+  if (!info.applied || isRankedResultShown(gameId)) return;
+  markRankedResultShown(gameId);
+  void handleRankedReconnectResult(info.winnerSeat);
+});
+async function handleRankedReconnectResult(winnerSeat) {
+  const iWon = !!winnerSeat && getSelfSeat() === winnerSeat;
+  try {
+    const { showRankedResultModal } = await import("./ranked-result-modal.js");
+    const myRank = await getSelfRank();
+    const note = iWon
+      ? "この対局は既に終了しています（あなたの勝ち）。"
+      : "放置（時間切れが続いた）ため、あなたの敗北で確定しています。";
+    await showRankedResultModal({
+      won: iWon,
+      rank: myRank ? myRank.rank : 0,
+      gauge: myRank ? myRank.gauge : 0,
+      legendPoints: myRank ? myRank.legend_points : 0,
+      note,
+    });
+  } catch (e) {
+    console.error("reconnect ranked result modal failed", e);
+  }
+  try {
+    await leaveGame();
+  } catch (e) {
+    console.error("leaveGame (reconnect result) failed", e);
+  }
+  try {
+    const home = await import("./home-screen.js");
+    home.openHomeScreen?.();
+  } catch (e) {
+    console.error("openHomeScreen (reconnect result) failed", e);
+  }
+}
 buildAfkCpuBanner();
 // 開発用のみ: エイドス会話パネルのプレビューをコンソールから呼べるようにする（本番のボタン・
 // フローからは一切呼ばない。決定稿投入前の表示確認用）。

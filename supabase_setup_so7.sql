@@ -1857,6 +1857,7 @@ create table so7_ranked_pending_match (
   size int not null,                        -- 現在の人数（参考。判定は array_length(players) を使う）
   grow_deadline timestamptz not null default now(),  -- この時刻までに人が増えなければロックする
   locked boolean not null default false,    -- レディチェック開始済み（人集め終了）
+  locked_at timestamptz,                    -- ロックした時刻（レディチェックの締め切りをここから測る）
   created_at timestamptz not null default now(),
   game_id text                             -- 全員ready後に作られた対局ID
 );
@@ -1886,6 +1887,40 @@ $$;
 revoke execute on function so7_ranked_enqueue(jsonb, int) from public;
 grant execute on function so7_ranked_enqueue(jsonb, int) to authenticated;
 
+-- ランク対局（so7_games＋各自の席）を作る内部ヘルパー。全員ready(so7_ranked_ready)と、
+-- レディチェック締め切りで押した人だけで開始する(so7_ranked_pollの2-2)の両方から呼ぶ。
+-- SECURITY DEFINER 同士の内部呼び出し専用（authenticated へは grant しない＝クライアントから
+-- 直接叩けない。呼び出し元の DEFINER 権限で実行される）。
+create or replace function so7_ranked_create_game(p_players uuid[])
+returns text
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_game text;
+  v_p uuid; v_deck jsonb; v_prof record;
+begin
+  v_game := 'r_' || replace(gen_random_uuid()::text, '-', '');
+  insert into so7_games (id, name, status, is_ranked, my_deck_mode, timer_config)
+  values (v_game, 'ランク戦', 'open', true, true,
+          '{"enabled": true, "pseudoCpuModeEnabled": false}'::jsonb);
+  foreach v_p in array p_players
+  loop
+    select display_name, avatar, piece_skin_index, pet_index into v_prof
+      from so7_user_profiles where user_id = v_p;
+    select deck into v_deck from so7_ranked_queue where user_id = v_p;
+    insert into so7_game_seats
+      (game_id, user_id, display_name, avatar, piece_skin_index, pet_index, selected_deck)
+    values
+      (v_game, v_p, v_prof.display_name, v_prof.avatar,
+       coalesce(v_prof.piece_skin_index, 0), v_prof.pet_index, v_deck);
+  end loop;
+  return v_game;
+end;
+$$;
+revoke execute on function so7_ranked_create_game(uuid[]) from public;
+
 -- 待機中に数秒ごとに呼ぶ。①ハートビート ②掃除 ③グループ成立試行 ④自分の状態＋待機人数を返す。
 -- #variable_conflict use_column: OUT列名(match_id/game_id等)と同名のテーブル列を、SQL内では
 -- 列として解決させる（あいまいさ回避）。OUT列への代入は := で明示的に行う。
@@ -1913,6 +1948,7 @@ declare
   v_players uuid[]; v_ready uuid[]; v_locked boolean; v_deadline timestamptz; v_game text; v_p uuid;
   v_opps jsonb := '[]'::jsonb;
   v_prof record; v_rank smallint;
+  v_newgame text;
 begin
   if v_uid is null then raise exception 'not_authenticated'; end if;
 
@@ -1923,22 +1959,37 @@ begin
   delete from so7_ranked_queue
     where status = 'waiting' and last_seen < now() - interval '25 seconds';
 
-  -- (2-2) レディチェック期限切れ（ロック後60秒・全員readyでない）を解散。ready済みは待機に戻し、
-  --       押していない人はキューから削除する。※forming（未ロック）は grow_deadline でロックされる
-  --       ので、ここは locked=true のグループだけを対象にする。
+  -- (2-2) レディチェック締め切り（ロック後62秒＝クライアント表示60秒の直後）。ユーザー要望
+  --       2026-08-18「4人集まって2人しか対戦開始を押さなくても、押した人だけで対局はすべき」。
+  --       締め切り時点で ready が2人以上いれば、押した人だけで対局を開始する（押さなかった人は
+  --       AFKでキューから外す・ペナルティなし・レート変動なし）。1人以下なら従来通り解散
+  --       （ready済み1人は待機に戻す）。※forming（未ロック）は grow_deadline でロックされるので、
+  --       ここは locked=true のグループだけを対象にする。締め切りは locked_at から測る。
   for r in
     select * from so7_ranked_pending_match
-    where locked and game_id is null and created_at < now() - interval '80 seconds'
+    where locked and game_id is null and locked_at is not null and locked_at < now() - interval '62 seconds'
     for update skip locked
   loop
-    foreach v_p in array r.players loop
-      if v_p = any(r.ready) then
-        update so7_ranked_queue set status='waiting', match_id=null where user_id=v_p;
-      else
-        delete from so7_ranked_queue where user_id=v_p;
-      end if;
-    end loop;
-    delete from so7_ranked_pending_match where id=r.id;
+    if coalesce(array_length(r.ready, 1), 0) >= 2 then
+      -- 押した人（ready）だけで対局を開始。押さなかった人はキューから外す。
+      v_newgame := so7_ranked_create_game(r.ready);
+      update so7_ranked_pending_match set game_id = v_newgame, players = r.ready where id = r.id;
+      foreach v_p in array r.players loop
+        if not (v_p = any(r.ready)) then
+          delete from so7_ranked_queue where user_id = v_p;
+        end if;
+      end loop;
+    else
+      -- ready が2人未満（0/1）→ 解散。ready済み(1人)は待機に戻す、残りは外す。
+      foreach v_p in array r.players loop
+        if v_p = any(r.ready) then
+          update so7_ranked_queue set status='waiting', match_id=null where user_id=v_p;
+        else
+          delete from so7_ranked_queue where user_id=v_p;
+        end if;
+      end loop;
+      delete from so7_ranked_pending_match where id=r.id;
+    end if;
   end loop;
 
   -- (2-3) 対局作成済みの古いグループ（クライアントが入場済みのはず）を後始末
@@ -1990,8 +2041,9 @@ begin
   end if;
 
   -- 集合締め切り経過 or 4人 で forming グループをロック（＝レディチェック開始）。
+  -- locked_at をロック時刻として記録し、(2-2)のレディチェック締め切りをここから測る。
   update so7_ranked_pending_match
-    set locked = true
+    set locked = true, locked_at = now()
     where not locked and game_id is null
       and (coalesce(array_length(players, 1), 0) >= 4 or now() > grow_deadline);
 
@@ -2078,21 +2130,7 @@ begin
   -- 全員 ready（ready 配列が players を網羅＝現在の人数と一致）になったら対局を作る。
   -- 段階的フィルで size 列が実際の人数とズレ得るため、判定は array_length(players) を使う。
   if array_length(v_ready, 1) = array_length(v_players, 1) then
-    v_game := 'r_' || replace(gen_random_uuid()::text, '-', '');
-    insert into so7_games (id, name, status, is_ranked, my_deck_mode, timer_config)
-    values (v_game, 'ランク戦', 'open', true, true,
-            '{"enabled": true, "pseudoCpuModeEnabled": false}'::jsonb);
-    foreach v_p in array v_players
-    loop
-      select display_name, avatar, piece_skin_index, pet_index into v_prof
-        from so7_user_profiles where user_id = v_p;
-      select deck into v_deck from so7_ranked_queue where user_id = v_p;
-      insert into so7_game_seats
-        (game_id, user_id, display_name, avatar, piece_skin_index, pet_index, selected_deck)
-      values
-        (v_game, v_p, v_prof.display_name, v_prof.avatar,
-         coalesce(v_prof.piece_skin_index, 0), v_prof.pet_index, v_deck);
-    end loop;
+    v_game := so7_ranked_create_game(v_players);
     update so7_ranked_pending_match set game_id = v_game where id = p_match_id;
     return v_game;
   end if;
@@ -2156,6 +2194,9 @@ grant execute on function so7_ranked_leave() to authenticated;
 -- so7_ranked_apply_delta（内部エンジン）に委ねる。
 
 alter table so7_games add column if not exists ranked_result_applied boolean not null default false;
+-- 勝者の座席（place=1）。放置敗北などで結果反映時に居なかったクライアントが、復帰時に
+-- 「この対局は既に終了・自分は勝ち/負け」を判定して表示するために保存する（2026-08-18）。
+alter table so7_games add column if not exists ranked_winner_seat text;
 
 -- 順位・人数・ブースト有無からポイント（デルタ）を返す（docs/ranked-spec.md のポイント表）。
 -- ブースト（ブロンズ〜ゴールド＝rank<=2）はプラス側だけ大きく、マイナスは通常と同じ。
@@ -2237,7 +2278,15 @@ begin
     );
   end loop;
 
-  update so7_games set ranked_result_applied = true where id = p_game_id;
+  -- 勝者（place=1）の座席を保存（復帰時の勝敗表示用）。placementsから最小placeの座席を取る。
+  update so7_games
+    set ranked_result_applied = true,
+        ranked_winner_seat = (
+          select key from jsonb_each_text(p_placements)
+          order by value::int asc
+          limit 1
+        )
+    where id = p_game_id;
 
   return jsonb_build_object('applied', true, 'count', v_count, 'results', v_results);
 end;

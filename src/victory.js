@@ -12,7 +12,7 @@ import { getAvatarVariant, applyAvatarContent } from "./avatar-render.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { playVictoryBgm, stopVictoryBgm } from "./sound.js";
 import { showPostGamePanel, showCpuBattleEndPanel } from "./post-game-panel.js";
-import { awardMatchCurrency, awardCpuWinCurrency, getSelfSeat, getCurrentGameId, reportRankedResult, getSelfRank, getRankedPreMatchRank } from "./online.js";
+import { awardMatchCurrency, awardCpuWinCurrency, getSelfSeat, getCurrentGameId, reportRankedResult, getSelfRank, getRankedPreMatchRank, markRankedResultShown } from "./online.js";
 // フェーズ3: ランク対局の結果表示（新ランク・七色ゲージ・勝敗）。
 import { showRankedResultModal } from "./ranked-result-modal.js";
 import { isCpuBattleActive, getEidosStoryStage, getEidosStoryResultHandler } from "./cpu-battle-state.js";
@@ -282,6 +282,8 @@ export function checkForVictory() {
           const placements = computeRankedPlacements(getState().activePlayers, player);
           const rankedRes = rankedGameId ? await reportRankedResult(rankedGameId, placements) : null;
           if (rankedRes && rankedRes.skipped !== "not_ranked") {
+            // 復帰時検知（main.js）が二重に結果モーダルを出さないよう、この対局の結果表示済みを記録。
+            markRankedResultShown(rankedGameId);
             const myRank = await getSelfRank();
             if (myRank) {
               // 昇格演出（docs/ranked-spec.md）: 対局開始時に覚えたランク(getRankedPreMatchRank)と
