@@ -8011,6 +8011,12 @@ function applyViewportStage() {
   currentStageScale = scale;
   currentStageOffsetX = offsetX;
   currentStageOffsetY = offsetY;
+  // ユーザー報告2026-08-18「ブラウザ窓を画面の半分にすると盤面拡大時のミニロックエリアが
+  // 見えなくなる（＝小さくなって読めない）」。ミニロックはステージ(body)の子でステージ倍率で
+  // 一緒に縮むため、窓が狭い（倍率が小さい）とごく小さな帯になってしまう。ステージ倍率を
+  // CSS変数に出し、ミニロックだけはこの倍率が小さい時に逆補正して一定の読める大きさを保つ
+  // （#mini-lock-area(-top)のtransformで参照。倍率が十分大きい通常窓では補正1＝従来通り）。
+  document.documentElement.style.setProperty("--stage-scale", String(scale));
 }
 
 // マウス/タッチイベントのclientX/clientYは常に「実画面のピクセル」で、ステージの
@@ -12926,6 +12932,24 @@ function exitAfkCpuSubstitution() {
 // （本人＝しきい値到達で、相手＝ranked_forfeit broadcast受信で）。reportRankedResultは
 // ranked_result_applied で冪等なので二重反映にはならない。1クライアント内でも一度だけ実行する。
 let rankedForfeitHandled = false;
+// 放置敗北のときのレート反映用の順位表を作る。#188で reportRankedResult は
+// (gameId, placements) に変わっているのに、finishRankedForfeit は旧シグネチャの winnerSeat
+// （文字列）を渡したままだった＝placements として不正（Object.keys.length<2 で reportRankedResult
+// が no-op）で、放置敗北のレートが一切反映されていなかった（2026-08-18に発見・修正）。
+// 放置した席を最下位、残りを現在のロック色数で競技順位づけした placements を組み立てる
+// （2人戦なら {相手:1, 放置者:2}）。
+function buildForfeitPlacements(loserSeat) {
+  const active = getState().activePlayers || [];
+  const placements = {};
+  const others = active.filter((p) => p !== loserSeat);
+  for (const seat of others) {
+    const myCount = getLockedCount(seat);
+    const strictlyAhead = others.filter((o) => getLockedCount(o) > myCount).length;
+    placements[seat] = 1 + strictlyAhead; // 残り同士の競技順位（1位〜）
+  }
+  placements[loserSeat] = active.length; // 放置者は最下位
+  return placements;
+}
 async function finishRankedForfeit(loserSeat) {
   if (rankedForfeitHandled) return;
   rankedForfeitHandled = true;
@@ -12934,7 +12958,8 @@ async function finishRankedForfeit(loserSeat) {
   const winnerSeat = active.find((p) => p !== loserSeat) || null;
   const iWon = getSelfSeat() !== loserSeat;
   try {
-    if (gameId && winnerSeat) await reportRankedResult(gameId, winnerSeat);
+    const placements = buildForfeitPlacements(loserSeat);
+    if (gameId && Object.keys(placements).length >= 2) await reportRankedResult(gameId, placements);
   } catch (e) {
     console.error("reportRankedResult (forfeit) failed", e);
   }

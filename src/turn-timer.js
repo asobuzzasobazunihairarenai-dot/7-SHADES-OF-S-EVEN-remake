@@ -1341,6 +1341,21 @@ export function initTurnTimer() {
     if (isOnlineMode() && state.priorityPlayer !== getSelfSeat()) return;
     fireAndForget(setPriorityState({ player: state.priorityPlayer, deadline: freshBaseDeadlineFor(state.priorityPlayer), phase: "base" }));
   });
+  // 復帰時の追いつき（#138、2026-08-18）。ブラウザはタブを長くバックグラウンド化すると
+  // タブごと凍結する（Web Workerのtickも止まる）ため、タイマーが完全に止まり、優先権保持者の
+  // タイムアウト自動処理（本人のクライアントでしか動かない）が進まず対局が固まる。タブに戻った
+  // 瞬間に①盤面全体を即再同期（broadcast取りこぼしの回復）②タイムアウト自動処理の再評価フラグを
+  // リセット（凍結前に立っていた場合の再発火を許す）③即tick、を行って素早く追いつく。
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) return;
+    if (isOnlineMode()) {
+      const gameId = getCurrentGameId();
+      if (gameId) fetchAndHydrate(gameId).catch(() => {});
+    }
+    timedOutAutoActionFired = false; // 凍結中に立っていたフラグを解除して再評価させる
+    ticksSincePriorityResync = 0;
+    tick();
+  });
   startTickLoop();
 }
 

@@ -647,7 +647,14 @@ body.is-phone-device.fixed-hand-mode #self-hand-overlay .hand-reveal-area {
   left: 50%;
   /* 既定は画面最下部（ユーザー調整値2026-08-07: -0.2rem）。位置は管理者モードで調整可能。 */
   bottom: var(--mini-lock-bottom, -0.2rem);
-  transform: translateX(calc(-50% + var(--mini-lock-x-offset, 0rem)));
+  /* ユーザー報告2026-08-18: 窓を画面の半分にするとステージ倍率が小さくなり、ミニロックが
+     一緒に縮んで読めなくなる。ステージ倍率(--stage-scale、applyViewportStageがJSで設定)が
+     一定より小さい時だけ逆補正で拡大し、最低限の読める大きさ(--mini-lock-min-eff-scale)を
+     保つ（通常窓＝倍率が十分大きい時は max()が1を選ぶ＝従来通り）。transform-originを
+     bottom centerにして、拡大しても画面下端からはみ出さず上方向へ伸びるようにする。 */
+  transform: translateX(calc(-50% + var(--mini-lock-x-offset, 0rem)))
+    scale(max(1, calc(var(--mini-lock-min-eff-scale, 0.66) / var(--stage-scale, 1))));
+  transform-origin: bottom center;
   z-index: 62;
   display: flex;
   flex-direction: column;
@@ -680,7 +687,11 @@ body.is-phone-device #mini-lock-area {
   top: var(--mini-lock-top, 2.2rem);
   /* 相手のミニロックは独自の横ずれ(--mini-lock-top-x-offset)で調整できる。未設定なら
      従来通り自分と共通の--mini-lock-x-offsetにフォールバック（ユーザー要望2026-08-07）。 */
-  transform: translateX(calc(-50% + var(--mini-lock-top-x-offset, var(--mini-lock-x-offset, 0rem))));
+  /* 下(#mini-lock-area)と同じ逆補正で、狭い窓でも読める大きさを保つ。こちらは画面上端に
+     あるので transform-origin を top center にして下方向へ伸ばす。 */
+  transform: translateX(calc(-50% + var(--mini-lock-top-x-offset, var(--mini-lock-x-offset, 0rem))))
+    scale(max(1, calc(var(--mini-lock-min-eff-scale, 0.66) / var(--stage-scale, 1))));
+  transform-origin: top center;
   z-index: 62;
   display: flex;
   flex-direction: column;
