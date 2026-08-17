@@ -14289,3 +14289,34 @@ badge/bg top `calc(50% - 4.2rem)`・socket0 13.1%/38.7% 等）ことを確認。
   開始→停止しても診断ボタンがコピー1・ダウンロード1の各1個だけになることを実測確認。
 - **検証**: `node --check`通過、2Dトグルでflat2d分岐を通してもコンソールエラー無し、オンライン監視の
   開始→停止で診断ボタンが二重にならないことをブラウザで実測。サーバー側の変更は無い。
+
+### 2026-08-17（続き176）：ワンタッチ・オンライン監視スモーク（各ブラウザで押すだけでマッチ→開始→監視）
+
+ユーザー要望「対戦ロビーに疑似CPUボタンがもう無いので、ワンタッチのオンライン監視を実装した方が
+早いのでは」への対応。続き172のオンライン監視（レベル1＝2ブラウザで手動セットアップした対戦に
+アタッチして監視）は、部屋作成・タイマー/疑似CPUチェックを手動で用意する必要があり、しかも疑似CPU
+チェックボックスはロビーに常設されておらず（`isLobbyPseudoCpuToggleVisible()`＝管理者限定・既定off）
+分かりにくかった。そこで手動セットアップ自体を自動化した。
+- **`smoke-test-runner.js`に`runOneTouchOnlineSmoke(onLog, shouldStop)`を新設**。既存の
+  `runOnlineSmokeMonitor`（監視ループ）を末段で再利用しつつ、その手前を全自動化した:
+  ①未ログインなら`signInAnonymously`でゲストログイン ②`listOpenRooms()`から
+  `name === "SMOKE-AUTO-TEST" && member_count === 1`の部屋をid昇順で探し、あれば`joinRoom`・
+  無ければ`createRoom("SMOKE-AUTO-TEST")`（作成者＝amHost）③参加人数が2以上になるまで待機。
+  途中でより小さいidのスモーク部屋が現れたら`leaveGame`してそちらへ入り直す「ホスト収束」で、
+  両ブラウザが別々に部屋を作ってしまっても最終的に1部屋へ集約する ④`getRoomHostInfo().amIHost`が
+  真のクライアントだけが`startGame(gameId, {timerEnabled:true, pseudoCpuModeEnabled:true,
+  includeBlackWhite:false})`で開始（二重BOOTSTRAP防止）⑤`isOnlineMode() && turnPlayer`が立つまで
+  待機 ⑥`runOnlineSmokeMonitor`で監視 ⑦終了時`leaveGame`。定数は`SMOKE_ROOM_NAME="SMOKE-AUTO-TEST"`・
+  マッチ待ち5分・開始待ち90秒。
+- **「🌐 オンライン監視」ボタンの挙動を差し替え**: 押すと`runOneTouchOnlineSmoke`が走る（ログ冒頭
+  「🌐 ワンタッチ・オンライン監視を開始します。」）。パネル説明文・ボタンtitleも「2ブラウザで
+  それぞれ押すだけで自動マッチ→タイマー＋疑似CPUで開始→監視」に更新。
+- **疑似CPUの担保**: `startGame`の`timerConfig.pseudoCpuModeEnabled:true`により対局全体で疑似CPUが
+  固定され（続き101）、両クライアントの`pseudoCpuIncludeSelf`が自動ONになる（続き108）ため、
+  ロビーの隠しチェックボックスに頼らず両席とも自動プレイになる。
+- **検証**: `node --check`通過。この開発環境でも実Supabaseに接続できるため、実際にゲストログイン→
+  「SMOKE-AUTO-TEST」部屋を作成→相手待ち（ボタンが「⏹ 監視停止」化・診断ボタンは未生成＝二重表示
+  なし）まで実挙動を確認し、停止→`leaveGame`で作成した部屋が実ロビーに残らない（`listOpenRooms`で
+  SMOKE-AUTO-TEST 0件）ことも確認した。2ブラウザでの実マッチ→開始→監視の通しは、2つのゲスト
+  セッション（別ブラウザ or シークレット2つ）が必要なため、ユーザーの実機で確認をお願いする。
+  サーバー側（Supabase）の変更は無い（既存の部屋RPCを呼ぶだけ）。

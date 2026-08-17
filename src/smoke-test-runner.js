@@ -331,6 +331,125 @@ async function runOnlineSmokeMonitor(onLog, shouldStop) {
   return { pass, reason, turnsReached: lastTurn, errors, invariantViolations };
 }
 
+// ワンタッチ・オンライン監視（レベル2。ユーザー要望2026-08-17「手動セットアップが面倒／疑似CPU
+// チェックが見当たらない。ワンタッチ実装した方が早い」）。各ブラウザでボタンを押すだけで、
+// ①（未ログインなら）ゲストログイン ②共通の“スモーク部屋”を探して参加 or 作成して相手を待つ
+// ③2人揃ったらホストが「タイマー＋疑似CPU」有効で自動開始 ④対局開始を検知したら
+// runOnlineSmokeMonitor で監視、まで面倒を見る。手動での部屋作成・チェックボックス操作は不要。
+// 2つのブラウザ（別ブラウザ or シークレットでゲスト2つ）でそれぞれ押せば、勝手にマッチして
+// 自己対戦しながら両視点を監視できる。
+const SMOKE_ROOM_NAME = "SMOKE-AUTO-TEST"; // 共通の合言葉部屋名（20字以内・ASCIIで完全一致を確実に）
+const ONLINE_MATCH_WAIT_MS = 5 * 60 * 1000; // 相手が来るのをこの時間まで待つ
+const ONLINE_START_WAIT_MS = 90000; // ホストが開始→対局が始まるのを待つ
+
+async function runOneTouchOnlineSmoke(onLog, shouldStop) {
+  const empty = (pass, reason) => ({ pass, reason, turnsReached: 0, errors: [], invariantViolations: [] });
+  let online, admin;
+  try {
+    online = await import("./online.js");
+    admin = await import("./admin.js");
+  } catch (e) {
+    return empty(false, "モジュールの読み込みに失敗しました");
+  }
+  let gameId = null;
+  let joined = false;
+  try {
+    // 1) ログイン確保（未ログインならゲスト）。
+    let user = await online.getCurrentUser();
+    if (!user) {
+      onLog?.("ゲストでログインします…");
+      try { await online.signInAnonymously(); } catch (e) { return empty(false, "ゲストログインに失敗しました: " + (e?.message ?? e)); }
+      for (let i = 0; i < 20 && !user; i++) {
+        if (shouldStop()) return empty(true, "停止しました（ログイン待ち）");
+        await wait(500);
+        user = await online.getCurrentUser();
+      }
+      if (!user) return empty(false, "ログインが完了しませんでした");
+    }
+    onLog?.(`ログイン中（${user.email || "ゲスト"}）`);
+    // このクライアントの自席も自動化（保険。部屋が疑似CPUで始まれば続き108で自動ONだが）。
+    admin.setPseudoCpuIncludeSelf?.(true);
+
+    // 2) スモーク部屋を探す or 作る。
+    let amHost = false;
+    let rooms = [];
+    try { rooms = await online.listOpenRooms(); } catch { rooms = []; }
+    const waiting = rooms
+      .filter((r) => r.name === SMOKE_ROOM_NAME && r.member_count === 1)
+      .sort((a, b) => (a.id < b.id ? -1 : 1)); // idの小さい方を優先（相手側と決定的に一致させる）
+    if (waiting.length > 0) {
+      onLog?.("待機中のスモーク部屋に参加します…");
+      await online.joinRoom(waiting[0].id);
+      gameId = online.getCurrentGameId();
+      joined = true;
+    } else {
+      onLog?.("スモーク部屋を作成して相手を待ちます…（もう1つのブラウザでも『🌐 オンライン監視』を押してください）");
+      gameId = await online.createRoom(SMOKE_ROOM_NAME, null); // 作成すると自動で入室する
+      joined = true;
+      amHost = true;
+    }
+
+    // 3) 2人揃うまで待つ。二重作成（両ブラウザがほぼ同時に作成）に備え、ホストは他に待機中の
+    //    スモーク部屋（idが自分より小さい方）があればそちらへ合流して1部屋に収束させる。
+    const waitStart = Date.now();
+    while (true) {
+      if (shouldStop()) { await online.leaveGame().catch(() => {}); return empty(true, "停止しました（相手待ち）"); }
+      if (Date.now() - waitStart > ONLINE_MATCH_WAIT_MS) { await online.leaveGame().catch(() => {}); return empty(false, "相手が来ませんでした（5分待機）"); }
+      let count = 1;
+      try { count = await online.getMemberCount(gameId); } catch { count = 1; }
+      if (count >= 2) break;
+      if (amHost) {
+        let rs = [];
+        try { rs = await online.listOpenRooms(); } catch { rs = []; }
+        const smaller = rs
+          .filter((r) => r.name === SMOKE_ROOM_NAME && r.member_count === 1 && r.id !== gameId && r.id < gameId)
+          .sort((a, b) => (a.id < b.id ? -1 : 1))[0];
+        if (smaller) {
+          onLog?.("別のスモーク部屋が見つかったので合流します…");
+          await online.leaveGame().catch(() => {});
+          await online.joinRoom(smaller.id);
+          gameId = online.getCurrentGameId();
+          amHost = false;
+        }
+      }
+      await wait(2000);
+    }
+
+    // 4) ホスト（＝最初に入室した人。getRoomHostInfoが決定的に1人だけtrueにする）が自動開始。
+    let hostInfo = { amIHost: false };
+    try { hostInfo = await online.getRoomHostInfo(); } catch {}
+    if (hostInfo.amIHost) {
+      onLog?.("2人揃いました。ホストとして対局を開始します（タイマー＋疑似CPU）…");
+      try {
+        await online.startGame(gameId, { timerEnabled: true, pseudoCpuModeEnabled: true, includeBlackWhite: false });
+      } catch (e) {
+        await online.leaveGame().catch(() => {});
+        return empty(false, "対局開始に失敗しました: " + (e?.message ?? e));
+      }
+    } else {
+      onLog?.("2人揃いました。ホストの開始を待っています…");
+    }
+
+    // 5) 対局開始（turnPlayerが立つ）を待つ。
+    const startWait = Date.now();
+    while (!(isOnlineMode() && getState().turnPlayer)) {
+      if (shouldStop()) { await online.leaveGame().catch(() => {}); return empty(true, "停止しました（対局開始待ち）"); }
+      if (Date.now() - startWait > ONLINE_START_WAIT_MS) { await online.leaveGame().catch(() => {}); return empty(false, "対局が始まりませんでした"); }
+      await wait(1000);
+    }
+    onLog?.(`対局開始（自分の席=${online.getSelfSeat?.() ?? "?"}）。監視に移ります。`);
+
+    // 6) 監視（既存の監視ループを流用。対局は既に始まっているので即座に監視へ入る）。
+    const res = await runOnlineSmokeMonitor(onLog, shouldStop);
+    // 7) 後始末（この端末が部屋を抜ける。対局が終わっていなければ相手側は残る）。
+    await online.leaveGame().catch(() => {});
+    return res;
+  } catch (err) {
+    if (joined) await online.leaveGame().catch(() => {});
+    return empty(false, "実行時エラー: " + (err?.message ?? err));
+  }
+}
+
 // 詰みの原因究明用に「全アクションログ＋エラー＋結果＋環境情報」を1つのテキストにまとめる。
 // 末尾だけだと到達コンボ・接触の連鎖など“数十手前から始まる”原因を追い切れないことがあるため、
 // 全ログを丸ごと渡せるようにする（ユーザー指摘2026-08-14）。
@@ -418,7 +537,7 @@ export function openSmokeTestPanel() {
 
   const desc = document.createElement("div");
   desc.className = "smoke-test-desc";
-  desc.textContent = "CPU戦を両席とも自動で回し、エラー・盤面破損・不変条件違反・詰み（一定時間まったく状態が変化しない）を監視します。「8ターン点検」は素早い健全性チェック、「決着まで実行」は勝敗が出るまで丸ごと1局回して終盤まで網羅、「連続実行」は指定回数まとめて回して間欠バグの再現率を測ります（実行すると今の画面は対局に切り替わります）。「🌐 オンライン監視」は対局を開始せず、2ブラウザで『タイマー＋疑似CPU』を有効にして始めたオンライン対戦にこの画面をアタッチして、オンライン特有のバグ（同期・ゲート侵攻modal・優先権 等）を監視します。";
+  desc.textContent = "CPU戦を両席とも自動で回し、エラー・盤面破損・不変条件違反・詰み（一定時間まったく状態が変化しない）を監視します。「8ターン点検」は素早い健全性チェック、「決着まで実行」は勝敗が出るまで丸ごと1局回して終盤まで網羅、「連続実行」は指定回数まとめて回して間欠バグの再現率を測ります（実行すると今の画面は対局に切り替わります）。「🌐 オンライン監視」は、2つのブラウザ（別ブラウザ or シークレットでゲスト2つ）でそれぞれ押すだけで、自動でマッチング→『タイマー＋疑似CPU』有効で対局開始→オンライン特有のバグ（同期・ゲート侵攻modal・優先権 等）を監視まで行います（手動の部屋作成は不要）。";
   panel.appendChild(desc);
 
   const logEl = document.createElement("div");
@@ -483,7 +602,7 @@ export function openSmokeTestPanel() {
   onlineBtn.type = "button";
   onlineBtn.className = "smoke-test-run smoke-test-online";
   onlineBtn.textContent = "🌐 オンライン監視";
-  onlineBtn.title = "2ブラウザで始めたオンライン対戦を監視（対局は開始しません）";
+  onlineBtn.title = "各ブラウザで押すだけで、自動でマッチ→タイマー＋疑似CPUで開始→監視まで行う";
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.className = "smoke-test-close";
@@ -648,8 +767,8 @@ export function openSmokeTestPanel() {
       onlineBtn.disabled = true;
       onlineBtn.textContent = "停止中…";
     };
-    addLog("🌐 オンライン監視を開始します。");
-    const res = await runOnlineSmokeMonitor(addLog, () => cancelOnline);
+    addLog("🌐 ワンタッチ・オンライン監視を開始します。");
+    const res = await runOneTouchOnlineSmoke(addLog, () => cancelOnline);
     resultEl.classList.add(res.pass ? "is-pass" : "is-fail");
     resultEl.textContent = res.pass ? `✅ 異常なし — ${res.reason}` : `❌ 検出 — ${res.reason}`;
     addDiagnosticsButtons(await collectFullDiagnostics(res));
