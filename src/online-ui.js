@@ -19,6 +19,7 @@ import {
   getMyActiveGames,
   leaveGameById,
   getRoomName,
+  getRoomIsRanked,
   getMemberCount,
   getRoomHostInfo,
   getCurrentGameId,
@@ -730,6 +731,26 @@ async function renderRoomChoice(user, myGeneration) {
   nameInput.maxLength = ROOM_NAME_MAX_LENGTH;
   const passInput = textInput("パスワード（任意）");
   passInput.type = "password";
+  // 合言葉フレンドランク戦（ユーザー要望・docs/ranked-spec.md「合言葉でフレンドとランク戦」）。
+  // チェックすると is_ranked な私的部屋になり、結果がレートに反映される。2人対戦・タイマー＆
+  // 自動処理必須・無色なし（＝マッチメイクのランク戦と同じルール）。公開ロビーには出ないので
+  // 部屋コードを相手に共有して参加してもらう。
+  const rankedRow = document.createElement("label");
+  rankedRow.style.cssText =
+    "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin: 0.2rem 0 0.4rem; font-size: 0.85rem;";
+  const rankedCheckbox = document.createElement("input");
+  rankedCheckbox.type = "checkbox";
+  const rankedLabel = document.createElement("span");
+  rankedLabel.textContent = "🏆 ランク戦にする（2人対戦・結果がレートに反映）";
+  rankedRow.appendChild(rankedCheckbox);
+  rankedRow.appendChild(rankedLabel);
+  const rankedNote = document.createElement("div");
+  rankedNote.style.cssText = "font-size: 0.72rem; color: #94a3b8; margin: -0.2rem 0 0.4rem 1.4rem; display: none;";
+  rankedNote.textContent = "タイマー・自動処理は必須。公開一覧には出ないので、部屋コードを相手に共有してください。";
+  rankedCheckbox.addEventListener("change", () => {
+    rankedNote.style.display = rankedCheckbox.checked ? "block" : "none";
+  });
+
   const createStatus = document.createElement("div");
   createStatus.style.cssText = "font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.3rem; min-height: 1.2em;";
   const createConfirmBtn = textButton("作成する");
@@ -738,7 +759,7 @@ async function renderRoomChoice(user, myGeneration) {
     createConfirmBtn.disabled = true;
     createStatus.textContent = "作成中...";
     try {
-      const gameId = await createRoom(nameInput.value, passInput.value);
+      const gameId = await createRoom(nameInput.value, passInput.value, rankedCheckbox.checked);
       setSavedRoomPassword(gameId, passInput.value || null);
       history.replaceState(null, "", `?room=${gameId}`);
       await renderPanelContent();
@@ -749,6 +770,8 @@ async function renderRoomChoice(user, myGeneration) {
   });
   createForm.appendChild(nameInput);
   createForm.appendChild(wrapWithPasswordToggle(passInput));
+  createForm.appendChild(rankedRow);
+  createForm.appendChild(rankedNote);
   createForm.appendChild(createStatus);
   createForm.appendChild(createConfirmBtn);
   leftCol.appendChild(createForm);
@@ -782,8 +805,46 @@ async function renderRoomChoice(user, myGeneration) {
     listStatus.textContent = `一覧の取得に失敗しました: ${err.message ?? err}`;
   }
 
-  // ユーザー要望「『部屋コードで参加』はもう削除でいい」への対応。部屋一覧・
-  // URL共有(?room=)からの参加で十分カバーできているため撤去した。
+  // 「部屋コードで参加」（合言葉フレンドランク戦の復活で再追加）。ランク戦の私的部屋は
+  // 公開ロビー（so7_games_list, not is_ranked）に出ないため、相手から共有された部屋コードで
+  // 参加する経路が必要。通常の部屋にも使える（パスワード付き部屋も、下のパスワード欄で参加可）。
+  const codeJoinLabel = document.createElement("div");
+  codeJoinLabel.style.cssText = "font-weight: bold; font-size: 0.9rem; margin: 0.8rem 0 0.4rem; border-top: 1px solid rgba(148,163,184,0.2); padding-top: 0.6rem;";
+  codeJoinLabel.textContent = "🔑 部屋コードで参加";
+  rightCol.appendChild(codeJoinLabel);
+  const codeJoinForm = document.createElement("div");
+  const codeInput = textInput("部屋コード（例: 2VDDRM）");
+  codeInput.maxLength = 6;
+  codeInput.style.textTransform = "uppercase";
+  const codePassInput = textInput("パスワード（必要な場合）");
+  codePassInput.type = "password";
+  const codeJoinStatus = document.createElement("div");
+  codeJoinStatus.style.cssText = "font-size: 0.8rem; color: #94a3b8; margin: 0.3rem 0; min-height: 1.2em;";
+  const codeJoinBtn = textButton("この部屋コードで参加");
+  codeJoinBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box;";
+  codeJoinBtn.addEventListener("click", async () => {
+    const code = (codeInput.value || "").trim().toUpperCase();
+    if (!code) { codeJoinStatus.textContent = "部屋コードを入力してください。"; return; }
+    codeJoinBtn.disabled = true;
+    codeJoinStatus.textContent = "参加中...";
+    try {
+      await joinRoom(code, codePassInput.value || null);
+      setSavedRoomPassword(code, codePassInput.value || null);
+      history.replaceState(null, "", `?room=${code}`);
+      await renderPanelContent();
+    } catch (err) {
+      const msg = /invalid_password/.test(err?.message || "") ? "パスワードが違います。"
+        : /foreign key|not.*found|does not exist/i.test(err?.message || "") ? "その部屋コードの部屋が見つかりません。"
+        : `参加に失敗しました: ${err.message ?? err}`;
+      codeJoinStatus.textContent = msg;
+      codeJoinBtn.disabled = false;
+    }
+  });
+  codeJoinForm.appendChild(codeInput);
+  codeJoinForm.appendChild(wrapWithPasswordToggle(codePassInput));
+  codeJoinForm.appendChild(codeJoinStatus);
+  codeJoinForm.appendChild(codeJoinBtn);
+  rightCol.appendChild(codeJoinForm);
 
   // --- 観戦（進行中の対局を後から見る、ユーザー要望） ---
   // 「参加できる部屋」とはっきり分けるため、区切り線＋太字見出しの独立セクションにする。
@@ -863,12 +924,27 @@ async function renderRoomStatus(gameId, myGeneration) {
   } catch (err) {
     // 名前が取れなくても部屋自体は表示・操作できるようにしておく
   }
+  let isRanked = false;
+  try {
+    isRanked = await getRoomIsRanked(gameId);
+  } catch (err) {
+    // is_rankedが取れなくても通常部屋として扱う（安全側）
+  }
   if (myGeneration !== renderGeneration) return;
 
   const title = document.createElement("div");
   title.style.cssText = "font-weight: bold; margin-bottom: 0.4rem;";
   title.textContent = mySeat ? `🌐 ${roomName}（座席${mySeat}）` : `🌐 ${roomName}`;
   contentEl.appendChild(title);
+
+  if (isRanked) {
+    const rankedBanner = document.createElement("div");
+    rankedBanner.style.cssText =
+      "font-size: 0.82rem; font-weight: bold; color: #ffe08a; background: rgba(255,215,120,0.12); " +
+      "border: 1px solid rgba(255,215,120,0.4); border-radius: 0.4rem; padding: 0.4rem 0.5rem; margin-bottom: 0.4rem; text-align: center;";
+    rankedBanner.textContent = "🏆 ランク戦（結果がレートに反映されます・2人対戦）";
+    contentEl.appendChild(rankedBanner);
+  }
 
   const codeHint = document.createElement("div");
   codeHint.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.4rem;";
@@ -891,7 +967,9 @@ async function renderRoomStatus(gameId, myGeneration) {
 
   const shareHint = document.createElement("div");
   shareHint.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.6rem;";
-  shareHint.textContent = "他のプレイヤーは「🌐オンライン」の部屋一覧からこの部屋を選べます。";
+  shareHint.textContent = isRanked
+    ? `この部屋コード（${gameId}）を相手に共有してください。ランク戦は公開一覧に出ないので、相手は「🔑 部屋コードで参加」から入ります。`
+    : "他のプレイヤーは「🌐オンライン」の部屋一覧からこの部屋を選べます。";
   contentEl.appendChild(shareHint);
 
   // サーバーはパスワードのハッシュしか持たないため、これは「このブラウザで実際に部屋を
@@ -924,6 +1002,48 @@ async function renderRoomStatus(gameId, myGeneration) {
       waitingText.style.cssText = "font-weight: bold; margin-bottom: 0.6rem;";
       waitingText.textContent = "対戦相手を待っています。";
       waitingBox.appendChild(waitingText);
+    } else if (isRanked) {
+      // 合言葉フレンドランク戦。ルールはマッチメイクのランク戦と同じで固定
+      // （2人対戦・タイマー必須・自動処理必須・無色なし・ブーストなし）。設定の選択肢は
+      // 出さず、2人ちょうどの時だけ開始できる（ポイント計算が2人前提のため）。
+      if (count === 2) {
+        const readyText = document.createElement("div");
+        readyText.style.cssText = "font-weight: bold; margin-bottom: 0.5rem;";
+        readyText.textContent = "🏆 ランク戦の準備ができました。";
+        waitingBox.appendChild(readyText);
+        const rulesNote = document.createElement("div");
+        rulesNote.style.cssText = "font-size: 0.76rem; color: #cbd5e1; margin-bottom: 0.6rem; line-height: 1.4;";
+        rulesNote.textContent = "タイマー・自動処理は必須、無色カードなしで開始します。結果は勝者+・敗者−でレートに反映されます。";
+        waitingBox.appendChild(rulesNote);
+        const startBtn = textButton("🏆 ランク戦を開始する");
+        startBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box;";
+        startBtn.addEventListener("click", async () => {
+          startBtn.disabled = true;
+          try {
+            await startGame(gameId, {
+              timerEnabled: true,
+              includeBlackWhite: false,
+              pseudoCpuModeEnabled: false,
+              boost: false,
+            });
+            closePanel();
+          } catch (err) {
+            alert(err.message ?? String(err));
+            startBtn.disabled = false;
+          }
+        });
+        waitingBox.appendChild(startBtn);
+      } else {
+        // 3人以上いる。ランク戦は2人対戦なので開始できない。
+        const tooManyText = document.createElement("div");
+        tooManyText.style.cssText = "font-weight: bold; margin-bottom: 0.4rem; color: #fca5a5;";
+        tooManyText.textContent = `⚠ ランク戦は2人対戦です（現在${count}人）。`;
+        waitingBox.appendChild(tooManyText);
+        const tooManyNote = document.createElement("div");
+        tooManyNote.style.cssText = "font-size: 0.76rem; color: #cbd5e1;";
+        tooManyNote.textContent = "2人になるまで開始できません。どなたか1人「この部屋を離れる」で退出してください。";
+        waitingBox.appendChild(tooManyNote);
+      }
     } else {
       // ターンタイマーを使うかどうか。ここで決めた値が対局全体で固定される
       // （src/online.jsのstartGame()参照、不公平にならないよう対局中は変更できない）。

@@ -1352,18 +1352,29 @@ function startHeartbeat(gameId, userId) {
 // so7_create_room（SECURITY DEFINER）が行う——クライアントの入力をそのまま主キーとして
 // 信頼しないため、また平文パスワードをテーブルへ直接書かせないため。戻り値はroom id
 // （URLの?room=に使う）。
-export async function createRoom(name, password) {
+export async function createRoom(name, password, ranked = false) {
   return withLog("部屋の作成", async () => {
     const user = await getCurrentUser();
     if (!user) throw new Error("ログインしてください");
     const { data: gameId, error } = await client.rpc("so7_create_room", {
       room_name: name || null,
       room_password: password || null,
+      p_ranked: !!ranked, // 合言葉フレンドランク戦（結果がレートに反映される私的な部屋）
     });
     if (error) throw error;
     await joinRoom(gameId, password);
     return gameId;
   });
+}
+
+// 部屋がランク戦（is_ranked）かどうかを返す。合言葉フレンドランク戦の待機画面で、
+// バナー表示・2人固定・タイマー/自動処理強制の分岐に使う。so7_gamesはusing(true)で
+// 読めるので専用RPCは不要。取得失敗時はfalse（安全側＝通常部屋扱い）。
+export async function getRoomIsRanked(gameId) {
+  if (!client || !gameId) return false;
+  const { data, error } = await client.from("so7_games").select("is_ranked").eq("id", gameId).maybeSingle();
+  if (error || !data) return false;
+  return !!data.is_ranked;
 }
 
 // 部屋に参加する（座席は選ばない。1ユーザーにつき1部屋1行、既に参加済みならUNIQUE制約

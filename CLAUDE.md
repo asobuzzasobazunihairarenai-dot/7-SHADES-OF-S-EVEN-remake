@@ -14445,3 +14445,31 @@ FKエラー）。#179の同一アカウント検知では説明が付かない�
 - **①`ERROR: 42P13: cannot change return type of existing function ... Use DROP FUNCTION so7_ranked_get_self() first.`（確定・修正）**: `so7_ranked_get_self()`の返り値に`pending_reward_*`の3列を足したため、`create or replace function`では返り値型を変更できない（Postgresの制約）。`create or replace`の直前に`drop function if exists so7_ranked_get_self();`を追加（再実行安全）。これで`supabase_setup_so7.sql`をSQL Editorで通せる。**ユーザー側の作業**: 修正後の`supabase_setup_so7.sql`を再度SQL Editorで実行する（今度は通る）。
 - **②スモークのオンライン監視が本物のオンラインバグを捕捉**: 2ブラウザ（asobuzz/shogoshogo・別アカ）の自己対戦（続き176のワンタッチ）で、T13/R7に片方（座席C）の`MOVE_TOKEN`が`FunctionsHttpError "Edge Function returned a non-2xx status code"`で失敗し`performPhaseMoveToCell failed`、もう片方（座席A）は90秒無進行の「詰み」FAILになった（＝Cの手が止まりAが待ち続ける）。クライアントには「non-2xx」しか見えずEdge Function（so7-apply-action）が返した実際のエラーが分からないため、`online.js`の`callAction`の決定的失敗（非2xx等）の分岐で、`error.context`（Response）から本文を`await ctx.text()`で取り出し、`diag-edge-error`（actionType・status・本文）としてaction-logへ記録＋`error.message`にも連結するようにした。次に同じ500が起きた時、アクションログからサーバー側の実エラー（どのMOVE_TOKENでreduceが何を投げたか）が判別できる。
 - **検証**: `node --check`（online.js）通過・SQLのドル引用符バランス（偶数70）維持。②の実挙動（実際に500の本文が取れるか）は、次のオンライン監視で同じ500が再現した時に`diag-edge-error`で確認する。
+
+### 2026-08-17（続き183）：合言葉フレンドランク戦を実装（ランク戦の仕上げ・その1）
+
+ユーザー選択「ランク戦の仕上げ→合言葉フレンドランク戦」。友達と部屋コードを共有して私的なランク戦を
+遊べ、結果がレートに反映される。マッチメイクを待たずに確実に対戦できる（低母数対策・docs/ranked-spec.md）。
+- **サーバー（`supabase_setup_so7.sql`）**: `so7_create_room`に`p_ranked boolean default false`引数を追加し、
+  trueなら`so7_games.is_ranked`を立てる。引数を増やしたため既存の2引数版を`drop function if exists
+  so7_create_room(text, text)`してから3引数版を作り直し、revoke/grantも`(text,text,boolean)`に更新
+  （2引数呼び出しがambiguousにならないように）。レート反映は既存の`so7_ranked_report_result`
+  （is_rankedゲート・2人前提・冪等）がそのまま効くので新規SQLは不要。`so7_games_list`は`not is_ranked`で
+  ランク部屋を公開ロビーから除外済み＝私的部屋になる。
+- **クライアント**:
+  - `online.js`: `createRoom(name, password, ranked)`に第3引数を追加（`p_ranked`を渡す）。
+    `getRoomIsRanked(gameId)`新設（`so7_games.is_ranked`を読む。待機画面のバナー/2人固定/設定強制の分岐用）。
+  - `online-ui.js`: 部屋作成フォームに「🏆 ランク戦にする（2人対戦・結果がレートに反映）」チェックを追加。
+    **「🔑 部屋コードで参加」を再追加**（ランク部屋は公開一覧に出ないため、共有された部屋コードで参加する
+    経路が必須。パスワード付きも参加可）。待機画面（`renderRoomStatus`）でランク部屋なら🏆バナー＋
+    「部屋コードを相手に共有してください」の案内を出し、タイマー/無色/疑似CPU/ブーストの選択肢は隠して
+    **2人ちょうどの時だけ**「🏆 ランク戦を開始する」を出す（ポイントが2人前提のため。3人以上は開始不可の
+    案内）。開始は`{timerEnabled:true, includeBlackWhite:false, pseudoCpuModeEnabled:false, boost:false}`固定。
+    自動処理はis_rankedのrender末尾ガード（#159）で強制ON。
+- **検証**: ブラウザで部屋作成フォームに「🏆 ランク戦にする」チェック・「🔑 部屋コードで参加」欄が出ること、
+  `getRoomIsRanked`が存在しない部屋でfalse（例外なし）を返すことを実測。`node --check`（online.js/
+  online-ui.js）通過・SQLのドル引用符バランス（偶数70）維持。実際のランク部屋作成→2アカウント対局→
+  レート反映のE2Eは、下記のSQL再実行後に確認できる。
+- **ユーザー側の作業が必要**: `supabase_setup_so7.sql`をSupabase SQL Editorで実行する（今回の`so7_create_room`の
+  引数変更＋続き182の`so7_ranked_get_self`のdrop/recreateを含む。ファイル全体＝再実行安全）。Edge Functionの
+  変更は無いため再デプロイ不要。

@@ -282,7 +282,11 @@ create table if not exists so7_game_passwords (
 alter table so7_game_passwords enable row level security;
 
 -- 部屋の作成（部屋idの生成もSQL側で行い、クライアント入力を主キーとして信頼しない）。
-create or replace function so7_create_room(room_name text default null, room_password text default null)
+-- 引数を1つ増やした（p_ranked＝合言葉フレンドランク戦）ため、既存の2引数版を先にdropしてから
+-- 作り直す。両方残すと so7_create_room(text,text) 呼び出しがどちらのオーバーロードにも当たり
+-- ambiguous になるため（p_rankedにデフォルトがある）。再実行安全（存在しなければ何もしない）。
+drop function if exists so7_create_room(text, text);
+create or replace function so7_create_room(room_name text default null, room_password text default null, p_ranked boolean default false)
 returns text
 language plpgsql
 security definer
@@ -320,15 +324,20 @@ begin
     final_name := left(base_name, greatest(1, 20 - length(suffix))) || suffix;
   end loop;
 
-  insert into so7_games (id, name) values (new_id, final_name);
+  -- p_ranked＝合言葉フレンドランク戦（結果がレートに反映される私的なランク戦）。is_ranked を
+  -- 立てておくと、クライアント側で自動処理が強制ON（#159のrender末尾ガード）になり、
+  -- so7_ranked_report_result（is_rankedゲートあり）が対局終了時にレートを反映する。
+  -- so7_games_list は not is_ranked で公開ロビーから除外するため、ランク部屋は一覧に出ない
+  -- （＝部屋コードを相手に共有して参加する私的な部屋になる）。
+  insert into so7_games (id, name, is_ranked) values (new_id, final_name, coalesce(p_ranked, false));
   if room_password is not null and room_password <> '' then
     insert into so7_game_passwords (game_id, password_hash) values (new_id, crypt(room_password, gen_salt('bf')));
   end if;
   return new_id;
 end;
 $$;
-revoke execute on function so7_create_room(text, text) from public;
-grant execute on function so7_create_room(text, text) to authenticated;
+revoke execute on function so7_create_room(text, text, boolean) from public;
+grant execute on function so7_create_room(text, text, boolean) to authenticated;
 
 -- ペット選択（駒に追従する飾りペット）も座席ロスターで同期し、相手の画面にも反映する。
 -- ユーザー報告「オンラインで自分以外のペットがみんなひよこ／相手がペットを変えても私の画面
