@@ -343,9 +343,93 @@ async function runOnlineSmokeMonitor(onLog, shouldStop) {
 // 2つのブラウザ（別ブラウザ or シークレットでゲスト2つ）でそれぞれ押せば、勝手にマッチして
 // 自己対戦しながら両視点を監視できる。
 const SMOKE_ROOM_NAME = "SMOKE-AUTO-TEST"; // 共通の合言葉部屋名（20字以内・ASCIIで完全一致を確実に）
-const ONLINE_MATCH_WAIT_MS = 5 * 60 * 1000; // 相手が来るのをこの時間まで待つ
-const ONLINE_START_WAIT_MS = 90000; // ホストが開始→対局が始まるのを待つ
+const ONLINE_MATCH_WAIT_MS = 5 * 60 * 1000; // マッチ成立をこの時間まで待つ（全体の締め切り）
+const MATCH_ATTEMPT_FIND2_MS = 35000; // 1回の試行で2人揃うのをこの時間まで待つ
+const MATCH_ATTEMPT_START_MS = 30000; // 1回の試行で対局が始まるのをこの時間まで待つ
 
+// 1回のマッチ試行: 部屋を探す/作る → 2人揃うのを待つ → ホストなら開始 → 対局開始を待つ。
+// 開始できたら {status:"started"}、この部屋がダメ（時間内に始まらない＝前回の残り・ゴースト席の
+// 可能性）なら {status:"retry", failedRoomId}、停止/致命は {status:"stop"|"fatal"}。
+// failedRooms: 直前に「開始しなかった」部屋idの集合（同じゴースト部屋へ即再入して無限ループするのを防ぐ）。
+async function attemptOneTouchMatch(online, onLog, shouldStop, failedRooms) {
+  // 2) スモーク部屋を探す or 作る。listOpenRooms はサーバーの stale-room 掃除も兼ねる
+  //    （ゴースト席＝ハートビートが止まった前回の席は数十秒でここで刈られる）。
+  let rooms = [];
+  try { rooms = await online.listOpenRooms(); } catch { rooms = []; }
+  const waiting = rooms
+    .filter((r) => r.name === SMOKE_ROOM_NAME && r.member_count === 1 && !failedRooms.has(r.id))
+    .sort((a, b) => (a.id < b.id ? -1 : 1)); // idの小さい方を優先（相手側と決定的に一致させる）
+  let gameId, amHost;
+  if (waiting.length > 0) {
+    onLog?.("待機中のスモーク部屋に参加します…");
+    await online.joinRoom(waiting[0].id);
+    gameId = online.getCurrentGameId();
+    amHost = false;
+  } else {
+    onLog?.("スモーク部屋を作成して相手を待ちます…（もう1つのブラウザでも『🌐 オンライン監視』を押してください）");
+    gameId = await online.createRoom(SMOKE_ROOM_NAME, null); // 作成すると自動で入室する
+    amHost = true;
+  }
+
+  // 3) 2人揃うまで待つ。二重作成（両ブラウザがほぼ同時に作成）に備え、ホストは他に待機中の
+  //    スモーク部屋（idが自分より小さく、直前に失敗していない方）があればそちらへ合流して収束させる。
+  const findStart = Date.now();
+  while (true) {
+    if (shouldStop()) return { status: "stop", reason: "停止しました（相手待ち）" };
+    if (Date.now() - findStart > MATCH_ATTEMPT_FIND2_MS) return { status: "retry", failedRoomId: gameId };
+    let count = 1;
+    try { count = await online.getMemberCount(gameId); } catch { count = 1; }
+    if (count >= 2) break;
+    if (amHost) {
+      let rs = [];
+      try { rs = await online.listOpenRooms(); } catch { rs = []; }
+      const smaller = rs
+        .filter((r) => r.name === SMOKE_ROOM_NAME && r.member_count === 1 && r.id !== gameId && r.id < gameId && !failedRooms.has(r.id))
+        .sort((a, b) => (a.id < b.id ? -1 : 1))[0];
+      if (smaller) {
+        onLog?.("別のスモーク部屋が見つかったので合流します…");
+        await online.leaveGame().catch(() => {});
+        await online.joinRoom(smaller.id);
+        gameId = online.getCurrentGameId();
+        amHost = false;
+      }
+    }
+    await wait(2000);
+  }
+
+  // 4) ホスト（＝最初に入室した人。getRoomHostInfoが決定的に1人だけtrueにする）が自動開始。
+  let hostInfo = { amIHost: false };
+  try { hostInfo = await online.getRoomHostInfo(); } catch {}
+  if (hostInfo.amIHost) {
+    onLog?.("2人揃いました。ホストとして対局を開始します（タイマー＋疑似CPU）…");
+    try {
+      await online.startGame(gameId, { timerEnabled: true, pseudoCpuModeEnabled: true, includeBlackWhite: false });
+    } catch (e) {
+      return { status: "retry", failedRoomId: gameId }; // 開始失敗（version_conflict等）→作り直して再挑戦
+    }
+  } else {
+    onLog?.("2人揃いました。ホストの開始を待っています…");
+  }
+
+  // 5) 対局開始（turnPlayerが立つ）を待つ。時間内に始まらなければ retry（＝相手がゴースト席で
+  //    ホストが誰も開始しない“残り部屋”に当たった可能性）。抜けて作り直す。
+  const startWait = Date.now();
+  while (!(isOnlineMode() && getState().turnPlayer)) {
+    if (shouldStop()) return { status: "stop", reason: "停止しました（対局開始待ち）" };
+    if (Date.now() - startWait > MATCH_ATTEMPT_START_MS) return { status: "retry", failedRoomId: gameId };
+    await wait(1000);
+  }
+  return { status: "started", gameId };
+}
+
+// ワンタッチ・オンライン監視（レベル2。ユーザー要望2026-08-17「手動セットアップが面倒／疑似CPU
+// チェックが見当たらない。ワンタッチ実装した方が早い」）。各ブラウザでボタンを押すだけで、
+// ①（未ログインなら）ゲストログイン ②共通の“スモーク部屋”を探して参加 or 作成して相手を待つ
+// ③2人揃ったらホストが「タイマー＋疑似CPU」有効で自動開始 ④対局開始を検知したら
+// runOnlineSmokeMonitor で監視、まで面倒を見る。手動での部屋作成・チェックボックス操作は不要。
+// 前回の残り部屋・ゴースト席に当たっても、その部屋を抜けて作り直す“リトライ”方式にして
+// （ユーザー報告2026-08-17「2回目が始まらない。残った SMOKE-AUTO-TEST 部屋が原因では」）、
+// 数回のリトライで必ず新規部屋に収束するようにした。
 async function runOneTouchOnlineSmoke(onLog, shouldStop) {
   const empty = (pass, reason) => ({ pass, reason, turnsReached: 0, errors: [], invariantViolations: [] });
   let online, admin;
@@ -355,8 +439,6 @@ async function runOneTouchOnlineSmoke(onLog, shouldStop) {
   } catch (e) {
     return empty(false, "モジュールの読み込みに失敗しました");
   }
-  let gameId = null;
-  let joined = false;
   try {
     // 1) ログイン確保（未ログインならゲスト）。
     let user = await online.getCurrentUser();
@@ -374,82 +456,41 @@ async function runOneTouchOnlineSmoke(onLog, shouldStop) {
     // このクライアントの自席も自動化（保険。部屋が疑似CPUで始まれば続き108で自動ONだが）。
     admin.setPseudoCpuIncludeSelf?.(true);
 
-    // 2) スモーク部屋を探す or 作る。
-    let amHost = false;
-    let rooms = [];
-    try { rooms = await online.listOpenRooms(); } catch { rooms = []; }
-    const waiting = rooms
-      .filter((r) => r.name === SMOKE_ROOM_NAME && r.member_count === 1)
-      .sort((a, b) => (a.id < b.id ? -1 : 1)); // idの小さい方を優先（相手側と決定的に一致させる）
-    if (waiting.length > 0) {
-      onLog?.("待機中のスモーク部屋に参加します…");
-      await online.joinRoom(waiting[0].id);
-      gameId = online.getCurrentGameId();
-      joined = true;
-    } else {
-      onLog?.("スモーク部屋を作成して相手を待ちます…（もう1つのブラウザでも『🌐 オンライン監視』を押してください）");
-      gameId = await online.createRoom(SMOKE_ROOM_NAME, null); // 作成すると自動で入室する
-      joined = true;
-      amHost = true;
-    }
-
-    // 3) 2人揃うまで待つ。二重作成（両ブラウザがほぼ同時に作成）に備え、ホストは他に待機中の
-    //    スモーク部屋（idが自分より小さい方）があればそちらへ合流して1部屋に収束させる。
-    const waitStart = Date.now();
-    while (true) {
-      if (shouldStop()) { await online.leaveGame().catch(() => {}); return empty(true, "停止しました（相手待ち）"); }
-      if (Date.now() - waitStart > ONLINE_MATCH_WAIT_MS) { await online.leaveGame().catch(() => {}); return empty(false, "相手が来ませんでした（5分待機）"); }
-      let count = 1;
-      try { count = await online.getMemberCount(gameId); } catch { count = 1; }
-      if (count >= 2) break;
-      if (amHost) {
-        let rs = [];
-        try { rs = await online.listOpenRooms(); } catch { rs = []; }
-        const smaller = rs
-          .filter((r) => r.name === SMOKE_ROOM_NAME && r.member_count === 1 && r.id !== gameId && r.id < gameId)
-          .sort((a, b) => (a.id < b.id ? -1 : 1))[0];
-        if (smaller) {
-          onLog?.("別のスモーク部屋が見つかったので合流します…");
-          await online.leaveGame().catch(() => {});
-          await online.joinRoom(smaller.id);
-          gameId = online.getCurrentGameId();
-          amHost = false;
-        }
-      }
-      await wait(2000);
-    }
-
-    // 4) ホスト（＝最初に入室した人。getRoomHostInfoが決定的に1人だけtrueにする）が自動開始。
-    let hostInfo = { amIHost: false };
-    try { hostInfo = await online.getRoomHostInfo(); } catch {}
-    if (hostInfo.amIHost) {
-      onLog?.("2人揃いました。ホストとして対局を開始します（タイマー＋疑似CPU）…");
-      try {
-        await online.startGame(gameId, { timerEnabled: true, pseudoCpuModeEnabled: true, includeBlackWhite: false });
-      } catch (e) {
-        await online.leaveGame().catch(() => {});
-        return empty(false, "対局開始に失敗しました: " + (e?.message ?? e));
-      }
-    } else {
-      onLog?.("2人揃いました。ホストの開始を待っています…");
-    }
-
-    // 5) 対局開始（turnPlayerが立つ）を待つ。
-    const startWait = Date.now();
-    while (!(isOnlineMode() && getState().turnPlayer)) {
-      if (shouldStop()) { await online.leaveGame().catch(() => {}); return empty(true, "停止しました（対局開始待ち）"); }
-      if (Date.now() - startWait > ONLINE_START_WAIT_MS) { await online.leaveGame().catch(() => {}); return empty(false, "対局が始まりませんでした"); }
-      await wait(1000);
-    }
-    onLog?.(`対局開始（自分の席=${online.getSelfSeat?.() ?? "?"}）。監視に移ります。`);
-
-    // 6) 監視（既存の監視ループを流用。対局は既に始まっているので即座に監視へ入る）。
-    const res = await runOnlineSmokeMonitor(onLog, shouldStop);
-    // 7) 後始末（この端末が部屋を抜ける。対局が終わっていなければ相手側は残る）。
+    // 前回の監視が中途半端に終わっていた場合の“残り座席／購読”をまず片付けてから始める
+    // （残った SMOKE-AUTO-TEST 部屋が2回目のマッチを妨げる、というユーザー報告2026-08-17）。
     await online.leaveGame().catch(() => {});
-    return res;
+
+    const overallStart = Date.now();
+    const failedRooms = new Set(); // 開始しなかった部屋（ゴースト）を覚えて即再入を防ぐ
+    while (true) {
+      if (shouldStop()) { await online.leaveGame().catch(() => {}); return empty(true, "停止しました（マッチ待ち）"); }
+      if (Date.now() - overallStart > ONLINE_MATCH_WAIT_MS) { await online.leaveGame().catch(() => {}); return empty(false, "マッチが成立しませんでした（5分待機）"); }
+
+      let attempt;
+      try {
+        attempt = await attemptOneTouchMatch(online, onLog, shouldStop, failedRooms);
+      } catch (e) {
+        onLog?.("マッチ試行でエラー（作り直して再試行します）: " + (e?.message ?? e));
+        await online.leaveGame().catch(() => {});
+        await wait(1500);
+        continue;
+      }
+      if (attempt.status === "stop") { await online.leaveGame().catch(() => {}); return empty(true, attempt.reason); }
+      if (attempt.status === "fatal") { await online.leaveGame().catch(() => {}); return empty(false, attempt.reason); }
+      if (attempt.status === "started") {
+        onLog?.(`対局開始（自分の席=${online.getSelfSeat?.() ?? "?"}）。監視に移ります。`);
+        const res = await runOnlineSmokeMonitor(onLog, shouldStop);
+        await online.leaveGame().catch(() => {}); // 後始末（対局が終わっていなければ相手側は残る）
+        return res;
+      }
+      // status === "retry": この部屋は開始しなかった。覚えて抜け、少し待って作り直す。
+      if (attempt.failedRoomId != null) failedRooms.add(attempt.failedRoomId);
+      await online.leaveGame().catch(() => {});
+      onLog?.("この部屋は開始しませんでした（前回の残り部屋の可能性）。抜けて作り直します…");
+      await wait(1500);
+    }
   } catch (err) {
-    if (joined) await online.leaveGame().catch(() => {});
+    await online.leaveGame().catch(() => {});
     return empty(false, "実行時エラー: " + (err?.message ?? err));
   }
 }
