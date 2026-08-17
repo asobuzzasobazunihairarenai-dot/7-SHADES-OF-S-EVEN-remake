@@ -14405,3 +14405,36 @@ FKエラー）。#179の同一アカウント検知では説明が付かない�
   `🔎 待機N回目 人数=1 / SMOKE部屋: [XXXXXX mc:1 ★自分の部屋(主=自分)]`）。後始末で残り部屋0。
   `node --check`通過。サーバー側の変更は無い。次に2ブラウザ（別アカウント）で走らせて両方のログを
   もらえれば、相手の部屋が一覧に出ているかどうかで原因を確定できる。
+
+### 2026-08-17（続き181）：ランク戦のシーズン終了報酬（通貨）を実装
+
+ユーザー選択「ランク戦の仕上げ→シーズン終了報酬→通貨のみ（提案の額）」。ランクを登る→月末に
+報酬→また頑張る、という達成ループの締め。シーズン中は降格しないので、シーズン切替の瞬間の`rank`が
+そのシーズンの到達ランク（ピーク）。そこに応じた通貨を付与する。
+- **サーバー（`supabase_setup_so7.sql`）**:
+  - `so7_ranked_players`に`pending_reward_season`/`pending_reward_rank`/`pending_reward_amount`列を追加
+    （「未受取の報酬」記録。クライアントがモーダルで見せて消し込むための1回だけ表示用。通貨自体は
+    付与済み）。
+  - `so7_ranked_season_reward(rank)`新設（到達ランク→通貨。ブロンズ50/シルバー100/ゴールド200/
+    プラチナ350/ダイヤ550/マスター800/レジェンド1200。金額はここを直して再実行で調整可）。
+  - `so7_ranked_apply_delta`のシーズン切替ブロックで、降格（-2）前の現ランク＝ピークに応じた通貨を
+    `so7_user_currency`へ付与し、`pending_reward_*`に記録。ここはシーズンが変わった最初の1回だけ
+    実行される（以降は`v_row_season=v_season`で再入しない）ので冪等＝二重付与なし。
+  - `so7_ranked_get_self`の返り値に`pending_reward_*`を追加（既存の`rank`/`gauge`等はそのまま＝
+    クライアント無改修で後方互換）。`so7_ranked_claim_reward()`新設（未受取記録をクリア）。
+- **クライアント**:
+  - `online.js`に`claimSeasonReward()`を追加（`getSelfRank()`は返り値に`pending_reward_*`が増えるだけ）。
+  - 新規`ranked-season-reward-modal.js`＝`showSeasonRewardModal({season,rank,amount})`。到達ランクの
+    称号バッジ（アニメ版）＋段位名＋「🪙 +N」＋祝賀バースト＋「受け取る」。
+  - `main.js`のログイン時フック（デイリーボーナスと同じ場所）で`maybeShowSeasonReward()`を呼ぶ:
+    `getSelfRank()`の`pending_reward_season`があればモーダルを見せ→`claimSeasonReward()`で消し込み→
+    残高表示・ランクリングを更新。
+- **検証**: ブラウザで`showSeasonRewardModal({season:'2026-07',rank:4,amount:550})`を実測——タイトル/
+  「先月（2026-07）の到達ランク」/「ダイヤモンド」/「+550」/diamond-animated.webpバッジ読み込み/
+  祝賀バースト/z-index 20110/受け取るで閉じてPromise解決、を確認。SQLはドル引用符バランス（偶数）・
+  新関数3種の存在を確認。`node --check`全ファイル通過。シーズン切替の実挙動（実際に報酬が付与され
+  モーダルが出るか）は、下記のSQL再実行後に管理者RPC等でseason_idを操作して確認できる。
+- **ユーザー側の作業が必要**: `supabase_setup_so7.sql`（追記分＝`so7_ranked_players`への3列追加・
+  `so7_ranked_season_reward`・`so7_ranked_apply_delta`再定義・`so7_ranked_get_self`再定義・
+  `so7_ranked_claim_reward`新設。ファイル全体＝再実行安全）をSupabase SQL Editorで実行する必要が
+  ある。Edge Functionの変更は無いため再デプロイ不要。

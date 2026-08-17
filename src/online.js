@@ -1020,6 +1020,14 @@ export async function getSelfRank() {
   return data?.[0] ?? null;
 }
 
+// シーズン終了報酬の「未受取」記録をクリアする（モーダルを表示し終えた後に呼ぶ）。
+// 通貨自体はサーバー側のシーズン切替時に付与済みで、これは「1回だけ見せる」ための消し込み。
+export async function claimSeasonReward() {
+  if (!client || !cachedUser) return;
+  const { error } = await client.rpc("so7_ranked_claim_reward");
+  if (error) console.error("so7_ranked_claim_reward failed", error);
+}
+
 // ランク対局の「昇格演出」（docs/ranked-spec.md フェーズ6）用に、対局開始時点の自分のランクを
 // 覚えておく。結果反映後の getSelfRank と比べて rank が上がっていれば昇格＝演出を出す
 // （シーズン中は降格なしなので rank 増加＝昇格のみを見ればよい）。結果適用は全クライアントが

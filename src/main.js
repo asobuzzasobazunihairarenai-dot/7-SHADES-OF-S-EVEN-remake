@@ -78,6 +78,7 @@ import { registerMyDeckPersistence } from "./my-deck.js";
 // 依存の葉。ピッカーは内部で動的importするのでここは静的でも循環しない）。
 import { openDeckSelect, closeDeckSelect, isDeckSelectOpen } from "./my-deck-select.js";
 import { initCurrencyDisplay, refreshCurrencyDisplay, showCurrencyAwardEffect } from "./currency-display.js";
+import { showSeasonRewardModal } from "./ranked-season-reward-modal.js";
 import { initShop, openShopPanel } from "./shop.js";
 import { initGameSetup, previewStartPlayerModal, showStartPlayerModal } from "./game-setup.js";
 import { initOptionsMenu } from "./options-menu.js";
@@ -289,6 +290,7 @@ import {
   onRankedForfeitEvents,
   reportRankedResult,
   getSelfRank,
+  claimSeasonReward,
   broadcastColorsDeclared,
   onColorsDeclaredEvents,
   broadcastColorsResolved,
@@ -13283,9 +13285,30 @@ onAuthChange((user) => {
         }
       })
       .catch((err) => console.error("claimDailyLoginBonus failed", err));
+    // シーズン終了報酬（docs/ranked-spec.md）。新シーズンに初めてログインした時、前シーズンの
+    // 到達ランクに応じた通貨が既に付与されている（サーバー側のシーズン切替）。getSelfRankが
+    // 返す pending_reward_* があればモーダルで1回だけ見せて、claimでクリアする。
+    maybeShowSeasonReward();
   }
   wasLoggedInForDailyBonus = isLoggedIn;
 });
+
+async function maybeShowSeasonReward() {
+  try {
+    const rank = await getSelfRank();
+    if (!rank || !rank.pending_reward_season) return;
+    await showSeasonRewardModal({
+      season: rank.pending_reward_season,
+      rank: rank.pending_reward_rank ?? 0,
+      amount: rank.pending_reward_amount ?? 0,
+    });
+    await claimSeasonReward();
+    refreshCurrencyDisplay(); // 付与済み残高を反映
+    refreshSelfStatusRankRing?.(); // 2ランク下・ゲージ0にリセットされた新シーズンのランクを反映
+  } catch (err) {
+    console.error("maybeShowSeasonReward failed", err);
+  }
+}
 
 function showDailyBonusToast(amount) {
   // ユーザー要望「ログインでお金がもらえる時はモーダルで」。1日1回のログインボーナスを

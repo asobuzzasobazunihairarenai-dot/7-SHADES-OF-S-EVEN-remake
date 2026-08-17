@@ -1580,6 +1580,32 @@ drop policy if exists "so7_ranked_players_select" on so7_ranked_players;
 create policy "so7_ranked_players_select" on so7_ranked_players for select to authenticated
   using (true);
 
+-- シーズン終了報酬（docs/ranked-spec.md）。シーズン切替時に、前シーズンの到達ランク
+-- （＝降格前の現ランク。シーズン中は降格しないのでこれがピーク）に応じた通貨を付与し、
+-- 「未受取の報酬」としてここに記録する。クライアントが新シーズン初ログイン時にモーダルで
+-- 見せ、so7_ranked_claim_reward()でクリアする（＝1回だけ表示。通貨自体は付与済み）。
+alter table so7_ranked_players add column if not exists pending_reward_season text;
+alter table so7_ranked_players add column if not exists pending_reward_rank smallint;
+alter table so7_ranked_players add column if not exists pending_reward_amount int;
+
+-- 到達ランク→シーズン終了報酬（通貨）。金額を変えたい時はここの数字を変えて再実行する。
+-- 0=ブロンズ 1=シルバー 2=ゴールド 3=プラチナ 4=ダイヤ 5=マスター 6=レジェンド。
+create or replace function so7_ranked_season_reward(p_rank int)
+returns int
+language sql
+immutable
+as $$
+  select case
+    when p_rank <= 0 then 50
+    when p_rank = 1 then 100
+    when p_rank = 2 then 200
+    when p_rank = 3 then 350
+    when p_rank = 4 then 550
+    when p_rank = 5 then 800
+    else 1200            -- 6以上＝レジェンド
+  end;
+$$;
+
 -- 現在のシーズンID（JSTの年月）。cronは使わず、シーズン切替は「新シーズンに初めて
 -- ランク戦に触れた時」に下の関数群が遅延で適用する。
 create or replace function so7_ranked_current_season()
@@ -1609,6 +1635,7 @@ declare
   v_gauge smallint;
   v_lp int;
   v_total int;
+  v_reward int;
 begin
   -- 行が無ければ現シーズンのブロンズ0で作る
   insert into so7_ranked_players (user_id, season_id, rank, gauge, legend_points, updated_at)
@@ -1621,6 +1648,22 @@ begin
 
   -- シーズン切替（古いシーズンなら現ランク-2・ゲージ0・LP0を1回だけ。何ヶ月空けても1回）
   if v_row_season is distinct from v_season then
+    -- シーズン終了報酬: 降格前の現ランク（＝前シーズンの到達ランク＝ピーク）に応じた通貨を付与し、
+    -- 「未受取の報酬」として記録する（クライアントがモーダルで見せてclaimでクリア）。ここは
+    -- 季節が変わった最初の1回だけ実行される（以降 v_row_season=v_season で再入しない）ので冪等。
+    v_reward := so7_ranked_season_reward(v_rank);
+    if v_reward > 0 then
+      insert into so7_user_currency (user_id, balance, updated_at)
+        values (p_user_id, v_reward, now())
+        on conflict (user_id) do update
+          set balance = so7_user_currency.balance + v_reward, updated_at = now();
+    end if;
+    update so7_ranked_players
+      set pending_reward_season = v_row_season,
+          pending_reward_rank = v_rank,
+          pending_reward_amount = v_reward
+      where user_id = p_user_id;
+
     v_rank := greatest(0, v_rank - 2);
     v_gauge := 0;
     v_lp := 0;
@@ -1659,7 +1702,8 @@ revoke execute on function so7_ranked_apply_delta(uuid, int) from public;
 -- 呼び出し元自身の現シーズンのランクを取得する（表示用）。行が無い/シーズンが古い時だけ
 -- apply_delta(0)で作成/シーズン切替を反映し、それ以外は純粋なselect。
 create or replace function so7_ranked_get_self()
-returns table(season_id text, rank smallint, gauge smallint, legend_points int)
+returns table(season_id text, rank smallint, gauge smallint, legend_points int,
+  pending_reward_season text, pending_reward_rank smallint, pending_reward_amount int)
 language plpgsql
 security definer
 set search_path = public, extensions
@@ -1674,15 +1718,38 @@ begin
   end if;
   select p.season_id into v_row_season from so7_ranked_players p where p.user_id = v_uid;
   if v_row_season is null or v_row_season is distinct from v_season then
-    perform so7_ranked_apply_delta(v_uid, 0);  -- ポイント変化なし・作成/シーズン切替だけ反映
+    perform so7_ranked_apply_delta(v_uid, 0);  -- ポイント変化なし・作成/シーズン切替（＋シーズン終了報酬）だけ反映
   end if;
   return query
-    select p.season_id, p.rank, p.gauge, p.legend_points
+    select p.season_id, p.rank, p.gauge, p.legend_points,
+           p.pending_reward_season, p.pending_reward_rank, p.pending_reward_amount
       from so7_ranked_players p where p.user_id = v_uid;
 end;
 $$;
 revoke execute on function so7_ranked_get_self() from public;
 grant execute on function so7_ranked_get_self() to authenticated;
+
+-- シーズン終了報酬の「未受取」記録をクリアする（クライアントがモーダルを表示し終えた後に呼ぶ）。
+-- 通貨自体はシーズン切替時に付与済みなので、これは「モーダルを1回だけ見せる」ための消し込み。
+create or replace function so7_ranked_claim_reward()
+returns void
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'not_authenticated';
+  end if;
+  update so7_ranked_players
+    set pending_reward_season = null, pending_reward_rank = null, pending_reward_amount = null
+    where user_id = v_uid;
+end;
+$$;
+revoke execute on function so7_ranked_claim_reward() from public;
+grant execute on function so7_ranked_claim_reward() to authenticated;
 
 -- 【管理者専用】任意のプレイヤーにポイント差分を適用する（動作検証・手動補正用）。
 -- so7_admin_grant_currencyと同じく、関数内部でメールを直接チェックして本当に制限する。
