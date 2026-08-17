@@ -617,7 +617,7 @@ const GROUPS = [
     category: "position-ui",
     controls: [
       { key: "--bug-report-icon-size", label: "大きさ", unit: "rem", min: 1.4, max: 4, step: 0.05, default: 1.9 },
-      { key: "--bug-report-icon-right", label: "横位置 right（＋で左へ）", unit: "rem", min: 0, max: 40, step: 0.1, default: 19.5 },
+      { key: "--bug-report-icon-right", label: "横位置 right（＋で左へ）", unit: "rem", min: 0, max: 40, step: 0.1, default: 22.1 },
       { key: "--bug-report-icon-top", label: "縦位置 top（＋で下へ）", unit: "rem", min: -2, max: 10, step: 0.1, default: 0.6 },
     ],
   },

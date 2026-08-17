@@ -61,6 +61,7 @@ import {
 import { initHelpButton } from "./help.js";
 import { initDiscordLink } from "./discord-link.js";
 import { initBoardViewToggle } from "./board-view-toggle.js";
+import { initFullscreenToggle } from "./fullscreen-toggle.js";
 import { getOptionArea } from "./option-area.js";
 import { openBugReportModal } from "./bug-report.js";
 // リロードを跨ぐ“ブラックボックス”（「スマホでたまに落ちてタイトルに戻る」原因追跡用）。
@@ -12684,6 +12685,7 @@ function isInGameForBanner() {
 setUpdateBannerGate(() => !isInGameForBanner());
 initDiscordLink();
 initBoardViewToggle(); // Discordアイコンと残金表示の間に2D/3D切り替えアイコンを置く（順序＝追加順）
+initFullscreenToggle(); // 不具合報告と2D/3D切替の間に全画面表示アイコンを置く（位置はCSS）
 initCurrencyDisplay();
 // オンライン状態ウィジェットをオプションエリアの残金アイコン(#currency-display)の左隣へ
 // 差し込む（ユーザー要望「オンラインアイコンを右上に移設・部屋名はアイコンの右隣に表示」）。

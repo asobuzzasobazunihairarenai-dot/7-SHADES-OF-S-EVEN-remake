@@ -19,6 +19,7 @@ import { RANK_EXPLAIN_SECTIONS } from "./rank-explain.js";
 import { linkifyGlossary } from "./glossary-linkify.js";
 import { getOptionArea } from "./option-area.js";
 import { closeShopPanel } from "./shop.js";
+import { closeProfilePage } from "./profile-page.js";
 
 // 個別の説明を表示する小さなモーダル（トップの一覧からのクリックで開く。icon-action-button.js
 // のopenIconDetailModalと同じ「1個だけ使い回す」パターンだが、ヘルプ画面自身の裏に
@@ -175,6 +176,10 @@ export function openHelpPanel() {
   // #2026-08-16: ショップから開くとヘルプ(2501)がショップ(2601)の背面に隠れるため、先に
   // ショップを閉じてから開く（ショップ未表示なら安全なno-op）。
   closeShopPanel();
+  // ユーザー報告2026-08-18「マイページ画面でオプションエリアの『ヘルプ』を押しても反応しない」。
+  // マイページ(#profile-page z:2650)はヘルプ(2501)より前面のため、閉じないと背面に隠れて
+  // クリックできない。先にマイページを閉じる（未表示なら安全なno-op）。
+  closeProfilePage();
   openFn?.();
 }
 

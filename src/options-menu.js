@@ -67,6 +67,7 @@ import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-butto
 import { openStatsPlayerLinkModal } from "./stats-player-link.js";
 import { fetchStatsProfile } from "./stats-profile.js";
 import { isFlatten2dMode, setFlatten2dMode } from "./tablet-2d-mode.js";
+import { isFullscreenSupported, isFullscreenActive, toggleFullscreen } from "./fullscreen-toggle.js";
 import {
   isRankedNotifyEnabled,
   setRankedNotifyEnabled,
@@ -752,6 +753,16 @@ export function initOptionsMenu() {
               saveMyPreference({ flatten_2d_mode: checked });
             })
           );
+          // ユーザー要望2026-08-18「全画面表示ボタンをオプション内にも追加」。ブラウザの
+          // タブ/URL欄/ブックマークバーを隠す。チェックのON/OFFで全画面の入/出を切り替える
+          // （クリック＝ユーザー操作起点なのでrequestFullscreenが発動できる）。未対応端末では出さない。
+          if (isFullscreenSupported()) {
+            content.appendChild(
+              buildCheckboxRow("全画面表示にする（タブ/URL欄を隠す）", isFullscreenActive(), () => {
+                toggleFullscreen();
+              })
+            );
+          }
           // ユーザー要望「相手の基本時間のカウントダウンを表示、非表示ボタンを基本設定に
           // 追加してください。デフォルトは非表示で」。自分自身のカウントダウンは常に
           // 表示する（この設定の対象外）。画面中央の砂時計ロープは誰の分でも従来通り

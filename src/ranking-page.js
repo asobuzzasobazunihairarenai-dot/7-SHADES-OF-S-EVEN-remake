@@ -9,6 +9,7 @@ import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { getOptionArea, syncFullScreenPageActive } from "./option-area.js";
 import { closeShopPanel } from "./shop.js";
+import { closeProfilePage } from "./profile-page.js";
 
 let overlayEl = null;
 let listEl = null;
@@ -157,6 +158,10 @@ export async function openRankingPage(onClose) {
   // #2026-08-16: ショップから開くとランキング(1500)がショップ(2601)の背面に隠れるため、
   // 先にショップを閉じてから開く（ショップ未表示なら安全なno-op）。ヘルプ/プロフィールも同様。
   closeShopPanel();
+  // ユーザー報告2026-08-18「マイページ画面でオプションエリアの『ランキング』を押しても反応しない
+  // （背面に行ってる？）」。マイページ(#profile-page z:2650)はランキング(1500)より前面のため、
+  // 閉じないと背面に隠れてクリックできない。先にマイページを閉じる（未表示なら安全なno-op）。
+  closeProfilePage();
   overlayEl = document.createElement("div");
   overlayEl.id = "ranking-page";
 

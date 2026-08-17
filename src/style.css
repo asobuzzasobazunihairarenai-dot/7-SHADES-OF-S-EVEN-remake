@@ -5004,6 +5004,28 @@ body.theme-light .action-log-window-title {
   background: none;
   border-color: transparent;
 }
+/* 全画面表示アイコン（fullscreen-toggle.js）。不具合報告(22.1rem)と2D/3D切替(16.9rem)の間の
+   19.5rem に置く（不具合報告を元の19.5→22.1へ、通貨表示を22.1→24.7へずらして間を空けた）。
+   2D/3D切替と同じく縁取り・キャプション無し・ホバーで簡易説明。 */
+#fullscreen-toggle-button {
+  position: absolute;
+  top: 0.3rem;
+  right: 19.5rem;
+  z-index: 900;
+  transform: translate(var(--icon-pos-fullscreen-x, 0rem), var(--icon-pos-fullscreen-y, 0rem));
+}
+#fullscreen-toggle-button .icon-action-button-caption {
+  display: none;
+}
+#fullscreen-toggle-button .icon-action-button-icon-wrap {
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+#fullscreen-toggle-button:hover .icon-action-button-icon-wrap {
+  background: none;
+  border-color: transparent;
+}
 #discord-link-button .icon-action-button-caption {
   display: none;
 }
@@ -5028,7 +5050,8 @@ body.theme-light .action-log-window-title {
 #currency-display {
   position: absolute;
   top: 0.5rem;
-  right: 22.1rem;
+  /* 全画面ボタンを不具合報告(22.1)と2D/3D(16.9)の間に入れるため、通貨は22.1→24.7へ左送り。 */
+  right: 24.7rem;
   z-index: 900;
   display: flex;
   align-items: center;
@@ -6634,6 +6657,7 @@ body.opening-screen-active #option-area {
 body.opening-screen-active #help-button,
 body.opening-screen-active #discord-link-button,
 body.opening-screen-active #board-view-toggle-button,
+body.opening-screen-active #fullscreen-toggle-button,
 body.opening-screen-active #currency-display,
 body.opening-screen-active #self-status-online,
 body.opening-screen-active #my-page-button,
@@ -11844,7 +11868,8 @@ body:not(.is-admin-user) .opening-admin-btn {
   --home-new-badge-offset-x: 2rem;
   --home-new-badge-offset-y: 1.6rem;
   --bug-report-icon-size: 1.9rem;
-  --bug-report-icon-right: 19.5rem;
+  /* 全画面ボタンを不具合報告(旧19.5)と2D/3D(16.9)の間へ入れるため、不具合報告を19.5→22.1へ左送り。 */
+  --bug-report-icon-right: 22.1rem;
   --bug-report-icon-top: 0.6rem;
   --action-log-icon-size: 1.95rem;
   --action-log-icon-right: 3.9rem;
