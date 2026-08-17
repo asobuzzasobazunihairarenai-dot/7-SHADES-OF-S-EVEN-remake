@@ -14320,3 +14320,22 @@ badge/bg top `calc(50% - 4.2rem)`・socket0 13.1%/38.7% 等）ことを確認。
   SMOKE-AUTO-TEST 0件）ことも確認した。2ブラウザでの実マッチ→開始→監視の通しは、2つのゲスト
   セッション（別ブラウザ or シークレット2つ）が必要なため、ユーザーの実機で確認をお願いする。
   サーバー側（Supabase）の変更は無い（既存の部屋RPCを呼ぶだけ）。
+
+### 2026-08-17（続き177）：オンライン監視スモークで開始した対局がHUERISE画面の背後に隠れる不具合を修正
+
+ユーザー報告2026-08-17「画面が最初のHUERISE画面から動かず、背後でプレイされています。実際に盤面は
+見たいです」。スモークパネル（z-index 100091）はタイトル画面（`#opening-screen`＝HUERISE、z-index
+50000）の上に浮くため、ユーザーはタイトル画面のままオンライン監視を開始できる。ところが続き172/176の
+オンライン監視・ワンタッチは、通常の「オンラインで続ける」ボタン（＝`opening-screen.js`の`close()`
+経由）を通らずにプログラムから対局を開始・入場するため、**HUERISE画面が閉じず盤面が背後に隠れる**
+ままだった。
+- **`opening-screen.js`に`forceCloseOpeningScreen(after)`をexport**: `initOpeningScreen()`内の
+  ローカル関数`close()`をモジュール変数`openingScreenCloser`に登録し、外部から呼べるようにした
+  （既に非表示なら何もしない・二重呼び出し安全。`close()`自身にも「is-closing中/表示済みなら即return」の
+  冪等ガードを追加）。
+- **`smoke-test-runner.js`の`runOnlineSmokeMonitor`**: 対局開始（`isOnlineMode() && turnPlayer`）を
+  検知した直後に`forceCloseOpeningScreen()`を動的importで呼ぶ。ワンタッチ（`runOneTouchOnlineSmoke`）も
+  末段でこの監視関数を通るため、両経路で盤面が見えるようになる。
+- **検証**: ブラウザで`forceCloseOpeningScreen()`を実際に呼び、`#opening-screen`の`display`が
+  flex→none・`opening-screen-active`bodyクラスが除去・二重呼び出しでも例外なし、コンソールエラー
+  無しを実測確認。`node --check`通過。サーバー側の変更は無い。

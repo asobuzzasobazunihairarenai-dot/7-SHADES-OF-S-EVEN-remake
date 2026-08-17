@@ -243,6 +243,10 @@ async function runOnlineSmokeMonitor(onLog, shouldStop) {
       await wait(1000);
     }
     onLog?.(`オンライン対戦を検知（自分の席=${selfSeat() ?? "?"}）。監視を開始します。`);
+    // タイトル画面（HUERISE）のまま浮いているスモークパネルから開始した場合、通常の
+    // 「オンラインで続ける」ボタン（close()経由）を通らないためオープニング画面が閉じず、
+    // 盤面が背後に隠れてしまう（ユーザー報告2026-08-17）。対局を検知したら明示的に閉じる。
+    try { (await import("./opening-screen.js")).forceCloseOpeningScreen?.(); } catch {}
     // 自動プレイの前提（この席が疑似CPUで駆動される＋タイマー有効）を確認して、満たさなければ警告。
     const willAutoPlay = !!tt.isPseudoCpuTarget?.(selfSeat());
     const timerOn = !!tt.isTurnTimerEnabled?.();

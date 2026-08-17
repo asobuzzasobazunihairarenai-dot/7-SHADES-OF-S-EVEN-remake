@@ -403,6 +403,28 @@ function openInfoModal(title, paragraphs) {
   infoModalEl.style.display = "block";
 }
 
+// オープニング画面（HUERISE）をプログラムから強制的に閉じるためのフック。
+// スモークテストのワンタッチ・オンライン監視（smoke-test-runner.js）は、ユーザーが
+// タイトル画面のまま浮いているスモークパネルからオンライン対局を自動開始できるが、
+// その経路は通常の「オンラインで続ける」ボタン（＝close()経由）を通らないため、
+// HUERISE画面が閉じず盤面が背後で見えなくなる不具合があった（ユーザー報告
+// 2026-08-17「画面が最初のHUERISE画面から動かず、背後でプレイされています」）。
+// initOpeningScreen()内のclose()をここに登録し、外部から呼べるようにする。
+let openingScreenCloser = null;
+export function forceCloseOpeningScreen(after) {
+  const overlay = document.getElementById("opening-screen");
+  if (!overlay || overlay.style.display === "none") {
+    if (after) after();
+    return;
+  }
+  if (openingScreenCloser) openingScreenCloser(after);
+  else {
+    overlay.style.display = "none";
+    document.body.classList.remove("opening-screen-active");
+    if (after) after();
+  }
+}
+
 export function initOpeningScreen() {
   const overlay = document.createElement("div");
   overlay.id = "opening-screen";
@@ -528,6 +550,10 @@ export function initOpeningScreen() {
   document.body.classList.add("opening-screen-active");
 
   function close(after) {
+    if (overlay.classList.contains("is-closing") || overlay.style.display === "none") {
+      if (after) after();
+      return;
+    }
     // ユーザー要望「音楽もフェードアウトしてほしい」。オーバーレイのフェードアウトと
     // 同じ時間をかけて音量を下げる。
     stopOpeningBgm(CLOSE_TRANSITION_MS);
@@ -544,6 +570,7 @@ export function initOpeningScreen() {
       maybeShowTablet2dWarning();
     }, CLOSE_TRANSITION_MS);
   }
+  openingScreenCloser = close;
 
   function revealContent() {
     overlay.classList.add("stage-content");
