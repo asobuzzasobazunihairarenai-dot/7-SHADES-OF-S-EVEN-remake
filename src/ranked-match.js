@@ -27,7 +27,7 @@ import {
 import { openDeckSelect } from "./my-deck-select.js";
 import { playSound } from "./sound.js";
 import {
-  ensureNotifyPermission,
+  primeNotifyPermission,
   showBrowserNotification,
   startFaviconAlert,
   stopFaviconAlert,
@@ -69,10 +69,9 @@ export async function startRankedMatchmaking(onExit) {
     return;
   }
   myUserId = user.id;
-  // マッチ成立（レディチェック）は別タブ/別アプリを見ていると見逃しやすいので、この操作起点で
-  // ブラウザ通知の許可を取っておく（許可済み/拒否済みなら何もしない）。
-  void ensureNotifyPermission();
   // 人数はおまかせ（2〜4人・段階的フィル）。デッキ確認 → キュー登録の順。
+  // ※ブラウザ通知の許可は「いきなり本物のダイアログ」ではなく、キュー登録後に何のための通知か
+  //   説明するプリパーミッションを出してから求める（beginQueue内、ユーザー報告2026-08-18）。
   openDeckSelect({
     durationSec: 0,
     subtitle: "ランク戦で使うデッキを選んでください（2〜4人でマッチ）",
@@ -94,6 +93,13 @@ async function beginQueue(resolved) {
   }
   setWaitingStatus("対戦相手を探しています…");
   startPolling();
+  // 別タブ/別アプリを見ていると、マッチ成立（レディチェック）を見逃してキューから弾かれやすい。
+  // その通知を出すために、何のための通知かを説明してから許可を求める（本物のダイアログは
+  // ユーザーが「許可する」を押した時だけ出る）。非ブロッキングで、待機中に1回だけ。
+  void primeNotifyPermission({
+    title: "対戦相手が見つかったら通知します",
+    body: "別のタブやアプリを見ていても、対戦相手が見つかった時（対戦開始の確認）に通知でお知らせします。見逃して弾かれるのを防げます。",
+  });
 }
 
 // ---- 待機画面 -------------------------------------------------------------
