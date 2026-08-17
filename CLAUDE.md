@@ -14211,3 +14211,31 @@ badge/bg top `calc(50% - 4.2rem)`・socket0 13.1%/38.7% 等）ことを確認。
   （対局開始前）」とクリーンに終わることをブラウザで実測。実際のオンライン2アカウントでの監視
   （対局検知→ターン進行の追跡→オンライン特有バグの捕捉）は、Supabase＋2アカウント（別ブラウザor
   シークレットでゲストログイン2つ）が必要なためユーザー側での実地確認となる。サーバー側の変更は無い。
+
+### 2026-08-17（続き173）：スモークの勝利誤検知（勝利後に詰み扱いになる）を修正＋2人目の管理者アカウント追加
+
+- **スモークテストが勝利到達を検知できず、勝利後に30秒待って「詰み」の誤FAILになる不具合を修正**
+  （ユーザー報告＋診断ログ。17ターン目でCが7色ロック→`diag-victory`が出て勝利モーダルが表示され
+  盤面が止まった後、30秒後に「詰み：盤面が完全に固まっています」とFAIL）: 原因は
+  `smoke-test-runner.js`の勝利検知が`hasAnyoneWon`を**phase-automation.js**から動的importして
+  いたこと。`hasAnyoneWon`は実際には**victory.js**にあり、phase-automation.jsはそれをimportして
+  いるだけで**再exportしていない**ため、`pa.hasAnyoneWon`は`undefined`＝`won`が常にfalse＝勝利を
+  一度も検知できず、勝利で盤面が止まると（＝正しい挙動）詰み判定だけが後から発火していた。
+  ローカルスモーク（`runInAppSmokeTest`）・オンライン監視（`runOnlineSmokeMonitor`）の両方の
+  勝利検知を、import元を`victory.js`に変えて修正（victory.jsはsmoke-test-runnerを一切importしない
+  ため循環なし）。これで決着まで回すと正しく「決着（Nターン）」でPASSする。
+- **2人目の管理者アカウント`shogoshogo0929@gmail.com`を追加**（ユーザー要望。管理者が1つだけだと
+  スモークテストボタン＝管理者ログイン時のみ表示、が1アカウントでしか出せず、オンライン監視の
+  2ブラウザテストができないため）: `online.js`の`ADMIN_EMAIL`（単一）を`ADMIN_EMAILS`（配列）に
+  変更し`isAdminUser`を配列の`includes`判定に。これでクライアント側の管理者UI（スモークボタン・
+  管理者モード・アクションログ等）が両アカウントで出る。あわせて`supabase_setup_so7.sql`の
+  サーバー側の管理者チェック（`so7_admin_grant_currency`/`so7_touch_presence`/`so7_get_admin_stats`/
+  `so7_get_admin_user_list`/`so7_get_admin_visit_log`/`so7_ranked_admin_apply_delta`とRLSポリシー）も
+  両メール許可に更新（`is distinct from 'X'`→`(is distinct from 'X' and is distinct from 'Y')`という
+  **null安全**な形＝ゲストのnullメールは従来通り拒否。RLS政策のWHEREは`in ('X','Y')`）。
+  - **ユーザー側の作業が必要**: クライアント側（スモークボタン等）は即反映されるが、サーバー側の
+    管理者RPC（通貨付与・利用状況・ユーザー一覧等）をshogoshogoでも使えるようにするには、更新後の
+    `supabase_setup_so7.sql`をSupabase SQL Editorで再実行する必要がある（再実行安全）。スモーク
+    ボタンの表示だけならSQL再実行は不要。
+- **検証**: `node --check`通過、`victory.js`の`hasAnyoneWon`がexportされ循環importなく解決すること、
+  `isAdminUser`が配列判定に変わったことをブラウザで確認。サーバー側SQLはSQL Editorでの再実行が必要。

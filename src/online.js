@@ -1098,10 +1098,10 @@ export async function reportRankedResult(gameId, winnerSeat) {
 // 閲覧可能なJSに埋め込まれるため）。実際の制限はsupabase_setup_so7.sql側の各関数が
 // auth.jwt()->>'email'をサーバー内部で直接チェックする形で行っており、他のユーザーが
 // このRPCを直接叩いても'not_authorized'で拒否される。 -----------------------------------
-const ADMIN_EMAIL = "asobuzz.asobazunihairarenai@gmail.com";
+const ADMIN_EMAILS = ["asobuzz.asobazunihairarenai@gmail.com", "shogoshogo0929@gmail.com"];
 
 export function isAdminUser() {
-  return !!cachedUser && cachedUser.email === ADMIN_EMAIL;
+  return !!cachedUser && ADMIN_EMAILS.includes(cachedUser.email);
 }
 
 // 管理者モードの「自分の通貨を自由に増やせる」ボタンから呼ぶ。戻り値は更新後の残高。

@@ -904,7 +904,7 @@ declare
   v_email text := auth.jwt() ->> 'email';
   v_balance int;
 begin
-  if v_uid is null or v_email is distinct from 'asobuzz.asobazunihairarenai@gmail.com' then
+  if v_uid is null or (v_email is distinct from 'asobuzz.asobazunihairarenai@gmail.com' and v_email is distinct from 'shogoshogo0929@gmail.com') then
     raise exception 'not_authorized';
   end if;
   insert into so7_user_currency (user_id, balance, updated_at)
@@ -996,7 +996,7 @@ declare
   v_email text := auth.jwt() ->> 'email';
   v_result json;
 begin
-  if v_email is distinct from 'asobuzz.asobazunihairarenai@gmail.com' then
+  if (v_email is distinct from 'asobuzz.asobazunihairarenai@gmail.com' and v_email is distinct from 'shogoshogo0929@gmail.com') then
     raise exception 'not_authorized';
   end if;
   select json_build_object(
@@ -1036,7 +1036,7 @@ security definer
 set search_path = public, extensions
 as $$
 begin
-  if (auth.jwt() ->> 'email') is distinct from 'asobuzz.asobazunihairarenai@gmail.com' then
+  if ((auth.jwt() ->> 'email') is distinct from 'asobuzz.asobazunihairarenai@gmail.com' and (auth.jwt() ->> 'email') is distinct from 'shogoshogo0929@gmail.com') then
     raise exception 'not_authorized';
   end if;
   return query
@@ -1063,7 +1063,7 @@ security definer
 set search_path = public, extensions
 as $$
 begin
-  if (auth.jwt() ->> 'email') is distinct from 'asobuzz.asobazunihairarenai@gmail.com' then
+  if ((auth.jwt() ->> 'email') is distinct from 'asobuzz.asobazunihairarenai@gmail.com' and (auth.jwt() ->> 'email') is distinct from 'shogoshogo0929@gmail.com') then
     raise exception 'not_authorized';
   end if;
   return query
@@ -1209,7 +1209,7 @@ security definer
 set search_path = public, extensions
 as $$
 begin
-  if (auth.jwt() ->> 'email') is distinct from 'asobuzz.asobazunihairarenai@gmail.com' then
+  if ((auth.jwt() ->> 'email') is distinct from 'asobuzz.asobazunihairarenai@gmail.com' and (auth.jwt() ->> 'email') is distinct from 'shogoshogo0929@gmail.com') then
     raise exception 'not_authorized';
   end if;
   return query
@@ -1234,7 +1234,7 @@ security definer
 set search_path = public, extensions
 as $$
 begin
-  if (auth.jwt() ->> 'email') is distinct from 'asobuzz.asobazunihairarenai@gmail.com' then
+  if ((auth.jwt() ->> 'email') is distinct from 'asobuzz.asobazunihairarenai@gmail.com' and (auth.jwt() ->> 'email') is distinct from 'shogoshogo0929@gmail.com') then
     raise exception 'not_authorized';
   end if;
   return query
@@ -1519,7 +1519,7 @@ as $$
   from so7_bug_reports b
   left join auth.users u on u.id = b.user_id
   left join so7_user_profiles p on p.user_id = b.user_id
-  where (auth.jwt() ->> 'email') = 'asobuzz.asobazunihairarenai@gmail.com'
+  where (auth.jwt() ->> 'email') in ('asobuzz.asobazunihairarenai@gmail.com','shogoshogo0929@gmail.com')
   order by b.created_at desc
 $$;
 revoke execute on function so7_get_admin_bug_reports() from public;
@@ -1697,7 +1697,7 @@ declare
   v_uid uuid := auth.uid();
   v_email text := auth.jwt() ->> 'email';
 begin
-  if v_uid is null or v_email is distinct from 'asobuzz.asobazunihairarenai@gmail.com' then
+  if v_uid is null or (v_email is distinct from 'asobuzz.asobazunihairarenai@gmail.com' and v_email is distinct from 'shogoshogo0929@gmail.com') then
     raise exception 'not_authorized';
   end if;
   perform so7_ranked_apply_delta(p_target, p_delta);

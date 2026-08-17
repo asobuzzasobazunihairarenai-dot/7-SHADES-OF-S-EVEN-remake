@@ -139,8 +139,8 @@ async function runInAppSmokeTest(onLog, { runToCompletion = false } = {}) {
 
       let won = false;
       try {
-        const pa = await import("./phase-automation.js");
-        won = typeof pa.hasAnyoneWon === "function" ? pa.hasAnyoneWon() : false;
+        const vic = await import("./victory.js");
+        won = typeof vic.hasAnyoneWon === "function" ? vic.hasAnyoneWon() : false;
       } catch {}
       if (won) { pass = errors.length === 0 && invariantViolations.length === 0; reason = `決着（${turn}ターン）`; lastTurn = turn; break; }
       if (turn > lastTurn) {
@@ -285,8 +285,8 @@ async function runOnlineSmokeMonitor(onLog, shouldStop) {
 
       let won = false;
       try {
-        const pa = await import("./phase-automation.js");
-        won = typeof pa.hasAnyoneWon === "function" ? pa.hasAnyoneWon() : false;
+        const vic = await import("./victory.js");
+        won = typeof vic.hasAnyoneWon === "function" ? vic.hasAnyoneWon() : false;
       } catch {}
       if (won) { pass = errors.length === 0 && invariantViolations.length === 0; reason = `決着（${turn}ターン）`; lastTurn = turn; break; }
       if (turn > lastTurn) {
