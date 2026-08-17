@@ -1380,6 +1380,38 @@ function startHeartbeat(gameId, userId) {
   }, HEARTBEAT_MS);
 }
 
+// 不具合#146: 部屋の待機中（対局開始前）にホストが「ゲームを開始する」を押すと、
+// so7-apply-action が state_changed をブロードキャストして待機側の fetchAndHydrate を
+// 促す設計だが、Realtime が劣化して REST フォールバックになると（コンソールに
+// "Realtime send() is automatically falling back to REST API" が出る状態）この
+// ブロードキャストが届かず、待機側が「相手を待っています」のまま固まる。ターンタイマーの
+// 定期再同期（tick、約3秒ごと）は「対局中」しか回らず、対局開始前のこの隙間を守れない。
+// そこで部屋にいる間ずっと（待機中も対局中も）低頻度で fetchAndHydrate を回す安全網を
+// 張り、届かなかったブロードキャスト（＝対局開始や相手の手）を必ず数秒で追いつく。
+// fetchAndHydrate は冪等で、main.js のフィンガープリント重複排除により状態が変わって
+// いなければ再描画も起きないため、常時回しても無害。
+let gameResyncIntervalId = null;
+const GAME_RESYNC_MS = 5000;
+
+function stopGameResync() {
+  if (gameResyncIntervalId) {
+    clearInterval(gameResyncIntervalId);
+    gameResyncIntervalId = null;
+  }
+}
+
+function startGameResync(gameId) {
+  stopGameResync();
+  gameResyncIntervalId = setInterval(() => {
+    // 部屋を離れた後に取り残されたタイマーが誤って再同期しないよう、現在の部屋idと一致する時だけ回す。
+    if (currentGameId !== gameId) {
+      stopGameResync();
+      return;
+    }
+    fetchAndHydrate(gameId).catch(() => {});
+  }, GAME_RESYNC_MS);
+}
+
 // 部屋を新規作成し、作成者自身もその部屋に参加する（座席はまだ選ばない/決まらない。
 // 「ゲームを開始する」を押した瞬間にso7-apply-action Edge Function側で参加者全員へ
 // ランダムに割り振られる）。部屋idの生成・パスワードのハッシュ化はサーバー側の
@@ -1633,6 +1665,7 @@ export async function leaveGame() {
   const gameIdToLeave = currentGameId;
   const channelToClose = broadcastChannel;
   stopHeartbeat();
+  stopGameResync();
   const wasSpectating = spectating;
   currentGameId = null;
   currentSeat = null;
@@ -3070,4 +3103,7 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
   // 画面（セットアップウィザード等のローカル専用ボタンがまだ押せる状態）が残ってしまう。
   notifyListeners();
   fetchAndHydrate(gameId).catch(() => {});
+  // 不具合#146: 待機中も対局中も低頻度で再同期し、Realtime劣化で届かなかった
+  // ブロードキャスト（特に対局開始）を必ず数秒で追いつく安全網（startGameResync参照）。
+  startGameResync(gameId);
 }

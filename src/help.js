@@ -20,6 +20,8 @@ import { linkifyGlossary } from "./glossary-linkify.js";
 import { getOptionArea } from "./option-area.js";
 import { closeShopPanel } from "./shop.js";
 import { closeProfilePage } from "./profile-page.js";
+// 全画面ページを同時に1つだけにする（関数内でのみ使う遅延束縛なので循環importでも安全）。
+import { closeRankingPage } from "./ranking-page.js";
 
 // 個別の説明を表示する小さなモーダル（トップの一覧からのクリックで開く。icon-action-button.js
 // のopenIconDetailModalと同じ「1個だけ使い回す」パターンだが、ヘルプ画面自身の裏に
@@ -171,6 +173,12 @@ export function buildHelpList() {
 }
 
 let openFn = null;
+let closeFn = null;
+// 他の全画面ページ（プロフィール/ランキング）を開く時にヘルプを閉じるための外部close。
+// 未初期化・未表示なら安全なno-op。
+export function closeHelpPanel() {
+  closeFn?.();
+}
 
 export function openHelpPanel() {
   // #2026-08-16: ショップから開くとヘルプ(2501)がショップ(2601)の背面に隠れるため、先に
@@ -180,6 +188,7 @@ export function openHelpPanel() {
   // マイページ(#profile-page z:2650)はヘルプ(2501)より前面のため、閉じないと背面に隠れて
   // クリックできない。先にマイページを閉じる（未表示なら安全なno-op）。
   closeProfilePage();
+  closeRankingPage();
   openFn?.();
 }
 
@@ -193,6 +202,7 @@ export function initHelpButton() {
     backdrop.style.display = "block";
   }
   openFn = open;
+  closeFn = close;
 
   const panel = buildPanel(close);
   const backdrop = createBackdrop(close, { dim: true, zIndex: 2500 });

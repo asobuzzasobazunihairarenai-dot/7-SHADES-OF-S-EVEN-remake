@@ -8,6 +8,11 @@ import { renderMyPageBody } from "./my-page.js";
 import { applyProfileLayout, registerProfileLayoutHelpers } from "./profile-layout-editor.js";
 import { syncFullScreenPageActive } from "./option-area.js";
 import { closeShopPanel } from "./shop.js";
+// 全画面ページ（プロフィール/ランキング/ヘルプ）は同時に1つだけにする。開く時に他を閉じることで、
+// オプションエリアのアイコンを交互に押した時にDOMが背面に取り残されて開かなくなる不具合を防ぐ。
+// 関数内でのみ使う遅延束縛なので相互import（循環）でも安全。
+import { closeRankingPage } from "./ranking-page.js";
+import { closeHelpPanel } from "./help.js";
 // マイデッキ編集はマイページ内の大ボタンへ移設（ユーザー要望2026-08-11）。
 // ユーザー要望2026-08-16「ボタンの代わりにメインデッキのビジュアル（3D箱）を置き、その下に編集ボタン」。
 import { openMyDeckList, buildDeckCaseArt } from "./my-deck-list.js";
@@ -34,6 +39,13 @@ export function openProfilePage(onClose) {
   // #2026-08-16: ショップを開いたままだと裏に残るため、遷移先を開く時はショップを閉じる
   // （プロフィールはショップより前面だが、他ページと挙動を揃える。ショップ未表示なら安全なno-op）。
   closeShopPanel();
+  // ユーザー報告2026-08-18「マイページ/ランキングを交互に押すと途中でランキングが開かなくなる
+  // （背面に行っている）」。原因は openRankingPage は profile を閉じるのに openProfilePage は
+  // ranking を閉じていなかった非対称——ranking のDOMが背面に取り残され、その overlayEl も
+  // 残るため次の ranking 押下が `if(overlayEl) return` で早期returnしていた。開く時に他の全画面
+  // ページを閉じて対称にする（未表示なら安全なno-op）。
+  closeRankingPage();
+  closeHelpPanel();
   overlayEl = document.createElement("div");
   overlayEl.id = "profile-page";
 

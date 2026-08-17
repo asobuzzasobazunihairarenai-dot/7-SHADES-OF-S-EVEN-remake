@@ -10,6 +10,8 @@ import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-butto
 import { getOptionArea, syncFullScreenPageActive } from "./option-area.js";
 import { closeShopPanel } from "./shop.js";
 import { closeProfilePage } from "./profile-page.js";
+// 全画面ページを同時に1つだけにする（関数内でのみ使う遅延束縛なので循環importでも安全）。
+import { closeHelpPanel } from "./help.js";
 
 let overlayEl = null;
 let listEl = null;
@@ -162,6 +164,7 @@ export async function openRankingPage(onClose) {
   // （背面に行ってる？）」。マイページ(#profile-page z:2650)はランキング(1500)より前面のため、
   // 閉じないと背面に隠れてクリックできない。先にマイページを閉じる（未表示なら安全なno-op）。
   closeProfilePage();
+  closeHelpPanel();
   overlayEl = document.createElement("div");
   overlayEl.id = "ranking-page";
 

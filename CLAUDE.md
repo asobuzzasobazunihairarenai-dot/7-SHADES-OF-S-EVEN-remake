@@ -15007,3 +15007,42 @@ SQL Editorで再実行する必要がある**（ファイル全体＝再実行�
      SQL Editorで実行。
   5. `supabase/functions/so7-send-push.ts` をEdge Functionsダッシュボードでデプロイ（so7-apply-actionと
      同じ手順）。
+
+### 2026-08-18（続き199）：VAPID公開鍵を反映／マイページ・ランキング・ヘルプを交互に押すと開かなくなる不具合を修正／#146 対戦開始が相手に届かず待機のまま固まる不具合を修正
+
+- **VAPID公開鍵を反映（続き198のWeb Push）**: ユーザーが`npx web-push generate-vapid-keys`で生成した
+  Public Keyを`src/push-notify.js`の`VAPID_PUBLIC_KEY`に貼った（公開してよい鍵＝コミット可。秘密鍵は
+  ユーザーがSupabase Edge Functionのシークレット`VAPID_PRIVATE_KEY`に設定済みとのこと。私は秘密鍵を
+  一切扱わない）。これで`isPushConfigured()`がtrueになり、通知許可済みの実機（HTTPSのGitHub Pages＋
+  実Chrome）では実際にpushManager.subscribeが走る。**残りのユーザー側作業**: ④
+  `supabase_setup_so7.sql`の`so7_push_subscriptions`/`so7_save_push_subscription`をSQL Editorで実行、
+  ⑤`supabase/functions/so7-send-push.ts`をEdge Functionsダッシュボードでデプロイ。
+- **オプションエリアの「マイページ」「ランキング」「ヘルプ」アイコンを交互に押すと、途中で
+  開かなくなる（背面に取り残される）不具合を修正**（ユーザー報告2026-08-18）: 原因はz-indexの
+  重なりではなく、全画面ページ同士の「開く時に他を閉じる」処理が**非対称**だったこと。
+  `openRankingPage`は`closeProfilePage()`を呼ぶのに`openProfilePage`は`closeRankingPage()`を呼んで
+  おらず、マイページ→ランキング→マイページ…と交互に押すと、前のページのDOM（`overlayEl`）が背面に
+  取り残されたまま`overlayEl`変数も残り、次の押下が各ページ先頭の`if (overlayEl) return`早期returnで
+  弾かれて「開かない」ように見えていた（#119のショップ→ランキング、#139系と同じ「全画面ページは
+  同時に1つだけ」原則の徹底漏れ）。`profile-page.js`/`ranking-page.js`/`help.js`の3つの`openXxx`が
+  互いに`closeProfilePage()`/`closeRankingPage()`/`closeHelpPanel()`を全て呼ぶよう対称化した
+  （`help.js`には`closeHelpPanel`が無かったため新設）。関数内でのみ使う遅延束縛なので相互import
+  （循環）でも安全。ブラウザで、マイページ⇄ランキング⇄ヘルプを6回交互に押して常に1つだけ開く
+  （前のページのDOMが残らない）ことを実測確認。
+- **【#146】ホストが「ゲームを開始する」を押しても相手が「相手を待っています」のまま固まる不具合を
+  修正**（ユーザー報告2026-08-18・合言葉フレンド部屋?room=PN1DHG。コンソールに`Realtime send() is
+  automatically falling back to REST API`×4）: 対局開始時、`so7-apply-action`がBOOTSTRAP後に送る
+  `state_changed`ブロードキャストが待機側の`fetchAndHydrate`を促す設計だが、**Realtimeが劣化して
+  RESTフォールバックになるとこのブロードキャストが届かず**、待機側が固まる（＝ホストは盤面へ進むのに
+  相手は待機のまま）。ターンタイマーの定期再同期（tick、約3秒ごと。#136/#194）は「対局中」しか
+  回らず、この**対局開始前の隙間**を守れていなかった。`online.js`に部屋にいる間ずっと（待機中も
+  対局中も）5秒ごとに`fetchAndHydrate`を回す安全網（`startGameResync`／`stopGameResync`）を新設し、
+  `subscribeToGame`の末尾で開始・`leaveGame`で停止するようにした。届かなかったブロードキャスト
+  （特に対局開始）を必ず数秒で追いつく。`fetchAndHydrate`は冪等で、main.jsのフィンガープリント
+  重複排除により状態が変わっていなければ再描画も起きないため常時回しても無害。タイマーOFFの対局でも
+  （ターンタイマーの再同期が一切回らないので）この安全網の恩恵を受ける。
+- **検証**: `node --check`（online.js/profile-page.js/ranking-page.js/help.js/push-notify.js/main.js/
+  ranked-match.js）全通過、ブラウザでアプリ正常ロード（新規コンソールエラー無し。Service Worker
+  登録失敗はこの自動操作ブラウザのサンドボックス制限で、実Chrome/GitHub Pagesでは問題なし）。#146の
+  実挙動（Realtime劣化下でも対局開始に追いつく）は、実機2ブラウザ（特に片方でRealtimeが劣化する
+  状況）での最終確認が必要。サーバー側（Supabase/Edge Function）の変更は無い。

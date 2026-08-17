@@ -14,8 +14,9 @@
 
 import { saveMyPushSubscription } from "./online.js";
 
-// ↓ web-push generate-vapid-keys の "Public Key" をここに貼る（未設定の間は購読しない＝機能OFF）。
-const VAPID_PUBLIC_KEY = "";
+// ↓ web-push generate-vapid-keys の "Public Key"（公開してよい）。秘密鍵は Edge Function の
+// シークレット VAPID_PRIVATE_KEY 側（so7-send-push.ts）に設定する。
+const VAPID_PUBLIC_KEY = "BNWYNH2sOb-VyKSphibmfSiGClWsJQwbSXWjzsx-nLIqW6Y4S2OTSHWpsRymwmiVaaEMdECTcP5UjUF7WnrXDuk";
 
 export function isPushConfigured() {
   return typeof VAPID_PUBLIC_KEY === "string" && VAPID_PUBLIC_KEY.length > 20;
