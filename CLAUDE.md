@@ -14518,3 +14518,30 @@ FKエラー）。#179の同一アカウント検知では説明が付かない�
   盤面0トークン・例外なし、を実測。ranked-match.jsが循環importなくロード・`startRankedMatchmaking`を
   エクスポートすることも確認。`node --check`（cpu-battle.js/ranked-match.js）通過。実際のキュー→練習→
   マッチ中断→対人戦の一連は2アカウント＋SQL実行後に確認。サーバー側（Supabase）の変更は無い。
+
+### 2026-08-17（続き186）：スマホで別画面を開いている間はBGM/効果音を止める＋iPhoneのマナーモードを尊重
+
+ユーザー報告2026-08-17「スマホで別の画面を開いていてもBGMや効果音が鳴り続けています。閉じてる間は
+鳴らない方が良いです。あとiPhoneのマナーモードを無視して音が鳴っている気もします」。`src/sound.js`に
+2段構えで対処した（BGMはiOSでは`.volume`が効かないためWeb Audio〈AudioContext→GainNode〉経由で
+鳴らしている＝この経路はデフォルトだとマナーモードもバックグラウンドも無視して鳴り続ける）。
+- **(1) `navigator.audioSession.type = "ambient"`（iOS 16.4+、`ensureAmbientAudioSession()`）**: iOSの
+  オーディオセッションを`ambient`カテゴリにする。`ambient`は①サイレント（マナー）スイッチで消音され、
+  ②アプリがバックグラウンド/画面ロックになると自動で無音になる——iPhoneの2つの不満（マナーモード
+  無視・裏でも鳴る）を両方直す。`getAudioContext()`と`initSoundUnlock()`で1度だけ設定（冪等）。
+  Chrome等このAPIが無いブラウザでは`navigator.audioSession`がundefinedで何もしない（下の(2)が保険）。
+- **(2) `visibilitychange`（全プラットフォーム共通の保険）**: ページが隠れた瞬間、再生中のBGM
+  （オープニング/ゲーム中/待機中/勝利時の使い回しAudioインスタンス、`allBgmAudios()`）を一時停止して
+  `bgmResumeOnVisible`に覚えておき、戻った時に隠れる直前に鳴っていたBGMだけ`.play()`で再開する。
+  効果音は`playSound()`の冒頭に`if (document.hidden) return;`を追加してバックグラウンド中は鳴らさない。
+  ※将来「通知音は閉じていても鳴らす」を足す時は、この効果音ゲートを通さない別経路にする（コメントで明記）。
+- **設計判断**: `ambient`カテゴリは前景プレイ中でもマナーモードなら無音になる＝ユーザー要望「マナー
+  モードを尊重」そのもの。ヘッドフォン等で音を出したい人はマナーモードを解除すればよい（一般的な
+  ゲームアプリの挙動）。心臓の鼓動（Web Audio合成のheartbeat、緊張場面のみの短時間）はiOSでは
+  ambientで消音されるため個別停止は入れていない。
+- **検証**: `node --check`通過、アプリ正常ロード・新規コンソールエラー無し。ブラウザ（Chromium＝
+  audioSession非対応）で、`document.hidden`をtrueに偽装して`playSound('cardPlace')`を呼ぶとAudioを1つも
+  生成せず（＝効果音を鳴らさず）例外も出ないこと、`visibilitychange`をhidden/visible両方で発火させても
+  例外が出ないこと、visible時は従来通りplaySoundが動くこと、`navigator.audioSession`が無い環境では
+  ensureAmbientAudioSessionが無害なno-opになることを実測。iPhone実機でのマナーモード尊重・
+  バックグラウンド消音の最終確認はユーザー側でお願いしたい。サーバー側（Supabase）の変更は無い。

@@ -18,10 +18,70 @@ import { logAction } from "./action-log.js";
 // 出力に繋ぎ直し、以後は音量調整をGainNode側に一本化する（.volumeは常に1のままにして
 // 二重に減衰しないようにする）。
 let audioCtx = null;
+
+// ---- スマホで別画面を開いている間は音を止める / iPhoneのマナーモードを尊重する ----
+// ユーザー報告2026-08-17「スマホで別の画面を開いていてもBGMや効果音が鳴り続けています。
+// 閉じてる間は鳴らない方が良いです。あとiPhoneのマナーモードを無視して音が鳴っている気も
+// します」。2段構えで対処する：
+//  (1) navigator.audioSession.type='ambient'（iOS 16.4+）。'ambient'カテゴリは
+//      サイレント（マナー）スイッチで消音され、かつアプリがバックグラウンド/画面ロックに
+//      なると自動で無音になる。iPhoneの2つの不満（マナーモード無視・裏でも鳴る）を両方直す。
+//      Chrome等このAPIが無いブラウザでは何もしない（下の(2)で補う）。
+//  (2) visibilitychange。ページが隠れたら再生中のBGMを一時停止し効果音も鳴らさない、
+//      戻ったら隠れる直前に鳴っていたBGMだけ再開する（全プラットフォーム共通の保険）。
+//      ※将来「通知音は閉じていても鳴らす」を足す時は、この効果音ゲートを通さない別経路にする。
+let ambientSessionSet = false;
+function ensureAmbientAudioSession() {
+  if (ambientSessionSet) return;
+  try {
+    if (typeof navigator !== "undefined" && navigator.audioSession) {
+      navigator.audioSession.type = "ambient";
+      ambientSessionSet = true;
+    }
+  } catch (err) {
+    /* 未対応環境は無視（visibilitychange側で対処する） */
+  }
+}
+
+// ページが隠れた時に一時停止したBGMのAudio要素。戻った時にこれだけ再開する。
+const bgmResumeOnVisible = new Set();
+function allBgmAudios() {
+  return [openingBgmAudio, gameBgmAudio, waitingBgmAudio, victoryBgmAudio];
+}
+function handleVisibilityChange() {
+  if (document.hidden) {
+    // 隠れた瞬間、再生中のBGMを一時停止して覚えておく（効果音はplaySound側でゲートする）。
+    for (const a of allBgmAudios()) {
+      if (a && !a.paused) {
+        bgmResumeOnVisible.add(a);
+        try {
+          a.pause();
+        } catch (err) {
+          /* ignore */
+        }
+      }
+    }
+  } else {
+    // 戻ったら、隠れる直前に鳴っていたBGMだけ再開する。
+    for (const a of bgmResumeOnVisible) {
+      try {
+        a.play().catch(() => {});
+      } catch (err) {
+        /* ignore */
+      }
+    }
+    bgmResumeOnVisible.clear();
+  }
+}
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+}
+
 function getAudioContext() {
   const Ctor = window.AudioContext || window.webkitAudioContext;
   if (!Ctor) return null;
   if (!audioCtx) audioCtx = new Ctor();
+  ensureAmbientAudioSession();
   // iOSはユーザー操作直後でもcontextがsuspended状態のままのことがあるため、
   // 呼ぶたびにresumeを試みておく（既にrunning中なら何もしない、無害な呼び出し）。
   if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
@@ -446,6 +506,7 @@ let soundUnlockInstalled = false;
 export function initSoundUnlock() {
   if (soundUnlockInstalled || typeof window === "undefined") return;
   soundUnlockInstalled = true;
+  ensureAmbientAudioSession(); // iOSのマナーモード/バックグラウンド消音を有効化（対応環境のみ）
   const unlock = () => {
     const ctx = getAudioContext(); // resumeを試みる
     if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
@@ -521,6 +582,9 @@ export function stopHeartbeat() {
 }
 
 export function playSound(name) {
+  // ページが別画面/バックグラウンドに隠れている間は効果音を鳴らさない（スマホで別アプリを
+  // 開いている時に鳴り続けないように）。BGMはvisibilitychangeで一時停止済み。
+  if (typeof document !== "undefined" && document.hidden) return;
   const def = SOUND_DEFS[name];
   if (!def) return;
   const volume = Math.min(1, Math.max(0, masterVolume * getPerSoundVolume(def.cssVar)));
