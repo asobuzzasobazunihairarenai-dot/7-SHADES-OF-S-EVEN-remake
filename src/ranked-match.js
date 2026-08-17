@@ -26,6 +26,12 @@ import {
 } from "./online.js";
 import { openDeckSelect } from "./my-deck-select.js";
 import { playSound } from "./sound.js";
+import {
+  ensureNotifyPermission,
+  showBrowserNotification,
+  startFaviconAlert,
+  stopFaviconAlert,
+} from "./browser-notify.js";
 import { applyAvatarContent, isImageAvatar } from "./avatar-render.js";
 import { resolveAvatarValue } from "./player-identity.js";
 
@@ -63,6 +69,9 @@ export async function startRankedMatchmaking(onExit) {
     return;
   }
   myUserId = user.id;
+  // マッチ成立（レディチェック）は別タブ/別アプリを見ていると見逃しやすいので、この操作起点で
+  // ブラウザ通知の許可を取っておく（許可済み/拒否済みなら何もしない）。
+  void ensureNotifyPermission();
   // デッキ確認（キャンセル無し＝必ずデッキが返る。おまかせも可）。決まったらキュー登録して待機画面へ。
   openDeckSelect({
     durationSec: 0,
@@ -285,11 +294,18 @@ async function handlePollResult(res) {
 
 function notifyMatchFound() {
   try {
-    playSound("arrivalEffect");
+    playSound("arrivalEffect"); // 前面で見ている時用（隠れている間は sound.js 側で鳴らない）
   } catch {
     /* 音は best-effort */
   }
   startTitleFlash();
+  startFaviconAlert();
+  // 別タブ/別アプリを見ていてもレディチェックを見逃さないよう、OS のブラウザ通知で知らせる。
+  showBrowserNotification({
+    title: "▶ 相手が見つかりました！",
+    body: "ランク戦の対戦相手が見つかりました。戻って「対戦開始」を押してください。",
+    tag: "so7-ranked-matched",
+  });
 }
 
 function startTitleFlash() {
@@ -311,6 +327,7 @@ function stopTitleFlash() {
     document.title = originalTitle;
     originalTitle = null;
   }
+  stopFaviconAlert();
 }
 
 // ---- レディチェック -------------------------------------------------------
@@ -416,6 +433,7 @@ function hideReadyModal() {
     clearInterval(readyCountdownTimer);
     readyCountdownTimer = null;
   }
+  stopTitleFlash(); // レディチェックUIが消えたらタブ点滅・ファビコン点滅も止める
 }
 
 // ---- 対局入場 -------------------------------------------------------------

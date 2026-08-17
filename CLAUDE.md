@@ -14545,3 +14545,41 @@ FKエラー）。#179の同一アカウント検知では説明が付かない�
   例外が出ないこと、visible時は従来通りplaySoundが動くこと、`navigator.audioSession`が無い環境では
   ensureAmbientAudioSessionが無害なno-opになることを実測。iPhone実機でのマナーモード尊重・
   バックグラウンド消音の最終確認はユーザー側でお願いしたい。サーバー側（Supabase）の変更は無い。
+
+### 2026-08-17（続き187）：ランク戦の通知を強化（ブラウザ通知＋ファビコン点滅で、別タブ/別アプリにいても気づける）
+
+続き186でスマホのバックグラウンド時に効果音（playSound）を鳴らさないようにしたが、ランク戦の通知音
+（ranked-notify.js/ranked-match.jsの`playSound("arrivalEffect")`）は、まさに知らせたい「別タブ/別アプリを
+見ている」状況で鳴らなくなった。そこで別タブ/別アプリにいても届く手段を足す（ユーザー要望2026-08-17
+「今後通知とかはなるようにしたい」の第一歩）。
+- **新規 `src/browser-notify.js`（依存ゼロの葉モジュール）**: OSのブラウザ通知（Notification API）＋
+  ファビコン点滅の共有ヘルパー。
+  - `ensureNotifyPermission()`: 許可を取る（ユーザー操作の文脈で呼ぶ。`Notification.permission`が
+    `default`の時だけ`requestPermission`する冪等関数）。
+  - `showBrowserNotification({title, body, tag, onClick, requireHidden=true})`: OS通知を出す。既定では
+    **タブが隠れている時だけ**出す（前面ならアプリ内の見た目で足りる）。許可が無い/前面なら`false`を
+    返すだけ（例外を投げない）。クリックでこのタブにフォーカス＋`onClick`実行。音はOS側が鳴らすので、
+    アプリ内の効果音ゲート（続き186のdocument.hidden）とは無関係にユーザーのOS通知設定に従う。
+  - `startFaviconAlert()`/`stopFaviconAlert()`: ファビコンを「緑丸に感嘆符（canvasで生成したPNG
+    data URL）⇔元」で点滅させる（開始と同時にアラートアイコンへ切替、既定30秒で自動停止）。
+    index.htmlに`<link rel=icon>`が無いので、無ければ生成して使い、停止時に元（空）へ戻す。
+- **ranked-notify.js（相手が待機に現れた通知、続き162）**: `fireNotification()`に
+  `showBrowserNotification`（クリックでホーム画面を開く）＋`startFaviconAlert`を追加。既存の
+  タブタイトル点滅・アプリ内バナー・`playSound`（前面時用）はそのまま。設定をONにした瞬間
+  （`setRankedNotifyEnabled(true)`＝ユーザー操作）に`ensureNotifyPermission()`で許可を取る。
+  `dismissBanner`で`stopFaviconAlert`。
+- **ranked-match.js（マッチ成立＝レディチェックの通知）**: これが最重要——キュー中に別タブへ移ると
+  60秒のレディチェックを見逃して弾かれるため。`notifyMatchFound()`に`showBrowserNotification`
+  （「▶ 相手が見つかりました！戻って対戦開始を押してください」）＋`startFaviconAlert`を追加。
+  マッチメイク開始（`startRankedMatchmaking`＝ホームのタイルを押した操作起点）で
+  `ensureNotifyPermission()`。`stopTitleFlash()`に`stopFaviconAlert()`を入れ、`hideReadyModal()`から
+  `stopTitleFlash()`を呼ぶことで、レディチェックUIが消えたら点滅（タブ・ファビコン両方）が確実に止まる。
+- **設計判断**: 通知音はアプリ内`playSound`ではなくOSのブラウザ通知に任せた（バックグラウンドでも鳴り、
+  かつOSの通知音・サイレント設定に従う＝続き186のマナーモード尊重と一貫）。「タブを閉じても届く本物の
+  プッシュ通知（PWA/Web Push＝Service Worker）」は引き続き将来枠（docs/ranked-spec.md）。
+- **検証**: `node --check`（3ファイル）通過、アプリ正常ロード・新規コンソールエラー無し。ブラウザで、
+  browser-notify.jsの全export・`showBrowserNotification`が許可なし/前面時に例外なく`false`を返すこと・
+  `startFaviconAlert`が開始と同時に有効なPNG data URLのファビコンを設定し`stopFaviconAlert`で元へ戻すこと・
+  ranked-notify.js/ranked-match.jsが循環importなくロードすることを実測。実際のOS通知の発火（許可済み＋
+  タブを隠した状態でマッチ成立/待機者出現）は、通知を許可した実機（特にスマホ）での確認をお願いしたい。
+  サーバー側（Supabase）の変更は無い。

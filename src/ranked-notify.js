@@ -9,6 +9,12 @@
 
 import { pollRanked, getCurrentUser, isOnlineMode } from "./online.js";
 import { playSound } from "./sound.js";
+import {
+  ensureNotifyPermission,
+  showBrowserNotification,
+  startFaviconAlert,
+  stopFaviconAlert,
+} from "./browser-notify.js";
 
 const KEY_ENABLED = "so7-ranked-notify-enabled";
 const KEY_START = "so7-ranked-notify-start";
@@ -41,8 +47,11 @@ export function setRankedNotifyEnabled(v) {
   try {
     localStorage.setItem(KEY_ENABLED, enabled ? "1" : "0");
   } catch {}
-  if (enabled) startPoller();
-  else stopPoller();
+  if (enabled) {
+    // ユーザー操作（設定をONにした）の文脈で、別タブ/別アプリにいても届くブラウザ通知の許可を取っておく。
+    void ensureNotifyPermission();
+    startPoller();
+  } else stopPoller();
 }
 export function setRankedNotifyWindow(start, end) {
   if (Number.isInteger(start) && start >= 0 && start <= 23) winStart = start;
@@ -145,15 +154,30 @@ function dismissBanner() {
   bannerEl?.remove();
   bannerEl = null;
   stopTitleFlash();
+  stopFaviconAlert();
+}
+
+function openHomeFromNotify() {
+  import("./home-screen.js")
+    .then(({ openHomeScreen }) => openHomeScreen())
+    .catch((err) => console.error("openHomeScreen from ranked-notify failed", err));
 }
 
 function fireNotification() {
   try {
-    playSound("arrivalEffect");
+    playSound("arrivalEffect"); // 前面で見ている時用（隠れている間は sound.js 側で鳴らない）
   } catch {
     /* 音は best-effort */
   }
   startTitleFlash();
+  startFaviconAlert();
+  // 別タブ/別アプリを見ている（＝アプリ内の音・バナーに気づけない）時は、OS のブラウザ通知で知らせる。
+  showBrowserNotification({
+    title: "🟢 ランク戦：対戦相手を募集中",
+    body: "対戦相手を探している人がいます。タップして参加しましょう。",
+    tag: "so7-ranked-waiting",
+    onClick: openHomeFromNotify,
+  });
   if (bannerEl) return; // 既に表示中なら重ねない
   bannerEl = document.createElement("div");
   bannerEl.id = "ranked-notify-banner";
