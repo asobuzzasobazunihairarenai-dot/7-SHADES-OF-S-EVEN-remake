@@ -5155,7 +5155,11 @@ body.theme-light .action-log-window-title {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: min(22rem, 92vw);
+  /* 部屋パネルは2カラム（左＝作成／右＝参加・観戦、ユーザー要望2026-08-17）にしたため広めにする。
+     狭い画面では .online-room-columns が縦積みに折り返す。 */
+  width: min(40rem, 94vw);
+  max-height: 90vh;
+  overflow-y: auto;
   background: rgba(15, 23, 32, 0.98);
   border: 1px solid rgba(148, 163, 184, 0.4);
   border-radius: 0.5rem;
@@ -5164,6 +5168,16 @@ body.theme-light .action-log-window-title {
   font-family: sans-serif;
   color: #e2e8f0;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+/* 部屋選択の2カラム（左＝作成／右＝参加・観戦）。狭い画面では縦積みに折り返す。 */
+.online-room-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.online-room-col {
+  flex: 1 1 15rem;
+  min-width: 0;
 }
 /* オンライン対戦ウィンドウの「ホームに戻る」ボタン（ユーザー要望2026-08-10）。パネル上部・左寄せ。
    ✕（右上・絶対配置）とは重ならない。 */
@@ -14019,7 +14033,7 @@ body.is-phone-device #online-panel {
    縦のはみ出しは内部スクロールで受ける。scale(2)適用後の高さが画面を超えないよう、vwは使わず
    pure rem で幅を決め（ステージ幅1600px＝100remに対して安全な範囲）、max-heightを26remに抑える。 */
 body.is-phone-device #online-panel {
-  width: 34rem;
+  width: 40rem;
   max-height: 26rem;
   overflow-y: auto;
 }

@@ -704,13 +704,26 @@ async function renderRoomChoice(user, myGeneration) {
     // 取れなくても部屋の作成・一覧自体は引き続き使えるようにしておく
   }
 
+  // ユーザー要望2026-08-17「横長にする＝レイアウトを変える。左半分に部屋作成、右半分に参加
+  // できる部屋と観戦できる対局」。2カラムにして縦の長さを抑える（スマホ横向きでの見切れ対策にも
+  // なる）。左＝部屋作成、右＝参加できる部屋＋観戦できる対局。狭い画面ではCSSで縦積みに折り返す。
+  const columnsWrap = document.createElement("div");
+  columnsWrap.className = "online-room-columns";
+  const leftCol = document.createElement("div");
+  leftCol.className = "online-room-col";
+  const rightCol = document.createElement("div");
+  rightCol.className = "online-room-col";
+  columnsWrap.appendChild(leftCol);
+  columnsWrap.appendChild(rightCol);
+  contentEl.appendChild(columnsWrap);
+
   // 「部屋を作成」セクション（ユーザー要望「作成／参加／観戦をはっきり分けたい」「フォームを
   // 出しているのに『＋部屋を作成』ボタンがあるのは変」）。以前は畳んでおくトグルだったが、
-  // トグルは廃止し、見出しの下にフォームを常に表示する。
+  // トグルは廃止し、見出しの下にフォームを常に表示する。左カラムに入れる。
   const createLabel = document.createElement("div");
   createLabel.style.cssText = "font-weight: bold; font-size: 0.9rem; margin: 0 0 0.4rem;";
   createLabel.textContent = "🆕 部屋を作成";
-  contentEl.appendChild(createLabel);
+  leftCol.appendChild(createLabel);
   const createForm = document.createElement("div");
   createForm.style.cssText = "margin-bottom: 0.4rem;";
   const nameInput = textInput("セブンの部屋", { isValue: true });
@@ -738,23 +751,24 @@ async function renderRoomChoice(user, myGeneration) {
   createForm.appendChild(wrapWithPasswordToggle(passInput));
   createForm.appendChild(createStatus);
   createForm.appendChild(createConfirmBtn);
-  contentEl.appendChild(createForm);
+  leftCol.appendChild(createForm);
 
   // 「参加できる部屋」セクションの見出し（ユーザー要望「参加できる部屋／観戦できる対局が
   // まず分かれていた方が良い」）。区切り線＋太字の見出しで観戦セクションと明確に分ける。
   // リアルタイム更新（onRosterChange/部屋一覧の購読）になったため「🔄 更新」ボタンは撤去した。
+  // 右カラム（参加できる部屋＋観戦できる対局）。2カラム時は左の作成セクションと分ける上の
+  // 区切り線は不要なので、右カラム先頭の見出しからは border-top を外す。
   const listLabel = document.createElement("div");
-  listLabel.style.cssText =
-    "font-weight: bold; font-size: 0.9rem; margin: 0.2rem 0 0.4rem; padding-top: 0.6rem; border-top: 1px solid rgba(148, 163, 184, 0.25);";
+  listLabel.style.cssText = "font-weight: bold; font-size: 0.9rem; margin: 0 0 0.4rem;";
   listLabel.textContent = "🚪 参加できる部屋";
-  contentEl.appendChild(listLabel);
+  rightCol.appendChild(listLabel);
 
   const listStatus = document.createElement("div");
   listStatus.style.cssText = "font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.3rem; min-height: 1.2em;";
-  contentEl.appendChild(listStatus);
+  rightCol.appendChild(listStatus);
 
   const listContainer = document.createElement("div");
-  contentEl.appendChild(listContainer);
+  rightCol.appendChild(listContainer);
 
   try {
     const rooms = await listOpenRooms();
@@ -777,7 +791,7 @@ async function renderRoomChoice(user, myGeneration) {
   specLabel.style.cssText =
     "font-weight: bold; font-size: 0.9rem; margin: 1.1rem 0 0.4rem; padding-top: 0.8rem; border-top: 1px solid rgba(148, 163, 184, 0.25);";
   specLabel.textContent = "👀 観戦できる対局（進行中）";
-  contentEl.appendChild(specLabel);
+  rightCol.appendChild(specLabel);
 
   // 見え方モード（公開＝手札等は見えない / すべて＝全手札も丸見えのgod-view）。
   const specModeRow = document.createElement("label");
@@ -788,13 +802,13 @@ async function renderRoomChoice(user, myGeneration) {
   specModeText.textContent = "すべて見える（全員の手札も見える／配信向け）";
   specModeRow.appendChild(specAllCheckbox);
   specModeRow.appendChild(specModeText);
-  contentEl.appendChild(specModeRow);
+  rightCol.appendChild(specModeRow);
 
   const specStatus = document.createElement("div");
   specStatus.style.cssText = "font-size: 0.8rem; color: #94a3b8; min-height: 1.2em;";
-  contentEl.appendChild(specStatus);
+  rightCol.appendChild(specStatus);
   const specContainer = document.createElement("div");
-  contentEl.appendChild(specContainer);
+  rightCol.appendChild(specContainer);
 
   try {
     const games = await listSpectatableGames();

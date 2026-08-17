@@ -19,8 +19,33 @@ const HARD_TIMEOUT_MS = 150000;
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// 状態が「動いているか」を見るための軽量な署名（トークンの位置/表裏・山の枚数・ターン/優先権）。
+// これが変われば何かしらのアクションが起きた＝進行中。真の詰み（一定時間これが不変）だけを検知する。
+function stateActivitySignature(s) {
+  try {
+    const toks = (s.tokens || [])
+      .map((t) => {
+        const l = t.location || {};
+        return `${t.id}:${l.zone || ""}:${l.row ?? ""}:${l.col ?? ""}:${l.index ?? ""}:${l.side ?? ""}:${l.player ?? ""}:${t.faceUp ? 1 : 0}`;
+      })
+      .sort()
+      .join(",");
+    const piles = Object.values(s.piles || {})
+      .map((a) => (Array.isArray(a) ? a.length : 0))
+      .join(",");
+    return `${s.turnNumber ?? ""}|${s.priorityPlayer ?? ""}|${piles}|${toks}`;
+  } catch {
+    return "";
+  }
+}
+
 // 自己対戦を回して結果を返す。onLog(text)で進捗を逐次通知する。
-async function runInAppSmokeTest(onLog) {
+// options.runToCompletion=true で、8ターンで止めず「決着（勝敗）まで」丸ごと1局を回す
+// （ユーザー要望2026-08-17「スモークテストの強化」。終盤・勝利判定・より多くの効果の組み合わせを
+// 網羅する。ランク戦は自動処理エンジン＝このテストが回すエンジンそのものなので、決着まで回せば
+// ランク戦のゲームプレイも丸ごと点検できる）。決着まではターン数が読めないためハード上限を延長する。
+async function runInAppSmokeTest(onLog, { runToCompletion = false } = {}) {
+  const hardTimeoutMs = runToCompletion ? 600000 : HARD_TIMEOUT_MS; // 決着まで＝最大10分
   const errors = [];
   const origConsoleError = console.error;
   const capture = (msg) => {
@@ -78,6 +103,7 @@ async function runInAppSmokeTest(onLog) {
 
     const start = Date.now();
     let lastProgressAt = Date.now();
+    let lastStateSig = "";
     while (true) {
       await wait(1200);
       if (errors.length) { reason = "コンソールエラー/例外を検知"; break; }
@@ -85,6 +111,16 @@ async function runInAppSmokeTest(onLog) {
       const turn = s.turnNumber ?? 0;
       const tokens = Array.isArray(s.tokens) ? s.tokens.length : 0;
       if (tokens < 40) { capture(`盤面破損: tokens=${tokens}`); reason = "盤面が壊れています"; break; }
+
+      // 「詰み」判定は“ターンが進まない”ではなく“状態が全く変化しない”で見る（ユーザー報告2026-08-17:
+      // 試練の儀式のような重い効果チェーンで1ターンが30秒以上かかり、進行しているのに誤FAILした）。
+      // トークンの位置/表裏・山の枚数・ターン/優先権をまとめた署名が変われば「活動あり」＝タイマー
+      // リセット。真の詰み（30秒どのアクションも起きない）だけを検知する。
+      const stateSig = stateActivitySignature(s);
+      if (stateSig !== lastStateSig) {
+        lastStateSig = stateSig;
+        lastProgressAt = Date.now();
+      }
 
       // 不変条件チェック（続き164）: 破れた条件を集めて診断ログにも残す。チェッカー自身の
       // 例外で自己対戦を止めないよう try で囲む。
@@ -112,13 +148,14 @@ async function runInAppSmokeTest(onLog) {
         lastProgressAt = Date.now();
         onLog?.(`ターン ${turn}（${s.turnPlayer}）／盤面 ${tokens}`);
       }
-      if (lastTurn >= TARGET_TURN) { pass = errors.length === 0 && invariantViolations.length === 0; reason = `${TARGET_TURN}ターン到達`; break; }
+      // 通常モードは8ターン到達で健全とみなして終了。決着までモードは勝敗が出るまで続ける。
+      if (!runToCompletion && lastTurn >= TARGET_TURN) { pass = errors.length === 0 && invariantViolations.length === 0; reason = `${TARGET_TURN}ターン到達`; break; }
       // タブが非表示だとブラウザがタイマーを強くスロットルして進行が極端に遅くなる（自己対戦は
       // タイマー駆動のため）。その間は「詰み」判定のカウントを進めない（誤FAIL防止。テスト中は
       // タブを開いたままにするのが前提だが、うっかり別タブへ行っても失敗扱いにしない）。
       if (document.hidden) lastProgressAt = Date.now();
-      if (Date.now() - lastProgressAt > STALL_MS) { reason = `詰み：${STALL_MS / 1000}秒ターンが進みませんでした（${lastTurn}ターンで停止）`; break; }
-      if (Date.now() - start > HARD_TIMEOUT_MS) { reason = `タイムアウト（${lastTurn}ターン）`; break; }
+      if (Date.now() - lastProgressAt > STALL_MS) { reason = `詰み：${STALL_MS / 1000}秒どのアクションも起きませんでした（${lastTurn}ターンで停止／盤面が完全に固まっています）`; break; }
+      if (Date.now() - start > hardTimeoutMs) { reason = `タイムアウト（${lastTurn}ターン）`; break; }
     }
   } catch (err) {
     capture("EXCEPTION: " + (err?.message ?? err));
@@ -237,7 +274,7 @@ export function openSmokeTestPanel() {
 
   const desc = document.createElement("div");
   desc.className = "smoke-test-desc";
-  desc.textContent = "CPU戦を両席とも自動で回し、エラー・盤面破損・詰み（ターン無進行）を監視します。実行すると今の画面は対局に切り替わります。";
+  desc.textContent = "CPU戦を両席とも自動で回し、エラー・盤面破損・不変条件違反・詰み（一定時間まったく状態が変化しない）を監視します。「8ターン点検」は素早い健全性チェック、「決着まで実行」は勝敗が出るまで丸ごと1局回して終盤まで網羅します。実行すると今の画面は対局に切り替わります。";
   panel.appendChild(desc);
 
   const logEl = document.createElement("div");
@@ -259,7 +296,12 @@ export function openSmokeTestPanel() {
   const runBtn = document.createElement("button");
   runBtn.type = "button";
   runBtn.className = "smoke-test-run";
-  runBtn.textContent = "▶ 実行";
+  runBtn.textContent = "▶ 8ターン点検";
+  // 決着まで丸ごと1局回す（終盤・勝利判定まで網羅。ユーザー要望2026-08-17「スモークテスト強化」）。
+  const runFullBtn = document.createElement("button");
+  runFullBtn.type = "button";
+  runFullBtn.className = "smoke-test-run";
+  runFullBtn.textContent = "🏁 決着まで実行";
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.className = "smoke-test-close";
@@ -270,17 +312,19 @@ export function openSmokeTestPanel() {
   };
   closeBtn.addEventListener("click", close);
   actions.appendChild(runBtn);
+  actions.appendChild(runFullBtn);
   actions.appendChild(closeBtn);
   panel.appendChild(actions);
 
-  runBtn.addEventListener("click", async () => {
+  const runTest = async (options) => {
     runBtn.disabled = true;
+    runFullBtn.disabled = true;
     closeBtn.disabled = true;
-    runBtn.textContent = "実行中…";
+    (options.runToCompletion ? runFullBtn : runBtn).textContent = "実行中…";
     resultEl.textContent = "";
     resultEl.className = "smoke-test-result";
-    addLog("開始します…");
-    const res = await runInAppSmokeTest(addLog);
+    addLog(options.runToCompletion ? "決着まで実行します…" : "開始します…");
+    const res = await runInAppSmokeTest(addLog, options);
     resultEl.classList.add(res.pass ? "is-pass" : "is-fail");
     resultEl.textContent = res.pass ? `✅ PASS — ${res.reason}` : `❌ FAIL — ${res.reason}`;
 
@@ -328,13 +372,17 @@ export function openSmokeTestPanel() {
 
     // テストは盤面を作り替えるので、終わったらタイトルへ戻す導線に差し替える。
     runBtn.remove();
+    runFullBtn.remove();
     closeBtn.disabled = false;
     closeBtn.textContent = "🔄 タイトルに戻る（再読み込み）";
     closeBtn.onclick = () => {
       markCleanExit();
       location.reload();
     };
-  });
+  };
+
+  runBtn.addEventListener("click", () => runTest({ runToCompletion: false }));
+  runFullBtn.addEventListener("click", () => runTest({ runToCompletion: true }));
 
   document.body.appendChild(panel);
 }
