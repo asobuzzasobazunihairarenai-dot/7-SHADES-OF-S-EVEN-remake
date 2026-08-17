@@ -440,8 +440,9 @@ function tick(now) {
     // （body.diagnostic-flatten-3d、perspective:none＋全要素transform-style:flat）では盤面が
     // 平面化され、この幾何（pet.yと駒の上端/下端の上下関係）が崩れて hideBottom が大きくなり、
     // ペットの大半がclipで隠れてしまう（歩行/ジャンプでpet.yが動いた瞬間だけclipから外れて
-    // 「一瞬たまに見える」）。2D表示では疑似オクルージョン自体が無意味なのでclipを掛けない。
-    const flat2d = document.body.classList.contains("diagnostic-flatten-3d");
+    // 「一瞬たまに見える」）。2D表示では疑似オクルージョン自体が無意味なのでclipを掛けない
+    // （flat2dはtick()冒頭で1度だけ求めている。ここで再度const宣言すると、この直後より前の
+    // ループ内でflat2dを参照している箇所がTDZエラーになるため宣言し直さない）。
     const behindPiece = !flat2d && pet.y < pieceBottomLocal - deltaToLocal(r.height * 0.08);
     const overlapX = Math.abs(pet.x - center.x) < pieceHalfWLocal * 1.05;
     if (behindPiece && overlapX) {

@@ -656,10 +656,14 @@ export function openSmokeTestPanel() {
     swapToReload();
   };
 
-  runBtn.addEventListener("click", () => runTest({ runToCompletion: false }));
-  runFullBtn.addEventListener("click", () => runTest({ runToCompletion: true }));
-  repeatBtn.addEventListener("click", runRepeated);
-  onlineBtn.addEventListener("click", runOnlineMonitor);
+  // 注意: repeatBtn / onlineBtn は実行中に「⏹ 停止」へ転用する（.onclick を停止ハンドラへ差し替える）。
+  // addEventListener だと開始ハンドラが残ったまま停止ハンドラも登録され、停止クリックで両方発火して
+  // 二重実行になる（＝診断ボタンが2行出る／console.error上書きが積み重なる不具合。ユーザー報告2026-08-17）。
+  // .onclick は単一スロットなので、停止ハンドラへ差し替えれば開始ハンドラは確実に外れる。
+  runBtn.onclick = () => runTest({ runToCompletion: false });
+  runFullBtn.onclick = () => runTest({ runToCompletion: true });
+  repeatBtn.onclick = runRepeated;
+  onlineBtn.onclick = runOnlineMonitor;
 
   document.body.appendChild(panel);
 }
