@@ -1049,16 +1049,17 @@ export function clearRankedPreMatchRank() {
 }
 
 // ランク戦のキューに登録する（deck＝my-deck-selectのresolveDeckが返す解決済みデッキ。席へ引き継ぐ）。
-// size＝希望人数(2/3/4)。同じ size 同士だけがマッチする。
-export async function enqueueRanked(deck, size = 2) {
+// 人数はおまかせ（2〜4人。段階的フィル＝続き192）。
+export async function enqueueRanked(deck) {
   if (!client || !cachedUser) return false;
-  const { error } = await client.rpc("so7_ranked_enqueue", { p_deck: deck ?? null, p_size: size });
+  const { error } = await client.rpc("so7_ranked_enqueue", { p_deck: deck ?? null });
   if (error) { console.error("so7_ranked_enqueue failed", error); return false; }
   return true;
 }
 
-// 待機中に数秒ごとに呼ぶ。返り値: { state:'none'|'waiting'|'matched'|'ingame', match_id,
-// game_id, waiting_count, size, opponents:[{user_id,name,avatar,rank}] } or null。
+// 待機中に数秒ごとに呼ぶ。返り値: { state:'none'|'waiting'|'forming'|'matched'|'ingame', match_id,
+// game_id, waiting_count, size, grow_seconds, opponents:[{user_id,name,avatar,rank}] } or null。
+// forming=まだ人集め中（あと grow_seconds 秒で締め切り）、matched=レディチェック（人集め終了）。
 export async function pollRanked() {
   if (!client || !cachedUser) return null;
   const { data, error } = await client.rpc("so7_ranked_poll");

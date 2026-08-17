@@ -1846,14 +1846,17 @@ alter table so7_ranked_queue add column if not exists party_size int not null de
 alter table so7_ranked_queue enable row level security;
 
 -- レディチェック待ちのグループ（2〜4人）。同じくRLSポリシー無し（RPC経由のみ）。
--- 2人専用の旧スキーマ(player_a/player_b/ready_a/ready_b)から、N人対応(players[]/ready[]/size)へ
--- 作り直す。pending は60秒で消えるエフェメラルなので drop&recreate で安全（再実行安全）。
+-- 段階的フィル（ユーザー提案2026-08-17「2人マッチしたら20秒3人目を待つ…」）に対応するため、
+-- forming（まだ人を集めている）→ locked（締め切り or 4人でレディチェック開始）の状態を持つ。
+-- pending は短命なエフェメラルなので drop&recreate で安全（再実行安全）。
 drop table if exists so7_ranked_pending_match cascade;
 create table so7_ranked_pending_match (
   id uuid primary key default gen_random_uuid(),
-  players uuid[] not null,                  -- マッチした2〜4人の user_id
+  players uuid[] not null,                  -- 集まった2〜4人の user_id
   ready uuid[] not null default '{}',       -- ready を押した user_id
-  size int not null,                        -- 目標人数（2/3/4）
+  size int not null,                        -- 現在の人数（参考。判定は array_length(players) を使う）
+  grow_deadline timestamptz not null default now(),  -- この時刻までに人が増えなければロックする
+  locked boolean not null default false,    -- レディチェック開始済み（人集め終了）
   created_at timestamptz not null default now(),
   game_id text                             -- 全員ready後に作られた対局ID
 );
@@ -1891,7 +1894,7 @@ drop function if exists so7_ranked_poll();
 create or replace function so7_ranked_poll()
 returns table(
   state text, match_id uuid, game_id text, waiting_count int,
-  size int, opponents jsonb
+  size int, grow_seconds int, opponents jsonb
 )
 language plpgsql
 security definer
@@ -1902,11 +1905,12 @@ declare
   v_uid uuid := auth.uid();
   v_status text;
   v_match uuid;
-  v_size int;
   v_ids uuid[] := '{}';
   v_new uuid;
+  v_gid uuid;
+  v_gplayers uuid[];
   r record;
-  v_players uuid[]; v_ready uuid[]; v_msize int; v_game text; v_p uuid;
+  v_players uuid[]; v_ready uuid[]; v_locked boolean; v_deadline timestamptz; v_game text; v_p uuid;
   v_opps jsonb := '[]'::jsonb;
   v_prof record; v_rank smallint;
 begin
@@ -1919,11 +1923,12 @@ begin
   delete from so7_ranked_queue
     where status = 'waiting' and last_seen < now() - interval '25 seconds';
 
-  -- (2-2) レディチェック期限切れ（60秒・全員readyでない）を解散。ready済みは待機に戻し、
-  --       押していない人はキューから削除する。
+  -- (2-2) レディチェック期限切れ（ロック後60秒・全員readyでない）を解散。ready済みは待機に戻し、
+  --       押していない人はキューから削除する。※forming（未ロック）は grow_deadline でロックされる
+  --       ので、ここは locked=true のグループだけを対象にする。
   for r in
     select * from so7_ranked_pending_match
-    where game_id is null and created_at < now() - interval '60 seconds'
+    where locked and game_id is null and created_at < now() - interval '80 seconds'
     for update skip locked
   loop
     foreach v_p in array r.players loop
@@ -1946,26 +1951,49 @@ begin
     delete from so7_ranked_pending_match where id=r.id;
   end loop;
 
-  -- (3) 自分が waiting なら、同じ希望人数(party_size)の待機者を最古から size 人集めてグループにする。
-  select status, party_size into v_status, v_size from so7_ranked_queue where user_id = v_uid;
+  -- (3) 段階的フィル。自分が waiting なら:
+  --   (a) まだ人集め中(forming=未ロック・4人未満)のグループがあればそこに参加し、集合締め切りを延長する
+  --       （＝新しい人が入るたびに「あと20秒」次の人を待つ、というユーザー提案の挙動）。
+  --   (b) 無ければ、待機中の最古2人（自分含む）で新しいグループを作る。
+  select status into v_status from so7_ranked_queue where user_id = v_uid;
   if v_status = 'waiting' then
-    for r in
-      select user_id from so7_ranked_queue
-      where status='waiting' and party_size = v_size and last_seen > now() - interval '25 seconds'
-      order by enqueued_at
-      limit v_size
-      for update skip locked
-    loop
-      v_ids := array_append(v_ids, r.user_id);
-    end loop;
-    if array_length(v_ids, 1) = v_size then
-      v_new := gen_random_uuid();
-      insert into so7_ranked_pending_match (id, players, ready, size, created_at)
-      values (v_new, v_ids, '{}', v_size, now());
-      update so7_ranked_queue set status='matched', match_id=v_new
-        where user_id = any(v_ids);
+    select id, players into v_gid, v_gplayers
+      from so7_ranked_pending_match
+      where not locked and game_id is null and coalesce(array_length(players, 1), 0) < 4
+      order by created_at
+      limit 1
+      for update skip locked;
+    if v_gid is not null then
+      update so7_ranked_pending_match
+        set players = array_append(players, v_uid),
+            size = coalesce(array_length(players, 1), 0) + 1,
+            grow_deadline = now() + interval '20 seconds'
+        where id = v_gid;
+      update so7_ranked_queue set status='matched', match_id=v_gid where user_id = v_uid;
+    else
+      for r in
+        select user_id from so7_ranked_queue
+        where status='waiting' and last_seen > now() - interval '25 seconds'
+        order by enqueued_at
+        limit 2
+        for update skip locked
+      loop
+        v_ids := array_append(v_ids, r.user_id);
+      end loop;
+      if array_length(v_ids, 1) = 2 then
+        v_new := gen_random_uuid();
+        insert into so7_ranked_pending_match (id, players, ready, size, grow_deadline, locked, created_at)
+        values (v_new, v_ids, '{}', 2, now() + interval '20 seconds', false, now());
+        update so7_ranked_queue set status='matched', match_id=v_new where user_id = any(v_ids);
+      end if;
     end if;
   end if;
+
+  -- 集合締め切り経過 or 4人 で forming グループをロック（＝レディチェック開始）。
+  update so7_ranked_pending_match
+    set locked = true
+    where not locked and game_id is null
+      and (coalesce(array_length(players, 1), 0) >= 4 or now() > grow_deadline);
 
   -- (4) 自分の状態を組み立てて返す
   select status, match_id into v_status, v_match from so7_ranked_queue where user_id = v_uid;
@@ -1975,18 +2003,26 @@ begin
   elsif v_status = 'waiting' then
     state := 'waiting';
   elsif v_status = 'matched' then
-    select players, ready, size, game_id into v_players, v_ready, v_msize, v_game
+    select players, ready, locked, grow_deadline, game_id
+      into v_players, v_ready, v_locked, v_deadline, v_game
       from so7_ranked_pending_match where id = v_match;
     if v_players is null then
       -- グループが解散済みなのに自分のrowがmatchedのまま（レース）→ waitingに戻す
       update so7_ranked_queue set status='waiting', match_id=null where user_id=v_uid;
       state := 'waiting';
     else
-      if v_game is not null then state := 'ingame'; else state := 'matched'; end if;
+      if v_game is not null then
+        state := 'ingame';
+      elsif v_locked then
+        state := 'matched';   -- レディチェック（人集め終了）
+      else
+        state := 'forming';   -- まだ人集め中（あと grow_seconds 秒）
+      end if;
       match_id := v_match;
       game_id := v_game;
-      size := v_msize;
-      -- 自分以外の参加者を配列で返す（レディチェックで全員のアバター・名前・ランクを見せる）。
+      size := coalesce(array_length(v_players, 1), 0);
+      grow_seconds := greatest(0, ceil(extract(epoch from (v_deadline - now())))::int);
+      -- 自分以外の参加者を配列で返す（集合中/レディチェックで全員のアバター・名前・ランクを見せる）。
       foreach v_p in array v_players loop
         if v_p <> v_uid then
           select display_name, avatar into v_prof from so7_user_profiles where user_id = v_p;
@@ -2022,24 +2058,26 @@ as $$
 #variable_conflict use_column
 declare
   v_uid uuid := auth.uid();
-  v_players uuid[]; v_ready uuid[]; v_size int; v_game text;
+  v_players uuid[]; v_ready uuid[]; v_locked boolean; v_game text;
   v_p uuid; v_deck jsonb;
   v_prof record;
 begin
   if v_uid is null then raise exception 'not_authenticated'; end if;
-  select players, ready, size, game_id into v_players, v_ready, v_size, v_game
+  select players, ready, locked, game_id into v_players, v_ready, v_locked, v_game
     from so7_ranked_pending_match where id = p_match_id for update;
   if v_players is null then raise exception 'match_not_found'; end if;
   if not (v_uid = any(v_players)) then raise exception 'not_in_match'; end if;
   if v_game is not null then return v_game; end if;  -- 既に作成済み（冪等）
+  if not v_locked then return null; end if;  -- まだ人集め中（レディチェック未開始）
 
   if not (v_uid = any(v_ready)) then
     v_ready := array_append(v_ready, v_uid);
     update so7_ranked_pending_match set ready = v_ready where id = p_match_id;
   end if;
 
-  -- 全員 ready（ready 配列が players を網羅）になったら対局を作る。
-  if array_length(v_ready, 1) = v_size then
+  -- 全員 ready（ready 配列が players を網羅＝現在の人数と一致）になったら対局を作る。
+  -- 段階的フィルで size 列が実際の人数とズレ得るため、判定は array_length(players) を使う。
+  if array_length(v_ready, 1) = array_length(v_players, 1) then
     v_game := 'r_' || replace(gen_random_uuid()::text, '-', '');
     insert into so7_games (id, name, status, is_ranked, my_deck_mode, timer_config)
     values (v_game, 'ランク戦', 'open', true, true,
@@ -2075,21 +2113,30 @@ as $$
 declare
   v_uid uuid := auth.uid();
   v_match uuid;
-  v_players uuid[]; v_game text; v_p uuid;
+  v_players uuid[]; v_remaining uuid[]; v_locked boolean; v_game text; v_p uuid;
 begin
   if v_uid is null then raise exception 'not_authenticated'; end if;
   select match_id into v_match from so7_ranked_queue where user_id = v_uid;
   if v_match is not null then
-    select players, game_id into v_players, v_game
-      from so7_ranked_pending_match where id = v_match;
+    select players, locked, game_id into v_players, v_locked, v_game
+      from so7_ranked_pending_match where id = v_match for update;
     if v_players is not null and v_game is null then
-      -- 対局作成前のキャンセル → グループ解散・自分以外は待機に戻す
-      foreach v_p in array v_players loop
-        if v_p <> v_uid then
-          update so7_ranked_queue set status='waiting', match_id=null where user_id = v_p;
-        end if;
-      end loop;
-      delete from so7_ranked_pending_match where id = v_match;
+      v_remaining := array_remove(v_players, v_uid);
+      if not v_locked and coalesce(array_length(v_remaining, 1), 0) >= 2 then
+        -- まだ人集め中(forming)で、自分が抜けても2人以上残る → グループは残し、自分だけ抜ける。
+        update so7_ranked_pending_match
+          set players = v_remaining, size = array_length(v_remaining, 1),
+              ready = array_remove(ready, v_uid)
+          where id = v_match;
+      else
+        -- ロック済み or 残り1人以下 → グループ解散・自分以外は待機に戻す
+        foreach v_p in array v_players loop
+          if v_p <> v_uid then
+            update so7_ranked_queue set status='waiting', match_id=null where user_id = v_p;
+          end if;
+        end loop;
+        delete from so7_ranked_pending_match where id = v_match;
+      end if;
     end if;
     -- game_idが既にある（対局作成済み）＝入場後のクリーンな離脱なら、他の参加者/グループは触らない
   end if;

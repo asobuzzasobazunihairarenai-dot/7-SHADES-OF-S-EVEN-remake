@@ -45,7 +45,6 @@ let countEl = null;
 let pollTimer = null;
 let myUserId = null;
 let myDeck = null;
-let mySize = 2; // 希望人数（2/3/4）。同じ size 同士だけがマッチする。
 let entering = false; // 対局入場の二重防止
 let lastState = null; // 直前のstate（matched遷移で1回だけ通知するため）
 let readyModalEl = null;
@@ -73,87 +72,22 @@ export async function startRankedMatchmaking(onExit) {
   // マッチ成立（レディチェック）は別タブ/別アプリを見ていると見逃しやすいので、この操作起点で
   // ブラウザ通知の許可を取っておく（許可済み/拒否済みなら何もしない）。
   void ensureNotifyPermission();
-  // 人数選択（2/3/4）→ デッキ確認 → キュー登録の順。
-  showSizeSelect((size) => {
-    if (!size) {
-      exitToHome?.(); // やめる → ホームへ戻す
-      return;
-    }
-    openDeckSelect({
-      durationSec: 0,
-      subtitle: `${size}人ランク戦で使うデッキを選んでください`,
-      onResolved: (resolved) => {
-        void beginQueue(resolved, size);
-      },
-    });
+  // 人数はおまかせ（2〜4人・段階的フィル）。デッキ確認 → キュー登録の順。
+  openDeckSelect({
+    durationSec: 0,
+    subtitle: "ランク戦で使うデッキを選んでください（2〜4人でマッチ）",
+    onResolved: (resolved) => {
+      void beginQueue(resolved);
+    },
   });
 }
 
-// 人数選択モーダル。onChosen(size|null)。同じ size 同士だけがマッチする。
-function showSizeSelect(onChosen) {
-  const modal = document.createElement("div");
-  modal.id = "ranked-size-modal";
-  const inner = document.createElement("div");
-  inner.className = "ranked-ready-inner";
-
-  const heading = document.createElement("div");
-  heading.className = "ranked-ready-heading";
-  heading.textContent = "🏆 ランク戦・人数を選ぶ";
-  inner.appendChild(heading);
-
-  const note = document.createElement("div");
-  note.className = "ranked-size-note";
-  note.textContent = "同じ人数を選んだ人同士でマッチします。プレイ人口が少ないうちは2人が一番早くマッチします。";
-  inner.appendChild(note);
-
-  const btns = document.createElement("div");
-  btns.className = "ranked-size-btns";
-  const defs = [
-    { size: 2, label: "2人", sub: "1対1" },
-    { size: 3, label: "3人", sub: "3人対戦" },
-    { size: 4, label: "4人", sub: "4人対戦" },
-  ];
-  const close = () => modal.remove();
-  for (const d of defs) {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "ranked-size-btn";
-    const main = document.createElement("span");
-    main.textContent = d.label;
-    const sub = document.createElement("span");
-    sub.className = "ranked-size-btn-sub";
-    sub.textContent = d.sub;
-    b.appendChild(main);
-    b.appendChild(sub);
-    b.addEventListener("click", () => {
-      close();
-      onChosen(d.size);
-    });
-    btns.appendChild(b);
-  }
-  inner.appendChild(btns);
-
-  const cancel = document.createElement("button");
-  cancel.type = "button";
-  cancel.className = "ranked-size-cancel";
-  cancel.textContent = "やめる";
-  cancel.addEventListener("click", () => {
-    close();
-    onChosen(null);
-  });
-  inner.appendChild(cancel);
-
-  modal.appendChild(inner);
-  document.body.appendChild(modal);
-}
-
-async function beginQueue(resolved, size) {
+async function beginQueue(resolved) {
   if (!resolved) return;
   myDeck = resolved;
-  mySize = size;
   showWaitingScreen();
   setWaitingStatus("キューに登録しています…");
-  const ok = await enqueueRanked(resolved, size);
+  const ok = await enqueueRanked(resolved);
   if (!ok) {
     setWaitingStatus("キューに入れませんでした（ログイン状態・通信をご確認ください）。");
     return;
@@ -171,7 +105,7 @@ function showWaitingScreen() {
 
   const title = document.createElement("div");
   title.className = "ranked-waiting-title";
-  title.textContent = `🏆 ランク戦（${mySize}人）・対戦相手を探しています`;
+  title.textContent = "🏆 ランク戦（2〜4人）・対戦相手を探しています";
   overlayEl.appendChild(title);
 
   const spinner = document.createElement("div");
@@ -326,9 +260,16 @@ async function handlePollResult(res) {
   updateWaitingCount(res.waiting_count);
   const state = res.state;
   if (state === "waiting") {
-    if (lastState === "matched") hideReadyModal(); // ペア解散→待機に戻った
+    if (lastState === "matched" || lastState === "forming") hideReadyModal(); // グループ解散→待機に戻った
     setWaitingStatus("対戦相手を探しています…");
     lastState = "waiting";
+  } else if (state === "forming") {
+    // 段階的フィル中（2人以上集合。締め切りまで、さらに参加者を待っている）。
+    if (lastState === "matched") hideReadyModal();
+    const here = (res.size || 0);
+    const sec = res.grow_seconds != null ? res.grow_seconds : 0;
+    setWaitingStatus(`🎉 ${here}人集合！ あと${sec}秒、参加者を待っています…（4人になるか締め切りで開始確認）`);
+    lastState = "forming";
   } else if (state === "matched") {
     if (lastState !== "matched") {
       // 待機中CPU練習をしていたら、練習を畳んで待機オーバーレイを戻してから

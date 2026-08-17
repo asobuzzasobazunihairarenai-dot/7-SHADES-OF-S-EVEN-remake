@@ -14701,3 +14701,36 @@ FKエラー）。#179の同一アカウント検知では説明が付かない�
 - **ユーザー側の作業が必要**: `supabase_setup_so7.sql`（②の`so7_leave_room`のdrop&再作成を含む。ファイル
   全体＝再実行安全。続き188/190のランク改修も同じファイルに入っている）をSupabase SQL Editorで実行する
   必要がある。Edge Functionの変更は無いため再デプロイ不要（①はクライアントのみ）。
+
+### 2026-08-17（続き192）：ランク戦のマッチメイクを「人数を事前選択」から「段階的フィル（2人→20秒ずつ3・4人目を待つ）」に変更
+
+ユーザー提案2026-08-17「人数を選択してマッチだとなかなかマッチしづらい。例えば2人マッチしたら20秒
+3人目を待つ、3人目をマッチしたら20秒4人目を待つとかはどうか」。続き190の「同じ希望人数同士だけが
+マッチ」は低母数で揃いにくいため、この提案（段階的フィル）に作り直した（続き190のSQLはまだ本番未実行
+なので、再実行前にクリーンに差し替えられる）。
+- **サーバー（`supabase_setup_so7.sql`）**:
+  - `so7_ranked_pending_match`に`grow_deadline timestamptz`（集合締め切り）・`locked boolean`
+    （人集め終了＝レディチェック開始済み）を追加（forming→lockedの状態）。
+  - `so7_ranked_poll`の(3)ペアリングを段階的フィルに変更: 自分がwaitingなら、(a)未ロックの
+    formingグループ（4人未満）があればそこに参加し集合締め切りを`now()+20秒`に延長、(b)無ければ
+    待機中の最古2人で新規グループ作成（grow_deadline=now()+20秒）。その後、4人到達 or 集合締め切り
+    経過で`locked=true`にしてレディチェックへ。返り値に`grow_seconds`（締め切りまでの秒）を追加し、
+    stateに`forming`（人集め中）を追加。`waiting_count`のクリーンアップは`locked`グループのみ対象に。
+  - `so7_ranked_ready`: 未ロックなら即null（人集め中はready不可）。全員ready判定を`size`列ではなく
+    `array_length(players)`（段階的フィルでsize列がズレ得るため）に変更。
+  - `so7_ranked_leave`: formingグループから抜けた時、残り2人以上なら**グループは残して自分だけ抜ける**
+    （他の参加者の集合を続ける）。ロック済み or 残り1人以下なら従来通り解散。
+  - `party_size`列は使わなくなった（おまかせ単一プール）。`so7_ranked_enqueue`は`(jsonb,int default 2)`の
+    ままだがp_sizeは無視（クライアントは`p_deck`のみ渡す）。
+- **クライアント**:
+  - `ranked-match.js`: 人数選択モーダル（続き190）を撤去。デッキ選択→enqueueの直行に戻した。
+    `handlePollResult`に`forming`分岐（待機画面のまま「🎉 N人集合！ あとM秒、参加者を待っています…」
+    を表示。matchedになったらレディチェック）。`mySize`変数を削除。
+  - `online.js`: `enqueueRanked(deck)`（size引数削除）。`pollRanked`の返り値説明に`forming`/`grow_seconds`を追記。
+  - `style.css`の`#ranked-size-modal`/`.ranked-size-btn`は未使用の死にCSSになったが無害なので残置。
+- **検証**: `node --check`（online.js/ranked-match.js/changelog.js）通過・SQLのドル引用符バランス（偶数72）
+  維持・アプリ正常ロード・ranked-match.js循環importなくロード・enqueueRankedが`(deck)`・人数モーダルが
+  出ないことを実測。実際の段階的フィル（2人成立→20秒で3・4人目を吸収→ロック→レディチェック→N席対局）は
+  下記SQL実行＋2〜4アカウントでの確認が必要。
+- **ユーザー側の作業が必要**: `supabase_setup_so7.sql`（続き188/190/191/192の変更を全て含む。ファイル
+  全体＝再実行安全）をSupabase SQL Editorで実行する必要がある。Edge Functionの変更は無いため再デプロイ不要。
