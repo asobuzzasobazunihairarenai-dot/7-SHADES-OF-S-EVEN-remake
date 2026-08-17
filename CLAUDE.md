@@ -14492,3 +14492,29 @@ FKエラー）。#179の同一アカウント検知では説明が付かない�
   マイデッキ・白黒あり・ブースト）＋自動処理必須」に更新。フレンドランク戦の節も同様に修正。
 - **検証**: ブラウザで作成フォームの「🏆 ランク戦にする」注記がマイデッキ戦・白黒あり・ブーストを含むことを
   実測。`node --check`（online-ui.js/ranked-match.js）通過。実際の対局での4設定反映は2アカウント＋SQL実行後に確認。
+
+### 2026-08-17（続き185）：ランク戦の「待機中CPU練習」を実装（マッチ成立で自動中断）
+
+ユーザー選択「B（待機中CPU練習）もやりましょう」。docs/ranked-spec.md「待機中にCPU練習」。ランク戦の
+相手を探している間、CPU戦で練習でき、人間が見つかったら自動で中断して「対戦開始」へ呼び戻す。CPU戦は
+ランク無効（レートに一切影響しないローカル戦）。以前「盤面をCPU戦に明け渡す関係で複雑」として見送って
+いた項目（ranked-match.js冒頭コメント）。
+- **`cpu-battle.js`に`teardownCpuBattle()`を新設**（eidos-story.jsの`teardownStoryBattle`を一般化）:
+  `setCpuBattleActive(false)`・`cpu-battle-mode`クラス除去・`setPseudoCpuModeEnabled(false)`/
+  `setPseudoCpuIncludeSelf(false)`/`setTurnTimerEnabled(false)`・`clearSeatLoadouts`・相手席の名前/アバターを
+  戻す・`resetGame()`で盤面を空に・ゲート侵攻モーダルの片付け・`resetVictoryTracking`。これで練習を畳んだ後
+  オンライン対局へ移っても、練習のCPU駆動（疑似CPU/タイマー）が対局に混入しない（オンラインは
+  subscribeToGameのisOnlineMode/同期timer_configが権威）。
+- **`ranked-match.js`**: 待機画面に「🤖 CPUと練習する（マッチしたら中断）」ボタンを追加。押すと
+  `startPractice()`＝全画面の待機オーバーレイを畳んで盤面を見せ、画面上部に小さな「探し中」バナー
+  （`#ranked-practice-banner`、「練習をやめて待機に戻る」ボタン付き）を出し、`startCpuBattle()`＋
+  `runCpuBattleSetup()`でCPU戦を開始（ポーリングは止めないので裏でマッチを待ち続ける）。`handlePollResult`の
+  `matched`遷移で、練習中なら`stopPractice()`（teardown）→待機オーバーレイを戻す→通知＋レディチェック
+  モーダル、の順で対人戦へ呼び戻す。`ingame`分岐・`cancelMatchmaking`でも保険で`stopPractice`。
+- **cpu-battle.jsは動的import**（ranked-match.jsの他の動的importと同じ・遅延ロード）。ホーム→ランク戦の
+  タイルは`closeHomeScreen()`済みなので、練習で待機オーバーレイを畳むと盤面が見える。
+- **検証**: ブラウザで`startCpuBattle()`→`runCpuBattleSetup()`（盤面53トークンまで構築）→
+  `teardownCpuBattle()`で、cpuActive true→false・pseudoCpu true→false・cpu-battle-modeクラス true→false・
+  盤面0トークン・例外なし、を実測。ranked-match.jsが循環importなくロード・`startRankedMatchmaking`を
+  エクスポートすることも確認。`node --check`（cpu-battle.js/ranked-match.js）通過。実際のキュー→練習→
+  マッチ中断→対人戦の一連は2アカウント＋SQL実行後に確認。サーバー側（Supabase）の変更は無い。

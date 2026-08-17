@@ -71,6 +71,35 @@ export async function startCpuBattle() {
   resetGame();
 }
 
+// CPU戦を後始末する（eidos-story.jsのteardownStoryBattleを一般化した版）。ランク戦の
+// 「待機中CPU練習」で、マッチ成立時にCPU練習を畳んでオンライン対局へ移る前に呼ぶ。
+// 疑似CPU・タイマー・cpu-battle印を全て解除し、相手席の名前/アバターを戻し、盤面を空にする。
+// オンライン対局はこの後 subscribeToGame の isOnlineMode/同期timer_config が権威になるので、
+// ローカルのpseudoCpu/timerフラグを落としておけば練習のCPU駆動が対局に混入しない。
+export async function teardownCpuBattle() {
+  setCpuBattleActive(false);
+  document.body.classList.remove("cpu-battle-mode");
+  setPseudoCpuModeEnabled(false);
+  setPseudoCpuIncludeSelf(false);
+  setTurnTimerEnabled(false);
+  clearSeatLoadouts();
+  setPlayerName(CPU_SEAT, "");
+  setPlayerAvatar(CPU_SEAT, null);
+  resetGame(); // 練習の盤面を同期的に空にする
+  try {
+    const { forceCloseGateInvasionModal } = await import("./gate-invasion-modal.js");
+    forceCloseGateInvasionModal();
+  } catch (err) {
+    /* 無ければ何もしない */
+  }
+  try {
+    const { resetVictoryTracking } = await import("./victory.js");
+    resetVictoryTracking(); // 練習で勝利していても、次にまた勝利演出が出るように記録をクリア
+  } catch (err) {
+    console.error("resetVictoryTracking failed", err);
+  }
+}
+
 // オープニングを閉じて盤面を見せた「後」に呼ぶ。空の盤面の上で、2人対戦(A/C)のセットアップ
 // を演出付き（quickStartのファースト配布・盤面配置アニメ）で実際に見せながら開始する。
 export async function runCpuBattleSetup({ noirSeat = null, noirBrands = false, myDeck = false, myDeckA = null } = {}) {

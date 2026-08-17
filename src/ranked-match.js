@@ -46,6 +46,8 @@ let readyCountdownTimer = null;
 let originalTitle = null;
 let titleFlashTimer = null;
 let exitToHome = null; // キャンセル/失敗時にホームへ戻すコールバック（home-screen.jsから注入）
+let practicing = false; // 待機中CPU練習中か（マッチ成立で中断してオンライン対局へ移る）
+let practiceBannerEl = null; // 練習中に画面隅に出す小さな「探し中」バナー
 
 // ホームの「フリーマッチ（ランク戦）」タイルから呼ばれる入口。
 // onExit: キャンセル・失敗でホームへ戻すためのコールバック（呼び出し元がclose→この関数、
@@ -116,6 +118,16 @@ function showWaitingScreen() {
   hint.textContent = "相手が見つかると「対戦開始」ボタンが出ます。別のタブで待っていても、音とタブの点滅でお知らせします。";
   overlayEl.appendChild(hint);
 
+  // 待機中CPU練習（docs/ranked-spec.md「待機中にCPU練習」）。探している間ヒマなので、
+  // CPU戦で練習できる。人間が見つかったら自動で中断して「対戦開始」に呼び戻す。
+  // CPU戦はランク無効（レートに一切影響しない・ローカル戦）。
+  const practiceBtn = document.createElement("button");
+  practiceBtn.type = "button";
+  practiceBtn.className = "ranked-waiting-practice";
+  practiceBtn.textContent = "🤖 CPUと練習する（マッチしたら中断）";
+  practiceBtn.addEventListener("click", () => void startPractice());
+  overlayEl.appendChild(practiceBtn);
+
   const cancelBtn = document.createElement("button");
   cancelBtn.type = "button";
   cancelBtn.className = "ranked-waiting-cancel";
@@ -124,6 +136,64 @@ function showWaitingScreen() {
   overlayEl.appendChild(cancelBtn);
 
   document.body.appendChild(overlayEl);
+}
+
+// ---- 待機中CPU練習 --------------------------------------------------------
+
+async function startPractice() {
+  if (practicing) return;
+  practicing = true;
+  // 全画面の待機オーバーレイを畳んで盤面を見せ、隅に小さな「探し中」バナーを出す。
+  // ポーリングは止めない（マッチ成立を裏で待ち続け、見つかったら練習を中断する）。
+  closeWaitingScreen();
+  showPracticeBanner();
+  try {
+    const { startCpuBattle, runCpuBattleSetup } = await import("./cpu-battle.js");
+    await startCpuBattle();
+    // 盤面はもう見えている（ランク戦はホームから来ておりオープニング画面は閉じている）。
+    // ホームのCPU戦と同じく、セットアップ演出は待たずに走らせる。
+    runCpuBattleSetup().catch((err) => console.error("practice runCpuBattleSetup failed", err));
+  } catch (err) {
+    console.error("startPractice failed", err);
+  }
+}
+
+// 練習を畳む。マッチ成立・手動停止・キャンセルから呼ぶ。teardownCpuBattleが疑似CPU/タイマー/
+// cpu-battle印を解除し盤面を空にするので、この後オンライン対局へ移っても練習のCPU駆動は混入しない。
+async function stopPractice() {
+  if (!practicing) return;
+  practicing = false;
+  removePracticeBanner();
+  try {
+    const { teardownCpuBattle } = await import("./cpu-battle.js");
+    await teardownCpuBattle();
+  } catch (err) {
+    console.error("stopPractice teardown failed", err);
+  }
+}
+
+function showPracticeBanner() {
+  if (practiceBannerEl) return;
+  practiceBannerEl = document.createElement("div");
+  practiceBannerEl.id = "ranked-practice-banner";
+  const label = document.createElement("span");
+  label.textContent = "🏆 ランク戦の相手を探し中…（見つかると練習を中断します）";
+  practiceBannerEl.appendChild(label);
+  const stopBtn = document.createElement("button");
+  stopBtn.type = "button";
+  stopBtn.textContent = "練習をやめて待機に戻る";
+  stopBtn.addEventListener("click", async () => {
+    await stopPractice();
+    showWaitingScreen();
+    setWaitingStatus("対戦相手を探しています…");
+  });
+  practiceBannerEl.appendChild(stopBtn);
+  document.body.appendChild(practiceBannerEl);
+}
+
+function removePracticeBanner() {
+  practiceBannerEl?.remove();
+  practiceBannerEl = null;
 }
 
 function setWaitingStatus(text) {
@@ -147,6 +217,7 @@ async function cancelMatchmaking() {
   stopPolling();
   hideReadyModal();
   stopTitleFlash();
+  if (practicing) await stopPractice(); // 練習中ならCPU戦を畳んでから抜ける
   await leaveRankedQueue();
   closeWaitingScreen();
   lastState = null;
@@ -185,12 +256,19 @@ async function handlePollResult(res) {
     lastState = "waiting";
   } else if (state === "matched") {
     if (lastState !== "matched") {
+      // 待機中CPU練習をしていたら、練習を畳んで待機オーバーレイを戻してから
+      // 「対戦開始」モーダルを出す（ユーザーを対人戦へ呼び戻す）。
+      if (practicing) {
+        await stopPractice();
+        showWaitingScreen();
+      }
       notifyMatchFound();
       showReadyModal(res);
     }
     lastState = "matched";
   } else if (state === "ingame") {
     lastState = "ingame";
+    if (practicing) await stopPractice(); // 保険（通常はmatchedで畳み済み）
     await enterRankedGame(res.game_id, res.opponent_user_id);
   } else {
     // 'none' — キューから外れた（通常はポーリング中は起きない）。待機画面を閉じる。

@@ -15683,6 +15683,52 @@ body.opening-screen-active.is-admin-user #smoke-test-launch-btn {
 }
 .ranked-waiting-cancel:hover { background: rgba(255, 255, 255, 0.12); }
 
+/* 待機中CPU練習ボタン（ranked-match.js） */
+.ranked-waiting-practice {
+  margin-top: 1rem;
+  padding: 0.6rem 1.6rem;
+  border: 1px solid rgba(255, 215, 120, 0.4);
+  border-radius: 0.6rem;
+  background: rgba(255, 215, 120, 0.12);
+  color: #ffe08a;
+  font-size: 0.95rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+.ranked-waiting-practice:hover { background: rgba(255, 215, 120, 0.2); }
+
+/* 練習中に画面上部に出す小さな「探し中」バナー（盤面は下で見える） */
+#ranked-practice-banner {
+  position: fixed;
+  top: 0.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40000;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.8rem;
+  background: rgba(20, 26, 38, 0.92);
+  border: 1px solid rgba(255, 215, 120, 0.45);
+  border-radius: 0.6rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  color: #ffe08a;
+  font-size: 0.8rem;
+  font-weight: bold;
+  max-width: 92vw;
+}
+#ranked-practice-banner button {
+  padding: 0.25rem 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 0.4rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f1f5f9;
+  font-size: 0.72rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#ranked-practice-banner button:hover { background: rgba(255, 255, 255, 0.16); }
+
 #ranked-ready-modal {
   position: fixed;
   inset: 0;
