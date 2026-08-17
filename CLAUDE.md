@@ -14036,3 +14036,43 @@ badge/bg top `calc(50% - 4.2rem)`・socket0 13.1%/38.7% 等）ことを確認。
 待機プレイヤー通知＋ホームの待機人数表示（続き162）、【管理者向け】スモークテストの不変条件チェック
 （続き164）。内部専用の細かい調整（ランクバッジ／ゲージの位置調整モード等）は載せていない。
 `node --check`通過・サーバー側の変更は無い。
+
+### 2026-08-17（続き168）：スマホの部屋作成/対戦結果モーダルを横長に・接触ボタン拡大・接触結果モーダル廃止・2D＋拡大のおすすめ誘導
+
+スマホでのフィードバック5件への対応。
+- **部屋作成モーダル（#online-panel）の上下見切れを修正**（ユーザー報告）: スマホでは `scale(2)` される
+  ため縦に長いと画面からはみ出す。`body.is-phone-device` で幅を34rem（22rem→横長寄り）に広げ、
+  `max-height: 26rem` ＋ `overflow-y: auto` で縦のはみ出しを内部スクロールに逃がした（vwは使わず
+  pure rem＝ステージ幅1600px＝100remに対して安全。26remは scale(2)×ステージ縮小後でも常に画面内に
+  収まる値であることを計算で確認）。
+- **対戦結果（MVP等）モーダル（#match-personal-result-modal）が小さすぎる問題を修正**（ユーザー報告）:
+  従来スマホの拡大リスト（--center-modal-scale-phone）に入っておらず素の大きさ＝ステージ縮小で極小
+  だった。拡大リストに追加（readable化）した上で、情報が多いので `display:flex; flex-wrap:wrap` で
+  横長化（タイトルは全幅、順位表・自分の結果・MVP・グラフを横に並べる）、`max-height:26rem`＋scroll。
+  pop-inアニメ（scale0.7→1）が phone の scale(2) と終了時に衝突して 1→2 へ跳ねるため、この modal だけ
+  phone では `animation: none` にした。ブラウザ実測で transform=scale(2)・幅42rem・max-height26rem・
+  flex-wrap を確認。
+- **接触/オープンの浮遊ボタンをスマホで拡大**（ユーザー報告「接触するボタンが小さすぎ」）:
+  `.card-open-prompt`（「🤝 接触する」と「オープンする/しない」で共用）のボタンを `body.is-phone-device`
+  で font-size 1.6rem・padding拡大（実測25.6px）。盤面はステージtransformで縮小されるためタップ領域を
+  大きくした。
+- **接触の結果モーダルを廃止**（ユーザー要望「接触の結果モーダルは不要」）: 駒の接触（タックル）演出＋
+  儀式ピック（奪う演出、続き130で奪われた側にも「このカードが奪われました」を表示）で既に分かるため
+  冗長。main.jsの2箇所（`checkContactAttackerResolution`の攻撃側「奪った」通知・`respondToContact`の
+  `openContactResultModal`＋12秒安全タイマー）を撤去し、後者は `proceedToForcedArrivalOnce()` を直接
+  呼んで強制移動の到達処理へそのまま進むようにした（フローは維持）。使われなくなった `findStolenCard`
+  も削除。**チュートリアル（tutorial-battle経由の接触、main.js:6121）だけは教材として結果モーダルを
+  残した**（`openContactResultModal`関数自体は残置）。
+- **「2D＋拡大」への誘導を追加**（ユーザー要望「スマホでは2Dにしてさらに拡大が一番見やすい。誘導を
+  入れた方がいい？」）: タブレット2D警告モーダル（tablet-2d-warning.js）の主ボタンを
+  「📱 おすすめ表示にする（2D＋拡大）」にし、押すと2D表示ON＋盤面拡大（レベル1）をまとめて適用する。
+  拡大部分は main.js の `applyRecommendedMobileZoom`（resetManualView＋boardZoomLevel=1＋fit）を
+  `registerRecommendedViewHelper` 経由で注入（main.js→tablet-2d-warningは非循環＝tablet側はmainを
+  importしないため安全）。「2D表示だけにする」も残し、本文にもピンチ/ホイールで拡大すると見やすい旨を追記。
+- **他に横長化候補**（ユーザー質問「他にもある？」への回答用メモ）: ゲート侵攻の結果／エターナル獲得
+  演出モーダル（gate-invasion-modal.js、逐次ステップで情報多め）が候補。ランク結果モーダルは
+  バッジ＋ゲージ＋テキストで縦構成が自然なため据え置き。必要なら次回対応。
+- **検証**: `node --check` 全ファイル通過、アプリ正常ロード・新規コンソールエラー無し、`body.is-phone-device`
+  付与での各CSS（接触ボタン font 25.6px／#online-panel 34rem・maxH26rem・overflow auto・scale2／
+  #match-personal-result-modal scale2・42rem・maxH26rem・flex-wrap・animation none）を実測確認。
+  サーバー側（Supabase）の変更は無い。

@@ -189,6 +189,7 @@ import { initSelfStatusRearrange } from "./self-status-rearrange.js";
 import { initInteractionModeToggle } from "./interaction-mode.js";
 import { initDeviceDetect, isTouchPrimaryDevice } from "./device-detect.js";
 import { initRankedNotify } from "./ranked-notify.js";
+import { registerRecommendedViewHelper } from "./tablet-2d-warning.js";
 import { registerRenderHelpers, animateFirstCardsDealt, animateBoardFilled } from "./setup-animation.js";
 import {
   registerRemoteMoveAnimatorHelpers,
@@ -5844,17 +5845,9 @@ let contactAttackerSnapshot = null;
 function checkContactAttackerResolution() {
   if (!contactAttackerSnapshot) return;
   if (getState().pendingContact) return; // まだ承認/拒否されていない
-  const { attacker, defender, handIdsBefore } = contactAttackerSnapshot;
+  // ユーザー要望2026-08-17「接触の結果モーダルは不要」。以前はここで攻撃側に「奪ったカード」を
+  // 出していたが、儀式ピック（奪う演出）で既に分かるため廃止。スナップショットのクリアだけ行う。
   contactAttackerSnapshot = null;
-  const newCard = getState().tokens.find(
-    (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === attacker && !handIdsBefore.has(t.id)
-  );
-  // 拒否された場合はnewCardが無いまま＝何も表示しない（承認されたが奪えるカードが
-  // 無かった場合と見分けがつかないが、ユーザー要望は「奪った/奪われた」結果の通知のため、
-  // 何も起きていない可能性がある時に無言なのは実害が無い）。
-  if (newCard) {
-    openContactResultModal({ role: "attacker", attacker, defender, cardId: newCard.cardId });
-  }
 }
 
 // ユーザー報告（続き106）「疑似CPUモードでもムーブフェイズで駒を接触可能なマスへ
@@ -6612,14 +6605,6 @@ async function respondToContact(approve) {
   const defenderHandBefore = getState().tokens.filter(
     (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === defender
   );
-  function findStolenCard() {
-    const afterIds = new Set(
-      getState()
-        .tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === defender)
-        .map((t) => t.id)
-    );
-    return defenderHandBefore.find((t) => !afterIds.has(t.id)) ?? null;
-  }
 
   // ユーザー要望「接触でカードを奪うときも、スリカエの時同様、儀式的に裏向きの手札
   // からカードを奪うステップを入れてください」＋その後の訂正「接触した側(attacker)が
@@ -6911,15 +6896,9 @@ async function respondToContact(approve) {
       forcedArrivalStarted = true;
       startForcedMoveArrival();
     };
-    const stolenForModal = findStolenCard();
-    openContactResultModal({
-      role: isOnlineMode() ? "defender" : "both",
-      attacker,
-      defender,
-      cardId: stolenForModal?.cardId ?? null,
-      onClose: proceedToForcedArrivalOnce,
-    });
-    setTimeout(proceedToForcedArrivalOnce, 12000);
+    // ユーザー要望2026-08-17「接触の結果モーダルは不要（駒の接触演出＋儀式ピックで、奪った/
+    // 奪われたカードは既に分かるため）」。モーダルを出さず、そのまま強制移動の到達処理へ進む。
+    proceedToForcedArrivalOnce();
   }
 }
 
@@ -7914,6 +7893,15 @@ let hasManualView = false;
 
 function cycleBoardZoom() {
   boardZoomLevel = (boardZoomLevel + 1) % 3;
+  fitTableToViewport();
+}
+
+// スマホ/タブレット向けの「おすすめ表示（2D＋拡大）」で使う盤面拡大（ユーザー要望2026-08-17
+// 「スマホでは2Dにしてさらに拡大状態にするのが一番見やすい。誘導を入れたい」）。手動ズームは
+// リセットして素の盤面拡大レベル1にする。tablet-2d-warning.js からregister経由で呼ばれる。
+function applyRecommendedMobileZoom() {
+  resetManualView();
+  boardZoomLevel = 1;
   fitTableToViewport();
 }
 
@@ -12722,6 +12710,7 @@ initSelfStatusRearrange();
 initInteractionModeToggle();
 initDeviceDetect();
 initRankedNotify(); // ランク戦の「待機プレイヤーが現れたら通知」（設定ONの端末のみポーリング開始）
+registerRecommendedViewHelper(applyRecommendedMobileZoom); // タブレット2D警告の「おすすめ表示（2D＋拡大）」で盤面拡大
 registerRenderHelpers({ render, triggerLockEffect, spawnArrivalBurst, findLocationElement, setSetupPendingTokenIds });
 registerPieceSkinHelpers({ render });
 registerCardBackSkinHelpers({ render, savePreference: saveMyPreference, isItemUnlocked, openShop });
