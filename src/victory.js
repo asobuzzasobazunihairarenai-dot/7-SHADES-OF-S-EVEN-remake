@@ -102,6 +102,22 @@ export function getLockedCount(player) {
   return lockedColorIndexes(player).size;
 }
 
+// ランク戦のポイント反映用: 座席→順位（1-indexed）のマップを算出する。勝者=1位、以降は
+// ロック色数の多い順（同数は同順位＝競技順位。1,2,2,4 のように詰める）。ロックは常に公開情報なので
+// 全クライアントで同じ結果になる（サーバー側はこの順位を信頼して2〜4人のポイント表を適用する）。
+function computeRankedPlacements(activePlayers, winnerSeat) {
+  const placements = {};
+  placements[winnerSeat] = 1;
+  const losers = activePlayers.filter((s) => s !== winnerSeat);
+  for (const seat of losers) {
+    const myCount = getLockedCount(seat);
+    // 自分より上＝勝者(1人) ＋ 自分より厳密にロック色数が多い敗者の数。競技順位はその数+1。
+    const strictlyAhead = losers.filter((o) => getLockedCount(o) > myCount).length;
+    placements[seat] = 2 + strictlyAhead;
+  }
+  return placements;
+}
+
 function hasAllSevenLocked(player) {
   const lockedIndexes = lockedColorIndexes(player);
   return COLORS.every((_color, index) => lockedIndexes.has(index));
@@ -263,7 +279,8 @@ export function checkForVictory() {
         // 「ランク対局だった」を判定し、各クライアントは自分の新ランク(getSelfRank)を表示する。
         try {
           const rankedGameId = getCurrentGameId();
-          const rankedRes = rankedGameId ? await reportRankedResult(rankedGameId, player) : null;
+          const placements = computeRankedPlacements(getState().activePlayers, player);
+          const rankedRes = rankedGameId ? await reportRankedResult(rankedGameId, placements) : null;
           if (rankedRes && rankedRes.skipped !== "not_ranked") {
             const myRank = await getSelfRank();
             if (myRank) {

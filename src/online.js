@@ -1086,11 +1086,13 @@ export async function leaveRankedQueue() {
 // 1回だけ反映される（awardMatchCurrencyと同じ）。戻り値: {winner_delta, loser_delta, ...} か
 // {skipped:'not_ranked'|'already_applied'}、失敗時null。呼び出し側は skipped!=='not_ranked' で
 // 「ランク対局だった」を判定する（適用済みでもランク対局なので自分のランクを表示する）。
-export async function reportRankedResult(gameId, winnerSeat) {
-  if (!client || !cachedUser || !gameId || !winnerSeat) return null;
+// placements: 座席→順位のマップ（{ A:1, C:2, ... }）。勝者=1位、以降はロック色数の多い順（同数は
+// 同順位＝競技順位）を呼び出し側（victory.js）が算出して渡す。2〜4人に対応。
+export async function reportRankedResult(gameId, placements) {
+  if (!client || !cachedUser || !gameId || !placements || Object.keys(placements).length < 2) return null;
   const { data, error } = await client.rpc("so7_ranked_report_result", {
     p_game_id: gameId,
-    p_winner_seat: winnerSeat,
+    p_placements: placements,
   });
   if (error) {
     console.error("so7_ranked_report_result failed", error);

@@ -2080,10 +2080,45 @@ grant execute on function so7_ranked_leave() to authenticated;
 
 alter table so7_games add column if not exists ranked_result_applied boolean not null default false;
 
--- 2人戦のポイント（docs/ranked-spec.md）: 1位=ブースト+3/通常+1、2位=-1（ブースト/通常とも）。
--- ブースト/通常は勝者の現ランク（rank<=2=ゴールド以下＝ブースト）で判定する。
--- 戻り値は反映結果（クライアントが「+N」等の演出に使う）。既に適用済み/非ランクなら skipped を返す。
-create or replace function so7_ranked_report_result(p_game_id text, p_winner_seat text)
+-- 順位・人数・ブースト有無からポイント（デルタ）を返す（docs/ranked-spec.md のポイント表）。
+-- ブースト（ブロンズ〜ゴールド＝rank<=2）はプラス側だけ大きく、マイナスは通常と同じ。
+--   2人: 1位 +3/+1、2位 −1
+--   3人: 1位 +3/+1、2位 0、3位 −1
+--   4人: 1位 +4/+2、2位 +2/+1、3位 −1、4位 −2
+-- （各セルは boost/normal。3位・4位は boost/normal 共通）。
+create or replace function so7_ranked_points(p_count int, p_place int, p_boost boolean)
+returns int
+language sql
+immutable
+as $$
+  select case
+    when p_count = 2 then
+      case p_place when 1 then (case when p_boost then 3 else 1 end) else -1 end
+    when p_count = 3 then
+      case p_place when 1 then (case when p_boost then 3 else 1 end) when 2 then 0 else -1 end
+    when p_count = 4 then
+      case p_place
+        when 1 then (case when p_boost then 4 else 2 end)
+        when 2 then (case when p_boost then 2 else 1 end)
+        when 3 then -1
+        else -2
+      end
+    else 0
+  end;
+$$;
+
+-- ランク対局が7色ロックで終わったら、各プレイヤーの順位に応じてポイントを反映する。
+-- v1の信頼モデル: クライアントが報告する順位を信頼する（1対局1回だけ適用＝冪等、action-logで
+--   係争対応、自動処理＋タイマーで不正を抑止という既存方針。全クライアント＝勝者/傍観者が呼んでも
+--   ranked_result_applied で1回だけ反映）。順位はクライアントが「勝者=1位、以降はロック色数の多い順
+--   （同数は同順位＝競技順位）」で決めて p_placements（{"A":1,"C":2,...} 座席→順位）で渡す。
+--   ロックは常に表向き＝公開情報なので全クライアントが同じ順位を算出でき、決定的（冪等と整合）。
+-- ブースト/通常は各プレイヤー自身の「対戦開始時の現ランク」（＝適用前に読む現在ランク）で判定する。
+-- 戻り値は反映結果（クライアントが演出に使う）。既に適用済み/非ランクなら skipped を返す。
+-- （旧2人戦専用シグネチャ (text,text) は drop してから (text,jsonb) を作り直す。2人戦は
+--   placements={winner:1,loser:2} で従来と同じ結果になる＝統一。）
+drop function if exists so7_ranked_report_result(text, text);
+create or replace function so7_ranked_report_result(p_game_id text, p_placements jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2092,11 +2127,12 @@ as $$
 declare
   v_is_ranked boolean;
   v_applied boolean;
-  v_winner_uid uuid;
-  v_loser_uid uuid;
-  v_winner_rank smallint;
-  v_winner_delta int;
-  v_loser_delta int := -1;
+  v_count int;
+  v_rank smallint;
+  v_boost boolean;
+  v_place int;
+  v_delta int;
+  v_results jsonb := '[]'::jsonb;
   r record;
 begin
   select is_ranked, ranked_result_applied into v_is_ranked, v_applied
@@ -2105,35 +2141,29 @@ begin
   if not v_is_ranked then return jsonb_build_object('skipped', 'not_ranked'); end if;
   if v_applied then return jsonb_build_object('skipped', 'already_applied'); end if;
 
-  -- 参加者2人の user_id を取得（勝者/敗者を seat で判定）
+  v_count := (select count(*) from jsonb_object_keys(p_placements));
+  if v_count < 2 or v_count > 4 then raise exception 'bad_player_count'; end if;
+
+  -- 参加座席ごとに、その座席の順位＋そのプレイヤー自身の現ランク（＝ブースト判定）でデルタを適用。
+  -- 各プレイヤーの行は独立なので、プレイヤー単位で「現ランクを読む→デルタ適用」で正しい
+  -- （他プレイヤーへの適用は自分のランク読みに影響しない）。
   for r in select seat, user_id from so7_game_seats where game_id = p_game_id loop
-    if r.seat = p_winner_seat then
-      v_winner_uid := r.user_id;
-    else
-      v_loser_uid := r.user_id;
-    end if;
+    v_place := (p_placements ->> r.seat)::int;
+    if v_place is null then continue; end if; -- placementsに無い座席は対象外（通常起きない）
+    select rank into v_rank from so7_ranked_players where user_id = r.user_id;
+    if v_rank is null then v_rank := 0; end if;
+    v_boost := v_rank <= 2;
+    v_delta := so7_ranked_points(v_count, v_place, v_boost);
+    perform so7_ranked_apply_delta(r.user_id, v_delta);
+    v_results := v_results || jsonb_build_object(
+      'user', r.user_id, 'seat', r.seat, 'place', v_place, 'delta', v_delta
+    );
   end loop;
-  if v_winner_uid is null or v_loser_uid is null then
-    raise exception 'participants_not_found';
-  end if;
-
-  -- 勝者の現ランクでブースト/通常を判定（行が無ければブロンズ=0扱い）。
-  select rank into v_winner_rank from so7_ranked_players where user_id = v_winner_uid;
-  if v_winner_rank is null then v_winner_rank := 0; end if;
-  v_winner_delta := case when v_winner_rank <= 2 then 3 else 1 end;
-
-  perform so7_ranked_apply_delta(v_winner_uid, v_winner_delta);
-  perform so7_ranked_apply_delta(v_loser_uid, v_loser_delta);
 
   update so7_games set ranked_result_applied = true where id = p_game_id;
 
-  return jsonb_build_object(
-    'winner_user', v_winner_uid,
-    'loser_user', v_loser_uid,
-    'winner_delta', v_winner_delta,
-    'loser_delta', v_loser_delta
-  );
+  return jsonb_build_object('applied', true, 'count', v_count, 'results', v_results);
 end;
 $$;
-revoke execute on function so7_ranked_report_result(text, text) from public;
-grant execute on function so7_ranked_report_result(text, text) to authenticated;
+revoke execute on function so7_ranked_report_result(text, jsonb) from public;
+grant execute on function so7_ranked_report_result(text, jsonb) to authenticated;
