@@ -13746,6 +13746,27 @@ body.theme-light-ingame .hand-effect-option-picker-btn.is-unusable {
   border-color: rgba(120, 100, 60, 0.3);
 }
 
+/* ランク結果モーダル（ranked-result-modal.js）はゴールドの祝祭モーダルで既定ダーク。
+   ユーザー報告#145「ライトモードなのにダーク」に対応し、対戦画面ライト時はクリーム背景＋
+   暗色文字にしてテーマに馴染ませる。バッジ/ゲージは画像なので変更不要、ゴールドの縁取り・
+   LP・勝利見出しは（暗めの金に落として）そのまま活かす。 */
+body.theme-light-ingame #ranked-result-modal .ranked-result-inner {
+  background: linear-gradient(160deg, #fffdf5, #f3ecda);
+  border-color: #c99a3a;
+  box-shadow: 0 0 40px rgba(201, 154, 58, 0.3);
+  color: #3a3326;
+}
+body.theme-light-ingame #ranked-result-modal .ranked-result-heading.is-win { color: #b07d1e; }
+body.theme-light-ingame #ranked-result-modal .ranked-result-heading.is-lose { color: #64748b; }
+body.theme-light-ingame #ranked-result-modal .ranked-result-note { color: #5b5240; }
+body.theme-light-ingame #ranked-result-modal .ranked-result-rank { color: #2e2820; }
+body.theme-light-ingame #ranked-result-modal .ranked-result-gauge-text { color: #6b5c3c; }
+body.theme-light-ingame #ranked-result-modal .ranked-result-lp { color: #b07d1e; }
+body.theme-light-ingame #ranked-result-modal .ranked-result-promote-line {
+  color: #b07d1e;
+  text-shadow: none;
+}
+
 /* ランキングの画面全体版（続き74、src/ranking-page.js）。プロフィール画面全体版と
    同じ器の作り方（フルスクリーン、戻るボタン、中央のカード）を踏襲する。 */
 #ranking-page {

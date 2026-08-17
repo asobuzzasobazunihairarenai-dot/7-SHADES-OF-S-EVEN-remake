@@ -94,7 +94,7 @@ import {
   isLocalGateInvasionActive,
 } from "./gate-invasion.js";
 import { announceHandPickups, announceCardLocked, announceDrawCount } from "./hand-announcer.js";
-import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained, reapplyGateInvasionModal, registerGateInvasionModalEternalAnim, registerGateInvasionModalStealAnim, registerGateInvasionModalEternalPreHide } from "./gate-invasion-modal.js";
+import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained, reapplyGateInvasionModal, registerGateInvasionModalEternalAnim, registerGateInvasionModalStealAnim, registerGateInvasionModalEternalPreHide, forceCloseGateInvasionModal } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking, hasAnyoneWon } from "./victory.js";
 import { recordContactMade, recordCardUsed, recordLockSnapshot, initMatchStatsTracker } from "./match-stats-tracker.js";
 import { initPseudoCpuPrompt } from "./pseudo-cpu-prompt.js";
@@ -236,6 +236,7 @@ import {
   setSelfCpuSubstituted,
   resetTimeoutStreak,
   getSeatLoadout,
+  setSeatLoadout,
 } from "./cpu-battle-state.js";
 import {
   chooseMoveCandidate,
@@ -6452,7 +6453,9 @@ async function playGateInvasionStealRitual(info, onDone) {
     const backdrop = createBackdrop(() => {}, { dim: true, zIndex: 10620 });
     const modal = document.createElement("div");
     modal.id = "sleight-ritual-modal";
-    modal.classList.add("is-steal-reveal");
+    // #140: 以前は is-steal-reveal で個別カードのホバー演出を消していたが（「特定の札を選んで
+    // いる」誤解を避けるため）、下記の通り「クリックした札がめくれる」ブラインドピックに変えた
+    // ので、クリックできることを示すホバー演出は残す（is-steal-reveal は付けない）。
     const title = document.createElement("div");
     title.className = "sleight-ritual-title";
     title.textContent = "シャッフル中…";
@@ -6480,21 +6483,35 @@ async function playGateInvasionStealRitual(info, onDone) {
     await wait(1100); // シャッフル演出
     modal.classList.remove("is-shuffling");
     title.textContent = `タップして、奪う${stolenTokens.length}枚をめくろう…`;
-    // 奪う札はサーバーが無作為に決めている。めくる順は必ず位置順（左→右）に固定して、
-    // 「特定の札を選んでいる」誤解が起きないようにする（#9）。
+    // 奪う札はサーバーが無作為に決めている（stolenTokens）。攻撃側にはどれも裏向きで区別が
+    // 付かない＝ブラインド。#140「ホバー/クリックした札と別の札がめくれる」を解消するため、
+    // 「クリックしたその札」をめくって奪った札を見せる（クリック位置＝めくる位置に一致）。
+    // 奪う札自体はサーバー決定のまま変えないので公平（＝どの裏向き札を選んでも無作為に決まった
+    // 札が出る、という“ブラインドで引く”体験）。奪われる側の実況は下で“実際に奪われる札”を
+    // カードidで光らせるので、位置は違ってもカードの同一性で両画面が一致する。
     const revealOrder = [...stolenTokens].sort((a, b) => orderIndexOf(a.id) - orderIndexOf(b.id));
 
-    // 1枚ずつ、クリックしてめくって奪う。自動送りは無し（ホバーでいくらでもじらせる。ユーザー
-    // 要望「そもそも自動送りは要る？」）。ただし、長時間まったく操作が無い（席を外した等）時だけ、
+    // 1枚ずつ、クリックした裏向き札をめくって奪う。長時間まったく操作が無い（席を外した等）時だけ、
     // ゲート侵攻モーダルのキューが詰まらないよう、残りを一気にめくって終える最終手段を用意する。
+    const revealedEls = new Set();
     let aborted = false;
     let pendingResolve = null;
-    const onCardsClick = () => {
-      if (pendingResolve) {
+    const onCardsClick = (e) => {
+      if (!pendingResolve) return;
+      if (e) {
+        // 明示的なユーザークリック: まだめくっていない札の上でだけ受け付ける（既にめくった札や
+        // 隙間のクリックは無視して、狙った札をめくれるようにする）。
+        const clickedEl = e.target?.closest?.(".sleight-ritual-card");
+        if (!clickedEl || revealedEls.has(clickedEl)) return;
         const r = pendingResolve;
         pendingResolve = null;
-        r();
+        r(clickedEl);
+        return;
       }
+      // 自動送り/放置（イベント無し）: 次の未めくり札を左から。
+      const r = pendingResolve;
+      pendingResolve = null;
+      r(null);
     };
     cardsWrap.addEventListener("click", onCardsClick);
     const abandonTimer = setTimeout(() => {
@@ -6506,20 +6523,26 @@ async function playGateInvasionStealRitual(info, onDone) {
     // 従来通りクリックでじらせ、席を外したらabandonTimerで進む。
     let autoFlipTimer = null;
     if (isPseudoCpuTarget(attacker)) {
-      autoFlipTimer = setInterval(onCardsClick, 700);
+      autoFlipTimer = setInterval(() => onCardsClick(), 700);
     }
     for (let i = 0; i < stolenTokens.length; i++) {
+      let clickedEl = null;
       if (!aborted) {
-        await new Promise((resolve) => {
+        clickedEl = await new Promise((resolve) => {
           pendingResolve = resolve;
         });
       }
       const tok = revealOrder[i];
-      const el = cardEls[orderIndexOf(tok.id)];
+      // クリックされた（まだめくっていない）札があればそこを、無ければ（自動送り/放置）まだ
+      // めくっていない札を左から順にめくる。
+      const el = clickedEl && !revealedEls.has(clickedEl) ? clickedEl : cardEls.find((c) => !revealedEls.has(c));
       if (el) {
+        revealedEls.add(el);
         el.style.backgroundImage = `url("${getCardImagePath(tok.cardId)}")`;
         el.classList.add("is-stolen-reveal");
       }
+      // 奪われる側は“実際に奪われる札(tok)”をその札の位置で光らせる（クリック位置ではなく
+      // カードidベースなので、攻撃側のめくり位置と違っても奪われるカード自体は両画面で一致する）。
       broadcastRitualPickHover({ targetPlayer: defender, index: orderIndexOf(tok.id) });
       playSound("cardFlip");
       await wait(aborted ? 150 : 500);
@@ -8150,6 +8173,11 @@ function findDraggableAt(clientX, clientY) {
   // 観戦者は読み取り専用。掴める対象を一切返さない（ドラッグ・接触・ロック等を封じる）。
   if (isSpectatingGame()) return null;
   const elements = document.elementsFromPoint(clientX, clientY);
+  // #141: 盤面拡大中のミニロックエリアのスロット（is-usable/is-pick-target＝pointer-events:auto）を
+  // クリックした時、その背面にある手札カードまで掴んで手札効果を誤発動させないようにする。
+  // ミニロックのスロットは自前のclick（エターナル使用）／captureフェーズのピッカー（配置選択）が
+  // 処理するので、盤面ドラッグ側はミニロック上のpointerdownを一切拾わない。
+  if (elements.some((el) => el.closest(".mini-lock-slot"))) return null;
   // 自動処理モードの操作制限（ユーザー要望）: 掴めるのは自分の手札カードだけにし、駒・盤面/
   // ロックのカード・山（山札/捨て場/エターナル/ファースト）・相手の手札は掴めなくする。駒の
   // 移動は移動フェイズの移動先マスのタップ（上のcaptureハンドラ）で従来どおり可能。
@@ -8687,10 +8715,12 @@ function updateMiniLockArea() {
           slot.dataset.tokenId = entry.tokenId;
           slot.addEventListener("click", () => void tryUseLockedUsableCard(entry.tokenId));
         }
-        // 「捨てる/奪うロックカードを選ぶ」ピッカーの候補なら、ミニロックでも選べるよう光らせる
-        // （実際のクリック解決は下部のcell picker用ドキュメントハンドラが .mini-lock-slot を見て行う）。
-        if (isLockPickTarget(side, index)) slot.classList.add("is-pick-target");
       }
+      // 「捨てる/奪うロックカードを選ぶ」ピッカーの候補（ロック済みスロット）、および
+      // #143: 誘惑の黒の烙印など「空きロックスロットに置く」配置ピッカーの候補（空きスロット）を、
+      // entryの有無に関わらずミニロックでも選べるよう光らせる（盤面拡大中に拡大解除せず選べる）。
+      // 実際のクリック解決は上部のcell picker用captureハンドラが .mini-lock-slot.is-pick-target を見て行う。
+      if (isLockPickTarget(side, index)) slot.classList.add("is-pick-target");
       slots.appendChild(slot);
     });
     playerRow.appendChild(slots);
@@ -12955,11 +12985,59 @@ function buildForfeitPlacements(loserSeat) {
   placements[loserSeat] = active.length; // 放置者は最下位
   return placements;
 }
+// #144: ランク放置敗北などで対局を突然畳んでホームへ戻る際、その瞬間に表示中だった
+// 盤面上の一時的なUI（到達拡大モーダル・手札効果使用モーダル・「〜を選択してください」の
+// 候補ヒント・各種確認/儀式/選択肢モーダルとそのbackdrop・ゲート侵攻モーダル列）が
+// 残り続けてホーム画面に被さる不具合の後始末。対局を離れる前提なので、既知の一時
+// オーバーレイを一括で消してよい（選択待ちのactiveEffectPickerもnullにし、ハイライト・
+// ヒントも消す。resolveは呼ばない＝対局を離れるので効果チェーンの続きは不要）。
+function dismissAllInGameTransientUi() {
+  try {
+    activeEffectPicker = null;
+    clearEffectUiHighlights();
+    hideEffectPickerHint();
+  } catch (e) { /* best-effort */ }
+  try { hideCardArrivalModalImmediately(); } catch (e) {}
+  try { hideHandEffectUseModalImmediately(); } catch (e) {}
+  try { hideContactApprovalModalImmediately(); } catch (e) {}
+  try { forceCloseGateInvasionModal(); } catch (e) {}
+  // 効果フローの一時モーダル（選択肢・色宣言・儀式ピック・確認・接触結果・割り込み等）を
+  // id/classでまとめて撤去する。z-indexが盤面より高くホーム画面(1500)に被さるため。
+  const modalSelectors = [
+    "#sleight-ritual-modal", "#gate-invasion-prepick-announce",
+    ".hand-effect-option-picker", ".declare-colors-modal",
+    "#generic-confirm-modal", "#touch-action-confirm-modal",
+    "#contact-confirm-modal", "#contact-result-modal",
+    "#anytime-interrupt-modal", ".card-open-prompt", ".contact-prompt",
+    ".effect-reason-modal", ".card-received-modal", ".card-arrival-modal",
+    ".hand-effect-use-modal",
+  ];
+  for (const sel of modalSelectors) {
+    for (const el of document.querySelectorAll(sel)) {
+      try { el.remove(); } catch (e) {}
+    }
+  }
+  // 上記モーダルが使っていた透明/暗転backdrop（createBackdrop製＝子要素のない全画面fixed div）は
+  // モーダル本体を消しても孤児として残るので、body直下の「中身が空の高z-indexな全画面div」を
+  // 掃除する。ホーム画面や常設パネルは子要素を持つので誤って消さない。
+  for (const el of document.querySelectorAll("body > div")) {
+    try {
+      if (el.children.length > 0) continue;
+      const s = el.style;
+      if (s.position !== "fixed") continue;
+      const z = parseInt(s.zIndex, 10);
+      if (!(z >= 10000)) continue;
+      el.remove();
+    } catch (e) {}
+  }
+}
+
 async function finishRankedForfeit(loserSeat) {
   if (rankedForfeitHandled) return;
   rankedForfeitHandled = true;
   const gameId = getCurrentGameId();
   markRankedResultShown(gameId); // 復帰時検知が二重に出さないようマーク
+  dismissAllInGameTransientUi(); // #144: 残留した到達モーダル・候補ヒント等を先に消す
   const active = getState().activePlayers || [];
   const winnerSeat = active.find((p) => p !== loserSeat) || null;
   const iWon = getSelfSeat() !== loserSeat;
@@ -13039,6 +13117,7 @@ subscribe(() => {
 });
 async function handleRankedReconnectResult(winnerSeat) {
   const iWon = !!winnerSeat && getSelfSeat() === winnerSeat;
+  dismissAllInGameTransientUi(); // #144: 残留した到達モーダル・候補ヒント等を先に消す
   try {
     const { showRankedResultModal } = await import("./ranked-result-modal.js");
     const myRank = await getSelfRank();
@@ -13067,6 +13146,48 @@ async function handleRankedReconnectResult(winnerSeat) {
     console.error("openHomeScreen (reconnect result) failed", e);
   }
 }
+// #139: オンラインのマイデッキ戦で、自席のペット・駒スキン・カード裏面が「自分の画面」では
+// デッキで設定したものにならずグローバル設定になってしまう不具合の対応。相手の画面は同期
+// ロスター（サーバーがselected_deckから書いた自席のpiece_skin_index等）を読むため正しいが、
+// 自分の画面では getSkinImagePath/getPetOptionForSeat が自席についてローカルのグローバル好みを
+// 最優先するため食い違う。CPU戦と同じ per-seat オーバーライド(setSeatLoadout)を、同期ロスターの
+// 値で自席にだけ適用して直す（getSeatLoadout は最優先なのでグローバル好みより勝つ）。マイデッキ戦を
+// 抜けたら適用した自席のオーバーライドだけを消す（他席・ローカルCPU戦のloadoutは触らない）。
+let myDeckLoadoutSeat = null;
+let myDeckLoadoutKey = null;
+subscribe(() => {
+  const seat = getSelfSeat();
+  const inMyDeckOnline = isOnlineMode() && getState().myDeckMode && !!seat;
+  if (inMyDeckOnline) {
+    const ident = getSyncedIdentity(seat);
+    if (
+      ident &&
+      (typeof ident.pieceSkinIndex === "number" ||
+        typeof ident.petIndex === "number" ||
+        typeof ident.cardBackSetIndex === "number")
+    ) {
+      const key = `${seat}:${ident.pieceSkinIndex}:${ident.petIndex}:${ident.cardBackSetIndex}`;
+      if (key !== myDeckLoadoutKey) {
+        myDeckLoadoutKey = key;
+        myDeckLoadoutSeat = seat;
+        setSeatLoadout(seat, {
+          pieceSkinIndex: ident.pieceSkinIndex ?? 0,
+          petIndex: ident.petIndex,
+          cardBackSetIndex: ident.cardBackSetIndex,
+        });
+        render();
+      }
+    }
+  } else if (myDeckLoadoutSeat) {
+    // オンラインのマイデッキ戦を抜けた → 適用した自席のオーバーライドだけを空にして元へ戻す
+    // （clearSeatLoadouts()は全席を消すのでCPU戦のloadoutを壊す。適用した席だけ空にする）。
+    setSeatLoadout(myDeckLoadoutSeat, {});
+    myDeckLoadoutSeat = null;
+    myDeckLoadoutKey = null;
+    render();
+  }
+});
+
 buildAfkCpuBanner();
 // 開発用のみ: エイドス会話パネルのプレビューをコンソールから呼べるようにする（本番のボタン・
 // フローからは一切呼ばない。決定稿投入前の表示確認用）。
