@@ -1049,15 +1049,16 @@ export function clearRankedPreMatchRank() {
 }
 
 // ランク戦のキューに登録する（deck＝my-deck-selectのresolveDeckが返す解決済みデッキ。席へ引き継ぐ）。
-export async function enqueueRanked(deck) {
+// size＝希望人数(2/3/4)。同じ size 同士だけがマッチする。
+export async function enqueueRanked(deck, size = 2) {
   if (!client || !cachedUser) return false;
-  const { error } = await client.rpc("so7_ranked_enqueue", { p_deck: deck ?? null });
+  const { error } = await client.rpc("so7_ranked_enqueue", { p_deck: deck ?? null, p_size: size });
   if (error) { console.error("so7_ranked_enqueue failed", error); return false; }
   return true;
 }
 
 // 待機中に数秒ごとに呼ぶ。返り値: { state:'none'|'waiting'|'matched'|'ingame', match_id,
-// game_id, waiting_count, opponent_user_id, opponent_name, opponent_avatar, opponent_rank } or null。
+// game_id, waiting_count, size, opponents:[{user_id,name,avatar,rank}] } or null。
 export async function pollRanked() {
   if (!client || !cachedUser) return null;
   const { data, error } = await client.rpc("so7_ranked_poll");

@@ -45,6 +45,7 @@ let countEl = null;
 let pollTimer = null;
 let myUserId = null;
 let myDeck = null;
+let mySize = 2; // 希望人数（2/3/4）。同じ size 同士だけがマッチする。
 let entering = false; // 対局入場の二重防止
 let lastState = null; // 直前のstate（matched遷移で1回だけ通知するため）
 let readyModalEl = null;
@@ -72,22 +73,87 @@ export async function startRankedMatchmaking(onExit) {
   // マッチ成立（レディチェック）は別タブ/別アプリを見ていると見逃しやすいので、この操作起点で
   // ブラウザ通知の許可を取っておく（許可済み/拒否済みなら何もしない）。
   void ensureNotifyPermission();
-  // デッキ確認（キャンセル無し＝必ずデッキが返る。おまかせも可）。決まったらキュー登録して待機画面へ。
-  openDeckSelect({
-    durationSec: 0,
-    subtitle: "ランク戦で使うデッキを選んでください",
-    onResolved: (resolved) => {
-      void beginQueue(resolved);
-    },
+  // 人数選択（2/3/4）→ デッキ確認 → キュー登録の順。
+  showSizeSelect((size) => {
+    if (!size) {
+      exitToHome?.(); // やめる → ホームへ戻す
+      return;
+    }
+    openDeckSelect({
+      durationSec: 0,
+      subtitle: `${size}人ランク戦で使うデッキを選んでください`,
+      onResolved: (resolved) => {
+        void beginQueue(resolved, size);
+      },
+    });
   });
 }
 
-async function beginQueue(resolved) {
+// 人数選択モーダル。onChosen(size|null)。同じ size 同士だけがマッチする。
+function showSizeSelect(onChosen) {
+  const modal = document.createElement("div");
+  modal.id = "ranked-size-modal";
+  const inner = document.createElement("div");
+  inner.className = "ranked-ready-inner";
+
+  const heading = document.createElement("div");
+  heading.className = "ranked-ready-heading";
+  heading.textContent = "🏆 ランク戦・人数を選ぶ";
+  inner.appendChild(heading);
+
+  const note = document.createElement("div");
+  note.className = "ranked-size-note";
+  note.textContent = "同じ人数を選んだ人同士でマッチします。プレイ人口が少ないうちは2人が一番早くマッチします。";
+  inner.appendChild(note);
+
+  const btns = document.createElement("div");
+  btns.className = "ranked-size-btns";
+  const defs = [
+    { size: 2, label: "2人", sub: "1対1" },
+    { size: 3, label: "3人", sub: "3人対戦" },
+    { size: 4, label: "4人", sub: "4人対戦" },
+  ];
+  const close = () => modal.remove();
+  for (const d of defs) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "ranked-size-btn";
+    const main = document.createElement("span");
+    main.textContent = d.label;
+    const sub = document.createElement("span");
+    sub.className = "ranked-size-btn-sub";
+    sub.textContent = d.sub;
+    b.appendChild(main);
+    b.appendChild(sub);
+    b.addEventListener("click", () => {
+      close();
+      onChosen(d.size);
+    });
+    btns.appendChild(b);
+  }
+  inner.appendChild(btns);
+
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "ranked-size-cancel";
+  cancel.textContent = "やめる";
+  cancel.addEventListener("click", () => {
+    close();
+    onChosen(null);
+  });
+  inner.appendChild(cancel);
+
+  modal.appendChild(inner);
+  document.body.appendChild(modal);
+}
+
+async function beginQueue(resolved, size) {
   if (!resolved) return;
   myDeck = resolved;
+  mySize = size;
   showWaitingScreen();
   setWaitingStatus("キューに登録しています…");
-  const ok = await enqueueRanked(resolved);
+  const ok = await enqueueRanked(resolved, size);
   if (!ok) {
     setWaitingStatus("キューに入れませんでした（ログイン状態・通信をご確認ください）。");
     return;
@@ -105,7 +171,7 @@ function showWaitingScreen() {
 
   const title = document.createElement("div");
   title.className = "ranked-waiting-title";
-  title.textContent = "🏆 ランク戦・対戦相手を探しています";
+  title.textContent = `🏆 ランク戦（${mySize}人）・対戦相手を探しています`;
   overlayEl.appendChild(title);
 
   const spinner = document.createElement("div");
@@ -278,7 +344,7 @@ async function handlePollResult(res) {
   } else if (state === "ingame") {
     lastState = "ingame";
     if (practicing) await stopPractice(); // 保険（通常はmatchedで畳み済み）
-    await enterRankedGame(res.game_id, res.opponent_user_id);
+    await enterRankedGame(res.game_id, res.opponents);
   } else {
     // 'none' — キューから外れた（通常はポーリング中は起きない）。待機画面を閉じる。
     if (!entering) {
@@ -332,36 +398,22 @@ function stopTitleFlash() {
 
 // ---- レディチェック -------------------------------------------------------
 
-function showReadyModal(res) {
-  if (readyModalEl) return;
-  readyModalEl = document.createElement("div");
-  readyModalEl.id = "ranked-ready-modal";
-
-  const inner = document.createElement("div");
-  inner.className = "ranked-ready-inner";
-
-  const heading = document.createElement("div");
-  heading.className = "ranked-ready-heading";
-  heading.textContent = "相手が見つかりました！";
-  inner.appendChild(heading);
-
-  // 相手情報（アバター・名前・ランク）
+// 相手1人分の行（アバター・名前・ランク）を作る。o = {user_id, name, avatar, rank}。
+function buildOpponentRow(o) {
   const opp = document.createElement("div");
   opp.className = "ranked-ready-opponent";
   const avatar = document.createElement("div");
   avatar.className = "ranked-ready-avatar";
-  // 相手アバターが画像として認識できない値だと生テキスト（パス/URL断片）で出てしまう不具合の対策。
+  // アバターが画像として認識できない値だと生テキスト（パス/URL断片）で出てしまう不具合の対策。
   // まずセンチネル（"protagonist"／"entrusted"＝青年/託された者たちアバター）を実際の画像パスへ解決する
-  // （#121: これらは生値のままだと画像/絵文字判定に落ちて🎮になっていた）。レディチェック時点では
-  // まだ座席・駒の色が無いため、駒の無いダミー座席を渡して灰色版（protagonist-gray-front.webp）に解決する。
+  // （#121）。レディチェック時点ではまだ座席・駒の色が無いため、駒の無いダミー座席を渡して灰色版に解決。
   // 画像 or 短い絵文字（≤2コードポイント）ならそのまま、それ以外は生値を見せず絵文字にフォールバック。
-  const oppAvatar = resolveAvatarValue("__ranked_opponent__", res.opponent_avatar);
+  const oppAvatar = resolveAvatarValue("__ranked_opponent__", o && o.avatar);
   const safeAvatar =
     isImageAvatar(oppAvatar) || (typeof oppAvatar === "string" && [...oppAvatar].length <= 2 && oppAvatar.length > 0)
       ? oppAvatar
       : "🎮";
   if (oppAvatar && safeAvatar === "🎮") {
-    // 画像でも絵文字でもない想定外の値。次回の原因特定のため生値を残す（1回だけ）。
     console.warn("[so7][ranked] 相手アバターが画像/絵文字として認識できません:", JSON.stringify(oppAvatar));
   }
   applyAvatarContent(avatar, safeAvatar);
@@ -370,19 +422,42 @@ function showReadyModal(res) {
   info.className = "ranked-ready-info";
   const nameEl = document.createElement("div");
   nameEl.className = "ranked-ready-name";
-  nameEl.textContent = res.opponent_name || "対戦相手";
+  nameEl.textContent = (o && o.name) || "対戦相手";
   info.appendChild(nameEl);
   const rankEl = document.createElement("div");
   rankEl.className = "ranked-ready-rank";
-  const rank = res.opponent_rank;
+  const rank = o && o.rank;
   rankEl.textContent = typeof rank === "number" && RANK_NAMES[rank] ? `ランク: ${RANK_NAMES[rank]}` : "ランク: ブロンズ";
   info.appendChild(rankEl);
   opp.appendChild(info);
-  inner.appendChild(opp);
+  return opp;
+}
+
+function showReadyModal(res) {
+  if (readyModalEl) return;
+  readyModalEl = document.createElement("div");
+  readyModalEl.id = "ranked-ready-modal";
+
+  const inner = document.createElement("div");
+  inner.className = "ranked-ready-inner";
+
+  const opponents = Array.isArray(res.opponents) ? res.opponents : [];
+  const heading = document.createElement("div");
+  heading.className = "ranked-ready-heading";
+  heading.textContent = opponents.length >= 2 ? "対戦相手が見つかりました！" : "相手が見つかりました！";
+  inner.appendChild(heading);
+
+  // 相手情報（アバター・名前・ランク）を人数分並べる。
+  const oppList = document.createElement("div");
+  oppList.className = "ranked-ready-opponents";
+  for (const o of opponents) {
+    oppList.appendChild(buildOpponentRow(o));
+  }
+  inner.appendChild(oppList);
 
   const note = document.createElement("div");
   note.className = "ranked-ready-note";
-  note.textContent = "両者が「対戦開始」を押すと始まります。押さないと自動でキャンセルされます。";
+  note.textContent = "全員が「対戦開始」を押すと始まります。押さないと自動でキャンセルされます。";
   inner.appendChild(note);
 
   const countdown = document.createElement("div");
@@ -399,10 +474,10 @@ function showReadyModal(res) {
     stopTitleFlash();
     const gameId = await readyRanked(res.match_id);
     if (gameId) {
-      // 両者readyになり対局が作成された（自分が2人目）→ そのまま入場。
-      await enterRankedGame(gameId, res.opponent_user_id);
+      // 全員readyになり対局が作成された（自分が最後）→ そのまま入場。
+      await enterRankedGame(gameId, res.opponents);
     }
-    // gameId が null なら相手待ち。ポーリングが 'ingame' を検知して enterRankedGame する。
+    // gameId が null ならまだ相手待ち。ポーリングが 'ingame' を検知して enterRankedGame する。
   });
   inner.appendChild(startBtn);
 
@@ -438,7 +513,7 @@ function hideReadyModal() {
 
 // ---- 対局入場 -------------------------------------------------------------
 
-async function enterRankedGame(gameId, opponentUserId) {
+async function enterRankedGame(gameId, opponents) {
   if (entering) return;
   entering = true;
   stopPolling();
@@ -453,9 +528,12 @@ async function enterRankedGame(gameId, opponentUserId) {
     // 席は so7_ranked_ready がサーバー側で作成済み → so7_join_room は即return、
     // subscribeToGame が online mode/transport/hydrate/heartbeat を立てる。
     await joinRoom(gameId);
-    // 二重BOOTSTRAP防止: user_idがアルファベット順で先の方だけ開始をトリガーする
-    // （maybeTriggerRematchと同じ考え方）。もう片方は相手のBOOTSTRAPのhydrateで盤面が出る。
-    if (myUserId && opponentUserId && myUserId < opponentUserId) {
+    // 二重BOOTSTRAP防止: 参加者全員のuser_idのうちアルファベット順で最も先の1人だけが開始を
+    // トリガーする（2〜4人共通。maybeTriggerRematchと同じ考え方）。他の人は誰かのBOOTSTRAPの
+    // hydrateで盤面が出る。
+    const oppIds = Array.isArray(opponents) ? opponents.map((o) => o && o.user_id).filter(Boolean) : [];
+    const allIds = [myUserId, ...oppIds].filter(Boolean).sort();
+    if (myUserId && allIds.length > 0 && allIds[0] === myUserId) {
       // ランク戦の固定ルール（ユーザー決定2026-08-17）: タイマー・マイデッキ戦・白黒（無色）カード・
       // ブーストモードを全てON。フレンドランク戦（online-ui.js）と揃える。
       await startGame(gameId, {

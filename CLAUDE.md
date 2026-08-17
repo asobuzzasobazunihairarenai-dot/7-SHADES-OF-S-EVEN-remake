@@ -14629,3 +14629,43 @@ FKエラー）。#179の同一アカウント検知では説明が付かない�
   フレンドランク戦（部屋作成→3〜4人が部屋コードで参加→開始→デッキ選択→対局→順位でレート反映）は、
   続き188のSQL実行後に3〜4アカウントで確認できる。マッチメイクの3〜4人対応は次コミット。
 - **ユーザー側の作業**: サーバー変更は無い（続き188のSQL実行が済んでいれば3〜4人フレンド戦の結果反映も動く）。
+
+### 2026-08-17（続き190）：マッチメイクのランク戦を2〜4人対応に（待機キュー・N人ペアリング・N人レディチェック）
+
+続き188（得点計算の2〜4人化）・続き189（フレンド戦の2〜4人化）に続き、マッチメイク（自動で相手を
+探すランク戦）も2〜4人に対応した。ユーザー決定「マッチメイクの3〜4人も今回やる」。
+- **サーバー（`supabase_setup_so7.sql`）**:
+  - `so7_ranked_queue`に`party_size int`（希望人数2/3/4）を追加（`alter ... add column if not exists`）。
+    同じparty_size同士だけがマッチする。
+  - `so7_ranked_pending_match`を2人専用（player_a/b・ready_a/b）からN人対応（`players uuid[]`・
+    `ready uuid[]`・`size int`）へ作り直し（エフェメラル＝60秒で消えるので`drop table if exists ... cascade`
+    →再作成で再実行安全）。
+  - `so7_ranked_enqueue(p_deck, p_size)`（size引数追加。旧`(jsonb)`をdropしてから`(jsonb,int)`を作成、
+    2〜4にクランプ）。
+  - `so7_ranked_poll()`（返り値型変更のため`drop function`してから再作成）: ③ペアリングを「自分の
+    party_sizeと同じ待機者を最古からsize人集めて、揃ったらグループ成立」に一般化。④返り値を
+    単数のopponent_*から`opponents jsonb`（自分以外の[{user_id,name,avatar,rank}]）＋`size`に変更。
+    掃除（期限切れ解散・入場済み後始末）もplayers[]/ready[]ベースに書き換え。
+  - `so7_ranked_ready(match_id)`: 自分をready[]に追加し、`array_length(ready)=size`（全員ready）で
+    N席のランク対局を作成（players配列をループしてso7_game_seatsをN行insert、seatはnull＝BOOTSTRAPが
+    2人=対面/3人=A,B,C/4人=全員に割り当て）。冪等（game_id済みなら返すだけ）。
+  - `so7_ranked_leave()`: 対局作成前のキャンセルはグループ解散＝自分以外を待機に戻す（N人対応）。
+- **クライアント**:
+  - `online.js`: `enqueueRanked(deck, size)`（size追加）。`pollRanked()`の返り値説明を`size`/`opponents`に更新。
+  - `ranked-match.js`: マッチ開始時に**人数選択モーダル**（2/3/4、同じ人数同士でマッチ・少人口なら2人が
+    早い旨の注記）を挟む→デッキ選択→`enqueueRanked(deck, size)`。待機画面タイトルに選んだ人数を表示。
+    レディチェックモーダルを**N人の相手**（`res.opponents`をループ、`buildOpponentRow`で各行のアバター・
+    名前・ランク）表示に。対局入場の二重BOOTSTRAP防止を「参加者全員のuser_idのうちアルファベット順で
+    最も先の1人だけがstartGame」に一般化（2人の`myUserId<opponentUserId`から拡張）。
+  - `style.css`: 人数選択モーダル（`#ranked-size-modal`/`.ranked-size-btn`）・複数相手を縦に並べる
+    `.ranked-ready-opponents`のCSSを追加。
+- 固定ルール（タイマー・マイデッキ戦・白黒あり・ブースト全ON・自動処理必須）は据え置き。得点は続き188の
+  順位ベース（勝者=1位、以降ロック色数の多い順）。
+- **検証**: `node --check`（ranked-match.js/online.js）通過・SQLのドル引用符バランス（偶数72）維持・
+  アプリ正常ロード。ブラウザで`ranked-match.js`が循環importなく動的ロードすること・`enqueueRanked`が
+  `(deck,size)`になっていること・人数選択モーダル/複数相手のCSSが適用されることを実測。旧`opponent_*`
+  参照がコード上に残っていないことをgrepで確認。実際の2〜4人マッチメイク（人数選択→キュー→N人成立→
+  N人レディチェック→N席対局→順位でレート反映）は、下記SQL実行＋2〜4アカウントでの確認が必要。
+- **ユーザー側の作業が必要**: `supabase_setup_so7.sql`（続き188の得点計算＋今回のマッチメイク改修。
+  `so7_ranked_pending_match`のdrop&recreate・各RPCの再作成を含む。ファイル全体＝再実行安全）をSupabase
+  SQL Editorで実行する必要がある。Edge Functionの変更は無いため再デプロイ不要。
