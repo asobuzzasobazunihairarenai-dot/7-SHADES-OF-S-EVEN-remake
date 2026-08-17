@@ -19,7 +19,7 @@ import { initStatsPlayerLinkModal } from "./stats-player-link.js";
 import { initMyPage, registerAvatarPickerHelper, registerProfilePageOpener } from "./my-page.js";
 import { openProfilePage } from "./profile-page.js";
 import { initRankingIcon } from "./ranking-page.js";
-import { openEmotePicker } from "./emote.js";
+import { openEmotePicker, openEmoteMuteMenu } from "./emote.js";
 import { initCardDevMode, registerCardDevModeArrivalHelpers } from "./card-dev-mode.js";
 import {
   canAutoProcessArrival,
@@ -3297,6 +3297,26 @@ document.addEventListener(
       }
     }
     if (!activeEffectPicker) {
+      // ユーザー要望2026-08-17「相手のアバターをクリックすると『このプレイヤーのエモートを
+      // 非表示』的なボタンが出るようにしたい」。選択待ち(activeEffectPicker)中は手品師の技等の
+      // アバター選択が優先されるのでこのブロック自体入らない。カード/駒/手札が手前にある場合は
+      // そちらを優先（elementsFromPointの手前から見て、先にそれらに当たったらアバター扱いしない）。
+      {
+        const els = document.elementsFromPoint(e.clientX, e.clientY);
+        for (const el of els) {
+          if (el.closest(".hand-card, .hand-reveal-card, .board-card, .piece, .card-open-prompt, .stack, #option-area")) break;
+          const av = el.closest(".player-avatar");
+          if (av) {
+            const p = av.dataset.player;
+            if (p && p !== getSelfSeat() && getState().activePlayers.includes(p)) {
+              e.preventDefault();
+              e.stopPropagation();
+              openEmoteMuteMenu(av, p, getPlayerName(p));
+            }
+            break;
+          }
+        }
+      }
       // ユーザー要望「ムーブフェイズでの移動先ハイライトをクリックしたら自動で移動する」。
       // カード効果の候補選択（activeEffectPicker）と同じ「3D傾き演出のためネイティブ
       // clickは使えず、elementsFromPoint()による自前の当たり判定＋captureフェーズで

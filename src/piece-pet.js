@@ -222,6 +222,12 @@ function tick(now) {
   if (!running) return;
   requestAnimationFrame(tick);
   if (!layerEl) return;
+  // ユーザー報告2026-08-17「2D表示だとペットが消える／たまに現れる」＋提案「2D時はジャンプ無しに
+  // して駒の足元に落ち着かせては」。2D表示(body.diagnostic-flatten-3d)では盤面が平面化され、
+  // ジャンプ/一周/歩き回りでペットがオーバーレイ(#piece-pet-layer, overflow:hidden)の外へ
+  // はみ出してクリップされる（＝消える。動いた一瞬だけ枠内に戻って見える）と考えられる。2D時は
+  // 跳ねさせず・動き回らせず、駒の足元アンカーに静かに留めることで、常に画面内＝安定して表示する。
+  const flat2d = document.body.classList.contains("diagnostic-flatten-3d");
   const seen = new Set();
   for (const piece of document.querySelectorAll(".piece[data-token-id]")) {
     if (piece.classList.contains("is-setup-pending")) continue; // 配布演出中の駒は対象外
@@ -309,7 +315,16 @@ function tick(now) {
 
     // --- 行動スケジューラ（ユーザー要望: 行動の度に必ず待機を挟む）------------------------
     // 待機↔行動を交互に。待機明けにランダムな行動を選び、行動後は必ず待機へ戻る。
-    if (now >= pet.behUntil) {
+    // 2D表示中は跳ねる/一周する/歩き回る行動を選ばせず、待機（＝駒の足元アンカーに留まる）に
+    // 固定する（上のflat2dコメント参照）。
+    if (flat2d) {
+      if (pet.behState !== "idle") {
+        pet.behState = "idle";
+        pet.jumpStart = -1;
+        pet.orbitStart = -1;
+        pet.behUntil = now + 1000;
+      }
+    } else if (now >= pet.behUntil) {
       if (pet.behState === "idle") {
         const roll = Math.random();
         if (roll < 0.3) {
@@ -411,7 +426,8 @@ function tick(now) {
       !isSprite && pet.behState === "idle"
         ? Math.abs(Math.sin((now / 300) * pet.hopFreq + pet.phase)) * fontPx * pet.hopAmp
         : 0;
-    const hop = reduceMotion ? 0 : (idleBob + jumpOffset) * tuning.liveliness;
+    // 2D表示中はホップ（絵文字の小刻み跳ね・ジャンプ）を一切足さない（ユーザー要望「2Dはジャンプ無し」）。
+    const hop = reduceMotion || flat2d ? 0 : (idleBob + jumpOffset) * tuning.liveliness;
 
     pet.el.style.fontSize = `${fontPx}px`;
     pet.el.style.transform = `translate(${pet.x}px, ${pet.y}px) translate(-50%, -100%)`;

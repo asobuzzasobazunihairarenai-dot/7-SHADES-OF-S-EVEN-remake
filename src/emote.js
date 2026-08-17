@@ -35,8 +35,18 @@ const EMOTE_LABELS = [
 ];
 const EMOTES = EMOTE_LABELS.map((text, i) => ({ text, color: COLOR_CYCLE[i % COLOR_CYCLE.length] }));
 
+// ユーザー要望2026-08-17「相手のアバターをクリックすると『このプレイヤーのエモートを非表示』
+// 的なボタンが出るようにしたい」。座席ごとに“このプレイヤーのエモートを見ない”を保持する
+// （この端末のセッション限りのローカル状態。うるさい相手を個別にミュートできる）。
+const mutedEmotePlayers = new Set();
+export function isEmotePlayerMuted(player) {
+  return mutedEmotePlayers.has(player);
+}
+
 let pickerEl = null;
 let backdropEl = null;
+let muteMenuEl = null;
+let muteMenuBackdropEl = null;
 // 自分の盤面アバター（.player-avatar[data-player=自分の座席]）は、admin.jsの
 // isSelfBoardAvatarVisible()がデフォルトoff（「自分の分だけステータスエリアの
 // 大アバターと重複して冗長」との既存判断）のため存在しないことが多い。その場合でも
@@ -126,7 +136,58 @@ function attachBubble(targetEl, text) {
   return true;
 }
 export function showEmoteBubble(player, text) {
+  // ミュートしたプレイヤーのエモートは表示しない（ユーザー要望2026-08-17）。
+  if (mutedEmotePlayers.has(player)) return false;
   return attachBubble(document.querySelector(`.player-avatar[data-player="${player}"]`), text);
+}
+
+// 相手のアバターをクリックした時に出す小さなメニュー（このプレイヤーのエモートを非表示/表示）。
+// openEmotePicker と同じ「暗転しない・外側クリックで閉じるだけ」の軽量ポップアップ。
+// getPlayerName は循環import（player-identity→online→emote は無いが念のため）を避けるため
+// 呼び出し側(main.js)から表示名を渡してもらう。
+export function openEmoteMuteMenu(anchorEl, player, playerName) {
+  closeEmoteMuteMenu();
+  muteMenuBackdropEl = document.createElement("div");
+  muteMenuBackdropEl.id = "emote-mute-backdrop";
+  muteMenuBackdropEl.addEventListener("pointerdown", closeEmoteMuteMenu);
+  document.body.appendChild(muteMenuBackdropEl);
+
+  muteMenuEl = document.createElement("div");
+  muteMenuEl.id = "emote-mute-menu";
+  const title = document.createElement("div");
+  title.id = "emote-mute-menu-title";
+  title.textContent = playerName ? `${playerName} のエモート` : "このプレイヤーのエモート";
+  muteMenuEl.appendChild(title);
+
+  const muted = mutedEmotePlayers.has(player);
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "emote-mute-menu-btn";
+  btn.textContent = muted ? "🔔 エモートを表示する" : "🔕 エモートを非表示にする";
+  btn.addEventListener("click", () => {
+    if (mutedEmotePlayers.has(player)) mutedEmotePlayers.delete(player);
+    else mutedEmotePlayers.add(player);
+    closeEmoteMuteMenu();
+  });
+  muteMenuEl.appendChild(btn);
+  document.body.appendChild(muteMenuEl);
+
+  if (anchorEl) {
+    const rect = anchorEl.getBoundingClientRect();
+    const menuRect = muteMenuEl.getBoundingClientRect();
+    let left = rect.left + rect.width / 2 - menuRect.width / 2;
+    left = Math.max(8, Math.min(window.innerWidth - menuRect.width - 8, left));
+    let top = rect.bottom + 8;
+    if (top + menuRect.height > window.innerHeight - 8) top = Math.max(8, rect.top - menuRect.height - 8);
+    muteMenuEl.style.left = `${left}px`;
+    muteMenuEl.style.top = `${top}px`;
+  }
+}
+function closeEmoteMuteMenu() {
+  muteMenuEl?.remove();
+  muteMenuEl = null;
+  muteMenuBackdropEl?.remove();
+  muteMenuBackdropEl = null;
 }
 
 // 受信側（自分以外のクライアントから届いたエモート）。自分自身の発信はsendEmote内で
