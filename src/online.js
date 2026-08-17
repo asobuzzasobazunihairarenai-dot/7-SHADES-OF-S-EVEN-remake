@@ -1527,6 +1527,23 @@ export async function getRoomHostInfo() {
   };
 }
 
+// 任意の部屋の「部屋主」user_id（＝最初に入室した席）を返す。so7_game_seats は
+// using(true) で読めるため、currentGameId 以外の部屋についても引ける。スモークの
+// ワンタッチ・オンライン監視で「2つのブラウザが同じアカウントか」を判定するのに使う
+// （同一アカウントだと (game_id,user_id) 主キーの都合で1部屋に2席入れず、永遠に2人に
+// ならないため、早めに検知して案内する）。
+export async function getRoomOwnerId(gameId) {
+  if (!client || !gameId) return null;
+  const { data, error } = await client
+    .from("so7_game_seats")
+    .select("user_id, joined_at")
+    .eq("game_id", gameId)
+    .order("joined_at", { ascending: true })
+    .limit(1);
+  if (error || !data || data.length === 0) return null;
+  return data[0].user_id ?? null;
+}
+
 export function getCurrentGameId() {
   return currentGameId;
 }

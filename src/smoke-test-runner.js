@@ -486,6 +486,31 @@ async function runOneTouchOnlineSmoke(onLog, shouldStop) {
       // status === "retry": この部屋は開始しなかった。覚えて抜け、少し待って作り直す。
       if (attempt.failedRoomId != null) failedRooms.add(attempt.failedRoomId);
       await online.leaveGame().catch(() => {});
+
+      // 「同じアカウントで2つのブラウザ」を検知する。オンライン監視は2つの別々の
+      // user_id（別々の座席）が必要で、同一アカウントだと (game_id,user_id) 主キーの
+      // 都合で1部屋に2席入れず、member_count が永遠に2にならず延々とリトライになる
+      // （ユーザー報告2026-08-17）。他の SMOKE-AUTO-TEST 部屋が見えていて、その部屋主が
+      // 全部“自分の user_id”なら＝同一アカウント。自分の残りゴースト部屋で誤検知しないよう、
+      // 別の user_id が部屋主の部屋が1つでもあれば同一アカウント判定にはしない。
+      try {
+        const me = (await online.getCurrentUser())?.id;
+        let rs = [];
+        try { rs = await online.listOpenRooms(); } catch { rs = []; }
+        const others = rs.filter((r) => r.name === SMOKE_ROOM_NAME && r.id !== online.getCurrentGameId());
+        if (me && others.length > 0) {
+          const owners = await Promise.all(others.map((r) => online.getRoomOwnerId(r.id).catch(() => null)));
+          const anyOtherAccount = owners.some((o) => o && o !== me);
+          const allMine = owners.length > 0 && owners.every((o) => o === me);
+          if (allMine && !anyOtherAccount) {
+            return empty(
+              false,
+              "⚠ 2つのブラウザが同じアカウントでログインしています。オンライン監視は別々のアカウント（別々のuser_id）が必要です。一方を『shogoshogo0929@gmail.com』でログインするか、片方のブラウザ（シークレット等）でログアウトしてゲストで入り直してください。"
+            );
+          }
+        }
+      } catch {}
+
       onLog?.("この部屋は開始しませんでした（前回の残り部屋の可能性）。抜けて作り直します…");
       await wait(1500);
     }
