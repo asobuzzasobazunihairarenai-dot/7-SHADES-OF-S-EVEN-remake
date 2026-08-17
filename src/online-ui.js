@@ -741,7 +741,7 @@ async function renderRoomChoice(user, myGeneration) {
   const rankedCheckbox = document.createElement("input");
   rankedCheckbox.type = "checkbox";
   const rankedLabel = document.createElement("span");
-  rankedLabel.textContent = "🏆 ランク戦にする（2人対戦・結果がレートに反映）";
+  rankedLabel.textContent = "🏆 ランク戦にする（2〜4人対戦・結果がレートに反映）";
   rankedRow.appendChild(rankedCheckbox);
   rankedRow.appendChild(rankedLabel);
   const rankedNote = document.createElement("div");
@@ -942,7 +942,7 @@ async function renderRoomStatus(gameId, myGeneration) {
     rankedBanner.style.cssText =
       "font-size: 0.82rem; font-weight: bold; color: #ffe08a; background: rgba(255,215,120,0.12); " +
       "border: 1px solid rgba(255,215,120,0.4); border-radius: 0.4rem; padding: 0.4rem 0.5rem; margin-bottom: 0.4rem; text-align: center;";
-    rankedBanner.textContent = "🏆 ランク戦（結果がレートに反映されます・2人対戦）";
+    rankedBanner.textContent = "🏆 ランク戦（結果がレートに反映されます・2〜4人対戦）";
     contentEl.appendChild(rankedBanner);
   }
 
@@ -1004,18 +1004,18 @@ async function renderRoomStatus(gameId, myGeneration) {
       waitingBox.appendChild(waitingText);
     } else if (isRanked) {
       // 合言葉フレンドランク戦。ルールはマッチメイクのランク戦と同じで固定
-      // （2人対戦・タイマー必須・自動処理必須・無色なし・ブーストなし）。設定の選択肢は
-      // 出さず、2人ちょうどの時だけ開始できる（ポイント計算が2人前提のため）。
-      if (count === 2) {
+      // （タイマー・マイデッキ戦・白黒あり・ブースト 全ON・自動処理必須）。設定の選択肢は
+      // 出さず、2〜4人の時に開始できる（得点計算は2〜4人対応＝続き188。順位はロック色数）。
+      if (count >= 2 && count <= 4) {
         const readyText = document.createElement("div");
         readyText.style.cssText = "font-weight: bold; margin-bottom: 0.5rem;";
-        readyText.textContent = "🏆 ランク戦の準備ができました。";
+        readyText.textContent = `🏆 ランク戦の準備ができました（現在${count}人）。`;
         waitingBox.appendChild(readyText);
         const rulesNote = document.createElement("div");
         rulesNote.style.cssText = "font-size: 0.76rem; color: #cbd5e1; margin-bottom: 0.6rem; line-height: 1.4;";
-        rulesNote.textContent = "ランク戦は タイマー・マイデッキ戦・白黒（無色）カードあり・ブースト を全てONで固定します。開始するとまずデッキ選択になります。結果は勝者+・敗者−でレートに反映されます。";
+        rulesNote.textContent = "ランク戦は タイマー・マイデッキ戦・白黒（無色）カードあり・ブースト を全てONで固定します。開始するとまずデッキ選択になります。結果は順位（7色ロックの勝者=1位、以降はロック色数の多い順）に応じてレートに反映されます。";
         waitingBox.appendChild(rulesNote);
-        const startBtn = textButton("🏆 ランク戦を開始する");
+        const startBtn = textButton(`🏆 ランク戦を開始する（${count}人）`);
         startBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box;";
         startBtn.addEventListener("click", async () => {
           startBtn.disabled = true;
@@ -1038,14 +1038,14 @@ async function renderRoomStatus(gameId, myGeneration) {
         });
         waitingBox.appendChild(startBtn);
       } else {
-        // 3人以上いる。ランク戦は2人対戦なので開始できない。
+        // 5人以上いる。ランク戦は2〜4人対戦なので開始できない。
         const tooManyText = document.createElement("div");
         tooManyText.style.cssText = "font-weight: bold; margin-bottom: 0.4rem; color: #fca5a5;";
-        tooManyText.textContent = `⚠ ランク戦は2人対戦です（現在${count}人）。`;
+        tooManyText.textContent = `⚠ ランク戦は2〜4人対戦です（現在${count}人）。`;
         waitingBox.appendChild(tooManyText);
         const tooManyNote = document.createElement("div");
         tooManyNote.style.cssText = "font-size: 0.76rem; color: #cbd5e1;";
-        tooManyNote.textContent = "2人になるまで開始できません。どなたか1人「この部屋を離れる」で退出してください。";
+        tooManyNote.textContent = "4人以下になるまで開始できません。どなたか「この部屋を離れる」で退出してください。";
         waitingBox.appendChild(tooManyNote);
       }
     } else {
