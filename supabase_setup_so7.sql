@@ -1701,6 +1701,9 @@ revoke execute on function so7_ranked_apply_delta(uuid, int) from public;
 
 -- 呼び出し元自身の現シーズンのランクを取得する（表示用）。行が無い/シーズンが古い時だけ
 -- apply_delta(0)で作成/シーズン切替を反映し、それ以外は純粋なselect。
+-- 返り値の列を増やした（pending_reward_*）ため、create or replace では型変更できない。
+-- 既存関数を先に drop してから作り直す（再実行安全: 存在しなければ何もしない）。
+drop function if exists so7_ranked_get_self();
 create or replace function so7_ranked_get_self()
 returns table(season_id text, rank smallint, gauge smallint, legend_points int,
   pending_reward_season text, pending_reward_rank smallint, pending_reward_amount int)

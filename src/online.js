@@ -1658,7 +1658,29 @@ async function callAction(action) {
       // 「送信できなかった」種類のエラーだけリトライ（届いていない＝未処理が確実なもの）。
       const sendFailed =
         error?.name === "FunctionsFetchError" || /failed to send a request/i.test(error?.message || "");
-      if (!sendFailed || attempt === MAX_ATTEMPTS) throw error;
+      if (!sendFailed || attempt === MAX_ATTEMPTS) {
+        // 非2xx（FunctionsHttpError）等の決定的失敗。クライアントには "non-2xx" しか見えず
+        // 原因が分からないため、Edge Function（so7-apply-action）が返した実際のエラー本文を
+        // 取り出して action-log と error.message に残す（スモークのオンライン監視で MOVE_TOKEN が
+        // 500になる件の原因究明用。ユーザー要望「原因が分かるようにログを仕込んで」）。
+        try {
+          const ctx = error?.context;
+          if (ctx && typeof ctx.text === "function") {
+            const body = await ctx.text();
+            if (body) {
+              logAction("diag-edge-error", {
+                actionType: action.type,
+                status: ctx.status ?? null,
+                body: String(body).slice(0, 600),
+              });
+              error.message = `${error.message} / status=${ctx.status ?? "?"} body=${String(body).slice(0, 400)}`;
+            }
+          }
+        } catch (_) {
+          /* 本文が読めなくても元のエラーはthrowする */
+        }
+        throw error;
+      }
       await new Promise((r) => setTimeout(r, 400 * attempt)); // 400ms→800ms のバックオフ
       // 次の試行の前に last-action-info を張り直す（万一この間に何かが消費していても、
       // 成功した試行のブロードキャスト/ハイドレートで正しく行動として扱われるように）。

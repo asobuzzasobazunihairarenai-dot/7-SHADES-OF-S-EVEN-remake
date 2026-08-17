@@ -14438,3 +14438,10 @@ FKエラー）。#179の同一アカウント検知では説明が付かない�
   `so7_ranked_season_reward`・`so7_ranked_apply_delta`再定義・`so7_ranked_get_self`再定義・
   `so7_ranked_claim_reward`新設。ファイル全体＝再実行安全）をSupabase SQL Editorで実行する必要が
   ある。Edge Functionの変更は無いため再デプロイ不要。
+
+### 2026-08-17（続き182）：#181のSQLが「関数の返り値型を変えられない」で失敗する件を修正＋オンラインのアクション500エラーの実本文を診断ログに残す
+
+続き181のシーズン報酬SQLを実行したユーザーから2つの報告。
+- **①`ERROR: 42P13: cannot change return type of existing function ... Use DROP FUNCTION so7_ranked_get_self() first.`（確定・修正）**: `so7_ranked_get_self()`の返り値に`pending_reward_*`の3列を足したため、`create or replace function`では返り値型を変更できない（Postgresの制約）。`create or replace`の直前に`drop function if exists so7_ranked_get_self();`を追加（再実行安全）。これで`supabase_setup_so7.sql`をSQL Editorで通せる。**ユーザー側の作業**: 修正後の`supabase_setup_so7.sql`を再度SQL Editorで実行する（今度は通る）。
+- **②スモークのオンライン監視が本物のオンラインバグを捕捉**: 2ブラウザ（asobuzz/shogoshogo・別アカ）の自己対戦（続き176のワンタッチ）で、T13/R7に片方（座席C）の`MOVE_TOKEN`が`FunctionsHttpError "Edge Function returned a non-2xx status code"`で失敗し`performPhaseMoveToCell failed`、もう片方（座席A）は90秒無進行の「詰み」FAILになった（＝Cの手が止まりAが待ち続ける）。クライアントには「non-2xx」しか見えずEdge Function（so7-apply-action）が返した実際のエラーが分からないため、`online.js`の`callAction`の決定的失敗（非2xx等）の分岐で、`error.context`（Response）から本文を`await ctx.text()`で取り出し、`diag-edge-error`（actionType・status・本文）としてaction-logへ記録＋`error.message`にも連結するようにした。次に同じ500が起きた時、アクションログからサーバー側の実エラー（どのMOVE_TOKENでreduceが何を投げたか）が判別できる。
+- **検証**: `node --check`（online.js）通過・SQLのドル引用符バランス（偶数70）維持。②の実挙動（実際に500の本文が取れるか）は、次のオンライン監視で同じ500が再現した時に`diag-edge-error`で確認する。
