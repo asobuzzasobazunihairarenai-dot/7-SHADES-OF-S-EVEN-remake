@@ -15282,3 +15282,24 @@ SQL Editorで再実行する必要がある**（ファイル全体＝再実行�
   通ることを実測確認。**アニメの実際の見た目・タイミング**は、この環境ではスクリーンショット不可＋
   バックグラウンドタブのrAF/setTimeoutスロットリングで確認できないため、実機フォアグラウンドでの
   見た目確認とdurationの微調整はユーザーにお願いしたい。サーバー側（Supabase）の変更は無い。
+
+### 2026-08-18（続き208）：ザ・ギャンブル等の「1枚公開/全部公開」モーダルの見出しを「効果を選択」→「どのように公開しますか？」に
+
+ユーザー指摘「ザ・ギャンブルの『1枚公開する／残り3枚をすべて公開する』のモーダルの見出しが『効果を
+選択してください』は少しおかしい。『どのように公開しますか？』的な方が良い」。この選択肢モーダルは
+汎用の`showHandEffectOptionPicker`（`hand-effect-ui.js`）で、見出しが常に`${カード名} の効果を選択して
+ください`にハードコードされていた——が、これは“効果の選択”ではなく“公開の仕方の選択”の場面なので
+不自然だった。
+- **任意の見出しを渡せるようにした**: `showHandEffectOptionPicker(cardId, options, onReady, { hidden,
+  title })`にtitleを追加し、指定時はそれを、未指定時は従来の既定文言を使う。`main.js`の
+  `pickOptionForEffect(cardId, options, title)`にも第3引数titleを足して素通しする（`helpers.
+  pickHandEffectOption`＝これ）。他の選択肢モーダル（なないろの欠片・パーティー・選べる罠等、
+  本当に“効果を選ぶ”場面）はtitle未指定なので**従来通り「効果を選択してください」のまま**。
+- **公開の場面だけ差し替え**: `card-effect-engine.js`のザ・ギャンブル（yellow-gamble、
+  `PUBLIC_DRAW_MATCHING_DECLARED_COLOR_COUNT`）・禁断の果実マルメゴ（eternal-orange、
+  `PUBLIC_DRAW_DISABLE_HAND_EFFECTS_CONDITIONAL_DISCARD`）の「1枚公開/全部公開（/最後の1枚を公開）」の
+  ピッカー呼び出しに`"どのように公開しますか？"`を渡した。
+- **検証**: `node --check`（main.js/hand-effect-ui.js/card-effect-engine.js）通過。ブラウザで
+  `showHandEffectOptionPicker`を直接呼び、title未指定＝「ザ・ギャンブル の効果を選択してください」、
+  title指定＝「どのように公開しますか？」に切り替わり、選択肢ラベル（１枚公開する／残り3枚をすべて
+  公開する）が正しく出ることを実測確認。サーバー側（Supabase）の変更は無い。

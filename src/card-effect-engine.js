@@ -984,10 +984,14 @@ async function runAction(action, ctx, helpers) {
       let remaining = action.count;
       while (remaining > 0) {
         if (helpers.pickHandEffectOption && remaining > 1) {
-          const opt = await helpers.pickHandEffectOption(ctx.cardId, [
-            { id: "one", label: "１枚公開する", usable: true },
-            { id: "all", label: `残り${remaining}枚をすべて公開する`, usable: true },
-          ]);
+          const opt = await helpers.pickHandEffectOption(
+            ctx.cardId,
+            [
+              { id: "one", label: "１枚公開する", usable: true },
+              { id: "all", label: `残り${remaining}枚をすべて公開する`, usable: true },
+            ],
+            "どのように公開しますか？" // 「効果を選択」ではなく「公開の仕方」の場面なので専用の見出し（ユーザー指摘2026-08-18）
+          );
           if (opt?.id === "all") {
             await revealDrawn(await helpers.publicDrawReturningTokens(ctx.player, remaining));
             remaining = 0;
@@ -1487,7 +1491,8 @@ async function runAction(action, ctx, helpers) {
                   { id: "all", label: `残り${remaining}枚をすべて公開する`, usable: true },
                 ]
               : [{ id: "last", label: "最後の１枚を公開する", usable: true }];
-          const opt = await helpers.pickHandEffectOption("yellow-gamble", options);
+          // 「効果を選択」ではなく「公開の仕方の選択」の場面なので専用の見出しにする（ユーザー指摘2026-08-18）。
+          const opt = await helpers.pickHandEffectOption("yellow-gamble", options, "どのように公開しますか？");
           if (opt?.id === "all") {
             // #95: publicDrawThenReveal は「山から確定→中央じらしフリップで公開→公開エリアへ表向き
             // 描画」の順で、公開エリアに先に見えてしまう問題を解消する（内部で公開演出まで行うので

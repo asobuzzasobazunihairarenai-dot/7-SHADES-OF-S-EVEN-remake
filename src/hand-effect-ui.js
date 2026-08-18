@@ -349,7 +349,7 @@ export function showMultipleCardsReceivedModal(cardIds, subtitle, { labelText = 
 // 1回だけ渡すコールバック（main.jsのpickOptionForEffect参照。タイムアウトによる
 // 自動代行performPriorityTimeoutAutoActionが、このモーダルを放置されたまま固まらせず
 // 代わりに選べるようにするためのフック）。
-export function showHandEffectOptionPicker(cardId, optionsWithUsability, onReady, { hidden = false } = {}) {
+export function showHandEffectOptionPicker(cardId, optionsWithUsability, onReady, { hidden = false, title } = {}) {
   return new Promise((resolve) => {
     const def = getCardDefinition(cardId);
     const backdrop = document.createElement("div");
@@ -387,7 +387,9 @@ export function showHandEffectOptionPicker(cardId, optionsWithUsability, onReady
 
     const titleEl = document.createElement("div");
     titleEl.className = "hand-effect-option-picker-title";
-    titleEl.textContent = `${def?.name ?? cardId} の効果を選択してください`;
+    // 既定は「○○の効果を選択してください」。ザ・ギャンブル/マルメゴの「1枚公開/全部公開」のように
+    // “効果の選択”ではなく“やり方の選択”の場面では、呼び出し側が title を渡して差し替えられる。
+    titleEl.textContent = title ?? `${def?.name ?? cardId} の効果を選択してください`;
     modal.appendChild(titleEl);
 
     const img = document.createElement("img");

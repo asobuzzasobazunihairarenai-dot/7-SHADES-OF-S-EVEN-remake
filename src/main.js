@@ -2413,7 +2413,7 @@ async function pickArrivalOptionForEffect(cardId, optionsWithUsability) {
 // 選択肢自体は盤面のクリック判定（上のpointerdownリスナー）を通らない（モーダル自身の
 // ボタンclickで完結する）ため、そちらのハンドラ側でtype:"option"/"colors"は
 // 素通りさせるようガードを追加している（下のpointerdownリスナー参照）。
-function pickOptionForEffect(cardId, optionsWithUsability) {
+function pickOptionForEffect(cardId, optionsWithUsability, title) {
   // CPUが選ぶ番はこの選択肢モーダルを表示しない（自動で選ばれる。結果は別途通知）。
   const hidden = isCpuSelectingNow();
   return showHandEffectOptionPicker(
@@ -2423,7 +2423,7 @@ function pickOptionForEffect(cardId, optionsWithUsability) {
       // cardIdも持たせる（賢いCPUがカードごとに選択肢を評価するため。chooseEffectOption参照）。
       activeEffectPicker = { type: "option", options: optionsWithUsability, cardId, resolve: resolveFn };
     },
-    { hidden }
+    { hidden, title } // title未指定なら既定「○○の効果を選択してください」（showHandEffectOptionPicker参照）
   ).then((option) => {
     activeEffectPicker = null;
     // 意思決定（選択肢の確定）＝行動として扱いタイマー回復（ユーザー要望2026-08-16）。
