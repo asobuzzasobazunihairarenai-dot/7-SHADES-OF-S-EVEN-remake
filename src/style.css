@@ -11124,6 +11124,154 @@ body.cpu-battle-mode #quick-start-bar {
   }
 }
 
+/* 続き216（ユーザー要望2026-08-18）: 手札の使用が決定した時、画面中央にカードを拡大表示し、
+   その色のオーラ(--burn-color)を纏いつつ、下から燃えて「燃えカス(embers)」になって崩れ消える演出。
+   document.body直下・pointer-events:noneで下の盤面操作は妨げない。演出のあとに右の使用モーダル。 */
+.hand-effect-burn-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 10660;
+  --burn-color: #f6c945;
+}
+.hand-effect-burn-aura {
+  position: absolute;
+  width: 34rem;
+  height: 34rem;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    var(--burn-color) 0%,
+    color-mix(in srgb, var(--burn-color) 45%, transparent) 30%,
+    transparent 66%
+  );
+  filter: blur(2.6rem);
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: hand-effect-burn-aura-kf 1.7s ease-out forwards;
+}
+.hand-effect-burn-stage {
+  position: relative;
+  width: 16rem;
+  height: 16rem;
+}
+.hand-effect-burn-card {
+  position: absolute;
+  inset: 0;
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-radius: 0.6rem;
+  transform-origin: center;
+  animation: hand-effect-burn-card-kf 1.7s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  will-change: transform, opacity, filter;
+}
+/* 虹（なないろ）は単色オーラではなく虹色のオーラにする（drop-shadowは単色制約のため金の光のまま）。 */
+.hand-effect-burn-overlay:has(.hand-effect-burn-card.is-rainbow) .hand-effect-burn-aura {
+  background: conic-gradient(
+    from 0deg,
+    #ef4444,
+    #f97316,
+    #eab308,
+    #22c55e,
+    #3b82f6,
+    #ec4899,
+    #a855f7,
+    #ef4444
+  );
+}
+@keyframes hand-effect-burn-aura-kf {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  18% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  46% {
+    opacity: 0.95;
+    transform: scale(1.06);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.32);
+  }
+}
+@keyframes hand-effect-burn-card-kf {
+  0% {
+    transform: scale(0.55) translateY(1.4rem);
+    opacity: 0;
+    filter: brightness(1) saturate(1) drop-shadow(0 0 0 transparent);
+    -webkit-mask-image: linear-gradient(to top, transparent -20%, #000 -10%);
+    mask-image: linear-gradient(to top, transparent -20%, #000 -10%);
+  }
+  9% {
+    transform: scale(1.02) translateY(0);
+    opacity: 1;
+  }
+  30% {
+    transform: scale(1.03);
+    opacity: 1;
+    filter: brightness(1.08) saturate(1.1) drop-shadow(0 0 0.7rem var(--burn-color));
+  }
+  42% {
+    transform: scale(1.05);
+    opacity: 1;
+    filter: brightness(1.2) saturate(1.4) drop-shadow(0 0 1.2rem var(--burn-color));
+    /* まだ全面が見えている（マス境界はカードの下＝-15%付近）。ここから上へ燃え上がる。 */
+    -webkit-mask-image: linear-gradient(to top, transparent -20%, #000 -10%);
+    mask-image: linear-gradient(to top, transparent -20%, #000 -10%);
+  }
+  72% {
+    filter: brightness(0.62) saturate(1.6) drop-shadow(0 0 1rem var(--burn-color));
+  }
+  100% {
+    transform: scale(1.16) translateY(-1.2rem);
+    opacity: 1;
+    filter: brightness(0.3) saturate(1) drop-shadow(0 0 0.6rem var(--burn-color));
+    /* マスの透明域が下から上へ完全に抜け切る＝燃え尽きて消える。 */
+    -webkit-mask-image: linear-gradient(to top, transparent 112%, #000 122%);
+    mask-image: linear-gradient(to top, transparent 112%, #000 122%);
+  }
+}
+.hand-effect-burn-embers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.hand-effect-burn-embers i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, var(--burn-color) 45%, transparent 76%);
+  box-shadow: 0 0 0.5rem var(--burn-color);
+  opacity: 0;
+  transform: translate(-50%, -50%) translate(var(--ex), var(--ey)) scale(var(--ers));
+  animation-name: hand-effect-burn-ember-kf;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+}
+@keyframes hand-effect-burn-ember-kf {
+  0% {
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) translate(calc(var(--ex) + var(--edx)), calc(var(--ey) - 6.5rem))
+      scale(calc(var(--ers) * 0.4));
+  }
+}
+
 /* 手札シャッフル演出（main.jsのanimateHandShuffle）: 裏向きのまま1束に集め、その場で数枚が
    出たり入ったりしてから、元の手札の位置へ戻る間だけ現れるゴースト。.setup-fly-cardと同じ
    「document.body直下、3D空間の外」の考え方。位置(transform: translate)はJS側が制御し、

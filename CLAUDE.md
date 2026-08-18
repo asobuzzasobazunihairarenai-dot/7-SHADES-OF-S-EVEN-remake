@@ -15477,3 +15477,27 @@ SQL Editorで再実行する必要がある**（ファイル全体＝再実行�
   読めること・アプリ正常ロード（新規JSエラー無し。Service Worker登録失敗はサンドボックス制限）を実測確認。
   実際の見た目（上空で盤面と同じ角度になっているか）は実機フォアグラウンドでの確認をお願いしたい。
   もし厳密なperspective台形まで合わせたい場合は`perspective()`の付与で対応できる。サーバー側の変更は無い。
+
+### 2026-08-18（続き216）：手札使用の決定時に「中央でカードが色オーラを纏い燃えカスになって消える」演出→その後に右の使用モーダル
+
+ユーザー要望2026-08-18「手札を使うことが決定した時、画面中央にカードの拡大を出し、それがその色の
+オーラを纏いながら燃えカスになっていくような演出。そのあとに画面右に手札使用拡大モーダルが出る感じ」。
+- **新設 `playHandEffectUseBurn(cardId)`（main.js）＋CSS `.hand-effect-burn-*`（style.css）**: 画面中央に
+  カードを拡大表示（`.hand-effect-burn-card`、実物のカード画像）→ その色の放射オーラ
+  （`.hand-effect-burn-aura`、`--burn-color`＝カードの色。虹は`:has()`でconic虹オーラ、無色は近い単色）を
+  纏いつつ、下から上へ`mask-image`のグラデを掃引して**燃え上がるように崩れて消える**（char風にbrightnessを
+  落とし、ember色のdrop-shadowで発光）。同時に**燃えカス（rising embers）**の粒（26個、`<i>`）がカード面の
+  各所からゆらめきながら立ち上って消える。document.body直下・`pointer-events:none`で下の盤面操作は妨げない
+  （続き214の非ブロック方針を維持）。
+- **`playHandEffectUseCinematic(cardId, optionLabel)`**: 演出を再生し、カードが燃え崩れ始める頃（約0.95秒）に
+  右の使用モーダル（`showHandEffectUseModal`、既存の右上拡大モーダル）を“立ち上げる”。演出は約1.7秒で完了・
+  自動片付け。`announceHandEffectUseForEffect`（使った本人）・`onHandEffectUseEvents`（相手の画面）の両方の
+  `showHandEffectUseModal`直呼びをこれに置き換え、オンラインでも全員の画面で「中央の燃えカス→右モーダル」に。
+- **「アニメーションを減らす（到達・ロック演出）」設定（`isArrivalEffectDisabled`）中は演出をスキップ**して
+  従来通り即座に右モーダルだけを出す。色は`handEffectBurnColor()`（虹→金/白/黒→近い単色/他→`var(--color-*)`）。
+- **検証**: `node --check`（main.js）通過・CSSブレース平衡（2329/2329）。ブラウザで演出のDOM構造を実際に
+  組み立て、`--burn-color`が`var(--color-red)`→`#c70025`に解決、カード/オーラ/燃えカスの3アニメーションが
+  正しく紐づく（`hand-effect-burn-card-kf`/`-aura-kf`/`-ember-kf`）、mask定義・ember発光（box-shadow）・
+  overlayのz-index10660/pointer-events:noneを実測確認（新規JSエラー無し。Service Worker登録失敗は
+  サンドボックス制限）。実際の燃える動き・タイミングの見た目は実機フォアグラウンドでの確認をお願いしたい
+  （サイズ`.hand-effect-burn-stage`16rem・総尺1.7s・モーダル立ち上げ0.95s等は要望に応じて調整可）。サーバー側の変更は無い。

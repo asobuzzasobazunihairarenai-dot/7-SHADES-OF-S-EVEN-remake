@@ -1714,7 +1714,8 @@ onCardReceivedEvents(({ targetPlayer, cardId, subtitle }) => {
 // なので、ここでは自分以外からの通知だけを表示する。
 onHandEffectUseEvents(({ fromPlayer, cardId, optionLabel }) => {
   if (fromPlayer === getSelfSeat()) return;
-  showHandEffectUseModal(cardId, optionLabel);
+  // 続き216: 相手の手札使用も、中央の「色オーラ→燃えカス」演出→右の使用モーダル で見せる。
+  playHandEffectUseCinematic(cardId, optionLabel);
   playSound("arrivalEffect");
   // ユーザー要望（続き76）「手札効果使用宣言の直後にも割り込みモーダルを出す」。
   // オンライン中、この宣言をした本人以外の全クライアントにもこの経路で届くため、
@@ -2184,6 +2185,77 @@ async function stealHandCardsRitualForGateInvasion(defender, count, onPicked) {
   return stolen;
 }
 
+// 続き216（ユーザー要望2026-08-18）: 手札の使用が決定した時、画面中央にカードを拡大表示し、
+// その色のオーラを纏いながら「燃えカス（embers）」になって崩れ消えていく演出。演出のあとに
+// 右の使用モーダル（showHandEffectUseModal）が出る。カードの色→燃え色(--burn-color)を決める。
+function handEffectBurnColor(cardId) {
+  const c = getCardDefinition(cardId)?.color;
+  if (c === "rainbow") return "#f6c945"; // 虹はグラデ不可（box-shadow/drop-shadow用の単色）→金
+  if (c === "white") return "#eef2f7";
+  if (c === "black") return "#8b95a3";
+  if (c) return `var(--color-${c})`;
+  return "#f6c945";
+}
+// 中央の「カード拡大→色オーラ→燃えカスになって消える」演出。ゴーストと同じdocument.body直下・
+// pointer-events:none（下の盤面はクリック可能）。演出完了で解決するPromiseを返す。
+function playHandEffectUseBurn(cardId) {
+  if (isArrivalEffectDisabled()) return Promise.resolve();
+  const overlay = document.createElement("div");
+  overlay.className = "hand-effect-burn-overlay";
+  overlay.style.setProperty("--burn-color", handEffectBurnColor(cardId));
+  const aura = document.createElement("div");
+  aura.className = "hand-effect-burn-aura";
+  overlay.appendChild(aura);
+  const stage = document.createElement("div");
+  stage.className = "hand-effect-burn-stage";
+  const card = document.createElement("div");
+  card.className = "hand-effect-burn-card";
+  card.style.backgroundImage = `url("${getCardImagePath(cardId)}")`;
+  if (getCardDefinition(cardId)?.color === "rainbow") card.classList.add("is-rainbow");
+  stage.appendChild(card);
+  // 燃えカス（rising embers）。カード面の各所からゆっくり立ち上って消える小さな粒。
+  const embers = document.createElement("div");
+  embers.className = "hand-effect-burn-embers";
+  const EMBER_COUNT = 26;
+  for (let i = 0; i < EMBER_COUNT; i++) {
+    const e = document.createElement("i");
+    // カード面(だいたい±50%)にランダム配置。燃え始め(約45%地点)以降に舞うようdelayを付ける。
+    e.style.setProperty("--ex", `${(Math.random() * 2 - 1) * 46}%`);
+    e.style.setProperty("--ey", `${(Math.random() * 2 - 1) * 50}%`);
+    e.style.setProperty("--edx", `${(Math.random() * 2 - 1) * 34}px`); // 上昇中の横ゆらぎ
+    e.style.setProperty("--ers", `${0.5 + Math.random() * 1.1}`); // 粒サイズ倍率
+    e.style.animationDelay = `${0.62 + Math.random() * 0.5}s`;
+    e.style.animationDuration = `${0.9 + Math.random() * 0.7}s`;
+    embers.appendChild(e);
+  }
+  stage.appendChild(embers);
+  overlay.appendChild(stage);
+  document.body.appendChild(overlay);
+  return new Promise((resolve) => {
+    // アニメーションはCSSキーフレーム（.hand-effect-burn-*）。カードの主アニメ終了で片付ける。
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      overlay.remove();
+      resolve();
+    };
+    card.addEventListener("animationend", finish, { once: true });
+    setTimeout(finish, 2200); // animationendが来ない環境用の保険
+  });
+}
+// 手札使用の一連（中央の燃えカス演出→右の使用モーダル）。演出を減らす設定中は演出を飛ばして
+// すぐ右モーダルを出す。演出はpointer-events:noneで下の操作を妨げない（続き214の方針を維持）。
+function playHandEffectUseCinematic(cardId, optionLabel) {
+  if (isArrivalEffectDisabled()) {
+    showHandEffectUseModal(cardId, optionLabel);
+    return;
+  }
+  playHandEffectUseBurn(cardId);
+  // カードが燃え崩れ始める頃（約0.95秒）に右の使用モーダルを“立ち上げる”。
+  setTimeout(() => showHandEffectUseModal(cardId, optionLabel), 950);
+}
+
 // ユーザー要望「カード効果を使用するために手札から使用するカードをドロップした時は、
 // 自分を含め何のカードの使用が宣言されたか全員にわかるように表示してください」。
 // 自分の画面ではその場でshowHandEffectUseModalを表示しつつ、オンライン中は
@@ -2194,7 +2266,8 @@ function announceHandEffectUseForEffect(cardId, optionLabel, player) {
   // 行動ログ用（ユーザー要望「△△は〇〇の手札効果を得ました」。以前は手札効果がログに
   // 残っていなかった）。到達効果(arrival)と同じく「誰が・どのカードの手札効果を使ったか」を記録。
   logAction("hand-effect", { cardId, player: player ?? getSelfSeat() });
-  showHandEffectUseModal(cardId, optionLabel);
+  // 続き216: 中央の「色オーラ→燃えカス」演出→その後に右の使用モーダル。
+  playHandEffectUseCinematic(cardId, optionLabel);
   // ユーザー要望「手札効果の使用が宣言されたときの効果音が欲しい。到達時の効果音を
   // 流用でよい」（続き62）。
   playSound("arrivalEffect");
