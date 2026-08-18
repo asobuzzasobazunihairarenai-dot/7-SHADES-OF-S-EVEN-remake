@@ -96,6 +96,11 @@ async function runInAppSmokeTest(onLog, { runToCompletion = false } = {}) {
   // 検査して集める。同じ違反（code＋detail）は1度だけ記録（1.2秒ごとにスパムしない）。
   const invariantViolations = [];
   const seenViolations = new Set();
+  // 続き223: マスチェンジ等の入れ替え（SWAP_POSITION）は2手を順に適用するため、その間だけ
+  // 両駒が片方のマスに乗る「一過性のpiece-overlap」が必ず生じる（＝状態の壊れではない）。
+  // 単発ポーリングで拾うと誤検知になるので、同じ違反が連続2ポーリング（≒2.4秒）続いた時だけ
+  // 「本物の壊れ」として記録する（詰み時は違反が居座り続けるので必ず捕捉できる）。
+  let prevPollSigs = new Set();
   let baselineCardCount = null;
   try {
     const cpu = await import("./cpu-battle.js");
@@ -159,15 +164,20 @@ async function runInAppSmokeTest(onLog, { runToCompletion = false } = {}) {
       // 例外で自己対戦を止めないよう try で囲む。
       try {
         const viols = checkInvariants(s, { baselineCardCount });
+        const nowSigs = new Set();
         for (const vio of viols) {
           const sig = vio.code + "|" + (vio.detail ? JSON.stringify(vio.detail) : vio.msg);
+          nowSigs.add(sig);
           if (seenViolations.has(sig)) continue;
+          // 連続2ポーリング続いた違反だけ本物とみなす（入れ替えの一過性overlap誤検知を防ぐ）。
+          if (!prevPollSigs.has(sig)) continue;
           seenViolations.add(sig);
           const entry = { turn, ...vio };
           invariantViolations.push(entry);
           try { logAction("diag-invariant-violation", entry); } catch {}
           onLog?.(`❗不変条件違反[${vio.code}] T${turn}: ${vio.msg}`);
         }
+        prevPollSigs = nowSigs;
       } catch {}
 
       let won = false;

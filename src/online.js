@@ -1739,7 +1739,7 @@ async function callAction(action) {
     // ネットワーク事象で、サーバーは何も適用していないため**リトライが安全**（二重適用にならない）。
     // 一方、非2xx（FunctionsHttpError）や data.ok=false（version_conflict 等）は決定的な失敗
     // なので即throw（リトライしても同じ結果＝サーバーに届いた上でのアプリケーションエラー）。
-    const MAX_ATTEMPTS = 3;
+    const MAX_ATTEMPTS = 4;
     let lastErr = null;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       const { data, error } = await client.functions.invoke(EDGE_FUNCTION_NAME, {
@@ -1750,35 +1750,52 @@ async function callAction(action) {
         return data;
       }
       lastErr = error;
-      // 「送信できなかった」種類のエラーだけリトライ（届いていない＝未処理が確実なもの）。
+      // 非2xx（FunctionsHttpError）の本文を1回だけ読む（version_conflictの判定にも、
+      // 決定的失敗のログにも使う。Response.text()は1回しか読めないためここで読んで使い回す）。
+      let body = "";
+      try {
+        const ctx = error?.context;
+        if (ctx && typeof ctx.text === "function") body = await ctx.text();
+      } catch (_) {
+        /* 本文が読めなくても判定・throwは続行 */
+      }
+      // 「送信できなかった」＝サーバー未処理が確実 → リトライ安全。
       const sendFailed =
         error?.name === "FunctionsFetchError" || /failed to send a request/i.test(error?.message || "");
-      if (!sendFailed || attempt === MAX_ATTEMPTS) {
-        // 非2xx（FunctionsHttpError）等の決定的失敗。クライアントには "non-2xx" しか見えず
-        // 原因が分からないため、Edge Function（so7-apply-action）が返した実際のエラー本文を
-        // 取り出して action-log と error.message に残す（スモークのオンライン監視で MOVE_TOKEN が
-        // 500になる件の原因究明用。ユーザー要望「原因が分かるようにログを仕込んで」）。
-        try {
-          const ctx = error?.context;
-          if (ctx && typeof ctx.text === "function") {
-            const body = await ctx.text();
-            if (body) {
-              logAction("diag-edge-error", {
-                actionType: action.type,
-                status: ctx.status ?? null,
-                body: String(body).slice(0, 600),
-              });
-              error.message = `${error.message} / status=${ctx.status ?? "?"} body=${String(body).slice(0, 400)}`;
-            }
-          }
-        } catch (_) {
-          /* 本文が読めなくても元のエラーはthrowする */
+      // 続き223（スモークのオンライン監視でMOVE_TOKENが409 version_conflict→駒2個重なり=piece-overlap
+      // →詰み、の根本対応）: version_conflict は「基準versionが古くコミットが0行更新で失敗＝アクションは
+      // 適用されていない」ため、最新versionを取り直して同じアクションを再送すれば安全（二重適用にならない）。
+      // 特にマスチェンジ(SWAP_POSITION)の入れ替え2手目がここでドロップされると、両駒が片方のマスに
+      // 残って永続的なpiece-overlapになりターンが詰まっていた。再試行で2手目が通れば入れ替えが完了する。
+      const versionConflict = /version_conflict/.test(body);
+      const retryable = sendFailed || versionConflict;
+      if (!retryable || attempt === MAX_ATTEMPTS) {
+        // 決定的失敗（or リトライ上限）。原因究明用に本文をaction-log/error.messageへ残す。
+        if (body) {
+          const status = error?.context?.status ?? null;
+          logAction("diag-edge-error", {
+            actionType: action.type,
+            status,
+            body: String(body).slice(0, 600),
+          });
+          error.message = `${error.message} / status=${status ?? "?"} body=${String(body).slice(0, 400)}`;
         }
         throw error;
       }
-      await new Promise((r) => setTimeout(r, 400 * attempt)); // 400ms→800ms のバックオフ
-      // 次の試行の前に last-action-info を張り直す（万一この間に何かが消費していても、
-      // 成功した試行のブロードキャスト/ハイドレートで正しく行動として扱われるように）。
+      // version_conflict のリトライ前は最新状態(version)を取り直す（Edge Function自身も再読込するが、
+      // クライアントのローカルビューも新鮮に保つ）。競合は一過性なので短めのバックオフ。
+      if (versionConflict && currentGameId) {
+        try {
+          await fetchAndHydrate(currentGameId);
+        } catch (_) {
+          /* hydrate失敗は無視して再試行（Edge Function側が正とする） */
+        }
+        await new Promise((r) => setTimeout(r, 120 * attempt)); // 120→240→360ms
+      } else {
+        await new Promise((r) => setTimeout(r, 400 * attempt)); // 送信失敗: 400→800→1200ms
+      }
+      // 次の試行の前に last-action-info を張り直す（成功した試行のブロードキャスト/ハイドレートで
+      // 正しく行動として扱われるように）。
       setLastActionInfo({ actorSeat: getSelfSeat(), actionType: action.type });
     }
     throw lastErr;

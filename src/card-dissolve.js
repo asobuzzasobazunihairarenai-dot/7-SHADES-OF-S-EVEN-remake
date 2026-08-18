@@ -11,6 +11,15 @@ import { isTouchPrimaryDevice } from "./device-detect.js";
 const STAGE_W = 1600;
 const STAGE_H = 900;
 
+// 続き223（ユーザー要望2026-08-18）: 手札効果を使おうとカードをクリックした直後、カードの
+// ホバー拡大(#card-preview)が手札使用演出(この霧散演出)の上に被って隠してしまう。演出中は
+// ホバー拡大を抑制できるよう、再生中かどうかを外部から見えるようにする（参照カウント方式：
+// 連続使用でも正しく数える）。
+let dissolvePlayingCount = 0;
+export function isCardDissolvePlaying() {
+  return dissolvePlayingCount > 0;
+}
+
 // 演出パラメータは管理者モードで調整できるよう CSS変数から読む（--table-tilt等と同じ方式）。
 // mist/residue はスマホで間引く。速さ(speed)は小さいほど“ゆっくり長い”演出になる。
 function readDissolveSettings(mobile) {
@@ -99,6 +108,7 @@ export async function playCardDissolve(usedCardId, opts = {}) {
   canvas.style.cssText =
     "position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:10660;";
   document.body.appendChild(canvas);
+  dissolvePlayingCount++; // 続き223: 再生中フラグON（finishでOFF）
   const ctx = canvas.getContext("2d");
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   // clientWidth/Height はステージ座標(1600×900、変形前のレイアウトサイズ)。
@@ -445,6 +455,7 @@ export async function playCardDissolve(usedCardId, opts = {}) {
     const finish = () => {
       if (done) return;
       done = true;
+      dissolvePlayingCount = Math.max(0, dissolvePlayingCount - 1); // 続き223: 再生中フラグOFF
       cancelAnimationFrame(raf);
       canvas.remove();
       if (!modalShown) {

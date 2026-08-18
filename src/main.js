@@ -159,7 +159,7 @@ import { buildAvatarUploadSection } from "./avatar-upload.js";
 import { isLockAreaBarVisible, setLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible } from "./lock-color.js";
 import { isArrivalEffectDisabled, isFlightAnimationDisabled } from "./motion-prefs.js";
-import { playCardDissolve } from "./card-dissolve.js";
+import { playCardDissolve, isCardDissolvePlaying } from "./card-dissolve.js";
 import { rectCenter, flyGhost } from "./ghost-flight.js";
 import { showCardArrivalModal, hideCardArrivalModalImmediately } from "./card-arrival.js";
 import {
@@ -4547,36 +4547,45 @@ function playCardCellLanding(sourceRect, cellLocation, tokenId) {
   const cardEl = table.querySelector(`.board-card[data-token-id="${tokenId}"]`);
   if (!cellEl || !cardEl) return Promise.resolve();
   const cellRect = cellEl.getBoundingClientRect();
+  const cardRect = cardEl.getBoundingClientRect(); // 着地先の実カード（＝マスのカード）の見た目サイズ
   const img = getComputedStyle(cardEl).backgroundImage;
   cardEl.style.visibility = "hidden"; // 実カードを隠してゴーストだけ動かす（着地後に見せる）
   const ghost = document.createElement("div");
   ghost.className = "setup-fly-card card-landing-ghost";
   ghost.style.backgroundImage = img;
-  ghost.style.width = `${stageDelta(sourceRect.width)}px`;
-  ghost.style.height = `${stageDelta(sourceRect.height)}px`;
+  // 続き223（ユーザー要望2026-08-18「上空に止まるとき、カードがやたら小さい。マスのカードと同じ
+  // サイズに」）: カードは正方形なのに、飛び元（山札の山＝横長で低い投影rect）のアスペクト比を
+  // ゴーストに使い、さらに rotateX(--table-tilt) で縦を潰していたため、上空/着地で横長・低い＝小さく
+  // 見えていた。ゴーストの基準サイズを「着地先の実カード(cardRect)」に合わせ、rotateXの縦潰し分を
+  // 逆算(/cosT)して基準を縦に伸ばしておくことで、scale(1)+rotateX で cardRect と寸分同じに見せる。
+  const flat2d = document.body.classList.contains("diagnostic-flatten-3d");
+  const tiltDeg = flat2d ? 0 : parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--table-tilt")) || 42;
+  const cosT = Math.max(0.35, Math.cos((tiltDeg * Math.PI) / 180));
+  const baseW = cardRect.width;
+  const baseH = cardRect.height / cosT; // rotateXで縦がcosT倍に潰れる分を逆算して基準を伸ばす
+  ghost.style.width = `${stageDelta(baseW)}px`;
+  ghost.style.height = `${stageDelta(baseH)}px`;
   const from = stageClientToLocal(sourceRect.left + sourceRect.width / 2, sourceRect.top + sourceRect.height / 2);
   const cellC = stageClientToLocal(cellRect.left + cellRect.width / 2, cellRect.top + cellRect.height / 2);
-  const scale = cellRect.width / sourceRect.width;
+  const startScale = sourceRect.width / baseW; // 飛び元(山札/手札)の大きさから始まり、着地でscale(1)
   const liftLocal = stageDelta(cardLandingLiftPx(cellRect)); // 「上空」＝ほぼ駒の高さ
-  // 続き215（ユーザー要望2026-08-18）: 上空で止まる／マスに置かれる時のカードの角度を、盤面に
-  // 置かれているカードと同じ角度（盤面の傾き＝--table-tilt）にする。ゴーストは3D空間の外
-  // (document.body直下)なので、rotateXで盤面と同じ角度に寝かせる。2D表示中(diagnostic-flatten-3d)は
-  // 盤面カードも平らなので傾けない。関数リストを全キーフレームで揃える(rotateX/scale)ためclean補間。
-  const boardTilt = document.body.classList.contains("diagnostic-flatten-3d") ? "rotateX(0deg)" : "rotateX(var(--table-tilt))";
-  ghost.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%) rotateX(0deg) scale(1)`;
+  // 続き215: 上空で止まる／マスに置かれる時のカードの角度を、盤面のカードと同じ角度(--table-tilt)に。
+  // ゴーストは3D空間の外(document.body直下)なのでrotateXで寝かせる。2D表示中は盤面も平らなので傾けない。
+  const boardTilt = flat2d ? "rotateX(0deg)" : `rotateX(${tiltDeg}deg)`;
+  ghost.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%) rotateX(0deg) scale(${startScale})`;
   document.body.appendChild(ghost);
   const t = cardLandingTimings();
   return new Promise((resolve) => {
     requestAnimationFrame(() => {
       // フェーズ1: マスの真上(上空)へ すーーっと（強めの減速でピタッと止まる感＝easeOutExpo風）。
-      // 同時にカードを盤面の角度へ寝かせる（上空のピタッで盤面と同じ角度になる）。
+      // 同時にカードを盤面の角度へ寝かせる（上空のピタッで盤面と同じ角度・同じサイズになる）。
       ghost.style.transition = `transform ${t.glide}ms cubic-bezier(0.16, 1, 0.3, 1)`;
-      ghost.style.transform = `translate(${cellC.x}px, ${cellC.y - liftLocal}px) translate(-50%, -50%) ${boardTilt} scale(${scale})`;
+      ghost.style.transform = `translate(${cellC.x}px, ${cellC.y - liftLocal}px) translate(-50%, -50%) ${boardTilt} scale(1)`;
     });
     setTimeout(() => {
       // フェーズ2: ストンと真下へ落下（加速＝ease-in）。上空で一拍(HOLD)止めてから落とす。盤面角度のまま。
       ghost.style.transition = `transform ${t.drop}ms cubic-bezier(0.6, 0, 0.9, 0.2)`;
-      ghost.style.transform = `translate(${cellC.x}px, ${cellC.y}px) translate(-50%, -50%) ${boardTilt} scale(${scale})`;
+      ghost.style.transform = `translate(${cellC.x}px, ${cellC.y}px) translate(-50%, -50%) ${boardTilt} scale(1)`;
     }, t.glide + t.hold);
     setTimeout(() => {
       spawnCardLandingPuff(cellRect); // 着地の風/ホコリ
@@ -4600,15 +4609,23 @@ function playCardLiftToHand(sourceRect, player, tokenId) {
   const ghost = document.createElement("div");
   ghost.className = "setup-fly-card card-landing-ghost";
   if (img) ghost.style.backgroundImage = img;
-  ghost.style.width = `${stageDelta(sourceRect.width)}px`;
-  ghost.style.height = `${stageDelta(sourceRect.height)}px`;
+  // 続き223: 飛び元＝盤面カード(sourceRect)は既にrotateXで縦が潰れた投影サイズなので、そこへさらに
+  // rotateXを重ねると上空で二重に潰れて小さく見える。基準を /cosT で縦に伸ばし、scale(1)+rotateXで
+  // 元の盤面カードと同サイズに見せる（手札へ着く時は平ら＝scaleで手札サイズへ）。
+  const flat2d = document.body.classList.contains("diagnostic-flatten-3d");
+  const tiltDeg = flat2d ? 0 : parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--table-tilt")) || 42;
+  const cosT = Math.max(0.35, Math.cos((tiltDeg * Math.PI) / 180));
+  const baseW = sourceRect.width;
+  const baseH = sourceRect.height / cosT;
+  ghost.style.width = `${stageDelta(baseW)}px`;
+  ghost.style.height = `${stageDelta(baseH)}px`;
   const from = stageClientToLocal(sourceRect.left + sourceRect.width / 2, sourceRect.top + sourceRect.height / 2);
   const to = stageClientToLocal(toRect.left + toRect.width / 2, toRect.top + toRect.height / 2);
-  const scale = toRect.width / sourceRect.width;
+  const scale = toRect.width / baseW;
   const liftLocal = stageDelta(cardLandingLiftPx(sourceRect)); // 上空＝ほぼ駒の高さ
   // 続き215: 盤面のカード（＝盤面の傾き）から持ち上がるので、上空の間は盤面と同じ角度で寝かせ、
   // 手札へ着く時に平らに戻す。2D表示中は盤面カードも平らなので傾けない。
-  const boardTilt = document.body.classList.contains("diagnostic-flatten-3d") ? "rotateX(0deg)" : "rotateX(var(--table-tilt))";
+  const boardTilt = flat2d ? "rotateX(0deg)" : `rotateX(${tiltDeg}deg)`;
   ghost.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%) ${boardTilt} scale(1)`;
   document.body.appendChild(ghost);
   const t = cardLandingTimings();
@@ -8809,7 +8826,10 @@ function updatePreview(el, clientX, clientY) {
   const preview = getPreviewEl();
   updatePileTooltip(el, clientX, clientY);
 
-  const imagePath = el ? getPreviewImagePath(el) : null;
+  // 続き223（ユーザー要望2026-08-18）: 手札使用の霧散演出(V4/V5)の再生中はホバー拡大を抑制する。
+  // 使用モーダルを非表示設定にしていると、カードをクリックした直後のホバー拡大が霧散演出の上に
+  // 被って演出が隠れてしまうため。演出が終われば通常のホバー拡大に戻る。
+  const imagePath = el && !isCardDissolvePlaying() ? getPreviewImagePath(el) : null;
   if (!imagePath) {
     preview.style.display = "none";
     return;
