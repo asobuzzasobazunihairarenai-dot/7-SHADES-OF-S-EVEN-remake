@@ -44,6 +44,33 @@ function stateActivitySignature(s) {
 // （ユーザー要望2026-08-17「スモークテストの強化」。終盤・勝利判定・より多くの効果の組み合わせを
 // 網羅する。ランク戦は自動処理エンジン＝このテストが回すエンジンそのものなので、決着まで回せば
 // ランク戦のゲームプレイも丸ごと点検できる）。決着まではターン数が読めないためハード上限を延長する。
+// 対戦終了後のモーダル（勝利・個人結果・ランク結果・通貨・ポストゲーム）を静かに片付ける。
+// 連続実行の各ラウンド開始時に呼び、前ラウンドのモーダルが盤面を覆って観戦を妨げないようにする。
+async function clearEndgameModals() {
+  try {
+    const vic = await import("./victory.js");
+    vic.forceCloseVictoryModal?.(); // 勝利モーダル＋その背景を、エピローグ連鎖を起こさず消す
+  } catch {}
+  // その他のエピローグモーダル（多くはオンライン専用だが保険で）をidで消し、取り残された
+  // 全画面の背景（createBackdrop製＝子要素のない fixed div）も一緒に掃く。ラウンド開始時＝
+  // 盤面を作り直す直前なので、この時点での背景掃きは安全。
+  const ids = [
+    "victory-modal", "match-personal-result-modal", "ranked-result-modal", "currency-award-modal",
+    "rank-up-modal", "ranked-season-reward-modal", "post-game-panel",
+  ];
+  // 同一idが複数あっても（万一の重複）全部消えるよう querySelectorAll で掃く。
+  for (const id of ids) document.querySelectorAll("#" + id).forEach((el) => el.remove());
+  try {
+    for (const el of Array.from(document.body.children)) {
+      if (el.tagName !== "DIV" || el.id) continue;
+      const cs = getComputedStyle(el);
+      if (cs.position === "fixed" && el.children.length === 0 && (parseInt(cs.zIndex, 10) || 0) >= 10000) {
+        el.remove();
+      }
+    }
+  } catch {}
+}
+
 async function runInAppSmokeTest(onLog, { runToCompletion = false } = {}) {
   const hardTimeoutMs = runToCompletion ? 600000 : HARD_TIMEOUT_MS; // 決着まで＝最大10分
   const errors = [];
@@ -87,6 +114,12 @@ async function runInAppSmokeTest(onLog, { runToCompletion = false } = {}) {
       const home = document.getElementById("home-screen-overlay") || document.getElementById("home-screen");
       if (home) home.style.display = "none";
     } catch {}
+
+    // 前ラウンドの勝利/結果モーダルを片付ける（ユーザー報告2026-08-18「連続実行で勝利モーダルや
+    // 『あなたの勝ち』モーダルが消えず、テスト風景を観戦できない」）。勝利モーダルは実プレイ用に
+    // 自動クローズを撤去してある（✕/背景クリックのみ）ため、CPU自己対戦では誰も閉じず残り続けて
+    // 次ラウンドの盤面を覆ってしまう。onCloseの連鎖（通貨/ランク/個人結果）は起こさず静かに消す。
+    await clearEndgameModals();
 
     onLog?.("CPU戦を開始（両席とも自動＝自己対戦）…");
     admin.setPseudoCpuModeEnabled?.(true);
@@ -670,7 +703,7 @@ export function openSmokeTestPanel() {
 
   const desc = document.createElement("div");
   desc.className = "smoke-test-desc";
-  desc.textContent = "CPU戦を両席とも自動で回し、エラー・盤面破損・不変条件違反・詰み（一定時間まったく状態が変化しない）を監視します。「8ターン点検」は素早い健全性チェック、「決着まで実行」は勝敗が出るまで丸ごと1局回して終盤まで網羅、「連続実行」は指定回数まとめて回して間欠バグの再現率を測ります（実行すると今の画面は対局に切り替わります）。「🌐 オンライン監視」は、2つのブラウザ（別ブラウザ or シークレットでゲスト2つ）でそれぞれ押すだけで、自動でマッチング→『タイマー＋疑似CPU』有効で対局開始→オンライン特有のバグ（同期・ゲート侵攻modal・優先権 等）を監視まで行います（手動の部屋作成は不要）。";
+  desc.textContent = "CPU戦を両席とも自動で回し、エラー・盤面破損・不変条件違反・詰み（一定時間まったく状態が変化しない）を監視します。「8ターン点検」は素早い健全性チェック、「決着まで実行」は勝敗が出るまで丸ごと1局回して終盤まで網羅、「連続実行」は指定回数まとめて回して間欠バグの再現率を測ります（実行すると今の画面は対局に切り替わります）。「🌐 オンライン監視」は、2つのブラウザ（別ブラウザ or シークレットでゲスト2つ）でそれぞれ押すだけで、自動でマッチング→『タイマー＋疑似CPU』有効で対局開始→オンライン特有のバグ（同期・ゲート侵攻modal・優先権 等）を監視まで行います（手動の部屋作成は不要）。オンライン監視も「連続実行」の回数を使い、1試合終わるたびに自動で次のマッチへ再ペアリングして指定試合数まで続けます（両ブラウザで同じ回数にしておくこと）。";
   panel.appendChild(desc);
 
   const logEl = document.createElement("div");
@@ -735,7 +768,7 @@ export function openSmokeTestPanel() {
   onlineBtn.type = "button";
   onlineBtn.className = "smoke-test-run smoke-test-online";
   onlineBtn.textContent = "🌐 オンライン監視";
-  onlineBtn.title = "各ブラウザで押すだけで、自動でマッチ→タイマー＋疑似CPUで開始→監視まで行う";
+  onlineBtn.title = "各ブラウザで押すだけで、自動でマッチ→タイマー＋疑似CPUで開始→監視まで行う（『連続実行』の回数だけ試合を繰り返す）";
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.className = "smoke-test-close";
@@ -900,11 +933,46 @@ export function openSmokeTestPanel() {
       onlineBtn.disabled = true;
       onlineBtn.textContent = "停止中…";
     };
-    addLog("🌐 ワンタッチ・オンライン監視を開始します。");
-    const res = await runOneTouchOnlineSmoke(addLog, () => cancelOnline);
-    resultEl.classList.add(res.pass ? "is-pass" : "is-fail");
-    resultEl.textContent = res.pass ? `✅ 異常なし — ${res.reason}` : `❌ 検出 — ${res.reason}`;
-    addDiagnosticsButtons(await collectFullDiagnostics(res));
+    // ユーザー要望2026-08-18「オンライン監視も連続実行を取り入れたい」。連続実行の回数入力
+    // （repeatInput）をそのまま使う。1なら従来通り1試合、Nなら1試合ごとに自動で次のマッチへ
+    // 再ペアリングして計N試合監視する（両ブラウザとも同じワンタッチのループを回すので、1試合
+    // 終わるたびに両者がSMOKE-AUTO-TEST部屋で再び揃い、次のラウンドが始まる）。
+    const times = Math.max(1, Math.min(50, parseInt(repeatInput.value, 10) || 1));
+    if (times > 1) addLog(`🌐 ワンタッチ・オンライン監視を連続実行（最大${times}試合）。`);
+    else addLog("🌐 ワンタッチ・オンライン監視を開始します。");
+    const results = [];
+    let firstFailure = null;
+    for (let i = 1; i <= times; i++) {
+      if (cancelOnline) { addLog(`⏹ ${i - 1}試合で停止しました。`); break; }
+      if (times > 1) addLog(`━━━━ ${i}/${times}試合目 ━━━━`);
+      const res = await runOneTouchOnlineSmoke(addLog, () => cancelOnline);
+      results.push(res);
+      if (times > 1) addLog(`${i}試合目: ${res.pass ? "✅PASS" : "❌FAIL"} — ${res.reason}`);
+      if (!res.pass && !firstFailure) firstFailure = res;
+      const passSoFar = results.filter((r) => r.pass).length;
+      resultEl.classList.remove("is-pass", "is-fail");
+      resultEl.textContent = times > 1 ? `進行中… ${passSoFar}/${results.length} PASS` : "";
+      // 停止/失敗（マッチ不成立・ログイン失敗等のfatal）なら連続を打ち切る。詰み/エラー検出は
+      // 次の試合へ進んで再現率を測る（ローカルの連続実行と同じ思想）。
+      if (cancelOnline) break;
+      if (i < times) await wait(1200);
+    }
+    if (results.length === 1) {
+      const res = results[0];
+      resultEl.classList.add(res.pass ? "is-pass" : "is-fail");
+      resultEl.textContent = res.pass ? `✅ 異常なし — ${res.reason}` : `❌ 検出 — ${res.reason}`;
+      addDiagnosticsButtons(await collectFullDiagnostics(res));
+    } else {
+      const passCount = results.filter((r) => r.pass).length;
+      const allPass = results.length > 0 && passCount === results.length;
+      resultEl.classList.add(allPass ? "is-pass" : "is-fail");
+      resultEl.textContent = `${passCount}/${results.length} 試合 PASS`;
+      addLog(`🌐 オンライン監視 連続実行 終了: ${passCount}/${results.length} 試合 PASS`);
+      if (firstFailure) {
+        addLog("❌ 検出があった試合の診断情報を下のボタンからコピーできます。");
+        addDiagnosticsButtons(await collectFullDiagnostics(firstFailure), "検出試合");
+      }
+    }
     swapToReload();
   };
 

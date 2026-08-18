@@ -134,19 +134,36 @@ export function wouldCompleteLockWithNewIndex(player, newIndex) {
   return COLORS.every((_color, index) => lockedIndexes.has(index));
 }
 
+// 勝利モーダルを onClose（エピローグの連鎖）を発火させずに強制的に消すための参照。
+// スモーク（CPU自己対戦の連続実行）では人間が✕/背景をクリックしないため勝利モーダルが
+// 消えず、次のラウンドの盤面を覆って観戦できない。次イテレーションの先頭でこれを呼んで
+// 前ラウンドの勝利モーダルだけ静かに片付ける（onClose＝通貨/ランク/個人結果モーダルの連鎖は
+// 起こさない＝新たなモーダルを積み上げない）。
+let dismissCurrentVictoryModal = null;
+export function forceCloseVictoryModal() {
+  dismissCurrentVictoryModal?.();
+}
+
 function showVictoryModal(player, onClose) {
   playVictoryBgm();
   const modal = document.createElement("div");
   modal.id = "victory-modal";
   let done = false;
-  const close = () => {
+  // DOMの後始末だけ（onCloseは呼ばない）。強制クローズ・通常クローズの両方から使う。
+  const remove = () => {
     if (done) return;
     done = true;
     clearTimeout(autoCloseTimer);
     backdrop.remove();
     modal.remove();
+    if (dismissCurrentVictoryModal === remove) dismissCurrentVictoryModal = null;
+  };
+  const close = () => {
+    if (done) return;
+    remove();
     onClose?.();
   };
+  dismissCurrentVictoryModal = remove;
   const backdrop = createBackdrop(close, { dim: true, zIndex: 10500 });
 
   // ユーザー要望「勝利モーダルにはアバターも大きく表示させてください」。
