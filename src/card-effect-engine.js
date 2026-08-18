@@ -930,7 +930,7 @@ async function runAction(action, ctx, helpers) {
         // に関係なく自動選択する——相手が1人なら実質的に選択の余地が無いため（続き93の
         // 総点検ではマスチェンジだけを直したが、この「相手の駒を選ぶ」系にも抜けが残っていた）。
         targetCell = opponentCells[0];
-        await helpers.announceEffectReason?.(ctx.cardId, "選べる相手が1人しかいないため、自動的に選択しました。");
+        helpers.announceEffectNotice?.(ctx.cardId, "選べる相手が1人しかいないため、自動的に選択しました。"); // 続き214: 非ブロック（直後の選択をすぐ可能に）
       } else {
         targetCell = await helpers.pickLocation(opponentCells, "移動させる相手の駒を選んでください");
       }
@@ -1235,7 +1235,7 @@ async function runAction(action, ctx, helpers) {
       let target;
       if (candidates.length === 1) {
         target = candidates[0];
-        await helpers.announceEffectReason?.(ctx.cardId, "選べる相手が1人しかいないため、自動的に選択しました。");
+        helpers.announceEffectNotice?.(ctx.cardId, "選べる相手が1人しかいないため、自動的に選択しました。"); // 続き214: 非ブロック（直後の選択をすぐ可能に）
       } else {
         target = await helpers.pickLocation(candidates, "入れ替える相手のマスを選択してください");
       }
@@ -1322,7 +1322,7 @@ async function runAction(action, ctx, helpers) {
         // ユーザー要望「スリカエなどで相手を選ぶ効果の場合で選べる相手が１人しかいない
         // 場合は自動でその人を選択してください。そしてその旨をモーダルで示してください」（続き65）。
         targetPlayer = swappableOpponents[0];
-        await helpers.announceEffectReason?.(ctx.cardId, "手札を持っている相手が1人だけのため、自動的に選択しました。");
+        helpers.announceEffectNotice?.(ctx.cardId, "手札を持っている相手が1人だけのため、自動的に選択しました。"); // 続き214: 非ブロック（直後の奪う札選択をすぐ可能に）
       } else {
         targetPlayer = await helpers.pickPlayer(swappableOpponents, "手札を交換する相手を選んでください（アバターをクリック）");
       }
@@ -1754,7 +1754,7 @@ async function runAction(action, ctx, helpers) {
         // に関係なく自動選択する——相手が1人なら実質的に選択の余地が無いため（続き93の
         // 総点検ではマスチェンジだけを直したが、この「相手の駒を選ぶ」系にも抜けが残っていた）。
         targetCell = opponentCells[0];
-        await helpers.announceEffectReason?.(ctx.cardId, "選べる相手が1人しかいないため、自動的に選択しました。");
+        helpers.announceEffectNotice?.(ctx.cardId, "選べる相手が1人しかいないため、自動的に選択しました。"); // 続き214: 非ブロック（直後の選択をすぐ可能に）
       } else {
         targetCell = await helpers.pickLocation(opponentCells, "隣に置く相手の駒を選んでください");
       }
@@ -1874,10 +1874,16 @@ async function runArrivalOptionsEffect(ctx, options, helpers) {
     const chosen = await helpers.pickArrivalOption(ctx.cardId, optionsWithUsability);
     if (chosen) {
       // 選べる罠（3択から1つ得る）で選んだ内容を全員に告知（choose-effect-reveal方針）。
-      await helpers.announceEffectChoice?.(ctx.cardId, ctx.player, chosen.label);
+      // ユーザー報告2026-08-18「手札を半分捨てるを押した後、しばらく手札クリックが効かない」:
+      // 告知(announceEffectChoice)は約2.9秒ブロックするため、この間ずっと次の操作（捨てる
+      // カード選択）へ進めず手札クリックが効かなかった。pink-partyと同じく、告知は待たずに
+      // 走らせ（announced）すぐ次のアクションへ進み、最後に完了だけawaitする（ペーシング/
+      // CPU結果ホールドは保つ）。「〇〇を選びました」モーダル表示中に手札を選べてよい。
+      const announced = helpers.announceEffectChoice?.(ctx.cardId, ctx.player, chosen.label);
       for (const action of chosen.actions) {
         if (await runActionSafely(action, runCtx, helpers)) hadEffect = true;
       }
+      await announced;
     }
   }
   // docs/cards.md補足「全て選べないときは効果は不発となる。効果が不発の時は、この

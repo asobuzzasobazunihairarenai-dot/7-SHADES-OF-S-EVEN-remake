@@ -2341,6 +2341,18 @@ async function announceEffectChoiceForEffect(cardId, player, optionLabel) {
   await announceEffectReasonForEffect(cardId, text);
 }
 
+// 続き214（ユーザー報告2026-08-18「選べる罠で『手札を半分捨てる』を押した後、しばらく手札を
+// クリックしても反応しない」）: 情報通知（「選べる相手が1人だけのため自動的に選択しました」等の
+// 軽い案内）を“ブロックせず”に出す版。announceEffectReasonForEffectは約2.9秒awaitで待つため、
+// 通知の直後に手札/マス選択が来ると、その待ち時間ずっと操作できなかった。この版はモーダルを出す
+// だけで即returnし、モーダル自身の自動消去タイマー(REASON_MODAL_DURATION_MS)で自然に消える。
+// CPU結果ホールド(cpuResultHoldActive)もかけない——読ませて止める必要のない軽い通知のため
+// （止めるべき“結果”はannounceEffectReasonForEffectのまま）。他プレイヤーへの中継は従来通り行う。
+function announceEffectNoticeForEffect(cardId, text) {
+  if (isOnlineMode()) broadcastEffectReason({ fromPlayer: getSelfSeat(), cardId, text });
+  showEffectReasonModal(cardId, text); // holdUntilClick=false・戻り値のPromiseは待たない
+}
+
 // ユーザー要望「効果が不発だった場合（例: マスチェンジで３マス以内に相手がいない等）は
 // 『不発のためこのカードを手札に加えます』的なモーダルを出しましょう」。addsToHandは
 // card-effects.jsのeffectDef.addsCardToHandAfterに対応する（false指定のカード＝
@@ -5160,6 +5172,7 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         pickPlayer: requestPlayerChoiceForEffect,
         swapRandomHandCard: swapHandCardWithOpponentForEffect,
         announceEffectReason: announceEffectReasonForEffect,
+        announceEffectNotice: announceEffectNoticeForEffect, // 続き214: 非ブロックの軽い通知
         celebrate: celebrateForEffect,
         gambleReveal: (cardId) => revealCenterCardForAll(cardId, "ギャンブル公開"),
         startSuspenseSound: startHeartbeat,
@@ -5268,6 +5281,7 @@ async function runAutoArrivalEffect(cardId, location, player) {
       // カウンターロックの「あなたは１番少なくロックしているので1枚ドローします」等、
       // 発動理由を一言説明するモーダル用。
       announceEffectReason: announceEffectReasonForEffect,
+      announceEffectNotice: announceEffectNoticeForEffect, // 続き214: 非ブロックの軽い通知
       celebrate: celebrateForEffect,
       gambleReveal: (cardId) => revealCenterCardForAll(cardId, "ギャンブル公開"),
       startSuspenseSound: startHeartbeat,
