@@ -4352,7 +4352,15 @@ async function flyHandCardBetweenSeats(fromSeat, toSeat, cardId, faceUp = false)
 // には一切影響しない後付けの飾り）。移動アニメーションOFF・要素欠落時は何もしない（実配置は
 // 呼び出し側が既に済ませている）。durations等はここで微調整可。
 const CARD_LANDING_GLIDE_MS = 300; // 手札→上空の「すーーっと」
+const CARD_LANDING_HOLD_MS = 130; // 上空で「ピタッ」と止まる間（ユーザー要望2026-08-18）
 const CARD_LANDING_DROP_MS = 150; // 上空→マスの「ストン」（加速）
+// 「上空」の高さ＝ほぼ駒の高さ（ユーザー要望2026-08-18「駒の高さより ほんの少し上くらい」）。
+// 盤面の駒(.piece＝3D立方体)の投影高さを基準に、ほんの少しだけ上へ。駒が無い時はマスの約半分で保険。
+function cardLandingLiftPx(refRect) {
+  const pieceEl = document.querySelector("#game-table .piece");
+  const pieceH = pieceEl ? pieceEl.getBoundingClientRect().height : refRect.height * 0.5;
+  return pieceH * 1.08; // 駒の高さより ほんの少しだけ上
+}
 function spawnCardLandingPuff(cellRect) {
   const c = stageClientToLocal(cellRect.left + cellRect.width / 2, cellRect.top + cellRect.height / 2);
   const size = stageDelta(cellRect.width) * 1.7;
@@ -4404,24 +4412,24 @@ function playCardCellLanding(sourceRect, cellLocation, tokenId) {
   const from = stageClientToLocal(sourceRect.left + sourceRect.width / 2, sourceRect.top + sourceRect.height / 2);
   const cellC = stageClientToLocal(cellRect.left + cellRect.width / 2, cellRect.top + cellRect.height / 2);
   const scale = cellRect.width / sourceRect.width;
-  const liftLocal = stageDelta(cellRect.height) * 1.15; // 「上空」の高さ
+  const liftLocal = stageDelta(cardLandingLiftPx(cellRect)); // 「上空」＝ほぼ駒の高さ
   ghost.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%)`;
   document.body.appendChild(ghost);
   requestAnimationFrame(() => {
-    // フェーズ1: マスの真上(上空)へ すーーっと（減速＝ease-out）
-    ghost.style.transition = `transform ${CARD_LANDING_GLIDE_MS}ms cubic-bezier(0.22, 0.61, 0.36, 1)`;
+    // フェーズ1: マスの真上(上空)へ すーーっと（強めの減速でピタッと止まる感＝easeOutExpo風）
+    ghost.style.transition = `transform ${CARD_LANDING_GLIDE_MS}ms cubic-bezier(0.16, 1, 0.3, 1)`;
     ghost.style.transform = `translate(${cellC.x}px, ${cellC.y - liftLocal}px) translate(-50%, -50%) scale(${scale})`;
   });
   setTimeout(() => {
-    // フェーズ2: ストンと真下へ落下（加速＝ease-in）
+    // フェーズ2: ストンと真下へ落下（加速＝ease-in）。上空で一拍(HOLD)止めてから落とす。
     ghost.style.transition = `transform ${CARD_LANDING_DROP_MS}ms cubic-bezier(0.6, 0, 0.9, 0.2)`;
     ghost.style.transform = `translate(${cellC.x}px, ${cellC.y}px) translate(-50%, -50%) scale(${scale})`;
-  }, CARD_LANDING_GLIDE_MS + 10);
+  }, CARD_LANDING_GLIDE_MS + CARD_LANDING_HOLD_MS);
   setTimeout(() => {
     spawnCardLandingPuff(cellRect); // 着地の風/ホコリ
     cardEl.style.visibility = ""; // 実カードを見せる
     requestAnimationFrame(() => requestAnimationFrame(() => ghost.remove()));
-  }, CARD_LANDING_GLIDE_MS + CARD_LANDING_DROP_MS + 20);
+  }, CARD_LANDING_GLIDE_MS + CARD_LANDING_HOLD_MS + CARD_LANDING_DROP_MS + 20);
 }
 // 逆: マスのカードが手札に入るとき。持ち上がり(マスから上空へストン)→手札へすーーっと。風は
 // 持ち上がりの瞬間（マス側）に舞う。sourceRect=移動前の盤面カードのrect（移動前に捕捉）。
@@ -4442,7 +4450,7 @@ function playCardLiftToHand(sourceRect, player, tokenId) {
   const from = stageClientToLocal(sourceRect.left + sourceRect.width / 2, sourceRect.top + sourceRect.height / 2);
   const to = stageClientToLocal(toRect.left + toRect.width / 2, toRect.top + toRect.height / 2);
   const scale = toRect.width / sourceRect.width;
-  const liftLocal = stageDelta(sourceRect.height) * 1.15;
+  const liftLocal = stageDelta(cardLandingLiftPx(sourceRect)); // 上空＝ほぼ駒の高さ
   ghost.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%)`;
   document.body.appendChild(ghost);
   requestAnimationFrame(() => {
@@ -4451,14 +4459,14 @@ function playCardLiftToHand(sourceRect, player, tokenId) {
     ghost.style.transform = `translate(${from.x}px, ${from.y - liftLocal}px) translate(-50%, -50%)`;
   });
   setTimeout(() => {
-    // フェーズ2: 手札へ すーーっと（減速＝ease-out）
-    ghost.style.transition = `transform ${CARD_LANDING_GLIDE_MS}ms cubic-bezier(0.22, 0.61, 0.36, 1)`;
+    // フェーズ2: 手札へ すーーっと（減速＝ease-out）。上空で一拍(HOLD)止めてから戻す。
+    ghost.style.transition = `transform ${CARD_LANDING_GLIDE_MS}ms cubic-bezier(0.16, 1, 0.3, 1)`;
     ghost.style.transform = `translate(${to.x}px, ${to.y}px) translate(-50%, -50%) scale(${scale})`;
-  }, CARD_LANDING_DROP_MS + 10);
+  }, CARD_LANDING_DROP_MS + CARD_LANDING_HOLD_MS);
   setTimeout(() => {
     if (cardEl) cardEl.style.visibility = "";
     requestAnimationFrame(() => requestAnimationFrame(() => ghost.remove()));
-  }, CARD_LANDING_DROP_MS + CARD_LANDING_GLIDE_MS + 20);
+  }, CARD_LANDING_DROP_MS + CARD_LANDING_HOLD_MS + CARD_LANDING_GLIDE_MS + 20);
 }
 
 // 手札効果のDRAW動詞用。playerの手札へ山札からcount枚引く（オンライン同期込み、
