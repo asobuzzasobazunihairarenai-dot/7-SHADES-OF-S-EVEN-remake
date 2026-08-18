@@ -385,7 +385,7 @@ async function renderHomeRank(container) {
   // バッジ＋U型ゲージ＋宝石の合成表示（rank-showcase.js）を左上にコンパクトに出す（大きな
    // グリッドと重ならないよう控えめに。位置・サイズは管理者モードで調整可）。
   container.appendChild(
-    buildRankShowcase(info.rank ?? 0, info.gauge ?? 0, info.legend_points ?? 0, { animated: false, scale: 0.4 })
+    buildRankShowcase(info.rank ?? 0, info.gauge ?? 0, info.legend_points ?? 0, { scale: 0.4 })
   );
   const nm = document.createElement("div");
   nm.className = "home-rank-name";

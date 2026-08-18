@@ -1,7 +1,8 @@
 // ランク称号バッジの共有部品（ランク戦フェーズ6「称号アート反映」）。docs/ranked-spec.md参照。
-// 素材は assets/rank-badges/ に英名でコピー済み（静止版＝{key}.webp・アニメ版＝{key}-animated.webp）。
-// 使い分け（spec）: 常時表示の一覧・ホーム等では軽い静止版、獲得/昇格演出ではアニメ版
-// （レジェンドで約1.9MBと重いため）。
+// 素材は assets/rank-badges/ に英名でコピー済み（静止版＝{key}.webp のみ）。
+// ユーザー要望2026-08-18: アニメ版バッジ（-animated.webp）は使わないことにした（フォルダから削除）。
+// 常時表示も獲得/昇格・シーズン報酬のヒーロー表示も、すべて静止版を使う。ヒーロー表示では
+// buildRankBadgeImage(effects:true) で静止バッジに湯気のようなオーラ＋表面の光沢EFFECTを重ねる。
 //
 // getSelfRank()（online.js）が返すのは {season_id, rank:0..6, gauge:0..6, legend_points}。
 // rank>=6（レジェンド）はゲージの代わりにレジェンドポイント(LP)を積み上げる。
@@ -25,20 +26,34 @@ export function rankName(rank) {
 export function rankBadgeStaticPath(rank) {
   return `assets/rank-badges/${rankKey(rank)}.webp`;
 }
-export function rankBadgeAnimatedPath(rank) {
-  return `assets/rank-badges/${rankKey(rank)}-animated.webp`;
-}
-
-// 称号バッジの画像要素。size はCSSサイズ（例 "6rem"）。animated=trueでアニメ版。
-export function buildRankBadgeImage(rank, { animated = false, size = "6rem" } = {}) {
+// 称号バッジの画像要素。size はCSSサイズ（例 "6rem"）。
+// effects=true のときは、静止バッジの周りに湯気のような幻想的なオーラを漂わせ、表面に光沢の
+// 光沢スイープを走らせるエフェクト付きのラッパー（div.rank-badge-fx）で包んで返す（対戦終了後の
+// ランク結果・シーズン報酬のヒーロー表示用。ユーザー要望2026-08-18）。それ以外は素の img を返す。
+// ※アニメ版バッジ（-animated.webp）は使わなくなった（ユーザーがフォルダから削除）。常に静止版を使う。
+export function buildRankBadgeImage(rank, { size = "6rem", effects = false } = {}) {
   const img = document.createElement("img");
-  img.className = "rank-badge-image" + (animated ? " is-animated" : "");
-  img.src = animated ? rankBadgeAnimatedPath(rank) : rankBadgeStaticPath(rank);
+  img.className = "rank-badge-image";
+  img.src = rankBadgeStaticPath(rank);
   img.alt = `${rankName(rank)}ランク`;
-  img.style.width = size;
-  img.style.height = size;
   img.draggable = false;
-  return img;
+  if (!effects) {
+    img.style.width = size;
+    img.style.height = size;
+    return img;
+  }
+  const fx = document.createElement("div");
+  fx.className = "rank-badge-fx";
+  fx.style.width = size;
+  fx.style.height = size;
+  const aura = document.createElement("div");
+  aura.className = "rank-badge-aura";
+  const gloss = document.createElement("div");
+  gloss.className = "rank-badge-gloss";
+  fx.appendChild(aura); // 背面: 漂うオーラ
+  fx.appendChild(img); // 中央: 静止バッジ
+  fx.appendChild(gloss); // 前面: 表面の光沢（pointer-events:none）
+  return fx;
 }
 
 // 七色ゲージ（7ドット、gauge個点灯、色は --color-* を使用）。レジェンド(rank>=6)は
@@ -123,10 +138,10 @@ export function buildUGauge(rank, gauge, legendPoints, { size = "20rem" } = {}) 
 
 // 称号バッジ＋段位名＋七色ゲージ（or LP）をまとめた縦積みの1ブロックを返す共通部品。
 // showName/showGaugeで各要素の表示を制御（バッジだけ欲しい場面もあるため）。
-export function buildRankBadge(rank, gauge, legendPoints, { animated = false, size = "6rem", showName = true, showGauge = true } = {}) {
+export function buildRankBadge(rank, gauge, legendPoints, { effects = false, size = "6rem", showName = true, showGauge = true } = {}) {
   const box = document.createElement("div");
   box.className = "rank-badge-box";
-  box.appendChild(buildRankBadgeImage(rank, { animated, size }));
+  box.appendChild(buildRankBadgeImage(rank, { effects, size }));
   if (showName) {
     const name = document.createElement("div");
     name.className = "rank-badge-name";

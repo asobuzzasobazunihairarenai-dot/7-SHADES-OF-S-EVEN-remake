@@ -16188,6 +16188,84 @@ body.reduce-glow .ranked-result-heading.is-promote { animation: none; }
 /* ランク称号バッジの共通部品（rank-badge.js、フェーズ6）。段位バッジ画像＋段位名＋七色ゲージ。 */
 .rank-badge-box { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
 .rank-badge-image { object-fit: contain; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.45)); }
+
+/* ── エフェクト付き静止バッジ（対戦終了後のランク結果・シーズン報酬のヒーロー表示。
+   ユーザー要望2026-08-18「アニメバッジはやめて、静止バッジの周りに湯気のような幻想的な
+   オーラ＋表面に光沢EFFECT」）。buildRankBadgeImage(effects:true) が
+   div.rank-badge-fx > (.rank-badge-aura, img.rank-badge-image, .rank-badge-gloss) を生成する。 */
+.rank-badge-fx { position: relative; display: inline-block; }
+.rank-badge-fx .rank-badge-image { position: relative; z-index: 2; display: block; width: 100%; height: 100%; }
+
+/* 湯気のような幻想的なオーラ（バッジ背面でゆっくり漂う）。2層をずらして重ね、うねりを出す。 */
+.rank-badge-fx .rank-badge-aura {
+  position: absolute; left: 50%; top: 52%; width: 150%; height: 150%;
+  transform: translate(-50%, -50%); z-index: 1; pointer-events: none; border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%,
+    rgba(255, 240, 190, 0.55), rgba(255, 214, 120, 0.30) 38%, rgba(255, 200, 90, 0) 68%);
+  filter: blur(7px);
+  animation: rank-badge-aura-drift 6.5s ease-in-out infinite;
+}
+.rank-badge-fx .rank-badge-aura::before,
+.rank-badge-fx .rank-badge-aura::after {
+  content: ""; position: absolute; inset: -8%; border-radius: 50%;
+  background: radial-gradient(circle at 46% 44%,
+    rgba(255, 236, 175, 0.42), rgba(255, 210, 120, 0) 60%);
+}
+.rank-badge-fx .rank-badge-aura::before { animation: rank-badge-aura-wisp1 8s ease-in-out infinite; }
+.rank-badge-fx .rank-badge-aura::after  { animation: rank-badge-aura-wisp2 9.5s ease-in-out infinite; }
+@keyframes rank-badge-aura-drift {
+  0%   { transform: translate(-50%, -50%) scale(1)    rotate(0deg);  opacity: 0.7; }
+  50%  { transform: translate(-51%, -49%) scale(1.09) rotate(6deg);  opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1)    rotate(0deg);  opacity: 0.7; }
+}
+@keyframes rank-badge-aura-wisp1 {
+  0%   { transform: translate(0, 0)      scale(1);    opacity: 0.35; }
+  50%  { transform: translate(6%, -7%)   scale(1.12); opacity: 0.7; }
+  100% { transform: translate(0, 0)      scale(1);    opacity: 0.35; }
+}
+@keyframes rank-badge-aura-wisp2 {
+  0%   { transform: translate(0, 0)      scale(1.05); opacity: 0.5; }
+  50%  { transform: translate(-7%, 6%)   scale(0.94); opacity: 0.2; }
+  100% { transform: translate(0, 0)      scale(1.05); opacity: 0.5; }
+}
+
+/* 表面の光沢: 斜めの光が定期的に横切る「シャインスイープ」＋左上の柔らかいスペキュラ。
+   バッジ本体（円形メダリオン）の丸い面に収めるため円形maskでクリップし、四隅の透明部分に
+   光が漏れないようにする。 */
+.rank-badge-fx .rank-badge-gloss {
+  position: absolute; inset: 0; z-index: 3; pointer-events: none; overflow: hidden; border-radius: 50%;
+  -webkit-mask: radial-gradient(circle at 50% 50%, #000 60%, transparent 64%);
+          mask: radial-gradient(circle at 50% 50%, #000 60%, transparent 64%);
+}
+.rank-badge-fx .rank-badge-gloss::before {
+  content: ""; position: absolute; top: -30%; left: -60%; width: 55%; height: 160%;
+  background: linear-gradient(100deg,
+    rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.7) 50%, rgba(255, 255, 255, 0) 100%);
+  transform: rotate(10deg); filter: blur(1px);
+  animation: rank-badge-gloss-sweep 4.8s ease-in-out infinite;
+}
+.rank-badge-fx .rank-badge-gloss::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 42%);
+  mix-blend-mode: screen; animation: rank-badge-gloss-breathe 3.6s ease-in-out infinite;
+}
+@keyframes rank-badge-gloss-sweep {
+  0%, 100% { left: -60%; opacity: 0; }
+  12%      { opacity: 1; }
+  50%      { left: 105%; opacity: 1; }
+  62%      { opacity: 0; }
+}
+@keyframes rank-badge-gloss-breathe {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 0.85; }
+}
+/* 「アニメーションを減らす」設定では静止させる（オーラ・光沢とも動きを止める）。 */
+body.reduce-glow .rank-badge-fx .rank-badge-aura,
+body.reduce-glow .rank-badge-fx .rank-badge-aura::before,
+body.reduce-glow .rank-badge-fx .rank-badge-aura::after,
+body.reduce-glow .rank-badge-fx .rank-badge-gloss::before,
+body.reduce-glow .rank-badge-fx .rank-badge-gloss::after { animation: none; }
+body.reduce-glow .rank-badge-fx .rank-badge-gloss::before { opacity: 0; }
 .rank-badge-name { font-size: 1.2rem; font-weight: 800; letter-spacing: 0.04em; color: #ffe6a8; }
 .rank-badge-gauge { display: flex; justify-content: center; gap: 0.35rem; }
 .rank-badge-dot {

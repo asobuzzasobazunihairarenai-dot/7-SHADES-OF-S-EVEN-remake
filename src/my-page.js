@@ -488,7 +488,7 @@ async function renderMyPageRankedRank(container) {
   if (info) {
     // バッジ＋U型ゲージ＋宝石の合成表示（rank-showcase.js）をコンパクトに縮小して出す。
     container.appendChild(
-      buildRankShowcase(info.rank ?? 0, info.gauge ?? 0, info.legend_points ?? 0, { animated: false, scale: 0.6 })
+      buildRankShowcase(info.rank ?? 0, info.gauge ?? 0, info.legend_points ?? 0, { scale: 0.6 })
     );
     const nm = document.createElement("div");
     nm.className = "my-page-rank-name";

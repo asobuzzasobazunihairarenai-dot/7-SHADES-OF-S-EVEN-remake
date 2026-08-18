@@ -62,11 +62,11 @@ export function showRankedResultModal({ won, rank, gauge, legendPoints, note, pr
       stage.appendChild(burst);
       // 昇格前バッジ：旧ランク。開始ゲージ(fromGauge)から表示し、7まで1個ずつ点灯させてゲージ完成を見せる。
       const beforeStartGauge = canAnimateGems ? fromGauge : 7;
-      const beforeShowcase = buildRankShowcase(promotedFrom, beforeStartGauge, 0, { animated: false });
+      const beforeShowcase = buildRankShowcase(promotedFrom, beforeStartGauge, 0, { effects: true });
       beforeShowcase.classList.add("ranked-result-before");
       // 昇格後バッジ：新ランク＋繰越ゲージ（アニメ版）。演出時は0から始め、後で1個ずつ点灯。
       const afterStartGauge = canAnimateGems ? 0 : gauge;
-      const afterShowcase = buildRankShowcase(rank, afterStartGauge, legendPoints, { animated: true });
+      const afterShowcase = buildRankShowcase(rank, afterStartGauge, legendPoints, { effects: true });
       afterShowcase.classList.add("ranked-result-after");
       stage.appendChild(beforeShowcase);
       stage.appendChild(afterShowcase);
@@ -96,7 +96,7 @@ export function showRankedResultModal({ won, rank, gauge, legendPoints, note, pr
     } else {
       // 昇格なし：開始ゲージから最終ゲージへ1個ずつ増減させる。
       const startGauge = canAnimateGems ? fromGauge : gauge;
-      const showcase = buildRankShowcase(rank, startGauge, legendPoints, { animated: true });
+      const showcase = buildRankShowcase(rank, startGauge, legendPoints, { effects: true });
       stage.appendChild(showcase);
       if (canAnimateGems && gauge !== fromGauge) {
         let t = GEM_START_DELAY;

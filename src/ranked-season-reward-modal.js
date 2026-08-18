@@ -43,7 +43,7 @@ export function showSeasonRewardModal({ season, rank, amount }) {
 
     const badgeWrap = document.createElement("div");
     badgeWrap.className = "season-reward-badge";
-    badgeWrap.appendChild(buildRankBadgeImage(rank, { animated: true, size: "8rem" }));
+    badgeWrap.appendChild(buildRankBadgeImage(rank, { effects: true, size: "8rem" }));
     modal.appendChild(badgeWrap);
 
     const rname = document.createElement("div");

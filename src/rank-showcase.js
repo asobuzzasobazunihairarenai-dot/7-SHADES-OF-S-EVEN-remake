@@ -65,7 +65,7 @@ function badgeTopOverflowRem() {
 // コンパクト表示用。バッジ・宝石・ゲージの関係を保ったまま小さくなる）。
 // editable=true で編集モード（ドラッグ／ホイール）を配線し、onChange で変更を通知する。
 // レイヤーは DOM順（後ろ→前）: バッジ背景 → U型ゲージ枠 → 宝石 → バッジ。
-export function buildRankShowcase(rank, gauge, legendPoints, { animated = false, editable = false, onChange, scale = 1 } = {}) {
+export function buildRankShowcase(rank, gauge, legendPoints, { effects = false, editable = false, onChange, scale = 1 } = {}) {
   const cfg = RANK_SHOWCASE;
   const box = document.createElement("div");
   box.className = "rank-showcase" + (editable ? " is-editable" : "");
@@ -109,7 +109,8 @@ export function buildRankShowcase(rank, gauge, legendPoints, { animated = false,
     gems.push(gem);
   }
 
-  const badge = buildRankBadgeImage(rank, { animated, size: `${cfg.badgeSize}rem` });
+  // 編集モードではエフェクト無し（掴む対象がラッパーになると当たり判定が変わるため）。
+  const badge = buildRankBadgeImage(rank, { effects: effects && !editable, size: `${cfg.badgeSize}rem` });
   badge.classList.add("rank-showcase-badge");
   badge.style.left = `calc(50% + ${cfg.badgeX}rem)`;
   badge.style.top = `calc(50% + ${cfg.badgeY}rem)`;
@@ -376,7 +377,6 @@ export function openRankShowcaseEditor() {
   const stage = document.createElement("div");
   stage.className = "rank-showcase-editor-stage";
   const showcase = buildRankShowcase(6, 7, 0, {
-    animated: false,
     editable: true,
     onChange: () => {},
   });

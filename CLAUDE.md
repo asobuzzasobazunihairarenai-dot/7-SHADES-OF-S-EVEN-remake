@@ -15127,3 +15127,30 @@ SQL Editorで再実行する必要がある**（ファイル全体＝再実行�
 - **無関係な既存ログ2件（今回対象外）**: `cdn.tailwindcss.com should not be used in production`は
   Tailwindを開発用CDNで読んでいる注意（機能に無関係）、`assets/home-icons/shop.webp 503`はサーバー/
   CDNの一時的なService Unavailableで、コードの問題ではない。
+
+### 2026-08-18（続き203）：ランク結果モーダルのアニメバッジを廃止し、静止バッジに湯気オーラ＋光沢EFFECTを追加
+
+- ユーザー要望「対戦終了後のランクモーダルでアニメバッジは使わない（フォルダから削除する）。代わりに
+  静止バッジの周りに湯気のような幻想的なオーラを漂わせ、表面に光沢のあるEFFECTを付けたい」。
+- **アニメ版バッジ（`-animated.webp`）を全廃**: `buildRankBadgeImage`から`animated`オプションを削除し
+  （常に静止版`{key}.webp`）、`rankBadgeAnimatedPath`も削除。参照していた3箇所
+  （`ranked-result-modal.js`の通常結果＋昇格後、`ranked-season-reward-modal.js`のシーズン報酬）を
+  静止版＋新エフェクトに切り替えた。`assets/rank-badges/*-animated.webp`（7ファイル）はgitから削除
+  （もう参照されないため。公開リポジトリに含まれていた分）。**ユーザー側は`画像素材/ランクバッジ/`の
+  アニメ版フォルダを削除してよい**（アプリはもう使わない）。
+- **静止バッジのEFFECT（`buildRankBadgeImage(effects:true)`）**: `div.rank-badge-fx`で静止imgを包み、
+  背面に「湯気のような幻想的なオーラ」（`.rank-badge-aura`、金色の放射グラデを`blur`＋2層の`::before/
+  ::after`を別周期でゆっくり漂わせ・回転・拡縮＝うねり）、前面に「表面の光沢」（`.rank-badge-gloss`＝
+  円形maskでメダリオンの丸い面にクリップし、`::before`で斜めの光が定期的に横切るシャインスイープ、
+  `::after`で左上の柔らかいスペキュラを`mix-blend-mode:screen`で明滅）を重ねる。対戦終了後のランク
+  結果モーダル（通常・昇格前後とも）とシーズン報酬モーダルのヒーロー表示にだけ適用し、ホーム/
+  マイページの小さいランク表示（`scale`縮小版）はエフェクト無しの素の静止バッジのまま。
+  「アニメーションを減らす」設定（`body.reduce-glow`）ではオーラ・光沢とも静止させる。
+- **検証**: ブラウザで`buildRankShowcase(effects:true)`を実際に生成し、①バッジ画像が静止版
+  （`gold.webp`、`naturalWidth 1254`でロード成功・`is-animated`クラス無し）②`.rank-badge-fx`＞
+  `.rank-badge-aura`（`rank-badge-aura-drift`＋wisp1/2）・`.rank-badge-image`・`.rank-badge-gloss`
+  （`::before`=`rank-badge-gloss-sweep`／`::after`=`rank-badge-gloss-breathe`、円形mask）が全て正しく
+  適用されていることを実測確認。`node --check`（6ファイル）通過・CSSブレース平衡（2300/2300）。
+  スクリーンショットはこのサンドボックスの制約（ペイン非合成）で撮れないため、実際の見た目の調整は
+  実機での確認をお願いしたい（オーラの強さ・光沢の速さはCSS変数化していないので、要調整なら数値を
+  変える）。
