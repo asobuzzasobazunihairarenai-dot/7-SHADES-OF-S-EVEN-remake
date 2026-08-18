@@ -4450,19 +4450,25 @@ function playCardCellLanding(sourceRect, cellLocation, tokenId) {
   const cellC = stageClientToLocal(cellRect.left + cellRect.width / 2, cellRect.top + cellRect.height / 2);
   const scale = cellRect.width / sourceRect.width;
   const liftLocal = stageDelta(cardLandingLiftPx(cellRect)); // 「上空」＝ほぼ駒の高さ
-  ghost.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%)`;
+  // 続き215（ユーザー要望2026-08-18）: 上空で止まる／マスに置かれる時のカードの角度を、盤面に
+  // 置かれているカードと同じ角度（盤面の傾き＝--table-tilt）にする。ゴーストは3D空間の外
+  // (document.body直下)なので、rotateXで盤面と同じ角度に寝かせる。2D表示中(diagnostic-flatten-3d)は
+  // 盤面カードも平らなので傾けない。関数リストを全キーフレームで揃える(rotateX/scale)ためclean補間。
+  const boardTilt = document.body.classList.contains("diagnostic-flatten-3d") ? "rotateX(0deg)" : "rotateX(var(--table-tilt))";
+  ghost.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%) rotateX(0deg) scale(1)`;
   document.body.appendChild(ghost);
   const t = cardLandingTimings();
   return new Promise((resolve) => {
     requestAnimationFrame(() => {
-      // フェーズ1: マスの真上(上空)へ すーーっと（強めの減速でピタッと止まる感＝easeOutExpo風）
+      // フェーズ1: マスの真上(上空)へ すーーっと（強めの減速でピタッと止まる感＝easeOutExpo風）。
+      // 同時にカードを盤面の角度へ寝かせる（上空のピタッで盤面と同じ角度になる）。
       ghost.style.transition = `transform ${t.glide}ms cubic-bezier(0.16, 1, 0.3, 1)`;
-      ghost.style.transform = `translate(${cellC.x}px, ${cellC.y - liftLocal}px) translate(-50%, -50%) scale(${scale})`;
+      ghost.style.transform = `translate(${cellC.x}px, ${cellC.y - liftLocal}px) translate(-50%, -50%) ${boardTilt} scale(${scale})`;
     });
     setTimeout(() => {
-      // フェーズ2: ストンと真下へ落下（加速＝ease-in）。上空で一拍(HOLD)止めてから落とす。
+      // フェーズ2: ストンと真下へ落下（加速＝ease-in）。上空で一拍(HOLD)止めてから落とす。盤面角度のまま。
       ghost.style.transition = `transform ${t.drop}ms cubic-bezier(0.6, 0, 0.9, 0.2)`;
-      ghost.style.transform = `translate(${cellC.x}px, ${cellC.y}px) translate(-50%, -50%) scale(${scale})`;
+      ghost.style.transform = `translate(${cellC.x}px, ${cellC.y}px) translate(-50%, -50%) ${boardTilt} scale(${scale})`;
     }, t.glide + t.hold);
     setTimeout(() => {
       spawnCardLandingPuff(cellRect); // 着地の風/ホコリ
@@ -4492,19 +4498,22 @@ function playCardLiftToHand(sourceRect, player, tokenId) {
   const to = stageClientToLocal(toRect.left + toRect.width / 2, toRect.top + toRect.height / 2);
   const scale = toRect.width / sourceRect.width;
   const liftLocal = stageDelta(cardLandingLiftPx(sourceRect)); // 上空＝ほぼ駒の高さ
-  ghost.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%)`;
+  // 続き215: 盤面のカード（＝盤面の傾き）から持ち上がるので、上空の間は盤面と同じ角度で寝かせ、
+  // 手札へ着く時に平らに戻す。2D表示中は盤面カードも平らなので傾けない。
+  const boardTilt = document.body.classList.contains("diagnostic-flatten-3d") ? "rotateX(0deg)" : "rotateX(var(--table-tilt))";
+  ghost.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%) ${boardTilt} scale(1)`;
   document.body.appendChild(ghost);
   const t = cardLandingTimings();
   return new Promise((resolve) => {
     requestAnimationFrame(() => {
-      // フェーズ1: マスから上空へ ストンと持ち上がる（加速＝ease-in）
+      // フェーズ1: マスから上空へ ストンと持ち上がる（加速＝ease-in）。盤面角度のまま。
       ghost.style.transition = `transform ${t.drop}ms cubic-bezier(0.4, 0, 0.9, 0.5)`;
-      ghost.style.transform = `translate(${from.x}px, ${from.y - liftLocal}px) translate(-50%, -50%)`;
+      ghost.style.transform = `translate(${from.x}px, ${from.y - liftLocal}px) translate(-50%, -50%) ${boardTilt} scale(1)`;
     });
     setTimeout(() => {
-      // フェーズ2: 手札へ すーーっと（減速＝ease-out）。上空で一拍(HOLD)止めてから戻す。
+      // フェーズ2: 手札へ すーーっと（減速＝ease-out）。上空で一拍(HOLD)止めてから戻す。手札で平らに。
       ghost.style.transition = `transform ${t.glide}ms cubic-bezier(0.16, 1, 0.3, 1)`;
-      ghost.style.transform = `translate(${to.x}px, ${to.y}px) translate(-50%, -50%) scale(${scale})`;
+      ghost.style.transform = `translate(${to.x}px, ${to.y}px) translate(-50%, -50%) rotateX(0deg) scale(${scale})`;
     }, t.drop + t.hold);
     setTimeout(() => {
       if (cardEl) cardEl.style.visibility = "";
