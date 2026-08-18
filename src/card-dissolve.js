@@ -202,7 +202,9 @@ export async function playCardDissolve(usedCardId, opts = {}) {
       }
       if (progress > 0) {
         ctx.globalCompositeOperation = "destination-out";
-        const cell = 2;
+        // 侵食マスの粒度。毎フレーム card 全体を走査する一番重い処理なので、スマホは粗く（3px＝
+        // desktopの2pxより約2.3倍軽い。+3のオーバーラップとノイズで見た目の粗さは目立たない）。
+        const cell = mobile ? 3 : 2;
         for (let yy = -h / 2; yy < h / 2; yy += cell)
           for (let xx = -w / 2; xx < w / 2; xx += cell) {
             let gone = 0;
@@ -279,13 +281,16 @@ export async function playCardDissolve(usedCardId, opts = {}) {
         ctx.rotate(Math.sin(rawT * 67) * 0.008 * impact);
         ctx.scale(beatScale, beatScale);
         ctx.translate(-cx, -cy);
-        // 色残像（RGBズレのブラー）
-        ctx.save();
-        ctx.globalAlpha = 0.2 * impact;
-        ctx.globalCompositeOperation = "lighter";
-        ctx.filter = `blur(${2.5 + impact * 3}px) drop-shadow(5px 0 1px rgba(255,70,90,.7)) drop-shadow(-5px 0 1px rgba(70,190,255,.65))`;
-        drawCard(t);
-        ctx.restore();
+        // 色残像（RGBズレのブラー）。ctx.filter の blur＋drop-shadow は特に重いので、スマホでは
+        // この追加パス（drawCard を余分に1回描く）を省く（脈動の拡大・揺れ・本体のブラーは残す）。
+        if (!mobile) {
+          ctx.save();
+          ctx.globalAlpha = 0.2 * impact;
+          ctx.globalCompositeOperation = "lighter";
+          ctx.filter = `blur(${2.5 + impact * 3}px) drop-shadow(5px 0 1px rgba(255,70,90,.7)) drop-shadow(-5px 0 1px rgba(70,190,255,.65))`;
+          drawCard(t);
+          ctx.restore();
+        }
         ctx.save();
         ctx.globalAlpha = 0.72 + 0.2 * (1 - impact);
         ctx.filter = `blur(${impact * 1.8}px)`;
