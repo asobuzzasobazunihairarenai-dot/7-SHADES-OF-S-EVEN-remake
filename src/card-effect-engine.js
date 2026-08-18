@@ -1950,9 +1950,9 @@ export async function runArrivalEffect(ctx, helpers) {
       const addedCardId = currentToken.cardId;
       const wasFaceUp = !!currentToken.faceUp;
       // ユーザー要望「到達後、そのカードが実際に手札へ吸い込まれて加わるアニメを入れたい」。
-      // 実際に手札へ移す(moveAndSync)前に、盤面マスから手札へ飛翔する演出を挟む
-      // （移動アニメーションを減らす設定中はhelpers側で即nop）。
-      await helpers.flyCardToHand?.(ctx.cardTokenId, ctx.player);
+      // 到達したカードが手札へ入る飛翔は moveAndSyncForEffect（main.js）が「マス→手札」を検知して
+      // playCardLiftToHand（配置演出と統一した“持ち上げ→手札へグライド”）で出す（続き211）。以前は
+      // ここで helpers.flyCardToHand を別途 await していたが、演出を一本化するため moveAndSync 側へ移した。
       await helpers.moveAndSync(ctx.cardTokenId, { zone: "hand", player: ctx.player });
       // ユーザー報告2026-08-07「到達したカードを獲得した時、右下のカード獲得トーストが
       // 出ていない気がする」。手動の到達（addArrivedCardToHand）は announceHandPickups で

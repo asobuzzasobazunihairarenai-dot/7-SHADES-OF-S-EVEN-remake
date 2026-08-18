@@ -1164,6 +1164,12 @@ async function moveAndSyncForEffect(tokenId, location, soundName, suppressArriva
   // 移動前のカードDOM要素のrectを飛び元として捕捉しておく（駒の移動・手札行きは対象外）。
   const landingSourceRect =
     movingToken?.kind === "card" && location?.zone === "cell" ? cardElRectForToken(tokenId) : null;
+  // ③演出（続き211・ユーザー要望2026-08-18）: 到達効果処理後にこのカードが手札へ入る等、「マス→手札」の
+  // カード移動にも持ち上げ飛翔（playCardLiftToHand）を出す。飛び元＝移動前の盤面カードのrect。
+  const liftSourceRect =
+    movingToken?.kind === "card" && fromLocation?.zone === "cell" && location?.zone === "hand"
+      ? cardElRectForToken(tokenId)
+      : null;
   if (isOnlineMode()) {
     try {
       await moveToken(tokenId, location, suppressArrival);
@@ -1178,7 +1184,9 @@ async function moveAndSyncForEffect(tokenId, location, soundName, suppressArriva
   if (soundName) playSound(soundName);
   const exposedArrival = maybeTriggerCardArrivalForExposedCard(fromLocation);
   if (awaitExposedArrival) await exposedArrival;
-  if (landingSourceRect) playCardCellLanding(landingSourceRect, location, tokenId);
+  // 続き212: 飛翔演出が完全に終わってから呼び出し側（engine）の次アクションへ進めるようawaitする。
+  if (landingSourceRect) await playCardCellLanding(landingSourceRect, location, tokenId);
+  if (liftSourceRect) await playCardLiftToHand(liftSourceRect, location.player, tokenId);
 }
 
 // PLACE_CARDのsource:"self"用（ジャンプ台の手札効果等）。手札からマスへの移動は
@@ -1241,7 +1249,7 @@ async function placeFromDeckForEffect(location) {
     drawFromPile("deck", location);
   }
   playSound("cardPlace");
-  playDeckToCellLanding(deckRect, location); // ③演出(#147): 山→マス配置にも着地演出
+  await playDeckToCellLanding(deckRect, location); // ③演出(#147): 山→マス配置にも着地演出（続き212: 完了まで待つ）
 }
 
 // 試練の儀式専用（ユーザー要望2026-08-08「オンラインもローカル同様のじらしフリップに」）。
@@ -1267,7 +1275,7 @@ async function placeFromDeckRevealForEffect(location) {
     revealedCardId = findTopCardAt(location)?.cardId ?? null; // ローカルは全state可視で中身が読める
   }
   playSound("cardPlace");
-  playDeckToCellLanding(deckRect, location); // ③演出(#147): 試練の儀式の山→マス配置にも着地演出
+  await playDeckToCellLanding(deckRect, location); // ③演出(#147): 試練の儀式の山→マス配置（続き212: 完了まで待つ）
   return revealedCardId;
 }
 
@@ -2784,7 +2792,7 @@ async function placeFromDeckFaceUpForEffect(location) {
   playSound("cardPlace");
   render();
   token = findTopCardAt(location);
-  playDeckToCellLanding(deckRect, location); // ③演出(#147): 試練の儀式(表向き)の山→マス配置にも着地演出
+  await playDeckToCellLanding(deckRect, location); // ③演出(#147): 試練の儀式(表向き)の山→マス配置（続き212: 完了まで待つ）
   return token?.cardId ?? null;
 }
 
@@ -4390,17 +4398,21 @@ function deckStackRect() {
 }
 // 山→マスの配置で、実際に置かれたカード（そのマスの一番上）に着地演出をかける共通ヘルパー。
 function playDeckToCellLanding(deckRect, location) {
-  if (!deckRect || location?.zone !== "cell") return;
+  if (!deckRect || location?.zone !== "cell") return Promise.resolve();
   const placed = findTopCardAt(location);
-  if (placed) playCardCellLanding(deckRect, location, placed.id);
+  if (placed) return playCardCellLanding(deckRect, location, placed.id);
+  return Promise.resolve();
 }
+// 続き212（ユーザー要望2026-08-18）: 飛翔演出が完全に終わってから次のアクション（駒の移動等）へ
+// 進めるよう、着地完了で解決するPromiseを返す。呼び出し側（placeFrom*・moveAndSyncForEffect）が
+// awaitすると、engine側の `await helpers.placeFromDeckFaceUp(...)` 等が自然に着地を待ち切る。
 function playCardCellLanding(sourceRect, cellLocation, tokenId) {
-  if (isFlightAnimationDisabled() || !sourceRect) return;
+  if (isFlightAnimationDisabled() || !sourceRect) return Promise.resolve();
   const table = document.getElementById("game-table");
-  if (!table) return;
+  if (!table) return Promise.resolve();
   const cellEl = findLocationElement(table, cellLocation);
   const cardEl = table.querySelector(`.board-card[data-token-id="${tokenId}"]`);
-  if (!cellEl || !cardEl) return;
+  if (!cellEl || !cardEl) return Promise.resolve();
   const cellRect = cellEl.getBoundingClientRect();
   const img = getComputedStyle(cardEl).backgroundImage;
   cardEl.style.visibility = "hidden"; // 実カードを隠してゴーストだけ動かす（着地後に見せる）
@@ -4415,30 +4427,33 @@ function playCardCellLanding(sourceRect, cellLocation, tokenId) {
   const liftLocal = stageDelta(cardLandingLiftPx(cellRect)); // 「上空」＝ほぼ駒の高さ
   ghost.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%)`;
   document.body.appendChild(ghost);
-  requestAnimationFrame(() => {
-    // フェーズ1: マスの真上(上空)へ すーーっと（強めの減速でピタッと止まる感＝easeOutExpo風）
-    ghost.style.transition = `transform ${CARD_LANDING_GLIDE_MS}ms cubic-bezier(0.16, 1, 0.3, 1)`;
-    ghost.style.transform = `translate(${cellC.x}px, ${cellC.y - liftLocal}px) translate(-50%, -50%) scale(${scale})`;
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      // フェーズ1: マスの真上(上空)へ すーーっと（強めの減速でピタッと止まる感＝easeOutExpo風）
+      ghost.style.transition = `transform ${CARD_LANDING_GLIDE_MS}ms cubic-bezier(0.16, 1, 0.3, 1)`;
+      ghost.style.transform = `translate(${cellC.x}px, ${cellC.y - liftLocal}px) translate(-50%, -50%) scale(${scale})`;
+    });
+    setTimeout(() => {
+      // フェーズ2: ストンと真下へ落下（加速＝ease-in）。上空で一拍(HOLD)止めてから落とす。
+      ghost.style.transition = `transform ${CARD_LANDING_DROP_MS}ms cubic-bezier(0.6, 0, 0.9, 0.2)`;
+      ghost.style.transform = `translate(${cellC.x}px, ${cellC.y}px) translate(-50%, -50%) scale(${scale})`;
+    }, CARD_LANDING_GLIDE_MS + CARD_LANDING_HOLD_MS);
+    setTimeout(() => {
+      spawnCardLandingPuff(cellRect); // 着地の風/ホコリ
+      cardEl.style.visibility = ""; // 実カードを見せる
+      requestAnimationFrame(() => requestAnimationFrame(() => ghost.remove()));
+      resolve(); // 着地完了→次のアクションへ
+    }, CARD_LANDING_GLIDE_MS + CARD_LANDING_HOLD_MS + CARD_LANDING_DROP_MS + 20);
   });
-  setTimeout(() => {
-    // フェーズ2: ストンと真下へ落下（加速＝ease-in）。上空で一拍(HOLD)止めてから落とす。
-    ghost.style.transition = `transform ${CARD_LANDING_DROP_MS}ms cubic-bezier(0.6, 0, 0.9, 0.2)`;
-    ghost.style.transform = `translate(${cellC.x}px, ${cellC.y}px) translate(-50%, -50%) scale(${scale})`;
-  }, CARD_LANDING_GLIDE_MS + CARD_LANDING_HOLD_MS);
-  setTimeout(() => {
-    spawnCardLandingPuff(cellRect); // 着地の風/ホコリ
-    cardEl.style.visibility = ""; // 実カードを見せる
-    requestAnimationFrame(() => requestAnimationFrame(() => ghost.remove()));
-  }, CARD_LANDING_GLIDE_MS + CARD_LANDING_HOLD_MS + CARD_LANDING_DROP_MS + 20);
 }
 // 逆: マスのカードが手札に入るとき。持ち上がり(マスから上空へストン)→手札へすーーっと。風は
 // 持ち上がりの瞬間（マス側）に舞う。sourceRect=移動前の盤面カードのrect（移動前に捕捉）。
 function playCardLiftToHand(sourceRect, player, tokenId) {
-  if (isFlightAnimationDisabled() || !sourceRect) return;
+  if (isFlightAnimationDisabled() || !sourceRect) return Promise.resolve();
   const cardEl = document.querySelector(`.hand-card[data-token-id="${tokenId}"]`);
   const handArea = document.querySelector(`.hand-area[data-player="${player}"]`);
   const toRect = cardEl ? cardEl.getBoundingClientRect() : handArea ? handArea.getBoundingClientRect() : null;
-  if (!toRect) return;
+  if (!toRect) return Promise.resolve();
   const img = cardEl ? getComputedStyle(cardEl).backgroundImage : getCardBackImagePath(null) && `url("${getCardBackImagePath(null)}")`;
   if (cardEl) cardEl.style.visibility = "hidden";
   spawnCardLandingPuff(sourceRect); // 持ち上がりのホコリ（マス側）
@@ -4453,20 +4468,23 @@ function playCardLiftToHand(sourceRect, player, tokenId) {
   const liftLocal = stageDelta(cardLandingLiftPx(sourceRect)); // 上空＝ほぼ駒の高さ
   ghost.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%)`;
   document.body.appendChild(ghost);
-  requestAnimationFrame(() => {
-    // フェーズ1: マスから上空へ ストンと持ち上がる（加速＝ease-in）
-    ghost.style.transition = `transform ${CARD_LANDING_DROP_MS}ms cubic-bezier(0.4, 0, 0.9, 0.5)`;
-    ghost.style.transform = `translate(${from.x}px, ${from.y - liftLocal}px) translate(-50%, -50%)`;
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      // フェーズ1: マスから上空へ ストンと持ち上がる（加速＝ease-in）
+      ghost.style.transition = `transform ${CARD_LANDING_DROP_MS}ms cubic-bezier(0.4, 0, 0.9, 0.5)`;
+      ghost.style.transform = `translate(${from.x}px, ${from.y - liftLocal}px) translate(-50%, -50%)`;
+    });
+    setTimeout(() => {
+      // フェーズ2: 手札へ すーーっと（減速＝ease-out）。上空で一拍(HOLD)止めてから戻す。
+      ghost.style.transition = `transform ${CARD_LANDING_GLIDE_MS}ms cubic-bezier(0.16, 1, 0.3, 1)`;
+      ghost.style.transform = `translate(${to.x}px, ${to.y}px) translate(-50%, -50%) scale(${scale})`;
+    }, CARD_LANDING_DROP_MS + CARD_LANDING_HOLD_MS);
+    setTimeout(() => {
+      if (cardEl) cardEl.style.visibility = "";
+      requestAnimationFrame(() => requestAnimationFrame(() => ghost.remove()));
+      resolve(); // 手札への飛翔完了→次のアクションへ
+    }, CARD_LANDING_DROP_MS + CARD_LANDING_HOLD_MS + CARD_LANDING_GLIDE_MS + 20);
   });
-  setTimeout(() => {
-    // フェーズ2: 手札へ すーーっと（減速＝ease-out）。上空で一拍(HOLD)止めてから戻す。
-    ghost.style.transition = `transform ${CARD_LANDING_GLIDE_MS}ms cubic-bezier(0.16, 1, 0.3, 1)`;
-    ghost.style.transform = `translate(${to.x}px, ${to.y}px) translate(-50%, -50%) scale(${scale})`;
-  }, CARD_LANDING_DROP_MS + CARD_LANDING_HOLD_MS);
-  setTimeout(() => {
-    if (cardEl) cardEl.style.visibility = "";
-    requestAnimationFrame(() => requestAnimationFrame(() => ghost.remove()));
-  }, CARD_LANDING_DROP_MS + CARD_LANDING_HOLD_MS + CARD_LANDING_GLIDE_MS + 20);
 }
 
 // 手札効果のDRAW動詞用。playerの手札へ山札からcount枚引く（オンライン同期込み、

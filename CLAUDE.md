@@ -15352,3 +15352,49 @@ SQL Editorで再実行する必要がある**（ファイル全体＝再実行�
   新しい上空の高さ=約21px（＝ほぼ駒の高さ・ほんの少し上）、旧=37px から意図通り下がったことを確認。
   実際の“止まる感”の見た目は実機フォアグラウンドで確認・微調整（HOLD/高さ倍率は定数）をお願いしたい。
   サーバー側（Supabase）の変更は無い。
+
+### 2026-08-18（続き211）：到達効果処理後にカードが手札へ入る時も「持ち上げ飛翔」演出を出す（配置演出と統一）
+
+ユーザー要望2026-08-18「到達効果処理後に手札に入るときも同様の飛翔アニメが欲しい。」。到達効果の
+既定動作（`card-effect-engine.js`の`runArrivalEffect`）は、効果処理後にそのカード自身を手札へ加える際、
+以前は`helpers.flyCardToHand`（＝`flyBoardCardToHand`、旧・直線的な`flyGhost`）を別途awaitしていたが、
+続き207〜210で作った配置演出（グライド→着地／逆＝持ち上げ→手札）とは別系統の見た目だった。選べる罠の
+`runArrivalOptionsEffect`の手札行きに至っては飛翔演出自体が無かった。
+- **統一**: カード効果による「マス→手札」の移動を、すべて`moveAndSyncForEffect`（main.js）の新しい
+  持ち上げ飛翔（`playCardLiftToHand`＝マスから上空へストン→手札へすーーっと＋着地の風）に一本化した。
+  `moveAndSyncForEffect`が、移動前のトークンが`kind:"card"`かつ`fromLocation.zone==="cell"`かつ
+  `location.zone==="hand"`（＝盤面マス→手札のカード移動）を検知したら、移動前の盤面カードのrectを飛び元に
+  `playCardLiftToHand`を出す（配置演出＝カード→マスの`playCardCellLanding`と対になる逆再生）。
+- **重複排除**: `card-effect-engine.js`の`runArrivalEffect`の既定add-to-hand（`addsCardToHandAfter !== false`）
+  にあった`await helpers.flyCardToHand?.(...)`を削除（`moveAndSync`側が同じ演出を出すため二重になる）。
+  選べる罠の`runArrivalOptionsEffect`の手札行き（`moveAndSync`のみで飛翔無しだった）も、`moveAndSync`が
+  検知して自動で飛翔するようになった（この経路は以前は無演出）。
+- **対象範囲**: gate invasion steal（相手の手札→自分の手札＝source zoneがhand）・スリカエ等の手札同士の
+  交換（hand→hand）は`fromLocation.zone==="cell"`でないため飛翔しない（意図通り）。収穫と種まき等の
+  pickup（マス→手札）は飛翔する（配置演出と一貫）。ドラッグ&ドロップのマス→手札（`onDragEnd`）は元々
+  `playCardLiftToHand`を呼んでおり据え置き。
+- **検証**: `node --check`（main.js/card-effect-engine.js）通過。ブラウザでアプリ正常ロード（game-table
+  構築＝main.jsモジュールがエラー無く実行）を確認。実際の到達→手札の見た目は実機フォアグラウンドでの確認を
+  お願いしたい。サーバー側（Supabase）の変更は無い。
+
+### 2026-08-18（続き212）：飛翔演出が完全に終わってから次のアクション（駒の移動等）へ進むように（試練の儀式ほか）
+
+ユーザー報告2026-08-18「例えば試練の儀式で隣にカードを置く飛翔アニメの途中で駒が移動してしまいます。
+飛翔演出がしっかりと終わってから次のアクションに移るようにできますか？試練の儀式以外もそうです。」。
+着地演出（`playCardCellLanding`・`playCardLiftToHand`・`playDeckToCellLanding`）が**fire-and-forget**で、
+呼び出し側が待たずに次のアクション（試練の儀式なら「隣に置く→その駒をそこへ移動」の駒移動）へ進んで
+いたため、置いたカードの飛翔の途中で駒が動いていた。
+- **修正**: 3つの着地演出関数を、着地完了（最後のsetTimeout＝GLIDE+HOLD+DROP or DROP+HOLD+GLIDE 経過後）で
+  解決する**Promiseを返す**形に変更（アニメ無効／要素が無い早期returnは`Promise.resolve()`で即解決）。
+  カード効果の配置・移動ヘルパー（`placeFromDeckForEffect`／`placeFromDeckRevealForEffect`／
+  `placeFromDeckFaceUpForEffect`／`moveAndSyncForEffect`）は、これらの着地演出を`await`してから解決する
+  ように変更した。engine側は元から`await helpers.placeFromDeckFaceUp(...)`／`await helpers.moveAndSync(...)`と
+  awaitしているので、これで**カードが着地し切ってから**engineが次のアクション（駒移動等）へ進む。
+- **対象**: 試練の儀式（置く→駒移動を繰り返す）・増殖する樹々／合同建設／月下の漂流船（複数マスへ順に
+  置く）・収穫と種まき（拾う→置き直す）・到達→手札の回収（続き211）等、engineが`await`する全経路。
+  ドラッグ&ドロップの着地（`onDragEnd`）は次に自動アクションが続かないため据え置き（fire-and-forgetのまま）。
+- **ハング懸念**: 完了は`setTimeout`（前面タブで約600ms）。前面プレイでは問題なく、背景タブでも
+  スロットリングで遅延するだけで必ず解決する（setup-animation.jsの飛翔Promiseと同じ確立済みパターン）。
+  アニメ無効時は`Promise.resolve()`で即解決＝待ち時間ゼロ。
+- **検証**: `node --check`（main.js）通過。ブラウザでアプリ正常ロードを確認。実際の「駒が飛翔完了後に
+  動く」順序の見た目は実機フォアグラウンドでの確認をお願いしたい。サーバー側（Supabase）の変更は無い。
