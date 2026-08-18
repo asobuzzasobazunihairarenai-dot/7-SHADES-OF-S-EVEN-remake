@@ -15074,3 +15074,21 @@ SQL Editorで再実行する必要がある**（ファイル全体＝再実行�
   `vapid_not_configured`で500）。**⚠️ Edge Functionのシークレットに`VAPID_PUBLIC_KEY`も必要**（秘密鍵
   だけでなく公開鍵もサーバー側でsetVapidDetailsに渡すため）。
 - 検証: `node --check`（online.js）通過。実際の原因文字列は、次の最小化テストのコンソールで確認。
+
+### 2026-08-18（続き201）：Web Push 500の原因確定＝VAPID_SUBJECTがメールのみ（mailto:なし）→ Edge Functionで自動正規化
+
+- 続き200の診断ログで500の原因が確定: `{"ok":false,"error":"Vapid subject is not a valid URL.
+  asobuzz.asobazunihairarenai@gmail.com"}`。Edge Functionのシークレット`VAPID_SUBJECT`にメール
+  アドレスだけ（`asobuzz...@gmail.com`）が設定されていたが、web-pushは`mailto:`または`https://`で
+  始まる**URL**を要求する。
+- **修正（防御的）**: `so7-send-push.ts`に`normalizeVapidSubject`を追加し、`VAPID_SUBJECT`が
+  `mailto:`/`http(s)://`で始まらなければ`mailto:`を補って正規化する。これでメールだけ設定しても
+  動く（同じ取り違えで再発しないように）。
+- **ユーザー側の作業（どちらか）**:
+  - 【最速・再デプロイ不要】Edge Functionのシークレット`VAPID_SUBJECT`を
+    `mailto:asobuzz.asobazunihairarenai@gmail.com`（先頭に`mailto:`）に変更するだけ。
+  - 【または】更新後の`supabase/functions/so7-send-push.ts`をEdge Functionsダッシュボードで
+    **再デプロイ**すると、メールだけの設定でも自動で`mailto:`が補われる。
+- これで500は解消する見込み。次の最小化テストで、送信側コンソールに`diag-send-push`（`{ok:true,
+  sent:N,...}`）が出て、受信側（事前に通知許可＋購読済み）にOSプッシュ通知が届くはず。まだ届かない
+  場合は`skipped:"no_subscriptions"`（相手が未購読）等がログに出るので、それで次を切り分ける。

@@ -29,7 +29,17 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY") ?? "";
 const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY") ?? "";
-const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") ?? "mailto:admin@example.com";
+// VAPID_SUBJECT は web-push の仕様上 "mailto:xxx" か "https://xxx" の URL でなければならない。
+// ユーザーがメールアドレスだけ（例: user@example.com）を設定しても動くよう、URLでなければ
+// mailto: を補って正規化する（実際にこの取り違えで "Vapid subject is not a valid URL" の
+// 500 が出たため、防御的に吸収する）。
+function normalizeVapidSubject(raw: string): string {
+  const v = (raw ?? "").trim();
+  if (!v) return "mailto:admin@example.com";
+  if (v.startsWith("mailto:") || v.startsWith("http://") || v.startsWith("https://")) return v;
+  return "mailto:" + v;
+}
+const VAPID_SUBJECT = normalizeVapidSubject(Deno.env.get("VAPID_SUBJECT") ?? "");
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
