@@ -302,19 +302,6 @@ const GROUPS = [
     ],
   },
   {
-    // 手札の使用が決定した時の「中央でカードが色オーラを纏い燃えカスになって消える」演出
-    // （main.jsのplayHandEffectUseBurn/playHandEffectUseCinematic、CSS .hand-effect-burn-*）。
-    // ユーザー報告「演出が早すぎて何が起きたかわからない」（続き217）で尺・大きさ・右モーダルの
-    // 立ち上げタイミングを調整可能にした。
-    title: "手札使用の演出（中央で燃えカスになる）",
-    category: "effect",
-    controls: [
-      { key: "--hand-burn-duration", label: "演出の長さ（秒、大きいほどゆっくり読める）", unit: "秒", min: 1, max: 6, step: 0.1, default: 2.6 },
-      { key: "--hand-burn-card-size", label: "中央カードの大きさ", unit: "rem", min: 8, max: 32, step: 0.5, default: 17 },
-      { key: "--hand-burn-modal-delay", label: "右の使用モーダルが出るまで（秒、灰が集まる頃）", unit: "秒", min: 0, max: 6, step: 0.1, default: 2 },
-    ],
-  },
-  {
     // オンライン対戦中、他プレイヤーがカードを場に置いた/取った時にそのマスを点滅させ、
     // 「↓」（置いた）「↑」（取った）の矢印を表示する演出の長さ（remote-move-animator.js
     // 参照）。ユーザー要望「その秒数は管理者モードで調整できるようにしたい」。

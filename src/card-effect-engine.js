@@ -1974,7 +1974,10 @@ async function runHandEffectOption(ctx, option, helpers) {
   // ユーザー要望「手札効果を使用したら、このカードが使用されるよ！って知らしめる
   // モーダルをしっかりと出したい」。実際の状態変更（捨てる・コスト支払い等）より前、
   // 「このカードを使う」と決まった瞬間に出す。
-  helpers.announceUse?.(ctx.cardId, option.label, ctx.player);
+  // 続き218: 追色コストありの手札効果（V5）は、コスト確定後に「吸収→霧散」演出を出すため、
+  // ここでの視覚・音・broadcastを遅延する（deferVisual）。追色なし（V4）は従来通りここで霧散演出。
+  const hasAddColorCost = option.cost?.verb === VERBS.DISCARD_SAME_COLOR;
+  helpers.announceUse?.(ctx.cardId, option.label, ctx.player, { deferVisual: hasAddColorCost });
   // ユーザー指摘: 手札効果は「原則まず最初にそのカードを捨てて効果を発動する」。
   // 凡例（docs/cards.md）「効果カード自身の処遇の記載がなければ、効果発動時に
   // このカードを捨てる」の「発動時に」は、追色コストの支払いやアクション実行より
@@ -2012,6 +2015,9 @@ async function runHandEffectOption(ctx, option, helpers) {
     // 1枚でも自動採用せず、常にpickDiscardCostのステップを踏ませる。
     const chosen = await helpers.pickDiscardCost(candidates, `捨てる${color === "white" || color === "black" ? "" : "同じ色の"}カードを手札から選択してください`);
     if (!chosen) return false;
+    // 続き218・V5: 追色コスト確定後、捨てる“前”（コスト札のDOMがまだ手札にある間）に演出を発火。
+    // 使用カードへ追色カードを吸い込み→脈動→霧散→右の使用モーダル。fire-and-forget（非ブロック）。
+    helpers.playAdditionalColorUse?.(ctx.cardId, option.label, chosen.id);
     await helpers.discardAndSync(chosen.id);
     // このコストで捨てた cardId を、first-red のときだけ記録（上のループ防止判定で使う）。
     if (ctx.cardId === "first-red") notePhoenixCostCard(chosen.cardId);

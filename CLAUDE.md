@@ -15553,3 +15553,53 @@ SQL Editorで再実行する必要がある**（ファイル全体＝再実行�
   紐づき`--crest-color`が`var(--color-blue)`→`#1bb8ce`に解決すること、`--hand-burn-modal-delay`が2に、
   燃えカスの`--edx`残骸が無いことを実測確認（新規JSエラー無し。Service Worker登録失敗はサンドボックス制限）。
   実際の“右へ流れて集まる灰”“焼き付く刻印”の見た目は実機フォアグラウンドでの確認をお願いしたい。サーバー側の変更は無い。
+
+### 2026-08-18（続き219）：手札使用演出を、CSSの燃焼から「Canvas霧散（湯気・残光）」へ全面刷新（V4通常／V5追色、ユーザー試作の移植）
+
+ユーザーがChatGPTで試作したカード使用演出（Canvas 2D、V4/V5）を提供し、現アプリへ移植する要望。
+続き216〜218のCSS燃焼演出を廃し、**新規 [src/card-dissolve.js](src/card-dissolve.js)** の Canvas 霧散演出に
+置き換えた。「炎ではなくカード色の神秘的な湯気/霧/オーラ」「複数箇所からランダムに侵食」「残光が右へ
+流れて右の使用モーダルへ」という試作の設計を、現アプリの構成（カードデータ・色・使用処理・右モーダル・
+ステージ座標）に合わせて移植した。**演出レイヤーのみ（ゲームロジック・状態は一切不変）**。
+- **特定した統合点**: 手札使用＝`card-effect-engine.js` `runHandEffectOption`→`helpers.announceUse`→
+  `main.js` `announceHandEffectUseForEffect`／追色コスト確定＝`runHandEffectOption`内
+  `option.cost?.verb===DISCARD_SAME_COLOR`→`pickDiscardCost`→`discardAndSync`／使用拡大モーダル＝
+  `hand-effect-ui.js` `showHandEffectUseModal`（画面右）／カード色＝`getCardDefinition(cardId).color`。
+- **card-dissolve.js（Canvasモジュール）**: `playCardDissolve(usedCardId, {costCardId, costStart, onShowModal})`。
+  `document.body`直下・`position:fixed inset:0`・`pointer-events:none`・z-index 10660 の canvas を、ステージ
+  座標（1600×900、`clientWidth`＝変形前レイアウトサイズ）に描く（他の演出ゴーストと同じ考え方）。
+  - **V4（追色なし）**: 使用カードを中央に描画→シード式（4〜6個のランダム種）の `destination-out` 侵食で
+    複数箇所から霧散（カード枠だけ残らないよう画像全体を同じマスクで消す）→カード内部から湯気の粒
+    （radial-gradient・`lighter`合成・横に伸ばした霧、`scale(1.9,0.72)`）を湧かせ、右へ加速して流す→
+    霧散し切る頃に `onShowModal`（右の使用モーダル）。
+  - **V5（追色あり）**: 追色カードが `costStart`（手札DOM位置）から使用カードへ弧を描いて吸い込まれ、
+    移動中に追色カード自体も `destination-out` で霧散→吸収後に2回脈動（ドクン ドクン＝拡大＋ブラー＋
+    RGBズレの色残像＋揺れ）→使用カード色で強く発光→V4の霧散→右へ→モーダル。試作のタイムライン
+    （前置き2.12秒＝吸収+脈動+発光→以降が霧散）をそのまま移植。
+  - **色**: 盤面パレット（--color-*）はくすみ気味なので、演出用に彩度を上げた `DISSOLVE_HEX`（赤#ff405c…）
+    へマップ。**七色**は水色一色ではなく `RAINBOW_RGB`（赤橙黄緑青桃紫）を粒ごとに再現。**白/黒**対応
+    （黒の発光は#67677c）。**スマホ**（`isTouchPrimaryDevice`）は湯気0.55・残滓0.6に間引き。
+  - `isArrivalEffectDisabled()`（演出OFF）なら canvas を作らず即 `onShowModal`。各再生は独立した canvas で
+    自己片付け（残光が消えるまで）＋保険タイマー（前置き+4.5秒）で必ずクリーンアップ＝連続使用・
+    rAF停滞に強い。`onShowModal` は保険経路でも必ず1回呼ぶ＝通信遅延でもモーダルを取りこぼさない。
+- **main.js**: `playHandEffectUseCinematic`（CSS燃焼）を廃し、`playHandEffectUseV4`／`playHandEffectUseV5`
+  （`playCardDissolve`呼び出し）に。`announceHandEffectUseForEffect(cardId,label,player,opts)` に `deferVisual`
+  を追加し、追色あり（V5）は視覚・音・broadcastを「コスト確定後」まで遅延（ログ・割り込みチェックポイントは
+  使用決定時のまま）。新設 `playAdditionalColorUseForEffect(cardId,label,costTokenId)` が、コスト札の手札DOM
+  rect（`cardElRectForToken`→`stageClientToLocal`でステージ座標）を捨てる前に取得し、V5演出＋音＋
+  broadcast（`mode:"v5", costCardId`）を出す（fire-and-forget＝続き214の非ブロック方針）。受信側
+  `onHandEffectUseEvents` は `mode:"v5"` なら追色付きV5（受信側は正確な手札位置が無いので既定の吸い込み元）、
+  それ以外はV4で再生。
+- **card-effect-engine.js**: `runHandEffectOption` で `announceUse` に `{deferVisual: 追色ありか}` を渡し、
+  追色コスト確定（`pickDiscardCost`後・`discardAndSync`前＝コスト札のDOMがまだある間）に
+  `helpers.playAdditionalColorUse?.(cardId,label,chosen.id)` を発火。rules・状態変更は不変。
+- **旧CSS燃焼の後片付け**: 管理者モードの「手札使用の演出（中央で燃えカスになる）」グループ（`--hand-burn-*`、
+  Canvasは参照しない＝inert）を撤去。`playHandEffectUseBurn`／CSS `.hand-effect-burn-*` は未使用の
+  死にコードとして残置（無害。次回まとめて掃除可）。Canvasの尺は現状 `SPEED` 定数（管理者調整は必要なら次回）。
+- **検証**: `node --check`（main/card-effect-engine/card-dissolve/admin）通過。ブラウザで実測——V4/V5とも
+  canvas がステージ座標1600pxで生成（z-index10660・pointer-events:none）、カード画像が200で読める、色
+  マップ（white/rainbow）解決、`onShowModal` が発火、演出OFF（reduce）で canvas を作らず即モーダル、を確認。
+  **実際の見た目（霧散・湯気が右へ・追色吸収・脈動・発光）はこの環境では確認できない**（スクショ不可＋
+  背景タブでrAF/setTimeoutがスロットリングされ演出が通しで進まない）ため、実機フォアグラウンドでの
+  確認（通常使用／追色使用／各色／白黒七色／スマホ／連続使用／演出スキップ・通信遅延）をお願いしたい。
+  サーバー側（Supabase）の変更は無い。

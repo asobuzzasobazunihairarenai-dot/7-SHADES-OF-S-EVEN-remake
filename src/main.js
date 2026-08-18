@@ -159,6 +159,7 @@ import { buildAvatarUploadSection } from "./avatar-upload.js";
 import { isLockAreaBarVisible, setLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible } from "./lock-color.js";
 import { isArrivalEffectDisabled, isFlightAnimationDisabled } from "./motion-prefs.js";
+import { playCardDissolve } from "./card-dissolve.js";
 import { rectCenter, flyGhost } from "./ghost-flight.js";
 import { showCardArrivalModal, hideCardArrivalModalImmediately } from "./card-arrival.js";
 import {
@@ -1712,10 +1713,12 @@ onCardReceivedEvents(({ targetPlayer, cardId, subtitle }) => {
 // 自分を含め何のカードの使用が宣言されたか全員にわかるように表示してほしい」。
 // 使った本人（fromPlayer）は既にannounceHandEffectUseForEffect内でローカル表示済み
 // なので、ここでは自分以外からの通知だけを表示する。
-onHandEffectUseEvents(({ fromPlayer, cardId, optionLabel }) => {
+onHandEffectUseEvents(({ fromPlayer, cardId, optionLabel, mode, costCardId }) => {
   if (fromPlayer === getSelfSeat()) return;
-  // 続き216: 相手の手札使用も、中央の「色オーラ→燃えカス」演出→右の使用モーダル で見せる。
-  playHandEffectUseCinematic(cardId, optionLabel);
+  // 続き218: 相手の手札使用も、Canvas霧散演出→右の使用モーダルで見せる。追色使用(mode:v5)は
+  // 追色カードの吸い込みも見せる（受信側は正確な手札位置が無いのでカード左下から吸い込む既定）。
+  if (mode === "v5" && costCardId) playHandEffectUseV5(cardId, optionLabel, costCardId, null);
+  else playHandEffectUseV4(cardId, optionLabel);
   playSound("arrivalEffect");
   // ユーザー要望（続き76）「手札効果使用宣言の直後にも割り込みモーダルを出す」。
   // オンライン中、この宣言をした本人以外の全クライアントにもこの経路で届くため、
@@ -2254,17 +2257,18 @@ function playHandEffectUseBurn(cardId) {
     setTimeout(finish, durSec * 1000 + 700); // animationendが来ない環境用の保険（尺に追従）
   });
 }
-// 手札使用の一連（中央の燃えカス演出→右の使用モーダル）。演出を減らす設定中は演出を飛ばして
-// すぐ右モーダルを出す。演出はpointer-events:noneで下の操作を妨げない（続き214の方針を維持）。
-function playHandEffectUseCinematic(cardId, optionLabel) {
-  if (isArrivalEffectDisabled()) {
-    showHandEffectUseModal(cardId, optionLabel);
-    return;
-  }
-  playHandEffectUseBurn(cardId);
-  // カードが燃え崩れ始める頃に右の使用モーダルを“立ち上げる”（--hand-burn-modal-delay秒、既定1.5）。
-  const md = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hand-burn-modal-delay"));
-  setTimeout(() => showHandEffectUseModal(cardId, optionLabel), (Number.isFinite(md) && md >= 0 ? md : 2) * 1000);
+// 手札使用の演出（Canvas霧散＝card-dissolve.js。ユーザー提供のV4/V5試作を移植 2026-08-18）。
+// V4（通常使用）: 使用カードがランダムに霧散し、カード色の湯気が右へ流れて、右の使用モーダルへ。
+// V5（追色使用）: 追色カードが使用カードへ吸い込まれ→2回脈動＋発光→V4の霧散、の連続。
+// 霧散し切る頃に右の使用モーダルを出す（onShowModal）。演出はpointer-events:noneで下の操作を
+// 妨げない（続き214の方針を維持）。演出OFF時（isArrivalEffectDisabled）はモジュール側で即モーダル。
+// V4（追色なし）
+function playHandEffectUseV4(cardId, optionLabel) {
+  playCardDissolve(cardId, { onShowModal: () => showHandEffectUseModal(cardId, optionLabel) });
+}
+// V5（追色あり）。costStart＝追色カードの飛び出し元（ステージ座標、省略時はカード左下）。
+function playHandEffectUseV5(cardId, optionLabel, costCardId, costStart) {
+  playCardDissolve(cardId, { costCardId, costStart, onShowModal: () => showHandEffectUseModal(cardId, optionLabel) });
 }
 
 // ユーザー要望「カード効果を使用するために手札から使用するカードをドロップした時は、
@@ -2273,20 +2277,40 @@ function playHandEffectUseCinematic(cardId, optionLabel) {
 // broadcastHandEffectUseで他の全プレイヤーへも同じ通知を送る（onHandEffectUseEvents
 // 参照、自分自身の分は二重表示にならないよう除外している）。ローカル対戦は1画面
 // 共有のため、ローカル表示だけで全員に見えている。
-function announceHandEffectUseForEffect(cardId, optionLabel, player) {
+function announceHandEffectUseForEffect(cardId, optionLabel, player, opts) {
   // 行動ログ用（ユーザー要望「△△は〇〇の手札効果を得ました」。以前は手札効果がログに
   // 残っていなかった）。到達効果(arrival)と同じく「誰が・どのカードの手札効果を使ったか」を記録。
   logAction("hand-effect", { cardId, player: player ?? getSelfSeat() });
-  // 続き216: 中央の「色オーラ→燃えカス」演出→その後に右の使用モーダル。
-  playHandEffectUseCinematic(cardId, optionLabel);
+  // ユーザー要望（続き76）「手札効果使用宣言の直後にも割り込みモーダルを出す」。使用が
+  // 決まった瞬間なので、追色あり/なしに関わらずここで（ログと合わせて）行う。
+  triggerAnytimeInterruptCheckpoint(player ?? getSelfSeat());
+  // V5（追色あり）は、コスト確定後に playAdditionalColorUseForEffect で「吸収→霧散」演出＋音＋
+  // broadcastを出すため、ここでは視覚・音・broadcastを遅延する（deferVisual）。
+  if (opts?.deferVisual) return;
+  // 続き218（V4）: 中央の霧散演出→その後に右の使用モーダル。
+  playHandEffectUseV4(cardId, optionLabel);
   // ユーザー要望「手札効果の使用が宣言されたときの効果音が欲しい。到達時の効果音を
   // 流用でよい」（続き62）。
   playSound("arrivalEffect");
   if (isOnlineMode()) {
-    broadcastHandEffectUse({ fromPlayer: getSelfSeat(), cardId, optionLabel });
+    broadcastHandEffectUse({ fromPlayer: getSelfSeat(), cardId, optionLabel, mode: "v4" });
   }
-  // ユーザー要望（続き76）「手札効果使用宣言の直後にも割り込みモーダルを出す」。
-  triggerAnytimeInterruptCheckpoint(player ?? getSelfSeat());
+}
+
+// V5（追色あり）: 追色コスト確定後に呼ばれる（card-effect-engine.js の runHandEffectOption、
+// discardAndSyncで捨てる“前”＝コスト札のDOMがまだ手札にある間に発火）。使用カードへ追色カードを
+// 吸い込み→2回脈動＋発光→霧散→右の使用モーダル、の連続を出す。fire-and-forget（続き214の
+// 非ブロック方針）。costStart は追色カードの手札DOM位置（ステージ座標）で、吸い込みの起点にする。
+function playAdditionalColorUseForEffect(cardId, optionLabel, costTokenId) {
+  const costCardId = getState().tokens.find((t) => t.id === costTokenId)?.cardId || null;
+  const rect = cardElRectForToken(costTokenId);
+  let costStart = null;
+  if (rect) costStart = stageClientToLocal(rect.left + rect.width / 2, rect.top + rect.height / 2);
+  playHandEffectUseV5(cardId, optionLabel, costCardId, costStart);
+  playSound("arrivalEffect");
+  if (isOnlineMode()) {
+    broadcastHandEffectUse({ fromPlayer: getSelfSeat(), cardId, optionLabel, mode: "v5", costCardId });
+  }
 }
 
 // ユーザー要望「カウンターロックの到達効果について『あなたは１番少なくロックしている
@@ -5254,6 +5278,8 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         swapPieces: swapPiecesForEffect,
         triggerArrivalAtIfFaceUp: triggerArrivalAtIfFaceUpForEffect,
         announceUse: announceHandEffectUseForEffect,
+        // V5（追色使用）: コスト確定後に「吸収→霧散」演出を出す（続き218）。
+        playAdditionalColorUse: playAdditionalColorUseForEffect,
         pickHandEffectOption: pickOptionForEffect,
         // ジャンプ台の手札効果（これをゲート以外の任意のマスに表向きで置く）用。
         flipCard: flipToFaceUpForEffect,
