@@ -15181,3 +15181,35 @@ SQL Editorで再実行する必要がある**（ファイル全体＝再実行�
 - 検証: `node --check`（victory.js/smoke-test-runner.js）通過・アプリ正常ロード（新規コンソールエラー
   無し）。実際の2ブラウザでのオンライン連続監視は、Supabase＋2アカウント（別ブラウザ/シークレット
   ゲスト2つ）が必要なため、ユーザー側での実地確認となる。サーバー側（Supabase）の変更は無い。
+
+### 2026-08-18（続き205）：PWA化（manifest.json＋アプリアイコン）——ホーム画面に追加できるように＋iOSの「閉じていてもWeb Pushが届く」を有効化
+
+ユーザーと相談の上、次の方向（おすすめ順）の①として**PWA化**を実装した。「アプリ化はブラッシュアップ
+してから」でも、**PWA（manifest追加）だけは安く可逆で先に入れて損しない**——特に前回作ったWeb Push
+（`sw.js`）が、**iOS 16.4+のインストール済みPWAでのみ「アプリを閉じていても届く」**ようになる鍵が
+このPWA化のため（Safariの通常タブでは閉じると届かない、というiPhoneの弱点を解消する）。
+- **アプリアイコン（PNG）を生成**: ブラウザのcanvasだと大きなbase64をこちらへ転送する必要があり
+  （手写しで壊れる）不確実だったため、**Node.jsで最小PNGエンコーダ（zlib deflate＋CRC32、color type 2
+  ＝RGB、フィルタnone）を書いて直接生成**した（`scratchpad/gen-icons.mjs`）。7色（このゲームのパレット）の
+  ドットを円環状に並べたフラットな意匠（濃紺#0a1524背景＋各ドットに白ハイライト、アンチエイリアス付き）。
+  maskable安全域（中身を中心66%以内・全面塗り）を守り、`assets/icons/app-icon-192.png`（4.3KB）／
+  `app-icon-512.png`（12.6KB）／`apple-touch-icon-180.png`（4.3KB、iOSのホーム画面追加用は余白少なめ）を
+  出力。3枚ともブラウザで正しい寸法（192/512/180）でデコードできることを実測確認。**`assets/`はgit管理
+  対象**（`画像素材/`と違い公開リポジトリに含める）。
+- **`manifest.json`（リポジトリ直下・新規）**: name「7 SHADES OF S:EVEN デジタル版」・short_name「SEVEN」・
+  `display: "standalone"`・`background_color: "#05070a"`・`theme_color: "#0a1524"`・192/512アイコン
+  （`purpose: "any maskable"`）。**`start_url`/`scope`/アイコンパスは全て相対（`"./"`／`assets/...`）**に
+  して、GitHub Pagesのサブパス配信（`/7-SHADES-OF-S-EVEN-remake/`）でも正しく解決されるようにした。
+- **`index.html`のhead**: SVGデータURIだった`apple-touch-icon`を**実PNG(180)に差し替え**（iOSはSVGの
+  apple-touch-iconを確実には反映しない＝ホーム画面追加＝iOS Web Pushの前提が崩れるため）。
+  `<link rel="manifest">`＋`theme-color`＋iOS/Android両対応のPWAメタ（`mobile-web-app-capable`／
+  `apple-mobile-web-app-capable`／`-status-bar-style: black-translucent`／`-title: "SEVEN"`）を追加。
+- **Service Worker（`sw.js`）は前回作成済み**（Web Push用、アプリ全体スコープになるようリポジトリ直下）。
+  PWAのインストール要件（manifest＋SW）はこれで揃う。
+- **検証**: ブラウザ（localhost）で、`link[rel=manifest]`が存在・`manifest.json`が200で取得できJSONとして
+  parse可能・`start_url"./"`／`scope"./"`／`display standalone`・192/512アイコンと180 apple-touch PNGが
+  全て解決（naturalWidth一致）・`theme-color`メタ反映、を実測確認。コンソールエラーは**Service Workerの
+  登録失敗のみ**（この自動操作ブラウザのサンドボックス制限。`.catch`で握りつぶし済み・アプリは正常動作。
+  実Chrome＋HTTPSのGitHub Pagesでは登録される）＝manifest/head変更由来の新規エラーは無し。実機での
+  「ホーム画面に追加→インストール済みで起動／iOSで閉じてもWeb Pushが届く」の最終確認はユーザー側で
+  お願いしたい。サーバー側（Supabase）の変更は無い。
