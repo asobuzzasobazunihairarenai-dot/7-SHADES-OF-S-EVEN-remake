@@ -15303,3 +15303,35 @@ SQL Editorで再実行する必要がある**（ファイル全体＝再実行�
   `showHandEffectOptionPicker`を直接呼び、title未指定＝「ザ・ギャンブル の効果を選択してください」、
   title指定＝「どのように公開しますか？」に切り替わり、選択肢ラベル（１枚公開する／残り3枚をすべて
   公開する）が正しく出ることを実測確認。サーバー側（Supabase）の変更は無い。
+
+### 2026-08-18（続き209）：【不具合報告#147】カード配置の着地演出を、カード効果／CPUの配置にも拡大（続き207はドラッグのみだった）
+
+ユーザー報告#147「合同建設の到達効果で手札からマスへ置く時など、飛翔（着地）アニメが出ない。今なんの
+効果でアニメが見られる？」。続き207で着地演出（グライド→ストン→着地の風）を入れたが、配線したのは
+`onDragEnd`（手動ドラッグ&ドロップ）だけで、**カード効果／CPUによる配置には出ていなかった**（＝実質
+“手で置く時だけ”）。効果の配置が通る共通ヘルパーに横展開した。
+- **`main.js`のカード効果配置ヘルパーに着地演出を追加**:
+  - `moveAndSyncForEffect(tokenId, location, ...)`（合同建設・ジャンプ台の手札効果〈PLACE_CARD
+    source:self/hand〉・その他“既存トークンをマスへ動かす”全効果が通る）: 移動対象がカードかつ行き先が
+    cellの時だけ、移動前にカードDOMのrectを飛び元として捕捉し、移動後に`playCardCellLanding`。駒の移動・
+    手札行き・ロック行きは対象外（`kind==="card" && location.zone==="cell"`で判定）。
+  - `placeFromDeckForEffect`（増殖する樹々・合同建設のdeck選択・月下の漂流船）・
+    `placeFromDeckFaceUpForEffect`（試練の儀式・表）・`placeFromDeckRevealForEffect`（試練の儀式・
+    じらしフリップ）: 山札の山のrectを飛び元に、置いた後そのマスの一番上のカード（`findTopCardAt`）へ
+    `playDeckToCellLanding`（新設の共通ヘルパー）。
+  - 補助ヘルパー`cardElRectForToken`（手札/公開手札/盤面のカード要素のrect）・`deckStackRect`
+    （`.stack[data-pile="deck"]`）・`playDeckToCellLanding`を新設。
+- **逆（マス→手札）は元から`flyBoardCardToHand`（`helpers.flyCardToHand`）で飛翔していた**ので変更なし。
+  ロック行き（`moveAndSync`で`zone:"lock"`）は別のロック演出があるので`location.zone!=="cell"`で自然に
+  スキップ。カード効果は全経路が上記ヘルパーを通ることをcard-effect-engine.jsのPLACE_CARD
+  （source self/hand/deck）・各moveAndSync/placeFromDeck呼び出しで確認。
+- **CPUの配置にも出る**: `playCardCellLanding`は誰のカードかを問わず配置を演出するので、ローカルCPU戦で
+  CPU(C)が効果で置く時も出る（報告者はCPU戦を観戦していて“出ない”と気づいた＝これで出るようになる）。
+  「アニメーションを減らす」設定中は`playCardCellLanding`冒頭の`isFlightAnimationDisabled`でスキップ。
+- **検証**: `node --check`（main.js/changelog.js）通過。ブラウザで、着地演出の飛び元要素（山札の山
+  `.stack[data-pile="deck"]`＝rect取得可・盤面マス`.cell[data-row][data-col]`）が存在し、
+  新設ヘルパーの参照シンボルが揃っていること・新規コンソールエラーが無いことを実測確認。
+  `playCardCellLanding`自体のゴースト/パフ生成・座標計算・後始末は続き207で実測済み。**実際の効果配置
+  （合同建設・増殖する樹々等）での見た目**は、この環境ではセットアップ演出のawaitがバックグラウンド
+  タブのrAF/setTimeoutスロットリングで完走しづらく通し確認できないため、実機フォアグラウンドでの確認を
+  ユーザーにお願いしたい。サーバー側（Supabase）の変更は無い。

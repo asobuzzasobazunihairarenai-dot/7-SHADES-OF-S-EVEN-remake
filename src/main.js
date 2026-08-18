@@ -1157,7 +1157,13 @@ async function addArrivedCardToHand(location, player) {
 // 種まきのピッカーが宙に浮く（手札が全部トーンオフのまま固着）不具合になっていた。他の呼び出し元は
 // 従来通り撃ちっぱなし（false）で挙動を変えない。
 async function moveAndSyncForEffect(tokenId, location, soundName, suppressArrival, awaitExposedArrival = false) {
-  const fromLocation = getState().tokens.find((t) => t.id === tokenId)?.location ?? null;
+  const movingToken = getState().tokens.find((t) => t.id === tokenId);
+  const fromLocation = movingToken?.location ?? null;
+  // ③演出（#147・ユーザー報告2026-08-18）: カード効果による「カード→マス」配置にも着地演出を出す
+  // （続き207ではドラッグ&ドロップのみだった。合同建設・増殖する樹々・ジャンプ台の手札効果等が該当）。
+  // 移動前のカードDOM要素のrectを飛び元として捕捉しておく（駒の移動・手札行きは対象外）。
+  const landingSourceRect =
+    movingToken?.kind === "card" && location?.zone === "cell" ? cardElRectForToken(tokenId) : null;
   if (isOnlineMode()) {
     try {
       await moveToken(tokenId, location, suppressArrival);
@@ -1172,6 +1178,7 @@ async function moveAndSyncForEffect(tokenId, location, soundName, suppressArriva
   if (soundName) playSound(soundName);
   const exposedArrival = maybeTriggerCardArrivalForExposedCard(fromLocation);
   if (awaitExposedArrival) await exposedArrival;
+  if (landingSourceRect) playCardCellLanding(landingSourceRect, location, tokenId);
 }
 
 // PLACE_CARDのsource:"self"用（ジャンプ台の手札効果等）。手札からマスへの移動は
@@ -1221,6 +1228,7 @@ async function triggerArrivalAtIfFaceUpForEffect(location, expectedPlayer) {
 // 山札の一番上を、手札を経由せず直接そのマスへ裏向きで置く（performMoveFallbackAndEndTurn
 // と同じ考え方）。
 async function placeFromDeckForEffect(location) {
+  const deckRect = location?.zone === "cell" ? deckStackRect() : null; // 着地演出の飛び元（山札）
   if (isOnlineMode()) {
     try {
       await drawFromPile("deck", location);
@@ -1233,6 +1241,7 @@ async function placeFromDeckForEffect(location) {
     drawFromPile("deck", location);
   }
   playSound("cardPlace");
+  playDeckToCellLanding(deckRect, location); // ③演出(#147): 山→マス配置にも着地演出
 }
 
 // 試練の儀式専用（ユーザー要望2026-08-08「オンラインもローカル同様のじらしフリップに」）。
@@ -1242,6 +1251,7 @@ async function placeFromDeckForEffect(location) {
 // これで盤面を先にめくらずに中央じらしフリップができる。サーバー未再デプロイ時はnullを返し、
 // 呼び出し側（RITUAL_PLACE_MOVE_REPEAT）が従来の「先に表向きにして判明」経路へフォールバックする。
 async function placeFromDeckRevealForEffect(location) {
+  const deckRect = location?.zone === "cell" ? deckStackRect() : null; // 着地演出の飛び元（山札）
   let revealedCardId = null;
   if (isOnlineMode()) {
     try {
@@ -1257,6 +1267,7 @@ async function placeFromDeckRevealForEffect(location) {
     revealedCardId = findTopCardAt(location)?.cardId ?? null; // ローカルは全state可視で中身が読める
   }
   playSound("cardPlace");
+  playDeckToCellLanding(deckRect, location); // ③演出(#147): 試練の儀式の山→マス配置にも着地演出
   return revealedCardId;
 }
 
@@ -2741,6 +2752,7 @@ async function publicDrawReturningTokensForEffect(player, count) {
 // 返す（RITUAL_PLACE_MOVE_REPEATが置いたカードの色を判定するために必要）。
 // placeFromDeckForEffect（増殖する樹々等、裏向き専用）とは別に用意した表向き版。
 async function placeFromDeckFaceUpForEffect(location) {
+  const deckRect = location?.zone === "cell" ? deckStackRect() : null; // 着地演出の飛び元（山札）
   if (isOnlineMode()) {
     try {
       await drawFromPile("deck", location);
@@ -2772,6 +2784,7 @@ async function placeFromDeckFaceUpForEffect(location) {
   playSound("cardPlace");
   render();
   token = findTopCardAt(location);
+  playDeckToCellLanding(deckRect, location); // ③演出(#147): 試練の儀式(表向き)の山→マス配置にも着地演出
   return token?.cardId ?? null;
 }
 
@@ -4354,6 +4367,24 @@ function spawnCardLandingPuff(cellRect) {
   document.body.appendChild(puff);
   inner.addEventListener("animationend", () => puff.remove(), { once: true });
   setTimeout(() => puff.remove(), 900); // animationendが来ない環境用の保険
+}
+// トークンの現在のカードDOM要素（手札/公開手札/盤面）のrectを返す（着地演出の飛び元用）。
+function cardElRectForToken(tokenId) {
+  const el = document.querySelector(
+    `.hand-card[data-token-id="${tokenId}"], .hand-reveal-card[data-token-id="${tokenId}"], .board-card[data-token-id="${tokenId}"]`
+  );
+  return el ? el.getBoundingClientRect() : null;
+}
+// 山札の山のrect（山→マス配置の飛び元用）。
+function deckStackRect() {
+  const el = document.querySelector('.stack[data-pile="deck"]');
+  return el ? el.getBoundingClientRect() : null;
+}
+// 山→マスの配置で、実際に置かれたカード（そのマスの一番上）に着地演出をかける共通ヘルパー。
+function playDeckToCellLanding(deckRect, location) {
+  if (!deckRect || location?.zone !== "cell") return;
+  const placed = findTopCardAt(location);
+  if (placed) playCardCellLanding(deckRect, location, placed.id);
 }
 function playCardCellLanding(sourceRect, cellLocation, tokenId) {
   if (isFlightAnimationDisabled() || !sourceRect) return;
