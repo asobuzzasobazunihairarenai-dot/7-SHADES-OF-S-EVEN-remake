@@ -3912,7 +3912,20 @@ export function performPriorityTimeoutAutoAction() {
       lockableCount: lockable.length,
     });
     if (isTarget && lockable.length > 0) {
-      const chosen = pickRandomFrom(lockable);
+      // ②CPU戦を強くする（2026-08-18）: 「どの色をロックするか」は、従来ここで全難易度 random だった
+      // （＝賢いCPUでもロック色が運任せ＝これが「合法手をランダムに選ぶだけ」の主因の一つ）。賢いCPU
+      // （中級以上・isCpuBrainDriving）は chooseHandCardToLock で評価して選ぶ（虹＝なないろの欠片や、
+      // まだ揃っていない必要な色を優先。既にpicker "hand"のpurpose:"lock"で使っている実績のある関数を
+      // 流用）。新人・オンライン疑似CPUは従来通り random にフォールバック。
+      let chosen = null;
+      if (isCpuBrainDriving(player)) {
+        const chosenId = chooseHandCardToLock(
+          lockable.map((t) => t.id),
+          player
+        );
+        chosen = chosenId ? lockable.find((t) => t.id === chosenId) : null;
+      }
+      if (!chosen) chosen = pickRandomFrom(lockable);
       performLockPhaseClick(chosen.id, { skipConfirm: true, actingSeat: player }); // 自動実行なので確認モーダルは出さない
       return true;
     }

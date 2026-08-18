@@ -907,7 +907,7 @@ export function initOptionsMenu() {
           onReset: () => {
             setCpuSpeed("normal");
             setCpuAutoSkipEnabled(true);
-            setCpuDifficulty("rookie");
+            setCpuDifficulty("intermediate"); // ②CPU戦を強くする: 既定を中級に（cpu-battle-state.js参照）
             renderContent();
           },
         }

@@ -105,7 +105,10 @@ export function setCpuAutoSkipEnabled(v) {
 // 実際の手選びは cpu-brain.js が担当し、performPriorityTimeoutAutoAction（main.js）から使う。
 const DIFFICULTY_KEY = "so7-cpu-battle-difficulty"; // 'rookie' | 'intermediate' | 'advanced' | 'master'
 const DIFFICULTIES = ["rookie", "intermediate", "advanced", "master"];
-let cpuDifficulty = "rookie";
+// ②CPU戦を強くする（2026-08-18）: 既定を rookie（完全ランダム）から intermediate（cpu-brain.jsの
+// 思考を使う）に変更。ユーザー要望「練習相手が“合法手をランダムに選ぶだけ”＝もう少し賢く打つ相手に」。
+// 新人（ランダム）で遊びたい人はホーム画面のCPU戦モーダル or 基本設定でいつでも選べる。
+let cpuDifficulty = "intermediate";
 try {
   const saved = localStorage.getItem(DIFFICULTY_KEY);
   if (saved && DIFFICULTIES.includes(saved)) cpuDifficulty = saved;
