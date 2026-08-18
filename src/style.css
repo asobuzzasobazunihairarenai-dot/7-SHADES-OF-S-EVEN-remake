@@ -1389,6 +1389,104 @@ body.reduce-glow [style*="rainbow-shard.webp"]::after {
   }
 }
 
+/* 続き218・ロック演出「A：焼き付く刻印」。ロックするスロット(.cell/.lock-slot)に重ねる。
+   --crest-color＝カードの色（虹は金）。収束リング→焼き付く閃光＋衝撃波。 */
+.lock-converge {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 150%;
+  height: 150%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 30;
+  --crest-color: #f6c945;
+}
+.lock-converge::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16%;
+  border: 0.22rem solid var(--crest-color);
+  box-shadow: 0 0 0.9rem var(--crest-color), inset 0 0 0.9rem var(--crest-color);
+  opacity: 0;
+  animation: lock-converge-kf 1.2s cubic-bezier(0.5, 0, 0.75, 0) forwards;
+}
+@keyframes lock-converge-kf {
+  0% {
+    transform: scale(2.5) rotate(-50deg);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(0.82) rotate(0deg);
+    opacity: 0.25;
+  }
+}
+.lock-sear {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100%;
+  height: 100%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 32;
+  --crest-color: #f6c945;
+}
+.lock-sear-flash {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 200%;
+  height: 200%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, var(--crest-color) 32%, transparent 66%);
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: lock-sear-flash-kf 0.42s ease-out forwards;
+}
+@keyframes lock-sear-flash-kf {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.5);
+  }
+  22% {
+    opacity: 0.95;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.35);
+  }
+}
+.lock-sear-shock {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 70%;
+  height: 70%;
+  transform: translate(-50%, -50%);
+  border-radius: 16%;
+  border: 0.22rem solid var(--crest-color);
+  box-shadow: 0 0 0.7rem var(--crest-color);
+  opacity: 0;
+  animation: lock-sear-shock-kf 0.6s ease-out forwards;
+}
+@keyframes lock-sear-shock-kf {
+  0% {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) scale(0.45);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(2.5);
+  }
+}
+
 /* ドラッグ中、今離すとどこに置かれるかを示すハイライト。findDropTarget()が返す実際の対象
    要素(.cell/.lock-slot/.hand-area/.pile-zone)にmain.js側でこのクラスを付け外しするだけで、
    レイアウトには一切影響しない。ゲームの色(--color-*)と紛れないよう、黄金色で統一する。 */
@@ -11269,17 +11367,21 @@ body.cpu-battle-mode #quick-start-bar {
   animation-timing-function: ease-out;
   animation-fill-mode: forwards;
 }
+/* 続き218: 燃えカスは中央のカード位置(ex,ey)から右上(etx,ety＝使用モーダルの方)へ流れて集まる。 */
 @keyframes hand-effect-burn-ember-kf {
   0% {
     opacity: 0;
+    transform: translate(-50%, -50%) translate(var(--ex), var(--ey)) scale(var(--ers));
   }
-  18% {
+  16% {
+    opacity: 1;
+  }
+  80% {
     opacity: 1;
   }
   100% {
     opacity: 0;
-    transform: translate(-50%, -50%) translate(calc(var(--ex) + var(--edx)), calc(var(--ey) - 6.5rem))
-      scale(calc(var(--ers) * 0.4));
+    transform: translate(-50%, -50%) translate(var(--etx), var(--ety)) scale(calc(var(--ers) * 0.5));
   }
 }
 
@@ -11988,7 +12090,7 @@ body:not(.is-admin-user) .opening-admin-btn {
   --card-landing-lift-scale: 1.08;
   --hand-burn-duration: 2.6;
   --hand-burn-card-size: 17rem;
-  --hand-burn-modal-delay: 1.5;
+  --hand-burn-modal-delay: 2;
   --move-blink-duration: 7;
   --move-blink-arrow-size: 1.6rem;
   --move-blink-arrow-stroke: 0.2rem;

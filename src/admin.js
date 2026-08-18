@@ -311,7 +311,7 @@ const GROUPS = [
     controls: [
       { key: "--hand-burn-duration", label: "演出の長さ（秒、大きいほどゆっくり読める）", unit: "秒", min: 1, max: 6, step: 0.1, default: 2.6 },
       { key: "--hand-burn-card-size", label: "中央カードの大きさ", unit: "rem", min: 8, max: 32, step: 0.5, default: 17 },
-      { key: "--hand-burn-modal-delay", label: "右の使用モーダルが出るまで（秒）", unit: "秒", min: 0, max: 6, step: 0.1, default: 1.5 },
+      { key: "--hand-burn-modal-delay", label: "右の使用モーダルが出るまで（秒、灰が集まる頃）", unit: "秒", min: 0, max: 6, step: 0.1, default: 2 },
     ],
   },
   {

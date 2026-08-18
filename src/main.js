@@ -2228,10 +2228,14 @@ function playHandEffectUseBurn(cardId) {
     // （尺--hand-burn-durationに比例。ホールドを長くしても燃えカスが燃焼フェーズに合う）。
     e.style.setProperty("--ex", `${(Math.random() * 2 - 1) * 46}%`);
     e.style.setProperty("--ey", `${(Math.random() * 2 - 1) * 50}%`);
-    e.style.setProperty("--edx", `${(Math.random() * 2 - 1) * 34}px`); // 上昇中の横ゆらぎ
+    // 続き218（ユーザー要望「灰が右へ流れて集まりモーダルになる」）: 燃えカスは上昇ではなく
+    // 右上（＝使用モーダルの方向）へ流れて集まる。中央→右の視線誘導。終点を右上のほぼ一点に
+    // 寄せる（小さなばらつき）ことで“集まる”感を出す。
+    e.style.setProperty("--etx", `${32 + (Math.random() * 2 - 1) * 4}rem`);
+    e.style.setProperty("--ety", `${-17 + (Math.random() * 2 - 1) * 3}rem`);
     e.style.setProperty("--ers", `${0.5 + Math.random() * 1.1}`); // 粒サイズ倍率
     e.style.animationDelay = `${durSec * (0.5 + Math.random() * 0.22)}s`;
-    e.style.animationDuration = `${durSec * (0.3 + Math.random() * 0.2)}s`;
+    e.style.animationDuration = `${durSec * (0.34 + Math.random() * 0.22)}s`;
     embers.appendChild(e);
   }
   stage.appendChild(embers);
@@ -2260,7 +2264,7 @@ function playHandEffectUseCinematic(cardId, optionLabel) {
   playHandEffectUseBurn(cardId);
   // カードが燃え崩れ始める頃に右の使用モーダルを“立ち上げる”（--hand-burn-modal-delay秒、既定1.5）。
   const md = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hand-burn-modal-delay"));
-  setTimeout(() => showHandEffectUseModal(cardId, optionLabel), (Number.isFinite(md) && md >= 0 ? md : 1.5) * 1000);
+  setTimeout(() => showHandEffectUseModal(cardId, optionLabel), (Number.isFinite(md) && md >= 0 ? md : 2) * 1000);
 }
 
 // ユーザー要望「カード効果を使用するために手札から使用するカードをドロップした時は、
@@ -5795,6 +5799,31 @@ function spawnLockStamp(hostEl) {
   return stamp;
 }
 
+// 続き218・ロック演出「A：焼き付く刻印」（ユーザー要望）。ロックするスロットに、その色の
+// オーラが渦を巻いて収束→焼き付く瞬間にフラッシュ＋衝撃波、という豪華版。中央にでかでか
+// ではなく、ロックする“そのスロット”で起きる（どの色をどこにロックしたか分かるように）。
+function lockCrestColorVar(color) {
+  return color === "rainbow" ? "#f6c945" : `var(--color-${color})`;
+}
+// 収束（焼き付く前の“ため”）: 色のリングが外から渦を巻いてスロットへ縮む。
+function spawnLockConverge(hostEl, color) {
+  if (isArrivalEffectDisabled()) return;
+  const el = document.createElement("div");
+  el.className = "lock-converge";
+  el.style.setProperty("--crest-color", lockCrestColorVar(color));
+  appendEffectHost(hostEl, el, 1300);
+}
+// 焼き付く瞬間: 中央の閃光＋外へ広がる衝撃波の輪。
+function spawnLockSear(hostEl, color) {
+  if (isArrivalEffectDisabled()) return;
+  const el = document.createElement("div");
+  el.className = "lock-sear";
+  el.style.setProperty("--crest-color", lockCrestColorVar(color));
+  el.appendChild(Object.assign(document.createElement("div"), { className: "lock-sear-flash" }));
+  el.appendChild(Object.assign(document.createElement("div"), { className: "lock-sear-shock" }));
+  appendEffectHost(hostEl, el, 700);
+}
+
 // カードが新しくロックされた瞬間の演出。到達演出と同じ柱状のオーラ＋到達効果音をそのマスに
 // 流用し、そのオーラがほぼ収まってから（重ねず順番に）ロック画像がカードより大きく拡大
 // しながらフェードアウトする演出とロック効果音を続けて行う（ユーザー指定の順序）。
@@ -5812,10 +5841,12 @@ function triggerLockEffect(cardId, location) {
   const color = getCardDefinition(cardId).color;
   playSound("arrivalEffect");
   spawnArrivalBurst(hostEl, color);
+  spawnLockConverge(hostEl, color); // 続き218「A：焼き付く刻印」: 色のオーラがスロットへ収束
   return new Promise((resolve) => {
     setTimeout(() => {
       playSound("lock");
-      spawnLockStamp(hostEl);
+      spawnLockSear(hostEl, color); // 焼き付く瞬間の閃光＋衝撃波
+      spawnLockStamp(hostEl); // 刻印（ロック画像）が焼き付く
       setTimeout(resolve, LOCK_STAMP_DURATION_MS);
     }, 1300);
   });
