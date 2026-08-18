@@ -17,6 +17,7 @@ import { EIDOS_SCENE, getEidosScene } from "./eidos-dialogue-scenes.js";
 import { isLobbyPseudoCpuToggleVisible, setLobbyPseudoCpuToggleVisible } from "./cpu-battle-state.js";
 // ランクバッジ・ゲージ・宝石の調整モード（rank-showcase.js は rank-badge.js のみimport＝循環しない）。
 import { openRankShowcaseEditor } from "./rank-showcase.js";
+import { openDissolvePreview } from "./dissolve-preview.js";
 
 // game-setup.jsは既にadmin.js（isManualSeatMode）をimportしているため、admin.js側から
 // game-setup.jsを直接importすると循環importになる。他の箇所（setup-animation.js等）と
@@ -299,6 +300,19 @@ const GROUPS = [
       { key: "--card-landing-hold-ms", label: "上空で止まる間（ピタッ）", unit: "ms", min: 0, max: 1000, step: 10, default: 130 },
       { key: "--card-landing-drop-ms", label: "落下/持ち上がり時間（ストン）", unit: "ms", min: 30, max: 1000, step: 10, default: 150 },
       { key: "--card-landing-lift-scale", label: "上空の高さ（駒の高さ×この倍率）", unit: "", min: 0.3, max: 6, step: 0.05, default: 1.08 },
+    ],
+  },
+  {
+    // 手札使用のCanvas霧散演出（card-dissolve.js、V4通常/V5追色）の調整（続き220）。
+    // 各スライダーはCSS変数を書き換え、card-dissolve.jsが再生時に読む。previewOnInteractで
+    // プレビュー画面（dissolve-preview.js）を開き、カード/色を選んで実際に再生して確認できる。
+    title: "手札使用の霧散演出（V4通常/V5追色）",
+    category: "effect",
+    controls: [
+      { key: "--dissolve-speed", label: "速さ（小さいほど長い）", unit: "", min: 0.4, max: 1.4, step: 0.05, default: 0.85, previewOnInteract: () => openDissolvePreview() },
+      { key: "--dissolve-mist", label: "湯気の濃さ", unit: "", min: 0.4, max: 1.6, step: 0.05, default: 1, previewOnInteract: () => openDissolvePreview() },
+      { key: "--dissolve-residue", label: "残滓の量", unit: "", min: 0.4, max: 1.8, step: 0.05, default: 1, previewOnInteract: () => openDissolvePreview() },
+      { key: "--dissolve-card-size", label: "中央カードの大きさ", unit: "px", min: 200, max: 560, step: 10, default: 340, previewOnInteract: () => openDissolvePreview() },
     ],
   },
   {
@@ -2424,6 +2438,29 @@ const TOGGLE_SECTIONS = [
         "display: block; width: 100%; box-sizing: border-box; padding: 0.5rem; " +
         "background: #b45309; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.9rem;";
       openBtn.addEventListener("click", () => openRankShowcaseEditor());
+      content.appendChild(openBtn);
+    },
+  },
+  {
+    // 続き220: 手札使用のCanvas霧散演出（V4/V5）のプレビュー/シミュレーション画面。
+    // 使用カード・追色カード・V4/V5・各スライダーを選んで実際に再生して確認できる（dissolve-preview.js）。
+    title: "🎬 手札使用の霧散演出プレビュー",
+    category: "effect",
+    buildContent: (content) => {
+      const note = document.createElement("div");
+      note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.5rem; line-height: 1.5;";
+      note.textContent =
+        "開くと、使用カード・追色カード・V4(通常)/V5(追色)・各スライダーを選んで、手札使用の霧散演出を" +
+        "実際に再生して確認できます。良い値が決まったら「⚙ セットアップ・挙動」等と同じく上の" +
+        "「出力をコピー」で共有してください。";
+      content.appendChild(note);
+      const openBtn = document.createElement("button");
+      openBtn.type = "button";
+      openBtn.textContent = "プレビューを開く";
+      openBtn.style.cssText =
+        "display: block; width: 100%; box-sizing: border-box; padding: 0.5rem; " +
+        "background: #6d28d9; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.9rem;";
+      openBtn.addEventListener("click", () => openDissolvePreview());
       content.appendChild(openBtn);
     },
   },

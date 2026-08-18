@@ -10,7 +10,22 @@ import { isTouchPrimaryDevice } from "./device-detect.js";
 
 const STAGE_W = 1600;
 const STAGE_H = 900;
-const SPEED = 0.85; // 消失速度（試作の既定 .75 よりわずかに速め）
+
+// 演出パラメータは管理者モードで調整できるよう CSS変数から読む（--table-tilt等と同じ方式）。
+// mist/residue はスマホで間引く。速さ(speed)は小さいほど“ゆっくり長い”演出になる。
+function readDissolveSettings(mobile) {
+  const cs = getComputedStyle(document.documentElement);
+  const num = (name, fb) => {
+    const v = parseFloat(cs.getPropertyValue(name));
+    return Number.isFinite(v) ? v : fb;
+  };
+  return {
+    speed: Math.max(0.3, num("--dissolve-speed", 0.85)),
+    mist: num("--dissolve-mist", 1) * (mobile ? 0.55 : 1),
+    residue: num("--dissolve-residue", 1) * (mobile ? 0.6 : 1),
+    cardSize: num("--dissolve-card-size", 340),
+  };
+}
 // 残光・発光に使う“鮮やかな”効果色（盤面パレット--color-*はくすみ気味なので、演出用に彩度を上げた値）。
 const DISSOLVE_HEX = {
   red: "#ff405c",
@@ -99,12 +114,11 @@ export async function playCardDissolve(usedCardId, opts = {}) {
   const costCtx = costCanvas.getContext("2d");
 
   const mobile = isTouchPrimaryDevice();
-  const mist = mobile ? 0.55 : 1; // 湯気の濃さ（スマホは控えめ）
-  const residue = mobile ? 0.6 : 1; // 残滓の量
+  const { speed, mist, residue, cardSize } = readDissolveSettings(mobile);
 
   const cx = W * 0.5;
   const cy = H * 0.5 - 8;
-  const w = Math.min(340, W * 0.24);
+  const w = Math.min(cardSize, W * 0.42);
   const h = w;
 
   // 追色の飛び出し元（省略時はカード左下）
@@ -221,7 +235,7 @@ export async function playCardDissolve(usedCardId, opts = {}) {
 
     const frame = (ms) => {
       if (done) return;
-      const rawT = (ms - started) / 1000 * SPEED;
+      const rawT = (ms - started) / 1000 * speed;
       const t = isV5 ? Math.max(0, rawT - PRELUDE) : rawT;
       ctx.clearRect(0, 0, W, H);
 
@@ -377,7 +391,7 @@ export async function playCardDissolve(usedCardId, opts = {}) {
       const rgb = hexRgb(usedColor.hex);
       particles = particles.filter((pp) => pp.life < pp.max);
       for (const pp of particles) {
-        pp.life += 0.016 * SPEED;
+        pp.life += 0.016 * speed;
         pp.x += pp.vx * 0.016;
         pp.y += pp.vy * 0.016;
         if (pp.cost) {
@@ -437,8 +451,8 @@ export async function playCardDissolve(usedCardId, opts = {}) {
       resolve();
     };
 
-    // 保険: 何かで終わらない場合でも必ず片付ける
-    const safety = setTimeout(finish, (PRELUDE + 4.5) * 1000);
+    // 保険: 何かで終わらない場合でも必ず片付ける（総尺は 1/speed に比例するので speed を織り込む）
+    const safety = setTimeout(finish, ((PRELUDE + 2.5) / speed + 1) * 1000);
     const origResolve = resolve;
     resolve = (v) => {
       clearTimeout(safety);

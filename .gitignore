@@ -6,3 +6,6 @@
 # 開発用スモークテスト（Playwright）。実行時にだけ使う・デプロイには含めない。
 /node_modules/
 /test-results/
+
+# 大きなzip等を誤ってコミットしない（画像素材.zip 1.36GBを誤commitした事故対策）
+*.zip
