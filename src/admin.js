@@ -288,6 +288,20 @@ const GROUPS = [
     ],
   },
   {
+    // カードを盤面マスに置く/手札へ回収する「飛翔（グライド→上空でピタッ→ストン着地）」の
+    // 各フェーズの時間・上空の高さ（main.jsのcardLandingTimings/playCardCellLanding/
+    // playCardLiftToHandが--card-landing-*をgetComputedStyleで読む）。ユーザー要望
+    // 「飛翔アニメが全体的に早すぎる。管理者モードで細かく調整したい」（続き213）。
+    title: "カード配置/回収の飛翔アニメ（速さ・高さ）",
+    category: "effect",
+    controls: [
+      { key: "--card-landing-glide-ms", label: "グライド時間（手札/山→上空、大きいほどゆっくり）", unit: "ms", min: 50, max: 1500, step: 10, default: 300 },
+      { key: "--card-landing-hold-ms", label: "上空で止まる間（ピタッ）", unit: "ms", min: 0, max: 1000, step: 10, default: 130 },
+      { key: "--card-landing-drop-ms", label: "落下/持ち上がり時間（ストン）", unit: "ms", min: 30, max: 1000, step: 10, default: 150 },
+      { key: "--card-landing-lift-scale", label: "上空の高さ（駒の高さ×この倍率）", unit: "", min: 0.3, max: 6, step: 0.05, default: 1.08 },
+    ],
+  },
+  {
     // オンライン対戦中、他プレイヤーがカードを場に置いた/取った時にそのマスを点滅させ、
     // 「↓」（置いた）「↑」（取った）の矢印を表示する演出の長さ（remote-move-animator.js
     // 参照）。ユーザー要望「その秒数は管理者モードで調整できるようにしたい」。
