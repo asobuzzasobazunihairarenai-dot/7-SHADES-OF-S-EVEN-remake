@@ -15245,3 +15245,40 @@ SQL Editorで再実行する必要がある**（ファイル全体＝再実行�
   スロットリング**でCPU戦の通し（複数ターンの自動対戦）はこの環境では確認しづらいため、実機の
   フォアグラウンドタブでのCPU戦の見た目（賢く打つか）はユーザー確認をお願いしたい。サーバー側
   （Supabase）の変更は無い。
+
+### 2026-08-18（続き207）：③演出——カードを盤面マスに置く「グライド→ストン→着地の風」演出（＋逆＝手札への回収）
+
+ユーザー要望「カードを盤面に配置するとき、手札からそのマスの上空へすーーっと行き、上空に着いたら
+ストンと真下に落ちて配置され、着地の瞬間にカードの周りに“物が落ちたときの風/ホコリ”のようなEFFECTが
+あるとかっこいい。逆（マスのカードが手札に入る）もその逆の感じで」。ドラッグ&ドロップでのカード配置に
+この2段モーション＋着地パフを追加した。
+- **`main.js`に3関数を新設**（既存のsetup-fly-cardゴースト方式＝document.body直下・3D空間の外・
+  stage座標を流用）: `playCardCellLanding(sourceRect, cellLocation, tokenId)`（手札→マス真上へ
+  グライド〈ease-out 300ms〉→真下へ落下〈ease-in 150ms〉→着地パフ）、`playCardLiftToHand(sourceRect,
+  player, tokenId)`（逆：マス→上空へ持ち上がり→手札へグライド、パフは持ち上がり側）、
+  `spawnCardLandingPuff(cellRect)`（着地の風/ホコリ）。演出中は実カードを`visibility:hidden`で隠し、
+  ゴーストだけ動かして着地後に見せる（**fire-and-forget＝配置ロジックには一切触れない後付けの飾り**）。
+  flyGhostの単純な直線と違い、`requestAnimationFrame`後にフェーズ1のtransition、`setTimeout`で
+  フェーズ2のtransitionへ切り替える2段方式。durationは`CARD_LANDING_GLIDE_MS`/`_DROP_MS`定数で微調整可。
+- **配線**（`onDragEnd`）: ドラッグ元カードのDOM rectを状態が書き換わる前に`cardAnimSourceRect`へ捕捉し、
+  (1)一般のカード→**マス**配置（`dropTarget.zone==="cell"`。ロックスロットは別のロック演出があるので
+  対象外）で`playCardCellLanding`、(2)盤面マス→**手札**への回収（`cardSourceLocation.zone==="cell"`）で
+  `playCardLiftToHand`を、それぞれ`render()`後に呼ぶ。オンライン/ローカル両方の配置経路が通る一般
+  ブランチに置いたため両モードで出る（オンラインの自席配置はremote-move-animatorが`markSelfHandled`で
+  二重演出しない既存の仕組みのまま）。
+- **CSS**（`style.css`）: パフは外側`.card-landing-puff`（位置＝inline transform）＋内側
+  `.card-landing-puff-inner`（拡大＋フェードの`@keyframes card-landing-puff-kf`、淡いクリーム色の
+  radial-gradientリングが広がって消える）の入れ子——同じtransformを2箇所から操作すると後勝ちで壊れる
+  既存の教訓を踏まえ位置とモーションを別要素に分離。ゴーストはz-index 9998（setup-fly-card）、パフは
+  9997。移動アニメーションを減らす設定（`isFlightAnimationDisabled`）中は演出ごとスキップ。
+- **スコープ（今回の範囲）**: ドラッグ&ドロップでのカード配置/回収のみ。CPU/カード効果による配置
+  （増殖する樹々・合同建設・山からの直接ドロー等）への横展開は、ユーザーが見た目を確認して方向性が
+  固まってから追加する想定（まず手で置く体験で刺さるか確認したい）。①（モーダルに食い気味に選択したい）は
+  具体的な場面が分かってから対応。
+- **検証**: `node --check`（main.js）通過・CSSブレース平衡（2306/2306）。ブラウザで、CPU戦セットアップ後の
+  実際の盤面カード＋そのマスに対して着地演出のDOM操作（実カードを隠す→ゴースト〈bg画像・z9998〉生成→
+  パフ〈外側z9997・内側にcard-landing-puff-kfアニメ〉生成→クリーンアップ）を実行し、要素の生成・
+  座標計算（stageClientToLocal/stageDelta・scale・上空の高さ）・後始末が例外・コンソールエラー無しで
+  通ることを実測確認。**アニメの実際の見た目・タイミング**は、この環境ではスクリーンショット不可＋
+  バックグラウンドタブのrAF/setTimeoutスロットリングで確認できないため、実機フォアグラウンドでの
+  見た目確認とdurationの微調整はユーザーにお願いしたい。サーバー側（Supabase）の変更は無い。

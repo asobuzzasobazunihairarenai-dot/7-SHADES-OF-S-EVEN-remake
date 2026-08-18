@@ -4330,6 +4330,106 @@ async function flyHandCardBetweenSeats(fromSeat, toSeat, cardId, faceUp = false)
   await done;
 }
 
+// ③演出（ユーザー要望2026-08-18）: カードを盤面マスに置くとき、手札からそのマスの真上(上空)へ
+// 「すーーっと」滑って行き、上空で止まったら真下へ「ストン」と落として着地。着地の瞬間、マスの周りに
+// 着地の風/ホコリ(landing puff)がふわっと舞う——というカード配置の演出。逆(マスのカードが手札に
+// 入る)はplayCardLiftToHand。既存のsetup-fly-cardゴースト方式(document.body直下・3D空間の外・
+// stage座標)を流用しつつ、flyGhostの単純な直線と違い「グライド→落下」の2段モーションにする。
+// 演出中は実カードを隠しゴーストだけ動かし、着地後に実カードを見せる（fire-and-forget＝配置ロジック
+// には一切影響しない後付けの飾り）。移動アニメーションOFF・要素欠落時は何もしない（実配置は
+// 呼び出し側が既に済ませている）。durations等はここで微調整可。
+const CARD_LANDING_GLIDE_MS = 300; // 手札→上空の「すーーっと」
+const CARD_LANDING_DROP_MS = 150; // 上空→マスの「ストン」（加速）
+function spawnCardLandingPuff(cellRect) {
+  const c = stageClientToLocal(cellRect.left + cellRect.width / 2, cellRect.top + cellRect.height / 2);
+  const size = stageDelta(cellRect.width) * 1.7;
+  const puff = document.createElement("div");
+  puff.className = "card-landing-puff";
+  puff.style.width = `${size}px`;
+  puff.style.height = `${size}px`;
+  puff.style.transform = `translate(${c.x}px, ${c.y}px) translate(-50%, -50%)`;
+  const inner = document.createElement("div");
+  inner.className = "card-landing-puff-inner";
+  puff.appendChild(inner);
+  document.body.appendChild(puff);
+  inner.addEventListener("animationend", () => puff.remove(), { once: true });
+  setTimeout(() => puff.remove(), 900); // animationendが来ない環境用の保険
+}
+function playCardCellLanding(sourceRect, cellLocation, tokenId) {
+  if (isFlightAnimationDisabled() || !sourceRect) return;
+  const table = document.getElementById("game-table");
+  if (!table) return;
+  const cellEl = findLocationElement(table, cellLocation);
+  const cardEl = table.querySelector(`.board-card[data-token-id="${tokenId}"]`);
+  if (!cellEl || !cardEl) return;
+  const cellRect = cellEl.getBoundingClientRect();
+  const img = getComputedStyle(cardEl).backgroundImage;
+  cardEl.style.visibility = "hidden"; // 実カードを隠してゴーストだけ動かす（着地後に見せる）
+  const ghost = document.createElement("div");
+  ghost.className = "setup-fly-card card-landing-ghost";
+  ghost.style.backgroundImage = img;
+  ghost.style.width = `${stageDelta(sourceRect.width)}px`;
+  ghost.style.height = `${stageDelta(sourceRect.height)}px`;
+  const from = stageClientToLocal(sourceRect.left + sourceRect.width / 2, sourceRect.top + sourceRect.height / 2);
+  const cellC = stageClientToLocal(cellRect.left + cellRect.width / 2, cellRect.top + cellRect.height / 2);
+  const scale = cellRect.width / sourceRect.width;
+  const liftLocal = stageDelta(cellRect.height) * 1.15; // 「上空」の高さ
+  ghost.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%)`;
+  document.body.appendChild(ghost);
+  requestAnimationFrame(() => {
+    // フェーズ1: マスの真上(上空)へ すーーっと（減速＝ease-out）
+    ghost.style.transition = `transform ${CARD_LANDING_GLIDE_MS}ms cubic-bezier(0.22, 0.61, 0.36, 1)`;
+    ghost.style.transform = `translate(${cellC.x}px, ${cellC.y - liftLocal}px) translate(-50%, -50%) scale(${scale})`;
+  });
+  setTimeout(() => {
+    // フェーズ2: ストンと真下へ落下（加速＝ease-in）
+    ghost.style.transition = `transform ${CARD_LANDING_DROP_MS}ms cubic-bezier(0.6, 0, 0.9, 0.2)`;
+    ghost.style.transform = `translate(${cellC.x}px, ${cellC.y}px) translate(-50%, -50%) scale(${scale})`;
+  }, CARD_LANDING_GLIDE_MS + 10);
+  setTimeout(() => {
+    spawnCardLandingPuff(cellRect); // 着地の風/ホコリ
+    cardEl.style.visibility = ""; // 実カードを見せる
+    requestAnimationFrame(() => requestAnimationFrame(() => ghost.remove()));
+  }, CARD_LANDING_GLIDE_MS + CARD_LANDING_DROP_MS + 20);
+}
+// 逆: マスのカードが手札に入るとき。持ち上がり(マスから上空へストン)→手札へすーーっと。風は
+// 持ち上がりの瞬間（マス側）に舞う。sourceRect=移動前の盤面カードのrect（移動前に捕捉）。
+function playCardLiftToHand(sourceRect, player, tokenId) {
+  if (isFlightAnimationDisabled() || !sourceRect) return;
+  const cardEl = document.querySelector(`.hand-card[data-token-id="${tokenId}"]`);
+  const handArea = document.querySelector(`.hand-area[data-player="${player}"]`);
+  const toRect = cardEl ? cardEl.getBoundingClientRect() : handArea ? handArea.getBoundingClientRect() : null;
+  if (!toRect) return;
+  const img = cardEl ? getComputedStyle(cardEl).backgroundImage : getCardBackImagePath(null) && `url("${getCardBackImagePath(null)}")`;
+  if (cardEl) cardEl.style.visibility = "hidden";
+  spawnCardLandingPuff(sourceRect); // 持ち上がりのホコリ（マス側）
+  const ghost = document.createElement("div");
+  ghost.className = "setup-fly-card card-landing-ghost";
+  if (img) ghost.style.backgroundImage = img;
+  ghost.style.width = `${stageDelta(sourceRect.width)}px`;
+  ghost.style.height = `${stageDelta(sourceRect.height)}px`;
+  const from = stageClientToLocal(sourceRect.left + sourceRect.width / 2, sourceRect.top + sourceRect.height / 2);
+  const to = stageClientToLocal(toRect.left + toRect.width / 2, toRect.top + toRect.height / 2);
+  const scale = toRect.width / sourceRect.width;
+  const liftLocal = stageDelta(sourceRect.height) * 1.15;
+  ghost.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%)`;
+  document.body.appendChild(ghost);
+  requestAnimationFrame(() => {
+    // フェーズ1: マスから上空へ ストンと持ち上がる（加速＝ease-in）
+    ghost.style.transition = `transform ${CARD_LANDING_DROP_MS}ms cubic-bezier(0.4, 0, 0.9, 0.5)`;
+    ghost.style.transform = `translate(${from.x}px, ${from.y - liftLocal}px) translate(-50%, -50%)`;
+  });
+  setTimeout(() => {
+    // フェーズ2: 手札へ すーーっと（減速＝ease-out）
+    ghost.style.transition = `transform ${CARD_LANDING_GLIDE_MS}ms cubic-bezier(0.22, 0.61, 0.36, 1)`;
+    ghost.style.transform = `translate(${to.x}px, ${to.y}px) translate(-50%, -50%) scale(${scale})`;
+  }, CARD_LANDING_DROP_MS + 10);
+  setTimeout(() => {
+    if (cardEl) cardEl.style.visibility = "";
+    requestAnimationFrame(() => requestAnimationFrame(() => ghost.remove()));
+  }, CARD_LANDING_DROP_MS + CARD_LANDING_GLIDE_MS + 20);
+}
+
 // 手札効果のDRAW動詞用。playerの手札へ山札からcount枚引く（オンライン同期込み、
 // 「1枚ドロー」ボタンと同じ考え方をcount回・任意のplayer向けに一般化したもの）。
 // ユーザー要望「「●枚ドローします。」的なモーダルも欲しいです。全員に。」「山札から
@@ -10090,6 +10190,17 @@ async function onDragEnd(e) {
   // 無害な追加計算が増えるだけ）。
   const cardSourceLocation = getState().tokens.find((t) => t.id === tokenId)?.location ?? null;
 
+  // ③演出用: ドラッグ元カードのDOM要素のrectを、状態が書き換わる（render）前に捕捉しておく。
+  // カード配置の着地演出(playCardCellLanding)の「飛び元＝手札」、回収演出(playCardLiftToHand)の
+  // 「飛び元＝盤面マス」に使う。掴んでいる間 visibility:hidden だがレイアウトは残るので rect は有効。
+  let cardAnimSourceRect = null;
+  if (kind === "card") {
+    const srcEl = document.querySelector(
+      `.hand-card[data-token-id="${tokenId}"], .hand-reveal-card[data-token-id="${tokenId}"], .board-card[data-token-id="${tokenId}"]`
+    );
+    if (srcEl) cardAnimSourceRect = srcEl.getBoundingClientRect();
+  }
+
   if (pileSource) {
     // 山からは手札だけでなく盤面マス・ロックスロットへも直接置ける（ルール適用なしの自由な
     // 移動のため）。ただし山(pile)自体へは置けない——山は個々のカードを保持せず残り枚数
@@ -10308,6 +10419,9 @@ async function onDragEnd(e) {
         announceHandPickups(dropTarget.player, [{ cardId, wasPublic }]);
         render();
         maybeTriggerCardArrivalForExposedCard(cardSourceLocation);
+        // ③演出（ユーザー要望2026-08-18の「逆もしかり」）: 盤面マスのカードが手札に入るときは、
+        // 配置の逆——マスから上空へストンと持ち上がり（風はマス側）→手札へすーーっと。
+        if (cardSourceLocation?.zone === "cell") playCardLiftToHand(cardAnimSourceRect, dropTarget.player, tokenId);
         return;
       }
     }
@@ -10627,6 +10741,10 @@ async function onDragEnd(e) {
       // ここに到達する時点で移動元と移動先は必ず異なる（重なりの中で並び替えただけ、
       // という「同じマスへ移動」のケースは、そもそもここまで到達しない）。
       maybeTriggerCardArrivalForExposedCard(cardSourceLocation);
+      // ③演出（ユーザー要望2026-08-18）: 盤面マスへ置いたカードに着地演出（手札→上空へグライド→
+      // ストンと落下→着地の風）。ロックスロットは別のロック演出があるので対象外。fire-and-forget
+      // ＝実配置はもう済んでおり、これは実カードを一瞬隠してゴーストを飛ばすだけの飾り。
+      if (dropTarget.zone === "cell") playCardCellLanding(cardAnimSourceRect, dropTarget, tokenId);
     }
     return;
   }
