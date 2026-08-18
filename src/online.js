@@ -1027,10 +1027,24 @@ export async function sendPushToUsers(targetUserIds, { title, body, url, tag } =
   const ids = (targetUserIds || []).filter(Boolean);
   if (ids.length === 0) return;
   try {
-    const { error } = await client.functions.invoke("so7-send-push", {
+    const { data, error } = await client.functions.invoke("so7-send-push", {
       body: { targetUserIds: ids, title, body, url, tag },
     });
-    if (error) console.error("so7-send-push failed (Edge Function未デプロイ/VAPID未設定の可能性)", error);
+    if (error) {
+      // 500等の非2xxの時、supabase-jsのerrorには理由が入らない（"non-2xx"としか出ない）。
+      // Edge Function が返す JSON 本文（{ok:false, error:"vapid_not_configured"|
+      // "subscription_lookup_failed"|...}）を読み出して原因を明示する。#182と同じ手法。
+      let detail = "";
+      try {
+        const ctx = error.context;
+        if (ctx && typeof ctx.text === "function") detail = await ctx.text();
+      } catch {}
+      console.error("so7-send-push failed（原因の本文）:", detail || error.message || error);
+      logAction("diag-send-push-error", { detail: detail || String(error?.message || error) });
+    } else if (data) {
+      // 成功時: {ok, sent, total, skipped?} が返る。何人に送れたか/なぜスキップしたかを残す。
+      logAction("diag-send-push", data);
+    }
   } catch (err) {
     console.error("sendPushToUsers failed", err);
   }
