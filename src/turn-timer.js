@@ -387,6 +387,15 @@ function onStateChange(state) {
   if (isSetupRevealActive()) return;
   const tp = state.turnPlayer;
   if (tp !== prevTurnPlayer) {
+    // ターンが変わった（新しいターン／新しい対局の開始）。「このターンのタイムアウト自動行動を
+    // 既に実行した」ラッチを必ずクリアする。これをしないと、前のターン／前の対局（特に勝利で
+    // 終わった直後）のラッチ true を持ち越し、新しいターンの基本時間（疑似CPUは約1秒）が、
+    // tick が一度も remaining>0 を観測しないうちに切れると（タブのスロットリングで tick 間隔が
+    // 1秒より長い時に起こりやすい）、updateTimeoutWarnings の !timedOutAutoActionFired が
+    // false のままになり、自動行動が永久に抑止されて固まる（スモークの連続実行で2回目以降が
+    // ターン1で詰む不具合の根本原因）。ここでリセットすれば「新しいターンはまだ実行していない」を
+    // tick の観測タイミングに依存せず保証できる。全クライアントで実行する（各自のtickの話なので）。
+    timedOutAutoActionFired = false;
     if (prevTurnPlayer === null && state.priorityPlayer) {
       // 他のクライアントが既にこのゲームの優先権システムを初期化済み。このタブの
       // prevTurnPlayerがnullなのは、対局途中でリロード/再参加してモジュールが今

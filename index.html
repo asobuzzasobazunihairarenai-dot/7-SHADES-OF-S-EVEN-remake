@@ -22,6 +22,10 @@
   document.addEventListener("gestureend", (e) => e.preventDefault());
 </script>
 <title>7 SHADES OF S:EVEN デジタル版</title>
+<!-- ファビコン: 別ファイルを置かずインラインSVGのdata URIで済ませる（favicon.ico 404対策）。
+     7色（このゲームのパレット）のドットを円環状に並べた小さなアイコン。 -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23050709'/%3E%3Cg%3E%3Ccircle cx='16' cy='6' r='2.6' fill='%23c70025'/%3E%3Ccircle cx='24' cy='10' r='2.6' fill='%23ee781f'/%3E%3Ccircle cx='26' cy='19' r='2.6' fill='%23fabe00'/%3E%3Ccircle cx='20' cy='26' r='2.6' fill='%2322ac38'/%3E%3Ccircle cx='12' cy='26' r='2.6' fill='%231bb8ce'/%3E%3Ccircle cx='6' cy='19' r='2.6' fill='%23f19ec2'/%3E%3Ccircle cx='8' cy='10' r='2.6' fill='%23915da3'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23050709'/%3E%3Ccircle cx='16' cy='6' r='2.6' fill='%23c70025'/%3E%3Ccircle cx='24' cy='10' r='2.6' fill='%23ee781f'/%3E%3Ccircle cx='26' cy='19' r='2.6' fill='%23fabe00'/%3E%3Ccircle cx='20' cy='26' r='2.6' fill='%2322ac38'/%3E%3Ccircle cx='12' cy='26' r='2.6' fill='%231bb8ce'/%3E%3Ccircle cx='6' cy='19' r='2.6' fill='%23f19ec2'/%3E%3Ccircle cx='8' cy='10' r='2.6' fill='%23915da3'/%3E%3C/svg%3E">
 <!-- 不具合報告用のコンソール取得は、他のどのスクリプトより前に仕込まないと、この直後の
      Tailwind CDNの警告など「モジュール(src/main.js)読み込みより前」に出るログを取りこぼす
      （ユーザー報告「コンソールが取得できていない。手動で見たらログがあった」＝取れていたのは
