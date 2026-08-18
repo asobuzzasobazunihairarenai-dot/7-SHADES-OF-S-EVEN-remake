@@ -15046,3 +15046,31 @@ SQL Editorで再実行する必要がある**（ファイル全体＝再実行�
   登録失敗はこの自動操作ブラウザのサンドボックス制限で、実Chrome/GitHub Pagesでは問題なし）。#146の
   実挙動（Realtime劣化下でも対局開始に追いつく）は、実機2ブラウザ（特に片方でRealtimeが劣化する
   状況）での最終確認が必要。サーバー側（Supabase/Edge Function）の変更は無い。
+
+### 2026-08-18（続き200）：Web Push の500エラー（so7-send-push）の原因をコンソール／アクションログに明示
+
+- ユーザーが片方ブラウザを最小化してマッチさせたが通知が来ず、コンソールに
+  `POST .../functions/v1/so7-send-push 500 (Internal Server Error)`＋
+  `FunctionsHttpError: Edge Function returned a non-2xx status code`。**500なので Edge Function
+  自体はデプロイ済み**（未デプロイなら404）だが内部で失敗している。`so7-send-push.ts`は原因ごとに
+  明確なJSON本文（`vapid_not_configured`＝VAPID_PUBLIC/PRIVATE未設定・`subscription_lookup_failed`＝
+  `so7_push_subscriptions`テーブル未作成〈SQL④未実行〉・その他は例外メッセージ）を返すが、
+  `sendPushToUsers`（online.js）が`client.functions.invoke`のerrorをそのまま出すだけで**本文を読んで
+  いなかった**ため「non-2xx」としか見えず切り分け不能だった。
+- **修正**: `sendPushToUsers`を、非2xx時に`error.context`（Response）の本文を`await ctx.text()`で
+  読み出してコンソール＋アクションログ（`diag-send-push-error`）に明示するようにした（#182と同じ手法）。
+  成功時も`{ok,sent,total,skipped}`を`diag-send-push`に残す（何人に送れたか／なぜスキップしたか
+  ＝`no_subscriptions`＝相手がまだ購読していない、等が分かる）。次に最小化テストした時、コンソール
+  「so7-send-push failed（原因の本文）:」に出る文字列で原因を確定できる。
+- **通知が来なかったもう一つの前提**（切り分け用）: 相手（受信側）に通知が届くには、相手が事前に
+  ①通知を許可し②`subscribeToPush()`で購読を`so7_push_subscriptions`へ保存している必要がある。
+  未許可・未購読なら（500が直っても）`skipped:"no_subscriptions"`で送られない。ランク戦のキュー登録時
+  （`beginQueue`）に許可を求め、grantedなら購読する導線は入っているので、**両ブラウザとも一度は
+  通知を許可してキューに入る**必要がある。
+- **ユーザー側の作業（残り）**: ④`supabase_setup_so7.sql`の`so7_push_subscriptions`/
+  `so7_save_push_subscription`をSQL Editorで実行（未実行なら`subscription_lookup_failed`で500）、
+  Edge Functionのシークレット`VAPID_PUBLIC_KEY`（＝クライアントに貼ったのと同じ公開鍵）・
+  `VAPID_PRIVATE_KEY`・`VAPID_SUBJECT`（`mailto:...`）が全て設定されていること（未設定なら
+  `vapid_not_configured`で500）。**⚠️ Edge Functionのシークレットに`VAPID_PUBLIC_KEY`も必要**（秘密鍵
+  だけでなく公開鍵もサーバー側でsetVapidDetailsに渡すため）。
+- 検証: `node --check`（online.js）通過。実際の原因文字列は、次の最小化テストのコンソールで確認。
