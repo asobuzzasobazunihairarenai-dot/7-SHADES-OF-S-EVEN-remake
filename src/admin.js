@@ -200,8 +200,8 @@ const GROUPS = [
       { key: "--table-tilt", label: "テーブルの傾き", unit: "deg", min: 0, max: 70, step: 1, default: 42 },
       { key: "--camera-perspective", label: "カメラ距離（小さいほど遠近感が強い）", unit: "px", min: 500, max: 3000, step: 10, default: 1090 },
       { key: "--camera-perspective-origin-y", label: "消失点の高さ（画面上端からの距離、ウィンドウサイズに依存しない固定値）", unit: "rem", min: 0, max: 20, step: 0.1, default: 8.4 },
-      { key: "--camera-offset-y", label: "上下（Y軸）位置", unit: "rem", min: -20, max: 20, step: 0.1, default: -4.2 },
-      { key: "--camera-zoom", label: "ズーム", unit: "", min: 0.3, max: 2.5, step: 0.01, default: 0.93 },
+      { key: "--camera-offset-y", label: "上下（Y軸）位置", unit: "rem", min: -20, max: 20, step: 0.1, default: -1.4 },
+      { key: "--camera-zoom", label: "ズーム", unit: "", min: 0.3, max: 2.5, step: 0.01, default: 1.05 },
     ],
   },
   {
@@ -299,6 +299,19 @@ const GROUPS = [
       { key: "--card-landing-hold-ms", label: "上空で止まる間（ピタッ）", unit: "ms", min: 0, max: 1000, step: 10, default: 130 },
       { key: "--card-landing-drop-ms", label: "落下/持ち上がり時間（ストン）", unit: "ms", min: 30, max: 1000, step: 10, default: 150 },
       { key: "--card-landing-lift-scale", label: "上空の高さ（駒の高さ×この倍率）", unit: "", min: 0.3, max: 6, step: 0.05, default: 1.08 },
+    ],
+  },
+  {
+    // 手札の使用が決定した時の「中央でカードが色オーラを纏い燃えカスになって消える」演出
+    // （main.jsのplayHandEffectUseBurn/playHandEffectUseCinematic、CSS .hand-effect-burn-*）。
+    // ユーザー報告「演出が早すぎて何が起きたかわからない」（続き217）で尺・大きさ・右モーダルの
+    // 立ち上げタイミングを調整可能にした。
+    title: "手札使用の演出（中央で燃えカスになる）",
+    category: "effect",
+    controls: [
+      { key: "--hand-burn-duration", label: "演出の長さ（秒、大きいほどゆっくり読める）", unit: "秒", min: 1, max: 6, step: 0.1, default: 2.6 },
+      { key: "--hand-burn-card-size", label: "中央カードの大きさ", unit: "rem", min: 8, max: 32, step: 0.5, default: 17 },
+      { key: "--hand-burn-modal-delay", label: "右の使用モーダルが出るまで（秒）", unit: "秒", min: 0, max: 6, step: 0.1, default: 1.5 },
     ],
   },
   {

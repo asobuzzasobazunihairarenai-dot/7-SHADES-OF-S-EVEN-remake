@@ -15,7 +15,7 @@
 // ドラッグ中のゴーストや自分ステータス欄の小さな駒サムネイルはbuildCubePiece()を data-token-id
 // 無しで使うため、セレクタ .piece[data-token-id] には引っかからない＝盤面の本物の駒だけが対象。
 
-import { getPetOptionForSeat, petSpriteSrc } from "./pet-skins.js";
+import { getPetOptionForSeat, petSpriteSrc, petSpriteScale } from "./pet-skins.js";
 import { onFlatten2dModeChange } from "./tablet-2d-mode.js"; // 2D切替時の診断ログ用（#2調査）
 
 const PET_EMOJI = "🐥"; // 既定（pet-skins.jsの選択が使えない時のフォールバック）
@@ -207,7 +207,8 @@ function updateSprite(pet, spriteName, fontPx, behState) {
   else if (behState === "yawn") motion = "yawn";
   else if (behState === "ear") motion = "ear";
   else motion = "idle";
-  const size = Math.round(fontPx * SPRITE_SIZE_RATIO);
+  // ペットごとの表示倍率（既定1、モリラは1.3等）。ユーザー要望2026-08-18。
+  const size = Math.round(fontPx * SPRITE_SIZE_RATIO * petSpriteScale(spriteName));
   pet.sprite.style.width = `${size}px`;
   pet.sprite.style.height = `${size}px`;
   const src = petSpriteSrc(spriteName, pet.facing, motion);

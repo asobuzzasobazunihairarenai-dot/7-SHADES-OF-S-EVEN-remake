@@ -22,7 +22,8 @@ export const PET_OPTIONS = [
   { sprite: "rubel", label: "ルベル", itemKey: "pet:rubel", cost: 300 },
   { sprite: "kii", label: "キィ", itemKey: "pet:kii", cost: 300 },
   { sprite: "moya", label: "モヤ", itemKey: "pet:moya", cost: 300 }, // 2026-08-12追加
-  { sprite: "morira", label: "モリラ", itemKey: "pet:morira", cost: 300 }, // 2026-08-17追加
+  // spriteScale: このペットだけ表示倍率を変える（ユーザー要望2026-08-18「モリラをもう少し大きく」）。
+  { sprite: "morira", label: "モリラ", itemKey: "pet:morira", cost: 300, spriteScale: 1.3 }, // 2026-08-17追加
   { sprite: "poyon", label: "ポヨン", itemKey: "pet:poyon", cost: 300 }, // 2026-08-17追加
   { emoji: null, label: "なし（非表示）" }, // ペットを表示しない（初期値）
 ];
@@ -41,6 +42,12 @@ export function getPetShopItems() {
 // スプライトペットの画像パス。方向(front/back/left/right)とモーション(static/walk/idle/yawn/ear/jump)から。
 export function petSpriteSrc(sprite, dir, motion) {
   return `assets/pets/${sprite}/${sprite}-${dir}-${motion}.webp`;
+}
+
+// ペットごとの表示倍率（既定1）。piece-pet.jsのupdateSpriteが基準サイズに掛ける。
+export function petSpriteScale(sprite) {
+  const opt = PET_OPTIONS.find((o) => o.sprite === sprite);
+  return opt && typeof opt.spriteScale === "number" ? opt.spriteScale : 1;
 }
 
 const STORAGE_KEY = "so7-pet-index";

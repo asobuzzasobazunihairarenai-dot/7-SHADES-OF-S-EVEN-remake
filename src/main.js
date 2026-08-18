@@ -2198,8 +2198,13 @@ function handEffectBurnColor(cardId) {
 }
 // 中央の「カード拡大→色オーラ→燃えカスになって消える」演出。ゴーストと同じdocument.body直下・
 // pointer-events:none（下の盤面はクリック可能）。演出完了で解決するPromiseを返す。
+function handBurnDurationSec() {
+  const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hand-burn-duration"));
+  return Number.isFinite(v) && v > 0 ? v : 2.6;
+}
 function playHandEffectUseBurn(cardId) {
   if (isArrivalEffectDisabled()) return Promise.resolve();
+  const durSec = handBurnDurationSec();
   const overlay = document.createElement("div");
   overlay.className = "hand-effect-burn-overlay";
   overlay.style.setProperty("--burn-color", handEffectBurnColor(cardId));
@@ -2219,13 +2224,14 @@ function playHandEffectUseBurn(cardId) {
   const EMBER_COUNT = 26;
   for (let i = 0; i < EMBER_COUNT; i++) {
     const e = document.createElement("i");
-    // カード面(だいたい±50%)にランダム配置。燃え始め(約45%地点)以降に舞うようdelayを付ける。
+    // カード面(だいたい±50%)にランダム配置。燃え始め(約55%地点)以降に舞うようdelayを付ける
+    // （尺--hand-burn-durationに比例。ホールドを長くしても燃えカスが燃焼フェーズに合う）。
     e.style.setProperty("--ex", `${(Math.random() * 2 - 1) * 46}%`);
     e.style.setProperty("--ey", `${(Math.random() * 2 - 1) * 50}%`);
     e.style.setProperty("--edx", `${(Math.random() * 2 - 1) * 34}px`); // 上昇中の横ゆらぎ
     e.style.setProperty("--ers", `${0.5 + Math.random() * 1.1}`); // 粒サイズ倍率
-    e.style.animationDelay = `${0.62 + Math.random() * 0.5}s`;
-    e.style.animationDuration = `${0.9 + Math.random() * 0.7}s`;
+    e.style.animationDelay = `${durSec * (0.5 + Math.random() * 0.22)}s`;
+    e.style.animationDuration = `${durSec * (0.3 + Math.random() * 0.2)}s`;
     embers.appendChild(e);
   }
   stage.appendChild(embers);
@@ -2241,7 +2247,7 @@ function playHandEffectUseBurn(cardId) {
       resolve();
     };
     card.addEventListener("animationend", finish, { once: true });
-    setTimeout(finish, 2200); // animationendが来ない環境用の保険
+    setTimeout(finish, durSec * 1000 + 700); // animationendが来ない環境用の保険（尺に追従）
   });
 }
 // 手札使用の一連（中央の燃えカス演出→右の使用モーダル）。演出を減らす設定中は演出を飛ばして
@@ -2252,8 +2258,9 @@ function playHandEffectUseCinematic(cardId, optionLabel) {
     return;
   }
   playHandEffectUseBurn(cardId);
-  // カードが燃え崩れ始める頃（約0.95秒）に右の使用モーダルを“立ち上げる”。
-  setTimeout(() => showHandEffectUseModal(cardId, optionLabel), 950);
+  // カードが燃え崩れ始める頃に右の使用モーダルを“立ち上げる”（--hand-burn-modal-delay秒、既定1.5）。
+  const md = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hand-burn-modal-delay"));
+  setTimeout(() => showHandEffectUseModal(cardId, optionLabel), (Number.isFinite(md) && md >= 0 ? md : 1.5) * 1000);
 }
 
 // ユーザー要望「カード効果を使用するために手札から使用するカードをドロップした時は、
