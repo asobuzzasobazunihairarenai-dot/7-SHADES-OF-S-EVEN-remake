@@ -220,7 +220,7 @@ const PILOT_CARDS = [
   { cardId: "white-radiance", kind: "arrival", actual: "全員、3枚ドロー。このカードを捨てる。" },
   { cardId: "white-radiance", kind: "handEffect", actual: "全員、３枚ドロー。このフェイズを終了する。" },
   { cardId: "black-faded-cat", kind: "arrival", actual: "これを捨てる。全員、手札を全て捨て、１枚ドロー。" },
-  { cardId: "black-faded-cat", kind: "handEffect", actual: "あなたの手札をすべて捨てる。１枚ドロー。" },
+  { cardId: "black-faded-cat", kind: "handEffect", actual: "あなたのロックしているカードを任意の枚数捨てる。捨てたカード１枚に付き３枚ドロー。このフェイズを終了する。" },
   { cardId: "black-contract-brand", kind: "arrival", actual: "あなたの空いているロックエリアに、これを表向きで置く。" },
   { cardId: "black-contract-brand", kind: "handEffect", actual: "これを任意のマスに裏向きで置く。" },
   {

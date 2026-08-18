@@ -7152,12 +7152,22 @@ async function respondToContact(approve) {
     }
   }
 
+  // 接触演出の順序を後から追えるよう記録（ユーザー要望2026-08-18「順序がしっかりわかるよう
+  // アクションログを強化して」）。tackle が null なら「なぜ演出無しか」も残す。
+  logAction("diag-contact-tackle", {
+    phase: tackle ? "lunge-start" : "no-anim",
+    reason: tackle ? undefined : isFlightAnimationDisabled() ? "flight-anim-disabled" : "piece-dom-not-found",
+    attacker,
+    defender,
+    online: isOnlineMode(),
+  });
   if (tackle) {
     // 汎用render()リスナー・remote-move-animator.jsを一時停止し、この後の
     // respondContact()による状態変化で盤面が勝手に作り直されないようにする
     // （suppressGenericRenderForOnlineStartと同じパターン）。
     suppressGenericRenderForContactTackle = true;
     await playContactLunge(tackle);
+    logAction("diag-contact-tackle", { phase: "lunge-end-state-move" });
   }
 
   if (isOnlineMode()) {
@@ -7183,8 +7193,10 @@ async function respondToContact(approve) {
   }
 
   if (tackle) {
+    logAction("diag-contact-tackle", { phase: "flight-start" });
     await playContactFlight(defenderPieceId, tackle.defenderFromRect);
     suppressGenericRenderForContactTackle = false;
+    logAction("diag-contact-tackle", { phase: "flight-end" });
   } else if (approve) {
     playSound("piecePlace");
   }

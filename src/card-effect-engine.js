@@ -1450,6 +1450,42 @@ async function runAction(action, ctx, helpers) {
       );
       return true;
     }
+    case VERBS.DISCARD_ANY_OWN_LOCKED_DRAW_PER: {
+      // 色落ちキャット手札効果（2026-08-18ユーザー変更）専用: 自分のロックしているカードを
+      // 任意の枚数（0枚でもよい）捨て、捨てたカード1枚につきaction.drawPer枚ドローする。
+      // DISCARD_ONE_LOCKED_CARDの候補生成（ファースト/エターナルは対象外）＋
+      // FLIP_UP_TO_N_WITHIN_RANGEの「0..N複数選択（stop可）」を組み合わせた形。
+      const drawPer = action.drawPer ?? 3;
+      const side = SEAT_TO_SIDE[ctx.player];
+      let discarded = 0;
+      for (let i = 0; i < 7; i++) {
+        const lockedTokens = getState().tokens.filter(
+          (t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side && isTargetableByOtherCardEffects(t.cardId)
+        );
+        if (lockedTokens.length === 0) break;
+        const candidates = lockedTokens.map((t) => t.location);
+        const dest = await helpers.pickLocation(
+          candidates,
+          `捨てるロックカードを選択してください（任意、選ぶと${drawPer}枚ドロー）`,
+          { allowSkip: true, skipLabel: discarded > 0 ? "これ以上捨てない" : "捨てない" }
+        );
+        if (!dest) break; // 「任意の枚数」＝これ以上選ばない＝正常終了
+        const chosen = lockedTokens.find((t) => t.location.side === dest.side && t.location.index === dest.index);
+        if (!chosen) break;
+        await helpers.discardAndSync(chosen.id);
+        discarded++;
+      }
+      if (discarded > 0) {
+        await helpers.drawCards(ctx.player, discarded * drawPer);
+        await helpers.announceEffectReason?.(
+          ctx.cardId,
+          `ロックカードを${discarded}枚捨て、${discarded * drawPer}枚ドローしました。`
+        );
+      }
+      // END_CURRENT_PHASEが後続にあるので、捨てなかった（discarded:0）場合でも効果全体は
+      // 「不発」ではない（フェイズ終了は必ず起きる）。ここは実際に捨てたかどうかを返す。
+      return discarded > 0;
+    }
     case VERBS.DECLARE_COLORS: {
       // ザ・ギャンブル（action.minCount、以上）/試練の儀式（action.count、固定数）
       // 共通。実際の選択UI（複数色から選ばせる）はhelpers側（main.jsのdeclareColorsForEffect）

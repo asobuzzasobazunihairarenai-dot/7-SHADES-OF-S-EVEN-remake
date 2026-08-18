@@ -46,7 +46,8 @@ export const VERBS = {
   END_CURRENT_PHASE: "end_current_phase", // なないろの巨光・スラム上がりの役人・ザ・ギャンブル専用: 現在のフェイズを強制的に終了する
   PLACE_SELF_ADJACENT_TO_CHOSEN_OPPONENT: "place_self_adjacent_to_chosen_opponent", // プレゼント専用: 相手を選び、その隣に自分自身を裏向きで置く
   PLACE_DECK_CARD_ON_ALL_FACEUP_CELLS: "place_deck_card_on_all_faceup_cells", // 白の意思の覚醒専用: 場の全ての表向きのカードの上に山札から1枚ずつ裏向きで置く
-  DISCARD_OWN_HAND: "discard_own_hand", // 色落ちキャット専用: 自分の手札を全て捨てる（全員対象のALL_PLAYERS_DISCARD_HAND_AND_DRAWと違い自分だけ）
+  DISCARD_OWN_HAND: "discard_own_hand", // （旧・色落ちキャット手札効果。効果変更で未使用に。他カードで使う可能性を残し定義は残置）自分の手札を全て捨てる
+  DISCARD_ANY_OWN_LOCKED_DRAW_PER: "discard_any_own_locked_draw_per", // 色落ちキャット手札効果専用: 自分のロックカードを任意の枚数捨て、1枚につきdrawPer枚ドロー
   DISCARD_ONE_HAND_CARD: "discard_one_hand_card", // ザ・ギャンブル専用: 手札から1枚を選んで捨てる（追色コストと違い色の制約は無い）
   DRAW_IF_HAND_AT_MOST: "draw_if_hand_at_most", // スラム上がりの役人専用: 自分の手札が指定枚数以下ならドローする
   // ザ・ギャンブルの手札効果専用: 「上記の到達時の効果を得る」の前後に別のアクション
@@ -278,12 +279,12 @@ export const CARD_EFFECTS = {
         { verb: VERBS.ALL_PLAYERS_DISCARD_HAND_AND_DRAW, count: 1 },
       ],
     },
-    // 手札効果: 「あなたの手札をすべて捨てる。１枚ドロー。」到達効果と違い自分だけが
-    // 対象（DISCARD_OWN_HAND、ALL_PLAYERS版と違い他プレイヤーへの委任は不要）。
+    // 手札効果（2026-08-18ユーザーが効果変更）: 「あなたのロックしているカードを任意の枚数
+    // 捨てる。捨てたカード１枚に付き３枚ドロー。このフェイズを終了する。」
     handEffect: {
       actions: [
-        { verb: VERBS.DISCARD_OWN_HAND },
-        { verb: VERBS.DRAW, count: 1, target: TARGETS.SELF },
+        { verb: VERBS.DISCARD_ANY_OWN_LOCKED_DRAW_PER, drawPer: 3 },
+        { verb: VERBS.END_CURRENT_PHASE },
       ],
     },
   },
@@ -950,6 +951,8 @@ function renderAction(action, context) {
       return "場の全ての表向きのカードの上に山札から１枚ずつ裏向きで置く。";
     case VERBS.DISCARD_OWN_HAND:
       return "あなたの手札をすべて捨てる。";
+    case VERBS.DISCARD_ANY_OWN_LOCKED_DRAW_PER:
+      return `あなたのロックしているカードを任意の枚数捨てる。捨てたカード１枚に付き${toFullWidthNumber(action.drawPer)}枚ドロー。`;
     case VERBS.DISCARD_ONE_HAND_CARD:
       return "あなたは手札を１枚捨てる。";
     case VERBS.DRAW_IF_HAND_AT_MOST:

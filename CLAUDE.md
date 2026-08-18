@@ -15658,3 +15658,45 @@ SQL Editorで再実行する必要がある**（ファイル全体＝再実行�
   盤面に他の表向きカードがあったか／実行後に残っていたか、を教えてほしい。なお仕様の細かな点として、
   現状は重なりの下の表向きカードも対象にしている（cards.md「カードの下にある表向きのカードは対象では
   ない＝１番上の原則」）ため、厳密化（一番上のみ対象）も要望あれば入れられる。
+
+### 2026-08-18（続き222）：色落ちキャットの手札効果を変更／接触演出の順序ログ強化／白の意思の覚醒の画像差し替え
+
+ユーザーからの3件（＋#149はユーザーの勘違いと判明＝バグではない）に対応。
+
+- **色落ちキャット（black-faded-cat）の手札効果（■）を変更**: ユーザー指定の新テキスト
+  「あなたのロックしているカードを任意の枚数捨てる。捨てたカード１枚に付き３枚ドロー。このフェイズを
+  終了する。」に差し替え。到達効果（●「これを捨てる。全員、手札を全て捨て、１枚ドロー。」）は変更なし。
+  - **新動詞 `DISCARD_ANY_OWN_LOCKED_DRAW_PER`**（`card-effects.js`）: renderAction で
+    「あなたのロックしているカードを任意の枚数捨てる。捨てたカード１枚に付き${drawPer}枚ドロー。」を生成。
+    handEffect の actions を `[{verb: DISCARD_ANY_OWN_LOCKED_DRAW_PER, drawPer: 3}, {verb: END_CURRENT_PHASE}]`
+    に変更（旧 `DISCARD_OWN_HAND`＋`DRAW 1` を撤去）。生成テキストは node 自己テストで意図と完全一致を確認。
+  - **エンジン実装**（`card-effect-engine.js`）: 既存の DISCARD_ONE_LOCKED_CARD / FLIP_UP_TO_N と同じ
+    パターンで、自分のロックスロット（`side===SEAT_TO_SIDE[player]`）のうち
+    `isTargetableByOtherCardEffects`（ファースト/エターナルを除外）なカードを、最大7回まで
+    `pickLocation(..., {allowSkip:true, skipLabel})` で1枚ずつ「任意の枚数」選ばせて捨てる。捨てた枚数×3
+    をまとめてドローし、`announceEffectReason` で「N枚捨てたのでM枚ドロー」を告知。捨てが0枚なら何もしない。
+    続くアクション `END_CURRENT_PHASE` でハンドフェイズを終える。
+  - **検証**: ブラウザで、ファースト1枚＋通常2枚をロックした状態を hydrate して runHandEffect を実行し、
+    候補数が [2,1]（ファースト除外→通常2枚→1枚と減る）・捨てが [自身, 通常lk1, 通常lk2]・ドローが A×6
+    （2枚×3）・phaseEnded=true・ファースト札は捨てられていない、を実測確認。docs/cards.md・card-dev-mode.js の
+    「実際」テキストも新テキストに更新（開発ウィンドウで✅一致）。
+
+- **接触演出の順序が分かるようにアクションログを強化**（ユーザー要望「順序がしっかりわかるように」）:
+  `respondToContact`（main.js）に `diag-contact-tackle` ログを追加。①開始時に phase（"lunge-start" or
+  "no-anim"）＋理由（アニメ無効/駒DOM未検出）＋attacker/defender/online、②lunge 完了・強制移動直前に
+  "lunge-end-state-move"、③flight（ゲートへ戻る演出）の "flight-start"/"flight-end" を記録。#148 は現状
+  コード上の順序は正しい（lunge→強制移動→flight）が体感で崩れて見えたとのことなので、再発時にこのログで
+  順序を確定できるようにした（コードの挙動自体は変更していない）。
+
+- **白の意思の覚醒（white-awakening）の画像を差し替え**: ユーザーが更新した `画像素材/通常カード/
+  白の意思の覚醒.webp` を `assets/cards/white-awakening.webp` にコピー（他の実物画像と同じ運用）。
+  ブラウザで新画像が 200・naturalWidth 433 で読み込めることを確認。ファイル名不変のためコード変更は不要。
+
+- **#149（白の意思の覚醒の到達効果が出ない）はユーザーの勘違いと判明**（バグではない。効果は正しく実行
+  されていた）。
+
+- **git のメンテナンス（環境整理）**: 誤ってコミットされかけた巨大 zip の除去後、`git reflog expire
+  --expire=now --all && git gc --prune=now` で `.git` を約1.4GB→454MB に圧縮（loose objects 0・除去済み
+  blob 消滅）。`.git` が454MB（コミット済みの実画像アセット多数）で gc 自体が重いため、`gc.auto` は
+  引き続き無効（0）のままにする（ユーザー確認済み「無効化したままで大丈夫か」→はい）。`*.zip` は
+  `.gitignore` 済み。
