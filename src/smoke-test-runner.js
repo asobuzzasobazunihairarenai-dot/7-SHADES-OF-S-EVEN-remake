@@ -11,6 +11,7 @@
 import { getState, isOnlineMode } from "./state.js";
 import { markCleanExit } from "./crash-blackbox.js";
 import { checkInvariants, countCards, INVARIANT_DEFS } from "./game-invariants.js";
+import { checkUiInvariants, UI_INVARIANT_DEFS } from "./ui-invariants.js";
 import { logAction } from "./action-log.js";
 
 const TARGET_TURN = 8; // ここまで進めば健全とみなす
@@ -165,9 +166,10 @@ async function runInAppSmokeTest(onLog, { runToCompletion = false, playerCount =
       }
 
       // 不変条件チェック（続き164）: 破れた条件を集めて診断ログにも残す。チェッカー自身の
-      // 例外で自己対戦を止めないよう try で囲む。
+      // 例外で自己対戦を止めないよう try で囲む。状態(state)＋UI/DOM の両方を検査し、
+      // 同じ「連続2ポーリング続いた違反だけ本物」ルールで扱う（続き229でUI/DOMを追加）。
       try {
-        const viols = checkInvariants(s, { baselineCardCount });
+        const viols = [...checkInvariants(s, { baselineCardCount }), ...checkUiInvariants()];
         const nowSigs = new Set();
         for (const vio of viols) {
           const sig = vio.code + "|" + (vio.detail ? JSON.stringify(vio.detail) : vio.msg);
@@ -725,23 +727,31 @@ export function openSmokeTestPanel() {
   const invDetails = document.createElement("details");
   invDetails.className = "smoke-test-invariants";
   const invSummary = document.createElement("summary");
-  invSummary.textContent = `📋 チェック中の不変条件（${INVARIANT_DEFS.length}件）`;
+  invSummary.textContent = `📋 チェック中の不変条件（${INVARIANT_DEFS.length + UI_INVARIANT_DEFS.length}件）`;
   invDetails.appendChild(invSummary);
   const invList = document.createElement("div");
   invList.className = "smoke-test-invariants-list";
-  for (const def of INVARIANT_DEFS) {
-    const row = document.createElement("div");
-    row.className = "smoke-test-invariant-row";
-    const name = document.createElement("span");
-    name.className = "smoke-test-invariant-name";
-    name.textContent = def.label;
-    const desc2 = document.createElement("span");
-    desc2.className = "smoke-test-invariant-desc";
-    desc2.textContent = def.desc;
-    row.appendChild(name);
-    row.appendChild(desc2);
-    invList.appendChild(row);
-  }
+  const appendGroup = (heading, defs) => {
+    const h = document.createElement("div");
+    h.className = "smoke-test-invariant-group";
+    h.textContent = heading;
+    invList.appendChild(h);
+    for (const def of defs) {
+      const row = document.createElement("div");
+      row.className = "smoke-test-invariant-row";
+      const name = document.createElement("span");
+      name.className = "smoke-test-invariant-name";
+      name.textContent = def.label;
+      const desc2 = document.createElement("span");
+      desc2.className = "smoke-test-invariant-desc";
+      desc2.textContent = def.desc;
+      row.appendChild(name);
+      row.appendChild(desc2);
+      invList.appendChild(row);
+    }
+  };
+  appendGroup("▼ 状態のチェック（state）", INVARIANT_DEFS);
+  appendGroup("▼ UI/DOMのチェック（見た目・操作）", UI_INVARIANT_DEFS);
   invDetails.appendChild(invList);
   panel.appendChild(invDetails);
 

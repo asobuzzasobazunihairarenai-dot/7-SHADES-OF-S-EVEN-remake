@@ -95,6 +95,9 @@ async function playOneGame(page, allErrors) {
     admin.setPseudoCpuIncludeSelf?.(true); // setup前に：A席も自動化
     await cpu.runCpuBattleSetup({ count });
     admin.setPseudoCpuIncludeSelf?.(true); // 念のため再設定（startCpuBattleがfalseに戻すため）
+    // オープニング画面（#opening-screen, z50000）を閉じて盤面を露出させる。閉じないと盤面中央を
+    // 覆ったままになり、UI不変条件チェック（幽霊オーバーレイ検知）が実際の盤面を検査できない。
+    try { const os = await import("/src/opening-screen.js"); os.forceCloseOpeningScreen?.(); } catch (e) {}
     // セットアップ直後のカード総数を baseline に（以後、総数が変われば「カードが増減」＝バグ）。
     try {
       const gi = await import("/src/game-invariants.js");
@@ -124,11 +127,15 @@ async function playOneGame(page, allErrors) {
         const vic = await import("/src/victory.js");
         won = typeof vic.hasAnyoneWon === "function" ? vic.hasAnyoneWon() : false;
       } catch (e) {}
-      // 不変条件（in-app版と同じ game-invariants.js）。
+      // 不変条件（in-app版と同じ）。状態(game-invariants.js)＋UI/DOM(ui-invariants.js)。続き229。
       let viols = [];
       try {
         const gi = await import("/src/game-invariants.js");
         viols = gi.checkInvariants(s, { baselineCardCount: baseline }) || [];
+      } catch (e) {}
+      try {
+        const ui = await import("/src/ui-invariants.js");
+        viols = viols.concat(ui.checkUiInvariants() || []);
       } catch (e) {}
       // 状態の活動署名（in-app版と同じ。ターン番号だけでなくトークン位置・山の枚数の変化も見る＝
       // ゲート侵攻など1ターン内で長く続く処理も「進行中」と判定でき、誤STALLを防ぐ。続き226）。
@@ -221,6 +228,9 @@ async function run() {
       localStorage.setItem("so7-intros-all-off", "1");
       localStorage.setItem("so7-bugreport-intro-hidden", "1");
       localStorage.setItem("so7-action-confirm-enabled", "0");
+      // 初回起動のBGM設定モーダル（全画面dim backdrop, z-index 100050）を抑制。これが出っ放しだと
+      // 盤面中央をずっと覆い、UI不変条件チェック（幽霊オーバーレイ検知）が実際の盤面を見られない。
+      localStorage.setItem("so7-bgm-intro-shown-v1", "1");
     } catch (e) {}
   });
 

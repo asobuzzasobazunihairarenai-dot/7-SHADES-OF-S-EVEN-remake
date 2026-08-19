@@ -15837,3 +15837,52 @@ SQL Editorで再実行する必要がある**（ファイル全体＝再実行�
   無くロードすることを確認。#150 の自動処理ブランチ・#2 のロック飛翔・#1 の pet clip は sandbox が3D盤面を
   描画できず実挙動の再現ができないため、既存の検証済み関数の再利用＋条件のコードレベル確認にとどまる。
   実機での確認（相手足元のジャンプ台発動／ポヨンの見え方／ロック飛翔／捨て札の焼失）をお願いしたい。
+
+### 2026-08-19（続き229）：UI/DOMの不変条件チェッカーを新設（幽霊オーバーレイ検知）／スモークのNode版ブートで盤面を露出
+
+ユーザー相談2026-08-19「UIタイミング系（透明な幽霊が click を奪う・閉じ残りモーダルが盤面を覆う・
+ボタンが背面に隠れて押せない）もスモークで検知できると完成度がぐっと上がる。解決方法は？」→
+「実プレイに影響ないよう、現在のスモークとは別にDOM確認用のチェックを取り入れる認識で合ってる？」→
+「おすすめの方法で進めてください。」を受け、第1弾＝**最も再発が多く誤検知が少ない「幽霊オーバーレイ
+検知」**を実装した（過去 #1/#115/#134/#194 等でくり返し出た「透明な何かが操作を奪う」系）。
+
+- **新規 [src/ui-invariants.js](src/ui-invariants.js)（依存ゼロの葉、何もimportしない）**: `checkInvariants`
+  （state を見る `game-invariants.js`）と対になる、**実際のDOMを見る読み取り専用の検査**。`checkUiInvariants()`
+  は違反 `[{code,msg,detail}]` を返す（空＝違反なし）。DOM も状態も一切変更しない。`document`/`window` が
+  無い or ビューポートが 0×0 の環境（Node の baseline計算時・サンドボックス）では `[]` を返す（無害）。
+  一覧表示用メタ `UI_INVARIANT_DEFS`（現在 `blocking-overlay` の1件）も持つ。
+  - **判定**（`blocking-overlay`）: `document.elementFromPoint(中央)` で「盤面中央にヒットする最前面の要素」を
+    取り、その要素（または近い祖先5段まで）が **position:fixed かつ pointer-events≠none かつ 矩形が中央を覆い
+    面積がビューポートの45%以上** なら「全画面の操作を奪うレイヤーが中央を覆っている」＝幽霊/閉じ残りと
+    みなす。**面積で見る理由**: このアプリの body には stage変形（scale＋letterbox）がかかり position:fixed
+    要素の矩形＝“縮小されたステージ”になるため、幅/高さ単体の%だと letterbox で取りこぼす一方、面積なら
+    「盤面を覆うバックドロップ(≈60〜90%)」と「中央モーダルの箱(≈6〜24%)」がはっきり分かれる（誤検知しにくい）。
+  - **正しく開いた中央モーダルは検知しない設計**: 生きたモーダルは必ず“モーダルの箱”が中央を覆うので
+    `elementFromPoint` が箱（小さい＝面積が閾値未満）を返す＝全画面ではない＝スルー。全画面の固定
+    キャプチャ層が中央の最前面に出る＝その上に箱が無い＝閉じ残り/幽霊、という切り分け。スモークパネル
+    自身は対象外。透明（背景 alpha≈0・背景画像なし）なら detail に `transparent:true`（幽霊の可能性大）。
+
+- **スモークへの配線（in-app・Node 両方、状態側と同じ「連続2ポーリング続いた違反だけ本物」ルール）**:
+  - `src/smoke-test-runner.js`: `checkUiInvariants, UI_INVARIANT_DEFS` を import。ポーリングで
+    `[...checkInvariants(s,{baselineCardCount}), ...checkUiInvariants()]` を合流。パネルの「📋 チェック中の
+    不変条件」を `INVARIANT_DEFS.length + UI_INVARIANT_DEFS.length`（＝11+1=12件）に更新し、
+    「▼ 状態のチェック（state）」「▼ UI/DOMのチェック（見た目・操作）」の2グループで一覧表示
+    （ユーザー要望「一覧で見れると嬉しい」）。in-app はサンドボックスだと 0×0 で `[]`＝誤検知なし。
+  - `test/smoke.mjs`: ポーリング内 `page.evaluate` で `ui.checkUiInvariants()` を合流。**ブート時に盤面を
+    露出させる修正を追加**——初回起動のBGM設定モーダル（全画面dim backdrop, z-index 100050）を localStorage
+    フラグ `so7-bgm-intro-shown-v1` で抑制し、CPU戦セットアップ後に `forceCloseOpeningScreen()` を呼ぶ。
+    これをしないと first-run モーダル／オープニング画面が盤面中央をずっと覆い、UI不変条件が**実際の盤面を
+    一度も検査できない**（＝Node版で UI検知が空回りしていた）。
+
+- **検証（実レイアウトのヘッドレスPlaywrightで実測）**: サンドボックスのペインは 0×0 で DOM をレイアウト
+  できないため、ヘッドレス（viewport 1280×800、実レイアウトあり）でCPU戦をブート→オープニング/first-run を
+  露出解除→`checkUiInvariants()` を実測:
+  - **通常の盤面／生きた小箱モーダル**（phase-skip 等が中央に出ている瞬間含む）→ `[]`（誤検知なし）
+  - **透明な全画面キャプチャ層を注入**（fixed inset:0 z-index:99999 pointer-events:auto 背景透明）→
+    `blocking-overlay` を検知（`transparent:true`）＝**#1の幽霊バグを捕捉**
+  - **pointer-events:none の全画面**（#option-area 等）→ `[]`（素通し＝正しくスルー）
+  - **`node test/smoke.mjs`（2人8ターン）を実走** → 盤面露出後の健全な自己対戦中に `blocking-overlay` は
+    一度も誤発火せず、8ターン到達 PASS（exit 0）。`checkUiInvariants()` が document 無しで `[]` を返すことも確認。
+  - 実プレイには一切影響しない（検査は読み取り専用でスモーク中だけ呼ばれる）。**次弾（相談段階）**: 挙動系
+    アサーション（優先権がN秒で戻る等）、さらに将来は「実クリック駆動スモーク」で z-index/背面ボタンを実際の
+    クリックで検出。サーバー側（Supabase）の変更は無い。

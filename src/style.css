@@ -15914,6 +15914,15 @@ body.opening-screen-active.is-admin-user #smoke-test-launch-btn {
   border-radius: 0.4rem;
   padding: 0.4rem 0.6rem;
 }
+.smoke-test-invariant-group {
+  margin: 0.4rem 0 0.1rem;
+  color: #7dd3fc;
+  font-weight: 600;
+  font-size: 0.76rem;
+}
+.smoke-test-invariant-group:first-child {
+  margin-top: 0;
+}
 .smoke-test-invariant-row {
   padding: 0.2rem 0;
   line-height: 1.4;
