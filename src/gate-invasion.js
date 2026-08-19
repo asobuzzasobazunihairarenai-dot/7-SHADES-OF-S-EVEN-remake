@@ -15,6 +15,7 @@ import { getCardDefinition } from "./cards-data.js";
 import { announceHandPickups } from "./hand-announcer.js";
 import { isFlightAnimationDisabled, isArrivalEffectDisabled } from "./motion-prefs.js";
 import { logAction } from "./action-log.js";
+import { neutralModalSkin } from "./ui-helpers.js";
 
 function notifyChange() {
   window.dispatchEvent(new CustomEvent("admin:change"));
@@ -66,15 +67,15 @@ function showBonusStepModal(text, onOk, attacker) {
   const backdrop = document.createElement("div");
   backdrop.style.cssText = "position: fixed; inset: 0; z-index: 10001; background: rgba(0, 0, 0, 0.55);";
   const modal = document.createElement("div");
+  const skin = neutralModalSkin();
   modal.style.cssText = `
     position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    width: min(26rem, 90vw); background: rgba(15, 23, 32, 0.98);
-    border: 1px solid rgba(251, 191, 36, 0.5); border-radius: 0.5rem; padding: 1.2rem;
-    z-index: 10002; font-family: sans-serif; color: #e2e8f0; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    width: min(26rem, 90vw); border-radius: 0.5rem; padding: 1.2rem;
+    z-index: 10002; font-family: sans-serif; ${skin.panel}
   `;
   const title = document.createElement("div");
   title.textContent = "相手ゲート侵攻ボーナス";
-  title.style.cssText = "font-weight: bold; margin-bottom: 0.6rem; color: #fbbf24;";
+  title.style.cssText = `font-weight: bold; margin-bottom: 0.6rem; color: ${skin.gold};`;
   const body = document.createElement("div");
   body.style.cssText = "font-size: 0.9rem; line-height: 1.7; margin-bottom: 1rem; white-space: pre-wrap;";
   body.textContent = text;

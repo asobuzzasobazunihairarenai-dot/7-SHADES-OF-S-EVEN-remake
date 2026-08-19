@@ -14003,13 +14003,15 @@ body.theme-light-ingame #turn-round-counter {
    ダークのまま残す（フェイズ案内板のボタンも同様）。 */
 /* スタートプレイヤー決定「発表」モーダルだけライトに（共通buildSimpleModalの中身はインライン
    指定のため !important。設定フォーム等の他のsimple modalは対象外＝start-player-announce限定）。 */
-body.theme-light-ingame .start-player-announce {
+body.theme-light-ingame .start-player-announce,
+body.theme-light .start-player-announce {
   background: rgba(255, 253, 247, 0.98) !important;
   border-color: rgba(176, 141, 63, 0.4) !important;
   color: #3a3326 !important;
   box-shadow: 0 20px 50px rgba(120, 100, 60, 0.25) !important;
 }
-body.theme-light-ingame .start-player-announce .start-player-name {
+body.theme-light-ingame .start-player-announce .start-player-name,
+body.theme-light .start-player-announce .start-player-name {
   color: #2563eb !important; /* 薄い水色#7dd3fcは白背景で読みづらいので濃い青へ */
 }
 

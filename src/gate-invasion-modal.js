@@ -7,7 +7,7 @@
 import { getCardDefinition, getCardImagePath } from "./cards-data.js";
 import { getSelfSeat } from "./online.js";
 import { isPickupVisible, getPlayerNameOrYou } from "./hand-announcer.js";
-import { createModalCloseX } from "./ui-helpers.js";
+import { createModalCloseX, neutralModalSkin } from "./ui-helpers.js";
 import { getState } from "./state.js";
 import { logAction } from "./action-log.js";
 import { isFlightAnimationDisabled, isArrivalEffectDisabled } from "./motion-prefs.js";
@@ -282,16 +282,16 @@ function showStep(step) {
 
   modalEl = document.createElement("div");
   const size = getComputedStyle(document.documentElement).getPropertyValue("--gate-invasion-modal-size").trim() || "28rem";
+  const skin = neutralModalSkin();
   modalEl.style.cssText = `
     position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    width: min(${size}, 92vw); background: rgba(15, 23, 32, 0.98);
-    border: 1px solid rgba(251, 191, 36, 0.5); border-radius: 0.5rem; padding: 1.2rem;
-    z-index: 10002; font-family: sans-serif; color: #e2e8f0; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    width: min(${size}, 92vw); border-radius: 0.5rem; padding: 1.2rem;
+    z-index: 10002; font-family: sans-serif; ${skin.panel}
   `;
 
   const title = document.createElement("div");
   title.textContent = "相手ゲート侵攻ボーナス";
-  title.style.cssText = "font-weight: bold; margin-bottom: 0.6rem; color: #fbbf24;";
+  title.style.cssText = `font-weight: bold; margin-bottom: 0.6rem; color: ${skin.gold};`;
 
   const body = document.createElement("div");
   body.style.cssText = "font-size: 0.9rem; line-height: 1.7; margin-bottom: 0.8rem; white-space: pre-wrap;";
@@ -300,7 +300,7 @@ function showStep(step) {
   const skipBtn = document.createElement("button");
   skipBtn.textContent = "スキップ";
   skipBtn.style.cssText =
-    "padding: 0.4rem 1.4rem; background: rgba(148, 163, 184, 0.25); color: #e2e8f0; border: none; border-radius: 0.25rem; cursor: pointer; margin-top: 0.4rem;";
+    `padding: 0.4rem 1.4rem; ${skin.btn} border: none; border-radius: 0.25rem; cursor: pointer; margin-top: 0.4rem;`;
   skipBtn.addEventListener("click", () => {
     queue = [];
     closeCurrent();

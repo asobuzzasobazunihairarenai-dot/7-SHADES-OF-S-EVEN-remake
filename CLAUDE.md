@@ -15993,3 +15993,28 @@ SQL Editorで再実行する必要がある**（ファイル全体＝再実行�
   最後＝一番上）の意味論に沿う。**実際の試練の儀式での“誤発火しない／正当なコンボは出る”の最終確認は実機での
   プレイでお願いしたい**（到達チェーンを headless で決定的に再現するのは困難なため、従来の到達まわり修正と
   同じ方針）。サーバー側（Supabase）の変更は無い。
+
+### 2026-08-20（続き233）：ライトモードで浮いていた「中立ダークモーダル」（ゲート侵攻結果・スタートプレイヤー決定）を配色対応
+
+#224で保留にしていた「対戦画面がライト配色（`theme-light`＝全体 or `theme-light-ingame`＝盤面だけ）の時に、
+inline styleでダーク色を直書きしているモーダル群がライト背景の上で浮く（背景だけ明るくすると内部の
+`#e2e8f0`文字が読めなくなるので丁寧な対応が要る）」件を片付けた。#168の`postGamePanelSkinCss()`と同じ
+考え方を共通化した。
+
+- **共通ヘルパーを新設**（`ui-helpers.js`）: `isIngameLight()`（`theme-light` or `theme-light-ingame` のどちらかで
+  true）＋ `neutralModalSkin()`（ライト/ダークで `{ panel, text, muted, gold, btn }` のトークンをまとめて返す）。
+  背景だけでなく本文・淡色・強調(金)・ボタンの色まで一貫して切り替えられるので、子要素が個別に inline で
+  `color:#e2e8f0` 等を持つモーダルでも「背景は明るいのに文字が見えない」を防げる。
+- **適用**:
+  - `gate-invasion-modal.js`（オンラインのゲート侵攻結果ポップアップ）: コンテナ・タイトル(金)・スキップ
+    ボタンの直書きダーク色を `neutralModalSkin()` のトークンに置き換え（本文はコンテナの `color` を継承）。
+  - `gate-invasion.js`（ローカルのゲート侵攻結果ポップアップ）: 同上（OKボタンは元から `#0891b2`＋白文字の
+    アクセントボタンでライト/ダーク両対応のため据え置き）。
+  - `game-setup.js` のスタートプレイヤー決定モーダル（`.start-player-announce`）は**既にCSSでライト化済み**
+    だったが、`body.theme-light-ingame` だけを見て `body.theme-light`（全体設定）を見落としていたため、
+    `style.css` のセレクタを両方（`theme-light` も）に広げた（`isIngameLight()` の判定と一致させた）。
+- **検証**: ヘッドレスで `neutralModalSkin()` を実際に import し、①ダーク（テーマ無し）＝ダーク背景・
+  `#e2e8f0`・金 `#fbbf24`、②`theme-light-ingame`＝`isIngameLight()` true・`#1e293b`・ライト背景、
+  ③`theme-light`（全体）＝ true・`#1e293b`・濃い金 `#92660a`、と正しく出し分けられることを実測確認。
+  `node --check`（ui-helpers/gate-invasion-modal/gate-invasion/game-setup）通過・CSSブレース平衡（2356）。
+  サーバー側（Supabase）の変更は無い。
