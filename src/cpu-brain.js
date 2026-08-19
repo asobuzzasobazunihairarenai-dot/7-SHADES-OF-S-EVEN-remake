@@ -798,3 +798,36 @@ export function chooseOpponentHandCardToSteal(tokens, driveSeat) {
   };
   return arr.slice().sort((a, b) => value(b) - value(a))[0];
 }
+
+// 対象プレイヤーの選択（スリカエ/マスチェンジ/プレゼント手札/結ばれの一本桜 等、アバターを選ぶ効果）。
+// 従来はCPUも常にランダムに選んでいた（2人戦なら相手は1人＝実質決定的だが、3-4人戦＝続き226で
+// 対応、では“誰を狙うか”は本当の戦略判断）。カードを問わず「最も脅威な相手＝ロック数が多い＝勝ちに
+// 近いリーダー」を狙う汎用ヒューリスティック（奪う/入れ替える/引き寄せる系の妨害効果はこれが正しく、
+// それ以外の効果でも妥当な既定）。同数はロックでなく手札枚数の多い相手、それも同数なら無作為。
+// 候補は座席の配列/集合（呼び出し側で自分を除いた相手だけに絞り済み）。
+export function chooseTargetPlayer(players, driveSeat) {
+  const arr = [...(players || [])];
+  if (arr.length === 0) return null;
+  if (arr.length === 1) return arr[0];
+  const state = getState();
+  const locks = lockCountBySeat(state);
+  const handCount = {};
+  for (const t of state.tokens) {
+    if (t.kind === "card" && t.location.zone === "hand") {
+      handCount[t.location.player] = (handCount[t.location.player] ?? 0) + 1;
+    }
+  }
+  let best = null;
+  let bestKey = -Infinity;
+  const scored = arr.map((p) => ({ p, lk: locks[p] ?? 0, hc: handCount[p] ?? 0 }));
+  for (const s of scored) {
+    const key = s.lk * 100 + s.hc; // ロック数優先、同数は手札枚数
+    if (key > bestKey) {
+      bestKey = key;
+      best = [s];
+    } else if (key === bestKey) {
+      best.push(s);
+    }
+  }
+  return best[Math.floor(Math.random() * best.length)].p; // 同点は無作為
+}

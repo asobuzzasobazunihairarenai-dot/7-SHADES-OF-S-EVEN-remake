@@ -251,6 +251,7 @@ import {
   chooseHandCardToLock,
   chooseOpponentHandCardToSteal,
   chooseSwapGiveCard,
+  chooseTargetPlayer,
 } from "./cpu-brain.js";
 import {
   getSelfSeat,
@@ -3962,7 +3963,13 @@ export function performPriorityTimeoutAutoAction() {
       const token = tokenId ? getState().tokens.find((t) => t.id === tokenId) : null;
       picker.resolve(token ?? null);
     } else if (picker.type === "player") {
-      picker.resolve(pickRandomFrom([...picker.players]));
+      // 賢いCPU（中級以上）は「最も脅威な相手＝ロック数が多いリーダー」を狙う（3-4人戦で有効。
+      // 2人戦は相手1人＝どちらでも同じ）。新人は従来通りランダム（chooseTargetPlayer参照）。
+      picker.resolve(
+        isCpuBrainDriving(driveSeat)
+          ? chooseTargetPlayer([...picker.players], driveSeat)
+          : pickRandomFrom([...picker.players])
+      );
     } else if (picker.type === "option") {
       // ユーザー要望（続き95）「タイムアウトで離脱者の選択をランダム/最有力候補で
       // 自動代行する」。なないろの欠片・選べる罠・ザ・ギャンブル・パーティーの選択肢
