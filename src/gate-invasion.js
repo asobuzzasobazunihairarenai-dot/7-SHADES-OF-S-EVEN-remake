@@ -202,7 +202,10 @@ function runEternal(attacker, onDone) {
   const bumpedTokens = getState().tokens.filter(
     (t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side && t.location.index === colorIndex && !t.cardId.startsWith("first-")
   );
+  let finished = false;
   function applyAndFinish() {
+    if (finished) return; // 演出の完了コールバックと下の安全網タイマーの二重発火を防ぐ
+    finished = true;
     gateInvasionEternal(attacker, cardId);
     notifyChange();
     announceHandPickups(attacker, bumpedTokens.map((t) => ({ cardId: t.cardId, wasPublic: true })));
@@ -211,7 +214,18 @@ function runEternal(attacker, onDone) {
   // 「移動アニメーション」「到達・ロック演出」のどちらかが無効化されている間は、
   // 演出を飛ばして従来通りのOKモーダルだけにする（他の演出と同じ配慮）。
   if (willUseAnim) {
-    eternalAnimHelper(attacker, cardId, def, applyAndFinish);
+    // 演出（playEternalAcquisitionAnim）は flyGhost 等の rAF/transitionend に依存するため、
+    // ヘッドレス（スモークテスト）やタブがバックグラウンドで合成が止まっている時、完了
+    // コールバックが発火せずゲート侵攻ごと固まることがある（続き226。他のステップは
+    // showBonusStepModal の CPU 自動送りで進むが、演出パスにはその安全網が無かった）。演出の
+    // 想定尺（①〜⑥合計 約8秒）を十分に超える保険タイマーで必ず applyAndFinish を呼ぶ。
+    // 正常に完了する場合はこのタイマーより先に演出側が applyAndFinish を呼ぶので影響しない。
+    const safetyMs = 15000;
+    const t = setTimeout(applyAndFinish, safetyMs);
+    eternalAnimHelper(attacker, cardId, def, () => {
+      clearTimeout(t);
+      applyAndFinish();
+    });
   } else {
     showBonusStepModal(`${getPlayerName(attacker)}はエターナルカード「${def.name}」を獲得！\n自分のロックエリアにロックします。`, applyAndFinish, attacker);
   }

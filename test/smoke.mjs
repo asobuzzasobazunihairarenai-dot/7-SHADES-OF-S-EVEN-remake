@@ -1,13 +1,21 @@
 // 開発用スモークテスト（無ビルドのバニラESMアプリを、ヘッドレスChromiumで実際に起動して回す）。
 //
-//   node test/smoke.mjs
+//   node test/smoke.mjs            … 2人・8ターン点検
+//   node test/smoke.mjs 3          … 3人（4も可）
+//   node test/smoke.mjs 3 --full   … 決着まで（勝者が出るまで）回す
 //
-// やること: 静的サーバでアプリを配信 → Chromiumで開く → CPU戦を開始し「両席とも自動」
+// ★このNode版は「タブを前面に保つ必要がない」のが利点（ユーザー要望2026-08-19「前面維持がつらい、
+//   別作業したい」）。ヘッドレスChromiumを別プロセスで起動するので、あなたのブラウザは一切関係なく、
+//   バックグラウンドタブのタイマースロットル（in-appスモークが遅くなる原因）も受けない。ターミナルで
+//   走らせておいて、その間ずっと別作業ができる。
+//
+// やること: 静的サーバでアプリを配信 → Chromiumで開く → CPU戦を開始し「全席とも自動」
 // （疑似CPU includeSelf）にして自己対戦させ、ターンが進むのを監視する。目的は、今回の
 // #86/#87（効果エンジン/到達まわりの回帰）のような「実際にプレイして初めて壊れる」不具合を、
 // 手で遊ばなくても1コマンドで早期に捕まえること。判定:
 //   - コンソールエラー / 未捕捉例外が1件でも出たら FAIL
-//   - ターンが規定回数まで進めば PASS（健全に対戦が進んだ）
+//   - 不変条件違反（状態の壊れ。in-app版と同じ game-invariants.js）を検知したら FAIL
+//   - ターンが規定回数まで進めば PASS（健全に対戦が進んだ）／--full は勝者が出れば PASS
 //   - ターンが一定時間まったく進まなければ「詰み」= FAIL（勝敗がついた場合を除く）
 // 終了コード 0=PASS / 1=FAIL（CIやコミット前フックからも使える）。
 //
@@ -22,9 +30,14 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = 8795;
+// CLI引数: 人数（2/3/4）と --full（決着まで）。
+const ARGS = process.argv.slice(2);
+const PLAYER_COUNT = [2, 3, 4].includes(Number(ARGS.find((a) => /^[234]$/.test(a)))) ? Number(ARGS.find((a) => /^[234]$/.test(a))) : 2;
+const RUN_TO_COMPLETION = ARGS.includes("--full") || ARGS.includes("--completion");
 const TARGET_TURN = 8; // ここまで進めば十分健全とみなす（回帰検出には十分な手数）
 const STALL_MS = 30000; // ターンがこの時間まったく進まなければ「詰み」とみなす
-const HARD_TIMEOUT_MS = 180000;
+// 3-4人は1局が長いので制限時間を人数に比例（in-app版と同じ考え方）。決着まで＝最大12分。
+const HARD_TIMEOUT_MS = RUN_TO_COMPLETION ? 720000 : Math.round(180000 * (PLAYER_COUNT / 2));
 
 const MIME = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
@@ -77,56 +90,109 @@ async function run() {
   if (bootChildren < 20) throw new Error(`boot looks broken: body has only ${bootChildren} children`);
   log("booted OK (body children:", bootChildren + ")");
 
-  // CPU戦を開始し、両席とも自動（疑似CPU includeSelf）にして自己対戦させる。includeSelf は
+  // CPU戦を開始し、全席とも自動（疑似CPU includeSelf）にして自己対戦させる。includeSelf は
   // runCpuBattleSetup の「前」に立てるのが重要——turn 1（A席）のタイマーが張られる時点で
   // A も疑似CPU対象になっていないと、A が人間扱い（長い持ち時間）で動かず停滞するため。
-  await page.evaluate(async () => {
+  const baselineCardCount = await page.evaluate(async (count) => {
     const online = await import("/src/online.js");
     try { await online.signOut?.(); } catch (e) {}
     const cpu = await import("/src/cpu-battle.js");
     const admin = await import("/src/admin.js");
     admin.setPseudoCpuModeEnabled?.(true);
-    await cpu.startCpuBattle();
+    await cpu.startCpuBattle(count);
     admin.setPseudoCpuIncludeSelf?.(true); // setup前に：A席も自動化
-    await cpu.runCpuBattleSetup();
+    await cpu.runCpuBattleSetup({ count });
     admin.setPseudoCpuIncludeSelf?.(true); // 念のため再設定（startCpuBattleがfalseに戻すため）
-  });
-  log("CPU self-play started (both seats auto)");
+    // セットアップ直後のカード総数を baseline に（以後、総数が変われば「カードが増減」＝バグ）。
+    try {
+      const gi = await import("/src/game-invariants.js");
+      const s = (await import("/src/state.js")).getState();
+      return typeof gi.countCards === "function" ? gi.countCards(s) : null;
+    } catch (e) { return null; }
+  }, PLAYER_COUNT);
+  log(`CPU self-play started (${PLAYER_COUNT}p, all seats auto)${RUN_TO_COMPLETION ? " — run to completion" : ""}` + (baselineCardCount != null ? `, baseline cards ${baselineCardCount}` : ""));
 
   const started = Date.now();
   let lastTurn = 0;
   let lastProgressAt = Date.now();
+  let lastStateSig = "";
+  const invariantViolations = [];
+  const seenViolations = new Set();
+  let prevPollSigs = [];
 
   while (true) {
     await page.waitForTimeout(1500);
     if (errors.length) break;
 
-    const snap = await page.evaluate(async () => {
+    const snap = await page.evaluate(async (baseline) => {
       const s = (await import("/src/state.js")).getState();
       let won = false;
       try {
-        const pa = await import("/src/phase-automation.js");
-        won = typeof pa.hasAnyoneWon === "function" ? pa.hasAnyoneWon() : false;
+        // 勝利判定は victory.js（phase-automation.js には無い＝旧コードは常に未検知だった。続き226で修正）。
+        const vic = await import("/src/victory.js");
+        won = typeof vic.hasAnyoneWon === "function" ? vic.hasAnyoneWon() : false;
+      } catch (e) {}
+      // 不変条件（in-app版と同じ game-invariants.js）。
+      let viols = [];
+      try {
+        const gi = await import("/src/game-invariants.js");
+        viols = gi.checkInvariants(s, { baselineCardCount: baseline }) || [];
+      } catch (e) {}
+      // 状態の活動署名（in-app版と同じ。ターン番号だけでなくトークン位置・山の枚数の変化も見る＝
+      // ゲート侵攻など1ターン内で長く続く処理も「進行中」と判定でき、誤STALLを防ぐ。続き226）。
+      let sig = "";
+      try {
+        const toks = (s.tokens || [])
+          .map((t) => { const l = t.location || {}; return `${t.id}:${l.zone || ""}:${l.row ?? ""}:${l.col ?? ""}:${l.index ?? ""}:${l.side ?? ""}:${l.player ?? ""}:${t.faceUp ? 1 : 0}`; })
+          .sort().join(",");
+        const piles = Object.values(s.piles || {}).map((a) => (Array.isArray(a) ? a.length : 0)).join(",");
+        sig = `${s.turnNumber ?? ""}|${s.priorityPlayer ?? ""}|${piles}|${toks}`;
       } catch (e) {}
       return {
         turnNumber: s.turnNumber ?? 0,
         turnPlayer: s.turnPlayer ?? null,
         tokens: Array.isArray(s.tokens) ? s.tokens.length : 0,
         won,
+        viols,
+        sig,
       };
-    });
+    }, baselineCardCount);
+
+    // 不変条件違反（続き223: 入れ替え等の一過性overlap誤検知を避け、連続2ポーリング続いた違反だけ本物）。
+    const nowSigs = [];
+    for (const vio of snap.viols || []) {
+      const sig = vio.code + "|" + (vio.detail ? JSON.stringify(vio.detail) : vio.msg);
+      nowSigs.push(sig);
+      if (seenViolations.has(sig)) continue;
+      if (!prevPollSigs.includes(sig)) continue;
+      seenViolations.add(sig);
+      invariantViolations.push({ turn: snap.turnNumber, ...vio });
+      log(`❗INVARIANT[${vio.code}] T${snap.turnNumber}: ${vio.msg}`);
+    }
+    prevPollSigs = nowSigs;
 
     if (snap.won) { log("someone won at turn", snap.turnNumber, "— healthy finish"); break; }
     if (snap.tokens < 40) { errors.push(`board looks corrupted: only ${snap.tokens} tokens`); break; }
 
+    // 状態が変われば「活動あり」＝STALLタイマーをリセット（ターン内の長い処理も進行とみなす）。
+    if (snap.sig && snap.sig !== lastStateSig) {
+      lastStateSig = snap.sig;
+      lastProgressAt = Date.now();
+    }
     if (snap.turnNumber > lastTurn) {
       lastTurn = snap.turnNumber;
       lastProgressAt = Date.now();
       log(`turn ${snap.turnNumber} (player ${snap.turnPlayer}, tokens ${snap.tokens})`);
     }
-    if (lastTurn >= TARGET_TURN) { log("reached target turn", TARGET_TURN, "— PASS"); break; }
+    // 決着までモードでなければ8ターン到達で健全とみなす。決着までは勝者が出るまで続ける。
+    if (!RUN_TO_COMPLETION && lastTurn >= TARGET_TURN) { log("reached target turn", TARGET_TURN, "— PASS"); break; }
     if (Date.now() - lastProgressAt > STALL_MS) { errors.push(`STALLED: no turn progress for ${STALL_MS / 1000}s (stuck at turn ${lastTurn})`); break; }
     if (Date.now() - started > HARD_TIMEOUT_MS) { errors.push(`hard timeout after ${HARD_TIMEOUT_MS / 1000}s (reached turn ${lastTurn})`); break; }
+  }
+
+  if (invariantViolations.length) {
+    const codes = [...new Set(invariantViolations.map((x) => x.code))].join(", ");
+    errors.push(`不変条件違反 ${invariantViolations.length}件（${codes}）— 状態が壊れています`);
   }
 
   // 失敗時は原因追跡用にアクションログの末尾を出す。
