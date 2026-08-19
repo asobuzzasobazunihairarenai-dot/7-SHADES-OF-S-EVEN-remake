@@ -72,7 +72,11 @@ async function clearEndgameModals() {
 }
 
 async function runInAppSmokeTest(onLog, { runToCompletion = false, playerCount = 2 } = {}) {
-  const hardTimeoutMs = runToCompletion ? 600000 : HARD_TIMEOUT_MS; // 決着まで＝最大10分
+  const pc = playerCount === 3 || playerCount === 4 ? playerCount : 2;
+  // 3-4人は2人より1ターンの手番数が多く1局が長い（続き226）。8ターン点検の制限時間を人数に比例
+  // させて、3-4人でも8ターン到達の猶予を確保する（決着まで＝最大10分は据え置き）。STALL_MS(30秒
+  // 無活動＝詰み)は1手あたりの尺なので人数に依らず据え置き。
+  const hardTimeoutMs = runToCompletion ? 600000 : Math.round(HARD_TIMEOUT_MS * (pc / 2));
   const errors = [];
   const origConsoleError = console.error;
   const capture = (msg) => {
@@ -126,7 +130,6 @@ async function runInAppSmokeTest(onLog, { runToCompletion = false, playerCount =
     // 次ラウンドの盤面を覆ってしまう。onCloseの連鎖（通貨/ランク/個人結果）は起こさず静かに消す。
     await clearEndgameModals();
 
-    const pc = playerCount === 3 || playerCount === 4 ? playerCount : 2;
     onLog?.(`CPU戦を開始（${pc}人・全席とも自動＝自己対戦）…`);
     admin.setPseudoCpuModeEnabled?.(true);
     await cpu.startCpuBattle(pc);
