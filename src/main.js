@@ -745,7 +745,30 @@ function buildPlayerZone(side, player, isSelf) {
 // 単体テストでは再現しない、オンライン特有の競合が原因と判断）。1回だけ、最新状態を
 // 取り直してから同じ捨て操作をリトライするようにし、単発の一時的な競合では取りこぼさ
 // ないようにする。
+// #3（ユーザー要望2026-08-19「手札を捨てる時は手札のその場で焼失演出で」）: 手札/公開エリアの
+// カードを捨てる瞬間、そのカードの位置・サイズで霧散(焼失)演出を出す（残骸はその場から上へ立ち上る）。
+// 中身が分かる(cardId既知)手札/公開エリアのカードだけ——オンラインで裏向き/マスク中のカードや、
+// ロック中カードの破棄(色落ちキャット等、盤面のカード)は対象外。fire-and-forget（実際の破棄は別途進む）。
+function playHandCardBurn(tokenId) {
+  try {
+    const token = getState().tokens.find((t) => t.id === tokenId);
+    if (!token || token.kind !== "card" || !token.cardId) return;
+    if (token.location?.zone !== "hand" && token.location?.zone !== "publicDraw") return;
+    if (!getCardDefinition(token.cardId)) return; // 中身不明(マスク)は出さない
+    const clientRect = cardElRectForToken(tokenId);
+    if (!clientRect || clientRect.width < 1) return;
+    const s = toStageLocalRect(clientRect);
+    playCardDissolve(token.cardId, {
+      atRect: { x: s.left, y: s.top, w: s.right - s.left, h: s.bottom - s.top },
+      inPlace: true,
+    });
+  } catch (_) {
+    /* 演出失敗は無視（破棄自体には影響しない） */
+  }
+}
+
 async function discardFromHandReveal(tokenId) {
+  playHandCardBurn(tokenId); // #3: 捨てる瞬間、そのカードの位置で焼失演出（トークンが消える前に捕捉）
   if (isOnlineMode()) {
     try {
       await sendTokenToPile(tokenId, "discard");
@@ -1163,8 +1186,12 @@ async function moveAndSyncForEffect(tokenId, location, soundName, suppressArriva
   // ③演出（#147・ユーザー報告2026-08-18）: カード効果による「カード→マス」配置にも着地演出を出す
   // （続き207ではドラッグ&ドロップのみだった。合同建設・増殖する樹々・ジャンプ台の手札効果等が該当）。
   // 移動前のカードDOM要素のrectを飛び元として捕捉しておく（駒の移動・手札行きは対象外）。
+  // #2（ユーザー要望2026-08-19）: 手札→ロック（例: 桃のキューブ セレナーデの手札効果でロック）も
+  // 同じ飛翔を出す（マスと同じ playCardCellLanding。ロック内での並び替えは対象外＝手札発の時だけ）。
+  const landingToCellOrLock =
+    location?.zone === "cell" || (location?.zone === "lock" && fromLocation?.zone === "hand");
   const landingSourceRect =
-    movingToken?.kind === "card" && location?.zone === "cell" ? cardElRectForToken(tokenId) : null;
+    movingToken?.kind === "card" && landingToCellOrLock ? cardElRectForToken(tokenId) : null;
   // ③演出（続き211・ユーザー要望2026-08-18）: 到達効果処理後にこのカードが手札へ入る等、「マス→手札」の
   // カード移動にも持ち上げ飛翔（playCardLiftToHand）を出す。飛び元＝移動前の盤面カードのrect。
   const liftSourceRect =
@@ -3790,6 +3817,9 @@ async function performLockPhaseClick(tokenId, { skipConfirm = false, actingSeat 
   // 動かす直前を「ロック宣言」の瞬間とみなして発火する（処理側はmaybeAnnounceLock内、
   // 既存の通り）。
   fireAnytimeCheckpoint(player);
+  // #2（ユーザー要望2026-08-19「ロックするときも、手札→マスに行くときの演出を付け足したい」）:
+  // 手札→ロックスロットの飛翔（着地）演出の飛び元＝移動前の手札カードのrectを捕捉しておく。
+  const lockSourceRect = cardElRectForToken(tokenId);
   if (isOnlineMode()) {
     try {
       await moveToken(tokenId, dropTarget);
@@ -3805,6 +3835,7 @@ async function performLockPhaseClick(tokenId, { skipConfirm = false, actingSeat 
   }
   playSound("cardPlace");
   render();
+  if (lockSourceRect) playCardCellLanding(lockSourceRect, dropTarget, tokenId); // #2: 手札→ロックの飛翔
   maybeAnnounceLock(dropTarget, token.cardId, false);
 }
 
@@ -5698,12 +5729,15 @@ function triggerCardArrival(cardId, location, onFullyResolved, opts = {}) {
   // defenderへ移っていても、到達した本人(defender)が自動処理対象と見なされなかったこと。
   // #54では防御側がCPU席(isPseudoCpuTarget)の時だけ救済していたが、#75で「防御側が人間
   // (seat A)でも同じく不発（ゲートのジャンプ台の到達が動かない）」と判明。ローカル
-  // （オンライン以外＝1クライアントで全員を操作）では、今まさに優先権を持つ人の到達は
-  // CPU・人間を問わず自動処理する（通常ターンは priorityPlayer===turnPlayer のため挙動は
-  // 変わらない。オンラインは各クライアントが自分の席の到達を処理する別経路のため対象外）。
-  const forcedLocalPriorityArrival =
-    !isOnlineMode() && !!player && getState().priorityPlayer === player;
-  const shouldAutoProcess = !!player && (player === getAutoDriveSeat() || forcedLocalPriorityArrival) && canAutoProcessArrival(cardId);
+  // （オンライン以外＝1クライアントで全員を操作）では、優先権保持者の到達をCPU・人間を問わず
+  // 自動処理していた。#150（ユーザー報告2026-08-19「相手の足元にジャンプ台を置いたけど到達効果が
+  // 発動しない」）: A のターンに A が相手(C)の駒の下へ表向きジャンプ台を置くと、到達の対象は C の駒
+  // だが priorityPlayer は A のままなので処理されず駒が跳ばなかった。ローカルは1クライアントが全員を
+  // 操作するので、**誰の駒の到達でも**自動処理してよい（auto処理はcanAutoProcessArrivalで別途ON/データ
+  // 有りを判定するので、自動処理OFF時は従来通り発動しない。オンラインは各クライアントが自分の席の
+  // 到達を処理する別経路のため対象外）。
+  const forcedLocalArrival = !isOnlineMode() && !!player;
+  const shouldAutoProcess = !!player && (player === getAutoDriveSeat() || forcedLocalArrival) && canAutoProcessArrival(cardId);
   // 診断（到達コンボ不発の調査）: どのブランチ（自動実行 or 手動モーダルのみ）に入るかを
   // 決める材料を全部残す。ユーザー報告「パーティを取って露出したジャンプ台の到達効果が
   // 起きない（モーダルは出る）」の切り分け用。auto=false ならモーダルのみ＝効果は動かない。
@@ -10653,6 +10687,7 @@ async function onDragEnd(e) {
     }
   }
   if (dropTarget.zone === "pile") {
+    if (dropTarget.pile === "discard") playHandCardBurn(tokenId); // #3: 手札→捨て場のドラッグでも焼失演出（自己ゲート）
     if (isOnlineMode()) {
       // オンライン中はsendTokenToPile()がローカルstateを書き換えず、サーバーへの
       // リクエストのPromiseを返すだけ（onDragEnd冒頭のdrawFromPileと同じ考え方）。
@@ -11016,9 +11051,13 @@ async function onDragEnd(e) {
       // という「同じマスへ移動」のケースは、そもそもここまで到達しない）。
       maybeTriggerCardArrivalForExposedCard(cardSourceLocation);
       // ③演出（ユーザー要望2026-08-18）: 盤面マスへ置いたカードに着地演出（手札→上空へグライド→
-      // ストンと落下→着地の風）。ロックスロットは別のロック演出があるので対象外。fire-and-forget
-      // ＝実配置はもう済んでおり、これは実カードを一瞬隠してゴーストを飛ばすだけの飾り。
+      // ストンと落下→着地の風）。fire-and-forget＝実配置はもう済んでおり、実カードを一瞬隠して
+      // ゴーストを飛ばすだけの飾り。#2（ユーザー要望2026-08-19「ロックするときも同じ演出を」）:
+      // 手札→ロックスロットの時も同じ飛翔を出す（ロック演出＝maybeAnnounceLockのバースト/スタンプ
+      // とは別レイヤーで共存）。ロック内での並び替え（lock→lock）は飛翔を出さない。
       if (dropTarget.zone === "cell") playCardCellLanding(cardAnimSourceRect, dropTarget, tokenId);
+      else if (dropTarget.zone === "lock" && cardSourceLocation?.zone === "hand")
+        playCardCellLanding(cardAnimSourceRect, dropTarget, tokenId);
     }
     return;
   }

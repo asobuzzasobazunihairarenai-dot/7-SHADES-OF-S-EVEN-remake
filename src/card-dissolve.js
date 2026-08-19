@@ -88,9 +88,12 @@ function loadImage(src) {
 // 使用演出を再生。costCardId があれば V5（追色）、無ければ V4（通常）。
 //   opts.costStart: {x,y}（ステージ座標）= 追色カードの飛び出し元（省略時はカード左下）。
 //   opts.onShowModal: 使用カードが霧散し切る頃に1回だけ呼ぶ（呼び出し側が右の使用モーダルを出す）。
+//   opts.atRect: {x,y,w,h}（ステージ座標）= 画面中央ではなくこの位置・サイズで霧散させる
+//     （#3・ユーザー要望2026-08-19「手札を捨てる時は手札のその場で焼失演出で」）。
+//   opts.inPlace: true なら残骸を右へ流さず、その場から上へ立ち上らせる（捨て札の焼失向け）。
 // 完了（残光が消えるまで）で解決する Promise を返す。演出OFF時は即 onShowModal して解決。
 export async function playCardDissolve(usedCardId, opts = {}) {
-  const { costCardId = null, costStart = null, onShowModal } = opts;
+  const { costCardId = null, costStart = null, onShowModal, atRect = null, inPlace = false } = opts;
   if (isArrivalEffectDisabled()) {
     onShowModal?.();
     return;
@@ -126,10 +129,10 @@ export async function playCardDissolve(usedCardId, opts = {}) {
   const mobile = isTouchPrimaryDevice();
   const { speed, mist, residue, cardSize } = readDissolveSettings(mobile);
 
-  const cx = W * 0.5;
-  const cy = H * 0.5 - 8;
-  const w = Math.min(cardSize, W * 0.42);
-  const h = w;
+  const cx = atRect ? atRect.x + atRect.w / 2 : W * 0.5;
+  const cy = atRect ? atRect.y + atRect.h / 2 : H * 0.5 - 8;
+  const w = atRect ? atRect.w : Math.min(cardSize, W * 0.42);
+  const h = atRect ? atRect.h : w;
 
   // 追色の飛び出し元（省略時はカード左下）
   const startX = costStart ? costStart.x : cx - w * 0.62;
@@ -163,8 +166,9 @@ export async function playCardDissolve(usedCardId, opts = {}) {
         particles.push({
           x,
           y,
-          vx: 105 + Math.random() * 95, // 右へ流れる
-          vy: -34 + Math.random() * 44, // わずかに上（右の使用モーダルの方）
+          // 通常(手札使用)は右へ流れる。inPlace(捨て札の焼失)はその場から上へ立ち上らせる。
+          vx: inPlace ? (Math.random() - 0.5) * 110 : 105 + Math.random() * 95,
+          vy: inPlace ? -70 - Math.random() * 70 : -34 + Math.random() * 44,
           life: 0,
           max: 0.78 + Math.random() * 0.55,
           size: 2 + Math.random() * (k < 0.38 ? 15 : 6),

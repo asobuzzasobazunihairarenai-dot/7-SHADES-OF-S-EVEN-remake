@@ -447,7 +447,12 @@ function tick(now) {
     const behindPiece = !flat2d && pet.y < pieceBottomLocal - deltaToLocal(r.height * 0.08);
     const overlapX = Math.abs(pet.x - center.x) < pieceHalfWLocal * 1.05;
     if (behindPiece && overlapX) {
-      const hideBottom = Math.max(0, pet.y - pieceTopLocal); // 要素の下からこのpxぶんを隠す
+      // #1（ユーザー報告2026-08-19「ポヨンがたまに上半分だけになる」）: 小さいペット(ポヨン等)だと
+      // 駒の裏に回った時 hideBottom がペット高さの大半に達し、頭だけ＝上半分以下しか見えなくなる。
+      // ペットは見せるための飾りなので、隠す量をペット高さ(≒fontPx)の45%までに制限（最低55%は常に
+      // 見せる）。駒に少しだけ隠れる“奥にいる”感は残しつつ、大きく欠けないようにする。
+      const rawHide = Math.max(0, pet.y - pieceTopLocal); // 要素の下からこのpxぶんを隠す
+      const hideBottom = Math.min(rawHide, fontPx * 0.45);
       pet.el.style.clipPath = `inset(0px 0px ${hideBottom}px 0px)`;
     } else if (pet.el.style.clipPath) {
       pet.el.style.clipPath = "";
