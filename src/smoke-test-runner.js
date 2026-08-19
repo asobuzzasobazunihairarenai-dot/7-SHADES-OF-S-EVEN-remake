@@ -802,6 +802,16 @@ export function openSmokeTestPanel() {
   onlineBtn.className = "smoke-test-run smoke-test-online";
   onlineBtn.textContent = "🌐 オンライン監視";
   onlineBtn.title = "各ブラウザで押すだけで、自動でマッチ→タイマー＋疑似CPUで開始→監視まで行う（『連続実行』の回数だけ試合を繰り返す）";
+  // バックグラウンド実行（ユーザー要望2026-08-19「タブを前面に保つのがつらい、別作業したい」）。
+  // ブラウザからヘッドレスNodeプロセスは起動できない（Webページはローカルコマンドを実行不可）ため、
+  // 「今の設定に合ったターミナルコマンド（node test/smoke.mjs …）をコピーする」ボタンにする。
+  // これをターミナルに貼れば、ヘッドレスChromiumが別プロセスで走り＝タブを前面に保たず・スロットル
+  // されずにバックグラウンドで回せる（test/smoke.mjs 冒頭のコメント参照）。
+  const bgBtn = document.createElement("button");
+  bgBtn.type = "button";
+  bgBtn.className = "smoke-test-run smoke-test-online";
+  bgBtn.textContent = "🖥️ バックグラウンド実行";
+  bgBtn.title = "今の人数・モードに合った『node test/smoke.mjs …』コマンドをコピーします。ターミナルに貼ると、タブを前面に保たずバックグラウンドで回せます（ヘッドレスなのでスロットルされず速い）。";
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.className = "smoke-test-close";
@@ -815,8 +825,32 @@ export function openSmokeTestPanel() {
   actions.appendChild(runFullBtn);
   actions.appendChild(repeatBtn);
   actions.appendChild(onlineBtn);
+  actions.appendChild(bgBtn);
   actions.appendChild(closeBtn);
   panel.appendChild(actions);
+
+  // バックグラウンド実行ボタン: 今の人数（countSelect）・決着までモード（repeatFullCheck）に
+  // 合わせたコマンドを組み立ててコピーし、resultEl に手順を表示する。
+  bgBtn.onclick = async () => {
+    const pc = smokePlayerCount();
+    const full = repeatFullCheck.checked;
+    const cmd = `node test/smoke.mjs${pc !== 2 ? " " + pc : ""}${full ? " --full" : ""}`;
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(cmd);
+      copied = true;
+    } catch {}
+    resultEl.classList.remove("is-pass", "is-fail");
+    resultEl.textContent = "";
+    addLog("──── 🖥️ バックグラウンド実行 ────");
+    addLog(copied ? "次のコマンドをコピーしました（ターミナルに貼って実行）:" : "次のコマンドをターミナルで実行してください:");
+    addLog(`　${cmd}`);
+    addLog("※プロジェクトフォルダで実行。ヘッドレスChromiumが別プロセスで走るので、タブを前面に");
+    addLog("　保たず別作業できます（スロットルされず速い）。人数=" + pc + "人" + (full ? "・決着まで" : "・8ターン点検") + "。");
+    addLog("　前提: npm install 済み＋ npx playwright install chromium 済み。");
+    bgBtn.textContent = copied ? "✅ コピーしました" : "🖥️ バックグラウンド実行";
+    setTimeout(() => { bgBtn.textContent = "🖥️ バックグラウンド実行"; }, 2500);
+  };
 
   // 診断情報（全アクションログ＋エラー＋環境）を「コピー／ダウンロード」できるボタンを
   // actions に挿す（末尾だけでは追い切れない詰み対策。ユーザー指摘2026-08-14）。単発・連続の
