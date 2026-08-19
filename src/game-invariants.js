@@ -9,6 +9,23 @@
 import { COLORS, SEAT_ORDER } from "./board-layout.js";
 import { getCardDefinition } from "./cards-data.js";
 
+// チェックしている不変条件の一覧（code＝checkInvariantsのadd(code,...)と対応、label/desc＝人間向け）。
+// スモークパネルの「一覧表示」（smoke-test-runner.js）とこのチェッカーの単一の情報源。
+// 新しい不変条件を足す時は、checkInvariants に add(code,...) を書くのと合わせてここにも1行足す。
+export const INVARIANT_DEFS = [
+  { code: "dup-token-id", label: "トークンid重複なし", desc: "同じidのトークンが2つ以上存在しない（クローン系バグの検出）" },
+  { code: "invalid-location", label: "位置の妥当性", desc: "全トークンのlocationが妥当（セル0-6／ロックindex0-6・side／手札プレイヤー／既知zone）" },
+  { code: "piece-overlap", label: "1マス1駒", desc: "同じマスに駒が2つ以上乗っていない（マスチェンジ等の入れ替えバグ）" },
+  { code: "piece-count", label: "座席ごとに駒1つ", desc: "セットアップ後、各参加座席の駒はちょうど1つ（駒は対局中に生成/破棄されない）" },
+  { code: "piece-in-cell", label: "駒は盤面のみ", desc: "駒は必ずセル（盤面）にいる（手札／ロック／山に紛れ込まない）" },
+  { code: "piece-seat", label: "駒の持ち主が妥当", desc: "各駒のplayerが参加座席のいずれか（迷子の駒がない＝piece-countの穴を塞ぐ）" },
+  { code: "turn-player", label: "手番プレイヤーが妥当", desc: "turnPlayerが参加座席内" },
+  { code: "priority-player", label: "優先権プレイヤーが妥当", desc: "priorityPlayerが参加座席内" },
+  { code: "unknown-cardid", label: "cardIdが既知", desc: "全カードのcardIdがカード定義に存在（null＝非公開の裏向き等は除外）" },
+  { code: "lock-color", label: "ロックの色一致", desc: "ロックされたカードの色がスロットの色と一致（noir等placed／虹／無色は除外）" },
+  { code: "card-conservation", label: "カード総数の保存", desc: "カードトークン＋山の合計が開始時と一致（増減＝二重発火等のバグ。baseline指定時のみ）" },
+];
+
 // 山（piles）の中のカード枚数を数える。deck/eternal/first/discard に加え、マイデッキ戦の
 // "myDeck-<seat>" パイルも含めるため、piles配下のあらゆる配列の長さを再帰的に合計する。
 function countPileCards(piles) {
@@ -81,6 +98,19 @@ export function checkInvariants(state, { baselineCardCount } = {}) {
     for (const seat of active) {
       const n = tokens.filter((t) => t.kind === "piece" && t.player === seat).length;
       if (n !== 1) add("piece-count", `座席${seat}の駒が${n}個（1のはず）`, { seat, count: n });
+    }
+  }
+
+  // 4b) 駒は必ずセル（盤面）にいる & 持ち主が参加座席（続き227）。駒は移動・強制移動・入れ替えの
+  //     どれでもcellのまま（ゲートもcell）で、hand/lock/山に紛れ込むことはない。piece-count は
+  //     参加座席を走査するので「参加座席に無いplayerの迷子の駒」を拾えない——それを piece-seat で塞ぐ。
+  for (const t of tokens) {
+    if (t.kind !== "piece") continue;
+    if (t.location?.zone !== "cell") {
+      add("piece-in-cell", `駒がセル以外に: ${t.id} zone=${t.location?.zone}`, { id: t.id, zone: t.location?.zone });
+    }
+    if (active.length > 0 && t.player != null && !active.includes(t.player)) {
+      add("piece-seat", `駒の持ち主が参加座席に無い: ${t.id} player=${t.player}`, { id: t.id, player: t.player });
     }
   }
 

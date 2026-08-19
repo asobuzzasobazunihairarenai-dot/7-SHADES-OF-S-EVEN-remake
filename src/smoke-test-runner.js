@@ -10,7 +10,7 @@
 
 import { getState, isOnlineMode } from "./state.js";
 import { markCleanExit } from "./crash-blackbox.js";
-import { checkInvariants, countCards } from "./game-invariants.js";
+import { checkInvariants, countCards, INVARIANT_DEFS } from "./game-invariants.js";
 import { logAction } from "./action-log.js";
 
 const TARGET_TURN = 8; // ここまで進めば健全とみなす
@@ -719,6 +719,31 @@ export function openSmokeTestPanel() {
   desc.className = "smoke-test-desc";
   desc.textContent = "CPU戦を両席とも自動で回し、エラー・盤面破損・不変条件違反・詰み（一定時間まったく状態が変化しない）を監視します。「8ターン点検」は素早い健全性チェック、「決着まで実行」は勝敗が出るまで丸ごと1局回して終盤まで網羅、「連続実行」は指定回数まとめて回して間欠バグの再現率を測ります（実行すると今の画面は対局に切り替わります）。「🌐 オンライン監視」は、2つのブラウザ（別ブラウザ or シークレットでゲスト2つ）でそれぞれ押すだけで、自動でマッチング→『タイマー＋疑似CPU』有効で対局開始→オンライン特有のバグ（同期・ゲート侵攻modal・優先権 等）を監視まで行います（手動の部屋作成は不要）。オンライン監視も「連続実行」の回数を使い、1試合終わるたびに自動で次のマッチへ再ペアリングして指定試合数まで続けます（両ブラウザで同じ回数にしておくこと）。";
   panel.appendChild(desc);
+
+  // チェック中の不変条件の一覧（折りたたみ。ユーザー要望2026-08-19「スモークウィンドウから
+  // 一覧で見れると嬉しい」）。game-invariants.js の INVARIANT_DEFS を単一の情報源にする。
+  const invDetails = document.createElement("details");
+  invDetails.className = "smoke-test-invariants";
+  const invSummary = document.createElement("summary");
+  invSummary.textContent = `📋 チェック中の不変条件（${INVARIANT_DEFS.length}件）`;
+  invDetails.appendChild(invSummary);
+  const invList = document.createElement("div");
+  invList.className = "smoke-test-invariants-list";
+  for (const def of INVARIANT_DEFS) {
+    const row = document.createElement("div");
+    row.className = "smoke-test-invariant-row";
+    const name = document.createElement("span");
+    name.className = "smoke-test-invariant-name";
+    name.textContent = def.label;
+    const desc2 = document.createElement("span");
+    desc2.className = "smoke-test-invariant-desc";
+    desc2.textContent = def.desc;
+    row.appendChild(name);
+    row.appendChild(desc2);
+    invList.appendChild(row);
+  }
+  invDetails.appendChild(invList);
+  panel.appendChild(invDetails);
 
   const logEl = document.createElement("div");
   logEl.className = "smoke-test-log";
