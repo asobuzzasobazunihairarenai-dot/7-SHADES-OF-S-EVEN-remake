@@ -11,7 +11,7 @@
 import { getState, isOnlineMode } from "./state.js";
 import { markCleanExit } from "./crash-blackbox.js";
 import { checkInvariants, countCards, INVARIANT_DEFS } from "./game-invariants.js";
-import { checkUiInvariants, UI_INVARIANT_DEFS } from "./ui-invariants.js";
+import { checkUiInvariants, UI_INVARIANT_DEFS, checkButtonReachability } from "./ui-invariants.js";
 import { logAction } from "./action-log.js";
 
 const TARGET_TURN = 8; // ここまで進めば健全とみなす
@@ -855,6 +855,16 @@ export function openSmokeTestPanel() {
   navBtn.className = "smoke-test-run";
   navBtn.textContent = "🔀 画面遷移チェック";
   navBtn.title = "ショップ/ランキング/ヘルプ/マイページを順に開き、後から開いた画面が最前面に出るか（背面バグが無いか）を検査します。";
+  // ボタン到達性チェック（続き235）。「ボタンを押しても反応しない」＝透明な幽霊/閉じ残りが
+  // クリックを奪っている（#1/#134/#194 系）疑いがある時に、今の画面で常設ボタンが実際に
+  // ヒットテストで押せるかを確認する。※モーダルが正しく開いている間はボタンが覆われて当然
+  // なので、モーダルを閉じた（何も開いていないはずの）状態で押すこと。
+  const btnReachBtn = document.createElement("button");
+  btnReachBtn.type = "button";
+  btnReachBtn.className = "smoke-test-run";
+  btnReachBtn.textContent = "🖱 ボタン到達性";
+  btnReachBtn.title =
+    "今の画面で、右上（オプション/ヘルプ/ランキング/マイページ等）・右下（ドロー/ターン終了等）の常設ボタンが実際に押せる（背面に隠れて押せなくなっていない）かを検査します。モーダルを閉じた状態で実行してください。";
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.className = "smoke-test-close";
@@ -870,8 +880,30 @@ export function openSmokeTestPanel() {
   actions.appendChild(onlineBtn);
   actions.appendChild(bgBtn);
   actions.appendChild(navBtn);
+  actions.appendChild(btnReachBtn);
   actions.appendChild(closeBtn);
   panel.appendChild(actions);
+
+  btnReachBtn.onclick = () => {
+    resultEl.classList.remove("is-pass", "is-fail");
+    resultEl.textContent = "";
+    addLog("🖱 ボタン到達性チェック（今の画面）を実行します…");
+    try {
+      const viols = checkButtonReachability();
+      if (!viols.length) {
+        resultEl.classList.add("is-pass");
+        resultEl.textContent = "✅ PASS — 表示中の常設ボタンはすべて押せます（背面に隠れていない）";
+        addLog("✅ 常設ボタンはすべて到達可能");
+      } else {
+        resultEl.classList.add("is-fail");
+        resultEl.textContent = `❌ FAIL — 押せないボタン ${viols.length}件（モーダルを閉じた状態か確認を）`;
+        for (const v of viols) addLog("❗" + v.msg);
+      }
+    } catch (e) {
+      resultEl.classList.add("is-fail");
+      resultEl.textContent = "❌ 検査中に例外: " + (e && e.message ? e.message : String(e));
+    }
+  };
 
   navBtn.onclick = async () => {
     navBtn.disabled = true;
