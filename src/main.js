@@ -9460,9 +9460,13 @@ function findAppearanceLayerAt(clientX, clientY) {
 }
 
 function initContextMenuHandlers() {
-  const table = document.getElementById("game-table");
-  table.addEventListener("contextmenu", (e) => {
-    e.preventDefault(); // ゲームの盤面上では常にブラウザの既定メニューを出さない
+  // #151（ユーザー報告2026-08-19）: カードを右クリックしてもカード補足が出ず、代わりにブラウザ既定
+  // メニューが出る。原因は contextmenu を #game-table にだけ張っていたため——#card-preview(ホバー
+  // 拡大, z-index:10700)や到達モーダル等のfixedオーバーレイがカードの上に被って右クリックの実target
+  // になると、game-tableのリスナーに届かず preventDefault されない（CPU自動処理中はこれらが頻繁に
+  // 出るので起きやすい）。ドキュメント全体で受け、elementsFromPointベースの findHoverTarget（pe:none
+  // のオーバーレイを素通りして下のカードを見つける、既存の当たり判定と同じ方式）で判定する。
+  document.addEventListener("contextmenu", (e) => {
     const hit = findHoverTarget(e.clientX, e.clientY);
     const items = [];
 
@@ -9518,10 +9522,16 @@ function initContextMenuHandlers() {
       }
     }
 
+    // ゲーム要素(カード/山/レイヤー)を見つけた、または盤面(#game-table)上の右クリックなら
+    // ブラウザ既定メニューを抑制（従来の「盤面上では既定メニューを出さない」挙動を維持）。
+    // オプションパネル等の盤面外では既定に任せる（テキスト等で普通に右クリックできる）。
+    const overGameArea = !!hit || !!(e.target && e.target.closest && e.target.closest("#game-table"));
     if (items.length === 0) {
+      if (overGameArea) e.preventDefault();
       closeContextMenu();
       return;
     }
+    e.preventDefault();
     showContextMenu(e.clientX, e.clientY, items);
   });
   document.addEventListener("pointerdown", (e) => {

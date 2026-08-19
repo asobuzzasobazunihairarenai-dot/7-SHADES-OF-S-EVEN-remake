@@ -327,6 +327,18 @@ function buildCommentSection(onFinish) {
 // showPostGamePanel（戦績連携・もう一度遊ぶの部屋同期・コメント等）はCPU戦には重すぎるため、
 // 「もう一度戦う／盤面を見る（最小化）／ホームに戻る」の3つだけのシンプルなパネルにする。
 // 最小化（盤面を見る）と復元アイコンは online 版と同じ minimizePanel/restoreIcon をそのまま流用する。
+// #5（ユーザー報告2026-08-19「対戦完了のもう一度やるモーダルがライトモードなのにダーク」）:
+// このパネルは inline style でダーク色を直書きしていたため、body.theme-light の CSS で上書きできず
+// ライトモードでもダークのままだった。ライト（theme-light=全体 or theme-light-ingame=盤面）のどちらか
+// がONなら明るい配色にする（inlineで直に切り替えるので確実）。
+function postGamePanelSkinCss() {
+  const light =
+    document.body.classList.contains("theme-light") || document.body.classList.contains("theme-light-ingame");
+  return light
+    ? "background: rgba(249, 250, 251, 0.99); border: 1px solid rgba(100, 116, 139, 0.45); color: #1e293b; box-shadow: 0 20px 50px rgba(15, 23, 42, 0.28);"
+    : "background: rgba(15, 23, 32, 0.98); border: 1px solid rgba(148, 163, 184, 0.4); color: #e2e8f0; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);";
+}
+
 export function showCpuBattleEndPanel({ winnerSeat }) {
   if (panelEl) return; // 多重表示防止
   const iWon = winnerSeat === getSelfSeat();
@@ -335,10 +347,9 @@ export function showCpuBattleEndPanel({ winnerSeat }) {
   panelEl = document.createElement("div");
   panelEl.style.cssText = `
     position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    width: min(24rem, 92vw); background: rgba(15, 23, 32, 0.98);
-    border: 1px solid rgba(148, 163, 184, 0.4); border-radius: 0.6rem;
+    width: min(24rem, 92vw); border-radius: 0.6rem;
     padding: 1.2rem; z-index: 10601; font-family: sans-serif; font-size: 0.85rem;
-    color: #e2e8f0; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    ${postGamePanelSkinCss()}
   `;
 
   const title = document.createElement("div");
@@ -416,10 +427,9 @@ export function showPostGamePanel({ activePlayers, winnerSeat }) {
   panelEl = document.createElement("div");
   panelEl.style.cssText = `
     position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    width: min(26rem, 92vw); background: rgba(15, 23, 32, 0.98);
-    border: 1px solid rgba(148, 163, 184, 0.4); border-radius: 0.6rem;
+    width: min(26rem, 92vw); border-radius: 0.6rem;
     padding: 1.2rem; z-index: 10601; font-family: sans-serif; font-size: 0.85rem;
-    color: #e2e8f0; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    ${postGamePanelSkinCss()}
   `;
 
   const body = document.createElement("div");

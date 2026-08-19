@@ -12085,13 +12085,13 @@ body:not(.is-admin-user) .opening-admin-btn {
   --card-arrival-modal-top: 3rem;
   --card-arrival-modal-right: 1rem;
   --card-landing-glide-ms: 300;
-  --card-landing-hold-ms: 130;
+  --card-landing-hold-ms: 500;
   --card-landing-drop-ms: 150;
   --card-landing-lift-scale: 1.08;
   /* 続き220: 手札使用のCanvas霧散演出（card-dissolve.js）の調整値。speedは小さいほど長い。 */
   --dissolve-speed: 0.85;
   --dissolve-mist: 1;
-  --dissolve-residue: 1;
+  --dissolve-residue: 1.6;
   --dissolve-card-size: 340;
   --hand-burn-duration: 2.6;
   --hand-burn-card-size: 17rem;

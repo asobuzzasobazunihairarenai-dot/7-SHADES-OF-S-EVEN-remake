@@ -270,9 +270,9 @@ export async function playCardDissolve(usedCardId, opts = {}) {
           let y = cy + s.y * h + Math.sin(a) * r;
           x = Math.max(cx - w * 0.5 + 14, Math.min(cx + w * 0.5 - 14, x));
           y = Math.max(cy - h * 0.5 + 12, Math.min(cy + h * 0.5 - 12, y));
-          spawn(x, y, Math.ceil(2.2 * residue));
+          spawn(x, y, Math.ceil(3.2 * residue)); // #4（ユーザー要望2026-08-19「もっと残骸が多くていい」）
         }
-        if (Math.random() < 0.2 * mist) spawn(cx - w / 2 + 14 + Math.random() * (w - 28), cy - h / 2 + 12 + Math.random() * (h - 24), 1);
+        if (Math.random() < 0.34 * mist) spawn(cx - w / 2 + 14 + Math.random() * (w - 28), cy - h / 2 + 12 + Math.random() * (h - 24), 1);
       }
 
       // V5の脈動(ドクン ドクン)・発光・残照

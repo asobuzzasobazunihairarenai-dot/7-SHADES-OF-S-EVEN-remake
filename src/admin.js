@@ -297,7 +297,7 @@ const GROUPS = [
     category: "effect",
     controls: [
       { key: "--card-landing-glide-ms", label: "グライド時間（手札/山→上空、大きいほどゆっくり）", unit: "ms", min: 50, max: 1500, step: 10, default: 300 },
-      { key: "--card-landing-hold-ms", label: "上空で止まる間（ピタッ）", unit: "ms", min: 0, max: 1000, step: 10, default: 130 },
+      { key: "--card-landing-hold-ms", label: "上空で止まる間（ピタッ）", unit: "ms", min: 0, max: 1000, step: 10, default: 500 },
       { key: "--card-landing-drop-ms", label: "落下/持ち上がり時間（ストン）", unit: "ms", min: 30, max: 1000, step: 10, default: 150 },
       { key: "--card-landing-lift-scale", label: "上空の高さ（駒の高さ×この倍率）", unit: "", min: 0.3, max: 6, step: 0.05, default: 1.08 },
     ],
@@ -311,7 +311,7 @@ const GROUPS = [
     controls: [
       { key: "--dissolve-speed", label: "速さ（小さいほど長い）", unit: "", min: 0.4, max: 1.4, step: 0.05, default: 0.85, previewOnInteract: () => openDissolvePreview() },
       { key: "--dissolve-mist", label: "湯気の濃さ", unit: "", min: 0.4, max: 1.6, step: 0.05, default: 1, previewOnInteract: () => openDissolvePreview() },
-      { key: "--dissolve-residue", label: "残滓の量", unit: "", min: 0.4, max: 1.8, step: 0.05, default: 1, previewOnInteract: () => openDissolvePreview() },
+      { key: "--dissolve-residue", label: "残滓の量", unit: "", min: 0.4, max: 2.5, step: 0.05, default: 1.6, previewOnInteract: () => openDissolvePreview() },
       { key: "--dissolve-card-size", label: "中央カードの大きさ", unit: "px", min: 200, max: 560, step: 10, default: 340, previewOnInteract: () => openDissolvePreview() },
     ],
   },
