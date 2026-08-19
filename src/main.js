@@ -1181,7 +1181,14 @@ async function addArrivedCardToHand(location, player) {
 // 満たすために使う。これをawaitしないと、露出到達と直後のPLACE（種まきの手札選択）が並行して走り、
 // 種まきのピッカーが宙に浮く（手札が全部トーンオフのまま固着）不具合になっていた。他の呼び出し元は
 // 従来通り撃ちっぱなし（false）で挙動を変えない。
-async function moveAndSyncForEffect(tokenId, location, soundName, suppressArrival, awaitExposedArrival = false) {
+// skipExposedArrival（省略時false）: 移動元マスで下のカードが露出しても到達コンボ
+// （maybeTriggerCardArrivalForExposedCard）を発火させない。#152（ユーザー報告2026-08-20）:
+// 試練の儀式など、到達効果の「既定動作＝このカード自身を手札に加える」でカードをマスから
+// 手札へ動かす時、そのマスに駒がいてかつ一枚下が表向きだと、露出到達コンボが誤って発火して
+// いた（駒は効果中の移動で既にそこにいるだけで“新たに到達”したわけではない）。効果カード
+// 自身を消費する終端処理では、この露出コンボを起こさないためのフラグ。収穫と種まきの
+// PICKUP_TO_HAND（プレイヤーが拾う＝意図的な露出）は従来通り発火させる（このフラグを渡さない）。
+async function moveAndSyncForEffect(tokenId, location, soundName, suppressArrival, awaitExposedArrival = false, skipExposedArrival = false) {
   const movingToken = getState().tokens.find((t) => t.id === tokenId);
   const fromLocation = movingToken?.location ?? null;
   // ③演出（#147・ユーザー報告2026-08-18）: カード効果による「カード→マス」配置にも着地演出を出す
@@ -1211,7 +1218,9 @@ async function moveAndSyncForEffect(tokenId, location, soundName, suppressArriva
     moveToken(tokenId, location, suppressArrival);
   }
   if (soundName) playSound(soundName);
-  const exposedArrival = maybeTriggerCardArrivalForExposedCard(fromLocation);
+  const exposedArrival = skipExposedArrival
+    ? Promise.resolve()
+    : maybeTriggerCardArrivalForExposedCard(fromLocation);
   if (awaitExposedArrival) await exposedArrival;
   // 続き212: 飛翔演出が完全に終わってから呼び出し側（engine）の次アクションへ進めるようawaitする。
   if (landingSourceRect) await playCardCellLanding(landingSourceRect, location, tokenId);

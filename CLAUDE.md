@@ -15886,3 +15886,30 @@ SQL Editorで再実行する必要がある**（ファイル全体＝再実行�
   - 実プレイには一切影響しない（検査は読み取り専用でスモーク中だけ呼ばれる）。**次弾（相談段階）**: 挙動系
     アサーション（優先権がN秒で戻る等）、さらに将来は「実クリック駆動スモーク」で z-index/背面ボタンを実際の
     クリックで検出。サーバー側（Supabase）の変更は無い。
+
+### 2026-08-20（続き230）：#152 試練の儀式など到達効果カードを手札に加える終端処理で、下の表向きカードに到達コンボが誤発火するのを修正
+
+ユーザー報告#152（CPU戦・iPhone）「試練の儀式が終わった後、なぜか到達効果が発動した。おそらく最後に
+いたマスの最下層に試練の儀式があり、到達効果処理が終わってそれを手札に加える行為がトリガーになって
+いる。試練の儀式が一番上にあり、手札に加えることで一枚下の表向きカードが露出し、その上に駒が“新たに”
+乗るなら到達コンボだが、今回は駒が効果中の移動で既にそこにいるだけなので誤作動」。
+
+- **確定原因（アクションログで断定）**: T16/R4 の A のターンで `effect-verb: ritual_place_move_repeat
+  result:true` → `MOVE_TOKEN card-31(=purple-trial-ritual) → hand A`（到達効果の**既定動作＝このカード
+  自身を手札に加える**）→ 直後に `diag-exposed-arrival {(0,4), hasPiece:true, topCardId:"green-growing-
+  trees", topFaceUp:true}` → `arrival: green-growing-trees` が誤発火。つまり効果カードを消費して手札へ
+  移した瞬間、そのマス（駒が乗ったまま）の一枚下の表向きカードが露出し、露出到達コンボ
+  （`maybeTriggerCardArrivalForExposedCard`、続き225/#147）が誤って走っていた。駒は試練の儀式の効果中の
+  移動（suppressArrival）で既にそのマスにいるだけで、“新たに到達”したわけではないので誤作動。
+- **修正**: `moveAndSyncForEffect`（main.js）に第6引数 `skipExposedArrival`（既定false）を追加。trueの時は
+  `maybeTriggerCardArrivalForExposedCard` を呼ばず露出到達コンボを一切起こさない。到達効果の**既定動作で
+  カード自身を手札に加える2箇所**（`card-effect-engine.js` の `runArrivalEffect` 通常版・
+  `runArrivalOptionsEffect` 選べる罠版）で `skipExposedArrival=true` を渡す。効果カードを消費する終端処理
+  だけが対象で、**収穫と種まきの `PICKUP_TO_HAND`（プレイヤーが意図的にカードを拾う＝正当な露出コンボ、
+  awaitExposedArrival経由の別のmoveAndSync呼び出し）には一切影響しない**（別の呼び出し箇所・フラグ未指定）。
+  手動ドラッグでの露出コンボ（onDragEnd）も無関係。
+- **検証**: ヘッドレスの分離テストで、`runArrivalEffect`（red-counter-lock、駒＋下に表向きカード＋その上に
+  効果カードを重ねた状態）を実行し、効果カード消費の `moveAndSync` 呼び出しが
+  `["card-eff",{zone:"hand",player:"A"},null,null,false,true]`＝**skipExposedArrival(arg[5])=true** で
+  呼ばれることを実測（PASS）。あわせて `node test/smoke.mjs`（2人8ターン、到達効果カードの消費を多数含む
+  自己対戦）で回帰・不変条件違反・エラー無しを確認。サーバー側（Supabase）の変更は無い。
