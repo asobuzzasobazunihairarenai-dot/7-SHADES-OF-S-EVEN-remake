@@ -1125,6 +1125,9 @@ function spawnArrivalBurst(hostEl, color) {
 async function addArrivedCardToHand(location, player) {
   const token = findTopCardAt(location);
   if (!token) return;
+  // #152: 手札に加えるのは今の一番上のカード。これを抜けば下の別カードが新しく一番上になる
+  // （＝到達コンボは正当に発動）。動かす前の一番上id（＝このカード自身）を控えて渡す。
+  const prevTopId = token.id;
   if (isOnlineMode()) {
     try {
       await moveToken(token.id, { zone: "hand", player });
@@ -1144,7 +1147,7 @@ async function addArrivedCardToHand(location, player) {
   // 下の表向きカードの到達コンボが発動しない」）: ドラッグ&ドロップでの移動は全て
   // maybeTriggerCardArrivalForExposedCard()を呼んでいたが、到達モーダルの「このカードを
   // 手札に加える」ボタン経由の移動だけこの呼び出しが抜けていた。
-  maybeTriggerCardArrivalForExposedCard(location);
+  maybeTriggerCardArrivalForExposedCard(location, false, prevTopId);
 }
 
 // ユーザー要望「カード効果の自動処理」への対応。card-effect-engine.jsに実際の状態変更を
@@ -1181,16 +1184,18 @@ async function addArrivedCardToHand(location, player) {
 // 満たすために使う。これをawaitしないと、露出到達と直後のPLACE（種まきの手札選択）が並行して走り、
 // 種まきのピッカーが宙に浮く（手札が全部トーンオフのまま固着）不具合になっていた。他の呼び出し元は
 // 従来通り撃ちっぱなし（false）で挙動を変えない。
-// skipExposedArrival（省略時false）: 移動元マスで下のカードが露出しても到達コンボ
-// （maybeTriggerCardArrivalForExposedCard）を発火させない。#152（ユーザー報告2026-08-20）:
-// 試練の儀式など、到達効果の「既定動作＝このカード自身を手札に加える」でカードをマスから
-// 手札へ動かす時、そのマスに駒がいてかつ一枚下が表向きだと、露出到達コンボが誤って発火して
-// いた（駒は効果中の移動で既にそこにいるだけで“新たに到達”したわけではない）。効果カード
-// 自身を消費する終端処理では、この露出コンボを起こさないためのフラグ。収穫と種まきの
-// PICKUP_TO_HAND（プレイヤーが拾う＝意図的な露出）は従来通り発火させる（このフラグを渡さない）。
-async function moveAndSyncForEffect(tokenId, location, soundName, suppressArrival, awaitExposedArrival = false, skipExposedArrival = false) {
+async function moveAndSyncForEffect(tokenId, location, soundName, suppressArrival, awaitExposedArrival = false) {
   const movingToken = getState().tokens.find((t) => t.id === tokenId);
   const fromLocation = movingToken?.location ?? null;
+  // #152: 露出到達コンボは「マスの“一番上”のカードがどいて別のカードが新しく一番上になった」
+  // 時だけ発動すべき（駒が新しいカードの表面に触れた瞬間＝到達）。試練の儀式のように、スタックの
+  // 一番下（や中間）のカードを回収しても、駒が触れている一番上のカードは変わらない＝新しい接触では
+  // ないので到達しない。そこで、動かす前にそのマスの一番上のカードidを控えておき、
+  // maybeTriggerCardArrivalForExposedCard に渡して「一番上が入れ替わった時だけ」発動させる。
+  const prevTopBeforeMove =
+    fromLocation && (fromLocation.zone === "cell" || fromLocation.zone === "lock")
+      ? findTopCardAt(fromLocation)?.id ?? null
+      : null;
   // ③演出（#147・ユーザー報告2026-08-18）: カード効果による「カード→マス」配置にも着地演出を出す
   // （続き207ではドラッグ&ドロップのみだった。合同建設・増殖する樹々・ジャンプ台の手札効果等が該当）。
   // 移動前のカードDOM要素のrectを飛び元として捕捉しておく（駒の移動・手札行きは対象外）。
@@ -1218,9 +1223,7 @@ async function moveAndSyncForEffect(tokenId, location, soundName, suppressArriva
     moveToken(tokenId, location, suppressArrival);
   }
   if (soundName) playSound(soundName);
-  const exposedArrival = skipExposedArrival
-    ? Promise.resolve()
-    : maybeTriggerCardArrivalForExposedCard(fromLocation);
+  const exposedArrival = maybeTriggerCardArrivalForExposedCard(fromLocation, false, prevTopBeforeMove);
   if (awaitExposedArrival) await exposedArrival;
   // 続き212: 飛翔演出が完全に終わってから呼び出し側（engine）の次アクションへ進めるようawaitする。
   if (landingSourceRect) await playCardCellLanding(landingSourceRect, location, tokenId);
@@ -5654,7 +5657,7 @@ function flushPendingDiffArrivalTriggers() {
   logAction("diag-diff-arrival-flush", { count: buffered.length });
   for (const item of buffered) {
     if (item.kind === "card") maybeTriggerCardArrivalForCard(item.dropTarget, item.cardId, item.faceUp, true);
-    else if (item.kind === "exposed") maybeTriggerCardArrivalForExposedCard(item.location, true);
+    else if (item.kind === "exposed") maybeTriggerCardArrivalForExposedCard(item.location, true, item.prevTopTokenId);
   }
 }
 
@@ -6039,12 +6042,18 @@ function maybeTriggerCardArrivalForCard(dropTarget, cardId, faceUp, fromDiff = f
 // 素直には乗らないため）。呼び出し元はカードの移動が確定しrender()済みの後に呼ぶこと
 // （findTopCardAt/hasPieceAtは最新のstateを参照するため、render()自体は必須ではないが、
 // 他の到達演出呼び出しと同じタイミングに揃えてある）。
-function maybeTriggerCardArrivalForExposedCard(location, fromDiff = false) {
+// prevTopTokenId（省略可）: このマスから何かが動く「前」の一番上のカードのトークンid。
+// #152（ユーザー報告2026-08-20）: 到達（コンボ）は「駒が“新しい表向きカードの表面”に触れた瞬間」
+// にだけ起きる。つまり、あるマスの一番上のカードがどいて“別のカード”が新しく一番上になった時だけ。
+// 試練の儀式のようにスタックの一番下（や中間）のカードを回収しても、駒が触れている一番上は
+// 変わらない＝新しい接触ではないので到達しない。prevTopTokenId が渡され、動いた後も一番上の
+// トークンidが変わっていなければ（＝一番上が入れ替わっていなければ）発動しない。
+function maybeTriggerCardArrivalForExposedCard(location, fromDiff = false, prevTopTokenId = undefined) {
   // キュー化第一歩: 効果チェーン処理中に来た差分由来トリガは溜めてdepth0でflush（二重発火防止）。
   // この差分経路(fromDiff=true)はremote-move-animatorが投げっぱなしで呼ぶ＝戻り値をawaitしないため、
   // 遅延してPromise.resolve()を返しても待ち合わせは壊れない（#85のawaitはfromDiff=falseの別経路）。
   if (fromDiff && arrivalEffectProcessingDepth > 0) {
-    pendingDiffArrivalTriggers.push({ kind: "exposed", location });
+    pendingDiffArrivalTriggers.push({ kind: "exposed", location, prevTopTokenId });
     logAction("diag-diff-arrival-defer", { kind: "exposed", location, depth: arrivalEffectProcessingDepth });
     return Promise.resolve();
   }
@@ -6052,13 +6061,19 @@ function maybeTriggerCardArrivalForExposedCard(location, fromDiff = false) {
   // した時にこの経路が実際に呼ばれ、駒がいて・表向きのカードを見つけて到達を起こせるかを
   // 記録する。ユーザー報告「パーティを取って露出したジャンプ台の到達効果が起きない」用。
   const top = location && (location.zone === "cell" || location.zone === "lock") ? findTopCardAt(location) : null;
+  // #152: 一番上が入れ替わっていない（＝抜けたのは一番下/中間のカードで、駒が触れている
+  // 一番上のカードは変わっていない）なら、新しい接触ではないので到達しない。
+  const topUnchanged = prevTopTokenId !== undefined && !!top && top.id === prevTopTokenId;
   logAction("diag-exposed-arrival", {
     location,
     zoneOk: !!location && (location.zone === "cell" || location.zone === "lock"),
     hasPiece: !!location && hasPieceAt(location),
     topCardId: top?.cardId ?? null,
     topFaceUp: top?.faceUp ?? null,
+    prevTopTokenId: prevTopTokenId ?? null,
+    topUnchanged,
   });
+  if (topUnchanged) return Promise.resolve();
   if (!location || (location.zone !== "cell" && location.zone !== "lock")) return Promise.resolve();
   if (!hasPieceAt(location)) return Promise.resolve();
   // 到達（コンボ）の完全解決で解決するPromiseを返す（await可能。#85）。
@@ -10729,6 +10744,12 @@ async function onDragEnd(e) {
       if (token && !alreadyInThisHand) {
         const wasPublic = token.location.zone === "cell" || token.location.zone === "lock" ? token.faceUp : false;
         const cardId = token.cardId; // hydrate後にtokenが古い参照になるため先に捕捉しておく
+        // #152: 動かす前のマスの一番上id（＝掴んだこのカード自身）を控えて渡す。掴めるのは一番上の
+        // カードなので、これを抜けば下の別カードが新しく一番上に＝到達コンボは正当に発動する。
+        const prevTopAtSource =
+          cardSourceLocation && (cardSourceLocation.zone === "cell" || cardSourceLocation.zone === "lock")
+            ? findTopCardAt(cardSourceLocation)?.id ?? null
+            : null;
         if (isOnlineMode()) {
           try {
             await moveToken(tokenId, dropTarget);
@@ -10744,7 +10765,7 @@ async function onDragEnd(e) {
         }
         announceHandPickups(dropTarget.player, [{ cardId, wasPublic }]);
         render();
-        maybeTriggerCardArrivalForExposedCard(cardSourceLocation);
+        maybeTriggerCardArrivalForExposedCard(cardSourceLocation, false, prevTopAtSource);
         // ③演出（ユーザー要望2026-08-18の「逆もしかり」）: 盤面マスのカードが手札に入るときは、
         // 配置の逆——マスから上空へストンと持ち上がり（風はマス側）→手札へすーーっと。
         if (cardSourceLocation?.zone === "cell") playCardLiftToHand(cardAnimSourceRect, dropTarget.player, tokenId);

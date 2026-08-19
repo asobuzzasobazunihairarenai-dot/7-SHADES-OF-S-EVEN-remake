@@ -15957,3 +15957,39 @@ SQL Editorで再実行する必要がある**（ファイル全体＝再実行�
   「マイページを開いたままショップを開くとマイページが前面に残りショップが背面になる（背面バグ）」1件を
   検知していたのが、修正後は 0 件。通常の自己対戦スモーク（`node test/smoke.mjs` 2人8ターン）も回帰・
   エラー無しで PASS。`node --check` 全編集ファイル通過。サーバー側（Supabase）の変更は無い。
+
+### 2026-08-20（続き232）：#152 の修正をユーザー指摘に沿って作り直し（露出到達コンボは「一番上のカードが入れ替わった時だけ」発動）
+
+続き230の #152 修正（`skipExposedArrival` で終端の露出到達コンボを一律スキップ）は**誤り**だったとユーザーから
+明確な訂正があり、正しいルールに沿って作り直した。
+
+- **ユーザーの訂正（＝正しいルール）**: 到達効果は「表向きのカードに駒が**新たに乗った瞬間**（カードの表面に
+  触れた瞬間）」に発動する。試練の儀式で儀式カードの上を何度も行き来した結果、儀式カードの上に表向きカードが
+  スタックし、駒はその**一番上の表向きカード**にずっと触れっぱなしだった。到達効果完了で回収されるのはマスの
+  **一番下**の儀式カードなので、それを抜いても**一番上のカードは変わらない＝新しい接触ではない＝到達しない**
+  （かつ儀式の効果自体が「移動先の到達効果は得ない」）。一方、儀式カードが**一番上**にあってそれを回収し、
+  下から別の表向きカードが露出して駒がその**新しい一番上**に触れるなら、それは**正当な到達コンボ**として発動
+  すべき。続き230の一律スキップは、この正当なコンボまで殺してしまうため誤りだった。
+- **正しい修正**: 露出到達コンボ（`maybeTriggerCardArrivalForExposedCard`）を「そのマスの**一番上のカードが
+  入れ替わった時だけ**」発動させる。同関数に第3引数 `prevTopTokenId`（移動前の一番上のカードid）を追加し、
+  `topUnchanged = prevTopTokenId !== undefined && !!top && top.id === prevTopTokenId` なら発動しない（早期return）。
+  続き230で入れた `skipExposedArrival`（main.js の第6引数）と、その渡し込み（`card-effect-engine.js` の2箇所）は
+  **撤回**した。
+- **`prevTopTokenId` を全呼び出し経路で渡す**:
+  - `moveAndSyncForEffect`（カード効果の移動・到達効果の既定の手札回収）: 移動前に `findTopCardAt(fromLocation)?.id`
+    を控えて渡す。試練の儀式（下の儀式カード回収）→ 一番上は不変 → 発動しない（#152修正）。儀式カードが一番上の
+    ケース → 一番上が入れ替わる → 発動（正当なコンボは維持）。
+  - `addArrivedCardToHand`（到達モーダルの「このカードを手札に加える」）: 加えるのは今の一番上＝そのカード自身
+    なので `prevTopId = token.id` を渡す。抜いて別カードが露出すれば発動、なければ不変で発動しない。
+  - `onDragEnd`（手札へドラッグ回収）: 移動前に `findTopCardAt(cardSourceLocation)?.id` を控えて渡す。
+  - `remote-move-animator.js`（オンラインで他プレイヤーの操作を再現する差分検知）: 移動前スナップショット
+    `previousTokensById` から `prevTopCardIdAt(prevLocation)`（重なり順の最後のカード）を求めて `move` アイテムに
+    載せ、`maybeTriggerCardArrivalForExposedCard(..., true, item.prevTopCardId)` として渡す。効果チェーン中に
+    deferした差分トリガ（`pendingDiffArrivalTriggers`）も `prevTopTokenId` を保持して flush 時に渡す。
+- **診断**: `diag-exposed-arrival` に `prevTopTokenId`／`topUnchanged` を記録するようにした（今後の同種調査用）。
+- **検証**: `node test/smoke.mjs`（2人8ターン、到達効果カードの消費を多数含む自己対戦）で回帰・不変条件違反・
+  エラー無しで PASS ✅、`node --check`（main.js／card-effect-engine.js／remote-move-animator.js）全通過。
+  ロジックは「一番上id一致なら発動しない／不一致なら発動」の単純なガードで、`findTopCardAt`（スタックの重なり順で
+  最後＝一番上）の意味論に沿う。**実際の試練の儀式での“誤発火しない／正当なコンボは出る”の最終確認は実機での
+  プレイでお願いしたい**（到達チェーンを headless で決定的に再現するのは困難なため、従来の到達まわり修正と
+  同じ方針）。サーバー側（Supabase）の変更は無い。

@@ -95,6 +95,19 @@ function snapshotOf(state) {
   return map;
 }
 
+// 移動前スナップショットで、そのマス/ロックスロットの「一番上のカード」idを返す（#152）。
+// snapshotOfはstate.tokens順（＝重なり順）でMapに入れるので、該当locationのカードのうち
+// 最後に見つかったものが一番上。maybeTriggerCardArrivalForExposedCardに「一番上が
+// 入れ替わった時だけ発動」の基準として渡す。
+function prevTopCardIdAt(location) {
+  if (!location || (location.zone !== "cell" && location.zone !== "lock")) return null;
+  let topId = null;
+  for (const [id, t] of previousTokensById) {
+    if (t.kind === "card" && locationsEqual(t.location, location)) topId = id;
+  }
+  return topId;
+}
+
 function getGhostImagePath(token) {
   if (token.kind === "piece") return getSkinImagePath(token.color, token.player);
   if (!token.cardId) return getCardBackImagePath(null);
@@ -335,7 +348,7 @@ function triggerEffectsFor(item) {
         (item.prevLocation.zone === "cell"
           ? item.prevLocation.row === token.location.row && item.prevLocation.col === token.location.col
           : item.prevLocation.side === token.location.side && item.prevLocation.index === token.location.index);
-      if (!sameLocation) helpers.maybeTriggerCardArrivalForExposedCard?.(item.prevLocation, true);
+      if (!sameLocation) helpers.maybeTriggerCardArrivalForExposedCard?.(item.prevLocation, true, item.prevTopCardId);
     }
   }
 }
@@ -489,7 +502,7 @@ export function handleHydrate() {
     }
     if (locationsEqual(prev.location, token.location)) continue;
     if (isTableZone(prev.location) && isTableZone(token.location)) {
-      items.push({ id: token.id, token, kind: "move", prevLocation: prev.location });
+      items.push({ id: token.id, token, kind: "move", prevLocation: prev.location, prevTopCardId: prevTopCardIdAt(prev.location) });
     } else if (isTableZone(prev.location) && token.location.zone === "hand") {
       items.push({ id: token.id, token, kind: "pickup", prevFaceUp: prev.faceUp, prevLocation: prev.location });
     } else if (prev.location.zone === "hand" && isTableZone(token.location)) {
@@ -500,7 +513,7 @@ export function handleHydrate() {
       // fromRectが取れれば飛翔演出になり、取れなければ新規出現と同様その場で
       // フェードインする。prevLocation.zoneは"hand"なのでwasAlreadyLocked判定
       // （triggerEffectsFor参照）は正しくfalseになり、新規ロックとして扱われる。
-      items.push({ id: token.id, token, kind: "move", prevLocation: prev.location });
+      items.push({ id: token.id, token, kind: "move", prevLocation: prev.location, prevTopCardId: prevTopCardIdAt(prev.location) });
     }
     // 手札→手札、手札→山等、その他の遷移は対象外（山へ送る操作はローカル版でも演出無し）。
   }

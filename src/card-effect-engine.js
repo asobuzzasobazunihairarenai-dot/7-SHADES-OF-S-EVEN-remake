@@ -1934,8 +1934,7 @@ async function runArrivalOptionsEffect(ctx, options, helpers) {
   // 可能性がある）で、まだ盤面に残っている場合だけ動かす。
   const currentToken = getState().tokens.find((t) => t.id === ctx.cardTokenId);
   if (currentToken && currentToken.location.zone === "cell") {
-    // #152: 選べる罠等の効果カード自身の消費でも、露出到達コンボを発火させない（skipExposedArrival=true）。
-    await helpers.moveAndSync(ctx.cardTokenId, { zone: "hand", player: ctx.player }, undefined, undefined, false, true);
+    await helpers.moveAndSync(ctx.cardTokenId, { zone: "hand", player: ctx.player });
   }
   return runCtx.arrivedAt;
 }
@@ -1996,9 +1995,7 @@ export async function runArrivalEffect(ctx, helpers) {
       // 到達したカードが手札へ入る飛翔は moveAndSyncForEffect（main.js）が「マス→手札」を検知して
       // playCardLiftToHand（配置演出と統一した“持ち上げ→手札へグライド”）で出す（続き211）。以前は
       // ここで helpers.flyCardToHand を別途 await していたが、演出を一本化するため moveAndSync 側へ移した。
-      // #152（skipExposedArrival=true）: このカード自身を消費する終端処理では、マスの下の
-      // カードが露出しても到達コンボを発火させない（駒は効果中の移動で既にそこにいるだけ）。
-      await helpers.moveAndSync(ctx.cardTokenId, { zone: "hand", player: ctx.player }, undefined, undefined, false, true);
+      await helpers.moveAndSync(ctx.cardTokenId, { zone: "hand", player: ctx.player });
       // ユーザー報告2026-08-07「到達したカードを獲得した時、右下のカード獲得トーストが
       // 出ていない気がする」。手動の到達（addArrivedCardToHand）は announceHandPickups で
       // 通知していたが、自動処理経由のこの既定動作では通知が漏れていた。同じトーストを出す。
