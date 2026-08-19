@@ -18,6 +18,14 @@ import { refreshCurrencyDisplay } from "./currency-display.js";
 import { SHOP_CATEGORIES, getShopCompletionStats } from "./shop-content.js";
 import { getSkinImagePathForVariant } from "./piece-skins.js";
 import { petSpriteSrc } from "./pet-skins.js";
+// #231: 全画面ページは「同時に1つだけ」に統一する。他のページの opener（ranking/help/profile）は
+// 互いを閉じてから開くが、ショップだけ他を閉じておらず、マイページ(z2650)を開いたまま
+// ショップ(z2601)を開くとショップが背面になっていた（nav-layering-check が検知）。ここも他を閉じる。
+// これらのモジュールは closeShopPanel を import している（循環）が、いずれも hoisted な
+// export function を実行時に呼ぶだけなので安全（ranking↔help↔profile 既存の循環と同じ形）。
+import { closeRankingPage } from "./ranking-page.js";
+import { closeHelpPanel } from "./help.js";
+import { closeProfilePage } from "./profile-page.js";
 
 let panelEl = null;
 let balanceEl = null;
@@ -452,6 +460,10 @@ function focusCategory(categoryKey) {
 }
 
 export function openShopPanel(initialCategoryKey) {
+  // #231: 他の全画面ページを閉じてから開く（ショップが背面に回るのを防ぐ）。未表示なら安全なno-op。
+  closeRankingPage();
+  closeHelpPanel();
+  closeProfilePage();
   setStatus("");
   focusCategory(initialCategoryKey);
   renderTabs();

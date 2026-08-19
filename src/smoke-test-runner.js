@@ -847,6 +847,14 @@ export function openSmokeTestPanel() {
   bgBtn.className = "smoke-test-run smoke-test-online";
   bgBtn.textContent = "🖥️ バックグラウンド実行";
   bgBtn.title = "今の人数・モードに合った『node test/smoke.mjs …』コマンドをコピーします。ターミナルに貼ると、タブを前面に保たずバックグラウンドで回せます（ヘッドレスなのでスロットルされず速い）。";
+  // 画面遷移チェック（背面バグ検知。続き231）。CPU自己対戦では再現できない #119/#139 系
+  // （全画面ページを開いたまま別ページを開くと後から開いた方が背面になる）を、実際に各ページの
+  // ペアを開いて確定的に検証する能動テスト。テスト後は全ページを閉じて後始末する。
+  const navBtn = document.createElement("button");
+  navBtn.type = "button";
+  navBtn.className = "smoke-test-run";
+  navBtn.textContent = "🔀 画面遷移チェック";
+  navBtn.title = "ショップ/ランキング/ヘルプ/マイページを順に開き、後から開いた画面が最前面に出るか（背面バグが無いか）を検査します。";
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.className = "smoke-test-close";
@@ -861,8 +869,36 @@ export function openSmokeTestPanel() {
   actions.appendChild(repeatBtn);
   actions.appendChild(onlineBtn);
   actions.appendChild(bgBtn);
+  actions.appendChild(navBtn);
   actions.appendChild(closeBtn);
   panel.appendChild(actions);
+
+  navBtn.onclick = async () => {
+    navBtn.disabled = true;
+    navBtn.textContent = "🔀 検査中…";
+    resultEl.classList.remove("is-pass", "is-fail");
+    resultEl.textContent = "";
+    addLog("🔀 画面遷移チェック（背面バグ）を実行します…");
+    try {
+      const { checkNavigationLayering } = await import("./nav-layering-check.js");
+      const viols = await checkNavigationLayering();
+      if (!viols.length) {
+        resultEl.classList.add("is-pass");
+        resultEl.textContent = "✅ PASS — 画面遷移の重なり順に問題なし（背面バグなし）";
+        addLog("✅ 背面バグなし");
+      } else {
+        resultEl.classList.add("is-fail");
+        resultEl.textContent = `❌ FAIL — 背面バグ ${viols.length}件`;
+        for (const v of viols) addLog("❗" + v.msg);
+      }
+    } catch (e) {
+      resultEl.classList.add("is-fail");
+      resultEl.textContent = "❌ 検査中に例外: " + (e && e.message ? e.message : String(e));
+    } finally {
+      navBtn.disabled = false;
+      navBtn.textContent = "🔀 画面遷移チェック";
+    }
+  };
 
   // バックグラウンド実行ボタン: 今の人数（countSelect）・決着までモード（repeatFullCheck）に
   // 合わせたコマンドを組み立ててコピーし、resultEl に手順を表示する。

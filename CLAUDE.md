@@ -15913,3 +15913,47 @@ SQL Editorで再実行する必要がある**（ファイル全体＝再実行�
   `["card-eff",{zone:"hand",player:"A"},null,null,false,true]`＝**skipExposedArrival(arg[5])=true** で
   呼ばれることを実測（PASS）。あわせて `node test/smoke.mjs`（2人8ターン、到達効果カードの消費を多数含む
   自己対戦）で回帰・不変条件違反・エラー無しを確認。サーバー側（Supabase）の変更は無い。
+
+### 2026-08-20（続き231）：UIチェッカー第2弾＝画面遷移の背面バグ検知（能動テスト）を新設し、その過程でマイページ→ショップの背面バグを発見・修正
+
+ユーザー選択「UIチェッカー第2弾」（続き229の幽霊オーバーレイ検知の次）。過去くり返し出た z-index/
+背面バグ（#119 ショップ画面でランキング/ヘルプが背面に開く、#139 マイページでヘルプ/ランキングが
+背面）は、いずれも「ある全画面ページを開いたまま別の全画面ページを開くと後から開いた方が前面に
+出ない」という遷移時の重なり順の問題。**これは CPU 自己対戦（passive なスモーク）では一切再現できない**
+——それらのページを開く操作をスモークが行わないため。そこで、実際に各ページのペアを順に開いて
+「後から開いた方が最前面に出ているか」を検証する**能動テスト**にした（ヒューリスティックではなく
+明示的なアサーション＝誤検知ゼロ）。
+
+- **新規 [src/nav-layering-check.js](src/nav-layering-check.js)**: `checkNavigationLayering()`（能動テスト。
+  DOM を実際に開閉するが最後に必ず全ページを閉じて後始末する。checkUiInvariants の passive 検査とは別物で、
+  live な自己対戦のポーリング中には呼ばず明示的な単発実行で使う）。対象＝ショップ/ランキング/ヘルプ/
+  マイページの全画面ページ。各ページのペア (A,B) で「A を開いたまま B を開く」→ B より手前に居残っている
+  “別の全画面ページ”があれば背面バグとして `nav-behind` を返す。
+  - **判定は elementFromPoint ではなく z-index 比較**: これらは全て body 直下の position:fixed（body の
+    ステージ変形が作る単一のスタッキングコンテキスト内）なので z-index を数値比較すれば手前かどうかが確定。
+    elementFromPoint だと自己対戦中のゲームモーダル（z 10000+）が中央を覆って誤検知するため、ページ同士の
+    重なり順は z-index 比較でゲームのモーダルを無視する。
+  - **ハマりどころ**: `#shop-panel`/`#help-panel` は初回に一度だけ生成され閉じても display:none で隠すだけ
+    （要素は残る）。`#ranking-page`/`#profile-page` は生成/破棄。よって getElementById の有無ではなく
+    「実際に表示されているか（display/visibility/opacity/サイズ）」で開閉を判定する必要があった。
+- **このチェックが実際に見つけた背面バグを修正（[src/shop.js](src/shop.js)）**: `openShopPanel` だけが
+  他の全画面ページを閉じていなかった（ranking/help/profile の opener は互いを閉じてから開くのに）。その
+  ため**マイページ(z2650)を開いたままショップ(z2601)を開くとショップが背面**になっていた（マイページから
+  ショップへ行けない）。`openShopPanel` の先頭で closeRankingPage/closeHelpPanel/closeProfilePage を呼ぶ
+  ようにして「全画面ページは同時に1つだけ」に統一。3モジュールは closeShopPanel を import する循環に
+  なるが、いずれも hoisted な export function を実行時に呼ぶだけなので安全（ranking↔help↔profile の既存
+  循環と同じ）。実際にアプリが正常ロードし（console/page エラー無し）、nav チェックが 0 件になることを実測。
+- **スモークへの配線**: (1) in-app パネル（[src/smoke-test-runner.js](src/smoke-test-runner.js)）に
+  「🔀 画面遷移チェック」ボタンを追加（実行→背面バグの有無を PASS/FAIL 表示）。(2) Node 版
+  （[test/smoke.mjs](test/smoke.mjs)）に `node test/smoke.mjs --nav` モードを追加（自己対戦せず nav
+  チェックだけ 1 回実行して終了）。
+  - **テスト環境の安定化2点**: ①アイドル状態（未ログイン・非対局）だとページ評価が「Resulting promise was
+    garbage collected」で中断されるため、--nav も自己対戦と同じ安定状態（signOut＋CPU戦セットアップ＋
+    オープニング画面クローズ）にしてから nav チェックを回す。②`initUpdateChecker` に
+    `so7-disable-update-checker` の localStorage ゲートを追加——dev で version.json と app-version.js が
+    一時的にズレていると起動時の自動リロード（location.reload）がヘッドレスの評価を破壊するため、スモークの
+    addInitScript でこのフラグを立てて無効化（本番では誰も設定しない）。
+- **検証**: `node test/smoke.mjs --nav` が「背面バグなし ✅」PASS（exit 0）。shop 修正前は
+  「マイページを開いたままショップを開くとマイページが前面に残りショップが背面になる（背面バグ）」1件を
+  検知していたのが、修正後は 0 件。通常の自己対戦スモーク（`node test/smoke.mjs` 2人8ターン）も回帰・
+  エラー無しで PASS。`node --check` 全編集ファイル通過。サーバー側（Supabase）の変更は無い。

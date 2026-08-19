@@ -3,6 +3,7 @@
 //   node test/smoke.mjs            … 2人・8ターン点検
 //   node test/smoke.mjs 3          … 3人（4も可）
 //   node test/smoke.mjs 3 --full   … 決着まで（勝者が出るまで）回す
+//   node test/smoke.mjs --nav      … 画面遷移の背面バグチェックだけ（自己対戦しない・続き231）
 //
 // ★このNode版は「タブを前面に保つ必要がない」のが利点（ユーザー要望2026-08-19「前面維持がつらい、
 //   別作業したい」）。ヘッドレスChromiumを別プロセスで起動するので、あなたのブラウザは一切関係なく、
@@ -34,6 +35,8 @@ const PORT = 8795;
 const ARGS = process.argv.slice(2);
 const PLAYER_COUNT = [2, 3, 4].includes(Number(ARGS.find((a) => /^[234]$/.test(a)))) ? Number(ARGS.find((a) => /^[234]$/.test(a))) : 2;
 const RUN_TO_COMPLETION = ARGS.includes("--full") || ARGS.includes("--completion");
+// --nav: 画面遷移の背面バグチェック（続き231）だけを1回実行して終了（自己対戦はしない）。
+const RUN_NAV = ARGS.includes("--nav");
 // 連続実行の回数（in-app版「連続実行 N回」に相当。ユーザー要望2026-08-19）。
 //   node test/smoke.mjs 3 --repeat 5   … 3人を5回連続で回す
 const REPEAT = (() => {
@@ -231,6 +234,8 @@ async function run() {
       // 初回起動のBGM設定モーダル（全画面dim backdrop, z-index 100050）を抑制。これが出っ放しだと
       // 盤面中央をずっと覆い、UI不変条件チェック（幽霊オーバーレイ検知）が実際の盤面を見られない。
       localStorage.setItem("so7-bgm-intro-shown-v1", "1");
+      // 自動アップデート（version.jsonのズレでlocation.reload）がテスト中に評価を中断するのを防ぐ（続き231）。
+      localStorage.setItem("so7-disable-update-checker", "1");
     } catch (e) {}
   });
 
@@ -240,6 +245,38 @@ async function run() {
   const bootChildren = await page.evaluate(() => document.body.children.length);
   if (bootChildren < 20) throw new Error(`boot looks broken: body has only ${bootChildren} children`);
   log("booted OK (body children:", bootChildren + ")");
+
+  // --nav: 画面遷移の背面バグチェックだけ実行して終了。アイドル状態（未ログイン・非対局）だと
+  // ページが不安定でモジュール評価が中断されることがあるため、自己対戦と同じ安定した状態
+  // （signOut＋CPU戦セットアップ＋オープニング画面クローズ）にしてから nav チェックを回す。
+  // nav チェックは z-index 比較でページ同士の重なり順を見る（ゲームのモーダルは無視）ので、
+  // 対局中でも問題なく検査できる。
+  if (RUN_NAV) {
+    await page.evaluate(async () => {
+      const online = await import("/src/online.js");
+      try { await online.signOut?.(); } catch (e) {}
+      const cpu = await import("/src/cpu-battle.js");
+      const admin = await import("/src/admin.js");
+      admin.setPseudoCpuModeEnabled?.(true);
+      await cpu.startCpuBattle(2);
+      await cpu.runCpuBattleSetup({ count: 2 });
+      try { const os = await import("/src/opening-screen.js"); os.forceCloseOpeningScreen?.(); } catch (e) {}
+    });
+    await page.waitForTimeout(1500);
+    const viols = await page.evaluate(async () => {
+      const nav = await import("/src/nav-layering-check.js");
+      return (await nav.checkNavigationLayering()).map((v) => v.msg);
+    });
+    await browser.close();
+    server.close();
+    if (viols.length) {
+      log(`画面遷移チェック: 背面バグ ${viols.length}件`);
+      for (const m of viols) log(" ❗" + m);
+      return { passCount: 0, total: 1, firstFailure: { i: 1, res: { errors: viols } } };
+    }
+    log("画面遷移チェック: 背面バグなし ✅");
+    return { passCount: 1, total: 1, firstFailure: null };
+  }
 
   // 連続実行（--repeat N）。1試合ずつ回し、各試合の PASS/FAIL を集計する。
   const results = [];

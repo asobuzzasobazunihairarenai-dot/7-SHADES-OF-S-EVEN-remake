@@ -191,6 +191,12 @@ async function check(isInitial = false) {
 }
 
 export function initUpdateChecker() {
+  // スモークテスト等の自動テスト環境では自動リロードが検査を中断するため無効化できる
+  // （続き231。本番では誰も設定しないフラグ）。dev で version.json と app-version.js が一時的に
+  // ズレている時、check(true) の自動リロードがヘッドレスの評価を破壊するのを防ぐ。
+  try {
+    if (localStorage.getItem("so7-disable-update-checker") === "1") return;
+  } catch (e) {}
   // リソース計測バッファを広げておく（既定250だと画像等で溢れてJSモジュールの記録が
   // 取りこぼされ得るため）。refreshCachedAssets()が全JS/CSSを確実に取り直せるようにする保険。
   try {
