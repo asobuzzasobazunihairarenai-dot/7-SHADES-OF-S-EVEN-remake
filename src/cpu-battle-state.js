@@ -35,6 +35,31 @@ export function clearSeatLoadouts() {
   seatLoadouts = {};
 }
 
+// --- CPU戦のプレイ人数（2〜4人。続き226） ------------------------------------------------------
+// ユーザー要望2026-08-19「CPU戦の3人・4人対戦」。あなた(A)＋CPU(残りの座席)で、AUTO_SEATS_BY_COUNT
+// [count] の座席で対戦する。ホーム画面のCPU戦モーダルの人数セグメントで選び、この端末に保存する。
+const CPU_COUNT_KEY = "so7-cpu-battle-count"; // 2 | 3 | 4
+let cpuPlayerCount = 2;
+try {
+  const n = parseInt(localStorage.getItem(CPU_COUNT_KEY) || "", 10);
+  if (n === 2 || n === 3 || n === 4) cpuPlayerCount = n;
+} catch {
+  /* 既定(2)で動く */
+}
+export function getCpuPlayerCount() {
+  return cpuPlayerCount;
+}
+export function setCpuPlayerCount(n) {
+  const v = Math.round(Number(n));
+  if (v !== 2 && v !== 3 && v !== 4) return;
+  cpuPlayerCount = v;
+  try {
+    localStorage.setItem(CPU_COUNT_KEY, String(v));
+  } catch {
+    /* 保存できなくてもそのセッションでは効く */
+  }
+}
+
 // --- CPUの速さ（1手ごとの「考える間」＝疑似CPUの持ち時間） ---------------------------------
 // ユーザー要望「CPUの行動が早すぎて（ザ・ギャンブル等の）モーダルが読み取れない。速度を
 // ゆっくり／普通／早いで選べるようにしたい」。値は「CPUがその席で1手打つまでの持ち時間(ms)」で、

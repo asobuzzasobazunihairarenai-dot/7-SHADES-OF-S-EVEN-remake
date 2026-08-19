@@ -71,7 +71,7 @@ async function clearEndgameModals() {
   } catch {}
 }
 
-async function runInAppSmokeTest(onLog, { runToCompletion = false } = {}) {
+async function runInAppSmokeTest(onLog, { runToCompletion = false, playerCount = 2 } = {}) {
   const hardTimeoutMs = runToCompletion ? 600000 : HARD_TIMEOUT_MS; // 決着まで＝最大10分
   const errors = [];
   const origConsoleError = console.error;
@@ -126,11 +126,12 @@ async function runInAppSmokeTest(onLog, { runToCompletion = false } = {}) {
     // 次ラウンドの盤面を覆ってしまう。onCloseの連鎖（通貨/ランク/個人結果）は起こさず静かに消す。
     await clearEndgameModals();
 
-    onLog?.("CPU戦を開始（両席とも自動＝自己対戦）…");
+    const pc = playerCount === 3 || playerCount === 4 ? playerCount : 2;
+    onLog?.(`CPU戦を開始（${pc}人・全席とも自動＝自己対戦）…`);
     admin.setPseudoCpuModeEnabled?.(true);
-    await cpu.startCpuBattle();
+    await cpu.startCpuBattle(pc);
     admin.setPseudoCpuIncludeSelf?.(true); // setup前に：A席も自動化（でないとturn1で停滞する）
-    await cpu.runCpuBattleSetup();
+    await cpu.runCpuBattleSetup({ count: pc });
     admin.setPseudoCpuIncludeSelf?.(true);
 
     // 設定直後のカード総数を baseline に記録（以後、総数が変われば「カードが増減した」＝バグ）。
@@ -755,6 +756,25 @@ export function openSmokeTestPanel() {
   repeatFullLabel.appendChild(document.createTextNode(" 各回を決着まで（遅い）"));
   repeatRow.appendChild(repeatLabel);
   repeatRow.appendChild(repeatFullLabel);
+  // 人数選択（2〜4人。続き226）。ローカル自己対戦の人数。オンライン監視は常に相手依存なので無関係。
+  const countLabel = document.createElement("label");
+  countLabel.className = "smoke-test-repeat-label";
+  countLabel.textContent = " 人数 ";
+  const countSelect = document.createElement("select");
+  countSelect.className = "smoke-test-repeat-input";
+  for (const n of [2, 3, 4]) {
+    const opt = document.createElement("option");
+    opt.value = String(n);
+    opt.textContent = `${n}人`;
+    countSelect.appendChild(opt);
+  }
+  countSelect.value = "2";
+  countLabel.appendChild(countSelect);
+  repeatRow.appendChild(countLabel);
+  const smokePlayerCount = () => {
+    const n = parseInt(countSelect.value, 10);
+    return n === 3 || n === 4 ? n : 2;
+  };
   panel.appendChild(repeatRow);
 
   const actions = document.createElement("div");
@@ -901,7 +921,7 @@ export function openSmokeTestPanel() {
     for (let i = 1; i <= times; i++) {
       if (cancelRepeat) { addLog(`⏹ ${done}回で停止しました。`); break; }
       addLog(`━━━━ ${i}/${times}回目 ━━━━`);
-      const res = await runInAppSmokeTest(addLog, { runToCompletion: toCompletion });
+      const res = await runInAppSmokeTest(addLog, { runToCompletion: toCompletion, playerCount: smokePlayerCount() });
       results.push(res);
       done = i;
       addLog(`${i}回目: ${res.pass ? "✅PASS" : "❌FAIL"} — ${res.reason}`);
@@ -990,8 +1010,8 @@ export function openSmokeTestPanel() {
   // addEventListener だと開始ハンドラが残ったまま停止ハンドラも登録され、停止クリックで両方発火して
   // 二重実行になる（＝診断ボタンが2行出る／console.error上書きが積み重なる不具合。ユーザー報告2026-08-17）。
   // .onclick は単一スロットなので、停止ハンドラへ差し替えれば開始ハンドラは確実に外れる。
-  runBtn.onclick = () => runTest({ runToCompletion: false });
-  runFullBtn.onclick = () => runTest({ runToCompletion: true });
+  runBtn.onclick = () => runTest({ runToCompletion: false, playerCount: smokePlayerCount() });
+  runFullBtn.onclick = () => runTest({ runToCompletion: true, playerCount: smokePlayerCount() });
   repeatBtn.onclick = runRepeated;
   onlineBtn.onclick = runOnlineMonitor;
 

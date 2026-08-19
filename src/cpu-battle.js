@@ -22,13 +22,23 @@ import {
 import { quickStart } from "./game-setup.js";
 import { setPlayerName, setPlayerAvatar, ENTRUSTED_AVATAR } from "./player-identity.js";
 import { setAutoProcessingEnabled } from "./card-effect-engine.js";
-import { setCpuBattleActive, setSeatLoadout, clearSeatLoadouts } from "./cpu-battle-state.js";
+import { setCpuBattleActive, setSeatLoadout, clearSeatLoadouts, getCpuPlayerCount } from "./cpu-battle-state.js";
 import { resetGame, setupMyDeckMode } from "./state.js";
 // マイデッキ戦（本気エイドス戦）用。my-deck.jsはcards-data.jsだけに依存する葉モジュールなので
 // ここから安全にimportできる（online.js等は経由しない）。
 import { getSelectedDeckId, getDeckById, makeRandomDeck } from "./my-deck.js";
 
 const CPU_SEAT = "C"; // 2人対戦の相手席（AUTO_SEATS_BY_COUNT[2] = ["A","C"]）
+
+// CPU戦のプレイ人数ごとの座席（game-setup.js の AUTO_SEATS_BY_COUNT と一致）。あなた=A、残りがCPU。
+const SEATS_BY_COUNT = { 2: ["A", "C"], 3: ["A", "B", "C"], 4: ["A", "B", "C", "D"] };
+// 全座席（人数を切り替えても前回のCPU席の名前/アバターが残らないよう、後始末で全部を戻すのに使う）。
+const ALL_SEATS = ["A", "B", "C", "D"];
+// count人対戦のCPU座席（A以外）を返す。
+function cpuSeatsFor(count) {
+  const seats = SEATS_BY_COUNT[count] || SEATS_BY_COUNT[2];
+  return seats.filter((s) => s !== "A");
+}
 
 // CPUの思考時間（＝疑似CPU対象席の基本時間）。短すぎると演出を読む前に次々進んでしまうため、
 // 手が見える程度の間を置く。
@@ -39,15 +49,15 @@ const HUMAN_BASE_SECONDS = 900;
 // オープニング画面の「CPU戦」ボタンから呼ぶ。設定を整え、盤面を空にして（オープニングの
 // 裏で）準備する。この後に呼び出し側が close() で盤面を見せ、続けて runCpuBattleSetup() を
 // 呼ぶ——そうすると空の盤面の上でセットアップ演出（ファースト配布→盤面配置）が実際に見える。
-export async function startCpuBattle() {
+export async function startCpuBattle(count = getCpuPlayerCount()) {
   // このセッションを「CPU戦」として印を付ける。これが立っている間、ローカルでは自分(A)の番
-  // だけでなくCPU(C)の番も自動処理（フェイズ進行＋自動アクション）で駆動される
+  // だけでなくCPU席の番も自動処理（フェイズ進行＋自動アクション）で駆動される
   // （phase-automation.js / main.js の getAutoDriveSeat 参照）。
   setCpuBattleActive(true);
   // CPU戦の間だけ、右上の「🎲 セットアップ」ウィザードのボタン／パネルをCSSで隠す
   // （ユーザー要望2026-08-07: CPU対戦時は不要）。オンライン時の非表示と同じ仕組み。
   document.body.classList.add("cpu-battle-mode");
-  // C席を疑似CPU（自分以外）で自動化。A は手動のまま。
+  // A以外の全座席（人数に応じて C / B,C / B,C,D）を疑似CPU（自分以外）で自動化。A は手動のまま。
   setPseudoCpuModeEnabled(true);
   setPseudoCpuIncludeSelf(false);
   setPseudoCpuDeadlineMs(CPU_THINK_MS);
@@ -55,14 +65,22 @@ export async function startCpuBattle() {
   setAutoProcessingEnabled(true);
   // 疑似CPUの自動プレイはタイマー tick で駆動されるため、タイマーを有効化する。
   setTurnTimerEnabled(true);
-  // あなた(A)は時間切れで急かされないよう基本時間を長めに（CPU=C はこの値を使わない）。
+  // あなた(A)は時間切れで急かされないよう基本時間を長めに（CPU席はこの値を使わない）。
   setRopeBaseSeconds(HUMAN_BASE_SECONDS);
-  // 相手席の表示名を「CPU」に（tutorial-battle.js と同じ setPlayerName の使い方）。
-  setPlayerName(CPU_SEAT, "CPU");
-  // CPUのアバターは「（基本）託された者たち」＝基本7色アバターを、CPUのファーストカードの色に
-  // 連動させる（ユーザー要望2026-08-09）。青年と同じセンチネル方式で、駒が配られ次第その色の
-  // アバターへ描画時に解決される（player-identity.js entrustedPathForSeat）。
-  setPlayerAvatar(CPU_SEAT, ENTRUSTED_AVATAR);
+  // 人数切替で前回のCPU席の名前/アバターが残らないよう、まず全席をクリア。
+  for (const seat of ALL_SEATS) {
+    setPlayerName(seat, "");
+    setPlayerAvatar(seat, null);
+  }
+  const cpuSeats = cpuSeatsFor(count);
+  cpuSeats.forEach((seat, i) => {
+    // 相手席の表示名。1体なら「CPU」、複数なら「CPU 1」「CPU 2」…（tutorial-battle.js と同じ setPlayerName）。
+    setPlayerName(seat, cpuSeats.length === 1 ? "CPU" : `CPU ${i + 1}`);
+    // CPUのアバターは「（基本）託された者たち」＝基本7色アバターを、CPUのファーストカードの色に
+    // 連動させる（ユーザー要望2026-08-09）。青年と同じセンチネル方式で、駒が配られ次第その色の
+    // アバターへ描画時に解決される（player-identity.js entrustedPathForSeat）。
+    setPlayerAvatar(seat, ENTRUSTED_AVATAR);
+  });
   // 前回の対戦のデッキ見た目オーバーライドが残らないようクリア（本気エイドス戦で座席ごとに
   // 設定→teardownで消すが、念のため開始時にも消す）。
   clearSeatLoadouts();
@@ -83,8 +101,11 @@ export async function teardownCpuBattle() {
   setPseudoCpuIncludeSelf(false);
   setTurnTimerEnabled(false);
   clearSeatLoadouts();
-  setPlayerName(CPU_SEAT, "");
-  setPlayerAvatar(CPU_SEAT, null);
+  // 全CPU席（人数に依らず）の名前/アバターを戻す。
+  for (const seat of ALL_SEATS) {
+    setPlayerName(seat, "");
+    setPlayerAvatar(seat, null);
+  }
   resetGame(); // 練習の盤面を同期的に空にする
   try {
     const { forceCloseGateInvasionModal } = await import("./gate-invasion-modal.js");
@@ -102,7 +123,7 @@ export async function teardownCpuBattle() {
 
 // オープニングを閉じて盤面を見せた「後」に呼ぶ。空の盤面の上で、2人対戦(A/C)のセットアップ
 // を演出付き（quickStartのファースト配布・盤面配置アニメ）で実際に見せながら開始する。
-export async function runCpuBattleSetup({ noirSeat = null, noirBrands = false, myDeck = false, myDeckA = null } = {}) {
+export async function runCpuBattleSetup({ noirSeat = null, noirBrands = false, myDeck = false, myDeckA = null, count = getCpuPlayerCount() } = {}) {
   // noirSeat: エイドス物語戦で相手(C)のファースト・駒を黒(noir)にする（配布アニメーションの前に
   // 適用されるので最初から黒く見える）。通常のCPU戦ではnull（＝差し替えなし）。
   // noirBrands: 本気エイドス戦で、ノワールの両端スロットに「誘惑の黒の烙印」を置いて開始する。
@@ -134,7 +155,9 @@ export async function runCpuBattleSetup({ noirSeat = null, noirBrands = false, m
   // 開始色（ファーストカード）を A に反映（デッキに色があれば。おまかせデッキも resolveDeck で
   // ランダム色が確定しているので常に色が入る）。C はノワールへ差し替わるので指定しない。
   const firstColors = deckA?.firstColor ? { A: deckA.firstColor } : null;
-  await quickStart(2, false, false, noirSeat, noirBrands, firstColors);
+  // 本気エイドス戦(myDeck)は必ず2人。通常のCPU戦は count(2〜4)人。
+  const seatCount = myDeck ? 2 : count;
+  await quickStart(seatCount, false, false, noirSeat, noirBrands, firstColors);
   if (myDeck && deckA) {
     // A: 確定したデッキ、C(エイドス): おまかせランダム（ユーザー合意: エイドスのデッキは一旦
     // ランダム）。cardsは{cardId:count}なので展開＋シャッフルして「一番上=末尾」のcardId配列に

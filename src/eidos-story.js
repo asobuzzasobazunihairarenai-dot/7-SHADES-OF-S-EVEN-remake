@@ -265,7 +265,7 @@ async function startStoryBattle(stage, { practice = false } = {}) {
   setStoryDifficultyOverride(stage === "advanced" ? "advanced" : "intermediate");
   try {
     const { startCpuBattle, runCpuBattleSetup } = await import("./cpu-battle.js");
-    await startCpuBattle(); // resetGame＋疑似CPU設定込み（相手名は"CPU"／託されたアバターになる）
+    await startCpuBattle(2); // 物語戦は必ず1対1（続き226。人数設定に依らず2人）。resetGame＋疑似CPU設定込み
     // 相手(C)の表示を案内人エイドスへ上書き（セットアップ描画の前に）。
     setPlayerName("C", EIDOS_NAME);
     setPlayerAvatar("C", EIDOS_AVATAR);
@@ -275,7 +275,7 @@ async function startStoryBattle(stage, { practice = false } = {}) {
     // 「誘惑の黒の烙印」を置く。myDeckCardsA: 本気戦のデッキ選択ウィンドウで確定したデッキ。
     const beginSetup = (myDeckA = null) => {
       setTimeout(() => {
-        runCpuBattleSetup({ noirSeat: "C", noirBrands: stage === "advanced", myDeck: stage === "advanced", myDeckA }).catch((err) =>
+        runCpuBattleSetup({ noirSeat: "C", noirBrands: stage === "advanced", myDeck: stage === "advanced", myDeckA, count: 2 }).catch((err) =>
           console.error("runCpuBattleSetup(story) failed", err)
         );
       }, 60);

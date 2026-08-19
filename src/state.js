@@ -264,6 +264,24 @@ function reduce(current, action) {
       const rest = current.tokens.filter((t) => t.id !== action.tokenId);
       return { ...current, tokens: [...rest, next] };
     }
+    case "SWAP_PIECE_LOCATIONS": {
+      // マスチェンジ等の「入れ替え」を原子的に行う（ユーザー報告2026-08-19: 2回のMOVE_TOKENに
+      // 分けると、その間だけ両駒が片方のマスに乗る一過性のpiece-overlapが生じ、スモークの不変条件
+      // チェッカーが検知してFAILになっていた。演出中は実駒を隠しているので人には見えないが、状態
+      // としては壊れて見える）。1回のdispatchで両駒の位置を入れ替えるのでoverlapが一切生じない。
+      // ローカル専用（オンラインは各MOVE_TOKENをサーバーへ送る必要があるため swapPiecesForEffect
+      // 側で従来通り2回の moveAndSyncForEffect を使う）。
+      const a = current.tokens.find((t) => t.id === action.idA);
+      const b = current.tokens.find((t) => t.id === action.idB);
+      if (!a || !b) return current;
+      const sup = !!action.suppressArrival;
+      const tokens = current.tokens.map((t) => {
+        if (t.id === a.id) return { ...t, location: b.location, arrivalSuppressed: sup };
+        if (t.id === b.id) return { ...t, location: a.location, arrivalSuppressed: sup };
+        return t;
+      });
+      return { ...current, tokens };
+    }
     case "SEND_TOKEN_TO_PILE": {
       const token = current.tokens.find((t) => t.id === action.tokenId);
       if (!token) return current;
@@ -889,6 +907,13 @@ function dispatch(action) {
 export function moveToken(tokenId, location, suppressArrival) {
   if (onlineMode && onlineTransport) return onlineTransport({ type: "MOVE_TOKEN", tokenId, location, suppressArrival: !!suppressArrival });
   dispatch({ type: "MOVE_TOKEN", tokenId, location, suppressArrival: !!suppressArrival });
+}
+
+// 2つの駒の位置を原子的に入れ替える（続き226）。ローカル専用——オンラインは各MOVE_TOKENを
+// サーバーへ送る必要があるため swapPiecesForEffect 側で従来通り2回の moveToken を使う。
+// suppressArrival: マスチェンジ等「入れ替えは移動ではないので到達効果を得ない」ためのフラグ。
+export function swapPieceLocations(idA, idB, suppressArrival) {
+  dispatch({ type: "SWAP_PIECE_LOCATIONS", idA, idB, suppressArrival: !!suppressArrival });
 }
 
 export function sendTokenToPile(tokenId, pile) {

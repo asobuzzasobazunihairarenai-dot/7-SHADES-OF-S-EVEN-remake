@@ -41,7 +41,7 @@ import { openChangelogModal, hasUnreadChangelog } from "./changelog.js";
 // CPU戦の強さ選択（対戦モード選択モーダルで選べるようにする。ユーザー要望2026-08-09）。
 // cpu-battle-state.js は依存ゼロの葉モジュールなので静的importでも循環参照の心配はない
 // （cpu-battle.js 本体の動的importとは別物）。選んだ値は端末に保存され、CPU戦開始時に効く。
-import { getCpuDifficulty, setCpuDifficulty } from "./cpu-battle-state.js";
+import { getCpuDifficulty, setCpuDifficulty, getCpuPlayerCount, setCpuPlayerCount } from "./cpu-battle-state.js";
 
 let overlayEl = null;
 let toastEl = null;
@@ -195,10 +195,11 @@ function openMatchChoiceModal() {
     try {
       // 動的import（静的依存辺を作らないため。上の import 撤去のコメント参照）。
       const { startCpuBattle, runCpuBattleSetup } = await import("./cpu-battle.js");
-      await startCpuBattle();
+      const count = getCpuPlayerCount();
+      await startCpuBattle(count);
       // 盤面が見えてからセットアップ演出（ファースト配布→盤面配置）を始める。
       setTimeout(() => {
-        runCpuBattleSetup().catch((err) => console.error("runCpuBattleSetup failed", err));
+        runCpuBattleSetup({ count }).catch((err) => console.error("runCpuBattleSetup failed", err));
       }, 60);
     } catch (err) {
       console.error("CPU battle start failed", err);
@@ -249,6 +250,45 @@ function openMatchChoiceModal() {
   diff.appendChild(diffHint);
   refreshSeg();
   panel.appendChild(diff);
+
+  // CPU戦の人数選択（2〜4人。続き226）。あなた＋残りがCPU（2人=あなた+CPU1体、3人=+2体、4人=+3体）。
+  const cnt = document.createElement("div");
+  cnt.className = "home-match-choice-difficulty";
+  const cntLabel = document.createElement("div");
+  cntLabel.className = "home-match-choice-difficulty-label";
+  cntLabel.textContent = "👥 人数（CPU戦のみ）";
+  cnt.appendChild(cntLabel);
+  const cntSeg = document.createElement("div");
+  cntSeg.className = "home-match-choice-segment";
+  const cntButtons = [];
+  const refreshCnt = () => {
+    const cur = getCpuPlayerCount();
+    for (const b of cntButtons) b.classList.toggle("is-selected", Number(b.dataset.v) === cur);
+  };
+  for (const [v, text] of [
+    [2, "2人"],
+    [3, "3人"],
+    [4, "4人"],
+  ]) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "home-match-choice-segment-btn";
+    b.dataset.v = String(v);
+    b.textContent = text;
+    b.addEventListener("click", () => {
+      setCpuPlayerCount(v);
+      refreshCnt();
+    });
+    cntSeg.appendChild(b);
+    cntButtons.push(b);
+  }
+  cnt.appendChild(cntSeg);
+  const cntHint = document.createElement("div");
+  cntHint.className = "home-match-choice-difficulty-hint";
+  cntHint.textContent = "あなた＋CPU（3人・4人はCPUが2体・3体に増えます）";
+  cnt.appendChild(cntHint);
+  refreshCnt();
+  panel.appendChild(cnt);
 
   const cancel = document.createElement("button");
   cancel.type = "button";

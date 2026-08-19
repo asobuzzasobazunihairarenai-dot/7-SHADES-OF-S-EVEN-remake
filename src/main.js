@@ -207,6 +207,7 @@ import { markSelfHandled } from "./self-handled-tokens.js";
 import {
   getState,
   moveToken,
+  swapPieceLocations,
   sendTokenToPile,
   drawFromPile,
   flipToken,
@@ -1431,8 +1432,15 @@ async function swapPiecesForEffect(pieceTokenId, fromLocation, targetLocation) {
   // 「入れ替え」であり「移動」ではないため到達効果を得ない（docs/cards.md補足）。
   // 続き59のsuppressArrival（remote-move-animator.jsが誤って到達を再現しないように
   // するためのフラグ）を、入れ替わる両方の駒に付ける。
-  await moveAndSyncForEffect(opponentPiece.id, { zone: "cell", row: fromLocation.row, col: fromLocation.col }, undefined, true);
-  await moveAndSyncForEffect(pieceTokenId, targetLocation, undefined, true);
+  if (isOnlineMode()) {
+    // オンラインは各MOVE_TOKENをサーバー（so7-apply-action）へ送る必要があるため従来通り2回に分ける。
+    await moveAndSyncForEffect(opponentPiece.id, { zone: "cell", row: fromLocation.row, col: fromLocation.col }, undefined, true);
+    await moveAndSyncForEffect(pieceTokenId, targetLocation, undefined, true);
+  } else {
+    // ローカルは原子的入れ替え（続き226）。2回のMOVE_TOKENに分けると、その間だけ両駒が片方の
+    // マスに乗る一過性のpiece-overlapが生じ、スモークの不変条件チェッカーがFAILにしていた。
+    swapPieceLocations(pieceTokenId, opponentPiece.id, true);
+  }
   setSetupPendingTokenIds(new Set()); // 演出で隠していた分を解除
   playSound("swap");
   render();

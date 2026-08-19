@@ -15772,6 +15772,15 @@ SQL Editorで再実行する必要がある**（ファイル全体＝再実行�
   方式（既存の当たり判定と同一）への統一というコードレベルの修正にとどまる。実機での右クリック確認を
   お願いしたい。
 
+### 2026-08-19（続き226）：CPU戦・スモークテストの3〜4人対戦を実装／マスチェンジの一過性piece-overlapを原子的入れ替えで解消
+
+ユーザー要望2件（CPU戦の3-4人／スモークテストの3-4人）＋前回スモークで報告された piece-overlap（マスチェンジ由来）に対応。
+
+- **マスチェンジ等の入れ替えを原子的にして piece-overlap を解消**（スモークFAIL・不変条件違反の元）: `orange-mass-change`（マスチェンジ／`SWAP_POSITION`）は `swapPiecesForEffect`（main.js）が2回の `moveAndSyncForEffect` を順に呼んで入れ替えるため、その2手の**間だけ両駒が片方のマスに乗る一過性の piece-overlap** が生じていた。演出中は実駒を隠している（`setSetupPendingTokenIds`）ので人には見えないが、状態としては壊れて見え、スモークの不変条件チェッカーがFAILにしていた（3-4人化で `SWAP_POSITION` はより頻出するので先に潰した）。`state.js` に新アクション `SWAP_PIECE_LOCATIONS`（2駒の位置を1回のdispatchで入れ替え＋`arrivalSuppressed`付与）＋export `swapPieceLocations(idA,idB,suppressArrival)` を追加し、`swapPiecesForEffect` の**ローカル経路**をこの原子的入れ替えに変更（overlapが一切生じない）。**オンラインは各MOVE_TOKENをサーバー（so7-apply-action）へ送る必要があるため従来通り2回の `moveAndSyncForEffect` のまま**——よって **so7-apply-action.ts の変更・再デプロイは不要**（`SWAP_PIECE_LOCATIONS` はローカル専用で `onlineTransport` を経由しない）。ブラウザで、2駒を実際に `swapPieceLocations` で入れ替えて位置が交換され `arrivalSuppressed:true` が付き overlap が生じないことを実測確認。
+- **CPU戦の3〜4人対戦**（ユーザー要望）: `cpu-battle-state.js` に人数（2/3/4）の永続 getter/setter（`getCpuPlayerCount`/`setCpuPlayerCount`、localStorage `so7-cpu-battle-count`）を追加。`cpu-battle.js` の `startCpuBattle(count)`/`runCpuBattleSetup({count})` を人数対応にし、A以外の座席（2人=C／3人=B,C／4人=B,C,D、`AUTO_SEATS_BY_COUNT` と一致）を全て疑似CPUの相手席として名前（1体=「CPU」・複数=「CPU 1」「CPU 2」…）・アバター（託された者たち）を設定、`quickStart(count,…)` を呼ぶ（本気エイドス戦のマイデッキ戦だけは必ず2人）。人数切替で前回のCPU席名が残らないよう `startCpuBattle`/`teardownCpuBattle` で全席をクリア。ホーム画面のCPU戦モーダル（`home-screen.js`）に「👥 人数（CPU戦のみ）」の2人/3人/4人セグメントを追加（`getCpuPlayerCount`/`setCpuPlayerCount` で保存・反映）。物語エイドス戦（`eidos-story.js`）とランク待機中のCPU練習（`ranked-match.js`）は人数設定に依らず必ず2人（`startCpuBattle(2)`/`runCpuBattleSetup({count:2})` を明示）——人数設定を3/4にしてもこれらが壊れないようにした。ブラウザで `startCpuBattle(3)`→B=「CPU 1」/C=「CPU 2」、`startCpuBattle(2)`→C=「CPU」・B/Dは既定へ復帰、`teardownCpuBattle`→全席既定へ、を実測確認。
+- **スモークテストの3〜4人対戦**（ユーザー要望）: `smoke-test-runner.js` の `runInAppSmokeTest(onLog, {runToCompletion, playerCount})` に人数を追加し、`startCpuBattle(pc)`/`runCpuBattleSetup({count:pc})` へ渡す。パネルに「人数（2人/3人/4人）」の `<select>` を追加し、8ターン点検・決着まで実行・連続実行の各実行で選んだ人数を使う（オンライン監視は相手依存なので無関係）。あわせて、続き223で入れた「不変条件違反は連続2ポーリング続いた時だけ本物」も引き続き有効（原子的入れ替えでそもそも overlap は出なくなったが、他の一過性状態への保険として維持）。
+- **検証**: `node --check`（state/main/cpu-battle/cpu-battle-state/home-screen/smoke-test-runner/eidos-story/ranked-match）全通過。ブラウザでアプリ正常ロード（新規JSエラー無し。Service Worker登録失敗はサンドボックス制限）＋上記の原子的入れ替え・CPU席名・人数getterを実測確認。実際の3-4人CPU対戦の通し（配布演出→自己/対人進行）は、この環境のタイマースロットリングで通し確認しづらいため、実機フォアグラウンドでの確認をお願いしたい。サーバー側（Supabase）の変更は無い。
+
 ### 2026-08-19（続き225）：#150 相手の足元のジャンプ台が発動しない／#1 ポヨンが上半分だけになる／#2 ロックにも飛翔演出／#3 手札を捨てる時はその場で焼失演出
 
 前回（#224）の続き。ユーザーからの機能追加・不具合4件に対応。

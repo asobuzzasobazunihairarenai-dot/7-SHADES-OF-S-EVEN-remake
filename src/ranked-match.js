@@ -170,10 +170,10 @@ async function startPractice() {
   showPracticeBanner();
   try {
     const { startCpuBattle, runCpuBattleSetup } = await import("./cpu-battle.js");
-    await startCpuBattle();
+    await startCpuBattle(2); // ランク待機中の練習は1対1固定（続き226。人数設定に依らず2人）。
     // 盤面はもう見えている（ランク戦はホームから来ておりオープニング画面は閉じている）。
     // ホームのCPU戦と同じく、セットアップ演出は待たずに走らせる。
-    runCpuBattleSetup().catch((err) => console.error("practice runCpuBattleSetup failed", err));
+    runCpuBattleSetup({ count: 2 }).catch((err) => console.error("practice runCpuBattleSetup failed", err));
   } catch (err) {
     console.error("startPractice failed", err);
   }
