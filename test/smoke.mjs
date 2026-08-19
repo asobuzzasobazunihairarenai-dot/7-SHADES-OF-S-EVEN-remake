@@ -34,6 +34,16 @@ const PORT = 8795;
 const ARGS = process.argv.slice(2);
 const PLAYER_COUNT = [2, 3, 4].includes(Number(ARGS.find((a) => /^[234]$/.test(a)))) ? Number(ARGS.find((a) => /^[234]$/.test(a))) : 2;
 const RUN_TO_COMPLETION = ARGS.includes("--full") || ARGS.includes("--completion");
+// 連続実行の回数（in-app版「連続実行 N回」に相当。ユーザー要望2026-08-19）。
+//   node test/smoke.mjs 3 --repeat 5   … 3人を5回連続で回す
+const REPEAT = (() => {
+  let n = NaN;
+  const i = ARGS.findIndex((a) => a === "--repeat" || a === "-r");
+  if (i >= 0) n = parseInt(ARGS[i + 1], 10);
+  const eq = ARGS.find((a) => a.startsWith("--repeat="));
+  if (eq) n = parseInt(eq.split("=")[1], 10);
+  return Number.isFinite(n) && n >= 1 && n <= 50 ? n : 1;
+})();
 const TARGET_TURN = 8; // ここまで進めば十分健全とみなす（回帰検出には十分な手数）
 const STALL_MS = 30000; // ターンがこの時間まったく進まなければ「詰み」とみなす
 // 3-4人は1局が長いので制限時間を人数に比例（in-app版と同じ考え方）。決着まで＝最大12分。
@@ -64,35 +74,17 @@ function startServer() {
 
 function log(...a) { console.log("[smoke]", ...a); }
 
-async function run() {
-  const server = await startServer();
-  const browser = await chromium.launch();
-  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-  const page = await context.newPage();
-
-  const errors = [];
-  page.on("console", (m) => { if (m.type() === "error") errors.push("CONSOLE.error: " + m.text()); });
-  page.on("pageerror", (e) => errors.push("PAGEERROR: " + (e && e.message ? e.message : String(e))));
-
-  // ゲーム開始時の説明モーダル等を抑制して自動進行を邪魔しない（テスト環境の都合）。
-  await page.addInitScript(() => {
-    try {
-      localStorage.setItem("so7-intros-all-off", "1");
-      localStorage.setItem("so7-bugreport-intro-hidden", "1");
-      localStorage.setItem("so7-action-confirm-enabled", "0");
-    } catch (e) {}
-  });
-
-  await page.goto(`http://localhost:${PORT}/index.html`, { waitUntil: "load" });
-  await page.waitForTimeout(3000);
-
-  const bootChildren = await page.evaluate(() => document.body.children.length);
-  if (bootChildren < 20) throw new Error(`boot looks broken: body has only ${bootChildren} children`);
-  log("booted OK (body children:", bootChildren + ")");
+// 1試合ぶんを回して結果を返す。allErrors はページ全体のエラー配列（run()で1度だけ登録した
+// listenerが積む）。errStart で「この試合中に新たに出たエラー」だけを切り出す。
+async function playOneGame(page, allErrors) {
+  const errStart = allErrors.length;
+  const gameErrors = [];
+  const pushErr = (m) => { gameErrors.push(m); };
 
   // CPU戦を開始し、全席とも自動（疑似CPU includeSelf）にして自己対戦させる。includeSelf は
   // runCpuBattleSetup の「前」に立てるのが重要——turn 1（A席）のタイマーが張られる時点で
   // A も疑似CPU対象になっていないと、A が人間扱い（長い持ち時間）で動かず停滞するため。
+  // 連続実行の2試合目以降も startCpuBattle が resetGame するので盤面は作り直される。
   const baselineCardCount = await page.evaluate(async (count) => {
     const online = await import("/src/online.js");
     try { await online.signOut?.(); } catch (e) {}
@@ -122,7 +114,7 @@ async function run() {
 
   while (true) {
     await page.waitForTimeout(1500);
-    if (errors.length) break;
+    if (allErrors.length > errStart || gameErrors.length) break;
 
     const snap = await page.evaluate(async (baseline) => {
       const s = (await import("/src/state.js")).getState();
@@ -172,7 +164,7 @@ async function run() {
     prevPollSigs = nowSigs;
 
     if (snap.won) { log("someone won at turn", snap.turnNumber, "— healthy finish"); break; }
-    if (snap.tokens < 40) { errors.push(`board looks corrupted: only ${snap.tokens} tokens`); break; }
+    if (snap.tokens < 40) { pushErr(`board looks corrupted: only ${snap.tokens} tokens`); break; }
 
     // 状態が変われば「活動あり」＝STALLタイマーをリセット（ターン内の長い処理も進行とみなす）。
     if (snap.sig && snap.sig !== lastStateSig) {
@@ -186,17 +178,21 @@ async function run() {
     }
     // 決着までモードでなければ8ターン到達で健全とみなす。決着までは勝者が出るまで続ける。
     if (!RUN_TO_COMPLETION && lastTurn >= TARGET_TURN) { log("reached target turn", TARGET_TURN, "— PASS"); break; }
-    if (Date.now() - lastProgressAt > STALL_MS) { errors.push(`STALLED: no turn progress for ${STALL_MS / 1000}s (stuck at turn ${lastTurn})`); break; }
-    if (Date.now() - started > HARD_TIMEOUT_MS) { errors.push(`hard timeout after ${HARD_TIMEOUT_MS / 1000}s (reached turn ${lastTurn})`); break; }
+    if (Date.now() - lastProgressAt > STALL_MS) { pushErr(`STALLED: no turn progress for ${STALL_MS / 1000}s (stuck at turn ${lastTurn})`); break; }
+    if (Date.now() - started > HARD_TIMEOUT_MS) { pushErr(`hard timeout after ${HARD_TIMEOUT_MS / 1000}s (reached turn ${lastTurn})`); break; }
   }
 
   if (invariantViolations.length) {
     const codes = [...new Set(invariantViolations.map((x) => x.code))].join(", ");
-    errors.push(`不変条件違反 ${invariantViolations.length}件（${codes}）— 状態が壊れています`);
+    pushErr(`不変条件違反 ${invariantViolations.length}件（${codes}）— 状態が壊れています`);
   }
 
+  // この試合で新たに出たページ側エラー（console.error / pageerror）＋この試合固有のエラー。
+  const pageErrsThisGame = allErrors.slice(errStart);
+  const combined = [...pageErrsThisGame, ...gameErrors];
+
   // 失敗時は原因追跡用にアクションログの末尾を出す。
-  if (errors.length) {
+  if (combined.length) {
     try {
       const tail = await page.evaluate(async () => {
         const al = await import("/src/action-log.js");
@@ -206,19 +202,67 @@ async function run() {
       log("--- action log tail ---\n" + tail);
     } catch (e) {}
   }
+  return { errors: combined, turnsReached: lastTurn };
+}
+
+async function run() {
+  const server = await startServer();
+  const browser = await chromium.launch();
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+
+  const allErrors = [];
+  page.on("console", (m) => { if (m.type() === "error") allErrors.push("CONSOLE.error: " + m.text()); });
+  page.on("pageerror", (e) => allErrors.push("PAGEERROR: " + (e && e.message ? e.message : String(e))));
+
+  // ゲーム開始時の説明モーダル等を抑制して自動進行を邪魔しない（テスト環境の都合）。
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("so7-intros-all-off", "1");
+      localStorage.setItem("so7-bugreport-intro-hidden", "1");
+      localStorage.setItem("so7-action-confirm-enabled", "0");
+    } catch (e) {}
+  });
+
+  await page.goto(`http://localhost:${PORT}/index.html`, { waitUntil: "load" });
+  await page.waitForTimeout(3000);
+
+  const bootChildren = await page.evaluate(() => document.body.children.length);
+  if (bootChildren < 20) throw new Error(`boot looks broken: body has only ${bootChildren} children`);
+  log("booted OK (body children:", bootChildren + ")");
+
+  // 連続実行（--repeat N）。1試合ずつ回し、各試合の PASS/FAIL を集計する。
+  const results = [];
+  let firstFailure = null;
+  for (let i = 1; i <= REPEAT; i++) {
+    if (REPEAT > 1) log(`━━━━ ${i}/${REPEAT}回目 ━━━━`);
+    let res;
+    try {
+      res = await playOneGame(page, allErrors);
+    } catch (e) {
+      res = { errors: ["EXCEPTION: " + (e && e.message ? e.message : String(e))], turnsReached: 0 };
+    }
+    const passed = res.errors.length === 0;
+    results.push(res);
+    log(`${REPEAT > 1 ? i + "回目: " : ""}${passed ? "PASS ✅" : "FAIL ❌ — " + res.errors.join(" / ")}`);
+    if (!passed && !firstFailure) firstFailure = { i, res };
+  }
 
   await browser.close();
   server.close();
-  return errors;
+
+  const passCount = results.filter((r) => r.errors.length === 0).length;
+  return { passCount, total: results.length, firstFailure };
 }
 
 run()
-  .then((errors) => {
-    if (errors.length) {
-      console.error("\n[smoke] FAIL:\n - " + errors.join("\n - "));
+  .then(({ passCount, total, firstFailure }) => {
+    if (passCount < total) {
+      const f = firstFailure;
+      console.error(`\n[smoke] FAIL: ${passCount}/${total} PASS` + (f ? `（最初の失敗=${f.i}回目）:\n - ` + f.res.errors.join("\n - ") : ""));
       process.exit(1);
     }
-    console.log("\n[smoke] PASS ✅");
+    console.log(`\n[smoke] PASS ✅ (${passCount}/${total})`);
     process.exit(0);
   })
   .catch((err) => {

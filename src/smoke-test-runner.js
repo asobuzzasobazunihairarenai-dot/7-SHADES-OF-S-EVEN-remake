@@ -834,7 +834,14 @@ export function openSmokeTestPanel() {
   bgBtn.onclick = async () => {
     const pc = smokePlayerCount();
     const full = repeatFullCheck.checked;
-    const cmd = `node test/smoke.mjs${pc !== 2 ? " " + pc : ""}${full ? " --full" : ""}`;
+    // 連続実行の回数（repeatInput）も反映する（ユーザー指摘2026-08-19「連続続行なのか判別できてる？」）。
+    // 1回なら --repeat を付けない（単発）、2回以上なら --repeat N。既定は連続実行入力欄の値（5）。
+    const times = Math.max(1, Math.min(50, parseInt(repeatInput.value, 10) || 1));
+    const nodeCmd = `node test/smoke.mjs${pc !== 2 ? " " + pc : ""}${full ? " --full" : ""}${times > 1 ? " --repeat " + times : ""}`;
+    // どのフォルダから実行してもいいよう、プロジェクトフォルダへ cd してから実行する形にする
+    // （ユーザーが C:\Users\user から実行して Cannot find module になった対策）。PowerShell 用（;）。
+    const projectDir = "D:\\7 SHADES OF SEVEN remake デジタル版";
+    const cmd = `cd "${projectDir}"; ${nodeCmd}`;
     let copied = false;
     try {
       await navigator.clipboard.writeText(cmd);
@@ -843,10 +850,11 @@ export function openSmokeTestPanel() {
     resultEl.classList.remove("is-pass", "is-fail");
     resultEl.textContent = "";
     addLog("──── 🖥️ バックグラウンド実行 ────");
-    addLog(copied ? "次のコマンドをコピーしました（ターミナルに貼って実行）:" : "次のコマンドをターミナルで実行してください:");
+    addLog(copied ? "次のコマンドをコピーしました（PowerShellに貼って実行）:" : "次のコマンドを PowerShell で実行してください:");
     addLog(`　${cmd}`);
-    addLog("※プロジェクトフォルダで実行。ヘッドレスChromiumが別プロセスで走るので、タブを前面に");
-    addLog("　保たず別作業できます（スロットルされず速い）。人数=" + pc + "人" + (full ? "・決着まで" : "・8ターン点検") + "。");
+    addLog("※ヘッドレスChromiumが別プロセスで走るので、タブを前面に保たず別作業できます（スロットルされず速い）。");
+    addLog("　内容: 人数=" + pc + "人" + (full ? "・決着まで" : "・8ターン点検") + "・" + (times > 1 ? "連続" + times + "回" : "単発1回") + "。");
+    addLog("　cmd.exeの場合は先頭を「cd /d \"" + projectDir + "\" && 」に、フォルダを移した場合はパスを直してください。");
     addLog("　前提: npm install 済み＋ npx playwright install chromium 済み。");
     bgBtn.textContent = copied ? "✅ コピーしました" : "🖥️ バックグラウンド実行";
     setTimeout(() => { bgBtn.textContent = "🖥️ バックグラウンド実行"; }, 2500);
