@@ -4,7 +4,9 @@
   "private": true,
   "description": "7 SHADES OF S:EVEN デジタル版。無ビルドのバニラESM（index.html が src/main.js を読み込む）。この package.json は開発用スモークテスト（Playwright）専用で、デプロイ（GitHub Pages）には一切影響しない。",
   "scripts": {
-    "smoke": "node test/smoke.mjs"
+    "smoke": "node test/smoke.mjs",
+    "effects": "node test/effects.mjs",
+    "test": "node test/effects.mjs"
   },
   "devDependencies": {
     "playwright": "^1.49.0"

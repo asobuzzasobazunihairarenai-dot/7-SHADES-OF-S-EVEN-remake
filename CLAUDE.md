@@ -16067,3 +16067,40 @@ CPU強化の第一歩として、CPUの意思決定パスに残っていた**唯
   opening-gate z:10）は、いずれも**正規のモーダル/閉じ残りが隅を覆っていた**ケースで、この検査を「モーダルを
   閉じた状態で実行」という前提と一致（＝ユーザー起動なら誤解しない）。アプリ本体もロードエラー無し・
   `node --check`（ui-invariants/smoke-test-runner）通過。サーバー側（Supabase）の変更は無い。
+
+### 2026-08-20（続き236）：カード効果の決定的ユニットテスト（test/effects.mjs）を新設
+
+ユーザー要望「テスト関係を強化はできますか？」への対応。自己対戦スモーク（`test/smoke.mjs`＝
+クラッシュ/不変条件違反/詰みを広く見る）は「この効果はこの状況で正確にこう動くべき」までは
+検証できない。#147/#152/パーティー/試練の儀式など、これまで実機でしか確認できなかった
+「効果の正しい結果」をピンポイントで固定する回帰ネットを新設した。
+
+- **新規 [test/effects.mjs](test/effects.mjs)（`npm test` / `node test/effects.mjs`）**: `card-effect-engine.js` の
+  `runArrivalEffect`/`runHandEffect` は状態を本物の `state.js` の `getState()` から読み、状態変更・選択を
+  `helpers.*` に委譲する設計。この harness は Playwright ヘッドレスでページを1回開き、helpers を差し替える
+  ——状態変更（`moveAndSync`/`discardAndSync`/`drawCards`/`flipCard`/`placeFromDeck`/`swapPieces` 等）は本物の
+  state.js アクション（`moveToken`/`sendTokenToPile`/`drawFromPile`/`flipToken`/`swapPieceLocations`）を dispatch、
+  選択（`pickLocation`/`pickHandCard`/`pickDiscardCost`/`pickHandEffectOption` 等）はケースの台本(`picks`)を順に返す、
+  演出/音/通知は no-op。つまり「本物の効果ロジック＋本物の state 遷移」を、DOM/演出/選択の層だけ差し替えて
+  決定的に検証する。ケースは serializable な `{state, ctx, picks, expect}` の配列で、`expect` は
+  tokenZone/tokenAtCell/tokenFaceDown/tokenGone/pileContains/pieceAt/handCount/deckLen/cardAtCell/boardCardCount の
+  アサーション。**新しいカードの検証を1ケース追記するだけで恒久化できる**のが主眼（拡張性が価値）。
+- **初期10ケース（全PASS）**: ゴメンナサイ/ジャンプ台（move）・白の意思の覚醒（表向き全捨て）・なないろの巨光
+  （全員ドロー＋自身捨て）・カウンターロック（最少ロック時のみドロー、条件2通り）・収穫と種まき（拾う→置き直す）・
+  マスチェンジ（到達＝駒入れ替え／手札＝追色コスト＋inheritsArrival＋自身捨て）・増殖する樹々（手札＝山札3枚を
+  選んだ3マスへ裏向き配置）・選べる罠（手札＝自身をマスへ裏向き配置・keepsCardOnUseで捨てない）。到達効果＋
+  手札効果、コスト、山札からの配置、自身配置、駒入れ替え、条件付きドロー、全捨て等の主要動詞を網羅。
+- **harness構築中に見つけた点（いずれもエンジンのバグではなく、テスト・善処の再確認）**:
+  - 捨てたカードは piles に cardId 文字列として入る（トークンは消える）ので `tokenGone`＋`pileContains` で検査する
+    （piles はトークン配列ではなく cardId 配列、という既存の設計の再確認）。
+  - 到達効果カードは既定で効果後に手札へ加わる（`addsCardToHandAfter` 非false）ので handCount 期待に含める。
+  - `swapPieces` の本物の引数は3引数 `(pieceTokenId, fromLocation, targetLocation)`、`pickDiscardCost` はトークン
+    オブジェクトを返す（エンジンが `chosen.id`/`chosen.cardId` を読む）ので fake もそれに合わせる。
+  - 手札効果は `autoProcessingEnabled` を要求するので runner で `setAutoProcessingEnabled(true)`、`resetHandEffectUsage()`
+    をケース間で呼ぶ。
+  - **潜在エッジケースを surface**: `isHandEffectDisabledThisTurn(tokenId)` は `handEffectDisabledUntilTurn.get(id) === getState().turnNumber` で判定するため、テスト状態に `turnNumber` を入れ忘れると
+    「`undefined === undefined` → true」で手札効果が誤って使用不可になる（実ゲームの状態は必ず turnNumber を
+    持つので実害はない）。runner で `turnNumber` 未指定時に数値の既定(1)を入れて解消。
+- **package.json**: `effects`/`test` スクリプトを追加（`smoke` はそのまま）。デプロイ（GitHub Pages）には一切
+  影響しない開発専用（Playwright、`画像素材/`等と同じくデプロイに含まれない）。
+- **検証**: `node --check` 通過、`npm test` で 10/10 PASS。サーバー側（Supabase）の変更は無い。
