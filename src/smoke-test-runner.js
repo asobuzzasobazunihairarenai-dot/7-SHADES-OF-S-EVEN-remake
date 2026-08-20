@@ -865,6 +865,14 @@ export function openSmokeTestPanel() {
   btnReachBtn.textContent = "🖱 ボタン到達性";
   btnReachBtn.title =
     "今の画面で、右上（オプション/ヘルプ/ランキング/マイページ等）・右下（ドロー/ターン終了等）の常設ボタンが実際に押せる（背面に隠れて押せなくなっていない）かを検査します。モーダルを閉じた状態で実行してください。";
+  // カード効果ユニットテスト（続き236）。バックグラウンド実行と同じく、ブラウザからは Node プロセスを
+  // 起動できないため「node test/effects.mjs のコマンドをコピーする」ボタンにする。自己対戦スモークと
+  // 違い、各カード効果の“正確な結果”を状態を作って1手ずつアサートする決定的テスト（ターミナルで一瞬）。
+  const effectsBtn = document.createElement("button");
+  effectsBtn.type = "button";
+  effectsBtn.className = "smoke-test-run smoke-test-online";
+  effectsBtn.textContent = "🃏 カード効果テスト";
+  effectsBtn.title = "『node test/effects.mjs』コマンドをコピーします。ターミナルに貼ると、各カード効果の正確な結果を決定的に検証します（自己対戦スモークとは別の、効果ロジック用のユニットテスト）。";
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.className = "smoke-test-close";
@@ -881,6 +889,7 @@ export function openSmokeTestPanel() {
   actions.appendChild(bgBtn);
   actions.appendChild(navBtn);
   actions.appendChild(btnReachBtn);
+  actions.appendChild(effectsBtn);
   actions.appendChild(closeBtn);
   panel.appendChild(actions);
 
@@ -961,6 +970,27 @@ export function openSmokeTestPanel() {
     addLog("　前提: npm install 済み＋ npx playwright install chromium 済み。");
     bgBtn.textContent = copied ? "✅ コピーしました" : "🖥️ バックグラウンド実行";
     setTimeout(() => { bgBtn.textContent = "🖥️ バックグラウンド実行"; }, 2500);
+  };
+
+  // カード効果テストボタン: node test/effects.mjs のコマンドをコピー（bgBtn と同じ方式）。
+  effectsBtn.onclick = async () => {
+    const projectDir = "D:\\7 SHADES OF SEVEN remake デジタル版";
+    const cmd = `cd "${projectDir}"; node test/effects.mjs`;
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(cmd);
+      copied = true;
+    } catch {}
+    resultEl.classList.remove("is-pass", "is-fail");
+    resultEl.textContent = "";
+    addLog("──── 🃏 カード効果テスト ────");
+    addLog(copied ? "次のコマンドをコピーしました（PowerShellに貼って実行）:" : "次のコマンドを PowerShell で実行してください:");
+    addLog(`　${cmd}`);
+    addLog("※各カード効果の“正確な結果”を状態を作って1手ずつ検証する決定的テストです（自己対戦スモークとは別物・一瞬で終わる）。");
+    addLog("　cmd.exeの場合は先頭を「cd /d \"" + projectDir + "\" && 」に、フォルダを移した場合はパスを直してください。");
+    addLog("　前提: npm install 済み＋ npx playwright install chromium 済み。`npm test` でも同じです。");
+    effectsBtn.textContent = copied ? "✅ コピーしました" : "🃏 カード効果テスト";
+    setTimeout(() => { effectsBtn.textContent = "🃏 カード効果テスト"; }, 2500);
   };
 
   // 診断情報（全アクションログ＋エラー＋環境）を「コピー／ダウンロード」できるボタンを

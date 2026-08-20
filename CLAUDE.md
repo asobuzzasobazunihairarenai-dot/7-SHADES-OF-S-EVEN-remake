@@ -16104,3 +16104,16 @@ CPU強化の第一歩として、CPUの意思決定パスに残っていた**唯
 - **package.json**: `effects`/`test` スクリプトを追加（`smoke` はそのまま）。デプロイ（GitHub Pages）には一切
   影響しない開発専用（Playwright、`画像素材/`等と同じくデプロイに含まれない）。
 - **検証**: `node --check` 通過、`npm test` で 10/10 PASS。サーバー側（Supabase）の変更は無い。
+
+### 2026-08-20（続き237）：スモークテストウィンドウに「🃏 カード効果テスト」ボタンを追加（コマンドをコピー）
+
+ユーザー質問「このテストを回すにはどうしたらいい？スモークテストウィンドウにボタン作る？」への対応。
+`test/effects.mjs`（続き236）は `test/smoke.mjs` と同じヘッドレスNode/Playwright で、ブラウザ（＝スモーク
+ウィンドウ）からローカルの `node` プロセスは起動できない。そこで既存の「🖥️ バックグラウンド実行」ボタン
+（コマンドをクリップボードにコピーする方式）と全く同じUXの「🃏 カード効果テスト」ボタンを
+`smoke-test-runner.js` のパネルに追加した。押すと `cd "プロジェクトフォルダ"; node test/effects.mjs`
+（PowerShell用）をコピーし、ログに手順（cmd.exe用の書き換え・前提の `npm install`＋
+`npx playwright install chromium`・`npm test` でも同じ旨）を表示する。
+- ブラウザで実際にパネルを開き、ボタンが並び（…／ボタン到達性／**🃏 カード効果テスト**／閉じる）、
+  クリックでコマンド＋案内がログに出ることを実測確認。`node --check`（smoke-test-runner.js）通過。
+  サーバー側（Supabase）の変更は無い。
