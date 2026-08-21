@@ -759,6 +759,451 @@ const CASES = [
       { kind: "pieceAt", player: "B", row: 3, col: 4 }, // 相手を自分の隣へ移動
     ],
   },
+  {
+    name: "赤のキューブ フェニックス/first-red(手札): 追色1→捨て場の上から2番目を手札に加える",
+    kind: "hand",
+    cardId: "first-red",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "self", kind: "card", cardId: "first-red", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "cost", kind: "card", cardId: "red-counter-lock", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      // 捨て場（末尾＝一番上）。効果使用前の一番上 yellow-gamble が「2番目」として手札に入る
+      // （note: 実質、効果使用前の捨て場の1番上のカードが2番目になる。コスト札が先に一番上へ積まれるため）。
+      piles: { deck: [], eternal: [], first: [], discard: ["green-growing-trees", "blue-choosable-trap", "yellow-gamble"] },
+    },
+    ctx: { player: "A", cardId: "first-red", cardTokenId: "self" },
+    picks: { discardCost: ["cost"] },
+    expect: [
+      { kind: "tokenZone", id: "self", zone: "hand", player: "A" }, // ファーストは使用時に捨てない
+      { kind: "handHasCard", player: "A", cardId: "yellow-gamble" }, // 効果使用前の一番上を手札へ
+    ],
+  },
+  {
+    name: "青のキューブ セレスティア/first-blue(手札): 追色1→手札2枚以上の相手全員から無作為に1枚捨てさせる",
+    kind: "hand",
+    cardId: "first-blue",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "self", kind: "card", cardId: "first-blue", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "cost", kind: "card", cardId: "blue-choosable-trap", faceUp: true, location: { zone: "hand", player: "A" } },
+        // B は2枚 → 対象。1枚捨てさせられる（無作為＝先頭 bh1）
+        { id: "bh1", kind: "card", cardId: "red-jump-pad", faceUp: false, location: { zone: "hand", player: "B" } },
+        { id: "bh2", kind: "card", cardId: "green-growing-trees", faceUp: false, location: { zone: "hand", player: "B" } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "first-blue", cardTokenId: "self" },
+    picks: { discardCost: ["cost"] },
+    expect: [
+      { kind: "tokenZone", id: "self", zone: "hand", player: "A" }, // ファーストは使用時に捨てない
+      { kind: "tokenGone", id: "cost" },
+      { kind: "tokenGone", id: "bh1" }, // B の手札から無作為に1枚捨てさせた
+      { kind: "handCount", player: "B", n: 1 }, // 2→1
+    ],
+  },
+  {
+    name: "奇跡の森マンズウッド/first-green(手札): 追色1→2枚公開ドロー（ターン終了時に捨てる予定）",
+    kind: "hand",
+    cardId: "first-green",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "self", kind: "card", cardId: "first-green", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "cost", kind: "card", cardId: "green-growing-trees", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: ["red-jump-pad", "blue-choosable-trap"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "first-green", cardTokenId: "self" },
+    picks: { discardCost: ["cost"] },
+    expect: [
+      { kind: "tokenZone", id: "self", zone: "hand", player: "A" }, // ファーストは使用時に捨てない
+      { kind: "tokenGone", id: "cost" },
+      { kind: "publicDrawCount", player: "A", n: 2 }, // 2枚を公開ドロー
+      { kind: "deckLen", n: 0 },
+      { kind: "called", name: "markDiscardAtTurnEnd" }, // ターン終了時に捨てる予定として登録
+    ],
+  },
+  {
+    name: "禁断の果実マルメゴ/eternal-orange(手札): 追色1→4枚公開ドロー（橙が無ければ手札は残る）",
+    kind: "hand",
+    cardId: "eternal-orange",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "self", kind: "card", cardId: "eternal-orange", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "cost", kind: "card", cardId: "orange-harvest-sow", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "keep", kind: "card", cardId: "blue-choosable-trap", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      // 橙を含まない4枚（赤青緑紫）→ 手札全捨ての条件を満たさない
+      piles: { deck: ["red-jump-pad", "blue-choosable-trap", "green-growing-trees", "purple-trial-ritual"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "eternal-orange", cardTokenId: "self" },
+    picks: { discardCost: ["cost"] },
+    expect: [
+      { kind: "tokenZone", id: "self", zone: "hand", player: "A" }, // エターナルは使用時に捨てない
+      { kind: "tokenGone", id: "cost" },
+      { kind: "publicDrawCount", player: "A", n: 4 }, // 4枚公開ドロー
+      { kind: "deckLen", n: 0 },
+      { kind: "tokenZone", id: "keep", zone: "hand", player: "A" }, // 橙が無いので手札は捨てられない
+    ],
+  },
+  {
+    name: "手品師の技スリカエ(到達): 相手と手札を1枚ずつ交換",
+    kind: "arrival",
+    cardId: "yellow-sleight-of-hand",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "yellow-sleight-of-hand", faceUp: true, location: { zone: "cell", row: 3, col: 3 } },
+        { id: "amine", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "btheirs", kind: "card", cardId: "green-growing-trees", faceUp: false, location: { zone: "hand", player: "B" } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "yellow-sleight-of-hand", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: {}, // 相手は1人→自動選択、交換は無作為（先頭で代用）
+    expect: [
+      { kind: "tokenZone", id: "btheirs", zone: "hand", player: "A" }, // 相手の札が自分の手札へ
+      { kind: "tokenZone", id: "amine", zone: "hand", player: "B" }, // 自分の札が相手の手札へ
+    ],
+  },
+  {
+    name: "プレゼント(手札): これを相手の隣に裏向きで置く→1枚ドロー。カードは残る",
+    kind: "hand",
+    cardId: "pink-present",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "pieceB", kind: "piece", player: "B", location: { zone: "cell", row: 3, col: 5 } },
+        { id: "self", kind: "card", cardId: "pink-present", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: ["red-jump-pad"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "pink-present", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    // 相手は1人→自動選択。相手B(3,5)の隣接から(3,4)を選ぶ
+    picks: { location: [{ row: 3, col: 4 }] },
+    expect: [
+      { kind: "tokenAtCell", id: "self", row: 3, col: 4 }, // 相手の隣へ置く（keepsCardOnUse）
+      { kind: "tokenFaceDown", id: "self" },
+      { kind: "deckLen", n: 0 }, // 1枚ドロー
+    ],
+  },
+  {
+    name: "ザ・ギャンブル(到達): 2色宣言→2枚公開ドロー→宣言色が出たので手札を全て捨てる",
+    kind: "arrival",
+    cardId: "yellow-gamble",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "yellow-gamble", faceUp: true, location: { zone: "cell", row: 3, col: 3 } },
+        { id: "h1", kind: "card", cardId: "orange-harvest-sow", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      // 宣言色 red/blue。公開ドロー2枚が赤・青 → 宣言色が出た → 手札全捨て
+      piles: { deck: ["red-jump-pad", "blue-choosable-trap"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "yellow-gamble", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    // colors=2色宣言。公開の仕方は "all"（一気に全部公開）を選ぶ
+    picks: { colors: [["red", "blue"]], option: ["all"] },
+    expect: [
+      { kind: "tokenGone", id: "h1" }, // 宣言色が出たので手札を全て捨てた
+      { kind: "publicDrawCount", player: "A", n: 0 }, // 公開ドロー分も手札扱いで全捨て
+      { kind: "deckLen", n: 0 },
+    ],
+  },
+  {
+    name: "なないろの欠片(手札・選択肢): 2枚をロックする（要2枚）を選ぶ",
+    kind: "hand",
+    cardId: "rainbow-shard",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "rainbow-shard", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "shard2", kind: "card", cardId: "rainbow-shard", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: ["red-jump-pad", "blue-choosable-trap"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "rainbow-shard", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    // lock-pair 選択→ロック先スロット→2枚ドロー
+    picks: { option: ["lock-pair"], location: [{ zone: "lock", side: "bottom", index: 0 }] },
+    expect: [
+      { kind: "tokenZone", id: "self", zone: "lock" }, // 自身をロック
+      { kind: "tokenZone", id: "shard2", zone: "lock" }, // もう1枚もロック
+      { kind: "deckLen", n: 0 }, // 2枚ドロー
+    ],
+  },
+  {
+    name: "合同建設(到達・委任): 参加者全員に委任される（オーケストレーション）",
+    kind: "arrival",
+    cardId: "green-joint-construction",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "green-joint-construction", faceUp: true, location: { zone: "cell", row: 3, col: 3 } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "green-joint-construction", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: {},
+    // 各プレイヤーの実際の配置は main.js の delegateToPlayer に委ねられる（DOM層）。
+    // ここではエンジンの「参加者全員に処理順で委任する」オーケストレーションだけを検証する。
+    expect: [
+      { kind: "called", name: "delegateToPlayer", arg: "joint-construction", n: 2 }, // A,B の2人に委任
+    ],
+  },
+  {
+    name: "スラム上がりの役人(到達・委任): 参加者全員に委任される（オーケストレーション）",
+    kind: "arrival",
+    cardId: "blue-slum-official",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "blue-slum-official", faceUp: true, location: { zone: "cell", row: 3, col: 3 } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "blue-slum-official", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: {},
+    expect: [
+      { kind: "called", name: "delegateToPlayer", arg: "slum-official-discard", n: 2 },
+    ],
+  },
+  {
+    name: "パーティー(到達・委任): 参加者全員に委任される（オーケストレーション）",
+    kind: "arrival",
+    cardId: "pink-party",
+    state: {
+      activePlayers: ["A", "B", "C"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "pink-party", faceUp: true, location: { zone: "cell", row: 3, col: 3 } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "pink-party", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: {},
+    expect: [
+      { kind: "called", name: "delegateToPlayer", arg: "party-option", n: 3 }, // A,B,C の3人に委任
+    ],
+  },
+  {
+    name: "手品師の技スリカエ(手札・inheritsArrival): 手札を1枚捨て→相手と手札を1枚ずつ交換",
+    kind: "hand",
+    cardId: "yellow-sleight-of-hand",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "self", kind: "card", cardId: "yellow-sleight-of-hand", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "amine", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "btheirs", kind: "card", cardId: "green-growing-trees", faceUp: false, location: { zone: "hand", player: "B" } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "yellow-sleight-of-hand", cardTokenId: "self" },
+    picks: {},
+    expect: [
+      { kind: "tokenGone", id: "self" }, // 通常カードの手札効果は自身を先に捨てる
+      { kind: "tokenZone", id: "btheirs", zone: "hand", player: "A" }, // 相手の札が自分へ
+      { kind: "tokenZone", id: "amine", zone: "hand", player: "B" }, // 自分の札(amine)が相手へ
+    ],
+  },
+  {
+    name: "ザ・ギャンブル(手札): 手札1枚捨て→上記の到達効果→フェイズ終了（宣言色が出ない例）",
+    kind: "hand",
+    cardId: "yellow-gamble",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "self", kind: "card", cardId: "yellow-gamble", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "h1", kind: "card", cardId: "orange-harvest-sow", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "h2", kind: "card", cardId: "blue-choosable-trap", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      // 宣言 red/blue に対し、公開ドロー2枚が緑・紫 → 宣言色が出ない → 手札は残る
+      piles: { deck: ["green-growing-trees", "purple-trial-ritual"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "yellow-gamble", cardTokenId: "self" },
+    picks: { handCard: ["h1"], colors: [["red", "blue"]], option: ["all"] },
+    expect: [
+      { kind: "tokenGone", id: "self" }, // 手札効果は自身を先に捨てる
+      { kind: "tokenGone", id: "h1" }, // DISCARD_ONE_HAND_CARD
+      { kind: "tokenZone", id: "h2", zone: "hand", player: "A" }, // 宣言色が出ないので手札は残る
+      { kind: "publicDrawCount", player: "A", n: 2 }, // 公開ドロー2枚（未合流）
+      { kind: "deckLen", n: 0 },
+      { kind: "called", name: "endCurrentPhase" },
+    ],
+  },
+  {
+    name: "試練の儀式(到達): 3色宣言→隣に山札から表向きで置き移動→宣言色でないので1回で終了",
+    kind: "arrival",
+    cardId: "purple-trial-ritual",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "purple-trial-ritual", faceUp: true, location: { zone: "cell", row: 3, col: 3 } },
+      ],
+      // 宣言 red/blue/green に対し、置くカード yellow-gamble（黄）は不一致 → 1回で試練終了
+      piles: { deck: ["yellow-gamble"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "purple-trial-ritual", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: { colors: [["red", "blue", "green"]], location: [{ row: 3, col: 4 }] },
+    expect: [
+      { kind: "pieceAt", player: "A", row: 3, col: 4 }, // 置いたマスへ移動
+      { kind: "cardAtCell", row: 3, col: 4, faceUp: true }, // 山札から表向きで置いた
+      { kind: "deckLen", n: 0 },
+    ],
+  },
+  {
+    name: "試練の儀式(手札・inheritsArrival): 自身を捨て→3色宣言→置いて移動（1回で終了）",
+    kind: "hand",
+    cardId: "purple-trial-ritual",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "purple-trial-ritual", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: ["yellow-gamble"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "purple-trial-ritual", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: { colors: [["red", "blue", "green"]], location: [{ row: 3, col: 4 }] },
+    expect: [
+      { kind: "tokenGone", id: "self" }, // 通常カードの手札効果は自身を先に捨てる
+      { kind: "pieceAt", player: "A", row: 3, col: 4 },
+      { kind: "cardAtCell", row: 3, col: 4, faceUp: true },
+      { kind: "deckLen", n: 0 },
+    ],
+  },
+  {
+    name: "合同建設(手札・inheritsArrival): 自身を捨て→参加者全員に委任される",
+    kind: "hand",
+    cardId: "green-joint-construction",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "green-joint-construction", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "green-joint-construction", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: {},
+    expect: [
+      { kind: "tokenGone", id: "self" }, // 手札効果は自身を先に捨てる
+      { kind: "called", name: "delegateToPlayer", arg: "joint-construction", n: 2 },
+    ],
+  },
+  {
+    name: "スラム上がりの役人(手札): 手札1枚以下なら2枚ドロー→フェイズ終了（自身は先に捨てる）",
+    kind: "hand",
+    cardId: "blue-slum-official",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "self", kind: "card", cardId: "blue-slum-official", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: ["red-jump-pad", "green-growing-trees"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "blue-slum-official", cardTokenId: "self" },
+    picks: {},
+    expect: [
+      { kind: "tokenGone", id: "self" }, // 自身を先に捨てる＝手札0枚（≤1）→2枚ドロー
+      { kind: "handCount", player: "A", n: 2 },
+      { kind: "deckLen", n: 0 },
+      { kind: "called", name: "endCurrentPhase" },
+    ],
+  },
+  {
+    name: "パーティー(手札): これを任意のマスに裏向きで置く。カードは残る",
+    kind: "hand",
+    cardId: "pink-party",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "pink-party", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "pink-party", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: { location: [{ row: 5, col: 5 }] },
+    expect: [
+      { kind: "tokenAtCell", id: "self", row: 5, col: 5 },
+      { kind: "tokenFaceDown", id: "self" },
+    ],
+  },
+  {
+    name: "なないろの欠片(到達): 到達効果は無い（自身はそのまま手札へ）",
+    kind: "arrival",
+    cardId: "rainbow-shard",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "rainbow-shard", faceUp: true, location: { zone: "cell", row: 3, col: 3 } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "rainbow-shard", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: {},
+    expect: [
+      { kind: "tokenZone", id: "self", zone: "hand", player: "A" }, // 到達効果は無く、既定でこのカードが手札へ
+    ],
+  },
+  {
+    name: "黒のキューブ ノワール/first-noir(手札): ノワールの色スロットに手札1枚をロック→1枚ドロー→1マス移動",
+    kind: "hand",
+    cardId: "first-noir",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        // ノワール自身はロックエリア（赤スロット index0）に置かれている＝ロック中でも使える
+        { id: "self", kind: "card", cardId: "first-noir", faceUp: true, location: { zone: "lock", side: "bottom", index: 0 } },
+        // その赤スロットにロックできる赤の手札
+        { id: "lk", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "hand", player: "A" } },
+        // 1マス移動の移動先（隣にカードがあるマス）
+        { id: "dst", kind: "card", cardId: "green-growing-trees", faceUp: true, location: { zone: "cell", row: 3, col: 4 } },
+      ],
+      piles: { deck: ["blue-choosable-trap"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "first-noir", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: { handCard: ["lk"], location: [{ row: 3, col: 4 }] },
+    expect: [
+      { kind: "tokenZone", id: "self", zone: "lock" }, // ノワール自身はロックに残る（first- は捨てない）
+      { kind: "tokenZone", id: "lk", zone: "lock" }, // 手札1枚をノワールの色スロットにロック
+      { kind: "deckLen", n: 0 }, // 1枚ドロー
+      { kind: "pieceAt", player: "A", row: 3, col: 4 }, // 1マス移動
+    ],
+  },
+  {
+    name: "ゴメンナサイッ！/purple-sorry(到達): 1マス移動する",
+    kind: "arrival",
+    cardId: "purple-sorry",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "purple-sorry", faceUp: true, location: { zone: "cell", row: 3, col: 3 } },
+        { id: "dst", kind: "card", cardId: "green-growing-trees", faceUp: true, location: { zone: "cell", row: 3, col: 4 } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "purple-sorry", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: { location: [{ row: 3, col: 4 }] },
+    expect: [
+      { kind: "pieceAt", player: "A", row: 3, col: 4 }, // 隣のカードのあるマスへ1マス移動
+      { kind: "tokenZone", id: "self", zone: "hand", player: "A" }, // 既定でこのカードは手札へ
+    ],
+  },
 ];
 
 // -------------------- 台本を消費する fake helpers（page context 内で構築） --------------------
@@ -814,8 +1259,31 @@ async (spec) => {
       if (!opp) return;
       st.swapPieceLocations(pieceTokenId, opp.id, true); // 本物と同じ原子的入れ替え(ローカル)
     },
-    swapRandomHandCard: async () => { callLog.push(["swapRandomHandCard"]); },
-    pickRandomFromOpponentHand: async () => { callLog.push(["pickRandomFromOpponentHand"]); return null; },
+    // 相手(target)と自分(player)で手札を1枚ずつ入れ替える（無作為＝先頭で代用）。
+    swapRandomHandCard: async (player, target) => {
+      callLog.push(["swapRandomHandCard", player, target]);
+      const handOf = (p) => S().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === p);
+      const mine = handOf(player)[0];
+      const theirs = handOf(target)[0];
+      if (theirs) st.moveToken(theirs.id, { zone: "hand", player });
+      if (mine) st.moveToken(mine.id, { zone: "hand", player: target });
+    },
+    // 相手pの手札から1枚（無作為＝先頭で代用）をトークンで返す。engine が .id を discardAndSync する。
+    pickRandomFromOpponentHand: async (p) => {
+      const tok = S().tokens.find((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === p);
+      callLog.push(["pickRandomFromOpponentHand", p, tok && tok.id]); return tok || null;
+    },
+    // 捨て場の一番上を手札へ引く（トークンを返す）。first-red の「上から2番目」処理で使う。
+    drawFromDiscard: async (player) => {
+      const before = new Set(S().tokens.map((t) => t.id));
+      st.drawFromPile("discard", { zone: "hand", player });
+      const nw = S().tokens.find((t) => !before.has(t.id) && t.location.zone === "hand" && t.location.player === player);
+      callLog.push(["drawFromDiscard", nw && nw.cardId]); return nw || null;
+    },
+    // N枚を公開ドローゾーン(publicDraw)へ引く。返り値: cardId配列（gamble）/ token id配列（first-green等）。
+    publicDrawThenReveal: async (player, count) => { const ids = []; for (let i = 0; i < count; i++) { const b = new Set(S().tokens.map((t) => t.id)); st.drawFromPile("deck", { zone: "publicDraw", player }); const nw = S().tokens.find((t) => !b.has(t.id)); if (nw) ids.push(nw.cardId); } callLog.push(["publicDrawThenReveal", player, count]); return ids; },
+    publicDraw: async (player, count) => { const ids = []; for (let i = 0; i < count; i++) { const b = new Set(S().tokens.map((t) => t.id)); st.drawFromPile("deck", { zone: "publicDraw", player }); const nw = S().tokens.find((t) => !b.has(t.id)); if (nw) ids.push(nw.cardId); } callLog.push(["publicDraw", player, count]); return ids; },
+    publicDrawReturningTokens: async (player, count) => { const ids = []; for (let i = 0; i < count; i++) { const b = new Set(S().tokens.map((t) => t.id)); st.drawFromPile("deck", { zone: "publicDraw", player }); const nw = S().tokens.find((t) => !b.has(t.id)); if (nw) ids.push(nw.id); } callLog.push(["publicDrawReturningTokens", player, count]); return ids; },
 
     // --- 選択（台本を消費）---
     pickLocation: async (candidates) => { const r = resolveLocation(nextPick("location"), candidates); callLog.push(["pickLocation", r]); return r; },
@@ -852,11 +1320,10 @@ async (spec) => {
     announceEffectChoice: () => {}, announceEffectNotice: () => {}, announceEffectReason: async () => {},
     announceFizzle: async () => {}, announceSteppedCard: () => {}, announceUse: () => {},
     beginPublicDrawDefer: () => {}, endPublicDrawDefer: () => {}, celebrate: () => {}, delay: async () => {},
-    drawFromDiscard: async () => {}, endCurrentPhase: () => {}, flyCardToHand: async () => {},
-    markDiscardAtTurnEnd: () => {}, markPlacedLocation: () => {}, markPlacementTarget: () => {},
+    endCurrentPhase: () => { callLog.push(["endCurrentPhase"]); }, flyCardToHand: async () => {},
+    markDiscardAtTurnEnd: (player, ids) => { callLog.push(["markDiscardAtTurnEnd", player, ids]); }, markPlacedLocation: () => {}, markPlacementTarget: () => {},
     maybeTriggerArrivalForPlacedCard: async () => {}, onCardAcquiredToHand: () => {},
-    playAdditionalColorUse: () => {}, publicDraw: async () => {}, publicDrawReturningTokens: async () => [],
-    publicDrawThenReveal: async () => {}, recordMoveVisited: () => {}, startSuspenseSound: () => {},
+    playAdditionalColorUse: () => {}, recordMoveVisited: () => {}, startSuspenseSound: () => {},
     stopSuspenseSound: () => {}, triggerArrivalAtIfFaceUp: async () => {},
   };
 
@@ -940,6 +1407,25 @@ function checkExpect(res, exp) {
     case "boardCardCount": {
       const n = res.tokens.filter((x) => x.kind === "card" && x.location.zone === "cell").length;
       if (n !== exp.n) return `盤面のカード ${n}枚（期待 ${exp.n}）`;
+      return null;
+    }
+    case "handHasCard": {
+      // 生成idではなく cardId で「その手札に該当カードがあるか」を検査（捨て場から拾う等、id不定の時用）。
+      const n = res.tokens.filter((x) => x.kind === "card" && x.location.zone === "hand" && x.location.player === exp.player && x.cardId === exp.cardId).length;
+      if (exp.n != null) { if (n !== exp.n) return `${exp.player} の手札の ${exp.cardId} が ${n}枚（期待 ${exp.n}）`; return null; }
+      if (n < 1) return `${exp.player} の手札に ${exp.cardId} が無い`;
+      return null;
+    }
+    case "publicDrawCount": {
+      const n = res.tokens.filter((x) => x.kind === "card" && x.location.zone === "publicDraw" && x.location.player === exp.player).length;
+      if (n !== exp.n) return `${exp.player} の公開ドロー ${n}枚（期待 ${exp.n}）`;
+      return null;
+    }
+    case "called": {
+      // callLog に指定の呼び出しがあるか（delegateToPlayer 等のオーケストレーションを検査）。
+      const hits = (res.calls || []).filter((c) => c[0] === exp.name && (exp.arg == null || c.slice(1).includes(exp.arg)));
+      if (exp.n != null) { if (hits.length !== exp.n) return `${exp.name}${exp.arg != null ? "(" + exp.arg + ")" : ""} の呼び出しが ${hits.length}回（期待 ${exp.n}）`; return null; }
+      if (hits.length < 1) return `${exp.name}${exp.arg != null ? "(" + exp.arg + ")" : ""} が呼ばれていない`;
       return null;
     }
     default:

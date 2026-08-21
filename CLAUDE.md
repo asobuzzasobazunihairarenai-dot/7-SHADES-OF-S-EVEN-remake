@@ -16144,3 +16144,29 @@ CPU強化の第一歩として、CPUの意思決定パスに残っていた**唯
   マンズウッド(first-green)・マルメゴ(eternal-orange)・セレスティア(first-blue)・スリカエ・試練の儀式・
   なないろの欠片(lock-pair) 等を固める。
 - **検証**: `node --check` 通過、`npm test` で 32/32 PASS。サーバー側（Supabase）の変更は無い。開発専用。
+
+### 2026-08-21（続き239）：カード効果ユニットテストを全カード完全カバーへ（32→53ケース・全34カード）
+
+続き238の続き。残りの効果を全て追加し、`test/effects.mjs` が**効果を持つ全34カードの arrival＋handEffect を
+漏れなくカバー**（`npm test` で 53/53 PASS）。機械的なカバレッジ照合（CARD_EFFECTS のキー×効果種別 vs
+テストケース）で GAPS ゼロを確認した。
+- **harness の実体化（no-op スタブを本物の state 遷移に）**: `drawFromDiscard`（捨て場の一番上を手札へ）・
+  `pickRandomFromOpponentHand`（相手手札から1枚＝先頭で代用）・`publicDrawThenReveal`/`publicDraw`/
+  `publicDrawReturningTokens`（publicDraw ゾーンへ引く）・`swapRandomHandCard`（相手と1枚ずつ交換）を、
+  本物の state.js アクション（drawFromPile/moveToken 等）で実装。`endCurrentPhase`/`markDiscardAtTurnEnd` は
+  callLog に記録。これにより公開ドロー系・捨て場ピック・相手手札の無作為処理・手札交換が検証可能になった。
+- **追加した効果**（続き238以降の全て）: 赤のキューブ フェニックス(first-red・捨て場2番目)・青のキューブ
+  セレスティア(first-blue・相手手札の無作為捨て)・奇跡の森マンズウッド(first-green・公開ドロー)・禁断の果実
+  マルメゴ(eternal-orange・4枚公開ドロー)・手品師の技スリカエ(到達/手札・手札交換)・プレゼント(手札・相手隣へ配置)・
+  ザ・ギャンブル(到達/手札・色宣言→公開ドロー→一致で手札全捨て)・なないろの欠片(lock-pair 選択肢)・
+  試練の儀式(到達/手札・色宣言→置いて移動)・合同建設/スラム上がりの役人/パーティー(委任のオーケストレーション)・
+  黒のキューブ ノワール(first-noir・色スロットへロック→ドロー→移動)・ゴメンナサイッ！(purple-sorry・1マス移動) 等。
+- **アサーション追加**: `handHasCard`（生成idでなく cardId で手札を検査）・`publicDrawCount`（公開ドロー枚数）・
+  `called`（callLog に delegateToPlayer/endCurrentPhase 等の呼び出しがあるか＝オーケストレーション検証）・
+  `tokenFaceUp`。台本に `"skip"`（allowSkip の明示終了）を追加。
+- **委任系（合同建設・スラム上がり・パーティーの到達）の割り切り**: 各プレイヤーの実際の配置/捨て/選択は
+  main.js の delegateToPlayer（DOM層）が担うため、ユニットテストでは「参加者全員に処理順で委任する」という
+  **エンジンのオーケストレーションだけ**を検証（`called delegateToPlayer n:参加人数`）。個々の結果は自己対戦
+  スモーク＋実機の担当。
+- **検証**: `node --check` 通過、`npm test` で 53/53 PASS、カバレッジ照合で全34カード GAPS ゼロ。サーバー側
+  （Supabase）の変更は無い。開発専用。
