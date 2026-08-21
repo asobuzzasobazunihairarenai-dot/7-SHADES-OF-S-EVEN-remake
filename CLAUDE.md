@@ -16170,3 +16170,40 @@ CPU強化の第一歩として、CPUの意思決定パスに残っていた**唯
   スモーク＋実機の担当。
 - **検証**: `node --check` 通過、`npm test` で 53/53 PASS、カバレッジ照合で全34カード GAPS ゼロ。サーバー側
   （Supabase）の変更は無い。開発専用。
+
+### 2026-08-21（続き240）：スモークパネルに「🧪 オールテスト」ボタンを新設（効果ユニット→画面遷移→自己対戦スモークを一括実行）＋効果テストを共有モジュール化
+
+ユーザー要望「しばらく席を立つときなど、すべてのテストをまとめて回せるオールテストボタンを実装するのは
+どう？」への対応。押すだけで①カード効果ユニットテスト→②画面遷移チェック→③自己対戦スモークを順に回して、
+最後にまとめて合否と診断情報を出す（ブラウザ内で完結＝コマンドのコピー不要。席を立って戻れば結果が出ている）。
+
+- **`test/effects.mjs` を3ファイルに分割（オールテストの土台となる enabling refactor）**: 従来 `test/effects.mjs`
+  1ファイルに埋め込まれていた「53ケースの定義＋アサーション」と「1ケースの実行（本物の state.js＋
+  card-effect-engine.js に fake helpers を注入して効果を1回走らせる）」を、Node とブラウザの両方から import
+  できるよう切り出した。
+  - `test/effect-cases.mjs`（新規）: `export const CASES`（53ケース）＋ `checkExpect`／`tokenById`。純データ＋
+    純関数で、ブラウザ固有の import を持たない（Node/ブラウザ共通）。
+  - `test/effect-runner.mjs`（新規・ブラウザ専用）: `export async function runOneCase(spec)`。`/src/state.js`・
+    `/src/card-effect-engine.js`（＝ブラウザでは**アプリと同じ singleton モジュール**）を import し、fake helpers・
+    台本(picks)で1ケースを決定的に実行して `{ calls, tokens, piles, diag }` を返す。
+  - `test/effects.mjs`（書き換え）: Playwright で `page.evaluate(async spec => (await import("/test/effect-runner.mjs")).runOneCase(spec))` を回すだけの薄いドライバに。`node test/effects.mjs` は従来通り 53/53 PASS。
+- **`src/smoke-test-runner.js`**: (1) `runEffectTestsInApp(onLog, shouldStop)` を新設（`/test/effect-cases.mjs`＋
+  `/test/effect-runner.mjs` を動的 import し、全 CASES を `runOneCase`＋`checkExpect` で回して `{pass,fail,total,failures}`
+  を返す）。ターミナルの `node test/effects.mjs` と**同じ effect-runner.mjs を使う**ので結果は一致する。
+  各ケースは hydrateState で盤面を差し替える＝現在の対局状態を破壊するが、この後スモークが startCpuBattle で
+  盤面を作り直すため実害はない。(2) パネルの先頭に「🧪 オールテスト」ボタン（紫・`.smoke-test-all`）を追加。
+  押すと `runAllTests` が ① `runEffectTestsInApp` → ②（`nav-layering-check.js` の）`checkNavigationLayering` →
+  ③ `runInAppSmokeTest` を「連続実行」の回数分、の順に実行し、`効果テスト N/53 ✅ / 画面遷移 ✅ / スモーク M/K回 ✅`
+  のサマリと、失敗があった項目の診断情報（効果失敗一覧＋背面バグ＋最初のスモーク失敗回の
+  `collectFullDiagnostics`）をまとめてコピーできるようにする。実行中は allBtn を「⏹ 停止」に転用（既存の
+  連続実行と同じ単一 .onclick 差し替え方式）。他の run 系ハンドラ（runTest/runRepeated/runOnlineMonitor）にも
+  `allBtn.disabled=true` を追加、`swapToReload` に `allBtn.remove()` を追加。**ボタン到達性チェックはオール
+  テストに含めない**（正しく開いたモーダルがボタンを覆うのは当然＝無人スイープでは誤検知になるため。あちらは
+  「押しても反応しない」場面でユーザーが手動で押す診断ツールのまま）。
+- **検証**: `node --check`（smoke-test-runner/effects/effect-cases/effect-runner）通過、`node test/effects.mjs` で
+  53/53 PASS（分割リファクタ後も同結果）。プレビューブラウザで、オールテストボタンが `runAllTests` を呼ぶのと
+  同じコード経路（effect-cases.mjs＋effect-runner.mjs の動的 import で全53ケース＋checkNavigationLayering）を
+  実行し、**効果 53/53 PASS・画面遷移 0 件**を実測。`openSmokeTestPanel()` を開いてパネル先頭に「🧪 オールテスト」
+  が正しいラベル・`.smoke-test-all` クラス・`onclick` 関数付きで並ぶこと、既存8ボタンも揃っていることを確認。
+  ③自己対戦スモークは既存の（検証済みの）`runInAppSmokeTest` をそのまま連続実行するだけ。サーバー側
+  （Supabase）の変更は無い。開発専用（Playwright／`test/`）でデプロイには一切影響しない。

@@ -236,6 +236,44 @@ async function runInAppSmokeTest(onLog, { runToCompletion = false, playerCount =
   return { pass, reason, turnsReached: lastTurn, errors, invariantViolations };
 }
 
+// アプリ内でカード効果ユニットテスト（test/effect-cases.mjs の全ケース）を走らせる（続き240）。
+// ターミナルの `node test/effects.mjs` と同じ effect-cases.mjs / effect-runner.mjs を使うので、
+// 結果は完全に一致する（「オールテスト」ボタンから席を立っている間にまとめて回すため）。
+// 注意: 各ケースは hydrateState で盤面を差し替える＝現在の対局状態を破壊するが、この後スモークが
+// startCpuBattle で盤面を作り直すため実害はない（テスト用途なので許容）。
+async function runEffectTestsInApp(onLog, shouldStop) {
+  let cases, runner;
+  try {
+    cases = await import("/test/effect-cases.mjs");
+    runner = await import("/test/effect-runner.mjs");
+  } catch (e) {
+    onLog?.("❌ 効果テストの読み込みに失敗: " + (e && e.message ? e.message : String(e)));
+    return { pass: 0, fail: 1, total: 1, failures: ["読み込み失敗: " + String(e)] };
+  }
+  let pass = 0, fail = 0;
+  const failures = [];
+  for (const c of cases.CASES) {
+    if (shouldStop && shouldStop()) break;
+    let res;
+    try { res = await runner.runOneCase(c); }
+    catch (e) { res = { error: String((e && e.stack) || e) }; }
+    if (res && res.error) {
+      fail++;
+      failures.push(`❌ ${c.name}: 例外 ${String(res.error).split("\n")[0]}`);
+      continue;
+    }
+    const fails = [];
+    for (const exp of c.expect || []) {
+      const m = cases.checkExpect(res, exp);
+      if (m) fails.push(m);
+    }
+    if (fails.length === 0) pass++;
+    else { fail++; failures.push(`❌ ${c.name}\n   ${fails.join("\n   ")}`); }
+  }
+  onLog?.(`効果ユニットテスト: ${pass}/${pass + fail} PASS` + (fail ? ` （失敗 ${fail}件）` : ""));
+  return { pass, fail, total: pass + fail, failures };
+}
+
 // オンライン対戦の監視モード（レベル1。ユーザー相談2026-08-17「2ブラウザでスモークを回して
 // オンライン特有のバグを拾いたい」）。ローカルスモークと違い、対局は開始しない／盤面を作り替え
 // ない——既に2ブラウザで「タイマー＋疑似CPU」を有効にして始めたオンライン対戦に“この画面だけ”を
@@ -873,6 +911,14 @@ export function openSmokeTestPanel() {
   effectsBtn.className = "smoke-test-run smoke-test-online";
   effectsBtn.textContent = "🃏 カード効果テスト";
   effectsBtn.title = "『node test/effects.mjs』コマンドをコピーします。ターミナルに貼ると、各カード効果の正確な結果を決定的に検証します（自己対戦スモークとは別の、効果ロジック用のユニットテスト）。";
+  // オールテスト（続き240。ユーザー要望2026-08-20「席を立つときなど、すべてのテストをまとめて回す」）。
+  // 効果ユニットテスト → 画面遷移チェック → 自己対戦スモーク（連続実行の回数分）を順に実行し、
+  // 最後にまとめて合否と診断情報を出す。ブラウザ内で完結するのでコマンドのコピーは不要（席を立って戻れば結果が出ている）。
+  const allBtn = document.createElement("button");
+  allBtn.type = "button";
+  allBtn.className = "smoke-test-run smoke-test-all";
+  allBtn.textContent = "🧪 オールテスト";
+  allBtn.title = "カード効果ユニットテスト＋画面遷移チェック＋自己対戦スモーク（『連続実行』の回数分）をまとめて実行します。席を立つ間にすべて回したい時に。";
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.className = "smoke-test-close";
@@ -882,6 +928,7 @@ export function openSmokeTestPanel() {
     panelOpen = false;
   };
   closeBtn.addEventListener("click", close);
+  actions.appendChild(allBtn);
   actions.appendChild(runBtn);
   actions.appendChild(runFullBtn);
   actions.appendChild(repeatBtn);
@@ -1039,6 +1086,7 @@ export function openSmokeTestPanel() {
 
   // テストは盤面を作り替えるので、終わったらタイトルへ戻す導線に差し替える（単発・連続 共通）。
   const swapToReload = () => {
+    allBtn.remove();
     runBtn.remove();
     runFullBtn.remove();
     repeatBtn.remove();
@@ -1057,6 +1105,7 @@ export function openSmokeTestPanel() {
     runFullBtn.disabled = true;
     repeatBtn.disabled = true;
     onlineBtn.disabled = true;
+    allBtn.disabled = true;
     repeatInput.disabled = true;
     closeBtn.disabled = true;
     (options.runToCompletion ? runFullBtn : runBtn).textContent = "実行中…";
@@ -1079,6 +1128,7 @@ export function openSmokeTestPanel() {
     runBtn.disabled = true;
     runFullBtn.disabled = true;
     onlineBtn.disabled = true;
+    allBtn.disabled = true;
     repeatInput.disabled = true;
     repeatFullCheck.disabled = true;
     closeBtn.disabled = true;
@@ -1129,6 +1179,7 @@ export function openSmokeTestPanel() {
     runBtn.disabled = true;
     runFullBtn.disabled = true;
     repeatBtn.disabled = true;
+    allBtn.disabled = true;
     repeatInput.disabled = true;
     repeatFullCheck.disabled = true;
     closeBtn.disabled = true;
@@ -1184,10 +1235,111 @@ export function openSmokeTestPanel() {
     swapToReload();
   };
 
+  // オールテスト（続き240）。効果ユニット→画面遷移→自己対戦スモークを順に回してまとめて報告する。
+  // 席を立つ間にすべて回したい時用。ブラウザ内で完結（コマンドのコピー不要）。実行中は allBtn を「⏹ 停止」に転用。
+  let cancelAll = false;
+  const runAllTests = async () => {
+    const times = Math.max(1, Math.min(50, parseInt(repeatInput.value, 10) || 5));
+    const toCompletion = repeatFullCheck.checked;
+    const pc = smokePlayerCount();
+    runBtn.disabled = true;
+    runFullBtn.disabled = true;
+    repeatBtn.disabled = true;
+    onlineBtn.disabled = true;
+    bgBtn.disabled = true;
+    navBtn.disabled = true;
+    btnReachBtn.disabled = true;
+    effectsBtn.disabled = true;
+    repeatInput.disabled = true;
+    repeatFullCheck.disabled = true;
+    closeBtn.disabled = true;
+    resultEl.textContent = "";
+    resultEl.className = "smoke-test-result";
+    cancelAll = false;
+    allBtn.textContent = "⏹ 停止";
+    allBtn.onclick = () => {
+      cancelAll = true;
+      allBtn.disabled = true;
+      allBtn.textContent = "停止中…";
+    };
+    const stop = () => cancelAll;
+    addLog(
+      `🧪 オールテスト開始（① 効果テスト → ② 画面遷移 → ③ 自己対戦スモーク ${times}回・${toCompletion ? "決着まで" : "8ターン点検"}・${pc}人）…`
+    );
+    const summary = [];
+    const diagChunks = [];
+
+    // ① カード効果ユニットテスト（全53ケース。ターミナルの node test/effects.mjs と同結果）
+    addLog("━━━━ ① カード効果ユニットテスト ━━━━");
+    const eff = await runEffectTestsInApp(addLog, stop);
+    const effOk = eff.fail === 0;
+    summary.push(`効果テスト ${eff.pass}/${eff.total}${effOk ? " ✅" : " ❌"}`);
+    if (!effOk) {
+      for (const f of eff.failures) addLog(f);
+      diagChunks.push("【カード効果ユニットテスト 失敗】\n" + eff.failures.join("\n"));
+    }
+
+    // ② 画面遷移チェック（背面バグ検知）
+    let navViols = [];
+    let navOk = true;
+    if (!stop()) {
+      addLog("━━━━ ② 画面遷移チェック ━━━━");
+      try {
+        const { checkNavigationLayering } = await import("./nav-layering-check.js");
+        navViols = await checkNavigationLayering();
+      } catch (e) {
+        navViols = [{ msg: "検査に失敗: " + (e && e.message ? e.message : String(e)) }];
+      }
+      navOk = navViols.length === 0;
+      summary.push(`画面遷移 ${navOk ? "✅" : "❌" + navViols.length + "件"}`);
+      for (const v of navViols) addLog("  ❗" + (v.msg || JSON.stringify(v)));
+      if (!navOk) {
+        diagChunks.push(
+          "【画面遷移チェック 背面バグ】\n" + navViols.map((v) => v.msg || JSON.stringify(v)).join("\n")
+        );
+      }
+    }
+
+    // ③ 自己対戦スモーク（連続実行の回数分）
+    const smokeResults = [];
+    let firstSmokeFailure = null;
+    addLog(`━━━━ ③ 自己対戦スモーク（${times}回・${pc}人・${toCompletion ? "決着まで" : "8ターン点検"}） ━━━━`);
+    for (let i = 1; i <= times; i++) {
+      if (stop()) {
+        addLog(`⏹ スモークを${i - 1}回で停止しました。`);
+        break;
+      }
+      addLog(`──── スモーク ${i}/${times}回目 ────`);
+      const res = await runInAppSmokeTest(addLog, { runToCompletion: toCompletion, playerCount: pc });
+      smokeResults.push(res);
+      addLog(`スモーク${i}回目: ${res.pass ? "✅PASS" : "❌FAIL"} — ${res.reason}`);
+      if (!res.pass && !firstSmokeFailure) firstSmokeFailure = res;
+      await wait(600);
+    }
+    const smokePass = smokeResults.filter((r) => r.pass).length;
+    const smokeOk = smokeResults.length > 0 && smokePass === smokeResults.length;
+    summary.push(`スモーク ${smokePass}/${smokeResults.length}回${smokeOk ? " ✅" : " ❌"}`);
+    if (firstSmokeFailure) {
+      diagChunks.push("【自己対戦スモーク 失敗回】\n" + (await collectFullDiagnostics(firstSmokeFailure)));
+    }
+
+    // まとめ
+    const allOk = effOk && navOk && smokeOk;
+    resultEl.classList.add(allOk ? "is-pass" : "is-fail");
+    resultEl.textContent = (allOk ? "✅ オールテスト PASS — " : "❌ オールテスト FAIL — ") + summary.join(" / ");
+    addLog("🧪 オールテスト終了: " + summary.join(" / "));
+    if (diagChunks.length) {
+      addLog("❌ 失敗があった項目の診断情報を下のボタンからコピーできます。");
+      addDiagnosticsButtons(diagChunks.join("\n\n────────\n\n"), "オールテスト");
+    }
+    swapToReload();
+  };
+
   // 注意: repeatBtn / onlineBtn は実行中に「⏹ 停止」へ転用する（.onclick を停止ハンドラへ差し替える）。
   // addEventListener だと開始ハンドラが残ったまま停止ハンドラも登録され、停止クリックで両方発火して
   // 二重実行になる（＝診断ボタンが2行出る／console.error上書きが積み重なる不具合。ユーザー報告2026-08-17）。
   // .onclick は単一スロットなので、停止ハンドラへ差し替えれば開始ハンドラは確実に外れる。
+  allBtn.onclick = runAllTests;
   runBtn.onclick = () => runTest({ runToCompletion: false, playerCount: smokePlayerCount() });
   runFullBtn.onclick = () => runTest({ runToCompletion: true, playerCount: smokePlayerCount() });
   repeatBtn.onclick = runRepeated;
