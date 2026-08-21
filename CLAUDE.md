@@ -16117,3 +16117,30 @@ CPU強化の第一歩として、CPUの意思決定パスに残っていた**唯
 - ブラウザで実際にパネルを開き、ボタンが並び（…／ボタン到達性／**🃏 カード効果テスト**／閉じる）、
   クリックでコマンド＋案内がログに出ることを実測確認。`node --check`（smoke-test-runner.js）通過。
   サーバー側（Supabase）の変更は無い。
+
+### 2026-08-21（続き238）：カード効果ユニットテストを全カードへ拡充（第1弾・10→32ケース）
+
+ユーザー選択「効果テストを全カードへ拡充」への対応（続き236の `test/effects.mjs` を育てる）。効果を持つ
+カードは33枚（到達/手札で40組超）あり、初期は10ケース。今回、**現状の“本物ヘルパー”だけで完結する効果**を
+一気に追加して32ケースにした（`npm test` で 32/32 PASS）。
+- **追加した効果**（抜粋）: 奇跡の森マンズウッド(eternal-green)・ジャンプ台の手札効果・白の意思の覚醒(手札)・
+  なないろの巨光(手札)・色落ちキャット(到達/手札)・黒の契約の烙印(到達/手札)・収穫と種まき(手札)・
+  黄金の宮殿ドムス・ネロ(eternal-yellow)・終わりなき化学ゲンテクニーク(eternal-purple)・月下の漂流船
+  プリドゥエン(eternal-blue)・橙のキューブ ハーベスト(first-orange)・紅蓮の火山ワイナウエア(eternal-red)・
+  なないろの欠片(手札・選択肢)・選べる罠(到達・選択肢)・プレゼント(到達)・増殖する樹々(到達)・黄のキューブ
+  サフラン(first-yellow)・紫のキューブ ディメンション(first-purple)・桃のキューブ セレナーデ(first-pink)・
+  結ばれの一本桜(eternal-pink)。到達効果＋手札効果、追色コスト、山札からの配置、自身配置、条件付き
+  ドロー(最少ロック)、複数選択肢モーダル、ロック、相手駒の移動など主要動詞をほぼ網羅。
+- **harness の小改良**: (1) 選択肢モーダル用 fake（pickArrivalOption/pickHandEffectOption）を、engine が期待する
+  「選ばれたオプションの**オブジェクト**」を台本の id から返すように修正（従来は文字列を返していて多選択肢を
+  検証できなかった）。(2) `resolveLocation` に `"skip"` 台本（allowSkip の明示終了）を追加。(3) アサーション種別
+  `tokenFaceUp`/`cardAtCell`/`boardCardCount` を追加。
+- **テストが正しく“実挙動”を突きつけた点（エンジンのバグではなく私の期待違い）**: エターナル/ファースト
+  カードは**使用時に捨てない**（is-usable-while-locked の特別枠、card-effect-engine.js の
+  `!cardId.startsWith("eternal-")/"first-"` 分岐）。当初 `tokenGone self` を期待して6件が落ち、
+  「self は手札に残る・handCount はその分+1」に直して解消（harness がエンジンを忠実に走らせている裏付け）。
+- **次弾（続き239以降）**: publicDraw/delegateToPlayer/drawFromDiscard/opponent-hand-random 等の no-op スタブを
+  少し実体化して、ザ・ギャンブル・パーティー・合同建設・スラム上がりの役人・フェニックス(first-red)・
+  マンズウッド(first-green)・マルメゴ(eternal-orange)・セレスティア(first-blue)・スリカエ・試練の儀式・
+  なないろの欠片(lock-pair) 等を固める。
+- **検証**: `node --check` 通過、`npm test` で 32/32 PASS。サーバー側（Supabase）の変更は無い。開発専用。

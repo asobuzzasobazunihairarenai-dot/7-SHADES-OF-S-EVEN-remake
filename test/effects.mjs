@@ -274,6 +274,491 @@ const CASES = [
       { kind: "tokenFaceDown", id: "self" }, // 裏向きで置かれる
     ],
   },
+  {
+    name: "奇跡の森マンズウッド/eternal-green(手札): 追色1を払い1枚ドロー。カード自身は捨てる",
+    kind: "hand",
+    cardId: "eternal-green",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "self", kind: "card", cardId: "eternal-green", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "cost", kind: "card", cardId: "green-growing-trees", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: ["red-jump-pad"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "eternal-green", cardTokenId: "self" },
+    picks: { discardCost: ["cost"] },
+    expect: [
+      // エターナル/ファーストカードは使用時に捨てない（is-usable-while-locked の特別枠、engine line 2028）
+      { kind: "tokenZone", id: "self", zone: "hand", player: "A" },
+      { kind: "tokenGone", id: "cost" },
+      { kind: "deckLen", n: 0 }, // 1枚ドロー
+      { kind: "handCount", player: "A", n: 2 }, // self（残る）＋引いた1枚
+    ],
+  },
+  {
+    name: "ジャンプ台(手札): これをゲート以外の任意マスに表向きで置く。カードは残る",
+    kind: "hand",
+    cardId: "red-jump-pad",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "red-jump-pad", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: { location: [{ row: 2, col: 2 }] },
+    expect: [
+      { kind: "tokenAtCell", id: "self", row: 2, col: 2 },
+      { kind: "tokenFaceUp", id: "self" }, // 表向きで置く
+    ],
+  },
+  {
+    name: "白の意思の覚醒(手札): 場の表向きカードの上に山札から1枚ずつ裏向きで置く。自身は捨てる",
+    kind: "hand",
+    cardId: "white-awakening",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "white-awakening", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "fc1", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "cell", row: 0, col: 0 } },
+        { id: "fc2", kind: "card", cardId: "blue-choosable-trap", faceUp: true, location: { zone: "cell", row: 1, col: 1 } },
+      ],
+      piles: { deck: ["green-growing-trees", "orange-harvest-sow"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "white-awakening", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: {},
+    expect: [
+      { kind: "tokenGone", id: "self" },
+      { kind: "pileContains", pile: "discard", cardId: "white-awakening" },
+      { kind: "deckLen", n: 0 }, // 表向き2マス分＝2枚置いた
+      { kind: "boardCardCount", n: 4 }, // 元の2枚＋置いた2枚
+    ],
+  },
+  {
+    name: "なないろの巨光(手札): 全員3枚ドロー→このフェイズ終了。自身は捨てる",
+    kind: "hand",
+    cardId: "white-radiance",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "self", kind: "card", cardId: "white-radiance", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: ["red-jump-pad", "blue-choosable-trap", "green-growing-trees", "orange-harvest-sow", "yellow-gamble", "pink-present"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "white-radiance", cardTokenId: "self" },
+    picks: {},
+    expect: [
+      { kind: "tokenGone", id: "self" },
+      { kind: "deckLen", n: 0 }, // A3枚+B3枚
+      { kind: "handCount", player: "A", n: 3 },
+      { kind: "handCount", player: "B", n: 3 },
+    ],
+  },
+  {
+    name: "色落ちキャット(到達): これを捨てる→全員、手札を全て捨て1枚ドロー",
+    kind: "arrival",
+    cardId: "black-faded-cat",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "black-faded-cat", faceUp: true, location: { zone: "cell", row: 3, col: 3 } },
+        { id: "ha", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "hb", kind: "card", cardId: "blue-choosable-trap", faceUp: false, location: { zone: "hand", player: "B" } },
+      ],
+      piles: { deck: ["green-growing-trees", "orange-harvest-sow"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "black-faded-cat", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: {},
+    expect: [
+      { kind: "tokenGone", id: "self" }, // DISCARD_SELF
+      { kind: "pileContains", pile: "discard", cardId: "black-faded-cat" },
+      { kind: "tokenGone", id: "ha" }, // A の手札を全捨て
+      { kind: "tokenGone", id: "hb" }, // B の手札を全捨て
+      { kind: "handCount", player: "A", n: 1 }, // 各1枚ドロー
+      { kind: "handCount", player: "B", n: 1 },
+      { kind: "deckLen", n: 0 },
+    ],
+  },
+  {
+    name: "色落ちキャット(手札): ロック1枚捨て→3枚ドロー。フェイズ終了。自身は先に捨てる",
+    kind: "hand",
+    cardId: "black-faded-cat",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "self", kind: "card", cardId: "black-faded-cat", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "la", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "lock", side: "bottom", index: 0 } },
+      ],
+      piles: { deck: ["green-growing-trees", "orange-harvest-sow", "yellow-gamble"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "black-faded-cat", cardTokenId: "self" },
+    picks: { location: [{ zone: "lock", side: "bottom", index: 0 }] },
+    expect: [
+      { kind: "tokenGone", id: "self" }, // 手札効果は自身を先に捨てる
+      { kind: "tokenGone", id: "la" }, // ロック1枚捨て
+      { kind: "deckLen", n: 0 }, // 1枚×3ドロー
+      { kind: "handCount", player: "A", n: 3 },
+    ],
+  },
+  {
+    name: "黒の契約の烙印(到達): 空いている自分のロックスロットにこれを表向きで置く",
+    kind: "arrival",
+    cardId: "black-contract-brand",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "black-contract-brand", faceUp: true, location: { zone: "cell", row: 3, col: 3 } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "black-contract-brand", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: { location: [{ zone: "lock", side: "bottom", index: 0 }] },
+    expect: [
+      { kind: "tokenZone", id: "self", zone: "lock" }, // ロックエリアへ
+      { kind: "tokenFaceUp", id: "self" }, // 表向きで置く
+    ],
+  },
+  {
+    name: "黒の契約の烙印(手札): これを任意のマスに裏向きで置く。カードは残る",
+    kind: "hand",
+    cardId: "black-contract-brand",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "black-contract-brand", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "black-contract-brand", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: { location: [{ row: 4, col: 4 }] },
+    expect: [
+      { kind: "tokenAtCell", id: "self", row: 4, col: 4 },
+      { kind: "tokenFaceDown", id: "self" },
+    ],
+  },
+  {
+    name: "収穫と種まき(手札): 拾う→手札から同じマスへ置き直す（inheritsArrival）。自身は先に捨てる",
+    kind: "hand",
+    cardId: "orange-harvest-sow",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "orange-harvest-sow", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "target", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "cell", row: 2, col: 2 } },
+        { id: "inhand", kind: "card", cardId: "blue-choosable-trap", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "orange-harvest-sow", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: { location: [{ row: 2, col: 2 }], handCard: ["inhand"] },
+    expect: [
+      { kind: "tokenGone", id: "self" }, // 手札効果は自身を先に捨てる
+      { kind: "tokenZone", id: "target", zone: "hand", player: "A" }, // 拾った
+      { kind: "tokenAtCell", id: "inhand", row: 2, col: 2 }, // 手札の札を置いた
+      { kind: "tokenFaceDown", id: "inhand" },
+    ],
+  },
+  {
+    name: "黄金の宮殿ドムス・ネロ/eternal-yellow(手札): 追色1→自分2枚・相手全員1枚ドロー",
+    kind: "hand",
+    cardId: "eternal-yellow",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "self", kind: "card", cardId: "eternal-yellow", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "cost", kind: "card", cardId: "yellow-gamble", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: ["red-jump-pad", "blue-choosable-trap", "green-growing-trees"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "eternal-yellow", cardTokenId: "self" },
+    picks: { discardCost: ["cost"] },
+    expect: [
+      { kind: "tokenZone", id: "self", zone: "hand", player: "A" }, // エターナルは使用時に捨てない
+      { kind: "tokenGone", id: "cost" },
+      { kind: "handCount", player: "A", n: 3 }, // self（残る）＋自分2枚ドロー
+      { kind: "handCount", player: "B", n: 1 }, // 相手1枚ドロー
+      { kind: "deckLen", n: 0 },
+    ],
+  },
+  {
+    name: "終わりなき化学ゲンテクニーク/eternal-purple(手札): 追色1→拾う→同じマスに山札から裏向きで置く",
+    kind: "hand",
+    cardId: "eternal-purple",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "eternal-purple", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "cost", kind: "card", cardId: "purple-trial-ritual", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "target", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "cell", row: 0, col: 0 } },
+      ],
+      piles: { deck: ["green-growing-trees"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "eternal-purple", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: { discardCost: ["cost"], location: [{ row: 0, col: 0 }] },
+    expect: [
+      { kind: "tokenZone", id: "self", zone: "hand", player: "A" }, // エターナルは使用時に捨てない
+      { kind: "tokenGone", id: "cost" },
+      { kind: "tokenZone", id: "target", zone: "hand", player: "A" }, // 拾った
+      { kind: "cardAtCell", row: 0, col: 0, faceUp: false }, // 山札から裏向きで置いた
+      { kind: "deckLen", n: 0 },
+    ],
+  },
+  {
+    name: "月下の漂流船プリドゥエン/eternal-blue(手札): 追色1→任意2マスに山札から裏向きで置く",
+    kind: "hand",
+    cardId: "eternal-blue",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "eternal-blue", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "cost", kind: "card", cardId: "blue-choosable-trap", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: ["red-jump-pad", "green-growing-trees"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "eternal-blue", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: { discardCost: ["cost"], location: [{ row: 0, col: 0 }, { row: 0, col: 1 }] },
+    expect: [
+      { kind: "tokenZone", id: "self", zone: "hand", player: "A" }, // エターナルは使用時に捨てない
+      { kind: "tokenGone", id: "cost" },
+      { kind: "cardAtCell", row: 0, col: 0, faceUp: false },
+      { kind: "cardAtCell", row: 0, col: 1, faceUp: false },
+      { kind: "deckLen", n: 0 },
+    ],
+  },
+  {
+    name: "橙のキューブ ハーベスト/first-orange(手札): 追色1→2マス以内の1枚を手札に加える",
+    kind: "hand",
+    cardId: "first-orange",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "first-orange", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "cost", kind: "card", cardId: "orange-harvest-sow", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "target", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "cell", row: 3, col: 4 } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "first-orange", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: { discardCost: ["cost"], location: [{ row: 3, col: 4 }] },
+    expect: [
+      { kind: "tokenZone", id: "self", zone: "hand", player: "A" }, // ファーストは使用時に捨てない
+      { kind: "tokenGone", id: "cost" },
+      { kind: "tokenZone", id: "target", zone: "hand", player: "A" }, // 2マス以内の1枚を手札へ
+    ],
+  },
+  {
+    name: "紅蓮の火山ワイナウエア/eternal-red(手札): 追色1→任意1マスのカードを全て捨てる",
+    kind: "hand",
+    cardId: "eternal-red",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "eternal-red", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "cost", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "st1", kind: "card", cardId: "green-growing-trees", faceUp: true, location: { zone: "cell", row: 0, col: 0 } },
+        { id: "st2", kind: "card", cardId: "blue-choosable-trap", faceUp: false, location: { zone: "cell", row: 0, col: 0 } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "eternal-red", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: { discardCost: ["cost"], location: [{ row: 0, col: 0 }] },
+    expect: [
+      { kind: "tokenZone", id: "self", zone: "hand", player: "A" }, // エターナルは使用時に捨てない
+      { kind: "tokenGone", id: "cost" },
+      { kind: "tokenGone", id: "st1" }, // そのマスのカードを全て捨てた
+      { kind: "tokenGone", id: "st2" },
+      { kind: "boardCardCount", n: 0 },
+    ],
+  },
+  {
+    name: "なないろの欠片(手札・選択肢): 1枚ドローを選ぶ",
+    kind: "hand",
+    cardId: "rainbow-shard",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "self", kind: "card", cardId: "rainbow-shard", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: ["red-jump-pad"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "rainbow-shard", cardTokenId: "self" },
+    picks: { option: ["draw"] },
+    expect: [
+      { kind: "tokenGone", id: "self" }, // 「1枚ドロー」選択肢は keepsCardOnUse でないので自身を捨てる
+      { kind: "deckLen", n: 0 }, // 1枚ドロー
+      { kind: "handCount", player: "A", n: 1 },
+    ],
+  },
+  {
+    name: "選べる罠(到達・選択肢): 手札を半分捨てるを選ぶ",
+    kind: "arrival",
+    cardId: "blue-choosable-trap",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "blue-choosable-trap", faceUp: true, location: { zone: "cell", row: 3, col: 3 } },
+        { id: "h1", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "h2", kind: "card", cardId: "green-growing-trees", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "h3", kind: "card", cardId: "yellow-gamble", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "blue-choosable-trap", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    // 3枚の手札の半分（端数切り捨て）＝1枚を選んで捨てる
+    picks: { option: ["discard-half-hand"], handCard: ["h1"] },
+    expect: [
+      { kind: "tokenGone", id: "h1" }, // 半分（1枚）捨てた
+      { kind: "pileContains", pile: "discard", cardId: "red-jump-pad" },
+      { kind: "tokenZone", id: "self", zone: "hand", player: "A" }, // 到達効果カードは既定で手札へ
+    ],
+  },
+  {
+    name: "プレゼント(到達): 一番少なくロックしている全員が1枚ドロー（Aのみ最少）",
+    kind: "arrival",
+    cardId: "pink-present",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "pink-present", faceUp: true, location: { zone: "cell", row: 3, col: 3 } },
+        // B が1色ロック済み、A は0 → A のみ最少 → A だけドロー
+        { id: "bl", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "lock", side: "left", index: 0 } },
+      ],
+      piles: { deck: ["green-growing-trees"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "pink-present", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: {},
+    expect: [
+      { kind: "deckLen", n: 0 }, // A が1枚ドロー
+      { kind: "handCount", player: "A", n: 2 }, // ドロー1枚＋既定でこのカード自身
+      { kind: "handCount", player: "B", n: 0 }, // 最少でないB はドローしない
+    ],
+  },
+  {
+    name: "増殖する樹々(到達): 2マス以内の何もないマス全てに山札から裏向きで置く",
+    kind: "arrival",
+    cardId: "green-growing-trees",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        // 駒を角(0,0)に置き、範囲内5マスのうち4マスを埋めて空きを(2,0)の1つに限定する
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 0, col: 0 } },
+        { id: "self", kind: "card", cardId: "green-growing-trees", faceUp: true, location: { zone: "cell", row: 0, col: 0 } },
+        { id: "f1", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "cell", row: 0, col: 1 } },
+        { id: "f2", kind: "card", cardId: "blue-choosable-trap", faceUp: true, location: { zone: "cell", row: 0, col: 2 } },
+        { id: "f3", kind: "card", cardId: "yellow-gamble", faceUp: true, location: { zone: "cell", row: 1, col: 0 } },
+        { id: "f4", kind: "card", cardId: "purple-trial-ritual", faceUp: true, location: { zone: "cell", row: 1, col: 1 } },
+      ],
+      piles: { deck: ["orange-harvest-sow"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "green-growing-trees", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 0, col: 0 } },
+    picks: {},
+    expect: [
+      { kind: "cardAtCell", row: 2, col: 0, faceUp: false }, // 唯一の空きマスへ置いた
+      { kind: "deckLen", n: 0 },
+    ],
+  },
+  {
+    name: "黄のキューブ サフラン/first-yellow(手札): 追色1→2マス以内の裏向きカードを最大4枚オープン",
+    kind: "hand",
+    cardId: "first-yellow",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "first-yellow", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "cost", kind: "card", cardId: "yellow-gamble", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "d1", kind: "card", cardId: "red-jump-pad", faceUp: false, location: { zone: "cell", row: 3, col: 4 } },
+        { id: "d2", kind: "card", cardId: "blue-choosable-trap", faceUp: false, location: { zone: "cell", row: 3, col: 2 } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "first-yellow", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: { discardCost: ["cost"], location: [{ row: 3, col: 4 }, { row: 3, col: 2 }] },
+    expect: [
+      { kind: "tokenZone", id: "self", zone: "hand", player: "A" }, // ファーストは使用時に捨てない
+      { kind: "tokenGone", id: "cost" },
+      { kind: "tokenFaceUp", id: "d1" }, // オープン
+      { kind: "tokenFaceUp", id: "d2" },
+    ],
+  },
+  {
+    name: "紫のキューブ ディメンション/first-purple(手札): 追色1→移動強化の案内のみ（自身は残る）",
+    kind: "hand",
+    cardId: "first-purple",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "self", kind: "card", cardId: "first-purple", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "cost", kind: "card", cardId: "purple-trial-ritual", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "first-purple", cardTokenId: "self" },
+    picks: { discardCost: ["cost"] },
+    expect: [
+      { kind: "tokenZone", id: "self", zone: "hand", player: "A" }, // ファーストは使用時に捨てない
+      { kind: "tokenGone", id: "cost" }, // 追色1を支払う
+    ],
+  },
+  {
+    name: "桃のキューブ セレナーデ/first-pink(手札): 追色1→手札1枚をロック（最後のロック不可）",
+    kind: "hand",
+    cardId: "first-pink",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "first-pink", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "cost", kind: "card", cardId: "pink-present", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "lk", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "first-pink", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: { discardCost: ["cost"], handCard: ["lk"] },
+    expect: [
+      { kind: "tokenZone", id: "self", zone: "hand", player: "A" }, // ファーストは使用時に捨てない
+      { kind: "tokenGone", id: "cost" },
+      { kind: "tokenZone", id: "lk", zone: "lock" }, // 手札1枚をロックした
+    ],
+  },
+  {
+    name: "結ばれの一本桜/eternal-pink(手札): 追色1→相手を自分の隣へ移動",
+    kind: "hand",
+    cardId: "eternal-pink",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "pieceB", kind: "piece", player: "B", location: { zone: "cell", row: 3, col: 5 } },
+        { id: "self", kind: "card", cardId: "eternal-pink", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "cost", kind: "card", cardId: "pink-present", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "eternal-pink", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    // 相手は1人→自動選択。自分(3,3)の隣接4マスから(3,4)を選ぶ
+    picks: { discardCost: ["cost"], location: [{ row: 3, col: 4 }] },
+    expect: [
+      { kind: "tokenZone", id: "self", zone: "hand", player: "A" }, // エターナルは使用時に捨てない
+      { kind: "tokenGone", id: "cost" },
+      { kind: "pieceAt", player: "B", row: 3, col: 4 }, // 相手を自分の隣へ移動
+    ],
+  },
 ];
 
 // -------------------- 台本を消費する fake helpers（page context 内で構築） --------------------
@@ -307,6 +792,7 @@ async (spec) => {
   // 選択候補(candidates)から、台本の指定に一致する候補を返す。指定は {row,col} / {zone,side,index} /
   // "index:N" / トークンid（handCard用）/ 生の値（player/option/colors）。
   const resolveLocation = (spec2, candidates) => {
+    if (spec2 === "skip") return null; // 「これ以上選ばない」（allowSkip の効果を明示的に終了）
     if (spec2 == null) return candidates && candidates[0];
     if (typeof spec2 === "string" && spec2.startsWith("index:")) return candidates[parseInt(spec2.slice(6), 10)];
     if (spec2 && spec2.zone === "lock") return (candidates || []).find((c) => c.zone === "lock" && c.side === spec2.side && c.index === spec2.index) || spec2;
@@ -350,8 +836,10 @@ async (spec) => {
       callLog.push(["pickDiscardCost", tok && tok.id]); return tok || null;
     },
     pickPlayer: async () => { const r = nextPick("player"); callLog.push(["pickPlayer", r]); return r; },
-    pickArrivalOption: async () => { const r = nextPick("option"); callLog.push(["pickArrivalOption", r]); return r; },
-    pickHandEffectOption: async () => { const r = nextPick("option"); callLog.push(["pickHandEffectOption", r]); return r; },
+    // 選択肢モーダル: engine は選ばれた「オプションのオブジェクト」（.id/.actions/.usable）を期待する。
+    // 台本には id 文字列を書く → 渡された options 配列から id 一致のオブジェクトを返す。
+    pickArrivalOption: async (cardId, options) => { const want = nextPick("option"); const o = (options || []).find((x) => x.id === want) || null; callLog.push(["pickArrivalOption", want]); return o; },
+    pickHandEffectOption: async (cardId, options) => { const want = nextPick("option"); const o = (options || []).find((x) => x.id === want) || null; callLog.push(["pickHandEffectOption", want]); return o; },
     declareColors: async () => { const r = nextPick("colors"); callLog.push(["declareColors", r]); return r; },
     gambleReveal: async () => { const r = nextPick("gamble"); callLog.push(["gambleReveal", r]); return r; },
     delegateToPlayer: async (p, taskType) => { callLog.push(["delegateToPlayer", p, taskType]); return false; },
@@ -413,6 +901,10 @@ function checkExpect(res, exp) {
     case "tokenFaceDown":
       if (!t) return `token ${exp.id} が見つからない`;
       if (t.faceUp) return `token ${exp.id} が表向き（期待 裏向き）`;
+      return null;
+    case "tokenFaceUp":
+      if (!t) return `token ${exp.id} が見つからない`;
+      if (!t.faceUp) return `token ${exp.id} が裏向き（期待 表向き）`;
       return null;
     case "tokenGone":
       if (t) return `token ${exp.id} がまだ存在する（期待 消滅＝山/捨て場へ）`;
