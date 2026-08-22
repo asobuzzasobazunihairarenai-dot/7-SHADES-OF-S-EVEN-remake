@@ -11753,15 +11753,26 @@ body:not(.is-admin-user) .opening-admin-btn {
 .opening-version-badge {
   position: fixed;
   right: 0.6rem;
-  bottom: 0.3rem;
+  bottom: 0.5rem;
   z-index: 11;
   font-family: sans-serif;
-  font-size: 0.6rem;
-  letter-spacing: 0.03em;
-  color: rgba(15, 23, 32, 0.5);
-  text-shadow: 0 0 3px rgba(255, 255, 255, 0.7);
+  /* ユーザー報告「スマホだと全く読めない」（続き249）。画面全体がステージ縮小される
+     スマホでは 0.6rem が実質極小になっていたため、文字を大きく・濃く・薄い下地付きにして
+     どんな背景でも読めるようにする。 */
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(15, 23, 32, 0.9);
+  background: rgba(255, 255, 255, 0.78);
+  padding: 0.2rem 0.6rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
   pointer-events: none;
   user-select: text;
+}
+/* スマホはさらに大きく（ステージ縮小で小さくなる分を補う）。 */
+body.is-phone-device .opening-version-badge {
+  font-size: 1.5rem;
 }
 @keyframes opening-screen-fade-in {
   from { opacity: 0; }
