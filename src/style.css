@@ -8189,6 +8189,19 @@ body.diagnostic-flatten-3d .piece-top {
 body.iso25d {
   --iso-piece-depth: calc(var(--piece-size) * 0.32);
 }
+/* ちらつきの真因対策（続き245）: 駒(.piece)はベースで will-change:transform ＋
+   backface-visibility:hidden により“常に合成レイヤー”になっている。素フラットでは駒は
+   上面だけ（枠内に収まる）なので無害だが、isoでは側面(skew)が駒の枠の外＝下・右へはみ出し、
+   この合成レイヤーの矩形が隣の盤面カードや前方のロックエリアバーに重なる。iOSはこの
+   「重なり合成(overlap compositing)」で重なった側の要素を再合成し続け、ロックバーの色が
+   消える/カードが欠ける等のちらつきになる（ユーザー報告「ゲートから手前に限定」＝駒がいる
+   前方に一致）。isoだけ強制レイヤー化を解除し、駒を通常の盤面レイヤーに描かせる（skewは
+   2D変形なので単体ではレイヤーを作らない＝2.5Dの見た目は維持、隣を巻き込まなくなる）。
+   3Dモード（本編）の .piece は body.iso25d が付かないので一切影響しない。 */
+body.iso25d .piece {
+  will-change: auto !important;
+  backface-visibility: visible !important;
+}
 /* 上面: フラットが付けた白いシール枠は消し、立体の側面に形を語らせる。
    ※z-indexは付けない（側面は上面の“外側”＝下・右にしか出ず上面本体に重ならないので不要。
    z-indexは新しい合成レイヤー/スタッキング文脈を作り、iOSの弱いGPUで周囲の要素＝ロックバー・

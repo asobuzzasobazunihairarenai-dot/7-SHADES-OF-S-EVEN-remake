@@ -65,6 +65,28 @@ tbody tr:nth-child(even) {
 tbody tr:hover {
   background: rgba(56, 189, 248, 0.1);
 }
+/* 不具合報告テーブルは列幅を固定し、内容が長くても表全体がコンテナ幅（=横スクロール
+   なし）に収まるようにする。以前は内容列の max-width:40rem が大きすぎて、日時＋報告者と
+   合わせると表がコンテナを超えてはみ出し、右端の「詳細」ボタンが横スクロールしないと
+   押せなくなっていた（続き245）。table-layout:fixed で日時/報告者/詳細を固定幅にし、
+   内容列（3列目）が残り幅を埋めて1行省略（ellipsisはJS側で付与）する。 */
+#bug-report-table {
+  table-layout: fixed;
+}
+#bug-report-table th:nth-child(1),
+#bug-report-table td:nth-child(1) {
+  width: 9.5rem; /* 日時 */
+}
+#bug-report-table th:nth-child(2),
+#bug-report-table td:nth-child(2) {
+  width: 12rem; /* 報告者 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#bug-report-table th:nth-child(4),
+#bug-report-table td:nth-child(4) {
+  width: 3.5rem; /* 詳細 */
+}
 #visit-log-more-btn {
   margin-top: 0.6rem;
   padding: 0.4rem 1rem;
