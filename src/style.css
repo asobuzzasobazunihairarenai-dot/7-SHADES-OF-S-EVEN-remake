@@ -8108,6 +8108,29 @@ body.diagnostic-flatten-3d .scene {
 body.diagnostic-flatten-3d * {
   transform-style: flat !important;
 }
+/* ちらつきの真因対策（続き247）。手札(.hand-area)・ラベル(.label)・背景(.table-background-bg)・
+   プレイマット(.playmat-bg)・アバター(.player-avatar)・手札公開エリア(.hand-reveal-area)・
+   ロックエリアバー(.lock-area-bar)・駒(.piece)に付けていた will-change: transform は、
+   すべて「3Dモード(preserve-3d)の深度バッファ精度によるz-fighting」対策として足したもの
+   （body.is-touch-device スコープ、上の935〜965行や3536行）。ところがflat/iso表示は
+   perspective:none＋全要素 transform-style:flat で深度バッファ自体が無い＝z-fightingは
+   原理的に起き得ないため、これらの will-change は無意味。それどころか、要素の数だけ
+   合成レイヤーを常時確保し、弱いGPU（古いiPhone等）のタイル/レイヤー上限を圧迫して、
+   ロックエリアバーの色が飛ぶ/一瞬透明になる等のちらつき（＝レイヤーのタイルが描けない
+   典型的な症状）の原因になっていた（実機の実測で、#245の駒デプロモーション・#246の盤面
+   純2D化でも残り、自分のロックバーまでちらつくと判明）。flat/iso時はこれらの will-change を
+   まとめて解除して合成レイヤー数を大幅に減らす。3Dモード（本編）は body.diagnostic-flatten-3d が
+   付かないので上の z-fighting 対策はそのまま温存される。 */
+body.diagnostic-flatten-3d .hand-area,
+body.diagnostic-flatten-3d .label,
+body.diagnostic-flatten-3d .table-background-bg,
+body.diagnostic-flatten-3d .playmat-bg,
+body.diagnostic-flatten-3d .player-avatar,
+body.diagnostic-flatten-3d .hand-reveal-area,
+body.diagnostic-flatten-3d .lock-area-bar,
+body.diagnostic-flatten-3d .piece {
+  will-change: auto !important;
+}
 /* ユーザー報告（続き63・続き64で再報告、PCでも発生）「2D表示の時、山札や捨て場の
    カード、駒などが見えない」の根本原因と対策。実機スクリーンショットで確認したところ、
    駒(.piece)・山(.stack)の「床+壁」の3D箱構築（壁は.piece-wall-*/.stack-front等、
