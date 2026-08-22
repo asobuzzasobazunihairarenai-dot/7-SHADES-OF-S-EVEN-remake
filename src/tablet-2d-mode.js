@@ -57,6 +57,28 @@ let iso25d = false;
   if (p === "1" || p === "0") localStorage.setItem(ISO_STORAGE_KEY, iso25d ? "1" : "0");
 }
 
+// 続き254（実験）: 弱い端末でのちらつき/クラッシュの原因究明。#161で ?iso=0&flat=1（素の2D、
+// 側面なし）でも「時折ちらつく」＋suspectedCrash が判明し、原因が2.5Dの側面でなく「重いシーンを
+// この古いGPU/メモリでレンダリングすること自体」だと切り分けられた。最大の容疑は大きく引き伸ばした
+// 背景画像（--table-background-scale 4.75×4.85）。?lite=1 で body.lite-render を付け、CSSで重い装飾を
+// 隠して、?flat=1 と ?flat=1&lite=1 を実機で見比べられるようにする（?flat=1と同じくlocalStorageに保存）。
+const LITE_STORAGE_KEY = "so7-lite-render";
+function liteUrlParam() {
+  try {
+    return new URLSearchParams(window.location.search).get("lite");
+  } catch (err) {
+    return null;
+  }
+}
+let liteRender = false;
+{
+  const p = liteUrlParam();
+  if (p === "1") liteRender = true;
+  else if (p === "0") liteRender = false;
+  else liteRender = localStorage.getItem(LITE_STORAGE_KEY) === "1";
+  if (p === "1" || p === "0") localStorage.setItem(LITE_STORAGE_KEY, liteRender ? "1" : "0");
+}
+
 let enabled = isFlatModeForcedByUrl() || iso25d || localStorage.getItem(STORAGE_KEY) === "1";
 // ?flat=1で開いた時は、次回以降このURLを付け直さなくても2D表示のままになるよう、
 // 通常の手動トグルと同じくlocalStorageにも書き込んでおく。iso有効時もフラットが前提。
@@ -82,6 +104,8 @@ function apply() {
   // 2.5D実験フラグ（iso有効時はフラットも必ずオン＝enabled優先）。本編には影響しない
   // よう、body.iso25d は ?iso=1 で明示された時だけ付く。
   document.body.classList.toggle("iso25d", iso25d && enabled);
+  // 続き254（実験）: 軽量描画（重い背景画像等をCSSで隠す）。?flat=1 と独立に付け外しできる。
+  document.body.classList.toggle("lite-render", liteRender);
   // ハマりどころ（続き250、重大・タブレット点滅の主因）: 上の module-load ブロックで
   // setContinuousGlowDisabled(true) を呼んでいるが、これは motion-prefs.js のモジュール変数を
   // 立てるだけ。CSSの手番グロー（.lock-area.is-turn-player 等の box-shadow/filter パルス、
@@ -111,7 +135,7 @@ function apply() {
 // 3D表示）では一切出ない。pointer-events:none で操作の邪魔もしない。
 function updateModeBadge() {
   let badge = document.getElementById("so7-render-mode-badge");
-  if (!enabled) {
+  if (!enabled && !liteRender) {
     if (badge) badge.remove();
     return;
   }
@@ -124,7 +148,8 @@ function updateModeBadge() {
       "padding:2px 6px;border-radius:4px;white-space:nowrap;";
     document.body.appendChild(badge);
   }
-  badge.textContent = iso25d ? "描画: 2.5D (iso)" : "描画: 2D (素・駒フラット)";
+  const base = !enabled ? "描画: 3D" : iso25d ? "描画: 2.5D (iso)" : "描画: 2D (素・駒フラット)";
+  badge.textContent = base + (liteRender ? " +軽量" : "");
 }
 
 apply();

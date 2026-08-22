@@ -8334,6 +8334,17 @@ body.iso25d .lock-area-bar-image {
   box-shadow: 0 calc(var(--iso-float-bar) + 2px) 14px rgba(0, 0, 0, 0.55);
 }
 
+/* 続き254（実験・軽量描画）: #161で ?iso=0&flat=1（素の2D、側面なし）でも「時折ちらつく」＋
+   suspectedCrash が判明し、ちらつきの原因が2.5Dの側面ではなく「重いシーンをこの古いGPU/メモリで
+   レンダリングすること自体」だと切り分けられた。最大の容疑＝大きく引き伸ばした背景画像
+   （.table-background-bg、--table-background-scale 4.75×4.85 の巨大テクスチャ）を、?lite=1
+   （body.lite-render, tablet-2d-mode.js）の時だけ隠す。実機で ?flat=1 と ?flat=1&lite=1 を見比べて、
+   背景画像がちらつき/クラッシュの主因かを判定する。プレイマット(.playmat-bg)は盤面の見た目に必要な
+   ので今回は残す（切り分けの変数を1つに絞る）。本編には影響しない（body.lite-render は ?lite=1 の時だけ付く）。 */
+body.lite-render .table-background-bg {
+  display: none !important;
+}
+
 .zone-bottom .player-avatar .avatar-image {
   width: var(--avatar-a-size);
   height: var(--avatar-a-size);
