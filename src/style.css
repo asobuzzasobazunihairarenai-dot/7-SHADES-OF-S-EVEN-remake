@@ -8240,9 +8240,13 @@ body.iso25d .piece-wall-left {
   display: none !important;
 }
 /* 手前の側面（上面の下辺から、下へ45°でせり出す）。
-   ※陰影は filter: brightness() ではなく inset box-shadow（半透明の黒を重ねる）で付ける。
-   iOS Safariでは filter＋背景画像が毎フレーム再ラスタライズを誘発し、新しい合成レイヤーを
-   作って周囲の要素のちらつきを引き起こすため（山札の側面が既に使っている手法・続き244）。 */
+   ※続き248: 側面を「最軽量の塗り」にする——スキン背景画像も inset box-shadow も filter も使わず、
+   単色の不透明 background-color だけにする。古いiPhoneのGPUでは、はみ出して隣のマス・ロックバーに
+   重なる側面の「画像デコード＆拡縮＋大きな影のブラー」の塗りが重く、盤面の頻繁な再描画のたびに
+   隣の要素がちらつく一因になっていた（#244〜#247で駒/盤面/周辺の合成レイヤーを一掃してもなお
+   残ったため、次の容疑＝側面そのものの塗りコストと重なり）。単色・不透明なら画像も影も無く塗りが
+   最小で、かつ不透明なので隣の要素とのブレンド（透過合成）も起きない。立体の陰影は「上面=明・
+   右側面=中・手前側面=暗」の3段の無地グレーで表現する。 */
 body.iso25d .piece-wall-front {
   display: block !important;
   top: 100%;
@@ -8252,10 +8256,12 @@ body.iso25d .piece-wall-front {
   height: var(--iso-piece-depth);
   transform-origin: top left;
   transform: skewX(45deg);
-  filter: none !important; /* ベースの3D陰影用filterを打ち消す（iOSの再描画暴走対策・続き244） */
-  box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.5);
+  background-image: none !important;
+  background-color: #2a2a30; /* 手前の側面: 暗い無地・不透明 */
+  filter: none !important;
+  box-shadow: none !important;
 }
-/* 右の側面（上面の右辺から、右へ45°でせり出す）。手前より明るめの陰影（同じくfilter不使用） */
+/* 右の側面（上面の右辺から、右へ45°でせり出す）。手前より明るめの無地。 */
 body.iso25d .piece-wall-right {
   display: block !important;
   top: 0;
@@ -8265,8 +8271,10 @@ body.iso25d .piece-wall-right {
   height: 100%;
   transform-origin: top left;
   transform: skewY(45deg);
-  filter: none !important; /* ベースの brightness(0.8) を打ち消す（iOSの再描画暴走対策・続き244） */
-  box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.28);
+  background-image: none !important;
+  background-color: #46464e; /* 右の側面: 中間の無地・不透明 */
+  filter: none !important;
+  box-shadow: none !important;
 }
 
 .zone-bottom .player-avatar .avatar-image {
