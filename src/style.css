@@ -8314,6 +8314,26 @@ body.iso25d .piece-wall-right {
   box-shadow: none !important;
 }
 
+/* 続き253（ちらつき原因究明の実験、ユーザー要望2026-08-23）: フラット合成では
+   プレイマット(.playmat-bg)・盤面カード(.board-card)・ロックエリアバー(.lock-area-bar)が
+   同一平面で重なっており、それが弱いGPUのちらつきの元かを切り分けるため、盤面カードと
+   ロックエリアバーをプレイマットから「浮かせた」見た目（上へ少しずらす＋落ち影）にする実験。
+   iso限定（body.iso25d）＝本編には一切影響しない。既存の transform（ロックの回転・位置調整）を
+   壊さないよう、独立した translate プロパティで持ち上げる（translateはtransformと合成される）。
+   浮かせ量は --iso-float-card / --iso-float-bar で調整可能。 */
+body.iso25d {
+  --iso-float-card: 6px;
+  --iso-float-bar: 10px;
+}
+body.iso25d .board-card {
+  translate: 0 calc(-1 * var(--iso-float-card));
+  box-shadow: 0 calc(var(--iso-float-card) + 3px) 12px rgba(0, 0, 0, 0.6) !important;
+}
+body.iso25d .lock-area-bar-image {
+  translate: 0 calc(-1 * var(--iso-float-bar));
+  box-shadow: 0 calc(var(--iso-float-bar) + 2px) 14px rgba(0, 0, 0, 0.55);
+}
+
 .zone-bottom .player-avatar .avatar-image {
   width: var(--avatar-a-size);
   height: var(--avatar-a-size);
