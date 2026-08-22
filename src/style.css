@@ -8189,11 +8189,13 @@ body.diagnostic-flatten-3d .piece-top {
 body.iso25d {
   --iso-piece-depth: calc(var(--piece-size) * 0.32);
 }
-/* 上面: フラットが付けた白いシール枠は消し、立体の側面に形を語らせる。上面を最前面に */
+/* 上面: フラットが付けた白いシール枠は消し、立体の側面に形を語らせる。
+   ※z-indexは付けない（側面は上面の“外側”＝下・右にしか出ず上面本体に重ならないので不要。
+   z-indexは新しい合成レイヤー/スタッキング文脈を作り、iOSの弱いGPUで周囲の要素＝ロックバー・
+   盤面カードのチカチカを誘発したため。続き244）。 */
 body.iso25d .piece-top {
   border: none !important;
   box-shadow: none !important;
-  z-index: 2;
 }
 /* 奥・左の面は見えないので確実に隠す（フラットの display:none を継ぐが、念のため明示）。
    これらは3D回転(rotateX)前提のtransformを持つため、iso(2D)で見せると縮退した破片になる。 */
@@ -8201,7 +8203,10 @@ body.iso25d .piece-wall-back,
 body.iso25d .piece-wall-left {
   display: none !important;
 }
-/* 手前の側面（上面の下辺から、下へ45°でせり出す） */
+/* 手前の側面（上面の下辺から、下へ45°でせり出す）。
+   ※陰影は filter: brightness() ではなく inset box-shadow（半透明の黒を重ねる）で付ける。
+   iOS Safariでは filter＋背景画像が毎フレーム再ラスタライズを誘発し、新しい合成レイヤーを
+   作って周囲の要素のちらつきを引き起こすため（山札の側面が既に使っている手法・続き244）。 */
 body.iso25d .piece-wall-front {
   display: block !important;
   top: 100%;
@@ -8211,10 +8216,10 @@ body.iso25d .piece-wall-front {
   height: var(--iso-piece-depth);
   transform-origin: top left;
   transform: skewX(45deg);
-  filter: brightness(0.5);
-  z-index: 1;
+  filter: none !important; /* ベースの3D陰影用filterを打ち消す（iOSの再描画暴走対策・続き244） */
+  box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.5);
 }
-/* 右の側面（上面の右辺から、右へ45°でせり出す） */
+/* 右の側面（上面の右辺から、右へ45°でせり出す）。手前より明るめの陰影（同じくfilter不使用） */
 body.iso25d .piece-wall-right {
   display: block !important;
   top: 0;
@@ -8224,8 +8229,8 @@ body.iso25d .piece-wall-right {
   height: 100%;
   transform-origin: top left;
   transform: skewY(45deg);
-  filter: brightness(0.72);
-  z-index: 1;
+  filter: none !important; /* ベースの brightness(0.8) を打ち消す（iOSの再描画暴走対策・続き244） */
+  box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.28);
 }
 
 .zone-bottom .player-avatar .avatar-image {
