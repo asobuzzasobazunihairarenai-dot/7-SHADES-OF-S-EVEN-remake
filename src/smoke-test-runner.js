@@ -244,8 +244,10 @@ async function runInAppSmokeTest(onLog, { runToCompletion = false, playerCount =
 async function runEffectTestsInApp(onLog, shouldStop) {
   let cases, runner;
   try {
-    cases = await import("/test/effect-cases.mjs");
-    runner = await import("/test/effect-runner.mjs");
+    // 相対パスで import する（GitHub Pages はサブパス /7-SHADES-…/ 配下配信のため、
+    // 絶対 /test/… だとサブパスが抜けて 404 になる。src/ から見て ../test/）。
+    cases = await import("../test/effect-cases.mjs");
+    runner = await import("../test/effect-runner.mjs");
   } catch (e) {
     onLog?.("❌ 効果テストの読み込みに失敗: " + (e && e.message ? e.message : String(e)));
     return { pass: 0, fail: 1, total: 1, failures: ["読み込み失敗: " + String(e)] };
@@ -1312,13 +1314,28 @@ export function openSmokeTestPanel() {
       addLog(`──── スモーク ${i}/${times}回目 ────`);
       const res = await runInAppSmokeTest(addLog, { runToCompletion: toCompletion, playerCount: pc });
       smokeResults.push(res);
-      addLog(`スモーク${i}回目: ${res.pass ? "✅PASS" : "❌FAIL"} — ${res.reason}`);
-      if (!res.pass && !firstSmokeFailure) firstSmokeFailure = res;
+      // 「時間切れ（進行は健全）」＝ pass しなかったが、エラー・不変条件違反・詰み(STALL)は無く、
+      // ただ壁時計に達っただけ（決着まで＋多人数だと throttling で1局が長い）。無人スイープでは
+      // これを本物のバグ（FAIL）と区別する。※詰み(STALL)は reason が「詰み…」になり、進行が
+      // 止まっていた証拠なので real failure 側に入る（「タイムアウト」reason は進行中だった証拠）。
+      const clean =
+        (res.errors?.length || 0) === 0 &&
+        (res.invariantViolations?.length || 0) === 0 &&
+        /タイムアウト/.test(res.reason || "");
+      const outcome = res.pass ? "✅PASS" : clean ? "⚠️時間切れ（進行は健全）" : "❌FAIL";
+      addLog(`スモーク${i}回目: ${outcome} — ${res.reason}`);
+      if (!res.pass && !clean && !firstSmokeFailure) firstSmokeFailure = res;
       await wait(600);
     }
     const smokePass = smokeResults.filter((r) => r.pass).length;
-    const smokeOk = smokeResults.length > 0 && smokePass === smokeResults.length;
-    summary.push(`スモーク ${smokePass}/${smokeResults.length}回${smokeOk ? " ✅" : " ❌"}`);
+    const smokeSlow = smokeResults.filter(
+      (r) => !r.pass && (r.errors?.length || 0) === 0 && (r.invariantViolations?.length || 0) === 0 && /タイムアウト/.test(r.reason || "")
+    ).length;
+    const smokeBug = smokeResults.length - smokePass - smokeSlow;
+    const smokeOk = smokeResults.length > 0 && smokeBug === 0; // 時間切れは「バグなし」扱いでスイープは通す
+    summary.push(
+      `スモーク ${smokePass}/${smokeResults.length}回${smokeBug ? " ❌" + smokeBug : smokeSlow ? " ⚠時間切れ" + smokeSlow : " ✅"}`
+    );
     if (firstSmokeFailure) {
       diagChunks.push("【自己対戦スモーク 失敗回】\n" + (await collectFullDiagnostics(firstSmokeFailure)));
     }

@@ -1,8 +1,10 @@
 // カード効果ユニットテストのブラウザ内ランナー（続き240で test/effects.mjs から分離）。
-// ブラウザ専用: /src の絶対パスを import するため Node から直接 import してはいけない
+// ブラウザ専用: /src を import するため Node から直接 import してはいけない
 // （Playwright の page.evaluate 内、またはアプリ内オールテストから import して使う）。
-import * as st from "/src/state.js";
-import * as eng from "/src/card-effect-engine.js";
+// 相対パスで import する（GitHub Pages はサブパス /7-SHADES-…/ 配下配信のため、絶対 /src/…
+// だとサブパスが抜けて 404 になる／アプリの singleton と別インスタンスになる。test/ から見て ../src/）。
+import * as st from "../src/state.js";
+import * as eng from "../src/card-effect-engine.js";
 
 // 1ケース分を実行して最終 state 等を返す（アサーションは effect-cases.js の checkExpect が行う）。
 export async function runOneCase(spec) {

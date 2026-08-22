@@ -16207,3 +16207,40 @@ CPU強化の第一歩として、CPUの意思決定パスに残っていた**唯
   が正しいラベル・`.smoke-test-all` クラス・`onclick` 関数付きで並ぶこと、既存8ボタンも揃っていることを確認。
   ③自己対戦スモークは既存の（検証済みの）`runInAppSmokeTest` をそのまま連続実行するだけ。サーバー側
   （Supabase）の変更は無い。開発専用（Playwright／`test/`）でデプロイには一切影響しない。
+
+### 2026-08-21（続き241）：オールテストの効果テストが本番で「読み込み失敗」する不具合を修正（絶対パス→相対パス）＋スモークの「時間切れ（進行は健全）」をFAILと区別
+
+ユーザーが本番（GitHub Pages）でオールテストを実行し、①効果テストが「読み込み失敗」②スモークが
+「タイムアウト（21ターン）」という2つの結果を報告した。
+
+- **①効果テストの「読み込み失敗」を修正（確定原因）**: エラーURLが
+  `https://…github.io/test/effect-cases.mjs`（404）で決定的だった。本番はリポジトリのサブパス
+  `…github.io/7-SHADES-OF-S-EVEN-remake/` 配下に配信されるのに、続き240で `runEffectTestsInApp`が
+  `import("/test/effect-cases.mjs")`と**絶対パス**で動的importしていたため、サブパス
+  `/7-SHADES-OF-S-EVEN-remake/`が抜け落ちて404になっていた（ローカルの `npx serve` はルート配信の
+  ため絶対でも通り、続き240のローカル検証をすり抜けた）。`src/smoke-test-runner.js`の
+  `../test/effect-cases.mjs`・`../test/effect-runner.mjs`、および `test/effect-runner.mjs`内部の
+  `../src/state.js`・`../src/card-effect-engine.js`を、いずれも**相対パス**に変更した（`/src/`基点から
+  `../test/`、`/test/`基点から`../src/`）。相対なら root配信でもサブパス配信でも正しく解決され、
+  かつ `../src/state.js`がアプリ本体と同一URL＝同一 singleton モジュールに解決される（別インスタンスに
+  ならない）。`test/effects.mjs`（Node版、ルートの http サーバーで走る）は `page.evaluate`内の
+  `import("/test/effect-runner.mjs")`のまま（ルートなので絶対で問題なし）で、内部の相対importも
+  ルートで正しく解決される（`node test/effects.mjs`は引き続き53/53 PASS）。
+- **②スモークの「タイムアウト（21ターン）」はバグではなく「4人＋決着まで」が長いだけ**: ログ精査の
+  結果、エラー0・不変条件違反0・詰み(STALL)も未発火で、21ターンまで健全に進行して壁時計に達しただけ
+  だった（途中の `diag-handeffect-busy-watchdog stuckMs:21599/34214`は試練の儀式が place→move→色宣言を
+  何度も繰り返して20〜34秒かかったもので、`result:true`で完了＝ハングではない）。疑似CPUは1手ごとに
+  約1秒待ち、バックグラウンドタブだとさらに遅くなるため、4人＋決着までの1局は制限時間内に終わらない。
+  無人スイープでこれを赤い「FAIL」で見せるのは誤解を招くため、`runAllTests`の③スモーク集計を
+  「pass／時間切れ（進行は健全）／本物のバグ」の3分類にし、**時間切れ（reasonが「タイムアウト」＝進行
+  していた証拠。詰みなら reason が「詰み…」になり STALL 側で real failure に入る／エラー・不変条件違反も
+  無い）はスイープの合否(allOk)に影響させない**（診断ボタン＝firstSmokeFailure も本物のバグの時だけ
+  出す）ようにした。サマリは `スモーク N/K回 ✅／⚠時間切れM／❌B` の形。
+- **検証**: `node --check`（smoke-test-runner/effect-runner）通過、`node test/effects.mjs`で53/53 PASS
+  （相対パス化後も同結果）。プレビューブラウザで、`/src/`基点から `../test/effect-cases.mjs`（53ケース）・
+  `../test/effect-runner.mjs`（内部の `../src/…`経由でアプリの singleton state を使い1ケース実走）が
+  正しく解決・実行されることを実測（本番サブパスでも同じ相対文字列で解決される）。ユーザー側で
+  本番デプロイ後に再度オールテストを実行して、効果テストが読み込めること（①）を確認してほしい。
+  ②はコード上のバグではないため、スイープを速く確実に回したい場合は「決着まで」のチェックを外して
+  「8ターン点検」で回す／人数を減らす／タブを前面にする、のいずれかを推奨（決着までの完走は
+  「🏁 決着まで実行」ボタンで、タブ前面のまま行うのが確実）。
