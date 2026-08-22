@@ -91,8 +91,31 @@ function apply() {
   // 上書きしたまま）居座ってしまっていた。resizeイベントを発火させて確実に
   // 再計算させる。
   window.dispatchEvent(new Event("resize"));
+  updateModeBadge();
   for (const fn of listeners) fn(enabled);
 }
+
+// 「今どの描画モードか」を画面左上に小さく表示する（続き243。ユーザーが ?iso=1 と ?flat=1 の
+// どちらが効いているか判別できず混乱したため）。フラット/iso が有効な時だけ出す＝本編（通常の
+// 3D表示）では一切出ない。pointer-events:none で操作の邪魔もしない。
+function updateModeBadge() {
+  let badge = document.getElementById("so7-render-mode-badge");
+  if (!enabled) {
+    if (badge) badge.remove();
+    return;
+  }
+  if (!badge) {
+    badge = document.createElement("div");
+    badge.id = "so7-render-mode-badge";
+    badge.style.cssText =
+      "position:fixed;left:4px;top:4px;z-index:2147483647;pointer-events:none;" +
+      "font:700 11px/1.2 monospace;color:#fff;background:rgba(0,0,0,0.62);" +
+      "padding:2px 6px;border-radius:4px;white-space:nowrap;";
+    document.body.appendChild(badge);
+  }
+  badge.textContent = iso25d ? "描画: 2.5D (iso)" : "描画: 2D (素・駒フラット)";
+}
+
 apply();
 
 export function isFlatten2dMode() {

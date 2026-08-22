@@ -192,6 +192,7 @@ import { initIconRearrange } from "./icon-rearrange.js";
 import { initSelfStatusRearrange } from "./self-status-rearrange.js";
 import { initInteractionModeToggle } from "./interaction-mode.js";
 import { initDeviceDetect, isTouchPrimaryDevice } from "./device-detect.js";
+import { initJankLogger } from "./jank-logger.js";
 import { initRankedNotify } from "./ranked-notify.js";
 import { initPushNotify, subscribeToPush } from "./push-notify.js";
 import { registerRecommendedViewHelper } from "./tablet-2d-warning.js";
@@ -13271,6 +13272,7 @@ initIconRearrange();
 initSelfStatusRearrange();
 initInteractionModeToggle();
 initDeviceDetect();
+initJankLogger(); // カクつき（重いフレーム）検知ログ（続き243。?jank=1/?iso=1/?flat=1/2D保存時のみ動く）
 initRankedNotify(); // ランク戦の「待機プレイヤーが現れたら通知」（設定ONの端末のみポーリング開始）
 // Web Push（続き198）: Service Workerを登録（許可が無くても無害）。既に通知許可済みの端末
 // （前回許可した戻りユーザー）は、この時点で購読し直して自席subscriptionを保存しておく
