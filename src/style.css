@@ -8176,6 +8176,58 @@ body.diagnostic-flatten-3d .piece-top {
   border: 2px solid rgba(255, 255, 255, 0.6);
   box-shadow: 0 0.15rem 0.3rem rgba(0, 0, 0, 0.6);
 }
+
+/* ===== 2.5D実験（続き242。ユーザー要望2026-08-22「駒/山が2D化するのは寂しい」）=====
+   本編には一切影響しない（body.iso25dは ?iso=1 で開いた時だけ付く。tablet-2d-mode.js）。
+   iso25dは必ずフラット表示(diagnostic-flatten-3d)と併用される＝perspective/preserve-3dを
+   使わない2D合成のまま（＝ちらつきの根本対応を維持したまま）、駒を「平らなシール」では
+   なく“高さのある立体トークン”に見せる。上面(.piece-top)は正方形のまま、手前
+   (.piece-wall-front)と右(.piece-wall-right)の2面だけを2Dのskew(45°)でキャビネット図法の
+   側面として描く（奥back・左leftは見えないので隠したまま）。3D回転(rotateX等)は一切使わない
+   ので合成負荷は増えない。skewの向き・奥行き(--iso-piece-depth)・陰影は後で調整可能。
+   ※まず「駒だけ」の試作（続き242）。良ければ山(.stack)・盤面の傾きへ広げる。 */
+body.iso25d {
+  --iso-piece-depth: calc(var(--piece-size) * 0.32);
+}
+/* 上面: フラットが付けた白いシール枠は消し、立体の側面に形を語らせる。上面を最前面に */
+body.iso25d .piece-top {
+  border: none !important;
+  box-shadow: none !important;
+  z-index: 2;
+}
+/* 奥・左の面は見えないので確実に隠す（フラットの display:none を継ぐが、念のため明示）。
+   これらは3D回転(rotateX)前提のtransformを持つため、iso(2D)で見せると縮退した破片になる。 */
+body.iso25d .piece-wall-back,
+body.iso25d .piece-wall-left {
+  display: none !important;
+}
+/* 手前の側面（上面の下辺から、下へ45°でせり出す） */
+body.iso25d .piece-wall-front {
+  display: block !important;
+  top: 100%;
+  left: 0;
+  bottom: auto;
+  width: 100%;
+  height: var(--iso-piece-depth);
+  transform-origin: top left;
+  transform: skewX(45deg);
+  filter: brightness(0.5);
+  z-index: 1;
+}
+/* 右の側面（上面の右辺から、右へ45°でせり出す） */
+body.iso25d .piece-wall-right {
+  display: block !important;
+  top: 0;
+  left: 100%;
+  right: auto;
+  width: var(--iso-piece-depth);
+  height: 100%;
+  transform-origin: top left;
+  transform: skewY(45deg);
+  filter: brightness(0.72);
+  z-index: 1;
+}
+
 .zone-bottom .player-avatar .avatar-image {
   width: var(--avatar-a-size);
   height: var(--avatar-a-size);

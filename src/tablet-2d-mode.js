@@ -33,10 +33,34 @@ function isFlatModeForcedByUrl() {
   }
 }
 
-let enabled = isFlatModeForcedByUrl() || localStorage.getItem(STORAGE_KEY) === "1";
+// 2.5D実験（続き242。ユーザー要望2026-08-22「駒/山が2D化するのは寂しい→2.5Dを試す。
+// ただし本編には影響しないように」）。フラット合成（perspective/preserve-3dを使わない＝
+// ちらつきの根本対応）の中で、駒・山を「上面＋側面2枚を2Dで描いた立体トークン」に
+// 見せる実験。本編（PCの3D・通常のフラット表示）には一切影響させないため、既定OFF・
+// `?iso=1` で開いた時だけ有効（localStorageに保存、`?iso=0`で解除）。2.5Dはフラット
+// 合成の中でしか意味がないので、iso有効時はフラット表示も自動的に有効化する。
+const ISO_STORAGE_KEY = "so7-iso25d";
+function isoUrlParam() {
+  try {
+    return new URLSearchParams(window.location.search).get("iso");
+  } catch (err) {
+    return null;
+  }
+}
+let iso25d = false;
+{
+  const p = isoUrlParam();
+  if (p === "1") iso25d = true;
+  else if (p === "0") iso25d = false;
+  else iso25d = localStorage.getItem(ISO_STORAGE_KEY) === "1";
+  // URLで明示された時は次回以降のために保存（?flat=1と同じ考え方）。
+  if (p === "1" || p === "0") localStorage.setItem(ISO_STORAGE_KEY, iso25d ? "1" : "0");
+}
+
+let enabled = isFlatModeForcedByUrl() || iso25d || localStorage.getItem(STORAGE_KEY) === "1";
 // ?flat=1で開いた時は、次回以降このURLを付け直さなくても2D表示のままになるよう、
-// 通常の手動トグルと同じくlocalStorageにも書き込んでおく。
-if (isFlatModeForcedByUrl()) localStorage.setItem(STORAGE_KEY, "1");
+// 通常の手動トグルと同じくlocalStorageにも書き込んでおく。iso有効時もフラットが前提。
+if (isFlatModeForcedByUrl() || iso25d) localStorage.setItem(STORAGE_KEY, "1");
 
 // ユーザー報告「2D表示は既にオンにしていたが、Firefoxを入れて試しても途中で画面の
 // 半分が壊れる」への対応。2D表示（perspective/preserve-3d）を切っても直らなかった
@@ -46,7 +70,7 @@ if (isFlatModeForcedByUrl()) localStorage.setItem(STORAGE_KEY, "1");
 // 減らす」3設定はセッション限りで持続しない仕様のため、`?flat=1`で開いた時は
 // まとめて有効化しておく（オプション画面の3つのチェックボックスを壊れた画面上で
 // 個別にタップしてもらう必要が無いようにするため）。
-if (isFlatModeForcedByUrl()) {
+if (isFlatModeForcedByUrl() || isoUrlParam() === "1") {
   setFlightAnimationDisabled(true);
   setArrivalEffectDisabled(true);
   setContinuousGlowDisabled(true);
@@ -55,6 +79,9 @@ const listeners = [];
 
 function apply() {
   document.body.classList.toggle("diagnostic-flatten-3d", enabled);
+  // 2.5D実験フラグ（iso有効時はフラットも必ずオン＝enabled優先）。本編には影響しない
+  // よう、body.iso25d は ?iso=1 で明示された時だけ付く。
+  document.body.classList.toggle("iso25d", iso25d && enabled);
   // ハマりどころ（重大、ユーザー報告「2Dから3Dに戻したら盤面の傾きが変な風になる」）:
   // .game-tableの実際のtransformはmain.jsのapplyNormalFit/applyBoardZoomFitが
   // table.style.transformへ直接書き込む（インラインスタイル）方式で、resizeイベント
@@ -75,6 +102,21 @@ export function isFlatten2dMode() {
 export function setFlatten2dMode(value) {
   enabled = !!value;
   localStorage.setItem(STORAGE_KEY, enabled ? "1" : "0");
+  apply();
+}
+
+// 2.5D実験（続き242）。iso有効時はフラットも必ずオンにする（2.5Dは2D合成の中でしか
+// 意味がないため）。setIso25dMode(false)ではフラット自体は変えない（フラットは別設定）。
+export function isIso25dMode() {
+  return iso25d && enabled;
+}
+export function setIso25dMode(value) {
+  iso25d = !!value;
+  localStorage.setItem(ISO_STORAGE_KEY, iso25d ? "1" : "0");
+  if (iso25d) {
+    enabled = true;
+    localStorage.setItem(STORAGE_KEY, "1");
+  }
   apply();
 }
 
