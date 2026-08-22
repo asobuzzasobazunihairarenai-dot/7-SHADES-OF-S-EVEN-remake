@@ -8177,24 +8177,41 @@ function measureHandFanExtent(table) {
 function getFlatTableAdjustments() {
   const style = getComputedStyle(document.documentElement);
   if (!document.body.classList.contains("diagnostic-flatten-3d")) {
-    return { tilt: style.getPropertyValue("--table-tilt").trim(), offsetX: "0rem", offsetY: "0rem", scaleMultiplier: 1 };
+    return { tilt: style.getPropertyValue("--table-tilt").trim(), offsetX: "0rem", offsetY: "0rem", scaleMultiplier: 1, flat: false };
   }
   return {
     tilt: style.getPropertyValue("--table-tilt-flat").trim() || "0deg",
     offsetX: style.getPropertyValue("--table-flat-offset-x").trim() || "0rem",
     offsetY: style.getPropertyValue("--table-flat-offset-y").trim() || "0rem",
     scaleMultiplier: parseFloat(style.getPropertyValue("--table-scale-flat")) || 1,
+    flat: true,
   };
+}
+
+// #game-tableの変形文字列を組み立てる（続き246）。
+// 3Dモード（本編）は従来通り rotateX(θ) + scale3d(s,s,s)。これはZ軸(駒の高さtranslateZ)も
+// 同率で縮小するために scale ではなく scale3d を使い、傾きは本物の3D回転(rotateX)。
+// flat/iso表示では純2Dの scale(s, s*cosθ) にする——rotateX/scale3d は3D変形関数で、
+// perspective:none 下でも #game-table を「3D合成レイヤー」にしてしまい、ピンチ（scale3dの
+// 倍率変化）でこの重い3Dレイヤーが再ラスタライズされて、はみ出した2.5D側面が重なる隣の
+// カード/ロックバーがちらつく一因になっていた（実機ログで「ピンチで明確にちらつく」と確認）。
+// rotateX(θ)はperspective:none下では縦をcos(θ)倍する直交投影なので、2Dの scale(s, s*cosθ)で
+// 見た目を完全に等価に再現でき、3D合成レイヤーを一切作らない。flatではZ軸の奥行き(translateZ)
+// 自体が無い（フラット化されている）ので scale3d は不要。
+function tableTransform(translatePart, tilt, s, flat) {
+  const head = translatePart ? `${translatePart} ` : "";
+  if (!flat) return `${head}rotateX(${tilt}) scale3d(${s}, ${s}, ${s})`;
+  const deg = parseFloat(tilt) || 0;
+  const cos = Math.cos((Math.abs(deg) * Math.PI) / 180);
+  return `${head}scale(${s}, ${s * cos})`;
 }
 
 function applyNormalFit() {
   const table = document.getElementById("game-table");
-  const { tilt, offsetX: flatOffsetX, offsetY: flatOffsetY, scaleMultiplier } = getFlatTableAdjustments();
-  // scale()は2軸(X/Y)しか縮小しないため、駒の高さ等のtranslateZ(奥行き)がそのまま残り、
-  // 画面を小さくするほど駒が奥行き方向にだけ間延びして見えるバグがあった。
-  // scale3d()でZ軸も同じ倍率にすることで、縮小しても駒の縦横比が保たれるようにする。
+  const { tilt, offsetX: flatOffsetX, offsetY: flatOffsetY, scaleMultiplier, flat } = getFlatTableAdjustments();
+  // 3Dモードは scale3d（Z軸=駒の高さtranslateZも同率縮小）、flat/isoは純2D scale（tableTransform参照）。
   table.style.transformOrigin = "";
-  table.style.transform = `rotateX(${tilt}) scale3d(1, 1, 1)`;
+  table.style.transform = tableTransform("", tilt, 1, flat);
   const rect = getEffectiveFitRect(table);
   // ステージ方式（画面の縦横比固定）導入により、テーブルが実際に収まるべき「キャンバス」は
   // 常に固定のSTAGE_WIDTH×STAGE_HEIGHT（bodyのローカル座標系）になった。実際のウィンドウ
@@ -8209,7 +8226,12 @@ function applyNormalFit() {
   let scale = Math.min(availW / rect.width, availH / rect.height, 1.15) * zoom * manualZoom * scaleMultiplier;
 
   const applyScale = (s) => {
-    table.style.transform = `translate(calc(${manualPanX}rem + ${flatOffsetX}), calc(var(--camera-offset-y) + ${manualPanY}rem + ${flatOffsetY})) rotateX(${tilt}) scale3d(${s}, ${s}, ${s})`;
+    table.style.transform = tableTransform(
+      `translate(calc(${manualPanX}rem + ${flatOffsetX}), calc(var(--camera-offset-y) + ${manualPanY}rem + ${flatOffsetY}))`,
+      tilt,
+      s,
+      flat,
+    );
   };
   applyScale(scale);
 
@@ -8308,9 +8330,9 @@ function applyNormalFit() {
 // 別のCSS変数（--board-zoom-{,2-}margin/offset-x/y）を持たせ、管理者モードから別々に調整できる。
 function applyBoardZoomFit(level) {
   const table = document.getElementById("game-table");
-  const { tilt, offsetX: flatOffsetX, offsetY: flatOffsetY, scaleMultiplier } = getFlatTableAdjustments();
+  const { tilt, offsetX: flatOffsetX, offsetY: flatOffsetY, scaleMultiplier, flat } = getFlatTableAdjustments();
   table.style.transformOrigin = "";
-  table.style.transform = `rotateX(${tilt}) scale3d(1, 1, 1)`;
+  table.style.transform = tableTransform("", tilt, 1, flat);
 
   const lockBottom = document.querySelector(".lock-bottom");
   const lockTop = document.querySelector(".lock-top");
@@ -8377,7 +8399,12 @@ function applyBoardZoomFit(level) {
   // 盤面拡大レベルごとのoffset-x/yとは独立に、常時一定量を追加でずらす（先に適用することで、
   // 拡大時のtranslateOriginや倍率計算には影響させない）。2D表示専用のパン
   // （--table-flat-offset-x/y、実質的な「カメラ視点位置」）も同様にここへ足す。
-  table.style.transform = `translate(calc(${manualPanX}rem + ${flatOffsetX}), calc(var(--camera-offset-y) + ${manualPanY}rem + ${flatOffsetY})) translate(${offsetX}, ${offsetY}) rotateX(${tilt}) scale3d(${scale}, ${scale}, ${scale})`;
+  table.style.transform = tableTransform(
+    `translate(calc(${manualPanX}rem + ${flatOffsetX}), calc(var(--camera-offset-y) + ${manualPanY}rem + ${flatOffsetY})) translate(${offsetX}, ${offsetY})`,
+    tilt,
+    scale,
+    flat,
+  );
   currentTableScale = scale;
 }
 
