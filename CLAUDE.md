@@ -16473,3 +16473,39 @@ CPU強化の第一歩として、CPUの意思決定パスに残っていた**唯
 読めるようにした。ブラウザで実測（9.6px→18.4px、スマホ24px、白い下地・濃い文字）確認。
 ※このバージョン表示は「タイトル画面の右下」に出る（左上の描画モードバッジ＝2.5D/2Dとは別物。
 ユーザーが「左上バッジの下？」と混乱したため補足）。
+
+### 2026-08-23（続き250）：タブレット点滅の主因＝flat/iso時に「常時光る演出（手番グロー）」が止まっていなかったバグを修正
+
+続き244〜248でflat/isoの合成レイヤー要因を潰しても、ユーザー（古いiPhone・`?iso=1`）の実機で
+ロックエリアバー・盤面カードのちらつきが残っていた。今回**決定的な切り分け**をもらえた——
+「**セットアップ中はチラつかない／CPUの手番中はチラつかない／自分（プレイヤー）の手番中だけ
+チラつく**」。共通点は「**ターンプレイヤーの常時光る演出**」（手番中に `.lock-area.is-turn-player`・
+`.piece.is-my-turn-glow`・`.player-avatar.is-turn-player`・`.label.is-turn-player` が
+`box-shadow`/`filter` を2.6秒周期で無限にパルスさせる）。jankログでも、自分の手番でアイドル待機中の
+1.5分間ずっと重いフレーム（46〜100ms）が出続けており、手番中に何かが常時repaintしていた。
+- **確定した根本原因**: `tablet-2d-mode.js` は `?iso=1`/`?flat=1` で
+  `setFlightAnimationDisabled(true)`・`setArrivalEffectDisabled(true)`・`setContinuousGlowDisabled(true)` を
+  呼んでいた。だが `setContinuousGlowDisabled(v)`（motion-prefs.js）は**モジュール変数を立てるだけ**で、
+  CSSの手番グローを実際に止める **`body.reduce-glow` クラスは付けない**。飛翔・到達演出は
+  `isFlightAnimationDisabled()`/`isArrivalEffectDisabled()` の getter を JS側が毎回参照するので効いて
+  いたが、**常時グローだけは `style.css` の `body.reduce-glow .…{ animation:none !important }` 頼み**で、
+  そのクラスは options-menu.js（オプションのチェックボックス）と online.js（ログイン済みの保存設定）
+  からしか付かない。つまり `?iso=1`/`?flat=1` では手番グローが一切止まっておらず、手番中ずっと
+  ロックエリア/駒/アバターの発光アニメが走り続け＝弱いGPUで重なった iso 側面ごと隣接要素を再合成
+  →ちらつき。セットアップ中（手番なし＝発光なし）・CPUの手番中（発光がC＝奥側）は該当要素が光らない
+  ので、ちらつかなかった、という報告の全てに一致する。
+- **修正**: `tablet-2d-mode.js` の `apply()` で、flat/iso有効時に `document.body.classList.add("reduce-glow")` を
+  実行（付けるだけ＝`toggle`で外さない。`reduce-glow` の基本状態は options-menu.js/online.js が管理して
+  おり、flat/iso を切った時に彼らの設定を勝手に消さないため）。これで手番グロー（`box-shadow`/`filter`
+  パルス）が止まり、手番中の常時repaintが無くなる。飛翔・到達演出の抑止（既に効いていた）はそのまま。
+- **検証**: ブラウザで、①`?iso=1` で `body.reduce-glow` が付き、`.lock-area.is-turn-player` と
+  `.piece.is-my-turn-glow .piece-face` の computed `animation-name` が両方 `none`（＝手番中の常時repaint
+  停止）になること、②素の3D（PC・localStorage クリア後の通常起動）では `reduce-glow`/`diagnostic-flatten-3d`/
+  `iso25d` がいずれも付かない＝本編は完全無変化（回帰なし）を実測確認。`node --check` 通過。**実機の
+  ちらつきが本当に消えるかはこの環境（デスクトップ）ではGPUちらつきを再現できないため未確認**——
+  これまでの #244〜#248（合成レイヤー要因の除去）＋今回の #250（手番中の常時アニメ停止）で、
+  「flat/iso表示中に常時GPUを叩く要因」をほぼ一掃したことになる。タブレットで `?iso=1` を開き、自分の
+  手番中のロックバー・カードのちらつきが解消したか確認をお願いしたい。もしこれでも残る場合は、
+  flat表示でも残る別の常時演出（`filter`/`mix-blend-mode` を使う演出、または大きな背景ペイント面）を
+  個別に潰す段階に進む。なお `?iso=0` は iso実験だけ解除で下地のフラット表示（`so7-2d-mode`）は残るため
+  `reduce-glow` も残る（フラット＝弱い端末なのでグロー減は望ましい、意図通り）。

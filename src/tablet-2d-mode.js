@@ -82,6 +82,17 @@ function apply() {
   // 2.5D実験フラグ（iso有効時はフラットも必ずオン＝enabled優先）。本編には影響しない
   // よう、body.iso25d は ?iso=1 で明示された時だけ付く。
   document.body.classList.toggle("iso25d", iso25d && enabled);
+  // ハマりどころ（続き250、重大・タブレット点滅の主因）: 上の module-load ブロックで
+  // setContinuousGlowDisabled(true) を呼んでいるが、これは motion-prefs.js のモジュール変数を
+  // 立てるだけ。CSSの手番グロー（.lock-area.is-turn-player 等の box-shadow/filter パルス、
+  // style.cssのbody.reduce-glow配下でanimation:noneにする）を止めるのは body.reduce-glow クラス
+  // であり、そのクラスは options-menu.js / online.js しか付けない。そのため ?iso=1/?flat=1 では
+  // 常時グローが止まっておらず、手番中ずっとロックエリア/駒の発光アニメが走り続け（＝弱いGPUで
+  // 隣接要素ごと再合成→ちらつき。ユーザー報告「セットアップ中=手番なしはちらつかない／自分の
+  // 手番中だけロックバー・駒の隣がちらつく」に一致）。flat/iso有効時はここでクラスも付ける。
+  // 「付けるだけ（toggleで外さない）」なのは、reduce-glow の基本状態を options-menu.js/online.js が
+  // 管理しており、flat/isoを切った時に彼らの設定を勝手に消さないため。
+  if (enabled) document.body.classList.add("reduce-glow");
   // ハマりどころ（重大、ユーザー報告「2Dから3Dに戻したら盤面の傾きが変な風になる」）:
   // .game-tableの実際のtransformはmain.jsのapplyNormalFit/applyBoardZoomFitが
   // table.style.transformへ直接書き込む（インラインスタイル）方式で、resizeイベント
