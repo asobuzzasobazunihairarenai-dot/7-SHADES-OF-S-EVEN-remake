@@ -16509,3 +16509,32 @@ CPU強化の第一歩として、CPUの意思決定パスに残っていた**唯
   flat表示でも残る別の常時演出（`filter`/`mix-blend-mode` を使う演出、または大きな背景ペイント面）を
   個別に潰す段階に進む。なお `?iso=0` は iso実験だけ解除で下地のフラット表示（`so7-2d-mode`）は残るため
   `reduce-glow` も残る（フラット＝弱い端末なのでグロー減は望ましい、意図通り）。
+
+### 2026-08-23（続き251）：タブレット点滅の残り＝移動後に付く「ターン終了ボタンの促しパルス」も止める
+
+#250（flat/iso時に `reduce-glow` を付けて手番グローを止める）で大きく前進し、ユーザー（古いiPhone・
+`?iso=1`）から**決定的な続報**：「**自分の手番で、ロック・ハンド・移動前まではチラつかない。駒を移動
+した後から始まる**」。#250でアイドル手番中のちらつき（手番グロー）は消えたが、**移動完了で付く
+`#end-turn-button.is-emphasized`**（到達効果処理後の「そろそろ終了してよい」という青いパルス、
+`updateEndTurnButton` が `should-emphasize:true` の時に付与）が `reduce-glow` の対象外で残っていた。
+- **原因**: この小さなボタン1つの `box-shadow` 無限パルスでも、弱いGPUではコンポジタが60fpsで回り
+  続け、シーン全体（重なった2.5D側面ごとロックバー・カード）を再合成し続ける→一部フレームで
+  重なり領域が描き落ちてちらつく。移動前は連続アニメが全て `reduce-glow` 済み（手番グロー・移動先
+  ハイライト等）＝コンポジタが止まる＝ちらつかない。移動後に is-emphasized が付いた瞬間から再開、
+  という報告に一致。
+- **修正**: `reduce-glow` に、ターン終了・タイマー警告の常時パルス一式を追加（`animation:none !important`）：
+  `#end-turn-button.is-emphasized`（青の促し）・`#end-turn-button.turn-timer-warning-glow` と
+  `#priority-transfer-buttons.turn-timer-warning-glow`（赤のタイムアウト警告）・`.turn-timer-warning`
+  （警告バッジ点滅）・`.turn-timer-base-clock.is-critical .icon-action-button-icon-wrap`（基本時間の
+  警告点滅）。emphasis・warning-glow は静的な `box-shadow` を残して「そろそろ終了してよい／警告」の
+  視覚的手がかりは維持（アニメーションだけ止める）。これで通常の対局中に走り得る連続アニメ
+  （手番グロー＝#250 ＋ ターン終了/タイマー警告＝#251 ＋ 既存の rope/移動ハイライト/効果ハイライト等）が
+  flat/iso 時に全て止まり、コンポジタの常時churnが無くなる。
+- **検証**: ブラウザで、①`?iso=1` で `#end-turn-button.is-emphasized`・`turn-timer-warning-glow`・
+  `.turn-timer-warning` の computed `animation-name` が全て `none`、②素の3D（PC）では `reduce-glow` が
+  付かず emphasis が従来通り `end-turn-emphasis-glow` でパルス＝本編の促し演出は無傷（回帰なし）、を
+  実測確認。CSSブレース平衡（2368）。**実機のちらつきが本当に消えるかはこの環境では未確認**——
+  タブレットで `?iso=1`、自分の手番で駒を移動した後もロックバー・カードがちらつかないか確認をお願い
+  したい。これでも残る場合は、flat表示でも残る別の連続アニメ（自動処理CPU戦では非表示のはずだが、
+  優先権譲渡パルス等）か、CSSアニメ以外の常時repaint（turn-timer.js の rope 幅の200ms書き換え・
+  base clock のテキスト更新等、JS駆動）を疑う段階に進む。

@@ -7311,6 +7311,28 @@ body.reduce-glow .turn-timer-rope-hourglass {
 body.reduce-glow .turn-timer-rope-name {
   text-shadow: none !important;
 }
+/* 続き251（タブレット点滅の残り）: ターン終了ボタン・タイマー警告の「常時パルス」も止める。
+   #250で手番グロー（.is-turn-player等）は止めたが、ユーザー報告「flat/iso で自分の手番中、
+   移動するまではチラつかない＝移動した後から始まる」で、移動完了時に付く
+   #end-turn-button.is-emphasized（青の「そろそろ終了してよい」促しパルス）が残っていたと判明。
+   弱いGPUでは、この小さなボタン1つの box-shadow の無限パルスでもコンポジタが回り続け、
+   重なった2.5D側面ごと隣接要素（ロックバー・カード）を再合成→ちらつく。タイムアウト警告
+   （turn-timer-warning-glow / turn-timer-warning-blink / 基本時間の is-critical 点滅）も同種の
+   常時パルスなので合わせて止める。静的な強調 box-shadow は残して「そろそろ終了してよい／警告」の
+   視覚的手がかりは維持する（アニメーションだけ止める）。 */
+body.reduce-glow #end-turn-button.is-emphasized {
+  animation: none !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), 0 0 0 0.2rem rgba(56, 189, 248, 0.7) !important;
+}
+body.reduce-glow #end-turn-button.turn-timer-warning-glow,
+body.reduce-glow #priority-transfer-buttons.turn-timer-warning-glow {
+  animation: none !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), 0 0 0 0.2rem rgba(239, 68, 68, 0.85) !important;
+}
+body.reduce-glow .turn-timer-warning,
+body.reduce-glow .turn-timer-base-clock.is-critical .icon-action-button-icon-wrap {
+  animation: none !important;
+}
 
 /* 自分専用の手札枚数ステータス。他のパネルと違う左下に置き、常時表示にする
    （state.turnPlayerの有無に関わらず、自分の手札は常に自分だけ見えていて良い情報のため）。 */
