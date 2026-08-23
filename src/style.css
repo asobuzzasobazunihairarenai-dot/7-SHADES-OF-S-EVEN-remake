@@ -8289,10 +8289,17 @@ body.iso25d .piece-wall-front {
   top: 100%;
   left: 0;
   bottom: auto;
-  width: 100%;
+  /* 続き255: skewX(45deg)（変形）→ clip-path（変形なしで同じ平行四辺形に切り抜く）に変更。
+     iOS Safari は transform（skew含む）を持つ要素を別レイヤーへ昇格させ、その別レイヤー同士の
+     3D的な重なりを合成し損ねてちらつく（＝ちらつきが特定要素に限定される理由）。clip-path は
+     paint時のクリップで別レイヤーを作らないため、側面が盤面/マスと同じ1枚のレイヤーに留まり、
+     見た目は同じクッキリした立方体のままちらつかなくなる（狙い）。形を skew と同じにするため、
+     ボックスを depth ぶん広げ（width = piece-size + depth）、平行四辺形に切り抜く。 */
+  width: calc(var(--piece-size) + var(--iso-piece-depth));
   height: var(--iso-piece-depth);
-  transform-origin: top left;
-  transform: skewX(45deg);
+  transform: none !important;
+  transform-origin: initial;
+  clip-path: polygon(0 0, calc(100% - var(--iso-piece-depth)) 0, 100% 100%, var(--iso-piece-depth) 100%);
   background-image: none !important;
   background-color: #2a2a30; /* 手前の側面: 暗い無地・不透明 */
   filter: none !important;
@@ -8304,35 +8311,25 @@ body.iso25d .piece-wall-right {
   top: 0;
   left: 100%;
   right: auto;
+  /* 続き255: skewY(45deg) → clip-path（同上）。ボックスを depth ぶん縦に広げ
+     （height = piece-size + depth）、平行四辺形に切り抜く。 */
   width: var(--iso-piece-depth);
-  height: 100%;
-  transform-origin: top left;
-  transform: skewY(45deg);
+  height: calc(var(--piece-size) + var(--iso-piece-depth));
+  transform: none !important;
+  transform-origin: initial;
+  clip-path: polygon(0 0, 100% var(--iso-piece-depth), 100% 100%, 0 calc(100% - var(--iso-piece-depth)));
   background-image: none !important;
   background-color: #46464e; /* 右の側面: 中間の無地・不透明 */
   filter: none !important;
   box-shadow: none !important;
 }
 
-/* 続き253（ちらつき原因究明の実験、ユーザー要望2026-08-23）: フラット合成では
-   プレイマット(.playmat-bg)・盤面カード(.board-card)・ロックエリアバー(.lock-area-bar)が
-   同一平面で重なっており、それが弱いGPUのちらつきの元かを切り分けるため、盤面カードと
-   ロックエリアバーをプレイマットから「浮かせた」見た目（上へ少しずらす＋落ち影）にする実験。
-   iso限定（body.iso25d）＝本編には一切影響しない。既存の transform（ロックの回転・位置調整）を
-   壊さないよう、独立した translate プロパティで持ち上げる（translateはtransformと合成される）。
-   浮かせ量は --iso-float-card / --iso-float-bar で調整可能。 */
-body.iso25d {
-  --iso-float-card: 6px;
-  --iso-float-bar: 10px;
-}
-body.iso25d .board-card {
-  translate: 0 calc(-1 * var(--iso-float-card));
-  box-shadow: 0 calc(var(--iso-float-card) + 3px) 12px rgba(0, 0, 0, 0.6) !important;
-}
-body.iso25d .lock-area-bar-image {
-  translate: 0 calc(-1 * var(--iso-float-bar));
-  box-shadow: 0 calc(var(--iso-float-bar) + 2px) 14px rgba(0, 0, 0, 0.55);
-}
+/* 続き255: #253（盤面カード・ロックバーを translate プロパティで「浮かせる」実験）は撤回した。
+   ユーザーの端末が iPhone 15 Pro Max（最上位の高性能機）と判明し、原因は「性能不足でシーンが重い」では
+   なく「iOS Safari が別レイヤー化した要素の3D的な重なりを合成し損ねる」バグ（＝ちらつきが特定要素に
+   限定される理由）だと切り分けられたため。translate プロパティはむしろ対象を別レイヤーへ昇格させて
+   ちらつきを増やす恐れがあるので削除。真因対策は「側面を別レイヤーにしない」（下の piece-wall を
+   skew→clip-path 化）。 */
 
 /* 続き254（実験・軽量描画）: #161で ?iso=0&flat=1（素の2D、側面なし）でも「時折ちらつく」＋
    suspectedCrash が判明し、ちらつきの原因が2.5Dの側面ではなく「重いシーンをこの古いGPU/メモリで
