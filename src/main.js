@@ -1187,7 +1187,7 @@ async function addArrivedCardToHand(location, player) {
 // 満たすために使う。これをawaitしないと、露出到達と直後のPLACE（種まきの手札選択）が並行して走り、
 // 種まきのピッカーが宙に浮く（手札が全部トーンオフのまま固着）不具合になっていた。他の呼び出し元は
 // 従来通り撃ちっぱなし（false）で挙動を変えない。
-async function moveAndSyncForEffect(tokenId, location, soundName, suppressArrival, awaitExposedArrival = false) {
+async function moveAndSyncForEffect(tokenId, location, soundName, suppressArrival, awaitExposedArrival = false, skipExposedArrival = false) {
   const movingToken = getState().tokens.find((t) => t.id === tokenId);
   const fromLocation = movingToken?.location ?? null;
   // #152: 露出到達コンボは「マスの“一番上”のカードがどいて別のカードが新しく一番上になった」
@@ -1226,7 +1226,12 @@ async function moveAndSyncForEffect(tokenId, location, soundName, suppressArriva
     moveToken(tokenId, location, suppressArrival);
   }
   if (soundName) playSound(soundName);
-  const exposedArrival = maybeTriggerCardArrivalForExposedCard(fromLocation, false, prevTopBeforeMove);
+  // #163: 呼び出し側が露出到達コンボを別途（明示的に順序制御して）発動する場合は、ここでの
+  // 自動発動を抑止する（例: マスチェンジ自身の回収時。回収の露出コンボでB(相手)の到達がA(発動者)
+  // より先に発動してしまうのを防ぎ、A→Bの処理順を保つため）。既定はfalse＝従来通り自動発動。
+  const exposedArrival = skipExposedArrival
+    ? Promise.resolve()
+    : maybeTriggerCardArrivalForExposedCard(fromLocation, false, prevTopBeforeMove);
   if (awaitExposedArrival) await exposedArrival;
   // 続き212: 飛翔演出が完全に終わってから呼び出し側（engine）の次アクションへ進めるようawaitする。
   if (landingSourceRect) await playCardCellLanding(landingSourceRect, location, tokenId);

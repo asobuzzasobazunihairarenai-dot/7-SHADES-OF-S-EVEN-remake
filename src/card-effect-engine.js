@@ -1250,16 +1250,30 @@ async function runAction(action, ctx, helpers) {
           ctx.cardId,
           `${helpers.getPlayerName(ctx.player)}と${helpers.getPlayerName(swapTargetPlayer)}は駒の位置を入れ替えました。`
         );
-      // ユーザー指定ルール2026-08-08（マスチェンジの入れ替えと到達効果）:
+      // #163（ユーザー指定2026-08-23）: マスチェンジ自身の回収は「入れ替えが終わった直後＝入れ替え
+      // 先の到達効果が発動する直前」に行う。従来はrunArrivalEffectの既定add-to-hand（全アクション後）で
+      // 回収していたため、発動者(A)の入れ替え先(target)の到達効果チェーンが全て終わってからようやく
+      // マスチェンジが手札へ吸われる＝順序が不自然だった。ここで先に回収する（cellから外れるので
+      // 既定add-to-handは自動でスキップされる）。回収の露出コンボは抑止し（skipExposedArrival）、
+      // B(相手)の入れ替え先(M=fromLoc)の到達は下のmassChangeStillOnBoard=false分岐で発動者ぶんの後に
+      // 明示的に発動させる＝A→Bの処理順（発動者→時計回り）を保つ。手札効果版はこの時点で既に捨て済み
+      // （zone!=="cell"）なので、この回収ブロックは自動的にスキップされる（到達版だけが対象）。
+      if (getState().tokens.find((t) => t.id === ctx.cardTokenId)?.location?.zone === "cell") {
+        const collected = getState().tokens.find((t) => t.id === ctx.cardTokenId);
+        const addedCardId = collected?.cardId;
+        const wasFaceUp = !!collected?.faceUp;
+        await helpers.moveAndSync(ctx.cardTokenId, { zone: "hand", player: ctx.player }, null, false, false, true);
+        helpers.announceCardAddedToHand?.(addedCardId, ctx.player, wasFaceUp);
+      }
+      // ユーザー指定ルール2026-08-08（マスチェンジの入れ替えと到達効果）＋#163（2026-08-23）:
       // ・入れ替えは「移動」ではないので裏向きカードは開かない（表向きの時だけ到達効果が発動）。
-      // ・発動者は入れ替わり先(target)の表向きカードの到達効果を得る。
-      // ・相手は入れ替わり先(M)の表向きカードの到達効果を得る。ただし到達版ではMの一番上は今
-      //   このマスチェンジ自身で、それ自体は再発動しない(処理順の都合で発動者側と二重発動しない)。
-      //   到達版はこの後の既定動作「このカードを手札に加える」でマスチェンジがMから外れ、その下の
-      //   表向きカードが露出した時にexposed-comboで相手ぶんが自動発動する。手札効果版はマスチェンジが
-      //   盤上に無い（発動時に捨て済み）ので、Mの表向きカードをここで相手ぶんとして発動する。
+      // ・マスチェンジ自身は上のブロックで既に回収済み（到達版・手札効果版とも盤上に無い）＝
+      //   massChangeStillOnBoard は false。
+      // ・発動者(A)は入れ替わり先(target)の表向きカードの到達効果を得る。
+      // ・相手(B)は入れ替わり先(M=fromLoc)の表向きカードの到達効果を得る（マスチェンジが回収されて
+      //   露出した、その下の表向きカード）。
       // ・入れ替えは同時なので両者の入れ替わり先に表向きカードがあれば両者発動。処理順は処理順の
-      //   原則（発動者→時計回り）に従うため、先に発動者(自分)ぶんを処理する。
+      //   原則（発動者→時計回り）に従うため、先に発動者(A)ぶんを処理してから相手(B)ぶんを処理する。
       await helpers.triggerArrivalAtIfFaceUp?.(target, ctx.player);
       const massChangeStillOnBoard =
         getState().tokens.find((t) => t.id === ctx.cardTokenId)?.location?.zone === "cell";
