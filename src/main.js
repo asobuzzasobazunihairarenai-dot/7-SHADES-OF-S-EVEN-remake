@@ -280,6 +280,7 @@ import {
   onRitualPickHoverEvents,
   broadcastRitualPickEnded,
   onRitualPickEndedEvents,
+  getGateInvasionStolenCardId,
   broadcastCardReceived,
   onCardReceivedEvents,
   broadcastHandEffectUse,
@@ -1657,13 +1658,15 @@ function closeRitualPickWatch() {
   // 開いた瞬間」に待機が解けてしまい、奪われる側のキューが先走る（ユーザー報告）。解除は
   // 「奪取が終わった合図(ended broadcast)」を受けた時だけ行う（onRitualPickEndedEvents参照）。
 }
-// options.overrides: {tokenId: cardId} — トークン本体のcardIdが（RLSで）見えない場合に
-// 表向き表示へ使うcardIdの上書き。ゲート侵攻の儀式で、既にattackerの手札へ移動してしまった
-// 「奪われたカード」を、奪われた本人にも表向きで見せるために使う（サーバーがdefenderへ
-// 渡したdefenderStolenCards由来）。options.title: 見出しの差し替え。
+// options.title: 見出しの差し替え。
+// カードの表向き表示は「自分のstateで見えるcardId」を第一に使い、（RLSで）見えない場合は
+// online.jsのローカルキャッシュ getGateInvasionStolenCardId から引く。#162（情報漏洩）修正で、
+// ゲート侵攻の儀式は以前 broadcast の overrides で奪ったカードの cardId を全員へ送っていた（漏洩）
+// のをやめた。奪われた本人は、既にattackerの手札へ移動してマスクされた「奪われたカード」も、
+// state_changed ハンドラが pre-hydrate state から解決してこのキャッシュに控えているため、
+// ネットワークに cardId を出さずに自分のカードだけを表向きで見られる。
 function openRitualPickWatch(order, options = {}) {
   closeRitualPickWatch();
-  const overrides = options.overrides || {};
   const tokensById = new Map(getState().tokens.filter((t) => t.kind === "card").map((t) => [t.id, t]));
   ritualPickWatchBackdrop = createBackdrop(() => {}, { dim: true, zIndex: 10619 });
   ritualPickWatchModal = document.createElement("div");
@@ -1676,7 +1679,7 @@ function openRitualPickWatch(order, options = {}) {
   cardsWrap.className = "sleight-ritual-cards";
   ritualPickWatchCardEls = order.map((tokenId) => {
     const token = tokensById.get(tokenId);
-    const cardId = token?.cardId ?? overrides[tokenId] ?? null;
+    const cardId = token?.cardId ?? getGateInvasionStolenCardId(tokenId) ?? null;
     const cardEl = document.createElement("div");
     cardEl.className = "sleight-ritual-card";
     cardEl.dataset.tokenId = tokenId;
@@ -1722,9 +1725,9 @@ function revealRitualPickWatchResult(pickedTokenId) {
   clearTimeout(ritualPickWatchRevealTimer);
   ritualPickWatchRevealTimer = setTimeout(() => closeRitualPickWatch(), 1600);
 }
-onRitualPickStartedEvents(({ targetPlayer, order, overrides, title }) => {
+onRitualPickStartedEvents(({ targetPlayer, order, title }) => {
   if (getSelfSeat() !== targetPlayer) return;
-  openRitualPickWatch(order, { overrides, title });
+  openRitualPickWatch(order, { title });
 });
 onRitualPickHoverEvents(({ targetPlayer, index }) => {
   if (getSelfSeat() !== targetPlayer) return;
@@ -6884,20 +6887,22 @@ async function playGateInvasionStealRitual(info, onDone) {
       return;
     }
     // 奪取前の手札 = 相手の残り手札(自分にはcardId非公開＝裏) ＋ 奪ったカード(自分の手札に来て
-    // いるのでcardIdが見える)。奪ったカードは表向きにめくれるよう、cardIdをoverridesで相手へも渡す。
+    // いるのでcardIdが見える)。
     const remaining = getState().tokens.filter(
       (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === defender
     );
-    const overrides = {};
-    for (const t of stolenTokens) if (t.cardId) overrides[t.id] = t.cardId;
+    // #162（情報漏洩）修正: 以前はここで overrides = {tokenId: cardId} を作り broadcast に載せて
+    // いたが、それは奪ったカードの中身を全チャンネル購読者（観戦者・無関係な3/4人目含む）へ
+    // 送っていた＝秘匿すべきカードの漏洩だった。cardId は一切ブロードキャストしない。奪われる側は
+    // 自分の手札の cardId を online.js のローカルキャッシュ（state_changed で pre-hydrate state から
+    // 解決済み）から自力で引く（openRitualPickWatch 参照）。
     const order = [...remaining.map((t) => t.id), ...stolenTokens.map((t) => t.id)].sort(() => Math.random() - 0.5);
     const orderIndexOf = (tokenId) => order.indexOf(tokenId);
 
-    // 奪われる側の実況（表向き＋ホバー）を開始。
+    // 奪われる側の実況（表向き＋ホバー）を開始。cardId は載せない（tokenId の並び順のみ）。
     broadcastRitualPickStarted({
       targetPlayer: defender,
       order,
-      overrides,
       title: `${getPlayerName(attacker)}があなたの手札から${stolenTokens.length}枚を奪います…`,
     });
 

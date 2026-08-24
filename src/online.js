@@ -390,6 +390,20 @@ export function broadcastRitualPickEnded(payload) {
   }
 }
 
+// #162（オンラインの情報漏洩）修正のためのローカルキャッシュ（tokenId → cardId）。
+// 以前は攻撃側が broadcastRitualPickStarted の overrides に「奪ったカードの実 cardId」を入れて
+// 共有チャンネル game:${gameId}（＝両プレイヤーだけでなく観戦者・無関係な3/4人目も購読）へ
+// 送っており、秘匿すべき奪われたカードの中身が全クライアントへ漏れていた（表示は防御側だけに
+// 絞られていたが、payload 自体は届いていた＝websocketフレームを見れば分かる）。
+// 攻撃側は cardId を一切ブロードキャストせず（overrides 廃止）、奪われる側は下の state_changed
+// ハンドラで pre-hydrate state（＝カードがまだ自分の手札にあり cardId が見える段階）から解決した
+// 「自分のカード」cardId をここに保持しておき、openRitualPickWatch がここから引く。自分のカードの
+// 中身を自分が知るのは正当で、この解決はローカルのみ＝ネットワークには一切出さない。
+let gateInvasionStolenCardMap = {};
+export function getGateInvasionStolenCardId(tokenId) {
+  return gateInvasionStolenCardMap[tokenId] ?? null;
+}
+
 // ユーザー要望「スリカエなどで渡されたカードは何が渡されたのか大きくモーダルで
 // 表示してわかるようにしてほしい」。渡す側（player）のクライアントで実行される
 // main.jsのswapHandCardWithOpponentForEffectが、受け取る側（targetPlayer）自身の
@@ -2954,10 +2968,13 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
         const preHydrateState = getState();
         for (const ev of payload.gateInvasionEvents) {
           if (currentSeat && ev.defender === currentSeat && (ev.stolenTokenIds ?? []).length) {
-            ev.defenderStolenCards = ev.stolenTokenIds.map((tid) => ({
-              tokenId: tid,
-              cardId: preHydrateState.tokens.find((t) => t.id === tid)?.cardId ?? null,
-            }));
+            ev.defenderStolenCards = ev.stolenTokenIds.map((tid) => {
+              const cardId = preHydrateState.tokens.find((t) => t.id === tid)?.cardId ?? null;
+              // #162: 奪取儀式の表向き表示用にもローカル保持する（cardId は fetchAndHydrate 後に
+              // 攻撃側の手札へ移って自分にはマスクされるため、今のうちに控えておく）。
+              if (cardId) gateInvasionStolenCardMap[tid] = cardId;
+              return { tokenId: tid, cardId };
+            });
           }
         }
         // 続き75診断ログ: ユーザー報告「ゲート侵攻成功時の手札奪う演出、エターナル

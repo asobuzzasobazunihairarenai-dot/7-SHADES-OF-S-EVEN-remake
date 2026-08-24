@@ -16670,3 +16670,44 @@ URLが `?iso=0` になっていた取り違えと判断）。かつユーザー�
   入れ替え完了直後＝入れ替え先の到達効果が発動する直前であるべき」（到達効果の順序の細かい仕様）、
   #162「ゲート侵攻で奪ったカードが他プレイヤーに公開されている疑い」（オンラインの情報漏洩、
   `gate-invasion-modal.js`の奪う演出のブロードキャストを要確認）。いずれも次のラウンドで対応する。
+
+### 2026-08-24（続き257）：#162 ゲート侵攻で奪ったカードの中身が全クライアントに漏れていた情報漏洩を修正
+
+ユーザー報告#162「ゲート侵攻で奪ったカードが他のプレイヤーに公開されてそう」を調査（サブエージェントで
+`gate-invasion.js`/`gate-invasion-modal.js`/`online.js`/`main.js`/`state.js`のデータフローを全追跡）し、
+**実際に漏洩していた**ことを確定・修正した。
+- **漏洩経路（確定）**: オンラインのゲート侵攻の「奪う儀式演出」`playGateInvasionStealRitual`（main.js）が、
+  攻撃側の画面で `broadcastRitualPickStarted` を送る際に `overrides = {tokenId: 実cardId}`（＝今まさに奪った
+  秘匿カードの中身）を payload に載せていた。このブロードキャストは共有チャンネル `game:${gameId}` へ送られ、
+  **両プレイヤーだけでなく観戦者・無関係な3/4人目も購読している**（online.js の subscribe）。表示は
+  `getSelfSeat() !== targetPlayer` で防御側だけに絞られていたが、**payload 自体は全クライアントに届いていた**
+  ＝websocketフレームを見れば奪われたカードの中身が誰にでも分かる状態だった。
+- **安全だった経路（変更不要）**: サーバー(so7-apply-action.ts)の `state_changed` が運ぶ `gateInvasionEvents` は
+  `stolenTokenIds`（tokenIdのみ・cardId無し）で、防御側だけが `state_changed` ハンドラ（online.js:2954-2961）で
+  **自分のpre-hydrate state**（＝奪われたカードがまだ自分の手札にあり cardId が見える段階）から
+  `defenderStolenCards` として cardId を**ローカル解決**していた（ネットワークには出さない）。state.js の
+  `GATE_INVASION_STEAL_HAND` reducer の faceUp もオンラインのマスキングには無関係（cardId/faceUp は
+  hydrate 時に `so7_game_tokens_visible` の RLS ビューが権威）＝この経路は元から秘匿されていた。
+- **修正**: 上記の「防御側は自分の奪われたカードを自力解決できる」仕組みを儀式演出でも使い、cardId の
+  ブロードキャストを廃止した。(1) online.js に `state_changed` ハンドラで解決済みの cardId を保持する
+  ローカルキャッシュ `gateInvasionStolenCardMap`（tokenId→cardId）＋ getter `getGateInvasionStolenCardId` を
+  新設（`defenderStolenCards` 計算時に同時に populate）。(2) main.js `playGateInvasionStealRitual` の
+  `broadcastRitualPickStarted` から `overrides` を完全に削除（tokenId の並び順 `order` と見出し `title` のみ送る）。
+  (3) main.js `openRitualPickWatch` のカード表向き解決を `token?.cardId ?? overrides[tokenId]` から
+  `token?.cardId ?? getGateInvasionStolenCardId(tokenId)` に変更（防御側は自分の state で見える分＋
+  マスク済みの奪われた分はローカルキャッシュから引く＝cardId をネットワークに一切出さずに自分のカードだけ
+  表向きで見られる）。`onRitualPickStartedEvents` ハンドラの `overrides` 分割代入も撤去。
+- **タイミングの担保**: サーバーの `state_changed`（gateInvasionEvents 付き）は、攻撃側が儀式を開始して
+  `ritual_pick_started` を送るより必ず前に届く（攻撃側は自分の `state_changed` エコーを受けて gate-invasion-modal の
+  キューを処理してから儀式を開始するため）。よって防御側では `ritual_pick_started` が届く時点で
+  `gateInvasionStolenCardMap` は既に populate 済み。万一 `state_changed` を取りこぼした場合はキャッシュが空＝
+  奪われたカードが裏向き表示になるだけ（＝より安全側に劣化・機能は壊れない）。
+- **スリカエ/接触の奪取（別経路）は元から安全**: `broadcastRitualPickStarted` の他の2呼び出し（main.js:1499・2111）は
+  `overrides` を送っておらず、これらは奪う前で防御側の手札にカードがまだ在る＝防御側の自 state で cardId が
+  見える＝自力解決できるため。今回の変更の影響を受けない。
+- **検証**: `node --check`（main.js/online.js）通過、ブラウザでアプリ正常ロード（game-table 49マス構築＝
+  main.js が新 import `getGateInvasionStolenCardId` を含め全て解決して実行、新規JSエラー無し）、コード上
+  `overrides` の live 参照がゼロ（残りは全てコメント）を確認。実際の2〜4人オンライン対戦での漏洩解消
+  （観戦者/無関係プレイヤーの websocket に cardId が乗らない・防御側だけ奪われたカードを表向きで見られる）は
+  この環境では再現できないため、実機での確認をお願いしたい。**サーバー側（Supabase/Edge Function）の変更は無い**
+  （純粋なクライアント側の修正）。
