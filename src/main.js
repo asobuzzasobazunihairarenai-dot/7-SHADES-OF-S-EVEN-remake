@@ -5131,8 +5131,12 @@ function confirmTouchAction(title, { cardId = null } = {}) {
 // 常に表示する（続き89、カウンターロックの「あなたの手札を1枚ロックしてもよい」用に新設）。
 function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ", owner = null, cardId = null, cpuAutoResolveId = null } = {}) {
   return new Promise((resolve) => {
+    let done = false;
     let blockerCheckTimer = null;
     const finish = (result) => {
+      // 二重発火（下のpointerdown＋click、またはdocument captureとの重複）を無害化する。
+      if (done) return;
+      done = true;
       activeEffectPicker = null;
       if (blockerCheckTimer) clearInterval(blockerCheckTimer);
       backdrop.remove();
@@ -5154,11 +5158,28 @@ function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ"
     yesBtn.className = "contact-approval-approve";
     yesBtn.type = "button";
     yesBtn.textContent = `✅ ${yesLabel}`;
-    yesBtn.addEventListener("click", () => finish(true));
     const noBtn = document.createElement("button");
     noBtn.className = "contact-approval-reject";
     noBtn.type = "button";
     noBtn.textContent = `🚫 ${noLabel}`;
+    // 最終防衛（ユーザー報告2026-08-24、iPhone 15 Pro Max・CPU戦「カウンターロックの
+    // 『ロックしますか？』でボタンをタップしてもハイライトはされるが何も起きない」の再々発）:
+    // click にも document capture（3487行の pointerdown 割り込み）にも頼らず、ボタンに直接
+    // pointerdown を付けて解決する。「タップでハイライトされる」＝touch（pointerdown）は確実に
+    // ボタンへ届いている証拠なので、この直付け pointerdown は必ず発火する（iOSで click が
+    // 生成されない/握り潰される事例でも解決できる）。finish は done ガード付きで二重発火に耐える。
+    // touchstart も併記（一部の iOS/WebKit で pointerdown が来ないケースの保険。どれか1つ来れば良い）。
+    const answer = (result) => (ev) => {
+      // 直後の合成 click や document capture との二重処理を避けるため、既定動作を止める。
+      if (ev.cancelable) ev.preventDefault();
+      ev.stopPropagation();
+      finish(result);
+    };
+    yesBtn.addEventListener("pointerdown", answer(true));
+    noBtn.addEventListener("pointerdown", answer(false));
+    yesBtn.addEventListener("touchstart", answer(true), { passive: false });
+    noBtn.addEventListener("touchstart", answer(false), { passive: false });
+    yesBtn.addEventListener("click", () => finish(true));
     noBtn.addEventListener("click", () => finish(false));
     buttons.appendChild(yesBtn);
     buttons.appendChild(noBtn);
