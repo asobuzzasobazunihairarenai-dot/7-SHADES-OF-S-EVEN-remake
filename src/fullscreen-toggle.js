@@ -44,12 +44,39 @@ export function isFullscreenSupported() {
   return !!(el.requestFullscreen || el.webkitRequestFullscreen);
 }
 
+// ユーザー要望2026-08-24「スマホ/タブレットで起動時に横向き警告が出るが、そもそも横向き固定に
+// できないか」。Web からOSの回転ロックは解除できないが、全画面表示中は Screen Orientation API の
+// lock('landscape') で横向きに固定できる（Android Chrome 等で有効）。iOS Safari は lock() 非対応の
+// ため何も起きない＝安全にno-op（そちらは manifest.json の "orientation":"landscape" ＋ ホーム画面に
+// 追加したPWAで横向き起動になる／通常タブは横向き警告オーバーレイのまま）。失敗は握りつぶす。
+function tryLockLandscape() {
+  try {
+    const o = window.screen && window.screen.orientation;
+    if (o && typeof o.lock === "function") {
+      const p = o.lock("landscape");
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    }
+  } catch (e) {
+    /* 未対応・全画面外など。何もしない。 */
+  }
+}
+function tryUnlockOrientation() {
+  try {
+    if (window.screen && window.screen.orientation && typeof window.screen.orientation.unlock === "function") {
+      window.screen.orientation.unlock();
+    }
+  } catch (e) {}
+}
+
 // 全画面状態が変わった時に外部（オプションメニューのトグル表示等）へ通知する。
 const listeners = new Set();
 export function onFullscreenChange(fn) {
   listeners.add(fn);
 }
 function notify() {
+  // 全画面に入ったら横向きロックを試み、出たら解除する（上記参照）。
+  if (isFullscreenActive()) tryLockLandscape();
+  else tryUnlockOrientation();
   for (const fn of listeners) {
     try {
       fn(isFullscreenActive());

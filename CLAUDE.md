@@ -16748,3 +16748,33 @@ URLが `?iso=0` になっていた取り違えと判断）。かつユーザー�
   マスチェンジが A の手札に入る・駒が入れ替わる、は不変）、ブラウザでアプリ正常ロード（新規JSエラー無し）。
   到達効果チェーンの実際の順序（回収→A の到達→B の到達）は DOM/チェーン依存で headless では決定的に
   再現しづらいため（#152/#232 と同じ方針）、実機での確認をお願いしたい。サーバー側（Supabase）の変更は無い。
+
+### 2026-08-24（続き259）：対戦終了モーダルのライト時の可読性を修正 ＋ 横向き固定（全画面時の向きロック＋PWA landscape）
+
+ユーザー報告2件への対応。
+- **対戦終了モーダルの文字が見にくい（ライト配色時、修正）**: スクショは CPU戦終了パネル
+  （`post-game-panel.js` の `showCpuBattleEndPanel`）。#5/#168 でパネルの背景・枠・タイトル色は
+  `postGamePanelSkinCss()` でライト対応済みだったが、**サブ文字（"CPU戦（1人用）"、`color:#94a3b8`）・
+  二次ボタン（盤面を見る＝薄い水色地に `#e2e8f0`＝ほぼ白文字／ホームに戻る＝ほぼ透明白地に白文字）・
+  入力欄**が dark 決め打ちのままで、ライトパネル上ではほぼ見えなかった（near-white on near-white）。
+  新設 `postGamePanelTokens()`（ライト/ダークで sub 文字・二次ボタン背景/枠/文字・入力欄の配色を出し分ける）
+  を追加し、`showCpuBattleEndPanel`（サブ・盤面を見る・ホームに戻る）と、オンライン版の
+  `buildButtonsSection`（待機ラベル・盤面を確認する・この部屋を出る）・`buildCommentSection`
+  （入力欄・パス）に適用した。プライマリボタン（もう一度戦う＝緑・登録する＝桃・戦績を確認＝青）は
+  ソリッド地＋白文字でどちらのテーマでも読めるため据え置き。ブラウザで、ライト
+  （`theme-light-ingame`）時にサブ文字 slate-600・盤面を見る sky-900・ホームに戻る slate-800＝全て
+  dark-on-light で可読、ダーク（既定）時は従来の色（#94a3b8／#e2e8f0／`rgba(255,255,255,0.08)`）のまま
+  ＝回帰なし、を実測確認。
+- **横向き固定にできないか（改善）**: Web からOSの回転ロック自体は解除・強制できない（＝縦向き時の
+  横向き案内オーバーレイ `#rotate-device-overlay` は残す）が、以下2点で「横向き固定」に近づけた。
+  (1) `manifest.json` の `"orientation"` を `"any"`→`"landscape"` に変更＝**ホーム画面に追加したPWA**は
+  横向き起動になる（Android で確実、iOS のインストール済みPWAも概ね尊重。通常のブラウザタブは manifest の
+  orientation を無視するので無害）。(2) `fullscreen-toggle.js` で、全画面に入った時に
+  `screen.orientation.lock("landscape")` を試みる（`fullscreenchange` の notify で入＝lock／出＝unlock）。
+  これは**全画面時のみ・Android Chrome 等で有効**、iOS Safari は `lock()` 非対応で何も起きない＝安全に
+  no-op（失敗は握りつぶす）。`node --check`（fullscreen-toggle.js/post-game-panel.js）・manifest.json の
+  JSON parse 通過、アプリ正常ロード（新規JSエラー無し）。実機の向きロック挙動（Android 全画面／
+  PWAの横向き起動）はこの環境（デスクトップ）では確認できないため、実機での確認をお願いしたい。
+- あわせて、ホーム画面の「お知らせ／更新情報」（`changelog.js`）にプレイヤー向けの2026-08-24エントリを
+  追記した（対戦終了モーダルの可読性・横向き固定・#162情報漏洩・#164確認ボタン・#163マスチェンジ）。
+- **サーバー側（Supabase/Edge Function）の変更は無い**。

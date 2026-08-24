@@ -145,6 +145,7 @@ function closePanel() {
 }
 
 function buildButtonsSection(gameId) {
+  const t = postGamePanelTokens();
   const col = document.createElement("div");
 
   const row = document.createElement("div");
@@ -173,7 +174,7 @@ function buildButtonsSection(gameId) {
   `;
 
   const waitingLabel = document.createElement("div");
-  waitingLabel.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-top: 0.5rem; display: none;";
+  waitingLabel.style.cssText = `font-size: 0.75rem; color: ${t.sub}; margin-top: 0.5rem; display: none;`;
   waitingLabel.textContent = "他の参加者を待っています…（誰かが部屋を抜けたらその人数で再開します）";
 
   rematchBtn.addEventListener("click", async () => {
@@ -205,9 +206,9 @@ function buildButtonsSection(gameId) {
   boardBtn.type = "button";
   boardBtn.textContent = "盤面を確認する";
   boardBtn.style.cssText = `
-    padding: 0.5rem 1rem; background: rgba(56, 189, 248, 0.18);
-    border: 1px solid rgba(56, 189, 248, 0.6); border-radius: 0.3rem;
-    color: #e2e8f0; cursor: pointer; font-size: 0.85rem;
+    padding: 0.5rem 1rem; background: ${t.infoBg};
+    border: 1px solid ${t.infoBorder}; border-radius: 0.3rem;
+    color: ${t.infoText}; cursor: pointer; font-size: 0.85rem;
   `;
   boardBtn.addEventListener("click", () => {
     showMinimizeNoticeThenMinimize();
@@ -220,9 +221,9 @@ function buildButtonsSection(gameId) {
   leaveBtn.type = "button";
   leaveBtn.textContent = "この部屋を出る";
   leaveBtn.style.cssText = `
-    padding: 0.5rem 1rem; background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 0.3rem;
-    color: #e2e8f0; cursor: pointer; font-size: 0.85rem;
+    padding: 0.5rem 1rem; background: ${t.secBg};
+    border: 1px solid ${t.secBorder}; border-radius: 0.3rem;
+    color: ${t.secText}; cursor: pointer; font-size: 0.85rem;
   `;
   leaveBtn.addEventListener("click", () => {
     leaveGame();
@@ -259,6 +260,7 @@ function waitForMatchId(getter, timeoutMs = 8000) {
 // 全参加者共通のコメント入力欄（案①：勝者・敗者を区別せず全員がコメントできる）。
 // onFinish(comment)には入力文字列（パス時は空文字）が渡る。
 function buildCommentSection(onFinish) {
+  const t = postGamePanelTokens();
   const wrap = document.createElement("div");
 
   const label = document.createElement("div");
@@ -270,8 +272,8 @@ function buildCommentSection(onFinish) {
   textarea.rows = 3;
   textarea.placeholder = "感想やハイライトなど（空欄でもOK）";
   textarea.style.cssText = `
-    width: 100%; box-sizing: border-box; padding: 0.5rem; background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 0.3rem; color: #e2e8f0;
+    width: 100%; box-sizing: border-box; padding: 0.5rem; background: ${t.fieldBg};
+    border: 1px solid ${t.fieldBorder}; border-radius: 0.3rem; color: ${t.fieldText};
     font-size: 0.85rem; resize: vertical; font-family: sans-serif;
   `;
   wrap.appendChild(textarea);
@@ -291,9 +293,9 @@ function buildCommentSection(onFinish) {
   passBtn.type = "button";
   passBtn.textContent = "パス";
   passBtn.style.cssText = `
-    padding: 0.4rem 0.9rem; background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 0.3rem;
-    color: #e2e8f0; cursor: pointer; font-size: 0.85rem;
+    padding: 0.4rem 0.9rem; background: ${t.secBg};
+    border: 1px solid ${t.secBorder}; border-radius: 0.3rem;
+    color: ${t.secText}; cursor: pointer; font-size: 0.85rem;
   `;
 
   let done = false;
@@ -339,9 +341,44 @@ function postGamePanelSkinCss() {
     : "background: rgba(15, 23, 32, 0.98); border: 1px solid rgba(148, 163, 184, 0.4); color: #e2e8f0; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);";
 }
 
+// ユーザー報告2026-08-24「対戦終了時のモーダルの文字が見にくい」。#5でパネルの背景・枠・タイトル色は
+// ライト対応したが、サブ文字(#94a3b8)・二次ボタン（盤面を見る／ホームに戻る／この部屋を出る／パス）の
+// 文字色(#e2e8f0=ほぼ白)・入力欄が dark 決め打ちのままで、ライトパネル上ではほぼ見えなかった。
+// サブ文字・二次ボタン・入力欄の配色もライト/ダークで出し分ける。
+function postGamePanelTokens() {
+  const light =
+    document.body.classList.contains("theme-light") || document.body.classList.contains("theme-light-ingame");
+  return light
+    ? {
+        sub: "#475569",
+        secBg: "rgba(15,23,42,0.06)",
+        secBorder: "rgba(100,116,139,0.55)",
+        secText: "#1e293b",
+        infoBg: "rgba(56,189,248,0.16)",
+        infoBorder: "rgba(2,132,199,0.65)",
+        infoText: "#0c4a6e",
+        fieldBg: "rgba(255,255,255,0.9)",
+        fieldBorder: "rgba(100,116,139,0.5)",
+        fieldText: "#1e293b",
+      }
+    : {
+        sub: "#94a3b8",
+        secBg: "rgba(255,255,255,0.08)",
+        secBorder: "rgba(148,163,184,0.3)",
+        secText: "#e2e8f0",
+        infoBg: "rgba(56,189,248,0.18)",
+        infoBorder: "rgba(56,189,248,0.6)",
+        infoText: "#e2e8f0",
+        fieldBg: "rgba(0,0,0,0.3)",
+        fieldBorder: "rgba(148,163,184,0.3)",
+        fieldText: "#e2e8f0",
+      };
+}
+
 export function showCpuBattleEndPanel({ winnerSeat }) {
   if (panelEl) return; // 多重表示防止
   const iWon = winnerSeat === getSelfSeat();
+  const t = postGamePanelTokens();
 
   backdropEl = createBackdrop(() => {}, { dim: true, zIndex: 10600 }); // 外側クリックでは閉じない
   panelEl = document.createElement("div");
@@ -356,7 +393,7 @@ export function showCpuBattleEndPanel({ winnerSeat }) {
   title.style.cssText = "font-size: 1.15rem; font-weight: bold; text-align: center; margin-bottom: 0.2rem;";
   title.textContent = iWon ? "🏆 あなたの勝ち！" : "🤖 CPUの勝ち…";
   const sub = document.createElement("div");
-  sub.style.cssText = "font-size: 0.75rem; color: #94a3b8; text-align: center; margin-bottom: 1rem;";
+  sub.style.cssText = `font-size: 0.75rem; color: ${t.sub}; text-align: center; margin-bottom: 1rem;`;
   sub.textContent = "CPU戦（1人用）";
   panelEl.appendChild(title);
   panelEl.appendChild(sub);
@@ -390,7 +427,7 @@ export function showCpuBattleEndPanel({ winnerSeat }) {
   boardBtn.type = "button";
   boardBtn.textContent = "盤面を見る";
   boardBtn.style.cssText =
-    "padding: 0.5rem 1rem; background: rgba(56, 189, 248, 0.18); border: 1px solid rgba(56, 189, 248, 0.6); border-radius: 0.3rem; color: #e2e8f0; cursor: pointer; font-size: 0.85rem;";
+    `padding: 0.5rem 1rem; background: ${t.infoBg}; border: 1px solid ${t.infoBorder}; border-radius: 0.3rem; color: ${t.infoText}; cursor: pointer; font-size: 0.85rem;`;
   boardBtn.addEventListener("click", () => {
     showMinimizeNoticeThenMinimize(); // 左上の🏆アイコンから復元できる（online版と共通）
   });
@@ -399,7 +436,7 @@ export function showCpuBattleEndPanel({ winnerSeat }) {
   homeBtn.type = "button";
   homeBtn.textContent = "ホームに戻る";
   homeBtn.style.cssText =
-    "padding: 0.5rem 1rem; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 0.3rem; color: #e2e8f0; cursor: pointer; font-size: 0.85rem;";
+    `padding: 0.5rem 1rem; background: ${t.secBg}; border: 1px solid ${t.secBorder}; border-radius: 0.3rem; color: ${t.secText}; cursor: pointer; font-size: 0.85rem;`;
   homeBtn.addEventListener("click", () => {
     setCpuBattleActive(false); // CPU戦フラグを下ろす（自動処理を止める）
     document.body.classList.remove("cpu-battle-mode");
