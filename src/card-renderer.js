@@ -14,20 +14,15 @@
 
 import { getCardDefinition, getCardBlankPath } from "./cards-data.js";
 import { getCardText } from "./card-text.js";
+import { CARD_LAYOUT, cardTypeOf } from "./card-layout-config.js";
 
-// パネルの色味・仕切り線・マーカーには単色を使う（color-mix/border-color はグラデーション不可）。
+// 能力名《》・マーカー等の色味には単色を使う（color-mix/border-color はグラデーション不可）。
 const SOLID_ACCENT = {
   red: "#c70025", orange: "#ee781f", yellow: "#fabe00", green: "#22ac38",
   blue: "#1bb8ce", pink: "#f19ec2", purple: "#915da3",
   rainbow: "#b07cc6", white: "#c9c0a8", black: "#3a3a44", noir: "#3a3a44",
 };
 function accentFor(color) { return SOLID_ACCENT[color] || "#888888"; }
-
-function cardTypeOf(cardId) {
-  if (cardId?.startsWith("first-")) return "first";
-  if (cardId?.startsWith("eternal-")) return "eternal";
-  return "normal";
-}
 
 // セクション本文（\n区切り。"・"始まりの行は選択肢）を行要素にする。
 function buildLines(text) {
@@ -100,22 +95,15 @@ function divEl(cls, textContent) {
   return el;
 }
 
-// アプリ側で描く「おしゃれな横線」（効果セクションの仕切り）。中央に小さな菱形を置いた線。
-function buildDivider() {
-  const d = document.createElement("div");
-  d.className = "card-face-divider";
-  d.setAttribute("aria-hidden", "true");
-  d.innerHTML = '<span class="card-face-divider-gem"></span>';
-  return d;
-}
-
-// カード面のDOMを組み立てて返す。呼び出し側は幅（正方形）を与えるだけ。
+// カード面のDOMを組み立てて返す。各テキスト要素は種別ごとに絶対配置（CSS＝card-layout-config.js由来）。
 // 中の文字はコンテナクエリ(cqw)でカード幅に比例＝どのサイズでも比率が崩れない。
+// その種別の config に定義された要素だけを描画する（＝必ず位置ルールが存在する）。
 export function buildCardFace(cardId, { showFlavor = true } = {}) {
   const def = getCardDefinition(cardId);
   const text = getCardText(cardId) || {};
   const color = def?.color || "white";
   const type = cardTypeOf(cardId);
+  const slots = CARD_LAYOUT[type] || {};
 
   const face = document.createElement("div");
   face.className = "card-face";
@@ -125,32 +113,19 @@ export function buildCardFace(cardId, { showFlavor = true } = {}) {
   face.style.setProperty("--card-accent", accentFor(color));
   face.style.backgroundImage = `url("${getCardBlankPath(cardId)}")`;
 
-  const title = divEl("card-face-title");
-  applyTitleRuby(title, def?.name || cardId || "", text.titleRuby);
-
-  if (type === "first") {
-    // ★基本(上) ／ タイトル(中上) ／ 《能力名》(中) ／ ■手札(下) を個別に絶対配置。
-    if (text.basic) face.appendChild(buildSection("basic", text.basic));
-    face.appendChild(title);
-    if (text.subtitle) face.appendChild(divEl("card-face-subtitle", text.subtitle));
-    if (text.arrival) face.appendChild(buildSection("arrival", text.arrival));
-    if (text.hand) face.appendChild(buildSection("hand", text.hand));
-  } else {
-    // normal / eternal: フレーバー(上) ＋ 下部パネルに タイトル＋各効果（仕切り線で区切る）。
-    if (showFlavor && text.flavor) face.appendChild(divEl("card-face-flavor", text.flavor));
-    const lower = divEl("card-face-lower");
-    lower.appendChild(title);
-    if (text.subtitle) lower.appendChild(divEl("card-face-subtitle", text.subtitle));
-    const sections = [];
-    if (text.basic) sections.push(buildSection("basic", text.basic));
-    if (text.arrival) sections.push(buildSection("arrival", text.arrival));
-    if (text.hand) sections.push(buildSection("hand", text.hand));
-    sections.forEach((sec, i) => {
-      if (i > 0) lower.appendChild(buildDivider());
-      lower.appendChild(sec);
-    });
-    face.appendChild(lower);
+  // 要素キー → 内容の有無・描画。config にスロットがある要素だけ出す。
+  if ("flavor" in slots && showFlavor && text.flavor) {
+    face.appendChild(divEl("card-face-flavor", text.flavor));
   }
+  if ("title" in slots) {
+    const title = divEl("card-face-title");
+    applyTitleRuby(title, def?.name || cardId || "", text.titleRuby);
+    face.appendChild(title);
+  }
+  if ("basic" in slots && text.basic) face.appendChild(buildSection("basic", text.basic));
+  if ("sub" in slots && text.subtitle) face.appendChild(divEl("card-face-subtitle", text.subtitle));
+  if ("arrival" in slots && text.arrival) face.appendChild(buildSection("arrival", text.arrival));
+  if ("hand" in slots && text.hand) face.appendChild(buildSection("hand", text.hand));
 
   return face;
 }

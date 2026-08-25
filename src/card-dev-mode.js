@@ -406,7 +406,7 @@ function buildPanel(close, minimize) {
   const previewBtn = document.createElement("button");
   previewBtn.type = "button";
   previewBtn.id = "card-dev-mode-preview-btn";
-  previewBtn.textContent = "🖼 カード表示プレビュー（イラスト＋アプリ側テキスト）";
+  previewBtn.textContent = "🖼 カード面エディタ（テキスト位置・サイズ調整）";
   previewBtn.addEventListener("click", () => openCardRenderPreview());
   panel.appendChild(previewBtn);
 

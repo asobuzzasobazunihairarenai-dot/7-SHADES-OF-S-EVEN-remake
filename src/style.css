@@ -17025,157 +17025,76 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
 .rank-showcase-editor-stage .rank-showcase { width: min(32rem, 66vh); }
 
 /* ===== カード面レンダラ（card-renderer.js）＝テキスト無しブランク画像＋アプリ側テキスト ===== */
-/* 文字は全てコンテナクエリ単位(cqw)＝カード幅に比例。位置・サイズは種別ごとの調整変数で微調整可
-   （card-render-preview.js の調整スライダーが --cf-* を書き換える。既定値は各 var() の第2引数）。 */
+/* 位置・サイズは種別ごとに要素単位で --cf-{n|e|f}-{要素}-{x|y|w|s} で調整（既定は各var()第2引数）。
+   この位置ルールは tools/gen-cardface-css.mjs が src/card-layout-config.js から自動生成する。 */
 .card-face {
   position: relative; aspect-ratio: 1 / 1; container-type: size;
   background-size: cover; background-position: center;
   border-radius: 4cqw; overflow: hidden; color: #2a2320;
   box-shadow: 0 0.6cqw 1.6cqw rgba(0, 0, 0, 0.35); user-select: none;
 }
-/* 種別ごとの調整変数 → 各要素が使う汎用変数へ写像（種別別にスライダーを効かせるため） */
-.card-face[data-card-type="normal"]  { --cf-scale: var(--cf-n-scale, 1); --cf-lower-y: var(--cf-n-top, 55%); --cf-flavor-top: var(--cf-n-flavor-top, 2.6cqw); }
-.card-face[data-card-type="eternal"] { --cf-scale: var(--cf-e-scale, 1); --cf-lower-y: var(--cf-e-top, 58%); --cf-flavor-top: var(--cf-e-flavor-top, 2.6cqw); }
-.card-face[data-card-type="first"]   { --cf-scale: var(--cf-f-scale, 1); }
-
-.card-face-textline { font-size: calc(3.2cqw * var(--cf-scale, 1)); line-height: 1.28; }
-.card-face-subline { font-size: calc(2.95cqw * var(--cf-scale, 1)); line-height: 1.26; padding-left: 2cqw; opacity: 0.92; }
-.card-face-effect { display: flex; gap: 1.4cqw; align-items: flex-start; }
-/* ●到達・■手札は正式なアイコン画像（CSSはsrc/にあるので ../assets/ で参照）。★基本はマーカー無し。 */
-.card-face-marker { flex: 0 0 auto; width: 3.8cqw; height: 3.8cqw; margin-top: 0.4cqw; background-size: contain; background-repeat: no-repeat; background-position: center; }
+/* 効果行（マーカー＋本文）。文字は effect の font-size を em 基準に継承＝要素ごとのサイズ変数で一括拡縮。 */
+.card-face-effect { display: flex; gap: 0.45em; align-items: flex-start; }
+.card-face-effect-body { flex: 1; min-width: 0; }
+.card-face-textline { font-size: 1em; line-height: 1.28; }
+.card-face-subline { font-size: 0.92em; line-height: 1.26; padding-left: 1.6em; opacity: 0.92; }
+/* ●到達・■手札は正式アイコン（CSSはsrc/なので ../assets/ 参照）。★基本はマーカー無し。 */
+.card-face-marker { flex: 0 0 auto; width: 1.25em; height: 1.25em; margin-top: 0.12em; background-size: contain; background-repeat: no-repeat; background-position: center; }
 .card-face-marker.is-basic { display: none; }
 .card-face-marker.is-arrival { background-image: url("../assets/icons/effect-arrival.png"); }
 .card-face-marker.is-hand { background-image: url("../assets/icons/effect-hand.png"); }
-.card-face-effect-body { flex: 1; min-width: 0; }
-.card-face-title {
-  font-size: calc(5cqw * var(--cf-scale, 1)); font-weight: 800; line-height: 1.05;
-  letter-spacing: 0.2cqw; color: color-mix(in srgb, var(--card-accent, #555) 66%, #201a16);
-}
-.card-face-title rt { font-size: 1.8cqw; font-weight: 600; line-height: 1; }
-.card-face-subtitle {
-  font-size: calc(3.7cqw * var(--cf-scale, 1)); font-weight: 700;
-  color: color-mix(in srgb, var(--card-accent, #555) 52%, #2a2320);
-}
-.card-face-flavor {
-  position: absolute; text-align: center; font-style: italic; color: #fff;
-  text-shadow: 0 0.4cqw 1cqw rgba(0, 0, 0, 0.85), 0 0 0.4cqw rgba(0, 0, 0, 0.6);
-}
-.card-face-divider { display: flex; align-items: center; height: 1.4cqw; margin: 0.5cqw 0; }
-.card-face-divider::before, .card-face-divider::after {
-  content: ""; height: 0.22cqw; flex: 1;
-  background: linear-gradient(to right, transparent, color-mix(in srgb, var(--card-accent, #888) 55%, transparent));
-}
-.card-face-divider::after { background: linear-gradient(to left, transparent, color-mix(in srgb, var(--card-accent, #888) 55%, transparent)); }
-.card-face-divider-gem { width: 1.5cqw; height: 1.5cqw; margin: 0 0.9cqw; transform: rotate(45deg); background: var(--card-accent, #888); opacity: 0.7; }
+/* タイトルは全て黒文字（ユーザー指定）。ファーストのみ中央寄せ。 */
+.card-face-title { font-weight: 800; line-height: 1.08; letter-spacing: 0.2cqw; color: #141414; text-align: left; }
+.card-face[data-card-type="first"] .card-face-title { text-align: center; }
+.card-face-title rt { font-size: 0.4em; font-weight: 600; line-height: 1; color: #141414; }
+.card-face-subtitle { font-weight: 700; text-align: center; color: color-mix(in srgb, var(--card-accent, #555) 55%, #201a16); }
+.card-face-flavor { font-style: italic; text-align: center; color: #fff; line-height: 1.25; text-shadow: 0 0.4cqw 1cqw rgba(0, 0, 0, 0.85), 0 0 0.4cqw rgba(0, 0, 0, 0.6); }
+/* エディタ用：要素ごとの枠（どこに何があるか分かるように） */
+.card-face.cf-outline .card-face-title,
+.card-face.cf-outline .card-face-flavor,
+.card-face.cf-outline .card-face-subtitle,
+.card-face.cf-outline .card-face-effect { outline: 0.25cqw dashed rgba(0, 150, 255, 0.85); outline-offset: 0.3cqw; }
 
-/* --- normal / eternal: フレーバー(上) ＋ 下部パネルにテキストを重ねる --- */
-.card-face[data-card-type="normal"] .card-face-flavor,
-.card-face[data-card-type="eternal"] .card-face-flavor {
-  top: var(--cf-flavor-top, 2.6cqw); left: 6cqw; right: 6cqw;
-  font-size: calc(3cqw * var(--cf-scale, 1)); line-height: 1.25;
-}
-.card-face-lower {
-  position: absolute; left: 0; right: 0; bottom: 0; top: var(--cf-lower-y, 55%);
-  box-sizing: border-box; padding: 2.2cqw 4.8cqw 4.2cqw;
-  display: flex; flex-direction: column; gap: 0.9cqw; overflow: hidden;
-}
-.card-face[data-card-type="eternal"] .card-face-title { font-size: calc(4.6cqw * var(--cf-scale, 1)); }
+/* --- 各テキスト要素の絶対配置（自動生成：card-layout-config.js） --- */
+.card-face[data-card-type="normal"] .card-face-flavor { position: absolute; left: var(--cf-n-flavor-x, 6cqw); top: var(--cf-n-flavor-y, 2.6cqw); width: var(--cf-n-flavor-w, 88cqw); font-size: var(--cf-n-flavor-s, 3cqw); }
+.card-face[data-card-type="normal"] .card-face-title { position: absolute; left: var(--cf-n-title-x, 4.8cqw); top: var(--cf-n-title-y, 54cqw); width: var(--cf-n-title-w, 90cqw); font-size: var(--cf-n-title-s, 4.8cqw); }
+.card-face[data-card-type="normal"] .card-face-effect.is-basic { position: absolute; left: var(--cf-n-basic-x, 4.8cqw); top: var(--cf-n-basic-y, 61cqw); width: var(--cf-n-basic-w, 90cqw); font-size: var(--cf-n-basic-s, 2.9cqw); }
+.card-face[data-card-type="normal"] .card-face-effect.is-arrival { position: absolute; left: var(--cf-n-arrival-x, 4.8cqw); top: var(--cf-n-arrival-y, 66cqw); width: var(--cf-n-arrival-w, 90cqw); font-size: var(--cf-n-arrival-s, 3.2cqw); }
+.card-face[data-card-type="normal"] .card-face-effect.is-hand { position: absolute; left: var(--cf-n-hand-x, 4.8cqw); top: var(--cf-n-hand-y, 80cqw); width: var(--cf-n-hand-w, 90cqw); font-size: var(--cf-n-hand-s, 3.2cqw); }
+.card-face[data-card-type="eternal"] .card-face-flavor { position: absolute; left: var(--cf-e-flavor-x, 6cqw); top: var(--cf-e-flavor-y, 2.6cqw); width: var(--cf-e-flavor-w, 88cqw); font-size: var(--cf-e-flavor-s, 3cqw); }
+.card-face[data-card-type="eternal"] .card-face-title { position: absolute; left: var(--cf-e-title-x, 4.8cqw); top: var(--cf-e-title-y, 57cqw); width: var(--cf-e-title-w, 90cqw); font-size: var(--cf-e-title-s, 4.6cqw); }
+.card-face[data-card-type="eternal"] .card-face-effect.is-basic { position: absolute; left: var(--cf-e-basic-x, 4.8cqw); top: var(--cf-e-basic-y, 65cqw); width: var(--cf-e-basic-w, 90cqw); font-size: var(--cf-e-basic-s, 3cqw); }
+.card-face[data-card-type="eternal"] .card-face-effect.is-hand { position: absolute; left: var(--cf-e-hand-x, 4.8cqw); top: var(--cf-e-hand-y, 77cqw); width: var(--cf-e-hand-w, 90cqw); font-size: var(--cf-e-hand-s, 3.2cqw); }
+.card-face[data-card-type="first"] .card-face-effect.is-basic { position: absolute; left: var(--cf-f-basic-x, 5.5cqw); top: var(--cf-f-basic-y, 4cqw); width: var(--cf-f-basic-w, 89cqw); font-size: var(--cf-f-basic-s, 3cqw); }
+.card-face[data-card-type="first"] .card-face-title { position: absolute; left: var(--cf-f-title-x, 5cqw); top: var(--cf-f-title-y, 21cqw); width: var(--cf-f-title-w, 90cqw); font-size: var(--cf-f-title-s, 4.6cqw); }
+.card-face[data-card-type="first"] .card-face-subtitle { position: absolute; left: var(--cf-f-sub-x, 5cqw); top: var(--cf-f-sub-y, 55cqw); width: var(--cf-f-sub-w, 90cqw); font-size: var(--cf-f-sub-s, 3.8cqw); }
+.card-face[data-card-type="first"] .card-face-effect.is-hand { position: absolute; left: var(--cf-f-hand-x, 5.5cqw); top: var(--cf-f-hand-y, 63cqw); width: var(--cf-f-hand-w, 89cqw); font-size: var(--cf-f-hand-s, 3.2cqw); }
 
-/* --- first: ★基本(上) ／ タイトル(中上) ／ 《能力名》(中) ／ ■手札(下) を個別に絶対配置 --- */
-.card-face[data-card-type="first"] .card-face-effect.is-basic {
-  position: absolute; top: var(--cf-f-basic-top, 4cqw); left: 5.5cqw; right: 5.5cqw; text-align: center;
+/* ===== カード面エディタ（card-render-preview.js・開発用） ===== */
+#card-render-editor {
+  position: fixed; inset: 3vh 3vw; z-index: 2760;
+  background: #0b0f14; color: #e2e8f0; border-radius: 12px;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.6); display: flex; flex-direction: column;
+  overflow: hidden; border: 1px solid #2a3446;
 }
-.card-face[data-card-type="first"] .card-face-effect.is-basic .card-face-effect-body { text-align: center; }
-.card-face[data-card-type="first"] .card-face-effect.is-basic .card-face-textline { font-size: calc(3cqw * var(--cf-scale, 1)); line-height: 1.28; }
-.card-face[data-card-type="first"] .card-face-title {
-  position: absolute; top: var(--cf-f-title-top, 21cqw); left: 5cqw; right: 5cqw; text-align: center; font-size: calc(4.6cqw * var(--cf-scale, 1));
-}
-.card-face[data-card-type="first"] .card-face-subtitle {
-  position: absolute; top: var(--cf-f-sub-top, 55cqw); left: 5cqw; right: 5cqw; text-align: center; font-size: calc(3.8cqw * var(--cf-scale, 1));
-}
-.card-face[data-card-type="first"] .card-face-effect.is-hand {
-  position: absolute; top: var(--cf-f-hand-top, 63cqw); left: 5.5cqw; right: 5.5cqw;
-}
-
-/* ===== カード表示プレビュー（card-render-preview.js・開発用） ===== */
-#card-render-preview {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: min(72rem, 95vw);
-  height: 90vh;
-  background: #12161d;
-  border: 1px solid #2a3446;
-  border-radius: 12px;
-  z-index: 2760;
-  display: flex;
-  flex-direction: column;
-  color: #e2e8f0;
-  box-shadow: 0 1.2rem 3rem rgba(0, 0, 0, 0.6);
-  overflow: hidden;
-}
-.card-render-preview-header {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.8rem 1rem;
-  border-bottom: 1px solid #2a3446;
-  flex: 0 0 auto;
-}
-.card-render-preview-title { font-weight: 700; font-size: 0.95rem; }
-.card-render-preview-size {
-  margin-left: auto;
-  margin-right: 2.6rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.82rem;
-  white-space: nowrap;
-}
-.card-render-preview-size input[type="range"] { width: 12rem; }
-.card-render-preview-scroll {
-  flex: 1;
-  overflow: auto;
-  padding: 1rem;
-  background: #0c0f14;
-}
-.card-render-preview-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, var(--preview-card-w, 16rem));
-  gap: 1rem;
-  justify-content: center;
-}
-.card-render-preview-cell { width: var(--preview-card-w, 16rem); }
-
-/* ===== カード表示プレビューの調整ツール（card-render-preview.js・開発用） ===== */
-.card-render-preview-tuner {
-  flex: 0 0 auto;
-  background: #0f141b;
-  border-bottom: 1px solid #2a3446;
-  color: #cbd5e1;
-  font-size: 0.8rem;
-  max-height: 40vh;
-  overflow: auto;
-}
-.card-render-preview-tuner > summary {
-  cursor: pointer;
-  padding: 0.5rem 1rem;
-  font-weight: 700;
-  color: #e2e8f0;
-  user-select: none;
-}
-.cf-tuner-body { padding: 0.4rem 1rem 0.8rem; display: flex; flex-wrap: wrap; gap: 0.6rem 1.6rem; }
-.cf-tuner-group { min-width: 18rem; flex: 1 1 18rem; }
-.cf-tuner-group-title { font-weight: 700; color: #93c5fd; margin: 0.3rem 0; }
-.cf-tuner-row { display: flex; align-items: center; gap: 0.5rem; margin: 0.2rem 0; }
-.cf-tuner-label { flex: 0 0 8.5rem; }
-.cf-tuner-row input[type="range"] { flex: 1; min-width: 6rem; }
-.cf-tuner-val { flex: 0 0 3.6rem; text-align: right; font-variant-numeric: tabular-nums; color: #e2e8f0; }
-.cf-tuner-btns { flex-basis: 100%; display: flex; gap: 0.6rem; margin-top: 0.4rem; }
-.cf-tuner-btns button {
-  background: #1d283a; color: #e2e8f0; border: 1px solid #2a3446;
-  border-radius: 6px; padding: 0.35rem 0.9rem; cursor: pointer; font-size: 0.8rem;
-}
-.cf-tuner-btns button:hover { background: #24324a; }
+.cf-ed-header { flex: 0 0 auto; display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 1rem; border-bottom: 1px solid #2a3446; background: #0f141b; flex-wrap: wrap; }
+.cf-ed-title { font-weight: 700; font-size: 0.95rem; }
+.cf-ed-picker { background: #0f1520; color: #f1f5f9; border: 1px solid #2a3446; border-radius: 6px; padding: 0.3rem 0.5rem; font-size: 0.85rem; max-width: 16rem; }
+.cf-ed-outline-toggle { font-size: 0.82rem; display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer; }
+.cf-ed-body { flex: 1; display: flex; min-height: 0; }
+.cf-ed-stage { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 1.5rem; background: radial-gradient(circle at 50% 40%, #1a2230, #0b0f14 70%); overflow: auto; }
+/* 1枚を最大限大きく（正方形。左エリアと画面高に収まる範囲で最大） */
+.cf-ed-cardwrap { width: min(56rem, 82vh, 100%); }
+.cf-ed-cardwrap .card-face { width: 100%; }
+.cf-ed-side { flex: 0 0 24rem; overflow-y: auto; padding: 0.6rem 0.9rem 1.2rem; border-left: 1px solid #2a3446; background: #0d1219; }
+.cf-ed-group { margin-bottom: 0.7rem; padding-bottom: 0.5rem; border-bottom: 1px solid #1c2634; }
+.cf-ed-group-title { font-weight: 700; color: #93c5fd; margin: 0.35rem 0; font-size: 0.9rem; }
+.cf-ed-prop { display: flex; align-items: center; gap: 0.4rem; margin: 0.2rem 0; }
+.cf-ed-prop-label { flex: 0 0 5rem; font-size: 0.78rem; color: #cbd5e1; }
+.cf-ed-prop input[type="range"] { flex: 1; min-width: 4rem; }
+.cf-ed-prop-num { flex: 0 0 3.6rem; background: #0f1520; color: #f1f5f9; border: 1px solid #2a3446; border-radius: 5px; padding: 0.15rem 0.3rem; font-size: 0.78rem; }
+.cf-ed-prop-unit { flex: 0 0 2rem; font-size: 0.72rem; color: #64748b; }
+.cf-ed-btns { display: flex; gap: 0.6rem; margin-top: 0.8rem; }
+.cf-ed-btns button { background: #1d283a; color: #e2e8f0; border: 1px solid #2a3446; border-radius: 6px; padding: 0.4rem 0.8rem; cursor: pointer; font-size: 0.82rem; }
+.cf-ed-btns button:hover { background: #24324a; }
+@media (max-width: 900px) { .cf-ed-body { flex-direction: column; } .cf-ed-side { flex: 0 0 auto; border-left: none; border-top: 1px solid #2a3446; } .cf-ed-cardwrap { width: min(72vw, 60vh); } }
