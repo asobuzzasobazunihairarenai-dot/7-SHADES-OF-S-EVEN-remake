@@ -17022,3 +17022,31 @@ URLが `?iso=0` になっていた取り違えと判断）。かつユーザー�
 - **残課題**: (1) 実機で各要素をブランクに合わせ、「出力をコピー」の値を config/style.css 既定へ焼き込み
   （特にエターナル/ファースト）。(2) 本編（手札・盤面・ホバー拡大・山札一覧）への接続。(3) 効果セットが
   長いカードは下端に収まるか実機で確認（y/文字サイズで調整）。
+
+### 2026-08-25（続き266）：カード面テキスト・フェーズ2e（ルビ上下移動の修正・通常/エターナル共通化・ファースト白文字＆効果中央）
+
+続き265をユーザーが確認し、4件のフィードバックに対応（本編未接続のまま）。
+- **ルビの上下微調整が効かなかったのを修正（原因特定）**: `rt`（display:ruby-text）は仕様上
+  `transform`/（一部）が効かず、`translateY` で動かせなかった（＝ユーザー報告「動かない」）。ブラウザで
+  実測して切り分けた結果、①`transform` は ruby-text で無視される、②`display:inline-block` にすると動くが
+  ふりがなが漢字の上でなくインライン（下）に落ちて配置が崩れる、③**`position:relative` + `top` は
+  ruby-text のまま（漢字の上を維持して）上下に動く**、と判明。③を採用し、生成CSSのルビ規則を
+  `translateY` から `top: var(--cf-*-ruby-oy)` ＋ 基底 `.card-face-title rt { position: relative }` に変更。
+  実測で oy=+3cqw→下・-3cqw→上へ正しく移動、漢字の上配置も維持を確認。
+- **通常カードとエターナルカードの位置調整を共通化（ユーザー要望）**: レイアウトを2グループに再編
+  （[src/card-layout-config.js](src/card-layout-config.js)）——`std`（通常＋エターナル、CSS変数接頭 `--cf-s-*`）と
+  `first`（`--cf-f-*`）。`TYPE_GROUP`（normal/eternal→std, first→first）・`groupOf`・`cfVar(group,…)` を導入し、
+  renderer/generator/editor を group ベースに統一。通常・エターナルは同じ `--cf-s-*` を参照＝片方を調整すると
+  両方に反映。エディタは調整対象グループ名（「通常／エターナル（共通）」）を表示。保存キーを v3 に。
+- **ファーストカードは文字が全て白（ユーザー指定）**: `.card-face[data-card-type="first"]` のタイトル・
+  ルビ・能力名《》・効果を `color:#fff`＋読みやすさ用の暗いtext-shadowにした。
+- **ファーストの効果は全て中央揃え・ただしアイコン(マーカー)は左揃え**: first の
+  `.card-face-effect-body { text-align:center }`（効果本文を中央）。効果は flex（マーカー＋本文）なので
+  ●/■アイコンは左端のまま・本文だけ中央に寄る。★基本はマーカー非表示＝全幅中央。
+- **検証**: `node --check`（card-renderer/card-render-preview/card-layout-config/gen-cardface-css）・
+  CSSブレース平衡（2432）。ブラウザ（ペイン生存中）で、ルビの実移動（oy±3cqwで上下）、通常/エターナルが
+  同じ `--cf-s-*` を参照（両ノート「通常／エターナル（共通）」・両タイトル規則が --cf-s-title-* 参照）、
+  ファーストの白文字（title/hand rgb(255,255,255)）・効果本文 text-align center・■マーカー左（flex）を実測確認。
+  cqwの厳密な位置合わせは実機でお願いする。
+- **残課題**: (1) 実機で std（通常/エターナル）と first を各々ブランクに合わせ、「出力をコピー」の値を
+  config/style.css 既定へ焼き込み。(2) 本編（手札・盤面・ホバー拡大・山札一覧）への接続。

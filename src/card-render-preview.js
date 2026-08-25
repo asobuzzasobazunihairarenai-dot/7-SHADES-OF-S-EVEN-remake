@@ -7,13 +7,13 @@ import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
 import { buildCardFace } from "./card-renderer.js";
 import { NORMAL_CARDS, ETERNAL_CARDS, FIRST_CARDS, getCardDefinition } from "./cards-data.js";
 import {
-  CARD_LAYOUT, ELEMENT_META, TYPE_LABEL, PROP_RANGE, cardTypeOf, cfVar, propsFor,
+  LAYOUT, ELEMENT_META, TYPE_LABEL, GROUP_LABEL, PROP_RANGE, groupOf, cfVar, propsFor,
 } from "./card-layout-config.js";
 
 let overlayEl = null;
 let backdropEl = null;
 
-const STORE_KEY = "so7-cardface-layout-v2";
+const STORE_KEY = "so7-cardface-layout-v3";
 
 function loadSaved() {
   try { return JSON.parse(localStorage.getItem(STORE_KEY) || "{}") || {}; } catch { return {}; }
@@ -28,14 +28,14 @@ export function applySavedCardFaceTuning() {
     if (v != null) document.documentElement.style.setProperty(k, v + "cqw");
   }
 }
-function defOf(type, el, prop) { return CARD_LAYOUT[type]?.[el]?.[prop]; }
-function curOf(type, el, prop) {
-  const v = cfVar(type, el, prop);
+function defOf(group, el, prop) { return LAYOUT[group]?.[el]?.[prop]; }
+function curOf(group, el, prop) {
+  const v = cfVar(group, el, prop);
   const saved = loadSaved();
-  return saved[v] != null ? saved[v] : defOf(type, el, prop);
+  return saved[v] != null ? saved[v] : defOf(group, el, prop);
 }
-function setVar(type, el, prop, value) {
-  const v = cfVar(type, el, prop);
+function setVar(group, el, prop, value) {
+  const v = cfVar(group, el, prop);
   document.documentElement.style.setProperty(v, value + "cqw");
   const map = loadSaved(); map[v] = Number(value); saveAll(map);
 }
@@ -49,7 +49,7 @@ function allCards() {
 }
 
 // 1つのプロパティ（X/Y/幅/サイズ）のスライダー＋数値入力（相互同期）。
-function buildPropRow(type, el, prop) {
+function buildPropRow(group, el, prop) {
   const range = PROP_RANGE[prop];
   const row = document.createElement("div");
   row.className = "cf-ed-prop";
@@ -67,11 +67,11 @@ function buildPropRow(type, el, prop) {
   unit.className = "cf-ed-prop-unit";
   unit.textContent = range.unit;
 
-  const cur = curOf(type, el, prop);
+  const cur = curOf(group, el, prop);
   slider.value = String(cur); num.value = String(cur);
   const apply = (val) => {
     slider.value = String(val); num.value = String(val);
-    setVar(type, el, prop, val);
+    setVar(group, el, prop, val);
   };
   slider.addEventListener("input", () => apply(slider.value));
   num.addEventListener("input", () => { if (num.value !== "") apply(num.value); });
@@ -79,21 +79,25 @@ function buildPropRow(type, el, prop) {
   return row;
 }
 
-// 選択中カードの種別の各要素（config順）に対する調整グループを作る。
+// 選択中カードのグループ（通常/エターナルは共通の std）の各要素に対する調整グループを作る。
 function buildControls(cardId) {
-  const type = cardTypeOf(cardId);
+  const group = groupOf(cardId);
   const wrap = document.createElement("div");
   wrap.className = "cf-ed-controls";
-  const slots = CARD_LAYOUT[type] || {};
+  const note = document.createElement("div");
+  note.className = "cf-ed-groupnote";
+  note.textContent = `調整対象: ${GROUP_LABEL[group]}`;
+  wrap.appendChild(note);
+  const slots = LAYOUT[group] || {};
   for (const el of Object.keys(slots)) {
-    const group = document.createElement("div");
-    group.className = "cf-ed-group";
+    const g = document.createElement("div");
+    g.className = "cf-ed-group";
     const gt = document.createElement("div");
     gt.className = "cf-ed-group-title";
     gt.textContent = ELEMENT_META[el]?.labelJa || el;
-    group.appendChild(gt);
-    for (const prop of propsFor(slots[el])) group.appendChild(buildPropRow(type, el, prop));
-    wrap.appendChild(group);
+    g.appendChild(gt);
+    for (const prop of propsFor(slots[el])) g.appendChild(buildPropRow(group, el, prop));
+    wrap.appendChild(g);
   }
   return wrap;
 }
@@ -181,14 +185,14 @@ function buildOverlay(close) {
       setTimeout(() => { outBtn.textContent = "出力をコピー"; }, 1400);
     });
     const resetBtn = document.createElement("button");
-    resetBtn.type = "button"; resetBtn.textContent = "この種別をリセット";
+    resetBtn.type = "button"; resetBtn.textContent = "このグループをリセット";
     resetBtn.addEventListener("click", () => {
-      const type = cardTypeOf(currentId);
-      const slots = CARD_LAYOUT[type] || {};
+      const group = groupOf(currentId);
+      const slots = LAYOUT[group] || {};
       const map = loadSaved();
       for (const el of Object.keys(slots)) {
         for (const prop of propsFor(slots[el])) {
-          const v = cfVar(type, el, prop);
+          const v = cfVar(group, el, prop);
           document.documentElement.style.removeProperty(v);
           delete map[v];
         }

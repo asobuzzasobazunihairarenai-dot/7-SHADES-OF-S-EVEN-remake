@@ -2,7 +2,7 @@
 // src/style.css の該当ブロックへ差し込む。配置を変えたら `node tools/gen-cardface-css.mjs` で再生成。
 // 位置・サイズは全て cqw（カード幅比）＝カードをどのサイズで表示しても比率が崩れない。
 import { readFileSync, writeFileSync } from "node:fs";
-import { CARD_LAYOUT, ELEMENT_META, cfVar } from "../src/card-layout-config.js";
+import { LAYOUT, TYPE_GROUP, ELEMENT_META, cfVar } from "../src/card-layout-config.js";
 
 const CSS_PATH = new URL("../src/style.css", import.meta.url);
 
@@ -38,11 +38,19 @@ const BASE = `/* ===== カード面レンダラ（card-renderer.js）＝テキ�
 /* タイトルは全て黒文字（ユーザー指定）。ファーストのみ中央寄せ。フォント＝FOT-マティス。 */
 .card-face-title { font-family: ${FONT_TITLE}; font-weight: 500; line-height: 1.08; letter-spacing: 0.2cqw; color: #141414; text-align: left; }
 .card-face[data-card-type="first"] .card-face-title { text-align: center; }
-.card-face-title rt { font-weight: 500; line-height: 1; color: #141414; font-family: ${FONT_TITLE}; }
+/* rt は display:ruby-text のままだと transform は効かないが position:relative + top は効く（実測）。
+   ルビは漢字の上に配置されたまま top（＝--cf-*-ruby-oy）で上下に微調整できる。 */
+.card-face-title rt { position: relative; font-weight: 500; line-height: 1; color: #141414; font-family: ${FONT_TITLE}; }
 /* 能力名《》はタイトルと同じフォント。 */
 .card-face-subtitle { font-family: ${FONT_TITLE}; font-weight: 500; text-align: center; color: color-mix(in srgb, var(--card-accent, #555) 55%, #201a16); }
 /* フレーバーは斜体にしない（ユーザー指摘）。フォント＝FOT-マティス。 */
 .card-face-flavor { font-family: ${FONT_TITLE}; font-style: normal; text-align: center; color: #fff; line-height: 1.25; text-shadow: 0 0.4cqw 1cqw rgba(0, 0, 0, 0.85), 0 0 0.4cqw rgba(0, 0, 0, 0.6); }
+/* ファーストは文字が全て白（ユーザー指定）。効果は全て中央揃え・ただしアイコン(マーカー)は左揃え。 */
+.card-face[data-card-type="first"] .card-face-title,
+.card-face[data-card-type="first"] .card-face-title rt,
+.card-face[data-card-type="first"] .card-face-subtitle,
+.card-face[data-card-type="first"] .card-face-effect { color: #fff; text-shadow: 0 0.3cqw 0.8cqw rgba(0, 0, 0, 0.7), 0 0 0.4cqw rgba(0, 0, 0, 0.5); }
+.card-face[data-card-type="first"] .card-face-effect-body { text-align: center; }
 /* エディタ用：要素ごとの枠（どこに何があるか分かるように） */
 .card-face.cf-outline .card-face-title,
 .card-face.cf-outline .card-face-flavor,
@@ -51,26 +59,28 @@ const BASE = `/* ===== カード面レンダラ（card-renderer.js）＝テキ�
 .card-face.cf-outline .card-face-effect { outline: 0.25cqw dashed rgba(0, 150, 255, 0.85); outline-offset: 0.3cqw; }
 `;
 
+// 通常・エターナルは同じグループ(std)の変数を参照＝位置調整が共通（ユーザー要望）。first は別(f)。
 const TYPES = ["normal", "eternal", "first"];
 let gen = "\n/* --- 各テキスト要素の絶対配置（自動生成：card-layout-config.js） --- */\n";
 for (const type of TYPES) {
-  const slots = CARD_LAYOUT[type];
+  const group = TYPE_GROUP[type];
+  const slots = LAYOUT[group];
   for (const [el, d] of Object.entries(slots)) {
     if (el === "ruby") {
-      // ルビは絶対配置ではなく、タイトル内の rt に対する font-size と上下微調整(translateY)。
+      // ルビは絶対配置ではなく、タイトル内の rt の font-size と上下微調整(position:relative + top)。
       gen += `.card-face[data-card-type="${type}"] .card-face-title rt {`
-        + ` font-size: var(${cfVar(type, el, "s")}, ${d.s}cqw);`
-        + ` transform: translateY(var(${cfVar(type, el, "oy")}, ${d.oy}cqw));`
+        + ` font-size: var(${cfVar(group, el, "s")}, ${d.s}cqw);`
+        + ` top: var(${cfVar(group, el, "oy")}, ${d.oy}cqw);`
         + ` }\n`;
       continue;
     }
     const sel = ELEMENT_META[el].sel;
     gen += `.card-face[data-card-type="${type}"] ${sel} {`
       + ` position: absolute;`
-      + ` left: var(${cfVar(type, el, "x")}, ${d.x}cqw);`
-      + ` top: var(${cfVar(type, el, "y")}, ${d.y}cqw);`
-      + ` width: var(${cfVar(type, el, "w")}, ${d.w}cqw);`
-      + ` font-size: var(${cfVar(type, el, "s")}, ${d.s}cqw);`
+      + ` left: var(${cfVar(group, el, "x")}, ${d.x}cqw);`
+      + ` top: var(${cfVar(group, el, "y")}, ${d.y}cqw);`
+      + ` width: var(${cfVar(group, el, "w")}, ${d.w}cqw);`
+      + ` font-size: var(${cfVar(group, el, "s")}, ${d.s}cqw);`
       + ` }\n`;
   }
 }

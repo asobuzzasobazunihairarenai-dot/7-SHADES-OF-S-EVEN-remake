@@ -14,7 +14,7 @@
 
 import { getCardDefinition, getCardBlankPath } from "./cards-data.js";
 import { getCardText } from "./card-text.js";
-import { CARD_LAYOUT, cardTypeOf } from "./card-layout-config.js";
+import { LAYOUT, cardTypeOf, groupOf } from "./card-layout-config.js";
 
 // 能力名《》・マーカー等の色味には単色を使う（color-mix/border-color はグラデーション不可）。
 const SOLID_ACCENT = {
@@ -114,7 +114,7 @@ export function buildCardFace(cardId, { showFlavor = true } = {}) {
   const text = getCardText(cardId) || {};
   const color = def?.color || "white";
   const type = cardTypeOf(cardId);
-  const slots = CARD_LAYOUT[type] || {};
+  const slots = LAYOUT[groupOf(cardId)] || {};
 
   const face = document.createElement("div");
   face.className = "card-face";
