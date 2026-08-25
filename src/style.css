@@ -17044,6 +17044,8 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
 .card-face-marker.is-basic { display: none; }
 .card-face-marker.is-arrival { background-image: url("../assets/icons/effect-arrival.png"); }
 .card-face-marker.is-hand { background-image: url("../assets/icons/effect-hand.png"); }
+/* ファーストの■アイコンは独立要素（左位置Xで配置・中央ではない。サイズは handicon-s）。 */
+.card-face-hand-icon { background-image: url("../assets/icons/effect-hand.png"); background-size: contain; background-repeat: no-repeat; background-position: center; }
 /* 仕切り線は原本に合わせて黒系で統一（各効果の間に置く。中央のダイヤは無し＝黒線のみ）。 */
 .card-face-divider { display: flex; align-items: center; height: 1.2cqw; }
 .card-face-divider::before { content: ""; height: 0.22cqw; flex: 1; background: rgba(20, 20, 20, 0.8); }
@@ -17068,31 +17070,31 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
 .card-face.cf-outline .card-face-flavor,
 .card-face.cf-outline .card-face-subtitle,
 .card-face.cf-outline .card-face-fx,
+.card-face.cf-outline .card-face-hand-icon,
 .card-face.cf-outline .card-face-effect { outline: 0.25cqw dashed rgba(0, 150, 255, 0.85); outline-offset: 0.3cqw; }
 
 /* --- 各テキスト要素の絶対配置（自動生成：card-layout-config.js） --- */
-.card-face[data-card-type="normal"] .card-face-flavor { position: absolute; left: var(--cf-s-flavor-x, 6cqw); top: var(--cf-s-flavor-y, 5cqw); width: var(--cf-s-flavor-w, 88cqw); font-size: var(--cf-s-flavor-s, 3cqw); }
+.card-face[data-card-type="normal"] .card-face-flavor { position: absolute; left: var(--cf-s-flavor-x, 6cqw); top: var(--cf-s-flavor-y, 5cqw); width: var(--cf-s-flavor-w, 88cqw); font-size: var(--cf-s-flavor-s, 2.5cqw); }
 .card-face[data-card-type="normal"] .card-face-title { position: absolute; left: var(--cf-s-title-x, 6cqw); top: var(--cf-s-title-y, 50.5cqw); width: var(--cf-s-title-w, 90cqw); font-size: var(--cf-s-title-s, 3.9cqw); }
 .card-face[data-card-type="normal"] .card-face-title rt { font-size: var(--cf-s-ruby-s, 1.8cqw); top: var(--cf-s-ruby-oy, -0.2cqw); }
 .card-face[data-card-type="normal"] .card-face-fx { position: absolute; left: var(--cf-s-fx-x, 6cqw); top: var(--cf-s-fx-y, 58cqw); width: var(--cf-s-fx-w, 88cqw); font-size: var(--cf-s-fx-s, 3.2cqw); }
-.card-face[data-card-type="normal"] .card-face-fx .card-face-effect.is-basic { font-size: var(--cf-s-fxbasic-s, 2.6cqw); width: var(--cf-s-fxbasic-w, 88cqw); margin-left: var(--cf-s-fxbasic-mx, 0cqw); }
-.card-face[data-card-type="normal"] .card-face-marker { width: var(--cf-s-icon-s, 4cqw); height: var(--cf-s-icon-s, 4cqw); }
+.card-face[data-card-type="normal"] .card-face-fx .card-face-effect.is-basic { font-size: var(--cf-s-fxbasic-s, 2.8cqw); width: var(--cf-s-fxbasic-w, 80cqw); margin-left: var(--cf-s-fxbasic-mx, 8cqw); }
+.card-face[data-card-type="normal"] .card-face-marker { width: var(--cf-s-icon-s, 6.6cqw); height: var(--cf-s-icon-s, 6.6cqw); }
 .card-face[data-card-type="normal"] .card-face-effect { gap: var(--cf-s-gap-s, 1.5cqw); }
-.card-face[data-card-type="eternal"] .card-face-flavor { position: absolute; left: var(--cf-s-flavor-x, 6cqw); top: var(--cf-s-flavor-y, 5cqw); width: var(--cf-s-flavor-w, 88cqw); font-size: var(--cf-s-flavor-s, 3cqw); }
+.card-face[data-card-type="eternal"] .card-face-flavor { position: absolute; left: var(--cf-s-flavor-x, 6cqw); top: var(--cf-s-flavor-y, 5cqw); width: var(--cf-s-flavor-w, 88cqw); font-size: var(--cf-s-flavor-s, 2.5cqw); }
 .card-face[data-card-type="eternal"] .card-face-title { position: absolute; left: var(--cf-s-title-x, 6cqw); top: var(--cf-s-title-y, 50.5cqw); width: var(--cf-s-title-w, 90cqw); font-size: var(--cf-s-title-s, 3.9cqw); }
 .card-face[data-card-type="eternal"] .card-face-title rt { font-size: var(--cf-s-ruby-s, 1.8cqw); top: var(--cf-s-ruby-oy, -0.2cqw); }
 .card-face[data-card-type="eternal"] .card-face-fx { position: absolute; left: var(--cf-s-fx-x, 6cqw); top: var(--cf-s-fx-y, 58cqw); width: var(--cf-s-fx-w, 88cqw); font-size: var(--cf-s-fx-s, 3.2cqw); }
-.card-face[data-card-type="eternal"] .card-face-fx .card-face-effect.is-basic { font-size: var(--cf-s-fxbasic-s, 2.6cqw); width: var(--cf-s-fxbasic-w, 88cqw); margin-left: var(--cf-s-fxbasic-mx, 0cqw); }
-.card-face[data-card-type="eternal"] .card-face-marker { width: var(--cf-s-icon-s, 4cqw); height: var(--cf-s-icon-s, 4cqw); }
+.card-face[data-card-type="eternal"] .card-face-fx .card-face-effect.is-basic { font-size: var(--cf-s-fxbasic-s, 2.8cqw); width: var(--cf-s-fxbasic-w, 80cqw); margin-left: var(--cf-s-fxbasic-mx, 8cqw); }
+.card-face[data-card-type="eternal"] .card-face-marker { width: var(--cf-s-icon-s, 6.6cqw); height: var(--cf-s-icon-s, 6.6cqw); }
 .card-face[data-card-type="eternal"] .card-face-effect { gap: var(--cf-s-gap-s, 1.5cqw); }
-.card-face[data-card-type="first"] .card-face-effect.is-basic { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-basic-y, 4cqw); width: var(--cf-f-basic-w, 89cqw); font-size: var(--cf-f-basic-s, 3cqw); }
-.card-face[data-card-type="first"] .card-face-title { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-title-y, 21cqw); width: var(--cf-f-title-w, 90cqw); font-size: var(--cf-f-title-s, 4.6cqw); }
+.card-face[data-card-type="first"] .card-face-effect.is-basic { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-basic-y, 6.5cqw); width: var(--cf-f-basic-w, 58cqw); font-size: var(--cf-f-basic-s, 2.8cqw); }
+.card-face[data-card-type="first"] .card-face-title { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-title-y, 23.5cqw); width: var(--cf-f-title-w, 90cqw); font-size: var(--cf-f-title-s, 3.5cqw); }
 .card-face[data-card-type="first"] .card-face-title rt { font-size: var(--cf-f-ruby-s, 1.6cqw); top: var(--cf-f-ruby-oy, 0cqw); }
-.card-face[data-card-type="first"] .card-face-subtitle { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-sub-y, 55cqw); width: var(--cf-f-sub-w, 90cqw); font-size: var(--cf-f-sub-s, 3.8cqw); }
-.card-face[data-card-type="first"] .card-face-effect.is-hand-cost { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-handcost-y, 62cqw); width: var(--cf-f-handcost-w, 89cqw); font-size: var(--cf-f-handcost-s, 2.9cqw); }
-.card-face[data-card-type="first"] .card-face-effect.is-hand { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-hand-y, 72cqw); width: var(--cf-f-hand-w, 89cqw); font-size: var(--cf-f-hand-s, 3.2cqw); }
-.card-face[data-card-type="first"] .card-face-marker { width: var(--cf-f-icon-s, 4cqw); height: var(--cf-f-icon-s, 4cqw); }
-.card-face[data-card-type="first"] .card-face-effect { gap: var(--cf-f-gap-s, 1.5cqw); }
+.card-face[data-card-type="first"] .card-face-subtitle { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-sub-y, 58.5cqw); width: var(--cf-f-sub-w, 90cqw); font-size: var(--cf-f-sub-s, 3.8cqw); }
+.card-face[data-card-type="first"] .card-face-hand-icon { position: absolute; left: var(--cf-f-handicon-x, 5cqw); top: var(--cf-f-handicon-y, 69.5cqw); width: var(--cf-f-handicon-s, 8cqw); height: var(--cf-f-handicon-s, 8cqw); }
+.card-face[data-card-type="first"] .card-face-effect.is-hand-cost { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-handcost-y, 69cqw); width: var(--cf-f-handcost-w, 72.5cqw); font-size: var(--cf-f-handcost-s, 2.9cqw); }
+.card-face[data-card-type="first"] .card-face-effect.is-hand { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-hand-y, 82.5cqw); width: var(--cf-f-hand-w, 61.5cqw); font-size: var(--cf-f-hand-s, 2.9cqw); }
 
 /* ===== カード面エディタ（card-render-preview.js・開発用） ===== */
 #card-render-editor {

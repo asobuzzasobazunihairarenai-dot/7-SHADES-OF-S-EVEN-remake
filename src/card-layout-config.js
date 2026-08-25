@@ -11,25 +11,25 @@
 
 export const LAYOUT = {
   std: {
-    flavor:  { x: 6, y: 5, w: 88, s: 3 },
+    flavor:  { x: 6, y: 5, w: 88, s: 2.5 },
     title:   { x: 6, y: 50.5, w: 90, s: 3.9 },
     ruby:    { s: 1.8, oy: -0.2, props: ["s", "oy"] },
     fx:      { x: 6, y: 58, w: 88, s: 3.2 },
     // ★基本は fx内で font-size・幅・左位置(margin-left)を個別に調整（到達/手札とは別）。
-    fxbasic: { s: 2.6, w: 88, mx: 0, props: ["s", "w", "mx"] },
-    icon:    { s: 4, props: ["s"] },   // ●/■アイコンのサイズ（cqw）
+    fxbasic: { s: 2.8, w: 80, mx: 8, props: ["s", "w", "mx"] },
+    icon:    { s: 6.6, props: ["s"] }, // ●/■アイコンのサイズ（cqw）
     gap:     { s: 1.5, props: ["s"] }, // アイコン→文の間隔（cqw）
   },
-  // first は中央配置（左位置Xは不要）。各要素は left:50%+translateX で中央に置き、幅と文字サイズだけ調整。
+  // first は中央配置（左位置Xは不要）＝タイトル/能力名/効果文は中央。ただし■アイコンだけは
+  // 独立要素(handicon)にして左位置Xを持つ（ユーザー要望「アイコンは中央でなく左位置調整」）。
   first: {
-    basic:    { y: 4, w: 89, s: 3, props: ["y", "w", "s"] },
-    title:    { y: 21, w: 90, s: 4.6, props: ["y", "w", "s"] },
+    basic:    { y: 6.5, w: 58, s: 2.8, props: ["y", "w", "s"] },
+    title:    { y: 23.5, w: 90, s: 3.5, props: ["y", "w", "s"] },
     ruby:     { s: 1.6, oy: 0, props: ["s", "oy"] },
-    sub:      { y: 55, w: 90, s: 3.8, props: ["y", "w", "s"] },
-    handcost: { y: 62, w: 89, s: 2.9, props: ["y", "w", "s"] }, // 手札効果の【追色N】（…）部分
-    hand:     { y: 72, w: 89, s: 3.2, props: ["y", "w", "s"] }, // 手札効果の本文（【追色】以降）
-    icon:     { s: 4, props: ["s"] },   // ●/■アイコンのサイズ（cqw）
-    gap:      { s: 1.5, props: ["s"] }, // アイコン→文の間隔（cqw）
+    sub:      { y: 58.5, w: 90, s: 3.8, props: ["y", "w", "s"] },
+    handicon: { x: 5, y: 69.5, s: 8, props: ["x", "y", "s"] }, // ■アイコン（左基準の絶対配置・中央ではない）
+    handcost: { y: 69, w: 72.5, s: 2.9, props: ["y", "w", "s"] }, // 手札効果の【追色N】（…）部分（中央・マーカー無し）
+    hand:     { y: 82.5, w: 61.5, s: 2.9, props: ["y", "w", "s"] }, // 手札効果の本文（中央・マーカー無し）
   },
 };
 
@@ -48,6 +48,7 @@ export const ELEMENT_META = {
   arrival: { sel: ".card-face-effect.is-arrival", labelJa: "●到達効果",       kind: "effect" },
   hand:    { sel: ".card-face-effect.is-hand",    labelJa: "■手札効果",       kind: "effect" },
   handcost:{ sel: ".card-face-effect.is-hand-cost", labelJa: "手札効果の【追色】部分", kind: "effect" },
+  handicon:{ sel: ".card-face-hand-icon",         labelJa: "■アイコン（手札効果）", kind: "iconpos", sLabel: "大きさ" },
   fx:      { sel: ".card-face-fx",                labelJa: "効果（基本/到達/手札）", kind: "fx" },
   fxbasic: { sel: ".card-face-fx .card-face-effect.is-basic", labelJa: "★基本効果（サイズ・幅・左位置）", kind: "size", sLabel: "文字サイズ" },
   icon:    { sel: ".card-face-marker",            labelJa: "アイコンのサイズ", kind: "iconsize", sLabel: "大きさ" },

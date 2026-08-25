@@ -168,8 +168,14 @@ export function buildCardFace(cardId, { showFlavor = true } = {}) {
     if ("hand" in slots && text.hand) {
       const split = ("handcost" in slots) ? splitFirstHandCost(text.hand) : null;
       if (split) {
-        // 【追色】部分に ■ マーカーを付け、効果本文はマーカー無しの別要素にする。
-        face.appendChild(buildSection("hand", split.cost, { effectClass: "is-hand-cost", markerKind: "hand" }));
+        // ■アイコンは独立要素（左位置調整）。テキスト（【追色】部分＋本文）はマーカー無し・中央。
+        if ("handicon" in slots) {
+          const ic = document.createElement("span");
+          ic.className = "card-face-hand-icon";
+          ic.setAttribute("aria-hidden", "true");
+          face.appendChild(ic);
+        }
+        face.appendChild(buildSection("hand", split.cost, { effectClass: "is-hand-cost", markerKind: null }));
         if (split.rest) face.appendChild(buildSection("hand", split.rest, { markerKind: null }));
       } else {
         face.appendChild(buildSection("hand", text.hand));

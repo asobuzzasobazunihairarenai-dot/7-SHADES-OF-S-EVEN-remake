@@ -17134,3 +17134,34 @@ URLが `?iso=0` になっていた取り違えと判断）。かつユーザー�
   グループに「手札効果の【追色】部分」が並ぶこと、生成CSS（handcost=中央/y62/w89/s2.9、hand=中央/y72/w89/s3.2）を
   実測確認。※cqwの厳密な位置合わせ・見た目は実機でお願いする（エディタで各要素をブランクに合わせ→
   「出力をコピー」の値を config/style.css の既定へ焼き込む運用）。
+
+### 2026-08-26（続き270）：カード面テキスト フェーズ2i（ファーストの■アイコンを手札効果文と別要素にして左位置調整可能に＋調整値の焼き込み）
+
+続き269をユーザーが確認し、調整済みの `:root` 値を既定へ焼き込みつつ、新要望に対応（本編未接続のまま）。
+- **ファーストの■アイコンを独立要素化（左位置調整可能に）**（ユーザー要望「アイコンと手札効果文の要素を
+  分けて、アイコンは中央ぞろえではなく左位置調整できるように」）: これまで first の手札効果は
+  `handcost`（■マーカー付き・【追色】部分）＋`hand`（本文）だったが、■マーカーを両テキストから外し、
+  **独立した `handicon` 要素**（`.card-face-hand-icon`、■画像＝effect-hand.png を敷いた span）として
+  **左基準の絶対配置（left=X・中央ではない）＋サイズ**で置くようにした。テキスト（handcost/hand）は
+  どちらもマーカー無し・中央のまま。`card-renderer.js` の first 分岐で、split 時に handicon（slots にあれば）
+  → handcost（markerKind:null）→ hand（markerKind:null）を append。
+- **config/生成/エディタ**: `card-layout-config.js` の first に `handicon`（x/y/s、props:["x","y","s"]、
+  handcost の上）を追加し、**first から `icon`/`gap` を撤去**（first の可視マーカーは■のみ＝handicon が担う
+  ため、汎用マーカーサイズ・アイコン→文の間隔は不要）。ELEMENT_META に
+  `handicon { sel:".card-face-hand-icon", kind:"iconpos", sLabel:"大きさ" }`。`gen-cardface-css.mjs` に
+  `handicon` 専用分岐（`position:absolute; left/top=var; width=height=var(-s)`＝左基準・中央でない）と
+  `.card-face-hand-icon` の基底（■画像 contain）＋ `.cf-outline` への追加を実装。エディタは config から
+  自動生成なので、ファースト選択時に「■アイコン（手札効果）[左位置X/上位置Y/大きさ]」グループが
+  「能力名《》」と「手札効果の【追色】部分」の間に自動で出る（他要素は中央配置＝Xなし、■だけXあり）。
+  std（通常/エターナル）は icon/gap 含め無変更。
+- **ユーザー調整値を既定へ焼き込み**（config の既定＋生成CSSの var 第2引数）:
+  std＝`--cf-s-flavor-s:2.5`・`--cf-s-fxbasic-s:2.8`/`-w:80`/`-mx:8`・`--cf-s-icon-s:6.6`（title/ruby は既存と一致）。
+  first＝`basic y6.5/w58/s2.8`・`title y23.5/s3.5`・`sub y58.5`・`handcost y69/w72.5`・`hand y82.5/w61.5/s2.9`・
+  `handicon s8`（旧 `--cf-f-icon-s:8` の意図を handicon サイズへ引き継ぎ。位置 x5/y69.5 は既定、実機で調整）。
+- **検証**: `node --check`（card-renderer/card-layout-config/gen-cardface-css）・CSSブレース平衡（2439）。
+  ブラウザで、first-red の子が `タイトル→能力名→★基本→[card-face-hand-icon 独立]→is-hand-cost(マーカー無)→
+  is-hand(マーカー無)` になること（■が独立要素・テキストはマーカー無し）、生成CSS（handicon=左基準
+  絶対配置 x5/y69.5/8cqw、handcost=中央 y69/w72.5、hand=中央 y82.5/w61.5）、effect-hand.png=200、
+  エディタの first に「■アイコン（手札効果）[x/y/s]」が出ること、std は icon/gap 含め無変更・通常カードの
+  手札効果は従来通り■インラインマーカー付き、を実測確認。※cqwの厳密な位置合わせ（■を空欄にきっちり
+  乗せる）は実機でエディタ→「出力をコピー」→既定へ焼き込みでお願いする。

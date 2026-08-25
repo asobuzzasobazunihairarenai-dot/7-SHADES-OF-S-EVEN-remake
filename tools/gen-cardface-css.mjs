@@ -30,6 +30,8 @@ const BASE = `/* ===== カード面レンダラ（card-renderer.js）＝テキ�
 .card-face-marker.is-basic { display: none; }
 .card-face-marker.is-arrival { background-image: url("../assets/icons/effect-arrival.png"); }
 .card-face-marker.is-hand { background-image: url("../assets/icons/effect-hand.png"); }
+/* ファーストの■アイコンは独立要素（左位置Xで配置・中央ではない。サイズは handicon-s）。 */
+.card-face-hand-icon { background-image: url("../assets/icons/effect-hand.png"); background-size: contain; background-repeat: no-repeat; background-position: center; }
 /* 仕切り線は原本に合わせて黒系で統一（各効果の間に置く。中央のダイヤは無し＝黒線のみ）。 */
 .card-face-divider { display: flex; align-items: center; height: 1.2cqw; }
 .card-face-divider::before { content: ""; height: 0.22cqw; flex: 1; background: rgba(20, 20, 20, 0.8); }
@@ -54,6 +56,7 @@ const BASE = `/* ===== カード面レンダラ（card-renderer.js）＝テキ�
 .card-face.cf-outline .card-face-flavor,
 .card-face.cf-outline .card-face-subtitle,
 .card-face.cf-outline .card-face-fx,
+.card-face.cf-outline .card-face-hand-icon,
 .card-face.cf-outline .card-face-effect { outline: 0.25cqw dashed rgba(0, 150, 255, 0.85); outline-offset: 0.3cqw; }
 `;
 
@@ -76,6 +79,17 @@ for (const type of TYPES) {
     if (el === "icon") {
       // アイコン（●/■マーカー）のサイズ（cqw）。
       gen += `.card-face[data-card-type="${type}"] ${sel} {`
+        + ` width: var(${cfVar(group, el, "s")}, ${d.s}cqw);`
+        + ` height: var(${cfVar(group, el, "s")}, ${d.s}cqw);`
+        + ` }\n`;
+      continue;
+    }
+    if (el === "handicon") {
+      // ■アイコンを独立要素として左基準で絶対配置（中央ではない）。width=height=s(cqw)。
+      gen += `.card-face[data-card-type="${type}"] ${sel} {`
+        + ` position: absolute;`
+        + ` left: var(${cfVar(group, el, "x")}, ${d.x}cqw);`
+        + ` top: var(${cfVar(group, el, "y")}, ${d.y}cqw);`
         + ` width: var(${cfVar(group, el, "s")}, ${d.s}cqw);`
         + ` height: var(${cfVar(group, el, "s")}, ${d.s}cqw);`
         + ` }\n`;
