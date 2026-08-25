@@ -1,63 +1,48 @@
-// アプリ内でカードを「イラスト＋アプリ側のテキスト」で組み立てるレンダラ（試作・フェーズ1）。
-// ユーザー相談: 現在カード画像に焼き込まれているタイトル・効果文を、アプリ側のテキスト表示に
-// 置き換えたい（ブランク画像＋テキスト重ね）。将来的には正方形イラストのみからアプリ内で
-// 全要素を合成し、多言語化もテキスト差し替えだけで行いたい、という構想。
+// アプリ内でカードを「テキスト無しブランク画像＋アプリ側テキスト」で組み立てるレンダラ。
+// ユーザー合意: 枠・仕切り線の装飾・イラスト・エンブレム・色枠は画像（assets/cards-blank/）が
+// 持ち、タイトル・効果文・フレーバー・能力名などの「テキストだけ」をアプリが重ねて表示する。
+// これにより効果文の修正が全表示へ即反映でき、将来の多言語化もテキスト差し替えだけで済む。
 //
-// フェーズ1の方針: 土台画像は、全カードにcardId名で既にある cards-illust（枠＋全面イラスト、
-// assets/cards-illust/${id}.webp）を使い、下半分にCSSのテキストパネル（タイトル・★基本/●到達/
-// ■手札・フレーバー）を重ねる。これで連番の「テキスト無し」ブランク画像のマッピング待ちに
-// ならず、33枚すべて今すぐ表示できる。あなたが見本イラスト・枠・仕切り線のアセットを用意したら、
-// フェーズ2でこのCSSパネルを本物のアセットへ差し替える。
+// カードは3レイアウトで別物（ユーザー指摘「ファーストはまたデザインが異なる」）:
+//  - normal : フレーバー(上) ＋ 下部に タイトル＋●到達＋■手札（下パネル領域に重ねる）
+//  - eternal: フレーバー(上) ＋ 下部に タイトル＋★基本＋■手札（能力名《》は■文にインライン）
+//  - first  : ★基本(上) ＋ タイトル(中上) ＋ 《能力名》(中) ＋ ■手札(下)。イラスト無し・エンブレム中心。
+// 効果セクションを仕切る「おしゃれな横線」はアプリ側（CSS）で描く（ユーザー依頼）。
 //
 // テキストの元データは src/card-text.js（カード効果　テキスト.txt から生成、印字カードと一致）。
-// 効果文の言い回しはこの権威ある元テキストをそのまま使う（card-effects.js の generateEffectText は
-// エンジン用・将来の多言語テンプレート用に別途残す）。
+// ★基本 / ●到達 / Θ効果名(subtitle) / ■手札 / Ωフレーバー。
 
-import { getCardDefinition, getCardIllustPath } from "./cards-data.js";
+import { getCardDefinition, getCardBlankPath } from "./cards-data.js";
 import { getCardText } from "./card-text.js";
 
-// 7色は既存パレット（style.css の --color-*）を使う。虹・白・黒・ノワールは単色の
-// フォールバック（color-mix / border-color / box-shadow はグラデーションを受け付けないため、
-// パネルの色味・仕切り線には必ず単色を使う）。
+// パネルの色味・仕切り線・マーカーには単色を使う（color-mix/border-color はグラデーション不可）。
 const SOLID_ACCENT = {
-  red: "#c70025",
-  orange: "#ee781f",
-  yellow: "#fabe00",
-  green: "#22ac38",
-  blue: "#1bb8ce",
-  pink: "#f19ec2",
-  purple: "#915da3",
-  rainbow: "#b07cc6",
-  white: "#c9c0a8",
-  black: "#3a3a44",
-  noir: "#3a3a44",
+  red: "#c70025", orange: "#ee781f", yellow: "#fabe00", green: "#22ac38",
+  blue: "#1bb8ce", pink: "#f19ec2", purple: "#915da3",
+  rainbow: "#b07cc6", white: "#c9c0a8", black: "#3a3a44", noir: "#3a3a44",
 };
+function accentFor(color) { return SOLID_ACCENT[color] || "#888888"; }
 
-function accentFor(color) {
-  return SOLID_ACCENT[color] || "#888888";
+function cardTypeOf(cardId) {
+  if (cardId?.startsWith("first-")) return "first";
+  if (cardId?.startsWith("eternal-")) return "eternal";
+  return "normal";
 }
 
-// セクション本文（\n区切り。"・"始まりの行は選択肢）を行要素の配列にする。
+// セクション本文（\n区切り。"・"始まりの行は選択肢）を行要素にする。
 function buildLines(text) {
   const frag = document.createDocumentFragment();
-  const rawLines = String(text || "").split("\n").filter((s) => s.length > 0);
-  for (const line of rawLines) {
+  for (const line of String(text || "").split("\n").filter((s) => s.length > 0)) {
     const div = document.createElement("div");
-    if (line.startsWith("・")) {
-      div.className = "card-face-subline";
-      div.textContent = line;
-    } else {
-      div.className = "card-face-textline";
-      div.textContent = line;
-    }
+    div.className = line.startsWith("・") ? "card-face-subline" : "card-face-textline";
+    div.textContent = line;
     frag.appendChild(div);
   }
   return frag;
 }
 
-// 1つの効果セクション（基本/到達/手札）を、マーカー付きの行ブロックにする。
+// 効果セクション（★基本/●到達/■手札）を、マーカー付きの行ブロックにする。
 function buildSection(kind, marker, text) {
-  if (!text) return null;
   const row = document.createElement("div");
   row.className = `card-face-effect is-${kind}`;
   const mk = document.createElement("span");
@@ -72,55 +57,62 @@ function buildSection(kind, marker, text) {
   return row;
 }
 
-// カード面のDOMを組み立てて返す。呼び出し側は幅（と正方形のaspect-ratio）を与えるだけでよい。
-// 中の文字はコンテナクエリ（cqw）でカード幅に比例して伸縮するので、どのサイズでも崩れない。
-export function buildCardFace(cardId, { showFlavor = true, showFooter = true } = {}) {
+function divEl(cls, textContent) {
+  const el = document.createElement("div");
+  el.className = cls;
+  if (textContent != null) el.textContent = textContent;
+  return el;
+}
+
+// アプリ側で描く「おしゃれな横線」（効果セクションの仕切り）。中央に小さな菱形を置いた線。
+function buildDivider() {
+  const d = document.createElement("div");
+  d.className = "card-face-divider";
+  d.setAttribute("aria-hidden", "true");
+  d.innerHTML = '<span class="card-face-divider-gem"></span>';
+  return d;
+}
+
+// カード面のDOMを組み立てて返す。呼び出し側は幅（正方形）を与えるだけ。
+// 中の文字はコンテナクエリ(cqw)でカード幅に比例＝どのサイズでも比率が崩れない。
+export function buildCardFace(cardId, { showFlavor = true } = {}) {
   const def = getCardDefinition(cardId);
   const text = getCardText(cardId) || {};
   const color = def?.color || "white";
-  const accent = accentFor(color);
+  const type = cardTypeOf(cardId);
 
   const face = document.createElement("div");
   face.className = "card-face";
   face.dataset.cardId = cardId || "";
   face.dataset.color = color;
-  face.style.setProperty("--card-accent", accent);
-  face.style.backgroundImage = `url("${getCardIllustPath(cardId)}")`;
+  face.dataset.cardType = type;
+  face.style.setProperty("--card-accent", accentFor(color));
+  face.style.backgroundImage = `url("${getCardBlankPath(cardId)}")`;
 
-  // フレーバー（上部・イラストの上に薄く重ねる）
-  if (showFlavor && text.flavor) {
-    const fl = document.createElement("div");
-    fl.className = "card-face-flavor";
-    fl.textContent = text.flavor;
-    face.appendChild(fl);
-  }
+  const title = divEl("card-face-title", def?.name || cardId || "");
 
-  // 下部テキストパネル（タイトル＋効果文）
-  const panel = document.createElement("div");
-  panel.className = "card-face-panel";
-
-  const title = document.createElement("div");
-  title.className = "card-face-title";
-  title.textContent = def?.name || cardId || "";
-  panel.appendChild(title);
-
-  const effects = document.createElement("div");
-  effects.className = "card-face-effects";
-  const basic = buildSection("basic", "★", text.basic);
-  const arrival = buildSection("arrival", "●", text.arrival);
-  const hand = buildSection("hand", "■", text.hand);
-  if (basic) effects.appendChild(basic);
-  if (arrival) effects.appendChild(arrival);
-  if (hand) effects.appendChild(hand);
-  panel.appendChild(effects);
-
-  face.appendChild(panel);
-
-  if (showFooter) {
-    const footer = document.createElement("div");
-    footer.className = "card-face-footer";
-    footer.textContent = "7 Shades of S:even  Asobuzz llc";
-    face.appendChild(footer);
+  if (type === "first") {
+    // ★基本(上) ／ タイトル(中上) ／ 《能力名》(中) ／ ■手札(下) を個別に絶対配置。
+    if (text.basic) face.appendChild(buildSection("basic", "★", text.basic));
+    face.appendChild(title);
+    if (text.subtitle) face.appendChild(divEl("card-face-subtitle", text.subtitle));
+    if (text.arrival) face.appendChild(buildSection("arrival", "●", text.arrival));
+    if (text.hand) face.appendChild(buildSection("hand", "■", text.hand));
+  } else {
+    // normal / eternal: フレーバー(上) ＋ 下部パネルに タイトル＋各効果（仕切り線で区切る）。
+    if (showFlavor && text.flavor) face.appendChild(divEl("card-face-flavor", text.flavor));
+    const lower = divEl("card-face-lower");
+    lower.appendChild(title);
+    if (text.subtitle) lower.appendChild(divEl("card-face-subtitle", text.subtitle));
+    const sections = [];
+    if (text.basic) sections.push(buildSection("basic", "★", text.basic));
+    if (text.arrival) sections.push(buildSection("arrival", "●", text.arrival));
+    if (text.hand) sections.push(buildSection("hand", "■", text.hand));
+    sections.forEach((sec, i) => {
+      if (i > 0) lower.appendChild(buildDivider());
+      lower.appendChild(sec);
+    });
+    face.appendChild(lower);
   }
 
   return face;

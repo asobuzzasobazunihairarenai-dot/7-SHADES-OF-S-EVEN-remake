@@ -39,6 +39,7 @@ const NAME_TO_ID = {
   "青のキューブ セレスティア": "first-blue",
   "桃のキューブ セレナーデ": "first-pink",
   "紫のキューブ ディメンション": "first-purple",
+  "黒のキューブ ノワール": "first-noir",
 };
 
 const norm = (s) => s.replace(/[\s\u3000]/g, "").replace(/[－ー−]/g, "-");
@@ -65,7 +66,7 @@ for (const line of lines) {
     const id = idByNorm.get(norm(text));
     cur = id ? { id, name: text } : null;
     inNote = false; activeSection = null;
-    if (id) result[id] = { flavor: "", basic: "", arrival: "", hand: "" };
+    if (id) result[id] = { flavor: "", basic: "", subtitle: "", arrival: "", hand: "" };
     else if (text) console.warn("UNMATCHED name:", JSON.stringify(text));
     continue;
   }
@@ -73,6 +74,7 @@ for (const line of lines) {
   if (t.startsWith("※")) { inNote = true; activeSection = null; continue; }
   if (inNote) continue;
   if (t.startsWith("Ω")) result[cur.id].flavor = t.slice(1).trim();
+  else if (t.startsWith("Θ")) { result[cur.id].subtitle = t.slice(1).trim(); activeSection = null; }
   else if (t.startsWith("★")) { append(cur.id, "basic", t.slice(1).trim()); activeSection = "basic"; }
   else if (t.startsWith("●")) { append(cur.id, "arrival", t.slice(1).trim()); activeSection = "arrival"; }
   else if (t.startsWith("■")) { append(cur.id, "hand", t.slice(1).trim()); activeSection = "hand"; }
@@ -100,7 +102,7 @@ const ORDER = [
   "purple-trial-ritual","purple-sorry","rainbow-shard","white-radiance","white-awakening",
   "black-faded-cat","black-contract-brand",
   "eternal-red","eternal-orange","eternal-yellow","eternal-green","eternal-blue","eternal-pink","eternal-purple",
-  "first-red","first-orange","first-yellow","first-green","first-blue","first-pink","first-purple",
+  "first-red","first-orange","first-yellow","first-green","first-blue","first-pink","first-purple","first-noir",
 ];
 const q = (s) => JSON.stringify(s || "");
 let out = `// AUTO-GENERATED（カード効果　テキスト.txt から scratchpad/parse-card-text.mjs で生成）。手編集しないこと。\n`;
@@ -111,7 +113,7 @@ out += `export const CARD_TEXT = {\n`;
 for (const id of ORDER) {
   const r = result[id];
   if (!r) { console.warn("ORDER missing in result:", id); continue; }
-  out += `  ${JSON.stringify(id)}: { flavor: ${q(r.flavor)}, basic: ${q(r.basic)}, arrival: ${q(r.arrival)}, hand: ${q(r.hand)} },\n`;
+  out += `  ${JSON.stringify(id)}: { flavor: ${q(r.flavor)}, basic: ${q(r.basic)}, subtitle: ${q(r.subtitle)}, arrival: ${q(r.arrival)}, hand: ${q(r.hand)} },\n`;
 }
 out += `};\n\nexport function getCardText(cardId) {\n  return CARD_TEXT[cardId] || null;\n}\n`;
 writeFileSync("./src/card-text.js", out, "utf8");

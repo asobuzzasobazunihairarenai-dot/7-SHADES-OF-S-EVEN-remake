@@ -131,6 +131,17 @@ export function getCardIllustPath(cardId) {
   return `assets/cards-illust/${cardId}.webp`;
 }
 
+// 「テキスト無し」版のカード画像（assets/cards-blank/配下、cardIdをそのままファイル名に）。
+// 枠・仕切り線・装飾・イラスト・エンブレム・色枠は含むが、タイトル・効果文・フレーバー等の
+// 「テキスト」だけが空欄のブランク画像。card-renderer.js がこれを土台に、アプリ側でテキストを
+// 重ねて表示する（ユーザー合意「テキストのみアプリ側／それ以外は画像」）。全33種＋ノワールを
+// 用意済み。未定義（ブースト等）はイラスト版へフォールバック。
+export function getCardBlankPath(cardId) {
+  const def = CARD_BY_ID.get(cardId);
+  if (def?.isBlankBoost) return blankBoostCardDataUri(def.color);
+  return `assets/cards-blank/${cardId}.webp`;
+}
+
 // 裏面は「通常カード」「エターナルカード」「ファーストカード」でデザインが違う（物理カードと
 // 同じ）。idの接頭辞（"eternal-"/"first-"）で判別する。
 // cardIdがnullの場合（オンライン対戦で、本当に中身が見えない裏向きカード・他人の手札を

@@ -17024,7 +17024,7 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
 /* 枠は正方形なので、幅＝高さ。ステージの縦に収まるよう vh でも上限する。 */
 .rank-showcase-editor-stage .rank-showcase { width: min(32rem, 66vh); }
 
-/* ===== カード面レンダラ（card-renderer.js）＝イラスト＋アプリ側テキスト（フェーズ1試作） ===== */
+/* ===== カード面レンダラ（card-renderer.js）＝テキスト無しブランク画像＋アプリ側テキスト ===== */
 /* 文字は全てコンテナクエリ単位(cqw)＝カード幅に比例。どのサイズでも比率が崩れない。 */
 .card-face {
   position: relative;
@@ -17038,82 +17038,74 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
   box-shadow: 0 0.6cqw 1.6cqw rgba(0, 0, 0, 0.35);
   user-select: none;
 }
-/* フレーバー（上部・イラストの上に薄く重ねる） */
-.card-face-flavor {
-  position: absolute;
-  top: 2.6cqw;
-  left: 6cqw;
-  right: 6cqw;
-  text-align: center;
-  font-size: 3cqw;
-  line-height: 1.25;
-  font-style: italic;
-  color: #fff;
-  text-shadow: 0 0.4cqw 1cqw rgba(0, 0, 0, 0.85), 0 0 0.4cqw rgba(0, 0, 0, 0.6);
-}
-/* 下部テキストパネル（タイトル＋効果文）。上端の実線＝基本/到達/手札を仕切る線の仮デザイン。 */
-.card-face-panel {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 47%;
-  box-sizing: border-box;
-  padding: 3cqw 4.5cqw 5.5cqw;
-  background: linear-gradient(to bottom, rgba(246, 241, 233, 0) 0%, rgba(246, 241, 233, 0.94) 9%, rgba(246, 241, 233, 0.98) 100%);
-  border-top: 0.7cqw solid var(--card-accent, #888);
-  display: flex;
-  flex-direction: column;
-  gap: 1.4cqw;
-}
+/* 共通のテキスト要素 */
+.card-face-textline { font-size: 3.2cqw; line-height: 1.28; }
+.card-face-subline { font-size: 2.95cqw; line-height: 1.26; padding-left: 2cqw; opacity: 0.92; }
+.card-face-effect { display: flex; gap: 1.4cqw; align-items: flex-start; }
+.card-face-marker { flex: 0 0 auto; font-size: 3.1cqw; line-height: 1.4; color: var(--card-accent, #666); }
+.card-face-marker.is-basic { display: none; } /* ★基本は印字カードでもマーカー無し */
+.card-face-effect-body { flex: 1; min-width: 0; }
 .card-face-title {
   font-size: 5cqw;
   font-weight: 800;
   line-height: 1.05;
   letter-spacing: 0.2cqw;
-  color: color-mix(in srgb, var(--card-accent, #555) 68%, #201a16);
+  color: color-mix(in srgb, var(--card-accent, #555) 66%, #201a16);
 }
-.card-face-effects {
+.card-face-subtitle {
+  font-size: 3.7cqw;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--card-accent, #555) 52%, #2a2320);
+}
+.card-face-flavor {
+  position: absolute;
+  text-align: center;
+  font-style: italic;
+  color: #fff;
+  text-shadow: 0 0.4cqw 1cqw rgba(0, 0, 0, 0.85), 0 0 0.4cqw rgba(0, 0, 0, 0.6);
+}
+/* アプリ側で描く「おしゃれな横線」（効果セクションの仕切り）＝両側フェードの線＋中央の菱形 */
+.card-face-divider { display: flex; align-items: center; height: 1.4cqw; margin: 0.5cqw 0; }
+.card-face-divider::before, .card-face-divider::after {
+  content: ""; height: 0.22cqw; flex: 1;
+  background: linear-gradient(to right, transparent, color-mix(in srgb, var(--card-accent, #888) 55%, transparent));
+}
+.card-face-divider::after { background: linear-gradient(to left, transparent, color-mix(in srgb, var(--card-accent, #888) 55%, transparent)); }
+.card-face-divider-gem { width: 1.5cqw; height: 1.5cqw; margin: 0 0.9cqw; transform: rotate(45deg); background: var(--card-accent, #888); opacity: 0.7; }
+
+/* --- normal / eternal: フレーバー(上) ＋ 下部パネルに テキストを重ねる --- */
+.card-face[data-card-type="normal"] .card-face-flavor,
+.card-face[data-card-type="eternal"] .card-face-flavor {
+  top: 2.6cqw; left: 6cqw; right: 6cqw; font-size: 3cqw; line-height: 1.25;
+}
+.card-face-lower {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  top: var(--cf-lower-y, 55%);
+  box-sizing: border-box;
+  padding: 2.2cqw 4.8cqw 4.2cqw;
   display: flex;
   flex-direction: column;
-  gap: 1.2cqw;
+  gap: 0.9cqw;
   overflow: hidden;
-  flex: 1;
 }
-.card-face-effect {
-  display: flex;
-  gap: 1.6cqw;
-  align-items: flex-start;
+.card-face[data-card-type="eternal"] .card-face-lower { top: var(--cf-lower-y, 58%); }
+.card-face[data-card-type="eternal"] .card-face-title { font-size: 4.6cqw; }
+
+/* --- first: ★基本(上) ／ タイトル(中上) ／ 《能力名》(中) ／ ■手札(下) を個別に絶対配置 --- */
+.card-face[data-card-type="first"] .card-face-effect.is-basic {
+  position: absolute; top: 4cqw; left: 5.5cqw; right: 5.5cqw; text-align: center;
 }
-.card-face-marker {
-  flex: 0 0 auto;
-  font-size: 3.4cqw;
-  line-height: 1.3;
-  color: var(--card-accent, #666);
+.card-face[data-card-type="first"] .card-face-effect.is-basic .card-face-effect-body { text-align: center; }
+.card-face[data-card-type="first"] .card-face-effect.is-basic .card-face-textline { font-size: 3cqw; line-height: 1.28; }
+.card-face[data-card-type="first"] .card-face-title {
+  position: absolute; top: 21cqw; left: 5cqw; right: 5cqw; text-align: center; font-size: 4.6cqw;
 }
-.card-face-effect-body {
-  flex: 1;
-  min-width: 0;
+.card-face[data-card-type="first"] .card-face-subtitle {
+  position: absolute; top: 55cqw; left: 5cqw; right: 5cqw; text-align: center; font-size: 3.8cqw;
 }
-.card-face-textline {
-  font-size: 3.35cqw;
-  line-height: 1.32;
-}
-.card-face-subline {
-  font-size: 3.1cqw;
-  line-height: 1.3;
-  padding-left: 2cqw;
-  opacity: 0.9;
-}
-.card-face-footer {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 1.4cqw;
-  text-align: center;
-  font-size: 2.1cqw;
-  color: rgba(80, 70, 60, 0.7);
-  letter-spacing: 0.1cqw;
+.card-face[data-card-type="first"] .card-face-effect.is-hand {
+  position: absolute; top: 63cqw; left: 5.5cqw; right: 5.5cqw;
 }
 
 /* ===== カード表示プレビュー（card-render-preview.js・開発用） ===== */
