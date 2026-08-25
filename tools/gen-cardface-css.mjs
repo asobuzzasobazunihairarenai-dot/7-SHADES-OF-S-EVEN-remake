@@ -2,7 +2,7 @@
 // src/style.css の該当ブロックへ差し込む。配置を変えたら `node tools/gen-cardface-css.mjs` で再生成。
 // 位置・サイズは全て cqw（カード幅比）＝カードをどのサイズで表示しても比率が崩れない。
 import { readFileSync, writeFileSync } from "node:fs";
-import { LAYOUT, TYPE_GROUP, ELEMENT_META, cfVar } from "../src/card-layout-config.js";
+import { LAYOUT, TYPE_GROUP, ELEMENT_META, cfVar, propsFor } from "../src/card-layout-config.js";
 
 const CSS_PATH = new URL("../src/style.css", import.meta.url);
 
@@ -30,11 +30,11 @@ const BASE = `/* ===== カード面レンダラ（card-renderer.js）＝テキ�
 .card-face-marker.is-basic { display: none; }
 .card-face-marker.is-arrival { background-image: url("../assets/icons/effect-arrival.png"); }
 .card-face-marker.is-hand { background-image: url("../assets/icons/effect-hand.png"); }
-/* おしゃれな仕切り線（中央に小さな菱形）。効果セットの各効果の間に置く。 */
+/* 仕切り線は原本に合わせて黒系で統一（各効果の間に置く。中央に小さな菱形）。 */
 .card-face-divider { display: flex; align-items: center; height: 1.2cqw; }
-.card-face-divider::before, .card-face-divider::after { content: ""; height: 0.22cqw; flex: 1; background: linear-gradient(to right, transparent, color-mix(in srgb, var(--card-accent, #888) 55%, transparent)); }
-.card-face-divider::after { background: linear-gradient(to left, transparent, color-mix(in srgb, var(--card-accent, #888) 55%, transparent)); }
-.card-face-divider-gem { width: 1.4cqw; height: 1.4cqw; margin: 0 0.9cqw; transform: rotate(45deg); background: var(--card-accent, #888); opacity: 0.7; }
+.card-face-divider::before, .card-face-divider::after { content: ""; height: 0.22cqw; flex: 1; background: linear-gradient(to right, transparent, rgba(20, 20, 20, 0.75)); }
+.card-face-divider::after { background: linear-gradient(to left, transparent, rgba(20, 20, 20, 0.75)); }
+.card-face-divider-gem { width: 1.4cqw; height: 1.4cqw; margin: 0 0.9cqw; transform: rotate(45deg); background: #1a1a1a; }
 /* タイトルは全て黒文字（ユーザー指定）。ファーストのみ中央寄せ。フォント＝FOT-マティス。 */
 .card-face-title { font-family: ${FONT_TITLE}; font-weight: 500; line-height: 1.08; letter-spacing: 0.2cqw; color: #141414; text-align: left; }
 .card-face[data-card-type="first"] .card-face-title { text-align: center; }
@@ -66,6 +66,7 @@ for (const type of TYPES) {
   const group = TYPE_GROUP[type];
   const slots = LAYOUT[group];
   for (const [el, d] of Object.entries(slots)) {
+    const sel = ELEMENT_META[el].sel;
     if (el === "ruby") {
       // ルビは絶対配置ではなく、タイトル内の rt の font-size と上下微調整(position:relative + top)。
       gen += `.card-face[data-card-type="${type}"] .card-face-title rt {`
@@ -74,7 +75,33 @@ for (const type of TYPES) {
         + ` }\n`;
       continue;
     }
-    const sel = ELEMENT_META[el].sel;
+    if (el === "icon") {
+      // アイコン（●/■マーカー）のサイズ（cqw）。
+      gen += `.card-face[data-card-type="${type}"] ${sel} {`
+        + ` width: var(${cfVar(group, el, "s")}, ${d.s}cqw);`
+        + ` height: var(${cfVar(group, el, "s")}, ${d.s}cqw);`
+        + ` }\n`;
+      continue;
+    }
+    const props = propsFor(d);
+    if (!props.includes("x") && !props.includes("y")) {
+      // 位置を持たない＝サイズだけの上書き（例: fxbasic＝★基本の文字サイズ）。
+      gen += `.card-face[data-card-type="${type}"] ${sel} {`
+        + ` font-size: var(${cfVar(group, el, "s")}, ${d.s}cqw);`
+        + ` }\n`;
+      continue;
+    }
+    if (!props.includes("x")) {
+      // 左位置Xを持たない＝中央配置（first）。left:50% + translateX(-50%) で幅の中央に置く。
+      gen += `.card-face[data-card-type="${type}"] ${sel} {`
+        + ` position: absolute; left: 50%; transform: translateX(-50%);`
+        + ` top: var(${cfVar(group, el, "y")}, ${d.y}cqw);`
+        + ` width: var(${cfVar(group, el, "w")}, ${d.w}cqw);`
+        + ` font-size: var(${cfVar(group, el, "s")}, ${d.s}cqw);`
+        + ` }\n`;
+      continue;
+    }
+    // 左位置Xを持つ＝左基準の絶対配置（std）。
     gen += `.card-face[data-card-type="${type}"] ${sel} {`
       + ` position: absolute;`
       + ` left: var(${cfVar(group, el, "x")}, ${d.x}cqw);`

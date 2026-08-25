@@ -11,17 +11,20 @@
 
 export const LAYOUT = {
   std: {
-    flavor: { x: 6, y: 5, w: 88, s: 3 },
-    title:  { x: 4.8, y: 51.5, w: 90, s: 3.9 },
-    ruby:   { s: 1.8, oy: 0, props: ["s", "oy"] },
-    fx:     { x: 6, y: 58, w: 88, s: 3.2 },
+    flavor:  { x: 6, y: 5, w: 88, s: 3 },
+    title:   { x: 6, y: 50.5, w: 90, s: 3.9 },
+    ruby:    { s: 1.8, oy: -0.2, props: ["s", "oy"] },
+    fx:      { x: 6, y: 58, w: 88, s: 3.2 },
+    fxbasic: { s: 2.6, props: ["s"] }, // ★基本の文字サイズ（到達/手札より小さく）＝fx内のbasicだけ上書き
   },
+  // first は中央配置（左位置Xは不要）。各要素は left:50%+translateX で中央に置き、幅と文字サイズだけ調整。
   first: {
-    basic:  { x: 5.5, y: 4, w: 89, s: 3 },
-    title:  { x: 5, y: 21, w: 90, s: 4.6 },
+    basic:  { y: 4, w: 89, s: 3, props: ["y", "w", "s"] },
+    title:  { y: 21, w: 90, s: 4.6, props: ["y", "w", "s"] },
     ruby:   { s: 1.6, oy: 0, props: ["s", "oy"] },
-    sub:    { x: 5, y: 55, w: 90, s: 3.8 },
-    hand:   { x: 5.5, y: 63, w: 89, s: 3.2 },
+    sub:    { y: 55, w: 90, s: 3.8, props: ["y", "w", "s"] },
+    hand:   { y: 63, w: 89, s: 3.2, props: ["y", "w", "s"] },
+    icon:   { s: 4, props: ["s"] }, // ●/■アイコンのサイズ（cqw）
   },
 };
 
@@ -40,6 +43,8 @@ export const ELEMENT_META = {
   arrival: { sel: ".card-face-effect.is-arrival", labelJa: "●到達効果",       kind: "effect" },
   hand:    { sel: ".card-face-effect.is-hand",    labelJa: "■手札効果",       kind: "effect" },
   fx:      { sel: ".card-face-fx",                labelJa: "効果（基本/到達/手札）", kind: "fx" },
+  fxbasic: { sel: ".card-face-fx .card-face-effect.is-basic", labelJa: "★基本効果の文字サイズ", kind: "size" },
+  icon:    { sel: ".card-face-marker",            labelJa: "アイコンのサイズ", kind: "iconsize" },
 };
 
 export const TYPE_LABEL = { normal: "通常", eternal: "エターナル", first: "ファースト" };

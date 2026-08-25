@@ -17050,3 +17050,29 @@ URLが `?iso=0` になっていた取り違えと判断）。かつユーザー�
   cqwの厳密な位置合わせは実機でお願いする。
 - **残課題**: (1) 実機で std（通常/エターナル）と first を各々ブランクに合わせ、「出力をコピー」の値を
   config/style.css 既定へ焼き込み。(2) 本編（手札・盤面・ホバー拡大・山札一覧）への接続。
+
+### 2026-08-25（続き267）：カード面テキスト・フェーズ2f（仕切り黒系・基本効果の文字サイズ個別・ファースト中央配置＆アイコンサイズ・std値反映）
+
+続き266をユーザーが確認し、4件のフィードバックに対応（本編未接続のまま）。
+- **仕切り線を黒系に統一**（ユーザー要望「原本と同じく黒系・分かりやすく」）: これまで仕切りは
+  `--card-accent`（カード色）だったが、`.card-face-divider::before/::after` を `rgba(20,20,20,0.75)` の
+  グラデ、中央の菱形 `.card-face-divider-gem` を `#1a1a1a` に変更。
+- **★基本効果の文字サイズを到達/手札と別に調整可能に**（ユーザー要望「基本は小さめにしたい」）:
+  効果セット(fx)は1つの font-size を共有していたが、fx内の基本だけを上書きする `fxbasic` 調整を新設
+  （`.card-face-fx .card-face-effect.is-basic { font-size: var(--cf-s-fxbasic-s, 2.6cqw) }`。既定2.6cqw＝
+  到達/手札の 3.2cqw より小さい）。エディタに「★基本効果の文字サイズ」グループ（1スライダー）を追加。
+- **ファーストは中央配置（左位置X不要）＋アイコンサイズ調整**（ユーザー要望）: first の各要素
+  （基本/タイトル/能力名/手札）を `left:50% + translateX(-50%)` の中央配置に変更し、調整項目から X を
+  外した（props を `["y","w","s"]` に）。●/■アイコンのサイズを `--cf-f-icon-s`（既定4cqw、first の
+  `.card-face-marker` の width/height）で調整できる「アイコンのサイズ」グループを追加。
+- **config/生成ツールの一般化**: `card-layout-config.js` の各スロットに `props` を持たせ、
+  `tools/gen-cardface-css.mjs` が props に応じて生成を分岐（x有り＝左基準絶対配置／x無しで位置あり＝
+  中央配置／位置なし＝サイズのみ上書き〈fxbasic〉／ruby＝rtのfont-size+top／icon＝markerのwidth/height）。
+- **ユーザー調整の std 値を既定に反映**: title x=6・y=50.5・w=90、ruby oy=-0.2（通常/エターナル共通の
+  std グループ）。config・生成CSSの既定へ焼き込み。
+- **検証**: `node --check`（config/renderer/preview/gen）・CSSブレース平衡（2435）。生成CSSで、
+  normal/eternal=fxbasic font-size上書き（2.6cqw<fx3.2cqw）、first=中央配置(translateX(-50%))＋X無し＋
+  icon width/height=var(--cf-f-icon-s)、仕切りgem=#1a1a1a、を確認。エディタに「★基本効果の文字サイズ」
+  「アイコンのサイズ」グループ追加・first にX調整が出ないことを実測。※cqwの厳密なpx実測はペイン休眠
+  （サンドボックス制約）で不可のため、実機での位置・サイズ合わせは要確認。
+- **残課題**: (1) 実機で std・first をブランクに合わせ「出力をコピー」→ 既定へ焼き込み。(2) 本編接続。

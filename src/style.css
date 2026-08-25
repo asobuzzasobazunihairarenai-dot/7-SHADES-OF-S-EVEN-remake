@@ -17044,11 +17044,11 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
 .card-face-marker.is-basic { display: none; }
 .card-face-marker.is-arrival { background-image: url("../assets/icons/effect-arrival.png"); }
 .card-face-marker.is-hand { background-image: url("../assets/icons/effect-hand.png"); }
-/* おしゃれな仕切り線（中央に小さな菱形）。効果セットの各効果の間に置く。 */
+/* 仕切り線は原本に合わせて黒系で統一（各効果の間に置く。中央に小さな菱形）。 */
 .card-face-divider { display: flex; align-items: center; height: 1.2cqw; }
-.card-face-divider::before, .card-face-divider::after { content: ""; height: 0.22cqw; flex: 1; background: linear-gradient(to right, transparent, color-mix(in srgb, var(--card-accent, #888) 55%, transparent)); }
-.card-face-divider::after { background: linear-gradient(to left, transparent, color-mix(in srgb, var(--card-accent, #888) 55%, transparent)); }
-.card-face-divider-gem { width: 1.4cqw; height: 1.4cqw; margin: 0 0.9cqw; transform: rotate(45deg); background: var(--card-accent, #888); opacity: 0.7; }
+.card-face-divider::before, .card-face-divider::after { content: ""; height: 0.22cqw; flex: 1; background: linear-gradient(to right, transparent, rgba(20, 20, 20, 0.75)); }
+.card-face-divider::after { background: linear-gradient(to left, transparent, rgba(20, 20, 20, 0.75)); }
+.card-face-divider-gem { width: 1.4cqw; height: 1.4cqw; margin: 0 0.9cqw; transform: rotate(45deg); background: #1a1a1a; }
 /* タイトルは全て黒文字（ユーザー指定）。ファーストのみ中央寄せ。フォント＝FOT-マティス。 */
 .card-face-title { font-family: "FOT-マティス ProN M", "FOT-Matisse ProN M", "Yu Mincho", serif; font-weight: 500; line-height: 1.08; letter-spacing: 0.2cqw; color: #141414; text-align: left; }
 .card-face[data-card-type="first"] .card-face-title { text-align: center; }
@@ -17074,18 +17074,21 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
 
 /* --- 各テキスト要素の絶対配置（自動生成：card-layout-config.js） --- */
 .card-face[data-card-type="normal"] .card-face-flavor { position: absolute; left: var(--cf-s-flavor-x, 6cqw); top: var(--cf-s-flavor-y, 5cqw); width: var(--cf-s-flavor-w, 88cqw); font-size: var(--cf-s-flavor-s, 3cqw); }
-.card-face[data-card-type="normal"] .card-face-title { position: absolute; left: var(--cf-s-title-x, 4.8cqw); top: var(--cf-s-title-y, 51.5cqw); width: var(--cf-s-title-w, 90cqw); font-size: var(--cf-s-title-s, 3.9cqw); }
-.card-face[data-card-type="normal"] .card-face-title rt { font-size: var(--cf-s-ruby-s, 1.8cqw); top: var(--cf-s-ruby-oy, 0cqw); }
+.card-face[data-card-type="normal"] .card-face-title { position: absolute; left: var(--cf-s-title-x, 6cqw); top: var(--cf-s-title-y, 50.5cqw); width: var(--cf-s-title-w, 90cqw); font-size: var(--cf-s-title-s, 3.9cqw); }
+.card-face[data-card-type="normal"] .card-face-title rt { font-size: var(--cf-s-ruby-s, 1.8cqw); top: var(--cf-s-ruby-oy, -0.2cqw); }
 .card-face[data-card-type="normal"] .card-face-fx { position: absolute; left: var(--cf-s-fx-x, 6cqw); top: var(--cf-s-fx-y, 58cqw); width: var(--cf-s-fx-w, 88cqw); font-size: var(--cf-s-fx-s, 3.2cqw); }
+.card-face[data-card-type="normal"] .card-face-fx .card-face-effect.is-basic { font-size: var(--cf-s-fxbasic-s, 2.6cqw); }
 .card-face[data-card-type="eternal"] .card-face-flavor { position: absolute; left: var(--cf-s-flavor-x, 6cqw); top: var(--cf-s-flavor-y, 5cqw); width: var(--cf-s-flavor-w, 88cqw); font-size: var(--cf-s-flavor-s, 3cqw); }
-.card-face[data-card-type="eternal"] .card-face-title { position: absolute; left: var(--cf-s-title-x, 4.8cqw); top: var(--cf-s-title-y, 51.5cqw); width: var(--cf-s-title-w, 90cqw); font-size: var(--cf-s-title-s, 3.9cqw); }
-.card-face[data-card-type="eternal"] .card-face-title rt { font-size: var(--cf-s-ruby-s, 1.8cqw); top: var(--cf-s-ruby-oy, 0cqw); }
+.card-face[data-card-type="eternal"] .card-face-title { position: absolute; left: var(--cf-s-title-x, 6cqw); top: var(--cf-s-title-y, 50.5cqw); width: var(--cf-s-title-w, 90cqw); font-size: var(--cf-s-title-s, 3.9cqw); }
+.card-face[data-card-type="eternal"] .card-face-title rt { font-size: var(--cf-s-ruby-s, 1.8cqw); top: var(--cf-s-ruby-oy, -0.2cqw); }
 .card-face[data-card-type="eternal"] .card-face-fx { position: absolute; left: var(--cf-s-fx-x, 6cqw); top: var(--cf-s-fx-y, 58cqw); width: var(--cf-s-fx-w, 88cqw); font-size: var(--cf-s-fx-s, 3.2cqw); }
-.card-face[data-card-type="first"] .card-face-effect.is-basic { position: absolute; left: var(--cf-f-basic-x, 5.5cqw); top: var(--cf-f-basic-y, 4cqw); width: var(--cf-f-basic-w, 89cqw); font-size: var(--cf-f-basic-s, 3cqw); }
-.card-face[data-card-type="first"] .card-face-title { position: absolute; left: var(--cf-f-title-x, 5cqw); top: var(--cf-f-title-y, 21cqw); width: var(--cf-f-title-w, 90cqw); font-size: var(--cf-f-title-s, 4.6cqw); }
+.card-face[data-card-type="eternal"] .card-face-fx .card-face-effect.is-basic { font-size: var(--cf-s-fxbasic-s, 2.6cqw); }
+.card-face[data-card-type="first"] .card-face-effect.is-basic { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-basic-y, 4cqw); width: var(--cf-f-basic-w, 89cqw); font-size: var(--cf-f-basic-s, 3cqw); }
+.card-face[data-card-type="first"] .card-face-title { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-title-y, 21cqw); width: var(--cf-f-title-w, 90cqw); font-size: var(--cf-f-title-s, 4.6cqw); }
 .card-face[data-card-type="first"] .card-face-title rt { font-size: var(--cf-f-ruby-s, 1.6cqw); top: var(--cf-f-ruby-oy, 0cqw); }
-.card-face[data-card-type="first"] .card-face-subtitle { position: absolute; left: var(--cf-f-sub-x, 5cqw); top: var(--cf-f-sub-y, 55cqw); width: var(--cf-f-sub-w, 90cqw); font-size: var(--cf-f-sub-s, 3.8cqw); }
-.card-face[data-card-type="first"] .card-face-effect.is-hand { position: absolute; left: var(--cf-f-hand-x, 5.5cqw); top: var(--cf-f-hand-y, 63cqw); width: var(--cf-f-hand-w, 89cqw); font-size: var(--cf-f-hand-s, 3.2cqw); }
+.card-face[data-card-type="first"] .card-face-subtitle { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-sub-y, 55cqw); width: var(--cf-f-sub-w, 90cqw); font-size: var(--cf-f-sub-s, 3.8cqw); }
+.card-face[data-card-type="first"] .card-face-effect.is-hand { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-hand-y, 63cqw); width: var(--cf-f-hand-w, 89cqw); font-size: var(--cf-f-hand-s, 3.2cqw); }
+.card-face[data-card-type="first"] .card-face-marker { width: var(--cf-f-icon-s, 4cqw); height: var(--cf-f-icon-s, 4cqw); }
 
 /* ===== カード面エディタ（card-render-preview.js・開発用） ===== */
 #card-render-editor {
