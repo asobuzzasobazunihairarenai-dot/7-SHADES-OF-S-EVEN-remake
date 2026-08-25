@@ -17094,3 +17094,17 @@ URLが `?iso=0` になっていた取り違えと判断）。かつユーザー�
   黒線のみ（gem無し・`::before` bg=rgba(20,20,20,0.8)）でダイヤが消えたこと、rainbow-shard で仕切り2本
   （効果3つの間）にダイヤが無いことを実測確認。
 - **残課題**: (1) 実機で std・first をブランクに合わせ「出力をコピー」→ 既定へ焼き込み。(2) 本編接続。
+
+### 2026-08-25（続き269）：カード面テキスト・基本効果の幅と左位置を個別調整可能に
+
+続き268の後、ユーザー要望「基本効果の幅と左位置を個別に調整したい」に対応（本編未接続のまま）。
+- **std（通常/エターナル）の★基本効果に幅・左位置を追加**: これまで fx（効果セット）内の basic は
+  font-size だけ個別（`fxbasic`）だったが、`width`（`--cf-s-fxbasic-w`）と左位置ずらし（`margin-left`＝
+  `--cf-s-fxbasic-mx`）も個別に調整できるようにした。fx は flex 縦積みなので、basic だけ幅を狭めたり
+  左右にずらしても、到達/手札はセットの幅のまま。`card-layout-config.js` の fxbasic を
+  `{s,w,mx,props:["s","w","mx"]}` に拡張、`gen-cardface-css.mjs` に fxbasic 専用分岐（font-size＋width＋
+  margin-left を出力）、`PROP_RANGE.mx`（左位置ずらし、-30〜30cqw）を新設。エディタの「★基本効果
+  （サイズ・幅・左位置）」グループが「文字サイズ／幅／左位置(ずらし)」の3項目になる。
+- **検証**: `node --check`・CSSブレース平衡（2438）。ブラウザで、★基本効果グループが3項目（文字サイズ/幅/
+  左位置(ずらし)）になり、生成ルールが `--cf-s-fxbasic-w`（width）・`--cf-s-fxbasic-mx`（margin-left）・
+  `--cf-s-fxbasic-s`（font-size）を参照することを実測確認。first の basic は従来通り中央配置（個別 y/w/s）。

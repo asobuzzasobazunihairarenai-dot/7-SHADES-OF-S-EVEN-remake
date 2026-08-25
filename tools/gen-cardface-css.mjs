@@ -88,6 +88,15 @@ for (const type of TYPES) {
         + ` }\n`;
       continue;
     }
+    if (el === "fxbasic") {
+      // fx内の★基本だけ、font-size・幅・左位置(margin-left)を個別に上書き（到達/手札とは別）。
+      gen += `.card-face[data-card-type="${type}"] ${sel} {`
+        + ` font-size: var(${cfVar(group, el, "s")}, ${d.s}cqw);`
+        + ` width: var(${cfVar(group, el, "w")}, ${d.w}cqw);`
+        + ` margin-left: var(${cfVar(group, el, "mx")}, ${d.mx}cqw);`
+        + ` }\n`;
+      continue;
+    }
     const props = propsFor(d);
     if (!props.includes("x") && !props.includes("y")) {
       // 位置を持たない＝サイズだけの上書き（例: fxbasic＝★基本の文字サイズ）。

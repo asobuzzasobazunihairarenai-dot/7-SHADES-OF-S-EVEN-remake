@@ -15,7 +15,8 @@ export const LAYOUT = {
     title:   { x: 6, y: 50.5, w: 90, s: 3.9 },
     ruby:    { s: 1.8, oy: -0.2, props: ["s", "oy"] },
     fx:      { x: 6, y: 58, w: 88, s: 3.2 },
-    fxbasic: { s: 2.6, props: ["s"] }, // ★基本の文字サイズ（到達/手札より小さく）＝fx内のbasicだけ上書き
+    // ★基本は fx内で font-size・幅・左位置(margin-left)を個別に調整（到達/手札とは別）。
+    fxbasic: { s: 2.6, w: 88, mx: 0, props: ["s", "w", "mx"] },
     icon:    { s: 4, props: ["s"] },   // ●/■アイコンのサイズ（cqw）
     gap:     { s: 1.5, props: ["s"] }, // アイコン→文の間隔（cqw）
   },
@@ -46,7 +47,7 @@ export const ELEMENT_META = {
   arrival: { sel: ".card-face-effect.is-arrival", labelJa: "●到達効果",       kind: "effect" },
   hand:    { sel: ".card-face-effect.is-hand",    labelJa: "■手札効果",       kind: "effect" },
   fx:      { sel: ".card-face-fx",                labelJa: "効果（基本/到達/手札）", kind: "fx" },
-  fxbasic: { sel: ".card-face-fx .card-face-effect.is-basic", labelJa: "★基本効果の文字サイズ", kind: "size", sLabel: "文字サイズ" },
+  fxbasic: { sel: ".card-face-fx .card-face-effect.is-basic", labelJa: "★基本効果（サイズ・幅・左位置）", kind: "size", sLabel: "文字サイズ" },
   icon:    { sel: ".card-face-marker",            labelJa: "アイコンのサイズ", kind: "iconsize", sLabel: "大きさ" },
   gap:     { sel: ".card-face-effect",            labelJa: "アイコン→文の間隔", kind: "gap", sLabel: "間隔" },
 };
@@ -79,4 +80,5 @@ export const PROP_RANGE = {
   w:  { min: 20,  max: 98, step: 0.5, unit: "cqw", label: "幅" },
   s:  { min: 1.0, max: 9,  step: 0.1, unit: "cqw", label: "文字サイズ" },
   oy: { min: -4,  max: 4,  step: 0.1, unit: "cqw", label: "上下微調整" },
+  mx: { min: -30, max: 30, step: 0.5, unit: "cqw", label: "左位置(ずらし)" },
 };
