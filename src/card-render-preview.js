@@ -49,13 +49,13 @@ function allCards() {
 }
 
 // 1つのプロパティ（X/Y/幅/サイズ）のスライダー＋数値入力（相互同期）。
-function buildPropRow(group, el, prop) {
+function buildPropRow(group, el, prop, labelOverride) {
   const range = PROP_RANGE[prop];
   const row = document.createElement("div");
   row.className = "cf-ed-prop";
   const label = document.createElement("span");
   label.className = "cf-ed-prop-label";
-  label.textContent = range.label;
+  label.textContent = labelOverride || range.label;
   const slider = document.createElement("input");
   slider.type = "range";
   slider.min = String(range.min); slider.max = String(range.max); slider.step = String(range.step);
@@ -96,7 +96,10 @@ function buildControls(cardId) {
     gt.className = "cf-ed-group-title";
     gt.textContent = ELEMENT_META[el]?.labelJa || el;
     g.appendChild(gt);
-    for (const prop of propsFor(slots[el])) g.appendChild(buildPropRow(group, el, prop));
+    const sLabel = ELEMENT_META[el]?.sLabel;
+    for (const prop of propsFor(slots[el])) {
+      g.appendChild(buildPropRow(group, el, prop, prop === "s" ? sLabel : undefined));
+    }
     wrap.appendChild(g);
   }
   return wrap;

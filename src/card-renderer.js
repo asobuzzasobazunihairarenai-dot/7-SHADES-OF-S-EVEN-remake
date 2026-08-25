@@ -95,12 +95,11 @@ function divEl(cls, textContent) {
   return el;
 }
 
-// おしゃれな仕切り線（中央に小さな菱形）。効果セットの各効果の間に置く。
+// 仕切り線（黒系の線のみ・中央のダイヤは無し）。効果セットの各効果の間に置く。
 function buildDivider() {
   const d = document.createElement("div");
   d.className = "card-face-divider";
   d.setAttribute("aria-hidden", "true");
-  d.innerHTML = '<span class="card-face-divider-gem"></span>';
   return d;
 }
 

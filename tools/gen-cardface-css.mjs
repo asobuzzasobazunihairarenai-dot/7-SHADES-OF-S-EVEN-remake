@@ -30,11 +30,9 @@ const BASE = `/* ===== カード面レンダラ（card-renderer.js）＝テキ�
 .card-face-marker.is-basic { display: none; }
 .card-face-marker.is-arrival { background-image: url("../assets/icons/effect-arrival.png"); }
 .card-face-marker.is-hand { background-image: url("../assets/icons/effect-hand.png"); }
-/* 仕切り線は原本に合わせて黒系で統一（各効果の間に置く。中央に小さな菱形）。 */
+/* 仕切り線は原本に合わせて黒系で統一（各効果の間に置く。中央のダイヤは無し＝黒線のみ）。 */
 .card-face-divider { display: flex; align-items: center; height: 1.2cqw; }
-.card-face-divider::before, .card-face-divider::after { content: ""; height: 0.22cqw; flex: 1; background: linear-gradient(to right, transparent, rgba(20, 20, 20, 0.75)); }
-.card-face-divider::after { background: linear-gradient(to left, transparent, rgba(20, 20, 20, 0.75)); }
-.card-face-divider-gem { width: 1.4cqw; height: 1.4cqw; margin: 0 0.9cqw; transform: rotate(45deg); background: #1a1a1a; }
+.card-face-divider::before { content: ""; height: 0.22cqw; flex: 1; background: rgba(20, 20, 20, 0.8); }
 /* タイトルは全て黒文字（ユーザー指定）。ファーストのみ中央寄せ。フォント＝FOT-マティス。 */
 .card-face-title { font-family: ${FONT_TITLE}; font-weight: 500; line-height: 1.08; letter-spacing: 0.2cqw; color: #141414; text-align: left; }
 .card-face[data-card-type="first"] .card-face-title { text-align: center; }
@@ -80,6 +78,13 @@ for (const type of TYPES) {
       gen += `.card-face[data-card-type="${type}"] ${sel} {`
         + ` width: var(${cfVar(group, el, "s")}, ${d.s}cqw);`
         + ` height: var(${cfVar(group, el, "s")}, ${d.s}cqw);`
+        + ` }\n`;
+      continue;
+    }
+    if (el === "gap") {
+      // アイコン→文の間隔（効果行 flex の gap、cqw）。
+      gen += `.card-face[data-card-type="${type}"] ${sel} {`
+        + ` gap: var(${cfVar(group, el, "s")}, ${d.s}cqw);`
         + ` }\n`;
       continue;
     }
