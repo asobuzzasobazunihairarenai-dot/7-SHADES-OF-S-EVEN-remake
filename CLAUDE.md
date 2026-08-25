@@ -17195,3 +17195,12 @@ URLが `?iso=0` になっていた取り違えと判断）。かつユーザー�
 `--cf-s-fxbasic-s 2.8→2.7`（★基本効果の文字サイズ）・`--cf-s-ruby-oy -0.2→0`（ルビ上下微調整）・
 `--cf-s-title-y 50.5→52.5`（タイトル上位置）。config の既定＋生成CSSの var 第2引数に反映し、
 `node tools/gen-cardface-css.mjs` で再生成（CSSブレース平衡 2440・`node --check` 通過）。
+
+### 2026-08-26（続き273）：カード面テキスト（「・」選択肢行を左インデント無し・左詰めに）
+
+ユーザー要望「なないろの欠片の手札効果のように『・』を用いるときは左にスペースを設けず普通に左詰めで」。
+`buildLines`（card-renderer.js）が `・`始まりの行に付ける `.card-face-subline` は従来
+`padding-left: 1.6em`（左インデント）＋`font-size: 0.92em`＋`opacity: 0.92` だったが、`padding-left: 0`・
+本文と同じ `font-size: 1em`/`line-height: 1.28`（opacity 撤去）に変更し、`・`と続く本文が同じ左端に揃う
+左詰めにした（`gen-cardface-css.mjs` の BASE を編集→再生成、CSSブレース平衡 2440）。中央揃えの first は
+従来通り（text-align center のまま。要望は左詰めの通常/エターナルが対象）。

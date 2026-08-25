@@ -24,7 +24,8 @@ const BASE = `/* ===== カード面レンダラ（card-renderer.js）＝テキ�
 .card-face-effect { display: flex; gap: 0.45em; align-items: flex-start; font-family: ${FONT_EFFECT}; }
 .card-face-effect-body { flex: 1; min-width: 0; }
 .card-face-textline { font-size: 1em; line-height: 1.28; }
-.card-face-subline { font-size: 0.92em; line-height: 1.26; padding-left: 1.6em; opacity: 0.92; }
+/* 「・」選択肢行は左インデントを設けず、普通に左詰め（ユーザー要望）。 */
+.card-face-subline { font-size: 1em; line-height: 1.28; padding-left: 0; }
 /* ●到達・■手札は正式アイコン（CSSはsrc/なので ../assets/ 参照）。★基本はマーカー無し。 */
 .card-face-marker { flex: 0 0 auto; width: 1.25em; height: 1.25em; margin-top: 0.12em; background-size: contain; background-repeat: no-repeat; background-position: center; }
 .card-face-marker.is-basic { display: none; }
