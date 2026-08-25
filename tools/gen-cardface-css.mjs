@@ -6,6 +6,10 @@ import { CARD_LAYOUT, ELEMENT_META, cfVar } from "../src/card-layout-config.js";
 
 const CSS_PATH = new URL("../src/style.css", import.meta.url);
 
+// フォント（ユーザー指定）: フレーバー・タイトル＝FOT-マティス ProN M / 効果文＝ヒラギノ角ゴ Pro W6。
+const FONT_TITLE = `"FOT-マティス ProN M", "FOT-Matisse ProN M", "Yu Mincho", serif`;
+const FONT_EFFECT = `"ヒラギノ角ゴ Pro W6", "Hiragino Kaku Gothic Pro", "ヒラギノ角ゴ ProN W6", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
+
 const BASE = `/* ===== カード面レンダラ（card-renderer.js）＝テキスト無しブランク画像＋アプリ側テキスト ===== */
 /* 位置・サイズは種別ごとに要素単位で --cf-{n|e|f}-{要素}-{x|y|w|s} で調整（既定は各var()第2引数）。
    この位置ルールは tools/gen-cardface-css.mjs が src/card-layout-config.js から自動生成する。 */
@@ -15,8 +19,9 @@ const BASE = `/* ===== カード面レンダラ（card-renderer.js）＝テキ�
   border-radius: 4cqw; overflow: hidden; color: #2a2320;
   box-shadow: 0 0.6cqw 1.6cqw rgba(0, 0, 0, 0.35); user-select: none;
 }
-/* 効果行（マーカー＋本文）。文字は effect の font-size を em 基準に継承＝要素ごとのサイズ変数で一括拡縮。 */
-.card-face-effect { display: flex; gap: 0.45em; align-items: flex-start; }
+/* 効果セット（fx）＝基本/到達/手札を上から順に詰める。間に仕切り線（各効果の中間）。 */
+.card-face-fx { display: flex; flex-direction: column; gap: 1.4cqw; }
+.card-face-effect { display: flex; gap: 0.45em; align-items: flex-start; font-family: ${FONT_EFFECT}; }
 .card-face-effect-body { flex: 1; min-width: 0; }
 .card-face-textline { font-size: 1em; line-height: 1.28; }
 .card-face-subline { font-size: 0.92em; line-height: 1.26; padding-left: 1.6em; opacity: 0.92; }
@@ -25,16 +30,24 @@ const BASE = `/* ===== カード面レンダラ（card-renderer.js）＝テキ�
 .card-face-marker.is-basic { display: none; }
 .card-face-marker.is-arrival { background-image: url("../assets/icons/effect-arrival.png"); }
 .card-face-marker.is-hand { background-image: url("../assets/icons/effect-hand.png"); }
-/* タイトルは全て黒文字（ユーザー指定）。ファーストのみ中央寄せ。 */
-.card-face-title { font-weight: 800; line-height: 1.08; letter-spacing: 0.2cqw; color: #141414; text-align: left; }
+/* おしゃれな仕切り線（中央に小さな菱形）。効果セットの各効果の間に置く。 */
+.card-face-divider { display: flex; align-items: center; height: 1.2cqw; }
+.card-face-divider::before, .card-face-divider::after { content: ""; height: 0.22cqw; flex: 1; background: linear-gradient(to right, transparent, color-mix(in srgb, var(--card-accent, #888) 55%, transparent)); }
+.card-face-divider::after { background: linear-gradient(to left, transparent, color-mix(in srgb, var(--card-accent, #888) 55%, transparent)); }
+.card-face-divider-gem { width: 1.4cqw; height: 1.4cqw; margin: 0 0.9cqw; transform: rotate(45deg); background: var(--card-accent, #888); opacity: 0.7; }
+/* タイトルは全て黒文字（ユーザー指定）。ファーストのみ中央寄せ。フォント＝FOT-マティス。 */
+.card-face-title { font-family: ${FONT_TITLE}; font-weight: 500; line-height: 1.08; letter-spacing: 0.2cqw; color: #141414; text-align: left; }
 .card-face[data-card-type="first"] .card-face-title { text-align: center; }
-.card-face-title rt { font-size: 0.4em; font-weight: 600; line-height: 1; color: #141414; }
-.card-face-subtitle { font-weight: 700; text-align: center; color: color-mix(in srgb, var(--card-accent, #555) 55%, #201a16); }
-.card-face-flavor { font-style: italic; text-align: center; color: #fff; line-height: 1.25; text-shadow: 0 0.4cqw 1cqw rgba(0, 0, 0, 0.85), 0 0 0.4cqw rgba(0, 0, 0, 0.6); }
+.card-face-title rt { font-weight: 500; line-height: 1; color: #141414; font-family: ${FONT_TITLE}; }
+/* 能力名《》はタイトルと同じフォント。 */
+.card-face-subtitle { font-family: ${FONT_TITLE}; font-weight: 500; text-align: center; color: color-mix(in srgb, var(--card-accent, #555) 55%, #201a16); }
+/* フレーバーは斜体にしない（ユーザー指摘）。フォント＝FOT-マティス。 */
+.card-face-flavor { font-family: ${FONT_TITLE}; font-style: normal; text-align: center; color: #fff; line-height: 1.25; text-shadow: 0 0.4cqw 1cqw rgba(0, 0, 0, 0.85), 0 0 0.4cqw rgba(0, 0, 0, 0.6); }
 /* エディタ用：要素ごとの枠（どこに何があるか分かるように） */
 .card-face.cf-outline .card-face-title,
 .card-face.cf-outline .card-face-flavor,
 .card-face.cf-outline .card-face-subtitle,
+.card-face.cf-outline .card-face-fx,
 .card-face.cf-outline .card-face-effect { outline: 0.25cqw dashed rgba(0, 150, 255, 0.85); outline-offset: 0.3cqw; }
 `;
 
@@ -43,6 +56,14 @@ let gen = "\n/* --- 各テキスト要素の絶対配置（自動生成：card-l
 for (const type of TYPES) {
   const slots = CARD_LAYOUT[type];
   for (const [el, d] of Object.entries(slots)) {
+    if (el === "ruby") {
+      // ルビは絶対配置ではなく、タイトル内の rt に対する font-size と上下微調整(translateY)。
+      gen += `.card-face[data-card-type="${type}"] .card-face-title rt {`
+        + ` font-size: var(${cfVar(type, el, "s")}, ${d.s}cqw);`
+        + ` transform: translateY(var(${cfVar(type, el, "oy")}, ${d.oy}cqw));`
+        + ` }\n`;
+      continue;
+    }
     const sel = ELEMENT_META[el].sel;
     gen += `.card-face[data-card-type="${type}"] ${sel} {`
       + ` position: absolute;`
@@ -59,7 +80,7 @@ const NEW = BASE + gen;
 const css = readFileSync(CSS_PATH, "utf8");
 const lines = css.split(/\r?\n/);
 const startIdx = lines.findIndex((l) => l.includes("カード面レンダラ（card-renderer.js"));
-const endIdx = lines.findIndex((l) => l.includes("カード表示プレビュー（card-render-preview.js"));
+const endIdx = lines.findIndex((l) => l.includes("カード面エディタ（card-render-preview.js"));
 if (startIdx < 0 || endIdx < 0 || endIdx <= startIdx) throw new Error("markers not found: " + startIdx + "," + endIdx);
 lines.splice(startIdx, endIdx - startIdx, NEW);
 const out = lines.join("\n");

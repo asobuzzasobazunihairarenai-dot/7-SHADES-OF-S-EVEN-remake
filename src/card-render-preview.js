@@ -7,14 +7,13 @@ import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
 import { buildCardFace } from "./card-renderer.js";
 import { NORMAL_CARDS, ETERNAL_CARDS, FIRST_CARDS, getCardDefinition } from "./cards-data.js";
 import {
-  CARD_LAYOUT, ELEMENT_META, TYPE_LABEL, PROP_RANGE, cardTypeOf, cfVar,
+  CARD_LAYOUT, ELEMENT_META, TYPE_LABEL, PROP_RANGE, cardTypeOf, cfVar, propsFor,
 } from "./card-layout-config.js";
 
 let overlayEl = null;
 let backdropEl = null;
 
-const STORE_KEY = "so7-cardface-layout";
-const PROPS = ["x", "y", "w", "s"];
+const STORE_KEY = "so7-cardface-layout-v2";
 
 function loadSaved() {
   try { return JSON.parse(localStorage.getItem(STORE_KEY) || "{}") || {}; } catch { return {}; }
@@ -85,15 +84,15 @@ function buildControls(cardId) {
   const type = cardTypeOf(cardId);
   const wrap = document.createElement("div");
   wrap.className = "cf-ed-controls";
-  const els = Object.keys(CARD_LAYOUT[type] || {});
-  for (const el of els) {
+  const slots = CARD_LAYOUT[type] || {};
+  for (const el of Object.keys(slots)) {
     const group = document.createElement("div");
     group.className = "cf-ed-group";
     const gt = document.createElement("div");
     gt.className = "cf-ed-group-title";
     gt.textContent = ELEMENT_META[el]?.labelJa || el;
     group.appendChild(gt);
-    for (const prop of PROPS) group.appendChild(buildPropRow(type, el, prop));
+    for (const prop of propsFor(slots[el])) group.appendChild(buildPropRow(type, el, prop));
     wrap.appendChild(group);
   }
   return wrap;
@@ -185,9 +184,10 @@ function buildOverlay(close) {
     resetBtn.type = "button"; resetBtn.textContent = "この種別をリセット";
     resetBtn.addEventListener("click", () => {
       const type = cardTypeOf(currentId);
+      const slots = CARD_LAYOUT[type] || {};
       const map = loadSaved();
-      for (const el of Object.keys(CARD_LAYOUT[type] || {})) {
-        for (const prop of PROPS) {
+      for (const el of Object.keys(slots)) {
+        for (const prop of propsFor(slots[el])) {
           const v = cfVar(type, el, prop);
           document.documentElement.style.removeProperty(v);
           delete map[v];

@@ -95,9 +95,20 @@ function divEl(cls, textContent) {
   return el;
 }
 
+// おしゃれな仕切り線（中央に小さな菱形）。効果セットの各効果の間に置く。
+function buildDivider() {
+  const d = document.createElement("div");
+  d.className = "card-face-divider";
+  d.setAttribute("aria-hidden", "true");
+  d.innerHTML = '<span class="card-face-divider-gem"></span>';
+  return d;
+}
+
 // カード面のDOMを組み立てて返す。各テキスト要素は種別ごとに絶対配置（CSS＝card-layout-config.js由来）。
 // 中の文字はコンテナクエリ(cqw)でカード幅に比例＝どのサイズでも比率が崩れない。
 // その種別の config に定義された要素だけを描画する（＝必ず位置ルールが存在する）。
+// 効果は fx スロットがあれば「基本/到達/手札」を1つのセット(.card-face-fx)にまとめ、上から詰めて
+// 各効果の間に仕切り線を置く。fx が無い種別（first）は基本/手札を個別に絶対配置する。
 export function buildCardFace(cardId, { showFlavor = true } = {}) {
   const def = getCardDefinition(cardId);
   const text = getCardText(cardId) || {};
@@ -113,7 +124,7 @@ export function buildCardFace(cardId, { showFlavor = true } = {}) {
   face.style.setProperty("--card-accent", accentFor(color));
   face.style.backgroundImage = `url("${getCardBlankPath(cardId)}")`;
 
-  // 要素キー → 内容の有無・描画。config にスロットがある要素だけ出す。
+  // 個別に絶対配置する要素（config にスロットがある時だけ描画）。
   if ("flavor" in slots && showFlavor && text.flavor) {
     face.appendChild(divEl("card-face-flavor", text.flavor));
   }
@@ -122,10 +133,29 @@ export function buildCardFace(cardId, { showFlavor = true } = {}) {
     applyTitleRuby(title, def?.name || cardId || "", text.titleRuby);
     face.appendChild(title);
   }
-  if ("basic" in slots && text.basic) face.appendChild(buildSection("basic", text.basic));
   if ("sub" in slots && text.subtitle) face.appendChild(divEl("card-face-subtitle", text.subtitle));
-  if ("arrival" in slots && text.arrival) face.appendChild(buildSection("arrival", text.arrival));
-  if ("hand" in slots && text.hand) face.appendChild(buildSection("hand", text.hand));
+
+  if ("fx" in slots) {
+    // 効果セット：基本→到達→手札を上から詰め、間に仕切り線。
+    const sections = [];
+    if (text.basic) sections.push(buildSection("basic", text.basic));
+    if (text.arrival) sections.push(buildSection("arrival", text.arrival));
+    if (text.hand) sections.push(buildSection("hand", text.hand));
+    if (sections.length) {
+      const fx = document.createElement("div");
+      fx.className = "card-face-fx";
+      sections.forEach((sec, i) => {
+        if (i > 0) fx.appendChild(buildDivider());
+        fx.appendChild(sec);
+      });
+      face.appendChild(fx);
+    }
+  } else {
+    // first: 効果も個別に絶対配置。
+    if ("basic" in slots && text.basic) face.appendChild(buildSection("basic", text.basic));
+    if ("arrival" in slots && text.arrival) face.appendChild(buildSection("arrival", text.arrival));
+    if ("hand" in slots && text.hand) face.appendChild(buildSection("hand", text.hand));
+  }
 
   return face;
 }
