@@ -38,9 +38,11 @@ const BASE = `/* ===== カード面レンダラ（card-renderer.js）＝テキ�
 /* タイトルは全て黒文字（ユーザー指定）。ファーストのみ中央寄せ。フォント＝FOT-マティス。 */
 .card-face-title { font-family: ${FONT_TITLE}; font-weight: 500; line-height: 1.08; letter-spacing: 0.2cqw; color: #141414; text-align: left; }
 .card-face[data-card-type="first"] .card-face-title { text-align: center; }
-/* rt は display:ruby-text のままだと transform は効かないが position:relative + top は効く（実測）。
-   ルビは漢字の上に配置されたまま top（＝--cf-*-ruby-oy）で上下に微調整できる。 */
-.card-face-title rt { position: relative; font-weight: 500; line-height: 1; color: #141414; font-family: ${FONT_TITLE}; }
+/* ルビ(rt)は絶対配置で base の「上」に浮かせる＝タイトルの行高に影響しない
+   （ルビ有無でタイトルの縦位置がズレない）。各漢字ランの ruby を基準に中央に置き、
+   translateY(=--cf-*-ruby-oy) で上下微調整（正=下）。 */
+.card-face-title ruby { position: relative; }
+.card-face-title rt { position: absolute; left: 50%; bottom: 100%; white-space: nowrap; font-weight: 500; line-height: 1; color: #141414; font-family: ${FONT_TITLE}; }
 /* 能力名《》はタイトルと同じフォント。 */
 .card-face-subtitle { font-family: ${FONT_TITLE}; font-weight: 500; text-align: center; color: color-mix(in srgb, var(--card-accent, #555) 55%, #201a16); }
 /* フレーバーは斜体にしない（ユーザー指摘）。フォント＝FOT-マティス。 */
@@ -69,10 +71,11 @@ for (const type of TYPES) {
   for (const [el, d] of Object.entries(slots)) {
     const sel = ELEMENT_META[el].sel;
     if (el === "ruby") {
-      // ルビは絶対配置ではなく、タイトル内の rt の font-size と上下微調整(position:relative + top)。
+      // rt の font-size と、中央寄せ＋上下微調整(translateY=oy)。rt は絶対配置(base の上)なので
+      // 行高に影響せず、ルビ有無でタイトル位置がズレない。
       gen += `.card-face[data-card-type="${type}"] .card-face-title rt {`
         + ` font-size: var(${cfVar(group, el, "s")}, ${d.s}cqw);`
-        + ` top: var(${cfVar(group, el, "oy")}, ${d.oy}cqw);`
+        + ` transform: translateX(-50%) translateY(var(${cfVar(group, el, "oy")}, ${d.oy}cqw));`
         + ` }\n`;
       continue;
     }

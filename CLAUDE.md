@@ -17165,3 +17165,25 @@ URLが `?iso=0` になっていた取り違えと判断）。かつユーザー�
   エディタの first に「■アイコン（手札効果）[x/y/s]」が出ること、std は icon/gap 含め無変更・通常カードの
   手札効果は従来通り■インラインマーカー付き、を実測確認。※cqwの厳密な位置合わせ（■を空欄にきっちり
   乗せる）は実機でエディタ→「出力をコピー」→既定へ焼き込みでお願いする。
+
+### 2026-08-26（続き271）：カード面テキスト（ルビ有無でタイトル位置がズレる不具合を修正＋なないろの欠片のルビ「かけら」＋調整値焼き込み）
+
+続き270をユーザーが確認し、2件のフィードバックに対応（本編未接続のまま）。
+- **ルビの有無でタイトルの縦位置がズレる不具合を修正**（ユーザー報告「ルビがあるのとないのでタイトルの
+  位置が変わっちゃってます」）: 従来 `rt` は `position:relative`（＝通常フロー内）で漢字の上に置いていたが、
+  rt が行ボックスを上へ押し広げるため、ルビ有りのタイトルは base テキストが（rt のぶん）下がり、ルビ無しと
+  縦位置が食い違っていた。`rt` を **`position:absolute; left:50%; bottom:100%`（base の真上に浮かせる＝行高に
+  影響しない）** に変更し、`.card-face-title ruby { position:relative }`（各漢字ランの ruby を基準）を追加。
+  上下微調整(oy)は `top` から **`transform: translateX(-50%) translateY(var(--cf-*-ruby-oy))`**（中央寄せ＋
+  translateY、正=下）に変更（`gen-cardface-css.mjs` の BASE rt ＋ ruby生成分岐）。これでルビが base の上に
+  浮いて行高に入らず、ルビ有無でタイトルの `top` 位置が一致する。
+- **なないろの欠片のルビ「かけら」を反映**（ユーザー報告「なないろの欠片のルビ漏れ」）: `カード効果　テキスト.txt`
+  の行414 に既に `　かけら`（欠片→かけら）があったが `src/card-text.js` が未再生成だった。`node tools/gen-card-text.mjs`
+  で再生成し `rainbow-shard.titleRuby: "かけら"` を反映（欠片＝1漢字ラン→読み1個で一致、rt生成を実測確認）。
+- **ユーザー調整値を既定へ焼き込み**（first）: `handcost.w 72.5→64.5`・`handicon.x 5→9`・`handicon.y 69.5→69`
+  （config の既定＋生成CSSの var 第2引数）。std・その他 first 値は既存と一致のため変更なし。
+- **検証**: `node --check`（card-layout-config/gen-cardface-css/gen-card-text）・CSSブレース平衡（2440）。
+  ブラウザ再読込で、rainbow-shard/white-awakening にルビ（rt）が生成され、yellow-gamble（カタカナ）は
+  ルビ無し、生成CSSで rt が `position:absolute; bottom:100%`（行高に影響しない）＋`translateY(oy)` になって
+  いることを確認。※実際のタイトル縦位置の一致・ルビ位置の見た目は休眠ペインの制約で px 実測できないため
+  実機で最終確認をお願いする（rt を out-of-flow にした標準的な修正）。

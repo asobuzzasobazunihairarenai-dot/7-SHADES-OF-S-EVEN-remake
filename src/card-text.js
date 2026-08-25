@@ -17,7 +17,7 @@ export const CARD_TEXT = {
   "pink-present": { flavor: "与える喜びは、受け取る喜びより深い。", titleRuby: "", basic: "", subtitle: "", arrival: "１番少なくロックしている全員は、１枚ドロー。", hand: "れを相手の隣に裏向きで置く。１枚ドロー。" },
   "purple-trial-ritual": { flavor: "真実へ至る道は、試練だけが知っている。", titleRuby: "しれん　ぎしき", basic: "", subtitle: "", arrival: "色を３色宣言する。あなたの隣に山札から１枚表向きで置く。そのマスに移動し、移動先の到達効果は得ない。置いたカードが宣言色ならこの効果を繰り返す。", hand: "上記の到達時の効果を得る。" },
   "purple-sorry": { flavor: "「ごめん」で済めば、戦争は起きない。", titleRuby: "", basic: "", subtitle: "", arrival: "１マス移動する。", hand: "【追色１】相手が最後のロックを宣言した時に使える。相手のロックしている１枚をあなたの手札に加える。" },
-  "rainbow-shard": { flavor: "欠けたのではない。分かたれただけだ。", titleRuby: "", basic: "これはすべての色であり、ロックフェイズではロックできない。", subtitle: "", arrival: "到達効果はない。", hand: "以下の効果のうち１つ得る。\n・１枚ドロー。\n・これを含めた「なないろの欠片」が２枚、あなたの手札にある時に使える。その２枚を任意の１箇所にロックする。２枚ドロー。" },
+  "rainbow-shard": { flavor: "欠けたのではない。分かたれただけだ。", titleRuby: "かけら", basic: "これはすべての色であり、ロックフェイズではロックできない。", subtitle: "", arrival: "到達効果はない。", hand: "以下の効果のうち１つ得る。\n・１枚ドロー。\n・これを含めた「なないろの欠片」が２枚、あなたの手札にある時に使える。その２枚を任意の１箇所にロックする。２枚ドロー。" },
   "white-radiance": { flavor: "歓喜は空を満たし、誰も真実には気付かなかった。", titleRuby: "きょこう", basic: "", subtitle: "", arrival: "全員、３枚ドロー。このカードを捨てる。", hand: "全員、３枚ドロー。このフェイズを終了する。" },
   "white-awakening": { flavor: "私は世界を守った。そう信じていた。", titleRuby: "しろ　いし　かくせい", basic: "", subtitle: "", arrival: "場の全ての表向きのカードを捨てる。", hand: "場の全ての表向きのカードの上に山札から１枚ずつ裏向きで置く。" },
   "black-faded-cat": { flavor: "撫でるたび、世界が少し色褪せる。", titleRuby: "いろお", basic: "", subtitle: "", arrival: "これを捨てる。全員、手札を全て捨て、１枚ドロー。", hand: "あなたのロックしているカードを任意の枚数捨てる。捨てたカード１枚に付き３枚ドロー。このフェイズを終了する。" },
