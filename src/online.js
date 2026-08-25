@@ -1875,10 +1875,33 @@ async function waitForAllSelectedOrDeadline(gameId, deadline) {
 // 経由、state_changed Broadcastを待って初めて更新される）がまだ最新とは限らないため、
 // so7_game_seatsを直接読み直して確実な座席一覧を得る。失敗してもゲーム開始自体は
 // 継続できるよう、呼び出し元ではawaitしない（fire and forget）。
+// アバターのセンチネル（"protagonist"＝記憶を失った青年／"entrusted"＝託された者たち）を、
+// その座席の駒の色（＝配られたファーストカードの色）に対応する実際の画像パスへ解決する。
+// 戦績システムは別ドメイン/パスで動くため、センチネルのままURL化すると
+// "https://…/protagonist" のような実在しない画像になり反映されない（#今回のバグ。YGM/SHOの
+// avatar_urlが .../protagonist になっていた）。player-identity.js の resolveAvatarValue と同義だが、
+// online.js から player-identity.js を import すると循環参照になるため、ここでは getState() から
+// 駒の色を直接引く（submitStatsMatchResult の従来の inline 解決を共通化・entrusted 対応も追加）。
+// センチネル以外（通常のパス・Google画像URL・絵文字等）はそのまま返す。
+function resolveAvatarForStats(seat, raw) {
+  if (raw !== "protagonist" && raw !== "entrusted") return raw;
+  let color = "gray";
+  try {
+    const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === seat);
+    if (piece && piece.color) color = piece.color;
+  } catch {
+    /* state未初期化などは gray にフォールバック */
+  }
+  if (raw === "protagonist") return `assets/avatars/protagonist-${color}-front.webp`;
+  // entrusted（基本7色アバター）。色未確定(gray)は基本セットに無いので青年の灰色で代用
+  // （player-identity.js の entrustedPathForSeat と同じ挙動）。
+  return color === "gray" ? "assets/avatars/protagonist-gray-front.webp" : `assets/avatars/${color}-front.webp`;
+}
+
 async function registerParticipantsAsStatsPlayers(gameId) {
   const { data: seatRows, error } = await client
     .from("so7_game_seats")
-    .select("user_id, display_name, avatar")
+    .select("seat, user_id, display_name, avatar")
     .eq("game_id", gameId);
   if (error) {
     console.error("registerParticipantsAsStatsPlayers failed", error);
@@ -1890,7 +1913,10 @@ async function registerParticipantsAsStatsPlayers(gameId) {
     if (!row.user_id) continue;
     if (guestUserIds.has(row.user_id)) continue;
     try {
-      const avatarUrl = row.avatar ? new URL(row.avatar, window.location.href).href : null;
+      // #今回のバグ修正: 生のセンチネル("protagonist"等)をそのままURL化すると壊れるため、
+      // その座席の駒の色に対応する実画像パスへ解決してから絶対URL化する。
+      const resolved = resolveAvatarForStats(row.seat, row.avatar);
+      const avatarUrl = resolved ? new URL(resolved, window.location.href).href : null;
       await getOrCreateStatsPlayer(row.user_id, row.display_name, avatarUrl);
     } catch (err) {
       console.error("getOrCreateStatsPlayer failed (game start registration)", err);
@@ -2218,7 +2244,10 @@ async function getOrCreateStatsPlayer(userId, displayName, avatarUrl) {
 // なるため、ここでは呼び出し元に計算してもらった値を引数で受け取るだけにする。
 export async function syncMyStatsProfile(displayName, avatarPath) {
   if (!cachedUser) throw new Error("ログインしていません");
-  const avatarUrl = avatarPath ? new URL(avatarPath, window.location.href).href : null;
+  // 呼び出し元(my-page.js)は解決済みのパスを渡す想定だが、万一センチネル("protagonist"等)が
+  // 来ても壊れたURL(.../protagonist)にならないよう、念のため自分の座席で解決してから絶対URL化する。
+  const resolved = resolveAvatarForStats(getSelfSeat(), avatarPath);
+  const avatarUrl = resolved ? new URL(resolved, window.location.href).href : null;
   await getOrCreateStatsPlayer(cachedUser.id, displayName, avatarUrl);
 }
 
@@ -2406,19 +2435,10 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat, feedba
     // パスで動いているため、相対パスのままだとその側の起点で解決されて壊れる
     // （実在しない画像になる）。new URL()で常に絶対URLへ変換してから渡す
     // （既に絶対URLの場合はそのまま維持される）。
-    // 「記憶を失った青年」はセンチネル値（"protagonist"）で保持されるため、そのままだと
-    // 相対URL解決で壊れる。その座席の駒の色（＝ファーストカードの色。state.jsの
-    // SETUP_ASSIGN_FIRST_CARDSでpiece.color=def.colorとして作られる）に対応する実際の
-    // 画像パスへ解決してから絶対URL化する。player-identity.jsのprotagonistPathForSeatと
-    // 同義だが、online.jsからplayer-identity.jsをimportすると循環参照（＝以前の起動不能
-    // TDZバグと同種のリスク）になるため、ここではgetState()から駒の色を直接引く。
-    // 戦績記録は対局終了時＝駒（色）が確定済みのため灰色になることはまずないが、
-    // 念のため駒が無ければ灰色にフォールバックする（player-identity.js側と同じ挙動）。
-    const seatPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === seat);
-    const resolvedAvatar =
-      identity.avatar === "protagonist"
-        ? `assets/avatars/protagonist-${seatPiece?.color || "gray"}-front.webp`
-        : identity.avatar;
+    // 「記憶を失った青年」("protagonist")・「託された者たち」("entrusted")はセンチネル値で
+    // 保持されるため、そのままだと相対URL解決で壊れる（#今回のバグ）。resolveAvatarForStatsで
+    // その座席の駒の色に対応する実際の画像パスへ解決してから絶対URL化する。
+    const resolvedAvatar = resolveAvatarForStats(seat, identity.avatar);
     const avatarUrl = resolvedAvatar ? new URL(resolvedAvatar, window.location.href).href : null;
     const playerId = await getOrCreateStatsPlayer(identity.userId, identity.name, avatarUrl);
     memberIds.push(playerId);

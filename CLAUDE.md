@@ -16778,3 +16778,38 @@ URLが `?iso=0` になっていた取り違えと判断）。かつユーザー�
 - あわせて、ホーム画面の「お知らせ／更新情報」（`changelog.js`）にプレイヤー向けの2026-08-24エントリを
   追記した（対戦終了モーダルの可読性・横向き固定・#162情報漏洩・#164確認ボタン・#163マスチェンジ）。
 - **サーバー側（Supabase/Edge Function）の変更は無い**。
+
+### 2026-08-25：戦績システムでYGM/SHOのアバター画像が反映されない不具合を修正（青年アバターのセンチネル未解決）
+
+ユーザー報告「戦績システムでYGMとSHOの画像が反映されていない」。共有Supabaseの`players`テーブルを
+直接クエリして原因を確定した——両者の`avatar_url`が
+`https://asobuzzasobazunihairarenai-dot.github.io/7-SHADES-OF-S-EVEN-remake/protagonist`（本番で404）
+になっていた。
+- **原因**: 「記憶を失った青年」アバターは内部的に`"protagonist"`というセンチネル値で保持され
+  （`player-identity.js`の`PROTAGONIST_AVATAR`。描画時にその座席の駒の色＝ファーストカードの色へ
+  `resolveAvatarValue`で解決される。例 `assets/avatars/protagonist-red-front.webp`）。戦績書き込みの
+  うち`submitStatsMatchResult`（勝利時）だけはこのセンチネルをinlineで解決していたが、**対局開始時の
+  登録`registerParticipantsAsStatsPlayers`が未解決**——`so7_game_seats.avatar`の生のセンチネルを
+  そのまま`new URL("protagonist", window.location.href)`してURL化していたため、実在しない`.../protagonist`
+  （404）が`players.avatar_url`に保存され、別ドメインのBATTLE-logで画像が出なかった。`"entrusted"`
+  （託された者たち）センチネルも同様に未解決だった。
+- **修正**: `online.js`に共通ヘルパー`resolveAvatarForStats(seat, raw)`を新設（`"protagonist"`→
+  `assets/avatars/protagonist-${color}-front.webp`、`"entrusted"`→`assets/avatars/${color}-front.webp`、
+  色は`getState()`のその座席の駒から。それ以外＝通常パス/Google画像/絵文字はそのまま返す）。
+  `player-identity.js`の`resolveAvatarValue`と同義だが、online.js→player-identity.jsは循環importに
+  なるため（既存の起動不能TDZリスク）、getState()から駒の色を直接引く方式（submitStatsMatchResultの
+  従来のinline解決を共通化＋entrusted対応も追加）。戦績へ書き込む全3経路——
+  `registerParticipantsAsStatsPlayers`（`seat`をSELECTに追加し`resolveAvatarForStats(row.seat, row.avatar)`）・
+  `submitStatsMatchResult`（inline解決を共通ヘルパーへ）・`syncMyStatsProfile`（呼び出し元は解決済みを
+  渡す想定だが念のため`getSelfSeat()`で防御的に解決）——で使うようにした。
+- **既存の壊れたデータ（YGM/SHO）**: コード修正は今後の書き込みを正す。既存の壊れた`avatar_url`は、
+  次のオンライン対局（開始時の登録 or 勝利時）で`getOrCreateStatsPlayer`が「resolved URL ≠ 既存の
+  broken URL」を検知して自動的に上書き修正する（＝次に対局すれば自己修復）。すぐ直したい場合は
+  `players`テーブルの該当2行の`avatar_url`を手動で有効な画像URL（例
+  `.../assets/avatars/protagonist-gray-front.webp`、本番で200確認済み）に更新すればよいが、共有本番
+  データの直接更新のためユーザー判断に委ねる。
+- **検証**: `node --check`（online.js）通過。本番GitHub Pagesで、resolved URL
+  （`.../assets/avatars/protagonist-{gray,red}-front.webp`）が200・broken URL（`.../protagonist`）が404で
+  あることをcurlで実測確認。青年8色＋基本7色のアバターファイルが`assets/avatars/`に実在することも確認。
+- **サーバー側（Supabase/Edge Function）の変更は無い**（クライアント側のURL解決の修正のみ。姉妹
+  プロジェクトの`players`テーブルのスキーマ変更も無い）。
