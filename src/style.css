@@ -17025,46 +17025,41 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
 .rank-showcase-editor-stage .rank-showcase { width: min(32rem, 66vh); }
 
 /* ===== カード面レンダラ（card-renderer.js）＝テキスト無しブランク画像＋アプリ側テキスト ===== */
-/* 文字は全てコンテナクエリ単位(cqw)＝カード幅に比例。どのサイズでも比率が崩れない。 */
+/* 文字は全てコンテナクエリ単位(cqw)＝カード幅に比例。位置・サイズは種別ごとの調整変数で微調整可
+   （card-render-preview.js の調整スライダーが --cf-* を書き換える。既定値は各 var() の第2引数）。 */
 .card-face {
-  position: relative;
-  aspect-ratio: 1 / 1;
-  container-type: size;
-  background-size: cover;
-  background-position: center;
-  border-radius: 4cqw;
-  overflow: hidden;
-  color: #2a2320;
-  box-shadow: 0 0.6cqw 1.6cqw rgba(0, 0, 0, 0.35);
-  user-select: none;
+  position: relative; aspect-ratio: 1 / 1; container-type: size;
+  background-size: cover; background-position: center;
+  border-radius: 4cqw; overflow: hidden; color: #2a2320;
+  box-shadow: 0 0.6cqw 1.6cqw rgba(0, 0, 0, 0.35); user-select: none;
 }
-/* 共通のテキスト要素 */
-.card-face-textline { font-size: 3.2cqw; line-height: 1.28; }
-.card-face-subline { font-size: 2.95cqw; line-height: 1.26; padding-left: 2cqw; opacity: 0.92; }
+/* 種別ごとの調整変数 → 各要素が使う汎用変数へ写像（種別別にスライダーを効かせるため） */
+.card-face[data-card-type="normal"]  { --cf-scale: var(--cf-n-scale, 1); --cf-lower-y: var(--cf-n-top, 55%); --cf-flavor-top: var(--cf-n-flavor-top, 2.6cqw); }
+.card-face[data-card-type="eternal"] { --cf-scale: var(--cf-e-scale, 1); --cf-lower-y: var(--cf-e-top, 58%); --cf-flavor-top: var(--cf-e-flavor-top, 2.6cqw); }
+.card-face[data-card-type="first"]   { --cf-scale: var(--cf-f-scale, 1); }
+
+.card-face-textline { font-size: calc(3.2cqw * var(--cf-scale, 1)); line-height: 1.28; }
+.card-face-subline { font-size: calc(2.95cqw * var(--cf-scale, 1)); line-height: 1.26; padding-left: 2cqw; opacity: 0.92; }
 .card-face-effect { display: flex; gap: 1.4cqw; align-items: flex-start; }
-.card-face-marker { flex: 0 0 auto; font-size: 3.1cqw; line-height: 1.4; color: var(--card-accent, #666); }
-.card-face-marker.is-basic { display: none; } /* ★基本は印字カードでもマーカー無し */
+/* ●到達・■手札は正式なアイコン画像（CSSはsrc/にあるので ../assets/ で参照）。★基本はマーカー無し。 */
+.card-face-marker { flex: 0 0 auto; width: 3.8cqw; height: 3.8cqw; margin-top: 0.4cqw; background-size: contain; background-repeat: no-repeat; background-position: center; }
+.card-face-marker.is-basic { display: none; }
+.card-face-marker.is-arrival { background-image: url("../assets/icons/effect-arrival.png"); }
+.card-face-marker.is-hand { background-image: url("../assets/icons/effect-hand.png"); }
 .card-face-effect-body { flex: 1; min-width: 0; }
 .card-face-title {
-  font-size: 5cqw;
-  font-weight: 800;
-  line-height: 1.05;
-  letter-spacing: 0.2cqw;
-  color: color-mix(in srgb, var(--card-accent, #555) 66%, #201a16);
+  font-size: calc(5cqw * var(--cf-scale, 1)); font-weight: 800; line-height: 1.05;
+  letter-spacing: 0.2cqw; color: color-mix(in srgb, var(--card-accent, #555) 66%, #201a16);
 }
+.card-face-title rt { font-size: 1.8cqw; font-weight: 600; line-height: 1; }
 .card-face-subtitle {
-  font-size: 3.7cqw;
-  font-weight: 700;
+  font-size: calc(3.7cqw * var(--cf-scale, 1)); font-weight: 700;
   color: color-mix(in srgb, var(--card-accent, #555) 52%, #2a2320);
 }
 .card-face-flavor {
-  position: absolute;
-  text-align: center;
-  font-style: italic;
-  color: #fff;
+  position: absolute; text-align: center; font-style: italic; color: #fff;
   text-shadow: 0 0.4cqw 1cqw rgba(0, 0, 0, 0.85), 0 0 0.4cqw rgba(0, 0, 0, 0.6);
 }
-/* アプリ側で描く「おしゃれな横線」（効果セクションの仕切り）＝両側フェードの線＋中央の菱形 */
 .card-face-divider { display: flex; align-items: center; height: 1.4cqw; margin: 0.5cqw 0; }
 .card-face-divider::before, .card-face-divider::after {
   content: ""; height: 0.22cqw; flex: 1;
@@ -17073,39 +17068,33 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
 .card-face-divider::after { background: linear-gradient(to left, transparent, color-mix(in srgb, var(--card-accent, #888) 55%, transparent)); }
 .card-face-divider-gem { width: 1.5cqw; height: 1.5cqw; margin: 0 0.9cqw; transform: rotate(45deg); background: var(--card-accent, #888); opacity: 0.7; }
 
-/* --- normal / eternal: フレーバー(上) ＋ 下部パネルに テキストを重ねる --- */
+/* --- normal / eternal: フレーバー(上) ＋ 下部パネルにテキストを重ねる --- */
 .card-face[data-card-type="normal"] .card-face-flavor,
 .card-face[data-card-type="eternal"] .card-face-flavor {
-  top: 2.6cqw; left: 6cqw; right: 6cqw; font-size: 3cqw; line-height: 1.25;
+  top: var(--cf-flavor-top, 2.6cqw); left: 6cqw; right: 6cqw;
+  font-size: calc(3cqw * var(--cf-scale, 1)); line-height: 1.25;
 }
 .card-face-lower {
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  top: var(--cf-lower-y, 55%);
-  box-sizing: border-box;
-  padding: 2.2cqw 4.8cqw 4.2cqw;
-  display: flex;
-  flex-direction: column;
-  gap: 0.9cqw;
-  overflow: hidden;
+  position: absolute; left: 0; right: 0; bottom: 0; top: var(--cf-lower-y, 55%);
+  box-sizing: border-box; padding: 2.2cqw 4.8cqw 4.2cqw;
+  display: flex; flex-direction: column; gap: 0.9cqw; overflow: hidden;
 }
-.card-face[data-card-type="eternal"] .card-face-lower { top: var(--cf-lower-y, 58%); }
-.card-face[data-card-type="eternal"] .card-face-title { font-size: 4.6cqw; }
+.card-face[data-card-type="eternal"] .card-face-title { font-size: calc(4.6cqw * var(--cf-scale, 1)); }
 
 /* --- first: ★基本(上) ／ タイトル(中上) ／ 《能力名》(中) ／ ■手札(下) を個別に絶対配置 --- */
 .card-face[data-card-type="first"] .card-face-effect.is-basic {
-  position: absolute; top: 4cqw; left: 5.5cqw; right: 5.5cqw; text-align: center;
+  position: absolute; top: var(--cf-f-basic-top, 4cqw); left: 5.5cqw; right: 5.5cqw; text-align: center;
 }
 .card-face[data-card-type="first"] .card-face-effect.is-basic .card-face-effect-body { text-align: center; }
-.card-face[data-card-type="first"] .card-face-effect.is-basic .card-face-textline { font-size: 3cqw; line-height: 1.28; }
+.card-face[data-card-type="first"] .card-face-effect.is-basic .card-face-textline { font-size: calc(3cqw * var(--cf-scale, 1)); line-height: 1.28; }
 .card-face[data-card-type="first"] .card-face-title {
-  position: absolute; top: 21cqw; left: 5cqw; right: 5cqw; text-align: center; font-size: 4.6cqw;
+  position: absolute; top: var(--cf-f-title-top, 21cqw); left: 5cqw; right: 5cqw; text-align: center; font-size: calc(4.6cqw * var(--cf-scale, 1));
 }
 .card-face[data-card-type="first"] .card-face-subtitle {
-  position: absolute; top: 55cqw; left: 5cqw; right: 5cqw; text-align: center; font-size: 3.8cqw;
+  position: absolute; top: var(--cf-f-sub-top, 55cqw); left: 5cqw; right: 5cqw; text-align: center; font-size: calc(3.8cqw * var(--cf-scale, 1));
 }
 .card-face[data-card-type="first"] .card-face-effect.is-hand {
-  position: absolute; top: 63cqw; left: 5.5cqw; right: 5.5cqw;
+  position: absolute; top: var(--cf-f-hand-top, 63cqw); left: 5.5cqw; right: 5.5cqw;
 }
 
 /* ===== カード表示プレビュー（card-render-preview.js・開発用） ===== */
@@ -17159,3 +17148,34 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
   justify-content: center;
 }
 .card-render-preview-cell { width: var(--preview-card-w, 16rem); }
+
+/* ===== カード表示プレビューの調整ツール（card-render-preview.js・開発用） ===== */
+.card-render-preview-tuner {
+  flex: 0 0 auto;
+  background: #0f141b;
+  border-bottom: 1px solid #2a3446;
+  color: #cbd5e1;
+  font-size: 0.8rem;
+  max-height: 40vh;
+  overflow: auto;
+}
+.card-render-preview-tuner > summary {
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  user-select: none;
+}
+.cf-tuner-body { padding: 0.4rem 1rem 0.8rem; display: flex; flex-wrap: wrap; gap: 0.6rem 1.6rem; }
+.cf-tuner-group { min-width: 18rem; flex: 1 1 18rem; }
+.cf-tuner-group-title { font-weight: 700; color: #93c5fd; margin: 0.3rem 0; }
+.cf-tuner-row { display: flex; align-items: center; gap: 0.5rem; margin: 0.2rem 0; }
+.cf-tuner-label { flex: 0 0 8.5rem; }
+.cf-tuner-row input[type="range"] { flex: 1; min-width: 6rem; }
+.cf-tuner-val { flex: 0 0 3.6rem; text-align: right; font-variant-numeric: tabular-nums; color: #e2e8f0; }
+.cf-tuner-btns { flex-basis: 100%; display: flex; gap: 0.6rem; margin-top: 0.4rem; }
+.cf-tuner-btns button {
+  background: #1d283a; color: #e2e8f0; border: 1px solid #2a3446;
+  border-radius: 6px; padding: 0.35rem 0.9rem; cursor: pointer; font-size: 0.8rem;
+}
+.cf-tuner-btns button:hover { background: #24324a; }

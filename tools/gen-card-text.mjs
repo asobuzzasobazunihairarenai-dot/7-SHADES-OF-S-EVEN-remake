@@ -56,20 +56,30 @@ let activeSection = null; // 直近に見た ● or ■（効果セクション�
 
 const append = (id, key, text) => { result[id][key] += (result[id][key] ? "\n" : "") + text; };
 
+let pendingRuby = ""; // "・名前"行の直前にある全角スペース始まりの読み行（例: "　ぐれん　かざん"）
+const RUBY_LINE = /^[ 　]+\S/; // 行頭が空白（半角/全角）で始まる
+const HAS_KANA = /[぀-ゟ]/;
+
 for (const line of lines) {
   const t = line.trim();
-  if (SEP.test(t)) { cur = null; inNote = false; activeSection = null; continue; }
+  if (SEP.test(t)) { cur = null; inNote = false; activeSection = null; pendingRuby = ""; continue; }
+  // ふりがな行: "・名前"の直前、行頭が空白で、ひらがなを含み、マーカーで始まらない行を保留する。
+  if (!inNote && RUBY_LINE.test(line) && HAS_KANA.test(t) && !t.startsWith("・") && !/^[★●■ΩΘ※]/.test(t)) {
+    pendingRuby = t; continue;
+  }
   if (t.startsWith("・")) {
     const text = t.slice(1).trim();
     // 効果セクション中（●や■の後）の "・" は選択肢＝そのセクションへ追記。それ以外は新カード名。
-    if (cur && activeSection && !inNote) { append(cur.id, activeSection, "・" + text); continue; }
+    if (cur && activeSection && !inNote) { append(cur.id, activeSection, "・" + text); pendingRuby = ""; continue; }
     const id = idByNorm.get(norm(text));
     cur = id ? { id, name: text } : null;
     inNote = false; activeSection = null;
-    if (id) result[id] = { flavor: "", basic: "", subtitle: "", arrival: "", hand: "" };
+    if (id) result[id] = { flavor: "", basic: "", subtitle: "", arrival: "", hand: "", titleRuby: pendingRuby };
     else if (text) console.warn("UNMATCHED name:", JSON.stringify(text));
+    pendingRuby = "";
     continue;
   }
+  pendingRuby = "";
   if (!cur) continue;
   if (t.startsWith("※")) { inNote = true; activeSection = null; continue; }
   if (inNote) continue;
@@ -113,7 +123,7 @@ out += `export const CARD_TEXT = {\n`;
 for (const id of ORDER) {
   const r = result[id];
   if (!r) { console.warn("ORDER missing in result:", id); continue; }
-  out += `  ${JSON.stringify(id)}: { flavor: ${q(r.flavor)}, basic: ${q(r.basic)}, subtitle: ${q(r.subtitle)}, arrival: ${q(r.arrival)}, hand: ${q(r.hand)} },\n`;
+  out += `  ${JSON.stringify(id)}: { flavor: ${q(r.flavor)}, titleRuby: ${q(r.titleRuby)}, basic: ${q(r.basic)}, subtitle: ${q(r.subtitle)}, arrival: ${q(r.arrival)}, hand: ${q(r.hand)} },\n`;
 }
 out += `};\n\nexport function getCardText(cardId) {\n  return CARD_TEXT[cardId] || null;\n}\n`;
 writeFileSync("./src/card-text.js", out, "utf8");

@@ -42,12 +42,13 @@ function buildLines(text) {
 }
 
 // 効果セクション（★基本/●到達/■手札）を、マーカー付きの行ブロックにする。
-function buildSection(kind, marker, text) {
+// ●到達・■手札のマーカーは正式なアイコン画像（CSS background-image、is-arrival/is-hand）。
+// ★基本はマーカー非表示（印字カードに合わせる）。
+function buildSection(kind, text) {
   const row = document.createElement("div");
   row.className = `card-face-effect is-${kind}`;
   const mk = document.createElement("span");
   mk.className = `card-face-marker is-${kind}`;
-  mk.textContent = marker;
   mk.setAttribute("aria-hidden", "true");
   const body = document.createElement("div");
   body.className = "card-face-effect-body";
@@ -55,6 +56,41 @@ function buildSection(kind, marker, text) {
   row.appendChild(mk);
   row.appendChild(body);
   return row;
+}
+
+// タイトルにふりがな（ルビ）を振る。titleRuby は空白区切りの読み（例 "ぐれん　かざん"）で、
+// タイトル中の「漢字の連続」に順番で対応する（紅蓮→ぐれん, 火山→かざん）。数が合わない時は
+// 誤ったルビを避けてルビ無しにフォールバックする。
+const KANJI_RE = /[一-鿿々〆〇]/;
+function applyTitleRuby(el, name, rubyStr) {
+  el.textContent = "";
+  const readings = String(rubyStr || "").split(/[\s　]+/).filter(Boolean);
+  if (!readings.length) { el.textContent = name; return; }
+  // name を「漢字の連続」と「それ以外」のランに分割
+  const runs = [];
+  let i = 0;
+  while (i < name.length) {
+    const isK = KANJI_RE.test(name[i]);
+    let j = i + 1;
+    while (j < name.length && KANJI_RE.test(name[j]) === isK) j++;
+    runs.push({ text: name.slice(i, j), kanji: isK });
+    i = j;
+  }
+  const kanjiRunCount = runs.filter((r) => r.kanji).length;
+  if (kanjiRunCount !== readings.length) { el.textContent = name; return; }
+  let ri = 0;
+  for (const run of runs) {
+    if (run.kanji) {
+      const ruby = document.createElement("ruby");
+      ruby.appendChild(document.createTextNode(run.text));
+      const rt = document.createElement("rt");
+      rt.textContent = readings[ri++];
+      ruby.appendChild(rt);
+      el.appendChild(ruby);
+    } else {
+      el.appendChild(document.createTextNode(run.text));
+    }
+  }
 }
 
 function divEl(cls, textContent) {
@@ -89,15 +125,16 @@ export function buildCardFace(cardId, { showFlavor = true } = {}) {
   face.style.setProperty("--card-accent", accentFor(color));
   face.style.backgroundImage = `url("${getCardBlankPath(cardId)}")`;
 
-  const title = divEl("card-face-title", def?.name || cardId || "");
+  const title = divEl("card-face-title");
+  applyTitleRuby(title, def?.name || cardId || "", text.titleRuby);
 
   if (type === "first") {
     // ★基本(上) ／ タイトル(中上) ／ 《能力名》(中) ／ ■手札(下) を個別に絶対配置。
-    if (text.basic) face.appendChild(buildSection("basic", "★", text.basic));
+    if (text.basic) face.appendChild(buildSection("basic", text.basic));
     face.appendChild(title);
     if (text.subtitle) face.appendChild(divEl("card-face-subtitle", text.subtitle));
-    if (text.arrival) face.appendChild(buildSection("arrival", "●", text.arrival));
-    if (text.hand) face.appendChild(buildSection("hand", "■", text.hand));
+    if (text.arrival) face.appendChild(buildSection("arrival", text.arrival));
+    if (text.hand) face.appendChild(buildSection("hand", text.hand));
   } else {
     // normal / eternal: フレーバー(上) ＋ 下部パネルに タイトル＋各効果（仕切り線で区切る）。
     if (showFlavor && text.flavor) face.appendChild(divEl("card-face-flavor", text.flavor));
@@ -105,9 +142,9 @@ export function buildCardFace(cardId, { showFlavor = true } = {}) {
     lower.appendChild(title);
     if (text.subtitle) lower.appendChild(divEl("card-face-subtitle", text.subtitle));
     const sections = [];
-    if (text.basic) sections.push(buildSection("basic", "★", text.basic));
-    if (text.arrival) sections.push(buildSection("arrival", "●", text.arrival));
-    if (text.hand) sections.push(buildSection("hand", "■", text.hand));
+    if (text.basic) sections.push(buildSection("basic", text.basic));
+    if (text.arrival) sections.push(buildSection("arrival", text.arrival));
+    if (text.hand) sections.push(buildSection("hand", text.hand));
     sections.forEach((sec, i) => {
       if (i > 0) lower.appendChild(buildDivider());
       lower.appendChild(sec);
