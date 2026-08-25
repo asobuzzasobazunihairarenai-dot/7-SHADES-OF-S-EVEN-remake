@@ -22,13 +22,14 @@ export const LAYOUT = {
   },
   // first は中央配置（左位置Xは不要）。各要素は left:50%+translateX で中央に置き、幅と文字サイズだけ調整。
   first: {
-    basic:  { y: 4, w: 89, s: 3, props: ["y", "w", "s"] },
-    title:  { y: 21, w: 90, s: 4.6, props: ["y", "w", "s"] },
-    ruby:   { s: 1.6, oy: 0, props: ["s", "oy"] },
-    sub:    { y: 55, w: 90, s: 3.8, props: ["y", "w", "s"] },
-    hand:   { y: 63, w: 89, s: 3.2, props: ["y", "w", "s"] },
-    icon:   { s: 4, props: ["s"] },   // ●/■アイコンのサイズ（cqw）
-    gap:    { s: 1.5, props: ["s"] }, // アイコン→文の間隔（cqw）
+    basic:    { y: 4, w: 89, s: 3, props: ["y", "w", "s"] },
+    title:    { y: 21, w: 90, s: 4.6, props: ["y", "w", "s"] },
+    ruby:     { s: 1.6, oy: 0, props: ["s", "oy"] },
+    sub:      { y: 55, w: 90, s: 3.8, props: ["y", "w", "s"] },
+    handcost: { y: 62, w: 89, s: 2.9, props: ["y", "w", "s"] }, // 手札効果の【追色N】（…）部分
+    hand:     { y: 72, w: 89, s: 3.2, props: ["y", "w", "s"] }, // 手札効果の本文（【追色】以降）
+    icon:     { s: 4, props: ["s"] },   // ●/■アイコンのサイズ（cqw）
+    gap:      { s: 1.5, props: ["s"] }, // アイコン→文の間隔（cqw）
   },
 };
 
@@ -46,6 +47,7 @@ export const ELEMENT_META = {
   basic:   { sel: ".card-face-effect.is-basic",   labelJa: "★基本効果",       kind: "effect" },
   arrival: { sel: ".card-face-effect.is-arrival", labelJa: "●到達効果",       kind: "effect" },
   hand:    { sel: ".card-face-effect.is-hand",    labelJa: "■手札効果",       kind: "effect" },
+  handcost:{ sel: ".card-face-effect.is-hand-cost", labelJa: "手札効果の【追色】部分", kind: "effect" },
   fx:      { sel: ".card-face-fx",                labelJa: "効果（基本/到達/手札）", kind: "fx" },
   fxbasic: { sel: ".card-face-fx .card-face-effect.is-basic", labelJa: "★基本効果（サイズ・幅・左位置）", kind: "size", sLabel: "文字サイズ" },
   icon:    { sel: ".card-face-marker",            labelJa: "アイコンのサイズ", kind: "iconsize", sLabel: "大きさ" },

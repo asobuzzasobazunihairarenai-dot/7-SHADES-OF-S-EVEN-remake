@@ -39,18 +39,30 @@ function buildLines(text) {
 // 効果セクション（★基本/●到達/■手札）を、マーカー付きの行ブロックにする。
 // ●到達・■手札のマーカーは正式なアイコン画像（CSS background-image、is-arrival/is-hand）。
 // ★基本はマーカー非表示（印字カードに合わせる）。
-function buildSection(kind, text) {
+// opts.effectClass で要素クラスを、opts.markerKind でマーカー種別を上書き可（null でマーカー無し）。
+function buildSection(kind, text, opts = {}) {
   const row = document.createElement("div");
-  row.className = `card-face-effect is-${kind}`;
-  const mk = document.createElement("span");
-  mk.className = `card-face-marker is-${kind}`;
-  mk.setAttribute("aria-hidden", "true");
+  row.className = `card-face-effect ${opts.effectClass || `is-${kind}`}`;
+  const markerKind = opts.markerKind === null ? null : (opts.markerKind || kind);
+  if (markerKind !== null) {
+    const mk = document.createElement("span");
+    mk.className = `card-face-marker is-${markerKind}`;
+    mk.setAttribute("aria-hidden", "true");
+    row.appendChild(mk);
+  }
   const body = document.createElement("div");
   body.className = "card-face-effect-body";
   body.appendChild(buildLines(text));
-  row.appendChild(mk);
   row.appendChild(body);
   return row;
+}
+
+// ファーストの手札効果を「【追色N】（…）」の部分と、それ以降の効果本文に分ける。
+// 例:「【追色１】（これと同色の…得る。）捨て場の…加える。」→ { cost:"【追色１】（…）", rest:"捨て場の…" }
+function splitFirstHandCost(text) {
+  const m = String(text || "").match(/^(【追色[^】]*】（[^）]*）)\s*([\s\S]*)$/);
+  if (!m) return null;
+  return { cost: m[1], rest: m[2].trim() };
 }
 
 // タイトルにふりがな（ルビ）を振る。titleRuby は空白区切りの読み（例 "ぐれん　かざん"）で、
@@ -150,10 +162,19 @@ export function buildCardFace(cardId, { showFlavor = true } = {}) {
       face.appendChild(fx);
     }
   } else {
-    // first: 効果も個別に絶対配置。
+    // first: 効果も個別に絶対配置。手札効果は「【追色】部分」と「効果本文」を別要素に分ける。
     if ("basic" in slots && text.basic) face.appendChild(buildSection("basic", text.basic));
     if ("arrival" in slots && text.arrival) face.appendChild(buildSection("arrival", text.arrival));
-    if ("hand" in slots && text.hand) face.appendChild(buildSection("hand", text.hand));
+    if ("hand" in slots && text.hand) {
+      const split = ("handcost" in slots) ? splitFirstHandCost(text.hand) : null;
+      if (split) {
+        // 【追色】部分に ■ マーカーを付け、効果本文はマーカー無しの別要素にする。
+        face.appendChild(buildSection("hand", split.cost, { effectClass: "is-hand-cost", markerKind: "hand" }));
+        if (split.rest) face.appendChild(buildSection("hand", split.rest, { markerKind: null }));
+      } else {
+        face.appendChild(buildSection("hand", text.hand));
+      }
+    }
   }
 
   return face;

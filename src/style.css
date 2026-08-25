@@ -17089,7 +17089,8 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
 .card-face[data-card-type="first"] .card-face-title { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-title-y, 21cqw); width: var(--cf-f-title-w, 90cqw); font-size: var(--cf-f-title-s, 4.6cqw); }
 .card-face[data-card-type="first"] .card-face-title rt { font-size: var(--cf-f-ruby-s, 1.6cqw); top: var(--cf-f-ruby-oy, 0cqw); }
 .card-face[data-card-type="first"] .card-face-subtitle { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-sub-y, 55cqw); width: var(--cf-f-sub-w, 90cqw); font-size: var(--cf-f-sub-s, 3.8cqw); }
-.card-face[data-card-type="first"] .card-face-effect.is-hand { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-hand-y, 63cqw); width: var(--cf-f-hand-w, 89cqw); font-size: var(--cf-f-hand-s, 3.2cqw); }
+.card-face[data-card-type="first"] .card-face-effect.is-hand-cost { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-handcost-y, 62cqw); width: var(--cf-f-handcost-w, 89cqw); font-size: var(--cf-f-handcost-s, 2.9cqw); }
+.card-face[data-card-type="first"] .card-face-effect.is-hand { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-hand-y, 72cqw); width: var(--cf-f-hand-w, 89cqw); font-size: var(--cf-f-hand-s, 3.2cqw); }
 .card-face[data-card-type="first"] .card-face-marker { width: var(--cf-f-icon-s, 4cqw); height: var(--cf-f-icon-s, 4cqw); }
 .card-face[data-card-type="first"] .card-face-effect { gap: var(--cf-f-gap-s, 1.5cqw); }
 

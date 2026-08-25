@@ -17108,3 +17108,29 @@ URLが `?iso=0` になっていた取り違えと判断）。かつユーザー�
 - **検証**: `node --check`・CSSブレース平衡（2438）。ブラウザで、★基本効果グループが3項目（文字サイズ/幅/
   左位置(ずらし)）になり、生成ルールが `--cf-s-fxbasic-w`（width）・`--cf-s-fxbasic-mx`（margin-left）・
   `--cf-s-fxbasic-s`（font-size）を参照することを実測確認。first の basic は従来通り中央配置（個別 y/w/s）。
+
+### 2026-08-26（続き269）：カード面テキスト フェーズ2h（ファーストの手札効果を「【追色】部分」と「効果本文」の2要素に分割）
+
+続き268をユーザーが確認し、フィードバックに対応（本編未接続のまま）。
+- **ファーストカードの手札効果を2要素に分割**（ユーザー要望「『【追色１】（～）』とそれ以降の効果文で
+  要素を分けてください」）: 全ファーストの手札効果は
+  `【追色１】（これと同色のカードを自分の手札から１枚捨てることで次の効果を得る。）<効果本文>` という
+  同一形式（first-purple だけ ）の後に `\n` あり）。`card-renderer.js` に `splitFirstHandCost(text)`
+  （正規表現 `^(【追色[^】]*】（[^）]*）)\s*([\s\S]*)$` で「【追色】部分(cost)」と「本文(rest、trim)」に分割）を
+  追加し、ファーストの手札効果を **`handcost`（■マーカー付き・【追色】部分）** と **`hand`（マーカー無し・
+  効果本文）** の2要素で個別に絶対配置するようにした。■アイコンは【追色】部分（handcost）に付け、本文は
+  マーカー無しの続き行にする（`buildSection(kind, text, {effectClass, markerKind})` を新設し、markerKind:null で
+  マーカー無し／effectClass で要素クラスを上書き可にした）。
+- **config/生成/エディタ**: `card-layout-config.js` の first に `handcost`（y62/w89/s2.9、中央配置、
+  props:["y","w","s"]、hand の上）を追加、ELEMENT_META に `handcost { sel:".card-face-effect.is-hand-cost",
+  labelJa:"手札効果の【追色】部分" }` を追加。`node tools/gen-cardface-css.mjs` で `.is-hand-cost` の中央配置
+  ルール（`--cf-f-handcost-y/w/s`）を生成。エディタ（card-render-preview.js）はグループを config から
+  自動生成するため、ファースト選択時に「手札効果の【追色】部分」グループが「■手札効果」の前に自動で出る。
+  通常・エターナル（std グループ）は handcost スロットを持たないため手札効果の分割は起きず無変更。
+- **検証**: `node --check`（card-renderer/card-layout-config/gen-cardface-css）・CSSブレース平衡（2439）。
+  ブラウザで `buildCardFace("first-red"/"first-purple")` が `is-basic → is-hand-cost（■＋【追色】）→
+  is-hand（マーカー無し＋本文）` の3効果要素に分かれること（first-purple は本文の先頭 `\n` が trim される）、
+  通常カード（red-jump-pad）の手札効果は分割されず ■マーカー付きのままであること、エディタのファースト
+  グループに「手札効果の【追色】部分」が並ぶこと、生成CSS（handcost=中央/y62/w89/s2.9、hand=中央/y72/w89/s3.2）を
+  実測確認。※cqwの厳密な位置合わせ・見た目は実機でお願いする（エディタで各要素をブランクに合わせ→
+  「出力をコピー」の値を config/style.css の既定へ焼き込む運用）。
