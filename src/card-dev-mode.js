@@ -12,6 +12,7 @@
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getCardDefinition } from "./cards-data.js";
 import { CARD_EFFECTS, generateEffectText, generateHandEffectOptionsText } from "./card-effects.js";
+import { openCardRenderPreview } from "./card-render-preview.js";
 import { getState, moveToken, flipToken, isOnlineMode } from "./state.js";
 import { getSelfSeat, getCurrentGameId, fetchAndHydrate } from "./online.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
@@ -400,6 +401,14 @@ function buildPanel(close, minimize) {
   intro.textContent =
     "src/card-effects.jsの構造化データ（動詞＋パラメータ）から自動生成した効果文（生成）と、説明書の実際の文章（実際）を見比べる試作ビューです。基本設定「カード効果を自動処理する」がONの時、実際のゲーム挙動にも反映されます。各カードの「🧪 呼び出してテスト」ボタンで、盤面上/山札の中のそのカードを探さずに即座に到達処理・手札効果を試せます。";
   panel.appendChild(intro);
+
+  // フェーズ1試作: イラスト＋アプリ側テキストでカードを組み立てるプレビュー。
+  const previewBtn = document.createElement("button");
+  previewBtn.type = "button";
+  previewBtn.id = "card-dev-mode-preview-btn";
+  previewBtn.textContent = "🖼 カード表示プレビュー（イラスト＋アプリ側テキスト）";
+  previewBtn.addEventListener("click", () => openCardRenderPreview());
+  panel.appendChild(previewBtn);
 
   const list = document.createElement("div");
   list.id = "card-dev-mode-list";
