@@ -1214,6 +1214,13 @@ async function moveAndSyncForEffect(tokenId, location, soundName, suppressArriva
     movingToken?.kind === "card" && fromLocation?.zone === "cell" && location?.zone === "hand"
       ? cardElRectForToken(tokenId)
       : null;
+  // #164: 飛翔ゴーストは「移動前に盤面で見えていた面」を見せる（表向きだったカードは表面で飛ぶ）。
+  // 移動後は相手の手札で裏向きに描画され得るため、移動前のmovingTokenのfaceUp/cardIdから決める。
+  const liftSourceImg = liftSourceRect
+    ? movingToken.faceUp
+      ? `url("${getCardImagePath(movingToken.cardId)}")`
+      : `url("${getCardBackImagePath(movingToken.cardId)}")`
+    : null;
   if (isOnlineMode()) {
     try {
       await moveToken(tokenId, location, suppressArrival);
@@ -1235,7 +1242,7 @@ async function moveAndSyncForEffect(tokenId, location, soundName, suppressArriva
   if (awaitExposedArrival) await exposedArrival;
   // 続き212: 飛翔演出が完全に終わってから呼び出し側（engine）の次アクションへ進めるようawaitする。
   if (landingSourceRect) await playCardCellLanding(landingSourceRect, location, tokenId);
-  if (liftSourceRect) await playCardLiftToHand(liftSourceRect, location.player, tokenId);
+  if (liftSourceRect) await playCardLiftToHand(liftSourceRect, location.player, tokenId, liftSourceImg);
 }
 
 // PLACE_CARDのsource:"self"用（ジャンプ台の手札効果等）。手札からマスへの移動は
@@ -4664,13 +4671,20 @@ function playCardCellLanding(sourceRect, cellLocation, tokenId) {
 }
 // 逆: マスのカードが手札に入るとき。持ち上がり(マスから上空へストン)→手札へすーーっと。風は
 // 持ち上がりの瞬間（マス側）に舞う。sourceRect=移動前の盤面カードのrect（移動前に捕捉）。
-function playCardLiftToHand(sourceRect, player, tokenId) {
+// sourceImg: 飛翔ゴーストに使う画像（url("...")形式）。#164: 盤面で表向きだったカードが手札へ
+// 回収される時、以前は移動先の手札要素の背景画像を読んでいたため、相手（自分以外）の手札は
+// 裏向きで描画される＝表向きで場にあったカードが裏向きで飛んで見えるバグがあった。飛翔は
+// 「盤面で見えていた面」を見せるべきなので、呼び出し側が移動前の見た目（表向きなら表面／
+// 裏向きなら裏面）を渡す。省略時は従来通り移動先の手札要素→裏面フォールバック。
+function playCardLiftToHand(sourceRect, player, tokenId, sourceImg = null) {
   if (isFlightAnimationDisabled() || !sourceRect) return Promise.resolve();
   const cardEl = document.querySelector(`.hand-card[data-token-id="${tokenId}"]`);
   const handArea = document.querySelector(`.hand-area[data-player="${player}"]`);
   const toRect = cardEl ? cardEl.getBoundingClientRect() : handArea ? handArea.getBoundingClientRect() : null;
   if (!toRect) return Promise.resolve();
-  const img = cardEl ? getComputedStyle(cardEl).backgroundImage : getCardBackImagePath(null) && `url("${getCardBackImagePath(null)}")`;
+  const img =
+    sourceImg ||
+    (cardEl ? getComputedStyle(cardEl).backgroundImage : getCardBackImagePath(null) && `url("${getCardBackImagePath(null)}")`);
   if (cardEl) cardEl.style.visibility = "hidden";
   spawnCardLandingPuff(sourceRect); // 持ち上がりのホコリ（マス側）
   const ghost = document.createElement("div");
@@ -10834,7 +10848,12 @@ async function onDragEnd(e) {
         maybeTriggerCardArrivalForExposedCard(cardSourceLocation, false, prevTopAtSource);
         // ③演出（ユーザー要望2026-08-18の「逆もしかり」）: 盤面マスのカードが手札に入るときは、
         // 配置の逆——マスから上空へストンと持ち上がり（風はマス側）→手札へすーーっと。
-        if (cardSourceLocation?.zone === "cell") playCardLiftToHand(cardAnimSourceRect, dropTarget.player, tokenId);
+        // #164: 盤面で表向きだったカード(wasPublic)は表面で飛ばす（相手の手札で裏向きに描画されても、
+        // 見えていた面のまま飛ぶ）。裏向きだったカードは裏面のまま。
+        if (cardSourceLocation?.zone === "cell") {
+          const liftImg = wasPublic ? `url("${getCardImagePath(cardId)}")` : `url("${getCardBackImagePath(cardId)}")`;
+          playCardLiftToHand(cardAnimSourceRect, dropTarget.player, tokenId, liftImg);
+        }
         return;
       }
     }

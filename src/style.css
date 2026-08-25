@@ -11817,21 +11817,18 @@ body:not(.is-admin-user) .opening-admin-btn {
    ボタン(bottom:1rem)の下にこっそり置く。 */
 .opening-version-badge {
   position: fixed;
-  right: 0.6rem;
-  bottom: 0.5rem;
+  right: 0.7rem;
+  bottom: 0.55rem;
   z-index: 11;
   font-family: sans-serif;
-  /* ユーザー報告「スマホだと全く読めない」（続き249）。画面全体がステージ縮小される
-     スマホでは 0.6rem が実質極小になっていたため、文字を大きく・濃く・薄い下地付きにして
-     どんな背景でも読めるようにする。 */
+  /* ユーザー要望2026-08-25「白背景枠はダサい。サイズは今のままで、もう少しさりげなく」。
+     続き249で読みやすさ用に付けていた白い下地・枠・影を廃止し、文字自体に薄い影だけ付けて
+     どんな背景でも読めるが控えめに見えるようにする（サイズ 1.15rem／スマホ 1.5rem は維持）。 */
   font-size: 1.15rem;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: 0.02em;
-  color: rgba(15, 23, 32, 0.9);
-  background: rgba(255, 255, 255, 0.78);
-  padding: 0.2rem 0.6rem;
-  border-radius: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  color: rgba(255, 255, 255, 0.6);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.75), 0 0 2px rgba(0, 0, 0, 0.55);
   pointer-events: none;
   user-select: text;
 }
