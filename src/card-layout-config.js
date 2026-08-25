@@ -12,11 +12,11 @@
 export const LAYOUT = {
   std: {
     flavor:  { x: 6, y: 5, w: 88, s: 2.5 },
-    title:   { x: 6, y: 50.5, w: 90, s: 3.9 },
-    ruby:    { s: 1.8, oy: -0.2, props: ["s", "oy"] },
+    title:   { x: 6, y: 52.5, w: 90, s: 3.9 },
+    ruby:    { s: 1.8, oy: 0, props: ["s", "oy"] },
     fx:      { x: 6, y: 58, w: 88, s: 3.2 },
     // ★基本は fx内で font-size・幅・左位置(margin-left)を個別に調整（到達/手札とは別）。
-    fxbasic: { s: 2.8, w: 80, mx: 8, props: ["s", "w", "mx"] },
+    fxbasic: { s: 2.7, w: 80, mx: 8, props: ["s", "w", "mx"] },
     icon:    { s: 6.6, props: ["s"] }, // ●/■アイコンのサイズ（cqw）
     gap:     { s: 1.5, props: ["s"] }, // アイコン→文の間隔（cqw）
   },

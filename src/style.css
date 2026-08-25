@@ -17077,17 +17077,17 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
 
 /* --- 各テキスト要素の絶対配置（自動生成：card-layout-config.js） --- */
 .card-face[data-card-type="normal"] .card-face-flavor { position: absolute; left: var(--cf-s-flavor-x, 6cqw); top: var(--cf-s-flavor-y, 5cqw); width: var(--cf-s-flavor-w, 88cqw); font-size: var(--cf-s-flavor-s, 2.5cqw); }
-.card-face[data-card-type="normal"] .card-face-title { position: absolute; left: var(--cf-s-title-x, 6cqw); top: var(--cf-s-title-y, 50.5cqw); width: var(--cf-s-title-w, 90cqw); font-size: var(--cf-s-title-s, 3.9cqw); }
-.card-face[data-card-type="normal"] .card-face-title rt { font-size: var(--cf-s-ruby-s, 1.8cqw); transform: translateX(-50%) translateY(var(--cf-s-ruby-oy, -0.2cqw)); }
+.card-face[data-card-type="normal"] .card-face-title { position: absolute; left: var(--cf-s-title-x, 6cqw); top: var(--cf-s-title-y, 52.5cqw); width: var(--cf-s-title-w, 90cqw); font-size: var(--cf-s-title-s, 3.9cqw); }
+.card-face[data-card-type="normal"] .card-face-title rt { font-size: var(--cf-s-ruby-s, 1.8cqw); transform: translateX(-50%) translateY(var(--cf-s-ruby-oy, 0cqw)); }
 .card-face[data-card-type="normal"] .card-face-fx { position: absolute; left: var(--cf-s-fx-x, 6cqw); top: var(--cf-s-fx-y, 58cqw); width: var(--cf-s-fx-w, 88cqw); font-size: var(--cf-s-fx-s, 3.2cqw); }
-.card-face[data-card-type="normal"] .card-face-fx .card-face-effect.is-basic { font-size: var(--cf-s-fxbasic-s, 2.8cqw); width: var(--cf-s-fxbasic-w, 80cqw); margin-left: var(--cf-s-fxbasic-mx, 8cqw); }
+.card-face[data-card-type="normal"] .card-face-fx .card-face-effect.is-basic { font-size: var(--cf-s-fxbasic-s, 2.7cqw); width: var(--cf-s-fxbasic-w, 80cqw); margin-left: var(--cf-s-fxbasic-mx, 8cqw); }
 .card-face[data-card-type="normal"] .card-face-marker { width: var(--cf-s-icon-s, 6.6cqw); height: var(--cf-s-icon-s, 6.6cqw); }
 .card-face[data-card-type="normal"] .card-face-effect { gap: var(--cf-s-gap-s, 1.5cqw); }
 .card-face[data-card-type="eternal"] .card-face-flavor { position: absolute; left: var(--cf-s-flavor-x, 6cqw); top: var(--cf-s-flavor-y, 5cqw); width: var(--cf-s-flavor-w, 88cqw); font-size: var(--cf-s-flavor-s, 2.5cqw); }
-.card-face[data-card-type="eternal"] .card-face-title { position: absolute; left: var(--cf-s-title-x, 6cqw); top: var(--cf-s-title-y, 50.5cqw); width: var(--cf-s-title-w, 90cqw); font-size: var(--cf-s-title-s, 3.9cqw); }
-.card-face[data-card-type="eternal"] .card-face-title rt { font-size: var(--cf-s-ruby-s, 1.8cqw); transform: translateX(-50%) translateY(var(--cf-s-ruby-oy, -0.2cqw)); }
+.card-face[data-card-type="eternal"] .card-face-title { position: absolute; left: var(--cf-s-title-x, 6cqw); top: var(--cf-s-title-y, 52.5cqw); width: var(--cf-s-title-w, 90cqw); font-size: var(--cf-s-title-s, 3.9cqw); }
+.card-face[data-card-type="eternal"] .card-face-title rt { font-size: var(--cf-s-ruby-s, 1.8cqw); transform: translateX(-50%) translateY(var(--cf-s-ruby-oy, 0cqw)); }
 .card-face[data-card-type="eternal"] .card-face-fx { position: absolute; left: var(--cf-s-fx-x, 6cqw); top: var(--cf-s-fx-y, 58cqw); width: var(--cf-s-fx-w, 88cqw); font-size: var(--cf-s-fx-s, 3.2cqw); }
-.card-face[data-card-type="eternal"] .card-face-fx .card-face-effect.is-basic { font-size: var(--cf-s-fxbasic-s, 2.8cqw); width: var(--cf-s-fxbasic-w, 80cqw); margin-left: var(--cf-s-fxbasic-mx, 8cqw); }
+.card-face[data-card-type="eternal"] .card-face-fx .card-face-effect.is-basic { font-size: var(--cf-s-fxbasic-s, 2.7cqw); width: var(--cf-s-fxbasic-w, 80cqw); margin-left: var(--cf-s-fxbasic-mx, 8cqw); }
 .card-face[data-card-type="eternal"] .card-face-marker { width: var(--cf-s-icon-s, 6.6cqw); height: var(--cf-s-icon-s, 6.6cqw); }
 .card-face[data-card-type="eternal"] .card-face-effect { gap: var(--cf-s-gap-s, 1.5cqw); }
 .card-face[data-card-type="first"] .card-face-effect.is-basic { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-basic-y, 6.5cqw); width: var(--cf-f-basic-w, 58cqw); font-size: var(--cf-f-basic-s, 2.8cqw); }
