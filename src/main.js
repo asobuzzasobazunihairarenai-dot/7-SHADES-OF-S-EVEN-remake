@@ -1697,7 +1697,8 @@ function openRitualPickWatch(order, options = {}) {
     const cardEl = document.createElement("div");
     cardEl.className = "sleight-ritual-card";
     cardEl.dataset.tokenId = tokenId;
-    cardEl.style.backgroundImage = `url("${cardId ? getCardImagePath(cardId) : getCardBackImagePath(null)}")`;
+    // 自分の手札（cardId判明）はテキスト合成、非公開(null)は裏面画像。
+    showCardFace(cardEl, cardId, cardId ? getCardImagePath(cardId) : getCardBackImagePath(null));
     cardsWrap.appendChild(cardEl);
     return cardEl;
   });
@@ -6699,7 +6700,7 @@ async function playCenterCardFlipReveal(cardId, { labelText = "公開", suspense
   back.style.backgroundImage = `url("${getCardBackImagePath(cardId)}")`;
   const front = document.createElement("div");
   front.className = "eternal-reveal-card-face is-front";
-  front.style.backgroundImage = `url("${getCardImagePath(cardId)}")`;
+  showCardFace(front, cardId, getCardImagePath(cardId)); // 表面＝テキスト合成（画像モードは画像）
   front.style.opacity = "0";
   inner.append(back, front);
   reveal.appendChild(inner);
@@ -6793,7 +6794,7 @@ async function playEternalAcquisitionAnim(attacker, cardId, cardDef, onDone) {
   backFace.style.backgroundImage = `url("${getCardBackImagePath(cardId)}")`;
   const frontFace = document.createElement("div");
   frontFace.className = "eternal-reveal-card-face is-front";
-  frontFace.style.backgroundImage = `url("${getCardImagePath(cardId)}")`;
+  showCardFace(frontFace, cardId, getCardImagePath(cardId)); // 表面＝テキスト合成（画像モードは画像）
   frontFace.style.opacity = "0";
   inner.appendChild(backFace);
   inner.appendChild(frontFace);
@@ -7021,7 +7022,8 @@ async function playGateInvasionStealRitual(info, onDone) {
       const el = clickedEl && !revealedEls.has(clickedEl) ? clickedEl : cardEls.find((c) => !revealedEls.has(c));
       if (el) {
         revealedEls.add(el);
-        el.style.backgroundImage = `url("${getCardImagePath(tok.cardId)}")`;
+        // 奪ったカードをめくって公開＝テキスト合成（裏面画像から表向きへ差し替え）。
+        showCardFace(el, tok.cardId, getCardImagePath(tok.cardId));
         el.classList.add("is-stolen-reveal");
       }
       // 奪われる側は“実際に奪われる札(tok)”をその札の位置で光らせる（クリック位置ではなく

@@ -9147,8 +9147,10 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
 }
 .sleight-ritual-card {
   /* ユーザー報告「手札を選ぶときのカードが正方形になっていない」への対応。 */
+  position: relative; /* カード面テキストのマウント(.card-face-mount inset:0)の包含ブロック */
   width: 6rem;
   height: 6rem;
+  overflow: hidden;
   background-size: cover;
   background-position: center;
   border-radius: 0.3rem;

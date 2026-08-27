@@ -17456,3 +17456,30 @@ URLが `?iso=0` になっていた取り違えと判断）。かつユーザー�
   実際のCPU戦での「CPUのロック/ハンドスキップが無言になり、自分のフェイズのスキップ理由は従来通り出る」
   見た目は、タイマー駆動でサンドボックスでは通し確認しづらいため実機確認をお願いしたい。サーバー側の
   変更は無い。
+
+### 2026-08-27（続き284）：演出中のカード（奪う儀式・エターナル獲得フリップ）もテキスト化（ユーザー選択）
+
+続き277〜280で「読む静的モーダル/一覧」をテキスト化した後の総点検で、face-upのカードを見せる演出のうち
+DOMベースの「読む瞬間」を持つものが残っていたため、ユーザー選択によりテキスト化した。
+- **奪う儀式のカード（スリカエ/接触/ゲート侵攻の奪取演出、`.sleight-ritual-card`）**: 奪われる側が自分の
+  手札が奪われるのを見る「実況(watch)」ビルド（`openRitualPickWatch`、cardId判明＝face-up）と、ゲート侵攻で
+  攻撃側が奪った札をめくって公開する reveal（`playGateInvasionStealRitual`）の2箇所を `showCardFace` に変更。
+  攻撃側が“裏向きの相手手札から選ぶ”ピックUI（`requestOpponentHandRitualPick`/multi）は cardId 非公開＝裏面
+  画像のままで正しい（覗き見防止）。`.sleight-ritual-card` に `position:relative`＋`overflow:hidden` を追加
+  （マウントの包含ブロック）。
+- **エターナルカード獲得のフリップ演出（`.eternal-reveal-card-face.is-front`）**: 2箇所（座席ごとの
+  `playEternalAcquisitionAnim`）の表面をテキスト合成に。このフリップは 3D(rotateY/backface) ではなく
+  **2Dの scaleX＋不透明度差し替え**（一部モバイルで3Dが効かない対策済み、CSSコメント参照）なので、
+  face=`position:absolute;inset:0` の上にマウントを載せても安全。裏面は従来通り裏面画像。
+- **テキスト化できない/しない演出（説明）**: カード溶解の「燃える演出」（`card-dissolve.js`）と対戦結果の
+  サマリー画像（`victory-summary-image.js`）は **canvas に `drawImage` で焼き込む**方式のため、DOMのテキスト
+  カード面を描けず画像のまま（旧CSS版の `playHandEffectUseBurn` は続き219で canvas 版に置換され既に未使用の
+  死にコード）。飛翔ゴースト・ドラッグゴースト・配布演出は「移動中のカード＝読む瞬間ではない」＋共有の
+  `ghost-flight.js`（URL引数）を通るため画像のまま据え置き。ミニロックHUD・デッキ箱の代表カード・
+  サムネイルも従来通り画像（意図的）。
+- **検証**: `node --check`（main）通過・CSSブレース平衡（2443）。ブラウザで `.sleight-ritual-card`
+  （position:relative/overflow:hidden・マウント・「なないろの欠片(かけら)」）と `.eternal-reveal-card-face`
+  （position:absolute・マウント・「紅蓮(ぐれん)の火山(かざん) ワイナウエア」）が正しくテキスト面を載せる
+  こと、ルビも出ること、リロード後コンソール新規エラー無しを実測確認。実際の演出中の見た目（奪取の
+  実況/ゲート侵攻のめくり公開/エターナル獲得のフリップ）は発火条件が要るため実機確認をお願いしたい。
+  サーバー側の変更は無い。
