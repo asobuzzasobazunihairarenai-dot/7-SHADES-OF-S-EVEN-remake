@@ -888,6 +888,16 @@ export async function resetMyAppearanceSettings() {
     })
     .eq("user_id", cachedUser.id);
   if (error) throw error;
+  // 名前・アバターのローカルなフォールバック（player-identity.jsのlocalStorage
+  // "so7-player-names"/"so7-player-avatars"）も消す。これを消さないと、再読み込み時に
+  // player-identity.jsがlocalStorageから古い名前を復元してしまい「初期化」にならない
+  // （アカウントのname=nullは identityApplierの if(name) で適用されず上書きできないため）。
+  try {
+    localStorage.removeItem("so7-player-names");
+    localStorage.removeItem("so7-player-avatars");
+  } catch {
+    /* 消去不可でもアカウント側は初期化済み */
+  }
   // custom_avatar_url列はまだ本番に存在しない環境があり得るため（supabase_setup_so7.sqlの
   // 追加分が未実行）、fetchMyCustomAvatarUrlと同じ理由で別クエリにし、失敗してもこの関数
   // 全体は成功扱いのまま進める。

@@ -146,6 +146,41 @@ const DEFAULT_AVATARS = {
 let customNames = {};
 let avatars = { ...DEFAULT_AVATARS };
 
+// ローカル（アカウント未ログイン）で名前・アバターを変更しても再起動で「プレイヤーA」等の既定に
+// 戻ってしまう不具合への対応。名前・アバターを localStorage にも保存し、起動時に復元する。
+// ログイン時は online.js の loadMyPreferences が so7_user_profiles の値で上書きする（アカウントが
+// 優先＝端末をまたいで引き継がれる）。localStorage はあくまで「この端末のローカルなフォールバック」。
+const STORE_NAMES = "so7-player-names";
+const STORE_AVATARS = "so7-player-avatars";
+(function loadLocalIdentity() {
+  try {
+    const n = JSON.parse(localStorage.getItem(STORE_NAMES) || "null");
+    if (n && typeof n === "object") customNames = { ...n };
+  } catch {
+    /* 破損時は既定のまま */
+  }
+  try {
+    const a = JSON.parse(localStorage.getItem(STORE_AVATARS) || "null");
+    if (a && typeof a === "object") avatars = { ...DEFAULT_AVATARS, ...a };
+  } catch {
+    /* 破損時は既定のまま */
+  }
+})();
+function saveLocalNames() {
+  try {
+    localStorage.setItem(STORE_NAMES, JSON.stringify(customNames));
+  } catch {
+    /* 保存不可でもその場の値は効く */
+  }
+}
+function saveLocalAvatars() {
+  try {
+    localStorage.setItem(STORE_AVATARS, JSON.stringify(avatars));
+  } catch {
+    /* 保存不可でもその場の値は効く */
+  }
+}
+
 export function getPlayerName(seat) {
   if (isOnlineMode()) {
     const synced = getSyncedIdentity(seat)?.name;
@@ -162,6 +197,7 @@ export function getPlayerName(seat) {
 export function setPlayerName(seat, name) {
   const trimmed = name.trim();
   customNames[seat] = trimmed || null;
+  saveLocalNames();
   if (seat === getSelfSeat()) {
     updateMyIdentity({ name: trimmed || null }).catch((err) => console.error("updateMyIdentity failed", err));
   }
@@ -190,6 +226,7 @@ export function getPlayerAvatar(seat) {
 
 export function setPlayerAvatar(seat, avatar) {
   avatars[seat] = avatar;
+  saveLocalAvatars();
   if (seat === getSelfSeat()) {
     updateMyIdentity({ avatar }).catch((err) => console.error("updateMyIdentity failed", err));
   }

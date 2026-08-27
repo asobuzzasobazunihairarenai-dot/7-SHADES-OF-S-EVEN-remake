@@ -17402,3 +17402,25 @@ URLが `?iso=0` になっていた取り違えと判断）。かつユーザー�
   （「ザ・ギャンブル」）で描画されること、リロード後コンソール新規エラー無しを実測確認。ゲート侵攻
   モーダルは同じプレースホルダー+後処理の仕組みで、実発火（オンライン対戦）での見た目は実機確認をお願い
   したい。サーバー側の変更は無い。
+
+### 2026-08-27（続き281）：プレイヤー名・アバターを変更してアプリを再起動すると既定（「プレイヤーA」等）に戻る不具合を修正
+
+ユーザー報告「プレイヤー名を変更してアプリを再起動すると『プレイヤーA』に戻ってしまう」。原因は
+`player-identity.js` の `customNames`/`avatars` が**メモリ内のみ**で、`setPlayerName`/`setPlayerAvatar` は
+「アカウントにログイン済みなら `so7_user_profiles` へ保存」するだけだったこと。**ローカルプレイ（アカウント
+未ログイン）では名前・アバターがどこにも永続化されず、再起動で `SEAT_LABELS`（プレイヤーA）等の既定へ
+戻っていた**。
+- **localStorage によるローカルなフォールバック永続化を追加**（`player-identity.js`）: `customNames` を
+  `so7-player-names`、`avatars` を `so7-player-avatars` に保存し、モジュール読み込み時（IIFE）に復元する。
+  `setPlayerName`/`setPlayerAvatar` の in-memory 更新直後に保存。ログイン時は online.js の
+  `loadMyPreferences`→`identityApplier` が `if(name)`/`if(avatar)` でアカウントの値を上書きする（＝アカウントが
+  優先＝端末をまたいで引き継がれる）ため、localStorage はあくまで「この端末のローカルなフォールバック」
+  （未ログイン時の再起動、アカウント未設定時のログイン直後の暫定表示に効く）。
+- **「アカウント設定を初期化」との整合**（`online.js` `resetMyAppearanceSettings`）: アカウントの
+  `display_name`/`avatar` を null に戻すだけだと、再読み込み時に localStorage の古い名前が復元され
+  （identityApplier は `if(name)` で null を適用しない＝上書きできない）「初期化」にならないため、リセット時に
+  `so7-player-names`/`so7-player-avatars` の localStorage も削除するようにした。
+- **検証**: `node --check`（player-identity/online）通過。ブラウザで `setPlayerName('A','テスト太郎')` →
+  localStorage に `{"A":"テスト太郎"}` が保存され、**player-identity.js を新規ロードし直す（＝再起動相当）と
+  `getPlayerName('A')` が「テスト太郎」を返す**（既定「プレイヤーA」に戻らない）ことを実測確認。サーバー側の
+  変更は無い（SQLの追加も不要＝既存の `so7_user_profiles.display_name`/`avatar` をそのまま使う）。
