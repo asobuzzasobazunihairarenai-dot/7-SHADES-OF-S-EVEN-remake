@@ -768,11 +768,17 @@ function enterPhase(phase, player) {
   // 自動スキップがOFFのときは、することが無いフェイズでも自動では飛ばさず、通常通り
   // フェイズを開始してプレイヤーの手動スキップを待つ（ユーザー要望の情報秘匿目的）。
   if (isAutoPhaseSkipEnabled()) {
+    // 【情報秘匿】スキップの理由モーダル（「ロックできるカードが無いため…」等）は、その席の
+    // 手札事情を明かす。CPU戦では自分(A)だけでなくCPU(C)の番も駆動するため、CPUの番でこの
+    // モーダルを出すと「CPUがロックカードを持っていない」ことが相手（＝あなた）にバレてしまう
+    // （ユーザー報告）。よってモーダルは自分(getSelfSeat)の席のフェイズの時だけ出し、他席
+    // （CPU/相手）は無言でスキップする（フェイズを飛ばす動作自体は同じ）。
+    const isMine = player === getSelfSeat();
     // #68: マイデッキ戦では「ロックする代わりにマイデッキから1枚引く」選択があるため、
     // ロックできるカードが無くてもマイデッキに残りがあればロックフェイズを飛ばさない
     // （引く機会を奪わない）。マイデッキも空なら従来通りスキップ。
     if (phase === "lock" && !hasLockableCard(player) && !canDrawFromMyDeck(player)) {
-      showPhaseSkipModal("ロックできるカードが無いため、ロックフェイズを自動的にスキップしました。");
+      if (isMine) showPhaseSkipModal("ロックできるカードが無いため、ロックフェイズを自動的にスキップしました。");
       advancePhaseAfterSkip();
       return;
     }
@@ -781,12 +787,12 @@ function enterPhase(phase, player) {
     // ユーザー指摘、hasUsableLockedFirstOrEternal参照）。
     if (phase === "hand" && !hasUsableLockedFirstOrEternal(player)) {
       if (handIsEmpty(player)) {
-        showPhaseSkipModal("手札が無いため、ハンドフェイズを自動的にスキップしました。");
+        if (isMine) showPhaseSkipModal("手札が無いため、ハンドフェイズを自動的にスキップしました。");
         advancePhaseAfterSkip();
         return;
       }
       if (handHasOnlyReactiveOnlyCards(player)) {
-        showPhaseSkipModal("手札の効果は反応時にしか使えないため、ハンドフェイズを自動的にスキップしました。");
+        if (isMine) showPhaseSkipModal("手札の効果は反応時にしか使えないため、ハンドフェイズを自動的にスキップしました。");
         advancePhaseAfterSkip();
         return;
       }
@@ -794,7 +800,7 @@ function enterPhase(phase, player) {
       // 無い等）場合も自動スキップする。反応時専用だけの場合は上で専用文言を出している
       // ため、ここはそれ以外の「使えない」ケース向けの一般的な文言にする。
       if (handHasNoUsableCards(player)) {
-        showPhaseSkipModal("今使える手札効果が無いため、ハンドフェイズを自動的にスキップしました。");
+        if (isMine) showPhaseSkipModal("今使える手札効果が無いため、ハンドフェイズを自動的にスキップしました。");
         advancePhaseAfterSkip();
         return;
       }
