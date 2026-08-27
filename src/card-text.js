@@ -4,7 +4,7 @@
 // このファイルを ja とし、同じ cardId キーで別言語ファイルを追加する。
 export const CARD_TEXT = {
   "red-jump-pad": { flavor: "最初に飛び越えた者だけが、新たな景色を知る。", titleRuby: "だい", basic: "", subtitle: "", arrival: "これはあなたの手札に加えない。２マス先に一気に移動する。", hand: "これをゲート以外の任意のマスに表向きで置く。" },
-  "red-counter-lock": { flavor: "奪われる覚悟がある者だけが、奪い返せる", titleRuby: "", basic: "", subtitle: "", arrival: "１番少なくロックしているなら1 枚ドロー。", hand: "あなたへの接触の宣言時に使える。その接触を無効にする。あなたの手札を１枚ロックしてもよい。" },
+  "red-counter-lock": { flavor: "奪われる覚悟がある者だけが、奪い返せる", titleRuby: "", basic: "", subtitle: "", arrival: "１番少なくロックしているなら１枚ドロー。", hand: "あなたへの接触の宣言時に使える。その接触を無効にする。あなたの手札を１枚ロックしてもよい。" },
   "orange-mass-change": { flavor: "誰もが、一度は誰かの場所に立つべきだ。", titleRuby: "", basic: "", subtitle: "", arrival: "３マス以内の相手のいる場所とあなたのいる場所を入れ替える。相手はこのカードの到達効果を得ない。", hand: "【追色１】上記の到達時の効果を得る。" },
   "orange-harvest-sow": { flavor: "蒔いた希望は、必ず誰かが受け取る。", titleRuby: "しゅうかく　たね", basic: "", subtitle: "", arrival: "任意の１マスの１枚をあなたの手札に加える。そのマスに手札から１枚裏向きで置く。", hand: "上記の到達時の効果を得る。" },
   "yellow-sleight-of-hand": { flavor: "奪ったのではない。気付かれなかっただけさ。", titleRuby: "てじなし　わざ", basic: "", subtitle: "", arrival: "相手１人の手札から無作為に１枚、あなたの手札に加える。あなたの手札から１枚、その相手の手札に加える。", hand: "上記の到達時の効果を得る。" },
@@ -13,8 +13,8 @@ export const CARD_TEXT = {
   "green-growing-trees": { flavor: "一つの森は、一つの種から始まる。", titleRuby: "ぞうしょく　きぎ", basic: "", subtitle: "", arrival: "２マス以内の何もない全てのマスに山札からカードを１枚ずつ裏向きで置く。", hand: "任意の３マスに山札から１枚ずつ裏向きで置く。" },
   "blue-slum-official": { flavor: "昨日の貧民が、今日の法を作る。", titleRuby: "あ　やくにん", basic: "", subtitle: "", arrival: "全員は手札が３枚になるように捨てる。", hand: "あなたの手札が１枚以下なら２枚ドロー。このフェイズを終了する。" },
   "blue-choosable-trap": { flavor: "選択肢があるように見える。それが罠だ。", titleRuby: "えら　わな", basic: "", subtitle: "", arrival: "以下の効果のうち１つ得る。\n・あなたの手札を半分捨てる。\n・あなたのゲートに強制移動する。\n・あなたのロックしているカードを１枚捨てる。", hand: "このカードを任意のマスに裏向きで置く。" },
-  "pink-party": { flavor: "宴の終わりには、誰もが笑っていてほしい。", titleRuby: "", basic: "", subtitle: "", arrival: "員は以下の効果のうち１つ得る。\n・１マス移動し、移動先の到達効果は得ない。\n・場の任意の１枚をあなたの手札に加える。\n・場の任意の２枚をオープンする。", hand: "これを任意のマスに裏向きで置く。" },
-  "pink-present": { flavor: "与える喜びは、受け取る喜びより深い。", titleRuby: "", basic: "", subtitle: "", arrival: "１番少なくロックしている全員は、１枚ドロー。", hand: "れを相手の隣に裏向きで置く。１枚ドロー。" },
+  "pink-party": { flavor: "宴の終わりには、誰もが笑っていてほしい。", titleRuby: "", basic: "", subtitle: "", arrival: "全員は以下の効果のうち１つ得る。\n・１マス移動し、移動先の到達効果は得ない。\n・場の任意の１枚をあなたの手札に加える。\n・場の任意の２枚をオープンする。", hand: "これを任意のマスに裏向きで置く。" },
+  "pink-present": { flavor: "与える喜びは、受け取る喜びより深い。", titleRuby: "", basic: "", subtitle: "", arrival: "１番少なくロックしている全員は、１枚ドロー。", hand: "これを相手の隣に裏向きで置く。１枚ドロー。" },
   "purple-trial-ritual": { flavor: "真実へ至る道は、試練だけが知っている。", titleRuby: "しれん　ぎしき", basic: "", subtitle: "", arrival: "色を３色宣言する。あなたの隣に山札から１枚表向きで置く。そのマスに移動し、移動先の到達効果は得ない。置いたカードが宣言色ならこの効果を繰り返す。", hand: "上記の到達時の効果を得る。" },
   "purple-sorry": { flavor: "「ごめん」で済めば、戦争は起きない。", titleRuby: "", basic: "", subtitle: "", arrival: "１マス移動する。", hand: "【追色１】相手が最後のロックを宣言した時に使える。相手のロックしている１枚をあなたの手札に加える。" },
   "rainbow-shard": { flavor: "欠けたのではない。分かたれただけだ。", titleRuby: "かけら", basic: "これはすべての色であり、ロックフェイズではロックできない。", subtitle: "", arrival: "到達効果はない。", hand: "以下の効果のうち１つ得る。\n・１枚ドロー。\n・これを含めた「なないろの欠片」が２枚、あなたの手札にある時に使える。その２枚を任意の１箇所にロックする。２枚ドロー。" },
