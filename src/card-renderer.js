@@ -13,7 +13,7 @@
 // ★基本 / ●到達 / Θ効果名(subtitle) / ■手札 / Ωフレーバー。
 
 import { getCardDefinition, getCardBlankPath } from "./cards-data.js";
-import { getCardText } from "./card-text.js";
+import { getCardText, getCardName } from "./card-text.js";
 import { LAYOUT, cardTypeOf, groupOf } from "./card-layout-config.js";
 
 // 能力名《》・マーカー等の色味には単色を使う（color-mix/border-color はグラデーション不可）。
@@ -141,7 +141,9 @@ export function buildCardFace(cardId, { showFlavor = true } = {}) {
   }
   if ("title" in slots) {
     const title = divEl("card-face-title");
-    applyTitleRuby(title, def?.name || cardId || "", text.titleRuby);
+    // 表示名は言語データの name（非ja）→ 無ければ cards-data.js の日本語名。
+    const displayName = getCardName(cardId) || def?.name || cardId || "";
+    applyTitleRuby(title, displayName, text.titleRuby);
     face.appendChild(title);
   }
   if ("sub" in slots && text.subtitle) face.appendChild(divEl("card-face-subtitle", text.subtitle));

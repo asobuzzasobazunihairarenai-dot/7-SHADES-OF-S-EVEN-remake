@@ -17213,3 +17213,31 @@ URLが `?iso=0` になっていた取り違えと判断）。かつユーザー�
 「１枚」（全角）、②プレゼントの手札効果「れを相手の隣に…」→「これを相手の隣に…」（脱字）。
 カウンターロックのフレーバー「…奪い返せる」だけ末尾の句点が無い（他は全て「。」で終わる）点は、
 創作テキストのため自動修正せずユーザーへ報告（判断待ち）。本編未接続（カード面エディタのプレビューのみ）。
+
+### 2026-08-26（続き275）：多言語化の土台（フェーズ1〜2）＝言語設定＋card-text.ja.js化＋カード名の言語対応（jaは無変更）
+
+「カードテキストの分離」が済んだので、多言語化の器を作った（英語データはまだ無し。**jaの見た目・挙動は
+完全に無変更**）。
+- **`src/i18n.js`（新規・依存ゼロの葉）**: `getLang()/setLang()/onLangChange()`＋`SUPPORTED_LANGS(["ja","en"])`。
+  既定 ja、localStorage(`so7-lang`)保存、`?lang=en` のURL上書き（テスト用・指定で保存）。将来アカウント
+  同期する場合は `so7_user_profiles` に `lang` 列を1つ足して online.js の loadMyPreferences/saveMyPreference に
+  載せるだけ（既存の設定同期と同じ形）。
+- **`card-text.js` を言語ディスパッチャ化**: 生成物のデータは `src/card-text.ja.js`（`export const CARD_TEXT_JA`、
+  `gen-card-text.mjs` の出力先を変更）に移し、`card-text.js` は「現在の言語を見て cardId のテキストを返す」
+  手書きディスパッチャにした（`getCardText`/`getCardName` を export、importer の card-renderer.js は無改修）。
+  フォールバック方針: ①対象言語にそのカードが無ければ丸ごと ja（＝完全な日本語カードで表示）②効果文/
+  フレーバー/能力名は対象言語のフィールドが空なら ja（原文）で表示（未訳の暫定表示）③titleRuby（ふりがな）は
+  日本語専用＝非ja言語では常に無し（ただしカードが丸ごとjaフォールバックの時はjaルビが正しく出る）。
+- **カード名の言語対応**: 日本語名は `cards-data.js` の `name`（アプリ全体で使う正）のままにし、**非ja言語の
+  テキストデータだけが `name` フィールドを持つ**設計（jaの名前は動かさない＝ログ/UI等50箇所の `def.name`
+  参照に影響しない・spacingドリフトも無い）。`card-renderer.js` のタイトルを
+  `getCardName(cardId) || getCardDefinition().name` に変更（jaは getCardName が null → 従来通り cards-data の
+  日本語名）。
+- **別言語の足し方**: `card-text.<lang>.js`（同じ cardId キー、name＋各テキスト）を作り、`card-text.js` の
+  `LANGS` に import して1行足すだけ。
+- **検証**: `node --check`（i18n/card-text/card-text.ja/card-renderer/gen-card-text）通過。ブラウザで、既定 ja・
+  `setLang("en")` で en に切替（データ未整備なので全カード ja フォールバック）・`getCardName` は ja で null／
+  en でも（データ無しなので）null＝レンダラは cards-data 名にフォールバック・jaカード面がタイトル/ルビ/効果/
+  フレーバーとも従来と完全同一に組めることを実測確認。**本編（手札/盤面/拡大/図鑑）は従来の焼き込み画像の
+  ままで、この器はまだ表示切替に接続していない**（カード面レンダラ側の準備が整った段階）。
+- **次**: 用語集（glossary）を作って34枚を英訳→`card-text.en.js`→`LANGS`へ接続→言語セレクタ（オプション）。

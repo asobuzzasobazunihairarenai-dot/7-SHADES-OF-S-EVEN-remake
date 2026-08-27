@@ -115,16 +115,18 @@ const ORDER = [
   "first-red","first-orange","first-yellow","first-green","first-blue","first-pink","first-purple","first-noir",
 ];
 const q = (s) => JSON.stringify(s || "");
-let out = `// AUTO-GENERATED（カード効果　テキスト.txt から scratchpad/parse-card-text.mjs で生成）。手編集しないこと。\n`;
-out += `// アプリ内でカードのタイトル横に重ねて表示する「表示用テキスト」。★基本効果 / ●到達効果 / ■手札効果 / flavor(Ω)。\n`;
-out += `// 元テキスト（テキスト印字カードと一致）を単一の情報源として持つ。将来の多言語化では\n`;
-out += `// このファイルを ja とし、同じ cardId キーで別言語ファイルを追加する。\n`;
-out += `export const CARD_TEXT = {\n`;
+let out = `// AUTO-GENERATED（カード効果　テキスト.txt から tools/gen-card-text.mjs で生成）。手編集しないこと。\n`;
+out += `// カード面に重ねて表示する「表示用テキスト（日本語）」。★基本効果 / ●到達効果 / ■手札効果 / flavor(Ω) /\n`;
+out += `// subtitle(Θ能力名《》) / titleRuby(ふりがな)。多言語化の ja（原本＝印字カードと一致）。\n`;
+out += `// 言語切替は src/card-text.js（ディスパッチャ）が行う。別言語は card-text.<lang>.js を同じ cardId キーで追加。\n`;
+out += `// カード名は日本語は cards-data.js（アプリ全体の正）を使うため、この ja ファイルには持たせない\n`;
+out += `// （非ja言語のファイルだけが name フィールドを持つ）。\n`;
+out += `export const CARD_TEXT_JA = {\n`;
 for (const id of ORDER) {
   const r = result[id];
   if (!r) { console.warn("ORDER missing in result:", id); continue; }
   out += `  ${JSON.stringify(id)}: { flavor: ${q(r.flavor)}, titleRuby: ${q(r.titleRuby)}, basic: ${q(r.basic)}, subtitle: ${q(r.subtitle)}, arrival: ${q(r.arrival)}, hand: ${q(r.hand)} },\n`;
 }
-out += `};\n\nexport function getCardText(cardId) {\n  return CARD_TEXT[cardId] || null;\n}\n`;
-writeFileSync("./src/card-text.js", out, "utf8");
-console.log("\nwrote src/card-text.js (" + ORDER.length + " cards)");
+out += `};\n`;
+writeFileSync("./src/card-text.ja.js", out, "utf8");
+console.log("\nwrote src/card-text.ja.js (" + ORDER.length + " cards)");

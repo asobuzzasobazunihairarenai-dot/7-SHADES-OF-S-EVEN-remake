@@ -1,44 +1,46 @@
-// AUTO-GENERATED（カード効果　テキスト.txt から scratchpad/parse-card-text.mjs で生成）。手編集しないこと。
-// アプリ内でカードのタイトル横に重ねて表示する「表示用テキスト」。★基本効果 / ●到達効果 / ■手札効果 / flavor(Ω)。
-// 元テキスト（テキスト印字カードと一致）を単一の情報源として持つ。将来の多言語化では
-// このファイルを ja とし、同じ cardId キーで別言語ファイルを追加する。
-export const CARD_TEXT = {
-  "red-jump-pad": { flavor: "最初に飛び越えた者だけが、新たな景色を知る。", titleRuby: "だい", basic: "", subtitle: "", arrival: "これはあなたの手札に加えない。２マス先に一気に移動する。", hand: "これをゲート以外の任意のマスに表向きで置く。" },
-  "red-counter-lock": { flavor: "奪われる覚悟がある者だけが、奪い返せる。", titleRuby: "", basic: "", subtitle: "", arrival: "１番少なくロックしているなら１枚ドロー。", hand: "あなたへの接触の宣言時に使える。その接触を無効にする。あなたの手札を１枚ロックしてもよい。" },
-  "orange-mass-change": { flavor: "誰もが、一度は誰かの場所に立つべきだ。", titleRuby: "", basic: "", subtitle: "", arrival: "３マス以内の相手のいる場所とあなたのいる場所を入れ替える。相手はこのカードの到達効果を得ない。", hand: "【追色１】上記の到達時の効果を得る。" },
-  "orange-harvest-sow": { flavor: "蒔いた希望は、必ず誰かが受け取る。", titleRuby: "しゅうかく　たね", basic: "", subtitle: "", arrival: "任意の１マスの１枚をあなたの手札に加える。そのマスに手札から１枚裏向きで置く。", hand: "上記の到達時の効果を得る。" },
-  "yellow-sleight-of-hand": { flavor: "奪ったのではない。気付かれなかっただけさ。", titleRuby: "てじなし　わざ", basic: "", subtitle: "", arrival: "相手１人の手札から無作為に１枚、あなたの手札に加える。あなたの手札から１枚、その相手の手札に加える。", hand: "上記の到達時の効果を得る。" },
-  "yellow-gamble": { flavor: "賭けぬ者に、奇跡は微笑まない。", titleRuby: "", basic: "", subtitle: "", arrival: "２色以上、色を宣言する。その色の種類の数分ドローし公開する。それらの中に宣言色があるなら、あなたの手札を全て捨てる。", hand: "あなたは手札を１枚捨てる。上記の到達時の効果を得る。このフェイズを終了する。" },
-  "green-joint-construction": { flavor: "平和は、一人では築けない。", titleRuby: "ごうどうけんせつ", basic: "", subtitle: "", arrival: "全員は何もない１マスに山札または手札から１枚裏向きで置く。", hand: "上記の到達時の効果を得る。" },
-  "green-growing-trees": { flavor: "一つの森は、一つの種から始まる。", titleRuby: "ぞうしょく　きぎ", basic: "", subtitle: "", arrival: "２マス以内の何もない全てのマスに山札からカードを１枚ずつ裏向きで置く。", hand: "任意の３マスに山札から１枚ずつ裏向きで置く。" },
-  "blue-slum-official": { flavor: "昨日の貧民が、今日の法を作る。", titleRuby: "あ　やくにん", basic: "", subtitle: "", arrival: "全員は手札が３枚になるように捨てる。", hand: "あなたの手札が１枚以下なら２枚ドロー。このフェイズを終了する。" },
-  "blue-choosable-trap": { flavor: "選択肢があるように見える。それが罠だ。", titleRuby: "えら　わな", basic: "", subtitle: "", arrival: "以下の効果のうち１つ得る。\n・あなたの手札を半分捨てる。\n・あなたのゲートに強制移動する。\n・あなたのロックしているカードを１枚捨てる。", hand: "このカードを任意のマスに裏向きで置く。" },
-  "pink-party": { flavor: "宴の終わりには、誰もが笑っていてほしい。", titleRuby: "", basic: "", subtitle: "", arrival: "全員は以下の効果のうち１つ得る。\n・１マス移動し、移動先の到達効果は得ない。\n・場の任意の１枚をあなたの手札に加える。\n・場の任意の２枚をオープンする。", hand: "これを任意のマスに裏向きで置く。" },
-  "pink-present": { flavor: "与える喜びは、受け取る喜びより深い。", titleRuby: "", basic: "", subtitle: "", arrival: "１番少なくロックしている全員は、１枚ドロー。", hand: "これを相手の隣に裏向きで置く。１枚ドロー。" },
-  "purple-trial-ritual": { flavor: "真実へ至る道は、試練だけが知っている。", titleRuby: "しれん　ぎしき", basic: "", subtitle: "", arrival: "色を３色宣言する。あなたの隣に山札から１枚表向きで置く。そのマスに移動し、移動先の到達効果は得ない。置いたカードが宣言色ならこの効果を繰り返す。", hand: "上記の到達時の効果を得る。" },
-  "purple-sorry": { flavor: "「ごめん」で済めば、戦争は起きない。", titleRuby: "", basic: "", subtitle: "", arrival: "１マス移動する。", hand: "【追色１】相手が最後のロックを宣言した時に使える。相手のロックしている１枚をあなたの手札に加える。" },
-  "rainbow-shard": { flavor: "欠けたのではない。分かたれただけだ。", titleRuby: "かけら", basic: "これはすべての色であり、ロックフェイズではロックできない。", subtitle: "", arrival: "到達効果はない。", hand: "以下の効果のうち１つ得る。\n・１枚ドロー。\n・これを含めた「なないろの欠片」が２枚、あなたの手札にある時に使える。その２枚を任意の１箇所にロックする。２枚ドロー。" },
-  "white-radiance": { flavor: "歓喜は空を満たし、誰も真実には気付かなかった。", titleRuby: "きょこう", basic: "", subtitle: "", arrival: "全員、３枚ドロー。このカードを捨てる。", hand: "全員、３枚ドロー。このフェイズを終了する。" },
-  "white-awakening": { flavor: "私は世界を守った。そう信じていた。", titleRuby: "しろ　いし　かくせい", basic: "", subtitle: "", arrival: "場の全ての表向きのカードを捨てる。", hand: "場の全ての表向きのカードの上に山札から１枚ずつ裏向きで置く。" },
-  "black-faded-cat": { flavor: "撫でるたび、世界が少し色褪せる。", titleRuby: "いろお", basic: "", subtitle: "", arrival: "これを捨てる。全員、手札を全て捨て、１枚ドロー。", hand: "あなたのロックしているカードを任意の枚数捨てる。捨てたカード１枚に付き３枚ドロー。このフェイズを終了する。" },
-  "black-contract-brand": { flavor: "その印は、強者の証か、呪いの証か。", titleRuby: "", basic: "あなたのロックフェイズにロックしないなら１枚ドローしてもよい。これの置かれた色のロックエリアにロックしたなら、あなたの手札を２枚捨て、これを任意のマスに裏向きで置く。", subtitle: "", arrival: "あなたの空いているロックエリアに、これを表向きで置く。", hand: "これを任意のマスに裏向きで置く。" },
-  "eternal-red": { flavor: "終わりを恐れるな。炎は始まりでもある。", titleRuby: "ぐれん　かざん", basic: "これは他のカードの効果の対象にならない。これの手札効果はこれがロックされていても使え、その際にこれは捨てない。", subtitle: "", arrival: "", hand: "《紅色の雨》：【追色１】任意の１マスのカードをすべて捨てる。" },
-  "eternal-orange": { flavor: "すべてを得る者は、一度すべてを失う。", titleRuby: "きんだん　かじつ", basic: "これは他のカードの効果の対象にならない。これの手札効果はこれがロックされていても使え、その際にこれは捨てない。", subtitle: "", arrival: "", hand: "《果実の提案》：【追色１】４枚ドロー。それらを公開する。それらの手札効果はこのターン使うことができない。その中に橙のカードがあったなら、あなたの手札をすべて捨て、あなたはこのターン移動できない。" },
-  "eternal-yellow": { flavor: "財力を持つ者は、貧民に分け与えよ。後、持たれるのは感謝か牙か。", titleRuby: "おうごん　きゅうでん", basic: "これは他のカードの効果の対象にならない。これの手札効果はこれがロックされていても使え、その際にこれは捨てない。", subtitle: "", arrival: "", hand: "《富豪の威厳》：【追色１】２枚ドロー。相手全員は１枚ドロー。この効果は１ターンに１度のみ得られる。" },
-  "eternal-green": { flavor: "緑が呼んでいる。この森でなら、きっと奇跡を起こせる。", titleRuby: "きせき　もり", basic: "これは他のカードの効果の対象にならない。これの手札効果はこれがロックされていても使え、その際にこれは捨てない。", subtitle: "", arrival: "", hand: "《永久の生命力》：【追色１】１枚ドロー。" },
-  "eternal-blue": { flavor: "迷うことはない、今宵、青が道を切り開くのだから。", titleRuby: "げっか　ひょうりゅうせん", basic: "これは他のカードの効果の対象にならない。これの手札効果はこれがロックされていても使え、その際にこれは捨てない。", subtitle: "", arrival: "", hand: "《神秘の航路》：【追色１】任意の２マスに山札から１枚ずつ裏向きで置く。" },
-  "eternal-pink": { flavor: "ここでまた会おう。そう約束した、この桜木の下で。", titleRuby: "", basic: "これは他のカードの効果の対象にならない。これの手札効果はこれがロックされていても使え、その際にこれは捨てない。", subtitle: "", arrival: "", hand: "《恋の訪れ》：【追色１】相手をあなたの周囲へ移動する。このターンあなたは接触できない。" },
-  "eternal-purple": { flavor: "この世界は不思議で満ちている。化学は決して終わらない。", titleRuby: "お　かがく", basic: "これは他のカードの効果の対象にならない。これの手札効果はこれがロックされていても使え、その際にこれは捨てない。", subtitle: "", arrival: "", hand: "《遺伝子組み換え》：【追色１】任意の１マスの１枚をあなたの手札に加える。そのマスに山札から１枚裏向きで置く。" },
-  "first-red": { flavor: "", titleRuby: "", basic: "これは他のカードの効果の対象にならない。これの手札効果はこれがロックされていても使え、その際にこれは捨てない。", subtitle: "《再起の色》", arrival: "", hand: "【追色１】（これと同色のカードを自分の手札から１枚捨てることで次の効果を得る。）捨て場の１番上から２番目のカードをあなたの手札に加える。" },
-  "first-orange": { flavor: "", titleRuby: "", basic: "これは他のカードの効果の対象にならない。これの手札効果はこれがロックされていても使え、その際にこれは捨てない。", subtitle: "《収穫の刻》", arrival: "", hand: "【追色１】（これと同色のカードを自分の手札から１枚捨てることで次の効果を得る。）２マス以内の１枚をあなたの手札に加える。" },
-  "first-yellow": { flavor: "", titleRuby: "", basic: "これは他のカードの効果の対象にならない。これの手札効果はこれがロックされていても使え、その際にこれは捨てない。", subtitle: "《フラッシュ》", arrival: "", hand: "【追色１】（これと同色のカードを自分の手札から１枚捨てることで次の効果を得る。）２マス以内のカードを４枚までオープンしてもよい。" },
-  "first-green": { flavor: "", titleRuby: "", basic: "これは他のカードの効果の対象にならない。これの手札効果はこれがロックされていても使え、その際にこれは捨てない。", subtitle: "《懸命な芽生え》", arrival: "", hand: "【追色１】（これと同色のカードを自分の手札から１枚捨てることで次の効果を得る。）２枚ドローして、それらをすべて公開する。ターン終了時、それらを捨てる。この効果は１ターンに１度のみ得られる。" },
-  "first-blue": { flavor: "", titleRuby: "", basic: "これは他のカードの効果の対象にならない。これの手札効果はこれがロックされていても使え、その際にこれは捨てない。", subtitle: "《無意識の吸収》", arrival: "", hand: "【追色１】（これと同色のカードを自分の手札から１枚捨てることで次の効果を得る。）手札が２枚以上ある相手全員の手札から、無作為に１枚ずつ選び、それらを捨てる。" },
-  "first-pink": { flavor: "", titleRuby: "", basic: "これは他のカードの効果の対象にならない。これの手札効果はこれがロックされていても使え、その際にこれは捨てない。", subtitle: "《恋慕の刻》", arrival: "", hand: "【追色１】（これと同色のカードを自分の手札から１枚捨てることで次の効果を得る。）あなたの手札を１枚ロックする、ただし最後のロックはできない。この効果は１ターンに１度のみ得られる。" },
-  "first-purple": { flavor: "", titleRuby: "", basic: "これは他のカードの効果の対象にならない。これの手札効果はこれがロックされていても使え、その際にこれは捨てない。", subtitle: "《空間操作》", arrival: "", hand: "【追色１】（これと同色のカードを自分の手札から１枚捨てることで次の効果を得る。）\nこのターンの通常の移動は２マス先に一気に移動する。" },
-  "first-noir": { flavor: "", titleRuby: "", basic: "これは他のカードの効果の対象にならない。これの手札効果はこれがロックエリアに置かれていても使え、その際にこれは捨てない。", subtitle: "《抽出》", arrival: "", hand: "このカードの置かれた色のロックエリアにカードを１枚ロックする。そうしたなら、１枚ドローし、１マス移動する。" },
+// カード面の「表示用テキスト」の言語ディスパッチャ。現在の言語(i18n)を見て、cardId ごとの
+// テキストを返す。日本語(ja)は card-text.ja.js（生成物・原本）。別言語は card-text.<lang>.js を
+// 同じ cardId キーで追加し、下の LANGS に載せるだけ。
+//
+// フォールバック方針（部分翻訳でも崩れないように）:
+//  - そのカードが対象言語に無ければ、丸ごと ja を返す。
+//  - 効果文/フレーバー/能力名は、対象言語のフィールドが空なら ja（原文）で表示（未訳の暫定表示）。
+//  - titleRuby（ふりがな）は日本語専用。非ja言語では常に無し。
+//  - カード名（name）は非ja言語のファイルだけが持つ。ja はここでは付けず、呼び出し側が
+//    cards-data.js の日本語名にフォールバックする（getCardName 参照）。
+import { getLang } from "./i18n.js";
+import { CARD_TEXT_JA } from "./card-text.ja.js";
+// 追加言語はここに import して LANGS に足す。例:
+//   import { CARD_TEXT_EN } from "./card-text.en.js";
+const LANGS = {
+  ja: CARD_TEXT_JA,
+  // en: CARD_TEXT_EN,
 };
 
 export function getCardText(cardId) {
-  return CARD_TEXT[cardId] || null;
+  const ja = CARD_TEXT_JA[cardId] || null;
+  const lang = getLang();
+  if (lang === "ja" || !LANGS[lang]) return ja;
+  const loc = LANGS[lang][cardId];
+  if (!loc) return ja;                       // 未翻訳カードは丸ごと ja
+  if (!ja) return { ...loc, titleRuby: "" };
+  const pick = (k) => (loc[k] != null && loc[k] !== "" ? loc[k] : ja[k]); // 空は原文(ja)へ
+  return {
+    titleRuby: "",                           // ルビは日本語専用（非jaは無し）
+    flavor: pick("flavor"),
+    subtitle: pick("subtitle"),
+    basic: pick("basic"),
+    arrival: pick("arrival"),
+    hand: pick("hand"),
+    name: loc.name || undefined,             // 表示名は getCardName でも引ける
+  };
+}
+
+// 表示用カード名。非ja言語はテキストデータの name を返し、無ければ null
+// （呼び出し側が cards-data.js の日本語名にフォールバックする）。
+export function getCardName(cardId) {
+  const lang = getLang();
+  if (lang === "ja") return null;
+  const name = LANGS[lang]?.[cardId]?.name;
+  return name || null;
 }
