@@ -1068,6 +1068,27 @@ body.diagnostic-flatten-3d.is-touch-device .zone-left .hand-area {
   transition: transform 0.2s ease-out;
 }
 
+/* ユーザー要望2026-08-28: 自動処理モードで自分の公開カード（publicDraw）を手札の扇の中に
+   並べる時、通常の手札と区別できるよう明るいハイライト（金色の縁取り＋発光）を付ける。 */
+.hand-card.is-public-in-hand {
+  border-color: rgba(250, 204, 21, 0.95);
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.85), 0 0 14px 3px rgba(250, 204, 21, 0.5), 0 6px 12px rgba(0, 0, 0, 0.55);
+}
+/* 公開されていることを示す👁アイコン（カード左上に小さく重ねる）。 */
+.hand-card-public-eye {
+  position: absolute;
+  top: 4%;
+  left: 4%;
+  font-size: 0.62rem;
+  line-height: 1;
+  background: rgba(15, 23, 32, 0.85);
+  border: 1px solid rgba(250, 204, 21, 0.9);
+  border-radius: 0.25rem;
+  padding: 0.06rem 0.12rem;
+  pointer-events: none;
+  z-index: 2;
+}
+
 /* ユーザー要望「白と黒のカードは自分の手札内でそれぞれの色の湯気のような神秘的な
    オーラで纏われている演出を入れたい」への対応（main.jsのbuildPlayerZone参照、自分の
    手札のみ対象）。カードの縁からはみ出す2層のぼかしたグラデーションを、それぞれ別の
@@ -10169,21 +10190,45 @@ body.theme-light .bug-report-cancel {
   transform: translate(-50%, -50%);
 }
 .declare-colors-modal-swatch {
+  position: relative;
   width: 3rem;
   height: 3rem;
   border-radius: 50%;
   background: var(--swatch-color);
   border: 3px solid rgba(255, 255, 255, 0.3);
   cursor: pointer;
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
 }
 .declare-colors-modal-swatch:hover {
   transform: scale(1.12);
 }
+/* 未選択の色は少し沈めて、選択済みが際立つようにする（選択が1つでもある時だけ）。 */
+.declare-colors-modal-grid:has(.declare-colors-modal-swatch.is-selected) .declare-colors-modal-swatch:not(.is-selected) {
+  opacity: 0.5;
+}
+/* 選択された色を、どの色の上でもはっきり分かるようにする（白＋金の二重リング・
+   強めの拡大・持続する発光・中央のチェックマーク）。 */
 .declare-colors-modal-swatch.is-selected {
-  border-color: #facc15;
-  box-shadow: 0 0 12px rgba(250, 204, 21, 0.7);
-  transform: scale(1.1);
+  border-color: #fff;
+  transform: scale(1.22);
+  box-shadow:
+    0 0 0 3px #fff,
+    0 0 0 6px #facc15,
+    0 0 16px 4px rgba(250, 204, 21, 0.85);
+  z-index: 1;
+}
+.declare-colors-modal-swatch.is-selected::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.9), 0 1px 2px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
 }
 .declare-colors-modal-confirm {
   padding: 0.6rem 1.2rem;
@@ -17157,6 +17202,10 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
   background-size: cover; background-position: center;
   border-radius: 4cqw; overflow: hidden; color: #2a2320;
   box-shadow: 0 0.6cqw 1.6cqw rgba(0, 0, 0, 0.35); user-select: none;
+  /* 手札等の祖先コンテナが text-align:center を持つため、明示的に左寄せへ戻す
+     （効果本文が中央寄せになる不具合の修正。フレーバー/サブタイトル/ファーストの
+     効果本文は各自 text-align:center を明示しているので影響しない）。 */
+  text-align: left;
 }
 /* カードスロット（.hand-card/.board-card/.hand-reveal-card/#card-preview/.stack-top 等）に
    inset:0 で被せるマウント。スロットの角丸に合わせてクリップ、スロット自身の影・比率に従う。

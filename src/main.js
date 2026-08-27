@@ -573,6 +573,19 @@ function buildPlayerZone(side, player, isSelf) {
     (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player
   );
 
+  // ユーザー要望2026-08-28「自動処理モードでは、自分の公開カード（publicDraw）を別の手札公開
+  // エリアではなく自分の手札の扇の中に、通常の手札と1枚分の隙間を空けて、目印（👁ハイライト）
+  // 付きで並べたい」。自分＝isSelf・非観戦・自動処理モードの時だけ、扇の末尾に隙間1枚分を空けて
+  // 公開カードを並べる（下の handRevealTokens はこの場合空にして重複表示を避ける）。
+  const inlineRevealTokens =
+    isSelf && !isSpectatingGame() && isAutoProcessingEnabled()
+      ? getState().tokens.filter(
+          (t) => t.kind === "card" && t.location.zone === "publicDraw" && t.location.player === player
+        )
+      : [];
+  const revealGapSlots = inlineRevealTokens.length > 0 ? 1 : 0;
+  const totalFanSlots = handTokens.length + revealGapSlots + inlineRevealTokens.length;
+
   // .hand-areaは見た目だけでなく、カードをドロップする際の当たり判定(findDropTarget)にも
   // 使われる。固定サイズ(以前はwidth:100%=盤面と同じ幅)のままだと実際に見えている手札の
   // 範囲よりずっと広くなり、ロックエリアの帯と干渉してしまう。手札3枚の時を基準サイズ
@@ -595,12 +608,14 @@ function buildPlayerZone(side, player, isSelf) {
       ? rootStyle.getPropertyValue(`--hand-${HAND_VAR_LETTER[side]}-size-phone`).trim()
       : "";
   const baseSize = parseFloat(phoneOverrideRaw || rootStyle.getPropertyValue(`--hand-${HAND_VAR_LETTER[side]}-size`));
-  const scale = Math.max(handTokens.length, 2) / 3;
+  const scale = Math.max(totalFanSlots, 2) / 3;
   const sizeRem = (Number.isNaN(baseSize) ? 10 : baseSize) * scale;
   if (orientation === "horizontal") handEl.style.width = `${sizeRem}rem`;
   else handEl.style.height = `${sizeRem}rem`;
 
-  const layout = layoutFan(handTokens.length, orientation, isSelf, side);
+  // 扇のスロット数は「通常の手札 ＋ 隙間1枚分 ＋ 公開カード」の合計（自動処理モードの自分のみ、
+  // それ以外は隙間0・公開カード0なので実質 handTokens.length と同じ）。
+  const layout = layoutFan(totalFanSlots, orientation, isSelf, side);
   handTokens.forEach((token, i) => {
     const cardEl = document.createElement("div");
     // 自分の手札は常に中身が見える（物理カードを自分で持っているのと同じ）。
@@ -676,6 +691,27 @@ function buildPlayerZone(side, player, isSelf) {
     if (isSelf) cardEl.dataset.baseTransform = cardEl.style.transform;
     fanEl.appendChild(cardEl);
   });
+
+  // ユーザー要望2026-08-28: 公開カード（publicDraw）を手札の扇の末尾に、隙間1枚分を空けて並べる。
+  // 通常の手札と区別できるよう、公開されていることを示すハイライト（is-public-in-hand）と
+  // 👁アイコンを付ける。findDraggableAtは.hand-cardとして掴め、手札効果のドラッグ発動は
+  // token.location.zone（publicDraw）を見るため従来通り機能する。
+  inlineRevealTokens.forEach((token, j) => {
+    const cardEl = document.createElement("div");
+    cardEl.className = "hand-card is-self is-public-in-hand";
+    cardEl.dataset.tokenId = token.id;
+    showCardFace(cardEl, token.cardId, getCardImagePath(token.cardId));
+    const card = layout[handTokens.length + revealGapSlots + j];
+    if (card) {
+      cardEl.style.transform = `translateX(${card.spreadX}px) translateY(${card.spreadY}px) rotate(${card.angle}deg)`;
+      cardEl.dataset.baseTransform = cardEl.style.transform;
+    }
+    const eye = document.createElement("span");
+    eye.className = "hand-card-public-eye";
+    eye.textContent = "👁";
+    cardEl.appendChild(eye);
+    fanEl.appendChild(cardEl);
+  });
   handEl.appendChild(fanEl);
 
   // 手札公開エリア: 盤面のそば・プレイヤー名の下あたりに置く、表向きカードの公開表示場所
@@ -690,9 +726,14 @@ function buildPlayerZone(side, player, isSelf) {
   const handRevealEl = document.createElement("div");
   handRevealEl.className = `hand-reveal-area hand-reveal-${side}`;
   handRevealEl.dataset.player = player;
-  const handRevealTokens = getState().tokens.filter(
-    (t) => t.kind === "card" && t.location.zone === "publicDraw" && t.location.player === player
-  );
+  // 自動処理モードの自分は公開カードを扇の中（上）に表示済みなので、ここでは重複して出さない
+  // （エリア自体はドロップ先として残す）。それ以外（相手席・自動処理OFF）は従来通りここに並べる。
+  const handRevealTokens =
+    inlineRevealTokens.length > 0
+      ? []
+      : getState().tokens.filter(
+          (t) => t.kind === "card" && t.location.zone === "publicDraw" && t.location.player === player
+        );
   handRevealTokens.forEach((token) => {
     const slot = document.createElement("div");
     slot.className = "hand-reveal-slot";
@@ -1577,7 +1618,14 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, reve
                 ? `${getPlayerName(actor)}が${getPlayerName(targetPlayer)}から`
                 : `${getPlayerName(targetPlayer)}から`;
           }
-          await showCardReceivedModal(revealCardId, sub, { labelText });
+          // ユーザー要望2026-08-28「接触時の『奪った』モーダルは、接触演出の直後の方が良い
+          // （現在は直前に表示されている）」。deferReveal が指定された時は、ここで即座に
+          // 中央の「奪った」表示を出さず、呼び出し側にその表示関数だけ渡す（呼び出し側が
+          // タックル演出の後に await して出す）。他の呼び出し（スリカエ・ゲート侵攻）は
+          // deferReveal 未指定なので従来通りその場で表示する。
+          const doReveal = () => showCardReceivedModal(revealCardId, sub, { labelText });
+          if (options?.deferReveal) options.deferReveal(doReveal);
+          else await doReveal();
         }
       }
       resolve(token ?? null);
@@ -7143,6 +7191,9 @@ async function respondToContact(approve) {
   const pendingBefore = getState().pendingContact;
   if (!pendingBefore) return;
   const { attacker, defender } = pendingBefore;
+  // ユーザー要望2026-08-28「『奪った』モーダルは接触演出の直後に」。ローカルの奪取儀式で
+  // 選んだ後、中央の「奪った」表示関数をここに受け取り、タックル演出が終わってから出す。
+  let deferredStealReveal = null;
   // ユーザー要望（続き97）「接触回数やカード使用枚数など詳細スタッツを実装」。
   // 承認された（＝実際にカードを奪う・強制移動が起きる）場合だけをattacker視点の
   // 「接触回数」としてカウントする（拒否された接触は何も起きていないため対象外）。
@@ -7198,6 +7249,11 @@ async function respondToContact(approve) {
           onPickedBeforeReveal: (token) => {
             moveToken(token.id, { zone: "hand", player: attacker });
             render();
+          },
+          // ユーザー要望2026-08-28「『奪った』モーダルは接触演出の直後に」。ここでは表示せず、
+          // 表示関数だけ受け取ってタックル演出（下）の後で await して出す。
+          deferReveal: (fn) => {
+            deferredStealReveal = fn;
           },
         }
       );
@@ -7354,6 +7410,17 @@ async function respondToContact(approve) {
     playSound("piecePlace");
   }
   render();
+
+  // ユーザー要望2026-08-28「『奪った』モーダルは接触演出の直後に」。タックル演出（lunge→
+  // move→flight）が終わってから、奪ったカードの中央表示を出す（閉じるまで await）。強制移動の
+  // 到達処理（下）はその後に始まるので、到達効果の選択モーダルと重ならない。
+  if (deferredStealReveal) {
+    try {
+      await deferredStealReveal();
+    } catch (err) {
+      console.error("deferred steal reveal failed", err);
+    }
+  }
 
   if (approve && defenderPieceId) {
     // 到達プロンプト/モーダルの位置決めに実際のDOM座標(getBoundingClientRect)を使うため、

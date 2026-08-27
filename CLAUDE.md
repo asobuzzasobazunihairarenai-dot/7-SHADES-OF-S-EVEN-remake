@@ -17715,3 +17715,38 @@ DOMベースの「読む瞬間」を持つものが残っていたため、ユ�
   ③ショップ（戻る・タイトル ショップ↔Shop・7タブ〈駒スキン…↔Piece skins…〉・残高ログイン促し・
   無料↔Free リボン）が ja↔en 切替、を実測確認。全 src の import が parse エラー無し・game-table 構築済み。
   サーバー側の変更は無い。
+
+### 2026-08-28（続き293）：カード面の効果文が中央寄せになる不具合を修正／自動処理中は自分の公開カードを手札の扇内に表示／接触の「奪った」モーダルを演出後に／色選択のハイライト強化
+
+ユーザーから4件の要望・報告（緑「合同建設」の手札カードで効果文が中央寄せになっているスクショ付き）。
+- **#1 カード面テキスト（アプリ側合成）の効果文が中央寄せになっていた不具合を修正**: `.card-face`
+  （buildCardFace の土台）は手札等の祖先コンテナが `text-align: center` を持つため、それを継承して
+  効果本文（`.card-face-effect-body`、明示的な text-align 指定なし）が中央寄せになっていた。`.card-face`
+  自体に `text-align: left` を明示（フレーバー・サブタイトル・ファーストの効果本文は各自
+  `text-align: center` を明示済みなので影響なし）。ブラウザで `buildCardFace('green-joint-construction')`
+  （normal）の `.card-face` と `.card-face-effect-body` の computed text-align がともに `left` になることを実測確認。
+- **#2 自動処理モード中、自分の公開カード（publicDraw）を別の手札公開エリアではなく自分の手札の扇内に
+  表示**（ユーザー要望）: `isSelf`・非観戦・`isAutoProcessingEnabled()` の時だけ、`buildPlayerZone` の扇に
+  「通常の手札 ＋ 隙間1枚分 ＋ 公開カード」の合計スロットでレイアウト（`layoutFan(totalFanSlots)`）し、
+  公開カードを扇の末尾に1枚分の隙間を空けて並べる。公開カードは `.hand-card is-self is-public-in-hand`
+  として描画（金色の縁取り＋発光のハイライト＋左上に👁アイコン）。findDraggableAt は `.hand-card` として
+  掴め、手札効果のドラッグ発動は token.location.zone（publicDraw）を見るため従来通り機能する。この場合、
+  下の手札公開エリア（`.hand-reveal-area`）には公開カードを出さず空にする（重複表示を避ける・ドロップ先
+  としては残す）。相手席・自動処理OFF は従来通り公開エリアに表示。ブラウザで、A（自分・自動処理ON）の
+  手札の扇に手札2枚＋公開カード1枚（yellow-gamble）が並び、公開カードが👁アイコン＋金の発光を持ち扇の
+  末尾（gap分ずれた位置）に配置され、A の公開エリアが空（重複なし）になることを実測確認。
+- **#3 接触の「奪った」モーダルを、接触演出の直前ではなく直後に表示**（ユーザー要望「現在は直前に
+  表示されている」）: ローカルの奪取儀式 `requestOpponentHandRitualPick` に `deferReveal` オプションを
+  追加し、指定時は中央の「奪った」表示（`showCardReceivedModal`）をその場で出さず、表示関数だけ
+  呼び出し側へ渡す。`respondToContact` のローカル分岐でこれを受け取り、タックル演出（lunge→move→
+  flight）が完全に終わってから await して出す（強制移動の到達処理はその後なので、到達効果の選択
+  モーダルと重ならない）。他の呼び出し（スリカエ・ゲート侵攻）は `deferReveal` 未指定＝従来通りその場で表示。
+- **#4 色選択モーダルの選択ハイライトが分かりづらい不具合を改善**: `.declare-colors-modal-swatch.is-selected`
+  を、黄色い縁取り＋発光（どの色の上でも見づらい）から、白＋金の二重リング（`box-shadow` 3層）＋強めの
+  拡大（scale 1.22）＋持続する発光＋中央の✓チェックマーク（`::after`）にした。加えて、選択が1つでもある
+  時は未選択のスウォッチを `:has()` で opacity 0.5 に沈めて選択済みを際立たせる。ブラウザで、選択済みが
+  白+金リング・✓（白）・scale 1.22、未選択が opacity 0.5 になることを実測確認。
+- **検証**: `node --input-type=module --check`（main.js）通過・CSSブレース平衡（2462）。#1/#2/#4 は
+  ブラウザで実測確認。#3 はタックル演出の実タイミングが headless では確認しづらいため、コード経路
+  （deferReveal 機構）の正しさ＋構文で担保（実機での見た目の最終確認をお願いしたい）。サーバー側
+  （Supabase）の変更は無い。
