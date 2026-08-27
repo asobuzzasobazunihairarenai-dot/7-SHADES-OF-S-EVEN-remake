@@ -345,6 +345,7 @@ import { getCardDefinition, getCardImagePath, getCardBackImagePath, getCardIllus
 import { isBoardIllustOnly } from "./board-card-display.js";
 import { showCardFace } from "./card-face-display.js";
 import { onLangChange } from "./i18n.js";
+import { t } from "./ui-text.js";
 import {
   COLORS,
   GATE_POSITIONS,
@@ -11544,6 +11545,12 @@ function updateSelfStatusOnlineWidget() {
 // 管理者モード等の開発者向けツール（左上/右上）とは離し、画面右下に置く。
 let endTurnButtonEl = null;
 let endTurnTooltipEl = null;
+let endTurnCaptionEl = null;
+// 静的キャプション/ツールチップの多言語更新用（refreshActionButtonLabels、onLangChangeで呼ぶ）。
+let drawCaptionEl = null, drawTooltipEl = null;
+let publicDrawCaptionEl = null, publicDrawTooltipEl = null;
+let handShuffleCaptionEl = null, handShuffleTooltipEl = null;
+let boardZoomCaptionEl = null;
 
 // ユーザー要望「ムーブフェイズが終わったら少し間をおいて自動でターン終了をしてください。
 // ただしムーブフェイズでの移動による到達効果の処理終了が必ずしもムーブフェイズの終了では
@@ -11727,14 +11734,12 @@ function buildEndTurnButton() {
     icon: "assets/icons/end-turn.svg",
     tooltip: "",
   });
-  captionEl.textContent = "ターン終了";
+  captionEl.textContent = t("btn.endTurn.caption");
+  endTurnCaptionEl = captionEl;
   endTurnTooltipEl = tooltipEl;
   wireIconButtonClick(btn, {
-    detailTitle: "ターン終了",
-    detailParagraphs: [
-      "自分のターンを終え、次のプレイヤーへ手番を渡します。",
-      "相手のゲートに自分の駒が乗っている場合、ターン終了時に「相手ゲート侵攻ボーナス」が自動的に処理されます。",
-    ],
+    detailTitle: () => t("btn.endTurn.caption"),
+    detailParagraphs: () => [t("btn.endTurn.detail1"), t("btn.endTurn.detail2")],
     onAction: async () => {
       // 不具合#20: 実行中の再入を弾く（ゲート侵攻の告知/ピック等でawaitする間に自動ターン終了が
       // 再クリックして多重実行するのを防ぐ）。「自分の手番でない」等の正当な早期returnは、
@@ -11883,14 +11888,16 @@ export function updateEndTurnButton() {
   // 自体が無効、admin.jsのデフォルトOFF）場合はstate.priorityPlayerがnullのままなので、
   // その場合は従来通りturnPlayer判定だけで制限しない。
   if (isOnlineMode() && getSelfSeat() !== turnPlayer) {
-    if (endTurnTooltipEl) endTurnTooltipEl.textContent = `今は${getPlayerName(turnPlayer)}のターン中です`;
+    if (endTurnTooltipEl) endTurnTooltipEl.textContent = t("btn.endTurn.otherTurn", { name: getPlayerName(turnPlayer) });
     endTurnButtonEl.disabled = true;
   } else if (isOnlineMode() && state.priorityPlayer && getSelfSeat() !== state.priorityPlayer) {
-    if (endTurnTooltipEl) endTurnTooltipEl.textContent = `今は${getPlayerName(state.priorityPlayer)}が優先権を持っています`;
+    if (endTurnTooltipEl) endTurnTooltipEl.textContent = t("btn.endTurn.otherPriority", { name: getPlayerName(state.priorityPlayer) });
     endTurnButtonEl.disabled = true;
   } else {
     if (endTurnTooltipEl) {
-      endTurnTooltipEl.textContent = isOnlineMode() ? "自分のターンを終了します" : `${getPlayerName(turnPlayer)}のターンを終了します`;
+      endTurnTooltipEl.textContent = isOnlineMode()
+        ? t("btn.endTurn.tooltipSelf")
+        : t("btn.endTurn.tooltipLocal", { name: getPlayerName(turnPlayer) });
     }
     endTurnButtonEl.disabled = false;
   }
@@ -12021,7 +12028,10 @@ function ensureDeckAvailable(onReady) {
 // 一度登録すると、以後は通常表示から「盤面拡大」ボタンを押した瞬間に3段階サイクルの
 // 代わりに登録した画角へ直接ジャンプするようになる（cycleBoardZoomは登録が無い間の
 // フォールバック挙動として残している）。
-const BOARD_ZOOM_LABELS = ["盤面拡大", "もっと拡大", "元に戻す"];
+// 盤面拡大ボタンの3段階ラベル（多言語）。言語切替に追従するよう都度 t() で解決する。
+function boardZoomLabels() {
+  return [t("btn.boardZoom.label0"), t("btn.boardZoom.label1"), t("btn.boardZoom.label2")];
+}
 
 let boardZoomButtonEl = null;
 let boardZoomTooltipEl = null;
@@ -12032,17 +12042,34 @@ function updateBoardZoomButtonLabel() {
   const btn = boardZoomButtonEl;
   if (!btn) return;
   if (hasManualView) {
-    if (boardZoomTooltipEl) boardZoomTooltipEl.textContent = "元の画角に戻る";
+    if (boardZoomTooltipEl) boardZoomTooltipEl.textContent = t("btn.boardZoom.returnToView");
     if (boardZoomIconImgEl) boardZoomIconImgEl.src = DUMMY_ICON_RETURN_TO_VIEW;
     btn.classList.add("is-active");
     btn.classList.remove("is-zoom-2");
   } else {
     btn.classList.toggle("is-active", boardZoomLevel > 0);
     btn.classList.toggle("is-zoom-2", boardZoomLevel === 2);
-    if (boardZoomTooltipEl) boardZoomTooltipEl.textContent = BOARD_ZOOM_LABELS[boardZoomLevel];
+    if (boardZoomTooltipEl) boardZoomTooltipEl.textContent = boardZoomLabels()[boardZoomLevel];
     if (boardZoomIconImgEl) boardZoomIconImgEl.src = "assets/icons/board-zoom.svg";
   }
   updateBoardZoomRegisterButtonPosition();
+}
+
+// 言語切替（onLangChange）時に、右下の常設アクションボタンの静的キャプション/ツールチップを
+// 現在の言語へ更新する。ボタン自体はplayer-buttons.jsが位置・ドラッグ・ショートカットを
+// id基準で管理しているため、要素を作り直さず中身のテキストだけ差し替える（状態依存の
+// ツールチップは updateEndTurnButton / updateBoardZoomButtonLabel が担当）。
+function refreshActionButtonLabels() {
+  if (endTurnCaptionEl) endTurnCaptionEl.textContent = t("btn.endTurn.caption");
+  if (boardZoomCaptionEl) boardZoomCaptionEl.textContent = t("btn.boardZoom.caption");
+  if (drawCaptionEl) drawCaptionEl.textContent = t("btn.draw.caption");
+  if (drawTooltipEl) drawTooltipEl.textContent = t("btn.draw.tooltip");
+  if (publicDrawCaptionEl) publicDrawCaptionEl.textContent = t("btn.publicDraw.caption");
+  if (publicDrawTooltipEl) publicDrawTooltipEl.textContent = t("btn.publicDraw.tooltip");
+  if (handShuffleCaptionEl) handShuffleCaptionEl.textContent = t("btn.handShuffle.caption");
+  if (handShuffleTooltipEl) handShuffleTooltipEl.textContent = t("btn.handShuffle.tooltip");
+  updateBoardZoomButtonLabel(); // 盤面拡大の状態依存ツールチップも現在の言語で
+  updateEndTurnButton(); // ターン終了の状態依存ツールチップも
 }
 
 // 「拡大率登録」ボタンは、盤面拡大ボタン自体がドラッグ再配置（player-buttons.js/
@@ -12067,17 +12094,15 @@ function buildBoardZoomButton() {
   btn.id = "board-zoom-button";
   const { captionEl, tooltipEl } = buildIconButtonContent(btn, {
     icon: "assets/icons/board-zoom.svg",
-    tooltip: BOARD_ZOOM_LABELS[0],
+    tooltip: boardZoomLabels()[0],
   });
-  captionEl.textContent = "盤面拡大";
+  captionEl.textContent = t("btn.boardZoom.caption");
+  boardZoomCaptionEl = captionEl;
   boardZoomTooltipEl = tooltipEl;
   boardZoomIconImgEl = btn.querySelector(".icon-action-button-icon-img");
   wireIconButtonClick(btn, {
-    detailTitle: "盤面拡大",
-    detailParagraphs: [
-      "盤面全体をズームして見やすくします。まだ画角を登録していない間は、押すたびに「拡大」→「もっと拡大」→「元に戻す」の3段階を切り替えます。",
-      "マウスホイールでの自由なズームや中クリックドラッグでの視点移動を一度でも使うと、代わりに「元の画角に戻る」ボタンに変わります。その間だけ現れる点滅した「拡大率登録」ボタンを押すと、今の画角を登録できます。登録後は、通常表示からこのボタンを押すと登録した画角へ一気に切り替わります。",
-    ],
+    detailTitle: () => t("btn.boardZoom.caption"),
+    detailParagraphs: () => [t("btn.boardZoom.detail1"), t("btn.boardZoom.detail2")],
     onAction: () => {
       if (hasManualView) {
         resetManualView();
@@ -12272,17 +12297,16 @@ let handShuffleButtonEl = null;
 function buildHandShuffleButton() {
   const btn = document.createElement("button");
   btn.id = "hand-shuffle-button";
-  const { captionEl } = buildIconButtonContent(btn, {
+  const { captionEl, tooltipEl } = buildIconButtonContent(btn, {
     icon: "assets/icons/hand-shuffle.svg",
-    tooltip: "自分の手札の並び順をシャッフルします（カードの中身は変わりません）",
+    tooltip: t("btn.handShuffle.tooltip"),
   });
-  captionEl.textContent = "手札シャッフル";
+  captionEl.textContent = t("btn.handShuffle.caption");
+  handShuffleCaptionEl = captionEl;
+  handShuffleTooltipEl = tooltipEl;
   wireIconButtonClick(btn, {
-    detailTitle: "手札シャッフル",
-    detailParagraphs: [
-      "自分の手札の並び順だけをシャッフルします。カードの中身（持っている手札）自体は変わりません。",
-      "相手に手の内を推測されにくくするための、見た目上の演出です。",
-    ],
+    detailTitle: () => t("btn.handShuffle.caption"),
+    detailParagraphs: () => [t("btn.handShuffle.detail1"), t("btn.handShuffle.detail2")],
     onAction: () => {
       animateHandShuffle(getSelfSeat());
     },
@@ -12482,17 +12506,16 @@ let drawButtonEl = null;
 function buildDrawButton() {
   const btn = document.createElement("button");
   btn.id = "draw-button";
-  const { captionEl } = buildIconButtonContent(btn, {
+  const { captionEl, tooltipEl } = buildIconButtonContent(btn, {
     icon: "assets/icons/draw.svg",
-    tooltip: "山札から1枚引いて手札に加えます",
+    tooltip: t("btn.draw.tooltip"),
   });
-  captionEl.textContent = "1枚ドロー";
+  captionEl.textContent = t("btn.draw.caption");
+  drawCaptionEl = captionEl;
+  drawTooltipEl = tooltipEl;
   wireIconButtonClick(btn, {
-    detailTitle: "1枚ドロー",
-    detailParagraphs: [
-      "山札の一番上のカードを1枚引いて、自分の手札に加えます。",
-      "山札が無くなった場合は、捨て場を裏向きのまま新しい山札とします（シャッフルはしません）。",
-    ],
+    detailTitle: () => t("btn.draw.caption"),
+    detailParagraphs: () => [t("btn.draw.detail1"), t("btn.draw.detail2")],
     onAction: () => {
       if (!getState().turnPlayer) return;
       const player = getSelfSeat();
@@ -12569,17 +12592,16 @@ let publicDrawButtonEl = null;
 function buildPublicDrawButton() {
   const btn = document.createElement("button");
   btn.id = "public-draw-button";
-  const { captionEl } = buildIconButtonContent(btn, {
+  const { captionEl, tooltipEl } = buildIconButtonContent(btn, {
     icon: "assets/icons/public-draw.svg",
-    tooltip: "山札から1枚、表向きで公開ドローします",
+    tooltip: t("btn.publicDraw.tooltip"),
   });
-  captionEl.textContent = "公開ドロー";
+  captionEl.textContent = t("btn.publicDraw.caption");
+  publicDrawCaptionEl = captionEl;
+  publicDrawTooltipEl = tooltipEl;
   wireIconButtonClick(btn, {
-    detailTitle: "公開ドロー",
-    detailParagraphs: [
-      "山札の一番上のカードを1枚引き、表向きのまま手札の近くに公開して並べます（扇状の手札には直接入りません）。",
-      "「手札シャッフル」または「ターンを終了する」を押すと、公開ドローしたカードがまとめて通常の手札へ合流します。",
-    ],
+    detailTitle: () => t("btn.publicDraw.caption"),
+    detailParagraphs: () => [t("btn.publicDraw.detail1"), t("btn.publicDraw.detail2")],
     onAction: () => {
       if (!getState().turnPlayer) return;
       const player = getSelfSeat();
@@ -14039,6 +14061,9 @@ initOnlineUi();
 onAuthChange(render);
 // 言語切替（options-menuの言語セレクタ）でカード面のテキストを差し替えるため、盤面を再描画する。
 onLangChange(() => render());
+// 右下の常設アクションボタン（ターン終了/ドロー/公開ドロー/手札シャッフル/盤面拡大）の
+// キャプション・ツールチップも現在の言語へ（要素はplayer-buttons.jsがid管理するので作り直さない）。
+onLangChange(refreshActionButtonLabels);
 updateSelfStatusOnlineWidget();
 
 // ユーザー要望「戦績システムと連携しているプレイヤーはステータスエリアにランクを

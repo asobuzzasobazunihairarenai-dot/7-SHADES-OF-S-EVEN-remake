@@ -17619,3 +17619,42 @@ DOMベースの「読む瞬間」を持つものが残っていたため、ユ�
   Shortcut keys…）・基本設定チェックボックス8個・戻る「← Back」が全て英語、パネル内で 日本語↔English を
   切り替えると**その場でパネルが作り直され**両言語が正しく出ること、コンソール新規エラー無しを実測確認。
   サーバー側の変更は無い。
+
+### 2026-08-27（続き290）：UI英語化フェーズ3（ゲーム中のボタン＋フェイズ案内板）
+
+続き288〜289の UI 文言基盤（`ui-text.js`/`t()`）を使い、対局画面のボタン群とフェイズ案内板を英語化した。
+- **`ui-text.js`**: `btn.*`（ターン終了・盤面拡大〈3段階ラベル・元の画角に戻る〉・手札シャッフル・
+  1枚ドロー・公開ドローの各キャプション/ツールチップ/詳細説明、ターン終了の動的ツールチップ
+  「今は{name}のターン中です」等）と `phase.*`（ロック/ハンド/ムーブの label/short/detail、自動送り
+  トグルの caption/ON/OFF/title、`phase.titleSuffix`＝「{label}フェイズ」）を ja/en 両方追加。
+- **`icon-action-button.js`**: `wireIconButtonClick` の `detailTitle`/`detailParagraphs` を**値でも関数でも
+  可**にした（関数なら開く瞬間に評価＝言語切替後も詳細モーダルが常に現在の言語で開く）。呼び出し側は
+  `() => t("...")` / `() => [t("..."), ...]` を渡せる。
+- **`main.js`**: 対局画面右下の5ボタン（buildEndTurnButton/buildBoardZoomButton/buildHandShuffleButton/
+  buildDrawButton/buildPublicDrawButton）のキャプション・ツールチップ・詳細説明を `t()` 化。`BOARD_ZOOM_LABELS`
+  定数を `boardZoomLabels()`（現在の言語で解決）に置換し、`updateBoardZoomButtonLabel`/`updateEndTurnButton`
+  の動的ツールチップも `t()` 化。これらのボタンは `render()` で作り直されない（player-buttons.js が id で
+  管理＝中身だけ更新）ため、`refreshActionButtonLabels()`（全キャプション/ツールチップを差し替え＋
+  盤面拡大/ターン終了の動的表示も更新）を新設し `onLangChange(refreshActionButtonLabels)` を登録。
+- **`phase-guide.js`**: `PHASES` の表示文をキー化（`labelKey`/`shortKey`/`detailKeys`）し、`phaseLabel`/
+  `phaseShort`/`phaseDetail`/`phaseTitle`（現在の言語で解決）を export（tutorial.js/help.js と共用＝
+  日本語文の二重管理を解消）。buildPhaseButton・自動送りトグルを `t()` 化し、`onLangChange` で生成済み
+  ボタンのキャプション/ツールチップ/トグル表示を差し替える `refreshPhaseGuideLabels()` を追加。
+- **`tutorial.js`/`help.js`**: 上記 export（`phaseTitle`/`phaseDetail`）を使うよう phaseStep を関数化し、
+  `step.title`/`step.body` を「文字列/配列でも関数でもよい」形にして表示・`getHelpSections` の直前で
+  `resolveStepText()` で正規化。help.js は `getHelpSections()` を開くたびに呼ぶため、フェイズ手順は
+  ヘルプページでも現在の言語で出る（他のヘルプ節＝デジタル版機能/用語集/FAQ は今回のスコープ外＝日本語）。
+- **ハマりどころ（実装中に発見・修正）**: main.js の buildPublicDrawButton で、`detailParagraphs: [...]` を
+  `detailParagraphs: () => [...]` に変換した際の**閉じ角括弧 `],` の消し忘れ**が1行残っていた。`node --check`
+  （CommonJSパース）はこれを見逃したが、ブラウザ（ESMパース）は `Unexpected token ']'` で main.js の
+  ロード自体に失敗し、それを import する全モジュールが芋づる式に落ちていた。原因特定に手間取ったため、
+  **今後 `node --check` は `node --input-type=module --check < file`（ESMパース）でも回す**とよい（今回
+  これで一発で main.js:12605 を特定できた）。修正後は全 src が ESM パースでもエラー無し。
+- **検証**: 全 src の `node --input-type=module --check` 通過。ブラウザ（実アプリのシングルトン）で、
+  フェイズ案内板が ja=ロック/ハンド/ムーブ＋自動送り ↔ en=Lock/Hand/Move＋Auto-advance、対局5ボタンが
+  ja=ターン終了/盤面拡大/手札シャッフル/1枚ドロー/公開ドロー ↔ en=End turn/Zoom board/Shuffle hand/
+  Draw 1/Open draw に**その場で切り替わる**（onLangChange の refresh が効く）こと、詳細モーダルが開く瞬間
+  の言語で出ること、フェイズ resolver が実シングルトンで ja↔en 正しく解決すること、コンソール新規
+  エラー無し（残る `Unexpected token ']'` は修正前の壊れた main.js がブラウザ/MCPコンソールバッファに
+  残った stale で、修正後の served main.js は strayCount 0・全UI描画済みを実測確認）を確認。サーバー側の
+  変更は無い。

@@ -20,7 +20,7 @@
 //   実際の処理を発火させてしまうと、チュートリアル中に意図せずゲームが進んでしまうため）。
 
 import { getState, subscribe } from "./state.js";
-import { PHASES } from "./phase-guide.js";
+import { PHASES, phaseTitle, phaseDetail } from "./phase-guide.js";
 import { linkifyGlossary } from "./glossary-linkify.js";
 import { GATE_POSITIONS, SEAT_TO_SIDE } from "./board-layout.js";
 import { getSelfSeat } from "./online.js";
@@ -90,9 +90,15 @@ function markTutorialCompleted() {
 
 const phaseStep = (phase) => ({
   target: () => document.getElementById(`phase-guide-${phase.id}-button`),
-  title: `${phase.label}フェイズ`,
-  body: phase.detail,
+  title: () => phaseTitle(phase),
+  body: () => phaseDetail(phase),
 });
+
+// step.title / step.body は文字列/配列でも、（多言語化のフェイズ手順のように）現在の言語で
+// 解決する関数でもよい。表示・ヘルプ生成の直前にこれで正規化する。
+function resolveStepText(v) {
+  return typeof v === "function" ? v() : v;
+}
 
 // ユーザー報告「『相手ゲート侵攻ボーナス』の説明で自分のゲートにクローズアップしている
 // ので相手のゲートにクローズアップしてください」への対応。相手ゲート侵攻ボーナスは
@@ -452,9 +458,9 @@ const STEPS = [
 // 意味が通るように書かれているため、無くても内容は十分に伝わる。
 export function getHelpSections() {
   return STEPS.filter((step) => !step.isBranch).map((step) => ({
-    title: step.title,
+    title: resolveStepText(step.title),
     icon: step.icon ?? null,
-    body: step.body,
+    body: resolveStepText(step.body),
     footer: step.footer ?? null,
   }));
 }
@@ -637,12 +643,12 @@ function renderStep() {
     iconImg.alt = "";
     titleEl.appendChild(iconImg);
   }
-  titleEl.appendChild(document.createTextNode(step.title));
+  titleEl.appendChild(document.createTextNode(resolveStepText(step.title)));
   // ユーザー要望「カードはもっともっと大きく」への対応で、カード例を出すステップだけ
   // コールアウト自体も広げる（style.cssの#tutorial-callout.is-wide参照）。
   calloutEl.classList.toggle("is-wide", Boolean(step.wide));
   bodyEl.innerHTML = "";
-  for (const paragraph of step.body) {
+  for (const paragraph of resolveStepText(step.body)) {
     const p = document.createElement("p");
     linkifyGlossary(p, paragraph); // 文中の基本用語をクリック可能に（用語定義ポップアップ）
     bodyEl.appendChild(p);

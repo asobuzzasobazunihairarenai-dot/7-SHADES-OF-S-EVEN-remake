@@ -88,11 +88,16 @@ export function buildIconButtonContent(btn, { icon, tooltip }) {
 // クリックは詳細モーダルを開くだけにし、それ以外（アイコン等）へのクリックは本来の操作
 // (onAction)を実行する。ショートカットキー経由のbtn.click()はtarget=btn自身になるため
 // 常にonAction側に分類される。
+// detailTitle / detailParagraphs は値でも関数でもよい（関数なら開く瞬間に評価する）。
+// 多言語化で、言語を切り替えても詳細モーダルが常に現在の言語で開くように、呼び出し側は
+// `() => t("...")` / `() => [t("..."), ...]` を渡せる。
 export function wireIconButtonClick(btn, { detailTitle, detailParagraphs, onAction }) {
   btn.addEventListener("click", (e) => {
     if (e.target.closest(".icon-action-button-caption")) {
       e.stopPropagation();
-      openIconDetailModal(detailTitle, detailParagraphs);
+      const title = typeof detailTitle === "function" ? detailTitle() : detailTitle;
+      const paras = typeof detailParagraphs === "function" ? detailParagraphs() : detailParagraphs;
+      openIconDetailModal(title, paras);
       return;
     }
     onAction(e);

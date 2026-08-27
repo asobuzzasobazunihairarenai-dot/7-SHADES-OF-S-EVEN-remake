@@ -11,72 +11,51 @@
 
 import { buildIconButtonContent, wireIconButtonClick, openIconDetailModal } from "./icon-action-button.js";
 import { isAutoPhaseSkipEnabled, setAutoPhaseSkipEnabled } from "./auto-phase-skip-setting.js";
+import { t } from "./ui-text.js";
+import { onLangChange } from "./i18n.js";
 
-// tutorial.jsのチュートリアル手順から、フェイズの説明文をそのまま使い回すためexportする
-// （説明文の二重管理を避ける）。
+// tutorial.jsのチュートリアル手順・help.jsの静的ヘルプからも共有される（説明文の二重管理を
+// 避ける）。多言語化のため、表示文は ui-text.js のキーで持ち、下の phaseLabel/phaseShort/
+// phaseDetail/phaseTitle を通して現在の言語で解決する（tutorial.js/help.js もこの関数を使う）。
+// ムーブフェイズの detail は行動ごとに絵文字見出し（🚶移動/🤝接触/📥その他）を付けて短文に
+// 分割してある（読みやすさのため）。
 export const PHASES = [
-  {
-    id: "lock",
-    label: "ロック",
-    icon: "assets/icons/lock-phase.webp",
-    short: "手札を1枚だけロックできます（任意）",
-    detail: [
-      "あなたの手札を1枚だけロックしてもよい（ロックしなくてもよい）。",
-      "ロックしたカードは原則、手札ではなくなり手札効果を使用できない（例外: ファーストカードとエターナルカードの手札効果は特別に使用できる）。",
-    ],
-  },
-  {
-    id: "hand",
-    label: "ハンド",
-    icon: "assets/icons/hand-phase.webp",
-    short: "手札を何枚でも使えます（任意）",
-    detail: [
-      "あなたの手札を何枚でも使ってもよい（使わなくてもよい）。手札効果はそのカード自身を捨てることで得ることができる。",
-      "使用する時以外、手札は原則、相手に見せないようにプレイする。手札枚数に上限はない。",
-    ],
-  },
-  {
-    id: "move",
-    label: "ムーブ",
-    icon: "assets/icons/move-phase.webp",
-    short: "「移動」か「接触」のどちらかを必ず行います",
-    // ユーザー要望「チュートリアルの『ムーブフェイズ』について文章が多くて少し読むのが
-    // おっくうになる。文字の装飾や挿絵等で読む気にさせることできる？」への対応。
-    // ルール内容自体は変えず、1つの長い文をより短い複数のbodyに分割し、行動ごとに
-    // 絵文字の見出し（🚶移動/🤝接触/📥その他）を付けて視覚的に区切った（この配列は
-    // phase-guide.js自身のクリック詳細モーダル・tutorial.jsのチュートリアル・
-    // help.jsの静的ヘルプページの3箇所で共有されているため、ここを直せば3箇所とも
-    // 改善される）。
-    detail: [
-      "ムーブフェイズでは、次のどちらか一方を必ず行います。",
-      "🚶 移動：自分の隣（前後左右の4マス）の、カードだけが置かれたマスへ駒を置きます。",
-      "　カードが裏向きならオープンします。表向きなら「到達」効果が発動し、そのカードは原則そのまま手札に加わります。",
-      "　相手の駒がいるマスへは移動できません。",
-      "🤝 接触：隣にいる相手の駒を選び、その相手の手札から無作為に1枚もらいます。",
-      "　接触された相手は自分のゲートへ強制移動します（接触した自分自身は動きません）。",
-      "📥 隣に「カード」も「相手の駒」も無い場合：隣の任意の1マスへ山札から1枚表向きに置いてターンを終了します。",
-    ],
-  },
+  { id: "lock", icon: "assets/icons/lock-phase.webp", labelKey: "phase.lock.label", shortKey: "phase.lock.short", detailKeys: ["phase.lock.d1", "phase.lock.d2"] },
+  { id: "hand", icon: "assets/icons/hand-phase.webp", labelKey: "phase.hand.label", shortKey: "phase.hand.short", detailKeys: ["phase.hand.d1", "phase.hand.d2"] },
+  { id: "move", icon: "assets/icons/move-phase.webp", labelKey: "phase.move.label", shortKey: "phase.move.short", detailKeys: ["phase.move.d1", "phase.move.d2", "phase.move.d3", "phase.move.d4", "phase.move.d5", "phase.move.d6", "phase.move.d7"] },
 ];
+
+// フェイズの表示文を現在の言語で解決する（phase-guide.js/tutorial.js/help.js 共用）。
+export function phaseLabel(phase) { return t(phase.labelKey); }
+export function phaseShort(phase) { return t(phase.shortKey); }
+export function phaseDetail(phase) { return phase.detailKeys.map((k) => t(k)); }
+export function phaseTitle(phase) { return t("phase.titleSuffix", { label: t(phase.labelKey) }); }
+
+// 言語切替時にキャプション・ツールチップを差し替えられるよう参照を持っておく
+// （フェイズ案内板のボタン群は一度だけ生成され、通常のrender()では作り直されないため）。
+const phaseButtonRefs = [];
+let autoSkipSyncFn = null;
 
 function buildPhaseButton(phase) {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.id = `phase-guide-${phase.id}-button`;
   btn.dataset.phase = phase.id;
-  const { captionEl } = buildIconButtonContent(btn, { icon: phase.icon, tooltip: phase.short });
-  captionEl.textContent = phase.label;
+  const { captionEl, tooltipEl } = buildIconButtonContent(btn, { icon: phase.icon, tooltip: phaseShort(phase) });
+  captionEl.textContent = phaseLabel(phase);
   wireIconButtonClick(btn, {
-    detailTitle: `${phase.label}フェイズ`,
-    detailParagraphs: phase.detail,
+    // detailTitle/detailParagraphs を関数で渡す＝開く瞬間に現在の言語で解決される。
+    detailTitle: () => phaseTitle(phase),
+    detailParagraphs: () => phaseDetail(phase),
     // ユーザー要望「フェイズ案内板の詳細説明についてアイコンをクリックでも表示される
     // ようにしてほしい」。icon-action-button.jsの共通部品は本来「アイコン=実際の操作、
     // キャプション文字=詳細説明」という役割分担だが、このボタン群には実行すべき操作が
     // 元々無い（案内専用）。他のボタン（1枚ドロー等）と違ってicon-action-button.js側の
     // 共通挙動を変える必要は無く、このボタンだけonAction（アイコンクリック時）でも
     // キャプションクリックと同じ詳細モーダルを開けばよい。
-    onAction: () => openIconDetailModal(`${phase.label}フェイズ`, phase.detail),
+    onAction: () => openIconDetailModal(phaseTitle(phase), phaseDetail(phase)),
   });
+  phaseButtonRefs.push({ phase, captionEl, tooltipEl });
   return btn;
 }
 
@@ -102,7 +81,7 @@ function buildAutoSkipToggleButton() {
 
   const caption = document.createElement("span");
   caption.className = "icon-action-button-caption";
-  caption.textContent = "自動送り";
+  caption.textContent = t("phase.autoSkip.caption");
 
   btn.appendChild(iconWrap);
   btn.appendChild(caption);
@@ -112,16 +91,25 @@ function buildAutoSkipToggleButton() {
     btn.classList.toggle("is-on", on);
     btn.classList.toggle("is-off", !on);
     stateBadge.textContent = on ? "ON" : "OFF";
-    btn.title = on
-      ? "フェイズ自動送り: ON（することが無いフェイズは自動でスキップします）"
-      : "フェイズ自動送り: OFF（自分でスキップを押すまでフェイズを送りません。ロックできる手札が無いこと等を相手に悟られません）";
+    caption.textContent = t("phase.autoSkip.caption");
+    btn.title = on ? t("phase.autoSkip.titleOn") : t("phase.autoSkip.titleOff");
   };
   btn.addEventListener("click", () => {
     setAutoPhaseSkipEnabled(!isAutoPhaseSkipEnabled());
     sync();
   });
+  autoSkipSyncFn = sync;
   sync();
   return btn;
+}
+
+// 言語切替時に、生成済みのフェイズ案内ボタンのキャプション・ツールチップを差し替える。
+function refreshPhaseGuideLabels() {
+  for (const ref of phaseButtonRefs) {
+    ref.captionEl.textContent = phaseLabel(ref.phase);
+    ref.tooltipEl.textContent = phaseShort(ref.phase);
+  }
+  if (autoSkipSyncFn) autoSkipSyncFn();
 }
 
 export function initPhaseGuide() {
@@ -132,4 +120,5 @@ export function initPhaseGuide() {
     bar.appendChild(buildPhaseButton(phase));
   }
   document.body.appendChild(bar);
+  onLangChange(refreshPhaseGuideLabels);
 }
