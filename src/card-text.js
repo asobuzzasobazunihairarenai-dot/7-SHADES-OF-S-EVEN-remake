@@ -10,11 +10,10 @@
 //    cards-data.js の日本語名にフォールバックする（getCardName 参照）。
 import { getLang } from "./i18n.js";
 import { CARD_TEXT_JA } from "./card-text.ja.js";
-// 追加言語はここに import して LANGS に足す。例:
-//   import { CARD_TEXT_EN } from "./card-text.en.js";
+import { CARD_TEXT_EN } from "./card-text.en.js";
 const LANGS = {
   ja: CARD_TEXT_JA,
-  // en: CARD_TEXT_EN,
+  en: CARD_TEXT_EN,
 };
 
 export function getCardText(cardId) {

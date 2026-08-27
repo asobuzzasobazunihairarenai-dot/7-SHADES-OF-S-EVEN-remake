@@ -9,6 +9,7 @@ import { NORMAL_CARDS, ETERNAL_CARDS, FIRST_CARDS, getCardDefinition } from "./c
 import {
   LAYOUT, ELEMENT_META, TYPE_LABEL, GROUP_LABEL, PROP_RANGE, groupOf, cfVar, propsFor,
 } from "./card-layout-config.js";
+import { getLang, setLang, SUPPORTED_LANGS, LANG_LABEL } from "./i18n.js";
 
 let overlayEl = null;
 let backdropEl = null;
@@ -138,6 +139,17 @@ function buildOverlay(close) {
   picker.value = currentId;
   header.appendChild(picker);
 
+  // 言語切替（プレビュー用。カード面が現在の言語で表示される）
+  const langSel = document.createElement("select");
+  langSel.className = "cf-ed-picker cf-ed-lang";
+  for (const lang of SUPPORTED_LANGS) {
+    const opt = document.createElement("option");
+    opt.value = lang; opt.textContent = LANG_LABEL[lang] || lang;
+    langSel.appendChild(opt);
+  }
+  langSel.value = getLang();
+  header.appendChild(langSel);
+
   // 要素枠トグル
   const outlineLabel = document.createElement("label");
   outlineLabel.className = "cf-ed-outline-toggle";
@@ -214,6 +226,7 @@ function buildOverlay(close) {
     renderCard();
     renderControls();
   });
+  langSel.addEventListener("change", () => { setLang(langSel.value); renderCard(); });
   outlineCb.addEventListener("change", renderCard);
 
   bodyRow.appendChild(stage);
@@ -228,7 +241,9 @@ function buildOverlay(close) {
 export function openCardRenderPreview() {
   if (overlayEl) return;
   applySavedCardFaceTuning();
+  const prevLang = getLang();               // エディタの言語切替はプレビュー用。閉じたら元に戻す。
   const close = () => {
+    setLang(prevLang);
     overlayEl?.remove();
     backdropEl?.remove();
     overlayEl = null;

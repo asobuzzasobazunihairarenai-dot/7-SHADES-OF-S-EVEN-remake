@@ -57,10 +57,11 @@ function buildSection(kind, text, opts = {}) {
   return row;
 }
 
-// ファーストの手札効果を「【追色N】（…）」の部分と、それ以降の効果本文に分ける。
+// ファーストの手札効果を「【…】（…）」の部分（追色コスト）と、それ以降の効果本文に分ける。
 // 例:「【追色１】（これと同色の…得る。）捨て場の…加える。」→ { cost:"【追色１】（…）", rest:"捨て場の…" }
+// 括弧は全角（）でも半角()でも可（多言語対応：英語は 【Color Cost 1】(...) のようにASCII括弧を使う）。
 function splitFirstHandCost(text) {
-  const m = String(text || "").match(/^(【追色[^】]*】（[^）]*）)\s*([\s\S]*)$/);
+  const m = String(text || "").match(/^(【[^】]*】\s*[（(][^）)]*[）)])\s*([\s\S]*)$/);
   if (!m) return null;
   return { cost: m[1], rest: m[2].trim() };
 }
