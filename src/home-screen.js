@@ -9,6 +9,8 @@
 // クリックしても何も始まらず、「近日公開」の軽いトースト表示だけを返す。
 
 import { subscribe, getState } from "./state.js";
+import { t } from "./ui-text.js";
+import { onLangChange } from "./i18n.js";
 import { openOnlinePanel } from "./online-ui.js";
 import { openShopPanel } from "./shop.js";
 // ユーザー要望（続き74）「プロフィール／マイページは画面全体版にしましょう」への
@@ -58,7 +60,7 @@ const TILES = [
   {
     icon: "🎓",
     image: "assets/home-icons/tutorial.webp",
-    label: "物語チュートリアル",
+    labelKey: "home.tile.tutorial",
     status: "ready",
     onOpen: () => {
       // 案内人エイドスの物語オーケストレーターへ。初回は導入シーン→操作チュートリアルの順で進む。
@@ -68,11 +70,11 @@ const TILES = [
       startEidosStory({ openHome: () => openHomeScreen() });
     },
   },
-  { icon: "🤝", image: "assets/home-icons/friend-match.webp", label: "CPUマッチ＆フレンドリーマッチ", status: "ready", onOpen: () => openMatchChoiceModal() },
+  { icon: "🤝", image: "assets/home-icons/friend-match.webp", labelKey: "home.tile.match", status: "ready", onOpen: () => openMatchChoiceModal() },
   {
     icon: "🏆",
     image: "assets/home-icons/rank-match.webp",
-    label: "フリーマッチ（ランク戦）",
+    labelKey: "home.tile.ranked",
     status: "ready",
     showWaitingCount: true, // 続き162: 今何人が対戦相手を募集中かをタイルに表示（コールドスタート対策）
     onOpen: async () => {
@@ -89,11 +91,11 @@ const TILES = [
       }
     },
   },
-  { icon: "🛒", image: "assets/home-icons/shop.webp", label: "ショップ", status: "ready", onOpen: () => openShopPanel() },
+  { icon: "🛒", image: "assets/home-icons/shop.webp", labelKey: "home.tile.shop", status: "ready", onOpen: () => openShopPanel() },
   {
     icon: "📊",
     image: "assets/home-icons/ranking.webp",
-    label: "ランキング",
+    labelKey: "home.tile.ranking",
     status: "ready",
     onOpen: () => {
       closeHomeScreen();
@@ -104,7 +106,7 @@ const TILES = [
     icon: "👤",
     image: "assets/home-icons/my-page.webp",
     // マイデッキ編集はマイページ内の大ボタンへ移設（ユーザー要望2026-08-11）。ラベルもそれに合わせる。
-    label: "マイページ／マイデッキ編集",
+    labelKey: "home.tile.mypage",
     status: "ready",
     onOpen: () => {
       closeHomeScreen();
@@ -114,7 +116,7 @@ const TILES = [
   {
     icon: "📖",
     image: "assets/home-icons/rulebook.webp",
-    label: "図鑑／ルールブック",
+    labelKey: "home.tile.codex",
     status: "ready",
     onOpen: () => {
       // ユーザー要望「山札一覧＋ヘルプを全画面で並べて表示」。全画面の図鑑ページを開く。
@@ -122,7 +124,7 @@ const TILES = [
       openCodexPage(() => openHomeScreen());
     },
   },
-  { icon: "📰", image: "assets/home-icons/news.webp", label: "お知らせ／更新情報", status: "ready", onOpen: () => openChangelogModal(), showNewIfUnread: () => hasUnreadChangelog() },
+  { icon: "📰", image: "assets/home-icons/news.webp", labelKey: "home.tile.news", status: "ready", onOpen: () => openChangelogModal(), showNewIfUnread: () => hasUnreadChangelog() },
 ];
 
 // 「近日公開」タイルを押した時の軽いトースト。モーダルを挟むほどの重さは不要
@@ -135,7 +137,7 @@ function showComingSoonToast(label) {
     toastEl.id = "home-screen-toast";
     overlayEl.appendChild(toastEl);
   }
-  toastEl.textContent = `「${label}」は近日公開予定です。お楽しみに！`;
+  toastEl.textContent = t("home.comingSoon", { label });
   toastEl.classList.add("is-visible");
   toastTimer = setTimeout(() => toastEl?.classList.remove("is-visible"), 2400);
 }
@@ -160,7 +162,7 @@ function openMatchChoiceModal() {
 
   const title = document.createElement("div");
   title.className = "home-match-choice-title";
-  title.textContent = "対戦モードを選択";
+  title.textContent = t("home.matchChoice.title");
   panel.appendChild(title);
 
   const options = document.createElement("div");
@@ -185,11 +187,11 @@ function openMatchChoiceModal() {
     return btn;
   };
 
-  makeOption("🤝", "フレンドリーマッチ", "オンラインで対戦（部屋を作る／参加する）", () => {
+  makeOption("🤝", t("home.matchChoice.friendly"), t("home.matchChoice.friendlyDesc"), () => {
     closeMatchChoiceModal();
     openOnlinePanel(); // 既存の部屋モーダルへ（ホームは背後に残り、対局開始で自動で閉じる）
   });
-  makeOption("🤖", "CPU戦（1人用）", "この端末でCPUと対戦（ログイン不要）", async () => {
+  makeOption("🤖", t("home.matchChoice.cpu"), t("home.matchChoice.cpuDesc"), async () => {
     closeMatchChoiceModal();
     closeHomeScreen();
     try {
@@ -216,7 +218,7 @@ function openMatchChoiceModal() {
   diff.className = "home-match-choice-difficulty";
   const diffLabel = document.createElement("div");
   diffLabel.className = "home-match-choice-difficulty-label";
-  diffLabel.textContent = "🤖 CPUの強さ（CPU戦のみ）";
+  diffLabel.textContent = t("home.matchChoice.difficultyLabel");
   diff.appendChild(diffLabel);
   const seg = document.createElement("div");
   seg.className = "home-match-choice-segment";
@@ -225,17 +227,17 @@ function openMatchChoiceModal() {
     const cur = getCpuDifficulty();
     for (const b of segButtons) b.classList.toggle("is-selected", b.dataset.v === cur);
   };
-  for (const [v, text] of [
-    ["rookie", "新人"],
-    ["intermediate", "中級"],
-    ["advanced", "上級"],
-    ["master", "最強"],
+  for (const [v, key] of [
+    ["rookie", "cpu.diff.rookie"],
+    ["intermediate", "cpu.diff.intermediate"],
+    ["advanced", "cpu.diff.advanced"],
+    ["master", "cpu.diff.master"],
   ]) {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "home-match-choice-segment-btn";
     b.dataset.v = v;
-    b.textContent = text;
+    b.textContent = t(key);
     b.addEventListener("click", () => {
       setCpuDifficulty(v);
       refreshSeg();
@@ -246,7 +248,7 @@ function openMatchChoiceModal() {
   diff.appendChild(seg);
   const diffHint = document.createElement("div");
   diffHint.className = "home-match-choice-difficulty-hint";
-  diffHint.textContent = "新人＝ランダム／中級・上級＝賢い思考／最強＝伏せカードののぞき見あり";
+  diffHint.textContent = t("home.matchChoice.difficultyHint");
   diff.appendChild(diffHint);
   refreshSeg();
   panel.appendChild(diff);
@@ -256,7 +258,7 @@ function openMatchChoiceModal() {
   cnt.className = "home-match-choice-difficulty";
   const cntLabel = document.createElement("div");
   cntLabel.className = "home-match-choice-difficulty-label";
-  cntLabel.textContent = "👥 人数（CPU戦のみ）";
+  cntLabel.textContent = t("home.matchChoice.countLabel");
   cnt.appendChild(cntLabel);
   const cntSeg = document.createElement("div");
   cntSeg.className = "home-match-choice-segment";
@@ -265,16 +267,16 @@ function openMatchChoiceModal() {
     const cur = getCpuPlayerCount();
     for (const b of cntButtons) b.classList.toggle("is-selected", Number(b.dataset.v) === cur);
   };
-  for (const [v, text] of [
-    [2, "2人"],
-    [3, "3人"],
-    [4, "4人"],
+  for (const [v, key] of [
+    [2, "cpu.count.2"],
+    [3, "cpu.count.3"],
+    [4, "cpu.count.4"],
   ]) {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "home-match-choice-segment-btn";
     b.dataset.v = String(v);
-    b.textContent = text;
+    b.textContent = t(key);
     b.addEventListener("click", () => {
       setCpuPlayerCount(v);
       refreshCnt();
@@ -285,7 +287,7 @@ function openMatchChoiceModal() {
   cnt.appendChild(cntSeg);
   const cntHint = document.createElement("div");
   cntHint.className = "home-match-choice-difficulty-hint";
-  cntHint.textContent = "あなた＋CPU（3人・4人はCPUが2体・3体に増えます）";
+  cntHint.textContent = t("home.matchChoice.countHint");
   cnt.appendChild(cntHint);
   refreshCnt();
   panel.appendChild(cnt);
@@ -293,7 +295,7 @@ function openMatchChoiceModal() {
   const cancel = document.createElement("button");
   cancel.type = "button";
   cancel.className = "home-match-choice-cancel";
-  cancel.textContent = "← 戻る";
+  cancel.textContent = t("common.back");
   cancel.addEventListener("click", closeMatchChoiceModal);
   panel.appendChild(cancel);
 
@@ -330,13 +332,13 @@ function buildTile(tile) {
 
   const labelEl = document.createElement("div");
   labelEl.className = "home-screen-tile-label";
-  labelEl.textContent = tile.label;
+  labelEl.textContent = t(tile.labelKey);
   btn.appendChild(labelEl);
 
   if (tile.status === "soon") {
     const badge = document.createElement("div");
     badge.className = "home-screen-tile-badge";
-    badge.textContent = "近日公開";
+    badge.textContent = t("home.comingSoonBadge");
     btn.appendChild(badge);
   }
 
@@ -344,7 +346,7 @@ function buildTile(tile) {
   if (tile.showNewIfUnread && tile.showNewIfUnread()) {
     const newBadge = document.createElement("div");
     newBadge.className = "home-screen-tile-new-badge";
-    newBadge.textContent = "NEW";
+    newBadge.textContent = t("home.newBadge");
     btn.appendChild(newBadge);
   }
 
@@ -359,7 +361,7 @@ function buildTile(tile) {
 
   btn.addEventListener("click", () => {
     if (tile.status !== "ready") {
-      showComingSoonToast(tile.label);
+      showComingSoonToast(t(tile.labelKey));
       return;
     }
     tile.onOpen();
@@ -384,7 +386,7 @@ export function openHomeScreen() {
 
   const subtitle = document.createElement("div");
   subtitle.id = "home-screen-subtitle";
-  subtitle.textContent = "ホーム";
+  subtitle.textContent = t("home.subtitle");
   overlayEl.appendChild(subtitle);
 
   // 現ランク表示（ログイン済みかつランクデータがある時だけ非同期で出す）。押すとランキングへ。
@@ -420,7 +422,7 @@ async function renderHomeRank(container) {
   container.innerHTML = "";
   const label = document.createElement("div");
   label.className = "home-rank-label";
-  label.textContent = "あなたのランク";
+  label.textContent = t("home.rankLabel");
   container.appendChild(label);
   // バッジ＋U型ゲージ＋宝石の合成表示（rank-showcase.js）を左上にコンパクトに出す（大きな
    // グリッドと重ならないよう控えめに。位置・サイズは管理者モードで調整可）。
@@ -436,7 +438,7 @@ async function renderHomeRank(container) {
   // 画面へ遷移していたが、それは戦績システムの「順位」でランク戦の段位とは別物のため紛らわしく、
   // 一旦「表示専用」にしていた。今回、ランクの仕組みを説明するモーダルへの入口にした。
   container.style.cursor = "pointer";
-  container.title = "ランク戦について";
+  container.title = t("home.rankAboutTitle");
   container.onclick = () => showRankExplanationModal();
 }
 
@@ -461,7 +463,7 @@ async function updateRankedWaitingBadge() {
   if (!overlayEl || !res) return;
   const count = res.waiting_count || 0;
   if (count >= 1) {
-    badge.textContent = `🟢 ${count}人が対戦募集中！`;
+    badge.textContent = t("home.waitingBadge", { count });
     badge.style.display = "";
   } else {
     badge.style.display = "none";
@@ -499,4 +501,14 @@ subscribe(() => {
   const started = Boolean(getState().turnPlayer);
   if (started && !wasGameStarted && overlayEl) closeHomeScreen();
   wasGameStarted = started;
+});
+
+// 言語切替（options-menuの言語セレクタ）でホーム画面が開いていれば作り直す（開いていない時は
+// 次に開いた時点でt()が新しい言語で組む）。マッチ選択モーダルは開き直さない（開いていれば
+// closeHomeScreenでoverlayごと消えるが、稀なケースなので許容）。
+onLangChange(() => {
+  if (overlayEl) {
+    closeHomeScreen();
+    openHomeScreen();
+  }
 });

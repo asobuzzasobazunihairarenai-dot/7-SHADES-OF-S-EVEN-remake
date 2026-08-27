@@ -17568,3 +17568,27 @@ DOMベースの「読む瞬間」を持つものが残っていたため、ユ�
   全体＝再実行安全）を Supabase ダッシュボードの SQL Editor で実行する必要がある（未実行の間は
   fetchMyLang が null を返し localStorage のみ＝端末間同期されないだけで、機能自体は壊れない）。Edge
   Function の変更は無いため再デプロイ不要。
+
+### 2026-08-27（続き288）：UI英語化フェーズ1（多言語文言の土台＋ホーム画面）
+
+ユーザー要望「メニュー等のUIの英語化を進めましょう」。カードのテキスト(card-text)とは別レイヤーの
+**UI文言の多言語化基盤**を作り、まず最も目に付くホーム画面から英語化した（段階的に拡張する）。
+- **新規 `src/ui-text.js`**: `t(key, params)` が現在の言語（`getLang`）の文字列を返す。`UI = {ja:{...},
+  en:{...}}`。未定義キーは ja にフォールバック、ja にも無ければキー文字列をそのまま返す（抜けが画面に
+  見えるように）。`params` は `{name}` プレースホルダを置換（例 `t("home.comingSoon",{label})`）。i18n を
+  import する葉モジュール（循環なし）。
+- **`home-screen.js` を全面的に t() 化**: タイル8枚（labelを`labelKey`に変更し `buildTile` で `t()`）・
+  対戦モード選択モーダル（タイトル・フレンドリー/CPUの見出しと説明・CPUの強さ/人数のラベルとヒント・
+  選択肢〈新人/中級/上級/最強・2/3/4人〉・戻る）・「近日公開」「NEW」バッジ・サブタイトル「ホーム」・
+  「あなたのランク」「ランク戦について」・待機人数バッジ「🟢 N人が対戦募集中！」を全て `t()` に。ゲーム
+  タイトル「7 SHADES OF S:EVEN」はブランド名なので据え置き。CPUの強さ/人数の選択肢キー（`cpu.diff.*`/
+  `cpu.count.*`）は options-menu とも共有できるよう命名（options側の採用は次バッチ）。
+- **言語切替でホームを作り直し**: `onLangChange(() => { if (overlayEl) { closeHomeScreen(); openHomeScreen(); } })`
+  を追加。開いている最中に言語を変えても即座に新しい言語で組み直す（開いていなければ次に開いた時に
+  `t()` が新言語で組む）。
+- **検証**: `node --check`（ui-text/home-screen）通過。ブラウザで、ホームを開き ja のタイル8枚
+  （物語チュートリアル…お知らせ／更新情報）・サブタイトル「ホーム」→ `setLang('en')` で英語（Story
+  Tutorial / CPU & Friendly Match / Free Match (Ranked) / Shop / Rankings / My Page / Deck Editor /
+  Codex / Rulebook / News / Updates・Home）に**その場で作り直され**、`setLang('ja')` で日本語へ戻る・
+  コンソール新規エラー無しを実測確認。**次バッチ**: オプションメニュー・ゲーム中のボタン等へ拡張。
+  サーバー側の変更は無い。
