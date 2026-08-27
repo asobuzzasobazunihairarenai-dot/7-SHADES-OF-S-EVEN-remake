@@ -17483,3 +17483,45 @@ DOMベースの「読む瞬間」を持つものが残っていたため、ユ�
   こと、ルビも出ること、リロード後コンソール新規エラー無しを実測確認。実際の演出中の見た目（奪取の
   実況/ゲート侵攻のめくり公開/エターナル獲得のフリップ）は発火条件が要るため実機確認をお願いしたい。
   サーバー側の変更は無い。
+
+### 2026-08-27（続き285）：英語表示の有効化（言語セレクタ＋カード面テキストの言語切替）
+
+続き275〜276で用意した多言語データ（`card-text.ja.js`/`card-text.en.js`、全34カード）と、続き277〜284で
+本番接続したカード面テキストレンダラ（`buildCardFace`/`showCardFace`）をつなぎ、**アプリ内で日本語↔英語を
+切り替えられるように**した。**翻訳対象は「カードのテキスト」（タイトル・カード名・効果文・フレーバー・
+能力名）のみ**——メニュー等のUIはまだ日本語（英語UIは今後）。設定はこの端末のみ（localStorage、アカウント
+同期＝SQL列は今回は見送り）。
+- **`i18n.js`**: `load()` が `localStorage(so7-lang)` を読むようにした（続き278で「保存値を読まない」に
+  していたのを、言語セレクタ実装に合わせて復活。エディタは非保存の `setPreviewLang` を使うのでプレビューが
+  漏れる心配は無い）。`getLang()` は初回解決時に `<html lang>` をスタンプ。`setLang()` は保存＋
+  `onLangChange` リスナー通知（既存）。
+- **`card-renderer.js`**: `buildCardFace` が `face.dataset.lang = getLang()` をスタンプ（`style.css` の
+  `.card-face[data-lang="en"]` レイアウト上書き用）。表示テキストは既存通り `getCardText`/`getCardName`
+  （言語ディスパッチャ）から取得＝英語データがあれば英語、無ければ ja フォールバック。
+- **`card-face-display.js`**: マウントのキャッシュ鍵に**言語を追加**（`prev.dataset.mountCardId === cardId
+  && prev.dataset.lang === getLang()`）。以前は cardId だけで判定していたため、言語切替（cardId 不変）で
+  再利用要素（ホバー拡大等）のマウントが作り直されず**古い言語のまま**残る不具合があった。lang も鍵に
+  含めることで、盤面全体の再描画を挟まない再利用要素でも言語切替時に確実に作り直される。
+- **`main.js`**: `onLangChange(() => render())` を `onAuthChange(render)` の隣に追加。言語セレクタで切り替えた
+  瞬間に盤面（手札・盤面の表向きカード・手札公開エリア・ホバー拡大＝テキスト合成の面）が新しい言語で
+  再描画される。
+- **`options-menu.js`**: 基本設定の一番上（「基本設定」タイトルの直下・戦績連携カードの上）に
+  「言語 / Language」セグメント（日本語/English、`SUPPORTED_LANGS`/`LANG_LABEL` から自動生成）＋
+  「現在はカードのテキストのみ翻訳されます（メニュー等は日本語のまま）。」の注記を追加。選ぶと `setLang` で
+  保存＋再描画。CPUの強さと同じ `options-menu-segment` の見た目を流用。
+- **`style.css`**（ファイル末尾に追記＝生成領域外）: 英語用のカード面レイアウト微調整
+  `.card-face[data-lang="en"][data-card-type=…]`。英語は日本語より行長が違うため、効果文（fx・★基本）・
+  フレーバー・ファーストのタイトル/■手札を少し縮小して枠に収める。`[data-lang][data-card-type]` は生成側
+  （0,3,0/0,4,0）より高い特異性なので、ファイル内の位置に関係なく上書きできる（**英語の詰めは実機で
+  見ながら要微調整**＝日本語基準の cqw 配置なので、行あふれするカードは値を追い込む）。
+- **検証**: `node --check`（i18n/card-renderer/card-face-display/main/options-menu）・CSSブレース平衡
+  （2449）通過。ブラウザで**実アプリのシングルトン**（キャッシュバスト無し）を使い、①`setLang('en')` で
+  `getLang()`→en・`buildCardFace` が英語名/効果/フレーバーを返す（Jump Pad「Do not add this to your hand.
+  Move 2 spaces in one leap.」/ フェニックス「Red Cube: Phoenix」＋【Color Cost 1】(...) の handcost 分割 /
+  ワイナウエア「Wainauea, the Crimson Volcano」＋《Crimson Rain》）、②`dataset.lang="en"` スタンプ、
+  ③**マウントの言語キャッシュ**（同じスロットに en マウント→`setLang('ja')`→再 showCardFace で ja に
+  作り直される）、④実UIの言語セグメント（日本語/English・選択状態・localStorage 保存・注記表示）が
+  クリックで正しく ja↔en 切替、⑤一連の `setLang` が実 `render()` を発火してもコンソール新規エラー無し、を
+  実測確認。**本番の見た目（英語カードの折り返し・枠内収まり）は端末での最終確認をお願いしたい**
+  （英語レイアウトの微調整はエディタ／`.card-face[data-lang="en"]` の値で追い込める）。サーバー側
+  （Supabase）の変更は無い。

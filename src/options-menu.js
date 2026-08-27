@@ -3,6 +3,7 @@
 // 単独のボタンとして左上にあったが、ここに統合し、左上はゲームタイトル表示用に空けた。
 
 import { openAdminPanel } from "./admin.js";
+import { getLang, setLang, SUPPORTED_LANGS, LANG_LABEL } from "./i18n.js";
 import { isAutoDragRestrictionEnabled, setAutoDragRestrictionEnabled } from "./auto-drag-restriction.js";
 import { openActionLogPanel } from "./action-log.js";
 import { markCleanExit } from "./crash-blackbox.js";
@@ -430,6 +431,46 @@ function buildCpuDifficultyRow() {
   return row;
 }
 
+// 言語（ja/en）切替。ユーザー要望「英語表示の有効化」。現状の翻訳対象はカードのテキスト
+// （タイトル・効果文・フレーバー・カード名）のみ＝メニュー等のUIはまだ日本語のまま。選ぶと
+// setLang で保存(localStorage・この端末のみ)し、onLangChange→盤面再描画でカード面が切り替わる。
+function buildLanguageRow() {
+  const wrap = document.createElement("div");
+  const row = document.createElement("div");
+  row.className = "options-menu-volume-row";
+  const label = document.createElement("span");
+  label.textContent = "言語 / Language";
+  row.appendChild(label);
+  const group = document.createElement("div");
+  group.className = "options-menu-segment";
+  const buttons = [];
+  const refresh = () => {
+    const cur = getLang();
+    for (const b of buttons) b.classList.toggle("is-selected", b.dataset.v === cur);
+  };
+  for (const v of SUPPORTED_LANGS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "options-menu-segment-btn";
+    btn.dataset.v = v;
+    btn.textContent = LANG_LABEL[v] || v;
+    btn.addEventListener("click", () => {
+      setLang(v);
+      refresh();
+    });
+    group.appendChild(btn);
+    buttons.push(btn);
+  }
+  row.appendChild(group);
+  wrap.appendChild(row);
+  const note = document.createElement("div");
+  note.style.cssText = "font-size: 0.72rem; color: #94a3b8; margin: 0.1rem 0 0.5rem; line-height: 1.5;";
+  note.textContent = "現在はカードのテキストのみ翻訳されます（メニュー等は日本語のまま）。";
+  wrap.appendChild(note);
+  refresh();
+  return wrap;
+}
+
 // ユーザー要望「戦績管理システムにすでに登録済みで、でもデジタル版を初めてやる人の
 // ために、戦績管理システムのプレイヤー登録をアカウントに紐づける設定を設けたい。
 // オプションの基本設定内に配置する」。実際のモーダル（一覧・検索・申請）は
@@ -695,6 +736,8 @@ export function initOptionsMenu() {
     // ユーザー要望（続き64）「基本設定内のUIを整理したい」への対応で、性質の近い項目を
     // 4グループ（戦績連携カード＋音量／表示・演出／自動処理・タイマー）へ再編した。
     // 戦績連携は折りたたまず一番上に単独表示（buildStatsPlayerLinkRow参照）。
+
+    panel.appendChild(buildLanguageRow());
 
     panel.appendChild(buildStatsPlayerLinkRow());
 

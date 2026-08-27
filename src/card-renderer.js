@@ -14,6 +14,7 @@
 
 import { getCardDefinition, getCardBlankPath } from "./cards-data.js";
 import { getCardText, getCardName } from "./card-text.js";
+import { getLang } from "./i18n.js";
 import { LAYOUT, cardTypeOf, groupOf } from "./card-layout-config.js";
 
 // 能力名《》・マーカー等の色味には単色を使う（color-mix/border-color はグラデーション不可）。
@@ -133,6 +134,8 @@ export function buildCardFace(cardId, { showFlavor = true } = {}) {
   face.dataset.cardId = cardId || "";
   face.dataset.color = color;
   face.dataset.cardType = type;
+  face.dataset.lang = getLang(); // 英語用レイアウト上書き（style.css の .card-face[data-lang="en"]）用
+
   face.style.setProperty("--card-accent", accentFor(color));
   face.style.backgroundImage = `url("${getCardBlankPath(cardId)}")`;
 

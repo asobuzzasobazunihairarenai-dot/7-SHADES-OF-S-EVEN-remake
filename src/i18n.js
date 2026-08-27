@@ -1,13 +1,12 @@
-// アプリの表示言語（多言語化の土台）。まずはカードのテキスト表示に使う。既定は日本語(ja)。
-// 依存ゼロの葉モジュール（他を import しない）。
+// アプリの表示言語（多言語化の土台）。まずはカードのテキスト表示（タイトル・効果・フレーバー）に使う。
+// 既定は日本語(ja)。依存ゼロの葉モジュール（他を import しない）。
 //
-// 重要（現状）: アプリ内にはまだ「言語セレクタ」が無い（英語UIは未完成のWIP）。ゲームは常に ja。
-// - 言語を保存(localStorage)して読み戻すのは、将来アプリ内セレクタ＋アカウント同期を実装してから。
-//   それまで load() は保存値を読まない（旧・カード面エディタのプレビューが localStorage に残した
-//   "en" 等がゲームに漏れて英語表示になってしまうのを防ぐ。ユーザー報告2026-08-27）。
-// - `?lang=en` はその1回の読み込み限りのテスト用（保存しない）。
+// 現状のスコープ: 翻訳済みなのは「カードのテキスト」だけ（card-text.ja/en.js）。メニュー等のUIは
+// まだ日本語のまま（英語UIは今後）。言語セレクタ（options-menuの基本設定）で ja/en を切り替えると、
+// この設定が保存(localStorage)され、カード面がその言語で再描画される。
+// - `?lang=en` はURLパラメータでの一時上書き（保存しない）。
 // - カード面エディタの言語切替は「プレビュー専用の一時オーバーライド」(setPreviewLang/
-//   clearPreviewLang)を使う＝保存もゲームへの反映もしない。
+//   clearPreviewLang)を使う＝保存もゲームへの反映もしない（エディタで英語を見てもゲームは変わらない）。
 const KEY = "so7-lang";
 export const SUPPORTED_LANGS = ["ja", "en"];
 export const DEFAULT_LANG = "ja";
@@ -22,13 +21,21 @@ function load() {
     const p = new URLSearchParams(location.search).get("lang");
     if (p && SUPPORTED_LANGS.includes(p)) return p;
   } catch {}
-  // アプリ内に言語セレクタが無い間は既定(ja)固定（保存値は読まない）。
+  // 保存済みの言語設定（言語セレクタで選んだ値）。エディタは setPreviewLang（非保存）を使うので、
+  // この KEY に書くのは setLang（＝本物の言語セレクタ）だけ＝エディタのプレビューが漏れる心配は無い。
+  try {
+    const saved = localStorage.getItem(KEY);
+    if (saved && SUPPORTED_LANGS.includes(saved)) return saved;
+  } catch {}
   return DEFAULT_LANG;
 }
 
 export function getLang() {
   if (previewOverride) return previewOverride;
-  if (current == null) current = load();
+  if (current == null) {
+    current = load();
+    try { document.documentElement.setAttribute("lang", current); } catch {}
+  }
   return current;
 }
 

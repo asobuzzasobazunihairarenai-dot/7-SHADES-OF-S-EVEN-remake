@@ -17206,3 +17206,18 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
 .cf-ed-btns button:hover { background: #24324a; }
 @media (max-width: 900px) { .cf-ed-body { flex-direction: column; } .cf-ed-side { flex: 0 0 auto; border-left: none; border-top: 1px solid #2a3446; } .cf-ed-cardwrap { width: min(72vw, 60vh); } }
 .cf-ed-groupnote { font-size: 0.78rem; color: #93c5fd; background: #10202e; border: 1px solid #1c3a52; border-radius: 6px; padding: 0.3rem 0.5rem; margin-bottom: 0.5rem; }
+
+/* ===== 英語表示のカード面レイアウト微調整 ===== */
+/* 英語(en)は日本語より行長が違うため、効果文・フレーバーを少し縮めて枠に収める。
+   [data-lang="en"][data-card-type=…] は生成側 (0,3,0/0,4,0) より高い特異性なので、
+   ファイル内の位置に関係なく上書きできる（実機で見ながら要微調整）。 */
+.card-face[data-lang="en"][data-card-type="normal"] .card-face-fx,
+.card-face[data-lang="en"][data-card-type="eternal"] .card-face-fx { font-size: 2.75cqw; }
+.card-face[data-lang="en"][data-card-type="normal"] .card-face-flavor,
+.card-face[data-lang="en"][data-card-type="eternal"] .card-face-flavor { font-size: 2.2cqw; }
+.card-face[data-lang="en"][data-card-type="normal"] .card-face-fx .card-face-effect.is-basic,
+.card-face[data-lang="en"][data-card-type="eternal"] .card-face-fx .card-face-effect.is-basic { font-size: 2.4cqw; }
+.card-face[data-lang="en"][data-card-type="first"] .card-face-title { font-size: 3.2cqw; }
+.card-face[data-lang="en"][data-card-type="first"] .card-face-effect.is-basic { font-size: 2.5cqw; }
+.card-face[data-lang="en"][data-card-type="first"] .card-face-effect.is-hand,
+.card-face[data-lang="en"][data-card-type="first"] .card-face-effect.is-hand-cost { font-size: 2.5cqw; }

@@ -344,6 +344,7 @@ import { initScreenWakeLock } from "./wake-lock.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath, getCardIllustPath } from "./cards-data.js";
 import { isBoardIllustOnly } from "./board-card-display.js";
 import { showCardFace } from "./card-face-display.js";
+import { onLangChange } from "./i18n.js";
 import {
   COLORS,
   GATE_POSITIONS,
@@ -14024,6 +14025,8 @@ initOnlineUi();
 // 発火しない）ことがあるため、オンライン状態ウィジェットを常に最新に保つには
 // online.js自身のonAuthChangeも別途subscribeしておく必要がある。
 onAuthChange(render);
+// 言語切替（options-menuの言語セレクタ）でカード面のテキストを差し替えるため、盤面を再描画する。
+onLangChange(() => render());
 updateSelfStatusOnlineWidget();
 
 // ユーザー要望「戦績システムと連携しているプレイヤーはステータスエリアにランクを

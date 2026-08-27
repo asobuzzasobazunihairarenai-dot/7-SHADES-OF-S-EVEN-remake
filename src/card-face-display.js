@@ -11,6 +11,7 @@
 // ドラッグ中のゴースト・飛翔演出・canvas（victory-summary / card-dissolve）は DOM スロットでは
 // ないため対象外（常に画像/canvasのまま）。
 import { buildCardFace } from "./card-renderer.js";
+import { getLang } from "./i18n.js";
 
 const STORE_KEY = "so7-card-face-mode";
 let mode = null; // "text" | "image"（遅延ロード）
@@ -71,8 +72,10 @@ export function showCardFace(el, cardId, imageUrl) {
     // 壊してしまう。なので el.isConnected の時だけ判定し、detached の要素は CSS 側の position に任せる
     // （検証: 各スロットの CSS が positioned になっていること）。
     if (el.isConnected && getComputedStyle(el).position === "static") el.style.position = "relative";
-    // 同じカードのマウントが既にあれば作り直さない（無駄なDOM再構築を避ける・ホバー等で有効）。
-    if (prev && prev.dataset.mountCardId === cardId) return;
+    // 同じカード・同じ言語のマウントが既にあれば作り直さない（無駄なDOM再構築を避ける・ホバー等で
+    // 有効）。言語が変わった時は作り直す必要があるため lang も鍵に含める（buildCardFace が
+    // face.dataset.lang をスタンプする）。
+    if (prev && prev.dataset.mountCardId === cardId && prev.dataset.lang === getLang()) return;
     if (prev) prev.remove();
     const face = buildCardFace(cardId);
     face.classList.add("card-face-mount");
