@@ -2772,7 +2772,18 @@ function declareColorsForEffect(requirement, cardId, player) {
     const grid = document.createElement("div");
     grid.className = "declare-colors-modal-grid";
     const swatchButtons = [];
-    for (const color of COLORS) {
+    // 7色を七角形に並べる（ユーザー要望）: 緑=上・赤=左下から時計回り。COLORS は
+    // [red,orange,yellow,green,blue,pink,purple]（緑=index3）。緑を上(θ=0)に置き、時計回りに
+    // 51.43°ずつ進める → 赤は θ≈205.7°（左下）から時計回りに橙・黄・緑(上)・青・桃・紫。
+    const R = 36; // 中心からの距離（%）
+    COLORS.forEach((color, i) => {
+      const theta = (i - 3) * ((2 * Math.PI) / 7); // 上(緑)を0とした時計回りの角度（rad）
+      const x = 50 + R * Math.sin(theta);
+      const y = 50 - R * Math.cos(theta);
+      const slot = document.createElement("div");
+      slot.className = "declare-colors-modal-slot";
+      slot.style.left = `${x}%`;
+      slot.style.top = `${y}%`;
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "declare-colors-modal-swatch";
@@ -2785,8 +2796,9 @@ function declareColorsForEffect(requirement, cardId, player) {
         updateConfirmState();
       });
       swatchButtons.push(btn);
-      grid.appendChild(btn);
-    }
+      slot.appendChild(btn);
+      grid.appendChild(slot);
+    });
     modal.appendChild(grid);
 
     const confirmBtn = document.createElement("button");

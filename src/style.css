@@ -10155,26 +10155,35 @@ body.theme-light .bug-report-cancel {
   color: #e2e8f0;
   text-align: center;
 }
+/* 7色を七角形に並べる（緑=上・赤=左下から時計回り）。位置はJS側で slot に%指定
+   （main.jsのdeclareColorsForEffect）。位置(slot)とホバー拡大(swatch)を別要素に分けて
+   transformの衝突を避ける。 */
 .declare-colors-modal-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.6rem;
+  position: relative;
+  width: 15rem;
+  height: 15rem;
+  margin: 0.1rem auto 0;
+}
+.declare-colors-modal-slot {
+  position: absolute;
+  transform: translate(-50%, -50%);
 }
 .declare-colors-modal-swatch {
   width: 3rem;
   height: 3rem;
   border-radius: 50%;
   background: var(--swatch-color);
-  border: 3px solid rgba(255, 255, 255, 0.25);
+  border: 3px solid rgba(255, 255, 255, 0.3);
   cursor: pointer;
   transition: border-color 0.15s ease, transform 0.15s ease;
 }
 .declare-colors-modal-swatch:hover {
-  transform: scale(1.08);
+  transform: scale(1.12);
 }
 .declare-colors-modal-swatch.is-selected {
   border-color: #facc15;
   box-shadow: 0 0 12px rgba(250, 204, 21, 0.7);
+  transform: scale(1.1);
 }
 .declare-colors-modal-confirm {
   padding: 0.6rem 1.2rem;
@@ -10188,6 +10197,31 @@ body.theme-light .bug-report-cancel {
 }
 .declare-colors-modal-confirm:hover:not(:disabled) {
   background: rgba(56, 189, 248, 0.4);
+}
+/* ライト配色（theme-light=全体 / theme-light-ingame=盤面）時は明るいパネルに（ユーザー報告）。 */
+body.theme-light .declare-colors-modal,
+body.theme-light-ingame .declare-colors-modal {
+  background: rgba(255, 253, 245, 0.98);
+  border-color: rgba(146, 102, 10, 0.45);
+  box-shadow: 0 20px 50px rgba(80, 60, 20, 0.35);
+}
+body.theme-light .declare-colors-modal-title,
+body.theme-light-ingame .declare-colors-modal-title {
+  color: #1e293b;
+}
+body.theme-light .declare-colors-modal-swatch,
+body.theme-light-ingame .declare-colors-modal-swatch {
+  border-color: rgba(30, 41, 59, 0.28);
+}
+body.theme-light .declare-colors-modal-confirm,
+body.theme-light-ingame .declare-colors-modal-confirm {
+  background: rgba(14, 116, 144, 0.15);
+  color: #0e5568;
+  border-color: rgba(14, 116, 144, 0.5);
+}
+body.theme-light .declare-colors-modal-confirm:hover:not(:disabled),
+body.theme-light-ingame .declare-colors-modal-confirm:hover:not(:disabled) {
+  background: rgba(14, 116, 144, 0.28);
 }
 /* 色宣言の常駐表示（src/main.jsのshowDeclaredColorsIndicator、続き65）。画面中央に
    出た直後、少し経つと画面左側へすっと移行して常駐する（結果が判明するまで自動では
