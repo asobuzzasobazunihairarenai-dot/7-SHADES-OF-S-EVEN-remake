@@ -806,7 +806,7 @@ async function discardFromHandReveal(tokenId) {
 // imagePathを渡すと、その画像を背景に敷く（山札/エターナルは常に裏面画像、捨て場は
 // 空でなければ一番上のカードの実際の絵柄）。名前・枚数は常時表示のテキストではなく、
 // ホバー時のツールチップ（updatePileTooltip参照）でだけ見せるようにしている。
-function buildCardStack(count, pileClass, imagePath, faceCardId = null) {
+function buildCardStack(count, pileClass, imagePath) {
   const stack = document.createElement("div");
   stack.className = "stack";
   const heightPx = Math.max(2.4, count * 0.6);
@@ -821,10 +821,7 @@ function buildCardStack(count, pileClass, imagePath, faceCardId = null) {
 
   const top = document.createElement("div");
   top.className = `stack-top ${pileClass}`;
-  if (faceCardId) {
-    // 捨て場の一番上（表向き）。テキストモードならカード面を合成、画像モードなら実物画像。
-    showCardFace(top, faceCardId, imagePath);
-  } else if (imagePath) {
+  if (imagePath) {
     top.style.backgroundImage = `url("${imagePath}")`;
   } else {
     // 0枚の時は、CSS側の色付きフォールバック背景（.pile-deck等）を打ち消して透明にする
@@ -874,17 +871,13 @@ function buildPileZone(pileKey) {
   // 0枚の時はどの山も画像なし（透明）にする。捨て場は空でなければ一番上のカードの実物、
   // それ以外（山札・エターナル・ファースト）は裏向き積みのため常に共通の裏面画像。
   let imagePath = null;
-  // 捨て場の一番上だけ表向き（実カード）。テキストモードはカード面を合成するため cardId を渡す。
-  let faceCardId = null;
   if (count > 0) {
-    if (pileKey === "discard") {
-      faceCardId = pileArray[pileArray.length - 1];
-      imagePath = getBoardCardImagePath(faceCardId); // 画像モード用のフォールバック（イラストのみ設定に従う）
-    } else {
-      imagePath = cardBackSetImagePath(config.backImageKind, getCardBackSetIndex());
-    }
+    imagePath =
+      pileKey === "discard"
+        ? getBoardCardImagePath(pileArray[pileArray.length - 1]) // 捨て場の一番上も盤面扱い（イラストのみ設定に従う）
+        : cardBackSetImagePath(config.backImageKind, getCardBackSetIndex());
   }
-  const stack = buildCardStack(count, config.pileClass, imagePath, faceCardId);
+  const stack = buildCardStack(count, config.pileClass, imagePath);
   stack.dataset.pile = pileKey;
   zone.appendChild(stack);
   return zone;
@@ -970,7 +963,8 @@ function buildFlatCard(token) {
   if (isEternalLockRenderSuppressed(token)) card.style.visibility = "hidden";
   if (token.faceUp) {
     card.className = "board-card";
-    showCardFace(card, token.cardId, getBoardCardImagePath(token.cardId));
+    // 盤面・ロックエリアのカードは以前から「イラストのみ画像」を採用（テキスト合成の対象外）。
+    card.style.backgroundImage = `url("${getBoardCardImagePath(token.cardId)}")`;
   } else {
     card.className = "board-card is-facedown";
     card.style.backgroundImage = `url("${cardBackImageForToken(token)}")`;

@@ -9,7 +9,7 @@ import { NORMAL_CARDS, ETERNAL_CARDS, FIRST_CARDS, getCardDefinition } from "./c
 import {
   LAYOUT, ELEMENT_META, TYPE_LABEL, GROUP_LABEL, PROP_RANGE, groupOf, cfVar, propsFor,
 } from "./card-layout-config.js";
-import { getLang, setLang, SUPPORTED_LANGS, LANG_LABEL } from "./i18n.js";
+import { getLang, setPreviewLang, clearPreviewLang, SUPPORTED_LANGS, LANG_LABEL } from "./i18n.js";
 
 let overlayEl = null;
 let backdropEl = null;
@@ -226,7 +226,7 @@ function buildOverlay(close) {
     renderCard();
     renderControls();
   });
-  langSel.addEventListener("change", () => { setLang(langSel.value); renderCard(); });
+  langSel.addEventListener("change", () => { setPreviewLang(langSel.value); renderCard(); });
   outlineCb.addEventListener("change", renderCard);
 
   bodyRow.appendChild(stage);
@@ -241,9 +241,9 @@ function buildOverlay(close) {
 export function openCardRenderPreview() {
   if (overlayEl) return;
   applySavedCardFaceTuning();
-  const prevLang = getLang();               // エディタの言語切替はプレビュー用。閉じたら元に戻す。
+  // エディタの言語切替はプレビュー専用の一時オーバーライド（保存もゲームへの反映もしない）。閉じたら解除。
   const close = () => {
-    setLang(prevLang);
+    clearPreviewLang();
     overlayEl?.remove();
     backdropEl?.remove();
     overlayEl = null;
