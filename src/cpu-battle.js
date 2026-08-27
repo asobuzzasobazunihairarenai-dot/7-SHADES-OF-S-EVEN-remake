@@ -67,8 +67,12 @@ export async function startCpuBattle(count = getCpuPlayerCount()) {
   setTurnTimerEnabled(true);
   // あなた(A)は時間切れで急かされないよう基本時間を長めに（CPU席はこの値を使わない）。
   setRopeBaseSeconds(HUMAN_BASE_SECONDS);
-  // 人数切替で前回のCPU席の名前/アバターが残らないよう、まず全席をクリア。
+  // 人数切替で前回のCPU席の名前/アバターが残らないよう、まず相手席（A以外）をクリアする。
+  // 【重要】自分(A)は消さない——マイページ等で設定した自分の名前・アバターを保持する
+  // （ユーザー報告「マイページで名前変更→CPU戦開始→プレイヤーAに戻る」の修正。ローカルCPU戦の
+  // 自分は常に座席A）。
   for (const seat of ALL_SEATS) {
+    if (seat === "A") continue;
     setPlayerName(seat, "");
     setPlayerAvatar(seat, null);
   }
@@ -101,8 +105,9 @@ export async function teardownCpuBattle() {
   setPseudoCpuIncludeSelf(false);
   setTurnTimerEnabled(false);
   clearSeatLoadouts();
-  // 全CPU席（人数に依らず）の名前/アバターを戻す。
+  // 全CPU席（人数に依らず＝A以外）の名前/アバターを戻す。自分(A)は保持する（上記と同じ理由）。
   for (const seat of ALL_SEATS) {
+    if (seat === "A") continue;
     setPlayerName(seat, "");
     setPlayerAvatar(seat, null);
   }

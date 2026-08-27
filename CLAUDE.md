@@ -17424,3 +17424,17 @@ URLが `?iso=0` になっていた取り違えと判断）。かつユーザー�
   localStorage に `{"A":"テスト太郎"}` が保存され、**player-identity.js を新規ロードし直す（＝再起動相当）と
   `getPlayerName('A')` が「テスト太郎」を返す**（既定「プレイヤーA」に戻らない）ことを実測確認。サーバー側の
   変更は無い（SQLの追加も不要＝既存の `so7_user_profiles.display_name`/`avatar` をそのまま使う）。
+
+### 2026-08-27（続き282）：マイページで名前変更→CPU戦開始で名前が「プレイヤーA」に戻る不具合を修正（CPU戦が自分(A)の席までクリアしていた）
+
+続き281（名前のlocalStorage永続化）を入れてもなお、ユーザー報告「マイページでプレイヤー名変更→CPU戦
+開始→名前がプレイヤーAに戻る」。原因は `cpu-battle.js` の `startCpuBattle`/`teardownCpuBattle` が、CPUの
+相手席の古い名前（「CPU 1」等）を消すために **`ALL_SEATS`（A/B/C/D）を全て回して
+`setPlayerName(seat,"")`/`setPlayerAvatar(seat,null)`** しており、**自分(A)の席の名前・アバターまで消して
+いた**（さらに続き281の永続化により localStorage の A まで空に上書きされていた）。ローカルCPU戦の自分は
+常に座席A（getSelfSeat()==="A"固定）なので、両ループを `if (seat === "A") continue;` で**A以外（相手席）だけ
+クリア**するよう修正。
+- **検証**: `node --check`（cpu-battle）通過。ブラウザで `setPlayerName('A','ヤマダ')`→`startCpuBattle(2)` の後も
+  `getPlayerName('A')` が「ヤマダ」のまま（相手席Cは「CPU」に設定される）・`teardownCpuBattle()` 後も
+  「ヤマダ」・localStorage が `{"A":"ヤマダ","B":null,"C":null,"D":null}`（自分の名前を保持）になることを
+  実測確認。サーバー側の変更は無い。
