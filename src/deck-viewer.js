@@ -5,6 +5,7 @@
 // ゲーム本編のUIではなく開発用ツール。
 
 import { NORMAL_CARDS, ETERNAL_CARDS, FIRST_CARDS, getCardImagePath } from "./cards-data.js";
+import { showCardFace } from "./card-face-display.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 
 let showCardModal = null; // initDeckViewer内で実体を設定する
@@ -15,11 +16,12 @@ let showCardModal = null; // initDeckViewer内で実体を設定する
 let deckPreviewEl = null;
 function getDeckPreviewEl() {
   if (!deckPreviewEl) {
-    deckPreviewEl = document.createElement("img");
+    deckPreviewEl = document.createElement("div");
     deckPreviewEl.id = "deck-viewer-card-preview";
     deckPreviewEl.style.cssText = `
       position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      width: min(26rem, 82vw); max-height: 88vh; object-fit: contain;
+      width: min(26rem, 82vw); max-height: 88vh; aspect-ratio: 1 / 1;
+      overflow: hidden; background-size: cover; background-position: center; background-repeat: no-repeat;
       border-radius: 0.6rem; border: 2px solid rgba(255, 255, 255, 0.75);
       box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.75); pointer-events: none;
       z-index: 2300; display: none;
@@ -30,8 +32,8 @@ function getDeckPreviewEl() {
 }
 function showDeckPreview(def) {
   const el = getDeckPreviewEl();
-  el.src = getCardImagePath(def.id);
-  el.alt = def.name;
+  showCardFace(el, def.id, getCardImagePath(def.id));
+  el.setAttribute("aria-label", def.name);
   el.style.display = "block";
 }
 function hideDeckPreview() {
@@ -153,8 +155,9 @@ function buildCardModal() {
   const content = document.createElement("div");
   content.style.cssText = "display: flex; gap: 0.8rem; margin-bottom: 0.8rem; flex-wrap: wrap;";
 
-  const img = document.createElement("img");
-  img.style.cssText = "width: 14rem; flex-shrink: 0; border-radius: 0.4rem; display: block;";
+  const img = document.createElement("div");
+  img.style.cssText =
+    "position: relative; width: 14rem; flex-shrink: 0; border-radius: 0.4rem; display: block; aspect-ratio: 1 / 1; overflow: hidden; background-size: cover; background-position: center; background-repeat: no-repeat;";
 
   const textCol = document.createElement("div");
   textCol.style.cssText = "flex: 1; min-width: 12rem;";
@@ -177,8 +180,8 @@ function buildCardModal() {
     modal.style.display = "none";
   }
   function open(def) {
-    img.src = getCardImagePath(def.id);
-    img.alt = def.name;
+    showCardFace(img, def.id, getCardImagePath(def.id));
+    img.setAttribute("aria-label", def.name);
     name.textContent = def.name;
     note.textContent = def.note || "（補足なし）";
     backdrop.style.display = "block";

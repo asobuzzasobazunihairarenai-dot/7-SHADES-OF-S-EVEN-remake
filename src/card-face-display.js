@@ -40,6 +40,17 @@ export function setCardFaceMode(m) {
   }
 }
 
+// モーダル等で「1枚のカードを表示する箱」を作って返す（従来 <img> だった箇所の置き換え用）。
+// テキストモード=カード面を合成、画像モード=背景画像。正方形（aspect-ratio 1/1）。呼び出し側は
+// .card-box に対して幅・枠・角丸などを CSS で指定する（旧 `.modal img` ルールを `.modal .card-box` に
+// 変えるだけ）。extraClass で追加クラスを付けられる。
+export function buildCardBox(cardId, imageUrl, extraClass = "") {
+  const box = document.createElement("div");
+  box.className = "card-box" + (extraClass ? " " + extraClass : "");
+  showCardFace(box, cardId, imageUrl);
+  return box;
+}
+
 // スロット el 直下のマウント（.card-face-mount）を取り除く。
 export function clearCardFaceMount(el) {
   if (!el) return;
@@ -54,6 +65,12 @@ export function showCardFace(el, cardId, imageUrl) {
   const prev = el.querySelector(":scope > .card-face-mount");
   if (isCardFaceTextMode() && cardId) {
     el.style.backgroundImage = "none";
+    // マウントは inset:0 の絶対配置なので、スロットが包含ブロック（positioned）である必要がある。
+    // 【重要】未挿入(detached)の要素は getComputedStyle が常に position:static を返す（スタイルが
+    // まだ効いていない）ため、ここで relative を付けると .hand-card 等 CSS で absolute 指定の要素を
+    // 壊してしまう。なので el.isConnected の時だけ判定し、detached の要素は CSS 側の position に任せる
+    // （検証: 各スロットの CSS が positioned になっていること）。
+    if (el.isConnected && getComputedStyle(el).position === "static") el.style.position = "relative";
     // 同じカードのマウントが既にあれば作り直さない（無駄なDOM再構築を避ける・ホバー等で有効）。
     if (prev && prev.dataset.mountCardId === cardId) return;
     if (prev) prev.remove();

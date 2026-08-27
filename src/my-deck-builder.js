@@ -5,6 +5,7 @@
 // 検証（7枚以上・同名7まで・所持超過・スペシャルの3:1税）と保存は my-deck.js のまま活かす。
 
 import { getCardImagePath, getCardDefinition } from "./cards-data.js";
+import { showCardFace } from "./card-face-display.js";
 import { syncFullScreenPageActive } from "./option-area.js";
 import {
   getDeckableCards,
@@ -109,15 +110,16 @@ function getPreviewEl() {
   if (!previewEl) {
     previewEl = document.createElement("div");
     previewEl.id = "mdb-preview";
-    const img = document.createElement("img");
-    previewEl.appendChild(img);
+    const face = document.createElement("div");
+    face.className = "mdb-preview-face";
+    previewEl.appendChild(face);
     document.body.appendChild(previewEl);
   }
   return previewEl;
 }
 function showPreview(cardId, x, y) {
   const p = getPreviewEl();
-  p.querySelector("img").src = getCardImagePath(cardId);
+  showCardFace(p.querySelector(".mdb-preview-face"), cardId, getCardImagePath(cardId));
   p.classList.add("is-visible");
   movePreview(x, y);
 }
@@ -186,10 +188,10 @@ function showCardNoteModal(cardId) {
   modal.id = "card-note-modal";
   const content = document.createElement("div");
   content.className = "card-note-content";
-  const img = document.createElement("img");
+  const img = document.createElement("div");
   img.className = "card-note-image";
-  img.src = getCardImagePath(cardId);
-  img.alt = def.name;
+  showCardFace(img, cardId, getCardImagePath(cardId));
+  img.setAttribute("aria-label", def.name);
   const textCol = document.createElement("div");
   textCol.className = "card-note-text-col";
   const title = document.createElement("div");

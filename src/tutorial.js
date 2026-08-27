@@ -25,6 +25,7 @@ import { linkifyGlossary } from "./glossary-linkify.js";
 import { GATE_POSITIONS, SEAT_TO_SIDE } from "./board-layout.js";
 import { getSelfSeat } from "./online.js";
 import { getCardDefinition, getCardImagePath } from "./cards-data.js";
+import { showCardFace } from "./card-face-display.js";
 import { backImagePath, getCardBackSetIndex } from "./card-back-skins.js";
 // チュートリアルCPU戦（台本化された練習試合）が進行中は、この初回自動オーバーレイを
 // 出さない（チュートリアル対戦は自前の導入解説・インバトルヒントを持つため）。
@@ -170,10 +171,10 @@ function buildCardExampleEl() {
   const def = getCardDefinition(HAND_EFFECT_EXAMPLE_CARD_ID);
   const wrap = document.createElement("div");
   wrap.className = "tutorial-card-example";
-  const img = document.createElement("img");
+  const img = document.createElement("div");
   img.className = "tutorial-card-example-image";
-  img.src = getCardImagePath(HAND_EFFECT_EXAMPLE_CARD_ID);
-  img.alt = def?.name ?? "";
+  showCardFace(img, HAND_EFFECT_EXAMPLE_CARD_ID, getCardImagePath(HAND_EFFECT_EXAMPLE_CARD_ID));
+  img.setAttribute("aria-label", def?.name ?? "");
   const textCol = document.createElement("div");
   textCol.className = "tutorial-card-example-text";
   const name = document.createElement("div");
@@ -211,7 +212,7 @@ function applyDummyHand() {
   DUMMY_HAND_CARD_IDS.forEach((cardId, i) => {
     const cardEl = document.createElement("div");
     cardEl.className = "hand-card is-self tutorial-dummy-hand-card";
-    cardEl.style.backgroundImage = `url("${getCardImagePath(cardId)}")`;
+    showCardFace(cardEl, cardId, getCardImagePath(cardId));
     cardEl.style.transform = `translateX(${spacings[i]}px) rotate(${angles[i]}deg)`;
     fan.appendChild(cardEl);
     dummyHandCardEls.push(cardEl);

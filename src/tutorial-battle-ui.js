@@ -11,6 +11,9 @@
 // 盤面要素の近くに固定配置する吹き出し・スポットライトの穴は、bodyに掛かるステージ
 // transform（main.jsのSTAGE_WIDTH×STAGE_HEIGHT仮想解像度）を考慮する必要があるため、
 // main.jsからstageClientToLocal/stageDeltaを注入してもらう。
+// cards-data.js / card-face-display.js は葉モジュール（main.jsを参照しない）ため静的importで安全。
+import { getCardImagePath } from "./cards-data.js";
+import { showCardFace } from "./card-face-display.js";
 
 let stageClientToLocalFn = null;
 let stageDeltaFn = null;
@@ -76,7 +79,9 @@ const STYLE = `
 /* 到達したカードの拡大表示（カード比率＝縦長）。ユーザー要望「カードの拡大が小さい」。
    ただしモーダルがスクロールしない範囲に収める（縦を取りすぎない）。 */
 #tutorial-battle-callout .tb-callout-body .tb-body-card {
-  display: block; margin: 0.3rem auto 0.8rem; width: 12rem; max-width: 80%; height: auto;
+  display: block; position: relative; margin: 0.3rem auto 0.8rem; width: 12rem; max-width: 80%;
+  aspect-ratio: 1 / 1; overflow: hidden;
+  background-size: cover; background-position: center; background-repeat: no-repeat;
   border-radius: 0.6rem; box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,0.55);
   animation: tb-card-pop 0.35s ease-out;
 }
@@ -84,7 +89,8 @@ const STYLE = `
    前面・画面中央・クリック透過。縦長カード比率のまま高さを画面に合わせて大きく見せる。 */
 .tb-body-card-zoom {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  height: min(80vh, 34rem); width: auto; max-width: 92vw;
+  height: min(80vh, 34rem); aspect-ratio: 1 / 1; max-width: 92vw;
+  overflow: hidden; background-size: cover; background-position: center; background-repeat: no-repeat;
   border-radius: 0.8rem; box-shadow: 0 1rem 3rem rgba(0,0,0,0.7);
   z-index: 100300; pointer-events: none;
   animation: tb-card-pop 0.18s ease-out;
@@ -257,23 +263,20 @@ export function showBlockingHint({ title, body = [], buttonLabel = "次へ", onN
       img.src = paragraph.image;
       img.alt = "";
       calloutBodyEl.appendChild(img);
-    } else if (paragraph.cardImage) {
-      // 実物のカードを大きく見せる（到達したカードの拡大表示）。カードは縦長のため
-      // .tb-body-imageの正方形ではなくカード比率の専用クラスにする。
-      const img = document.createElement("img");
+    } else if (paragraph.cardId) {
+      // 実物のカードを大きく見せる（到達したカードの拡大表示）。テキストモードはカード面を合成。
+      const img = document.createElement("div");
       img.className = "tb-body-card";
-      img.src = paragraph.cardImage;
-      img.alt = "";
+      showCardFace(img, paragraph.cardId, getCardImagePath(paragraph.cardId));
       // #4（ユーザー要望2026-08-14）: ホバー（PC）／長押し（モバイル）でカードをさらに大きく
       // 画面中央に拡大表示する。モーダル(spotlight z:40001)より前面(z:100300)・クリック透過。
       img.style.cursor = "zoom-in";
       img.title = "ホバー／長押しで拡大";
       const showZoom = () => {
         document.querySelectorAll(".tb-body-card-zoom").forEach((el) => el.remove());
-        const z = document.createElement("img");
+        const z = document.createElement("div");
         z.className = "tb-body-card-zoom";
-        z.src = paragraph.cardImage;
-        z.alt = "";
+        showCardFace(z, paragraph.cardId, getCardImagePath(paragraph.cardId));
         document.body.appendChild(z);
       };
       const hideZoom = () => document.querySelectorAll(".tb-body-card-zoom").forEach((el) => el.remove());

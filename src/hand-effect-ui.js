@@ -12,6 +12,7 @@
 //   使用できない方はグレー表示。」）。
 
 import { getCardDefinition, getCardImagePath } from "./cards-data.js";
+import { buildCardBox, showCardFace } from "./card-face-display.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { isCardArrivalModalPersistent } from "./admin.js";
 
@@ -47,10 +48,9 @@ export function showHandEffectUseModal(cardId, optionLabel) {
   label.textContent = "使用";
   modal.appendChild(label);
 
-  const img = document.createElement("img");
-  img.src = getCardImagePath(cardId);
-  img.alt = def?.name ?? cardId;
-  modal.appendChild(img);
+  const box = buildCardBox(cardId, getCardImagePath(cardId));
+  box.setAttribute("aria-label", def?.name ?? cardId);
+  modal.appendChild(box);
 
   const nameEl = document.createElement("div");
   nameEl.className = "hand-effect-use-modal-name";
@@ -240,10 +240,9 @@ export function showCardReceivedModal(cardId, subtitle, { labelText = "受け取
     label.textContent = labelText;
     modal.appendChild(label);
 
-    const img = document.createElement("img");
-    img.src = getCardImagePath(cardId);
-    img.alt = def?.name ?? cardId;
-    modal.appendChild(img);
+    const box = buildCardBox(cardId, getCardImagePath(cardId));
+    box.setAttribute("aria-label", def?.name ?? cardId);
+    modal.appendChild(box);
 
     const nameEl = document.createElement("div");
     nameEl.className = "card-received-modal-name";
@@ -311,10 +310,9 @@ export function showMultipleCardsReceivedModal(cardIds, subtitle, { labelText = 
       const def = getCardDefinition(cardId);
       const cell = document.createElement("div");
       cell.className = "card-received-modal-card";
-      const img = document.createElement("img");
-      img.src = getCardImagePath(cardId);
-      img.alt = def?.name ?? cardId ?? "";
-      cell.appendChild(img);
+      const box = buildCardBox(cardId, getCardImagePath(cardId));
+      box.setAttribute("aria-label", def?.name ?? cardId ?? "");
+      cell.appendChild(box);
       const nm = document.createElement("div");
       nm.className = "card-received-modal-name";
       nm.textContent = def?.name ?? "";
@@ -392,11 +390,11 @@ export function showHandEffectOptionPicker(cardId, optionsWithUsability, onReady
     titleEl.textContent = title ?? `${def?.name ?? cardId} の効果を選択してください`;
     modal.appendChild(titleEl);
 
-    const img = document.createElement("img");
-    img.className = "hand-effect-option-picker-img";
-    img.src = getCardImagePath(cardId);
-    img.alt = def?.name ?? cardId;
-    modal.appendChild(img);
+    const cardBox = document.createElement("div");
+    cardBox.className = "hand-effect-option-picker-img";
+    showCardFace(cardBox, cardId, getCardImagePath(cardId));
+    cardBox.setAttribute("aria-label", def?.name ?? cardId);
+    modal.appendChild(cardBox);
 
     const peekBtn = document.createElement("button");
     peekBtn.type = "button";

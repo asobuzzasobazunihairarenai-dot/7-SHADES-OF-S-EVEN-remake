@@ -5104,10 +5104,9 @@ function confirmTouchAction(title, { cardId = null } = {}) {
     // 対象カードの画像を添える（ユーザー要望2026-08-13「このカードを選びますか等の確認モーダルに
     // カード画像も添えたい」）。cardIdが渡された時だけ。ロック/使用/選択いずれの確認でも共通。
     if (cardId) {
-      const cardImg = document.createElement("img");
+      const cardImg = document.createElement("div");
       cardImg.className = "touch-action-confirm-card";
-      cardImg.src = getCardImagePath(cardId);
-      cardImg.alt = "";
+      showCardFace(cardImg, cardId, getCardImagePath(cardId));
       modal.appendChild(cardImg);
     }
 
@@ -6325,10 +6324,10 @@ function openContactResultModal({ role, attacker, defender, cardId, onClose = nu
   modal.appendChild(body);
 
   if (cardDef) {
-    const img = document.createElement("img");
+    const img = document.createElement("div");
     img.className = "contact-result-card-image";
-    img.src = getCardImagePath(cardId);
-    img.alt = cardDef.name;
+    showCardFace(img, cardId, getCardImagePath(cardId));
+    img.setAttribute("aria-label", cardDef.name);
     modal.appendChild(img);
   }
 
@@ -9376,10 +9375,10 @@ function showCardNoteModal(cardId) {
   backdrop.id = "card-note-modal-backdrop";
   const modal = document.createElement("div");
   modal.id = "card-note-modal";
-  const img = document.createElement("img");
+  const img = document.createElement("div");
   img.className = "card-note-image";
-  img.src = getCardImagePath(cardId);
-  img.alt = def.name;
+  showCardFace(img, cardId, getCardImagePath(cardId));
+  img.setAttribute("aria-label", def.name);
   const textCol = document.createElement("div");
   textCol.className = "card-note-text-col";
   const title = document.createElement("div");
@@ -9432,7 +9431,7 @@ function showStackModal(tokenIds) {
     const card = document.createElement("div");
     card.className = "stack-modal-card";
     const imagePath = token.faceUp ? getCardImagePath(token.cardId) : cardBackImageForToken(token);
-    card.style.backgroundImage = `url("${imagePath}")`;
+    showCardFace(card, token.faceUp ? token.cardId : null, imagePath);
     list.appendChild(card);
   }
   modal.appendChild(createModalCloseX(close));
@@ -9470,7 +9469,7 @@ function showDiscardListModal() {
       const cardId = discard[i];
       const card = document.createElement("div");
       card.className = "stack-modal-card";
-      card.style.backgroundImage = `url("${getCardImagePath(cardId)}")`;
+      showCardFace(card, cardId, getCardImagePath(cardId));
       card.title = getCardDefinition(cardId)?.name ?? "";
       list.appendChild(card);
     }
@@ -9508,7 +9507,7 @@ function pickStackedLockCard(tokens, hint) {
       const card = document.createElement("div");
       card.className = "stack-modal-card is-pickable";
       const imagePath = token.faceUp ? getCardImagePath(token.cardId) : cardBackImageForToken(token);
-      card.style.backgroundImage = `url("${imagePath}")`;
+      showCardFace(card, token.faceUp ? token.cardId : null, imagePath);
       if (token.faceUp) card.title = getCardDefinition(token.cardId)?.name ?? "";
       card.addEventListener("click", () => finish(token));
       list.appendChild(card);

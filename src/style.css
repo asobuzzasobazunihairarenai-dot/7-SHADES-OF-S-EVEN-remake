@@ -1854,6 +1854,7 @@ body.is-phone-device .update-banner-close {
   margin-bottom: 0.8rem;
 }
 .stack-modal-card {
+  position: relative;
   width: 8rem;
   height: 8rem;
   border-radius: 0.5rem;
@@ -2027,9 +2028,14 @@ body.is-phone-device .update-banner-close {
   margin-bottom: 0.8rem;
 }
 .contact-result-card-image {
+  position: relative;
   width: 8rem;
   height: 8rem;
   object-fit: cover;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   border-radius: 0.4rem;
   border: 2px solid rgba(255, 255, 255, 0.5);
   box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.5);
@@ -2123,9 +2129,16 @@ body.theme-light #contact-result-modal {
 }
 .card-note-image {
   display: block;
+  position: relative;
   width: 14rem;
   flex-shrink: 0;
   border-radius: 0.4rem;
+  /* <img> から <div>（テキスト合成/画像）へ置換したため、正方形・クリップ・画像敷き設定を明示。 */
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 .card-note-text-col {
   flex: 1;
@@ -8412,7 +8425,8 @@ body.lite-render .table-background-bg {
   color: #fbbf24;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
 }
-.card-arrival-modal img {
+.card-arrival-modal img,
+.card-arrival-modal .card-box {
   width: 100%;
   display: block;
   border-radius: 0.6rem;
@@ -8915,9 +8929,14 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
    「このカードを選びますか等の確認モーダルにカード画像も添えたい」）。タイトルとボタンの間。 */
 #touch-action-confirm-modal .touch-action-confirm-card {
   display: block;
-  width: auto;
-  max-width: 60%;
-  max-height: 40vh;
+  position: relative;
+  /* <img>→<div>（テキスト合成/画像）へ置換。divは内在サイズが無いため正方形サイズを明示。 */
+  width: min(60%, 40vh);
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   margin: 0.7rem auto 0.2rem;
   border-radius: 0.4rem;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.55);
@@ -9607,7 +9626,8 @@ body.phase-lock-picking .hand-card:not(.phase-lock-highlight):not(.card-effect-t
   color: #38bdf8;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
 }
-.hand-effect-use-modal img {
+.hand-effect-use-modal img,
+.hand-effect-use-modal .card-box {
   width: 100%;
   display: block;
   border-radius: 0.6rem;
@@ -9659,7 +9679,8 @@ body.phase-lock-picking .hand-card:not(.phase-lock-highlight):not(.card-effect-t
   color: #6ee7b7;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
 }
-.card-received-modal img {
+.card-received-modal img,
+.card-received-modal .card-box {
   width: 100%;
   display: block;
   border-radius: 0.6rem;
@@ -9700,6 +9721,11 @@ body.phase-lock-picking .hand-card:not(.phase-lock-highlight):not(.card-effect-t
   gap: 0.3rem;
   width: 8rem;
   max-width: 40vw;
+}
+.card-received-modal-card .card-box {
+  width: 100%;
+  border-radius: 0.4rem;
+  border: 2px solid rgba(255, 255, 255, 0.7);
 }
 
 /* プレゼントの到達効果等で「誰がドロー対象か」をアバターで画面中央に周知するモーダル
@@ -9875,9 +9901,16 @@ body.theme-light .draw-targets-modal-name {
   text-align: center;
 }
 .hand-effect-option-picker-img {
+  position: relative;
   width: 6rem;
   border-radius: 0.5rem;
   border: 2px solid rgba(255, 255, 255, 0.6);
+  /* <img>→<div>（テキスト合成/画像）へ置換したため、正方形・クリップ・画像敷き設定を明示。 */
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 .hand-effect-option-picker-list {
   display: flex;
@@ -10792,8 +10825,13 @@ body.reduce-glow .cell.card-effect-just-placed {
   font-weight: bold;
 }
 .match-personal-result-mvp-card {
+  position: relative;
   width: 6rem;
-  height: auto;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   border-radius: 0.4rem;
   box-shadow: 0 0.3rem 0.9rem rgba(0, 0, 0, 0.5);
 }
@@ -12978,9 +13016,14 @@ body.reduce-glow .cell.card-effect-placement-target {
   margin: 0.4rem 0 0.6rem;
 }
 .tutorial-card-example-image {
+  position: relative;
   width: min(var(--card-preview-size, 20rem), 100%);
   aspect-ratio: 1 / 1;
   object-fit: contain;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   border-radius: 0.4rem;
 }
 .tutorial-card-example-name {
@@ -15574,10 +15617,16 @@ body.theme-light .mdl-deck-count {
   display: block;
   opacity: 1;
 }
-#mdb-preview img {
+#mdb-preview img,
+#mdb-preview .mdb-preview-face {
+  position: relative;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   display: block;
 }
 #mdb-note-menu {
@@ -17040,6 +17089,13 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
   position: absolute; inset: 0; width: 100%; height: 100%;
   aspect-ratio: auto; border-radius: inherit; box-shadow: none;
   pointer-events: none;
+}
+/* モーダル等の「1枚のカード表示箱」（buildCardBox）。正方形・角丸/枠/影は呼び出し側のCSSで指定。
+   テキストモードは .card-face-mount を内包、画像モードは背景画像（cover）。 */
+.card-box {
+  position: relative; aspect-ratio: 1 / 1; overflow: hidden;
+  background-size: cover; background-position: center; background-repeat: no-repeat;
+  border-radius: inherit;
 }
 /* 効果セット（fx）＝基本/到達/手札を上から順に詰める。間に仕切り線（各効果の中間）。 */
 .card-face-fx { display: flex; flex-direction: column; gap: 1.4cqw; }

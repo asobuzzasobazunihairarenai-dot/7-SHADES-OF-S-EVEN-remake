@@ -18,6 +18,7 @@ import { SEAT_TO_SIDE } from "./board-layout.js";
 import { applyAvatarContent } from "./avatar-render.js";
 import { getMatchStats, getMostUsedCardOverall, getMostUsedCardForSeat, getLockHistory } from "./match-stats-tracker.js";
 import { getCardImagePath, getCardDefinition } from "./cards-data.js";
+import { showCardFace } from "./card-face-display.js";
 
 const SVGNS = "http://www.w3.org/2000/svg";
 // その座席の駒の色（＝プレイヤーの色）を実際のCSS変数値で返す（折れ線の色に使う）。
@@ -242,10 +243,10 @@ export function showMatchPersonalResultModal({ activePlayers, winnerSeat }) {
         lbl.textContent = labelText;
         col.appendChild(lbl);
         if (mvp) {
-          const img = document.createElement("img");
+          const img = document.createElement("div");
           img.className = "match-personal-result-mvp-card";
-          img.src = getCardImagePath(mvp.cardId);
-          img.alt = getCardDefinition(mvp.cardId)?.name ?? "";
+          showCardFace(img, mvp.cardId, getCardImagePath(mvp.cardId));
+          img.setAttribute("aria-label", getCardDefinition(mvp.cardId)?.name ?? "");
           col.appendChild(img);
           const name = document.createElement("div");
           name.className = "match-personal-result-mvp-name";

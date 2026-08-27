@@ -17337,3 +17337,46 @@ URLが `?iso=0` になっていた取り違えと判断）。かつユーザー�
     `clearPreviewLang()`→ja が正しく切り替わることを確認。
 - `node --check`（i18n/main/card-render-preview）通過。コンソールに新規JSエラー無し
   （ERR_CONNECTION_REFUSED はサンドボックスが外部Supabase接続を遮断しているだけ）。サーバー側の変更は無い。
+
+### 2026-08-27（続き279）：カード面のテキスト表示を本番接続（フェーズ2・各モーダル/図鑑/デッキ/チュートリアルの「読むカード」／showCardFaceの包含ブロック不具合を修正）
+
+続き277〜278（主要な対局面＝手札・手札公開エリア・ホバー拡大）に続き、**「1枚のカードを大きく読む」
+モーダル・図鑑・チュートリアル面**をテキスト合成へ接続した（既定=text／管理者トグルで画像に切替可能なのは
+従来通り）。演出・ゴースト・canvas・小さいグリッドサムネイルは画像のまま据え置き。
+- **`buildCardBox(cardId, imageUrl, extraClass)` を新設**（`card-face-display.js`）: 従来 `<img>` だった
+  モーダルのカードを置き換える `<div class="card-box">`（テキスト=カード面合成／画像=背景画像、正方形）。
+  `.card-box`（`position:relative; aspect-ratio:1/1; overflow:hidden; background:cover/center` ＋角丸継承）を
+  新設。呼び出し側は旧 `.modal img` ルールを `.modal .card-box` に変えるだけ。
+- **テキスト化した「読むカード」面**: カード到達モーダル（`card-arrival.js`）／手札使用・受け取り・選択肢
+  ピッカー（`hand-effect-ui.js`）／重なりカード・捨て場一覧・重なりロック選択・カード補足・タッチ操作確認・
+  接触結果（`main.js`）／対戦個人結果のMVPカード（`match-personal-result-modal.js`）／図鑑=山札一覧の
+  ホバー拡大＋詳細モーダル（`deck-viewer.js`、グリッドのサムネイルは画像のまま）／デッキビルダーの
+  プレビュー＋カード補足（`my-deck-builder.js`）／チュートリアルの手札効果の見本カード＋ダミー手札
+  （`tutorial.js`）／チュートリアルCPU戦のコールアウトのカード＋ホバー拡大（`tutorial-battle.js` は
+  `cardImage:URL`→`cardId` に、`tutorial-battle-ui.js` が `showCardFace` で描画。cards-data/card-face-display は
+  葉モジュールなので静的import可）。
+- **画像のまま据え置き（意図的）**: 盤面・ロック・捨て場のカード（イラストのみ画像＝続き278）、ミニロック
+  HUD、デッキ箱の代表カード（`my-deck-list`＝イラストのみ／`my-deck-select`／図鑑グリッド／ビルダーの
+  コレクション・エントリのサムネイル）、色チップ・駒/ペット/裏面スキンのサムネイル、全ての演出
+  （飛翔ゴースト・ドラッグゴースト・3Dフリップ・配布・dissolve/victory canvas・奪う儀式フリップ・
+  remote-move ゴースト）。
+- **未対応（follow-up）**: `gate-invasion-modal.js`・`hand-announcer.js` のトースト（`<img src>` を
+  innerHTML 文字列で組むため別対応が必要）。
+- **【重要な不具合を発見・修正】`showCardFace` の包含ブロック判定が detached 要素で誤作動していた**:
+  フェーズ2の冒頭で `showCardFace` に「スロットが static ならマウント(inset:0)用に relative を付ける」
+  `getComputedStyle` 判定を追加したが、**未挿入(detached)の要素は getComputedStyle が常に position:static を
+  返す**（スタイルがまだ効いていない）ため、`buildPlayerZone` が detached で作る `.hand-card`（CSSで
+  `position:absolute`）にも relative をインライン付与し、**自分の手札の扇レイアウトを破壊**していた。
+  `el.isConnected` の時だけ判定するよう修正（detached の要素は CSS 側の position に委ねる）。あわせて、
+  detached で組んで後から挿入する未 positioned なモーダルスロット（`.stack-modal-card`／`.card-note-image`／
+  `.contact-result-card-image`／`.touch-action-confirm-card`／`.match-personal-result-mvp-card`／
+  `.hand-effect-option-picker-img`／`.tutorial-card-example-image`／`.tb-body-card`／deck-viewer詳細の
+  inline／`#mdb-preview .mdb-preview-face`）に `position: relative` を明示（マウントの包含ブロックにするため）。
+  実測: detached `.hand-card` に showCardFace してもインライン position が空のまま＝挿入後 computed が
+  `absolute` を維持（扇が壊れない）、連結済み static 要素には relative が付く安全網、を確認。
+- **検証**: 全編集ファイルの `node --check` 通過・CSSブレース平衡（2443）。ブラウザで、`buildCardBox` の
+  text/image 切替、図鑑の詳細モーダルが日本語カード面（例「ジャンプ台」）で描画されグリッドは画像
+  サムネイルのまま、カード到達モーダルが `.card-box`＞`.card-face-mount`（「ザ・ギャンブル」）で描画、
+  2人ローカル対局で盤面の表向きカードが画像のまま（マウント0）・自分の手札のインライン position 破壊が
+  無いこと、リロード後にコンソール新規エラー無し、を実測確認（自分の手札の実描画はサンドボックスの
+  rAF凍結で通し確認できないため、detached パスの単体検証＝上記で担保）。サーバー側の変更は無い。

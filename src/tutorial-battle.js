@@ -438,7 +438,7 @@ function buildSteps() {
       title: "到達効果",
       icon: ARRIVAL_ICON,
       body: [
-        { cardImage: getCardImagePath(ARRIVAL_CELL.cardId) },
+        { cardId: ARRIVAL_CELL.cardId },
         "表向きのカードに駒を乗せると「到達」となり、そのカードの到達効果が自動的に発動します。",
         { iconText: { image: ARRIVAL_ICON, text: "カード効果欄にあるこのアイコンは「到達効果」を表す目印です。" } },
       ],
@@ -513,7 +513,7 @@ function buildSteps() {
       title: "到達効果",
       icon: ARRIVAL_ICON,
       body: [
-        { cardImage: getCardImagePath(ARRIVAL_BONUS_CARD) },
+        { cardId: ARRIVAL_BONUS_CARD },
         "移動先の「カウンターロック」にも到達しましたが、今回は条件を満たさず不発でした。",
         { text: "※条件を満たさず不発に終わったカードも、処理が終わったとみなされます。", note: true },
       ],
@@ -604,7 +604,7 @@ function buildSteps() {
       title: "ハンドフェイズ ― 手札効果",
       icon: HAND_EFFECT_ICON,
       body: [
-        { cardImage: getCardImagePath(HAND_EFFECT_CARD) },
+        { cardId: HAND_EFFECT_CARD },
         "「プレゼント」が手札に入りました。この手札効果は『相手の隣にカードを置き、さらに1枚ドローする』です。",
         { iconText: { image: HAND_EFFECT_ICON, text: "カード効果欄にあるこのアイコンは「手札効果」を表す目印です。" } },
       ],

@@ -7,6 +7,7 @@
 // 乗っている姿」を隠さずに見えるようにするため。
 
 import { getCardDefinition, getCardImagePath } from "./cards-data.js";
+import { buildCardBox } from "./card-face-display.js";
 import { createModalCloseX } from "./ui-helpers.js";
 import { isCardArrivalModalPersistent } from "./admin.js";
 
@@ -74,10 +75,10 @@ export function showCardArrivalModal(cardId, options = {}) {
   label.textContent = "到達";
   modal.appendChild(label);
 
-  const img = document.createElement("img");
-  img.src = getCardImagePath(cardId);
-  img.alt = def.name;
-  modal.appendChild(img);
+  const box = buildCardBox(cardId, getCardImagePath(cardId));
+  box.setAttribute("role", "img");
+  box.setAttribute("aria-label", def.name);
+  modal.appendChild(box);
 
   const persistent = isCardArrivalModalPersistent();
   if (!persistent) {
