@@ -11968,32 +11968,56 @@ body.is-phone-device .opening-version-badge {
   font-size: 1.5rem;
 }
 /* 言語トグル（日本語 / English）。START画面から見えるよう、開始ゲート(z-index:10)・
-   バージョン表示(z-index:11)より上のz-index:12で右上に固定する。 */
+   バージョン表示(z-index:11)より上のz-index:12で固定する。
+   ユーザー要望: 右上のオプションアイコン(#options-menu-button, top:0.3rem/right:1rem)と
+   重なっていたので**左上**へ移動。両方の言語を並べ、今の言語(.is-current)を大きく明るく、
+   切り替え先を小さく淡くして「今どちらのモードか」が一目で分かるようにする。 */
 .opening-lang-toggle {
   position: fixed;
   top: 0.6rem;
-  right: 0.7rem;
+  left: 0.7rem;
   z-index: 12;
-  font-family: sans-serif;
-  font-size: 0.9rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: #f8fafc;
+  display: flex;
+  align-items: baseline;
+  gap: 0.15rem;
   background: rgba(15, 23, 42, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 999px;
-  padding: 0.32rem 0.9rem;
-  cursor: pointer;
+  padding: 0.22rem 0.5rem;
   backdrop-filter: blur(2px);
-  transition: background 0.15s, border-color 0.15s;
 }
-.opening-lang-toggle:hover {
-  background: rgba(30, 41, 59, 0.8);
-  border-color: rgba(255, 255, 255, 0.6);
+.opening-lang-toggle-seg {
+  font-family: sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: none;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  /* 既定＝切り替え先（小さく淡く） */
+  font-size: 0.72rem;
+  color: rgba(226, 232, 240, 0.55);
+  padding: 0.18rem 0.5rem;
+  /* font-size はトランジションさせない（文字サイズが動くと隣の文字が押されて読みにくい）。 */
+  transition: color 0.15s, background 0.15s;
 }
-body.is-phone-device .opening-lang-toggle {
-  font-size: 1.15rem;
-  padding: 0.45rem 1.1rem;
+.opening-lang-toggle-seg:hover {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.12);
+}
+/* 現在の言語＝大きく明るく（押しても何も起きないのでカーソルは既定に戻す） */
+.opening-lang-toggle-seg.is-current {
+  font-size: 1.02rem;
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.18);
+  cursor: default;
+}
+body.is-phone-device .opening-lang-toggle-seg {
+  font-size: 0.95rem;
+  padding: 0.28rem 0.7rem;
+}
+body.is-phone-device .opening-lang-toggle-seg.is-current {
+  font-size: 1.35rem;
 }
 @keyframes opening-screen-fade-in {
   from { opacity: 0; }
@@ -16106,6 +16130,13 @@ body.theme-light .mdb-setting-btn {
   background: rgba(30, 41, 59, 0.9);
   border: 1px solid rgba(148, 163, 184, 0.5);
   color: #e2e8f0;
+}
+/* デッキ選択からホームへ戻る逃げ道（対局開始前の入口だけに出す）。おまかせ/新規作成より
+   目立たない控えめな配色にして、誤って押しにくくする。 */
+.mds-action-home {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: #94a3b8;
 }
 .mds-action:hover {
   filter: brightness(1.08);

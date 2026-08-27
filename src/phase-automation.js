@@ -206,6 +206,24 @@ export function getHandEffectBusyStuckMs() {
   return handEffectBusy && handEffectBusySince ? Date.now() - handEffectBusySince : 0;
 }
 
+// #174（ユーザー報告）: 奇跡の森 マンズウッド（first-green）の手札効果で公開ドローした直後、
+// ハンドフェイズが自動的に終了してしまい、引いたカードを見る/使う間が無かった。
+// 公開ドローは「引いたカードをこのターン使うため」にわざわざコストを払って行う行為なので、
+// 引いた直後に「今すぐ使える手札効果が無い」という自動判定でフェイズを閉じてしまうのは
+// プレイヤーの意図に反する（引いた札の内容を確認する時間も無くなる）。公開ドローが起きた席は
+// そのターンの間だけハンドフェイズの自動スキップ対象から外し、本人の手動スキップ（または
+// ターン終了）を待つ。ターンが変わったら自動的に解除される（turnNumberで判定）。
+let publicDrawNoAutoSkip = { player: null, turnNumber: null };
+export function notePublicDrawForHandPhase(player) {
+  publicDrawNoAutoSkip = { player, turnNumber: getState().turnNumber ?? null };
+}
+function isHandAutoSkipSuppressedByPublicDraw(player) {
+  return (
+    publicDrawNoAutoSkip.player === player &&
+    publicDrawNoAutoSkip.turnNumber === (getState().turnNumber ?? null)
+  );
+}
+
 // ユーザー報告「『○○のターン』の表示がちゃんと消えてからフェイズのモーダル表示に
 // 移ってほしい」。ターン切替時、announceTurnChange()（turn-announce.js）のトーストと
 // このモジュールのannouncePhase("lock")トーストが同じrender()タイミングで同時に
@@ -785,7 +803,7 @@ function enterPhase(phase, player) {
     // ハンドフェイズの自動スキップは、ロック済みのファースト/エターナルが使える場合は
     // 行わない（手札が空/使えなくてもロック済みのF/Eをハンドフェイズで使えるため。
     // ユーザー指摘、hasUsableLockedFirstOrEternal参照）。
-    if (phase === "hand" && !hasUsableLockedFirstOrEternal(player)) {
+    if (phase === "hand" && !hasUsableLockedFirstOrEternal(player) && !isHandAutoSkipSuppressedByPublicDraw(player)) {
       if (handIsEmpty(player)) {
         if (isMine) showPhaseSkipModal("手札が無いため、ハンドフェイズを自動的にスキップしました。");
         advancePhaseAfterSkip();
@@ -934,6 +952,7 @@ export function reconcilePhaseAutomation() {
       !handEffectBusy &&
       !skipTransitionPending &&
       !hasUsableLockedFirstOrEternal(player) &&
+      !isHandAutoSkipSuppressedByPublicDraw(player) && // #174: 公開ドローした直後は自動で閉じない
       (handIsEmpty(player) || handHasNoUsableCards(player))
     )
       advancePhase();

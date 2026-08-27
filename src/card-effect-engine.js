@@ -25,7 +25,7 @@ import { logAction } from "./action-log.js";
 // （main.jsの通常ドロップ処理でも使っている）をそのまま流用する。victory.jsは
 // card-effect-engine.jsを（直接にも間接にも）importしていないため循環参照の
 // 心配はない。
-import { wouldCompleteLockWithNewIndex, getLockedCount } from "./victory.js";
+import { wouldCompleteLockWithNewIndex, getLockedCardCount } from "./victory.js";
 
 // ユーザー確認済み「効果自動処理は基本設定でON/OFFを選べるように」。他の「アニメーションを
 // 減らす」設定（motion-prefs.js）と同じくセッション限りの設定（ページ再読み込みで
@@ -174,9 +174,14 @@ export function resetHandEffectUsage() {
 // ため、追色コストとしてはどの色の代わりにも使える。
 // main.jsのゴメンナサイ最後のロック割り込み（続き64）が、追色コスト候補の算出に
 // そのまま再利用する。
+// #169b（ユーザー報告）: 手札公開エリア(publicDraw)のカードもルール上は「手札」
+// （getHandTokensの定義、続き55）。以前は zone === "hand" だけを見ていたため、公開ドロー中の
+// 同色カードを追色コストに使えず、マスチェンジ等の手札効果が「コストを払えない」扱いで
+// 使えなかった。getHandTokensと同じ範囲（hand + publicDraw）に揃える。
 export function findSameColorDiscardCandidates(cardTokenId, color, player) {
   return getState().tokens.filter((t) => {
-    if (t.kind !== "card" || t.location.zone !== "hand" || t.location.player !== player || t.id === cardTokenId) return false;
+    if (t.kind !== "card" || t.location.player !== player || t.id === cardTokenId) return false;
+    if (t.location.zone !== "hand" && t.location.zone !== "publicDraw") return false;
     if (t.cardId === "rainbow-shard") return true;
     return getCardDefinition(t.cardId)?.color === color;
   });
@@ -659,7 +664,9 @@ export function getLockableHandTokensExceptFinal(player) {
 // 「１番少なくロックしている」の判定が狂っていた。getLockedCountはplaced・無色を除外し、正式に
 // ロックされた色スロットだけを数える＝勝利判定と同じ基準）。
 function countLockedCardsFor(player) {
-  return getLockedCount(player);
+  // #170: 色数(getLockedCount)ではなく枚数(getLockedCardCount)で数える。なないろの欠片を
+  // 2枚同じスロットへロックした場合に「2枚→1」と過少カウントしていたため。
+  return getLockedCardCount(player);
 }
 
 // カウンターロック専用: 「１番少なくロックしている」＝参加している全プレイヤーの中で

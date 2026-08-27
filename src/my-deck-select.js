@@ -115,7 +115,11 @@ function renderBody(bodyEl) {
 }
 
 // durationSec: カウントダウン秒数（0以下でカウントダウン無し＝ロビーからの事前選択用）。
-export function openDeckSelect({ durationSec = 60, onResolved, subtitle } = {}) {
+// onHome: 指定するとアクション行に「🏠 ホームに戻る」ボタンを出す（ユーザー要望：デッキ選択
+// まで来てからやめたい時に、戻る手段が無く詰まっていた）。対局が既に始まっている最中の
+// デッキ選択（main.jsのshowDeckSelect）では抜けられると困るので、渡すのは対局開始前の
+// 入口（ランク戦のマッチング前・物語の本気エイドス戦の開始前）だけにしている。
+export function openDeckSelect({ durationSec = 60, onResolved, subtitle, onHome } = {}) {
   if (overlayEl) return;
   resolvedOnce = false;
   onResolvedCb = onResolved;
@@ -173,6 +177,20 @@ export function openDeckSelect({ durationSec = 60, onResolved, subtitle } = {}) 
     });
   });
   actions.append(rndBtn, newBtn);
+  if (typeof onHome === "function") {
+    const homeBtn = document.createElement("button");
+    homeBtn.type = "button";
+    homeBtn.className = "mds-action mds-action-home";
+    homeBtn.textContent = "🏠 ホームに戻る";
+    homeBtn.addEventListener("click", () => {
+      if (resolvedOnce) return;
+      resolvedOnce = true; // カウントダウンの自動確定（finish）が後から走らないように
+      clearInterval(countdownTimer);
+      closeDeckSelect();
+      onHome();
+    });
+    actions.appendChild(homeBtn);
+  }
   panel.appendChild(actions);
 
   overlayEl.appendChild(panel);

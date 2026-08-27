@@ -291,6 +291,10 @@ async function startStoryBattle(stage, { practice = false } = {}) {
         durationSec: 0,
         subtitle: "本気のエイドス戦で使うマイデッキを選んでください。「おまかせ」でランダムも可。",
         onResolved: (resolved) => beginSetup(resolved ?? null),
+        // まだ配布演出前（盤面は空）なので、CPU戦の準備を片付けてホームへ戻せる（ユーザー要望）。
+        onHome: () => {
+          void teardownStoryBattle().then(() => goHome());
+        },
       });
     } else {
       beginSetup();

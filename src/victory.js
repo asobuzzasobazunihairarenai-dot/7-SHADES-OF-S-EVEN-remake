@@ -102,6 +102,25 @@ export function getLockedCount(player) {
   return lockedColorIndexes(player).size;
 }
 
+// カウンターロック／プレゼントの「１番少なくロックしている」判定用の“枚数”。
+// #170（ユーザー報告）: 判定に色数（getLockedCount＝スロットの集合サイズ）を使っていたため、
+// なないろの欠片の手札効果（LOCK_PAIR）で2枚を同じ色スロットへ重ねてロックした場合に
+// 「2枚→1」と過少カウントされ、プレゼントの対象がずれていた。docs/cards.mdの補足は
+// 「１番少なくロックしている」＝「ロックしている枚数が１番少ないこと」と明記しているので、
+// ここは色数ではなく枚数を数える（除外条件＝無色カード・placedプレースホルダーは
+// lockedColorIndexesと完全に同じ＝正式にロックされたカードだけ）。
+export function getLockedCardCount(player) {
+  const side = SEAT_TO_SIDE[player];
+  return getState().tokens.filter(
+    (t) =>
+      t.kind === "card" &&
+      t.location.zone === "lock" &&
+      t.location.side === side &&
+      !isColorlessLockCard(t.cardId) &&
+      !t.placed
+  ).length;
+}
+
 // ランク戦のポイント反映用: 座席→順位（1-indexed）のマップを算出する。勝者=1位、以降は
 // ロック色数の多い順（同数は同順位＝競技順位。1,2,2,4 のように詰める）。ロックは常に公開情報なので
 // 全クライアントで同じ結果になる（サーバー側はこの順位を信頼して2〜4人のポイント表を適用する）。

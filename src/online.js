@@ -737,11 +737,12 @@ export function getGoogleDisplayName() {
 // ユーザー要望「配信時にメールアドレスが画面に映るのが気になる（タイトルのログイン欄・
 // 部屋作成欄）」。ログイン中の表示は、メールアドレスをそのまま出さず、名前があれば名前、
 // 無ければメールを伏せ字化（a***@example.com）、匿名は「ゲスト」にする。
+// ユーザー要望「Googleの名前を一切出さない」: 以前はuser_metadataのfull_name/name
+// （＝Googleアカウントの本名）を優先表示していたが、本名が画面に出るのを避けるため
+// 使わない。名前があってもGoogle由来なので出さず、常に伏せ字メール（匿名は「ゲスト」）にする。
 export function getAccountDisplayLabel(user) {
   if (!user) return "";
   if (user.is_anonymous) return "ゲスト";
-  const name = user.user_metadata?.full_name ?? user.user_metadata?.name;
-  if (name) return name;
   const email = user.email;
   if (email && email.includes("@")) {
     const [local, domain] = email.split("@");

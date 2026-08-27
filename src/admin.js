@@ -1541,6 +1541,17 @@ export function isManualSeatMode() {
   return manualSeatMode;
 }
 
+// 捨て場の中身（捨て札一覧）を右クリック／ダブルタップで閲覧できるようにするか。
+// デフォルトOFF（閲覧不可）——捨て場は山札が尽きた時にそのままの並びで山札へ戻る
+// （REFILL_DECK_FROM_DISCARD、シャッフルしない）ため、捨て札一覧をスクリーンショットで
+// 保存しておくと「次の山札の並び」が全部分かってしまう不正ができてしまう（ユーザー判断）。
+// 開発・検証時だけ管理者モードからONにできるようにする。
+let discardListEnabled = false;
+
+export function isDiscardListEnabled() {
+  return discardListEnabled;
+}
+
 // ロックしていても使えるカード（ファーストカード・エターナルカード）をロックエリア内で
 // 目立たせる演出の種類。"orbit"=色の球がふちを回る（デフォルト）、"shine"=斜めに光る帯が
 // 定期的に横切る。main.jsのbuildFlatCardが参照する。
@@ -2032,6 +2043,28 @@ const TOGGLE_SECTIONS = [
       seatModeRow.appendChild(seatModeCheckbox);
       seatModeRow.appendChild(seatModeLabel);
       content.appendChild(seatModeRow);
+    },
+  },
+  {
+    title: "捨て札一覧の閲覧",
+    category: "behavior",
+    buildContent: (content) => {
+      const row = document.createElement("label");
+      row.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = discardListEnabled;
+      checkbox.addEventListener("change", () => {
+        discardListEnabled = checkbox.checked;
+        window.dispatchEvent(new CustomEvent("admin:change"));
+        updateExportRef.current();
+      });
+      const label = document.createElement("span");
+      label.textContent =
+        "捨て場の右クリック／ダブルタップで捨て札一覧を見られるようにする（オフ=見られない。捨て場はそのままの並びで山札に戻るため、一覧のスクショで次の山札が分かってしまう不正防止）";
+      row.appendChild(checkbox);
+      row.appendChild(label);
+      content.appendChild(row);
     },
   },
   {
@@ -2778,6 +2811,7 @@ function buildPanel(rebuildSlidersRef) {
     const turnGlowWhite = document.documentElement.style.getPropertyValue("--turn-glow-rgb").trim() === "255, 255, 255";
     const toggleLines = [
       `manualSeatMode: ${manualSeatMode}`,
+      `discardListEnabled: ${discardListEnabled}`,
       `turnGlowWhite: ${turnGlowWhite}`,
       `usableLockedEffect: "${usableLockedEffect}"`,
       `cardArrivalModalPersistent: ${cardArrivalModalPersistent}`,

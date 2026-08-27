@@ -81,6 +81,9 @@ export async function startRankedMatchmaking(onExit) {
     onResolved: (resolved) => {
       void beginQueue(resolved);
     },
+    // キューに入る前にやめたい時の逃げ道（ユーザー要望）。まだenqueueしていないので
+    // ホームへ戻すだけでよい。
+    onHome: () => exitToHome?.(),
   });
 }
 

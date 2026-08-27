@@ -35,7 +35,7 @@ import { APP_VERSION } from "./app-version.js";
 import { isFlatten2dMode } from "./tablet-2d-mode.js";
 import { startTitlePetWalk } from "./title-pet.js";
 import { t } from "./ui-text.js";
-import { getLang, setLang, onLangChange } from "./i18n.js";
+import { getLang, setLang, onLangChange, SUPPORTED_LANGS, LANG_LABEL } from "./i18n.js";
 // （旧CPU戦ボタン撤去に伴い cpu-battle.js の静的importも撤去。これで opening-screen.js が
 //  cpu-battle.js を芋づるで静的に読み込む依存辺が消え、循環import由来の黒画面リスクも下がる。）
 
@@ -480,19 +480,29 @@ export function initOpeningScreen() {
   overlay.appendChild(versionBadge);
 
   // 言語トグル（日本語 / English）。初回訪問時はまだオプション画面（言語設定）に到達できない
-  // ため、最初のこの画面で言語を選べるようにする。押すと即座に日本語↔英語を切り替える。
-  // #opening-screenの直接の子にして画面右上（1600x900仮想解像度基準）へ固定する。
-  const langToggleBtn = document.createElement("button");
-  langToggleBtn.type = "button";
+  // ため、最初のこの画面で言語を選べるようにする。
+  // ユーザー要望: 「切り替え先だけを1つ出す」形だと、今どちらのモードなのかが分からなかった
+  // ため、両方の言語を常に並べて出し、**今の言語を大きく明るく**・切り替え先を小さく淡く
+  // 表示する（見ただけで現在のモードが分かる）。あわせて、右上のオプションアイコン
+  // （#options-menu-button, top:0.3rem/right:1rem）と重なっていたので画面左上へ移した。
+  const langToggleBtn = document.createElement("div");
   langToggleBtn.className = "opening-lang-toggle";
+  const langSegments = SUPPORTED_LANGS.map((lang) => {
+    const seg = document.createElement("button");
+    seg.type = "button";
+    seg.className = "opening-lang-toggle-seg";
+    seg.dataset.lang = lang;
+    seg.textContent = LANG_LABEL[lang] ?? lang;
+    seg.addEventListener("click", () => {
+      if (getLang() !== lang) setLang(lang);
+    });
+    langToggleBtn.appendChild(seg);
+    return seg;
+  });
   const updateOpeningLangToggle = () => {
-    // 現在の言語ではない方（＝切り替え先）を表示する
-    langToggleBtn.textContent = getLang() === "ja" ? "English" : "日本語";
+    for (const seg of langSegments) seg.classList.toggle("is-current", seg.dataset.lang === getLang());
   };
   updateOpeningLangToggle();
-  langToggleBtn.addEventListener("click", () => {
-    setLang(getLang() === "ja" ? "en" : "ja");
-  });
   overlay.appendChild(langToggleBtn);
 
   // ユーザー要望の演出一式: 起動直後は真っ白な画面+7色のオーラ+STARTボタンだけを見せ

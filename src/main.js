@@ -4,6 +4,7 @@
 import {
   initAdminMode,
   getUsableLockedEffect,
+  isDiscardListEnabled,
   isGatePedestalVisible,
   isSelfBoardAvatarVisible,
   isSelfNameLabelVisible,
@@ -49,6 +50,7 @@ import {
   getHandEffectBusyStuckMs,
   isMovePhaseActive,
   markPhaseMoveActionTaken,
+  notePublicDrawForHandPhase,
   setTurnAnnounceActive,
   getCurrentPhase,
   isCardLockable,
@@ -318,7 +320,6 @@ import {
   onAnytimeCheckpointEvents,
   getSyncedIdentity,
   getGoogleAvatarUrl,
-  getGoogleDisplayName,
   fetchMyCustomAvatarUrl,
   getRoomName,
   registerIdentityApplier,
@@ -2074,15 +2075,35 @@ async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
   // 賢いCPUが渡す側の時は、渡す札を賢く選ぶ（ユーザー要望2026-08-08「未ロック＝まだ要る色は
   // なるべく渡さない」。自分の要る色・相手の要る色・貴重札を避け、双方ロック済みの色を優先）。
   // それ以外（人間・オンライン離脱代行）は従来どおり対話ピッカーで選ぶ。
+  // #176（ユーザー確定方針）: スリカエは常に「交換」——受け取るだけ／渡すだけにはならない。
+  // 渡す候補は必ずstateから求める（DOMの再描画待ちに依存して候補0件→交換不成立、という
+  // 取りこぼしを無くすため）。奪った直後なので、元の手札が0枚でもここは最低1枚（＝今
+  // 受け取ったカード自身）ある。1枚しか無い＝それを返すしかないので、選ばせずに自動で
+  // 返す（結果として「1枚取って即返す」＝純増なしになる。ユーザー確定方針）。
+  // 公開エリア(publicDraw)のカードもルール上は手札（getHandTokensの定義）。以前のDOM基準の
+  // ピッカーも手札公開エリアを候補に含めていたので、その範囲を維持する。
+  const myHandTokens = getState().tokens.filter(
+    (t) =>
+      t.kind === "card" &&
+      t.location.player === player &&
+      (t.location.zone === "hand" || t.location.zone === "publicDraw")
+  );
   let myCard;
   if (isCpuBrainDriving(player)) {
-    const handIds = getState()
-      .tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player)
-      .map((t) => t.id);
-    const giveId = chooseSwapGiveCard(handIds, player, targetPlayer);
-    myCard = getState().tokens.find((t) => t.id === giveId) || null;
+    const giveId = chooseSwapGiveCard(myHandTokens.map((t) => t.id), player, targetPlayer);
+    myCard = getState().tokens.find((t) => t.id === giveId) || myHandTokens[0] || null;
+  } else if (myHandTokens.length === 1) {
+    myCard = myHandTokens[0];
+    announceEffectNoticeForEffect(
+      "yellow-sleight-of-hand",
+      "手札が1枚しか無いため、今受け取ったカードをそのまま相手へ渡します（スリカエは必ず1枚ずつの交換です）。"
+    );
   } else {
-    myCard = await requestHandCardChoiceForEffect(player, "相手に渡すカードを手札から選択してください");
+    myCard = await requestHandCardChoiceForEffect(
+      player,
+      "相手に渡すカードを手札から選択してください",
+      new Set(myHandTokens.map((t) => t.id))
+    );
   }
   if (!myCard) {
     await moveAndSyncForEffect(theirCard.id, { zone: "hand", player: targetPlayer });
@@ -2907,6 +2928,9 @@ async function publicDrawForEffect(player, count) {
   if (drawnCardIds.length > 0) {
     playSound("cardDraw");
     announceHandPickups(player, drawnCardIds.map((cardId) => ({ cardId, wasPublic: true })));
+    // #174: 公開ドローした直後にハンドフェイズが自動終了して、引いた札を見る/使う間が
+    // 無くならないように、このターンのハンドフェイズ自動スキップを抑止する。
+    notePublicDrawForHandPhase(player);
   }
   render();
   return drawnCardIds;
@@ -2954,6 +2978,9 @@ async function publicDrawThenRevealForEffect(player, count) {
       drawnCardIds.push(cardId);
     }
   }
+  // #174: 公開ドローした直後にハンドフェイズが自動終了しないようにする（描画のdeferとは
+  // 無関係にドローは確定しているので、defer中かどうかに関わらずここで記録する）。
+  if (drawnCardIds.length > 0) notePublicDrawForHandPhase(player);
   // defer中は通知・描画を endPublicDrawDefer 側でまとめて行うので、ここでは何もしない
   // （＝じらしフリップが全部終わってから公開エリアに一斉に並ぶ。ユーザー要望2026-08-14）。
   if (!publicDrawDeferActive) {
@@ -3082,7 +3109,11 @@ function requestPlaceSourceChoiceForEffect() {
     // ボタンへのクリックが全てbackdrop側（＝キャンセル扱い）に奪われていた。
     // requestOpponentHandRitualPick等、同じ#sleight-ritual-modalを使う他の箇所と同じ
     // 10620（モーダル本体より低い値）に合わせて修正。
-    const backdrop = createBackdrop(() => finish(null), { dim: true, zIndex: 10620 });
+    // #175（ユーザー報告）: 外側をクリックすると finish(null) で閉じてしまい、選択せずに
+    // 「置かない」まま次のプレイヤーへ進んでしまっていた。ここは効果の解決に必ず必要な選択
+    // （山札から/手札から）なので、外クリックでは閉じない必須選択にする（✕ボタンも無い）。
+    // 放置しても、下の activeEffectPicker 登録によりタイムアウト時は自動で選ばれる。
+    const backdrop = createBackdrop(() => {}, { dim: true, zIndex: 10620 });
     const modal = document.createElement("div");
     // 見た目は儀式的ピックモーダルと同じ紫系スタイルを流用する。
     modal.id = "sleight-ritual-modal";
@@ -8350,6 +8381,18 @@ function tableTransform(translatePart, tilt, s, flat) {
   return `${head}scale(${s}, ${s * cos})`;
 }
 
+// #2（ユーザー報告）: CPU戦で手札が0枚→1枚になった瞬間など、手札の枚数が変わるたびに
+// 画角がわずかに動いてしまう。原因は自動フィットの計算（getEffectiveFitRect /
+// measureHandFanExtent）が実際の .hand-card の到達範囲を測っているため、手札が1枚増減する
+// だけで必要な縮小率がほんの少し変わること。フィット自体はこの実測方式でなければ
+// タブレットで手札が見えなくなる等の問題が再発するので測り方は変えず、代わりに
+// 「前回とほぼ同じ倍率なら前回の倍率を据え置く」不感帯(デッドゾーン)を設ける。
+// ・画面サイズ/ズーム/2D設定など“画角そのものが変わる条件”が変わった時は据え置かない
+//   （下の fitKey が変わればデッドゾーンを無効化して必ず新しい倍率を適用する）。
+// ・不感帯は 2%。フィットは元々ステージの3%を余白として確保しているので、2%分だけ
+//   古い（＝わずかに大きい）倍率を据え置いても画面外へはみ出さない。
+const FIT_SCALE_DEADZONE = 0.02;
+let lastNormalFit = { key: null, scale: null };
 function applyNormalFit() {
   const table = document.getElementById("game-table");
   const { tilt, offsetX: flatOffsetX, offsetY: flatOffsetY, scaleMultiplier, flat } = getFlatTableAdjustments();
@@ -8396,8 +8439,12 @@ function applyNormalFit() {
   // 常に安全側なので影響を受けず、そちらだけ効いているように見えた）。自動フィット
   // （hasManualViewがfalseの間）の時だけ補正するようにし、ユーザーが意図的にズーム/パン
   // した後は、はみ出しを許容してでもその操作を尊重する。
+  // 画角が変わる条件（ステージ倍率・カメラズーム・手動ズーム・2Dの倍率・平面かどうか）。
+  // これが前回と同じ間だけ、手札の増減による微小な倍率変化を据え置く（#2）。
+  const fitKey = `${currentStageScale}|${zoom}|${manualZoom}|${scaleMultiplier}|${flat}|${tilt}`;
   if (hasManualView) {
     currentTableScale = scale;
+    lastNormalFit = { key: fitKey, scale };
     return;
   }
   const marginW = STAGE_WIDTH * 0.03;
@@ -8462,6 +8509,17 @@ function applyNormalFit() {
     }
     applyScale(scale);
   }
+  // #2: 前回と同じ画角条件で、倍率の差が不感帯の中なら前回の倍率を据え置く（手札の増減で
+  // 画角がカクッと動かないように）。差が大きい時（本当に収まらなくなった時）は普通に更新する。
+  if (
+    lastNormalFit.key === fitKey &&
+    lastNormalFit.scale > 0 &&
+    Math.abs(scale - lastNormalFit.scale) / lastNormalFit.scale < FIT_SCALE_DEADZONE
+  ) {
+    scale = lastNormalFit.scale;
+    applyScale(scale);
+  }
+  lastNormalFit = { key: fitKey, scale };
   currentTableScale = scale;
 }
 
@@ -8978,7 +9036,7 @@ function getPileTooltipText(el) {
     // ユーザー要望: 捨て場のツールチップは一番上のカード名ではなく「捨て場」と枚数を出す
     // （拡大プレビュー画像で一番上のカードは分かるため、テキストは山の名前でよい）。
     // 捨て場はダブルクリック／ダブルタップで一覧を開ける（右クリックの無い端末向けの導線）。
-    return `${label}　${count}枚（ダブルタップで捨て札一覧）`;
+    return isDiscardListEnabled() ? `${label}　${count}枚（ダブルタップで捨て札一覧）` : `${label}　${count}枚`;
   }
   return `${label}　${count}枚`;
 }
@@ -9735,7 +9793,12 @@ function initContextMenuHandlers() {
         items.push({ label: "山札一覧を見る", onClick: () => openDeckViewer() });
       }
       if (hit.matches(".stack[data-pile]") && hit.dataset.pile === "discard") {
-        items.push({ label: "捨て札一覧を見る", onClick: () => showDiscardListModal() });
+        // 捨て札一覧は既定では見せない（管理者モードのトグルでのみ有効化）。捨て場は
+        // シャッフルせずそのままの並びで山札に戻るため、一覧のスクリーンショットから
+        // 次の山札の並びが分かってしまう不正を防ぐ（ユーザー判断）。
+        if (isDiscardListEnabled()) {
+          items.push({ label: "捨て札一覧を見る", onClick: () => showDiscardListModal() });
+        }
       }
       if (hit.classList.contains("piece")) {
         items.push({ label: "駒スキンを変更", onClick: () => openPieceSkinPicker() });
@@ -9839,7 +9902,7 @@ function initDragHandlers() {
     // 盤面カードの反転と同じ「同じ対象へ一定時間内に2回」で判定する。1回目はそのまま下の通常処理
     // へ進める（タッチの素早いタップは同じ場所へ戻すだけ・マウスは同じ場所でドロップされるだけの
     // 無害な操作）。この判定はタッチ/マウス両方で効くよう、下のタッチ分岐より手前に置く。
-    if (hit.kind === "pile" && hit.pile === "discard") {
+    if (hit.kind === "pile" && hit.pile === "discard" && isDiscardListEnabled()) {
       const now = Date.now();
       const isDoubleTap = now - lastDiscardTapTime < DOUBLE_CLICK_MS;
       lastDiscardTapTime = isDoubleTap ? 0 : now; // 3連タップを2回分に数えない
@@ -12932,11 +12995,11 @@ async function openAvatarPicker() {
 // 差し替えて名前欄と一緒に確認できるようにしてある。
 async function openFirstLoginProfileModal() {
   const seat = getSelfSeat();
-  const googleName = getGoogleDisplayName();
   const googleAvatarUrl = getGoogleAvatarUrl();
-  // 自動で設定（ユーザー要望）。この時点ではまだ部屋に入っていないため、getSelfSeat()は
-  // 常に"A"を返す（registerIdentityApplierのコールバックと同じ理由）。
-  if (googleName) setPlayerName(seat, googleName);
+  // 画像だけ自動で設定（ユーザー要望）。この時点ではまだ部屋に入っていないため、
+  // getSelfSeat()は常に"A"を返す（registerIdentityApplierのコールバックと同じ理由）。
+  // ニックネームはGoogleアカウントの本名が入ってしまうため自動設定しない
+  // （ユーザー要望「Googleの名前を一切出さない」）。ここで自分で決めてもらう。
   if (googleAvatarUrl) setPlayerAvatar(seat, googleAvatarUrl);
   render();
 
@@ -12958,7 +13021,7 @@ async function openFirstLoginProfileModal() {
 
   const body = document.createElement("div");
   body.className = "first-login-profile-body";
-  body.textContent = "Googleアカウントのニックネームと画像から自動で設定しました。このまま始めますか？ここで変更もできます。";
+  body.textContent = "ニックネームとアバターを決めましょう（あとから変更できます）。";
   modal.appendChild(body);
 
   const avatarPreview = document.createElement("div");
@@ -12998,6 +13061,7 @@ async function openFirstLoginProfileModal() {
   const nameInput = document.createElement("input");
   nameInput.className = "first-login-profile-name-input";
   nameInput.maxLength = 12;
+  nameInput.placeholder = "ニックネームを入力";
   nameInput.value = getPlayerName(seat);
   const commitName = () => {
     if (nameInput.value.trim()) setPlayerName(seat, nameInput.value);
