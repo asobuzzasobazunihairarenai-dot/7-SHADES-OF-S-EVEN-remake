@@ -16,22 +16,23 @@ import { getPetShopItems } from "./pet-skins.js";
 import { getAvatarShopItems } from "./player-identity.js";
 import { isItemUnlocked } from "./online.js";
 
+// label は多言語化のため labelKey（ui-text.js のキー）で持ち、表示側（shop.js）が t() で解決する。
 export const SHOP_CATEGORIES = [
-  { key: "piece-skin", label: "🎲 駒スキン", items: getSkinShopItems() },
-  { key: "card-back", label: "🂠 カード裏面", items: getCardBackShopItems() },
-  { key: "playmat", label: "🟩 プレイマット", items: getPlaymatShopItems() },
-  { key: "background", label: "🖼️ 背景画像", items: getBackgroundShopItems() },
+  { key: "piece-skin", labelKey: "shop.cat.pieceSkin", items: getSkinShopItems() },
+  { key: "card-back", labelKey: "shop.cat.cardBack", items: getCardBackShopItems() },
+  { key: "playmat", labelKey: "shop.cat.playmat", items: getPlaymatShopItems() },
+  { key: "background", labelKey: "shop.cat.background", items: getBackgroundShopItems() },
   // ユーザー要望「ペットをショップに。全て有料・初期は未所持・少し高め（500→300）」。
-  { key: "pet", label: "🐾 ペット", items: getPetShopItems() },
+  { key: "pet", labelKey: "shop.cat.pet", items: getPetShopItems() },
   // ユーザー要望「国王アバターはショップで200で有料に」。色アバターは無料のまま、
   // 国王/女王アバターだけを有料商品として並べる（getAvatarShopItems）。
-  { key: "avatar", label: "😀 アバター", items: getAvatarShopItems() },
+  { key: "avatar", labelKey: "shop.cat.avatar", items: getAvatarShopItems() },
   // ユーザー要望2026-08-12「作成できるマイデッキは基本2個。ショップで上限を+2できる（100コイン）」。
   // 購入するとisItemUnlocked("mydeck-extra-slots")がtrueになり、my-deck-list.jsが maxDeckSlots で
   // 作成上限を2→4に上げる。見た目上の画像はマイデッキアイコンを流用。
   {
     key: "mydeck",
-    label: "🃏 マイデッキ枠",
+    labelKey: "shop.cat.mydeck",
     items: [
       {
         itemKey: "mydeck-extra-slots",

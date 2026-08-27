@@ -16,6 +16,8 @@
 import { getCachedUser, getMyCurrencyBalance, isItemUnlocked, purchaseItem } from "./online.js";
 import { refreshCurrencyDisplay } from "./currency-display.js";
 import { SHOP_CATEGORIES, getShopCompletionStats } from "./shop-content.js";
+import { t } from "./ui-text.js";
+import { onLangChange } from "./i18n.js";
 import { getSkinImagePathForVariant } from "./piece-skins.js";
 import { petSpriteSrc } from "./pet-skins.js";
 // #231: 全画面ページは「同時に1つだけ」に統一する。他のページの opener（ranking/help/profile）は
@@ -33,6 +35,8 @@ let completionEl = null;
 let statusEl = null;
 let tabsEl = null;
 let gridEl = null;
+let backBtnEl = null;
+let titleTextEl = null;
 let activeCategoryKey = SHOP_CATEGORIES[0]?.key ?? null;
 
 function close() {
@@ -51,10 +55,10 @@ function setStatus(text, isError) {
 // ユーザー向けの日本語に変換する。
 function describePurchaseError(err) {
   const message = String(err?.message ?? err ?? "");
-  if (message.includes("insufficient_balance")) return "通貨が足りません。";
-  if (message.includes("already_owned")) return "既に所持しています。";
-  if (message.includes("not_authenticated")) return "ログインしてください。";
-  return `購入に失敗しました（${message}）`;
+  if (message.includes("insufficient_balance")) return t("shop.alert.notEnough");
+  if (message.includes("already_owned")) return t("shop.alert.alreadyOwned");
+  if (message.includes("not_authenticated")) return t("shop.alert.loginNeeded");
+  return t("shop.buyFailed", { msg: message });
 }
 
 // ショップのペット画像をクリックするとアクションを1つ再生する（ユーザー要望2026-08-12
@@ -72,7 +76,7 @@ const PET_ACTIONS = [
 ];
 function attachPetPlayground(thumb, img, sprite) {
   thumb.classList.add("shop-thumb-pet");
-  img.title = "クリックで動くよ";
+  img.title = t("shop.petTip");
   let ai = 0;
   let revertTimer = null;
   const toStatic = () => {
@@ -153,7 +157,7 @@ function buildItemCard(item) {
   ribbon.className = "shop-item-ribbon";
   if (owned) {
     ribbon.classList.add(item.cost === 0 ? "is-free" : "is-owned");
-    ribbon.textContent = item.cost === 0 ? "無料" : "所持済み";
+    ribbon.textContent = item.cost === 0 ? t("shop.ribbon.free") : t("shop.ribbon.owned");
     thumb.appendChild(ribbon);
   } else {
     thumb.classList.add("is-locked");
@@ -217,14 +221,14 @@ function buildItemCard(item) {
     buyBtn.textContent = `🪙 ${item.cost}`;
     buyBtn.addEventListener("click", async () => {
       if (!getCachedUser()) {
-        setStatus("購入にはログインが必要です。", true);
+        setStatus(t("shop.alert.buyLoginNeeded"), true);
         return;
       }
       buyBtn.disabled = true;
-      setStatus("購入中...");
+      setStatus(t("shop.buying"));
       try {
         await purchaseItem(item.itemKey, item.cost);
-        setStatus(`「${item.label}」を購入しました！`);
+        setStatus(t("shop.purchased", { name: item.label }));
         await Promise.all([refreshCurrencyDisplay(), refreshBalance()]);
         renderGrid();
       } catch (err) {
@@ -255,7 +259,7 @@ function renderTabs() {
     tab.type = "button";
     tab.className = "shop-tab";
     if (category.key === activeCategoryKey) tab.classList.add("is-active");
-    tab.textContent = category.label;
+    tab.textContent = t(category.labelKey);
     tab.addEventListener("click", () => {
       activeCategoryKey = category.key;
       renderTabs();
@@ -269,16 +273,16 @@ async function refreshBalance() {
   if (!balanceEl) return;
   const user = getCachedUser();
   if (!user) {
-    balanceEl.textContent = "ログインすると通貨を貯められます";
+    balanceEl.textContent = t("shop.balance.loginPrompt");
     if (completionEl) completionEl.textContent = "";
     return;
   }
   const balance = await getMyCurrencyBalance();
-  balanceEl.textContent = `所持通貨: 🪙 ${balance}`;
+  balanceEl.textContent = t("shop.balance", { n: balance });
   // ユーザー要望「ショップ画面とマイページにアイテムコンプリート率を表示したい」への対応。
   if (completionEl) {
     const { owned, total, percent } = getShopCompletionStats();
-    completionEl.textContent = `🏆 コレクション達成率: ${percent}%（${owned}/${total}）`;
+    completionEl.textContent = t("shop.completion", { percent, owned, total });
   }
 }
 
@@ -409,7 +413,8 @@ function buildPanel() {
   const backBtn = document.createElement("button");
   backBtn.type = "button";
   backBtn.id = "shop-panel-back";
-  backBtn.textContent = "← 戻る";
+  backBtn.textContent = t("common.back");
+  backBtnEl = backBtn;
   backBtn.addEventListener("click", close);
   header.appendChild(backBtn);
 
@@ -419,7 +424,11 @@ function buildPanel() {
   titleIcon.src = "assets/icons/store.png";
   titleIcon.alt = "";
   titleEl.appendChild(titleIcon);
-  titleEl.appendChild(document.createTextNode("ショップ"));
+  const titleText = document.createElement("span");
+  titleText.className = "shop-panel-title-text";
+  titleText.textContent = t("shop.title");
+  titleTextEl = titleText;
+  titleEl.appendChild(titleText);
   header.appendChild(titleEl);
 
   const headerInfo = document.createElement("div");
@@ -489,4 +498,14 @@ export function initShop() {
   panelEl = buildPanel();
   panelEl.style.display = "none";
   document.body.appendChild(panelEl);
+  // 言語切替時、パネルが表示中なら中身を新しい言語で更新する（静的な戻る/タイトルも）。
+  onLangChange(() => {
+    if (backBtnEl) backBtnEl.textContent = t("common.back");
+    if (titleTextEl) titleTextEl.textContent = t("shop.title");
+    if (panelEl && panelEl.style.display !== "none") {
+      renderTabs();
+      renderGrid();
+      refreshBalance();
+    }
+  });
 }

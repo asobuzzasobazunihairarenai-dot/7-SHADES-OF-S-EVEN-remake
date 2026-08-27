@@ -7,6 +7,8 @@
 import { fetchLeaderboard } from "./stats-profile.js";
 import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
+import { t } from "./ui-text.js";
+import { onLangChange } from "./i18n.js";
 import { getOptionArea, syncFullScreenPageActive } from "./option-area.js";
 import { closeShopPanel } from "./shop.js";
 import { closeProfilePage } from "./profile-page.js";
@@ -21,9 +23,9 @@ let infoBackdropEl = null;
 let infoModalEl = null;
 
 const TABS = [
-  { key: "winRate", label: "勝率", valueLabel: (row) => `${row.winRate}%` },
-  { key: "wins", label: "勝利数", valueLabel: (row) => `${row.winsCount}勝` },
-  { key: "matches", label: "対戦数", valueLabel: (row) => `${row.matchesCount}戦` },
+  { key: "winRate", labelKey: "rank.cat.winRate", valueLabel: (row) => t("rank.value.winRate", { v: row.winRate }) },
+  { key: "wins", labelKey: "rank.cat.wins", valueLabel: (row) => t("rank.value.wins", { v: row.winsCount }) },
+  { key: "matches", labelKey: "rank.cat.matches", valueLabel: (row) => t("rank.value.matches", { v: row.matchesCount }) },
 ];
 
 let cachedLeaderboard = null;
@@ -75,14 +77,14 @@ function renderTab() {
 
     const heading = document.createElement("div");
     heading.className = "ranking-page-column-heading";
-    heading.textContent = tab.label;
+    heading.textContent = t(tab.labelKey);
     col.appendChild(heading);
 
     const rows = cachedLeaderboard[tab.key];
     if (!rows || rows.length === 0) {
       const empty = document.createElement("div");
       empty.className = "ranking-page-empty";
-      empty.textContent = "まだ対象のプレイヤーがいません。";
+      empty.textContent = t("rank.empty");
       col.appendChild(empty);
     } else {
       for (const row of rows) col.appendChild(buildRow(row, tab.valueLabel));
@@ -109,7 +111,7 @@ function openInfoModal() {
 
   const title = document.createElement("div");
   title.id = "ranking-info-modal-title";
-  title.textContent = "ランキングのルール";
+  title.textContent = t("rank.rules.title");
   infoModalEl.appendChild(title);
 
   const body = document.createElement("div");
@@ -118,12 +120,12 @@ function openInfoModal() {
   const average = cachedLeaderboard?.winRateAverageMatches;
   const borderLine =
     typeof border === "number" && typeof average === "number"
-      ? `現在の実対戦者の平均対戦数: ${average.toFixed(1)}回 → 参加基準(ボーダー): ${border.toFixed(1)}回を超える対戦数`
+      ? t("rank.rules.border", { average: average.toFixed(1), border: border.toFixed(1) })
       : null;
   const lines = [
-    "・勝率TOP3ランキングは、対戦経験が極端に少ないプレイヤーが数試合だけで上位に入ってしまわないように、実際に対戦したことがあるプレイヤーの「平均対戦数」の50%を超える対戦数のプレイヤーのみが対象になります。",
+    t("rank.rules.b1"),
     ...(borderLine ? [borderLine] : []),
-    "・同順位の決め方: ①勝率 → ②勝利数 → ③対戦数 の順で比較し、すべて同じ場合は同順位として併記します。",
+    t("rank.rules.b2"),
   ];
   for (const line of lines) {
     const p = document.createElement("p");
@@ -143,7 +145,7 @@ function buildTabs() {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "ranking-page-tab" + (tab.key === activeTab ? " is-active" : "");
-    btn.textContent = tab.label;
+    btn.textContent = t(tab.labelKey);
     btn.addEventListener("click", () => {
       activeTab = tab.key;
       for (const el of tabsEl.children) el.classList.remove("is-active");
@@ -173,7 +175,7 @@ export async function openRankingPage(onClose) {
   backBtn.id = "ranking-page-back";
   // ユーザー指摘（続き84）「戻る場所はホームとは限らない（オプションエリアの
   // アイコンから直接開く経路もある）ので単に『戻る』でいい」。
-  backBtn.textContent = "← 戻る";
+  backBtn.textContent = t("common.back");
   backBtn.addEventListener("click", () => {
     closeRankingPage();
     onClose?.();
@@ -183,14 +185,14 @@ export async function openRankingPage(onClose) {
   const title = document.createElement("div");
   title.id = "ranking-page-title";
   const titleText = document.createElement("span");
-  titleText.textContent = "📊 ランキング";
+  titleText.textContent = t("rank.title");
   title.appendChild(titleText);
 
   const infoBtn = document.createElement("button");
   infoBtn.type = "button";
   infoBtn.id = "ranking-page-info-btn";
   infoBtn.textContent = "ⓘ";
-  infoBtn.title = "ランキングのルールを見る";
+  infoBtn.title = t("rank.rulesBtnTip");
   infoBtn.addEventListener("click", openInfoModal);
   title.appendChild(infoBtn);
 
@@ -200,7 +202,7 @@ export async function openRankingPage(onClose) {
   // 3カラムのリスト(#ranking-page-list、CSSでflex横並び)を直接ページに置く。タブも廃止。
   statusEl = document.createElement("div");
   statusEl.id = "ranking-page-status";
-  statusEl.textContent = "読み込み中…";
+  statusEl.textContent = t("rank.loading");
   overlayEl.appendChild(statusEl);
 
   listEl = document.createElement("div");
@@ -220,7 +222,7 @@ export async function openRankingPage(onClose) {
     renderTab();
   } catch (err) {
     console.error("fetchLeaderboard failed", err);
-    if (statusEl) statusEl.textContent = "ランキングの取得に失敗しました。通信環境を確認してください。";
+    if (statusEl) statusEl.textContent = t("rank.loadFail");
   }
 }
 
@@ -241,15 +243,19 @@ export function closeRankingPage() {
 export function initRankingIcon() {
   const btn = document.createElement("button");
   btn.id = "ranking-page-button";
-  const { captionEl } = buildIconButtonContent(btn, {
+  const { captionEl, tooltipEl } = buildIconButtonContent(btn, {
     icon: "assets/icons/ranking.svg",
-    tooltip: "ランキングを開きます",
+    tooltip: t("rank.iconTip"),
   });
-  captionEl.textContent = "ランキング";
+  captionEl.textContent = t("rank.iconCaption");
   wireIconButtonClick(btn, {
-    detailTitle: "ランキング",
-    detailParagraphs: ["勝率・勝利数・対戦数のランキングを確認できます。"],
+    detailTitle: () => t("rank.iconCaption"),
+    detailParagraphs: () => [t("rank.iconDetail")],
     onAction: () => openRankingPage(),
   });
   getOptionArea().appendChild(btn);
+  onLangChange(() => {
+    tooltipEl.textContent = t("rank.iconTip");
+    captionEl.textContent = t("rank.iconCaption");
+  });
 }

@@ -17686,3 +17686,32 @@ DOMベースの「読む瞬間」を持つものが残っていたため、ユ�
   ログイン方法/メールアドレス/マジックリンクが ja↔en 切替（onLangChange→renderCard が効く）、④ja へ
   戻せば完全復元、を実測確認。コンソールの新規エラー無し（残る stale な `Unexpected token ']'` は続き290
   修正前の壊れた main.js のバッファ残り）。サーバー側の変更は無い。
+
+### 2026-08-27（続き292）：UI英語化フェーズ5（ランキング画面＋ショップ）
+
+続き288〜291の UI 文言基盤（`ui-text.js`/`t()`）を使い、ホームから開くランキング画面（ranking-page.js）と
+ショップ（shop.js / shop-content.js）を英語化した。
+- **`ui-text.js`**: `shop.*`（タイトル・7カテゴリのタブ名・無料/所持済みリボン・残高/達成率・購入系の
+  ボタン/ステータス/エラー・ペットのツールチップ）と `rank.*`（タイトル・3カテゴリ〈勝率/勝利数/対戦数〉・
+  値の接尾〈{v}%／{v}勝→{v} W／{v}戦→{v} G〉・空表示・ルールモーダルの本文2つ＋動的ボーダー行・読み込み中/
+  失敗・オプションエリアのランキングアイコンの説明）を ja/en 両方追加。動的値はパラメータ置換
+  （`shop.balance` {n}・`shop.completion` {percent}/{owned}/{total}・`shop.purchased` {name}・
+  `rank.value.*` {v}・`rank.rules.border` {average}/{border} 等）。
+- **`shop-content.js`**: `SHOP_CATEGORIES` の各カテゴリの `label`（絵文字付き日本語）を `labelKey`
+  （ui-text.js のキー）に置き換え。表示側の shop.js が `t(category.labelKey)` で解決。個別の商品名
+  （スキン/ペット/アバター等の item.label）はショップカードでは**画像の alt にしか使われず可視テキスト
+  ではない**ため今回は日本語のまま（可視 UI ではない）。
+- **`shop.js`**: カテゴリタブ・リボン・残高/達成率・購入ボタン/ステータス/エラー・ペットのツールチップ・
+  戻る/タイトルを `t()` 化（タイトルは `.shop-panel-title-text` span に切り出し）。`initShop` に
+  `onLangChange` を登録——静的な戻る/タイトルを更新し、パネル表示中なら `renderTabs()`/`renderGrid()`/
+  `refreshBalance()` で中身を新言語で作り直す。
+- **`ranking-page.js`**: `TABS` を `labelKey`＋`valueLabel`（`t()` で接尾を解決）に、見出し/空表示/戻る/
+  タイトル/ルールモーダル/読み込み・失敗ステータスを `t()` 化。ランキングは開くたびにページを新規生成する
+  ため（現在の言語で組まれる）が、**オプションエリアのランキングアイコン**（起動時に一度だけ生成・常設）は
+  `onLangChange` でキャプション/ツールチップを更新（詳細説明は関数で渡し開く瞬間に解決）。
+- **検証**: 全編集ファイルの `node --input-type=module --check`（ESMパース）通過。ブラウザ（実アプリの
+  シングルトン）で、①オプションエリアのランキングアイコン（ランキング/ランキングを開きます ↔
+  Rankings/Open rankings）、②ランキング画面（戻る・📊 ランキング・ルールの i ツールチップ）が ja↔en 切替、
+  ③ショップ（戻る・タイトル ショップ↔Shop・7タブ〈駒スキン…↔Piece skins…〉・残高ログイン促し・
+  無料↔Free リボン）が ja↔en 切替、を実測確認。全 src の import が parse エラー無し・game-table 構築済み。
+  サーバー側の変更は無い。
