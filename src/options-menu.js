@@ -455,7 +455,8 @@ function buildLanguageRow() {
     btn.dataset.v = v;
     btn.textContent = LANG_LABEL[v] || v;
     btn.addEventListener("click", () => {
-      setLang(v);
+      setLang(v); // localStorage（端末フォールバック）＋ onLangChange→再描画
+      saveMyPreference({ lang: v }); // ログイン済みならアカウントにも保存（端末をまたいで引き継ぐ）
       refresh();
     });
     group.appendChild(btn);

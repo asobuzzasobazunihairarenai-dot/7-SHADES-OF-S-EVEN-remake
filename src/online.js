@@ -29,6 +29,7 @@ import { markSelfHandled } from "./self-handled-tokens.js";
 // マイデッキ戦: ログイン時にアカウント保存のデッキを復元する（my-deck.jsはcards-data.jsのみ
 // 依存の葉モジュールなので、online.jsから直接importしても循環参照にならない）。
 import { setMyDeckFromAccount } from "./my-deck.js";
+import { setLang } from "./i18n.js";
 import { setLastActionInfo } from "./last-action-info.js";
 import { setStatsProfileClient } from "./stats-profile.js";
 import { logAction } from "./action-log.js";
@@ -959,6 +960,26 @@ export async function fetchMyEidosProgress() {
   }
 }
 
+// 表示言語（ja/en）をアカウント（so7_user_profiles.lang）から読む。ユーザー要望「言語設定は
+// 端末を変えても引き継がれるようアカウントに記録」。他と同じく大きなSELECTには混ぜず独立クエリ
+// （lang列が未追加の環境でもここだけ失敗して他設定に影響させない）。未ログイン/未保存はnull。
+export async function fetchMyLang() {
+  if (!cachedUser) return null;
+  try {
+    const { data, error } = await client
+      .from("so7_user_profiles")
+      .select("lang")
+      .eq("user_id", cachedUser.id)
+      .maybeSingle();
+    if (error) throw error;
+    const l = data?.lang ?? null;
+    return typeof l === "string" && l ? l : null;
+  } catch (err) {
+    console.error("fetchMyLang failed (未実行のsupabase_setup_so7.sql追加分がある可能性)", err);
+    return null;
+  }
+}
+
 // --- ゲーム内通貨（ユーザー要望「対局終了毎に一定額稼げる仮想通貨を実装したい。将来的には
 // 課金も検討。駒スキン・アバター・カード裏面・プレイマット背景を購入できるようにする」）。
 // 残高・所持済みアイテムの実際の増減はso7_user_currency/so7_user_unlocks側のポリシーが
@@ -1383,6 +1404,16 @@ export async function loadMyPreferences() {
     }
   } catch (err) {
     console.error("マイデッキの読み込みに失敗しました（my_deck列が未追加の可能性）", err);
+  }
+
+  // 表示言語（ja/en）をアカウントから復元する（ユーザー要望「端末を変えても引き継がれるように」）。
+  // my_deck等と同じ独立クエリ（lang列が未追加でもここだけ失敗して他に影響させない）。アカウントに
+  // 保存があればそれを、無ければ localStorage の値のまま（setLang は同値なら何もしない）。
+  try {
+    const lang = await fetchMyLang();
+    if (lang) setLang(lang);
+  } catch (err) {
+    console.error("言語設定の読み込みに失敗しました（lang列が未追加の可能性）", err);
   }
 }
 

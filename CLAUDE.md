@@ -17544,3 +17544,27 @@ DOMベースの「読む瞬間」を持つものが残っていたため、ユ�
   ②ダーク時 bg `rgb(15,23,32)`・タイトル `rgb(226,232,240)`／ライト時 bg `rgb(255,253,245)`・タイトル
   `rgb(30,41,59)`・宣言ボタン `rgb(14,85,104)`、を実測確認。スワッチのツールチップ（色名）はまだ日本語＝
   次のUI英語化フェーズで対応する。サーバー側の変更は無い。
+
+### 2026-08-27（続き287）：言語設定をアカウントに記録（端末を変えても引き継ぐ）
+
+ユーザー提案「言語設定は端末を変えても変わらないよう、端末ではなくアカウントに記録した方が良い」。
+続き285は localStorage（端末のみ）だったので、名前・アバター・駒スキン等と同じく `so7_user_profiles` へ
+保存し、ログインで端末をまたいで復元するようにした。
+- **`supabase_setup_so7.sql`**（末尾に追記）: `so7_user_profiles.lang text` 列を追加。
+- **`online.js`**: `fetchMyLang()`（`fetchMyEidosProgress`/`fetchMyCustomAvatarUrl` と同じ独立クエリ＝
+  lang列が未追加でもここだけ失敗して他設定に影響させない）を新設。`loadMyPreferences` の末尾（my_deck
+  読み込みの後）で `fetchMyLang()`→あれば `setLang()` で復元（i18n を import。i18n は葉モジュールなので
+  循環なし）。保存は既存の `saveMyPreference({ lang })`（独立UPDATE）。
+- **`options-menu.js`**: 言語セレクタのクリックで `setLang(v)`（localStorage＝端末フォールバック＋再描画）に
+  加えて `saveMyPreference({ lang: v })`（ログイン済みならアカウントにも保存）を呼ぶ。未ログインは
+  saveMyPreference が no-op ＝ localStorage のみ（従来通り）。
+- **優先順位**: ログイン時にアカウントの言語が localStorage を上書きする（＝端末をまたいで引き継がれる）。
+  未ログイン/未設定は localStorage のフォールバックのまま。
+- **検証**: `node --check`（online/options-menu）通過。ブラウザで、`fetchMyLang`/`saveMyPreference` が
+  export され、未ログイン時に `fetchMyLang()`→null（例外なし）・`saveMyPreference({lang})`→no-op（例外なし）・
+  アプリが循環importなくロード（game-table構築）・コンソール新規エラー無しを実測確認。実際のアカウント
+  往復（別端末での引き継ぎ）は下記SQL実行後に確認できる。
+- **ユーザー側の作業が必要**: `supabase_setup_so7.sql` の追記分（`so7_user_profiles.lang` 列追加。ファイル
+  全体＝再実行安全）を Supabase ダッシュボードの SQL Editor で実行する必要がある（未実行の間は
+  fetchMyLang が null を返し localStorage のみ＝端末間同期されないだけで、機能自体は壊れない）。Edge
+  Function の変更は無いため再デプロイ不要。

@@ -2333,3 +2333,9 @@ end;
 $$;
 revoke execute on function so7_save_push_subscription(text, text, text) from public;
 grant execute on function so7_save_push_subscription(text, text, text) to authenticated;
+
+-- 表示言語（ja/en）。ユーザー要望「言語設定は端末ではなくアカウントに記録した方が良い」。
+-- 他の設定列（sound_volume_bgm等）と違い、大きなloadMyPreferencesのSELECTには混ぜず
+-- （1列でも未存在だと全設定の読み込みが丸ごと失敗する既知の落とし穴のため）、online.jsの
+-- fetchMyLang()という独立クエリで安全に読む。保存はsaveMyPreference({lang})の独立UPDATE。
+alter table so7_user_profiles add column if not exists lang text;
