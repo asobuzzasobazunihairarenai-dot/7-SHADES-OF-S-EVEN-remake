@@ -867,10 +867,20 @@ async function runAction(action, ctx, helpers) {
         const picked = await helpers.pickRandomFromOpponentHand(p);
         if (!picked) continue;
         await helpers.discardAndSync(picked.id);
-        // お知らせ（ユーザー要望）: 誰の手札から何を捨てさせたか（隠れ情報、対象ごと）。
+        // お知らせ（ユーザー要望2026-08-28）: 捨てられたカードは公開情報（捨て場に積まれる）なので、
+        // 全プレイヤーにモーダルで公開する（announceEffectReasonはオンライン中も他クライアントへ中継）。
+        // #166修正: オンラインでは picked.cardId が伏せ情報(null)のため getCardDefinition(null).name で
+        // クラッシュし、1人目を捨てさせた直後にループが中断＝「一人からしか捨てさせられない」不具合だった。
+        // discardAndSync（捨て場へ送りhydrate完了まで await）後は、捨て場の一番上＝今捨てたカードの
+        // 実cardId（捨て場は公開情報）を読める。取れない時は名前を出さず「1枚を捨てさせました」に落とす。
+        const discardPile = getState().piles?.discard ?? [];
+        const discardedCardId = discardPile[discardPile.length - 1] ?? picked.cardId;
+        const discardedDef = getCardDefinition(discardedCardId);
         await helpers.announceEffectReason?.(
           ctx.cardId,
-          `${helpers.getPlayerName(p)}の手札から「${getCardDefinition(picked.cardId).name}」を捨てさせました。`
+          discardedDef
+            ? `${helpers.getPlayerName(p)}の手札から「${discardedDef.name}」を捨てさせました。`
+            : `${helpers.getPlayerName(p)}の手札から１枚を捨てさせました。`
         );
         hadEffect = true;
       }

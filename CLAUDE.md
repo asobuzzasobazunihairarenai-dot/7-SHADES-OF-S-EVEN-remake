@@ -17750,3 +17750,40 @@ DOMベースの「読む瞬間」を持つものが残っていたため、ユ�
   ブラウザで実測確認。#3 はタックル演出の実タイミングが headless では確認しづらいため、コード経路
   （deferReveal 機構）の正しさ＋構文で担保（実機での見た目の最終確認をお願いしたい）。サーバー側
   （Supabase）の変更は無い。
+
+### 2026-08-28（続き294）：#166 セレスティア（一人しか捨てさせられない）・#165 パーティ移動先の到達誤発火を修正／#168 に診断ログ追加
+
+実際の4人オンライン対戦のバグ報告#165〜#168（版20260827-201657）への対応。ユーザーの事前確認を得てから実装。
+- **#166 青のキューブ セレスティアで一人からしか捨てさせられない（確定原因・修正）**: `card-effect-engine.js` の
+  `DISCARD_RANDOM_FROM_QUALIFYING_OPPONENTS` の告知が `getCardDefinition(picked.cardId).name`。オンラインでは
+  相手の手札は伏せ情報で `picked.cardId` が null のため `getCardDefinition(null).name` でクラッシュ。**1人目の
+  捨て（discardAndSync）は成功した直後に告知でクラッシュ→for ループ中断→2人目以降が処理されない**＝報告に一致。
+  ユーザー訂正「セレスティアは『奪う』ではなく『捨てさせる』効果で、捨てられたカードは公開情報なので全員に
+  モーダルで出したい」に沿い、`discardAndSync`（捨て場へ送りhydrate完了までawait）後に**捨て場の一番上＝今捨てた
+  カードの実cardId（公開情報）**を読み、`announceEffectReason`（オンライン中も全クライアントへ配信）で
+  「〇〇の手札から『カード名』を捨てさせました」を全員に公開する。取れない時は名前を伏せて「1枚を捨てさせました」に
+  フォールバック（クラッシュ回避）。儀式的ピック（発動者が相手の裏向き手札から選ぶ）は既存のまま。サーバー変更不要。
+- **#165 パーティの「1マス移動し移動先の到達効果は得ない」で移動先の効果が表示される（確定原因・修正）**:
+  `runPartyOptionTask` の move 分岐は駒側に `arrivalSuppressed` を正しく立てている（main.js:3268）が、移動先が
+  裏向きカードだと「移動」の定義通りオープン（めくる）する（main.js:3276）。観戦側の `remote-move-animator.js` は
+  この**めくり(flip)差分**を検知して `maybeTriggerCardArrivalForCard` を呼ぶが、**この経路が駒の
+  `arrivalSuppressed` を見ていなかった**ため「表向きカードの上に駒がいる＝到達」と誤判定して到達効果を表示していた
+  （試練の儀式・マスチェンジで潰した #59/#152 と同系統の flip 経路の取りこぼし）。`maybeTriggerCardArrivalForCard`
+  に第5引数 `respectPieceSuppression` を追加し、**flip 由来の時だけ**そのマスの駒の `arrivalSuppressed` を確認して
+  スキップ（remote-move-animator が `item.kind === "flip"` を渡す）。通常の「カードが駒の下に潜り込む」到達（move 由来）は
+  従来通り無条件＝回帰なし。deferred flush 側も `respectPieceSuppression` を持ち越すよう修正。サーバー変更不要
+  （`arrivalSuppressed` は既に同期済み）。
+- **#168 相手ゲートに侵攻したが自動処理されなかった（診断ログ追加・再現待ち）**: 報告時刻の該当ターン終了ログが
+  範囲外で原因を断定できないため、既存の `diag-next-turn`（オンラインのNEXT_TURN送信時）に `gateInvaders`
+  （参加者ごとの `findInvadedDefender` 結果）を追記した。再発時は `diag-next-turn.gateInvaders`（クライアントが
+  侵攻を検知したか）→ `diag-gate-invasion-broadcast`（サーバーがイベントを配信したか）→ `diag-gate-invasion-received`
+  （クライアントが受信したか）の連鎖で、サーバー未検知／受信漏れ／演出保留のどこで途切れたか切り分けられる。
+- **調査中の別観測**: A のログで T5/R2 のスリカエ（yellow-sleight-of-hand）到達効果のピッカーが `pickerActive:true /
+  busy:true` のまま約5分間 stuck していた（別バグの可能性、#168 の直接原因ではない）。再発時に検証。
+- **未対応（要ユーザー決定）**: #167（ハンドフェイズで再読み込み→再入場するとロックフェイズからスタート＝追加ロックの
+  恐れ）。`currentPhase` はモジュール内変数で未永続化のため再読み込みでロックから再開する。端末保存(localStorage)は
+  **同アカウントで別端末から再入場が可能**（座席は user_id に紐づくため）＝別端末での不正を防げないため、方針を
+  ユーザーと相談中。
+- **検証**: `node --input-type=module --check`（main.js/remote-move-animator.js/card-effect-engine.js）通過、アプリ
+  正常ロード（49マス・新規コンソールエラー無し）。#165/#166 の実挙動（オンライン観戦時の到達抑制・セレスティアの
+  全員分ループ＋公開モーダル）は実機オンライン対戦での最終確認をお願いしたい。

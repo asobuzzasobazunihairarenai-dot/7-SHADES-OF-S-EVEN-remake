@@ -5771,7 +5771,7 @@ function flushPendingDiffArrivalTriggers() {
   pendingDiffArrivalTriggers = [];
   logAction("diag-diff-arrival-flush", { count: buffered.length });
   for (const item of buffered) {
-    if (item.kind === "card") maybeTriggerCardArrivalForCard(item.dropTarget, item.cardId, item.faceUp, true);
+    if (item.kind === "card") maybeTriggerCardArrivalForCard(item.dropTarget, item.cardId, item.faceUp, true, item.respectPieceSuppression);
     else if (item.kind === "exposed") maybeTriggerCardArrivalForExposedCard(item.location, true, item.prevTopTokenId);
   }
 }
@@ -6127,10 +6127,10 @@ function triggerCardArrivalIfFaceUp(location, fromDiff = false) {
 // 駒の下に潜り込むケースでも同じように到達したことにしてほしい、というユーザー要望への対応。
 // 裏向きのカードの場合は対象外（駒が裏向きカードに乗った時の「オープンする/しない」選択の
 // ような自動オープンの仕組みはここでは設けない。ユーザーの要望が表向きの場合のみのため）。
-function maybeTriggerCardArrivalForCard(dropTarget, cardId, faceUp, fromDiff = false) {
+function maybeTriggerCardArrivalForCard(dropTarget, cardId, faceUp, fromDiff = false, respectPieceSuppression = false) {
   // キュー化第一歩: 効果チェーン処理中に来た差分由来トリガは溜めてdepth0でflush（二重発火防止）。
   if (fromDiff && arrivalEffectProcessingDepth > 0) {
-    pendingDiffArrivalTriggers.push({ kind: "card", dropTarget, cardId, faceUp });
+    pendingDiffArrivalTriggers.push({ kind: "card", dropTarget, cardId, faceUp, respectPieceSuppression });
     logAction("diag-diff-arrival-defer", { kind: "card", cardId, location: dropTarget, depth: arrivalEffectProcessingDepth });
     return Promise.resolve();
   }
@@ -6140,6 +6140,21 @@ function maybeTriggerCardArrivalForCard(dropTarget, cardId, faceUp, fromDiff = f
   // 反転後の最新cardIdを渡すのが本筋だが、万一nullが来たらここで黙って何もしない。
   if (!cardId) return Promise.resolve();
   if (!hasPieceAt(dropTarget)) return Promise.resolve();
+  // #165: 「めくり(flip)」由来の再現（remote-move-animator）で、パーティ/試練の儀式/マスチェンジ等の
+  // 「移動先の到達効果は得ない」移動が裏向きカードをオープンした場合、駒側にはarrivalSuppressedが
+  // 立っているのにflip差分の到達判定がそれを見ず誤発火していた。respectPieceSuppression=true（flip由来）の
+  // 時だけ、そのマスの駒がarrivalSuppressedなら到達を起こさない。通常のカード移動(move由来)は従来通り無条件。
+  if (respectPieceSuppression) {
+    const piece = getState().tokens.find((t) => {
+      if (t.kind !== "piece") return false;
+      const l = t.location;
+      if (l.zone !== dropTarget.zone) return false;
+      if (dropTarget.zone === "cell") return l.row === dropTarget.row && l.col === dropTarget.col;
+      if (dropTarget.zone === "lock") return l.side === dropTarget.side && l.index === dropTarget.index;
+      return false;
+    });
+    if (piece && piece.arrivalSuppressed) return Promise.resolve();
+  }
   // キュー化第二歩(#93): 効果側（PLACE_CARDの表向き配置＝ジャンプ台や、複数オープン）がawaitして
   // 内側の到達チェーンを最後まで待ち切れるよう、到達の完全解決で解決するPromiseを返す。従来の
   // fire-and-forgetな呼び出し元（ドラッグ配置・remote-move-animator）は戻り値を無視するだけで挙動不変。
@@ -11869,6 +11884,14 @@ function buildEndTurnButton() {
           arrivalProcessing: isArrivalEffectProcessing(),
           pendingContact: !!getState().pendingContact,
           contactResultModals: openContactResultModals,
+          // #168診断: NEXT_TURN送信時点で、クライアントがゲート侵攻候補を検知しているか。
+          // サーバーが侵攻イベントを出さない／クライアントが受信・演出しない、のどちらが原因かを
+          // 後から切り分けるため、参加者ごとの侵攻先(findInvadedDefender)を記録する。gateInvadersが
+          // 空でないのに以後 diag-gate-invasion-received/演出が出なければサーバー or 受信側の問題、
+          // 空なら turn 終了時点で駒がゲート上に無かった（移動/検知漏れ）と切り分けられる。
+          gateInvaders: getState()
+            .activePlayers.map((atk) => ({ atk, def: findInvadedDefender(atk) }))
+            .filter((x) => x.def !== null),
         });
         // #130: このターン(turnNumber)への NEXT_TURN を送った印を付ける。ターンが実際に
         // 進む（turnNumberが変わる）まで、reconcileAutoEndTurn/手動クリックの再送を止める。

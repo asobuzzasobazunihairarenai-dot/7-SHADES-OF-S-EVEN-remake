@@ -338,7 +338,9 @@ function triggerEffectsFor(item) {
     // 移動の重複再発火」を無視できるよう印を付ける（自分の効果チェーンの再到達は別経路で通す）。
     if (!token.arrivalSuppressed) helpers.triggerCardArrivalIfFaceUp?.(token.location, true);
   } else if (token.kind === "card") {
-    helpers.maybeTriggerCardArrivalForCard?.(token.location, token.cardId, token.faceUp, true);
+    // #165: flip由来（パーティ/試練の儀式/マスチェンジ等の「到達効果を得ない」移動が裏向きカードを
+    // オープンした差分）の時は、そのマスの駒がarrivalSuppressedなら到達を起こさない（第5引数=true）。
+    helpers.maybeTriggerCardArrivalForCard?.(token.location, token.cardId, token.faceUp, true, item.kind === "flip");
     // 他プレイヤーがカードを動かした結果、移動元のマス/ロックスロットで駒の下に別のカードが
     // 新しく露出した場合も「到達」として再現する（main.jsのonDragEndと同じ考え方）。
     // 移動元と移動先が同じマスの場合（重なりの中で並び替えただけ等）は対象外にする。
