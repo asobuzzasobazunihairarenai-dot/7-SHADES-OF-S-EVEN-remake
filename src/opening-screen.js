@@ -34,6 +34,8 @@ import { playOpeningBgm, stopOpeningBgm } from "./sound.js";
 import { APP_VERSION } from "./app-version.js";
 import { isFlatten2dMode } from "./tablet-2d-mode.js";
 import { startTitlePetWalk } from "./title-pet.js";
+import { t } from "./ui-text.js";
+import { getLang, setLang, onLangChange } from "./i18n.js";
 // （旧CPU戦ボタン撤去に伴い cpu-battle.js の静的importも撤去。これで opening-screen.js が
 //  cpu-battle.js を芋づるで静的に読み込む依存辺が消え、循環import由来の黒画面リスクも下がる。）
 
@@ -108,47 +110,29 @@ function setAwaitingLoginRedirect(value) {
 // 定数を持つ（board-layout.jsを経由する理由が無い）。
 const AURA_COLORS = ["red", "orange", "yellow", "green", "blue", "pink", "purple"];
 
-const STORY_LINES = [
-  "ここは異世界「ファルベンド」",
-  "世界は「色」で満ちている",
-  "",
-  "この世界には、7つの国があり",
-  "各国はそれぞれの色を治めている",
-  "そして、均衡は保たれ平和を築いていた",
-  "",
-  "しかし、世界の「色」は突如――",
-  "",
-  "消えた",
-  "",
-  "各国は、それぞれ国宝を有していた",
-  "それはその国の「色」を纏った「キューブ」",
-  "しかし、なぜかその「キューブ」だけは",
-  "「色」を失わなかった",
-  "",
-  "色を失った世界で民は輝きを失い途方にくれていた",
-  "",
-  "やがて各国の国王は",
-  "その「キューブ」の「特殊な力」に気付く",
-  "",
-  "そうそれは、「色」を「具現化する力」だった",
-  "",
-  "「色」はこの世のあらゆるものと",
-  "密接に関わっている",
-  "",
-  "モノ、記憶、能力、あらゆるものに",
-  "",
-  "ある時「キューブ」の力が国王に語りかける",
-  "",
-  "-7つの色を集めよ-",
-  "",
-  "7つの色を集めたら　一体どうなるのか",
-  "",
-  "各国のそれぞれの野望、思惑、理想が交錯する中",
-  "",
-  "7色を巡る戦いが",
-  "",
-  "今、はじまる",
+// ストーリーテロップの各行を ui-text.js のキーで持つ（空文字は空行）。多言語対応のため、
+// 実際の文言はテロップ生成時に getStoryLines() で現在の言語へ解決する。
+const STORY_LINE_KEYS = [
+  "opening.story.1", "opening.story.2", "",
+  "opening.story.3", "opening.story.4", "opening.story.5", "",
+  "opening.story.6", "",
+  "opening.story.7", "",
+  "opening.story.8", "opening.story.9", "opening.story.10", "opening.story.11", "",
+  "opening.story.12", "",
+  "opening.story.13", "opening.story.14", "",
+  "opening.story.15", "",
+  "opening.story.16", "opening.story.17", "",
+  "opening.story.18", "",
+  "opening.story.19", "",
+  "opening.story.20", "",
+  "opening.story.21", "",
+  "opening.story.22", "",
+  "opening.story.23", "",
+  "opening.story.24",
 ];
+function getStoryLines() {
+  return STORY_LINE_KEYS.map((k) => (k === "" ? "" : t(k)));
+}
 
 // ユーザー要望「7色の人魂は、ただの丸ではなく軌跡（同じ道を戻らず動く）が欲しい。
 // 輪郭はぼやけている方がいい」への対応。CSSの@keyframesは必ず一定周期で同じ経路を
@@ -297,7 +281,7 @@ export function previewOpeningAuras() {
   } else {
     auraPreviewOverlay = document.createElement("div");
     auraPreviewOverlay.id = "opening-aura-preview";
-    auraPreviewOverlay.title = "クリックで閉じる";
+    auraPreviewOverlay.title = t("opening.clickToClose");
     auraPreviewOverlay.addEventListener("click", closeAuraPreview);
     document.body.appendChild(auraPreviewOverlay);
   }
@@ -353,14 +337,12 @@ function confirmGuestLogin() {
 
     const title = document.createElement("div");
     title.className = "contact-approval-title";
-    title.textContent = "⚠️ ゲストでログインする前に";
+    title.textContent = t("opening.guestConfirm.title");
     modal.appendChild(title);
 
     const body = document.createElement("div");
     body.className = "contact-approval-body";
-    body.textContent =
-      "ゲストログインでは、ランキングへの参加や、名前・アバター・駒スキン等の設定の記憶といった恩恵を受けられません。" +
-      "また、一度ログアウトしたり別の端末・別のブラウザからアクセスすると、このアカウントには二度と戻れません。";
+    body.textContent = t("opening.guestConfirm.body");
     modal.appendChild(body);
 
     const buttons = document.createElement("div");
@@ -373,12 +355,12 @@ function confirmGuestLogin() {
     const yesBtn = document.createElement("button");
     yesBtn.type = "button";
     yesBtn.className = "contact-approval-approve";
-    yesBtn.textContent = "承知の上でゲストで始める";
+    yesBtn.textContent = t("opening.guestConfirm.yes");
     yesBtn.addEventListener("click", () => finish(true));
     const noBtn = document.createElement("button");
     noBtn.type = "button";
     noBtn.className = "contact-approval-reject";
-    noBtn.textContent = "やめる";
+    noBtn.textContent = t("opening.guestConfirm.no");
     noBtn.addEventListener("click", () => finish(false));
     buttons.appendChild(yesBtn);
     buttons.appendChild(noBtn);
@@ -451,7 +433,7 @@ export function initOpeningScreen() {
   const loginToggleBtn = document.createElement("button");
   loginToggleBtn.type = "button";
   loginToggleBtn.className = "opening-screen-menu-btn";
-  loginToggleBtn.textContent = "ログイン";
+  loginToggleBtn.textContent = t("opening.loginToggle");
   content.appendChild(loginToggleBtn);
 
   // （旧「🤖 CPU戦（1人用）」ボタンはユーザー要望2026-08-14で撤去。CPU戦はログイン後の
@@ -474,8 +456,8 @@ export function initOpeningScreen() {
   const testModeBtn = document.createElement("button");
   testModeBtn.type = "button";
   testModeBtn.className = "opening-test-mode-btn";
-  testModeBtn.textContent = "テストモード";
-  testModeBtn.title = "1画面で複数人分を動かせる検証用の盤面へ直接進みます（開発・動作確認用）";
+  testModeBtn.textContent = t("opening.testMode");
+  testModeBtn.title = t("opening.testMode.tip");
   overlay.appendChild(testModeBtn);
 
   // ユーザー要望「管理者専用（設定・利用状況）をタイトル画面のテストモードの上あたりにも」。
@@ -483,8 +465,8 @@ export function initOpeningScreen() {
   const adminBtn = document.createElement("button");
   adminBtn.type = "button";
   adminBtn.className = "opening-admin-btn";
-  adminBtn.textContent = "🔧 管理者パネル";
-  adminBtn.title = "管理者モード（設定・利用状況・ユーザー一覧など）を開きます";
+  adminBtn.textContent = t("opening.adminPanel");
+  adminBtn.title = t("opening.adminPanel.tip");
   adminBtn.addEventListener("click", () => openAdminPanel());
   overlay.appendChild(adminBtn);
 
@@ -494,8 +476,24 @@ export function initOpeningScreen() {
   const versionBadge = document.createElement("div");
   versionBadge.className = "opening-version-badge";
   versionBadge.textContent = `v${APP_VERSION}`;
-  versionBadge.title = "アプリのバージョン（デプロイ日時）";
+  versionBadge.title = t("opening.versionTip");
   overlay.appendChild(versionBadge);
+
+  // 言語トグル（日本語 / English）。初回訪問時はまだオプション画面（言語設定）に到達できない
+  // ため、最初のこの画面で言語を選べるようにする。押すと即座に日本語↔英語を切り替える。
+  // #opening-screenの直接の子にして画面右上（1600x900仮想解像度基準）へ固定する。
+  const langToggleBtn = document.createElement("button");
+  langToggleBtn.type = "button";
+  langToggleBtn.className = "opening-lang-toggle";
+  const updateOpeningLangToggle = () => {
+    // 現在の言語ではない方（＝切り替え先）を表示する
+    langToggleBtn.textContent = getLang() === "ja" ? "English" : "日本語";
+  };
+  updateOpeningLangToggle();
+  langToggleBtn.addEventListener("click", () => {
+    setLang(getLang() === "ja" ? "en" : "ja");
+  });
+  overlay.appendChild(langToggleBtn);
 
   // ユーザー要望の演出一式: 起動直後は真っ白な画面+7色のオーラ+STARTボタンだけを見せ
   // （.opening-start-gateがbg/dim/contentを覆い隠す）、STARTを押した瞬間にBGM再生・
@@ -505,20 +503,24 @@ export function initOpeningScreen() {
   storyCrawl.style.display = "none";
   const crawlText = document.createElement("div");
   crawlText.className = "opening-story-crawl-text";
-  for (const line of STORY_LINES) {
-    const p = document.createElement("p");
-    if (line === "") {
-      p.className = "is-blank";
-      p.innerHTML = "&nbsp;";
-    } else {
-      p.textContent = line;
+  const fillCrawlLines = () => {
+    crawlText.innerHTML = "";
+    for (const line of getStoryLines()) {
+      const p = document.createElement("p");
+      if (line === "") {
+        p.className = "is-blank";
+        p.innerHTML = "&nbsp;";
+      } else {
+        p.textContent = line;
+      }
+      crawlText.appendChild(p);
     }
-    crawlText.appendChild(p);
-  }
+  };
+  fillCrawlLines();
   storyCrawl.appendChild(crawlText);
   const crawlSkipHint = document.createElement("div");
   crawlSkipHint.className = "opening-story-crawl-skip-hint";
-  crawlSkipHint.textContent = "クリックでスキップ";
+  crawlSkipHint.textContent = t("opening.clickToSkip");
   storyCrawl.appendChild(crawlSkipHint);
   overlay.appendChild(storyCrawl);
 
@@ -690,7 +692,7 @@ export function initOpeningScreen() {
     const link = document.createElement("button");
     link.type = "button";
     link.className = "opening-login-local-link";
-    link.textContent = "ローカルでプレイ（ログイン不要）";
+    link.textContent = t("opening.localPlay");
     link.addEventListener("click", () => close());
     return link;
   }
@@ -716,7 +718,7 @@ export function initOpeningScreen() {
     if (!available) {
       const msg = document.createElement("div");
       msg.className = "opening-login-status";
-      msg.textContent = "オンライン機能を読み込めませんでした。ローカルでプレイできます。";
+      msg.textContent = t("opening.onlineLoadFail");
       card.appendChild(msg);
       card.appendChild(buildLocalLink());
       return;
@@ -725,7 +727,7 @@ export function initOpeningScreen() {
     if (user) {
       const title = document.createElement("div");
       title.className = "opening-login-title";
-      title.textContent = `🌐 ログイン中（${getAccountDisplayLabel(user)}）`;
+      title.textContent = t("opening.loggedInTitle", { name: getAccountDisplayLabel(user) });
       card.appendChild(title);
 
       const row = document.createElement("div");
@@ -733,7 +735,7 @@ export function initOpeningScreen() {
       const continueBtn = document.createElement("button");
       continueBtn.type = "button";
       continueBtn.className = "opening-login-primary-btn";
-      continueBtn.textContent = "オンラインで続ける";
+      continueBtn.textContent = t("opening.continueOnline");
       continueBtn.addEventListener("click", () => {
         // ユーザー報告「オンラインで続けるを押した後、次の画面に行くがテストモードの
         // 画面に移ってしまっている」への対応。フェードアウト演出の間に背後の盤面が
@@ -756,7 +758,7 @@ export function initOpeningScreen() {
       const logoutBtn = document.createElement("button");
       logoutBtn.type = "button";
       logoutBtn.className = "opening-login-signout-link";
-      logoutBtn.textContent = "ログアウト";
+      logoutBtn.textContent = t("opening.logout");
       logoutBtn.addEventListener("click", async () => {
         setTestModeRequested(false);
         await signOut();
@@ -777,9 +779,7 @@ export function initOpeningScreen() {
       testModeHint.style.cssText =
         "background: rgba(250, 204, 21, 0.12); border: 1px solid rgba(250, 204, 21, 0.5); " +
         "border-radius: 0.3rem; padding: 0.5rem 0.7rem; margin-bottom: 0.6rem; font-size: 0.75rem; line-height: 1.5;";
-      testModeHint.textContent =
-        "🧪 テストモード：ログイン完了後、「オンラインで続ける」を経由せず直接検証用の盤面へ進みます。" +
-        "通常のオンライン対戦をしたい場合は右上の✕で引き返してください。";
+      testModeHint.textContent = t("opening.testModeHint");
       card.appendChild(testModeHint);
     }
 
@@ -797,7 +797,7 @@ export function initOpeningScreen() {
     const googleBtn = document.createElement("button");
     googleBtn.type = "button";
     googleBtn.className = "opening-login-primary-btn";
-    googleBtn.textContent = "Googleでログイン";
+    googleBtn.textContent = t("opening.googleLogin");
     googleBtn.addEventListener("click", async () => {
       googleBtn.disabled = true;
       setAwaitingLoginRedirect(true);
@@ -805,7 +805,7 @@ export function initOpeningScreen() {
         await signInWithGoogle();
       } catch (err) {
         setAwaitingLoginRedirect(false);
-        status.textContent = `エラー: ${err.message ?? err}`;
+        status.textContent = t("opening.error", { msg: err.message ?? err });
         googleBtn.disabled = false;
       }
     });
@@ -815,12 +815,12 @@ export function initOpeningScreen() {
     googleInfoBtn.type = "button";
     googleInfoBtn.className = "opening-login-info-btn";
     googleInfoBtn.textContent = "i";
-    googleInfoBtn.title = "アカウントでログインするメリット";
+    googleInfoBtn.title = t("opening.googleInfo.title");
     googleInfoBtn.addEventListener("click", () => {
-      openInfoModal("アカウントでログインするメリット", [
-        "名前・アバター・駒スキンなどの設定が、別の端末・別のブラウザからログインしても引き継がれます。",
-        "戦績管理システムのプレイヤーとの連携も、アカウントに紐づけて保存されるため、次にログインした時も選び直す必要がありません。",
-        "ゲストログインと違い、ログアウトしたり端末を変えたりしても、同じアカウントとして続けて遊べます。",
+      openInfoModal(t("opening.googleInfo.title"), [
+        t("opening.googleInfo.b1"),
+        t("opening.googleInfo.b2"),
+        t("opening.googleInfo.b3"),
       ]);
     });
     googleRow.appendChild(googleInfoBtn);
@@ -837,7 +837,7 @@ export function initOpeningScreen() {
     // 小さくしてください」。.opening-login-secondary-btn（マジックリンクのボタンと
     // 共用）よりさらに控えめな、下線付きテキストリンク調の専用クラスにする。
     guestBtn.className = "opening-login-tiny-btn";
-    guestBtn.textContent = "ゲストでログイン";
+    guestBtn.textContent = t("opening.guestLogin");
     guestBtn.addEventListener("click", async () => {
       // ユーザー要望（続き83）「『ゲストでログイン』を押した場合はランキングとか
       // 設定記憶等々の恩恵が受けられない旨の注意警告をバシッと表示しておいて」。
@@ -845,7 +845,7 @@ export function initOpeningScreen() {
       // 目に入る確認モーダルを挟む（confirmGuestLogin参照）。
       if (!(await confirmGuestLogin())) return;
       guestBtn.disabled = true;
-      status.textContent = "ログイン中...";
+      status.textContent = t("opening.loggingIn");
       try {
         await signInAnonymously();
         // テストモード経由の場合、ゲストログインはページ遷移を伴わずその場で完了する
@@ -858,7 +858,7 @@ export function initOpeningScreen() {
         }
         await renderCard();
       } catch (err) {
-        status.textContent = `エラー: ${err.message ?? err}`;
+        status.textContent = t("opening.error", { msg: err.message ?? err });
         guestBtn.disabled = false;
       }
     });
@@ -868,14 +868,12 @@ export function initOpeningScreen() {
     infoBtn.type = "button";
     infoBtn.className = "opening-login-info-btn";
     infoBtn.textContent = "i";
-    infoBtn.title = "ゲストログインについて";
+    infoBtn.title = t("opening.guestInfo.title");
     infoBtn.addEventListener("click", () => {
-      openInfoModal("ゲストログインについて", [
-        "メールアドレスの登録・確認は不要で、今すぐそのままオンライン対戦に参加できます。",
-        "ただし一度ログアウトしたり、別の端末・別のブラウザからアクセスすると同じアカウントには" +
-          "戻れません（ゲストアカウントを後から引き継ぐ手段は現在ありません）。",
-        "何度も遊ぶ予定がある場合や、名前・アバター・駒スキン等の設定を長く使い続けたい場合は、" +
-          "上のGoogleでログインすることをおすすめします。",
+      openInfoModal(t("opening.guestInfo.title"), [
+        t("opening.guestInfo.b1"),
+        t("opening.guestInfo.b2"),
+        t("opening.guestInfo.b3"),
       ]);
     });
     primaryRow.appendChild(infoBtn);
@@ -885,7 +883,7 @@ export function initOpeningScreen() {
     // その他のログイン方法（右下、折りたたみ）: マジックリンクをここに格納する。
     const moreRow = document.createElement("div");
     moreRow.className = "opening-login-more-row";
-    moreRow.textContent = "その他のログイン方法（メール） ▾";
+    moreRow.textContent = t("opening.moreLogin.closed");
     card.appendChild(moreRow);
 
     const moreSection = document.createElement("div");
@@ -895,30 +893,30 @@ export function initOpeningScreen() {
     moreRow.addEventListener("click", () => {
       const opening = moreSection.style.display !== "flex";
       moreSection.style.display = opening ? "flex" : "none";
-      moreRow.textContent = opening ? "その他のログイン方法（メール） ▴" : "その他のログイン方法（メール） ▾";
+      moreRow.textContent = opening ? t("opening.moreLogin.open") : t("opening.moreLogin.closed");
     });
 
     const emailInput = document.createElement("input");
     emailInput.type = "email";
-    emailInput.placeholder = "メールアドレス";
+    emailInput.placeholder = t("opening.emailPlaceholder");
     emailInput.className = "opening-login-email-input";
     moreSection.appendChild(emailInput);
 
     const magicBtn = document.createElement("button");
     magicBtn.type = "button";
     magicBtn.className = "opening-login-secondary-btn";
-    magicBtn.textContent = "マジックリンクを送る";
+    magicBtn.textContent = t("opening.sendMagicLink");
     magicBtn.addEventListener("click", async () => {
       if (!emailInput.value) return;
       magicBtn.disabled = true;
-      status.textContent = "送信中...";
+      status.textContent = t("opening.sending");
       setAwaitingLoginRedirect(true);
       try {
         await signInWithMagicLink(emailInput.value);
-        status.textContent = "メールを確認し、届いたリンクを開いてください。";
+        status.textContent = t("opening.checkEmail");
       } catch (err) {
         setAwaitingLoginRedirect(false);
-        status.textContent = `エラー: ${err.message ?? err}`;
+        status.textContent = t("opening.error", { msg: err.message ?? err });
       } finally {
         magicBtn.disabled = false;
       }
@@ -973,4 +971,21 @@ export function initOpeningScreen() {
     getCurrentUser().then(maybeAutoAdvanceForLoggedInUser);
     onAuthChange(maybeAutoAdvanceForLoggedInUser);
   }
+
+  // 言語切替時に、この画面の常設要素を新しい言語で更新する（言語トグル・ログインボタン・
+  // テストモード/管理者/バージョンのツールチップ・テロップの各行）。開いているログイン
+  // カードは作り直し、テロップ表示中なら各行を作り直す。account同期のsetLangが
+  // オープニング構築後に走るケース（ログイン済みの再訪）にも対応する。
+  onLangChange(() => {
+    updateOpeningLangToggle();
+    loginToggleBtn.textContent = t("opening.loginToggle");
+    testModeBtn.textContent = t("opening.testMode");
+    testModeBtn.title = t("opening.testMode.tip");
+    adminBtn.textContent = t("opening.adminPanel");
+    adminBtn.title = t("opening.adminPanel.tip");
+    versionBadge.title = t("opening.versionTip");
+    crawlSkipHint.textContent = t("opening.clickToSkip");
+    fillCrawlLines();
+    if (card.style.display !== "none") renderCard();
+  });
 }
