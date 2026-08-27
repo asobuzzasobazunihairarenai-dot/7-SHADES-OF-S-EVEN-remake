@@ -126,10 +126,10 @@ ul.plain{margin:0 0 2mm;padding-left:5mm;} ul.plain li{margin:0 0 .8mm;}
 .term .tb{display:block;color:#3a3a3a;}
 
 /* FAQ */
-.faq{font-size:7.1pt;}
+.faq{font-size:6.8pt;}
 .faqlist{column-count:2;column-gap:6mm;}
-.faqcat{break-inside:avoid;font-weight:700;font-size:8pt;letter-spacing:.16em;margin:0 0 1.2mm;padding:.4mm 0;border-bottom:1.2px solid #6b6b6b;}
-.qa{break-inside:avoid;margin:0 0 1.8mm;line-height:1.45;}
+.faqcat{break-inside:avoid;font-weight:700;font-size:7.8pt;letter-spacing:.16em;margin:0 0 1mm;padding:.4mm 0;border-bottom:1.2px solid #6b6b6b;}
+.qa{break-inside:avoid;margin:0 0 1.4mm;line-height:1.4;}
 .qa .q{position:relative;padding-left:4.6mm;font-weight:700;color:#1a1a1a;}
 .qa .q::before{content:"Q";position:absolute;left:0;top:0;font-family:var(--serif);font-size:9pt;color:#c70025;}
 .qa .a{position:relative;padding-left:4.6mm;margin-top:.5mm;color:#3a3a3a;}
@@ -142,13 +142,16 @@ ul.plain{margin:0 0 2mm;padding-left:5mm;} ul.plain li{margin:0 0 .8mm;}
 .cardslot .cm{margin-top:1.4mm;font-size:7.2pt;color:#a49c8a;}
 
 /* クレジット */
-.credit{max-width:132mm;margin:5mm auto 0;}
-.cr{display:flex;align-items:baseline;gap:3mm;margin:0 0 2.2mm;}
+.credit{max-width:132mm;margin:2mm auto 0;}
+.cr{display:flex;align-items:baseline;gap:3mm;margin:0 0 1.8mm;}
 .cr .ck{font-family:var(--serif);font-variant:small-caps;font-size:9.5pt;letter-spacing:.04em;min-width:44mm;text-align:right;color:#333;}
 .cr .cv{font-size:9pt;}
-.cr .cv.names{font-size:8.4pt;line-height:1.7;letter-spacing:.02em;}
+.cr .cv.names{font-size:8.2pt;line-height:1.55;letter-spacing:.02em;}
 .cr .cv.names .nm{display:inline-block;white-space:nowrap;margin:0 1.6mm .2mm 0;}
 .cr .ck::after{content:"：";}
+.crhead{margin:2.8mm 0 1.8mm;padding-top:2mm;border-top:1px solid var(--line);font-family:var(--serif);font-variant:small-caps;font-size:9pt;letter-spacing:.06em;color:#333;text-align:center;}
+.colophon{margin:3mm 0 0;text-align:center;font-family:var(--gothic);font-size:6.2pt;line-height:1.75;color:#8a8375;letter-spacing:.02em;}
+.crhead span{font-family:var(--gothic);font-variant:normal;font-size:6.6pt;color:#a09884;letter-spacing:0;}
 
 
 /* 実素材：駒の紋様 */
@@ -317,7 +320,7 @@ ul.plain{margin:0 0 2mm;padding-left:5mm;} ul.plain li{margin:0 0 .8mm;}
 .figref{font-family:var(--gothic);font-size:6.8pt;font-weight:700;color:#8a6d00;background:#fff6d8;
   border-radius:3mm;padding:.1mm 1.4mm;margin-left:1.2mm;white-space:nowrap;vertical-align:.2mm;}
 .tref{font-size:.78em;font-weight:400;color:#8a8375;margin-left:.5mm;letter-spacing:0;}
-.qref{font-size:7.5pt;}
+.qref{font-size:7.2pt;}
 .qr-lead{margin:0 0 2mm;text-align:center;color:#5a5344;font-size:8pt;}
 .qr-turn{display:flex;align-items:stretch;justify-content:center;gap:2mm;margin-bottom:1.2mm;}
 .qr-ph{flex:1;border:1px solid var(--line);border-radius:2mm;background:#fffdf8;padding:1.6mm 2mm;text-align:center;}
@@ -328,10 +331,10 @@ ul.plain{margin:0 0 2mm;padding-left:5mm;} ul.plain li{margin:0 0 .8mm;}
 .qr-ar{align-self:center;color:#8a8375;font-size:10pt;}
 .qr-turn-note{margin:0 0 2.4mm;text-align:center;font-size:7.4pt;color:#6b6455;}
 .qr-cols{display:grid;grid-template-columns:1fr 1fr;gap:4mm;}
-.qr-box{border:1px solid var(--line);border-radius:2mm;background:#fffdf8cc;padding:1.6mm 2.2mm;margin-bottom:2mm;}
+.qr-box{border:1px solid var(--line);border-radius:2mm;background:#fffdf8cc;padding:1.3mm 2mm;margin-bottom:1.6mm;}
 .qr-t{margin:0 0 1.2mm;font-family:var(--gothic);font-weight:700;font-size:8.6pt;border-bottom:1px solid var(--line);padding-bottom:.8mm;}
 .qr-t span{float:right;font-weight:400;font-size:7pt;color:#8a8375;}
-.qr-b{margin:0 0 1mm;line-height:1.55;}
+.qr-b{margin:0 0 .8mm;line-height:1.5;}
 .qr-b:last-child{margin-bottom:0;}
 .qr-warn{color:#a4123a;}
 .qr-win{border-color:#c9a227;background:#fffbea;}
@@ -415,8 +418,7 @@ figure{margin:0;} figcaption{font-size:7.6pt;color:var(--gray);text-align:center
     <div class="center" style="margin-top:3.2mm;font-family:var(--mincho);font-size:8.6pt;line-height:1.75;letter-spacing:.06em;">
       シェイズオブセブンの世界へようこそ<br>
       はじめて遊ぶ方は、<b>6ページ「ゲームの準備」</b>から読み進めてください。<br>
-      遊びながら分からない言葉が出てきたら、<b>18ページ「基本用語集」</b>が辞書代わりになります。<br>
-      <span style="font-size:7.8pt;">※この説明書で使う「<b>原則</b>」は、「カードにそう書かれていない限り」という意味です。</span>
+      遊びながら分からない言葉が出てきたら、<b>18ページ「基本用語集」</b>が辞書代わりになります。
     </div>
   </div>
   <div class="foot"><span class="orn"></span>1<span class="orn"></span></div>
@@ -837,7 +839,7 @@ figure{margin:0;} figcaption{font-size:7.6pt;color:var(--gray);text-align:center
         </div>
         <figcaption>図2　準備完了図（4人プレイの例）</figcaption>
       </figure>
-      <div class="legend2" style="align-self:center;column-count:1;font-size:7.4pt;">
+      <div class="legend2" style="align-self:center;column-count:1;font-size:7.2pt;">
         <div class="it"><span class="pill p-red">①ロックエリア</span><span>カードをロックするための場所。ロックエリアバーの外側、各色の前が置き場所になります。</span></div>
         <div class="it"><span class="pill p-orange">②ロックエリアバー</span><span>ロックする色を示すバー。4本を正方形に組んで使います。</span></div>
         <div class="it"><span class="pill p-yellow">③場</span><span>カードを7×7の計49マスに配置した場所。この中を各プレイヤーの駒が動き回り、ゲームが進行します。</span></div>
@@ -846,6 +848,7 @@ figure{margin:0;} figcaption{font-size:7.6pt;color:var(--gray);text-align:center
         <div class="it"><span class="pill p-pink">⑥山札</span><span>通常カードをシャッフルして裏向きで積み重ねたもの</span></div>
         <div class="it"><span class="pill p-purple">⑦エターナルカード</span><span>相手ゲート侵攻成功時にもらえるボーナスカード。盤面の外に裏向きで積み重ねておきます。</span></div>
         <div class="it"><span class="pill p-gray">⑧捨て場</span><span>ゲーム中にカードの効果等でカードを捨てる際の場所。原則として、表向きに積み重ねます。</span></div>
+        <div class="it" style="margin-top:.8mm;font-size:6.7pt;line-height:1.45;color:#5a5344;"><span>※この説明書の「<b>原則</b>」は「<b>カードにそう書かれていない限り</b>」という意味です。カード効果に別の指示があれば、そちらが優先されます。</span></div>
       </div>
     </div>
   </div>
@@ -1458,7 +1461,8 @@ figure{margin:0;} figcaption{font-size:7.6pt;color:var(--gray);text-align:center
         <div class="step"><span class="num">4</span><div class="txt">
           <b>ゲートに戻る</b><br>
           あなたのゲートに強制移動する。
-          <p class="note">※「強制移動」定義：カードが無いマスにも移動できる「移動」のこと。</p>
+          <p class="note">※「強制移動」定義：カードが無いマスにも移動できる「移動」のこと。<br>
+          ※同じターン終了時に2人以上が侵攻に成功した場合、1〜3は処理順の原則で1人ずつ処理し、4は成功者全員が同時に行う。</p>
         </div></div>
       </div>
 
@@ -1913,8 +1917,8 @@ figure{margin:0;} figcaption{font-size:7.6pt;color:var(--gray);text-align:center
           <div class="term is-key"><span class="tt">【句点の原則】</span><span class="tb">カード効果文は、句点（。）の度に処理する。<br>例えば、「全員1枚ドロー。全員1マス移動する。」という効果であれば、<br>まず全員1枚ドローする。その後、全員1マス移動する。</span></div>
           <div class="term"><span class="tt">【ゲート】<span class="tref">（5ページ）</span></span><span class="tb">場を7×7の49マスの正方形としたときの<br>1辺にあたる7マスの中央のマスのこと。<br>各1辺に1マスずつあり、<br>それぞれ各プレイヤー自身から一番近い<br>目の前のゲートが自分のゲートとなる。</span></div>
           <div class="term"><span class="tt">【公開する】</span><span class="tb">相手プレイヤー全員に内容がわかるように見せる。<br>カード効果に「1枚ドローし、公開する。」とあれば、ドローしたカードを表向きにして相手プレイヤー全員にカードの内容がわかるようにする。<br>原則、公開したターンが終了したら公開をやめる。</span></div>
-          <div class="term"><span class="tt">【国宝キューブ】</span><span class="tb">7色の国宝キューブがあり、<br>セブンにおける「駒」のこと。</span></div>
-          <div class="term"><span class="tt">【駒】</span><span class="tb">プレイヤーが盤面上で操作するコマのこと。<br>国宝キューブのこと。</span></div>
+          <div class="term"><span class="tt">【国宝キューブ】</span><span class="tb">7色の国宝キューブがあり、<br>セブンの0th EDITIONにおける「駒」のこと。</span></div>
+          <div class="term"><span class="tt">【駒】</span><span class="tb">プレイヤーが盤面上で操作するコマのこと。<br>0th EDITIONでは国宝キューブのこと。</span></div>
           <div class="term"><span class="tt">【自分】</span><span class="tb">プレイヤー自身、<br>もしくはそのプレイヤーの駒のこと。</span></div>
           <div class="term"><span class="tt">【周囲】</span><span class="tb">駒の周りの縦横斜めの計8マスのこと。</span></div>
           <div class="term is-key"><span class="tt">【処理順の原則】</span><span class="tb">効果の処理等が複数のプレイヤーを対象とする場合は、<br>効果発動者（効果発動者がいなければ、手番プレイヤー）から<br>時計回りに効果を処理する。</span></div>
@@ -1973,11 +1977,13 @@ figure{margin:0;} figcaption{font-size:7.6pt;color:var(--gray);text-align:center
           <div class="qa"><div class="q">「誘惑の黒の烙印」はロックしていることになりますか？</div><div class="a">なりません。<br>「誘惑の黒の烙印」の効果欄に記載の通り、ロックエリアに「置く」だけであるため、ロックはされていません。</div></div>
           <div class="qa"><div class="q">「誘惑の黒の烙印」の置かれたロックエリアにエターナルカードをロックすることになりました。その場合、「誘惑の黒の烙印」はどうなりますか？</div><div class="a">「誘惑の黒の烙印」をあなたの手札に加えます。<br>「エターナルカードをロックする箇所に、すでにカードがある場合（ロックされていない無色のカード等も対象）、それらのカードをすべてあなたの手札に加えます（ファーストカードは手札に加えない）」とゲート侵攻ボーナスのルール（13ページ）に記載があるため、「ロックされている」「置かれている」問わずすべてあなたの手札に加えます。</div></div>
           <div class="qa"><div class="q">ゲート侵攻成功時にファーストカードと同色のエターナルカードを手に入れました。どうなりますか？</div><div class="a">ファーストカードもエターナルカードも両方ロックされた状態になります。<br>通常、エターナルカードをロックする箇所にカードがすでにロックされている場合、ゲート侵攻ボーナスのルール（13ページ）の記載に従いそれらのカードを自分の手札に加えた後、エターナルカードをロックします。<br>しかし、ファーストカードは「エターナルカードをロックする箇所に、すでにカードがある場合（ロックされていない無色のカード等も対象）、それらのカードをすべてあなたの手札に加えます（ファーストカードは手札に加えない）」とゲート侵攻ボーナスのルール（13ページ）に記載があるため、ファーストカードを自分の手札に加えることなく、エターナルカードをロックします。</div></div>
+          <div class="qa"><div class="q">ロックしたカードを自分の意思で手札に戻せますか？</div><div class="a">原則、戻せません。<br>ロックしたカードは、カード効果やゲート侵攻ボーナスなど、そうする指示がある場合のみ動かせます。</div></div>
           <div class="faqcat">【手札】</div>
           <div class="qa"><div class="q">手札枚数に上限はありますか？</div><div class="a">原則、ありません。<br>何枚でも所有することができます。</div></div>
           <div class="qa"><div class="q">手札は相手に見せてプレイしてもいいですか？</div><div class="a">原則、見せてはいけません。<br>カードの効果で手札を「公開」とある場合は見せなければなりません。<br>また、カードの効果等で「無作為」とある場合は、カードの表面が見えないようにして、手札を相手に選んでもらいます。</div></div>
           <div class="qa"><div class="q">ハンドフェイズで使える手札枚数に制限はありますか？</div><div class="a">原則、ありません。<br>また、手札の効果等で新たに自分の手札に加えたカードも原則、同じターンのハンドフェイズで使用することができます。</div></div>
           <div class="qa"><div class="q">手札効果を使うとき使ったカードはどうなりますか？</div><div class="a">そのカードを捨てた後で、手札効果を得ます。例えば、あなたは手札を2枚持っています。その中から「スラム上がりの役人」を使用する場合、まず「スラム上がりの役人」を捨てるので、手札効果を得るときのあなたの手札は1枚となり、「スラム上がりの役人」の手札効果を得ることができます。</div></div>
+          <div class="qa"><div class="q">山札も捨て場も無くなったらドローはどうなりますか？</div><div class="a">引けません。<br>善処の原則にしたがい、引ける分だけ引いて処理を終えます（1枚も引けない場合、そのドローは行われません）。</div></div>
         </div>
   </div>
   <div class="foot"><span class="orn"></span>20<span class="orn"></span></div>
@@ -2003,6 +2009,9 @@ figure{margin:0;} figcaption{font-size:7.6pt;color:var(--gray);text-align:center
           <div class="qa"><div class="q">複数のプレイヤーを対象とする効果の処理の順番はどうすればよいですか？</div><div class="a">原則、効果発動者（効果発動者がいなければ、手番プレイヤー）から時計回りに効果を処理します。（処理順の原則）</div></div>
           <div class="qa"><div class="q">「任意のマスにカードを置く」効果の場合、駒の置いてあるマスにもカードを置いていいですか？</div><div class="a">置いてもよいです。<br>「プレイヤーのいるマス以外」や「何もないマス」等の記載がない場合は置くことができます。</div></div>
           <div class="qa"><div class="q">1つのマスに駒は複数置けますか？</div><div class="a">原則、置けません。<br>1つのマスに置ける駒は原則1つです。</div></div>
+          <div class="qa"><div class="q">2人・3人プレイのとき、空いている席の場所に侵攻するとボーナスは発生しますか？</div><div class="a">そこはゲートではありません。<br>ゲートは参加しているプレイヤーの分だけ存在します。参加していない席の場所は、ゲートではないただのマスとして扱います。</div></div>
+          <div class="qa"><div class="q">2人が同時に勝利することはありますか？</div><div class="a">ありません。<br>勝利は7色をロックした瞬間に確定するため、勝者は常に1人です。</div></div>
+          <div class="qa"><div class="q">同じターン終了時に2人以上がゲート侵攻に成功したらどうなりますか？</div><div class="a">すべて成立します。<br>ボーナスの1〜3は処理順の原則にしたがって1人ずつ処理し、4「ゲートに戻る」は成功者全員が同時に行います。ゲートの持ち主は1人ずつなので、1つのマスに2つの駒が乗ることはありません。</div></div>
         </div>
   </div>
   <div class="foot"><span class="orn"></span>21<span class="orn"></span></div>
@@ -2071,21 +2080,29 @@ figure{margin:0;} figcaption{font-size:7.6pt;color:var(--gray);text-align:center
 <section class="page"><div class="inner">
   <div class="head"><h1 class="sm">Credits</h1><p class="sub">〜クレジット〜</p><div class="rule"></div></div>
   <div class="body">
-    <p class="center" style="font-family:var(--mincho);font-size:8.6pt;color:#5a5344;margin:0 0 6mm;">
+    <p class="center" style="font-family:var(--mincho);font-size:8.6pt;color:#5a5344;margin:0 0 3mm;">
       このゲームは、遊んでくださった皆様のお力で形になりました。</p>
     <div class="credit">
       <div class="cr"><span class="ck">Game Designer</span><span class="cv">ＹＧＭ</span></div>
       <div class="cr"><span class="ck">Art Director</span><span class="cv">かくざとう</span></div>
       <div class="cr"><span class="ck">Promotion Master</span><span class="cv">もも子</span></div>
       <div class="cr"><span class="ck">Advisor</span><span class="cv">和太鼓</span></div>
-      <div class="cr"><span class="ck">Testing Team</span><span class="cv names"><span class="nm">うさるこ</span><span class="nm">えーくん</span><span class="nm">くろうさぎ</span><span class="nm">すだ</span><span class="nm">よっしー</span><span class="nm">和太鼓</span><span class="nm">Dusk</span><span class="nm">kai</span><span class="nm">K0KE</span><span class="nm">Kalos</span><span class="nm">KqrN0</span><span class="nm">Lairu</span><span class="nm">NIKKA</span><span class="nm">nono</span><span class="nm">Shiina</span><span class="nm">sinn</span></span></div>
-      <div class="cr"><span class="ck">Special Thanks</span><span class="cv names"><span class="nm">いっけるいな</span><span class="nm">エルネスト</span><span class="nm">クスノキ</span><span class="nm">こぎみゅん</span><span class="nm">ころお</span><span class="nm">さりぼー</span><span class="nm">セン</span><span class="nm">ダディ</span><span class="nm">つきあかり</span><span class="nm">トム</span><span class="nm">ねこぼた</span><span class="nm">ハリネズミ</span><span class="nm">ヤマダ</span><span class="nm">影虎</span><span class="nm">霞ゆず</span><span class="nm">氷牙</span><span class="nm">LAOSHI</span><span class="nm">owo_livia</span><span class="nm">sadasachi</span><span class="nm">siri</span><span class="nm">suda</span><span class="nm">Taka</span><span class="nm">TB</span><span class="nm">yUneshi</span></span></div>
+      <div class="cr"><span class="ck">Testing Team</span><span class="cv names"><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span></span></div>
+      <div class="cr"><span class="ck">Special Thanks</span><span class="cv names"><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span></span></div>
+      <div class="crhead">Crowdfunding Supporters　<span>ご支援プラン別</span></div>
+      <div class="cr"><span class="ck">Rainbow Supporters</span><span class="cv names"><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span></span></div>
+      <div class="cr"><span class="ck">Seven Supporters</span><span class="cv names"><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span></span></div>
+      <div class="cr"><span class="ck">Color Supporters</span><span class="cv names"><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span><span class="nm">○○〇</span></span></div>
     </div>
-    <p class="center" style="margin-top:5mm;font-family:var(--mincho);font-size:8.6pt;color:#5a5344;">そして、応援していただいた全ての皆様</p>
-    <p class="center" style="margin-top:9mm;font-family:var(--mincho);font-size:9.4pt;letter-spacing:.14em;">
+    <p class="center" style="margin-top:2.6mm;font-family:var(--mincho);font-size:8.6pt;color:#5a5344;">そして、応援していただいた全ての皆様</p>
+    <p class="center" style="margin-top:3.4mm;font-family:var(--mincho);font-size:9.4pt;letter-spacing:.14em;">
       7 SHADES OF S:EVEN</p>
     <p class="center" style="margin-top:1.5mm;font-family:var(--mincho);font-size:8pt;color:#6b6455;letter-spacing:.06em;">
       これからも、ともに。</p>
+    <p class="colophon">
+      © 2026 ○○○　7 SHADES OF S:EVEN　All Rights Reserved.<br>
+      発行：○○○　／　発行年月：2026年○月　／　お問い合わせ：○○○＠○○○
+    </p>
   </div>
   <div class="foot"><span class="orn"></span>24<span class="orn"></span></div>
 </div></section>
@@ -2108,16 +2125,16 @@ figure{margin:0;} figcaption{font-size:7.6pt;color:var(--gray);text-align:center
     <div class="qr-cols">
       <div>
         <div class="qr-box">
+          <p class="qr-t">ロック<span>7ページ</span></p>
+          <p class="qr-b">カードと<b>同じ色</b>のロックエリアへ<b>表向き</b>で置く。原則、各色1枚ずつ／ロックフェイズでは1ターンに1枚まで。</p>
+          <p class="qr-b">ロックしたカードの手札効果は原則使えない。<br>ファーストカード・エターナルカードは例外で、ロックしたまま使え、<b>使っても捨てない</b>。</p>
+        </div>
+
+        <div class="qr-box">
           <p class="qr-t">ムーブフェイズ<span>10ページ</span></p>
           <p class="qr-b"><b>移動</b>　隣（前後左右の4マス）の<b>カードのみが置かれたマス</b>へ駒を置く。裏向きならオープンし、表向きのカードに乗ったら<b>到達効果</b>を得て、原則そのカードを手札に加える。</p>
           <p class="qr-b"><b>接触</b>　隣の相手を選ぶ。相手の手札を<b>無作為に1枚</b>もらい、その相手は自分のゲートへ<b>強制移動</b>する。自分は動かない。</p>
           <p class="qr-b qr-warn"><b>どちらもできない時</b>　自分の駒の隣へ山札から1枚<b>裏向き</b>に置いてターンを終了する。</p>
-        </div>
-
-        <div class="qr-box">
-          <p class="qr-t">ロック<span>7ページ</span></p>
-          <p class="qr-b">カードと<b>同じ色</b>のロックエリアへ<b>表向き</b>で置く。原則、各色1枚ずつ／ロックフェイズでは1ターンに1枚まで。</p>
-          <p class="qr-b">ロックしたカードの手札効果は原則使えない。<br>ファーストカード・エターナルカードは例外で、ロックしたまま使え、<b>使っても捨てない</b>。</p>
         </div>
 
         <div class="qr-box qr-win">
@@ -2127,9 +2144,10 @@ figure{margin:0;} figcaption{font-size:7.6pt;color:var(--gray);text-align:center
         <div class="qr-box">
           <p class="qr-t">カードの効果の見かた<span>4ページ</span></p>
           <p class="qr-b"><span class="ef s-base" style="display:inline"><i>★</i></span><b>基本効果</b>　常に適用される。</p>
-          <p class="qr-b"><img class="efic" src="img/ic-arr.png" alt=""><b>到達効果</b>　駒がそのカードに乗った時に得る。</p>
-          <p class="qr-b"><img class="efic" src="img/ic-hand.png" alt=""><b>手札効果</b>　ハンドフェイズに使える。</p>
+          <p class="qr-b"><img class="efic" src="img/ic-arr.png" alt=""><b>到達効果</b>　駒がそのカードに乗った瞬間に<b>自動で</b>発動する。処理が終わったら原則そのカードは<b>手札に加わる</b>。</p>
+          <p class="qr-b"><img class="efic" src="img/ic-hand.png" alt=""><b>手札効果</b>　ハンドフェイズに使える。原則、<b>そのカードを捨ててから</b>発動する。</p>
           <p class="qr-b"><b>【追色1】</b>　そのカードと同じ色のカードを、手札から1枚捨てて使う。</p>
+          <p class="qr-b" style="color:#6b6455;">※効果文にそのカードの処遇（場に置く等）が書かれていれば、そちらに従う。</p>
         </div>
       </div>
 
@@ -2158,63 +2176,18 @@ figure{margin:0;} figcaption{font-size:7.6pt;color:var(--gray);text-align:center
           <p class="qr-b"><b>処理順の原則</b>　複数人が対象なら、効果を使った人から時計回りに処理する。</p>
           <p class="qr-b"><b>善処の原則</b>　効果は可能な限り満たすように行う。満たせないと分かっている効果は宣言できない。</p>
         </div>
+
+        <div class="qr-box">
+          <p class="qr-t">まちがえやすい用語<span>18ページ</span></p>
+          <p class="qr-b"><b>強制移動</b>　カードが無いマスにも移動できる「移動」のこと。ただの<b>移動</b>はカードのあるマスにしか行けない。</p>
+          <p class="qr-b"><b>「接触」と「移動」は別物</b>　カード効果で「移動する」とあっても<b>接触はできない</b>。</p>
+        </div>
       </div>
     </div>
   </div>
   <div class="foot"><span class="orn"></span>25<span class="orn"></span></div>
 </div></section>
 
-<!-- ============ 追加ページ案 ============ -->
-<section class="page"><div class="inner">
-  <div class="head"><h1 class="sm">Key Principles</h1><p class="sub">〜重要な原則・用語〜</p><div class="rule"></div></div>
-  <div class="body" style="font-size:7.1pt;line-height:1.52;">
-    <p class="note center" style="margin:-2mm 0 2.4mm;">※追加ページ案（差し込み位置は未定：7ページ「勝利条件」の後、または16ページ「基本用語集」の前を推奨）</p>
 
-    <h3 class="mini">重要な原則</h3>
-    <div class="cols" style="gap:3mm;">
-      <div class="box"><p class="bt">善処の原則</p>
-        <p style="margin:0;">プレイヤーは、カードに記された内容に対し、可能な限りその内容を満足できるように努めなければならない。</p>
-        <p class="note">例：手品師の技-スリカエ-は相手がカードを1枚も持っていなければ使用できません。使ったことにしてスリカエを捨てるだけということもできません。</p>
-      </div>
-      <div class="box"><p class="bt">「1番上」の原則</p>
-        <p style="margin:0;">マスのカードを対象とする場合、特に表記が無い場合は1番上に置いてあるカードを対象とする。</p>
-        <p class="note">例：移動先のカードをオープンするのは1番上のカードだけです。</p>
-      </div>
-      <div class="box"><p class="bt">句点の原則</p>
-        <p style="margin:0;">カード効果文の処理について、文の初めから句点ごとに順に処理をする。</p>
-        <p class="note">例：「収穫と種まき」なら「任意の1マスの1枚をあなたの手札に加える。」を行ってから「そのマスに手札から1枚裏向きで置く。」を行う。</p>
-      </div>
-      <div class="box"><p class="bt">処理順の原則</p>
-        <p style="margin:0;">効果の処理等が複数のプレイヤーを対象とする場合は、効果発動者（効果発動者がいなければ、手番プレイヤー）から時計回りに効果を処理する。</p>
-      </div>
-    </div>
-
-    <h3 class="mini" style="margin-top:4mm;">重要な用語</h3>
-    <div class="box">
-      <p class="bt">強制移動</p>
-      <p style="margin:0;">移動先のマスにカードが無くてもできる「移動」のこと。</p>
-      <p class="note">※ただの「移動」はカードのあるマスにしか移動できません。</p>
-    </div>
-
-    <h3 class="mini" style="margin-top:4mm;">重要なルール</h3>
-    <div class="cols">
-      <div class="box"><p class="bt">到達効果</p>
-        <p style="margin:0;">到達効果は駒が表向きのカードの上に乗った瞬間に自動で発動する。<br>
-        到達効果が処理完了したら原則そのカードを手札に加える。</p>
-        <p class="note">※効果にそのカードの処遇（このカードを場に表向きで置く等）が書かれていればそれに従う。<br>※到達コンボについては19ページ参照。</p>
-      </div>
-      <div class="box"><p class="bt">手札効果</p>
-        <p style="margin:0;">手札効果は原則、そのカードを捨ててから発動する。</p>
-        <p class="note">※効果にそのカードの処遇が書かれていればそれに従う。</p>
-      </div>
-    </div>
-
-    <div class="box" style="margin-top:3mm;border-color:#c70025;">
-      <p class="bt" style="color:#c70025;">「接触」と「移動」</p>
-      <p style="margin:0;">接触と移動は完全に別物です。カード効果で「移動する」とあっても接触はできません。</p>
-    </div>
-  </div>
-  <div class="foot"><span class="orn"></span>—<span class="orn"></span></div>
-</div></section>
 
 </body></html>

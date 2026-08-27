@@ -4,7 +4,7 @@
 // このファイルを ja とし、同じ cardId キーで別言語ファイルを追加する。
 export const CARD_TEXT = {
   "red-jump-pad": { flavor: "最初に飛び越えた者だけが、新たな景色を知る。", titleRuby: "だい", basic: "", subtitle: "", arrival: "これはあなたの手札に加えない。２マス先に一気に移動する。", hand: "これをゲート以外の任意のマスに表向きで置く。" },
-  "red-counter-lock": { flavor: "奪われる覚悟がある者だけが、奪い返せる", titleRuby: "", basic: "", subtitle: "", arrival: "１番少なくロックしているなら１枚ドロー。", hand: "あなたへの接触の宣言時に使える。その接触を無効にする。あなたの手札を１枚ロックしてもよい。" },
+  "red-counter-lock": { flavor: "奪われる覚悟がある者だけが、奪い返せる。", titleRuby: "", basic: "", subtitle: "", arrival: "１番少なくロックしているなら１枚ドロー。", hand: "あなたへの接触の宣言時に使える。その接触を無効にする。あなたの手札を１枚ロックしてもよい。" },
   "orange-mass-change": { flavor: "誰もが、一度は誰かの場所に立つべきだ。", titleRuby: "", basic: "", subtitle: "", arrival: "３マス以内の相手のいる場所とあなたのいる場所を入れ替える。相手はこのカードの到達効果を得ない。", hand: "【追色１】上記の到達時の効果を得る。" },
   "orange-harvest-sow": { flavor: "蒔いた希望は、必ず誰かが受け取る。", titleRuby: "しゅうかく　たね", basic: "", subtitle: "", arrival: "任意の１マスの１枚をあなたの手札に加える。そのマスに手札から１枚裏向きで置く。", hand: "上記の到達時の効果を得る。" },
   "yellow-sleight-of-hand": { flavor: "奪ったのではない。気付かれなかっただけさ。", titleRuby: "てじなし　わざ", basic: "", subtitle: "", arrival: "相手１人の手札から無作為に１枚、あなたの手札に加える。あなたの手札から１枚、その相手の手札に加える。", hand: "上記の到達時の効果を得る。" },
