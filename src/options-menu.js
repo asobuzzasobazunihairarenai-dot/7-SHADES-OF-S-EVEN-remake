@@ -3,7 +3,8 @@
 // 単独のボタンとして左上にあったが、ここに統合し、左上はゲームタイトル表示用に空けた。
 
 import { openAdminPanel } from "./admin.js";
-import { getLang, setLang, SUPPORTED_LANGS, LANG_LABEL } from "./i18n.js";
+import { getLang, setLang, SUPPORTED_LANGS, LANG_LABEL, onLangChange } from "./i18n.js";
+import { t } from "./ui-text.js";
 import { isAutoDragRestrictionEnabled, setAutoDragRestrictionEnabled } from "./auto-drag-restriction.js";
 import { openActionLogPanel } from "./action-log.js";
 import { markCleanExit } from "./crash-blackbox.js";
@@ -113,7 +114,7 @@ function buildCollapsibleSection(title, buildContent, { icon, onReset } = {}) {
     const resetBtn = document.createElement("button");
     resetBtn.type = "button";
     resetBtn.className = "options-menu-section-reset-btn";
-    resetBtn.textContent = "戻す";
+    resetBtn.textContent = t("opt.reset");
     resetBtn.title = "このセクションの設定を初期値に戻します";
     resetBtn.addEventListener("click", (e) => {
       e.preventDefault();
@@ -148,7 +149,7 @@ function buildVolumeRow() {
   const row = document.createElement("div");
   row.className = "options-menu-volume-row";
   const label = document.createElement("span");
-  label.textContent = "効果音の音量";
+  label.textContent = t("opt.soundVolume");
   const slider = document.createElement("input");
   slider.type = "range";
   slider.min = "0";
@@ -178,7 +179,7 @@ function buildBgmVolumeRow() {
   const row = document.createElement("div");
   row.className = "options-menu-volume-row";
   const labelEl = document.createElement("span");
-  labelEl.textContent = "BGMの音量";
+  labelEl.textContent = t("opt.bgmVolume");
   const slider = document.createElement("input");
   slider.type = "range";
   slider.min = "0";
@@ -221,32 +222,32 @@ function buildResetAppearanceRow() {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "options-menu-reset-btn";
-  btn.textContent = "アカウント設定を初期化する";
+  btn.textContent = t("opt.resetAccount");
 
   const hint = document.createElement("div");
   hint.className = "options-menu-reset-hint";
-  hint.textContent = "名前・アバター・駒スキン・プレイマット・カード裏面・背景画像を既定に戻します。";
+  hint.textContent = t("opt.resetAccountDesc");
 
   let armed = false;
   let armTimeoutId = null;
   function disarm() {
     armed = false;
     clearTimeout(armTimeoutId);
-    btn.textContent = "アカウント設定を初期化する";
+    btn.textContent = t("opt.resetAccount");
     btn.classList.remove("is-armed");
   }
 
   btn.addEventListener("click", async () => {
     if (!armed) {
       armed = true;
-      btn.textContent = "本当に初期化しますか？（もう一度クリック）";
+      btn.textContent = t("opt.resetAccountConfirm");
       btn.classList.add("is-armed");
       armTimeoutId = setTimeout(disarm, 5000);
       return;
     }
     disarm();
     btn.disabled = true;
-    btn.textContent = "初期化中…";
+    btn.textContent = t("opt.resetAccountBusy");
     try {
       await resetMyAppearanceSettings();
       markCleanExit(); // 意図的なリロード＝ブラックボックスに「不審な落下」と誤検知させない。
@@ -254,9 +255,9 @@ function buildResetAppearanceRow() {
     } catch (err) {
       console.error("resetMyAppearanceSettings failed", err);
       btn.disabled = false;
-      btn.textContent = "初期化に失敗しました";
+      btn.textContent = t("opt.resetAccountFailed");
       setTimeout(() => {
-        btn.textContent = "アカウント設定を初期化する";
+        btn.textContent = t("opt.resetAccount");
       }, 3000);
     }
   });
@@ -294,7 +295,7 @@ function buildCardPreviewSizeRow() {
   const row = document.createElement("div");
   row.className = "options-menu-volume-row";
   const labelEl = document.createElement("span");
-  labelEl.textContent = "カード拡大プレビューのサイズ";
+  labelEl.textContent = t("opt.cardPreviewSize");
   const current = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--card-preview-size"));
   const slider = document.createElement("input");
   slider.type = "range";
@@ -324,7 +325,7 @@ function buildCardPreviewSideRow() {
   const row = document.createElement("div");
   row.className = "options-menu-volume-row";
   const label = document.createElement("span");
-  label.textContent = "カード拡大を出す向き";
+  label.textContent = t("opt.cardPreviewSide");
   row.appendChild(label);
   const group = document.createElement("div");
   group.className = "options-menu-segment";
@@ -361,7 +362,7 @@ function buildCpuSpeedRow() {
   const row = document.createElement("div");
   row.className = "options-menu-volume-row";
   const label = document.createElement("span");
-  label.textContent = "CPUの速さ";
+  label.textContent = t("opt.cpuSpeed");
   row.appendChild(label);
   const group = document.createElement("div");
   group.className = "options-menu-segment";
@@ -399,7 +400,7 @@ function buildCpuDifficultyRow() {
   const row = document.createElement("div");
   row.className = "options-menu-volume-row";
   const label = document.createElement("span");
-  label.textContent = "CPUの強さ";
+  label.textContent = t("opt.cpuStrength");
   row.appendChild(label);
   const group = document.createElement("div");
   group.className = "options-menu-segment";
@@ -408,17 +409,17 @@ function buildCpuDifficultyRow() {
     const cur = getCpuDifficulty();
     for (const b of buttons) b.classList.toggle("is-selected", b.dataset.v === cur);
   };
-  for (const [v, text] of [
-    ["rookie", "新人"],
-    ["intermediate", "中級"],
-    ["advanced", "上級"],
-    ["master", "最強"],
+  for (const [v, key] of [
+    ["rookie", "cpu.diff.rookie"],
+    ["intermediate", "cpu.diff.intermediate"],
+    ["advanced", "cpu.diff.advanced"],
+    ["master", "cpu.diff.master"],
   ]) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "options-menu-segment-btn";
     btn.dataset.v = v;
-    btn.textContent = text;
+    btn.textContent = t(key);
     btn.addEventListener("click", () => {
       setCpuDifficulty(v);
       refresh();
@@ -466,7 +467,7 @@ function buildLanguageRow() {
   wrap.appendChild(row);
   const note = document.createElement("div");
   note.style.cssText = "font-size: 0.72rem; color: #94a3b8; margin: 0.1rem 0 0.5rem; line-height: 1.5;";
-  note.textContent = "現在はカードのテキストのみ翻訳されます（メニュー等は日本語のまま）。";
+  note.textContent = t("opt.langNote");
   wrap.appendChild(note);
   refresh();
   return wrap;
@@ -495,7 +496,7 @@ function buildStatsPlayerLinkRow() {
 
   const labelEl = document.createElement("div");
   labelEl.className = "options-menu-stats-link-title";
-  labelEl.textContent = "🏆 戦績管理システムのプレイヤーと連携";
+  labelEl.textContent = t("opt.statsLink");
   row.appendChild(labelEl);
 
   const actionArea = document.createElement("div");
@@ -504,7 +505,7 @@ function buildStatsPlayerLinkRow() {
 
   const btn = document.createElement("button");
   btn.type = "button";
-  btn.textContent = "選択する";
+  btn.textContent = t("opt.statsLinkSelect");
   btn.className = "options-menu-item";
   btn.style.cssText = "width: auto; flex: none; padding: 0.3rem 0.8rem;";
   btn.disabled = true;
@@ -515,7 +516,7 @@ function buildStatsPlayerLinkRow() {
     row.classList.add("is-linked");
     actionArea.innerHTML = "";
     const done = document.createElement("div");
-    done.textContent = "✅ 連携済みです";
+    done.textContent = t("opt.statsLinkDone");
     // 薄い黄緑だと（既定の）ライトテーマで視認性が悪かったので、濃い緑＋太字に（ユーザー報告）。
     done.style.cssText = "font-size: 0.85rem; color: #15803d; font-weight: 700;";
     actionArea.appendChild(done);
@@ -524,11 +525,11 @@ function buildStatsPlayerLinkRow() {
   function showGoogleRequiredState() {
     actionArea.innerHTML = "";
     const note = document.createElement("div");
-    note.textContent = "Googleアカウントでログインしていないと連携できません。";
+    note.textContent = t("opt.statsLinkGoogleOnly");
     note.style.cssText = "font-size: 0.7rem; color: #fca5a5; line-height: 1.4;";
     const reloginBtn = document.createElement("button");
     reloginBtn.type = "button";
-    reloginBtn.textContent = "Googleアカウントでログインしなおす";
+    reloginBtn.textContent = t("opt.statsLinkReloginGoogle");
     reloginBtn.className = "options-menu-item";
     reloginBtn.style.cssText = "width: auto; flex: none; padding: 0.3rem 0.8rem; margin-top: 0.3rem;";
     reloginBtn.addEventListener("click", () => {
@@ -642,7 +643,7 @@ function buildShortcutRow(buttonId, label) {
   }
   refresh();
   keyBtn.addEventListener("click", () => {
-    keyBtn.textContent = "キーを押してください…";
+    keyBtn.textContent = t("opt.pressKey");
     function onKey(e) {
       e.preventDefault();
       e.stopPropagation();
@@ -705,6 +706,11 @@ export function initOptionsMenu() {
     backdrop.style.display = "none";
     document.removeEventListener("pointerdown", onDocPointerDown, true);
   }
+  // 言語セレクタはこのパネル内にあるので、切り替えたらパネル自身も新しい言語で作り直す
+  // （開いている時だけ。閉じていれば次に開いた時 renderContent が新言語で組む）。
+  onLangChange(() => {
+    if (panel.style.display !== "none") renderContent();
+  });
   function open() {
     document.addEventListener("pointerdown", onDocPointerDown, true);
     // 開くたびに中身を作り直す。パネルは起動時に1回だけ組み立てる方式だと、その時点では
@@ -728,11 +734,11 @@ export function initOptionsMenu() {
     const backBtn = document.createElement("button");
     backBtn.type = "button";
     backBtn.id = "options-menu-back";
-    backBtn.textContent = "← 戻る";
+    backBtn.textContent = t("common.back");
     backBtn.addEventListener("click", close);
     panel.appendChild(backBtn);
 
-    panel.appendChild(buildSectionTitle("基本設定"));
+    panel.appendChild(buildSectionTitle(t("opt.basicSettings")));
 
     // ユーザー要望（続き64）「基本設定内のUIを整理したい」への対応で、性質の近い項目を
     // 4グループ（戦績連携カード＋音量／表示・演出／自動処理・タイマー）へ再編した。
@@ -744,7 +750,7 @@ export function initOptionsMenu() {
 
     panel.appendChild(
       buildCollapsibleSection(
-        "音量",
+        t("opt.sec.group.volume"),
         (content) => {
           const volumeRow = buildVolumeRow();
           const volumeSlider = volumeRow.querySelector("input[type=range]");
@@ -768,7 +774,7 @@ export function initOptionsMenu() {
 
     panel.appendChild(
       buildCollapsibleSection(
-        "表示・演出",
+        t("opt.sec.group.display"),
         (content) => {
           content.appendChild(buildCardPreviewSizeRow());
           content.appendChild(buildCardPreviewSideRow());
@@ -776,7 +782,7 @@ export function initOptionsMenu() {
           // イラストのみのカード画像で映えさせたい。ホバー拡大や手札は通常のテキストあり画像
           // のまま」。この端末のみのローカル設定（board-card-display.js、相手には非同期）。
           content.appendChild(
-            buildCheckboxRow("盤面のカードをイラストのみで表示（手札・拡大はそのまま）", isBoardIllustOnly(), (checked) => {
+            buildCheckboxRow(t("opt.chk.boardIllustOnly"), isBoardIllustOnly(), (checked) => {
               setBoardIllustOnly(checked);
             })
           );
@@ -784,7 +790,7 @@ export function initOptionsMenu() {
           // ステータスエリアのように画角固定できないか」。ONで自分の手札を盤面ズームの外側の
           // 固定トレイ（画面下）に出す（fixed-hand.js）。見た目は平らな手札トレイになる。
           content.appendChild(
-            buildCheckboxRow("自分の手札を画面下に固定する（盤面を拡大しても見切れない）", isFixedHandEnabled(), (checked) => {
+            buildCheckboxRow(t("opt.chk.fixedHand"), isFixedHandEnabled(), (checked) => {
               setFixedHandEnabled(checked);
             })
           );
@@ -792,7 +798,7 @@ export function initOptionsMenu() {
           // オプションからもできるようにしたい」。実体はtablet-2d-mode.jsで管理者モードと
           // 共有している（admin.jsの「2D表示に切り替える」トグルと同じ状態）。
           content.appendChild(
-            buildCheckboxRow("2D表示に切り替える（タブレットの点滅対策）", isFlatten2dMode(), (checked) => {
+            buildCheckboxRow(t("opt.chk.flatten2d"), isFlatten2dMode(), (checked) => {
               setFlatten2dMode(checked);
               saveMyPreference({ flatten_2d_mode: checked });
             })
@@ -802,7 +808,7 @@ export function initOptionsMenu() {
           // （クリック＝ユーザー操作起点なのでrequestFullscreenが発動できる）。未対応端末では出さない。
           if (isFullscreenSupported()) {
             content.appendChild(
-              buildCheckboxRow("全画面表示にする（タブ/URL欄を隠す）", isFullscreenActive(), () => {
+              buildCheckboxRow(t("opt.chk.fullscreen"), isFullscreenActive(), () => {
                 toggleFullscreen();
               })
             );
@@ -812,7 +818,7 @@ export function initOptionsMenu() {
           // 表示する（この設定の対象外）。画面中央の砂時計ロープは誰の分でも従来通り
           // 常時表示のまま（turn-timer.jsのupdateRope、この設定の対象外）。
           content.appendChild(
-            buildCheckboxRow("相手の基本時間のカウントダウンを表示する", isOpponentBaseTimerVisible(), (checked) => {
+            buildCheckboxRow(t("opt.chk.opponentBaseTimer"), isOpponentBaseTimerVisible(), (checked) => {
               setOpponentBaseTimerVisible(checked);
               saveMyPreference({ opponent_base_timer_visible: checked });
             })
@@ -823,22 +829,22 @@ export function initOptionsMenu() {
           // localStorage)＋saveMyPreferenceでso7_user_profiles.action_confirm_enabledへ保存し、
           // ログイン時にloadMyPreferencesが適用する（他の基本設定と同じパターン）。
           content.appendChild(
-            buildCheckboxRow("ロック・手札を使う前に確認する", isActionConfirmEnabled(), (checked) => {
+            buildCheckboxRow(t("opt.chk.actionConfirm"), isActionConfirmEnabled(), (checked) => {
               setActionConfirmEnabled(checked);
               saveMyPreference({ action_confirm_enabled: checked });
             })
           );
           content.appendChild(
-            buildCollapsibleSection("ロックエリア関連", (subContent) => {
+            buildCollapsibleSection(t("opt.sec.lockArea"), (subContent) => {
               subContent.appendChild(
-                buildCheckboxRow("ロックエリアバーを表示する", isLockAreaBarVisible(), (checked) => {
+                buildCheckboxRow(t("opt.chk.lockAreaBar"), isLockAreaBarVisible(), (checked) => {
                   setLockAreaBarVisible(checked);
                   window.dispatchEvent(new CustomEvent("admin:change"));
                   saveMyPreference({ lock_area_bar_visible: checked });
                 })
               );
               subContent.appendChild(
-                buildCheckboxRow("ロックエリアの色を表示する", isLockColorVisible(), (checked) => {
+                buildCheckboxRow(t("opt.chk.lockColor"), isLockColorVisible(), (checked) => {
                   setLockColorVisible(checked);
                   window.dispatchEvent(new CustomEvent("admin:change"));
                   saveMyPreference({ lock_color_visible: checked });
@@ -847,7 +853,7 @@ export function initOptionsMenu() {
             })
           );
           content.appendChild(
-            buildCollapsibleSection("モーダル表示時間", (subContent) => {
+            buildCollapsibleSection(t("opt.sec.modalDuration"), (subContent) => {
               subContent.appendChild(
                 buildDurationRow("相手ゲート侵攻ボーナス通知", "--gate-invasion-modal-step-duration", 3.5, (value) => {
                   saveMyPreference({ gate_invasion_modal_duration: value });
@@ -869,21 +875,21 @@ export function initOptionsMenu() {
           // しても相手プレイヤーの画面には一切影響しない（各ブラウザは自分のstateから
           // 独立して描画する）。
           content.appendChild(
-            buildCollapsibleSection("アニメーションを減らす（動作が重い時に）", (subContent) => {
+            buildCollapsibleSection(t("opt.sec.reduceAnim"), (subContent) => {
               subContent.appendChild(
-                buildCheckboxRow("移動アニメーション（駒・カードの飛翔）を無効にする", isFlightAnimationDisabled(), (checked) => {
+                buildCheckboxRow(t("opt.chk.disableFlight"), isFlightAnimationDisabled(), (checked) => {
                   setFlightAnimationDisabled(checked);
                   saveMyPreference({ flight_animation_disabled: checked });
                 })
               );
               subContent.appendChild(
-                buildCheckboxRow("到達・ロック演出（光の柱・ロック画像等）を無効にする", isArrivalEffectDisabled(), (checked) => {
+                buildCheckboxRow(t("opt.chk.disableArrival"), isArrivalEffectDisabled(), (checked) => {
                   setArrivalEffectDisabled(checked);
                   saveMyPreference({ arrival_effect_disabled: checked });
                 })
               );
               subContent.appendChild(
-                buildCheckboxRow("常時光る演出（手番のグロー・砂時計ロープ等）を無効にする", isContinuousGlowDisabled(), (checked) => {
+                buildCheckboxRow(t("opt.chk.disableGlow"), isContinuousGlowDisabled(), (checked) => {
                   setContinuousGlowDisabled(checked);
                   document.body.classList.toggle("reduce-glow", checked);
                   saveMyPreference({ continuous_glow_disabled: checked });
@@ -931,7 +937,7 @@ export function initOptionsMenu() {
     // ゆっくり／普通／早いで選べるように」。
     panel.appendChild(
       buildCollapsibleSection(
-        "CPU戦（1人用）",
+        t("opt.sec.cpuBattle"),
         (content) => {
           content.appendChild(buildCpuDifficultyRow());
           const diffNote = document.createElement("div");
@@ -940,7 +946,7 @@ export function initOptionsMenu() {
             "新人＝完全ランダム。中級＝移動先を評価（相手ゲート侵攻・自滅マス回避・必要な色）。上級＝さらに相手の進行度を見て接触で妨害。最強＝上級＋伏せカードののぞき見。";
           content.appendChild(diffNote);
           content.appendChild(
-            buildCheckboxRow("CPUの結果通知を自動で進める（OFFにするとクリックするまで表示）", isCpuAutoSkipEnabled(), (checked) => {
+            buildCheckboxRow(t("opt.chk.cpuAutoAdvance"), isCpuAutoSkipEnabled(), (checked) => {
               setCpuAutoSkipEnabled(checked);
             })
           );
@@ -966,7 +972,7 @@ export function initOptionsMenu() {
     // 達したため account 保存に切り替えた）。デフォルトON（続き63）。
     panel.appendChild(
       buildCollapsibleSection(
-        "自動処理・タイマー",
+        t("opt.sec.group.autoTimer"),
         (content) => {
           const note = document.createElement("div");
           note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.5rem; line-height: 1.5;";
@@ -984,7 +990,7 @@ export function initOptionsMenu() {
           // render末尾の強制ON）。
           const inRankedGame = isOnlineMode() && isRankedGame();
           const autoProcessingCheckboxRow = buildCheckboxRow(
-            "カード効果を自動処理する",
+            t("opt.autoProcessing"),
             inRankedGame ? true : isAutoProcessingEnabled(),
             async (checked) => {
               if (inRankedGame) {
@@ -1025,7 +1031,7 @@ export function initOptionsMenu() {
             autoProcessingCheckboxRow.style.opacity = "0.75";
             const rankedNote = document.createElement("div");
             rankedNote.style.cssText = "font-size: 0.72rem; color: #fbbf24; margin: 0.2rem 0 0.5rem 0;";
-            rankedNote.textContent = "ランク戦では自動処理は常にONで固定されます。";
+            rankedNote.textContent = t("opt.rankedAutoFixed");
             content.appendChild(autoProcessingCheckboxRow);
             content.appendChild(rankedNote);
           } else {
@@ -1129,7 +1135,7 @@ export function initOptionsMenu() {
           if (isAutoProcessingEnabled()) {
             const emergencyBtn = document.createElement("button");
             emergencyBtn.type = "button";
-            emergencyBtn.textContent = "🚨 緊急ターン終了";
+            emergencyBtn.textContent = t("opt.emergencyEndTurn");
             emergencyBtn.style.cssText =
               "margin-top: 0.6rem; padding: 0.4rem 0.8rem; background: rgba(220, 38, 38, 0.15); " +
               "border: 1px solid rgba(220, 38, 38, 0.5); border-radius: 0.3rem; color: #fca5a5; " +
@@ -1221,7 +1227,7 @@ export function initOptionsMenu() {
     // 設定はこの端末に保存（localStorage）。閉じていても届くプッシュ通知は次フェーズ。
     panel.appendChild(
       buildCollapsibleSection(
-        "ランク戦の通知",
+        t("opt.sec.rankedNotify"),
         (content) => {
           const note = document.createElement("div");
           note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.5rem; line-height: 1.5;";
@@ -1230,7 +1236,7 @@ export function initOptionsMenu() {
             "タブ点滅・音・バナーでお知らせします（アプリを閉じている時は届きません）。";
           content.appendChild(note);
 
-          const enableRow = buildCheckboxRow("対戦相手が現れたら通知する", isRankedNotifyEnabled(), (checked) => {
+          const enableRow = buildCheckboxRow(t("opt.notify.enable"), isRankedNotifyEnabled(), (checked) => {
             setRankedNotifyEnabled(checked);
           });
           content.appendChild(enableRow);
@@ -1243,7 +1249,7 @@ export function initOptionsMenu() {
           timeRow.style.cssText =
             "display:flex; align-items:center; gap:0.4rem; margin:0.5rem 0 0.2rem; font-size:0.85rem; flex-wrap:wrap;";
           const timeLabel = document.createElement("span");
-          timeLabel.textContent = "通知してもいい時間帯";
+          timeLabel.textContent = t("opt.notify.timeLabel");
           const mkHourSelect = (value, onChange) => {
             const sel = document.createElement("select");
             sel.style.cssText =
@@ -1273,7 +1279,7 @@ export function initOptionsMenu() {
 
           const winNote = document.createElement("div");
           winNote.style.cssText = "font-size:0.72rem; color:#94a3b8; margin-top:0.3rem; line-height:1.5;";
-          winNote.textContent = "開始と終了を同じ時刻にすると終日OKです。開始＞終了なら夜をまたぎます（例 22時〜6時）。";
+          winNote.textContent = t("opt.notify.hint");
           content.appendChild(winNote);
         },
         { icon: "🏆" }
@@ -1281,13 +1287,13 @@ export function initOptionsMenu() {
     );
 
     const shortcutRows = SHORTCUT_TARGETS.map(({ id, label }) => buildShortcutRow(id, label));
-    shortcutSectionEl = buildCollapsibleSection("ショートカットキー（プレイヤー用ボタン）", (content) => {
+    shortcutSectionEl = buildCollapsibleSection(t("opt.sec.shortcuts"), (content) => {
       for (const { row } of shortcutRows) {
         content.appendChild(row);
       }
       const presetBtn = document.createElement("button");
       presetBtn.className = "options-menu-shortcut-preset";
-      presetBtn.textContent = "⭐ おすすめ";
+      presetBtn.textContent = t("opt.shortcutRecommended");
       presetBtn.title = "手札シャッフル=S、盤面拡大=Z、1枚ドロー=Dを一括で割り当てます";
       presetBtn.addEventListener("click", () => {
         for (const [id, key] of Object.entries(RECOMMENDED_SHORTCUTS)) setShortcut(id, key);
@@ -1332,7 +1338,7 @@ export function initOptionsMenu() {
     // admin.js内の「🔐 管理者専用」セクションが別途サーバー側でも制限している）。
     if (isAdminUser()) {
       panel.appendChild(
-        buildMenuItem("⚙ 管理者モード", () => {
+        buildMenuItem(t("opt.adminMode"), () => {
           close();
           openAdminPanel();
         })
@@ -1414,9 +1420,9 @@ export function initOptionsMenu() {
     icon: "assets/icons/options.svg",
     tooltip: "基本設定・管理者モード・山札一覧などを開きます",
   });
-  captionEl.textContent = "オプション";
+  captionEl.textContent = t("opt.title");
   wireIconButtonClick(toggleBtn, {
-    detailTitle: "オプション",
+    detailTitle: t("opt.title"),
     detailParagraphs: [
       "基本設定（効果音の音量・アニメーションの有無・ショートカットキー等）・管理者モード（見た目の細かい調整）・山札一覧（カード一覧の確認）をまとめたメニューです。",
     ],

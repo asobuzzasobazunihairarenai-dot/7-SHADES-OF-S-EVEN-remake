@@ -17592,3 +17592,30 @@ DOMベースの「読む瞬間」を持つものが残っていたため、ユ�
   Codex / Rulebook / News / Updates・Home）に**その場で作り直され**、`setLang('ja')` で日本語へ戻る・
   コンソール新規エラー無しを実測確認。**次バッチ**: オプションメニュー・ゲーム中のボタン等へ拡張。
   サーバー側の変更は無い。
+
+### 2026-08-27（続き289）：UI英語化フェーズ2（オプションメニュー）
+
+続き288の UI 文言基盤（`ui-text.js`/`t()`）を使い、オプションメニュー（基本設定）を英語化した。
+ユーザーが最もよく開く設定画面なので優先。
+- **`ui-text.js`**: `opt.*` 名前空間のキーを追加（パネルタイトル・戻す・音量2種・カード拡大サイズ/向き・
+  CPUの速さ/強さ・アカウント設定初期化の一連・戦績連携の一連・言語注記・4グループ＋ロックエリア/
+  モーダル表示時間/アニメ削減/CPU戦/ランク戦通知/ショートカットの各セクション見出し・基本設定の全
+  チェックボックス・自動処理・緊急ターン終了・おすすめ・管理者モード項目・ランク自動処理固定注記・
+  キー記録中）。CPUの強さの選択肢は続き288の `cpu.diff.*` を共有。
+- **`options-menu.js`**: 上記のハードコード文字列を `t()` に置換（buildVolumeRow/BgmVolumeRow/
+  ResetAppearanceRow/CardPreviewSize/CardPreviewSide/CpuSpeed/CpuDifficulty/StatsPlayerLinkRow/
+  buildCollapsibleSection の reset ボタン・renderContent の全セクション/チェックボックス/管理者モード
+  項目/パネルタイトル）。CPUの強さのセグメントも `cpu.diff.*` キーに。
+- **言語切替でパネルを作り直し**: 言語セレクタがこのパネル内にあるため、`onLangChange(() => { if
+  (パネルが開いていれば) renderContent(); })` を追加。パネル内で English を選ぶと即座にパネル全体が
+  英語で組み直される（閉じていれば次に開いた時に新言語で組む）。言語セレクタのクリックは
+  `setLang(v)`＋`saveMyPreference({lang})`（続き287）＋自身の再描画。
+- **今回のスコープ外（据え置き＝日本語のまま）**: 深い管理者専用セクション（疑似CPUモード・AFK時の
+  CPU代行・マイページのレイアウト編集モード等、`isAdminUser` でガードされ開発者2アカウントしか見ない
+  もの）。次バッチ以降で対応。
+- **検証**: `node --check`（options-menu/ui-text）通過。ブラウザで、`setLang('en')`＋パネルを開くと
+  9セクション見出し（🔊 Volume / 🖥️ Display & Effects / Lock Area / Modal display time / Reduce
+  animations… / 🤖 CPU Match (solo) / ⚙️ Auto-processing & Timer / 🏆 Ranked match notifications /
+  Shortcut keys…）・基本設定チェックボックス8個・戻る「← Back」が全て英語、パネル内で 日本語↔English を
+  切り替えると**その場でパネルが作り直され**両言語が正しく出ること、コンソール新規エラー無しを実測確認。
+  サーバー側の変更は無い。
