@@ -17269,3 +17269,43 @@ URLが `?iso=0` になっていた取り違えと判断）。かつユーザー�
   「本編描画を buildCardFace に差し替える」フェーズで実現）。英語は行長が違うため、**英語用のレイアウト微調整
   （cqw配置の言語別オーバーライド）は別途必要**（エディタで英語を見ながら詰める）。翻訳の精度は用語集で
   統一済みだが、将来ネイティブ/コミュニティのレビューで磨く前提。
+
+### 2026-08-27（続き277）：カード面のテキスト表示を本番接続（フェーズ1・主要な対局面／画像↔テキスト切替・既定テキスト）
+
+続き261〜276で作った「ブランク画像＋アプリ側テキスト」のカード面レンダラ（`buildCardFace`）を、
+プレビュー専用から**実ゲームの描画へ初めて接続**した（ユーザー要望「本番接続（画像→テキスト差し替え）。
+管理者モードで画像かテキストか選べるように。デフォはテキストで」）。
+- **中央ヘルパー `src/card-face-display.js`（新規）**: `getCardFaceMode()/setCardFaceMode()`（"text"|"image"、
+  **既定=text**、localStorage `so7-card-face-mode`＝この端末のみ）と `showCardFace(el, cardId, imageUrl)`。
+  テキストモード＝`buildCardFace(cardId)` を `el` に `position:absolute; inset:0` のオーバーレイ
+  （`.card-face-mount`）として被せ、`el` の背景画像を消す（`el` の他の子＝バッジ・グロー擬似要素・
+  ロックスタンプ等はそのまま残す＝オーバーレイは先頭に挿入＝背面）。画像モード＝従来通り背景画像を敷き、
+  マウントがあれば撤去。同じ cardId のマウントは作り直さない（ホバー等での無駄な再構築を避ける）。
+  循環import無し（card-face-display→card-renderer→cards-data/card-text/card-layout-config、いずれも
+  main.js/admin.jsを参照しない）。
+- **`.card-face-mount` CSS**（style.css）: `inset:0; width/height:100%; aspect-ratio:auto; border-radius:inherit;
+  box-shadow:none; pointer-events:none`。container-type:size は基底 `.card-face` から継承（inset:0 で確定
+  サイズになり cqw が解決）。全カードスロット（`.hand-card`/`.board-card`/`.hand-reveal-card`/`.stack-top`/
+  `#card-preview`）が position 済みの祖先なので inset:0 が正しく効く。
+- **接続した対局面（主要な「読むカード」）**: (1)自分の手札（`buildPlayerZone` の is-self 表向き、観戦allの
+  自席表向きも）(2)手札公開エリア（`.hand-reveal-card` 表向き）(3)盤面の表向きカード（`buildFlatCard` の
+  faceUp）(4)捨て場の一番上（`buildCardStack` に `faceCardId` 引数を追加し `buildPileZone` の discard 分岐で
+  cardId を渡す。他の山＝裏面画像は従来通り）(5)ホバー拡大プレビュー（`updatePreview` を `getVisibleCardId`＋
+  `showCardFace` に）。いずれも従来の `el.style.backgroundImage = url(getCardImagePath/…)` を
+  `showCardFace(el, cardId, url)` に差し替えただけ（画像モードでは完全に従来通り）。
+- **管理者モードに「カード面の表示（テキスト／画像）」トグル**（admin.js、⚙ セットアップ・挙動）:
+  チェックOFF＝テキスト（既定）／ON＝画像。切替後 `admin:change` を発火して盤面を再描画。既定テキストは
+  全ユーザーに効き、管理者だけが端末ローカルで画像へ切替可能（＝本番はテキスト、うまく出ない時の保険）。
+- **今回のスコープ外（据え置き・follow-up）**: 各モーダルの拡大カード（到達／手札使用／ゲート侵攻／
+  獲得トースト／個人結果）、図鑑（deck-viewer）／デッキビルダー／デッキ選択、重なり／選択モーダル、
+  ドラッグ中のゴースト、飛翔演出・canvas演出（victory-summary/card-dissolve）は引き続き画像/canvas
+  （ゴースト・canvasはDOMスロットではないため常に画像/描画のまま）。英語用のレイアウト微調整（cqwの
+  言語別オーバーライド）も別フェーズ。
+- **検証**: `node --check`（card-face-display/main/admin）通過・CSSブレース平衡（2441）。ブラウザで、
+  ①表示モジュール単体＝テキストモードで `.card-face-mount`（タイトル＋効果2行＋ブランク画像背景）が
+  生成され `el` の背景が消えること・画像モードでマウント撤去＋背景画像復帰を実測、②2人ローカル対局を
+  セットアップし**盤面の表向きカード（ロックされたファースト2枚）が 2/2 とも `.card-face-mount` で
+  描画**されること、③コンソールエラー無しを確認。自分の手札は headless の rAF スロットル（隠しペインで
+  再描画が凍結）で「ドロー→再描画」の確認が取れなかったが、盤面表向きカードと**byte単位で同じ
+  showCardFace 呼び出し**のため同様に動作する（実機での見た目・可読性・体感の最終確認をお願いしたい）。
+  サーバー側（Supabase）の変更は無い。

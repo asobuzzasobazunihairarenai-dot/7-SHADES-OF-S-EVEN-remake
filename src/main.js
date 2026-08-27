@@ -343,6 +343,7 @@ import { playSound, initGameBgmAutoStart, initSoundUnlock, startHeartbeat, stopH
 import { initScreenWakeLock } from "./wake-lock.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath, getCardIllustPath } from "./cards-data.js";
 import { isBoardIllustOnly } from "./board-card-display.js";
+import { showCardFace } from "./card-face-display.js";
 import {
   COLORS,
   GATE_POSITIONS,
@@ -609,14 +610,14 @@ function buildPlayerZone(side, player, isSelf) {
       // （god-view）、publicモードは全て裏向き（公開情報のみ）。自分専用の演出は付けない。
       if (spectateAll && token.cardId) {
         cardEl.className = "hand-card is-self";
-        cardEl.style.backgroundImage = `url("${getCardImagePath(token.cardId)}")`;
+        showCardFace(cardEl, token.cardId, getCardImagePath(token.cardId));
       } else {
         cardEl.className = "hand-card is-facedown";
         cardEl.style.backgroundImage = `url("${cardBackImageForToken(token)}")`;
       }
     } else if (isSelf) {
       cardEl.className = "hand-card is-self";
-      cardEl.style.backgroundImage = `url("${getCardImagePath(token.cardId)}")`;
+      showCardFace(cardEl, token.cardId, getCardImagePath(token.cardId));
       // ユーザー要望「白と黒のカードは自分の手札内でそれぞれの色の湯気のような神秘的な
       // オーラで纏われている演出を入れたい」。自分の手札だけが実際の色を知っている
       // （相手の手札は常に裏向きのため対象外）。
@@ -697,7 +698,7 @@ function buildPlayerZone(side, player, isSelf) {
     // revealSourceが無い（あり得ない想定だが安全側で）場合は手動配置扱いにしておく。
     cardEl.className = `hand-reveal-card${token.revealSource === "draw" ? " is-drawn" : " is-manual"}`;
     cardEl.dataset.tokenId = token.id;
-    cardEl.style.backgroundImage = `url("${getCardImagePath(token.cardId)}")`;
+    showCardFace(cardEl, token.cardId, getCardImagePath(token.cardId));
     const badge = document.createElement("span");
     badge.className = "hand-reveal-badge";
     badge.textContent = token.revealSource === "draw" ? "🎴 公開ドロー" : "📣 宣言";
@@ -805,7 +806,7 @@ async function discardFromHandReveal(tokenId) {
 // imagePathを渡すと、その画像を背景に敷く（山札/エターナルは常に裏面画像、捨て場は
 // 空でなければ一番上のカードの実際の絵柄）。名前・枚数は常時表示のテキストではなく、
 // ホバー時のツールチップ（updatePileTooltip参照）でだけ見せるようにしている。
-function buildCardStack(count, pileClass, imagePath) {
+function buildCardStack(count, pileClass, imagePath, faceCardId = null) {
   const stack = document.createElement("div");
   stack.className = "stack";
   const heightPx = Math.max(2.4, count * 0.6);
@@ -820,7 +821,10 @@ function buildCardStack(count, pileClass, imagePath) {
 
   const top = document.createElement("div");
   top.className = `stack-top ${pileClass}`;
-  if (imagePath) {
+  if (faceCardId) {
+    // 捨て場の一番上（表向き）。テキストモードならカード面を合成、画像モードなら実物画像。
+    showCardFace(top, faceCardId, imagePath);
+  } else if (imagePath) {
     top.style.backgroundImage = `url("${imagePath}")`;
   } else {
     // 0枚の時は、CSS側の色付きフォールバック背景（.pile-deck等）を打ち消して透明にする
@@ -870,13 +874,17 @@ function buildPileZone(pileKey) {
   // 0枚の時はどの山も画像なし（透明）にする。捨て場は空でなければ一番上のカードの実物、
   // それ以外（山札・エターナル・ファースト）は裏向き積みのため常に共通の裏面画像。
   let imagePath = null;
+  // 捨て場の一番上だけ表向き（実カード）。テキストモードはカード面を合成するため cardId を渡す。
+  let faceCardId = null;
   if (count > 0) {
-    imagePath =
-      pileKey === "discard"
-        ? getBoardCardImagePath(pileArray[pileArray.length - 1]) // 捨て場の一番上も盤面扱い（イラストのみ設定に従う）
-        : cardBackSetImagePath(config.backImageKind, getCardBackSetIndex());
+    if (pileKey === "discard") {
+      faceCardId = pileArray[pileArray.length - 1];
+      imagePath = getBoardCardImagePath(faceCardId); // 画像モード用のフォールバック（イラストのみ設定に従う）
+    } else {
+      imagePath = cardBackSetImagePath(config.backImageKind, getCardBackSetIndex());
+    }
   }
-  const stack = buildCardStack(count, config.pileClass, imagePath);
+  const stack = buildCardStack(count, config.pileClass, imagePath, faceCardId);
   stack.dataset.pile = pileKey;
   zone.appendChild(stack);
   return zone;
@@ -962,7 +970,7 @@ function buildFlatCard(token) {
   if (isEternalLockRenderSuppressed(token)) card.style.visibility = "hidden";
   if (token.faceUp) {
     card.className = "board-card";
-    card.style.backgroundImage = `url("${getBoardCardImagePath(token.cardId)}")`;
+    showCardFace(card, token.cardId, getBoardCardImagePath(token.cardId));
   } else {
     card.className = "board-card is-facedown";
     card.style.backgroundImage = `url("${cardBackImageForToken(token)}")`;
@@ -8975,12 +8983,13 @@ function updatePreview(el, clientX, clientY) {
   // 続き223（ユーザー要望2026-08-18）: 手札使用の霧散演出(V4/V5)の再生中はホバー拡大を抑制する。
   // 使用モーダルを非表示設定にしていると、カードをクリックした直後のホバー拡大が霧散演出の上に
   // 被って演出が隠れてしまうため。演出が終われば通常のホバー拡大に戻る。
-  const imagePath = el && !isCardDissolvePlaying() ? getPreviewImagePath(el) : null;
-  if (!imagePath) {
+  const cardId = el && !isCardDissolvePlaying() ? getVisibleCardId(el) : null;
+  if (!cardId) {
     preview.style.display = "none";
     return;
   }
-  preview.style.backgroundImage = `url("${imagePath}")`;
+  // テキストモードならカード面を合成して被せ、画像モードなら従来通り背景画像を敷く。
+  showCardFace(preview, cardId, getCardImagePath(cardId));
   positionPreviewPanel(preview, clientX, clientY);
   preview.style.display = "block";
 }

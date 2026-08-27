@@ -18,6 +18,9 @@ import { isLobbyPseudoCpuToggleVisible, setLobbyPseudoCpuToggleVisible } from ".
 // ランクバッジ・ゲージ・宝石の調整モード（rank-showcase.js は rank-badge.js のみimport＝循環しない）。
 import { openRankShowcaseEditor } from "./rank-showcase.js";
 import { openDissolvePreview } from "./dissolve-preview.js";
+// カード面の表示モード（テキスト合成/画像）。card-face-display.js は card-renderer.js のみ
+// importするため循環しない。
+import { getCardFaceMode, setCardFaceMode } from "./card-face-display.js";
 
 // game-setup.jsは既にadmin.js（isManualSeatMode）をimportしているため、admin.js側から
 // game-setup.jsを直接importすると循環importになる。他の箇所（setup-animation.js等）と
@@ -1906,6 +1909,33 @@ const TOGGLE_SECTIONS = [
       });
       const lbl = document.createElement("span");
       lbl.textContent = "商品画像／背景をドラッグで位置調整する";
+      row.append(cb, lbl);
+      content.appendChild(row);
+    },
+  },
+  {
+    // ユーザー要望2026-08-27「カード面を画像にするかテキストにするか選べるように（既定=テキスト）」。
+    // テキスト=アプリ側でブランク画像＋タイトル/効果文を合成（card-face-display.js）。
+    // 画像=従来の焼き込み画像。この端末のみ（localStorage）。切替後は admin:change で盤面を再描画。
+    title: "カード面の表示（テキスト／画像）",
+    category: "behavior",
+    buildContent: (content) => {
+      const note = document.createElement("div");
+      note.style.cssText = "font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.4rem; line-height: 1.5;";
+      note.textContent =
+        "既定は「テキスト」（アプリ側でカード名・効果文を合成表示）。うまく表示されない時などは「画像」（従来の焼き込み画像）に切り替えられます。この端末のみに保存されます。";
+      content.appendChild(note);
+      const row = document.createElement("label");
+      row.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-size: 0.85rem;";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = getCardFaceMode() === "image";
+      cb.addEventListener("change", () => {
+        setCardFaceMode(cb.checked ? "image" : "text");
+        window.dispatchEvent(new CustomEvent("admin:change"));
+      });
+      const lbl = document.createElement("span");
+      lbl.textContent = "カードを画像で表示する（オフ＝アプリ側テキスト）";
       row.append(cb, lbl);
       content.appendChild(row);
     },

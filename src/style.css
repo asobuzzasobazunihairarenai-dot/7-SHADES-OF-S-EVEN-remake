@@ -17033,6 +17033,14 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
   border-radius: 4cqw; overflow: hidden; color: #2a2320;
   box-shadow: 0 0.6cqw 1.6cqw rgba(0, 0, 0, 0.35); user-select: none;
 }
+/* カードスロット（.hand-card/.board-card/.hand-reveal-card/#card-preview/.stack-top 等）に
+   inset:0 で被せるマウント。スロットの角丸に合わせてクリップ、スロット自身の影・比率に従う。
+   container-type:size は基底 .card-face から継承（inset:0 で確定サイズになり cqw が解決する）。 */
+.card-face.card-face-mount {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  aspect-ratio: auto; border-radius: inherit; box-shadow: none;
+  pointer-events: none;
+}
 /* 効果セット（fx）＝基本/到達/手札を上から順に詰める。間に仕切り線（各効果の中間）。 */
 .card-face-fx { display: flex; flex-direction: column; gap: 1.4cqw; }
 .card-face-effect { display: flex; gap: 0.45em; align-items: flex-start; font-family: "ヒラギノ角ゴ Pro W6", "Hiragino Kaku Gothic Pro", "ヒラギノ角ゴ ProN W6", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif; }
