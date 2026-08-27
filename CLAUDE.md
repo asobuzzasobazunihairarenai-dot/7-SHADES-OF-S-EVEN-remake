@@ -17380,3 +17380,25 @@ URLが `?iso=0` になっていた取り違えと判断）。かつユーザー�
   2人ローカル対局で盤面の表向きカードが画像のまま（マウント0）・自分の手札のインライン position 破壊が
   無いこと、リロード後にコンソール新規エラー無し、を実測確認（自分の手札の実描画はサンドボックスの
   rAF凍結で通し確認できないため、detached パスの単体検証＝上記で担保）。サーバー側の変更は無い。
+
+### 2026-08-27（続き280）：カード面テキスト本番接続フェーズ2の残り（ゲート侵攻モーダル・獲得/ロックトーストの`<img>`をテキスト化）
+
+続き279で follow-up に回していた、`innerHTML` テンプレート文字列で `<img src>` を組んでいた2箇所を
+テキスト合成に接続し、カード面の主要表示面のテキスト化を完了した。
+- **`gate-invasion-modal.js`（オンラインのゲート侵攻の奪う/獲得カード一覧）**: `buildCardsHtml` の
+  `<img>` を `<div class="gate-invasion-modal-card-img" data-cardface-id="...">` のプレースホルダーに変え、
+  `showStep` が `cardsWrap.innerHTML` を差し込んだ直後に `[data-cardface-id]` を全て `showCardFace` で描画する
+  後処理を追加。
+- **`hand-announcer.js`（獲得トースト `announceHandPickups`・ロックトースト `announceCardLocked`）**: 同様に
+  `<img>` を `.hand-pickup-toast-img[data-cardface-id]` のプレースホルダーへ変え、`showToast` が `content` を
+  body へ append した直後に `showCardFace` で一括描画（トースト2種を1箇所の後処理でカバー）。
+- **CSS**: `.gate-invasion-modal-card img` / `.hand-pickup-toast-card img` にそれぞれ `-img` プレースホルダー
+  クラスを併記し、`position:relative`（マウントの包含ブロック）＋`overflow:hidden`＋背景敷き設定を追加。
+- どちらも `card-face-display.js`（葉モジュール）を新規 import（循環なし）。**これで gate-invasion / トースト
+  も既定=テキスト（管理者トグルで画像に切替可能）になり、`<img src>` 直書きのカード表示面は一掃した**
+  （残る画像はイラストのみ画像の盤面/ロック・各種サムネイル・演出/canvas、いずれも意図的）。
+- **検証**: `node --check`（gate-invasion-modal/hand-announcer）通過・CSSブレース平衡（2443）。ブラウザで
+  `announceCardLocked('A','yellow-gamble')` のトーストが `.hand-pickup-toast-img`＞`.card-face-mount`
+  （「ザ・ギャンブル」）で描画されること、リロード後コンソール新規エラー無しを実測確認。ゲート侵攻
+  モーダルは同じプレースホルダー+後処理の仕組みで、実発火（オンライン対戦）での見た目は実機確認をお願い
+  したい。サーバー側の変更は無い。

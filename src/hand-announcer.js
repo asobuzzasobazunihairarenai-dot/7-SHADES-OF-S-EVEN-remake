@@ -4,6 +4,7 @@
 // 「カードを得た」という事実だけを伝えるポップアップ（トースト、自動で消える）。
 
 import { getCardDefinition, getCardImagePath } from "./cards-data.js";
+import { showCardFace } from "./card-face-display.js";
 import { getPlayerName } from "./player-identity.js";
 import { createModalCloseX } from "./ui-helpers.js";
 import { getSelfSeat, isOnlineMode } from "./online.js";
@@ -42,6 +43,11 @@ function showToast(innerHTML) {
   toast.appendChild(content);
   toast.addEventListener("click", dismiss);
   document.body.appendChild(toast);
+  // カード画像のプレースホルダーに、カード面（テキスト合成/画像）を描画する。
+  content.querySelectorAll(".hand-pickup-toast-img[data-cardface-id]").forEach((el) => {
+    const id = el.dataset.cardfaceId;
+    showCardFace(el, id, getCardImagePath(id));
+  });
   requestAnimationFrame(() => toast.classList.add("show"));
   setTimeout(dismiss, getDurationMs());
 }
@@ -84,7 +90,7 @@ export function announceHandPickups(player, pickups) {
       const def = getCardDefinition(p.cardId);
       return `
         <div class="hand-pickup-toast-card">
-          <img src="${getCardImagePath(p.cardId)}" alt="${def.name}" />
+          <div class="hand-pickup-toast-img" data-cardface-id="${p.cardId}"></div>
           <div class="hand-pickup-toast-name">${def.name}</div>
         </div>
       `;
@@ -134,7 +140,7 @@ export function announceCardLocked(player, cardId) {
     <div class="hand-pickup-toast-title">${getPlayerNameOrYou(player)}がロック</div>
     <div class="hand-pickup-toast-cards">
       <div class="hand-pickup-toast-card">
-        <img src="${getCardImagePath(cardId)}" alt="${def.name}" />
+        <div class="hand-pickup-toast-img" data-cardface-id="${cardId}"></div>
         <div class="hand-pickup-toast-name">${def.name}</div>
       </div>
     </div>

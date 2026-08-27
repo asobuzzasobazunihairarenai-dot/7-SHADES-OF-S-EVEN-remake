@@ -5,6 +5,7 @@
 // 問題を解消するため）。見た目はローカル版gate-invasion.jsのshowBonusStepModalを踏襲する。
 
 import { getCardDefinition, getCardImagePath } from "./cards-data.js";
+import { showCardFace } from "./card-face-display.js";
 import { getSelfSeat } from "./online.js";
 import { isPickupVisible, getPlayerNameOrYou } from "./hand-announcer.js";
 import { createModalCloseX, neutralModalSkin } from "./ui-helpers.js";
@@ -60,9 +61,11 @@ function buildCardsHtml(player, pickups) {
   const cardsHtml = visible
     .map((p) => {
       const def = getCardDefinition(p.cardId);
+      // カード画像は showStep 後に showCardFace で描画（テキスト/画像モード対応）。ここでは
+      // data-cardface-id のプレースホルダーだけ置く。
       return `
         <div class="gate-invasion-modal-card">
-          <img src="${getCardImagePath(p.cardId)}" alt="${def.name}" />
+          <div class="gate-invasion-modal-card-img" data-cardface-id="${p.cardId}"></div>
           <div class="gate-invasion-modal-card-name">${def.name}</div>
         </div>
       `;
@@ -318,6 +321,11 @@ function showStep(step) {
     const cardsWrap = document.createElement("div");
     cardsWrap.innerHTML = step.cardsHtml;
     modalEl.appendChild(cardsWrap);
+    // プレースホルダーにカード面（テキスト合成/画像）を描画する。
+    cardsWrap.querySelectorAll(".gate-invasion-modal-card-img[data-cardface-id]").forEach((el) => {
+      const id = el.dataset.cardfaceId;
+      showCardFace(el, id, getCardImagePath(id));
+    });
   }
   modalEl.appendChild(skipBtn);
 

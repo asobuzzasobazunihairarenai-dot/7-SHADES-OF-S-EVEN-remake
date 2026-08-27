@@ -8594,10 +8594,16 @@ body.is-phone-device .card-open-prompt button {
   width: calc(4.2rem * var(--hand-pickup-toast-scale));
   text-align: center;
 }
-.hand-pickup-toast-card img {
+.hand-pickup-toast-card img,
+.hand-pickup-toast-img {
+  position: relative;
   width: calc(4.2rem * var(--hand-pickup-toast-scale));
   height: calc(4.2rem * var(--hand-pickup-toast-scale));
   object-fit: cover;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   border-radius: 0.3rem;
   display: block;
 }
@@ -8630,10 +8636,16 @@ body.is-phone-device .card-open-prompt button {
   width: 4.6rem;
   text-align: center;
 }
-.gate-invasion-modal-card img {
+.gate-invasion-modal-card img,
+.gate-invasion-modal-card-img {
+  position: relative;
   width: 4.6rem;
   height: 4.6rem;
   object-fit: cover;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   border-radius: 0.3rem;
   display: block;
 }
