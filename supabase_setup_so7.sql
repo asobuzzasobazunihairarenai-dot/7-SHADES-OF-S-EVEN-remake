@@ -2339,3 +2339,25 @@ grant execute on function so7_save_push_subscription(text, text, text) to authen
 -- （1列でも未存在だと全設定の読み込みが丸ごと失敗する既知の落とし穴のため）、online.jsの
 -- fetchMyLang()という独立クエリで安全に読む。保存はsaveMyPreference({lang})の独立UPDATE。
 alter table so7_user_profiles add column if not exists lang text;
+
+-- ユーザー要望2026-08-28（続き312）「戦績システムで、個別の不具合報告件数も記録してもいいかも」。
+-- so7_bug_reports は SELECT ポリシーを一切作っていない（＝本文・ログは管理者しか読めない）ので、
+-- **件数だけ**を返す集計関数を用意する。返すのは user_id と件数のみで、本文・アクションログ・
+-- コンソールログ・コンテキストは一切返さない。戦績管理システム（姉妹サイト）が
+-- 「このプレイヤーは何件報告してくれたか」をプレイヤー一覧に出すために使う。
+create or replace function so7_get_bug_report_counts()
+returns table (
+  user_id uuid,
+  report_count int
+)
+language sql
+security definer
+set search_path = public, extensions
+as $$
+  select b.user_id, count(*)::int as report_count
+  from so7_bug_reports b
+  where b.user_id is not null
+  group by b.user_id;
+$$;
+revoke execute on function so7_get_bug_report_counts() from public;
+grant execute on function so7_get_bug_report_counts() to authenticated;
