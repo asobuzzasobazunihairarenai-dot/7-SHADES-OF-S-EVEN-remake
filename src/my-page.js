@@ -301,18 +301,14 @@ export async function renderMyPageBody(body, close) {
   avatarImg.style.cssText = "width: 6rem; height: 6rem; border-radius: 50%; object-fit: cover; cursor: pointer;";
   avatarImg.title = "クリックしてアバターを変更";
   avatarImg.addEventListener("click", () => avatarPickerFn?.()); // ユーザー要望2026-08-16
-  const changeBtn = document.createElement("button");
-  changeBtn.type = "button";
-  changeBtn.textContent = "アバター変更";
-  changeBtn.className = "my-page-change-btn";
-  changeBtn.style.cssText = "padding: 0.3rem 0.8rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(148,163,184,0.3); border-radius: 0.3rem; color: #e2e8f0; cursor: pointer; font-size: 0.8rem;";
-  changeBtn.addEventListener("click", () => avatarPickerFn?.());
-  // ユーザー要望「アバター変更ボタンを別にして」。レイアウト編集で個別に動かせるよう、
-  // アバター画像(avatar)とは別の要素(avatar-change)として並べる。
-  changeBtn.dataset.layoutKey = "avatar-change";
+  // ユーザー要望2026-08-28（続き319）「アバター変更ボタンは無くしてアバターをクリックしたら
+  // 変えれるようにしましょうか！」。ボタン（と、その枠のダサさ）ごと撤去した。
+  // アバター画像自体には元々クリックでピッカーを開く処理があるが、profile-layout-editor が
+  // 非編集時に "avatar" ブロックへ pointer-events:none を当てている（巨大な四角い当たり判定が
+  // 周囲のクリックを奪う「見えない枠」対策）ため、画像側だけ pointer-events:auto に戻し、
+  // さらに clip-path で円形に切り抜いて**四隅では反応しない**ようにしてある（style.css参照）。
   avatarWrap.appendChild(avatarImg);
   body.appendChild(avatarWrap);
-  body.appendChild(changeBtn);
 
   // ユーザー要望2026-08-28（続き317）「マイページの称号はもうスペースがないので名前の上を
   // 称号にしませんか？そこに載せるのはお気に入りだけで、クリックすると称号モーダルが出る」。
@@ -381,11 +377,11 @@ export async function renderMyPageBody(body, close) {
     cosmeticsGrid.appendChild(b);
   };
   // thumbSrcFn: 今選択中のアイテムの画像パス（無し/取得不可なら null → 「なし」表示）。
-  addCosmetic("🎲 駒スキン", () => openPieceSkinPicker(), () => getSkinImagePath(getMyPieceColor() || "red"));
-  addCosmetic("🂠 カード裏", () => openCardBackSkinPicker(), () => backImagePath("normal", getCardBackSetIndex()));
-  addCosmetic("🟩 プレイマット", () => openPlaymatPicker(), () => getSelectedPlaymatPath());
-  addCosmetic("🖼 背景", () => openBackgroundPicker(), () => getSelectedBackgroundPath());
-  addCosmetic("🐥 ペット", () => openPetPicker(), () => {
+  addCosmetic("駒スキン", () => openPieceSkinPicker(), () => getSkinImagePath(getMyPieceColor() || "red"));
+  addCosmetic("カード裏", () => openCardBackSkinPicker(), () => backImagePath("normal", getCardBackSetIndex()));
+  addCosmetic("プレイマット", () => openPlaymatPicker(), () => getSelectedPlaymatPath());
+  addCosmetic("背景", () => openBackgroundPicker(), () => getSelectedBackgroundPath());
+  addCosmetic("ペット", () => openPetPicker(), () => {
     const o = PET_OPTIONS[getSelectedPetIndex()];
     return o?.sprite ? petSpriteSrc(o.sprite, "front", "static") : null;
   });

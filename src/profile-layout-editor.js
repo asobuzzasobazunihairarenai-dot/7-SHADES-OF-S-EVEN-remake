@@ -15,7 +15,6 @@
 export const PROFILE_LAYOUT = {
   avatar: { x: -283, y: 7, scale: 6 },
   "avatar-bg": { x: -483, y: -206, scale: 4.5 },
-  "avatar-change": { x: 92, y: 610, scale: 1.97 },
   cosmetics: { x: 571, y: 29, scale: 1.52 },
   name: { x: -268, y: 594, scale: 3.01 },
   // ランク表示（ranked-rank）はユーザーがレイアウト編集モードで配置（2026-08-17）。
