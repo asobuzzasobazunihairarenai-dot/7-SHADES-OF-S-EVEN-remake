@@ -99,6 +99,7 @@ import { announceHandPickups, announceCardLocked, announceDrawCount, announceCar
 import { clearTurnEventStock } from "./turn-event-stock.js";
 import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained, reapplyGateInvasionModal, registerGateInvasionModalEternalAnim, registerGateInvasionModalStealAnim, registerGateInvasionModalEternalPreHide, forceCloseGateInvasionModal } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking, hasAnyoneWon } from "./victory.js";
+import { formatTitle } from "./titles.js"; // 称号（続き313）
 import { recordContactMade, recordCardUsed, recordLockSnapshot, initMatchStatsTracker } from "./match-stats-tracker.js";
 import { initPseudoCpuPrompt } from "./pseudo-cpu-prompt.js";
 import { registerVictoryHelpers } from "./post-game-panel.js";
@@ -266,6 +267,7 @@ import {
   getCurrentUser,
   getCurrentGameId,
   onAuthChange,
+  fetchMyTitleKey,
   fetchAndHydrate,
   onGateInvasionEvents,
   broadcastContactTackle,
@@ -12864,6 +12866,7 @@ function updatePublicDrawButton() {
 // あわせて自分の名前・アバターもここから変更できるようにする（変更内容は盤面のラベルや
 // 各種ポップアップの表記にもそのまま反映される。player-identity.js参照）。
 let selfHandStatusEl = null;
+let selfStatusTitleEl = null; // 称号（続き313）
 let selfStatusNameEl = null;
 let selfStatusPieceThumbEl = null;
 let selfStatusCardBackThumbEl = null;
@@ -13304,7 +13307,15 @@ function buildSelfHandStatus() {
   selfStatusHandCountEl = document.createElement("div");
   selfStatusHandCountEl.className = "self-status-hand-count";
 
+  // 称号（続き313）。お気に入りに選んだ1つを名前の下に出す。未設定なら何も出さない
+  // （マイページの「称号」から選ぶ）。ログイン直後は非同期で取りに行くのでここでは空。
+  selfStatusTitleEl = document.createElement("div");
+  selfStatusTitleEl.className = "self-status-title";
+  selfStatusTitleEl.style.display = "none";
+  selfStatusTitleEl.title = "マイページの「称号」から変更できます";
+
   info.appendChild(selfStatusNameEl);
+  info.appendChild(selfStatusTitleEl);
   info.appendChild(selfStatusHandCountEl);
 
   // 駒スキン・カード裏面・プレイマット・オンライン状態の4つのアイコンをグリッドにまとめる
@@ -13430,6 +13441,23 @@ endTurnButtonEl = buildEndTurnButton();
 drawButtonEl = buildDrawButton();
 publicDrawButtonEl = buildPublicDrawButton();
 selfHandStatusEl = buildSelfHandStatus();
+// 称号（続き313）。お気に入りに選んだ称号を左下のステータスへ出す。ログイン状態が変わった時
+// （onAuthChange、上の初期化で登録）と、マイページで選び直した時（self-title-changedイベント）に
+// 取り直す。未ログイン・未連携・未設定なら何も出ない。
+async function refreshSelfTitle() {
+  if (!selfStatusTitleEl) return;
+  let text = null;
+  try {
+    text = formatTitle(await fetchMyTitleKey());
+  } catch (err) {
+    text = null;
+  }
+  if (!selfStatusTitleEl) return;
+  selfStatusTitleEl.textContent = text || "";
+  selfStatusTitleEl.style.display = text ? "" : "none";
+}
+window.addEventListener("self-title-changed", () => void refreshSelfTitle());
+void refreshSelfTitle();
 boardZoomButtonEl = buildBoardZoomButton();
 boardZoomRegisterButtonEl = buildBoardZoomRegisterButton();
 handShuffleButtonEl = buildHandShuffleButton();
@@ -13463,6 +13491,7 @@ initAdminMode();
   };
   updateAdminBodyClass();
   onAuthChange(updateAdminBodyClass); // 管理者アカウントでログイン/ログアウトした時に出し分けを更新
+  onAuthChange(() => void refreshSelfTitle()); // 称号（続き313）もログイン状態に合わせて取り直す
 })();
 
 // #93セーフティ・ウォッチドッグ: 手札効果解決フラグ(handEffectBusy)が「取り残し」で

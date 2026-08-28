@@ -31,7 +31,8 @@ import { markSelfHandled } from "./self-handled-tokens.js";
 import { setMyDeckFromAccount } from "./my-deck.js";
 import { setLang } from "./i18n.js";
 import { setLastActionInfo } from "./last-action-info.js";
-import { setStatsProfileClient } from "./stats-profile.js";
+// stats-profile.js は他をimportしない葉モジュールなので、ここから直接importしても循環しない。
+import { setStatsProfileClient, fetchStatsProfile } from "./stats-profile.js";
 import { logAction } from "./action-log.js";
 import {
   isTurnTimerEnabled,
@@ -2321,6 +2322,67 @@ export async function listUnlinkedStatsPlayers() {
     .order("name", { ascending: true });
   if (error) throw error;
   return data ?? [];
+}
+
+// ── 称号（続き313、src/titles.js 参照）─────────────────────────────────────
+// 保存先は戦績管理システムの players.title_key（1列）。so7_user_profiles は「自分の行しか
+// 読めない」RLSのため他人の称号を出せないが、players は全員が読めるので戦績サイト側でも
+// 誰の称号でも表示できる。列が未追加の環境ではエラーになるだけ（称号が出ないだけで他は動く）。
+export async function fetchMyTitleKey() {
+  if (!client || !cachedUser || cachedUser.is_anonymous) return null;
+  try {
+    const { data, error } = await client.from("players").select("title_key").eq("user_id", cachedUser.id).maybeSingle();
+    if (error) throw error;
+    return data?.title_key ?? null;
+  } catch (err) {
+    console.error("fetchMyTitleKey failed（players.title_key列の追加SQLが未実行かもしれません）", err);
+    return null;
+  }
+}
+
+// お気に入りの称号を保存する（nullで解除）。戦績システムのプレイヤーと連携済みの人だけが対象。
+export async function saveMyTitleKey(titleKey) {
+  if (!client || !cachedUser || cachedUser.is_anonymous) throw new Error("ログインしてください");
+  const { data: existing, error: selErr } = await client
+    .from("players").select("id").eq("user_id", cachedUser.id).maybeSingle();
+  if (selErr) throw selErr;
+  if (!existing) throw new Error("戦績システムのプレイヤーと連携されていません");
+  const { error } = await client.from("players").update({ title_key: titleKey }).eq("id", existing.id);
+  if (error) throw error;
+}
+
+// 称号の解禁判定に使う値をまとめて取る（戦績＋ランク段位＋不具合報告件数）。
+// どれか取れなくても、その分だけ0/nullになって「解禁されない」だけで安全に倒れる。
+export async function fetchMyTitleStats() {
+  const result = { matchesCount: 0, winsCount: 0, winRate: 0, rank: null, bugReports: 0, linked: false };
+  if (!client || !cachedUser || cachedUser.is_anonymous) return result;
+  try {
+    const profile = await fetchStatsProfile(cachedUser.id);
+    if (profile) {
+      result.linked = !!profile.linked;
+      result.matchesCount = profile.matchesCount ?? 0;
+      result.winsCount = profile.winsCount ?? 0;
+      result.winRate = profile.winRate ?? 0;
+    }
+  } catch (err) {
+    console.error("fetchMyTitleStats: 戦績の取得に失敗", err);
+  }
+  try {
+    const { data } = await client.rpc("so7_ranked_get_self");
+    const row = data?.[0] ?? null;
+    if (row && typeof row.rank === "number") result.rank = row.rank;
+  } catch (err) {
+    /* ランク未プレイ・SQL未適用なら null のまま */
+  }
+  try {
+    const { data, error } = await client.rpc("so7_get_bug_report_counts");
+    if (error) throw error;
+    const mine = (data || []).find((r) => r.user_id === cachedUser.id);
+    result.bugReports = mine?.report_count ?? 0;
+  } catch (err) {
+    /* 集計RPCが未適用なら 0 のまま（称号が解禁されないだけ） */
+  }
+  return result;
 }
 
 // 選んだプレイヤーへの紐づけを申請する。ユーザー要望「このプレイヤー引継ぎは戦績

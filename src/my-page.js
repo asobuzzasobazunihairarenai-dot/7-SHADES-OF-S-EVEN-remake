@@ -3,7 +3,7 @@
 // 画面右上のオプションアイコンの隣の人マークアイコン、または左下の巨大アバターの
 // クリックで開く（main.js側で配線）。
 
-import { getCurrentUser, getSelfSeat, syncMyStatsProfile, getSelfRank } from "./online.js";
+import { getCurrentUser, getSelfSeat, syncMyStatsProfile, getSelfRank, fetchMyTitleStats, fetchMyTitleKey, saveMyTitleKey } from "./online.js";
 // ランク戦の現ランク（フェーズ4/6）。戦績システムの順位とは別物のランク戦専用のランク。
 import { rankName } from "./rank-badge.js";
 import { buildRankShowcase } from "./rank-showcase.js";
@@ -11,6 +11,7 @@ import { showRankExplanationModal } from "./rank-explain.js";
 import { isProfileLayoutEditMode } from "./profile-layout-editor.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName } from "./player-identity.js";
 import { fetchStatsProfile } from "./stats-profile.js";
+import { TITLE_DEFS, computeUnlockedTitleKeys, getTitleGroups } from "./titles.js";
 import { openStatsPlayerLinkModal } from "./stats-player-link.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { buildIconButtonContent, wireIconButtonClick, openIconDetailModal } from "./icon-action-button.js";
@@ -473,6 +474,88 @@ export async function renderMyPageBody(body, close) {
   // ユーザー要望で手動の「戦績システムと同期する」ボタンは撤去（名前/アバターは変更した瞬間に
   // 自動同期＝online.jsのautoSyncStatsIdentity、対局開始・勝利時の自動同期もそのまま）。
   // buildStatsSyncRowは将来また必要になった時のため関数自体は残してある。
+
+  // 称号コレクション（続き313）。戦績システムと連携済みの人だけ（保存先が players.title_key のため）。
+  const titlesWrap = document.createElement("div");
+  titlesWrap.className = "my-page-titles";
+  statsGroup.appendChild(titlesWrap);
+  renderTitleCollection(titlesWrap).catch((err) => console.error("renderTitleCollection failed", err));
+}
+
+// 称号コレクション（ユーザー要望2026-08-28「称号はコレクションしていく感じで！その中から１つ
+// お気に入りを選んでステータスに明示するイメージ」）。解禁は保存せず、その場の戦績から毎回
+// 判定する（titles.js のコメント参照）。選んだ1つだけを players.title_key へ保存する。
+async function renderTitleCollection(container) {
+  container.innerHTML = "";
+  const heading = document.createElement("div");
+  heading.className = "my-page-titles-heading";
+  heading.textContent = "称号";
+  container.appendChild(heading);
+
+  const status = document.createElement("div");
+  status.className = "my-page-titles-status";
+  status.textContent = "読み込み中…";
+  container.appendChild(status);
+
+  const [stats, currentKey] = await Promise.all([fetchMyTitleStats(), fetchMyTitleKey()]);
+  const unlocked = new Set(computeUnlockedTitleKeys(stats));
+  let selectedKey = currentKey;
+
+  status.textContent = `獲得 ${unlocked.size} / ${TITLE_DEFS.length}　（クリックでお気に入りに設定）`;
+
+  const grid = document.createElement("div");
+  grid.className = "my-page-titles-grid";
+  container.appendChild(grid);
+
+  const renderChips = () => {
+    grid.innerHTML = "";
+    for (const group of getTitleGroups()) {
+      const g = document.createElement("div");
+      g.className = "my-page-titles-group";
+      const gh = document.createElement("div");
+      gh.className = "my-page-titles-group-name";
+      gh.textContent = group.name;
+      g.appendChild(gh);
+      const row = document.createElement("div");
+      row.className = "my-page-titles-row";
+      for (const def of group.titles) {
+        const has = unlocked.has(def.key);
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "my-page-title-chip";
+        chip.classList.toggle("is-locked", !has);
+        chip.classList.toggle("is-selected", has && selectedKey === def.key);
+        // 未取得の称号は名前を伏せず、何をすれば取れるかを見せる（集める動機になるように）。
+        chip.innerHTML = `<span class="my-page-title-icon">${has ? def.icon : "🔒"}</span><span>${def.label}</span>`;
+        chip.title = has
+          ? `${def.desc}／クリックでお気に入りに設定${selectedKey === def.key ? "（もう一度押すと解除）" : ""}`
+          : `未取得: ${def.desc}`;
+        if (has) {
+          chip.addEventListener("click", async () => {
+            const next = selectedKey === def.key ? null : def.key;
+            chip.disabled = true;
+            try {
+              await saveMyTitleKey(next);
+              selectedKey = next;
+              renderChips();
+              // 左下のステータス表示へ即反映（main.jsが購読している。importの循環を避けるため
+              // 関数呼び出しではなくイベントで伝える）。
+              window.dispatchEvent(new CustomEvent("self-title-changed"));
+            } catch (err) {
+              console.error("saveMyTitleKey failed", err);
+              status.textContent = `保存に失敗しました: ${err.message ?? err}`;
+            } finally {
+              chip.disabled = false;
+            }
+          });
+        }
+        row.appendChild(chip);
+      }
+      g.appendChild(row);
+      grid.appendChild(g);
+    }
+  };
+  renderChips();
 }
 
 // マイページのランク戦・段位バッジを非同期で描画。未ログイン（getSelfRankがundefined）や

@@ -17700,3 +17700,92 @@ body.theme-light #mdb-deck-case {
 body.theme-light #mdb-deck-case-hint {
   color: #6b5c3c;
 }
+
+/* ── 称号（続き313、src/titles.js）──────────────────────────────────────────
+   マイページの「称号コレクション」と、左下ステータスに出るお気に入りの称号。
+   取得済みは金の縁取り、未取得は🔒で沈めて「あと何をすれば取れるか」をtitleで見せる。 */
+.my-page-titles {
+  margin-top: 0.8rem;
+}
+.my-page-titles-heading {
+  font-size: 0.8rem;
+  font-weight: bold;
+  color: #d4af5a;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.2rem;
+}
+.my-page-titles-status {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  margin-bottom: 0.4rem;
+}
+.my-page-titles-group {
+  margin-bottom: 0.5rem;
+}
+.my-page-titles-group-name {
+  font-size: 0.65rem;
+  font-weight: bold;
+  color: #94a3b8;
+  margin-bottom: 0.2rem;
+}
+.my-page-titles-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.my-page-title-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(212, 175, 90, 0.45);
+  background: rgba(212, 175, 90, 0.12);
+  color: #f1e6cd;
+  font-size: 0.72rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.my-page-title-chip:hover {
+  background: rgba(212, 175, 90, 0.22);
+}
+.my-page-title-chip.is-selected {
+  background: linear-gradient(180deg, rgba(212, 175, 90, 0.55), rgba(212, 175, 90, 0.3));
+  border-color: #d4af5a;
+  color: #fffdf8;
+  box-shadow: 0 0 10px rgba(212, 175, 90, 0.5);
+  font-weight: bold;
+}
+.my-page-title-chip.is-locked {
+  border-color: rgba(148, 163, 184, 0.3);
+  background: rgba(148, 163, 184, 0.08);
+  color: #94a3b8;
+  cursor: default;
+}
+.my-page-title-chip.is-locked:hover {
+  background: rgba(148, 163, 184, 0.12);
+}
+.my-page-title-icon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+/* 左下ステータスのお気に入り称号（名前の下） */
+.self-status-title {
+  font-size: 0.62rem;
+  color: #d4af5a;
+  letter-spacing: 0.04em;
+  margin-top: 0.05rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body.theme-light .self-status-title {
+  color: #a67c1a;
+}
+body.theme-light .my-page-title-chip {
+  color: #3a3326;
+}
+body.theme-light .my-page-title-chip.is-locked {
+  color: #8a7d63;
+}
