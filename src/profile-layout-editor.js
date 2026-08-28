@@ -21,6 +21,9 @@ export const PROFILE_LAYOUT = {
   // ランク表示（ranked-rank）はユーザーがレイアウト編集モードで配置（2026-08-17）。
   "ranked-rank": { x: 369, y: 1, scale: 1 },
   stats: { x: 357, y: 257, scale: 1.88 },
+  // 称号コレクション（続き316）。実績(stats)の下に置く暫定値——レイアウト編集モードで
+  // 位置・大きさを調整して、エクスポートした値をここへ焼き込んでください。
+  titles: { x: 357, y: 690, scale: 1 },
 };
 
 const HANDLE_DIRS = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];

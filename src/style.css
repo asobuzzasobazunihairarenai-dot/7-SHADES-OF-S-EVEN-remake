@@ -17789,3 +17789,61 @@ body.theme-light .my-page-title-chip {
 body.theme-light .my-page-title-chip.is-locked {
   color: #8a7d63;
 }
+
+/* ── マイページの名前編集ボタン（続き316）────────────────────────────────
+   ユーザー報告「保存/取消ボタンが実績のところに食い込む」「取消が白文字で見にくい」。
+   この行(name)はレイアウト上3倍前後に拡大されるため、横に伸びると隣の実績へ大きくはみ出す。
+   幅は my-page.js 側で抑え（折り返し）、色はここでテーマ別に当てる。以前は取消ボタンが
+   インラインstyleで「白文字＋ほぼ透明の背景」だったため、明るい背景のマイページでは
+   ほとんど読めなかった。 */
+.my-page-name-save,
+.my-page-name-cancel {
+  flex: 0 0 auto;
+  padding: 0.2rem 0.6rem;
+  border-radius: 0.3rem;
+  font-size: 0.75rem;
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.my-page-name-save {
+  background: #be185d;
+  border: 1px solid #be185d;
+  color: #ffffff;
+}
+.my-page-name-save:hover {
+  background: #9d174d;
+}
+.my-page-name-cancel {
+  background: rgba(148, 163, 184, 0.18);
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  color: #e2e8f0;
+}
+.my-page-name-cancel:hover {
+  background: rgba(148, 163, 184, 0.3);
+}
+/* 明るい配色のマイページでは、取消ボタンを白文字ではなく濃い文字＋白背景にする */
+body.theme-light .my-page-name-cancel {
+  background: #ffffff;
+  border-color: rgba(120, 100, 60, 0.55);
+  color: #3a3326;
+}
+body.theme-light .my-page-name-cancel:hover {
+  background: #f3ece0;
+}
+/* 称号ブロックは、実績の枠を横に広げないよう幅を抑える（続き316の再発防止）。
+   独立したレイアウトブロックになったが、チップが1行に並び切って横長になるのを防ぐ。 */
+/* ハマりどころ: applyProfileLayout は各レイアウトブロックへ inline で width:max-content と
+   max-width を当てるため、`.my-page-titles`（＝ブロック自身）に幅を指定しても効かない。
+   代わりに**中のチップ行**に上限を与える。ブロックの max-content 幅は中身から決まるので、
+   これでチップが折り返して縦に積まれ、ブロックが横に伸びなくなる。 */
+.my-page-titles .my-page-titles-row {
+  max-width: 21rem;
+}
+
+/* ユーザー報告2026-08-28（続き316）「お知らせページの戻るボタンが上の黒帯に干渉している」。
+   #changelog-modal も inset:0 の全画面ページなのに、続き302の余白確保の一覧から漏れていた。 */
+#changelog-modal {
+  padding-top: var(--page-top-safe);
+  box-sizing: border-box;
+}

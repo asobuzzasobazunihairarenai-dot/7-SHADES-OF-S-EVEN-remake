@@ -153,6 +153,9 @@ function buildEditableNameRow(seat) {
   row.appendChild(valueWrap);
 
   function renderView() {
+    valueWrap.style.flexWrap = "";
+    valueWrap.style.maxWidth = "";
+    valueWrap.style.justifyContent = "";
     valueWrap.innerHTML = "";
     // ユーザー要望「『変更』ボタンはいらない。鉛筆アイコンを小さく載せつつ、名前を直接
     // クリックすると入力画面にする」。名前自体をクリック可能にし、隣に小さな鉛筆(✎)を添える。
@@ -174,20 +177,26 @@ function buildEditableNameRow(seat) {
 
   function renderEdit() {
     valueWrap.innerHTML = "";
+    // ユーザー報告2026-08-28「保存/取消ボタンが実績のところに食い込む」への対応（続き316）。
+    // この行(name)はレイアウト上 scale 3 前後で拡大表示されるため、横に伸ばすと隣の実績へ
+    // 大きくはみ出す。幅を抑えて折り返させ、ボタンは入力欄の下へ回り込ませる。
+    valueWrap.style.flexWrap = "wrap";
+    valueWrap.style.maxWidth = "7.5rem";
+    valueWrap.style.justifyContent = "flex-end";
     const input = document.createElement("input");
     input.type = "text";
     input.maxLength = 20;
     input.value = getPlayerName(seat);
     input.className = "my-page-name-input";
-    input.style.cssText = "flex: 1 1 auto; min-width: 0; padding: 0.2rem 0.4rem; background: rgba(0,0,0,0.35); border: 1px solid rgba(148,163,184,0.4); border-radius: 0.3rem; color: #e2e8f0; font-size: 0.85rem;";
+    input.style.cssText = "flex: 1 1 100%; width: 100%; min-width: 0; padding: 0.2rem 0.4rem; background: rgba(0,0,0,0.35); border: 1px solid rgba(148,163,184,0.4); border-radius: 0.3rem; color: #e2e8f0; font-size: 0.85rem;";
     const saveBtn = document.createElement("button");
     saveBtn.type = "button";
     saveBtn.textContent = "保存";
-    saveBtn.style.cssText = "flex: 0 0 auto; padding: 0.2rem 0.6rem; background: #be185d; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.75rem;";
+    saveBtn.className = "my-page-name-save";
     const cancelBtn = document.createElement("button");
     cancelBtn.type = "button";
     cancelBtn.textContent = "取消";
-    cancelBtn.style.cssText = "flex: 0 0 auto; padding: 0.2rem 0.5rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(148,163,184,0.3); border-radius: 0.3rem; color: #e2e8f0; cursor: pointer; font-size: 0.75rem;";
+    cancelBtn.className = "my-page-name-cancel";
     const save = () => {
       const next = input.value.trim();
       if (next) setPlayerName(seat, next);
@@ -388,6 +397,14 @@ export async function renderMyPageBody(body, close) {
   statsGroup.dataset.layoutKey = "stats";
   body.appendChild(statsGroup);
 
+  // 称号コレクションの器（続き316）。中身は戦績の取得後（下の非同期部分）に入れるが、
+  // applyProfileLayout は同期部分の最後に一度だけ走るので、**この時点で器だけ作っておく**
+  // 必要がある（後から作ると絶対配置の対象にならず、左上に重なって出てしまう）。
+  const titlesBlock = document.createElement("div");
+  titlesBlock.className = "my-page-titles";
+  titlesBlock.dataset.layoutKey = "titles";
+  body.appendChild(titlesBlock);
+
   const statusEl = document.createElement("div");
   statusEl.textContent = "戦績を読み込み中…";
   statusEl.className = "my-page-status";
@@ -476,10 +493,16 @@ export async function renderMyPageBody(body, close) {
   // buildStatsSyncRowは将来また必要になった時のため関数自体は残してある。
 
   // 称号コレクション（続き313）。戦績システムと連携済みの人だけ（保存先が players.title_key のため）。
-  const titlesWrap = document.createElement("div");
-  titlesWrap.className = "my-page-titles";
-  statsGroup.appendChild(titlesWrap);
-  renderTitleCollection(titlesWrap).catch((err) => console.error("renderTitleCollection failed", err));
+  // ユーザー報告2026-08-28「マイページの実績が空欄」の修正（続き316）: 以前はこの称号ブロックを
+  // statsGroup（実績の枠）の中に入れていた。マイページの各ブロックは applyProfileLayout が
+  // width:max-content で絶対配置するため、**中に横長の称号チップ列が入ると枠ごと横に広がり**、
+  // 実績の各行（display:flex + justify-content:space-between）の右端＝数値が画面外へ押し出されて
+  // 「ラベルだけ見えて数値が消えた」状態になっていた。称号は独立したレイアウトブロック
+  // （data-layout-key="titles"、同期部分で先に作る）へ移し、実績の枠を元の幅に戻す。
+  const titlesWrap = document.querySelector('[data-layout-key="titles"]');
+  if (titlesWrap) {
+    renderTitleCollection(titlesWrap).catch((err) => console.error("renderTitleCollection failed", err));
+  }
 }
 
 // 称号コレクション（ユーザー要望2026-08-28「称号はコレクションしていく感じで！その中から１つ
