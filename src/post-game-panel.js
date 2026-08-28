@@ -471,10 +471,23 @@ function isPostGameInputGuarded() {
   return Date.now() - postGamePanelShownAt < POST_GAME_INPUT_GUARD_MS;
 }
 export function showPostGamePanel({ activePlayers, winnerSeat }) {
-  if (!isOnlineMode()) return;
+  // 戦績システムへの対戦登録はこのパネル（勝者のクライアント）から行うため、ここで
+  // 早期returnすると「対戦したのに戦績に載らない」になる。原因の切り分けができるよう、
+  // どの理由で出せなかったかを必ずアクションログへ残す（#183で実際に no-game-id ＝
+  // 部屋から強制退出させられた後に呼ばれていた、というケースが判明した）。
+  if (!isOnlineMode()) {
+    logAction("diag-postgame-skip", { reason: "not-online", winnerSeat });
+    return;
+  }
   const gameId = getCurrentGameId();
-  if (!gameId) return;
-  if (panelEl) return; // 既に開いている（多重表示防止）
+  if (!gameId) {
+    logAction("diag-postgame-skip", { reason: "no-game-id", winnerSeat });
+    return;
+  }
+  if (panelEl) {
+    logAction("diag-postgame-skip", { reason: "already-open", winnerSeat });
+    return;
+  }
   postGamePanelShownAt = Date.now(); // #182: 直後の誤クリック（前のモーダルのクリックの続き）よけ
 
   backdropEl = createBackdrop(() => {}, { dim: true, zIndex: 10600 });
@@ -543,12 +556,19 @@ export function showPostGamePanel({ activePlayers, winnerSeat }) {
     })();
     // 勝者は試合を記録する（コメントはfeedbackへ入れず、下で全員と同じくreplyとして投稿）。
     // 戻り値の試合IDを保持し、他の参加者へはsubmitStatsMatchResult内でブロードキャストする。
+    logAction("diag-stats-submit-start", { activePlayers, winnerSeat });
     submitStatsMatchResult({ activePlayers, winnerSeat, feedback: "" })
       .then((id) => {
         matchId = id || null;
+        // idがnull＝submitStatsMatchResult内部で静かにreturnした（対局行が見つからない／
+        // 参加者が全員ゲスト等）。登録できなかったことが後から分かるようログに残す。
+        logAction("diag-stats-submit-done", { matchId, recorded: !!matchId });
         flushPendingLoserComments(); // 先に届いていた敗者コメントを投稿する（#45）
       })
-      .catch((err) => console.error("submitStatsMatchResult failed", err))
+      .catch((err) => {
+        logAction("diag-stats-submit-failed", { message: String(err?.message || err) });
+        console.error("submitStatsMatchResult failed", err);
+      })
       .finally(async () => {
         try {
           const before = await beforeRankProfilePromise;

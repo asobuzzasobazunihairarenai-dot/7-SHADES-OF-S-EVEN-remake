@@ -2448,14 +2448,22 @@ export async function uploadAvatarImage(blob) {
 // 呼び出し元に委ねる設計にはせず、単純にfeedbackが決まってから呼んでもらう形にした
 // ——同時に2回submitStatsMatchResultが走ることは無い前提のため、シンプルさを優先）。
 export async function submitStatsMatchResult({ activePlayers, winnerSeat, feedback }) {
-  if (!client || !currentGameId) return;
+  // 「対戦したのに戦績に載らない」の切り分け用（#183）。この関数は途中で静かにreturnする
+  // 経路が3つあるため、どこで抜けたかを必ずアクションログに残す。
+  if (!client || !currentGameId) {
+    logAction("diag-stats-abort", { reason: "no-game-id" });
+    return;
+  }
   const { data: gameRow, error: gameError } = await client
     .from("so7_games")
     .select("created_at")
     .eq("id", currentGameId)
     .maybeSingle();
   if (gameError) throw gameError;
-  if (!gameRow) return;
+  if (!gameRow) {
+    logAction("diag-stats-abort", { reason: "game-row-missing", gameId: currentGameId });
+    return;
+  }
 
   const memberIds = [];
   const guestNames = [];
@@ -2488,7 +2496,10 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat, feedba
   }
   // 実プレイヤーが1人もいない（全員ゲスト）試合は戦績に記録しない。勝者がゲストの場合は
   // winnerIdがnullのまま記録する（実プレイヤーは参加＝対戦数に入るが、勝ちは誰にも付かない）。
-  if (memberIds.length === 0) return;
+  if (memberIds.length === 0) {
+    logAction("diag-stats-abort", { reason: "no-registered-players", guests: guestNames.length });
+    return;
+  }
 
   const durationMinutes = Math.max(1, Math.round((Date.now() - new Date(gameRow.created_at).getTime()) / 60000));
   // 以前はDOMを実際にスクリーンショットしていたため、最後のロックの視覚的な演出

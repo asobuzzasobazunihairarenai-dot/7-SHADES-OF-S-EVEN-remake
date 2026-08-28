@@ -13942,6 +13942,20 @@ subscribe(() => {
   if (!gameId || !isRankedGame()) return;
   const info = getRankedResultInfo();
   if (!info.applied || isRankedResultShown(gameId)) return;
+  // #183: この検知はあくまで「勝負を見ていないクライアントが、結果反映済みの対局へ入って
+  // きた（復帰した）」場合のためのもの。自分の画面で勝利を見届けている（hasAnyoneWon）なら、
+  // 通常の終了フロー（victory.js: 通貨→順位→個人結果→ランク結果→対戦終了パネル）が
+  // 進行中なので、ここは絶対に発火させてはいけない。
+  // 【元の不具合】ranked_result_applied は「最初に終了モーダルを閉じ切った人」が
+  // reportRankedResult を呼んだ瞬間に立つ。他の人はまだモーダルを見ている最中なので、
+  // 次のhydrateでこの検知が誤発火し、「この対局は既に終了しています」モーダル →
+  // leaveGame() → ホームへ、と部屋から強制退出させられていた（報告#182）。しかも
+  // 勝者がこれに当たると、部屋を出た後に呼ばれる showPostGamePanel が
+  // currentGameId=null で即returnするため、戦績システムへの対戦登録自体が行われなかった。
+  if (hasAnyoneWon()) {
+    markRankedResultShown(gameId); // 通常フローが自分で結果を出すので、以後この検知は不要
+    return;
+  }
   markRankedResultShown(gameId);
   void handleRankedReconnectResult(info.winnerSeat);
 });
