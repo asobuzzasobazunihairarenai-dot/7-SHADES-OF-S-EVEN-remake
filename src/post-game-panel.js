@@ -31,6 +31,7 @@ import {
   leaveGame,
 } from "./online.js";
 import { createBackdrop } from "./ui-helpers.js";
+import { logAction } from "./action-log.js";
 import { fetchStatsProfile, getTierInfo } from "./stats-profile.js";
 import { showRankUpModal } from "./rank-up-modal.js";
 import { setSavedRoomPassword } from "./online-ui.js";
@@ -226,6 +227,10 @@ function buildButtonsSection(gameId) {
     color: ${t.secText}; cursor: pointer; font-size: 0.85rem;
   `;
   leaveBtn.addEventListener("click", () => {
+    // #182: パネルが出た直後のクリックは、前のモーダルを閉じたクリックの続きの可能性が高い。
+    const sinceShownMs = Date.now() - postGamePanelShownAt;
+    logAction("diag-postgame-leave", { sinceShownMs, guarded: isPostGameInputGuarded() });
+    if (isPostGameInputGuarded()) return;
     leaveGame();
     setSavedRoomPassword(gameId, null);
     history.replaceState(null, "", location.pathname);
@@ -454,11 +459,23 @@ export function showCpuBattleEndPanel({ winnerSeat }) {
   document.body.appendChild(panelEl);
 }
 
+// #182: 「ランク結果モーダルの直後にすぐホームへ戻ってしまい、盤面を見られなかった」への対応。
+// このパネルはランク結果などのモーダルが閉じた“直後”に出るため、直前のモーダルを消すための
+// クリックの続き（連打・押しっぱなしの離し）が、出たばかりのボタン（特に「この部屋を出る」）に
+// 吸われて意図せず退室してしまう余地がある。パネルが出てから少しの間はボタンを一切受け付けない。
+// あわせて「パネル表示から何ms後に押されたか」を記録し、次に同じ報告が来た時に事故クリック
+// なのか本人の操作なのかを切り分けられるようにする。
+const POST_GAME_INPUT_GUARD_MS = 900;
+let postGamePanelShownAt = 0;
+function isPostGameInputGuarded() {
+  return Date.now() - postGamePanelShownAt < POST_GAME_INPUT_GUARD_MS;
+}
 export function showPostGamePanel({ activePlayers, winnerSeat }) {
   if (!isOnlineMode()) return;
   const gameId = getCurrentGameId();
   if (!gameId) return;
   if (panelEl) return; // 既に開いている（多重表示防止）
+  postGamePanelShownAt = Date.now(); // #182: 直後の誤クリック（前のモーダルのクリックの続き）よけ
 
   backdropEl = createBackdrop(() => {}, { dim: true, zIndex: 10600 });
   panelEl = document.createElement("div");

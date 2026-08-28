@@ -271,11 +271,13 @@ const GROUPS = [
     ],
   },
   {
-    title: "カード獲得ポップアップ",
+    title: "カード獲得ポップアップ（中央フラッシュ）",
     category: "effect",
     controls: [
       { key: "--hand-pickup-toast-scale", label: "大きさ", unit: "", min: 0.8, max: 2.5, step: 0.05, default: 1.3 },
-      { key: "--hand-pickup-toast-duration", label: "表示時間（秒）", unit: "", min: 1, max: 15, step: 0.5, default: 5 },
+      // #4: 中央フラッシュ→右下ストックへ飛ばす方式になったため、この値は「中央で見せる長さ」。
+      // 長すぎると盤面を覆うので、実際の適用は1.8秒を上限にクランプする（hand-announcer.js）。
+      { key: "--hand-pickup-toast-duration", label: "中央で見せる長さ（秒・上限1.8）", unit: "", min: 1, max: 15, step: 0.5, default: 5 },
     ],
   },
   {

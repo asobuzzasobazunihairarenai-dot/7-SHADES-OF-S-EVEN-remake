@@ -16564,3 +16564,825 @@ URLが `?iso=0` になっていた取り違えと判断）。かつユーザー�
   アプリ正常ロード（新規JSエラー無し）を確認。#164 の飛翔の見た目（表向きで飛ぶ）は相手の面が絡む
   ため実機/オンラインでの最終確認をお願いしたい。サーバー側の変更は無い。
 
+
+### 2026-08-25（続き261）：カード面のテキストをアプリ側で表示する仕組み・フェーズ1（レンダラ＋プレビュー試作）
+
+ユーザー相談→合意：現在カード画像に焼き込まれているタイトル・効果文を、アプリ側のテキスト表示に
+置き換えたい（ブランク画像＋テキスト重ね）。将来的には正方形イラストのみからアプリ内で全要素を
+合成し、多言語化もテキスト差し替えだけで行いたい。まずアセット待ちにならない**フェーズ1（データから
+カードを組み立てるレンダラの試作＋プレビュー）**を実装した。ゲーム本編の描画（手札・盤面等）はまだ
+差し替えていない（従来の焼き込み画像のまま）。
+- **表示用テキストの元データ `src/card-text.js`（新規）**: `カード効果　テキスト.txt`（★基本/●到達/
+  ■手札/Ωフレーバー/※補足の凡例付き・印字カードと一致する権威ある元テキスト、gitignore・ローカルのみ）を
+  パースして `CARD_TEXT[cardId] = {flavor, basic, arrival, hand}` に構造化した静的データ。全33カード（通常19・
+  エターナル7・ファースト7）を収録。生成器 `tools/gen-card-text.mjs`（新規）をリポジトリに置き、txtを
+  編集したら `node tools/gen-card-text.mjs` で再生成できる（決定的＝同じtxtなら同じ出力）。txt自体は
+  非デプロイのため、生成した card-text.js が本番で使う表示テキストの元になる。**効果文の言い回しは
+  この元テキストをそのまま使う**（card-effects.js の generateEffectText はエンジン用・将来の多言語
+  テンプレート用に別途残す）。
+- **`src/card-renderer.js`（新規）`buildCardFace(cardId)`**: カード面のDOMを、①土台画像＝
+  `getCardIllustPath`（全カードにcardId名で既にある `assets/cards-illust/${id}.webp`＝枠＋全面イラスト、
+  git追跡済み＝本番でも表示可）②下半分にCSSのテキストパネル（タイトル＋★基本/●到達/■手札の効果行、
+  上端の実線＝仕切り線の仮デザイン）③上部にフレーバー、で組み立てる。**連番の「テキスト無し」ブランク
+  画像のマッピング待ちにならず、33枚すべて今すぐ表示できる**のが利点。あなたが見本イラスト・枠・
+  仕切り線のアセットを用意したら、フェーズ2でこのCSSパネルを本物のアセットへ差し替える。
+- **崩れない仕組み（コンテナクエリ）**: `.card-face` を `container-type: size` にし、中の文字・余白を
+  すべて `cqw`（カード幅に対する割合）で指定。**カード全体が1つのまとまりとして比例伸縮する**ので、
+  どのサイズでも比率が崩れない。相談時の懸念（効果文が長いカードは小サイズで崩れる/クリップする）を
+  実測で検証し、**6rem/16rem/24remのどのサイズでも全33カードでクリップ無し**（文字がカード幅に比例して
+  縮むため、一番文章の長いカードでも下部パネルに収まる）を確認した。
+- **プレビュー `src/card-render-preview.js`（新規）**: 全33カードを組み立てて一覧表示し、サイズスライダー
+  （5〜30rem）で拡縮して「崩れないか」を目視確認する開発用ツール。カード開発モード（options→🃏カード
+  開発モード、管理者のみ）のパネルに「🖼 カード表示プレビュー（イラスト＋アプリ側テキスト）」ボタンを
+  追加して開く。
+- **相談で確認した設計方針（実装はフェーズ2以降）**: (1) ハイブリッド（色枠・装飾＝色ごとの1枚画像／
+  イラスト＝正方形1枚／タイトル・仕切り線・効果文・フレーバー＝アプリが動的合成）を軸に、必要なら
+  完全動的合成（イラストのみ）まで。ブラウザは本質的にレイヤー合成機なので、正方形イラスト＋データだけで
+  新カードをアプリ内に増やす究極形も可能。(2) 仕切り線はアセット画像をもらえば重ねられる（現在はCSSの
+  実線が仮）。(3) 多言語化は card-text.js を ja とし、同じ cardId キーで別言語ファイルを追加する形／
+  効果文はテンプレート（generateEffectText）翻訳で自動対応、という2段構えが可能。
+- **検証**: `node --check`（card-renderer/card-render-preview/card-dev-mode/card-text）通過、
+  `node tools/gen-card-text.mjs` 再生成で差分なし。ブラウザでプレビューを開き、33枚すべてが実データ
+  （タイトル・フレーバー・●到達・■手札）＋cardId名のイラスト背景（433px, 200 OK）で組み上がること、
+  container-type:size有効・cqwが正しく解決（16rem時フレーバー7.68px/タイトル12.8px、パネル47%）・
+  仕切り線＝色アクセント・6/16/24remでクリップ無し、を実測確認。スクリーンショットはこの環境の制約で
+  撮れないため、実際の見た目の最終確認はユーザーにお願いする（options→カード開発モード→🖼ボタン）。
+  サーバー側（Supabase）の変更は無い。フェーズ2＝見本アセットを受け取り、盤面/手札等の本編描画を
+  この方式へ段階的に差し替える。
+
+### 2026-08-25（続き262）：カード面テキストのアプリ表示・フェーズ2（テキスト無しブランク画像＋種別ごとのテキスト重ね）
+
+続き261の相談で合意した方針「テキストだけアプリ側／それ以外（枠・仕切り線の装飾・イラスト・
+エンブレム・色枠）は画像」を、実際の「テキスト無し」ブランク画像を土台にして実装した。まだ本編の
+描画（手札・盤面）には接続せず、カード開発モードのプレビューで確認する段階。
+- **番号→cardId の対応を確定してブランク画像を配置**: `画像素材/○○（テキスト無し）/` のファイルは、
+  ユーザーがファースト・エターナルを色名（赤/橙/黄/緑/青/桃/紫、ノワール）にリネーム済み（通常は
+  連番のまま）。**連番＝データ配列順ではなかった**（`green-growing-trees` に割り当てた `表-25` が実は
+  赤いカードだったことで発覚）ため、通常19枚は1枚ずつ目視してイラストでcardIdを確定した（ジャンプ台/
+  収穫と種まき/ザ・ギャンブル/合同建設/スラム上がりの役人/パーティー/ゴメンナサイ/カウンターロック/
+  マスチェンジ/手品師の技/増殖する樹々/選べる罠/プレゼント/試練の儀式/なないろの欠片/なないろの巨光/
+  白の意思の覚醒/色落ちキャット/誘惑の黒の烙印）。ファースト`黒.webp`は色ラベルが**PURPLE**＝紫の
+  キューブ ディメンションだった（ファイル名の誤記、要注意）。確定した対応で
+  `assets/cards-blank/{cardId}.webp`（全33＋ノワール＝34枚）にコピー（git追跡＝本番でも表示可）。
+- **表示用テキストに Θ効果名（subtitle）と first-noir を追加**: ユーザーが `カード効果　テキスト.txt` に
+  ファーストの《能力名》を `Θ《再起の色》` 形式で追記（凡例にも `Θ 効果名` 追加）。`tools/gen-card-text.mjs`
+  に Θ→subtitle と ノワール→first-noir を追加して `src/card-text.js` を再生成（**34カード**、各
+  `{flavor, basic, subtitle, arrival, hand}`）。エターナルの《能力名》は従来通り■文にインライン
+  （《紅色の雨》等）で保持。
+- **`cards-data.js` に `getCardBlankPath(cardId)`**（`assets/cards-blank/${cardId}.webp`）を追加。
+- **`card-renderer.js` を作り替え**: 土台を `getCardBlankPath` のブランク画像にし、**種別ごとに別レイアウトで
+  テキストだけを重ねる**。(1) normal＝フレーバー(上)＋下部パネル(`.card-face-lower`)に タイトル＋●到達＋
+  ■手札 (2) eternal＝フレーバー(上)＋下部パネルに タイトル＋★基本＋■手札 (3) first＝★基本(上)＋
+  タイトル(中上)＋《能力名》(中)＋■手札(下)を個別に絶対配置（イラスト無し・エンブレム中心のため）。
+  効果セクションを仕切る「おしゃれな横線」はアプリ側（CSS `.card-face-divider`＝両側フェードの線＋
+  中央の菱形）で描く（ユーザー依頼「仕切線はあなたで入れて」）。★基本はマーカー非表示（印字カードに
+  合わせる）、●■はグリフマーカー（将来アイコン画像に差し替え可）。
+- **崩れない仕組み**: `.card-face` を `container-type: size`、文字・余白を全て `cqw`（カード幅比）で指定＝
+  カード全体が比例伸縮。7/16/24rem で全34枚クリップ無しを実測（長文の rainbow-shard・eternal-orange も
+  フォント・余白を微調整して収めた）。
+- **検証**: `node --check`（card-renderer/cards-data/card-text）・CSSブレース平衡（2401）通過。ブラウザで
+  カード開発モード→🖼プレビューを開き、全34枚がブランク画像（`assets/cards-blank/{id}.webp` 全て200）＋
+  種別ごとの正しいテキスト（normal=●■＋仕切り線1、eternal=★■＋仕切り線1、first=★＋タイトル＋
+  《能力名》＋■）で組み上がること、下パネルのクリップが無いことを実測。スクリーンショットは環境制約で
+  撮れないため、**テキストの位置合わせ（各ブランクの空欄にきっちり乗っているか）は端末での目視確認が必要**。
+  位置は with-text 画像から起こした既定値で、微調整はCSS変数（`--cf-lower-y` 等）や first の top 値で可能。
+- **残課題**: (1) 本編（手札・盤面・ホバー拡大・山札一覧等）の描画をこの方式へ段階的に差し替え。
+  (2) エターナルのタイトルの**ふりがな**（ぐれん/かざん等）はデータ未収録。(3) ●■のマーカーを
+  正式なアイコン画像にするか要相談。(4) 位置の端末実機での微調整。
+- **ユーザー確認待ち**: リネーム（番号→cardId）の対応が正しいか、プレビューの見た目でご確認を。
+
+### 2026-08-25（続き263）：カード面テキスト・フェーズ2b（ギャンブル/スリカエ修正・ふりがな・アイコンマーカー・位置サイズ調整スライダー）
+
+続き262をユーザーが確認し、以下のフィードバックに対応（本編への接続はまだ）。
+- **通常ブランクの取り違え修正（ザ・ギャンブル/手品師の技-スリカエ- が逆）**: ユーザーが
+  `画像素材/通常カード（テキスト無し）/` を日本語カード名にリネーム済みだったので、その正しい
+  ファイル名→cardId で全19枚を取り直した（差分は yellow-gamble/yellow-sleight-of-hand の2枚のみ＝
+  他17枚の目視同定は正しかった）。ファースト/エターナルは色名リネーム済みで変更なし。
+- **ふりがな（ルビ）対応**: txtで `・名前`行の直前に全角スペース始まりの読み行（例 `　ぐれん　かざん`＝
+  紅蓮/火山）が追記された（通常カードにも追加、凡例に無いが同形式）。`tools/gen-card-text.mjs` に
+  「ふりがな行の保留→`titleRuby`」を追加して再生成。`card-renderer.js` の `applyTitleRuby()` が、
+  タイトル中の「漢字の連続」ランに読みを順番で割り当てて `<ruby><rt>` を生成する（紅蓮→ぐれん,
+  火山→かざん / 白→しろ,意思→いし,覚醒→かくせい / 台→だい）。漢字ラン数と読み数が合わない時は
+  誤ルビを避けてルビ無しにフォールバック。カタカナのみの名前（カウンターロック等）はルビ無し。
+- **効果マーカーを正式アイコンに**: `画像素材/アイコン/到達効果アイコン.png`・`手札効果アイコン.png` を
+  `assets/icons/effect-arrival.png`・`effect-hand.png` にコピーし、●到達・■手札のマーカーを
+  CSS `background-image`（`.card-face-marker.is-arrival/.is-hand`）で表示。★基本はマーカー非表示のまま。
+- **位置・サイズ調整スライダー（種別ごと）**: `card-render-preview.js` の🖼プレビューに調整パネル
+  （`⚙ 位置・サイズ調整`）を追加。通常/エターナル/ファーストそれぞれに、文字サイズ・テキスト枠の
+  上端・フレーバー上位置（通常/エターナル）／★基本・タイトル・《能力名》・■手札の各上位置
+  （ファースト）のスライダー計11本。値は `--cf-*` CSS変数（`.card-face` 内で種別ごとに汎用変数へ写像、
+  style.cssの各 `var(..., 既定)` を上書き）を書き換えて即反映し、localStorageに保存。「出力をコピー」で
+  既定と異なる値のみを `:root{}` スニペットとして出せる（開発者が style.css の既定へ焼き込む運用）。
+  「リセット」で既定へ戻す。※この調整はプレビュー用（開発）で、本編描画には未接続。
+- **検証**: `node --check`（card-renderer/card-render-preview/card-text/gen-card-text）・CSSブレース平衡
+  （2418）通過。ブラウザで🖼プレビューを開き、ルビ（紅蓮ぐれん/火山かざん 等）・アイコンマーカー
+  （effect-arrival/hand.png 512px読込）・スライダー11本が実際にCSS変数を書き換えてカードへ即反映される
+  こと（例: --cf-f-title-top 30cqw→76.8px、--cf-n-top 48%→122.9px）を実測。ギャンブル/スリカエの
+  ブランクが正しく入れ替わったことも確認。
+- **残課題**: (1) 本編（手札・盤面・ホバー拡大・山札一覧）への接続。(2) 位置の端末実機での微調整→
+  「出力をコピー」の値を style.css 既定へ焼き込み。(3) スライダー上限で足りなければ範囲拡張。
+
+### 2026-08-25（続き264）：カード面テキスト・フェーズ2c（要素ごとの位置・サイズエディタに刷新）
+
+続き263をユーザーが確認し、位置調整の要望に沿ってエディタを全面刷新（本編未接続のまま）。
+- **配置設定を1箇所に集約（[src/card-layout-config.js](src/card-layout-config.js) 新規）**: 種別
+  （通常/エターナル/ファースト）ごとに、各テキスト要素（フレーバー/タイトル/★基本/能力名《》/●到達/
+  ■手札）の x（左）・y（上）・w（幅）・s（文字サイズ）を全て cqw（カード幅比）で定義。style.css の
+  既定値・エディタ・レンダラで共有する単一の情報源。`cardTypeOf`/`cfVar`（`--cf-{n|e|f}-{要素}-{x|y|w|s}`）も
+  ここに集約（renderer 側の重複定義を削除）。通常カードにも★基本を持つ2枚（なないろの欠片・誘惑の黒の
+  烙印）があるため normal にも basic スロットを追加（全34枚の全テキスト要素が必ずスロットを持つことを
+  スキャンで確認＝描画される要素は必ず位置ルールを持つ）。
+- **各要素を絶対配置に（レイアウト方式の変更）**: 従来 normal/eternal は下パネルのフレックス縦積み＋
+  仕切り線だったが、要望「要素ごとにX/Yを調整」に応えるため、全種別で各要素を**個別に絶対配置**する
+  方式へ変更（`card-renderer.js` は下パネル・仕切り線を廃し、その種別の config にある要素だけを直接
+  appendChild）。CSSの位置ルールは `tools/gen-cardface-css.mjs`（新規）が config から自動生成して
+  style.css へ差し込む（配置を変えたら `node tools/gen-cardface-css.mjs` で再生成）。効果行の文字は
+  effect の font-size を em 基準に継承＝要素ごとの s 変数で一括拡縮。
+- **タイトルを全て黒文字に**（ユーザー指定）: `.card-face-title { color:#141414 }`（従来の色アクセント
+  color-mix をやめた）。ルビ(rt)も黒。
+- **エディタ（[src/card-render-preview.js](src/card-render-preview.js) 全面書き換え）**: 一覧グリッドを
+  やめ、①カード選択（種別ごとの optgroup）②**1枚を最大限大きく**中央表示（`min(56rem, 82vh)` の正方形）
+  ③右側に選択カードの種別の**要素ごとの調整グループ**（各要素に X/Y/幅/文字サイズの4行、**スライダー＋
+  数値入力を相互同期**）④「要素の枠を表示」トグル（点線 outline、既定ON）⑤「出力をコピー」（変更した
+  `--cf-*` のみを :root スニペットで出力）「この種別をリセット」。値は `--cf-*`（cqw）を documentElement に
+  書き込んで即反映＋localStorage 保存。オプション→🃏カード開発モード→「🖼 カード面エディタ」で開く。
+- **検証**: `node --check`（card-renderer/card-render-preview/card-layout-config/card-dev-mode/
+  gen-cardface-css）・CSSブレース平衡（2424）・欠落スロット0件。ブラウザで、各要素が
+  `position:absolute`＋種別別 var で配置され、タイトルが黒(rgb(20,20,20))、要素枠(dashed)、数値入力→
+  スライダー同期＋var更新＋localStorage保存（例 タイトルX=20cqw→左へ移動）、通常/エターナル/ファースト
+  で正しい要素グループ（ファースト=★基本/タイトル/能力名《》/■手札、エターナル=フレーバー/タイトル/
+  ★基本/■手札）に切り替わること、cqw がステージ縮小前レイアウト幅基準で正しく解決することを実測確認。
+  ※スクリーンショットはサンドボックス制約で不可のため、実際の見た目の位置合わせは実機でお願いする
+  （エディタで各要素を空欄に合わせ→「出力をコピー」の値を style.css 既定へ焼き込む運用）。
+- **残課題**: (1) 実機で各要素をブランク画像の空欄に合わせ、「出力をコピー」の値を config/style.css の
+  既定へ焼き込み。(2) 本編（手札・盤面・ホバー拡大・山札一覧）への接続。(3) 効果文が長いカードは
+  絶対配置ゆえ下の要素と重なり得る（y/サイズをエディタで調整して回避）。
+
+### 2026-08-25（続き265）：カード面テキスト・フェーズ2d（効果を「セット＋仕切り」に・ルビ個別・フォント指定・非斜体・normal値反映）
+
+続き264をユーザーが確認し、以下のフィードバックに対応（本編未接続のまま）。
+- **効果を「セット＋自動仕切り」に変更（重要な方針転換）**: 前回は基本/到達/手札を各要素で個別に絶対
+  配置していたが、ユーザー要望「基本/到達/手札は基本セットで上から順に詰め、各効果の間に仕切りを
+  中間へ置く」に合わせ、normal/eternal は効果を1つのセット `.card-face-fx`（config の `fx` スロット＝
+  x/y/w/s を持つ絶対配置コンテナ、flex縦積み）にまとめ、存在する効果を上から詰めて**間に仕切り線**
+  （`buildDivider`、中央に菱形）を入れる方式にした。first だけは基本→タイトル→能力名→手札が交互
+  配置のため従来通り個別（basic/hand を各自絶対配置）。エディタの調整項目も「効果（基本/到達/手札）」の
+  1グループ（セット全体の x/y/w/s）になった。
+- **ふりがな（ルビ）も個別調整**: config に `ruby` スロット（props: 文字サイズ s ＋ 上下微調整 oy）を
+  追加。CSSは `.card-face-title rt { font-size: var(--cf-{t}-ruby-s); transform: translateY(var(--cf-{t}-ruby-oy)) }`
+  を種別ごとに生成（gen-cardface-css.mjs のルビ分岐）。エディタに「ふりがな(ルビ)」グループ（文字サイズ・
+  上下微調整）を追加。
+- **フォント指定（ユーザー指定）**: フレーバー・タイトル・能力名《》＝`FOT-マティス ProN M`
+  （フォールバック FOT-Matisse ProN M→Yu Mincho→serif）、効果文＝`ヒラギノ角ゴ Pro W6`
+  （フォールバック Hiragino Kaku Gothic Pro/ProN→Yu Gothic→sans-serif）。※これらは端末に該当フォントが
+  インストールされている必要がある（ユーザーのMac前提）。
+- **フレーバーを非斜体に**（ユーザー指摘・実画像確認）: `.card-face-flavor { font-style: normal }`。
+- **ユーザーが調整した normal 値を既定に反映**: title y=51.5・s=3.9、flavor y=5、効果セット fx を
+  x=6/y=58/w=88（旧 arrival の値、hand は自動パックのため統合）。config/CSS 既定へ焼き込み。
+  エターナル/ファーストは未調整の暫定既定（要実機調整）。エディタの保存キーを v2 に更新（旧・個別配置の
+  保存値が混ざらないように）。
+- **検証**: `node --check`（card-renderer/card-render-preview/card-layout-config/gen-cardface-css）・
+  CSSブレース平衡（2429）・欠落スロット0件。ブラウザで、normal/eternal=効果セット `.card-face-fx`
+  （flex・効果2・仕切り1・効果文=ヒラギノ角ゴ Pro W6）、first=個別配置（★基本 absolute）、フレーバー
+  非斜体＝FOT-マティス、タイトル黒＋Matisse、ルビ=Matisse＋「文字サイズ/上下微調整」の2調整、を実測
+  確認。cqwの実ピクセル確認はペイン非表示（サンドボックス制約）で不可のため、実機での位置合わせと
+  フォント表示の最終確認をお願いする。
+- **残課題**: (1) 実機で各要素をブランクに合わせ、「出力をコピー」の値を config/style.css 既定へ焼き込み
+  （特にエターナル/ファースト）。(2) 本編（手札・盤面・ホバー拡大・山札一覧）への接続。(3) 効果セットが
+  長いカードは下端に収まるか実機で確認（y/文字サイズで調整）。
+
+### 2026-08-25（続き266）：カード面テキスト・フェーズ2e（ルビ上下移動の修正・通常/エターナル共通化・ファースト白文字＆効果中央）
+
+続き265をユーザーが確認し、4件のフィードバックに対応（本編未接続のまま）。
+- **ルビの上下微調整が効かなかったのを修正（原因特定）**: `rt`（display:ruby-text）は仕様上
+  `transform`/（一部）が効かず、`translateY` で動かせなかった（＝ユーザー報告「動かない」）。ブラウザで
+  実測して切り分けた結果、①`transform` は ruby-text で無視される、②`display:inline-block` にすると動くが
+  ふりがなが漢字の上でなくインライン（下）に落ちて配置が崩れる、③**`position:relative` + `top` は
+  ruby-text のまま（漢字の上を維持して）上下に動く**、と判明。③を採用し、生成CSSのルビ規則を
+  `translateY` から `top: var(--cf-*-ruby-oy)` ＋ 基底 `.card-face-title rt { position: relative }` に変更。
+  実測で oy=+3cqw→下・-3cqw→上へ正しく移動、漢字の上配置も維持を確認。
+- **通常カードとエターナルカードの位置調整を共通化（ユーザー要望）**: レイアウトを2グループに再編
+  （[src/card-layout-config.js](src/card-layout-config.js)）——`std`（通常＋エターナル、CSS変数接頭 `--cf-s-*`）と
+  `first`（`--cf-f-*`）。`TYPE_GROUP`（normal/eternal→std, first→first）・`groupOf`・`cfVar(group,…)` を導入し、
+  renderer/generator/editor を group ベースに統一。通常・エターナルは同じ `--cf-s-*` を参照＝片方を調整すると
+  両方に反映。エディタは調整対象グループ名（「通常／エターナル（共通）」）を表示。保存キーを v3 に。
+- **ファーストカードは文字が全て白（ユーザー指定）**: `.card-face[data-card-type="first"]` のタイトル・
+  ルビ・能力名《》・効果を `color:#fff`＋読みやすさ用の暗いtext-shadowにした。
+- **ファーストの効果は全て中央揃え・ただしアイコン(マーカー)は左揃え**: first の
+  `.card-face-effect-body { text-align:center }`（効果本文を中央）。効果は flex（マーカー＋本文）なので
+  ●/■アイコンは左端のまま・本文だけ中央に寄る。★基本はマーカー非表示＝全幅中央。
+- **検証**: `node --check`（card-renderer/card-render-preview/card-layout-config/gen-cardface-css）・
+  CSSブレース平衡（2432）。ブラウザ（ペイン生存中）で、ルビの実移動（oy±3cqwで上下）、通常/エターナルが
+  同じ `--cf-s-*` を参照（両ノート「通常／エターナル（共通）」・両タイトル規則が --cf-s-title-* 参照）、
+  ファーストの白文字（title/hand rgb(255,255,255)）・効果本文 text-align center・■マーカー左（flex）を実測確認。
+  cqwの厳密な位置合わせは実機でお願いする。
+- **残課題**: (1) 実機で std（通常/エターナル）と first を各々ブランクに合わせ、「出力をコピー」の値を
+  config/style.css 既定へ焼き込み。(2) 本編（手札・盤面・ホバー拡大・山札一覧）への接続。
+
+### 2026-08-25（続き267）：カード面テキスト・フェーズ2f（仕切り黒系・基本効果の文字サイズ個別・ファースト中央配置＆アイコンサイズ・std値反映）
+
+続き266をユーザーが確認し、4件のフィードバックに対応（本編未接続のまま）。
+- **仕切り線を黒系に統一**（ユーザー要望「原本と同じく黒系・分かりやすく」）: これまで仕切りは
+  `--card-accent`（カード色）だったが、`.card-face-divider::before/::after` を `rgba(20,20,20,0.75)` の
+  グラデ、中央の菱形 `.card-face-divider-gem` を `#1a1a1a` に変更。
+- **★基本効果の文字サイズを到達/手札と別に調整可能に**（ユーザー要望「基本は小さめにしたい」）:
+  効果セット(fx)は1つの font-size を共有していたが、fx内の基本だけを上書きする `fxbasic` 調整を新設
+  （`.card-face-fx .card-face-effect.is-basic { font-size: var(--cf-s-fxbasic-s, 2.6cqw) }`。既定2.6cqw＝
+  到達/手札の 3.2cqw より小さい）。エディタに「★基本効果の文字サイズ」グループ（1スライダー）を追加。
+- **ファーストは中央配置（左位置X不要）＋アイコンサイズ調整**（ユーザー要望）: first の各要素
+  （基本/タイトル/能力名/手札）を `left:50% + translateX(-50%)` の中央配置に変更し、調整項目から X を
+  外した（props を `["y","w","s"]` に）。●/■アイコンのサイズを `--cf-f-icon-s`（既定4cqw、first の
+  `.card-face-marker` の width/height）で調整できる「アイコンのサイズ」グループを追加。
+- **config/生成ツールの一般化**: `card-layout-config.js` の各スロットに `props` を持たせ、
+  `tools/gen-cardface-css.mjs` が props に応じて生成を分岐（x有り＝左基準絶対配置／x無しで位置あり＝
+  中央配置／位置なし＝サイズのみ上書き〈fxbasic〉／ruby＝rtのfont-size+top／icon＝markerのwidth/height）。
+- **ユーザー調整の std 値を既定に反映**: title x=6・y=50.5・w=90、ruby oy=-0.2（通常/エターナル共通の
+  std グループ）。config・生成CSSの既定へ焼き込み。
+- **検証**: `node --check`（config/renderer/preview/gen）・CSSブレース平衡（2435）。生成CSSで、
+  normal/eternal=fxbasic font-size上書き（2.6cqw<fx3.2cqw）、first=中央配置(translateX(-50%))＋X無し＋
+  icon width/height=var(--cf-f-icon-s)、仕切りgem=#1a1a1a、を確認。エディタに「★基本効果の文字サイズ」
+  「アイコンのサイズ」グループ追加・first にX調整が出ないことを実測。※cqwの厳密なpx実測はペイン休眠
+  （サンドボックス制約）で不可のため、実機での位置・サイズ合わせは要確認。
+- **残課題**: (1) 実機で std・first をブランクに合わせ「出力をコピー」→ 既定へ焼き込み。(2) 本編接続。
+
+### 2026-08-25（続き268）：カード面テキスト・フェーズ2g（仕切りのダイヤ削除・通常/エターナルもアイコンサイズ＆アイコン→文の間隔を調整可能に）
+
+続き267をユーザーが確認し、2件のフィードバックに対応（本編未接続のまま）。
+- **仕切り線の中央ダイヤを削除**（ユーザー要望「真ん中のダイヤはいらない」）: `.card-face-divider` を
+  `::before` 一本の黒線（`rgba(20,20,20,0.8)`）のみにし、`.card-face-divider-gem`（菱形）と `::after` を
+  廃止。`card-renderer.js` の `buildDivider` も gem 生成をやめた。
+- **通常/エターナル（std）にもアイコンサイズ＋「アイコン→文の間隔」調整を追加**（ユーザー要望）:
+  これまで first だけだったアイコンサイズ（`--cf-*-icon-s`＝`.card-face-marker` の width/height）を std
+  にも追加。さらに「アイコンから文が始まるまでの間隔」（`--cf-*-gap-s`＝効果行 flex の `gap`）を std/first
+  両方に新設（`gap` 要素、generator に `gap` 分岐を追加）。エディタの単一「s」行には要素ごとの専用ラベル
+  （アイコン=「大きさ」/間隔=「間隔」/★基本=「文字サイズ」）を出すよう `ELEMENT_META.sLabel` ＋
+  `buildPropRow` の labelOverride を追加。
+- **検証**: `node --check`（config/renderer/preview/gen）・CSSブレース平衡（2438）。ブラウザで、std グループに
+  「アイコンのサイズ(大きさ)」「アイコン→文の間隔(間隔)」が追加され、first にも同様に出ること、仕切りが
+  黒線のみ（gem無し・`::before` bg=rgba(20,20,20,0.8)）でダイヤが消えたこと、rainbow-shard で仕切り2本
+  （効果3つの間）にダイヤが無いことを実測確認。
+- **残課題**: (1) 実機で std・first をブランクに合わせ「出力をコピー」→ 既定へ焼き込み。(2) 本編接続。
+
+### 2026-08-25（続き269）：カード面テキスト・基本効果の幅と左位置を個別調整可能に
+
+続き268の後、ユーザー要望「基本効果の幅と左位置を個別に調整したい」に対応（本編未接続のまま）。
+- **std（通常/エターナル）の★基本効果に幅・左位置を追加**: これまで fx（効果セット）内の basic は
+  font-size だけ個別（`fxbasic`）だったが、`width`（`--cf-s-fxbasic-w`）と左位置ずらし（`margin-left`＝
+  `--cf-s-fxbasic-mx`）も個別に調整できるようにした。fx は flex 縦積みなので、basic だけ幅を狭めたり
+  左右にずらしても、到達/手札はセットの幅のまま。`card-layout-config.js` の fxbasic を
+  `{s,w,mx,props:["s","w","mx"]}` に拡張、`gen-cardface-css.mjs` に fxbasic 専用分岐（font-size＋width＋
+  margin-left を出力）、`PROP_RANGE.mx`（左位置ずらし、-30〜30cqw）を新設。エディタの「★基本効果
+  （サイズ・幅・左位置）」グループが「文字サイズ／幅／左位置(ずらし)」の3項目になる。
+- **検証**: `node --check`・CSSブレース平衡（2438）。ブラウザで、★基本効果グループが3項目（文字サイズ/幅/
+  左位置(ずらし)）になり、生成ルールが `--cf-s-fxbasic-w`（width）・`--cf-s-fxbasic-mx`（margin-left）・
+  `--cf-s-fxbasic-s`（font-size）を参照することを実測確認。first の basic は従来通り中央配置（個別 y/w/s）。
+
+### 2026-08-26（続き269）：カード面テキスト フェーズ2h（ファーストの手札効果を「【追色】部分」と「効果本文」の2要素に分割）
+
+続き268をユーザーが確認し、フィードバックに対応（本編未接続のまま）。
+- **ファーストカードの手札効果を2要素に分割**（ユーザー要望「『【追色１】（～）』とそれ以降の効果文で
+  要素を分けてください」）: 全ファーストの手札効果は
+  `【追色１】（これと同色のカードを自分の手札から１枚捨てることで次の効果を得る。）<効果本文>` という
+  同一形式（first-purple だけ ）の後に `\n` あり）。`card-renderer.js` に `splitFirstHandCost(text)`
+  （正規表現 `^(【追色[^】]*】（[^）]*）)\s*([\s\S]*)$` で「【追色】部分(cost)」と「本文(rest、trim)」に分割）を
+  追加し、ファーストの手札効果を **`handcost`（■マーカー付き・【追色】部分）** と **`hand`（マーカー無し・
+  効果本文）** の2要素で個別に絶対配置するようにした。■アイコンは【追色】部分（handcost）に付け、本文は
+  マーカー無しの続き行にする（`buildSection(kind, text, {effectClass, markerKind})` を新設し、markerKind:null で
+  マーカー無し／effectClass で要素クラスを上書き可にした）。
+- **config/生成/エディタ**: `card-layout-config.js` の first に `handcost`（y62/w89/s2.9、中央配置、
+  props:["y","w","s"]、hand の上）を追加、ELEMENT_META に `handcost { sel:".card-face-effect.is-hand-cost",
+  labelJa:"手札効果の【追色】部分" }` を追加。`node tools/gen-cardface-css.mjs` で `.is-hand-cost` の中央配置
+  ルール（`--cf-f-handcost-y/w/s`）を生成。エディタ（card-render-preview.js）はグループを config から
+  自動生成するため、ファースト選択時に「手札効果の【追色】部分」グループが「■手札効果」の前に自動で出る。
+  通常・エターナル（std グループ）は handcost スロットを持たないため手札効果の分割は起きず無変更。
+- **検証**: `node --check`（card-renderer/card-layout-config/gen-cardface-css）・CSSブレース平衡（2439）。
+  ブラウザで `buildCardFace("first-red"/"first-purple")` が `is-basic → is-hand-cost（■＋【追色】）→
+  is-hand（マーカー無し＋本文）` の3効果要素に分かれること（first-purple は本文の先頭 `\n` が trim される）、
+  通常カード（red-jump-pad）の手札効果は分割されず ■マーカー付きのままであること、エディタのファースト
+  グループに「手札効果の【追色】部分」が並ぶこと、生成CSS（handcost=中央/y62/w89/s2.9、hand=中央/y72/w89/s3.2）を
+  実測確認。※cqwの厳密な位置合わせ・見た目は実機でお願いする（エディタで各要素をブランクに合わせ→
+  「出力をコピー」の値を config/style.css の既定へ焼き込む運用）。
+
+### 2026-08-26（続き270）：カード面テキスト フェーズ2i（ファーストの■アイコンを手札効果文と別要素にして左位置調整可能に＋調整値の焼き込み）
+
+続き269をユーザーが確認し、調整済みの `:root` 値を既定へ焼き込みつつ、新要望に対応（本編未接続のまま）。
+- **ファーストの■アイコンを独立要素化（左位置調整可能に）**（ユーザー要望「アイコンと手札効果文の要素を
+  分けて、アイコンは中央ぞろえではなく左位置調整できるように」）: これまで first の手札効果は
+  `handcost`（■マーカー付き・【追色】部分）＋`hand`（本文）だったが、■マーカーを両テキストから外し、
+  **独立した `handicon` 要素**（`.card-face-hand-icon`、■画像＝effect-hand.png を敷いた span）として
+  **左基準の絶対配置（left=X・中央ではない）＋サイズ**で置くようにした。テキスト（handcost/hand）は
+  どちらもマーカー無し・中央のまま。`card-renderer.js` の first 分岐で、split 時に handicon（slots にあれば）
+  → handcost（markerKind:null）→ hand（markerKind:null）を append。
+- **config/生成/エディタ**: `card-layout-config.js` の first に `handicon`（x/y/s、props:["x","y","s"]、
+  handcost の上）を追加し、**first から `icon`/`gap` を撤去**（first の可視マーカーは■のみ＝handicon が担う
+  ため、汎用マーカーサイズ・アイコン→文の間隔は不要）。ELEMENT_META に
+  `handicon { sel:".card-face-hand-icon", kind:"iconpos", sLabel:"大きさ" }`。`gen-cardface-css.mjs` に
+  `handicon` 専用分岐（`position:absolute; left/top=var; width=height=var(-s)`＝左基準・中央でない）と
+  `.card-face-hand-icon` の基底（■画像 contain）＋ `.cf-outline` への追加を実装。エディタは config から
+  自動生成なので、ファースト選択時に「■アイコン（手札効果）[左位置X/上位置Y/大きさ]」グループが
+  「能力名《》」と「手札効果の【追色】部分」の間に自動で出る（他要素は中央配置＝Xなし、■だけXあり）。
+  std（通常/エターナル）は icon/gap 含め無変更。
+- **ユーザー調整値を既定へ焼き込み**（config の既定＋生成CSSの var 第2引数）:
+  std＝`--cf-s-flavor-s:2.5`・`--cf-s-fxbasic-s:2.8`/`-w:80`/`-mx:8`・`--cf-s-icon-s:6.6`（title/ruby は既存と一致）。
+  first＝`basic y6.5/w58/s2.8`・`title y23.5/s3.5`・`sub y58.5`・`handcost y69/w72.5`・`hand y82.5/w61.5/s2.9`・
+  `handicon s8`（旧 `--cf-f-icon-s:8` の意図を handicon サイズへ引き継ぎ。位置 x5/y69.5 は既定、実機で調整）。
+- **検証**: `node --check`（card-renderer/card-layout-config/gen-cardface-css）・CSSブレース平衡（2439）。
+  ブラウザで、first-red の子が `タイトル→能力名→★基本→[card-face-hand-icon 独立]→is-hand-cost(マーカー無)→
+  is-hand(マーカー無)` になること（■が独立要素・テキストはマーカー無し）、生成CSS（handicon=左基準
+  絶対配置 x5/y69.5/8cqw、handcost=中央 y69/w72.5、hand=中央 y82.5/w61.5）、effect-hand.png=200、
+  エディタの first に「■アイコン（手札効果）[x/y/s]」が出ること、std は icon/gap 含め無変更・通常カードの
+  手札効果は従来通り■インラインマーカー付き、を実測確認。※cqwの厳密な位置合わせ（■を空欄にきっちり
+  乗せる）は実機でエディタ→「出力をコピー」→既定へ焼き込みでお願いする。
+
+### 2026-08-26（続き271）：カード面テキスト（ルビ有無でタイトル位置がズレる不具合を修正＋なないろの欠片のルビ「かけら」＋調整値焼き込み）
+
+続き270をユーザーが確認し、2件のフィードバックに対応（本編未接続のまま）。
+- **ルビの有無でタイトルの縦位置がズレる不具合を修正**（ユーザー報告「ルビがあるのとないのでタイトルの
+  位置が変わっちゃってます」）: 従来 `rt` は `position:relative`（＝通常フロー内）で漢字の上に置いていたが、
+  rt が行ボックスを上へ押し広げるため、ルビ有りのタイトルは base テキストが（rt のぶん）下がり、ルビ無しと
+  縦位置が食い違っていた。`rt` を **`position:absolute; left:50%; bottom:100%`（base の真上に浮かせる＝行高に
+  影響しない）** に変更し、`.card-face-title ruby { position:relative }`（各漢字ランの ruby を基準）を追加。
+  上下微調整(oy)は `top` から **`transform: translateX(-50%) translateY(var(--cf-*-ruby-oy))`**（中央寄せ＋
+  translateY、正=下）に変更（`gen-cardface-css.mjs` の BASE rt ＋ ruby生成分岐）。これでルビが base の上に
+  浮いて行高に入らず、ルビ有無でタイトルの `top` 位置が一致する。
+- **なないろの欠片のルビ「かけら」を反映**（ユーザー報告「なないろの欠片のルビ漏れ」）: `カード効果　テキスト.txt`
+  の行414 に既に `　かけら`（欠片→かけら）があったが `src/card-text.js` が未再生成だった。`node tools/gen-card-text.mjs`
+  で再生成し `rainbow-shard.titleRuby: "かけら"` を反映（欠片＝1漢字ラン→読み1個で一致、rt生成を実測確認）。
+- **ユーザー調整値を既定へ焼き込み**（first）: `handcost.w 72.5→64.5`・`handicon.x 5→9`・`handicon.y 69.5→69`
+  （config の既定＋生成CSSの var 第2引数）。std・その他 first 値は既存と一致のため変更なし。
+- **検証**: `node --check`（card-layout-config/gen-cardface-css/gen-card-text）・CSSブレース平衡（2440）。
+  ブラウザ再読込で、rainbow-shard/white-awakening にルビ（rt）が生成され、yellow-gamble（カタカナ）は
+  ルビ無し、生成CSSで rt が `position:absolute; bottom:100%`（行高に影響しない）＋`translateY(oy)` になって
+  いることを確認。※実際のタイトル縦位置の一致・ルビ位置の見た目は休眠ペインの制約で px 実測できないため
+  実機で最終確認をお願いする（rt を out-of-flow にした標準的な修正）。
+
+### 2026-08-26（続き272）：カード面テキスト（std調整値の焼き込み）
+
+続き271をユーザーが確認・調整し、`:root` ダンプを既定へ焼き込み（機能追加なし・本編未接続のまま）。
+前回から差分があったのは std の3項目のみ（first・その他 std は既存と一致）:
+`--cf-s-fxbasic-s 2.8→2.7`（★基本効果の文字サイズ）・`--cf-s-ruby-oy -0.2→0`（ルビ上下微調整）・
+`--cf-s-title-y 50.5→52.5`（タイトル上位置）。config の既定＋生成CSSの var 第2引数に反映し、
+`node tools/gen-cardface-css.mjs` で再生成（CSSブレース平衡 2440・`node --check` 通過）。
+
+### 2026-08-26（続き273）：カード面テキスト（「・」選択肢行を左インデント無し・左詰めに）
+
+ユーザー要望「なないろの欠片の手札効果のように『・』を用いるときは左にスペースを設けず普通に左詰めで」。
+`buildLines`（card-renderer.js）が `・`始まりの行に付ける `.card-face-subline` は従来
+`padding-left: 1.6em`（左インデント）＋`font-size: 0.92em`＋`opacity: 0.92` だったが、`padding-left: 0`・
+本文と同じ `font-size: 1em`/`line-height: 1.28`（opacity 撤去）に変更し、`・`と続く本文が同じ左端に揃う
+左詰めにした（`gen-cardface-css.mjs` の BASE を編集→再生成、CSSブレース平衡 2440）。中央揃えの first は
+従来通り（text-align center のまま。要望は左詰めの通常/エターナルが対象）。
+
+### 2026-08-26（続き274）：カード効果テキストの誤字修正（パーティ「全員」＋カウンターロック「１枚」・プレゼント「これを」）
+
+ユーザーが元テキスト（`カード効果　テキスト.txt`）でパーティーの「員」→「全員」を修正したのを受けて
+`node tools/gen-card-text.mjs` で `src/card-text.js` を再生成。あわせて全34カードのテキストを通しで確認し、
+明らかな誤字2件を txt で修正して再反映した：①カウンターロックの到達効果「1 枚」（半角＋スペース）→
+「１枚」（全角）、②プレゼントの手札効果「れを相手の隣に…」→「これを相手の隣に…」（脱字）。
+カウンターロックのフレーバー「…奪い返せる」だけ末尾の句点が無い（他は全て「。」で終わる）点は、
+創作テキストのため自動修正せずユーザーへ報告（判断待ち）。本編未接続（カード面エディタのプレビューのみ）。
+
+### 2026-08-26（続き275）：多言語化の土台（フェーズ1〜2）＝言語設定＋card-text.ja.js化＋カード名の言語対応（jaは無変更）
+
+「カードテキストの分離」が済んだので、多言語化の器を作った（英語データはまだ無し。**jaの見た目・挙動は
+完全に無変更**）。
+- **`src/i18n.js`（新規・依存ゼロの葉）**: `getLang()/setLang()/onLangChange()`＋`SUPPORTED_LANGS(["ja","en"])`。
+  既定 ja、localStorage(`so7-lang`)保存、`?lang=en` のURL上書き（テスト用・指定で保存）。将来アカウント
+  同期する場合は `so7_user_profiles` に `lang` 列を1つ足して online.js の loadMyPreferences/saveMyPreference に
+  載せるだけ（既存の設定同期と同じ形）。
+- **`card-text.js` を言語ディスパッチャ化**: 生成物のデータは `src/card-text.ja.js`（`export const CARD_TEXT_JA`、
+  `gen-card-text.mjs` の出力先を変更）に移し、`card-text.js` は「現在の言語を見て cardId のテキストを返す」
+  手書きディスパッチャにした（`getCardText`/`getCardName` を export、importer の card-renderer.js は無改修）。
+  フォールバック方針: ①対象言語にそのカードが無ければ丸ごと ja（＝完全な日本語カードで表示）②効果文/
+  フレーバー/能力名は対象言語のフィールドが空なら ja（原文）で表示（未訳の暫定表示）③titleRuby（ふりがな）は
+  日本語専用＝非ja言語では常に無し（ただしカードが丸ごとjaフォールバックの時はjaルビが正しく出る）。
+- **カード名の言語対応**: 日本語名は `cards-data.js` の `name`（アプリ全体で使う正）のままにし、**非ja言語の
+  テキストデータだけが `name` フィールドを持つ**設計（jaの名前は動かさない＝ログ/UI等50箇所の `def.name`
+  参照に影響しない・spacingドリフトも無い）。`card-renderer.js` のタイトルを
+  `getCardName(cardId) || getCardDefinition().name` に変更（jaは getCardName が null → 従来通り cards-data の
+  日本語名）。
+- **別言語の足し方**: `card-text.<lang>.js`（同じ cardId キー、name＋各テキスト）を作り、`card-text.js` の
+  `LANGS` に import して1行足すだけ。
+- **検証**: `node --check`（i18n/card-text/card-text.ja/card-renderer/gen-card-text）通過。ブラウザで、既定 ja・
+  `setLang("en")` で en に切替（データ未整備なので全カード ja フォールバック）・`getCardName` は ja で null／
+  en でも（データ無しなので）null＝レンダラは cards-data 名にフォールバック・jaカード面がタイトル/ルビ/効果/
+  フレーバーとも従来と完全同一に組めることを実測確認。**本編（手札/盤面/拡大/図鑑）は従来の焼き込み画像の
+  ままで、この器はまだ表示切替に接続していない**（カード面レンダラ側の準備が整った段階）。
+- **次**: 用語集（glossary）を作って34枚を英訳→`card-text.en.js`→`LANGS`へ接続→言語セレクタ（オプション）。
+
+### 2026-08-26（続き276）：多言語化フェーズ3（英語カードテキスト34枚＋カード面エディタに言語切替）
+
+続き275の器の上に、**英語版カードテキスト（34枚全部）**を用意して接続した。
+- **`src/card-text.en.js`（新規）**: 全34カードの `name`（英語カード名）＋ basic/arrival/hand/subtitle/flavor を
+  英語で収録（titleRuby は英語では常に ""）。冒頭に**用語集(glossary)**をコメントで固定（ロック=lock /
+  ロックエリア=Lock Area / 山札=deck / 捨て場=discard pile / マス=space / 駒=piece / ゲート=Gate /
+  到達効果=Arrival Effect / 手札効果=Hand Effect / 基本効果=Basic Effect / オープン=flip face-up /
+  公開=reveal / 宣言=declare / 接触=contact / 全員=each player / 追色N=Color Cost N / このフェイズを
+  終了する=End this phase. 等）＝全カードで訳を統一。効果文はルール意味を保って翻訳、カード名・能力名
+  《…》・フレーバーも英訳（固有名＝ワイナウエア→Wainauea 等はローマ字化）。
+- **`card-text.js`（ディスパッチャ）の `LANGS` に `en` を接続**（`CARD_TEXT_EN` を import）。
+- **`splitFirstHandCost`（card-renderer.js）の正規表現を多言語対応に一般化**: 従来 `【追色…】（…）`（全角括弧・
+  「追色」限定）だったのを `【…】（…）/(…)`（全角/半角括弧どちらも可）に。英語は `【Color Cost 1】(...)` と
+  ASCII括弧で書くため、ファーストの「【追色】部分／効果本文」の分割（handicon/handcost/hand）が英語でも効く。
+  jaの分割は従来通り（generalize後もjaが正しく分割されることを実測確認）。
+- **カード面エディタ（card-render-preview.js）に言語切替を追加**: ヘッダーに ja/English のセレクトを置き、
+  切替でカード面が現在の言語で再描画される（プレビュー用。閉じると開いた時の言語へ戻す＝グローバル設定を
+  勝手に変えない）。オプション→🃏カード開発モード→🖼カード面エディタで英語34枚を確認できる。
+- **検証**: `node --check`（card-text.en/card-text/card-renderer/card-render-preview）通過。ブラウザで（単一
+  i18nインスタンスで）ja↔en切替を実測——タイトル/効果/フレーバー/能力名が英語に切替、ルビは英語で消え、
+  jaに戻すと完全復元。ファースト（first-red）が英語でも handicon＋is-hand-cost（【Color Cost 1】(...)）＋is-hand
+  に正しく分割、エターナル（《Crimson Rain》: …）・通常（The Gamble 等）も英語表示を確認。
+- **現状の位置づけ**: 英語テキストは**カード面エディタ（＝レンダラ）でプレビュー可能**。ただし本編（手札/盤面/
+  拡大/図鑑）はまだ焼き込み画像のままなので、実ゲーム表示は日本語のまま（言語セレクタの本番接続＝
+  「本編描画を buildCardFace に差し替える」フェーズで実現）。英語は行長が違うため、**英語用のレイアウト微調整
+  （cqw配置の言語別オーバーライド）は別途必要**（エディタで英語を見ながら詰める）。翻訳の精度は用語集で
+  統一済みだが、将来ネイティブ/コミュニティのレビューで磨く前提。
+
+### 2026-08-27（続き277）：カード面のテキスト表示を本番接続（フェーズ1・主要な対局面／画像↔テキスト切替・既定テキスト）
+
+続き261〜276で作った「ブランク画像＋アプリ側テキスト」のカード面レンダラ（`buildCardFace`）を、
+プレビュー専用から**実ゲームの描画へ初めて接続**した（ユーザー要望「本番接続（画像→テキスト差し替え）。
+管理者モードで画像かテキストか選べるように。デフォはテキストで」）。
+- **中央ヘルパー `src/card-face-display.js`（新規）**: `getCardFaceMode()/setCardFaceMode()`（"text"|"image"、
+  **既定=text**、localStorage `so7-card-face-mode`＝この端末のみ）と `showCardFace(el, cardId, imageUrl)`。
+  テキストモード＝`buildCardFace(cardId)` を `el` に `position:absolute; inset:0` のオーバーレイ
+  （`.card-face-mount`）として被せ、`el` の背景画像を消す（`el` の他の子＝バッジ・グロー擬似要素・
+  ロックスタンプ等はそのまま残す＝オーバーレイは先頭に挿入＝背面）。画像モード＝従来通り背景画像を敷き、
+  マウントがあれば撤去。同じ cardId のマウントは作り直さない（ホバー等での無駄な再構築を避ける）。
+  循環import無し（card-face-display→card-renderer→cards-data/card-text/card-layout-config、いずれも
+  main.js/admin.jsを参照しない）。
+- **`.card-face-mount` CSS**（style.css）: `inset:0; width/height:100%; aspect-ratio:auto; border-radius:inherit;
+  box-shadow:none; pointer-events:none`。container-type:size は基底 `.card-face` から継承（inset:0 で確定
+  サイズになり cqw が解決）。全カードスロット（`.hand-card`/`.board-card`/`.hand-reveal-card`/`.stack-top`/
+  `#card-preview`）が position 済みの祖先なので inset:0 が正しく効く。
+- **接続した対局面（主要な「読むカード」）**: (1)自分の手札（`buildPlayerZone` の is-self 表向き、観戦allの
+  自席表向きも）(2)手札公開エリア（`.hand-reveal-card` 表向き）(3)盤面の表向きカード（`buildFlatCard` の
+  faceUp）(4)捨て場の一番上（`buildCardStack` に `faceCardId` 引数を追加し `buildPileZone` の discard 分岐で
+  cardId を渡す。他の山＝裏面画像は従来通り）(5)ホバー拡大プレビュー（`updatePreview` を `getVisibleCardId`＋
+  `showCardFace` に）。いずれも従来の `el.style.backgroundImage = url(getCardImagePath/…)` を
+  `showCardFace(el, cardId, url)` に差し替えただけ（画像モードでは完全に従来通り）。
+- **管理者モードに「カード面の表示（テキスト／画像）」トグル**（admin.js、⚙ セットアップ・挙動）:
+  チェックOFF＝テキスト（既定）／ON＝画像。切替後 `admin:change` を発火して盤面を再描画。既定テキストは
+  全ユーザーに効き、管理者だけが端末ローカルで画像へ切替可能（＝本番はテキスト、うまく出ない時の保険）。
+- **今回のスコープ外（据え置き・follow-up）**: 各モーダルの拡大カード（到達／手札使用／ゲート侵攻／
+  獲得トースト／個人結果）、図鑑（deck-viewer）／デッキビルダー／デッキ選択、重なり／選択モーダル、
+  ドラッグ中のゴースト、飛翔演出・canvas演出（victory-summary/card-dissolve）は引き続き画像/canvas
+  （ゴースト・canvasはDOMスロットではないため常に画像/描画のまま）。英語用のレイアウト微調整（cqwの
+  言語別オーバーライド）も別フェーズ。
+- **検証**: `node --check`（card-face-display/main/admin）通過・CSSブレース平衡（2441）。ブラウザで、
+  ①表示モジュール単体＝テキストモードで `.card-face-mount`（タイトル＋効果2行＋ブランク画像背景）が
+  生成され `el` の背景が消えること・画像モードでマウント撤去＋背景画像復帰を実測、②2人ローカル対局を
+  セットアップし**盤面の表向きカード（ロックされたファースト2枚）が 2/2 とも `.card-face-mount` で
+  描画**されること、③コンソールエラー無しを確認。自分の手札は headless の rAF スロットル（隠しペインで
+  再描画が凍結）で「ドロー→再描画」の確認が取れなかったが、盤面表向きカードと**byte単位で同じ
+  showCardFace 呼び出し**のため同様に動作する（実機での見た目・可読性・体感の最終確認をお願いしたい）。
+  サーバー側（Supabase）の変更は無い。
+
+### 2026-08-27（続き278）：本番接続フェーズ1の修正（盤面・ロック・捨て場はイラストのみ画像に戻す／ホバー拡大が英語になる不具合を修正）
+
+続き277をユーザーが確認し、2件のフィードバックに対応。
+- **盤面・ロックエリア・捨て場のカードは「イラストのみ画像」に戻した**（ユーザー指摘「そこは以前から
+  イラストのみ画像を採用していた」）: 続き277で `buildFlatCard`（盤面・ロックの表向きカードは同じ
+  `.board-card`）と捨て場の一番上（`buildPileZone`/`buildCardStack`）をテキスト合成に接続したが、これらは
+  `getBoardCardImagePath`（`isBoardIllustOnly()` に従うイラストのみ表示）を使う既存仕様だったため、
+  従来通り背景画像へ戻した。**テキスト合成のままにするのは「読むカード」＝自分の手札・手札公開エリア・
+  ホバー拡大プレビューの3面だけ**にした（`buildCardStack` の `faceCardId` 引数も撤去）。実測: 2人ローカル
+  対局で盤面の表向きカード（ロックされたファースト2枚）が `.card-face-mount` を持たず
+  `assets/cards-illust/first-yellow.webp` の画像で描画されること、捨て場/山の `.stack-top` にマウントが
+  無いことを確認。
+- **ホバー拡大（および手札）が英語で表示される不具合を修正**（ユーザー報告）: 原因は i18n の言語保存。
+  カード面エディタ（`card-render-preview.js`）の言語切替が `setLang`（localStorage `so7-lang` へ保存）を
+  呼んでいたため、エディタで英語を選ぶと "en" が保存され、閉じても（開いた時が既に en だと）残り、
+  **ゲーム全体（手札・ホバー拡大＝テキスト合成の面）が英語表示**になっていた。アプリ内にはまだ言語
+  セレクタが無い（英語UIは未完成のWIP）ため、次の2点で「ゲームは常に日本語」に固定した:
+  - `i18n.js` の `load()` が **保存値(localStorage)を読まない**ようにした（既定 ja 固定。`?lang=en` は
+    その1回の読み込み限りのテスト用で保存しない）。旧エディタが残した "en" がゲームに漏れない。
+  - エディタの言語切替を **プレビュー専用の一時オーバーライド**（`setPreviewLang`/`clearPreviewLang`、
+    保存もゲームへの反映もしない）に変更。閉じると解除される。`setLang`（保存版）は将来のアプリ内
+    セレクタ＋アカウント同期用に残置（今はどこからも呼ばれない）。
+  - 実測: 故意に `localStorage['so7-lang']='en'` を仕込んでも `getLang()` が **ja** を返し、
+    `getCardText('red-jump-pad').arrival` が日本語になること、エディタの `setPreviewLang('en')`→en /
+    `clearPreviewLang()`→ja が正しく切り替わることを確認。
+- `node --check`（i18n/main/card-render-preview）通過。コンソールに新規JSエラー無し
+  （ERR_CONNECTION_REFUSED はサンドボックスが外部Supabase接続を遮断しているだけ）。サーバー側の変更は無い。
+
+### 2026-08-27（続き279）：カード面のテキスト表示を本番接続（フェーズ2・各モーダル/図鑑/デッキ/チュートリアルの「読むカード」／showCardFaceの包含ブロック不具合を修正）
+
+続き277〜278（主要な対局面＝手札・手札公開エリア・ホバー拡大）に続き、**「1枚のカードを大きく読む」
+モーダル・図鑑・チュートリアル面**をテキスト合成へ接続した（既定=text／管理者トグルで画像に切替可能なのは
+従来通り）。演出・ゴースト・canvas・小さいグリッドサムネイルは画像のまま据え置き。
+- **`buildCardBox(cardId, imageUrl, extraClass)` を新設**（`card-face-display.js`）: 従来 `<img>` だった
+  モーダルのカードを置き換える `<div class="card-box">`（テキスト=カード面合成／画像=背景画像、正方形）。
+  `.card-box`（`position:relative; aspect-ratio:1/1; overflow:hidden; background:cover/center` ＋角丸継承）を
+  新設。呼び出し側は旧 `.modal img` ルールを `.modal .card-box` に変えるだけ。
+- **テキスト化した「読むカード」面**: カード到達モーダル（`card-arrival.js`）／手札使用・受け取り・選択肢
+  ピッカー（`hand-effect-ui.js`）／重なりカード・捨て場一覧・重なりロック選択・カード補足・タッチ操作確認・
+  接触結果（`main.js`）／対戦個人結果のMVPカード（`match-personal-result-modal.js`）／図鑑=山札一覧の
+  ホバー拡大＋詳細モーダル（`deck-viewer.js`、グリッドのサムネイルは画像のまま）／デッキビルダーの
+  プレビュー＋カード補足（`my-deck-builder.js`）／チュートリアルの手札効果の見本カード＋ダミー手札
+  （`tutorial.js`）／チュートリアルCPU戦のコールアウトのカード＋ホバー拡大（`tutorial-battle.js` は
+  `cardImage:URL`→`cardId` に、`tutorial-battle-ui.js` が `showCardFace` で描画。cards-data/card-face-display は
+  葉モジュールなので静的import可）。
+- **画像のまま据え置き（意図的）**: 盤面・ロック・捨て場のカード（イラストのみ画像＝続き278）、ミニロック
+  HUD、デッキ箱の代表カード（`my-deck-list`＝イラストのみ／`my-deck-select`／図鑑グリッド／ビルダーの
+  コレクション・エントリのサムネイル）、色チップ・駒/ペット/裏面スキンのサムネイル、全ての演出
+  （飛翔ゴースト・ドラッグゴースト・3Dフリップ・配布・dissolve/victory canvas・奪う儀式フリップ・
+  remote-move ゴースト）。
+- **未対応（follow-up）**: `gate-invasion-modal.js`・`hand-announcer.js` のトースト（`<img src>` を
+  innerHTML 文字列で組むため別対応が必要）。
+- **【重要な不具合を発見・修正】`showCardFace` の包含ブロック判定が detached 要素で誤作動していた**:
+  フェーズ2の冒頭で `showCardFace` に「スロットが static ならマウント(inset:0)用に relative を付ける」
+  `getComputedStyle` 判定を追加したが、**未挿入(detached)の要素は getComputedStyle が常に position:static を
+  返す**（スタイルがまだ効いていない）ため、`buildPlayerZone` が detached で作る `.hand-card`（CSSで
+  `position:absolute`）にも relative をインライン付与し、**自分の手札の扇レイアウトを破壊**していた。
+  `el.isConnected` の時だけ判定するよう修正（detached の要素は CSS 側の position に委ねる）。あわせて、
+  detached で組んで後から挿入する未 positioned なモーダルスロット（`.stack-modal-card`／`.card-note-image`／
+  `.contact-result-card-image`／`.touch-action-confirm-card`／`.match-personal-result-mvp-card`／
+  `.hand-effect-option-picker-img`／`.tutorial-card-example-image`／`.tb-body-card`／deck-viewer詳細の
+  inline／`#mdb-preview .mdb-preview-face`）に `position: relative` を明示（マウントの包含ブロックにするため）。
+  実測: detached `.hand-card` に showCardFace してもインライン position が空のまま＝挿入後 computed が
+  `absolute` を維持（扇が壊れない）、連結済み static 要素には relative が付く安全網、を確認。
+- **検証**: 全編集ファイルの `node --check` 通過・CSSブレース平衡（2443）。ブラウザで、`buildCardBox` の
+  text/image 切替、図鑑の詳細モーダルが日本語カード面（例「ジャンプ台」）で描画されグリッドは画像
+  サムネイルのまま、カード到達モーダルが `.card-box`＞`.card-face-mount`（「ザ・ギャンブル」）で描画、
+  2人ローカル対局で盤面の表向きカードが画像のまま（マウント0）・自分の手札のインライン position 破壊が
+  無いこと、リロード後にコンソール新規エラー無し、を実測確認（自分の手札の実描画はサンドボックスの
+  rAF凍結で通し確認できないため、detached パスの単体検証＝上記で担保）。サーバー側の変更は無い。
+
+### 2026-08-27（続き280）：カード面テキスト本番接続フェーズ2の残り（ゲート侵攻モーダル・獲得/ロックトーストの`<img>`をテキスト化）
+
+続き279で follow-up に回していた、`innerHTML` テンプレート文字列で `<img src>` を組んでいた2箇所を
+テキスト合成に接続し、カード面の主要表示面のテキスト化を完了した。
+- **`gate-invasion-modal.js`（オンラインのゲート侵攻の奪う/獲得カード一覧）**: `buildCardsHtml` の
+  `<img>` を `<div class="gate-invasion-modal-card-img" data-cardface-id="...">` のプレースホルダーに変え、
+  `showStep` が `cardsWrap.innerHTML` を差し込んだ直後に `[data-cardface-id]` を全て `showCardFace` で描画する
+  後処理を追加。
+- **`hand-announcer.js`（獲得トースト `announceHandPickups`・ロックトースト `announceCardLocked`）**: 同様に
+  `<img>` を `.hand-pickup-toast-img[data-cardface-id]` のプレースホルダーへ変え、`showToast` が `content` を
+  body へ append した直後に `showCardFace` で一括描画（トースト2種を1箇所の後処理でカバー）。
+- **CSS**: `.gate-invasion-modal-card img` / `.hand-pickup-toast-card img` にそれぞれ `-img` プレースホルダー
+  クラスを併記し、`position:relative`（マウントの包含ブロック）＋`overflow:hidden`＋背景敷き設定を追加。
+- どちらも `card-face-display.js`（葉モジュール）を新規 import（循環なし）。**これで gate-invasion / トースト
+  も既定=テキスト（管理者トグルで画像に切替可能）になり、`<img src>` 直書きのカード表示面は一掃した**
+  （残る画像はイラストのみ画像の盤面/ロック・各種サムネイル・演出/canvas、いずれも意図的）。
+- **検証**: `node --check`（gate-invasion-modal/hand-announcer）通過・CSSブレース平衡（2443）。ブラウザで
+  `announceCardLocked('A','yellow-gamble')` のトーストが `.hand-pickup-toast-img`＞`.card-face-mount`
+  （「ザ・ギャンブル」）で描画されること、リロード後コンソール新規エラー無しを実測確認。ゲート侵攻
+  モーダルは同じプレースホルダー+後処理の仕組みで、実発火（オンライン対戦）での見た目は実機確認をお願い
+  したい。サーバー側の変更は無い。
+
+### 2026-08-27（続き281）：プレイヤー名・アバターを変更してアプリを再起動すると既定（「プレイヤーA」等）に戻る不具合を修正
+
+ユーザー報告「プレイヤー名を変更してアプリを再起動すると『プレイヤーA』に戻ってしまう」。原因は
+`player-identity.js` の `customNames`/`avatars` が**メモリ内のみ**で、`setPlayerName`/`setPlayerAvatar` は
+「アカウントにログイン済みなら `so7_user_profiles` へ保存」するだけだったこと。**ローカルプレイ（アカウント
+未ログイン）では名前・アバターがどこにも永続化されず、再起動で `SEAT_LABELS`（プレイヤーA）等の既定へ
+戻っていた**。
+- **localStorage によるローカルなフォールバック永続化を追加**（`player-identity.js`）: `customNames` を
+  `so7-player-names`、`avatars` を `so7-player-avatars` に保存し、モジュール読み込み時（IIFE）に復元する。
+  `setPlayerName`/`setPlayerAvatar` の in-memory 更新直後に保存。ログイン時は online.js の
+  `loadMyPreferences`→`identityApplier` が `if(name)`/`if(avatar)` でアカウントの値を上書きする（＝アカウントが
+  優先＝端末をまたいで引き継がれる）ため、localStorage はあくまで「この端末のローカルなフォールバック」
+  （未ログイン時の再起動、アカウント未設定時のログイン直後の暫定表示に効く）。
+- **「アカウント設定を初期化」との整合**（`online.js` `resetMyAppearanceSettings`）: アカウントの
+  `display_name`/`avatar` を null に戻すだけだと、再読み込み時に localStorage の古い名前が復元され
+  （identityApplier は `if(name)` で null を適用しない＝上書きできない）「初期化」にならないため、リセット時に
+  `so7-player-names`/`so7-player-avatars` の localStorage も削除するようにした。
+- **検証**: `node --check`（player-identity/online）通過。ブラウザで `setPlayerName('A','テスト太郎')` →
+  localStorage に `{"A":"テスト太郎"}` が保存され、**player-identity.js を新規ロードし直す（＝再起動相当）と
+  `getPlayerName('A')` が「テスト太郎」を返す**（既定「プレイヤーA」に戻らない）ことを実測確認。サーバー側の
+  変更は無い（SQLの追加も不要＝既存の `so7_user_profiles.display_name`/`avatar` をそのまま使う）。
+
+### 2026-08-27（続き282）：マイページで名前変更→CPU戦開始で名前が「プレイヤーA」に戻る不具合を修正（CPU戦が自分(A)の席までクリアしていた）
+
+続き281（名前のlocalStorage永続化）を入れてもなお、ユーザー報告「マイページでプレイヤー名変更→CPU戦
+開始→名前がプレイヤーAに戻る」。原因は `cpu-battle.js` の `startCpuBattle`/`teardownCpuBattle` が、CPUの
+相手席の古い名前（「CPU 1」等）を消すために **`ALL_SEATS`（A/B/C/D）を全て回して
+`setPlayerName(seat,"")`/`setPlayerAvatar(seat,null)`** しており、**自分(A)の席の名前・アバターまで消して
+いた**（さらに続き281の永続化により localStorage の A まで空に上書きされていた）。ローカルCPU戦の自分は
+常に座席A（getSelfSeat()==="A"固定）なので、両ループを `if (seat === "A") continue;` で**A以外（相手席）だけ
+クリア**するよう修正。
+- **検証**: `node --check`（cpu-battle）通過。ブラウザで `setPlayerName('A','ヤマダ')`→`startCpuBattle(2)` の後も
+  `getPlayerName('A')` が「ヤマダ」のまま（相手席Cは「CPU」に設定される）・`teardownCpuBattle()` 後も
+  「ヤマダ」・localStorage が `{"A":"ヤマダ","B":null,"C":null,"D":null}`（自分の名前を保持）になることを
+  実測確認。サーバー側の変更は無い。
+
+### 2026-08-27（続き283）：CPUのロックフェイズ自動スキップのモーダルが相手（＝あなた）に見えて「CPUがロックカードを持っていない」ことがバレる不具合を修正
+
+ユーザー報告「CPUがロックカードが無い時、ロックフェイズで『ロックカードが無いため…飛ばします』的な
+モーダルが出て、ロックカードが無いことがバレてしまう」。原因は `phase-automation.js` の `enterPhase` の
+自動スキップ分岐が、**その席（player）が自分(A)かCPU/相手かを問わず** `showPhaseSkipModal("ロックできる
+カードが無いため…")` 等を出していたこと。CPU戦は自分(A)だけでなくCPU(C)の番も同じクライアントで駆動する
+（`getAutoDriveSeat`）ため、CPUの番でこのモーダルが出るとCPUの手札事情（ロック不可＝ロックカードを
+持っていない）が相手＝あなたに漏れていた。
+- **修正**: スキップの理由モーダルは `player === getSelfSeat()`（＝自分の席のフェイズ）の時だけ出し、
+  他席（CPU/相手）は**無言でスキップ**する（フェイズを飛ばす動作＝`advancePhaseAfterSkip()` 自体は同じ）。
+  ロック（1箇所）・ハンド（手札無し/反応時専用/使える効果無しの3箇所）の計4つの `showPhaseSkipModal` を
+  `if (isMine)` でガード。オンラインは各クライアントが自分の席のフェイズしか駆動しない（`getAutoDriveSeat`
+  ＝`getSelfSeat`）ため常に isMine=true＝従来通り自分の理由は見える（回帰なし）。
+- **検証**: `node --check`（phase-automation）通過・4箇所のガードを確認・リロード後コンソール新規エラー無し。
+  実際のCPU戦での「CPUのロック/ハンドスキップが無言になり、自分のフェイズのスキップ理由は従来通り出る」
+  見た目は、タイマー駆動でサンドボックスでは通し確認しづらいため実機確認をお願いしたい。サーバー側の
+  変更は無い。
+
+### 2026-08-27（続き284）：演出中のカード（奪う儀式・エターナル獲得フリップ）もテキスト化（ユーザー選択）
+
+続き277〜280で「読む静的モーダル/一覧」をテキスト化した後の総点検で、face-upのカードを見せる演出のうち
+DOMベースの「読む瞬間」を持つものが残っていたため、ユーザー選択によりテキスト化した。
+- **奪う儀式のカード（スリカエ/接触/ゲート侵攻の奪取演出、`.sleight-ritual-card`）**: 奪われる側が自分の
+  手札が奪われるのを見る「実況(watch)」ビルド（`openRitualPickWatch`、cardId判明＝face-up）と、ゲート侵攻で
+  攻撃側が奪った札をめくって公開する reveal（`playGateInvasionStealRitual`）の2箇所を `showCardFace` に変更。
+  攻撃側が“裏向きの相手手札から選ぶ”ピックUI（`requestOpponentHandRitualPick`/multi）は cardId 非公開＝裏面
+  画像のままで正しい（覗き見防止）。`.sleight-ritual-card` に `position:relative`＋`overflow:hidden` を追加
+  （マウントの包含ブロック）。
+- **エターナルカード獲得のフリップ演出（`.eternal-reveal-card-face.is-front`）**: 2箇所（座席ごとの
+  `playEternalAcquisitionAnim`）の表面をテキスト合成に。このフリップは 3D(rotateY/backface) ではなく
+  **2Dの scaleX＋不透明度差し替え**（一部モバイルで3Dが効かない対策済み、CSSコメント参照）なので、
+  face=`position:absolute;inset:0` の上にマウントを載せても安全。裏面は従来通り裏面画像。
+- **テキスト化できない/しない演出（説明）**: カード溶解の「燃える演出」（`card-dissolve.js`）と対戦結果の
+  サマリー画像（`victory-summary-image.js`）は **canvas に `drawImage` で焼き込む**方式のため、DOMのテキスト
+  カード面を描けず画像のまま（旧CSS版の `playHandEffectUseBurn` は続き219で canvas 版に置換され既に未使用の
+  死にコード）。飛翔ゴースト・ドラッグゴースト・配布演出は「移動中のカード＝読む瞬間ではない」＋共有の
+  `ghost-flight.js`（URL引数）を通るため画像のまま据え置き。ミニロックHUD・デッキ箱の代表カード・
+  サムネイルも従来通り画像（意図的）。
+- **検証**: `node --check`（main）通過・CSSブレース平衡（2443）。ブラウザで `.sleight-ritual-card`
+  （position:relative/overflow:hidden・マウント・「なないろの欠片(かけら)」）と `.eternal-reveal-card-face`
+  （position:absolute・マウント・「紅蓮(ぐれん)の火山(かざん) ワイナウエア」）が正しくテキスト面を載せる
+  こと、ルビも出ること、リロード後コンソール新規エラー無しを実測確認。実際の演出中の見た目（奪取の
+  実況/ゲート侵攻のめくり公開/エターナル獲得のフリップ）は発火条件が要るため実機確認をお願いしたい。
+  サーバー側の変更は無い。
+
+### 2026-08-27（続き285）：英語表示の有効化（言語セレクタ＋カード面テキストの言語切替）
+
+続き275〜276で用意した多言語データ（`card-text.ja.js`/`card-text.en.js`、全34カード）と、続き277〜284で
+本番接続したカード面テキストレンダラ（`buildCardFace`/`showCardFace`）をつなぎ、**アプリ内で日本語↔英語を
+切り替えられるように**した。**翻訳対象は「カードのテキスト」（タイトル・カード名・効果文・フレーバー・
+能力名）のみ**——メニュー等のUIはまだ日本語（英語UIは今後）。設定はこの端末のみ（localStorage、アカウント
+同期＝SQL列は今回は見送り）。
+- **`i18n.js`**: `load()` が `localStorage(so7-lang)` を読むようにした（続き278で「保存値を読まない」に
+  していたのを、言語セレクタ実装に合わせて復活。エディタは非保存の `setPreviewLang` を使うのでプレビューが
+  漏れる心配は無い）。`getLang()` は初回解決時に `<html lang>` をスタンプ。`setLang()` は保存＋
+  `onLangChange` リスナー通知（既存）。
+- **`card-renderer.js`**: `buildCardFace` が `face.dataset.lang = getLang()` をスタンプ（`style.css` の
+  `.card-face[data-lang="en"]` レイアウト上書き用）。表示テキストは既存通り `getCardText`/`getCardName`
+  （言語ディスパッチャ）から取得＝英語データがあれば英語、無ければ ja フォールバック。
+- **`card-face-display.js`**: マウントのキャッシュ鍵に**言語を追加**（`prev.dataset.mountCardId === cardId
+  && prev.dataset.lang === getLang()`）。以前は cardId だけで判定していたため、言語切替（cardId 不変）で
+  再利用要素（ホバー拡大等）のマウントが作り直されず**古い言語のまま**残る不具合があった。lang も鍵に
+  含めることで、盤面全体の再描画を挟まない再利用要素でも言語切替時に確実に作り直される。
+- **`main.js`**: `onLangChange(() => render())` を `onAuthChange(render)` の隣に追加。言語セレクタで切り替えた
+  瞬間に盤面（手札・盤面の表向きカード・手札公開エリア・ホバー拡大＝テキスト合成の面）が新しい言語で
+  再描画される。
+- **`options-menu.js`**: 基本設定の一番上（「基本設定」タイトルの直下・戦績連携カードの上）に
+  「言語 / Language」セグメント（日本語/English、`SUPPORTED_LANGS`/`LANG_LABEL` から自動生成）＋
+  「現在はカードのテキストのみ翻訳されます（メニュー等は日本語のまま）。」の注記を追加。選ぶと `setLang` で
+  保存＋再描画。CPUの強さと同じ `options-menu-segment` の見た目を流用。
+- **`style.css`**（ファイル末尾に追記＝生成領域外）: 英語用のカード面レイアウト微調整
+  `.card-face[data-lang="en"][data-card-type=…]`。英語は日本語より行長が違うため、効果文（fx・★基本）・
+  フレーバー・ファーストのタイトル/■手札を少し縮小して枠に収める。`[data-lang][data-card-type]` は生成側
+  （0,3,0/0,4,0）より高い特異性なので、ファイル内の位置に関係なく上書きできる（**英語の詰めは実機で
+  見ながら要微調整**＝日本語基準の cqw 配置なので、行あふれするカードは値を追い込む）。
+- **検証**: `node --check`（i18n/card-renderer/card-face-display/main/options-menu）・CSSブレース平衡
+  （2449）通過。ブラウザで**実アプリのシングルトン**（キャッシュバスト無し）を使い、①`setLang('en')` で
+  `getLang()`→en・`buildCardFace` が英語名/効果/フレーバーを返す（Jump Pad「Do not add this to your hand.
+  Move 2 spaces in one leap.」/ フェニックス「Red Cube: Phoenix」＋【Color Cost 1】(...) の handcost 分割 /
+  ワイナウエア「Wainauea, the Crimson Volcano」＋《Crimson Rain》）、②`dataset.lang="en"` スタンプ、
+  ③**マウントの言語キャッシュ**（同じスロットに en マウント→`setLang('ja')`→再 showCardFace で ja に
+  作り直される）、④実UIの言語セグメント（日本語/English・選択状態・localStorage 保存・注記表示）が
+  クリックで正しく ja↔en 切替、⑤一連の `setLang` が実 `render()` を発火してもコンソール新規エラー無し、を
+  実測確認。**本番の見た目（英語カードの折り返し・枠内収まり）は端末での最終確認をお願いしたい**
+  （英語レイアウトの微調整はエディタ／`.card-face[data-lang="en"]` の値で追い込める）。サーバー側
+  （Supabase）の変更は無い。
+
+### 2026-08-27（続き286）：色宣言モーダルを七角形レイアウト＋ライトモード対応
+
+ユーザー報告・要望2件（色選択モーダルがライトモードでダークのまま／7色を七角形にかっこよく並べたい）。
+`declareColorsForEffect`（main.js）の色宣言モーダル（ザ・ギャンブル・試練の儀式で色を宣言する）を改修。
+- **七角形レイアウト**（ユーザー指定「上部トップが緑・左下が赤から時計回り」）: 4列グリッドから、7色を
+  正七角形の頂点に配置する方式へ変更。`COLORS=[red,orange,yellow,green,blue,pink,purple]`（緑=index3）で、
+  緑を上(θ=0)に置き時計回りに 360/7≈51.43° ずつ進める → 赤が左下(θ≈205.7°)から時計回りに橙(左)・黄(左上)・
+  緑(上)・青(右上)・桃(右)・紫(右下)。位置は main.js が各スロットに%指定（`x=50+R·sinθ`, `y=50-R·cosθ`、
+  R=36%）。**位置(slot)とホバー拡大(swatch)を別要素に分けて** transform の衝突を回避
+  （`.declare-colors-modal-slot`＝絶対配置＋translate、`.declare-colors-modal-swatch`＝hoverのscale）。
+- **ライトモード対応**（ユーザー報告）: `body.theme-light`（全体）/`body.theme-light-ingame`（盤面）時に、
+  モーダル背景（明るいクリーム）・タイトル文字（濃色）・スワッチの縁・宣言ボタン（teal）を明るい配色へ
+  上書きする CSS を追加（続き233の中立モーダルと同じ考え方）。ダーク（既定）は従来配色のまま。
+- **検証**: `node --check`（main）・CSSブレース平衡（2455）通過。ブラウザで実CSSクラスを使った複製を組み、
+  ①七角形の実座標（緑=上中央 cx=中心/cy=最上、赤=左下、紫=右下、時計回りに赤→橙→黄→緑→青→桃→紫）、
+  ②ダーク時 bg `rgb(15,23,32)`・タイトル `rgb(226,232,240)`／ライト時 bg `rgb(255,253,245)`・タイトル
+  `rgb(30,41,59)`・宣言ボタン `rgb(14,85,104)`、を実測確認。スワッチのツールチップ（色名）はまだ日本語＝
+  次のUI英語化フェーズで対応する。サーバー側の変更は無い。
+
+### 2026-08-27（続き287）：言語設定をアカウントに記録（端末を変えても引き継ぐ）
+
+ユーザー提案「言語設定は端末を変えても変わらないよう、端末ではなくアカウントに記録した方が良い」。
+続き285は localStorage（端末のみ）だったので、名前・アバター・駒スキン等と同じく `so7_user_profiles` へ
+保存し、ログインで端末をまたいで復元するようにした。
+- **`supabase_setup_so7.sql`**（末尾に追記）: `so7_user_profiles.lang text` 列を追加。
+- **`online.js`**: `fetchMyLang()`（`fetchMyEidosProgress`/`fetchMyCustomAvatarUrl` と同じ独立クエリ＝
+  lang列が未追加でもここだけ失敗して他設定に影響させない）を新設。`loadMyPreferences` の末尾（my_deck
+  読み込みの後）で `fetchMyLang()`→あれば `setLang()` で復元（i18n を import。i18n は葉モジュールなので
+  循環なし）。保存は既存の `saveMyPreference({ lang })`（独立UPDATE）。
+- **`options-menu.js`**: 言語セレクタのクリックで `setLang(v)`（localStorage＝端末フォールバック＋再描画）に
+  加えて `saveMyPreference({ lang: v })`（ログイン済みならアカウントにも保存）を呼ぶ。未ログインは
+  saveMyPreference が no-op ＝ localStorage のみ（従来通り）。
+- **優先順位**: ログイン時にアカウントの言語が localStorage を上書きする（＝端末をまたいで引き継がれる）。
+  未ログイン/未設定は localStorage のフォールバックのまま。
+- **検証**: `node --check`（online/options-menu）通過。ブラウザで、`fetchMyLang`/`saveMyPreference` が
+  export され、未ログイン時に `fetchMyLang()`→null（例外なし）・`saveMyPreference({lang})`→no-op（例外なし）・
+  アプリが循環importなくロード（game-table構築）・コンソール新規エラー無しを実測確認。実際のアカウント
+  往復（別端末での引き継ぎ）は下記SQL実行後に確認できる。
+- **ユーザー側の作業が必要**: `supabase_setup_so7.sql` の追記分（`so7_user_profiles.lang` 列追加。ファイル
+  全体＝再実行安全）を Supabase ダッシュボードの SQL Editor で実行する必要がある（未実行の間は
+  fetchMyLang が null を返し localStorage のみ＝端末間同期されないだけで、機能自体は壊れない）。Edge
+  Function の変更は無いため再デプロイ不要。
+
+### 2026-08-27（続き288）：UI英語化フェーズ1（多言語文言の土台＋ホーム画面）
+
+ユーザー要望「メニュー等のUIの英語化を進めましょう」。カードのテキスト(card-text)とは別レイヤーの
+**UI文言の多言語化基盤**を作り、まず最も目に付くホーム画面から英語化した（段階的に拡張する）。
+- **新規 `src/ui-text.js`**: `t(key, params)` が現在の言語（`getLang`）の文字列を返す。`UI = {ja:{...},
+  en:{...}}`。未定義キーは ja にフォールバック、ja にも無ければキー文字列をそのまま返す（抜けが画面に
+  見えるように）。`params` は `{name}` プレースホルダを置換（例 `t("home.comingSoon",{label})`）。i18n を
+  import する葉モジュール（循環なし）。
+- **`home-screen.js` を全面的に t() 化**: タイル8枚（labelを`labelKey`に変更し `buildTile` で `t()`）・
+  対戦モード選択モーダル（タイトル・フレンドリー/CPUの見出しと説明・CPUの強さ/人数のラベルとヒント・
+  選択肢〈新人/中級/上級/最強・2/3/4人〉・戻る）・「近日公開」「NEW」バッジ・サブタイトル「ホーム」・
+  「あなたのランク」「ランク戦について」・待機人数バッジ「🟢 N人が対戦募集中！」を全て `t()` に。ゲーム
+  タイトル「7 SHADES OF S:EVEN」はブランド名なので据え置き。CPUの強さ/人数の選択肢キー（`cpu.diff.*`/
+  `cpu.count.*`）は options-menu とも共有できるよう命名（options側の採用は次バッチ）。
+- **言語切替でホームを作り直し**: `onLangChange(() => { if (overlayEl) { closeHomeScreen(); openHomeScreen(); } })`
+  を追加。開いている最中に言語を変えても即座に新しい言語で組み直す（開いていなければ次に開いた時に
+  `t()` が新言語で組む）。
+- **検証**: `node --check`（ui-text/home-screen）通過。ブラウザで、ホームを開き ja のタイル8枚
+  （物語チュートリアル…お知らせ／更新情報）・サブタイトル「ホーム」→ `setLang('en')` で英語（Story
+  Tutorial / CPU & Friendly Match / Free Match (Ranked) / Shop / Rankings / My Page / Deck Editor /
+  Codex / Rulebook / News / Updates・Home）に**その場で作り直され**、`setLang('ja')` で日本語へ戻る・
+  コンソール新規エラー無しを実測確認。**次バッチ**: オプションメニュー・ゲーム中のボタン等へ拡張。
+  サーバー側の変更は無い。
+
+### 2026-08-27（続き289）：UI英語化フェーズ2（オプションメニュー）
+
+続き288の UI 文言基盤（`ui-text.js`/`t()`）を使い、オプションメニュー（基本設定）を英語化した。
+ユーザーが最もよく開く設定画面なので優先。
+- **`ui-text.js`**: `opt.*` 名前空間のキーを追加（パネルタイトル・戻す・音量2種・カード拡大サイズ/向き・
+  CPUの速さ/強さ・アカウント設定初期化の一連・戦績連携の一連・言語注記・4グループ＋ロックエリア/
+  モーダル表示時間/アニメ削減/CPU戦/ランク戦通知/ショートカットの各セクション見出し・基本設定の全
+  チェックボックス・自動処理・緊急ターン終了・おすすめ・管理者モード項目・ランク自動処理固定注記・
+  キー記録中）。CPUの強さの選択肢は続き288の `cpu.diff.*` を共有。
+- **`options-menu.js`**: 上記のハードコード文字列を `t()` に置換（buildVolumeRow/BgmVolumeRow/
+  ResetAppearanceRow/CardPreviewSize/CardPreviewSide/CpuSpeed/CpuDifficulty/StatsPlayerLinkRow/
+  buildCollapsibleSection の reset ボタン・renderContent の全セクション/チェックボックス/管理者モード
+  項目/パネルタイトル）。CPUの強さのセグメントも `cpu.diff.*` キーに。
+- **言語切替でパネルを作り直し**: 言語セレクタがこのパネル内にあるため、`onLangChange(() => { if
+  (パネルが開いていれば) renderContent(); })` を追加。パネル内で English を選ぶと即座にパネル全体が
+  英語で組み直される（閉じていれば次に開いた時に新言語で組む）。言語セレクタのクリックは
+  `setLang(v)`＋`saveMyPreference({lang})`（続き287）＋自身の再描画。
+- **今回のスコープ外（据え置き＝日本語のまま）**: 深い管理者専用セクション（疑似CPUモード・AFK時の
+  CPU代行・マイページのレイアウト編集モード等、`isAdminUser` でガードされ開発者2アカウントしか見ない
+  もの）。次バッチ以降で対応。
+- **検証**: `node --check`（options-menu/ui-text）通過。ブラウザで、`setLang('en')`＋パネルを開くと
+  9セクション見出し（🔊 Volume / 🖥️ Display & Effects / Lock Area / Modal display time / Reduce
+  animations… / 🤖 CPU Match (solo) / ⚙️ Auto-processing & Timer / 🏆 Ranked match notifications /
+  Shortcut keys…）・基本設定チェックボックス8個・戻る「← Back」が全て英語、パネル内で 日本語↔English を
+  切り替えると**その場でパネルが作り直され**両言語が正しく出ること、コンソール新規エラー無しを実測確認。
+  サーバー側の変更は無い。
+
+### 2026-08-27（続き290）：UI英語化フェーズ3（ゲーム中のボタン＋フェイズ案内板）
+
+続き288〜289の UI 文言基盤（`ui-text.js`/`t()`）を使い、対局画面のボタン群とフェイズ案内板を英語化した。
+- **`ui-text.js`**: `btn.*`（ターン終了・盤面拡大〈3段階ラベル・元の画角に戻る〉・手札シャッフル・
+  1枚ドロー・公開ドローの各キャプション/ツールチップ/詳細説明、ターン終了の動的ツールチップ
+  「今は{name}のターン中です」等）と `phase.*`（ロック/ハンド/ムーブの label/short/detail、自動送り
+  トグルの caption/ON/OFF/title、`phase.titleSuffix`＝「{label}フェイズ」）を ja/en 両方追加。
+- **`icon-action-button.js`**: `wireIconButtonClick` の `detailTitle`/`detailParagraphs` を**値でも関数でも
+  可**にした（関数なら開く瞬間に評価＝言語切替後も詳細モーダルが常に現在の言語で開く）。呼び出し側は
+  `() => t("...")` / `() => [t("..."), ...]` を渡せる。
+- **`main.js`**: 対局画面右下の5ボタン（buildEndTurnButton/buildBoardZoomButton/buildHandShuffleButton/
+  buildDrawButton/buildPublicDrawButton）のキャプション・ツールチップ・詳細説明を `t()` 化。`BOARD_ZOOM_LABELS`
+  定数を `boardZoomLabels()`（現在の言語で解決）に置換し、`updateBoardZoomButtonLabel`/`updateEndTurnButton`
+  の動的ツールチップも `t()` 化。これらのボタンは `render()` で作り直されない（player-buttons.js が id で
+  管理＝中身だけ更新）ため、`refreshActionButtonLabels()`（全キャプション/ツールチップを差し替え＋
+  盤面拡大/ターン終了の動的表示も更新）を新設し `onLangChange(refreshActionButtonLabels)` を登録。
+- **`phase-guide.js`**: `PHASES` の表示文をキー化（`labelKey`/`shortKey`/`detailKeys`）し、`phaseLabel`/
+  `phaseShort`/`phaseDetail`/`phaseTitle`（現在の言語で解決）を export（tutorial.js/help.js と共用＝
+  日本語文の二重管理を解消）。buildPhaseButton・自動送りトグルを `t()` 化し、`onLangChange` で生成済み
+  ボタンのキャプション/ツールチップ/トグル表示を差し替える `refreshPhaseGuideLabels()` を追加。
+- **`tutorial.js`/`help.js`**: 上記 export（`phaseTitle`/`phaseDetail`）を使うよう phaseStep を関数化し、
+  `step.title`/`step.body` を「文字列/配列でも関数でもよい」形にして表示・`getHelpSections` の直前で
+  `resolveStepText()` で正規化。help.js は `getHelpSections()` を開くたびに呼ぶため、フェイズ手順は
+  ヘルプページでも現在の言語で出る（他のヘルプ節＝デジタル版機能/用語集/FAQ は今回のスコープ外＝日本語）。
+- **ハマりどころ（実装中に発見・修正）**: main.js の buildPublicDrawButton で、`detailParagraphs: [...]` を
+  `detailParagraphs: () => [...]` に変換した際の**閉じ角括弧 `],` の消し忘れ**が1行残っていた。`node --check`
+  （CommonJSパース）はこれを見逃したが、ブラウザ（ESMパース）は `Unexpected token ']'` で main.js の
+  ロード自体に失敗し、それを import する全モジュールが芋づる式に落ちていた。原因特定に手間取ったため、
+  **今後 `node --check` は `node --input-type=module --check < file`（ESMパース）でも回す**とよい（今回
+  これで一発で main.js:12605 を特定できた）。修正後は全 src が ESM パースでもエラー無し。
+- **検証**: 全 src の `node --input-type=module --check` 通過。ブラウザ（実アプリのシングルトン）で、
+  フェイズ案内板が ja=ロック/ハンド/ムーブ＋自動送り ↔ en=Lock/Hand/Move＋Auto-advance、対局5ボタンが
+  ja=ターン終了/盤面拡大/手札シャッフル/1枚ドロー/公開ドロー ↔ en=End turn/Zoom board/Shuffle hand/
+  Draw 1/Open draw に**その場で切り替わる**（onLangChange の refresh が効く）こと、詳細モーダルが開く瞬間
+  の言語で出ること、フェイズ resolver が実シングルトンで ja↔en 正しく解決すること、コンソール新規
+  エラー無し（残る `Unexpected token ']'` は修正前の壊れた main.js がブラウザ/MCPコンソールバッファに
+  残った stale で、修正後の served main.js は strayCount 0・全UI描画済みを実測確認）を確認。サーバー側の
+  変更は無い。

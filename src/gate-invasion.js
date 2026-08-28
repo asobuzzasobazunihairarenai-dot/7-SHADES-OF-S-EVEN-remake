@@ -158,7 +158,7 @@ function runStealHand(attacker, defender, onDone) {
     // ヘルパーが無いフォールバック（無作為・儀式なし）の時だけ、ここでまとめて移す。
     if (!stealHandRitualHelper) gateInvasionStealHand(attacker, stolenTokens.map((t) => t.id));
     notifyChange();
-    announceHandPickups(attacker, stolenTokens.map((t) => ({ cardId: t.cardId, wasPublic: false })));
+    announceHandPickups(attacker, stolenTokens.map((t) => ({ cardId: t.cardId, wasPublic: false })), "相手ゲート侵攻ボーナス（手札を奪う）");
     onDone();
   }, attacker);
 }
@@ -209,7 +209,7 @@ function runEternal(attacker, onDone) {
     finished = true;
     gateInvasionEternal(attacker, cardId);
     notifyChange();
-    announceHandPickups(attacker, bumpedTokens.map((t) => ({ cardId: t.cardId, wasPublic: true })));
+    announceHandPickups(attacker, bumpedTokens.map((t) => ({ cardId: t.cardId, wasPublic: true })), "相手ゲート侵攻ボーナス（ロックから押し出された）");
     onDone();
   }
   // 「移動アニメーション」「到達・ロック演出」のどちらかが無効化されている間は、
@@ -253,7 +253,7 @@ function runReturnHome(attacker, onDone) {
   showBonusStepModal(`${getPlayerName(attacker)}は自分のゲートにあるカードをすべて回収し、ゲートに帰還します。`, async () => {
     gateInvasionReturnHome(attacker);
     notifyChange();
-    announceHandPickups(attacker, collected.map((c) => ({ cardId: c.cardId, wasPublic: c.faceUp })));
+    announceHandPickups(attacker, collected.map((c) => ({ cardId: c.cardId, wasPublic: c.faceUp })), "相手ゲート侵攻ボーナス（自分のゲートから回収）");
     // 何を回収したのかを、回収した本人の画面だけに中央で大きく見せる。
     if (returnHomeRevealHelper && collected.length > 0) await returnHomeRevealHelper(attacker, collected);
     onDone();

@@ -95,7 +95,8 @@ import {
   findInvadedDefender,
   isLocalGateInvasionActive,
 } from "./gate-invasion.js";
-import { announceHandPickups, announceCardLocked, announceDrawCount } from "./hand-announcer.js";
+import { announceHandPickups, announceCardLocked, announceDrawCount, announceCardDiscarded } from "./hand-announcer.js";
+import { clearTurnEventStock } from "./turn-event-stock.js";
 import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained, reapplyGateInvasionModal, registerGateInvasionModalEternalAnim, registerGateInvasionModalStealAnim, registerGateInvasionModalEternalPreHide, forceCloseGateInvasionModal } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking, hasAnyoneWon } from "./victory.js";
 import { recordContactMade, recordCardUsed, recordLockSnapshot, initMatchStatsTracker } from "./match-stats-tracker.js";
@@ -816,8 +817,25 @@ function playHandCardBurn(tokenId) {
   }
 }
 
+// #4「何によってドロー／捨てをしたか」用。今まさに処理中のカード（到達効果・手札効果）の
+// 名前を返す。効果の外（手動操作）の時は null（＝理由行を出さない）。
+let currentEffectCardIdForReason = null;
+export function setCurrentEffectCardForReason(cardId) {
+  currentEffectCardIdForReason = cardId || null;
+}
+function currentEffectReasonLabel() {
+  if (!currentEffectCardIdForReason) return null;
+  const def = getCardDefinition(currentEffectCardIdForReason);
+  return def ? `「${def.name}」の効果` : null;
+}
 async function discardFromHandReveal(tokenId) {
   playHandCardBurn(tokenId); // #3: 捨てる瞬間、そのカードの位置で焼失演出（トークンが消える前に捕捉）
+  // #4: 「捨て」もターンの出来事ストックに残す。捨て場は表向き＝公開情報なので中身を出してよい。
+  // トークンは直後に手札から消えるので、消える前にここで拾っておく。
+  {
+    const discarded = getState().tokens.find((t) => t.id === tokenId);
+    if (discarded?.cardId) announceCardDiscarded(discarded.location?.player ?? getSelfSeat(), discarded.cardId, currentEffectReasonLabel());
+  }
   if (isOnlineMode()) {
     try {
       await sendTokenToPile(tokenId, "discard");
@@ -2078,8 +2096,8 @@ async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
   // #176（ユーザー確定方針）: スリカエは常に「交換」——受け取るだけ／渡すだけにはならない。
   // 渡す候補は必ずstateから求める（DOMの再描画待ちに依存して候補0件→交換不成立、という
   // 取りこぼしを無くすため）。奪った直後なので、元の手札が0枚でもここは最低1枚（＝今
-  // 受け取ったカード自身）ある。1枚しか無い＝それを返すしかないので、選ばせずに自動で
-  // 返す（結果として「1枚取って即返す」＝純増なしになる。ユーザー確定方針）。
+  // 受け取ったカード自身）ある。#176改（ユーザー確定方針）: 候補が1枚（＝元の手札0枚）でも
+  // 自動で返さず、必ずピッカーを出す——「何を奪ったのか確認してから自分で選んで返したい」ため。
   // 公開エリア(publicDraw)のカードもルール上は手札（getHandTokensの定義）。以前のDOM基準の
   // ピッカーも手札公開エリアを候補に含めていたので、その範囲を維持する。
   const myHandTokens = getState().tokens.filter(
@@ -2092,16 +2110,15 @@ async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
   if (isCpuBrainDriving(player)) {
     const giveId = chooseSwapGiveCard(myHandTokens.map((t) => t.id), player, targetPlayer);
     myCard = getState().tokens.find((t) => t.id === giveId) || myHandTokens[0] || null;
-  } else if (myHandTokens.length === 1) {
-    myCard = myHandTokens[0];
-    announceEffectNoticeForEffect(
-      "yellow-sleight-of-hand",
-      "手札が1枚しか無いため、今受け取ったカードをそのまま相手へ渡します（スリカエは必ず1枚ずつの交換です）。"
-    );
   } else {
+    // 候補が1枚だけ（元の手札0枚→今受け取った札のみ）でも同じピッカーを出す。案内文で
+    // 「返すしかない」ことが分かるようにする（純増なしのルールは変わらない）。
+    const onlyOne = myHandTokens.length === 1;
     myCard = await requestHandCardChoiceForEffect(
       player,
-      "相手に渡すカードを手札から選択してください",
+      onlyOne
+        ? "手札はこの1枚だけです。スリカエは必ず1枚ずつの交換なので、このカードを相手へ返してください"
+        : "相手に渡すカードを手札から選択してください",
       new Set(myHandTokens.map((t) => t.id))
     );
   }
@@ -4830,7 +4847,7 @@ function playCardLiftToHand(sourceRect, player, tokenId, sourceImg = null) {
 // ユーザー要望「「●枚ドローします。」的なモーダルも欲しいです。全員に。」「山札から
 // 手札に加わるアニメが欲しい」「獲得ポップアップは1枚ずつではなくまとめて」への対応。
 async function drawCardsForEffect(player, count) {
-  if (count > 0) announceDrawCount(player, count);
+  if (count > 0) announceDrawCount(player, count, currentEffectReasonLabel());
   const pickups = [];
   const drawnTokenIds = [];
   for (let i = 0; i < count; i++) {
@@ -5471,6 +5488,7 @@ async function tryUseLockedUsableCard(tokenId) {
 async function runAutoHandEffect(cardId, cardTokenId, player) {
   setHandEffectBusy(true);
   try {
+    setCurrentEffectCardForReason(cardId); // #4: この効果によるドロー/捨てに理由を添える
     const usedSuccessfully = await runHandEffect(
       { cardId, cardTokenId, player },
       {
@@ -5550,6 +5568,7 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         markDiscardAtTurnEnd,
       }
     );
+    setCurrentEffectCardForReason(null); // #4
     clearEffectUiHighlights();
     // ユーザー要望（続き97）「接触回数やカード使用枚数など詳細スタッツを実装」。
     // runHandEffect()はコストが払えない・選択肢を選ばず終える等で発動できなかった
@@ -5796,12 +5815,30 @@ function flushPendingGateInvasionEvents() {
 // （remote-move-animatorは投げっぱなし）ため遅延しても呼び出し側の待ち合わせは壊れない。flush時は
 // maybe*関数がその時点のstateを再評価するので、エンジン側で既に解決済みの到達は自然に空振りする。
 let pendingDiffArrivalTriggers = [];
+// #178/#179: 「今のチェーン中に実際に自動処理した到達キー(cardId@マス)」の記録。差分検知由来の
+// トリガは処理中(depth>0)だと上のキューに退避され、チェーンが終わってから flush されるが、
+// その時点では activeAutoArrivalKeys の冪等ガードが既に外れているため、チェーン内で処理済みの
+// 到達と同じものが「もう一度」走ってしまっていた（実機: パーティの全員選択が2周した）。
+// flush 時にこの記録と突き合わせて、同一チェーンで処理済みの到達は捨てる。
+// depth が 0 に戻り flush も済んだ時点でクリアするので、後のターンで同じマスに再到達しても
+// 正しく発動する。
+let chainProcessedArrivalKeys = new Set();
 function flushPendingDiffArrivalTriggers() {
+  const processed = chainProcessedArrivalKeys;
+  chainProcessedArrivalKeys = new Set();
   if (pendingDiffArrivalTriggers.length === 0) return;
   const buffered = pendingDiffArrivalTriggers;
   pendingDiffArrivalTriggers = [];
-  logAction("diag-diff-arrival-flush", { count: buffered.length });
-  for (const item of buffered) {
+  const skipped = [];
+  const items = buffered.filter((item) => {
+    if (item.kind !== "card" || !item.cardId) return true;
+    const key = autoArrivalKey(item.cardId, item.dropTarget);
+    if (!processed.has(key)) return true;
+    skipped.push(key);
+    return false;
+  });
+  logAction("diag-diff-arrival-flush", { count: items.length, skippedSameChain: skipped });
+  for (const item of items) {
     if (item.kind === "card") maybeTriggerCardArrivalForCard(item.dropTarget, item.cardId, item.faceUp, true, item.respectPieceSuppression);
     else if (item.kind === "exposed") maybeTriggerCardArrivalForExposedCard(item.location, true, item.prevTopTokenId);
   }
@@ -5959,6 +5996,8 @@ function triggerCardArrival(cardId, location, onFullyResolved, opts = {}) {
     }
     activeAutoArrivalKeys.set(dedupKey, (activeAutoArrivalKeys.get(dedupKey) || 0) + 1);
     if (opts.fromDiff) activeAutoArrivalFromDiffKeys.set(dedupKey, (activeAutoArrivalFromDiffKeys.get(dedupKey) || 0) + 1);
+    // #178/#179: このチェーンで処理した到達として記録（flush時の二重発火判定に使う）。
+    chainProcessedArrivalKeys.add(dedupKey);
     arrivalEffectProcessingDepth++;
     // 続き75診断ログ: ユーザー報告「ムーブフェイズがきれいに終わったのにターンが
     // 終了されなかった」の調査用。このフラグがtrueのまま戻らなくなっていないか
@@ -5985,11 +6024,13 @@ function triggerCardArrival(cardId, location, onFullyResolved, opts = {}) {
         await wait(ARRIVAL_BURST_DURATION_MS + ARRIVAL_EFFECT_START_PAUSE_MS);
       }
       try {
+        setCurrentEffectCardForReason(cardId); // #4: この効果によるドロー/捨てに理由を添える
         await runAutoArrivalEffect(cardId, location, player);
       } catch (err) {
         console.error("runAutoArrivalEffect failed", err);
         logAction("diag-arrival-processing", { cardId, phase: "error", message: String(err?.message ?? err) });
       } finally {
+        setCurrentEffectCardForReason(null); // #4
         // 安全弁: ザ・ギャンブル/試練の儀式の鼓動が、途中で例外が起きても鳴りっぱなしに
         // ならないよう、到達効果の完了時に必ず止める（stopHeartbeatは冪等）。
         stopHeartbeat();
@@ -8078,7 +8119,20 @@ function updateSpectatorBanner() {
   }
 }
 
+// #4: 「このターンの出来事」ストックは、誰のでもターンが変わるたびに掃除する
+// （ユーザー確定仕様）。render()のたびに turnNumber / turnPlayer の組を見て変化を検知する。
+let lastTurnKeyForEventStock = null;
+function maybeClearTurnEventStock() {
+  const state = getState();
+  const key = `${state.turnNumber ?? 0}:${state.turnPlayer ?? "-"}`;
+  if (lastTurnKeyForEventStock === key) return;
+  // 初回（対局開始やリロード直後）は掃除するものが無いので、キーを覚えるだけ。
+  if (lastTurnKeyForEventStock !== null) clearTurnEventStock();
+  lastTurnKeyForEventStock = key;
+}
+
 function render() {
+  maybeClearTurnEventStock();
   updateSpectatorBanner();
   // オンライン対戦（第一弾）ではまだサーバー側にポートしていないアクション（セットアップ
   // ウィザード・クイックスタート・手札シャッフル）に繋がるボタンを隠す（style.css参照）。
@@ -10355,6 +10409,13 @@ function findGomennasaiEligibility(seat) {
       )
     : [];
   if (stealableLocks.length === 0) return null;
+  // #180: 1つのロック宣言に対して複数名が続けてゴメンナサイを使えてしまっていた
+  // （承認キューの先頭が順に回るため、2人目・3人目にもボタンが出ていた）。
+  // ゴメンナサイは「相手が最後のロックを宣言した時」の反応なので、誰かが1枚奪って
+  // その宣言がもう7色目にならなくなった時点で、後続の人には発動条件自体が無い。
+  // 共有stateから導ける判定（＝全クライアントで一致する）なので、これで自然に1人までに
+  // 制限される。宣言直後（まだ誰も奪っていない）は当然 true なので従来通りボタンが出る。
+  if (pending && !wouldCompleteLockWithNewIndex(pending.attacker, pending.location.index)) return null;
   return { sorryToken, costCandidates, stealableLocks };
 }
 
@@ -10534,7 +10595,7 @@ async function cpuUseGomennasaiOnFinalLock(seat, eligibility, attacker) {
     `${getPlayerName(seat)}が${getPlayerName(attacker)}のロックエリアから奪いました`,
     { labelText: "奪った" }
   );
-  announceHandPickups(seat, [{ cardId: target.cardId, wasPublic: true }]);
+  announceHandPickups(seat, [{ cardId: target.cardId, wasPublic: true }], "「ゴメンナサイッ！」でロックから奪取");
   render();
   await respondToFinalLock(true);
 }
@@ -10623,7 +10684,7 @@ async function useGomennasaiOnFinalLock() {
     `${getPlayerName(selfSeat)}が${getPlayerName(attackerSeat)}のロックエリアから奪いました`,
     { labelText: "奪った" }
   );
-  announceHandPickups(selfSeat, [{ cardId: target.cardId, wasPublic: true }]);
+  announceHandPickups(selfSeat, [{ cardId: target.cardId, wasPublic: true }], "「ゴメンナサイッ！」でロックから奪取");
   render();
   logAction("diag-gomennasai-steal", { attacker: attackerSeat, phase: "afterSteal", attackerLocksAfter: locksSnapshot() });
   await respondToFinalLock(true);
@@ -10816,7 +10877,7 @@ async function onDragEnd(e) {
         const revealedCardId = result?.revealedCardId ?? null;
         if (dropTarget.zone === "hand") {
           if (revealedCardId) {
-            announceHandPickups(dropTarget.player, [{ cardId: revealedCardId, wasPublic: pileSource === "discard" }]);
+            announceHandPickups(dropTarget.player, [{ cardId: revealedCardId, wasPublic: pileSource === "discard" }], pileSource === "discard" ? "捨て場から取得" : "山札から引いた");
           }
           // 山からの直接ドロー(手札行き)も、remote-move-animator.jsの差分検知が「新規出現」
           // として拾うようになった（相手プレイヤーへのカード獲得通知を出すため）。自分自身の
@@ -10859,7 +10920,7 @@ async function onDragEnd(e) {
           if (cardId) {
             const player = dropTarget.player;
             drawFromPile(pileSource, dropTarget);
-            announceHandPickups(player, [{ cardId, wasPublic: pileSource === "discard" }]);
+            announceHandPickups(player, [{ cardId, wasPublic: pileSource === "discard" }], pileSource === "discard" ? "捨て場から取得" : "山札から引いた");
             render();
             return;
           }

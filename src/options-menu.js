@@ -865,7 +865,7 @@ export function initOptionsMenu() {
                 })
               );
               subContent.appendChild(
-                buildDurationRow("カード獲得ポップアップ", "--hand-pickup-toast-duration", 5, (value) => {
+                buildDurationRow("カード獲得の中央フラッシュ（この後、右下のストックへ）", "--hand-pickup-toast-duration", 5, (value) => {
                   saveMyPreference({ hand_pickup_toast_duration: value });
                 })
               );

@@ -604,6 +604,15 @@ function attachToPhaseGuideBar(el) {
     document.body.appendChild(el);
   }
 }
+// #181: 最後のロックの承認待ち（pendingFinalLock）は「全員が承認/ゴメンナサイの判断を
+// 終えるまでゲーム全体が止まる」性質の共有状態。ところが宣言した本人のロックフェイズは
+// そのまま生きていて、スキップ／マイデッキ（＝ロックの代わりに引く）ボタンが押せてしまい、
+// 承認待ちのまま自分のフェイズを終えて次へ進める＝「ゴメンナサイ処理中に勝手にターンが
+// 進む」状態になっていた（実機報告: 承認待ちのままマイデッキを引いたら、後からロックも
+// 成立して両方処理された）。承認が片付くまではフェイズ自動進行も手動操作も止める。
+function isFinalLockApprovalPending() {
+  return !!getState().pendingFinalLock;
+}
 function ensureSkipButton() {
   if (skipButtonEl) {
     attachToPhaseGuideBar(skipButtonEl);
@@ -615,6 +624,8 @@ function ensureSkipButton() {
   skipButtonEl.textContent = "スキップ";
   skipButtonEl.addEventListener("click", () => {
     if (handEffectBusy) return;
+    if (isFinalLockApprovalPending()) return; // #181
+
     // ユーザー要望「スキップボタンを押しても時間を15秒回復させてください」。
     // turn-timer.jsは時間切れによる自動スキップの時だけ、盤面操作を伴わないことの
     // 埋め合わせとして優先権保持者に15秒の基本時間を明示的に付与している
@@ -662,6 +673,8 @@ function ensureMyDeckButton() {
   myDeckButtonEl.id = "phase-automation-mydeck-button";
   myDeckButtonEl.addEventListener("click", () => {
     if (handEffectBusy) return;
+    if (isFinalLockApprovalPending()) return; // #181
+
     const seat = getSelfSeat();
     const pile = getState().piles?.[`myDeck-${seat}`];
     if (!pile || pile.length === 0) return;
@@ -688,7 +701,9 @@ export function updateSkipButtonVisibility() {
   // フェイズ中も currentPhase が "lock"/"hand" になり、人間の画面にスキップボタンが出てしまっていた。
   // そのフェイズの持ち主(phaseOwner)が疑似CPU対象（＝CPUが自動で進める席）の時は出さない。
   // 通常のオンライン/ホットシート（疑似CPU非対象）では isPseudoCpuTarget が常にfalseなので従来通り。
-  const showSkip = (currentPhase === "lock" || currentPhase === "hand") && !isPseudoCpuTarget(phaseOwner);
+  // #181: 承認待ちの間はスキップもマイデッキも押せないよう、そもそも隠す。
+  const approvalPending = isFinalLockApprovalPending();
+  const showSkip = (currentPhase === "lock" || currentPhase === "hand") && !isPseudoCpuTarget(phaseOwner) && !approvalPending;
   btn.style.display = showSkip ? "block" : "none";
   const state = getState();
   // マイデッキ戦: 自分のロックフェイズで、マイデッキに残りがあれば「マイデッキ (残枚数)」
@@ -705,6 +720,7 @@ export function updateSkipButtonVisibility() {
     currentPhase === "lock" &&
     state.turnPlayer === selfSeat &&
     !isPseudoCpuTarget(phaseOwner) &&
+    !approvalPending &&
     myDeckCount > 0;
   myDeckBtn.style.display = showMyDeck ? "block" : "none";
   if (showMyDeck) myDeckBtn.textContent = `マイデッキ (${myDeckCount})`;
@@ -886,6 +902,9 @@ export function reconcilePhaseAutomation() {
   // 自動処理（＝実質的な「ターンが移った」挙動）が始まってしまう。演出キューが空になるまでは
   // フェイズ自動進行を進めない（clearPhase()はせず、そのまま待つだけにして表示のちらつきを避ける）。
   if (isGateInvasionQueueActive()) return;
+  // #181: 最後のロックの承認待ちの間は、どのクライアントでもフェイズ自動進行を進めない
+  // （承認が終われば pendingFinalLock が消えて自然に再開する）。
+  if (isFinalLockApprovalPending()) return;
   // ローカルCPU戦ではCPU(C)の番も駆動対象にする（それ以外は自分の席）。
   const player = getAutoDriveSeat();
   // ユーザー報告（続き86）「勝利後、まだ盤面のタイマーが止まらず自動処理が継続
