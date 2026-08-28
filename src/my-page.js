@@ -455,6 +455,14 @@ export async function renderMyPageBody(body, close) {
   }
 
   statusEl.remove();
+  // ユーザー要望2026-08-28「戦績システムとの連携済み表示は基本設定のところではなくて、
+  // マイページに小さくさらっとあった方が良い」。オプションの基本設定にあった大きめの連携
+  // カード（options-menu.jsのbuildStatsPlayerLinkRow）は撤去し、ここに一行で出す。
+  // 未連携の場合は上の分岐で「連携する」ボタンを出しているので、ここは連携済みのみ。
+  const linkedNote = document.createElement("div");
+  linkedNote.textContent = "🏆 戦績管理システムと連携済み";
+  linkedNote.style.cssText = "font-size: 0.7rem; color: #94a3b8; text-align: right; margin: 0 0 0.2rem;";
+  statsGroup.appendChild(linkedNote);
   const rankText = (rank) => (rank ? `${rank}位 / ${profile.totalRankedPlayers}人中` : "集計対象外（承認待ち等）");
   statsGroup.appendChild(buildStatRow("対戦数", `${profile.matchesCount}戦`));
   statsGroup.appendChild(buildStatRow("勝利数", `${profile.winsCount}勝`));

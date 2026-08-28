@@ -2878,7 +2878,15 @@ async function autoSyncStatsIdentity({ name, avatar } = {}) {
   if (error || !existing) return; // 未連携なら何もしない
   const patch = {};
   if (name !== undefined && name) patch.name = name;
-  if (avatar !== undefined && avatar) patch.avatar_url = new URL(avatar, window.location.href).href;
+  // ハマりどころ（続き300で修正）: ここだけ resolveAvatarForStats を通しておらず、
+  // 「記憶を失った青年」("protagonist")・「託された者たち」("entrusted")のセンチネル値が
+  // そのまま絶対URL化されて .../protagonist という実在しない画像URLを戦績システムへ
+  // 書き込んでいた（対局登録側は c3331db で修正済みだったが、この即時同期の経路が
+  // 取り残されていた）。同じ解決関数を通してから絶対URLにする。
+  if (avatar !== undefined && avatar) {
+    const resolved = resolveAvatarForStats(getSelfSeat(), avatar);
+    if (resolved) patch.avatar_url = new URL(resolved, window.location.href).href;
+  }
   if (Object.keys(patch).length === 0) return;
   const { error: updErr } = await client.from("players").update(patch).eq("id", existing.id);
   if (updErr) throw updErr;

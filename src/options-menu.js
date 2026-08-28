@@ -873,6 +873,12 @@ export function initOptionsMenu() {
   function close() {
     panel.style.display = "none";
     backdrop.style.display = "none";
+    detailMode = false; // 次に開いた時は必ず基本設定から
+    // ユーザー報告2026-08-28「ホーム画面からオプションを開くと上の黒帯が消えちゃってます」。
+    // #options-menu-panel は inset:0 の全画面ページで、#option-area（上端のアイコン列＋装飾帯）
+    // より前面にあったため、開いている間だけ帯が隠れていた。開閉に合わせてbodyクラスを付け外し、
+    // CSS側でアイコン列を最前面へ出す（style.css の body.options-menu-open 参照）。
+    document.body.classList.remove("options-menu-open");
     document.removeEventListener("pointerdown", onDocPointerDown, true);
   }
   // 言語セレクタはこのパネル内にあるので、切り替えたらパネル自身も新しい言語で作り直す
@@ -892,22 +898,37 @@ export function initOptionsMenu() {
     renderContent();
     panel.style.display = "block";
     backdrop.style.display = "block";
+    document.body.classList.add("options-menu-open"); // 上端の装飾帯を前面に保つ（closeのコメント参照）
   }
 
   let shortcutSectionEl = null;
+  // 基本設定ビュー(false)／詳細設定ビュー(true)。閉じると必ず基本設定へ戻す（close参照）。
+  let detailMode = false;
 
   function renderContent() {
     panel.innerHTML = "";
 
     // 全画面表示（ユーザー要望）にしたので、他の全画面ページ同様に左上へ「← 戻る」を置く。
+    // ユーザー要望2026-08-28「よく使う設定より下の設定は詳細設定というボタンを作り格納する
+    // のはどうかな？」。パネルを2ビュー（基本設定／詳細設定）に分け、detailMode で切り替える。
+    // 折りたたみの中に折りたたみを作らない方針（続き299）を守りつつ、開いた直後に見えるものを
+    // さらに減らすための構成。詳細設定ビューの「戻る」は基本設定ビューへ戻る。
     const backBtn = document.createElement("button");
     backBtn.type = "button";
     backBtn.id = "options-menu-back";
-    backBtn.textContent = t("common.back");
-    backBtn.addEventListener("click", close);
+    backBtn.textContent = detailMode ? t("opt.backToBasic") : t("common.back");
+    backBtn.addEventListener("click", () => {
+      if (detailMode) {
+        detailMode = false;
+        renderContent();
+        panel.scrollTop = 0;
+        return;
+      }
+      close();
+    });
     panel.appendChild(backBtn);
 
-    panel.appendChild(buildSectionTitle(t("opt.basicSettings")));
+    panel.appendChild(buildSectionTitle(detailMode ? t("opt.detailSettings") : t("opt.basicSettings")));
 
     // ユーザー要望2026-08-28「基本設定内のUIを整備したい。現在ライトユーザーには優しくない」
     // への対応（続き299）。方針は2つ。
@@ -918,49 +939,93 @@ export function initOptionsMenu() {
     // あわせて、入れ子の折りたたみ（旧「ロックエリア関連」「モーダル表示時間」「アニメーションを
     // 減らす」）は、開いた中にさらに閉じた箱がある＝存在に気づけないため全廃し、小見出し
     // （buildSubLabel）に置き換えた。機能自体は1つも減らしていない（置き場所と呼び方の変更のみ）。
-    panel.appendChild(buildLanguageRow());
+    if (!detailMode) panel.appendChild(buildLanguageRow());
+    // ユーザー要望2026-08-28「戦績システムとの連携済み表示は基本設定ではなく、マイページに
+    // 小さくさらっとあった方が良い」。ここからは撤去し、マイページ（my-page.js）へ移した。
+    // buildStatsPlayerLinkRow自体は、将来また基本設定に出したくなった時のため残してある。
 
-    panel.appendChild(buildStatsPlayerLinkRow());
-
-    panel.appendChild(
-      buildPlainGroupHeader(t("opt.sec.group.common"), () => {
-        setSoundVolume(0.8);
-        setBgmVolume(0.5);
-        setCardPreviewSize(20);
-        setActionConfirmEnabled(true);
-        saveMyPreference({ sound_volume: 0.8, sound_volume_bgm: 50, action_confirm_enabled: true });
-        renderContent();
-      })
-    );
-    {
-      const volumeRow = buildVolumeRow();
-      const volumeSlider = volumeRow.querySelector("input[type=range]");
-      volumeSlider.addEventListener("change", () => {
-        saveMyPreference({ sound_volume: Number(volumeSlider.value) / 100 });
-      });
-      panel.appendChild(volumeRow);
-    }
-    panel.appendChild(buildBgmVolumeRow());
-    panel.appendChild(buildCardPreviewSizeRow());
-    // 全画面は「押した瞬間に入/出が切り替わる」ボタン的なチェック（未対応端末では出さない）。
-    if (isFullscreenSupported()) {
+    // よく使う設定のブロックは基本設定ビューだけに出す（詳細設定ビューでは出さない）。
+    if (!detailMode) {
       panel.appendChild(
-        buildCheckboxRow(t("opt.chk.fullscreen"), isFullscreenActive(), () => {
-          toggleFullscreen();
+        buildPlainGroupHeader(t("opt.sec.group.common"), () => {
+          setSoundVolume(0.8);
+          setBgmVolume(0.5);
+          setCardPreviewSize(20);
+          setActionConfirmEnabled(true);
+          saveMyPreference({ sound_volume: 0.8, sound_volume_bgm: 50, action_confirm_enabled: true });
+          renderContent();
         })
       );
-    }
-    // ユーザー要望「ロック前・手札使用前の確認モーダルを全デバイスで出す。モーダルの
-    // 『今後表示しない』でオフにでき、ここから再度オンに戻せるように」。うっかり操作を
-    // 防ぐ設定＝初めての人ほど触るため、よく使う設定として一番上のブロックに置く。
-    panel.appendChild(
-      buildCheckboxRow(t("opt.chk.actionConfirm"), isActionConfirmEnabled(), (checked) => {
-        setActionConfirmEnabled(checked);
-        saveMyPreference({ action_confirm_enabled: checked });
-      })
-    );
+      {
+        const volumeRow = buildVolumeRow();
+        const volumeSlider = volumeRow.querySelector("input[type=range]");
+        volumeSlider.addEventListener("change", () => {
+          saveMyPreference({ sound_volume: Number(volumeSlider.value) / 100 });
+        });
+        panel.appendChild(volumeRow);
+      }
+      panel.appendChild(buildBgmVolumeRow());
+      panel.appendChild(buildCardPreviewSizeRow());
+      // 「全画面で遊ぶ」はユーザー要望2026-08-28「オプションエリアにアイコンがあるからいらない
+      // かも」で撤去した（#fullscreen-toggle-button が同じ機能を持つ）。
+      // ユーザー要望「ロック前・手札使用前の確認モーダルを全デバイスで出す。モーダルの
+      // 『今後表示しない』でオフにでき、ここから再度オンに戻せるように」。うっかり操作を
+      // 防ぐ設定＝初めての人ほど触るため、よく使う設定として一番上のブロックに置く。
+      panel.appendChild(
+        buildCheckboxRow(t("opt.chk.actionConfirm"), isActionConfirmEnabled(), (checked) => {
+          setActionConfirmEnabled(checked);
+          saveMyPreference({ action_confirm_enabled: checked });
+        })
+      );
 
-    // --- ここから下は「困りごと」ごとの折りたたみ（入れ子なし・1階層のみ） ---
+    }
+
+    // 基本設定ビューはここまで。以降（困りごと別のセクション群・アカウント初期化・
+    // アクションログ・管理者向け）は「詳細設定」ビューへ格納する。ユーザー要望により
+    // 「山札一覧」だけは対局中によく開くため基本設定ビューに残す。
+    if (!detailMode) {
+      const detailBtn = document.createElement("button");
+      detailBtn.type = "button";
+      detailBtn.className = "options-menu-detail-entry";
+      const detailTitle = document.createElement("span");
+      detailTitle.className = "options-menu-detail-entry-title";
+      detailTitle.textContent = `${t("opt.detailSettings")} ▸`;
+      const detailHint = document.createElement("span");
+      detailHint.className = "options-menu-detail-entry-hint";
+      detailHint.textContent = t("opt.detailSettingsHint");
+      detailBtn.appendChild(detailTitle);
+      detailBtn.appendChild(detailHint);
+      detailBtn.addEventListener("click", () => {
+        detailMode = true;
+        renderContent();
+        panel.scrollTop = 0;
+      });
+      panel.appendChild(detailBtn);
+
+      const basicDivider = document.createElement("div");
+      basicDivider.className = "options-menu-divider";
+      panel.appendChild(basicDivider);
+
+      panel.appendChild(
+        buildMenuItem("📋 山札一覧", () => {
+          close();
+          openDeckViewer();
+        })
+      );
+      // 対局中の状態（盤面・オンライン接続等）を個別に片付けるより、ページを丸ごと
+      // 再読み込みする方が確実で安全（Googleログイン後の遷移等、既存の「戻ってくると
+      // 最初からになる」フローと同じ挙動）。オンライン対戦中でも部屋の座席自体は
+      // サーバー側に残るため、「進行中の対局を再開」から戻ってこられる。
+      panel.appendChild(
+        buildMenuItem("🏠 タイトルに戻る", () => {
+          markCleanExit(); // 意図的なリロード＝ブラックボックスに「不審な落下」と誤検知させない。
+          window.location.reload();
+        })
+      );
+      return;
+    }
+
+    // --- ここから下は詳細設定ビュー。「困りごと」ごとの折りたたみ（入れ子なし・1階層のみ） ---
 
     // 「動きが重い・カクつくとき」。旧「表示・演出 > アニメーションを減らす」（入れ子の中の
     // 入れ子）＋タブレットのちらつき対策の2D表示を、症状の名前で1つにまとめた。純粋に
@@ -1353,14 +1418,8 @@ export function initOptionsMenu() {
     divider.className = "options-menu-divider";
     panel.appendChild(divider);
 
-    // ユーザー要望「オプション画面にあった『チュートリアルを見る』をヘルプ画面に移設」
-    // への対応でここから削除した（help.jsの「🎓 チュートリアルを見る」ボタン参照）。
-    panel.appendChild(
-      buildMenuItem("📋 山札一覧", () => {
-        close();
-        openDeckViewer();
-      })
-    );
+    // 「📋 山札一覧」は基本設定ビューへ移した（対局中によく開くため、詳細設定に埋めない）。
+    // 「🎓 チュートリアルを見る」はヘルプ画面へ移設済み（help.js）。
     // ユーザー要望「アクションログは誰でも見れてコピーできるようにしましょう」への
     // 対応（続き60時点では管理者限定にしていたが、不具合報告の際に誰でもログを
     // コピーして提出できた方が良いと判断し、他の管理者専用項目とは切り離した）。
@@ -1422,16 +1481,6 @@ export function initOptionsMenu() {
       );
     }
     // ユーザー要望「オプション画面に『タイトルに戻る』があってもいいかも」への対応。
-    // 対局中の状態（盤面・オンライン接続等）を個別に片付けるより、ページを丸ごと
-    // 再読み込みする方が確実で安全（Googleログイン後の遷移等、既存の「戻ってくると
-    // 最初からになる」フローと同じ挙動）。オンライン対戦中でも部屋の座席自体は
-    // サーバー側に残るため、「進行中の対局を再開」から戻ってこられる。
-    panel.appendChild(
-      buildMenuItem("🏠 タイトルに戻る", () => {
-        markCleanExit(); // 意図的なリロード＝ブラックボックスに「不審な落下」と誤検知させない。
-        window.location.reload();
-      })
-    );
   }
 
   renderContent();

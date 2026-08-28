@@ -46,6 +46,9 @@ const UI = {
     // --- オプション（options-menu.js） ---
     "opt.title": "オプション",
     "opt.basicSettings": "基本設定",
+    "opt.detailSettings": "詳細設定",
+    "opt.detailSettingsHint": "画面の見え方・動作の軽さ・CPU戦・通知・ショートカットなど",
+    "opt.backToBasic": "← 基本設定へ戻る",
     "opt.reset": "戻す",
     "opt.soundVolume": "効果音の音量",
     "opt.bgmVolume": "BGMの音量",
@@ -301,6 +304,9 @@ const UI = {
     // --- Options ---
     "opt.title": "Options",
     "opt.basicSettings": "Settings",
+    "opt.detailSettings": "More settings",
+    "opt.detailSettingsHint": "Look & feel, performance, CPU matches, notifications, shortcuts…",
+    "opt.backToBasic": "← Back to settings",
     "opt.reset": "Reset",
     "opt.soundVolume": "Sound effects volume",
     "opt.bgmVolume": "Music volume",

@@ -6950,6 +6950,51 @@ body.shop-open #options-menu-panel {
 .options-menu-plain-group-header .options-menu-details-title::before {
   content: "";
 }
+/* 続き300: 基本設定 →「詳細設定」ビューへの入口ボタン（ユーザー要望「よく使う設定より下の
+   設定は詳細設定というボタンを作り格納するのはどうかな？」）。折りたたみのsummaryとは別物と
+   分かるよう、1枚の押せるカードとして見せる。 */
+.options-menu-detail-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  width: calc(100% - 0.6rem);
+  margin: 0.9rem 0.3rem 0.3rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.4rem;
+  background: rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.options-menu-detail-entry:hover {
+  border-color: rgba(56, 189, 248, 0.7);
+  background: rgba(56, 189, 248, 0.12);
+}
+.options-menu-detail-entry-title {
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+.options-menu-detail-entry-hint {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+/* ユーザー報告2026-08-28「ホーム画面からオプションを開くと上の黒帯が消えちゃってます」。
+   #options-menu-panel は inset:0 の全画面ページで、これまで #option-area（上端のアイコン列と
+   その装飾帯 #option-area::before）より前面に置いていたため、開いている間だけ帯が隠れ、
+   アイコンも半透明パネルの下に沈んで見えていた（ライト配色だと特に目立つ）。オプションを
+   開いている間はアイコン列を最前面へ出し（opening/full-screen-page/shopのどのz-index体系より
+   上）、代わりにパネルの上余白を帯の高さ分あけて、内容が帯の下に潜らないようにする。
+   #option-areaはpointer-events:none（子アイコンだけauto）なので設定項目のクリックは奪わない。 */
+body.options-menu-open #option-area {
+  z-index: 50200;
+}
+body.options-menu-open #options-menu-panel {
+  padding-top: calc(var(--option-area-band-height, 3rem) + 0.8rem);
+}
 /* 続き299: セクションの中の小見出し。以前はここが「折りたたみの中の折りたたみ」だったが、
    閉じた箱の中にさらに閉じた箱があると存在に気づけないため、開いたままの小見出しにした。 */
 .options-menu-sub-label {
@@ -14154,6 +14199,18 @@ body.theme-light .options-menu-details-title::before {
 body.theme-light .options-menu-plain-group-header {
   color: #3a3326;
   border-bottom-color: rgba(176, 141, 63, 0.3);
+}
+body.theme-light .options-menu-detail-entry {
+  color: #3a3326;
+  background: rgba(176, 141, 63, 0.12);
+  border-color: rgba(176, 141, 63, 0.4);
+}
+body.theme-light .options-menu-detail-entry:hover {
+  background: rgba(176, 141, 63, 0.22);
+  border-color: rgba(176, 141, 63, 0.7);
+}
+body.theme-light .options-menu-detail-entry-hint {
+  color: #6b5c3c;
 }
 body.theme-light .options-menu-divider {
   border-top-color: rgba(176, 141, 63, 0.3);
