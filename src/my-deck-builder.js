@@ -735,4 +735,5 @@ export function closeMyDeckBuilder() {
   nameInput = null;
   settingsEl = null;
   currentDeck = null;
+  syncFullScreenPageActive(); // 閉じたらオプションエリアの前面化も解除（続き303）
 }

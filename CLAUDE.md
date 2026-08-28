@@ -763,3 +763,31 @@
   どこからも参照されていない（デジタル版のリンク先は `.../BATTLE-log/`＝index.html）ことを確認済み。
 - **検証**: `node --input-type=module --check`（online/my-deck-builder）通過・CSSブレース平衡（2511）。
   `npm test` 53/53 PASS、`node test/smoke.mjs` PASS。サーバー側（Supabase）の変更は無い。
+
+### 2026-08-28（続き303）：マイデッキ編集/一覧で上端の黒帯が消える不具合を修正（全画面ページの前面化リストに追加）／戦績システムの重複HTMLを削除
+
+- **ユーザー報告「デッキ編集画面でオプションエリアの黒帯が消えています。ほかのページでも消えて
+  しまっていないか点検お願いします」**: `syncFullScreenPageActive()`（option-area.js）のセレクタが
+  `#home-screen, #profile-page, #ranking-page, #codex-page` の4つだけで、**同じz-index:1500の全画面
+  ページである `#my-deck-page`（マイデッキ編集）・`#my-deck-list-page`（マイデッキ一覧）が抜けて
+  いた**。そのため `#option-area`（z-index:900）がページの裏へ回り、上端の装飾帯もアイコンも
+  見えなくなっていた。マイページ経由で開くと `#profile-page` がDOMに残っていて偶然
+  `full-screen-page-active` が付いたままになるため、**開く経路によって見え方が変わる**という
+  分かりにくい症状になっていた（続き302で上端に余白を入れたことで「帯が無い空白」が可視化され、
+  今回の報告につながった）。セレクタに2ページを追加し、あわせて両ページのclose時にも
+  `syncFullScreenPageActive()` を呼ぶようにした（開きっぱなし判定が閉じても残らないように）。
+- **全ページ点検**（ブラウザ実測、「#option-areaの実効z-index > そのページのz-index」＝帯が見えるか）:
+  マイデッキ編集1500/2700✓・マイデッキ一覧1500/2700✓・ホーム1500/2700✓・ショップ2601/2700✓
+  （`body.shop-open`）・マイページ2650/2700✓・ランキング/図鑑1500/2700✓・オプション（続き300の
+  `body.options-menu-open` で50200）✓・オープニングは仕様上アイコンごと非表示✓。閉じた後に
+  `full-screen-page-active` が正しく外れることも確認。
+- **姉妹リポジトリ（戦績システム）**: ユーザー承認のうえ `7shades_stat_tracker.html`（index.htmlと
+  同一内容の重複コピー、どこからも参照なし）を削除して push（`4ab1762`）。
+- **未対応・ユーザー作業（コードでは直せない）**: 戦績システムでログアウト→再ログインすると
+  `localhost` へ飛んで `ERR_CONNECTION_REFUSED` になる。Supabaseの「Site URL」が姉妹プロジェクト用の
+  localhostのままで、戦績サイトの本番URLが「Redirect URLs」に登録されていないため、`redirectTo` が
+  拒否されてSite URLへフォールバックしている（online.jsのcleanRedirectUrlのコメントに既出の落とし穴）。
+  Supabaseダッシュボード Authentication > URL Configuration の Redirect URLs へ
+  `https://asobuzzasobazunihairarenai-dot.github.io/BATTLE-log/**` を追加すれば直る。
+- **検証**: `node --input-type=module --check`（option-area/my-deck-list/my-deck-builder）通過。
+  `npm test` 53/53 PASS、`node test/smoke.mjs` PASS。サーバー側（Supabase）のコード変更は無い。

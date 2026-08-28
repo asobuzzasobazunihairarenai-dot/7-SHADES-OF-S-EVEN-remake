@@ -24,6 +24,13 @@ export function getOptionArea() {
 // （ユーザー報告）。開いている全画面ページが1つでも残っていればON、無ければOFFに、DOMの
 // 実状から毎回同期する。各ページのopen/closeの最後にこれを呼ぶ。
 export function syncFullScreenPageActive() {
-  const anyOpen = document.querySelector("#home-screen, #profile-page, #ranking-page, #codex-page");
+  // ユーザー報告2026-08-28（続き303）「デッキ編集画面でオプションエリアの黒帯が消えています」。
+  // マイデッキ編集(#my-deck-page)・マイデッキ一覧(#my-deck-list-page)もz-index:1500の全画面
+  // ページなのに、このセレクタに入っていなかったため #option-area (z-index:900) がページの裏へ
+  // 回り、上端の装飾帯もアイコンも見えなくなっていた（マイページ経由で開くと#profile-pageが
+  // 残っていて偶然クラスが付いたままになるため、見え方が経路によって変わっていた）。
+  const anyOpen = document.querySelector(
+    "#home-screen, #profile-page, #ranking-page, #codex-page, #my-deck-page, #my-deck-list-page"
+  );
   document.body.classList.toggle("full-screen-page-active", !!anyOpen);
 }

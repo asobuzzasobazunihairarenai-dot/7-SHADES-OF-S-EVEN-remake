@@ -320,4 +320,5 @@ export function closeMyDeckList() {
   overlayEl?.remove();
   overlayEl = null;
   gridEl = null;
+  syncFullScreenPageActive(); // 閉じたらオプションエリアの前面化も解除（続き303）
 }
