@@ -17728,17 +17728,27 @@ body.theme-light #mdb-deck-case-hint {
   color: #94a3b8;
   margin-bottom: 0.2rem;
 }
+/* 続き318: ユーザー要望「各称号が不ぞろいに並んでいるのが気になる。碁盤目状にきれいに
+   並んでいると美しい。モーダルは大きくなっても構わない」。幅バラバラの折り返し(flex-wrap)を
+   やめ、同じ幅の升目に揃うグリッドにする。列数は幅に応じて自動（auto-fill）。 */
 .my-page-titles-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  gap: 0.4rem;
 }
 .my-page-title-chip {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.3rem;
-  padding: 0.25rem 0.6rem;
-  border-radius: 9999px;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.1rem;
+  padding: 0.25rem 0.5rem;
+  /* 升目に並べるので、丸ピルより角丸の方が整って見える */
+  border-radius: 0.4rem;
+  white-space: nowrap;
+  overflow: hidden;
   border: 1px solid rgba(212, 175, 90, 0.45);
   background: rgba(212, 175, 90, 0.12);
   color: #f1e6cd;
@@ -17799,7 +17809,9 @@ body.theme-light .my-page-title-chip.is-locked {
 .my-page-name-save,
 .my-page-name-cancel {
   flex: 0 0 auto;
-  padding: 0.2rem 0.6rem;
+  /* 続き318: 横一列に戻したぶん、左右の余白を詰めて全体の幅を抑える */
+  padding: 0.2rem 0.4rem;
+  white-space: nowrap;
   border-radius: 0.3rem;
   font-size: 0.75rem;
   font-family: inherit;
@@ -17831,15 +17843,9 @@ body.theme-light .my-page-name-cancel {
 body.theme-light .my-page-name-cancel:hover {
   background: #f3ece0;
 }
-/* 称号ブロックは、実績の枠を横に広げないよう幅を抑える（続き316の再発防止）。
-   独立したレイアウトブロックになったが、チップが1行に並び切って横長になるのを防ぐ。 */
-/* ハマりどころ: applyProfileLayout は各レイアウトブロックへ inline で width:max-content と
-   max-width を当てるため、`.my-page-titles`（＝ブロック自身）に幅を指定しても効かない。
-   代わりに**中のチップ行**に上限を与える。ブロックの max-content 幅は中身から決まるので、
-   これでチップが折り返して縦に積まれ、ブロックが横に伸びなくなる。 */
-.my-page-titles .my-page-titles-row {
-  max-width: 21rem;
-}
+/* 続き318: 称号はマイページ本体ではなくモーダル専用になったため、続き316で入れていた
+   幅の上限（実績の枠が横に広がるのを防ぐためのもの）は不要になった（上限があるとグリッドが
+   1列に潰れてしまう）。 */
 
 /* ユーザー報告2026-08-28（続き316）「お知らせページの戻るボタンが上の黒帯に干渉している」。
    #changelog-modal も inset:0 の全画面ページなのに、続き302の余白確保の一覧から漏れていた。 */
@@ -17858,33 +17864,53 @@ body.theme-light .my-page-name-cancel:hover {
   align-items: flex-start;
   gap: 0.1rem;
 }
+/* ユーザー報告2026-08-28（続き318）「名前の上の称号は、背景がアバターになることで文字が
+   読みづらい」。マイページの背面には巨大な半透明アバターが敷かれており、その絵柄の上に
+   小さな金文字を置くと溶けてしまう。**半透明の下地（帯）＋文字の影**を付けて、どんな絵柄の
+   上でも読めるようにする。下地は文字にぴったり付く小さな角丸にして、装飾が主張しすぎない
+   ようにした。 */
 .my-page-fav-title {
-  background: none;
-  border: none;
-  padding: 0 0 0.05rem;
+  display: inline-block;
+  background: rgba(12, 9, 6, 0.55);
+  border: 1px solid rgba(212, 175, 90, 0.35);
+  border-radius: 0.3rem;
+  padding: 0.08rem 0.4rem;
   font-family: inherit;
   font-size: 0.6rem;
   font-weight: bold;
   letter-spacing: 0.04em;
-  color: #d4af5a;
+  color: #f0d9a4;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
   cursor: pointer;
   white-space: nowrap;
-  line-height: 1.2;
+  line-height: 1.35;
+  backdrop-filter: blur(2px);
 }
 .my-page-fav-title:hover {
-  text-decoration: underline;
+  background: rgba(12, 9, 6, 0.72);
+  border-color: rgba(212, 175, 90, 0.7);
 }
 /* 未設定のときは控えめな誘い文句にする（押せば称号モーダルが開く） */
 .my-page-fav-title.is-empty {
-  color: #94a3b8;
+  color: #d8d3c8;
   font-weight: normal;
-  opacity: 0.85;
+  border-color: rgba(148, 163, 184, 0.3);
+  background: rgba(12, 9, 6, 0.4);
 }
+/* 明るい配色では、暗い帯ではなく生成りの帯＋濃い金文字にする（同じく絵柄の上でも読める） */
 body.theme-light .my-page-fav-title {
-  color: #a67c1a;
+  background: rgba(255, 253, 248, 0.88);
+  border-color: rgba(176, 141, 63, 0.5);
+  color: #8a6413;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+body.theme-light .my-page-fav-title:hover {
+  background: #fffdf8;
+  border-color: rgba(176, 141, 63, 0.85);
 }
 body.theme-light .my-page-fav-title.is-empty {
-  color: #8a7d63;
+  color: #6b5c3c;
+  background: rgba(255, 253, 248, 0.75);
 }
 /* 称号コレクションのモーダル（名前の上のバッジをクリックで開く） */
 #title-collection-modal {
@@ -17893,7 +17919,8 @@ body.theme-light .my-page-fav-title.is-empty {
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 10701;
-  width: min(30rem, 92vw);
+  /* 続き318: 称号を碁盤目に並べるため、ユーザーの許可を得て広げた（3〜4列になる幅） */
+  width: min(42rem, 94vw);
   max-height: 82vh;
   overflow-y: auto;
   padding: 1.1rem 1.2rem 1.3rem;
@@ -17914,4 +17941,11 @@ body.theme-light #title-collection-modal .my-page-titles-status {
 }
 body.theme-light #title-collection-modal .my-page-titles-group-name {
   color: #8a7d63;
+}
+
+/* 長い称号名（例「ファルベンドの守り手」）が升目からはみ出さないよう、ラベルだけ省略する */
+.my-page-title-chip > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

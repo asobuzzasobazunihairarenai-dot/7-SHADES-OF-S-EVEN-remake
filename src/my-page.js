@@ -155,7 +155,6 @@ function buildEditableNameRow(seat) {
   function renderView() {
     valueWrap.style.flexWrap = "";
     valueWrap.style.maxWidth = "";
-    valueWrap.style.justifyContent = "";
     valueWrap.innerHTML = "";
     // ユーザー要望「『変更』ボタンはいらない。鉛筆アイコンを小さく載せつつ、名前を直接
     // クリックすると入力画面にする」。名前自体をクリック可能にし、隣に小さな鉛筆(✎)を添える。
@@ -177,18 +176,18 @@ function buildEditableNameRow(seat) {
 
   function renderEdit() {
     valueWrap.innerHTML = "";
-    // ユーザー報告2026-08-28「保存/取消ボタンが実績のところに食い込む」への対応（続き316）。
+    // ユーザー報告2026-08-28「保存/取消ボタンが実績のところに食い込む」への対応（続き316→318）。
     // この行(name)はレイアウト上 scale 3 前後で拡大表示されるため、横に伸ばすと隣の実績へ
-    // 大きくはみ出す。幅を抑えて折り返させ、ボタンは入力欄の下へ回り込ませる。
-    valueWrap.style.flexWrap = "wrap";
-    valueWrap.style.maxWidth = "7.5rem";
-    valueWrap.style.justifyContent = "flex-end";
+    // 大きくはみ出す。当初はボタンを下段へ回り込ませたが、ユーザーから「下にはもうスペースが
+    // ないので横でいい」との指示（続き318）。**横一列のまま、入力欄の幅を絞って**収める。
+    valueWrap.style.flexWrap = "nowrap";
+    valueWrap.style.maxWidth = "12rem";
     const input = document.createElement("input");
     input.type = "text";
     input.maxLength = 20;
     input.value = getPlayerName(seat);
     input.className = "my-page-name-input";
-    input.style.cssText = "flex: 1 1 100%; width: 100%; min-width: 0; padding: 0.2rem 0.4rem; background: rgba(0,0,0,0.35); border: 1px solid rgba(148,163,184,0.4); border-radius: 0.3rem; color: #e2e8f0; font-size: 0.85rem;";
+    input.style.cssText = "flex: 0 1 auto; width: 5.5rem; min-width: 0; padding: 0.2rem 0.4rem; background: rgba(0,0,0,0.35); border: 1px solid rgba(148,163,184,0.4); border-radius: 0.3rem; color: #e2e8f0; font-size: 0.85rem;";
     const saveBtn = document.createElement("button");
     saveBtn.type = "button";
     saveBtn.textContent = "保存";
