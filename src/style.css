@@ -6863,14 +6863,22 @@ body.shop-open #options-menu-panel {
   font-size: 0.72rem;
   padding: 0.3rem 0.6rem 0.2rem;
 }
+/* 続き299: 項目名を「何が起きるか」の分かりやすい言い方へ書き換えた結果、1行に収まらない
+   ものが出てきた。以前は white-space: nowrap で横にはみ出していたので、折り返して読める
+   ようにする（チェックボックス自体は縮まないよう flex:none、1行目に揃うよう上寄せ）。 */
 .options-menu-checkbox-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.4rem;
   padding: 0.2rem 0.6rem 0.4rem;
   cursor: pointer;
   font-size: 0.75rem;
-  white-space: nowrap;
+  line-height: 1.45;
+  white-space: normal;
+}
+.options-menu-checkbox-row > input[type="checkbox"] {
+  flex: none;
+  margin-top: 0.15rem;
 }
 .options-menu-divider {
   border-top: 1px solid rgba(148, 163, 184, 0.25);
@@ -6924,6 +6932,31 @@ body.shop-open #options-menu-panel {
 }
 .options-menu-details-content {
   padding: 0.1rem 0.2rem 0.4rem;
+}
+/* 続き299「基本設定のUIを整備」。折りたたまずベタ置きする「よく使う設定」ブロックの見出し。
+   折りたたみのsummaryと同じ見た目にしつつ、開閉しないので ▸ の三角は出さない。 */
+.options-menu-plain-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin: 0.5rem 0.3rem 0.1rem;
+  padding: 0.3rem 0.3rem 0.2rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  font-size: 0.72rem;
+  font-weight: bold;
+  color: #cbd5e1;
+}
+.options-menu-plain-group-header .options-menu-details-title::before {
+  content: "";
+}
+/* 続き299: セクションの中の小見出し。以前はここが「折りたたみの中の折りたたみ」だったが、
+   閉じた箱の中にさらに閉じた箱があると存在に気づけないため、開いたままの小見出しにした。 */
+.options-menu-sub-label {
+  margin: 0.7rem 0.6rem 0.1rem;
+  font-size: 0.68rem;
+  font-weight: bold;
+  color: #7dd3fc;
 }
 /* 戦績システム連携カード（続き64、ユーザー要望「戦績システム連携は一番上に強調して
    ください」）。他の折りたたみ設定グループとは別枠にし、常に開いた状態で見える
@@ -14114,8 +14147,13 @@ body.theme-light .options-menu-item:hover {
   background: rgba(176, 141, 63, 0.18);
 }
 body.theme-light .options-menu-section-title,
+body.theme-light .options-menu-sub-label,
 body.theme-light .options-menu-details-title::before {
   color: #a67c1a;
+}
+body.theme-light .options-menu-plain-group-header {
+  color: #3a3326;
+  border-bottom-color: rgba(176, 141, 63, 0.3);
 }
 body.theme-light .options-menu-divider {
   border-top-color: rgba(176, 141, 63, 0.3);

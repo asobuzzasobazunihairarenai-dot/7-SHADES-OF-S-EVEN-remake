@@ -131,6 +131,175 @@ function buildCollapsibleSection(title, buildContent, { icon, onReset } = {}) {
   return details;
 }
 
+// ユーザー要望2026-08-28「基本設定内のUIを整備したい（ライトユーザーに優しくない）」への
+// 対応（続き299）。折りたたまずベタ置きする「よく使う設定」ブロックの見出し。
+// buildCollapsibleSectionと違い常に開いた状態＝パネルを開いた直後にそのまま操作できる。
+function buildPlainGroupHeader(title, onReset) {
+  const row = document.createElement("div");
+  row.className = "options-menu-plain-group-header";
+  const titleSpan = document.createElement("span");
+  titleSpan.className = "options-menu-details-title";
+  titleSpan.textContent = title;
+  row.appendChild(titleSpan);
+  if (onReset) {
+    const resetBtn = document.createElement("button");
+    resetBtn.type = "button";
+    resetBtn.className = "options-menu-section-reset-btn";
+    resetBtn.textContent = t("opt.reset");
+    resetBtn.title = "このグループの設定を初期値に戻します";
+    resetBtn.addEventListener("click", onReset);
+    row.appendChild(resetBtn);
+  }
+  return row;
+}
+
+// セクションの中でさらに数項目をまとめたい時の小見出し。折りたたみは使わない——
+// 折りたたみの中に折りたたみがあると存在に気づけないため、続き299で入れ子を全廃した。
+function buildSubLabel(text) {
+  const el = document.createElement("div");
+  el.className = "options-menu-sub-label";
+  el.textContent = text;
+  return el;
+}
+
+// 「テスト用・上級者向け」セクション（続き299）。以前は「自動処理・タイマー」の中に、
+// 普通に遊ぶ人には縁のない疑似CPUモードの設定（3項目＋長い説明）が常時並んでいて、
+// ライトユーザーが自動処理のON/OFFを探しづらくなっていた。機能は残したまま（ユーザー要望
+// 続き107「疑似CPUモードの設定を管理者以外にも触れるように」は維持）、専用の折りたたみへ
+// 移した。AFK時のCPU代行（管理者のみ表示）も性質が近いのでここへまとめる。
+function buildAdvancedSection() {
+  return buildCollapsibleSection(
+    t("opt.sec.group.advanced"),
+    (content) => {
+      const pseudoCpuNote = document.createElement("div");
+      pseudoCpuNote.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin: 0 0 0.3rem; line-height: 1.5;";
+      pseudoCpuNote.textContent =
+        "疑似CPUモード（自動選択のテスト用）: オンライン対戦では部屋作成時の" +
+        "チェックボックスが対局全体で優先される（下の「有効化」はローカルモード用）。" +
+        "「自分の座席も対象に含める」は各プレイヤー個人の選択で、対局中いつでも変更できる。";
+      content.appendChild(pseudoCpuNote);
+
+      const pseudoCpuEnableRow = buildCheckboxRow("疑似CPUモードを有効にする（ローカルモード用）", isPseudoCpuModeEnabled(), (checked) => {
+        setPseudoCpuModeEnabled(checked);
+        window.dispatchEvent(new CustomEvent("admin:change"));
+        // ユーザー要望（続き99）「ONにしたら現在持っている基本時間及び砂時計は0に
+        // してください」。turn-timer.js側でこのイベントを受け、今まさに優先権を
+        // 持っている座席が新しい設定で対象になったなら、待たずにその場で基本時間を
+        // 1秒へ縮める。
+        window.dispatchEvent(new CustomEvent("pseudo-cpu-settings-changed"));
+      });
+      content.appendChild(pseudoCpuEnableRow);
+
+      const pseudoCpuSelfRow = buildCheckboxRow(
+        "自分の座席も対象に含める（ONにすると対局が最初から最後まで自動進行し、観戦に徹することができる）",
+        isPseudoCpuIncludeSelf(),
+        (checked) => {
+          setPseudoCpuIncludeSelf(checked);
+          window.dispatchEvent(new CustomEvent("admin:change"));
+          window.dispatchEvent(new CustomEvent("pseudo-cpu-settings-changed"));
+        }
+      );
+      content.appendChild(pseudoCpuSelfRow);
+
+      // ユーザー要望「疑似CPUモードの基本時間（従来固定1秒）をオプションで変更できる
+      // ように」。対象座席がこの秒数だけで即タイムアウト→自動代行する。速くも遅くも
+      // できるよう0.2〜10秒で調整可能（admin.jsのgetPseudoCpuDeadlineMs、localStorage保存）。
+      const pseudoCpuTimeRow = document.createElement("label");
+      pseudoCpuTimeRow.style.cssText =
+        "display: flex; align-items: center; gap: 0.5rem; margin: 0.4rem 0 0.2rem; font-size: 0.85rem;";
+      const pseudoCpuTimeLabel = document.createElement("span");
+      pseudoCpuTimeLabel.textContent = "疑似CPUの基本時間";
+      pseudoCpuTimeLabel.style.cssText = "flex: 1;";
+      const pseudoCpuTimeInput = document.createElement("input");
+      pseudoCpuTimeInput.type = "number";
+      pseudoCpuTimeInput.min = "0.2";
+      pseudoCpuTimeInput.max = "10";
+      pseudoCpuTimeInput.step = "0.1";
+      pseudoCpuTimeInput.value = String(getPseudoCpuDeadlineMs() / 1000);
+      pseudoCpuTimeInput.style.cssText =
+        "width: 4.5rem; padding: 0.2rem 0.3rem; background: rgba(15,23,32,0.9); " +
+        "border: 1px solid rgba(148,163,184,0.5); border-radius: 0.3rem; color: #e2e8f0;";
+      pseudoCpuTimeInput.addEventListener("change", () => {
+        const sec = Number(pseudoCpuTimeInput.value);
+        if (Number.isFinite(sec) && sec > 0) {
+          setPseudoCpuDeadlineMs(Math.round(sec * 1000));
+          window.dispatchEvent(new CustomEvent("pseudo-cpu-settings-changed"));
+        }
+        pseudoCpuTimeInput.value = String(getPseudoCpuDeadlineMs() / 1000);
+      });
+      const pseudoCpuTimeUnit = document.createElement("span");
+      pseudoCpuTimeUnit.textContent = "秒";
+      pseudoCpuTimeRow.appendChild(pseudoCpuTimeLabel);
+      pseudoCpuTimeRow.appendChild(pseudoCpuTimeInput);
+      pseudoCpuTimeRow.appendChild(pseudoCpuTimeUnit);
+      content.appendChild(pseudoCpuTimeRow);
+
+      // AFK時のCPU代行（ユーザー要望2026-08-08）。連続タイムアップ回数のしきい値・代行CPUの
+      // 強さは管理者だけが調整できる。切替そのものの挙動はturn-timer.js/main.jsが担い、
+      // ここは設定値の編集だけ。
+      if (isAdminUser()) {
+        const afkTitle = document.createElement("div");
+        afkTitle.style.cssText = "font-size: 0.78rem; color: #fbbf24; margin: 0.9rem 0 0.3rem; font-weight: bold;";
+        afkTitle.textContent = "AFK時のCPU代行（管理者のみ）";
+        content.appendChild(afkTitle);
+
+        content.appendChild(
+          buildCheckboxRow("連続タイムアップで自動的にCPU代行へ切り替える", isAfkCpuTakeoverEnabled(), (checked) =>
+            setAfkCpuTakeoverEnabled(checked)
+          )
+        );
+
+        const afkThRow = document.createElement("label");
+        afkThRow.style.cssText = "display:flex; align-items:center; gap:0.5rem; margin:0.4rem 0 0.2rem; font-size:0.85rem;";
+        const afkThLabel = document.createElement("span");
+        afkThLabel.textContent = "CPU代行へ切り替える連続タイムアップ回数";
+        afkThLabel.style.cssText = "flex:1;";
+        const afkThInput = document.createElement("input");
+        afkThInput.type = "number";
+        afkThInput.min = "1";
+        afkThInput.max = "20";
+        afkThInput.step = "1";
+        afkThInput.value = String(getAfkTimeoutThreshold());
+        afkThInput.style.cssText =
+          "width:4rem; padding:0.2rem 0.3rem; background:rgba(15,23,32,0.9); border:1px solid rgba(148,163,184,0.5); border-radius:0.3rem; color:#e2e8f0;";
+        afkThInput.addEventListener("change", () => {
+          setAfkTimeoutThreshold(afkThInput.value);
+          afkThInput.value = String(getAfkTimeoutThreshold());
+        });
+        const afkThUnit = document.createElement("span");
+        afkThUnit.textContent = "回";
+        afkThRow.append(afkThLabel, afkThInput, afkThUnit);
+        content.appendChild(afkThRow);
+
+        const afkDiffRow = document.createElement("label");
+        afkDiffRow.style.cssText = "display:flex; align-items:center; gap:0.5rem; margin:0.2rem 0; font-size:0.85rem;";
+        const afkDiffLabel = document.createElement("span");
+        afkDiffLabel.textContent = "代行CPUの強さ";
+        afkDiffLabel.style.cssText = "flex:1;";
+        const afkDiffSel = document.createElement("select");
+        afkDiffSel.style.cssText =
+          "padding:0.2rem 0.3rem; background:rgba(15,23,32,0.9); border:1px solid rgba(148,163,184,0.5); border-radius:0.3rem; color:#e2e8f0;";
+        [
+          ["rookie", t("cpu.diff.rookie")],
+          ["intermediate", t("cpu.diff.intermediate")],
+          ["advanced", t("cpu.diff.advanced")],
+          ["master", t("cpu.diff.master")],
+        ].forEach(([v, label]) => {
+          const opt = document.createElement("option");
+          opt.value = v;
+          opt.textContent = label;
+          if (v === getAfkCpuDifficulty()) opt.selected = true;
+          afkDiffSel.appendChild(opt);
+        });
+        afkDiffSel.addEventListener("change", () => setAfkCpuDifficulty(afkDiffSel.value));
+        afkDiffRow.append(afkDiffLabel, afkDiffSel);
+        content.appendChild(afkDiffRow);
+      }
+    },
+    { icon: "🧪" }
+  );
+}
+
 function buildCheckboxRow(label, checked, onChange) {
   const row = document.createElement("label");
   row.className = "options-menu-checkbox-row";
@@ -740,44 +909,120 @@ export function initOptionsMenu() {
 
     panel.appendChild(buildSectionTitle(t("opt.basicSettings")));
 
-    // ユーザー要望（続き64）「基本設定内のUIを整理したい」への対応で、性質の近い項目を
-    // 4グループ（戦績連携カード＋音量／表示・演出／自動処理・タイマー）へ再編した。
-    // 戦績連携は折りたたまず一番上に単独表示（buildStatsPlayerLinkRow参照）。
-
+    // ユーザー要望2026-08-28「基本設定内のUIを整備したい。現在ライトユーザーには優しくない」
+    // への対応（続き299）。方針は2つ。
+    //  A: よく使う設定（音量・カードの大きさ・全画面・使う前に確認）は折りたたまずベタ置きにし、
+    //     開いた直後に「まず触るもの」がそのまま操作できるようにした。
+    //  B: 残りは「機能の種類」（表示・演出／自動処理・タイマー）ではなく「困りごと」で分けた
+    //     （動きが重い／画面の見え方／…）。困っている人が症状の言葉から辿り着けるようにするため。
+    // あわせて、入れ子の折りたたみ（旧「ロックエリア関連」「モーダル表示時間」「アニメーションを
+    // 減らす」）は、開いた中にさらに閉じた箱がある＝存在に気づけないため全廃し、小見出し
+    // （buildSubLabel）に置き換えた。機能自体は1つも減らしていない（置き場所と呼び方の変更のみ）。
     panel.appendChild(buildLanguageRow());
 
     panel.appendChild(buildStatsPlayerLinkRow());
 
     panel.appendChild(
+      buildPlainGroupHeader(t("opt.sec.group.common"), () => {
+        setSoundVolume(0.8);
+        setBgmVolume(0.5);
+        setCardPreviewSize(20);
+        setActionConfirmEnabled(true);
+        saveMyPreference({ sound_volume: 0.8, sound_volume_bgm: 50, action_confirm_enabled: true });
+        renderContent();
+      })
+    );
+    {
+      const volumeRow = buildVolumeRow();
+      const volumeSlider = volumeRow.querySelector("input[type=range]");
+      volumeSlider.addEventListener("change", () => {
+        saveMyPreference({ sound_volume: Number(volumeSlider.value) / 100 });
+      });
+      panel.appendChild(volumeRow);
+    }
+    panel.appendChild(buildBgmVolumeRow());
+    panel.appendChild(buildCardPreviewSizeRow());
+    // 全画面は「押した瞬間に入/出が切り替わる」ボタン的なチェック（未対応端末では出さない）。
+    if (isFullscreenSupported()) {
+      panel.appendChild(
+        buildCheckboxRow(t("opt.chk.fullscreen"), isFullscreenActive(), () => {
+          toggleFullscreen();
+        })
+      );
+    }
+    // ユーザー要望「ロック前・手札使用前の確認モーダルを全デバイスで出す。モーダルの
+    // 『今後表示しない』でオフにでき、ここから再度オンに戻せるように」。うっかり操作を
+    // 防ぐ設定＝初めての人ほど触るため、よく使う設定として一番上のブロックに置く。
+    panel.appendChild(
+      buildCheckboxRow(t("opt.chk.actionConfirm"), isActionConfirmEnabled(), (checked) => {
+        setActionConfirmEnabled(checked);
+        saveMyPreference({ action_confirm_enabled: checked });
+      })
+    );
+
+    // --- ここから下は「困りごと」ごとの折りたたみ（入れ子なし・1階層のみ） ---
+
+    // 「動きが重い・カクつくとき」。旧「表示・演出 > アニメーションを減らす」（入れ子の中の
+    // 入れ子）＋タブレットのちらつき対策の2D表示を、症状の名前で1つにまとめた。純粋に
+    // クライアントローカルな描画設定のため、ONにしても相手プレイヤーの画面には影響しない。
+    panel.appendChild(
       buildCollapsibleSection(
-        t("opt.sec.group.volume"),
+        t("opt.sec.group.heavy"),
         (content) => {
-          const volumeRow = buildVolumeRow();
-          const volumeSlider = volumeRow.querySelector("input[type=range]");
-          volumeSlider.addEventListener("change", () => {
-            saveMyPreference({ sound_volume: Number(volumeSlider.value) / 100 });
-          });
-          content.appendChild(volumeRow);
-          content.appendChild(buildBgmVolumeRow());
+          content.appendChild(
+            buildCheckboxRow(t("opt.chk.disableFlight"), isFlightAnimationDisabled(), (checked) => {
+              setFlightAnimationDisabled(checked);
+              saveMyPreference({ flight_animation_disabled: checked });
+            })
+          );
+          content.appendChild(
+            buildCheckboxRow(t("opt.chk.disableArrival"), isArrivalEffectDisabled(), (checked) => {
+              setArrivalEffectDisabled(checked);
+              saveMyPreference({ arrival_effect_disabled: checked });
+            })
+          );
+          content.appendChild(
+            buildCheckboxRow(t("opt.chk.disableGlow"), isContinuousGlowDisabled(), (checked) => {
+              setContinuousGlowDisabled(checked);
+              document.body.classList.toggle("reduce-glow", checked);
+              saveMyPreference({ continuous_glow_disabled: checked });
+            })
+          );
+          // 実体はtablet-2d-mode.jsで管理者モードのトグルと共有している（同じ状態）。
+          content.appendChild(
+            buildCheckboxRow(t("opt.chk.flatten2d"), isFlatten2dMode(), (checked) => {
+              setFlatten2dMode(checked);
+              saveMyPreference({ flatten_2d_mode: checked });
+            })
+          );
         },
         {
-          icon: "🔊",
+          icon: "🐢",
           onReset: () => {
-            setSoundVolume(0.8);
-            setBgmVolume(0.5);
-            saveMyPreference({ sound_volume: 0.8, sound_volume_bgm: 50 });
+            setFlightAnimationDisabled(false);
+            setArrivalEffectDisabled(false);
+            setContinuousGlowDisabled(false);
+            document.body.classList.remove("reduce-glow");
+            setFlatten2dMode(false);
+            window.dispatchEvent(new CustomEvent("admin:change"));
+            saveMyPreference({
+              flight_animation_disabled: false,
+              arrival_effect_disabled: false,
+              continuous_glow_disabled: false,
+              flatten_2d_mode: false,
+            });
             renderContent();
           },
         }
       )
     );
 
+    // 「画面の見え方」。旧「表示・演出」から、よく使う設定へ移した分と動作の重さ関連を
+    // 除いた残り＋旧入れ子2つ（ロックエリア関連／モーダル表示時間）を小見出しで並べた。
     panel.appendChild(
       buildCollapsibleSection(
-        t("opt.sec.group.display"),
+        t("opt.sec.group.look"),
         (content) => {
-          content.appendChild(buildCardPreviewSizeRow());
-          content.appendChild(buildCardPreviewSideRow());
           // ユーザー要望「盤面（場・捨て場・ロックエリア）のカードは遠景で文字が読めないので、
           // イラストのみのカード画像で映えさせたい。ホバー拡大や手札は通常のテキストあり画像
           // のまま」。この端末のみのローカル設定（board-card-display.js、相手には非同期）。
@@ -786,146 +1031,71 @@ export function initOptionsMenu() {
               setBoardIllustOnly(checked);
             })
           );
+          content.appendChild(buildCardPreviewSideRow());
           // ユーザー要望2026-08-07「マウスホイールで盤面を拡大すると自分の手札が見切れる。
-          // ステータスエリアのように画角固定できないか」。ONで自分の手札を盤面ズームの外側の
-          // 固定トレイ（画面下）に出す（fixed-hand.js）。見た目は平らな手札トレイになる。
+          // ステータスエリアのように画角固定できないか」（fixed-hand.js）。
           content.appendChild(
             buildCheckboxRow(t("opt.chk.fixedHand"), isFixedHandEnabled(), (checked) => {
               setFixedHandEnabled(checked);
             })
           );
-          // ユーザー要望「タブレットの点滅対策として、2D表示への切り替えを画面右上の
-          // オプションからもできるようにしたい」。実体はtablet-2d-mode.jsで管理者モードと
-          // 共有している（admin.jsの「2D表示に切り替える」トグルと同じ状態）。
           content.appendChild(
-            buildCheckboxRow(t("opt.chk.flatten2d"), isFlatten2dMode(), (checked) => {
-              setFlatten2dMode(checked);
-              saveMyPreference({ flatten_2d_mode: checked });
+            buildCheckboxRow(t("opt.chk.lockAreaBar"), isLockAreaBarVisible(), (checked) => {
+              setLockAreaBarVisible(checked);
+              window.dispatchEvent(new CustomEvent("admin:change"));
+              saveMyPreference({ lock_area_bar_visible: checked });
             })
           );
-          // ユーザー要望2026-08-18「全画面表示ボタンをオプション内にも追加」。ブラウザの
-          // タブ/URL欄/ブックマークバーを隠す。チェックのON/OFFで全画面の入/出を切り替える
-          // （クリック＝ユーザー操作起点なのでrequestFullscreenが発動できる）。未対応端末では出さない。
-          if (isFullscreenSupported()) {
-            content.appendChild(
-              buildCheckboxRow(t("opt.chk.fullscreen"), isFullscreenActive(), () => {
-                toggleFullscreen();
-              })
-            );
-          }
-          // ユーザー要望「相手の基本時間のカウントダウンを表示、非表示ボタンを基本設定に
-          // 追加してください。デフォルトは非表示で」。自分自身のカウントダウンは常に
-          // 表示する（この設定の対象外）。画面中央の砂時計ロープは誰の分でも従来通り
-          // 常時表示のまま（turn-timer.jsのupdateRope、この設定の対象外）。
+          content.appendChild(
+            buildCheckboxRow(t("opt.chk.lockColor"), isLockColorVisible(), (checked) => {
+              setLockColorVisible(checked);
+              window.dispatchEvent(new CustomEvent("admin:change"));
+              saveMyPreference({ lock_color_visible: checked });
+            })
+          );
+          // 自分自身のカウントダウンは常に表示する（この設定の対象外）。画面中央の砂時計
+          // ロープも誰の分でも常時表示のまま（turn-timer.jsのupdateRope）。
           content.appendChild(
             buildCheckboxRow(t("opt.chk.opponentBaseTimer"), isOpponentBaseTimerVisible(), (checked) => {
               setOpponentBaseTimerVisible(checked);
               saveMyPreference({ opponent_base_timer_visible: checked });
             })
           );
-          // ユーザー要望「ロック前・手札使用前の確認モーダルを全デバイスで出す。モーダルの
-          // 『今後表示しない』でオフにでき、ここから再度オンに戻せるように」。さらに要望で
-          // アカウント同期（別端末でも共有）にした——ローカル即時反映(action-confirm-prefs.js,
-          // localStorage)＋saveMyPreferenceでso7_user_profiles.action_confirm_enabledへ保存し、
-          // ログイン時にloadMyPreferencesが適用する（他の基本設定と同じパターン）。
+          content.appendChild(buildSubLabel(t("opt.sec.modalDuration")));
           content.appendChild(
-            buildCheckboxRow(t("opt.chk.actionConfirm"), isActionConfirmEnabled(), (checked) => {
-              setActionConfirmEnabled(checked);
-              saveMyPreference({ action_confirm_enabled: checked });
+            buildDurationRow("相手のゲートに侵入した時のお知らせ", "--gate-invasion-modal-step-duration", 3.5, (value) => {
+              saveMyPreference({ gate_invasion_modal_duration: value });
             })
           );
           content.appendChild(
-            buildCollapsibleSection(t("opt.sec.lockArea"), (subContent) => {
-              subContent.appendChild(
-                buildCheckboxRow(t("opt.chk.lockAreaBar"), isLockAreaBarVisible(), (checked) => {
-                  setLockAreaBarVisible(checked);
-                  window.dispatchEvent(new CustomEvent("admin:change"));
-                  saveMyPreference({ lock_area_bar_visible: checked });
-                })
-              );
-              subContent.appendChild(
-                buildCheckboxRow(t("opt.chk.lockColor"), isLockColorVisible(), (checked) => {
-                  setLockColorVisible(checked);
-                  window.dispatchEvent(new CustomEvent("admin:change"));
-                  saveMyPreference({ lock_color_visible: checked });
-                })
-              );
+            buildDurationRow("カードに到達した時のお知らせ", "--card-arrival-modal-duration", 5, (value) => {
+              saveMyPreference({ card_arrival_modal_duration: value });
             })
           );
           content.appendChild(
-            buildCollapsibleSection(t("opt.sec.modalDuration"), (subContent) => {
-              subContent.appendChild(
-                buildDurationRow("相手ゲート侵攻ボーナス通知", "--gate-invasion-modal-step-duration", 3.5, (value) => {
-                  saveMyPreference({ gate_invasion_modal_duration: value });
-                })
-              );
-              subContent.appendChild(
-                buildDurationRow("到達モーダル", "--card-arrival-modal-duration", 5, (value) => {
-                  saveMyPreference({ card_arrival_modal_duration: value });
-                })
-              );
-              subContent.appendChild(
-                buildDurationRow("カード獲得の中央フラッシュ（この後、右下のストックへ）", "--hand-pickup-toast-duration", 5, (value) => {
-                  saveMyPreference({ hand_pickup_toast_duration: value });
-                })
-              );
-            })
-          );
-          // パフォーマンス改善用。純粋にクライアントローカルな描画設定のため、1人がONに
-          // しても相手プレイヤーの画面には一切影響しない（各ブラウザは自分のstateから
-          // 独立して描画する）。
-          content.appendChild(
-            buildCollapsibleSection(t("opt.sec.reduceAnim"), (subContent) => {
-              subContent.appendChild(
-                buildCheckboxRow(t("opt.chk.disableFlight"), isFlightAnimationDisabled(), (checked) => {
-                  setFlightAnimationDisabled(checked);
-                  saveMyPreference({ flight_animation_disabled: checked });
-                })
-              );
-              subContent.appendChild(
-                buildCheckboxRow(t("opt.chk.disableArrival"), isArrivalEffectDisabled(), (checked) => {
-                  setArrivalEffectDisabled(checked);
-                  saveMyPreference({ arrival_effect_disabled: checked });
-                })
-              );
-              subContent.appendChild(
-                buildCheckboxRow(t("opt.chk.disableGlow"), isContinuousGlowDisabled(), (checked) => {
-                  setContinuousGlowDisabled(checked);
-                  document.body.classList.toggle("reduce-glow", checked);
-                  saveMyPreference({ continuous_glow_disabled: checked });
-                })
-              );
+            buildDurationRow("カードを手に入れた時の中央表示（この後、右下にたまります）", "--hand-pickup-toast-duration", 5, (value) => {
+              saveMyPreference({ hand_pickup_toast_duration: value });
             })
           );
         },
         {
-          icon: "🖥️",
+          icon: "👀",
           onReset: () => {
-            document.documentElement.style.setProperty("--card-preview-size", "20rem");
             setBoardIllustOnly(false);
-            setFlatten2dMode(false);
-            setOpponentBaseTimerVisible(false);
             setLockAreaBarVisible(true);
             setLockColorVisible(true);
+            setOpponentBaseTimerVisible(false);
             document.documentElement.style.setProperty("--gate-invasion-modal-step-duration", "3.5");
             document.documentElement.style.setProperty("--card-arrival-modal-duration", "5");
             document.documentElement.style.setProperty("--hand-pickup-toast-duration", "5");
-            setFlightAnimationDisabled(false);
-            setArrivalEffectDisabled(false);
-            setContinuousGlowDisabled(false);
-            document.body.classList.remove("reduce-glow");
             window.dispatchEvent(new CustomEvent("admin:change"));
             saveMyPreference({
-              flatten_2d_mode: false,
-              opponent_base_timer_visible: false,
               lock_area_bar_visible: true,
               lock_color_visible: true,
+              opponent_base_timer_visible: false,
               gate_invasion_modal_duration: 3.5,
               card_arrival_modal_duration: 5,
               hand_pickup_toast_duration: 5,
-              flight_animation_disabled: false,
-              arrival_effect_disabled: false,
-              continuous_glow_disabled: false,
             });
             renderContent();
           },
@@ -972,7 +1142,7 @@ export function initOptionsMenu() {
     // 達したため account 保存に切り替えた）。デフォルトON（続き63）。
     panel.appendChild(
       buildCollapsibleSection(
-        t("opt.sec.group.autoTimer"),
+        t("opt.sec.group.auto"),
         (content) => {
           const note = document.createElement("div");
           note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.5rem; line-height: 1.5;";
@@ -1055,74 +1225,6 @@ export function initOptionsMenu() {
             content.appendChild(dragRestrictRow);
           }
 
-          // ユーザー要望（続き107）「疑似CPUモードの設定を管理者以外にも触れるように
-          // オプションの直下に移設してください」への対応。以前は管理者モードの中に
-          // しかなかった2つのチェックボックス（admin.jsのisPseudoCpuModeEnabled/
-          // setPseudoCpuModeEnabled・isPseudoCpuIncludeSelf/setPseudoCpuIncludeSelfを
-          // そのまま使い回す、実体は変わらない）をここへ移設した。
-          const pseudoCpuNote = document.createElement("div");
-          pseudoCpuNote.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin: 0.6rem 0 0.3rem; line-height: 1.5;";
-          pseudoCpuNote.textContent =
-            "疑似CPUモード（自動選択のテスト用）: オンライン対戦では部屋作成時の" +
-            "チェックボックスが対局全体で優先される（下の「有効化」はローカルモード用）。" +
-            "「自分の座席も対象に含める」は各プレイヤー個人の選択で、対局中いつでも変更できる。";
-          content.appendChild(pseudoCpuNote);
-
-          const pseudoCpuEnableRow = buildCheckboxRow("疑似CPUモードを有効にする（ローカルモード用）", isPseudoCpuModeEnabled(), (checked) => {
-            setPseudoCpuModeEnabled(checked);
-            window.dispatchEvent(new CustomEvent("admin:change"));
-            // ユーザー要望（続き99）「ONにしたら現在持っている基本時間及び砂時計は0に
-            // してください」。turn-timer.js側でこのイベントを受け、今まさに優先権を
-            // 持っている座席が新しい設定で対象になったなら、待たずにその場で基本時間を
-            // 1秒へ縮める。
-            window.dispatchEvent(new CustomEvent("pseudo-cpu-settings-changed"));
-          });
-          content.appendChild(pseudoCpuEnableRow);
-
-          const pseudoCpuSelfRow = buildCheckboxRow(
-            "自分の座席も対象に含める（ONにすると対局が最初から最後まで自動進行し、観戦に徹することができる）",
-            isPseudoCpuIncludeSelf(),
-            (checked) => {
-              setPseudoCpuIncludeSelf(checked);
-              window.dispatchEvent(new CustomEvent("admin:change"));
-              window.dispatchEvent(new CustomEvent("pseudo-cpu-settings-changed"));
-            }
-          );
-          content.appendChild(pseudoCpuSelfRow);
-
-          // ユーザー要望「疑似CPUモードの基本時間（従来固定1秒）をオプションで変更できる
-          // ように」。対象座席がこの秒数だけで即タイムアウト→自動代行する。速くも遅くも
-          // できるよう0.2〜10秒で調整可能（admin.jsのgetPseudoCpuDeadlineMs、localStorage保存）。
-          const pseudoCpuTimeRow = document.createElement("label");
-          pseudoCpuTimeRow.style.cssText =
-            "display: flex; align-items: center; gap: 0.5rem; margin: 0.4rem 0 0.2rem; font-size: 0.85rem;";
-          const pseudoCpuTimeLabel = document.createElement("span");
-          pseudoCpuTimeLabel.textContent = "疑似CPUの基本時間";
-          pseudoCpuTimeLabel.style.cssText = "flex: 1;";
-          const pseudoCpuTimeInput = document.createElement("input");
-          pseudoCpuTimeInput.type = "number";
-          pseudoCpuTimeInput.min = "0.2";
-          pseudoCpuTimeInput.max = "10";
-          pseudoCpuTimeInput.step = "0.1";
-          pseudoCpuTimeInput.value = String(getPseudoCpuDeadlineMs() / 1000);
-          pseudoCpuTimeInput.style.cssText =
-            "width: 4.5rem; padding: 0.2rem 0.3rem; background: rgba(15,23,32,0.9); " +
-            "border: 1px solid rgba(148,163,184,0.5); border-radius: 0.3rem; color: #e2e8f0;";
-          pseudoCpuTimeInput.addEventListener("change", () => {
-            const sec = Number(pseudoCpuTimeInput.value);
-            if (Number.isFinite(sec) && sec > 0) {
-              setPseudoCpuDeadlineMs(Math.round(sec * 1000));
-              window.dispatchEvent(new CustomEvent("pseudo-cpu-settings-changed"));
-            }
-            pseudoCpuTimeInput.value = String(getPseudoCpuDeadlineMs() / 1000);
-          });
-          const pseudoCpuTimeUnit = document.createElement("span");
-          pseudoCpuTimeUnit.textContent = "秒";
-          pseudoCpuTimeRow.appendChild(pseudoCpuTimeLabel);
-          pseudoCpuTimeRow.appendChild(pseudoCpuTimeInput);
-          pseudoCpuTimeRow.appendChild(pseudoCpuTimeUnit);
-          content.appendChild(pseudoCpuTimeRow);
-
           // ユーザー要望（続き74）「自動処理モード時は手札シャッフル/1枚ドロー/公開
           // ドロー/ターン終了を非表示にしてください。緊急のバグ発生時用としてオプ
           // ションの基本設定の中に『緊急ターン終了』ボタンを新設してください」。
@@ -1150,67 +1252,6 @@ export function initOptionsMenu() {
             content.appendChild(emergencyBtn);
           }
 
-          // AFK時のCPU代行（ユーザー要望2026-08-08）。連続タイムアップ回数のしきい値・代行CPUの
-          // 強さは管理者だけが調整できる（基本設定内・管理者のみ表示）。切替そのものの挙動は
-          // turn-timer.js/main.jsが担い、ここは設定値の編集だけ。
-          if (isAdminUser()) {
-            const afkTitle = document.createElement("div");
-            afkTitle.style.cssText = "font-size: 0.78rem; color: #fbbf24; margin: 0.9rem 0 0.3rem; font-weight: bold;";
-            afkTitle.textContent = "AFK時のCPU代行（管理者のみ）";
-            content.appendChild(afkTitle);
-
-            content.appendChild(
-              buildCheckboxRow("連続タイムアップで自動的にCPU代行へ切り替える", isAfkCpuTakeoverEnabled(), (checked) =>
-                setAfkCpuTakeoverEnabled(checked)
-              )
-            );
-
-            const afkThRow = document.createElement("label");
-            afkThRow.style.cssText = "display:flex; align-items:center; gap:0.5rem; margin:0.4rem 0 0.2rem; font-size:0.85rem;";
-            const afkThLabel = document.createElement("span");
-            afkThLabel.textContent = "CPU代行へ切り替える連続タイムアップ回数";
-            afkThLabel.style.cssText = "flex:1;";
-            const afkThInput = document.createElement("input");
-            afkThInput.type = "number";
-            afkThInput.min = "1";
-            afkThInput.max = "20";
-            afkThInput.step = "1";
-            afkThInput.value = String(getAfkTimeoutThreshold());
-            afkThInput.style.cssText =
-              "width:4rem; padding:0.2rem 0.3rem; background:rgba(15,23,32,0.9); border:1px solid rgba(148,163,184,0.5); border-radius:0.3rem; color:#e2e8f0;";
-            afkThInput.addEventListener("change", () => {
-              setAfkTimeoutThreshold(afkThInput.value);
-              afkThInput.value = String(getAfkTimeoutThreshold());
-            });
-            const afkThUnit = document.createElement("span");
-            afkThUnit.textContent = "回";
-            afkThRow.append(afkThLabel, afkThInput, afkThUnit);
-            content.appendChild(afkThRow);
-
-            const afkDiffRow = document.createElement("label");
-            afkDiffRow.style.cssText = "display:flex; align-items:center; gap:0.5rem; margin:0.2rem 0; font-size:0.85rem;";
-            const afkDiffLabel = document.createElement("span");
-            afkDiffLabel.textContent = "代行CPUの強さ";
-            afkDiffLabel.style.cssText = "flex:1;";
-            const afkDiffSel = document.createElement("select");
-            afkDiffSel.style.cssText =
-              "padding:0.2rem 0.3rem; background:rgba(15,23,32,0.9); border:1px solid rgba(148,163,184,0.5); border-radius:0.3rem; color:#e2e8f0;";
-            [
-              ["rookie", "新人"],
-              ["intermediate", "中級"],
-              ["advanced", "上級"],
-              ["master", "最強"],
-            ].forEach(([v, label]) => {
-              const opt = document.createElement("option");
-              opt.value = v;
-              opt.textContent = label;
-              if (v === getAfkCpuDifficulty()) opt.selected = true;
-              afkDiffSel.appendChild(opt);
-            });
-            afkDiffSel.addEventListener("change", () => setAfkCpuDifficulty(afkDiffSel.value));
-            afkDiffRow.append(afkDiffLabel, afkDiffSel);
-            content.appendChild(afkDiffRow);
-          }
         },
         {
           icon: "⚙️",
@@ -1303,6 +1344,8 @@ export function initOptionsMenu() {
       content.appendChild(presetBtn);
     });
     panel.appendChild(shortcutSectionEl);
+
+    panel.appendChild(buildAdvancedSection());
 
     panel.appendChild(buildResetAppearanceRow());
 
