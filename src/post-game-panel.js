@@ -3,10 +3,11 @@
 // victory.jsのcheckForVictory()から、オンライン対戦の勝利直後に呼ばれる
 // （showVictoryModal()とは別の、独立したパネル）。
 //
-// 勝者の画面だけ、コメント欄（記入 or パス）を経てから対戦記録を戦績システムへ
-// 登録する（submitStatsMatchResult()自体はここから呼ぶよう変更した——victory.js側は
-// もう呼ばない）。勝者以外の画面は、コメント欄を出さずに直接ボタン列を表示する
-// （実際にmatches.feedbackへ書き込むのは勝者の入力内容だけのため）。
+// 対戦記録の戦績システムへの登録は、このパネルではなく「勝敗が決まった瞬間」に
+// victory.js から行う（ユーザー要望2026-08-28、続き298）。試合ID（＝日時ベースの
+// m_<エポックms>）もその時点で確定するため、このパネルは「確定済みの試合IDに対して、
+// 参加者が各々コメントを付ける」場所になった（勝者・敗者の区別なく全員にコメント欄を
+// 出し、全員が自分で投稿する。以前のように勝者の進み具合を待たない）。
 //
 // 「もう一度遊ぶ」は、まだこの部屋にいる全員が押すか部屋を抜けるまで待つ
 // （online.jsのsetRematchReady/maybeTriggerRematch参照）。実際に新しい対局が
@@ -19,10 +20,11 @@ import {
   getSelfSeat,
   getCurrentGameId,
   getCurrentUser,
-  submitStatsMatchResult,
+  ensureStatsMatchRecorded,
+  getRecordedStatsMatchId,
+  resolveMatchIdForComment,
   submitMatchComment,
   submitMatchCommentForSeat,
-  fetchMyRecentMatchId,
   onMatchRecordedEvents,
   onMatchCommentEvents,
   broadcastMatchComment,
@@ -247,20 +249,9 @@ function buildButtonsSection(gameId) {
   return col;
 }
 
-// getterがtruthyを返すまで（または timeout まで）待つ。勝者が試合を作成し、そのIDが
-// ブロードキャストで届くまでのわずかな時間、敗者側のコメント送信を待たせるために使う。
-function waitForMatchId(getter, timeoutMs = 8000) {
-  return new Promise((resolve) => {
-    const start = Date.now();
-    const check = () => {
-      const v = getter();
-      if (v) return resolve(v);
-      if (Date.now() - start > timeoutMs) return resolve(null);
-      setTimeout(check, 200);
-    };
-    check();
-  });
-}
+// （旧 waitForMatchId は撤去した。試合IDは勝敗確定の瞬間に確定するようになり〈続き298〉、
+// 「勝者が試合を作るのを待つ」必要そのものが無くなったため。待ちと検索は online.js の
+// resolveMatchIdForComment に一本化してある。）
 
 // 全参加者共通のコメント入力欄（案①：勝者・敗者を区別せず全員がコメントできる）。
 // onFinish(comment)には入力文字列（パス時は空文字）が渡る。
@@ -515,7 +506,9 @@ export function showPostGamePanel({ activePlayers, winnerSeat }) {
   // 試合行(matches)を作るのは勝者のクライアントだけなので、作成された試合ID(matchId)を
   // 取得してから、各参加者が自分のコメントをその試合に紐づけて投稿する。
   const isWinner = getSelfSeat() === winnerSeat;
-  let matchId = null;
+  // 試合IDは勝敗が決まった瞬間に確定している（victory.js→ensureStatsMatchRecorded）。
+  // 自分で登録した／ブロードキャストで受け取った分がここで既に分かっていることが多い。
+  let matchId = getRecordedStatsMatchId();
 
   // #45: 敗者のコメントは Realtime ブロードキャスト（試合ID受信）だけに頼ると取りこぼしで
   // 失われることがあった。勝者は matchId を確実に持っているので、敗者はコメントを勝者へも
@@ -556,19 +549,14 @@ export function showPostGamePanel({ activePlayers, winnerSeat }) {
     })();
     // 勝者は試合を記録する（コメントはfeedbackへ入れず、下で全員と同じくreplyとして投稿）。
     // 戻り値の試合IDを保持し、他の参加者へはsubmitStatsMatchResult内でブロードキャストする。
-    logAction("diag-stats-submit-start", { activePlayers, winnerSeat });
-    submitStatsMatchResult({ activePlayers, winnerSeat, feedback: "" })
+    // 実際の登録は勝敗が決まった瞬間に victory.js から済んでいる（続き298）。ここでは
+    // 確定済みの試合IDを受け取るだけ（万一まだなら、この呼び出しが登録を担う＝冪等）。
+    ensureStatsMatchRecorded({ activePlayers, winnerSeat })
       .then((id) => {
         matchId = id || null;
-        // idがnull＝submitStatsMatchResult内部で静かにreturnした（対局行が見つからない／
-        // 参加者が全員ゲスト等）。登録できなかったことが後から分かるようログに残す。
-        logAction("diag-stats-submit-done", { matchId, recorded: !!matchId });
         flushPendingLoserComments(); // 先に届いていた敗者コメントを投稿する（#45）
       })
-      .catch((err) => {
-        logAction("diag-stats-submit-failed", { message: String(err?.message || err) });
-        console.error("submitStatsMatchResult failed", err);
-      })
+      .catch((err) => console.error("ensureStatsMatchRecorded failed", err))
       .finally(async () => {
         try {
           const before = await beforeRankProfilePromise;
@@ -593,31 +581,27 @@ export function showPostGamePanel({ activePlayers, winnerSeat }) {
   body.appendChild(
     buildCommentSection(async (comment) => {
       if (comment) {
-        if (isWinner) {
-          // 勝者は matchId を確実に持っている。届くのを待って自分のコメントを投稿。
-          const id = await waitForMatchId(() => matchId);
-          if (id) {
-            try {
-              await submitMatchComment(id, comment);
-            } catch (err) {
-              console.error("submitMatchComment failed", err);
-            }
+        // ユーザー要望2026-08-28「対戦に参加したプレイヤーが各々コメントを残せるように」。
+        // 以前は敗者のコメントを「勝者が作った試合IDが届くまで待って」投稿していたため、
+        // 勝者の進み具合に引きずられて（届かなければ）捨てられることがあった。試合IDは
+        // 勝敗確定の瞬間に確定するようになったので、勝者・敗者の区別なく全員が同じIDへ
+        // 自分で投稿する。返信IDは（試合ID×プレイヤー）で決定的なので、後述の中継と
+        // 重なっても二重投稿にはならない。
+        if (!isWinner) {
+          // ゲスト（戦績プレイヤーIDを持たない）は自分では試合を検索できないため、従来通り
+          // 勝者への中継も残す（勝者が代理投稿する。#42/#45の保険）。
+          broadcastMatchComment({ fromPlayer: getSelfSeat(), comment });
+        }
+        const id = matchId || (await resolveMatchIdForComment());
+        if (id) {
+          matchId = id;
+          try {
+            await submitMatchComment(id, comment);
+          } catch (err) {
+            console.error("submitMatchComment failed", err);
           }
         } else {
-          // 敗者（#42/#45）: 2経路で確実に届ける。①勝者へブロードキャスト中継（勝者が代理投稿）。
-          // ②自分でも試合IDを取得して直接投稿（ブロードキャスト受信 or matches検索）。返信IDが
-          // 決定的なので、両方成功しても二重投稿にはならない（PK重複で片方が弾かれる）。
-          broadcastMatchComment({ fromPlayer: getSelfSeat(), comment });
-          let id = await waitForMatchId(() => matchId, 6000);
-          if (!id) id = await fetchMyRecentMatchId();
-          if (id) {
-            try {
-              await submitMatchComment(id, comment);
-            } catch (err) {
-              console.error("submitMatchComment failed", err);
-            }
-          }
-          // 直接投稿できなくても、勝者側の中継投稿が働くので黙って捨てることにはならない。
+          logAction("diag-match-comment-no-id", { seat: getSelfSeat() });
         }
       }
       if (unsubscribeMatchRecorded) {

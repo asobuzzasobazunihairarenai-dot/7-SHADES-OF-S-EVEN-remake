@@ -12,7 +12,7 @@ import { getAvatarVariant, applyAvatarContent } from "./avatar-render.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { playVictoryBgm, stopVictoryBgm } from "./sound.js";
 import { showPostGamePanel, showCpuBattleEndPanel } from "./post-game-panel.js";
-import { awardMatchCurrency, awardCpuWinCurrency, getSelfSeat, getCurrentGameId, reportRankedResult, getSelfRank, getRankedPreMatchRank, markRankedResultShown } from "./online.js";
+import { awardMatchCurrency, awardCpuWinCurrency, getSelfSeat, getCurrentGameId, reportRankedResult, getSelfRank, getRankedPreMatchRank, markRankedResultShown, ensureStatsMatchRecorded, scheduleStatsBackupRecord, clearRecordedStatsMatch } from "./online.js";
 // フェーズ3: ランク対局の結果表示（新ランク・七色ゲージ・勝敗）。
 import { showRankedResultModal } from "./ranked-result-modal.js";
 import { isCpuBattleActive, getEidosStoryStage, getEidosStoryResultHandler } from "./cpu-battle-state.js";
@@ -36,6 +36,9 @@ let announcedPlayers = new Set();
 // きちんとモーダルが出るようにする。
 export function resetVictoryTracking() {
   announcedPlayers = new Set();
+  // 新しい対戦＝前の対戦の試合ID（戦績システム側）は使い回さない。同じ部屋で連戦しても
+  // 試合は別物なので、必ず捨ててから次の勝敗確定で新しいIDを採番する。
+  clearRecordedStatsMatch();
 }
 
 // ユーザー報告（続き86）「勝利後、まだ盤面のタイマーが止まらず自動処理が継続されて
@@ -239,6 +242,20 @@ export function checkForVictory() {
           return { color, cardId: tok?.cardId ?? null };
         });
         logAction("diag-victory", { player, lockedCount: getLockedCount(player), slots });
+      }
+      // ユーザー要望2026-08-28「戦績システムへの登録は勝敗が決まった瞬間に」。以前は
+      // 対戦終了パネル（モーダルを全部閉じ切った後）から登録していたため、勝者がそこへ
+      // たどり着けないと対戦がまるごと記録されなかった。ここで登録してしまえば、以後の
+      // モーダル・コメント入力・退室のどれが起きても記録は残る。登録するのは勝者本人の
+      // クライアントだけ（二重登録を避けるため）。他の参加者は、勝者が落ちていた場合の
+      // 保険として、少し待ってからまだ登録されていなければ代わりに登録する。
+      if (isOnlineMode()) {
+        const activePlayers = [...getState().activePlayers];
+        if (player === getSelfSeat()) {
+          void ensureStatsMatchRecorded({ activePlayers, winnerSeat: player });
+        } else {
+          scheduleStatsBackupRecord({ activePlayers, winnerSeat: player });
+        }
       }
       // ユーザー要望「ゲーム終了時にコメント記入→戦績確認・もう一度遊ぶボタン」＋
       // （続き87）「勝利時にお金を獲得した演出モーダルが欲しい」「勝利後、自分の順位を

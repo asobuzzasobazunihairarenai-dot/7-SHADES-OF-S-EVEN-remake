@@ -2539,6 +2539,92 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat, feedba
   return matchRow.id;
 }
 
+// ユーザー要望2026-08-28「戦績システムへの登録は勝敗が決まった瞬間に。対戦ごとに対戦ID
+// （日時でよい）を決めて、コメントはそのIDを元に後から付ける形にしたい」への対応。
+// 【変更前】登録は「勝者が対戦終了パネルまでたどり着いた時」＝通貨獲得・順位・個人結果・
+// ランク結果のモーダルを全部閉じ切った後にしか走らなかった。そのため勝者がその前にタブを
+// 閉じる／通信が切れる／（#183のように）部屋から出されると、対戦がまるごと戦績に載らず、
+// さらに敗者のコメントも「勝者が作った試合ID」を待つ設計だったため道連れで捨てられていた。
+// 【変更後】victory.jsが勝敗確定の瞬間にこれを呼ぶ。試合ID（m_<エポックms>＝実質「日時」）は
+// その時点で確定し、以後のコメントは全員がこのIDに対して各自で投稿する。
+// この関数は同じ対局につき1回だけ実際に登録する（多重呼び出し・多重クリックに耐える）。
+let recordedStatsMatch = { gameId: null, matchId: null, inFlight: null };
+// 今の対局で確定済みの試合ID（未登録・別対局ならnull）。
+export function getRecordedStatsMatchId() {
+  return recordedStatsMatch.gameId && recordedStatsMatch.gameId === currentGameId ? recordedStatsMatch.matchId : null;
+}
+// 新しい対局が始まった時に呼ぶ（連戦＝同じ部屋でも試合IDは別なので必ず捨てる）。
+export function clearRecordedStatsMatch() {
+  recordedStatsMatch = { gameId: null, matchId: null, inFlight: null };
+}
+// 勝者以外のクライアントが、ブロードキャストで受け取った試合IDを覚える。
+function noteRecordedStatsMatchId(matchId) {
+  if (!matchId || !currentGameId) return;
+  if (recordedStatsMatch.gameId === currentGameId && recordedStatsMatch.matchId) return;
+  recordedStatsMatch = { gameId: currentGameId, matchId, inFlight: null };
+}
+// 勝者のクライアントが落ちていた場合に、他の参加者が代わりに登録するまでの待ち時間。
+const STATS_BACKUP_DELAY_MS = 20000;
+// 「今終わった試合が既に登録されているか」を確かめる窓。連戦で前の試合を誤って
+// 「登録済み」と判定しないよう短くする（1試合はどんなに短くてもこれより長くかかる）。
+const STATS_RECENT_WINDOW_MS = 5 * 60 * 1000;
+export async function ensureStatsMatchRecorded({ activePlayers, winnerSeat, asBackup = false }) {
+  if (!client || !currentGameId) {
+    logAction("diag-stats-abort", { reason: "no-game-id", asBackup });
+    return null;
+  }
+  const gameId = currentGameId;
+  if (recordedStatsMatch.gameId === gameId) {
+    if (recordedStatsMatch.matchId) return recordedStatsMatch.matchId;
+    if (recordedStatsMatch.inFlight) return recordedStatsMatch.inFlight;
+  }
+  const run = (async () => {
+    if (asBackup) {
+      // 勝者が既に登録していれば何もしない（二重登録＝対戦数の二重カウントを防ぐ）。
+      const existing = await fetchMyRecentMatchId(STATS_RECENT_WINDOW_MS);
+      if (existing) {
+        logAction("diag-stats-backup-skip", { matchId: existing });
+        return existing;
+      }
+      logAction("diag-stats-backup-record", { winnerSeat });
+    }
+    logAction("diag-stats-submit-start", { activePlayers, winnerSeat, asBackup });
+    const id = (await submitStatsMatchResult({ activePlayers, winnerSeat, feedback: "" })) || null;
+    logAction("diag-stats-submit-done", { matchId: id, recorded: !!id, asBackup });
+    return id;
+  })().catch((err) => {
+    logAction("diag-stats-submit-failed", { message: String(err?.message || err), asBackup });
+    console.error("ensureStatsMatchRecorded failed", err);
+    return null;
+  });
+  recordedStatsMatch = { gameId, matchId: null, inFlight: run };
+  const id = await run;
+  if (recordedStatsMatch.gameId === gameId) recordedStatsMatch = { gameId, matchId: id, inFlight: null };
+  return id;
+}
+// 自分のコメントを紐づける試合IDを解決する。①自分で登録した/ブロードキャストで受け取った
+// ②少し待って受け取る ③自分が参加した直近の試合をmatchesから直接引く、の順に試す。
+export async function resolveMatchIdForComment(waitMs = 6000) {
+  const known = getRecordedStatsMatchId();
+  if (known) return known;
+  const start = Date.now();
+  while (Date.now() - start < waitMs) {
+    await new Promise((r) => setTimeout(r, 300));
+    const id = getRecordedStatsMatchId();
+    if (id) return id;
+  }
+  return await fetchMyRecentMatchId(STATS_RECENT_WINDOW_MS);
+}
+// 勝者以外も「勝者が落ちていたら代わりに登録する」保険を持つ（victory.jsから呼ばれる）。
+export function scheduleStatsBackupRecord({ activePlayers, winnerSeat }) {
+  const gameId = currentGameId;
+  setTimeout(() => {
+    if (currentGameId !== gameId) return; // 部屋を離れた/別対局に移った
+    if (getRecordedStatsMatchId()) return; // 勝者の登録がブロードキャストで届いている
+    void ensureStatsMatchRecorded({ activePlayers, winnerSeat, asBackup: true });
+  }, STATS_BACKUP_DELAY_MS);
+}
+
 // 対戦終了パネル（post-game-panel.js）から、参加者各自が自分のコメントを投稿する。試合への
 // 返信(match_feedback_replies)として、自分の戦績プレイヤーIDに紐づけて保存する（ゲストは
 // player_id=null＝戦績システム側で「ゲスト」表示）。matchIdは勝者が作成しブロードキャスト
@@ -2617,7 +2703,7 @@ export function broadcastMatchComment(payload) {
 // フォールバックとして、自分の戦績プレイヤーIDを含む直近（数分以内）の試合を matches から
 // 直接引いて試合IDを得る（勝者が作った試合行は members に全員のIDを含む）。ゲスト/未ログインは
 // プレイヤーIDが無いため対象外（従来どおりブロードキャスト頼み）。
-export async function fetchMyRecentMatchId() {
+export async function fetchMyRecentMatchId(windowMs = 30 * 60 * 1000) {
   if (!client) return null;
   // cachedUserが未設定のこともあるので getCurrentUser でも補う（#45: フォールバックが常に失敗して
   // いた一因の可能性）。
@@ -2632,7 +2718,10 @@ export async function fetchMyRecentMatchId() {
   if (!user || user.is_anonymous) return null;
   const playerId = await lookupStatsPlayerId(user.id);
   if (!playerId) return null;
-  const cutoff = Date.now() - 30 * 60 * 1000; // 直近30分以内（クロックずれ・投稿までの時間に余裕を持たせる）
+  // 既定は直近30分以内（クロックずれ・投稿までの時間に余裕を持たせる）。同じ部屋で連戦
+  // （もう一度遊ぶ）すると同じ顔ぶれの試合が複数並ぶため、「今終わった試合か」を確かめたい
+  // 用途では呼び出し側が短い窓を指定する（ensureStatsMatchRecordedのバックアップ判定など）。
+  const cutoff = Date.now() - windowMs;
   try {
     const { data, error } = await client
       .from("matches")
@@ -3164,6 +3253,8 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
       for (const fn of matchStatEventListeners) fn(payload);
     })
     .on("broadcast", { event: "match_recorded" }, ({ payload }) => {
+      // 受け取った試合IDはモジュール側でも覚える（コメント投稿時に全員が同じIDを使えるように）。
+      noteRecordedStatsMatchId(payload?.matchId);
       for (const fn of matchRecordedListeners) fn(payload);
     })
     .on("broadcast", { event: "colors_resolved" }, () => {
