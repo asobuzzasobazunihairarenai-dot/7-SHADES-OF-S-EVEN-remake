@@ -1383,6 +1383,18 @@ export async function loadMyPreferences() {
     avatar: data.avatar || null,
     pieceSkinIndex: typeof data.piece_skin_index === "number" ? data.piece_skin_index : null,
   });
+  // 続き302: 起動時（ログイン直後）にも、戦績システム側の名前・アバターを今の値へ揃える。
+  // ユーザー報告「マイページでアバター変更→戦績システム確認→画像が割れたまま」への対応。
+  // 変更した瞬間の同期（autoSyncStatsIdentity、updateMyIdentity経由）は続き300で直したが、
+  // それ以前に書き込まれてしまった壊れた値（.../protagonist 等の実在しないURL）は、次に
+  // 名前かアバターを変えるまでDBに残り続けていた。ログインのたびに現在値で上書きすれば、
+  // アプリを開き直すだけで自動的に直る。連携済みの人だけが対象（未連携には何も作らない）。
+  if (data.display_name || data.avatar) {
+    autoSyncStatsIdentity({
+      name: data.display_name || undefined,
+      avatar: data.avatar || undefined,
+    }).catch((err) => console.error("autoSyncStatsIdentity (起動時) failed", err));
+  }
   appearanceApplierFn?.({
     playmatId: data.playmat_id || null,
     cardBackSetIndex: typeof data.card_back_set_index === "number" ? data.card_back_set_index : null,

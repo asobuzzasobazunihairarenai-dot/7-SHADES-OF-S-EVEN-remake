@@ -17611,3 +17611,92 @@ body.theme-light .turn-event-stock-chip-badge,
 body.theme-light-ingame .turn-event-stock-chip-badge {
   background: rgba(255, 253, 245, 0.9);
 }
+
+/* ユーザー報告2026-08-28（続き302）「マイデッキ編集画面で上部の名前設定とかがオプション
+   エリアの黒帯に隠れちゃってる。ほかのページも同様になってないか確認しておいて」。
+   #option-area（上端のアイコン列＋その装飾帯 ::before、高さ --option-area-band-height）は
+   全画面ページより手前に出す設計（body.full-screen-page-active 等でz-indexを引き上げる）なので、
+   各ページの一番上にある要素（← 戻る・タイトル・完了ボタン・枚数表示など）が帯の下に潜り込む。
+   ページ側で帯の高さぶんの余白を必ず確保して防ぐ。スマホは #option-area 全体が
+   --option-area-scale-phone 倍に拡大されるため、余白も同じ倍率にする。
+   ここに置いてあるのは、各ページの元の padding 指定（ファイル内の別の場所）より後に効かせて
+   確実に上書きするため（同じ詳細度なので後勝ち）。 */
+:root {
+  --page-top-safe: calc(var(--option-area-band-height, 3rem) + 0.4rem);
+}
+body.is-phone-device {
+  --page-top-safe: calc((var(--option-area-band-height, 3rem) + 0.4rem) * var(--option-area-scale-phone, 1.65));
+}
+/* 上端に余白を持っていなかったページ（自前のヘッダーバーが画面最上部に密着していた）。 */
+#my-deck-page,
+#my-deck-list-page,
+#shop-panel {
+  padding-top: var(--page-top-safe);
+  box-sizing: border-box;
+}
+/* 元々 2rem の余白があるページ。帯より狭い時だけ広げる（見た目を大きく変えない）。 */
+#home-screen,
+#profile-page,
+#ranking-page,
+#codex-page {
+  padding-top: max(2rem, var(--page-top-safe));
+  box-sizing: border-box;
+}
+
+/* ── マイデッキ編成ページの「デッキの箱」（続き302、ユーザー要望2026-08-28）──────────
+   「マイデッキ編集画面に、マイデッキの箱絵を追加したい。箱にカードをドラッグすると箱絵が
+   そのカードになるようにしたい」。下段（現在のデッキ）の左に立体ケースを置き、カードを
+   ドロップすると deck.mainCardId ＝箱の表紙になる。箱の見た目はマイデッキ一覧・マイページと
+   同じ部品(.mdl-deck-art)の使い回し。 */
+#mdb-deck-body {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: stretch;
+  gap: 0.9rem;
+  min-height: 0;
+  padding-left: 1.1rem;
+}
+#mdb-deck-body #mdb-deck-list {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-left: 0;
+}
+#mdb-deck-case {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  width: 9rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.3rem 0.3rem 0.45rem;
+  border: 1px dashed rgba(212, 175, 90, 0.45);
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+#mdb-deck-case.is-drop-target {
+  border-color: #d4af5a;
+  border-style: solid;
+  background: rgba(212, 175, 90, 0.18);
+  box-shadow: 0 0 0 2px rgba(212, 175, 90, 0.35);
+}
+/* .mdl-deck-art は width:100% + 1:1 なので、箱の枠側で実寸を決める。 */
+#mdb-deck-case .mdl-deck-art {
+  width: 100%;
+  pointer-events: none; /* 中身の画像がドラッグのドロップ判定を邪魔しないように */
+}
+#mdb-deck-case-hint {
+  order: 2; /* 箱（先頭に挿入される）の下に置く */
+  font-size: 0.6rem;
+  line-height: 1.35;
+  color: #94a3b8;
+  text-align: center;
+}
+body.theme-light #mdb-deck-case {
+  border-color: rgba(176, 141, 63, 0.5);
+  background: rgba(176, 141, 63, 0.08);
+}
+body.theme-light #mdb-deck-case-hint {
+  color: #6b5c3c;
+}

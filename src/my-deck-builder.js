@@ -52,6 +52,7 @@ const COLOR_ORDER = ["red", "orange", "yellow", "green", "blue", "pink", "purple
 let overlayEl = null;
 let collectionEl = null;
 let deckListEl = null;
+let deckCaseEl = null; // デッキの箱（立体ケース）。カードをドロップすると箱絵になる
 let summaryEl = null;
 let saveBtn = null;
 let nameInput = null;
@@ -267,6 +268,7 @@ function buildCollectionCard(card) {
     e.preventDefault();
     showNoteMenu(card.id, e.clientX, e.clientY);
   });
+  makeCardDraggable(tile, card.id); // 箱へドラッグすると箱絵になる（デッキに入っている必要あり）
   attachHoverPreview(tile, card.id);
 
   collectionTiles.set(card.id, tile);
@@ -329,12 +331,13 @@ function rebuildDeckList() {
     const isMain = !!currentDeck && currentDeck.mainCardId === card.id;
     star.classList.toggle("is-main", isMain);
     star.textContent = isMain ? "★" : "☆";
-    star.title = "立体ケースの表紙（メインカード）に設定";
+    star.title = "立体ケースの表紙（箱絵）に設定";
     star.addEventListener("click", (e) => {
       e.stopPropagation(); // カード除去（entryのclick）を発火させない
       if (!currentDeck) return;
       currentDeck.mainCardId = currentDeck.mainCardId === card.id ? null : card.id;
       rebuildDeckList();
+      refreshDeckCase(); // 箱絵にも即反映（★での設定/解除とドラッグの結果を揃える）
     });
     art.appendChild(star);
     entry.appendChild(art);
@@ -349,6 +352,7 @@ function rebuildDeckList() {
       e.preventDefault();
       showNoteMenu(card.id, e.clientX, e.clientY);
     });
+    makeCardDraggable(entry, card.id); // 箱へドラッグすると箱絵になる
     attachHoverPreview(entry, card.id);
     deckListEl.appendChild(entry);
   }
@@ -392,6 +396,67 @@ function onDeckChanged() {
   for (const card of getDeckableCards()) refreshCollectionCard(card);
   rebuildDeckList();
   refreshSummary();
+  refreshDeckCase(); // 箱絵（最多枚数のカードに自動追従するため、枚数が変わるたびに描き直す）
+}
+
+// ── デッキの箱（立体ケース）の表示と、箱絵カードのドラッグ設定 ──────────────────
+// ユーザー要望2026-08-28「マイデッキ編集画面に、マイデッキの箱絵を追加したいです。箱にカードを
+// ドラックすると箱絵がそのカードになるようにしたい」。箱の見た目はマイデッキ一覧・マイページと
+// 同じ部品（my-deck-list.js の buildDeckCaseArt）を使い回す。
+// ハマりどころ: my-deck-list.js はこのファイル(openMyDeckBuilder)をimportしているため、静的に
+// importし返すと循環importになる（このプロジェクトで実際にTDZ→起動時ブラックスクリーンを
+// 起こした構図。冒頭のコメント参照）。必要になった時に動的importで取りに行く。
+let buildDeckCaseArtFn = null;
+async function ensureDeckCaseArtFn() {
+  if (!buildDeckCaseArtFn) {
+    const mod = await import("./my-deck-list.js");
+    buildDeckCaseArtFn = mod.buildDeckCaseArt;
+  }
+  return buildDeckCaseArtFn;
+}
+
+function refreshDeckCase() {
+  if (!deckCaseEl) return;
+  if (!buildDeckCaseArtFn) {
+    // 初回だけ非同期。取得できたらこの関数を呼び直す（その時にはもう同期で描ける）。
+    ensureDeckCaseArtFn().then(() => refreshDeckCase()).catch((err) => console.error("buildDeckCaseArt import failed", err));
+    return;
+  }
+  deckCaseEl.querySelector(".mdl-deck-art")?.remove();
+  // 編集中の枚数(workingDeck)を反映した仮のデッキで描く（保存前でも見た目が追従するように）。
+  const deckForArt = {
+    ...currentDeck,
+    cards: workingDeck,
+    mainCardId: currentDeck?.mainCardId ?? null,
+    firstColor: currentDeck?.firstColor ?? null,
+  };
+  deckCaseEl.insertBefore(buildDeckCaseArtFn(deckForArt), deckCaseEl.firstChild);
+}
+
+// 箱絵にするカードを決める（ドラッグ＆ドロップ／★トグルの共通処理）。
+function setDeckCoverCard(cardId) {
+  if (!cardId || !currentDeck) return;
+  // deck.mainCardId は「実際にデッキに入っているカード」だけが有効（my-deck.js の normalizeDeck が
+  // 入っていないカードを保存時に捨てる）。所持カード一覧から未投入のカードを落とされた時は、
+  // 黙って無視せず理由を伝える。
+  if ((workingDeck[cardId] ?? 0) <= 0) {
+    showToast("そのカードはまだデッキに入っていません。先にデッキへ追加してください。");
+    return;
+  }
+  currentDeck.mainCardId = cardId;
+  showToast(`箱絵を「${getCardDefinition(cardId)?.name ?? "カード"}」にしました。`);
+  rebuildDeckList(); // ★/☆の表示を更新
+  refreshDeckCase();
+}
+
+// カードのタイルをドラッグ可能にする（箱へのドロップ用）。タッチ端末ではHTML5のドラッグが
+// 効かないため、従来どおり★トグルからも設定できるようにしてある。
+function makeCardDraggable(el, cardId) {
+  el.draggable = true;
+  el.addEventListener("dragstart", (e) => {
+    e.dataTransfer?.setData("text/plain", cardId);
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
+  });
 }
 
 // ── デッキ設定（ファースト色・駒スキン・ペット・裏面。ユーザー要望2026-08-11）────────
@@ -619,9 +684,34 @@ export function openMyDeckBuilder(deckId, onClose) {
   deckPanelTitle.id = "mdb-deck-panel-title";
   deckPanelTitle.textContent = "現在のデッキ";
   deckPanel.appendChild(deckPanelTitle);
+
+  // 左に「デッキの箱」、右に現在のデッキ一覧を並べる（ユーザー要望2026-08-28）。
+  const deckBody = document.createElement("div");
+  deckBody.id = "mdb-deck-body";
+
+  deckCaseEl = document.createElement("div");
+  deckCaseEl.id = "mdb-deck-case";
+  const caseHint = document.createElement("div");
+  caseHint.id = "mdb-deck-case-hint";
+  caseHint.textContent = "箱絵：カードをここへドラッグ";
+  deckCaseEl.appendChild(caseHint);
+  deckCaseEl.addEventListener("dragover", (e) => {
+    e.preventDefault(); // これを呼ばないとdropが発火しない
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    deckCaseEl.classList.add("is-drop-target");
+  });
+  deckCaseEl.addEventListener("dragleave", () => deckCaseEl.classList.remove("is-drop-target"));
+  deckCaseEl.addEventListener("drop", (e) => {
+    e.preventDefault();
+    deckCaseEl.classList.remove("is-drop-target");
+    setDeckCoverCard(e.dataTransfer?.getData("text/plain"));
+  });
+  deckBody.appendChild(deckCaseEl);
+
   deckListEl = document.createElement("div");
   deckListEl.id = "mdb-deck-list";
-  deckPanel.appendChild(deckListEl);
+  deckBody.appendChild(deckListEl);
+  deckPanel.appendChild(deckBody);
   overlayEl.appendChild(deckPanel);
 
   document.body.appendChild(overlayEl);
@@ -639,6 +729,7 @@ export function closeMyDeckBuilder() {
   overlayEl = null;
   collectionEl = null;
   deckListEl = null;
+  deckCaseEl = null;
   summaryEl = null;
   saveBtn = null;
   nameInput = null;
