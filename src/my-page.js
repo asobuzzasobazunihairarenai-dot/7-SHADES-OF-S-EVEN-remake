@@ -11,7 +11,7 @@ import { showRankExplanationModal } from "./rank-explain.js";
 import { isProfileLayoutEditMode } from "./profile-layout-editor.js";
 import { getPlayerName, getPlayerAvatar, setPlayerName } from "./player-identity.js";
 import { fetchStatsProfile } from "./stats-profile.js";
-import { TITLE_DEFS, computeUnlockedTitleKeys, getTitleGroups } from "./titles.js";
+import { TITLE_DEFS, computeUnlockedTitleKeys, getTitleGroups, formatTitle } from "./titles.js";
 import { openStatsPlayerLinkModal } from "./stats-player-link.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { buildIconButtonContent, wireIconButtonClick, openIconDetailModal } from "./icon-action-button.js";
@@ -315,9 +315,22 @@ export async function renderMyPageBody(body, close) {
   body.appendChild(avatarWrap);
   body.appendChild(changeBtn);
 
-  const nameRow = buildEditableNameRow(seat);
-  nameRow.dataset.layoutKey = "name";
-  body.appendChild(nameRow);
+  // ユーザー要望2026-08-28（続き317）「マイページの称号はもうスペースがないので名前の上を
+  // 称号にしませんか？そこに載せるのはお気に入りだけで、クリックすると称号モーダルが出る」。
+  // 名前と同じレイアウトブロック（data-layout-key="name"）の中に、名前の上へ1行だけ置く。
+  const nameBlock = document.createElement("div");
+  nameBlock.dataset.layoutKey = "name";
+  nameBlock.className = "my-page-name-block";
+  const favTitleEl = document.createElement("button");
+  favTitleEl.type = "button";
+  favTitleEl.className = "my-page-fav-title";
+  favTitleEl.textContent = "称号を選ぶ"; // 実際の値は下の非同期部分で入れ替える
+  favTitleEl.title = "クリックで称号コレクションを開く";
+  favTitleEl.addEventListener("click", () => openTitleCollectionModal(favTitleEl));
+  nameBlock.appendChild(favTitleEl);
+  nameBlock.appendChild(buildEditableNameRow(seat));
+  body.appendChild(nameBlock);
+  refreshFavoriteTitleLabel(favTitleEl).catch((err) => console.error("refreshFavoriteTitleLabel failed", err));
 
   // 着せ替え一式（ユーザー要望「マイページに駒スキン・カード裏・プレマ・背景・ペットの
   // 変更できるやつを置いて」）。各ボタンは既存のピッカーを開くだけ。
@@ -397,13 +410,6 @@ export async function renderMyPageBody(body, close) {
   statsGroup.dataset.layoutKey = "stats";
   body.appendChild(statsGroup);
 
-  // 称号コレクションの器（続き316）。中身は戦績の取得後（下の非同期部分）に入れるが、
-  // applyProfileLayout は同期部分の最後に一度だけ走るので、**この時点で器だけ作っておく**
-  // 必要がある（後から作ると絶対配置の対象にならず、左上に重なって出てしまう）。
-  const titlesBlock = document.createElement("div");
-  titlesBlock.className = "my-page-titles";
-  titlesBlock.dataset.layoutKey = "titles";
-  body.appendChild(titlesBlock);
 
   const statusEl = document.createElement("div");
   statusEl.textContent = "戦績を読み込み中…";
@@ -492,17 +498,48 @@ export async function renderMyPageBody(body, close) {
   // 自動同期＝online.jsのautoSyncStatsIdentity、対局開始・勝利時の自動同期もそのまま）。
   // buildStatsSyncRowは将来また必要になった時のため関数自体は残してある。
 
-  // 称号コレクション（続き313）。戦績システムと連携済みの人だけ（保存先が players.title_key のため）。
-  // ユーザー報告2026-08-28「マイページの実績が空欄」の修正（続き316）: 以前はこの称号ブロックを
-  // statsGroup（実績の枠）の中に入れていた。マイページの各ブロックは applyProfileLayout が
-  // width:max-content で絶対配置するため、**中に横長の称号チップ列が入ると枠ごと横に広がり**、
-  // 実績の各行（display:flex + justify-content:space-between）の右端＝数値が画面外へ押し出されて
-  // 「ラベルだけ見えて数値が消えた」状態になっていた。称号は独立したレイアウトブロック
-  // （data-layout-key="titles"、同期部分で先に作る）へ移し、実績の枠を元の幅に戻す。
-  const titlesWrap = document.querySelector('[data-layout-key="titles"]');
-  if (titlesWrap) {
-    renderTitleCollection(titlesWrap).catch((err) => console.error("renderTitleCollection failed", err));
+  // 称号は名前の上のバッジ＋クリックで開くモーダルへ移した（続き317）。
+  // 【この場所に置かないこと（続き316の教訓）】以前は称号のチップ列を statsGroup（実績の枠）の
+  // 中に入れていたため、applyProfileLayout の width:max-content で**枠ごと横に広がり**、実績の
+  // 各行（display:flex + justify-content:space-between）の数値が画面外へ押し出されて「ラベル
+  // だけ見えて数値が消える」不具合になった。実績の枠には横長になるものを足さないこと。
+}
+
+// 名前の上に出す「お気に入りの称号」バッジの表示を最新にする（続き317）。
+// 未設定・未連携・未ログインなら「＋ 称号を選ぶ」という控えめな誘い文句にする
+// （押せばモーダルが開き、そこで初めて取得状況が分かる）。
+async function refreshFavoriteTitleLabel(el) {
+  if (!el) return;
+  let label = null;
+  try {
+    label = formatTitle(await fetchMyTitleKey());
+  } catch (err) {
+    label = null;
   }
+  if (!document.body.contains(el)) return;
+  el.textContent = label || "＋ 称号を選ぶ";
+  el.classList.toggle("is-empty", !label);
+}
+
+// 称号コレクションのモーダル（続き317、ユーザー要望「名前の上を称号にして、クリックすると
+// 称号モーダルが出るように」）。中身は renderTitleCollection をそのまま流用する。
+function openTitleCollectionModal(favTitleEl) {
+  if (document.getElementById("title-collection-modal")) return;
+  const backdrop = createBackdrop(() => close(), { dim: true, zIndex: 10700 });
+  const modal = document.createElement("div");
+  modal.id = "title-collection-modal";
+  modal.appendChild(createModalCloseX(() => close()));
+  const body = document.createElement("div");
+  modal.appendChild(body);
+  function close() {
+    modal.remove();
+    backdrop.remove();
+    // 閉じた時に、名前の上のバッジへ選び直した結果を反映する。
+    refreshFavoriteTitleLabel(favTitleEl).catch(() => {});
+  }
+  document.body.appendChild(backdrop);
+  document.body.appendChild(modal);
+  renderTitleCollection(body).catch((err) => console.error("renderTitleCollection failed", err));
 }
 
 // 称号コレクション（ユーザー要望2026-08-28「称号はコレクションしていく感じで！その中から１つ
@@ -565,6 +602,8 @@ async function renderTitleCollection(container) {
               // 左下のステータス表示へ即反映（main.jsが購読している。importの循環を避けるため
               // 関数呼び出しではなくイベントで伝える）。
               window.dispatchEvent(new CustomEvent("self-title-changed"));
+              const favEl = document.querySelector(".my-page-fav-title");
+              if (favEl) refreshFavoriteTitleLabel(favEl).catch(() => {});
             } catch (err) {
               console.error("saveMyTitleKey failed", err);
               status.textContent = `保存に失敗しました: ${err.message ?? err}`;

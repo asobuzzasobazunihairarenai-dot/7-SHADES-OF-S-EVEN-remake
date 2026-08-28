@@ -17847,3 +17847,71 @@ body.theme-light .my-page-name-cancel:hover {
   padding-top: var(--page-top-safe);
   box-sizing: border-box;
 }
+
+/* ── マイページ: 名前の上のお気に入り称号（続き317）────────────────────────
+   ユーザー要望「マイページの称号はもうスペースがないので名前の上を称号にしませんか？
+   そこに載せるのはお気に入りだけで、クリックすると称号モーダルが出るようにします」。
+   名前と同じレイアウトブロック（data-layout-key="name"）の中に1行だけ置く。 */
+.my-page-name-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+}
+.my-page-fav-title {
+  background: none;
+  border: none;
+  padding: 0 0 0.05rem;
+  font-family: inherit;
+  font-size: 0.6rem;
+  font-weight: bold;
+  letter-spacing: 0.04em;
+  color: #d4af5a;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.my-page-fav-title:hover {
+  text-decoration: underline;
+}
+/* 未設定のときは控えめな誘い文句にする（押せば称号モーダルが開く） */
+.my-page-fav-title.is-empty {
+  color: #94a3b8;
+  font-weight: normal;
+  opacity: 0.85;
+}
+body.theme-light .my-page-fav-title {
+  color: #a67c1a;
+}
+body.theme-light .my-page-fav-title.is-empty {
+  color: #8a7d63;
+}
+/* 称号コレクションのモーダル（名前の上のバッジをクリックで開く） */
+#title-collection-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10701;
+  width: min(30rem, 92vw);
+  max-height: 82vh;
+  overflow-y: auto;
+  padding: 1.1rem 1.2rem 1.3rem;
+  border-radius: 0.7rem;
+  background: rgba(15, 23, 32, 0.98);
+  border: 1px solid rgba(212, 175, 90, 0.45);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+  color: #e2e8f0;
+  font-family: sans-serif;
+}
+body.theme-light #title-collection-modal {
+  background: #fffdf8;
+  border-color: rgba(176, 141, 63, 0.5);
+  color: #3a3326;
+}
+body.theme-light #title-collection-modal .my-page-titles-status {
+  color: #6b5c3c;
+}
+body.theme-light #title-collection-modal .my-page-titles-group-name {
+  color: #8a7d63;
+}
