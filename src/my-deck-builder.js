@@ -7,6 +7,7 @@
 import { getCardImagePath, getCardDefinition } from "./cards-data.js";
 import { showCardFace } from "./card-face-display.js";
 import { syncFullScreenPageActive } from "./option-area.js";
+import { startDeckBuilderTutorial, maybeAutoStartDeckBuilderTutorial, closeDeckBuilderTutorial } from "./deck-builder-tutorial.js";
 import {
   getDeckableCards,
   getOwnedCount,
@@ -643,6 +644,16 @@ export function openMyDeckBuilder(deckId, onClose) {
   summaryEl.id = "mdb-summary";
   header.appendChild(summaryEl);
 
+  // ユーザー要望2026-08-28（続き320）「マイデッキ編集画面にチュートリアルを表示させたい」。
+  // 初回は自動で出し（maybeAutoStartDeckBuilderTutorial）、以降はこのボタンから見返せる。
+  const helpBtn = document.createElement("button");
+  helpBtn.type = "button";
+  helpBtn.id = "mdb-help";
+  helpBtn.textContent = "？ 使い方";
+  helpBtn.title = "マイデッキの作り方を順番に説明します";
+  helpBtn.addEventListener("click", () => startDeckBuilderTutorial());
+  header.appendChild(helpBtn);
+
   saveBtn = document.createElement("button");
   saveBtn.type = "button";
   saveBtn.id = "mdb-save";
@@ -717,6 +728,7 @@ export function openMyDeckBuilder(deckId, onClose) {
   document.body.appendChild(overlayEl);
   syncFullScreenPageActive();
   onDeckChanged();
+  maybeAutoStartDeckBuilderTutorial(); // 初回だけ自動で使い方を案内する
 }
 
 export function closeMyDeckBuilder() {
@@ -735,5 +747,6 @@ export function closeMyDeckBuilder() {
   nameInput = null;
   settingsEl = null;
   currentDeck = null;
+  closeDeckBuilderTutorial(); // ページを離れたら案内も畳む
   syncFullScreenPageActive(); // 閉じたらオプションエリアの前面化も解除（続き303）
 }

@@ -582,7 +582,9 @@ async function renderTitleCollection(container) {
         chip.classList.toggle("is-selected", has && selectedKey === def.key);
         // ユーザー要望2026-08-28「称号の名前だけ伏せましょう。『？？？』にしておいてホバーすると
         // 条件だけは表示します」。何を目指せばいいかは分かるが、名前は取ってからのお楽しみにする。
-        chip.innerHTML = `<span class="my-page-title-icon">${has ? def.icon : "🔒"}</span><span>${has ? def.label : "？？？"}</span>`;
+        chip.innerHTML = has
+          ? `<span>${def.label}</span>`
+          : `<span class="my-page-title-icon">🔒</span><span>？？？</span>`;
         chip.title = has
           ? `${def.desc}／クリックでお気に入りに設定${selectedKey === def.key ? "（もう一度押すと解除）" : ""}`
           : `未取得：${def.desc}`;

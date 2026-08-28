@@ -18031,3 +18031,123 @@ body.theme-light .my-page-fav-title:hover {
   pointer-events: auto;
   clip-path: circle(62%);
 }
+
+/* ── マイデッキ編成ページのチュートリアル（続き320、deck-builder-tutorial.js）──────
+   盤面のチュートリアル（#tutorial-overlay）と違い、**座標計算をしない**方式。
+   対象要素にクラスを付けて光らせ、説明は画面下部の固定パネルに出す。bodyのステージ
+   transform(scale)が何倍でもズレようがないのが利点。暗幕は張らない＝説明を読みながら
+   実際に触って試せる。 */
+#mdb-tutorial {
+  position: fixed;
+  left: 50%;
+  bottom: 1.2rem;
+  transform: translateX(-50%);
+  z-index: 2450; /* #my-deck-page(1500) より前面、オプションエリアの帯(2700)よりは後ろ */
+  width: min(34rem, 92vw);
+  font-family: sans-serif;
+  pointer-events: none; /* パネル本体だけ操作を受け取る（下の .mdb-tut-panel で auto に戻す） */
+}
+.mdb-tut-panel {
+  pointer-events: auto;
+  background: linear-gradient(180deg, rgba(24, 20, 16, 0.97), rgba(14, 12, 9, 0.97));
+  border: 1px solid rgba(212, 175, 90, 0.55);
+  border-radius: 0.6rem;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5);
+  padding: 0.8rem 1rem 0.7rem;
+  color: #f1e6cd;
+}
+.mdb-tut-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.35rem;
+}
+.mdb-tut-title {
+  font-size: 0.95rem;
+  font-weight: bold;
+  color: #e6c67f;
+  letter-spacing: 0.04em;
+}
+.mdb-tut-progress {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  font-family: monospace;
+  flex: 0 0 auto;
+}
+.mdb-tut-body {
+  font-size: 0.8rem;
+  line-height: 1.65;
+}
+.mdb-tut-body p {
+  margin: 0 0 0.35rem;
+}
+.mdb-tut-body b {
+  color: #f0d9a4;
+}
+.mdb-tut-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.mdb-tut-spacer {
+  flex: 1 1 auto;
+}
+.mdb-tut-buttons button {
+  font-family: inherit;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.9rem;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  border: 1px solid rgba(212, 175, 90, 0.5);
+  background: rgba(212, 175, 90, 0.12);
+  color: #f1e6cd;
+}
+.mdb-tut-buttons button:hover {
+  background: rgba(212, 175, 90, 0.25);
+}
+.mdb-tut-buttons button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.mdb-tut-next {
+  background: linear-gradient(180deg, #d4af5a, #b8873f) !important;
+  border-color: #d4af5a !important;
+  color: #241c11 !important;
+  font-weight: bold;
+}
+.mdb-tut-skip {
+  border-color: rgba(148, 163, 184, 0.35) !important;
+  background: none !important;
+  color: #94a3b8 !important;
+}
+/* 説明中の対象を光らせる（位置は要素自身が持っているのでズレない） */
+.mdb-tut-highlight {
+  position: relative;
+  outline: 2px solid #d4af5a;
+  outline-offset: 2px;
+  border-radius: 0.4rem;
+  box-shadow: 0 0 0 4px rgba(212, 175, 90, 0.18), 0 0 22px rgba(212, 175, 90, 0.45);
+  animation: mdb-tut-pulse 1.8s ease-in-out infinite;
+}
+@keyframes mdb-tut-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(212, 175, 90, 0.18), 0 0 22px rgba(212, 175, 90, 0.45); }
+  50% { box-shadow: 0 0 0 6px rgba(212, 175, 90, 0.28), 0 0 30px rgba(212, 175, 90, 0.7); }
+}
+/* ヘッダーの「？ 使い方」ボタン */
+#mdb-help {
+  flex: 0 0 auto;
+  background: none;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.4rem;
+  color: #e2e8f0;
+  font-family: sans-serif;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+}
+#mdb-help:hover {
+  border-color: rgba(212, 175, 90, 0.8);
+  background: rgba(212, 175, 90, 0.14);
+}

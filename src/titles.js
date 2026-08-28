@@ -18,41 +18,41 @@
 //   bugReports  … 不具合報告の件数
 export const TITLE_DEFS = [
   // ── 戦績（対戦数）──────────────────────────────────────────────
-  { key: "debut", icon: "🌱", label: "目覚めし者", desc: "1戦以上プレイする", group: "戦績",
+  { key: "debut", label: "目覚めし者", desc: "1戦以上プレイする", group: "戦績",
     test: (s) => s.matchesCount >= 1 },
-  { key: "regular", icon: "🧭", label: "盤上の旅人", desc: "10戦以上プレイする", group: "戦績",
+  { key: "regular", label: "盤上の旅人", desc: "10戦以上プレイする", group: "戦績",
     test: (s) => s.matchesCount >= 10 },
-  { key: "veteran", icon: "⚔️", label: "歴戦の求色者", desc: "30戦以上プレイする", group: "戦績",
+  { key: "veteran", label: "歴戦の求色者", desc: "30戦以上プレイする", group: "戦績",
     test: (s) => s.matchesCount >= 30 },
-  { key: "pillar", icon: "🏛️", label: "ファルベンドの古豪", desc: "50戦以上プレイする", group: "戦績",
+  { key: "pillar", label: "ファルベンドの古豪", desc: "50戦以上プレイする", group: "戦績",
     test: (s) => s.matchesCount >= 50 },
   // ── 戦績（勝利）────────────────────────────────────────────────
-  { key: "first-win", icon: "✨", label: "最初の輝き", desc: "1勝する", group: "戦績",
+  { key: "first-win", label: "最初の輝き", desc: "1勝する", group: "戦績",
     test: (s) => s.winsCount >= 1 },
-  { key: "winner5", icon: "🔥", label: "輝きを取り戻す者", desc: "5勝する", group: "戦績",
+  { key: "winner5", label: "輝きを取り戻す者", desc: "5勝する", group: "戦績",
     test: (s) => s.winsCount >= 5 },
-  { key: "winner10", icon: "👑", label: "色を統べる者", desc: "10勝する", group: "戦績",
+  { key: "winner10", label: "色を統べる者", desc: "10勝する", group: "戦績",
     test: (s) => s.winsCount >= 10 },
   // ── 戦績（勝率。試合数が少ないうちは付かないように10戦以上を条件にする）──────
-  { key: "sharp", icon: "🎯", label: "均衡を制する者", desc: "10戦以上で勝率50%以上", group: "戦績",
+  { key: "sharp", label: "均衡を制する者", desc: "10戦以上で勝率50%以上", group: "戦績",
     test: (s) => s.matchesCount >= 10 && s.winRate >= 50 },
-  { key: "dominant", icon: "💠", label: "具現の担い手", desc: "10戦以上で勝率70%以上", group: "戦績",
+  { key: "dominant", label: "具現の担い手", desc: "10戦以上で勝率70%以上", group: "戦績",
     test: (s) => s.matchesCount >= 10 && s.winRate >= 70 },
   // ── ランク戦の段位 ──────────────────────────────────────────────
-  { key: "ranked-debut", icon: "🎖️", label: "標を掲げし者", desc: "ランク戦に参加する", group: "ランク戦",
+  { key: "ranked-debut", label: "標を掲げし者", desc: "ランク戦に参加する", group: "ランク戦",
     test: (s) => s.rank !== null && s.rank !== undefined },
-  { key: "rank-gold", icon: "🥇", label: "黄金の使者", desc: "ゴールド以上に到達する", group: "ランク戦",
+  { key: "rank-gold", label: "黄金の使者", desc: "ゴールド以上に到達する", group: "ランク戦",
     test: (s) => (s.rank ?? -1) >= 2 },
-  { key: "rank-diamond", icon: "💎", label: "煌めきの継承者", desc: "ダイヤモンド以上に到達する", group: "ランク戦",
+  { key: "rank-diamond", label: "煌めきの継承者", desc: "ダイヤモンド以上に到達する", group: "ランク戦",
     test: (s) => (s.rank ?? -1) >= 4 },
-  { key: "rank-legend", icon: "🌈", label: "七色の伝説", desc: "レジェンドに到達する", group: "ランク戦",
+  { key: "rank-legend", label: "七色の伝説", desc: "レジェンドに到達する", group: "ランク戦",
     test: (s) => (s.rank ?? -1) >= 6 },
   // ── 貢献（不具合報告。テストプレイを支えてくれた人への称号）────────────────
-  { key: "reporter1", icon: "🐛", label: "綻びを見つけし者", desc: "不具合報告を1件送る", group: "貢献",
+  { key: "reporter1", label: "綻びを見つけし者", desc: "不具合報告を1件送る", group: "貢献",
     test: (s) => s.bugReports >= 1 },
-  { key: "reporter5", icon: "🔍", label: "世界を繕う者", desc: "不具合報告を5件送る", group: "貢献",
+  { key: "reporter5", label: "世界を繕う者", desc: "不具合報告を5件送る", group: "貢献",
     test: (s) => s.bugReports >= 5 },
-  { key: "reporter10", icon: "🛡️", label: "ファルベンドの守り手", desc: "不具合報告を10件送る", group: "貢献",
+  { key: "reporter10", label: "ファルベンドの守り手", desc: "不具合報告を10件送る", group: "貢献",
     test: (s) => s.bugReports >= 10 },
 ];
 
@@ -60,10 +60,11 @@ export function getTitleDef(key) {
   return TITLE_DEFS.find((t) => t.key === key) ?? null;
 }
 
-// 「🌱 初陣」のような表示用の1行。未設定・未知のキーならnull。
+// 表示用の称号名。未設定・未知のキーならnull。
+// ユーザー要望2026-08-28（続き320）「称号についている絵文字は不要」＝アイコンは持たない。
 export function formatTitle(key) {
   const def = getTitleDef(key);
-  return def ? `${def.icon} ${def.label}` : null;
+  return def ? def.label : null;
 }
 
 // 今の戦績で解禁されている称号のキー一覧。stats に足りない項目は0/未設定として扱う
