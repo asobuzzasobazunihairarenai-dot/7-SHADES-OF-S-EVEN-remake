@@ -525,11 +525,12 @@ async function renderTitleCollection(container) {
         chip.className = "my-page-title-chip";
         chip.classList.toggle("is-locked", !has);
         chip.classList.toggle("is-selected", has && selectedKey === def.key);
-        // 未取得の称号は名前を伏せず、何をすれば取れるかを見せる（集める動機になるように）。
-        chip.innerHTML = `<span class="my-page-title-icon">${has ? def.icon : "🔒"}</span><span>${def.label}</span>`;
+        // ユーザー要望2026-08-28「称号の名前だけ伏せましょう。『？？？』にしておいてホバーすると
+        // 条件だけは表示します」。何を目指せばいいかは分かるが、名前は取ってからのお楽しみにする。
+        chip.innerHTML = `<span class="my-page-title-icon">${has ? def.icon : "🔒"}</span><span>${has ? def.label : "？？？"}</span>`;
         chip.title = has
           ? `${def.desc}／クリックでお気に入りに設定${selectedKey === def.key ? "（もう一度押すと解除）" : ""}`
-          : `未取得: ${def.desc}`;
+          : `未取得：${def.desc}`;
         if (has) {
           chip.addEventListener("click", async () => {
             const next = selectedKey === def.key ? null : def.key;
