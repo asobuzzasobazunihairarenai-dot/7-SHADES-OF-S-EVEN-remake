@@ -96,7 +96,7 @@ import {
   isLocalGateInvasionActive,
 } from "./gate-invasion.js";
 import { announceHandPickups, announceCardLocked, announceDrawCount, announceCardDiscarded } from "./hand-announcer.js";
-import { clearTurnEventStock } from "./turn-event-stock.js";
+import { clearTurnEventStock, getTurnEventStockKey } from "./turn-event-stock.js";
 import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained, reapplyGateInvasionModal, registerGateInvasionModalEternalAnim, registerGateInvasionModalStealAnim, registerGateInvasionModalEternalPreHide, forceCloseGateInvasionModal } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking, hasAnyoneWon } from "./victory.js";
 import { formatTitle } from "./titles.js"; // 称号（続き313）
@@ -2488,6 +2488,11 @@ function playAdditionalColorUseForEffect(cardId, optionLabel, costTokenId) {
 // の案内を出す。ユーザー要望（2026-08-07）「CPUが選ぶ時は自動で進めて、選んだ結果の通知
 // モーダルで泊まるように。じゃないと自分が選ぶのかと錯覚する」。
 let cpuResultHoldActive = false;
+// turn-timer.js の「止まったまま動かない時の再試行」安全網（続き321）が参照する。
+// この間はプレイヤーのクリック待ちで意図的に止まっているので、再試行の対象から外す。
+export function isCpuResultHoldActive() {
+  return cpuResultHoldActive;
+}
 // 結果通知モーダルを、CPU戦の自動スキップOFF＋CPUの番のときはクリック待ちで表示し、
 // それ以外は従来通り一定時間で自動的に消す。共通処理。
 async function showAndAwaitEffectReason(cardId, text) {
@@ -4974,6 +4979,25 @@ function pickRandomFromOpponentHandForEffect(targetPlayer) {
 // ユーザー要望2026-08-08（#40）「接触結果モーダルが閉じる前に次のターンが始まってしまう。
 // ちゃんと閉じてから次のターンへ」——開いている間は自動ターン終了を止める。
 let openContactResultModals = 0;
+
+// 停止バグ調査用（続き321。test/stall-probe.mjs から呼ぶ）。盤面が固まった瞬間に「何が処理中だと
+// 思われているか」を外からまとめて見られるようにする（読み取りのみ・進行にも表示にも影響しない）。
+export function getStallDiagnostics() {
+  return {
+    arrivalDepth: arrivalEffectProcessingDepth,
+    pickerType: activeEffectPicker ? activeEffectPicker.type : null,
+    pickerOwner: activeEffectPicker?.owner ?? null,
+    handEffectBusy: isHandEffectBusy(),
+    handEffectBusyStuckMs: getHandEffectBusyStuckMs(),
+    gateInvasionPending: isGateInvasionPending(),
+    gateInvasionQueueActive: isGateInvasionQueueActive(),
+    localGateInvasionActive: isLocalGateInvasionActive(),
+    contactResultModals: openContactResultModals,
+    anytimeInterruptModal: !!anytimeInterruptModalEl,
+    cpuResultHold: cpuResultHoldActive,
+    currentPhase: getCurrentPhase(),
+  };
+}
 
 export function isAnyEffectProcessingBusy() {
   return (
@@ -7805,7 +7829,9 @@ function findCounterLockToken(seat) {
 // 自体は所持済み（呼び出し側の hasCounterLock で担保）。
 function decideCpuUseCounterLock(defender) {
   if (!isCpuBrainDriving(defender)) return false;
-  return getLockableHandTokensExceptFinal(defender).tokens.length > 0;
+  // #186: 最後の1色（7色目）になるロックも候補に含める（allowFinal）。勝ちに直結するので
+  // CPUは当然そこでカウンターロックを使う。
+  return getLockableHandTokensExceptFinal(defender, { allowFinal: true }).tokens.length > 0;
 }
 
 // ユーザー確認済み方針（ゴメンナサイのcheckGomennasaiAutoApproval）と同じ考え方
@@ -7883,7 +7909,10 @@ async function useCounterLockOnContact() {
   // 特殊ロック（セレナーデ等と同じ getLockableHandTokensExceptFinal）で判定する——カウンター
   // ロックは七色の欠片も単体でロックできる特殊効果だから（不具合#58: 七色の欠片しかロック
   // できない手札だと、isCardLockableが虹を除外するせいで案内モーダルが出なかった）。
-  const { candidateSlotsFor, tokens: lockableTokens } = getLockableHandTokensExceptFinal(defender);
+  // #186（ユーザー確定2026-08-28）: カウンターロックのカードには「ただし最後のロックは
+  // できない」の文言が無い（セレナーデ専用の制限だった）ため、7色目＝勝利になるロックも
+  // 候補に含める（allowFinal）。実際に置く時は下で通常のロック宣言と同じ全員承認フローへ回す。
+  const { candidateSlotsFor, tokens: lockableTokens } = getLockableHandTokensExceptFinal(defender, { allowFinal: true });
   logAction("diag-counter-lock", {
     phase: "before-confirm",
     defender,
@@ -7915,6 +7944,32 @@ async function useCounterLockOnContact() {
   const dropTarget =
     slots.length === 1 ? slots[0] : await requestCellChoiceForEffect(slots, "ロックする場所を選択してください", { owner: defender });
   if (!dropTarget) return;
+  // #186: これが7色目（＝勝利になる最後のロック）なら、ロックフェイズの通常の宣言と全く同じ
+  // 「全員承認」フローに載せる——他のプレイヤーがゴメンナサイを使う機会を奪わないため
+  // （main.jsのロックフェイズ経路 wouldCompleteLockWithNewIndex 分岐と同じ処理）。承認すべき
+  // 他の参加プレイヤーが居ない（1人テストプレイ等）場合だけ、そのまま下の通常ロックへ進む。
+  if (getState().pendingFinalLock) {
+    render();
+    return;
+  }
+  if (wouldCompleteLockWithNewIndex(defender, dropTarget.index)) {
+    const queue = getFinalLockApprovalOrder(defender, getState().activePlayers);
+    if (queue.length > 0) {
+      fireAnytimeCheckpoint(defender);
+      if (isOnlineMode()) {
+        try {
+          await requestFinalLock(chosen.id, dropTarget, defender, queue);
+          await fetchAndHydrate(getCurrentGameId());
+        } catch (err) {
+          console.error("requestFinalLock (counter lock) failed", err);
+        }
+      } else {
+        requestFinalLock(chosen.id, dropTarget, defender, queue);
+      }
+      render();
+      return;
+    }
+  }
   if (isOnlineMode()) {
     try {
       await moveToken(chosen.id, dropTarget);
@@ -8125,8 +8180,7 @@ function updateSpectatorBanner() {
 // （ユーザー確定仕様）。render()のたびに turnNumber / turnPlayer の組を見て変化を検知する。
 let lastTurnKeyForEventStock = null;
 function maybeClearTurnEventStock() {
-  const state = getState();
-  const key = `${state.turnNumber ?? 0}:${state.turnPlayer ?? "-"}`;
+  const key = getTurnEventStockKey();
   if (lastTurnKeyForEventStock === key) return;
   // 初回（対局開始やリロード直後）は掃除するものが無いので、キーを覚えるだけ。
   if (lastTurnKeyForEventStock !== null) clearTurnEventStock();
@@ -9181,6 +9235,35 @@ function positionPreviewPanel(panel, clientX, clientY) {
   panel.style.bottom = "";
 }
 
+// #185（ユーザー報告2026-08-28「ロックエリアの重なっているカードを見るモーダルで出てくる
+// カードにホバーしても拡大しない」）: 拡大プレビューは #game-table 上の pointermove から
+// getVisibleCardId(el) 経由でしか出せなかったため、モーダル（盤面の外のDOM）の中のカードは
+// 対象外だった。カードidが分かっている要素なら誰でも使える形に切り出し、モーダル側から
+// attachModalCardPreview() で貼れるようにする。
+function showCardPreviewFor(cardId, clientX, clientY) {
+  const preview = getPreviewEl();
+  if (!cardId) {
+    preview.style.display = "none";
+    return;
+  }
+  showCardFace(preview, cardId, getCardImagePath(cardId));
+  positionPreviewPanel(preview, clientX, clientY);
+  preview.style.display = "block";
+}
+
+function hideCardPreview() {
+  if (previewEl) previewEl.style.display = "none";
+}
+
+// モーダル内のカード要素に、盤面と同じ拡大プレビューを付ける（裏向き＝cardIdがnullなら何もしない）。
+function attachModalCardPreview(el, cardId) {
+  if (!cardId) return;
+  const onMove = (e) => showCardPreviewFor(cardId, e.clientX, e.clientY);
+  el.addEventListener("pointerenter", onMove);
+  el.addEventListener("pointermove", onMove);
+  el.addEventListener("pointerleave", hideCardPreview);
+}
+
 function updatePreview(el, clientX, clientY) {
   const preview = getPreviewEl();
   updatePileTooltip(el, clientX, clientY);
@@ -9630,6 +9713,7 @@ function showStackModal(tokenIds) {
   const modal = document.createElement("div");
   modal.id = "stack-modal";
   const close = () => {
+    hideCardPreview(); // #185: 拡大表示中に閉じた時に取り残さない
     backdrop.remove();
     modal.remove();
   };
@@ -9644,6 +9728,8 @@ function showStackModal(tokenIds) {
     card.className = "stack-modal-card";
     const imagePath = token.faceUp ? getCardImagePath(token.cardId) : cardBackImageForToken(token);
     showCardFace(card, token.faceUp ? token.cardId : null, imagePath);
+    // #185: 表向きのカードは盤面と同じくホバーで拡大できる（裏向きは中身を明かさない）。
+    if (token.faceUp) attachModalCardPreview(card, token.cardId);
     list.appendChild(card);
   }
   modal.appendChild(createModalCloseX(close));
@@ -9662,6 +9748,7 @@ function showDiscardListModal() {
   const modal = document.createElement("div");
   modal.id = "stack-modal";
   const close = () => {
+    hideCardPreview(); // #185
     backdrop.remove();
     modal.remove();
   };
@@ -9683,6 +9770,7 @@ function showDiscardListModal() {
       card.className = "stack-modal-card";
       showCardFace(card, cardId, getCardImagePath(cardId));
       card.title = getCardDefinition(cardId)?.name ?? "";
+      attachModalCardPreview(card, cardId); // #185
       list.appendChild(card);
     }
   }
@@ -9705,6 +9793,7 @@ function pickStackedLockCard(tokens, hint) {
     const finish = (val) => {
       if (settled) return;
       settled = true;
+      hideCardPreview(); // #185
       backdrop.remove();
       modal.remove();
       resolve(val);
@@ -9721,6 +9810,7 @@ function pickStackedLockCard(tokens, hint) {
       const imagePath = token.faceUp ? getCardImagePath(token.cardId) : cardBackImageForToken(token);
       showCardFace(card, token.faceUp ? token.cardId : null, imagePath);
       if (token.faceUp) card.title = getCardDefinition(token.cardId)?.name ?? "";
+      if (token.faceUp) attachModalCardPreview(card, token.cardId); // #185
       card.addEventListener("click", () => finish(token));
       list.appendChild(card);
     }

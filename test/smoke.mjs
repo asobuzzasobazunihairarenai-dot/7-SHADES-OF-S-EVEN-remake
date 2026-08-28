@@ -50,7 +50,11 @@ const REPEAT = (() => {
 const TARGET_TURN = 8; // ここまで進めば十分健全とみなす（回帰検出には十分な手数）
 const STALL_MS = 30000; // ターンがこの時間まったく進まなければ「詰み」とみなす
 // 3-4人は1局が長いので制限時間を人数に比例（in-app版と同じ考え方）。決着まで＝最大12分。
-const HARD_TIMEOUT_MS = RUN_TO_COMPLETION ? 720000 : Math.round(180000 * (PLAYER_COUNT / 2));
+// 続き321: 180秒→300秒に緩めた。試練の儀式のような「1ターンの中で何度も繰り返す」到達効果に
+// 当たると、止まっていないのに8ターンへ到達する前に制限時間を迎えてFAILになっていた（実測: 進行は
+// 続いているのにturn7で時間切れ）。本当の停止は上の STALL_MS（30秒まったく状態が変化しない）で
+// 検出するので、こちらはあくまで暴走防止の上限として長めに取る。
+const HARD_TIMEOUT_MS = RUN_TO_COMPLETION ? 720000 : Math.round(300000 * (PLAYER_COUNT / 2));
 
 const MIME = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",

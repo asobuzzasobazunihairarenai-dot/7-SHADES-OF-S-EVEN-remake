@@ -634,8 +634,16 @@ function getOwnEmptyLockSlotCandidates(player) {
 // ことで、「発動を宣言できたのに実際には何も起きない」という状態を避ける
 // （ユーザー指摘: シェイズオブセブンの「善処の原則」は、手札効果発動宣言時に
 // 条件を満たせないと分かっていたら発動自体できない、という方針）。
-export function getLockableHandTokensExceptFinal(player) {
-  const emptySlots = getOwnEmptyLockSlotCandidates(player).filter((slot) => !wouldCompleteLockWithNewIndex(player, slot.index));
+// opts.allowFinal: 「最後のロック（7色目＝勝利になるロック）」も候補に含めるか。
+//   既定 false ＝ セレナーデ用（カードに「ただし最後のロックはできない」と明記されている）。
+//   true ＝ #186（ユーザー確定2026-08-28）: カウンターロックの「あなたの手札を１枚ロック
+//   してもよい」にはその制限文が無いため、最後の1色もロックできる（呼び出し側で通常の
+//   ロック宣言と同じ全員承認フロー＝requestFinalLock に載せること）。
+export function getLockableHandTokensExceptFinal(player, opts = {}) {
+  const allowFinal = !!opts.allowFinal;
+  const emptySlots = getOwnEmptyLockSlotCandidates(player).filter(
+    (slot) => allowFinal || !wouldCompleteLockWithNewIndex(player, slot.index)
+  );
   const candidateSlotsFor = (token) => {
     if (emptySlots.length === 0) return [];
     const color = getCardDefinition(token.cardId)?.color;

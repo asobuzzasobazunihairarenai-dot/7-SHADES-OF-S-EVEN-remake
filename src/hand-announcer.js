@@ -8,7 +8,7 @@ import { showCardFace } from "./card-face-display.js";
 import { getPlayerName } from "./player-identity.js";
 import { createModalCloseX } from "./ui-helpers.js";
 import { getSelfSeat, isOnlineMode } from "./online.js";
-import { pushTurnEventStock, getTurnEventStockTargetRect } from "./turn-event-stock.js";
+import { pushTurnEventStock, getTurnEventStockTargetRect, getTurnEventStockKey } from "./turn-event-stock.js";
 
 // 通知の主語が「自分自身」の時は名前ではなく「あなた」と表示する（「プレイヤーAが獲得」の
 // ような他人事っぽい文言になるのを避ける）。ローカルモードは1人で全座席を操作する前提で
@@ -37,6 +37,9 @@ function flashDurationMs() {
 function showToast(innerHTML, opts = {}) {
   const toast = document.createElement("div");
   toast.className = "hand-pickup-toast is-flash";
+  // #184: この出来事が「どのターンのものか」をフラッシュを出す瞬間に確定させておく
+  // （飛翔が終わってチップを積む頃には次のターンに入っていることがあるため）。
+  const turnKey = getTurnEventStockKey();
   let done = false;
   // フラッシュを畳んで、右下のストックへ飛ばす。飛び終わったらチップとして積む。
   const stow = () => {
@@ -62,7 +65,7 @@ function showToast(innerHTML, opts = {}) {
     });
     setTimeout(() => {
       toast.remove();
-      pushTurnEventStock({ ...opts, html: innerHTML });
+      pushTurnEventStock({ ...opts, html: innerHTML }, turnKey);
     }, STOCK_FLIGHT_MS);
   };
   const content = document.createElement("div");

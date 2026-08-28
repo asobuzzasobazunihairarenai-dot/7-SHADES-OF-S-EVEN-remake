@@ -29,6 +29,7 @@ import {
   toStageLocalRect,
   STAGE_WIDTH,
   performPriorityTimeoutAutoAction,
+  isCpuResultHoldActive,
   isAnyEffectProcessingBusy,
   hasActiveEffectPicker,
   updateEndTurnButton,
@@ -950,6 +951,31 @@ function pseudoCpuLocalPickerTimeoutTicks() {
 // 発火の心配は無い。何もしなかった場合（対応する状況が無かった）はフラグを立てず、
 // 状況が変わり次第また試せるようにする。
 let timedOutAutoActionFired = false;
+// 「どのデッドラインに対して発火済みか」。CPU自己対戦がまれに完全停止する不具合
+// （2026-08-28調査、test/stall-probe.mjs で再現・確定）の対策。
+//   症状: CPU席のロック自動処理などで1手進んだ直後、デッドラインだけが過去のまま固定され、
+//         盤面が永久に動かなくなる（アクションログがそこでぱたりと途切れる）。
+//   原因: このラッチは「remaining>0 のtickを1回でも観測する」ことでしか下ろされなかった。
+//         疑似CPU席の基本時間は約1〜1.5秒しかないため、直前の自動処理（ロック演出＋盤面の
+//         再描画など）でメインスレッドが1.5秒ほど詰まって tick が1回も走らないと、その窓を
+//         まるごと取りこぼす。するとラッチが true のまま次のタイムアウトを迎え、
+//         !timedOutAutoActionFired が永久に false ＝ 自動処理が二度と呼ばれなくなる。
+//         （同種の取りこぼしはターン跨ぎについては onStateChange で既に手当て済みだった＝
+//         「ターンが変わったらラッチを下ろす」。今回はターン内でも起こり得ると分かった。）
+//   対策: ラッチを「真偽値＋そのデッドライン値」で持ち、デッドラインが別の値に更新されたら
+//         （＝誰かが何かして新しい持ち時間が与えられた＝もう別のタイムアウトである）
+//         tick の観測タイミングに関係なくラッチを下ろす。「同じタイムアウトで二重発火しない」
+//         という本来の目的はそのまま保たれる。
+let timedOutAutoActionDeadline = null;
+let lastLatchRescueLogAt = 0;
+// ラッチを立てた（＝自動処理を1回実行した）時刻。下の「二重の安全網」で使う。
+let timedOutAutoActionFiredAt = 0;
+// 二重の安全網（続き321）: デッドラインが切れたままラッチが立っていて、しかも一定時間まったく
+// 何も起きない場合は「自動処理を1回実行したのに結局何も進まなかった（＝取りこぼし）」とみなして
+// もう一度だけ試す。上のデッドライン紐づけラッチで塞いだ経路のほかに、自動処理が true を返したのに
+// 状態もデッドラインも一切変わらない経路が万一残っていても、10秒で自力復帰できるようにする。
+// CPU戦の結果通知モーダルでクリック待ちの間（isCpuResultHoldActive）は意図的に止まっているので対象外。
+const STUCK_RETRY_MS = 10000;
 
 // #138（ユーザー要望2026-08-18）: ランク戦の「相手主導の放置敗北」。手番プレイヤーのタブが
 // 凍結する等で、その手番プレイヤー本人のクライアントでしか動かないタイムアウト自動処理が
@@ -1030,9 +1056,42 @@ function checkOpponentAfkForfeit(state) {
 function updateTimeoutWarnings(state, isTimedOut) {
   if (!isTimedOut) {
     timedOutAutoActionFired = false;
+    timedOutAutoActionDeadline = state.priorityDeadline;
     updateWarning(false);
     updatePriorityReturnWarning(false);
     return;
+  }
+  // デッドラインが前回発火した時のものと違う＝新しい持ち時間が与えられた後の別のタイムアウト。
+  // remaining>0 のtickを観測できていなくてもラッチを下ろす（上の宣言のコメント参照。これが
+  // 無いと、疑似CPUの短い持ち時間の窓をtickが1回も観測できなかった時に永久停止する）。
+  if (timedOutAutoActionDeadline !== state.priorityDeadline) {
+    if (timedOutAutoActionFired && Date.now() - lastLatchRescueLogAt > 30000) {
+      // 実際に「取りこぼしから救出した」ケースだけ記録する（通常は下のfalse→trueの流れで
+      // ここには来ない）。再発調査の手掛かり用。行動ログのリングバッファを埋めないよう
+      // 30秒に1回までに絞る（頻度の高いログで行動ログが流れてしまった過去の反省）。
+      lastLatchRescueLogAt = Date.now();
+      logAction("diag-timeout-latch-rescued", {
+        priorityPlayer: state.priorityPlayer,
+        turnPlayer: state.turnPlayer,
+        expiredMs: Date.now() - (state.priorityDeadline ?? Date.now()),
+      });
+    }
+    timedOutAutoActionFired = false;
+    timedOutAutoActionDeadline = state.priorityDeadline;
+  }
+  if (
+    timedOutAutoActionFired &&
+    timedOutAutoActionFiredAt &&
+    Date.now() - timedOutAutoActionFiredAt > STUCK_RETRY_MS &&
+    !isCpuResultHoldActive()
+  ) {
+    logAction("diag-timeout-latch-retry", {
+      priorityPlayer: state.priorityPlayer,
+      turnPlayer: state.turnPlayer,
+      stuckMs: Date.now() - timedOutAutoActionFiredAt,
+    });
+    timedOutAutoActionFired = false;
+    timedOutAutoActionFiredAt = 0;
   }
   // 本人（今まさにタイムアウトした優先権保持者）のクライアント上でだけ自動行動を
   // 起こす——ゲーム操作は本人の識別で送信する必要があるため、他クライアントからは
@@ -1088,12 +1147,14 @@ function updateTimeoutWarnings(state, isTimedOut) {
       // 委任が終われば delegateToPlayerForEffect の finally が優先権を手番プレイヤーへ戻す）。
       if (state.turnPlayer && state.priorityPlayer !== state.turnPlayer && !isPseudoCpuTarget(state.priorityPlayer)) {
         timedOutAutoActionFired = true;
+        timedOutAutoActionFiredAt = Date.now();
         withGuard(() =>
           setPriorityState({ player: state.turnPlayer, deadline: freshBaseDeadlineFor(state.turnPlayer), phase: "base" })
         );
       } else {
         const result = performPriorityTimeoutAutoAction();
         timedOutAutoActionFired = !!result;
+        timedOutAutoActionFiredAt = timedOutAutoActionFired ? Date.now() : 0;
         // AFK代行（ユーザー要望2026-08-08）: オンラインで自席が時間切れ自動処理された回数を数え、
         // しきい値に達したら自席をCPU代行に切り替える（main.js側でフラグON・「復帰しますか？」
         // モーダル表示・相手への通知を行う）。代行中の（CPUの短時間）タイムアウトは数えない。

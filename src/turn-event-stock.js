@@ -15,6 +15,7 @@
 import { showCardFace } from "./card-face-display.js";
 import { getCardImagePath } from "./cards-data.js";
 import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
+import { getState } from "./state.js";
 
 let stripEl = null;
 let listEl = null;
@@ -87,8 +88,23 @@ function openDetail(entry) {
   });
 }
 
+// 「今はどのターンか」を表す鍵。main.jsのrender()（掃除の判定）と、hand-announcer.jsの
+// 中央フラッシュ（そのフラッシュがどのターンの出来事だったか）で同じ定義を使うため、
+// ここに一本化する。
+export function getTurnEventStockKey() {
+  const state = getState();
+  return `${state.turnNumber ?? 0}:${state.turnPlayer ?? "-"}`;
+}
+
 // entry: { icon, label, html, cardId? }
-export function pushTurnEventStock(entry) {
+// turnKey: その出来事が起きた時点のターン鍵（省略可）。#184（ユーザー報告2026-08-28
+// 「ターン終わりにあったスリカエが次のターンに残っていた」）: 中央フラッシュは最大1.8秒
+// 表示してから約0.4秒かけて右下へ飛ぶため、ターン終了間際の出来事はチップが積まれる頃には
+// もう次のターンに入っていることがある。掃除（clearTurnEventStock）は既に済んだ後なので、
+// 前のターンの出来事だけが next turn の帯に取り残される。積む瞬間にもターンを確かめ、
+// 変わっていたら積まない（中央フラッシュは既に見えているので情報は失われない）。
+export function pushTurnEventStock(entry, turnKey = null) {
+  if (turnKey !== null && turnKey !== getTurnEventStockKey()) return;
   ensureStrip();
   entries.push(entry);
   const chip = document.createElement("button");
