@@ -1294,3 +1294,47 @@
   最終的に `node test/smoke.mjs 2 --repeat 6` が **6/6 PASS**（修正前の同条件は2/4・4/5）。
   `npm test` 53/53 PASS。
   サーバー側（Supabase）の変更は無い＝Edge Functionの再デプロイ・SQLの実行は不要。
+
+### 2026-08-29（続き322）：UI英語化フェーズ6（対局中の通知・演出＋既定の座席名）／スモークの「幽霊オーバーレイ」誤検知を修正／SupabaseのSQL適用状況を確認
+
+- **UI英語化フェーズ6（対局中の通知・演出）**: 続き288〜292（土台／ホーム／オプション／対局ボタン＋
+  フェイズ案内／オープニング・ログイン／ランキング・ショップ）に続き、**実際に対局している最中に
+  必ず目にする文言**を英語化した。`ui-text.js` に `game.*` を50件（ja/en各50）追加し、以下を `t()` 化:
+  - `turn-announce.js`（「○○のターン」）／`victory.js`（勝利モーダルの見出し・サブ）
+  - `hand-announcer.js`（獲得／非公開で獲得／ドロー／ロック／捨て／ゲート侵攻の中央フラッシュと、
+    右下「このターンの出来事」チップのツールチップ。理由の付け方も `game.chip.reason` 系に統一）
+  - `contact-approval.js`（接触の申し込み・カウンターロックを使う／使わない・承認／拒否）
+  - `final-lock-approval.js`（最後のロック挑戦中バナー・ゴメンナサイ）
+  - `gate-invasion-modal.js`（オンライン版の侵攻演出ステップ全文）／`gate-invasion.js`（ローカル版の
+    同じステップ＋トーストの理由ラベル3種）
+  - **カード名も表示言語に合わせた**: これらの通知は `getCardDefinition(id).name`（日本語の原名）を
+    直に使っていたので、既存の英語カードテキスト層 `card-text.js` の `getCardName(id)` を通すようにした
+    （英語版が無いカードは日本語名にフォールバック）。
+  - **名前を設定していない座席の既定表示名も英語化**（「プレイヤーA」→「Player A」）。`board-layout.js` の
+    `SEAT_LABELS` はコード内の識別子としても使われているのでそのままにし、`player-identity.js` の
+    `getPlayerName()` の**表示用フォールバックだけ** `t("game.seat", {seat})` に差し替えた（プレイヤーが
+    自分で付けた名前・オンラインの同期名はこれまで通りそのまま尊重される）。
+  - ハマりどころ: `gate-invasion.js` には `const t = setTimeout(...)` というローカル変数があり、翻訳関数
+    `t()` を import すると名前が紛らわしくなるため `safetyTimer` に改名した（スコープ上は衝突していな
+    かったが、後から読む人が事故を起こしやすいので先に潰した）。
+- **スモークテストの「幽霊オーバーレイ」誤検知を修正**（実機報告2026-08-29「不変条件違反1件
+  blocking-overlay: #options-menu-panel」）: 続き300でオプションパネルが `inset:0` の全画面ページに
+  なったため、**開いたまま自己対戦を回すと毎回この違反が出ていた**（本来は「閉じ残り・透明な捕獲層」を
+  捕まえるための検査）。`ui-invariants.js` に「アプリ自身が body に開いている印を付けている全画面ページ
+  （`#options-menu-panel`+`options-menu-open` 等）は対象外」というルールを足した。印が無いのに残っている
+  レイヤー＝本物の幽霊は今まで通り検知する。
+- **同スモーク報告のもう1点（タイムアウト25ターン）は不具合ではない**: `diag-jank` を見ると
+  `frameMs` が1〜6秒、`worstMs` が約18分、長フレームが 9863/18079 と、**タブが裏に回って描画が
+  止まっていた**時の典型的な値だった（背景タブのスロットリング）。進行自体は続いており、25ターンまで
+  進んだところで制限時間に達しただけ。なお、この「裏タブでtickが飛ぶ」状況こそ続き321で直した停止バグの
+  発生条件そのもので、今回の修正で自力復帰するようになっている。
+- **SupabaseのSQL適用状況を確認**（ユーザー「持越しは実施したつもり」）: アプリと同じ匿名クライアントで
+  実データに問い合わせて確認したところ、**`players.title_key` は存在**（＝戦績側 supabase_setup.sql は
+  実行済み）、**`so7_get_bug_report_counts()` も応答（9件返る）**（＝セブン側 supabase_setup_so7.sql も
+  実行済み）だった。Redirect URLs も最初から設定済みとのこと。よって**保留していたユーザー作業は無し**。
+- **検証**: 変更した全ファイルの `node --input-type=module --check` 通過、`npm test` **53/53 PASS**、
+  `node test/smoke.mjs 2 --repeat 2` **2/2 PASS**。ヘッドレスブラウザで ja↔en を切り替えて実測——
+  日本語では従来通り「プレイヤーA のターン」「プレイヤーAが獲得」「パーティー」、英語では
+  「Player A’s turn」「Player A gained」「Party」「Gate Invasion Bonus!」「Player A invaded Player C’s gate!」
+  「Alice wins! / All seven colors are locked in their Lock Area」等になり、**英語モードで日本語の残りが
+  1件も無い**ことを確認。サーバー側（Supabase）の変更は無い。

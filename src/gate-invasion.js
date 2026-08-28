@@ -13,6 +13,8 @@ import { GATE_POSITIONS, SIDE_TO_SEAT, SEAT_TO_SIDE, SEAT_ORDER, COLORS } from "
 import { getPlayerName } from "./player-identity.js";
 import { getCardDefinition } from "./cards-data.js";
 import { announceHandPickups } from "./hand-announcer.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ6
+import { getCardName } from "./card-text.js";
 import { isFlightAnimationDisabled, isArrivalEffectDisabled } from "./motion-prefs.js";
 import { logAction } from "./action-log.js";
 import { neutralModalSkin } from "./ui-helpers.js";
@@ -74,7 +76,7 @@ function showBonusStepModal(text, onOk, attacker) {
     z-index: 10002; font-family: sans-serif; ${skin.panel}
   `;
   const title = document.createElement("div");
-  title.textContent = "相手ゲート侵攻ボーナス";
+  title.textContent = t("game.gate.title");
   title.style.cssText = `font-weight: bold; margin-bottom: 0.6rem; color: ${skin.gold};`;
   const body = document.createElement("div");
   body.style.cssText = "font-size: 0.9rem; line-height: 1.7; margin-bottom: 1rem; white-space: pre-wrap;";
@@ -143,10 +145,10 @@ function runStealHand(attacker, defender, onDone) {
     hasRitualHelper: !!stealHandRitualHelper,
   });
   if (count === 0) {
-    showBonusStepModal(`${getPlayerName(attacker)}はゲート侵攻成功！\n${getPlayerName(defender)}の手札は枚数が半分未満のため、奪えるカードはありません。`, onDone, attacker);
+    showBonusStepModal(t("game.gate.step.stealNone", { attacker: getPlayerName(attacker), defender: getPlayerName(defender) }), onDone, attacker);
     return;
   }
-  showBonusStepModal(`${getPlayerName(attacker)}はゲート侵攻成功！\n${getPlayerName(defender)}の手札${count}枚を無作為に奪います。`, async () => {
+  showBonusStepModal(t("game.gate.step.stealIntro", { attacker: getPlayerName(attacker), defender: getPlayerName(defender), n: count }), async () => {
     // ユーザー要望2026-08-07「複数枚奪う時、1枚ごとに実際に自分の手札へ描画。今はまとめて最後」。
     // 儀式ヘルパー（1枚ずつ選んで中央に見せる）経由なら、選ぶたびにその1枚を手札へ移して再描画する。
     const stolenTokens = stealHandRitualHelper
@@ -158,7 +160,7 @@ function runStealHand(attacker, defender, onDone) {
     // ヘルパーが無いフォールバック（無作為・儀式なし）の時だけ、ここでまとめて移す。
     if (!stealHandRitualHelper) gateInvasionStealHand(attacker, stolenTokens.map((t) => t.id));
     notifyChange();
-    announceHandPickups(attacker, stolenTokens.map((t) => ({ cardId: t.cardId, wasPublic: false })), "相手ゲート侵攻ボーナス（手札を奪う）");
+    announceHandPickups(attacker, stolenTokens.map((t) => ({ cardId: t.cardId, wasPublic: false })), t("game.gate.reason.steal"));
     onDone();
   }, attacker);
 }
@@ -193,7 +195,7 @@ function runEternal(attacker, onDone) {
     willUseAnim,
   });
   if (eternalPile.length === 0) {
-    showBonusStepModal(`${getPlayerName(attacker)}はエターナルカードを獲得するはずでしたが、盤面の外のエターナルカードはもう残っていません。`, onDone);
+    showBonusStepModal(t("game.gate.step.eternalEmpty", { attacker: getPlayerName(attacker) }), onDone);
     return;
   }
   const cardId = eternalPile[eternalPile.length - 1];
@@ -209,7 +211,7 @@ function runEternal(attacker, onDone) {
     finished = true;
     gateInvasionEternal(attacker, cardId);
     notifyChange();
-    announceHandPickups(attacker, bumpedTokens.map((t) => ({ cardId: t.cardId, wasPublic: true })), "相手ゲート侵攻ボーナス（ロックから押し出された）");
+    announceHandPickups(attacker, bumpedTokens.map((t) => ({ cardId: t.cardId, wasPublic: true })), t("game.gate.reason.bumped"));
     onDone();
   }
   // 「移動アニメーション」「到達・ロック演出」のどちらかが無効化されている間は、
@@ -222,13 +224,15 @@ function runEternal(attacker, onDone) {
     // 想定尺（①〜⑥合計 約8秒）を十分に超える保険タイマーで必ず applyAndFinish を呼ぶ。
     // 正常に完了する場合はこのタイマーより先に演出側が applyAndFinish を呼ぶので影響しない。
     const safetyMs = 15000;
-    const t = setTimeout(applyAndFinish, safetyMs);
+    // 変数名を safetyTimer にしてある（UI英語化フェーズ6で翻訳関数 t() を import したため、
+    // ここを t のままにすると同じスコープ内で名前がぶつかって紛らわしい）。
+    const safetyTimer = setTimeout(applyAndFinish, safetyMs);
     eternalAnimHelper(attacker, cardId, def, () => {
-      clearTimeout(t);
+      clearTimeout(safetyTimer);
       applyAndFinish();
     });
   } else {
-    showBonusStepModal(`${getPlayerName(attacker)}はエターナルカード「${def.name}」を獲得！\n自分のロックエリアにロックします。`, applyAndFinish, attacker);
+    showBonusStepModal(t("game.gate.step.eternal", { attacker: getPlayerName(attacker), card: getCardName(cardId) || def.name }), applyAndFinish, attacker);
   }
 }
 
@@ -250,10 +254,10 @@ function runReturnHome(attacker, onDone) {
     (t) => t.kind === "card" && t.location.zone === "cell" && t.location.row === homeGate.row && t.location.col === homeGate.col
   );
   const collected = gateTokens.map((t) => ({ cardId: t.cardId, faceUp: t.faceUp }));
-  showBonusStepModal(`${getPlayerName(attacker)}は自分のゲートにあるカードをすべて回収し、ゲートに帰還します。`, async () => {
+  showBonusStepModal(t("game.gate.step.returnHomeCards", { attacker: getPlayerName(attacker) }), async () => {
     gateInvasionReturnHome(attacker);
     notifyChange();
-    announceHandPickups(attacker, collected.map((c) => ({ cardId: c.cardId, wasPublic: c.faceUp })), "相手ゲート侵攻ボーナス（自分のゲートから回収）");
+    announceHandPickups(attacker, collected.map((c) => ({ cardId: c.cardId, wasPublic: c.faceUp })), t("game.gate.reason.collected"));
     // 何を回収したのかを、回収した本人の画面だけに中央で大きく見せる。
     if (returnHomeRevealHelper && collected.length > 0) await returnHomeRevealHelper(attacker, collected);
     onDone();

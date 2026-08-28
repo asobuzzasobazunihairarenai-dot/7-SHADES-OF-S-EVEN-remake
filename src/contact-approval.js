@@ -23,6 +23,7 @@ import { getState } from "./state.js";
 import { isOnlineMode, getSelfSeat } from "./online.js";
 import { getPlayerName } from "./player-identity.js";
 import { isAutoProcessingEnabled } from "./card-effect-engine.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ6
 
 let modalEl = null;
 let backdropEl = null;
@@ -126,21 +127,19 @@ export function updateContactApprovalModal() {
 
   const title = document.createElement("div");
   title.className = "contact-approval-title";
-  title.textContent = "🤝 接触の申し込み";
+  title.textContent = t("game.contact.title");
   modalEl.appendChild(title);
 
   const body = document.createElement("div");
   body.className = "contact-approval-body";
   if (hasCounterLock) {
-    body.textContent = `${getPlayerName(pending.attacker)}があなた（${getPlayerName(
-      pending.defender
-    )}）に接触を申し込んでいます。あなたは「カウンターロック」を持っています。使いますか？（使うとこの接触は無効になります）`;
+    body.textContent = t("game.contact.bodyCounter", {
+      attacker: getPlayerName(pending.attacker),
+      defender: getPlayerName(pending.defender),
+    });
   } else {
-    body.textContent = canRespond
-      ? `${getPlayerName(pending.attacker)}があなた（${getPlayerName(
-          pending.defender
-        )}）に接触を申し込んでいます。承認すると、手札から無作為に1枚渡し、あなたは自分のゲートへ強制移動します。`
-      : `${getPlayerName(pending.attacker)}が${getPlayerName(pending.defender)}に接触を申し込み中… 相手の承認を待っています。`;
+    const names = { attacker: getPlayerName(pending.attacker), defender: getPlayerName(pending.defender) };
+    body.textContent = canRespond ? t("game.contact.bodySelf", names) : t("game.contact.bodyWait", names);
   }
   modalEl.appendChild(body);
 
@@ -151,7 +150,7 @@ export function updateContactApprovalModal() {
       const useBtn = document.createElement("button");
       useBtn.className = "contact-approval-approve";
       useBtn.type = "button";
-      useBtn.textContent = "🛡️ カウンターロックを使う";
+      useBtn.textContent = t("game.contact.useCounter");
       useBtn.addEventListener("click", () => {
         hideImmediately();
         useCounterLockHandler?.();
@@ -159,7 +158,7 @@ export function updateContactApprovalModal() {
       const declineBtn = document.createElement("button");
       declineBtn.className = "contact-approval-reject";
       declineBtn.type = "button";
-      declineBtn.textContent = "使わない（承認する）";
+      declineBtn.textContent = t("game.contact.declineCounter");
       declineBtn.addEventListener("click", () => {
         hideImmediately();
         respondHandler?.(true);
@@ -170,7 +169,7 @@ export function updateContactApprovalModal() {
       const approveBtn = document.createElement("button");
       approveBtn.className = "contact-approval-approve";
       approveBtn.type = "button";
-      approveBtn.textContent = "✅ 承認する";
+      approveBtn.textContent = t("game.contact.approve");
       approveBtn.addEventListener("click", () => {
         hideImmediately();
         respondHandler?.(true);
@@ -178,7 +177,7 @@ export function updateContactApprovalModal() {
       const rejectBtn = document.createElement("button");
       rejectBtn.className = "contact-approval-reject";
       rejectBtn.type = "button";
-      rejectBtn.textContent = "🚫 拒否する";
+      rejectBtn.textContent = t("game.contact.reject");
       rejectBtn.addEventListener("click", () => {
         hideImmediately();
         respondHandler?.(false);

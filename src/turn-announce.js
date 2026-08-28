@@ -6,6 +6,7 @@
 
 import { playSound } from "./sound.js";
 import { getPlayerName } from "./player-identity.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ6
 
 // onComplete: トーストが完全に消え終わった（フェードアウトのremoveまで完了した）瞬間に
 // 呼ばれる任意コールバック。ユーザー報告「『○○のターン』の表示がちゃんと消えてから
@@ -17,7 +18,7 @@ export function announceTurnChange(player, onComplete) {
   el.id = "turn-announce-toast";
   const label = document.createElement("div");
   label.className = "turn-announce-label";
-  label.textContent = `${getPlayerName(player)} のターン`;
+  label.textContent = t("game.turnOf", { name: getPlayerName(player) });
   el.appendChild(label);
   document.body.appendChild(el);
   // トースト系の既存演出（獲得ポップアップ等）と同じ「一瞬待ってからopacity/transformの

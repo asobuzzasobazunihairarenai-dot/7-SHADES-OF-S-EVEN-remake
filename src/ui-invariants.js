@@ -140,6 +140,28 @@ function isVisuallyTransparent(cs) {
   return noImage && alpha <= 0.02;
 }
 
+// アプリ自身が「今このページ/パネルを開いている」と body に印を付けている全画面ページは、
+// 幽霊（閉じ残り・透明な捕獲層）ではなく意図した表示なので検知対象から外す。
+// 実機スモークの誤検知（2026-08-29のユーザー報告: オプションを開いたまま自己対戦を回すと
+// 「#options-menu-panel が盤面中央を覆っています」と毎回出る）への対応。続き300でオプション
+// パネルが inset:0 の全画面ページになったため、開いている間は当然この条件に当たっていた。
+const INTENTIONAL_FULLSCREEN_PAGES = [
+  { id: "options-menu-panel", bodyClass: "options-menu-open" },
+  { id: "shop-panel", bodyClass: "shop-open" },
+  // ホーム・マイページ・ランキング・図鑑・マイデッキ編集/一覧は共通の印（option-area.jsが付ける）。
+  { id: "home-screen", bodyClass: "full-screen-page-active" },
+  { id: "profile-page", bodyClass: "full-screen-page-active" },
+  { id: "ranking-page", bodyClass: "full-screen-page-active" },
+  { id: "codex-page", bodyClass: "full-screen-page-active" },
+  { id: "my-deck-page", bodyClass: "full-screen-page-active" },
+  { id: "my-deck-list-page", bodyClass: "full-screen-page-active" },
+];
+function isIntentionalOpenPage(node) {
+  if (!node || !node.id) return false;
+  const hit = INTENTIONAL_FULLSCREEN_PAGES.find((x) => x.id === node.id);
+  return !!hit && document.body.classList.contains(hit.bodyClass);
+}
+
 // el（またはその近い祖先）が「盤面を覆う大きな固定オーバーレイ」なら、その要素を返す。無ければ null。
 // 判定: position:fixed かつ pointer-events が有効（＝クリックを奪う）かつ、矩形がビューポート中央を
 // 覆い、面積がビューポートの45%以上。面積で見るのは、このアプリの body に stage 変形（scale＋
@@ -152,6 +174,8 @@ function fullscreenFixedOverlayAt(el, w, h, cx, cy) {
   for (let i = 0; i < 5 && node && node !== document.body && node !== document.documentElement; i++) {
     // スモークテストのパネル自身は対象外（テストの道具であって盤面の妨げではない）。
     if (node.id === "smoke-test-panel" || (node.closest && node.closest("#smoke-test-panel"))) return null;
+    // 意図して開いている全画面ページ（オプション・ショップ・ホーム等）も対象外。
+    if (isIntentionalOpenPage(node)) return null;
     const cs = getComputedStyle(node);
     if (cs.position === "fixed" && cs.pointerEvents !== "none") {
       const r = node.getBoundingClientRect();

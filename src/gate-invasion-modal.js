@@ -12,6 +12,8 @@ import { createModalCloseX, neutralModalSkin } from "./ui-helpers.js";
 import { getState } from "./state.js";
 import { logAction } from "./action-log.js";
 import { isFlightAnimationDisabled, isArrivalEffectDisabled } from "./motion-prefs.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ6
+import { getCardName } from "./card-text.js";
 
 // ユーザー要望「ゲート侵攻のエターナル獲得のド派手な演出がオンラインで出ない（テストモードでは
 // 出る）」。ローカル版(gate-invasion.js)はrunEternalでeternalAnimHelper（3Dフリップ＋色バースト）
@@ -71,7 +73,7 @@ function buildCardsHtml(player, pickups) {
       `;
     })
     .join("");
-  const hiddenNote = hiddenCount > 0 ? `<div class="gate-invasion-modal-hidden-note">＋非公開のカード${hiddenCount}枚</div>` : "";
+  const hiddenNote = hiddenCount > 0 ? `<div class="gate-invasion-modal-hidden-note">${t("game.gate.hiddenNote", { n: hiddenCount })}</div>` : "";
   return `<div class="gate-invasion-modal-cards">${cardsHtml}</div>${hiddenNote}`;
 }
 
@@ -79,7 +81,7 @@ function buildCardsHtml(player, pickups) {
 function buildSteps(events) {
   const steps = [];
   for (const ev of events) {
-    steps.push({ text: `${getPlayerNameOrYou(ev.attacker)}が${getPlayerNameOrYou(ev.defender)}のゲートに侵攻！` });
+    steps.push({ text: t("game.gate.step.invade", { attacker: getPlayerNameOrYou(ev.attacker), defender: getPlayerNameOrYou(ev.defender) }) });
 
     if (ev.stolenCount > 0) {
       // buildStepsは各クライアントで動く（getSelfSeatは自分の視点）。奪われた本人には、
@@ -94,12 +96,12 @@ function buildSteps(events) {
       // 『ゲート侵攻成功』モーダルより先に出てしまう」への対応で、告知→演出→結果の順に
       // 並べ替えた。以前は告知＋一覧＋奪う演出を1ステップに詰め、演出を先に流していた）。
       steps.push({
-        text: `${getPlayerNameOrYou(ev.attacker)}はゲート侵攻成功！\n${getPlayerNameOrYou(ev.defender)}の手札${ev.stolenCount}枚を無作為に奪います。`,
+        text: t("game.gate.step.stealIntro", { attacker: getPlayerNameOrYou(ev.attacker), defender: getPlayerNameOrYou(ev.defender), n: ev.stolenCount }),
       });
       // ②告知のあとに奪う飛翔演出（スリカエ風の儀式）を再生し、完了してから奪ったカードの
       // 一覧モーダルを見せる（showStepがstealAnimを先に再生→同じステップを描き直す）。
       steps.push({
-        text: `${getPlayerNameOrYou(ev.attacker)}は${getPlayerNameOrYou(ev.defender)}の手札${ev.stolenCount}枚を奪いました。`,
+        text: t("game.gate.step.stealDone", { attacker: getPlayerNameOrYou(ev.attacker), defender: getPlayerNameOrYou(ev.defender), n: ev.stolenCount }),
         cardsHtml: stolenCardsHtml,
         stealAnim: {
           attacker: ev.attacker,
@@ -109,30 +111,30 @@ function buildSteps(events) {
         },
       });
     } else {
-      steps.push({ text: `${getPlayerNameOrYou(ev.attacker)}はゲート侵攻成功！\n${getPlayerNameOrYou(ev.defender)}の手札枚数が半分未満のため、奪えるカードはありません。` });
+      steps.push({ text: t("game.gate.step.stealNone", { attacker: getPlayerNameOrYou(ev.attacker), defender: getPlayerNameOrYou(ev.defender) }) });
     }
 
     if (ev.eternalCardId) {
       const def = getCardDefinition(ev.eternalCardId);
       steps.push({
-        text: `${getPlayerNameOrYou(ev.attacker)}はエターナルカード「${def.name}」を獲得！\n自分のロックエリアにロックします。`,
+        text: t("game.gate.step.eternal", { attacker: getPlayerNameOrYou(ev.attacker), card: getCardName(ev.eternalCardId) || def.name }),
         cardsHtml: buildCardsHtml(ev.attacker, [{ cardId: ev.eternalCardId, wasPublic: true }]),
         // 演出が使える環境では、このステップをモーダルの代わりに派手な3Dフリップ演出で見せる。
         eternalAnim: { attacker: ev.attacker, cardId: ev.eternalCardId },
       });
       if ((ev.bumpedCards ?? []).length > 0) {
         steps.push({
-          text: `ロックスロットにあったカードが弾き出され、${getPlayerNameOrYou(ev.attacker)}の手札に加わりました。`,
+          text: t("game.gate.step.eternalPushed", { attacker: getPlayerNameOrYou(ev.attacker) }),
           cardsHtml: buildCardsHtml(ev.attacker, (ev.bumpedCards ?? []).map((b) => ({ cardId: b.cardId, wasPublic: true }))),
         });
       }
     } else {
-      steps.push({ text: `${getPlayerNameOrYou(ev.attacker)}はエターナルカードを獲得するはずでしたが、盤面の外のエターナルカードはもう残っていません。` });
+      steps.push({ text: t("game.gate.step.eternalEmpty", { attacker: getPlayerNameOrYou(ev.attacker) }) });
     }
 
     if ((ev.gateCards ?? []).length > 0) {
       steps.push({
-        text: `${getPlayerNameOrYou(ev.attacker)}は自分のゲートにあるカードをすべて回収し、ゲートに帰還します。`,
+        text: t("game.gate.step.returnHomeCards", { attacker: getPlayerNameOrYou(ev.attacker) }),
         cardsHtml: buildCardsHtml(
           ev.attacker,
           (ev.gateCards ?? []).map((g) => ({
@@ -145,7 +147,7 @@ function buildSteps(events) {
         ),
       });
     } else {
-      steps.push({ text: `${getPlayerNameOrYou(ev.attacker)}は自分のゲートに帰還します。` });
+      steps.push({ text: t("game.gate.step.returnHome", { attacker: getPlayerNameOrYou(ev.attacker) }) });
     }
   }
   return steps;
@@ -293,7 +295,7 @@ function showStep(step) {
   `;
 
   const title = document.createElement("div");
-  title.textContent = "相手ゲート侵攻ボーナス";
+  title.textContent = t("game.gate.title");
   title.style.cssText = `font-weight: bold; margin-bottom: 0.6rem; color: ${skin.gold};`;
 
   const body = document.createElement("div");
@@ -301,7 +303,7 @@ function showStep(step) {
   body.textContent = step.text;
 
   const skipBtn = document.createElement("button");
-  skipBtn.textContent = "スキップ";
+  skipBtn.textContent = t("game.gate.skip");
   skipBtn.style.cssText =
     `padding: 0.4rem 1.4rem; ${skin.btn} border: none; border-radius: 0.25rem; cursor: pointer; margin-top: 0.4rem;`;
   skipBtn.addEventListener("click", () => {

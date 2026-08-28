@@ -12,6 +12,7 @@
 import { getState } from "./state.js";
 import { isOnlineMode, getSelfSeat } from "./online.js";
 import { getPlayerName } from "./player-identity.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ6
 
 let bannerEl = null;
 let respondHandler = null;
@@ -94,11 +95,11 @@ export function updateFinalLockApprovalBanner() {
     bannerEl.innerHTML = "";
     const title = document.createElement("div");
     title.className = "final-lock-approval-title";
-    title.textContent = "🍬 ゴメンナサイ";
+    title.textContent = t("game.finalLock.gomennasaiTitle");
     bannerEl.appendChild(title);
     const status = document.createElement("div");
     status.className = "final-lock-approval-status";
-    status.textContent = "ロックエリアから奪うカードを選んでください";
+    status.textContent = t("game.finalLock.gomennasaiPick");
     bannerEl.appendChild(status);
     return;
   }
@@ -131,14 +132,14 @@ export function updateFinalLockApprovalBanner() {
 
   const title = document.createElement("div");
   title.className = "final-lock-approval-title";
-  title.textContent = `🔒 ${getPlayerName(pending.attacker)} さんが最後のロックに挑戦中！`;
+  title.textContent = t("game.finalLock.title", { name: getPlayerName(pending.attacker) });
   bannerEl.appendChild(title);
 
   const status = document.createElement("div");
   status.className = "final-lock-approval-status";
   status.textContent = canRespond
-    ? `あなた（${getPlayerName(approver)}）の承認が必要です`
-    : `${getPlayerName(approver)} さんの承認を待っています…`;
+    ? t("game.finalLock.needYou", { name: getPlayerName(approver) })
+    : t("game.finalLock.waiting", { name: getPlayerName(approver) });
   bannerEl.appendChild(status);
 
   if (canRespond) {
@@ -147,7 +148,7 @@ export function updateFinalLockApprovalBanner() {
     const approveBtn = document.createElement("button");
     approveBtn.className = "final-lock-approval-approve";
     approveBtn.type = "button";
-    approveBtn.textContent = "✅ 承認する";
+    approveBtn.textContent = t("game.finalLock.approve");
     approveBtn.addEventListener("click", () => respondHandler?.(true));
     buttons.appendChild(approveBtn);
     // ゴメンナサイを持っていて追色1を払える場合だけ、却下の代わりにこのボタンを出す
@@ -157,7 +158,7 @@ export function updateFinalLockApprovalBanner() {
     const gomennasaiBtn = document.createElement("button");
     gomennasaiBtn.className = "final-lock-approval-reject";
     gomennasaiBtn.type = "button";
-    gomennasaiBtn.textContent = "🍬 ゴメンナサイを使う";
+    gomennasaiBtn.textContent = t("game.finalLock.useGomennasai");
     gomennasaiBtn.addEventListener("click", () => useGomennasaiHandler?.());
     buttons.appendChild(gomennasaiBtn);
     bannerEl.appendChild(buttons);

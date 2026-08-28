@@ -10,6 +10,7 @@ import { getCardDefinition } from "./cards-data.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { getAvatarVariant, applyAvatarContent } from "./avatar-render.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ6
 import { playVictoryBgm, stopVictoryBgm } from "./sound.js";
 import { showPostGamePanel, showCpuBattleEndPanel } from "./post-game-panel.js";
 import { awardMatchCurrency, awardCpuWinCurrency, getSelfSeat, getCurrentGameId, reportRankedResult, getSelfRank, getRankedPreMatchRank, markRankedResultShown, ensureStatsMatchRecorded, scheduleStatsBackupRecord, clearRecordedStatsMatch } from "./online.js";
@@ -201,11 +202,11 @@ function showVictoryModal(player, onClose) {
 
   const title = document.createElement("div");
   title.className = "victory-modal-title";
-  title.textContent = `${getPlayerName(player)} の勝利！`;
+  title.textContent = t("game.victory.title", { name: getPlayerName(player) });
 
   const subtitle = document.createElement("div");
   subtitle.className = "victory-modal-subtitle";
-  subtitle.textContent = "7色すべてのカードをロックエリアに揃えました";
+  subtitle.textContent = t("game.victory.sub");
 
   const closeX = createModalCloseX(close);
   closeX.classList.add("victory-modal-close");

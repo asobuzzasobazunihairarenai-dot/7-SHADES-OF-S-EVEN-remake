@@ -15,6 +15,7 @@
 // 閉じ込める設計。
 
 import { SEAT_LABELS, SEAT_ORDER } from "./board-layout.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ6（既定の座席名「プレイヤーA」→「Player A」）
 import { isOnlineMode, getSelfSeat, getSyncedIdentity, updateMyIdentity } from "./online.js";
 import { getState } from "./state.js";
 
@@ -181,6 +182,13 @@ function saveLocalAvatars() {
   }
 }
 
+// 名前を設定していない座席の既定表示名。board-layout.jsのSEAT_LABELSは「日本語の原文」で、
+// 座席の識別子としてコード内でも使われているため、そちらは触らずここで表示用に翻訳する
+// （英語なら "Player A"）。プレイヤーが自分で付けた名前(customNames/同期値)はそのまま尊重する。
+function defaultSeatLabel(seat) {
+  return t("game.seat", { seat }) || SEAT_LABELS[seat];
+}
+
 export function getPlayerName(seat) {
   if (isOnlineMode()) {
     const synced = getSyncedIdentity(seat)?.name;
@@ -189,9 +197,9 @@ export function getPlayerName(seat) {
     // フォールバックしない。過去のゲームで自分がこの座席に座っていた等で自分の名前が
     // 残っていると、相手が未設定・ロスター未取得の一瞬にその名前が相手の枠へ漏れる
     // （getPlayerAvatarと同根の不具合）。同期値が無ければ座席ラベルを返す。
-    if (seat !== getSelfSeat()) return SEAT_LABELS[seat];
+    if (seat !== getSelfSeat()) return defaultSeatLabel(seat);
   }
-  return customNames[seat] || SEAT_LABELS[seat];
+  return customNames[seat] || defaultSeatLabel(seat);
 }
 
 export function setPlayerName(seat, name) {

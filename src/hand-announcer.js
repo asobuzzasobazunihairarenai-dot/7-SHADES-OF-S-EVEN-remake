@@ -4,18 +4,25 @@
 // 「カードを得た」という事実だけを伝えるポップアップ（トースト、自動で消える）。
 
 import { getCardDefinition, getCardImagePath } from "./cards-data.js";
+import { getCardName } from "./card-text.js"; // UI英語化フェーズ6: 表示用カード名（英語版があればそちら）
+import { t } from "./ui-text.js";
 import { showCardFace } from "./card-face-display.js";
 import { getPlayerName } from "./player-identity.js";
 import { createModalCloseX } from "./ui-helpers.js";
 import { getSelfSeat, isOnlineMode } from "./online.js";
 import { pushTurnEventStock, getTurnEventStockTargetRect, getTurnEventStockKey } from "./turn-event-stock.js";
 
+// カード名は表示用（英語版のカードテキストがあればそれ、無ければ日本語の原名）。
+function cardNameOf(cardId) {
+  return getCardName(cardId) || getCardDefinition(cardId)?.name || cardId;
+}
+
 // 通知の主語が「自分自身」の時は名前ではなく「あなた」と表示する（「プレイヤーAが獲得」の
 // ような他人事っぽい文言になるのを避ける）。ローカルモードは1人で全座席を操作する前提で
 // 「自分」の概念が実質無意味なため対象外（isOnlineMode()でガード）。gate-invasion-modal.js
 // も同じ考え方を使うため、isPickupVisibleと同様にここからexportして再利用する。
 export function getPlayerNameOrYou(player) {
-  return isOnlineMode() && player === getSelfSeat() ? "あなた" : getPlayerName(player);
+  return isOnlineMode() && player === getSelfSeat() ? t("game.you") : getPlayerName(player);
 }
 
 // 表示時間（秒）は管理者モードの「カード獲得ポップアップ」グループで調整できる
@@ -88,6 +95,12 @@ function showToast(innerHTML, opts = {}) {
   const timer = setTimeout(stow, flashDurationMs());
 }
 
+// チップのツールチップ用の理由サフィックス（「（〜の効果）」/ 英語は " (…)"）。
+function reasonSuffix(reason, slash) {
+  if (!reason) return "";
+  return t(slash ? "game.chip.reasonSlash" : "game.chip.reason", { reason });
+}
+
 // 「何によって」を1行添える（ユーザー要望）。reasonが無ければ何も足さない。
 function reasonLine(reason) {
   return reason ? `<div class="hand-pickup-toast-reason">${reason}</div>` : "";
@@ -121,31 +134,30 @@ export function announceHandPickups(player, pickups, reason) {
     showToast(
       `
       <div class="hand-pickup-toast-text">
-        <div class="hand-pickup-toast-title">${getPlayerNameOrYou(player)}が非公開のカードを${hiddenCount}枚手札に加えました</div>
+        <div class="hand-pickup-toast-title">${t("game.toast.hiddenGain", { name: getPlayerNameOrYou(player), n: hiddenCount })}</div>
         ${reasonLine(reason)}
       </div>
     `,
-      { icon: "🎴", label: `${getPlayerNameOrYou(player)}が${hiddenCount}枚獲得${reason ? `（${reason}）` : ""}` }
+      { icon: "🎴", label: t("game.chip.gainedN", { name: getPlayerNameOrYou(player), n: hiddenCount }) + reasonSuffix(reason) }
     );
     return;
   }
 
   const cardsHtml = visible
     .map((p) => {
-      const def = getCardDefinition(p.cardId);
       return `
         <div class="hand-pickup-toast-card">
           <div class="hand-pickup-toast-img" data-cardface-id="${p.cardId}"></div>
-          <div class="hand-pickup-toast-name">${def.name}</div>
+          <div class="hand-pickup-toast-name">${cardNameOf(p.cardId)}</div>
         </div>
       `;
     })
     .join("");
-  const hiddenNote = hiddenCount > 0 ? `<div class="hand-pickup-toast-hidden-note">＋非公開のカード${hiddenCount}枚</div>` : "";
+  const hiddenNote = hiddenCount > 0 ? `<div class="hand-pickup-toast-hidden-note">${t("game.toast.hiddenNote", { n: hiddenCount })}</div>` : "";
 
   showToast(
     `
-    <div class="hand-pickup-toast-title">${getPlayerNameOrYou(player)}が獲得</div>
+    <div class="hand-pickup-toast-title">${t("game.toast.gained", { name: getPlayerNameOrYou(player) })}</div>
     ${reasonLine(reason)}
     <div class="hand-pickup-toast-cards">${cardsHtml}</div>
     ${hiddenNote}
@@ -153,7 +165,7 @@ export function announceHandPickups(player, pickups, reason) {
     {
       icon: "🎴",
       cardId: visible.length === 1 ? visible[0].cardId : null,
-      label: `${getPlayerNameOrYou(player)}が獲得${reason ? `（${reason}）` : ""}`,
+      label: t("game.chip.gained", { name: getPlayerNameOrYou(player) }) + reasonSuffix(reason),
     }
   );
 }
@@ -166,10 +178,10 @@ export function announceHandPickups(player, pickups, reason) {
 export function announceGateInvasion(attacker, defender) {
   showToast(
     `
-    <div class="hand-pickup-toast-title">相手ゲート侵攻ボーナス発生</div>
-    <div class="hand-pickup-toast-text">${getPlayerNameOrYou(attacker)}が${getPlayerNameOrYou(defender)}のゲートに侵攻！</div>
+    <div class="hand-pickup-toast-title">${t("game.toast.gateTitle")}</div>
+    <div class="hand-pickup-toast-text">${t("game.toast.gateText", { attacker: getPlayerNameOrYou(attacker), defender: getPlayerNameOrYou(defender) })}</div>
   `,
-    { icon: "🚩", label: `${getPlayerNameOrYou(attacker)}がゲート侵攻` }
+    { icon: "🚩", label: t("game.chip.gate", { name: getPlayerNameOrYou(attacker) }) }
   );
 }
 
@@ -182,10 +194,10 @@ export function announceGateInvasion(attacker, defender) {
 export function announceDrawCount(player, count, reason) {
   showToast(
     `
-    <div class="hand-pickup-toast-title">${getPlayerNameOrYou(player)}が${count}枚ドローします</div>
+    <div class="hand-pickup-toast-title">${t("game.toast.draws", { name: getPlayerNameOrYou(player), n: count })}</div>
     ${reasonLine(reason)}
   `,
-    { icon: "🃏", label: `${getPlayerNameOrYou(player)}が${count}枚ドロー${reason ? `（${reason}）` : ""}` }
+    { icon: "🃏", label: t("game.chip.draw", { name: getPlayerNameOrYou(player), n: count }) + reasonSuffix(reason) }
   );
 }
 
@@ -195,18 +207,17 @@ export function announceDrawCount(player, count, reason) {
 // 「置く」ことは、ルール上ロックしたことにはならない（docs/cards.mdの黒カードの補足参照）ため、
 // 呼び出し側（main.js）でその2色を除外してから呼ぶ。
 export function announceCardLocked(player, cardId) {
-  const def = getCardDefinition(cardId);
   showToast(
     `
-    <div class="hand-pickup-toast-title">${getPlayerNameOrYou(player)}がロック</div>
+    <div class="hand-pickup-toast-title">${t("game.toast.locked", { name: getPlayerNameOrYou(player) })}</div>
     <div class="hand-pickup-toast-cards">
       <div class="hand-pickup-toast-card">
         <div class="hand-pickup-toast-img" data-cardface-id="${cardId}"></div>
-        <div class="hand-pickup-toast-name">${def.name}</div>
+        <div class="hand-pickup-toast-name">${cardNameOf(cardId)}</div>
       </div>
     </div>
   `,
-    { icon: "🔒", cardId, label: `${getPlayerNameOrYou(player)}がロック（${def.name}）` }
+    { icon: "🔒", cardId, label: t("game.chip.lock", { name: getPlayerNameOrYou(player), card: cardNameOf(cardId) }) }
   );
 }
 
@@ -219,15 +230,15 @@ export function announceCardDiscarded(player, cardId, reason) {
   if (!def) return;
   showToast(
     `
-    <div class="hand-pickup-toast-title">${getPlayerNameOrYou(player)}が捨てました</div>
+    <div class="hand-pickup-toast-title">${t("game.toast.discarded", { name: getPlayerNameOrYou(player) })}</div>
     ${reasonLine(reason)}
     <div class="hand-pickup-toast-cards">
       <div class="hand-pickup-toast-card">
         <div class="hand-pickup-toast-img" data-cardface-id="${cardId}"></div>
-        <div class="hand-pickup-toast-name">${def.name}</div>
+        <div class="hand-pickup-toast-name">${cardNameOf(cardId)}</div>
       </div>
     </div>
   `,
-    { icon: "🗑", cardId, label: `${getPlayerNameOrYou(player)}が捨てた（${def.name}）${reason ? `／${reason}` : ""}` }
+    { icon: "🗑", cardId, label: t("game.chip.discard", { name: getPlayerNameOrYou(player), card: cardNameOf(cardId) }) + reasonSuffix(reason, true) }
   );
 }
