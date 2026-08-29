@@ -32,6 +32,7 @@ import {
   maybeTriggerRematch,
   leaveGame,
 } from "./online.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ11
 import { createBackdrop } from "./ui-helpers.js";
 import { logAction } from "./action-log.js";
 import { fetchStatsProfile, getTierInfo } from "./stats-profile.js";
@@ -80,7 +81,7 @@ function minimizePanel() {
   restoreIconEl.id = "post-game-restore-icon";
   restoreIconEl.type = "button";
   restoreIconEl.textContent = "🏆";
-  restoreIconEl.title = "対戦結果メニューを開く";
+  restoreIconEl.title = t("postgamepanel.L83");
   restoreIconEl.style.cssText =
     "position: fixed; top: 0.9rem; left: 0.9rem; z-index: 10602; width: 3rem; height: 3rem; " +
     "border-radius: 50%; background: rgba(15,23,32,0.95); border: 1px solid rgba(250,204,21,0.7); " +
@@ -102,7 +103,7 @@ function showMinimizeNoticeThenMinimize() {
     "background: rgba(15,23,32,0.98); border: 1px solid rgba(148,163,184,0.4); border-radius: 0.5rem; " +
     "padding: 1.2rem; z-index: 10611; color: #e2e8f0; font-family: sans-serif; text-align: center;";
   const txt = document.createElement("div");
-  txt.textContent = "このモーダルを最小化して盤面を確認します。いつでも画面左上の🏆アイコンから元に戻せます。";
+  txt.textContent = t("postgamepanel.L105");
   txt.style.cssText = "margin-bottom: 1rem; line-height: 1.6; font-size: 0.9rem;";
   const ok = document.createElement("button");
   ok.type = "button";
@@ -156,9 +157,9 @@ function buildButtonsSection(gameId) {
 
   const statsBtn = document.createElement("button");
   statsBtn.type = "button";
-  statsBtn.textContent = "戦績を確認してみる";
+  statsBtn.textContent = t("postgamepanel.L159");
   statsBtn.disabled = !STATS_SITE_URL;
-  if (!STATS_SITE_URL) statsBtn.title = "戦績サイトのURLが未設定です";
+  if (!STATS_SITE_URL) statsBtn.title = t("postgamepanel.L161");
   statsBtn.style.cssText = `
     padding: 0.5rem 1rem; background: #0369a1; border: none; border-radius: 0.3rem;
     color: white; cursor: pointer; font-size: 0.85rem;
@@ -170,7 +171,7 @@ function buildButtonsSection(gameId) {
 
   const rematchBtn = document.createElement("button");
   rematchBtn.type = "button";
-  rematchBtn.textContent = "もう一度遊ぶ";
+  rematchBtn.textContent = t("postgamepanel.L173");
   rematchBtn.style.cssText = `
     padding: 0.5rem 1rem; background: #15803d; border: none; border-radius: 0.3rem;
     color: white; cursor: pointer; font-size: 0.85rem;
@@ -178,14 +179,14 @@ function buildButtonsSection(gameId) {
 
   const waitingLabel = document.createElement("div");
   waitingLabel.style.cssText = `font-size: 0.75rem; color: ${t.sub}; margin-top: 0.5rem; display: none;`;
-  waitingLabel.textContent = "他の参加者を待っています…（誰かが部屋を抜けたらその人数で再開します）";
+  waitingLabel.textContent = t("postgamepanel.L181");
 
   rematchBtn.addEventListener("click", async () => {
     // #88: 「もう一度遊ぶ」を押した“その瞬間”に勝利BGMを止める（従来は次の対局がSET_TURN_PLAYER
     // まで進んで初めてinitGameBgmAutoStartが止めていたため、セットアップ完了まで鳴り続けていた）。
     stopVictoryBgm();
     rematchBtn.disabled = true;
-    rematchBtn.textContent = "待機中…";
+    rematchBtn.textContent = t("postgamepanel.L188");
     waitingLabel.style.display = "block";
     try {
       await setRematchReady(true);
@@ -207,7 +208,7 @@ function buildButtonsSection(gameId) {
   // ユーザー要望「盤面を確認する」ボタン。押すと案内モーダル→最小化（左上の🏆アイコンから復元）。
   const boardBtn = document.createElement("button");
   boardBtn.type = "button";
-  boardBtn.textContent = "盤面を確認する";
+  boardBtn.textContent = t("postgamepanel.L210");
   boardBtn.style.cssText = `
     padding: 0.5rem 1rem; background: ${t.infoBg};
     border: 1px solid ${t.infoBorder}; border-radius: 0.3rem;
@@ -222,7 +223,7 @@ function buildButtonsSection(gameId) {
   // URLの?room=消去は従来どおり。
   const leaveBtn = document.createElement("button");
   leaveBtn.type = "button";
-  leaveBtn.textContent = "この部屋を出る";
+  leaveBtn.textContent = t("postgamepanel.L225");
   leaveBtn.style.cssText = `
     padding: 0.5rem 1rem; background: ${t.secBg};
     border: 1px solid ${t.secBorder}; border-radius: 0.3rem;
@@ -260,13 +261,13 @@ function buildCommentSection(onFinish) {
   const wrap = document.createElement("div");
 
   const label = document.createElement("div");
-  label.textContent = "この対戦のコメントを記入する（任意・パスできます）";
+  label.textContent = t("postgamepanel.L263");
   label.style.cssText = "font-size: 0.85rem; margin-bottom: 0.5rem; line-height: 1.5;";
   wrap.appendChild(label);
 
   const textarea = document.createElement("textarea");
   textarea.rows = 3;
-  textarea.placeholder = "感想やハイライトなど（空欄でもOK）";
+  textarea.placeholder = t("postgamepanel.L269");
   textarea.style.cssText = `
     width: 100%; box-sizing: border-box; padding: 0.5rem; background: ${t.fieldBg};
     border: 1px solid ${t.fieldBorder}; border-radius: 0.3rem; color: ${t.fieldText};
@@ -279,7 +280,7 @@ function buildCommentSection(onFinish) {
 
   const submitBtn = document.createElement("button");
   submitBtn.type = "button";
-  submitBtn.textContent = "登録する";
+  submitBtn.textContent = t("postgamepanel.L282");
   submitBtn.style.cssText = `
     padding: 0.4rem 0.9rem; background: #be185d; border: none; border-radius: 0.3rem;
     color: white; cursor: pointer; font-size: 0.85rem;
@@ -287,7 +288,7 @@ function buildCommentSection(onFinish) {
 
   const passBtn = document.createElement("button");
   passBtn.type = "button";
-  passBtn.textContent = "パス";
+  passBtn.textContent = t("postgamepanel.L290");
   passBtn.style.cssText = `
     padding: 0.4rem 0.9rem; background: ${t.secBg};
     border: 1px solid ${t.secBorder}; border-radius: 0.3rem;
@@ -300,7 +301,7 @@ function buildCommentSection(onFinish) {
     done = true;
     submitBtn.disabled = true;
     passBtn.disabled = true;
-    submitBtn.textContent = comment ? "送信中…" : "…";
+    submitBtn.textContent = comment ? t("postgamepanel.L303") : "…";
     onFinish(comment);
   }
   submitBtn.addEventListener("click", () => finish(textarea.value.trim()));
@@ -387,10 +388,10 @@ export function showCpuBattleEndPanel({ winnerSeat }) {
 
   const title = document.createElement("div");
   title.style.cssText = "font-size: 1.15rem; font-weight: bold; text-align: center; margin-bottom: 0.2rem;";
-  title.textContent = iWon ? "🏆 あなたの勝ち！" : "🤖 CPUの勝ち…";
+  title.textContent = iWon ? t("postgamepanel.L390") : t("postgamepanel.L390_2");
   const sub = document.createElement("div");
   sub.style.cssText = `font-size: 0.75rem; color: ${t.sub}; text-align: center; margin-bottom: 1rem;`;
-  sub.textContent = "CPU戦（1人用）";
+  sub.textContent = t("postgamepanel.L393");
   panelEl.appendChild(title);
   panelEl.appendChild(sub);
 
@@ -399,7 +400,7 @@ export function showCpuBattleEndPanel({ winnerSeat }) {
 
   const rematchBtn = document.createElement("button");
   rematchBtn.type = "button";
-  rematchBtn.textContent = "もう一度戦う";
+  rematchBtn.textContent = t("postgamepanel.L402");
   rematchBtn.style.cssText =
     "padding: 0.5rem 1rem; background: #15803d; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.85rem;";
   rematchBtn.addEventListener("click", async () => {
@@ -421,7 +422,7 @@ export function showCpuBattleEndPanel({ winnerSeat }) {
 
   const boardBtn = document.createElement("button");
   boardBtn.type = "button";
-  boardBtn.textContent = "盤面を見る";
+  boardBtn.textContent = t("postgamepanel.L424");
   boardBtn.style.cssText =
     `padding: 0.5rem 1rem; background: ${t.infoBg}; border: 1px solid ${t.infoBorder}; border-radius: 0.3rem; color: ${t.infoText}; cursor: pointer; font-size: 0.85rem;`;
   boardBtn.addEventListener("click", () => {
@@ -430,7 +431,7 @@ export function showCpuBattleEndPanel({ winnerSeat }) {
 
   const homeBtn = document.createElement("button");
   homeBtn.type = "button";
-  homeBtn.textContent = "ホームに戻る";
+  homeBtn.textContent = t("postgamepanel.L433");
   homeBtn.style.cssText =
     `padding: 0.5rem 1rem; background: ${t.secBg}; border: 1px solid ${t.secBorder}; border-radius: 0.3rem; color: ${t.secText}; cursor: pointer; font-size: 0.85rem;`;
   homeBtn.addEventListener("click", () => {
@@ -560,7 +561,7 @@ export function showPostGamePanel({ activePlayers, winnerSeat }) {
       .finally(async () => {
         try {
           const before = await beforeRankProfilePromise;
-          if (before?.linked && before.tier.label !== "カスタムカラー") {
+          if (before?.linked && before.tier.label !== t("postgamepanel.L563")) {
             const afterTier = getTierInfo(before.matchesCount + 1);
             if (afterTier.label !== before.tier.label) {
               showRankUpModal({ fromTier: before.tier, toTier: afterTier });

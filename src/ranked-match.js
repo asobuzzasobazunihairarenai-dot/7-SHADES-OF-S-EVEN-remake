@@ -25,6 +25,7 @@ import {
   captureRankedPreMatchRank,
   sendPushToUsers,
 } from "./online.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ11
 import { openDeckSelect } from "./my-deck-select.js";
 import { playSound } from "./sound.js";
 import {
@@ -40,7 +41,10 @@ import { resolveAvatarValue } from "./player-identity.js";
 
 const POLL_INTERVAL_MS = 2500;
 const READY_WINDOW_SEC = 60; // サーバー側so7_ranked_pollの解散閾値と揃える（見た目のカウントダウン用）
-const RANK_NAMES = ["ブロンズ", "シルバー", "ゴールド", "プラチナ", "ダイヤモンド", "マスター", "レジェンド"];
+// UI英語化フェーズ11: 段位名は使う時に解決する（定数にすると読み込み時の言語で固定される）。
+function rankNames() {
+  return [t("rm.L43"), t("rm.L43_2"), t("rm.L43_3"), t("rm.L43_4"), t("rm.L43_5"), t("rm.L43_6"), t("rm.L43_7")];
+}
 
 let overlayEl = null; // 待機画面オーバーレイ
 let statusEl = null;
@@ -77,7 +81,7 @@ export async function startRankedMatchmaking(onExit) {
   //   説明するプリパーミッションを出してから求める（beginQueue内、ユーザー報告2026-08-18）。
   openDeckSelect({
     durationSec: 0,
-    subtitle: "ランク戦で使うデッキを選んでください（2〜4人でマッチ）",
+    subtitle: t("rm.L80"),
     onResolved: (resolved) => {
       void beginQueue(resolved);
     },
@@ -91,20 +95,20 @@ async function beginQueue(resolved) {
   if (!resolved) return;
   myDeck = resolved;
   showWaitingScreen();
-  setWaitingStatus("キューに登録しています…");
+  setWaitingStatus(t("rm.L94"));
   const ok = await enqueueRanked(resolved);
   if (!ok) {
-    setWaitingStatus("キューに入れませんでした（ログイン状態・通信をご確認ください）。");
+    setWaitingStatus(t("rm.L97"));
     return;
   }
-  setWaitingStatus("対戦相手を探しています…");
+  setWaitingStatus(t("rm.L100"));
   startPolling();
   // 別タブ/別アプリを見ていると、マッチ成立（レディチェック）を見逃してキューから弾かれやすい。
   // その通知を出すために、何のための通知かを説明してから許可を求める（本物のダイアログは
   // ユーザーが「許可する」を押した時だけ出る）。非ブロッキングで、待機中に1回だけ。
   void primeNotifyPermission({
-    title: "対戦相手が見つかったら通知します",
-    body: "別のタブやアプリを見ていても、対戦相手が見つかった時（対戦開始の確認）に通知でお知らせします。見逃して弾かれるのを防げます。",
+    title: t("rm.L106"),
+    body: t("rm.L107"),
   }).then((perm) => {
     // 許可が取れたら Web Push を購読（タブ/ブラウザを閉じていてもマッチ成立を受け取れるように）。
     if (perm === "granted") void subscribeToPush();
@@ -120,7 +124,7 @@ function showWaitingScreen() {
 
   const title = document.createElement("div");
   title.className = "ranked-waiting-title";
-  title.textContent = "🏆 ランク戦（2〜4人）・対戦相手を探しています";
+  title.textContent = t("rm.L123");
   overlayEl.appendChild(title);
 
   const spinner = document.createElement("div");
@@ -129,7 +133,7 @@ function showWaitingScreen() {
 
   statusEl = document.createElement("div");
   statusEl.className = "ranked-waiting-status";
-  statusEl.textContent = "対戦相手を探しています…";
+  statusEl.textContent = t("rm.L100");
   overlayEl.appendChild(statusEl);
 
   countEl = document.createElement("div");
@@ -139,7 +143,7 @@ function showWaitingScreen() {
 
   const hint = document.createElement("div");
   hint.className = "ranked-waiting-hint";
-  hint.textContent = "相手が見つかると「対戦開始」ボタンが出ます。別のタブで待っていても、音とタブの点滅でお知らせします。";
+  hint.textContent = t("rm.L142");
   overlayEl.appendChild(hint);
 
   // 待機中CPU練習（docs/ranked-spec.md「待機中にCPU練習」）。探している間ヒマなので、
@@ -148,14 +152,14 @@ function showWaitingScreen() {
   const practiceBtn = document.createElement("button");
   practiceBtn.type = "button";
   practiceBtn.className = "ranked-waiting-practice";
-  practiceBtn.textContent = "🤖 CPUと練習する（マッチしたら中断）";
+  practiceBtn.textContent = t("rm.L151");
   practiceBtn.addEventListener("click", () => void startPractice());
   overlayEl.appendChild(practiceBtn);
 
   const cancelBtn = document.createElement("button");
   cancelBtn.type = "button";
   cancelBtn.className = "ranked-waiting-cancel";
-  cancelBtn.textContent = "キャンセル";
+  cancelBtn.textContent = t("rm.L158");
   cancelBtn.addEventListener("click", () => void cancelMatchmaking());
   overlayEl.appendChild(cancelBtn);
 
@@ -201,15 +205,15 @@ function showPracticeBanner() {
   practiceBannerEl = document.createElement("div");
   practiceBannerEl.id = "ranked-practice-banner";
   const label = document.createElement("span");
-  label.textContent = "🏆 ランク戦の相手を探し中…（見つかると練習を中断します）";
+  label.textContent = t("rm.L204");
   practiceBannerEl.appendChild(label);
   const stopBtn = document.createElement("button");
   stopBtn.type = "button";
-  stopBtn.textContent = "練習をやめて待機に戻る";
+  stopBtn.textContent = t("rm.L208");
   stopBtn.addEventListener("click", async () => {
     await stopPractice();
     showWaitingScreen();
-    setWaitingStatus("対戦相手を探しています…");
+    setWaitingStatus(t("rm.L100"));
   });
   practiceBannerEl.appendChild(stopBtn);
   document.body.appendChild(practiceBannerEl);
@@ -227,7 +231,7 @@ function setWaitingStatus(text) {
 function updateWaitingCount(n) {
   if (!countEl) return;
   const count = Number(n) || 0;
-  countEl.textContent = count > 0 ? `現在 ${count} 人が対戦相手を探しています` : "今は他に探している人がいません";
+  countEl.textContent = count > 0 ? t("rm.searching", { n: count }) : t("rm.L230");
 }
 
 function closeWaitingScreen() {
@@ -255,7 +259,7 @@ function startPolling() {
   const tick = async () => {
     const res = await pollRanked();
     if (!res) {
-      setWaitingStatus("通信エラー。再試行中…");
+      setWaitingStatus(t("rm.L258"));
       return;
     }
     await handlePollResult(res);
@@ -276,14 +280,14 @@ async function handlePollResult(res) {
   const state = res.state;
   if (state === "waiting") {
     if (lastState === "matched" || lastState === "forming") hideReadyModal(); // グループ解散→待機に戻った
-    setWaitingStatus("対戦相手を探しています…");
+    setWaitingStatus(t("rm.L100"));
     lastState = "waiting";
   } else if (state === "forming") {
     // 段階的フィル中（2人以上集合。締め切りまで、さらに参加者を待っている）。
     if (lastState === "matched") hideReadyModal();
     const here = (res.size || 0);
     const sec = res.grow_seconds != null ? res.grow_seconds : 0;
-    setWaitingStatus(`🎉 ${here}人集合！ あと${sec}秒、参加者を待っています…（4人になるか締め切りで開始確認）`);
+    setWaitingStatus(t("rm.gathering", { here, sec }));
     lastState = "forming";
   } else if (state === "matched") {
     if (lastState !== "matched") {
@@ -301,8 +305,8 @@ async function handlePollResult(res) {
       // 同じpending_matchのメンバーにしか送らない（濫用防止）。best-effortで失敗は握りつぶす。
       const oppIds = Array.isArray(res.opponents) ? res.opponents.map((o) => o && o.user_id).filter(Boolean) : [];
       void sendPushToUsers(oppIds, {
-        title: "▶ 相手が見つかりました！",
-        body: "ランク戦の対戦相手が見つかりました。戻って「対戦開始」を押してください。",
+        title: t("rm.L304"),
+        body: t("rm.L305"),
         url: "./",
         tag: "so7-ranked-matched",
       });
@@ -320,7 +324,7 @@ async function handlePollResult(res) {
       hideReadyModal();
       stopPolling();
       stopTitleFlash();
-      setWaitingStatus("キューから外れました（対戦開始を押さなかったため）。");
+      setWaitingStatus(t("rm.L323"));
       lastState = "none";
     }
   }
@@ -338,8 +342,8 @@ function notifyMatchFound() {
   startFaviconAlert();
   // 別タブ/別アプリを見ていてもレディチェックを見逃さないよう、OS のブラウザ通知で知らせる。
   showBrowserNotification({
-    title: "▶ 相手が見つかりました！",
-    body: "ランク戦の対戦相手が見つかりました。戻って「対戦開始」を押してください。",
+    title: t("rm.L304"),
+    body: t("rm.L305"),
     tag: "so7-ranked-matched",
   });
 }
@@ -350,7 +354,7 @@ function startTitleFlash() {
   let on = false;
   titleFlashTimer = setInterval(() => {
     on = !on;
-    document.title = on ? "▶ 相手が見つかりました！" : originalTitle;
+    document.title = on ? t("rm.L304") : originalTitle;
   }, 900);
 }
 
@@ -384,7 +388,7 @@ function buildOpponentRow(o) {
       ? oppAvatar
       : "🎮";
   if (oppAvatar && safeAvatar === "🎮") {
-    console.warn("[so7][ranked] 相手アバターが画像/絵文字として認識できません:", JSON.stringify(oppAvatar));
+    console.warn(t("rm.L387"), JSON.stringify(oppAvatar));
   }
   applyAvatarContent(avatar, safeAvatar);
   opp.appendChild(avatar);
@@ -392,12 +396,12 @@ function buildOpponentRow(o) {
   info.className = "ranked-ready-info";
   const nameEl = document.createElement("div");
   nameEl.className = "ranked-ready-name";
-  nameEl.textContent = (o && o.name) || "対戦相手";
+  nameEl.textContent = (o && o.name) || t("rm.L395");
   info.appendChild(nameEl);
   const rankEl = document.createElement("div");
   rankEl.className = "ranked-ready-rank";
   const rank = o && o.rank;
-  rankEl.textContent = typeof rank === "number" && RANK_NAMES[rank] ? `ランク: ${RANK_NAMES[rank]}` : "ランク: ブロンズ";
+  rankEl.textContent = typeof rank === "number" && rankNames()[rank] ? t("rm.rankOf", { rank: rankNames()[rank] }) : t("rm.L400");
   info.appendChild(rankEl);
   opp.appendChild(info);
   return opp;
@@ -414,7 +418,7 @@ function showReadyModal(res) {
   const opponents = Array.isArray(res.opponents) ? res.opponents : [];
   const heading = document.createElement("div");
   heading.className = "ranked-ready-heading";
-  heading.textContent = opponents.length >= 2 ? "対戦相手が見つかりました！" : "相手が見つかりました！";
+  heading.textContent = opponents.length >= 2 ? t("rm.L417") : t("rm.L417_2");
   inner.appendChild(heading);
 
   // 相手情報（アバター・名前・ランク）を人数分並べる。
@@ -427,7 +431,7 @@ function showReadyModal(res) {
 
   const note = document.createElement("div");
   note.className = "ranked-ready-note";
-  note.textContent = "全員が「対戦開始」を押すと始まります。押さないと自動でキャンセルされます。";
+  note.textContent = t("rm.L430");
   inner.appendChild(note);
 
   const countdown = document.createElement("div");
@@ -437,10 +441,10 @@ function showReadyModal(res) {
   const startBtn = document.createElement("button");
   startBtn.type = "button";
   startBtn.className = "ranked-ready-start";
-  startBtn.textContent = "対戦開始";
+  startBtn.textContent = t("rm.L440");
   startBtn.addEventListener("click", async () => {
     startBtn.disabled = true;
-    startBtn.textContent = "相手を待っています…";
+    startBtn.textContent = t("rm.L443");
     stopTitleFlash();
     const gameId = await readyRanked(res.match_id);
     if (gameId) {
@@ -457,7 +461,7 @@ function showReadyModal(res) {
   // 見た目のカウントダウン（サーバーが60秒でペアを解散する）。
   let remain = READY_WINDOW_SEC;
   const updateCd = () => {
-    countdown.textContent = `残り ${remain} 秒`;
+    countdown.textContent = t("rm.remain", { n: remain });
   };
   updateCd();
   readyCountdownTimer = setInterval(() => {
@@ -466,7 +470,7 @@ function showReadyModal(res) {
       remain = 0;
       // ユーザー要望2026-08-18「2人しか押さなくても押した人だけで開始」。締め切り時点で
       // ready が2人以上いれば、その人たちだけで対局が始まる（サーバーの so7_ranked_poll が判定）。
-      countdown.textContent = "まもなく開始します（対戦開始を押した人だけで始まります）";
+      countdown.textContent = t("rm.L469");
       return;
     }
     updateCd();
@@ -491,7 +495,7 @@ async function enterRankedGame(gameId, opponents) {
   stopPolling();
   hideReadyModal();
   stopTitleFlash();
-  setWaitingStatus("対局を準備しています…");
+  setWaitingStatus(t("rm.L494"));
   try {
     await leaveRankedQueue(); // キューからクリーンに抜ける
     // 昇格演出（docs/ranked-spec.md）用に、対局開始時点の自分のランクを覚えておく
@@ -522,7 +526,7 @@ async function enterRankedGame(gameId, opponents) {
     lastState = null;
   } catch (err) {
     console.error("enterRankedGame failed", err);
-    setWaitingStatus("対局への入場に失敗しました。時間をおいて再度お試しください。");
+    setWaitingStatus(t("rm.L525"));
     entering = false;
   }
 }

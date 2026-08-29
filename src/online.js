@@ -24,6 +24,7 @@ import {
   resetGame,
   drawFromMyDeckLocal,
 } from "./state.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ11
 import { SEAT_ORDER } from "./board-layout.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
 // マイデッキ戦: ログイン時にアカウント保存のデッキを復元する（my-deck.jsはcards-data.jsのみ
@@ -137,7 +138,7 @@ function logDebug(context, err) {
   console.error(`[online.js] ${context}`, err);
 }
 export function getDebugLog() {
-  return debugLogEntries.length ? debugLogEntries.join("\n") : "（まだログはありません）";
+  return debugLogEntries.length ? debugLogEntries.join("\n") : t("on.label.noLogYet");
 }
 export function clearDebugLog() {
   debugLogEntries.length = 0;
@@ -169,7 +170,7 @@ function cleanRedirectUrl() {
 
 export async function signInWithMagicLink(email) {
   return withLog("マジックリンク送信", async () => {
-    if (!client) throw new Error("Supabaseクライアントが初期化されていません");
+    if (!client) throw new Error(t("on.err.noClient"));
     // Supabase側の「Site URL」は姉妹プロジェクト（戦績管理システム）用のポートに設定されて
     // いるため、明示的に「今開いているこのページ」を戻り先として指定する（ホスト/ポートが
     // 変わっても常に正しく動くように）。ただしこのURLはSupabaseダッシュボード
@@ -193,7 +194,7 @@ export async function signInWithMagicLink(email) {
 // 毎回Googleのアカウント選択画面を強制表示させる。
 export async function signInWithGoogle() {
   return withLog("Googleログイン", async () => {
-    if (!client) throw new Error("Supabaseクライアントが初期化されていません");
+    if (!client) throw new Error(t("on.err.noClient"));
     const { error } = await client.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: cleanRedirectUrl(), queryParams: { prompt: "select_account" } },
@@ -209,7 +210,7 @@ export async function signInWithGoogle() {
 // ブラウザを変えたりデータを消したりすると同じ人として戻ってこられなくなる点に注意。
 export async function signInAnonymously() {
   return withLog("匿名ログイン", async () => {
-    if (!client) throw new Error("Supabaseクライアントが初期化されていません");
+    if (!client) throw new Error(t("on.err.noClient"));
     const { error } = await client.auth.signInAnonymously();
     if (error) throw error;
   });
@@ -743,14 +744,14 @@ export function getGoogleDisplayName() {
 // 使わない。名前があってもGoogle由来なので出さず、常に伏せ字メール（匿名は「ゲスト」）にする。
 export function getAccountDisplayLabel(user) {
   if (!user) return "";
-  if (user.is_anonymous) return "ゲスト";
+  if (user.is_anonymous) return t("on.label.guest");
   const email = user.email;
   if (email && email.includes("@")) {
     const [local, domain] = email.split("@");
     const maskedLocal = local.length <= 1 ? "*" : `${local[0]}***`;
     return `${maskedLocal}@${domain}`;
   }
-  return "ログイン中";
+  return t("on.label.signedIn");
 }
 let visitRecorded = false;
 if (client) {
@@ -1240,7 +1241,7 @@ export async function recordVisit() {
 // アプリ内「不具合報告」（bug-report.js）から呼ぶ。認証済みならuser_id付き、未認証でも
 // null user_idで投稿できる（so7_bug_reportsのwith checkが両方許可）。ログイン必須にはしない。
 export async function submitBugReport({ comment, actionLog, consoleLog, context } = {}) {
-  if (!client) throw new Error("オンライン機能が利用できないため、不具合報告を送信できません。");
+  if (!client) throw new Error(t("on.err.noOnlineBug"));
   const { error } = await client.from("so7_bug_reports").insert({
     user_id: cachedUser?.id ?? null,
     comment: comment ?? "",
@@ -1417,7 +1418,7 @@ export async function loadMyPreferences() {
       setMyDeckFromAccount(deckRow.my_deck);
     }
   } catch (err) {
-    console.error("マイデッキの読み込みに失敗しました（my_deck列が未追加の可能性）", err);
+    console.error(t("on.err.deckLoad"), err);
   }
 
   // 表示言語（ja/en）をアカウントから復元する（ユーザー要望「端末を変えても引き継がれるように」）。
@@ -1427,7 +1428,7 @@ export async function loadMyPreferences() {
     const lang = await fetchMyLang();
     if (lang) setLang(lang);
   } catch (err) {
-    console.error("言語設定の読み込みに失敗しました（lang列が未追加の可能性）", err);
+    console.error(t("on.err.langLoad"), err);
   }
 }
 
@@ -1504,7 +1505,7 @@ function startGameResync(gameId) {
 export async function createRoom(name, password, ranked = false) {
   return withLog("部屋の作成", async () => {
     const user = await getCurrentUser();
-    if (!user) throw new Error("ログインしてください");
+    if (!user) throw new Error(t("on.err.signIn"));
     const { data: gameId, error } = await client.rpc("so7_create_room", {
       room_name: name || null,
       room_password: password || null,
@@ -1536,7 +1537,7 @@ export async function getRoomIsRanked(gameId) {
 export async function joinRoom(gameId, passwordAttempt) {
   return withLog("部屋に参加", async () => {
     const user = await getCurrentUser();
-    if (!user) throw new Error("ログインしてください");
+    if (!user) throw new Error(t("on.err.signIn"));
 
     const { error } = await client.rpc("so7_join_room", {
       p_game_id: gameId,
@@ -1544,10 +1545,10 @@ export async function joinRoom(gameId, passwordAttempt) {
     });
     if (error) {
       if (String(error.message ?? "").includes("duplicate key")) {
-        throw new Error("既にこの部屋に参加しています");
+        throw new Error(t("on.err.alreadyInRoom"));
       }
       if (String(error.message ?? "").includes("invalid_password")) {
-        throw new Error("パスワードが違います");
+        throw new Error(t("on.err.wrongPassword"));
       }
       throw error;
     }
@@ -1566,7 +1567,7 @@ export async function joinRoom(gameId, passwordAttempt) {
 export async function spectateGame(gameId, mode = "public") {
   return withLog("観戦", async () => {
     const user = await getCurrentUser();
-    if (!user) throw new Error("ログインしてください");
+    if (!user) throw new Error(t("on.err.signIn"));
     currentGameId = gameId;
     currentSeat = null;
     spectating = true;
@@ -1643,7 +1644,7 @@ export async function getMyActiveGames() {
   if (error) throw error;
   return (data ?? [])
     .filter((row) => row.so7_games && row.so7_games.status !== "open")
-    .map((row) => ({ id: row.game_id, name: row.so7_games.name || "セブンの部屋" }));
+    .map((row) => ({ id: row.game_id, name: row.so7_games.name || t("on.label.roomDefault") }));
 }
 
 // 「途中退出した部屋」一覧から、今いない別の部屋の座席をワンクリックで抜けるための関数
@@ -1665,7 +1666,7 @@ export async function leaveGameById(gameId, force = true) {
 export async function getRoomName(gameId) {
   const { data, error } = await client.from("so7_games").select("name").eq("id", gameId).maybeSingle();
   if (error) throw error;
-  return data?.name || "セブンの部屋";
+  return data?.name || t("on.label.roomDefault");
 }
 
 // 今この部屋に参加している人数（座席未定でもカウントする）。
@@ -1693,7 +1694,7 @@ export async function getRoomHostInfo() {
   const user = await getCurrentUser();
   return {
     amIHost: !!user && host.user_id === user.id,
-    hostName: host.display_name || "部屋主",
+    hostName: host.display_name || t("on.label.host"),
     count: data.length,
   };
 }
@@ -1797,7 +1798,7 @@ async function callAction(action) {
     // 観戦者は読み取り専用。万一UIのブロックをすり抜けても、ここでアクション送信を止める
     // （サーバー側も非座席者のアクションを弾くが、二重の安全網）。
     if (spectating) return null;
-    if (!currentGameId) throw new Error("部屋に参加していません");
+    if (!currentGameId) throw new Error(t("on.err.notInRoom"));
     // 「誰が・何をした結果か」を、この後届くブロードキャストのこだま/直後の
     // fetchAndHydrate()より前に記録しておく（turn-timer.jsのonStateChangeがオンライン中に
     // 「本当に優先権保持者本人の操作か」を判定するのに使う。last-action-info.js参照）。
@@ -1815,7 +1816,7 @@ async function callAction(action) {
         body: { game_id: currentGameId, action },
       });
       if (!error) {
-        if (!data?.ok) throw new Error(data?.error ?? "アクションが失敗しました");
+        if (!data?.ok) throw new Error(data?.error ?? t("on.err.actionFailed"));
         return data;
       }
       lastErr = error;
@@ -1990,7 +1991,7 @@ export async function startGame(gameId, { includeBlackWhite = false, timerEnable
   try {
     return await withLog("ゲーム開始", async () => {
     const count = await getMemberCount(gameId);
-    if (count < 2) throw new Error("2人以上揃ってから開始してください");
+    if (count < 2) throw new Error(t("on.err.needTwo"));
     // ターンタイマー設定（基本時間・延長時間・初期/最大砂時計数・補充ターン数・有効/無効）は
     // includeBlackWhiteと同じく、開始ボタンを押した本人のその時点の設定を対局全体の固定値
     // として1回だけ送る（プレイヤーごとに異なると不公平になるため、対局中は変更しない）。
@@ -2274,7 +2275,7 @@ async function getOrCreateStatsPlayer(userId, displayName, avatarUrl) {
     .insert({
       id: `p_${Date.now()}`,
       user_id: userId,
-      name: displayName || "プレイヤー",
+      name: displayName || t("on.label.player"),
       avatar_url: avatarUrl || "",
       // ユーザー方針変更（2026-07-30）「ログイン済みでの対戦後は承認待ちでなく即承認で登録」。
       // ゲスト（匿名）はそもそもここへ来ない（呼び出し側でスキップ、submitStatsMatchResult/
@@ -2298,7 +2299,7 @@ async function getOrCreateStatsPlayer(userId, displayName, avatarUrl) {
 // player-identity.jsを直接importすると循環import（player-identity.js→online.js）に
 // なるため、ここでは呼び出し元に計算してもらった値を引数で受け取るだけにする。
 export async function syncMyStatsProfile(displayName, avatarPath) {
-  if (!cachedUser) throw new Error("ログインしていません");
+  if (!cachedUser) throw new Error(t("on.err.notSignedIn"));
   // 呼び出し元(my-page.js)は解決済みのパスを渡す想定だが、万一センチネル("protagonist"等)が
   // 来ても壊れたURL(.../protagonist)にならないよう、念のため自分の座席で解決してから絶対URL化する。
   const resolved = resolveAvatarForStats(getSelfSeat(), avatarPath);
@@ -2342,11 +2343,11 @@ export async function fetchMyTitleKey() {
 
 // お気に入りの称号を保存する（nullで解除）。戦績システムのプレイヤーと連携済みの人だけが対象。
 export async function saveMyTitleKey(titleKey) {
-  if (!client || !cachedUser || cachedUser.is_anonymous) throw new Error("ログインしてください");
+  if (!client || !cachedUser || cachedUser.is_anonymous) throw new Error(t("on.err.signIn"));
   const { data: existing, error: selErr } = await client
     .from("players").select("id").eq("user_id", cachedUser.id).maybeSingle();
   if (selErr) throw selErr;
-  if (!existing) throw new Error("戦績システムのプレイヤーと連携されていません");
+  if (!existing) throw new Error(t("on.err.notLinked"));
   const { error } = await client.from("players").update({ title_key: titleKey }).eq("id", existing.id);
   if (error) throw error;
 }
@@ -2480,9 +2481,9 @@ async function captureVictoryScreenshot(gameId, { activePlayers, winnerSeat, dur
 // 行い、ここでは既にWebP化されたBlobを受け取ってアップロードするだけにする。
 export async function uploadAvatarImage(blob) {
   return withLog("アバター画像のアップロード", async () => {
-    if (!client) throw new Error("Supabaseクライアントが初期化されていません");
+    if (!client) throw new Error(t("on.err.noClient"));
     const user = await getCurrentUser();
-    if (!user) throw new Error("ログインしてください");
+    if (!user) throw new Error(t("on.err.signIn"));
     const path = `${user.id}.webp`;
     const { error: uploadError } = await client.storage.from("avatars").upload(path, blob, {
       contentType: "image/webp",
@@ -2490,7 +2491,7 @@ export async function uploadAvatarImage(blob) {
     });
     if (uploadError) throw uploadError;
     const { data } = client.storage.from("avatars").getPublicUrl(path);
-    if (!data?.publicUrl) throw new Error("画像URLの取得に失敗しました");
+    if (!data?.publicUrl) throw new Error(t("on.err.noImageUrl"));
     // 上書きアップロードのたびに同じURLになるため、ブラウザ/CDNのキャッシュにより
     // 古い画像のまま見えてしまうことがある。末尾にタイムスタンプを付け、毎回別の
     // URLとして扱われるようにする（画像自体はサーバー上で1枚に保たれたまま）。
@@ -2500,7 +2501,7 @@ export async function uploadAvatarImage(blob) {
     // 画像そのものをcustom_avatar_urlへ保存しておく（列が無ければsaveMyPreference側で
     // エラーがログに出るだけで、アップロード自体は成功扱いのまま進める）。
     saveMyPreference({ custom_avatar_url: urlWithCacheBuster }).catch((err) =>
-      console.error("custom_avatar_urlの保存に失敗しました", err)
+      console.error(t("on.err.avatarSaveFailed"), err)
     );
     return urlWithCacheBuster;
   });
@@ -2550,7 +2551,7 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat, feedba
     // ゲストはplayers行を作らない。名前だけ試合のguest_namesに添える（戦績上「ゲスト（名前）」
     // 表示用）。勝者がゲストの場合はwinner_idはnullのまま（実プレイヤーの勝ちではないため）。
     if (guestUserIds.has(identity.userId)) {
-      guestNames.push(identity.name || "ゲスト");
+      guestNames.push(identity.name || t("on.label.guest"));
       continue;
     }
     // identity.avatarは、Googleアカウントのアバターなら既に絶対URL、ローカルの

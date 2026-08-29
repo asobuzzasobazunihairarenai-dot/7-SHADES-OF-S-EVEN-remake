@@ -18,6 +18,13 @@
 import { getState } from "./state.js";
 import { VERBS, TARGETS, TARGET_SELECTIONS, CARD_EFFECTS } from "./card-effects.js";
 import { getCardDefinition } from "./cards-data.js";
+import { getCardName } from "./card-text.js"; // UI英語化フェーズ11: 表示用のカード名
+import { t } from "./ui-text.js";
+
+// 表示用のカード名（英語のカードテキストがあればそれ、無ければ日本語の原名）。
+function cardDisplayName(cardId) {
+  return getCardName(cardId) || getCardDefinition(cardId)?.name || cardId;
+}
 import { COLORS, SEAT_TO_SIDE, SIDE_TO_SEAT, GATE_POSITIONS, SEAT_ORDER } from "./board-layout.js";
 import { logAction } from "./action-log.js";
 // 桃のキューブ セレナーデ専用（LOCK_ONE_HAND_CARD_EXCEPT_FINAL）:「最後のロックは
@@ -288,39 +295,39 @@ export function isHandEffectOptionUsable(cardId, cardTokenId, player, option) {
 // ——実際の不許可理由（追色コスト不足／ロックできる手札が無い／このカードでは勝利になる
 // 最後のロックはできない、等）を正確に伝え、誤解を招く定型文を出さないようにするため。
 function explainHandEffectOptionUnusable(cardId, cardTokenId, player, option) {
-  if (!autoProcessingEnabled) return "自動処理モードがOFFのため、手札効果を自動では使えません。";
-  if (isHandEffectDisabledThisTurn(cardTokenId)) return "このターンは別の効果によって、このカードの手札効果が封じられています。";
-  if (!isUnderUsageLimit(option.usageLimit, cardId, player)) return "この効果はこのターンに使える回数の上限に達しています（このターン使用済みです）。";
+  if (!autoProcessingEnabled) return t("ce.L291");
+  if (isHandEffectDisabledThisTurn(cardTokenId)) return t("ce.L292");
+  if (!isUnderUsageLimit(option.usageLimit, cardId, player)) return t("ce.L293");
   if (option.cost?.verb === VERBS.DISCARD_SAME_COLOR) {
     const color = getCardDefinition(cardId)?.color;
     const candidates = findSameColorDiscardCandidates(cardTokenId, color, player);
-    if (candidates.length < option.cost.count) return "追色コストを払えません（コストとして捨てられる同じ色の手札がありません）。";
+    if (candidates.length < option.cost.count) return t("ce.L297");
   }
   if (option.requiresPairInHand) {
     // publicDrawの同名カードも手札としてカウントする（isHandEffectOptionUsableと同じ）。
     const count = getHandTokens(player).filter((t) => t.cardId === cardId).length;
-    if (count < 2) return "この効果を使うには、同じカードが手札に2枚必要です。";
+    if (count < 2) return t("ce.L302");
   }
   if (option.requiresLockableCardAvailable) {
     const { tokens } = getLockableHandTokensExceptFinal(player);
     if (tokens.length === 0)
-      return "今ロックできる手札がありません（空きスロットが無い・色が合わない、またはこのカードでは最後の1色＝勝利になるロックはできないためです）。";
+      return t("ce.L307");
   }
   const drawIfAtMost = option.actions?.find((a) => a.verb === VERBS.DRAW_IF_HAND_AT_MOST);
   if (drawIfAtMost) {
     const handCountExcludingSelf = getHandTokens(player).filter((t) => t.id !== cardTokenId).length;
-    if (handCountExcludingSelf > drawIfAtMost.maxHandSize) return "手札が多いため、この効果（手札が少ない時にドローする効果）は今は使えません。";
+    if (handCountExcludingSelf > drawIfAtMost.maxHandSize) return t("ce.L312");
   }
   const discardOne = option.actions?.find((a) => a.verb === VERBS.DISCARD_ONE_HAND_CARD);
   if (discardOne) {
     const otherHandCount = getHandTokens(player).filter((t) => t.id !== cardTokenId).length;
-    if (otherHandCount < 1) return "手札に他のカードが無いため、この効果を使えません。";
+    if (otherHandCount < 1) return t("ce.L317");
   }
   const swap = option.actions?.find((a) => a.verb === VERBS.SWAP_POSITION);
   if (swap) {
     const selfPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === player);
     if (!selfPiece?.location || getOpponentPieceCellsWithinRange(selfPiece.location, swap.count, player).length === 0)
-      return `${swap.count}マス以内に入れ替えられる相手の駒がいないため、この効果は今は使えません。`;
+      return t("ce.noSwapTarget", { n: swap.count });
   }
   return null;
 }
@@ -329,7 +336,7 @@ function explainHandEffectOptionUnusable(cardId, cardTokenId, player, option) {
 // あればnull（＝使える）。全て使えない時は最初の選択肢の理由を返す（大半のカードは選択肢1つ）。
 export function getHandEffectUnusableReason(cardId, cardTokenId, player) {
   const options = getHandEffectOptions(cardId);
-  if (options.length === 0) return "このカードは手札効果を持っていません。";
+  if (options.length === 0) return t("ce.L332");
   if (options.some((opt) => isHandEffectOptionUsable(cardId, cardTokenId, player, opt))) return null;
   return explainHandEffectOptionUnusable(cardId, cardTokenId, player, options[0]);
 }
@@ -735,7 +742,7 @@ async function runAction(action, ctx, helpers) {
         dest =
           freshCells.length === 1 && !ctx.forcePrompt
             ? freshCells[0]
-            : await helpers.pickLocation(freshCells, "移動先のマスを選択してください");
+            : await helpers.pickLocation(freshCells, t("ce.L738"));
       } else {
         // 人間: ループ先は警告して選べないようにする（alertCellsでクリック時に注意を出し選択させない）。
         // 非ループの行き先が1つも無ければ移動しない（＝実質行き先なし。駒は現在地に留まる）。
@@ -743,9 +750,9 @@ async function runAction(action, ctx, helpers) {
         dest =
           freshCells.length === 1 && !ctx.forcePrompt
             ? freshCells[0]
-            : await helpers.pickLocation(freshCells, "移動先のマスを選択してください", {
+            : await helpers.pickLocation(freshCells, t("ce.L738"), {
                 alertCells: loopCells,
-                alertMessage: "無意味なループになるため、そのマスへは移動できません。",
+                alertMessage: t("ce.L748"),
               });
       }
       if (!dest) return false;
@@ -796,7 +803,7 @@ async function runAction(action, ctx, helpers) {
       const lockable = getHandTokens(ctx.player).filter((t) => cardCanLockIntoColorIndex(t.cardId, index));
       if (lockable.length === 0) return false;
       const handIds = new Set(lockable.map((t) => t.id));
-      const chosen = await helpers.pickHandCard(ctx.player, "ノワールのスロットにロックするカードを手札から選択してください", handIds, {
+      const chosen = await helpers.pickHandCard(ctx.player, t("ce.L799"), handIds, {
         purpose: "lock",
       });
       if (!chosen) return false;
@@ -823,7 +830,7 @@ async function runAction(action, ctx, helpers) {
       // お知らせ（ユーザー要望）: 誰が捨て場から何を手札に加えたか。
       await helpers.announceEffectReason?.(
         ctx.cardId,
-        `${helpers.getPlayerName(ctx.player)}は捨て場から「${getCardDefinition(targetToken.cardId).name}」を手札に加えました。`
+        t("ce.tookFromDiscard", { name: helpers.getPlayerName(ctx.player), card: cardDisplayName(targetToken.cardId) })
       );
       return true;
     }
@@ -838,8 +845,8 @@ async function runAction(action, ctx, helpers) {
         if (candidates.length === 0) break;
         const chosen = await helpers.pickLocation(
           candidates,
-          `オープンするマスを選択してください（任意、あと${action.maxCount - i}枚まで）`,
-          { allowSkip: true, skipLabel: "これ以上開かない" }
+          t("ce.pickOpenCells", { n: action.maxCount - i }),
+          { allowSkip: true, skipLabel: t("ce.L842") }
         );
         if (!chosen) break; // 「してもよい」なので、これ以上選ばない＝正常終了
         const token = findTopCardAtCell(chosen.row, chosen.col);
@@ -865,7 +872,7 @@ async function runAction(action, ctx, helpers) {
         }
       }
       // お知らせ（ユーザー要望）: 何枚オープンしたか（優先度低だが一応）。
-      if (flippedCount > 0) await helpers.announceEffectReason?.(ctx.cardId, `${flippedCount}枚のカードをオープンしました。`);
+      if (flippedCount > 0) await helpers.announceEffectReason?.(ctx.cardId, t("ce.flipped", { n: flippedCount }));
       return flippedCount > 0;
     }
     case VERBS.DISCARD_RANDOM_FROM_QUALIFYING_OPPONENTS: {
@@ -894,8 +901,8 @@ async function runAction(action, ctx, helpers) {
         await helpers.announceEffectReason?.(
           ctx.cardId,
           discardedDef
-            ? `${helpers.getPlayerName(p)}の手札から「${discardedDef.name}」を捨てさせました。`
-            : `${helpers.getPlayerName(p)}の手札から１枚を捨てさせました。`
+            ? t("ce.madeDiscardNamed", { name: helpers.getPlayerName(p), card: cardDisplayName(discardedDef.id) })
+            : t("ce.madeDiscardOne", { name: helpers.getPlayerName(p) })
         );
         hadEffect = true;
       }
@@ -907,7 +914,7 @@ async function runAction(action, ctx, helpers) {
       const candidates = getAnyCellWithCardCandidates();
       if (candidates.length === 0) return false;
       const chosen =
-        candidates.length === 1 && !ctx.forcePrompt ? candidates[0] : await helpers.pickLocation(candidates, "カードをすべて捨てるマスを選択してください");
+        candidates.length === 1 && !ctx.forcePrompt ? candidates[0] : await helpers.pickLocation(candidates, t("ce.L910"));
       if (!chosen) return false;
       const stack = getState().tokens.filter(
         (t) => t.kind === "card" && t.location.zone === "cell" && t.location.row === chosen.row && t.location.col === chosen.col
@@ -917,7 +924,7 @@ async function runAction(action, ctx, helpers) {
         await helpers.discardAndSync(token.id);
       }
       // お知らせ（ユーザー要望）: どのマスを対象にしたか。
-      await helpers.announceEffectReason?.(ctx.cardId, "このマスのカードをすべて捨てました。");
+      await helpers.announceEffectReason?.(ctx.cardId, t("ce.L920"));
       return true;
     }
     case VERBS.PUBLIC_DRAW_THEN_DISCARD_AT_TURN_END: {
@@ -930,7 +937,7 @@ async function runAction(action, ctx, helpers) {
       if (tokenIds.length === 0) return false;
       helpers.markDiscardAtTurnEnd?.(ctx.player, tokenIds);
       // お知らせ（ユーザー要望「マンズウッドは公開ドローではない→○○は1枚ドロー」）。
-      await helpers.announceEffectReason?.(ctx.cardId, `${helpers.getPlayerName(ctx.player)}は${tokenIds.length}枚ドローしました。`);
+      await helpers.announceEffectReason?.(ctx.cardId, t("ce.drewN", { name: helpers.getPlayerName(ctx.player), n: tokenIds.length }));
       return true;
     }
     case VERBS.MOVE_CHOSEN_OPPONENT_ADJACENT_TO_SELF: {
@@ -955,9 +962,9 @@ async function runAction(action, ctx, helpers) {
         // に関係なく自動選択する——相手が1人なら実質的に選択の余地が無いため（続き93の
         // 総点検ではマスチェンジだけを直したが、この「相手の駒を選ぶ」系にも抜けが残っていた）。
         targetCell = opponentCells[0];
-        helpers.announceEffectNotice?.(ctx.cardId, "選べる相手が1人しかいないため、自動的に選択しました。"); // 続き214: 非ブロック（直後の選択をすぐ可能に）
+        helpers.announceEffectNotice?.(ctx.cardId, t("ce.L958")); // 続き214: 非ブロック（直後の選択をすぐ可能に）
       } else {
-        targetCell = await helpers.pickLocation(opponentCells, "移動させる相手の駒を選んでください");
+        targetCell = await helpers.pickLocation(opponentCells, t("ce.L960"));
       }
       if (!targetCell) return false;
       const targetPiece = findPieceAtCell(targetCell.row, targetCell.col);
@@ -968,7 +975,7 @@ async function runAction(action, ctx, helpers) {
         .filter(({ row, col }) => inBounds(row, col) && !hasPieceAt(row, col))
         .map(({ row, col }) => ({ zone: "cell", row, col }));
       if (adjacentCells.length === 0) return false; // 善処の原則: 隣接マスが無ければ何もしない
-      const dest = adjacentCells.length === 1 ? adjacentCells[0] : await helpers.pickLocation(adjacentCells, "相手を移動させるマスを選択してください");
+      const dest = adjacentCells.length === 1 ? adjacentCells[0] : await helpers.pickLocation(adjacentCells, t("ce.L971"));
       if (!dest) return false;
       await helpers.moveAndSync(targetPiece.id, dest);
       const destTop = findTopCardAtCell(dest.row, dest.col);
@@ -978,7 +985,7 @@ async function runAction(action, ctx, helpers) {
       // お知らせ（ユーザー要望）: 誰を誰の隣へ動かしたか＋接触制限。
       await helpers.announceEffectReason?.(
         ctx.cardId,
-        `${helpers.getPlayerName(targetPiece.player)}を${helpers.getPlayerName(ctx.player)}の隣へ移動させました。このターンあなたは接触できません（自己申告）。`
+        t("ce.movedNextTo", { target: helpers.getPlayerName(targetPiece.player), name: helpers.getPlayerName(ctx.player) })
       );
       return true;
     }
@@ -1012,10 +1019,10 @@ async function runAction(action, ctx, helpers) {
           const opt = await helpers.pickHandEffectOption(
             ctx.cardId,
             [
-              { id: "one", label: "１枚公開する", usable: true },
-              { id: "all", label: `残り${remaining}枚をすべて公開する`, usable: true },
+              { id: "one", label: t("ce.L1015"), usable: true },
+              { id: "all", label: t("ce.revealRest", { n: remaining }), usable: true },
             ],
-            "どのように公開しますか？" // 「効果を選択」ではなく「公開の仕方」の場面なので専用の見出し（ユーザー指摘2026-08-18）
+            t("ce.L1018") // 「効果を選択」ではなく「公開の仕方」の場面なので専用の見出し（ユーザー指摘2026-08-18）
           );
           if (opt?.id === "all") {
             await revealDrawn(await helpers.publicDrawReturningTokens(ctx.player, remaining));
@@ -1047,7 +1054,7 @@ async function runAction(action, ctx, helpers) {
         // お知らせ（ユーザー要望）: 条件成立の結果を対象名付きで。
         await helpers.announceEffectReason?.(
           ctx.cardId,
-          `残念、${helpers.getPlayerName(ctx.player)}は橙が出たため手札を全て捨て、このターンは移動できません。`
+          t("ce.gambleLose", { name: helpers.getPlayerName(ctx.player) })
         );
       } else if (helpers.celebrate) {
         // 橙が出なかった＝手札を捨てずに済んだ（成功）。ザ・ギャンブルの「宣言色が出なかった
@@ -1055,7 +1062,7 @@ async function runAction(action, ctx, helpers) {
         await helpers.celebrate(ctx.cardId, {
           tone: "success",
           headline: "CONGRATULATIONS!",
-          sub: `${helpers.getPlayerName(ctx.player)}は橙が出ませんでした。手札はそのまま残ります！`,
+          sub: t("ce.gambleSafe", { name: helpers.getPlayerName(ctx.player) }),
         });
       }
       return true;
@@ -1068,7 +1075,7 @@ async function runAction(action, ctx, helpers) {
       // 2マス先・一気に（atOnce）へ切り替えるようにした（activateMovementBoostForTurn、
       // isMovementBoostActiveThisTurnで参照）。
       activateMovementBoostForTurn(ctx.player);
-      await helpers.announceEffectReason?.(ctx.cardId, `${helpers.getPlayerName(ctx.player)}はこのターン、通常の移動を２マス先まで一気に行えます（自己申告）。`);
+      await helpers.announceEffectReason?.(ctx.cardId, t("ce.moveBoost", { name: helpers.getPlayerName(ctx.player) }));
       return true;
     }
     case VERBS.LOCK_ONE_HAND_CARD_EXCEPT_FINAL: {
@@ -1083,7 +1090,7 @@ async function runAction(action, ctx, helpers) {
       if (tokens.length === 0) return false;
       const lockableTokenIds = new Set(tokens.map((t) => t.id));
       // purpose:"lock" でCPUは「ロックしたい札（虹・要る色）優先」で自動選択（ユーザー要望2026-08-10）。
-      const chosen = await helpers.pickHandCard(ctx.player, "ロックするカードを手札から選択してください", lockableTokenIds, { purpose: "lock" });
+      const chosen = await helpers.pickHandCard(ctx.player, t("ce.L1086"), lockableTokenIds, { purpose: "lock" });
       if (!chosen) return false;
       const slots = candidateSlotsFor(chosen);
       if (slots.length === 0) return false;
@@ -1091,7 +1098,7 @@ async function runAction(action, ctx, helpers) {
       // 選ぶ余地が無いので、手札効果のforcePromptに関係なくモーダルを出さず自動でそこへ置く。
       // 七色の欠片のように複数スロットが候補になる（虹＝任意の欠色に置ける）カードだけ、
       // 「ロックする場所を選択してください」を出す。ユーザー要望（2026-08-07）。
-      const dest = slots.length === 1 ? slots[0] : await helpers.pickLocation(slots, "ロックする場所を選択してください");
+      const dest = slots.length === 1 ? slots[0] : await helpers.pickLocation(slots, t("ce.L1094"));
       if (!dest) return false;
       await helpers.moveAndSync(chosen.id, dest);
       return true;
@@ -1105,7 +1112,7 @@ async function runAction(action, ctx, helpers) {
       const chosen =
         candidates.length === 1 && !ctx.forcePrompt
           ? candidates[0]
-          : await helpers.pickLocation(candidates, "手札に加えるカードのあるマスを選択してください");
+          : await helpers.pickLocation(candidates, t("ce.L1108"));
       if (!chosen) return false;
       // ユーザー報告「収穫と種まきで場のカードを取るとき、そのマスがスタックされて
       // いたら一番上ではなく上から2枚目のカードを取ってしまう」の原因: Array#find()は
@@ -1158,12 +1165,12 @@ async function runAction(action, ctx, helpers) {
         for (let i = 0; i < pickCount; i++) {
           const available = cellCandidates.filter((c) => !pickedKeys.has(`${c.row},${c.col}`));
           if (available.length === 0) break;
-          const dest = await helpers.pickLocation(available, "カードを置くマスを選択してください（それぞれ別のマス）", {
+          const dest = await helpers.pickLocation(available, t("ce.L1161"), {
             alertCells: [...pickedKeys].map((k) => {
               const [row, col] = k.split(",").map(Number);
               return { row, col };
             }),
-            alertMessage: "そのマスには既に置く予定です。別のマスを選んでください。",
+            alertMessage: t("ce.L1166"),
           });
           if (!dest) break;
           destinations.push(dest);
@@ -1188,10 +1195,10 @@ async function runAction(action, ctx, helpers) {
         // 黒の契約の烙印専用: 自分のロックエリアの空いているスロット（色不問）から選ぶ。
         const candidates = getOwnEmptyLockSlotCandidates(ctx.player);
         if (candidates.length === 0) return false; // 善処の原則: 空きが無ければ何もしない
-        const dest = await helpers.pickLocation(candidates, "カードを置くロックエリアを選択してください");
+        const dest = await helpers.pickLocation(candidates, t("ce.L1191"));
         if (dest) destinations = [dest];
       } else {
-        console.warn("card-effect-engine: place_cardのdestination.selectionが未対応です", action);
+        console.warn(t("ce.L1194"), action);
         return false;
       }
       if (destinations.length === 0) return false;
@@ -1224,7 +1231,7 @@ async function runAction(action, ctx, helpers) {
           // source:"self"は効果カード自身＝公開情報なので名前を出す（faceUp指定なら表向き）。
           logAction("place", { player: ctx.player, cardId: ctx.cardId, location: dest, faceDown: !action.faceUp, revealName: true });
         } else if (action.source === "hand") {
-          const handToken = await helpers.pickHandCard(ctx.player, "そのマスに置くカードを手札から選択してください");
+          const handToken = await helpers.pickHandCard(ctx.player, t("ce.L1227"));
           if (!handToken) continue;
           await helpers.moveAndSync(handToken.id, { zone: "cell", row: dest.row, col: dest.col });
           // 手札から裏向きで置いた＝中身は非公開。座標だけ記録し、名前は伏せる（cardIdを含めない）。
@@ -1260,9 +1267,9 @@ async function runAction(action, ctx, helpers) {
       let target;
       if (candidates.length === 1) {
         target = candidates[0];
-        helpers.announceEffectNotice?.(ctx.cardId, "選べる相手が1人しかいないため、自動的に選択しました。"); // 続き214: 非ブロック（直後の選択をすぐ可能に）
+        helpers.announceEffectNotice?.(ctx.cardId, t("ce.L958")); // 続き214: 非ブロック（直後の選択をすぐ可能に）
       } else {
-        target = await helpers.pickLocation(candidates, "入れ替える相手のマスを選択してください");
+        target = await helpers.pickLocation(candidates, t("ce.L1265"));
       }
       if (!target) return false;
       // お知らせ用に入れ替え相手を先に捕まえる（swapPieces後は駒が動くため）。
@@ -1273,7 +1280,7 @@ async function runAction(action, ctx, helpers) {
       if (swapTargetPlayer)
         await helpers.announceEffectReason?.(
           ctx.cardId,
-          `${helpers.getPlayerName(ctx.player)}と${helpers.getPlayerName(swapTargetPlayer)}は駒の位置を入れ替えました。`
+          t("ce.swapped", { a: helpers.getPlayerName(ctx.player), b: helpers.getPlayerName(swapTargetPlayer) })
         );
       // #163（ユーザー指定2026-08-23）: マスチェンジ自身の回収は「入れ替えが終わった直後＝入れ替え
       // 先の到達効果が発動する直前」に行う。従来はrunArrivalEffectの既定add-to-hand（全アクション後）で
@@ -1315,7 +1322,7 @@ async function runAction(action, ctx, helpers) {
       );
       if (!partner) return false;
       const candidates = getOwnLockSlotCandidates(ctx.player);
-      const dest = await helpers.pickLocation(candidates, "ロックする場所を選択してください");
+      const dest = await helpers.pickLocation(candidates, t("ce.L1094"));
       if (!dest) return false;
       await helpers.moveAndSync(ctx.cardTokenId, dest);
       await helpers.moveAndSync(partner.id, dest);
@@ -1333,7 +1340,7 @@ async function runAction(action, ctx, helpers) {
       // しまう。常に発動者の名前で表示する。
       await helpers.announceEffectReason?.(
         ctx.cardId,
-        `${helpers.getPlayerName(ctx.player)}は１番少なくロックしているので１枚ドローします。`
+        t("ce.fewestDraw", { name: helpers.getPlayerName(ctx.player) })
       );
       await helpers.drawCards(ctx.player, 1);
       return true;
@@ -1361,16 +1368,16 @@ async function runAction(action, ctx, helpers) {
         // ユーザー要望「スリカエなどで相手を選ぶ効果の場合で選べる相手が１人しかいない
         // 場合は自動でその人を選択してください。そしてその旨をモーダルで示してください」（続き65）。
         targetPlayer = swappableOpponents[0];
-        helpers.announceEffectNotice?.(ctx.cardId, "手札を持っている相手が1人だけのため、自動的に選択しました。"); // 続き214: 非ブロック（直後の奪う札選択をすぐ可能に）
+        helpers.announceEffectNotice?.(ctx.cardId, t("ce.L1364")); // 続き214: 非ブロック（直後の奪う札選択をすぐ可能に）
       } else {
-        targetPlayer = await helpers.pickPlayer(swappableOpponents, "手札を交換する相手を選んでください（アバターをクリック）");
+        targetPlayer = await helpers.pickPlayer(swappableOpponents, t("ce.L1366"));
       }
       if (!targetPlayer) return false;
       await helpers.swapRandomHandCard(ctx.player, targetPlayer);
       // お知らせ（ユーザー要望）: 誰と誰が手札を交換したか。
       await helpers.announceEffectReason?.(
         ctx.cardId,
-        `${helpers.getPlayerName(ctx.player)}と${helpers.getPlayerName(targetPlayer)}は手札を1枚ずつ交換しました。`
+        t("ce.swappedHands", { a: helpers.getPlayerName(ctx.player), b: helpers.getPlayerName(targetPlayer) })
       );
       return true;
     }
@@ -1384,9 +1391,9 @@ async function runAction(action, ctx, helpers) {
       // ユーザー要望2026-08-07「プレゼントの到達効果で誰がドロー対象なのか画面中央にアバターで
       // 周知したい」。対象者のアバターを並べて見せる（未対応環境では従来のテキスト通知に戻す）。
       if (helpers.announceDrawTargets) {
-        await helpers.announceDrawTargets(qualifying, "１番少なくロックしている人が１枚ドロー");
+        await helpers.announceDrawTargets(qualifying, t("ce.L1387"));
       } else {
-        await helpers.announceEffectReason?.(ctx.cardId, "１番少なくロックしている全員が１枚ドローします。");
+        await helpers.announceEffectReason?.(ctx.cardId, t("ce.L1389"));
       }
       for (const p of qualifying) {
         await helpers.drawCards(p, 1);
@@ -1406,7 +1413,7 @@ async function runAction(action, ctx, helpers) {
         await helpers.discardAndSync(token.id);
       }
       // お知らせ（ユーザー要望）: 盤面一括変化の要約。
-      await helpers.announceEffectReason?.(ctx.cardId, "場の表向きのカードを全て捨てました。");
+      await helpers.announceEffectReason?.(ctx.cardId, t("ce.L1409"));
       return true;
     }
     case VERBS.DISCARD_SELF: {
@@ -1426,7 +1433,7 @@ async function runAction(action, ctx, helpers) {
         await helpers.drawCards(p, action.count);
       }
       // お知らせ（ユーザー要望）: 全員の手札が変わったこと。
-      await helpers.announceEffectReason?.(ctx.cardId, `全員が手札を全て捨てて、${action.count}枚ドローしました。`);
+      await helpers.announceEffectReason?.(ctx.cardId, t("ce.discardAllAndDraw", { n: action.count }));
       return true;
     }
     case VERBS.DISCARD_HALF_HAND: {
@@ -1438,7 +1445,7 @@ async function runAction(action, ctx, helpers) {
       if (discardCount === 0) return false;
       const discardedNames = [];
       for (let i = 0; i < discardCount; i++) {
-        const chosen = await helpers.pickHandCard(ctx.player, `捨てるカードを手札から選択してください（残り${discardCount - i}枚）`);
+        const chosen = await helpers.pickHandCard(ctx.player, t("ce.pickDiscardN", { n: discardCount - i }));
         if (!chosen) break;
         discardedNames.push(getCardDefinition(chosen.cardId)?.name ?? chosen.cardId);
         await helpers.discardAndSync(chosen.id);
@@ -1448,7 +1455,7 @@ async function runAction(action, ctx, helpers) {
       if (discardedNames.length > 0) {
         await helpers.announceEffectReason?.(
           ctx.cardId,
-          `${helpers.getPlayerName(ctx.player)}は選べる罠で手札の「${discardedNames.join("」「")}」を捨てました。`
+          t("ce.trapDiscarded", { name: helpers.getPlayerName(ctx.player), cards: discardedNames.join("」「") })
         );
       }
       return true;
@@ -1476,7 +1483,7 @@ async function runAction(action, ctx, helpers) {
       );
       if (lockedTokens.length === 0) return false;
       const candidates = lockedTokens.map((t) => t.location);
-      const dest = candidates.length === 1 ? candidates[0] : await helpers.pickLocation(candidates, "捨てるロックカードを選択してください");
+      const dest = candidates.length === 1 ? candidates[0] : await helpers.pickLocation(candidates, t("ce.L1479"));
       if (!dest) return false;
       const chosen = lockedTokens.find((t) => t.location.side === dest.side && t.location.index === dest.index);
       if (!chosen) return false;
@@ -1485,7 +1492,7 @@ async function runAction(action, ctx, helpers) {
       // ロック上のカードは元々公開情報。捨てたカードを全員へ告知する。
       await helpers.announceEffectReason?.(
         ctx.cardId,
-        `${helpers.getPlayerName(ctx.player)}は選べる罠でロックしていた「${getCardDefinition(chosen.cardId)?.name ?? chosen.cardId}」を捨てました。`
+        t("ce.trapDiscardedLock", { name: helpers.getPlayerName(ctx.player), card: cardDisplayName(chosen.cardId) })
       );
       return true;
     }
@@ -1505,8 +1512,8 @@ async function runAction(action, ctx, helpers) {
         const candidates = lockedTokens.map((t) => t.location);
         const dest = await helpers.pickLocation(
           candidates,
-          `捨てるロックカードを選択してください（任意、選ぶと${drawPer}枚ドロー）`,
-          { allowSkip: true, skipLabel: discarded > 0 ? "これ以上捨てない" : "捨てない" }
+          t("ce.pickLockDiscardOptional", { n: drawPer }),
+          { allowSkip: true, skipLabel: discarded > 0 ? t("ce.L1509") : t("ce.L1509_2") }
         );
         if (!dest) break; // 「任意の枚数」＝これ以上選ばない＝正常終了
         const chosen = lockedTokens.find((t) => t.location.side === dest.side && t.location.index === dest.index);
@@ -1518,7 +1525,7 @@ async function runAction(action, ctx, helpers) {
         await helpers.drawCards(ctx.player, discarded * drawPer);
         await helpers.announceEffectReason?.(
           ctx.cardId,
-          `ロックカードを${discarded}枚捨て、${discarded * drawPer}枚ドローしました。`
+          t("ce.lockDiscardedDrew", { n: discarded, draw: discarded * drawPer })
         );
       }
       // END_CURRENT_PHASEが後続にあるので、捨てなかった（discarded:0）場合でも効果全体は
@@ -1562,12 +1569,12 @@ async function runAction(action, ctx, helpers) {
           const options =
             remaining > 1
               ? [
-                  { id: "one", label: "１枚公開する", usable: true },
-                  { id: "all", label: `残り${remaining}枚をすべて公開する`, usable: true },
+                  { id: "one", label: t("ce.L1015"), usable: true },
+                  { id: "all", label: t("ce.revealRest", { n: remaining }), usable: true },
                 ]
-              : [{ id: "last", label: "最後の１枚を公開する", usable: true }];
+              : [{ id: "last", label: t("ce.L1568"), usable: true }];
           // 「効果を選択」ではなく「公開の仕方の選択」の場面なので専用の見出しにする（ユーザー指摘2026-08-18）。
-          const opt = await helpers.pickHandEffectOption("yellow-gamble", options, "どのように公開しますか？");
+          const opt = await helpers.pickHandEffectOption("yellow-gamble", options, t("ce.L1018"));
           if (opt?.id === "all") {
             // #95: publicDrawThenReveal は「山から確定→中央じらしフリップで公開→公開エリアへ表向き
             // 描画」の順で、公開エリアに先に見えてしまう問題を解消する（内部で公開演出まで行うので
@@ -1637,14 +1644,14 @@ async function runAction(action, ctx, helpers) {
           await helpers.celebrate(ctx.cardId, {
             tone: "success",
             headline: "CONGRATULATIONS!",
-            sub: `${gambleName}は公開した中に宣言した色がありませんでした。手札はそのまま残ります！`,
+            sub: t("ce.gambleNoColor", { name: gambleName }),
           });
         } else {
-          await helpers.announceEffectReason?.(ctx.cardId, `${gambleName}は公開した中に宣言した色が無かったため、手札はそのまま残ります。`);
+          await helpers.announceEffectReason?.(ctx.cardId, t("ce.gambleNoColor2", { name: gambleName }));
         }
         return false;
       }
-      await helpers.announceEffectReason?.(ctx.cardId, `残念でした。${gambleName}の公開した中に宣言した色があったため、手札を全て捨てます。`);
+      await helpers.announceEffectReason?.(ctx.cardId, t("ce.gambleHit", { name: gambleName }));
       const toDiscard = getHandTokens(ctx.player);
       // ユーザー報告「宣言色が出た時に手札がすべて捨てられず止まってしまっている」への
       // 対応。1枚ごとのdiscardAndSyncのどこかで例外が起きると（オンライン中の通信
@@ -1694,7 +1701,7 @@ async function runAction(action, ctx, helpers) {
         const dest =
           adjacentCandidateCells.length === 1
             ? adjacentCandidateCells[0]
-            : await helpers.pickLocation(adjacentCandidateCells, "カードを置く隣接マスを選択してください");
+            : await helpers.pickLocation(adjacentCandidateCells, t("ce.L1697"));
         if (!dest) break;
         // ユーザー要望2026-08-08「CPUの色選択後から移動・カード捲りまでが早すぎる」。宣言色が
         // 決まってから実際に置いて捲るまで、鼓動とともに“ため”を作る（読みやすさと緊張感）。
@@ -1762,12 +1769,12 @@ async function runAction(action, ctx, helpers) {
       const ritualName = helpers.getPlayerName?.(ctx.player) ?? "";
       if (successCount > 0) {
         if (helpers.celebrate) {
-          await helpers.celebrate(ctx.cardId, { tone: "success", headline: `${successCount}回成功！`, sub: `${ritualName}が試練を耐え抜きました！` });
+          await helpers.celebrate(ctx.cardId, { tone: "success", headline: t("ce.ritualSuccessN", { n: successCount }), sub: t("ce.ritualEndured", { name: ritualName }) });
         } else {
-          await helpers.announceEffectReason?.(ctx.cardId, `${ritualName}が${successCount}回成功！試練を耐え抜きました！`);
+          await helpers.announceEffectReason?.(ctx.cardId, t("ce.ritualEnduredN", { name: ritualName, n: successCount }));
         }
       } else {
-        await helpers.announceEffectReason?.(ctx.cardId, `残念でした。${ritualName}は宣言した色が出ませんでした。`);
+        await helpers.announceEffectReason?.(ctx.cardId, t("ce.ritualFailed", { name: ritualName }));
       }
       return placedAny;
       } finally {
@@ -1796,7 +1803,7 @@ async function runAction(action, ctx, helpers) {
         // お知らせ（ユーザー要望）: 誰が何枚捨てたか（対象ごと）。委任前後の手札枚数の差から算出。
         const discarded = beforeCount - getHandTokens(p).length;
         if (discarded > 0)
-          await helpers.announceEffectReason?.(ctx.cardId, `${helpers.getPlayerName(p)}は手札を${discarded}枚捨てました。`);
+          await helpers.announceEffectReason?.(ctx.cardId, t("ce.discardedN", { name: helpers.getPlayerName(p), n: discarded }));
       }
       return hadEffect;
     }
@@ -1829,9 +1836,9 @@ async function runAction(action, ctx, helpers) {
         // に関係なく自動選択する——相手が1人なら実質的に選択の余地が無いため（続き93の
         // 総点検ではマスチェンジだけを直したが、この「相手の駒を選ぶ」系にも抜けが残っていた）。
         targetCell = opponentCells[0];
-        helpers.announceEffectNotice?.(ctx.cardId, "選べる相手が1人しかいないため、自動的に選択しました。"); // 続き214: 非ブロック（直後の選択をすぐ可能に）
+        helpers.announceEffectNotice?.(ctx.cardId, t("ce.L958")); // 続き214: 非ブロック（直後の選択をすぐ可能に）
       } else {
-        targetCell = await helpers.pickLocation(opponentCells, "隣に置く相手の駒を選んでください");
+        targetCell = await helpers.pickLocation(opponentCells, t("ce.L1834"));
       }
       if (!targetCell) return false;
       const targetPiece = findPieceAtCell(targetCell.row, targetCell.col);
@@ -1842,11 +1849,11 @@ async function runAction(action, ctx, helpers) {
         .map(({ row, col }) => ({ zone: "cell", row, col }));
       if (adjacentCells.length === 0) return false; // 善処の原則: 盤面端で隣接マスが無い場合
       const dest =
-        adjacentCells.length === 1 ? adjacentCells[0] : await helpers.pickLocation(adjacentCells, "カードを置く隣接マスを選択してください");
+        adjacentCells.length === 1 ? adjacentCells[0] : await helpers.pickLocation(adjacentCells, t("ce.L1697"));
       if (!dest) return false;
       await helpers.moveAndSync(ctx.cardTokenId, dest);
       // お知らせ（ユーザー要望）: 誰の隣にプレゼントを置いたか。
-      await helpers.announceEffectReason?.(ctx.cardId, `${helpers.getPlayerName(targetPiece.player)}の隣にプレゼントを置きました。`);
+      await helpers.announceEffectReason?.(ctx.cardId, t("ce.presentPlaced", { name: helpers.getPlayerName(targetPiece.player) }));
       return true;
     }
     case VERBS.PLACE_DECK_CARD_ON_ALL_FACEUP_CELLS: {
@@ -1877,7 +1884,7 @@ async function runAction(action, ctx, helpers) {
       // 1枚選んで捨てる。
       const handTokens = getHandTokens(ctx.player);
       if (handTokens.length === 0) return false;
-      const chosen = await helpers.pickHandCard(ctx.player, "捨てるカードを手札から選択してください");
+      const chosen = await helpers.pickHandCard(ctx.player, t("ce.L1880"));
       if (!chosen) return false;
       await helpers.discardAndSync(chosen.id);
       return true;
@@ -2079,7 +2086,7 @@ async function runHandEffectOption(ctx, option, helpers) {
       if (futureTargetCardId && isPhoenixCostCardThisTurn(futureTargetCardId)) {
         await helpers.announceEffectReason?.(
           ctx.cardId,
-          "このターンにフェニックスの追色コストとして捨てたカードを、再びフェニックスで拾い直すこと（ループ）はできません。"
+          t("ce.L2082")
         );
         return false;
       }
@@ -2088,7 +2095,7 @@ async function runHandEffectOption(ctx, option, helpers) {
     const candidates = findSameColorDiscardCandidates(ctx.cardTokenId, color, ctx.player);
     // ユーザー要望「追色カードを手札から選択するステップを踏んでください」。候補が
     // 1枚でも自動採用せず、常にpickDiscardCostのステップを踏ませる。
-    const chosen = await helpers.pickDiscardCost(candidates, `捨てる${color === "white" || color === "black" ? "" : "同じ色の"}カードを手札から選択してください`);
+    const chosen = await helpers.pickDiscardCost(candidates, t("ce.pickCostColor", { color: color === "white" || color === "black" ? "" : t("ce.sameColor") }));
     if (!chosen) return false;
     // 続き218・V5: 追色コスト確定後、捨てる“前”（コスト札のDOMがまだ手札にある間）に演出を発火。
     // 使用カードへ追色カードを吸い込み→脈動→霧散→右の使用モーダル。fire-and-forget（非ブロック）。

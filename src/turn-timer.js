@@ -35,6 +35,7 @@ import {
   updateEndTurnButton,
   syncCpuStepHint,
 } from "./main.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ11
 import { SEAT_ORDER, SEAT_TO_SIDE, getRotationSteps, rotateSide } from "./board-layout.js";
 import { getSelfSeat, getSyncedTimerConfig, getCurrentGameId, fetchAndHydrate, isSpectatingGame, isRankedGame } from "./online.js";
 // フェイズ自動処理の再評価（phase-automation.js）。本来はrender()のたびに呼ばれるが、
@@ -498,7 +499,7 @@ function buildBaseClock() {
   iconWrap.appendChild(hourglassBadge);
   const caption = document.createElement("span");
   caption.className = "icon-action-button-caption";
-  caption.textContent = "基本時間";
+  caption.textContent = t("turntimer.L501");
   baseClockEl.appendChild(caption);
   // ユーザー要望（続き68）「タイマーをオフにするボタンは基本時間アイコンを押すと
   // ひょこっと出てくる仕様にしたい」。timer-toggle.js側にポップオーバーの開閉状態を
@@ -538,7 +539,7 @@ function updateBaseClock(state) {
     // 表示が無く、見ている本人には「自分の分が減っている」ように誤解されやすかった。
     // ロープと同じ「優先権保持者の駒の色で縁取りする」方式で誰の分か色分けし、詳細は
     // ホバー説明（title）に譲る。
-    baseClockEl.title = `${getPlayerName(state.priorityPlayer)}の基本時間`;
+    baseClockEl.title = t("tt.baseTimeOf", { name: getPlayerName(state.priorityPlayer) });
     const color = getPieceColor(state.priorityPlayer);
     baseClockEl.style.setProperty("--turn-timer-base-clock-color", color ? `var(--color-${color})` : "#38bdf8");
     const hourglassIconPath = getHourglassIconPath(color);
@@ -564,7 +565,7 @@ function updateBaseClock(state) {
   // 左下に別枠であった常設の自分専用バッジを廃止し、この1箇所へ統合した）。
   const selfSeat = getSelfSeat();
   baseClockLabelEl.textContent = "";
-  baseClockEl.title = "自分の砂時計残数";
+  baseClockEl.title = t("turntimer.L567");
   const selfColor = getPieceColor(selfSeat);
   baseClockEl.style.setProperty("--turn-timer-base-clock-color", selfColor ? `var(--color-${selfColor})` : "rgba(226, 232, 240, 0.5)");
   const selfHourglassIconPath = getHourglassIconPath(selfColor);
@@ -667,7 +668,7 @@ function updateRope(state) {
     ropeHourglassIconEl.style.display = "none";
   }
   ropeHourglassCountEl.textContent = state.hourglassStock[state.priorityPlayer] ?? 0;
-  ropeEl._nameEl.textContent = `${getPlayerName(state.priorityPlayer)}の砂時計が燃えています`;
+  ropeEl._nameEl.textContent = t("tt.hourglassBurning", { name: getPlayerName(state.priorityPlayer) });
 }
 
 // --- #end-turn-buttonのそばに出す警告バッジ ---------------------------------------------
@@ -679,9 +680,9 @@ function buildWarning() {
   // 不自然な場所になってしまうことがあったため、意味の区切り（「終えて」/「ください」）で
   // 明示的に2行に分ける。
   const line1 = document.createElement("span");
-  line1.textContent = "ムーブフェイズを終えて";
+  line1.textContent = t("turntimer.L682");
   const line2 = document.createElement("span");
-  line2.textContent = "ターンを終了してください";
+  line2.textContent = t("turntimer.L684");
   warningEl.appendChild(line1);
   warningEl.appendChild(document.createElement("br"));
   warningEl.appendChild(line2);
@@ -733,9 +734,9 @@ function buildPriorityReturnWarning() {
   priorityReturnWarningEl = document.createElement("div");
   priorityReturnWarningEl.className = "turn-timer-warning";
   const line1 = document.createElement("span");
-  line1.textContent = "優先権を手番プレイヤーに";
+  line1.textContent = t("turntimer.L736");
   const line2 = document.createElement("span");
-  line2.textContent = "返してください";
+  line2.textContent = t("turntimer.L738");
   priorityReturnWarningEl.appendChild(line1);
   priorityReturnWarningEl.appendChild(document.createElement("br"));
   priorityReturnWarningEl.appendChild(line2);
@@ -761,9 +762,9 @@ function updatePriorityReturnWarning(shouldShow) {
 // --- 優先権譲渡ボタン（三角形配置、円の中はアバター・枠は駒の色） ------------------------
 
 const TRANSFER_EXPLANATION = [
-  "優先権とは「次に行動すべきプレイヤー」を表します。通常はターンプレイヤーが持っていますが、カードの効果などで一時的に他のプレイヤーへ移ることがあります（今はカード効果の自動処理が無いため、実際に効果が発生したらこのボタンで手動・自己申告的に表現してください）。",
-  "円形のボタンを押すと、そのプレイヤーへ優先権を譲渡します。誰でも押せます（押した本人が今優先権を持っているかは問いません、このゲーム全体の自己申告制と同じ考え方です）。",
-  "ボタンの枠の色はそのプレイヤーの駒の色、円の中は登録されているアバターです。",
+  t("turntimer.L764"),
+  t("turntimer.L765"),
+  t("turntimer.L766"),
 ];
 
 function openTransferModal() {
@@ -795,7 +796,7 @@ function buildTransferButtons() {
   transferModalEl.appendChild(createModalCloseX(closeTransferModal));
   const modalTitle = document.createElement("div");
   modalTitle.className = "phase-guide-modal-title";
-  modalTitle.textContent = "優先権譲渡";
+  modalTitle.textContent = t("turntimer.L798");
   transferModalEl.appendChild(modalTitle);
   const modalBody = document.createElement("div");
   modalBody.className = "phase-guide-modal-body";
@@ -851,10 +852,10 @@ function rebuildTransferButtons() {
   label.type = "button";
   label.className = "priority-transfer-label";
   const labelText = document.createElement("span");
-  labelText.textContent = "優先権譲渡";
+  labelText.textContent = t("turntimer.L798");
   const tooltip = document.createElement("span");
   tooltip.className = "phase-guide-tooltip";
-  tooltip.textContent = "優先権を他のプレイヤーへ手動で譲渡します（自己申告制）";
+  tooltip.textContent = t("turntimer.L857");
   label.appendChild(labelText);
   label.appendChild(tooltip);
   label.addEventListener("click", openTransferModal);
@@ -880,11 +881,11 @@ function rebuildTransferButtons() {
     applyAvatarContent(btn, getPlayerAvatar(seat));
     btn.title = isSelf
       ? seat === state.priorityPlayer
-        ? "自分に優先権を戻す（現在優先権を保持中）"
-        : "自分に優先権を戻す"
+        ? t("turntimer.L883")
+        : t("turntimer.L884")
       : seat === state.priorityPlayer
-        ? `${getPlayerName(seat)}に優先権を渡す（現在優先権を保持中）`
-        : `${getPlayerName(seat)}に優先権を渡す`;
+        ? t("tt.passToHolding", { name: getPlayerName(seat) })
+        : t("tt.passTo", { name: getPlayerName(seat) });
     // 優先権の譲渡自体も「行動」の一種として扱い、freshBaseDeadlineForで基本時間の窓を
     // 仕切り直す（既に砂時計を使い始めている座席への譲渡は、短縮された基本時間になる——
     // 譲渡を繰り返して時間を稼ぐ抜け道を作らないため）。

@@ -24,6 +24,7 @@ import {
   hasHandEffectData,
   canUseHandEffect,
 } from "./card-effect-engine.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ11
 import { runGateInvasionsIfNeeded } from "./gate-invasion.js";
 import { isGateInvasionQueueActive } from "./gate-invasion-modal.js";
 import { playSound } from "./sound.js";
@@ -92,7 +93,10 @@ let awaitingFallbackPick = false;
 
 export const PHASES = ["lock", "hand", "move"];
 const PHASE_LABEL = { lock: "LOCK", hand: "HAND", move: "MOVE" };
-const PHASE_KATAKANA = { lock: "ロック", hand: "ハンド", move: "ムーブ" };
+// UI英語化フェーズ11: 定数にすると読み込み時の言語で固定されるので、使う時に解決する。
+function phaseKatakana(phase) {
+  return t(phase === "lock" ? "phaseautomation.L95" : phase === "hand" ? "phaseautomation.L95_2" : "phaseautomation.L95_3");
+}
 
 // ユーザー要望「今相手が何のフェイズかをフェイズ案内板でわかるようにしたい」。
 // 自分のフェイズ（currentPhase）は自分の手番の間しか動かない（reconcilePhaseAutomationの
@@ -541,9 +545,9 @@ function getAdjacentEmptyCells(pieceLocation) {
 // --- UI: 中央の一時的なフェイズ案内トースト（turn-announce.jsと同じ「一瞬待って表示→
 // 数秒後にフェードアウト」パターン） --------------------------------------------------
 const PHASE_DESCRIPTION = {
-  lock: "1枚ロックできます",
-  hand: "何枚でも使えます",
-  move: "移動か接触ができます",
+  lock: t("phaseautomation.L544"),
+  hand: t("phaseautomation.L545"),
+  move: t("phaseautomation.L546"),
 };
 function announcePhase(phase) {
   playSound("turnSwitch");
@@ -551,7 +555,7 @@ function announcePhase(phase) {
   el.className = "phase-announce-toast";
   const titleEl = document.createElement("div");
   titleEl.className = "phase-announce-title";
-  titleEl.innerHTML = `${PHASE_LABEL[phase]}<span class="phase-announce-ruby">${PHASE_KATAKANA[phase]}</span>フェイズ`;
+  titleEl.innerHTML = t("pa.phaseAnnounce", { label: PHASE_LABEL[phase], ruby: phaseKatakana(phase) });
   const descEl = document.createElement("div");
   descEl.className = "phase-announce-desc";
   descEl.textContent = PHASE_DESCRIPTION[phase];
@@ -621,7 +625,7 @@ function ensureSkipButton() {
   skipButtonEl = document.createElement("button");
   skipButtonEl.type = "button";
   skipButtonEl.id = "phase-automation-skip-button";
-  skipButtonEl.textContent = "スキップ";
+  skipButtonEl.textContent = t("phaseautomation.L624");
   skipButtonEl.addEventListener("click", () => {
     if (handEffectBusy) return;
     if (isFinalLockApprovalPending()) return; // #181
@@ -723,19 +727,19 @@ export function updateSkipButtonVisibility() {
     !approvalPending &&
     myDeckCount > 0;
   myDeckBtn.style.display = showMyDeck ? "block" : "none";
-  if (showMyDeck) myDeckBtn.textContent = `マイデッキ (${myDeckCount})`;
+  if (showMyDeck) myDeckBtn.textContent = t("pa.myDeck", { n: myDeckCount });
   if (showSkip || !state.turnPlayer) {
     statusEl.style.display = "none";
   } else {
     statusEl.style.display = "block";
-    let text = state.turnPlayer === getSelfSeat() ? "自分のターンです" : "相手のターンです";
+    let text = state.turnPlayer === getSelfSeat() ? t("phaseautomation.L731") : t("phaseautomation.L731_2");
     // ユーザー要望「今相手が何のフェイズかをフェイズ案内板でわかるようにしたい」。案内板の
     // ボタン発光（updatePhaseGuideGlow）に加え、相手の手番中はこのターン表示にも相手の
     // 現在フェイズ名を添える（中継で受け取ったremotePhaseベース。まだ届いていなければ何も
     // 添えない）。
     if (state.turnPlayer !== getSelfSeat()) {
       const shown = getDisplayedPhase();
-      if (shown) text += `（${PHASE_KATAKANA[shown]}フェイズ）`;
+      if (shown) text += t("pa.phaseParen", { name: phaseKatakana(shown) });
     }
     // ユーザー要望（続き92）「優先権譲渡アイコンの表示は自動処理モードでは非表示でいいと
     // 思います。その代わり優先権が相手にある間はその旨を右下の『自分のターン相手の
@@ -745,7 +749,7 @@ export function updateSkipButtonVisibility() {
     // スリカエ等の割り込み処理中等）だけ、ここに一言添える。一致している間（通常の
     // ほとんどの時間）は「自分のターンです」だけで十分なため表示しない。
     if (isAutoProcessingEnabled() && state.priorityPlayer && state.priorityPlayer !== state.turnPlayer) {
-      text += state.priorityPlayer === getSelfSeat() ? "（優先権はあなたにあります）" : "（優先権は相手にあります）";
+      text += state.priorityPlayer === getSelfSeat() ? t("phaseautomation.L748") : t("phaseautomation.L748_2");
     }
     statusEl.textContent = text;
   }
@@ -812,7 +816,7 @@ function enterPhase(phase, player) {
     // ロックできるカードが無くてもマイデッキに残りがあればロックフェイズを飛ばさない
     // （引く機会を奪わない）。マイデッキも空なら従来通りスキップ。
     if (phase === "lock" && !hasLockableCard(player) && !canDrawFromMyDeck(player)) {
-      if (isMine) showPhaseSkipModal("ロックできるカードが無いため、ロックフェイズを自動的にスキップしました。");
+      if (isMine) showPhaseSkipModal(t("phaseautomation.L815"));
       advancePhaseAfterSkip();
       return;
     }
@@ -821,12 +825,12 @@ function enterPhase(phase, player) {
     // ユーザー指摘、hasUsableLockedFirstOrEternal参照）。
     if (phase === "hand" && !hasUsableLockedFirstOrEternal(player) && !isHandAutoSkipSuppressedByPublicDraw(player)) {
       if (handIsEmpty(player)) {
-        if (isMine) showPhaseSkipModal("手札が無いため、ハンドフェイズを自動的にスキップしました。");
+        if (isMine) showPhaseSkipModal(t("phaseautomation.L824"));
         advancePhaseAfterSkip();
         return;
       }
       if (handHasOnlyReactiveOnlyCards(player)) {
-        if (isMine) showPhaseSkipModal("手札の効果は反応時にしか使えないため、ハンドフェイズを自動的にスキップしました。");
+        if (isMine) showPhaseSkipModal(t("phaseautomation.L829"));
         advancePhaseAfterSkip();
         return;
       }
@@ -834,7 +838,7 @@ function enterPhase(phase, player) {
       // 無い等）場合も自動スキップする。反応時専用だけの場合は上で専用文言を出している
       // ため、ここはそれ以外の「使えない」ケース向けの一般的な文言にする。
       if (handHasNoUsableCards(player)) {
-        if (isMine) showPhaseSkipModal("今使える手札効果が無いため、ハンドフェイズを自動的にスキップしました。");
+        if (isMine) showPhaseSkipModal(t("phaseautomation.L837"));
         advancePhaseAfterSkip();
         return;
       }
@@ -1047,7 +1051,7 @@ function reconcileMovePhase(player) {
           .then(async () => {
             const dest = await pickLocationHelper(
               emptyCells,
-              "移動先も接触相手もありません。山札から裏向きに1枚置くマスを選んでください"
+              t("phaseautomation.L1050")
             );
             if (dest) await performMoveFallbackAndEndTurn(player, dest);
           })

@@ -10,6 +10,7 @@
 // tutorial.jsのSTORAGE_KEYと同じ考え方）に前回値を持たせるだけの軽量な実装にした。
 
 import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ11
 import { getCurrentUser, signInWithGoogle } from "./online.js";
 import { fetchStatsProfile, fetchPlayerRank, fetchLeaderboard } from "./stats-profile.js";
 
@@ -43,7 +44,7 @@ function easeOutCubic(t) {
 // 良い順位なので、大きい数字から減っていく形が「上位へ上がっていく」に対応する）。
 function animateClimb(numberEl, from, to, onSettled) {
   if (from <= to) {
-    numberEl.textContent = `${to}位`;
+    numberEl.textContent = t("rrm.place", { n: to });
     onSettled();
     return;
   }
@@ -52,11 +53,11 @@ function animateClimb(numberEl, from, to, onSettled) {
     const t = Math.min(1, (now - start) / CLIMB_DURATION_MS);
     const eased = easeOutCubic(t);
     const current = Math.round(from - (from - to) * eased);
-    numberEl.textContent = `${current}位`;
+    numberEl.textContent = t("rrm.place", { n: current });
     if (t < 1) {
       requestAnimationFrame(frame);
     } else {
-      numberEl.textContent = `${to}位`;
+      numberEl.textContent = t("rrm.place", { n: to });
       onSettled();
     }
   }
@@ -116,7 +117,7 @@ export async function showRankRevealModal() {
 
     const title = document.createElement("div");
     title.className = "rank-reveal-modal-title";
-    title.textContent = "🏆 勝率ランキング";
+    title.textContent = t("rankrevealmodal.L119");
     modal.appendChild(title);
 
     const list = document.createElement("div");
@@ -175,10 +176,10 @@ export async function showRankRevealModal() {
       rowEls[myIndex]?.classList.add("is-arrived");
       if (previousRank != null && previousRank !== myRank) {
         const diff = previousRank - myRank; // 正なら順位アップ
-        deltaEl.textContent = diff > 0 ? `▲${diff} 上昇！` : `▼${Math.abs(diff)} 下降`;
+        deltaEl.textContent = diff > 0 ? t("rrm.up", { n: diff }) : t("rrm.down", { n: Math.abs(diff) });
         deltaEl.classList.add(diff > 0 ? "is-up" : "is-down");
       } else if (previousRank === myRank) {
-        deltaEl.textContent = "→ 前回と同じ順位";
+        deltaEl.textContent = t("rankrevealmodal.L181");
       }
     };
     setFocus(lastIndex);
@@ -204,26 +205,26 @@ function explainNotRanked(reason) {
   switch (reason) {
     case "not-logged-in":
       return {
-        text: "あなたはまだランキングに参加していません。ログインすると、オンライン対戦の結果が戦績に記録され、ランキングに参加できます。",
-        ctaLabel: "Googleでログイン",
+        text: t("rankrevealmodal.L207"),
+        ctaLabel: t("rankrevealmodal.L208"),
         ctaAction: () => signInWithGoogle().catch((err) => console.error("signInWithGoogle failed", err)),
       };
     case "guest":
       return {
-        text: "ゲストプレイはランキングの対象外です。Googleアカウントでログインすると、対戦結果が記録され、ランキングに参加できるようになります。",
-        ctaLabel: "Googleでログイン",
+        text: t("rankrevealmodal.L213"),
+        ctaLabel: t("rankrevealmodal.L208"),
         ctaAction: () => signInWithGoogle().catch((err) => console.error("signInWithGoogle failed", err)),
       };
     case "not-linked":
       return {
-        text: "まだ戦績が登録されていません。オンライン対戦を1戦プレイすると自動的に登録され、ランキングに参加できます。",
+        text: t("rankrevealmodal.L219"),
       };
     case "below-border":
       return {
-        text: "対戦数がまだ少ないため、勝率ランキングの対象外です。もう少し対戦を重ねると対象になります。",
+        text: t("rankrevealmodal.L223"),
       };
     default:
-      return { text: "あなたはまだランキングに参加していません。" };
+      return { text: t("rankrevealmodal.L226") };
   }
 }
 
@@ -256,7 +257,7 @@ async function showNotRankedModal(reason) {
 
     const title = document.createElement("div");
     title.className = "rank-reveal-modal-title";
-    title.textContent = "🏆 勝率ランキング";
+    title.textContent = t("rankrevealmodal.L119");
     modal.appendChild(title);
 
     const list = document.createElement("div");
@@ -264,7 +265,7 @@ async function showNotRankedModal(reason) {
     if (topRows.length === 0) {
       const empty = document.createElement("div");
       empty.className = "rank-reveal-leaderboard-empty";
-      empty.textContent = "まだランキングデータがありません。";
+      empty.textContent = t("rankrevealmodal.L267");
       list.appendChild(empty);
     } else {
       for (const row of topRows) {
@@ -272,13 +273,13 @@ async function showNotRankedModal(reason) {
         item.className = "rank-reveal-leaderboard-row";
         const rankEl = document.createElement("span");
         rankEl.className = "rr-rank";
-        rankEl.textContent = `${row.rank}位`;
+        rankEl.textContent = t("rrm.place", { n: row.rank });
         const nameEl = document.createElement("span");
         nameEl.className = "rr-name";
         nameEl.textContent = row.name; // textContentでユーザー名を安全に表示
         const valEl = document.createElement("span");
         valEl.className = "rr-val";
-        valEl.textContent = `勝率 ${row.winRate}%`;
+        valEl.textContent = t("rrm.winRate", { n: row.winRate });
         item.appendChild(rankEl);
         item.appendChild(nameEl);
         item.appendChild(valEl);
