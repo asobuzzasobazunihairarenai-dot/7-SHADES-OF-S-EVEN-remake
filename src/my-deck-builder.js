@@ -5,6 +5,7 @@
 // 検証（7枚以上・同名7まで・所持超過・スペシャルの3:1税）と保存は my-deck.js のまま活かす。
 
 import { getCardImagePath, getCardDefinition } from "./cards-data.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ9
 import { showCardFace } from "./card-face-display.js";
 import { syncFullScreenPageActive } from "./option-area.js";
 import { startDeckBuilderTutorial, maybeAutoStartDeckBuilderTutorial, closeDeckBuilderTutorial } from "./deck-builder-tutorial.js";
@@ -649,7 +650,7 @@ export function openMyDeckBuilder(deckId, onClose) {
   const helpBtn = document.createElement("button");
   helpBtn.type = "button";
   helpBtn.id = "mdb-help";
-  helpBtn.textContent = "？ 使い方";
+  helpBtn.textContent = t("mdbtut.help");
   helpBtn.title = "マイデッキの作り方を順番に説明します";
   helpBtn.addEventListener("click", () => startDeckBuilderTutorial());
   header.appendChild(helpBtn);

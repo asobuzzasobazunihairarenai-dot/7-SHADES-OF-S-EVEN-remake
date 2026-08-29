@@ -14,6 +14,7 @@
 //
 // 完全ローカル機能（サーバー/オンライン非関与）。
 
+import { t } from "./ui-text.js"; // UI英語化フェーズ9
 import { setupTutorialScenario, setTurnPlayer, subscribe, getState, moveToken, tutorialLockCard, hydrateState, flipToken, nextTurn, drawFromPile, resetGame } from "./state.js";
 import { resetVictoryTracking } from "./victory.js";
 import { resetMatchStats } from "./match-stats-tracker.js";
@@ -25,7 +26,10 @@ import { setPlayerName, setPlayerAvatar } from "./player-identity.js";
 // チュートリアルCPU戦の相手（案内人エイドス）の表示名とアバター（ユーザー要望2026-08-08）。
 // 正式名は「謎めいた案内人 エイドス・ノワール」、通称「案内人エイドス」。アバターは既存の
 // 有料アバター eidos-noir（front/left/right・盤面の向きは自動で切替）を流用する。
-const EIDOS_NAME = "案内人エイドス";
+// 表示名は使う時に解決する（定数にすると読み込み時の言語で固定される。UI英語化フェーズ9）。
+function eidosName() {
+  return t("tb.L28");
+}
 const EIDOS_AVATAR = "assets/avatars/eidos-noir-front.webp";
 import {
   showBlockingHint,
@@ -316,97 +320,97 @@ function buildSteps() {
     // 0: 導入。モーダルは画面左側に出す旨を説明する（ユーザー要望）。
     {
       kind: "narrate",
-      title: "チュートリアルCPU戦へようこそ",
+      title: t("tb.L319"),
       body: [
-        "これから、CPUを相手にした練習試合で遊び方を覚えていきます。",
-        "説明のモーダルは、盤面を見ながら読めるように画面の左側に表示します。",
+        t("tb.L321"),
+        t("tb.L322"),
       ],
-      buttonLabel: "はじめる →",
+      buttonLabel: t("tb.L324"),
     },
     // 1: 目標＋ロックエリアの位置（点滅ハイライト）。
     {
       kind: "narrate",
-      title: "目標・勝利条件",
+      title: t("tb.L329"),
       body: [
-        "目標は、自分のロックエリアに7色すべてのカードを集めてロックすることです。",
-        "あなたのロックエリアはここです。",
+        t("tb.L331"),
+        t("tb.L332"),
       ],
       highlights: [{ selector: LOCK_AREA_SEL, strong: true }],
-      buttonLabel: "次へ",
+      buttonLabel: t("tb.L335"),
     },
     // 2: 3フェイズの説明（右下のフェイズ案内板をスポットライト）。丁寧に1枚ずつ。
     {
       kind: "narrate",
-      title: "1ターンの流れ",
+      title: t("tb.L340"),
       body: [
-        "1ターンは「ロック → ハンド → ムーブ」の3つのフェイズを、この順番で行います。",
-        "画面の右下にある「フェイズ案内板」が、今どのフェイズかを教えてくれます。",
+        t("tb.L342"),
+        t("tb.L343"),
       ],
       highlights: [{ selector: PHASE_GUIDE_SEL, strong: true }],
-      buttonLabel: "次へ",
+      buttonLabel: t("tb.L335"),
     },
     // 2b: 各フェイズの中身（箇条書き）＋「1ターン目は手札が無いのでムーブから」。
     {
       kind: "narrate",
-      title: "3つのフェイズ",
+      title: t("tb.L351"),
       body: [
         { bullets: [
-          "ロック：手札のカードをロックエリアに置く",
-          "ハンド：手札のカードの効果を使う",
-          "ムーブ：駒を動かす",
+          t("tb.L354"),
+          t("tb.L355"),
+          t("tb.L356"),
         ] },
-        "1ターン目はまだ手札が無いので、ロックとハンドは飛ばして、ムーブフェイズ（駒を動かす）から始めます。",
+        t("tb.L358"),
       ],
       highlights: [{ selector: PHASE_GUIDE_SEL, strong: true }],
-      buttonLabel: "次へ",
+      buttonLabel: t("tb.L335"),
     },
     // 2c: 「あと2色（緑・紫）から始める」（ロックエリアを強調）。
     {
       kind: "narrate",
-      title: "この練習の状況",
+      title: t("tb.L366"),
       body: [
-        "この練習では、あなたはあと2色（緑と紫）を残すところから始めます。実際に手を動かしながら覚えていきましょう。",
+        t("tb.L368"),
       ],
       highlights: [{ selector: LOCK_AREA_SEL }],
-      buttonLabel: "次へ",
+      buttonLabel: t("tb.L335"),
     },
     // 3: ファーストカード以外の4色が順にロックされる演出（自動で次へ）。
     {
       kind: "reveal",
-      tip: "これまで集めてきたカードをロックしていきます…",
+      tip: t("tb.L376"),
       runReveal: revealFiveLocks,
     },
     // 4: 自分の駒・相手の駒（点滅＋吹き出し）。
     {
       kind: "narrate",
-      title: "あなたと相手の駒",
+      title: t("tb.L382"),
       body: [
-        "画面手前の赤い駒があなたの駒です。",
-        "奥にいる青い駒が対戦相手（CPU）です。",
+        t("tb.L384"),
+        t("tb.L385"),
       ],
       highlights: [
         { selector: SELF_PIECE_SEL, strong: true },
         { selector: CPU_PIECE_SEL },
       ],
       bubbles: [
-        { selector: SELF_PIECE_SEL, text: "自分の駒" },
-        { selector: CPU_PIECE_SEL, text: "相手の駒" },
+        { selector: SELF_PIECE_SEL, text: t("tb.L392") },
+        { selector: CPU_PIECE_SEL, text: t("tb.L393") },
       ],
-      buttonLabel: "次へ",
+      buttonLabel: t("tb.L335"),
     },
     // 5: 空いている2スロット（緑・紫）を点滅ハイライト。
     {
       kind: "narrate",
-      title: "あと2色！",
+      title: t("tb.L400"),
       body: [
-        "あなたのロックエリアで空いているのは「緑」と「紫」の2つのスロットです。",
-        "この2色をそろえれば、7色そろって勝利です。まずは目の前のカードで「紫」を手に入れにいきましょう。",
+        t("tb.L402"),
+        t("tb.L403"),
       ],
       highlights: [
         { selector: GREEN_SLOT_SEL, strong: true },
         { selector: PURPLE_SLOT_SEL, strong: true },
       ],
-      buttonLabel: "次へ",
+      buttonLabel: t("tb.L335"),
     },
     // 6: ムーブ（前方誘導）。前方＝目の前の「ゴメンナサイ」。左右前方3マスをハイライトし前方を最強調。
     //    チュートリアル中はタップ移動のみ（駒のドラッグは無効、main.jsのfindDraggableAt参照）。
@@ -417,7 +421,7 @@ function buildSteps() {
       // リスナー付与はUI表示側(showStepUi)で行う（戻る操作での復帰時にも再付与するため）。
       onEnter: () => setTurnPlayer(SELF_SEAT),
       onLeave: detachTapHandler,
-      tip: "あなたの駒を、1マス前の「ゴメンナサイ」のカードへタップで動かしましょう。",
+      tip: t("tb.L420"),
       highlights: (state) => [
         { selector: cellSel(FRONT_CELL), strong: true },
         { selector: cellSel(LEFT_CELL) },
@@ -428,38 +432,38 @@ function buildSteps() {
       gateFrom: GATE_CELL, // 誤って動いた時の差し戻し先
       gateFront: FRONT_CELL, // 受理する移動先（ゴメンナサイ{5,3}）
       gateSides: [LEFT_CELL, RIGHT_CELL],
-      gateWarn: "今回は、目の前の「ゴメンナサイ」のカードへ進みましょう。",
+      gateWarn: t("tb.L431"),
       advanceWhen: (state) => selfPieceAt(state, FRONT_CELL),
       onAccept: () => playArrivalBurst(FRONT_CELL, ARRIVAL_CELL.cardId), // 到達演出（柱状バースト）だけ
     },
     // 7: ゴメンナサイ拡大＋到達効果の説明（ユーザー指定の文面）。駒はスポットライト継続。
     {
       kind: "narrate",
-      title: "到達効果",
+      title: t("tb.L438"),
       icon: ARRIVAL_ICON,
       body: [
         { cardId: ARRIVAL_CELL.cardId },
-        "表向きのカードに駒を乗せると「到達」となり、そのカードの到達効果が自動的に発動します。",
-        { iconText: { image: ARRIVAL_ICON, text: "カード効果欄にあるこのアイコンは「到達効果」を表す目印です。" } },
+        t("tb.L442"),
+        { iconText: { image: ARRIVAL_ICON, text: t("tb.L443") } },
       ],
       highlights: (state) => selfPieceHl(state),
-      buttonLabel: "次へ",
+      buttonLabel: t("tb.L335"),
     },
     // 8: 「さらに1マス移動できる」の説明→この後プレイヤーがボーナス移動を選ぶ。
     {
       kind: "narrate",
-      title: "到達効果",
+      title: t("tb.L438"),
       icon: ARRIVAL_ICON,
       body: [
-        "いま到達した「ゴメンナサイ」の到達効果は『さらに1マス移動できる』です。駒をもう1マス奥へ進めましょう。移動先のカードもオープンされます（＝そこでも到達効果が発動します）。",
+        t("tb.L454"),
       ],
       highlights: (state) => selfPieceHl(state),
-      buttonLabel: "次へ",
+      buttonLabel: t("tb.L335"),
     },
     // 9: ボーナス移動（プレイヤーが前方を選ぶ）。{5,3}→前方{4,3}。左右{5,2}{5,4}は警告のみ。
     {
       kind: "playerAction",
-      tip: "駒をもう1マス、奥（前方）のマスへタップで進めましょう。",
+      tip: t("tb.L462"),
       highlights: (state) => [
         { selector: cellSel(BONUS_FRONT), strong: true },
         { selector: cellSel(BONUS_LEFT) },
@@ -470,7 +474,7 @@ function buildSteps() {
       gateFrom: FRONT_CELL, // 差し戻し先はゴメンナサイのマス
       gateFront: BONUS_FRONT, // 受理する移動先（カウンターロック{4,3}）
       gateSides: [BONUS_LEFT, BONUS_RIGHT],
-      gateWarn: "今回は、奥（前方）のマスへ進みましょう。",
+      gateWarn: t("tb.L473"),
       advanceWhen: (state) => selfPieceAt(state, BONUS_FRONT),
       // 移動先{4,3}のカード（カウンターロック）をオープンし、そこでも到達演出を出す。
       onAccept: async () => {
@@ -484,88 +488,88 @@ function buildSteps() {
     // 10: 「処理が全て終わってから紫が手札へ」→次へでゆっくり吸い込みアニメ。
     {
       kind: "narrate",
-      title: "到達効果",
+      title: t("tb.L438"),
       icon: ARRIVAL_ICON,
       body: [
-        "到達効果の処理が全て終わってから、到達したカード（紫）が手札に加わります。",
+        t("tb.L490"),
       ],
       highlights: (state) => [{ selector: boardCardSelectorAt(FRONT_CELL), strong: true }, ...selfPieceHl(state)],
-      buttonLabel: "次へ",
+      buttonLabel: t("tb.L335"),
       // 次へで、ゴメンナサイ(紫)を盤面{5,3}からゆっくり手札へ吸い込む。
       afterNext: () => suctionCardToHand(ARRIVAL_CELL.cardId, FRONT_CELL),
     },
     // 11: 紫が手札に入ったことの確認。手札の紫カードを強調。
     {
       kind: "narrate",
-      title: "「紫」が手札に入りました",
+      title: t("tb.L500"),
       body: [
-        "これで手札に「紫」のカードが入りました。この後のロックフェイズでロックすれば6色目になります。",
+        t("tb.L502"),
       ],
       highlights: (state) => {
         const sel = selfHandCardSelector(state, ARRIVAL_CELL.cardId);
         return [...(sel ? [{ selector: sel, strong: true }] : []), ...selfPieceHl(state)];
       },
-      buttonLabel: "次へ",
+      buttonLabel: t("tb.L335"),
     },
     // 12: カウンターロック拡大＋「不発でも処理は終わったとみなす」→次へでゆっくり手札へ。
     {
       kind: "narrate",
-      title: "到達効果",
+      title: t("tb.L438"),
       icon: ARRIVAL_ICON,
       body: [
         { cardId: ARRIVAL_BONUS_CARD },
-        "移動先の「カウンターロック」にも到達しましたが、今回は条件を満たさず不発でした。",
-        { text: "※条件を満たさず不発に終わったカードも、処理が終わったとみなされます。", note: true },
+        t("tb.L517"),
+        { text: t("tb.L518"), note: true },
       ],
       highlights: (state) => [{ selector: boardCardSelectorAt(BONUS_FRONT), strong: true }, ...selfPieceHl(state)],
-      buttonLabel: "次へ",
+      buttonLabel: t("tb.L335"),
       // 次へで、カウンターロック(赤)を盤面{4,3}からゆっくり手札へ吸い込む。
       afterNext: () => suctionCardToHand(ARRIVAL_BONUS_CARD, BONUS_FRONT),
     },
     // 13: 1ターン目を終了して相手（CPU）の番へ。
     {
       kind: "narrate",
-      title: "ターンを終了する",
+      title: t("tb.L528"),
       body: [
-        "あなたの1ターン目はここまでです。手札には「紫（ゴメンナサイッ！）」と「赤（カウンターロック）」が入りました。",
-        "自分の行動が済んだら「ターンを終了」して、相手（CPU）に手番を渡します。",
+        t("tb.L530"),
+        t("tb.L531"),
       ],
       highlights: (state) => selfPieceHl(state),
-      buttonLabel: "ターンを終了する →",
+      buttonLabel: t("tb.L534"),
     },
     // 10.5: CPUターンの前置き（ユーザー要望「いきなり赤の隣に来るのは不自然。『チュートリアル
     //       のため一気に赤の駒の隣に移動します』とモーダルで明示する」）。「次へ」で実際の移動を再生。
     {
       kind: "narrate",
-      title: "相手（CPU）のターン",
+      title: t("tb.L540"),
       body: [
-        "ここからは相手（CPU）の番です。本来CPUは自分のゲートから少しずつ近づいてきますが、",
-        "このチュートリアルでは、接触を体験してもらうため、CPUの駒を一気にあなたの駒の隣へ移動させます。",
+        t("tb.L542"),
+        t("tb.L543"),
       ],
       // #5: 相手の番なので、画面フォーカスを相手（エイドス）のアバターと駒に当てる。
       highlights: (state) => cpuPieceAndAvatarHl(state, { strong: true }),
-      buttonLabel: "CPUを動かす →",
+      buttonLabel: t("tb.L547"),
       afterNext: scriptCpuApproach, // 「次へ」で実際にCPUを動かす
     },
     // 11: ターン2の案内（ロックフェイズ）。紫スロットとロックエリアを強調。
     {
       kind: "narrate",
-      title: "あなたのターン2 ― ロックフェイズ",
+      title: t("tb.L553"),
       body: [
-        "ここからあなたのターン2です。ターンは「ロック → ハンド → ムーブ」の順に進みます。",
-        "まずロックフェイズ。さっき手に入れた「紫」のカードをロックして6色目にしましょう。",
+        t("tb.L555"),
+        t("tb.L556"),
       ],
       highlights: [
         { selector: PURPLE_SLOT_SEL, strong: true },
         { selector: LOCK_AREA_SEL },
       ],
-      buttonLabel: "次へ",
+      buttonLabel: t("tb.L335"),
     },
     // 12: 紫をロックする（プレイヤー操作＝手札の紫をタップで自動ロック。ユーザー要望
     //     「ゴメンナサイのロックはドロップではなく手札をタップで自動でロック」）。
     {
       kind: "playerAction",
-      tip: "手札の「紫」のカードをクリックして、紫のスロットにロックしましょう。",
+      tip: t("tb.L568"),
       handEffectCard: ARRIVAL_CELL.cardId, // 紫(purple-sorry)をクリック/タップで起動
       onHandEffect: scriptLockPurple,
       highlights: (state) => {
@@ -578,47 +582,47 @@ function buildSteps() {
     // 13: ロック完了。残りは緑だけ。
     {
       kind: "narrate",
-      title: "6色目をロック！",
+      title: t("tb.L581"),
       body: [
-        "紫をロックして6色そろいました。残るは「緑」の1色だけです。",
-        "この後、ハンドフェイズで手札効果を使い、ムーブフェイズで相手に「接触」してみましょう。",
+        t("tb.L583"),
+        t("tb.L584"),
       ],
       highlights: [{ selector: GREEN_SLOT_SEL, strong: true }],
-      buttonLabel: "次へ",
+      buttonLabel: t("tb.L335"),
     },
     // 14: ハンドフェイズの案内（手札効果とは）。開始手札は空なので、練習用に「プレゼント」を
     //     ここで1枚配る（「次へ」で山札の一番上＝プレゼントを手札へ）。
     {
       kind: "narrate",
-      title: "ハンドフェイズ ― 手札効果",
+      title: t("tb.L593"),
       body: [
-        "次はハンドフェイズです。手札のカードには、盤面に出す代わりに手札のまま使える「手札効果」を持つものがあります。",
-        "手札効果を体験するため、練習用に「プレゼント」のカードを1枚お配りします。",
+        t("tb.L595"),
+        t("tb.L596"),
       ],
-      buttonLabel: "カードを受け取る →",
+      buttonLabel: t("tb.L598"),
       afterNext: deliverTopDeckCard, // 山札の一番上（pink-present）を手札へ
     },
     // 15: 配ったプレゼントの説明（カード拡大＋手札効果アイコンの説明。到達効果モーダルと同様）。
     {
       kind: "narrate",
-      title: "ハンドフェイズ ― 手札効果",
+      title: t("tb.L593"),
       icon: HAND_EFFECT_ICON,
       body: [
         { cardId: HAND_EFFECT_CARD },
-        "「プレゼント」が手札に入りました。この手札効果は『相手の隣にカードを置き、さらに1枚ドローする』です。",
-        { iconText: { image: HAND_EFFECT_ICON, text: "カード効果欄にあるこのアイコンは「手札効果」を表す目印です。" } },
+        t("tb.L608"),
+        { iconText: { image: HAND_EFFECT_ICON, text: t("tb.L609") } },
       ],
       highlights: (state) => {
         const sel = selfHandCardSelector(state, HAND_EFFECT_CARD);
         return sel ? [{ selector: sel, strong: true }] : [];
       },
-      buttonLabel: "次へ",
+      buttonLabel: t("tb.L335"),
     },
     // 15: プレゼントの手札効果を使う（プレイヤー操作＝手札のカードをタップ）。タップしたら
     //     置き場所の選択（次ステップ）へ進む。
     {
       kind: "playerAction",
-      tip: "手札の「プレゼント」をタップして、手札効果を使いましょう。",
+      tip: t("tb.L621"),
       handEffectCard: HAND_EFFECT_CARD,
       onHandEffect: async () => {}, // タップで置き場所選択ステップへ進むだけ（配置は次ステップ）
       highlights: (state) => {
@@ -629,7 +633,7 @@ function buildSteps() {
     // 16: 置き場所を選ぶ（相手の周り4マスをハイライト→タップで配置＋1枚ドロー）。
     {
       kind: "playerAction",
-      tip: "「プレゼント」を置くマスを選びましょう（相手＝CPU先生の隣の4マス）。",
+      tip: t("tb.L632"),
       placeCells: PRESENT_TARGET_CELLS,
       onPlace: placePresentAt,
       highlights: PRESENT_TARGET_CELLS.map((c) => ({ selector: cellSel(c), strong: true })),
@@ -637,31 +641,31 @@ function buildSteps() {
     // 17: 手札効果の結果。
     {
       kind: "narrate",
-      title: "手札効果を使いました",
+      title: t("tb.L640"),
       body: [
-        "「プレゼント」を相手（CPU先生）の隣のマスに裏向きで置き、山札から1枚ドローしました。",
-        "このように、ハンドフェイズでは手札のカードを効果として使えます（使ったカードは基本的に使用前に捨て札へ移りますが、今回のようにそのカードの処遇が書かれていればそれに従います）。",
+        t("tb.L642"),
+        t("tb.L643"),
       ],
-      buttonLabel: "次へ",
+      buttonLabel: t("tb.L335"),
     },
     // 17: ムーブフェイズ＝接触の案内。
     {
       kind: "narrate",
-      title: "ムーブフェイズ ― 接触",
+      title: t("tb.L650"),
       body: [
-        "最後はムーブフェイズです。移動の代わりに、隣にいる相手の駒へ「接触」することができます。",
-        "接触すると相手の手札を1枚（無作為に）奪い、その相手は自分のゲートへ強制的に戻されます。隣のCPUに接触してみましょう。",
+        t("tb.L652"),
+        t("tb.L653"),
       ],
       highlights: [
         { selector: `${cellSel(CPU_ADJ_CELL)} .piece`, strong: true },
         { selector: cellSel(CPU_ADJ_CELL) },
       ],
-      buttonLabel: "次へ",
+      buttonLabel: t("tb.L335"),
     },
     // 18: 接触する（プレイヤー操作＝隣のCPUの駒のマスをタップ）。
     {
       kind: "playerAction",
-      tip: "隣にいる相手（CPU）の駒をタップして「接触」しましょう。",
+      tip: t("tb.L664"),
       contactCell: CPU_ADJ_CELL,
       onContact: scriptContact,
       highlights: [
@@ -672,59 +676,59 @@ function buildSteps() {
     // 19: 接触の結果。
     {
       kind: "narrate",
-      title: "接触しました！",
+      title: t("tb.L675"),
       body: [
-        "相手（CPU）の手札を1枚奪い、CPUは自分のゲート（盤面の奥）へ強制移動で戻されました。",
-        "相手は自分のゲートにカードがあったので、そのカードもオープンし到達します。",
+        t("tb.L677"),
+        t("tb.L678"),
       ],
-      buttonLabel: "ターンを終了する →",
+      buttonLabel: t("tb.L534"),
     },
     // 20: CPU（相手）の台本ターン。ゲートから1マス出てくる（自動で次へ）。
     {
       kind: "reveal",
-      tip: "相手（CPU）のターンです。ゲートから出て動きます…",
+      tip: t("tb.L685"),
       runReveal: scriptCpuLeaveGate,
     },
     // === ターン3: 空いた相手ゲートへ侵攻 → ゲート侵攻ボーナスでエターナル「緑」→ 7色で勝利 ===
     // 21: ターン3の導入（あなたのターン。相手ゲートが空いている）。
     {
       kind: "narrate",
-      title: "ターン3 ― 最後の仕上げ",
+      title: t("tb.L692"),
       body: [
-        "あなたのターンです。CPU先生がゲートから出たので、盤面の奥にある相手のゲートが空いています。",
-        "ムーブフェイズで、その空いた相手ゲートへ攻め込みましょう。ターン終了時に相手ゲートへ自分の駒が乗っていると「相手ゲート侵攻ボーナス」が発生します。",
-        "※本来ムーブは1マスずつしか進めませんが、今回は特別に、タップした相手ゲートまで一気に進みます（本番では複数ターンかけて近づきます）。",
+        t("tb.L694"),
+        t("tb.L695"),
+        t("tb.L696"),
       ],
       highlights: (state) => [{ selector: cellSel(CPU_GATE), strong: true }, ...selfPieceHl(state)],
-      buttonLabel: "次へ",
+      buttonLabel: t("tb.L335"),
     },
     // 22: 相手ゲートへ移動（プレイヤー操作）。台本上は一気に到達する（ジャンプ台のイメージ）。
     {
       kind: "playerAction",
-      tip: "空いている相手のゲート（ハイライト）をタップして攻め込みましょう。",
+      tip: t("tb.L704"),
       moveGate: true,
       gateFrom: ARRIVAL_BONUS_CELL, // 現在地（{4,3}）＝差し戻し先
       gateFront: CPU_GATE, // 受理する移動先（相手ゲート{0,3}）
       gateSides: [],
-      gateWarn: "空いている相手のゲート（ハイライト）へ進みましょう。",
+      gateWarn: t("tb.L709"),
       advanceWhen: (state) => selfPieceAt(state, CPU_GATE),
       highlights: (state) => [{ selector: cellSel(CPU_GATE), strong: true }, ...selfPieceHl(state)],
     },
     // 23: ゲート到達。ターン終了でゲート侵攻ボーナス。
     {
       kind: "narrate",
-      title: "相手ゲートに到達！",
+      title: t("tb.L716"),
       body: [
-        "相手のゲートに自分の駒が乗りました。この状態でターンを終了すると「相手ゲート侵攻ボーナス」が発生します。",
-        "ボーナスでは、相手の手札を半分奪い、盤外の「エターナルカード」を1枚獲得して自分のロックエリアにロックできます。今回は緑のエターナルカードが手に入ります。",
+        t("tb.L718"),
+        t("tb.L719"),
       ],
       highlights: (state) => selfPieceHl(state),
-      buttonLabel: "ターンを終了する →",
+      buttonLabel: t("tb.L534"),
     },
     // 24: ゲート侵攻ボーナスの台本演出（相手手札を半分奪取＋エターナル緑を獲得＆ロック＝7色目）。
     {
       kind: "reveal",
-      tip: "相手ゲート侵攻ボーナス発生中…",
+      tip: t("tb.L727"),
       runReveal: scriptGateInvasionWin,
     },
     // 25: 勝利の説明（ユーザー要望#103続き2026-08-15「エターナルを獲得して7色揃ったあと、これで
@@ -734,12 +738,12 @@ function buildSteps() {
     // ("completed") ＝完了ハンドラ（物語の完了シーンSCENE2→エイドス戦）へ進む。
     {
       kind: "narrate",
-      title: "7色そろえて勝利！ 🎉",
+      title: t("tb.L737"),
       body: [
-        "エターナルカード「緑」をロックし、7色すべてがそろいました。これで勝利です！",
-        "ロック・ハンド・ムーブの3フェイズ、到達効果、手札効果、接触、そして相手ゲート侵攻ボーナスまで体験できました。これで基本はバッチリです。おつかれさまでした！",
+        t("tb.L739"),
+        t("tb.L740"),
       ],
-      buttonLabel: "とじる",
+      buttonLabel: t("tb.L742"),
       isLast: true,
     },
   ];
@@ -774,7 +778,7 @@ function showStepUi(step, index) {
     showBlockingHint({
       title: step.title,
       body: step.body,
-      buttonLabel: step.buttonLabel ?? "次へ",
+      buttonLabel: step.buttonLabel ?? t("tb.L335"),
       position: step.position ?? "left",
       icon: step.icon ?? null,
       showBack: prevBackTarget(index) !== null,
@@ -887,7 +891,7 @@ function onDriverState(state) {
         scriptRunning = true;
         moveToken(p.id, { zone: "cell", ...from });
         scriptRunning = false;
-        flashWarning(step.gateWarn ?? "今回は、ハイライトされたマスへ進みましょう。");
+        flashWarning(step.gateWarn ?? t("tb.L890"));
         return;
       }
     }
@@ -1108,7 +1112,7 @@ async function scriptGateInvasionWin() {
   // （ユーザー報告2026-08-15。正しくは2枚）。
   const stealCount = Math.floor(cpuHand.length / 2);
   if (stealCount > 0) {
-    showTip(`相手ゲート侵攻ボーナス！ 相手の手札を半分（${stealCount}枚）奪取！`);
+    showTip(t("tb.stealHalf", { n: stealCount }));
     await delay(500);
     for (let i = 0; i < stealCount; i++) {
       const card = cpuHand[i];
@@ -1127,7 +1131,7 @@ async function scriptGateInvasionWin() {
   // 同じ3Dフリップ＋色バースト演出(playEternalAcquisitionAnim)を再生してから、実際にロックする
   // （ユーザー要望#103「チュートリアルでもエターナルのフリップ演出を入れてほしい」）。演出が
   // 無効／ヘルパー未注入なら、そのまま即ロックにフォールバックする。
-  showTip("盤外のエターナルカード「緑」を獲得！ 7色コンプリートまであと1枚…");
+  showTip(t("tb.L1130"));
   await delay(400);
   // 本番同様「先に7色目をロック」→ 演出がそのカードを着地まで隠す(suppressedEternalLockRender)、
   // の順にする（逆にすると着地前にロックスロットへ先に見えてしまう）。チュートリアル中は
@@ -1299,7 +1303,7 @@ async function onTutorialTap(e) {
         onDriverState(getState());
       }
     } else if (sides.some((s) => hitCell(s))) {
-      flashWarning(step.gateWarn ?? "今回は、ハイライトされたマスへ進みましょう。");
+      flashWarning(step.gateWarn ?? t("tb.L890"));
     }
   }
 }
@@ -1350,7 +1354,7 @@ export function startTutorialBattle() {
 
   battleActive = true;
   setupTutorialScenario(buildScenario());
-  setPlayerName(CPU_SEAT, EIDOS_NAME); // 相手(C)の表示名＝案内人エイドス（終了時にリセット）
+  setPlayerName(CPU_SEAT, eidosName()); // 相手(C)の表示名＝案内人エイドス（終了時にリセット）
   setPlayerAvatar(CPU_SEAT, EIDOS_AVATAR);
   // 手番をあなた(A)にしておく。フェイズ案内板（#phase-guide-bar）はturnPlayerがnullの間は
   // 非表示のため、導入のフェイズ説明でスポットライトを当てられるよう最初から表示させる。
@@ -1366,7 +1370,7 @@ export function startTutorialBattle() {
   // うえ finishTutorialBattle("completed") を呼び、通常クリアと同じ完了ハンドラ（onCompleteFn）
   // へ委譲する（ホームには戻らない）。
   showSkipButton(() => {
-    if (window.confirm("遊び方を知っているので、操作チュートリアルをスキップして先へ進みますか？")) {
+    if (window.confirm(t("tb.L1369"))) {
       finishTutorialBattle("completed");
     }
   });
@@ -1387,7 +1391,7 @@ export function restartTutorialBattle() {
   resetHandEffectUsage();
   battleActive = true;
   setupTutorialScenario(buildScenario());
-  setPlayerName(CPU_SEAT, EIDOS_NAME);
+  setPlayerName(CPU_SEAT, eidosName());
   setPlayerAvatar(CPU_SEAT, EIDOS_AVATAR);
   setTurnPlayer(SELF_SEAT); // フェイズ案内板を最初から表示（startTutorialBattle参照）
   steps = buildSteps();

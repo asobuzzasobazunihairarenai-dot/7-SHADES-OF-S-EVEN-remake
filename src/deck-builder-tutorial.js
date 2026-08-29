@@ -12,69 +12,74 @@
 //
 // 初回だけ自動表示し、以降はヘッダーの「？ 使い方」からいつでも見返せる（localStorage）。
 
+import { t } from "./ui-text.js"; // UI英語化フェーズ9
+
 const SEEN_KEY = "so7-deck-builder-tutorial-seen";
 
-const STEPS = [
+// UI英語化フェーズ9: 呼ぶたびに現在の言語で組み立てる（定数にすると読み込み時の言語で固定される）。
+function getSteps() {
+  return [
   {
     selector: null,
-    title: "マイデッキを作ろう",
+    title: t("mdbtut.s0.title"),
     body: [
-      "ここは、対戦で使う自分だけの山札（マイデッキ）を組む画面です。",
-      "作ったデッキはランク戦・CPU戦などで使えます。まずは全体の流れを見ていきましょう。",
+      t("mdbtut.s0.b1"),
+      t("mdbtut.s0.b2"),
     ],
   },
   {
     selector: "#mdb-collection",
-    title: "① 所持カードから選ぶ",
+    title: t("mdbtut.s1.title"),
     body: [
-      "上段はあなたが持っているカードの一覧です。",
-      "カードを<b>クリックすると1枚デッキに入ります</b>。もう一度押せばもう1枚追加できます。",
-      "カードの上にカーソルを置くと拡大表示、右クリックでそのカードの補足説明が読めます。",
+      t("mdbtut.s1.b1"),
+      t("mdbtut.s1.b2"),
+      t("mdbtut.s1.b3"),
     ],
   },
   {
     selector: "#mdb-deck-list",
-    title: "② 今のデッキを確認する",
+    title: t("mdbtut.s2.title"),
     body: [
-      "下段が現在のデッキです。「×2」のように枚数が出ます。",
-      "<b>クリックすると1枚だけデッキから戻せます</b>（間違えて入れた時はここから減らします）。",
+      t("mdbtut.s2.b1"),
+      t("mdbtut.s2.b2"),
     ],
   },
   {
     selector: "#mdb-deck-case",
-    title: "③ 箱絵を決める",
+    title: t("mdbtut.s3.title"),
     body: [
-      "デッキの箱です。マイデッキ一覧やマイページに、この見た目で並びます。",
-      "<b>カードをここへドラッグすると、その絵が箱絵になります</b>。",
-      "指定しない間は、一番多く入れているカードが自動で表紙になります。",
+      t("mdbtut.s3.b1"),
+      t("mdbtut.s3.b2"),
+      t("mdbtut.s3.b3"),
     ],
   },
   {
     selector: "#mdb-settings",
-    title: "④ デッキごとの見た目と色",
+    title: t("mdbtut.s4.title"),
     body: [
-      "ファーストカードの色（＝あなたが担当する色）と、駒スキン・ペット・カード裏面を、このデッキ専用に決められます。",
-      "色は「ランダム」にしておくと、対戦開始時に自動で決まります。",
+      t("mdbtut.s4.b1"),
+      t("mdbtut.s4.b2"),
     ],
   },
   {
     selector: "#mdb-summary",
-    title: "⑤ デッキのルール",
+    title: t("mdbtut.s5.title"),
     body: [
-      "ここに現在の枚数と、ルールを満たしているかが出ます。",
-      "・<b>7枚以上</b>入れること<br>・<b>同じ名前のカードは7枚まで</b><br>・<b>SPカード1枚につき、SPでないカードが3枚必要</b>",
-      "条件を満たすまで「完了（保存）」は押せません。",
+      t("mdbtut.s5.b1"),
+      t("mdbtut.s5.b2"),
+      t("mdbtut.s5.b3"),
     ],
   },
   {
     selector: "#mdb-save",
-    title: "⑥ 保存して終わり",
+    title: t("mdbtut.s6.title"),
     body: [
-      "「完了（保存）」で保存します。デッキ名は上の欄からいつでも変更できます。",
-      "それでは、あなただけのデッキを作ってみてください！",
+      t("mdbtut.s6.b1"),
+      t("mdbtut.s6.b2"),
     ],
   },
-];
+  ];
+}
 
 let overlayEl = null;
 let stepIndex = 0;
@@ -103,7 +108,7 @@ function clearHighlight() {
 }
 
 function renderStep() {
-  const step = STEPS[stepIndex];
+  const step = getSteps()[stepIndex];
   if (!overlayEl || !step) return;
   clearHighlight();
   // 対象があれば光らせる。無い（まだ描画されていない等）場合は説明だけを出す。
@@ -118,9 +123,9 @@ function renderStep() {
   }
   overlayEl.querySelector(".mdb-tut-title").textContent = step.title;
   overlayEl.querySelector(".mdb-tut-body").innerHTML = step.body.map((t) => `<p>${t}</p>`).join("");
-  overlayEl.querySelector(".mdb-tut-progress").textContent = `${stepIndex + 1} / ${STEPS.length}`;
+  overlayEl.querySelector(".mdb-tut-progress").textContent = `${stepIndex + 1} / ${getSteps().length}`;
   overlayEl.querySelector(".mdb-tut-prev").disabled = stepIndex === 0;
-  overlayEl.querySelector(".mdb-tut-next").textContent = stepIndex === STEPS.length - 1 ? "はじめる" : "次へ";
+  overlayEl.querySelector(".mdb-tut-next").textContent = stepIndex === getSteps().length - 1 ? t("mdbtut.btn.start") : t("mdbtut.btn.next");
 }
 
 export function closeDeckBuilderTutorial() {
@@ -144,9 +149,9 @@ export function startDeckBuilderTutorial() {
       </div>
       <div class="mdb-tut-body"></div>
       <div class="mdb-tut-buttons">
-        <button type="button" class="mdb-tut-skip">スキップ</button>
+        <button type="button" class="mdb-tut-skip">${t("mdbtut.btn.skip")}</button>
         <span class="mdb-tut-spacer"></span>
-        <button type="button" class="mdb-tut-prev">戻る</button>
+        <button type="button" class="mdb-tut-prev">${t("mdbtut.btn.back")}</button>
         <button type="button" class="mdb-tut-next">次へ</button>
       </div>
     </div>
@@ -160,7 +165,7 @@ export function startDeckBuilderTutorial() {
     }
   });
   overlayEl.querySelector(".mdb-tut-next").addEventListener("click", () => {
-    if (stepIndex < STEPS.length - 1) {
+    if (stepIndex < getSteps().length - 1) {
       stepIndex++;
       renderStep();
     } else {

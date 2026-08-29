@@ -23,6 +23,7 @@
 // see [[eidos-tutorial-story]], [[circular-import-tdz-and-no-cache-bust]], [[cpu-battle-architecture]]。
 
 import { runEidosDialogue } from "./eidos-dialogue-ui.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ9
 import { getEidosScene, EIDOS_SCENE } from "./eidos-dialogue-scenes.js";
 import { startTutorialBattle, registerTutorialHomeOpener, registerTutorialCompleteHandler } from "./tutorial-battle.js";
 import { setPlayerName, setPlayerAvatar, getPlayerName } from "./player-identity.js";
@@ -40,7 +41,11 @@ import {
 import { saveMyPreference, fetchMyEidosProgress } from "./online.js";
 
 // 相手(C)の物語上の表示名・アバター（tutorial-battle.js と同じもの）。
-const EIDOS_NAME = "案内人エイドス";
+// 表示名は使う時に解決する（定数にすると読み込み時の言語で固定される。UI英語化フェーズ9）。
+// 台本(eidos-dialogue-scenes.js)と同じキーを使うので、話者名の突き合わせもズレない。
+function eidosName() {
+  return t("story.name.eidos");
+}
 const EIDOS_AVATAR = "assets/avatars/eidos-noir-front.webp";
 
 // 進捗フラグ（localStorage＋アカウント同期。ユーザー報告2026-08-17「PCで物語チュートリアルを
@@ -119,7 +124,9 @@ export function resetEidosProgress() {
 }
 
 // 主人公（記憶を失った青年）の話者名の基準。名前入力後は「記憶を失った青年ー○○」と表示する。
-const YOUTH_SPEAKER = "記憶を失った青年";
+function youthSpeaker() {
+  return t("story.name.youth");
+}
 // 自席（ローカルは"A"固定だがオンライン下でも堅牢にするため起動時に解決してキャッシュ）。
 let storySelfSeat = "A";
 
@@ -132,14 +139,14 @@ function currentSelfName() {
 // 会話の入力ステップの初期値を解決。名前入力は、既に本人が名前を設定済みならそれを、無ければ
 // 「アッシュ」を初期値にする（ユーザー要望2026-08-15）。
 function getDialogueInputDefault(step) {
-  if (step?.input?.field === "playerName") return currentSelfName() || "アッシュ";
+  if (step?.input?.field === "playerName") return currentSelfName() || t("es.L135");
   return step?.input?.default ?? "";
 }
 // 会話の話者名を解決。主人公の発話は、名前設定後は「記憶を失った青年ー○○」と表示する。
 function resolveDialogueSpeaker(step) {
-  if (step?.speaker === YOUTH_SPEAKER) {
+  if (step?.speaker === youthSpeaker()) {
     const name = currentSelfName();
-    if (name) return `${YOUTH_SPEAKER}ー${name}`;
+    if (name) return t("story.youthNamed", { base: youthSpeaker(), name });
   }
   return step?.speaker ?? "";
 }
@@ -161,7 +168,7 @@ async function playStoryEnding() {
   overlay.className = "eidos-story-ending";
   const text = document.createElement("div");
   text.className = "eidos-story-ending-text";
-  text.textContent = "あなたの物語は、今、はじまる。";
+  text.textContent = t("es.L164");
   overlay.appendChild(text);
   document.body.appendChild(overlay);
   // 2フレーム待ってからクラス付与＝transitionを確実に効かせる。
@@ -183,7 +190,7 @@ function onDialogueInput(value, step) {
   if (step?.input?.field === "playerName") applyPlayerName(value);
 }
 function applyPlayerName(value) {
-  const name = (value || "").trim() || "アッシュ";
+  const name = (value || "").trim() || t("es.L135");
   setPlayerName(storySelfSeat, name); // storySelfSeatはstartEidosStoryで解決済み（自席ならupdateMyIdentityで永続化）
 }
 
@@ -267,7 +274,7 @@ async function startStoryBattle(stage, { practice = false } = {}) {
     const { startCpuBattle, runCpuBattleSetup } = await import("./cpu-battle.js");
     await startCpuBattle(2); // 物語戦は必ず1対1（続き226。人数設定に依らず2人）。resetGame＋疑似CPU設定込み
     // 相手(C)の表示を案内人エイドスへ上書き（セットアップ描画の前に）。
-    setPlayerName("C", EIDOS_NAME);
+    setPlayerName("C", eidosName());
     setPlayerAvatar("C", EIDOS_AVATAR);
     // 実際にセットアップ（配布演出）を始めるヘルパー。エイドス(C)の駒スキンとファーストカードを
     // 黒（noir）へ（ユーザー要望2026-08-15）。配布アニメーションの前（setupAssignFirstCards直後）に
@@ -289,7 +296,7 @@ async function startStoryBattle(stage, { practice = false } = {}) {
       const { openDeckSelect } = await import("./my-deck-select.js");
       openDeckSelect({
         durationSec: 0,
-        subtitle: "本気のエイドス戦で使うマイデッキを選んでください。「おまかせ」でランダムも可。",
+        subtitle: t("es.L292"),
         onResolved: (resolved) => beginSetup(resolved ?? null),
         // まだ配布演出前（盤面は空）なので、CPU戦の準備を片付けてホームへ戻せる（ユーザー要望）。
         onHome: () => {
@@ -450,13 +457,16 @@ export async function startEidosStory({ openHome } = {}) {
 // 操作チュートリアル完了後にタイルを開き直した時の再開フロー。進捗で易しい/本気を出し分ける。
 // 全クリ後の「物語メニュー」で追体験できる名場面（本編の流れ順）。startは連鎖の起点シーンで、
 // 3→5 / 7→8 はnextSceneでそのまま繋がって再生される（playSceneChain）。
-const STORY_CHAPTERS = [
-  { start: EIDOS_SCENE.FIRST_ENCOUNTER, label: "出会い" },
-  { start: EIDOS_SCENE.OPERATION_TUTORIAL_COMPLETE, label: "手ほどき" },
-  { start: EIDOS_SCENE.INTERMEDIATE_FIRST_WIN, label: "はじめての勝利" },
-  { start: EIDOS_SCENE.ADVANCED_UNLOCKED, label: "本気のエイドス" },
-  { start: EIDOS_SCENE.ADVANCED_FIRST_WIN, label: "決着、そしてセプト" },
-];
+// UI英語化フェーズ9: 呼ぶたびに現在の言語で組み立てる（定数にすると読み込み時の言語で固定される）。
+function getStoryChapters() {
+  return [
+    { start: EIDOS_SCENE.FIRST_ENCOUNTER, label: t("es.L454") },
+    { start: EIDOS_SCENE.OPERATION_TUTORIAL_COMPLETE, label: t("es.L455") },
+    { start: EIDOS_SCENE.INTERMEDIATE_FIRST_WIN, label: t("es.L456") },
+    { start: EIDOS_SCENE.ADVANCED_UNLOCKED, label: t("es.L457") },
+    { start: EIDOS_SCENE.ADVANCED_FIRST_WIN, label: t("es.L458") },
+  ];
+}
 
 // 簡易オーバーレイ。タイトル＋ボタン群を縦に並べる。ボタンは {label, onClick}。
 function buildStoryOverlay(title, buttons) {
@@ -488,17 +498,17 @@ function closeStoryOverlay(overlay) {
 
 // 物語メニュー（全クリ後）。名場面の追体験／エイドスと再戦（易しい・本気）／ホーム。
 function showStoryMenu() {
-  buildStoryOverlay("物語メニュー", [
-    { label: "📖 名場面を追体験", primary: true, onClick: (o) => { closeStoryOverlay(o); showChapterSelect(); } },
-    { label: "⚔️ エイドスと再戦（易しい）", onClick: (o) => { closeStoryOverlay(o); startStoryBattle("intermediate", { practice: true }); } },
-    { label: "⚔️ エイドスと再戦（本気）", onClick: (o) => { closeStoryOverlay(o); startStoryBattle("advanced", { practice: true }); } },
-    { label: "🏠 ホームへ戻る", onClick: (o) => { closeStoryOverlay(o); goHome(); } },
+  buildStoryOverlay(t("es.L491"), [
+    { label: t("es.L492"), primary: true, onClick: (o) => { closeStoryOverlay(o); showChapterSelect(); } },
+    { label: t("es.L493"), onClick: (o) => { closeStoryOverlay(o); startStoryBattle("intermediate", { practice: true }); } },
+    { label: t("es.L494"), onClick: (o) => { closeStoryOverlay(o); startStoryBattle("advanced", { practice: true }); } },
+    { label: t("es.L495"), onClick: (o) => { closeStoryOverlay(o); goHome(); } },
   ]);
 }
 
 // 名場面の追体験（チャプター選択）。選ぶとそのシーンを「再生だけ」（進捗・報酬は変化なし）。
 function showChapterSelect() {
-  const buttons = STORY_CHAPTERS.map((ch) => ({
+  const buttons = getStoryChapters().map((ch) => ({
     label: ch.label,
     onClick: async (o) => {
       closeStoryOverlay(o);
@@ -506,8 +516,8 @@ function showChapterSelect() {
       showChapterSelect(); // 見終わったらチャプター選択へ戻る
     },
   }));
-  buttons.push({ label: "← 物語メニューへ戻る", onClick: (o) => { closeStoryOverlay(o); showStoryMenu(); } });
-  buildStoryOverlay("名場面を追体験", buttons);
+  buttons.push({ label: t("es.L509"), onClick: (o) => { closeStoryOverlay(o); showStoryMenu(); } });
+  buildStoryOverlay(t("es.L510"), buttons);
 }
 
 async function resumeEidosBattles() {

@@ -30,6 +30,8 @@ import { backImagePath, getCardBackSetIndex } from "./card-back-skins.js";
 // チュートリアルCPU戦（台本化された練習試合）が進行中は、この初回自動オーバーレイを
 // 出さない（チュートリアル対戦は自前の導入解説・インバトルヒントを持つため）。
 import { isTutorialBattleActive } from "./tutorial-battle.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ9
+import { getLang } from "./i18n.js";
 
 // ハマりどころ（ユーザー報告のスクリーンショットで発覚、実際の環境依存の不具合）:
 // このモジュールの要素（#tutorial-overlay等）はdocument.body直下に置いているが、
@@ -271,7 +273,7 @@ function buildMoveDemoDiagram(highlightPositions = []) {
       cell.appendChild(piece);
       const label = document.createElement("div");
       label.className = "tutorial-move-diagram-label";
-      label.textContent = "相手";
+      label.textContent = t("tut.diagram.opponent");
       cell.appendChild(label);
     })
   );
@@ -283,7 +285,7 @@ function buildMoveDemoDiagram(highlightPositions = []) {
       cell.appendChild(piece);
       const label = document.createElement("div");
       label.className = "tutorial-move-diagram-label";
-      label.textContent = "自分";
+      label.textContent = t("tut.diagram.you");
       cell.appendChild(label);
     })
   );
@@ -306,23 +308,34 @@ function buildMoveDemoDiagram(highlightPositions = []) {
   return grid;
 }
 
-const STEPS = [
+// UI英語化フェーズ9: 読み込み時に1回だけ作ると、その時の言語で文言が固定されてしまう
+// （続き323のPILE_CONFIGと同じ罠）。呼ぶたびに組み立て、言語が変わったら作り直す。
+let stepsCache = null;
+let stepsCacheLang = null;
+function getSteps() {
+  if (stepsCache && stepsCacheLang === getLang()) return stepsCache;
+  stepsCacheLang = getLang();
+  stepsCache = buildSteps();
+  return stepsCache;
+}
+function buildSteps() {
+  return [
   {
     target: () => null,
-    title: "7 SHADES OF S:EVEN の遊び方",
+    title: t("tut.s1.title"),
     body: [
-      "目標は、自分のロックエリアに7色すべてのカードを集めてロックすることです。",
-      "基本の流れを、実際の画面を見ながら順番に確認していきましょう。",
+      t("tut.s1.b1"),
+      t("tut.s1.b2"),
     ],
   },
   {
     target: () => document.querySelector(".zone-bottom .hand-area"),
-    title: "あなたの手札",
+    title: t("tut.s2.title"),
     body: [
-      "画面手前に表示されているのがあなたの手札です。相手プレイヤーには中身が見えません。",
-      "対局の進行とともに、ドローや駒の移動でここにカードが増えていきます。",
-      "1ターンの中で「ロック」「ハンド」「ムーブ」の3つのフェイズを順番に行います。",
-      "※このチュートリアルでは説明のために手札を持たせていますが、実際の最初のターンでは手札は0枚から始まります。",
+      t("tut.s2.b1"),
+      t("tut.s2.b2"),
+      t("tut.s2.b3"),
+      t("tut.s2.b4"),
     ],
     showDummyHand: true,
   },
@@ -337,31 +350,31 @@ const STEPS = [
   { ...phaseStep(PHASES[2]), renderExtra: (container) => container.appendChild(buildMoveDemoDiagram(["up", "left"])) },
   {
     target: () => document.querySelector(".lock-bottom"),
-    title: "あなたのロックエリア",
+    title: t("tut.s3.title"),
     body: [
-      "ここがあなたのロックエリアです。7色すべてのスロットが埋まった瞬間に勝利となります。",
-      "ムーブフェイズで表向きのカードに駒を乗せると手札に加わるので、そのカードを後でここへロックしましょう。",
+      t("tut.s3.b1"),
+      t("tut.s3.b2"),
     ],
   },
   {
     target: () => document.getElementById("end-turn-button"),
-    title: "ターン終了",
-    body: ["自分の行動が済んだら、このボタンで自分のターンを終えて次のプレイヤーへ手番を渡します。"],
+    title: t("tut.s4.title"),
+    body: [t("tut.s4.b1")],
   },
   {
     target: () => document.getElementById("options-menu-button"),
-    title: "困ったときは",
+    title: t("tut.s5.title"),
     body: [
-      "画面右上の「⚙ オプション」から、いつでもこのチュートリアルを見返せます。",
-      "音量やロックエリアバーの表示など、基本的な設定もここから行えます。",
+      t("tut.s5.b1"),
+      t("tut.s5.b2"),
     ],
   },
   {
     target: () => null,
-    title: "もっと詳しく知りたいですか？",
+    title: t("tut.s6.title"),
     body: [
-      "以上が基本の流れです。ここで終えても十分に対戦を楽しめます。",
-      "「到達効果」「手札効果」「相手ゲート侵攻ボーナス」など、もう少し踏み込んだルールも見てみますか？",
+      t("tut.s6.b1"),
+      t("tut.s6.b2"),
     ],
     isBranch: true,
   },
@@ -376,10 +389,10 @@ const STEPS = [
     // 駒を、もう一方のマスのカードを無くして説明しやすく」への対応として、本物の盤面は
     // 一切動かさず、説明パネル内の仮想盤面（buildMoveDemoDiagram）でその配置を再現する。
     target: () => getSelfPieceEl(),
-    title: "ムーブフェイズでの移動",
+    title: t("tut.s7.title"),
     body: [
-      "自分の隣（前後左右の4マス）へ移動するか、隣にいる相手の駒に接触するか、どちらか一方を必ず行います。",
-      "黄色い枠で囲んだマスが、あなたの駒が今動ける方向の目安です（駒がいるマスとカードの無いマスへは移動できません）。",
+      t("tut.s7.b1"),
+      t("tut.s7.b2"),
     ],
     highlightMoveRange: true,
     renderExtra: (container) => container.appendChild(buildMoveDemoDiagram(["up", "down"])),
@@ -389,33 +402,33 @@ const STEPS = [
     // ムーブフェイズの選択肢だが、効果が全く違う（カードではなく相手プレイヤーが
     // 対象）ため独立したステップにした。
     target: () => getSelfPieceEl(),
-    title: "接触",
+    title: t("tut.s8.title"),
     body: [
-      "隣にいる相手の駒を選んで「接触」すると、その相手の手札から無作為に1枚もらえます。",
-      "接触された相手は、自分のゲートへ強制的に移動させられます（接触した自分自身は移動しません）。",
+      t("tut.s8.b1"),
+      t("tut.s8.b2"),
     ],
     renderExtra: (container) => container.appendChild(buildMoveDemoDiagram(["left"])),
   },
   {
     target: () => getSelfPieceEl(),
-    title: "到達効果",
+    title: t("tut.s9.title"),
     icon: "assets/icons/arrival-effect.png",
     body: [
-      "移動先の表向きのカードに駒を乗せると「到達」となり、到達効果が自動的に発動します。発動し終わったら、そのカードは原則そのまま手札に加わります。",
-      "カードには、乗った瞬間に発動する「到達効果」と、手札から捨てて発動する「手札効果」の2種類が書かれていることがあります。",
+      t("tut.s9.b1"),
+      t("tut.s9.b2"),
     ],
     renderExtra: (container) => container.appendChild(buildMoveDemoDiagram(["up"])),
   },
   {
     target: () => document.querySelector(".zone-bottom .hand-area"),
-    title: "手札効果（実際のカードで見てみましょう）",
+    title: t("tut.s10.title"),
     icon: "assets/icons/hand-effect.png",
     body: [
-      "手札のカードは、捨てることで「手札効果」を使えます。効果の内容はカードごとに異なり、カード自体に書かれています。",
-      "例えばこのカードの手札効果:",
+      t("tut.s10.b1"),
+      t("tut.s10.b2"),
     ],
     renderExtra: (container) => container.appendChild(buildCardExampleEl()),
-    footer: ["盤面のカードを右クリック→「カード補足を見る」でも、いつでも同じように詳細を確認できます。"],
+    footer: [t("tut.s10.footer")],
     wide: true,
     showDummyHand: true,
   },
@@ -426,27 +439,28 @@ const STEPS = [
     // （main.jsの.hand-reveal-area、自分の分は常に.hand-reveal-bottom）自体を
     // 指し示せる独立したステップに切り出した。
     target: () => document.querySelector(".hand-reveal-bottom"),
-    title: "手札公開エリアで使用を宣言する",
+    title: t("tut.s11.title"),
     body: [
-      "手札効果を使う前に、一度そのカードをこの「手札公開エリア」（プレイヤー名の下あたり）へドラッグしてみましょう。",
-      "「このカードを使います」という宣言になり、相手にも分かりやすくなります（公開ドローで引いたカードも、ここに表向きで並びます）。",
+      t("tut.s11.b1"),
+      t("tut.s11.b2"),
     ],
   },
   {
     target: () => getOpponentGateCell(),
-    title: "相手ゲート侵攻ボーナス",
+    title: t("tut.s12.title"),
     body: [
-      "相手のゲート（各辺の中央のマス、これはその一例です）に自分の駒を置いたままターンを終えると、「相手ゲート侵攻ボーナス」が発生します。",
-      "相手の手札を半分奪ったり、エターナルカードを獲得したりできる、対局を大きく動かすチャンスです。",
-      "ボタン操作は不要で、条件を満たせば自動的に処理されます。",
+      t("tut.s12.b1"),
+      t("tut.s12.b2"),
+      t("tut.s12.b3"),
     ],
   },
   {
     target: () => null,
-    title: "以上で応用ルールも含めて終わりです",
-    body: ["ここまで理解していれば十分に対戦を楽しめます。健闘を祈ります！"],
-  },
-];
+    title: t("tut.s13.title"),
+    body: [t("tut.s13.b1")],
+    },
+  ];
+}
 
 // ユーザー要望「オプションの横にヘルプボタンを作り、チュートリアルや説明書の内容を
 // 網羅しているページを出したい」への対応。help.jsから呼ばれる。このチュートリアルの
@@ -457,7 +471,7 @@ const STEPS = [
 // ゲーム画面が無い状態でも開けるヘルプページでは再現しない——文章(body/footer)だけで
 // 意味が通るように書かれているため、無くても内容は十分に伝わる。
 export function getHelpSections() {
-  return STEPS.filter((step) => !step.isBranch).map((step) => ({
+  return getSteps().filter((step) => !step.isBranch).map((step) => ({
     title: resolveStepText(step.title),
     icon: step.icon ?? null,
     body: resolveStepText(step.body),
@@ -517,13 +531,13 @@ function ensureOverlay() {
   skipBtn = document.createElement("button");
   skipBtn.type = "button";
   skipBtn.className = "tutorial-callout-skip";
-  skipBtn.textContent = "スキップ";
+  skipBtn.textContent = t("tut.btn.skip");
   skipBtn.addEventListener("click", () => finishTutorial());
 
   backBtn = document.createElement("button");
   backBtn.type = "button";
   backBtn.className = "tutorial-callout-back";
-  backBtn.textContent = "戻る";
+  backBtn.textContent = t("tut.btn.back");
   backBtn.addEventListener("click", () => goToStep(currentStepIndex - 1));
 
   // ユーザー要望「チュートリアルの続きを作りたい。『もっと詳しく説明しますか？』的な
@@ -533,15 +547,15 @@ function ensureOverlay() {
   finishHereBtn = document.createElement("button");
   finishHereBtn.type = "button";
   finishHereBtn.className = "tutorial-callout-skip";
-  finishHereBtn.textContent = "ここで終わる";
+  finishHereBtn.textContent = t("tut.btn.finishHere");
   finishHereBtn.addEventListener("click", () => finishTutorial());
 
   nextBtn = document.createElement("button");
   nextBtn.type = "button";
   nextBtn.className = "tutorial-callout-next";
-  nextBtn.textContent = "次へ";
+  nextBtn.textContent = t("tut.btn.next");
   nextBtn.addEventListener("click", () => {
-    if (currentStepIndex >= STEPS.length - 1) {
+    if (currentStepIndex >= getSteps().length - 1) {
       finishTutorial();
     } else {
       goToStep(currentStepIndex + 1);
@@ -602,7 +616,7 @@ function positionCallout(targetStageRect) {
 }
 
 function positionForCurrentStep() {
-  const step = STEPS[currentStepIndex];
+  const step = getSteps()[currentStepIndex];
   const target = step.target();
   if (target) {
     const realRect = target.getBoundingClientRect();
@@ -633,7 +647,7 @@ function positionForCurrentStep() {
 }
 
 function renderStep() {
-  const step = STEPS[currentStepIndex];
+  const step = getSteps()[currentStepIndex];
   titleEl.innerHTML = "";
   // ユーザー提供の到達効果/手札効果アイコンを、該当ステップだけタイトルの横に添える。
   if (step.icon) {
@@ -662,30 +676,30 @@ function renderStep() {
       bodyEl.appendChild(p);
     }
   }
-  progressEl.textContent = `${currentStepIndex + 1} / ${STEPS.length}`;
+  progressEl.textContent = `${currentStepIndex + 1} / ${getSteps().length}`;
   backBtn.disabled = currentStepIndex === 0;
 
   if (step.isBranch) {
     // 「もっと詳しく知りたいですか？」の分岐ステップ: 通常の次へ/スキップの代わりに
     // 「詳しく見る」（＝次のステップへ進む）/「ここで終わる」を出す。
-    nextBtn.textContent = "詳しく見る";
+    nextBtn.textContent = t("tut.btn.more");
     nextBtn.style.display = "";
     finishHereBtn.style.display = "";
     skipBtn.style.visibility = "hidden";
   } else {
     finishHereBtn.style.display = "none";
     nextBtn.style.display = "";
-    nextBtn.textContent = currentStepIndex >= STEPS.length - 1 ? "始める" : "次へ";
+    nextBtn.textContent = currentStepIndex >= getSteps().length - 1 ? t("tut.btn.start") : t("tut.btn.next");
     // ユーザー要望「スキップボタンを1ページ目から見えるようにしたい」への対応。
     // 以前は最初のステップ（対象なし）でも意味が薄いとして隠していたが、
     // 最後のステップ（このボタンを押しても次へ進むのと変わらない）だけ隠す。
-    skipBtn.style.visibility = currentStepIndex === STEPS.length - 1 ? "hidden" : "visible";
+    skipBtn.style.visibility = currentStepIndex === getSteps().length - 1 ? "hidden" : "visible";
   }
   positionForCurrentStep();
 }
 
 function goToStep(index) {
-  currentStepIndex = Math.max(0, Math.min(STEPS.length - 1, index));
+  currentStepIndex = Math.max(0, Math.min(getSteps().length - 1, index));
   renderStep();
 }
 
