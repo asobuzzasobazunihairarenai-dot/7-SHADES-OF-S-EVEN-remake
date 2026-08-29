@@ -14,6 +14,7 @@
 // cards-data.js / card-face-display.js は葉モジュール（main.jsを参照しない）ため静的importで安全。
 import { getCardImagePath } from "./cards-data.js";
 import { showCardFace } from "./card-face-display.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 let stageClientToLocalFn = null;
 let stageDeltaFn = null;
@@ -205,7 +206,7 @@ function ensureUi() {
   calloutBackEl = document.createElement("button");
   calloutBackEl.type = "button";
   calloutBackEl.className = "tb-callout-back";
-  calloutBackEl.textContent = "← 戻る";
+  calloutBackEl.textContent = t("tbu.back");
   calloutButtonEl = document.createElement("button");
   calloutButtonEl.type = "button";
   calloutButtonEl.className = "tb-callout-next";
@@ -227,20 +228,20 @@ function ensureUi() {
   skipBtnEl = document.createElement("button");
   skipBtnEl.type = "button";
   skipBtnEl.id = "tutorial-battle-skip";
-  skipBtnEl.textContent = "遊び方を知っているのでスキップ →";
+  skipBtnEl.textContent = t("tbu.skip");
   document.body.appendChild(skipBtnEl);
 
   restartBtnEl = document.createElement("button");
   restartBtnEl.type = "button";
   restartBtnEl.id = "tutorial-battle-restart";
-  restartBtnEl.textContent = "↻ チュートリアルをはじめから";
+  restartBtnEl.textContent = t("tbu.restart");
   document.body.appendChild(restartBtnEl);
 }
 
 // ブロッキング説明を表示。body は段落の配列（文字列 / {text,note} / {image}）。
 // position: "center" | "left"（省略時 "left"）。icon: タイトル横の小アイコン。
 // showBack/onBack: 「戻る」ボタンの表示と押下時コールバック。
-export function showBlockingHint({ title, body = [], buttonLabel = "次へ", onNext, position = "left", icon = null, showBack = false, onBack = null }) {
+export function showBlockingHint({ title, body = [], buttonLabel = null, onNext, position = "left", icon = null } = {}) {
   ensureUi();
   hideTip();
   calloutTitleEl.innerHTML = "";
@@ -271,7 +272,7 @@ export function showBlockingHint({ title, body = [], buttonLabel = "次へ", onN
       // #4（ユーザー要望2026-08-14）: ホバー（PC）／長押し（モバイル）でカードをさらに大きく
       // 画面中央に拡大表示する。モーダル(spotlight z:40001)より前面(z:100300)・クリック透過。
       img.style.cursor = "zoom-in";
-      img.title = "ホバー／長押しで拡大";
+    img.title = t("tbu.zoomTip");
       const showZoom = () => {
         document.querySelectorAll(".tb-body-card-zoom").forEach((el) => el.remove());
         const z = document.createElement("div");
@@ -316,7 +317,7 @@ export function showBlockingHint({ title, body = [], buttonLabel = "次へ", onN
       calloutBodyEl.appendChild(p);
     }
   }
-  calloutButtonEl.textContent = buttonLabel;
+  calloutButtonEl.textContent = buttonLabel ?? t("tbu.next");
   calloutButtonEl.onclick = () => {
     if (onNext) onNext();
   };

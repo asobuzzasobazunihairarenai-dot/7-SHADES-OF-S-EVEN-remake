@@ -10,6 +10,7 @@ import { getCardDefinition, getCardImagePath } from "./cards-data.js";
 import { buildCardBox } from "./card-face-display.js";
 import { createModalCloseX } from "./ui-helpers.js";
 import { isCardArrivalModalPersistent } from "./admin.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 function getDurationMs() {
   const raw = getComputedStyle(document.documentElement).getPropertyValue("--card-arrival-modal-duration").trim();
@@ -72,7 +73,7 @@ export function showCardArrivalModal(cardId, options = {}) {
 
   const label = document.createElement("div");
   label.className = "card-arrival-modal-label";
-  label.textContent = "到達";
+  label.textContent = t("ca.label");
   modal.appendChild(label);
 
   const box = buildCardBox(cardId, getCardImagePath(cardId));
@@ -86,7 +87,7 @@ export function showCardArrivalModal(cardId, options = {}) {
     // （デフォルトの「消えない」設定の間は最初から消えないため、このボタン自体が不要）。
     const pinBtn = document.createElement("button");
     pinBtn.className = "card-arrival-modal-pin";
-    pinBtn.textContent = "📌 消えないようにする";
+    pinBtn.textContent = t("ca.pin");
     pinBtn.addEventListener("click", (e) => {
       e.stopPropagation(); // モーダル本体のクリックで即座に消えてしまわないように
       clearTimeout(currentTimer);
@@ -102,7 +103,7 @@ export function showCardArrivalModal(cardId, options = {}) {
   // ✕で閉じるまで残る）。押した後はボタン自体を消す。
   const keepBtn = document.createElement("button");
   keepBtn.className = "card-arrival-modal-keep";
-  keepBtn.textContent = "📌 キープ";
+    keepBtn.textContent = t("ca.keep");
   keepBtn.addEventListener("click", (e) => {
     e.stopPropagation(); // モーダル本体クリックでの即クローズを防ぐ
     kept = true;
@@ -122,7 +123,7 @@ export function showCardArrivalModal(cardId, options = {}) {
   if (options.showAddToHand) {
     const addBtn = document.createElement("button");
     addBtn.className = "card-arrival-modal-add-to-hand";
-    addBtn.textContent = "このカードを手札に加える";
+    addBtn.textContent = t("ca.addToHand");
     addBtn.addEventListener("click", (e) => {
       e.stopPropagation(); // モーダル本体のクリックによる即座のdismissを防ぐ
       options.onAddToHand?.();

@@ -9,6 +9,8 @@
 // ビュー等を新設するのではなく、姉妹プロジェクトと全く同じ「クライアントで集計」
 // 方式を踏襲するのが最も食い違いが起きにくい）。
 
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
+
 let client = null;
 export function setStatsProfileClient(supabaseClient) {
   client = supabaseClient;
@@ -19,19 +21,19 @@ export function setStatsProfileClient(supabaseClient) {
 // 常にnullで呼ぶが、将来のために引数だけ残す。
 export function getTierInfo(matchCount, customColor) {
   if (customColor) {
-    return { type: "ring", color: customColor, glow: null, label: "カスタムカラー" };
+    return { type: "ring", color: customColor, glow: null, label: t("tier.custom") };
   }
   if (matchCount >= 15) {
-    return { type: "rainbow", label: "レインボーレジェンド" };
+    return { type: "rainbow", label: t("tier.rainbow") };
   }
   if (matchCount >= 10) {
-    return { type: "ring", color: "#0a0a0a", glow: "rgba(0,0,0,0.7)", label: "ブラックマスター" };
+    return { type: "ring", color: "#0a0a0a", glow: "rgba(0,0,0,0.7)", label: t("tier.black") };
   }
   if (matchCount >= 8) {
-    return { type: "ring", color: "#ffffff", glow: "rgba(255,255,255,0.9)", label: "ホワイトマスター" };
+    return { type: "ring", color: "#ffffff", glow: "rgba(255,255,255,0.9)", label: t("tier.white") };
   }
   const tierColors = ["transparent", "#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#ec4899", "#a855f7"];
-  const tierLabels = ["テスター見習い", "レッドテスター", "オレンジテスター", "イエローテスター", "グリーンテスター", "ブルーテスター", "ピンクテスター", "パープルテスター"];
+  const tierLabels = [t("tier.t0"), t("tier.t1"), t("tier.t2"), t("tier.t3"), t("tier.t4"), t("tier.t5"), t("tier.t6"), t("tier.t7")];
   const idx = Math.min(matchCount, 7);
   return { type: "ring", color: tierColors[idx], glow: null, label: tierLabels[idx] };
 }

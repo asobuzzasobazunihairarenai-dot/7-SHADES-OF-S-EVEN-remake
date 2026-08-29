@@ -7,8 +7,14 @@
 // getSelfRank()（online.js）が返すのは {season_id, rank:0..6, gauge:0..6, legend_points}。
 // rank>=6（レジェンド）はゲージの代わりにレジェンドポイント(LP)を積み上げる。
 
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
+
 export const RANK_KEYS = ["bronze", "silver", "gold", "platinum", "diamond", "master", "legend"];
-export const RANK_NAMES = ["ブロンズ", "シルバー", "ゴールド", "プラチナ", "ダイヤモンド", "マスター", "レジェンド"];
+export const RANK_NAMES = ["ブロンズ", "シルバー", "ゴールド", "プラチナ", "ダイヤモンド", "マスター", "レジェンド"]; // 原文（英語化はrankNames()）
+// UI英語化フェーズ13: 段位名は使う時に解決する（定数にすると読み込み時の言語で固定される）。
+export function rankNames() {
+  return [t("rankName.bronze"), t("rankName.silver"), t("rankName.gold"), t("rankName.platinum"), t("rankName.diamond"), t("rankName.master"), t("rankName.legend")];
+}
 // 七色ゲージの色（赤→橙→黄→緑→青→桃→紫。7ptで全色点灯→昇格）。
 const GAUGE_COLORS = ["red", "orange", "yellow", "green", "blue", "pink", "purple"];
 
@@ -21,7 +27,7 @@ export function rankKey(rank) {
   return RANK_KEYS[clampRank(rank)];
 }
 export function rankName(rank) {
-  return RANK_NAMES[clampRank(rank)];
+  return rankNames()[clampRank(rank)];
 }
 export function rankBadgeStaticPath(rank) {
   return `assets/rank-badges/${rankKey(rank)}.webp`;
@@ -35,7 +41,7 @@ export function buildRankBadgeImage(rank, { size = "6rem", effects = false } = {
   const img = document.createElement("img");
   img.className = "rank-badge-image";
   img.src = rankBadgeStaticPath(rank);
-  img.alt = `${rankName(rank)}ランク`;
+  img.alt = t("rb.alt", { name: rankName(rank) });
   img.draggable = false;
   if (!effects) {
     img.style.width = size;
@@ -62,7 +68,7 @@ export function buildSevenColorGauge(rank, gauge, legendPoints) {
   if (clampRank(rank) >= 6) {
     const lp = document.createElement("div");
     lp.className = "rank-badge-lp";
-    lp.textContent = `レジェンドポイント ${legendPoints ?? 0}`;
+    lp.textContent = t("rb.lp", { n: legendPoints ?? 0 });
     return lp;
   }
   const wrap = document.createElement("div");

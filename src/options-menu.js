@@ -115,7 +115,7 @@ function buildCollapsibleSection(title, buildContent, { icon, onReset } = {}) {
     resetBtn.type = "button";
     resetBtn.className = "options-menu-section-reset-btn";
     resetBtn.textContent = t("opt.reset");
-    resetBtn.title = "このセクションの設定を初期値に戻します";
+    resetBtn.title = t("opt.resetSectionTip");
     resetBtn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -146,7 +146,7 @@ function buildPlainGroupHeader(title, onReset) {
     resetBtn.type = "button";
     resetBtn.className = "options-menu-section-reset-btn";
     resetBtn.textContent = t("opt.reset");
-    resetBtn.title = "このグループの設定を初期値に戻します";
+    resetBtn.title = t("opt.resetGroupTip");
     resetBtn.addEventListener("click", onReset);
     row.appendChild(resetBtn);
   }
@@ -504,8 +504,8 @@ function buildCardPreviewSideRow() {
     for (const b of buttons) b.classList.toggle("is-selected", b.dataset.v === cur);
   };
   for (const [v, text] of [
-    ["right", "右に拡大"],
-    ["left", "左に拡大"],
+    ["right", t("opt.zoom.right")],
+    ["left", t("opt.zoom.left")],
   ]) {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -541,9 +541,9 @@ function buildCpuSpeedRow() {
     for (const b of buttons) b.classList.toggle("is-selected", b.dataset.v === cur);
   };
   for (const [v, text] of [
-    ["slow", "ゆっくり"],
-    ["normal", "普通"],
-    ["fast", "早い"],
+    ["slow", t("opt.speed.slow")],
+    ["normal", t("opt.speed.normal")],
+    ["fast", t("opt.speed.fast")],
   ]) {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -768,11 +768,11 @@ function buildDurationRow(label, cssVar, defaultValue, onSave) {
   slider.value = String(Number.isFinite(current) ? current : defaultValue);
   const valueLabel = document.createElement("span");
   valueLabel.className = "options-menu-volume-value";
-  valueLabel.textContent = `${slider.value}秒`;
+  valueLabel.textContent = t("opt.seconds", { n: slider.value });
   slider.addEventListener("input", () => {
     const value = Number(slider.value);
     document.documentElement.style.setProperty(cssVar, String(value));
-    valueLabel.textContent = `${slider.value}秒`;
+    valueLabel.textContent = t("opt.seconds", { n: slider.value });
     window.dispatchEvent(new CustomEvent("admin:change"));
     onSave(value);
   });
@@ -808,7 +808,7 @@ function buildShortcutRow(buttonId, label) {
   keyBtn.className = "options-menu-shortcut-key";
   function refresh() {
     const key = getShortcut(buttonId);
-    keyBtn.textContent = key ? key.toUpperCase() : "未設定";
+    keyBtn.textContent = key ? key.toUpperCase() : t("opt.shortcutUnset");
   }
   refresh();
   keyBtn.addEventListener("click", () => {
@@ -827,7 +827,7 @@ function buildShortcutRow(buttonId, label) {
   const clearBtn = document.createElement("button");
   clearBtn.className = "options-menu-shortcut-clear";
   clearBtn.textContent = "×";
-  clearBtn.title = "割り当てを解除";
+  clearBtn.title = t("opt.shortcutClearTip");
   clearBtn.addEventListener("click", () => {
     setShortcut(buttonId, null);
     refresh();
@@ -1017,7 +1017,7 @@ export function initOptionsMenu() {
       // 最初からになる」フローと同じ挙動）。オンライン対戦中でも部屋の座席自体は
       // サーバー側に残るため、「進行中の対局を再開」から戻ってこられる。
       panel.appendChild(
-        buildMenuItem("🏠 タイトルに戻る", () => {
+        buildMenuItem(t("opt.backToTitle"), () => {
           markCleanExit(); // 意図的なリロード＝ブラックボックスに「不審な落下」と誤検知させない。
           window.location.reload();
         })
@@ -1128,17 +1128,17 @@ export function initOptionsMenu() {
           );
           content.appendChild(buildSubLabel(t("opt.sec.modalDuration")));
           content.appendChild(
-            buildDurationRow("相手のゲートに侵入した時のお知らせ", "--gate-invasion-modal-step-duration", 3.5, (value) => {
+            buildDurationRow(t("opt.dur.gateInvasion"), "--gate-invasion-modal-step-duration", 3.5, (value) => {
               saveMyPreference({ gate_invasion_modal_duration: value });
             })
           );
           content.appendChild(
-            buildDurationRow("カードに到達した時のお知らせ", "--card-arrival-modal-duration", 5, (value) => {
+            buildDurationRow(t("opt.dur.cardArrival"), "--card-arrival-modal-duration", 5, (value) => {
               saveMyPreference({ card_arrival_modal_duration: value });
             })
           );
           content.appendChild(
-            buildDurationRow("カードを手に入れた時の中央表示（この後、右下にたまります）", "--hand-pickup-toast-duration", 5, (value) => {
+            buildDurationRow(t("opt.dur.handPickup"), "--hand-pickup-toast-duration", 5, (value) => {
               saveMyPreference({ hand_pickup_toast_duration: value });
             })
           );
@@ -1178,7 +1178,7 @@ export function initOptionsMenu() {
           const diffNote = document.createElement("div");
           diffNote.style.cssText = "font-size: 0.72rem; color: #94a3b8; margin: 0.1rem 0 0.5rem; line-height: 1.5;";
           diffNote.textContent =
-            "新人＝完全ランダム。中級＝移動先を評価（相手ゲート侵攻・自滅マス回避・必要な色）。上級＝さらに相手の進行度を見て接触で妨害。最強＝上級＋伏せカードののぞき見。";
+            t("opt.cpuDifficultyNote");
           content.appendChild(diffNote);
           content.appendChild(
             buildCheckboxRow(t("opt.chk.cpuAutoAdvance"), isCpuAutoSkipEnabled(), (checked) => {
@@ -1212,7 +1212,7 @@ export function initOptionsMenu() {
           const note = document.createElement("div");
           note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.5rem; line-height: 1.5;";
           note.textContent =
-            "ONにすると、対応済みのカードは承認モーダルの代わりに効果が自動で実行され、フェイズも自動で進行します。それ以外のカードは今まで通り自己申告のままです。";
+            t("opt.autoProcessNote");
           content.appendChild(note);
           // ユーザー要望（続き66）「自動処理モードはデフォではオンですが、オフにする
           // 場合はタイム制同様に全プレイヤーへの承認制にしましょう。1人だけ自動処理
@@ -1308,9 +1308,9 @@ export function initOptionsMenu() {
               "border: 1px solid rgba(220, 38, 38, 0.5); border-radius: 0.3rem; color: #fca5a5; " +
               "cursor: pointer; font-size: 0.8rem; width: 100%; box-sizing: border-box;";
             emergencyBtn.title =
-              "自動処理モードでターンが自動終了しない等の不具合が起きた時のための緊急手段です。通常の確認（自分の手番かどうか等）を行わずに強制的にターンを終了します。";
+              t("opt.emergencyEndTurnTip");
             emergencyBtn.addEventListener("click", () => {
-              if (confirm("緊急ターン終了を実行します。通常の確認を行わずに強制的にターンを終了しますが、よろしいですか？")) {
+              if (confirm(t("opt.emergencyEndTurnConfirm"))) {
                 nextTurn();
               }
             });
@@ -1338,8 +1338,7 @@ export function initOptionsMenu() {
           const note = document.createElement("div");
           note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.5rem; line-height: 1.5;";
           note.textContent =
-            "ONにすると、ランク戦で対戦相手を募集中の人が現れた時、この端末でアプリを開いている間に" +
-            "タブ点滅・音・バナーでお知らせします（アプリを閉じている時は届きません）。";
+            t("opt.rankedNotifyNote");
           content.appendChild(note);
 
           const enableRow = buildCheckboxRow(t("opt.notify.enable"), isRankedNotifyEnabled(), (checked) => {
@@ -1363,7 +1362,7 @@ export function initOptionsMenu() {
             for (let h = 0; h < 24; h++) {
               const opt = document.createElement("option");
               opt.value = String(h);
-              opt.textContent = `${h}時`;
+              opt.textContent = t("opt.hour", { h });
               if (h === value) opt.selected = true;
               sel.appendChild(opt);
             }
@@ -1392,7 +1391,7 @@ export function initOptionsMenu() {
       )
     );
 
-    const shortcutRows = SHORTCUT_TARGETS.map(({ id, label }) => buildShortcutRow(id, label));
+    const shortcutRows = SHORTCUT_TARGETS.map(({ id, labelKey }) => buildShortcutRow(id, t(labelKey)));
     shortcutSectionEl = buildCollapsibleSection(t("opt.sec.shortcuts"), (content) => {
       for (const { row } of shortcutRows) {
         content.appendChild(row);
@@ -1400,7 +1399,7 @@ export function initOptionsMenu() {
       const presetBtn = document.createElement("button");
       presetBtn.className = "options-menu-shortcut-preset";
       presetBtn.textContent = t("opt.shortcutRecommended");
-      presetBtn.title = "手札シャッフル=S、盤面拡大=Z、1枚ドロー=Dを一括で割り当てます";
+      presetBtn.title = t("opt.shortcutPresetTip");
       presetBtn.addEventListener("click", () => {
         for (const [id, key] of Object.entries(RECOMMENDED_SHORTCUTS)) setShortcut(id, key);
         for (const { refresh } of shortcutRows) refresh();
@@ -1424,7 +1423,7 @@ export function initOptionsMenu() {
     // 対応（続き60時点では管理者限定にしていたが、不具合報告の際に誰でもログを
     // コピーして提出できた方が良いと判断し、他の管理者専用項目とは切り離した）。
     panel.appendChild(
-      buildMenuItem("📜 アクションログ", () => {
+      buildMenuItem(t("opt.actionLog"), () => {
         close();
         openActionLogPanel();
       })
@@ -1510,13 +1509,13 @@ export function initOptionsMenu() {
   toggleBtn.id = "options-menu-button";
   const { captionEl } = buildIconButtonContent(toggleBtn, {
     icon: "assets/icons/options.svg",
-    tooltip: "基本設定・管理者モード・山札一覧などを開きます",
+    tooltip: t("opt.iconTip"),
   });
   captionEl.textContent = t("opt.title");
   wireIconButtonClick(toggleBtn, {
     detailTitle: t("opt.title"),
     detailParagraphs: [
-      "基本設定（効果音の音量・アニメーションの有無・ショートカットキー等）・管理者モード（見た目の細かい調整）・山札一覧（カード一覧の確認）をまとめたメニューです。",
+      t("opt.iconDetail"),
     ],
     onAction: open,
   });

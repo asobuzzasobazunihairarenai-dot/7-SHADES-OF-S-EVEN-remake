@@ -26,6 +26,7 @@ import { getSkinImagePath } from "./piece-skins.js";
 import { getPlayerName, getPlayerAvatar } from "./player-identity.js";
 import { getSelectedBackgroundPath } from "./background.js";
 import { COLORS, GATE_POSITIONS, SIDE_TO_SEAT, SEAT_TO_SIDE, SEAT_ORDER } from "./board-layout.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 const BOARD_N = 7;
 const CELL = 52;
@@ -220,7 +221,7 @@ function drawSideBand(ctx, { side, seat, isWinner, state, img, avatarCache, boar
     ctx.font = "12px sans-serif";
     ctx.fillStyle = "#e2e8f0";
     ctx.textAlign = "right";
-    ctx.fillText(`手札${handCount}枚`, rect.x + rect.w, side === "top" ? rowY + 44 : nameY - 24);
+    ctx.fillText(t("vsi.handN", { n: handCount }), rect.x + rect.w, side === "top" ? rowY + 44 : nameY - 24);
     ctx.textAlign = "left";
   } else {
     const contentH = AVATAR_SIZE + 8 + LOCK_STRIP_LEN;
@@ -262,7 +263,7 @@ function drawSideBand(ctx, { side, seat, isWinner, state, img, avatarCache, boar
 
     ctx.font = "11px sans-serif";
     ctx.fillStyle = "#e2e8f0";
-    const handText = `手札${handCount}枚`;
+    const handText = t("vsi.handN", { n: handCount });
     const handW = ctx.measureText(handText).width;
     ctx.fillText(handText, rect.x + Math.max(2, (rect.w - handW) / 2), lockY0 + LOCK_STRIP_LEN + 16);
   }
@@ -326,20 +327,20 @@ export async function generateVictorySummaryCanvas({ activePlayers, winnerSeat, 
   drawTextPanel(ctx, PAD - 10, 8, width - (PAD - 10) * 2, TITLE_H - 16, 8);
   ctx.fillStyle = "#f8fafc";
   ctx.font = "bold 22px sans-serif";
-  ctx.fillText("7 SHADES OF S:EVEN デジタル版 - 対戦記録", PAD, 30);
+  ctx.fillText(t("vsi.header"), PAD, 30);
   ctx.font = "14px sans-serif";
   ctx.fillStyle = "#cbd5e1";
-  const durationText = durationMinutes != null ? `　プレイ時間: ${durationMinutes}分` : "";
+  const durationText = durationMinutes != null ? t("vsi.duration", { n: durationMinutes }) : "";
   // ユーザー要望「戦績画像にターン数とラウンド数も明記」。state.roundNumber/turnNumberは
   // NEXT_TURNごとに更新される通算値（state.js参照）。
   const trText =
     state.roundNumber != null || state.turnNumber != null
-      ? `　ラウンド${state.roundNumber ?? "-"} / 通算${state.turnNumber ?? "-"}ターン`
+      ? t("vsi.rounds", { round: state.roundNumber ?? "-", turn: state.turnNumber ?? "-" })
       : "";
   ctx.fillText(`${new Date().toISOString().slice(0, 10)}${durationText}${trText}`, PAD, 50);
   ctx.font = "bold 18px sans-serif";
   ctx.fillStyle = "#facc15";
-  ctx.fillText(`🏆 勝者: ${getPlayerName(winnerSeat)}`, PAD, 74);
+  ctx.fillText(t("vsi.winner", { name: getPlayerName(winnerSeat) }), PAD, 74);
 
   // 盤面 7x7（中央）。
   const gateSeatByCellKey = new Map();

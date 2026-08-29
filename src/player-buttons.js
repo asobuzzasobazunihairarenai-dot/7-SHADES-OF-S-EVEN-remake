@@ -7,18 +7,19 @@
 //   registerShortcutSettingsOpener()で登録してもらう）
 
 import { stageClientToLocal } from "./main.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 // ドラッグで並び替えできる3つ（画面右下のスタック内で位置が入れ替わる対象）。
 export const PLAYER_BUTTONS = [
-  { id: "hand-shuffle-button", label: "手札シャッフル" },
-  { id: "board-zoom-button", label: "盤面拡大" },
-  { id: "draw-button", label: "1枚ドロー" },
+  { id: "hand-shuffle-button", labelKey: "pb.handShuffle" },
+  { id: "board-zoom-button", labelKey: "pb.boardZoom" },
+  { id: "draw-button", labelKey: "pb.draw" },
 ];
 
 // ショートカットキーを割り当てられる対象（PLAYER_BUTTONSに「ターン終了」を加えたもの）。
 // #end-turn-buttonはプレイヤー名で幅が可変なため並び替えの対象からは除外しているが、
 // ショートカットキーの割り当て自体はできるようにする。
-export const SHORTCUT_TARGETS = [...PLAYER_BUTTONS, { id: "end-turn-button", label: "ターン終了" }];
+export const SHORTCUT_TARGETS = [...PLAYER_BUTTONS, { id: "end-turn-button", labelKey: "pb.endTurn" }];
 
 // 画面右下のスタックで、#end-turn-button（bottom: 1.2rem、このグループには含まれない）の
 // 上に積む3つのスロットのbottom位置。orderの並び順（先頭が一番下）でそのまま対応する。

@@ -17,6 +17,7 @@ import { closeHelpPanel } from "./help.js";
 // ユーザー要望2026-08-16「ボタンの代わりにメインデッキのビジュアル（3D箱）を置き、その下に編集ボタン」。
 import { openMyDeckList, buildDeckCaseArt } from "./my-deck-list.js";
 import { getSelectedDeckId, getDeckById, getAllDecks } from "./my-deck.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 let overlayEl = null;
 let bodyEl = null;
@@ -54,7 +55,7 @@ export function openProfilePage(onClose) {
   backBtn.id = "profile-page-back";
   // ユーザー指摘（続き84）「戻る場所はホームとは限らない（オプションエリアの
   // アイコンから直接開く経路もある）ので単に『戻る』でいい」。
-  backBtn.textContent = "← 戻る";
+  backBtn.textContent = t("pp.back");
   backBtn.addEventListener("click", () => {
     closeProfilePage();
     onClose?.();
@@ -63,7 +64,7 @@ export function openProfilePage(onClose) {
 
   const title = document.createElement("div");
   title.id = "profile-page-title";
-  title.textContent = "👤 マイページ";
+  title.textContent = t("pp.title");
   overlayEl.appendChild(title);
 
   // マイページ右下：メインデッキのビジュアル＋その下に「マイデッキ編集」ボタン
@@ -79,13 +80,13 @@ export function openProfilePage(onClose) {
   // 「メインデッキ」ラベル（ユーザー要望2026-08-16：テキスト横のアイコン🏅は不要）。
   const badge = document.createElement("div");
   badge.className = "profile-maindeck-badge";
-  badge.textContent = "メインデッキ";
+    badge.textContent = t("pp.mainDeck");
   mydeckWrap.appendChild(badge);
 
   const cover = document.createElement("button");
   cover.type = "button";
   cover.className = "profile-maindeck-cover";
-  cover.title = "マイデッキを編集する";
+    cover.title = t("pp.editDeckTip");
   cover.addEventListener("click", openEditor);
   // メインデッキ（getSelectedDeckId）を3D立体ケースで表示。無ければ先頭のデッキ、それも
   // 無ければ「未設定」。ケースはデッキ一覧と同じ共通部品（buildDeckCaseArt）を流用。
@@ -94,11 +95,11 @@ export function openProfilePage(onClose) {
     cover.appendChild(buildDeckCaseArt(mainDeck)); // 3D立体ケース（MTGAデッキボックス風）
     const nm = document.createElement("div");
     nm.className = "profile-maindeck-name";
-    nm.textContent = mainDeck.name || "マイデッキ";
+      nm.textContent = mainDeck.name || t("pp.myDeck");
     cover.appendChild(nm);
   } else {
     cover.classList.add("is-empty");
-    cover.textContent = "メインデッキ未設定";
+      cover.textContent = t("pp.noMainDeck");
   }
   mydeckWrap.appendChild(cover);
 
@@ -107,7 +108,7 @@ export function openProfilePage(onClose) {
   editBtn.type = "button";
   editBtn.id = "profile-maindeck-edit";
   // ユーザー要望2026-08-16「マイデッキ編集ボタンの絵文字アイコンは不要」。
-  editBtn.innerHTML = `<span>マイデッキ編集</span>`;
+    editBtn.innerHTML = `<span>${t("pp.editDeck")}</span>`;
   editBtn.addEventListener("click", openEditor);
   mydeckWrap.appendChild(editBtn);
 

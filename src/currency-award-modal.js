@@ -6,6 +6,7 @@
 // （0の場合＝他クライアントが先に付与済み、は今まで通り何も出さない）。
 
 import { createBackdrop } from "./ui-helpers.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 const AUTO_CLOSE_MS = 3200;
 
@@ -33,7 +34,7 @@ export function showCurrencyAwardModal(amount) {
 
     const title = document.createElement("div");
     title.className = "currency-award-modal-title";
-    title.textContent = "通貨を獲得！";
+  title.textContent = t("cam.title");
     modal.appendChild(title);
 
     const amountEl = document.createElement("div");

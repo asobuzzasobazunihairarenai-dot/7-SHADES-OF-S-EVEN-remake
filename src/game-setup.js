@@ -127,7 +127,7 @@ export function showStartPlayerModal(player, { onClose = null, autoDismissMs = 8
   modal.classList.add("start-player-announce");
   const title = document.createElement("div");
   title.style.cssText = "font-weight: bold; margin-bottom: 0.6rem; font-size: 0.95rem;";
-  title.textContent = "３：スタートプレイヤー決定";
+  title.textContent = t("setup.step3Title");
 
   // 誰から始まるかが一目で分かるよう、アバターと名前を大きく見せる
   // （文字だけの通知だと地味で見落としやすい、という要望への対応）。
@@ -144,7 +144,7 @@ export function showStartPlayerModal(player, { onClose = null, autoDismissMs = 8
 
   const body = document.createElement("div");
   body.style.cssText = "font-size: 0.9rem; line-height: 1.6; text-align: center;";
-  body.textContent = "からスタートです！（以降、時計回りにターンを進めてください）";
+  body.textContent = t("setup.step3Body");
 
   modal.appendChild(title);
   modal.appendChild(avatarEl);
@@ -183,7 +183,7 @@ function buildConfigForm() {
   const wrapper = document.createElement("div");
 
   const title = document.createElement("div");
-  title.textContent = "０：プレイ人数選択、白黒カード確認";
+  title.textContent = t("setup.step0Title");
   title.style.cssText = "font-weight: bold; margin-bottom: 0.6rem;";
   wrapper.appendChild(title);
 
@@ -193,7 +193,7 @@ function buildConfigForm() {
   if (manualMode) {
     const note = document.createElement("div");
     note.style.cssText = "font-size: 0.72rem; opacity: 0.8; margin-bottom: 0.4rem;";
-    note.textContent = "使う座席を選んでください（2〜4人）。";
+    note.textContent = t("setup.seatNote");
     wrapper.appendChild(note);
 
     const checkboxes = {};
@@ -214,7 +214,7 @@ function buildConfigForm() {
   } else {
     const note = document.createElement("div");
     note.style.cssText = "font-size: 0.8rem; margin-bottom: 0.4rem;";
-    note.textContent = "プレイ人数：";
+    note.textContent = t("setup.playerCount");
     wrapper.appendChild(note);
 
     const radioRow = document.createElement("div");
@@ -231,7 +231,7 @@ function buildConfigForm() {
       radio.checked = count === currentCount;
       radios[count] = radio;
       const span = document.createElement("span");
-      span.textContent = `${count}人`;
+      span.textContent = t("setup.countN", { n: count });
       row.appendChild(radio);
       row.appendChild(span);
       radioRow.appendChild(row);
@@ -253,14 +253,14 @@ function buildConfigForm() {
   bwCheckbox.type = "checkbox";
   bwCheckbox.checked = config ? config.includeBlackWhite : false;
   const bwSpan = document.createElement("span");
-  bwSpan.textContent = "白黒（無色）カードを山札に含める";
+  bwSpan.textContent = t("setup.bw");
   bwRow.appendChild(bwCheckbox);
   bwRow.appendChild(bwSpan);
   wrapper.appendChild(bwRow);
 
   const bwNote = document.createElement("div");
   bwNote.style.cssText = "font-size: 0.68rem; opacity: 0.7; margin-bottom: 0.7rem;";
-  bwNote.textContent = "説明書では、初めてプレイする時は白黒（無色）カードを外すことを勧めています（デフォルトでは含めません）。";
+  bwNote.textContent = t("setup.bwNote");
   wrapper.appendChild(bwNote);
 
   // ブーストモード（ユーザー要望）: 各プレイヤーのファーストカードの左右隣の色スロットに
@@ -271,19 +271,19 @@ function buildConfigForm() {
   boostCheckbox.type = "checkbox";
   boostCheckbox.checked = config ? !!config.boost : false;
   const boostSpan = document.createElement("span");
-  boostSpan.textContent = "ブーストモード（両隣に効果なしファーストカードをロックして開始）";
+  boostSpan.textContent = t("setup.boost");
   boostRow.appendChild(boostCheckbox);
   boostRow.appendChild(boostSpan);
   wrapper.appendChild(boostRow);
 
   const boostNote = document.createElement("div");
   boostNote.style.cssText = "font-size: 0.68rem; opacity: 0.7; margin-bottom: 0.7rem;";
-  boostNote.textContent = "開始時から色が埋まるので勝利までが早くなります。効果なしファーストカードは他のカードの効果の対象になりません（デザインは仮）。";
+  boostNote.textContent = t("setup.boostNote");
   wrapper.appendChild(boostNote);
 
   const playmatNote = document.createElement("div");
   playmatNote.style.cssText = "font-size: 0.8rem; margin-bottom: 0.4rem;";
-  playmatNote.textContent = "プレイマット：";
+  playmatNote.textContent = t("setup.playmat");
   wrapper.appendChild(playmatNote);
 
   const playmatRow = document.createElement("div");
@@ -308,12 +308,12 @@ function buildConfigForm() {
   wrapper.appendChild(playmatRow);
 
   const confirmBtn = document.createElement("button");
-  confirmBtn.textContent = "決定";
+  confirmBtn.textContent = t("setup.confirm");
   confirmBtn.style.cssText = "width: 100%; padding: 0.4rem; background: #0891b2; color: #fff; border: none; border-radius: 0.25rem; cursor: pointer;";
   confirmBtn.addEventListener("click", () => {
     const activePlayers = getActivePlayers();
     if (activePlayers.length < 2) {
-      errorEl.textContent = "2人以上選択してください。";
+      errorEl.textContent = t("setup.needTwo");
       errorEl.style.display = "block";
       return;
     }
@@ -334,15 +334,15 @@ function buildStepButtons() {
   const wrapper = document.createElement("div");
 
   const statusLine = document.createElement("div");
-  const seatsText = activePlayersOrdered().join("・");
-  const bwText = config.includeBlackWhite ? "含める" : "含めない";
+  const seatsText = activePlayersOrdered().join(t("setup.seatSep"));
+  const bwText = config.includeBlackWhite ? t("setup.included") : t("setup.excluded");
   const boostText = config.boost ? "ON" : "OFF";
-  statusLine.textContent = `設定: ${config.activePlayers.length}人（${seatsText}）／白黒カード: ${bwText}／ブースト: ${boostText}`;
+  statusLine.textContent = t("setup.status", { n: config.activePlayers.length, seats: seatsText, bw: bwText, boost: boostText });
   statusLine.style.cssText = "font-size: 0.72rem; opacity: 0.8; margin-bottom: 0.3rem;";
   wrapper.appendChild(statusLine);
 
   const changeLink = document.createElement("button");
-  changeLink.textContent = "⚙ 設定を変更（０に戻る）";
+  changeLink.textContent = t("setup.change");
   changeLink.style.cssText = "display: block; width: 100%; margin-bottom: 0.6rem; padding: 0.3rem; background: transparent; color: #7dd3fc; border: 1px solid rgba(125,211,252,0.4); border-radius: 0.25rem; cursor: pointer; font-size: 0.72rem;";
   changeLink.addEventListener("click", () => {
     renderPanelBody(true);
@@ -350,10 +350,10 @@ function buildStepButtons() {
   wrapper.appendChild(changeLink);
 
   const steps = [
-    ["１：ファーストカードを配り、駒を配置する", runStep1],
-    ["２：盤面にカードを配置する", runStep2],
-    ["３：スタートプレイヤーを決める", runStep3],
-    ["１〜３を一気に行う", runAll],
+    [t("setup.step1"), runStep1],
+    [t("setup.step2"), runStep2],
+    [t("setup.step3"), runStep3],
+    [t("setup.runAll"), runAll],
   ];
   for (const [label, handler] of steps) {
     const btn = document.createElement("button");
@@ -450,7 +450,7 @@ function buildPanel(close) {
   `;
 
   const title = document.createElement("div");
-  title.textContent = "セットアップウィザード";
+  title.textContent = t("setup.title");
   title.style.cssText = "font-weight: bold; margin-bottom: 0.5rem; padding-right: 1.6rem;";
   panel.appendChild(title);
   panel.appendChild(createModalCloseX(close));
@@ -466,7 +466,7 @@ function buildToggleButton(open) {
   const btn = document.createElement("button");
   btn.id = "game-setup-toggle-button";
   btn.className = "header-tool-button";
-  btn.textContent = "🎲 セットアップ";
+  btn.textContent = t("setup.button");
   btn.style.cssText = `
     position: fixed; top: 4.2rem; right: 1rem; z-index: 1001;
     padding: 0.4rem 0.7rem; background: rgba(15, 23, 32, 0.85); color: #e2e8f0;

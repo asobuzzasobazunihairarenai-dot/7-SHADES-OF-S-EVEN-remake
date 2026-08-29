@@ -6,6 +6,7 @@
 import { openDeckViewer } from "./deck-viewer.js";
 import { buildHelpList } from "./help.js";
 import { syncFullScreenPageActive } from "./option-area.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 let overlayEl = null;
 
@@ -17,7 +18,7 @@ export function openCodexPage(onClose) {
   const backBtn = document.createElement("button");
   backBtn.type = "button";
   backBtn.id = "codex-page-back";
-  backBtn.textContent = "← 戻る";
+  backBtn.textContent = t("cdx.back");
   backBtn.addEventListener("click", () => {
     closeCodexPage();
     onClose?.();
@@ -26,7 +27,7 @@ export function openCodexPage(onClose) {
 
   const title = document.createElement("div");
   title.id = "codex-page-title";
-  title.textContent = "📖 図鑑／ルールブック";
+  title.textContent = t("cdx.title");
   overlayEl.appendChild(title);
 
   const content = document.createElement("div");
@@ -36,12 +37,12 @@ export function openCodexPage(onClose) {
   // 直接並べる代わりに、山札一覧（deck-viewer.js、全画面）を開くボタンだけを置く。
   const deckHeading = document.createElement("div");
   deckHeading.className = "codex-section-heading";
-  deckHeading.textContent = "📋 山札一覧（カード一覧）";
+  deckHeading.textContent = t("cdx.deckHeading");
   content.appendChild(deckHeading);
   const deckBtn = document.createElement("button");
   deckBtn.type = "button";
   deckBtn.className = "codex-open-deck-btn";
-  deckBtn.textContent = "📋 山札一覧を開く";
+  deckBtn.textContent = t("cdx.deckBtn");
   deckBtn.style.cssText =
     "display: block; margin: 0.4rem 0 0.4rem; padding: 0.6rem 1.2rem; background: rgba(125,211,252,0.12); " +
     "border: 1px solid rgba(125,211,252,0.5); border-radius: 0.5rem; color: #e2e8f0; cursor: pointer; " +
@@ -51,7 +52,7 @@ export function openCodexPage(onClose) {
 
   const helpHeading = document.createElement("div");
   helpHeading.className = "codex-section-heading";
-  helpHeading.textContent = "📖 ルール・ヘルプ";
+  helpHeading.textContent = t("cdx.helpHeading");
   content.appendChild(helpHeading);
   content.appendChild(buildHelpList());
 

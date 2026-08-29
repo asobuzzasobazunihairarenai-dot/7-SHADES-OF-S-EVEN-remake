@@ -8,6 +8,7 @@
 
 import { APP_VERSION } from "./app-version.js";
 import { markCleanExit } from "./crash-blackbox.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 const CHECK_INTERVAL_MS = 60000; // 60秒ごと
 // 基準は「今実行しているコードのバージョン」（APP_VERSION、JSと一緒にキャッシュされる）。
@@ -102,7 +103,7 @@ async function refreshCachedAssets() {
 async function applyUpdate(btn) {
   if (btn) {
     btn.disabled = true;
-    btn.textContent = "更新中…";
+    btn.textContent = t("uc.updating");
   }
   try {
     if (latestVersion) sessionStorage.setItem(UPDATE_ATTEMPT_KEY, latestVersion);
@@ -128,18 +129,18 @@ function showUpdateBanner() {
 
   const label = document.createElement("span");
   label.className = "update-banner-label";
-  label.textContent = "🔄 新しいバージョンがあります";
+  label.textContent = t("uc.available");
 
   const reloadBtn = document.createElement("button");
   reloadBtn.type = "button";
   reloadBtn.className = "update-banner-reload";
-  reloadBtn.textContent = "更新する";
+  reloadBtn.textContent = t("uc.reload");
   reloadBtn.addEventListener("click", () => applyUpdate(reloadBtn));
 
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.className = "update-banner-close";
-  closeBtn.setAttribute("aria-label", "閉じる");
+  closeBtn.setAttribute("aria-label", t("uc.close"));
   closeBtn.textContent = "×";
   closeBtn.addEventListener("click", () => {
     banner.remove();
@@ -161,7 +162,7 @@ function showUpdateBanner() {
     hint.className = "update-banner-hint";
     const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
     const combo = isMac ? "⌘ + Shift + R" : "Ctrl + Shift + R";
-    hint.textContent = `うまく更新されない場合は、キーボードで ${combo} を押して再読み込みしてください。`;
+  hint.textContent = t("uc.hint", { combo });
     banner.appendChild(hint);
   }
 

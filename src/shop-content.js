@@ -15,6 +15,7 @@ import { getBackgroundShopItems } from "./background.js";
 import { getPetShopItems } from "./pet-skins.js";
 import { getAvatarShopItems } from "./player-identity.js";
 import { isItemUnlocked } from "./online.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 // label は多言語化のため labelKey（ui-text.js のキー）で持ち、表示側（shop.js）が t() で解決する。
 export const SHOP_CATEGORIES = [
@@ -36,7 +37,7 @@ export const SHOP_CATEGORIES = [
     items: [
       {
         itemKey: "mydeck-extra-slots",
-        label: "マイデッキ枠 ＋2",
+        labelKey: "shop.item.deckSlots",
         cost: 100,
         imagePath: "assets/icons/my-deck.svg",
       },

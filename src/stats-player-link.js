@@ -8,6 +8,7 @@
 
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { listUnlinkedStatsPlayers, requestStatsPlayerLink } from "./online.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 function buildPanel(close) {
   const panel = document.createElement("div");
@@ -23,20 +24,20 @@ function buildPanel(close) {
   `;
 
   const titleEl = document.createElement("div");
-  titleEl.textContent = "戦績管理システムのプレイヤーと連携";
+  titleEl.textContent = t("spl.title");
   titleEl.style.cssText = "font-weight: bold; margin-bottom: 0.4rem; padding-right: 1.6rem;";
   panel.appendChild(titleEl);
   panel.appendChild(createModalCloseX(close));
 
   const hint = document.createElement("div");
   hint.textContent =
-    "すでに戦績管理システムに登録されているプレイヤーの中から自分を選ぶと、アカウントとの連携を申請します（管理者の承認後に反映されます）。";
+    t("spl.desc");
   hint.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.7rem; line-height: 1.5;";
   panel.appendChild(hint);
 
   const searchInput = document.createElement("input");
   searchInput.type = "text";
-  searchInput.placeholder = "名前で検索…";
+  searchInput.placeholder = t("spl.search");
   searchInput.style.cssText = `
     width: 100%; box-sizing: border-box; padding: 0.4rem 0.6rem; margin-bottom: 0.6rem;
     background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(148, 163, 184, 0.3);
@@ -81,7 +82,7 @@ function buildPanel(close) {
     const filtered = needle ? allPlayers.filter((p) => p.name.toLowerCase().includes(needle)) : allPlayers;
     if (filtered.length === 0) {
       const empty = document.createElement("div");
-      empty.textContent = needle ? "該当するプレイヤーがいません。" : "連携可能なプレイヤーがいません。";
+      empty.textContent = needle ? t("spl.noMatch") : t("spl.noneAvailable");
       empty.style.cssText = "font-size: 0.8rem; color: #94a3b8; padding: 0.4rem 0;";
       listEl.appendChild(empty);
       return;
@@ -104,7 +105,7 @@ function buildPanel(close) {
     statusEl.appendChild(avatar);
 
     const msg = document.createElement("div");
-    msg.textContent = `「${player.name}」さんとして連携を申請しますか？（承認までは自動でこの名前・アバターになります）`;
+    msg.textContent = t("spl.confirm", { name: player.name });
     msg.style.cssText = "text-align: center; margin-bottom: 0.7rem;";
     statusEl.appendChild(msg);
 
@@ -112,12 +113,12 @@ function buildPanel(close) {
     btnRow.style.cssText = "display: flex; gap: 0.5rem; justify-content: center;";
     const confirmBtn = document.createElement("button");
     confirmBtn.type = "button";
-    confirmBtn.textContent = "連携を申請する";
+    confirmBtn.textContent = t("spl.request");
     confirmBtn.style.cssText =
       "padding: 0.4rem 0.9rem; background: #be185d; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.85rem;";
     const backBtn = document.createElement("button");
     backBtn.type = "button";
-    backBtn.textContent = "戻る";
+    backBtn.textContent = t("spl.back");
     backBtn.style.cssText =
       "padding: 0.4rem 0.9rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(148,163,184,0.3); border-radius: 0.3rem; color: #e2e8f0; cursor: pointer; font-size: 0.85rem;";
     backBtn.addEventListener("click", () => {
@@ -127,20 +128,20 @@ function buildPanel(close) {
     });
     confirmBtn.addEventListener("click", async () => {
       confirmBtn.disabled = true;
-      confirmBtn.textContent = "申請中…";
+      confirmBtn.textContent = t("spl.requesting");
       try {
         await requestStatsPlayerLink(player.id);
         statusEl.innerHTML = "";
         const done = document.createElement("div");
-        done.textContent = `「${player.name}」さんとの連携を申請しました。管理者の承認をお待ちください。`;
+        done.textContent = t("spl.done", { name: player.name });
         done.style.cssText = "text-align: center; color: #86efac;";
         statusEl.appendChild(done);
       } catch (err) {
         console.error("requestStatsPlayerLink failed", err);
         confirmBtn.disabled = false;
-        confirmBtn.textContent = "連携を申請する";
+        confirmBtn.textContent = t("spl.request");
         const errEl = document.createElement("div");
-        errEl.textContent = "申請に失敗しました。通信環境を確認してもう一度お試しください。";
+        errEl.textContent = t("spl.failed");
         errEl.style.cssText = "text-align: center; color: #fca5a5; margin-top: 0.4rem;";
         statusEl.appendChild(errEl);
       }
@@ -156,7 +157,7 @@ function buildPanel(close) {
     listEl.style.display = "";
     searchInput.style.display = "";
     searchInput.value = "";
-    statusEl.textContent = "読み込み中…";
+    statusEl.textContent = t("spl.loading");
     listEl.innerHTML = "";
     try {
       allPlayers = await listUnlinkedStatsPlayers();
@@ -164,7 +165,7 @@ function buildPanel(close) {
       renderList("");
     } catch (err) {
       console.error("listUnlinkedStatsPlayers failed", err);
-      statusEl.textContent = "一覧の取得に失敗しました。通信環境を確認してください。";
+    statusEl.textContent = t("spl.loadFailed");
     }
   };
 

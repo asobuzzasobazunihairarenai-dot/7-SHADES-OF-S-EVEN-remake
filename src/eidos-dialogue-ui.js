@@ -20,6 +20,7 @@
 // 画像は必ず eidos-portraits.js 経由で解決（パス直書き禁止）。専用素材が無いIDは近い実絵へフォールバック。
 
 import { resolveEidosPortrait, resolveProtagonistPortrait, resolveSeptPortrait } from "./eidos-portraits.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 const TYPEWRITER_MS_PER_CHAR = 24;
 
@@ -168,7 +169,7 @@ export function runEidosDialogue(steps, options = {}) {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "eidos-dialogue-choice";
-      btn.textContent = step.input.confirmLabel || "決定";
+      btn.textContent = step.input.confirmLabel || t("edu.confirm");
       const submit = () => {
         const v = (input.value || "").trim() || (step.input.default || "");
         try {
@@ -344,7 +345,7 @@ function buildPanelDom() {
   choices.style.display = "none";
   const hint = document.createElement("div");
   hint.className = "eidos-dialogue-hint";
-  hint.textContent = "▶ タップ / Enter / Space で進む";
+  hint.textContent = t("edu.hint");
   body.append(name, text, choices, hint);
 
   panel.append(stage, body);

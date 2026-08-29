@@ -15,6 +15,8 @@
 //    NORMAL_CARDSのcount（色落ちキャット1、白/黒各2、他は7）。
 
 import { NORMAL_CARDS, getCardDefinition } from "./cards-data.js";
+import { getCardName } from "./card-text.js"; // UI英語化フェーズ13: 表示用のカード名
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 export const SPECIAL_CARD_COLORS = new Set(["white", "black", "rainbow"]);
 // ファーストカード（＝駒）に選べる7色。
@@ -67,19 +69,19 @@ export function validateDeck(cards) {
     if (count <= 0) continue;
     const def = getCardDefinition(cardId);
     if (!isDeckableCard(cardId)) {
-      errors.push(`「${def?.name ?? cardId}」は通常カードではないためマイデッキに入れられません。`);
+      errors.push(t("md.notNormal", { name: getCardName(cardId) || def?.name || cardId }));
       continue;
     }
     const max = maxCopiesFor(cardId);
-    if (count > max) errors.push(`「${def.name}」は${max}枚までしか入れられません（現在${count}枚）。`);
+    if (count > max) errors.push(t("md.tooMany", { name: getCardName(cardId) || def.name, max, n: count }));
     total += count;
     if (isSpecialDeckCard(cardId)) specialCount += count;
     else nonSpecialCount += count;
   }
-  if (total < MIN_DECK_SIZE) errors.push(`デッキは${MIN_DECK_SIZE}枚以上必要です（現在${total}枚）。`);
+  if (total < MIN_DECK_SIZE) errors.push(t("md.tooFew", { min: MIN_DECK_SIZE, n: total }));
   const requiredNonSpecial = specialCount * SPECIAL_TAX_RATIO;
   if (nonSpecialCount < requiredNonSpecial) {
-    errors.push(`スペシャルカード${specialCount}枚には非スペシャルの通常カードが${requiredNonSpecial}枚必要です（現在${nonSpecialCount}枚）。`);
+    errors.push(t("md.specialTax", { special: specialCount, required: requiredNonSpecial, n: nonSpecialCount }));
   }
   return { ok: errors.length === 0, errors, total, specialCount, nonSpecialCount, requiredNonSpecial };
 }
@@ -97,7 +99,7 @@ function uid() {
 export function makeEmptyDeck(name) {
   return {
     id: uid(),
-    name: name || "新しいデッキ",
+    name: name || t("md.newDeck"),
     cards: {},
     firstColor: null, // null = 対戦開始時にランダム
     pieceSkinIndex: null, // null = プロフィール既定
@@ -108,7 +110,7 @@ export function makeEmptyDeck(name) {
 }
 // おまかせ/タイムアップ用: 非スペシャルの通常カードから7枚ジャスト＋ファースト色ランダム。
 export function makeRandomDeck(name) {
-  const deck = makeEmptyDeck(name || "おまかせデッキ");
+  const deck = makeEmptyDeck(name || t("md.autoDeck"));
   const cards = {};
   for (let i = 0; i < RANDOM_DECK_SIZE; i++) {
     // まだ上限(所持/同名7)に達していない非スペシャルカードから1枚選ぶ。
@@ -143,7 +145,7 @@ function normalizeDeck(d) {
   }
   return {
     id: typeof d.id === "string" ? d.id : uid(),
-    name: typeof d.name === "string" && d.name.trim() ? d.name : "デッキ",
+    name: typeof d.name === "string" && d.name.trim() ? d.name : t("md.deck"),
     cards,
     firstColor: FIRST_COLORS.includes(d.firstColor) ? d.firstColor : null,
     pieceSkinIndex: typeof d.pieceSkinIndex === "number" ? d.pieceSkinIndex : null,
@@ -166,7 +168,7 @@ function normalizeStore(raw) {
   if (raw && typeof raw === "object") {
     const looksLikeCards = Object.values(raw).every((v) => typeof v === "number");
     if (looksLikeCards && Object.keys(raw).length > 0) {
-      const d = makeEmptyDeck("マイデッキ");
+      const d = makeEmptyDeck(t("md.myDeck"));
       d.cards = normalizeDeck({ cards: raw }).cards;
       return { decks: [d], selectedId: d.id };
     }
@@ -253,7 +255,7 @@ export function duplicateDeck(id, limit = Infinity) {
   if (!src) return null;
   const copy = normalizeDeck({ ...src, cards: { ...src.cards } });
   copy.id = uid();
-  copy.name = `${src.name} のコピー`;
+  copy.name = t("md.copyOf", { name: src.name });
   store.decks.push(copy);
   store.selectedId = copy.id;
   persistStore();

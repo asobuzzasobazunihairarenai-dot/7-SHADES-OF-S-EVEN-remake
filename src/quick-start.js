@@ -5,6 +5,7 @@
 // デフォルトと同じ）。
 
 import { quickStart } from "./game-setup.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 let includeBlackWhite = false;
 
@@ -13,9 +14,9 @@ function buildToggle() {
   wrap.className = "quick-start-toggle";
 
   const noneBtn = document.createElement("button");
-  noneBtn.textContent = "無色なし";
+  noneBtn.textContent = t("qs.noColorless");
   const someBtn = document.createElement("button");
-  someBtn.textContent = "無色あり";
+  someBtn.textContent = t("qs.withColorless");
 
   function refresh() {
     noneBtn.classList.toggle("is-selected", !includeBlackWhite);
@@ -41,8 +42,8 @@ function buildCountButtons() {
   wrap.className = "quick-start-counts";
   for (const count of [2, 3, 4]) {
     const btn = document.createElement("button");
-    btn.textContent = `${count}人`;
-    btn.title = "クリックですぐにセットアップ完了まで進めます";
+    btn.textContent = t("qs.countN", { n: count });
+    btn.title = t("qs.tip");
     btn.addEventListener("click", () => quickStart(count, includeBlackWhite));
     wrap.appendChild(btn);
   }

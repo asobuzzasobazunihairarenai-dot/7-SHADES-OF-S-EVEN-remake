@@ -13,6 +13,7 @@
 // 引き継ぐべき設定ではないため）。
 
 import { setFlightAnimationDisabled, setArrivalEffectDisabled, setContinuousGlowDisabled } from "./motion-prefs.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 const STORAGE_KEY = "so7-2d-mode";
 
@@ -148,8 +149,8 @@ function updateModeBadge() {
       "padding:2px 6px;border-radius:4px;white-space:nowrap;";
     document.body.appendChild(badge);
   }
-  const base = !enabled ? "描画: 3D" : iso25d ? "描画: 2.5D (iso)" : "描画: 2D (素・駒フラット)";
-  badge.textContent = base + (liteRender ? " +軽量" : "");
+  const base = !enabled ? t("t2m.render3d") : iso25d ? t("t2m.render25d") : t("t2m.render2d");
+  badge.textContent = base + (liteRender ? t("t2m.lite") : "");
 }
 
 apply();

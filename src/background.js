@@ -6,17 +6,18 @@
 
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { saveMyPreference, isItemUnlocked, openShop } from "./online.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 export const BACKGROUND_OPTIONS = [
   // ユーザー指定の既定背景（assets/backgrounds/gray.webp、元は画像素材/背景/灰.webp）。
   // 選択保存の無い人はこれで開始する（下のselectedBackgroundId初期値＝"gray"）。
-  { id: "gray", label: "灰", path: "assets/backgrounds/gray.webp" },
-  { id: "1", label: "背景1", path: "assets/backgrounds/1.webp" },
+  { id: "gray", labelKey: "bg.gray", path: "assets/backgrounds/gray.webp" },
+  { id: "1", labelKey: "bg.n", labelParams: { n: 1 }, path: "assets/backgrounds/1.webp" },
   // ユーザーが追加した高画質版（元画像はpng、2.5MB超のため読み込みがやや重い点は
   // 承知の上でラインナップに追加）。
-  { id: "1-hq", label: "背景1（高画質）", path: "assets/backgrounds/1-hq.png" },
-  { id: "2", label: "背景2", path: "assets/backgrounds/2.webp" },
-  { id: "3", label: "背景3", path: "assets/backgrounds/3.webp" },
+  { id: "1-hq", labelKey: "bg.nHq", labelParams: { n: 1 }, path: "assets/backgrounds/1-hq.png" },
+  { id: "2", labelKey: "bg.n", labelParams: { n: 2 }, path: "assets/backgrounds/2.webp" },
+  { id: "3", labelKey: "bg.n", labelParams: { n: 3 }, path: "assets/backgrounds/3.webp" },
 ];
 
 let selectedBackgroundId = "gray";
@@ -38,10 +39,14 @@ function getBackgroundCost(id) {
 
 // shop-content.js（ショップのカタログ）がこのまま使えるよう、このモジュール自身の
 // BACKGROUND_OPTIONSを唯一の正としてitem一覧を組み立てて返す。
+// 表示用の背景名（英語化フェーズ13: 使う時に解決する）。
+export function backgroundLabel(option) {
+  return option?.labelKey ? t(option.labelKey, option.labelParams || {}) : option?.label || "";
+}
 export function getBackgroundShopItems() {
   return BACKGROUND_OPTIONS.map((b) => ({
     itemKey: `background:${b.id}`,
-    label: b.label,
+    label: backgroundLabel(b),
     cost: getBackgroundCost(b.id),
     imagePath: b.path,
   }));
@@ -77,7 +82,7 @@ export function openBackgroundPicker() {
 
   const title = document.createElement("div");
   title.className = "piece-skin-modal-title";
-  title.textContent = "背景画像を選択";
+  title.textContent = t("bg.title");
 
   const grid = document.createElement("div");
   grid.className = "piece-skin-modal-grid";
@@ -87,7 +92,7 @@ export function openBackgroundPicker() {
     if (selectedBackgroundId === option.id) swatch.classList.add("is-selected");
     const img = document.createElement("img");
     img.src = option.path;
-    img.alt = option.label;
+    img.alt = backgroundLabel(option);
     swatch.appendChild(img);
     // ユーザー要望「背景画像を購入できるようにする」への対応。未所持の有料背景は
     // 選べないようにし、代わりにショップを開く。

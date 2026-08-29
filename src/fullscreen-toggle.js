@@ -7,6 +7,7 @@
 
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { getOptionArea } from "./option-area.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 // 全画面の入/出アイコン（角ブラケット）。外部アセットに頼らずインラインSVGのdata URIで持つ。
 function svgIcon(paths) {
@@ -97,17 +98,17 @@ export function initFullscreenToggle() {
   function applyState() {
     const on = isFullscreenActive();
     if (imgEl) imgEl.src = on ? ICON_EXIT : ICON_ENTER;
-    captionEl.textContent = on ? "全画面解除" : "全画面";
-    if (tooltipEl) tooltipEl.textContent = on ? "全画面表示中（押すと解除）" : "全画面表示にする（タブ/URL欄を隠す）";
+    captionEl.textContent = on ? t("fs.captionOff") : t("fs.captionOn");
+    if (tooltipEl) tooltipEl.textContent = on ? t("fs.tipOn") : t("fs.tipOff");
   }
   applyState();
 
   wireIconButtonClick(btn, {
-    detailTitle: "全画面表示",
+    detailTitle: t("fs.title"),
     detailParagraphs: [
-      "ブラウザのタブ・URL欄・ブックマークバーを隠して、画面いっぱいで遊べます。",
-      "もう一度押す（またはEscキー）で解除できます。",
-      "※iPhoneのSafariなど、全画面表示に対応していない端末では動きません。",
+      t("fs.detail1"),
+      t("fs.detail2"),
+      t("fs.detail3"),
     ],
     onAction: () => {
       toggleFullscreen();

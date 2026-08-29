@@ -23,6 +23,7 @@ import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
 import { APP_VERSION } from "./app-version.js";
 import { getState } from "./state.js";
 import { isCpuBattleActive, isSelfCpuSubstituted } from "./cpu-battle-state.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 // ---- コンソールログの簡易リングバッファ（起動時にconsoleをフックして直近を保持する） ----
 const CONSOLE_BUFFER_MAX = 300;
@@ -217,16 +218,15 @@ export function openBugReportModal() {
 
   const title = document.createElement("div");
   title.className = "bug-report-title";
-  title.textContent = "🐛 不具合報告";
+  title.textContent = t("bug.title");
 
   const desc = document.createElement("div");
   desc.className = "bug-report-desc";
-  desc.textContent =
-    "気づいた不具合や気になったことを書いて送ってください。送信すると、その時点のアクションログ・コンソールログ・状況（バージョン等）も自動で添付されます。オンライン対戦中は、同じ部屋の対戦相手全員のログもまとめて添付します。";
+  desc.textContent = t("bug.desc");
 
   const textarea = document.createElement("textarea");
   textarea.className = "bug-report-textarea";
-  textarea.placeholder = "例: ゲート侵攻でエターナル獲得の演出が崩れた。相手のペットが表示されない、など。";
+  textarea.placeholder = t("bug.placeholder");
   textarea.rows = 6;
 
   const status = document.createElement("div");
@@ -238,24 +238,24 @@ export function openBugReportModal() {
   const cancelBtn = document.createElement("button");
   cancelBtn.type = "button";
   cancelBtn.className = "bug-report-cancel";
-  cancelBtn.textContent = "キャンセル";
+  cancelBtn.textContent = t("bug.cancel");
   cancelBtn.addEventListener("click", close);
 
   const submitBtn = document.createElement("button");
   submitBtn.type = "button";
   submitBtn.className = "bug-report-submit";
-  submitBtn.textContent = "送信する";
+  submitBtn.textContent = t("bug.submit");
   submitBtn.addEventListener("click", async () => {
     const comment = textarea.value.trim();
     if (!comment) {
-      status.textContent = "内容を入力してください。";
+      status.textContent = t("bug.needText");
       status.classList.add("is-error");
       return;
     }
     submitBtn.disabled = true;
     cancelBtn.disabled = true;
     status.classList.remove("is-error");
-    status.textContent = isOnlineMode() ? "送信中…（対戦相手のログも収集しています）" : "送信中…";
+    status.textContent = isOnlineMode() ? t("bug.sendingOnline") : t("bug.sending");
     try {
       const peers = await collectPeerLogs();
       const { actionLog, consoleLog } = buildCombinedLogs(peers);
@@ -266,14 +266,14 @@ export function openBugReportModal() {
         context: gatherContext(),
       });
       status.classList.remove("is-error");
-      status.textContent = "送信しました。ありがとうございます！";
-      submitBtn.textContent = "送信済み";
+      status.textContent = t("bug.sent");
+      submitBtn.textContent = t("bug.sentBtn");
       setTimeout(close, 1400);
     } catch (err) {
       console.error("submitBugReport failed", err);
       status.classList.add("is-error");
       status.textContent =
-        "送信に失敗しました（未実行のSQL追加分がある可能性）。お手数ですがアクションログを直接お送りください。";
+      status.textContent = t("bug.failed");
       submitBtn.disabled = false;
       cancelBtn.disabled = false;
     }

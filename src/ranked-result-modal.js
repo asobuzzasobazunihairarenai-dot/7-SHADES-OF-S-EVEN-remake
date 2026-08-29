@@ -4,13 +4,15 @@
 // 昇格でない場合は「反映後の現在ランク＋勝敗」を確実に見せる。
 
 import { createBackdrop } from "./ui-helpers.js";
+import { rankNames } from "./rank-badge.js"; // UI英語化フェーズ13: 段位名（使う時に解決）
 import { buildRankShowcase, lightGem, dimGem } from "./rank-showcase.js";
 import { isContinuousGlowDisabled } from "./motion-prefs.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 const GEM_STEP_MS = 520; // ジェムを1個ずつ点灯/消灯する間隔（ゆっくり）
 const GEM_START_DELAY = 500; // モーダルが出てから最初のジェムが灯るまでの溜め
 
-const RANK_NAMES = ["ブロンズ", "シルバー", "ゴールド", "プラチナ", "ダイヤモンド", "マスター", "レジェンド"];
+// UI英語化フェーズ13: 段位名は rank-badge.js の rankNames()（使う時に解決）を共用する。
 
 // { won:boolean, rank:0..6, gauge:0..6, legendPoints:int, note?:string, promotedFrom?:0..6 }。
 // promotedFrom が数値かつ rank より小さい時＝昇格として昇格演出を出す（シーズン中は降格なしなので
@@ -40,7 +42,7 @@ export function showRankedResultModal({ won, rank, gauge, legendPoints, note, pr
 
     const heading = document.createElement("div");
     heading.className = "ranked-result-heading " + (promoted ? "is-promote" : won ? "is-win" : "is-lose");
-    heading.textContent = promoted ? "🎉 ランクアップ！" : won ? "🏆 勝利！ ランクポイント獲得" : "ランクポイント減少";
+  heading.textContent = promoted ? t("rrm.rankUp") : won ? t("rrm.won") : t("rrm.lost");
     inner.appendChild(heading);
 
     if (note) {
@@ -121,24 +123,24 @@ export function showRankedResultModal({ won, rank, gauge, legendPoints, note, pr
     if (promoted) {
       const promoLine = document.createElement("div");
       promoLine.className = "ranked-result-promote-line";
-      promoLine.textContent = `${RANK_NAMES[promotedFrom] ?? ""} → ${RANK_NAMES[rank] ?? ""} 昇格！`;
+      promoLine.textContent = t("rrm.promo", { from: rankNames()[promotedFrom] ?? "", to: rankNames()[rank] ?? "" });
       inner.appendChild(promoLine);
     }
 
     const rankName = document.createElement("div");
     rankName.className = "ranked-result-rank";
-    rankName.textContent = RANK_NAMES[rank] ?? "ブロンズ";
+    rankName.textContent = rankNames()[rank] ?? rankNames()[0];
     inner.appendChild(rankName);
 
     if (rank >= 6) {
       const lp = document.createElement("div");
       lp.className = "ranked-result-lp";
-      lp.textContent = `レジェンドポイント: ${legendPoints ?? 0}`;
+    lp.textContent = t("rrm.lp", { n: legendPoints ?? 0 });
       inner.appendChild(lp);
     } else {
       const gaugeText = document.createElement("div");
       gaugeText.className = "ranked-result-gauge-text";
-      gaugeText.textContent = `${gauge ?? 0} / 7 （揃うと昇格）`;
+    gaugeText.textContent = t("rrm.gauge", { n: gauge ?? 0 });
       inner.appendChild(gaugeText);
     }
 

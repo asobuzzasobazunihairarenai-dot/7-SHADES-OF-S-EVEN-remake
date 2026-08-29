@@ -14,6 +14,7 @@ import { getState } from "./state.js";
 import { isOnlineMode, getSelfSeat, getSyncedTimerConfig, getTimerToggleRejectStreak } from "./online.js";
 import { getFinalLockApprovalOrder } from "./board-layout.js";
 import { getPlayerName } from "./player-identity.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 let buttonEl = null;
 let bannerEl = null;
@@ -69,9 +70,9 @@ export function updateTimerToggleButton() {
   const streak = getTimerToggleRejectStreak(selfSeat);
   const pending = getState().pendingTimerToggle;
   const currentEnabled = getSyncedTimerConfig()?.enabled ?? false;
-  buttonEl.textContent = currentEnabled ? "⏳ タイマーをOFFにする" : "⏳ タイマーをONにする";
+  buttonEl.textContent = currentEnabled ? t("tt.turnOff") : t("tt.turnOn");
   buttonEl.disabled = streak >= 3 || !!pending;
-  buttonEl.title = streak >= 3 ? "却下が3回連続したため、この対局中は使えません" : "参加プレイヤー全員の承認でタイマーのON/OFFを切り替えます";
+  buttonEl.title = streak >= 3 ? t("tt.blocked") : t("tt.tip");
 }
 
 export function buildTimerToggleBanner() {
@@ -96,14 +97,14 @@ export function updateTimerToggleBanner() {
 
   const title = document.createElement("div");
   title.className = "final-lock-approval-title";
-  title.textContent = `⏳ ${getPlayerName(pending.requester)} さんがタイマーを${pending.nextEnabled ? "ON" : "OFF"}にすることを提案中！`;
+  title.textContent = t("tt.proposal", { name: getPlayerName(pending.requester), onOff: pending.nextEnabled ? t("tt.on") : t("tt.off") });
   bannerEl.appendChild(title);
 
   const status = document.createElement("div");
   status.className = "final-lock-approval-status";
   status.textContent = canRespond
-    ? `あなた（${getPlayerName(approver)}）の承認が必要です`
-    : `${getPlayerName(approver)} さんの承認を待っています…`;
+    ? t("tt.needYou", { name: getPlayerName(approver) })
+    : t("tt.waiting", { name: getPlayerName(approver) });
   bannerEl.appendChild(status);
 
   if (canRespond) {
@@ -112,12 +113,12 @@ export function updateTimerToggleBanner() {
     const approveBtn = document.createElement("button");
     approveBtn.className = "final-lock-approval-approve";
     approveBtn.type = "button";
-    approveBtn.textContent = "✅ 承認する";
+    approveBtn.textContent = t("tt.approve");
     approveBtn.addEventListener("click", () => respondHandler?.(true));
     const rejectBtn = document.createElement("button");
     rejectBtn.className = "final-lock-approval-reject";
     rejectBtn.type = "button";
-    rejectBtn.textContent = "🚫 却下する";
+    rejectBtn.textContent = t("tt.reject");
     rejectBtn.addEventListener("click", () => respondHandler?.(false));
     buttons.appendChild(approveBtn);
     buttons.appendChild(rejectBtn);

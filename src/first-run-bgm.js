@@ -19,6 +19,7 @@ import {
 } from "./sound.js";
 import { setCardPreviewSize } from "./card-preview-size.js";
 import { saveMyPreference } from "./online.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 const FLAG_KEY = "so7-bgm-intro-shown-v1";
 
@@ -74,41 +75,41 @@ export function maybeShowFirstRunBgmModal() {
 
   const title = document.createElement("div");
   title.className = "first-run-bgm-title";
-  title.textContent = "🎵 サウンドと表示の設定";
+  title.textContent = t("frb.title");
 
   // ユーザー要望2026-08-07「初回設定モーダルがスクロール必要な状態。2段階に分けて
   // スクロール不要にして」。①サウンド（BGM／効果音）→②表示（カード拡大サイズ）の2ステップに分ける。
   const desc = document.createElement("div");
   desc.className = "first-run-bgm-desc";
   desc.textContent =
-    "このアプリにはBGMと効果音があります。それぞれお好みの音量に調整してください（「試聴」で実際の音を確認できます）。あとからオプションの「基本設定」でいつでも変更できます。";
+    t("frb.desc");
 
   // --- BGM 音量 ---
-  const bgm = buildVolumeRow("BGMの音量", getBgmVolume(), (v) => setBgmVolume(v)); // 再生中なら即反映(sound.js)
+  const bgm = buildVolumeRow(t("frb.bgmVolume"), getBgmVolume(), (v) => setBgmVolume(v));
 
   let bgmPreviewing = false;
   const bgmPreviewBtn = document.createElement("button");
   bgmPreviewBtn.type = "button";
   bgmPreviewBtn.className = "first-run-bgm-preview";
-  bgmPreviewBtn.textContent = "▶ BGMを試聴する";
+  bgmPreviewBtn.textContent = t("frb.bgmPreview2");
   bgmPreviewBtn.addEventListener("click", () => {
     bgmPreviewing = !bgmPreviewing;
     if (bgmPreviewing) {
       playOpeningBgm(); // このクリック（ユーザー操作）が自動再生制限を解除する
-      bgmPreviewBtn.textContent = "⏹ 停止";
+      bgmPreviewBtn.textContent = t("frb.bgmStop");
     } else {
       stopOpeningBgm();
-      bgmPreviewBtn.textContent = "▶ BGMを試聴する";
+      bgmPreviewBtn.textContent = t("frb.bgmPreview2");
     }
   });
 
   // --- 効果音 音量 ---
-  const sfx = buildVolumeRow("効果音の音量", getSoundVolume(), (v) => setSoundVolume(v)); // 次に鳴る音から反映(sound.js)
+  const sfx = buildVolumeRow(t("frb.sfxVolume"), getSoundVolume(), (v) => setSoundVolume(v));
 
   const sfxPreviewBtn = document.createElement("button");
   sfxPreviewBtn.type = "button";
   sfxPreviewBtn.className = "first-run-bgm-preview";
-  sfxPreviewBtn.textContent = "▶ 効果音を鳴らす";
+  sfxPreviewBtn.textContent = t("frb.sfxPreview");
   sfxPreviewBtn.addEventListener("click", () => {
     // playSoundは現在のマスター音量（setSoundVolumeで今設定した値）で鳴るので、
     // スライダーを動かした結果をそのまま確かめられる。クリック自体がiOSの音声解除の
@@ -121,13 +122,13 @@ export function maybeShowFirstRunBgmModal() {
   sizeLabel.className = "first-run-bgm-desc";
   sizeLabel.style.marginBottom = "0.4rem";
   sizeLabel.textContent =
-    "カードを拡大表示（マウスなら重ねて、タブレット/スマホなら長押しで表示）したときの大きさです。下のカードのテキストが読みやすいサイズに調整してください。";
+    t("frb.sizeDesc");
 
   const sizeRow = document.createElement("div");
   sizeRow.className = "first-run-bgm-row";
   const sizeName = document.createElement("span");
   sizeName.className = "first-run-bgm-label";
-  sizeName.textContent = "拡大サイズ";
+  sizeName.textContent = t("frb.sizeName");
   const current = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--card-preview-size"));
   const sizeSlider = document.createElement("input");
   sizeSlider.type = "range";
@@ -170,12 +171,12 @@ export function maybeShowFirstRunBgmModal() {
   const nextBtn = document.createElement("button");
   nextBtn.type = "button";
   nextBtn.className = "first-run-bgm-ok";
-  nextBtn.textContent = "次へ（1/2）";
+  nextBtn.textContent = t("frb.next");
 
   const okBtn = document.createElement("button");
   okBtn.type = "button";
   okBtn.className = "first-run-bgm-ok";
-  okBtn.textContent = "この設定ではじめる（2/2）";
+  okBtn.textContent = t("frb.start");
   okBtn.addEventListener("click", () => {
     // 試聴中のBGMは止める（この後オープニング側で改めて鳴らすため、二重再生を避ける）。
     if (bgmPreviewing) stopOpeningBgm(0);

@@ -29,6 +29,11 @@ import { closeRankingPage } from "./ranking-page.js";
 import { closeHelpPanel } from "./help.js";
 import { closeProfilePage } from "./profile-page.js";
 
+// 商品名（UI英語化フェーズ13: labelKey を持つ商品は使う時に解決する。従来の label もそのまま通す）。
+function itemLabel(item) {
+  return item?.labelKey ? t(item.labelKey) : item?.label || "";
+}
+
 let panelEl = null;
 let balanceEl = null;
 let completionEl = null;
@@ -141,7 +146,7 @@ function buildItemCard(item) {
   } else {
     img = document.createElement("img");
     img.src = item.imagePath;
-    img.alt = item.label;
+    img.alt = itemLabel(item);
     thumb.appendChild(img);
     // ペット商品は画像クリックで色々なアクション（ジャンプ/欠伸/歩行/耳ピク/固有待機）を
     // 順番に見せる（ユーザー要望2026-08-12）。sprite付き商品（getPetShopItems）だけ有効。
@@ -206,7 +211,7 @@ function buildItemCard(item) {
 
   const labelEl = document.createElement("div");
   labelEl.className = "shop-item-card-label";
-  labelEl.textContent = item.label;
+  labelEl.textContent = itemLabel(item);
   card.appendChild(labelEl);
 
   const footer = document.createElement("div");
@@ -228,7 +233,7 @@ function buildItemCard(item) {
       setStatus(t("shop.buying"));
       try {
         await purchaseItem(item.itemKey, item.cost);
-        setStatus(t("shop.purchased", { name: item.label }));
+        setStatus(t("shop.purchased", { name: itemLabel(item) }));
         await Promise.all([refreshCurrencyDisplay(), refreshBalance()]);
         renderGrid();
       } catch (err) {

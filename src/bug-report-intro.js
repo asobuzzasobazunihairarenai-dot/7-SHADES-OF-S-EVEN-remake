@@ -9,6 +9,7 @@
 // 一時的に上げて見せる方式へ変更した。実要素をそのまま光らせるので原理的にズレない。
 
 import { createModalCloseX } from "./ui-helpers.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 const HIDE_KEY = "so7-bug-report-intro-hidden-v1";
 
@@ -76,12 +77,12 @@ export function maybeShowBugReportIntro() {
 
   const title = document.createElement("div");
   title.className = "bug-report-intro-title";
-  title.textContent = "🐛 不具合報告のお願い";
+  title.textContent = t("bri.title");
 
   const desc = document.createElement("div");
   desc.className = "bug-report-intro-desc";
   desc.textContent =
-    "ゲーム中やホーム画面などで不具合・気になる挙動があれば、画面上部の光っているこのアイコンからご報告をお願いいたします。" +
+    t("bri.body");
     "アクションログなども一緒に送信されるので、原因の特定にとても助かります。";
 
   const actions = document.createElement("div");
@@ -90,7 +91,7 @@ export function maybeShowBugReportIntro() {
   const hideBtn = document.createElement("button");
   hideBtn.type = "button";
   hideBtn.className = "bug-report-intro-hide";
-  hideBtn.textContent = "今後は表示しない";
+  hideBtn.textContent = t("bri.hide");
   hideBtn.addEventListener("click", () => {
     try {
       localStorage.setItem(HIDE_KEY, "1");

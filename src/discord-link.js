@@ -5,6 +5,7 @@
 
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { getOptionArea } from "./option-area.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 const DISCORD_INVITE_URL = "https://discord.gg/stP78fswKx";
 
@@ -13,12 +14,12 @@ export function initDiscordLink() {
   btn.id = "discord-link-button";
   const { captionEl } = buildIconButtonContent(btn, {
     icon: "assets/icons/discord.svg",
-    tooltip: "公式Discordを新しいタブで開きます",
+    tooltip: t("dl.tip"),
   });
   captionEl.textContent = "Discord";
   wireIconButtonClick(btn, {
-    detailTitle: "公式Discord",
-    detailParagraphs: ["公式Discordサーバーを新しいタブで開きます。"],
+    detailTitle: t("dl.title"),
+    detailParagraphs: [t("dl.detail")],
     onAction: () => {
       window.open(DISCORD_INVITE_URL, "_blank", "noopener,noreferrer");
     },

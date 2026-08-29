@@ -3,8 +3,12 @@
 //
 // ★運用メモ: デプロイするたびに、この CHANGELOG の先頭に { date, items } を1件追記する
 //   （新しい順＝先頭が最新）。日付は YYYY-MM-DD。itemsはその回の変更の概要（箇条書き）。
+//   ★2026-08-29から: 新しく追記する回は itemsEn（英語版・itemsと同じ順番・同じ件数）も
+//     一緒に書く（ユーザー判断で過去分の英訳はしない＝itemsEnが無い回は日本語のまま出る）。
 
 import { createBackdrop } from "./ui-helpers.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
+import { getLang } from "./i18n.js";
 
 export const CHANGELOG = [
   {
@@ -368,13 +372,13 @@ export function openChangelogModal() {
   const backBtn = document.createElement("button");
   backBtn.type = "button";
   backBtn.id = "changelog-back";
-  backBtn.textContent = "← 戻る";
+  backBtn.textContent = t("chg.back");
   backBtn.addEventListener("click", close);
   modalEl.appendChild(backBtn);
 
   const title = document.createElement("div");
   title.className = "changelog-modal-title";
-  title.textContent = "📰 お知らせ／更新情報";
+  title.textContent = t("chg.title");
   modalEl.appendChild(title);
 
   const list = document.createElement("div");
@@ -382,7 +386,7 @@ export function openChangelogModal() {
   if (CHANGELOG.length === 0) {
     const empty = document.createElement("div");
     empty.className = "changelog-empty";
-    empty.textContent = "まだ更新情報はありません。";
+    empty.textContent = t("chg.empty");
     list.appendChild(empty);
   } else {
     for (const entry of CHANGELOG) {
@@ -394,7 +398,16 @@ export function openChangelogModal() {
       section.appendChild(date);
       const ul = document.createElement("ul");
       ul.className = "changelog-items";
-      for (const item of entry.items) {
+      // 英語表示では itemsEn があればそちらを出す。無ければ日本語のまま出し、
+      // 「この回は日本語のみ」と一言添える（過去分は英訳しない方針＝ユーザー判断）。
+      const useEn = getLang() !== "ja" && Array.isArray(entry.itemsEn) && entry.itemsEn.length > 0;
+      if (getLang() !== "ja" && !useEn) {
+        const note = document.createElement("div");
+        note.className = "changelog-ja-only";
+        note.textContent = t("chg.jaOnly");
+        section.appendChild(note);
+      }
+      for (const item of useEn ? entry.itemsEn : entry.items) {
         const li = document.createElement("li");
         li.textContent = item; // textContentで安全に表示
         ul.appendChild(li);

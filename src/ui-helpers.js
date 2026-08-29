@@ -4,11 +4,13 @@
 // （それぞれが独自に「閉じる」ボタンを実装すると、閉じ方の一貫性が崩れやすいため）。
 
 // パネル本体（position:fixed/relativeが前提）の右上に置く、丸型の✕ボタン。
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
+
 export function createModalCloseX(onClose) {
   const btn = document.createElement("button");
   btn.className = "modal-close-x";
   btn.textContent = "×";
-  btn.setAttribute("aria-label", "閉じる");
+  btn.setAttribute("aria-label", t("uih.close"));
   btn.addEventListener("click", onClose);
   return btn;
 }

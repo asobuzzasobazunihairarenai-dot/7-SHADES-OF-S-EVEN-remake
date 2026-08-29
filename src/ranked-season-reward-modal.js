@@ -7,6 +7,7 @@
 import { createBackdrop } from "./ui-helpers.js";
 import { buildRankBadgeImage, rankName } from "./rank-badge.js";
 import { isContinuousGlowDisabled } from "./motion-prefs.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 // { season:"2026-07", rank:0..6, amount:int }。閉じたら resolve する Promise を返す
 // （呼び出し側が await して、その後 claimSeasonReward() を呼ぶ）。
@@ -28,12 +29,12 @@ export function showSeasonRewardModal({ season, rank, amount }) {
 
     const title = document.createElement("div");
     title.className = "season-reward-title";
-    title.textContent = "🎉 シーズン報酬";
+  title.textContent = t("rsr.title");
     modal.appendChild(title);
 
     const sub = document.createElement("div");
     sub.className = "season-reward-sub";
-    sub.textContent = season ? `先月（${season}）の到達ランク` : "先月の到達ランク";
+  sub.textContent = season ? t("rsr.subWith", { season }) : t("rsr.sub");
     modal.appendChild(sub);
 
     // 背後に回る金色の放射バースト（祝賀感）。reduce-glow時は静止。
@@ -56,7 +57,7 @@ export function showSeasonRewardModal({ season, rank, amount }) {
     const coin = document.createElement("img");
     coin.className = "season-reward-coin";
     coin.src = "assets/icons/currency.png";
-    coin.alt = "通貨";
+  coin.alt = t("rsr.coinAlt");
     reward.appendChild(coin);
     const amt = document.createElement("span");
     amt.className = "season-reward-amount-num";
@@ -66,13 +67,13 @@ export function showSeasonRewardModal({ season, rank, amount }) {
 
     const note = document.createElement("div");
     note.className = "season-reward-note";
-    note.textContent = "報酬はすでに残高に加算されています。ショップで使えます。";
+  note.textContent = t("rsr.note");
     modal.appendChild(note);
 
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "season-reward-claim";
-    btn.textContent = "受け取る";
+  btn.textContent = t("rsr.claim");
     btn.addEventListener("click", close);
     modal.appendChild(btn);
 

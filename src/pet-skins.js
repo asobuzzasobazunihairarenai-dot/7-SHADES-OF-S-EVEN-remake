@@ -9,30 +9,31 @@
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getSelfSeat, getSyncedIdentity, updateMyIdentity, isItemUnlocked, openShop } from "./online.js";
 import { getSeatLoadout } from "./cpu-battle-state.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 // ペット（駒に追従する飾り）。ユーザー要望でダミーの絵文字ペットは廃止し、スプライトペット
 // （ショップで購入）＋「なし」だけにした。sprite付きは piece-pet.js が画像スプライト
 // （4方向×モーション）で描画する。itemKey/cost はショップ連携用（shop-content.js）。
 export const PET_OPTIONS = [
-  { sprite: "cubit", label: "キュビット", itemKey: "pet:cubit", cost: 300 },
-  { sprite: "noxael", label: "ノクスアエル幼体", itemKey: "pet:noxael", cost: 300 },
+  { sprite: "cubit", labelKey: "pet.cubit", itemKey: "pet:cubit", cost: 300 },
+  { sprite: "noxael", labelKey: "pet.noxael", itemKey: "pet:noxael", cost: 300 },
   // セプトは非売品（チュートリアルのエイドス戦報酬でのみ入手）。ショップには出さないが、所持
   // すれば装備できるよう PET_OPTIONS には残す（getPetShopItems が nonSellable を除外する）。
-  { sprite: "sept", label: "セプト", itemKey: "pet:sept", nonSellable: true },
-  { sprite: "rubel", label: "ルベル", itemKey: "pet:rubel", cost: 300 },
-  { sprite: "kii", label: "キィ", itemKey: "pet:kii", cost: 300 },
-  { sprite: "moya", label: "モヤ", itemKey: "pet:moya", cost: 300 }, // 2026-08-12追加
+  { sprite: "sept", labelKey: "pet.sept", itemKey: "pet:sept", nonSellable: true },
+  { sprite: "rubel", labelKey: "pet.rubel", itemKey: "pet:rubel", cost: 300 },
+  { sprite: "kii", labelKey: "pet.kii", itemKey: "pet:kii", cost: 300 },
+  { sprite: "moya", labelKey: "pet.moya", itemKey: "pet:moya", cost: 300 },
   // spriteScale: このペットだけ表示倍率を変える（ユーザー要望2026-08-18「モリラをもう少し大きく」）。
-  { sprite: "morira", label: "モリラ", itemKey: "pet:morira", cost: 300, spriteScale: 1.3 }, // 2026-08-17追加
-  { sprite: "poyon", label: "ポヨン", itemKey: "pet:poyon", cost: 300 }, // 2026-08-17追加
-  { emoji: null, label: "なし（非表示）" }, // ペットを表示しない（初期値）
+  { sprite: "morira", labelKey: "pet.morira", itemKey: "pet:morira", cost: 300, spriteScale: 1.3 },
+  { sprite: "poyon", labelKey: "pet.poyon", itemKey: "pet:poyon", cost: 300 },
+  { emoji: null, labelKey: "pet.none" },
 ];
 
 // ショップ（shop-content.js の「ペット」カテゴリ）へ渡す商品一覧。全て有料・初期は未所持。
 export function getPetShopItems() {
   return PET_OPTIONS.filter((o) => o.sprite && !o.nonSellable).map((o) => ({
     itemKey: o.itemKey,
-    label: o.label,
+    label: t(o.labelKey),
     cost: o.cost,
     sprite: o.sprite, // ショップでクリック時にモーション再生するために渡す（shop.js参照）
     imagePath: petSpriteSrc(o.sprite, "front", "static"),
@@ -156,11 +157,11 @@ export function openPetPicker(options = {}) {
 
   const title = document.createElement("div");
   title.className = "piece-skin-modal-title";
-  title.textContent = "ペットを選択";
+  title.textContent = t("pet.title");
 
   const note = document.createElement("div");
   note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin: -0.4rem 0 0.8rem;";
-  note.textContent = "駒に追従する飾りのペットです（ショップで購入）。ゲームには影響しません。";
+  note.textContent = t("pet.note");
 
   const grid = document.createElement("div");
   grid.className = "piece-skin-modal-grid pet-picker-grid";
@@ -184,7 +185,7 @@ export function openPetPicker(options = {}) {
     }
     const label = document.createElement("span");
     label.className = "pet-picker-label";
-    label.textContent = locked ? `🔒 ${opt.label}（${opt.cost}）` : opt.label;
+    label.textContent = locked ? t("pet.locked", { name: t(opt.labelKey), cost: opt.cost }) : t(opt.labelKey);
     swatch.appendChild(face);
     swatch.appendChild(label);
     swatch.addEventListener("click", () => {

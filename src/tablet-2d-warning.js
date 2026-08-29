@@ -8,6 +8,7 @@
 import { isTouchPrimaryDevice, getDeviceType, setDeviceType } from "./device-detect.js";
 import { setFlatten2dMode } from "./tablet-2d-mode.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 const STORAGE_KEY = "so7-tablet-2d-warning-dismissed";
 
@@ -40,14 +41,14 @@ export function maybeShowTablet2dWarning() {
   `;
 
   const title = document.createElement("div");
-  title.textContent = "⚠️ 警告";
+  title.textContent = t("t2w.title");
   title.style.cssText = "font-weight: bold; font-size: 1rem; margin-bottom: 0.6rem; padding-right: 1.6rem;";
   modal.appendChild(title);
   modal.appendChild(createModalCloseX(dismiss));
 
   const body = document.createElement("div");
   body.textContent =
-    "端末によっては、特にスマホ・タブレットでは手札が見えなくなったりチカチカしたりする場合があります。スマホ・タブレットでは「2D表示にして、さらにピンチ／ホイールで拡大する」のが一番見やすいです。下の「おすすめ表示にする」を押すと、2D表示＋盤面拡大をまとめて適用します（画面右上のオプションからもいつでも切り替えられます）。";
+    t("t2w.body");
   body.style.cssText = "line-height: 1.6; margin-bottom: 0.6rem;";
   modal.appendChild(body);
 
@@ -56,7 +57,7 @@ export function maybeShowTablet2dWarning() {
   // のため効果は限定的だが、Androidタブレットでは端末標準ブラウザよりGoogle Chromeの方が
   // 3D描画・GPU合成の実装が新しく安定していることが多い。
   const browserNote = document.createElement("div");
-  browserNote.textContent = "ブラウザはGoogle Chromeを推奨します（iPhone/iPadでは他のブラウザでも同じ描画エンジンのため効果は限定的です）。";
+  browserNote.textContent = t("t2w.browserNote");
   browserNote.style.cssText = "line-height: 1.6; margin-bottom: 1rem; font-size: 0.8rem; color: #94a3b8;";
   modal.appendChild(browserNote);
 
@@ -66,7 +67,7 @@ export function maybeShowTablet2dWarning() {
   const deviceTypeRow = document.createElement("div");
   deviceTypeRow.style.cssText = "margin-bottom: 1rem;";
   const deviceTypeLabel = document.createElement("div");
-  deviceTypeLabel.textContent = "あなたの端末はどちらですか？";
+  deviceTypeLabel.textContent = t("t2w.deviceQ");
   deviceTypeLabel.style.cssText = "margin-bottom: 0.4rem; font-size: 0.85rem;";
   deviceTypeRow.appendChild(deviceTypeLabel);
 
@@ -74,8 +75,8 @@ export function maybeShowTablet2dWarning() {
   deviceTypeOptionsWrap.style.cssText = "display: flex; gap: 1.2rem;";
   const currentDeviceType = getDeviceType();
   for (const { value, text } of [
-    { value: "phone", text: "スマホ" },
-    { value: "tablet", text: "タブレット" },
+    { value: "phone", text: t("t2w.phone") },
+    { value: "tablet", text: t("t2w.tablet") },
   ]) {
     const optionLabel = document.createElement("label");
     optionLabel.style.cssText = "display: flex; align-items: center; gap: 0.3rem; cursor: pointer; font-size: 0.85rem;";
@@ -100,7 +101,7 @@ export function maybeShowTablet2dWarning() {
   // おすすめ（2D＋盤面拡大をまとめて適用）。
   const recommendBtn = document.createElement("button");
   recommendBtn.type = "button";
-  recommendBtn.textContent = "📱 おすすめ表示にする（2D＋拡大）";
+  recommendBtn.textContent = t("t2w.recommend");
   recommendBtn.style.cssText =
     "padding: 0.4rem 0.9rem; background: #be185d; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.85rem; font-weight: bold;";
   recommendBtn.addEventListener("click", () => {
@@ -112,7 +113,7 @@ export function maybeShowTablet2dWarning() {
   // 2D表示だけ（拡大はしない）。
   const switchBtn = document.createElement("button");
   switchBtn.type = "button";
-  switchBtn.textContent = "2D表示だけにする";
+  switchBtn.textContent = t("t2w.switch2d");
   switchBtn.style.cssText =
     "padding: 0.4rem 0.9rem; background: rgba(190,24,93,0.25); border: 1px solid #be185d; border-radius: 0.3rem; color: #fbcfe8; cursor: pointer; font-size: 0.85rem;";
   switchBtn.addEventListener("click", () => {
@@ -122,7 +123,7 @@ export function maybeShowTablet2dWarning() {
 
   const okBtn = document.createElement("button");
   okBtn.type = "button";
-  okBtn.textContent = "わかりました";
+  okBtn.textContent = t("t2w.ok");
   okBtn.style.cssText =
     "padding: 0.4rem 0.9rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(148,163,184,0.3); border-radius: 0.3rem; color: #e2e8f0; cursor: pointer; font-size: 0.85rem;";
   okBtn.addEventListener("click", dismiss);

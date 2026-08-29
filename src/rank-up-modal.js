@@ -12,6 +12,7 @@
 // 変わる場合だけこのモーダルを呼ぶ。
 
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 function buildBadge(tier, { large } = {}) {
   const badge = document.createElement("div");
@@ -37,7 +38,7 @@ export function showRankUpModal({ fromTier, toTier }) {
 
   const title = document.createElement("div");
   title.className = "rank-up-modal-title";
-  title.textContent = "🎉 ランクアップ！";
+  title.textContent = t("rum.title");
   modal.appendChild(title);
 
   const row = document.createElement("div");
@@ -54,7 +55,7 @@ export function showRankUpModal({ fromTier, toTier }) {
 
   const subtitle = document.createElement("div");
   subtitle.className = "rank-up-modal-subtitle";
-  subtitle.textContent = `「${fromTier.label}」から「${toTier.label}」になりました`;
+    subtitle.textContent = t("rum.subtitle", { from: fromTier.label, to: toTier.label });
   modal.appendChild(subtitle);
 
   document.body.appendChild(backdrop);

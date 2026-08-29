@@ -15,6 +15,7 @@ import {
   startFaviconAlert,
   stopFaviconAlert,
 } from "./browser-notify.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 const KEY_ENABLED = "so7-ranked-notify-enabled";
 const KEY_START = "so7-ranked-notify-start";
@@ -131,7 +132,7 @@ function startTitleFlash() {
   let on = false;
   titleFlashTimer = setInterval(() => {
     on = !on;
-    document.title = on ? "🟢 ランク戦：相手が待っています！" : originalTitle;
+  document.title = on ? t("rn.tabTitle") : originalTitle;
   }, 900);
   titleFlashStop = setTimeout(stopTitleFlash, FLASH_MS);
 }
@@ -173,8 +174,8 @@ function fireNotification() {
   startFaviconAlert();
   // 別タブ/別アプリを見ている（＝アプリ内の音・バナーに気づけない）時は、OS のブラウザ通知で知らせる。
   showBrowserNotification({
-    title: "🟢 ランク戦：対戦相手を募集中",
-    body: "対戦相手を探している人がいます。タップして参加しましょう。",
+      title: t("rn.notifyTitle"),
+      body: t("rn.notifyBody"),
     tag: "so7-ranked-waiting",
     onClick: openHomeFromNotify,
   });
@@ -184,13 +185,13 @@ function fireNotification() {
 
   const text = document.createElement("span");
   text.className = "ranked-notify-banner-text";
-  text.textContent = "🟢 ランク戦で対戦相手を募集中の人がいます！";
+  text.textContent = t("rn.bannerText");
   bannerEl.appendChild(text);
 
   const joinBtn = document.createElement("button");
   joinBtn.type = "button";
   joinBtn.className = "ranked-notify-banner-join";
-  joinBtn.textContent = "参加する";
+  joinBtn.textContent = t("rn.join");
   joinBtn.addEventListener("click", async () => {
     dismissBanner();
     // ホーム画面を開く（そこのランク戦タイルから参加）。動的importで静的な循環依存を避ける。
@@ -207,7 +208,7 @@ function fireNotification() {
   closeBtn.type = "button";
   closeBtn.className = "ranked-notify-banner-close";
   closeBtn.textContent = "✕";
-  closeBtn.setAttribute("aria-label", "閉じる");
+  closeBtn.setAttribute("aria-label", t("rn.close"));
   closeBtn.addEventListener("click", dismissBanner);
   bannerEl.appendChild(closeBtn);
 

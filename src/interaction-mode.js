@@ -15,6 +15,7 @@
 
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { isTouchPrimaryDevice, TOUCH_MEDIA_QUERY } from "./device-detect.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 let piecesHidden = false;
 let cardsHidden = false;
@@ -25,12 +26,20 @@ let cardBtnEl = null;
 let cardTooltipEl = null;
 
 const PIECE_TOOLTIP = {
-  off: "駒を一時的にグレー表示にして操作できなくします（カードだけ触りたい時に）",
-  on: "タップすると駒を元に戻します",
+  get off() { return t("im.pieceTipOff"); },
+  get on() { return t("im.pieceTipOn"); },
+};
+const _UNUSED_PIECE_TOOLTIP = {
+  off: "",
+  on: "",
 };
 const CARD_TOOLTIP = {
-  off: "カードを一時的にグレー表示にして操作できなくします（駒だけ触りたい時に）",
-  on: "タップするとカードを元に戻します",
+  get off() { return t("im.cardTipOff"); },
+  get on() { return t("im.cardTipOn"); },
+};
+const _UNUSED_CARD_TOOLTIP = {
+  off: "",
+  on: "",
 };
 
 function applyBodyClasses() {
@@ -77,12 +86,12 @@ export function initInteractionModeToggle() {
     tooltip: PIECE_TOOLTIP.off,
   });
   pieceTooltipEl = pTooltip;
-  pieceCaption.textContent = "駒消し";
+  pieceCaption.textContent = t("im.pieceCaption");
   wireIconButtonClick(pieceBtnEl, {
-    detailTitle: "駒消し（誤操作防止）",
+    detailTitle: t("im.pieceTitle"),
     detailParagraphs: [
-      "タブレット等での誤操作を防ぐためのボタンです。押すと駒を一時的にグレー表示にして操作できなくします（カードだけ触りたい時に）。もう一度押すと元に戻ります。",
-      "「カード消し」と同時にはONにできません（両方ONにすると盤面に何も触れなくなってしまうため）。",
+      t("im.pieceDetail1"),
+      t("im.pieceDetail2"),
     ],
     onAction: togglePieces,
   });
@@ -95,12 +104,12 @@ export function initInteractionModeToggle() {
     tooltip: CARD_TOOLTIP.off,
   });
   cardTooltipEl = cTooltip;
-  cardCaption.textContent = "カード消し";
+  cardCaption.textContent = t("im.cardCaption");
   wireIconButtonClick(cardBtnEl, {
-    detailTitle: "カード消し（誤操作防止）",
+    detailTitle: t("im.cardTitle"),
     detailParagraphs: [
-      "タブレット等での誤操作を防ぐためのボタンです。押すとカードを一時的にグレー表示にして操作できなくします（駒だけ触りたい時に）。もう一度押すと元に戻ります。",
-      "「駒消し」と同時にはONにできません（両方ONにすると盤面に何も触れなくなってしまうため）。",
+      t("im.cardDetail1"),
+      t("im.cardDetail2"),
     ],
     onAction: toggleCards,
   });

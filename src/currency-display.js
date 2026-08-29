@@ -11,6 +11,7 @@ import { getCachedUser, getMyCurrencyBalance, openShop } from "./online.js";
 import { getOptionArea } from "./option-area.js";
 import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
 import { toStageLocalRect, STAGE_WIDTH } from "./main.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 let amountEl = null;
 let displayButtonEl = null;
@@ -19,7 +20,7 @@ export function initCurrencyDisplay() {
   const el = document.createElement("button");
   el.type = "button";
   el.id = "currency-display";
-  el.title = "ショップ・所持金について";
+  el.title = t("cur.iconTip");
   el.addEventListener("click", () => toggleCurrencyMenu(el));
   displayButtonEl = el;
 
@@ -72,7 +73,7 @@ function toggleCurrencyMenu(anchorEl) {
 
   const shopBtn = document.createElement("button");
   shopBtn.type = "button";
-  shopBtn.textContent = "🛒 ショップ";
+  shopBtn.textContent = t("cur.shop");
   shopBtn.addEventListener("click", () => {
     closeCurrencyMenu();
     openShop();
@@ -81,7 +82,7 @@ function toggleCurrencyMenu(anchorEl) {
 
   const aboutBtn = document.createElement("button");
   aboutBtn.type = "button";
-  aboutBtn.textContent = "💰 所持金について";
+  aboutBtn.textContent = t("cur.about");
   aboutBtn.addEventListener("click", () => {
     closeCurrencyMenu();
     showCurrencyAboutPanel();
@@ -109,15 +110,15 @@ function showCurrencyAboutPanel() {
   }
   const title = document.createElement("div");
   title.className = "currency-about-title";
-  title.textContent = "💰 所持金について";
+  title.textContent = t("cur.aboutTitle");
   panel.appendChild(title);
 
   const list = document.createElement("ul");
   list.className = "currency-about-list";
   const items = [
-    "対局が最後まで終わるたびに、参加した全員に50もらえます。",
-    "その対局に勝利すると、さらに+30のボーナスがもらえます（合計80）。",
-    "1日1回、ログインすると20もらえます（ログインボーナス）。",
+    t("cur.about1"),
+    t("cur.about2"),
+    t("cur.about3"),
   ];
   for (const text of items) {
     const li = document.createElement("li");

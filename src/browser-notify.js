@@ -14,6 +14,8 @@
 //    「タブが隠れている時だけ」OS 通知を出す（前面で見ている時はアプリ内バナー等で足りるため）。
 //  - 併せて startFaviconAlert()/stopFaviconAlert() でファビコンを点滅させる。
 
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
+
 let originalFaviconHref = null;
 let faviconLinkEl = null;
 let faviconFlashTimer = null;
@@ -28,7 +30,9 @@ let alertIconDataUrl = null;
 // - 既に許可/拒否済み、または未対応なら、説明モーダルは出さずそのまま返す（冪等）。
 // - 「今はしない」を選んだ場合はこのセッション中は二度と出さない（しつこくしない）。
 let notifyPrimeDismissedThisSession = false;
-export function primeNotifyPermission({ title = "通知でお知らせします", body = "", allowLabel = "🔔 通知を許可する" } = {}) {
+export function primeNotifyPermission({ title = null, body = "", allowLabel = null } = {}) {
+  title = title ?? t("bn.title");
+  allowLabel = allowLabel ?? t("bn.allow");
   return new Promise((resolve) => {
     try {
       if (typeof window === "undefined" || !("Notification" in window)) {
@@ -76,7 +80,7 @@ export function primeNotifyPermission({ title = "通知でお知らせします"
       later.type = "button";
       later.style.cssText =
         "display:block;width:100%;box-sizing:border-box;padding:0.5rem;border:1px solid rgba(255,255,255,0.25);border-radius:0.6rem;background:transparent;color:#cbd5e1;font-size:0.85rem;cursor:pointer;";
-      later.textContent = "今はしない";
+      later.textContent = t("bn.later");
       later.addEventListener("click", () => {
         notifyPrimeDismissedThisSession = true;
         finish("default");

@@ -18,6 +18,7 @@
 //   異なる扱い）。
 
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 // 診断ログ(diag-*)が多く、300件だとバグ報告時に肝心の履歴（dispatch/arrival/effect-verb等）が
 // すぐ押し出されてしまっていた。診断ログ自体は継続中のバグ調査に有用なので消さず、代わりに
@@ -80,7 +81,7 @@ function formatEntry(entry) {
 }
 
 export function getActionLogText() {
-  if (entries.length === 0) return "（まだ記録がありません）";
+  if (entries.length === 0) return t("alog.empty");
   return entries.map(formatEntry).join("\n");
 }
 
@@ -109,13 +110,13 @@ function buildPanel(close) {
   `;
 
   const title = document.createElement("div");
-  title.textContent = "📜 アクションログ（開発用）";
+  title.textContent = t("alog.title");
   title.style.cssText = "font-weight: bold; margin-bottom: 0.4rem; padding-right: 1.6rem;";
   panel.appendChild(title);
 
   const desc = document.createElement("div");
   desc.textContent =
-    "状態遷移（駒/カードの移動・カード効果の動詞実行・到達の発火）を新しい順にさかのぼって最大300件まで記録します。不具合が起きたら、下の内容をコピーしてそのまま伝えてください。";
+    t("alog.desc");
   desc.style.cssText = "opacity: 0.8; margin-bottom: 0.5rem; line-height: 1.4;";
   panel.appendChild(desc);
 
@@ -126,7 +127,7 @@ function buildPanel(close) {
   toggleCheckbox.checked = isActionLogEnabled();
   toggleCheckbox.addEventListener("change", () => setActionLogEnabled(toggleCheckbox.checked));
   const toggleLabel = document.createElement("span");
-  toggleLabel.textContent = "記録を有効にする";
+  toggleLabel.textContent = t("alog.enable");
   toggleRow.appendChild(toggleCheckbox);
   toggleRow.appendChild(toggleLabel);
   panel.appendChild(toggleRow);
@@ -148,13 +149,13 @@ function buildPanel(close) {
   buttonRow.style.cssText = "display: flex; gap: 0.4rem; margin-top: 0.5rem;";
 
   const refreshBtn = document.createElement("button");
-  refreshBtn.textContent = "更新";
+  refreshBtn.textContent = t("alog.refresh");
   refreshBtn.style.cssText = "flex: 1; padding: 0.35rem; background: #334155; color: #fff; border: none; border-radius: 0.25rem; cursor: pointer;";
   refreshBtn.addEventListener("click", refresh);
   buttonRow.appendChild(refreshBtn);
 
   const clearBtn = document.createElement("button");
-  clearBtn.textContent = "クリア";
+  clearBtn.textContent = t("alog.clear");
   clearBtn.style.cssText = "flex: 1; padding: 0.35rem; background: #334155; color: #fff; border: none; border-radius: 0.25rem; cursor: pointer;";
   clearBtn.addEventListener("click", () => {
     clearActionLog();
@@ -163,17 +164,17 @@ function buildPanel(close) {
   buttonRow.appendChild(clearBtn);
 
   const copyBtn = document.createElement("button");
-  copyBtn.textContent = "コピー";
+  copyBtn.textContent = t("alog.copy2");
   copyBtn.style.cssText = "flex: 1; padding: 0.35rem; background: #0891b2; color: #fff; border: none; border-radius: 0.25rem; cursor: pointer;";
   copyBtn.addEventListener("click", async () => {
     refresh();
     try {
       await navigator.clipboard.writeText(textarea.value);
-      copyBtn.textContent = "コピーしました！";
+      copyBtn.textContent = t("alog.copied");
     } catch {
-      copyBtn.textContent = "コピー失敗（手動で選択してください）";
+      copyBtn.textContent = t("alog.copyFailed");
     }
-    setTimeout(() => (copyBtn.textContent = "コピー"), 1500);
+    setTimeout(() => (copyBtn.textContent = t("alog.copy2")), 1500);
   });
   buttonRow.appendChild(copyBtn);
 

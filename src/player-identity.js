@@ -39,13 +39,13 @@ const KING_AVATARS = [
   "avatar-purple-elder-queen",
 ];
 const KING_AVATAR_LABELS = {
-  "avatar-red-king": "赤の国王",
-  "avatar-orange-fox-king": "橙の国王",
-  "avatar-yellow-light-king": "黄の国王",
-  "avatar-green-forest-king": "緑の国王",
-  "avatar-blue-ice-sea-king": "青の国王",
-  "avatar-pink-queen": "桃の女王",
-  "avatar-purple-elder-queen": "紫の女王",
+  "avatar-red-king": "avatarName.red",
+  "avatar-orange-fox-king": "avatarName.orange",
+  "avatar-yellow-light-king": "avatarName.yellow",
+  "avatar-green-forest-king": "avatarName.green",
+  "avatar-blue-ice-sea-king": "avatarName.blue",
+  "avatar-pink-queen": "avatarName.pink",
+  "avatar-purple-elder-queen": "avatarName.purple",
 };
 export const AVATAR_OPTIONS = [
   ...AVATAR_COLORS.map((color) => `assets/avatars/${color}-front.webp`),
@@ -58,7 +58,7 @@ export const AVATAR_OPTIONS = [
 // 表示名は中立的に（メモリ[[king-enraged-avatar-source-gaps]]の通りbasenameと絵柄が食い違う
 // ことがあるため細かな呼称は避ける）。
 const PAID_AVATARS = {
-  ...Object.fromEntries(KING_AVATARS.map((b) => [b, { label: KING_AVATAR_LABELS[b] || b, cost: 200 }])),
+  ...Object.fromEntries(KING_AVATARS.map((b) => [b, { label: KING_AVATAR_LABELS[b] ? t(KING_AVATAR_LABELS[b]) : b, cost: 200 }])),
 };
 
 // 特殊アバター「記憶を失った青年」（無料）。ユーザー指定で、選んだプレイヤーの駒の色に

@@ -1646,6 +1646,13 @@ body.theme-light #changelog-back {
   line-height: 1.6;
   margin-bottom: 0.25rem;
 }
+/* 英語表示で、その回のお知らせに英訳(itemsEn)が無い時の一言（changelog.js参照）。 */
+.changelog-ja-only {
+  color: #94a3b8;
+  font-size: 0.72rem;
+  opacity: 0.85;
+  margin-bottom: 0.3rem;
+}
 .changelog-empty {
   color: #94a3b8;
   font-size: 0.85rem;

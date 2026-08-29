@@ -19,6 +19,8 @@ import { applyAvatarContent } from "./avatar-render.js";
 import { getMatchStats, getMostUsedCardOverall, getMostUsedCardForSeat, getLockHistory } from "./match-stats-tracker.js";
 import { getCardImagePath, getCardDefinition } from "./cards-data.js";
 import { showCardFace } from "./card-face-display.js";
+import { getCardName } from "./card-text.js"; // UI英語化フェーズ13: 表示用のカード名
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 const SVGNS = "http://www.w3.org/2000/svg";
 // その座席の駒の色（＝プレイヤーの色）を実際のCSS変数値で返す（折れ線の色に使う）。
@@ -165,7 +167,7 @@ export function showMatchPersonalResultModal({ activePlayers, winnerSeat }) {
 
     const title = document.createElement("div");
     title.className = "match-personal-result-title";
-    title.textContent = "📊 対戦結果";
+  title.textContent = t("mpr.title");
     modal.appendChild(title);
 
     // 3人以上の対局だけ順位表を見せる（2人戦は勝者/敗者の2択で自明なため）。
@@ -180,7 +182,7 @@ export function showMatchPersonalResultModal({ activePlayers, winnerSeat }) {
 
         const rankEl = document.createElement("div");
         rankEl.className = "match-personal-result-rank";
-        rankEl.textContent = `${entry.rank}位`;
+    rankEl.textContent = t("mpr.rankN", { n: entry.rank });
         row.appendChild(rankEl);
 
         const avatarEl = document.createElement("div");
@@ -195,7 +197,7 @@ export function showMatchPersonalResultModal({ activePlayers, winnerSeat }) {
 
         const lockedEl = document.createElement("div");
         lockedEl.className = "match-personal-result-locked";
-        lockedEl.textContent = `${entry.locked}/7色`;
+    lockedEl.textContent = t("mpr.lockedN", { n: entry.locked });
         row.appendChild(lockedEl);
 
         list.appendChild(row);
@@ -209,15 +211,15 @@ export function showMatchPersonalResultModal({ activePlayers, winnerSeat }) {
       selfBlock.className = "match-personal-result-self";
       const selfTitle = document.createElement("div");
       selfTitle.className = "match-personal-result-self-title";
-      selfTitle.textContent = "あなたの結果";
+    selfTitle.textContent = t("mpr.yours");
       selfBlock.appendChild(selfTitle);
       const selfStats = document.createElement("div");
       selfStats.className = "match-personal-result-self-stats";
-      selfStats.textContent = `ロック ${selfEntry.locked}/7色・手札 ${selfEntry.hand}枚`;
+    selfStats.textContent = t("mpr.selfStats", { locked: selfEntry.locked, hand: selfEntry.hand });
       selfBlock.appendChild(selfStats);
       const selfStats2 = document.createElement("div");
       selfStats2.className = "match-personal-result-self-stats-sub";
-      selfStats2.textContent = `接触 ${contactsMade}回・使用したカード ${cardsUsed}枚`;
+    selfStats2.textContent = t("mpr.selfStats2", { contacts: contactsMade, cards: cardsUsed });
       selfBlock.appendChild(selfStats2);
       modal.appendChild(selfBlock);
     }
@@ -231,7 +233,7 @@ export function showMatchPersonalResultModal({ activePlayers, winnerSeat }) {
       mvpBlock.className = "match-personal-result-mvp";
       const mvpTitle = document.createElement("div");
       mvpTitle.className = "match-personal-result-self-title";
-      mvpTitle.textContent = "🃏 MVPカード（最も使われたカード）";
+    mvpTitle.textContent = t("mpr.mvpTitle");
       mvpBlock.appendChild(mvpTitle);
       const row = document.createElement("div");
       row.className = "match-personal-result-mvp-row";
@@ -250,18 +252,18 @@ export function showMatchPersonalResultModal({ activePlayers, winnerSeat }) {
           col.appendChild(img);
           const name = document.createElement("div");
           name.className = "match-personal-result-mvp-name";
-          name.textContent = `${getCardDefinition(mvp.cardId)?.name ?? mvp.cardId}（${mvp.count}回）`;
+      name.textContent = t("mpr.mvpName", { name: getCardName(mvp.cardId) || getCardDefinition(mvp.cardId)?.name || mvp.cardId, n: mvp.count });
           col.appendChild(name);
         } else {
           const none = document.createElement("div");
           none.className = "match-personal-result-mvp-name";
-          none.textContent = "使用なし";
+      none.textContent = t("mpr.noUse");
           col.appendChild(none);
         }
         return col;
       };
-      row.appendChild(makeCol("全体", overallMvp));
-      row.appendChild(makeCol("あなた", selfMvp));
+    row.appendChild(makeCol(t("mpr.overall"), overallMvp));
+    row.appendChild(makeCol(t("mpr.you"), selfMvp));
       mvpBlock.appendChild(row);
       modal.appendChild(mvpBlock);
     }
@@ -273,7 +275,7 @@ export function showMatchPersonalResultModal({ activePlayers, winnerSeat }) {
       chartBlock.className = "match-personal-result-chart";
       const chartTitle = document.createElement("div");
       chartTitle.className = "match-personal-result-self-title";
-      chartTitle.textContent = "📈 ターンごとのロック枚数";
+    chartTitle.textContent = t("mpr.chartTitle");
       chartBlock.appendChild(chartTitle);
       chartBlock.appendChild(chart);
       modal.appendChild(chartBlock);

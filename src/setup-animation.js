@@ -12,6 +12,7 @@ import { playSound } from "./sound.js";
 import { getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import { flyGhost } from "./ghost-flight.js";
 import { isFlatten2dMode } from "./tablet-2d-mode.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 let helpers = null; // { render }
 
@@ -25,7 +26,7 @@ function showSkipOverlay() {
   overlay.id = "setup-animation-skip-overlay";
   const hint = document.createElement("div");
   hint.className = "setup-animation-skip-hint";
-  hint.textContent = "クリックでスキップ";
+  hint.textContent = t("sa.skip");
   overlay.appendChild(hint);
   document.body.appendChild(overlay);
   return overlay;

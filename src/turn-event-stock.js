@@ -16,6 +16,7 @@ import { showCardFace } from "./card-face-display.js";
 import { getCardImagePath } from "./cards-data.js";
 import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
 import { getState } from "./state.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 let stripEl = null;
 let listEl = null;
@@ -29,7 +30,7 @@ function ensureStrip() {
   stripEl.id = "turn-event-stock";
   const label = document.createElement("div");
   label.id = "turn-event-stock-label";
-  label.textContent = "このターンの出来事";
+  label.textContent = t("tes.title");
   stripEl.appendChild(label);
   listEl = document.createElement("div");
   listEl.id = "turn-event-stock-list";

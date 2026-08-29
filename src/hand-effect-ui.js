@@ -16,6 +16,8 @@ import { optionLabel as resolveOptionLabel } from "./card-effects.js"; // UI英�
 import { buildCardBox, showCardFace } from "./card-face-display.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { isCardArrivalModalPersistent } from "./admin.js";
+import { getCardName } from "./card-text.js"; // UI英語化フェーズ13: 表示用のカード名
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 function getUseModalDurationMs() {
   const raw = getComputedStyle(document.documentElement).getPropertyValue("--card-arrival-modal-duration").trim();
@@ -46,7 +48,7 @@ export function showHandEffectUseModal(cardId, optionLabel) {
 
   const label = document.createElement("div");
   label.className = "hand-effect-use-modal-label";
-  label.textContent = "使用";
+  label.textContent = t("heu.use");
   modal.appendChild(label);
 
   const box = buildCardBox(cardId, getCardImagePath(cardId));
@@ -64,7 +66,7 @@ export function showHandEffectUseModal(cardId, optionLabel) {
     // 「消えない」設定の間は最初から消えないため、このボタン自体が不要）。
     const pinBtn = document.createElement("button");
     pinBtn.className = "card-arrival-modal-pin";
-    pinBtn.textContent = "📌 消えないようにする";
+    pinBtn.textContent = t("heu.pin");
     pinBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       clearTimeout(currentUseModalTimer);
@@ -204,7 +206,8 @@ const RECEIVED_MODAL_DURATION_MS = 3200;
 // とは違い見逃されると困る情報のため、儀式的ピック系モーダルと同じく画面中央・
 // 背景ディム付きにする（main.jsのswapHandCardWithOpponentForEffect、およびオンライン
 // 時はbroadcastCardReceived/onCardReceivedEvents経由で受け取る側自身の画面にだけ出す）。
-export function showCardReceivedModal(cardId, subtitle, { labelText = "受け取った" } = {}) {
+export function showCardReceivedModal(cardId, subtitle, { labelText = null } = {}) {
+  labelText = labelText ?? t("heu.received");
   if (currentReceivedModal) {
     clearTimeout(currentReceivedModalTimer);
     currentReceivedModalBackdrop?.remove();
@@ -271,7 +274,8 @@ export function showCardReceivedModal(cardId, subtitle, { labelText = "受け取
 // 複数枚を1つの中央モーダルにまとめて見せる（ユーザー要望2026-08-13「ゲート侵攻で奪ったカードは
 // 複数枚でも画面中央にモーダルで表示したい」）。showCardReceivedModalの複数枚版。cardIdがnull
 // （オンラインの非公開札）はgetCardImagePath側が裏面を返す。閉じたら解決するPromiseを返す。
-export function showMultipleCardsReceivedModal(cardIds, subtitle, { labelText = "奪った" } = {}) {
+export function showMultipleCardsReceivedModal(cardIds, subtitle, { labelText = null } = {}) {
+  labelText = labelText ?? t("heu.stolen");
   if (currentReceivedModal) {
     clearTimeout(currentReceivedModalTimer);
     currentReceivedModalBackdrop?.remove();
@@ -302,7 +306,7 @@ export function showMultipleCardsReceivedModal(cardIds, subtitle, { labelText = 
 
     const label = document.createElement("div");
     label.className = "card-received-modal-label";
-    label.textContent = `${labelText}（${ids.length}枚）`;
+    label.textContent = t("heu.receivedN", { label: labelText, n: ids.length });
     modal.appendChild(label);
 
     const row = document.createElement("div");
@@ -357,7 +361,7 @@ export function showHandEffectOptionPicker(cardId, optionsWithUsability, onReady
     modal.className = `hand-effect-option-picker${hidden ? " is-cpu-hidden" : ""}`;
     const peekHint = document.createElement("div");
     peekHint.className = "hand-effect-option-picker-peek-hint";
-    peekHint.textContent = "盤面を確認中…クリックで選択画面に戻ります";
+    peekHint.textContent = t("heu.peekHint");
 
     let settled = false;
     let isPeeking = false;
@@ -388,7 +392,7 @@ export function showHandEffectOptionPicker(cardId, optionsWithUsability, onReady
     titleEl.className = "hand-effect-option-picker-title";
     // 既定は「○○の効果を選択してください」。ザ・ギャンブル/マルメゴの「1枚公開/全部公開」のように
     // “効果の選択”ではなく“やり方の選択”の場面では、呼び出し側が title を渡して差し替えられる。
-    titleEl.textContent = title ?? `${def?.name ?? cardId} の効果を選択してください`;
+    titleEl.textContent = title ?? t("heu.chooseEffect", { name: getCardName(cardId) || def?.name || cardId });
     modal.appendChild(titleEl);
 
     const cardBox = document.createElement("div");
@@ -400,7 +404,7 @@ export function showHandEffectOptionPicker(cardId, optionsWithUsability, onReady
     const peekBtn = document.createElement("button");
     peekBtn.type = "button";
     peekBtn.className = "hand-effect-option-picker-peek-btn";
-    peekBtn.textContent = "盤面を見る";
+    peekBtn.textContent = t("heu.peek");
     peekBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       setPeeking(true);

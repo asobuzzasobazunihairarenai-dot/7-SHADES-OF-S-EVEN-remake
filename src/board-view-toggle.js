@@ -8,6 +8,7 @@
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { getOptionArea } from "./option-area.js";
 import { isFlatten2dMode, setFlatten2dMode, onFlatten2dModeChange } from "./tablet-2d-mode.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 const ICON_3D = "assets/icons/view-3d.svg";
 const ICON_2D = "assets/icons/view-2d.svg";
@@ -23,15 +24,15 @@ export function initBoardViewToggle() {
     const flat = isFlatten2dMode();
     if (imgEl) imgEl.src = flat ? ICON_2D : ICON_3D;
     captionEl.textContent = flat ? "2D" : "3D";
-    if (tooltipEl) tooltipEl.textContent = flat ? "2D表示中（押すと3Dに切り替え）" : "3D表示中（押すと2Dに切り替え）";
+    if (tooltipEl) tooltipEl.textContent = flat ? t("bvt.tip2d") : t("bvt.tip3d");
   }
   applyState();
 
   wireIconButtonClick(btn, {
-    detailTitle: "2D / 3D 表示の切り替え",
+    detailTitle: t("bvt.title"),
     detailParagraphs: [
-      "盤面の見た目を2D（平面）と3D（立体）で切り替えます。",
-      "端末によっては3D表示で点滅や動作の重さが出ることがあり、その回避策としても使えます。",
+      t("bvt.detail1"),
+      t("bvt.detail2"),
     ],
     onAction: () => {
       setFlatten2dMode(!isFlatten2dMode());

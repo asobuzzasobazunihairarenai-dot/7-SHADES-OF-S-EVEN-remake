@@ -7,6 +7,7 @@
 
 import { uploadAvatarImage } from "./online.js";
 import { openIconDetailModal } from "./icon-action-button.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 // アバターは常に正方形・円形で表示されるため、これより大きい画像は縮小する
 // （ファイルサイズを抑える目的も兼ねる）。
@@ -21,7 +22,7 @@ async function fileToWebpBlob(file) {
     img = await new Promise((resolve, reject) => {
       const image = new Image();
       image.onload = () => resolve(image);
-      image.onerror = () => reject(new Error("画像を読み込めませんでした"));
+    image.onerror = () => reject(new Error(t("av.loadFailed")));
       image.src = objectUrl;
     });
   } finally {
@@ -29,7 +30,7 @@ async function fileToWebpBlob(file) {
   }
 
   const side = Math.min(img.naturalWidth, img.naturalHeight);
-  if (!side) throw new Error("画像のサイズを取得できませんでした");
+  if (!side) throw new Error(t("av.sizeFailed"));
   const sx = (img.naturalWidth - side) / 2;
   const sy = (img.naturalHeight - side) / 2;
   const outputSize = Math.min(side, MAX_AVATAR_DIMENSION);
@@ -41,7 +42,7 @@ async function fileToWebpBlob(file) {
   ctx.drawImage(img, sx, sy, side, side, 0, 0, outputSize, outputSize);
 
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/webp", WEBP_QUALITY));
-  if (!blob) throw new Error("WebPへの変換に失敗しました（お使いのブラウザが対応していない可能性があります）");
+  if (!blob) throw new Error(t("av.webpFailed"));
   return blob;
 }
 
@@ -58,19 +59,19 @@ export function buildAvatarUploadSection(onUploaded) {
   const uploadBtn = document.createElement("button");
   uploadBtn.type = "button";
   uploadBtn.className = "avatar-upload-btn";
-  uploadBtn.textContent = "🖼️ 画像をアップロード";
+  uploadBtn.textContent = t("av.upload");
 
   const infoBtn = document.createElement("button");
   infoBtn.type = "button";
   infoBtn.className = "opening-login-info-btn";
   infoBtn.textContent = "i";
-  infoBtn.title = "アップロードについての注意";
+  infoBtn.title = t("av.infoTip");
   infoBtn.addEventListener("click", () => {
-    openIconDetailModal("アバター画像のアップロードについて", [
-      "アップロードした画像は自動的に中央が正方形に切り抜かれ、WebP形式に変換されてから保存されます。",
-      "他のプレイヤーにも表示される画像です。他人を不快にさせる画像・著作権を侵害する画像はアップロードしないでください。",
-      "不適切と判断した画像は、運営が予告なく削除・差し替えする場合があります。",
-      "画像は自分のアカウントにつき1枚、同じ場所に上書き保存されます。アップロードし直すと前の画像には戻せません。",
+    openIconDetailModal(t("av.infoTitle"), [
+      t("av.info1"),
+      t("av.info2"),
+      t("av.info3"),
+      t("av.info4"),
     ]);
   });
 
@@ -88,16 +89,16 @@ export function buildAvatarUploadSection(onUploaded) {
     fileInput.value = "";
     if (!file) return;
     uploadBtn.disabled = true;
-    statusEl.textContent = "画像を変換中…";
+      statusEl.textContent = t("av.converting");
     try {
       const blob = await fileToWebpBlob(file);
-      statusEl.textContent = "アップロード中…";
+      statusEl.textContent = t("av.uploading");
       const url = await uploadAvatarImage(blob);
       statusEl.textContent = "";
       onUploaded(url);
     } catch (err) {
       console.error("avatar upload failed", err);
-      statusEl.textContent = `エラー: ${err.message ?? err}`;
+      statusEl.textContent = t("av.error", { msg: err.message ?? err });
     } finally {
       uploadBtn.disabled = false;
     }
