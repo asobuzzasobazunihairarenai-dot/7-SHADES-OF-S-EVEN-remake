@@ -85,6 +85,14 @@ function createInitialState() {
     turnNumber: null,
     roundNumber: null,
     startPlayer: null,
+    // #167: 手番プレイヤーが「今どのフェイズまで進んだか」。オンラインで対局中に再読み込み
+    // （ブラウザの更新・アプリの落ちからの復帰）をすると、フェイズはモジュール内変数だったため
+    // 必ずロックフェイズから再開し、もう1枚ロックできてしまっていた。端末に保存する方式だと
+    // 「同じアカウントで別の端末から入り直す」と結局リセットできてしまうため、共有ステートに
+    // 持たせて端末に依存しないようにする（phase-automation.js の restoreTurnPhaseIfNeeded 参照）。
+    // { player, phase: "hand"|"move", turnNumber, moveActionTaken } | null。
+    // ロックフェイズは「再開時の既定」なので記録しない（＝書き込みは1ターンに最大2〜3回）。
+    turnPhase: null,
     // ターンタイマー（ロープ・砂時計・優先権）: src/turn-timer.js参照。ゲーム開始まで
     // null/空のまま（turn-timer.js自身がturnPlayerのnull→非nullへの変化を検知して初期化
     // する。SET_TURN_PLAYER側では関知しない）。強制力は持たせない設計のため、ここに置く
@@ -463,6 +471,7 @@ function reduce(current, action) {
         turnNumber: null,
         roundNumber: null,
         startPlayer: null,
+        turnPhase: null,
         priorityPlayer: null,
         priorityDeadline: null,
         priorityPhase: null,
@@ -515,6 +524,7 @@ function reduce(current, action) {
         turnNumber: null,
         roundNumber: null,
         startPlayer: null,
+        turnPhase: null,
         priorityPlayer: null,
         priorityDeadline: null,
         priorityPhase: null,
@@ -651,6 +661,22 @@ function reduce(current, action) {
     // ここが「ターン」という概念の起点なので、通算ターン数・ラウンド数も1から始める。
     // startPlayerも記録しておく（NEXT_TURNで「一周した」を判定する基準にするため。
     // SEAT_ORDER上の先頭＝座席Aとは限らないので、実際に選ばれたこのプレイヤーを基準にする）。
+    // #167: 手番プレイヤーのフェイズを共有ステートに記録する。再読み込みで戻ってきた時に
+    // 「ロックフェイズからやり直し」にならないよう、phase-automation.js が復元に使う。
+    // 記録するのは hand / move だけ（lock は再開時の既定なので書かない）。
+    case "SET_TURN_PHASE": {
+      return {
+        ...current,
+        turnPhase: action.phase
+          ? {
+              player: action.player,
+              phase: action.phase,
+              turnNumber: action.turnNumber ?? current.turnNumber ?? null,
+              moveActionTaken: !!action.moveActionTaken,
+            }
+          : null,
+      };
+    }
     case "SET_TURN_PLAYER": {
       return { ...current, turnPlayer: action.player, turnNumber: 1, roundNumber: 1, startPlayer: action.player };
     }
@@ -1071,6 +1097,14 @@ export function respondFinalLock(approve) {
 export function requestTimerToggle(requester, nextEnabled, queue) {
   if (onlineMode && onlineTransport) return onlineTransport({ type: "REQUEST_TIMER_TOGGLE", requester, nextEnabled, queue });
   dispatch({ type: "REQUEST_TIMER_TOGGLE", requester, nextEnabled, queue });
+}
+
+// #167: 手番プレイヤーのフェイズを共有ステートに記録する（requestTimerToggle等と同じ形）。
+// phase は "hand" | "move" | null（nullで記録を消す）。
+export function setTurnPhase(player, phase, turnNumber, moveActionTaken = false) {
+  const payload = { type: "SET_TURN_PHASE", player, phase, turnNumber, moveActionTaken };
+  if (onlineMode && onlineTransport) return onlineTransport(payload);
+  dispatch(payload);
 }
 
 export function respondTimerToggle(approve) {

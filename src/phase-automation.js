@@ -12,7 +12,7 @@
 // main.js側の状態変更関数（render・findTopCardAt等）は、他のモジュールと同じ
 // 「register helper」注入パターンで main.js から渡してもらう（循環import回避）。
 
-import { getState, isOnlineMode, drawFromPile, flipToken, nextTurn, setPriorityState } from "./state.js";
+import { getState, isOnlineMode, drawFromPile, flipToken, nextTurn, setPriorityState, setTurnPhase } from "./state.js";
 import { getSelfSeat, getCurrentGameId, fetchAndHydrate, getSyncedTimerConfig, broadcastPhaseChange, onPhaseChangeEvents, isSpectatingGame, drawFromMyDeck } from "./online.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
 import {
@@ -134,6 +134,57 @@ queueMicrotask(() => {
 });
 
 let currentPhase = null; // null | "lock" | "hand" | "move"
+
+// --- #167: フェイズを共有ステートに残し、再読み込みしても続きから再開する --------------
+// オンラインで対局中にブラウザを更新すると、currentPhase はただのモジュール変数なので
+// null に戻り、必ずロックフェイズから再開していた＝そのターン2枚目のロックができてしまう
+// （ムーブフェイズで更新すれば、もう一度移動もできてしまう）。端末保存(localStorage)では
+// 「同じアカウントで別の端末から入り直す」と結局リセットできるため、共有ステート
+// （state.turnPhase、SET_TURN_PHASE）に持たせて端末に依存しない形にする。
+//
+// 書き込みはサーバーへのアクション1回なので、必要な時だけに絞る:
+//  - ロックフェイズは「再開時の既定」なので記録しない
+//  - hand / move に入った時と、ムーブフェイズで行動した時（もう動けない、を残す）だけ
+// 記録するのは自分の席のフェイズだけ（ローカルCPU戦は他席も駆動するので対象外）。
+function shouldPersistPhase(player) {
+  return isOnlineMode() && player === getSelfSeat() && getState().turnPlayer === player;
+}
+function persistTurnPhase(player, phase, moveActionTakenFlag = false) {
+  if (!shouldPersistPhase(player)) return;
+  const st = getState();
+  const prev = st.turnPhase;
+  // 同じ内容なら書かない（render毎に呼ばれても無駄なアクションを飛ばさない）。
+  if (
+    prev &&
+    prev.player === player &&
+    prev.phase === phase &&
+    prev.turnNumber === st.turnNumber &&
+    !!prev.moveActionTaken === !!moveActionTakenFlag
+  ) {
+    return;
+  }
+  // 記録に失敗しても対局は続けられる（再読み込みした時に復元できないだけ）ので、
+  // 送信の成否は待たず、失敗しても握りつぶす（fire-and-forget）。
+  try {
+    Promise.resolve(setTurnPhase(player, phase, st.turnNumber ?? null, moveActionTakenFlag)).catch((e) =>
+      console.warn("[so7] SET_TURN_PHASE failed", e)
+    );
+  } catch (e) {
+    console.warn("[so7] SET_TURN_PHASE failed", e);
+  }
+}
+// 再読み込み後などで currentPhase が null の時、共有ステートに自分の今のターンの記録が
+// あれば、そのフェイズから再開する。無ければ従来通り null を返す（＝ロックから開始）。
+function restorableTurnPhase(player) {
+  const st = getState();
+  const rec = st.turnPhase;
+  if (!rec || rec.player !== player) return null;
+  if (st.turnPlayer !== player) return null;
+  if (rec.turnNumber != null && st.turnNumber != null && rec.turnNumber !== st.turnNumber) return null;
+  if (rec.phase !== "hand" && rec.phase !== "move") return null;
+  return rec;
+}
+
 // currentPhaseが「どの席のフェイズか」。通常プレイでは常に自分の席だが、ローカルCPU戦では
 // A/C両方の席を順に駆動するため、ターンが変わったのに前のターンのcurrentPhaseが残って
 // しまうと即ターン終了ループになる（不具合#19）。ターン境界でこれを見てリセットする。
@@ -187,6 +238,8 @@ export function isMovePhaseActive() {
 export function markPhaseMoveActionTaken() {
   moveActionTaken = true;
   clearMovableHighlights();
+  // #167: 「このターンはもう動いた」ことも残す（更新して戻ってきても再度動けないように）。
+  if (phaseOwner) persistTurnPhase(phaseOwner, "move", true);
 }
 // main.jsの手札効果トリガー（Task 5）が、コスト選択等で待っている間はフェイズの
 // 自動進行を一時止める（選んでいる最中にハンドフェイズが終わってしまうのを防ぐ）。
@@ -855,6 +908,9 @@ function enterPhase(phase, player) {
   updateSkipButtonVisibility();
   if (phase === "lock") updateLockPhaseHandHighlight(player);
   else clearLockHandHighlight();
+  // #167: hand / move に入ったことを共有ステートに残す（reconcileMovePhaseより先に記録して、
+  // 移動の自動処理が走る前でも「ロックは済んでいる」ことが確実に残るようにする）。
+  if (phase === "hand" || phase === "move") persistTurnPhase(player, phase, false);
   if (phase === "move") reconcileMovePhase(player);
 }
 
@@ -936,6 +992,14 @@ export function reconcilePhaseAutomation() {
     // setSetupRevealActive(false)で改めてreconcilePhaseAutomation()が呼ばれるので、
     // 表示が消え次第ここに戻ってくる。
     if (turnAnnounceActive || setupRevealActive) return;
+    // #167: 再読み込みで戻ってきた時は、共有ステートに残っているフェイズから再開する
+    // （記録が無い＝まだロックフェイズの人、または前のターンの記録なら従来通りロックから）。
+    const restored = restorableTurnPhase(player);
+    if (restored) {
+      enterPhase(restored.phase, player);
+      if (restored.phase === "move" && restored.moveActionTaken) markPhaseMoveActionTaken();
+      return;
+    }
     enterPhase("lock", player);
     return;
   }

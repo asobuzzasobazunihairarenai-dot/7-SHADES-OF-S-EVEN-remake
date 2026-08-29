@@ -427,6 +427,24 @@ function reduce(current: GameState, action: any): GameState {
       );
       return { ...current, tokens: [...others, ...shuffled(handTokens)] };
     }
+    // #167: 手番プレイヤーの「今どのフェイズか」を共有ステートに残す（src/state.jsのSET_TURN_PHASEと同じ）。
+    // これが無いと、オンライン対局中に再読み込みした人が必ずロックフェイズから再開し、
+    // そのターン2枚目のロックができてしまっていた。書き込めるのは手番プレイヤー本人だけ
+    // （actionのplayerは呼び出し元の実際の座席で上書き済み。下のeffectiveAction参照）。
+    case "SET_TURN_PHASE": {
+      if (action.player !== current.turnPlayer) return current;
+      return {
+        ...current,
+        turnPhase: action.phase
+          ? {
+              player: action.player,
+              phase: action.phase,
+              turnNumber: action.turnNumber ?? current.turnNumber ?? null,
+              moveActionTaken: !!action.moveActionTaken,
+            }
+          : null,
+      };
+    }
     case "SET_TURN_PLAYER": {
       return { ...current, turnPlayer: action.player, turnNumber: 1, roundNumber: 1, startPlayer: action.player };
     }
@@ -988,6 +1006,11 @@ Deno.serve(async (req) => {
     }
 
     let effectiveAction = action;
+    // #167: フェイズの記録は「呼び出し元の実際の座席」に強制する（他人のフェイズを
+    // 書き換えられないように）。reduce側でも「手番プレイヤー本人か」を再確認している。
+    if (action.type === "SET_TURN_PHASE") {
+      effectiveAction = { ...action, player: seatRow.seat };
+    }
     if (action.type === "BOOTSTRAP_GAME") {
       // 参加時は座席を選ばせていないため、ここで部屋の参加者全員(so7_game_seats)を集めて
       // ランダムに座席(A/B/C/D、最大4人)を割り振り、書き戻す。ゲームロジック(reduce)の
