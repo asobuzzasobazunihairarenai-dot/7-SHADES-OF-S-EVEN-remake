@@ -10555,6 +10555,124 @@ body.reduce-glow .cell.card-effect-just-placed {
   0% { transform: translate(-50%, -50%) scale(0.7); opacity: 0; }
   100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
 }
+/* ============================================================================
+   最後のロックの演出「色が還る」（src/final-lock-celebration.js）。
+   7色目がハマった瞬間 → 幕（時が止まる）→ 7色が順に灯る → 虹の波で色が還る → 閃光 → 余韻。
+   盤面は3D階層なので、盤面自身に filter は掛けない（3Dが平坦化して壊れる。CLAUDE.md教訓2）。
+   彩度を落とすのは、上に重ねたこのオーバーレイの backdrop-filter で行う。
+   ========================================================================= */
+#final-lock-celebration {
+  position: fixed;
+  inset: 0;
+  z-index: 10400; /* 勝利モーダル(10500)より下・盤面より上 */
+  pointer-events: none;
+  overflow: hidden;
+}
+/* ① 幕: 全体の色と明るさを落とし、勝者のロックエリアだけを丸くくり抜いてスポットライトにする。 */
+#final-lock-celebration .flc-veil {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity var(--flc-veil-in, 350ms) ease-out;
+  background: radial-gradient(
+    circle at var(--flc-x) var(--flc-y),
+    rgba(6, 8, 12, 0) 0,
+    rgba(6, 8, 12, 0.25) 16vmin,
+    rgba(6, 8, 12, 0.72) 46vmin
+  );
+}
+@supports (backdrop-filter: saturate(1)) or (-webkit-backdrop-filter: saturate(1)) {
+  #final-lock-celebration .flc-veil {
+    -webkit-backdrop-filter: saturate(0.15) brightness(0.72);
+    backdrop-filter: saturate(0.15) brightness(0.72);
+    /* スポットライトの中だけ色を残す（マスクは backdrop-filter にも効く） */
+    -webkit-mask-image: radial-gradient(circle at var(--flc-x) var(--flc-y), transparent 0, transparent 13vmin, #000 34vmin);
+    mask-image: radial-gradient(circle at var(--flc-x) var(--flc-y), transparent 0, transparent 13vmin, #000 34vmin);
+  }
+}
+#final-lock-celebration.is-veiled .flc-veil { opacity: 1; }
+
+/* ③ 虹の波: ロックエリアを中心に、七色のリングが盤面いっぱいまで広がる。 */
+#final-lock-celebration .flc-wave {
+  position: absolute;
+  left: var(--flc-x);
+  top: var(--flc-y);
+  width: 2px;
+  height: 2px;
+  margin: -1px 0 0 -1px;
+  border-radius: 50%;
+  opacity: 0;
+  background: conic-gradient(
+    from 0deg,
+    var(--color-red), var(--color-orange), var(--color-yellow), var(--color-green),
+    var(--color-blue), var(--color-pink), var(--color-purple), var(--color-red)
+  );
+  /* 中心を抜いて「輪」にする（塗りつぶしだと画面が単色で覆われてしまう） */
+  -webkit-mask-image: radial-gradient(circle, transparent 0 62%, #000 76%, #000 92%, transparent 100%);
+  mask-image: radial-gradient(circle, transparent 0 62%, #000 76%, #000 92%, transparent 100%);
+  filter: blur(2px);
+}
+#final-lock-celebration.is-wave .flc-wave {
+  animation: flc-wave-expand var(--flc-wave, 900ms) cubic-bezier(0.22, 0.7, 0.3, 1) forwards;
+}
+@keyframes flc-wave-expand {
+  0% { width: 2px; height: 2px; margin: -1px 0 0 -1px; opacity: 0; }
+  12% { opacity: 1; }
+  100% {
+    width: calc(var(--flc-reach) * 2);
+    height: calc(var(--flc-reach) * 2);
+    margin: calc(var(--flc-reach) * -1) 0 0 calc(var(--flc-reach) * -1);
+    opacity: 0;
+  }
+}
+/* 波が広がるのに合わせて幕が消える＝通ったところから色が戻って見える。 */
+#final-lock-celebration.is-wave .flc-veil {
+  opacity: 0;
+  transition: opacity var(--flc-wave, 900ms) ease-in;
+}
+
+/* ④ 閃光 */
+#final-lock-celebration .flc-flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--flc-x) var(--flc-y), #fff 0, rgba(255, 255, 255, 0.85) 30%, rgba(255, 255, 255, 0) 72%);
+  opacity: 0;
+}
+#final-lock-celebration.is-flash .flc-flash {
+  animation: flc-flash var(--flc-flash, 320ms) ease-out forwards;
+}
+@keyframes flc-flash {
+  0% { opacity: 0; }
+  18% { opacity: 0.92; }
+  100% { opacity: 0; }
+}
+
+/* ② 7色が順に灯る（ロックスロット本体。色は各スロットの currentColor＝その色）。 */
+.lock-slot.is-final-flare {
+  animation: flc-slot-flare 900ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+  z-index: 4;
+}
+@keyframes flc-slot-flare {
+  0% { box-shadow: 0 0 0 currentColor; transform: scale(1); }
+  22% {
+    box-shadow: 0 0 1.1rem 0.32rem currentColor, 0 0 2.6rem 0.9rem currentColor, inset 0 0 0.8rem currentColor;
+    transform: scale(1.18);
+  }
+  100% {
+    box-shadow: 0 0 0.7rem 0.16rem currentColor, 0 0 1.6rem 0.4rem currentColor;
+    transform: scale(1.06);
+  }
+}
+/* ④ 勝者のキューブ（駒）が強く光る。駒は preserve-3d なので filter は使わず box-shadow で。 */
+.piece.is-final-flare-piece .piece-face {
+  animation: flc-piece-shine 1200ms ease-out forwards;
+}
+@keyframes flc-piece-shine {
+  0% { box-shadow: 0 0 0 rgba(255, 255, 255, 0); }
+  20% { box-shadow: 0 0 1.6rem 0.6rem rgba(255, 255, 255, 0.95), 0 0 3rem 1.2rem var(--piece-turn-glow-color, rgba(255, 255, 255, 0.7)); }
+  100% { box-shadow: 0 0 0.9rem 0.25rem rgba(255, 255, 255, 0.6); }
+}
+
 #victory-modal {
   position: fixed;
   top: 50%;
