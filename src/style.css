@@ -17328,6 +17328,9 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
 .rank-showcase-editor-stage .rank-showcase { width: min(32rem, 66vh); }
 
 /* ===== カード面レンダラ（card-renderer.js）＝テキスト無しブランク画像＋アプリ側テキスト ===== */
+/* 【重要】このブロックは tools/gen-cardface-css.mjs が丸ごと差し替える自動生成領域。
+   ここを直接編集しても、次に再生成した時に消える（#188 で実際に3つのルールが消えた）。
+   直したい時は tools/gen-cardface-css.mjs の BASE を編集してから再生成すること。 */
 /* 位置・サイズは種別ごとに要素単位で --cf-{n|e|f}-{要素}-{x|y|w|s} で調整（既定は各var()第2引数）。
    この位置ルールは tools/gen-cardface-css.mjs が src/card-layout-config.js から自動生成する。
    文字サイズは全て var(--cf-fit, 1) 倍される＝効果文が枠からはみ出すカードだけ、card-renderer.js の
@@ -17337,6 +17340,28 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
   background-size: cover; background-position: center;
   border-radius: 4cqw; overflow: hidden; color: #2a2320;
   box-shadow: 0 0.6cqw 1.6cqw rgba(0, 0, 0, 0.35); user-select: none;
+  /* 手札等の祖先コンテナが text-align:center を持つため、明示的に左寄せへ戻す
+     （効果本文が中央寄せになる不具合の修正。フレーバー/サブタイトル/ファーストの
+     効果本文は各自 text-align:center を明示しているので影響しない）。 */
+  text-align: left;
+}
+/* カードスロット（.hand-card/.board-card/.hand-reveal-card/#card-preview/.stack-top 等）に
+   inset:0 で被せるマウント。スロットの角丸に合わせてクリップ、スロット自身の影・比率に従う。
+   container-type:size は基底 .card-face から継承（inset:0 で確定サイズになり cqw が解決する）。
+   【重要】border-radius: inherit を外すと、基底の border-radius: 4cqw が「マウント自身ではなく
+   祖先のコンテナ（無ければビューポート）」を基準に解決されるため、カードが丸く切り抜かれて
+   見える（#188 の症状）。ここは必ず inherit のままにすること。 */
+.card-face.card-face-mount {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  aspect-ratio: auto; border-radius: inherit; box-shadow: none;
+  pointer-events: none;
+}
+/* モーダル等の「1枚のカード表示箱」（buildCardBox）。正方形・角丸/枠/影は呼び出し側のCSSで指定。
+   テキストモードは .card-face-mount を内包、画像モードは背景画像（cover）。 */
+.card-box {
+  position: relative; aspect-ratio: 1 / 1; overflow: hidden;
+  background-size: cover; background-position: center; background-repeat: no-repeat;
+  border-radius: inherit;
 }
 /* 効果セット（fx）＝基本/到達/手札を上から順に詰める。間に仕切り線（各効果の中間）。 */
 .card-face-fx { display: flex; flex-direction: column; gap: 1.4cqw; }
