@@ -10557,9 +10557,11 @@ body.reduce-glow .cell.card-effect-just-placed {
 }
 /* ============================================================================
    最後のロックの演出「色が還る」（src/final-lock-celebration.js）。
-   7色目がハマった瞬間 → 幕（時が止まる）→ 7色が順に灯る → 虹の波で色が還る → 閃光 → 余韻。
+   ① 息を呑む（幕＋ビネットで時が止まる）→ ② 7色が1つずつ灯る → ③ 光の筋が中央へ集まる →
+   ④ 中央で七芒星として結実 → ⑤ 弾けて虹の波が広がり色が還る → ⑥ 閃光＋勝者のキューブ →
+   ⑦ 光の粒が舞い落ちる → ⑧ 余韻。
    盤面は3D階層なので、盤面自身に filter は掛けない（3Dが平坦化して壊れる。CLAUDE.md教訓2）。
-   彩度を落とすのは、上に重ねたこのオーバーレイの backdrop-filter で行う。
+   彩度と明るさを落とすのは、上に重ねたこのオーバーレイの backdrop-filter で行う。
    ========================================================================= */
 #final-lock-celebration {
   position: fixed;
@@ -10568,31 +10570,145 @@ body.reduce-glow .cell.card-effect-just-placed {
   pointer-events: none;
   overflow: hidden;
 }
-/* ① 幕: 全体の色と明るさを落とし、勝者のロックエリアだけを丸くくり抜いてスポットライトにする。 */
+
+/* ① 幕。世界から色と光が引いていく。勝者のロックエリアだけスポットライトで残す。 */
 #final-lock-celebration .flc-veil {
   position: absolute;
   inset: 0;
   opacity: 0;
-  transition: opacity var(--flc-veil-in, 350ms) ease-out;
-  background: radial-gradient(
-    circle at var(--flc-x) var(--flc-y),
-    rgba(6, 8, 12, 0) 0,
-    rgba(6, 8, 12, 0.25) 16vmin,
-    rgba(6, 8, 12, 0.72) 46vmin
-  );
+  transition: opacity var(--flc-hush, 420ms) cubic-bezier(0.3, 0, 0.2, 1);
+  background:
+    radial-gradient(circle at var(--flc-from-x) var(--flc-from-y),
+      rgba(4, 5, 9, 0) 0, rgba(4, 5, 9, 0.35) 15vmin, rgba(4, 5, 9, 0.86) 44vmin),
+    radial-gradient(ellipse at 50% 50%, rgba(4, 5, 9, 0) 30%, rgba(4, 5, 9, 0.55) 100%);
 }
 @supports (backdrop-filter: saturate(1)) or (-webkit-backdrop-filter: saturate(1)) {
   #final-lock-celebration .flc-veil {
-    -webkit-backdrop-filter: saturate(0.15) brightness(0.72);
-    backdrop-filter: saturate(0.15) brightness(0.72);
-    /* スポットライトの中だけ色を残す（マスクは backdrop-filter にも効く） */
-    -webkit-mask-image: radial-gradient(circle at var(--flc-x) var(--flc-y), transparent 0, transparent 13vmin, #000 34vmin);
-    mask-image: radial-gradient(circle at var(--flc-x) var(--flc-y), transparent 0, transparent 13vmin, #000 34vmin);
+    -webkit-backdrop-filter: saturate(0.08) brightness(0.25) contrast(1.1);
+    backdrop-filter: saturate(0.08) brightness(0.25) contrast(1.1);
+    -webkit-mask-image: radial-gradient(circle at var(--flc-from-x) var(--flc-from-y), transparent 0, transparent 11vmin, #000 30vmin);
+    mask-image: radial-gradient(circle at var(--flc-from-x) var(--flc-from-y), transparent 0, transparent 11vmin, #000 30vmin);
   }
 }
-#final-lock-celebration.is-veiled .flc-veil { opacity: 1; }
+#final-lock-celebration.is-hushed .flc-veil { opacity: 1; }
 
-/* ③ 虹の波: ロックエリアを中心に、七色のリングが盤面いっぱいまで広がる。 */
+/* ② 7色が1つずつ灯る（ロックスロット本体。色は各スロットの currentColor）。 */
+.lock-slot.is-final-flare {
+  animation: flc-slot-flare 1100ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+  z-index: 4;
+}
+@keyframes flc-slot-flare {
+  0% { box-shadow: 0 0 0 currentColor; transform: scale(1); }
+  18% {
+    box-shadow: 0 0 1.4rem 0.42rem currentColor, 0 0 3.4rem 1.2rem currentColor, inset 0 0 1rem currentColor;
+    transform: scale(1.26);
+  }
+  100% {
+    box-shadow: 0 0 1rem 0.24rem currentColor, 0 0 2.2rem 0.6rem currentColor, inset 0 0 0.5rem currentColor;
+    transform: scale(1.1);
+  }
+}
+
+/* ③ 光の筋: ロックスロットから画面中央へ、その色のまま伸びる。 */
+#final-lock-celebration .flc-beam {
+  position: absolute;
+  height: 0.22rem;
+  transform-origin: 0 50%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--flc-beam-color) 0%, var(--flc-beam-color) 45%, rgba(255, 255, 255, 0.9) 100%);
+  box-shadow: 0 0 0.7rem var(--flc-beam-color);
+  opacity: 0;
+  clip-path: inset(0 100% 0 0);
+  filter: blur(0.4px);
+}
+#final-lock-celebration.is-gathering .flc-beam {
+  animation: flc-beam-run var(--flc-gather, 780ms) cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes flc-beam-run {
+  0% { opacity: 0; clip-path: inset(0 100% 0 0); }
+  15% { opacity: 1; }
+  70% { clip-path: inset(0 0 0 0); opacity: 1; }
+  100% { clip-path: inset(0 0 0 55%); opacity: 0.85; }
+}
+
+/* ④ 七芒星: 中央で7色の光が結実する。疑似要素だと細くて見えなかったので実要素で組む
+   （中心の光球＋7本の光条＋ゆっくり回るリング）。 */
+#final-lock-celebration .flc-star {
+  position: absolute;
+  left: var(--flc-x);
+  top: var(--flc-y);
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+#final-lock-celebration .flc-star-core {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 22vmin;
+  height: 22vmin;
+  margin: -11vmin 0 0 -11vmin;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 16%, rgba(255, 255, 255, 0.92) 30%, rgba(255, 240, 200, 0.45) 52%, rgba(255, 255, 255, 0) 76%);
+}
+#final-lock-celebration .flc-star-ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 34vmin;
+  height: 34vmin;
+  margin: -17vmin 0 0 -17vmin;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    var(--color-red), var(--color-orange), var(--color-yellow), var(--color-green),
+    var(--color-blue), var(--color-pink), var(--color-purple), var(--color-red)
+  );
+  -webkit-mask-image: radial-gradient(circle, transparent 0 74%, #000 84%, transparent 100%);
+  mask-image: radial-gradient(circle, transparent 0 74%, #000 84%, transparent 100%);
+  filter: blur(1.5px);
+  animation: flc-ring-spin 5s linear infinite;
+}
+@keyframes flc-ring-spin { to { transform: rotate(360deg); } }
+/* 光条: 中心から外へ伸びる7本。--flc-ray-angle で方向、--flc-ray-color で色。 */
+#final-lock-celebration .flc-star-ray {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 30vmin;
+  height: 1.1vmin;
+  margin-top: -0.55vmin;
+  transform-origin: 0 50%;
+  transform: rotate(var(--flc-ray-angle)) scaleX(0.15);
+  border-radius: 999px;
+  background: linear-gradient(90deg, #fff 0%, var(--flc-ray-color) 22%, var(--flc-ray-color) 62%, transparent 100%);
+  box-shadow: 0 0 1.2rem var(--flc-ray-color);
+  filter: blur(0.6px);
+}
+#final-lock-celebration.is-star .flc-star {
+  animation: flc-star-form var(--flc-star-form, 440ms) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+#final-lock-celebration.is-star .flc-star-ray {
+  animation: flc-ray-extend var(--flc-star-form, 440ms) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes flc-ray-extend {
+  0% { transform: rotate(var(--flc-ray-angle)) scaleX(0.15); }
+  100% { transform: rotate(var(--flc-ray-angle)) scaleX(1); }
+}
+@keyframes flc-star-form {
+  0% { opacity: 0; transform: scale(0.25) rotate(-40deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+/* 結実した星は、弾ける時に一気に膨らんで消える。 */
+#final-lock-celebration.is-burst .flc-star {
+  animation: flc-star-burst var(--flc-burst, 760ms) cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+@keyframes flc-star-burst {
+  0% { opacity: 1; transform: scale(1) rotate(0deg); }
+  100% { opacity: 0; transform: scale(3.6) rotate(40deg); }
+}
+
+/* ⑤ 虹の波（2重）。中央から画面外まで広がり、通ったところから色が戻る。 */
 #final-lock-celebration .flc-wave {
   position: absolute;
   left: var(--flc-x);
@@ -10607,17 +10723,21 @@ body.reduce-glow .cell.card-effect-just-placed {
     var(--color-red), var(--color-orange), var(--color-yellow), var(--color-green),
     var(--color-blue), var(--color-pink), var(--color-purple), var(--color-red)
   );
-  /* 中心を抜いて「輪」にする（塗りつぶしだと画面が単色で覆われてしまう） */
-  -webkit-mask-image: radial-gradient(circle, transparent 0 62%, #000 76%, #000 92%, transparent 100%);
-  mask-image: radial-gradient(circle, transparent 0 62%, #000 76%, #000 92%, transparent 100%);
-  filter: blur(2px);
+  -webkit-mask-image: radial-gradient(circle, transparent 0 55%, #000 68%, #000 94%, transparent 100%);
+  mask-image: radial-gradient(circle, transparent 0 55%, #000 68%, #000 94%, transparent 100%);
+  filter: blur(3px) saturate(1.4);
 }
-#final-lock-celebration.is-wave .flc-wave {
-  animation: flc-wave-expand var(--flc-wave, 900ms) cubic-bezier(0.22, 0.7, 0.3, 1) forwards;
+#final-lock-celebration.is-burst .flc-wave {
+  animation: flc-wave-expand var(--flc-burst, 860ms) cubic-bezier(0.22, 0.7, 0.3, 1) forwards;
+}
+#final-lock-celebration.is-burst .flc-wave-2 {
+  animation-delay: 180ms;
+  opacity: 0;
+  filter: blur(7px) saturate(1.2);
 }
 @keyframes flc-wave-expand {
   0% { width: 2px; height: 2px; margin: -1px 0 0 -1px; opacity: 0; }
-  12% { opacity: 1; }
+  10% { opacity: 1; }
   100% {
     width: calc(var(--flc-reach) * 2);
     height: calc(var(--flc-reach) * 2);
@@ -10626,51 +10746,54 @@ body.reduce-glow .cell.card-effect-just-placed {
   }
 }
 /* 波が広がるのに合わせて幕が消える＝通ったところから色が戻って見える。 */
-#final-lock-celebration.is-wave .flc-veil {
+#final-lock-celebration.is-burst .flc-veil {
   opacity: 0;
-  transition: opacity var(--flc-wave, 900ms) ease-in;
+  transition: opacity calc(var(--flc-burst, 860ms) * 0.8) ease-in;
 }
 
-/* ④ 閃光 */
+/* ⑥ 閃光 */
 #final-lock-celebration .flc-flash {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at var(--flc-x) var(--flc-y), #fff 0, rgba(255, 255, 255, 0.85) 30%, rgba(255, 255, 255, 0) 72%);
+  background: radial-gradient(circle at var(--flc-x) var(--flc-y), #fff 0, rgba(255, 255, 255, 0.9) 34%, rgba(255, 255, 255, 0) 74%);
   opacity: 0;
 }
 #final-lock-celebration.is-flash .flc-flash {
-  animation: flc-flash var(--flc-flash, 320ms) ease-out forwards;
+  animation: flc-flash var(--flc-flash, 380ms) ease-out forwards;
 }
 @keyframes flc-flash {
   0% { opacity: 0; }
-  18% { opacity: 0.92; }
+  14% { opacity: 1; }
   100% { opacity: 0; }
 }
 
-/* ② 7色が順に灯る（ロックスロット本体。色は各スロットの currentColor＝その色）。 */
-.lock-slot.is-final-flare {
-  animation: flc-slot-flare 900ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
-  z-index: 4;
+/* ⑦ 光の粒 */
+#final-lock-celebration .flc-motes { position: absolute; inset: 0; }
+#final-lock-celebration .flc-mote {
+  position: absolute;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin: -0.25rem 0 0 -0.25rem;
+  border-radius: 50%;
+  background: var(--flc-mote-color, #fff);
+  box-shadow: 0 0 0.6rem var(--flc-mote-color, #fff);
+  opacity: 0;
+  animation: flc-mote-float 1100ms cubic-bezier(0.2, 0.6, 0.3, 1) forwards;
 }
-@keyframes flc-slot-flare {
-  0% { box-shadow: 0 0 0 currentColor; transform: scale(1); }
-  22% {
-    box-shadow: 0 0 1.1rem 0.32rem currentColor, 0 0 2.6rem 0.9rem currentColor, inset 0 0 0.8rem currentColor;
-    transform: scale(1.18);
-  }
-  100% {
-    box-shadow: 0 0 0.7rem 0.16rem currentColor, 0 0 1.6rem 0.4rem currentColor;
-    transform: scale(1.06);
-  }
+@keyframes flc-mote-float {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.4); }
+  20% { opacity: 1; transform: translate(calc(var(--flc-mote-dx) * 0.35), calc(var(--flc-mote-dy) * 0.35)) scale(1); }
+  100% { opacity: 0; transform: translate(var(--flc-mote-dx), calc(var(--flc-mote-dy) + 6rem)) scale(0.5); }
 }
-/* ④ 勝者のキューブ（駒）が強く光る。駒は preserve-3d なので filter は使わず box-shadow で。 */
+
+/* ⑥ 勝者のキューブ（駒）が強く光る。駒は preserve-3d なので filter は使わず box-shadow で。 */
 .piece.is-final-flare-piece .piece-face {
-  animation: flc-piece-shine 1200ms ease-out forwards;
+  animation: flc-piece-shine 1600ms ease-out forwards;
 }
 @keyframes flc-piece-shine {
   0% { box-shadow: 0 0 0 rgba(255, 255, 255, 0); }
-  20% { box-shadow: 0 0 1.6rem 0.6rem rgba(255, 255, 255, 0.95), 0 0 3rem 1.2rem var(--piece-turn-glow-color, rgba(255, 255, 255, 0.7)); }
-  100% { box-shadow: 0 0 0.9rem 0.25rem rgba(255, 255, 255, 0.6); }
+  16% { box-shadow: 0 0 2rem 0.8rem rgba(255, 255, 255, 0.98), 0 0 4rem 1.6rem var(--piece-turn-glow-color, rgba(255, 255, 255, 0.75)); }
+  100% { box-shadow: 0 0 1.1rem 0.3rem rgba(255, 255, 255, 0.65); }
 }
 
 #victory-modal {
@@ -18330,4 +18453,85 @@ body.theme-light .my-page-fav-title:hover {
 #mdb-help:hover {
   border-color: rgba(212, 175, 90, 0.8);
   background: rgba(212, 175, 90, 0.14);
+}
+
+/* ============================================================================
+   ライトモードの取りこぼし一括対応（ユーザー指摘2026-08-30「ライトモードなのにモーダルが
+   ダークなものが多々ある」）。既存の上書き（#contact-result-modal / #action-log-info-modal）と
+   同じ「アイボリー地＋ゴールド枠＋濃い文字」に揃える。
+   ここに載せていないのは、暗いままが正しいもの——背景を落とすための幕(backdrop)、スポットライト、
+   開発者しか開かない画面、物語シーン、そして色そのものに意味があるお祝いのモーダル
+   （勝利=金／通貨=緑／ランク=青）。
+   ========================================================================= */
+body.theme-light #afk-cpu-banner,
+body.theme-light #anytime-interrupt-modal,
+body.theme-light #avatar-picker-modal,
+body.theme-light #background-picker-modal,
+body.theme-light #bug-report-intro-modal,
+body.theme-light #card-back-skin-modal,
+body.theme-light #card-context-menu,
+body.theme-light #card-effect-picker-hint,
+body.theme-light #card-note-modal,
+body.theme-light #confirm-modal,
+body.theme-light #contact-approval-modal,
+body.theme-light #contact-confirm-modal,
+body.theme-light #cpu-step-hint,
+body.theme-light #currency-about-panel,
+body.theme-light #currency-dropdown-menu,
+body.theme-light #daily-bonus-toast,
+body.theme-light #emote-mute-menu,
+body.theme-light #emote-picker,
+body.theme-light #final-lock-approval-banner,
+body.theme-light #first-login-profile-modal,
+body.theme-light #generic-confirm-modal,
+body.theme-light #hand-drop-hint,
+body.theme-light #home-screen-toast,
+body.theme-light #icon-action-detail-modal,
+body.theme-light #mdb-note-menu,
+body.theme-light #mds-panel,
+body.theme-light #my-deck-owner-tooltip,
+body.theme-light #my-deck-page-toast,
+body.theme-light #opening-login-info-modal,
+body.theme-light #pet-picker-modal,
+body.theme-light #phase-guide-modal,
+body.theme-light #piece-skin-modal,
+body.theme-light #playmat-picker-modal,
+body.theme-light #priority-transfer-modal,
+body.theme-light #rank-explain-modal,
+body.theme-light #ranked-practice-banner,
+body.theme-light #ranking-page-card,
+body.theme-light #timer-toggle-approval-banner,
+body.theme-light #touch-action-confirm-modal,
+body.theme-light .card-arrival-modal-keep,
+body.theme-light .card-arrival-modal-pin,
+body.theme-light .card-open-prompt,
+body.theme-light .game-intro-modal,
+body.theme-light .glossary-popup,
+body.theme-light .hand-effect-option-picker-peek-hint,
+body.theme-light .hand-pickup-toast,
+body.theme-light .mdb-tut-panel,
+body.theme-light .phase-guide-tooltip,
+body.theme-light .phase-skip-modal,
+body.theme-light .piece-name-bubble,
+body.theme-light .quick-note-toast,
+body.theme-light .setup-animation-skip-hint,
+body.theme-light #auto-processing-toggle-approval-banner {
+  background: #fdfbf5;
+  border-color: rgba(176, 141, 63, 0.5);
+  color: #3a3326;
+}
+/* 上のパネルをライト地にしたことで、中の「自前で明るい文字色を持つボタン」だけが読めなく
+   なるので、そこも合わせて濃い文字にする（地が透明なボタン＝パネルの色をそのまま背負う）。 */
+body.theme-light #card-context-menu button,
+body.theme-light #currency-dropdown-menu button {
+  color: #3a3326;
+}
+body.theme-light #card-context-menu button:hover,
+body.theme-light #currency-dropdown-menu button:hover {
+  background: rgba(176, 141, 63, 0.16);
+}
+body.theme-light #ranked-practice-banner button {
+  background: rgba(176, 141, 63, 0.14);
+  border-color: rgba(176, 141, 63, 0.45);
+  color: #3a3326;
 }

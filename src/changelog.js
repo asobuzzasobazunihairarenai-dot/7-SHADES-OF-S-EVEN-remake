@@ -14,7 +14,8 @@ export const CHANGELOG = [
   {
     date: "2026-08-29",
     items: [
-      "7色目をロックして勝利が決まる瞬間に演出を追加しました。盤面から色が失われて時が止まり、7つのロックが赤→橙→黄→緑→青→桃→紫の順に灯り、虹の波が盤面いっぱいに広がって色が還ります。演出が終わって少し余韻を置いてから勝利画面に移ります（「駒やカードが飛ぶ動きをやめる」設定の方には短い版が出ます）。",
+      "ライトモードなのにダークのままだったモーダル・パネル・案内表示を、まとめてライトの見た目に直しました（53か所）。確認モーダル、右クリックメニュー、カード補足、各種ピッカー、フェイズ案内、承認バナー、ツールチップなどが対象です。幕（背景を暗くするもの）・お祝いの色付きモーダル・物語の場面は、暗いままが正しいのでそのままにしています。",
+      "7色目をロックした時の演出を作り直し、大幅に丁寧にしました。時が止まってから7つのロックが順に灯り、7色の光が画面中央へ集まって七芒星として結実し、それが弾けて虹の波が広がり色が還ります。最後に光の粒が舞い、余韻を置いてから勝利画面へ移ります。",
       "カードの文字を、印刷されたカードに近い書体・太さにしました。これまでは端末に入っているフォント任せで、WindowsとMacで別の書体・細い表示になっていました。今後はどの端末でも同じ見た目になります。",
       "手札のカードにカーソルを合わせた時、その後ろにあるロックエリアのカードが拡大表示されてしまうことがあったのを直しました。実際に手前に見えているカードが拡大されます。",
       "不具合報告にスクリーンショットを添付できるようにしました（任意）。ファイルを選ぶほか、Ctrl+Vでの貼り付け・ドラッグ＆ドロップにも対応しています。",
@@ -33,7 +34,8 @@ export const CHANGELOG = [
     ],
     // 英語表示のとき items の代わりに出る（併記はしない。同じ順番・同じ件数で書くこと）。
     itemsEn: [
-      "Added a sequence for the moment you lock your seventh color and win. The color drains from the board and time stops, your seven locks light up in order — red, orange, yellow, green, blue, pink, purple — and a rainbow wave sweeps across the board, bringing the color back. The victory screen now waits for the sequence to finish, with a short pause afterwards. (A shorter version plays if you have turned off flying pieces and cards.)",
+      "Fixed 53 modals, panels and notices that stayed dark in light mode — confirmation dialogs, the right-click menu, card notes, the various pickers, phase notices, approval banners, tooltips and more. Dimming layers, the coloured celebration modals and the story scenes are meant to be dark, so those are unchanged.",
+      "Rebuilt the sequence for locking your seventh color, with much more care. Time stops, your seven locks light up in turn, the seven colours stream to the centre of the screen and form a seven-pointed star, which then bursts into a rainbow wave that brings the colour back. Motes of light drift down, and there is a pause before the victory screen.",
       "The text on the cards now uses a typeface and weight close to the printed cards. Until now it depended on whichever fonts your device happened to have, so it looked different — and thinner — on Windows than on a Mac. Everyone now sees the same thing.",
       "Fixed hovering a card in your hand sometimes enlarging the card behind it in the Lock Area instead. The card you can actually see in front is the one that enlarges.",
       "You can now attach a screenshot to a problem report (optional). Pick a file, paste with Ctrl+V, or drag and drop.",
