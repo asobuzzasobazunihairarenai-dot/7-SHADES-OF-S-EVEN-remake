@@ -9008,6 +9008,10 @@ function findDraggableAt(clientX, clientY) {
     if (boardCard) {
       if (tutorial) break; // チュートリアル中は盤面カードを掴めなくする
       if (restrict) break; // 自動処理モードの制限: 盤面・ロックエリアのカードは掴めない
+      // #189: 手札カードがこの盤面/ロックのカードより手前に描かれているなら、掴むのは手札の方。
+      // （ホバー拡大と同じ理由。見えているのは手札カードなのに奥のカードを掴んでしまうのを防ぐ）
+      const frontHand = elements.find((e) => e.closest(".hand-card"));
+      if (frontHand && elements.indexOf(frontHand) < elements.indexOf(el)) break;
       return { el: boardCard, tokenId: boardCard.dataset.tokenId, kind: "card", isBoardCard: true };
     }
   }
@@ -9045,51 +9049,35 @@ function findDraggableAt(clientX, clientY) {
 }
 
 // マウスカーソルの下にある「つかめる/対象になる」要素をハイライトする（ドラッグはしない、
-// ホバーだけ）。findDraggableAt()と同じ優先順位（駒＞カード＞山）で判定するので、駒がカードの
-// 上に乗っている時に「今クリックしたらどっちが掴めるか」がハイライトで分かるようになる。
-// 加えて、何も乗っていない空のマス／ロックスロットもホバー対象にする（掴めるものが無くても
-// マス自体を示したいため）。
+// ホバーだけ）。判定は「見た目で手前にあるもの」が勝つ（#189）。同じマスの駒とカードだけは
+// 駒を優先する（駒がカードの上に乗っているため）。何も乗っていない空のマス／ロックスロットも
+// ホバー対象にする（掴めるものが無くてもマス自体を示したいため）。
 function findHoverTarget(clientX, clientY) {
   const elements = document.elementsFromPoint(clientX, clientY);
-  // findDraggableAtと同じ理由（描画順に関係なく優先順位を種類ごとに確定させるため）で
-  // 二段階に分けている。
   for (const el of elements) {
-    // 「+N」バッジ（重なりカードの一覧表示）は一番手前にあるので最優先で判定する。
+    // 「+N」バッジ（重なりカードの一覧表示）は自分のカードの上に描かれるので先に判定する。
     const badge = el.closest(".stack-badge");
     if (badge) return badge;
   }
+  // #189: ここから先は「見た目で手前にあるもの」を返す。以前は駒→盤面カード→手札カード…と
+  // 種類ごとの固定順で探していたため、手札カードがロックエリアのカードの上に重なって描かれて
+  // いる時に、**奥のロックエリアのカード**が拡大表示されてしまっていた（ユーザー報告）。
+  // elementsFromPoint は手前から順に返るので、その並びをそのまま尊重する。
+  // 例外は「同じマス／ロックスロットの中の駒とカード」だけ——これは実際に駒がカードの上に
+  // 乗っているので、駒を優先するのが見た目とも一致する（#187で入れた優先順位の本来の目的）。
+  const HOVER_SELECTORS = [".piece", ".board-card", ".hand-reveal-card", ".hand-card", ".stack[data-pile]", ".cell", ".lock-slot"];
   for (const el of elements) {
-    const piece = el.closest(".piece");
-    if (piece) return piece;
-  }
-  for (const el of elements) {
-    const boardCard = el.closest(".board-card");
-    if (boardCard) return boardCard;
-  }
-  for (const el of elements) {
-    const revealCard = el.closest(".hand-reveal-card");
-    if (revealCard) return revealCard;
-  }
-  // ユーザー要望「手札のホバー検知を厳格に。手札は一部重なって描画されるので、実際に手前に
-  // 見えている部分をホバーした時だけ、そのカードが反応する（ひょこっと出てくる）ようにしたい」。
-  // クリック(findDraggableAt)は「掴みたいカードを中心距離で拾う」寛容な判定のままにするが、
-  // ホバー（プレビュー拡大・ハイライト）は elementsFromPoint の先頭＝実際に最前面に見えている
-  // .hand-card をそのまま採用する（見えているスリバー＝そのカード、という直感に合わせる）。
-  for (const el of elements) {
-    const handCard = el.closest(".hand-card");
-    if (handCard) return handCard;
-  }
-  for (const el of elements) {
-    const stack = el.closest(".stack[data-pile]");
-    if (stack) return stack;
-  }
-  for (const el of elements) {
-    const cell = el.closest(".cell");
-    if (cell) return cell;
-  }
-  for (const el of elements) {
-    const lockSlot = el.closest(".lock-slot");
-    if (lockSlot) return lockSlot;
+    for (const sel of HOVER_SELECTORS) {
+      const hit = el.closest(sel);
+      if (!hit) continue;
+      if (sel === ".board-card") {
+        // 同じマスに駒が乗っていれば駒を優先（駒はカードの上）。
+        const square = hit.closest(".cell, .lock-slot");
+        const piece = square ? square.querySelector(".piece") : null;
+        if (piece && elements.includes(piece)) return piece;
+      }
+      return hit;
+    }
   }
   return null;
 }

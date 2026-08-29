@@ -7,8 +7,15 @@ import { LAYOUT, TYPE_GROUP, ELEMENT_META, cfVar, propsFor } from "../src/card-l
 const CSS_PATH = new URL("../src/style.css", import.meta.url);
 
 // フォント（ユーザー指定）: フレーバー・タイトル＝FOT-マティス ProN M / 効果文＝ヒラギノ角ゴ Pro W6。
-const FONT_TITLE = `"FOT-マティス ProN M", "FOT-Matisse ProN M", "Yu Mincho", serif`;
-const FONT_EFFECT = `"ヒラギノ角ゴ Pro W6", "Hiragino Kaku Gothic Pro", "ヒラギノ角ゴ ProN W6", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
+// フォント（ユーザー指定）。印刷物は タイトル系＝FOT-マティス ProN M / 効果文＝ヒラギノ角ゴ Pro W6 だが、
+// どちらも市販・OS付属で、Windows/Android には入っていない（＝人によって別の書体で表示されてしまう）。
+// そこで 2026-08-30、ユーザーが見比べて選んだ組み合わせ（しっぽり明朝B1 / Noto Sans JP、どちらも
+// オープンソースのWebフォント）を先頭に置き、**全員が同じ見た目**になるようにした。
+// 読み込みは index.html の Google Fonts の link（無い/届かない時は下の順に手元のフォントへ落ちる）。
+// 太さが重要: ヒラギノ角ゴ W6 は画面上でかなり黒く出るため、代替フォントは 800〜900 まで上げないと
+// 印刷物より細く見える（ユーザーが実際に見比べて確認）。太さは各ルールの font-weight で指定する。
+const FONT_TITLE = `"Shippori Mincho B1", "FOT-マティス ProN M", "FOT-Matisse ProN M", "Yu Mincho", serif`;
+const FONT_EFFECT = `"Noto Sans JP", "ヒラギノ角ゴ Pro W6", "Hiragino Kaku Gothic Pro", "ヒラギノ角ゴ ProN W6", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
 
 const BASE = `/* ===== カード面レンダラ（card-renderer.js）＝テキスト無しブランク画像＋アプリ側テキスト ===== */
 /* 【重要】このブロックは tools/gen-cardface-css.mjs が丸ごと差し替える自動生成領域。
@@ -48,7 +55,7 @@ const BASE = `/* ===== カード面レンダラ（card-renderer.js）＝テキ�
 }
 /* 効果セット（fx）＝基本/到達/手札を上から順に詰める。間に仕切り線（各効果の中間）。 */
 .card-face-fx { display: flex; flex-direction: column; gap: 1.4cqw; }
-.card-face-effect { display: flex; gap: 0.45em; align-items: flex-start; font-family: ${FONT_EFFECT}; }
+.card-face-effect { display: flex; gap: 0.45em; align-items: flex-start; font-family: ${FONT_EFFECT}; font-weight: 900; }
 .card-face-effect-body { flex: 1; min-width: 0; }
 .card-face-textline { font-size: 1em; line-height: 1.28; }
 /* 「・」選択肢行は左インデントを設けず、普通に左詰め（ユーザー要望）。 */
@@ -64,17 +71,17 @@ const BASE = `/* ===== カード面レンダラ（card-renderer.js）＝テキ�
 .card-face-divider { display: flex; align-items: center; height: 1.2cqw; }
 .card-face-divider::before { content: ""; height: 0.22cqw; flex: 1; background: rgba(20, 20, 20, 0.8); }
 /* タイトルは全て黒文字（ユーザー指定）。ファーストのみ中央寄せ。フォント＝FOT-マティス。 */
-.card-face-title { font-family: ${FONT_TITLE}; font-weight: 500; line-height: 1.08; letter-spacing: 0.2cqw; color: #141414; text-align: left; }
+.card-face-title { font-family: ${FONT_TITLE}; font-weight: 800; line-height: 1.08; letter-spacing: 0.2cqw; color: #141414; text-align: left; }
 .card-face[data-card-type="first"] .card-face-title { text-align: center; }
 /* ルビ(rt)は絶対配置で base の「上」に浮かせる＝タイトルの行高に影響しない
    （ルビ有無でタイトルの縦位置がズレない）。各漢字ランの ruby を基準に中央に置き、
    translateY(=--cf-*-ruby-oy) で上下微調整（正=下）。 */
 .card-face-title ruby { position: relative; }
-.card-face-title rt { position: absolute; left: 50%; bottom: 100%; white-space: nowrap; font-weight: 500; line-height: 1; color: #141414; font-family: ${FONT_TITLE}; }
+.card-face-title rt { position: absolute; left: 50%; bottom: 100%; white-space: nowrap; font-weight: 700; line-height: 1; color: #141414; font-family: ${FONT_TITLE}; }
 /* 能力名《》はタイトルと同じフォント。 */
-.card-face-subtitle { font-family: ${FONT_TITLE}; font-weight: 500; text-align: center; color: color-mix(in srgb, var(--card-accent, #555) 55%, #201a16); }
+.card-face-subtitle { font-family: ${FONT_TITLE}; font-weight: 800; text-align: center; color: color-mix(in srgb, var(--card-accent, #555) 55%, #201a16); }
 /* フレーバーは斜体にしない（ユーザー指摘）。フォント＝FOT-マティス。 */
-.card-face-flavor { font-family: ${FONT_TITLE}; font-style: normal; text-align: center; color: #fff; line-height: 1.25; text-shadow: 0 0.4cqw 1cqw rgba(0, 0, 0, 0.85), 0 0 0.4cqw rgba(0, 0, 0, 0.6); }
+.card-face-flavor { font-family: ${FONT_TITLE}; font-weight: 600; font-style: normal; text-align: center; color: #fff; line-height: 1.25; text-shadow: 0 0.4cqw 1cqw rgba(0, 0, 0, 0.85), 0 0 0.4cqw rgba(0, 0, 0, 0.6); }
 /* ファーストは文字が全て白（ユーザー指定）。効果は全て中央揃え・ただしアイコン(マーカー)は左揃え。 */
 .card-face[data-card-type="first"] .card-face-title,
 .card-face[data-card-type="first"] .card-face-title rt,
