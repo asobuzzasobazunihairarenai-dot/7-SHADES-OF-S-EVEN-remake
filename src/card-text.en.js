@@ -10,90 +10,105 @@
 export const CARD_TEXT_EN = {
   // --- Normal cards ---
   "red-jump-pad": {
+    note: "Because it says “move in one leap”, it does not matter what is on the first space — a card, an opponent's piece, or anything else.",
     name: "Jump Pad", titleRuby: "", basic: "", subtitle: "",
     arrival: "Do not add this to your hand. Move 2 spaces in one leap.",
     hand: "Place this face-up on any space other than a Gate.",
     flavor: "Only the first to leap knows the new view.",
   },
   "red-counter-lock": {
+    note: "Arrival Effect note: “has locked the fewest” means the fewest number of locked cards. Hand Effect note: none.",
     name: "Counter Lock", titleRuby: "", basic: "", subtitle: "",
     arrival: "If you have locked the fewest, draw 1 card.",
     hand: "Usable when contact is declared against you. Nullify that contact. You may lock 1 card from your hand.",
     flavor: "Only those ready to be robbed can rob back.",
   },
   "orange-mass-change": {
+    note: "“Within 3 spaces” means the range you could reach if you moved 3 spaces. “Swap where you are” means the pieces swap places; the color of the piece you play never changes. This is not a “move”, so a face-down card on the space you swap onto is not flipped face-up. However, if there is already a face-up card there, its Arrival Effect does trigger (for both you and the opponent, each on the space they swapped onto). When this is used as an Arrival Effect, the space the opponent swaps onto — Space Swap itself — does not trigger again. If Space Swap is added to your hand after its Arrival Effect resolves and a face-up card underneath it is exposed, that card triggers as the opponent's Arrival Effect. The same applies when it is used as a Hand Effect: a face-up card on the space you swap onto triggers its Arrival Effect. Because the swap is simultaneous, if both players swap onto face-up cards then both trigger, and they are resolved by the resolution order principle (clockwise from the player who activated the effect).",
     name: "Space Swap", titleRuby: "", basic: "", subtitle: "",
     arrival: "Swap your position with an opponent's within 3 spaces. That opponent does not gain this card's Arrival Effect.",
     hand: "【Color Cost 1】Gain the Arrival Effect above.",
     flavor: "Everyone should stand in another's place at least once.",
   },
   "orange-harvest-sow": {
+    note: "Nothing in particular.",
     name: "Reap and Sow", titleRuby: "", basic: "", subtitle: "",
     arrival: "Add 1 card from any one space to your hand. Place 1 card from your hand face-down on that space.",
     hand: "Gain the Arrival Effect above.",
     flavor: "Hope you sow will always be reaped by someone.",
   },
   "yellow-sleight-of-hand": {
+    note: "Nothing in particular.",
     name: "Magician's Trick -Sleight-", titleRuby: "", basic: "", subtitle: "",
     arrival: "Add 1 card at random from one opponent's hand to your hand. Add 1 card from your hand to that opponent's hand.",
     hand: "Gain the Arrival Effect above.",
     flavor: "I didn't steal it — you just didn't notice.",
   },
   "yellow-gamble": {
+    note: "“Draw” means “add a card from the deck to your hand”, so when you discard your whole hand, the cards you drew with this effect are discarded too. The effect card itself is added to your hand after its Arrival Effect has resolved, so this card does not have to be discarded.",
     name: "The Gamble", titleRuby: "", basic: "", subtitle: "",
     arrival: "Declare 2 or more colors. Draw and reveal that many cards. If a declared color is among them, discard your entire hand.",
     hand: "Discard 1 card from your hand. Gain the Arrival Effect above. End this phase.",
     flavor: "Fortune never smiles on those who won't bet.",
   },
   "green-joint-construction": {
+    note: "“An empty space” means a space with no card and no player on it. As a rule, an effect that targets several players is resolved starting from the player who used it and continuing clockwise (the resolution order principle).",
     name: "Joint Construction", titleRuby: "", basic: "", subtitle: "",
     arrival: "Each player places 1 card face-down, from the deck or their hand, onto an empty space.",
     hand: "Gain the Arrival Effect above.",
     flavor: "Peace cannot be built alone.",
   },
   "green-growing-trees": {
+    note: "“An empty space” means a space with no card and no player on it. “Within 2 spaces” means the range you could reach if you moved 2 spaces. The space you are on is included. Hand Effect note: you may also place cards on spaces that already have a card.",
     name: "Proliferating Trees", titleRuby: "", basic: "", subtitle: "",
     arrival: "Place 1 card face-down from the deck onto every empty space within 2 spaces.",
     hand: "Place 1 card face-down from the deck onto each of any 3 spaces.",
     flavor: "One forest begins from one seed.",
   },
   "blue-slum-official": {
+    note: "As a rule, an effect that targets several players is resolved starting from the player who used it and continuing clockwise (the resolution order principle). Hand Effect note: you “discard this card” when you activate the effect, so this card itself is not counted when checking “if you have 1 or fewer cards in hand”.",
     name: "Slum-Born Official", titleRuby: "", basic: "", subtitle: "",
     arrival: "Each player discards down to 3 cards in hand.",
     hand: "If you have 1 or fewer cards in hand, draw 2 cards. End this phase.",
     flavor: "Yesterday's pauper makes today's laws.",
   },
   "blue-choosable-trap": {
+    note: "If you have 1 or fewer cards in hand you cannot choose “discard half your hand” (the best-effort principle). If you are on your own Gate you cannot choose “be force-moved to your Gate”. If you have no locked card you could discard, you cannot choose “discard 1 of your locked cards”. If none of the options can be chosen, the effect does nothing. Hand Effect note: you may also place it on a space that already has a card.",
     name: "Trap of Choice", titleRuby: "", basic: "", subtitle: "",
     arrival: "Gain one of the following effects:\n・Discard half of your hand.\n・You are forced to move to your Gate.\n・Discard 1 of your locked cards.",
     hand: "Place this card face-down on any space.",
     flavor: "It looks like you have a choice. That is the trap.",
   },
   "pink-party": {
+    note: "As a rule, an effect that targets several players is resolved starting from the player who used it and continuing clockwise (the resolution order principle). Because the Arrival Effect of the space you move to “does not trigger”, no effect is resolved and that card is not added to your hand.",
     name: "Party", titleRuby: "", basic: "", subtitle: "",
     arrival: "Each player gains one of the following effects:\n・Move 1 space; do not gain the Arrival Effect at the destination.\n・Add any 1 card on the field to your hand.\n・Flip any 2 cards on the field face-up.",
     hand: "Place this face-down on any space.",
     flavor: "When the feast ends, may everyone be smiling.",
   },
   "pink-present": {
+    note: "“Has locked the fewest” means the fewest number of locked cards. Hand Effect note: “adjacent” means the spaces up, down, left and right.",
     name: "Present", titleRuby: "", basic: "", subtitle: "",
     arrival: "Each player who has locked the fewest draws 1 card.",
     hand: "Place this face-down adjacent to an opponent. Draw 1 card.",
     flavor: "The joy of giving runs deeper than that of receiving.",
   },
   "purple-trial-ritual": {
+    note: "“Adjacent” means the spaces up, down, left and right. Because the Arrival Effect of the space you move to “does not trigger”, no effect is resolved and that card is not added to your hand. Since you “repeat this effect”, you can move any number of spaces as long as declared colors keep coming up.",
     name: "Ritual of Trials", titleRuby: "", basic: "", subtitle: "",
     arrival: "Declare 3 colors. Place 1 card face-up from the deck adjacent to you. Move to that space; do not gain the Arrival Effect there. If the placed card is a declared color, repeat this effect.",
     hand: "Gain the Arrival Effect above.",
     flavor: "Only trials know the road to truth.",
   },
   "purple-sorry": {
+    note: "Hand Effect note: the opponent locks the card they declared after this effect has finished resolving.",
     name: "So Sorry!", titleRuby: "", basic: "", subtitle: "",
     arrival: "Move 1 space.",
     hand: "【Color Cost 1】Usable when an opponent declares their final lock. Add 1 of that opponent's locked cards to your hand.",
     flavor: "If \"sorry\" were enough, there would be no wars.",
   },
   "rainbow-shard": {
+    note: "Because it is a Hand Effect, you lock it during your Hand phase. It counts as 2 locked cards. If one of the two is removed by some effect, the other one stays locked.",
     name: "Prism Shard", titleRuby: "",
     basic: "This is every color, and cannot be locked during the Lock Phase.",
     subtitle: "",
@@ -102,24 +117,28 @@ export const CARD_TEXT_EN = {
     flavor: "It was not broken. It was merely divided.",
   },
   "white-radiance": {
+    note: "As a rule, an effect that targets several players is resolved starting from the player who used it and continuing clockwise (the resolution order principle). “Phase” means the Lock phase, the Hand phase or the Move phase.",
     name: "Prismatic Radiance", titleRuby: "", basic: "", subtitle: "",
     arrival: "Each player draws 3 cards. Discard this card.",
     hand: "Each player draws 3 cards. End this phase.",
     flavor: "Joy filled the sky, and no one noticed the truth.",
   },
   "white-awakening": {
+    note: "A face-up card that lies underneath another card is not a target (the topmost principle).",
     name: "Awakening of the White Will", titleRuby: "", basic: "", subtitle: "",
     arrival: "Discard all face-up cards on the field.",
     hand: "Place 1 card face-down from the deck on top of every face-up card on the field.",
     flavor: "I saved the world. Or so I believed.",
   },
   "black-faded-cat": {
+    note: "As a rule, an effect that targets several players is resolved starting from the player who used it and continuing clockwise (the resolution order principle).",
     name: "Faded Cat", titleRuby: "", basic: "", subtitle: "",
     arrival: "Discard this. Each player discards their entire hand and draws 1 card.",
     hand: "Discard any number of your locked cards. Draw 3 cards for each card discarded this way. End this phase.",
     flavor: "With every stroke, the world fades a little.",
   },
   "black-contract-brand": {
+    note: "Basic Effect note: the two cards you discard from your hand when you lock may be any color. Arrival Effect note: “placing” it does not count as “locking” it.",
     name: "Brand of Black Temptation", titleRuby: "",
     basic: "During your Lock Phase, if you do not lock, you may draw 1 card. If you lock onto the Lock Area of this card's color, discard 2 cards from your hand and place this face-down on any space.",
     subtitle: "",
@@ -129,6 +148,7 @@ export const CARD_TEXT_EN = {
   },
   // --- Eternal cards (Basic ★ is shared; the ability name 《...》 is inline in the Hand Effect) ---
   "eternal-red": {
+    note: "If a space has several cards on it, all of them are discarded.",
     name: "Wainauea, the Crimson Volcano", titleRuby: "",
     basic: "This cannot be targeted by other cards' effects. Its Hand Effect can be used even while this is locked, and doing so does not discard it.",
     subtitle: "",
@@ -137,6 +157,7 @@ export const CARD_TEXT_EN = {
     flavor: "Do not fear the end. Flame is also a beginning.",
   },
   "eternal-orange": {
+    note: "If using the effect did not force you to discard your whole hand, you may use it again as many times as you like while you still hold an orange card. If you draw a Prism Shard, it counts as every color, so it is treated as orange: you discard your whole hand and cannot move this turn.",
     name: "Malmego, the Forbidden Fruit", titleRuby: "",
     basic: "This cannot be targeted by other cards' effects. Its Hand Effect can be used even while this is locked, and doing so does not discard it.",
     subtitle: "",
@@ -145,6 +166,7 @@ export const CARD_TEXT_EN = {
     flavor: "Whoever gains everything first loses everything once.",
   },
   "eternal-yellow": {
+    note: "As a rule, an effect that targets several players is resolved starting from the player who used it and continuing clockwise (the resolution order principle).",
     name: "Domus Nero, the Golden Palace", titleRuby: "",
     basic: "This cannot be targeted by other cards' effects. Its Hand Effect can be used even while this is locked, and doing so does not discard it.",
     subtitle: "",
@@ -153,6 +175,7 @@ export const CARD_TEXT_EN = {
     flavor: "Let the wealthy share with the poor. What returns after — gratitude, or fangs?",
   },
   "eternal-green": {
+    note: "None.",
     name: "Manzwood, the Miracle Forest", titleRuby: "",
     basic: "This cannot be targeted by other cards' effects. Its Hand Effect can be used even while this is locked, and doing so does not discard it.",
     subtitle: "",
@@ -161,6 +184,7 @@ export const CARD_TEXT_EN = {
     flavor: "The green is calling. In this forest, surely a miracle can be made.",
   },
   "eternal-blue": {
+    note: "You may also target a space that already has a card on it.",
     name: "Prydwen, the Drifting Ship", titleRuby: "",
     basic: "This cannot be targeted by other cards' effects. Its Hand Effect can be used even while this is locked, and doing so does not discard it.",
     subtitle: "",
@@ -169,6 +193,7 @@ export const CARD_TEXT_EN = {
     flavor: "Do not waver — tonight, the blue will open the way.",
   },
   "eternal-pink": {
+    note: "The opponent targeted by the effect counts as having “moved”, so if the card they land on is face-down it is flipped face-up and they gain its Arrival Effect. After you have moved an opponent next to you, if in your Move phase you have nowhere to move and could only make contact with that opponent, you cannot make contact: instead you place 1 card face-down from the deck next to you and your turn ends.",
     name: "Konohanasakuya, the Cherry of Bonds", titleRuby: "",
     basic: "This cannot be targeted by other cards' effects. Its Hand Effect can be used even while this is locked, and doing so does not discard it.",
     subtitle: "",
@@ -177,6 +202,7 @@ export const CARD_TEXT_EN = {
     flavor: "Let us meet here again — so we promised, beneath this cherry tree.",
   },
   "eternal-purple": {
+    note: "The card you add to your hand is the top card of the space you chose (the topmost principle).",
     name: "Gentechnik, the Endless Chemistry", titleRuby: "",
     basic: "This cannot be targeted by other cards' effects. Its Hand Effect can be used even while this is locked, and doing so does not discard it.",
     subtitle: "",
@@ -186,6 +212,7 @@ export const CARD_TEXT_EN = {
   },
   // --- First cards (Basic ★ shared; separate ability name in subtitle; Hand Effect leads with 【Color Cost 1】(...)) ---
   "first-red": {
+    note: "You discard a red card as the Color Cost before using it, so “the second card from the top of the discard pile” is in practice the card that was on top of the discard pile before you used the effect. If the card you gain is red you may discard it and use the effect again, but looping this when it achieves nothing is not allowed.",
     name: "Red Cube: Phoenix", titleRuby: "",
     basic: "This cannot be targeted by other cards' effects. Its Hand Effect can be used even while this is locked, and doing so does not discard it.",
     subtitle: "《Color of Rebirth》",
@@ -194,6 +221,7 @@ export const CARD_TEXT_EN = {
     flavor: "",
   },
   "first-orange": {
+    note: "You may also target a space with an opponent's piece on it, and the card there may be face-up or face-down. While you still hold an orange card in hand, you may discard it to use the effect again as many times as you like. “Within 2 spaces” means the range you could reach if you moved 2 spaces. The space you are on is included.",
     name: "Orange Cube: Harvest", titleRuby: "",
     basic: "This cannot be targeted by other cards' effects. Its Hand Effect can be used even while this is locked, and doing so does not discard it.",
     subtitle: "《Hour of Harvest》",
@@ -202,6 +230,7 @@ export const CARD_TEXT_EN = {
     flavor: "",
   },
   "first-yellow": {
+    note: "“Within 2 spaces” means the range you could reach if you moved 2 spaces. The space you are on is included.",
     name: "Yellow Cube: Saffron", titleRuby: "",
     basic: "This cannot be targeted by other cards' effects. Its Hand Effect can be used even while this is locked, and doing so does not discard it.",
     subtitle: "《Flash》",
@@ -210,6 +239,7 @@ export const CARD_TEXT_EN = {
     flavor: "",
   },
   "first-green": {
+    note: "Although it says “draw” (add to your hand), it is preferable to keep those cards revealed face-up where the other players can see them.",
     name: "Green Cube: Verdian", titleRuby: "",
     basic: "This cannot be targeted by other cards' effects. Its Hand Effect can be used even while this is locked, and doing so does not discard it.",
     subtitle: "《Earnest Sprout》",
@@ -218,6 +248,7 @@ export const CARD_TEXT_EN = {
     flavor: "",
   },
   "first-blue": {
+    note: "As a rule, an effect that targets several players is resolved starting from the player who used it and continuing clockwise (the resolution order principle).",
     name: "Blue Cube: Celestia", titleRuby: "",
     basic: "This cannot be targeted by other cards' effects. Its Hand Effect can be used even while this is locked, and doing so does not discard it.",
     subtitle: "《Unconscious Absorption》",
@@ -226,6 +257,7 @@ export const CARD_TEXT_EN = {
     flavor: "",
   },
   "first-pink": {
+    note: "Even if you already locked a card during your Lock phase, you can lock one more with this card's Hand Effect.",
     name: "Pink Cube: Serenade", titleRuby: "",
     basic: "This cannot be targeted by other cards' effects. Its Hand Effect can be used even while this is locked, and doing so does not discard it.",
     subtitle: "《Hour of Longing》",
@@ -234,6 +266,7 @@ export const CARD_TEXT_EN = {
     flavor: "",
   },
   "first-purple": {
+    note: "Because it says “move in one leap”, it does not matter what is on the first space — a card, an opponent's piece, or anything else. “A normal move” means the move you make as usual during your Move phase.",
     name: "Purple Cube: Dimension", titleRuby: "",
     basic: "This cannot be targeted by other cards' effects. Its Hand Effect can be used even while this is locked, and doing so does not discard it.",
     subtitle: "《Spatial Control》",
@@ -242,11 +275,41 @@ export const CARD_TEXT_EN = {
     flavor: "",
   },
   "first-noir": {
+    note: "Eidos's own First card. Basic Effect: this cannot be targeted by other cards' effects. Its Hand Effect can be used even while it sits in the Lock Area. Hand Effect: lock 1 card in the Lock Area color where this card is placed. If you do, draw 1 card and move 1 space.",
     name: "Black Cube: Noir", titleRuby: "",
     basic: "This cannot be targeted by other cards' effects. Its Hand Effect can be used even while this is placed in a Lock Area, and doing so does not discard it.",
     subtitle: "《Extraction》",
     arrival: "",
     hand: "Lock 1 card onto the Lock Area of this card's color. If you do, draw 1 card and move 1 space.",
     flavor: "",
+  },
+  // --- Boost mode blank First cards (defined in cards-data.js; English name/note only) ---
+  "first-blank-red": {
+    name: "Red Boost Card", titleRuby: "", basic: "", subtitle: "", arrival: "", hand: "", flavor: "",
+    note: "A blank First card used in Boost mode. It has no effects and cannot be targeted by other cards' effects.",
+  },
+  "first-blank-orange": {
+    name: "Orange Boost Card", titleRuby: "", basic: "", subtitle: "", arrival: "", hand: "", flavor: "",
+    note: "A blank First card used in Boost mode. It has no effects and cannot be targeted by other cards' effects.",
+  },
+  "first-blank-yellow": {
+    name: "Yellow Boost Card", titleRuby: "", basic: "", subtitle: "", arrival: "", hand: "", flavor: "",
+    note: "A blank First card used in Boost mode. It has no effects and cannot be targeted by other cards' effects.",
+  },
+  "first-blank-green": {
+    name: "Green Boost Card", titleRuby: "", basic: "", subtitle: "", arrival: "", hand: "", flavor: "",
+    note: "A blank First card used in Boost mode. It has no effects and cannot be targeted by other cards' effects.",
+  },
+  "first-blank-blue": {
+    name: "Blue Boost Card", titleRuby: "", basic: "", subtitle: "", arrival: "", hand: "", flavor: "",
+    note: "A blank First card used in Boost mode. It has no effects and cannot be targeted by other cards' effects.",
+  },
+  "first-blank-pink": {
+    name: "Pink Boost Card", titleRuby: "", basic: "", subtitle: "", arrival: "", hand: "", flavor: "",
+    note: "A blank First card used in Boost mode. It has no effects and cannot be targeted by other cards' effects.",
+  },
+  "first-blank-purple": {
+    name: "Purple Boost Card", titleRuby: "", basic: "", subtitle: "", arrival: "", hand: "", flavor: "",
+    note: "A blank First card used in Boost mode. It has no effects and cannot be targeted by other cards' effects.",
   },
 };

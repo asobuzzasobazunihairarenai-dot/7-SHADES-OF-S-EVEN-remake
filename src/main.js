@@ -347,7 +347,7 @@ import { generateVictorySummaryCanvas } from "./victory-summary-image.js";
 import { playSound, initGameBgmAutoStart, initSoundUnlock, startHeartbeat, stopHeartbeat } from "./sound.js";
 import { initScreenWakeLock } from "./wake-lock.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath, getCardIllustPath } from "./cards-data.js";
-import { getCardName } from "./card-text.js"; // UI英語化フェーズ7: 表示用のカード名（英語版があればそちら）
+import { getCardName, getCardNote } from "./card-text.js"; // UI英語化フェーズ7: 表示用のカード名（英語版があればそちら）
 
 // モーダル・行動ログ等に出す「表示用のカード名」。英語のカードテキストがあればその名前、
 // 無ければ cards-data.js の日本語の原名にフォールバックする。
@@ -9695,7 +9695,7 @@ function showCardNoteModal(cardId) {
   title.textContent = def.name;
   const body = document.createElement("div");
   body.className = "card-note-body";
-  body.textContent = def.note || t("game.stack.noNote");
+  body.textContent = getCardNote(def.id) || def.note || t("game.stack.noNote");
   textCol.appendChild(title);
   textCol.appendChild(body);
   const content = document.createElement("div");

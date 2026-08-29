@@ -4,9 +4,16 @@
 // カードの拡大画像とルール補足テキストをまとめたモーダルが開く。管理者モードと同様、
 // ゲーム本編のUIではなく開発用ツール。
 
-import { NORMAL_CARDS, ETERNAL_CARDS, FIRST_CARDS, getCardImagePath } from "./cards-data.js";
+import { NORMAL_CARDS, ETERNAL_CARDS, FIRST_CARDS, getCardImagePath, getCardDefinition } from "./cards-data.js";
 import { showCardFace } from "./card-face-display.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { getCardName, getCardNote } from "./card-text.js"; // UI英語化フェーズ12: 表示用のカード名・補足
+import { t } from "./ui-text.js"; // UI英語化フェーズ12
+
+// 表示用カード名（英語なら英語名、日本語ならcards-data.jsの名前）。
+function cardDisplayName(cardId) {
+  return getCardName(cardId) || getCardDefinition(cardId)?.name || "";
+}
 
 let showCardModal = null; // initDeckViewer内で実体を設定する
 
@@ -33,7 +40,7 @@ function getDeckPreviewEl() {
 function showDeckPreview(def) {
   const el = getDeckPreviewEl();
   showCardFace(el, def.id, getCardImagePath(def.id));
-  el.setAttribute("aria-label", def.name);
+  el.setAttribute("aria-label", cardDisplayName(def.id));
   el.style.display = "block";
 }
 function hideDeckPreview() {
@@ -52,7 +59,7 @@ function buildCardTile(def) {
 
   const img = document.createElement("img");
   img.src = getCardImagePath(def.id);
-  img.alt = def.name;
+  img.alt = cardDisplayName(def.id);
   img.loading = "lazy";
   img.style.cssText = "width: 4.2rem; height: 4.2rem; object-fit: cover; border-radius: 0.25rem;";
   tile.appendChild(img);
@@ -66,7 +73,7 @@ function buildCardTile(def) {
   tile.appendChild(countBadge);
 
   const name = document.createElement("div");
-  name.textContent = def.name;
+  name.textContent = cardDisplayName(def.id);
   name.style.cssText = "font-size: 0.6rem; line-height: 1.2; max-height: 2.4em; overflow: hidden;";
   tile.appendChild(name);
 
@@ -117,7 +124,7 @@ function buildSection(title, cardDefs) {
   section.style.cssText = "margin-bottom: 0.8rem;";
 
   const heading = document.createElement("div");
-  heading.textContent = `${title}（${cardDefs.length}種）`;
+  heading.textContent = t("deckviewer.section", { title, n: cardDefs.length });
   heading.style.cssText = `
     font-weight: bold; color: #7dd3fc; margin-bottom: 0.4rem;
     border-bottom: 1px solid rgba(148, 163, 184, 0.3); padding-bottom: 0.3rem;
@@ -181,9 +188,9 @@ function buildCardModal() {
   }
   function open(def) {
     showCardFace(img, def.id, getCardImagePath(def.id));
-    img.setAttribute("aria-label", def.name);
-    name.textContent = def.name;
-    note.textContent = def.note || "（補足なし）";
+    img.setAttribute("aria-label", cardDisplayName(def.id));
+    name.textContent = cardDisplayName(def.id);
+    note.textContent = getCardNote(def.id) || def.note || t("deckviewer.noNote");
     backdrop.style.display = "block";
     modal.style.display = "block";
   }
@@ -212,7 +219,7 @@ function buildPanel(close) {
   `;
 
   const titleEl = document.createElement("div");
-  titleEl.textContent = "山札一覧";
+  titleEl.textContent = t("deckviewer.title");
   titleEl.style.cssText = "font-weight: bold; margin-bottom: 0.6rem; padding-right: 1.6rem;";
   panel.appendChild(titleEl);
   panel.appendChild(createModalCloseX(close));
@@ -227,9 +234,9 @@ function buildPanel(close) {
 // を参照するため、initDeckViewer後に呼ぶこと。
 export function buildDeckSections() {
   const wrap = document.createElement("div");
-  wrap.appendChild(buildSection("通常カード", NORMAL_CARDS));
-  wrap.appendChild(buildSection("エターナルカード", ETERNAL_CARDS));
-  wrap.appendChild(buildSection("ファーストカード", FIRST_CARDS));
+  wrap.appendChild(buildSection(t("deckviewer.normal"), NORMAL_CARDS));
+  wrap.appendChild(buildSection(t("deckviewer.eternal"), ETERNAL_CARDS));
+  wrap.appendChild(buildSection(t("deckviewer.first"), FIRST_CARDS));
   return wrap;
 }
 

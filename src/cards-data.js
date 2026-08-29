@@ -1,4 +1,5 @@
 import { getCardBackSetIndex, backImagePath } from "./card-back-skins.js";
+import { getLang } from "./i18n.js"; // UI英語化フェーズ12: ブーストカードの仮デザイン内の文字だけに使う
 
 // 実際のカードデータ（docs/cards.md, docs/rulebook.mdより）。
 // 「カード効果・カードデータはコードに埋め込まず、外部データとして持つ」という方針(CLAUDE.md)
@@ -77,7 +78,7 @@ function blankBoostCardDataUri(color) {
     `<rect width='200' height='200' rx='16' fill='${hex}'/>` +
     `<rect x='8' y='8' width='184' height='184' rx='12' fill='none' stroke='rgba(255,255,255,0.65)' stroke-width='5'/>` +
     `<text x='100' y='98' font-size='30' font-family='sans-serif' font-weight='bold' fill='white' text-anchor='middle'>BOOST</text>` +
-    `<text x='100' y='130' font-size='17' font-family='sans-serif' fill='rgba(255,255,255,0.9)' text-anchor='middle'>効果なし</text>` +
+    `<text x='100' y='130' font-size='17' font-family='sans-serif' fill='rgba(255,255,255,0.9)' text-anchor='middle'>${getLang() === "en" ? "No effect" : "効果なし"}</text>` +
     `</svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }

@@ -5,7 +5,7 @@
 // 検証（7枚以上・同名7まで・所持超過・スペシャルの3:1税）と保存は my-deck.js のまま活かす。
 
 import { getCardImagePath, getCardDefinition } from "./cards-data.js";
-import { getCardName } from "./card-text.js"; // UI英語化フェーズ10: 表示用のカード名
+import { getCardName, getCardNote } from "./card-text.js"; // UI英語化フェーズ10: 表示用のカード名
 
 // 表示用のカード名（英語のカードテキストがあればそれ、無ければ日本語の原名）。
 function cardDisplayName(cardId) {
@@ -208,7 +208,7 @@ function showCardNoteModal(cardId) {
   title.textContent = def.name;
   const body = document.createElement("div");
   body.className = "card-note-body";
-  body.textContent = def.note || t("mydeckbuilder.L205");
+  body.textContent = getCardNote(def.id) || def.note || t("mydeckbuilder.L205");
   textCol.append(title, body);
   content.append(img, textCol);
   const closeBtn = document.createElement("button");

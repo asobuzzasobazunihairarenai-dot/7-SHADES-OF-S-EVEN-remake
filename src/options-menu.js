@@ -1007,7 +1007,7 @@ export function initOptionsMenu() {
       panel.appendChild(basicDivider);
 
       panel.appendChild(
-        buildMenuItem("📋 山札一覧", () => {
+        buildMenuItem("📋 " + t("deckviewer.title"), () => {
           close();
           openDeckViewer();
         })

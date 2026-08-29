@@ -32,6 +32,7 @@ import { backImagePath, getCardBackSetIndex } from "./card-back-skins.js";
 import { isTutorialBattleActive } from "./tutorial-battle.js";
 import { t } from "./ui-text.js"; // UI英語化フェーズ9
 import { getLang } from "./i18n.js";
+import { getCardName, getCardNote } from "./card-text.js"; // UI英語化フェーズ12: 表示用のカード名・補足
 
 // ハマりどころ（ユーザー報告のスクリーンショットで発覚、実際の環境依存の不具合）:
 // このモジュールの要素（#tutorial-overlay等）はdocument.body直下に置いているが、
@@ -187,12 +188,12 @@ function buildCardExampleEl() {
   textCol.className = "tutorial-card-example-text";
   const name = document.createElement("div");
   name.className = "tutorial-card-example-name";
-  name.textContent = def?.name ?? "";
+  name.textContent = (def ? getCardName(def.id) || def.name : "") ?? "";
   textCol.appendChild(name);
   if (def?.note) {
     const note = document.createElement("div");
     note.className = "tutorial-card-example-note";
-    note.textContent = def.note;
+    note.textContent = getCardNote(def.id) || def.note;
     textCol.appendChild(note);
   }
   wrap.appendChild(img);

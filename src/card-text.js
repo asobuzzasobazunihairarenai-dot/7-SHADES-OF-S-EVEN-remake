@@ -43,3 +43,13 @@ export function getCardName(cardId) {
   const name = LANGS[lang]?.[cardId]?.name;
   return name || null;
 }
+
+// カードの「補足」（右クリック→カード補足 / 山札一覧 / マイデッキ編集で出る解説文）。
+// 日本語の原本は cards-data.js の note（アプリ全体の正）なので、ここでは非ja言語の訳だけを返し、
+// 無ければ null（呼び出し側が cards-data.js の日本語 note にフォールバックする）。
+export function getCardNote(cardId) {
+  const lang = getLang();
+  if (lang === "ja") return null;
+  const note = LANGS[lang]?.[cardId]?.note;
+  return note || null;
+}
