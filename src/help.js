@@ -14,8 +14,9 @@
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { buildIconButtonContent, wireIconButtonClick } from "./icon-action-button.js";
 import { getHelpSections, startTutorial } from "./tutorial.js";
-import { GLOSSARY, FAQ_CATEGORIES, DIGITAL_FEATURES } from "./help-content.js";
-import { RANK_EXPLAIN_SECTIONS } from "./rank-explain.js";
+import { getGlossary, getFaqCategories, getDigitalFeatures } from "./help-content.js"; // UI英語化フェーズ8: 表示のたびに現在の言語で取り直す
+import { getRankExplainSections } from "./rank-explain.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ8
 import { linkifyGlossary } from "./glossary-linkify.js";
 import { getOptionArea } from "./option-area.js";
 import { closeShopPanel } from "./shop.js";
@@ -114,14 +115,14 @@ function buildPanel(close) {
 
   const titleEl = document.createElement("div");
   titleEl.id = "help-panel-title";
-  titleEl.textContent = "❓ ヘルプ";
+  titleEl.textContent = t("help.title");
   panel.appendChild(titleEl);
   panel.appendChild(createModalCloseX(close));
 
   const tutorialBtn = document.createElement("button");
   tutorialBtn.type = "button";
   tutorialBtn.id = "help-panel-tutorial-btn";
-  tutorialBtn.textContent = "🎓 チュートリアルを見る";
+  tutorialBtn.textContent = t("help.tutorialBtn");
   tutorialBtn.addEventListener("click", () => {
     close();
     startTutorial();
@@ -144,30 +145,30 @@ export function buildHelpList() {
       openItemModal(section.title, [...section.body, ...(section.footer ?? [])], section.icon)
     )
   );
-  list.appendChild(buildIndexSection("📖 基本ルール", buildFlatList(ruleButtons)));
+  list.appendChild(buildIndexSection(t("help.sec.rules"), buildFlatList(ruleButtons)));
 
   // ユーザー要望「ヘルプの説明に、デジタル版独自のことも記載する項目を追加してください」。
-  const digitalButtons = DIGITAL_FEATURES.map((entry) => buildIndexButton(entry.title, () => openItemModal(entry.title, entry.body)));
-  list.appendChild(buildIndexSection("🖥️ デジタル版だけの機能", buildFlatList(digitalButtons)));
+  const digitalButtons = getDigitalFeatures().map((entry) => buildIndexButton(entry.title, () => openItemModal(entry.title, entry.body)));
+  list.appendChild(buildIndexSection(t("help.sec.digital"), buildFlatList(digitalButtons)));
 
   // ランク戦（フリーマッチ）の説明（rank-explain.js と共有。ホーム/マイページのランク表示クリックと同じ内容）。
-  const rankedButtons = RANK_EXPLAIN_SECTIONS.map((section) => buildIndexButton(section.title, () => openItemModal(section.title, section.body)));
-  list.appendChild(buildIndexSection("🏆 ランク戦について", buildFlatList(rankedButtons)));
+  const rankedButtons = getRankExplainSections().map((section) => buildIndexButton(section.title, () => openItemModal(section.title, section.body)));
+  list.appendChild(buildIndexSection(t("help.sec.ranked"), buildFlatList(rankedButtons)));
 
   // 用語集（help-content.js、説明書.txtの基本用語集を採録）。
-  const glossaryButtons = GLOSSARY.map((entry) => buildIndexButton(entry.term, () => openItemModal(entry.term, entry.body)));
-  list.appendChild(buildIndexSection("🔤 用語集", buildFlatList(glossaryButtons)));
+  const glossaryButtons = getGlossary().map((entry) => buildIndexButton(entry.term, () => openItemModal(entry.term, entry.body)));
+  list.appendChild(buildIndexSection(t("help.sec.glossary"), buildFlatList(glossaryButtons)));
 
   // よくある質問（カテゴリごとにさらに折りたたみをネストする）。
   const faqList = document.createElement("div");
   faqList.className = "help-index-list";
-  for (const cat of FAQ_CATEGORIES) {
+  for (const cat of getFaqCategories()) {
     const catButtons = cat.items.map((item) => buildIndexButton(item.question, () => openItemModal(item.question, item.answer)));
     const catSection = buildIndexSection(cat.category, buildFlatList(catButtons));
     catSection.classList.add("help-index-subsection");
     faqList.appendChild(catSection);
   }
-  list.appendChild(buildIndexSection("💬 よくある質問", faqList));
+  list.appendChild(buildIndexSection(t("help.sec.faq"), faqList));
 
   return list;
 }
@@ -216,12 +217,12 @@ export function initHelpButton() {
   launcherBtn.id = "help-button";
   const { captionEl } = buildIconButtonContent(launcherBtn, {
     icon: "assets/icons/help.svg",
-    tooltip: "ヘルプを開きます",
+    tooltip: t("help.iconTip"),
   });
-  captionEl.textContent = "ヘルプ";
+  captionEl.textContent = t("help.iconCaption");
   wireIconButtonClick(launcherBtn, {
-    detailTitle: "ヘルプ",
-    detailParagraphs: ["ルールの説明・用語集・よくある質問を確認できます。"],
+    detailTitle: t("help.iconCaption"),
+    detailParagraphs: [t("help.iconDetail")],
     onAction: open,
   });
   getOptionArea().appendChild(launcherBtn);

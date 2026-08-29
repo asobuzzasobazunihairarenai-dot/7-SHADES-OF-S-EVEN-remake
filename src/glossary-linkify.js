@@ -4,24 +4,42 @@
 //
 // 使い方: 段落テキストを p.textContent = text の代わりに linkifyGlossary(p, text) で流し込む。
 
-import { GLOSSARY } from "./help-content.js";
+import { getGlossary } from "./help-content.js";
 import { createBackdrop } from "./ui-helpers.js";
+import { getLang } from "./i18n.js";
+import { t } from "./ui-text.js";
 
 // 用語→定義の対応。最長一致にするため、用語を長い順に並べて正規表現を組む
 // （JSの選択|は左優先なので、長い候補を先に置くと同じ位置での最長一致になる）。
-const BODY_BY_TERM = new Map(GLOSSARY.map((g) => [g.term, g.body]));
-// 1文字の用語（「場」「駒」「隣」等）は、より長い語の中に紛れて誤マッチする
-// （例:「場合」「捨て場」の"場"、「隣接」の"隣"）。日本語は語境界が曖昧なので、
-// 誤リンクの弊害の方が大きい1文字語はリンク対象から除外する（2文字以上のみ対象。
-// 除外した語も、他の語の定義文の中で辿れるよう BODY_BY_TERM 自体は全語保持する）。
-const TERMS_BY_LENGTH = GLOSSARY.map((g) => g.term)
-  .filter((t) => t.length >= 2)
-  .sort((a, b) => b.length - a.length);
-const ESCAPED = TERMS_BY_LENGTH.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-const TERM_RE = ESCAPED.length ? new RegExp("(" + ESCAPED.join("|") + ")", "g") : null;
+// UI英語化フェーズ8: 言語ごとに作り直す（用語集そのものが言語で入れ替わるため）。読み込み時に
+// 1回だけ作ってしまうと、あとから言語を切り替えても古い言語の用語のまま残ってしまう。
+let glossaryCache = null;
+function glossaryTables() {
+  const lang = getLang();
+  if (glossaryCache && glossaryCache.lang === lang) return glossaryCache;
+  const glossary = getGlossary();
+  const bodyByTerm = new Map(glossary.map((g) => [g.term, g.body]));
+  // 日本語: 1文字の用語（「場」「駒」「隣」等）は、より長い語の中に紛れて誤マッチする
+  // （例:「場合」「捨て場」の"場"、「隣接」の"隣"）。語境界が曖昧なので2文字以上だけを対象にする。
+  // 英語: 語境界(\b)で区切れるが、"move" "hand" のようなありふれた単語まで全部リンクになると
+  // かえって読みにくい。英語の用語は大文字始まり（Lock Area / Arrival Effect 等）なので、
+  // 大小を区別したうえで4文字以上だけを対象にする。
+  // 除外した語も、他の語の定義文から辿れるよう bodyByTerm には全語を残す。
+  const minLen = lang === "ja" ? 2 : 4;
+  const terms = glossary
+    .map((g) => g.term)
+    .filter((term) => term.length >= minLen)
+    .sort((a, b) => b.length - a.length);
+  const escaped = terms.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const source = "(" + escaped.join("|") + ")";
+  const re = escaped.length ? new RegExp(lang === "ja" ? source : "\\b" + source + "\\b", "g") : null;
+  glossaryCache = { lang, bodyByTerm, re };
+  return glossaryCache;
+}
 
 // text 中の用語をクリック可能な span に、それ以外を通常テキストにして pEl へ追加する。
 export function linkifyGlossary(pEl, text) {
+  const { re: TERM_RE } = glossaryTables();
   if (!TERM_RE || !text) {
     pEl.appendChild(document.createTextNode(text ?? ""));
     return;
@@ -33,7 +51,7 @@ export function linkifyGlossary(pEl, text) {
     const span = document.createElement("span");
     span.className = "glossary-term";
     span.textContent = term;
-    span.title = "用語の意味を見る";
+    span.title = t("help.glossary.tip");
     span.addEventListener("click", (e) => {
       e.stopPropagation();
       showGlossaryPopup(term);
@@ -55,7 +73,7 @@ export function closeGlossaryPopup() {
 }
 
 export function showGlossaryPopup(term) {
-  const body = BODY_BY_TERM.get(term);
+  const body = glossaryTables().bodyByTerm.get(term);
   if (!body) return;
   closeGlossaryPopup(); // 既存のポップアップは閉じてから（用語の中の用語を辿る＝差し替え）
 
@@ -80,7 +98,7 @@ export function showGlossaryPopup(term) {
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.className = "glossary-popup-close";
-  closeBtn.textContent = "閉じる";
+  closeBtn.textContent = t("game.confirm.close");
   closeBtn.addEventListener("click", closeGlossaryPopup);
   popupEl.appendChild(closeBtn);
 

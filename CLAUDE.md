@@ -1369,3 +1369,32 @@
   英語では「Player A (you)」「Turn 1 / Round 1」「Deck — 12」「Choose an empty square」
   「Use Jump Pad?」「You took “Party” from Bob!」「Gained the Arrival Effect of “Jump Pad” (C3)」等になり、
   **英語モードで日本語の残りが無い**ことを確認。サーバー側（Supabase）の変更は無い。
+
+### 2026-08-29（続き324）：UI英語化フェーズ8（ヘルプ＝用語集・よくある質問・デジタル版だけの機能・ランク戦の説明）
+
+おすすめ順の2番目。**ヘルプページの本文**を英語化した（カード面テキストと同じ「言語ごとにデータ
+ファイルを分けて、現在の言語で選ぶ」方式）。
+- `src/help-content.js`（説明書から採録した用語集46語・FAQ 5カテゴリ25問・デジタル版だけの機能13項目、
+  約30KB）を `help-content.ja.js` にリネームし、**`help-content.en.js` を新規作成**（同じ配列・同じ順序・
+  同じ形で全訳）。`help-content.js` は言語ディスパッチャにして `getGlossary()` / `getFaqCategories()` /
+  `getDigitalFeatures()` の**関数**で返す。
+  - **定数ではなく関数で返すのが要点**（続き323で `PILE_CONFIG` に対して踏んだのと同じ罠）。
+    読み込み時に固定すると、あとから言語を切り替えてもヘルプが日本語のままになる。
+- `rank-explain.js`（ランク戦の説明6セクション）も同様に `RANK_EXPLAIN_SECTIONS`（定数）を
+  `getRankExplainSections()`（関数、本文は ui-text.js の `rankex.*`）へ変更。
+- `glossary-linkify.js`（本文中の用語をクリックできるようにする仕組み）を**言語ごとに作り直す**形にした。
+  日本語は従来通り「2文字以上・語境界なし」でマッチ。英語は `\b` の語境界で区切り、**大文字小文字を
+  区別して4文字以上**の用語だけを対象にする——英語の用語は大文字始まり（Lock Area / Arrival Effect 等）
+  なので、"move" "hand" のようなありふれた単語まで全部リンクになるのを避けるため。
+- あわせて `help.js` の見出し（❓ヘルプ／📖基本ルール／🖥️デジタル版だけの機能／🏆ランク戦について／
+  🔤用語集／💬よくある質問）と、用語ポップアップの「用語の意味を見る」「閉じる」も `t()` 化。
+- **英語のカード名を公式のもの（card-text.en.js）に統一**: フェーズ6/7で仮に付けていた訳を直した——
+  「誘惑の黒の烙印」= Brand of Black Temptation（Black Brand of Temptation ではない）、
+  「ゴメンナサイッ！」= So Sorry!（Sorry! ではない）。ヘルプの訳文でも Prism Shard（なないろの欠片）・
+  Slum-Born Official（スラム上がりの役人）・Space Swap（マスチェンジ）等、既存の英語カード名に揃えた。
+- **まだ日本語のまま**: ヘルプの「📖 基本ルール」の本文は tutorial.js の説明文を流用しているため、
+  次のフェーズ（チュートリアル／物語）で英語化する。
+- **検証**: 変更した全ファイルの `node --input-type=module --check` 通過、`npm test` 53/53 PASS、
+  スモーク PASS。ブラウザで ja↔en を切り替えて実測——用語集46語・機能13項目・FAQ 25問が**両言語で
+  件数一致**（訳し漏れなし）、英語モードで日本語の残り無し、用語リンクも英語で正しく動く
+  （"Placing a card face-up in your Lock Area…" の Lock Area / Arrival Effect / Move がリンク化）。
