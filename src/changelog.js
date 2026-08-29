@@ -14,6 +14,7 @@ export const CHANGELOG = [
   {
     date: "2026-08-29",
     items: [
+      "英語表示で、フェイズ案内の「移動か接触ができます」・スキップボタン・左下の称号・カード名の一部が日本語のままだったのを直しました（言語をあとから切り替えた時も追随します）。",
       "英語表示に対応しました。オプションの「基本設定」で言語を English に切り替えると、タイトル画面から対局中の案内・ヘルプ・物語・マイページ・ショップ、カードの効果文やその補足まで英語で表示されます。",
       "称号を追加しました。対戦成績・ランク戦・不具合報告に応じて全16種類が少しずつ解放されます。マイページの名前の上をクリックするとコレクションが開き、お気に入りの1つを選んで名前の上に表示できます。",
       "マイデッキ編集画面に「使い方」を追加しました。初めて開いた時に自動で表示され、以降はヘッダーの「？ 使い方」からいつでも見返せます。あわせて、デッキの箱にカードをドラッグすると箱の絵をそのカードに変えられるようになりました。",
@@ -26,6 +27,7 @@ export const CHANGELOG = [
     ],
     // 英語表示のとき items の代わりに出る（併記はしない。同じ順番・同じ件数で書くこと）。
     itemsEn: [
+      "Fixed parts of the interface staying in Japanese in English mode — the “Move or make contact” phase note, the Skip button, the title under your name, and some card names. They now follow the language even when you switch it after the app has started.",
       "The app is now available in English. Switch the language to English in Settings and everything is translated — the title screen, the prompts during a match, the help, the story, My Page, the shop, and the text and notes on the cards themselves.",
       "Titles have been added. All 16 of them unlock gradually from your match record, your ranked play and the problems you report. Click above your name on My Page to open your collection and pick one favorite to show there.",
       "The deck editor now has a “How to use” walkthrough. It appears the first time you open the editor, and you can bring it back at any time from “? How to use” in the header. You can also drag a card onto the deck case to make it the artwork on the box.",

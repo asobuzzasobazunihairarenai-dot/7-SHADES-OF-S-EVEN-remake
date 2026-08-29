@@ -1447,7 +1447,7 @@ async function runAction(action, ctx, helpers) {
       for (let i = 0; i < discardCount; i++) {
         const chosen = await helpers.pickHandCard(ctx.player, t("ce.pickDiscardN", { n: discardCount - i }));
         if (!chosen) break;
-        discardedNames.push(getCardDefinition(chosen.cardId)?.name ?? chosen.cardId);
+        discardedNames.push(cardDisplayName(chosen.cardId));
         await helpers.discardAndSync(chosen.id);
       }
       // お知らせ（ユーザー要望「選べる罠で何を捨てたか全員にモーダルで一覧表示したい」）:

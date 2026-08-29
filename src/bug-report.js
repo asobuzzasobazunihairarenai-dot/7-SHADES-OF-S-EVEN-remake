@@ -157,6 +157,43 @@ function buildCombinedLogs(peers) {
   return { actionLog, consoleLog };
 }
 
+// #187「手札が見えなくなる」の調査用。報告した瞬間の自分の手札の見え方を記録する。
+// 再現手順が分からない（こちらでは再現できていない）不具合なので、次に起きた時に
+// 「要素が無いのか／中身が空なのか／画面の外に出ているのか／透明なのか」を切り分けられる
+// ようにしておく。中身（カード名）は載せない＝ここに隠し情報は入らない。
+function gatherHandSnapshot() {
+  try {
+    const st = getState();
+    const seat = getSelfSeat();
+    const handTokens = (st?.tokens ?? []).filter(
+      (t) => t.kind === "card" && t.location?.zone === "hand" && t.location.player === seat
+    ).length;
+    const els = [...document.querySelectorAll(".hand-card.is-self")];
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const cards = els.slice(0, 12).map((el) => {
+      const cs = getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      const mount = el.querySelector(":scope > .card-face-mount");
+      return {
+        x: Math.round(r.left),
+        y: Math.round(r.top),
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+        onScreen: r.right > 0 && r.left < vw && r.bottom > 0 && r.top < vh,
+        vis: cs.visibility,
+        disp: cs.display,
+        op: cs.opacity,
+        bg: cs.backgroundImage === "none" ? "none" : "image",
+        face: mount ? mount.children.length : -1, // -1=マウント自体が無い、0=空
+      };
+    });
+    return { seat, handTokens, elements: els.length, viewport: vw + "x" + vh, cards };
+  } catch (e) {
+    return { error: String(e).slice(0, 120) };
+  }
+}
+
 function gatherContext() {
   let roomId = null;
   try {
@@ -188,6 +225,7 @@ function gatherContext() {
     roomId,
     at: new Date().toISOString(),
     gameContext,
+    hand: gatherHandSnapshot(), // #187: 手札が見えなくなる件の切り分け用
     // リロードを跨ぐブラックボックス（crash-blackbox.js）: メモリのピーク・遷移種別・前回セッションの
     // 不審終了（＝落ちてタイトルに戻った疑い）を載せる。「スマホでたまに落ちる」原因追跡用。
     blackbox: (() => {

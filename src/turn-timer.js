@@ -761,11 +761,14 @@ function updatePriorityReturnWarning(shouldShow) {
 
 // --- 優先権譲渡ボタン（三角形配置、円の中はアバター・枠は駒の色） ------------------------
 
-const TRANSFER_EXPLANATION = [
+// #187: 定数にすると読み込み時の言語で固定されるので、使う瞬間に解決する。
+function transferExplanation() {
+  return [
   t("turntimer.L764"),
   t("turntimer.L765"),
   t("turntimer.L766"),
-];
+  ];
+}
 
 function openTransferModal() {
   transferModalBackdrop.style.display = "block";
@@ -800,7 +803,7 @@ function buildTransferButtons() {
   transferModalEl.appendChild(modalTitle);
   const modalBody = document.createElement("div");
   modalBody.className = "phase-guide-modal-body";
-  for (const paragraph of TRANSFER_EXPLANATION) {
+  for (const paragraph of transferExplanation()) {
     const p = document.createElement("p");
     p.style.cssText = "margin: 0 0 0.6rem 0; line-height: 1.6;";
     p.textContent = paragraph;
@@ -846,7 +849,7 @@ function rebuildTransferButtons() {
   grid.appendChild(diamond);
 
   // 「優先権譲渡」ラベル。フェイズ案内板のボタンと同じ「ホバーで簡易説明・クリックで詳細
-  // 説明」パターン（説明文はTRANSFER_EXPLANATION参照）。4アイコンの中央（グリッドの
+  // 説明」パターン（説明文はtransferExplanation()参照）。4アイコンの中央（グリッドの
   // 中心セル、元々空き）に配置する。
   const label = document.createElement("button");
   label.type = "button";

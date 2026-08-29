@@ -5131,7 +5131,7 @@ function showAnytimeInterruptModal(player, tokens) {
     row.className = "anytime-interrupt-modal-row";
     const name = document.createElement("span");
     name.className = "anytime-interrupt-modal-row-name";
-    name.textContent = getCardDefinition(token.cardId).name;
+    name.textContent = cardDisplayName(token.cardId);
     row.appendChild(name);
     const useBtn = document.createElement("button");
     useBtn.type = "button";
@@ -7698,7 +7698,7 @@ async function runContractBrandCurseOnLock(player, brandId) {
   // performPriorityTimeoutAutoActionもpicker解決の後にhandEffectBusyで早期returnするよう対にした）。
   setHandEffectBusy(true);
   try {
-    const brandName = getCardDefinition("black-contract-brand")?.name || t("game.brand.name");
+    const brandName = cardDisplayName("black-contract-brand") || t("game.brand.name");
     // (1) 「烙印スロットにロックした→手札2枚捨てる」を明示（ユーザー要望2026-08-15
     //     「今は何が起きたかあまりわからないまま過ぎていく」）。
     await announceEffectReasonForEffect(
@@ -7779,7 +7779,7 @@ async function offerContractBrandDrawIfNoLock(player) {
   // 解決の後にhandEffectBusyで早期returnするので、この間もYes/Noの自動応答自体は解決される）。
   setHandEffectBusy(true);
   try {
-    const brandName = getCardDefinition("black-contract-brand")?.name || t("game.brand.name");
+    const brandName = cardDisplayName("black-contract-brand") || t("game.brand.name");
     for (let i = 0; i < brandCount; i++) {
       const label =
         brandCount > 1
@@ -9783,7 +9783,7 @@ function showDiscardListModal() {
       const card = document.createElement("div");
       card.className = "stack-modal-card";
       showCardFace(card, cardId, getCardImagePath(cardId));
-      card.title = getCardDefinition(cardId)?.name ?? "";
+      card.title = cardDisplayName(cardId);
       attachModalCardPreview(card, cardId); // #185
       list.appendChild(card);
     }
@@ -9823,7 +9823,7 @@ function pickStackedLockCard(tokens, hint) {
       card.className = "stack-modal-card is-pickable";
       const imagePath = token.faceUp ? getCardImagePath(token.cardId) : cardBackImageForToken(token);
       showCardFace(card, token.faceUp ? token.cardId : null, imagePath);
-      if (token.faceUp) card.title = getCardDefinition(token.cardId)?.name ?? "";
+      if (token.faceUp) card.title = cardDisplayName(token.cardId);
       if (token.faceUp) attachModalCardPreview(card, token.cardId); // #185
       card.addEventListener("click", () => finish(token));
       list.appendChild(card);
@@ -11586,16 +11586,16 @@ function buildFriendlyLogItems() {
       // 時がある」＝手動オープンだけ depth 0 で出ていた）。深度は内部制御用なので、到達は
       // 深度に関わらず全部載せる（連鎖到達も含む。同一内容の連続は下の dedup でまとめる）。
       player = e.detail.player;
-      const name = getCardDefinition(e.detail.cardId)?.name ?? e.detail.cardId;
+      const name = cardDisplayName(e.detail.cardId);
       const co = actionLogCoordLabel(e.detail.location);
       msg = t("game.log.arrival", { card: name, where: co ? t("game.log.coordSuffix", { coord: co }) : "" });
     } else if (e.category === "hand-effect" && e.detail?.cardId) {
       player = e.detail.player;
-      const name = getCardDefinition(e.detail.cardId)?.name ?? e.detail.cardId;
+      const name = cardDisplayName(e.detail.cardId);
       msg = t("game.log.handEffect", { card: name });
     } else if (e.category === "lock" && e.detail?.cardId) {
       player = e.detail.player;
-      const name = getCardDefinition(e.detail.cardId)?.name ?? e.detail.cardId;
+      const name = cardDisplayName(e.detail.cardId);
       msg = t("game.log.lockedCard", { card: name });
     } else if (e.category === "declare-colors" && e.detail?.colors?.length) {
       player = e.detail.player;
@@ -11621,7 +11621,7 @@ function buildFriendlyLogItems() {
       const fd = e.detail.faceDown ? t("game.log.faceDown") : "";
       const where = co ? t("game.log.coordSuffix", { coord: co }) : e.detail.location.zone === "lock" ? t("game.log.lockArea") : "";
       if (e.detail.revealName && e.detail.cardId) {
-        const name = getCardDefinition(e.detail.cardId)?.name ?? e.detail.cardId;
+        const name = cardDisplayName(e.detail.cardId);
         msg = t("game.log.placedNamed", { card: name, fd, where });
       } else {
         msg = t("game.log.placedCard", { fd, where });
@@ -14426,6 +14426,9 @@ onLangChange(() => render());
 // 右下の常設アクションボタン（ターン終了/ドロー/公開ドロー/手札シャッフル/盤面拡大）の
 // キャプション・ツールチップも現在の言語へ（要素はplayer-buttons.jsがid管理するので作り直さない）。
 onLangChange(refreshActionButtonLabels);
+// #187: 左下ステータスの称号も、言語が後から変わったら取り直す（表示名は t() 経由だが、
+// 一度描いたきりだったので、アカウントの言語設定がログイン後に適用されると日本語のまま残っていた）。
+onLangChange(() => void refreshSelfTitle());
 updateSelfStatusOnlineWidget();
 
 // ユーザー要望「戦績システムと連携しているプレイヤーはステータスエリアにランクを

@@ -597,11 +597,12 @@ function getAdjacentEmptyCells(pieceLocation) {
 
 // --- UI: 中央の一時的なフェイズ案内トースト（turn-announce.jsと同じ「一瞬待って表示→
 // 数秒後にフェードアウト」パターン） --------------------------------------------------
-const PHASE_DESCRIPTION = {
-  lock: t("phaseautomation.L544"),
-  hand: t("phaseautomation.L545"),
-  move: t("phaseautomation.L546"),
-};
+// #187: 定数にすると「読み込んだ時の言語」で固定される。アカウントの言語設定は
+// ログイン後（＝モジュール評価より後）に適用されるため、英語のプレイヤーにここだけ
+// 日本語が残っていた。使う瞬間に解決する。
+function phaseDescription(phase) {
+  return t(phase === "lock" ? "phaseautomation.L544" : phase === "hand" ? "phaseautomation.L545" : "phaseautomation.L546");
+}
 function announcePhase(phase) {
   playSound("turnSwitch");
   const el = document.createElement("div");
@@ -611,7 +612,7 @@ function announcePhase(phase) {
   titleEl.innerHTML = t("pa.phaseAnnounce", { label: PHASE_LABEL[phase], ruby: phaseKatakana(phase) });
   const descEl = document.createElement("div");
   descEl.className = "phase-announce-desc";
-  descEl.textContent = PHASE_DESCRIPTION[phase];
+  descEl.textContent = phaseDescription(phase);
   el.appendChild(titleEl);
   el.appendChild(descEl);
   document.body.appendChild(el);
@@ -751,6 +752,7 @@ function ensureMyDeckButton() {
 }
 export function updateSkipButtonVisibility() {
   const btn = ensureSkipButton();
+  btn.textContent = t("phaseautomation.L624"); // #187: 言語が後から変わっても追随させる
   const statusEl = ensureTurnStatus();
   // ムーブフェイズは「移動」か「接触」のどちらかを必ず行う必要があり、任意にスキップできる
   // 性質のものではない（docs/rulebook.md）。スキップボタンはロック・ハンドフェイズだけに出す。
