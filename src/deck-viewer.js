@@ -74,7 +74,9 @@ function buildCardTile(def) {
 
   const name = document.createElement("div");
   name.textContent = cardDisplayName(def.id);
-  name.style.cssText = "font-size: 0.6rem; line-height: 1.2; max-height: 2.4em; overflow: hidden;";
+  // 英語のカード名は日本語より長く3行になるものがある（例: Konohanasakuya, the Cherry of Bonds）ため、
+  // 2行で切らず3行まで見せる（タイル自体は高さ自動なので他のタイルには影響しない）。
+  name.style.cssText = "font-size: 0.6rem; line-height: 1.2; max-height: 3.6em; overflow: hidden;";
   tile.appendChild(name);
 
   // ホバー（PC）で拡大プレビュー。

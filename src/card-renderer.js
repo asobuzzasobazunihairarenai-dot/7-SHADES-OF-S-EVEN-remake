@@ -117,6 +117,83 @@ function buildDivider() {
   return d;
 }
 
+
+// ===== 効果文が「印刷された枠」からはみ出さないよう、文字サイズを自動で縮める =====
+// ブランク画像を実測すると、下パネルの下辺はカード高さの約95.4%（ファーストは約94.9%）。
+// テキストがそこを越えると、枠の外（イラストの上）に文がはみ出して見える
+// （実例: なないろの欠片は日本語でも英語でもはみ出していた）。
+//
+// カード面の寸法は全て cqw（カード幅比）なので、はみ出すかどうかは「カードid＋言語」だけで決まり、
+// 表示サイズには依らない。そこで初回だけ画面外で実測し、収まる倍率（--cf-fit）を求めて覚えておく。
+// CSSの font-size は全て calc(… * var(--cf-fit, 1)) になっている（tools/gen-cardface-css.mjs）。
+const FIT_LIMIT_PCT = 94.2; // 枠の下辺の少し内側（余白を見込む）
+const FIT_MIN = 0.72;       // これ以上は縮めない（小さすぎると読めないため）
+const FIT_STEP = 0.02;
+const fitCache = new Map(); // "cardId|lang" -> 倍率
+let measuringFit = false;   // 実測中の再帰防止（実測用の面は自動フィットを掛けない）
+
+// 実測用の隠しホスト（カード1枚分。container-type: inline-size が cqw の基準になる）。
+let fitHostEl = null;
+function getFitHost() {
+  if (fitHostEl && fitHostEl.isConnected) return fitHostEl;
+  fitHostEl = document.createElement("div");
+  fitHostEl.setAttribute("aria-hidden", "true");
+  fitHostEl.style.cssText =
+    "position:fixed;left:-99999px;top:0;width:433px;height:433px;pointer-events:none;" +
+    "visibility:hidden;container-type:inline-size;z-index:-1;";
+  document.body.appendChild(fitHostEl);
+  return fitHostEl;
+}
+
+// face 内の一番下のテキストの下端が、カード高さの何%かを返す。
+function deepestTextPct(face, hostRect) {
+  let deepest = 0;
+  for (const el of face.querySelectorAll(".card-face-flavor, .card-face-title, .card-face-subtitle, .card-face-effect, .card-face-fx")) {
+    const r = el.getBoundingClientRect();
+    if (r.height === 0) continue;
+    const pct = ((r.bottom - hostRect.top) / hostRect.height) * 100;
+    if (pct > deepest) deepest = pct;
+  }
+  return deepest;
+}
+
+// このカード（現在の言語）が枠に収まる倍率を求める。1 なら縮小不要。
+function computeFit(cardId) {
+  if (typeof document === "undefined" || !document.body) return 1;
+  const host = getFitHost();
+  measuringFit = true;
+  try {
+    host.innerHTML = "";
+    const face = buildCardFace(cardId);
+    host.appendChild(face);
+    const hostRect = host.getBoundingClientRect();
+    let fit = 1;
+    while (deepestTextPct(face, hostRect) > FIT_LIMIT_PCT && fit > FIT_MIN) {
+      fit = Math.round((fit - FIT_STEP) * 100) / 100;
+      face.style.setProperty("--cf-fit", String(fit));
+    }
+    host.innerHTML = "";
+    return fit;
+  } catch (e) {
+    return 1; // 実測できない環境でも従来通り（等倍）に倒す
+  } finally {
+    measuringFit = false;
+  }
+}
+
+function fitFor(cardId) {
+  if (measuringFit || !cardId) return 1;
+  const key = cardId + "|" + getLang();
+  if (!fitCache.has(key)) fitCache.set(key, computeFit(cardId));
+  return fitCache.get(key);
+}
+
+// カード面エディタ（card-render-preview.js）が配置用のCSS変数をいじった時に呼ぶ。
+// 変数が変われば収まり方も変わるため、覚えている倍率を捨てて測り直させる。
+export function clearCardFaceFitCache() {
+  fitCache.clear();
+}
+
 // カード面のDOMを組み立てて返す。各テキスト要素は種別ごとに絶対配置（CSS＝card-layout-config.js由来）。
 // 中の文字はコンテナクエリ(cqw)でカード幅に比例＝どのサイズでも比率が崩れない。
 // その種別の config に定義された要素だけを描画する（＝必ず位置ルールが存在する）。
@@ -188,6 +265,9 @@ export function buildCardFace(cardId, { showFlavor = true } = {}) {
       }
     }
   }
+
+  const fit = fitFor(cardId);
+  if (fit !== 1) face.style.setProperty("--cf-fit", String(fit));
 
   return face;
 }

@@ -4,7 +4,7 @@
 // 調整は localStorage に保存し、「出力をコピー」で :root スニペットを出す（style.css の既定へ
 // 焼き込む運用）。本編描画には未接続（このプレビューでのみ効く開発ツール）。
 import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
-import { buildCardFace } from "./card-renderer.js";
+import { buildCardFace, clearCardFaceFitCache } from "./card-renderer.js";
 import { NORMAL_CARDS, ETERNAL_CARDS, FIRST_CARDS, getCardDefinition } from "./cards-data.js";
 import {
   LAYOUT, ELEMENT_META, TYPE_LABEL, GROUP_LABEL, PROP_RANGE, groupOf, cfVar, propsFor,
@@ -38,6 +38,7 @@ function curOf(group, el, prop) {
 function setVar(group, el, prop, value) {
   const v = cfVar(group, el, prop);
   document.documentElement.style.setProperty(v, value + "cqw");
+  clearCardFaceFitCache(); // 配置が変われば「枠に収まる倍率」も変わる
   const map = loadSaved(); map[v] = Number(value); saveAll(map);
 }
 
@@ -213,6 +214,7 @@ function buildOverlay(close) {
         }
       }
       saveAll(map);
+      clearCardFaceFitCache();
       renderControls();
       renderCard();
     });

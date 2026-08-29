@@ -12,7 +12,9 @@ const FONT_EFFECT = `"ヒラギノ角ゴ Pro W6", "Hiragino Kaku Gothic Pro", "�
 
 const BASE = `/* ===== カード面レンダラ（card-renderer.js）＝テキスト無しブランク画像＋アプリ側テキスト ===== */
 /* 位置・サイズは種別ごとに要素単位で --cf-{n|e|f}-{要素}-{x|y|w|s} で調整（既定は各var()第2引数）。
-   この位置ルールは tools/gen-cardface-css.mjs が src/card-layout-config.js から自動生成する。 */
+   この位置ルールは tools/gen-cardface-css.mjs が src/card-layout-config.js から自動生成する。
+   文字サイズは全て var(--cf-fit, 1) 倍される＝効果文が枠からはみ出すカードだけ、card-renderer.js の
+   自動フィット（fitCardFace）がこの変数を 1 未満にして収める。 */
 .card-face {
   position: relative; aspect-ratio: 1 / 1; container-type: size;
   background-size: cover; background-position: center;
@@ -75,7 +77,7 @@ for (const type of TYPES) {
       // rt の font-size と、中央寄せ＋上下微調整(translateY=oy)。rt は絶対配置(base の上)なので
       // 行高に影響せず、ルビ有無でタイトル位置がズレない。
       gen += `.card-face[data-card-type="${type}"] .card-face-title rt {`
-        + ` font-size: var(${cfVar(group, el, "s")}, ${d.s}cqw);`
+        + ` font-size: calc(var(${cfVar(group, el, "s")}, ${d.s}cqw) * var(--cf-fit, 1));`
         + ` transform: translateX(-50%) translateY(var(${cfVar(group, el, "oy")}, ${d.oy}cqw));`
         + ` }\n`;
       continue;
@@ -109,7 +111,7 @@ for (const type of TYPES) {
     if (el === "fxbasic") {
       // fx内の★基本だけ、font-size・幅・左位置(margin-left)を個別に上書き（到達/手札とは別）。
       gen += `.card-face[data-card-type="${type}"] ${sel} {`
-        + ` font-size: var(${cfVar(group, el, "s")}, ${d.s}cqw);`
+        + ` font-size: calc(var(${cfVar(group, el, "s")}, ${d.s}cqw) * var(--cf-fit, 1));`
         + ` width: var(${cfVar(group, el, "w")}, ${d.w}cqw);`
         + ` margin-left: var(${cfVar(group, el, "mx")}, ${d.mx}cqw);`
         + ` }\n`;
@@ -119,7 +121,7 @@ for (const type of TYPES) {
     if (!props.includes("x") && !props.includes("y")) {
       // 位置を持たない＝サイズだけの上書き（例: fxbasic＝★基本の文字サイズ）。
       gen += `.card-face[data-card-type="${type}"] ${sel} {`
-        + ` font-size: var(${cfVar(group, el, "s")}, ${d.s}cqw);`
+        + ` font-size: calc(var(${cfVar(group, el, "s")}, ${d.s}cqw) * var(--cf-fit, 1));`
         + ` }\n`;
       continue;
     }
@@ -129,7 +131,7 @@ for (const type of TYPES) {
         + ` position: absolute; left: 50%; transform: translateX(-50%);`
         + ` top: var(${cfVar(group, el, "y")}, ${d.y}cqw);`
         + ` width: var(${cfVar(group, el, "w")}, ${d.w}cqw);`
-        + ` font-size: var(${cfVar(group, el, "s")}, ${d.s}cqw);`
+        + ` font-size: calc(var(${cfVar(group, el, "s")}, ${d.s}cqw) * var(--cf-fit, 1));`
         + ` }\n`;
       continue;
     }
@@ -139,7 +141,7 @@ for (const type of TYPES) {
       + ` left: var(${cfVar(group, el, "x")}, ${d.x}cqw);`
       + ` top: var(${cfVar(group, el, "y")}, ${d.y}cqw);`
       + ` width: var(${cfVar(group, el, "w")}, ${d.w}cqw);`
-      + ` font-size: var(${cfVar(group, el, "s")}, ${d.s}cqw);`
+      + ` font-size: calc(var(${cfVar(group, el, "s")}, ${d.s}cqw) * var(--cf-fit, 1));`
       + ` }\n`;
   }
 }
