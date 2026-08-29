@@ -4,6 +4,7 @@
 // クリックで開く（main.js側で配線）。
 
 import { getCurrentUser, getSelfSeat, syncMyStatsProfile, getSelfRank, fetchMyTitleStats, fetchMyTitleKey, saveMyTitleKey } from "./online.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ10
 // ランク戦の現ランク（フェーズ4/6）。戦績システムの順位とは別物のランク戦専用のランク。
 import { rankName } from "./rank-badge.js";
 import { buildRankShowcase } from "./rank-showcase.js";
@@ -77,7 +78,7 @@ function formatDate(isoString) {
   if (!isoString) return "-";
   const d = new Date(isoString);
   if (Number.isNaN(d.getTime())) return "-";
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+  return t("mypage.date", { y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate() });
 }
 
 // ユーザー要望「アバターやプレイヤー名を変更した時、戦績システムにも反映できるように、
@@ -93,7 +94,7 @@ function buildStatsSyncRow(seat) {
 
   const syncBtn = document.createElement("button");
   syncBtn.type = "button";
-  syncBtn.textContent = "🔄 戦績システムと同期する";
+  syncBtn.textContent = t("mypage.L96");
   syncBtn.style.cssText =
     "padding: 0.4rem 0.9rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(148,163,184,0.3); " +
     "border-radius: 0.3rem; color: #e2e8f0; cursor: pointer; font-size: 0.8rem;";
@@ -102,12 +103,12 @@ function buildStatsSyncRow(seat) {
   infoBtn.type = "button";
   infoBtn.className = "opening-login-info-btn";
   infoBtn.textContent = "i";
-  infoBtn.title = "同期についての説明";
+  infoBtn.title = t("mypage.L105");
   infoBtn.addEventListener("click", () => {
-    openIconDetailModal("戦績システムとの同期について", [
-      "アバターやプレイヤー名を戦績管理システム（対戦記録・ランキングを管理する姉妹サイト）側にも反映します。",
-      "通常は対局を開始した時・勝利した時に自動的に同期されますが、今すぐ反映したい場合はこのボタンを押してください。",
-      "戦績管理システムのプレイヤーと連携済みのアカウントでのみ使えます。",
+    openIconDetailModal(t("mypage.L107"), [
+      t("mypage.L108"),
+      t("mypage.L109"),
+      t("mypage.L110"),
     ]);
   });
 
@@ -116,13 +117,13 @@ function buildStatsSyncRow(seat) {
 
   syncBtn.addEventListener("click", async () => {
     syncBtn.disabled = true;
-    statusEl.textContent = "同期中…";
+    statusEl.textContent = t("mypage.L119");
     try {
       await syncMyStatsProfile(getPlayerName(seat), getPlayerAvatar(seat));
-      statusEl.textContent = "同期しました。";
+      statusEl.textContent = t("mypage.L122");
     } catch (err) {
       console.error("syncMyStatsProfile failed", err);
-      statusEl.textContent = `エラー: ${err.message ?? err}`;
+      status.textContent = t("mypage.error", { msg: err.message ?? err });
     } finally {
       syncBtn.disabled = false;
     }
@@ -162,11 +163,11 @@ function buildEditableNameRow(seat) {
     nameEl.textContent = getPlayerName(seat);
     nameEl.className = "my-page-row-value";
     nameEl.style.cssText = "font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;";
-    nameEl.title = "クリックして名前を変更";
+    nameEl.title = t("mypage.L165");
     nameEl.addEventListener("click", renderEdit);
     const pencil = document.createElement("span");
     pencil.textContent = "✎";
-    pencil.title = "名前を変更";
+    pencil.title = t("mypage.L169");
     pencil.className = "my-page-name-pencil";
     pencil.style.cssText = "flex: 0 0 auto; color: #94a3b8; cursor: pointer; font-size: 0.8rem; opacity: 0.8;";
     pencil.addEventListener("click", renderEdit);
@@ -190,11 +191,11 @@ function buildEditableNameRow(seat) {
     input.style.cssText = "flex: 0 1 auto; width: 5.5rem; min-width: 0; padding: 0.2rem 0.4rem; background: rgba(0,0,0,0.35); border: 1px solid rgba(148,163,184,0.4); border-radius: 0.3rem; color: #e2e8f0; font-size: 0.85rem;";
     const saveBtn = document.createElement("button");
     saveBtn.type = "button";
-    saveBtn.textContent = "保存";
+    saveBtn.textContent = t("mypage.L193");
     saveBtn.className = "my-page-name-save";
     const cancelBtn = document.createElement("button");
     cancelBtn.type = "button";
-    cancelBtn.textContent = "取消";
+    cancelBtn.textContent = t("mypage.L197");
     cancelBtn.className = "my-page-name-cancel";
     const save = () => {
       const next = input.value.trim();
@@ -249,7 +250,7 @@ function buildPanel(close) {
   `;
 
   const titleEl = document.createElement("div");
-  titleEl.textContent = "マイページ";
+  titleEl.textContent = t("mypage.L252");
   titleEl.style.cssText = "font-weight: bold; margin-bottom: 0.6rem; padding-right: 1.6rem;";
   panel.appendChild(titleEl);
   panel.appendChild(createModalCloseX(close));
@@ -287,7 +288,7 @@ export async function renderMyPageBody(body, close) {
   // pointer-events は常時autoにし、クリックでピッカーを開く。編集モードのドラッグは
   // profile-layout-editor側がpointerdownを拾うので競合しない）。
   bgAvatar.style.cursor = "pointer";
-  bgAvatar.title = "クリックしてアバターを変更";
+  bgAvatar.title = t("mypage.L290");
   bgAvatar.addEventListener("click", () => avatarPickerFn?.());
   body.appendChild(bgAvatar);
 
@@ -299,7 +300,7 @@ export async function renderMyPageBody(body, close) {
   avatarImg.src = getPlayerAvatar(seat);
   avatarImg.alt = "";
   avatarImg.style.cssText = "width: 6rem; height: 6rem; border-radius: 50%; object-fit: cover; cursor: pointer;";
-  avatarImg.title = "クリックしてアバターを変更";
+  avatarImg.title = t("mypage.L290");
   avatarImg.addEventListener("click", () => avatarPickerFn?.()); // ユーザー要望2026-08-16
   // ユーザー要望2026-08-28（続き319）「アバター変更ボタンは無くしてアバターをクリックしたら
   // 変えれるようにしましょうか！」。ボタン（と、その枠のダサさ）ごと撤去した。
@@ -319,8 +320,8 @@ export async function renderMyPageBody(body, close) {
   const favTitleEl = document.createElement("button");
   favTitleEl.type = "button";
   favTitleEl.className = "my-page-fav-title";
-  favTitleEl.textContent = "称号を選ぶ"; // 実際の値は下の非同期部分で入れ替える
-  favTitleEl.title = "クリックで称号コレクションを開く";
+  favTitleEl.textContent = t("mypage.L322"); // 実際の値は下の非同期部分で入れ替える
+  favTitleEl.title = t("mypage.L323");
   favTitleEl.addEventListener("click", () => openTitleCollectionModal(favTitleEl));
   nameBlock.appendChild(favTitleEl);
   nameBlock.appendChild(buildEditableNameRow(seat));
@@ -334,7 +335,7 @@ export async function renderMyPageBody(body, close) {
   cosmeticsWrap.className = "my-page-cosmetics";
   const cosmeticsTitle = document.createElement("div");
   cosmeticsTitle.className = "my-page-cosmetics-title";
-  cosmeticsTitle.textContent = "🎨 着せ替え";
+  cosmeticsTitle.textContent = t("mypage.L337");
   cosmeticsWrap.appendChild(cosmeticsTitle);
   const cosmeticsGrid = document.createElement("div");
   cosmeticsGrid.className = "my-page-cosmetics-grid";
@@ -366,7 +367,7 @@ export async function renderMyPageBody(body, close) {
         thumb.appendChild(img);
       } else {
         thumb.classList.add("is-none");
-        thumb.textContent = "なし";
+        thumb.textContent = t("mypage.L369");
       }
     };
     refresh();
@@ -377,11 +378,11 @@ export async function renderMyPageBody(body, close) {
     cosmeticsGrid.appendChild(b);
   };
   // thumbSrcFn: 今選択中のアイテムの画像パス（無し/取得不可なら null → 「なし」表示）。
-  addCosmetic("駒スキン", () => openPieceSkinPicker(), () => getSkinImagePath(getMyPieceColor() || "red"));
-  addCosmetic("カード裏", () => openCardBackSkinPicker(), () => backImagePath("normal", getCardBackSetIndex()));
-  addCosmetic("プレイマット", () => openPlaymatPicker(), () => getSelectedPlaymatPath());
-  addCosmetic("背景", () => openBackgroundPicker(), () => getSelectedBackgroundPath());
-  addCosmetic("ペット", () => openPetPicker(), () => {
+  addCosmetic(t("mypage.L380"), () => openPieceSkinPicker(), () => getSkinImagePath(getMyPieceColor() || "red"));
+  addCosmetic(t("mypage.L381"), () => openCardBackSkinPicker(), () => backImagePath("normal", getCardBackSetIndex()));
+  addCosmetic(t("mypage.L382"), () => openPlaymatPicker(), () => getSelectedPlaymatPath());
+  addCosmetic(t("mypage.L383"), () => openBackgroundPicker(), () => getSelectedBackgroundPath());
+  addCosmetic(t("mypage.L384"), () => openPetPicker(), () => {
     const o = PET_OPTIONS[getSelectedPetIndex()];
     return o?.sprite ? petSpriteSrc(o.sprite, "front", "static") : null;
   });
@@ -407,7 +408,7 @@ export async function renderMyPageBody(body, close) {
 
 
   const statusEl = document.createElement("div");
-  statusEl.textContent = "戦績を読み込み中…";
+  statusEl.textContent = t("mypage.L410");
   statusEl.className = "my-page-status";
   statusEl.style.cssText = "text-align: center; color: #94a3b8; padding: 0.8rem 0;";
   statsGroup.appendChild(statusEl);
@@ -422,11 +423,11 @@ export async function renderMyPageBody(body, close) {
   if (!user) {
     statusEl.innerHTML = "";
     const loginMsg = document.createElement("div");
-    loginMsg.textContent = "ログインすると戦績（対戦数・勝率・順位等）が表示されます。";
+    loginMsg.textContent = t("mypage.L425");
     loginMsg.style.cssText = "margin-bottom: 0.5rem;";
     const loginBtn = document.createElement("button");
     loginBtn.type = "button";
-    loginBtn.textContent = "ログインする";
+    loginBtn.textContent = t("mypage.L429");
     loginBtn.style.cssText =
       "padding: 0.4rem 0.9rem; background: #be185d; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.85rem;";
     loginBtn.addEventListener("click", () => {
@@ -442,14 +443,14 @@ export async function renderMyPageBody(body, close) {
   // 戦績システムとの連携状況とは無関係（アカウントの通貨/所持アイテムの話のため）に、
   // ログインさえしていれば常に表示する。
   const { owned, total, percent } = getShopCompletionStats();
-  statsGroup.appendChild(buildStatRow("アイテムコンプリート率", `${percent}%（${owned}/${total}）`));
+  statsGroup.appendChild(buildStatRow(t("mypage.L445"), `${percent}%（${owned}/${total}）`));
 
   let profile;
   try {
     profile = await fetchStatsProfile(user.id);
   } catch (err) {
     console.error("fetchStatsProfile failed", err);
-    statusEl.textContent = "戦績の取得に失敗しました。通信環境を確認してください。";
+    statusEl.textContent = t("mypage.L452");
     return;
   }
 
@@ -458,11 +459,11 @@ export async function renderMyPageBody(body, close) {
     statusEl.style.textAlign = "left";
     const linkMsg = document.createElement("div");
     linkMsg.textContent =
-      "まだ戦績管理システムのプレイヤーと連携していません。既に登録済みの方は下のボタンから連携できます（未登録の方は、オンライン対戦に参加すると自動的に新規登録されます）。";
+      t("mypage.L461");
     linkMsg.style.cssText = "margin-bottom: 0.5rem; line-height: 1.5;";
     const linkBtn = document.createElement("button");
     linkBtn.type = "button";
-    linkBtn.textContent = "連携する";
+    linkBtn.textContent = t("mypage.L465");
     linkBtn.style.cssText = "padding: 0.4rem 0.9rem; background: #be185d; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.85rem;";
     linkBtn.addEventListener("click", () => {
       close();
@@ -479,16 +480,16 @@ export async function renderMyPageBody(body, close) {
   // カード（options-menu.jsのbuildStatsPlayerLinkRow）は撤去し、ここに一行で出す。
   // 未連携の場合は上の分岐で「連携する」ボタンを出しているので、ここは連携済みのみ。
   const linkedNote = document.createElement("div");
-  linkedNote.textContent = "🏆 戦績管理システムと連携済み";
+  linkedNote.textContent = t("mypage.L482");
   linkedNote.style.cssText = "font-size: 0.7rem; color: #94a3b8; text-align: right; margin: 0 0 0.2rem;";
   statsGroup.appendChild(linkedNote);
-  const rankText = (rank) => (rank ? `${rank}位 / ${profile.totalRankedPlayers}人中` : "集計対象外（承認待ち等）");
-  statsGroup.appendChild(buildStatRow("対戦数", `${profile.matchesCount}戦`));
-  statsGroup.appendChild(buildStatRow("勝利数", `${profile.winsCount}勝`));
-  statsGroup.appendChild(buildStatRow("勝率", `${profile.winRate}%`));
-  statsGroup.appendChild(buildStatRow("勝率順位", rankText(profile.winRateRank)));
-  statsGroup.appendChild(buildStatRow("対戦数順位", rankText(profile.matchCountRank)));
-  statsGroup.appendChild(buildStatRow("登録年月日", formatDate(profile.createdAt)));
+  const rankText = rank ? t("mypage.rankOf", { rank, total: profile.totalRankedPlayers }) : t("mypage.L485");
+  addRow(t("mypage.L486"), t("mypage.matchesN", { n: profile.matchesCount }));
+  addRow(t("mypage.L487"), t("mypage.winsN", { n: profile.winsCount }));
+  statsGroup.appendChild(buildStatRow(t("mypage.L488"), `${profile.winRate}%`));
+  statsGroup.appendChild(buildStatRow(t("mypage.L489"), rankText(profile.winRateRank)));
+  statsGroup.appendChild(buildStatRow(t("mypage.L490"), rankText(profile.matchCountRank)));
+  statsGroup.appendChild(buildStatRow(t("mypage.L491"), formatDate(profile.createdAt)));
   // ユーザー要望で手動の「戦績システムと同期する」ボタンは撤去（名前/アバターは変更した瞬間に
   // 自動同期＝online.jsのautoSyncStatsIdentity、対局開始・勝利時の自動同期もそのまま）。
   // buildStatsSyncRowは将来また必要になった時のため関数自体は残してある。
@@ -512,7 +513,7 @@ async function refreshFavoriteTitleLabel(el) {
     label = null;
   }
   if (!document.body.contains(el)) return;
-  el.textContent = label || "＋ 称号を選ぶ";
+  el.textContent = label || t("mypage.L515");
   el.classList.toggle("is-empty", !label);
 }
 
@@ -544,19 +545,19 @@ async function renderTitleCollection(container) {
   container.innerHTML = "";
   const heading = document.createElement("div");
   heading.className = "my-page-titles-heading";
-  heading.textContent = "称号";
+  heading.textContent = t("mypage.L547");
   container.appendChild(heading);
 
   const status = document.createElement("div");
   status.className = "my-page-titles-status";
-  status.textContent = "読み込み中…";
+  status.textContent = t("mypage.L552");
   container.appendChild(status);
 
   const [stats, currentKey] = await Promise.all([fetchMyTitleStats(), fetchMyTitleKey()]);
   const unlocked = new Set(computeUnlockedTitleKeys(stats));
   let selectedKey = currentKey;
 
-  status.textContent = `獲得 ${unlocked.size} / ${TITLE_DEFS.length}　（クリックでお気に入りに設定）`;
+  status.textContent = t("mypage.titleProgress", { got: unlocked.size, total: TITLE_DEFS.length });
 
   const grid = document.createElement("div");
   grid.className = "my-page-titles-grid";
@@ -583,11 +584,11 @@ async function renderTitleCollection(container) {
         // ユーザー要望2026-08-28「称号の名前だけ伏せましょう。『？？？』にしておいてホバーすると
         // 条件だけは表示します」。何を目指せばいいかは分かるが、名前は取ってからのお楽しみにする。
         chip.innerHTML = has
-          ? `<span>${def.label}</span>`
+          ? `<span>${t(def.labelKey)}</span>`
           : `<span class="my-page-title-icon">🔒</span><span>？？？</span>`;
         chip.title = has
-          ? `${def.desc}／クリックでお気に入りに設定${selectedKey === def.key ? "（もう一度押すと解除）" : ""}`
-          : `未取得：${def.desc}`;
+          ? t("mypage.titleTip", { desc: t(def.descKey), extra: selectedKey === def.key ? t("mypage.titleTipUnset") : "" })
+          : t("mypage.titleLocked", { desc: t(def.descKey) });
         if (has) {
           chip.addEventListener("click", async () => {
             const next = selectedKey === def.key ? null : def.key;
@@ -603,7 +604,7 @@ async function renderTitleCollection(container) {
               if (favEl) refreshFavoriteTitleLabel(favEl).catch(() => {});
             } catch (err) {
               console.error("saveMyTitleKey failed", err);
-              status.textContent = `保存に失敗しました: ${err.message ?? err}`;
+              alert(t("mypage.saveFailed", { msg: err.message ?? err }));
             } finally {
               chip.disabled = false;
             }
@@ -634,7 +635,7 @@ async function renderMyPageRankedRank(container) {
   container.innerHTML = "";
   const title = document.createElement("div");
   title.className = "my-page-rank-title";
-  title.textContent = "ランク戦の段位";
+  title.textContent = t("mypage.L637");
   container.appendChild(title);
   if (info) {
     // バッジ＋U型ゲージ＋宝石の合成表示（rank-showcase.js）をコンパクトに縮小して出す。
@@ -648,14 +649,14 @@ async function renderMyPageRankedRank(container) {
   } else {
     const note = document.createElement("div");
     note.className = "my-page-rank-none";
-    note.textContent = "未取得（ランク戦をプレイすると表示）";
+    note.textContent = t("mypage.L651");
     container.appendChild(note);
   }
   container.style.display = "flex";
   // クリックでランク戦の説明モーダルを開く（ユーザー要望2026-08-17）。ただしレイアウト編集モード中は
   // この要素をドラッグ移動するので、編集中はモーダルを開かない。
   container.style.cursor = "pointer";
-  container.title = "ランク戦について";
+  container.title = t("mypage.L658");
   container.onclick = () => {
     if (isProfileLayoutEditMode()) return;
     showRankExplanationModal();
@@ -700,12 +701,12 @@ export function initMyPage() {
   launcherBtn.id = "my-page-button";
   const { captionEl } = buildIconButtonContent(launcherBtn, {
     icon: "assets/icons/my-page.svg",
-    tooltip: "マイページを開きます",
+    tooltip: t("mypage.L703"),
   });
-  captionEl.textContent = "マイページ";
+  captionEl.textContent = t("mypage.L252");
   wireIconButtonClick(launcherBtn, {
-    detailTitle: "マイページ",
-    detailParagraphs: ["自分のアバター・戦績（対戦数・勝率・順位等）を確認できます。"],
+    detailTitle: t("mypage.L252"),
+    detailParagraphs: [t("mypage.L708")],
     onAction: () => (profilePageOpenerFn ? profilePageOpenerFn() : open()),
   });
   getOptionArea().appendChild(launcherBtn);

@@ -20,6 +20,7 @@
 // できるようにするため）。
 
 import { getState } from "./state.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ10
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { getSelfSeat, isOnlineMode, getSyncedIdentity, updateMyIdentity, isItemUnlocked, openShop } from "./online.js";
 import { COLORS } from "./board-layout.js";
@@ -39,23 +40,11 @@ const SKIN_VARIANTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]; // 0=�
 // 対応。画像素材/駒スキン/配下の各サブフォルダ名（基本=1、キュート=2、黒線=3、白面=4、
 // 漆黒=5、チェック=6、色文字=7、8=大航海時代風、9=遊びの王様風）をそのままラベルに
 // 採用した。card-back-skins.jsのSET_LABELSと同じ考え方。
-const NAMED_SKIN_LABELS = {
-  // ユーザーが画像素材/駒スキン/の「基本」フォルダを「紋様」へ改名（2026-08-07）。ラベルも合わせる。
-  1: "紋様",
-  2: "キュート",
-  3: "黒線",
-  4: "白面",
-  5: "漆黒",
-  6: "チェック",
-  7: "色文字",
-  8: "大航海時代風",
-  9: "遊びの王様風",
-  10: "0thオリジナル",
-  11: "0thリメイク",
-  12: "ギア（動く）",
-  13: "ステンドグラス（動く）",
-  14: "液体（動く）",
-};
+// UI英語化フェーズ10: 名前は ui-text.js のキーで持ち、表示のたびに t() で解決する
+// （定数に文言を埋めると読み込み時の言語で固定されるため）。
+function skinLabel(variant) {
+  return variant === 0 ? t("skin.0") : t("skin." + variant) !== "skin." + variant ? t("skin." + variant) : t("skin.extra", { n: variant });
+}
 
 // ユーザー要望「駒スキンを購入できるようにする」への対応。標準(0)は無料、大航海時代風/
 // 遊びの王様風(8,9)は特別セットのため少し高め、それ以外(1〜7)は均一価格。まだ具体的な
@@ -85,7 +74,7 @@ export function getSkinImagePathForVariant(color, variant) {
 export function getSkinShopItems() {
   return SKIN_VARIANTS.map((variant) => ({
     itemKey: `piece-skin:${variant}`,
-    label: NAMED_SKIN_LABELS[variant] ?? (variant === 0 ? "標準" : `追加${variant}`),
+    label: skinLabel(variant),
     cost: getSkinCost(variant),
     // ショップの一覧は特定プレイヤーの実際の色に依存させず、常に同じ代表色
     // （PREVIEW_FALLBACK_COLOR、ピッカーの「まだ色が決まっていない間」と同じ考え方）で
@@ -174,12 +163,12 @@ export function openPieceSkinPicker(options = {}) {
 
   const title = document.createElement("div");
   title.className = "piece-skin-modal-title";
-  title.textContent = "駒スキンを選択";
+  title.textContent = t("skin.pickerTitle");
   let note = null;
   if (!realColor) {
     note = document.createElement("div");
     note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin: -0.4rem 0 0.8rem;";
-    note.textContent = "まだ駒の色が決まっていないため仮の色で表示しています。バリエーションの選択自体は実際の色になっても引き継がれます。";
+    note.textContent = t("skin.pickerNote");
   }
 
   const grid = document.createElement("div");
@@ -190,7 +179,7 @@ export function openPieceSkinPicker(options = {}) {
     if (selectedIdx === idx) swatch.classList.add("is-selected");
     const img = document.createElement("img");
     img.src = idx === 0 ? `assets/pieces/${color}.webp` : `assets/pieces/${color}-${idx}.webp`;
-    img.alt = idx === 0 ? "標準" : (NAMED_SKIN_LABELS[idx] ?? `追加${idx}`);
+    img.alt = skinLabel(idx);
     swatch.appendChild(img);
     // ユーザー要望「駒スキンを購入できるようにする」への対応。未所持の有料スキンは
     // 選べないようにし、代わりにショップを開く（online.jsのisItemUnlocked/openShop）。

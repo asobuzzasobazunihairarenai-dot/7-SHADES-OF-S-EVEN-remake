@@ -7,6 +7,7 @@
 // firstColor が null のデッキはここでランダムな色に確定する（対戦では色が要るため）。
 
 import { getCardImagePath } from "./cards-data.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ10
 import { getAllDecks, makeRandomDeck, createDeck, validateDeck, deckTotal, FIRST_COLORS } from "./my-deck.js";
 
 const MDS_COLOR_HEX = {
@@ -32,7 +33,7 @@ function randomFirstColor() {
 function resolveDeck(deck, random = false) {
   return {
     deckId: deck.id ?? null,
-    name: deck.name ?? "マイデッキ",
+    name: deck.name ?? t("mydeckselect.L35"),
     cards: { ...deck.cards },
     firstColor: deck.firstColor || randomFirstColor(),
     pieceSkinIndex: typeof deck.pieceSkinIndex === "number" ? deck.pieceSkinIndex : null,
@@ -86,12 +87,12 @@ function buildDeckBox(deck) {
 
   const name = document.createElement("div");
   name.className = "mds-deck-name";
-  name.textContent = deck.name || "マイデッキ";
+  name.textContent = deck.name || t("mydeckselect.L35");
   box.appendChild(name);
 
   const meta = document.createElement("div");
   meta.className = "mds-deck-meta";
-  meta.textContent = valid ? `${deckTotal(deck.cards)}枚` : "未完成（使用不可）";
+    meta.textContent = t("mdl.deckCount", { n: deckTotal(deck.cards) });
   box.appendChild(meta);
 
   if (valid) box.addEventListener("click", () => finish(resolveDeck(deck, false)));
@@ -104,7 +105,7 @@ function renderBody(bodyEl) {
   if (decks.length === 0) {
     const empty = document.createElement("div");
     empty.className = "mds-empty";
-    empty.textContent = "使えるデッキがありません。「おまかせ」でランダムに組むか、「新規作成」で作れます。";
+    empty.textContent = t("mydeckselect.L107");
     bodyEl.appendChild(empty);
   } else {
     const grid = document.createElement("div");
@@ -132,12 +133,12 @@ export function openDeckSelect({ durationSec = 60, onResolved, subtitle, onHome 
 
   const title = document.createElement("div");
   title.id = "mds-title";
-  title.textContent = "🃏 使用するマイデッキを選択";
+  title.textContent = t("mydeckselect.L135");
   panel.appendChild(title);
 
   const sub = document.createElement("div");
   sub.id = "mds-subtitle";
-  sub.textContent = subtitle || "デッキを選ぶか「おまかせ」を押してください。";
+  sub.textContent = subtitle || t("mydeckselect.L140");
   panel.appendChild(sub);
 
   let countdownEl = null;
@@ -157,16 +158,16 @@ export function openDeckSelect({ durationSec = 60, onResolved, subtitle, onHome 
   const rndBtn = document.createElement("button");
   rndBtn.type = "button";
   rndBtn.className = "mds-action mds-action-random";
-  rndBtn.textContent = "🎲 おまかせ（ランダム7枚）";
-  rndBtn.addEventListener("click", () => finish(resolveDeck(makeRandomDeck("おまかせデッキ"), true)));
+  rndBtn.textContent = t("mydeckselect.L160");
+  rndBtn.addEventListener("click", () => finish(resolveDeck(makeRandomDeck(t("mydeckselect.L161")), true)));
   const newBtn = document.createElement("button");
   newBtn.type = "button";
   newBtn.className = "mds-action mds-action-new";
-  newBtn.textContent = "＋ 新規作成";
+  newBtn.textContent = t("mydeckselect.L165");
   newBtn.addEventListener("click", async () => {
     // 選択中に新しいデッキを作る。編集を閉じたらこの選択オーバーレイの一覧を作り直す
     // （カウントダウンは継続。ピッカー同様に動的importでTDZ回避）。
-    const deck = createDeck("新しいデッキ");
+    const deck = createDeck(t("mydeckselect.L169"));
     const { openMyDeckBuilder } = await import("./my-deck-builder.js");
     if (overlayEl) overlayEl.style.display = "none";
     openMyDeckBuilder(deck.id, () => {
@@ -181,7 +182,7 @@ export function openDeckSelect({ durationSec = 60, onResolved, subtitle, onHome 
     const homeBtn = document.createElement("button");
     homeBtn.type = "button";
     homeBtn.className = "mds-action mds-action-home";
-    homeBtn.textContent = "🏠 ホームに戻る";
+    homeBtn.textContent = t("mydeckselect.L184");
     homeBtn.addEventListener("click", () => {
       if (resolvedOnce) return;
       resolvedOnce = true; // カウントダウンの自動確定（finish）が後から走らないように
@@ -199,9 +200,9 @@ export function openDeckSelect({ durationSec = 60, onResolved, subtitle, onHome 
   if (durationSec > 0) {
     let remain = Math.ceil(durationSec);
     const tick = () => {
-      countdownEl.textContent = `残り ${remain} 秒（時間切れでランダムになります）`;
+    countdownEl.textContent = t("mds.countdown", { n: remain });
       if (remain <= 0) {
-        finish(resolveDeck(makeRandomDeck("おまかせデッキ"), true));
+        finish(resolveDeck(makeRandomDeck(t("mydeckselect.L161")), true));
         return;
       }
       remain -= 1;

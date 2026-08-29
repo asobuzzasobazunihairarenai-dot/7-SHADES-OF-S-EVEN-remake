@@ -11,6 +11,7 @@
 // デザインセットに相当するため常にセットとして一括で切り替わる（個別には選べない）。
 
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ10
 
 // 0=標準（assets/cards/back-{eternal,first,normal}.webp）。
 // 1=画像素材/カード裏面追加/追加旧（旧称「追加1」、assets/cards/back-{eternal,first,normal}-1.png）。
@@ -22,20 +23,12 @@ import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 // のため、通常/エターナル/ファーストの3種すべてに同じ画像を割り当てている。10「古」と同様
 // webp拡張子扱い）。
 const CARD_BACK_SETS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-const SET_LABELS = {
-  0: "標準",
-  1: "旧",
-  2: "赤",
-  3: "橙",
-  4: "黄",
-  5: "緑",
-  6: "青",
-  7: "桃",
-  8: "紫",
-  9: "黒",
-  10: "古",
-  11: "大地",
-};
+// UI英語化フェーズ10: 名前はキーで持ち、表示のたびに t() で解決する。
+function setLabel(idx) {
+  const key = "cardback." + idx;
+  const v = t(key);
+  return v === key ? t("skin.extra", { n: idx }) : v;
+}
 
 let selectedSetIndex = 0;
 
@@ -77,7 +70,7 @@ function getSetCost(idx) {
 export function getCardBackShopItems() {
   return CARD_BACK_SETS.map((set) => ({
     itemKey: `card-back:${set}`,
-    label: SET_LABELS[set],
+    label: setLabel(set),
     cost: getSetCost(set),
     imagePath: backImagePath("normal", set),
   }));
@@ -133,7 +126,7 @@ export function openCardBackSkinPicker(options = {}) {
 
   const title = document.createElement("div");
   title.className = "piece-skin-modal-title";
-  title.textContent = options.onSelect ? "デッキの裏面を選択" : "カード裏面を選択（自分の画面にだけ反映されます）";
+  title.textContent = options.onSelect ? t("cardback.pickerTitleDeck") : t("cardback.pickerTitle");
 
   const grid = document.createElement("div");
   grid.className = "piece-skin-modal-grid";
@@ -143,7 +136,7 @@ export function openCardBackSkinPicker(options = {}) {
     if (selectedIdx === idx) swatch.classList.add("is-selected");
     const img = document.createElement("img");
     img.src = backImagePath("normal", idx);
-    img.alt = SET_LABELS[idx] ?? `追加${idx}`;
+    img.alt = setLabel(idx);
     swatch.appendChild(img);
     // ユーザー要望「カード裏面を購入できるようにする」への対応。未所持の有料セットは
     // 選べないようにし、代わりにショップを開く。

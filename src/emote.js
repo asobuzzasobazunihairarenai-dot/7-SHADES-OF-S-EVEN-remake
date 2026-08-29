@@ -17,23 +17,27 @@
 // （broadcastEmote/onEmoteEvents、online.js）。
 
 import { getSelfSeat, isOnlineMode, broadcastEmote, onEmoteEvents } from "./online.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ10
 
 const COLOR_CYCLE = ["red", "blue", "yellow", "pink", "green", "purple", "orange"];
-const EMOTE_LABELS = [
-  "よろしく",
-  "ごめん",
-  "ナイス！",
-  "ありがとう",
-  "どんまい",
-  "そうだね",
-  "まって！",
-  "がんばろう",
-  "うーん…",
-  "いいね！",
-  "まけないよ！",
-  "おつかれさま",
+// UI英語化フェーズ10: 文言そのものではなくキーで持つ。相手へは「キー＋自分の言語での文字列」を
+// 両方送り、受け取った側はキーがあれば自分の言語で表示する（お互い自分の言語で読める）。
+// キーが無い古いクライアントからの受信は text をそのまま出す（後方互換）。
+const EMOTE_KEYS = [
+  "emote.hello",
+  "emote.sorry",
+  "emote.nice",
+  "emote.thanks",
+  "emote.dontmind",
+  "emote.agree",
+  "emote.wait",
+  "emote.goodluck",
+  "emote.hmm",
+  "emote.good",
+  "emote.notlosing",
+  "emote.gg",
 ];
-const EMOTES = EMOTE_LABELS.map((text, i) => ({ text, color: COLOR_CYCLE[i % COLOR_CYCLE.length] }));
+const EMOTES = EMOTE_KEYS.map((key, i) => ({ key, color: COLOR_CYCLE[i % COLOR_CYCLE.length] }));
 
 // ユーザー要望2026-08-17「相手のアバターをクリックすると『このプレイヤーのエモートを非表示』
 // 的なボタンが出るようにしたい」。座席ごとに“このプレイヤーのエモートを見ない”を保持する
@@ -80,7 +84,7 @@ export function openEmotePicker(anchorEl) {
 
   const title = document.createElement("div");
   title.id = "emote-picker-title";
-  title.textContent = "エモートを選ぶ";
+  title.textContent = t("emote.pickerTitle");
   pickerEl.appendChild(title);
 
   const grid = document.createElement("div");
@@ -90,9 +94,9 @@ export function openEmotePicker(anchorEl) {
     btn.type = "button";
     btn.className = "emote-picker-btn";
     btn.style.setProperty("--emote-color", `var(--color-${emote.color})`);
-    btn.textContent = emote.text;
+    btn.textContent = t(emote.key);
     btn.addEventListener("click", () => {
-      sendEmote(emote.text);
+      sendEmote(emote.key);
       closeEmotePicker();
     });
     grid.appendChild(btn);
@@ -111,14 +115,15 @@ export function openEmotePicker(anchorEl) {
   }
 }
 
-function sendEmote(text) {
+function sendEmote(emoteKey) {
   const player = getSelfSeat();
+  const text = t(emoteKey);
   const shown = showEmoteBubble(player, text);
   // 自分の盤面アバターがデフォルト非表示（isSelfBoardAvatarVisible()）の場合、
   // 送信者自身には何も見えなくなってしまうため、大アバター（ステータスエリア）を
   // フォールバック表示先にする。
   if (!shown) attachBubble(selfAvatarFallbackEl, text);
-  if (isOnlineMode()) broadcastEmote({ player, text });
+  if (isOnlineMode()) broadcastEmote({ player, text, key: emoteKey });
 }
 
 // player本人の.player-avatar（盤面周囲、自分の画面にも相手の画面にも同じセレクタで
@@ -156,14 +161,14 @@ export function openEmoteMuteMenu(anchorEl, player, playerName) {
   muteMenuEl.id = "emote-mute-menu";
   const title = document.createElement("div");
   title.id = "emote-mute-menu-title";
-  title.textContent = playerName ? `${playerName} のエモート` : "このプレイヤーのエモート";
+  title.textContent = playerName ? t("emote.ofPlayer", { name: playerName }) : t("emote.ofThisPlayer");
   muteMenuEl.appendChild(title);
 
   const muted = mutedEmotePlayers.has(player);
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "emote-mute-menu-btn";
-  btn.textContent = muted ? "🔔 エモートを表示する" : "🔕 エモートを非表示にする";
+  btn.textContent = muted ? t("emote.show") : t("emote.hide");
   btn.addEventListener("click", () => {
     if (mutedEmotePlayers.has(player)) mutedEmotePlayers.delete(player);
     else mutedEmotePlayers.add(player);
@@ -193,7 +198,8 @@ function closeEmoteMuteMenu() {
 // 受信側（自分以外のクライアントから届いたエモート）。自分自身の発信はsendEmote内で
 // 既にローカル表示済みのため、自分の座席からの合図は無視する（hand_effect_use受信側と
 // 同じ判定パターン）。
-onEmoteEvents(({ player, text }) => {
+onEmoteEvents(({ player, text, key }) => {
   if (player === getSelfSeat()) return;
-  showEmoteBubble(player, text);
+  // キーがあれば自分の言語で表示（無ければ送信者の文字列をそのまま＝古いクライアント対策）。
+  showEmoteBubble(player, key ? t(key) : text);
 });

@@ -3,6 +3,7 @@
 // 各箱の複製/削除ができる。編集は my-deck-builder.js（1デッキを編集）を開く。
 
 import { syncFullScreenPageActive } from "./option-area.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ10
 import { getCardImagePath, getCardIllustPath } from "./cards-data.js";
 import { getAllDecks, createDeck, deleteDeck, duplicateDeck, validateDeck, deckTotal, maxDeckSlots, getSelectedDeckId, setSelectedDeckId } from "./my-deck.js";
 import { openMyDeckBuilder } from "./my-deck-builder.js";
@@ -102,7 +103,7 @@ function buildDeckBox(deck) {
     box.classList.add("is-main");
     const badge = document.createElement("div");
     badge.className = "mdl-deck-main-badge";
-    badge.textContent = "★ メイン";
+    badge.textContent = t("mydecklist.L105");
     box.appendChild(badge);
   }
 
@@ -113,7 +114,7 @@ function buildDeckBox(deck) {
 
   const nameRow = document.createElement("div");
   nameRow.className = "mdl-deck-name";
-  nameRow.textContent = deck.name || "マイデッキ";
+  nameRow.textContent = deck.name || t("mydecklist.L116");
   box.appendChild(nameRow);
 
   const meta = document.createElement("div");
@@ -124,8 +125,8 @@ function buildDeckBox(deck) {
     ? `<span class="mdl-deck-chip" style="background:${MDL_COLOR_HEX[deck.firstColor]}"></span>`
     : "";
   meta.innerHTML =
-    `${colorChip}<span class="mdl-deck-count">${total}枚</span>` +
-    `<span class="mdl-deck-valid ${valid ? "is-ok" : "is-ng"}">${valid ? "✓" : "未完成"}</span>`;
+    `${colorChip}<span class="mdl-deck-count">${t("mdl.deckCount", { n: total })}</span>` +
+    `<span class="mdl-deck-valid ${valid ? "is-ok" : "is-ng"}">${valid ? "✓" : t("mdl.incomplete")}</span>`;
   box.appendChild(meta);
 
   // 選択中のスキン（駒・ペット・裏面）を画像で並べる（ユーザー要望2026-08-11）。
@@ -133,7 +134,7 @@ function buildDeckBox(deck) {
   cos.className = "mdl-deck-cosmetics";
   const pieceCos = document.createElement("div");
   pieceCos.className = "mdl-cos";
-  pieceCos.title = "駒スキン";
+  pieceCos.title = t("mydecklist.L136");
   const pieceImg = document.createElement("img");
   pieceImg.src = pieceThumbSrc(deck.firstColor, deck.pieceSkinIndex ?? 0);
   pieceImg.alt = "";
@@ -141,7 +142,7 @@ function buildDeckBox(deck) {
   pieceCos.appendChild(pieceImg);
   const petCos = document.createElement("div");
   petCos.className = "mdl-cos mdl-cos-pet";
-  petCos.title = "ペット";
+  petCos.title = t("mydecklist.L144");
   const petIdx = deck.petIndex ?? 0;
   if (petMod) {
     const opt = petMod.PET_OPTIONS[petIdx] || petMod.PET_OPTIONS[0];
@@ -158,7 +159,7 @@ function buildDeckBox(deck) {
   }
   const backCos = document.createElement("div");
   backCos.className = "mdl-cos";
-  backCos.title = "裏面スキン";
+  backCos.title = t("mydecklist.L161");
   const backImg = document.createElement("img");
   backImg.src = backPathFor(deck.cardBackSetIndex ?? 0);
   backImg.alt = "";
@@ -177,7 +178,7 @@ function buildDeckBox(deck) {
   const mainBtn = document.createElement("button");
   mainBtn.type = "button";
   mainBtn.className = "mdl-deck-action mdl-deck-action-main" + (isMain ? " is-main" : "");
-  mainBtn.title = isMain ? "メインデッキ（CPU戦・ランク戦で使うデッキ）" : "メインデッキにする";
+  mainBtn.title = isMain ? t("mydecklist.L180") : t("mydecklist.L180_2");
   mainBtn.textContent = isMain ? "★" : "☆";
   mainBtn.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -188,13 +189,13 @@ function buildDeckBox(deck) {
   const dupBtn = document.createElement("button");
   dupBtn.type = "button";
   dupBtn.className = "mdl-deck-action";
-  dupBtn.title = "複製";
+  dupBtn.title = t("mydecklist.L191");
   dupBtn.textContent = "⧉";
   dupBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     const dup = duplicateDeck(deck.id, currentDeckSlotLimit());
     if (!dup) {
-      alert("マイデッキの作成上限に達しています。ショップの「🃏 マイデッキ枠 ＋2」を購入すると増やせます。");
+      alert(t("mydecklist.L197"));
       return;
     }
     renderGrid();
@@ -202,11 +203,11 @@ function buildDeckBox(deck) {
   const delBtn = document.createElement("button");
   delBtn.type = "button";
   delBtn.className = "mdl-deck-action mdl-deck-action-del";
-  delBtn.title = "削除";
+  delBtn.title = t("mydecklist.L205");
   delBtn.textContent = "✕";
   delBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    if (confirm(`「${deck.name || "マイデッキ"}」を削除しますか？`)) {
+    if (confirm(t("mdl.deleteConfirm", { name: deck.name || t("mydecklist.L116") }))) {
       deleteDeck(deck.id);
       renderGrid();
     }
@@ -221,20 +222,20 @@ function buildNewBox() {
   const box = document.createElement("button");
   box.type = "button";
   box.className = "mdl-deck mdl-deck-new";
-  box.setAttribute("aria-label", "新しいデッキを作成");
+  box.setAttribute("aria-label", t("mydecklist.L224"));
   const plus = document.createElement("div");
   plus.className = "mdl-deck-new-plus";
   plus.textContent = "＋";
   box.appendChild(plus);
   const label = document.createElement("div");
   label.className = "mdl-deck-new-label";
-  label.textContent = "新しいデッキ";
+  label.textContent = t("mydecklist.L231");
   box.appendChild(label);
   box.addEventListener("click", () => {
-    const deck = createDeck("新しいデッキ", currentDeckSlotLimit());
+    const deck = createDeck(t("mydecklist.L231"), currentDeckSlotLimit());
     if (!deck) {
       // renderGridが上限時はこの箱を出さない想定だが、念のための保険。
-      alert("マイデッキの作成上限に達しています。ショップの「🃏 マイデッキ枠 ＋2」を購入すると増やせます。");
+      alert(t("mydecklist.L197"));
       return;
     }
     editDeck(deck.id);
@@ -252,7 +253,7 @@ function buildLimitReachedBox(limit) {
   box.appendChild(icon);
   const label = document.createElement("div");
   label.className = "mdl-deck-new-label";
-  label.textContent = `上限${limit}個（ショップで枠を増やせます）`;
+  note.textContent = t("mdl.limit", { n: limit });
   box.appendChild(label);
   return box;
 }
@@ -295,7 +296,7 @@ export function openMyDeckList(onClose) {
   const backBtn = document.createElement("button");
   backBtn.type = "button";
   backBtn.id = "mdl-back";
-  backBtn.textContent = "← 戻る";
+  backBtn.textContent = t("mydecklist.L298");
   backBtn.addEventListener("click", () => {
     closeMyDeckList();
     onClose?.();
@@ -303,7 +304,7 @@ export function openMyDeckList(onClose) {
   header.appendChild(backBtn);
   const title = document.createElement("div");
   title.id = "mdl-title";
-  title.textContent = "🃏 マイデッキ";
+  title.textContent = t("mydecklist.L306");
   header.appendChild(title);
   overlayEl.appendChild(header);
 

@@ -1,3 +1,5 @@
+import { t } from "./ui-text.js"; // UI英語化フェーズ10（文言は ui-text.js の title.* にある）
+
 // 称号（ユーザー要望2026-08-28「称号を作ってもいいかも。これはアプリ側から作る必要がありそう」
 // →「称号はコレクションしていく感じで！その中から１つお気に入りを選んでステータスに明示する
 // イメージ」）。
@@ -18,41 +20,41 @@
 //   bugReports  … 不具合報告の件数
 export const TITLE_DEFS = [
   // ── 戦績（対戦数）──────────────────────────────────────────────
-  { key: "debut", label: "目覚めし者", desc: "1戦以上プレイする", group: "戦績",
+  { key: "debut", labelKey: "title.debut.label", descKey: "title.debut.desc", groupKey: "title.group.record",
     test: (s) => s.matchesCount >= 1 },
-  { key: "regular", label: "盤上の旅人", desc: "10戦以上プレイする", group: "戦績",
+  { key: "regular", labelKey: "title.regular.label", descKey: "title.regular.desc", groupKey: "title.group.record",
     test: (s) => s.matchesCount >= 10 },
-  { key: "veteran", label: "歴戦の求色者", desc: "30戦以上プレイする", group: "戦績",
+  { key: "veteran", labelKey: "title.veteran.label", descKey: "title.veteran.desc", groupKey: "title.group.record",
     test: (s) => s.matchesCount >= 30 },
-  { key: "pillar", label: "ファルベンドの古豪", desc: "50戦以上プレイする", group: "戦績",
+  { key: "pillar", labelKey: "title.pillar.label", descKey: "title.pillar.desc", groupKey: "title.group.record",
     test: (s) => s.matchesCount >= 50 },
   // ── 戦績（勝利）────────────────────────────────────────────────
-  { key: "first-win", label: "最初の輝き", desc: "1勝する", group: "戦績",
+  { key: "first-win", labelKey: "title.first-win.label", descKey: "title.first-win.desc", groupKey: "title.group.record",
     test: (s) => s.winsCount >= 1 },
-  { key: "winner5", label: "輝きを取り戻す者", desc: "5勝する", group: "戦績",
+  { key: "winner5", labelKey: "title.winner5.label", descKey: "title.winner5.desc", groupKey: "title.group.record",
     test: (s) => s.winsCount >= 5 },
-  { key: "winner10", label: "色を統べる者", desc: "10勝する", group: "戦績",
+  { key: "winner10", labelKey: "title.winner10.label", descKey: "title.winner10.desc", groupKey: "title.group.record",
     test: (s) => s.winsCount >= 10 },
   // ── 戦績（勝率。試合数が少ないうちは付かないように10戦以上を条件にする）──────
-  { key: "sharp", label: "均衡を制する者", desc: "10戦以上で勝率50%以上", group: "戦績",
+  { key: "sharp", labelKey: "title.sharp.label", descKey: "title.sharp.desc", groupKey: "title.group.record",
     test: (s) => s.matchesCount >= 10 && s.winRate >= 50 },
-  { key: "dominant", label: "具現の担い手", desc: "10戦以上で勝率70%以上", group: "戦績",
+  { key: "dominant", labelKey: "title.dominant.label", descKey: "title.dominant.desc", groupKey: "title.group.record",
     test: (s) => s.matchesCount >= 10 && s.winRate >= 70 },
   // ── ランク戦の段位 ──────────────────────────────────────────────
-  { key: "ranked-debut", label: "標を掲げし者", desc: "ランク戦に参加する", group: "ランク戦",
+  { key: "ranked-debut", labelKey: "title.ranked-debut.label", descKey: "title.ranked-debut.desc", groupKey: "title.group.ranked",
     test: (s) => s.rank !== null && s.rank !== undefined },
-  { key: "rank-gold", label: "黄金の使者", desc: "ゴールド以上に到達する", group: "ランク戦",
+  { key: "rank-gold", labelKey: "title.rank-gold.label", descKey: "title.rank-gold.desc", groupKey: "title.group.ranked",
     test: (s) => (s.rank ?? -1) >= 2 },
-  { key: "rank-diamond", label: "煌めきの継承者", desc: "ダイヤモンド以上に到達する", group: "ランク戦",
+  { key: "rank-diamond", labelKey: "title.rank-diamond.label", descKey: "title.rank-diamond.desc", groupKey: "title.group.ranked",
     test: (s) => (s.rank ?? -1) >= 4 },
-  { key: "rank-legend", label: "七色の伝説", desc: "レジェンドに到達する", group: "ランク戦",
+  { key: "rank-legend", labelKey: "title.rank-legend.label", descKey: "title.rank-legend.desc", groupKey: "title.group.ranked",
     test: (s) => (s.rank ?? -1) >= 6 },
   // ── 貢献（不具合報告。テストプレイを支えてくれた人への称号）────────────────
-  { key: "reporter1", label: "綻びを見つけし者", desc: "不具合報告を1件送る", group: "貢献",
+  { key: "reporter1", labelKey: "title.reporter1.label", descKey: "title.reporter1.desc", groupKey: "title.group.contrib",
     test: (s) => s.bugReports >= 1 },
-  { key: "reporter5", label: "世界を繕う者", desc: "不具合報告を5件送る", group: "貢献",
+  { key: "reporter5", labelKey: "title.reporter5.label", descKey: "title.reporter5.desc", groupKey: "title.group.contrib",
     test: (s) => s.bugReports >= 5 },
-  { key: "reporter10", label: "ファルベンドの守り手", desc: "不具合報告を10件送る", group: "貢献",
+  { key: "reporter10", labelKey: "title.reporter10.label", descKey: "title.reporter10.desc", groupKey: "title.group.contrib",
     test: (s) => s.bugReports >= 10 },
 ];
 
@@ -64,7 +66,7 @@ export function getTitleDef(key) {
 // ユーザー要望2026-08-28（続き320）「称号についている絵文字は不要」＝アイコンは持たない。
 export function formatTitle(key) {
   const def = getTitleDef(key);
-  return def ? def.label : null;
+  return def ? t(def.labelKey) : null;
 }
 
 // 今の戦績で解禁されている称号のキー一覧。stats に足りない項目は0/未設定として扱う
@@ -90,9 +92,10 @@ export function computeUnlockedTitleKeys(stats) {
 export function getTitleGroups() {
   const groups = [];
   for (const def of TITLE_DEFS) {
-    let g = groups.find((x) => x.name === def.group);
+    const groupName = t(def.groupKey);
+    let g = groups.find((x) => x.name === groupName);
     if (!g) {
-      g = { name: def.group, titles: [] };
+      g = { name: groupName, titles: [] };
       groups.push(g);
     }
     g.titles.push(def);

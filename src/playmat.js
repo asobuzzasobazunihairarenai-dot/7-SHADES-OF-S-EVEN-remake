@@ -1,3 +1,4 @@
+import { t } from "./ui-text.js"; // UI英語化フェーズ10
 // プレイマットの選択。画像素材/プレイマット/配下に複数色（白・黒＋ゲームの7色テーマ）が
 // 用意されたため、セットアップウィザードの手順0、および左下の自分専用ステータスエリア
 // （main.jsのプレイマットアイコン）から選べるようにする（デフォルトは白）。他の実物画像
@@ -7,27 +8,27 @@ import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { saveMyPreference, isItemUnlocked, openShop } from "./online.js";
 
 export const PLAYMAT_OPTIONS = [
-  { id: "white", label: "白", path: "assets/playmats/white.webp" },
-  { id: "black", label: "黒", path: "assets/playmats/black.webp" },
-  { id: "red", label: "赤", path: "assets/playmats/red.webp" },
-  { id: "orange", label: "橙", path: "assets/playmats/orange.webp" },
-  { id: "yellow", label: "黄", path: "assets/playmats/yellow.webp" },
-  { id: "green", label: "緑", path: "assets/playmats/green.webp" },
-  { id: "blue", label: "青", path: "assets/playmats/blue.webp" },
-  { id: "pink", label: "桃", path: "assets/playmats/pink.webp" },
-  { id: "purple", label: "紫", path: "assets/playmats/purple.webp" },
-  { id: "white-old", label: "白（旧）", path: "assets/playmats/white-old.webp" },
-  { id: "blue-old", label: "青（旧）", path: "assets/playmats/blue-old.webp" },
+  { id: "white", labelKey: "playmat.white", path: "assets/playmats/white.webp" },
+  { id: "black", labelKey: "playmat.black", path: "assets/playmats/black.webp" },
+  { id: "red", labelKey: "playmat.red", path: "assets/playmats/red.webp" },
+  { id: "orange", labelKey: "playmat.orange", path: "assets/playmats/orange.webp" },
+  { id: "yellow", labelKey: "playmat.yellow", path: "assets/playmats/yellow.webp" },
+  { id: "green", labelKey: "playmat.green", path: "assets/playmats/green.webp" },
+  { id: "blue", labelKey: "playmat.blue", path: "assets/playmats/blue.webp" },
+  { id: "pink", labelKey: "playmat.pink", path: "assets/playmats/pink.webp" },
+  { id: "purple", labelKey: "playmat.purple", path: "assets/playmats/purple.webp" },
+  { id: "white-old", labelKey: "playmat.white-old", path: "assets/playmats/white-old.webp" },
+  { id: "blue-old", labelKey: "playmat.blue-old", path: "assets/playmats/blue-old.webp" },
   // 「古」バリエーション（9色分、既存の「旧」とは別デザイン）。
-  { id: "red-aged", label: "赤（古）", path: "assets/playmats/red-aged.webp" },
-  { id: "orange-aged", label: "橙（古）", path: "assets/playmats/orange-aged.webp" },
-  { id: "yellow-aged", label: "黄（古）", path: "assets/playmats/yellow-aged.webp" },
-  { id: "green-aged", label: "緑（古）", path: "assets/playmats/green-aged.webp" },
-  { id: "blue-aged", label: "青（古）", path: "assets/playmats/blue-aged.webp" },
-  { id: "pink-aged", label: "桃（古）", path: "assets/playmats/pink-aged.webp" },
-  { id: "purple-aged", label: "紫（古）", path: "assets/playmats/purple-aged.webp" },
-  { id: "white-aged", label: "白（古）", path: "assets/playmats/white-aged.webp" },
-  { id: "black-aged", label: "黒（古）", path: "assets/playmats/black-aged.webp" },
+  { id: "red-aged", labelKey: "playmat.red-aged", path: "assets/playmats/red-aged.webp" },
+  { id: "orange-aged", labelKey: "playmat.orange-aged", path: "assets/playmats/orange-aged.webp" },
+  { id: "yellow-aged", labelKey: "playmat.yellow-aged", path: "assets/playmats/yellow-aged.webp" },
+  { id: "green-aged", labelKey: "playmat.green-aged", path: "assets/playmats/green-aged.webp" },
+  { id: "blue-aged", labelKey: "playmat.blue-aged", path: "assets/playmats/blue-aged.webp" },
+  { id: "pink-aged", labelKey: "playmat.pink-aged", path: "assets/playmats/pink-aged.webp" },
+  { id: "purple-aged", labelKey: "playmat.purple-aged", path: "assets/playmats/purple-aged.webp" },
+  { id: "white-aged", labelKey: "playmat.white-aged", path: "assets/playmats/white-aged.webp" },
+  { id: "black-aged", labelKey: "playmat.black-aged", path: "assets/playmats/black-aged.webp" },
 ];
 
 let selectedPlaymatId = "white";
@@ -67,7 +68,7 @@ function getPlaymatCost(id) {
 export function getPlaymatShopItems() {
   return PLAYMAT_OPTIONS.map((p) => ({
     itemKey: `playmat:${p.id}`,
-    label: p.label,
+    label: t(p.labelKey),
     cost: getPlaymatCost(p.id),
     imagePath: p.path,
   }));
@@ -95,7 +96,7 @@ export function openPlaymatPicker() {
 
   const title = document.createElement("div");
   title.className = "piece-skin-modal-title";
-  title.textContent = "プレイマットを選択";
+  title.textContent = t("playmat.pickerTitle");
 
   const grid = document.createElement("div");
   grid.className = "piece-skin-modal-grid";
@@ -105,7 +106,7 @@ export function openPlaymatPicker() {
     if (selectedPlaymatId === option.id) swatch.classList.add("is-selected");
     const img = document.createElement("img");
     img.src = option.path;
-    img.alt = option.label;
+    img.alt = t(option.labelKey);
     swatch.appendChild(img);
     // ユーザー要望「プレイマットを購入できるようにする」への対応。未所持の有料マットは
     // 選べないようにし、代わりにショップを開く。

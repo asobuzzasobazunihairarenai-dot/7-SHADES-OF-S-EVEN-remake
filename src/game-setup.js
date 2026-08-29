@@ -21,6 +21,7 @@ import { resetVictoryTracking } from "./victory.js";
 import { resetMatchStats } from "./match-stats-tracker.js";
 import { resetHandEffectUsage } from "./card-effect-engine.js";
 import { PLAYMAT_OPTIONS, getSelectedPlaymatId, setSelectedPlaymatId } from "./playmat.js";
+import { t } from "./ui-text.js"; // UI英語化フェーズ10
 import { animateFirstCardsDealt, animateBoardFilled } from "./setup-animation.js";
 import { applyAvatarContent } from "./avatar-render.js";
 import { getSelfSeat } from "./online.js";
@@ -299,7 +300,7 @@ function buildConfigForm() {
     radio.checked = option.id === currentPlaymatId;
     playmatRadios[option.id] = radio;
     const span = document.createElement("span");
-    span.textContent = option.label;
+    span.textContent = t(option.labelKey);
     row.appendChild(radio);
     row.appendChild(span);
     playmatRow.appendChild(row);

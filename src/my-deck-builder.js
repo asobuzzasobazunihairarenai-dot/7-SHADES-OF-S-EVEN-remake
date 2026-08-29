@@ -5,6 +5,12 @@
 // 検証（7枚以上・同名7まで・所持超過・スペシャルの3:1税）と保存は my-deck.js のまま活かす。
 
 import { getCardImagePath, getCardDefinition } from "./cards-data.js";
+import { getCardName } from "./card-text.js"; // UI英語化フェーズ10: 表示用のカード名
+
+// 表示用のカード名（英語のカードテキストがあればそれ、無ければ日本語の原名）。
+function cardDisplayName(cardId) {
+  return getCardName(cardId) || getCardDefinition(cardId)?.name || "";
+}
 import { t } from "./ui-text.js"; // UI英語化フェーズ9
 import { showCardFace } from "./card-face-display.js";
 import { syncFullScreenPageActive } from "./option-area.js";
@@ -81,7 +87,7 @@ function addCard(card) {
   const before = countOf(card.id);
   setCount(card.id, before + 1);
   if (countOf(card.id) === before) {
-    showToast(`「${card.name}」はこれ以上入れられません（上限${maxCopiesFor(card.id)}枚）。`);
+    showToast(t("mdb.tooMany", { card: cardDisplayName(card.id), max: maxCopiesFor(card.id) }));
     return;
   }
   onDeckChanged();
@@ -163,7 +169,7 @@ function showNoteMenu(cardId, x, y) {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "mdb-note-menu-btn";
-  btn.textContent = "📄 カード補足を見る";
+  btn.textContent = t("mydeckbuilder.L166");
   btn.addEventListener("click", () => {
     hideNoteMenu();
     showCardNoteModal(cardId);
@@ -202,13 +208,13 @@ function showCardNoteModal(cardId) {
   title.textContent = def.name;
   const body = document.createElement("div");
   body.className = "card-note-body";
-  body.textContent = def.note || "（補足なし）";
+  body.textContent = def.note || t("mydeckbuilder.L205");
   textCol.append(title, body);
   content.append(img, textCol);
   const closeBtn = document.createElement("button");
   closeBtn.className = "card-note-close";
   closeBtn.type = "button";
-  closeBtn.textContent = "閉じる";
+  closeBtn.textContent = t("mydeckbuilder.L211");
   const close = () => {
     backdrop.remove();
     modal.remove();
@@ -226,7 +232,7 @@ function buildCollectionCard(card) {
   tile.className = "mdb-col-card";
   tile.dataset.cardId = card.id;
   if (isSpecialDeckCard(card.id)) tile.classList.add("is-special");
-  tile.setAttribute("aria-label", `${card.name}をデッキに追加`);
+    tile.title = t("mdb.addCard", { card: cardDisplayName(card.id) });
 
   const art = document.createElement("div");
   art.className = "mdb-col-card-art";
@@ -240,7 +246,7 @@ function buildCollectionCard(card) {
     const sp = document.createElement("span");
     sp.className = "mdb-col-card-sp";
     sp.textContent = "SP";
-    sp.title = "スペシャルカード（1枚につき非スペシャルの通常カードが3枚必要）";
+    sp.title = t("mydeckbuilder.L243");
     art.appendChild(sp);
   }
   const countBadge = document.createElement("span");
@@ -304,7 +310,7 @@ function rebuildDeckList() {
   if (cards.length === 0) {
     const empty = document.createElement("div");
     empty.className = "mdb-deck-empty";
-    empty.textContent = "上のカードをクリックしてデッキに追加してください。";
+    empty.textContent = t("mydeckbuilder.L307");
     deckListEl.appendChild(empty);
     return;
   }
@@ -314,7 +320,7 @@ function rebuildDeckList() {
     entry.type = "button";
     entry.className = "mdb-deck-entry";
     if (isSpecialDeckCard(card.id)) entry.classList.add("is-special");
-    entry.setAttribute("aria-label", `${card.name}を1枚減らす`);
+    tile.title = t("mdb.removeCard", { card: cardDisplayName(card.id) });
 
     const art = document.createElement("div");
     art.className = "mdb-deck-entry-art";
@@ -333,7 +339,7 @@ function rebuildDeckList() {
     const isMain = !!currentDeck && currentDeck.mainCardId === card.id;
     star.classList.toggle("is-main", isMain);
     star.textContent = isMain ? "★" : "☆";
-    star.title = "立体ケースの表紙（箱絵）に設定";
+    star.title = t("mydeckbuilder.L336");
     star.addEventListener("click", (e) => {
       e.stopPropagation(); // カード除去（entryのclick）を発火させない
       if (!currentDeck) return;
@@ -369,14 +375,14 @@ function refreshSummary() {
   const counts = document.createElement("div");
   counts.className = "mdb-summary-counts";
   counts.innerHTML =
-    `<span class="mdb-summary-total"><b>${result.total}</b><small>枚</small></span>` +
-    `<span class="mdb-summary-sub">通常 ${result.nonSpecialCount} ／ SP ${result.specialCount}</span>`;
+    `<span class="mdb-summary-total"><b>${result.total}</b><small>${t("mdb.cards")}</small></span>` +
+    `<span class="mdb-summary-sub">${t("mdb.summarySub", { normal: result.nonSpecialCount, special: result.specialCount })}</span>`;
   summaryEl.appendChild(counts);
 
   const status = document.createElement("div");
   status.className = "mdb-summary-status " + (result.ok ? "is-ok" : "is-ng");
   if (result.ok) {
-    status.textContent = "✓ このデッキは有効です";
+    status.textContent = t("mydeckbuilder.L379");
   } else {
     const ul = document.createElement("ul");
     ul.className = "mdb-summary-errors";
@@ -442,11 +448,11 @@ function setDeckCoverCard(cardId) {
   // 入っていないカードを保存時に捨てる）。所持カード一覧から未投入のカードを落とされた時は、
   // 黙って無視せず理由を伝える。
   if ((workingDeck[cardId] ?? 0) <= 0) {
-    showToast("そのカードはまだデッキに入っていません。先にデッキへ追加してください。");
+    showToast(t("mydeckbuilder.L445"));
     return;
   }
   currentDeck.mainCardId = cardId;
-  showToast(`箱絵を「${getCardDefinition(cardId)?.name ?? "カード"}」にしました。`);
+  showToast(t("mdb.boxArtSet", { card: cardDisplayName(cardId) || t("mdb.card") }));
   rebuildDeckList(); // ★/☆の表示を更新
   refreshDeckCase();
 }
@@ -504,7 +510,7 @@ function buildSettingsRow() {
   colorSetting.className = "mdb-setting mdb-setting-color";
   const colorLabel = document.createElement("span");
   colorLabel.className = "mdb-setting-label";
-  colorLabel.textContent = "ファースト色";
+  colorLabel.textContent = t("mydeckbuilder.L507");
   colorSetting.appendChild(colorLabel);
   // ユーザー要望2026-08-11: 色チップではなく、実際のファーストカードを小さく並べる。ホバーで拡大。
   const chips = document.createElement("div");
@@ -513,8 +519,8 @@ function buildSettingsRow() {
   rnd.type = "button";
   rnd.className = "mdb-first-pick mdb-first-pick-random";
   rnd.dataset.color = "";
-  rnd.title = "ランダム（対戦開始時に決定）";
-  rnd.textContent = "ランダム";
+  rnd.title = t("mydeckbuilder.L516");
+  rnd.textContent = t("mydeckbuilder.L517");
   rnd.addEventListener("click", () => {
     currentDeck.firstColor = null;
     refreshSettingsRow();
@@ -543,7 +549,7 @@ function buildSettingsRow() {
   const pieceBtn = document.createElement("button");
   pieceBtn.type = "button";
   pieceBtn.className = "mdb-setting-btn mdb-setting-piece";
-  pieceBtn.innerHTML = `<span class="mdb-setting-thumb"><img alt=""></span><span class="mdb-setting-label">駒スキン</span>`;
+    `<span class="mdb-setting-thumb"><img alt=""></span><span class="mdb-setting-label">${t("mdb.setting.pieceSkin")}</span>`,
   pieceBtn.addEventListener("click", async () => {
     const { openPieceSkinPicker } = await import("./piece-skins.js");
     openPieceSkinPicker({
@@ -560,7 +566,7 @@ function buildSettingsRow() {
   const petBtn = document.createElement("button");
   petBtn.type = "button";
   petBtn.className = "mdb-setting-btn mdb-setting-pet";
-  petBtn.innerHTML = `<span class="mdb-setting-face"></span><span class="mdb-setting-label">ペット</span>`;
+    `<span class="mdb-setting-face"></span><span class="mdb-setting-label">${t("mdb.setting.pet")}</span>`,
   petBtn.addEventListener("click", async () => {
     const { openPetPicker } = await import("./pet-skins.js");
     openPetPicker({
@@ -576,7 +582,7 @@ function buildSettingsRow() {
   const backBtn = document.createElement("button");
   backBtn.type = "button";
   backBtn.className = "mdb-setting-btn mdb-setting-back";
-  backBtn.innerHTML = `<span class="mdb-setting-thumb"><img alt=""></span><span class="mdb-setting-label">裏面</span>`;
+    `<span class="mdb-setting-thumb"><img alt=""></span><span class="mdb-setting-label">${t("mdb.setting.cardBack")}</span>`,
   backBtn.addEventListener("click", async () => {
     const { openCardBackSkinPicker } = await import("./card-back-skins.js");
     openCardBackSkinPicker({
@@ -625,7 +631,7 @@ export function openMyDeckBuilder(deckId, onClose) {
   const backBtn = document.createElement("button");
   backBtn.type = "button";
   backBtn.id = "my-deck-page-back";
-  backBtn.textContent = "← 戻る";
+  backBtn.textContent = t("mydeckbuilder.L628");
   backBtn.addEventListener("click", () => {
     closeMyDeckBuilder();
     onClose?.();
@@ -637,8 +643,8 @@ export function openMyDeckBuilder(deckId, onClose) {
   nameInput.type = "text";
   nameInput.maxLength = 24;
   nameInput.value = currentDeck.name || "";
-  nameInput.placeholder = "デッキ名";
-  nameInput.setAttribute("aria-label", "デッキ名");
+  nameInput.placeholder = t("mydeckbuilder.L640");
+  nameInput.setAttribute("aria-label", t("mydeckbuilder.L640"));
   header.appendChild(nameInput);
 
   summaryEl = document.createElement("div");
@@ -651,24 +657,24 @@ export function openMyDeckBuilder(deckId, onClose) {
   helpBtn.type = "button";
   helpBtn.id = "mdb-help";
   helpBtn.textContent = t("mdbtut.help");
-  helpBtn.title = "マイデッキの作り方を順番に説明します";
+  helpBtn.title = t("mydeckbuilder.L654");
   helpBtn.addEventListener("click", () => startDeckBuilderTutorial());
   header.appendChild(helpBtn);
 
   saveBtn = document.createElement("button");
   saveBtn.type = "button";
   saveBtn.id = "mdb-save";
-  saveBtn.textContent = "完了（保存）";
+  saveBtn.textContent = t("mydeckbuilder.L661");
   saveBtn.addEventListener("click", () => {
     const result = validateDeck(workingDeck);
     if (!result.ok) {
-      showToast("ルールを満たしていないため保存できません。");
+      showToast(t("mydeckbuilder.L665"));
       return;
     }
-    const name = (nameInput?.value || "").trim() || "マイデッキ";
+    const name = (nameInput?.value || "").trim() || t("mydeckbuilder.L668");
     saveDeck({ ...currentDeck, name, cards: workingDeck });
     currentDeck.name = name;
-    showToast("マイデッキを保存しました。");
+    showToast(t("mydeckbuilder.L671"));
   });
   header.appendChild(saveBtn);
   overlayEl.appendChild(header);
@@ -677,7 +683,7 @@ export function openMyDeckBuilder(deckId, onClose) {
   const hint = document.createElement("div");
   hint.id = "mdb-hint";
   hint.textContent =
-    `所持カードをクリックで追加・右クリックで補足。ホバーで拡大。${MIN_DECK_SIZE}枚以上／同名7まで／SP1枚につき非SPを${SPECIAL_TAX_RATIO}枚。`;
+  hint.textContent = t("mdb.hint", { min: MIN_DECK_SIZE, tax: SPECIAL_TAX_RATIO });
   overlayEl.appendChild(hint);
 
   // デッキ設定（ファースト色・駒スキン・ペット・裏面）。
@@ -694,7 +700,7 @@ export function openMyDeckBuilder(deckId, onClose) {
   deckPanel.id = "mdb-deck-panel";
   const deckPanelTitle = document.createElement("div");
   deckPanelTitle.id = "mdb-deck-panel-title";
-  deckPanelTitle.textContent = "現在のデッキ";
+  deckPanelTitle.textContent = t("mydeckbuilder.L697");
   deckPanel.appendChild(deckPanelTitle);
 
   // 左に「デッキの箱」、右に現在のデッキ一覧を並べる（ユーザー要望2026-08-28）。
@@ -705,7 +711,7 @@ export function openMyDeckBuilder(deckId, onClose) {
   deckCaseEl.id = "mdb-deck-case";
   const caseHint = document.createElement("div");
   caseHint.id = "mdb-deck-case-hint";
-  caseHint.textContent = "箱絵：カードをここへドラッグ";
+  caseHint.textContent = t("mydeckbuilder.L708");
   deckCaseEl.appendChild(caseHint);
   deckCaseEl.addEventListener("dragover", (e) => {
     e.preventDefault(); // これを呼ばないとdropが発火しない
