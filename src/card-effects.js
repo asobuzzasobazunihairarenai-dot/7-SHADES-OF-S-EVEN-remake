@@ -19,6 +19,8 @@
 
 // --- 語彙（今回のパイロット5枚を表現するのに必要な最小セット） -----------------------
 // verb一覧。新しいカードを追加するたびに、ここに無い動詞が必要になったら追記する。
+import { t } from "./ui-text.js"; // UI英語化フェーズ11（選択肢ラベルの解決に使う）
+
 export const VERBS = {
   MOVE: "move", // 自分の駒を移動する
   DRAW: "draw", // 山札から手札にカードを加える
@@ -421,10 +423,10 @@ export const CARD_EFFECTS = {
     // 何も実行せず、既定動作（このカード自身を手札に加える）だけが起きる。
     arrival: { actions: [] },
     handEffectOptions: [
-      { id: "draw", label: "１枚ドロー", actions: [{ verb: VERBS.DRAW, count: 1, target: TARGETS.SELF }] },
+      { id: "draw", labelKey: "cef.opt.draw1", actions: [{ verb: VERBS.DRAW, count: 1, target: TARGETS.SELF }] },
       {
         id: "lock-pair",
-        label: "２枚をロックする（２枚ドロー）",
+        labelKey: "cef.opt.lockPair",
         // これを含めた「なないろの欠片」が2枚、手札にある時だけ選べる。
         requiresPairInHand: true,
         // このカード自身が「ロックされる2枚」の1枚になるため、通常の手札効果の
@@ -646,21 +648,21 @@ export const CARD_EFFECTS = {
     arrivalOptions: [
       {
         id: "discard-half-hand",
-        label: "あなたの手札を半分捨てる。",
+        labelKey: "cef.opt.discardHalf",
         // 手札枚数が１枚以下のときは選べない（docs/cards.md補足）。
         requiresMinHandSize: 2,
         actions: [{ verb: VERBS.DISCARD_HALF_HAND }],
       },
       {
         id: "forced-move-to-own-gate",
-        label: "あなたのゲートに強制移動する。",
+        labelKey: "cef.opt.forcedGate",
         // 自分のゲートにいるときは選べない（docs/cards.md補足）。
         requiresNotAtOwnGate: true,
         actions: [{ verb: VERBS.FORCED_MOVE_TO_OWN_GATE }],
       },
       {
         id: "discard-one-locked-card",
-        label: "あなたのロックしているカードを1枚捨てる。",
+        labelKey: "cef.opt.discardLock",
         // 捨てれるロックカードが無いときは選べない（docs/cards.md補足）。
         requiresHasLockedCard: true,
         actions: [{ verb: VERBS.DISCARD_ONE_LOCKED_CARD }],
@@ -1236,4 +1238,12 @@ if (typeof process !== "undefined" && process.argv[1] && process.argv[1].endsWit
   console.log("[桃のキューブ セレナーデ 手札効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["first-pink"].handEffect));
   console.log("  実際: 【追色１】あなたの手札を１枚ロックする、ただし最後のロックはできない。この効果は１ターンに１度のみ得られる。\n");
+}
+
+// 選択肢の表示ラベル。labelKey（ui-text.jsのキー）を持つものは現在の言語で解決し、
+// 旧来の label（文字列）を持つものはそのまま返す。表示のたびに呼ぶこと
+// （定数に翻訳結果を埋めると言語切替に追随しないため。UI英語化フェーズ11）。
+export function optionLabel(option) {
+  if (!option) return "";
+  return option.labelKey ? t(option.labelKey) : (option.label ?? option.id ?? "");
 }

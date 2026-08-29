@@ -16,7 +16,7 @@
 // 「呼び出し元に注入してもらう」設計）。
 
 import { getState } from "./state.js";
-import { VERBS, TARGETS, TARGET_SELECTIONS, CARD_EFFECTS } from "./card-effects.js";
+import { VERBS, TARGETS, TARGET_SELECTIONS, CARD_EFFECTS, optionLabel } from "./card-effects.js";
 import { getCardDefinition } from "./cards-data.js";
 import { getCardName } from "./card-text.js"; // UI英語化フェーズ11: 表示用のカード名
 import { t } from "./ui-text.js";
@@ -1961,7 +1961,7 @@ async function runArrivalOptionsEffect(ctx, options, helpers) {
       // カード選択）へ進めず手札クリックが効かなかった。pink-partyと同じく、告知は待たずに
       // 走らせ（announced）すぐ次のアクションへ進み、最後に完了だけawaitする（ペーシング/
       // CPU結果ホールドは保つ）。「〇〇を選びました」モーダル表示中に手札を選べてよい。
-      const announced = helpers.announceEffectChoice?.(ctx.cardId, ctx.player, chosen.label);
+      const announced = helpers.announceEffectChoice?.(ctx.cardId, ctx.player, optionLabel(chosen));
       for (const action of chosen.actions) {
         if (await runActionSafely(action, runCtx, helpers)) hadEffect = true;
       }
@@ -2059,7 +2059,7 @@ async function runHandEffectOption(ctx, option, helpers) {
   // 続き218: 追色コストありの手札効果（V5）は、コスト確定後に「吸収→霧散」演出を出すため、
   // ここでの視覚・音・broadcastを遅延する（deferVisual）。追色なし（V4）は従来通りここで霧散演出。
   const hasAddColorCost = option.cost?.verb === VERBS.DISCARD_SAME_COLOR;
-  helpers.announceUse?.(ctx.cardId, option.label, ctx.player, { deferVisual: hasAddColorCost });
+  helpers.announceUse?.(ctx.cardId, optionLabel(option), ctx.player, { deferVisual: hasAddColorCost });
   // ユーザー指摘: 手札効果は「原則まず最初にそのカードを捨てて効果を発動する」。
   // 凡例（docs/cards.md）「効果カード自身の処遇の記載がなければ、効果発動時に
   // このカードを捨てる」の「発動時に」は、追色コストの支払いやアクション実行より
@@ -2099,7 +2099,7 @@ async function runHandEffectOption(ctx, option, helpers) {
     if (!chosen) return false;
     // 続き218・V5: 追色コスト確定後、捨てる“前”（コスト札のDOMがまだ手札にある間）に演出を発火。
     // 使用カードへ追色カードを吸い込み→脈動→霧散→右の使用モーダル。fire-and-forget（非ブロック）。
-    helpers.playAdditionalColorUse?.(ctx.cardId, option.label, chosen.id);
+    helpers.playAdditionalColorUse?.(ctx.cardId, optionLabel(option), chosen.id);
     await helpers.discardAndSync(chosen.id);
     // このコストで捨てた cardId を、first-red のときだけ記録（上のループ防止判定で使う）。
     if (ctx.cardId === "first-red") notePhoenixCostCard(chosen.cardId);
@@ -2170,7 +2170,7 @@ export async function runHandEffect(ctx, helpers) {
     // 「選ぶ系」の手札効果（なないろの欠片 等、複数選択肢から1つ）は、選んだ内容を全員に
     // 告知する（ユーザー要望・choose-effect-reveal方針）。単一効果（options.length===1）は
     // 選択ではないので告知しない。
-    await helpers.announceEffectChoice?.(ctx.cardId, ctx.player, chosenOption.label);
+    await helpers.announceEffectChoice?.(ctx.cardId, ctx.player, optionLabel(chosenOption));
   }
   return runHandEffectOption(ctx, chosenOption, helpers);
 }

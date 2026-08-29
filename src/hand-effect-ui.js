@@ -12,6 +12,7 @@
 //   使用できない方はグレー表示。」）。
 
 import { getCardDefinition, getCardImagePath } from "./cards-data.js";
+import { optionLabel as resolveOptionLabel } from "./card-effects.js"; // UI英語化フェーズ11（同名の引数があるため別名）
 import { buildCardBox, showCardFace } from "./card-face-display.js";
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { isCardArrivalModalPersistent } from "./admin.js";
@@ -412,7 +413,7 @@ export function showHandEffectOptionPicker(cardId, optionsWithUsability, onReady
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "hand-effect-option-picker-btn";
-      btn.textContent = option.label ?? option.id;
+      btn.textContent = resolveOptionLabel(option);
       if (!option.usable) {
         btn.disabled = true;
         btn.classList.add("is-unusable");

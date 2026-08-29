@@ -14,6 +14,7 @@ import {
   registerAdminAuthHelpers,
   refreshAdminOnlySection,
 } from "./admin.js";
+import { optionLabel } from "./card-effects.js"; // UI英語化フェーズ11
 import { logAction, initActionLogPanel, getActionLogText, getActionLogEntries } from "./action-log.js";
 import { initDeckViewer, openDeckViewer } from "./deck-viewer.js";
 import { initStatsPlayerLinkModal } from "./stats-player-link.js";
@@ -3319,7 +3320,7 @@ async function runPartyOptionTask(player) {
   // しました』モーダル中にすぐハイライトされていてもOK」。告知は待たずに走らせ（announced）、
   // すぐ下のマス選択（ハイライト）へ進む。ペーシング/CPU結果ホールドを保つため、最後に告知の
   // 完了をawaitしてから返す。
-  const announced = announceEffectChoiceForEffect("pink-party", player, chosen.label);
+  const announced = announceEffectChoiceForEffect("pink-party", player, optionLabel(chosen));
   const result = await (async () => {
   if (chosen.id === "move") {
     const dest = moveCandidates.length === 1 ? moveCandidates[0] : await requestCellChoiceForEffect(moveCandidates, t("game.pick.moveTo"));

@@ -1053,6 +1053,11 @@ const UI = {
     "on.label.noLogYet": "（まだログはありません）",
     "on.err.deckLoad": "マイデッキの読み込みに失敗しました（my_deck列が未追加の可能性）",
     "on.err.langLoad": "言語設定の読み込みに失敗しました（lang列が未追加の可能性）",
+    "cef.opt.draw1": "１枚ドロー",
+    "cef.opt.lockPair": "２枚をロックする（２枚ドロー）",
+    "cef.opt.discardHalf": "あなたの手札を半分捨てる。",
+    "cef.opt.forcedGate": "あなたのゲートに強制移動する。",
+    "cef.opt.discardLock": "あなたのロックしているカードを1枚捨てる。",
     // --- フェーズ8: ヘルプ（見出し・用語ポップアップ）／ランク戦の説明 ---
     "help.title": "❓ ヘルプ",
     "help.tutorialBtn": "🎓 チュートリアルを見る",
@@ -2439,6 +2444,11 @@ const UI = {
     "on.label.noLogYet": "(no log yet)",
     "on.err.deckLoad": "Couldn't load your decks (the my_deck column may not exist yet)",
     "on.err.langLoad": "Couldn't load the language setting (the lang column may not exist yet)",
+    "cef.opt.draw1": "Draw 1 card",
+    "cef.opt.lockPair": "Lock both (draw 2)",
+    "cef.opt.discardHalf": "Discard half of your hand.",
+    "cef.opt.forcedGate": "Be force-moved to your own gate.",
+    "cef.opt.discardLock": "Discard one of your locked cards.",
     // --- Phase 8: help headings, glossary popup, ranked explanation ---
     "help.title": "❓ Help",
     "help.tutorialBtn": "🎓 View the tutorial",
