@@ -14,6 +14,8 @@ export const CHANGELOG = [
   {
     date: "2026-08-29",
     items: [
+      "不具合報告にスクリーンショットを添付できるようにしました（任意）。ファイルを選ぶほか、Ctrl+Vでの貼り付け・ドラッグ＆ドロップにも対応しています。",
+      "ショップの駒スキンから「0thリメイク」を外しました（「標準」と同じ絵柄のため）。これを選んでいた場合は「標準」として表示されます。",
       "手札のカードが透明になって見えない・カードが丸く切り抜かれて見える・カードの効果文が中央寄せになる、という不具合を直しました（同じ日に入れた変更による一時的な不具合でした。ご迷惑をおかけしました）。",
       "英語表示で、フェイズ案内の「移動か接触ができます」・スキップボタン・左下の称号・カード名の一部が日本語のままだったのを直しました（言語をあとから切り替えた時も追随します）。",
       "英語表示に対応しました。オプションの「基本設定」で言語を English に切り替えると、タイトル画面から対局中の案内・ヘルプ・物語・マイページ・ショップ、カードの効果文やその補足まで英語で表示されます。",
@@ -28,6 +30,8 @@ export const CHANGELOG = [
     ],
     // 英語表示のとき items の代わりに出る（併記はしない。同じ順番・同じ件数で書くこと）。
     itemsEn: [
+      "You can now attach a screenshot to a problem report (optional). Pick a file, paste with Ctrl+V, or drag and drop.",
+      "Removed the “0th Remake” piece skin from the shop — it is the same artwork as “Standard”. If you had it selected, it now shows as “Standard”.",
       "Fixed cards in your hand becoming invisible, cards being clipped into a circle, and the text on a card being centred. These were introduced by a change made earlier the same day — sorry about that.",
       "Fixed parts of the interface staying in Japanese in English mode — the “Move or make contact” phase note, the Skip button, the title under your name, and some card names. They now follow the language even when you switch it after the app has started.",
       "The app is now available in English. Switch the language to English in Settings and everything is translated — the title screen, the prompts during a match, the help, the story, My Page, the shop, and the text and notes on the cards themselves.",

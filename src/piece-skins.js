@@ -34,7 +34,15 @@ const PREVIEW_FALLBACK_COLOR = COLORS[0];
 
 // 10〜14はユーザーが新規追加した駒スキン（2026-08-12適用）。10=0thオリジナル/11=0thリメイク
 // （静止webp）、12〜14はアニメーションwebp（動く駒。<img>/background-imageのままGIF同様に動く）。
-const SKIN_VARIANTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]; // 0=標準（assets/pieces/${color}.webp）
+// ユーザー指示2026-08-29: 11（0thリメイク）は「標準」(0)と同じ絵柄なので一覧から外した。
+// 既にこれを選んでいた人は標準へ読み替える（normalizeSkinIndex）。画像自体は残してあるので、
+// 戻したくなったらこの配列に 11 を足すだけで復活する。
+const RETIRED_SKIN_VARIANTS = [11];
+const SKIN_VARIANTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14]; // 0=標準（assets/pieces/${color}.webp）
+// 一覧から外したバリエーションが保存値として残っていたら標準(0)として扱う。
+function normalizeSkinIndex(idx) {
+  return typeof idx === "number" && RETIRED_SKIN_VARIANTS.includes(idx) ? 0 : idx;
+}
 
 // ユーザー要望「商品の名前が『追加1』とかでは寂しいのでフォルダで名前を付けました」への
 // 対応。画像素材/駒スキン/配下の各サブフォルダ名（基本=1、キュート=2、黒線=3、白面=4、
@@ -97,7 +105,7 @@ let hasLocalPreference = false;
 // 復元するために呼ばれる。updateMyIdentity()による書き戻しは行わない（読み込みなので）。
 export function setLocalPreferredSkinIndex(idx) {
   if (typeof idx !== "number") return;
-  preferredSkinIndex = idx;
+  preferredSkinIndex = normalizeSkinIndex(idx);
   hasLocalPreference = true;
 }
 

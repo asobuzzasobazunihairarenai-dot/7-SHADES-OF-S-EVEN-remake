@@ -15,6 +15,7 @@ import {
   broadcastBugLogRequest,
   onBugLogResponseEvents,
   broadcastBugLogResponse,
+  uploadBugShot,
 } from "./online.js";
 import { getActionLogText } from "./action-log.js";
 import { getBlackboxSummary } from "./crash-blackbox.js";
@@ -161,6 +162,39 @@ function buildCombinedLogs(peers) {
 // 再現手順が分からない（こちらでは再現できていない）不具合なので、次に起きた時に
 // 「要素が無いのか／中身が空なのか／画面の外に出ているのか／透明なのか」を切り分けられる
 // ようにしておく。中身（カード名）は載せない＝ここに隠し情報は入らない。
+// 添付画像の下ごしらえ（ユーザー要望2026-08-29「不具合報告に任意でスクショを貼れるように」）。
+// 長辺を1600pxまで縮めてWebPにする（元がPNGのスクショだと数MBになるため）。切り抜きはしない
+// ——不具合の場所が画面の端にあることも多いので、画面全体をそのまま見たい。
+const SHOT_MAX_DIMENSION = 1600;
+const SHOT_WEBP_QUALITY = 0.82;
+const SHOT_MAX_INPUT_BYTES = 10 * 1024 * 1024;
+
+async function fileToShotBlob(file) {
+  const objectUrl = URL.createObjectURL(file);
+  let img;
+  try {
+    img = await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error(t("bug.attachFailedInline")));
+      image.src = objectUrl;
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+  const w = img.naturalWidth;
+  const h = img.naturalHeight;
+  if (!w || !h) throw new Error(t("bug.attachFailedInline"));
+  const scale = Math.min(1, SHOT_MAX_DIMENSION / Math.max(w, h));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(w * scale);
+  canvas.height = Math.round(h * scale);
+  canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/webp", SHOT_WEBP_QUALITY));
+  if (!blob) throw new Error(t("bug.attachFailedInline"));
+  return blob;
+}
+
 function gatherHandSnapshot() {
   try {
     const st = getState();
@@ -241,7 +275,9 @@ function gatherContext() {
 let modalEl = null;
 let backdropEl = null;
 
+let pasteHandler = null; // 報告モーダルが開いている間だけ有効な Ctrl+V 受け取り
 function close() {
+  if (pasteHandler) { window.removeEventListener("paste", pasteHandler); pasteHandler = null; }
   modalEl?.remove();
   backdropEl?.remove();
   modalEl = null;
@@ -270,6 +306,81 @@ export function openBugReportModal() {
   const status = document.createElement("div");
   status.className = "bug-report-status";
 
+  // --- 画像の添付（任意。ユーザー要望2026-08-29）--------------------------------
+  // 選択・貼り付け(Ctrl+V)・ドラッグ＆ドロップの3通りで受け取り、送る直前にWebPへ縮めてから
+  // Storageへ上げる。画像の送信に失敗しても、本文とログの送信は必ず行う。
+  let shotBlob = null;
+  const attachWrap = document.createElement("div");
+  attachWrap.className = "bug-report-attach";
+
+  const fileInput = document.createElement("input");
+  fileInput.type = "file";
+  fileInput.accept = "image/*";
+  fileInput.style.display = "none";
+
+  const attachBtn = document.createElement("button");
+  attachBtn.type = "button";
+  attachBtn.className = "bug-report-attach-btn";
+  attachBtn.textContent = t("bug.attach");
+  attachBtn.addEventListener("click", () => fileInput.click());
+
+  const attachHint = document.createElement("div");
+  attachHint.className = "bug-report-attach-hint";
+  attachHint.textContent = t("bug.attachHint");
+
+  const preview = document.createElement("div");
+  preview.className = "bug-report-attach-preview";
+  preview.style.display = "none";
+  const previewImg = document.createElement("img");
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.className = "bug-report-attach-remove";
+  removeBtn.textContent = t("bug.attachRemove");
+  removeBtn.addEventListener("click", () => setShot(null));
+  preview.append(previewImg, removeBtn);
+
+  function setShot(file) {
+    if (previewImg.src) URL.revokeObjectURL(previewImg.src);
+    if (!file) {
+      shotBlob = null;
+      previewImg.removeAttribute("src");
+      preview.style.display = "none";
+      attachBtn.style.display = "";
+      return;
+    }
+    shotBlob = file;
+    previewImg.src = URL.createObjectURL(file);
+    preview.style.display = "";
+    attachBtn.style.display = "none";
+    status.classList.remove("is-error");
+    status.textContent = "";
+  }
+  function acceptFile(file) {
+    if (!file) return;
+    if (!/^image\//.test(file.type)) { status.textContent = t("bug.attachBadType"); status.classList.add("is-error"); return; }
+    if (file.size > SHOT_MAX_INPUT_BYTES) { status.textContent = t("bug.attachTooBig"); status.classList.add("is-error"); return; }
+    setShot(file);
+  }
+  fileInput.addEventListener("change", () => acceptFile(fileInput.files?.[0]));
+  // Ctrl+V でスクリーンショットをそのまま貼れるように（この報告モーダルが開いている間だけ）。
+  const onPaste = (e) => {
+    const item = [...(e.clipboardData?.items ?? [])].find((i) => i.type?.startsWith("image/"));
+    if (!item) return;
+    const file = item.getAsFile();
+    if (file) { e.preventDefault(); acceptFile(file); }
+  };
+  window.addEventListener("paste", onPaste);
+  pasteHandler = onPaste; // close() で外す
+  // ドラッグ＆ドロップ
+  attachWrap.addEventListener("dragover", (e) => { e.preventDefault(); attachWrap.classList.add("is-dragover"); });
+  attachWrap.addEventListener("dragleave", () => attachWrap.classList.remove("is-dragover"));
+  attachWrap.addEventListener("drop", (e) => {
+    e.preventDefault();
+    attachWrap.classList.remove("is-dragover");
+    acceptFile(e.dataTransfer?.files?.[0]);
+  });
+  attachWrap.append(attachBtn, preview, attachHint, fileInput);
+
   const actions = document.createElement("div");
   actions.className = "bug-report-actions";
 
@@ -297,14 +408,29 @@ export function openBugReportModal() {
     try {
       const peers = await collectPeerLogs();
       const { actionLog, consoleLog } = buildCombinedLogs(peers);
+      const context = gatherContext();
+      // 画像は「送れたら添える」扱い。失敗しても本文とログの送信は必ず行う
+      // （バケット未作成＝SQL未実行や、未ログインでも報告自体は成立させる）。
+      let shotWarning = "";
+      if (shotBlob) {
+        status.textContent = t("bug.uploadingShot");
+        try {
+          const blob = await fileToShotBlob(shotBlob);
+          context.shotUrl = await uploadBugShot(blob);
+        } catch (err) {
+          console.error("uploadBugShot failed", err);
+          shotWarning = t("bug.shotFailed");
+        }
+        status.textContent = isOnlineMode() ? t("bug.sendingOnline") : t("bug.sending");
+      }
       await submitBugReport({
         comment,
         actionLog,
         consoleLog,
-        context: gatherContext(),
+        context,
       });
       status.classList.remove("is-error");
-      status.textContent = t("bug.sent");
+      status.textContent = shotWarning ? t("bug.sent") + " " + shotWarning : t("bug.sent");
       submitBtn.textContent = t("bug.sentBtn");
       setTimeout(close, 1400);
     } catch (err) {
@@ -324,6 +450,7 @@ export function openBugReportModal() {
   modalEl.appendChild(title);
   modalEl.appendChild(desc);
   modalEl.appendChild(textarea);
+  modalEl.appendChild(attachWrap);
   modalEl.appendChild(status);
   modalEl.appendChild(actions);
 

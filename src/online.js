@@ -1240,6 +1240,27 @@ export async function recordVisit() {
 
 // アプリ内「不具合報告」（bug-report.js）から呼ぶ。認証済みならuser_id付き、未認証でも
 // null user_idで投稿できる（so7_bug_reportsのwith checkが両方許可）。ログイン必須にはしない。
+// 不具合報告に添える画像のアップロード（ユーザー要望2026-08-29「任意でスクショを貼れるように」）。
+// アバターと同じ Storage を使うが、バケットは専用の bug-shots（1報告につき1枚、上書きしない）。
+// バケット/ポリシーがまだ無い（SQL未実行）場合はここで失敗するので、呼び出し側は
+// 「画像だけ添付できなかった」と伝えて本文の送信は続ける。
+export async function uploadBugShot(blob) {
+  return withLog("不具合報告の画像アップロード", async () => {
+    if (!client) throw new Error(t("on.err.noClient"));
+    const user = await getCurrentUser();
+    if (!user) throw new Error(t("on.err.signIn"));
+    const path = `${user.id}/${Date.now()}-${Math.floor(Math.random() * 1e6)}.webp`;
+    const { error: uploadError } = await client.storage.from("bug-shots").upload(path, blob, {
+      contentType: "image/webp",
+      upsert: false,
+    });
+    if (uploadError) throw uploadError;
+    const { data } = client.storage.from("bug-shots").getPublicUrl(path);
+    if (!data?.publicUrl) throw new Error(t("on.err.noImageUrl"));
+    return data.publicUrl;
+  });
+}
+
 export async function submitBugReport({ comment, actionLog, consoleLog, context } = {}) {
   if (!client) throw new Error(t("on.err.noOnlineBug"));
   const { error } = await client.from("so7_bug_reports").insert({

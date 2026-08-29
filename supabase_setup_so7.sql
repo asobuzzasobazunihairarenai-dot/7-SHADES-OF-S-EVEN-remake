@@ -2361,3 +2361,24 @@ as $$
 $$;
 revoke execute on function so7_get_bug_report_counts() from public;
 grant execute on function so7_get_bug_report_counts() to authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- 追加(2026-08-29): 不具合報告にスクリーンショットを添付できるようにする（ユーザー要望）。
+-- 画像は Storage の bug-shots バケットへ入れ、URL だけを so7_bug_reports.context の JSON に
+-- 持たせる（テーブルの列は増やさない）。読み取りは公開（URLを知っている人だけが見られる。
+-- ファイル名にランダムな時刻を含めるので総当たりは現実的でない）。書き込みはログイン中の
+-- 本人が自分のフォルダ（user_id/）へだけ、に限定する。
+-- ※ このSQLを実行するまでは、画像の添付だけが失敗する（本文・ログの送信は今まで通り成功する）。
+insert into storage.buckets (id, name, public)
+values ('bug-shots', 'bug-shots', true)
+on conflict (id) do update set public = true;
+
+drop policy if exists "bug_shots_read" on storage.objects;
+create policy "bug_shots_read" on storage.objects
+  for select using (bucket_id = 'bug-shots');
+
+drop policy if exists "bug_shots_insert_own" on storage.objects;
+create policy "bug_shots_insert_own" on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'bug-shots' and (storage.foldername(name))[1] = auth.uid()::text);

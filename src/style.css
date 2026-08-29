@@ -10137,6 +10137,53 @@ body.theme-light .draw-targets-modal-name {
   color: #cbd5e1;
   margin-bottom: 0.8rem;
 }
+/* 不具合報告の画像添付（bug-report.js、ユーザー要望2026-08-29）。
+   ボタン／プレビュー／ドラッグ中のハイライト。 */
+.bug-report-attach {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  border: 1px dashed rgba(148, 163, 184, 0.45);
+  border-radius: 0.4rem;
+}
+.bug-report-attach.is-dragover {
+  border-color: rgba(250, 204, 21, 0.9);
+  background: rgba(250, 204, 21, 0.08);
+}
+.bug-report-attach-btn {
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.35rem;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: rgba(2, 6, 12, 0.4);
+  color: #e2e8f0;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.bug-report-attach-btn:hover { background: rgba(30, 41, 59, 0.6); }
+.bug-report-attach-hint {
+  margin-top: 0.35rem;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+.bug-report-attach-preview { display: flex; align-items: flex-start; gap: 0.5rem; }
+.bug-report-attach-preview img {
+  max-width: 12rem;
+  max-height: 8rem;
+  border-radius: 0.3rem;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+}
+.bug-report-attach-remove {
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.3rem;
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  background: transparent;
+  color: #fca5a5;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+body.theme-light .bug-report-attach-btn { background: #fff; color: #1f2937; }
+body.theme-light .bug-report-attach-hint { color: #4b5563; }
+
 .bug-report-textarea {
   width: 100%;
   box-sizing: border-box;
