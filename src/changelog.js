@@ -12,6 +12,32 @@ import { getLang } from "./i18n.js";
 
 export const CHANGELOG = [
   {
+    date: "2026-08-29",
+    items: [
+      "英語表示に対応しました。オプションの「基本設定」で言語を English に切り替えると、タイトル画面から対局中の案内・ヘルプ・物語・マイページ・ショップ、カードの効果文やその補足まで英語で表示されます。",
+      "称号を追加しました。対戦成績・ランク戦・不具合報告に応じて全16種類が少しずつ解放されます。マイページの名前の上をクリックするとコレクションが開き、お気に入りの1つを選んで名前の上に表示できます。",
+      "マイデッキ編集画面に「使い方」を追加しました。初めて開いた時に自動で表示され、以降はヘッダーの「？ 使い方」からいつでも見返せます。あわせて、デッキの箱にカードをドラッグすると箱の絵をそのカードに変えられるようになりました。",
+      "カードの効果文が枠からはみ出して絵の上に重なってしまうこと（なないろの欠片）を直しました。今後は枠に収まらない時だけ、その文だけ自動的に少し小さくなります。",
+      "CPU戦や自動処理の途中で、まれに盤面が完全に止まって何も進まなくなる不具合を直しました。",
+      "オンライン対局中にブラウザを更新すると、そのターンのロックフェイズがやり直しになり、もう1枚ロックできてしまう不具合を直しました。更新しても続きのフェイズから再開します。",
+      "カウンターロックで接触を無効にした後、最後の1色（置けば勝利になるカード）をロックできなかったのを直しました。この場合も通常どおり全員の承認を挟みます。",
+      "「重なっているカードを見る」の一覧で、カードにカーソルを合わせても拡大表示されなかったのを直しました。",
+      "右下の「このターンの出来事」に、前のターンの出来事が残ってしまうことがあったのを直しました。",
+    ],
+    // 英語表示のとき items の代わりに出る（併記はしない。同じ順番・同じ件数で書くこと）。
+    itemsEn: [
+      "The app is now available in English. Switch the language to English in Settings and everything is translated — the title screen, the prompts during a match, the help, the story, My Page, the shop, and the text and notes on the cards themselves.",
+      "Titles have been added. All 16 of them unlock gradually from your match record, your ranked play and the problems you report. Click above your name on My Page to open your collection and pick one favorite to show there.",
+      "The deck editor now has a “How to use” walkthrough. It appears the first time you open the editor, and you can bring it back at any time from “? How to use” in the header. You can also drag a card onto the deck case to make it the artwork on the box.",
+      "Fixed the text on a card spilling out of its frame and over the artwork (Prism Shard). From now on, only the text that does not fit is shrunk slightly to stay inside the frame.",
+      "Fixed a problem where the board could occasionally freeze completely during a CPU match or while effects were resolving automatically.",
+      "Fixed a problem where reloading the page during an online match restarted your Lock phase for that turn, letting you lock a second card. You now resume from the phase you were in.",
+      "Fixed Counter Lock not letting you lock your last remaining color (the card that would win you the game) after nullifying contact. As usual, everyone still has to approve that final lock.",
+      "Fixed cards in the “See the stacked cards” list not enlarging when you hovered over them.",
+      "Fixed events from the previous turn sometimes being left behind in “What happened this turn” at the bottom right.",
+    ],
+  },
+  {
     date: "2026-08-28",
     items: [
       "オプションの「基本設定」を整理しました。よく使う設定（効果音・BGMの音量／カードを拡大表示する大きさ／全画面で遊ぶ／使う前に確認する）は開いてすぐ触れる位置に出し、残りは「動きが重い・カクつくとき」「画面の見え方」のように“困りごと”の名前でまとめました。折りたたみの中にさらに折りたたみがある状態も無くし、項目名も何が起きるか分かる言い方に書き換えています（設定できることは今まで通り全部あります）。",
