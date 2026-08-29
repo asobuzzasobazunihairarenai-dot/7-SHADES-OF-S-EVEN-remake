@@ -16,7 +16,7 @@ export const CHANGELOG = [
     items: [
       "ライトモードで、モーダルの中の文字が薄くて読めなかったところを直しました（63か所）。前回モーダルの地を明るくした際に、中の文字色が暗い地のままの想定で残っていたためです。あわせて、以前から明るかったマイページ・ランキング・マイデッキ・ショップなどのページ内も点検して直しています。",
       "ライトモードなのにダークのままだったモーダル・パネル・案内表示を、まとめてライトの見た目に直しました（53か所）。確認モーダル、右クリックメニュー、カード補足、各種ピッカー、フェイズ案内、承認バナー、ツールチップなどが対象です。幕（背景を暗くするもの）・お祝いの色付きモーダル・物語の場面は、暗いままが正しいのでそのままにしています。",
-      "7色目をロックした時の演出を作り直し、大幅に丁寧にしました。時が止まってから7つのロックが順に灯り、7色の光が画面中央へ集まって七芒星として結実し、それが弾けて虹の波が広がり色が還ります。最後に光の粒が舞い、余韻を置いてから勝利画面へ移ります。",
+      "7色目をロックした時の演出に、集めた7枚のカード自身が登場するようにしました。ロックエリアから7枚が浮かび上がって画面中央に扇状に並び、1枚ずつ光ってから外へ弾け、その中心に七芒星が結実して虹の波が広がります。どのカードで勝ったかがその場で見えます。",
       "カードの文字を、印刷されたカードに近い書体・太さにしました。これまでは端末に入っているフォント任せで、WindowsとMacで別の書体・細い表示になっていました。今後はどの端末でも同じ見た目になります。",
       "手札のカードにカーソルを合わせた時、その後ろにあるロックエリアのカードが拡大表示されてしまうことがあったのを直しました。実際に手前に見えているカードが拡大されます。",
       "不具合報告にスクリーンショットを添付できるようにしました（任意）。ファイルを選ぶほか、Ctrl+Vでの貼り付け・ドラッグ＆ドロップにも対応しています。",
@@ -37,7 +37,7 @@ export const CHANGELOG = [
     itemsEn: [
       "Fixed 63 places where text inside a modal was too faint to read in light mode. When the panel backgrounds were lightened, the text colours inside were still written for a dark background. Pages that were already light — My Page, the rankings, your decks, the shop — were checked and fixed too.",
       "Fixed 53 modals, panels and notices that stayed dark in light mode — confirmation dialogs, the right-click menu, card notes, the various pickers, phase notices, approval banners, tooltips and more. Dimming layers, the coloured celebration modals and the story scenes are meant to be dark, so those are unchanged.",
-      "Rebuilt the sequence for locking your seventh color, with much more care. Time stops, your seven locks light up in turn, the seven colours stream to the centre of the screen and form a seven-pointed star, which then bursts into a rainbow wave that brings the colour back. Motes of light drift down, and there is a pause before the victory screen.",
+      "The seven cards you collected now take part in the victory sequence. They lift out of your Lock Area, fan out in the middle of the screen, light up one by one, then scatter outwards as a seven-pointed star forms at the centre and a rainbow wave spreads out. You can see exactly which cards won you the game.",
       "The text on the cards now uses a typeface and weight close to the printed cards. Until now it depended on whichever fonts your device happened to have, so it looked different — and thinner — on Windows than on a Mac. Everyone now sees the same thing.",
       "Fixed hovering a card in your hand sometimes enlarging the card behind it in the Lock Area instead. The card you can actually see in front is the one that enlarges.",
       "You can now attach a screenshot to a problem report (optional). Pick a file, paste with Ctrl+V, or drag and drop.",

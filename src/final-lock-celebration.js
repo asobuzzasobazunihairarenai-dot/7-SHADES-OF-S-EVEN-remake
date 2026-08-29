@@ -25,24 +25,32 @@
 import { COLORS, SEAT_TO_SIDE } from "./board-layout.js";
 import { playSound } from "./sound.js";
 import { isFlightAnimationDisabled } from "./motion-prefs.js";
+import { getState } from "./state.js";
+import { buildCardBox } from "./card-face-display.js";
+import { getCardImagePath } from "./cards-data.js";
 
-// 各段の長さ（ms）。合計 ≒ 6.2秒。
+// 各段の長さ（ms）。合計 ≒ 7.4秒。
 const T = {
   hush: 350, // ① 息を呑む（幕が下りて時が止まる）
   hushHold: 200, //    …止まったまま少し置く
   slotStep: 170, // ② 7色が1つずつ灯る（×7）
-  slotHold: 320, //    …7つ灯った状態で溜める
-  gather: 640, // ③ 7色の光が画面中央へ集まる
-  starForm: 440, // ④ 中央で七芒星として結実する
-  starHold: 300, //    …結実したまま溜める
-  burst: 760, // ⑤ 七芒星が弾け、虹の波が広がって色が還る
-  flash: 320, // ⑥ 閃光＋勝者のキューブが光る
-  settle: 550, // ⑦ 光の粒が舞い落ちる
-  afterglow: 1100, // ⑧ 余韻（何も起きない時間）
+  slotHold: 300, //    …7つ灯った状態で溜める
+  cardLift: 260, // ③ ロックした7枚が浮かび上がる
+  cardFly: 820, //    …7枚が画面中央へ集まり、扇状に並ぶ
+  cardFlyHold: 260, //    …並んだところで溜める
+  cardLitStep: 130, // ④ 並んだ7枚が1枚ずつ光る（×7）
+  cardLitHold: 300, //    …7枚光ったところで溜める
+  scatter: 520, // ⑤ 7枚が外へ弾け飛び、中央に七芒星が結実する
+  starHold: 280, //    …結実したまま溜める
+  burst: 760, // ⑥ 七芒星が弾け、虹の波が広がって色が還る
+  flash: 320, // ⑦ 閃光＋勝者のキューブが光る
+  settle: 550, // ⑧ 光の粒が舞い落ちる
+  afterglow: 1100, // ⑨ 余韻（何も起きない時間）
 };
 // 「駒やカードが飛ぶ動きをやめる」設定の人向けの簡易版（合計約1.4秒）。
 const T_LIGHT = {
-  hush: 120, hushHold: 60, slotStep: 70, slotHold: 120, gather: 0, starForm: 0, starHold: 0,
+  hush: 120, hushHold: 60, slotStep: 70, slotHold: 100,
+  cardLift: 0, cardFly: 0, cardFlyHold: 0, cardLitStep: 0, cardLitHold: 0, scatter: 0, starHold: 0,
   burst: 300, flash: 200, settle: 0, afterglow: 500,
 };
 
@@ -94,6 +102,7 @@ export async function playFinalLockCelebration(player) {
   const light = isFlightAnimationDisabled();
   const t = light ? T_LIGHT : T;
   let root = null;
+  let cards = [];
   const slots = findLockSlots(player);
   const piece = findWinnerPiece(player);
   try {
@@ -109,8 +118,10 @@ export async function playFinalLockCelebration(player) {
     const reach = Math.hypot(Math.max(mid.x, window.innerWidth - mid.x), Math.max(mid.y, window.innerHeight - mid.y));
     root.style.setProperty("--flc-reach", `${Math.ceil(reach * 1.2)}px`);
     root.style.setProperty("--flc-hush", `${t.hush}ms`);
-    root.style.setProperty("--flc-gather", `${t.gather}ms`);
-    root.style.setProperty("--flc-star-form", `${t.starForm}ms`);
+    root.style.setProperty("--flc-star-form", `${t.scatter}ms`);
+    root.style.setProperty("--flc-card-lift", `${t.cardLift}ms`);
+    root.style.setProperty("--flc-card-fly", `${t.cardFly}ms`);
+    root.style.setProperty("--flc-scatter", `${t.scatter}ms`);
     root.style.setProperty("--flc-burst", `${t.burst}ms`);
     root.style.setProperty("--flc-flash", `${t.flash}ms`);
     root.style.setProperty("--flc-settle", `${t.settle}ms`);
@@ -149,26 +160,40 @@ export async function playFinalLockCelebration(player) {
     await wait(t.hush);
     await wait(t.hushHold);
 
-    // ② 7色が1つずつ灯る。灯るたびに、その色の光の筋がロックエリアから中央へ伸びていく。
+    // ② 7色が1つずつ灯る
     for (let i = 0; i < slots.length; i++) {
-      const slot = slots[i];
-      slot.classList.add("is-final-flare");
+      slots[i].classList.add("is-final-flare");
       playSound("lock");
-      if (!light) spawnBeam(root, slot, mid, COLORS[i], t.gather + t.starForm);
       await wait(t.slotStep);
     }
     await wait(t.slotHold);
 
-    // ③ 7色の光が中央へ集まる
+    // ③④⑤ ロックした7枚のカード自身が浮かび上がって中央に扇状に集まり、1枚ずつ光ってから
+    // 外へ弾け、その中心に七芒星が結実する（ユーザー要望2026-08-30「C案を足す」）。
     if (!light) {
-      playSound("cardDraw");
-      root.classList.add("is-gathering");
-      await wait(t.gather);
+      cards = spawnLockedCards(root, player, slots, mid);
+      if (cards.length) {
+        playSound("cardDraw");
+        requestAnimationFrame(() => cards.forEach((c) => c.classList.add("is-lifted")));
+        await wait(t.cardLift);
+        requestAnimationFrame(() => cards.forEach((c) => c.classList.add("is-flying")));
+        await wait(t.cardFly);
+        await wait(t.cardFlyHold);
 
-      // ④ 中央で七芒星として結実する
+        // ④ 並んだ7枚が1枚ずつ光る
+        for (const c of cards) {
+          c.classList.add("is-lit");
+          playSound("cardFlip");
+          await wait(t.cardLitStep);
+        }
+        await wait(t.cardLitHold);
+      }
+
+      // ⑤ 7枚が外へ弾け、中央に七芒星が結実する
       playSound("arrivalEffect");
+      cards.forEach((c) => c.classList.add("is-scattering"));
       root.classList.add("is-star");
-      await wait(t.starForm);
+      await wait(t.scatter);
       await wait(t.starHold);
     }
 
@@ -197,6 +222,7 @@ export async function playFinalLockCelebration(player) {
   } catch (err) {
     console.error("[so7] playFinalLockCelebration failed", err);
   } finally {
+    for (const c of cards) c.remove();
     for (const s of slots) s.classList.remove("is-final-flare");
     piece?.classList.remove("is-final-flare-piece");
     root?.remove();
@@ -204,21 +230,51 @@ export async function playFinalLockCelebration(player) {
   }
 }
 
-// ロックスロットから画面中央へ伸びる、その色の光の筋。
-function spawnBeam(root, slot, to, color, lifeMs) {
-  const from = centerOf(slot);
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const len = Math.hypot(dx, dy);
-  const beam = document.createElement("div");
-  beam.className = "flc-beam";
-  beam.style.left = `${from.x}px`;
-  beam.style.top = `${from.y}px`;
-  beam.style.width = `${len}px`;
-  beam.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
-  beam.style.setProperty("--flc-beam-color", `var(--color-${color})`);
-  root.appendChild(beam);
-  setTimeout(() => beam.remove(), lifeMs + 900);
+// ロックした7枚のカードを、いまロックエリアに見えている位置そのままで overlay に作り、
+// 中央へ扇状に集める（C案）。実際のカード面（buildCardBox）を使うので「自分が集めた7枚」が分かる。
+// 3D階層の外に置くので、盤面の傾きに影響されずに素直なアニメーションができる。
+function spawnLockedCards(root, player, slots, mid) {
+  const side = SEAT_TO_SIDE[player];
+  const state = getState();
+  const out = [];
+  // 扇の広がり（中央のカードが正面、両端が外へ倒れる）
+  const FAN_DEG = 13; // 1枚あたりの傾き
+  const FAN_GAP = 9.2; // 1枚あたりの横のずれ（vmin）
+  const vmin = Math.min(window.innerWidth, window.innerHeight) / 100;
+  COLORS.forEach((color, index) => {
+    const token = state.tokens.find(
+      (tk) => tk.kind === "card" && tk.location.zone === "lock" && tk.location.side === side && tk.location.index === index
+    );
+    if (!token) return;
+    const slot = slots[index];
+    const r = slot ? slot.getBoundingClientRect() : null;
+    if (!r || r.width === 0) return;
+    const el = document.createElement("div");
+    el.className = "flc-card";
+    el.style.left = `${r.left}px`;
+    el.style.top = `${r.top}px`;
+    el.style.width = `${r.width}px`;
+    el.style.height = `${r.height}px`;
+    // 扇の中の位置（中央からの相対）
+    const offset = index - (COLORS.length - 1) / 2;
+    const targetW = 15 * vmin;
+    const scale = targetW / r.width;
+    const tx = mid.x - (r.left + r.width / 2) + offset * FAN_GAP * vmin;
+    const ty = mid.y - (r.top + r.height / 2) + Math.abs(offset) * 1.1 * vmin;
+    el.style.setProperty("--flc-card-tx", `${tx}px`);
+    el.style.setProperty("--flc-card-ty", `${ty}px`);
+    el.style.setProperty("--flc-card-rot", `${offset * FAN_DEG}deg`);
+    el.style.setProperty("--flc-card-scale", String(scale));
+    el.style.setProperty("--flc-card-color", `var(--color-${color})`);
+    // 弾ける方向（扇の並びのまま外へ）
+    el.style.setProperty("--flc-card-out-x", `${tx + offset * 26 * vmin}px`);
+    el.style.setProperty("--flc-card-out-y", `${ty - 16 * vmin}px`);
+    el.style.zIndex = String(10 + (7 - Math.abs(offset)));
+    el.appendChild(buildCardBox(token.cardId, getCardImagePath(token.cardId)));
+    root.appendChild(el);
+    out.push(el);
+  });
+  return out;
 }
 
 // 中央から舞い上がって落ちる光の粒。

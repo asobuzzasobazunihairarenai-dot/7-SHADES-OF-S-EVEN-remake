@@ -10609,26 +10609,64 @@ body.reduce-glow .cell.card-effect-just-placed {
   }
 }
 
-/* ③ 光の筋: ロックスロットから画面中央へ、その色のまま伸びる。 */
-#final-lock-celebration .flc-beam {
+/* ③④⑤ ロックした7枚のカード自身が浮かび上がり、中央へ扇状に集まり、1枚ずつ光ってから弾ける。
+   overlay（3D階層の外）に、ロックエリアで見えている位置そのままで作り、transform だけで動かす。 */
+#final-lock-celebration .flc-card {
   position: absolute;
-  height: 0.22rem;
-  transform-origin: 0 50%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--flc-beam-color) 0%, var(--flc-beam-color) 45%, rgba(255, 255, 255, 0.9) 100%);
-  box-shadow: 0 0 0.7rem var(--flc-beam-color);
+  transform-origin: 50% 50%;
+  transform: translate(0, 0) rotate(0deg) scale(1);
   opacity: 0;
-  clip-path: inset(0 100% 0 0);
-  filter: blur(0.4px);
+  border-radius: 0.5rem;
+  transition:
+    transform var(--flc-card-lift, 260ms) cubic-bezier(0.3, 0, 0.2, 1),
+    opacity 160ms linear,
+    box-shadow 220ms ease-out;
+  will-change: transform;
 }
-#final-lock-celebration.is-gathering .flc-beam {
-  animation: flc-beam-run var(--flc-gather, 780ms) cubic-bezier(0.4, 0, 0.2, 1) forwards;
+#final-lock-celebration .flc-card .card-box {
+  width: 100%;
+  height: 100%;
+  border-radius: 0.5rem;
+  box-shadow: 0 0.4rem 1.4rem rgba(0, 0, 0, 0.55);
 }
-@keyframes flc-beam-run {
-  0% { opacity: 0; clip-path: inset(0 100% 0 0); }
-  15% { opacity: 1; }
-  70% { clip-path: inset(0 0 0 0); opacity: 1; }
-  100% { clip-path: inset(0 0 0 55%); opacity: 0.85; }
+/* ③-1 ふわっと浮かび上がる（まだロックエリアの上） */
+#final-lock-celebration .flc-card.is-lifted {
+  opacity: 1;
+  transform: translate(0, -1.4vmin) rotate(0deg) scale(1.06);
+}
+/* ③-2 中央へ飛び、扇状に並ぶ */
+#final-lock-celebration .flc-card.is-flying {
+  transition:
+    transform var(--flc-card-fly, 820ms) cubic-bezier(0.22, 0.9, 0.24, 1),
+    box-shadow 400ms ease-out;
+  transform:
+    translate(var(--flc-card-tx), var(--flc-card-ty))
+    rotate(var(--flc-card-rot))
+    scale(var(--flc-card-scale));
+}
+/* ④ 1枚ずつ光る（その色で縁取り＋発光） */
+#final-lock-celebration .flc-card.is-lit .card-box {
+  box-shadow:
+    0 0 0 0.22rem var(--flc-card-color),
+    0 0 1.4rem 0.3rem var(--flc-card-color),
+    0 0.4rem 1.4rem rgba(0, 0, 0, 0.5);
+  animation: flc-card-pop 420ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+@keyframes flc-card-pop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.16); }
+  100% { transform: scale(1); }
+}
+/* ⑤ 外へ弾け飛ぶ */
+#final-lock-celebration .flc-card.is-scattering {
+  transition:
+    transform var(--flc-scatter, 520ms) cubic-bezier(0.3, 0, 0.6, 1),
+    opacity var(--flc-scatter, 520ms) ease-in;
+  transform:
+    translate(var(--flc-card-out-x), var(--flc-card-out-y))
+    rotate(calc(var(--flc-card-rot) * 3.4))
+    scale(calc(var(--flc-card-scale) * 1.5));
+  opacity: 0;
 }
 
 /* ④ 七芒星: 中央で7色の光が結実する。疑似要素だと細くて見えなかったので実要素で組む
