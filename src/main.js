@@ -346,6 +346,14 @@ import { generateVictorySummaryCanvas } from "./victory-summary-image.js";
 import { playSound, initGameBgmAutoStart, initSoundUnlock, startHeartbeat, stopHeartbeat } from "./sound.js";
 import { initScreenWakeLock } from "./wake-lock.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath, getCardIllustPath } from "./cards-data.js";
+import { getCardName } from "./card-text.js"; // UI英語化フェーズ7: 表示用のカード名（英語版があればそちら）
+
+// モーダル・行動ログ等に出す「表示用のカード名」。英語のカードテキストがあればその名前、
+// 無ければ cards-data.js の日本語の原名にフォールバックする。
+function cardDisplayName(cardId) {
+  if (!cardId) return "";
+  return getCardName(cardId) || getCardDefinition(cardId)?.name || cardId;
+}
 import { isBoardIllustOnly } from "./board-card-display.js";
 import { showCardFace } from "./card-face-display.js";
 import { onLangChange } from "./i18n.js";
@@ -538,7 +546,7 @@ function buildPlayerZone(side, player, isSelf) {
   if (isAfkCpuSubstitutedSeat(player)) {
     const tag = document.createElement("span");
     tag.className = "afk-cpu-tag";
-    tag.textContent = " 🤖CPU操作中";
+    tag.textContent = t("game.cpuOperating");
     nameEl.appendChild(tag);
   }
 
@@ -748,7 +756,7 @@ function buildPlayerZone(side, player, isSelf) {
     showCardFace(cardEl, token.cardId, getCardImagePath(token.cardId));
     const badge = document.createElement("span");
     badge.className = "hand-reveal-badge";
-    badge.textContent = token.revealSource === "draw" ? "🎴 公開ドロー" : "📣 宣言";
+    badge.textContent = token.revealSource === "draw" ? t("game.btn.publicDraw") : t("game.btn.declare");
     cardEl.appendChild(badge);
     slot.appendChild(cardEl);
     // ユーザー要望「自動処理モードでは、公開エリアの捨てるボタンは非表示にする」。
@@ -758,7 +766,7 @@ function buildPlayerZone(side, player, isSelf) {
       const discardBtn = document.createElement("button");
       discardBtn.className = "hand-reveal-discard-btn";
       discardBtn.type = "button";
-      discardBtn.textContent = "🗑 捨てる";
+      discardBtn.textContent = t("game.btn.discard");
     // ハマりどころ（ユーザー報告「捨てるボタンが押せない」の根本原因）: このボタンは
     // .hand-area/.hand-reveal-area等と同じ深いperspective+rotateXの3D階層の中にあり、
     // 実機で検証したところdocument.elementFromPoint()（単数形、実際のマウス/クリック
@@ -828,7 +836,7 @@ export function setCurrentEffectCardForReason(cardId) {
 function currentEffectReasonLabel() {
   if (!currentEffectCardIdForReason) return null;
   const def = getCardDefinition(currentEffectCardIdForReason);
-  return def ? `「${def.name}」の効果` : null;
+  return def ? t("game.effectOf", { card: cardDisplayName(def.id) }) : null;
 }
 async function discardFromHandReveal(tokenId) {
   playHandCardBurn(tokenId); // #3: 捨てる瞬間、そのカードの位置で焼失演出（トークンが消える前に捕捉）
@@ -913,11 +921,13 @@ function buildCardStack(count, pileClass, imagePath) {
 // （card-back-skins.jsのbackImagePath()第1引数）。選ばれているセット番号は
 // getCardBackSetIndex()を毎回参照する（プレイヤー自身の好みでいつでも変わり得るため、
 // ここで固定パスとして持たない）。
+// labelKey は「使う時に t() で解決する」（モジュール読み込み時に翻訳して固定してしまうと、
+// あとから言語を切り替えても山の名前が変わらなくなるため。UI英語化フェーズ7）。
 const PILE_CONFIG = {
-  deck: { gridArea: "deck", pileClass: "pile-deck", label: "山札", backImageKind: "normal" },
-  eternal: { gridArea: "eternal", pileClass: "pile-eternal", label: "エターナルカード", backImageKind: "eternal" },
-  first: { gridArea: "first", pileClass: "pile-first", label: "ファーストカード", backImageKind: "first" },
-  discard: { gridArea: "discard", pileClass: "pile-discard", label: "捨て場" },
+  deck: { gridArea: "deck", pileClass: "pile-deck", labelKey: "game.pile.deck", backImageKind: "normal" },
+  eternal: { gridArea: "eternal", pileClass: "pile-eternal", labelKey: "game.pile.eternal", backImageKind: "eternal" },
+  first: { gridArea: "first", pileClass: "pile-first", labelKey: "game.pile.first", backImageKind: "first" },
+  discard: { gridArea: "discard", pileClass: "pile-discard", labelKey: "game.pile.discard" },
 };
 
 // 名前・枚数のテキストはゾーン外の別ラベルにも山自体にも常時表示しない。ホバー時のツール
@@ -1556,7 +1566,7 @@ async function swapPiecesForEffect(pieceTokenId, fromLocation, targetLocation) {
 // （奪った/受け取った）、loses=自分が奪われた/渡した時（奪われた/渡した）。1画面共有の
 // ローカルでは見ているのは常に自分なので、CPUが自分から奪う時に「奪った」ではなく「奪われた」と
 // 出す（ユーザー報告2026-08-07: スリカエで自分が受け取ったのに「渡した」と出て紛らわしい）。
-function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, revealLabels = { takes: "奪った", loses: "奪われた" }, options = {}) {
+function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, revealLabels = { takes: t("game.label.took"), loses: t("game.label.wasTaken") }, options = {}) {
   return new Promise((resolve) => {
     const theirHand = getState().tokens.filter(
       (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === targetPlayer && !excludeTokenIds?.has(t.id)
@@ -1630,14 +1640,14 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, reve
           if (targetPlayer === self) {
             // 自分の手札が奪われる／渡す側。
             labelText = revealLabels.loses;
-            sub = actor ? `${getPlayerName(actor)}に` : "";
+            sub = actor ? t("game.ritual.toPlayer", { name: getPlayerName(actor) }) : "";
           } else {
             // 取る側（自分が取る、または4人戦で他者が他者から取る）。
             labelText = revealLabels.takes;
             sub =
               actor && actor !== self && actor !== targetPlayer
-                ? `${getPlayerName(actor)}が${getPlayerName(targetPlayer)}から`
-                : `${getPlayerName(targetPlayer)}から`;
+                ? t("game.ritual.fromXtoY", { actor: getPlayerName(actor), target: getPlayerName(targetPlayer) })
+                : t("game.ritual.fromPlayer", { name: getPlayerName(targetPlayer) });
           }
           // ユーザー要望2026-08-28「接触時の『奪った』モーダルは、接触演出の直後の方が良い
           // （現在は直前に表示されている）」。deferReveal が指定された時は、ここで即座に
@@ -1661,11 +1671,11 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, reve
     modal.id = "sleight-ritual-modal";
     const title = document.createElement("div");
     title.className = "sleight-ritual-title";
-    const pickHint = hint || `${getPlayerName(targetPlayer)}の手札から1枚選んでください`;
+    const pickHint = hint || t("game.pick.fromHand", { name: getPlayerName(targetPlayer) });
     // ユーザー要望「スリカエで1枚引っこ抜く前にシャッフル演出が欲しい」。まず一定時間、
     // 裏向きの手札をシャッフルしている演出を見せてから（この間はクリック不可）、実際の
     // 選択に移る。
-    title.textContent = "シャッフル中…";
+    title.textContent = t("game.ritual.shuffling");
     modal.appendChild(title);
     const cardsWrap = document.createElement("div");
     cardsWrap.className = "sleight-ritual-cards";
@@ -1758,7 +1768,7 @@ function openRitualPickWatch(order, options = {}) {
   ritualPickWatchModal.id = "sleight-ritual-modal";
   ritualPickWatchTitleEl = document.createElement("div");
   ritualPickWatchTitleEl.className = "sleight-ritual-title";
-  ritualPickWatchTitleEl.textContent = options.title || "相手があなたの手札から1枚選んでいます…";
+  ritualPickWatchTitleEl.textContent = options.title || t("game.ritual.opponentPicking");
   ritualPickWatchModal.appendChild(ritualPickWatchTitleEl);
   const cardsWrap = document.createElement("div");
   cardsWrap.className = "sleight-ritual-cards";
@@ -1783,7 +1793,7 @@ function revealRitualPickWatchResultMulti(tokenIds) {
   if (!ritualPickWatchModal) return;
   ritualPickWatchResolved = true;
   const stolenSet = new Set(tokenIds || []);
-  if (ritualPickWatchTitleEl) ritualPickWatchTitleEl.textContent = "これらのカードが奪われました！";
+  if (ritualPickWatchTitleEl) ritualPickWatchTitleEl.textContent = t("game.ritual.stolenTheseCards");
   for (const el of ritualPickWatchCardEls) {
     const isPicked = stolenSet.has(el.dataset.tokenId);
     el.classList.remove("is-hovered");
@@ -1801,7 +1811,7 @@ function revealRitualPickWatchResultMulti(tokenIds) {
 function revealRitualPickWatchResult(pickedTokenId) {
   if (!ritualPickWatchModal) return;
   ritualPickWatchResolved = true;
-  if (ritualPickWatchTitleEl) ritualPickWatchTitleEl.textContent = "このカードが奪われました！";
+  if (ritualPickWatchTitleEl) ritualPickWatchTitleEl.textContent = t("game.ritual.stolenThisCard");
   for (const el of ritualPickWatchCardEls) {
     const isPicked = el.dataset.tokenId === pickedTokenId;
     el.classList.remove("is-hovered");
@@ -1876,7 +1886,7 @@ onEffectReasonEvents(({ fromPlayer, cardId, text }) => {
 // ローカル再生済みなので、ここでは自分以外からの通知だけを再生する）。
 onSteppedCardRevealEvents(({ fromPlayer, cardId, labelText }) => {
   if (fromPlayer === getSelfSeat()) return;
-  playCenterCardFlipReveal(cardId, { labelText: labelText || "踏んだ" });
+  playCenterCardFlipReveal(cardId, { labelText: labelText || t("game.label.stepped") });
 });
 // 不具合#43: マスチェンジの入れ替え電撃演出を、実行者以外の全プレイヤーでも再生する。
 // （実行者はswapPiecesForEffect内でローカル再生済み。受信側は入れ替え前の元位置間にアークを描く。）
@@ -2070,9 +2080,9 @@ async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
   // 中身が判明した状態で見せる。移動はここで済むので、後段の重複した moveAndSync は行わない。
   const theirCard = await requestOpponentHandRitualPick(
     targetPlayer,
-    `${getPlayerName(targetPlayer)}の手札（裏向き）から1枚選んでください`,
+    t("game.pick.fromHandFaceDown", { name: getPlayerName(targetPlayer) }),
     undefined,
-    { takes: "受け取った", loses: "渡した" },
+    { takes: t("game.label.received"), loses: t("game.label.handedOver") },
     { onPickedBeforeReveal: async (token) => moveAndSyncForEffect(token.id, { zone: "hand", player }) }
   );
   if (!theirCard) return;
@@ -2088,7 +2098,7 @@ async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
   if (!stealSucceeded) {
     announceEffectReasonForEffect(
       "yellow-sleight-of-hand",
-      "通信エラーで相手の手札を奪えなかったため、交換を中止しました。もう一度お試しください。"
+      t("game.ritual.stealFailed")
     );
     return;
   }
@@ -2119,8 +2129,8 @@ async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
     myCard = await requestHandCardChoiceForEffect(
       player,
       onlyOne
-        ? "手札はこの1枚だけです。スリカエは必ず1枚ずつの交換なので、このカードを相手へ返してください"
-        : "相手に渡すカードを手札から選択してください",
+        ? t("game.ritual.onlyOneCard")
+        : t("game.ritual.giveCard"),
       new Set(myHandTokens.map((t) => t.id))
     );
   }
@@ -2133,7 +2143,7 @@ async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
   // ユーザー要望「スリカエなどで渡されたカードは何が渡されたのか大きくモーダルで
   // 表示してわかるようにしてほしい」。受け取る側（targetPlayer）は相手の手札の
   // 中身を知らないため、渡し終えた直後に何を受け取ったのか大きく見せる。
-  const subtitle = `${getPlayerName(player)}から受け取りました`;
+  const subtitle = t("game.ritual.receivedFrom", { name: getPlayerName(player) });
   if (isOnlineMode() && targetPlayer !== getSelfSeat()) {
     // オンライン: 受け取る相手(targetPlayer)本人の画面に、その相手が受け取ったカードを見せる。
     broadcastCardReceived({ targetPlayer, cardId: myCard.cardId, subtitle });
@@ -2144,10 +2154,10 @@ async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
     const self = getSelfSeat();
     if (targetPlayer === self) {
       // 自分が受け取る（相手が自分に渡した）。
-      showCardReceivedModal(myCard.cardId, `${getPlayerName(player)}から受け取りました`, { labelText: "受け取った" });
+      showCardReceivedModal(myCard.cardId, t("game.ritual.receivedFrom", { name: getPlayerName(player) }), { labelText: t("game.label.received") });
     } else {
       // 自分（または実行者）が相手へ渡す。
-      showCardReceivedModal(myCard.cardId, `${getPlayerName(targetPlayer)}に渡しました`, { labelText: "渡した" });
+      showCardReceivedModal(myCard.cardId, t("game.ritual.gaveTo", { name: getPlayerName(targetPlayer) }), { labelText: t("game.label.handedOver") });
     }
   }
   render();
@@ -2179,14 +2189,14 @@ function announceGateInvasionSuccessBeforeStealPick(defender, count) {
     modal.style.cssText =
       "position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(24rem, 92vw); background: rgba(15, 23, 32, 0.98); border: 1px solid rgba(251, 191, 36, 0.5); border-radius: 0.5rem; padding: 1.3rem; z-index: 10621; font-family: sans-serif; color: #e2e8f0; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6); text-align: center;";
     const title = document.createElement("div");
-    title.textContent = "🚩 ゲート侵攻成功！";
+    title.textContent = t("game.ritual.gateSuccess");
     title.style.cssText = "font-weight: bold; color: #fbbf24; font-size: 1.15rem; margin-bottom: 0.6rem;";
     const body = document.createElement("div");
-    body.textContent = `${getPlayerName(defender)}の手札から、奪う${count}枚をこれから選びます。`;
+    body.textContent = t("game.ritual.aboutToSteal", { name: getPlayerName(defender), n: count });
     body.style.cssText = "font-size: 0.95rem; line-height: 1.7; margin-bottom: 1rem;";
     const okBtn = document.createElement("button");
     okBtn.type = "button";
-    okBtn.textContent = "奪う札を選ぶ";
+    okBtn.textContent = t("game.ritual.pickStealBtn");
     okBtn.style.cssText =
       "padding: 0.55rem 1.6rem; background: #0891b2; border: none; border-radius: 0.35rem; color: #fff; font-weight: bold; font-size: 0.95rem; cursor: pointer;";
     okBtn.addEventListener("click", finish);
@@ -2236,7 +2246,7 @@ function requestOpponentHandRitualMultiPick(targetPlayer, count) {
     modal.classList.add("is-multi-pick");
     const title = document.createElement("div");
     title.className = "sleight-ritual-title";
-    title.textContent = "シャッフル中…";
+    title.textContent = t("game.ritual.shuffling");
     modal.appendChild(title);
     const cardsWrap = document.createElement("div");
     cardsWrap.className = "sleight-ritual-cards";
@@ -2247,8 +2257,8 @@ function requestOpponentHandRitualMultiPick(targetPlayer, count) {
     confirmBtn.type = "button";
     confirmBtn.className = "contact-approval-approve";
     const updateUi = () => {
-      title.textContent = `奪うカードを${need}枚選んでください（${selected.size}/${need}）`;
-      confirmBtn.textContent = `✅ 決定（${selected.size}/${need}枚）`;
+      title.textContent = t("game.ritual.pickN", { n: need, sel: selected.size });
+      confirmBtn.textContent = t("game.ritual.confirmN", { sel: selected.size, n: need });
       confirmBtn.disabled = selected.size !== need;
     };
     shuffled.forEach((token, index) => {
@@ -2324,8 +2334,8 @@ async function stealHandCardsRitualForGateInvasion(defender, count, onPicked) {
       .filter(Boolean);
     if (cardIds.length > 0) {
       const self = getSelfSeat();
-      const sub = self === defender ? "" : `${getPlayerName(defender)}から`;
-      await showMultipleCardsReceivedModal(cardIds, sub, { labelText: "奪った" });
+      const sub = self === defender ? "" : t("game.ritual.fromPlayer", { name: getPlayerName(defender) });
+      await showMultipleCardsReceivedModal(cardIds, sub, { labelText: t("game.label.took") });
     }
     return tokens;
   }
@@ -2334,7 +2344,7 @@ async function stealHandCardsRitualForGateInvasion(defender, count, onPicked) {
   for (let i = 0; i < count; i++) {
     const token = await requestOpponentHandRitualPick(
       defender,
-      `${getPlayerName(defender)}の手札（裏向き）から奪うカードを選んでください（${i + 1}/${count}）`,
+      t("game.ritual.pickStealFaceDown", { name: getPlayerName(defender), i: i + 1, n: count }),
       excludeTokenIds
     );
     if (!token) break;
@@ -2607,7 +2617,7 @@ async function celebrateForEffect(cardId, { tone = "success", headline, sub } = 
 // をそのまま流用し、テキストだけ「○○が『△△』を選びました」に整形する。
 async function announceEffectChoiceForEffect(cardId, player, optionLabel) {
   const label = String(optionLabel ?? "").trim();
-  const text = label ? `${getPlayerName(player)}が「${label}」を選びました。` : `${getPlayerName(player)}が選択しました。`;
+  const text = label ? t("game.choice.chose", { name: getPlayerName(player), label }) : t("game.choice.made", { name: getPlayerName(player) });
   await announceEffectReasonForEffect(cardId, text);
 }
 
@@ -2630,7 +2640,7 @@ function announceEffectNoticeForEffect(cardId, text) {
 // ため文言を分ける——盤面にそのまま残る）。announceEffectReasonForEffectと同じ理由で
 // モーダル自身の全表示時間と揃えて待つ。
 async function announceEffectFizzleForEffect(cardId, addsToHand) {
-  await showAndAwaitEffectReason(cardId, addsToHand ? "不発のため、このカードを手札に加えます。" : "不発のため、何も起きませんでした。");
+  await showAndAwaitEffectReason(cardId, addsToHand ? t("game.fizzle.toHand") : t("game.fizzle.nothing"));
   return;
 }
 
@@ -2646,7 +2656,7 @@ function revealCenterCardForAll(cardId, labelText) {
 }
 // showCardReceivedModal（awaitable）を「踏んだ」ラベルで流用する。
 function announceSteppedCardForEffect(cardId) {
-  return revealCenterCardForAll(cardId, "踏んだ");
+  return revealCenterCardForAll(cardId, t("game.label.stepped"));
 }
 
 // プレゼントの到達効果（１番少なくロックしている全員がドロー）等で、「誰が対象か」を
@@ -2742,7 +2752,10 @@ function pickOptionForEffect(cardId, optionsWithUsability, title) {
 // 作業（既にコストを払って効果を発動済みの状態）のため、キャンセルする手段を一切
 // 設けない（backdropクリック・✕ボタン共に無し）。「宣言する」ボタンを押すまで
 // 必ずこのモーダルに留まる。
-const COLOR_LABEL_JA = { red: "赤", orange: "橙", yellow: "黄", green: "緑", blue: "青", pink: "桃", purple: "紫" };
+// 色名は使う時に翻訳する（PILE_CONFIGと同じ理由）。
+function colorLabel(color) {
+  return t("game.color." + color);
+}
 
 // ユーザー要望（続き65）「宣言色の見える化は、色の漢字より選ぶ時に出てくる丸い色
 // アイコンの方がわかりやすい。中央に表示されたらすっとそのまま画面左側にモーダルが
@@ -2756,7 +2769,7 @@ function showDeclaredColorsIndicator(fromPlayer, colors) {
   el.className = "declared-colors-indicator";
   const title = document.createElement("div");
   title.className = "declared-colors-indicator-title";
-  title.textContent = `${getPlayerName(fromPlayer)}が宣言`;
+  title.textContent = t("game.declare.byPlayer", { name: getPlayerName(fromPlayer) });
   el.appendChild(title);
   const swatches = document.createElement("div");
   swatches.className = "declared-colors-indicator-swatches";
@@ -2764,7 +2777,7 @@ function showDeclaredColorsIndicator(fromPlayer, colors) {
     const dot = document.createElement("div");
     dot.className = "declared-colors-indicator-swatch";
     dot.style.setProperty("--swatch-color", `var(--color-${color})`);
-    dot.title = COLOR_LABEL_JA[color] ?? color;
+    dot.title = colorLabel(color) ?? color;
     swatches.appendChild(dot);
   }
   el.appendChild(swatches);
@@ -2840,7 +2853,7 @@ function declareColorsForEffect(requirement, cardId, player) {
     }
     const peekHint = document.createElement("div");
     peekHint.className = "hand-effect-option-picker-peek-hint";
-    peekHint.textContent = "盤面を確認中…クリックで選択画面に戻ります";
+    peekHint.textContent = t("game.declare.viewingBoard");
 
     const backdrop = createBackdrop(() => {
       if (isPeeking) setPeeking(false);
@@ -2850,13 +2863,13 @@ function declareColorsForEffect(requirement, cardId, player) {
 
     const title = document.createElement("div");
     title.className = "declare-colors-modal-title";
-    title.textContent = isExact ? `色を${required}色宣言してください` : `${required}色以上、色を宣言してください`;
+    title.textContent = isExact ? t("game.declare.exact", { n: required }) : t("game.declare.atLeast", { n: required });
     modal.appendChild(title);
 
     const peekBtn = document.createElement("button");
     peekBtn.type = "button";
     peekBtn.className = "hand-effect-option-picker-peek-btn";
-    peekBtn.textContent = "盤面を見る";
+    peekBtn.textContent = t("game.declare.viewBoard");
     peekBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       setPeeking(true);
@@ -2882,7 +2895,7 @@ function declareColorsForEffect(requirement, cardId, player) {
       btn.type = "button";
       btn.className = "declare-colors-modal-swatch";
       btn.style.setProperty("--swatch-color", `var(--color-${color})`);
-      btn.title = COLOR_LABEL_JA[color] ?? color;
+      btn.title = colorLabel(color) ?? color;
       btn.addEventListener("click", () => {
         if (selected.has(color)) selected.delete(color);
         else selected.add(color);
@@ -2898,7 +2911,7 @@ function declareColorsForEffect(requirement, cardId, player) {
     const confirmBtn = document.createElement("button");
     confirmBtn.type = "button";
     confirmBtn.className = "declare-colors-modal-confirm";
-    confirmBtn.textContent = "宣言する";
+    confirmBtn.textContent = t("game.declare.submit");
     confirmBtn.addEventListener("click", () => {
       // 宣言色の見える化（ブロードキャスト＋常駐表示）は finish() に集約したので、ここでは
       // 選択内容を渡して確定するだけ（人間・自動代行のどちらも同じ経路で必ず表示される）。
@@ -2981,7 +2994,7 @@ async function publicDrawThenRevealForEffect(player, count) {
       }
       if (!cardId) break;
       // 公開エリアに出す前に中央フリップで公開（全員に配信）。
-      await revealCenterCardForAll(cardId, "ギャンブル公開");
+      await revealCenterCardForAll(cardId, t("game.label.gambleReveal"));
       // state を最新化する。defer中は汎用render()が抑制されているので公開エリアにはまだ出ない
       // （最後に endPublicDrawDefer でまとめて描画する）。defer外なら従来どおりこの時点で出る。
       try {
@@ -2995,7 +3008,7 @@ async function publicDrawThenRevealForEffect(player, count) {
       if (pileArray.length === 0) break;
       const cardId = pileArray[pileArray.length - 1];
       // まだ山にあるうちに中央フリップで公開してから、公開エリアへ移す。
-      await revealCenterCardForAll(cardId, "ギャンブル公開");
+      await revealCenterCardForAll(cardId, t("game.label.gambleReveal"));
       drawFromPile("deck", { zone: "publicDraw", player });
       // defer中は描画しない（最後にまとめて）。defer外なら従来どおり即描画。
       if (!publicDrawDeferActive) render();
@@ -3143,17 +3156,17 @@ function requestPlaceSourceChoiceForEffect() {
     modal.id = "sleight-ritual-modal";
     const title = document.createElement("div");
     title.className = "sleight-ritual-title";
-    title.textContent = "どこから置きますか？";
+    title.textContent = t("game.place.where");
     modal.appendChild(title);
     const buttonsWrap = document.createElement("div");
     buttonsWrap.className = "place-source-choice-buttons";
     const deckBtn = document.createElement("button");
     deckBtn.type = "button";
-    deckBtn.textContent = "🂠 山札から";
+    deckBtn.textContent = t("game.place.fromDeckBtn");
     deckBtn.addEventListener("click", () => finish("deck"));
     const handBtn = document.createElement("button");
     handBtn.type = "button";
-    handBtn.textContent = "🖐 手札から";
+    handBtn.textContent = t("game.place.fromHandBtn");
     handBtn.addEventListener("click", () => finish("hand"));
     buttonsWrap.appendChild(deckBtn);
     buttonsWrap.appendChild(handBtn);
@@ -3176,8 +3189,8 @@ function requestPlaceSourceChoiceForEffect() {
     activeEffectPicker = {
       type: "option",
       options: [
-        { id: "deck", label: "山札から", usable: true },
-        { id: "hand", label: "手札から", usable: true },
+        { id: "deck", label: t("game.place.fromDeck"), usable: true },
+        { id: "hand", label: t("game.place.fromHand"), usable: true },
       ],
       resolve: finish,
     };
@@ -3223,13 +3236,13 @@ async function runJointConstructionTask(player) {
       dest = pool[Math.floor(Math.random() * pool.length)];
     }
     await placeFromDeckForEffect({ zone: "cell", row: dest.row, col: dest.col });
-    await announceEffectChoiceForEffect("green-joint-construction", player, "山札から１枚を裏向きで置く");
+    await announceEffectChoiceForEffect("green-joint-construction", player, t("game.place.deckFaceDown"));
     return true;
   }
   // ユーザー指摘「『空いてるマス』ではなく『何もないマス』」——getEmptyCellCandidatesForEffect
   // 自体は元々「カードも駒も無いマス」を正しく候補にしていたが、案内文の言葉遣いだけ
   // 「空いている」になっていた。docs/cards.mdの表記に合わせて「何もない」に統一する。
-  const dest = await requestCellChoiceForEffect(emptyCells, "何もないマスを選択してください");
+  const dest = await requestCellChoiceForEffect(emptyCells, t("game.pick.emptyCell"));
   if (!dest) return false;
   // ユーザー要望2026-08-07: 手札（公開ドロー含む）が無い時は「山札から/手札から」を聞いても
   // 「手札から」は選べず無意味なので、その選択を出さず自動で山札から置き、「手札がないため
@@ -3239,20 +3252,20 @@ async function runJointConstructionTask(player) {
   );
   if (handTokens.length === 0) {
     await placeFromDeckForEffect({ zone: "cell", row: dest.row, col: dest.col });
-    await announceEffectChoiceForEffect("green-joint-construction", player, "手札がないため山札から置く");
+    await announceEffectChoiceForEffect("green-joint-construction", player, t("game.place.noHandSoDeck"));
     return true;
   }
   const source = await requestPlaceSourceChoiceForEffect();
   if (!source) return false;
   if (source === "hand") {
-    const handToken = await requestHandCardChoiceForEffect(player, "そのマスに置くカードを手札から選択してください");
+    const handToken = await requestHandCardChoiceForEffect(player, t("game.pick.placeFromHand"));
     if (!handToken) return false;
     await moveAndSyncForEffect(handToken.id, { zone: "cell", row: dest.row, col: dest.col });
     // ユーザー要望「合同建設で相手が山札から置いたのか手札から置いたのかを全員に周知」。
-    await announceEffectChoiceForEffect("green-joint-construction", player, "手札から１枚を裏向きで置く");
+    await announceEffectChoiceForEffect("green-joint-construction", player, t("game.place.handFaceDown"));
   } else {
     await placeFromDeckForEffect({ zone: "cell", row: dest.row, col: dest.col });
-    await announceEffectChoiceForEffect("green-joint-construction", player, "山札から１枚を裏向きで置く");
+    await announceEffectChoiceForEffect("green-joint-construction", player, t("game.place.deckFaceDown"));
   }
   return true;
 }
@@ -3268,7 +3281,7 @@ async function runSlumOfficialDiscardTask(player) {
       (t) => t.kind === "card" && t.location.player === player && (t.location.zone === "hand" || t.location.zone === "publicDraw")
     ).length;
     if (handCount <= 3) break;
-    const chosen = await requestHandCardChoiceForEffect(player, `手札が3枚になるまで捨ててください（あと${handCount - 3}枚）`);
+    const chosen = await requestHandCardChoiceForEffect(player, t("game.slum.discardTo3", { n: handCount - 3 }));
     if (!chosen) break;
     await discardFromHandReveal(chosen.id);
     discardedAny = true;
@@ -3294,9 +3307,9 @@ async function runPartyOptionTask(player) {
     return token && !token.faceUp;
   });
   const options = [
-    { id: "move", label: "１マス移動し、移動先の到達効果は得ない。", usable: moveCandidates.length > 0 },
-    { id: "pickup", label: "場の任意の１枚をあなたの手札に加える。", usable: boardCardCells.length > 0 },
-    { id: "open-two", label: "場の任意の２枚をオープンする。", usable: faceDownBoardCells.length >= 2 },
+    { id: "move", label: t("game.party.move"), usable: moveCandidates.length > 0 },
+    { id: "pickup", label: t("game.party.pickup"), usable: boardCardCells.length > 0 },
+    { id: "open-two", label: t("game.party.openTwo"), usable: faceDownBoardCells.length >= 2 },
   ];
   if (!options.some((o) => o.usable)) return false;
   const chosen = await pickOptionForEffect("pink-party", options);
@@ -3309,7 +3322,7 @@ async function runPartyOptionTask(player) {
   const announced = announceEffectChoiceForEffect("pink-party", player, chosen.label);
   const result = await (async () => {
   if (chosen.id === "move") {
-    const dest = moveCandidates.length === 1 ? moveCandidates[0] : await requestCellChoiceForEffect(moveCandidates, "移動先のマスを選択してください");
+    const dest = moveCandidates.length === 1 ? moveCandidates[0] : await requestCellChoiceForEffect(moveCandidates, t("game.pick.moveTo"));
     if (!dest) return false;
     // ユーザー報告「パーティの『1マス移動し移動先の効果を得ない』で移動先の到達効果が
     // 発動してしまう」の原因: ここでsuppressArrival(第4引数)を渡していなかったため、
@@ -3333,7 +3346,7 @@ async function runPartyOptionTask(player) {
     return true;
   }
   if (chosen.id === "pickup") {
-    const dest = boardCardCells.length === 1 ? boardCardCells[0] : await requestCellChoiceForEffect(boardCardCells, "手札に加えるカードのあるマスを選択してください");
+    const dest = boardCardCells.length === 1 ? boardCardCells[0] : await requestCellChoiceForEffect(boardCardCells, t("game.pick.cellWithCardToHand"));
     if (!dest) return false;
     const token = findTopCardAt(dest);
     if (!token) return false;
@@ -3343,14 +3356,14 @@ async function runPartyOptionTask(player) {
     return true;
   }
   // open-two: 2枚選んでオープンする（手札に加えず、その場でめくるだけ）。
-  const firstDest = await requestCellChoiceForEffect(faceDownBoardCells, "オープンするカードのあるマスを選択してください（1/2）");
+  const firstDest = await requestCellChoiceForEffect(faceDownBoardCells, t("game.pick.openCell1"));
   if (!firstDest) return false;
   const firstToken = findTopCardAt(firstDest);
   if (firstToken) await flipToFaceUpForEffect(firstToken.id);
   const remaining = faceDownBoardCells.filter((c) => !(c.row === firstDest.row && c.col === firstDest.col));
   if (remaining.length === 0) return true;
   const secondDest =
-    remaining.length === 1 ? remaining[0] : await requestCellChoiceForEffect(remaining, "オープンするカードのあるマスを選択してください（2/2）");
+    remaining.length === 1 ? remaining[0] : await requestCellChoiceForEffect(remaining, t("game.pick.openCell2"));
   if (!secondDest) return true;
   const secondToken = findTopCardAt(secondDest);
   if (secondToken) await flipToFaceUpForEffect(secondToken.id);
@@ -3426,7 +3439,7 @@ async function delegateToPlayerForEffect(player, taskType) {
   // 選択待ちの間、手番プレイヤーの画面には何も表示されず「固まった」ように見えて
   // しまう（相手のピッカー自体は相手本人の画面にしか出ないため）。既存の候補選択中
   // バナー（showEffectPickerHint）を使い、「待っている」ことだけでも伝える。
-  showEffectPickerHint(`${getPlayerName(player)}さんの選択を待っています…`);
+  showEffectPickerHint(t("game.waitingChoice", { name: getPlayerName(player) }));
   const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   broadcastArrivalDelegateRequest({ player, taskType, requestId });
   const result = await new Promise((resolve) => {
@@ -3728,7 +3741,7 @@ document.addEventListener(
             if (isHandPhaseActive()) {
               void tryUseLockedUsableCard(cardEl.dataset.tokenId);
             } else {
-              showQuickNote("このカードの効果は、あなたのハンドフェイズ（自分のターン）に使えます。");
+              showQuickNote(t("game.handEffect.onlyHandPhase"));
             }
             return;
           }
@@ -3768,7 +3781,7 @@ document.addEventListener(
             picker.resolve(match);
           } else if (picker.alertCells?.some((c) => c.row === row && c.col === col)) {
             // 既に選択済みのマス（別々のマスに置く効果）を再度クリックした → 注意する。
-            alert(picker.alertMessage || "そのマスは選べません。");
+            alert(picker.alertMessage || t("game.pick.cannotPickCell"));
           }
           return;
         }
@@ -3820,7 +3833,7 @@ document.addEventListener(
           // （ユーザー要望2026-08-13。追色コスト・収穫と種まき等の手札選択が対象）。設定
           // (isActionConfirmEnabled)がOFFなら confirmTouchAction は即trueを返すので実質素通り。
           // 確認が閉じるまで activeEffectPicker は残す＝拒否したら選び直せる／候補ハイライトも保持。
-          confirmTouchAction(picker.confirmTitle ?? "このカードを選びますか？", { cardId: token?.cardId }).then((ok) => {
+          confirmTouchAction(picker.confirmTitle ?? t("game.pick.thisCard"), { cardId: token?.cardId }).then((ok) => {
             if (!ok) return; // いいえ＝ピッカー維持、選び直せる
             if (activeEffectPicker !== picker) return; // 念のため（待機中に状況が変わった場合）
             activeEffectPicker = null;
@@ -3933,7 +3946,7 @@ async function performLockPhaseClick(tokenId, { skipConfirm = false, actingSeat 
   // モーダルを出さない。出しても押す人がおらず、そのまま停止してしまうため（ユーザー報告
   // 「疑似CPUモードの時、ロックの確認モーダルで停止しました」）。人間のクリック/タップ経路は
   // 従来通りskipConfirm=falseで確認を挟む（isActionConfirmEnabled設定に従う）。
-  if (!skipConfirm && !(await confirmTouchAction(`${getCardDefinition(token.cardId).name}をロックしますか？`, { cardId: token.cardId }))) return;
+  if (!skipConfirm && !(await confirmTouchAction(t("game.confirm.lockCard", { card: cardDisplayName(token.cardId) }), { cardId: token.cardId }))) return;
   const color = getCardDefinition(token.cardId).color;
   const dropTarget = { zone: "lock", side: SEAT_TO_SIDE[player], index: COLORS.indexOf(color) };
   // 最後のロック承認: ドラッグ&ドロップ経路（onDragEndのkind==="card"分岐）と同じく、この
@@ -4342,7 +4355,7 @@ function showCpuStepHint() {
   if (!cpuStepHintEl) {
     cpuStepHintEl = document.createElement("div");
     cpuStepHintEl.id = "cpu-step-hint";
-    cpuStepHintEl.textContent = "▶ クリックして次へ";
+    cpuStepHintEl.textContent = t("game.cpuStepHint");
     document.body.appendChild(cpuStepHintEl);
   }
   cpuStepHintEl.classList.add("show");
@@ -4454,7 +4467,7 @@ function requestCellChoiceForEffect(candidates, hint, options = {}) {
       document.body.classList.add("card-effect-picking-cells");
     }
     if (hint) showEffectPickerHint(hint); // showEffectPickerHint内でCPU中は自動スキップ
-    if (options.allowSkip && !cpuSelecting) showEffectSkipButton(options.skipLabel ?? "これ以上選ばない");
+    if (options.allowSkip && !cpuSelecting) showEffectSkipButton(options.skipLabel ?? t("game.pick.noMore"));
     activeEffectPicker = {
       type: "cell",
       owner: options.owner ?? null,
@@ -4961,9 +4974,9 @@ function pickRandomFromOpponentHandForEffect(targetPlayer) {
   // 加わらないため、中央の周知は「奪った／奪われた」ではなく「捨てさせた／捨てさせられた」にする。
   return requestOpponentHandRitualPick(
     targetPlayer,
-    `${getPlayerName(targetPlayer)}の手札（裏向き）から無作為に1枚選んでください`,
+    t("game.pick.randomFromHand", { name: getPlayerName(targetPlayer) }),
     undefined,
-    { takes: "捨てさせた", loses: "捨てさせられた" }
+    { takes: t("game.label.madeDiscard"), loses: t("game.label.forcedDiscard") }
   );
 }
 
@@ -5076,8 +5089,8 @@ function buildAnytimeInterruptResumeButton() {
   resumeAnytimeInterruptButtonEl = document.createElement("button");
   resumeAnytimeInterruptButtonEl.type = "button";
   resumeAnytimeInterruptButtonEl.id = "anytime-interrupt-resume-button";
-  resumeAnytimeInterruptButtonEl.textContent = "🔔 割り込みモーダル再開";
-  resumeAnytimeInterruptButtonEl.title = "「今後このモーダルを出さない」を選んだ後、いつでも使える効果の割り込みモーダルをまた表示させます。";
+  resumeAnytimeInterruptButtonEl.textContent = t("game.anytime.resumeBtn");
+  resumeAnytimeInterruptButtonEl.title = t("game.anytime.resumeTip");
   resumeAnytimeInterruptButtonEl.style.display = "none";
   resumeAnytimeInterruptButtonEl.addEventListener("click", () => {
     anytimeInterruptOptedOut = false;
@@ -5106,8 +5119,8 @@ function showAnytimeInterruptModal(player, tokens) {
   title.className = "contact-approval-title";
   title.textContent =
     !isOnlineMode() && player !== getSelfSeat()
-      ? `${getPlayerName(player)}：いつでも使えるカードがあります`
-      : "いつでも使えるカードがあります";
+      ? t("game.anytime.haveNamed", { name: getPlayerName(player) })
+      : t("game.anytime.have");
   modal.appendChild(title);
 
   const list = document.createElement("div");
@@ -5122,7 +5135,7 @@ function showAnytimeInterruptModal(player, tokens) {
     const useBtn = document.createElement("button");
     useBtn.type = "button";
     useBtn.className = "anytime-interrupt-modal-row-use";
-    useBtn.textContent = "使う";
+    useBtn.textContent = t("game.anytime.use");
     useBtn.addEventListener("click", () => {
       // 誰かがこのチェックポイントで割り込んだら、待ち行列の残り（他プレイヤー分）は
       // 打ち切る——割り込みで状況自体が変わるため、古い前提のまま続けても意味が無い。
@@ -5158,7 +5171,7 @@ function showAnytimeInterruptModal(player, tokens) {
     }
   });
   const optOutLabel = document.createElement("span");
-  optOutLabel.textContent = "今後このモーダルを出さない";
+  optOutLabel.textContent = t("game.anytime.never");
   optOutRow.appendChild(optOutCheckbox);
   optOutRow.appendChild(optOutLabel);
   modal.appendChild(optOutRow);
@@ -5252,7 +5265,7 @@ function confirmTouchAction(title, { cardId = null } = {}) {
     const yesBtn = document.createElement("button");
     yesBtn.className = "contact-approval-approve";
     yesBtn.type = "button";
-    yesBtn.textContent = "✅ はい";
+    yesBtn.textContent = t("game.confirm.yes");
     const finish = (result) => {
       backdrop.remove();
       modal.remove();
@@ -5262,7 +5275,7 @@ function confirmTouchAction(title, { cardId = null } = {}) {
     const noBtn = document.createElement("button");
     noBtn.className = "contact-approval-reject";
     noBtn.type = "button";
-    noBtn.textContent = "🚫 いいえ";
+    noBtn.textContent = t("game.confirm.no");
     noBtn.addEventListener("click", () => finish(false));
     buttons.appendChild(yesBtn);
     buttons.appendChild(noBtn);
@@ -5273,7 +5286,7 @@ function confirmTouchAction(title, { cardId = null } = {}) {
     const dontShow = document.createElement("button");
     dontShow.id = "touch-action-confirm-dontshow";
     dontShow.type = "button";
-    dontShow.textContent = "今後このモーダルを表示しない";
+    dontShow.textContent = t("game.confirm.never");
     dontShow.addEventListener("click", () => {
       setActionConfirmEnabled(false);
       saveMyPreference({ action_confirm_enabled: false }); // アカウントにも保存（別端末で共有）
@@ -5289,7 +5302,7 @@ function confirmTouchAction(title, { cardId = null } = {}) {
 // confirmTouchActionと同じcontact-approval-*流用の汎用Yes/Noモーダルだが、こちらは
 // 誤操作防止用ではなく本当の任意選択（「〜してもよい」効果）向けのため、端末に関係なく
 // 常に表示する（続き89、カウンターロックの「あなたの手札を1枚ロックしてもよい」用に新設）。
-function confirmGenericYesNo(title, { yesLabel = "はい", noLabel = "いいえ", owner = null, cardId = null, cpuAutoResolveId = null } = {}) {
+function confirmGenericYesNo(title, { yesLabel = t("game.confirm.yesPlain"), noLabel = t("game.confirm.noPlain"), owner = null, cardId = null, cpuAutoResolveId = null } = {}) {
   return new Promise((resolve) => {
     let done = false;
     let blockerCheckTimer = null;
@@ -5472,7 +5485,7 @@ async function tryUseLockedUsableCard(tokenId) {
   // 教える」。以前は“使える”カードが2枚以上ある時だけモーダルを出していたため、ドムスネロの
   // 下にブーストがある等の状況で下に何があるか確認できなかった。スロットに2枚以上あれば常に出す。
   if (stacked.length >= 2) {
-    const chosen = await pickStackedLockCard(stacked, "このスロットのカード（使うカードを選んでください）");
+    const chosen = await pickStackedLockCard(stacked, t("game.pick.lockSlotCard"));
     if (!chosen) {
       render();
       return;
@@ -5483,23 +5496,23 @@ async function tryUseLockedUsableCard(tokenId) {
     (useToken.cardId.startsWith("eternal-") || useToken.cardId.startsWith("first-")) && hasHandEffectData(useToken.cardId);
   if (!isUsableKind) {
     render();
-    showQuickNote(`「${getCardDefinition(useToken.cardId).name}」は手札効果を使えないカードです。`);
+    showQuickNote(t("game.handEffect.notUsable", { card: cardDisplayName(useToken.cardId) }));
     return;
   }
   render();
   if (canUseHandEffect(useToken.cardId, useToken.id, owner)) {
-    if (await confirmTouchAction(`${getCardDefinition(useToken.cardId).name}を使用しますか？`, { cardId: useToken.cardId })) {
+            if (await confirmTouchAction(t("game.confirm.useCard", { card: cardDisplayName(useToken.cardId) }), { cardId: useToken.cardId })) {
       runAutoHandEffect(useToken.cardId, useToken.id, owner);
     }
   } else if (!canPayHandEffectCost(useToken.cardId, useToken.id, owner)) {
-    alert("捨てられる同じ色のカードが手札にありません。");
+    alert(t("game.handEffect.noCost"));
   } else {
     // 追色は払えるがcanUseHandEffectがfalse。不具合報告#52（まだ使っていないのに「使用済みの
     // 可能性がある」と出る）への対応で、正確な不許可理由を出す（使用回数だけでなく、ロックできる
     // 手札が無い／最後の1色＝勝利になるロックはできない等、実際の理由を伝える）。
     const reason =
       getHandEffectUnusableReason(useToken.cardId, useToken.id, owner) ||
-      "今はこのカードの効果を使えません。";
+      t("game.handEffect.cantUseNow");
     alert(reason);
   }
 }
@@ -5551,7 +5564,7 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         announceEffectReason: announceEffectReasonForEffect,
         announceEffectNotice: announceEffectNoticeForEffect, // 続き214: 非ブロックの軽い通知
         celebrate: celebrateForEffect,
-        gambleReveal: (cardId) => revealCenterCardForAll(cardId, "ギャンブル公開"),
+        gambleReveal: (cardId) => revealCenterCardForAll(cardId, t("game.label.gambleReveal")),
         startSuspenseSound: startHeartbeat,
         stopSuspenseSound: stopHeartbeat,
         delay: (ms) => wait(ms),
@@ -5661,7 +5674,7 @@ async function runAutoArrivalEffect(cardId, location, player) {
       announceEffectReason: announceEffectReasonForEffect,
       announceEffectNotice: announceEffectNoticeForEffect, // 続き214: 非ブロックの軽い通知
       celebrate: celebrateForEffect,
-      gambleReveal: (cardId) => revealCenterCardForAll(cardId, "ギャンブル公開"),
+      gambleReveal: (cardId) => revealCenterCardForAll(cardId, t("game.label.gambleReveal")),
       startSuspenseSound: startHeartbeat,
       stopSuspenseSound: stopHeartbeat,
       delay: (ms) => wait(ms),
@@ -6388,12 +6401,12 @@ function promptCardOpen(pieceTokenId, card, onResolved, onFullyResolved) {
 
   const yesBtn = document.createElement("button");
   yesBtn.className = "card-open-prompt-yes";
-  yesBtn.textContent = "👁 オープンする";
+  yesBtn.textContent = t("game.open.yes");
   yesBtn.addEventListener("click", () => openCardNow(card, onResolved, onFullyResolved));
 
   const noBtn = document.createElement("button");
   noBtn.className = "card-open-prompt-no";
-  noBtn.textContent = "🚫 オープンしない";
+  noBtn.textContent = t("game.open.no");
   noBtn.addEventListener("click", () => {
     closeOpenPrompt();
     onResolved?.();
@@ -6475,7 +6488,7 @@ function openContactResultModal({ role, attacker, defender, cardId, onClose = nu
 
   const title = document.createElement("div");
   title.className = "contact-result-title";
-  title.textContent = "🤝 接触の結果";
+  title.textContent = t("game.contactResult.title");
   modal.appendChild(title);
 
   const cardDef = cardId ? getCardDefinition(cardId) : null;
@@ -6485,15 +6498,15 @@ function openContactResultModal({ role, attacker, defender, cardId, onClose = nu
   if (role === "attacker" || role === "both") {
     lines.push(
       cardDef
-        ? `${getPlayerName(defender)}から「${cardDef.name}」を奪いました！`
-        : `${getPlayerName(defender)}の手札が無く、何も奪えませんでした。`
+        ? t("game.contactResult.tookFrom", { name: getPlayerName(defender), card: cardDisplayName(cardDef?.id) })
+        : t("game.contactResult.nothingToTake", { name: getPlayerName(defender) })
     );
   }
   if (role === "defender" || role === "both") {
     lines.push(
       cardDef
-        ? `${getPlayerName(attacker)}に「${cardDef.name}」を奪われました…`
-        : `${getPlayerName(attacker)}に接触されましたが、手札が無く何も奪われませんでした。`
+        ? t("game.contactResult.lostTo", { name: getPlayerName(attacker), card: cardDisplayName(cardDef?.id) })
+        : t("game.contactResult.nothingLost", { name: getPlayerName(attacker) })
     );
   }
   body.textContent = lines.join("\n");
@@ -6510,7 +6523,7 @@ function openContactResultModal({ role, attacker, defender, cardId, onClose = nu
   const okBtn = document.createElement("button");
   okBtn.type = "button";
   okBtn.className = "contact-result-ok";
-  okBtn.textContent = "閉じる";
+  okBtn.textContent = t("game.confirm.close");
   okBtn.addEventListener("click", close);
   modal.appendChild(okBtn);
 
@@ -6586,7 +6599,7 @@ function openContactConfirmModal(attacker, defender) {
 
   const title = document.createElement("div");
   title.className = "contact-confirm-title";
-  title.textContent = "本当に接触しますか？";
+  title.textContent = t("game.contact.reallyQ");
 
   const body = document.createElement("div");
   body.className = "contact-confirm-body";
@@ -6600,13 +6613,13 @@ function openContactConfirmModal(attacker, defender) {
   const cancelBtn = document.createElement("button");
   cancelBtn.className = "contact-confirm-cancel";
   cancelBtn.type = "button";
-  cancelBtn.textContent = "キャンセル";
+  cancelBtn.textContent = t("game.confirm.cancel");
   cancelBtn.addEventListener("click", close);
 
   const okBtn = document.createElement("button");
   okBtn.className = "contact-confirm-ok";
   okBtn.type = "button";
-  okBtn.textContent = "🤝 接触を申し込む";
+  okBtn.textContent = t("game.contact.requestBtn");
   okBtn.addEventListener("click", async () => {
     okBtn.disabled = true;
     cancelBtn.disabled = true;
@@ -6650,7 +6663,7 @@ function showContactPrompt(attacker, defender, anchorPieceTokenId) {
 
   const contactBtn = document.createElement("button");
   contactBtn.className = "card-open-prompt-yes";
-  contactBtn.textContent = "🤝 接触する";
+  contactBtn.textContent = t("game.contact.doBtn");
   contactBtn.addEventListener("click", () => {
     closeContactPrompt();
     openContactConfirmModal(attacker, defender);
@@ -6853,7 +6866,7 @@ function getEternalRevealCenterRect(pileRect) {
 // 2026-08-08「公開エリアだけでなく画面中央に大々的に、少しじらしてフリップして開く感じ」）。
 // エターナル獲得と同じ正方形スケールXフリップを流用した簡易版（飛翔・ロック着地は無し）。
 // 演出オフ設定中は既存のカード受け取りモーダルで簡潔に見せる。
-async function playCenterCardFlipReveal(cardId, { labelText = "公開", suspenseMs = 850, holdMs = 850 } = {}) {
+async function playCenterCardFlipReveal(cardId, { labelText = t("game.label.reveal"), suspenseMs = 850, holdMs = 850 } = {}) {
   if (isArrivalEffectDisabled()) {
     await showCardReceivedModal(cardId, "", { labelText });
     return;
@@ -7099,7 +7112,7 @@ async function playGateInvasionStealRitual(info, onDone) {
     broadcastRitualPickStarted({
       targetPlayer: defender,
       order,
-      title: `${getPlayerName(attacker)}があなたの手札から${stolenTokens.length}枚を奪います…`,
+      title: t("game.ritual.attackerTakes", { name: getPlayerName(attacker), n: stolenTokens.length }),
     });
 
     // 攻撃側のモーダル（裏向き、sleight-ritual-modalの見た目を流用）。
@@ -7117,7 +7130,7 @@ async function playGateInvasionStealRitual(info, onDone) {
     // ので、クリックできることを示すホバー演出は残す（is-steal-reveal は付けない）。
     const title = document.createElement("div");
     title.className = "sleight-ritual-title";
-    title.textContent = "シャッフル中…";
+    title.textContent = t("game.ritual.shuffling");
     modal.appendChild(title);
     const cardsWrap = document.createElement("div");
     cardsWrap.className = "sleight-ritual-cards";
@@ -7141,7 +7154,7 @@ async function playGateInvasionStealRitual(info, onDone) {
 
     await wait(1100); // シャッフル演出
     modal.classList.remove("is-shuffling");
-    title.textContent = `タップして、奪う${stolenTokens.length}枚をめくろう…`;
+    title.textContent = t("game.ritual.tapToFlip", { n: stolenTokens.length });
     // 奪う札はサーバーが無作為に決めている（stolenTokens）。攻撃側にはどれも裏向きで区別が
     // 付かない＝ブラインド。#140「ホバー/クリックした札と別の札がめくれる」を解消するため、
     // 「クリックしたその札」をめくって奪った札を見せる（クリック位置＝めくる位置に一致）。
@@ -7211,7 +7224,7 @@ async function playGateInvasionStealRitual(info, onDone) {
     if (autoFlipTimer) clearInterval(autoFlipTimer);
     cardsWrap.removeEventListener("click", onCardsClick);
 
-    title.textContent = "奪いました！";
+    title.textContent = t("game.ritual.tookIt");
     // 奪われる側の実況に「これらが奪われた」を反映して閉じさせる。
     broadcastRitualPickEnded({ targetPlayer: defender, pickedTokenIds: stolenTokens.map((t) => t.id) });
     await wait(700);
@@ -7285,7 +7298,7 @@ function waitForContactPickResolved(attacker, defender) {
 async function resolveContactRitualPickAsAttacker({ attacker, defender }) {
   const stolen = await requestOpponentHandRitualPick(
     defender,
-    `${getPlayerName(defender)}の手札（裏向き）から奪う1枚を選んでください`,
+    t("game.ritual.pickOneFaceDown", { name: getPlayerName(defender) }),
     undefined,
     undefined,
     // #67: オンラインでは相手の手札が裏向き（cardId=null）なので、この時点の中央「奪った」
@@ -7352,7 +7365,7 @@ async function respondToContact(approve) {
     } else {
       const chosenCard = await requestOpponentHandRitualPick(
         defender,
-        `${getPlayerName(attacker)}が、${getPlayerName(defender)}の手札（裏向き）から奪う1枚を選んでください`,
+        t("game.ritual.pickOneFor", { attacker: getPlayerName(attacker), defender: getPlayerName(defender) }),
         undefined,
         undefined,
         {
@@ -7684,18 +7697,18 @@ async function runContractBrandCurseOnLock(player, brandId) {
   // performPriorityTimeoutAutoActionもpicker解決の後にhandEffectBusyで早期returnするよう対にした）。
   setHandEffectBusy(true);
   try {
-    const brandName = getCardDefinition("black-contract-brand")?.name || "誘惑の黒の烙印";
+    const brandName = getCardDefinition("black-contract-brand")?.name || t("game.brand.name");
     // (1) 「烙印スロットにロックした→手札2枚捨てる」を明示（ユーザー要望2026-08-15
     //     「今は何が起きたかあまりわからないまま過ぎていく」）。
     await announceEffectReasonForEffect(
       "black-contract-brand",
-      `${getPlayerName(player)}が${brandName}の色のロックエリアにロックしました。${brandName}の効果で手札を2枚捨てます。`
+      t("game.brand.locked", { name: getPlayerName(player), brand: brandName })
     );
     for (let i = 0; i < 2; i++) {
       const hand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
       if (hand.length === 0) break; // 手札が尽きたらそれ以上は捨てられない（善処）
       const ids = new Set(hand.map((t) => t.id));
-      const chosen = hand.length === 1 ? hand[0] : await requestHandCardChoiceForEffect(player, `${brandName}：捨てる手札を選択してください`, ids);
+      const chosen = hand.length === 1 ? hand[0] : await requestHandCardChoiceForEffect(player, t("game.brand.pickDiscard", { brand: brandName }), ids);
       if (!chosen) break;
       await discardFromHandReveal(chosen.id);
     }
@@ -7703,7 +7716,7 @@ async function runContractBrandCurseOnLock(player, brandId) {
     if (brand && brand.location.zone === "lock") {
       const cells = [];
       for (let r = 0; r <= 6; r++) for (let c = 0; c <= 6; c++) cells.push({ zone: "cell", row: r, col: c });
-      const dest = await requestCellChoiceForEffect(cells, `${brandName}を裏向きで置くマスを選択してください`, { owner: player });
+      const dest = await requestCellChoiceForEffect(cells, t("game.brand.pickCell", { brand: brandName }), { owner: player });
       if (dest) {
         // #114（ユーザー要望2026-08-15）: ★(b)は「これを任意のマスに裏向きで置く」。ところが
         // MOVE_TOKENは「場(ロック)→場(マス)」の移動では表裏を変えない仕様（state.js参照）のため、
@@ -7735,7 +7748,7 @@ async function runContractBrandCurseOnLock(player, brandId) {
         //     一目でわからないので、移動後に別モーダルで知らせる（どのマスに置いたかも添える）。
         await announceEffectReasonForEffect(
           "black-contract-brand",
-          `${brandName}を盤面${brandCoord ? `の${brandCoord}` : ""}に裏向きで置きました。`
+          t("game.brand.placed", { brand: brandName, where: brandCoord ? t("game.brand.placedAt", { coord: brandCoord }) : "" })
         );
       }
     }
@@ -7765,15 +7778,15 @@ async function offerContractBrandDrawIfNoLock(player) {
   // 解決の後にhandEffectBusyで早期returnするので、この間もYes/Noの自動応答自体は解決される）。
   setHandEffectBusy(true);
   try {
-    const brandName = getCardDefinition("black-contract-brand")?.name || "誘惑の黒の烙印";
+    const brandName = getCardDefinition("black-contract-brand")?.name || t("game.brand.name");
     for (let i = 0; i < brandCount; i++) {
       const label =
         brandCount > 1
-          ? `🖋 ${brandName}：ロックしなかったので、烙印${brandCount}枚のうち${i + 1}枚目のドローができます。ドローしますか？（任意）`
-          : `🖋 ${brandName}：ロックしなかったので1枚ドローできます。ドローしますか？（任意）`;
+          ? t("game.brand.drawAskN", { brand: brandName, total: brandCount, i: i + 1 })
+          : t("game.brand.drawAsk1", { brand: brandName });
       const wantsDraw = await confirmGenericYesNo(label, {
-        yesLabel: "ドローする",
-        noLabel: "しない",
+        yesLabel: t("game.brand.draw"),
+        noLabel: t("game.counterLock.dont"),
         owner: player,
         cardId: "black-contract-brand",
         // #120: 難易度=新人でも必ず「ドローする」に。烙印ドローは無条件で得なので取りこぼさない。
@@ -7789,7 +7802,7 @@ async function offerContractBrandDrawIfNoLock(player) {
       // ★(a)ドローが実際に起きたことを明示（ユーザー要望2026-08-15「烙印ドローがわかりづらい」）。
       // CPU/疑似CPUは上のYes/Noが自動応答されるため、観戦者にはドローしたことが見えない。オンライン
       // 相手にも中継される（announceEffectReasonForEffectがbroadcastする）。
-      await announceEffectReasonForEffect("black-contract-brand", `${getPlayerName(player)}はロックしなかったので、${brandName}の効果で1枚ドローしました。`);
+      await announceEffectReasonForEffect("black-contract-brand", t("game.brand.drewBecauseNoLock", { name: getPlayerName(player), brand: brandName }));
     }
   } finally {
     contractBrandBusy = false;
@@ -7804,7 +7817,7 @@ async function offerContractBrandDrawIfNoLock(player) {
 // ＋オンライン中は全プレイヤーへ中継（cardId=nullなのでカード名行は出ず本文だけ表示）。
 function announceMyDeckDraw(player) {
   logAction("my-deck-draw", { player });
-  void announceEffectReasonForEffect(null, `${getPlayerName(player)}がマイデッキから1枚ドローしました。`);
+  void announceEffectReasonForEffect(null, t("game.myDeck.drewAnnounce", { name: getPlayerName(player) }));
 }
 
 // ユーザー要望（続き89）「自動処理モードでは、接触に対するリアクションカード
@@ -7901,7 +7914,7 @@ async function useCounterLockOnContact() {
   // カウンターロックのカード画像付きモーダルを出す（CPU戦では結果ホールドでクリックまで残す）。
   await announceEffectReasonForEffect(
     "red-counter-lock",
-    `${getPlayerName(defender)}のカウンターロックで、${getPlayerName(pending.attacker)}の接触は無効になりました。`
+    t("game.counterLock.cancelled", { defender: getPlayerName(defender), attacker: getPlayerName(pending.attacker) })
   );
 
   // カウンターロックの「あなたの手札を１枚ロックしてもよい」のロック可否は、通常のロック
@@ -7926,8 +7939,8 @@ async function useCounterLockOnContact() {
   // 防御側が使うため、owner を渡さないと優先権保持者＝攻撃側CPUの選択と誤判定され、この
   // モーダル・ピッカーが隠されてCPUの自動処理に勝手に解決されてしまう（#33と同根）。
   const wantsToLock = await confirmGenericYesNo(
-    "🛡️ カウンターロックの効果で、手札を1枚ロックエリアにロックしますか？（任意）",
-    { yesLabel: "ロックする", noLabel: "しない", owner: defender }
+    t("game.counterLock.askLock"),
+    { yesLabel: t("game.counterLock.lock"), noLabel: t("game.counterLock.dont"), owner: defender }
   );
   if (!wantsToLock) return;
   const lockableIds = new Set(lockableTokens.map((t) => t.id));
@@ -7935,14 +7948,14 @@ async function useCounterLockOnContact() {
   const chosen =
     lockableTokens.length === 1
       ? lockableTokens[0]
-      : await requestHandCardChoiceForEffect(defender, "ロックする手札を選択してください", lockableIds, { purpose: "lock" });
+      : await requestHandCardChoiceForEffect(defender, t("game.pick.lockTarget"), lockableIds, { purpose: "lock" });
   if (!chosen) return;
   // 七色の欠片・無色は色スロットが一意に定まらないので、置ける空きスロットから選ばせる
   // （候補が1つなら自動、複数なら「ロックする場所を選択してください」。セレナーデと同じ扱い）。
   const slots = candidateSlotsFor(chosen);
   if (slots.length === 0) return;
   const dropTarget =
-    slots.length === 1 ? slots[0] : await requestCellChoiceForEffect(slots, "ロックする場所を選択してください", { owner: defender });
+    slots.length === 1 ? slots[0] : await requestCellChoiceForEffect(slots, t("game.pick.lockSlot"), { owner: defender });
   if (!dropTarget) return;
   // #186: これが7色目（＝勝利になる最後のロック）なら、ロックフェイズの通常の宣言と全く同じ
   // 「全員承認」フローに載せる——他のプレイヤーがゴメンナサイを使う機会を奪わないため
@@ -8161,7 +8174,7 @@ function updateSpectatorBanner() {
       const exitBtn = document.createElement("button");
       exitBtn.type = "button";
       exitBtn.className = "spectator-banner-exit";
-      exitBtn.textContent = "観戦をやめる";
+      exitBtn.textContent = t("game.spectate.leave");
       exitBtn.addEventListener("click", () => leaveGame().catch((err) => console.error("leaveGame (spectator) failed", err)));
       spectatorBannerEl.appendChild(label);
       spectatorBannerEl.appendChild(exitBtn);
@@ -8169,7 +8182,7 @@ function updateSpectatorBanner() {
       spectatorBannerEl._label = label;
     }
     spectatorBannerEl._label.textContent =
-      getSpectateMode() === "all" ? "👀 観戦中（すべて見える）" : "👀 観戦中（公開情報のみ）";
+      getSpectateMode() === "all" ? t("game.spectate.all") : t("game.spectate.public");
     spectatorBannerEl.style.display = "flex";
   } else if (spectatorBannerEl) {
     spectatorBannerEl.style.display = "none";
@@ -9141,14 +9154,14 @@ function getPileTooltipText(el) {
   const config = PILE_CONFIG[pileKey];
   const pileArray = getState().piles[pileKey];
   const count = pileArray.length;
-  const label = config.label;
+  const label = t(config.labelKey);
   if (pileKey === "discard" && count > 0) {
     // ユーザー要望: 捨て場のツールチップは一番上のカード名ではなく「捨て場」と枚数を出す
     // （拡大プレビュー画像で一番上のカードは分かるため、テキストは山の名前でよい）。
     // 捨て場はダブルクリック／ダブルタップで一覧を開ける（右クリックの無い端末向けの導線）。
-    return isDiscardListEnabled() ? `${label}　${count}枚（ダブルタップで捨て札一覧）` : `${label}　${count}枚`;
+    return isDiscardListEnabled() ? t("game.pileTooltipDiscard", { label, n: count }) : t("game.pileTooltip", { label, n: count });
   }
-  return `${label}　${count}枚`;
+  return t("game.pileTooltip", { label, n: count });
 }
 
 // 相手（自分以外）の手札にカーソルを合わせた時、中身は明かさず枚数だけを教える
@@ -9164,7 +9177,7 @@ function getHandTooltipText(el) {
       (t.location.zone === "hand" || t.location.zone === "publicDraw") &&
       t.location.player === player
   ).length;
-  return `${getPlayerName(player)}　手札${count}枚`;
+  return t("game.handTooltip", { name: getPlayerName(player), n: count });
 }
 
 let pileTooltipEl = null;
@@ -9501,10 +9514,10 @@ function updateMiniLockArea() {
     // 数字が小さくわかりづらい。少し大きめにアイコニックな表示に」）。
     const nameEl = document.createElement("span");
     nameEl.className = "mini-lock-area-name";
-    nameEl.textContent = isSelf ? "自分" : getPlayerName(p);
+    nameEl.textContent = isSelf ? t("game.self.me") : getPlayerName(p);
     const handBadge = document.createElement("span");
     handBadge.className = "mini-lock-hand-badge";
-    handBadge.title = "手札の枚数";
+    handBadge.title = t("game.self.handCountLabel");
     const handIcon = document.createElement("span");
     handIcon.className = "mini-lock-hand-icon";
     handIcon.textContent = "🂠";
@@ -9558,7 +9571,7 @@ function updateMiniLockArea() {
     disc.className = "mini-discard";
     const discLabel = document.createElement("div");
     discLabel.className = "mini-lock-area-label";
-    discLabel.textContent = `捨て場 ${discard.length}`;
+    discLabel.textContent = t("game.discardBar", { n: discard.length });
     const discCard = document.createElement("div");
     discCard.className = "mini-discard-card";
     if (discardTop) {
@@ -9681,7 +9694,7 @@ function showCardNoteModal(cardId) {
   title.textContent = def.name;
   const body = document.createElement("div");
   body.className = "card-note-body";
-  body.textContent = def.note || "（補足なし）";
+  body.textContent = def.note || t("game.stack.noNote");
   textCol.appendChild(title);
   textCol.appendChild(body);
   const content = document.createElement("div");
@@ -9691,7 +9704,7 @@ function showCardNoteModal(cardId) {
   const closeBtn = document.createElement("button");
   closeBtn.className = "modal-close-x";
   closeBtn.textContent = "×";
-  closeBtn.setAttribute("aria-label", "閉じる");
+  closeBtn.setAttribute("aria-label", t("game.confirm.close"));
   const close = () => {
     backdrop.remove();
     modal.remove();
@@ -9720,7 +9733,7 @@ function showStackModal(tokenIds) {
   const backdrop = createBackdrop(close, { zIndex: 10001 });
   const title = document.createElement("div");
   title.className = "stack-modal-title";
-  title.textContent = `重なっているカード（${tokens.length}枚・下から上の順）`;
+  title.textContent = t("game.stack.title", { n: tokens.length });
   const list = document.createElement("div");
   list.className = "stack-modal-list";
   for (const token of tokens) {
@@ -9755,12 +9768,12 @@ function showDiscardListModal() {
   const backdrop = createBackdrop(close, { zIndex: 10001 });
   const title = document.createElement("div");
   title.className = "stack-modal-title";
-  title.textContent = discard.length > 0 ? `捨て札一覧（${discard.length}枚・上から順）` : "捨て札一覧";
+  title.textContent = discard.length > 0 ? t("game.discardList.titleN", { n: discard.length }) : t("game.discardList.title");
   const list = document.createElement("div");
   list.className = "stack-modal-list";
   if (discard.length === 0) {
     const empty = document.createElement("div");
-    empty.textContent = "捨て札はありません。";
+    empty.textContent = t("game.discardList.empty");
     empty.style.cssText = "color: #94a3b8; padding: 1rem;";
     list.appendChild(empty);
   } else {
@@ -9801,7 +9814,7 @@ function pickStackedLockCard(tokens, hint) {
     const backdrop = createBackdrop(() => finish(null), { zIndex: 10001 });
     const title = document.createElement("div");
     title.className = "stack-modal-title";
-    title.textContent = hint ?? "使うカードを選んでください（下から上の順）";
+    title.textContent = hint ?? t("game.pick.stackedCard");
     const list = document.createElement("div");
     list.className = "stack-modal-list";
     for (const token of tokens) {
@@ -9924,30 +9937,30 @@ function initContextMenuHandlers() {
       const cardId = getVisibleCardId(hit);
       const stackTokenIds = getStackTokensAt(hit);
       if (cardId) {
-        items.push({ label: "カード補足を見る", onClick: () => showCardNoteModal(cardId) });
+        items.push({ label: t("game.menu.cardNote"), onClick: () => showCardNoteModal(cardId) });
       }
       if (stackTokenIds) {
-        items.push({ label: "重なっているカードを見る", onClick: () => showStackModal(stackTokenIds) });
+        items.push({ label: t("game.menu.stackedCards"), onClick: () => showStackModal(stackTokenIds) });
       }
       // ユーザー要望「裏面カードで右クリック→裏面変更」「駒を右クリック→スキン変更」
       // 「山札を右クリック→山札一覧」への対応。同じ要素に複数の項目が同時に出ることもある
       // （例: 山札を右クリックすると「裏面デザインを変更」と「山札一覧を見る」の両方）。
       if (isFaceDownCardElement(hit)) {
-        items.push({ label: "カード裏面デザインを変更", onClick: () => openCardBackSkinPicker() });
+        items.push({ label: t("game.menu.cardBack"), onClick: () => openCardBackSkinPicker() });
       }
       if (hit.matches(".stack[data-pile]") && hit.dataset.pile === "deck") {
-        items.push({ label: "山札一覧を見る", onClick: () => openDeckViewer() });
+        items.push({ label: t("game.menu.deckList"), onClick: () => openDeckViewer() });
       }
       if (hit.matches(".stack[data-pile]") && hit.dataset.pile === "discard") {
         // 捨て札一覧は既定では見せない（管理者モードのトグルでのみ有効化）。捨て場は
         // シャッフルせずそのままの並びで山札に戻るため、一覧のスクリーンショットから
         // 次の山札の並びが分かってしまう不正を防ぐ（ユーザー判断）。
         if (isDiscardListEnabled()) {
-          items.push({ label: "捨て札一覧を見る", onClick: () => showDiscardListModal() });
+          items.push({ label: t("game.menu.discardList"), onClick: () => showDiscardListModal() });
         }
       }
       if (hit.classList.contains("piece")) {
-        items.push({ label: "駒スキンを変更", onClick: () => openPieceSkinPicker() });
+        items.push({ label: t("game.menu.pieceSkin"), onClick: () => openPieceSkinPicker() });
       }
     }
     if (items.length === 0) {
@@ -9960,20 +9973,20 @@ function initContextMenuHandlers() {
       const layer = findAppearanceLayerAt(e.clientX, e.clientY);
       if (layer === "lockAreaBar") {
         items.push({
-          label: "ロックエリアバーを隠す",
+          label: t("game.menu.hideLockBar"),
           onClick: () => {
             setLockAreaBarVisible(false);
             render();
-            openIconDetailModal("ロックエリアバーを隠しました", [
-              "画面右上の「⚙ オプション」→「基本設定」の「ロックエリアバーを表示する」を" +
-                "チェックすると、いつでも元に戻せます。",
+            openIconDetailModal(t("game.menu.hideLockBarDone"), [
+              t("game.menu.hideLockBarHint1") +
+                t("game.menu.hideLockBarHint2"),
             ]);
           },
         });
       } else if (layer === "playmat") {
-        items.push({ label: "プレイマットを変更", onClick: () => openPlaymatPicker() });
+        items.push({ label: t("game.menu.playmat"), onClick: () => openPlaymatPicker() });
       } else if (layer === "background") {
-        items.push({ label: "背景画像を変更", onClick: () => openBackgroundPicker() });
+        items.push({ label: t("game.menu.background"), onClick: () => openBackgroundPicker() });
       }
     }
 
@@ -10134,7 +10147,7 @@ function showHandDropHint() {
   if (!handDropHintEl) {
     handDropHintEl = document.createElement("div");
     handDropHintEl.id = "hand-drop-hint";
-    handDropHintEl.textContent = "そのカードを場にドロップすると、手札効果が発動します。";
+    handDropHintEl.textContent = t("game.handEffect.dropToUse");
     document.body.appendChild(handDropHintEl);
   }
   handDropHintEl.classList.add("show");
@@ -10663,10 +10676,10 @@ async function cpuUseGomennasaiOnFinalLock(seat, eligibility, attacker) {
   }
   // #102: 手札効果の使用宣言モーダル（＋行動ログに hand-effect を残す）を出す。以前は理由モーダル
   // だけで、ゴメンナサイを使った合図（手札効果使用モーダル）が出ていなかった。
-  announceHandEffectUseForEffect("purple-sorry", "相手の最後のロックを阻止する", seat);
+  announceHandEffectUseForEffect("purple-sorry", t("game.gomennasai.blockBtn"), seat);
   await announceEffectReasonForEffect(
     "purple-sorry",
-    `${getPlayerName(seat)}はゴメンナサイを使い、${getPlayerName(attacker)}のロックを1枚奪って最後のロックを阻止します！`
+    t("game.gomennasai.blocks", { name: getPlayerName(seat), attacker: getPlayerName(attacker) })
   );
   // #102: ゴメンナサイは手札効果＝発動時にこのカード自身を捨てる（追色コストとは別の話）。以前は
   // 追色コストしか捨てておらず、使ったゴメンナサイが手札に残ったままだった。本体→追色の順に捨てる。
@@ -10684,10 +10697,10 @@ async function cpuUseGomennasaiOnFinalLock(seat, eligibility, attacker) {
   // #102: 何を奪ったかを画面中央のモーダルで見せる（従来は小さいトーストだけだった）。
   showCardReceivedModal(
     target.cardId,
-    `${getPlayerName(seat)}が${getPlayerName(attacker)}のロックエリアから奪いました`,
-    { labelText: "奪った" }
+    t("game.gomennasai.tookFrom", { name: getPlayerName(seat), attacker: getPlayerName(attacker) }),
+    { labelText: t("game.label.took") }
   );
-  announceHandPickups(seat, [{ cardId: target.cardId, wasPublic: true }], "「ゴメンナサイッ！」でロックから奪取");
+  announceHandPickups(seat, [{ cardId: target.cardId, wasPublic: true }], t("game.gomennasai.reason"));
   render();
   await respondToFinalLock(true);
 }
@@ -10719,7 +10732,7 @@ async function useGomennasaiOnFinalLock() {
   const dest =
     candidates.length === 1
       ? candidates[0]
-      : await requestCellChoiceForEffect(candidates, "奪うロックカードを選択してください", { owner: selfSeat });
+      : await requestCellChoiceForEffect(candidates, t("game.pick.stealLock"), { owner: selfSeat });
   if (!dest) return;
   const target = attackerLockedTokens.find((t) => t.location.side === dest.side && t.location.index === dest.index);
   if (!target) return;
@@ -10728,7 +10741,7 @@ async function useGomennasaiOnFinalLock() {
       ? eligibility.costCandidates[0]
       : await requestHandCardChoiceForEffect(
           selfSeat,
-          "捨てる紫のカードを手札から選択してください",
+          t("game.pick.discardPurple"),
           new Set(eligibility.costCandidates.map((t) => t.id))
         );
   if (!costChosen) return;
@@ -10743,7 +10756,7 @@ async function useGomennasaiOnFinalLock() {
     (t) => t.id === costChosen.id && t.location.zone === "hand" && t.location.player === selfSeat
   );
   if (costStillInHand) {
-    alert("追色コストを捨てられませんでした（通信エラーの可能性）。もう一度「ゴメンナサイを使う」を押してください。");
+    alert(t("game.gomennasai.costFailed"));
     render();
     return;
   }
@@ -10773,10 +10786,10 @@ async function useGomennasaiOnFinalLock() {
   // #102: 何を奪ったかを画面中央のモーダルで見せる（従来は小さいトーストだけだった）。
   showCardReceivedModal(
     target.cardId,
-    `${getPlayerName(selfSeat)}が${getPlayerName(attackerSeat)}のロックエリアから奪いました`,
-    { labelText: "奪った" }
+    t("game.gomennasai.tookFrom", { name: getPlayerName(selfSeat), attacker: getPlayerName(attackerSeat) }),
+    { labelText: t("game.label.took") }
   );
-  announceHandPickups(selfSeat, [{ cardId: target.cardId, wasPublic: true }], "「ゴメンナサイッ！」でロックから奪取");
+  announceHandPickups(selfSeat, [{ cardId: target.cardId, wasPublic: true }], t("game.gomennasai.reason"));
   render();
   logAction("diag-gomennasai-steal", { attacker: attackerSeat, phase: "afterSteal", attackerLocksAfter: locksSnapshot() });
   await respondToFinalLock(true);
@@ -10842,14 +10855,14 @@ function updateAutoProcessingToggleBanner() {
 
   const title = document.createElement("div");
   title.className = "final-lock-approval-title";
-  title.textContent = `⚙️ ${getPlayerName(pending.requester)} さんが自動処理モードを${pending.nextEnabled ? "ON" : "OFF"}にすることを提案中！`;
+  title.textContent = t("game.autoToggle.title", { name: getPlayerName(pending.requester), state: pending.nextEnabled ? "ON" : "OFF" });
   bannerEl.appendChild(title);
 
   const status = document.createElement("div");
   status.className = "final-lock-approval-status";
   status.textContent = canRespond
-    ? `あなた（${getPlayerName(approver)}）の承認が必要です`
-    : `${getPlayerName(approver)} さんの承認を待っています…`;
+    ? t("game.autoToggle.needYou", { name: getPlayerName(approver) })
+    : t("game.autoToggle.waiting", { name: getPlayerName(approver) });
   bannerEl.appendChild(status);
 
   if (canRespond) {
@@ -10858,12 +10871,12 @@ function updateAutoProcessingToggleBanner() {
     const approveBtn = document.createElement("button");
     approveBtn.className = "final-lock-approval-approve";
     approveBtn.type = "button";
-    approveBtn.textContent = "✅ 承認する";
+    approveBtn.textContent = t("game.autoToggle.approve");
     approveBtn.addEventListener("click", () => respondToAutoProcessingToggle(true));
     const rejectBtn = document.createElement("button");
     rejectBtn.className = "final-lock-approval-reject";
     rejectBtn.type = "button";
-    rejectBtn.textContent = "🚫 却下する";
+    rejectBtn.textContent = t("game.autoToggle.reject");
     rejectBtn.addEventListener("click", () => respondToAutoProcessingToggle(false));
     buttons.appendChild(approveBtn);
     buttons.appendChild(rejectBtn);
@@ -10969,7 +10982,7 @@ async function onDragEnd(e) {
         const revealedCardId = result?.revealedCardId ?? null;
         if (dropTarget.zone === "hand") {
           if (revealedCardId) {
-            announceHandPickups(dropTarget.player, [{ cardId: revealedCardId, wasPublic: pileSource === "discard" }], pileSource === "discard" ? "捨て場から取得" : "山札から引いた");
+            announceHandPickups(dropTarget.player, [{ cardId: revealedCardId, wasPublic: pileSource === "discard" }], pileSource === "discard" ? t("game.pickup.fromDiscard") : t("game.pickup.fromDeck"));
           }
           // 山からの直接ドロー(手札行き)も、remote-move-animator.jsの差分検知が「新規出現」
           // として拾うようになった（相手プレイヤーへのカード獲得通知を出すため）。自分自身の
@@ -11012,7 +11025,7 @@ async function onDragEnd(e) {
           if (cardId) {
             const player = dropTarget.player;
             drawFromPile(pileSource, dropTarget);
-            announceHandPickups(player, [{ cardId, wasPublic: pileSource === "discard" }], pileSource === "discard" ? "捨て場から取得" : "山札から引いた");
+            announceHandPickups(player, [{ cardId, wasPublic: pileSource === "discard" }], pileSource === "discard" ? t("game.pickup.fromDiscard") : t("game.pickup.fromDeck"));
             render();
             return;
           }
@@ -11075,7 +11088,7 @@ async function onDragEnd(e) {
     const movingToken = getState().tokens.find((t) => t.id === tokenId);
     if (movingToken && movingToken.player === getState().turnPlayer && isMovePhaseActive() && isMovementDisabledThisTurn(movingToken.player)) {
       render(); // moveTokenを呼んでいないので駒は元のマスへ戻る（スナップバック）
-      alert("禁断の果実 マルメゴで橙が出たため、このターンは移動できません（接触は可能です）。");
+      alert(t("game.handEffect.noMoveThisTurn"));
       return;
     }
   }
@@ -11225,11 +11238,11 @@ async function onDragEnd(e) {
         ) {
           render();
           if (canUseHandEffect(draggedToken.cardId, draggedToken.id, cardSourceLocation.player)) {
-            if (await confirmTouchAction(`${getCardDefinition(draggedToken.cardId).name}を使用しますか？`, { cardId: draggedToken.cardId })) {
+            if (await confirmTouchAction(t("game.confirm.useCard", { card: cardDisplayName(draggedToken.cardId) }), { cardId: draggedToken.cardId })) {
               runAutoHandEffect(draggedToken.cardId, draggedToken.id, cardSourceLocation.player);
             }
           } else if (!canPayHandEffectCost(draggedToken.cardId, draggedToken.id, cardSourceLocation.player)) {
-            alert("捨てられる同じ色のカードが手札にありません。");
+            alert(t("game.handEffect.noCost"));
           }
           return;
         }
@@ -11336,7 +11349,7 @@ async function onDragEnd(e) {
             (t) => (t.cardId.startsWith("eternal-") || t.cardId.startsWith("first-")) && hasHandEffectData(t.cardId)
           );
           if (usableStacked.length >= 2) {
-            const chosen = await pickStackedLockCard(stacked, "ハンドフェイズで使うカードを選んでください");
+            const chosen = await pickStackedLockCard(stacked, t("game.pick.handPhaseCard"));
             if (!chosen) {
               render();
               return;
@@ -11356,11 +11369,11 @@ async function onDragEnd(e) {
         ) {
           render();
           if (canUseHandEffect(useToken.cardId, useToken.id, clickPlayer)) {
-            if (await confirmTouchAction(`${getCardDefinition(useToken.cardId).name}を使用しますか？`, { cardId: useToken.cardId })) {
+            if (await confirmTouchAction(t("game.confirm.useCard", { card: cardDisplayName(useToken.cardId) }), { cardId: useToken.cardId })) {
               runAutoHandEffect(useToken.cardId, useToken.id, clickPlayer);
             }
           } else if (!canPayHandEffectCost(useToken.cardId, useToken.id, clickPlayer)) {
-            alert("捨てられる同じ色のカードが手札にありません。");
+            alert(t("game.handEffect.noCost"));
           }
           return;
         }
@@ -11386,11 +11399,11 @@ async function onDragEnd(e) {
           if (isSelfHandPhase() || (isUsableAnytime && !effectProcessingBusy)) {
             render();
             if (canUseHandEffect(clickedToken.cardId, clickedToken.id, clickPlayer)) {
-              if (await confirmTouchAction(`${getCardDefinition(clickedToken.cardId).name}を使用しますか？`, { cardId: clickedToken.cardId })) {
+              if (await confirmTouchAction(t("game.confirm.useCard", { card: cardDisplayName(clickedToken.cardId) }), { cardId: clickedToken.cardId })) {
                 runAutoHandEffect(clickedToken.cardId, clickedToken.id, clickPlayer);
               }
             } else if (!canPayHandEffectCost(clickedToken.cardId, clickedToken.id, clickPlayer)) {
-              alert("捨てられる同じ色のカードが手札にありません。");
+              alert(t("game.handEffect.noCost"));
             }
             return;
           }
@@ -11413,7 +11426,7 @@ async function onDragEnd(e) {
     const token = getState().tokens.find((t) => t.id === tokenId);
     const wasAlreadyLocked = !!token && token.location.zone === "lock";
     if (kind === "card" && dropTarget.zone === "lock") {
-      if (!(await confirmTouchAction(`${getCardDefinition(token?.cardId)?.name ?? "このカード"}をロックしますか？`, { cardId: token?.cardId }))) {
+      if (!(await confirmTouchAction(t("game.confirm.lockCard", { card: cardDisplayName(token?.cardId) || t("game.thisCard") }), { cardId: token?.cardId }))) {
         render();
         return;
       }
@@ -11526,9 +11539,9 @@ function buildBugReportWidget() {
   btn.id = "self-status-bug-report";
   const { captionEl } = buildIconButtonContent(btn, {
     icon: "assets/icons/bug-report.svg",
-    tooltip: "不具合報告（コメント＋ログを送信）",
+    tooltip: t("game.bug.tip"),
   });
-  captionEl.textContent = "不具合報告";
+  captionEl.textContent = t("game.bug.caption");
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
     openBugReportModal();
@@ -11574,46 +11587,46 @@ function buildFriendlyLogItems() {
       player = e.detail.player;
       const name = getCardDefinition(e.detail.cardId)?.name ?? e.detail.cardId;
       const co = actionLogCoordLabel(e.detail.location);
-      msg = `「${name}」の到達効果を得ました${co ? `（${co}）` : ""}`;
+      msg = t("game.log.arrival", { card: name, where: co ? t("game.log.coordSuffix", { coord: co }) : "" });
     } else if (e.category === "hand-effect" && e.detail?.cardId) {
       player = e.detail.player;
       const name = getCardDefinition(e.detail.cardId)?.name ?? e.detail.cardId;
-      msg = `「${name}」の手札効果を得ました`;
+      msg = t("game.log.handEffect", { card: name });
     } else if (e.category === "lock" && e.detail?.cardId) {
       player = e.detail.player;
       const name = getCardDefinition(e.detail.cardId)?.name ?? e.detail.cardId;
-      msg = `「${name}」をロックしました`;
+      msg = t("game.log.lockedCard", { card: name });
     } else if (e.category === "declare-colors" && e.detail?.colors?.length) {
       player = e.detail.player;
-      const cols = e.detail.colors.map((c) => COLOR_LABEL_JA[c] ?? c).join("・");
-      msg = `色を宣言しました：${cols}`;
+      const cols = e.detail.colors.map((c) => colorLabel(c) ?? c).join(t("game.log.bullet"));
+      msg = t("game.log.declared", { colors: cols });
     } else if (e.category === "my-deck-draw" && e.detail?.player) {
       // ユーザー報告#120: マイデッキからのドローが「📜行動ログ」（この友好ログ窓）に出ていなかった。
       // buildFriendlyLogItemsが my-deck-draw のケースを持たず else→continue で捨てていたため。
       player = e.detail.player;
-      msg = "マイデッキから1枚ドローしました";
+      msg = t("game.myDeck.drewOne");
     } else if (e.category === "brand-draw" && e.detail?.player) {
       // ユーザー報告#120: 烙印ドローも同様に出ていなかった。brand-draw は1エントリ＝1枚のドロー。
       // 複数枚のときは「N枚目」を付けて、2枚とも別行で見えるようにする（連続dedud回避）。
       player = e.detail.player;
       const bc = e.detail.brandCount || 1;
-      msg = bc > 1 ? `誘惑の黒の烙印の効果で1枚ドローしました（${e.detail.index || 1}枚目）` : "誘惑の黒の烙印の効果で1枚ドローしました";
+      msg = bc > 1 ? t("game.log.brandDrawN", { i: e.detail.index || 1 }) : t("game.brand.drewOne");
     } else if (e.category === "place" && e.detail?.location) {
       // ユーザー要望2026-08-16「置く系の効果（例えば烙印）はどこに置いたか行動ログに記載してほしい」。
       // 座標を明示する。隠し情報保護のため、公開カード（烙印・効果カード自身・表向き配置）だけ
       // 名前を出し、山札/手札から裏向きで置いた（＝中身が非公開の）カードは名前を伏せて「カード」とする。
       player = e.detail.player;
       const co = actionLogCoordLabel(e.detail.location);
-      const fd = e.detail.faceDown ? "裏向きで" : "";
-      const where = co ? `（${co}）` : e.detail.location.zone === "lock" ? "（ロックエリア）" : "";
+      const fd = e.detail.faceDown ? t("game.log.faceDown") : "";
+      const where = co ? t("game.log.coordSuffix", { coord: co }) : e.detail.location.zone === "lock" ? t("game.log.lockArea") : "";
       if (e.detail.revealName && e.detail.cardId) {
         const name = getCardDefinition(e.detail.cardId)?.name ?? e.detail.cardId;
-        msg = `「${name}」を${fd}置きました${where}`;
+        msg = t("game.log.placedNamed", { card: name, fd, where });
       } else {
-        msg = `カードを${fd}置きました${where}`;
+        msg = t("game.log.placedCard", { fd, where });
       }
     } else if (e.category === "diag-gate-invasion-received") {
-      msg = "ゲート侵攻が発生しました";
+      msg = t("game.gateAuto.happened");
     } else {
       continue;
     }
@@ -11638,8 +11651,8 @@ function buildActionLogTurnHeader(item) {
   }
   const label = document.createElement("span");
   label.className = "action-log-turn-label";
-  const rt = [item.round != null ? `R${item.round}` : null, item.turn != null ? `T${item.turn}` : null].filter(Boolean).join("・");
-  label.textContent = item.player ? `${rt ? rt + "　" : ""}${getPlayerName(item.player)}のターン` : rt || "—";
+  const rt = [item.round != null ? `R${item.round}` : null, item.turn != null ? `T${item.turn}` : null].filter(Boolean).join(t("game.log.bullet"));
+  label.textContent = item.player ? `${rt ? rt + "　" : ""}${t("game.log.turnOf", { name: getPlayerName(item.player) })}` : rt || "—";
   header.appendChild(label);
   return header;
 }
@@ -11665,7 +11678,7 @@ function renderActionLogInto(body) {
   body.innerHTML = "";
   const items = buildFriendlyLogItems();
   if (items.length === 0) {
-    body.textContent = "（まだ記録がありません）";
+    body.textContent = t("game.log.empty");
     return;
   }
   let prevTurn;
@@ -11695,13 +11708,13 @@ function showActionLogInfoModal() {
   modal.id = "action-log-info-modal";
   const heading = document.createElement("div");
   heading.className = "action-log-info-modal-title";
-  heading.textContent = "📜 行動ログの見かた";
+  heading.textContent = t("game.log.howToTitle");
   modal.appendChild(heading);
   const paras = [
-    "新しい行動ほど上に表示されます。ラウンド（R）・ターン（T）ごとに区切られ、手番のプレイヤーはアバターと色で示されます。",
-    "記録される内容：カードの到達効果、手札効果、色の宣言、ゲート侵攻 など。",
-    "マス座標（例：C3）は盤面の絶対座標です。列は左から A・B・C…G、行は上から 1・2・3…7。C3 なら「左から3列目・上から3行目」のマスを指します（盤面の向きは各プレイヤーで回転しますが、座標は共通の基準です）。",
-    "同じ内容が連続したときはまとめて1行にしています。",
+    t("game.log.h1"),
+    t("game.log.h2"),
+    t("game.log.h3"),
+    t("game.log.h4"),
   ];
   for (const p of paras) {
     const el = document.createElement("p");
@@ -11720,14 +11733,14 @@ function openActionLogWindow() {
   const title = document.createElement("div");
   title.className = "action-log-window-title";
   const titleText = document.createElement("span");
-  titleText.textContent = "📜 行動ログ";
+  titleText.textContent = t("game.log.title");
   title.appendChild(titleText);
   // ユーザー要望「タイトル横にiマークで、座標のことをはじめ行動ログの詳細な説明を載せる」。
   const infoBtn = document.createElement("button");
   infoBtn.type = "button";
   infoBtn.className = "action-log-info-btn";
   infoBtn.textContent = "ⓘ";
-  infoBtn.title = "行動ログの見かた";
+  infoBtn.title = t("game.log.howToBtn");
   infoBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     showActionLogInfoModal();
@@ -11739,7 +11752,7 @@ function openActionLogWindow() {
   closeBtn.type = "button";
   closeBtn.className = "action-log-window-close";
   closeBtn.textContent = "✕";
-  closeBtn.title = "閉じる";
+  closeBtn.title = t("game.confirm.close");
   closeBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     closeActionLogWindow();
@@ -11767,9 +11780,9 @@ function buildActionLogToggleWidget() {
   btn.id = "self-status-action-log";
   const { captionEl } = buildIconButtonContent(btn, {
     icon: "assets/icons/action-log.svg",
-    tooltip: "行動ログの表示／非表示（離席復帰時の見返し用）",
+    tooltip: t("game.log.toggleTip"),
   });
-  captionEl.textContent = "ログ";
+  captionEl.textContent = t("game.log.caption");
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
     if (isActionLogWindowOpen()) closeActionLogWindow();
@@ -11788,10 +11801,10 @@ function buildSelfStatusOnlineWidget() {
   selfStatusOnlineCaptionEl = captionEl;
   selfStatusOnlineTooltipEl = tooltipEl;
   wireIconButtonClick(btn, {
-    detailTitle: "オンライン対戦",
+    detailTitle: t("game.online.title"),
     detailParagraphs: [
-      "ログインすると、離れた場所にいる友達と部屋を作って対局できます（ログアウト中/ログイン中/入室中の3つの状態をアイコンで表します）。",
-      "入室中は、アイコンの下に部屋名が小さく表示されます。クリックすると部屋の詳細（参加人数・退室等）を開けます。",
+      t("game.online.help1"),
+      t("game.online.help2"),
     ],
     onAction: openOnlinePanel,
   });
@@ -11813,7 +11826,7 @@ function updateSelfStatusOnlineWidget() {
   const gameId = getCurrentGameId();
   if (gameId) {
     img.src = ONLINE_STATUS_ICONS.inRoom;
-    selfStatusOnlineTooltipEl.textContent = "オンライン対戦中です。クリックで部屋の詳細を開きます";
+    selfStatusOnlineTooltipEl.textContent = t("game.online.inRoomTip");
     if (cachedRoomNameGameId === gameId) {
       selfStatusOnlineCaptionEl.textContent = cachedRoomName;
     } else {
@@ -11828,12 +11841,12 @@ function updateSelfStatusOnlineWidget() {
     }
   } else if (getCachedUser()) {
     img.src = ONLINE_STATUS_ICONS.loggedIn;
-    selfStatusOnlineTooltipEl.textContent = "ログイン中です。クリックでオンライン対戦の部屋一覧を開きます";
-    selfStatusOnlineCaptionEl.textContent = "ログイン中";
+    selfStatusOnlineTooltipEl.textContent = t("game.online.signedInTip");
+    selfStatusOnlineCaptionEl.textContent = t("game.online.signedIn");
   } else {
     img.src = ONLINE_STATUS_ICONS.loggedOut;
-    selfStatusOnlineTooltipEl.textContent = "オンライン対戦を始めるにはログインしてください";
-    selfStatusOnlineCaptionEl.textContent = "オンライン";
+    selfStatusOnlineTooltipEl.textContent = t("game.online.signInTip");
+    selfStatusOnlineCaptionEl.textContent = t("game.online.caption");
   }
 }
 
@@ -11977,11 +11990,11 @@ function showGateInvasionAutoProcessConfirmModal(onYes, onNo) {
 
   const title = document.createElement("div");
   title.className = "contact-confirm-title";
-  title.textContent = "ゲート侵攻ボーナス";
+  title.textContent = t("game.gateAuto.title");
 
   const body = document.createElement("div");
   body.className = "contact-confirm-body";
-  body.textContent = "相手ゲート侵攻ボーナスの発生条件を満たしています。自動で処理しますか？";
+  body.textContent = t("game.gateAuto.body");
 
   const btnRow = document.createElement("div");
   btnRow.className = "contact-confirm-buttons";
@@ -11989,13 +12002,13 @@ function showGateInvasionAutoProcessConfirmModal(onYes, onNo) {
   const noBtn = document.createElement("button");
   noBtn.className = "contact-confirm-cancel";
   noBtn.type = "button";
-  noBtn.textContent = "いいえ（自分で処理する）";
+  noBtn.textContent = t("game.gateAuto.manual");
   noBtn.addEventListener("click", () => close(false));
 
   const yesBtn = document.createElement("button");
   yesBtn.className = "contact-confirm-ok";
   yesBtn.type = "button";
-  yesBtn.textContent = "自動で処理する";
+  yesBtn.textContent = t("game.gateAuto.auto");
   yesBtn.addEventListener("click", () => close(true));
 
   btnRow.appendChild(noBtn);
@@ -12797,7 +12810,7 @@ function updateTurnRoundCounter() {
     return;
   }
   turnRoundCounterEl.style.display = "block";
-  turnRoundCounterEl.textContent = `ターン ${turnNumber} ／ ラウンド ${roundNumber}`;
+  turnRoundCounterEl.textContent = t("game.turnRound", { turn: turnNumber, round: roundNumber });
 }
 
 // --- 「1枚ドロー」ボタン ---------------------------------------------------------
@@ -12976,7 +12989,7 @@ let selfStatusRankRingEl = null;
 // ユーザー要望「ランクリングは常時表示されていてください」への対応。戦績システムと
 // 未連携・未ログインの間は、実際のティア（getTierInfo）が求められないため、この
 // 中立的な色（アプリ全体で補助テキストに使っている灰色と同じ）をそのまま代わりに使う。
-const UNLINKED_RANK_TIER = { type: "ring", color: "#94a3b8", glow: null, label: "未連携" };
+const UNLINKED_RANK_TIER = { type: "ring", color: "#94a3b8", glow: null, labelKey: "game.unlinked" };
 
 // ユーザー報告「ランク表示（回転するオーブ）があるとアバターの背景が透明にならない。
 // ただしランクリングの太さをスライダーで少しでも変えると背面が完全に透明になり、値を
@@ -13037,7 +13050,7 @@ async function openAvatarPicker() {
 
   const title = document.createElement("div");
   title.className = "avatar-picker-modal-title";
-  title.textContent = "アバターを選択";
+  title.textContent = t("game.profile.pickAvatar");
 
   const grid = document.createElement("div");
   grid.className = "avatar-picker-modal-grid";
@@ -13047,7 +13060,7 @@ async function openAvatarPicker() {
   if (googleAvatarUrl) {
     const googleSwatch = document.createElement("button");
     googleSwatch.className = "avatar-picker-swatch";
-    googleSwatch.title = "Googleのプロフィール画像を使う";
+    googleSwatch.title = t("game.profile.useGoogle");
     if (getPlayerAvatar(getSelfSeat()) === googleAvatarUrl) googleSwatch.classList.add("is-selected");
     applyAvatarContent(googleSwatch, googleAvatarUrl);
     googleSwatch.addEventListener("click", () => {
@@ -13066,7 +13079,7 @@ async function openAvatarPicker() {
   if (customAvatarUrl) {
     const customSwatch = document.createElement("button");
     customSwatch.className = "avatar-picker-swatch";
-    customSwatch.title = "アップロードした画像を使う";
+    customSwatch.title = t("game.profile.useUpload");
     if (getPlayerAvatar(getSelfSeat()) === customAvatarUrl) customSwatch.classList.add("is-selected");
     applyAvatarContent(customSwatch, customAvatarUrl);
     customSwatch.addEventListener("click", () => {
@@ -13090,7 +13103,7 @@ async function openAvatarPicker() {
     if (locked) {
       const cost = getAvatarCost(avatar) ?? 0;
       swatch.classList.add("is-locked");
-      swatch.title = `🔒 ${cost}で購入`;
+      swatch.title = t("game.shop.buyFor", { cost });
       const lockBadge = document.createElement("span");
       lockBadge.className = "avatar-picker-swatch-lock";
       lockBadge.textContent = `🔒${cost}`;
@@ -13115,7 +13128,7 @@ async function openAvatarPicker() {
   {
     const swatch = document.createElement("button");
     swatch.className = "avatar-picker-swatch";
-    swatch.title = "記憶を失った青年（駒の色に合わせて色が変わります）";
+    swatch.title = t("game.profile.protagonist");
     if (getRawPlayerAvatar(getSelfSeat()) === PROTAGONIST_AVATAR) swatch.classList.add("is-selected");
     applyAvatarContent(swatch, protagonistPathForSeat(getSelfSeat()));
     swatch.addEventListener("click", () => {
@@ -13170,12 +13183,12 @@ async function openFirstLoginProfileModal() {
 
   const title = document.createElement("div");
   title.className = "first-login-profile-title";
-  title.textContent = "🎉 プロフィールの確認";
+  title.textContent = t("game.profile.title");
   modal.appendChild(title);
 
   const body = document.createElement("div");
   body.className = "first-login-profile-body";
-  body.textContent = "ニックネームとアバターを決めましょう（あとから変更できます）。";
+  body.textContent = t("game.profile.body");
   modal.appendChild(body);
 
   const avatarPreview = document.createElement("div");
@@ -13201,21 +13214,21 @@ async function openFirstLoginProfileModal() {
     });
     grid.appendChild(swatch);
   }
-  if (googleAvatarUrl) addAvatarSwatch(googleAvatarUrl, "Googleのプロフィール画像を使う");
+  if (googleAvatarUrl) addAvatarSwatch(googleAvatarUrl, t("game.profile.useGoogle"));
   const customAvatarUrl = await fetchMyCustomAvatarUrl();
-  if (customAvatarUrl) addAvatarSwatch(customAvatarUrl, "アップロードした画像を使う");
+  if (customAvatarUrl) addAvatarSwatch(customAvatarUrl, t("game.profile.useUpload"));
   for (const avatar of AVATAR_OPTIONS) addAvatarSwatch(avatar, "");
   modal.appendChild(grid);
 
   const nameLabel = document.createElement("div");
   nameLabel.className = "first-login-profile-name-label";
-  nameLabel.textContent = "ニックネーム";
+  nameLabel.textContent = t("game.profile.nickname");
   modal.appendChild(nameLabel);
 
   const nameInput = document.createElement("input");
   nameInput.className = "first-login-profile-name-input";
   nameInput.maxLength = 12;
-  nameInput.placeholder = "ニックネームを入力";
+  nameInput.placeholder = t("game.profile.nicknamePh");
   nameInput.value = getPlayerName(seat);
   const commitName = () => {
     if (nameInput.value.trim()) setPlayerName(seat, nameInput.value);
@@ -13230,7 +13243,7 @@ async function openFirstLoginProfileModal() {
   const okBtn = document.createElement("button");
   okBtn.type = "button";
   okBtn.className = "first-login-profile-ok";
-  okBtn.textContent = "この内容で始める";
+  okBtn.textContent = t("game.profile.start");
   okBtn.addEventListener("click", () => {
     commitName();
     close();
@@ -13315,7 +13328,7 @@ function buildSelfHandStatus() {
     if (Math.hypot(dx, dy) > Math.min(rect.width, rect.height) / 2) return; // 円の外（四隅）は無視
     openEmotePicker(selfStatusLargeAvatarEl);
   });
-  addSimpleTooltip(selfStatusLargeAvatarEl, "クリックしてエモートを選ぶ");
+  addSimpleTooltip(selfStatusLargeAvatarEl, t("game.self.emote"));
 
   // ユーザー要望「戦績システムと連携しているプレイヤーはステータスエリアにランクを
   // 表示させたい」。stats-profile.jsのtierに従ってupdateSelfStatusRankRing()が
@@ -13347,7 +13360,7 @@ function buildSelfHandStatus() {
   selfStatusPieceThumbEl = document.createElement("button");
   selfStatusPieceThumbEl.className = "self-status-piece-thumb";
   selfStatusPieceThumbEl.addEventListener("click", openPieceSkinPicker);
-  addSimpleTooltip(selfStatusPieceThumbEl, "クリックして駒スキンを変更");
+  addSimpleTooltip(selfStatusPieceThumbEl, t("game.self.pieceSkin"));
 
   // カード裏面セットの選択（自分だけの見た目の好み、card-back-skins.js参照）。
   // 駒と違い自分の色に依存しない・ゲーム開始前でも常に選べるため、非表示にする条件は無い。
@@ -13356,7 +13369,7 @@ function buildSelfHandStatus() {
   selfStatusCardBackThumbEl.addEventListener("click", openCardBackSkinPicker);
   const cardBackThumbImg = document.createElement("img");
   selfStatusCardBackThumbEl.appendChild(cardBackThumbImg);
-  addSimpleTooltip(selfStatusCardBackThumbEl, "クリックしてカード裏面を変更（自分の画面にだけ反映されます）");
+  addSimpleTooltip(selfStatusCardBackThumbEl, t("game.self.cardBack"));
 
   // プレイマットの選択（playmat.js参照）。カード裏面と違い盤面の背景そのものなので、
   // 全プレイヤーの画面に見た目上反映される（現状はこのブラウザのローカル選択のみ、
@@ -13366,7 +13379,7 @@ function buildSelfHandStatus() {
   selfStatusPlaymatThumbEl.addEventListener("click", openPlaymatPicker);
   const playmatThumbImg = document.createElement("img");
   selfStatusPlaymatThumbEl.appendChild(playmatThumbImg);
-  addSimpleTooltip(selfStatusPlaymatThumbEl, "クリックしてプレイマットを変更");
+  addSimpleTooltip(selfStatusPlaymatThumbEl, t("game.self.playmat"));
 
   // 背景画像の選択（background.js参照）。プレイマットのすぐ隣に、同じ大きさで配置する
   // （ユーザー要望）。CSSはプレイマットアイコンのクラスをそのまま流用し、サイズ・位置だけ
@@ -13376,14 +13389,14 @@ function buildSelfHandStatus() {
   selfStatusBackgroundThumbEl.addEventListener("click", openBackgroundPicker);
   const backgroundThumbImg = document.createElement("img");
   selfStatusBackgroundThumbEl.appendChild(backgroundThumbImg);
-  addSimpleTooltip(selfStatusBackgroundThumbEl, "クリックして背景画像を変更");
+  addSimpleTooltip(selfStatusBackgroundThumbEl, t("game.self.background"));
 
   // ペット変更アイコン（ユーザー要望「背景変更アイコンの隣にペット変更アイコンを追加」）。
   // 駒に追従する飾りペットの絵文字を選ぶ。現在の選択を絵文字で表示する（updateSelfStatusで更新）。
   selfStatusPetThumbEl = document.createElement("button");
   selfStatusPetThumbEl.className = "self-status-playmat-thumb self-status-pet-thumb";
   selfStatusPetThumbEl.addEventListener("click", openPetPicker);
-  addSimpleTooltip(selfStatusPetThumbEl, "クリックしてペットを変更");
+  addSimpleTooltip(selfStatusPetThumbEl, t("game.self.pet"));
 
   const info = document.createElement("div");
   info.className = "self-status-info";
@@ -13391,7 +13404,7 @@ function buildSelfHandStatus() {
 
   selfStatusNameEl = document.createElement("div");
   selfStatusNameEl.className = "self-status-name";
-  selfStatusNameEl.title = "クリックして名前を変更";
+  selfStatusNameEl.title = t("game.self.name");
   selfStatusNameEl.addEventListener("click", startEditingName);
 
   selfStatusHandCountEl = document.createElement("div");
@@ -13402,7 +13415,7 @@ function buildSelfHandStatus() {
   selfStatusTitleEl = document.createElement("div");
   selfStatusTitleEl.className = "self-status-title";
   selfStatusTitleEl.style.display = "none";
-  selfStatusTitleEl.title = "マイページの「称号」から変更できます";
+  selfStatusTitleEl.title = t("game.self.titleTip");
 
   info.appendChild(selfStatusNameEl);
   info.appendChild(selfStatusTitleEl);
@@ -13447,7 +13460,7 @@ function updateSelfHandStatus() {
   // ハマりどころ: applyAvatarContent()の直後は毎回tooltip要素も一緒に消えている
   // ため（同じ理由でリングも消えていた、buildSelfHandStatusのコメント参照）、
   // ここで都度re-addする必要がある。文言はbuildSelfHandStatus側と揃える。
-  addSimpleTooltip(selfStatusLargeAvatarEl, "クリックしてエモートを選ぶ");
+  addSimpleTooltip(selfStatusLargeAvatarEl, t("game.self.emote"));
 
   // セットアップ前（自分の駒の色がまだ決まっていない間）でも、選んだバリエーション番号
   // 自体は色に依存しない好みなので、先に見た目を確認・選べるよう常に表示する
@@ -13461,7 +13474,7 @@ function updateSelfHandStatus() {
   inner.style.transform = `rotateX(${tilt})`;
   inner.appendChild(buildCubePiece(myColor, getSelfSeat()));
   selfStatusPieceThumbEl.appendChild(inner);
-  addSimpleTooltip(selfStatusPieceThumbEl, "クリックして駒スキンを変更");
+  addSimpleTooltip(selfStatusPieceThumbEl, t("game.self.pieceSkin"));
 
   selfStatusCardBackThumbEl.querySelector("img").src = cardBackSetImagePath("normal", getCardBackSetIndex());
   selfStatusPlaymatThumbEl.querySelector("img").src = getSelectedPlaymatPath();
@@ -13499,15 +13512,15 @@ function updateSelfHandStatus() {
   if (!selfStatusNameEl.isConnected) {
     const fresh = document.createElement("div");
     fresh.className = "self-status-name";
-    fresh.title = "クリックして名前を変更";
+    fresh.title = t("game.self.name");
     fresh.addEventListener("click", startEditingName);
     selfHandStatusEl.querySelector(".self-status-name-input")?.replaceWith(fresh);
     selfStatusNameEl = fresh;
   }
   // 「（自分）」はここ（実際に見ている本人にしか意味を持たない場所）でだけ動的に付け足す。
   // SEAT_LABELS側にはもう含めていない（「自分」がAとは限らないため）。
-  selfStatusNameEl.textContent = `${getPlayerName(getSelfSeat())}（自分）`;
-  selfStatusHandCountEl.textContent = `手札：${count}枚`;
+  selfStatusNameEl.textContent = t("game.self.meSuffix", { name: getPlayerName(getSelfSeat()) });
+  selfStatusHandCountEl.textContent = t("game.self.handCount", { n: count });
 }
 
 // オープニング画面（ローカル/オンラインの2択メニュー）を、ゲーム本体の初期化より先に
@@ -13690,7 +13703,7 @@ registerShopOpener(openShopPanel);
 // 動的importで読む（静的importにすると循環になりうるため。[[circular-import-tdz-and-no-cache-bust]]）。
 registerGameGoneHandler(() => {
   try {
-    alert("この対局は終了しました（部屋が閉じられました）。ホームに戻ります。");
+    alert(t("game.room.closed"));
   } catch { /* noop */ }
   import("./home-screen.js")
     .then((m) => m.openHomeScreen?.())
@@ -13821,7 +13834,7 @@ registerMyDeckDrawAnnouncer(announceMyDeckDraw);
 registerReturnHomeRevealHelper(async (attacker, cards) => {
   if (attacker !== getSelfSeat()) return; // 回収した本人（自分）だけに見せる
   for (const c of cards) {
-    await showCardReceivedModal(c.cardId, "自分のゲートから回収しました", { labelText: "回収した" });
+    await showCardReceivedModal(c.cardId, t("game.gate.collectedOwn"), { labelText: t("game.label.collected") });
   }
 });
 // オンラインのゲート侵攻（サーバー処理→受信モーダル経路）でも、ローカルと同じエターナル獲得の
@@ -13884,12 +13897,12 @@ function updateAfkCpuBanner() {
   afkCpuBannerEl.innerHTML = "";
   const text = document.createElement("div");
   text.className = "afk-cpu-banner-text";
-  text.textContent = "🤖 CPUに切替中です（放置のため自動操作中）。";
+  text.textContent = t("game.afk.substituting");
   afkCpuBannerEl.appendChild(text);
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "afk-cpu-banner-btn";
-  btn.textContent = "復帰する";
+  btn.textContent = t("game.afk.resume");
   btn.addEventListener("click", exitAfkCpuSubstitution);
   afkCpuBannerEl.appendChild(btn);
 }
@@ -13999,7 +14012,7 @@ async function finishRankedForfeit(loserSeat) {
   try {
     const { showRankedResultModal } = await import("./ranked-result-modal.js");
     const myRank = await getSelfRank();
-    const note = iWon ? "相手が放置により敗北したため、あなたの勝ちです。" : "放置（時間切れが続いた）ため、あなたの敗北です。";
+    const note = iWon ? t("game.afk.opponentLost") : t("game.afk.youLost");
     await showRankedResultModal({
       won: iWon,
       rank: myRank ? myRank.rank : 0,
@@ -14085,8 +14098,8 @@ async function handleRankedReconnectResult(winnerSeat) {
     const { showRankedResultModal } = await import("./ranked-result-modal.js");
     const myRank = await getSelfRank();
     const note = iWon
-      ? "この対局は既に終了しています（あなたの勝ち）。"
-      : "放置（時間切れが続いた）ため、あなたの敗北で確定しています。";
+      ? t("game.afk.alreadyWon")
+      : t("game.afk.alreadyLost");
     await showRankedResultModal({
       won: iWon,
       rank: myRank ? myRank.rank : 0,
@@ -14510,16 +14523,16 @@ function showDailyBonusToast(amount) {
   modal.id = "daily-bonus-modal";
   const title = document.createElement("div");
   title.className = "daily-bonus-modal-title";
-  title.textContent = "🎁 ログインボーナス";
+  title.textContent = t("game.loginBonus.title");
   const amountEl = document.createElement("div");
   amountEl.className = "daily-bonus-modal-amount";
   amountEl.textContent = `🪙 +${amount}`;
   const note = document.createElement("div");
   note.className = "daily-bonus-modal-note";
-  note.textContent = "今日もあそんでくれてありがとう！（ログインボーナスは1日1回）";
+  note.textContent = t("game.loginBonus.body");
   const okBtn = document.createElement("button");
   okBtn.className = "daily-bonus-modal-ok";
-  okBtn.textContent = "受け取る";
+  okBtn.textContent = t("game.loginBonus.claim");
   okBtn.addEventListener("click", close);
   modal.appendChild(createModalCloseX(close));
   modal.appendChild(title);
@@ -14630,7 +14643,7 @@ function ensureMyDeckOwnerTooltip() {
   nm.className = "my-deck-owner-tooltip-name";
   const label = document.createElement("div");
   label.className = "my-deck-owner-tooltip-label";
-  label.textContent = "マイデッキ";
+  label.textContent = t("game.myDeck");
   el.append(av, nm, label);
   el._avatarEl = av;
   el._nameEl = nm;
