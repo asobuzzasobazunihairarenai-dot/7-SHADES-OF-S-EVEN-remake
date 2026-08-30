@@ -14,6 +14,8 @@ export const CHANGELOG = [
   {
     date: "2026-08-29",
     items: [
+      "勝利演出を細かく直しました。ロックエリアの光が盤面と同じ向きに寝るようになり（板が立って見えていました）、脈動に重なる白い光は勝者の駒の色でやわらかくにじむようにしました。",
+      "勝利演出で、宙に浮いたロックカードがその場で消えるのをやめ、勝者の駒（キューブ）へ吸い込まれるようにしました。カードが浮いた後はロックエリアの光も残らず消えます。",
       "勝利演出で、勝者のロックエリアの七色が暗転の裏側に隠れてしまい色が見えなかったのを直しました。七色は暗転より手前ではっきりと灯ります。",
       "勝利演出の脈動を作り直しました。白い丸が広がるだけだったところを、勝者の駒（キューブ）に少し半透明のもう1つのキューブが重なって脈打ち、脈動のたびに一回り大きく広がって消えるようにしました。駒スキンもそのまま反映されます。",
       "勝利演出の標準の強さを、以前の「派手版」の設定にしました（光の量・脈動・残光が強めになります）。",
@@ -38,6 +40,8 @@ export const CHANGELOG = [
     ],
     // 英語表示のとき items の代わりに出る（併記はしない。同じ順番・同じ件数で書くこと）。
     itemsEn: [
+      "Polished the victory sequence. The glow on the Lock Area now lies flat along the board instead of standing upright, and the light around the pulsing cube is now a soft haze in the winner’s colour rather than a hard white disc.",
+      "In the victory sequence, the locked cards floating in mid-air are now drawn into the winner’s cube instead of fading out where they are, and the Lock Area glow no longer lingers once the cards have lifted away.",
       "Fixed the winner’s seven colors being hidden behind the dimming layer during the victory sequence — they now light up clearly in front of it.",
       "Rebuilt the pulse in the victory sequence. Instead of a plain white circle expanding, a slightly translucent copy of the winner’s cube now sits on top of the real one and beats, sending out a larger fading cube with every pulse. Your chosen piece skin is used as-is.",
       "The victory sequence now defaults to what used to be the “flashy” setting (stronger light, pulse and afterglow).",

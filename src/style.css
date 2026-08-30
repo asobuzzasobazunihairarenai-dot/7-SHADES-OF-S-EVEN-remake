@@ -10629,52 +10629,77 @@ body.victory-celebration-active #option-area {
   position: absolute;
   inset: 0;
 }
+/* 【重要】盤面は rotateX で寝ているので、矩形をそのまま重ねると光だけが「立って」見える
+   （ユーザー報告2026-08-31）。ドラッグゴースト・疑似キューブと同じ
+   「perspective の箱 + 盤面と同じ傾きの中身」にして、スロットと同じ寝かせ方で描く。 */
 #victory-celebration .vic-slot {
   position: absolute;
-  border-radius: 18%;
+  transform: translate(-50%, -50%);
+  perspective: var(--camera-perspective);
+  pointer-events: none;
+}
+#victory-celebration .vic-slot-plate {
+  width: 100%;
+  height: 100%;
+  border-radius: 12%;
   opacity: 0;
-  transform: translate(-50%, -50%) scale(0.8);
+  transform: rotateX(var(--vic-tilt, 42deg)) scale(0.82);
+  /* 「スロットそのものが灯った」ように見せる＝中は淡く、ふちだけはっきり。
+     にじみ(box-shadow)を大きくしすぎると隣とつながって、ただの虹色の帯に見えてしまう。 */
   background: radial-gradient(closest-side,
-    rgba(var(--vic-slot-rgb, 255, 255, 255), 0.95) 0%,
-    rgba(var(--vic-slot-rgb, 255, 255, 255), 0.5) 58%,
+    rgba(var(--vic-slot-rgb, 255, 255, 255), 0.55) 0%,
+    rgba(var(--vic-slot-rgb, 255, 255, 255), 0.28) 62%,
     rgba(var(--vic-slot-rgb, 255, 255, 255), 0) 100%);
   will-change: transform, opacity;
 }
-#victory-celebration .vic-slot.is-lit {
+#victory-celebration .vic-slot-plate.is-lit {
   animation: vic-slot-lit 900ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
 }
 @keyframes vic-slot-lit {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
-  22% {
+  0% { opacity: 0; transform: rotateX(var(--vic-tilt, 42deg)) scale(0.82); }
+  20% {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1.45);
-    box-shadow: 0 0 1.5rem 0.45rem rgba(var(--vic-slot-rgb), 0.95),
-      0 0 3.4rem 1.1rem rgba(var(--vic-slot-rgb), 0.6);
+    transform: rotateX(var(--vic-tilt, 42deg)) scale(1.16);
+    box-shadow: inset 0 0 0 0.14rem rgba(var(--vic-slot-rgb), 1),
+      0 0 1.1rem 0.12rem rgba(var(--vic-slot-rgb), 0.9),
+      0 0 2.2rem 0.4rem rgba(var(--vic-slot-rgb), 0.45);
   }
   100% {
-    opacity: 0.92;
-    transform: translate(-50%, -50%) scale(1.12);
-    box-shadow: 0 0 1rem 0.24rem rgba(var(--vic-slot-rgb), 0.85),
-      0 0 2.4rem 0.6rem rgba(var(--vic-slot-rgb), 0.45);
+    opacity: 0.95;
+    transform: rotateX(var(--vic-tilt, 42deg)) scale(1);
+    box-shadow: inset 0 0 0 0.1rem rgba(var(--vic-slot-rgb), 0.9),
+      0 0 0.6rem 0.02rem rgba(var(--vic-slot-rgb), 0.7),
+      0 0 1.2rem 0.14rem rgba(var(--vic-slot-rgb), 0.3);
   }
 }
-#victory-celebration .vic-slot.is-all {
+#victory-celebration .vic-slot-plate.is-all {
   animation: vic-slot-all 560ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
 }
 @keyframes vic-slot-all {
-  0% { opacity: 0.92; transform: translate(-50%, -50%) scale(1.12); }
-  32% {
+  0% { opacity: 0.95; transform: rotateX(var(--vic-tilt, 42deg)) scale(1); }
+  30% {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1.7);
-    box-shadow: 0 0 2.4rem 0.9rem rgba(var(--vic-slot-rgb), 1),
-      0 0 5.2rem 2rem rgba(var(--vic-slot-rgb), 0.7);
+    transform: rotateX(var(--vic-tilt, 42deg)) scale(1.3);
+    box-shadow: inset 0 0 0 0.16rem rgba(var(--vic-slot-rgb), 1),
+      0 0 1.6rem 0.3rem rgba(var(--vic-slot-rgb), 0.95),
+      0 0 3rem 0.7rem rgba(var(--vic-slot-rgb), 0.5);
   }
   100% {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1.22);
-    box-shadow: 0 0 1.3rem 0.35rem rgba(var(--vic-slot-rgb), 0.9),
-      0 0 2.8rem 0.8rem rgba(var(--vic-slot-rgb), 0.5);
+    transform: rotateX(var(--vic-tilt, 42deg)) scale(1.06);
+    box-shadow: inset 0 0 0 0.12rem rgba(var(--vic-slot-rgb), 0.95),
+      0 0 0.8rem 0.06rem rgba(var(--vic-slot-rgb), 0.75),
+      0 0 1.7rem 0.2rem rgba(var(--vic-slot-rgb), 0.35);
   }
+}
+/* カードが浮き上がったら、色はカードへ移ったものとしてロックエリアの光は消す。
+   （.is-all より後に書くこと。同じ詳細度なので後勝ちでアニメーションを差し替える。） */
+#victory-celebration .vic-slot-plate.is-drained {
+  animation: vic-slot-drain 620ms ease-out forwards;
+}
+@keyframes vic-slot-drain {
+  0% { opacity: 1; transform: rotateX(var(--vic-tilt, 42deg)) scale(1.22); }
+  100% { opacity: 0; transform: rotateX(var(--vic-tilt, 42deg)) scale(0.96); box-shadow: none; }
 }
 
 /* （任意）ロックした7枚が中央に扇状に並び、最後はキューブへ吸われるように消える */
@@ -10696,9 +10721,11 @@ body.victory-celebration-active #option-area {
 #victory-celebration .vic-card.is-flying {
   transform: translate(var(--vic-card-tx), var(--vic-card-ty)) rotate(var(--vic-card-rot)) scale(var(--vic-card-scale));
 }
+/* キューブへ飛び込んで消える（その場で縮むのではなく、位置ごと駒へ吸い込ませる）。 */
 #victory-celebration .vic-card.is-absorbing {
-  transition: transform 420ms cubic-bezier(0.5, 0, 0.8, 0.4), opacity 420ms ease-in;
-  transform: translate(var(--vic-card-tx), var(--vic-card-ty)) rotate(var(--vic-card-rot)) scale(0.15);
+  transition: transform 520ms cubic-bezier(0.55, 0, 0.75, 0.3), opacity 520ms ease-in 120ms;
+  transform: translate(var(--vic-card-tx), var(--vic-card-ty))
+    rotate(calc(var(--vic-card-rot) + var(--vic-card-spin, 0deg))) scale(0.08);
   opacity: 0;
 }
 
@@ -10726,28 +10753,31 @@ body.victory-celebration-active #option-area {
 }
 /* 実物と重なっても「もう1つ乗っている」と分かる程度の半透明にする。 */
 #victory-celebration .vic-cube.is-charging { opacity: 0.66; }
+/* 発光は「白い芯＋勝者の色の広いにじみ」。白を強く広く出すと、脈動が画面の中央で
+   ただの白い丸に見えてしまう（ユーザー報告2026-08-31）。白は薄く狭く、色は広くぼかす。 */
 #victory-celebration .vic-cube .piece-face {
-  box-shadow: 0 0 0.9rem 0.2rem rgba(255, 255, 255, 0.5);
-}
-#victory-celebration .vic-cube.is-pulse {
-  animation: vic-cube-beat var(--vic-pulse-ms, 380ms) cubic-bezier(0.2, 0.9, 0.3, 1);
-}
-@keyframes vic-cube-beat {
-  0% { transform: translate(-50%, -50%) scale(1); }
-  35% { transform: translate(-50%, -50%) scale(calc(1 + 0.24 * var(--vic-pulse-power, 1))); }
-  100% { transform: translate(-50%, -50%) scale(1); }
+  box-shadow:
+    0 0 0.7rem 0.05rem rgba(255, 255, 255, 0.3),
+    0 0 1.8rem 0.4rem rgba(var(--vic-cube-rgb, 255, 255, 255), 0.42);
 }
 #victory-celebration .vic-cube.is-pulse .piece-face {
   animation: vic-cube-face-beat var(--vic-pulse-ms, 380ms) cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 @keyframes vic-cube-face-beat {
-  0% { box-shadow: 0 0 0.9rem 0.2rem rgba(255, 255, 255, 0.5); }
+  0% {
+    box-shadow: 0 0 0.7rem 0.05rem rgba(255, 255, 255, 0.3),
+      0 0 1.8rem 0.4rem rgba(var(--vic-cube-rgb, 255, 255, 255), 0.42);
+  }
   35% {
     box-shadow:
-      0 0 calc(2rem * var(--vic-pulse-power, 1)) calc(0.7rem * var(--vic-pulse-power, 1)) rgba(255, 255, 255, 0.95),
-      0 0 calc(4.2rem * var(--vic-pulse-power, 1)) calc(1.6rem * var(--vic-pulse-power, 1)) var(--piece-turn-glow-color, rgba(255, 255, 255, 0.6));
+      0 0 calc(1.1rem * var(--vic-pulse-power, 1)) 0 rgba(255, 255, 255, 0.42),
+      0 0 calc(4rem * var(--vic-pulse-power, 1)) calc(1.1rem * var(--vic-pulse-power, 1)) rgba(var(--vic-cube-rgb, 255, 255, 255), 0.62),
+      0 0 calc(8.5rem * var(--vic-pulse-power, 1)) calc(3rem * var(--vic-pulse-power, 1)) rgba(var(--vic-cube-rgb, 255, 255, 255), 0.26);
   }
-  100% { box-shadow: 0 0 0.9rem 0.2rem rgba(255, 255, 255, 0.5); }
+  100% {
+    box-shadow: 0 0 0.7rem 0.05rem rgba(255, 255, 255, 0.3),
+      0 0 1.8rem 0.4rem rgba(var(--vic-cube-rgb, 255, 255, 255), 0.42);
+  }
 }
 /* 脈動のたびに、同じキューブが一回り大きく広がって消える残像を1つ置く。 */
 #victory-celebration .vic-cube.is-echo {

@@ -122,7 +122,8 @@ export async function playVictoryCelebration(player, opts = {}) {
   const sp = light ? 3.2 : s.speed; // 動きを減らす設定なら一気に短く
   const ms = (base) => Math.round(base / sp);
 
-  const slots = findLockSlots(player).filter(Boolean);
+  const liveSlots = () => findLockSlots(player).filter(Boolean);
+  let slots = liveSlots();
   const piece = findWinnerPiece(player);
   let root = null;
   let cards = [];
@@ -152,28 +153,30 @@ export async function playVictoryCelebration(player, opts = {}) {
 
     // --- COLORS: 7色が順に発光 → 最後に同時発光 -----------------------------------
     stage("COLORS");
+    slots = liveSlots(); // 直前の render() で作り直されている可能性があるので取り直す
     flares = spawnSlotFlares(root.querySelector(".vic-slots"), slots);
     for (let i = 0; i < slots.length; i++) {
-      flares[i]?.classList.add("is-lit");
+      flares[i]?.firstChild?.classList.add("is-lit");
       playSound("lock");
       // 前半はゆっくり、後半に向けてテンポを上げる
       const k = slots.length > 1 ? i / (slots.length - 1) : 1;
       const gap = BASE.colorFirst + (BASE.colorLast - BASE.colorFirst) * k;
       await step(ms(gap * s.colorStep));
     }
-    flares.forEach((el) => el.classList.add("is-all"));
+    flares.forEach((el) => el.firstChild?.classList.add("is-all"));
     playSound("arrivalEffect");
     await step(ms(BASE.colorAllFlare));
 
     // --- （任意）ロックした7枚が中央に扇状に並ぶ ----------------------------------
     if (s.fan && !light) {
-      cards = spawnLockedCards(root, player, slots, { x: innerWidth / 2, y: innerHeight * 0.42 });
+      cards = spawnLockedCards(root, player, liveSlots(), { x: innerWidth / 2, y: innerHeight * 0.42 });
       if (cards.length) {
         playSound("cardDraw");
         requestAnimationFrame(() => cards.forEach((c) => c.classList.add("is-flying")));
+        // 色はカードへ移ったので、ロックエリアの光は残さず落とす（ユーザー報告2026-08-31）。
+        flares.forEach((el) => el.firstChild?.classList.add("is-drained"));
         await step(ms(BASE.fan));
         await step(ms(BASE.fanHold));
-        cards.forEach((c) => c.classList.add("is-absorbing"));
       }
     }
 
@@ -181,10 +184,16 @@ export async function playVictoryCelebration(player, opts = {}) {
     stage("GATHER");
     playSound("cardDraw");
     if (!light) {
-      stopCanvas = runGatherCanvas(root, slots, cube, s, ms(BASE.gather / s.gatherSpeed));
+      // 帯の出どころ: カードが浮いているならカードの位置から、そうでなければスロットから。
+      const origins = cards.length
+        ? COLORS.map((_, i) => centerOf(cards[Math.min(i, cards.length - 1)]))
+        : liveSlots().map((el) => centerOf(el));
+      stopCanvas = runGatherCanvas(root, origins, cube, s, ms(BASE.gather / s.gatherSpeed));
     }
-    ghost = spawnGhostCube(root.querySelector(".vic-cubes"), piece, cube, cubeSize);
+    ghost = spawnGhostCube(root.querySelector(".vic-cubes"), piece, cube, cubeSize, player);
     ghost?.classList.add("is-charging");
+    // 宙に浮いたカードは、その場で縮むのではなく**キューブへ飛び込んで**消える。
+    absorbCardsIntoCube(cards, cube);
     await step(ms(BASE.gather / s.gatherSpeed));
     cards.forEach((c) => c.remove());
     cards = [];
@@ -281,18 +290,33 @@ function buildRoot() {
 // 色は盤面パレットではなく演出用の VIVID を使う＝暗い幕の上でもはっきり色が分かる。
 function spawnSlotFlares(layer, slots) {
   if (!layer) return [];
+  const tilt = tableTilt();
   return slots.map((slot, i) => {
     const r = rectOf(slot);
+    // 盤面は rotateX で寝ているので、矩形をそのまま置くと「板が立っている」ように見える
+    //（ユーザー報告2026-08-31「枠が2Dになっちゃってる」）。ドラッグゴースト・疑似キューブと
+    // 同じく perspective + 盤面と同じ傾きの入れ子にして、スロットと同じ寝かせ方で描く。
+    // 箱の縦は、傾けると cos(傾き) 倍に潰れる分だけ先に伸ばしておく＝画面上の footprint が
+    // 実物のスロットと一致する（自前の perspective は盤面と原点が違うので、CSS上の寸法から
+    // 積み上げるより実測に合わせる方が確実だった）。
+    const cos = Math.max(0.2, Math.cos((parseFloat(tilt) || 42) * Math.PI / 180));
     const el = document.createElement("div");
     el.className = "vic-slot";
     el.style.left = `${r.left + r.width / 2}px`;
     el.style.top = `${r.top + r.height / 2}px`;
     el.style.width = `${Math.max(10, r.width)}px`;
-    el.style.height = `${Math.max(10, r.height)}px`;
+    el.style.height = `${Math.max(10, r.height / cos)}px`;
+    el.style.setProperty("--vic-tilt", tilt);
     el.style.setProperty("--vic-slot-rgb", hexToRgb(VIVID[COLORS[i]] || "#ffffff"));
+    const plate = document.createElement("div");
+    plate.className = "vic-slot-plate";
+    el.appendChild(plate);
     layer.appendChild(el);
     return el;
   });
+}
+function tableTilt() {
+  return getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim() || "42deg";
 }
 function hexToRgb(hex) {
   const h = String(hex).replace("#", "");
@@ -307,7 +331,7 @@ function hexToRgb(hex) {
 // 3D空間の外に置いても立方体に見えるよう、ドラッグゴースト(.drag-ghost-piece-outer/-inner)と
 // 同じ「perspective + 盤面と同じ傾き」の入れ子を使う。中身は本物の .piece の複製なので、
 // プレイヤーが選んでいる駒スキンがそのまま反映される。
-function spawnGhostCube(layer, piece, cube, sizePx) {
+function spawnGhostCube(layer, piece, cube, sizePx, player) {
   if (!layer || !piece) return null;
   const size = Math.max(18, sizePx || rectOf(piece).width);
   const outer = document.createElement("div");
@@ -316,9 +340,13 @@ function spawnGhostCube(layer, piece, cube, sizePx) {
   outer.style.top = `${cube.y}px`;
   outer.style.width = `${size}px`;
   outer.style.height = `${size}px`;
+  // 発光を白一色にすると、脈動が「ただの白い丸」に見えてしまう（ユーザー報告2026-08-31）。
+  // 勝者の駒の色を混ぜて、白は芯だけに留める。
+  const own = getState().tokens.find((tk) => tk.kind === "piece" && tk.player === player);
+  outer.style.setProperty("--vic-cube-rgb", hexToRgb(VIVID[own?.color] || "#ffffff"));
   const inner = document.createElement("div");
   inner.className = "vic-cube-inner";
-  const tilt = getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim() || "42deg";
+  const tilt = tableTilt();
   const clone = piece.cloneNode(true);
   clone.classList.remove("is-my-turn-glow", "is-victory-charging", "is-victory-pulse", "hover-active");
   clone.removeAttribute("data-owner"); // 飾りペットを二重に出さない
@@ -342,6 +370,20 @@ function spawnGhostCube(layer, piece, cube, sizePx) {
     outer.style.top = `${cube.y + (cube.y - (cr.top + cr.height / 2))}px`;
   }
   return outer;
+}
+
+// 中央に扇状に並んだカードを、キューブの位置へ飛び込ませて消す（ユーザー要望2026-08-31
+// 「宙に浮いたロックカードが駒に入っていった方が良い」）。カードの箱は元のスロットの位置に
+// 置いてあるので、そこからキューブ中心までの差分を改めて --vic-card-tx/ty に入れ直す。
+function absorbCardsIntoCube(cards, cube) {
+  cards.forEach((el, i) => {
+    const cx = parseFloat(el.dataset.cx || "0");
+    const cy = parseFloat(el.dataset.cy || "0");
+    el.style.setProperty("--vic-card-tx", `${cube.x - cx}px`);
+    el.style.setProperty("--vic-card-ty", `${cube.y - cy}px`);
+    el.style.setProperty("--vic-card-spin", `${(i % 2 ? 1 : -1) * (140 + i * 25)}deg`);
+    el.classList.add("is-absorbing");
+  });
 }
 
 // 脈動のたびに、同じ疑似キューブが一回り大きく広がって消える残像を1つ置く。
@@ -411,6 +453,8 @@ function spawnLockedCards(root, player, slots, mid) {
     const el = document.createElement("div");
     el.className = "vic-card";
     el.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;`;
+    el.dataset.cx = String(r.left + r.width / 2);
+    el.dataset.cy = String(r.top + r.height / 2);
     const offset = index - (COLORS.length - 1) / 2;
     el.style.setProperty("--vic-card-tx", `${mid.x - (r.left + r.width / 2) + offset * 9.2 * vmin}px`);
     el.style.setProperty("--vic-card-ty", `${mid.y - (r.top + r.height / 2) + Math.abs(offset) * 1.1 * vmin}px`);
@@ -427,7 +471,7 @@ function spawnLockedCards(root, player, slots, mid) {
 
 // GATHER段のCanvas: 7色が帯・霧のように揺れながらキューブへ向かい、周囲を短く旋回してから
 // 吸い込まれる。直線のレーザーにしない・7色が混ざって水色一色にならないようにする。
-function runGatherCanvas(root, slots, cube, s, durMs) {
+function runGatherCanvas(root, origins, cube, s, durMs) {
   const canvas = root.querySelector(".vic-canvas");
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const W = canvas.clientWidth || innerWidth;
@@ -441,9 +485,8 @@ function runGatherCanvas(root, slots, cube, s, durMs) {
   const perColor = Math.max(6, Math.round(22 * s.stream));
   const parts = [];
   COLORS.forEach((color, i) => {
-    const slot = slots[i];
-    if (!slot) return;
-    const from = centerOf(slot);
+    const from = origins[i];
+    if (!from) return;
     for (let k = 0; k < perColor; k++) {
       parts.push({
         color: VIVID[color] || "#fff",
