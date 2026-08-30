@@ -50,11 +50,12 @@ function animateClimb(numberEl, from, to, onSettled) {
   }
   const start = performance.now();
   function frame(now) {
-    const t = Math.min(1, (now - start) / CLIMB_DURATION_MS);
-    const eased = easeOutCubic(t);
+    // #189: この変数を t にすると翻訳関数 t を隠して "t is not a function" になる。
+    const progress = Math.min(1, (now - start) / CLIMB_DURATION_MS);
+    const eased = easeOutCubic(progress);
     const current = Math.round(from - (from - to) * eased);
     numberEl.textContent = t("rrm.place", { n: current });
-    if (t < 1) {
+    if (progress < 1) {
       requestAnimationFrame(frame);
     } else {
       numberEl.textContent = t("rrm.place", { n: to });

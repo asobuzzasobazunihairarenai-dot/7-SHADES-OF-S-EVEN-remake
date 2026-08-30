@@ -280,7 +280,15 @@ export function checkForVictory() {
       void (async () => {
         const celebration = await playVictoryCelebration(player);
         showVictoryModal(player, async () => {
-          celebration?.dismiss?.(); // 勝利モーダルを閉じたら白を引く（リザルトへ地続きで渡す）
+          // #189の教訓: ここから先は「途中で1つ失敗したら残り全部が出ない」直列の鎖になっている。
+          // 実際に post-game-panel.js の変数名衝突で例外が出て、CPU戦の終了パネルが出ず
+          // 「勝利モーダルを閉じたら盤面に戻され、その後どうすれば？」という状態になった。
+          // 以降の各段は個別に try/catch で包み、1つ転んでも最後のパネルまで必ず辿り着かせる。
+          try {
+            celebration?.dismiss?.(); // 勝利モーダルを閉じたら白を引く（リザルトへ地続きで渡す）
+          } catch (err) {
+            console.error("victory celebration dismiss failed", err);
+          }
         if (!isOnlineMode()) {
           // 物語オンボーディングのエイドス戦は、まず通常の勝利モーダルを出し（ユーザー要望
           // #107「エイドス戦にも通常の勝利モーダルがあっていい」）、それを閉じた時に、勝利BGMを
@@ -309,7 +317,13 @@ export function checkForVictory() {
           }
           // ユーザー要望2026-08-12「CPU戦終了時に もう一度戦う／ホームに戻る／盤面を見る(最小化) を
           // 出す」。勝敗どちらでも（人間A勝ち・CPU C勝ちのどちらでも）CPU戦なら終了パネルを出す。
-          if (isCpuBattleActive()) showCpuBattleEndPanel({ winnerSeat: player });
+          if (isCpuBattleActive()) {
+            try {
+              showCpuBattleEndPanel({ winnerSeat: player });
+            } catch (err) {
+              console.error("showCpuBattleEndPanel failed", err);
+            }
+          }
           return;
         }
         try {
@@ -372,7 +386,11 @@ export function checkForVictory() {
           console.error("ranked result reflect failed", err);
         }
         const { activePlayers } = getState();
-        showPostGamePanel({ activePlayers, winnerSeat: player });
+        try {
+          showPostGamePanel({ activePlayers, winnerSeat: player });
+        } catch (err) {
+          console.error("showPostGamePanel failed", err);
+        }
         });
       })();
     }

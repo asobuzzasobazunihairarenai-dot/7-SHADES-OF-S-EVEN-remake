@@ -149,7 +149,8 @@ function closePanel() {
 }
 
 function buildButtonsSection(gameId) {
-  const t = postGamePanelTokens();
+  // #189: 変数名を t にすると翻訳関数 t を隠して "t is not a function" になる。
+  const tone = postGamePanelTokens();
   const col = document.createElement("div");
 
   const row = document.createElement("div");
@@ -178,7 +179,7 @@ function buildButtonsSection(gameId) {
   `;
 
   const waitingLabel = document.createElement("div");
-  waitingLabel.style.cssText = `font-size: 0.75rem; color: ${t.sub}; margin-top: 0.5rem; display: none;`;
+  waitingLabel.style.cssText = `font-size: 0.75rem; color: ${tone.sub}; margin-top: 0.5rem; display: none;`;
   waitingLabel.textContent = t("postgamepanel.L181");
 
   rematchBtn.addEventListener("click", async () => {
@@ -210,9 +211,9 @@ function buildButtonsSection(gameId) {
   boardBtn.type = "button";
   boardBtn.textContent = t("postgamepanel.L210");
   boardBtn.style.cssText = `
-    padding: 0.5rem 1rem; background: ${t.infoBg};
-    border: 1px solid ${t.infoBorder}; border-radius: 0.3rem;
-    color: ${t.infoText}; cursor: pointer; font-size: 0.85rem;
+    padding: 0.5rem 1rem; background: ${tone.infoBg};
+    border: 1px solid ${tone.infoBorder}; border-radius: 0.3rem;
+    color: ${tone.infoText}; cursor: pointer; font-size: 0.85rem;
   `;
   boardBtn.addEventListener("click", () => {
     showMinimizeNoticeThenMinimize();
@@ -225,9 +226,9 @@ function buildButtonsSection(gameId) {
   leaveBtn.type = "button";
   leaveBtn.textContent = t("postgamepanel.L225");
   leaveBtn.style.cssText = `
-    padding: 0.5rem 1rem; background: ${t.secBg};
-    border: 1px solid ${t.secBorder}; border-radius: 0.3rem;
-    color: ${t.secText}; cursor: pointer; font-size: 0.85rem;
+    padding: 0.5rem 1rem; background: ${tone.secBg};
+    border: 1px solid ${tone.secBorder}; border-radius: 0.3rem;
+    color: ${tone.secText}; cursor: pointer; font-size: 0.85rem;
   `;
   leaveBtn.addEventListener("click", () => {
     // #182: パネルが出た直後のクリックは、前のモーダルを閉じたクリックの続きの可能性が高い。
@@ -257,7 +258,8 @@ function buildButtonsSection(gameId) {
 // 全参加者共通のコメント入力欄（案①：勝者・敗者を区別せず全員がコメントできる）。
 // onFinish(comment)には入力文字列（パス時は空文字）が渡る。
 function buildCommentSection(onFinish) {
-  const t = postGamePanelTokens();
+  // #189: 変数名を t にすると翻訳関数 t を隠して "t is not a function" になる。
+  const tone = postGamePanelTokens();
   const wrap = document.createElement("div");
 
   const label = document.createElement("div");
@@ -269,8 +271,8 @@ function buildCommentSection(onFinish) {
   textarea.rows = 3;
   textarea.placeholder = t("postgamepanel.L269");
   textarea.style.cssText = `
-    width: 100%; box-sizing: border-box; padding: 0.5rem; background: ${t.fieldBg};
-    border: 1px solid ${t.fieldBorder}; border-radius: 0.3rem; color: ${t.fieldText};
+    width: 100%; box-sizing: border-box; padding: 0.5rem; background: ${tone.fieldBg};
+    border: 1px solid ${tone.fieldBorder}; border-radius: 0.3rem; color: ${tone.fieldText};
     font-size: 0.85rem; resize: vertical; font-family: sans-serif;
   `;
   wrap.appendChild(textarea);
@@ -290,9 +292,9 @@ function buildCommentSection(onFinish) {
   passBtn.type = "button";
   passBtn.textContent = t("postgamepanel.L290");
   passBtn.style.cssText = `
-    padding: 0.4rem 0.9rem; background: ${t.secBg};
-    border: 1px solid ${t.secBorder}; border-radius: 0.3rem;
-    color: ${t.secText}; cursor: pointer; font-size: 0.85rem;
+    padding: 0.4rem 0.9rem; background: ${tone.secBg};
+    border: 1px solid ${tone.secBorder}; border-radius: 0.3rem;
+    color: ${tone.secText}; cursor: pointer; font-size: 0.85rem;
   `;
 
   let done = false;
@@ -375,7 +377,8 @@ function postGamePanelTokens() {
 export function showCpuBattleEndPanel({ winnerSeat }) {
   if (panelEl) return; // 多重表示防止
   const iWon = winnerSeat === getSelfSeat();
-  const t = postGamePanelTokens();
+  // #189: 変数名を t にすると翻訳関数 t を隠して "t is not a function" になる。
+  const tone = postGamePanelTokens();
 
   backdropEl = createBackdrop(() => {}, { dim: true, zIndex: 10600 }); // 外側クリックでは閉じない
   panelEl = document.createElement("div");
@@ -390,7 +393,7 @@ export function showCpuBattleEndPanel({ winnerSeat }) {
   title.style.cssText = "font-size: 1.15rem; font-weight: bold; text-align: center; margin-bottom: 0.2rem;";
   title.textContent = iWon ? t("postgamepanel.L390") : t("postgamepanel.L390_2");
   const sub = document.createElement("div");
-  sub.style.cssText = `font-size: 0.75rem; color: ${t.sub}; text-align: center; margin-bottom: 1rem;`;
+  sub.style.cssText = `font-size: 0.75rem; color: ${tone.sub}; text-align: center; margin-bottom: 1rem;`;
   sub.textContent = t("postgamepanel.L393");
   panelEl.appendChild(title);
   panelEl.appendChild(sub);
@@ -424,7 +427,7 @@ export function showCpuBattleEndPanel({ winnerSeat }) {
   boardBtn.type = "button";
   boardBtn.textContent = t("postgamepanel.L424");
   boardBtn.style.cssText =
-    `padding: 0.5rem 1rem; background: ${t.infoBg}; border: 1px solid ${t.infoBorder}; border-radius: 0.3rem; color: ${t.infoText}; cursor: pointer; font-size: 0.85rem;`;
+    `padding: 0.5rem 1rem; background: ${tone.infoBg}; border: 1px solid ${tone.infoBorder}; border-radius: 0.3rem; color: ${tone.infoText}; cursor: pointer; font-size: 0.85rem;`;
   boardBtn.addEventListener("click", () => {
     showMinimizeNoticeThenMinimize(); // 左上の🏆アイコンから復元できる（online版と共通）
   });
@@ -433,7 +436,7 @@ export function showCpuBattleEndPanel({ winnerSeat }) {
   homeBtn.type = "button";
   homeBtn.textContent = t("postgamepanel.L433");
   homeBtn.style.cssText =
-    `padding: 0.5rem 1rem; background: ${t.secBg}; border: 1px solid ${t.secBorder}; border-radius: 0.3rem; color: ${t.secText}; cursor: pointer; font-size: 0.85rem;`;
+    `padding: 0.5rem 1rem; background: ${tone.secBg}; border: 1px solid ${tone.secBorder}; border-radius: 0.3rem; color: ${tone.secText}; cursor: pointer; font-size: 0.85rem;`;
   homeBtn.addEventListener("click", () => {
     setCpuBattleActive(false); // CPU戦フラグを下ろす（自動処理を止める）
     document.body.classList.remove("cpu-battle-mode");
