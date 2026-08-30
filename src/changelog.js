@@ -13,7 +13,9 @@ import { getLang } from "./i18n.js";
 export const CHANGELOG = [
   {
     date: "2026-08-29",
-    items: [
+    items: [      "勝利演出で、ロックエリアの光が実際のカードの位置とずれていたのを直しました。盤面の映り方を実際に測って合わせるようにしたので、画面の大きさや盤面の拡大率が変わってもぴったり重なります。",
+      "勝利演出の脈動から、中央の白い丸を消しました（勝者の色のにじみだけになります）。",
+
       "勝利演出を細かく直しました。ロックエリアの光が盤面と同じ向きに寝るようになり（板が立って見えていました）、脈動に重なる白い光は勝者の駒の色でやわらかくにじむようにしました。",
       "勝利演出で、宙に浮いたロックカードがその場で消えるのをやめ、勝者の駒（キューブ）へ吸い込まれるようにしました。カードが浮いた後はロックエリアの光も残らず消えます。",
       "勝利演出で、勝者のロックエリアの七色が暗転の裏側に隠れてしまい色が見えなかったのを直しました。七色は暗転より手前ではっきりと灯ります。",
@@ -40,6 +42,8 @@ export const CHANGELOG = [
     ],
     // 英語表示のとき items の代わりに出る（併記はしない。同じ順番・同じ件数で書くこと）。
     itemsEn: [
+      "Fixed the Lock Area glow not sitting on the actual cards during the victory sequence. It now measures how the board is actually drawn, so it lines up exactly at any window size or board zoom.",
+      "Removed the white disc from the pulse in the victory sequence — only the winner’s coloured haze remains.",
       "Polished the victory sequence. The glow on the Lock Area now lies flat along the board instead of standing upright, and the light around the pulsing cube is now a soft haze in the winner’s colour rather than a hard white disc.",
       "In the victory sequence, the locked cards floating in mid-air are now drawn into the winner’s cube instead of fading out where they are, and the Lock Area glow no longer lingers once the cards have lifted away.",
       "Fixed the winner’s seven colors being hidden behind the dimming layer during the victory sequence — they now light up clearly in front of it.",

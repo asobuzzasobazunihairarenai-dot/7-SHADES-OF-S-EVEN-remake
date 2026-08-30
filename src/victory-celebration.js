@@ -288,25 +288,51 @@ function buildRoot() {
 // COLORS: 勝者のロックスロットと同じ位置・同じ色の光を、幕より手前に置き直す。
 // （盤面のスロット自体を光らせると幕の backdrop-filter で色が沈んでしまうため。）
 // 色は盤面パレットではなく演出用の VIVID を使う＝暗い幕の上でもはっきり色が分かる。
+// 盤面のスロットが**画面上のどこに・どんな形で**映っているかを実測する。
+// 【なぜ必要か】盤面は perspective + rotateX + scale3d の中にあり、スロットは画面上では
+// 台形（＝傾き・縮み・せん断が混ざった形）に映る。ここで矩形をそのまま重ねると光だけが
+// 立って見え、自前の perspective で寝かせても**盤面とは消失点が違う**ので位置がずれる
+// （ユーザー報告2026-08-31「ロックの光と実際のロックカードの位置がずれています」）。
+// 3Dの計算を自前で積み上げるのではなく、**スロットの中に目印を3つ置いて、その3点が画面上の
+// どこに映るかを測り**、同じ写り方（アフィン変換）を光の板にも適用する。これならブラウザが
+// 実際に描いた結果をそのまま使うので、傾き・縮み・せん断・盤面の拡大率が全部込みで一致する。
+function measureSlotQuad(slot) {
+  const W = slot.clientWidth || slot.offsetWidth || 0;
+  const H = slot.clientHeight || slot.offsetHeight || 0;
+  if (!W || !H) return null;
+  const mark = (left, top) => {
+    const d = document.createElement("div");
+    d.style.cssText = `position:absolute;left:${left};top:${top};width:0;height:0;pointer-events:none;`;
+    slot.appendChild(d);
+    return d;
+  };
+  const o = mark("0", "0"), x = mark("100%", "0"), y = mark("0", "100%");
+  const po = rectOf(o), px = rectOf(x), py = rectOf(y);
+  o.remove(); x.remove(); y.remove();
+  const m11 = (px.left - po.left) / W, m12 = (px.top - po.top) / W;
+  const m21 = (py.left - po.left) / H, m22 = (py.top - po.top) / H;
+  const det = m11 * m22 - m12 * m21;
+  if (!Number.isFinite(det) || Math.abs(det) < 1e-6) return null; // 潰れている＝測れていない
+  return { W, H, matrix: `matrix(${m11}, ${m12}, ${m21}, ${m22}, ${po.left}, ${po.top})` };
+}
+
 function spawnSlotFlares(layer, slots) {
   if (!layer) return [];
-  const tilt = tableTilt();
   return slots.map((slot, i) => {
-    const r = rectOf(slot);
-    // 盤面は rotateX で寝ているので、矩形をそのまま置くと「板が立っている」ように見える
-    //（ユーザー報告2026-08-31「枠が2Dになっちゃってる」）。ドラッグゴースト・疑似キューブと
-    // 同じく perspective + 盤面と同じ傾きの入れ子にして、スロットと同じ寝かせ方で描く。
-    // 箱の縦は、傾けると cos(傾き) 倍に潰れる分だけ先に伸ばしておく＝画面上の footprint が
-    // 実物のスロットと一致する（自前の perspective は盤面と原点が違うので、CSS上の寸法から
-    // 積み上げるより実測に合わせる方が確実だった）。
-    const cos = Math.max(0.2, Math.cos((parseFloat(tilt) || 42) * Math.PI / 180));
     const el = document.createElement("div");
     el.className = "vic-slot";
-    el.style.left = `${r.left + r.width / 2}px`;
-    el.style.top = `${r.top + r.height / 2}px`;
-    el.style.width = `${Math.max(10, r.width)}px`;
-    el.style.height = `${Math.max(10, r.height / cos)}px`;
-    el.style.setProperty("--vic-tilt", tilt);
+    const q = measureSlotQuad(slot);
+    if (q) {
+      el.style.width = `${q.W}px`;
+      el.style.height = `${q.H}px`;
+      el.style.transform = q.matrix;
+    } else {
+      // 予備（測れなかった時）: 実測の矩形にそのまま重ねる
+      const r = rectOf(slot);
+      el.style.width = `${Math.max(10, r.width)}px`;
+      el.style.height = `${Math.max(10, r.height)}px`;
+      el.style.transform = `translate(${r.left}px, ${r.top}px)`;
+    }
     el.style.setProperty("--vic-slot-rgb", hexToRgb(VIVID[COLORS[i]] || "#ffffff"));
     const plate = document.createElement("div");
     plate.className = "vic-slot-plate";

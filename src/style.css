@@ -10575,6 +10575,9 @@ body.reduce-glow .cell.card-effect-just-placed {
   --vic-flash-speed: 1;    /* 白飛びが広がる速さ */
   --vic-white: 0.88;       /* 白オーバーレイの濃さ（0.5〜0.98） */
   --vic-residue: 2;        /* 白い画面の中の七色残光の量。既定=派手版 */
+  /* 脈動している疑似キューブの「白い芯」の強さ。0にすると白い丸が完全に消えて、
+     勝者の色のにじみだけになる（ユーザー要望2026-08-31「脈動中の白丸いらないかも」）。 */
+  --vic-cube-white: 0;
   --vic-avatar-size: 16;   /* 勝者アバターの大きさ（vmin） */
   --vic-fan: 1;            /* ロックした7枚を中央に扇状に並べるか（0/1） */
   --vic-hold: 1;           /* 勝利表示を見せる長さ */
@@ -10629,13 +10632,16 @@ body.victory-celebration-active #option-area {
   position: absolute;
   inset: 0;
 }
-/* 【重要】盤面は rotateX で寝ているので、矩形をそのまま重ねると光だけが「立って」見える
-   （ユーザー報告2026-08-31）。ドラッグゴースト・疑似キューブと同じ
-   「perspective の箱 + 盤面と同じ傾きの中身」にして、スロットと同じ寝かせ方で描く。 */
+/* 【重要】盤面のスロットは画面上では台形に映る（傾き・縮み・せん断が混ざる）。
+   矩形をそのまま重ねると光が「立って」見え、自前の perspective で寝かせても盤面とは消失点が
+   違うので位置がずれる（ユーザー報告2026-08-31）。そこで JS 側（measureSlotQuad）が実際の
+   写り方を測って matrix() を作り、この箱にそのまま当てる。板の拡大縮小は、その写り方の
+   「中で」行うので、いつでもスロットの上に乗ったままになる。 */
 #victory-celebration .vic-slot {
   position: absolute;
-  transform: translate(-50%, -50%);
-  perspective: var(--camera-perspective);
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
   pointer-events: none;
 }
 #victory-celebration .vic-slot-plate {
@@ -10643,7 +10649,8 @@ body.victory-celebration-active #option-area {
   height: 100%;
   border-radius: 12%;
   opacity: 0;
-  transform: rotateX(var(--vic-tilt, 42deg)) scale(0.82);
+  transform-origin: 50% 50%;
+  transform: scale(0.82);
   /* 「スロットそのものが灯った」ように見せる＝中は淡く、ふちだけはっきり。
      にじみ(box-shadow)を大きくしすぎると隣とつながって、ただの虹色の帯に見えてしまう。 */
   background: radial-gradient(closest-side,
@@ -10656,17 +10663,17 @@ body.victory-celebration-active #option-area {
   animation: vic-slot-lit 900ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
 }
 @keyframes vic-slot-lit {
-  0% { opacity: 0; transform: rotateX(var(--vic-tilt, 42deg)) scale(0.82); }
+  0% { opacity: 0; transform: scale(0.82); }
   20% {
     opacity: 1;
-    transform: rotateX(var(--vic-tilt, 42deg)) scale(1.16);
+    transform: scale(1.16);
     box-shadow: inset 0 0 0 0.14rem rgba(var(--vic-slot-rgb), 1),
       0 0 1.1rem 0.12rem rgba(var(--vic-slot-rgb), 0.9),
       0 0 2.2rem 0.4rem rgba(var(--vic-slot-rgb), 0.45);
   }
   100% {
     opacity: 0.95;
-    transform: rotateX(var(--vic-tilt, 42deg)) scale(1);
+    transform: scale(1);
     box-shadow: inset 0 0 0 0.1rem rgba(var(--vic-slot-rgb), 0.9),
       0 0 0.6rem 0.02rem rgba(var(--vic-slot-rgb), 0.7),
       0 0 1.2rem 0.14rem rgba(var(--vic-slot-rgb), 0.3);
@@ -10676,17 +10683,17 @@ body.victory-celebration-active #option-area {
   animation: vic-slot-all 560ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
 }
 @keyframes vic-slot-all {
-  0% { opacity: 0.95; transform: rotateX(var(--vic-tilt, 42deg)) scale(1); }
+  0% { opacity: 0.95; transform: scale(1); }
   30% {
     opacity: 1;
-    transform: rotateX(var(--vic-tilt, 42deg)) scale(1.3);
+    transform: scale(1.3);
     box-shadow: inset 0 0 0 0.16rem rgba(var(--vic-slot-rgb), 1),
       0 0 1.6rem 0.3rem rgba(var(--vic-slot-rgb), 0.95),
       0 0 3rem 0.7rem rgba(var(--vic-slot-rgb), 0.5);
   }
   100% {
     opacity: 1;
-    transform: rotateX(var(--vic-tilt, 42deg)) scale(1.06);
+    transform: scale(1.06);
     box-shadow: inset 0 0 0 0.12rem rgba(var(--vic-slot-rgb), 0.95),
       0 0 0.8rem 0.06rem rgba(var(--vic-slot-rgb), 0.75),
       0 0 1.7rem 0.2rem rgba(var(--vic-slot-rgb), 0.35);
@@ -10698,8 +10705,8 @@ body.victory-celebration-active #option-area {
   animation: vic-slot-drain 620ms ease-out forwards;
 }
 @keyframes vic-slot-drain {
-  0% { opacity: 1; transform: rotateX(var(--vic-tilt, 42deg)) scale(1.22); }
-  100% { opacity: 0; transform: rotateX(var(--vic-tilt, 42deg)) scale(0.96); box-shadow: none; }
+  0% { opacity: 1; transform: scale(1.06); }
+  100% { opacity: 0; transform: scale(0.94); box-shadow: none; }
 }
 
 /* （任意）ロックした7枚が中央に扇状に並び、最後はキューブへ吸われるように消える */
@@ -10757,7 +10764,7 @@ body.victory-celebration-active #option-area {
    ただの白い丸に見えてしまう（ユーザー報告2026-08-31）。白は薄く狭く、色は広くぼかす。 */
 #victory-celebration .vic-cube .piece-face {
   box-shadow:
-    0 0 0.7rem 0.05rem rgba(255, 255, 255, 0.3),
+    0 0 0.7rem 0.05rem rgba(255, 255, 255, calc(0.3 * var(--vic-cube-white, 1))),
     0 0 1.8rem 0.4rem rgba(var(--vic-cube-rgb, 255, 255, 255), 0.42);
 }
 #victory-celebration .vic-cube.is-pulse .piece-face {
@@ -10765,17 +10772,17 @@ body.victory-celebration-active #option-area {
 }
 @keyframes vic-cube-face-beat {
   0% {
-    box-shadow: 0 0 0.7rem 0.05rem rgba(255, 255, 255, 0.3),
+    box-shadow: 0 0 0.7rem 0.05rem rgba(255, 255, 255, calc(0.3 * var(--vic-cube-white, 1))),
       0 0 1.8rem 0.4rem rgba(var(--vic-cube-rgb, 255, 255, 255), 0.42);
   }
   35% {
     box-shadow:
-      0 0 calc(1.1rem * var(--vic-pulse-power, 1)) 0 rgba(255, 255, 255, 0.42),
+      0 0 calc(1.1rem * var(--vic-pulse-power, 1)) 0 rgba(255, 255, 255, calc(0.42 * var(--vic-cube-white, 1))),
       0 0 calc(4rem * var(--vic-pulse-power, 1)) calc(1.1rem * var(--vic-pulse-power, 1)) rgba(var(--vic-cube-rgb, 255, 255, 255), 0.62),
       0 0 calc(8.5rem * var(--vic-pulse-power, 1)) calc(3rem * var(--vic-pulse-power, 1)) rgba(var(--vic-cube-rgb, 255, 255, 255), 0.26);
   }
   100% {
-    box-shadow: 0 0 0.7rem 0.05rem rgba(255, 255, 255, 0.3),
+    box-shadow: 0 0 0.7rem 0.05rem rgba(255, 255, 255, calc(0.3 * var(--vic-cube-white, 1))),
       0 0 1.8rem 0.4rem rgba(var(--vic-cube-rgb, 255, 255, 255), 0.42);
   }
 }
