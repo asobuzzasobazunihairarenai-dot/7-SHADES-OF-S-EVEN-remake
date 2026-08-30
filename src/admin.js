@@ -18,6 +18,7 @@ import { isLobbyPseudoCpuToggleVisible, setLobbyPseudoCpuToggleVisible } from ".
 // ランクバッジ・ゲージ・宝石の調整モード（rank-showcase.js は rank-badge.js のみimport＝循環しない）。
 import { openRankShowcaseEditor } from "./rank-showcase.js";
 import { openDissolvePreview } from "./dissolve-preview.js";
+import { openVictoryPreview } from "./victory-preview.js";
 // カード面の表示モード（テキスト合成/画像）。card-face-display.js は card-renderer.js のみ
 // importするため循環しない。
 import { getCardFaceMode, setCardFaceMode } from "./card-face-display.js";
@@ -2526,6 +2527,32 @@ const TOGGLE_SECTIONS = [
         "display: block; width: 100%; box-sizing: border-box; padding: 0.5rem; " +
         "background: #6d28d9; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.9rem;";
       openBtn.addEventListener("click", () => openDissolvePreview());
+      content.appendChild(openBtn);
+    },
+  },
+  {
+    // 勝利演出「七色、集結」（victory-celebration.js）のシミュレーター（2026-08-30）。
+    // 実際のゲームを最後までプレイしなくても、いま見えている盤面に対して再生して確認できる。
+    // スライダーは全て --vic-* のCSS変数を書き換えるだけで、本番の演出も同じ変数を読む
+    // （＝シミュレーターと本番で数値が分かれない）。良い値が決まったらJSONでコピーして
+    // style.css の :root へ焼き込む。
+    title: "🏆 勝利演出シミュレーター（七色、集結）",
+    category: "effect",
+    buildContent: (content) => {
+      const note = document.createElement("div");
+      note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.5rem; line-height: 1.5;";
+      note.textContent =
+        "勝利演出（WAIT→COLORS→GATHER→PULSE→FLASH→VICTORY）を、勝者・速さ・光の量・脈動・白の濃さ等を" +
+        "変えながら再生して確認できます。標準/短縮/派手/軽量のプリセットもあります。" +
+        "決まった値は「設定をコピー（JSON）」で取り出してください。";
+      content.appendChild(note);
+      const openBtn = document.createElement("button");
+      openBtn.type = "button";
+      openBtn.textContent = "プレビューを開く";
+      openBtn.style.cssText =
+        "display: block; width: 100%; box-sizing: border-box; padding: 0.5rem; " +
+        "background: #b45309; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.9rem;";
+      openBtn.addEventListener("click", () => openVictoryPreview());
       content.appendChild(openBtn);
     },
   },

@@ -10556,282 +10556,271 @@ body.reduce-glow .cell.card-effect-just-placed {
   100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
 }
 /* ============================================================================
-   最後のロックの演出「色が還る」（src/final-lock-celebration.js）。
-   ① 息を呑む（幕＋ビネットで時が止まる）→ ② 7色が1つずつ灯る → ③ 光の筋が中央へ集まる →
-   ④ 中央で七芒星として結実 → ⑤ 弾けて虹の波が広がり色が還る → ⑥ 閃光＋勝者のキューブ →
-   ⑦ 光の粒が舞い落ちる → ⑧ 余韻。
-   盤面は3D階層なので、盤面自身に filter は掛けない（3Dが平坦化して壊れる。CLAUDE.md教訓2）。
-   彩度と明るさを落とすのは、上に重ねたこのオーバーレイの backdrop-filter で行う。
+   勝利演出「七色、集結」（src/victory-celebration.js）。
+   WAIT → COLORS → GATHER → PULSE → FLASH → VICTORY →（リザルトへ）
+   物語の線引き: 七色を集めたことで世界に色が戻ったとは断定しない。だから盤面に色を戻す演出は
+   入れず、何が起きたのかは白い光で覆い隠す。
+   盤面は3D階層なので盤面自身に filter は掛けない（3Dが平坦化して壊れる。CLAUDE.md教訓2）。
+   暗くするのは上に重ねたオーバーレイ側で行う。
+   数値は全て --vic-* のCSS変数（管理者モードのシミュレーターが同じ変数を書き換える）。
    ========================================================================= */
-#final-lock-celebration {
+:root {
+  --vic-speed: 1;          /* 全体の速さ（大きいほど速い） */
+  --vic-color-step: 1;     /* 1色ごとの間隔 */
+  --vic-gather-speed: 1;   /* キューブへ集まる速さ */
+  --vic-stream: 1;         /* 光の帯・霧の量 */
+  --vic-pulse-count: 3;    /* 脈動の回数 */
+  --vic-pulse-power: 1;    /* 脈動の強さ */
+  --vic-shake: 1;          /* 画面振動の強さ */
+  --vic-flash-speed: 1;    /* 白飛びが広がる速さ */
+  --vic-white: 0.88;       /* 白オーバーレイの濃さ（0.5〜0.98） */
+  --vic-residue: 1;        /* 白い画面の中の七色残光の量 */
+  --vic-avatar-size: 16;   /* 勝者アバターの大きさ（vmin） */
+  --vic-fan: 1;            /* ロックした7枚を中央に扇状に並べるか（0/1） */
+  --vic-hold: 1;           /* 勝利表示を見せる長さ */
+}
+
+/* 演出中は盤面に触らせない（勝敗・通信処理は演出とは切り離して既に確定済み）。 */
+body.victory-celebration-active #game-table,
+body.victory-celebration-active #option-area {
+  pointer-events: none;
+}
+
+#victory-celebration {
   position: fixed;
   inset: 0;
-  z-index: 10400; /* 勝利モーダル(10500)より下・盤面より上 */
+  z-index: 10450; /* 勝利モーダル(10500)より下・盤面より上 */
   pointer-events: none;
   overflow: hidden;
 }
+/* スキップ用に、演出中だけタップを拾う（押すと残りが一気に詰まる）。 */
+#victory-celebration.is-hushed { pointer-events: auto; }
 
-/* ① 幕。世界から色と光が引いていく。勝者のロックエリアだけスポットライトで残す。 */
-#final-lock-celebration .flc-veil {
+/* WAIT: 世界の音と光が引く。勝者のロックエリアの周りだけ残す。 */
+#victory-celebration .vic-veil {
   position: absolute;
   inset: 0;
   opacity: 0;
-  transition: opacity var(--flc-hush, 420ms) cubic-bezier(0.3, 0, 0.2, 1);
-  background:
-    radial-gradient(circle at var(--flc-from-x) var(--flc-from-y),
-      rgba(4, 5, 9, 0) 0, rgba(4, 5, 9, 0.35) 15vmin, rgba(4, 5, 9, 0.86) 44vmin),
-    radial-gradient(ellipse at 50% 50%, rgba(4, 5, 9, 0) 30%, rgba(4, 5, 9, 0.55) 100%);
+  transition: opacity 420ms cubic-bezier(0.3, 0, 0.2, 1);
+  background: radial-gradient(ellipse at 50% 50%, rgba(3, 4, 8, 0.35) 0%, rgba(3, 4, 8, 0.82) 100%);
 }
 @supports (backdrop-filter: saturate(1)) or (-webkit-backdrop-filter: saturate(1)) {
-  #final-lock-celebration .flc-veil {
-    -webkit-backdrop-filter: saturate(0.08) brightness(0.25) contrast(1.1);
-    backdrop-filter: saturate(0.08) brightness(0.25) contrast(1.1);
-    -webkit-mask-image: radial-gradient(circle at var(--flc-from-x) var(--flc-from-y), transparent 0, transparent 11vmin, #000 30vmin);
-    mask-image: radial-gradient(circle at var(--flc-from-x) var(--flc-from-y), transparent 0, transparent 11vmin, #000 30vmin);
+  #victory-celebration .vic-veil {
+    -webkit-backdrop-filter: saturate(0.35) brightness(0.42);
+    backdrop-filter: saturate(0.35) brightness(0.42);
   }
 }
-#final-lock-celebration.is-hushed .flc-veil { opacity: 1; }
+#victory-celebration.is-hushed .vic-veil { opacity: 1; }
 
-/* ② 7色が1つずつ灯る（ロックスロット本体。色は各スロットの currentColor）。 */
-.lock-slot.is-final-flare {
-  animation: flc-slot-flare 1100ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+/* GATHER: 光の帯・霧を描くキャンバス（位置に依らない大量描画はここ） */
+#victory-celebration .vic-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* COLORS: 勝者のロックスロットが順に発光 → 最後に同時に強く光る */
+.lock-slot.is-victory-flare {
+  animation: vic-slot-flare 900ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
   z-index: 4;
 }
-@keyframes flc-slot-flare {
+@keyframes vic-slot-flare {
   0% { box-shadow: 0 0 0 currentColor; transform: scale(1); }
-  18% {
-    box-shadow: 0 0 1.4rem 0.42rem currentColor, 0 0 3.4rem 1.2rem currentColor, inset 0 0 1rem currentColor;
-    transform: scale(1.26);
+  20% {
+    box-shadow: 0 0 1.3rem 0.4rem currentColor, 0 0 3rem 1rem currentColor, inset 0 0 0.9rem currentColor;
+    transform: scale(1.24);
   }
   100% {
-    box-shadow: 0 0 1rem 0.24rem currentColor, 0 0 2.2rem 0.6rem currentColor, inset 0 0 0.5rem currentColor;
-    transform: scale(1.1);
+    box-shadow: 0 0 0.9rem 0.22rem currentColor, 0 0 2rem 0.5rem currentColor, inset 0 0 0.5rem currentColor;
+    transform: scale(1.08);
+  }
+}
+.lock-slot.is-victory-allflare {
+  animation: vic-slot-allflare 520ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+@keyframes vic-slot-allflare {
+  0% { transform: scale(1.08); }
+  30% {
+    box-shadow: 0 0 2rem 0.8rem currentColor, 0 0 4.5rem 1.8rem currentColor, inset 0 0 1.4rem currentColor;
+    transform: scale(1.34);
+  }
+  100% {
+    box-shadow: 0 0 1.1rem 0.3rem currentColor, 0 0 2.4rem 0.7rem currentColor;
+    transform: scale(1.12);
   }
 }
 
-/* ③④⑤ ロックした7枚のカード自身が浮かび上がり、中央へ扇状に集まり、1枚ずつ光ってから弾ける。
-   overlay（3D階層の外）に、ロックエリアで見えている位置そのままで作り、transform だけで動かす。 */
-#final-lock-celebration .flc-card {
+/* （任意）ロックした7枚が中央に扇状に並び、最後はキューブへ吸われるように消える */
+#victory-celebration .vic-card {
   position: absolute;
   transform-origin: 50% 50%;
   transform: translate(0, 0) rotate(0deg) scale(1);
-  opacity: 0;
-  border-radius: 0.5rem;
-  transition:
-    transform var(--flc-card-lift, 260ms) cubic-bezier(0.3, 0, 0.2, 1),
-    opacity 160ms linear,
-    box-shadow 220ms ease-out;
+  opacity: 1;
+  transition: transform 900ms cubic-bezier(0.22, 0.9, 0.24, 1), opacity 320ms ease-in;
   will-change: transform;
 }
-#final-lock-celebration .flc-card .card-box {
+#victory-celebration .vic-card .card-box {
   width: 100%;
   height: 100%;
   border-radius: 0.5rem;
-  box-shadow: 0 0.4rem 1.4rem rgba(0, 0, 0, 0.55);
-}
-/* ③-1 ふわっと浮かび上がる（まだロックエリアの上） */
-#final-lock-celebration .flc-card.is-lifted {
-  opacity: 1;
-  transform: translate(0, -1.4vmin) rotate(0deg) scale(1.06);
-}
-/* ③-2 中央へ飛び、扇状に並ぶ */
-#final-lock-celebration .flc-card.is-flying {
-  transition:
-    transform var(--flc-card-fly, 820ms) cubic-bezier(0.22, 0.9, 0.24, 1),
-    box-shadow 400ms ease-out;
-  transform:
-    translate(var(--flc-card-tx), var(--flc-card-ty))
-    rotate(var(--flc-card-rot))
-    scale(var(--flc-card-scale));
-}
-/* ④ 1枚ずつ光る（その色で縁取り＋発光） */
-#final-lock-celebration .flc-card.is-lit .card-box {
-  box-shadow:
-    0 0 0 0.22rem var(--flc-card-color),
-    0 0 1.4rem 0.3rem var(--flc-card-color),
+  box-shadow: 0 0 0 0.18rem var(--vic-card-color), 0 0 1.2rem 0.25rem var(--vic-card-color),
     0 0.4rem 1.4rem rgba(0, 0, 0, 0.5);
-  animation: flc-card-pop 420ms cubic-bezier(0.2, 0.9, 0.3, 1);
 }
-@keyframes flc-card-pop {
-  0% { transform: scale(1); }
-  35% { transform: scale(1.16); }
-  100% { transform: scale(1); }
+#victory-celebration .vic-card.is-flying {
+  transform: translate(var(--vic-card-tx), var(--vic-card-ty)) rotate(var(--vic-card-rot)) scale(var(--vic-card-scale));
 }
-/* ⑤ 外へ弾け飛ぶ */
-#final-lock-celebration .flc-card.is-scattering {
-  transition:
-    transform var(--flc-scatter, 520ms) cubic-bezier(0.3, 0, 0.6, 1),
-    opacity var(--flc-scatter, 520ms) ease-in;
-  transform:
-    translate(var(--flc-card-out-x), var(--flc-card-out-y))
-    rotate(calc(var(--flc-card-rot) * 3.4))
-    scale(calc(var(--flc-card-scale) * 1.5));
+#victory-celebration .vic-card.is-absorbing {
+  transition: transform 420ms cubic-bezier(0.5, 0, 0.8, 0.4), opacity 420ms ease-in;
+  transform: translate(var(--vic-card-tx), var(--vic-card-ty)) rotate(var(--vic-card-rot)) scale(0.15);
   opacity: 0;
 }
 
-/* ④ 七芒星: 中央で7色の光が結実する。疑似要素だと細くて見えなかったので実要素で組む
-   （中心の光球＋7本の光条＋ゆっくり回るリング）。 */
-#final-lock-celebration .flc-star {
+/* GATHER〜PULSE: 勝者のキューブ。駒は preserve-3d なので filter は使わず box-shadow で。 */
+.piece.is-victory-charging .piece-face {
+  animation: vic-cube-charge 1200ms ease-out forwards;
+}
+@keyframes vic-cube-charge {
+  0% { box-shadow: 0 0 0 rgba(255, 255, 255, 0); }
+  100% { box-shadow: 0 0 1.2rem 0.3rem rgba(255, 255, 255, 0.75); }
+}
+.piece.is-victory-pulse .piece-face {
+  animation: vic-cube-pulse var(--vic-pulse-ms, 380ms) cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+@keyframes vic-cube-pulse {
+  0% { box-shadow: 0 0 1.2rem 0.3rem rgba(255, 255, 255, 0.75); }
+  35% {
+    box-shadow:
+      0 0 calc(2.2rem * var(--vic-pulse-power, 1)) calc(0.9rem * var(--vic-pulse-power, 1)) rgba(255, 255, 255, 0.98),
+      0 0 calc(4.5rem * var(--vic-pulse-power, 1)) calc(1.8rem * var(--vic-pulse-power, 1)) var(--piece-turn-glow-color, rgba(255, 255, 255, 0.7));
+  }
+  100% { box-shadow: 0 0 1.2rem 0.3rem rgba(255, 255, 255, 0.75); }
+}
+/* 脈動に合わせた、ごく小さな画面振動（盤面のtransformには触らず、ステージ全体を揺らす）。 */
+#victory-celebration.is-pulsing {
+  animation: vic-shake var(--vic-pulse-ms, 380ms) ease-out;
+}
+@keyframes vic-shake {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(calc(var(--vic-shake-amp, 2px) * -1), var(--vic-shake-amp, 2px)); }
+  45% { transform: translate(var(--vic-shake-amp, 2px), calc(var(--vic-shake-amp, 2px) * -0.6)); }
+  70% { transform: translate(calc(var(--vic-shake-amp, 2px) * -0.5), 0); }
+}
+/* 脈動のたびに広がる、淡い色残像 */
+#victory-celebration.is-pulsing .vic-flash::before {
+  content: "";
   position: absolute;
-  left: var(--flc-x);
-  top: var(--flc-y);
-  width: 0;
-  height: 0;
-  opacity: 0;
-}
-#final-lock-celebration .flc-star-core {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 22vmin;
-  height: 22vmin;
-  margin: -11vmin 0 0 -11vmin;
-  border-radius: 50%;
-  background: radial-gradient(circle, #fff 0 16%, rgba(255, 255, 255, 0.92) 30%, rgba(255, 240, 200, 0.45) 52%, rgba(255, 255, 255, 0) 76%);
-}
-#final-lock-celebration .flc-star-ring {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 34vmin;
-  height: 34vmin;
-  margin: -17vmin 0 0 -17vmin;
-  border-radius: 50%;
-  background: conic-gradient(
-    from 0deg,
-    var(--color-red), var(--color-orange), var(--color-yellow), var(--color-green),
-    var(--color-blue), var(--color-pink), var(--color-purple), var(--color-red)
-  );
-  -webkit-mask-image: radial-gradient(circle, transparent 0 74%, #000 84%, transparent 100%);
-  mask-image: radial-gradient(circle, transparent 0 74%, #000 84%, transparent 100%);
-  filter: blur(1.5px);
-  animation: flc-ring-spin 5s linear infinite;
-}
-@keyframes flc-ring-spin { to { transform: rotate(360deg); } }
-/* 光条: 中心から外へ伸びる7本。--flc-ray-angle で方向、--flc-ray-color で色。 */
-#final-lock-celebration .flc-star-ray {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 30vmin;
-  height: 1.1vmin;
-  margin-top: -0.55vmin;
-  transform-origin: 0 50%;
-  transform: rotate(var(--flc-ray-angle)) scaleX(0.15);
-  border-radius: 999px;
-  background: linear-gradient(90deg, #fff 0%, var(--flc-ray-color) 22%, var(--flc-ray-color) 62%, transparent 100%);
-  box-shadow: 0 0 1.2rem var(--flc-ray-color);
-  filter: blur(0.6px);
-}
-#final-lock-celebration.is-star .flc-star {
-  animation: flc-star-form var(--flc-star-form, 440ms) cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-#final-lock-celebration.is-star .flc-star-ray {
-  animation: flc-ray-extend var(--flc-star-form, 440ms) cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-@keyframes flc-ray-extend {
-  0% { transform: rotate(var(--flc-ray-angle)) scaleX(0.15); }
-  100% { transform: rotate(var(--flc-ray-angle)) scaleX(1); }
-}
-@keyframes flc-star-form {
-  0% { opacity: 0; transform: scale(0.25) rotate(-40deg); }
-  100% { opacity: 1; transform: scale(1) rotate(0deg); }
-}
-/* 結実した星は、弾ける時に一気に膨らんで消える。 */
-#final-lock-celebration.is-burst .flc-star {
-  animation: flc-star-burst var(--flc-burst, 760ms) cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
-}
-@keyframes flc-star-burst {
-  0% { opacity: 1; transform: scale(1) rotate(0deg); }
-  100% { opacity: 0; transform: scale(3.6) rotate(40deg); }
-}
-
-/* ⑤ 虹の波（2重）。中央から画面外まで広がり、通ったところから色が戻る。 */
-#final-lock-celebration .flc-wave {
-  position: absolute;
-  left: var(--flc-x);
-  top: var(--flc-y);
+  left: var(--vic-flash-x, 50%);
+  top: var(--vic-flash-y, 50%);
   width: 2px;
   height: 2px;
   margin: -1px 0 0 -1px;
   border-radius: 50%;
-  opacity: 0;
-  background: conic-gradient(
-    from 0deg,
-    var(--color-red), var(--color-orange), var(--color-yellow), var(--color-green),
-    var(--color-blue), var(--color-pink), var(--color-purple), var(--color-red)
-  );
-  -webkit-mask-image: radial-gradient(circle, transparent 0 55%, #000 68%, #000 94%, transparent 100%);
-  mask-image: radial-gradient(circle, transparent 0 55%, #000 68%, #000 94%, transparent 100%);
-  filter: blur(3px) saturate(1.4);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.5) 0 40%, rgba(255, 255, 255, 0) 72%);
+  animation: vic-echo var(--vic-pulse-ms, 380ms) ease-out forwards;
 }
-#final-lock-celebration.is-burst .flc-wave {
-  animation: flc-wave-expand var(--flc-burst, 860ms) cubic-bezier(0.22, 0.7, 0.3, 1) forwards;
-}
-#final-lock-celebration.is-burst .flc-wave-2 {
-  animation-delay: 180ms;
-  opacity: 0;
-  filter: blur(7px) saturate(1.2);
-}
-@keyframes flc-wave-expand {
-  0% { width: 2px; height: 2px; margin: -1px 0 0 -1px; opacity: 0; }
-  10% { opacity: 1; }
+@keyframes vic-echo {
+  0% { width: 2px; height: 2px; margin: -1px 0 0 -1px; opacity: 0.85; }
   100% {
-    width: calc(var(--flc-reach) * 2);
-    height: calc(var(--flc-reach) * 2);
-    margin: calc(var(--flc-reach) * -1) 0 0 calc(var(--flc-reach) * -1);
+    width: calc(46vmin * var(--vic-pulse-power, 1));
+    height: calc(46vmin * var(--vic-pulse-power, 1));
+    margin: calc(-23vmin * var(--vic-pulse-power, 1)) 0 0 calc(-23vmin * var(--vic-pulse-power, 1));
     opacity: 0;
   }
 }
-/* 波が広がるのに合わせて幕が消える＝通ったところから色が戻って見える。 */
-#final-lock-celebration.is-burst .flc-veil {
-  opacity: 0;
-  transition: opacity calc(var(--flc-burst, 860ms) * 0.8) ease-in;
-}
 
-/* ⑥ 閃光 */
-#final-lock-celebration .flc-flash {
+/* FLASH: キューブ中心から白が全画面へ。真っ白にはしない＝盤面の輪郭がうっすら残る。 */
+#victory-celebration .vic-flash {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at var(--flc-x) var(--flc-y), #fff 0, rgba(255, 255, 255, 0.9) 34%, rgba(255, 255, 255, 0) 74%);
   opacity: 0;
+  background:
+    radial-gradient(circle at var(--vic-flash-x, 50%) var(--vic-flash-y, 50%),
+      rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.96) 42%, rgba(255, 255, 255, 0.9) 100%);
 }
-#final-lock-celebration.is-flash .flc-flash {
-  animation: flc-flash var(--flc-flash, 380ms) ease-out forwards;
+#victory-celebration.is-flash .vic-flash {
+  animation: vic-flash-expand var(--vic-flash-ms, 560ms) cubic-bezier(0.3, 0, 0.15, 1) forwards;
 }
-@keyframes flc-flash {
-  0% { opacity: 0; }
-  14% { opacity: 1; }
-  100% { opacity: 0; }
+@keyframes vic-flash-expand {
+  0% { opacity: 0; clip-path: circle(0% at var(--vic-flash-x, 50%) var(--vic-flash-y, 50%)); }
+  35% { opacity: 1; }
+  100% { opacity: var(--vic-white-alpha, 0.88); clip-path: circle(150% at var(--vic-flash-x, 50%) var(--vic-flash-y, 50%)); }
 }
-
-/* ⑦ 光の粒 */
-#final-lock-celebration .flc-motes { position: absolute; inset: 0; }
-#final-lock-celebration .flc-mote {
+/* 白い光の中を漂う、ごく淡い七色の残光（世界へ放出されたようには見せない）。 */
+#victory-celebration.is-flash .vic-flash::after {
+  content: "";
   position: absolute;
-  width: 0.5rem;
-  height: 0.5rem;
-  margin: -0.25rem 0 0 -0.25rem;
-  border-radius: 50%;
-  background: var(--flc-mote-color, #fff);
-  box-shadow: 0 0 0.6rem var(--flc-mote-color, #fff);
-  opacity: 0;
-  animation: flc-mote-float 1100ms cubic-bezier(0.2, 0.6, 0.3, 1) forwards;
+  inset: -20%;
+  opacity: calc(0.1 * var(--vic-residue, 1));
+  background:
+    radial-gradient(circle at 22% 32%, #ff405c 0 12%, transparent 42%),
+    radial-gradient(circle at 68% 24%, #ff8a32 0 10%, transparent 40%),
+    radial-gradient(circle at 82% 58%, #ffd84a 0 11%, transparent 42%),
+    radial-gradient(circle at 58% 78%, #42e58a 0 10%, transparent 40%),
+    radial-gradient(circle at 30% 72%, #49a8ff 0 11%, transparent 42%),
+    radial-gradient(circle at 12% 54%, #ff74c8 0 10%, transparent 40%),
+    radial-gradient(circle at 46% 46%, #a875ff 0 12%, transparent 44%);
+  filter: blur(18px);
+  animation: vic-residue-drift 9s ease-in-out infinite alternate;
 }
-@keyframes flc-mote-float {
-  0% { opacity: 0; transform: translate(0, 0) scale(0.4); }
-  20% { opacity: 1; transform: translate(calc(var(--flc-mote-dx) * 0.35), calc(var(--flc-mote-dy) * 0.35)) scale(1); }
-  100% { opacity: 0; transform: translate(var(--flc-mote-dx), calc(var(--flc-mote-dy) + 6rem)) scale(0.5); }
+@keyframes vic-residue-drift {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(2.5%, -2%) scale(1.06); }
 }
 
-/* ⑥ 勝者のキューブ（駒）が強く光る。駒は preserve-3d なので filter は使わず box-shadow で。 */
-.piece.is-final-flare-piece .piece-face {
-  animation: flc-piece-shine 1600ms ease-out forwards;
+/* VICTORY: 白い光の中に浮かび上がる勝利表示。文言は意味を断定しないものだけ。 */
+#victory-celebration .vic-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  opacity: 0;
+  transform: translateY(1.2rem);
+  transition: opacity 520ms ease-out, transform 520ms cubic-bezier(0.16, 1, 0.3, 1);
+  color: #2f2a22;
+  text-align: center;
+  text-shadow: 0 0.1rem 0.6rem rgba(255, 255, 255, 0.9);
 }
-@keyframes flc-piece-shine {
-  0% { box-shadow: 0 0 0 rgba(255, 255, 255, 0); }
-  16% { box-shadow: 0 0 2rem 0.8rem rgba(255, 255, 255, 0.98), 0 0 4rem 1.6rem var(--piece-turn-glow-color, rgba(255, 255, 255, 0.75)); }
-  100% { box-shadow: 0 0 1.1rem 0.3rem rgba(255, 255, 255, 0.65); }
+#victory-celebration.is-victory .vic-text { opacity: 1; transform: translateY(0); }
+#victory-celebration .vic-avatar {
+  line-height: 1;
+  filter: drop-shadow(0 0.3rem 1.2rem rgba(0, 0, 0, 0.22));
+}
+#victory-celebration .vic-avatar img {
+  width: 1em;
+  height: 1em;
+  border-radius: 50%;
+  object-fit: cover;
+}
+#victory-celebration .vic-lead {
+  font-size: 1.5rem;
+  letter-spacing: 0.5em;
+  text-indent: 0.5em;
+  font-weight: 600;
+  opacity: 0.85;
+}
+#victory-celebration .vic-title {
+  font-size: 3.6rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-indent: 0.18em;
+  line-height: 1.05;
+}
+#victory-celebration .vic-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  opacity: 0.9;
+}
+/* リザルトへ渡した後、白をゆっくり引く（急な切り替えにしない）。 */
+#victory-celebration.is-dismissing { transition: opacity 650ms ease-out; opacity: 0; }
+
+@media (max-width: 760px) {
+  #victory-celebration .vic-lead { font-size: 1.05rem; }
+  #victory-celebration .vic-title { font-size: 2.4rem; }
+  #victory-celebration .vic-name { font-size: 1rem; }
 }
 
 #victory-modal {
@@ -18642,3 +18631,67 @@ body.theme-light #touch-action-confirm-dontshow,
 body.theme-light #touch-action-confirm-dontshow:hover {
   color: #3a3326;
 }
+
+/* 勝利演出シミュレーター（victory-preview.js、管理者モードから開く）。
+   dissolve-preview と同じ「右側に寄せた薄いパネル＋スライダー」の作り。再生中はパネルを
+   薄くして演出そのものを見えるようにする。 */
+#victory-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 10700;
+  pointer-events: none;
+}
+.victory-preview-panel {
+  position: absolute;
+  right: 0.8rem;
+  top: 3.6rem;
+  bottom: 0.8rem;
+  width: min(24rem, 92vw);
+  overflow-y: auto;
+  pointer-events: auto;
+  background: rgba(15, 23, 32, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.6rem;
+  padding: 0.7rem 0.8rem 0.9rem;
+  color: #e2e8f0;
+  font-family: sans-serif;
+  font-size: 0.8rem;
+  box-shadow: 0 0.6rem 2rem rgba(0, 0, 0, 0.55);
+  transition: opacity 200ms ease-out;
+}
+#victory-preview.is-playing .victory-preview-panel { opacity: 0.14; }
+.victory-preview-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
+.victory-preview-title { font-weight: 700; font-size: 0.92rem; }
+.victory-preview-close {
+  background: transparent; border: none; color: #cbd5e1; font-size: 1rem; cursor: pointer; padding: 0.1rem 0.3rem;
+}
+.victory-preview-stages { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.6rem; }
+.victory-preview-stage {
+  font-size: 0.62rem; letter-spacing: 0.06em; padding: 0.12rem 0.38rem; border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16); color: #94a3b8;
+}
+.victory-preview-stage.is-current { background: #b45309; color: #fff; font-weight: 700; }
+.victory-preview-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.5rem; }
+.victory-preview-row > span { font-size: 0.72rem; color: #94a3b8; }
+.victory-preview-row select,
+.victory-preview-row button,
+.victory-preview-play button,
+.victory-preview-foot button {
+  background: #1e293b; color: #e2e8f0; border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.3rem; padding: 0.22rem 0.5rem; font-size: 0.74rem; cursor: pointer;
+}
+.victory-preview-play { display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.6rem; }
+.victory-preview-status { font-size: 0.7rem; color: #fbbf24; }
+.victory-preview-body { display: flex; flex-direction: column; gap: 0.3rem; }
+.victory-preview-slider { display: grid; grid-template-columns: 1fr 7rem 2.6rem; align-items: center; gap: 0.35rem; }
+.victory-preview-slider-label { font-size: 0.7rem; color: #cbd5e1; line-height: 1.3; }
+.victory-preview-slider-value { font-size: 0.68rem; color: #94a3b8; text-align: right; }
+.victory-preview-foot { display: flex; gap: 0.4rem; margin-top: 0.7rem; }
+.victory-preview-out {
+  width: 100%; height: 8rem; margin-top: 0.4rem; background: #0f1520; color: #a5f3fc;
+  border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 0.3rem; font-size: 0.7rem;
+}
+body.theme-light .victory-preview-panel { background: #fdfbf5; border-color: rgba(176, 141, 63, 0.5); color: #3a3326; }
+body.theme-light .victory-preview-slider-label,
+body.theme-light .victory-preview-slider-value,
+body.theme-light .victory-preview-row > span { color: #6b6152; }

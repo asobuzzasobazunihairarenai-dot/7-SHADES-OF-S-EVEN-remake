@@ -21,7 +21,7 @@ import { refreshCurrencyDisplay } from "./currency-display.js";
 import { showCurrencyAwardModal } from "./currency-award-modal.js";
 import { showRankRevealModal } from "./rank-reveal-modal.js";
 import { showMatchPersonalResultModal } from "./match-personal-result-modal.js";
-import { playFinalLockCelebration } from "./final-lock-celebration.js"; // 最後のロックの演出（色が還る）
+import { playVictoryCelebration } from "./victory-celebration.js"; // 勝利演出「七色、集結」
 
 // ユーザー要望「勝利モーダルが5秒ぐらいしっかり出た後に、『戦績確認・もう一度遊ぶ』
 // モーダル（勝利者へのコメント依頼を含む）が出るようにしてほしい」への対応。以前は
@@ -272,14 +272,15 @@ export function checkForVictory() {
       // 全クライアント（勝者本人・傍観者それぞれ）がここを通っても二重付与にはならない
       // （online.jsのso7_award_match_currencyコメント参照）。playerは今まさに7色揃えた
       // 本人＝勝者の座席なので、そのままボーナス対象の座席として渡す。
-      // ユーザー要望2026-08-30「最後のロックの演出を派手に。ちゃんと演出が終わって余韻を
-      // 入れてから勝利モーダルに移りたい」。以前はここで即モーダルを出していたため、7色目が
-      // ハマった次の描画でいきなり勝利画面になっていた。演出（色が還る）の完了＋余韻を待ってから
-      // モーダルを出す。演出が失敗しても playFinalLockCelebration は必ず解決するので、
-      // モーダルが出なくなることはない。
+      // 勝利演出「七色、集結」（victory-celebration.js）。演出の完了を待ってからリザルトへ進む。
+      // **白い光は演出が終わっても消さない**（keepWhite）。その白を背景にしたまま勝利モーダルを
+      // 出し、モーダルを閉じる時に白を引く＝急な画面の切り替えにしない。演出が失敗しても
+      // playVictoryCelebration は必ず解決するので、リザルトへ進めなくなることはない。
+      // なお勝敗の確定・戦績システムへの登録は、この上で既に済んでいる（演出とは切り離す）。
       void (async () => {
-        await playFinalLockCelebration(player);
+        const celebration = await playVictoryCelebration(player);
         showVictoryModal(player, async () => {
+          celebration?.dismiss?.(); // 勝利モーダルを閉じたら白を引く（リザルトへ地続きで渡す）
         if (!isOnlineMode()) {
           // 物語オンボーディングのエイドス戦は、まず通常の勝利モーダルを出し（ユーザー要望
           // #107「エイドス戦にも通常の勝利モーダルがあっていい」）、それを閉じた時に、勝利BGMを

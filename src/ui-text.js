@@ -1388,6 +1388,8 @@ const UI = {
     "bug.uploadingShot": "画像を送信中…",
     "bug.shotFailed": "画像だけ添付できませんでした（本文とログは送信しました）。",
     "bug.needSignIn": "画像の添付にはログインが必要です。",
+    "vic.lead": "七色、集結",
+    "vic.title": "VICTORY",
     // --- フェーズ8: ヘルプ（見出し・用語ポップアップ）／ランク戦の説明 ---
     "help.title": "❓ ヘルプ",
     "help.tutorialBtn": "🎓 チュートリアルを見る",
@@ -3109,6 +3111,8 @@ const UI = {
     "bug.uploadingShot": "Uploading the image…",
     "bug.shotFailed": "Only the image could not be attached — your report and logs were sent.",
     "bug.needSignIn": "You need to be signed in to attach an image.",
+    "vic.lead": "SEVEN COLORS, GATHERED",
+    "vic.title": "VICTORY",
     // --- Phase 8: help headings, glossary popup, ranked explanation ---
     "help.title": "❓ Help",
     "help.tutorialBtn": "🎓 View the tutorial",
