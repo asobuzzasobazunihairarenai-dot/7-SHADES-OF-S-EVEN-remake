@@ -126,6 +126,8 @@ export async function playVictoryCelebration(player, opts = {}) {
   const piece = findWinnerPiece(player);
   let root = null;
   let cards = [];
+  let flares = [];
+  let ghost = null;
   let stopCanvas = null;
   const stage = (name) => { try { onStage?.(name); } catch (e) {} };
 
@@ -139,6 +141,7 @@ export async function playVictoryCelebration(player, opts = {}) {
     root._cleanupSkip = () => { window.removeEventListener("keydown", onSkip); };
 
     const cube = piece ? centerOf(piece) : { x: innerWidth / 2, y: innerHeight * 0.5 };
+    const cubeSize = piece ? rectOf(piece).width : 0;
 
     // --- WAIT: 操作を止め、BGMを短くフェードダウンして間を作る ---------------------
     stage("WAIT");
@@ -149,15 +152,16 @@ export async function playVictoryCelebration(player, opts = {}) {
 
     // --- COLORS: 7色が順に発光 → 最後に同時発光 -----------------------------------
     stage("COLORS");
+    flares = spawnSlotFlares(root.querySelector(".vic-slots"), slots);
     for (let i = 0; i < slots.length; i++) {
-      slots[i].classList.add("is-victory-flare");
+      flares[i]?.classList.add("is-lit");
       playSound("lock");
       // 前半はゆっくり、後半に向けてテンポを上げる
       const k = slots.length > 1 ? i / (slots.length - 1) : 1;
       const gap = BASE.colorFirst + (BASE.colorLast - BASE.colorFirst) * k;
       await step(ms(gap * s.colorStep));
     }
-    slots.forEach((el) => el.classList.add("is-victory-allflare"));
+    flares.forEach((el) => el.classList.add("is-all"));
     playSound("arrivalEffect");
     await step(ms(BASE.colorAllFlare));
 
@@ -179,7 +183,8 @@ export async function playVictoryCelebration(player, opts = {}) {
     if (!light) {
       stopCanvas = runGatherCanvas(root, slots, cube, s, ms(BASE.gather / s.gatherSpeed));
     }
-    piece?.classList.add("is-victory-charging");
+    ghost = spawnGhostCube(root.querySelector(".vic-cubes"), piece, cube, cubeSize);
+    ghost?.classList.add("is-charging");
     await step(ms(BASE.gather / s.gatherSpeed));
     cards.forEach((c) => c.remove());
     cards = [];
@@ -188,7 +193,7 @@ export async function playVictoryCelebration(player, opts = {}) {
     stage("PULSE");
     for (let i = 0; i < s.pulseCount; i++) {
       const power = ((i + 1) / s.pulseCount) * s.pulsePower;
-      pulseOnce(root, piece, cube, power, s.shake, ms(BASE.pulse));
+      pulseOnce(root, ghost, power, s.shake, ms(BASE.pulse));
       playSound("piecePlace");
       await step(ms(BASE.pulse));
     }
@@ -216,8 +221,7 @@ export async function playVictoryCelebration(player, opts = {}) {
     console.error("[so7] playVictoryCelebration failed", err);
   } finally {
     for (const c of cards) c.remove();
-    for (const el of slots) el.classList.remove("is-victory-flare", "is-victory-allflare");
-    piece?.classList.remove("is-victory-charging", "is-victory-pulse");
+    // flares / ghost は root の子なので root ごと消える。盤面側には何も付けていない。
     if (stopCanvas) stopCanvas();
     document.body.classList.remove("victory-celebration-active");
     running = false;
@@ -255,29 +259,116 @@ function buildRoot() {
   root.setAttribute("aria-hidden", "true");
   const veil = document.createElement("div");
   veil.className = "vic-veil";
+  // 幕(.vic-veil)は backdrop-filter で盤面の彩度・明るさを落とすので、盤面側の要素を
+  // いくら光らせても「暗転の裏側」になって色が出ない（ユーザー報告2026-08-30）。
+  // 色を見せたいもの（スロットの光・脈動するキューブ）は、幕より手前のこのレイヤーに置く。
+  const slotLayer = document.createElement("div");
+  slotLayer.className = "vic-slots";
   const canvas = document.createElement("canvas");
   canvas.className = "vic-canvas";
+  const cubeLayer = document.createElement("div");
+  cubeLayer.className = "vic-cubes";
   const flash = document.createElement("div");
   flash.className = "vic-flash";
   const text = document.createElement("div");
   text.className = "vic-text";
-  root.append(veil, canvas, flash, text);
+  root.append(veil, slotLayer, canvas, cubeLayer, flash, text);
   return root;
 }
 
-// キューブの脈動1回分（DOMのクラス付け外し＋ごく小さな画面振動）。
-function pulseOnce(root, piece, cube, power, shake, durMs) {
+// COLORS: 勝者のロックスロットと同じ位置・同じ色の光を、幕より手前に置き直す。
+// （盤面のスロット自体を光らせると幕の backdrop-filter で色が沈んでしまうため。）
+// 色は盤面パレットではなく演出用の VIVID を使う＝暗い幕の上でもはっきり色が分かる。
+function spawnSlotFlares(layer, slots) {
+  if (!layer) return [];
+  return slots.map((slot, i) => {
+    const r = rectOf(slot);
+    const el = document.createElement("div");
+    el.className = "vic-slot";
+    el.style.left = `${r.left + r.width / 2}px`;
+    el.style.top = `${r.top + r.height / 2}px`;
+    el.style.width = `${Math.max(10, r.width)}px`;
+    el.style.height = `${Math.max(10, r.height)}px`;
+    el.style.setProperty("--vic-slot-rgb", hexToRgb(VIVID[COLORS[i]] || "#ffffff"));
+    layer.appendChild(el);
+    return el;
+  });
+}
+function hexToRgb(hex) {
+  const h = String(hex).replace("#", "");
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  const n = parseInt(full, 16);
+  return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
+}
+
+// PULSE: 実物の駒はそのままに、**少し半透明の疑似的な駒**を幕より手前に重ねて、
+// こちらを脈動させる（ユーザー提案2026-08-30。以前は実物を光らせていたが、幕の裏で
+// 暗くなるうえ、見えているのは白い丸が広がるだけになっていた）。
+// 3D空間の外に置いても立方体に見えるよう、ドラッグゴースト(.drag-ghost-piece-outer/-inner)と
+// 同じ「perspective + 盤面と同じ傾き」の入れ子を使う。中身は本物の .piece の複製なので、
+// プレイヤーが選んでいる駒スキンがそのまま反映される。
+function spawnGhostCube(layer, piece, cube, sizePx) {
+  if (!layer || !piece) return null;
+  const size = Math.max(18, sizePx || rectOf(piece).width);
+  const outer = document.createElement("div");
+  outer.className = "vic-cube";
+  outer.style.left = `${cube.x}px`;
+  outer.style.top = `${cube.y}px`;
+  outer.style.width = `${size}px`;
+  outer.style.height = `${size}px`;
+  const inner = document.createElement("div");
+  inner.className = "vic-cube-inner";
+  const tilt = getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim() || "42deg";
+  const clone = piece.cloneNode(true);
+  clone.classList.remove("is-my-turn-glow", "is-victory-charging", "is-victory-pulse", "hover-active");
+  clone.removeAttribute("data-owner"); // 飾りペットを二重に出さない
+  inner.appendChild(clone);
+  outer.appendChild(inner);
+  layer.appendChild(outer);
+  // 盤面は fitTableToViewport の scale3d で拡大されているので、複製をそのまま置くと実物より
+  // 小さく見える。CSS上の駒の幅（複製を置いてから測る＝確実に値が取れる）と画面上の実測幅の
+  // 比で inner を拡大して、実物にぴったり重なる大きさにする。
+  // scale() ではなく scale3d() を使う（scale() はZ軸＝壁の高さを縮めないので立方体が崩れる。
+  // fitTableToViewport で同じ罠を踏んだのと同じ理由）。
+  const cssW = parseFloat(getComputedStyle(clone).width) || size;
+  const k = cssW > 0 ? size / cssW : 1;
+  inner.style.transform = `rotateX(${tilt}) scale3d(${k}, ${k}, ${k})`;
+  // 立方体は translateZ で持ち上がっている分だけ、箱の中心と「見えている立方体の中心」が
+  // ずれる（実測すると実物の駒の少し上に浮いて見えた）。複製を置いた後に実際の見た目の
+  // 中心を測り、その差だけ箱をずらして、実物にぴったり重なるようにする。
+  const cr = rectOf(clone);
+  if (cr.width > 0) {
+    outer.style.left = `${cube.x + (cube.x - (cr.left + cr.width / 2))}px`;
+    outer.style.top = `${cube.y + (cube.y - (cr.top + cr.height / 2))}px`;
+  }
+  return outer;
+}
+
+// 脈動のたびに、同じ疑似キューブが一回り大きく広がって消える残像を1つ置く。
+function spawnCubeEcho(ghost, power) {
+  if (!ghost?.parentNode) return;
+  const echo = ghost.cloneNode(true);
+  echo.classList.remove("is-charging", "is-pulse");
+  echo.classList.add("is-echo");
+  echo.style.setProperty("--vic-echo-power", String(power));
+  ghost.parentNode.appendChild(echo);
+  setTimeout(() => echo.remove(), 1200);
+}
+
+// キューブの脈動1回分（疑似キューブの拡大・発光＋残像＋ごく小さな画面振動）。
+function pulseOnce(root, ghost, power, shake, durMs) {
   root.style.setProperty("--vic-pulse-power", String(power));
   root.style.setProperty("--vic-pulse-ms", `${durMs}ms`);
   root.classList.remove("is-pulsing");
   void root.offsetWidth; // アニメーションを再スタートさせる
   root.classList.add("is-pulsing");
-  if (piece) {
-    piece.classList.remove("is-victory-pulse");
-    void piece.offsetWidth;
-    piece.style.setProperty("--vic-pulse-power", String(power));
-    piece.style.setProperty("--vic-pulse-ms", `${durMs}ms`);
-    piece.classList.add("is-victory-pulse");
+  if (ghost) {
+    ghost.classList.remove("is-pulse");
+    void ghost.offsetWidth;
+    ghost.style.setProperty("--vic-pulse-power", String(power));
+    ghost.style.setProperty("--vic-pulse-ms", `${durMs}ms`);
+    ghost.classList.add("is-pulse");
+    spawnCubeEcho(ghost, power);
   }
   const amp = 2.2 * power * shake;
   document.documentElement.style.setProperty("--vic-shake-amp", `${amp}px`);
