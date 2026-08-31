@@ -1177,6 +1177,10 @@ const GROUPS = [
     category: "phone",
     controls: [
       { key: "--self-status-large-avatar-size-phone", label: "左下アバター サイズ（スマホ）", unit: "rem", min: 4, max: 16, step: 0.2, default: 12 },
+      // 本体の位置もスマホ専用（ユーザー要望2026-08-31）。背面ゴースト・ランクリングも
+      // この値を土台にしているので、3つまとめて動く。
+      { key: "--self-status-large-avatar-pos-x-phone", label: "左下アバター 位置X（スマホ）", unit: "rem", min: -15, max: 20, step: 0.1, default: -0.7 },
+      { key: "--self-status-large-avatar-pos-y-phone", label: "左下アバター 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: -11.5 },
       // 背面の半透明アバター（ゴースト）はスマホだけ別に調整できる（ユーザー要望2026-08-31）。
       { key: "--self-status-large-avatar-ghost-scale-phone", label: "半透明アバター サイズ倍率（スマホ）", unit: "", min: 0.3, max: 5, step: 0.05, default: 1.6 },
       { key: "--self-status-large-avatar-ghost-offset-x-phone", label: "半透明アバター ずらしX（スマホ）", unit: "rem", min: -12, max: 12, step: 0.1, default: -1.6 },

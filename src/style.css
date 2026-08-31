@@ -7699,6 +7699,8 @@ body.is-phone-device #self-hand-status {
    「左下アバター サイズ（スマホ）」スライダーで --self-status-large-avatar-size-phone を調整可能。 */
 body.is-phone-device {
   --self-status-large-avatar-size: var(--self-status-large-avatar-size-phone, 12rem);
+  --self-status-large-avatar-pos-x: var(--self-status-large-avatar-pos-x-phone, -0.7rem);
+  --self-status-large-avatar-pos-y: var(--self-status-large-avatar-pos-y-phone, -11.5rem);
   /* 背面の半透明アバターは、本体サイズ×倍率で決まる。スマホでは本体を小さくしている分、
      同じ倍率だと大きすぎ／小さすぎになりがちなので、倍率とずらし量・透明度をスマホ専用の
      変数に差し替える（ユーザー要望2026-08-31）。 */
@@ -13248,6 +13250,12 @@ body.is-phone-device .opening-lang-toggle-seg.is-current {
   --self-status-large-avatar-ghost-offset-x-phone: -1.6rem;
   --self-status-large-avatar-ghost-offset-y-phone: -8.1rem;
   --self-status-large-avatar-ghost-opacity-phone: 0.35;
+  /* スマホでの「本体（半透明でない方）」の位置。PCとは画面の余白の作りが違うので別に持つ
+     （ユーザー要望2026-08-31）。既定はPCと同値なので、触らなければ今までと同じ位置。
+     この2つは本体だけでなく、背面ゴーストとランクリングの基準位置にもなっている（3つとも
+     この値を土台に自分のずらし量を足す作り）ので、動かすと3つまとめて同じだけ動く。 */
+  --self-status-large-avatar-pos-x-phone: -0.7rem;
+  --self-status-large-avatar-pos-y-phone: -11.5rem;
   --phase-guide-pos-phone-x: 0rem;
   --phase-guide-pos-phone-y: 0rem;
   --phase-guide-scale-phone: 2.1;
