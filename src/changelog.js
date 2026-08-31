@@ -14,6 +14,8 @@ export const CHANGELOG = [
   {
     date: "2026-08-29",
     items: [
+      "スマホでは、画面左下の着せ替えアイコン（駒スキン・カード裏・ペット・プレイマット・背景）を表示しないようにしました。狭い画面で盤面や手札の邪魔になっていたためです。着せ替えはマイページからこれまで通り変更できます。",
+      "スマホでの、自分のアバター・手札を画面下に固定した時のトレイ・左下ステータスの位置を調整しました。",
       "マイページの実績（対戦数・勝利数・勝率・勝率順位・対戦数順位・登録年月日）が表示されなくなっていたのを直しました。英語表示に対応した際の書き換えミスが原因でした。",
       "スマホでの、画面左下に大きく映る自分のアバターの位置と、その背後にうっすら重なるアバターの大きさ・位置・濃さを、スマホ専用に調整できるようにしました（管理者向けの設定です）。",
       "勝利演出で、ロックエリアの光がカードの外側に浮いて見えていたのを直しました。光を合わせる相手をロックの枠から実際のカードに変え、盤面が動いても常に追いかけるようにしたので、カードのふちにぴったり沿って光ります。",
@@ -46,6 +48,8 @@ export const CHANGELOG = [
     ],
     // 英語表示のとき items の代わりに出る（併記はしない。同じ順番・同じ件数で書くこと）。
     itemsEn: [
+      "On phones, the dress-up icons at the bottom-left (piece skin, card back, pet, playmat, background) are no longer shown — they got in the way of the board and your hand on a small screen. You can still change all of them from My Page as before.",
+      "Adjusted the placement on phones of your avatar, the fixed hand tray at the bottom of the screen, and the bottom-left status area.",
       "Fixed the achievements on My Page (matches, wins, win rate, rankings, join date) not appearing at all. It was caused by a mistake made while adding English support.",
       "On phones, the position of the large avatar at the bottom-left of the screen, and the size, position and opacity of the translucent one behind it, can now be adjusted separately from desktop (an admin setting).",
       "Fixed the Lock Area glow appearing to float outside the cards during the victory sequence. It now tracks the actual card instead of the slot frame and follows the board if it moves, so it traces each card’s edge exactly.",

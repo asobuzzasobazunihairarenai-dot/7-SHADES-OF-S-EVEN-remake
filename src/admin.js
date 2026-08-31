@@ -1176,15 +1176,15 @@ const GROUPS = [
     title: "📱 スマホ専用：左下の自分アバター（本体・半透明）",
     category: "phone",
     controls: [
-      { key: "--self-status-large-avatar-size-phone", label: "左下アバター サイズ（スマホ）", unit: "rem", min: 4, max: 16, step: 0.2, default: 12 },
+      { key: "--self-status-large-avatar-size-phone", label: "左下アバター サイズ（スマホ）", unit: "rem", min: 4, max: 16, step: 0.2, default: 10.2 },
       // 本体の位置もスマホ専用（ユーザー要望2026-08-31）。背面ゴースト・ランクリングも
       // この値を土台にしているので、3つまとめて動く。
       { key: "--self-status-large-avatar-pos-x-phone", label: "左下アバター 位置X（スマホ）", unit: "rem", min: -15, max: 20, step: 0.1, default: -0.7 },
-      { key: "--self-status-large-avatar-pos-y-phone", label: "左下アバター 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: -11.5 },
+      { key: "--self-status-large-avatar-pos-y-phone", label: "左下アバター 位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: -7.5 },
       // 背面の半透明アバター（ゴースト）はスマホだけ別に調整できる（ユーザー要望2026-08-31）。
-      { key: "--self-status-large-avatar-ghost-scale-phone", label: "半透明アバター サイズ倍率（スマホ）", unit: "", min: 0.3, max: 5, step: 0.05, default: 1.6 },
+      { key: "--self-status-large-avatar-ghost-scale-phone", label: "半透明アバター サイズ倍率（スマホ）", unit: "", min: 0.3, max: 5, step: 0.05, default: 1.45 },
       { key: "--self-status-large-avatar-ghost-offset-x-phone", label: "半透明アバター ずらしX（スマホ）", unit: "rem", min: -12, max: 12, step: 0.1, default: -1.6 },
-      { key: "--self-status-large-avatar-ghost-offset-y-phone", label: "半透明アバター ずらしY（スマホ）", unit: "rem", min: -12, max: 12, step: 0.1, default: -8.1 },
+      { key: "--self-status-large-avatar-ghost-offset-y-phone", label: "半透明アバター ずらしY（スマホ）", unit: "rem", min: -12, max: 12, step: 0.1, default: -4.7 },
       { key: "--self-status-large-avatar-ghost-opacity-phone", label: "半透明アバター 透明度（スマホ）", unit: "", min: 0, max: 1, step: 0.05, default: 0.35 },
     ],
   },
@@ -1258,10 +1258,10 @@ const GROUPS = [
     title: "📱 スマホ専用：手札の画面下固定トレイの位置・サイズ・回転（「手札を画面下に固定する」ON時）",
     category: "phone",
     controls: [
-      { key: "--fixed-hand-bottom-phone", label: "下からの位置（スマホ）", unit: "rem", min: -4, max: 40, step: 0.1, default: 23.9 },
-      { key: "--fixed-hand-x-offset-phone", label: "横方向のずれ（スマホ）", unit: "rem", min: -40, max: 40, step: 0.1, default: -30.4 },
+      { key: "--fixed-hand-bottom-phone", label: "下からの位置（スマホ）", unit: "rem", min: -4, max: 40, step: 0.1, default: 11.3 },
+      { key: "--fixed-hand-x-offset-phone", label: "横方向のずれ（スマホ）", unit: "rem", min: -40, max: 40, step: 0.1, default: -34.1 },
       { key: "--fixed-hand-scale-phone", label: "全体サイズ（倍率・スマホ）", unit: "", min: 0.3, max: 3, step: 0.05, default: 1 },
-      { key: "--fixed-hand-rotate-phone", label: "回転（平面内・スマホ）", unit: "deg", min: -180, max: 180, step: 1, default: 64 },
+      { key: "--fixed-hand-rotate-phone", label: "回転（平面内・スマホ）", unit: "deg", min: -180, max: 180, step: 1, default: 47 },
     ],
   },
   {
@@ -1438,7 +1438,7 @@ const GROUPS = [
     controls: [
       { key: "--self-status-scale-phone", label: "拡大率（スマホ）", unit: "", min: 0.5, max: 2.5, step: 0.05, default: 1.75 },
       { key: "--self-status-pos-phone-x", label: "位置X（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 0 },
-      { key: "--self-status-pos-phone-y", label: "位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: -1.9 },
+      { key: "--self-status-pos-phone-y", label: "位置Y（スマホ）", unit: "rem", min: -20, max: 20, step: 0.1, default: 3.7 },
     ],
   },
   {
@@ -1626,6 +1626,19 @@ export function isGatePedestalVisible() {
 // せず管理者モードでオンオフできるようにする。main.jsのbuildPlayerZone()がこのフラグを
 // 見て、isSelfの場合だけavatarElのappendChildをスキップする。
 let selfBoardAvatarVisible = false;
+
+// ユーザー要望2026-09-01「スマホではゲーム画面でのステータスエリアの着せ替えアイコン群は
+// 非表示にしましょう。管理者画面から非表示にできるようにしてください」。既定は非表示（false）。
+// 対象は左下ステータスエリアの .self-status-icon-grid（駒スキン・カード裏・ペット・プレイマット・
+// 背景）。オンライン状態アイコンは既に右上のオプションエリアへ移設済みなので影響しない。
+// 見た目だけの切り替えなので、JS側の描画には触らず body のクラスで CSS に伝える。
+let phoneDressupIconsVisible = false;
+export function isPhoneDressupIconsVisible() {
+  return phoneDressupIconsVisible;
+}
+function applyPhoneDressupIconsClass() {
+  document.body.classList.toggle("phone-dressup-icons-visible", phoneDressupIconsVisible);
+}
 
 export function isSelfBoardAvatarVisible() {
   return selfBoardAvatarVisible;
@@ -1910,6 +1923,32 @@ async function adminPlayEidosScene(startId, chain) {
 }
 
 const TOGGLE_SECTIONS = [
+  {
+    // ユーザー要望2026-09-01「スマホではステータスエリアの着せ替えアイコン群は非表示に。
+    // 管理者画面から非表示にできるように」。既定OFF（＝スマホでは出さない）。
+    // PC表示には一切影響しない（body.is-phone-device が付いている時だけ効く）。
+    title: "📱 スマホ専用：着せ替えアイコン群の表示",
+    category: "phone",
+    buildContent: (content) => {
+      const row = document.createElement("label");
+      row.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = phoneDressupIconsVisible;
+      cb.addEventListener("change", () => {
+        phoneDressupIconsVisible = cb.checked;
+        applyPhoneDressupIconsClass();
+        window.dispatchEvent(new CustomEvent("admin:change"));
+        updateExportRef.current();
+      });
+      const label = document.createElement("span");
+      label.textContent =
+        "スマホで左下の着せ替えアイコン（駒スキン・カード裏・ペット・プレイマット・背景）を表示する（デフォルトOFF＝非表示。PC表示には影響しません）";
+      row.appendChild(cb);
+      row.appendChild(label);
+      content.appendChild(row);
+    },
+  },
   {
     // ユーザー要望2026-08-08「ショップの位置調整をスライダーだけでなく実際に画像を触って
     // ドラッグでも」。ON中(body.shop-adjust-mode)は、ショップを開いて商品画像をドラッグ=商品画像位置、
@@ -2855,6 +2894,7 @@ function buildPanel(rebuildSlidersRef) {
       `cardArrivalModalPersistent: ${cardArrivalModalPersistent}`,
       `gatePedestalVisible: ${gatePedestalVisible}`,
       `selfBoardAvatarVisible: ${selfBoardAvatarVisible}`,
+      `phoneDressupIconsVisible: ${phoneDressupIconsVisible}`,
       `selfNameLabelVisible: ${selfNameLabelVisible}`,
       `spotlightMode: ${spotlightMode}`,
       `avatarOutlineVisible: ${avatarOutlineVisible}`,
@@ -2884,6 +2924,8 @@ let closeAdminPanelFn = null;
 // options-menu.js（右上「⚙ オプション」の中の「管理者モード」項目）から呼ぶ。
 // 以前はこのモジュール自身が左上に専用の呼び出しボタンを持っていたが、オプションメニューに
 // 統合したため、パネルの開閉トリガーだけをここから外部提供する形にした。
+applyPhoneDressupIconsClass();
+
 export function openAdminPanel() {
   if (openAdminPanelFn) openAdminPanelFn();
 }

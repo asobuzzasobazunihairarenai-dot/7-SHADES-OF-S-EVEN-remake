@@ -7841,6 +7841,13 @@ body.reduce-glow .self-status-rank-ring.is-rainbow .rank-ring-orbit-dot {
 .self-status-icon-grid > * {
   pointer-events: auto;
 }
+/* スマホでは着せ替えアイコン群（駒スキン・カード裏・ペット・プレイマット・背景）を出さない
+   （ユーザー要望2026-09-01。画面が狭く、盤面・手札の邪魔になるため）。着せ替えはマイページ
+   から変更できるので機能自体は失われない。管理者モードの「📱 スマホ専用：着せ替えアイコン群の
+   表示」をONにすると body に .phone-dressup-icons-visible が付いて元通り表示される。 */
+body.is-phone-device:not(.phone-dressup-icons-visible) .self-status-icon-grid {
+  display: none;
+}
 /* 駒スキン・カード裏面・プレイマットの3つは、buildIconButtonContent()を使うアイコンボタン
    （手札シャッフル等）と違う独自の見た目のため、ホバー簡易説明(.phase-guide-tooltip)の
    表示トリガーもここで個別に用意する（中身の見た目・表示ルール自体は共通クラスを流用）。 */
@@ -13243,19 +13250,19 @@ body.is-phone-device .opening-lang-toggle-seg.is-current {
   --center-modal-scale-phone: 2;
   --options-menu-scale-phone: 1;
   --admin-panel-scale-phone: 1.45;
-  --self-status-large-avatar-size-phone: 12rem;
+  --self-status-large-avatar-size-phone: 10.2rem;
   /* スマホでの「半透明の巨大アバター（背面ゴースト）」だけを、PCとは別に調整するための値
      （ユーザー要望2026-08-31）。既定はPCと同じなので、触らなければ今までと同じ見た目。 */
-  --self-status-large-avatar-ghost-scale-phone: 1.6;
+  --self-status-large-avatar-ghost-scale-phone: 1.45;
   --self-status-large-avatar-ghost-offset-x-phone: -1.6rem;
-  --self-status-large-avatar-ghost-offset-y-phone: -8.1rem;
+  --self-status-large-avatar-ghost-offset-y-phone: -4.7rem;
   --self-status-large-avatar-ghost-opacity-phone: 0.35;
   /* スマホでの「本体（半透明でない方）」の位置。PCとは画面の余白の作りが違うので別に持つ
      （ユーザー要望2026-08-31）。既定はPCと同値なので、触らなければ今までと同じ位置。
      この2つは本体だけでなく、背面ゴーストとランクリングの基準位置にもなっている（3つとも
      この値を土台に自分のずらし量を足す作り）ので、動かすと3つまとめて同じだけ動く。 */
   --self-status-large-avatar-pos-x-phone: -0.7rem;
-  --self-status-large-avatar-pos-y-phone: -11.5rem;
+  --self-status-large-avatar-pos-y-phone: -7.5rem;
   --phase-guide-pos-phone-x: 0rem;
   --phase-guide-pos-phone-y: 0rem;
   --phase-guide-scale-phone: 2.1;
@@ -13269,10 +13276,10 @@ body.is-phone-device .opening-lang-toggle-seg.is-current {
   --hand-a-pos-phone-y: -10.5rem;
   --hand-a-size-phone: 15rem;
   --hand-a-rotate-z-phone: 70deg;
-  --fixed-hand-bottom-phone: 23.9rem;
-  --fixed-hand-x-offset-phone: -30.4rem;
+  --fixed-hand-bottom-phone: 11.3rem;
+  --fixed-hand-x-offset-phone: -34.1rem;
   --fixed-hand-scale-phone: 1;
-  --fixed-hand-rotate-phone: 64deg;
+  --fixed-hand-rotate-phone: 47deg;
   --eraser-icons-pos-phone-x: 2.8rem;
   --eraser-icons-pos-phone-y: 11.9rem;
   --eraser-icons-size-phone: 5.3rem;
@@ -13335,7 +13342,7 @@ body.is-phone-device .opening-lang-toggle-seg.is-current {
   --self-status-pos-touch-y: 0rem;
   --self-status-scale-phone: 1.75;
   --self-status-pos-phone-x: 0rem;
-  --self-status-pos-phone-y: -1.9rem;
+  --self-status-pos-phone-y: 3.7rem;
   --priority-transfer-scale-touch: 1;
   --hand-reveal-card-size: 2.9rem;
   --hand-reveal-bottom-pos-x: -16.2rem;
