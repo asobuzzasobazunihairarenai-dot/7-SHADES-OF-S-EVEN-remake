@@ -42,6 +42,8 @@ export const CHANGELOG = [
     ],
     // 英語表示のとき items の代わりに出る（併記はしない。同じ順番・同じ件数で書くこと）。
     itemsEn: [
+      "Fixed the Lock Area glow appearing to float outside the cards during the victory sequence. It now tracks the actual card instead of the slot frame and follows the board if it moves, so it traces each card’s edge exactly.",
+      "Removed the round pool of light around the piece during the victory pulse — now only the piece itself glows.",
       "Fixed the Lock Area glow not sitting on the actual cards during the victory sequence. It now measures how the board is actually drawn, so it lines up exactly at any window size or board zoom.",
       "Removed the white disc from the pulse in the victory sequence — only the winner’s coloured haze remains.",
       "Polished the victory sequence. The glow on the Lock Area now lies flat along the board instead of standing upright, and the light around the pulsing cube is now a soft haze in the winner’s colour rather than a hard white disc.",
@@ -71,7 +73,9 @@ export const CHANGELOG = [
   },
   {
     date: "2026-08-28",
-    items: [
+    items: [      "勝利演出で、ロックエリアの光がカードの外側に浮いて見えていたのを直しました。光を合わせる相手をロックの枠から実際のカードに変え、盤面が動いても常に追いかけるようにしたので、カードのふちにぴったり沿って光ります。",
+      "勝利演出の脈動から、駒のまわりの丸い光（スポットライト）をなくしました。駒自体が光るだけになります。",
+
       "オプションの「基本設定」を整理しました。よく使う設定（効果音・BGMの音量／カードを拡大表示する大きさ／全画面で遊ぶ／使う前に確認する）は開いてすぐ触れる位置に出し、残りは「動きが重い・カクつくとき」「画面の見え方」のように“困りごと”の名前でまとめました。折りたたみの中にさらに折りたたみがある状態も無くし、項目名も何が起きるか分かる言い方に書き換えています（設定できることは今まで通り全部あります）。",
       "対戦が終わった後、結果モーダルを閉じた直後に勝手にホーム画面へ戻されてしまうこと（ランク戦）を修正しました。終了後も部屋に残って盤面を確認できます。",
       "対戦結果が戦績システムに登録されないことがある不具合を修正しました。登録は勝敗が決まった瞬間に行われるようになり、対戦後のコメントは勝ち負けに関係なく参加者それぞれが残せます。",

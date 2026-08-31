@@ -128,6 +128,7 @@ export async function playVictoryCelebration(player, opts = {}) {
   let root = null;
   let cards = [];
   let flares = [];
+  let stopFlareTrack = null;
   let ghost = null;
   let stopCanvas = null;
   const stage = (name) => { try { onStage?.(name); } catch (e) {} };
@@ -155,6 +156,7 @@ export async function playVictoryCelebration(player, opts = {}) {
     stage("COLORS");
     slots = liveSlots(); // 直前の render() で作り直されている可能性があるので取り直す
     flares = spawnSlotFlares(root.querySelector(".vic-slots"), slots);
+    stopFlareTrack = trackSlotFlares(flares, liveSlots);
     for (let i = 0; i < slots.length; i++) {
       flares[i]?.firstChild?.classList.add("is-lit");
       playSound("lock");
@@ -175,6 +177,7 @@ export async function playVictoryCelebration(player, opts = {}) {
         requestAnimationFrame(() => cards.forEach((c) => c.classList.add("is-flying")));
         // 色はカードへ移ったので、ロックエリアの光は残さず落とす（ユーザー報告2026-08-31）。
         flares.forEach((el) => el.firstChild?.classList.add("is-drained"));
+        setTimeout(() => { stopFlareTrack?.(); stopFlareTrack = null; }, 700);
         await step(ms(BASE.fan));
         await step(ms(BASE.fanHold));
       }
@@ -230,6 +233,7 @@ export async function playVictoryCelebration(player, opts = {}) {
     console.error("[so7] playVictoryCelebration failed", err);
   } finally {
     for (const c of cards) c.remove();
+    stopFlareTrack?.();
     // flares / ghost は root の子なので root ごと消える。盤面側には何も付けていない。
     if (stopCanvas) stopCanvas();
     document.body.classList.remove("victory-celebration-active");
@@ -316,23 +320,35 @@ function measureSlotQuad(slot) {
   return { W, H, matrix: `matrix(${m11}, ${m12}, ${m21}, ${m22}, ${po.left}, ${po.top})` };
 }
 
+// 光を合わせる相手は「ロックスロットの枠」ではなく**実際に置かれているカード**にする。
+// スロットの枠はカードより一回り大きいので、枠に合わせるとカードの外側に光の輪が浮いて見え、
+// ユーザーには「ずれている」ように映る（報告2026-08-31）。カードが無い時だけ枠で代用する。
+function flareTargetOf(slot) {
+  return slot.querySelector(".board-card") || slot;
+}
+
+function applySlotQuad(el, slot) {
+  const target = flareTargetOf(slot);
+  const q = measureSlotQuad(target);
+  if (q) {
+    el.style.width = `${q.W}px`;
+    el.style.height = `${q.H}px`;
+    el.style.transform = q.matrix;
+    return;
+  }
+  // 予備（測れなかった時）: 実測の矩形にそのまま重ねる
+  const r = rectOf(target);
+  el.style.width = `${Math.max(10, r.width)}px`;
+  el.style.height = `${Math.max(10, r.height)}px`;
+  el.style.transform = `translate(${r.left}px, ${r.top}px)`;
+}
+
 function spawnSlotFlares(layer, slots) {
   if (!layer) return [];
   return slots.map((slot, i) => {
     const el = document.createElement("div");
     el.className = "vic-slot";
-    const q = measureSlotQuad(slot);
-    if (q) {
-      el.style.width = `${q.W}px`;
-      el.style.height = `${q.H}px`;
-      el.style.transform = q.matrix;
-    } else {
-      // 予備（測れなかった時）: 実測の矩形にそのまま重ねる
-      const r = rectOf(slot);
-      el.style.width = `${Math.max(10, r.width)}px`;
-      el.style.height = `${Math.max(10, r.height)}px`;
-      el.style.transform = `translate(${r.left}px, ${r.top}px)`;
-    }
+    applySlotQuad(el, slot);
     el.style.setProperty("--vic-slot-rgb", hexToRgb(VIVID[COLORS[i]] || "#ffffff"));
     const plate = document.createElement("div");
     plate.className = "vic-slot-plate";
@@ -340,6 +356,30 @@ function spawnSlotFlares(layer, slots) {
     layer.appendChild(el);
     return el;
   });
+}
+
+// 演出の途中で盤面が動くことがある（render() で手札の枚数が変わると fitTableToViewport が
+// 倍率を計算し直す・ウィンドウのリサイズ・「盤面拡大」など）。置いた時の座標のまま放置すると
+// そのぶん光が実物のスロットからズレるので、**盤面が動いたら測り直して貼り直す**。
+// 毎フレーム測り直すのではなく、スロットの位置が実際に変わった時だけ測り直す。
+function trackSlotFlares(flares, getSlots) {
+  let raf = 0;
+  let last = "";
+  const tick = () => {
+    raf = requestAnimationFrame(tick);
+    const slots = getSlots();
+    if (slots.length !== flares.length) return;
+    let key = "";
+    for (const el of slots) {
+      const r = rectOf(flareTargetOf(el));
+      key += `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)};`;
+    }
+    if (key === last) return;
+    last = key;
+    flares.forEach((el, i) => applySlotQuad(el, slots[i]));
+  };
+  raf = requestAnimationFrame(tick);
+  return () => cancelAnimationFrame(raf);
 }
 function tableTilt() {
   return getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim() || "42deg";

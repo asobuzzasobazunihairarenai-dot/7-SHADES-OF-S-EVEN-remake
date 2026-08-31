@@ -10762,28 +10762,30 @@ body.victory-celebration-active #option-area {
 #victory-celebration .vic-cube.is-charging { opacity: 0.66; }
 /* 発光は「白い芯＋勝者の色の広いにじみ」。白を強く広く出すと、脈動が画面の中央で
    ただの白い丸に見えてしまう（ユーザー報告2026-08-31）。白は薄く狭く、色は広くぼかす。 */
+/* 【重要】にじみを大きく取ると、駒のまわりに丸い光の溜まり＝スポットライトができてしまう
+   （ユーザー報告2026-08-31「スポットライトは不要で駒自体が光ってればそれでいい」）。
+   ぼかしは駒の輪郭からわずかに出る程度に留める。 */
 #victory-celebration .vic-cube .piece-face {
   box-shadow:
-    0 0 0.7rem 0.05rem rgba(255, 255, 255, calc(0.3 * var(--vic-cube-white, 1))),
-    0 0 1.8rem 0.4rem rgba(var(--vic-cube-rgb, 255, 255, 255), 0.42);
+    0 0 0.35rem 0 rgba(255, 255, 255, calc(0.3 * var(--vic-cube-white, 1))),
+    0 0 0.7rem 0.02rem rgba(var(--vic-cube-rgb, 255, 255, 255), 0.5);
 }
 #victory-celebration .vic-cube.is-pulse .piece-face {
   animation: vic-cube-face-beat var(--vic-pulse-ms, 380ms) cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 @keyframes vic-cube-face-beat {
   0% {
-    box-shadow: 0 0 0.7rem 0.05rem rgba(255, 255, 255, calc(0.3 * var(--vic-cube-white, 1))),
-      0 0 1.8rem 0.4rem rgba(var(--vic-cube-rgb, 255, 255, 255), 0.42);
+    box-shadow: 0 0 0.35rem 0 rgba(255, 255, 255, calc(0.3 * var(--vic-cube-white, 1))),
+      0 0 0.7rem 0.02rem rgba(var(--vic-cube-rgb, 255, 255, 255), 0.5);
   }
   35% {
     box-shadow:
-      0 0 calc(1.1rem * var(--vic-pulse-power, 1)) 0 rgba(255, 255, 255, calc(0.42 * var(--vic-cube-white, 1))),
-      0 0 calc(4rem * var(--vic-pulse-power, 1)) calc(1.1rem * var(--vic-pulse-power, 1)) rgba(var(--vic-cube-rgb, 255, 255, 255), 0.62),
-      0 0 calc(8.5rem * var(--vic-pulse-power, 1)) calc(3rem * var(--vic-pulse-power, 1)) rgba(var(--vic-cube-rgb, 255, 255, 255), 0.26);
+      0 0 calc(0.5rem * var(--vic-pulse-power, 1)) 0 rgba(255, 255, 255, calc(0.42 * var(--vic-cube-white, 1))),
+      0 0 calc(1.3rem * var(--vic-pulse-power, 1)) calc(0.12rem * var(--vic-pulse-power, 1)) rgba(var(--vic-cube-rgb, 255, 255, 255), 0.85);
   }
   100% {
-    box-shadow: 0 0 0.7rem 0.05rem rgba(255, 255, 255, calc(0.3 * var(--vic-cube-white, 1))),
-      0 0 1.8rem 0.4rem rgba(var(--vic-cube-rgb, 255, 255, 255), 0.42);
+    box-shadow: 0 0 0.35rem 0 rgba(255, 255, 255, calc(0.3 * var(--vic-cube-white, 1))),
+      0 0 0.7rem 0.02rem rgba(var(--vic-cube-rgb, 255, 255, 255), 0.5);
   }
 }
 /* 脈動のたびに、同じキューブが一回り大きく広がって消える残像を1つ置く。 */
@@ -10796,7 +10798,7 @@ body.victory-celebration-active #option-area {
   100% { opacity: 0; transform: translate(-50%, -50%) scale(calc(1.9 + 1.1 * var(--vic-echo-power, 1))); }
 }
 /* 脈動に合わせた、ごく小さな画面振動（盤面のtransformには触らず、ステージ全体を揺らす）。 */
-#victory-celebration.is-pulsing {
+#victory-celebration.is-pulsing .vic-cubes {
   animation: vic-shake var(--vic-pulse-ms, 380ms) ease-out;
 }
 @keyframes vic-shake {
