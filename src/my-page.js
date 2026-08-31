@@ -483,9 +483,13 @@ export async function renderMyPageBody(body, close) {
   linkedNote.textContent = t("mypage.L482");
   linkedNote.style.cssText = "font-size: 0.7rem; color: #94a3b8; text-align: right; margin: 0 0 0.2rem;";
   statsGroup.appendChild(linkedNote);
-  const rankText = rank ? t("mypage.rankOf", { rank, total: profile.totalRankedPlayers }) : t("mypage.L485");
-  addRow(t("mypage.L486"), t("mypage.matchesN", { n: profile.matchesCount }));
-  addRow(t("mypage.L487"), t("mypage.winsN", { n: profile.winsCount }));
+  // 【注意】ここは英語化の一括置換で一度壊れた箇所（2026-08-31にユーザー報告で発覚）。
+  // 元は「引数を取る関数」だったのに `const rankText = rank ? ... : ...` という**即値**に化け、
+  // さらに存在しない `addRow()` が生成されていた。結果、この関数がここで例外を投げて
+  // 実績（対戦数・勝利数・勝率・順位・登録年月日）が丸ごと出なくなっていた。
+  const rankText = (rank) => (rank ? t("mypage.rankOf", { rank, total: profile.totalRankedPlayers }) : t("mypage.L485"));
+  statsGroup.appendChild(buildStatRow(t("mypage.L486"), t("mypage.matchesN", { n: profile.matchesCount })));
+  statsGroup.appendChild(buildStatRow(t("mypage.L487"), t("mypage.winsN", { n: profile.winsCount })));
   statsGroup.appendChild(buildStatRow(t("mypage.L488"), `${profile.winRate}%`));
   statsGroup.appendChild(buildStatRow(t("mypage.L489"), rankText(profile.winRateRank)));
   statsGroup.appendChild(buildStatRow(t("mypage.L490"), rankText(profile.matchCountRank)));

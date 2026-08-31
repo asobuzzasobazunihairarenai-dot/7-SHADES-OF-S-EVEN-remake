@@ -1173,10 +1173,15 @@ const GROUPS = [
     // できるように」。左下の自分アバター(.self-status-large-avatar)とランクリングは
     // どちらも --self-status-large-avatar-size から算出されるため、スマホ時だけこの変数を
     // 差し替える専用値(--self-status-large-avatar-size-phone)を調整する（style.css参照）。
-    title: "📱 スマホ専用：左下の自分アバターのサイズ",
+    title: "📱 スマホ専用：左下の自分アバター（本体・半透明）",
     category: "phone",
     controls: [
       { key: "--self-status-large-avatar-size-phone", label: "左下アバター サイズ（スマホ）", unit: "rem", min: 4, max: 16, step: 0.2, default: 12 },
+      // 背面の半透明アバター（ゴースト）はスマホだけ別に調整できる（ユーザー要望2026-08-31）。
+      { key: "--self-status-large-avatar-ghost-scale-phone", label: "半透明アバター サイズ倍率（スマホ）", unit: "", min: 0.3, max: 5, step: 0.05, default: 1.6 },
+      { key: "--self-status-large-avatar-ghost-offset-x-phone", label: "半透明アバター ずらしX（スマホ）", unit: "rem", min: -12, max: 12, step: 0.1, default: -1.6 },
+      { key: "--self-status-large-avatar-ghost-offset-y-phone", label: "半透明アバター ずらしY（スマホ）", unit: "rem", min: -12, max: 12, step: 0.1, default: -8.1 },
+      { key: "--self-status-large-avatar-ghost-opacity-phone", label: "半透明アバター 透明度（スマホ）", unit: "", min: 0, max: 1, step: 0.05, default: 0.35 },
     ],
   },
   {

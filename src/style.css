@@ -7699,6 +7699,13 @@ body.is-phone-device #self-hand-status {
    「左下アバター サイズ（スマホ）」スライダーで --self-status-large-avatar-size-phone を調整可能。 */
 body.is-phone-device {
   --self-status-large-avatar-size: var(--self-status-large-avatar-size-phone, 12rem);
+  /* 背面の半透明アバターは、本体サイズ×倍率で決まる。スマホでは本体を小さくしている分、
+     同じ倍率だと大きすぎ／小さすぎになりがちなので、倍率とずらし量・透明度をスマホ専用の
+     変数に差し替える（ユーザー要望2026-08-31）。 */
+  --self-status-large-avatar-ghost-scale: var(--self-status-large-avatar-ghost-scale-phone, 1.6);
+  --self-status-large-avatar-ghost-offset-x: var(--self-status-large-avatar-ghost-offset-x-phone, -1.6rem);
+  --self-status-large-avatar-ghost-offset-y: var(--self-status-large-avatar-ghost-offset-y-phone, -8.1rem);
+  --self-status-large-avatar-ghost-opacity: var(--self-status-large-avatar-ghost-opacity-phone, 0.35);
 }
 /* ユーザー要望「戦績システムと連携しているプレイヤーはステータスエリアにランクを
    表示させたい」。姉妹プロジェクト（戦績管理システム）のgetTierInfo/renderAvatarRingHtml
@@ -13235,6 +13242,12 @@ body.is-phone-device .opening-lang-toggle-seg.is-current {
   --options-menu-scale-phone: 1;
   --admin-panel-scale-phone: 1.45;
   --self-status-large-avatar-size-phone: 12rem;
+  /* スマホでの「半透明の巨大アバター（背面ゴースト）」だけを、PCとは別に調整するための値
+     （ユーザー要望2026-08-31）。既定はPCと同じなので、触らなければ今までと同じ見た目。 */
+  --self-status-large-avatar-ghost-scale-phone: 1.6;
+  --self-status-large-avatar-ghost-offset-x-phone: -1.6rem;
+  --self-status-large-avatar-ghost-offset-y-phone: -8.1rem;
+  --self-status-large-avatar-ghost-opacity-phone: 0.35;
   --phase-guide-pos-phone-x: 0rem;
   --phase-guide-pos-phone-y: 0rem;
   --phase-guide-scale-phone: 2.1;
