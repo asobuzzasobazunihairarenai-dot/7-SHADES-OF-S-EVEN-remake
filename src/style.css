@@ -18986,3 +18986,33 @@ body.theme-light .alpha-notice-item { background: rgba(176, 141, 63, 0.1); }
 body.theme-light .alpha-notice-item-body { color: #6b6153; }
 body.theme-light .alpha-notice-thanks { color: #8a6d2f; }
 body.theme-light .alpha-notice-never { color: #6b6153; }
+
+/* α版のお知らせ・スマホ（ユーザー報告2026-09-01「スマホだとモーダルをスクロールしなくちゃ
+   いけません」）。原因は2つ:
+   ①この要素は body（ステージ変形 translate+scale あり）の中にあるので、max-height:86vh の
+     vh は**実画面**を指すのに、その値は**ステージ単位**として解釈される。932x430の実機では
+     86vh=370ステージpx＝実画面ではわずか177px（画面の4割）にしか使われず、中身605pxが
+     入らずスクロールになっていた。→ vh/vw をやめ、他の中央モーダルと同じく **pure rem**
+     （ステージ1600x900＝100rem x 56.25rem 基準）で寸法を決める。
+   ②そのままでは文字が実画面で9.6pxしかなく読めない。他の中央モーダルと同じ
+     --center-modal-scale-phone（既定2倍）に乗せる。拡大後も収まるよう幅46rem/高さ27rem。
+   3つの項目は縦積みだと高さが足りないので、スマホでは横並び（3列）にする。 */
+body.is-phone-device #alpha-notice-modal {
+  width: 46rem;
+  /* 拡大率は 0.9 倍（既定なら 1.8 倍）。2倍のままだと縦がステージ(900px)を超えて
+     結局スクロールになるため、少しだけ抑えて全文が一度に見えるようにした。 */
+  max-height: 30rem;
+  padding: 1rem 1.2rem 0.8rem;
+  gap: 0.5rem;
+  transform: translate(-50%, -50%) scale(calc(0.9 * var(--center-modal-scale-phone, 1)));
+}
+body.is-phone-device .alpha-notice-list {
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+body.is-phone-device .alpha-notice-item {
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 0.25rem;
+}
