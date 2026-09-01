@@ -4365,16 +4365,28 @@ export function performPriorityTimeoutAutoAction() {
     // 手札公開エリア(publicDraw)のカードもルール上は「手札」（getHandTokensの定義と同じ扱い、
     // ユーザー指摘2026-08-10）。CPUも公開中のカード（奇跡の森 first-greenの一時ドロー等）の
     // 手札効果を使えるようにzoneに publicDraw を含める。
-    const usable = getState().tokens.filter(
-      (t) =>
-        t.kind === "card" &&
-        (t.location.zone === "hand" || t.location.zone === "publicDraw") &&
-        t.location.player === player &&
-        hasHandEffectData(t.cardId) &&
-        canUseHandEffect(t.cardId, t.id, player)
-    );
+    // 不具合報告#200「CPUがディメンションを使えばゲート侵攻できる場面で使わなかった」。
+    // 原因はこのスキャンが hand / publicDraw ゾーンしか見ておらず、**ロックエリアに置いたまま
+    // 使えるファースト/エターナルカード**（ディメンション等、is-usable-while-lockedの対象）を
+    // CPUが一生拾えなかったこと（first-noirだけ上で個別に拾う例外があった）。フェイズ自動処理側は
+    // 既に hasUsableLockedFirstOrEternal でこれを考慮しているので、CPUの判断もそこへ揃える。
+    const isCpuUsableEffectToken = (t) => {
+      if (t.kind !== "card") return false;
+      if (t.location.zone === "hand" || t.location.zone === "publicDraw") {
+        if (t.location.player !== player) return false;
+      } else if (t.location.zone === "lock") {
+        if (SIDE_TO_SEAT[t.location.side] !== player) return false;
+        if (!(t.cardId?.startsWith("first-") || t.cardId?.startsWith("eternal-"))) return false;
+      } else {
+        return false;
+      }
+      if (isCpuHandEffectExhausted(t.id)) return false; // 同じターンに撃ちすぎ／空撃ち済み
+      return hasHandEffectData(t.cardId) && canUseHandEffect(t.cardId, t.id, player);
+    };
+    const usable = getState().tokens.filter(isCpuUsableEffectToken);
     const chosen = chooseHandEffectCard(usable, player);
     if (chosen) {
+      noteCpuHandEffectAttempt(chosen.id);
       // fire-and-forget（内部の選択待ちは後続tickの自動代行で解決される）。
       runAutoHandEffect(chosen.cardId, chosen.id, player);
       return true;
@@ -5604,6 +5616,30 @@ async function tryUseLockedUsableCard(tokenId) {
 //   起動」という前提が崩れており＝どこかで再入的に呼ばれる経路があり、直列化するとその再入が自分の
 //   スロットを待って詰む＝スモークテストで2/4回STALLしたため撤回。並行実行の実害はStep1/2で
 //   個別に塞いだので、危険な総直列化はしない。see [[effect-engine-queue]]。）
+// CPUが「この手札効果を使う」と判断したのに、実際には発動できなかった（コストが払えない・
+// 対象が消えていた等でrunHandEffectがfalseを返した）場合、次のtickでまた同じカードを選んで
+// しまい、盤面が一切進まなくなる（＝固まる）ことがある。**ロックエリアに置いたまま使える
+// ファースト/エターナルは撃っても手元から消えない**ので、空撃ちがそのまま無限ループになる
+// （#200の対応でCPUがそれらを使えるようにした直後、CPU自己対戦が turn 2 で停止して発覚）。
+// 同じターン・同じカードへの試行回数を数え、空撃ちは即座に、成功しても3回で打ち止めにする。
+// 鍵に turnNumber を含めるのでターンが変われば自然に解ける。
+const cpuHandEffectAttempts = new Map(); // `${turnNumber}:${tokenId}` -> 試行回数
+const CPU_HAND_EFFECT_ATTEMPT_LIMIT = 3;
+function cpuHandEffectAttemptKey(tokenId) {
+  return `${getState().turnNumber ?? 0}:${tokenId}`;
+}
+function noteCpuHandEffectAttempt(tokenId) {
+  const key = cpuHandEffectAttemptKey(tokenId);
+  cpuHandEffectAttempts.set(key, (cpuHandEffectAttempts.get(key) ?? 0) + 1);
+}
+// 空撃ち（発動できなかった）は1回で打ち止めにする。
+function noteCpuHandEffectMisfire(tokenId) {
+  cpuHandEffectAttempts.set(cpuHandEffectAttemptKey(tokenId), CPU_HAND_EFFECT_ATTEMPT_LIMIT);
+}
+function isCpuHandEffectExhausted(tokenId) {
+  return (cpuHandEffectAttempts.get(cpuHandEffectAttemptKey(tokenId)) ?? 0) >= CPU_HAND_EFFECT_ATTEMPT_LIMIT;
+}
+
 async function runAutoHandEffect(cardId, cardTokenId, player) {
   setHandEffectBusy(true);
   try {
@@ -5694,6 +5730,7 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
     // 場合はfalseを返す（card-effect-engine.jsのrunHandEffect参照）ため、実際に
     // 発動できた時だけカウントする。
     if (usedSuccessfully) recordCardUsed(player, cardId);
+    else noteCpuHandEffectMisfire(cardTokenId); // 空撃ちは同じターン中もう選ばない（上記ガード）
   } finally {
     // ユーザー報告（続き94）「合同建設をハンドフェイズで最後に使用して手札を
     // 使い切ったのに自動でハンドフェイズが終わらなかった」の原因: 直前まではここで

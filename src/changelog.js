@@ -14,6 +14,9 @@ export const CHANGELOG = [
   {
     date: "2026-08-29",
     items: [
+      "スマホのホーム画面で、画面全体を上下にスワイプできてしまっていたのを直しました（中身はもともと収まっているのに、ほんの少しだけはみ出してスクロールできる状態になっていました）。",
+      "CPUが、自分のロックエリアに置いたままでも使えるカード（ファーストカード・エターナルカード）を使えるようになりました。これまでは一切使わなかったため、ディメンションで一気に2マス動いてゲート侵攻できる場面などを見逃していました。",
+      "CPUが、あと1色で勝ちの相手が必要としている色のカードを、場から優先して回収するようになりました（相手の勝ち筋を止めにきます）。",
       "スマホでα版のお知らせがスクロールしないと読めなかったのを直しました。横向きの画面では3つの項目が横に並び、文字も大きくなって、そのまま全部読めます。",
       "ホーム画面を開いたときに、このアプリがまだα版（テスト中）であることと、不具合の教え方をお知らせするようにしました。アプリを開くたびに1回だけ出ます（「今後このお知らせを表示しない」で止められます）。",
       "効果の自動処理モード中は、自分の手札公開エリア（画面下の枠）を出さないようにしました。公開したカードは手札の並びの中に出るので、下の枠は常に空で場所だけ取っていたためです（管理者向けの設定で元に戻せます）。",
@@ -68,6 +71,9 @@ export const CHANGELOG = [
     ],
     // 英語表示のとき items の代わりに出る（併記はしない。同じ順番・同じ件数で書くこと）。
     itemsEn: [
+      "On phones, the home screen could be swiped up and down even though everything already fit. It no longer scrolls.",
+      "The CPU can now use cards that stay usable in its own Lock Area (First and Eternal cards). It never used them before, so it missed plays such as moving two squares at once with Dimension to invade your gate.",
+      "The CPU now prefers to pick up a board card in the colour an opponent needs to win, to cut off their last colour.",
       "On phones, the alpha notice no longer has to be scrolled to be read. In landscape the three points sit side by side and the text is larger, so it all fits on one screen.",
       "When you open the home screen, a notice now explains that the app is still an alpha and how to report anything odd. It appears once each time you open the app, and can be turned off from the notice itself.",
       "While automatic effect processing is on, your own reveal area at the bottom of the screen is no longer shown — revealed cards already appear among your hand, so the frame was always empty and just took up space (an admin setting can bring it back).",

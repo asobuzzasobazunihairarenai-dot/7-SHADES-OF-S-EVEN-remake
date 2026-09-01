@@ -365,6 +365,18 @@ function blocksOpponentInvasionStep(state, seat, cell) {
   return false;
 }
 
+// 参加中の相手のうち「あと1色で7色勝利」の人が必要としている色の集合（不具合報告#201）。
+// その色の表向きカードを場から回収してしまえば、相手の勝ち筋を1つ潰せる。
+function opponentsLastNeededColors(state, seat) {
+  const out = new Set();
+  for (const p of state.activePlayers ?? []) {
+    if (p === seat) continue;
+    const missing = [...neededColors(state, p)];
+    if (missing.length === 1) out.add(missing[0]);
+  }
+  return out;
+}
+
 export function chooseEffectCell(candidates, driveSeat) {
   if (!candidates || candidates.length === 0) return null;
   const state = getState();
@@ -373,20 +385,32 @@ export function chooseEffectCell(candidates, driveSeat) {
   const gates = activeOpponentGateCells(state, driveSeat);
   const gateCandidates = candidates.filter((c) => gates.some((g) => g.row === c.row && g.col === c.col));
   if (gateCandidates.length > 0) return rand(gateCandidates);
-  // 優先2: 自ゲート防衛。相手の侵攻経路上のカードがあれば拾って踏み台を潰す（進めなくする）。
+  // 優先2: 相手の“あと1色”を潰す（不具合報告#201「私が後、緑を集めれば勝ちの段階でCPUが
+  // パーティに到達したが、盤面の緑のカードを回収しなかった」）。相手が6色ロック済み＝あと1色で
+  // 勝ちの時、その色の表向きカードが候補にあれば回収して勝ち筋を断つ。自分が要る色を取る
+  // （下の優先4）より、相手の勝利を止める方を先にする。
+  const denyColors = opponentsLastNeededColors(state, driveSeat);
+  if (denyColors.size > 0) {
+    const denyCandidates = candidates.filter((c) => {
+      const card = topFaceUpCardAt(state, c.row, c.col);
+      return card?.color && denyColors.has(card.color);
+    });
+    if (denyCandidates.length > 0) return rand(denyCandidates);
+  }
+  // 優先3: 自ゲート防衛。相手の侵攻経路上のカードがあれば拾って踏み台を潰す（進めなくする）。
   const defensiveCandidates = candidates.filter((c) => topFaceUpCardAt(state, c.row, c.col) && blocksOpponentInvasionStep(state, driveSeat, c));
   if (defensiveCandidates.length > 0) return rand(defensiveCandidates);
-  // 優先3: 場のジャンプ台は積極的に手札に加える（ユーザー要望2026-08-08。機動力/防衛の道具）。
+  // 優先4: 場のジャンプ台は積極的に手札に加える（ユーザー要望2026-08-08。機動力/防衛の道具）。
   const jumpPadCandidates = candidates.filter((c) => topFaceUpCardAt(state, c.row, c.col)?.cardId === "red-jump-pad");
   if (jumpPadCandidates.length > 0) return rand(jumpPadCandidates);
-  // 優先4: まだ要る色の“表向き”カードがあるマス（拾えば7色勝利へ前進）。
+  // 優先5: まだ要る色の“表向き”カードがあるマス（拾えば7色勝利へ前進）。
   const needed = neededColors(state, driveSeat);
   const neededCardCandidates = candidates.filter((c) => {
     const card = topFaceUpCardAt(state, c.row, c.col);
     return card?.color && needed.has(card.color);
   });
   if (neededCardCandidates.length > 0) return rand(neededCardCandidates);
-  // 優先5: 目的の無いマス選択（パーティの2枚オープンの伏せマス等、上の表向き条件に当てはまらない
+  // 優先6: 目的の無いマス選択（パーティの2枚オープンの伏せマス等、上の表向き条件に当てはまらない
   // 場合）でも、完全ランダムで“無関係なところ”を選ばない（不具合#39対応）。相手ゲートに最も近い
   // マスを選ぶ＝侵攻ルート上の伏せカードを偵察する、という目的を持たせる。相手ゲートが無ければ
   // 従来どおりランダム。
