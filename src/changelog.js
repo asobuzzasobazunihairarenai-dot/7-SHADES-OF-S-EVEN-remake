@@ -14,6 +14,8 @@ export const CHANGELOG = [
   {
     date: "2026-08-29",
     items: [
+      "追色（同じ色のカードを捨てて使う）の演出中に、効果の続き（セレスティアなら「相手の手札を選ぶ」など）が重なって出てしまうのを直しました。演出が終わってから次へ進みます。",
+      "追色の演出は、画面のどこかをタップすればスキップできるようになりました。",
       "「このカードを選びますか？」の確認モーダルで、ボタンを押しても反応しないこと（カウンターロックでロックするカードを選ぶ場面など）を直しました。以前この症状を直した別のモーダルと同じ原因で、押した反応（明るくなる）だけは出るのにボタンが効かない状態でした。",
       "色を宣言する画面で、必要な数（試練の儀式なら3色）まで選び終えたら、残りの色が灰色になって選べなくなるようにしました。うっかり4色目を押しても増えません。選び直したいときは、選んだ色をもう一度押して外してください。",
       "カード効果でマスを選んだあと、「このマスでいいですか？」と一度確認するようにしました。押し間違えたまま確定してしまうのを防ぎます。確認は盤面を隠さない位置（選んだマスと反対側の端）に出て、そのマスが金色に光ります。モーダルの「今後このモーダルを表示しない」で切れますし、基本設定からいつでも戻せます。",
@@ -62,6 +64,8 @@ export const CHANGELOG = [
     ],
     // 英語表示のとき items の代わりに出る（併記はしない。同じ順番・同じ件数で書くこと）。
     itemsEn: [
+      "Fixed the rest of an effect (such as Celestia’s “choose an opponent’s card”) appearing on top of the colour-cost animation. It now waits for the animation to finish.",
+      "You can now skip the colour-cost animation by tapping anywhere on the screen.",
       "Fixed the “Choose this card?” prompt not responding to its buttons — for example when picking a card to lock with Counter Lock. It was the same cause as another prompt fixed earlier: the button lit up on tap but the press never registered.",
       "In the colour declaration screen, once you have picked the required number of colours (three for Trial Ritual) the rest turn grey and can no longer be picked. To change your mind, tap a chosen colour again to deselect it.",
       "After you pick a square for a card effect, the game now asks “Use this square?” once, so a mis-tap no longer locks in. The prompt appears on the opposite edge from the square you picked so it never covers it, and that square glows gold. You can switch it off from the prompt itself and turn it back on any time in the basic settings.",

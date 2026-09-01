@@ -2437,7 +2437,8 @@ function playHandEffectUseV4(cardId, optionLabel) {
 }
 // V5（追色あり）。costStart＝追色カードの飛び出し元（ステージ座標、省略時はカード左下）。
 function playHandEffectUseV5(cardId, optionLabel, costCardId, costStart) {
-  playCardDissolve(cardId, { costCardId, costStart, onShowModal: () => showHandEffectUseModal(cardId, optionLabel) });
+  // 演出の完了で解決する Promise をそのまま返す（呼び出し側が待てるように）。
+  return playCardDissolve(cardId, { costCardId, costStart, onShowModal: () => showHandEffectUseModal(cardId, optionLabel) });
 }
 
 // ユーザー要望「カード効果を使用するために手札から使用するカードをドロップした時は、
@@ -2470,16 +2471,23 @@ function announceHandEffectUseForEffect(cardId, optionLabel, player, opts) {
 // discardAndSyncで捨てる“前”＝コスト札のDOMがまだ手札にある間に発火）。使用カードへ追色カードを
 // 吸い込み→2回脈動＋発光→霧散→右の使用モーダル、の連続を出す。fire-and-forget（続き214の
 // 非ブロック方針）。costStart は追色カードの手札DOM位置（ステージ座標）で、吸い込みの起点にする。
+// ユーザー報告2026-09-01「セレスティアの追色演出が始まると同時に相手の手札を選択する
+// モーダルが出てしまっている。追色演出が終わってから出すこと」。以前は fire-and-forget
+// （投げっぱなし）だったので、演出中に効果の続き（相手の手札を選ぶ等）が走って重なっていた。
+// **演出の完了を待てるよう Promise を返す**ようにし、呼び出し側（card-effect-engine.js の
+// runHandEffectOption）で await する。演出OFF・タップでのスキップ時も必ず解決するので、
+// ここで待っても止まることはない。
 function playAdditionalColorUseForEffect(cardId, optionLabel, costTokenId) {
   const costCardId = getState().tokens.find((t) => t.id === costTokenId)?.cardId || null;
   const rect = cardElRectForToken(costTokenId);
   let costStart = null;
   if (rect) costStart = stageClientToLocal(rect.left + rect.width / 2, rect.top + rect.height / 2);
-  playHandEffectUseV5(cardId, optionLabel, costCardId, costStart);
+  const done = playHandEffectUseV5(cardId, optionLabel, costCardId, costStart);
   playSound("arrivalEffect");
   if (isOnlineMode()) {
     broadcastHandEffectUse({ fromPlayer: getSelfSeat(), cardId, optionLabel, mode: "v5", costCardId });
   }
+  return done;
 }
 
 // ユーザー要望「カウンターロックの到達効果について『あなたは１番少なくロックしている

@@ -2489,3 +2489,35 @@ PCと共有のままだった。
   ブラウザ実測で、①未選択が is-full で opacity 1→0.3・グレースケール適用 ②選択済みは 1 のまま
   ③ソースに「必要数に達したら増やさない」ガードと is-full の付け外し、確認モーダルの脱出口が
   入っていること、を確認。サーバー側の変更は無い。
+
+### 2026-09-01（続き359）：追色演出の完了を待ってから効果の続きへ（セレスティアで重なっていた）／演出をタップでスキップ可能に
+
+ユーザー報告「セレスティアの追色演出が始まると同時に相手の手札を選択するモーダルが出てしまっている。
+追色演出が終わってから出すこと。なお追色演出は画面のどこかをタップすることでスキップできるとよい。
+他の追色演出についても点検してください」。
+- **原因**: 追色（V5）の演出 `playAdditionalColorUse` は**fire-and-forget（投げっぱなし）**で
+  呼ばれていた（続き218の設計コメントにも「非ブロック」と明記されていた）。そのため演出の
+  最中に効果本体（セレスティアなら「相手の手札を選ぶ」ピッカー）が走り、重なって見えていた。
+- **修正**: `playCardDissolve` は元々**演出の完了で解決する Promise を返している**ので、
+  それを `playHandEffectUseV5` → `playAdditionalColorUseForEffect` と素直に返し、
+  `card-effect-engine.js` の `runHandEffectOption` で **await** するようにした。
+- **タップでスキップ**: `card-dissolve.js` の再生中だけ `document` に capture フェーズの
+  `pointerdown` を **once** で張り、押されたら `finish()` する。
+  - **preventDefault/stopPropagation はしない**——ここで止めると盤面やモーダルの操作まで
+    巻き添えで消える（続き76の「画面全体が固まって見える」と同根）。
+  - `finish()` は `onShowModal`（右の使用モーダル）を必ず1回呼ぶので、**スキップしても
+    「何のカードを使ったか」の情報は落ちない**。
+- **他の追色演出の点検**: 追色を持つカードは17件あるが、**すべて `runHandEffectOption` の
+  同じ1か所を通る**（`card-effect-engine.js:2112`）ので、この修正で全部直る。他の
+  `playCardDissolve` 呼び出しは (a) `dissolve-preview.js`＝管理者用シミュレーター
+  (b) `main.js:1870`＝**他プレイヤーの使用通知を受け取った側**の再生（自分の進行を止めては
+  いけないので fire-and-forget が正しい） (c) `main.js:823`＝カードを捨てた時のその場霧散
+  (d) `playHandEffectUseV4`＝追色**なし**の使用演出。いずれも待つ必要はないと判断した。
+- **検証**: `npm test` 53/53 PASS、`node test/smoke.mjs 2` PASS。ブラウザ実測で、①Promiseを返す
+  ②再生中はキャンバスがある ③**タップで666ms／スキップなしは6633ms**（＝約10分の1に短縮）
+  ④スキップしても使用モーダルは出る ⑤後始末でキャンバスが残らない ⑥呼び出し側が await している、
+  を確認。サーバー側の変更は無い。
+- **申し送り（実害なし）**: 検証で `document` に直接 PointerEvent を投げたら、main.js の capture
+  ハンドラが `e.target.closest is not a function` で落ちた（target が document のため）。実際の
+  タップでは target は必ず要素なので実害は無いが、将来 `e.target instanceof Element` のガードを
+  足しておくとより堅い。

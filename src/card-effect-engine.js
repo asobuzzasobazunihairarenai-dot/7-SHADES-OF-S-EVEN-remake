@@ -2108,8 +2108,11 @@ async function runHandEffectOption(ctx, option, helpers) {
     const chosen = await helpers.pickDiscardCost(candidates, t("ce.pickCostColor", { color: color === "white" || color === "black" ? "" : t("ce.sameColor") }));
     if (!chosen) return false;
     // 続き218・V5: 追色コスト確定後、捨てる“前”（コスト札のDOMがまだ手札にある間）に演出を発火。
-    // 使用カードへ追色カードを吸い込み→脈動→霧散→右の使用モーダル。fire-and-forget（非ブロック）。
-    helpers.playAdditionalColorUse?.(ctx.cardId, optionLabel(option), chosen.id);
+    // 使用カードへ追色カードを吸い込み→脈動→霧散→右の使用モーダル。
+    // 【2026-09-01】以前は fire-and-forget だったため、演出の最中に効果本体（セレスティアなら
+    // 「相手の手札を選ぶ」モーダル）が走って重なっていた（ユーザー報告）。**演出の完了を待つ**。
+    // 画面タップでスキップできる（card-dissolve.js）ので、待っても待たされ続けることはない。
+    await helpers.playAdditionalColorUse?.(ctx.cardId, optionLabel(option), chosen.id);
     await helpers.discardAndSync(chosen.id);
     // このコストで捨てた cardId を、first-red のときだけ記録（上のループ防止判定で使う）。
     if (ctx.cardId === "first-red") notePhoenixCostCard(chosen.cardId);

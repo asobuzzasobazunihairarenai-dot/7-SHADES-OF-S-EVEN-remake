@@ -471,11 +471,19 @@ export async function playCardDissolve(usedCardId, opts = {}) {
       resolve();
     };
 
+    // ユーザー要望2026-09-01「追色演出は画面のどこかをタップすることでスキップできるとよい」。
+    // 演出そのものは pointer-events:none のキャンバスなので、**document 側で1回だけ**受ける。
+    // capture フェーズで拾うが preventDefault/stopPropagation はしない——ここで止めると
+    // 盤面やモーダルの操作まで巻き添えで消える（続き76の「画面全体が固まって見える」と同根）。
+    // スキップしても onShowModal（右の使用モーダル）は finish() が必ず呼ぶので情報は落ちない。
+    const onSkip = () => finish();
+    document.addEventListener("pointerdown", onSkip, { capture: true, once: true });
     // 保険: 何かで終わらない場合でも必ず片付ける（総尺は 1/speed に比例するので speed を織り込む）
     const safety = setTimeout(finish, ((PRELUDE + 2.5) / speed + 1) * 1000);
     const origResolve = resolve;
     resolve = (v) => {
       clearTimeout(safety);
+      document.removeEventListener("pointerdown", onSkip, { capture: true });
       origResolve(v);
     };
 
