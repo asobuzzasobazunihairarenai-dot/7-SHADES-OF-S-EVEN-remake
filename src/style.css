@@ -7845,8 +7845,16 @@ body.reduce-glow .self-status-rank-ring.is-rainbow .rank-ring-orbit-dot {
    （ユーザー要望2026-09-01。画面が狭く、盤面・手札の邪魔になるため）。着せ替えはマイページ
    から変更できるので機能自体は失われない。管理者モードの「📱 スマホ専用：着せ替えアイコン群の
    表示」をONにすると body に .phone-dressup-icons-visible が付いて元通り表示される。 */
-body.is-phone-device:not(.phone-dressup-icons-visible) .self-status-icon-grid {
-  display: none;
+/* 【#199・重要】ここは display:none にしてはいけない。ステータスエリアはフレックスなので、
+   アイコン群の箱ごと消えると入れ物が縮み、名前・称号・手札枚数の欄(.self-status-info)に
+   かかっている大きな左オフセット(--self-status-info-pos-x: -9.8rem、アイコン群がある前提で
+   調整した値)が画面外まで押し出してしまう（実測: 情報欄の左端が x=93 → x=-38 で見切れる）。
+   visibility なら箱は残るのでレイアウトは一切変わらず、アイコンだけが消える。
+   （iOS のちらつき対策としても display:none の切り替えより visibility の方が無難。） */
+body.is-phone-device:not(.phone-dressup-icons-visible) .self-status-icon-grid,
+body.is-phone-device:not(.phone-dressup-icons-visible) .self-status-icon-grid > * {
+  visibility: hidden;
+  pointer-events: none;
 }
 /* 駒スキン・カード裏面・プレイマットの3つは、buildIconButtonContent()を使うアイコンボタン
    （手札シャッフル等）と違う独自の見た目のため、ホバー簡易説明(.phase-guide-tooltip)の
