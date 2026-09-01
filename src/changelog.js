@@ -14,6 +14,7 @@ export const CHANGELOG = [
   {
     date: "2026-08-29",
     items: [
+      "スマホで、ロックなどのミニ通知が画面中央から一瞬だけ左上へ飛んでから右下へ向かう、おかしな動きを直しました。エモートのメニューが開く位置も同じ理由でずれていたので直しています。",
       "画面の左上から駒に向かって半透明のカードが飛んでいく、意味のない演出が時々出ていたのを直しました（隠れている場所から飛ばそうとして、位置が測れず画面の隅から飛んでいました）。",
       "iPhone・iPadで、カードのタイトルとふりがなが効果文に重なって表示されることがあったのを直しました（ふりがなの作り方を、機種によって解釈が変わらない方法に変えました）。",
       "スマホ・タブレットで勝利演出の光やカードが実物と大きくズレて出ていたのを直しました（画面全体の縮小が二重にかかっていたためで、演出全体が対象です）。",
@@ -55,6 +56,7 @@ export const CHANGELOG = [
     ],
     // 英語表示のとき items の代わりに出る（併記はしない。同じ順番・同じ件数で書くこと）。
     itemsEn: [
+      "Fixed the mini notifications (for locking a card and so on) briefly jumping to the top-left of the screen before flying to the corner on phones. The emote menu opened in the wrong place for the same reason and is fixed too.",
       "Fixed a stray translucent card sometimes flying from the top-left corner of the screen toward a piece. It was a flight animation starting from a hidden element whose position could not be measured.",
       "Fixed the card title and its reading overlapping the effect text on iPhone and iPad. The reading is now built in a way that every browser lays out the same.",
       "Fixed the victory sequence appearing far from where it should on phones and tablets — the whole-screen scaling was being applied twice, which threw off every part of the sequence.",

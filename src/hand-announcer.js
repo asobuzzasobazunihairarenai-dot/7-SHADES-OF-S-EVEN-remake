@@ -11,6 +11,7 @@ import { getPlayerName } from "./player-identity.js";
 import { createModalCloseX } from "./ui-helpers.js";
 import { getSelfSeat, isOnlineMode } from "./online.js";
 import { pushTurnEventStock, getTurnEventStockTargetRect, getTurnEventStockKey } from "./turn-event-stock.js";
+import { stageClientToLocal, stageDelta } from "./main.js";
 
 // カード名は表示用（英語版のカードテキストがあればそれ、無ければ日本語の原名）。
 function cardNameOf(cardId) {
@@ -55,18 +56,25 @@ function showToast(innerHTML, opts = {}) {
     clearTimeout(timer);
     const from = toast.getBoundingClientRect();
     const to = getTurnEventStockTargetRect();
+    // 【#197/#198・重要】getBoundingClientRect() が返すのは**ステージ変形後の実画面座標**。
+    // このトーストは position:fixed だが body（＝ステージ変形の持ち主）の中にあるので、
+    // left/top はステージのローカル座標で解釈される。実画面座標をそのまま入れると変形が
+    // 二重にかかり、スマホでは中央にあったはずのトーストが一瞬**左上へ飛ぶ**
+    //（PCは倍率1・オフセット0なので露見しない）。ghost-flight.js と同じく必ず変換する。
+    const fromLocal = stageClientToLocal(from.left, from.top);
     // 中央寄せ(transform)をやめ、実座標に固定してから目標地点へ飛ばす。
     toast.classList.remove("is-flash", "show");
     toast.classList.add("is-flying");
-    toast.style.left = `${from.left}px`;
-    toast.style.top = `${from.top}px`;
+    toast.style.left = `${fromLocal.x}px`;
+    toast.style.top = `${fromLocal.y}px`;
     toast.style.right = "auto";
     toast.style.bottom = "auto";
-    toast.style.width = `${from.width}px`;
+    toast.style.width = `${stageDelta(from.width)}px`;
     toast.style.transform = "translate(0, 0) scale(1)";
     requestAnimationFrame(() => {
-      const dx = to.left + to.width / 2 - (from.left + from.width / 2);
-      const dy = to.top + to.height / 2 - (from.top + from.height / 2);
+      // 移動量も実画面の差分なので、ローカル単位へ直してから translate に入れる。
+      const dx = stageDelta(to.left + to.width / 2 - (from.left + from.width / 2));
+      const dy = stageDelta(to.top + to.height / 2 - (from.top + from.height / 2));
       toast.style.transform = `translate(${dx}px, ${dy}px) scale(0.22)`;
       toast.style.opacity = "0.15";
     });

@@ -18,6 +18,7 @@
 
 import { getSelfSeat, isOnlineMode, broadcastEmote, onEmoteEvents } from "./online.js";
 import { t } from "./ui-text.js"; // UI英語化フェーズ10
+import { stageClientToLocal, stageDelta } from "./main.js";
 
 const COLOR_CYCLE = ["red", "blue", "yellow", "pink", "green", "purple", "orange"];
 // UI英語化フェーズ10: 文言そのものではなくキーで持つ。相手へは「キー＋自分の言語での文字列」を
@@ -108,9 +109,12 @@ export function openEmotePicker(anchorEl) {
   if (anchorEl) {
     const rect = anchorEl.getBoundingClientRect();
     const pickerRect = pickerEl.getBoundingClientRect();
+    // 【座標総点検2026-09-01】はみ出し判定は実画面座標のまま行い、**最後に**ステージの
+    // ローカル座標へ直してから left/top に入れる（body のステージ変形の中にあるため、
+    // 実画面座標を直に入れるとスマホで位置がズレる）。
     let left = rect.right + 12;
     if (left + pickerRect.width > window.innerWidth - 8) left = window.innerWidth - pickerRect.width - 8;
-    pickerEl.style.left = `${left}px`;
+    pickerEl.style.left = `${stageClientToLocal(left, 0).x}px`;
     pickerEl.style.bottom = `${Math.max(8, window.innerHeight - rect.bottom)}px`;
   }
 }
@@ -184,8 +188,8 @@ export function openEmoteMuteMenu(anchorEl, player, playerName) {
     left = Math.max(8, Math.min(window.innerWidth - menuRect.width - 8, left));
     let top = rect.bottom + 8;
     if (top + menuRect.height > window.innerHeight - 8) top = Math.max(8, rect.top - menuRect.height - 8);
-    muteMenuEl.style.left = `${left}px`;
-    muteMenuEl.style.top = `${top}px`;
+    muteMenuEl.style.left = `${stageClientToLocal(left, 0).x}px`;
+    muteMenuEl.style.top = `${stageClientToLocal(0, top).y}px`;
   }
 }
 function closeEmoteMuteMenu() {
