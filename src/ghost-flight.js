@@ -24,12 +24,38 @@ function localRectCenter(rect) {
 // imagePath: 飛んでいる間に表示する画像（表向き/裏向き/駒スキン等、呼び出し側が決める）。
 // className: ゴースト要素に付けるCSSクラス（見た目の基本形はこちら任せ。カード用の
 // setup-fly-card等、呼び出し側で用意する）。
+// 【#195】「画面左上から駒に向かって半透明なカードのようなものが飛んでいく」の正体。
+// 呼び出し側は要素の有無（存在するか）だけを見て getBoundingClientRect() を渡してくるが、
+// **display:none や画面外の要素は矩形が全部0**（left/top/width/height = 0）で返る。
+// その0を開始点として使うと、ゴーストが画面の左上隅(0,0)から飛び始める＝報告の見え方になる。
+// スマホでは相手の手札エリア等が隠れていることがあるので、実機でだけ起きていた。
+// 潰れた矩形を渡された時は、飛翔をあきらめて「着地点にすぐ現れる」形にする
+// （呼び出し側は {ghost, done} の形と done の解決を前提にしているので、形は保つ）。
+let flyGhostDegenerateLogged = false;
+function isDegenerateRect(r) {
+  return !r || !Number.isFinite(r.width) || !Number.isFinite(r.left) || (r.width <= 0 && r.height <= 0);
+}
+
 export function flyGhost(fromRect, toRect, imagePath, className, durationMs) {
   const ghost = document.createElement("div");
   ghost.className = className;
   ghost.style.backgroundImage = `url("${imagePath}")`;
   ghost.style.width = `${stageDelta(fromRect.width)}px`;
   ghost.style.height = `${stageDelta(fromRect.height)}px`;
+
+  if (isDegenerateRect(fromRect) || isDegenerateRect(toRect)) {
+    // 測れなかった側があるので飛ばさない（左上から飛ぶ誤演出を防ぐ）。診断用に1回だけ残す。
+    if (!flyGhostDegenerateLogged) {
+      flyGhostDegenerateLogged = true;
+      console.warn("[so7] flyGhost: 矩形が測れないので飛翔を省略", {
+        from: fromRect && [fromRect.left, fromRect.top, fromRect.width, fromRect.height],
+        to: toRect && [toRect.left, toRect.top, toRect.width, toRect.height],
+        className,
+      });
+    }
+    ghost.remove();
+    return { ghost, done: Promise.resolve() };
+  }
 
   if (isFlightAnimationDisabled()) {
     // 「移動アニメーション」設定がオフの間は飛翔（CSSトランジション）自体を省略する。
