@@ -1,0 +1,942 @@
+<title>エイブン 基本8タイトル</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=DM+Mono:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
+
+<style>
+/* ============ tokens ============ */
+:root{
+  --ground:#f4f3f7;
+  --surface:#ffffff;
+  --surface-2:#eceaf2;
+  --ink:#141219;
+  --ink-2:#4d4a58;
+  --ink-3:#7f7b8d;
+  --line:#e0dde8;
+  --line-strong:#c9c5d4;
+
+  --c-red:#c70025;   --c-orange:#ee781f; --c-yellow:#e0a800;
+  --c-green:#22ac38; --c-blue:#0f9cb1;   --c-pink:#e07aa6;
+  --c-purple:#915da3;
+  --c-white:#ffffff; --c-black:#1a1820;
+
+  --shadow: 0 1px 2px rgba(20,18,25,.05), 0 8px 24px -12px rgba(20,18,25,.18);
+  --radius: 10px;
+
+  --f-display:'Archivo','Zen Kaku Gothic New',system-ui,sans-serif;
+  --f-body:'Zen Kaku Gothic New','Archivo',system-ui,sans-serif;
+  --f-mono:'DM Mono','Zen Kaku Gothic New',ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#111017;
+    --surface:#191822;
+    --surface-2:#201f2b;
+    --ink:#eeecf4;
+    --ink-2:#aaa5ba;
+    --ink-3:#7d7890;
+    --line:#2b2938;
+    --line-strong:#3d3a4d;
+
+    --c-red:#f04562;   --c-orange:#ff9445; --c-yellow:#f5c93f;
+    --c-green:#46c85e; --c-blue:#2fc4da;   --c-pink:#f4a2c4;
+    --c-purple:#b985c9;
+    --c-black:#0c0b10;
+
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#111017;
+  --surface:#191822;
+  --surface-2:#201f2b;
+  --ink:#eeecf4;
+  --ink-2:#aaa5ba;
+  --ink-3:#7d7890;
+  --line:#2b2938;
+  --line-strong:#3d3a4d;
+
+  --c-red:#f04562;   --c-orange:#ff9445; --c-yellow:#f5c93f;
+  --c-green:#46c85e; --c-blue:#2fc4da;   --c-pink:#f4a2c4;
+  --c-purple:#b985c9;
+  --c-black:#0c0b10;
+
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+}
+
+/* ============ base ============ */
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:var(--f-body);
+  font-size:16px;
+  line-height:1.75;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{text-wrap:balance;margin:0;line-height:1.3}
+p{margin:0}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--c-purple);outline-offset:3px;border-radius:3px}
+
+.wrap{
+  max-width:1140px;margin:0 auto;padding:0 24px;
+  display:grid;grid-template-columns:200px minmax(0,1fr);gap:56px;
+  align-items:start;
+}
+@media (max-width:900px){
+  .wrap{grid-template-columns:minmax(0,1fr);gap:0}
+}
+
+/* ============ masthead ============ */
+.masthead{border-bottom:1px solid var(--line);background:var(--surface)}
+.masthead-inner{max-width:1140px;margin:0 auto;padding:44px 24px 36px}
+.spectrum-rule{display:flex;height:4px;max-width:1140px;margin:0 auto}
+.spectrum-rule span{flex:1}
+
+.eyebrow{
+  font-family:var(--f-display);font-size:11px;font-weight:600;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--ink-3);
+}
+h1{
+  font-family:var(--f-display);font-weight:800;
+  font-size:clamp(30px,5vw,46px);letter-spacing:-.02em;margin:10px 0 0;
+}
+.lede{margin-top:14px;max-width:62ch;color:var(--ink-2);font-size:17px}
+.meta{
+  margin-top:22px;display:flex;flex-wrap:wrap;gap:8px;
+  font-family:var(--f-mono);font-size:12px;
+}
+.chip{
+  border:1px solid var(--line-strong);border-radius:999px;
+  padding:3px 11px;color:var(--ink-2);background:var(--ground);
+}
+.chip.warn{border-color:var(--c-orange);color:var(--c-orange)}
+
+/* ============ index rail ============ */
+.rail{position:sticky;top:24px;padding:40px 0 0;font-size:13px}
+@media (max-width:900px){
+  .rail{position:static;padding:28px 0 0;
+    border-bottom:1px solid var(--line);margin-bottom:8px}
+}
+.rail-title{
+  font-family:var(--f-display);font-size:11px;font-weight:600;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);
+  margin-bottom:12px;
+}
+.rail ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+.rail a{
+  display:flex;gap:9px;align-items:baseline;
+  text-decoration:none;color:var(--ink-2);padding:4px 0;line-height:1.4;
+}
+.rail a:hover{color:var(--ink)}
+.rail .n{
+  font-family:var(--f-mono);font-size:11px;color:var(--ink-3);
+  flex:none;width:14px;
+}
+.rail .dot{width:7px;height:7px;border-radius:50%;flex:none;align-self:center}
+.rail hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+
+/* ============ content flow ============ */
+main{padding:40px 0 96px;display:flex;flex-direction:column;gap:56px}
+section{scroll-margin-top:20px}
+h2{
+  font-family:var(--f-display);font-weight:800;
+  font-size:clamp(21px,2.6vw,26px);letter-spacing:-.015em;
+}
+h3{font-family:var(--f-display);font-weight:700;font-size:17px;margin-top:4px}
+.section-head{
+  display:flex;flex-direction:column;gap:8px;
+  padding-bottom:14px;border-bottom:2px solid var(--ink);margin-bottom:24px;
+}
+.section-head p{color:var(--ink-2);max-width:64ch}
+
+.prose{display:flex;flex-direction:column;gap:16px;max-width:66ch}
+.prose strong{font-weight:700}
+
+.callout{
+  background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);padding:18px 20px;
+  display:flex;flex-direction:column;gap:10px;box-shadow:var(--shadow);
+}
+.callout .k{
+  font-family:var(--f-display);font-size:11px;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);
+}
+
+/* ============ ring diagram + cards ============ */
+.thesis{display:grid;grid-template-columns:230px minmax(0,1fr);gap:36px;align-items:center}
+@media (max-width:720px){.thesis{grid-template-columns:1fr;gap:26px}}
+.ring{width:100%;max-width:230px;margin:0 auto;display:block}
+.ring text{font-family:var(--f-body);font-size:13px;font-weight:700;fill:var(--surface)}
+
+.cardrow{display:flex;flex-wrap:wrap;gap:10px}
+.gcard{
+  width:76px;aspect-ratio:63/88;border-radius:7px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  color:#fff;position:relative;box-shadow:var(--shadow);
+  border:2px solid rgba(0,0,0,.14);
+}
+.gcard .num{
+  font-family:var(--f-display);font-weight:800;font-size:27px;line-height:1;
+  font-variant-numeric:tabular-nums;
+}
+.gcard .ico{opacity:.95}
+.gcard.pale{color:#141219;border-color:var(--line-strong)}
+.gcard .edge{
+  position:absolute;inset:3px;border-radius:4px;
+  border:1.5px solid rgba(255,255,255,.85);pointer-events:none;
+}
+
+/* ============ tables ============ */
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:520px}
+th,td{padding:9px 13px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+thead th{
+  font-family:var(--f-display);font-size:11px;font-weight:600;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
+  background:var(--surface-2);white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:0}
+td.num,th.num{font-family:var(--f-mono);text-align:center;font-variant-numeric:tabular-nums}
+.yes{color:var(--c-green);font-weight:700}
+.no{color:var(--ink-3)}
+
+/* ============ game entries ============ */
+.game{
+  background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);
+}
+.game-top{padding:22px 24px 20px;border-bottom:1px solid var(--line);position:relative}
+.game-top::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--gc)}
+.game-index{
+  font-family:var(--f-mono);font-size:12px;color:var(--gc);font-weight:500;
+  letter-spacing:.06em;
+}
+.game-title{
+  font-family:var(--f-display);font-weight:800;font-size:clamp(20px,2.4vw,25px);
+  letter-spacing:-.015em;margin-top:2px;
+}
+.game-sub{margin-top:9px;display:flex;flex-wrap:wrap;gap:6px;font-family:var(--f-mono);font-size:12px}
+.game-sub .tag{border:1px solid var(--line-strong);border-radius:5px;padding:2px 8px;color:var(--ink-2)}
+.game-sub .tag.genre{border-color:var(--gc);color:var(--gc)}
+.game-ref{margin-top:12px;font-size:13px;color:var(--ink-3)}
+
+.game-body{padding:22px 24px 24px;display:flex;flex-direction:column;gap:22px}
+.block{display:flex;flex-direction:column;gap:9px}
+.block-label{
+  font-family:var(--f-display);font-size:11px;font-weight:600;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-3);
+  display:flex;align-items:center;gap:9px;
+}
+.block-label::after{content:"";flex:1;height:1px;background:var(--line)}
+.block p{max-width:66ch}
+
+.spec{
+  font-family:var(--f-mono);font-size:12.5px;line-height:1.7;
+  background:var(--surface-2);border-radius:8px;padding:13px 15px;
+  display:flex;flex-direction:column;gap:3px;
+}
+.spec b{color:var(--ink);font-weight:500}
+.spec span{color:var(--ink-2)}
+
+ol.steps{margin:0;padding-left:1.35em;display:flex;flex-direction:column;gap:7px}
+ol.steps li{padding-left:3px}
+ul.bul{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:7px}
+ul.bul li{padding-left:2px}
+ul.bul li::marker{color:var(--gc)}
+
+.rulehl{
+  border-left:3px solid var(--gc);padding:2px 0 2px 14px;
+  display:flex;flex-direction:column;gap:6px;
+}
+.win{
+  background:var(--surface-2);border-radius:8px;padding:14px 16px;
+  display:flex;flex-direction:column;gap:6px;
+}
+.note{font-size:14px;color:var(--ink-2);border-top:1px dashed var(--line-strong);padding-top:14px}
+.note b{color:var(--ink)}
+
+.games{display:flex;flex-direction:column;gap:26px}
+
+/* ============ findings ============ */
+.findings{display:flex;flex-direction:column;gap:14px}
+.finding{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:18px 20px;display:flex;flex-direction:column;gap:7px;box-shadow:var(--shadow);
+}
+.finding h3{font-size:16px}
+.finding p{color:var(--ink-2);max-width:70ch}
+
+footer{
+  border-top:1px solid var(--line);padding:26px 0 60px;
+  font-size:13px;color:var(--ink-3);max-width:70ch;
+}
+</style>
+
+<div class="spectrum-rule" aria-hidden="true">
+  <span style="background:var(--c-red)"></span><span style="background:var(--c-orange)"></span><span style="background:var(--c-yellow)"></span><span style="background:var(--c-green)"></span><span style="background:var(--c-blue)"></span><span style="background:var(--c-pink)"></span><span style="background:var(--c-purple)"></span>
+</div>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="eyebrow">∞:EVEN &nbsp;/&nbsp; BOARD GAME MAKER: AEVEN</div>
+    <h1>基本8タイトル</h1>
+    <p class="lede">
+      文字を一切持たないコンポーネントの上に載る、8つの遊び。
+      共通語彙を先に固定し、8本すべてをその上で組み立ててあります。
+    </p>
+    <div class="meta">
+      <span class="chip">v1 ドラフト</span>
+      <span class="chip warn">未テストプレイ・数値は要調整</span>
+      <span class="chip">2026-09-01</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <nav class="rail" aria-label="目次">
+    <div class="rail-title">共通</div>
+    <ol>
+      <li><a href="#os"><span class="n">—</span>なぜ共通語彙が要るか</a></li>
+      <li><a href="#lex"><span class="n">—</span>色と数の意味</a></li>
+    </ol>
+    <hr>
+    <div class="rail-title">8タイトル</div>
+    <ol>
+      <li><a href="#g1"><span class="n">1</span><span class="dot" style="background:var(--c-red)"></span>スペクトル・ラッシュ</a></li>
+      <li><a href="#g2"><span class="n">2</span><span class="dot" style="background:var(--c-orange)"></span>ルミナス・トリック</a></li>
+      <li><a href="#g3"><span class="n">3</span><span class="dot" style="background:var(--c-yellow)"></span>プリズム・リンク</a></li>
+      <li><a href="#g4"><span class="n">4</span><span class="dot" style="background:var(--c-green)"></span>カラー・マーケット</a></li>
+      <li><a href="#g5"><span class="n">5</span><span class="dot" style="background:var(--c-blue)"></span>プリズム・タワー</a></li>
+      <li><a href="#g6"><span class="n">6</span><span class="dot" style="background:var(--c-pink)"></span>リフレクション・パレット</a></li>
+      <li><a href="#g7"><span class="n">7</span><span class="dot" style="background:var(--c-purple)"></span>セブン・ドミネーション</a></li>
+      <li><a href="#g8"><span class="n">8</span><span class="dot" style="background:linear-gradient(135deg,var(--c-red),var(--c-yellow),var(--c-green),var(--c-blue),var(--c-purple))"></span>クロマティック・エンジン</a></li>
+    </ol>
+    <hr>
+    <div class="rail-title">まとめ</div>
+    <ol>
+      <li><a href="#matrix"><span class="n">—</span>使用コンポーネント表</a></li>
+      <li><a href="#found"><span class="n">—</span>作ってみて分かったこと</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <!-- ============ OS ============ -->
+    <section id="os">
+      <div class="section-head">
+        <h2>「OS」になるには、共通語彙が先に要る</h2>
+        <p>ルールを増やすことではなく、意味を固定することが、無数の遊びを支える。</p>
+      </div>
+      <div class="prose">
+        <p>
+          トランプで数百の遊びが成立するのは、ルールが多いからではありません。
+          <strong>どの遊びでも意味が変わらない約束</strong>があるからです。
+          「エースは強い」「ジョーカーは万能」「スートは4つ」。
+          これを一度覚えれば、次のゲームは半分覚えた状態から始められます。
+        </p>
+        <p>
+          エイブンで同じことを起こすには、色と数の意味を全ルールで固定する必要があります。
+          バラバラだと、8本が「8個の無関係なゲーム」になり、OSになりません。
+          以下の語彙は<strong>8本すべてで一度も破綻していません</strong>。
+        </p>
+      </div>
+    </section>
+
+    <!-- ============ 語彙 ============ -->
+    <section id="lex">
+      <div class="section-head">
+        <h2>色と数の意味</h2>
+        <p>コンポーネントには文字が一切ない。ルールは「色」「数」「位置」「表裏」だけで書ける必要がある。</p>
+      </div>
+
+      <div class="thesis">
+        <svg class="ring" viewBox="0 0 200 200" role="img" aria-label="虹の環。赤・橙・黄・緑・青・桃・紫が輪になって並んでいる">
+          <circle cx="100" cy="100" r="78" fill="none" stroke="var(--line-strong)" stroke-width="1.5" stroke-dasharray="3 5"/>
+          <g>
+            <circle cx="100" cy="22"  r="20" fill="var(--c-red)"/>    <text x="100" y="27"  text-anchor="middle">赤</text>
+            <circle cx="161" cy="51"  r="20" fill="var(--c-orange)"/> <text x="161" y="56"  text-anchor="middle">橙</text>
+            <circle cx="176" cy="117" r="20" fill="var(--c-yellow)"/> <text x="176" y="122" text-anchor="middle">黄</text>
+            <circle cx="134" cy="170" r="20" fill="var(--c-green)"/>  <text x="134" y="175" text-anchor="middle">緑</text>
+            <circle cx="66"  cy="170" r="20" fill="var(--c-blue)"/>   <text x="66"  y="175" text-anchor="middle">青</text>
+            <circle cx="24"  cy="117" r="20" fill="var(--c-pink)"/>   <text x="24"  y="122" text-anchor="middle">桃</text>
+            <circle cx="39"  cy="51"  r="20" fill="var(--c-purple)"/> <text x="39"  y="56"  text-anchor="middle">紫</text>
+          </g>
+        </svg>
+
+        <div class="prose">
+          <h3>虹の環</h3>
+          <p>
+            7色は<strong>輪</strong>になっている。「環で隣の色」と言えば、この輪で隣り合う2色のこと。
+            赤の隣は<strong>橙と紫</strong>。この輪は全ルールで同じで、ゲームごとに変わることはない。
+          </p>
+        </div>
+      </div>
+
+      <div style="height:28px"></div>
+
+      <div class="callout">
+        <div class="k">カードの見え方（CUDアイコン案つき）</div>
+        <p style="color:var(--ink-2);font-size:14px">
+          色覚に依存しないよう、色ごとに固有の形を持たせる。
+          <strong>形だけで10色を見分けられる</strong>ことが条件。金型を切る前に、デジタルで先に確定できる部分。
+        </p>
+        <div class="cardrow">
+          <div class="gcard" style="background:var(--c-red)"><span class="edge"></span>
+            <svg class="ico" width="17" height="17" viewBox="0 0 20 20"><path d="M10 3 L18 17 L2 17 Z" fill="currentColor"/></svg>
+            <span class="num">7</span></div>
+          <div class="gcard" style="background:var(--c-orange)"><span class="edge"></span>
+            <svg class="ico" width="17" height="17" viewBox="0 0 20 20"><path d="M10 2 L18 10 L10 18 L2 10 Z" fill="currentColor"/></svg>
+            <span class="num">3</span></div>
+          <div class="gcard" style="background:var(--c-yellow)"><span class="edge"></span>
+            <svg class="ico" width="17" height="17" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="currentColor"/></svg>
+            <span class="num">0</span></div>
+          <div class="gcard" style="background:var(--c-green)"><span class="edge"></span>
+            <svg class="ico" width="17" height="17" viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" fill="currentColor"/></svg>
+            <span class="num">12</span></div>
+          <div class="gcard" style="background:var(--c-blue)"><span class="edge"></span>
+            <svg class="ico" width="17" height="17" viewBox="0 0 20 20"><path d="M10 17 L18 3 L2 3 Z" fill="currentColor"/></svg>
+            <span class="num">9</span></div>
+          <div class="gcard" style="background:var(--c-pink)"><span class="edge"></span>
+            <svg class="ico" width="17" height="17" viewBox="0 0 20 20"><path d="M10 2 L12.4 7.6 L18.5 8.1 L13.9 12 L15.3 18 L10 14.8 L4.7 18 L6.1 12 L1.5 8.1 L7.6 7.6 Z" fill="currentColor"/></svg>
+            <span class="num">5</span></div>
+          <div class="gcard" style="background:var(--c-purple)"><span class="edge"></span>
+            <svg class="ico" width="17" height="17" viewBox="0 0 20 20"><path d="M10 2 L17 6 L17 14 L10 18 L3 14 L3 6 Z" fill="currentColor"/></svg>
+            <span class="num">15</span></div>
+          <div class="gcard pale" style="background:var(--c-white)"><span class="edge" style="border-color:var(--line-strong)"></span>
+            <svg class="ico" width="17" height="17" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="2.6"/></svg>
+            <span class="num">4</span></div>
+          <div class="gcard" style="background:var(--c-black)"><span class="edge" style="border-color:rgba(255,255,255,.4)"></span>
+            <svg class="ico" width="17" height="17" viewBox="0 0 20 20"><path d="M4 4 L16 16 M16 4 L4 16" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+            <span class="num">2</span></div>
+          <div class="gcard" style="background:linear-gradient(150deg,var(--c-red),var(--c-orange),var(--c-yellow),var(--c-green),var(--c-blue),var(--c-purple))"><span class="edge"></span>
+            <svg class="ico" width="17" height="17" viewBox="0 0 20 20"><path d="M10 1 L12 8 L19 10 L12 12 L10 19 L8 12 L1 10 L8 8 Z" fill="currentColor"/></svg>
+            <span class="num">8</span></div>
+        </div>
+      </div>
+
+      <div style="height:22px"></div>
+
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th style="width:88px">要素</th><th style="width:110px">意味</th><th>全ルール共通の役割</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><b>虹</b></td><td>万能</td><td>どの色としても扱える。トランプのジョーカーに当たる</td></tr>
+            <tr><td><b>白</b></td><td>光</td><td>最大・増加・上向き・強調。7色の環に属さない＝色の制約を無視して出せる</td></tr>
+            <tr><td><b>黒</b></td><td>影</td><td>最小・減少・下向き・反転。同じく色を持たない</td></tr>
+            <tr><td><b>0</b></td><td>無</td><td>最弱であると同時に、何かを打ち消す・0に戻す</td></tr>
+            <tr><td><b>11〜15</b></td><td>超越数</td><td>強いが<b>必ず代償がある</b>。ただ強いだけにしてはいけない</td></tr>
+            <tr><td><b>大小</b></td><td>—</td><td>大きい数が強いのが基本。<b>弱さが強さになるのは、黒が絡んだときだけ</b></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ GAMES ============ -->
+    <section id="games">
+      <div class="section-head">
+        <h2>8タイトル</h2>
+        <p>すべて「セットアップ・手番・勝利条件」の3点で書いてある。口で2分で教えられることを基準に削ってある。</p>
+      </div>
+
+      <div class="games">
+
+        <!-- 1 -->
+        <article class="game" id="g1" style="--gc:var(--c-red)">
+          <div class="game-top">
+            <div class="game-index">第 1 のゲーム</div>
+            <h3 class="game-title">スペクトル・ラッシュ</h3>
+            <div class="game-sub">
+              <span class="tag genre">速度</span><span class="tag">2〜4人</span><span class="tag">10分</span><span class="tag">手番なし・全員同時</span>
+            </div>
+            <p class="game-ref">参考にした遊び — スピード、ウノ、ナーツ</p>
+          </div>
+          <div class="game-body">
+            <div class="block">
+              <div class="block-label">使うもの</div>
+              <div class="spec">
+                <div><b>カード</b> <span>7色 × 0〜9（70枚）＋ 虹 0〜3（4枚）＝ 74枚</span></div>
+                <div><b>ヘクス</b> <span>7色 各1枚</span></div>
+                <div><b>ジェム</b> <span>白 1個（特権マーカー）／ 虹 10個（勝ち星）</span></div>
+                <div><b>砂時計</b> <span>1個</span></div>
+              </div>
+            </div>
+            <div class="block">
+              <div class="block-label">セットアップ</div>
+              <ol class="steps">
+                <li>7色のヘクスを、虹の環の順に<strong>輪のように</strong>並べる。</li>
+                <li>白ジェムを赤のヘクスに置く（＝いまの<strong>特権色</strong>は赤）。</li>
+                <li>カードをシャッフルし、中央に2枚を表向き（＝<strong>2つの場</strong>）。</li>
+                <li>残りを人数で均等に配る（＝各自の山、裏向き）。余りは脇へ。</li>
+                <li>各自、山から4枚を手札に。砂時計をひっくり返して開始。</li>
+              </ol>
+            </div>
+            <div class="block">
+              <div class="block-label">進行 — 手番はない。早い者勝ち</div>
+              <p>手札から、2つの場のどちらかに重ねる。条件は<strong>どちらか片方</strong>を満たせばよい。</p>
+              <div class="rulehl">
+                <p><strong>色つながり</strong> … 同じ色 か、環で隣の色</p>
+                <p><strong>数つながり</strong> … 同じ数 か、1違いの数</p>
+              </div>
+              <ul class="bul">
+                <li><strong>特権色</strong>のカードは、条件を無視してどこにでも置ける。</li>
+                <li><strong>虹</strong>はどの色としても扱える。</li>
+                <li>置いたら山から1枚補充して、常に手札4枚。</li>
+                <li><strong>7を置いた人</strong>は、白ジェムを好きな色のヘクスへ動かす（特権色が変わる）。</li>
+                <li>全員が置けなくなったら、一斉に山から1枚ずつめくって場に足す。</li>
+              </ul>
+            </div>
+            <div class="win">
+              <div class="block-label" style="margin-bottom:2px">勝利条件</div>
+              <p>山と手札を先に0にした人の勝ち。砂時計が落ちたら、残り枚数が最少の人の勝ち。
+                勝った人は虹ジェムを1個取り、<strong>3個先取でゲーム勝利</strong>。</p>
+            </div>
+          </div>
+        </article>
+
+        <!-- 2 -->
+        <article class="game" id="g2" style="--gc:var(--c-orange)">
+          <div class="game-top">
+            <div class="game-index">第 2 のゲーム</div>
+            <h3 class="game-title">ルミナス・トリック</h3>
+            <div class="game-sub">
+              <span class="tag genre">トリックテイキング</span><span class="tag">3〜5人</span><span class="tag">25分</span>
+            </div>
+            <p class="game-ref">参考にした遊び — ウィザード、ナポレオン、ハーツ</p>
+          </div>
+          <div class="game-body">
+            <div class="block">
+              <div class="block-label">使うもの</div>
+              <div class="spec">
+                <div><b>カード</b> <span>人数と同じ数の色 × 0〜9 ＋ 白と黒（各 0〜人数-1）</span></div>
+                <div><b></b> <span>3人＝36枚 ／ 4人＝48枚 ／ 5人＝60枚（つねに各自12枚）</span></div>
+                <div><b>ダイス</b> <span>各自1個（担当色）</span></div>
+                <div><b>ジェム</b> <span>虹（得点）</span></div>
+              </div>
+            </div>
+            <div class="block">
+              <div class="block-label">セットアップ</div>
+              <ol class="steps">
+                <li>各自、使う色から1色を選ぶ（＝<strong>担当色</strong>）。その色のダイスを手元に置く。</li>
+                <li>カードをシャッフルして全員に12枚ずつ配る。</li>
+              </ol>
+            </div>
+            <div class="block">
+              <div class="block-label">進行 — 3ラウンド</div>
+              <p><strong>① 宣言</strong> … このラウンドで取るトリック数を予想し、<strong>自分のダイスをその目にして伏せる</strong>。0のときはダイスを裏返して置く。全員そろったら一斉に公開。</p>
+              <p><strong>② トリック</strong> … スタートプレイヤーから1枚ずつ出す。</p>
+              <ul class="bul">
+                <li>リードされた色を持っていれば、<strong>その色を出さなければならない</strong>。</li>
+                <li><strong>白と黒は色を持たないので、いつでも出せる。ただし勝てない。</strong></li>
+              </ul>
+              <div class="rulehl">
+                <p>基本は、<strong>リード色のカードで数字が一番大きい人が勝つ</strong>。</p>
+                <p><strong>黒が出たら「一番小さい人が勝つ」に切り替わる。白が出たら「一番大きい人が勝つ」に戻る。</strong>何枚出ても、<strong>最後に出た白か黒が決める</strong>。</p>
+              </div>
+              <p><strong>③ 決算</strong> … 宣言がぴったり当たっていたら<strong>（宣言数＋3）個</strong>のジェム。外したら0個。さらに<strong>自分の担当色のカードで勝ったトリック1つにつき＋1個</strong>。</p>
+            </div>
+            <div class="win">
+              <div class="block-label" style="margin-bottom:2px">勝利条件</div>
+              <p>3ラウンド後、ジェムが一番多い人の勝ち。</p>
+            </div>
+            <p class="note"><b>ダイスの使い方がこのゲームの発明。</b>数字を書かずに「いくつ取るか」を宣言できる。10色×各1個という構成は、これができるためにある。</p>
+          </div>
+        </article>
+
+        <!-- 3 -->
+        <article class="game" id="g3" style="--gc:var(--c-yellow)">
+          <div class="game-top">
+            <div class="game-index">第 3 のゲーム</div>
+            <h3 class="game-title">プリズム・リンク</h3>
+            <div class="game-sub">
+              <span class="tag genre">パズルレース</span><span class="tag">2〜4人</span><span class="tag">20分</span>
+            </div>
+            <p class="game-ref">参考にした遊び — ラビリンス、つなぎパズル系</p>
+          </div>
+          <div class="game-body">
+            <div class="block">
+              <div class="block-label">使うもの</div>
+              <div class="spec">
+                <div><b>カード</b> <span>7色 × 0〜9（70枚）＋ 虹 0〜3（4枚）</span></div>
+                <div><b>ヘクス</b> <span>白 1枚（スタート）＋ 各自の担当色 1枚（ゴール）</span></div>
+                <div><b>ミープル</b> <span>各自3体（担当色）</span></div>
+              </div>
+            </div>
+            <div class="block">
+              <div class="block-label">セットアップ</div>
+              <ol class="steps">
+                <li>カードをシャッフルし、<strong>5×5＝25枚を表向きに並べる</strong>（＝道）。</li>
+                <li>中央のマスに<strong>白ヘクス</strong>を重ねて置く（＝スタート）。</li>
+                <li>グリッドの各辺の外側に、各自の担当色ヘクスを1枚ずつ置く（＝自分のゴール）。</li>
+                <li>各自のミープル3体を中央の白ヘクスに乗せる。</li>
+                <li>残りを山にし、各自3枚の手札。</li>
+              </ol>
+            </div>
+            <div class="block">
+              <div class="block-label">手番 — 時計回り</div>
+              <p><strong>① 道を作り替える</strong> … 手札1枚を、グリッドの好きなマスに<strong>重ねて</strong>置く。一番上だけが有効。</p>
+              <div class="rulehl">
+                <p><strong>② 動かす</strong> … ミープルを1体、隣（上下左右）のマスへ移動。条件は<strong>同じ色</strong>か<strong>環で隣の色</strong>か<strong>数字が1違い</strong>。</p>
+                <p>移動した先から、条件を満たす限り<strong>何回でも続けて動ける</strong>（＝連鎖）。</p>
+              </div>
+              <p><strong>③ 補充</strong> … 手札を3枚に戻す。</p>
+              <ul class="bul">
+                <li>中央の白ヘクスからは、どのマスへでも1歩目を出せる。</li>
+                <li><strong>ゴール</strong> … グリッドの端にいて、そのマスのカードが<strong>自分の担当色</strong>か<strong>環で隣の色</strong>なら、ゴールヘクスへ移せる。</li>
+                <li><strong>虹</strong>はどの色としても扱える。</li>
+              </ul>
+            </div>
+            <div class="win">
+              <div class="block-label" style="margin-bottom:2px">勝利条件</div>
+              <p>自分のミープル3体を先にゴールさせた人の勝ち。</p>
+            </div>
+            <p class="note"><b>デジタル化はここから始めるのがおすすめ。</b>盤がグリッドで固定なので自由配置の実装を後回しにでき、カード・ヘクス・ミープルの3種類を一度に検証できる。連鎖の気持ちよさはデジタルと特に相性がいい。</p>
+          </div>
+        </article>
+
+        <!-- 4 -->
+        <article class="game" id="g4" style="--gc:var(--c-green)">
+          <div class="game-top">
+            <div class="game-index">第 4 のゲーム</div>
+            <h3 class="game-title">カラー・マーケット</h3>
+            <div class="game-sub">
+              <span class="tag genre">心理戦・投資</span><span class="tag">3〜5人</span><span class="tag">30分</span>
+            </div>
+            <p class="game-ref">参考にした遊び — ミリオンダラー、電力会社の市場、株式系</p>
+          </div>
+          <div class="game-body">
+            <div class="block">
+              <div class="block-label">使うもの</div>
+              <div class="spec">
+                <div><b>カード</b> <span>7色 × 0〜15（112枚）＋ 白5枚 ＋ 黒5枚</span></div>
+                <div><b>ヘクス</b> <span>7色 各1枚（＝7つの銘柄）</span></div>
+                <div><b>ジェム</b> <span>各自 担当色10個（投資）／ 虹（現金・得点）</span></div>
+                <div><b>ダイス・袋</b> <span>7色のダイス ／ 巾着袋</span></div>
+              </div>
+            </div>
+            <div class="block">
+              <div class="block-label">セットアップ</div>
+              <ol class="steps">
+                <li>7色のヘクスを一列に並べる（＝銘柄）。</li>
+                <li>各ヘクスの上にカードを1枚ずつ表向きに置く（＝初期株価）。</li>
+                <li>各自、担当色のジェム10個を持つ。</li>
+                <li>カードをシャッフルし、各自8枚配る。</li>
+              </ol>
+              <div class="rulehl"><p><strong>株価＝その銘柄の一番上のカードの数字。</strong></p></div>
+            </div>
+            <div class="block">
+              <div class="block-label">手番 — 8ラウンド・時計回り</div>
+              <p><strong>① 株価を動かす</strong> … 手札1枚を好きな銘柄に積む。株価がその数字になる。</p>
+              <ul class="bul">
+                <li><strong>白</strong> … 株価は<strong>15</strong>（高騰）</li>
+                <li><strong>黒</strong> … 株価は<strong>0</strong>（暴落）</li>
+                <li><strong>0</strong> … 株価0（無に戻る）</li>
+              </ul>
+              <p><strong>② 投資 か 売却</strong>（どちらか1回）</p>
+              <ul class="bul">
+                <li><strong>投資</strong> … ジェムを1個、好きな銘柄の脇に置く。</li>
+                <li><strong>売却</strong> … ジェムを1個回収し、<strong>そのときの株価と同じ数の虹ジェム（現金）</strong>を受け取る。</li>
+              </ul>
+            </div>
+            <div class="block">
+              <div class="block-label">決算 — 8ラウンド後</div>
+              <ol class="steps">
+                <li>巾着袋に7色のダイスを入れ、<strong>1個引く</strong>。その色が<strong>本命銘柄</strong>。</li>
+                <li>各銘柄に残っている自分のジェム × 最終株価 ＝ 得点（<strong>本命銘柄は2倍</strong>）。</li>
+                <li>手元の虹ジェム（売却益）は1個1点。</li>
+              </ol>
+            </div>
+            <div class="win">
+              <div class="block-label" style="margin-bottom:2px">勝利条件</div>
+              <p>得点が一番多い人。</p>
+            </div>
+            <p class="note"><b>狙いどころ。</b>どこに投資したかは全員に見えている。だから「上げたい色」がバレると黒を落とされる。早く売って現金にするか、最後まで持って本命を狙うか。</p>
+          </div>
+        </article>
+
+        <!-- 5 -->
+        <article class="game" id="g5" style="--gc:var(--c-blue)">
+          <div class="game-top">
+            <div class="game-index">第 5 のゲーム</div>
+            <h3 class="game-title">プリズム・タワー</h3>
+            <div class="game-sub">
+              <span class="tag genre">協力パズル</span><span class="tag">1〜4人</span><span class="tag">15分</span><span class="tag">ソロ可</span>
+            </div>
+            <p class="game-ref">参考にした遊び — 花火（ハナビ）、ザ・ゲーム、Magic Maze</p>
+          </div>
+          <div class="game-body">
+            <div class="block">
+              <div class="block-label">使うもの</div>
+              <div class="spec">
+                <div><b>カード</b> <span>7色 × 0〜9（70枚）</span></div>
+                <div><b>ジェム</b> <span>白3個（ひび）／ 各自 担当色1個（補強）</span></div>
+                <div><b>ミープル</b> <span>虹4体（支柱）</span></div>
+                <div><b>砂時計</b> <span>1個</span></div>
+              </div>
+            </div>
+            <div class="block">
+              <div class="block-label">セットアップ</div>
+              <ol class="steps">
+                <li>カードをシャッフルし、1枚を表向きに置く（＝塔の1段目）。</li>
+                <li>各自4枚の手札。<strong>自分の手札は自分だけが見る。</strong></li>
+                <li>白ジェム3個と虹ミープル4体を脇に。各自、担当色のジェム1個を手元に。</li>
+                <li>砂時計をひっくり返して開始。</li>
+              </ol>
+            </div>
+            <div class="block">
+              <div class="block-label">手番 — 時計回り</div>
+              <div class="rulehl">
+                <p>手札1枚を塔のてっぺんに積む。条件は真下のカードに対して<strong>同じ色</strong>か<strong>環で隣の色</strong>か<strong>数字が同じか1違い</strong>。</p>
+              </div>
+              <ul class="bul">
+                <li>積めない・積みたくないときは、1枚捨てて1枚引く → <strong>白ジェムを1個場に出す（ひび）</strong>。</li>
+                <li><strong>支柱チェック</strong> … 3段積むごとに、その3枚の<strong>数字の合計が10以上</strong>なら虹ミープルを1体、塔の脇に立てる。10未満なら<strong>ひびを1個追加</strong>。</li>
+                <li><strong>補強</strong> … 自分のジェムを使うと、条件を無視して1枚積める（各自1回のみ）。</li>
+                <li><strong>相談ルール</strong> … 手札の中身を具体的に言ってはいけない。「積める」「積めない」だけ言える。</li>
+              </ul>
+            </div>
+            <div class="win">
+              <div class="block-label" style="margin-bottom:2px">勝敗</div>
+              <p><strong>勝ち</strong> … 12段（＝支柱4本）を建てる。<br>
+                 <strong>負け</strong> … ひびが3個 ／ 砂時計が落ちる ／ 山が尽きる。</p>
+            </div>
+          </div>
+        </article>
+
+        <!-- 6 -->
+        <article class="game" id="g6" style="--gc:var(--c-pink)">
+          <div class="game-top">
+            <div class="game-index">第 6 のゲーム</div>
+            <h3 class="game-title">リフレクション・パレット</h3>
+            <div class="game-sub">
+              <span class="tag genre">推測＆ブラフ</span><span class="tag">3〜6人</span><span class="tag">15分</span>
+            </div>
+            <p class="game-ref">参考にした遊び — インディアン・ポーカー、ハゲタカのえじき、ごきぶりポーカー</p>
+          </div>
+          <div class="game-body">
+            <div class="block">
+              <div class="block-label">使うもの</div>
+              <div class="spec">
+                <div><b>カード</b> <span>7色 × 0〜15</span></div>
+                <div><b>ヘクス</b> <span>白 × 人数分（＝順位列）</span></div>
+                <div><b>ジェム</b> <span>各自3個（ライフ）</span></div>
+                <div><b>ミープル</b> <span>各自1体</span></div>
+              </div>
+            </div>
+            <div class="block">
+              <div class="block-label">セットアップ</div>
+              <ol class="steps">
+                <li>白ヘクスを人数分、一列に並べる（左端＝1位 … 右端＝最下位）。</li>
+                <li>各自、担当色のジェム3個（ライフ）とミープル1体。</li>
+              </ol>
+            </div>
+            <div class="block">
+              <div class="block-label">進行 — ラウンド制</div>
+              <ol class="steps">
+                <li>各自、山から1枚引いて<strong>中身を見ずに額に掲げる</strong>（自分以外の全員に見える）。</li>
+                <li><strong>自由に喋ってよい。嘘をついてもよい。</strong></li>
+                <li>スタートプレイヤーから時計回りに、<strong>自分のミープルを順位列のどこかに置く</strong>。<strong>すでに他人が置いた位置には置けない</strong>（早い者勝ち）。後の人ほど情報は多いが、空きは少ない。</li>
+                <li>全員置いたらカードを表にし、数字で実際の順位を確定。同じ数字なら<strong>虹の環で赤に近い色が上</strong>。</li>
+                <li>予想が当たっていた人はそのまま。<strong>外れた人はライフを1失う。</strong></li>
+                <li>スタートプレイヤーを左隣へ。</li>
+              </ol>
+            </div>
+            <div class="win">
+              <div class="block-label" style="margin-bottom:2px">勝利条件</div>
+              <p>ライフが0になったら脱落。最後に残った1人の勝ち。</p>
+            </div>
+            <p class="note"><b>デジタル版での注意。</b>8本のうちこのタイトルだけは会話（ブラフ）が中核なので、音声かチャットが必要になる。実装は後回しでよい。</p>
+          </div>
+        </article>
+
+        <!-- 7 -->
+        <article class="game" id="g7" style="--gc:var(--c-purple)">
+          <div class="game-top">
+            <div class="game-index">第 7 のゲーム</div>
+            <h3 class="game-title">セブン・ドミネーション</h3>
+            <div class="game-sub">
+              <span class="tag genre">エリアマジョリティ</span><span class="tag">2〜4人</span><span class="tag">40分</span>
+            </div>
+            <p class="game-ref">参考にした遊び — エルグランデ、王と枢機卿</p>
+          </div>
+          <div class="game-body">
+            <div class="block">
+              <div class="block-label">使うもの</div>
+              <div class="spec">
+                <div><b>カード</b> <span>7色 × 0〜15 ＋ 白5枚 ＋ 黒5枚 ＋ 虹5枚</span></div>
+                <div><b>ヘクス</b> <span>7色から37枚（＝領土）</span></div>
+                <div><b>ジェム</b> <span>各自 担当色10個（＝支配マーカー）</span></div>
+                <div><b>ミープル</b> <span>各自5体</span></div>
+              </div>
+            </div>
+            <div class="block">
+              <div class="block-label">セットアップ</div>
+              <ol class="steps">
+                <li>ヘクス37枚をランダムに選び、<strong>六角形の大きな塊</strong>に並べる＝領土。</li>
+                <li>各自、ミープル5体とジェム10個。</li>
+                <li>カードをシャッフルし、各自10枚配る。</li>
+              </ol>
+            </div>
+            <div class="block">
+              <div class="block-label">手番 — 10ラウンド・時計回り</div>
+              <p><strong>① カードを置く</strong> … 手札1枚を任意のヘクスに置き、<strong>その上に自分のジェムを1個乗せる</strong>（＝誰のカードかを示す）。すでにカードがあるヘクスには、<strong>自分の戦力がいまの戦力より大きいときだけ</strong>重ねられる。</p>
+              <div class="rulehl">
+                <p><strong>戦力の計算</strong>（覚えるのはここだけ）</p>
+                <p>カードの数字 ／ <strong>＋5</strong> ヘクスと同じ色（地の利） ／ <strong>＋3</strong> 自分のミープルがいる（駐留）</p>
+                <p><strong>虹</strong>＝常に地の利+5 ／ <strong>白</strong>＝戦力15 ／ <strong>黒</strong>＝戦力0だが、<strong>そのヘクスのカードを全部取り除く</strong>（焦土）</p>
+              </div>
+              <p><strong>② ミープルを動かす</strong>（任意） … 1体を隣のヘクスへ動かす、または未配置の1体を任意のヘクスに置く。</p>
+            </div>
+            <div class="block">
+              <div class="block-label">決算 — 10ラウンド後</div>
+              <p>各ヘクスの<strong>一番上のカード</strong>の持ち主がそのヘクスを支配する。得点は、<strong>自分が支配していて、かつ隣り合っている塊ごとに（塊の大きさ）²点</strong>。</p>
+              <p style="color:var(--ink-2)">例 — 4枚つながっていれば <strong>16点</strong>。バラバラの4枚なら <strong>1点×4＝4点</strong>。</p>
+            </div>
+            <div class="win">
+              <div class="block-label" style="margin-bottom:2px">勝利条件</div>
+              <p>得点が一番多い人。</p>
+            </div>
+          </div>
+        </article>
+
+        <!-- 8 -->
+        <article class="game" id="g8" style="--gc:var(--c-purple)">
+          <div class="game-top" style="--gc:linear-gradient(180deg,var(--c-red),var(--c-orange),var(--c-yellow),var(--c-green),var(--c-blue),var(--c-pink),var(--c-purple))">
+            <div class="game-index" style="color:var(--ink-3)">第 8 のゲーム</div>
+            <h3 class="game-title">クロマティック・エンジン</h3>
+            <div class="game-sub">
+              <span class="tag genre">デッキ構築</span><span class="tag">2〜4人</span><span class="tag">45分</span><span class="tag">全10色を使う</span>
+            </div>
+            <p class="game-ref">参考にした遊び — ドミニオン、Star Realms、サンダーストーン</p>
+          </div>
+          <div class="game-body">
+            <div class="block">
+              <div class="block-label">使うもの</div>
+              <div class="spec">
+                <div><b>カード</b> <span>10色 × 0〜15</span></div>
+                <div><b>ジェム</b> <span>10色を1個ずつ（袋に入れる）</span></div>
+                <div><b>袋</b> <span>巾着袋 1枚</span></div>
+              </div>
+            </div>
+            <div class="block">
+              <div class="block-label">セットアップ</div>
+              <ol class="steps">
+                <li>各自の<strong>初期デッキ</strong>は、<strong>自分の担当色の 0〜5（6枚）</strong>。シャッフルして自分の山に。</li>
+                <li>虹カード 0〜15 の16枚を分けて、脇に<strong>勝利点の山</strong>として置く。</li>
+                <li>残りをシャッフルして山にし、<strong>8枚を表向きに並べる</strong>（＝市場）。</li>
+                <li>巾着袋に10色のジェムを1個ずつ入れる。</li>
+              </ol>
+            </div>
+            <div class="block">
+              <div class="block-label">手番 — 時計回り</div>
+              <ol class="steps">
+                <li><strong>好況色</strong> … 袋からジェムを1個引く。<strong>その色のカードは、このターンだけコスト−3</strong>。引いたジェムは袋に戻す。</li>
+                <li><strong>5枚引く</strong> … 山が尽きたら捨て札をシャッフルして新しい山に。</li>
+                <li><strong>購買力を数える</strong> … 手札を全部公開し、数字を合計する。</li>
+                <li><strong>買う</strong> … コストは<strong>カードの数字</strong>。虹（勝利点）は<strong>数字＋5</strong>。購買力の範囲内なら何枚でも。</li>
+                <li><strong>片付け</strong> … 使った手札と買ったカードをすべて捨て札に。市場を8枚に補充。</li>
+              </ol>
+              <div class="rulehl">
+                <p><strong>購買力の修正</strong></p>
+                <p>同じ色を3枚以上持っていたら、その色は<strong>＋2</strong>して数える（シナジー）</p>
+                <p><strong>白</strong>は<strong>＋5</strong> ／ <strong>黒</strong>は<strong>0</strong>。ただし黒1枚につき<strong>市場のカードを1枚捨てて引き直せる</strong></p>
+              </div>
+            </div>
+            <div class="win">
+              <div class="block-label" style="margin-bottom:2px">終了と勝利条件</div>
+              <p><strong>虹カードが合計5枚買われたら</strong>、そのラウンドの最後まで進めて終了。買った<strong>虹カードの数字の合計</strong>が一番大きい人の勝ち。</p>
+            </div>
+            <p class="note"><b>超越数（11〜15）の位置づけ。</b>数字が大きい＝購買力も大きいが、コストも高い。虹15を買うには購買力20が要る。序盤には絶対に届かないので、エンジンを育てる動機になる。</p>
+          </div>
+        </article>
+
+      </div>
+    </section>
+
+    <!-- ============ MATRIX ============ -->
+    <section id="matrix">
+      <div class="section-head">
+        <h2>使用コンポーネント表</h2>
+        <p>8本が箱の中身をどう使ったか。これが自動セットアップの入口であり、物理仕様へのフィードバックでもある。</p>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="num" style="width:34px">#</th><th>タイトル</th><th>カード範囲</th>
+              <th class="num">白黒</th><th class="num">虹</th><th class="num">ヘクス</th>
+              <th class="num">ジェム</th><th class="num">ミープル</th><th class="num">ダイス</th>
+              <th class="num">袋</th><th class="num">砂時計</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="num">1</td><td>スペクトル・ラッシュ</td><td>7色 0〜9</td><td class="num no">—</td><td class="num yes">●</td><td class="num yes">●</td><td class="num yes">●</td><td class="num no">—</td><td class="num no">—</td><td class="num no">—</td><td class="num yes">●</td></tr>
+            <tr><td class="num">2</td><td>ルミナス・トリック</td><td>人数色 0〜9</td><td class="num yes">●</td><td class="num no">—</td><td class="num no">—</td><td class="num yes">●</td><td class="num no">—</td><td class="num yes">●</td><td class="num no">—</td><td class="num no">—</td></tr>
+            <tr><td class="num">3</td><td>プリズム・リンク</td><td>7色 0〜9</td><td class="num no">—</td><td class="num yes">●</td><td class="num yes">●</td><td class="num no">—</td><td class="num yes">●</td><td class="num no">—</td><td class="num no">—</td><td class="num no">—</td></tr>
+            <tr><td class="num">4</td><td>カラー・マーケット</td><td>7色 <b>0〜15</b></td><td class="num yes">●</td><td class="num no">—</td><td class="num yes">●</td><td class="num yes">●</td><td class="num no">—</td><td class="num yes">●</td><td class="num yes">●</td><td class="num no">—</td></tr>
+            <tr><td class="num">5</td><td>プリズム・タワー</td><td>7色 0〜9</td><td class="num no">—</td><td class="num no">—</td><td class="num no">—</td><td class="num yes">●</td><td class="num yes">●</td><td class="num no">—</td><td class="num no">—</td><td class="num yes">●</td></tr>
+            <tr><td class="num">6</td><td>リフレクション・パレット</td><td>7色 <b>0〜15</b></td><td class="num no">—</td><td class="num no">—</td><td class="num yes">●</td><td class="num yes">●</td><td class="num yes">●</td><td class="num no">—</td><td class="num no">—</td><td class="num no">—</td></tr>
+            <tr><td class="num">7</td><td>セブン・ドミネーション</td><td>7色 <b>0〜15</b></td><td class="num yes">●</td><td class="num yes">●</td><td class="num yes">●</td><td class="num yes">●</td><td class="num yes">●</td><td class="num no">—</td><td class="num no">—</td><td class="num no">—</td></tr>
+            <tr><td class="num">8</td><td>クロマティック・エンジン</td><td>10色 <b>0〜15</b></td><td class="num yes">●</td><td class="num yes">●</td><td class="num no">—</td><td class="num yes">●</td><td class="num no">—</td><td class="num no">—</td><td class="num yes">●</td><td class="num no">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ FINDINGS ============ -->
+    <section id="found">
+      <div class="section-head">
+        <h2>作ってみて分かったこと</h2>
+        <p>金型を切る前でないと得られない情報。デジタル先行の最大の利得はここにある。</p>
+      </div>
+      <div class="findings">
+
+        <div class="finding">
+          <h3>共通語彙は機能した</h3>
+          <p>8本すべてで <b>虹＝万能 ／ 白＝最大側 ／ 黒＝最小側 ／ 0＝リセット</b> が一度も破綻しなかった。
+          プレイヤーは1本目を覚えた時点で、2本目の白黒虹の意味を<b>説明されなくても推測できる</b>。
+          トランプの「ジョーカーは万能」に当たる部分で、OSとして一番大事な資産になる。</p>
+        </div>
+
+        <div class="finding">
+          <h3>超越数（11〜15）は「重いゲーム専用」だった</h3>
+          <p>使ったのは 4・6・7・8 の4本で、すべて30分以上のタイトル。10〜20分の軽いゲームは <b>0〜9で足りた</b>。
+          企画書にある「0〜10と11〜15をフチの色で仕分ける」設計は<b>正しい</b>。実際にその2群で分かれる。</p>
+        </div>
+
+        <div class="finding">
+          <h3>1デッキ（160枚）で足りた</h3>
+          <p>320枚＝2デッキを必要としたタイトルは<b>1本も無い</b>。
+          2デッキ同梱の根拠を「多人数対応」または「2卓同時進行」に置き直す必要がある。
+          あるいは価格を下げる余地として検討できる。</p>
+        </div>
+
+        <div class="finding">
+          <h3>ダイスは「振る」ために使わなかった</h3>
+          <p>2本でしか使わず、しかも用途は <b>数の宣言表示</b>（ルミナス・トリック）と <b>色の抽選</b>（カラー・マーケット）。
+          10色×各1個という構成は正しい（1人1個持てる）が、出目の深彫り彫刻の優先度は低いかもしれない。</p>
+        </div>
+
+        <div class="finding">
+          <h3>次にやること</h3>
+          <p><b>1.</b> <a href="#g3">プリズム・リンク</a>をデジタルで動かす。盤がグリッド固定なので自由配置の実装を後回しにでき、
+          カード・ヘクス・ミープルを一度に検証できる。<br>
+          <b>2.</b> 次に<a href="#g1">スペクトル・ラッシュ</a>（リアルタイム同期の検証）。<br>
+          <b>3.</b> 数値（枚数・目標段数・得点）は、必ず実プレイで調整する。</p>
+        </div>
+
+      </div>
+
+      <footer>
+        v1ドラフト・2026-09-01。全タイトル未テストプレイ。
+        バランスより先に「口で2分で教えられるか」を基準に削ってあるので、物足りなければ足す方が安全です。
+      </footer>
+    </section>
+
+  </main>
+</div>

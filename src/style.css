@@ -18909,3 +18909,80 @@ body.theme-light .cell-confirm-dontshow { color: #6b6153; }
   visibility: hidden;
   pointer-events: none;
 }
+
+/* α版のお知らせ（alpha-notice.js、ユーザー要望2026-09-01）。ホーム画面(z-index:1500)より
+   手前・オプションエリアの帯より奥に出す。専門知識の無い人が読む前提なので、
+   1項目＝アイコン＋見出し＋やさしい説明の3点セットを大きめの行間で並べる。 */
+#alpha-notice-modal {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2701;
+  width: min(34rem, 92vw);
+  max-height: 86vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.4rem 1.5rem 1.1rem;
+  border-radius: 0.9rem;
+  background: #101820;
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  box-shadow: 0 1.2rem 3rem rgba(0, 0, 0, 0.7);
+  font-family: sans-serif;
+  color: #e2e8f0;
+}
+.alpha-notice-title {
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: #fbbf24;
+  text-align: center;
+}
+.alpha-notice-lead { font-size: 0.9rem; line-height: 1.65; }
+.alpha-notice-list { display: flex; flex-direction: column; gap: 0.7rem; }
+.alpha-notice-item {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  padding: 0.6rem 0.7rem;
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+}
+.alpha-notice-icon { font-size: 1.3rem; line-height: 1.2; flex: none; }
+.alpha-notice-item-head { font-weight: bold; font-size: 0.92rem; margin-bottom: 0.15rem; }
+.alpha-notice-item-body { font-size: 0.82rem; line-height: 1.6; color: #cbd5e1; }
+.alpha-notice-thanks { font-size: 0.85rem; line-height: 1.6; color: #fde68a; text-align: center; }
+.alpha-notice-ok {
+  align-self: center;
+  padding: 0.55rem 2.2rem;
+  border-radius: 0.45rem;
+  border: none;
+  background: #0ea5e9;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+.alpha-notice-ok:hover { background: #0284c7; }
+.alpha-notice-never {
+  align-self: center;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+}
+.alpha-notice-never:hover { color: #e2e8f0; }
+body.theme-light #alpha-notice-modal {
+  background: #fdfbf5;
+  border-color: rgba(176, 141, 63, 0.5);
+  color: #3a3326;
+}
+body.theme-light .alpha-notice-title { color: #a97c33; }
+body.theme-light .alpha-notice-item { background: rgba(176, 141, 63, 0.1); }
+body.theme-light .alpha-notice-item-body { color: #6b6153; }
+body.theme-light .alpha-notice-thanks { color: #8a6d2f; }
+body.theme-light .alpha-notice-never { color: #6b6153; }

@@ -44,6 +44,7 @@ import { openChangelogModal, hasUnreadChangelog } from "./changelog.js";
 // cpu-battle-state.js は依存ゼロの葉モジュールなので静的importでも循環参照の心配はない
 // （cpu-battle.js 本体の動的importとは別物）。選んだ値は端末に保存され、CPU戦開始時に効く。
 import { getCpuDifficulty, setCpuDifficulty, getCpuPlayerCount, setCpuPlayerCount } from "./cpu-battle-state.js";
+import { maybeShowAlphaNotice } from "./alpha-notice.js";
 
 let overlayEl = null;
 let toastEl = null;
@@ -406,6 +407,10 @@ export function openHomeScreen() {
   // 表示していてください」。full-screen-page-active共通クラス（style.css参照）。
   syncFullScreenPageActive();
   startRankedWaitingPoll(); // ランク戦タイルの待機人数表示（続き162）
+  // ユーザー要望2026-09-01「ホーム画面に行く時に、現在このアプリはα版です、デバッグに
+  // 協力してください的なモーダルを素人にもわかりやすく出したい」。アプリを開くたびに1回だけ
+  // 出す（ホームへ戻るたびには出さない）。詳しくは alpha-notice.js を参照。
+  maybeShowAlphaNotice();
 }
 
 // ホーム画面の現ランク表示を非同期で描画する。未ログイン（getSelfRankがundefined）や
