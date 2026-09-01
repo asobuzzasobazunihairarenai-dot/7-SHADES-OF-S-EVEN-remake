@@ -191,6 +191,7 @@ import { initPiecePets, registerPiecePetHelpers } from "./piece-pet.js";
 // 「ロック前・手札使用前」の確認モーダルを出すかどうかの設定（全デバイス共通、
 // 「今後表示しない」でオフ・オプションの基本設定でオンに戻せる）。
 import { isActionConfirmEnabled, setActionConfirmEnabled } from "./action-confirm-prefs.js";
+import { isCellConfirmEnabled, confirmCellChoice } from "./cell-confirm.js";
 import { registerTutorialBattleUiHelpers } from "./tutorial-battle-ui.js";
 import { initTurnTimer, transferPriorityTo, isPseudoCpuTarget, notifyPlayerDecision } from "./turn-timer.js";
 import { initIconRearrange } from "./icon-rearrange.js";
@@ -4449,7 +4450,23 @@ function hideEffectSkipButton() {
 // 効果の対象マスをプレイヤーに選ばせる（候補マスをハイライトし、クリックを待つ）。
 // options.allowSkip=true の時は「これ以上選ばない」スキップボタンを出す（optionalな
 // 「してもよい」効果で早期終了できるように）。スキップされた場合は resolve(null)。
-function requestCellChoiceForEffect(candidates, hint, options = {}) {
+// ユーザー要望2026-09-01「マスを選択しているとき『このマスでいいですか』モーダルを出したい」。
+// 押し間違えたマスがそのまま確定してしまうのを防ぐ。実際の選択(requestCellChoiceForEffectOnce)を
+// そのまま使い、選ばれた直後に確認を挟んで「いいえ」なら選び直しへ戻すだけのラッパー。
+// CPUが選ぶ番・確認をオフにしている時は素通りする（従来と完全に同じ挙動）。
+async function requestCellChoiceForEffect(candidates, hint, options = {}) {
+  for (;;) {
+    const loc = await requestCellChoiceForEffectOnce(candidates, hint, options);
+    if (!loc) return null; // スキップ／中止はそのまま返す
+    if (!isCellConfirmEnabled() || isCpuSelectingNow(options.owner)) return loc;
+    const table = document.getElementById("game-table");
+    const el = table ? findLocationElement(table, loc) : null;
+    if (await confirmCellChoice(el, hint)) return loc;
+    // 「選び直す」→ もう一度ハイライトから
+  }
+}
+
+function requestCellChoiceForEffectOnce(candidates, hint, options = {}) {
   return new Promise((resolve) => {
     const table = document.getElementById("game-table");
     const entries = (table ? candidates.map((loc) => ({ loc, el: findLocationElement(table, loc) })) : []).filter(

@@ -257,7 +257,10 @@ export function chooseDeclaredColors(cardId, requiredCount, driveSeat) {
 const OPTION_RANK = {
   // パーティー（pink-party）: 場のカードを手札に得る(pickup)＞1マス移動(move)＞2枚オープン(open-two)。
   // 高いほど良い。
-  "pink-party": { pickup: 3, move: 2, "open-two": 1 },
+  // ユーザー要望2026-09-01「パーティの効果では2マスオープンを選ばないように（非合理なことが
+  // 多いので）」。マイナスにしておくと、**他に選べる選択肢がある限り絶対に選ばれず**、
+  // 2枚オープンしか使えない状況（移動先も場のカードも無い）でだけ選ばれる（＝不発を避ける）。
+  "pink-party": { pickup: 3, move: 2, "open-two": -10 },
   // 選べる罠（blue-choosable-trap）: いずれも損だが、被害の小さい順に。ゲート強制移動(カード損失
   // 無し)＞手札半分捨て（札は失うがロックは無事）＞ロックを1枚捨て（色が減る＝勝利が遠のく最悪）。
   "blue-choosable-trap": { "forced-move-to-own-gate": 3, "discard-half-hand": 2, "discard-one-locked-card": 1 },

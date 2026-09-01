@@ -866,6 +866,16 @@ async function runAction(action, ctx, helpers) {
         // 表向きになったカードのcardIdを読み直して渡す。
         const revealedTop = findTopCardAtCell(chosen.row, chosen.col);
         const revealedCardId = revealedTop?.cardId ?? token.cardId;
+        // ユーザー要望2026-09-01「サフランの効果でカードを表向きにしたとき、表向きの
+        // カードが何のカードか分かるようにしたい」。オープンした時点で公開情報なので、
+        // 全員に「誰が何をオープンしたか」を出す（盤面のカードは小さくて読みにくいため）。
+        // 到達効果の告知より先に出す（この後 maybeTriggerArrivalForPlacedCard が走る）。
+        if (revealedCardId) {
+          await helpers.announceEffectReason?.(
+            ctx.cardId,
+            t("ce.flippedCard", { name: helpers.getPlayerName(ctx.player), card: cardDisplayName(revealedCardId) })
+          );
+        }
         if (revealedCardId) {
           // #93: 内側の到達チェーンを最後まで待ってから次の1枚へ（fire-and-forgetにしない）。
           await helpers.maybeTriggerArrivalForPlacedCard?.({ zone: "cell", row: chosen.row, col: chosen.col }, revealedCardId);

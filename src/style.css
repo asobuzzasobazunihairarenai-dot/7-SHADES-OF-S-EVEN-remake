@@ -18822,3 +18822,69 @@ body.theme-light .victory-preview-panel { background: #fdfbf5; border-color: rgb
 body.theme-light .victory-preview-slider-label,
 body.theme-light .victory-preview-slider-value,
 body.theme-light .victory-preview-row > span { color: #6b6152; }
+
+/* 「このマスでいいですか？」の確認（cell-confirm.js、ユーザー要望2026-09-01）。
+   【重要】盤面を隠さないこと。背景は暗くせず、パネルは選んだマスと反対側の端に出す
+   （マスが上半分なら .is-bottom、下半分なら .is-top）。これで確認中も対象マスが必ず見える。 */
+#cell-confirm-modal {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10615;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1.1rem;
+  border-radius: 0.7rem;
+  background: rgba(15, 23, 32, 0.94);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  box-shadow: 0 0.8rem 2rem rgba(0, 0, 0, 0.6);
+  font-family: sans-serif;
+  max-width: min(28rem, 92vw);
+}
+#cell-confirm-modal.is-top {
+  top: calc(var(--option-area-band-height, 3rem) + 0.6rem);
+}
+#cell-confirm-modal.is-bottom {
+  bottom: 1rem;
+}
+.cell-confirm-title {
+  font-weight: bold;
+  font-size: 1.05rem;
+  color: #e2e8f0;
+}
+.cell-confirm-hint {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  text-align: center;
+  line-height: 1.4;
+}
+.cell-confirm-dontshow {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.72rem;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+}
+.cell-confirm-dontshow:hover { color: #e2e8f0; }
+/* 確認中のマスを強く光らせる（どのマスの話か一目で分かるように）。 */
+.cell-confirm-target {
+  outline: 0.22rem solid #fbbf24 !important;
+  outline-offset: 0.1rem;
+  box-shadow: 0 0 1.4rem 0.35rem rgba(251, 191, 36, 0.85) !important;
+  animation: cell-confirm-pulse 1.1s ease-in-out infinite;
+}
+@keyframes cell-confirm-pulse {
+  0%, 100% { outline-color: #fbbf24; }
+  50% { outline-color: #fff7d6; }
+}
+body.theme-light #cell-confirm-modal {
+  background: #fdfbf5;
+  border-color: rgba(176, 141, 63, 0.5);
+}
+body.theme-light .cell-confirm-title { color: #3a3326; }
+body.theme-light .cell-confirm-hint,
+body.theme-light .cell-confirm-dontshow { color: #6b6153; }

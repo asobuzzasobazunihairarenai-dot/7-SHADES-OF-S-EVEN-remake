@@ -23,6 +23,7 @@ import { openDeckViewer } from "./deck-viewer.js";
 import { isLockAreaBarVisible, setLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible, setLockColorVisible } from "./lock-color.js";
 import { isActionConfirmEnabled, setActionConfirmEnabled } from "./action-confirm-prefs.js";
+import { isCellConfirmEnabled, setCellConfirmEnabled } from "./cell-confirm.js";
 import { isBoardIllustOnly, setBoardIllustOnly } from "./board-card-display.js";
 import { isFixedHandEnabled, setFixedHandEnabled } from "./fixed-hand.js";
 import { getSoundVolume, setSoundVolume, getBgmVolume, setBgmVolume } from "./sound.js";
@@ -975,6 +976,14 @@ export function initOptionsMenu() {
         buildCheckboxRow(t("opt.chk.actionConfirm"), isActionConfirmEnabled(), (checked) => {
           setActionConfirmEnabled(checked);
           saveMyPreference({ action_confirm_enabled: checked });
+        })
+      );
+      // ユーザー要望2026-09-01「マス選択の確認モーダル。『今後表示しない』でオフにでき、
+      // 設定からいつでも復活できるように」。上の確認とは別設定（マス選択は頻度が段違いに
+      // 高いので、こちらだけ切りたいのが自然なため）。この端末に保存する。
+      panel.appendChild(
+        buildCheckboxRow(t("opt.chk.cellConfirm"), isCellConfirmEnabled(), (checked) => {
+          setCellConfirmEnabled(checked);
         })
       );
 
