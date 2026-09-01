@@ -256,7 +256,7 @@ function makeBugReportRow(row) {
 
   // 複数選択用のチェックボックス（チェックした報告は「選択をまとめてコピー」の対象）。
   const pickTd = document.createElement("td");
-  pickTd.style.width = "2rem";
+
   const pick = document.createElement("input");
   pick.type = "checkbox";
   pick.addEventListener("change", () => {
@@ -292,7 +292,7 @@ function makeBugReportRow(row) {
   // サムネイル側も max-width:100% で列の外へはみ出さないようにする。
   const shotUrl = bugReportShotUrl(row);
   const shotTd = document.createElement("td");
-  shotTd.style.cssText = "width: 7rem; min-width: 7rem; padding: 0.3rem;";
+  shotTd.style.cssText = "padding: 0.3rem;";
   if (shotUrl) {
     const link = document.createElement("a");
     link.href = shotUrl;
@@ -304,7 +304,7 @@ function makeBugReportRow(row) {
     img.alt = "添付スクリーンショット";
     img.loading = "lazy";
     img.style.cssText =
-      "width: 6rem; max-width: 100%; height: auto; border-radius: 0.25rem; border: 1px solid #334155; display: block;";
+      "width: 100%; height: auto; border-radius: 0.25rem; border: 1px solid #334155; display: block;";
     link.appendChild(img);
     shotTd.appendChild(link);
   } else {
@@ -314,13 +314,15 @@ function makeBugReportRow(row) {
 
   // 「詳細」: アクションログ・コンソールログ・状況を別ウィンドウで全文表示する。
   const detailTd = document.createElement("td");
-  detailTd.style.cssText = "white-space: nowrap; padding-left: 0.5rem;";
+  detailTd.style.cssText = "padding: 0.35rem 0.5rem;";
   // ユーザー要望2026-09-01「画像とテキスト一括コピー」。画像はPNGに変換してテキストと
   // 一緒にクリップボードへ載せる（そのままチャットへ貼れる）。
   const copyBtn = document.createElement("button");
   copyBtn.type = "button";
-  copyBtn.textContent = shotUrl ? "画像＋テキストをコピー" : "テキストをコピー";
-  copyBtn.style.cssText = "margin-right: 0.4rem;";
+  copyBtn.textContent = shotUrl ? "📋 画像＋文" : "📋 テキスト";
+  copyBtn.title = shotUrl
+    ? "画像（PNGに変換）とテキストをまとめてクリップボードへコピーします"
+    : "この報告のテキストをクリップボードへコピーします";
   copyBtn.addEventListener("click", () => copyBugReport(row, copyBtn));
   detailTd.appendChild(copyBtn);
   const detailBtn = document.createElement("button");
