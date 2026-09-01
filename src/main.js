@@ -2899,6 +2899,11 @@ function declareColorsForEffect(requirement, cardId, player) {
       btn.style.setProperty("--swatch-color", `var(--color-${color})`);
       btn.title = colorLabel(color) ?? color;
       btn.addEventListener("click", () => {
+        // ユーザー要望2026-09-01「試練の儀式で3色宣言するとき、3色選択したらほかの色は
+        // グレーアウトさせたい」。ちょうど必要数まで選ぶ形式(isExact)では、必要数に達したら
+        // それ以上は増やせないようにする（押しても無視。選び直したい時は選択済みを外す）。
+        // ※#193の「1色選んだだけで沈む」とは条件が違う（あちらは1つでも選べば沈めていた）。
+        if (!selected.has(color) && isExact && selected.size >= required) return;
         if (selected.has(color)) selected.delete(color);
         else selected.add(color);
         btn.classList.toggle("is-selected", selected.has(color));
@@ -2924,6 +2929,8 @@ function declareColorsForEffect(requirement, cardId, player) {
     function updateConfirmState() {
       const ok = isExact ? selected.size === required : selected.size >= required;
       confirmBtn.disabled = !ok;
+      // 必要数ちょうどまで選び終えたら、残りの色を沈めて「もう選べない」と分かるようにする。
+      grid.classList.toggle("is-full", isExact && selected.size >= required);
     }
     updateConfirmState();
 
@@ -3630,6 +3637,29 @@ document.addEventListener(
     // captureフェーズのpointerdownでこのモーダルのボタンを直接解決する（DOM clickに一切依存しない）。
     // confirmGenericYesNoはactiveEffectPicker(type:"option", resolve:(o)=>finish(o?.id==="yes"))を
     // 登録済みなので、そのresolveへ回すだけでよい（ボタン=.contact-approval-approve/-reject）。
+    // 【#200】「このカードを選びますか」(#touch-action-confirm-modal)も同じ症状で押せなく
+    // なるとの報告（カウンターロックでロックするカードを選ぶ場面）。DOM click に頼らず、
+    // 確実に発火するこの capture フェーズで直接解決する。activeEffectPicker の有無に
+    // 関係なく先に処理する（手札選択待ちの最中に出るモーダルなので）。
+    if (activeTouchActionConfirm) {
+      const t2 = e.target;
+      const yes = t2.closest("#touch-action-confirm-modal .contact-approval-approve");
+      const no = t2.closest("#touch-action-confirm-modal .contact-approval-reject");
+      const never = t2.closest("#touch-action-confirm-dontshow");
+      if (yes || no || never) {
+        e.preventDefault();
+        e.stopPropagation();
+        const c = activeTouchActionConfirm;
+        activeTouchActionConfirm = null;
+        if (yes) c.yes();
+        else if (no) c.no();
+        else c.never();
+        return;
+      }
+      // モーダルが出ている間は、盤面側の候補選択に横取りさせない（モーダル以外への
+      // タップは何もしない＝背景の誤タップで選択が確定してしまうのを防ぐ）。
+      if (t2.closest("#touch-action-confirm-modal")) return;
+    }
     {
       const confirmBtn = e.target.closest(
         "#generic-confirm-modal .contact-approval-approve, #generic-confirm-modal .contact-approval-reject"
@@ -5255,6 +5285,11 @@ onAnytimeCheckpointEvents(({ afterPlayer }) => {
 // ロックする前・手札を使う前の確認モーダル。ユーザー要望で、以前は「タッチ端末のみ」
 // だったのを全デバイス共通にし、表示するかどうかを設定(isActionConfirmEnabled)で
 // 切り替えられるようにした。設定がOFF（＝今後表示しない）の間は、モーダルを出さず即実行する。
+// 【#200】確認モーダル(#touch-action-confirm-modal)のボタンを、capture フェーズの
+// pointerdown から直接解決するための参照。#generic-confirm-modal で同じ症状（ホバーは
+// 効くのに click だけ握り潰される）を直した時と同じ手口。finish() で必ず null に戻す。
+let activeTouchActionConfirm = null;
+
 function confirmTouchAction(title, { cardId = null } = {}) {
   // チュートリアルCPU戦の進行中は、台本が各操作を誘導するのでこの確認は出さない
   // （スポットライト等の演出と重なって見えなくなるのも防ぐ）。
@@ -5285,9 +5320,20 @@ function confirmTouchAction(title, { cardId = null } = {}) {
     yesBtn.type = "button";
     yesBtn.textContent = t("game.confirm.yes");
     const finish = (result) => {
+      activeTouchActionConfirm = null;
       backdrop.remove();
       modal.remove();
       resolve(result);
+    };
+    // capture フェーズの pointerdown から直接呼べるように登録する（#200）。
+    activeTouchActionConfirm = {
+      yes: () => finish(true),
+      no: () => finish(false),
+      never: () => {
+        setActionConfirmEnabled(false);
+        saveMyPreference({ action_confirm_enabled: false });
+        finish(true);
+      },
     };
     yesBtn.addEventListener("click", () => finish(true));
     const noBtn = document.createElement("button");

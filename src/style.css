@@ -18888,3 +18888,13 @@ body.theme-light #cell-confirm-modal {
 body.theme-light .cell-confirm-title { color: #3a3326; }
 body.theme-light .cell-confirm-hint,
 body.theme-light .cell-confirm-dontshow { color: #6b6153; }
+
+/* 色宣言で必要数ちょうどまで選び終えた時、残りの色を沈める（ユーザー要望2026-09-01）。
+   #193 で撤去したのは「1色でも選べば沈める」形。こちらは**必要数に達した時だけ**なので、
+   「もう選べない」という正しい情報になる（この状態では実際に押しても増えない）。 */
+.declare-colors-modal-grid.is-full .declare-colors-modal-swatch:not(.is-selected) {
+  /* アニメーション等が opacity を設定しているため !important が要る（実測で確認）。 */
+  opacity: 0.3 !important;
+  filter: grayscale(0.85);
+  cursor: default;
+}
