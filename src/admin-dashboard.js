@@ -178,6 +178,28 @@ function makeBugReportRow(row) {
     }
     tr.appendChild(td);
   });
+  // 画像が添付されている報告は、一覧の時点で分かるようにサムネイルを出す
+  // （クリックで原寸を別タブ表示。context.shotUrl は bug-report.js が入れている）。
+  const shotUrl = row.context && typeof row.context.shotUrl === "string" ? row.context.shotUrl : null;
+  const shotTd = document.createElement("td");
+  if (shotUrl) {
+    const link = document.createElement("a");
+    link.href = shotUrl;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.title = "クリックで原寸表示";
+    const img = document.createElement("img");
+    img.src = shotUrl;
+    img.alt = "添付スクリーンショット";
+    img.loading = "lazy";
+    img.style.cssText = "width: 6rem; height: auto; border-radius: 0.25rem; border: 1px solid #334155; display: block;";
+    link.appendChild(img);
+    shotTd.appendChild(link);
+  } else {
+    shotTd.textContent = "-";
+  }
+  tr.appendChild(shotTd);
+
   // 「詳細」: アクションログ・コンソールログ・状況を別ウィンドウで全文表示する。
   const detailTd = document.createElement("td");
   const detailBtn = document.createElement("button");
@@ -193,6 +215,13 @@ function makeBugReportRow(row) {
       `■アクションログ\n${row.action_log || "(なし)"}\n`;
     const w = window.open("", "_blank");
     if (w) {
+      if (shotUrl) {
+        const shot = w.document.createElement("img");
+        shot.src = shotUrl;
+        shot.alt = "添付スクリーンショット";
+        shot.style.cssText = "max-width: 100%; height: auto; display: block; margin: 1rem; border: 1px solid #ccc;";
+        w.document.body.appendChild(shot);
+      }
       const pre = w.document.createElement("pre");
       pre.style.cssText = "white-space: pre-wrap; word-break: break-word; font-family: monospace; padding: 1rem;";
       pre.textContent = full;

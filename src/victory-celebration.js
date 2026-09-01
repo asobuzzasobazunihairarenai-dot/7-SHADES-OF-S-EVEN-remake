@@ -86,11 +86,29 @@ const wait = (ms) => (ms > 0 ? new Promise((r) => setTimeout(r, ms)) : Promise.r
 const rectOf = (el) => el.getBoundingClientRect();
 const centerOf = (el) => { const r = rectOf(el); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
 
+// 画面内に実際に見えているか（大きさがあり、ビューポートと重なっている）。
+function isVisibleOnScreen(el) {
+  if (!el) return false;
+  const r = rectOf(el);
+  if (r.width < 4 || r.height < 4) return false;
+  return r.right > 0 && r.bottom > 0 && r.left < innerWidth && r.top < innerHeight;
+}
+
+// 【#192】スマホでは本物のロックエリアが画面外（または極小）になり、プレイヤーが見ているのは
+// 画面端の「ミニロックエリア」(.mini-lock-slot、data-side/data-index は本物と同じ)。
+// 本物の座標に光を置くと「全然違うところが光る」ので、実際に見えている方を採用する。
+// PC は本物が見えているので従来どおり（ミニが無い/見えない時も本物のまま）。
 function findLockSlots(player) {
   const side = SEAT_TO_SIDE[player];
   const table = document.getElementById("game-table");
-  if (!table) return [];
-  return COLORS.map((_, i) => table.querySelector(`.lock-slot[data-side="${side}"][data-index="${i}"]`));
+  const real = COLORS.map((_, i) =>
+    table ? table.querySelector(`.lock-slot[data-side="${side}"][data-index="${i}"]`) : null
+  );
+  if (real.filter(isVisibleOnScreen).length >= 4) return real;
+  const mini = COLORS.map((_, i) =>
+    document.querySelector(`.mini-lock-slot[data-side="${side}"][data-index="${i}"]`)
+  );
+  return mini.filter(isVisibleOnScreen).length >= 4 ? mini : real;
 }
 function findWinnerPiece(player) {
   const table = document.getElementById("game-table");

@@ -10527,7 +10527,12 @@ let gomennasaiAutoApprovalInFlight = false;
 let gomennasaiManualUseInFlight = false;
 function checkGomennasaiAutoApproval() {
   const pending = getState().pendingFinalLock;
-  if (!pending || pending.queue.length === 0 || gomennasaiAutoApprovalInFlight || gomennasaiManualUseInFlight) return;
+  // 【#192（2026-09-01）】CPU側の使用も同じ理由で必ず除外する。以前は人間用の
+  // gomennasaiManualUseInFlight しか見ていなかったため、**CPUが**ゴメンナサイを使っている
+  // 最中（cpuFinalLockInFlight）に追色コストを捨てた瞬間、この自動承認が「使えない」と
+  // 誤判定して先に承認してしまい、CPUがゴメンナサイを使ったのに攻撃側が勝ってしまっていた
+  // （実機ログ: hand-effect purple-sorry → コスト破棄 → hasSorryInHand:false で自動承認 → 勝利）。
+  if (!pending || pending.queue.length === 0 || gomennasaiAutoApprovalInFlight || gomennasaiManualUseInFlight || cpuFinalLockInFlight) return;
   const approver = pending.queue[0];
   if (isOnlineMode() && getSelfSeat() !== approver) return;
   if (findGomennasaiEligibility(approver)) return; // 使えるなら自動承認せず本人の選択を待つ

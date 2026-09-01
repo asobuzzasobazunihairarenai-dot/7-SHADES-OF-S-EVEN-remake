@@ -10350,10 +10350,10 @@ body.theme-light .bug-report-cancel {
 .declare-colors-modal-swatch:hover {
   transform: scale(1.12);
 }
-/* 未選択の色は少し沈めて、選択済みが際立つようにする（選択が1つでもある時だけ）。 */
-.declare-colors-modal-grid:has(.declare-colors-modal-swatch.is-selected) .declare-colors-modal-swatch:not(.is-selected) {
-  opacity: 0.5;
-}
+/* 【撤去（ユーザー報告2026-09-01 #193）】以前は「選択が1つでもあれば未選択を沈める」に
+   していたが、3色宣言のカードで1色選んだ時点で残り6色が薄くなり「もう選べないのか」と
+   誤解させてしまった。選択済みは下の白＋金の二重リングと✓で十分に目立つので、
+   未選択を沈める処理はやめる。 */
 /* 選択された色を、どの色の上でもはっきり分かるようにする（白＋金の二重リング・
    強めの拡大・持続する発光・中央のチェックマーク）。 */
 .declare-colors-modal-swatch.is-selected {
