@@ -1632,6 +1632,14 @@ let selfBoardAvatarVisible = false;
 // 対象は左下ステータスエリアの .self-status-icon-grid（駒スキン・カード裏・ペット・プレイマット・
 // 背景）。オンライン状態アイコンは既に右上のオプションエリアへ移設済みなので影響しない。
 // 見た目だけの切り替えなので、JS側の描画には触らず body のクラスで CSS に伝える。
+// ユーザー要望2026-09-01「効果自動処理モードの時は自分の手札公開エリアは非表示で。
+// 管理者モードで切り替えれるように」。既定は非表示(false)。自動処理モード中の**自分**だけが対象で、
+// 相手席・自動処理OFFの時は常に従来どおり表示される（main.js の buildPlayerZone 参照）。
+let selfHandRevealAreaVisible = false;
+export function isSelfHandRevealAreaVisible() {
+  return selfHandRevealAreaVisible;
+}
+
 let phoneDressupIconsVisible = false;
 export function isPhoneDressupIconsVisible() {
   return phoneDressupIconsVisible;
@@ -1923,6 +1931,30 @@ async function adminPlayEidosScene(startId, chain) {
 }
 
 const TOGGLE_SECTIONS = [
+  {
+    // ユーザー要望2026-09-01。自動処理モード中は公開カードを手札の扇の中に出しているので、
+    // 下の公開エリアは常に空＝場所だけ取る。既定OFF（＝隠す）。
+    title: "🃏 自動処理中の「自分の手札公開エリア」",
+    category: "effect",
+    buildContent: (content) => {
+      const row = document.createElement("label");
+      row.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = selfHandRevealAreaVisible;
+      cb.addEventListener("change", () => {
+        selfHandRevealAreaVisible = cb.checked;
+        window.dispatchEvent(new CustomEvent("admin:change"));
+        updateExportRef.current();
+      });
+      const label = document.createElement("span");
+      label.textContent =
+        "自動処理モード中も、自分の手札公開エリアを表示する（デフォルトOFF＝非表示。公開カードは手札の扇の中に出るため）";
+      row.appendChild(cb);
+      row.appendChild(label);
+      content.appendChild(row);
+    },
+  },
   {
     // ユーザー要望2026-09-01「スマホではステータスエリアの着せ替えアイコン群は非表示に。
     // 管理者画面から非表示にできるように」。既定OFF（＝スマホでは出さない）。
@@ -2895,6 +2927,7 @@ function buildPanel(rebuildSlidersRef) {
       `gatePedestalVisible: ${gatePedestalVisible}`,
       `selfBoardAvatarVisible: ${selfBoardAvatarVisible}`,
       `phoneDressupIconsVisible: ${phoneDressupIconsVisible}`,
+      `selfHandRevealAreaVisible: ${selfHandRevealAreaVisible}`,
       `selfNameLabelVisible: ${selfNameLabelVisible}`,
       `spotlightMode: ${spotlightMode}`,
       `avatarOutlineVisible: ${avatarOutlineVisible}`,

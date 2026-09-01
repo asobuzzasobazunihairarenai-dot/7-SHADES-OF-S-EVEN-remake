@@ -18843,10 +18843,13 @@ body.theme-light .victory-preview-row > span { color: #6b6152; }
   font-family: sans-serif;
   max-width: min(28rem, 92vw);
 }
-#cell-confirm-modal.is-top {
-  top: calc(var(--option-area-band-height, 3rem) + 0.6rem);
+/* 選んだマスの隣に置く時（既定）。left/top は JS(placeNextToCell)がローカル座標で入れる。
+   中央寄せの transform は打ち消す。 */
+#cell-confirm-modal.is-anchored {
+  transform: none;
 }
-#cell-confirm-modal.is-bottom {
+/* 保険: マスの位置が測れなかった時だけ画面下端の中央に出す。 */
+#cell-confirm-modal.is-fallback {
   bottom: 1rem;
 }
 .cell-confirm-title {
@@ -18897,4 +18900,12 @@ body.theme-light .cell-confirm-dontshow { color: #6b6153; }
   opacity: 0.3 !important;
   filter: grayscale(0.85);
   cursor: default;
+}
+
+/* 自動処理モード中の「自分の手札公開エリア」を隠す（ユーザー要望2026-09-01）。
+   公開カードは手札の扇の中に出しているので、ここは常に空で場所だけ取っていた。
+   display:none にはしない——ドロップ先であり、周りのレイアウトの基準でもあるため（#199の教訓）。 */
+.hand-reveal-area.is-hidden-by-auto {
+  visibility: hidden;
+  pointer-events: none;
 }

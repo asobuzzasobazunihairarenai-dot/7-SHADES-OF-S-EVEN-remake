@@ -6,11 +6,16 @@
 // 【配置の注意（ユーザー指摘）】モーダルが盤面に被ると、選んだマス自体が隠れて
 // 「どのマスを確認されているのか」が分からなくなる。そこで
 //   ・背景は暗くしない（盤面を見せたまま）
-//   ・選んだマスが画面の上半分なら下端、下半分なら上端にパネルを出す
+//   ・パネルは**選んだマスのすぐ隣**（右上→右下→左上→左下の順に、収まる所）に出す
+//     （2026-09-01のユーザー指摘「上に出たり下に出たりはユーザビリティに欠ける」。
+//      以前は画面の上端/下端に出していたが、視線が飛ぶのでマスの隣に固定した）
 //   ・選んだマスを強く光らせる
 // の3点で、必ず対象マスが見えている状態で確認できるようにする。
 import { t } from "./ui-text.js";
 import { createBackdrop } from "./ui-helpers.js";
+// 【重要】body 自体がステージ変形(translate+scale)を持つので、実画面座標をそのまま
+// left/top に入れると二重にかかる（続き355）。必ずローカル座標へ直してから使う。
+import { stageClientToLocal } from "./main.js";
 
 const STORAGE_KEY = "so7-cell-confirm-enabled";
 
@@ -52,10 +57,6 @@ export function confirmCellChoice(cellEl, hint) {
     const backdrop = createBackdrop(() => {}, { dim: false, zIndex: 10610 });
     const modal = document.createElement("div");
     modal.id = "cell-confirm-modal";
-    // 選んだマスが画面の上半分なら下端、下半分なら上端に出す（マスと重ならない側）。
-    const rect = cellEl?.getBoundingClientRect();
-    const cellInTopHalf = rect ? rect.top + rect.height / 2 < window.innerHeight / 2 : true;
-    modal.classList.add(cellInTopHalf ? "is-bottom" : "is-top");
 
     const titleEl = document.createElement("div");
     titleEl.className = "cell-confirm-title";
@@ -104,5 +105,45 @@ export function confirmCellChoice(cellEl, hint) {
 
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
+    placeNextToCell(modal, cellEl);
   });
+}
+
+// 選んだマスの「すぐ右上」に出す。画面からはみ出す時だけ、右下→左上→左下 の順に回して
+// 収まる場所へ置く（どれも入らなければ最後に画面内へ寄せる）。上下に飛ぶのではなく
+// **必ずマスの隣**なので、視線が動かず分かりやすい（ユーザー要望2026-09-01）。
+// 【座標】getBoundingClientRect は実画面座標、モーダルは body（ステージ変形あり）の中に
+// あるので left/top はローカル座標。必ず stageClientToLocal / stageDelta で変換する。
+function placeNextToCell(modal, cellEl) {
+  const rect = cellEl?.getBoundingClientRect();
+  if (!rect || rect.width < 1) {
+    // マスが測れない時だけ、従来どおり画面下端の中央に出す（保険）。
+    modal.classList.add("is-fallback");
+    return;
+  }
+  const mr = modal.getBoundingClientRect(); // 実画面でのモーダルの大きさ
+  const gap = 10; // マスとの隙間(実画面px)
+  const margin = 8; // 画面端からの最小余白(実画面px)
+  // 候補: ①右上 ②右下 ③左上 ④左下（ユーザー指定の優先順）
+  const candidates = [
+    { x: rect.right + gap, y: rect.top - mr.height - gap },
+    { x: rect.right + gap, y: rect.bottom + gap },
+    { x: rect.left - mr.width - gap, y: rect.top - mr.height - gap },
+    { x: rect.left - mr.width - gap, y: rect.bottom + gap },
+  ];
+  const fits = (p) =>
+    p.x >= margin && p.y >= margin && p.x + mr.width <= innerWidth - margin && p.y + mr.height <= innerHeight - margin;
+  let pos = candidates.find(fits);
+  if (!pos) {
+    // どれも収まらない小さい画面: 右上を基準に画面内へ押し込む。
+    const p = candidates[0];
+    pos = {
+      x: Math.max(margin, Math.min(innerWidth - mr.width - margin, p.x)),
+      y: Math.max(margin, Math.min(innerHeight - mr.height - margin, p.y)),
+    };
+  }
+  const local = stageClientToLocal(pos.x, pos.y);
+  modal.classList.add("is-anchored");
+  modal.style.left = `${local.x}px`;
+  modal.style.top = `${local.y}px`;
 }

@@ -14,6 +14,8 @@ export const CHANGELOG = [
   {
     date: "2026-08-29",
     items: [
+      "効果の自動処理モード中は、自分の手札公開エリア（画面下の枠）を出さないようにしました。公開したカードは手札の並びの中に出るので、下の枠は常に空で場所だけ取っていたためです（管理者向けの設定で元に戻せます）。",
+      "「このマスでいいですか？」の確認を、画面の端ではなく選んだマスのすぐ隣（右上、入らなければ右下・左上・左下）に出すようにしました。上に出たり下に出たりしないので視線が動きません。",
       "追色（同じ色のカードを捨てて使う）の演出中に、効果の続き（セレスティアなら「相手の手札を選ぶ」など）が重なって出てしまうのを直しました。演出が終わってから次へ進みます。",
       "追色の演出は、画面のどこかをタップすればスキップできるようになりました。",
       "「このカードを選びますか？」の確認モーダルで、ボタンを押しても反応しないこと（カウンターロックでロックするカードを選ぶ場面など）を直しました。以前この症状を直した別のモーダルと同じ原因で、押した反応（明るくなる）だけは出るのにボタンが効かない状態でした。",
@@ -64,6 +66,8 @@ export const CHANGELOG = [
     ],
     // 英語表示のとき items の代わりに出る（併記はしない。同じ順番・同じ件数で書くこと）。
     itemsEn: [
+      "While automatic effect processing is on, your own reveal area at the bottom of the screen is no longer shown — revealed cards already appear among your hand, so the frame was always empty and just took up space (an admin setting can bring it back).",
+      "The “Use this square?” prompt now appears right next to the square you picked (upper-right, falling back to lower-right, upper-left or lower-left) instead of at the edge of the screen, so your eyes stay in one place.",
       "Fixed the rest of an effect (such as Celestia’s “choose an opponent’s card”) appearing on top of the colour-cost animation. It now waits for the animation to finish.",
       "You can now skip the colour-cost animation by tapping anywhere on the screen.",
       "Fixed the “Choose this card?” prompt not responding to its buttons — for example when picking a card to lock with Counter Lock. It was the same cause as another prompt fixed earlier: the button lit up on tap but the press never registered.",

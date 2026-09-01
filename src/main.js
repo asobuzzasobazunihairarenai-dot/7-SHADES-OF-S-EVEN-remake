@@ -13,6 +13,7 @@ import {
   registerRankRingPreviewHelper,
   registerAdminAuthHelpers,
   refreshAdminOnlySection,
+  isSelfHandRevealAreaVisible,
 } from "./admin.js";
 import { optionLabel } from "./card-effects.js"; // UI英語化フェーズ11
 import { logAction, initActionLogPanel, getActionLogText, getActionLogEntries } from "./action-log.js";
@@ -740,6 +741,13 @@ function buildPlayerZone(side, player, isSelf) {
   const handRevealEl = document.createElement("div");
   handRevealEl.className = `hand-reveal-area hand-reveal-${side}`;
   handRevealEl.dataset.player = player;
+  // ユーザー要望2026-09-01: 自動処理モード中の**自分**の公開エリアは、公開カードを扇の中に
+  // 出しているので常に空＝枠とプレースホルダーだけが場所を取る。既定で隠す（管理者モードの
+  // 「自動処理中に自分の手札公開エリアを表示する」でいつでも戻せる）。
+  // display:none にはしない（#199 と同じ理由。ドロップ先・レイアウトの基準として箱は残す）。
+  if (isSelf && isAutoProcessingEnabled() && !isSelfHandRevealAreaVisible()) {
+    handRevealEl.classList.add("is-hidden-by-auto");
+  }
   // 自動処理モードの自分は公開カードを扇の中（上）に表示済みなので、ここでは重複して出さない
   // （エリア自体はドロップ先として残す）。それ以外（相手席・自動処理OFF）は従来通りここに並べる。
   const handRevealTokens =
