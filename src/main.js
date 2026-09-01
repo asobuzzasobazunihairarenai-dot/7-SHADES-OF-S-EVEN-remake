@@ -7542,10 +7542,19 @@ async function respondToContact(approve) {
   // move→flight）が終わってから、奪ったカードの中央表示を出す（閉じるまで await）。強制移動の
   // 到達処理（下）はその後に始まるので、到達効果の選択モーダルと重ならない。
   if (deferredStealReveal) {
+    // 【#191】「接触の演出がすべて終わる前にターンが切り替わってしまっている」への対応。
+    // タックル演出が終わった直後に出すこの「奪った」モーダルは、それ自体は await しているが、
+    // 自動ターン終了(computeShouldEmphasize)の側からは“何も起きていない”ように見えていた
+    // （pendingContact は既に消えており、接触結果モーダルの openContactResultModals にも
+    // 数えられていないため）。実機ログでも演出終了の0.5秒後に NEXT_TURN が走っていた。
+    // 同じカウンタに数えて、閉じるまで自動ターン終了を止める。
+    openContactResultModals += 1;
     try {
       await deferredStealReveal();
     } catch (err) {
       console.error("deferred steal reveal failed", err);
+    } finally {
+      openContactResultModals = Math.max(0, openContactResultModals - 1);
     }
   }
 

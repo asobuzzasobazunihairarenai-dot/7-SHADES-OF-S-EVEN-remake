@@ -83,15 +83,53 @@ function readSettings() {
 }
 
 const wait = (ms) => (ms > 0 ? new Promise((r) => setTimeout(r, ms)) : Promise.resolve());
-const rectOf = (el) => el.getBoundingClientRect();
+// 【最重要・#192】body 自体がステージ変形（translate+scale、main.js の applyViewportStage）を
+// 持っている。#victory-celebration は position:fixed だが body の中にあるので、その変形の
+// 影響を受ける座標系に置かれる。一方 getBoundingClientRect() が返すのは**変形後の実画面座標**。
+// そのまま left/top に入れると変形が二重にかかり、スマホ／タブレット（倍率≠1・オフセットあり）
+// では光やカードが実物から大きく離れた場所に出る（PCは倍率1・オフセット0なので露見しない）。
+// ここで root の矩形から倍率と原点を割り出し、**rectOf を通した時点でローカル座標に直す**。
+// これ1か所で、光・疑似キューブ・扇のカード・白飛びの中心・キャンバスがまとめて正しくなる。
+let stageRoot = null;
+let stageS = 1, stageX = 0, stageY = 0, stageW = 0, stageH = 0, stageAt = -1;
+function syncStage() {
+  if (!stageRoot) return;
+  // 1フレームに1回だけ測り直す（毎回測るとリサイズ・盤面追従で無駄が多い）。
+  const now = performance.now();
+  if (now - stageAt < 12) return;
+  stageAt = now;
+  const r = stageRoot.getBoundingClientRect();
+  const w = stageRoot.clientWidth || 0;
+  const ratio = w > 0 && r.width > 0 ? r.width / w : 1;
+  stageS = Number.isFinite(ratio) && ratio > 0.05 ? ratio : 1;
+  stageX = r.left;
+  stageY = r.top;
+  stageW = stageRoot.clientWidth || innerWidth;
+  stageH = stageRoot.clientHeight || innerHeight;
+}
+const rectOf = (el) => {
+  syncStage();
+  const r = el.getBoundingClientRect();
+  return {
+    left: (r.left - stageX) / stageS,
+    top: (r.top - stageY) / stageS,
+    right: (r.right - stageX) / stageS,
+    bottom: (r.bottom - stageY) / stageS,
+    width: r.width / stageS,
+    height: r.height / stageS,
+  };
+};
 const centerOf = (el) => { const r = rectOf(el); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+// 演出の中で「画面の幅・高さ」として使う値も、同じローカル座標系のものにする。
+const viewW = () => { syncStage(); return stageW || innerWidth; };
+const viewH = () => { syncStage(); return stageH || innerHeight; };
 
 // 画面内に実際に見えているか（大きさがあり、ビューポートと重なっている）。
 function isVisibleOnScreen(el) {
   if (!el) return false;
   const r = rectOf(el);
   if (r.width < 4 || r.height < 4) return false;
-  return r.right > 0 && r.bottom > 0 && r.left < innerWidth && r.top < innerHeight;
+  return r.right > 0 && r.bottom > 0 && r.left < viewW() && r.top < viewH();
 }
 
 // 【#192】スマホでは本物のロックエリアが画面外（または極小）になり、プレイヤーが見ているのは
@@ -154,13 +192,16 @@ export async function playVictoryCelebration(player, opts = {}) {
   try {
     root = buildRoot();
     document.body.appendChild(root);
+    stageRoot = root;
+    stageAt = -1;
+    syncStage();
     // タップ/クリックで残りを短縮できる（スキップしても勝敗・報酬・リザルトには影響しない）。
     const onSkip = () => { skipRequested = true; };
     root.addEventListener("pointerdown", onSkip);
     window.addEventListener("keydown", onSkip);
     root._cleanupSkip = () => { window.removeEventListener("keydown", onSkip); };
 
-    const cube = piece ? centerOf(piece) : { x: innerWidth / 2, y: innerHeight * 0.5 };
+    const cube = piece ? centerOf(piece) : { x: viewW() / 2, y: viewH() * 0.5 };
     const cubeSize = piece ? rectOf(piece).width : 0;
 
     // --- WAIT: 操作を止め、BGMを短くフェードダウンして間を作る ---------------------
@@ -189,7 +230,7 @@ export async function playVictoryCelebration(player, opts = {}) {
 
     // --- （任意）ロックした7枚が中央に扇状に並ぶ ----------------------------------
     if (s.fan && !light) {
-      cards = spawnLockedCards(root, player, liveSlots(), { x: innerWidth / 2, y: innerHeight * 0.42 });
+      cards = spawnLockedCards(root, player, liveSlots(), { x: viewW() / 2, y: viewH() * 0.42 });
       if (cards.length) {
         playSound("cardDraw");
         requestAnimationFrame(() => cards.forEach((c) => c.classList.add("is-flying")));
@@ -252,6 +293,7 @@ export async function playVictoryCelebration(player, opts = {}) {
   } finally {
     for (const c of cards) c.remove();
     stopFlareTrack?.();
+    stageRoot = null;
     // flares / ghost は root の子なので root ごと消える。盤面側には何も付けていない。
     if (stopCanvas) stopCanvas();
     document.body.classList.remove("victory-celebration-active");
@@ -524,7 +566,7 @@ function buildVictoryText(root, player, s) {
 function spawnLockedCards(root, player, slots, mid) {
   const side = SEAT_TO_SIDE[player];
   const state = getState();
-  const vmin = Math.min(innerWidth, innerHeight) / 100;
+  const vmin = Math.min(viewW(), viewH()) / 100;
   const out = [];
   COLORS.forEach((color, index) => {
     const token = state.tokens.find(
@@ -558,8 +600,8 @@ function spawnLockedCards(root, player, slots, mid) {
 function runGatherCanvas(root, origins, cube, s, durMs) {
   const canvas = root.querySelector(".vic-canvas");
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const W = canvas.clientWidth || innerWidth;
-  const H = canvas.clientHeight || innerHeight;
+  const W = canvas.clientWidth || viewW();
+  const H = canvas.clientHeight || viewH();
   canvas.width = Math.round(W * dpr);
   canvas.height = Math.round(H * dpr);
   const ctx = canvas.getContext("2d");

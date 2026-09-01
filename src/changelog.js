@@ -14,6 +14,8 @@ export const CHANGELOG = [
   {
     date: "2026-08-29",
     items: [
+      "スマホ・タブレットで勝利演出の光やカードが実物と大きくズレて出ていたのを直しました（画面全体の縮小が二重にかかっていたためで、演出全体が対象です）。",
+      "接触の演出のあと「奪った」表示が出ている最中に、ターンが次の人へ切り替わってしまうことがあったのを直しました。",
       "「ゴメンナサイッ！」をCPUが使ったのに、そのまま相手が勝利してしまう不具合を修正しました。カードのコストを払った一瞬のすきに、システムが「使えなかった」と判断して先に承認していたためです。",
       "スマホでの勝利演出で、ロックの光が画面外の見えない場所に出ていたのを直しました。スマホで実際に見えている小さいロック表示の方に光ります。",
       "色を宣言する画面で、1色選んだだけで残りの色が薄くなり「もう選べない」ように見えていたのをやめました。",
@@ -51,6 +53,8 @@ export const CHANGELOG = [
     ],
     // 英語表示のとき items の代わりに出る（併記はしない。同じ順番・同じ件数で書くこと）。
     itemsEn: [
+      "Fixed the victory sequence appearing far from where it should on phones and tablets — the whole-screen scaling was being applied twice, which threw off every part of the sequence.",
+      "Fixed the turn sometimes passing to the next player while the “stolen card” display from a contact was still on screen.",
       "Fixed “So Sorry!” being played by a CPU yet the opponent still winning. While the cost was being paid, the game briefly judged the card unusable and approved the lock first.",
       "Fixed the Lock Area glow in the victory sequence appearing off-screen on phones. It now lights up the small lock display you can actually see.",
       "In the colour declaration screen, the remaining colours no longer dim after you pick just one — it looked as if you could not choose any more.",
