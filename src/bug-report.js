@@ -25,6 +25,7 @@ import { APP_VERSION } from "./app-version.js";
 import { getState } from "./state.js";
 import { isCpuBattleActive, isSelfCpuSubstituted } from "./cpu-battle-state.js";
 import { t } from "./ui-text.js"; // UI英語化フェーズ13
+import { buildCardFace } from "./card-renderer.js";
 
 // ---- コンソールログの簡易リングバッファ（起動時にconsoleをフックして直近を保持する） ----
 const CONSOLE_BUFFER_MAX = 300;
@@ -195,6 +196,42 @@ async function fileToShotBlob(file) {
   return blob;
 }
 
+// #194 の切り分け用（2026-09-01）。カード面（buildCardFace）を画面外に1枚描いて、
+// タイトル・ルビ・効果文が「カード面の高さの何%の位置か」を測って返す。
+// 手元のChromiumでは タイトル52.5% / 効果文58% になる。実機（iOS Safari）でこれが
+// ずれていれば、ruby が行の高さを食っているという仮説が裏付けられる。
+// 文字（カード名・効果文）は載せない＝隠し情報も個人情報も入らない。
+function gatherCardFaceSnapshot() {
+  try {
+    const host = document.createElement("div");
+    host.style.cssText = "position:fixed;left:-9999px;top:0;width:300px;height:300px;pointer-events:none;";
+    // ルビ付きのカード（収穫と種まき）で測る。無い場合はここで例外になり null を返す。
+    host.appendChild(buildCardFace("orange-harvest-sow"));
+    document.body.appendChild(host);
+    const face = host.querySelector(".card-face");
+    const fr = face.getBoundingClientRect();
+    const pct = (el, key) => {
+      if (!el || !fr.height) return null;
+      const r = el.getBoundingClientRect();
+      return { top: +(((r.top - fr.top) / fr.height) * 100).toFixed(1), h: +((r.height / fr.height) * 100).toFixed(1) };
+    };
+    const out = {
+      face: [Math.round(fr.width), Math.round(fr.height)],
+      title: pct(face.querySelector(".card-face-title")),
+      rt: pct(face.querySelector(".card-face-title rt")),
+      effect: pct(face.querySelector(".card-face-effect")),
+      divider: pct(face.querySelector(".card-face-divider")),
+      // 書体が実際に当たっているか（Webフォントが読めていないと行の高さも変わる）。
+      titleFont: getComputedStyle(face.querySelector(".card-face-title") || face).fontFamily.slice(0, 60),
+      fontsReady: typeof document.fonts?.status === "string" ? document.fonts.status : "unknown",
+    };
+    host.remove();
+    return out;
+  } catch (err) {
+    return { error: String(err).slice(0, 120) };
+  }
+}
+
 function gatherHandSnapshot() {
   try {
     const st = getState();
@@ -260,6 +297,7 @@ function gatherContext() {
     at: new Date().toISOString(),
     gameContext,
     hand: gatherHandSnapshot(), // #187: 手札が見えなくなる件の切り分け用
+    cardFace: gatherCardFaceSnapshot(), // #194: カード面のタイトル/ルビ/効果文の位置（実機の実測値）
     // リロードを跨ぐブラックボックス（crash-blackbox.js）: メモリのピーク・遷移種別・前回セッションの
     // 不審終了（＝落ちてタイトルに戻った疑い）を載せる。「スマホでたまに落ちる」原因追跡用。
     blackbox: (() => {

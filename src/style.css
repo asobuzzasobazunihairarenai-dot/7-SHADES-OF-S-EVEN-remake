@@ -17806,11 +17806,18 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
 /* タイトルは全て黒文字（ユーザー指定）。ファーストのみ中央寄せ。フォント＝FOT-マティス。 */
 .card-face-title { font-family: "Shippori Mincho B1", "FOT-マティス ProN M", "FOT-Matisse ProN M", "Yu Mincho", serif; font-weight: 800; line-height: 1.08; letter-spacing: 0.2cqw; color: #141414; text-align: left; }
 .card-face[data-card-type="first"] .card-face-title { text-align: center; }
-/* ルビ(rt)は絶対配置で base の「上」に浮かせる＝タイトルの行高に影響しない
-   （ルビ有無でタイトルの縦位置がズレない）。各漢字ランの ruby を基準に中央に置き、
-   translateY(=--cf-*-ruby-oy) で上下微調整（正=下）。 */
-.card-face-title ruby { position: relative; }
-.card-face-title rt { position: absolute; left: 50%; bottom: 100%; white-space: nowrap; font-weight: 700; line-height: 1; color: #141414; font-family: "Shippori Mincho B1", "FOT-マティス ProN M", "FOT-Matisse ProN M", "Yu Mincho", serif; }
+/* ルビは絶対配置で base の「上」に浮かせる＝タイトルの行高に影響しない
+   （ルビ有無でタイトルの縦位置がズレない）。各漢字ランを基準に中央に置き、
+   translateY(=--cf-*-ruby-oy) で上下微調整（正=下）。
+   【#194・重要】以前は <ruby>/<rt> で組んでいたが、**Safari は ruby 内部ボックス(rt)への
+   position 指定を尊重しない**ため、iOS ではルビが行の高さを食ってタイトルが下へ押し出され、
+   効果文と重なっていた（Chromiumでは正常なので手元では再現しなかった）。ruby 内部ボックスを
+   やめて普通の span (.card-face-title-run / -rt) で組むことで、どのエンジンでも同じになる。
+   古い ruby/rt セレクタも残してあるので、万一 ruby で組まれても崩れない。 */
+.card-face-title ruby,
+.card-face-title .card-face-title-run { position: relative; display: inline-block; }
+.card-face-title rt,
+.card-face-title .card-face-title-rt { position: absolute; left: 50%; bottom: 100%; white-space: nowrap; font-weight: 700; line-height: 1; color: #141414; font-family: "Shippori Mincho B1", "FOT-マティス ProN M", "FOT-Matisse ProN M", "Yu Mincho", serif; }
 /* 能力名《》はタイトルと同じフォント。 */
 .card-face-subtitle { font-family: "Shippori Mincho B1", "FOT-マティス ProN M", "FOT-Matisse ProN M", "Yu Mincho", serif; font-weight: 800; text-align: center; color: color-mix(in srgb, var(--card-accent, #555) 55%, #201a16); }
 /* フレーバーは斜体にしない（ユーザー指摘）。フォント＝FOT-マティス。 */
@@ -17818,6 +17825,7 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
 /* ファーストは文字が全て白（ユーザー指定）。効果は全て中央揃え・ただしアイコン(マーカー)は左揃え。 */
 .card-face[data-card-type="first"] .card-face-title,
 .card-face[data-card-type="first"] .card-face-title rt,
+.card-face[data-card-type="first"] .card-face-title .card-face-title-rt,
 .card-face[data-card-type="first"] .card-face-subtitle,
 .card-face[data-card-type="first"] .card-face-effect { color: #fff; text-shadow: 0 0.3cqw 0.8cqw rgba(0, 0, 0, 0.7), 0 0 0.4cqw rgba(0, 0, 0, 0.5); }
 .card-face[data-card-type="first"] .card-face-effect-body { text-align: center; }
@@ -17832,21 +17840,24 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
 /* --- 各テキスト要素の絶対配置（自動生成：card-layout-config.js） --- */
 .card-face[data-card-type="normal"] .card-face-flavor { position: absolute; left: var(--cf-s-flavor-x, 6cqw); top: var(--cf-s-flavor-y, 5cqw); width: var(--cf-s-flavor-w, 88cqw); font-size: calc(var(--cf-s-flavor-s, 2.5cqw) * var(--cf-fit, 1)); }
 .card-face[data-card-type="normal"] .card-face-title { position: absolute; left: var(--cf-s-title-x, 6cqw); top: var(--cf-s-title-y, 52.5cqw); width: var(--cf-s-title-w, 90cqw); font-size: calc(var(--cf-s-title-s, 3.9cqw) * var(--cf-fit, 1)); }
-.card-face[data-card-type="normal"] .card-face-title rt { font-size: calc(var(--cf-s-ruby-s, 1.8cqw) * var(--cf-fit, 1)); transform: translateX(-50%) translateY(var(--cf-s-ruby-oy, 0cqw)); }
+.card-face[data-card-type="normal"] .card-face-title rt,
+.card-face[data-card-type="normal"] .card-face-title .card-face-title-rt { font-size: calc(var(--cf-s-ruby-s, 1.8cqw) * var(--cf-fit, 1)); transform: translateX(-50%) translateY(var(--cf-s-ruby-oy, 0cqw)); }
 .card-face[data-card-type="normal"] .card-face-fx { position: absolute; left: var(--cf-s-fx-x, 6cqw); top: var(--cf-s-fx-y, 58cqw); width: var(--cf-s-fx-w, 88cqw); font-size: calc(var(--cf-s-fx-s, 3.2cqw) * var(--cf-fit, 1)); }
 .card-face[data-card-type="normal"] .card-face-fx .card-face-effect.is-basic { font-size: calc(var(--cf-s-fxbasic-s, 2.7cqw) * var(--cf-fit, 1)); width: var(--cf-s-fxbasic-w, 80cqw); margin-left: var(--cf-s-fxbasic-mx, 8cqw); }
 .card-face[data-card-type="normal"] .card-face-marker { width: var(--cf-s-icon-s, 6.6cqw); height: var(--cf-s-icon-s, 6.6cqw); }
 .card-face[data-card-type="normal"] .card-face-effect { gap: var(--cf-s-gap-s, 1.5cqw); }
 .card-face[data-card-type="eternal"] .card-face-flavor { position: absolute; left: var(--cf-s-flavor-x, 6cqw); top: var(--cf-s-flavor-y, 5cqw); width: var(--cf-s-flavor-w, 88cqw); font-size: calc(var(--cf-s-flavor-s, 2.5cqw) * var(--cf-fit, 1)); }
 .card-face[data-card-type="eternal"] .card-face-title { position: absolute; left: var(--cf-s-title-x, 6cqw); top: var(--cf-s-title-y, 52.5cqw); width: var(--cf-s-title-w, 90cqw); font-size: calc(var(--cf-s-title-s, 3.9cqw) * var(--cf-fit, 1)); }
-.card-face[data-card-type="eternal"] .card-face-title rt { font-size: calc(var(--cf-s-ruby-s, 1.8cqw) * var(--cf-fit, 1)); transform: translateX(-50%) translateY(var(--cf-s-ruby-oy, 0cqw)); }
+.card-face[data-card-type="eternal"] .card-face-title rt,
+.card-face[data-card-type="eternal"] .card-face-title .card-face-title-rt { font-size: calc(var(--cf-s-ruby-s, 1.8cqw) * var(--cf-fit, 1)); transform: translateX(-50%) translateY(var(--cf-s-ruby-oy, 0cqw)); }
 .card-face[data-card-type="eternal"] .card-face-fx { position: absolute; left: var(--cf-s-fx-x, 6cqw); top: var(--cf-s-fx-y, 58cqw); width: var(--cf-s-fx-w, 88cqw); font-size: calc(var(--cf-s-fx-s, 3.2cqw) * var(--cf-fit, 1)); }
 .card-face[data-card-type="eternal"] .card-face-fx .card-face-effect.is-basic { font-size: calc(var(--cf-s-fxbasic-s, 2.7cqw) * var(--cf-fit, 1)); width: var(--cf-s-fxbasic-w, 80cqw); margin-left: var(--cf-s-fxbasic-mx, 8cqw); }
 .card-face[data-card-type="eternal"] .card-face-marker { width: var(--cf-s-icon-s, 6.6cqw); height: var(--cf-s-icon-s, 6.6cqw); }
 .card-face[data-card-type="eternal"] .card-face-effect { gap: var(--cf-s-gap-s, 1.5cqw); }
 .card-face[data-card-type="first"] .card-face-effect.is-basic { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-basic-y, 6.5cqw); width: var(--cf-f-basic-w, 58cqw); font-size: calc(var(--cf-f-basic-s, 2.8cqw) * var(--cf-fit, 1)); }
 .card-face[data-card-type="first"] .card-face-title { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-title-y, 23.5cqw); width: var(--cf-f-title-w, 90cqw); font-size: calc(var(--cf-f-title-s, 3.5cqw) * var(--cf-fit, 1)); }
-.card-face[data-card-type="first"] .card-face-title rt { font-size: calc(var(--cf-f-ruby-s, 1.6cqw) * var(--cf-fit, 1)); transform: translateX(-50%) translateY(var(--cf-f-ruby-oy, 0cqw)); }
+.card-face[data-card-type="first"] .card-face-title rt,
+.card-face[data-card-type="first"] .card-face-title .card-face-title-rt { font-size: calc(var(--cf-f-ruby-s, 1.6cqw) * var(--cf-fit, 1)); transform: translateX(-50%) translateY(var(--cf-f-ruby-oy, 0cqw)); }
 .card-face[data-card-type="first"] .card-face-subtitle { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-sub-y, 58.5cqw); width: var(--cf-f-sub-w, 90cqw); font-size: calc(var(--cf-f-sub-s, 3.8cqw) * var(--cf-fit, 1)); }
 .card-face[data-card-type="first"] .card-face-hand-icon { position: absolute; left: var(--cf-f-handicon-x, 9cqw); top: var(--cf-f-handicon-y, 69cqw); width: var(--cf-f-handicon-s, 8cqw); height: var(--cf-f-handicon-s, 8cqw); }
 .card-face[data-card-type="first"] .card-face-effect.is-hand-cost { position: absolute; left: 50%; transform: translateX(-50%); top: var(--cf-f-handcost-y, 69cqw); width: var(--cf-f-handcost-w, 64.5cqw); font-size: calc(var(--cf-f-handcost-s, 2.9cqw) * var(--cf-fit, 1)); }

@@ -228,26 +228,93 @@ async function copyBugReport(row, btn) {
   }
 }
 
+// 複数のスクリーンショットを1枚のPNGに縦連結する（各画像の上に「#id 日時」の見出しを描く）。
+// クリップボードに載せられる画像は1枚だけなので、まとめてコピーする時はこれで1枚に束ねる。
+const MERGE_MAX_WIDTH = 1400; // 連結後の横幅（各画像はこの幅に合わせて縮小）
+const MERGE_HEADER_H = 34; // 1件ごとの見出し帯の高さ(px)
+async function mergeShotsToPngBlob(entries) {
+  const loaded = [];
+  for (const e of entries) {
+    try {
+      const res = await fetch(e.url, { mode: "cors" });
+      if (!res.ok) continue;
+      loaded.push({ label: e.label, bitmap: await createImageBitmap(await res.blob()) });
+    } catch (err) {
+      console.warn("画像を読めなかった:", e.url, err);
+    }
+  }
+  if (loaded.length === 0) return null;
+  const width = MERGE_MAX_WIDTH;
+  const scaled = loaded.map((it) => {
+    const s = Math.min(1, width / it.bitmap.width);
+    return { ...it, w: Math.round(it.bitmap.width * s), h: Math.round(it.bitmap.height * s) };
+  });
+  const height = scaled.reduce((sum, it) => sum + MERGE_HEADER_H + it.h + 8, 8);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#0f172a";
+  ctx.fillRect(0, 0, width, height);
+  let y = 8;
+  for (const it of scaled) {
+    ctx.fillStyle = "#1e293b";
+    ctx.fillRect(0, y, width, MERGE_HEADER_H);
+    ctx.fillStyle = "#e2e8f0";
+    ctx.font = "600 18px system-ui, sans-serif";
+    ctx.textBaseline = "middle";
+    ctx.fillText(it.label, 12, y + MERGE_HEADER_H / 2);
+    y += MERGE_HEADER_H;
+    // 横幅より小さい画像は左寄せではなく中央に置く（並べた時に見やすい）。
+    ctx.drawImage(it.bitmap, Math.round((width - it.w) / 2), y, it.w, it.h);
+    y += it.h + 8;
+  }
+  return await new Promise((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("PNG変換に失敗"))), "image/png");
+  });
+}
+
 // チェックした報告をまとめてコピーする（テキストのみ。画像はURLで入る）。
 const selectedBugReports = new Map();
 async function copySelectedBugReports(btn) {
   const rows = [...selectedBugReports.values()];
   const before = btn.textContent;
+  const done = (msg, ms = 2200) => {
+    btn.textContent = msg;
+    setTimeout(() => (btn.textContent = before), ms);
+  };
   if (rows.length === 0) {
-    btn.textContent = "選択がありません";
-    setTimeout(() => (btn.textContent = before), 1800);
+    done("選択がありません", 1800);
     return;
   }
   rows.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
   const text = rows.map(bugReportToText).join("\n\n" + "-".repeat(60) + "\n\n");
+  const shots = rows
+    .map((r) => ({ url: bugReportShotUrl(r), label: `#${r.id}  ${formatDateTime(r.created_at)}` }))
+    .filter((e) => e.url);
+  btn.textContent = shots.length ? `まとめています…（画像${shots.length}枚）` : "まとめています…";
   try {
+    if (shots.length > 0 && window.ClipboardItem) {
+      const png = await mergeShotsToPngBlob(shots);
+      if (png) {
+        await navigator.clipboard.write([
+          new ClipboardItem({ "text/plain": new Blob([text], { type: "text/plain" }), "image/png": png }),
+        ]);
+        done(`${rows.length}件（画像${shots.length}枚を1枚に連結）をコピーしました`);
+        return;
+      }
+    }
     await navigator.clipboard.writeText(text);
-    btn.textContent = `${rows.length}件をコピーしました`;
+    done(shots.length ? `${rows.length}件をコピー（画像は取得できずURLのみ）` : `${rows.length}件をコピーしました`);
   } catch (err) {
-    btn.textContent = "コピー失敗";
-    console.error("copySelectedBugReports failed", err);
+    try {
+      await navigator.clipboard.writeText(text);
+      done(`${rows.length}件をコピー（テキストのみ）`);
+    } catch (e2) {
+      done("コピー失敗");
+      console.error("copySelectedBugReports failed", err, e2);
+    }
   }
-  setTimeout(() => (btn.textContent = before), 2200);
 }
 
 function makeBugReportRow(row) {

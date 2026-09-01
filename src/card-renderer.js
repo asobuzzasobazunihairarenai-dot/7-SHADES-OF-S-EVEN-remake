@@ -90,12 +90,18 @@ function applyTitleRuby(el, name, rubyStr) {
   let ri = 0;
   for (const run of runs) {
     if (run.kanji) {
-      const ruby = document.createElement("ruby");
-      ruby.appendChild(document.createTextNode(run.text));
-      const rt = document.createElement("rt");
+      // 【#194】<ruby>/<rt> は使わない。Safari が ruby 内部ボックスへの position 指定を
+      // 尊重せず、ルビが行の高さを食ってタイトルが下へ押し出される（＝効果文と重なる）ため。
+      // 普通の span なら、どのエンジンでも「ベースの真上に浮かせる」が同じように効く。
+      const base = document.createElement("span");
+      base.className = "card-face-title-run";
+      base.textContent = run.text;
+      const rt = document.createElement("span");
+      rt.className = "card-face-title-rt";
+      rt.setAttribute("aria-hidden", "true"); // 読み上げでは本文（漢字）だけでよい
       rt.textContent = readings[ri++];
-      ruby.appendChild(rt);
-      el.appendChild(ruby);
+      base.appendChild(rt);
+      el.appendChild(base);
     } else {
       el.appendChild(document.createTextNode(run.text));
     }

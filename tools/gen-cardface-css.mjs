@@ -73,11 +73,18 @@ const BASE = `/* ===== カード面レンダラ（card-renderer.js）＝テキ�
 /* タイトルは全て黒文字（ユーザー指定）。ファーストのみ中央寄せ。フォント＝FOT-マティス。 */
 .card-face-title { font-family: ${FONT_TITLE}; font-weight: 800; line-height: 1.08; letter-spacing: 0.2cqw; color: #141414; text-align: left; }
 .card-face[data-card-type="first"] .card-face-title { text-align: center; }
-/* ルビ(rt)は絶対配置で base の「上」に浮かせる＝タイトルの行高に影響しない
-   （ルビ有無でタイトルの縦位置がズレない）。各漢字ランの ruby を基準に中央に置き、
-   translateY(=--cf-*-ruby-oy) で上下微調整（正=下）。 */
-.card-face-title ruby { position: relative; }
-.card-face-title rt { position: absolute; left: 50%; bottom: 100%; white-space: nowrap; font-weight: 700; line-height: 1; color: #141414; font-family: ${FONT_TITLE}; }
+/* ルビは絶対配置で base の「上」に浮かせる＝タイトルの行高に影響しない
+   （ルビ有無でタイトルの縦位置がズレない）。各漢字ランを基準に中央に置き、
+   translateY(=--cf-*-ruby-oy) で上下微調整（正=下）。
+   【#194・重要】以前は <ruby>/<rt> で組んでいたが、**Safari は ruby 内部ボックス(rt)への
+   position 指定を尊重しない**ため、iOS ではルビが行の高さを食ってタイトルが下へ押し出され、
+   効果文と重なっていた（Chromiumでは正常なので手元では再現しなかった）。ruby 内部ボックスを
+   やめて普通の span (.card-face-title-run / -rt) で組むことで、どのエンジンでも同じになる。
+   古い ruby/rt セレクタも残してあるので、万一 ruby で組まれても崩れない。 */
+.card-face-title ruby,
+.card-face-title .card-face-title-run { position: relative; display: inline-block; }
+.card-face-title rt,
+.card-face-title .card-face-title-rt { position: absolute; left: 50%; bottom: 100%; white-space: nowrap; font-weight: 700; line-height: 1; color: #141414; font-family: ${FONT_TITLE}; }
 /* 能力名《》はタイトルと同じフォント。 */
 .card-face-subtitle { font-family: ${FONT_TITLE}; font-weight: 800; text-align: center; color: color-mix(in srgb, var(--card-accent, #555) 55%, #201a16); }
 /* フレーバーは斜体にしない（ユーザー指摘）。フォント＝FOT-マティス。 */
@@ -85,6 +92,7 @@ const BASE = `/* ===== カード面レンダラ（card-renderer.js）＝テキ�
 /* ファーストは文字が全て白（ユーザー指定）。効果は全て中央揃え・ただしアイコン(マーカー)は左揃え。 */
 .card-face[data-card-type="first"] .card-face-title,
 .card-face[data-card-type="first"] .card-face-title rt,
+.card-face[data-card-type="first"] .card-face-title .card-face-title-rt,
 .card-face[data-card-type="first"] .card-face-subtitle,
 .card-face[data-card-type="first"] .card-face-effect { color: #fff; text-shadow: 0 0.3cqw 0.8cqw rgba(0, 0, 0, 0.7), 0 0 0.4cqw rgba(0, 0, 0, 0.5); }
 .card-face[data-card-type="first"] .card-face-effect-body { text-align: center; }
@@ -108,7 +116,7 @@ for (const type of TYPES) {
     if (el === "ruby") {
       // rt の font-size と、中央寄せ＋上下微調整(translateY=oy)。rt は絶対配置(base の上)なので
       // 行高に影響せず、ルビ有無でタイトル位置がズレない。
-      gen += `.card-face[data-card-type="${type}"] .card-face-title rt {`
+      gen += `.card-face[data-card-type="${type}"] .card-face-title rt,\n.card-face[data-card-type="${type}"] .card-face-title .card-face-title-rt {`
         + ` font-size: calc(var(${cfVar(group, el, "s")}, ${d.s}cqw) * var(--cf-fit, 1));`
         + ` transform: translateX(-50%) translateY(var(${cfVar(group, el, "oy")}, ${d.oy}cqw));`
         + ` }\n`;
