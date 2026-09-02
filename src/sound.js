@@ -271,6 +271,13 @@ let waitingBgmFadeIntervalId = null;
 // 引っかからない。対局が実際に始まったら、待機中BGMが鳴りっぱなしにならないよう
 // あわせて止める。
 let wasGameStartedForBgm = false;
+// 盤面から離れている（ホーム画面・オープニング画面が開いている）かどうか。DOMだけを見るので
+// 他モジュールへの依存が増えない（sound.jsは葉モジュールに近い状態を保ちたい）。
+function isAwayFromBoard() {
+  if (typeof document === "undefined") return false;
+  return Boolean(document.getElementById("home-screen") || document.getElementById("opening-screen"));
+}
+
 export function initGameBgmAutoStart() {
   subscribe(() => {
     const started = Boolean(getState().turnPlayer);
@@ -291,6 +298,11 @@ export function initGameBgmAutoStart() {
   // 取り直す（操作起点なら再生が通る）。既に鳴っていれば何もしない（gameBgmAudio.pausedで判定）。
   if (typeof window !== "undefined") {
     const retryOnGesture = () => {
+      // ユーザー報告2026-09-02「対戦後、ホーム画面に戻っても盤面の時のBGMのまま」。
+      // 対局が終わってホームへ戻っても state.turnPlayer は残ったままなので、この保険が
+      // **ホーム画面のクリックのたびにゲームBGMを鳴らし直していた**（ホームへ戻る時に
+      // 止めても、次のクリックで戻ってしまう）。盤面を離れている間は取り直さない。
+      if (isAwayFromBoard()) return;
       if (Boolean(getState().turnPlayer) && gameBgmAudio && gameBgmAudio.paused) playGameBgm();
     };
     window.addEventListener("pointerdown", retryOnGesture, { passive: true });

@@ -414,7 +414,14 @@ export function openHomeScreen() {
   if (overlayEl) return;
   // #210: どの経路でホームへ戻っても勝利ファンファーレは止める（対戦終了パネルの各ボタン
   // だけでなく、最小化してから戻る等の経路もあるため、ここで一括して面倒を見る）。
-  void import("./sound.js").then((m) => m.stopVictoryBgm()).catch(() => {});
+  // あわせて盤面のBGMも止める（ユーザー報告2026-09-02「対戦後、ホーム画面に戻っても
+  // 盤面の時のBGMのまま」）。対局へ戻れば initGameBgmAutoStart 側で鳴り直す。
+  void import("./sound.js")
+    .then((m) => {
+      m.stopVictoryBgm();
+      m.stopGameBgm();
+    })
+    .catch(() => {});
   overlayEl = document.createElement("div");
   overlayEl.id = "home-screen";
 

@@ -25,6 +25,11 @@
 
 import { COLORS, SEAT_TO_SIDE } from "./board-layout.js";
 import { playSound, stopGameBgm } from "./sound.js";
+// 演出中は対局中のお知らせ（獲得/ロック/効果の理由など）を出さない（ユーザー報告2026-09-02）。
+import { setCelebrationActive } from "./celebration-state.js";
+
+// 演出フラグの保険タイマー（dismiss が呼ばれなかった時に必ず元へ戻すため）。
+let celebrationSafetyTimer = null;
 import { isFlightAnimationDisabled } from "./motion-prefs.js";
 import { isTouchPrimaryDevice } from "./device-detect.js";
 import { getState } from "./state.js";
@@ -173,6 +178,13 @@ export async function playVictoryCelebration(player, opts = {}) {
   if (running) return { dismiss: () => {} };
   running = true;
   skipRequested = false;
+  // ここから「勝利演出＋リザルト」の間は、対局中のお知らせ（獲得/ロック/効果の理由など）を
+  // 出さない。既に出ているもの（7色目のロック通知など）もこの時点で片付ける。
+  setCelebrationActive(true);
+  clearTimeout(celebrationSafetyTimer);
+  // 保険: dismiss が何らかの理由で呼ばれなくても、必ず元に戻す（お知らせが以後ずっと
+  // 出なくなる方が実害が大きいため）。通常は下の dismiss() で解除される。
+  celebrationSafetyTimer = setTimeout(() => setCelebrationActive(false), 180000);
   const s = readSettings();
   const light = isFlightAnimationDisabled() || prefersReducedMotion();
   const sp = light ? 3.2 : s.speed; // 動きを減らす設定なら一気に短く
@@ -303,6 +315,9 @@ export async function playVictoryCelebration(player, opts = {}) {
   // 白い幕を残したまま返す（リザルトが出てから dismiss してもらう）。
   const el = root;
   const dismiss = () => {
+    // 白を引く＝リザルトまで終わったので、対局中のお知らせを元に戻す。
+    clearTimeout(celebrationSafetyTimer);
+    setCelebrationActive(false);
     if (!el) return;
     el._cleanupSkip?.();
     el.classList.add("is-dismissing");

@@ -12,6 +12,13 @@ import { createModalCloseX } from "./ui-helpers.js";
 import { getSelfSeat, isOnlineMode } from "./online.js";
 import { pushTurnEventStock, getTurnEventStockTargetRect, getTurnEventStockKey } from "./turn-event-stock.js";
 import { stageClientToLocal, stageDelta } from "./main.js";
+// 勝利演出中は対局中のお知らせを出さない（ユーザー報告2026-09-02）。
+import { isCelebrationActive, registerCelebrationCleanup } from "./celebration-state.js";
+
+// 演出が始まったら、表示中のフラッシュは即座に片付ける（飛翔の途中でも消す）。
+registerCelebrationCleanup(() => {
+  document.querySelectorAll(".hand-pickup-toast").forEach((el) => el.remove());
+});
 
 // カード名は表示用（英語版のカードテキストがあればそれ、無ければ日本語の原名）。
 function cardNameOf(cardId) {
@@ -43,6 +50,8 @@ function flashDurationMs() {
 
 // opts: { icon, label, cardId } — ストックのチップ（右下の横帯）に載せる情報。
 function showToast(innerHTML, opts = {}) {
+  // 勝利演出中は出さない（演出の邪魔になるだけで、勝敗には関係しない情報のため）。
+  if (isCelebrationActive()) return;
   const toast = document.createElement("div");
   toast.className = "hand-pickup-toast is-flash";
   // #184: この出来事が「どのターンのものか」をフラッシュを出す瞬間に確定させておく

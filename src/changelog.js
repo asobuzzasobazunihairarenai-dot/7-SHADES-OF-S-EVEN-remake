@@ -14,6 +14,17 @@ export const CHANGELOG = [
   {
     date: "2026-09-02",
     items: [
+      "勝利演出の最中に「ロックしました」などの対局中のお知らせが画面中央に出て、演出の邪魔になっていたのをやめました。演出が始まったら、その時に出ているお知らせも片付きます（選択が必要なモーダルはこれまで通り出ます）。",
+      "対戦のあとホーム画面に戻っても、盤面のBGMが鳴り続けていたのを直しました。",
+    ],
+    itemsEn: [
+      "In-game notices (like “Locked!”) no longer appear over the victory celebration — any already on screen are cleared when it starts. Modals that need your choice still appear as before.",
+      "Fixed: the in-game music kept playing after a match when you returned to the home screen.",
+    ],
+  },
+  {
+    date: "2026-09-02",
+    items: [
       "追色（同じ色のカードを捨てて使う）の演出で、吸い込まれていくカードが手札にも残ったままで二重に見えていたのを直しました。",
       "「スリカエ」で相手に返すカードを選んでいる最中に、選んだつもりのカードをそのまま使ってしまうことがあった不具合を直しました。カード効果の選択待ちの間は、手札や駒に触れても動かなくなります。",
       "ゲート侵攻の処理中に駒を動かせてしまい、本来の「自分のゲートへ戻る」が上書きされてしまうことがあった不具合を直しました。処理が終わるまで盤面の操作を受け付けません。",
