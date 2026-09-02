@@ -45,6 +45,8 @@ import { openChangelogModal, hasUnreadChangelog } from "./changelog.js";
 // （cpu-battle.js 本体の動的importとは別物）。選んだ値は端末に保存され、CPU戦開始時に効く。
 import { getCpuDifficulty, setCpuDifficulty, getCpuPlayerCount, setCpuPlayerCount } from "./cpu-battle-state.js";
 import { maybeShowAlphaNotice } from "./alpha-notice.js";
+// ユーザー要望2026-09-02: 管理者が投稿した「全員へのお知らせ」を、ホームで一度だけ出す。
+import { maybeShowAnnouncement } from "./announcement.js";
 // ユーザー要望2026-09-02「ホームのランクマッチのところに“通知をオンにしませんか”的なバッジを」。
 import { shouldSuggestRankedNotify, enableRankedNotifyFromPrompt } from "./ranked-notify.js";
 
@@ -443,6 +445,8 @@ export function openHomeScreen() {
   // 協力してください的なモーダルを素人にもわかりやすく出したい」。アプリを開くたびに1回だけ
   // 出す（ホームへ戻るたびには出さない）。詳しくは alpha-notice.js を参照。
   maybeShowAlphaNotice();
+  // 取得は非同期。α版のお知らせと重ならないよう、少し待ってから出す（α版を閉じた頃に届く）。
+  setTimeout(() => void maybeShowAnnouncement(), 1200);
 }
 
 // ホーム画面の現ランク表示を非同期で描画する。未ログイン（getSelfRankがundefined）や

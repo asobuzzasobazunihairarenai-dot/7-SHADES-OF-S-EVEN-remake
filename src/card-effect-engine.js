@@ -988,7 +988,8 @@ async function runAction(action, ctx, helpers) {
         targetCell = opponentCells[0];
         helpers.announceEffectNotice?.(ctx.cardId, t("ce.L958")); // 続き214: 非ブロック（直後の選択をすぐ可能に）
       } else {
-        targetCell = await helpers.pickLocation(opponentCells, t("ce.L960"));
+        // #207: これは「マス」ではなく**相手（の駒）**を選ぶ場面。確認モーダルの文言を切り替える。
+        targetCell = await helpers.pickLocation(opponentCells, t("ce.L960"), { pickTarget: "piece" });
       }
       if (!targetCell) return false;
       const targetPiece = findPieceAtCell(targetCell.row, targetCell.col);
@@ -1293,7 +1294,8 @@ async function runAction(action, ctx, helpers) {
         target = candidates[0];
         helpers.announceEffectNotice?.(ctx.cardId, t("ce.L958")); // 続き214: 非ブロック（直後の選択をすぐ可能に）
       } else {
-        target = await helpers.pickLocation(candidates, t("ce.L1265"));
+        // #207: マスチェンジは入れ替える**相手（の駒）**を選ぶ。
+        target = await helpers.pickLocation(candidates, t("ce.L1265"), { pickTarget: "piece" });
       }
       if (!target) return false;
       // お知らせ用に入れ替え相手を先に捕まえる（swapPieces後は駒が動くため）。
@@ -1862,7 +1864,8 @@ async function runAction(action, ctx, helpers) {
         targetCell = opponentCells[0];
         helpers.announceEffectNotice?.(ctx.cardId, t("ce.L958")); // 続き214: 非ブロック（直後の選択をすぐ可能に）
       } else {
-        targetCell = await helpers.pickLocation(opponentCells, t("ce.L1834"));
+        // #207: プレゼントは置く先の基準になる**相手（の駒）**を選ぶ。
+        targetCell = await helpers.pickLocation(opponentCells, t("ce.L1834"), { pickTarget: "piece" });
       }
       if (!targetCell) return false;
       const targetPiece = findPieceAtCell(targetCell.row, targetCell.col);

@@ -420,6 +420,132 @@ function makeBugReportRow(row) {
   return tr;
 }
 
+// --- 全員へのお知らせ（ユーザー要望2026-09-02）------------------------------------------
+// ここで投稿した内容が、プレイヤーがホーム画面を開いた時に一度だけモーダルで出る
+// （src/announcement.js。既読は端末のlocalStorageで管理する）。
+const announceTitleEl = document.getElementById("announce-title");
+const announceBodyEl = document.getElementById("announce-body");
+const announcePostBtn = document.getElementById("announce-post-btn");
+const announceStatusEl = document.getElementById("announce-status");
+const announceTbody = document.getElementById("announce-tbody");
+const announcePushEl = document.getElementById("announce-push");
+
+async function loadAnnouncements() {
+  const { data, error } = await client
+    .from("so7_announcements")
+    .select("id, title, body, published, created_at")
+    .order("id", { ascending: false })
+    .limit(30);
+  if (error) {
+    // テーブル未作成（SQL未実行）でもダッシュボード全体は壊さない。
+    announceStatusEl.textContent = "お知らせの読み込みに失敗しました（supabase_setup_so7.sql の実行がまだかもしれません）: " + (error.message ?? error);
+    return;
+  }
+  announceTbody.innerHTML = "";
+  for (const row of data ?? []) {
+    const tr = document.createElement("tr");
+    const td = (text) => {
+      const el = document.createElement("td");
+      el.textContent = text;
+      return el;
+    };
+    tr.appendChild(td(formatDateTime(row.created_at)));
+    tr.appendChild(td(row.title ?? ""));
+    const bodyTd = td((row.body ?? "").slice(0, 80) + ((row.body ?? "").length > 80 ? "…" : ""));
+    bodyTd.title = row.body ?? "";
+    tr.appendChild(bodyTd);
+    tr.appendChild(td(row.published ? "公開中" : "停止中"));
+    const actions = document.createElement("td");
+    const toggleBtn = document.createElement("button");
+    toggleBtn.type = "button";
+    toggleBtn.textContent = row.published ? "公開を止める" : "もう一度公開";
+    toggleBtn.addEventListener("click", async () => {
+      toggleBtn.disabled = true;
+      try {
+        const { data: updated, error: err2 } = await client
+          .from("so7_announcements")
+          .update({ published: !row.published })
+          .eq("id", row.id)
+          .select("id");
+        if (err2) throw err2;
+        // RLSにUPDATEポリシーが無いと「エラー無し・0件」で静かに失敗する（姉妹リポジトリで実際に踏んだ罠）。
+        if (!updated || updated.length === 0) throw new Error("0件しか更新されませんでした（権限設定を確認してください）");
+        await loadAnnouncements();
+      } catch (err) {
+        announceStatusEl.textContent = "変更に失敗しました: " + (err.message ?? err);
+        toggleBtn.disabled = false;
+      }
+    });
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.textContent = "削除";
+    delBtn.addEventListener("click", async () => {
+      if (!confirm("このお知らせを削除しますか？")) return;
+      delBtn.disabled = true;
+      try {
+        const { data: removed, error: err3 } = await client.from("so7_announcements").delete().eq("id", row.id).select("id");
+        if (err3) throw err3;
+        if (!removed || removed.length === 0) throw new Error("0件しか削除されませんでした（権限設定を確認してください）");
+        await loadAnnouncements();
+      } catch (err) {
+        announceStatusEl.textContent = "削除に失敗しました: " + (err.message ?? err);
+        delBtn.disabled = false;
+      }
+    });
+    actions.appendChild(toggleBtn);
+    actions.appendChild(delBtn);
+    tr.appendChild(actions);
+    announceTbody.appendChild(tr);
+  }
+  if ((data ?? []).length === 0) announceStatusEl.textContent = "まだお知らせはありません。";
+}
+
+announcePostBtn?.addEventListener("click", async () => {
+  const title = (announceTitleEl.value ?? "").trim();
+  const body = (announceBodyEl.value ?? "").trim();
+  if (!title && !body) {
+    announceStatusEl.textContent = "見出しか本文を入力してください。";
+    return;
+  }
+  if (!confirm("この内容を全員に知らせます。よろしいですか？")) return;
+  announcePostBtn.disabled = true;
+  announceStatusEl.textContent = "送信中...";
+  try {
+    const { data: { user } } = await client.auth.getUser();
+    const { error } = await client.from("so7_announcements").insert({ title, body, created_by: user?.id ?? null });
+    if (error) throw error;
+    announceTitleEl.value = "";
+    announceBodyEl.value = "";
+    announceStatusEl.textContent = "投稿しました。プレイヤーが次にホーム画面を開いた時に表示されます。";
+    // ユーザー要望2026-09-02: 通知を許可している人には、アプリを開いていなくても届くプッシュも送る
+    // （so7-send-push の broadcast モード。管理者のメールでログインしている時だけ通る）。
+    // 失敗しても投稿自体は成立しているので、状況を書き添えるだけにする。
+    if (announcePushEl?.checked) {
+      announceStatusEl.textContent += " プッシュ通知を送信中...";
+      try {
+        const { data: res, error: pushErr } = await client.functions.invoke("so7-send-push", {
+          body: { broadcast: true, title: title || "7 SHADES OF S:EVEN", body: body.slice(0, 180), tag: "so7-announcement" },
+        });
+        if (pushErr) throw pushErr;
+        if (res?.ok) {
+          announceStatusEl.textContent =
+            "投稿しました。プレイヤーが次にホーム画面を開いた時に表示されます。プッシュ通知: " +
+            (res.sent ?? 0) + "件に送信" + (res.skipped ? "（" + res.skipped + "）" : "") + "。";
+        } else {
+          announceStatusEl.textContent += " プッシュ通知は送れませんでした: " + (res?.error ?? "不明なエラー");
+        }
+      } catch (err) {
+        announceStatusEl.textContent += " プッシュ通知は送れませんでした（Edge Functionの再デプロイがまだかもしれません）: " + (err.message ?? err);
+      }
+    }
+    await loadAnnouncements();
+  } catch (err) {
+    announceStatusEl.textContent = "投稿に失敗しました: " + (err.message ?? err);
+  } finally {
+    announcePostBtn.disabled = false;
+  }
+});
+
 async function init() {
   if (!client) {
     statusEl.textContent = "Supabaseの読み込みに失敗しました。";
@@ -443,6 +569,9 @@ async function init() {
     }),
     loadBugReports().catch((err) => {
       bugReportStatusEl.textContent = `取得に失敗しました: ${err.message ?? err}`;
+    }),
+    loadAnnouncements().catch((err) => {
+      announceStatusEl.textContent = `取得に失敗しました: ${err.message ?? err}`;
     }),
   ]);
 }

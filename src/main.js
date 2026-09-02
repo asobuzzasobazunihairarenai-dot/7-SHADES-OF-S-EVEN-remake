@@ -4531,22 +4531,11 @@ async function requestCellChoiceForEffect(candidates, hint, options = {}) {
     const table = document.getElementById("game-table");
     const el = table ? findLocationElement(table, loc) : null;
     // 不具合報告#207「プレゼントの手札効果で相手を選ぶ時、駒を選ぶのに『このマスでいいですか』に
-    // なっている」。マスそのものではなく**相手（の駒）**を選ぶ場面（プレゼント・マスチェンジ・
-    // コノハナサクヤ等）では文言を変える。選んだマスに自分以外の駒がいるかどうかで判断するので、
-    // 呼び出し側（カード効果データ）を1つずつ書き換える必要がない。
-    const pickedOpponentPiece =
-      loc.zone === "cell" &&
-      getState().tokens.some(
-        (t2) =>
-          t2.kind === "piece" &&
-          t2.location.zone === "cell" &&
-          t2.location.row === loc.row &&
-          t2.location.col === loc.col &&
-          t2.player &&
-          t2.player !== (options.owner ?? getState().turnPlayer)
-      );
-    if (await confirmCellChoice(el, hint, { titleKey: pickedOpponentPiece ? "game.cellConfirm.titleOpponent" : undefined }))
-      return loc;
+    // なっている」。ユーザー指摘のとおり、**そのマスに駒がいるかどうか**で決めてはいけない
+    // （駒の下のマスを対象にする効果もあるため）。効果側が「マスを選ばせているのか、相手（駒）を
+    // 選ばせているのか」を pickTarget で明示し、それだけで文言を切り替える。
+    const titleKey = options.pickTarget === "piece" ? "game.cellConfirm.titleOpponent" : undefined;
+    if (await confirmCellChoice(el, hint, { titleKey })) return loc;
     // 「選び直す」→ もう一度ハイライトから
   }
 }

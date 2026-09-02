@@ -3423,3 +3423,73 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
   // ブロードキャスト（特に対局開始）を必ず数秒で追いつく安全網（startGameResync参照）。
   startGameResync(gameId);
 }
+
+// --- 全員へのお知らせ（ユーザー要望2026-09-02「テスターに連絡したい」）------------------
+// 管理者が管理者ダッシュボードから投稿し、プレイヤーがホーム画面を開いた時に一度だけ出す。
+// テーブルは so7_announcements（supabase_setup_so7.sql。読みは全員、書きは管理者だけ）。
+// SQL未実行でも「取得に失敗して何も出ない」だけで、アプリは今まで通り動く。
+
+// 最新の公開中お知らせを1件。無ければ null。
+export async function fetchLatestAnnouncement() {
+  if (!client) return null;
+  try {
+    const { data, error } = await client
+      .from("so7_announcements")
+      .select("id, title, body, created_at")
+      .eq("published", true)
+      .order("id", { ascending: false })
+      .limit(1);
+    if (error) return null; // テーブル未作成・未ログイン等。静かに何も出さない。
+    return data?.[0] ?? null;
+  } catch (err) {
+    return null;
+  }
+}
+
+// 管理者ダッシュボード用: 一覧（公開停止中も含む）。
+export async function fetchAnnouncements(limit = 30) {
+  if (!client) return [];
+  const { data, error } = await client
+    .from("so7_announcements")
+    .select("id, title, body, published, created_at")
+    .order("id", { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.error("fetchAnnouncements failed", error);
+    return [];
+  }
+  return data ?? [];
+}
+
+// 管理者ダッシュボード用: 投稿する。
+export async function postAnnouncement({ title, body }) {
+  if (!client) throw new Error("not_online");
+  const { error } = await client.from("so7_announcements").insert({
+    title: title ?? "",
+    body: body ?? "",
+    created_by: cachedUser?.id ?? null,
+  });
+  if (error) throw error;
+}
+
+// 管理者ダッシュボード用: 公開/停止の切り替え。
+export async function setAnnouncementPublished(id, published) {
+  if (!client) throw new Error("not_online");
+  const { data, error } = await client
+    .from("so7_announcements")
+    .update({ published: !!published })
+    .eq("id", id)
+    .select("id");
+  if (error) throw error;
+  // RLSでUPDATEポリシーが無いと「エラー無し・0件更新」で静かに失敗する（姉妹リポジトリで
+  // 実際に踏んだ罠）。0件なら呼び出し側が気づけるように投げる。
+  if (!data || data.length === 0) throw new Error("no_rows_updated");
+}
+
+// 管理者ダッシュボード用: 削除する。
+export async function deleteAnnouncement(id) {
+  if (!client) throw new Error("not_online");
+  const { data, error } = await client.from("so7_announcements").delete().eq("id", id).select("id");
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error("no_rows_deleted");
+}

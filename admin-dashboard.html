@@ -20,6 +20,40 @@
     <div id="dashboard-status">読み込み中...</div>
     <div id="dashboard-content" style="display: none;">
       <section>
+        <h2>📣 全員へのお知らせ</h2>
+        <div class="dashboard-hint">
+          ここに書いた内容は、プレイヤーが<b>ホーム画面を開いた時に一度だけ</b>モーダルで表示されます
+          （既読は端末ごとに記録されるので、同じお知らせが何度も出ることはありません）。
+          新しく投稿すると、それが最新のお知らせになります。
+        </div>
+        <div id="announce-form">
+          <input id="announce-title" type="text" maxlength="80" placeholder="見出し（例: サーバーメンテナンスのお知らせ）">
+          <textarea id="announce-body" rows="5" maxlength="2000" placeholder="本文（改行はそのまま表示されます）"></textarea>
+          <div class="announce-actions">
+            <button id="announce-post-btn" type="button">この内容で全員に知らせる</button>
+            <label class="announce-push-label">
+              <input id="announce-push" type="checkbox">
+              プッシュ通知でも送る（アプリを開いていなくても届きますが、通知を許可した人だけです）
+            </label>
+            <span id="announce-status" class="dashboard-hint"></span>
+          </div>
+        </div>
+        <div class="dashboard-table-wrap">
+          <table id="announce-table">
+            <thead>
+              <tr>
+                <th>日時</th>
+                <th>見出し</th>
+                <th>本文</th>
+                <th>状態</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="announce-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+      <section>
         <h2>登録ユーザー一覧</h2>
         <div id="user-list-status" class="dashboard-hint"></div>
         <div class="dashboard-table-wrap">

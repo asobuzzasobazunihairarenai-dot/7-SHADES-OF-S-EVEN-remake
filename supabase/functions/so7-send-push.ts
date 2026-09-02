@@ -20,6 +20,10 @@
 // 濫用防止: 認証済みユーザーであっても、任意の相手へは送れない。呼び出し元と「同じ
 // so7_ranked_pending_match（レディチェック待ちのグループ）」に居る相手にだけ送れる
 // （＝ランクのマッチ成立通知という正規用途に限定）。
+//
+// 追加(2026-09-02): 全員への「お知らせプッシュ」（ユーザー要望）。body に broadcast:true を
+// 付けると、**管理者のメールアドレスでログインしている時だけ**、購読者全員へ一斉送信する
+// （管理者ダッシュボードの「全員へのお知らせ」から使う）。管理者以外は 403。
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
@@ -73,34 +77,49 @@ Deno.serve(async (req) => {
     if (userErr || !userData?.user) return json({ ok: false, error: "unauthorized" }, 401);
     const callerId = userData.user.id;
 
+    const ADMIN_EMAILS = ["asobuzz.asobazunihairarenai@gmail.com", "shogoshogo0929@gmail.com"];
     const reqBody = await req.json();
     const targetUserIds: string[] = Array.isArray(reqBody.targetUserIds) ? reqBody.targetUserIds : [];
     const title: string = typeof reqBody.title === "string" ? reqBody.title : "7 SHADES OF S:EVEN";
     const bodyText: string = typeof reqBody.body === "string" ? reqBody.body : "";
     const url: string = typeof reqBody.url === "string" ? reqBody.url : "./";
     const tag: string = typeof reqBody.tag === "string" ? reqBody.tag : "so7-push";
-    if (targetUserIds.length === 0) return json({ ok: true, sent: 0, skipped: "no_targets" });
+    // 全員への一斉送信（管理者のみ）。それ以外は従来通り「同じレディチェックのグループ」限定。
+    const broadcast = reqBody.broadcast === true;
+    let subs: { endpoint: string; p256dh: string; auth_key: string }[] | null = null;
+    if (broadcast) {
+      const email = (userData.user.email ?? "").toLowerCase();
+      if (!ADMIN_EMAILS.includes(email)) return json({ ok: false, error: "not_authorized" }, 403);
+      const db0 = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      const { data, error: subErr0 } = await db0.from("so7_push_subscriptions").select("endpoint, p256dh, auth_key");
+      if (subErr0) return json({ ok: false, error: "subscription_lookup_failed" }, 500);
+      subs = data as typeof subs;
+    }
+    if (!broadcast && targetUserIds.length === 0) return json({ ok: true, sent: 0, skipped: "no_targets" });
 
     const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // 濫用防止: 呼び出し元と同じ pending_match に居る相手だけを送信先として許可する。
-    const { data: matches } = await db
-      .from("so7_ranked_pending_match")
-      .select("players")
-      .contains("players", [callerId]);
-    const allowed = new Set<string>();
-    for (const m of matches ?? []) {
-      for (const p of (m.players ?? []) as string[]) allowed.add(p);
-    }
-    const targets = targetUserIds.filter((id) => id && id !== callerId && allowed.has(id));
-    if (targets.length === 0) return json({ ok: true, sent: 0, skipped: "no_shared_match" });
+    if (!broadcast) {
+      // 濫用防止: 呼び出し元と同じ pending_match に居る相手だけを送信先として許可する。
+      const { data: matches } = await db
+        .from("so7_ranked_pending_match")
+        .select("players")
+        .contains("players", [callerId]);
+      const allowed = new Set<string>();
+      for (const m of matches ?? []) {
+        for (const p of (m.players ?? []) as string[]) allowed.add(p);
+      }
+      const targets = targetUserIds.filter((id) => id && id !== callerId && allowed.has(id));
+      if (targets.length === 0) return json({ ok: true, sent: 0, skipped: "no_shared_match" });
 
-    // 送信先の subscription を引く。
-    const { data: subs, error: subErr } = await db
-      .from("so7_push_subscriptions")
-      .select("endpoint, p256dh, auth_key")
-      .in("user_id", targets);
-    if (subErr) return json({ ok: false, error: "subscription_lookup_failed" }, 500);
+      // 送信先の subscription を引く。
+      const { data, error: subErr } = await db
+        .from("so7_push_subscriptions")
+        .select("endpoint, p256dh, auth_key")
+        .in("user_id", targets);
+      if (subErr) return json({ ok: false, error: "subscription_lookup_failed" }, 500);
+      subs = data as typeof subs;
+    }
     if (!subs || subs.length === 0) return json({ ok: true, sent: 0, skipped: "no_subscriptions" });
 
     webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);

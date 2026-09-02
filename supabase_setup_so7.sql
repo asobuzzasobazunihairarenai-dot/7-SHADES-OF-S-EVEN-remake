@@ -2382,3 +2382,40 @@ drop policy if exists "bug_shots_insert_own" on storage.objects;
 create policy "bug_shots_insert_own" on storage.objects
   for insert to authenticated
   with check (bucket_id = 'bug-shots' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- ---------------------------------------------------------------------------
+-- 追加(2026-09-02): 全員へのお知らせ（ユーザー要望「テスターに連絡したい」）。
+-- 管理者が管理者ダッシュボードから投稿し、プレイヤーがホーム画面を開いた時に一度だけ
+-- モーダルで表示する（既読はその端末のlocalStorageで管理するので、ここには持たない）。
+-- 読み取りは authenticated（ゲストログインも含む＝アプリで遊んでいる人は全員読める）。
+-- 書き込み・編集・削除は管理者のメールアドレスだけ（so7_get_admin_* と同じ判定）。
+-- ※ このSQLを実行するまで、お知らせの取得は静かに失敗する（アプリは今まで通り動く）。
+create table if not exists so7_announcements (
+  id bigserial primary key,
+  title text not null,
+  body text not null,
+  published boolean not null default true,
+  created_at timestamptz not null default now(),
+  created_by uuid references auth.users(id) on delete set null
+);
+alter table so7_announcements enable row level security;
+
+drop policy if exists "so7_announcements_select" on so7_announcements;
+create policy "so7_announcements_select" on so7_announcements
+  for select to authenticated using (true);
+
+drop policy if exists "so7_announcements_admin_insert" on so7_announcements;
+create policy "so7_announcements_admin_insert" on so7_announcements
+  for insert to authenticated
+  with check ((auth.jwt() ->> 'email') in ('asobuzz.asobazunihairarenai@gmail.com', 'shogoshogo0929@gmail.com'));
+
+drop policy if exists "so7_announcements_admin_update" on so7_announcements;
+create policy "so7_announcements_admin_update" on so7_announcements
+  for update to authenticated
+  using ((auth.jwt() ->> 'email') in ('asobuzz.asobazunihairarenai@gmail.com', 'shogoshogo0929@gmail.com'))
+  with check ((auth.jwt() ->> 'email') in ('asobuzz.asobazunihairarenai@gmail.com', 'shogoshogo0929@gmail.com'));
+
+drop policy if exists "so7_announcements_admin_delete" on so7_announcements;
+create policy "so7_announcements_admin_delete" on so7_announcements
+  for delete to authenticated
+  using ((auth.jwt() ->> 'email') in ('asobuzz.asobazunihairarenai@gmail.com', 'shogoshogo0929@gmail.com'));
