@@ -47,7 +47,9 @@ export function setCellConfirmEnabled(v) {
 
 // 選んだマスの確認。true=このマスで確定 / false=選び直す。
 // cellEl は選ばれたマス（.cell / .lock-slot）のDOM要素（無くても動く）。
-export function confirmCellChoice(cellEl, hint) {
+// opts.titleKey: 見出しの文言キー（既定「このマスでいいですか？」）。相手の駒を選ぶ場面では
+// 「この相手でいいですか？」に差し替える（不具合報告#207）。
+export function confirmCellChoice(cellEl, hint, opts = {}) {
   if (!enabled) return Promise.resolve(true);
   return new Promise((resolve) => {
     // 対象マスを強く光らせる（確認中どのマスの話か一目で分かるように）。
@@ -60,7 +62,7 @@ export function confirmCellChoice(cellEl, hint) {
 
     const titleEl = document.createElement("div");
     titleEl.className = "cell-confirm-title";
-    titleEl.textContent = t("game.cellConfirm.title");
+    titleEl.textContent = t(opts.titleKey || "game.cellConfirm.title");
     modal.appendChild(titleEl);
     if (hint) {
       const hintEl = document.createElement("div");

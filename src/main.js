@@ -4142,21 +4142,29 @@ export function performPriorityTimeoutAutoAction() {
     // いた。止めるのは結果通知モーダル側（showAndAwaitEffectReason）に移した。
     const picker = activeEffectPicker;
     activeEffectPicker = null;
+    // 【不具合報告#205の真因】ローカルCPU戦の driveSeat は「手番プレイヤー」(getAutoDriveSeat)。
+    // ところがパーティのような「全員がそれぞれ選ぶ」効果では、実際に選んでいるのは委任先の席で、
+    // delegateToPlayerForEffect が優先権をその席へ移している（transferPriorityTo）。判断に
+    // その席を使うと、人間(A)のターン中にCPU(C)が選ぶ場面で isCpuBrainDriving("A")=false と
+    // なり、**強さの設定に関係なく“使える選択肢からランダム”**になっていた（CPUを最強にしても
+    // パーティで2枚オープンを選ぶことがあったのはこれが原因。難易度の問題ではなかった）。
+    // 実際に選ぶ席＝優先権を持つ席で判断する。
+    const decisionSeat = (!isOnlineMode() && getState().priorityPlayer) || driveSeat;
     if (picker.type === "cell") {
       // 賢いCPU（中級以上）は、候補に相手ゲートがあればそこを選ぶ（ゲート侵攻セットアップ）。
       // 新人・その他はランダム（従来通り）。
-      const choice = isCpuBrainDriving(driveSeat)
-        ? chooseEffectCell(picker.candidates, driveSeat)
+      const choice = isCpuBrainDriving(decisionSeat)
+        ? chooseEffectCell(picker.candidates, decisionSeat)
         : pickRandomFrom(picker.candidates);
       picker.resolve(choice);
     } else if (picker.type === "hand") {
       // 賢いCPU（中級以上）は用途に応じて選ぶ。purpose:"lock"（セレナーデ/カウンターロックのロック対象）は
       // 「ロックしたい札＝虹や要る色を優先」(chooseHandCardToLock)、それ以外（追色コスト等で手放す）は
       // 「手放してよい札＝ロック済みの色等」(chooseHandCardToken)。新人は従来通りランダム。
-      const tokenId = isCpuBrainDriving(driveSeat)
+      const tokenId = isCpuBrainDriving(decisionSeat)
         ? picker.purpose === "lock"
-          ? chooseHandCardToLock(picker.tokenIds, driveSeat)
-          : chooseHandCardToken(picker.tokenIds, driveSeat)
+          ? chooseHandCardToLock(picker.tokenIds, decisionSeat)
+          : chooseHandCardToken(picker.tokenIds, decisionSeat)
         : pickRandomFrom([...picker.tokenIds]);
       const token = tokenId ? getState().tokens.find((t) => t.id === tokenId) : null;
       picker.resolve(token ?? null);
@@ -4164,8 +4172,8 @@ export function performPriorityTimeoutAutoAction() {
       // 賢いCPU（中級以上）は「最も脅威な相手＝ロック数が多いリーダー」を狙う（3-4人戦で有効。
       // 2人戦は相手1人＝どちらでも同じ）。新人は従来通りランダム（chooseTargetPlayer参照）。
       picker.resolve(
-        isCpuBrainDriving(driveSeat)
-          ? chooseTargetPlayer([...picker.players], driveSeat)
+        isCpuBrainDriving(decisionSeat)
+          ? chooseTargetPlayer([...picker.players], decisionSeat)
           : pickRandomFrom([...picker.players])
       );
     } else if (picker.type === "option") {
@@ -4181,10 +4189,10 @@ export function performPriorityTimeoutAutoAction() {
       const forced = picker.cpuAutoResolveId ? usable.find((o) => o.id === picker.cpuAutoResolveId) : null;
       if (forced) {
         picker.resolve(forced);
-      } else if (isCpuBrainDriving(driveSeat)) {
+      } else if (isCpuBrainDriving(decisionSeat)) {
         // 賢いCPU（中級以上）は、カードごとに選択肢を評価して選ぶ（パーティ=拾う優先/選べる罠=被害最小
         // 等。chooseEffectOption参照）。新人・未対応カードは従来通りランダム。
-        picker.resolve(chooseEffectOption(picker.cardId, usable, driveSeat));
+        picker.resolve(chooseEffectOption(picker.cardId, usable, decisionSeat));
       } else {
         // #205: 新人CPU・時間切れの自動代行でも「強いマイナス」の選択肢（パーティの2枚オープン等）は
         // 選ばない。他に選べる物が無い時だけ残る（dropAvoidedOptions参照）。
@@ -4196,8 +4204,8 @@ export function performPriorityTimeoutAutoAction() {
       const required = picker.requirement.exactCount ?? picker.requirement.minCount ?? 1;
       // 賢いCPU（中級以上）は、ギャンブル=当てない/試練=当てる を狙って色を選ぶ。新人・その他は
       // 従来通りランダム。
-      if (isCpuBrainDriving(driveSeat)) {
-        picker.resolve(chooseDeclaredColors(picker.cardId, required, driveSeat));
+      if (isCpuBrainDriving(decisionSeat)) {
+        picker.resolve(chooseDeclaredColors(picker.cardId, required, decisionSeat));
       } else {
         const pool = [...COLORS];
         const chosen = [];
@@ -4522,7 +4530,23 @@ async function requestCellChoiceForEffect(candidates, hint, options = {}) {
     if (!isCellConfirmEnabled() || isCpuSelectingNow(options.owner)) return loc;
     const table = document.getElementById("game-table");
     const el = table ? findLocationElement(table, loc) : null;
-    if (await confirmCellChoice(el, hint)) return loc;
+    // 不具合報告#207「プレゼントの手札効果で相手を選ぶ時、駒を選ぶのに『このマスでいいですか』に
+    // なっている」。マスそのものではなく**相手（の駒）**を選ぶ場面（プレゼント・マスチェンジ・
+    // コノハナサクヤ等）では文言を変える。選んだマスに自分以外の駒がいるかどうかで判断するので、
+    // 呼び出し側（カード効果データ）を1つずつ書き換える必要がない。
+    const pickedOpponentPiece =
+      loc.zone === "cell" &&
+      getState().tokens.some(
+        (t2) =>
+          t2.kind === "piece" &&
+          t2.location.zone === "cell" &&
+          t2.location.row === loc.row &&
+          t2.location.col === loc.col &&
+          t2.player &&
+          t2.player !== (options.owner ?? getState().turnPlayer)
+      );
+    if (await confirmCellChoice(el, hint, { titleKey: pickedOpponentPiece ? "game.cellConfirm.titleOpponent" : undefined }))
+      return loc;
     // 「選び直す」→ もう一度ハイライトから
   }
 }

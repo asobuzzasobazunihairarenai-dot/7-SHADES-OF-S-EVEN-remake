@@ -2692,3 +2692,44 @@ PCと共有のままだった。
   `node test/smoke.mjs 4 --repeat 2` **2/2 PASS**、CSSブレース平衡（2739）。#204はブラウザで再現→自己修復を実測。
   ランク戦バッジはブラウザで「未設定なら勧める／押すとON＋トースト／以後は勧めない」を実測。
   サーバー側（Supabase）の変更は無い。
+
+### 2026-09-02（続き365）：#205の真因は難易度ではなく「判断する席」の取り違えだった／#207 相手を選ぶ時の確認文言／不具合報告に前提条件（CPUの強さ・2D表示等）を自動添付
+
+ユーザーから「#205の報告時、CPUは最強モードでした。ログにCPUが何モードかなど様々な前提条件を
+入れておくのが今後に活かせる」と指摘があり、**続き364で書いた「新人CPUだからランダムだった」という
+説明が誤りだった**ことが判明した。追い直して真因を特定した。
+- **【#205の真因】選択を「誰の頭で」決めるかの席が間違っていた**。`performPriorityTimeoutAutoAction`
+  はCPUの選択を自動解決する時に `driveSeat = getAutoDriveSeat()` を使う。ローカルCPU戦では
+  これは**手番プレイヤー**を返す。ところがパーティのような「全員がそれぞれ選ぶ」効果では、実際に
+  選んでいるのは委任先の席で、`delegateToPlayerForEffect` が**優先権をその席へ移している**
+  （transferPriorityTo）。そのため、人間(A)のターン中にCPU(C)が選ぶ場面では
+  `isCpuBrainDriving("A")` が false（Aは疑似CPU対象でない）になり、**難易度に関係なく
+  「使える選択肢からランダム」**の分岐に落ちていた。最強でもパーティで2枚オープンを選んだのは
+  これが原因（続き364で入れた `dropAvoidedOptions` は症状は消すが、根っこはこちら）。
+  - 修正: ピッカーの自動解決の中だけで `decisionSeat = (!online && state.priorityPlayer) || driveSeat`
+    を求め、cell / hand / player / option / colors の全分岐でこれを使う（＝実際に選ぶ席の頭で判断する）。
+    これでパーティの選択だけでなく、**委任中のマス選択・手札選択・色宣言もすべて賢いCPUの判断**に
+    なる（今までは委任中は全部ランダムだった）。
+  - 教訓: 「今そのUIを操作しているのは誰か」を、`turnPlayer` で代用しない。委任・リアクション
+    （ゴメンナサイ等）では手番プレイヤーと操作者が別人になる。優先権(priorityPlayer)が
+    「今操作している席」を表す（delegateToPlayerForEffectがそのために移している）。
+- **#207「プレゼントの手札効果で相手を選ぶ時、駒を選ぶのに『このマスでいいですか』というモーダル」**:
+  続き357のマス確認モーダルは全てのマス選択に出るため、相手（の駒）を選ぶ場面でも文言がマス扱いだった。
+  `confirmCellChoice(cellEl, hint, opts)` に `titleKey` を足し、**選んだマスに自分以外の駒がいる時**は
+  「この相手でいいですか？」に切り替える（呼び出し側のカード効果データを1枚ずつ書き換えなくて済む）。
+- **不具合報告に前提条件を自動添付（ユーザー要望）**: `gameContext` に `cpuDifficulty`（新人/中級/
+  上級/最強）・`cpuPlayerCount`・`afkCpuDifficulty` と、`settings`（flat2d・iso25d・autoProcessing・
+  autoPhaseSkip・noFlightAnim・noArrivalEffect・noContinuousGlow・cellConfirm・lang・theme・
+  phoneDevice・fullScreen）を追加した。**今回のように「どのモードで遊んでいたか」で説明が変わる
+  報告**を、次からは推測なしで判定できる。個々の取得は try/catch で包み、1つ失敗しても報告全体は壊れない。
+- **#206「スマホでパーティで場のカードを取るとき駒がぺったんこになる」は再現できず（継続調査）**:
+  マス選択中のハイライト（`card-effect-picking-cells` の暗転は既に::after方式でfilterを使わない）を
+  スマホ相当のビューポートで実測したが、駒の壁の高さ・`transform-style: preserve-3d` とも通常時と
+  変化なし（10.5/10.4/23.7/23.7px で同一）。報告のコンソールログでは、**スクリーンショットの3分後に
+  2D表示がONになっている**（`diag-pet-2d` の is2d が false→true）ため、ユーザーが症状を見て2D表示を
+  試した可能性が高い。iOSの合成（GPU）限界（既知の「タブレット点滅」と同系統）で、マス選択中に
+  49マス分の暗転オーバーレイが増えることが引き金になっている疑いがある。上記の前提条件添付
+  （flat2d フラグ）で次回の報告時に切り分けられる。
+- **検証**: `npm test` 54/54 PASS、`node test/smoke.mjs 2 --repeat 2` 2/2 PASS、`4` PASS。
+  ブラウザで、①不具合報告モーダルが開く（card-effect-engine / cell-confirm を新たにimportしたが
+  循環にならず盤面49マスも正常）②CPU難易度の取得が動く、を確認。サーバー側の変更は無い。

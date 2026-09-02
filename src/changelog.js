@@ -14,6 +14,9 @@ export const CHANGELOG = [
   {
     date: "2026-08-29",
     items: [
+      "CPUが、パーティのような「全員がそれぞれ選ぶ」効果で、強さの設定に関係なくランダムに選んでしまっていた不具合を直しました（最強にしていても2枚オープンを選ぶことがあったのはこれが原因でした）。",
+      "相手を選ぶカード効果（プレゼントなど）で、駒を選んでいるのに「このマスでいいですか？」と出ていたのを「この相手でいいですか？」に直しました。",
+      "不具合報告に、CPUの強さ・人数・2D表示・自動処理・演出の設定などの「その時の状態」を自動で添えるようにしました。原因の特定が早くなります。",
       "CPU戦が途中で止まってしまうことがあった原因を突き止めて直しました（赤のキューブ フェニックスを、CPUが「使えるのに何も起きない」状態で撃ち続けていました）。念のため、CPUが同じカードを撃ち続けても止まらないようにもしています。",
       "「収穫と種まき」に到達して、その効果でその「収穫と種まき」自身を拾い、同じマスへ置き直した時に、最後にもう一度手札へ加わってしまう不具合を直しました。置き直した場所に残ります。",
       "CPUがパーティの効果で「2枚オープン」を選んでしまうことがあったのを直しました（他に選べる選択肢がある限り選びません。CPUの強さの設定に関係なく効きます）。",
@@ -76,6 +79,9 @@ export const CHANGELOG = [
     ],
     // 英語表示のとき items の代わりに出る（併記はしない。同じ順番・同じ件数で書くこと）。
     itemsEn: [
+      "Fixed a bug where the CPU chose at random in “everyone chooses” effects such as Party, regardless of the difficulty setting. This is why the strongest CPU sometimes picked “open two cards”.",
+      "When a card effect asks you to choose an opponent (Present and others), the confirmation now says “Choose this opponent?” instead of “Use this square?”.",
+      "Bug reports now automatically include the settings in effect at the time — CPU strength and player count, 2D display, auto-processing, animation options and so on — so causes can be pinned down faster.",
       "Fixed the cause of CPU battles freezing mid-game (the CPU kept firing Phoenix, the Red Cube, in a state where it counted as usable but nothing could happen). As a safety net, the CPU also stops repeating the same card.",
       "When you land on Harvest and Sow and its effect picks up that same Harvest and Sow and puts it back on the board, it no longer gets added to your hand afterwards. It stays where you put it.",
       "The CPU no longer picks Party’s “open two cards” option while any other option is available — at every CPU strength setting.",

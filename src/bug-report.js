@@ -23,7 +23,15 @@ import { getPlayerName } from "./player-identity.js";
 import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
 import { APP_VERSION } from "./app-version.js";
 import { getState } from "./state.js";
-import { isCpuBattleActive, isSelfCpuSubstituted } from "./cpu-battle-state.js";
+import { isCpuBattleActive, isSelfCpuSubstituted, getCpuDifficulty, getCpuPlayerCount, getAfkCpuDifficulty } from "./cpu-battle-state.js";
+// ユーザー要望2026-09-02「ログにCPUが何モードかなど様々な前提条件を入れておくのが今後に活かせる」。
+// 不具合の再現条件になりやすい設定（CPUの強さ・2D表示・自動処理・演出オフ等）を、報告に必ず添える。
+import { isFlatten2dMode, isIso25dMode } from "./tablet-2d-mode.js";
+import { isFlightAnimationDisabled, isArrivalEffectDisabled, isContinuousGlowDisabled } from "./motion-prefs.js";
+import { isAutoPhaseSkipEnabled } from "./auto-phase-skip-setting.js";
+import { getLang } from "./i18n.js";
+import { isAutoProcessingEnabled } from "./card-effect-engine.js";
+import { isCellConfirmEnabled } from "./cell-confirm.js";
 import { t } from "./ui-text.js"; // UI英語化フェーズ13
 import { buildCardFace } from "./card-renderer.js";
 
@@ -284,6 +292,24 @@ function gatherContext() {
       activePlayers: st?.activePlayers ?? null,
       turnPlayer: st?.turnPlayer ?? null,
       selfCpuSubstituted: isSelfCpuSubstituted(), // 自席がAFKでCPU代行中か
+      // --- 再現条件になりやすい前提（ユーザー要望2026-09-02） ---
+      cpuDifficulty: (() => { try { return getCpuDifficulty(); } catch { return null; } })(), // 新人/中級/上級/最強
+      cpuPlayerCount: (() => { try { return getCpuPlayerCount(); } catch { return null; } })(),
+      afkCpuDifficulty: (() => { try { return getAfkCpuDifficulty(); } catch { return null; } })(),
+      settings: {
+        flat2d: (() => { try { return isFlatten2dMode(); } catch { return null; } })(), // 盤面を平らな2D表示に
+        iso25d: (() => { try { return isIso25dMode(); } catch { return null; } })(),
+        autoProcessing: (() => { try { return isAutoProcessingEnabled(); } catch { return null; } })(), // カード効果の自動処理
+        autoPhaseSkip: (() => { try { return isAutoPhaseSkipEnabled(); } catch { return null; } })(), // 自動送り
+        noFlightAnim: (() => { try { return isFlightAnimationDisabled(); } catch { return null; } })(),
+        noArrivalEffect: (() => { try { return isArrivalEffectDisabled(); } catch { return null; } })(),
+        noContinuousGlow: (() => { try { return isContinuousGlowDisabled(); } catch { return null; } })(),
+        cellConfirm: (() => { try { return isCellConfirmEnabled(); } catch { return null; } })(), // 「このマスでいいですか？」
+        lang: (() => { try { return getLang(); } catch { return null; } })(),
+        theme: document.body.classList.contains("theme-light") ? "light" : "dark",
+        phoneDevice: document.body.classList.contains("is-phone-device"),
+        fullScreen: !!document.fullscreenElement,
+      },
     };
   } catch {
     /* noop */
