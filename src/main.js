@@ -253,6 +253,7 @@ import {
   chooseMoveCandidate,
   chooseDeclaredColors,
   chooseEffectOption,
+  dropAvoidedOptions,
   chooseEffectCell,
   chooseHandEffectCard,
   chooseHandCardToken,
@@ -4185,7 +4186,9 @@ export function performPriorityTimeoutAutoAction() {
         // 等。chooseEffectOption参照）。新人・未対応カードは従来通りランダム。
         picker.resolve(chooseEffectOption(picker.cardId, usable, driveSeat));
       } else {
-        picker.resolve(pickRandomFrom(usable));
+        // #205: 新人CPU・時間切れの自動代行でも「強いマイナス」の選択肢（パーティの2枚オープン等）は
+        // 選ばない。他に選べる物が無い時だけ残る（dropAvoidedOptions参照）。
+        picker.resolve(pickRandomFrom(dropAvoidedOptions(picker.cardId, usable)));
       }
     } else if (picker.type === "colors") {
       // ザ・ギャンブル/試練の儀式の色宣言モーダル用。「N色以上」「ちょうどN色」の
@@ -4386,7 +4389,7 @@ export function performPriorityTimeoutAutoAction() {
     const usable = getState().tokens.filter(isCpuUsableEffectToken);
     const chosen = chooseHandEffectCard(usable, player);
     if (chosen) {
-      noteCpuHandEffectAttempt(chosen.id);
+      noteCpuHandEffectAttempt(chosen.id, chosen.cardId);
       // fire-and-forget（内部の選択待ちは後続tickの自動代行で解決される）。
       runAutoHandEffect(chosen.cardId, chosen.id, player);
       return true;
@@ -5628,13 +5631,20 @@ const CPU_HAND_EFFECT_ATTEMPT_LIMIT = 3;
 function cpuHandEffectAttemptKey(tokenId) {
   return `${getState().turnNumber ?? 0}:${tokenId}`;
 }
-function noteCpuHandEffectAttempt(tokenId) {
+function noteCpuHandEffectAttempt(tokenId, cardId) {
   const key = cpuHandEffectAttemptKey(tokenId);
-  cpuHandEffectAttempts.set(key, (cpuHandEffectAttempts.get(key) ?? 0) + 1);
+  const n = (cpuHandEffectAttempts.get(key) ?? 0) + 1;
+  cpuHandEffectAttempts.set(key, n);
+  // 打ち止めに達した＝「同じターンに同じカードを撃ち続けようとしていた」＝本来ならここで
+  // 盤面が進まなくなっていた、という記録。どのカードが暴走したかを後から追えるようにする。
+  if (n >= CPU_HAND_EFFECT_ATTEMPT_LIMIT) logAction("diag-cpu-hand-effect-capped", { cardId: cardId ?? null, tokenId, attempts: n });
 }
 // 空撃ち（発動できなかった）は1回で打ち止めにする。
-function noteCpuHandEffectMisfire(tokenId) {
+// どのカードで起きたかを行動ログに残す（不具合報告からCPUの空撃ちを追えるようにするため。
+// このガードが無いと「同じカードを撃ち続けて盤面が止まる」ので、ここは原因調査の要所になる）。
+function noteCpuHandEffectMisfire(tokenId, cardId) {
   cpuHandEffectAttempts.set(cpuHandEffectAttemptKey(tokenId), CPU_HAND_EFFECT_ATTEMPT_LIMIT);
+  logAction("diag-cpu-hand-effect-misfire", { cardId: cardId ?? null, tokenId });
 }
 function isCpuHandEffectExhausted(tokenId) {
   return (cpuHandEffectAttempts.get(cpuHandEffectAttemptKey(tokenId)) ?? 0) >= CPU_HAND_EFFECT_ATTEMPT_LIMIT;
@@ -5730,7 +5740,7 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
     // 場合はfalseを返す（card-effect-engine.jsのrunHandEffect参照）ため、実際に
     // 発動できた時だけカウントする。
     if (usedSuccessfully) recordCardUsed(player, cardId);
-    else noteCpuHandEffectMisfire(cardTokenId); // 空撃ちは同じターン中もう選ばない（上記ガード）
+    else noteCpuHandEffectMisfire(cardTokenId, cardId); // 空撃ちは同じターン中もう選ばない（上記ガード）
   } finally {
     // ユーザー報告（続き94）「合同建設をハンドフェイズで最後に使用して手札を
     // 使い切ったのに自動でハンドフェイズが終わらなかった」の原因: 直前まではここで
@@ -8957,6 +8967,7 @@ let currentStageScale = 1;
 let currentStageOffsetX = 0;
 let currentStageOffsetY = 0;
 
+let lastStageViewport = { w: 0, h: 0 };
 function applyViewportStage() {
   const scale = Math.min(window.innerWidth / STAGE_WIDTH, window.innerHeight / STAGE_HEIGHT);
   const offsetX = (window.innerWidth - STAGE_WIDTH * scale) / 2;
@@ -8971,6 +8982,8 @@ function applyViewportStage() {
   // CSS変数に出し、ミニロックだけはこの倍率が小さい時に逆補正して一定の読める大きさを保つ
   // （#mini-lock-area(-top)のtransformで参照。倍率が十分大きい通常窓では補正1＝従来通り）。
   document.documentElement.style.setProperty("--stage-scale", String(scale));
+  // #204: 「このサイズに合わせた」を必ず控える（起動時の呼び出しも含む）。ensureViewportStageFresh参照。
+  lastStageViewport = { w: window.innerWidth, h: window.innerHeight };
 }
 
 // マウス/タッチイベントのclientX/clientYは常に「実画面のピクセル」で、ステージの
@@ -8994,11 +9007,37 @@ export function stageDelta(px) {
 }
 
 let resizeTimer;
-window.addEventListener("resize", () => {
+// 不具合報告#204「スマホでたまにアプリ立ち上げ時、画面の左上に小さく表示される。何回か縦横を
+// 繰り返すと直る」。原因は、ステージの倍率(applyViewportStage)を **resizeイベントが来た時にしか**
+// 計算し直していなかったこと。iOSでは、縦持ちで読み込まれた直後に横向きになった時や、
+// アドレスバーの出入りでビューポートが確定する時に、resizeが飛ばない／飛んでも
+// innerWidth/innerHeightがまだ古い値のことがあり、その場合は**縦持ちの倍率のまま固定**されて
+// 画面の一部にしか描かれない（実際、この報告では起動時 430x873・報告時 932x430 と食い違っていた）。
+// イベントの取りこぼしに依存しないよう、「最後に合わせた画面サイズ」を覚えておき、今の
+// ビューポートと食い違っていたら合わせ直す自己修復を入れる（0.5秒ごと＋向き変更・復帰時）。
+function refitViewportStage() {
   applyViewportStage();
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(fitTableToViewport, 100);
+}
+// 今のビューポートと最後に合わせたサイズが違っていたら合わせ直す（合っていれば何もしない）。
+function ensureViewportStageFresh() {
+  if (lastStageViewport.w !== window.innerWidth || lastStageViewport.h !== window.innerHeight) refitViewportStage();
+}
+window.addEventListener("resize", refitViewportStage);
+// iOSは向きの変更直後だとまだ古いサイズを返すことがあるので、直後と少し後の2回見る。
+window.addEventListener("orientationchange", () => {
+  ensureViewportStageFresh();
+  setTimeout(ensureViewportStageFresh, 300);
+  setTimeout(ensureViewportStageFresh, 900);
 });
+window.visualViewport?.addEventListener("resize", ensureViewportStageFresh);
+window.addEventListener("pageshow", ensureViewportStageFresh); // 復帰（bfcache）時
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) ensureViewportStageFresh();
+});
+// 最後の砦: どのイベントも来なかった場合でも0.5秒以内に自力で直す（比較するだけなので軽い）。
+setInterval(ensureViewportStageFresh, 500);
 
 // --- ドラッグ操作 ---------------------------------------------------------
 // ルールを一切適用しない自由な移動なので、「掴んだ物を離した場所」を見て状態を更新するだけの

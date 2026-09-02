@@ -218,6 +218,20 @@ export function isHandEffectOptionUsable(cardId, cardTokenId, player, option) {
     const candidates = findSameColorDiscardCandidates(cardTokenId, color, player);
     if (candidates.length < option.cost.count) return false;
   }
+  // 【CPU自己対戦が止まる不具合の真因】赤のキューブ フェニックス(first-red)専用。
+  // #72で入れたループ防止は「実行時に」止める形（runHandEffectOptionでコストを払う前に
+  // returnする）だった。ところが**使えるかどうかの判定(ここ)には同じ条件が無かった**ため、
+  // CPUは「使える」と判断して撃つ→#72に止められて何も起きない→次のtickでまた撃つ、を
+  // 延々と繰り返し、ハンドフェイズが終わらず**ターンが進まなくなっていた**（#200の対応で
+  // ロック中のファースト/エターナルをCPUが使えるようにした直後にCPU自己対戦が停止した原因。
+  // フェニックスはファーストカード＝撃っても手元から消えないので、そのまま無限ループになる）。
+  // 判定にも同じ条件を入れて、そもそも「今は使えない」と見えるようにする（人間から見ても、
+  // 押せてしまうのに断られるより分かりやすい）。
+  if (cardId === "first-red" && option.cost?.verb === VERBS.DISCARD_SAME_COLOR) {
+    const pile = getState().piles.discard;
+    const futureTarget = pile.length >= 1 ? pile[pile.length - 1] : null;
+    if (futureTarget && isPhoenixCostCardThisTurn(futureTarget)) return false;
+  }
   if (option.requiresPairInHand) {
     // 手札公開エリア(publicDraw)のカードもルール上「手札」（getHandTokensの定義、続き55）。
     // なないろの欠片の2枚判定でも公開中の欠片を数える（ユーザー指摘2026-08-10）。
@@ -2017,9 +2031,23 @@ export async function runArrivalEffect(ctx, helpers) {
     selections: {},
     arrivedAt: null,
   };
+  // 不具合報告#203「収穫と種まきに到達して、効果でその収穫と種まき自身を指定し、場に戻したのに
+  // 最終的に手札に加わった」。下の既定動作（到達したカードを手札に加える）は「そのカードがまだ
+  // 盤面に残っているか」だけを見ていたため、効果が**一度手札へ回収してから場に置き直した**場合も
+  // 「盤面に残っている」と判定して、もう一度手札へ持っていってしまっていた。効果が一度でも
+  // このカードを盤面の外（手札・捨て場等）へ動かしていたら、その行き先は効果が決めた結果なので
+  // 既定動作は行わない。
+  let arrivalCardMovedByEffect = false;
+  const wrappedHelpers = {
+    ...helpers,
+    moveAndSync: (tokenId, location, ...rest) => {
+      if (tokenId === ctx.cardTokenId && location?.zone !== "cell") arrivalCardMovedByEffect = true;
+      return helpers.moveAndSync(tokenId, location, ...rest);
+    },
+  };
   let hadEffect = false;
   for (const action of effectDef.actions) {
-    if (await runActionSafely(action, runCtx, helpers)) hadEffect = true;
+    if (await runActionSafely(action, runCtx, wrappedHelpers)) hadEffect = true;
   }
   // ユーザー要望「効果が不発だった場合（例: マスチェンジで３マス以内に相手がいない等）
   // は『不発のためこのカードを手札に加えます』的なモーダルを出しましょう」。アクションが
@@ -2041,7 +2069,7 @@ export async function runArrivalEffect(ctx, helpers) {
   // 無条件にctx.cardTokenIdを「到達プレイヤーの手札」へ動かしてしまい、既に
   // 別のプレイヤーへ渡っていたはずのカードを奪い返す形になっていた。このカードが
   // まだ盤面（cellゾーン）に残っている場合だけ既定動作を行うようにする。
-  if (effectDef.addsCardToHandAfter !== false) {
+  if (effectDef.addsCardToHandAfter !== false && !arrivalCardMovedByEffect) {
     const currentToken = getState().tokens.find((t) => t.id === ctx.cardTokenId);
     if (currentToken && currentToken.location.zone === "cell") {
       // 手札へ移す前に、獲得するカードのidと公開状態を控えておく（移動後はcellから消えるため）。

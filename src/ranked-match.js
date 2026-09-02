@@ -25,7 +25,9 @@ import {
   captureRankedPreMatchRank,
   sendPushToUsers,
 } from "./online.js";
-import { t } from "./ui-text.js"; // UI英語化フェーズ11
+import { t } from "./ui-text.js";
+// ユーザー要望2026-09-02「ランク戦待ちの時にも（通知を）促す」。
+import { shouldSuggestRankedNotify, enableRankedNotifyFromPrompt } from "./ranked-notify.js"; // UI英語化フェーズ11
 import { openDeckSelect } from "./my-deck-select.js";
 import { playSound } from "./sound.js";
 import {
@@ -155,6 +157,29 @@ function showWaitingScreen() {
   practiceBtn.textContent = t("rm.L151");
   practiceBtn.addEventListener("click", () => void startPractice());
   overlayEl.appendChild(practiceBtn);
+
+  // ユーザー要望2026-09-02: 待っている間に「次からは、募集中の人が現れたらお知らせしますか？」と
+  // 勧める。ここで待つのをやめても、次に誰かが待ち始めた時に気づけるようにするため。
+  // 既にONの人・通知が使えない環境には出さない（shouldSuggestRankedNotify）。
+  if (shouldSuggestRankedNotify()) {
+    const notifyRow = document.createElement("div");
+    notifyRow.className = "ranked-waiting-notify";
+    const notifyText = document.createElement("div");
+    notifyText.className = "ranked-waiting-notify-text";
+    notifyText.textContent = t("rm.notifySuggest");
+    const notifyBtn = document.createElement("button");
+    notifyBtn.type = "button";
+    notifyBtn.className = "ranked-waiting-notify-button";
+    notifyBtn.textContent = t("rm.notifySuggestBtn");
+    notifyBtn.addEventListener("click", () => {
+      enableRankedNotifyFromPrompt();
+      notifyText.textContent = t("rm.notifyEnabled");
+      notifyBtn.remove();
+    });
+    notifyRow.appendChild(notifyText);
+    notifyRow.appendChild(notifyBtn);
+    overlayEl.appendChild(notifyRow);
+  }
 
   const cancelBtn = document.createElement("button");
   cancelBtn.type = "button";

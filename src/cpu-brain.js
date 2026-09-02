@@ -300,6 +300,20 @@ function canReachOpponentGateInOneStep(state, seat) {
   return activeOpponentGateCells(state, seat).some((g) => Math.abs(g.row - cell.row) + Math.abs(g.col - cell.col) === 1);
 }
 
+// 不具合報告#205「CPUがパーティで2枚オープンを選びました！なんでだろう？」。原因は、
+// 選択肢の評価（chooseEffectOption / OPTION_RANK）が**賢いCPU（中級以上）でしか使われず**、
+// 新人CPU・時間切れの自動代行は使える選択肢からランダムに選んでいたこと。「2枚オープンは
+// 選ばない」のような“強いマイナス”は戦略の good/better ではなく「やってはいけない」なので、
+// 難易度に関係なく避ける。他に選べる選択肢が無い時だけ残す（不発を避ける）。
+const OPTION_AVOID_THRESHOLD = -5;
+export function dropAvoidedOptions(cardId, usableCandidates) {
+  const list = usableCandidates ?? [];
+  const rankMap = OPTION_RANK[cardId];
+  if (!rankMap || list.length === 0) return list;
+  const kept = list.filter((o) => (rankMap[o.id] ?? 0) > OPTION_AVOID_THRESHOLD);
+  return kept.length > 0 ? kept : list;
+}
+
 export function chooseEffectOption(cardId, usableCandidates, driveSeat) {
   if (!usableCandidates || usableCandidates.length === 0) return null;
   const rankMap = OPTION_RANK[cardId];

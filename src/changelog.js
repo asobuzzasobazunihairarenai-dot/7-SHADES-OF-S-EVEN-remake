@@ -14,6 +14,11 @@ export const CHANGELOG = [
   {
     date: "2026-08-29",
     items: [
+      "CPU戦が途中で止まってしまうことがあった原因を突き止めて直しました（赤のキューブ フェニックスを、CPUが「使えるのに何も起きない」状態で撃ち続けていました）。念のため、CPUが同じカードを撃ち続けても止まらないようにもしています。",
+      "「収穫と種まき」に到達して、その効果でその「収穫と種まき」自身を拾い、同じマスへ置き直した時に、最後にもう一度手札へ加わってしまう不具合を直しました。置き直した場所に残ります。",
+      "CPUがパーティの効果で「2枚オープン」を選んでしまうことがあったのを直しました（他に選べる選択肢がある限り選びません。CPUの強さの設定に関係なく効きます）。",
+      "スマホでアプリを開いた時に、画面の一部にしか表示されないことがある不具合を直しました（縦横を切り替えなくても自動で直ります）。",
+      "ランク戦の「対戦相手を募集している人が現れたらお知らせ」を、ホームのランク戦アイコンと対戦相手を待っている画面からその場でONにできるようにしました。",
       "スマホのホーム画面で、画面全体を上下にスワイプできてしまっていたのを直しました（中身はもともと収まっているのに、ほんの少しだけはみ出してスクロールできる状態になっていました）。",
       "CPUが、自分のロックエリアに置いたままでも使えるカード（ファーストカード・エターナルカード）を使えるようになりました。これまでは一切使わなかったため、ディメンションで一気に2マス動いてゲート侵攻できる場面などを見逃していました。",
       "CPUが、あと1色で勝ちの相手が必要としている色のカードを、場から優先して回収するようになりました（相手の勝ち筋を止めにきます）。",
@@ -71,6 +76,11 @@ export const CHANGELOG = [
     ],
     // 英語表示のとき items の代わりに出る（併記はしない。同じ順番・同じ件数で書くこと）。
     itemsEn: [
+      "Fixed the cause of CPU battles freezing mid-game (the CPU kept firing Phoenix, the Red Cube, in a state where it counted as usable but nothing could happen). As a safety net, the CPU also stops repeating the same card.",
+      "When you land on Harvest and Sow and its effect picks up that same Harvest and Sow and puts it back on the board, it no longer gets added to your hand afterwards. It stays where you put it.",
+      "The CPU no longer picks Party’s “open two cards” option while any other option is available — at every CPU strength setting.",
+      "Fixed a bug where the app sometimes drew into only part of the screen when opened on a phone. It now corrects itself without rotating the device.",
+      "Ranked alerts (being told when someone is looking for an opponent) can now be switched on right from the ranked icon on the home screen and from the waiting screen.",
       "On phones, the home screen could be swiped up and down even though everything already fit. It no longer scrolls.",
       "The CPU can now use cards that stay usable in its own Lock Area (First and Eternal cards). It never used them before, so it missed plays such as moving two squares at once with Dimension to invade your gate.",
       "The CPU now prefers to pick up a board card in the colour an opponent needs to win, to cut off their last colour.",

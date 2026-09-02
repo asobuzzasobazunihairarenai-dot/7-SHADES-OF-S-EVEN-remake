@@ -45,6 +45,8 @@ import { openChangelogModal, hasUnreadChangelog } from "./changelog.js";
 // （cpu-battle.js 本体の動的importとは別物）。選んだ値は端末に保存され、CPU戦開始時に効く。
 import { getCpuDifficulty, setCpuDifficulty, getCpuPlayerCount, setCpuPlayerCount } from "./cpu-battle-state.js";
 import { maybeShowAlphaNotice } from "./alpha-notice.js";
+// ユーザー要望2026-09-02「ホームのランクマッチのところに“通知をオンにしませんか”的なバッジを」。
+import { shouldSuggestRankedNotify, enableRankedNotifyFromPrompt } from "./ranked-notify.js";
 
 let overlayEl = null;
 let toastEl = null;
@@ -78,6 +80,7 @@ const TILES = [
     labelKey: "home.tile.ranked",
     status: "ready",
     showWaitingCount: true, // 続き162: 今何人が対戦相手を募集中かをタイルに表示（コールドスタート対策）
+    showNotifySuggest: true, // ユーザー要望2026-09-02: まだ通知をONにしていない人に勧めるバッジ
     onOpen: async () => {
       // ランク戦のマッチメイキング（フェーズ2b、ranked-match.js）。cpu-battle.jsと同じく
       // 動的importで静的な依存辺を作らない（循環参照の回避）。ホームは閉じ、キャンセル/失敗時は
@@ -130,7 +133,7 @@ const TILES = [
 
 // 「近日公開」タイルを押した時の軽いトースト。モーダルを挟むほどの重さは不要
 // なため、数秒で自動的に消える控えめな通知にする。
-function showComingSoonToast(label) {
+function showHomeToast(text) {
   if (!overlayEl) return;
   clearTimeout(toastTimer);
   if (!toastEl) {
@@ -138,9 +141,12 @@ function showComingSoonToast(label) {
     toastEl.id = "home-screen-toast";
     overlayEl.appendChild(toastEl);
   }
-  toastEl.textContent = t("home.comingSoon", { label });
+  toastEl.textContent = text;
   toastEl.classList.add("is-visible");
   toastTimer = setTimeout(() => toastEl?.classList.remove("is-visible"), 2400);
+}
+function showComingSoonToast(label) {
+  showHomeToast(t("home.comingSoon", { label }));
 }
 
 // ユーザー要望2026-08-08「ホームの『フレンドリーマッチ』を『CPUマッチ＆フレンドリーマッチ』に
@@ -360,6 +366,32 @@ function buildTile(tile) {
     btn.appendChild(waitBadge);
   }
 
+  // ユーザー要望2026-09-02: ランク戦の「募集中の人が現れたらお知らせ」をまだONにしていない
+  // 人に、その場でONにできるバッジを出す（既定は非表示。updateRankedNotifyBadgeが出し分ける）。
+  // タイル自体が<button>なので、入れ子の<button>にはせずクリックだけ自前で拾い、伝播を止める
+  // （押してもランク戦は始まらない）。
+  if (tile.showNotifySuggest) {
+    const notifyBadge = document.createElement("div");
+    notifyBadge.className = "home-screen-tile-notify-badge";
+    notifyBadge.setAttribute("role", "button");
+    notifyBadge.tabIndex = 0;
+    notifyBadge.textContent = t("home.notifyBadge");
+    notifyBadge.title = t("home.notifyBadgeTip");
+    notifyBadge.style.display = "none";
+    const turnOn = (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      enableRankedNotifyFromPrompt();
+      notifyBadge.style.display = "none";
+      showHomeToast(t("home.notifyEnabledToast"));
+    };
+    notifyBadge.addEventListener("click", turnOn);
+    notifyBadge.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") turnOn(e);
+    });
+    btn.appendChild(notifyBadge);
+  }
+
   btn.addEventListener("click", () => {
     if (tile.status !== "ready") {
       showComingSoonToast(t(tile.labelKey));
@@ -454,11 +486,15 @@ async function updateRankedWaitingBadge() {
   if (!overlayEl) return;
   const badge = overlayEl.querySelector(".home-screen-tile-waiting-badge");
   if (!badge) return;
+  const notifyBadge = overlayEl.querySelector(".home-screen-tile-notify-badge");
   const user = await getCurrentUser();
   if (!user) {
     badge.style.display = "none";
+    if (notifyBadge) notifyBadge.style.display = "none"; // 未ログインでは勧めない（通知はログイン前提）
     return;
   }
+  // ユーザー要望2026-09-02: まだONにしていない人にだけ勧める。
+  if (notifyBadge) notifyBadge.style.display = shouldSuggestRankedNotify() ? "" : "none";
   let res;
   try {
     res = await pollRanked();

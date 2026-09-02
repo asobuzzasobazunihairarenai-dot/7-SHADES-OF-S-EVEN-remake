@@ -19032,3 +19032,61 @@ body.is-phone-device .alpha-notice-item {
 body.is-phone-device #home-screen {
   padding-top: 2rem;
 }
+
+/* ランク戦の通知を勧めるバッジ／行（ユーザー要望2026-09-02「ランク戦通知を促したい。ホームの
+   ランクマッチのところに“通知をオンにしませんか”的なバッジを。あとランク戦待ちの時にも促す」）。
+   ホーム側は「今◯人が募集中」のバッジ(.home-screen-tile-waiting-badge)の下に重ねる小さなチップ。 */
+.home-screen-tile-notify-badge {
+  position: absolute;
+  left: 50%;
+  bottom: -0.5rem;
+  transform: translateX(-50%);
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: #0ea5e9;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: bold;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 0.2rem 0.5rem rgba(0, 0, 0, 0.35);
+}
+.home-screen-tile-notify-badge:hover {
+  background: #0284c7;
+}
+.ranked-waiting-notify {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+  padding: 0.7rem 1rem;
+  border-radius: 0.6rem;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+.ranked-waiting-notify-text {
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  text-align: center;
+}
+.ranked-waiting-notify-button {
+  padding: 0.4rem 1.2rem;
+  border-radius: 0.4rem;
+  border: none;
+  background: #0ea5e9;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+.ranked-waiting-notify-button:hover {
+  background: #0284c7;
+}
+body.theme-light .ranked-waiting-notify {
+  background: rgba(176, 141, 63, 0.1);
+  border-color: rgba(176, 141, 63, 0.35);
+}
+body.theme-light .ranked-waiting-notify-text {
+  color: #3a3326;
+}

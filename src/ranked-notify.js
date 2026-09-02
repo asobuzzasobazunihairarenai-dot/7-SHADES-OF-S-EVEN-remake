@@ -218,3 +218,20 @@ function fireNotification() {
     if (bannerEl) dismissBanner();
   }, FLASH_MS + 5000);
 }
+
+// ユーザー要望2026-09-02「ランク戦通知を促したい。ホームのランクマッチのところに“通知を
+// オンにしませんか”的なバッジを出す。あとランク戦待ちの時にも促す」。
+// 「まだONにしていない人にだけ勧める」判定と、その場でONにする入口をここにまとめる
+// （ホーム画面と待機画面の両方から同じものを使う）。
+export function shouldSuggestRankedNotify() {
+  // まだONにしていない人にだけ勧める。ブラウザ通知が使えない/拒否済みの環境でも勧めてよい——
+  // この設定の本体は「アプリを開いている間のタブ点滅・音・バナー」で、ブラウザ通知はその上乗せ
+  // だから（設定の説明文もその通り）。
+  return !enabled;
+}
+
+// 勧めに応じてONにする。ユーザー操作の文脈なので、ここでブラウザの許可も取りにいく
+// （setRankedNotifyEnabled が ensureNotifyPermission を呼ぶ）。
+export function enableRankedNotifyFromPrompt() {
+  setRankedNotifyEnabled(true);
+}

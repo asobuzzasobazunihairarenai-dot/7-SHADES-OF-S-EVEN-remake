@@ -152,6 +152,33 @@ export const CASES = [
     ],
   },
   {
+    // 不具合報告#203「収穫と種まきに到達して、効果でその収穫と種まき自身を指定し、場に戻したのに
+    // 最終的に手札に加わった」。到達効果の既定動作（このカードを手札に加える）は、効果が自分自身を
+    // 一度手札へ回収していたら行わない（効果が行き先を決めた結果を尊重する）。
+    name: "収穫と種まき(到達): 自分自身を拾って同じマスへ置き直したら、最後に手札へ加えない(#203)",
+    kind: "arrival",
+    cardId: "orange-harvest-sow",
+    state: {
+      activePlayers: ["A"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 6, col: 3 } },
+        { id: "self", kind: "card", cardId: "orange-harvest-sow", faceUp: true, location: { zone: "cell", row: 6, col: 3 } },
+        { id: "other", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "cell", row: 2, col: 2 } },
+        { id: "inhand", kind: "card", cardId: "blue-choosable-trap", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "orange-harvest-sow", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 6, col: 3 } },
+    // 拾うマス=自分がいるマス(6,3)＝収穫と種まき自身、置く札=その収穫と種まき自身。
+    picks: { location: [{ row: 6, col: 3 }], handCard: ["self"] },
+    expect: [
+      { kind: "tokenAtCell", id: "self", row: 6, col: 3 }, // 置き直した場所に残る
+      { kind: "tokenNotInHand", id: "self", player: "A" }, // 手札には加わらない（ここが#203）
+      { kind: "tokenFaceDown", id: "self" }, // 置き直しは裏向き
+      { kind: "tokenZone", id: "inhand", zone: "hand", player: "A" }, // 手札の別の札は動かない
+    ],
+  },
+  {
     name: "マスチェンジ(到達): 3マス以内の相手の駒と位置を入れ替える",
     kind: "arrival",
     cardId: "orange-mass-change",
