@@ -416,10 +416,13 @@ export function openHomeScreen() {
   // だけでなく、最小化してから戻る等の経路もあるため、ここで一括して面倒を見る）。
   // あわせて盤面のBGMも止める（ユーザー報告2026-09-02「対戦後、ホーム画面に戻っても
   // 盤面の時のBGMのまま」）。対局へ戻れば initGameBgmAutoStart 側で鳴り直す。
+  // #216（ユーザー報告2026-09-03「対戦終了後、ホームに戻ってもBGMが鳴らない」）:
+  // 盤面のBGMを止めるだけだと無音になってしまうので、タイトル画面と同じBGMへ切り替える。
   void import("./sound.js")
     .then((m) => {
       m.stopVictoryBgm();
       m.stopGameBgm();
+      m.playOpeningBgm();
     })
     .catch(() => {});
   overlayEl = document.createElement("div");

@@ -12,6 +12,21 @@ import { getLang } from "./i18n.js";
 
 export const CHANGELOG = [
   {
+    date: "2026-09-03",
+    items: [
+      "CPU同士が「スリカエ」で手札を交換した時、何を交換したかが見えてしまっていたのを直しました。自分が関わっていない交換では、中身は伏せたまま「交換しました」とだけお知らせします。",
+      "接触した時にカードを2枚奪ってしまうことがあった不具合を直しました。自動で承認する仕組みが2か所にあり、条件の変わり目で両方が動いてしまうことがありました。",
+      "カードをオープンする効果（サフランなど）でじっくり選んでいると、処理中の判定が先に切れてしまい、その隙に駒が動かせてしまうことがあったのを直しました。",
+      "対戦のあとホーム画面に戻ると無音になっていたのを直しました。タイトル画面と同じBGMが流れます。",
+    ],
+    itemsEn: [
+      "Fixed: when two CPUs swapped cards with Sleight of Hand, the swapped cards were revealed. Swaps you are not part of now only say that a swap happened.",
+      "Fixed: making contact could steal two cards. Two separate auto-approval paths could both fire when the conditions changed mid-way.",
+      "Fixed: taking your time while flipping cards (Saffron and similar) could end the “busy” state early, letting a piece be moved in the middle of the effect.",
+      "Fixed: returning to the home screen after a match left it silent — the title music now plays.",
+    ],
+  },
+  {
     date: "2026-09-02",
     items: [
       "アプリの更新中に、どこまで進んでいるかが画面上部に出るようになりました（時間がかかる時でも止まっているのか進んでいるのか分かります）。",

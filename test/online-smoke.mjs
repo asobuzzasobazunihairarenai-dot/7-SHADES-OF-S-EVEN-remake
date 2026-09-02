@@ -241,12 +241,18 @@ async function run() {
   let failed = null;
   const fail = (m) => { if (!failed) failed = m; log("FAIL:", m); };
 
+  log("starting: " + PLAYER_COUNT + " players" + (RUN_TO_COMPLETION ? " (run to completion)" : "") + (ISOLATED ? " [isolated]" : ""));
+  log("browsers are starting up — this takes 30-60s before the match begins. please wait.");
   const sharedBrowser = ISOLATED ? null : await chromium.launch({ args: LAUNCH_ARGS });
   try {
-    for (let i = 0; i < PLAYER_COUNT; i++) clients.push(await openClient(sharedBrowser, i, errors));
+    for (let i = 0; i < PLAYER_COUNT; i++) {
+      log("opening client " + (i + 1) + "/" + PLAYER_COUNT + " ...");
+      clients.push(await openClient(sharedBrowser, i, errors));
+    }
     log(PLAYER_COUNT + " clients opened");
 
     for (const c of clients) {
+      log(c.tag + " signing in as guest ...");
       const info = await signInAndPrepare(c.page, PSEUDO_CPU_DEADLINE_MS);
       log(c.tag + " signed in as guest (" + (info.userId || "?").slice(0, 8) + ")");
     }

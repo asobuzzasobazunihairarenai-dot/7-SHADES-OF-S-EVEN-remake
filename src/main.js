@@ -2163,7 +2163,16 @@ async function swapHandCardWithOpponentForEffect(player, targetPlayer) {
     // player(実行者)→targetPlayerへ渡るので、自分視点でラベルを出し分ける（ユーザー報告
     // 2026-08-07: CPUが自分にスリカエした時、自分が受け取ったのに「渡した」と出て逆で紛らわしい）。
     const self = getSelfSeat();
-    if (targetPlayer === self) {
+    // #217（ユーザー報告2026-09-03）: CPU同士がスリカエをした時、自分は当事者でないのに
+    // 「何を渡したか」が中央のモーダルで見えてしまっていた（＝隠し情報の漏れ）。
+    // 自分が当事者（渡す側 or 受け取る側）の時だけ中身を見せる。
+    if (targetPlayer !== self && player !== self) {
+      // 当事者でない（CPU同士の交換）＝中身は見せない。何が起きたかだけ伝える。
+      announceEffectReasonForEffect(
+        "yellow-sleight-of-hand",
+        t("game.ritual.swappedBetween", { a: getPlayerName(player), b: getPlayerName(targetPlayer) })
+      );
+    } else if (targetPlayer === self) {
       // 自分が受け取る（相手が自分に渡した）。
       showCardReceivedModal(myCard.cardId, t("game.ritual.receivedFrom", { name: getPlayerName(player) }), { labelText: t("game.label.received") });
     } else {
@@ -7499,7 +7508,26 @@ async function resolveContactRitualPickAsAttacker({ attacker, defender }) {
 // 時に呼ばれる。承認された場合だけ、respondToFinalLockと同じ理由でローカルモードは
 // 明示的に到達判定を呼ぶ必要がある（remote-move-animator.jsはisOnlineMode()で早期return
 // する設計のため）。
+// #215（ユーザー報告2026-09-03「CPUに接触したら、なぜか2枚奪ってしまった」）の対策。
+// 接触への応答は**複数の経路**から呼ばれる——(1) 防御側の承認/拒否ボタン、(2) main.js の
+// checkCounterLockAutoApproval（カウンターロックを持っていない人には見せずに自動承認）、
+// (3) contact-approval.js の「CPU/AFK代行が防御側の時の自動判断」。(2)と(3)はそれぞれ別の
+// in-flight フラグしか持っておらず、しかも両者を振り分ける条件（防御側がカウンターロックを
+// 持っているか）は処理中に変わり得る（コストで捨てる等）。そのため、(3)が走っている最中に
+// 条件が変わって(2)も走り、**奪取が2回起きた**（実機ログ: 同じ接触で MOVE_TOKEN が2回）。
+// 呼び出し口ごとのガードでは漏れるので、応答そのものに1本の錠をかける。
+let contactResponseInFlight = false;
 async function respondToContact(approve) {
+  if (contactResponseInFlight) return; // 既に応答処理中（別経路からの二重呼び出し）
+  contactResponseInFlight = true;
+  try {
+    return await respondToContactInner(approve);
+  } finally {
+    contactResponseInFlight = false;
+  }
+}
+
+async function respondToContactInner(approve) {
   const pendingBefore = getState().pendingContact;
   if (!pendingBefore) return;
   const { attacker, defender } = pendingBefore;
@@ -13910,7 +13938,12 @@ initAdminMode();
 // 根本原因の特定用に diag ログも残す。
 setInterval(() => {
   try {
-    if (getHandEffectBusyStuckMs() < 20000) return;
+    // #214（ユーザー報告2026-09-03「サフランでカードをオープンしてる最中にムーブフェイズで
+    // 移動しちゃった」）: 20秒は短すぎた。スマホでカードを選んでいる最中（1枚めくって次を選ぶ
+    // までの間など）に、この見張りが「固まっている」と誤判定して処理中フラグを解除し、その隙に
+    // ムーブフェイズのタップが通ってしまっていた。人がじっくり選ぶ時間を見込んで60秒に伸ばす
+    // （本当に固まった時の救済という役目は変わらない）。
+    if (getHandEffectBusyStuckMs() < 60000) return;
     // 何かが本当に処理待ち/表示中なら手を出さない（誤解除防止）。
     if (activeEffectPicker) return;
     if (isArrivalEffectProcessing()) return;
