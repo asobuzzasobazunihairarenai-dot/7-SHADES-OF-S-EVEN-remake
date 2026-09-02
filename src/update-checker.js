@@ -11,6 +11,9 @@ import { markCleanExit } from "./crash-blackbox.js";
 import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 const CHECK_INTERVAL_MS = 60000; // 60秒ごと
+// 更新時のファイル取り直しに待つ上限。これを超えたら待ち切らずに再読み込みへ進む
+// （待たされ続けて「固まった」ように見えるのを防ぐ）。
+const ASSET_REFRESH_TIMEOUT_MS = 25000;
 // 基準は「今実行しているコードのバージョン」（APP_VERSION、JSと一緒にキャッシュされる）。
 // 以前は「最初にversion.jsonを取得した値」を基準にしていたが、GitHub PagesはJSを短時間
 // キャッシュする一方version.jsonはキャッシュ無視で取得するため、「古いJSが動いているのに
@@ -83,7 +86,7 @@ async function fetchVersion() {
 // 再読み込み前に、今読み込まれている同一オリジンのJS/CSS＋index.htmlを cache:"reload" で
 // 取り直してHTTPキャッシュを最新へ更新してから reload する。これで通常はハードリフレッシュ
 // 無しで反映される。
-async function refreshCachedAssets() {
+async function refreshCachedAssets(onProgress) {
   const urls = new Set();
   try {
     for (const entry of performance.getEntriesByType("resource")) {
@@ -97,7 +100,51 @@ async function refreshCachedAssets() {
     /* performance API不可なら下のindex.htmlだけ更新して続行 */
   }
   urls.add(location.href.split("#")[0].split("?")[0]); // index.html自身
-  await Promise.all([...urls].map((u) => fetch(u, { cache: "reload" }).catch(() => {})));
+  // ユーザー要望2026-09-02「更新中の時、たまに長い時があるので進捗が分かるようにしたい」。
+  // 取り直すファイルは100件前後あり、回線が遅いと数十秒かかることがある。1件終わるたびに
+  // 呼び出し側へ進み具合を伝える（表示は showUpdateProgress）。
+  const list = [...urls];
+  let done = 0;
+  onProgress?.(0, list.length);
+  await Promise.all(
+    list.map((u) =>
+      fetch(u, { cache: "reload" })
+        .catch(() => {})
+        .then(() => {
+          done += 1;
+          onProgress?.(done, list.length);
+        })
+    )
+  );
+}
+
+// 更新中の進捗表示（画面上部中央の細い帯）。バナーの「更新する」からも、起動直後の自動更新
+// からも使えるよう、バナーとは独立した要素にしている。リロードで消えるので後片付けは不要。
+let progressEl = null;
+let progressBarEl = null;
+let progressTextEl = null;
+function showUpdateProgress(done, total) {
+  if (!progressEl) {
+    progressEl = document.createElement("div");
+    progressEl.id = "update-progress";
+    progressTextEl = document.createElement("div");
+    progressTextEl.className = "update-progress-text";
+    const track = document.createElement("div");
+    track.className = "update-progress-track";
+    progressBarEl = document.createElement("div");
+    progressBarEl.className = "update-progress-bar";
+    track.appendChild(progressBarEl);
+    progressEl.appendChild(progressTextEl);
+    progressEl.appendChild(track);
+    document.body.appendChild(progressEl);
+  }
+  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  progressTextEl.textContent = t("uc.progress", { done, total, pct });
+  progressBarEl.style.width = `${pct}%`;
+}
+function showUpdateProgressMessage(text) {
+  if (!progressEl) showUpdateProgress(0, 0);
+  progressTextEl.textContent = text;
 }
 
 async function applyUpdate(btn) {
@@ -111,7 +158,20 @@ async function applyUpdate(btn) {
     /* sessionStorage不可でも続行 */
   }
   try {
-    await refreshCachedAssets();
+    // 進捗を出しながら取り直す。回線が遅い・一部が応答しない時に永久に待たないよう、
+    // 上限（ASSET_REFRESH_TIMEOUT_MS）を超えたら待ち切らずに再読み込みへ進む
+    // （取り直せなかったファイルは、次に空振りが検知された時のハードリフレッシュ案内で救う）。
+    let timedOut = false;
+    await Promise.race([
+      refreshCachedAssets(showUpdateProgress),
+      new Promise((resolve) =>
+        setTimeout(() => {
+          timedOut = true;
+          resolve();
+        }, ASSET_REFRESH_TIMEOUT_MS)
+      ),
+    ]);
+    showUpdateProgressMessage(timedOut ? t("uc.slow") : t("uc.reloading"));
   } catch (e) {
     /* 取り直しに失敗してもreloadは試みる */
   }
