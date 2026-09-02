@@ -916,6 +916,24 @@ export function openSmokeTestPanel() {
   // オールテスト（続き240。ユーザー要望2026-08-20「席を立つときなど、すべてのテストをまとめて回す」）。
   // 効果ユニットテスト → 画面遷移チェック → 自己対戦スモーク（連続実行の回数分）を順に実行し、
   // 最後にまとめて合否と診断情報を出す。ブラウザ内で完結するのでコマンドのコピーは不要（席を立って戻れば結果が出ている）。
+  // オンライン自動対戦テスト（続き373、test/online-smoke.mjs）。人数分の独立したブラウザで
+  // 本物の対戦を回し、クライアント間の盤面の食い違いまで見る。ブラウザからはNodeプロセスを
+  // 起動できないので、bgBtn/effectsBtnと同じ「コマンドをコピー」方式にする。
+  const onlineAutoBtn = document.createElement("button");
+  onlineAutoBtn.type = "button";
+  onlineAutoBtn.className = "smoke-test-run smoke-test-online";
+  onlineAutoBtn.textContent = "👥 オンライン自動対戦";
+  onlineAutoBtn.title =
+    "『node test/online-smoke.mjs …』コマンドをコピーします。人数分の別ブラウザでゲストログイン→部屋作成→参加→開始→自動対戦まで全部やり、全員の盤面が一致しているかまで検査します（オンライン監視と違い、対戦の用意も自動）。";
+  // ユーザー要望2026-09-03「テスト関連はスモークテストのところに集約したい」。ブラウザから
+  // パソコンのプログラムを起動することはできない（ブラウザの安全上の決まり）ので、代わりに
+  // 「ダブルクリックで全テストを選んで実行できる .bat」をここから作れるようにする。
+  const batBtn = document.createElement("button");
+  batBtn.type = "button";
+  batBtn.className = "smoke-test-run smoke-test-online";
+  batBtn.textContent = "📄 実行ファイルを作る";
+  batBtn.title =
+    "ダブルクリックするだけで各テストを選んで実行できるファイル（テスト.bat）を保存します。プロジェクトのフォルダに置いて使ってください。";
   const allBtn = document.createElement("button");
   allBtn.type = "button";
   allBtn.className = "smoke-test-run smoke-test-all";
@@ -939,6 +957,8 @@ export function openSmokeTestPanel() {
   actions.appendChild(navBtn);
   actions.appendChild(btnReachBtn);
   actions.appendChild(effectsBtn);
+  actions.appendChild(onlineAutoBtn);
+  actions.appendChild(batBtn);
   actions.appendChild(closeBtn);
   panel.appendChild(actions);
 
@@ -1021,6 +1041,111 @@ export function openSmokeTestPanel() {
     setTimeout(() => { bgBtn.textContent = "🖥️ バックグラウンド実行"; }, 2500);
   };
 
+  // オンライン自動対戦テスト: node test/online-smoke.mjs のコマンドをコピー（bgBtn と同じ方式）。
+  // パネルの「人数」をそのまま使う（2〜4人）。
+  onlineAutoBtn.onclick = async () => {
+    const pc = smokePlayerCount();
+    const full = repeatFullCheck.checked;
+    const projectDir = "D:\\7 SHADES OF SEVEN remake デジタル版";
+    const nodeCmd = `node test/online-smoke.mjs${pc !== 2 ? " " + pc : ""}${full ? " --full" : ""}`;
+    const cmd = `cd "${projectDir}"; ${nodeCmd}`;
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(cmd);
+      copied = true;
+    } catch {}
+    resultEl.classList.remove("is-pass", "is-fail");
+    resultEl.textContent = "";
+    addLog("──── 👥 オンライン自動対戦 ────");
+    addLog(copied ? "次のコマンドをコピーしました（PowerShellに貼って実行）:" : "次のコマンドを PowerShell で実行してください:");
+    addLog(`　${cmd}`);
+    addLog("※" + pc + "人分の別々のブラウザでゲストとしてログインし、部屋作成→参加→開始→自動対戦まで全部やります。");
+    addLog("　見るのは ①エラーが出ない ②盤面が壊れない ③ターンが進み続ける ④全員の盤面が一致する の4点です。");
+    addLog("　※本物のオンライン（通常部屋）を使うので、ゲストのアカウントと部屋が実際に作られます（終了時に退室します）。ランク戦ではないので誰のレートにも影響しません。");
+    addLog("　cmd.exeの場合は先頭を「cd /d " + String.fromCharCode(34) + projectDir + String.fromCharCode(34) + " && 」に、フォルダを移した場合はパスを直してください。");
+    onlineAutoBtn.textContent = copied ? "✅ コピーしました" : "👥 オンライン自動対戦";
+    setTimeout(() => { onlineAutoBtn.textContent = "👥 オンライン自動対戦"; }, 2500);
+  };
+
+  // ダブルクリックで各テストを選んで実行できる .bat を作って保存する。
+  // ブラウザからパソコンのプログラムは起動できない（ブラウザの安全上の決まり）ので、
+  // 「起動する」代わりに「起動できるファイルを渡す」形にしている。
+  batBtn.onclick = () => {
+    const lines = [
+      "@echo off",
+      "chcp 65001 >nul",
+      "rem 7 SHADES OF S:EVEN — テストランチャー（アプリのスモークテスト画面から作成）",
+      "rem このファイルはプロジェクトのフォルダ（package.json があるところ）に置いてください。",
+      "rem 番号を引数で渡すこともできます: テスト.bat 1",
+      "cd /d \"%~dp0\"",
+      "if not \"%~1\"==\"\" (",
+      "  call :run %~1",
+      "  exit /b",
+      ")",
+      ":menu",
+      "cls",
+      "echo ============================================",
+      "echo   7 SHADES OF S:EVEN  テスト",
+      "echo ============================================",
+      "echo   1) カード効果テスト（数秒・いちばん手軽）",
+      "echo   2) 自己対戦テスト 2人（8ターン）",
+      "echo   3) 自己対戦テスト 4人（8ターン）",
+      "echo   4) 自己対戦テスト 2人（決着まで）",
+      "echo   5) オンライン自動対戦 2人",
+      "echo   6) オンライン自動対戦 4人",
+      "echo   7) 全部まとめて（1→2→5）",
+      "echo   0) 終了",
+      "echo.",
+      "rem set /p は UTF-8 のとき入力を取りこぼすことがあるので、1キーで選べる choice を使う。",
+      "choice /c 12345670 /n /m \"番号のキーを押してください: \"",
+      "set \"N=%errorlevel%\"",
+      "if \"%N%\"==\"8\" exit /b",
+      "call :run %N%",
+      "echo.",
+      "echo ---- 終わりました（何かキーを押すとメニューに戻ります）----",
+      "pause >nul",
+      "goto menu",
+      "",
+      ":run",
+      "set \"CMD=\"",
+      "if \"%~1\"==\"1\" set \"CMD=node test/effects.mjs\"",
+      "if \"%~1\"==\"2\" set \"CMD=node test/smoke.mjs 2\"",
+      "if \"%~1\"==\"3\" set \"CMD=node test/smoke.mjs 4\"",
+      "if \"%~1\"==\"4\" set \"CMD=node test/smoke.mjs 2 --full\"",
+      "if \"%~1\"==\"5\" set \"CMD=node test/online-smoke.mjs 2\"",
+      "if \"%~1\"==\"6\" set \"CMD=node test/online-smoke.mjs 4\"",
+      "if \"%~1\"==\"7\" set \"CMD=node test/effects.mjs && node test/smoke.mjs 2 && node test/online-smoke.mjs 2\"",
+      "if not defined CMD (",
+      "  echo 1〜7 の番号を指定してください。",
+      "  exit /b 1",
+      ")",
+      "echo.",
+      "echo ▶ %CMD%",
+      "echo.",
+      "call %CMD%",
+      "exit /b",
+      "",
+    ];
+    const blob = new Blob([lines.join("\r\n")], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "テスト.bat";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    resultEl.classList.remove("is-pass", "is-fail");
+    resultEl.textContent = "";
+    addLog("──── 📄 実行ファイルを作る ────");
+    addLog("「テスト.bat」を保存しました。次の手順で使えます:");
+    addLog("　1) ダウンロードした「テスト.bat」を、プロジェクトのフォルダ（package.json があるところ）に移動する");
+    addLog("　2) ダブルクリックする → 番号を選ぶだけで各テストが走ります");
+    addLog("※ブラウザからパソコンのプログラムを直接起動することはできない決まりなので、この形にしています。");
+    addLog("　前提: npm install 済み＋ npx playwright install chromium 済み。");
+    batBtn.textContent = "✅ 保存しました";
+    setTimeout(() => { batBtn.textContent = "📄 実行ファイルを作る"; }, 2500);
+  };
   // カード効果テストボタン: node test/effects.mjs のコマンドをコピー（bgBtn と同じ方式）。
   effectsBtn.onclick = async () => {
     const projectDir = "D:\\7 SHADES OF SEVEN remake デジタル版";
