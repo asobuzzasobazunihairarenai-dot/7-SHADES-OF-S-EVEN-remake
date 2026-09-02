@@ -3637,6 +3637,10 @@ document.addEventListener(
     // 一切の復旧手段が無いまま画面全体が固まって見える状態になっていた。#option-area
     // 内のタップだけは、盤面の選択状態に関係なく常に通常通り機能させる（ここで早期
     // returnし、preventDefault/stopPropagationを一切呼ばない）。
+    // e.target は通常DOM要素だが、documentやwindowに直接イベントが投げられた場合は
+    // closest を持たない（続き359の検証時に実際に踏んだ）。ここで落ちると以降の
+    // 盤面操作が丸ごと死ぬので、要素でない時は素通りさせる。
+    if (!(e.target instanceof Element)) return;
     if (e.target.closest("#option-area")) return;
     // 不具合#82: 駒の上に出る「🤝 接触する」ボタン(.card-open-prompt)は駒の中心に置かれ、
     // 右側が“隣の移動先ハイライトのマス”に重なる。このcapture:trueハンドラはボタンを無視して
@@ -3732,9 +3736,17 @@ document.addEventListener(
             // 判定・変数へ保存しておく必要がある（後から判定するとクラスが既に無く
             // なっていて、意図せず「接触」扱いになってしまうバグがあった）。
             if (isMoveTarget) {
-              // 移動はこのクリックで確定するので、ここで行動済みにする。
-              markPhaseMoveActionTaken();
-              performPhaseMoveToCell(location);
+              // ユーザー要望2026-09-02「通常移動の移動先選択でも『このマスでいいですか』確認を
+              // 出したい」。カード効果のマス選択(requestCellChoiceForEffect)と同じ確認を挟む。
+              // 【重要】行動済みにする(markPhaseMoveActionTaken)のは確定してから——確認前に
+              // 呼ぶとハイライトが剥がれ、「選び直す」を押した時にもう移動できなくなる。
+              void (async () => {
+                if (!(await confirmCellChoice(cellEl, t("game.cellConfirm.moveHint")))) return;
+                // 確認中に状況が変わっている可能性があるので、まだ移動できるかを見直す。
+                if (!isMovePhaseActive()) return;
+                markPhaseMoveActionTaken();
+                performPhaseMoveToCell(location);
+              })();
             } else {
               // ユーザー報告「自動処理モードで、ムーブフェイズで接触しようと相手の駒を
               // クリックしてそれをキャンセルしたら、ターン終了しちゃいました」。接触は
@@ -9426,12 +9438,42 @@ function showCardPreviewFor(cardId, clientX, clientY) {
     return;
   }
   showCardFace(preview, cardId, getCardImagePath(cardId));
+  applyPreviewNote(preview, null); // モーダル内のカードには注意書きを付けない
   positionPreviewPanel(preview, clientX, clientY);
   preview.style.display = "block";
 }
 
 function hideCardPreview() {
   if (previewEl) previewEl.style.display = "none";
+}
+
+// ユーザー要望2026-09-02: 奇跡の森 ヴァーディアン（マンズウッド）の公開ドローで引いたカードは
+// 「このターン使わなかったらターン終了時に捨てられる」。それが分かるよう、拡大プレビューに
+// 一行の注意書きを載せる。対象かどうかは pendingTurnEndDiscards（このターンの終了時に捨てる
+// トークンidの控え）で判定する。
+function getPreviewNoteFor(el) {
+  const tokenId = el?.dataset?.tokenId;
+  if (!tokenId) return null;
+  for (const set of pendingTurnEndDiscards.values()) {
+    if (set.has(tokenId)) return t("game.preview.discardAtTurnEnd");
+  }
+  return null;
+}
+
+// 拡大プレビューの注意書き（getPreviewNoteFor）を付け外しする。カード面のマウント
+// （.card-face-mount）とは別の要素なので、showCardFace の作り直しに巻き込まれない。
+function applyPreviewNote(preview, note) {
+  let noteEl = preview.querySelector(":scope > .card-preview-note");
+  if (!note) {
+    noteEl?.remove();
+    return;
+  }
+  if (!noteEl) {
+    noteEl = document.createElement("div");
+    noteEl.className = "card-preview-note";
+    preview.appendChild(noteEl);
+  }
+  noteEl.textContent = note;
 }
 
 // モーダル内のカード要素に、盤面と同じ拡大プレビューを付ける（裏向き＝cardIdがnullなら何もしない）。
@@ -9457,6 +9499,7 @@ function updatePreview(el, clientX, clientY) {
   }
   // テキストモードならカード面を合成して被せ、画像モードなら従来通り背景画像を敷く。
   showCardFace(preview, cardId, getCardImagePath(cardId));
+  applyPreviewNote(preview, getPreviewNoteFor(el));
   positionPreviewPanel(preview, clientX, clientY);
   preview.style.display = "block";
 }
@@ -10866,13 +10909,16 @@ async function cpuUseGomennasaiOnFinalLock(seat, eligibility, attacker) {
   }
   moveToken(target.id, { zone: "hand", player: seat });
   // #102: 何を奪ったかを画面中央のモーダルで見せる（従来は小さいトーストだけだった）。
-  showCardReceivedModal(
+  // #209: このモーダルを await する（従来は出しっぱなしで先へ進んでいたため、CPUの
+  // ゴメンナサイは「一瞬で処理が終わって何が起きたか分からない」状態だった）。閉じる／
+  // 自動で消えるまで待ってから、攻撃側のロックの承認へ進む。
+  announceHandPickups(seat, [{ cardId: target.cardId, wasPublic: true }], t("game.gomennasai.reason"));
+  render();
+  await showCardReceivedModal(
     target.cardId,
     t("game.gomennasai.tookFrom", { name: getPlayerName(seat), attacker: getPlayerName(attacker) }),
     { labelText: t("game.label.took") }
   );
-  announceHandPickups(seat, [{ cardId: target.cardId, wasPublic: true }], t("game.gomennasai.reason"));
-  render();
   await respondToFinalLock(true);
 }
 
@@ -11086,6 +11132,29 @@ onAutoProcessingResolvedEvents(({ nextEnabled }) => {
   setAutoProcessingEnabled(nextEnabled);
   render();
 });
+
+// #208: 公開ドローしたカード（自分のもの）をタップした時の使用フロー。onDragEnd内の
+// 「同じ場所で放した＝クリック」経路(B)と同じ判定・確認・コスト処理を、公開ドロー用に切り出した
+// もの（あちらは手札(zone:"hand")のカードが対象）。使えない場合は何もせず元のまま残す
+// （＝勝手に手札へ入って裏向きになったりしない）。
+async function tryUsePublicDrawCardByTap(tokenId, player) {
+  const token = getState().tokens.find((t) => t.id === tokenId);
+  render(); // ドラッグ中に隠していた元要素を戻す
+  if (!token || !token.cardId) return;
+  if (token.cardId.startsWith("eternal-") || token.cardId.startsWith("first-")) return;
+  if (!hasHandEffectData(token.cardId)) return;
+  const usableAnytime = isHandEffectUsableAnytime(token.cardId);
+  const effectProcessingBusy = isAnyEffectProcessingBusy();
+  if (usableAnytime && effectProcessingBusy) return;
+  if (!isSelfHandPhase() && !(usableAnytime && !effectProcessingBusy)) return;
+  if (canUseHandEffect(token.cardId, token.id, player)) {
+    if (await confirmTouchAction(t("game.confirm.useCard", { card: cardDisplayName(token.cardId) }), { cardId: token.cardId })) {
+      runAutoHandEffect(token.cardId, token.id, player);
+    }
+  } else if (!canPayHandEffectCost(token.cardId, token.id, player)) {
+    alert(t("game.handEffect.noCost"));
+  }
+}
 
 async function onDragEnd(e) {
   hideHandDropHint(); // 掴んだ時に出した「場にドロップで発動」ヒントを消す
@@ -11315,6 +11384,24 @@ async function onDragEnd(e) {
       sendTokenToPile(tokenId, dropTarget.pile);
     }
   } else {
+    // #208（ユーザー報告「ヴァーディアンでドローしたスリカエを使用したけど何も起きず、
+    // 公開が非公開に変わるだけだった。手札使用拡大モーダルも出なかった」）:
+    // 自動処理モードでは、公開ドローしたカード（zone:"publicDraw"）を**自分の手札の扇の中**に
+    // 並べて表示している（続き293）。そのため「そのカードをタップしただけ」でも、ドロップ先の
+    // 判定では自分の手札エリアに落としたことになり、下の "hand" 分岐が publicDraw→hand の
+    // 移動として処理していた（＝手札に入って裏向きになるだけ・使用フローに入らない）。
+    // 自分の公開ドローカードを自分の手札の上で放した時は、移動ではなく「使う」操作として扱う。
+    if (
+      isAutoProcessingEnabled() &&
+      kind === "card" &&
+      cardSourceLocation?.zone === "publicDraw" &&
+      dropTarget.zone === "hand" &&
+      cardSourceLocation.player === dropTarget.player &&
+      cardSourceLocation.player === getSelfSeat()
+    ) {
+      await tryUsePublicDrawCardByTap(tokenId, cardSourceLocation.player);
+      return;
+    }
     // 手札に「新しく」加わる時（今までは手札に無かった、または別プレイヤーの手札から移ってきた
     // 時）だけ、何を得たか知らせるポップアップを出す。同じ手札の中で位置を動かしただけの時は
     // 対象外。
@@ -11496,7 +11583,7 @@ async function onDragEnd(e) {
       if (kind === "card") {
         const clickedToken = getState().tokens.find((t) => t.id === tokenId);
         const clickPlayer =
-          cardSourceLocation.zone === "hand"
+          cardSourceLocation.zone === "hand" || cardSourceLocation.zone === "publicDraw"
             ? cardSourceLocation.player
             : cardSourceLocation.zone === "lock"
               ? SIDE_TO_SEAT[cardSourceLocation.side]
@@ -11557,7 +11644,7 @@ async function onDragEnd(e) {
           isAutoProcessingEnabled() &&
           clickedToken &&
           clickPlayer === getSelfSeat() &&
-          cardSourceLocation.zone === "hand" &&
+          (cardSourceLocation.zone === "hand" || cardSourceLocation.zone === "publicDraw") &&
           !isEternalOrFirst &&
           hasHandEffectData(clickedToken.cardId)
         ) {

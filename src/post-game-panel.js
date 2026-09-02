@@ -235,6 +235,7 @@ function buildButtonsSection(gameId) {
     const sinceShownMs = Date.now() - postGamePanelShownAt;
     logAction("diag-postgame-leave", { sinceShownMs, guarded: isPostGameInputGuarded() });
     if (isPostGameInputGuarded()) return;
+    stopVictoryBgm(); // #210: 部屋を出たら勝利BGMも止める
     leaveGame();
     setSavedRoomPassword(gameId, null);
     history.replaceState(null, "", location.pathname);
@@ -440,7 +441,11 @@ export function showCpuBattleEndPanel({ winnerSeat }) {
   homeBtn.addEventListener("click", () => {
     setCpuBattleActive(false); // CPU戦フラグを下ろす（自動処理を止める）
     document.body.classList.remove("cpu-battle-mode");
-    resetVictoryTrackingFn?.(); // 次にまた勝利演出が出るように勝利記録をクリア
+    // #210: ここで勝利BGMを止める（従来は止めていなかったため、ホームに戻っても
+    // ファンファーレが鳴り続けていた）。勝利記録のクリアもここでは行わない——盤面は
+    // まだ7色揃ったままなので、クリアすると次のrender()で同じ勝利が再検出されてしまう
+    // （次の対局の開始時にcpu-battle.jsのstartCpuBattleが改めてクリアする）。
+    stopVictoryBgm();
     closePanel();
     openHomeScreen();
   });

@@ -1564,6 +1564,28 @@ body.reduce-glow [style*="rainbow-shard.webp"]::after {
   display: none;
 }
 
+/* 拡大プレビューの下に付ける一行の注意書き（main.jsのapplyPreviewNote）。今は
+   「奇跡の森 ヴァーディアンの公開ドローで引いたカードは、このターン使わなければ
+   ターン終了時に捨てられる」の告知に使う。プレビュー自体は固定サイズなので、
+   注意書きはその下（外側）へはみ出す形で置く。 */
+.card-preview-note {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(var(--card-preview-size) * 1.35);
+  padding: 0.25rem 0.6rem;
+  border-radius: 0.35rem;
+  background: rgba(24, 20, 14, 0.94);
+  border: 1px solid rgba(250, 204, 21, 0.7);
+  color: #fde68a;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  text-align: center;
+  white-space: normal;
+}
+
 /* ユーザー要望「駒にカーソルをかざすと全部の駒にプレイヤー名が吹き出すようにしたい」。
    main.jsのshowAllPieceNameBubblesが、各駒の画面上の位置に合わせてこの吹き出しを差し込む。
    #card-previewと同じ position:fixed・pointer-events:none 方式なので、盤面の3Dの傾きに
@@ -19165,4 +19187,82 @@ body.is-phone-device #announcement-modal {
   max-height: 28rem;
   padding: 1rem 1.2rem 0.8rem;
   transform: translate(-50%, -50%) scale(calc(0.9 * var(--center-modal-scale-phone, 1)));
+}
+
+/* ホーム画面下部の「ホーム画面に追加」案内（pwa-install.js）。控えめな一行。
+   追加済み／「あとで」を押した端末では display:none のまま残る。 */
+#pwa-install-banner {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.8rem;
+  margin-top: 1.2rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 0.6rem;
+  background: rgba(12, 20, 32, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  font-size: 0.8rem;
+  color: #cbd5e1;
+}
+body.theme-light #pwa-install-banner {
+  background: #fdfbf5;
+  border-color: rgba(176, 141, 63, 0.45);
+  color: #3a3326;
+}
+.pwa-install-add {
+  padding: 0.3rem 0.8rem;
+  border-radius: 0.4rem;
+  border: none;
+  background: #15803d;
+  color: #fff;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.pwa-install-later {
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: transparent;
+  color: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+/* iPhone/iPad 向けの手順モーダル（ボタン一つでは追加できないため案内する）。 */
+#pwa-install-modal {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10460;
+  width: min(26rem, 92%);
+  padding: 1.1rem 1.3rem 1.2rem;
+  border-radius: 0.7rem;
+  background: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  color: #e2e8f0;
+  box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.55);
+}
+body.theme-light #pwa-install-modal {
+  background: #fdfbf5;
+  border-color: rgba(176, 141, 63, 0.5);
+  color: #3a3326;
+}
+.pwa-install-modal-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 0.7rem;
+  text-align: center;
+}
+.pwa-install-modal-steps {
+  margin: 0 0 0.7rem 1.1rem;
+  padding: 0;
+  font-size: 0.85rem;
+  line-height: 1.65;
+}
+.pwa-install-modal-note {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  opacity: 0.8;
 }

@@ -3429,18 +3429,32 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
 // テーブルは so7_announcements（supabase_setup_so7.sql。読みは全員、書きは管理者だけ）。
 // SQL未実行でも「取得に失敗して何も出ない」だけで、アプリは今まで通り動く。
 
-// 最新の公開中お知らせを1件。無ければ null。
+// お知らせが「今」掲載期間内かどうか（starts_at/ends_atはどちらもnull可＝制限なし）。
+// 管理者ダッシュボードの一覧でも同じ判定を使えるようexportする。
+export function isAnnouncementActive(a, now = Date.now()) {
+  if (!a) return false;
+  if (a.starts_at && new Date(a.starts_at).getTime() > now) return false;
+  if (a.ends_at && new Date(a.ends_at).getTime() < now) return false;
+  return true;
+}
+
+// 最新の「公開中かつ掲載期間内」のお知らせを1件。無ければ null。
 export async function fetchLatestAnnouncement() {
   if (!client) return null;
   try {
+    // 掲載期間（starts_at / ends_at、どちらもnull可＝制限なし）で絞る。ユーザー要望
+    // 2026-09-02「期間を過ぎていたら、初めて開いた人にも出さない」。期間外のものは
+    // 返さないので、まだ読んでいない人にも出ない。
+    // 絞り込みはSQL側でやらずJS側で行う（PostgRESTの or= を2つ重ねるとAND/ORの解釈が
+    // 分かりにくく事故りやすいため。件数はたかが知れているので新しい方から数件見れば足りる）。
     const { data, error } = await client
       .from("so7_announcements")
-      .select("id, title, body, created_at")
+      .select("id, title, body, created_at, starts_at, ends_at")
       .eq("published", true)
       .order("id", { ascending: false })
-      .limit(1);
+      .limit(10);
     if (error) return null; // テーブル未作成・未ログイン等。静かに何も出さない。
-    return data?.[0] ?? null;
+    return (data ?? []).find((a) => isAnnouncementActive(a)) ?? null;
   } catch (err) {
     return null;
   }
@@ -3451,7 +3465,7 @@ export async function fetchAnnouncements(limit = 30) {
   if (!client) return [];
   const { data, error } = await client
     .from("so7_announcements")
-    .select("id, title, body, published, created_at")
+    .select("id, title, body, published, created_at, starts_at, ends_at")
     .order("id", { ascending: false })
     .limit(limit);
   if (error) {
@@ -3462,11 +3476,13 @@ export async function fetchAnnouncements(limit = 30) {
 }
 
 // 管理者ダッシュボード用: 投稿する。
-export async function postAnnouncement({ title, body }) {
+export async function postAnnouncement({ title, body, startsAt = null, endsAt = null }) {
   if (!client) throw new Error("not_online");
   const { error } = await client.from("so7_announcements").insert({
     title: title ?? "",
     body: body ?? "",
+    starts_at: startsAt || null, // 空欄なら「制限なし」
+    ends_at: endsAt || null,
     created_by: cachedUser?.id ?? null,
   });
   if (error) throw error;

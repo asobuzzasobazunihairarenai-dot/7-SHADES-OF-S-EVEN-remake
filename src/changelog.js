@@ -12,6 +12,29 @@ import { getLang } from "./i18n.js";
 
 export const CHANGELOG = [
   {
+    date: "2026-09-02",
+    items: [
+      "「奇跡の森 ヴァーディアン」で公開ドローしたカードをタップしても、そのカードが手札に入って裏向きになるだけで使えなかった不具合を直しました。タップすると、手札のカードと同じように使用の確認が出ます。",
+      "公開ドローしたカードにカーソルを合わせる（長押しする）と、拡大表示に「このターン使わなかったら、ターン終了時に捨てられます」と出るようにしました。",
+      "通常の移動でも、移動先のマスを選んだあとに「このマスでいいですか？」の確認が出るようにしました（カード効果でマスを選ぶ時と同じ確認です。基本設定でまとめて切り替えられます）。",
+      "CPUが「ゴメンナサイッ！」を使った時、処理が速すぎて何が起きたのか分からなかったのを直しました。奪ったカードを見せるモーダルを閉じる（または自動で消える）まで、次へ進まなくなります。",
+      "ホームに戻っても勝利BGMが鳴り続け、しばらくすると勝利BGMがまた鳴り始めることがあった不具合を直しました。",
+      "非公開のカードを手に入れた時のお知らせに、花札の絵文字ではなくカードの裏面を出すようにしました（画面中央のお知らせと、右下の「このターンの出来事」の両方）。",
+      "運営からのお知らせに掲載期間を設定できるようにしました。期間を過ぎたお知らせは、まだ読んでいない方にも表示されません。",
+      "ブラウザで遊んでいる方に、ホーム画面への追加（アプリのように起動できます）をご案内するようにしました。Androidなどではボタン一つで追加でき、iPhone・iPadでは追加の手順をご案内します（「あとで」を押すとしばらく出ません）。",
+    ],
+    itemsEn: [
+      "Fixed: a card drawn face-up by Verdian, the Wondrous Forest could not be used — tapping it just moved it into your hand face-down. Tapping it now asks to use it, just like a card in your hand.",
+      "Hovering (or long-pressing) a face-up drawn card now shows “Discarded at end of turn if you don’t use it this turn” on the enlarged card.",
+      "Normal moves now also ask “Is this the square?” after you pick a destination — the same confirmation used when a card effect asks you to pick a square (both can be turned off together in Settings).",
+      "Fixed: when a CPU used So Sorry!, everything resolved too fast to follow. The game now waits for the “what was taken” card modal to close before continuing.",
+      "Fixed: the victory music kept playing after returning home, and could start again on its own after a while.",
+      "Notices about cards gained face-down now show the actual card back instead of a playing-card emoji (both the center flash and the “this turn” strip at the bottom right).",
+      "Announcements from the team can now have a display period. Once it ends, the announcement is no longer shown — not even to people who have not seen it yet.",
+      "If you play in a browser, you will now be offered a way to add the game to your home screen. On Android it takes one tap; on iPhone and iPad we show you the steps (“Later” hides it for a while).",
+    ],
+  },
+  {
     date: "2026-08-29",
     items: [
       "運営からのお知らせを、ホーム画面を開いた時にお伝えできるようにしました（同じお知らせが何度も出ることはありません）。通知を許可している方には、アプリを開いていなくても届くお知らせも送れるようにしました。",

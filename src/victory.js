@@ -38,6 +38,14 @@ let announcedPlayers = new Set();
 // きちんとモーダルが出るようにする。
 export function resetVictoryTracking() {
   announcedPlayers = new Set();
+  // #210: 盤面がまだ「7色揃ったまま」の状態でこれを呼ぶと、次のrender()でその勝利が
+  // もう一度検出され、勝利演出・勝利BGMが鳴り直してしまう（ホームに戻った後に勝利BGMが
+  // 突然また鳴り始める、という報告の原因）。既に揃っている人は「告知済み」として数え直す。
+  // 盤面を空にしてから呼ぶ通常の使い方（新しい対局の開始時）では誰も揃っていないので、
+  // 従来通り完全なリセットとして働く。
+  for (const player of getState().activePlayers ?? []) {
+    if (hasAllSevenLocked(player)) announcedPlayers.add(player);
+  }
   // 新しい対戦＝前の対戦の試合ID（戦績システム側）は使い回さない。同じ部屋で連戦しても
   // 試合は別物なので、必ず捨ててから次の勝敗確定で新しいIDを採番する。
   clearRecordedStatsMatch();

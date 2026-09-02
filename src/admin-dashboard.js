@@ -429,11 +429,31 @@ const announcePostBtn = document.getElementById("announce-post-btn");
 const announceStatusEl = document.getElementById("announce-status");
 const announceTbody = document.getElementById("announce-tbody");
 const announcePushEl = document.getElementById("announce-push");
+const announceStartsEl = document.getElementById("announce-starts");
+const announceEndsEl = document.getElementById("announce-ends");
+
+// <input type="datetime-local"> の値（端末のローカル時刻）→ ISO文字列。空欄はnull＝制限なし。
+function localInputToIso(v) {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+// 一覧の「掲載期間」列の文言。期間外なら理由も添える（公開中なのに出ていない、で悩まないように）。
+function periodText(row) {
+  const s2 = row.starts_at ? formatDateTime(row.starts_at) : "";
+  const e2 = row.ends_at ? formatDateTime(row.ends_at) : "";
+  if (!s2 && !e2) return "制限なし";
+  const now = Date.now();
+  let label = (s2 || "いつでも") + " 〜 " + (e2 || "いつまでも");
+  if (row.starts_at && new Date(row.starts_at).getTime() > now) label += "（開始前）";
+  else if (row.ends_at && new Date(row.ends_at).getTime() < now) label += "（終了済み）";
+  return label;
+}
 
 async function loadAnnouncements() {
   const { data, error } = await client
     .from("so7_announcements")
-    .select("id, title, body, published, created_at")
+    .select("id, title, body, published, created_at, starts_at, ends_at")
     .order("id", { ascending: false })
     .limit(30);
   if (error) {
@@ -454,6 +474,7 @@ async function loadAnnouncements() {
     const bodyTd = td((row.body ?? "").slice(0, 80) + ((row.body ?? "").length > 80 ? "…" : ""));
     bodyTd.title = row.body ?? "";
     tr.appendChild(bodyTd);
+    tr.appendChild(td(periodText(row)));
     tr.appendChild(td(row.published ? "公開中" : "停止中"));
     const actions = document.createElement("td");
     const toggleBtn = document.createElement("button");
@@ -512,10 +533,18 @@ announcePostBtn?.addEventListener("click", async () => {
   announceStatusEl.textContent = "送信中...";
   try {
     const { data: { user } } = await client.auth.getUser();
-    const { error } = await client.from("so7_announcements").insert({ title, body, created_by: user?.id ?? null });
+    const { error } = await client.from("so7_announcements").insert({
+      title,
+      body,
+      starts_at: localInputToIso(announceStartsEl?.value),
+      ends_at: localInputToIso(announceEndsEl?.value),
+      created_by: user?.id ?? null,
+    });
     if (error) throw error;
     announceTitleEl.value = "";
     announceBodyEl.value = "";
+    if (announceStartsEl) announceStartsEl.value = "";
+    if (announceEndsEl) announceEndsEl.value = "";
     announceStatusEl.textContent = "投稿しました。プレイヤーが次にホーム画面を開いた時に表示されます。";
     // ユーザー要望2026-09-02: 通知を許可している人には、アプリを開いていなくても届くプッシュも送る
     // （so7-send-push の broadcast モード。管理者のメールでログインしている時だけ通る）。

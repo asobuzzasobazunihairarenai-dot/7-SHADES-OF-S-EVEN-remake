@@ -29,6 +29,11 @@
         <div id="announce-form">
           <input id="announce-title" type="text" maxlength="80" placeholder="見出し（例: サーバーメンテナンスのお知らせ）">
           <textarea id="announce-body" rows="5" maxlength="2000" placeholder="本文（改行はそのまま表示されます）"></textarea>
+          <div class="announce-period">
+            <label>掲載開始 <input id="announce-starts" type="datetime-local"></label>
+            <label>掲載終了 <input id="announce-ends" type="datetime-local"></label>
+            <span class="dashboard-hint">空欄なら制限なし。掲載終了を過ぎたお知らせは、まだ読んでいない人にも表示されません。</span>
+          </div>
           <div class="announce-actions">
             <button id="announce-post-btn" type="button">この内容で全員に知らせる</button>
             <label class="announce-push-label">
@@ -45,6 +50,7 @@
                 <th>日時</th>
                 <th>見出し</th>
                 <th>本文</th>
+                <th>掲載期間</th>
                 <th>状態</th>
                 <th>操作</th>
               </tr>

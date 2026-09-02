@@ -13,7 +13,7 @@
 // 作った文字列をそのまま保持し、チップをクリックした時に再表示する。
 
 import { showCardFace } from "./card-face-display.js";
-import { getCardImagePath } from "./cards-data.js";
+import { getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
 import { getState } from "./state.js";
 import { t } from "./ui-text.js"; // UI英語化フェーズ13
@@ -97,7 +97,10 @@ export function getTurnEventStockKey() {
   return `${state.turnNumber ?? 0}:${state.turnPlayer ?? "-"}`;
 }
 
-// entry: { icon, label, html, cardId? }
+// entry: { icon, label, html, cardId?, cardBack? }
+//   cardId … 中身を見せてよいカード（そのカード面を出す）
+//   cardBack … 中身が非公開のカード（ユーザー要望2026-09-02「非公開ドローのログの花札絵文字は
+//              カードの裏面を出せばいいのでは」→ 絵文字の代わりに実際の裏面画像を出す）
 // turnKey: その出来事が起きた時点のターン鍵（省略可）。#184（ユーザー報告2026-08-28
 // 「ターン終わりにあったスリカエが次のターンに残っていた」）: 中央フラッシュは最大1.8秒
 // 表示してから約0.4秒かけて右下へ飛ぶため、ターン終了間際の出来事はチップが積まれる頃には
@@ -116,6 +119,8 @@ export function pushTurnEventStock(entry, turnKey = null) {
   face.className = "turn-event-stock-chip-face";
   if (entry.cardId) {
     showCardFace(face, entry.cardId, getCardImagePath(entry.cardId));
+  } else if (entry.cardBack) {
+    face.style.backgroundImage = `url("${getCardBackImagePath(null)}")`;
   } else {
     face.textContent = entry.icon || "🔔";
     face.classList.add("is-icon");

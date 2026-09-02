@@ -173,10 +173,15 @@ tbody tr:hover {
 #announce-post-btn:disabled { opacity: 0.5; cursor: default; }
 /* 一覧は内容列だけ伸ばす（他の表と同じ考え方。列を足したらこの指定も合わせること）。 */
 #announce-table { table-layout: fixed; width: 100%; }
+/* 【重要】table-layout:fixed の nth-child 幅は、行を作る側（loadAnnouncements）のセルの
+   並び順と必ず一致していないといけない。列を足したらここも直すこと（続き352で不具合表の
+   列がズレて横スクロールが出た。同じ罠）。
+   1=日時 2=見出し 3=本文（残り全部） 4=掲載期間 5=状態 6=操作 */
 #announce-table th:nth-child(1), #announce-table td:nth-child(1) { width: 9.5rem; }
-#announce-table th:nth-child(2), #announce-table td:nth-child(2) { width: 12rem; }
-#announce-table th:nth-child(4), #announce-table td:nth-child(4) { width: 5rem; }
-#announce-table th:nth-child(5), #announce-table td:nth-child(5) { width: 12rem; white-space: nowrap; }
+#announce-table th:nth-child(2), #announce-table td:nth-child(2) { width: 10rem; }
+#announce-table th:nth-child(4), #announce-table td:nth-child(4) { width: 14rem; }
+#announce-table th:nth-child(5), #announce-table td:nth-child(5) { width: 5rem; }
+#announce-table th:nth-child(6), #announce-table td:nth-child(6) { width: 12rem; white-space: nowrap; }
 #announce-table td button { margin-right: 0.4rem; }
 .announce-push-label {
   display: inline-flex;
@@ -185,4 +190,19 @@ tbody tr:hover {
   font-size: 0.85rem;
   opacity: 0.85;
   cursor: pointer;
+}
+
+/* お知らせの掲載期間（ユーザー要望2026-09-02）。空欄なら制限なし。 */
+.announce-period {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  margin-top: 0.5rem;
+}
+.announce-period label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
 }

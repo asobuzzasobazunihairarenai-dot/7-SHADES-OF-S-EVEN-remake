@@ -2395,9 +2395,16 @@ create table if not exists so7_announcements (
   title text not null,
   body text not null,
   published boolean not null default true,
+  -- 掲載期間（ユーザー要望2026-09-02「お知らせに期間を設定できるようにしたい。その期間を
+  -- 過ぎていたら初めて開いた人にも通知は行かない」）。null は「制限なし」。
+  starts_at timestamptz,
+  ends_at timestamptz,
   created_at timestamptz not null default now(),
   created_by uuid references auth.users(id) on delete set null
 );
+-- 既に so7_announcements を作った後にこの2列を足す場合（後から実行しても安全）:
+alter table so7_announcements add column if not exists starts_at timestamptz;
+alter table so7_announcements add column if not exists ends_at timestamptz;
 alter table so7_announcements enable row level security;
 
 drop policy if exists "so7_announcements_select" on so7_announcements;

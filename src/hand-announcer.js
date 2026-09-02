@@ -3,7 +3,7 @@
 // 手札から奪った等、誰にも見えていなかった）なら本人にだけ中身を見せ、他のプレイヤーには
 // 「カードを得た」という事実だけを伝えるポップアップ（トースト、自動で消える）。
 
-import { getCardDefinition, getCardImagePath } from "./cards-data.js";
+import { getCardDefinition, getCardImagePath, getCardBackImagePath } from "./cards-data.js";
 import { getCardName } from "./card-text.js"; // UI英語化フェーズ6: 表示用カード名（英語版があればそちら）
 import { t } from "./ui-text.js";
 import { showCardFace } from "./card-face-display.js";
@@ -139,14 +139,24 @@ export function announceHandPickups(player, pickups, reason) {
   const hiddenCount = pickups.length - visible.length;
 
   if (visible.length === 0) {
+    // ユーザー要望2026-09-02: 中身が非公開の獲得は、花札の絵文字ではなく実際のカードの裏面を見せる。
+    const backsHtml = Array.from({ length: Math.min(hiddenCount, 5) })
+      .map(() => `<div class="hand-pickup-toast-card"><div class="hand-pickup-toast-img" style="background-image: url(&quot;${getCardBackImagePath(null)}&quot;)"></div></div>`)
+      .join("");
     showToast(
       `
       <div class="hand-pickup-toast-text">
         <div class="hand-pickup-toast-title">${t("game.toast.hiddenGain", { name: getPlayerNameOrYou(player), n: hiddenCount })}</div>
         ${reasonLine(reason)}
+        <div class="hand-pickup-toast-cards">${backsHtml}</div>
       </div>
     `,
-      { icon: "🎴", label: t("game.chip.gainedN", { name: getPlayerNameOrYou(player), n: hiddenCount }) + reasonSuffix(reason) }
+      {
+        icon: "🎴",
+        // 中身は非公開なので、絵文字ではなくカードの裏面をそのまま見せる（ユーザー要望2026-09-02）。
+        cardBack: true,
+        label: t("game.chip.gainedN", { name: getPlayerNameOrYou(player), n: hiddenCount }) + reasonSuffix(reason),
+      }
     );
     return;
   }

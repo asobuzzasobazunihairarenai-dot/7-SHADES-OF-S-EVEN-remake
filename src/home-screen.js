@@ -45,6 +45,7 @@ import { openChangelogModal, hasUnreadChangelog } from "./changelog.js";
 // （cpu-battle.js 本体の動的importとは別物）。選んだ値は端末に保存され、CPU戦開始時に効く。
 import { getCpuDifficulty, setCpuDifficulty, getCpuPlayerCount, setCpuPlayerCount } from "./cpu-battle-state.js";
 import { maybeShowAlphaNotice } from "./alpha-notice.js";
+import { buildPwaInstallBanner } from "./pwa-install.js";
 // ユーザー要望2026-09-02: 管理者が投稿した「全員へのお知らせ」を、ホームで一度だけ出す。
 import { maybeShowAnnouncement } from "./announcement.js";
 // ユーザー要望2026-09-02「ホームのランクマッチのところに“通知をオンにしませんか”的なバッジを」。
@@ -411,6 +412,9 @@ function buildTile(tile) {
 
 export function openHomeScreen() {
   if (overlayEl) return;
+  // #210: どの経路でホームへ戻っても勝利ファンファーレは止める（対戦終了パネルの各ボタン
+  // だけでなく、最小化してから戻る等の経路もあるため、ここで一括して面倒を見る）。
+  void import("./sound.js").then((m) => m.stopVictoryBgm()).catch(() => {});
   overlayEl = document.createElement("div");
   overlayEl.id = "home-screen";
 
@@ -435,6 +439,11 @@ export function openHomeScreen() {
   grid.id = "home-screen-grid";
   for (const tile of TILES) grid.appendChild(buildTile(tile));
   overlayEl.appendChild(grid);
+
+  // ユーザー要望2026-09-02「ブラウザで開いた人にPWAを案内してボタン一つでホームに追加」。
+  // 追加できる環境（Android Chrome等）ではボタンで即追加、iPhoneは手順を案内する。
+  // 追加済み／「あとで」を押した端末では、この要素は非表示のまま残るだけ。
+  overlayEl.appendChild(buildPwaInstallBanner());
 
   document.body.appendChild(overlayEl);
   // ユーザー要望（続き75）「ホーム画面やプロフ全画面でも上のオプションエリアのアイコン等は
