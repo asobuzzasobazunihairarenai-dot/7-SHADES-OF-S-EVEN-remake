@@ -216,6 +216,25 @@ export function isPseudoCpuTarget(seat) {
   return isPseudoCpuIncludeSelf() || seat !== getSelfSeat();
 }
 
+// ユーザー指示2026-09-02「そもそもCPU戦の時は自分しかいないので自動代行は必要ない」。
+// ローカルのCPU戦（物語のエイドス戦・チュートリアル戦も含む）で自分の席が優先権を持って
+// いる間は、待たせている相手がいないので持ち時間切れの扱いを一切しない——延長ロープを
+// 出さない・砂時計を消費しない・自動代行(performPriorityTimeoutAutoAction)も呼ばない。
+// tick 自体は止めない（CPU側の席の自動プレイがこの tick に乗って動いているため）。
+// 例外（従来どおり時間切れを扱う）:
+//   ・オンライン対戦（相手を待たせるので必要）
+//   ・疑似CPUモードで自分の席も対象にしている時（観戦モード・スモークテスト）
+//   ・「AFK代行」を自分で頼んでいる時（isSelfCpuSubstituted）
+function isSelfTimeLimitExempt(seat) {
+  if (!seat) return false;
+  if (isOnlineMode()) return false;
+  if (!isCpuBattleActive()) return false;
+  if (seat !== getSelfSeat()) return false;
+  if (isPseudoCpuTarget(seat)) return false;
+  if (isSelfCpuSubstituted()) return false;
+  return true;
+}
+
 // その座席が既に砂時計を使い始めている（＝そのターン中に1個でも正式消費している）場合は、
 // 行動で得られる基本時間の窓を短く抑える（デフォルト上限10秒、管理者モードで調整可）。
 // まだ使っていなければ通常の基本時間をまるまる与える。
@@ -1058,6 +1077,13 @@ function checkOpponentAfkForfeit(state) {
 // （優先権を手番プレイヤーに返してください）——ユーザー要望「手番じゃないのに優先権を
 // 持っていてタイムオーバーになった場合」への対応。isTimedOut=falseの間は両方消す。
 function updateTimeoutWarnings(state, isTimedOut) {
+  // CPU戦の自分の席は持ち時間の対象外（isSelfTimeLimitExempt参照）。時間切れとして
+  // 扱わない＝自動代行も警告も出さず、プレイヤーが動くまでそのまま待つ。
+  if (isTimedOut && isSelfTimeLimitExempt(state.priorityPlayer)) {
+    updateWarning(false);
+    updatePriorityReturnWarning(false);
+    return;
+  }
   if (!isTimedOut) {
     timedOutAutoActionFired = false;
     timedOutAutoActionDeadline = state.priorityDeadline;
@@ -1344,6 +1370,14 @@ function tick() {
   const remaining = state.priorityDeadline - Date.now();
   if (remaining > 0) {
     updateTimeoutWarnings(state, false);
+    return;
+  }
+
+  // CPU戦の自分の席は持ち時間の対象外（isSelfTimeLimitExempt参照）。基本時間が切れても
+  // 延長ロープを出さず、砂時計も消費せず、自動代行もしない（放置している間に資源だけ
+  // 減っていくのを防ぐ）。表示は時間切れのまま静かに待つ。
+  if (isSelfTimeLimitExempt(state.priorityPlayer)) {
+    updateTimeoutWarnings(state, true);
     return;
   }
 

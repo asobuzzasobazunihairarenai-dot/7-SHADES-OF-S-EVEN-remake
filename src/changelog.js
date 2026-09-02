@@ -14,9 +14,11 @@ export const CHANGELOG = [
   {
     date: "2026-09-02",
     items: [
+      "CPU戦では、あなたの手番に持ち時間の時間切れが起きなくなりました。待っている相手がいないので、席を外していても勝手に手が進んだり砂時計が減ったりしません（オンライン対戦はこれまで通りです）。",
       "しばらく席を外して自動で進んだあと戻ってきた時に、「このマスでいいですか？」で「選び直す」を押すと何度も同じ確認が出てしまう不具合を直しました。自動で選ばれた分にはこの確認を出しません。",
     ],
     itemsEn: [
+      "In CPU battles your own turn no longer times out. Nobody is waiting on you, so stepping away never plays a move for you or spends your hourglasses (online matches are unchanged).",
       "Fixed: after being away and having your turn played automatically, choosing “Pick again” on “Is this the square?” could ask you over and over. Automatic choices no longer show that confirmation.",
     ],
   },
