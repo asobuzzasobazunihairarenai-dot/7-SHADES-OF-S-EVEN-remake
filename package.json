@@ -6,7 +6,8 @@
   "scripts": {
     "smoke": "node test/smoke.mjs",
     "effects": "node test/effects.mjs",
-    "test": "node test/effects.mjs"
+    "test": "node test/effects.mjs",
+    "smoke:online": "node test/online-smoke.mjs"
   },
   "devDependencies": {
     "playwright": "^1.49.0"
