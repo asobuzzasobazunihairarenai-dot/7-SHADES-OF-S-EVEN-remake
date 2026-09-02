@@ -14,6 +14,19 @@ export const CHANGELOG = [
   {
     date: "2026-09-02",
     items: [
+      "追色（同じ色のカードを捨てて使う）の演出で、吸い込まれていくカードが手札にも残ったままで二重に見えていたのを直しました。",
+      "「スリカエ」で相手に返すカードを選んでいる最中に、選んだつもりのカードをそのまま使ってしまうことがあった不具合を直しました。カード効果の選択待ちの間は、手札や駒に触れても動かなくなります。",
+      "ゲート侵攻の処理中に駒を動かせてしまい、本来の「自分のゲートへ戻る」が上書きされてしまうことがあった不具合を直しました。処理が終わるまで盤面の操作を受け付けません。",
+    ],
+    itemsEn: [
+      "Fixed: during the Color Cost animation, the card being absorbed also stayed in your hand, so it looked doubled.",
+      "Fixed: while choosing which card to hand back for Sleight of Hand, tapping a card could use it instead. Cards and pieces no longer respond while a card effect is waiting for a choice.",
+      "Fixed: pieces could still be moved while a Gate Invasion was resolving, which overrode the “return to your own gate” step. The board no longer accepts input until it finishes.",
+    ],
+  },
+  {
+    date: "2026-09-02",
+    items: [
       "「奇跡の森 ヴァーディアン」で公開ドローしたカードをタップしても、そのカードが手札に入って裏向きになるだけで使えなかった不具合を直しました。タップすると、手札のカードと同じように使用の確認が出ます。",
       "公開ドローしたカードにカーソルを合わせる（長押しする）と、拡大表示に「このターン使わなかったら、ターン終了時に捨てられます」と出るようにしました。",
       "通常の移動でも、移動先のマスを選んだあとに「このマスでいいですか？」の確認が出るようにしました（カード効果でマスを選ぶ時と同じ確認です。基本設定でまとめて切り替えられます）。",

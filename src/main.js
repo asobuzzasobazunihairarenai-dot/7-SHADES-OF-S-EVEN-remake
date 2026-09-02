@@ -2491,7 +2491,18 @@ function playAdditionalColorUseForEffect(cardId, optionLabel, costTokenId) {
   const rect = cardElRectForToken(costTokenId);
   let costStart = null;
   if (rect) costStart = stageClientToLocal(rect.left + rect.width / 2, rect.top + rect.height / 2);
+  // ユーザー報告2026-09-02「追色演出で効果カードに追色コストが吸い込まれるとき、手札に
+  // コストカードが残っていて分身状態になっている」。この演出は**コスト札を捨てる前**に
+  // 発火する設計（コスト札のDOM位置を吸い込みの起点に使うため）なので、演出中は元の札が
+  // 手札に残ったまま＝吸い込まれていく分身と二重に見えていた。演出の間だけ元の札を隠す
+  // （レイアウトを崩さないよう visibility。演出後は次の render() で作り直される）。
+  const costEl = document.querySelector(`.hand-card[data-token-id="${costTokenId}"], .hand-reveal-card[data-token-id="${costTokenId}"]`);
+  if (costEl) costEl.style.visibility = "hidden";
   const done = playHandEffectUseV5(cardId, optionLabel, costCardId, costStart);
+  void Promise.resolve(done).finally(() => {
+    // 演出が終わった時点でまだ同じ要素が残っていれば戻す（通常は捨てられて消えている）。
+    if (costEl?.isConnected) costEl.style.visibility = "";
+  });
   playSound("arrivalEffect");
   if (isOnlineMode()) {
     broadcastHandEffectUse({ fromPlayer: getSelfSeat(), cardId, optionLabel, mode: "v5", costCardId });
@@ -3720,6 +3731,17 @@ document.addEventListener(
       // カード効果の候補選択（activeEffectPicker）と同じ「3D傾き演出のためネイティブ
       // clickは使えず、elementsFromPoint()による自前の当たり判定＋captureフェーズで
       // 他の全ての盤面操作より先に割り込む」手法をそのまま使う。
+      // #212（ユーザー報告2026-09-02「ムーブフェイズでカードを隣に置いてターン終了で
+      // ゲート侵攻に成功したが、自ゲートに戻らず勝手に隣に置いたカードへ移動した」）:
+      // 移動先も接触相手も無い時の救済（隣に山札から1枚置いてターン終了）はターンを
+      // 終わらせるが、置いたカードのせいでそのマスが「移動できる候補」に変わるため、
+      // ゲート侵攻の処理中にそこをタップすると駒が動いてしまい、侵攻の「自ゲートへ帰還」を
+      // 上書きしていた。侵攻の処理が終わるまでは移動/接触のタップを受け付けない。
+      if (isMovePhaseActive() && (isGateInvasionQueueActive() || isLocalGateInvasionActive() || isGateInvasionPending())) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       if (isMovePhaseActive()) {
         const elements = document.elementsFromPoint(e.clientX, e.clientY);
         for (const el of elements) {
@@ -10252,6 +10274,18 @@ function initDragHandlers() {
   // pointerdownがtableへ伝播せず掴めない）。掴める対象が無ければ即returnするので盤外への影響は無い。
   document.addEventListener("pointerdown", async (e) => {
     if (e.button !== 0) return;
+    // #211（ユーザー報告2026-09-02「スリカエの効果で返すカードを選択したつもりが使用して
+    // しまった」）: このハンドラは document 全体に付いていて、当たり判定を
+    // elementsFromPoint() で自前に行う——つまり**モーダルの背景(backdrop)を透かして**
+    // 下の手札を掴んでしまう。カード効果の選択待ち(activeEffectPicker)中にこれが走ると、
+    // 「返す札を選ぶ」つもりのタップがその手札効果の使用になってしまう。選択待ちの間は
+    // ここでは何もしない——マス/手札/アバターの選択は capture フェーズのハンドラが、
+    // それ以外（儀式ピック・選択肢・色宣言）は各モーダル自身が受け持つ。
+    if (activeEffectPicker) return;
+    // #212: ゲート侵攻の処理（手札を奪う→エターナル→自ゲートへ帰還）が走っている間は、
+    // 盤面の駒・カードを動かせないようにする。処理の途中で駒を動かすと、最後の「自ゲートへ
+    // 帰還」を上書きしてしまう（報告では、救済で隣に置いたカードへ駒が移動していた）。
+    if (isGateInvasionQueueActive() || isLocalGateInvasionActive() || isGateInvasionPending()) return;
     // 「捨てる」ボタンはfindDraggableAtの対象外（駒でもカードでも山でもない）だが、
     // 同じ3D階層のヒットテスト問題を受けるため、先に専用の当たり判定で拾っておく
     // （buildPlayerZoneのdiscardBtn生成部のコメント参照）。
