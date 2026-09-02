@@ -12463,9 +12463,41 @@ body.cpu-battle-mode #quick-start-bar {
   background: rgba(15, 23, 32, 0.65);
   color: #fde68a;
 }
+/* 管理者ダッシュボード（別ページ）へのリンク（タイトル画面、管理者パネルのさらに上）。
+   ユーザー要望2026-09-02。テストモード(bottom:1rem)・管理者パネル(2.7rem)と重ならないよう
+   4.5rem に置く（ボタンの高さ28px＜間隔28.8pxで、1pxも重ならない）。表示は管理者
+   (body.is-admin-user)のときだけ。 */
+.opening-dashboard-btn {
+  position: fixed;
+  right: 1rem;
+  bottom: 4.5rem;
+  z-index: 2;
+  font-family: sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  padding: 0.3rem 0.7rem;
+  border-radius: 0.3rem;
+  background: rgba(15, 23, 32, 0.4);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  color: rgba(125, 211, 252, 0.85);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+#opening-screen.stage-content .opening-dashboard-btn {
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 0.3s;
+}
+.opening-dashboard-btn:hover {
+  background: rgba(15, 23, 32, 0.65);
+  color: #bae6fd;
+}
 /* テストモード・管理者パネルのボタンは管理者(body.is-admin-user)にだけ表示する（ユーザー要望）。 */
 body:not(.is-admin-user) .opening-test-mode-btn,
-body:not(.is-admin-user) .opening-admin-btn {
+body:not(.is-admin-user) .opening-admin-btn,
+body:not(.is-admin-user) .opening-dashboard-btn {
   display: none;
 }
 /* HUERISE画面右下の控えめなバージョン表示（opening-screen.js）。白いスタート画面(#fff、

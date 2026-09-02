@@ -4190,6 +4190,9 @@ export function performPriorityTimeoutAutoAction() {
       const choice = isCpuBrainDriving(decisionSeat)
         ? chooseEffectCell(picker.candidates, decisionSeat)
         : pickRandomFrom(picker.candidates);
+      // #213: この選択は「本人が選んだ」のではなく持ち時間切れの自動代行。確認モーダル
+      // （このマスでいいですか？）は出さない（下の requestCellChoiceForEffect 参照）。
+      cellPickAutoResolved = true;
       picker.resolve(choice);
     } else if (picker.type === "hand") {
       // 賢いCPU（中級以上）は用途に応じて選ぶ。purpose:"lock"（セレナーデ/カウンターロックのロック対象）は
@@ -4557,10 +4560,19 @@ function hideEffectSkipButton() {
 // 押し間違えたマスがそのまま確定してしまうのを防ぐ。実際の選択(requestCellChoiceForEffectOnce)を
 // そのまま使い、選ばれた直後に確認を挟んで「いいえ」なら選び直しへ戻すだけのラッパー。
 // CPUが選ぶ番・確認をオフにしている時は素通りする（従来と完全に同じ挙動）。
+// #213（ユーザー報告2026-09-02「収穫と種まきに到達した状態で非アクティブになって、いざ
+// 再開して『このマスでいいですか？』にいいえを選んだら、何度も選択させられた」）の対応用。
+// 持ち時間切れの自動代行(performPriorityTimeoutAutoAction)がマスを選んだ時に立つ印。
+// 自動代行で決まった選択に「このマスでいいですか？」を出すと、いいえ→選び直し→（持ち時間は
+// とっくに切れているので）すぐまた自動代行が選ぶ→また確認…と無限に繰り返してしまう。
+let cellPickAutoResolved = false;
+
 async function requestCellChoiceForEffect(candidates, hint, options = {}) {
   for (;;) {
+    cellPickAutoResolved = false;
     const loc = await requestCellChoiceForEffectOnce(candidates, hint, options);
     if (!loc) return null; // スキップ／中止はそのまま返す
+    if (cellPickAutoResolved) return loc; // 自動代行が選んだ＝本人の操作ではないので確認しない
     if (!isCellConfirmEnabled() || isCpuSelectingNow(options.owner)) return loc;
     const table = document.getElementById("game-table");
     const el = table ? findLocationElement(table, loc) : null;

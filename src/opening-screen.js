@@ -470,6 +470,18 @@ export function initOpeningScreen() {
   adminBtn.addEventListener("click", () => openAdminPanel());
   overlay.appendChild(adminBtn);
 
+  // ユーザー要望2026-09-02「管理者ダッシュボードへのリンクをタイトルの右下に。管理者で
+  // ログインしている時のみ表示。既存のボタンに被らないように」。テストモード(bottom:1rem)・
+  // 管理者パネル(2.7rem)の上に積む（4.4rem）。別ページ(admin-dashboard.html)なので新しい
+  // タブで開く（タイトル画面の状態を壊さない）。
+  const dashboardBtn = document.createElement("button");
+  dashboardBtn.type = "button";
+  dashboardBtn.className = "opening-dashboard-btn";
+  dashboardBtn.textContent = t("opening.adminDashboard");
+  dashboardBtn.title = t("opening.adminDashboard.tip");
+  dashboardBtn.addEventListener("click", () => window.open("admin-dashboard.html", "_blank", "noopener"));
+  overlay.appendChild(dashboardBtn);
+
   // ユーザー要望「HUERISE画面の右下にバージョン番号（年月日時間の数字）をこっそり載せて」。
   // どの版が動いているか一目で分かるようにする（キャッシュ更新の確認用にも役立つ）。
   // testModeBtnと同じく#opening-screenの直接の子にして画面右下（1600x900仮想解像度基準）へ。

@@ -14,6 +14,15 @@ export const CHANGELOG = [
   {
     date: "2026-09-02",
     items: [
+      "しばらく席を外して自動で進んだあと戻ってきた時に、「このマスでいいですか？」で「選び直す」を押すと何度も同じ確認が出てしまう不具合を直しました。自動で選ばれた分にはこの確認を出しません。",
+    ],
+    itemsEn: [
+      "Fixed: after being away and having your turn played automatically, choosing “Pick again” on “Is this the square?” could ask you over and over. Automatic choices no longer show that confirmation.",
+    ],
+  },
+  {
+    date: "2026-09-02",
+    items: [
       "勝利演出の最中に「ロックしました」などの対局中のお知らせが画面中央に出て、演出の邪魔になっていたのをやめました。演出が始まったら、その時に出ているお知らせも片付きます（選択が必要なモーダルはこれまで通り出ます）。",
       "対戦のあとホーム画面に戻っても、盤面のBGMが鳴り続けていたのを直しました。",
     ],
