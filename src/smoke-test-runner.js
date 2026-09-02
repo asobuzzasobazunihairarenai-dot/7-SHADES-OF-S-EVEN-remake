@@ -1071,42 +1071,64 @@ export function openSmokeTestPanel() {
   // ブラウザからパソコンのプログラムは起動できない（ブラウザの安全上の決まり）ので、
   // 「起動する」代わりに「起動できるファイルを渡す」形にしている。
   batBtn.onclick = () => {
+    // 【重要・実機で確認】バッチファイルの中の日本語は、cmd.exe が「その時のコードページ」で
+    // 読む。UTF-8で書くと（chcp 65001 にしても）行を途中で切って読み違えて壊れる
+    // （'ン）' is not recognized... というエラーになる）。日本語WindowsのコードページはCP932
+    // なので、**CP932で書き出す**のが正解。ブラウザにはCP932のエンコーダが無い（TextEncoderは
+    // UTF-8のみ）ため、この文面で使う文字だけの変換表を持つ。文面に新しい文字を足したら、
+    // ここに無い文字は「?」になるので表にも足すこと
+    // （PowerShellで [Text.Encoding]::GetEncoding(932).GetBytes("あ") と打つと調べられる）。
+    const CP932 = {"テ":[131,101],"ス":[131,88],"ト":[131,103],"ラ":[131,137],"ン":[131,147],"チ":[131,96],"ャ":[131,131],"ー":[129,91],"（":[129,105],"ア":[131,65],"プ":[131,118],"リ":[131,138],"の":[130,204],"モ":[131,130],"ク":[131,78],"画":[137,230],"面":[150,202],"か":[130,169],"ら":[130,231],"作":[141,236],"成":[144,172],"）":[129,106],"こ":[130,177],"フ":[131,116],"ァ":[131,64],"イ":[131,67],"ル":[131,139],"は":[130,205],"ロ":[131,141],"ジ":[131,87],"ェ":[131,70],"ォ":[131,72],"ダ":[131,95],"が":[130,170],"あ":[130,160],"る":[130,233],"と":[130,198],"ろ":[130,235],"に":[130,201],"置":[146,117],"い":[130,162],"て":[130,196],"く":[130,173],"だ":[130,190],"さ":[130,179],"。":[129,66],"番":[148,212],"号":[141,134],"を":[130,240],"引":[136,248],"数":[144,148],"で":[130,197],"渡":[147,110],"す":[130,183],"も":[130,224],"き":[130,171],"ま":[130,220],"【":[129,121],"】":[129,122],"バ":[131,111],"ッ":[131,98],"中":[146,134],"日":[147,250],"本":[150,123],"語":[140,234],"現":[140,187],"在":[141,221],"コ":[131,82],"ド":[131,104],"ペ":[131,121],"読":[147,199],"む":[130,222],"た":[130,189],"め":[130,223],"、":[129,65],"書":[143,145],"行":[141,115],"途":[147,114],"切":[144,216],"っ":[130,193],"み":[130,221],"違":[136,225],"え":[130,166],"壊":[137,243],"れ":[130,234],"カ":[131,74],"効":[140,248],"果":[137,202],"秒":[149,98],"・":[129,69],"ち":[130,191],"ば":[130,206],"ん":[130,241],"手":[142,232],"軽":[140,121],"自":[142,169],"己":[140,200],"対":[145,206],"戦":[144,237],"人":[144,108],"タ":[131,94],"決":[140,136],"着":[146,133],"オ":[131,73],"動":[147,174],"実":[142,192],"終":[143,73],"了":[151,185],"入":[147,252],"力":[151,205],"取":[142,230],"り":[130,232],"ぼ":[130,218],"キ":[131,76],"選":[145,73],"べ":[130,215],"使":[142,103],"う":[130,164],"つ":[130,194],"押":[137,159],"し":[130,181],"な":[130,200],"無":[150,179],"限":[140,192],"よ":[130,230],"わ":[130,237],"何":[137,189],"メ":[131,129],"ニ":[131,106],"ュ":[131,133],"戻":[150,223],"指":[142,119],"定":[146,232],"先":[144,230],"体":[145,204],"出":[143,111],"替":[145,214],"重":[143,100],"要":[151,118],"後":[140,227],"半":[148,188],"角":[138,112],"英":[137,112],"け":[130,175]};
+    const toCp932 = (text) => {
+      const out = [];
+      for (const ch of text) {
+        const code = ch.codePointAt(0);
+        if (code < 128) { out.push(code); continue; }
+        const bytes = CP932[ch];
+        if (bytes) out.push(...bytes);
+        else out.push(63); // 変換表に無い文字は "?" にする（表への追加漏れに気づけるように）
+      }
+      return new Uint8Array(out);
+    };
     const lines = [
       "@echo off",
-      "chcp 65001 >nul",
-      "rem 7 SHADES OF S:EVEN - test launcher (created from the in-app smoke test panel)",
-      "rem Put this file in the project folder (where package.json is).",
-      "rem You can also pass the number directly:  run-tests.bat 1",
-      "rem NOTE: keep this file ASCII-only. cmd.exe breaks batch files that contain Japanese text.",
+      "rem 7 SHADES OF S:EVEN テストランチャー（アプリのスモークテスト画面から作成）",
+      "rem このファイルはプロジェクトのフォルダ（package.json があるところ）に置いてください。",
+      "rem 番号を引数で渡すこともできます: run-tests.bat 1",
+      "rem 【このファイルは Shift_JIS(CP932) です】バッチの中の日本語は cmd.exe が現在のコードページで",
+      "rem 読むため、UTF-8 で書くと行を途中で切って読み違えて壊れます。",
+      "for /f \"tokens=2 delims=:\" %%a in ('chcp') do set \"OCP=%%a\"",
+      "set \"OCP=%OCP: =%\"",
+      "chcp 932 >nul",
       "cd /d \"%~dp0\"",
       "if not \"%~1\"==\"\" (",
       "  call :run %~1",
+      "  chcp %OCP% >nul",
       "  exit /b",
       ")",
       ":menu",
       "cls",
       "echo ============================================",
-      "echo   7 SHADES OF S:EVEN   TEST LAUNCHER",
+      "echo   7 SHADES OF S:EVEN  テスト",
       "echo ============================================",
-      "echo   1) Card effect test        - a few seconds",
-      "echo   2) Self play  2P  8 turns",
-      "echo   3) Self play  4P  8 turns",
-      "echo   4) Self play  2P  until someone wins",
-      "echo   5) Online auto match  2P",
-      "echo   6) Online auto match  4P",
-      "echo   7) Run 1 + 2 + 5",
-      "echo   0) Exit",
+      "echo   1) カード効果テスト  （数秒・いちばん手軽）",
+      "echo   2) 自己対戦テスト 2人（8ターン）",
+      "echo   3) 自己対戦テスト 4人（8ターン）",
+      "echo   4) 自己対戦テスト 2人（決着まで）",
+      "echo   5) オンライン自動対戦 2人",
+      "echo   6) オンライン自動対戦 4人",
+      "echo   7) まとめて実行（1と2と5）",
+      "echo   0) 終了",
       "echo.",
-      "rem set /p can drop input under chcp 65001, so use choice (single key press).",
-      "choice /c 12345670 /n /m \"Press a number key: \"",
+      "rem set /p は入力を取りこぼすことがあるので、1キーで選べる choice を使う。",
+      "choice /c 12345670 /n /m \"番号のキーを1つ押してください: \"",
       "set \"N=%errorlevel%\"",
-      "rem 255 = choice failed (e.g. input was redirected and ran out). Exit instead of looping forever.",
-      "if \"%N%\"==\"255\" exit /b",
-      "if \"%N%\"==\"0\" exit /b",
-      "if \"%N%\"==\"8\" exit /b",
+      "rem 255 = choice が入力を読めなかった。無限ループしないようここで終了する。",
+      "if \"%N%\"==\"255\" ( chcp %OCP% >nul & exit /b )",
+      "if \"%N%\"==\"8\" ( chcp %OCP% >nul & exit /b )",
       "call :run %N%",
       "echo.",
-      "echo ---- done. press any key to go back to the menu ----",
+      "echo ---- 終わりました（何かキーを押すとメニューに戻ります）----",
       "pause >nul",
       "goto menu",
       "",
@@ -1120,17 +1142,22 @@ export function openSmokeTestPanel() {
       "if \"%~1\"==\"6\" set \"CMD=node test/online-smoke.mjs 4\"",
       "if \"%~1\"==\"7\" set \"CMD=node test/effects.mjs && node test/smoke.mjs 2 && node test/online-smoke.mjs 2\"",
       "if not defined CMD (",
-      "  echo Please choose a number from 1 to 7.",
+      "  echo 1-7 の番号を指定してください。",
       "  exit /b 1",
       ")",
       "echo.",
-      "echo Running: %CMD%",
+      "echo 実行中: %CMD%",
       "echo.",
+      "rem ここから先はテスト本体(node)の日本語出力のため UTF-8 に切り替える。",
+      "rem 【重要】切り替えた後の行は半角英数だけにすること（日本語だと読み違えて壊れる）。",
+      "chcp 65001 >nul",
       "call %CMD%",
+      "chcp 932 >nul",
       "exit /b",
       "",
     ];
-    const blob = new Blob([lines.join("\r\n")], { type: "text/plain;charset=utf-8" });
+    // CP932（Shift_JIS）のバイト列としてファイルを作る（上のコメント参照）。
+    const blob = new Blob([toCp932(lines.join("\r\n"))], { type: "application/octet-stream" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
