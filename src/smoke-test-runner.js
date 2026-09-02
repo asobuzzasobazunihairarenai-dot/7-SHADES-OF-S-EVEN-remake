@@ -1074,9 +1074,10 @@ export function openSmokeTestPanel() {
     const lines = [
       "@echo off",
       "chcp 65001 >nul",
-      "rem 7 SHADES OF S:EVEN — テストランチャー（アプリのスモークテスト画面から作成）",
-      "rem このファイルはプロジェクトのフォルダ（package.json があるところ）に置いてください。",
-      "rem 番号を引数で渡すこともできます: テスト.bat 1",
+      "rem 7 SHADES OF S:EVEN - test launcher (created from the in-app smoke test panel)",
+      "rem Put this file in the project folder (where package.json is).",
+      "rem You can also pass the number directly:  run-tests.bat 1",
+      "rem NOTE: keep this file ASCII-only. cmd.exe breaks batch files that contain Japanese text.",
       "cd /d \"%~dp0\"",
       "if not \"%~1\"==\"\" (",
       "  call :run %~1",
@@ -1085,24 +1086,27 @@ export function openSmokeTestPanel() {
       ":menu",
       "cls",
       "echo ============================================",
-      "echo   7 SHADES OF S:EVEN  テスト",
+      "echo   7 SHADES OF S:EVEN   TEST LAUNCHER",
       "echo ============================================",
-      "echo   1) カード効果テスト（数秒・いちばん手軽）",
-      "echo   2) 自己対戦テスト 2人（8ターン）",
-      "echo   3) 自己対戦テスト 4人（8ターン）",
-      "echo   4) 自己対戦テスト 2人（決着まで）",
-      "echo   5) オンライン自動対戦 2人",
-      "echo   6) オンライン自動対戦 4人",
-      "echo   7) 全部まとめて（1→2→5）",
-      "echo   0) 終了",
+      "echo   1) Card effect test        - a few seconds",
+      "echo   2) Self play  2P  8 turns",
+      "echo   3) Self play  4P  8 turns",
+      "echo   4) Self play  2P  until someone wins",
+      "echo   5) Online auto match  2P",
+      "echo   6) Online auto match  4P",
+      "echo   7) Run 1 + 2 + 5",
+      "echo   0) Exit",
       "echo.",
-      "rem set /p は UTF-8 のとき入力を取りこぼすことがあるので、1キーで選べる choice を使う。",
-      "choice /c 12345670 /n /m \"番号のキーを押してください: \"",
+      "rem set /p can drop input under chcp 65001, so use choice (single key press).",
+      "choice /c 12345670 /n /m \"Press a number key: \"",
       "set \"N=%errorlevel%\"",
+      "rem 255 = choice failed (e.g. input was redirected and ran out). Exit instead of looping forever.",
+      "if \"%N%\"==\"255\" exit /b",
+      "if \"%N%\"==\"0\" exit /b",
       "if \"%N%\"==\"8\" exit /b",
       "call :run %N%",
       "echo.",
-      "echo ---- 終わりました（何かキーを押すとメニューに戻ります）----",
+      "echo ---- done. press any key to go back to the menu ----",
       "pause >nul",
       "goto menu",
       "",
@@ -1116,11 +1120,11 @@ export function openSmokeTestPanel() {
       "if \"%~1\"==\"6\" set \"CMD=node test/online-smoke.mjs 4\"",
       "if \"%~1\"==\"7\" set \"CMD=node test/effects.mjs && node test/smoke.mjs 2 && node test/online-smoke.mjs 2\"",
       "if not defined CMD (",
-      "  echo 1〜7 の番号を指定してください。",
+      "  echo Please choose a number from 1 to 7.",
       "  exit /b 1",
       ")",
       "echo.",
-      "echo ▶ %CMD%",
+      "echo Running: %CMD%",
       "echo.",
       "call %CMD%",
       "exit /b",
@@ -1130,7 +1134,7 @@ export function openSmokeTestPanel() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "テスト.bat";
+    a.download = "run-tests.bat";
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -1138,9 +1142,12 @@ export function openSmokeTestPanel() {
     resultEl.classList.remove("is-pass", "is-fail");
     resultEl.textContent = "";
     addLog("──── 📄 実行ファイルを作る ────");
-    addLog("「テスト.bat」を保存しました。次の手順で使えます:");
-    addLog("　1) ダウンロードした「テスト.bat」を、プロジェクトのフォルダ（package.json があるところ）に移動する");
-    addLog("　2) ダブルクリックする → 番号を選ぶだけで各テストが走ります");
+    addLog("「run-tests.bat」を保存しました。次の手順で使えます:");
+    addLog("　1) ダウンロードした「run-tests.bat」を、プロジェクトのフォルダ（package.json があるところ）に移動する");
+    addLog("　2) ダブルクリックして、番号のキーを1つ押すだけで走ります（Enterは不要）:");
+    addLog("　　 1=カード効果テスト（数秒）／2=自己対戦2人／3=自己対戦4人／4=自己対戦2人(決着まで)");
+    addLog("　　 5=オンライン自動対戦2人／6=オンライン自動対戦4人／7=1と2と5をまとめて／0=終了");
+    addLog("※メニューは半角英数です——バッチファイルの中に日本語を書くとWindowsが行を読み違えて壊れるためです（実機で確認済み）。テストの結果表示は日本語のままです。");
     addLog("※ブラウザからパソコンのプログラムを直接起動することはできない決まりなので、この形にしています。");
     addLog("　前提: npm install 済み＋ npx playwright install chromium 済み。");
     batBtn.textContent = "✅ 保存しました";
