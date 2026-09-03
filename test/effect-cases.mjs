@@ -753,6 +753,31 @@ export const CASES = [
     ],
   },
   {
+    // #224: カード文は「相手をあなたの**周囲**へ移動する」＝縦横斜めの8マス（rulebook の用語定義）。
+    // 以前は前後左右の4マスしか候補にしておらず、斜めが選べなかった。
+    // ★picks に "index:7"（8番目の候補）を使うのが要点——テストランナーの pickLocation は
+    //   「指定したマスが候補に無ければ指定通りに返す」ため、座標で指定すると4マスのままでも
+    //   通ってしまい回帰を検出できない。番号指定なら候補が4つだと undefined になり失敗する。
+    name: "結ばれの一本桜/eternal-pink(手札): 移動先は「周囲」＝斜めも選べる(#224)",
+    kind: "hand",
+    cardId: "eternal-pink",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "pieceB", kind: "piece", player: "B", location: { zone: "cell", row: 3, col: 5 } },
+        { id: "self", kind: "card", cardId: "eternal-pink", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "cost", kind: "card", cardId: "pink-present", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "eternal-pink", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: { discardCost: ["cost"], location: ["index:7"] },
+    expect: [
+      { kind: "pieceAt", player: "B", row: 4, col: 4 }, // 斜め（自分(3,3)の右下）へ移動できる
+    ],
+  },
+  {
     name: "赤のキューブ フェニックス/first-red(手札): 追色1→捨て場の上から2番目を手札に加える",
     kind: "hand",
     cardId: "first-red",

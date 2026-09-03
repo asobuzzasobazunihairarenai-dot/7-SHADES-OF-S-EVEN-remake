@@ -14,6 +14,7 @@ export const CHANGELOG = [
   {
     date: "2026-09-03",
     items: [
+      "「結ばれの一本桜 コノハナサクヤ」で相手を引き寄せる時、斜めの4マスが選べなかったのを直しました。カードの「周囲」は縦横斜めの8マスです。",
       "アプリが使う画像を、実際に表示される大きさに合わせて作り直しました。スマホ（特にiPhone）で対戦中にアプリが落ちてタイトル画面に戻ってしまう不具合の対策です。ゲーム中に読み込む画像の重さがおよそ3分の1になり、通信量と読み込みの待ち時間も減ります。見た目は変わりません。",
       "はじめての方向けに、ホーム画面の一番上へ「次にやること」を1つだけ表示するようにしました。①遊び方を覚える→②CPUと1戦→③誰かと対戦、と進み、終われば自動的に消えます（✕でいつでも消せます）。",
       "BGMが重なって鳴ってしまう不具合を直しました（マイページからホームに戻るとタイトルのBGMが鳴り出し、対戦を始めても鳴りやまない等）。BGMは常に1つだけ鳴る作りにしました。",
@@ -40,6 +41,7 @@ export const CHANGELOG = [
       "対戦のあとホーム画面に戻ると無音になっていたのを直しました。タイトル画面と同じBGMが流れます。",
     ],
     itemsEn: [
+      "Konohanasakuya, the Cherry of Bonds now lets you pull an opponent to any of the eight surrounding squares. The four diagonals were missing — “surrounding” includes them.",
       "Every image in the app has been rebuilt at the size it is actually displayed. This targets the crash where the app would drop back to the title screen mid-match on phones (iPhone especially): the memory used by images during a match is now about a third of what it was, and downloads are lighter too. Nothing looks different.",
       "New players now see a single “Next up” card at the top of the home screen: 1) learn how to play, 2) play one CPU match, 3) play someone. It disappears once you are up and running (or via the ✕).",
       "Fixed overlapping background music (for example the title theme starting when you returned home from My Page and never stopping once a match began). Only one track can now play at a time.",

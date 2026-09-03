@@ -490,6 +490,20 @@ function enumerateManhattanRing(count) {
   return offsets;
 }
 
+// 「周囲」＝駒の周りの縦横斜めの計8マス（docs/rulebook.md の用語定義。#224: コノハナサクヤの
+// 「相手をあなたの周囲へ移動する」で、斜めの4マスがハイライトされていなかった）。
+// **「隣」（＝前後左右の4マス、試練の儀式の補足に明記）とは別の概念**なので、カード文が
+// 「隣」なら enumerateManhattanRing(1)、「周囲」ならこちらを使う。
+function enumerateSurroundingOffsets() {
+  const offsets = [];
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      offsets.push({ dr, dc });
+    }
+  }
+  return offsets;
+}
 // moveの候補マスを計算する（純粋関数、DOM不要）。ユーザー指摘を受けdocs/rulebook.mdの
 // 「移動」の定義を確認: 「移動」とは自分の駒を、現在のマスから"カードの置かれた"別のマスに
 // 置くこと（カードの無いマスにも置けるのは「強制移動」という別の用語で、ジャンプ台の
@@ -995,7 +1009,9 @@ async function runAction(action, ctx, helpers) {
       const targetPiece = findPieceAtCell(targetCell.row, targetCell.col);
       const selfPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === ctx.player);
       if (!targetPiece || !selfPiece || selfPiece.location.zone !== "cell") return false;
-      const adjacentCells = enumerateManhattanRing(1)
+      // #224: カード文は「あなたの**周囲**へ移動する」＝縦横斜めの8マス（rulebook の用語定義）。
+      // 以前は enumerateManhattanRing(1)＝前後左右の4マスしか候補にしていなかった。
+      const adjacentCells = enumerateSurroundingOffsets()
         .map(({ dr, dc }) => ({ row: selfPiece.location.row + dr, col: selfPiece.location.col + dc }))
         .filter(({ row, col }) => inBounds(row, col) && !hasPieceAt(row, col))
         .map(({ row, col }) => ({ zone: "cell", row, col }));

@@ -20,6 +20,7 @@ const RECENT_MS = 90000;
 
 let ctx = { inGame: false, mode: "title" }; // setBlackboxContextで更新（現在どの画面/対局か）
 let peakHeapMB = 0;
+let peakImgMB = 0; // 画像の重さのピーク（iOSでは heapMB が0なので、これが唯一の負荷の記録になる）
 let cleanExit = false; // 意図的なリロード/遷移の直前に markCleanExit() で true にする
 let bootReport = null; // 起動時、前回が不審終了に見えた場合だけ中身が入る
 
@@ -40,16 +41,44 @@ function heapMB() {
   }
 }
 
+// 画面が抱えている画像の重さ（展開後の推定MB）と DOM 要素数。#223（iPhoneで対戦中に落ちて
+// タイトルへ戻る）の追跡用。iOS Safari は performance.memory を持たないため heapMB が常に0で、
+// これまで「落ちた時どれだけ重かったか」を示す数字が1つも無かった。画像は 幅×高さ×4バイト で
+// メモリを食うので、DOM上の <img> の実寸を合計すれば、iOSでも使える負荷の目安になる
+// （背景画像は実寸が同期で取れないので含まない＝あくまで目安）。
+function pageWeight() {
+  try {
+    let bytes = 0;
+    let count = 0;
+    const list = document.getElementsByTagName("img");
+    for (let i = 0; i < list.length; i++) {
+      const w = list[i].naturalWidth;
+      if (!w) continue;
+      count++;
+      bytes += w * list[i].naturalHeight * 4;
+    }
+    return { imgMB: Math.round(bytes / 1048576), imgCount: count, domNodes: document.getElementsByTagName("*").length };
+  } catch {
+    return { imgMB: 0, imgCount: 0, domNodes: 0 };
+  }
+}
+
 function writeRecord(extra) {
   try {
     const now = heapMB();
     if (now > peakHeapMB) peakHeapMB = now;
+    const weight = pageWeight();
+    if (weight.imgMB > peakImgMB) peakImgMB = weight.imgMB;
     const rec = {
       t: Date.now(),
       inGame: ctx.inGame,
       mode: ctx.mode,
       heapMB: now,
       peakHeapMB,
+      imgMB: weight.imgMB,
+      peakImgMB,
+      imgCount: weight.imgCount,
+      domNodes: weight.domNodes,
       cleanExit,
       ...(extra || {}),
     };
@@ -101,6 +130,8 @@ export function getBlackboxSummary() {
     heapMB: heapMB(),
     peakHeapMB,
     heapLimitMB: limitMB,
+    imgMB: pageWeight().imgMB,
+    peakImgMB,
     inGame: ctx.inGame,
     mode: ctx.mode,
     bootReport,
@@ -124,6 +155,10 @@ function init() {
       prevMode: prev.mode ?? null, // "cpu" / "online" / "local" / "title" 等
       prevHeapMB: prev.heapMB ?? null,
       prevPeakHeapMB: prev.peakHeapMB ?? null, // メモリがどこまで膨らんでいたか＝負荷の指標
+      prevImgMB: prev.imgMB ?? null, // 落ちる直前に画面が抱えていた画像の重さ（展開後の推定MB）
+      prevPeakImgMB: prev.peakImgMB ?? null, // そのセッション中のピーク
+      prevImgCount: prev.imgCount ?? null,
+      prevDomNodes: prev.domNodes ?? null,
       prevLastError: prev.lastError ?? null, // 直前の未捕捉エラー（あれば）
     };
   }
