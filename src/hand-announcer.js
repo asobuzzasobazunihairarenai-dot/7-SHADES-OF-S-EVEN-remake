@@ -268,6 +268,6 @@ export function announceCardDiscarded(player, cardId, reason) {
       </div>
     </div>
   `,
-    { icon: "🗑", cardId, label: t("game.chip.discard", { name: getPlayerNameOrYou(player), card: cardNameOf(cardId) }) + reasonSuffix(reason, true) }
+    { icon: "trash", cardId, label: t("game.chip.discard", { name: getPlayerNameOrYou(player), card: cardNameOf(cardId) }) + reasonSuffix(reason, true) }
   );
 }

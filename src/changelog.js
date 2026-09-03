@@ -14,6 +14,7 @@ export const CHANGELOG = [
   {
     date: "2026-09-03",
     items: [
+      "最後のロックの承認で、相手の番のまま進まなくなることがあった不具合を直しました。",
       "右下に並ぶ「このターンの出来事」のマークを分かりやすくしました。手に入れた・引いたは「＋」に統一、ロックはカードに鎖が重なる表示、ゲート侵攻は「∞」になります。",
       "「不発のためこのカードを手札に加えます」などの結果のお知らせは、画面のどこかをタップすればすぐ閉じて次へ進めるようにしました（放置すれば今まで通り自動で消えます）。",
       "試練の儀式やザ・ギャンブルで鳴る心臓の鼓動を、もっとはっきり聞こえるようにしました（特にスマホ）。",
@@ -32,6 +33,7 @@ export const CHANGELOG = [
       "対戦のあとホーム画面に戻ると無音になっていたのを直しました。タイトル画面と同じBGMが流れます。",
     ],
     itemsEn: [
+      "Fixed: approving someone’s final lock could get stuck waiting on one player and never continue.",
       "Clearer marks on the “this turn” chips at the bottom right: gaining and drawing are now both “+”, a lock shows chains over the card, and a gate invasion shows “∞”.",
       "Result notices such as “the effect fizzled, so this card returns to your hand” can now be dismissed by tapping anywhere, moving the game on immediately (leave it alone and it still closes by itself).",
       "The heartbeat sound in Trial Ritual and The Gamble is now much easier to hear, especially on phones.",

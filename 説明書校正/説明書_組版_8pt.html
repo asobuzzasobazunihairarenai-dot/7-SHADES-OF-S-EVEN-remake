@@ -311,7 +311,11 @@ ul.plain{margin:0 0 2mm;padding-left:5mm;} ul.plain li{margin:0 0 .8mm;}
 .mini3 .mc{width:100%;height:100%;object-fit:cover;border-radius:.4mm;}
 .mini3 .mp{position:absolute;width:23%;height:23%;object-fit:cover;border-radius:.8mm;box-shadow:0 .3mm .8mm #0005;}
 .mini3 .hl{position:absolute;width:32.8%;height:32.8%;border:.5mm solid var(--green);border-radius:.6mm;box-sizing:border-box;}
-.cfig-row{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin-top:1.8mm;justify-items:center;}
+.cfig-pair{display:flex;align-items:flex-start;justify-content:center;gap:1.6mm;}
+.cfig-pair .cfig-card{flex:0 0 auto;width:26mm;}
+.cfig-back{flex:0 0 auto;width:13mm;height:13mm;border-radius:1mm;box-shadow:0 .3mm .8mm #0003;align-self:center;}
+.cfig-backcap{margin:.4mm 0 0;font-size:8pt;color:#8a8375;text-align:center;}
+.cfig-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4mm;margin-top:1.8mm;justify-items:center;}
 .cfig-row .cfig-sm{width:27mm;}
 .mini3 .me{width:100%;height:100%;border:.35mm dashed #a49b86;border-radius:.4mm;box-sizing:border-box;background:#efeade;}
 .mini3 .hl.ng{border-color:#c70025;}
@@ -584,6 +588,7 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
 
         <div class="cfig-row">
           <figure class="cfig cfig-sm">
+          <div class="cfig-pair">
             <div class="cfig-card">
               <img src="img/card-マスチェンジ.jpg" alt="マスチェンジ">
               <svg class="cfig-ov" viewBox="0 0 100 100">
@@ -593,9 +598,12 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
               </svg>
               <span class="bnum rb" style="top:14%;">8</span>
             </div>
+            <img class="cfig-back" src="img/back-normal.jpg" alt="裏面">
+          </div>
             <figcaption>図3　通常カード</figcaption>
           </figure>
           <figure class="cfig cfig-sm">
+          <div class="cfig-pair">
             <div class="cfig-card">
               <img src="img/card-フェニックス.jpg" alt="赤のキューブ　フェニックス">
               <svg class="cfig-ov" viewBox="0 0 100 100">
@@ -606,11 +614,29 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
               <span class="bnum rb" style="top:60%;">12</span>
               <span class="bnum lb" style="top:76%;">13</span>
             </div>
+            <img class="cfig-back" src="img/back-first.jpg" alt="裏面">
+          </div>
             <figcaption>図4　ファーストカード</figcaption>
           </figure>
+        <figure class="cfig cfig-sm">
+          <div class="cfig-pair">
+            <div class="cfig-card">
+              <img src="img/card-コノハナサクヤ.jpg" alt="結ばれの一本桜　コノハナサクヤ">
+              <svg class="cfig-ov" viewBox="0 0 100 100">
+                <g stroke="#8a8375" stroke-width="0.6" fill="none">
+                  <path d="M116 60 L58 60"/><path d="M-16 76 L11 76"/>
+                </g>
+              </svg>
+              <span class="bnum rb" style="top:60%;">12</span>
+              <span class="bnum lb" style="top:76%;">13</span>
+            </div>
+            <img class="cfig-back" src="img/back-eternal.jpg" alt="裏面">
+          </div>
+          <figcaption>図5　エターナルカード</figcaption>
+        </figure>
         </div>
         <p class="note" style="margin:1.2mm 0 0;">図3の<b>右上端の二重七角形</b>が⑧「効果シンボル」で、この例では<b>追色（ついしょく）シンボル</b>が明示されています。効果の文頭の【追色1】は、同じ色のカードをその枚数だけ手札から捨てるコストを表します。効果欄の左端のマーク（<img class="efic" src="img/ic-arr.png" alt="到達">＝到達効果／<img class="efic" src="img/ic-hand.png" alt="手札">＝手札効果）は、その行がどちらの効果かを示します。<br>
-          ファーストカード・エターナルカードには、さらに⑫「効果名」と⑬「ロックエリア使用可能表示」があります（図4）。</p>
+          ファーストカード・エターナルカードには、さらに⑫「効果名」と⑬「ロックエリア使用可能表示」があります（図4・図5）。<br>各カードの右側には、対応する<b>裏面</b>を並べています。</p>
 
         <div class="legend2" style="margin-top:1.8mm;font-size:8pt;line-height:1.45;">
           <div class="it"><span class="bnum">1</span><span>タイトル</span></div>

@@ -107,6 +107,14 @@ export function getTurnEventStockKey() {
 // もう次のターンに入っていることがある。掃除（clearTurnEventStock）は既に済んだ後なので、
 // 前のターンの出来事だけが next turn の帯に取り残される。積む瞬間にもターンを確かめ、
 // 変わっていたら積まない（中央フラッシュは既に見えているので情報は失われない）。
+// 「捨てた」を表す線画のゴミ箱（＋/∞ と同じ単色トーンに揃えるため、絵文字ではなくSVGで描く）。
+// fill/stroke は currentColor なので、ライト/ダーク配色の文字色にそのまま追従する。
+const TRASH_SVG =
+  '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" ' +
+  'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M4 6h16"/><path d="M9 6V4h6v2"/><path d="M6 6l1 14h10l1-14"/>' +
+  '<path d="M10 10v7"/><path d="M14 10v7"/></svg>';
+
 export function pushTurnEventStock(entry, turnKey = null) {
   if (turnKey !== null && turnKey !== getTurnEventStockKey()) return;
   ensureStrip();
@@ -135,7 +143,15 @@ export function pushTurnEventStock(entry, turnKey = null) {
   if (entry.icon && !faceShowsIcon) {
     const badge = document.createElement("div");
     badge.className = "turn-event-stock-chip-badge";
-    badge.textContent = entry.icon;
+    // ユーザー要望2026-09-03「ゴミ箱もトーンを合わせよう」。＋ と ∞ は文字記号（単色）なのに
+    // 🗑 だけ絵文字（カラー・書体も別）で浮いていた。同じ線画・同じ色（currentColor）で描く
+    // 小さなSVGに差し替えて揃える（絵文字フォントに依存しないので端末差も出ない）。
+    if (entry.icon === "trash") {
+      badge.classList.add("is-svg");
+      badge.innerHTML = TRASH_SVG;
+    } else {
+      badge.textContent = entry.icon;
+    }
     chip.appendChild(badge);
   }
   chip.addEventListener("click", () => openDetail(entry));

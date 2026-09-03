@@ -19382,3 +19382,14 @@ body.is-phone-device #card-effect-picker-hint.show {
 .turn-event-stock-chip-badge {
   font-weight: bold;
 }
+
+/* 「捨てた」バッジの線画ゴミ箱（絵文字の🗑から差し替え。＋/∞ と同じ単色トーンに揃えるため）。 */
+.turn-event-stock-chip-badge.is-svg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.95rem;
+  height: 0.95rem;
+  padding: 0.08rem;
+  box-sizing: content-box;
+}

@@ -10881,8 +10881,22 @@ function checkGomennasaiAutoApproval() {
     // （承認待ち複数人が全員ゴメンナサイを使えない場合、2人目以降で承認が止まる
     // バグとして実機テストで発見）。フラグを戻した直後にもう一度自分自身を呼び、
     // 次の承認者（いれば）を続けてチェックする。
-    checkGomennasaiAutoApproval();
+    // #222（ユーザー報告2026-09-03「CPU2が私の最後のロックの承認のタイミングで止まった」）:
+    // ここで自分自身しか呼び直していなかったため、**次の承認者がゴメンナサイを使えるCPU席**の
+    // 場合に誰も動かさないまま止まっていた（そのCPUを動かすのは checkCpuFinalLockApproval で、
+    // これは render() からしか呼ばれない。承認待ちの間は他に何も起きないので render() も来ない）。
+    // 承認キューを前へ進める2つの入口は必ずセットで回す。
+    pumpFinalLockApprovals();
   });
+}
+
+// 最後のロックの承認キューを1歩進めるための入口2つを、まとめて呼ぶ。
+// ・checkGomennasaiAutoApproval … ゴメンナサイを使えない席を自動承認する
+// ・checkCpuFinalLockApproval  … ゴメンナサイを使えるCPU席の判断を自動化する
+// どちらか片方だけを呼ぶと、次の承認者がもう一方の担当だった時に止まる（#222）。
+function pumpFinalLockApprovals() {
+  checkGomennasaiAutoApproval();
+  checkCpuFinalLockApproval();
 }
 
 // 【CPU強化 2026-08-08】ローカルCPU戦で、相手（人間）が最後のロックを宣言し、承認キューの
@@ -10908,7 +10922,7 @@ function checkCpuFinalLockApproval() {
     cpuFinalLockInFlight = true;
     Promise.resolve(useGomennasaiOnFinalLock()).finally(() => {
       cpuFinalLockInFlight = false;
-      checkCpuFinalLockApproval();
+      pumpFinalLockApprovals(); // #222: 次が「使えない席」なら自動承認側が担当するので両方回す
     });
     return;
   }
@@ -10929,7 +10943,8 @@ function checkCpuFinalLockApproval() {
     .finally(() => {
       cpuFinalLockInFlight = false;
       // gomennasaiAutoApprovalと同様、処理中のrender()で弾かれた再チェックを拾い直す。
-      checkCpuFinalLockApproval();
+      // #222: 次の承認者が「ゴメンナサイを使えない席」なら自動承認側の担当なので両方回す。
+      pumpFinalLockApprovals();
     });
 }
 
