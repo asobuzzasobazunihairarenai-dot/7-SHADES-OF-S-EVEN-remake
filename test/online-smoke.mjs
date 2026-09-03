@@ -72,6 +72,43 @@ function startServer() {
   return new Promise((resolve) => server.listen(PORT, () => resolve(server)));
 }
 
+// テストのログを画面とファイルの両方へ出す（ユーザー報告2026-09-03「気づいたらログがない」）。
+// 端末の表示は消えることがある（バッファのクリア・ウィンドウを閉じた等）。ファイルに残して
+// おけば後から確実に読めるし、不具合報告にもそのまま貼れる。ログは test-logs/ に置く
+// （.gitignore 済み。実行のたびに1ファイル、古いものは自分で消す運用）。
+const LOG_DIR = path.join(ROOT, "test-logs");
+const LOG_PATH = path.join(
+  LOG_DIR,
+  "online-smoke-" + stamp() + ".log"
+);
+function stamp() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+let logStream = null;
+try {
+  fs.mkdirSync(LOG_DIR, { recursive: true });
+  logStream = fs.createWriteStream(LOG_PATH, { flags: "a" });
+} catch {
+  /* 書けない環境でも画面表示だけで動く */
+}
+function toLine(args) {
+  return args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
+}
+for (const level of ["log", "error", "warn"]) {
+  const orig = console[level].bind(console);
+  console[level] = (...args) => {
+    try {
+      logStream?.write(toLine(args) + String.fromCharCode(10));
+    } catch {
+      /* ignore */
+    }
+    orig(...args);
+  };
+}
+console.log("[online] ログの保存先: " + LOG_PATH);
+
 function log(...a) { console.log("[online]", ...a); }
 
 // ページ内で何かを評価する。読み込み直後は（アプリ側の初期化・ServiceWorkerの制御開始などで）

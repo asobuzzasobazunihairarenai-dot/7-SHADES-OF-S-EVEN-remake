@@ -33,7 +33,14 @@ set "N=%errorlevel%"
 rem 255 = choice が入力を読めなかった。無限ループしないようここで終了する。
 if "%N%"=="255" ( chcp %OCP% >nul & exit /b )
 if "%N%"=="8" ( chcp %OCP% >nul & exit /b )
-call :run %N%
+rem 7 = run 1, 2 and 5 one by one (chaining them on a single line is unreliable)
+if "%N%"=="7" (
+  call :run 1
+  call :run 2
+  call :run 5
+) else (
+  call :run %N%
+)
 echo.
 echo ---- 終わりました（何かキーを押すとメニューに戻ります）----
 pause >nul
@@ -47,9 +54,8 @@ if "%~1"=="3" set "CMD=node test/smoke.mjs 4"
 if "%~1"=="4" set "CMD=node test/smoke.mjs 2 --full"
 if "%~1"=="5" set "CMD=node test/online-smoke.mjs 2"
 if "%~1"=="6" set "CMD=node test/online-smoke.mjs 4"
-if "%~1"=="7" set "CMD=node test/effects.mjs && node test/smoke.mjs 2 && node test/online-smoke.mjs 2"
 if not defined CMD (
-  echo 1-7 の番号を指定してください。
+  echo 1-6 の番号を指定してください。
   exit /b 1
 )
 echo.
