@@ -14,6 +14,8 @@ export const CHANGELOG = [
   {
     date: "2026-09-03",
     items: [
+      "カードの効果を処理している間（相手の選択を待っている時も含む）は、フェイズを進める「スキップ」「マイデッキ」のボタンを出さないようにしました。処理の途中でフェイズが終わってしまうのを防ぎます。",
+      "CPUが、場に出ている「パーティー」を優先して手札に回収するようになりました。相手が置いて踏み直して使い回すのを止められます。",
       "カード効果でカードを置くマスを選ぶ時の案内を分かりやすくしました。1枚だけ置くカードで「（それぞれ別のマス）」と出て意味が分からなかったのを直し、複数枚置く時は「何枚目か・同じマスには置けない」と出るようにしました。",
       "「奪ったカード」などの画面中央のお知らせが出ている間に手札をタップすると、そのカードの手札効果が発動してしまうことがあったのを直しました（スリカエで返すカードを選ぶつもりが使ってしまう等）。お知らせを閉じるまで盤面や手札には触れなくなります。",
       "「結ばれの一本桜 コノハナサクヤ」で相手を引き寄せる時、斜めの4マスが選べなかったのを直しました。カードの「周囲」は縦横斜めの8マスです。",
@@ -43,6 +45,8 @@ export const CHANGELOG = [
       "対戦のあとホーム画面に戻ると無音になっていたのを直しました。タイトル画面と同じBGMが流れます。",
     ],
     itemsEn: [
+      "While a card effect is being resolved — including while waiting for an opponent to choose — the Skip and My Deck buttons are hidden, so a phase can no longer end in the middle of an effect.",
+      "The CPU now prefers to take a Party card that is sitting on the board, denying an opponent the place-and-step-on-it loop.",
       "The prompt for choosing where to place a card is clearer now. Cards that place just one no longer say “each on a different square”, and when placing several it tells you which one you are on and that two cannot share a square.",
       "Tapping a hand card while a centre notice (such as “you took this card”) was showing could trigger that card’s hand effect — for example using a card you meant to hand back during Sleight of Hand. The board and your hand now ignore taps until the notice is closed.",
       "Konohanasakuya, the Cherry of Bonds now lets you pull an opponent to any of the eight surrounding squares. The four diagonals were missing — “surrounding” includes them.",

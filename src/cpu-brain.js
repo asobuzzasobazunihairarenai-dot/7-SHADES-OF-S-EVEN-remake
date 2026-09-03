@@ -422,9 +422,16 @@ export function chooseEffectCell(candidates, driveSeat) {
   // 優先3: 自ゲート防衛。相手の侵攻経路上のカードがあれば拾って踏み台を潰す（進めなくする）。
   const defensiveCandidates = candidates.filter((c) => topFaceUpCardAt(state, c.row, c.col) && blocksOpponentInvasionStep(state, driveSeat, c));
   if (defensiveCandidates.length > 0) return rand(defensiveCandidates);
-  // 優先4: 場のジャンプ台は積極的に手札に加える（ユーザー要望2026-08-08。機動力/防衛の道具）。
-  const jumpPadCandidates = candidates.filter((c) => topFaceUpCardAt(state, c.row, c.col)?.cardId === "red-jump-pad");
-  if (jumpPadCandidates.length > 0) return rand(jumpPadCandidates);
+  // 優先4: 場に出ている“強い道具”は積極的に手札へ回収する。左から順に優先。
+  //   pink-party … #226（ユーザー要望「CPUは相手の踏んだパーティは積極的に回収していった方が
+  //     いい。相手のリソースも減らせる」）。パーティは伏せて置く→自分で踏んで手札に戻す、を
+  //     繰り返せる“使い回せる”カードなので、盤面にある間に奪うと相手のループを断てる。
+  //   red-jump-pad … ユーザー要望2026-08-08（機動力/防衛の道具）。
+  const PICKUP_PRIORITY_CARDS = ["pink-party", "red-jump-pad"];
+  for (const wanted of PICKUP_PRIORITY_CARDS) {
+    const hits = candidates.filter((c) => topFaceUpCardAt(state, c.row, c.col)?.cardId === wanted);
+    if (hits.length > 0) return rand(hits);
+  }
   // 優先5: まだ要る色の“表向き”カードがあるマス（拾えば7色勝利へ前進）。
   const needed = neededColors(state, driveSeat);
   const neededCardCandidates = candidates.filter((c) => {

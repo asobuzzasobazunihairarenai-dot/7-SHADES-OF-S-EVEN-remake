@@ -770,7 +770,25 @@ export function updateSkipButtonVisibility() {
   // 通常のオンライン/ホットシート（疑似CPU非対象）では isPseudoCpuTarget が常にfalseなので従来通り。
   // #181: 承認待ちの間はスキップもマイデッキも押せないよう、そもそも隠す。
   const approvalPending = isFinalLockApprovalPending();
-  const showSkip = (currentPhase === "lock" || currentPhase === "hand") && !isPseudoCpuTarget(phaseOwner) && !approvalPending;
+  // #227（ユーザー報告2026-09-03「コノハナサクヤで相手を隣の罠に到達させている時に、自分の側に
+  // スキップが表示されていた」）: カード効果の解決中（自分の手札効果の処理中／どこかで選択待ちの
+  // 案内が出ている／返事待ちのモーダルが開いている）は、フェイズを進めるボタンを出さない。
+  // 押せてしまうと、効果の途中でハンド/ロックフェイズが終わって次へ進み得る（#212 と同じ形の事故）。
+  // 判定は phase-automation から見える範囲で完結させる（main.js を import すると循環するため、
+  // 選択待ち・モーダルは「画面にその要素が出ているか」で見る。案内バーは #card-effect-picker-hint、
+  // 返事待ちモーダルの背景は .so7-modal-backdrop＝#225 で付けた目印）。
+  const busyResolving = (() => {
+    if (handEffectBusy) return true;
+    try {
+      const hint = document.getElementById("card-effect-picker-hint");
+      if (hint && hint.getClientRects().length) return true;
+      if (document.querySelector(".so7-modal-backdrop")) return true;
+    } catch {
+      /* DOMが無い環境（テスト等）では判定しない */
+    }
+    return false;
+  })();
+  const showSkip = (currentPhase === "lock" || currentPhase === "hand") && !isPseudoCpuTarget(phaseOwner) && !approvalPending && !busyResolving;
   btn.style.display = showSkip ? "block" : "none";
   const state = getState();
   // マイデッキ戦: 自分のロックフェイズで、マイデッキに残りがあれば「マイデッキ (残枚数)」
@@ -788,6 +806,7 @@ export function updateSkipButtonVisibility() {
     state.turnPlayer === selfSeat &&
     !isPseudoCpuTarget(phaseOwner) &&
     !approvalPending &&
+    !busyResolving &&
     myDeckCount > 0;
   myDeckBtn.style.display = showMyDeck ? "block" : "none";
   if (showMyDeck) myDeckBtn.textContent = t("pa.myDeck", { n: myDeckCount });
