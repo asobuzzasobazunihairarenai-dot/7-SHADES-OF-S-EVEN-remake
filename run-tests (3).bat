@@ -65,5 +65,7 @@ rem ここから先はテスト本体(node)の日本語出力のため UTF-8 に切り替える。
 rem 【重要】切り替えた後の行は半角英数だけにすること（日本語だと読み違えて壊れる）。
 chcp 65001 >nul
 call %CMD%
+echo.
+echo Log file saved in: %~dp0test-logs
 chcp 932 >nul
 exit /b

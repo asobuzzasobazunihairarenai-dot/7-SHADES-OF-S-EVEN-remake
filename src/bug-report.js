@@ -273,6 +273,49 @@ function gatherHandSnapshot() {
   }
 }
 
+// #223（iPhoneでCPU戦中にアプリが落ちてタイトルへ戻る）の切り分け用: その瞬間の「画面の重さ」。
+// iOS は端末のメモリが厳しくなるとページのプロセスごと落とすため、落ちた時に何をどれだけ
+// 抱えていたかが分かると原因を追える。画像は幅×高さ×4バイトで効くので、DOM上の <img> から
+// 実寸を合計する（背景画像は実寸が同期で取れないので枚数だけ）。個人情報・伏せ情報は含めない。
+const IMAGE_EXT = [".webp", ".png", ".jpg", ".jpeg", ".gif"];
+function gatherWeightSnapshot() {
+  try {
+    let imgBytes = 0;
+    let imgCount = 0;
+    for (const im of document.querySelectorAll("img")) {
+      if (!im.naturalWidth) continue;
+      imgCount++;
+      imgBytes += im.naturalWidth * im.naturalHeight * 4;
+    }
+    let canvasBytes = 0;
+    let canvasCount = 0;
+    for (const c of document.querySelectorAll("canvas")) {
+      canvasCount++;
+      canvasBytes += c.width * c.height * 4;
+    }
+    let fetched = 0;
+    try {
+      const seen = new Set();
+      for (const e of performance.getEntriesByType("resource")) {
+        if (!IMAGE_EXT.some((x) => e.name.split("?")[0].toLowerCase().endsWith(x))) continue;
+        if (seen.has(e.name)) continue;
+        seen.add(e.name);
+        fetched++;
+      }
+    } catch {}
+    return {
+      domNodes: document.getElementsByTagName("*").length,
+      imgCount,
+      imgMB: Math.round(imgBytes / 1048576),
+      canvasCount,
+      canvasMB: Math.round(canvasBytes / 1048576),
+      fetchedImages: fetched,
+      dpr: window.devicePixelRatio || 1,
+    };
+  } catch {
+    return null;
+  }
+}
 function gatherContext() {
   let roomId = null;
   try {
@@ -323,6 +366,7 @@ function gatherContext() {
     at: new Date().toISOString(),
     gameContext,
     hand: gatherHandSnapshot(), // #187: 手札が見えなくなる件の切り分け用
+    weight: gatherWeightSnapshot(), // #223: 落ちた瞬間の画面の重さ（画像・DOM・canvas）
     cardFace: gatherCardFaceSnapshot(), // #194: カード面のタイトル/ルビ/効果文の位置（実機の実測値）
     // リロードを跨ぐブラックボックス（crash-blackbox.js）: メモリのピーク・遷移種別・前回セッションの
     // 不審終了（＝落ちてタイトルに戻った疑い）を載せる。「スマホでたまに落ちる」原因追跡用。
