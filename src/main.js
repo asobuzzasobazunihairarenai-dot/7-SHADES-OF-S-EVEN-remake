@@ -10845,6 +10845,14 @@ function checkGomennasaiAutoApproval() {
   const approver = pending.queue[0];
   if (isOnlineMode() && getSelfSeat() !== approver) return;
   if (findGomennasaiEligibility(approver)) return; // 使えるなら自動承認せず本人の選択を待つ
+  // 【情報漏れ対策・ユーザー指摘2026-09-03】オンライン対戦では、使えない席を自動承認すると
+  // 「一瞬で通った＝あの人はゴメンナサイを持っていない」と分かってしまう。承認は左隣から
+  // 順番に回る決まりなので、名前を伏せても「3人目の自分にすぐ回ってきた＝前の2人は持って
+  // いない」と特定できてしまう（ユーザーの指摘通り）。よってオンラインでは**使えない人にも
+  // 承認ボタンを出して押してもらう**（誰も飛ばされないので、かかった時間から何も分からない）。
+  // 最後のロック＝勝利がかかったロックなので、1対局に1〜数回しか起きない＝手間はごく小さい。
+  // ローカルのCPU戦は相手が人間ではないため従来通り自動で進める（CPU席に押させても意味が無い）。
+  if (isOnlineMode()) return;
   // 診断ログ（ユーザー報告「ゴメンナサイと追色コストを持っているのに最後のロック承認で使えな
   // かった」の調査用）: なぜ「使えない＝自動承認」と判定したのかを記録する。ゴメンナサイ本体が
   // 手札に無い(hasSorryInHand:false)のか、追色に使える紫カードが手札に無い(purpleForCost が空、
@@ -13975,6 +13983,32 @@ function isAnyBlockingModalOpen() {
   return false;
 }
 
+// オンラインで「使えない人にも承認を押してもらう」ようにした分、押されないまま対局が止まる
+// のを防ぐ保険。自分が承認者で、一定時間（45秒）反応が無ければ自動で承認する。全員に同じ
+// 時間が与えられるので、これが働いても「持っていない」という情報にはならない。
+const FINAL_LOCK_AUTO_APPROVE_MS = 45000;
+let finalLockPromptSince = 0;
+let finalLockPromptKey = "";
+function checkFinalLockApprovalTimeout() {
+  if (!isOnlineMode()) return;
+  const pending = getState().pendingFinalLock;
+  if (!pending || pending.queue.length === 0 || getSelfSeat() !== pending.queue[0]) {
+    finalLockPromptSince = 0;
+    finalLockPromptKey = "";
+    return;
+  }
+  const key = pending.attacker + "|" + pending.queue[0] + "|" + (pending.tokenId ?? "");
+  if (key !== finalLockPromptKey) {
+    finalLockPromptKey = key;
+    finalLockPromptSince = Date.now();
+    return;
+  }
+  if (Date.now() - finalLockPromptSince < FINAL_LOCK_AUTO_APPROVE_MS) return;
+  finalLockPromptSince = Date.now(); // 連続発火を防ぐ
+  logAction("diag-final-lock-auto-approve", { approver: pending.queue[0], attacker: pending.attacker });
+  void respondToFinalLock(true);
+}
+
 // #93セーフティ・ウォッチドッグ: 手札効果解決フラグ(handEffectBusy)が「取り残し」で
 // 恒久的に true のまま残ると、盤面が全カード・トーンオフのまま／スキップ不可で永久に詰む
 // （実機報告#93: ジャンプ台の手札効果→連鎖到達で選べる罠まで解決した後、busyが解除されず停止）。
@@ -14014,6 +14048,9 @@ setInterval(() => {
     setHandEffectBusy(false);
     render();
   } catch { /* noop: ウォッチドッグ自身で例外を投げても進行を止めない */ }
+  try {
+    checkFinalLockApprovalTimeout();
+  } catch { /* noop */ }
 }, 5000);
 
 initDeckViewer();

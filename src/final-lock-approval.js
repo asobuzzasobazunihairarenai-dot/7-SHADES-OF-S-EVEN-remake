@@ -108,7 +108,10 @@ export function updateFinalLockApprovalBanner() {
   // Approval()がこの承認者を検知し、自動で承認して先へ進める。「あなたの承認が
   // 必要です」と見せておいてすぐ消えるチラつきを避けるため、最初から出さない）。
   const isEligibleForGomennasai = canRespond && !!checkGomennasaiEligibility?.(approver);
-  if (canRespond && !isEligibleForGomennasai) {
+  // オンラインでは、ゴメンナサイを使えない人にも「承認する」だけのバナーを出す
+  // （情報漏れ対策。main.js の checkGomennasaiAutoApproval のコメント参照）。
+  // ローカルのCPU戦は従来通り、使えない席は自動承認されるのでバナーを出さない。
+  if (canRespond && !isEligibleForGomennasai && !isOnlineMode()) {
     hideBanner();
     return;
   }
