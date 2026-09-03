@@ -411,11 +411,13 @@ export function showCpuBattleEndPanel({ winnerSeat }) {
     // #88: CPU戦の「もう一度戦う」でも、押した瞬間に勝利BGMを止める（セットアップ完了を待たない）。
     stopVictoryBgm();
     rematchBtn.disabled = true;
-    closePanel();
     try {
       // 動的import（cpu-battle.js は重い依存を芋づるで持つため。home-screen.js と同じパターン）。
       const { startCpuBattle, runCpuBattleSetup } = await import("./cpu-battle.js");
       await startCpuBattle(); // resetGame 込みで新しい対局を用意する
+      // 盤面が空になってからパネルを閉じる（先に閉じると、決着した前の対局の盤面が一瞬見える。
+      // ユーザー報告2026-09-03と同じ理由。押した感触はボタンのdisabledで出している）。
+      closePanel();
       setTimeout(() => {
         runCpuBattleSetup().catch((err) => console.error("runCpuBattleSetup failed", err));
       }, 60);

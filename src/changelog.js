@@ -14,6 +14,7 @@ export const CHANGELOG = [
   {
     date: "2026-09-03",
     items: [
+      "CPU戦を始めた時、配り始める直前に前の盤面（または起動時の盤面）が一瞬映っていたのを直しました。",
       "CPUがカウンターロックを持っているのに使わないことがあったのを直しました。ロックするカードが無くても、接触を無効にするために使うようになります。",
       "カードをじっくり選んでいると、処理中の判定が先に切れて駒が動かせてしまう不具合を、根本から直しました。何分かけて選んでも大丈夫です。",
       "相手の効果で自分がカードを置いた時、盤面のマークが相手のアバターになっていたのを直しました。実際に置いた人が表示されます。",
@@ -27,6 +28,7 @@ export const CHANGELOG = [
       "対戦のあとホーム画面に戻ると無音になっていたのを直しました。タイトル画面と同じBGMが流れます。",
     ],
     itemsEn: [
+      "Fixed: starting a CPU battle briefly flashed the previous (or the app’s startup) board just before the deal.",
       "Fixed: the CPU sometimes held Counter Lock without using it. It now uses it to negate contact even when it has no card to lock (locking is optional).",
       "Fixed at the root: taking your time choosing cards no longer ends the “busy” state early, which had allowed a piece to be moved mid-effect.",
       "Fixed: when you placed a card because of an opponent’s effect, the board marker showed their avatar. It now shows whoever actually placed it.",

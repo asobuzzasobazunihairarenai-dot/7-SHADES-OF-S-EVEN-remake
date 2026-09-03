@@ -198,11 +198,13 @@ async function startPractice() {
   practicing = true;
   // 全画面の待機オーバーレイを畳んで盤面を見せ、隅に小さな「探し中」バナーを出す。
   // ポーリングは止めない（マッチ成立を裏で待ち続け、見つかったら練習を中断する）。
-  closeWaitingScreen();
-  showPracticeBanner();
   try {
     const { startCpuBattle, runCpuBattleSetup } = await import("./cpu-battle.js");
     await startCpuBattle(2); // ランク待機中の練習は1対1固定（続き226。人数設定に依らず2人）。
+    // 盤面が空になってから待機画面を畳む（先に畳むと、上の動的importが解決するまでの間に
+    // 前の盤面が一瞬見えてしまう。ユーザー報告2026-09-03と同じ理由）。
+    closeWaitingScreen();
+    showPracticeBanner();
     // 盤面はもう見えている（ランク戦はホームから来ておりオープニング画面は閉じている）。
     // ホームのCPU戦と同じく、セットアップ演出は待たずに走らせる。
     runCpuBattleSetup({ count: 2 }).catch((err) => console.error("practice runCpuBattleSetup failed", err));

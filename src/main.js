@@ -13947,7 +13947,10 @@ setInterval(() => {
     // #214: 判定の意味を「busyになってからの経過」から「最後に何かが起きてからの経過」へ
     // 変えた（phase-automation.js の noteHandEffectProgress 参照）。人が何分かけて選んでいても
     // 1枚めくるたびに時計が戻るので誤解除されない。本当に何も起きない時だけ救済する。
-    if (getHandEffectBusyStuckMs() < 30000) return;
+    // しきい値は20秒。意味が「最後に何かが起きてからの経過」になったので、人が選んでいる間は
+    // 1手ごとに時計が戻る＝誤解除されない。逆に、選択待ちのUIも到達処理も無いのに20秒何も
+    // 起きないなら本当に取り残されているので、以前と同じ速さで救済する。
+    if (getHandEffectBusyStuckMs() < 20000) return;
     // 何かが本当に処理待ち/表示中なら手を出さない（誤解除防止）。
     if (activeEffectPicker) return;
     if (isArrivalEffectProcessing()) return;

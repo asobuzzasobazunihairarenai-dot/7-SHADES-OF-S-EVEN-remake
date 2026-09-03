@@ -203,12 +203,16 @@ function openMatchChoiceModal() {
   });
   makeOption("🤖", t("home.matchChoice.cpu"), t("home.matchChoice.cpuDesc"), async () => {
     closeMatchChoiceModal();
-    closeHomeScreen();
     try {
       // 動的import（静的依存辺を作らないため。上の import 撤去のコメント参照）。
       const { startCpuBattle, runCpuBattleSetup } = await import("./cpu-battle.js");
       const count = getCpuPlayerCount();
       await startCpuBattle(count);
+      // ユーザー報告2026-09-03「セットアップ直前に一瞬セットアップされた盤面が映る」。
+      // 以前はここで先にホームを閉じていたため、上の動的importが解決するまでの間（初回は
+      // 数フレームかかる）、起動時の既定盤面（テスト用に4人が座った状態）が見えていた。
+      // 盤面を空にする resetGame は startCpuBattle の中にあるので、**閉じるのはその後**にする。
+      closeHomeScreen();
       // 盤面が見えてからセットアップ演出（ファースト配布→盤面配置）を始める。
       setTimeout(() => {
         runCpuBattleSetup({ count }).catch((err) => console.error("runCpuBattleSetup failed", err));
