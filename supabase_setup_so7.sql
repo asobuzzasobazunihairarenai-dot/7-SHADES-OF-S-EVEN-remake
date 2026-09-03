@@ -2426,3 +2426,29 @@ drop policy if exists "so7_announcements_admin_delete" on so7_announcements;
 create policy "so7_announcements_admin_delete" on so7_announcements
   for delete to authenticated
   using ((auth.jwt() ->> 'email') in ('asobuzz.asobazunihairarenai@gmail.com', 'shogoshogo0929@gmail.com'));
+
+-- ── 追加(2026-09-03): 不具合報告に「対処済み」を付けられるようにする（ユーザー要望） ──────
+-- 列(resolved)は最初から存在するが、値を書き換える手段が無かった（so7_bug_reports には
+-- SELECT/UPDATE ポリシーを一切作っていない＝直接は読み書きできない設計のため）。
+-- 読みと同じ方式で「管理者のメールで呼ばれた時だけ更新する」SECURITY DEFINER 関数を足す。
+-- 戻り値は実際に更新された件数（0なら権限が無い＝静かに失敗していないか呼び出し側で分かる。
+-- 姉妹リポジトリでRLSのUPDATEポリシー欠落を「エラー無し・0件」で踏んだ教訓）。
+create or replace function so7_set_bug_report_resolved(p_id bigint, p_resolved boolean)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  n integer;
+begin
+  if (auth.jwt() ->> 'email') not in ('asobuzz.asobazunihairarenai@gmail.com','shogoshogo0929@gmail.com') then
+    return 0;
+  end if;
+  update so7_bug_reports set resolved = coalesce(p_resolved, false) where id = p_id;
+  get diagnostics n = row_count;
+  return n;
+end;
+$$;
+revoke execute on function so7_set_bug_report_resolved(bigint, boolean) from public;
+grant execute on function so7_set_bug_report_resolved(bigint, boolean) to authenticated;

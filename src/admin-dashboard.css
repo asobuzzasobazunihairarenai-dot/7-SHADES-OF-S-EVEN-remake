@@ -73,7 +73,7 @@ tbody tr:hover {
 #bug-report-table {
   table-layout: fixed;
 }
-/* 列: 1=選択 2=日時 3=報告者 4=内容 5=画像 6=詳細。
+/* 列: 1=選択 2=日時 3=報告者 4=内容 5=画像 6=対処 7=詳細。
    内容列だけ幅を指定せず、残り幅を全部使って1行省略表示にする（ellipsisはJS側で付与）。
    ここの列番号は makeBugReportRow が作るセルの順番と一致していないといけない
    （2026-09-01: 「選択」列を足した時にここを直し忘れ、内容列が3.5remに潰れて横スクロールが出た）。 */
@@ -100,17 +100,22 @@ tbody tr:hover {
 }
 #bug-report-table th:nth-child(6),
 #bug-report-table td:nth-child(6) {
+  width: 7.5rem; /* 対処 */
+  white-space: nowrap;
+}
+#bug-report-table th:nth-child(7),
+#bug-report-table td:nth-child(7) {
   width: 8.5rem; /* 詳細（コピー・詳細の2ボタンを縦に積む） */
 }
 /* 詳細列の2ボタンは縦積み。横並びにすると列が広がって表がはみ出す。 */
-#bug-report-table td:nth-child(6) button {
+#bug-report-table td:nth-child(7) button {
   display: block;
   width: 100%;
   margin: 0 0 0.25rem;
   font-size: 0.78rem;
   padding: 0.25rem 0.3rem;
 }
-#bug-report-table td:nth-child(6) button:last-child {
+#bug-report-table td:nth-child(7) button:last-child {
   margin-bottom: 0;
 }
 #visit-log-more-btn {

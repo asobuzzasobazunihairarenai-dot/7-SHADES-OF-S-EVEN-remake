@@ -14,6 +14,8 @@ export const CHANGELOG = [
   {
     date: "2026-09-03",
     items: [
+      "カード効果でカードを置くマスを選ぶ時の案内を分かりやすくしました。1枚だけ置くカードで「（それぞれ別のマス）」と出て意味が分からなかったのを直し、複数枚置く時は「何枚目か・同じマスには置けない」と出るようにしました。",
+      "「奪ったカード」などの画面中央のお知らせが出ている間に手札をタップすると、そのカードの手札効果が発動してしまうことがあったのを直しました（スリカエで返すカードを選ぶつもりが使ってしまう等）。お知らせを閉じるまで盤面や手札には触れなくなります。",
       "「結ばれの一本桜 コノハナサクヤ」で相手を引き寄せる時、斜めの4マスが選べなかったのを直しました。カードの「周囲」は縦横斜めの8マスです。",
       "アプリが使う画像を、実際に表示される大きさに合わせて作り直しました。スマホ（特にiPhone）で対戦中にアプリが落ちてタイトル画面に戻ってしまう不具合の対策です。ゲーム中に読み込む画像の重さがおよそ3分の1になり、通信量と読み込みの待ち時間も減ります。見た目は変わりません。",
       "はじめての方向けに、ホーム画面の一番上へ「次にやること」を1つだけ表示するようにしました。①遊び方を覚える→②CPUと1戦→③誰かと対戦、と進み、終われば自動的に消えます（✕でいつでも消せます）。",
@@ -41,6 +43,8 @@ export const CHANGELOG = [
       "対戦のあとホーム画面に戻ると無音になっていたのを直しました。タイトル画面と同じBGMが流れます。",
     ],
     itemsEn: [
+      "The prompt for choosing where to place a card is clearer now. Cards that place just one no longer say “each on a different square”, and when placing several it tells you which one you are on and that two cannot share a square.",
+      "Tapping a hand card while a centre notice (such as “you took this card”) was showing could trigger that card’s hand effect — for example using a card you meant to hand back during Sleight of Hand. The board and your hand now ignore taps until the notice is closed.",
       "Konohanasakuya, the Cherry of Bonds now lets you pull an opponent to any of the eight surrounding squares. The four diagonals were missing — “surrounding” includes them.",
       "Every image in the app has been rebuilt at the size it is actually displayed. This targets the crash where the app would drop back to the title screen mid-match on phones (iPhone especially): the memory used by images during a match is now about a third of what it was, and downloads are lighter too. Nothing looks different.",
       "New players now see a single “Next up” card at the top of the home screen: 1) learn how to play, 2) play one CPU match, 3) play someone. It disappears once you are up and running (or via the ✕).",

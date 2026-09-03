@@ -1206,7 +1206,12 @@ async function runAction(action, ctx, helpers) {
         for (let i = 0; i < pickCount; i++) {
           const available = cellCandidates.filter((c) => !pickedKeys.has(`${c.row},${c.col}`));
           if (available.length === 0) break;
-          const dest = await helpers.pickLocation(available, t("ce.L1161"), {
+          // #225（ユーザー報告「罠を使った時の『それぞれ違うマス』ってどういう意味？」）:
+          // 1枚しか置かないカード（選べる罠・ジャンプ台等）でも「（それぞれ別のマス）」と
+          // 出ていて意味が分からなかった。1枚なら余計な但し書きを出さず、複数枚なら
+          // 「何枚目か／同じマスには置けない」ことを具体的に伝える。
+          const placeHint = pickCount <= 1 ? t("ce.placeOne") : t("ce.placeNth", { i: i + 1, n: pickCount });
+          const dest = await helpers.pickLocation(available, placeHint, {
             alertCells: [...pickedKeys].map((k) => {
               const [row, col] = k.split(",").map(Number);
               return { row, col };

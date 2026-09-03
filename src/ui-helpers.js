@@ -21,6 +21,12 @@ export function createModalCloseX(onClose) {
 export function createBackdrop(onClose, { dim = false, zIndex = 2000 } = {}) {
   const backdrop = document.createElement("div");
   backdrop.style.cssText = `position: fixed; inset: 0; z-index: ${zIndex};${dim ? " background: rgba(0, 0, 0, 0.6);" : ""}`;
+  // #225: 暗くする背景（＝画面を覆って返事を待つモーダル）には目印を付ける。盤面のドラッグ判定
+  // (main.jsのfindDraggableAt)は elementsFromPoint() で自前に当たり判定するため、そのままでは
+  // **モーダルの背景を透かして**下の手札・駒を掴んでしまう（「奪ったカード」表示中に手札を
+  // タップ→そのカードの手札効果が発動、等）。この目印があれば一律に無視できる。
+  // dim:false（管理者モード・セットアップ等の常駐パネル）は盤面操作を妨げたくないので付けない。
+  if (dim) backdrop.classList.add("so7-modal-backdrop");
   backdrop.addEventListener("click", onClose);
   return backdrop;
 }

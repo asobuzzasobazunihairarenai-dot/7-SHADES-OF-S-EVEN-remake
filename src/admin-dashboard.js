@@ -12,6 +12,8 @@
 // アクセス制限の実体はサーバー側（supabase_setup_so7.sqlの各RPC内部でauth.jwt()の
 // メールアドレスをチェック）にあり、ここでのisAdmin判定は表示の出し分けだけ。
 
+import { isBugReportHandledInCode } from "./handled-bug-reports.js";
+
 const SUPABASE_URL = "https://prnddzrnblfysggiuzmo.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_YFYWr0FghhXbrqNQJ9Jzgw_hu31kvw9";
 const ADMIN_EMAIL = "asobuzz.asobazunihairarenai@gmail.com";
@@ -33,6 +35,7 @@ const visitLogMoreBtn = document.getElementById("visit-log-more-btn");
 const bugReportStatusEl = document.getElementById("bug-report-status");
 const bugReportBody = document.querySelector("#bug-report-table tbody");
 const bugReportShowAllBtn = document.getElementById("bug-report-show-all-btn");
+const bugReportHideResolvedEl = document.getElementById("bug-report-hide-resolved");
 
 // 一括取得したリスト用の共通「直近5件だけ描画し、残りは『すべて表示』ボタンで出す」処理。
 // rows: 全行（新しい順で来る前提）、makeRow: 1行のtr要素を作る関数、showAllBtn: 展開ボタン。
@@ -147,6 +150,27 @@ visitLogMoreBtn.addEventListener("click", async () => {
   }
 });
 
+// 取得した全報告（フィルターの切り替えで再描画するために保持する）。
+let allBugReports = [];
+
+// 「対処済み」か。DBのフラグ（ユーザーが手で付ける）と、コード側の一覧
+// （handled-bug-reports.js。開発側＝Claudeが直した時に足す）のどちらかが立っていれば対処済み。
+function isBugReportResolved(row) {
+  return row.resolved === true || isBugReportHandledInCode(row.id);
+}
+
+function renderBugReports() {
+  const hide = bugReportHideResolvedEl?.checked !== false;
+  const rows = hide ? allBugReports.filter((r) => !isBugReportResolved(r)) : allBugReports;
+  const resolvedCount = allBugReports.filter(isBugReportResolved).length;
+  bugReportStatusEl.textContent =
+    `全${allBugReports.length}件（対処済み ${resolvedCount}件）／表示 ${rows.length}件` +
+    (rows.length > INITIAL_ROWS ? `（直近${INITIAL_ROWS}件を表示）` : "");
+  selectedBugReports.clear();
+  updateBugReportSelectionLabel();
+  renderCollapsibleRows(bugReportBody, rows, makeBugReportRow, bugReportShowAllBtn);
+}
+
 async function loadBugReports() {
   bugReportStatusEl.textContent = "読み込み中...";
   const { data, error } = await client.rpc("so7_get_admin_bug_reports");
@@ -154,10 +178,28 @@ async function loadBugReports() {
     bugReportStatusEl.textContent = `取得に失敗しました: ${error.message}`;
     return;
   }
-  bugReportStatusEl.textContent = `${data.length}件（直近${Math.min(INITIAL_ROWS, data.length)}件を表示）`;
-  selectedBugReports.clear();
-  updateBugReportSelectionLabel();
-  renderCollapsibleRows(bugReportBody, data, makeBugReportRow, bugReportShowAllBtn);
+  allBugReports = data;
+  renderBugReports();
+}
+
+bugReportHideResolvedEl?.addEventListener("change", () => renderBugReports());
+
+// 「対処済み」を切り替える（DBのフラグ）。RLSでUPDATEポリシーが無いテーブルなので、
+// 管理者判定を内側でやる関数(so7_set_bug_report_resolved)経由で更新し、**実際に更新された
+// 件数**を見る。0件なら権限不足（SQL未実行等）＝黙って失敗しないよう画面に出す。
+async function toggleBugReportResolved(row, btn) {
+  const next = !isBugReportResolved(row);
+  btn.disabled = true;
+  try {
+    const { data, error } = await client.rpc("so7_set_bug_report_resolved", { p_id: row.id, p_resolved: next });
+    if (error) throw new Error(error.message);
+    if (!data) throw new Error("更新0件（管理者権限またはSQL未実行）");
+    row.resolved = next;
+    renderBugReports();
+  } catch (err) {
+    btn.disabled = false;
+    bugReportStatusEl.textContent = `対処済みの更新に失敗しました: ${err.message ?? err}`;
+  }
 }
 
 
@@ -378,6 +420,26 @@ function makeBugReportRow(row) {
     shotTd.textContent = "-";
   }
   tr.appendChild(shotTd);
+
+  // 「対処済み」（ユーザー要望2026-09-03）: 押すとフラグが付き、既定のフィルターで隠れる。
+  // コード側の一覧（handled-bug-reports.js）で対処済みになっているものは、開発側が直した印なので
+  // ここでは押せない（DBのフラグとは別管理。理由はそのファイルのコメント参照）。
+  const resolvedTd = document.createElement("td");
+  resolvedTd.style.cssText = "padding: 0.35rem 0.5rem; text-align: center;";
+  const inCode = isBugReportHandledInCode(row.id);
+  if (inCode) {
+    resolvedTd.textContent = "✅ コード";
+    resolvedTd.title = "開発側で対処済み（handled-bug-reports.js に記録）";
+  } else {
+    const resolvedBtn = document.createElement("button");
+    resolvedBtn.type = "button";
+    resolvedBtn.textContent = row.resolved ? "✅ 対処済み" : "対処済みにする";
+    resolvedBtn.title = row.resolved ? "クリックで未対処に戻します" : "クリックで対処済みにします（既定のフィルターで隠れます）";
+    resolvedBtn.addEventListener("click", () => toggleBugReportResolved(row, resolvedBtn));
+    resolvedTd.appendChild(resolvedBtn);
+  }
+  tr.appendChild(resolvedTd);
+  if (isBugReportResolved(row)) tr.style.opacity = "0.55";
 
   // 「詳細」: アクションログ・コンソールログ・状況を別ウィンドウで全文表示する。
   const detailTd = document.createElement("td");
