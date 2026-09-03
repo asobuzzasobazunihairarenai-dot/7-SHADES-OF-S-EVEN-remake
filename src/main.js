@@ -14652,6 +14652,8 @@ let wasOnlineGameStarted = false;
 subscribe(() => {
   const started = Boolean(getState().turnPlayer);
   if (isOnlineMode() && started && !wasOnlineGameStarted) {
+    // はじめての人の「次にやること」を3歩目まで進める（first-steps.js）。
+    void import("./first-steps.js").then((m) => m.noteOnlineMatchPlayed()).catch(() => {});
     // マイデッキ戦: 選択オーバーレイが残っていれば閉じる（BOOTSTRAPで盤面が始まったため）。
     if (isDeckSelectOpen()) closeDeckSelect();
     suppressGenericRenderForOnlineStart = true;

@@ -33,6 +33,7 @@ import { showRankExplanationModal } from "./rank-explain.js";
 import { startTutorialBattle, registerTutorialHomeOpener } from "./tutorial-battle.js";
 // 案内人エイドスの物語チュートリアル（オンボーディング）のフロー制御。🎓タイルはこの入口へ。
 import { startEidosStory } from "./eidos-story.js";
+import { buildFirstStepCard, noteCpuBattlePlayed } from "./first-steps.js";
 // ローカル1人用CPU戦（cpu-battle.js）はCPU選択時に動的import（下の openMatchChoiceModal 参照）。
 // ※静的importにすると、cpu-battle.js が芋づる式に読み込む依存（game-setup.js→…）でモジュール
 //   評価順が変わり、online.js↔phase-automation.js の循環参照が表面化して
@@ -203,6 +204,7 @@ function openMatchChoiceModal() {
   });
   makeOption("🤖", t("home.matchChoice.cpu"), t("home.matchChoice.cpuDesc"), async () => {
     closeMatchChoiceModal();
+    noteCpuBattlePlayed(); // 「次にやること」の段階を進める（first-steps.js）
     try {
       // 動的import（静的依存辺を作らないため。上の import 撤去のコメント参照）。
       const { startCpuBattle, runCpuBattleSetup } = await import("./cpu-battle.js");
@@ -448,6 +450,41 @@ export function openHomeScreen() {
   rankArea.style.display = "none";
   overlayEl.appendChild(rankArea);
   renderHomeRank(rankArea);
+
+  // はじめての人の「次にやること」（first-steps.js）。3歩を終えた人・✕で消した人には出ない。
+  // 押した時の中身は、ホームが既に持っている入口をそのまま渡す（新しい導線を増やさない）。
+  const firstStep = buildFirstStepCard({
+    story: () => {
+      closeHomeScreen();
+      startEidosStory({ openHome: () => openHomeScreen() });
+    },
+    cpu: async () => {
+      // 初めての1戦は1対1（いちばん短くて分かりやすい）。ホームのCPU戦と同じ手順。
+      noteCpuBattlePlayed();
+      try {
+        const { startCpuBattle, runCpuBattleSetup } = await import("./cpu-battle.js");
+        await startCpuBattle(2);
+        closeHomeScreen(); // 盤面が空になってから見せる（続き379）
+        setTimeout(() => {
+          runCpuBattleSetup({ count: 2 }).catch((err) => console.error("runCpuBattleSetup failed", err));
+        }, 60);
+      } catch (err) {
+        console.error("first-step CPU battle failed", err);
+      }
+    },
+    online: async () => {
+      // 相手が見つかる可能性が一番高いのはランク戦（待っている間はCPU練習もできる）。
+      closeHomeScreen();
+      try {
+        const { startRankedMatchmaking } = await import("./ranked-match.js");
+        await startRankedMatchmaking(() => openHomeScreen());
+      } catch (err) {
+        console.error("first-step ranked start failed", err);
+        openHomeScreen();
+      }
+    },
+  });
+  if (firstStep) overlayEl.appendChild(firstStep);
 
   const grid = document.createElement("div");
   grid.id = "home-screen-grid";
