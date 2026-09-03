@@ -19360,3 +19360,25 @@ body.is-phone-device #card-effect-picker-hint {
 body.is-phone-device #card-effect-picker-hint.show {
   transform: translateX(-50%) scale(var(--center-modal-scale-phone, 1));
 }
+
+/* ロックの出来事だけ、隅のバッジの代わりに「鎖」をカード画像の上に重ねる
+   （ユーザー要望2026-09-03「ロック演出時に使っている鎖アイコンをカード画像に重ねる感じは
+   どう？」）。ロックの瞬間に盤面へ焼き付く刻印（.lock-stamp）と同じ assets/lock-icon.webp を
+   使うので、演出とお知らせで見た目が揃う。中央フラッシュ・右下のチップ・チップを開いた時の
+   モーダルはどれも同じHTMLを使い回すため、この1つのルールで3か所とも同じ見た目になる。 */
+.hand-pickup-toast-img.is-locked::after,
+.turn-event-stock-chip-face.is-locked::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("../assets/lock-icon.webp");
+  background-size: 108% 108%;
+  background-position: center;
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+/* 「＋」「∞」のような文字記号のバッジは、絵文字より線が細く小さく見えるので少しだけ大きく太く
+   する（🗑 などの絵文字バッジは従来のまま）。 */
+.turn-event-stock-chip-badge {
+  font-weight: bold;
+}

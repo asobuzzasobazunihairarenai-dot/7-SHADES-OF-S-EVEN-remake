@@ -116,7 +116,7 @@ ul.plain{margin:0 0 2mm;padding-left:5mm;} ul.plain li{margin:0 0 .8mm;}
 .legend2{column-count:2;column-gap:6mm;font-size:8pt;line-height:1.5;}
 .legend2 .it{break-inside:avoid;display:block;margin:0 0 1.3mm;}
 .legend2 .it > .pill{display:inline-block;vertical-align:baseline;margin-right:1.4mm;}
-.legend2 .it > span:not(.pill){display:inline;}
+.legend2 .it > span:not(.pill):not(.bnum){display:inline;}
 .legend2 .it .k{flex:0 0 auto;}
 
 /* プレイ例の吹き出し */
@@ -424,18 +424,18 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
       <li><span class="en">The Flow of Your Turn</span><span class="jp">-自分のターンの流れ-</span><span class="dots"></span><span class="pg">9</span></li>
       <li><span class="en">Play Example</span><span class="jp">-プレイの具体例-</span><span class="dots"></span><span class="pg">11</span></li>
       <li><span class="en">Gate Invasion Bonus</span><span class="jp">-相手ゲート侵攻ボーナス-</span><span class="dots"></span><span class="pg">13</span></li>
-      <li><span class="en">Card Collection</span><span class="jp">-カード集-</span><span class="dots"></span><span class="pg">14</span></li>
-      <li><span class="en">Glossary of Basic Terms</span><span class="jp">-基本用語集-</span><span class="dots"></span><span class="pg">22</span></li>
-      <li><span class="en">FAQ</span><span class="jp">-よくある質問-</span><span class="dots"></span><span class="pg">25</span></li>
-      <li><span class="en">Online</span><span class="jp">-オンライン-</span><span class="dots"></span><span class="pg">28</span></li>
-      <li><span class="en">Special Thanks</span><span class="jp">-最後に-</span><span class="dots"></span><span class="pg">29</span></li>
-      <li><span class="en">Credits</span><span class="jp">-クレジット-</span><span class="dots"></span><span class="pg">30</span></li>
-      <li><span class="en">Quick Reference</span><span class="jp">-早見表-</span><span class="dots"></span><span class="pg">31</span></li>
+      <li><span class="en">Card Collection</span><span class="jp">-カード集-</span><span class="dots"></span><span class="pg">15</span></li>
+      <li><span class="en">Glossary of Basic Terms</span><span class="jp">-基本用語集-</span><span class="dots"></span><span class="pg">19</span></li>
+      <li><span class="en">FAQ</span><span class="jp">-よくある質問-</span><span class="dots"></span><span class="pg">21</span></li>
+      <li><span class="en">Online</span><span class="jp">-オンライン-</span><span class="dots"></span><span class="pg">23</span></li>
+      <li><span class="en">Special Thanks</span><span class="jp">-最後に-</span><span class="dots"></span><span class="pg">24</span></li>
+      <li><span class="en">Credits</span><span class="jp">-クレジット-</span><span class="dots"></span><span class="pg">25</span></li>
+      <li><span class="en">Quick Reference</span><span class="jp">-早見表-</span><span class="dots"></span><span class="pg">26</span></li>
     </ul>
     <div class="center" style="margin-top:3.2mm;font-family:var(--mincho);font-size:8.6pt;line-height:1.75;letter-spacing:.06em;">
       シェイズオブセブンの世界へようこそ<br>
       はじめて遊ぶ方は、<b>6ページ「ゲームの準備」</b>から読み進めてください。<br>
-      遊びながら分からない言葉が出てきたら、<b>22ページ「基本用語集」</b>が辞書代わりになります。
+      遊びながら分からない言葉が出てきたら、<b>19ページ「基本用語集」</b>が辞書代わりになります。
     </div>
   </div>
   <div class="foot"><span class="orn"></span>1<span class="orn"></span></div>
@@ -1192,7 +1192,7 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
     <div class="step"><span class="num">2</span><div class="txt"><b>自分のターンの行動</b><br>各プレイヤーは、自分のターンに以下の流れで行動する。</div></div>
 
     <figure style="margin:1mm 0 3mm;">
-      <svg style="width:172mm;display:block;margin:0 auto;" viewBox="0 0 530 104">
+      <svg style="width:176mm;display:block;margin:0 auto;" viewBox="0 0 530 104">
         <defs><marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#444"/></marker></defs>
         <g font-family="sans-serif" font-size="8.6" text-anchor="middle">
           <rect x="4" y="26" width="56" height="26" rx="3" fill="#fff" stroke="#666"/><text x="32" y="38">ロック</text><text x="32" y="48">フェイズ</text>
@@ -1894,11 +1894,9 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
   <div class="body gloss">
         <p class="glead">ゲーム中に登場する単語を五十音順でまとめています。ゲーム中に意味が分からない用語がありましたら、このページを辞書のようにご活用ください。</p>
         <div class="glist">
-          <div class="term"><span class="tt">【相手】</span><span class="tb">あなた以外のプレイヤーまたはそのプレイヤーの駒のこと。</span></div>
           <div class="term"><span class="tt">【相手ゲート侵攻】</span><span class="tb">あなたの駒が相手ゲートに置かれた状態でターンの終了を迎えること。<br>相手ゲート侵攻が成功するとボーナスがあります。（13ページ）</span></div>
-          <div class="term"><span class="tt">【相手の周囲】</span><span class="tb">あなた以外のプレイヤーの駒の周囲のこと。</span></div>
           <div class="term is-key"><span class="tt">【1番上の原則】</span><span class="tb">マスのカードを対象とする場合、特に表記が無い場合は1番上に置いてあるカードを対象とする。</span></div>
-          <div class="term"><span class="tt">【1番少なくロックしているプレイヤー】</span><span class="tb">自分のロックエリアにロックされているカードの枚数が1番少ないプレイヤーのこと。<br>同数の場合は、その全員が該当する。</span></div>
+          <div class="term"><span class="tt">【1番少なくロックしている】</span><span class="tb">自分のロックエリアにロックされているカードの枚数が1番少ないプレイヤーのこと。<br>同数の場合は、その全員が該当する。</span></div>
           <div class="term"><span class="tt">【移動】<span class="tref">（10ページ）</span></span><span class="tb">自分の駒を、現在のマスからカードの置かれた別のマスに置き、そのカードが裏向きなら、オープンする。</span></div>
           <div class="term"><span class="tt">【裏向き】</span><span class="tb">カードのイラストや効果が記載された面が視認できないように配置されているカードの状態のこと。</span></div>
           <div class="term"><span class="tt">【エターナルカード】</span><span class="tb">相手ゲート侵攻成功時にもらえる特別なカード。<br>エターナルカードはロックした状態で自分のハンドフェイズに手札効果を得ることができ、使ってもそのカードは捨てない。<br>このカードは、他のカードの効果の対象にならない。<br>つまり、奪われたり捨てることはできない。</span></div>
@@ -1908,8 +1906,14 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
           <div class="term is-key"><span class="tt">【句点の原則】</span><span class="tb">カード効果文は、句点（。）の度に処理する。<br>例えば、「全員1枚ドロー。全員1マス移動する。」という効果であれば、まず全員1枚ドローする。その後、全員1マス移動する。</span></div>
           <div class="term"><span class="tt">【ゲート】<span class="tref">（5ページ）</span></span><span class="tb">場を7×7の49マスの正方形としたときの1辺にあたる7マスの中央のマスのこと。<br>各1辺に1マスずつあり、それぞれ各プレイヤー自身から一番近い目の前のゲートが自分のゲートとなる。</span></div>
           <div class="term"><span class="tt">【公開する】</span><span class="tb">相手プレイヤー全員に内容がわかるように見せる。<br>カード効果に「1枚ドローし、公開する。」とあれば、ドローしたカードを表向きにして相手プレイヤー全員にカードの内容がわかるようにする。<br>原則、公開したターンが終了したら公開をやめる。</span></div>
-          <div class="term"><span class="tt">【国宝キューブ】</span><span class="tb">7色の国宝キューブがあり、セブンの0th EDITIONにおける「駒」のこと。</span></div>
           <div class="term"><span class="tt">【駒】</span><span class="tb">プレイヤーが盤面上で操作するコマのこと。<br>0th EDITIONでは国宝キューブのこと。</span></div>
+          <div class="term"><span class="tt">【周囲】</span><span class="tb">駒の周りの縦横斜めの計8マスのこと。</span></div>
+          <div class="term is-key"><span class="tt">【処理順の原則】</span><span class="tb">効果の処理等が複数のプレイヤーを対象とする場合は、効果発動者（効果発動者がいなければ、手番プレイヤー）から時計回りに効果を処理する。</span></div>
+          <div class="term"><span class="tt">【捨て場】</span><span class="tb">カードの手札効果などにより捨てられたカードを置く場所のこと。<br>原則、各プレイヤー共有の1箇所の捨て場を使用する。<br>盤面の外の好きな場所に置く。<br>捨てたカードは原則、表向きに積み重ねて置く。</span></div>
+          <div class="term"><span class="tt">【接触】<span class="tref">（10ページ）</span></span><span class="tb">相手プレイヤーの手札を無作為に1枚奪い、その相手は自分のゲートに強制移動する。</span></div>
+          <div class="term"><span class="tt">【全員】</span><span class="tb">あなたを含むすべてのプレイヤーのこと。</span></div>
+          <div class="term is-key"><span class="tt">【善処の原則】</span><span class="tb">プレイヤーは、カードに記された内容に対し、可能な限りその内容を満足できるように努めなければならない。<br>例えば・手札効果使用宣言時に、効果を満足できないとわかっていれば、その手札の使用を宣言できない。<br>・到達効果は駒がカードに乗った瞬間、自動で得られるが、その効果の内容が選択式の場合は、実行できる効果しか選べない。</span></div>
+          <div class="term"><span class="tt">【ターン】<span class="tref">（9ページ）</span></span><span class="tb">原則、ロックフェイズの始まりからムーブフェイズの終わりまでのこと。</span></div>
         </div>
   </div>
   <div class="foot"><span class="orn"></span>19<span class="orn"></span></div>
@@ -1921,21 +1925,22 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
   <div class="body gloss">
 
         <div class="glist">
-          <div class="term"><span class="tt">【自分】</span><span class="tb">プレイヤー自身、もしくはそのプレイヤーの駒のこと。</span></div>
-          <div class="term"><span class="tt">【周囲】</span><span class="tb">駒の周りの縦横斜めの計8マスのこと。</span></div>
-          <div class="term is-key"><span class="tt">【処理順の原則】</span><span class="tb">効果の処理等が複数のプレイヤーを対象とする場合は、効果発動者（効果発動者がいなければ、手番プレイヤー）から時計回りに効果を処理する。</span></div>
-          <div class="term"><span class="tt">【捨て場】</span><span class="tb">カードの手札効果などにより捨てられたカードを置く場所のこと。<br>原則、各プレイヤー共有の1箇所の捨て場を使用する。<br>盤面の外の好きな場所に置く。<br>捨てたカードは原則、表向きに積み重ねて置く。</span></div>
-          <div class="term"><span class="tt">【接触】<span class="tref">（10ページ）</span></span><span class="tb">相手プレイヤーの手札を無作為に1枚奪い、その相手は自分のゲートに強制移動する。</span></div>
-          <div class="term"><span class="tt">【セブン】</span><span class="tb">7 SHADES OF S:EVEN（シェイズオブセブン）の略称。</span></div>
-          <div class="term is-key"><span class="tt">【善処の原則】</span><span class="tb">プレイヤーは、カードに記された内容に対し、可能な限りその内容を満足できるように努めなければならない。<br>例えば・手札効果使用宣言時に、効果を満足できないとわかっていれば、その手札の使用を宣言できない。<br>・到達効果は駒がカードに乗った瞬間、自動で得られるが、その効果の内容が選択式の場合は、実行できる効果しか選べない。</span></div>
-          <div class="term"><span class="tt">【ターン】<span class="tref">（9ページ）</span></span><span class="tb">原則、ロックフェイズの始まりからムーブフェイズの終わりまでのこと。</span></div>
           <div class="term"><span class="tt">【追色S】<span class="tref">（4ページ）</span></span><span class="tb">「ついしょくS」。<br>追色コストをS枚支払う（このカードと同色のS枚のカードを自分の手札から捨てる）<br>ことで次の効果を得る。<br>Sは自然数である。</span></div>
-          <div class="term"><span class="tt">【通常の移動】</span><span class="tb">ムーブフェイズで通常行う移動のこと。</span></div>
           <div class="term"><span class="tt">【手札】</span><span class="tb">プレイヤーが所持しているカードのこと。<br>原則、自分以外に見せずに持ち、手札の枚数に上限はない。</span></div>
           <div class="term is-key"><span class="tt">【手札効果】</span><span class="tb">カードの効果欄のうち、手札効果アイコンの行に記載されている効果のこと。（4ページ）<br>原則、手札効果の記されたカードが自分の手札にある時、自分のハンドフェイズで、その手札効果を得ることができる。</span></div>
-          <div class="term"><span class="tt">【手札の半分】</span><span class="tb">手札の半分とは、例えば手札が8枚ある場合は4枚となる。<br>セブンでは原則、小数点以下切り捨てとなる。<br>つまり、手札が7枚の場合は3.5枚となり、0.5を切り捨てて3枚となる。</span></div>
           <div class="term"><span class="tt">【到達】<span class="tref">（10ページ）</span></span><span class="tb">表向きのカードの上に駒が置かれたタイミングを「到達」と呼ぶ。</span></div>
           <div class="term is-key"><span class="tt">【到達効果】</span><span class="tb">カードの効果欄のうち、到達効果アイコンの行に記載されている効果のこと。（4ページ）<br>原則、到達した時、その駒の所有者はその効果を強制的に得て、そのカードを自分の手札に加える。<br>ただし、効果カード自体の処遇がカードに記載されている場合は手札に加えず、それに従う。</span></div>
+          <div class="term"><span class="tt">【隣】</span><span class="tb">対象のいるマスの前後左右4マスのこと。</span></div>
+          <div class="term"><span class="tt">【ドロー】</span><span class="tb">山札からカードを自分の手札に加えること。</span></div>
+          <div class="term"><span class="tt">【場】<span class="tref">（5ページ）</span></span><span class="tb">盤面中央の7×7の計49マスのこと。</span></div>
+          <div class="term"><span class="tt">【半分】</span><span class="tb">手札の半分とは、例えば手札が8枚ある場合は4枚となる。<br>セブンでは原則、小数点以下切り捨てとなる。<br>つまり、手札が7枚の場合は3.5枚となり、0.5を切り捨てて3枚となる。</span></div>
+          <div class="term"><span class="tt">【ファーストカード】<span class="tref">（6ページ）</span></span><span class="tb">ゲーム開始前にもらえる自分の駒と同色のカード。<br>ファーストカードをロックした状態でゲームを開始する。<br>このカードはロックした状態で自分のハンドフェイズに手札効果を得ることができ、使ってもそのカードは捨てない。<br>このカードは、他のカードの効果の対象にならない。<br>つまり、奪われたり捨てることはできない。</span></div>
+          <div class="term"><span class="tt">【マス】</span><span class="tb">場の中に存在するカードや駒を置く場所のこと。<br>マスの定義にカードは含まない。</span></div>
+          <div class="term"><span class="tt">【無作為】</span><span class="tb">意図や偏りを持たず、ランダムに行うことを指します。<br>例えば、「あなたの手札から無作為に1枚捨てる」という効果がある場合、具体的には手札をシャッフルし、裏向きのまま1枚を選びます。原則として、「無作為」やその選び方が記載されていない場合は、プレイヤーが任意のカードを選ぶことになります。</span></div>
+          <div class="term"><span class="tt">【無色のカード】</span><span class="tb">原則、セブンでは白色と黒色のカードは、色のない無色として扱う。<br>無色のカードは色として指定できない。</span></div>
+          <div class="term"><span class="tt">【山札】</span><span class="tb">通常カードをすべてシャッフルし、裏向きに積み重ねたもののこと。<br>盤面の外の好きな場所に置く。<br>山札がなくなった時、捨て場のカードをそのまま裏向きにして、山札とする。</span></div>
+          <div class="term"><span class="tt">【ロックする】<span class="tref">（7ページ）</span></span><span class="tb">カード1枚を、ロックエリア内の対応する色の場所へ表向きで置くこと。<br>原則、各色1枚ずつしかロックできない。</span></div>
+          <div class="term"><span class="tt">【ロックエリア】<span class="tref">（5ページ）</span></span><span class="tb">カードをロックするための場所のこと。<br>各プレイヤーは自分のロックエリアを1つ持っており、赤から紫までの7箇所を総称してロックエリアと呼ぶ。<br>例えば、自分の赤のカードをロックする箇所を示す場合は「自分の赤のロックエリア」と呼ぶ。</span></div>
         </div>
   </div>
   <div class="foot"><span class="orn"></span>20<span class="orn"></span></div>
@@ -1943,24 +1948,21 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
 
 <section class="page"><div class="inner">
   <div class="ptcheck"><b>8pt</b><span>あア亜Ag ← 本文の最小サイズ</span></div>
-  <div class="head"><h1 class="sm">Glossary of Basic Terms</h1><p class="sub">〜基本用語集〜</p><div class="rule"></div></div>
-  <div class="body gloss">
-
-        <div class="glist">
-          <div class="term"><span class="tt">【隣】</span><span class="tb">対象のいるマスの前後左右4マスのこと。</span></div>
-          <div class="term"><span class="tt">【ドロー】</span><span class="tb">山札からカードを自分の手札に加えること。</span></div>
-          <div class="term"><span class="tt">【何もないマス】</span><span class="tb">カードも駒も置かれていないマスのこと。</span></div>
-          <div class="term"><span class="tt">【場】<span class="tref">（5ページ）</span></span><span class="tb">盤面中央の7×7の計49マスのこと。</span></div>
-          <div class="term"><span class="tt">【場の中央】</span><span class="tb">7×7の計49マスの中央の1マスのこと。</span></div>
-          <div class="term"><span class="tt">【ファーストカード】<span class="tref">（6ページ）</span></span><span class="tb">ゲーム開始前にもらえる自分の駒と同色のカード。<br>ファーストカードをロックした状態でゲームを開始する。<br>このカードはロックした状態で自分のハンドフェイズに手札効果を得ることができ、使ってもそのカードは捨てない。<br>このカードは、他のカードの効果の対象にならない。<br>つまり、奪われたり捨てることはできない。</span></div>
-          <div class="term"><span class="tt">【プレイヤー】</span><span class="tb">ゲームに参加する人のこと。</span></div>
-          <div class="term"><span class="tt">【プレイヤー全員】</span><span class="tb">あなたを含むすべてのプレイヤーのこと。</span></div>
-          <div class="term"><span class="tt">【マス】</span><span class="tb">場の中に存在するカードや駒を置く場所のこと。<br>マスの定義にカードは含まない。</span></div>
-          <div class="term"><span class="tt">【無作為】</span><span class="tb">意図や偏りを持たず、ランダムに行うことを指します。<br>例えば、「あなたの手札から無作為に1枚捨てる」という効果がある場合、具体的には手札をシャッフルし、裏向きのまま1枚を選びます。原則として、「無作為」やその選び方が記載されていない場合は、プレイヤーが任意のカードを選ぶことになります。</span></div>
-          <div class="term"><span class="tt">【無色のカード】</span><span class="tb">原則、セブンでは白色と黒色のカードは、色のない無色として扱う。<br>無色のカードは色として指定できない。</span></div>
-          <div class="term"><span class="tt">【山札】</span><span class="tb">通常カードをすべてシャッフルし、裏向きに積み重ねたもののこと。<br>盤面の外の好きな場所に置く。<br>山札がなくなった時、捨て場のカードをそのまま裏向きにして、山札とする。</span></div>
-          <div class="term"><span class="tt">【ロックする】<span class="tref">（7ページ）</span></span><span class="tb">カード1枚を、ロックエリア内の対応する色の場所へ表向きで置くこと。<br>原則、各色1枚ずつしかロックできない。</span></div>
-          <div class="term"><span class="tt">【ロックエリア】<span class="tref">（5ページ）</span></span><span class="tb">カードをロックするための場所のこと。<br>各プレイヤーは自分のロックエリアを1つ持っており、赤から紫までの7箇所を総称してロックエリアと呼ぶ。<br>例えば、自分の赤のカードをロックする箇所を示す場合は「自分の赤のロックエリア」と呼ぶ。</span></div>
+  <div class="head"><h1 class="sm">FAQ</h1><p class="sub">〜よくある質問〜</p><div class="rule"></div></div>
+  <div class="body faq">
+        <p class="glead">ゲーム中に迷った時は、まず基本用語集（19ページ）をご確認ください。それでも解決しない場合は、以下をご覧ください。</p>
+        <div class="faqlist">
+          <div class="faqcat">【ロック】</div>
+          <div class="qa"><div class="q">ロックしたカードの手札効果は使用できますか？</div><div class="a">原則、できません。<br>ロックされているカードは原則、使用できません。また、ロックするタイミングにおいても原則、何も効果は得られません。<br>しかし、ファーストカードやエターナルカードといったカードの効果欄に、別途ロックしていても使える旨の記載のあるカードについては、ロックした状態でも手札効果を使用できます。その際、そのカードは捨てず、ロックされたまま残ります。<br>また、そういったロックエリアにロックされていても使用可能なカードについては、手札効果アイコンの下に「ロックエリア使用可能アイコン」があります。（4ページ）</div></div>
+          <div class="qa"><div class="q">「なないろの欠片」は2枚ともロックしていることになりますか？</div><div class="a">なります。<br>「なないろの欠片」の手札効果で「なないろの欠片」を2枚をロックした場合、2枚ともロックしていることになります。<br>基本ルールでは1つの色のロックエリアへは原則、1枚しかロックできませんが、この「なないろの欠片」は効果によりロックできます。<br>例えば、「ゴメンナサイッ！」の手札効果で2枚ロックしている「なないろの欠片」の内1枚を相手プレイヤーに奪われた場合、残った1枚の「なないろの欠片」ロックは継続されます。</div></div>
+          <div class="qa"><div class="q">「なないろの欠片」はハンドフェイズでロックできますか？</div><div class="a">手札に2枚揃っていればできます。<br>「なないろの欠片」の手札効果により「なないろの欠片」2枚をハンドフェイズでロックできます。<br>また、「カウンターロック」等の手札効果でも「なないろの欠片」を1枚ロックすることが可能です。<br>しかし、効果欄に記載の通り「なないろの欠片」はロックフェイズではロックできません。</div></div>
+          <div class="qa"><div class="q">「誘惑の黒の烙印」はロックしていることになりますか？</div><div class="a">なりません。<br>「誘惑の黒の烙印」の効果欄に記載の通り、ロックエリアに「置く」だけであるため、ロックはされていません。</div></div>
+          <div class="qa"><div class="q">「誘惑の黒の烙印」の置かれたロックエリアにエターナルカードをロックすることになりました。その場合、「誘惑の黒の烙印」はどうなりますか？</div><div class="a">「誘惑の黒の烙印」をあなたの手札に加えます。<br>「エターナルカードをロックする箇所に、すでにカードがある場合（ロックされていない無色のカード等も対象）、それらのカードをすべてあなたの手札に加えます（ファーストカードは手札に加えない）」とゲート侵攻ボーナスのルール（13ページ）に記載があるため、「ロックされている」「置かれている」問わずすべてあなたの手札に加えます。</div></div>
+          <div class="qa"><div class="q">ゲート侵攻成功時にファーストカードと同色のエターナルカードを手に入れました。どうなりますか？</div><div class="a">両方ともロックされた状態になります。<br>ファーストカードもエターナルカードも、それぞれロックされた扱いになります。<br>通常、エターナルカードをロックする箇所にカードがすでにロックされている場合、ゲート侵攻ボーナスのルール（13ページ）の記載に従いそれらのカードを自分の手札に加えた後、エターナルカードをロックします。<br>しかし、ファーストカードは「エターナルカードをロックする箇所に、すでにカードがある場合（ロックされていない無色のカード等も対象）、それらのカードをすべてあなたの手札に加えます（ファーストカードは手札に加えない）」とゲート侵攻ボーナスのルール（13ページ）に記載があるため、ファーストカードを自分の手札に加えることなく、エターナルカードをロックします。</div></div>
+          <div class="qa"><div class="q">ロックしたカードを自分の意思で手札に戻せますか？</div><div class="a">原則、戻せません。<br>ロックしたカードは、カード効果やゲート侵攻ボーナスなど、そうする指示がある場合のみ動かせます。</div></div>
+          <div class="faqcat">【手札】</div>
+          <div class="qa"><div class="q">手札は相手に見せてプレイしてもいいですか？</div><div class="a">原則、見せてはいけません。<br>カードの効果で手札を「公開」とある場合は見せなければなりません。<br>また、カードの効果等で「無作為」とある場合は、カードの表面が見えないようにして、手札を相手に選んでもらいます。</div></div>
+          <div class="qa"><div class="q">山札も捨て場も無くなったらドローはどうなりますか？</div><div class="a">引けません。<br>善処の原則にしたがい、引ける分だけ引いて処理を終えます（1枚も引けない場合、そのドローは行われません）。</div></div>
         </div>
   </div>
   <div class="foot"><span class="orn"></span>21<span class="orn"></span></div>
@@ -1970,58 +1972,17 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
   <div class="ptcheck"><b>8pt</b><span>あア亜Ag ← 本文の最小サイズ</span></div>
   <div class="head"><h1 class="sm">FAQ</h1><p class="sub">〜よくある質問〜</p><div class="rule"></div></div>
   <div class="body faq">
-        <p class="glead">ゲーム中に迷った時は、まず基本用語集（22ページ）をご確認ください。それでも解決しない場合は、以下をご覧ください。</p>
-        <div class="faqlist">
-          <div class="faqcat">【ロック】</div>
-          <div class="qa"><div class="q">ロックしたカードの手札効果は使用できますか？</div><div class="a">原則、できません。<br>ロックされているカードは原則、使用できません。また、ロックするタイミングにおいても原則、何も効果は得られません。<br>しかし、ファーストカードやエターナルカードといったカードの効果欄に、別途ロックしていても使える旨の記載のあるカードについては、ロックした状態でも手札効果を使用できます。その際、そのカードは捨てず、ロックされたまま残ります。<br>また、そういったロックエリアにロックされていても使用可能なカードについては、手札効果アイコンの下に「ロックエリア使用可能アイコン」があります。（4ページ）</div></div>
-          <div class="qa"><div class="q">「1番少なくロックしている」とはどういった状況ですか？</div><div class="a">ロックしている「枚数」が1番少ない状況です。<br>同数のプレイヤーがいれば、その全員が該当します。<br>なお、セブンではロックエリアに「ロックする」と「置く」の表現がありますが、これらは明確に異なります。よって、「置く」と効果に書かれたものはロックされている状態ではありません。</div></div>
-          <div class="qa"><div class="q">「なないろの欠片」は2枚ともロックしていることになりますか？</div><div class="a">なります。<br>「なないろの欠片」の手札効果で「なないろの欠片」を2枚をロックした場合、2枚ともロックしていることになります。<br>基本ルールでは1つの色のロックエリアへは原則、1枚しかロックできませんが、この「なないろの欠片」は効果によりロックできます。<br>例えば、「ゴメンナサイッ！」の手札効果で2枚ロックしている「なないろの欠片」の内1枚を相手プレイヤーに奪われた場合、残った1枚の「なないろの欠片」ロックは継続されます。</div></div>
-          <div class="qa"><div class="q">「なないろの欠片」はハンドフェイズでロックできますか？</div><div class="a">手札に2枚揃っていればできます。<br>「なないろの欠片」の手札効果により「なないろの欠片」2枚をハンドフェイズでロックできます。<br>また、「カウンターロック」等の手札効果でも「なないろの欠片」を1枚ロックすることが可能です。<br>しかし、効果欄に記載の通り「なないろの欠片」はロックフェイズではロックできません。</div></div>
-          <div class="qa"><div class="q">「誘惑の黒の烙印」はロックしていることになりますか？</div><div class="a">なりません。<br>「誘惑の黒の烙印」の効果欄に記載の通り、ロックエリアに「置く」だけであるため、ロックはされていません。</div></div>
-          <div class="qa"><div class="q">「誘惑の黒の烙印」の置かれたロックエリアにエターナルカードをロックすることになりました。その場合、「誘惑の黒の烙印」はどうなりますか？</div><div class="a">「誘惑の黒の烙印」をあなたの手札に加えます。<br>「エターナルカードをロックする箇所に、すでにカードがある場合（ロックされていない無色のカード等も対象）、それらのカードをすべてあなたの手札に加えます（ファーストカードは手札に加えない）」とゲート侵攻ボーナスのルール（13ページ）に記載があるため、「ロックされている」「置かれている」問わずすべてあなたの手札に加えます。</div></div>
-          <div class="qa"><div class="q">ゲート侵攻成功時にファーストカードと同色のエターナルカードを手に入れました。どうなりますか？</div><div class="a">両方ともロックされた状態になります。<br>ファーストカードもエターナルカードも、それぞれロックされた扱いになります。<br>通常、エターナルカードをロックする箇所にカードがすでにロックされている場合、ゲート侵攻ボーナスのルール（13ページ）の記載に従いそれらのカードを自分の手札に加えた後、エターナルカードをロックします。<br>しかし、ファーストカードは「エターナルカードをロックする箇所に、すでにカードがある場合（ロックされていない無色のカード等も対象）、それらのカードをすべてあなたの手札に加えます（ファーストカードは手札に加えない）」とゲート侵攻ボーナスのルール（13ページ）に記載があるため、ファーストカードを自分の手札に加えることなく、エターナルカードをロックします。</div></div>
-          <div class="qa"><div class="q">ロックしたカードを自分の意思で手札に戻せますか？</div><div class="a">原則、戻せません。<br>ロックしたカードは、カード効果やゲート侵攻ボーナスなど、そうする指示がある場合のみ動かせます。</div></div>
-          <div class="faqcat">【手札】</div>
-          <div class="qa"><div class="q">手札枚数に上限はありますか？</div><div class="a">原則、ありません。<br>何枚でも所有することができます。</div></div>
-        </div>
-  </div>
-  <div class="foot"><span class="orn"></span>22<span class="orn"></span></div>
-</div></section>
-
-<section class="page"><div class="inner">
-  <div class="ptcheck"><b>8pt</b><span>あア亜Ag ← 本文の最小サイズ</span></div>
-  <div class="head"><h1 class="sm">FAQ</h1><p class="sub">〜よくある質問〜</p><div class="rule"></div></div>
-  <div class="body faq">
 
         <div class="faqlist">
-          <div class="qa"><div class="q">手札は相手に見せてプレイしてもいいですか？</div><div class="a">原則、見せてはいけません。<br>カードの効果で手札を「公開」とある場合は見せなければなりません。<br>また、カードの効果等で「無作為」とある場合は、カードの表面が見えないようにして、手札を相手に選んでもらいます。</div></div>
-          <div class="qa"><div class="q">ハンドフェイズで使える手札枚数に制限はありますか？</div><div class="a">原則、ありません。<br>また、手札の効果等で新たに自分の手札に加えたカードも原則、同じターンのハンドフェイズで使用することができます。</div></div>
-          <div class="qa"><div class="q">手札効果を使うとき使ったカードはどうなりますか？</div><div class="a">原則、捨て場に置かれます。<br>そのカードを捨てた後で、手札効果を得ます。例えば、あなたは手札を2枚持っています。その中から「スラム上がりの役人」を使用する場合、まず「スラム上がりの役人」を捨てるので、手札効果を得るときのあなたの手札は1枚となり、「スラム上がりの役人」の手札効果を得ることができます。</div></div>
-          <div class="qa"><div class="q">山札も捨て場も無くなったらドローはどうなりますか？</div><div class="a">引けません。<br>善処の原則にしたがい、引ける分だけ引いて処理を終えます（1枚も引けない場合、そのドローは行われません）。</div></div>
           <div class="faqcat">【移動】</div>
-          <div class="qa"><div class="q">ムーブフェイズで「隣のマスに移動」は必ずしなくてはいけませんか？</div><div class="a">原則、必ず行います。<br>「隣のマスに移動」もしくは「隣の相手に接触」のどちらかをしなければなりません。<br>そのどちらもできない場合は、自分の駒の隣へ山札からカードを1枚裏向きにおいてターンを終了します。</div></div>
           <div class="qa"><div class="q">「1マス移動する」というカード効果の場合、移動できないときはどうすればよいですか？</div><div class="a">その効果は不発となります。<br>それが到達効果なら、そのままそのカードをあなたの手札に加えます。<br>なお、ムーブフェイズそのもので「移動」も「接触」もできない場合は、上の質問のとおり、自分の駒の隣へ山札からカードを1枚裏向きに置いてターンを終了します。（10ページ）</div></div>
           <div class="qa"><div class="q">カードAの到達効果を処理して、カードＡを手札に加えた後、その下に表向きのカードＢがあったのですが、、、。</div><div class="a">カードＢの到達効果も得ます。<br>①カードＡの到達効果処理→②カードＡを手札に加える→③駒がカードＢに到達→④カードＢの到達効果を処理→⑤カードＢを手札に加える上記の流れで処理をします。（余談ですがファンの間では「到達コンボ」と呼ばれ親しまれています。）</div></div>
           <div class="faqcat">【接触】</div>
-          <div class="qa"><div class="q">接触する際に自分は移動しますか？</div><div class="a">移動しません。<br>基本ルールにあるように、原則、「接触する側」のプレイヤーは移動せず、「接触された側」のプレイヤーはゲートに強制移動します。</div></div>
           <div class="qa"><div class="q">接触する際に相手プレイヤーの手札が0枚の場合どうなりますか？</div><div class="a">手札は奪えません。<br>通常、相手の手札を無作為に1枚、自分の手札に加えるのですが、接触される側のプレイヤーが手札を所持していない場合はそれができません。<br>接触される側のプレイヤーが自身のゲートへ強制移動して接触終了となります。</div></div>
           <div class="qa"><div class="q">「ゴメンナサイッ！」の到達効果で「1マス移動する」時、接触できますか？</div><div class="a">接触できません。<br>「接触」と「移動」は明確に異なるアクションです。<br>「接触」はムーブフェイズで選ぶ行動であり、カード効果による「移動」では接触できません。</div></div>
           <div class="qa"><div class="q">接触されてゲートに強制移動するときカードはオープンしますか？</div><div class="a">オープンします。<br>基本ルールにあるように接触されたプレイヤーは自身のゲートに「強制移動」することになっています。<br>「強制移動」は「カードが無いマスにも移動できる「移動」のこと」なので原則、「移動」はカードのオープンを伴います。</div></div>
-        </div>
-  </div>
-  <div class="foot"><span class="orn"></span>23<span class="orn"></span></div>
-</div></section>
-
-<section class="page"><div class="inner">
-  <div class="ptcheck"><b>8pt</b><span>あア亜Ag ← 本文の最小サイズ</span></div>
-  <div class="head"><h1 class="sm">FAQ</h1><p class="sub">〜よくある質問〜</p><div class="rule"></div></div>
-  <div class="body faq">
-
-        <div class="faqlist">
           <div class="qa"><div class="q">接触する相手プレイヤーのマスにカードが無くても接触できますか？</div><div class="a">接触できます。<br>接触するプレイヤーは移動を伴わないため、相手のマスのカードの有無は関係ありません。加えて、セブンでは1マスに駒は1つまでしか置けません。</div></div>
           <div class="faqcat">【その他】</div>
-          <div class="qa"><div class="q">フェイズの考え方はどのようになっていますか？</div><div class="a">3つのフェイズを順番に行います。<br>まずロックフェイズ、ハンドフェイズ、ムーブフェイズの大きな3つのフェイズの軸があります。<br>次に「ロックします。」といったようなプレイヤーの「宣言」、そしてカード効果等の「処理」のステップがあります。<br>よって以下の通りです。<br>≪例≫<br>ロックフェイズ→「ロック宣言」→「ロック処理」<br>↓<br>ハンドフェイズ→「手札使用宣言」→「手札効果処理」<br>↓<br>ムーブフェイズ→「移動宣言」→「移動処理」→「到達効果処理」<br>↓<br>ターン終了</div></div>
-          <div class="qa"><div class="q">複数のプレイヤーを対象とする効果の処理の順番はどうすればよいですか？</div><div class="a">効果を使った人から時計回りです。<br>原則、効果発動者（効果発動者がいなければ、手番プレイヤー）から時計回りに効果を処理します。（処理順の原則）</div></div>
           <div class="qa"><div class="q">「任意のマスにカードを置く」効果の場合、駒の置いてあるマスにもカードを置いていいですか？</div><div class="a">置いてもよいです。<br>「プレイヤーのいるマス以外」や「何もないマス」等の記載がない場合は置くことができます。</div></div>
           <div class="qa"><div class="q">1つのマスに駒は複数置けますか？</div><div class="a">原則、置けません。<br>1つのマスに置ける駒は原則1つです。</div></div>
           <div class="qa"><div class="q">2人・3人プレイのとき、空いている席の場所に侵攻するとボーナスは発生しますか？</div><div class="a">発生しません。<br>そこはゲートがないためです。ゲートは参加しているプレイヤーの分だけ存在します。参加していない席の場所は、ゲートではないただのマスとして扱います。</div></div>
@@ -2029,7 +1990,7 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
           <div class="qa"><div class="q">同じターン終了時に2人以上がゲート侵攻に成功したらどうなりますか？</div><div class="a">すべて成立します。<br>ボーナスの1〜3は処理順の原則にしたがって1人ずつ処理し、4「ゲートに戻る」は成功者全員が同時に行います。ゲートの持ち主は1人ずつなので、1つのマスに2つの駒が乗ることはありません。</div></div>
         </div>
   </div>
-  <div class="foot"><span class="orn"></span>24<span class="orn"></span></div>
+  <div class="foot"><span class="orn"></span>22<span class="orn"></span></div>
 </div></section>
 
 <section class="page"><div class="inner">
@@ -2066,7 +2027,7 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
       デジタル版では効果を自動処理、ランク戦など盛りだくさんの機能がございます。</p>
     </div>
   </div>
-  <div class="foot"><span class="orn"></span>25<span class="orn"></span></div>
+  <div class="foot"><span class="orn"></span>23<span class="orn"></span></div>
 </div></section>
 
 <section class="page"><div class="inner">
@@ -2088,7 +2049,7 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
     </div>
 
   </div>
-  <div class="foot"><span class="orn"></span>26<span class="orn"></span></div>
+  <div class="foot"><span class="orn"></span>24<span class="orn"></span></div>
 </div></section>
 
 <section class="page"><div class="inner">
@@ -2120,7 +2081,7 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
     </p>
     <p class="sevenote">※「S:EVEN」の文字は、この説明書に7回だけ現れます。</p>
   </div>
-  <div class="foot"><span class="orn"></span>27<span class="orn"></span></div>
+  <div class="foot"><span class="orn"></span>25<span class="orn"></span></div>
 </div></section>
 
 <section class="page page-qref"><div class="inner">
@@ -2186,7 +2147,7 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
         </div>
 
         <div class="qr-box">
-          <p class="qr-t">覚えておきたい原則<span>22ページ</span></p>
+          <p class="qr-t">覚えておきたい原則<span>19ページ</span></p>
           <p class="qr-b"><b class="qr-k">1番上の原則</b>マスのカードを対象にする時は、特に記載がなければ1番上のカード。</p>
           <p class="qr-b"><b class="qr-k">句点の原則</b>効果文は句点（。）ごとに順番に処理する。</p>
           <p class="qr-b"><b class="qr-k">処理順の原則</b>複数人が対象なら、効果を使った人から時計回りに処理する。</p>
@@ -2194,7 +2155,7 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
         </div>
 
         <div class="qr-box">
-          <p class="qr-t">まちがえやすい用語<span>22ページ</span></p>
+          <p class="qr-t">まちがえやすい用語<span>19ページ</span></p>
           <p class="qr-b"><b class="qr-k">強制移動</b>カードが無いマスにも移動できる「移動」のこと。ただの<b>移動</b>はカードのあるマスにしか行けない。</p>
           <p class="qr-b"><b class="qr-k">「接触」と「移動」は別物</b>カード効果で「移動する」とあっても<b>接触はできない</b>。</p>
         </div>

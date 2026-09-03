@@ -97,7 +97,7 @@ export function getTurnEventStockKey() {
   return `${state.turnNumber ?? 0}:${state.turnPlayer ?? "-"}`;
 }
 
-// entry: { icon, label, html, cardId?, cardBack? }
+// entry: { icon, label, html, cardId?, cardBack?, overlay? }
 //   cardId … 中身を見せてよいカード（そのカード面を出す）
 //   cardBack … 中身が非公開のカード（ユーザー要望2026-09-02「非公開ドローのログの花札絵文字は
 //              カードの裏面を出せばいいのでは」→ 絵文字の代わりに実際の裏面画像を出す）
@@ -125,11 +125,19 @@ export function pushTurnEventStock(entry, turnKey = null) {
     face.textContent = entry.icon || "🔔";
     face.classList.add("is-icon");
   }
+  // ユーザー要望2026-09-03: ロックは隅のバッジではなく、ロック演出と同じ「鎖」をカード画像の
+  // 上に重ねて示す（何が起きたかが絵で分かる）。overlay を持つ出来事はバッジを出さない。
+  if (entry.overlay === "lock") face.classList.add("is-locked");
   chip.appendChild(face);
-  const badge = document.createElement("div");
-  badge.className = "turn-event-stock-chip-badge";
-  badge.textContent = entry.icon || "🔔";
-  chip.appendChild(badge);
+  // 記号だけのチップ（カード画像が無い＝面に記号を大きく出している）は、隅のバッジに同じ記号を
+  // 重ねると二重になるので出さない。
+  const faceShowsIcon = !entry.cardId && !entry.cardBack;
+  if (entry.icon && !faceShowsIcon) {
+    const badge = document.createElement("div");
+    badge.className = "turn-event-stock-chip-badge";
+    badge.textContent = entry.icon;
+    chip.appendChild(badge);
+  }
   chip.addEventListener("click", () => openDetail(entry));
   listEl.appendChild(chip);
   updateVisibility();

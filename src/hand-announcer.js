@@ -161,7 +161,9 @@ export function announceHandPickups(player, pickups, reason) {
       </div>
     `,
       {
-        icon: "🎴",
+        // ユーザー要望2026-09-03: 「手に入れた」は獲得もドローも同じ意味なので「＋」に統一する。
+        // 非公開かどうかはカードの裏面で伝わるため、バッジで重ねて示す必要は無い。
+        icon: "＋",
         // 中身は非公開なので、絵文字ではなくカードの裏面をそのまま見せる（ユーザー要望2026-09-02）。
         cardBack: true,
         label: t("game.chip.gainedN", { name: getPlayerNameOrYou(player), n: hiddenCount }) + reasonSuffix(reason),
@@ -190,7 +192,7 @@ export function announceHandPickups(player, pickups, reason) {
     ${hiddenNote}
   `,
     {
-      icon: "🎴",
+      icon: "＋",
       cardId: visible.length === 1 ? visible[0].cardId : null,
       label: t("game.chip.gained", { name: getPlayerNameOrYou(player) }) + reasonSuffix(reason),
     }
@@ -208,7 +210,7 @@ export function announceGateInvasion(attacker, defender) {
     <div class="hand-pickup-toast-title">${t("game.toast.gateTitle")}</div>
     <div class="hand-pickup-toast-text">${t("game.toast.gateText", { attacker: getPlayerNameOrYou(attacker), defender: getPlayerNameOrYou(defender) })}</div>
   `,
-    { icon: "🚩", label: t("game.chip.gate", { name: getPlayerNameOrYou(attacker) }) }
+    { icon: "∞", label: t("game.chip.gate", { name: getPlayerNameOrYou(attacker) }) }
   );
 }
 
@@ -224,7 +226,7 @@ export function announceDrawCount(player, count, reason) {
     <div class="hand-pickup-toast-title">${t("game.toast.draws", { name: getPlayerNameOrYou(player), n: count })}</div>
     ${reasonLine(reason)}
   `,
-    { icon: "🃏", label: t("game.chip.draw", { name: getPlayerNameOrYou(player), n: count }) + reasonSuffix(reason) }
+    { icon: "＋", label: t("game.chip.draw", { name: getPlayerNameOrYou(player), n: count }) + reasonSuffix(reason) }
   );
 }
 
@@ -239,12 +241,12 @@ export function announceCardLocked(player, cardId) {
     <div class="hand-pickup-toast-title">${t("game.toast.locked", { name: getPlayerNameOrYou(player) })}</div>
     <div class="hand-pickup-toast-cards">
       <div class="hand-pickup-toast-card">
-        <div class="hand-pickup-toast-img" data-cardface-id="${cardId}"></div>
+        <div class="hand-pickup-toast-img is-locked" data-cardface-id="${cardId}"></div>
         <div class="hand-pickup-toast-name">${cardNameOf(cardId)}</div>
       </div>
     </div>
   `,
-    { icon: "🔒", cardId, label: t("game.chip.lock", { name: getPlayerNameOrYou(player), card: cardNameOf(cardId) }) }
+    { icon: null, overlay: "lock", cardId, label: t("game.chip.lock", { name: getPlayerNameOrYou(player), card: cardNameOf(cardId) }) }
   );
 }
 
