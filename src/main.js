@@ -50,6 +50,7 @@ import {
   setHandEffectBusy,
   isHandEffectBusy,
   getHandEffectBusyStuckMs,
+  noteHandEffectProgress,
   isMovePhaseActive,
   markPhaseMoveActionTaken,
   notePublicDrawForHandPhase,
@@ -8065,9 +8066,14 @@ function findCounterLockToken(seat) {
 // 自体は所持済み（呼び出し側の hasCounterLock で担保）。
 function decideCpuUseCounterLock(defender) {
   if (!isCpuBrainDriving(defender)) return false;
-  // #186: 最後の1色（7色目）になるロックも候補に含める（allowFinal）。勝ちに直結するので
-  // CPUは当然そこでカウンターロックを使う。
-  return getLockableHandTokensExceptFinal(defender, { allowFinal: true }).tokens.length > 0;
+  // ユーザー指摘2026-09-03: カード文は「その接触を無効にする。あなたの手札を１枚ロックしても
+  // よい。」＝**ロックは任意**。以前は「ロックできる手札が無ければ温存して承認する」としていたが、
+  // それだと接触されるがままになる（実機報告: CPUが持っているのに使わなかった）。
+  // 無効化そのものが常に得——接触を承認すると手札を1枚奪われ、駒も自ゲートへ戻される。
+  // カウンターロックを持っている＝手札が1枚以上あるので、承認すれば（最悪その1枚＝
+  // カウンターロック自身が）必ず奪われる。使えば少なくとも駒は戻されないので、
+  // 「使わない方が得」になる場面が無い。よって使えるなら必ず使う。
+  return true;
 }
 
 // ユーザー確認済み方針（ゴメンナサイのcheckGomennasaiAutoApproval）と同じ考え方
@@ -13938,12 +13944,10 @@ initAdminMode();
 // 根本原因の特定用に diag ログも残す。
 setInterval(() => {
   try {
-    // #214（ユーザー報告2026-09-03「サフランでカードをオープンしてる最中にムーブフェイズで
-    // 移動しちゃった」）: 20秒は短すぎた。スマホでカードを選んでいる最中（1枚めくって次を選ぶ
-    // までの間など）に、この見張りが「固まっている」と誤判定して処理中フラグを解除し、その隙に
-    // ムーブフェイズのタップが通ってしまっていた。人がじっくり選ぶ時間を見込んで60秒に伸ばす
-    // （本当に固まった時の救済という役目は変わらない）。
-    if (getHandEffectBusyStuckMs() < 60000) return;
+    // #214: 判定の意味を「busyになってからの経過」から「最後に何かが起きてからの経過」へ
+    // 変えた（phase-automation.js の noteHandEffectProgress 参照）。人が何分かけて選んでいても
+    // 1枚めくるたびに時計が戻るので誤解除されない。本当に何も起きない時だけ救済する。
+    if (getHandEffectBusyStuckMs() < 30000) return;
     // 何かが本当に処理待ち/表示中なら手を出さない（誤解除防止）。
     if (activeEffectPicker) return;
     if (isArrivalEffectProcessing()) return;
@@ -13978,6 +13982,12 @@ try {
 // 現在が「対局中か・CPU戦かオンラインか」をブラックボックスへ随時反映（落ちた時にどの画面
 // だったか分かるように）。変化時だけ書き込む（setBlackboxContext内でdedup）。
 subscribe(() => {
+  // #214: 何かが起きた＝効果は生きている、と見なして「固まり」判定の時計を戻す。
+  try {
+    noteHandEffectProgress();
+  } catch {
+    /* ignore */
+  }
   try {
     const started = Boolean(getState().turnPlayer);
     const mode = !started ? "title" : isOnlineMode() ? "online" : isCpuBattleActive() ? "cpu" : "local";
@@ -14170,9 +14180,15 @@ registerMyDeckDrawAnnouncer(announceMyDeckDraw);
 // 画面だけに中央で大きく見せる（1枚ずつ、閉じる/タイムアップで次へ）。
 registerReturnHomeRevealHelper(async (attacker, cards) => {
   if (attacker !== getSelfSeat()) return; // 回収した本人（自分）だけに見せる
-  for (const c of cards) {
-    await showCardReceivedModal(c.cardId, t("game.gate.collectedOwn"), { labelText: t("game.label.collected") });
+  // #219（ユーザー要望2026-09-03）: 複数枚あれば1枚ずつ順番に出すのではなく、まとめて1つの
+  // モーダルで見せる（自ゲートには何枚も溜まることがあり、閉じる操作が枚数分続いて煩わしい）。
+  if (cards.length === 1) {
+    await showCardReceivedModal(cards[0].cardId, t("game.gate.collectedOwn"), { labelText: t("game.label.collected") });
+    return;
   }
+  await showMultipleCardsReceivedModal(cards.map((c) => c.cardId), t("game.gate.collectedOwn"), {
+    labelText: t("game.label.collected"),
+  });
 });
 // オンラインのゲート侵攻（サーバー処理→受信モーダル経路）でも、ローカルと同じエターナル獲得の
 // 派手な演出（3Dフリップ＋色バースト）を出す（ユーザー要望）。純演出関数のため両経路で共用できる。

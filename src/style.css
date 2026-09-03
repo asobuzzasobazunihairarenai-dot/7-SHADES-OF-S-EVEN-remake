@@ -19343,3 +19343,20 @@ body.theme-light #update-progress {
   background: linear-gradient(90deg, #38bdf8, #22d3ee);
   transition: width 0.2s ease;
 }
+
+/* #215（ユーザー報告2026-09-03「スマホでカウンターロックの時、『ロックするカードを選んで
+   ください』の上部の案内が表示されていなかった」）。原因は「出ていない」のではなく
+   **小さすぎて読めない**こと——この案内は position:fixed だが、body 自体にステージ変形
+   （縮小）が掛かっているため、0.9rem の文字がスマホ実機では7px程度まで縮んでいた。
+   他の中央モーダルと同じ --center-modal-scale-phone に乗せて拡大する。上端を起点に拡大
+   すれば画面外へはみ出さない。横に長い文言は折り返す（nowrapのままだと画面幅を超える）。 */
+body.is-phone-device #card-effect-picker-hint {
+  transform-origin: top center;
+  transform: translate(-50%, -0.6rem) scale(var(--center-modal-scale-phone, 1));
+  white-space: normal;
+  max-width: 46rem;
+  text-align: center;
+}
+body.is-phone-device #card-effect-picker-hint.show {
+  transform: translateX(-50%) scale(var(--center-modal-scale-phone, 1));
+}

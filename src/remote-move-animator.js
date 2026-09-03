@@ -221,7 +221,12 @@ function blinkLocation(location, table, arrow = null, actorOverride = null) {
   // 手番プレイヤーとは限らない（例: 相手のパーティ効果で“自分”が場のカードを取る）。その場合は
   // actorOverride に取った本人（カードの移動先＝手札の持ち主）を渡してもらい、そちらを優先する
   // （ユーザー報告2026-08-14: 相手のパーティで自分が取ったのに相手のアバターがマスに出る）。
-  const actor = actorOverride || getState().turnPlayer;
+  // #220（ユーザー報告2026-09-03「相手の合同建設で私が置いたのに、相手のアバターでマークされる」）:
+  // 既定を turnPlayer から priorityPlayer（＝今その操作をしている席）へ変えた。合同建設のように
+  // 「全員がそれぞれ置く」効果では、置いている本人は手番プレイヤーとは限らない。優先権は
+  // delegateToPlayerForEffect がその席へ移しているので、これが「今動かしている人」を正しく表す
+  // （通常の手番中は priorityPlayer === turnPlayer なので見え方は変わらない）。
+  const actor = actorOverride || getState().priorityPlayer || getState().turnPlayer;
   const color = actor ? getPieceColor(actor) : null;
 
   const key = locationKey(location);

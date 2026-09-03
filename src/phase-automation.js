@@ -253,12 +253,20 @@ export function setHandEffectBusy(v) {
   else if (!next) handEffectBusySince = 0;
   handEffectBusy = next;
 }
+// #214（ユーザー報告2026-09-03）の真因対策。ウォッチドッグは「busy になってからの経過時間」を
+// 見ていたため、**人がじっくり選んでいるだけ**の効果（サフランのように1枚ずつめくる等）を
+// 「固まっている」と誤判定して処理中フラグを解除し、その隙に盤面のタップが通ってしまっていた。
+// 「最後に何か（＝状態変更）が起きてからの経過時間」に変えることで、選ぶのに何分かけても
+// 誤解除されず、本当に何も起きなくなった時だけ救済が働く。main.js の状態変更購読から呼ぶ。
+export function noteHandEffectProgress() {
+  if (handEffectBusy) handEffectBusySince = Date.now();
+}
 // ユーザー報告「『いつでも使える』が効果の処理中にも使えてしまう」への対応で
 // main.js側が判定に使う（docs/rulebook.md「いつでも使える」の定義参照）。
 export function isHandEffectBusy() {
   return handEffectBusy;
 }
-// busy が連続で true のまま経過したミリ秒（busy でなければ 0）。#93ウォッチドッグ用。
+// busy のまま「何も起きずに」経過したミリ秒（busy でなければ 0）。#93ウォッチドッグ用。
 export function getHandEffectBusyStuckMs() {
   return handEffectBusy && handEffectBusySince ? Date.now() - handEffectBusySince : 0;
 }

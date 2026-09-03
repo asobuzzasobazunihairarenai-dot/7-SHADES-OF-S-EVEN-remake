@@ -48,6 +48,39 @@ const bgmResumeOnVisible = new Set();
 function allBgmAudios() {
   return [openingBgmAudio, gameBgmAudio, waitingBgmAudio, victoryBgmAudio];
 }
+// #221（ユーザー報告2026-09-03「スマホでゲーム画面を閉じる（収納する）とプンって音がなる」）:
+// 鳴っている音を途中でいきなり止めると、波形が途切れて「プツッ／プン」というクリック音が出る
+// （特にiOS）。止める直前にごく短く音量を絞ってから止めることで、この耳障りな音を防ぐ。
+// 戻ってきた時のために元の音量は覚えておき、再開時に戻す。
+const bgmVolumeBeforeFade = new WeakMap();
+function fadeOutAndPause(a) {
+  const startVolume = a.volume;
+  bgmVolumeBeforeFade.set(a, startVolume);
+  const steps = 6;
+  const stepMs = 20;
+  let i = 0;
+  const tick = () => {
+    i += 1;
+    try {
+      a.volume = Math.max(0, startVolume * (1 - i / steps));
+      if (i >= steps) {
+        a.pause();
+        a.volume = startVolume; // 次に再生する時のために戻しておく
+        return;
+      }
+    } catch (err) {
+      try {
+        a.pause();
+      } catch (err2) {
+        /* ignore */
+      }
+      return;
+    }
+    setTimeout(tick, stepMs);
+  };
+  setTimeout(tick, stepMs);
+}
+
 function handleVisibilityChange() {
   if (document.hidden) {
     // 隠れた瞬間、再生中のBGMを一時停止して覚えておく（効果音はplaySound側でゲートする）。
@@ -55,11 +88,18 @@ function handleVisibilityChange() {
       if (a && !a.paused) {
         bgmResumeOnVisible.add(a);
         try {
-          a.pause();
+          fadeOutAndPause(a);
         } catch (err) {
           /* ignore */
         }
       }
+    }
+    // 効果音側（Web Audio）も、鳴っている途中で iOS にサスペンドされるとクリック音の元になる。
+    // 明示的に suspend しておく（次に音を出す時 getAudioContext() が resume するので実害なし）。
+    try {
+      if (audioCtx && audioCtx.state === "running") audioCtx.suspend().catch(() => {});
+    } catch (err) {
+      /* ignore */
     }
   } else {
     // 戻ったら、隠れる直前に鳴っていたBGMだけ再開する。

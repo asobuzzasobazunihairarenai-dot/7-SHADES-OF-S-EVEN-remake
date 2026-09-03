@@ -120,6 +120,14 @@ function scoreMove(c, seat, ctx) {
       const landingOnOppGate = gateSeat && gateSeat !== seat && ctx.activePlayers.includes(gateSeat);
       if (adjToOpp && !onMyGateHere && !landingOnOppGate) score -= 4;
     }
+    // #218（ユーザー指摘2026-09-03「CPUが端を移動していっている。端は次の選択肢が少なくなり
+    // がちだけど強い手か？」）: 端に寄るのは「相手ゲートへの最短ルート」を選んだ結果であって
+    // 端を好んでいるわけではないが、指摘の通り端・角は次に動ける先が少なく損。同点の時だけ
+    // 内側を選ぶよう、ごく小さな差（内側+0.3／辺+0.15／角0）を付ける。ゲート接近1マス分(+3)
+    // より十分小さいので、最短ルートの判断は変えない。
+    const openNeighbors =
+      (here.row > 0 ? 1 : 0) + (here.row < 6 ? 1 : 0) + (here.col > 0 ? 1 : 0) + (here.col < 6 ? 1 : 0);
+    score += (openNeighbors - 2) * 0.15;
   } else if (c.occupantPlayer && c.occupantPlayer !== seat) {
     // ④接触（体当たり）。攻めの体当たりはカウンターロック所持時のみ（未所持で不用意に接触しない、
     // ユーザー方針2026-08-08）。上級以上は相手が自分以上に進んでいれば高評価。
