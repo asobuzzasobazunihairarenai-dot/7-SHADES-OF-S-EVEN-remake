@@ -7,6 +7,7 @@
 import { getCardDefinition, getCardImagePath } from "./cards-data.js";
 import { isArrivalEffectDisabled } from "./motion-prefs.js";
 import { isTouchPrimaryDevice } from "./device-detect.js";
+import { playPulseThump } from "./sound.js";
 
 const STAGE_W = 1600;
 const STAGE_H = 900;
@@ -138,6 +139,10 @@ export async function playCardDissolve(usedCardId, opts = {}) {
   const startX = costStart ? costStart.x : cx - w * 0.62;
   const startY = costStart ? costStart.y : cy + h * 0.72;
 
+  // 脈動の山の時刻（下の beat の式と一致させる: 0.88+0.12 と 0.88+0.42）と、効果音を
+  // 1回ずつだけ鳴らすための発火済みフラグ。
+  const BEAT_PEAKS = [1.0, 1.3];
+  const beatSfxFired = [false, false];
   // 使用カードが霧散し始めるまでの前置き時間（V5＝吸収+脈動+発光、V4＝無し）
   const PRELUDE = isV5 ? 2.12 : 0;
 
@@ -285,6 +290,16 @@ export async function playCardDissolve(usedCardId, opts = {}) {
       const afterglow = isV5 && rawT >= PRELUDE && t < 1.05 ? Math.max(0, 1 - t * 0.72) : 0;
       const usedRgb = hexRgb(usedColor.glow);
 
+      // ユーザー要望2026-09-03「追色演出時のカードの脈動に効果音をつけたい」。脈動は2回
+      // （rawT ≒ 1.00 と 1.30 が山）。山の立ち上がりで1回ずつだけ鳴らす（毎フレーム鳴らさない）。
+      if (isV5) {
+        for (let bi = 0; bi < BEAT_PEAKS.length; bi++) {
+          if (!beatSfxFired[bi] && rawT >= BEAT_PEAKS[bi]) {
+            beatSfxFired[bi] = true;
+            playPulseThump(bi === 0 ? 1 : 0.8); // 2回目は少しだけ軽く（ドクン・ドクッ）
+          }
+        }
+      }
       if (beat > 0) {
         const impact = Math.min(1, beat);
         const shakeX = Math.sin(rawT * 118) * 3.2 * impact;

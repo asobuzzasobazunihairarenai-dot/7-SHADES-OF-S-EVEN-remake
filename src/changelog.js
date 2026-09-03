@@ -14,6 +14,10 @@ export const CHANGELOG = [
   {
     date: "2026-09-03",
     items: [
+      "BGMが重なって鳴ってしまう不具合を直しました（マイページからホームに戻るとタイトルのBGMが鳴り出し、対戦を始めても鳴りやまない等）。BGMは常に1つだけ鳴る作りにしました。",
+      "ホーム画面のBGMを待機中のBGMに変えました。",
+      "追色を払う演出でカードが脈打つ時に効果音を付けました。",
+      "勝利の演出に音を足しました。七色が1つ灯るごとに音が上がっていき、光が弾ける瞬間に一撃が入ります。",
       "オンライン対戦では、最後のロックの承認を全員に確認するようにしました。以前はゴメンナサイを使えない人が自動で承認されていたため、すぐ通ったことで「あの人は持っていない」と分かってしまっていました。",
       "最後のロックの承認で、相手の番のまま進まなくなることがあった不具合を直しました。",
       "右下に並ぶ「このターンの出来事」のマークを分かりやすくしました。手に入れた・引いたは「＋」に統一、ロックはカードに鎖が重なる表示、ゲート侵攻は「∞」になります。",
@@ -34,6 +38,10 @@ export const CHANGELOG = [
       "対戦のあとホーム画面に戻ると無音になっていたのを直しました。タイトル画面と同じBGMが流れます。",
     ],
     itemsEn: [
+      "Fixed overlapping background music (for example the title theme starting when you returned home from My Page and never stopping once a match began). Only one track can now play at a time.",
+      "The home screen now uses the waiting-room music.",
+      "Added a sound to the card’s pulse when you pay a Color Cost.",
+      "Added sound to the victory sequence: the pitch rises as each of the seven colours lights up, with an impact as the light bursts.",
       "Online matches now ask every player to approve a final lock. Previously players who could not use So Sorry! were approved automatically, and the instant skip revealed that they did not hold the card.",
       "Fixed: approving someone’s final lock could get stuck waiting on one player and never continue.",
       "Clearer marks on the “this turn” chips at the bottom right: gaining and drawing are now both “+”, a lock shows chains over the card, and a gate invasion shows “∞”.",

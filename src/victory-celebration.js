@@ -24,7 +24,7 @@
 // （victory-preview.js）が同じ変数を書き換えるので、**シミュレーターと本番で数値が分かれない**。
 
 import { COLORS, SEAT_TO_SIDE } from "./board-layout.js";
-import { playSound, stopGameBgm } from "./sound.js";
+import { playSound, stopGameBgm, playVictoryChime, playVictoryImpact, playPulseThump } from "./sound.js";
 // 演出中は対局中のお知らせ（獲得/ロック/効果の理由など）を出さない（ユーザー報告2026-09-02）。
 import { setCelebrationActive } from "./celebration-state.js";
 
@@ -231,6 +231,7 @@ export async function playVictoryCelebration(player, opts = {}) {
     for (let i = 0; i < slots.length; i++) {
       flares[i]?.firstChild?.classList.add("is-lit");
       playSound("lock");
+      playVictoryChime(i); // 色が灯るたびに1段ずつ音が上がる（ユーザー要望2026-09-03）
       // 前半はゆっくり、後半に向けてテンポを上げる
       const k = slots.length > 1 ? i / (slots.length - 1) : 1;
       const gap = BASE.colorFirst + (BASE.colorLast - BASE.colorFirst) * k;
@@ -278,12 +279,14 @@ export async function playVictoryCelebration(player, opts = {}) {
       const power = ((i + 1) / s.pulseCount) * s.pulsePower;
       pulseOnce(root, ghost, power, s.shake, ms(BASE.pulse));
       playSound("piecePlace");
+      playPulseThump(power); // 後ろの脈動ほど強く響かせる
       await step(ms(BASE.pulse));
     }
 
     // --- FLASH: 白い光が全画面を覆う（何が起きたかは見せない） ----------------------
     stage("FLASH");
     playSound("turnSwitch");
+    playVictoryImpact();
     root.style.setProperty("--vic-flash-x", `${cube.x}px`);
     root.style.setProperty("--vic-flash-y", `${cube.y}px`);
     root.style.setProperty("--vic-flash-ms", `${ms(BASE.flash / s.flashSpeed)}ms`);

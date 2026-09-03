@@ -184,7 +184,21 @@ const SOUND_DEFS = {
 let openingBgmAudio = null;
 let openingBgmGain = null;
 
+// 【BGMは常に1つだけ】ユーザー報告2026-09-03「マイページからホームに戻ったらタイトルのBGMが
+// 鳴り始めて、CPU戦を開始してもそのBGMが鳴りやまなかった」への根本対策。以前は play*Bgm() が
+// それぞれ自分のトラックを鳴らすだけで、**前のBGMを止めるのは呼び出し側の責任**だった。
+// 画面遷移は数が多く（タイトル/ホーム/マイページ/ロビー/対局/勝利/対戦終了…）、どこか1か所で
+// 止め忘れると重なって鳴り続ける。ここで「新しいBGMを鳴らす時は他を必ず止める」を1か所に
+// まとめ、止め忘れという事故が構造的に起きないようにする。
+// （呼び出し側に残っている stop*Bgm() は無害な二重呼び出しになるだけなので、そのままでよい）
+function stopOtherBgms(keep) {
+  if (keep !== "opening") stopOpeningBgm(250);
+  if (keep !== "game") stopGameBgm(250);
+  if (keep !== "waiting") stopWaitingBgm(250);
+  if (keep !== "victory") stopVictoryBgm(250);
+}
 export function playOpeningBgm() {
+  stopOtherBgms("opening");
   if (!openingBgmAudio) {
     openingBgmAudio = new Audio("assets/sounds/opening-bgm.mp3");
     openingBgmAudio.loop = true;
@@ -229,6 +243,7 @@ let gameBgmAudio = null;
 let gameBgmGain = null;
 
 export function playGameBgm() {
+  stopOtherBgms("game");
   if (!gameBgmAudio) {
     gameBgmAudio = new Audio("assets/sounds/game-bgm.mp3");
     gameBgmAudio.loop = true;
@@ -270,6 +285,7 @@ let waitingBgmAudio = null;
 let waitingBgmGain = null;
 
 export function playWaitingBgm() {
+  stopOtherBgms("waiting");
   if (!waitingBgmAudio) {
     waitingBgmAudio = new Audio("assets/sounds/waiting-bgm.mp3");
     waitingBgmAudio.loop = true;
@@ -427,6 +443,7 @@ let victoryBgmAudio = null;
 let victoryBgmGain = null;
 let victoryBgmFadeIntervalId = null;
 export function playVictoryBgm(loop = false) {
+  stopOtherBgms("victory");
   const volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-victory-bgm")));
   if (volume <= 0 && !loop) return; // 実際の勝利時は音量0なら鳴らさない（従来通り）
   if (!victoryBgmAudio) {
@@ -711,4 +728,49 @@ export function playSound(name) {
   audio.play().catch((err) => {
     logAction("diag-sound-play-failed", { name, errorName: err?.name ?? null, message: String(err?.message ?? err) });
   });
+}
+
+// ユーザー要望2026-09-03「追色演出時のカードの脈動に効果音をつけたい／勝利時の演出にも」。
+// 専用の音源ファイルは持たず、鼓動と同じ合成（schedulePartial）で作る。効果音のマスター音量に
+// 連動し、画面が隠れている間は鳴らさない（playSound と同じ扱い）。
+function canPlaySynth() {
+  if (typeof document !== "undefined" && document.hidden) return false;
+  return masterVolume > 0;
+}
+
+// 追色演出：カードが脈打つ瞬間の「ドクン」。強さ0〜1（演出側の脈動の強さに合わせる）。
+export function playPulseThump(strength = 1) {
+  if (!canPlaySynth()) return;
+  const ctx = getAudioContext();
+  if (!ctx || ctx.state !== "running") return;
+  const peak = Math.min(0.5, masterVolume * 0.85 * Math.max(0.2, Math.min(1, strength)));
+  const t = ctx.currentTime + 0.01;
+  schedulePartial(ctx, t, 78, peak, 0.2); // 低音（体で感じる）
+  schedulePartial(ctx, t, 205, peak * 0.4, 0.13); // 中音（スマホでも聞こえる）
+}
+
+// 勝利演出：七色が1つずつ灯る時の音。index 0〜6 で音が上がっていく（集まっていく高揚感）。
+export function playVictoryChime(index = 0) {
+  if (!canPlaySynth()) return;
+  const ctx = getAudioContext();
+  if (!ctx || ctx.state !== "running") return;
+  // 全音階（ド レ ミ ソ ラ ド レ）で7段。和音にせず単音を重ねて澄んだ響きにする。
+  const scale = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5, 1174.66];
+  const freq = scale[Math.max(0, Math.min(scale.length - 1, index))];
+  const peak = Math.min(0.34, masterVolume * 0.5);
+  const t = ctx.currentTime + 0.01;
+  schedulePartial(ctx, t, freq, peak, 0.5);
+  schedulePartial(ctx, t, freq * 2, peak * 0.3, 0.35); // 倍音で鈴のような明るさを足す
+}
+
+// 勝利演出：白く弾ける瞬間の一撃（低い衝撃＋高く抜ける残響）。
+export function playVictoryImpact() {
+  if (!canPlaySynth()) return;
+  const ctx = getAudioContext();
+  if (!ctx || ctx.state !== "running") return;
+  const peak = Math.min(0.55, masterVolume * 0.9);
+  const t = ctx.currentTime + 0.01;
+  schedulePartial(ctx, t, 55, peak, 0.9); // 腹に来る低音
+  schedulePartial(ctx, t, 165, peak * 0.5, 0.7);
+  schedulePartial(ctx, t + 0.02, 1318.51, peak * 0.28, 1.1); // 高く抜ける残響
 }

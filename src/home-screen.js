@@ -426,7 +426,7 @@ export function openHomeScreen() {
     .then((m) => {
       m.stopVictoryBgm();
       m.stopGameBgm();
-      m.playOpeningBgm();
+      m.playWaitingBgm(); // ユーザー指定2026-09-03: ホーム画面は待機中BGM（とりあえず）
     })
     .catch(() => {});
   overlayEl = document.createElement("div");
