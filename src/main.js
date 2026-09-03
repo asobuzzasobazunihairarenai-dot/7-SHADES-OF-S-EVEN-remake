@@ -13935,6 +13935,22 @@ initAdminMode();
   onAuthChange(() => void refreshSelfTitle()); // 称号（続き313）もログイン状態に合わせて取り直す
 })();
 
+// 画面に「ユーザーの返事を待っているモーダル」が出ているか（ウォッチドッグの誤解除防止用）。
+// このアプリのモーダルは id が "-modal" で終わる規約で作られている（閉じる時にDOMから取り除く
+// ものと、クラスで隠すものの両方があるため、実際に見えているかまで確認する）。個別に列挙すると
+// 新しいモーダルを足すたびに漏れるので、規約ベースで横断的に見る。
+function isAnyBlockingModalOpen() {
+  const sel = '[id$="-modal"], [id$="-picker"], [id$="-confirm"]';
+  for (const el of document.querySelectorAll(sel)) {
+    if (!el.isConnected) continue;
+    if (!el.getClientRects().length) continue; // display:none 等で実際には出ていない
+    const st = getComputedStyle(el);
+    if (st.visibility === "hidden" || st.opacity === "0") continue;
+    return true;
+  }
+  return false;
+}
+
 // #93セーフティ・ウォッチドッグ: 手札効果解決フラグ(handEffectBusy)が「取り残し」で
 // 恒久的に true のまま残ると、盤面が全カード・トーンオフのまま／スキップ不可で永久に詰む
 // （実機報告#93: ジャンプ台の手札効果→連鎖到達で選べる罠まで解決した後、busyが解除されず停止）。
@@ -13952,6 +13968,14 @@ setInterval(() => {
     // 起きないなら本当に取り残されているので、以前と同じ速さで救済する。
     if (getHandEffectBusyStuckMs() < 20000) return;
     // 何かが本当に処理待ち/表示中なら手を出さない（誤解除防止）。
+    // ユーザー指摘2026-09-03「これは人間が操作していても20秒たったら勝手に次に行っちゃうって
+    // こと？タイム制でもないのに？」——その通りで、下の個別ガード（ピッカー・到達処理・接触・
+    // ゲート侵攻）に当てはまらない確認モーダル（「このカードを使用しますか？」「このマスで
+    // いいですか？」等）を人がじっと見ている間は素通りしてしまい、フラグ解除→自動ターン終了へ
+    // 繋がり得た。画面に「あなたの返事待ち」のモーダルが1つでも出ているなら絶対に手を出さない
+    // ようにする（取り残しフラグの後始末という本来の役目には影響しない——本当に取り残された時は
+    // 画面には何も出ていないため）。
+    if (isAnyBlockingModalOpen()) return;
     if (activeEffectPicker) return;
     if (isArrivalEffectProcessing()) return;
     if (openContactResultModals > 0) return;
