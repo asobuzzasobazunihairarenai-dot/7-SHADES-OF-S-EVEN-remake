@@ -740,11 +740,13 @@ export const CASES = [
         { id: "pieceB", kind: "piece", player: "B", location: { zone: "cell", row: 3, col: 5 } },
         { id: "self", kind: "card", cardId: "eternal-pink", faceUp: true, location: { zone: "hand", player: "A" } },
         { id: "cost", kind: "card", cardId: "pink-present", faceUp: true, location: { zone: "hand", player: "A" } },
+        // 「移動」なので移動先にはカードが必要（ユーザー指摘2026-09-04。rulebook の用語定義）。
+        { id: "dest", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "cell", row: 3, col: 4 } },
       ],
       piles: { deck: [], eternal: [], first: [], discard: [] },
     },
     ctx: { player: "A", cardId: "eternal-pink", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
-    // 相手は1人→自動選択。自分(3,3)の隣接4マスから(3,4)を選ぶ
+    // 相手は1人→自動選択。自分(3,3)の周囲のカードがあるマスから(3,4)を選ぶ
     picks: { discardCost: ["cost"], location: [{ row: 3, col: 4 }] },
     expect: [
       { kind: "tokenZone", id: "self", zone: "hand", player: "A" }, // エターナルは使用時に捨てない
@@ -768,6 +770,15 @@ export const CASES = [
         { id: "pieceB", kind: "piece", player: "B", location: { zone: "cell", row: 3, col: 5 } },
         { id: "self", kind: "card", cardId: "eternal-pink", faceUp: true, location: { zone: "hand", player: "A" } },
         { id: "cost", kind: "card", cardId: "pink-present", faceUp: true, location: { zone: "hand", player: "A" } },
+        // 「移動」なので候補はカードのあるマスだけ。番号指定(index:7)の意味を保つため周囲8マス全部に置く。
+        { id: "ring0", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "cell", row: 2, col: 2 } },
+        { id: "ring1", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "cell", row: 2, col: 3 } },
+        { id: "ring2", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "cell", row: 2, col: 4 } },
+        { id: "ring3", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "cell", row: 3, col: 2 } },
+        { id: "ring4", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "cell", row: 3, col: 4 } },
+        { id: "ring5", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "cell", row: 4, col: 2 } },
+        { id: "ring6", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "cell", row: 4, col: 3 } },
+        { id: "ring7", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "cell", row: 4, col: 4 } },
       ],
       piles: { deck: [], eternal: [], first: [], discard: [] },
     },
@@ -775,6 +786,31 @@ export const CASES = [
     picks: { discardCost: ["cost"], location: ["index:7"] },
     expect: [
       { kind: "pieceAt", player: "B", row: 4, col: 4 }, // 斜め（自分(3,3)の右下）へ移動できる
+    ],
+  },
+  {
+    // ユーザー指摘2026-09-04「コノハナサクヤは『移動』であって『強制移動』ではないため、
+    // ハイライトすべきマスはカードのあるマス」。周囲8マスのうちカードがあるのが1マスだけなら、
+    // 選ばせずにそこへ移動する（空きマスは候補にならない＝ここが回帰したら別のマスへ動くか不発になる）。
+    name: "結ばれの一本桜/eternal-pink(手札): 移動先はカードのあるマスだけ（空きマスは選べない）",
+    kind: "hand",
+    cardId: "eternal-pink",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "pieceB", kind: "piece", player: "B", location: { zone: "cell", row: 3, col: 5 } },
+        { id: "self", kind: "card", cardId: "eternal-pink", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "cost", kind: "card", cardId: "pink-present", faceUp: true, location: { zone: "hand", player: "A" } },
+        // 周囲8マスのうち、カードがあるのは左上(2,2)だけ
+        { id: "only", kind: "card", cardId: "red-jump-pad", faceUp: true, location: { zone: "cell", row: 2, col: 2 } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "eternal-pink", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: { discardCost: ["cost"] },
+    expect: [
+      { kind: "pieceAt", player: "B", row: 2, col: 2 },
     ],
   },
   {

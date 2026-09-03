@@ -160,6 +160,19 @@ export function isMovementDisabledThisTurn(player) {
   return movementDisabledUntilTurn.get(player) === getState().turnNumber;
 }
 
+// 結ばれの一本桜 コノハナサクヤ専用（#228: ユーザー報告「コノハナサクヤで呼び寄せた相手に
+// 接触できちゃった」）: カード文の「このターンあなたは接触できない。」を実際に強制する。
+// 以前は案内モーダルで知らせるだけの自己申告だった（Phase 1の「ルール適用はしない」方針の
+// 名残）。マルメゴの移動禁止(movementDisabledUntilTurn)と同じ「turnNumberが一致する間だけ
+// 有効」の自動失効パターンで、main.js の接触の入口（人間のドラッグ/タップ・CPUの判断）で弾く。
+const contactDisabledUntilTurn = new Map(); // player -> turnNumber
+function disableContactForTurn(player) {
+  contactDisabledUntilTurn.set(player, getState().turnNumber);
+}
+export function isContactDisabledThisTurn(player) {
+  return contactDisabledUntilTurn.get(player) === getState().turnNumber;
+}
+
 // テスト中に発覚したバグの修正: resetGame()するとstate.jsのturnNumberは1から再スタートする
 // ため、前のゲームで既に「turnNumber:1で1回使用済み」と記録されていたカードが、新しい
 // ゲームのturnNumber:1でも誤って「もう使った」扱いになってしまっていた（handEffectUsageは
@@ -171,6 +184,7 @@ export function resetHandEffectUsage() {
   handEffectUsage.clear();
   handEffectDisabledUntilTurn.clear();
   movementDisabledUntilTurn.clear();
+  contactDisabledUntilTurn.clear();
   movementBoostUntilTurn.clear();
 }
 
@@ -1011,9 +1025,12 @@ async function runAction(action, ctx, helpers) {
       if (!targetPiece || !selfPiece || selfPiece.location.zone !== "cell") return false;
       // #224: カード文は「あなたの**周囲**へ移動する」＝縦横斜めの8マス（rulebook の用語定義）。
       // 以前は enumerateManhattanRing(1)＝前後左右の4マスしか候補にしていなかった。
+      // ユーザー指摘2026-09-04: これは「移動」であって「強制移動」ではないので、**カードの
+      // 置かれているマスだけ**が候補（rulebook「『移動』とは: …カードの置かれた別のマスに置き…」
+      // 「『強制移動』とは: カードが無いマスにも移動できる『移動』のこと」）。空きマスは選べない。
       const adjacentCells = enumerateSurroundingOffsets()
         .map(({ dr, dc }) => ({ row: selfPiece.location.row + dr, col: selfPiece.location.col + dc }))
-        .filter(({ row, col }) => inBounds(row, col) && !hasPieceAt(row, col))
+        .filter(({ row, col }) => inBounds(row, col) && !hasPieceAt(row, col) && findTopCardAtCell(row, col))
         .map(({ row, col }) => ({ zone: "cell", row, col }));
       if (adjacentCells.length === 0) return false; // 善処の原則: 隣接マスが無ければ何もしない
       const dest = adjacentCells.length === 1 ? adjacentCells[0] : await helpers.pickLocation(adjacentCells, t("ce.L971"));
@@ -1023,6 +1040,8 @@ async function runAction(action, ctx, helpers) {
       if (destTop && !destTop.faceUp) {
         await helpers.flipCard(destTop.id);
       }
+      // #228: 「このターンあなたは接触できない。」を実際に強制する（告知だけでなくフラグを立てる）。
+      disableContactForTurn(ctx.player);
       // お知らせ（ユーザー要望）: 誰を誰の隣へ動かしたか＋接触制限。
       await helpers.announceEffectReason?.(
         ctx.cardId,

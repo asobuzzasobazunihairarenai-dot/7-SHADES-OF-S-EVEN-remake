@@ -41,6 +41,7 @@ import {
   findSameColorDiscardCandidates,
   rotatedActivePlayersFrom,
   isMovementDisabledThisTurn,
+  isContactDisabledThisTurn,
   getLockableHandTokensExceptFinal,
 } from "./card-effect-engine.js";
 import {
@@ -6760,6 +6761,9 @@ function checkContactAttackerResolution() {
 // 通常のボタンクリックからも、疑似CPU対象が自動でスキップする経路からも同じ処理を
 // 呼べるようにする。
 async function submitContactProposal(attacker, defender) {
+  // #228 の安全網。通常は上の showContactPrompt で弾かれるが、別経路が増えても漏れないよう
+  // 実際に申し込む直前でも確認する（接触の成立はこの関数に集約されている）。
+  if (isContactDisabledThisTurn(attacker)) return false;
   try {
     if (isOnlineMode()) {
       // checkContactAttackerResolution()参照: 承認/拒否の結果を自分の画面で知るために、
@@ -6848,6 +6852,15 @@ function openContactConfirmModal(attacker, defender) {
 
 function showContactPrompt(attacker, defender, anchorPieceTokenId) {
   closeContactPrompt();
+  // #228（ユーザー報告「コノハナサクヤで呼び寄せた相手に接触できちゃった」）: カード文の
+  // 「このターンあなたは接触できない。」を実際に強制する。接触の入口はここ1箇所（人間の
+  // 『接触する』ボタン→確認モーダル／疑似CPUの自動申し込み、どちらもこの関数を通る）なので、
+  // ここで断れば全経路を塞げる。理由が分かるようモーダルで知らせる（黙って何も起きないと
+  // 『押せないバグ』に見えるため）。
+  if (isContactDisabledThisTurn(attacker)) {
+    showEffectReasonModal("eternal-pink", t("game.handEffect.noContactThisTurn"));
+    return;
+  }
   // ユーザー報告（続き106）「疑似CPUモードで接触可能なマスへ移動した後、『接触する』
   // ボタン→確認モーダルの2段階が自動化されておらず詰んでいた」への対応。疑似CPU対象の
   // 座席は、この2段階の手動確認UIを一切出さず、即座に接触を申し込む（既存の手動フローと
@@ -8093,6 +8106,12 @@ let counterLockAutoApprovalInFlight = false;
 function checkCounterLockAutoApproval() {
   const pending = getState().pendingContact;
   if (!pending || counterLockAutoApprovalInFlight || !isAutoProcessingEnabled()) return;
+  // #229（ユーザー報告「接触する時、申し込み中モーダルが出るが相手に承認ボタンは多分出てない」）:
+  // オンラインでは自動承認しない。カウンターロックを持っていない人を黙って自動承認すると、
+  // (1)相手からは「聞かれていない」ように見える (2)**即座に承認が返ること自体が「あの人は
+  // カウンターロックを持っていない」という情報になる（#222 の最後のロックで同じ結論を出し、
+  // 全員に確認する形にした）。ローカルのCPU戦は隠す相手がいないので従来どおり自動。
+  if (isOnlineMode()) return;
   if (isOnlineMode() && getSelfSeat() !== pending.defender) return;
   if (findCounterLockToken(pending.defender)) return; // 使えるなら自動承認せず本人の選択を待つ
   counterLockAutoApprovalInFlight = true;
@@ -14003,6 +14022,32 @@ function isAnyBlockingModalOpen() {
 const FINAL_LOCK_AUTO_APPROVE_MS = 45000;
 let finalLockPromptSince = 0;
 let finalLockPromptKey = "";
+// #229 の保険: オンラインで全員に承認を求めるようにした以上、相手が放置すると接触が止まる。
+// 一定時間反応が無ければ承認扱いで先へ進める（全員に同じ時間が与えられるので、これが働いても
+// 「カウンターロックを持っていない」という情報にはならない）。最後のロックの承認と同じ考え方。
+let contactPromptSince = 0;
+let contactPromptKey = "";
+const CONTACT_AUTO_APPROVE_MS = 45000;
+function checkContactApprovalTimeout() {
+  if (!isOnlineMode()) return;
+  const pending = getState().pendingContact;
+  if (!pending || getSelfSeat() !== pending.defender) {
+    contactPromptSince = 0;
+    contactPromptKey = "";
+    return;
+  }
+  const key = pending.attacker + "|" + pending.defender;
+  if (key !== contactPromptKey) {
+    contactPromptKey = key;
+    contactPromptSince = Date.now();
+    return;
+  }
+  if (Date.now() - contactPromptSince < CONTACT_AUTO_APPROVE_MS) return;
+  contactPromptSince = Date.now(); // 連続発火を防ぐ
+  logAction("diag-contact-auto-approve", { attacker: pending.attacker, defender: pending.defender });
+  void respondToContact(true);
+}
+
 function checkFinalLockApprovalTimeout() {
   if (!isOnlineMode()) return;
   const pending = getState().pendingFinalLock;
@@ -14064,6 +14109,7 @@ setInterval(() => {
   } catch { /* noop: ウォッチドッグ自身で例外を投げても進行を止めない */ }
   try {
     checkFinalLockApprovalTimeout();
+    checkContactApprovalTimeout();
   } catch { /* noop */ }
 }, 5000);
 

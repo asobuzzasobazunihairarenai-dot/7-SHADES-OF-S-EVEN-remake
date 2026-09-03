@@ -19494,3 +19494,53 @@ body.theme-light #home-first-step {
 body.theme-light .home-first-step-close {
   color: rgba(58, 51, 38, 0.6);
 }
+
+/* ライトモードの「奪った／受け取った」中央モーダル（.card-received-modal と複数枚版）。
+   ユーザー報告2026-09-04「カウンターロック関係のモーダルでライトモードなのにダークのものが
+   ある」。接触・カウンターロックの一連の流れで最後に出るこのモーダルだけ、暗い緑の箱のまま
+   だった（続き338/339のライト総点検は id 指定のモーダルを中心に洗ったため、**クラス指定**の
+   このモーダルが漏れていた）。他のライトモーダルと同じアイボリー地＋濃い文字に揃えつつ、
+   「受け取った」ことを示す緑のアクセント（枠・見出し）は残す。 */
+body.theme-light .card-received-modal {
+  background: linear-gradient(160deg, #f3fbf6, #fdfbf5);
+  border-color: #1c7a3a;
+  box-shadow: 0 0 1.2rem rgba(28, 122, 58, 0.28), 0 20px 50px rgba(0, 0, 0, 0.2);
+}
+body.theme-light .card-received-modal-label {
+  color: #15803d;
+  text-shadow: none;
+}
+body.theme-light .card-received-modal-name {
+  color: #3a3326;
+  text-shadow: none;
+}
+body.theme-light .card-received-modal-subtitle {
+  color: #5b6b5f;
+}
+body.theme-light .card-received-modal img,
+body.theme-light .card-received-modal .card-box,
+body.theme-light .card-received-modal-card .card-box {
+  border-color: rgba(28, 122, 58, 0.45);
+  box-shadow: 0 0.8rem 2rem rgba(0, 0, 0, 0.18);
+}
+/* 同じ見落とし（クラス指定なのでライト上書きが無い）を、明るい箱の"中"に入る3つにも適用する。
+   ・.anytime-interrupt-modal-row … いつでも割り込みモーダル（本体はライト対応済み）の中の行
+   ・.options-menu-segment-btn … 基本設定パネル（同上）の中の切り替えボタン
+   ・.card-preview-note … 拡大プレビューに添える注意書き
+   これら以外の「クラス指定で暗いまま」の要素（タイトル画面・物語メニュー・盤面のカード裏・
+   開発者用パネル等）は、暗いことに意味があるので意図的にそのままにしている。 */
+body.theme-light .anytime-interrupt-modal-row {
+  background: rgba(176, 141, 63, 0.1);
+  border-color: rgba(176, 141, 63, 0.45);
+  color: #3a3326;
+}
+body.theme-light .options-menu-segment-btn {
+  background: rgba(176, 141, 63, 0.12);
+  border-color: rgba(176, 141, 63, 0.45);
+  color: #3a3326;
+}
+body.theme-light .card-preview-note {
+  background: #fdfbf5;
+  border-color: rgba(176, 141, 63, 0.6);
+  color: #3a3326;
+}

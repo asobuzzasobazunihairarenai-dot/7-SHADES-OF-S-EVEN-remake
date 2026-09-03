@@ -86,7 +86,9 @@ export function updateContactApprovalModal() {
   // 自動処理モードON・応答可能・リアクションカード無し、の場合はボタン自体を出さない
   // （main.js側のcheckCounterLockAutoApproval()が自動で承認して先へ進める。final-lock-
   // approval.jsのゴメンナサイと同じ「使えない人にはボタンを見せてもチラつくだけ」の考え方）。
-  if (canRespond && autoMode && !hasCounterLock) {
+  // #229: オンラインでは「使えない人」にも承認ボタンを出す（黙って自動承認しない）。
+  // 隠すのはローカル（1画面で全席を操作するCPU戦など）だけ。
+  if (canRespond && autoMode && !hasCounterLock && !isOnlineMode()) {
     modalEl.classList.remove("is-visible");
     if (backdropEl) {
       backdropEl.remove();

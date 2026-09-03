@@ -14,6 +14,10 @@ export const CHANGELOG = [
   {
     date: "2026-09-03",
     items: [
+      "「結ばれの一本桜 コノハナサクヤ」で相手を呼び寄せる時、光るマスを「カードが置かれているマス」だけにしました。これは「移動」なので、カードの無いマスへは動かせません。",
+      "同じカードの「このターンあなたは接触できない」を、実際に守るようにしました（これまでは文章で知らせるだけで、接触できてしまいました）。",
+      "オンラインで接触された時、相手にもきちんと承認の確認が出るようにしました。これまではカウンターロックを持っていない人には何も出ずに自動で承認されていて、申し込んだ側からは「聞かれていない」ように見えるうえ、すぐ承認が返ること自体が「あの人は持っていない」と分かってしまっていました。",
+      "明るい配色にしている時、カードを受け取った時の中央のお知らせだけが暗いままだったのを直しました。",
       "カードの効果を処理している間（相手の選択を待っている時も含む）は、フェイズを進める「スキップ」「マイデッキ」のボタンを出さないようにしました。処理の途中でフェイズが終わってしまうのを防ぎます。",
       "CPUが、場に出ている「パーティー」を優先して手札に回収するようになりました。相手が置いて踏み直して使い回すのを止められます。",
       "カード効果でカードを置くマスを選ぶ時の案内を分かりやすくしました。1枚だけ置くカードで「（それぞれ別のマス）」と出て意味が分からなかったのを直し、複数枚置く時は「何枚目か・同じマスには置けない」と出るようにしました。",
@@ -45,6 +49,10 @@ export const CHANGELOG = [
       "対戦のあとホーム画面に戻ると無音になっていたのを直しました。タイトル画面と同じBGMが流れます。",
     ],
     itemsEn: [
+      "Konohanasakuya, the Cherry of Bonds now highlights only squares that have a card on them. Pulling an opponent is a Move, so squares without a card are not valid destinations.",
+      "That card’s “you cannot make contact this turn” is now actually enforced — it used to be a message only, and contact still went through.",
+      "In online play the defender is now always asked to approve a contact. Previously anyone without a Counter Lock was auto-approved silently, which looked like they were never asked — and the instant approval itself revealed that they held no Counter Lock.",
+      "In the light colour scheme, the centre “you received a card” notice was still dark. It now matches the other light panels.",
       "While a card effect is being resolved — including while waiting for an opponent to choose — the Skip and My Deck buttons are hidden, so a phase can no longer end in the middle of an effect.",
       "The CPU now prefers to take a Party card that is sitting on the board, denying an opponent the place-and-step-on-it loop.",
       "The prompt for choosing where to place a card is clearer now. Cards that place just one no longer say “each on a different square”, and when placing several it tells you which one you are on and that two cannot share a square.",
