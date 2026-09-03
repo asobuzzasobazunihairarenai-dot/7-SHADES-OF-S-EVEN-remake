@@ -132,7 +132,7 @@ export const REASON_MODAL_TOTAL_MS = REASON_MODAL_DURATION_MS + 300;
 // holdUntilClick=true の時は自動で消えず、モーダルのクリック／✕／画面どこかのクリックで
 // 初めて閉じる（＝CPU戦の自動スキップOFFで、CPUの結果通知をプレイヤーが読み終えるまで
 // 止めるため）。戻り値は「閉じたら解決するPromise」（呼び出し側が待てるように）。
-export function showEffectReasonModal(cardId, text, { holdUntilClick = false } = {}) {
+export function showEffectReasonModal(cardId, text, { holdUntilClick = false, onUserDismiss = null } = {}) {
   if (isCelebrationActive()) return Promise.resolve();
   if (currentReasonModal) {
     clearTimeout(currentReasonModalTimer);
@@ -157,11 +157,22 @@ export function showEffectReasonModal(cardId, text, { holdUntilClick = false } =
   return new Promise((resolve) => {
     let settled = false;
     let docClickHandler = null;
+    let docPointerHandler = null;
+    let userDismissed = false;
     function dismiss() {
       if (settled) return;
       settled = true;
       if (currentReasonModalDismiss === dismiss) currentReasonModalDismiss = null;
       if (docClickHandler) document.removeEventListener("click", docClickHandler, true);
+      if (docPointerHandler) document.removeEventListener("pointerdown", docPointerHandler, true);
+      // 人が閉じた時だけ呼び出し側へ知らせる（自動で消えた時は従来通りの間を保つ）。
+      if (userDismissed && onUserDismiss) {
+        try {
+          onUserDismiss();
+        } catch {
+          /* 通知の失敗で進行は止めない */
+        }
+      }
       modal.classList.remove("show");
       setTimeout(() => {
         modal.remove();
@@ -184,8 +195,12 @@ export function showEffectReasonModal(cardId, text, { holdUntilClick = false } =
     textEl.textContent = text;
     modal.appendChild(textEl);
 
-    modal.appendChild(createModalCloseX(dismiss));
-    modal.addEventListener("click", dismiss);
+    const dismissByUser = () => {
+      userDismissed = true;
+      dismiss();
+    };
+    modal.appendChild(createModalCloseX(dismissByUser));
+    modal.addEventListener("click", dismissByUser);
 
     document.body.appendChild(modal);
     currentReasonModal = modal;
@@ -201,6 +216,29 @@ export function showEffectReasonModal(cardId, text, { holdUntilClick = false } =
       });
     } else {
       currentReasonModalTimer = setTimeout(dismiss, REASON_MODAL_DURATION_MS);
+      // ユーザー要望2026-09-03「結果説明モーダルは画面のどこかをクリックしたら閉じられると
+      // 慣れたプレイヤーのテンポアップになる」。自動で消えるのを待たず、どこをタップしても
+      // すぐ閉じられるようにする（呼び出し側の待ち時間も onUserDismiss で切り上げる）。
+      // ・モーダルを出したそのタップで即閉じしないよう、次フレーム＋少し待ってから受け付ける。
+      // ・ボタン等の操作部品の上をタップした時は握り潰さない（別のモーダルの「はい」を
+      //   食べてしまわないため）。それ以外（盤面や余白）へのタップは、閉じるためだけの操作と
+      //   みなして握り潰す（うっかり駒が動いたりしないように）。
+      requestAnimationFrame(() => {
+        if (settled) return;
+        const readyAt = Date.now() + 250;
+        docPointerHandler = (e) => {
+          if (settled || Date.now() < readyAt) return;
+          const el = e.target instanceof Element ? e.target : null;
+          const interactive = el ? el.closest("button, input, select, textarea, a, label, [role='button']") : null;
+          userDismissed = true;
+          dismiss();
+          if (!interactive) {
+            e.stopPropagation();
+            e.preventDefault();
+          }
+        };
+        document.addEventListener("pointerdown", docPointerHandler, true);
+      });
     }
   });
 }

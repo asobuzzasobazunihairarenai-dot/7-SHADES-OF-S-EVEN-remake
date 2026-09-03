@@ -2548,7 +2548,14 @@ export function isCpuResultHoldActive() {
 async function showAndAwaitEffectReason(cardId, text) {
   const hold =
     isCpuBattleActive() && !isOnlineMode() && !isCpuAutoSkipEnabled() && isPseudoCpuTarget(getState().turnPlayer);
-  const done = showEffectReasonModal(cardId, text, { holdUntilClick: hold });
+  let resolveEarly = null;
+  const earlyDismiss = new Promise((r) => {
+    resolveEarly = r;
+  });
+  const done = showEffectReasonModal(cardId, text, {
+    holdUntilClick: hold,
+    onUserDismiss: () => resolveEarly?.(),
+  });
   if (hold) {
     cpuResultHoldActive = true;
     try {
@@ -2557,7 +2564,9 @@ async function showAndAwaitEffectReason(cardId, text) {
       cpuResultHoldActive = false;
     }
   } else {
-    await wait(REASON_MODAL_TOTAL_MS);
+    // ユーザー要望2026-09-03（テンポアップ）: 自動で消えるのを待つ間でも、画面のどこかを
+    // タップすればその場で閉じて次へ進む。タップが無ければ従来通りの間を保つ。
+    await Promise.race([earlyDismiss, wait(REASON_MODAL_TOTAL_MS)]);
   }
 }
 async function announceEffectReasonForEffect(cardId, text) {

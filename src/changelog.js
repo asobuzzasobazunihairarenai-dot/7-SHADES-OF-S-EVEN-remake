@@ -14,6 +14,7 @@ export const CHANGELOG = [
   {
     date: "2026-09-03",
     items: [
+      "「不発のためこのカードを手札に加えます」などの結果のお知らせは、画面のどこかをタップすればすぐ閉じて次へ進めるようにしました（放置すれば今まで通り自動で消えます）。",
       "試練の儀式やザ・ギャンブルで鳴る心臓の鼓動を、もっとはっきり聞こえるようにしました（特にスマホ）。",
       "対応しているスマホでは、鼓動に合わせて端末が振動するようにしました（基本設定でオフにできます。iPhone・iPadは振動できません）。",
       "CPU戦を始めた時、配り始める直前に前の盤面（または起動時の盤面）が一瞬映っていたのを直しました。",
@@ -30,6 +31,7 @@ export const CHANGELOG = [
       "対戦のあとホーム画面に戻ると無音になっていたのを直しました。タイトル画面と同じBGMが流れます。",
     ],
     itemsEn: [
+      "Result notices such as “the effect fizzled, so this card returns to your hand” can now be dismissed by tapping anywhere, moving the game on immediately (leave it alone and it still closes by itself).",
       "The heartbeat sound in Trial Ritual and The Gamble is now much easier to hear, especially on phones.",
       "On phones that support it, the device now vibrates along with the heartbeat (switchable in Settings; iPhone and iPad cannot vibrate).",
       "Fixed: starting a CPU battle briefly flashed the previous (or the app’s startup) board just before the deal.",

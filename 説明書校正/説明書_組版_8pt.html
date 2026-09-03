@@ -330,6 +330,13 @@ ul.plain{margin:0 0 2mm;padding-left:5mm;} ul.plain li{margin:0 0 .8mm;}
   border-radius:3mm;padding:.1mm 1.4mm;margin-left:1.2mm;white-space:nowrap;vertical-align:.2mm;}
 .tref{font-size:8pt;font-weight:400;color:#8a8375;margin-left:.5mm;letter-spacing:0;}
 .qref{font-size:8pt;}
+/* 早見表だけヘッダーを小さくして、内容を上から載せる */
+.page-qref .head{margin:0 0 2.2mm;}
+.page-qref .head h1{font-size:15pt;letter-spacing:.1em;margin:0;}
+.page-qref .head .sub{font-size:8.6pt;margin:.4mm 0 0;letter-spacing:.18em;}
+.page-qref .head .rule{margin-top:1.4mm;}
+/* 項目名は独立行にする */
+.qr-k{display:block;}
 .qr-lead{margin:0 0 2mm;text-align:center;color:#5a5344;font-size:8pt;}
 .qr-turn{display:flex;align-items:stretch;justify-content:center;gap:2mm;margin-bottom:.8mm;}
 .qr-ph{flex:1;border:1px solid var(--line);border-radius:2mm;background:#fffdf8;padding:1.2mm 2mm;text-align:center;}
@@ -340,10 +347,10 @@ ul.plain{margin:0 0 2mm;padding-left:5mm;} ul.plain li{margin:0 0 .8mm;}
 .qr-ar{align-self:center;color:#8a8375;font-size:10pt;}
 .qr-turn-note{margin:0 0 2.4mm;text-align:center;font-size:8pt;color:#6b6455;}
 .qr-cols{display:grid;grid-template-columns:1fr 1fr;gap:4mm;}
-.qr-box{border:1px solid var(--line);border-radius:2mm;background:#fffdf8cc;padding:.9mm 1.7mm;margin-bottom:.9mm;}
+.qr-box{border:1px solid var(--line);border-radius:2mm;background:#fffdf8cc;padding:.8mm 1.6mm;margin-bottom:.8mm;}
 .qr-t{margin:0 0 .9mm;font-family:var(--gothic);font-weight:700;font-size:8.6pt;border-bottom:1px solid var(--line);padding-bottom:.8mm;}
 .qr-t span{float:right;font-weight:400;font-size:8pt;color:#8a8375;}
-.qr-b{margin:0 0 .5mm;line-height:1.4;}
+.qr-b{margin:0 0 .4mm;line-height:1.36;}
 .qr-b:last-child{margin-bottom:0;}
 .qr-warn{color:#a4123a;}
 .qr-win{border-color:#c9a227;background:#fffbea;}
@@ -2116,7 +2123,7 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
   <div class="foot"><span class="orn"></span>27<span class="orn"></span></div>
 </div></section>
 
-<section class="page"><div class="inner">
+<section class="page page-qref"><div class="inner">
   <div class="ptcheck"><b>8pt</b><span>あア亜Ag ← 本文の最小サイズ</span></div>
   <div class="head"><h1 class="sm">Quick Reference</h1><p class="sub">〜早見表〜</p><div class="rule"></div></div>
   <div class="body qref">
@@ -2141,9 +2148,9 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
 
         <div class="qr-box">
           <p class="qr-t">ムーブフェイズ<span>10ページ</span></p>
-          <p class="qr-b"><b>移動</b>　隣（前後左右の4マス）の<b>カードのみが置かれたマス</b>へ駒を置く。裏向きならオープンし、表向きのカードに乗ったら<b>到達効果</b>を得て、原則そのカードを手札に加える。</p>
-          <p class="qr-b"><b>接触</b>　隣の相手を選ぶ。相手の手札を<b>無作為に1枚</b>もらい、その相手は自分のゲートへ<b>強制移動</b>する。自分は動かない。</p>
-          <p class="qr-b qr-warn"><b>どちらもできない時</b>　自分の駒の隣へ山札から1枚<b>裏向き</b>に置いてターンを終了する。</p>
+          <p class="qr-b"><b class="qr-k">移動</b>隣（前後左右の4マス）の<b>カードのみが置かれたマス</b>へ駒を置く。裏向きならオープンし、表向きのカードに乗ったら<b>到達効果</b>を得て、原則そのカードを手札に加える。</p>
+          <p class="qr-b"><b class="qr-k">接触</b>隣の相手を選ぶ。相手の手札を<b>無作為に1枚</b>もらい、その相手は自分のゲートへ<b>強制移動</b>する。自分は動かない。</p>
+          <p class="qr-b qr-warn"><b class="qr-k">どちらもできない時</b>自分の駒の隣へ山札から1枚<b>裏向き</b>に置いてターンを終了する。</p>
         </div>
 
         <div class="qr-box qr-win">
@@ -2152,10 +2159,10 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
         </div>
         <div class="qr-box">
           <p class="qr-t">カードの効果の見かた<span>4ページ</span></p>
-          <p class="qr-b"><span class="ef s-base" style="display:inline"><i>★</i></span><b>基本効果</b>　常に適用される。</p>
-          <p class="qr-b"><img class="efic" src="img/ic-arr.png" alt=""><b>到達効果</b>　駒がそのカードに乗った瞬間に<b>自動で</b>発動する。処理が終わったら原則そのカードは<b>手札に加わる</b>。</p>
-          <p class="qr-b"><img class="efic" src="img/ic-hand.png" alt=""><b>手札効果</b>　ハンドフェイズに使える。原則、<b>そのカードを捨ててから</b>発動する。</p>
-          <p class="qr-b"><b>【追色1】</b>　そのカードと同じ色のカードを、手札から1枚捨てて使う。</p>
+          <p class="qr-b"><span class="ef s-base" style="display:inline"><i>★</i></span><b>基本効果</b><br>常に適用される。</p>
+          <p class="qr-b"><img class="efic" src="img/ic-arr.png" alt=""><b>到達効果</b><br>駒がそのカードに乗った瞬間に<b>自動で</b>発動する。処理が終わったら原則そのカードは<b>手札に加わる</b>。</p>
+          <p class="qr-b"><img class="efic" src="img/ic-hand.png" alt=""><b>手札効果</b><br>ハンドフェイズに使える。原則、<b>そのカードを捨ててから</b>発動する。</p>
+          <p class="qr-b"><b class="qr-k">【追色1】</b>そのカードと同じ色のカードを、手札から1枚捨てて使う。</p>
           <p class="qr-b" style="color:#6b6455;">※効果文にそのカードの処遇（場に置く等）が書かれていれば、そちらに従う。</p>
         </div>
       </div>
@@ -2163,7 +2170,7 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
       <div>
         <div class="qr-box">
           <p class="qr-t">相手ゲート侵攻ボーナス<span>13ページ</span></p>
-          <p class="qr-b"><b>条件</b>　相手ゲートに自分の駒がある状態でターンが終了する（自分・相手どちらのターンでも発生）。</p>
+          <p class="qr-b"><b class="qr-k">条件</b>相手ゲートに自分の駒がある状態でターンが終了する（自分・相手どちらのターンでも発生）。</p>
           <ol class="qr-ol">
             <li>相手の手札を<b>半分</b>（切り捨て）無作為に奪う</li>
             <li><b>エターナルカード</b>を1枚引いてロックする</li>
@@ -2174,22 +2181,22 @@ figure{margin:0;} figcaption{font-size:8pt;color:var(--gray);text-align:center;m
 
         <div class="qr-box">
           <p class="qr-t">こんな時は<span>8ページ</span></p>
-          <p class="qr-b"><b>山札がなくなった</b>　捨て場のカードをそのまま裏向きにして山札にする（シャッフルしない）。</p>
-          <p class="qr-b"><b>エターナルカードがなくなった</b>　以降、侵攻ボーナスでエターナルカードはもらえない。</p>
+          <p class="qr-b"><b class="qr-k">山札がなくなった</b>捨て場のカードをそのまま裏向きにして山札にする（シャッフルしない）。</p>
+          <p class="qr-b"><b class="qr-k">エターナルカードがなくなった</b>以降、侵攻ボーナスでエターナルカードはもらえない。</p>
         </div>
 
         <div class="qr-box">
           <p class="qr-t">覚えておきたい原則<span>22ページ</span></p>
-          <p class="qr-b"><b>1番上の原則</b>　マスのカードを対象にする時は、特に記載がなければ1番上のカード。</p>
-          <p class="qr-b"><b>句点の原則</b>　効果文は句点（。）ごとに順番に処理する。</p>
-          <p class="qr-b"><b>処理順の原則</b>　複数人が対象なら、効果を使った人から時計回りに処理する。</p>
-          <p class="qr-b"><b>善処の原則</b>　効果は可能な限り満たすように行う。満たせないと分かっている効果は宣言できない。</p>
+          <p class="qr-b"><b class="qr-k">1番上の原則</b>マスのカードを対象にする時は、特に記載がなければ1番上のカード。</p>
+          <p class="qr-b"><b class="qr-k">句点の原則</b>効果文は句点（。）ごとに順番に処理する。</p>
+          <p class="qr-b"><b class="qr-k">処理順の原則</b>複数人が対象なら、効果を使った人から時計回りに処理する。</p>
+          <p class="qr-b"><b class="qr-k">善処の原則</b>効果は可能な限り満たすように行う。満たせないと分かっている効果は宣言できない。</p>
         </div>
 
         <div class="qr-box">
           <p class="qr-t">まちがえやすい用語<span>22ページ</span></p>
-          <p class="qr-b"><b>強制移動</b>　カードが無いマスにも移動できる「移動」のこと。ただの<b>移動</b>はカードのあるマスにしか行けない。</p>
-          <p class="qr-b"><b>「接触」と「移動」は別物</b>　カード効果で「移動する」とあっても<b>接触はできない</b>。</p>
+          <p class="qr-b"><b class="qr-k">強制移動</b>カードが無いマスにも移動できる「移動」のこと。ただの<b>移動</b>はカードのあるマスにしか行けない。</p>
+          <p class="qr-b"><b class="qr-k">「接触」と「移動」は別物</b>カード効果で「移動する」とあっても<b>接触はできない</b>。</p>
         </div>
       </div>
     </div>
