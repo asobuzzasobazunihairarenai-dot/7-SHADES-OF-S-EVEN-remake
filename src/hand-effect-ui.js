@@ -416,6 +416,17 @@ export function showHandEffectOptionPicker(cardId, optionsWithUsability, onReady
 
     let settled = false;
     let isPeeking = false;
+    // #230「選択モーダルが出ずに強制的に1枚ドローになった」（2026-09-04）。
+    // スマホでは、手札のカードをタップして離した指の位置に、この直後に作られる選択肢の
+    // ボタンがそのまま現れる。ブラウザは pointerup のあとに click を合成して「その時点で
+    // 指の下にある要素」へ送るため、**開いた瞬間に1つ目の選択肢（＝なないろの欠片なら
+    // 「１枚ドロー」）が勝手に押されて**、モーダルは一瞬も見えないまま確定していた。
+    // 対戦終了パネルの事故クリック対策（続き296）と同じく、開いてしばらくは受け付けない。
+    const openedAt = performance.now();
+    const OPEN_GUARD_MS = 400;
+    function isGuarded() {
+      return performance.now() - openedAt < OPEN_GUARD_MS;
+    }
     function finish(option) {
       if (settled) return;
       settled = true;
@@ -458,6 +469,7 @@ export function showHandEffectOptionPicker(cardId, optionsWithUsability, onReady
     peekBtn.textContent = t("heu.peek");
     peekBtn.addEventListener("click", (e) => {
       e.stopPropagation();
+      if (isGuarded()) return;
       setPeeking(true);
     });
     modal.appendChild(peekBtn);
@@ -473,7 +485,10 @@ export function showHandEffectOptionPicker(cardId, optionsWithUsability, onReady
         btn.disabled = true;
         btn.classList.add("is-unusable");
       } else {
-        btn.addEventListener("click", () => finish(option));
+        btn.addEventListener("click", () => {
+          if (isGuarded()) return; // 開いた瞬間の合成クリック（上のコメント参照）は無視する
+          finish(option);
+        });
       }
       list.appendChild(btn);
     }

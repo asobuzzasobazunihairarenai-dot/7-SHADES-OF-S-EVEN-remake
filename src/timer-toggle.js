@@ -32,10 +32,47 @@ export function registerTimerToggleHandlers({ onRequest, onRespond }) {
   respondHandler = onRespond;
 }
 
+// #233「タイマーをONにするボタンってずっとでっぱなしだったっけ？」（2026-09-04）。
+// このボタンは基本時間アイコンを押すと出るポップオーバーだが、閉じる手段が
+// 「もう一度アイコンを押す」しか無かったため、うっかり触れると対局中ずっと画面に
+// 出たままになっていた（フェイズ案内板の上に重なる）。普通のポップオーバーと同じく
+// **他の場所を触ったら閉じる**ようにし、放置された時のために時間でも閉じる。
+const POPOVER_AUTO_CLOSE_MS = 10000;
+let popoverAutoCloseTimer = null;
+let outsideCloseBound = false;
+function closeTimerTogglePopover() {
+  if (!popoverOpen) return;
+  popoverOpen = false;
+  updateTimerToggleButton();
+}
+function bindOutsideClose() {
+  if (outsideCloseBound) return;
+  outsideCloseBound = true;
+  // capture で拾う（盤面側が pointerdown を止めることがあるため）。閉じるだけで
+  // イベント自体は止めない＝下の操作は今まで通り効く。
+  document.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (!popoverOpen) return;
+      const el = e.target instanceof Element ? e.target : null;
+      // 自分自身（ボタン）と、開閉の起点である基本時間アイコンの上は無視する
+      // （アイコンは自前のトグルで閉じるため、ここで閉じると二重で開き直してしまう）。
+      if (el?.closest("#timer-toggle-button") || el?.closest(".turn-timer-base-clock")) return;
+      closeTimerTogglePopover();
+    },
+    true
+  );
+}
+
 // turn-timer.jsの基本時間アイコンから呼ばれる開閉トグル。
 export function toggleTimerTogglePopover() {
   popoverOpen = !popoverOpen;
   updateTimerToggleButton();
+  clearTimeout(popoverAutoCloseTimer);
+  if (popoverOpen) {
+    bindOutsideClose();
+    popoverAutoCloseTimer = setTimeout(closeTimerTogglePopover, POPOVER_AUTO_CLOSE_MS);
+  }
 }
 
 export function buildTimerToggleButton() {
@@ -55,6 +92,7 @@ export function buildTimerToggleButton() {
     requestHandler?.(!currentEnabled, queue);
     // 申請を送ったらポップオーバーは閉じる（この後の状況はbannerEl側が引き継いで表示する）。
     popoverOpen = false;
+    clearTimeout(popoverAutoCloseTimer);
     updateTimerToggleButton();
   });
 }

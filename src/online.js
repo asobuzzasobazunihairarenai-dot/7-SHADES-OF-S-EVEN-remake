@@ -2042,6 +2042,13 @@ export async function startGame(gameId, { includeBlackWhite = false, timerEnable
       turnsToReplenishHourglass: getTurnsToReplenishHourglass(),
       reducedBaseSeconds: getReducedBaseSeconds(),
       pseudoCpuModeEnabled,
+      // #232「フリーマッチランク戦でもう一度遊ぶを選ぶとブーストがなくなっている」
+      // （2026-09-04）。「もう一度遊ぶ」(maybeTriggerRematch)はタイマーと疑似CPUだけを
+      // 引き継ぎ、**ブースト・白黒カード・マイデッキ戦は毎回既定値へ巻き戻っていた**。
+      // これらも対局全体の固定ルールなので、同じ「開始時に1回だけ送って全員が共有する」
+      // timerConfig に相乗りさせる（so7_games.timer_config は jsonb にそのまま保存される
+      // ため、サーバー側の変更は要らない）。読み出しは getSyncedTimerConfig()。
+      matchRules: { boost, includeBlackWhite, myDeckMode },
     };
     // ユーザー要望（続き102）「疑似CPUモードが適用されない原因をアクションログで
     // 確認できるようにしてほしい」。ゲーム開始時に送信するtimerConfig（疑似CPU
@@ -2118,9 +2125,24 @@ export async function maybeTriggerRematch(gameId) {
   // pseudoCpuModeEnabledは常にfalse）に巻き戻ってしまっていた。「もう一度遊ぶ」で
   // 同じ設定のまま続けたいはずなので、前の対局のsyncedTimerConfigから引き継ぐ。
   const prevTimerConfig = getSyncedTimerConfig();
+  // #232: ブースト・白黒カード・マイデッキ戦も前の対局から引き継ぐ（上の startGame の
+  // matchRules 参照）。ランク戦の部屋は固定ルール（全てON）なので、古い対局で matchRules を
+  // 持たない場合でもそちらを優先して補う。
+  const prevRules = prevTimerConfig?.matchRules ?? null;
+  let ranked = false;
+  try {
+    ranked = await getRoomIsRanked(gameId);
+  } catch {
+    ranked = false;
+  }
+  const rules = prevRules ?? (ranked ? { boost: true, includeBlackWhite: true, myDeckMode: true } : null);
+  logAction("diag-rematch-rules", { ranked, rules });
   await startGame(gameId, {
     timerEnabled: prevTimerConfig ? prevTimerConfig.enabled : undefined,
     pseudoCpuModeEnabled: prevTimerConfig ? !!prevTimerConfig.pseudoCpuModeEnabled : false,
+    boost: !!rules?.boost,
+    includeBlackWhite: !!rules?.includeBlackWhite,
+    myDeckMode: !!rules?.myDeckMode,
   });
   return true;
 }

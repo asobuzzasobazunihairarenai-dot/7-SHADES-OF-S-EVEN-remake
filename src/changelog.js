@@ -14,6 +14,9 @@ export const CHANGELOG = [
   {
     date: "2026-09-04",
     items: [
+      "「なないろの欠片」などで効果を選ぶモーダルが出ないまま、勝手に片方（1枚ドロー）に決まってしまう不具合を直しました。スマホでカードをタップして指を離した位置に選択肢のボタンが現れ、その指のタップがそのままボタンを押していました。",
+      "対局中に「タイマーをONにする」ボタンが出たままになってしまうのを直しました。他の場所を触るか、しばらく置くと閉じます。",
+      "ランク戦などで「もう一度遊ぶ」を選ぶと、ブースト・白黒カード・マイデッキ戦の設定が消えてしまう不具合を直しました。前の対局と同じルールで続きます。",
       "ゲストとして遊んだ方が、戦績管理システムに「プレイヤー」という名前で登録されてしまう不具合を直しました。以前は他の人がゲストかどうかを確かめる仕組みがうまく働いておらず、7月末から30件ほど余分な登録ができていました。",
       "「結ばれの一本桜 コノハナサクヤ」を、動かす先が無い時（相手の駒が盤面にいない／自分の周囲にカードの置かれた空きマスが無い）は使えないようにしました。コストだけ払って何も起きない、ということが無くなります。",
       "ゲート侵攻の演出の途中で勝敗が決まった時、演出を飛ばして勝利演出に切り替わってしまうのを直しました。侵攻の演出が最後まで流れてから勝利演出に進みます。",
@@ -21,6 +24,9 @@ export const CHANGELOG = [
       "段位ランキング（戦績管理システム）で、まだ1勝もしていないブロンズ（ゲージ０）の方を対象外にしました。",
     ],
     itemsEn: [
+      "Fixed the effect-choice dialog (Prism Shard and others) silently resolving to the first option (Draw 1) without ever appearing. On a phone the buttons appeared right under the finger that had just tapped the card, and that same tap pressed one of them.",
+      "Fixed the \"Turn the timer on\" button staying on screen during a match. It now closes when you tap elsewhere, or after a short while.",
+      "Fixed \"Play again\" losing the Boost, black/white cards and My Deck settings (in ranked matches for example). The next game keeps the same rules.",
       "Fixed a bug where people playing as a guest were registered in the battle-record system under the name \"Player\". The check for whether someone else was a guest never worked, and about 30 stray entries had built up since late July.",
       "Konohanasakuya, the Cherry of Bonds can no longer be used when there is nowhere to move an opponent to (no opponent piece on the board, or no empty square with a card around you). You will no longer pay the cost for nothing.",
       "Fixed the victory sequence cutting off the Gate Invasion animation when the game was decided in the middle of it. The invasion now plays out fully before the victory sequence begins.",
