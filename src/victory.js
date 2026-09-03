@@ -22,6 +22,10 @@ import { showCurrencyAwardModal } from "./currency-award-modal.js";
 import { showRankRevealModal } from "./rank-reveal-modal.js";
 import { showMatchPersonalResultModal } from "./match-personal-result-modal.js";
 import { playVictoryCelebration } from "./victory-celebration.js"; // 勝利演出「七色、集結」
+// #231: ゲート侵攻の演出が終わるまで勝利演出を始めない（下の waitForGateInvasionToFinish）。
+import { isGateInvasionQueueActive } from "./gate-invasion-modal.js";
+import { isLocalGateInvasionActive } from "./gate-invasion.js";
+import { isGateInvasionPending } from "./online.js";
 
 // ユーザー要望「勝利モーダルが5秒ぐらいしっかり出た後に、『戦績確認・もう一度遊ぶ』
 // モーダル（勝利者へのコメント依頼を含む）が出るようにしてほしい」への対応。以前は
@@ -235,6 +239,31 @@ function showVictoryModal(player, onClose) {
   const autoCloseTimer = null;
 }
 
+// #231「エターナルで勝ったけど、ゲート侵攻演出をすっ飛ばして勝利演出になった」への対応。
+// ゲート侵攻ボーナス②で受け取ったエターナルカードがそのまま7色目のロックになると、
+// 侵攻の演出（5ステップ、合計50秒前後）がまだ1枚目を出したところで勝利判定が成立し、
+// 勝利演出が上から覆いかぶさっていた（実機ログ: gate-invasion-enqueue の0.1秒後に
+// diag-victory）。勝敗の確定・戦績システムへの登録は先に済ませたまま、**見せる順番だけ**を
+// 「侵攻の演出 → 勝利演出」に直す。演出が何らかの理由で終わらない場合に備えて上限を置く
+// （その場合は待たずに勝利演出へ進む＝勝利画面が出なくなる事故は起こさない）。
+const GATE_INVASION_WAIT_LIMIT_MS = 90000;
+async function waitForGateInvasionToFinish() {
+  const busy = () => {
+    try {
+      return isGateInvasionPending() || isGateInvasionQueueActive() || isLocalGateInvasionActive();
+    } catch {
+      return false;
+    }
+  };
+  if (!busy()) return;
+  const deadline = Date.now() + GATE_INVASION_WAIT_LIMIT_MS;
+  logAction("diag-victory-wait-gate-invasion", { phase: "start" });
+  while (busy() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  logAction("diag-victory-wait-gate-invasion", { phase: "end", timedOut: busy() });
+}
+
 export function checkForVictory() {
   for (const player of getState().activePlayers) {
     if (announcedPlayers.has(player)) continue;
@@ -286,6 +315,7 @@ export function checkForVictory() {
       // playVictoryCelebration は必ず解決するので、リザルトへ進めなくなることはない。
       // なお勝敗の確定・戦績システムへの登録は、この上で既に済んでいる（演出とは切り離す）。
       void (async () => {
+        await waitForGateInvasionToFinish(); // #231: 侵攻の演出が終わってから勝利演出へ
         const celebration = await playVictoryCelebration(player);
         showVictoryModal(player, async () => {
           // #189の教訓: ここから先は「途中で1つ失敗したら残り全部が出ない」直列の鎖になっている。

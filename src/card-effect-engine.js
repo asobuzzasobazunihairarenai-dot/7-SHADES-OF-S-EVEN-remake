@@ -223,6 +223,21 @@ export function getHandEffectOptions(cardId) {
 
 // 1つの選択肢が今使えるか（設定ON・使用回数制限内・コストを払える・
 // requiresPairInHand等の追加条件を満たす、の全てを満たすか）。
+// 結ばれの一本桜 コノハナサクヤ（eternal-pink）専用の「善処の原則」判定（ユーザー指摘 2026-09-04)。
+// 「相手を選び、あなたの周囲へ移動させる」効果なので、①移動させられる相手の駒が盤面にあり、
+// ②自分の周囲8マスに移動先になれるマス（＝カードが置かれていて、駒が乗っていないマス。
+// これは『強制移動』ではなく『移動』なのでカードの無いマスは選べない）が1つ以上ある時だけ
+// 使える。どちらも無ければコストを払っても何も起きないので、発動宣言自体をできないものとする
+// （セレナーデ・マスチェンジ等と同じ扱い）。
+function hasKonohanasakuyaTarget(player) {
+  if (getAllOpponentPieceCells(player).length === 0) return false;
+  const selfPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === player);
+  if (!selfPiece || selfPiece.location.zone !== "cell") return false;
+  return enumerateSurroundingOffsets()
+    .map(({ dr, dc }) => ({ row: selfPiece.location.row + dr, col: selfPiece.location.col + dc }))
+    .some(({ row, col }) => inBounds(row, col) && !hasPieceAt(row, col) && findTopCardAtCell(row, col));
+}
+
 export function isHandEffectOptionUsable(cardId, cardTokenId, player, option) {
   if (!autoProcessingEnabled) return false;
   if (isHandEffectDisabledThisTurn(cardTokenId)) return false;
@@ -291,6 +306,10 @@ export function isHandEffectOptionUsable(cardId, cardTokenId, player, option) {
     const selfPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === player);
     if (!selfPiece?.location || getOpponentPieceCellsWithinRange(selfPiece.location, swap.count, player).length === 0) return false;
   }
+  // コノハナサクヤ専用（MOVE_CHOSEN_OPPONENT_ADJACENT_TO_SELF）。上のhasKonohanasakuyaTarget参照。
+  if (option.actions?.some((a) => a.verb === VERBS.MOVE_CHOSEN_OPPONENT_ADJACENT_TO_SELF) && !hasKonohanasakuyaTarget(player)) {
+    return false;
+  }
   // 黒のキューブ ノワール(first-noir, LOCK_HAND_CARD_INTO_NOIR_SLOT)専用: ノワールの置かれた
   // 色スロットにまだロック札（非placed）が無く、かつ手札にロックできるカードがある時だけ使える。
   // 一度ロックするとスロットが埋まって使えなくなり、そのロック札が除去されて空けば再度使える。
@@ -356,6 +375,9 @@ function explainHandEffectOptionUnusable(cardId, cardTokenId, player, option) {
     const selfPiece = getState().tokens.find((t) => t.kind === "piece" && t.player === player);
     if (!selfPiece?.location || getOpponentPieceCellsWithinRange(selfPiece.location, swap.count, player).length === 0)
       return t("ce.noSwapTarget", { n: swap.count });
+  }
+  if (option.actions?.some((a) => a.verb === VERBS.MOVE_CHOSEN_OPPONENT_ADJACENT_TO_SELF) && !hasKonohanasakuyaTarget(player)) {
+    return t("ce.noKonohanaTarget");
   }
   return null;
 }
@@ -1383,8 +1405,11 @@ async function runAction(action, ctx, helpers) {
     case VERBS.LOCK_PAIR: {
       // なないろの欠片専用: これを含めた同名2枚を、任意の1箇所（自分のロックエリアの
       // 好きな色スロット、通常の1色1枚の占有チェックは対象外の特殊ロック）へまとめて置く。
-      const partner = getState().tokens.find(
-        (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === ctx.player && t.cardId === "rainbow-shard" && t.id !== ctx.cardTokenId
+      // 【2026-09-04】相方の探索範囲を「使えるか」の判定(requiresPairInHand→getHandTokens)と
+      // 揃える。以前はここだけ zone==="hand" に限っていたため、2枚目が手札公開エリア
+      // (publicDraw)にあると「選択肢は出るのに選ぶと何も起きない」状態になっていた。
+      const partner = getHandTokens(ctx.player).find(
+        (t) => t.cardId === "rainbow-shard" && t.id !== ctx.cardTokenId
       );
       if (!partner) return false;
       const candidates = getOwnLockSlotCandidates(ctx.player);
@@ -2249,6 +2274,21 @@ export async function runHandEffect(ctx, helpers) {
       ...opt,
       usable: isHandEffectOptionUsable(ctx.cardId, ctx.cardTokenId, ctx.player, opt),
     }));
+    // #230「なないろのかけら２枚使えず」の切り分け用（2026-09-04）。選択肢がグレー表示に
+    // なった時、その瞬間に何がどこにあったのかを行動ログへ残す（カード名は自分の手札の分だけ
+    // ＝伏せ情報は入らない）。次に同じ報告が来たら「本当に2枚とも手札にあったのか」を推測せず
+    // 判定できるようにするため。
+    if (optionsWithUsability.some((o) => !o.usable)) {
+      logAction("diag-hand-option-unusable", {
+        cardId: ctx.cardId,
+        player: ctx.player,
+        options: optionsWithUsability.map((o) => ({ id: o.id, usable: o.usable })),
+        sameCardCount: getHandTokens(ctx.player).filter((tk) => tk.cardId === ctx.cardId).length,
+        sameCardZones: getState()
+          .tokens.filter((tk) => tk.kind === "card" && tk.cardId === ctx.cardId && tk.location.player === ctx.player)
+          .map((tk) => tk.location.zone),
+      });
+    }
     chosenOption = await helpers.pickHandEffectOption(ctx.cardId, optionsWithUsability);
     if (!chosenOption) return false;
     // 「選ぶ系」の手札効果（なないろの欠片 等、複数選択肢から1つ）は、選んだ内容を全員に

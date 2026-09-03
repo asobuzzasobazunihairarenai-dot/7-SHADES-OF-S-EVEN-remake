@@ -345,6 +345,7 @@ import {
   adminGrantCurrency,
   getAdminStats,
   isGateInvasionPending,
+  registerSelfAsStatsPlayer,
 } from "./online.js";
 import { fetchStatsProfile, getTierInfo } from "./stats-profile.js";
 import { setRankRingOrbitContainer, startRankRingOrbit } from "./rank-ring-orbit.js";
@@ -14714,6 +14715,10 @@ subscribe(() => {
   if (isOnlineMode() && started && !wasOnlineGameStarted) {
     // はじめての人の「次にやること」を3歩目まで進める（first-steps.js）。
     void import("./first-steps.js").then((m) => m.noteOnlineMatchPlayed()).catch(() => {});
+    // 戦績システムへの「自分」の登録（2026-09-04）。以前はホストが全員分を登録していたが、
+    // 他人がゲストかどうかは RLS の都合で判定できず、ゲストまで「プレイヤー」という名前で
+    // 登録されてしまっていた。自分の分だけ、自分のクライアントが登録する。
+    void registerSelfAsStatsPlayer();
     // マイデッキ戦: 選択オーバーレイが残っていれば閉じる（BOOTSTRAPで盤面が始まったため）。
     if (isDeckSelectOpen()) closeDeckSelect();
     suppressGenericRenderForOnlineStart = true;

@@ -12,6 +12,23 @@ import { getLang } from "./i18n.js";
 
 export const CHANGELOG = [
   {
+    date: "2026-09-04",
+    items: [
+      "ゲストとして遊んだ方が、戦績管理システムに「プレイヤー」という名前で登録されてしまう不具合を直しました。以前は他の人がゲストかどうかを確かめる仕組みがうまく働いておらず、7月末から30件ほど余分な登録ができていました。",
+      "「結ばれの一本桜 コノハナサクヤ」を、動かす先が無い時（相手の駒が盤面にいない／自分の周囲にカードの置かれた空きマスが無い）は使えないようにしました。コストだけ払って何も起きない、ということが無くなります。",
+      "ゲート侵攻の演出の途中で勝敗が決まった時、演出を飛ばして勝利演出に切り替わってしまうのを直しました。侵攻の演出が最後まで流れてから勝利演出に進みます。",
+      "「なないろの欠片」の「２枚をロックする」で、2枚目が手札公開エリアにある時に選べるのに何も起きなかった不具合を直しました。",
+      "段位ランキング（戦績管理システム）で、まだ1勝もしていないブロンズ（ゲージ０）の方を対象外にしました。",
+    ],
+    itemsEn: [
+      "Fixed a bug where people playing as a guest were registered in the battle-record system under the name \"Player\". The check for whether someone else was a guest never worked, and about 30 stray entries had built up since late July.",
+      "Konohanasakuya, the Cherry of Bonds can no longer be used when there is nowhere to move an opponent to (no opponent piece on the board, or no empty square with a card around you). You will no longer pay the cost for nothing.",
+      "Fixed the victory sequence cutting off the Gate Invasion animation when the game was decided in the middle of it. The invasion now plays out fully before the victory sequence begins.",
+      "Fixed \"Lock two\" on Prism Shard doing nothing when the second shard was in your revealed-card area.",
+      "Players still at Bronze with an empty gauge (no wins yet) are no longer listed in the rank ranking on the battle-record system.",
+    ],
+  },
+  {
     date: "2026-09-03",
     items: [
       "「結ばれの一本桜 コノハナサクヤ」で相手を呼び寄せる時、光るマスを「カードが置かれているマス」だけにしました。これは「移動」なので、カードの無いマスへは動かせません。",

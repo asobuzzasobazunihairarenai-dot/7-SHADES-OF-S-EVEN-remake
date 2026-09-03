@@ -1975,29 +1975,32 @@ function resolveAvatarForStats(seat, raw) {
   return color === "gray" ? "assets/avatars/protagonist-gray-front.webp" : `assets/avatars/${color}-front.webp`;
 }
 
-async function registerParticipantsAsStatsPlayers(gameId) {
-  const { data: seatRows, error } = await client
-    .from("so7_game_seats")
-    .select("seat, user_id, display_name, avatar")
-    .eq("game_id", gameId);
-  if (error) {
-    console.error("registerParticipantsAsStatsPlayers failed", error);
-    return;
-  }
-  // ゲストはプレイヤー登録しない（対局開始時の自動登録もスキップ）。
-  const guestUserIds = await fetchGuestUserIds((seatRows ?? []).map((r) => r.user_id));
-  for (const row of seatRows ?? []) {
-    if (!row.user_id) continue;
-    if (guestUserIds.has(row.user_id)) continue;
-    try {
-      // #今回のバグ修正: 生のセンチネル("protagonist"等)をそのままURL化すると壊れるため、
-      // その座席の駒の色に対応する実画像パスへ解決してから絶対URL化する。
-      const resolved = resolveAvatarForStats(row.seat, row.avatar);
-      const avatarUrl = resolved ? new URL(resolved, window.location.href).href : null;
-      await getOrCreateStatsPlayer(row.user_id, row.display_name, avatarUrl);
-    } catch (err) {
-      console.error("getOrCreateStatsPlayer failed (game start registration)", err);
-    }
+// 【重要な設計変更 2026-09-04】以前はホスト（「ゲームを開始する」を押した人）が
+// so7_game_seats を読んで**参加者全員**を戦績プレイヤーとして登録していた。ところが
+// 「ゲストは登録しない」の判定に使っていた fetchGuestUserIds は so7_user_profiles を
+// 読む実装で、そのテーブルのRLSは using (user_id = auth.uid()) ＝**自分の行しか読めない**。
+// つまり他人のゲスト判定は常に空振りし、**ゲストが全員「プレイヤー」という名前で戦績
+// システムに登録され続けていた**（2026-07-25以降で30件。ユーザー報告 2026-09-04）。
+// 【対策】他人のゲスト判定をやめ、**各クライアントが自分自身だけを登録する**
+// （自分が匿名ログインかどうかは cachedUser.is_anonymous で確実に分かる）。
+// 対局の記録側（submitStatsMatchResult）は、他の座席については players を
+// 「引くだけ（作らない）」に変えた——非ゲストは必ず自分で登録しているので引ければ実プレイヤー、
+// 引けなければゲスト、と判定できる。RLS の制約を回避するための追加SQLは要らない。
+export async function registerSelfAsStatsPlayer() {
+  if (!client || !currentGameId || !cachedUser) return;
+  if (cachedUser.is_anonymous) return; // ゲストは戦績システムに登録しない
+  if (spectating) return; // 観戦者は参加者ではない
+  const seat = currentSeat;
+  if (!seat) return; // 座席が無い＝この対局の参加者ではない
+  try {
+    const identity = getSyncedIdentity(seat);
+    // センチネル("protagonist"/"entrusted")は駒の色に応じた実画像へ解決してから絶対URL化する
+    // （そのままURL化すると .../protagonist という実在しない画像になる。続き300の教訓）。
+    const resolved = resolveAvatarForStats(seat, identity?.avatar ?? null);
+    const avatarUrl = resolved ? new URL(resolved, window.location.href).href : null;
+    await getOrCreateStatsPlayer(cachedUser.id, identity?.name ?? null, avatarUrl);
+  } catch (err) {
+    console.error("registerSelfAsStatsPlayer failed", err);
   }
 }
 
@@ -2055,9 +2058,8 @@ export async function startGame(gameId, { includeBlackWhite = false, timerEnable
     // myDeckMode: マイデッキ戦（対戦ロビーのトグル）。timerConfig等と同じく開始時に1回だけ
     // 送り、サーバーが各席の selected_deck を読んでシャッフル配布する（so7-apply-action）。
     const result = await callAction({ type: "BOOTSTRAP_GAME", includeBlackWhite, timerConfig, boost, myDeckMode });
-    registerParticipantsAsStatsPlayers(gameId).catch((err) =>
-      console.error("registerParticipantsAsStatsPlayers failed", err)
-    );
+    // 戦績プレイヤーの登録は各クライアントが自分の分だけ行う
+    // （main.js のオンライン対局開始検知 → registerSelfAsStatsPlayer）。
     return result;
     });
   } finally {
@@ -2234,18 +2236,12 @@ async function persistMyGuestFlag() {
 // 指定のuser_id群のうち「ゲスト(is_guest=true)」のuser_idの集合を返す。戦績連携でプレイヤー
 // 登録をスキップする判定に使う。列未追加・取得失敗時は空集合（＝全員実アカウント扱い、
 // 実プレイヤーを誤ってスキップして戦績を失う事故を防ぐ安全側）。
-async function fetchGuestUserIds(userIds) {
-  const ids = [...new Set((userIds ?? []).filter(Boolean))];
-  if (!client || ids.length === 0) return new Set();
-  try {
-    const { data, error } = await client.from("so7_user_profiles").select("user_id, is_guest").in("user_id", ids);
-    if (error) throw error;
-    return new Set((data ?? []).filter((r) => r.is_guest).map((r) => r.user_id));
-  } catch (err) {
-    console.error("fetchGuestUserIds failed (treating all as non-guest)", err);
-    return new Set();
-  }
-}
+// 【撤去 2026-09-04】fetchGuestUserIds（他人のゲスト判定）はここにあったが、
+// so7_user_profiles のRLSが using (user_id = auth.uid()) ＝自分の行しか読めないため、
+// 他人については常に「ゲストではない」と返る空振り関数だった（＝ゲストが全員戦績システムへ
+// 「プレイヤー」として登録され続けた原因）。ゲスト判定は「自分の分は自分で判定して登録する」
+// 方式に変えたため不要になった（registerSelfAsStatsPlayer / submitStatsMatchResult 参照）。
+// persistMyGuestFlag（自分の is_guest を書く）は管理者向けの利用状況表示で使うので残す。
 
 // 認証済みユーザー(userId)に対応する戦績プレイヤー行のidを取得、無ければ作成する。
 // 一度リンクしたら以降は同じ行を使い続ける（ユーザー要望「Googleアカウント等で
@@ -2565,14 +2561,28 @@ export async function submitStatsMatchResult({ activePlayers, winnerSeat, feedba
   const guestNames = [];
   let winnerId = null;
   // 先に全座席のゲスト判定をまとめて取る（ゲストはプレイヤー登録せず、名前だけguest_namesへ）。
-  const guestUserIds = await fetchGuestUserIds(activePlayers.map((s) => getSyncedIdentity(s)?.userId));
+  // 【2026-09-04】以前はここで全座席分を getOrCreateStatsPlayer していたため、ゲストにも
+  // 「プレイヤー」という名前の戦績行が作られていた（他人のゲスト判定は RLS で不可能だった。
+  // registerSelfAsStatsPlayer のコメント参照）。今は自分以外の座席は players を**引くだけ**に
+  // する——非ゲストは対局開始時に自分で登録済みなので、引ければ実プレイヤー、引けなければ
+  // ゲスト（または登録に失敗した人）としてguest_namesに回す。
+  const mySeat = getSelfSeat();
   for (const seat of activePlayers) {
     const identity = getSyncedIdentity(seat);
     if (!identity?.userId) continue; // 座席にログインユーザーが紐づいていない（通常は起こらない）
-    // ゲストはplayers行を作らない。名前だけ試合のguest_namesに添える（戦績上「ゲスト（名前）」
-    // 表示用）。勝者がゲストの場合はwinner_idはnullのまま（実プレイヤーの勝ちではないため）。
-    if (guestUserIds.has(identity.userId)) {
-      guestNames.push(identity.name || t("on.label.guest"));
+    // 自分の座席だけは（自分がゲストでなければ）ここでも作れる＝開始時の登録が通信エラー等で
+    // 失敗していても、勝敗の記録には必ず載る。
+    const isSelfNonGuest = seat === mySeat && cachedUser && !cachedUser.is_anonymous;
+    if (!isSelfNonGuest) {
+      const existingId = await lookupStatsPlayerId(identity.userId);
+      if (!existingId) {
+        // 戦績プレイヤー行が無い＝ゲスト。名前だけ試合のguest_namesに添える（戦績上
+        // 「ゲスト（名前）」表示用）。勝者がゲストの場合はwinner_idはnullのまま。
+        guestNames.push(identity.name || t("on.label.guest"));
+        continue;
+      }
+      memberIds.push(existingId);
+      if (seat === winnerSeat) winnerId = existingId;
       continue;
     }
     // identity.avatarは、Googleアカウントのアバターなら既に絶対URL、ローカルの
