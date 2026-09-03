@@ -26,7 +26,7 @@ import { isActionConfirmEnabled, setActionConfirmEnabled } from "./action-confir
 import { isCellConfirmEnabled, setCellConfirmEnabled } from "./cell-confirm.js";
 import { isBoardIllustOnly, setBoardIllustOnly } from "./board-card-display.js";
 import { isFixedHandEnabled, setFixedHandEnabled } from "./fixed-hand.js";
-import { getSoundVolume, setSoundVolume, getBgmVolume, setBgmVolume } from "./sound.js";
+import { getSoundVolume, setSoundVolume, getBgmVolume, setBgmVolume, supportsVibration, isVibrationEnabled, setVibrationEnabled} from "./sound.js";
 import { setCardPreviewSize, getCardPreviewSide, setCardPreviewSide } from "./card-preview-size.js";
 import {
   getCpuSpeed,
@@ -986,6 +986,16 @@ export function initOptionsMenu() {
           setCellConfirmEnabled(checked);
         })
       );
+      // ユーザー要望2026-09-03「スマホであれば振動を与えることできる？」。鼓動の演出に合わせて
+      // 端末を振動させる。**対応している端末でだけ**この行を出す（iPhone/iPadのSafariには
+      // Vibration APIが無いので、出しても何も起きない項目になってしまうため）。
+      if (supportsVibration()) {
+        panel.appendChild(
+          buildCheckboxRow(t("opt.chk.vibration"), isVibrationEnabled(), (checked) => {
+            setVibrationEnabled(checked);
+          })
+        );
+      }
 
     }
 

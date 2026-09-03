@@ -586,24 +586,73 @@ export function initSoundUnlock() {
 // 鳴らし、結果が出たら止める）。多重startは無視、stopは冪等。
 let heartbeatActive = false;
 let heartbeatTimer = null;
-function scheduleThump(ctx, when, freq, peak) {
+// ユーザー要望2026-09-03「鼓動の効果音をもう少し大きくできる？」。以前は 62Hz / 48Hz の
+// サイン波1本だけだったが、この帯域はスマホの小さなスピーカーではほとんど鳴らない（physically
+// 再生できない）ため、音量を上げても大きくならなかった。**低音（体で感じる本体）＋その上の
+// 中音（小さなスピーカーでも実際に聞こえる成分）の2層**にして、聞こえの大きさを底上げする。
+// ピークの合計が 1.0 を超えると歪む（Web Audioは destination で頭打ち）ので、低音0.62＋
+// 中音はその45%＝合計0.90までに収めてある。
+function schedulePartial(ctx, when, freq, peak, decay) {
   try {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
     osc.frequency.setValueAtTime(freq, when);
-    osc.frequency.exponentialRampToValueAtTime(Math.max(20, freq * 0.6), when + 0.14);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(20, freq * 0.6), when + decay * 0.78);
     gain.gain.setValueAtTime(0.0001, when);
     gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), when + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, when + 0.18);
+    gain.gain.exponentialRampToValueAtTime(0.0001, when + decay);
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.start(when);
-    osc.stop(when + 0.22);
+    osc.stop(when + decay + 0.04);
   } catch {
     /* 合成に失敗しても進行は止めない */
   }
 }
+function scheduleThump(ctx, when, freq, peak) {
+  schedulePartial(ctx, when, freq, peak, 0.18); // 低音（本体）
+  schedulePartial(ctx, when, freq * 2.6, peak * 0.45, 0.12); // 中音（スマホでも聞こえる成分）
+}
+
+// スマホの振動（ユーザー要望2026-09-03「スマホであれば振動を与えることできる？」）。
+// Vibration API は Android Chrome 等では使えるが、**iPhone/iPad の Safari には実装が無い**
+// （Appleが未対応。どのサイトからも振動させられない）。そのため supportsVibration() が false の
+// 端末では設定項目自体を出さない。
+const VIBRATION_KEY = "so7-vibration-enabled";
+let vibrationEnabled = true;
+try {
+  const saved = localStorage.getItem(VIBRATION_KEY);
+  if (saved !== null) vibrationEnabled = saved === "1";
+} catch {
+  /* localStorageが使えない環境でも既定値で動く */
+}
+export function supportsVibration() {
+  return typeof navigator !== "undefined" && typeof navigator.vibrate === "function";
+}
+export function isVibrationEnabled() {
+  return vibrationEnabled;
+}
+export function setVibrationEnabled(v) {
+  vibrationEnabled = !!v;
+  try {
+    localStorage.setItem(VIBRATION_KEY, vibrationEnabled ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
+// pattern は navigator.vibrate と同じ（数値=ミリ秒、配列=[振動,休止,振動,...]）。
+// 画面が隠れている間は鳴らさない効果音と同じ考え方で振動もしない。
+export function vibrate(pattern) {
+  if (!vibrationEnabled || !supportsVibration()) return;
+  if (typeof document !== "undefined" && document.hidden) return;
+  try {
+    navigator.vibrate(pattern);
+  } catch {
+    /* 未対応・拒否された場合は何もしない */
+  }
+}
+
 export function startHeartbeat() {
   if (heartbeatActive) return;
   const ctx = getAudioContext();
@@ -614,19 +663,31 @@ export function startHeartbeat() {
     if (!heartbeatActive) return;
     const c = getAudioContext();
     if (c && c.state === "running") {
-      const peak = Math.min(0.5, Math.max(0, masterVolume) * 0.9);
+      // 以前は上限0.5・master×0.9。上限0.62・master×1.35に上げ、さらに中音成分を足した
+      // （上のscheduleThump参照）。合計ピークは0.90までで歪まない。
+      const peak = Math.min(0.62, Math.max(0, masterVolume) * 1.35);
       if (peak > 0) {
         const t = c.currentTime + 0.02;
         scheduleThump(c, t, 62, peak); // ドク（lub）
         scheduleThump(c, t + 0.19, 48, peak * 0.72); // ドクッ（dub）
       }
     }
+    // 鼓動に合わせてスマホを短く2回振動させる（ドク・ドクッ）。対応端末のみ。
+    vibrate([32, 158, 24]);
     heartbeatTimer = setTimeout(beat, periodMs);
   };
   beat();
 }
 export function stopHeartbeat() {
   heartbeatActive = false;
+  // 鳴り止めると同時に振動も止める（振動だけ残ると気持ち悪いため）。
+  if (supportsVibration()) {
+    try {
+      navigator.vibrate(0);
+    } catch {
+      /* ignore */
+    }
+  }
   if (heartbeatTimer) {
     clearTimeout(heartbeatTimer);
     heartbeatTimer = null;
