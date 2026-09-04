@@ -2452,3 +2452,110 @@ end;
 $$;
 revoke execute on function so7_set_bug_report_resolved(bigint, boolean) from public;
 grant execute on function so7_set_bug_report_resolved(bigint, boolean) to authenticated;
+
+-- ============================================================================
+-- 追加(2026-09-04): 管理者ダッシュボードの改善（ユーザー要望）
+--   ①「すべて対処済みにする」ボタン用の一括更新RPC
+--   ② ログイン履歴に「通算ログイン回数・初ログイン日・今月のログイン回数」を併記
+--   ③ 登録ユーザー一覧で「表示名未設定＝ゲスト（お試し）アカウント」を隠せるようにする
+-- 戻り値の列を増やすため、②③は drop してから作り直す（create or replace では列を変えられない）。
+-- ============================================================================
+
+-- ① 不具合報告をすべて対処済みにする（管理者のみ）。更新した件数を返す。
+create or replace function so7_resolve_all_bug_reports()
+returns int
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  n int;
+begin
+  if ((auth.jwt() ->> 'email') is distinct from 'asobuzz.asobazunihairarenai@gmail.com' and (auth.jwt() ->> 'email') is distinct from 'shogoshogo0929@gmail.com') then
+    raise exception 'not_authorized';
+  end if;
+  update so7_bug_reports set resolved = true where resolved is distinct from true;
+  get diagnostics n = row_count;
+  return n;
+end;
+$$;
+revoke execute on function so7_resolve_all_bug_reports() from public;
+grant execute on function so7_resolve_all_bug_reports() to authenticated;
+
+-- ② ログイン履歴に、その行のユーザーの「通算ログイン回数・初ログイン日・今月のログイン回数」を併記する。
+drop function if exists so7_get_admin_visit_log(int, int);
+create or replace function so7_get_admin_visit_log(p_limit int default 200, p_offset int default 0)
+returns table (
+  created_at timestamptz,
+  user_id uuid,
+  email text,
+  display_name text,
+  total_logins bigint,
+  first_login_at timestamptz,
+  month_logins bigint
+)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  if ((auth.jwt() ->> 'email') is distinct from 'asobuzz.asobazunihairarenai@gmail.com' and (auth.jwt() ->> 'email') is distinct from 'shogoshogo0929@gmail.com') then
+    raise exception 'not_authorized';
+  end if;
+  return query
+    with agg as (
+      select
+        v.user_id as uid,
+        count(*) as total,
+        min(v.created_at) as first_at,
+        count(*) filter (where v.created_at >= date_trunc('month', now())) as this_month
+      from so7_visit_log v
+      where v.user_id is not null
+      group by v.user_id
+    )
+    select v.created_at, v.user_id, u.email, p.display_name,
+           coalesce(a.total, 0), a.first_at, coalesce(a.this_month, 0)
+    from so7_visit_log v
+    left join auth.users u on u.id = v.user_id
+    left join so7_user_profiles p on p.user_id = v.user_id
+    left join agg a on a.uid = v.user_id
+    order by v.created_at desc
+    limit p_limit offset p_offset;
+end;
+$$;
+revoke execute on function so7_get_admin_visit_log(int, int) from public;
+grant execute on function so7_get_admin_visit_log(int, int) to authenticated;
+
+-- ③ 登録ユーザー一覧に「ゲスト（匿名ログイン）かどうか」を足す。ダッシュボード側で
+--    既定では隠す（スモークテストやお試しで作られる使い捨てアカウントが大量に並ぶため）。
+drop function if exists so7_get_admin_user_list();
+create or replace function so7_get_admin_user_list()
+returns table (
+  user_id uuid,
+  email text,
+  display_name text,
+  created_at timestamptz,
+  last_seen_at timestamptz,
+  is_guest boolean
+)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  if ((auth.jwt() ->> 'email') is distinct from 'asobuzz.asobazunihairarenai@gmail.com' and (auth.jwt() ->> 'email') is distinct from 'shogoshogo0929@gmail.com') then
+    raise exception 'not_authorized';
+  end if;
+  return query
+    select u.id, u.email, p.display_name, u.created_at, p.last_seen_at,
+           -- 匿名ログイン（ゲスト）か。auth.users.is_anonymous を第一の根拠にし、
+           -- 無い場合は本人が書いた so7_user_profiles.is_guest、それも無ければ
+           -- 「メールアドレスが無い＝ゲスト」で判定する。
+           coalesce(u.is_anonymous, p.is_guest, u.email is null) as is_guest
+    from auth.users u
+    left join so7_user_profiles p on p.user_id = u.id
+    order by u.created_at desc;
+end;
+$$;
+revoke execute on function so7_get_admin_user_list() from public;
+grant execute on function so7_get_admin_user_list() to authenticated;

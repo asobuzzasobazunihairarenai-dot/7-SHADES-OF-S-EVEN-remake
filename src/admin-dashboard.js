@@ -36,6 +36,8 @@ const bugReportStatusEl = document.getElementById("bug-report-status");
 const bugReportBody = document.querySelector("#bug-report-table tbody");
 const bugReportShowAllBtn = document.getElementById("bug-report-show-all-btn");
 const bugReportHideResolvedEl = document.getElementById("bug-report-hide-resolved");
+const bugReportResolveAllBtn = document.getElementById("bug-report-resolve-all-btn");
+const userListHideGuestsEl = document.getElementById("user-list-hide-guests");
 
 // 一括取得したリスト用の共通「直近5件だけ描画し、残りは『すべて表示』ボタンで出す」処理。
 // rows: 全行（新しい順で来る前提）、makeRow: 1行のtr要素を作る関数、showAllBtn: 展開ボタン。
@@ -72,6 +74,30 @@ function buildRow(cells) {
   return tr;
 }
 
+// 取得した全ユーザー（ゲストを隠すチェックの切り替えで再描画するために保持する）。
+let allUsers = [];
+// ゲスト（匿名ログイン）か。SQLがまだ古くて is_guest を返さない環境では、
+// 「メールアドレスが無い」＝ゲスト、で代用する（表示名未設定の使い捨てアカウント）。
+function isGuestUser(row) {
+  if (typeof row.is_guest === "boolean") return row.is_guest;
+  return !row.email;
+}
+function renderUserList() {
+  const hideGuests = !!userListHideGuestsEl?.checked;
+  const rows = hideGuests ? allUsers.filter((r) => !isGuestUser(r)) : allUsers;
+  const guests = allUsers.length - allUsers.filter((r) => !isGuestUser(r)).length;
+  userListStatusEl.textContent =
+    `${rows.length}件（直近${Math.min(INITIAL_ROWS, rows.length)}件を表示）` +
+    (hideGuests && guests > 0 ? ` ／ ゲスト${guests}件を非表示` : "");
+  renderCollapsibleRows(
+    userListBody,
+    rows,
+    (row) => buildRow([row.display_name || "(未設定)", row.email || "-", formatDateTime(row.created_at), formatDateTime(row.last_seen_at)]),
+    userListShowAllBtn
+  );
+}
+userListHideGuestsEl?.addEventListener("change", renderUserList);
+
 async function loadUserList() {
   userListStatusEl.textContent = "読み込み中...";
   const { data, error } = await client.rpc("so7_get_admin_user_list");
@@ -79,13 +105,8 @@ async function loadUserList() {
     userListStatusEl.textContent = `取得に失敗しました: ${error.message}`;
     return;
   }
-  userListStatusEl.textContent = `${data.length}件（直近${Math.min(INITIAL_ROWS, data.length)}件を表示）`;
-  renderCollapsibleRows(
-    userListBody,
-    data,
-    (row) => buildRow([row.display_name || "(未設定)", row.email || "-", formatDateTime(row.created_at), formatDateTime(row.last_seen_at)]),
-    userListShowAllBtn
-  );
+  allUsers = data ?? [];
+  renderUserList();
 }
 
 // 訪問記録はサーバー側ページング（VISIT_LOG_PAGE_SIZE件ずつ）。ユーザー要望に合わせ、
@@ -94,9 +115,27 @@ async function loadUserList() {
 let visitLogOffset = 0;
 let visitLogHasMore = true;
 let visitLogPendingBuffer = []; // 取得済みだがまだ描画していない行（初回の直近5件を除いた残り）
+// 日付だけ（初ログイン日）。時刻まで出すと横に長くなるので日付で十分。
+function formatDate(iso) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString("ja-JP");
+}
 function appendVisitRows(rows) {
   for (const row of rows) {
-    visitLogBody.appendChild(buildRow([formatDateTime(row.created_at), row.display_name || "(匿名/未ログイン)", row.email || "-"]));
+    // ユーザー要望2026-09-04: その人の通算ログイン回数・初ログイン日・今月の回数を併記する。
+    // SQLがまだ古くてこれらを返さない環境では「-」になるだけで、他の列は今まで通り出る。
+    visitLogBody.appendChild(
+      buildRow([
+        formatDateTime(row.created_at),
+        row.display_name || "(匿名/未ログイン)",
+        row.email || "-",
+        row.total_logins != null ? `${row.total_logins}回` : "-",
+        formatDate(row.first_login_at),
+        row.month_logins != null ? `${row.month_logins}回` : "-",
+      ])
+    );
   }
 }
 async function fetchVisitLogPage() {
@@ -183,6 +222,34 @@ async function loadBugReports() {
 }
 
 bugReportHideResolvedEl?.addEventListener("change", () => renderBugReports());
+
+// ユーザー要望2026-09-04「すべて対処済みにするボタン」。1件ずつ更新すると報告の数だけ
+// 往復が発生するため、サーバー側でまとめて更新する専用の関数(so7_resolve_all_bug_reports)を
+// 呼ぶ。取り消しがきかない操作なので必ず確認する。
+bugReportResolveAllBtn?.addEventListener("click", async () => {
+  const remaining = allBugReports.filter((r) => !isBugReportResolved(r)).length;
+  if (remaining === 0) {
+    bugReportStatusEl.textContent = "未対処の報告はありません。";
+    return;
+  }
+  if (!window.confirm(`未対処の${remaining}件をすべて「対処済み」にします。よろしいですか？`)) return;
+  bugReportResolveAllBtn.disabled = true;
+  const label = bugReportResolveAllBtn.textContent;
+  bugReportResolveAllBtn.textContent = "更新中...";
+  try {
+    const { data, error } = await client.rpc("so7_resolve_all_bug_reports");
+    if (error) throw new Error(error.message);
+    // 画面側も即座に反映する（DBのフラグが立ったので、コード側の一覧に関係なく対処済みになる）。
+    for (const r of allBugReports) r.resolved = true;
+    renderBugReports();
+    bugReportStatusEl.textContent = `${data ?? 0}件を対処済みにしました。`;
+  } catch (err) {
+    bugReportStatusEl.textContent = `一括更新に失敗しました: ${err.message ?? err}（SQL未実行かもしれません）`;
+  } finally {
+    bugReportResolveAllBtn.disabled = false;
+    bugReportResolveAllBtn.textContent = label;
+  }
+});
 
 // 「対処済み」を切り替える（DBのフラグ）。RLSでUPDATEポリシーが無いテーブルなので、
 // 管理者判定を内側でやる関数(so7_set_bug_report_resolved)経由で更新し、**実際に更新された
