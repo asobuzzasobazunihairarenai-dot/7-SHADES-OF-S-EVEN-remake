@@ -15,6 +15,7 @@
 // しばらく（14日）出さない。追加が完了したら二度と出さない。
 import { t } from "./ui-text.js";
 import { createBackdrop, createModalCloseX } from "./ui-helpers.js";
+import { isTouchPrimaryDevice } from "./device-detect.js";
 
 const DISMISS_KEY = "so7-pwa-install-dismissed-at";
 const DISMISS_DAYS = 14;
@@ -125,13 +126,16 @@ export function buildPwaInstallBanner() {
 
   const text = document.createElement("div");
   text.className = "pwa-install-text";
-  text.textContent = t("pwa.bannerText");
+  // PCで「ホーム画面に追加」と言われても意味が通らない（ユーザー報告2026-09-05
+  // 「スマホではないのにホーム画面への追加推奨モーダルが出ています」）。同じ機能でも、
+  // 端末によって呼び方が違うので言い方を変える（PC＝アプリとしてインストール）。
+  text.textContent = t(isTouchPrimaryDevice() ? "pwa.bannerText" : "pwa.bannerTextDesktop");
   bannerEl.appendChild(text);
 
   const addBtn = document.createElement("button");
   addBtn.type = "button";
   addBtn.className = "pwa-install-add";
-  addBtn.textContent = t("pwa.addBtn");
+  addBtn.textContent = t(isTouchPrimaryDevice() ? "pwa.addBtn" : "pwa.addBtnDesktop");
   addBtn.addEventListener("click", async () => {
     if (deferredPrompt) {
       addBtn.disabled = true;

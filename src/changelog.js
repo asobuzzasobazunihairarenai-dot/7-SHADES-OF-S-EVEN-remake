@@ -14,6 +14,8 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "「ホーム画面に追加」の案内が、ホーム画面のボタンに重なっていたのを直しました。画面の右上（オプションの下）へ移動し、パソコンでは「アプリとしてインストール」という言い方に変えました。",
+      "参加できる部屋が1つも無い時の案内に、「ランク戦にする」で作った部屋はこの一覧には出ないこと（部屋コードで参加すること）を書き添えました。",
       "駒が1マス移動する時に、パッと次のマスへ現れるのではなく、実際に移動して見えるようにしました（相手の移動を見ている時と同じ見え方になります）。",
       "盤面の描き方を新しい方式（WebGL）に切り替えました。これまで管理者だけの試験機能でしたが、iPhone・iPadで画面がチカチカする・アプリが落ちる症状がこれで解消したため、全員に既定で有効にします。うまく表示されない端末では、基本設定の「動きが重い・カクつくとき」から元の方式に戻せます。",
       "接触する時に駒の上へ出ていた「🤝 接触する」ボタンを無くしました。すぐ後に「本当に接触しますか？」の確認が出るので、同じことを2回聞いていました。これからは相手の駒へドラッグすると、そのまま確認が出ます。",
@@ -22,6 +24,8 @@ export const CHANGELOG = [
       "スマホ・タブレットで最初に一度だけ出ていた「2D表示がおすすめです」のお知らせを、出さないようにしました。盤面の描き方を新しくしたことで、画面がチカチカする症状が解消したためです（2D表示そのものは今までどおり基本設定から切り替えられます）。",
     ],
     itemsEn: [
+      "The “add to home screen” prompt no longer overlaps the buttons on the home screen. It moved to the top right (under the options), and on a computer it now says “install as an app”.",
+      "When no rooms are open, the message now explains that rooms created with “Make it ranked” never appear in that list and are joined with a room code.",
       "When a piece moves one square it now travels there instead of appearing instantly (the same way you already see opponents move).",
       "The board is now drawn with the new method (WebGL) for everyone. It used to be an admin-only experiment, but since it fixed the flickering and crashes on iPhone and iPad, it is on by default. If your device does not display it correctly, you can switch back under “When things feel slow or stutter” in Settings.",
       "The floating “🤝 Contact” button that appeared above the piece is gone. A “Really make contact?” confirmation follows right after it, so it was asking the same thing twice. Dragging onto an opponent’s piece now brings up that confirmation directly.",
