@@ -46,7 +46,9 @@ import {
 } from "./card-effect-engine.js";
 import {
   reconcilePhaseAutomation,
-  endTurnBecauseNothingToDo,
+  runMoveFallbackNow,
+  getPhaseDebugInfo,
+  endTurnAlreadyActed,
   registerPhaseAutomationHelpers,
   isHandPhaseActive,
   setHandEffectBusy,
@@ -4361,6 +4363,27 @@ export function performPriorityTimeoutAutoAction() {
   // フェイズ自動進行(lock→hand→move)自体もphase-automation.js側でhandEffectBusyを見て止まる。
   if (isHandEffectBusy()) return false;
   const phase = getCurrentPhase();
+  // 【停止からの脱出 その2】「もう移動/接触は済んだ(moveActionTaken)のに、ターンが終わって
+  // いない」状態でここに来ると、下のムーブ分岐は isMovePhaseActive() が false で丸ごと飛ばされ、
+  // ロック分岐にも当たらず、**何もせず false を返して永久に止まる**（オンラインの自動対戦で
+  // turn 13 で実測。持ち時間切れの再試行は10秒ごとに走っているのに何も起きない）。
+  // 例えば移動の送信が失敗して render() だけして戻った時など、行動済みの印だけが残る経路がある。
+  // ここまで来ている＝持ち時間が切れていて、選択待ちも処理中も無い、ということなので、
+  // ターンを終わらせて必ず前へ進める。
+  if (
+    phase === "move" &&
+    !isMovePhaseActive() &&
+    !isArrivalEffectProcessing() &&
+    !getState().pendingContact &&
+    openContactResultModals === 0 &&
+    !isGateInvasionPending() &&
+    !isGateInvasionQueueActive() &&
+    !isLocalGateInvasionActive()
+  ) {
+    logAction("diag-move-auto-noop", { player: driveSeat, reason: "already-acted-but-turn-not-ended" });
+    void endTurnAlreadyActed(driveSeat);
+    return true;
+  }
   if (phase === "move" && isMovePhaseActive()) {
     const table = document.getElementById("game-table");
     const candidates = table
@@ -4403,13 +4426,12 @@ export function performPriorityTimeoutAutoAction() {
       return true;
     }
     // 【停止からの脱出】候補が1つも無いのに、ここで何もせず抜けると**持ち時間が切れたまま
-    // 誰も動けず対局が永久に止まる**（オンラインの自動対戦で実測。turn 9 / 19 / 24 で再現）。
-    // 通常は phase-automation.js の救済（隣の1マスへ山札から1枚置いてターン終了）が働くが、
-    // 置ける隣のマスすら無い時などに素通りしていた。ルール上「動けないならそのターンは終わり」
-    // なので、必ず前へ進める。
+    // 誰も動けず対局が永久に止まる**。通常は phase-automation.js の救済が同じことをするが、
+    // そこへ辿り着けない状況でも確実に実行できるよう、ここからも**ルール通りの救済**
+    // （移動も接触もできない時は、隣の空きマスへ山札から1枚置いてターン終了）を呼ぶ。
     if (candidates.length === 0) {
       logAction("diag-move-auto-noop", { player: driveSeat, reason: "no-candidates" });
-      void endTurnBecauseNothingToDo(driveSeat);
+      void runMoveFallbackNow(driveSeat);
       return true;
     }
   }
@@ -4551,7 +4573,37 @@ export function performPriorityTimeoutAutoAction() {
     // true/falseではなく専用の文字列を返す。
     return "skip";
   }
+  // 【停止の調査用】ここまで来た＝持ち時間が切れているのに何もしなかった、ということ。
+  // 対局が止まる時は必ずここを通るので、その瞬間の内部状態を残す（ユーザー提案2026-09-05
+  // 「自動で復帰させると原因究明できなくならないか。怪しいものについてログ出力を足す方が
+  // よいのでは」——復帰の仕組みは残しつつ、**何が起きていたか**は必ず読めるようにする）。
+  // 毎tick出すとログが埋まるので4秒に1回まで。
+  logAutoActionDidNothing(driveSeat, phase);
   return false;
+}
+
+let lastAutoActionNothingAt = 0;
+function logAutoActionDidNothing(driveSeat, phase) {
+  const now = Date.now();
+  if (now - lastAutoActionNothingAt < 4000) return;
+  lastAutoActionNothingAt = now;
+  const st = getState();
+  const table = document.getElementById("game-table");
+  logAction("diag-auto-action-nothing", {
+    driveSeat,
+    phase,
+    turnPlayer: st.turnPlayer,
+    priorityPlayer: st.priorityPlayer,
+    selfSeat: getSelfSeat(),
+    isPseudoCpuTarget: isPseudoCpuTarget(driveSeat),
+    moveHighlights: table ? table.querySelectorAll(".cell.phase-move-highlight").length : -1,
+    contactHighlights: table ? table.querySelectorAll(".cell.phase-contact-highlight").length : -1,
+    pendingContact: !!st.pendingContact,
+    pendingFinalLock: !!st.pendingFinalLock,
+    picker: activeEffectPicker?.type ?? null,
+    arrivalProcessing: isArrivalEffectProcessing(),
+    ...getPhaseDebugInfo(),
+  });
 }
 
 // CPU自動スキップOFFの時に、CPUの「結果通知モーダル」がクリック待ちで止まっている間だけ

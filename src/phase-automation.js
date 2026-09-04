@@ -129,7 +129,17 @@ queueMicrotask(() => {
     if (!payload || payload.player === getSelfSeat()) return; // 自分の中継は無視（自分はcurrentPhaseで表示）
     remotePhase = payload.phase ? { player: payload.player, phase: payload.phase } : null;
     updatePhaseGuideGlow();
+    // ユーザーの勘（2026-09-05）「最近直したスキップボタンの表示/非表示あたりが怪しい」。
+  // 確かにここは **フェイズ自動進行の一番最初** に呼ばれるので、この中で例外が出ると
+  // それ以降（フェイズの開始・移動ハイライト・自動ターン終了）が丸ごと走らず、
+  // 「持ち時間が切れているのに誰も動けない」停止になる。ボタンの見せ隠しは進行とは
+  // 無関係なので、失敗しても進行だけは続けるようにし、例外が出たこと自体は記録する。
+  try {
     updateSkipButtonVisibility();
+  } catch (err) {
+    console.error("updateSkipButtonVisibility failed", err);
+    logAction("diag-skip-button-error", { message: String(err?.message ?? err) });
+  }
   });
 });
 
@@ -232,6 +242,20 @@ export function getCurrentPhase() {
 export function isHandPhaseActive() {
   return currentPhase === "hand";
 }
+// 停止の調査用（2026-09-05）。「持ち時間が切れているのに誰も動かない」時、フェイズ側の
+// どの内部状態が原因なのかを推測せずに読めるようにする（ユーザー提案「怪しいものについて
+// ログ出力を足す方がよくないでしょうか」）。値を読むだけで副作用は無い。
+export function getPhaseDebugInfo() {
+  return {
+    currentPhase,
+    phaseOwner,
+    moveActionTaken,
+    handEffectBusy,
+    awaitingFallbackPick,
+    performingFallback,
+  };
+}
+
 export function isMovePhaseActive() {
   return currentPhase === "move" && !moveActionTaken;
 }
@@ -1166,11 +1190,38 @@ function reconcileMovePhase(player) {
   }
 }
 
-// 停止からの脱出用（2026-09-05、オンラインの自動対戦で実測）。移動先も接触相手も、
-// 置ける隣のマスも無い時に**何もしないまま止まる**ことがあった（持ち時間が切れても誰も動けず
-// 対局が終わらない）。ルール上「動けないならそのターンは終わり」なので、必ず前へ進める。
-// 中身は下の救済処理と全く同じで、置くカードが無い（location=null）分だけ飛ばす。
-export function endTurnBecauseNothingToDo(player) {
+// --- 停止からの脱出（2026-09-05、オンラインの自動対戦で実測）--------------------------
+// 持ち時間が切れているのに誰も動けず対局が止まることがあったため、タイムアウトの自動処理
+// （main.js）から確実に前へ進めるための入口を2つ用意する。**ルールは変えない**。
+
+// (a) 移動先も接触相手も無い時の、**ルール通りの救済**——「隣の空きマスへ山札から1枚置いて
+// ターン終了」。通常は reconcileMovePhase が同じことをするが、そこへ辿り着けない状況でも
+// 確実に実行できるようにする。
+// ※ユーザー指摘（2026-09-05）「置けるマスが無いなんてありえない」。実際、移動できない＝隣の
+// マスにカードが無い、ということなので空きマスは必ずあるはず。それでも0件だった時は、こちらの
+// 想定が誤っているか別の不具合なので、**握りつぶさず記録**して調べられるようにする。
+export async function runMoveFallbackNow(player) {
+  const piece = getSelfPiece(player);
+  const emptyCells = piece && piece.location.zone === "cell" ? getAdjacentEmptyCells(piece.location) : [];
+  if (emptyCells.length > 0) {
+    await performMoveFallbackAndEndTurn(player, emptyCells[0]);
+    return "placed";
+  }
+  logAction("diag-move-fallback-no-empty-cell", {
+    player,
+    location: piece?.location ?? null,
+  });
+  // ありえないはずの状態。対局が完全に止まるのが一番まずいので、ここだけは
+  // カードを置かずにターンを終える（ルールではなく、詰み回避の最後の手段）。
+  markPhaseMoveActionTaken();
+  await performMoveFallbackAndEndTurn(player, null);
+  return "no-empty-cell";
+}
+
+// (b) 「もう移動/接触は済んでいるのに、ターンだけ終わっていない」時にターンを終える。
+// これはルールの追加ではなく、本来この後すぐ起きるはずのターン終了を、取りこぼした時に
+// 代わりに行うもの。
+export function endTurnAlreadyActed(player) {
   markPhaseMoveActionTaken();
   return performMoveFallbackAndEndTurn(player, null);
 }
