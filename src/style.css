@@ -13019,9 +13019,9 @@ body.is-phone-device .opening-lang-toggle-seg.is-current {
   --gate-invasion-modal-size: 28rem;
   --gate-invasion-modal-step-duration: 3.5;
   --contact-anim-pre-delay: 1;
-  --contact-anim-runup-duration: 1.5;
-  --contact-anim-tackle-duration: 1;
-  --contact-anim-flight-duration: 1;
+  --contact-anim-runup-duration: 0.5;
+  --contact-anim-tackle-duration: 0.5;
+  --contact-anim-flight-duration: 0.5;
   --eternal-anim-glow-duration: 1;
   --eternal-anim-flight-duration: 1.5;
   --eternal-anim-suspense-duration: 1.5;

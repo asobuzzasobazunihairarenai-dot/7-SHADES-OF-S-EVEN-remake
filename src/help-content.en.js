@@ -47,7 +47,7 @@ export const DIGITAL_FEATURES_EN = [
   {
     title: "Contact goes through a confirmation and the defender's approval",
     body: [
-      "Drag your piece onto an adjacent opponent's piece and a “Contact” button appears. After a confirmation prompt (to prevent misclicks), the player being contacted decides whether to approve or reject it.",
+      "Drag your piece onto an adjacent opponent's piece and a confirmation prompt appears (to prevent misclicks). Once you request it, the player being contacted decides whether to approve or reject it.",
       "Once approved, taking one random card from their hand and forcing them back to their own gate happens automatically, and the result is shown in a modal along with the animation (the charge, the impact and the card flight).",
     ],
   },

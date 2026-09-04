@@ -370,9 +370,9 @@ const GROUPS = [
     category: "effect",
     controls: [
       { key: "--contact-anim-pre-delay", label: "①承認から演出開始までの間（秒）", unit: "", min: 0, max: 10, step: 0.5, default: 1 },
-      { key: "--contact-anim-runup-duration", label: "③助走にかける秒数", unit: "", min: 0.2, max: 10, step: 0.1, default: 1.5 },
-      { key: "--contact-anim-tackle-duration", label: "④タックルにかける秒数", unit: "", min: 0.1, max: 5, step: 0.1, default: 1 },
-      { key: "--contact-anim-flight-duration", label: "⑤ゲートまで戻るのにかかる秒数", unit: "", min: 0.2, max: 10, step: 0.1, default: 1 },
+      { key: "--contact-anim-runup-duration", label: "③助走にかける秒数", unit: "", min: 0.2, max: 10, step: 0.1, default: 0.5 },
+      { key: "--contact-anim-tackle-duration", label: "④タックルにかける秒数", unit: "", min: 0.1, max: 5, step: 0.1, default: 0.5 },
+      { key: "--contact-anim-flight-duration", label: "⑤ゲートまで戻るのにかかる秒数", unit: "", min: 0.2, max: 10, step: 0.1, default: 0.5 },
     ],
   },
   {

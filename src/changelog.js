@@ -14,10 +14,14 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "接触する時に駒の上へ出ていた「🤝 接触する」ボタンを無くしました。すぐ後に「本当に接触しますか？」の確認が出るので、同じことを2回聞いていました。これからは相手の駒へドラッグすると、そのまま確認が出ます。",
+      "接触のタックル演出を短くしました（助走・タックル・ゲートへ戻るまでの時間）。",
       "これまで「そのブラウザにだけ」保存されていた設定を、アカウントにも保存するようにしました。CPUの速さ・強さ・人数、CPU戦の自動送り、フェイズの自動スキップ、マスの確認、カードを拡大表示する大きさと向き、盤面のカードを絵だけにする、手札を画面下に固定、自動処理中のドラッグ制限、ランク戦の通知（時間帯を含む）、振動、ホーム画面の「次にやること」の進み具合です。端末やブラウザを変えても引き継がれ、閲覧データを消しても元に戻りません。",
       "スマホ・タブレットで最初に一度だけ出ていた「2D表示がおすすめです」のお知らせを、出さないようにしました。盤面の描き方を新しくしたことで、画面がチカチカする症状が解消したためです（2D表示そのものは今までどおり基本設定から切り替えられます）。",
     ],
     itemsEn: [
+      "The floating “🤝 Contact” button that appeared above the piece is gone. A “Really make contact?” confirmation follows right after it, so it was asking the same thing twice. Dragging onto an opponent’s piece now brings up that confirmation directly.",
+      "The contact tackle animation is shorter (the run-up, the tackle, and the return to the gate).",
       "Settings that used to be saved only in one browser are now saved to your account as well: CPU speed, strength and player count, CPU auto-advance, phase auto-skip, the square confirmation, the size and side of the enlarged card, showing board cards as artwork only, pinning your hand to the bottom of the screen, the drag restriction during automatic processing, ranked match notifications (including the time window), vibration, and your progress on the “what to do next” card. They now follow you across devices and browsers, and clearing your browsing data no longer resets them.",
       "The one-time “the flat 2D view is recommended” notice no longer appears on phones and tablets. The new way of drawing the board fixed the flickering it was there to work around (the 2D view itself is still available in Settings).",
     ],

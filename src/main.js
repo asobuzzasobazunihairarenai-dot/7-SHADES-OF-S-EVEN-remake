@@ -6649,14 +6649,10 @@ function promptCardOpen(pieceTokenId, card, onResolved, onFullyResolved) {
 // あった場合の到達効果は、通常の移動と全く同じ経路（オンライン中はremote-move-animator.js
 // が hydrateState後の差分検知で自動的に検知する）で、相手自身の画面に通常通りの到達
 // モーダルが出る（respondToContact参照）。
-let contactPromptEl = null;
-
-function closeContactPrompt() {
-  if (contactPromptEl) {
-    contactPromptEl.remove();
-    contactPromptEl = null;
-  }
-}
+// 【廃止】以前は駒の上に「🤝 接触する」という浮遊ボタンを出し、それを押すと確認モーダルへ
+// 進む2段階だった（contactPromptEl / closeContactPrompt がその後始末）。同じことを2回聞いて
+// いるだけなので、2026-09-05に浮遊ボタンをやめて確認モーダルへ直行するようにした
+// （showContactPrompt 参照）。
 
 function isAdjacentCell(a, b) {
   const dr = Math.abs(a.row - b.row);
@@ -6807,6 +6803,9 @@ async function submitContactProposal(attacker, defender) {
 }
 
 function openContactConfirmModal(attacker, defender) {
+  // 駒を離した直後にこのモーダルが出るようになったので、指の下でボタンが押されてしまう
+  // 事故（#230/#236と同じ合成クリック）を防ぐ。
+  const guard = createOpenGuard();
   const modal = document.createElement("div");
   modal.id = "contact-confirm-modal";
   const close = () => {
@@ -6832,13 +6831,17 @@ function openContactConfirmModal(attacker, defender) {
   cancelBtn.className = "contact-confirm-cancel";
   cancelBtn.type = "button";
   cancelBtn.textContent = t("game.confirm.cancel");
-  cancelBtn.addEventListener("click", close);
+  cancelBtn.addEventListener("click", () => {
+    if (guard()) return;
+    close();
+  });
 
   const okBtn = document.createElement("button");
   okBtn.className = "contact-confirm-ok";
   okBtn.type = "button";
   okBtn.textContent = t("game.contact.requestBtn");
   okBtn.addEventListener("click", async () => {
+    if (guard()) return;
     okBtn.disabled = true;
     cancelBtn.disabled = true;
     try {
@@ -6860,7 +6863,6 @@ function openContactConfirmModal(attacker, defender) {
 }
 
 function showContactPrompt(attacker, defender, anchorPieceTokenId) {
-  closeContactPrompt();
   // #228（ユーザー報告「コノハナサクヤで呼び寄せた相手に接触できちゃった」）: カード文の
   // 「このターンあなたは接触できない。」を実際に強制する。接触の入口はここ1箇所（人間の
   // 『接触する』ボタン→確認モーダル／疑似CPUの自動申し込み、どちらもこの関数を通る）なので、
@@ -6879,32 +6881,13 @@ function showContactPrompt(attacker, defender, anchorPieceTokenId) {
     submitContactProposal(attacker, defender);
     return;
   }
-  const pieceEl = document.querySelector(`.piece[data-token-id="${anchorPieceTokenId}"]`);
-  if (!pieceEl) return;
-  const rect = toStageLocalRect(pieceEl.getBoundingClientRect());
-
-  const prompt = document.createElement("div");
-  prompt.className = "card-open-prompt";
-  prompt.style.left = `${rect.left + (rect.right - rect.left) / 2}px`;
-  prompt.style.top = `${rect.top}px`;
-
-  const contactBtn = document.createElement("button");
-  contactBtn.className = "card-open-prompt-yes";
-  contactBtn.textContent = t("game.contact.doBtn");
-  contactBtn.addEventListener("click", () => {
-    closeContactPrompt();
-    openContactConfirmModal(attacker, defender);
-  });
-
-  prompt.appendChild(contactBtn);
-  document.body.appendChild(prompt);
-  clampFloatingPromptIntoView(prompt); // 画面外はみ出しで一部しか押せなくなるのを防ぐ（#55）
-  contactPromptEl = prompt;
+  // ユーザー判断2026-09-05「接触するとき駒の上に『接触する』ボタンが出るが、その次に
+  // ちゃんとしたモーダルが出るのでこのボタンは無くす」。以前は駒の上に浮かぶ小さなボタン
+  // →確認モーダル、の2段階だったが、同じことを2回聞いているだけだったので1段階にした
+  // （相手へ申し込むかどうかは、この後の確認モーダルで決める）。anchorPieceTokenId は
+  // その浮遊ボタンの位置決めにだけ使っていた引数なので、もう使わない。
+  openContactConfirmModal(attacker, defender);
 }
-
-document.addEventListener("pointerdown", (e) => {
-  if (contactPromptEl && !contactPromptEl.contains(e.target)) closeContactPrompt();
-});
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));

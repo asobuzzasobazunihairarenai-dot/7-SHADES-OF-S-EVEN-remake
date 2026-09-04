@@ -114,7 +114,10 @@ async function loadUserList() {
     renderUserList();
     return;
   }
-  allUsers = data ?? [];
+  // SQL側は jsonb（オブジェクトの配列）を1つ返す形に変えた（型合わせで落ちるのを避けるため。
+  // supabase_setup_so7.sql の「再修正(2026-09-05)」参照）。行の配列で返る旧版でも同じ形なので、
+  // どちらでもそのまま扱える。
+  allUsers = Array.isArray(data) ? data : [];
   renderUserList();
 }
 
@@ -153,9 +156,10 @@ async function fetchVisitLogPage() {
     p_offset: visitLogOffset,
   });
   if (error) throw error;
-  visitLogOffset += data.length;
-  visitLogHasMore = data.length === VISIT_LOG_PAGE_SIZE;
-  return data;
+  const rows = Array.isArray(data) ? data : [];
+  visitLogOffset += rows.length;
+  visitLogHasMore = rows.length === VISIT_LOG_PAGE_SIZE;
+  return rows;
 }
 function refreshVisitLogButton() {
   if (visitLogPendingBuffer.length > 0) {
