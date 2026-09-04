@@ -1166,26 +1166,38 @@ function reconcileMovePhase(player) {
   }
 }
 
+// 停止からの脱出用（2026-09-05、オンラインの自動対戦で実測）。移動先も接触相手も、
+// 置ける隣のマスも無い時に**何もしないまま止まる**ことがあった（持ち時間が切れても誰も動けず
+// 対局が終わらない）。ルール上「動けないならそのターンは終わり」なので、必ず前へ進める。
+// 中身は下の救済処理と全く同じで、置くカードが無い（location=null）分だけ飛ばす。
+export function endTurnBecauseNothingToDo(player) {
+  markPhaseMoveActionTaken();
+  return performMoveFallbackAndEndTurn(player, null);
+}
+
+// location が null の時は「山札から1枚置く」を飛ばし、ターンを終えるところだけ行う。
 async function performMoveFallbackAndEndTurn(player, location) {
   performingFallback = true;
   try {
     // ルール修正（ユーザー要望）: マスに置いたカードは“裏向き”のまま＝中身は誰にも
     // 分からない。マスへの配置はstate.jsのfaceUpForLocationにより既定で裏向きになるため、
     // 以前あったflipToken（表向きにする）とannounceHandPickups（中身を全員へ公開）は行わない。
-    if (isOnlineMode()) {
-      try {
-        await drawFromPile("deck", location);
-        await fetchAndHydrate(getCurrentGameId());
-      } catch (err) {
-        console.error("performMoveFallbackAndEndTurn failed", err);
-        renderHelper?.();
-        return;
+    if (location) {
+      if (isOnlineMode()) {
+        try {
+          await drawFromPile("deck", location);
+          await fetchAndHydrate(getCurrentGameId());
+        } catch (err) {
+          console.error("performMoveFallbackAndEndTurn failed", err);
+          renderHelper?.();
+          return;
+        }
+      } else {
+        drawFromPile("deck", location);
       }
-    } else {
-      drawFromPile("deck", location);
+      playSound("cardPlace");
+      renderHelper?.();
     }
-    playSound("cardPlace");
-    renderHelper?.();
     // ユーザー報告（続き95）「優先権が相手から自分に戻らない」の原因調査で判明:
     // nextTurn()はturnPlayerを次のプレイヤーへ進めるだけで、priorityPlayerには一切
     // 触れない（state.jsのNEXT_TURNリデューサー参照）。priorityPlayerを新しい

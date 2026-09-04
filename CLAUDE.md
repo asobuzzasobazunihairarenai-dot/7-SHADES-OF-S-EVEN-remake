@@ -4224,3 +4224,29 @@ CPUの速さ/強さ/人数/自動送り・フェイズの自動スキップ・�
   確認すること。今回の不具合は `--isolated` でも再現したので本物。
 - **検証**: `npm test` 56/56 PASS、`node test/smoke.mjs 2` PASS。保険そのものが効いて決着まで
   到達できるかは、次に `--full --isolated` を回して確認する。
+
+### 2026-09-05（続き408）：オンラインの停止「移動フェイズで候補が1つも無いと何もせず止まる」を特定・修正
+
+続き407で入れた保険（フェイズ未開始の救済）では止まらなかった（3回目は turn 9 で停止、
+`diag-phase-restart` は0件＝フェイズは始まっていた）。ログを読み直して**別の経路**だと分かった。
+
+- **原因（特定）**: `performPriorityTimeoutAutoAction` のムーブフェイズ分岐は、移動先/接触相手の
+  候補を**DOMのハイライト（`.phase-move-highlight` / `.phase-contact-highlight`）から集めている**。
+  候補が0件だと `chosen` が undefined になり、**そのまま何もせず素通り**していた（`if (chosen)`
+  の外に何も無い）。持ち時間が切れても誰も動かせず、対局が永久に止まる。
+  - 通常は phase-automation.js の救済（`reconcileMovePhase` の「移動先も接触相手も無ければ、
+    隣の1マスへ山札から1枚置いてターン終了」）が働くが、**置ける隣のマスすら無い**時
+    （`emptyCells.length === 0`）は何もしないまま抜けるため、ここも素通りになる。
+  - 実測: 停止時の状態は毎回同じ——手番のクライアントが `phase=move`・自分に優先権・
+    `deadlineIn=-44s`・`diag-timeout-latch-retry` は10秒ごとに出ているのに何も起きない。
+- **修正**: 候補が0件なら「ルール上、動けないならそのターンは終わり」として**必ず前へ進める**。
+  phase-automation.js の救済処理を `location = null`（カードを置く部分だけ飛ばす）でも呼べるように
+  分岐を足し、`endTurnBecauseNothingToDo(player)` として公開。main.js のムーブ分岐から呼ぶ
+  （`diag-move-auto-noop` を残す）。優先権の引き継ぎ・ゲート侵攻の確認・NEXT_TURN は
+  既存の救済処理と全く同じ経路を通るので、挙動の食い違いが生まれない。
+- **あわせて自動ロックにも診断を追加**: `performLockPhaseClick` の早期return（`not-lockable` /
+  `pending-final-lock` / `no-token`）を `diag-lock-click-skip` として残し、await していない
+  自動ロックの失敗も `diag-lock-click-failed` で拾うようにした（turn 19 の停止では
+  「ロック候補1枚あるのにロックされない」形だったため、次に再現した時に切り分けられる）。
+- **検証**: `npm test` 56/56 PASS、`node test/smoke.mjs 2` PASS。オンラインの決着まで自動対戦で
+  実際に最後まで行けるかは、この後もう一度回して確認する。

@@ -46,6 +46,7 @@ import {
 } from "./card-effect-engine.js";
 import {
   reconcilePhaseAutomation,
+  endTurnBecauseNothingToDo,
   registerPhaseAutomationHelpers,
   isHandPhaseActive,
   setHandEffectBusy,
@@ -4094,7 +4095,12 @@ async function performLockPhaseClick(tokenId, { skipConfirm = false, actingSeat 
   // actingSeat: 通常は自分の席。ローカルCPU戦では自動処理がCPU(C)の席を渡してくる。
   const player = actingSeat;
   const token = getState().tokens.find((t) => t.id === tokenId);
-  if (!token || !isCardLockable(token, player)) return;
+  if (!token || !isCardLockable(token, player)) {
+    // 停止の調査用（2026-09-05）: 自動ロックが「候補はあるのに何も起きない」形で止まることが
+    // あるため、黙って抜けた理由を残す。
+    logAction("diag-lock-click-skip", { reason: token ? "not-lockable" : "no-token", tokenId, player });
+    return;
+  }
   // ユーザー報告（続き85）「スマホでロックするとき手札効果の使用時同様の
   // 『ロックしますか？』的なモーダルが出ていない。誤操作防止の観点から出して
   // ほしい」。ドラッグ&ドロップでロックスロットへ動かした時（onDragEnd参照）は
@@ -4119,6 +4125,7 @@ async function performLockPhaseClick(tokenId, { skipConfirm = false, actingSeat 
   // 使う機会（final-lock-approval.js の承認バナー）が一切出なかった。ドラッグ経路と同じ
   // 処理をここにも移植する。ロックエリアの持ち主はロックする本人（player）自身。
   if (getState().pendingFinalLock) {
+    logAction("diag-lock-click-skip", { reason: "pending-final-lock", tokenId, player });
     render();
     return;
   }
@@ -4395,6 +4402,16 @@ export function performPriorityTimeoutAutoAction() {
       } else performPhaseContact(location, driveSeat);
       return true;
     }
+    // 【停止からの脱出】候補が1つも無いのに、ここで何もせず抜けると**持ち時間が切れたまま
+    // 誰も動けず対局が永久に止まる**（オンラインの自動対戦で実測。turn 9 / 19 / 24 で再現）。
+    // 通常は phase-automation.js の救済（隣の1マスへ山札から1枚置いてターン終了）が働くが、
+    // 置ける隣のマスすら無い時などに素通りしていた。ルール上「動けないならそのターンは終わり」
+    // なので、必ず前へ進める。
+    if (candidates.length === 0) {
+      logAction("diag-move-auto-noop", { player: driveSeat, reason: "no-candidates" });
+      void endTurnBecauseNothingToDo(driveSeat);
+      return true;
+    }
   }
   // ユーザー要望（続き104）「疑似CPUモードでロックフェイズも自動でロックするように
   // して、本当に対戦終了まで自動で行けるようにする」。ロック自体は本来「任意」
@@ -4447,7 +4464,12 @@ export function performPriorityTimeoutAutoAction() {
         chosen = chosenId ? lockable.find((t) => t.id === chosenId) : null;
       }
       if (!chosen) chosen = pickRandomFrom(lockable);
-      performLockPhaseClick(chosen.id, { skipConfirm: true, actingSeat: player }); // 自動実行なので確認モーダルは出さない
+      // 自動実行なので確認モーダルは出さない。await しない代わりに、失敗を握りつぶさない
+      // （オンラインの停止調査で「評価はしているのにロックされない」経路を追うため）。
+      performLockPhaseClick(chosen.id, { skipConfirm: true, actingSeat: player }).catch((err) => {
+        console.error("自動ロックに失敗", err);
+        logAction("diag-lock-click-failed", { tokenId: chosen.id, player, message: String(err?.message ?? err) });
+      });
       return true;
     }
     // マイデッキ戦（ローカルの本気エイドス戦）: 「ロックする代わりにマイデッキから1枚引く」。
