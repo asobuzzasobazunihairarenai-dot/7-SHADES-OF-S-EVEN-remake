@@ -277,6 +277,11 @@ async function run() {
       localStorage.setItem("so7-bgm-intro-shown-v1", "1");
       // 自動アップデート（version.jsonのズレでlocation.reload）がテスト中に評価を中断するのを防ぐ（続き231）。
       localStorage.setItem("so7-disable-update-checker", "1");
+      // 盤面のWebGL描画（2026-09-05から既定ON）をテストでは切る。ヘッドレスChromiumには
+      // GPUが無くWebGLをCPUで描くため、1フレーム600ms超まで落ちて「進んでいないだけ」を
+      // 停止と誤検知する（実測でオンラインの決着まで対戦がこれで失敗した）。ここで見たいのは
+      // ゲームの進行であって描画性能ではないので、従来のCSS描画で回す。
+      localStorage.setItem("so7-board-3d-enabled", "0");
     } catch (e) {}
   });
 

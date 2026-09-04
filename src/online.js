@@ -973,8 +973,23 @@ export async function fetchMyEidosProgress() {
 //   ・変化を見つけたら書き戻す（15秒ごと＋画面を離れる時）
 // の2つだけを行う。**大きなSELECTには混ぜない**——列が1つ無いだけで他の設定まで
 // 読めなくなる事故を避けるため、独立したクエリにする（lang / my_deck と同じ作法）。
+// この列がまだ無い環境（SQL未実行）では、読み書きを黙って諦める。**console.error にはしない**
+// ——「まだ実行していないだけ」という想定内の状態で、しかもログイン中ずっと（保存は15秒ごとに）
+// 出続けるため、本物のエラーが埋もれるし、自動テストも失敗扱いになる（実際にオンラインの
+// 自動対戦がこれで落ちた）。記録は行動ログへ1回だけ残す。
+let extraPrefsUnavailable = false;
+function isMissingColumnError(err) {
+  return err?.code === "42703" || /extra_prefs.*does not exist/i.test(String(err?.message ?? ""));
+}
+function noteExtraPrefsUnavailable(where, err) {
+  if (!extraPrefsUnavailable) {
+    extraPrefsUnavailable = true;
+    logAction("diag-extra-prefs-unavailable", { where, message: String(err?.message ?? err) });
+  }
+}
+
 export async function fetchMyExtraPrefs() {
-  if (!cachedUser) return null;
+  if (!cachedUser || extraPrefsUnavailable) return null;
   try {
     const { data, error } = await client
       .from("so7_user_profiles")
@@ -985,14 +1000,15 @@ export async function fetchMyExtraPrefs() {
     const v = data?.extra_prefs ?? null;
     return v && typeof v === "object" ? v : null;
   } catch (err) {
-    console.error("fetchMyExtraPrefs failed (未実行のsupabase_setup_so7.sql追加分がある可能性)", err);
+    if (isMissingColumnError(err)) noteExtraPrefsUnavailable("fetch", err);
+    else console.error("fetchMyExtraPrefs failed", err);
     return null;
   }
 }
 
 let extraPrefsTimer = null;
 async function flushExtraPrefs() {
-  if (!cachedUser) return;
+  if (!cachedUser || extraPrefsUnavailable) return;
   const changed = takeChangedSyncedPrefs();
   if (!changed) return;
   try {
@@ -1004,7 +1020,8 @@ async function flushExtraPrefs() {
       );
     if (error) throw error;
   } catch (err) {
-    console.error("extra_prefs の保存に失敗 (未実行のsupabase_setup_so7.sql追加分がある可能性)", err);
+    if (isMissingColumnError(err)) noteExtraPrefsUnavailable("save", err);
+    else console.error("extra_prefs の保存に失敗", err);
   }
 }
 
