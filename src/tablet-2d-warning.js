@@ -11,6 +11,24 @@ import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { t } from "./ui-text.js"; // UI英語化フェーズ13
 
 const STORAGE_KEY = "so7-tablet-2d-warning-dismissed";
+// この案内を出すかどうか（ユーザー判断2026-09-04「2Dの勧め警告も不要。一応戻せるように
+// しておき、デフォルトでは表示しない」）。盤面のWebGL描画でiOSのチカチカが解消したため、
+// 「2D表示にしてください」と最初にお願いする必要が無くなった。管理者モードから戻せる。
+const ENABLED_KEY = "so7-tablet-2d-warning-enabled";
+export function isTablet2dWarningEnabled() {
+  try {
+    return localStorage.getItem(ENABLED_KEY) === "1"; // 既定OFF
+  } catch (err) {
+    return false;
+  }
+}
+export function setTablet2dWarningEnabled(v) {
+  try {
+    localStorage.setItem(ENABLED_KEY, v ? "1" : "0");
+  } catch (err) {
+    /* 保存できなくても既定（出さない）で動く */
+  }
+}
 
 // 「おすすめ表示（2D＋拡大）」の拡大部分を担う関数（main.jsのapplyRecommendedMobileZoom）を
 // 注入してもらう（main.jsを直接importすると循環importになるため。ユーザー要望2026-08-17）。
@@ -20,6 +38,7 @@ export function registerRecommendedViewHelper(fn) {
 }
 
 export function maybeShowTablet2dWarning() {
+  if (!isTablet2dWarningEnabled()) return;
   if (!isTouchPrimaryDevice()) return;
   if (localStorage.getItem(STORAGE_KEY) === "1") return;
 

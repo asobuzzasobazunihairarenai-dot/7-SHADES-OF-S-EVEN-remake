@@ -12,6 +12,15 @@ import { getLang } from "./i18n.js";
 
 export const CHANGELOG = [
   {
+    date: "2026-09-05",
+    items: [
+      "スマホ・タブレットで最初に一度だけ出ていた「2D表示がおすすめです」のお知らせを、出さないようにしました。盤面の描き方を新しくしたことで、画面がチカチカする症状が解消したためです（2D表示そのものは今までどおり基本設定から切り替えられます）。",
+    ],
+    itemsEn: [
+      "The one-time “the flat 2D view is recommended” notice no longer appears on phones and tablets. The new way of drawing the board fixed the flickering it was there to work around (the 2D view itself is still available in Settings).",
+    ],
+  },
+  {
     date: "2026-09-04",
     items: [
       "盤面の絵の描き方を新しい方式（WebGL）に切り替えられるようにしました。iPhone・iPadで盤面がチカチカする・アプリが落ちる症状への対策です。あわせて、この方式のときに出ていた見た目の崩れを直しました——ロックしたカードの絵が上下逆さまになる／移動できるマスを選んでいる間だけカードのまわりに濃い影が出たように見える／対戦開始の準備中に、まだ出ていないはずの駒が変な形で一瞬見える／駒がカードの下に隠れてしまう、の4件です。",

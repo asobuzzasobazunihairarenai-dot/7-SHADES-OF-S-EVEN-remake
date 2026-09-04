@@ -164,6 +164,10 @@ function refreshVisitLogButton() {
 }
 async function loadVisitLogInitial() {
   visitLogStatusEl.textContent = "読み込み中...";
+  // 「🔄 読み込み直す」から呼ばれた時に前の行が残って二重に並ばないよう、必ず空にしてから読む。
+  visitLogBody.innerHTML = "";
+  visitLogPendingBuffer = [];
+  visitLogOffset = 0;
   const data = await fetchVisitLogPage();
   appendVisitRows(data.slice(0, INITIAL_ROWS));
   visitLogPendingBuffer = data.slice(INITIAL_ROWS);
@@ -242,7 +246,10 @@ bugReportResolveAllBtn?.addEventListener("click", async () => {
     // 画面側も即座に反映する（DBのフラグが立ったので、コード側の一覧に関係なく対処済みになる）。
     for (const r of allBugReports) r.resolved = true;
     renderBugReports();
-    bugReportStatusEl.textContent = `${data ?? 0}件を対処済みにしました。`;
+    const hidden = bugReportHideResolvedEl?.checked !== false;
+    bugReportStatusEl.textContent =
+      `${data ?? 0}件を対処済みにしました。` +
+      (hidden ? "（「対処済みを隠す」がONなので、この一覧は空になります）" : "");
   } catch (err) {
     bugReportStatusEl.textContent = `一括更新に失敗しました: ${err.message ?? err}（SQL未実行かもしれません）`;
   } finally {
@@ -704,34 +711,64 @@ announcePostBtn?.addEventListener("click", async () => {
   }
 });
 
+// 4つの一覧をまとめて取り直す。1つが失敗しても他は出す（どこが失敗したかは各セクションの
+// 説明行に出る）。原因調査のため console.error にも残す——ユーザー報告2026-09-04
+// 「すべて対処済みにするを押したら登録ユーザー一覧もログイン履歴もなくなった」の再現が
+// 取れなかったため、次に起きた時に「何が失敗したのか」が必ず画面と開発者コンソールの
+// 両方に残るようにした。
+async function loadAll() {
+  const fail = (el, name) => (err) => {
+    console.error("dashboard load failed:", name, err);
+    el.textContent = `取得に失敗しました: ${err?.message ?? err}`;
+  };
+  await Promise.all([
+    loadUserList().catch(fail(userListStatusEl, "user-list")),
+    loadVisitLogInitial().catch(fail(visitLogStatusEl, "visit-log")),
+    loadBugReports().catch(fail(bugReportStatusEl, "bug-reports")),
+    loadAnnouncements().catch(fail(announceStatusEl, "announcements")),
+  ]);
+}
+
+// 「🔄 読み込み直す」。ページを開き直さずに全部取り直せるようにする（上の報告のように
+// 一覧が空になった時、ここを押せば戻る）。
+const dashboardReloadBtn = document.getElementById("dashboard-reload-btn");
+dashboardReloadBtn?.addEventListener("click", async () => {
+  dashboardReloadBtn.disabled = true;
+  const label = dashboardReloadBtn.textContent;
+  dashboardReloadBtn.textContent = "読み込み中...";
+  try {
+    await loadAll();
+  } finally {
+    dashboardReloadBtn.disabled = false;
+    dashboardReloadBtn.textContent = label;
+  }
+});
+
 async function init() {
   if (!client) {
     statusEl.textContent = "Supabaseの読み込みに失敗しました。";
     return;
   }
-  const {
-    data: { user },
-  } = await client.auth.getUser();
+  // 認証の復元は通信を伴うので、一時的に失敗して null が返ることがある。1度だけ待って
+  // 試し直す（ここで諦めるとダッシュボードの中身が丸ごと出ないため）。
+  let user = null;
+  for (let i = 0; i < 2; i++) {
+    try {
+      const res = await client.auth.getUser();
+      user = res?.data?.user ?? null;
+    } catch (err) {
+      console.error("getUser failed", err);
+    }
+    if (user) break;
+    await new Promise((r) => setTimeout(r, 800));
+  }
   if (!user || user.email !== ADMIN_EMAIL) {
     statusEl.textContent = "このページは管理者アカウントでログインしている場合のみ表示できます。ゲーム画面で管理者アカウントにログインしてから、このページを開き直してください。";
     return;
   }
   statusEl.style.display = "none";
   contentEl.style.display = "block";
-  await Promise.all([
-    loadUserList().catch((err) => {
-      userListStatusEl.textContent = `取得に失敗しました: ${err.message ?? err}`;
-    }),
-    loadVisitLogInitial().catch((err) => {
-      visitLogStatusEl.textContent = `取得に失敗しました: ${err.message ?? err}`;
-    }),
-    loadBugReports().catch((err) => {
-      bugReportStatusEl.textContent = `取得に失敗しました: ${err.message ?? err}`;
-    }),
-    loadAnnouncements().catch((err) => {
-      announceStatusEl.textContent = `取得に失敗しました: ${err.message ?? err}`;
-    }),
-  ]);
+  await loadAll();
 }
 
 init();

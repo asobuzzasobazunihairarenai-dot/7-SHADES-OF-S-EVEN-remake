@@ -1938,6 +1938,40 @@ async function adminPlayEidosScene(startId, chain) {
 
 const TOGGLE_SECTIONS = [
   {
+    // 「タブレットでは2D表示がおすすめ」の案内（tablet-2d-warning.js）。盤面のWebGL描画で
+    // iOSのチカチカが解消したため既定OFFにした（ユーザー判断2026-09-04）。必要になった時に
+    // ここから戻せる。この端末のlocalStorageにだけ保存する見た目の設定。
+    title: "📱 「2D表示がおすすめ」の案内",
+    category: "admin-only",
+    buildContent: async (content) => {
+      const mod = await import("./tablet-2d-warning.js");
+      const row = document.createElement("label");
+      row.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = mod.isTablet2dWarningEnabled();
+      cb.addEventListener("change", () => mod.setTablet2dWarningEnabled(cb.checked));
+      const label = document.createElement("span");
+      label.textContent = "タッチ端末で最初の1回、2D表示をすすめる案内を出す";
+      row.appendChild(cb);
+      row.appendChild(label);
+      content.appendChild(row);
+      const note = document.createElement("div");
+      note.style.cssText = "font-size: 0.7rem; opacity: 0.75; margin-top: 0.3rem;";
+      note.textContent = "既定はOFF（盤面のWebGL描画でチカチカが解消したため）。もう一度見たい時は、この端末の「表示済み」の記録も消えます。";
+      content.appendChild(note);
+      const resetBtn = document.createElement("button");
+      resetBtn.type = "button";
+      resetBtn.textContent = "「表示済み」の記録を消す（もう一度出す）";
+      resetBtn.style.cssText = "margin-top: 0.4rem; font-size: 0.7rem;";
+      resetBtn.addEventListener("click", () => {
+        try { localStorage.removeItem("so7-tablet-2d-warning-dismissed"); } catch (err) { /* ignore */ }
+        resetBtn.textContent = "消しました（次回この端末で開いた時に出ます）";
+      });
+      content.appendChild(resetBtn);
+    },
+  },
+  {
     // 盤面のWebGL描画（board-3d.js、2026-09-04）。iPhoneのチカチカ／強制終了対策の第1段。
     // まだ試験中なので既定OFF。ONにすると、盤面の絵（プレイマット・カード・駒・山）だけを
     // three.jsが1枚のキャンバスにまとめて描く（当たり判定・位置調整は今まで通りDOMのまま）。
@@ -1955,7 +1989,8 @@ const TOGGLE_SECTIONS = [
         const st = m.getBoard3dStats();
         cb.checked = st.active;
         info.textContent = st.active
-          ? `WebGLで描画中：板 ${st.quads} 枚 / 画像 ${st.textures} 種`
+          ? `WebGLで描画中：板 ${st.quads} 枚（うち枠 ${st.shapes}）/ 画像 ${st.textures} 種` +
+            ` ／ 1フレーム ${st.frameMs}ms（描画 ${st.drawMs}ms・作り直し ${st.rebuildMs}ms）`
           : "OFF（従来どおりCSSで描いています）";
       };
       cb.addEventListener("change", async () => {

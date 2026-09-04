@@ -211,3 +211,12 @@ tbody tr:hover {
   gap: 0.35rem;
   font-size: 0.85rem;
 }
+
+/* ヘッダーの「🔄 読み込み直す」。見出しの右に小さく置く（ページを開き直さずに一覧を
+   取り直すためのもの。ユーザー報告2026-09-04で一覧が空になった時の復旧手段）。 */
+#dashboard-reload-btn {
+  font-size: 0.72rem;
+  font-weight: normal;
+  margin-left: 0.8rem;
+  vertical-align: middle;
+}

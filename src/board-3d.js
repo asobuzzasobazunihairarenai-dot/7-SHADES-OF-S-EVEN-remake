@@ -40,6 +40,9 @@ let unsubscribe = null;
 
 // 要素 → その要素を描いているメッシュ。作り直しを避けて使い回す。
 const meshByElement = new Map();
+// 同じ要素が「画像の板」と「形の板」を両方持つことがある（例: 盤面のカードは、絵はWebGL、
+// 枠線もWebGL）。混ざらないように別のMapで持つ。
+const shapeMeshByElement = new Map();
 // 画像URL → テクスチャ。同じカード裏面などを何度も読み込まない。
 const textureCache = new Map();
 const textureLoader = new THREE.TextureLoader();
@@ -64,6 +67,229 @@ const PAINT_SELECTOR = [
   ".stack-left",
   ".stack-right",
 ].join(",");
+
+// 【第2段（2026-09-04）】画像だけでなく、**マスとロックスロットの「形」**（角丸の枠と
+// 薄い背景色）もWebGLで描く。狙いは合成レイヤーの枚数を減らすこと——iOSは preserve-3d の
+// 中の要素ひとつひとつに合成レイヤーを作るので、49マス＋28スロットが「何も塗らない箱」に
+// なれば、その分の描画コストが丸ごと消える（実測: 盤面の中で何かを塗っているDOM要素が
+// 156 → 26 になった）。
+//
+// 【これらは画像を持たないので、CSSの値からその場でテクスチャを作る】
+// 枠線・背景色・角丸の値は getComputedStyle から読む。ただしWebGL描画中はその値を
+// **こちら側で剥がしている**ので、読む瞬間だけ剥がすルールを一時的に無効化する
+// （stripSheet.disabled）。剥がすのは背景色と枠線の色だけで、**枠線の太さは残す**
+// （box-sizing の都合でレイアウトが変わってしまうため）。outline（選択中のマスの光る枠）と
+// box-shadow（ロックスロットのグロー）は剥がさない——箱の内側/外側に描かれるもので、
+// WebGLの板（枠だけ・中は透明）に隠されないため、今までどおりDOMのまま動く。
+const SHAPE_SELECTOR = ".cell, .lock-slot, .board-card";
+let stripSheet = null;
+function ensureStripSheet() {
+  if (stripSheet) return stripSheet;
+  const el = document.createElement("style");
+  el.id = "board-3d-shape-strip";
+  el.textContent =
+    "body.board-3d-on .cell, body.board-3d-on .lock-slot, body.board-3d-on .board-card {" +
+    "background-color: transparent !important; border-color: transparent !important; }" +
+    // ロックスロットのグロー（枠の外側にぼんやり広がる色）もWebGL側で描くので剥がす。
+    "body.board-3d-on .lock-slot { box-shadow: none !important; }";
+  document.head.appendChild(el);
+  stripSheet = el.sheet;
+  return stripSheet;
+}
+
+// 角丸の枠＋背景色を1枚の小さな画像として作る（同じ見た目のものは使い回す）。
+const shapeTextures = new Map();
+function shapeTexture(key, spec) {
+  let tex = shapeTextures.get(key);
+  if (tex) return tex;
+  const scale = 2; // 縁がギザギザにならない程度の解像度で十分（1辺は最大256pxに抑える）
+  const pad = spec.pad || 0;
+  const fullW = spec.w + pad * 2;
+  const fullH = spec.h + pad * 2;
+  const cw = Math.max(4, Math.min(256, Math.round(fullW * scale)));
+  const ch = Math.max(4, Math.min(256, Math.round(fullH * scale)));
+  const sx = cw / fullW;
+  const sy = ch / fullH;
+  const padX = pad * sx;
+  const padY = pad * sy;
+  const cv = document.createElement("canvas");
+  cv.width = cw;
+  cv.height = ch;
+  const g = cv.getContext("2d");
+  const r = Math.max(0, spec.r) * Math.min(sx, sy);
+  const bw = spec.bw * Math.min(sx, sy);
+  const path = (inset) => {
+    const x = padX + inset, y = padY + inset, w = cw - padX * 2 - inset * 2, h = ch - padY * 2 - inset * 2;
+    const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+    g.beginPath();
+    g.moveTo(x + rr, y);
+    g.lineTo(x + w - rr, y);
+    g.quadraticCurveTo(x + w, y, x + w, y + rr);
+    g.lineTo(x + w, y + h - rr);
+    g.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+    g.lineTo(x + rr, y + h);
+    g.quadraticCurveTo(x, y + h, x, y + h - rr);
+    g.lineTo(x, y + rr);
+    g.quadraticCurveTo(x, y, x + rr, y);
+    g.closePath();
+  };
+  // グロー（外側のぼかし）。枠と同じ形をぼかして描くだけ。
+  if (spec.glow) {
+    g.save();
+    g.shadowColor = spec.glow.color;
+    g.shadowBlur = spec.glow.blur * Math.min(sx, sy) * 2; // canvasのぼかしはCSSのおよそ半分の広がり
+    g.shadowOffsetX = spec.glow.dx * sx;
+    g.shadowOffsetY = spec.glow.dy * sy;
+    path(-spec.glow.spread * Math.min(sx, sy));
+    g.strokeStyle = spec.glow.color;
+    g.lineWidth = Math.max(1, bw);
+    g.stroke();
+    g.restore();
+  }
+  if (spec.bg && spec.bg !== "transparent") {
+    path(0);
+    g.fillStyle = spec.bg;
+    g.fill();
+  }
+  if (bw > 0.2 && spec.bc && spec.bc !== "transparent") {
+    path(bw / 2);
+    g.lineWidth = bw;
+    g.strokeStyle = spec.bc;
+    g.stroke();
+  }
+  tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.flipY = false; // 画像テクスチャと同じ理由（CSSはYが下向き。#238）
+  shapeTextures.set(key, tex);
+  // 保険: 想定外の理由で種類が増え続けても、メモリを食い潰さないよう古い順に捨てる。
+  while (shapeTextures.size > 48) {
+    const oldest = shapeTextures.keys().next().value;
+    shapeTextures.get(oldest)?.dispose();
+    shapeTextures.delete(oldest);
+  }
+  return tex;
+}
+
+// --- 色の読み取り --------------------------------------------------------------------
+// CSSの色は rgb()/rgba() とは限らない。**アニメーションやトランジションの最中、Chromeは
+// computed値を oklab(...) で返す**ことがある（実測で判明。マスの背景色が
+// "oklab(0.83 0.013 0.17 / 0.11)" になっていた）。文字列を自前で解釈すると取りこぼすので、
+// 1x1のcanvasに実際に塗って読み返す＝**ブラウザ自身に解釈させる**。どんな書き方の色でも
+// 正しく rgba に直せる。同じ文字列は何度も出るのでキャッシュする。
+let colorCanvasCtx = null;
+const colorCache = new Map();
+function parseCssColor(c) {
+  if (!c || c === "transparent" || c === "none") return null;
+  const hit = colorCache.get(c);
+  if (hit !== undefined) return hit;
+  let out = null;
+  try {
+    if (!colorCanvasCtx) {
+      const cv = document.createElement("canvas");
+      cv.width = 1;
+      cv.height = 1;
+      colorCanvasCtx = cv.getContext("2d", { willReadFrequently: true });
+    }
+    const g = colorCanvasCtx;
+    g.clearRect(0, 0, 1, 1);
+    g.fillStyle = "#000";
+    g.fillStyle = c;
+    g.fillRect(0, 0, 1, 1);
+    const d = g.getImageData(0, 0, 1, 1).data;
+    // getImageData は「黒の上に重ねた結果」ではなく素の値（アルファ付き）を返す。
+    out = { r: d[0], g: d[1], b: d[2], a: d[3] / 255 };
+  } catch (err) {
+    out = null;
+  }
+  colorCache.set(c, out);
+  if (colorCache.size > 512) colorCache.delete(colorCache.keys().next().value);
+  return out;
+}
+
+// 色を少しだけ丸めた文字列にする。CSSのトランジション中は色が連続的に変わるので、そのまま
+// テクスチャの見分けに使うと**1フレームごとに新しいテクスチャが増える**（＝メモリを
+// 食い潰す。iOSのために減らしているのに本末転倒）。見た目に分からない程度に段階を
+// 粗くして、使い回しが効くようにする。
+function quantColor(c) {
+  const v = parseCssColor(c);
+  if (!v) return null;
+  const q = (n) => Math.round(n / 8) * 8;
+  const a = Math.round(v.a * 20) / 20;
+  return `rgba(${q(v.r)}, ${q(v.g)}, ${q(v.b)}, ${a})`;
+}
+
+// 透明かどうか。
+function isVisibleColor(c) {
+  const v = parseCssColor(c);
+  return !!v && v.a > 0.01;
+}
+
+// computed の box-shadow から、外側へ広がるグロー1つ分を取り出す（inset・複数指定は扱わない）。
+// 例: "rgb(199, 0, 37) 0px 0px 2.4px 0.8px"
+function parseBoxShadow(v) {
+  if (!v || v === "none" || v.includes("inset")) return null;
+  // 色の部分（先頭）と、そのあとの px 値だけを取り出す。色の書き方は問わない。
+  const px = v.match(/(-?[\d.]+)px/g);
+  if (!px || px.length < 2) return null;
+  const color = v.slice(0, v.indexOf(px[0])).trim();
+  if (!isVisibleColor(color)) return null;
+  const n = px.map((x) => parseFloat(x));
+  const blur = n[2] || 0;
+  const spread = n[3] || 0;
+  if (blur <= 0 && spread <= 0) return null;
+  return { color: quantColor(color), dx: n[0], dy: n[1], blur, spread };
+}
+
+// 直前に読んだ結果と、その時刻。マス・スロットの枠線や背景色は滅多に変わらないので、
+// 毎回の作り直しで読み直すのはもったいない（読むには剥がすルールの一時無効化＝スタイルの
+// 全再計算が2回かかる）。一定間隔でだけ読み直し、間は前回の結果を使い回す。
+let lastShapeSpecs = new Map();
+let lastShapeReadAt = 0;
+const SHAPE_READ_INTERVAL_MS = 400;
+
+// 剥がすルールを一瞬だけ無効化して、CSSが本来意図している値を読む。
+function readShapeSpecs(table, force) {
+  const now = performance.now();
+  if (!force && now - lastShapeReadAt < SHAPE_READ_INTERVAL_MS) {
+    // 前回の結果のうち、まだ画面にある要素の分だけを使う。
+    for (const el of [...lastShapeSpecs.keys()]) {
+      if (!el.isConnected) lastShapeSpecs.delete(el);
+    }
+    return lastShapeSpecs;
+  }
+  lastShapeReadAt = now;
+  return (lastShapeSpecs = readShapeSpecsNow(table));
+}
+
+function readShapeSpecsNow(table) {
+  const sheet = ensureStripSheet();
+  const specs = new Map();
+  const wasDisabled = sheet ? sheet.disabled : true;
+  if (sheet) sheet.disabled = true;
+  try {
+    for (const el of table.querySelectorAll(SHAPE_SELECTOR)) {
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+      if (w <= 0 || h <= 0) continue;
+      const cs = getComputedStyle(el);
+      const bg = isVisibleColor(cs.backgroundColor) ? quantColor(cs.backgroundColor) : null;
+      const bc = isVisibleColor(cs.borderTopColor) ? quantColor(cs.borderTopColor) : null;
+      const bw = parseFloat(cs.borderTopWidth) || 0;
+      // 外側へ広がるグロー（inset は箱の内側なので対象外＝DOMのまま）。
+      const glow = parseBoxShadow(cs.boxShadow);
+      if (!bg && (!bc || bw <= 0) && !glow) continue; // 何も塗らない箱は板を作らない
+      specs.set(el, {
+        w, h, bg, bc, bw,
+        r: parseFloat(cs.borderTopLeftRadius) || 0,
+        glow,
+        pad: glow ? Math.ceil(glow.blur + glow.spread + 2) : 0,
+      });
+    }
+  } finally {
+    if (sheet) sheet.disabled = wasDisabled === true ? true : false;
+  }
+  return specs;
+}
 
 function getScene() {
   return document.querySelector(".scene");
@@ -175,16 +401,13 @@ function effectiveVisual(el, root) {
 // 周りが真っ暗＝濃い影が付いたように見える」状態になっていた（#238）。膜の色をそのまま
 // 板の色に混ぜて、DOMと同じ見え方に戻す。
 function overlayTint(el, root) {
-  let node = el.parentElement;
+  // el 自身がマス／ロックスロットのこともある（第2段でこれらの「形」もWebGLで描くように
+  // なったため）。自分から見始めてよい——.board-card 等はここに当たらないので素通りする。
+  let node = el;
   while (node && node !== root) {
     if (node.classList.contains("cell") || node.classList.contains("lock-slot")) {
-      const bg = getComputedStyle(node, "::after").backgroundColor || "";
-      const m = bg.match(/rgba?(([^)]+))/);
-      if (m) {
-        const v = m[1].split(",").map((x) => parseFloat(x));
-        const a = v.length > 3 ? v[3] : 1;
-        if (a > 0.02) return { r: (v[0] || 0) / 255, g: (v[1] || 0) / 255, b: (v[2] || 0) / 255, a };
-      }
+      const v = parseCssColor(getComputedStyle(node, "::after").backgroundColor || "");
+      if (v && v.a > 0.02) return { r: v.r / 255, g: v.g / 255, b: v.b / 255, a: v.a };
       return null;
     }
     node = node.parentElement;
@@ -212,17 +435,41 @@ function ensureMesh(el, url) {
   return mesh;
 }
 
+function ensureShapeMesh(el, spec) {
+  const key =
+    spec.w + "x" + spec.h + "|" + spec.r + "|" + spec.bw + "|" + spec.bc + "|" + spec.bg +
+    "|" + (spec.glow ? spec.glow.color + spec.glow.blur + "/" + spec.glow.spread : "");
+  let mesh = shapeMeshByElement.get(el);
+  if (!mesh) {
+    const mat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide });
+    mesh = new THREE.Mesh(QUAD, mat);
+    shapeMeshByElement.set(el, mesh);
+    rootGroup.add(mesh);
+  }
+  if (mesh.userData.shapeKey !== key) {
+    mesh.userData.shapeKey = key;
+    mesh.material.map = shapeTexture(key, spec);
+    mesh.material.needsUpdate = true;
+  }
+  return mesh;
+}
+
 function rebuild() {
   const table = getTable();
   if (!table || !rootGroup) return;
   const seen = new Set();
-  const els = table.querySelectorAll(PAINT_SELECTOR);
+  const seenShapes = new Set();
+  // マス・ロックスロットの「形」は先に読む（この中だけ剥がすルールを外すため、
+  // 後段の走査とは分けてある）。
+  const shapeSpecs = readShapeSpecs(table);
+  const els = table.querySelectorAll(PAINT_SELECTOR + "," + SHAPE_SELECTOR);
   // DOMの並び順＝重なり順。手前のものを少しだけカメラ側へ寄せて、同じ平面上の
   // カードと駒がZファイティング（ちらつき）を起こさないようにする。
   let order = 0;
   for (const el of els) {
+    const shape = shapeSpecs.get(el);
     const url = backgroundImageUrl(el);
-    if (!url) continue;
+    if (!url && !shape) continue;
     const cs = getComputedStyle(el);
     if (cs.display === "none" || cs.visibility === "hidden") continue;
     const vis = effectiveVisual(el, table);
@@ -230,24 +477,36 @@ function rebuild() {
     const w = el.offsetWidth;
     const h = el.offsetHeight;
     if (w <= 0 || h <= 0) continue;
-    const mesh = ensureMesh(el, url);
-    seen.add(el);
-    const m = localMatrixTo(el, table);
-    // 板は「左上原点・幅w高さh」。PlaneGeometryは中心原点なので中心へずらす。
-    m.multiply(new THREE.Matrix4().makeTranslation(w / 2, h / 2, 0));
-    m.multiply(new THREE.Matrix4().makeScale(w, h, 1));
-    mesh.matrixAutoUpdate = false;
-    mesh.matrix.copy(m);
-    mesh.material.opacity = vis.opacity;
+    const base = localMatrixTo(el, table);
     const tint = overlayTint(el, table);
-    if (tint) {
-      // 膜が上に重なった時の見え方（元の色 * (1-a) + 膜の色 * a）を板の色として先に作る。
-      mesh.material.color.setRGB(1 - tint.a + tint.r * tint.a, 1 - tint.a + tint.g * tint.a, 1 - tint.a + tint.b * tint.a);
-    } else {
-      mesh.material.color.setRGB(1, 1, 1);
+    // 1つの要素が「絵の板」と「形の板（枠線・背景色・グロー）」の両方を持つことがある
+    // （盤面のカード＝絵はWebGL・枠線もWebGL）。CSSと同じく、枠線は絵の上に描く。
+    const place = (mesh, pad) => {
+      const m = base.clone();
+      // 板は「左上原点・幅w高さh」。PlaneGeometryは中心原点なので中心へずらす。
+      // グロー（外へ広がるぼかし）がある時はその分だけ一回り大きくする（中心は同じ）。
+      m.multiply(new THREE.Matrix4().makeTranslation(w / 2, h / 2, 0));
+      m.multiply(new THREE.Matrix4().makeScale(w + pad * 2, h + pad * 2, 1));
+      mesh.matrixAutoUpdate = false;
+      mesh.matrix.copy(m);
+      mesh.material.opacity = vis.opacity;
+      if (tint) {
+        // 膜が上に重なった時の見え方（元の色 * (1-a) + 膜の色 * a）を板の色として先に作る。
+        mesh.material.color.setRGB(1 - tint.a + tint.r * tint.a, 1 - tint.a + tint.g * tint.a, 1 - tint.a + tint.b * tint.a);
+      } else {
+        mesh.material.color.setRGB(1, 1, 1);
+      }
+      mesh.userData.domIndex = order++;
+      mesh.visible = true;
+    };
+    if (url) {
+      seen.add(el);
+      place(ensureMesh(el, url), 0);
     }
-    mesh.userData.domIndex = order++;
-    mesh.visible = true;
+    if (shape) {
+      seenShapes.add(el);
+      place(ensureShapeMesh(el, shape), shape.pad || 0);
+    }
   }
   // 消えた要素のメッシュを片付ける（カードが手札へ戻った等）。
   for (const [el, mesh] of meshByElement) {
@@ -256,7 +515,14 @@ function rebuild() {
     mesh.material.dispose();
     meshByElement.delete(el);
   }
+  for (const [el, mesh] of shapeMeshByElement) {
+    if (seenShapes.has(el)) continue;
+    rootGroup.remove(mesh);
+    mesh.material.dispose();
+    shapeMeshByElement.delete(el);
+  }
   needsRebuild = false;
+  needsSort = true; // 板の位置が変わったので並べ替え直す
 }
 
 // --- カメラ（CSSのperspectiveと同じ投影）----------------------------------------------
@@ -305,7 +571,10 @@ function syncCamera() {
   const flip = new THREE.Matrix4().makeScale(1, -1, 1);
   const root = new THREE.Matrix4().multiplyMatrices(flip, m);
   rootGroup.matrixAutoUpdate = false;
-  rootGroup.matrix.copy(root);
+  if (!rootGroup.matrix.equals(root)) {
+    rootGroup.matrix.copy(root);
+    needsSort = true; // 盤面の見え方が変わったので前後関係を計算し直す
+  }
   return true;
 }
 
@@ -322,9 +591,16 @@ function scheduleRender() {
 // ので、Zが大きいほど手前）で並べ替える。同じ高さのもの（盤面のカード同士）はDOM順に従う。
 const _center = new THREE.Vector3();
 const _world = new THREE.Matrix4();
+function allMeshes() {
+  return [...meshByElement.values(), ...shapeMeshByElement.values()];
+}
+
+let needsSort = true;
 function sortByDepth() {
+  if (!needsSort) return;
+  needsSort = false;
   const list = [];
-  for (const [, mesh] of meshByElement) {
+  for (const mesh of allMeshes()) {
     _world.multiplyMatrices(rootGroup.matrix, mesh.matrix);
     _center.set(0, 0, 0).applyMatrix4(_world);
     list.push({ mesh, z: _center.z, i: mesh.userData.domIndex ?? 0 });
@@ -333,13 +609,28 @@ function sortByDepth() {
   for (let i = 0; i < list.length; i++) list[i].mesh.renderOrder = i;
 }
 
+// 実機での重さを見るための計測（管理者モードの表示・不具合報告用）。ヘッドレスのテスト環境は
+// GPUが無くWebGLをCPUで描くため、そこでの数値は実機の参考にならない——必ず実機で見る。
+let lastRebuildMs = 0;
+let lastDrawMs = 0;
+let frameAvgMs = 0;
+let lastFrameAt = 0;
+
 function frame() {
   if (!active) return;
   rafId = requestAnimationFrame(frame);
-  if (needsRebuild) rebuild();
+  const t0 = performance.now();
+  if (lastFrameAt) frameAvgMs = frameAvgMs * 0.9 + (t0 - lastFrameAt) * 0.1;
+  lastFrameAt = t0;
+  if (needsRebuild) {
+    rebuild();
+    lastRebuildMs = performance.now() - t0;
+  }
   if (!syncCamera()) return;
   sortByDepth();
+  const t1 = performance.now();
   renderer.render(scene, camera);
+  lastDrawMs = lastDrawMs * 0.8 + (performance.now() - t1) * 0.2;
 }
 
 function markDirty() {
@@ -406,11 +697,12 @@ export function setBoard3dActive(on) {
     window.removeEventListener("resize", markDirty);
     unsubscribe?.();
     unsubscribe = null;
-    for (const [, mesh] of meshByElement) {
+    for (const mesh of allMeshes()) {
       rootGroup?.remove(mesh);
       mesh.material.dispose();
     }
     meshByElement.clear();
+    shapeMeshByElement.clear();
     if (renderer) renderer.clear();
   }
   return active;
@@ -420,9 +712,13 @@ export function setBoard3dActive(on) {
 export function getBoard3dStats() {
   return {
     active,
-    quads: meshByElement.size,
-    tinted: [...meshByElement.values()].filter((m) => m.material.color.getHex() !== 0xffffff).length,
-    textures: textureCache.size,
+    quads: meshByElement.size + shapeMeshByElement.size,
+    shapes: shapeMeshByElement.size,
+    tinted: allMeshes().filter((m) => m.material.color.getHex() !== 0xffffff).length,
+    textures: textureCache.size + shapeTextures.size,
+    rebuildMs: +lastRebuildMs.toFixed(1),
+    drawMs: +lastDrawMs.toFixed(2),
+    frameMs: +frameAvgMs.toFixed(1),
   };
 }
 
@@ -461,6 +757,10 @@ export function debugProjectElement(el) {
 
 // 検証用: その要素を描いている板の「描く順番」（大きいほど手前）。#241（駒がカードに
 // 隠れる）のように重なり順が問題になった時、目で見て判断せず数値で確かめるために使う。
+export function debugShapeKeys() {
+  return [...shapeTextures.keys()];
+}
+
 export function debugRenderOrder(el) {
   const mesh = meshByElement.get(el);
   return mesh ? mesh.renderOrder : null;
