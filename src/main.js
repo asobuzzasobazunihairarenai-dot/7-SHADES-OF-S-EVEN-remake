@@ -4914,7 +4914,7 @@ function playCardCellLanding(sourceRect, cellLocation, tokenId) {
   if (!cellEl || !cardEl) return Promise.resolve();
   const cellRect = cellEl.getBoundingClientRect();
   const cardRect = cardEl.getBoundingClientRect(); // 着地先の実カード（＝マスのカード）の見た目サイズ
-  const img = getComputedStyle(cardEl).backgroundImage;
+  const img = paintedBackgroundImage(cardEl);
   cardEl.style.visibility = "hidden"; // 実カードを隠してゴーストだけ動かす（着地後に見せる）
   const ghost = document.createElement("div");
   ghost.className = "setup-fly-card card-landing-ghost";
@@ -4976,7 +4976,7 @@ function playCardLiftToHand(sourceRect, player, tokenId, sourceImg = null) {
   if (!toRect) return Promise.resolve();
   const img =
     sourceImg ||
-    (cardEl ? getComputedStyle(cardEl).backgroundImage : getCardBackImagePath(null) && `url("${getCardBackImagePath(null)}")`);
+    (cardEl ? paintedBackgroundImage(cardEl) : getCardBackImagePath(null) && `url("${getCardBackImagePath(null)}")`);
   if (cardEl) cardEl.style.visibility = "hidden";
   spawnCardLandingPuff(sourceRect); // 持ち上がりのホコリ（マス側）
   const ghost = document.createElement("div");
@@ -10572,6 +10572,17 @@ function startTouchHoldOrDrag(e, hit) {
 
   window.addEventListener("pointermove", onMove);
   window.addEventListener("pointerup", onUp);
+}
+
+// 盤面のWebGL描画（board-3d.js）がONの間、CSS は .board-card 等の background-image を
+// none に上書きしている（絵はWebGLが描くため）。ドラッグゴーストのように「その要素が
+// 表示している画像」を引き写す処理は、computed ではなく**インラインstyle**を先に見る。
+function paintedBackgroundImage(el) {
+  if (!el) return "";
+  const inline = el.style && el.style.backgroundImage;
+  if (inline && inline !== "none") return inline;
+  const cs = getComputedStyle(el).backgroundImage;
+  return cs && cs !== "none" ? cs : "";
 }
 
 function createGhost(kind, tokenId) {

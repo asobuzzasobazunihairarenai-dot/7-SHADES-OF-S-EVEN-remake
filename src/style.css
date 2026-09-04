@@ -19726,3 +19726,27 @@ body.theme-light .post-game-friend-label {
 body.theme-light .post-game-friend-chip {
   border-color: rgba(203, 183, 121, 0.6);
 }
+
+/* ===== 盤面のWebGL描画（three.js, board-3d.js）================================== */
+/* 3D描画がONの間は、WebGLが描く担当の要素から**絵だけ**を剥がす。箱（大きさ・位置）は
+   そのまま残すので、タップ判定（elementsFromPoint ベースの自前方式）も、管理者モードの
+   位置調整も、今までどおり一切変わらない。ここで消しているのは背景画像と、それに付いて
+   いた影・光彩だけ——つまりiOSで合成レイヤーとGPUメモリを食っていた分。 */
+body.board-3d-on .board-card,
+body.board-3d-on .piece-face,
+body.board-3d-on .stack-top,
+body.board-3d-on .stack-front,
+body.board-3d-on .stack-back,
+body.board-3d-on .stack-left,
+body.board-3d-on .stack-right {
+  background-image: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+/* WebGLのキャンバス自体。.scene の中に敷き、盤面のDOMより手前・UIより奥に置く。 */
+#board-3d-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}

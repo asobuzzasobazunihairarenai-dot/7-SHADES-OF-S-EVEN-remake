@@ -1932,6 +1932,46 @@ async function adminPlayEidosScene(startId, chain) {
 
 const TOGGLE_SECTIONS = [
   {
+    // 盤面のWebGL描画（board-3d.js、2026-09-04）。iPhoneのチカチカ／強制終了対策の第1段。
+    // まだ試験中なので既定OFF。ONにすると、盤面の絵（プレイマット・カード・駒・山）だけを
+    // three.jsが1枚のキャンバスにまとめて描く（当たり判定・位置調整は今まで通りDOMのまま）。
+    title: "🧪 盤面をWebGLで描く（three.js・試験中）",
+    category: "advanced",
+    buildContent: (content) => {
+      const row = document.createElement("label");
+      row.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      const info = document.createElement("div");
+      info.style.cssText = "font-size: 0.7rem; opacity: 0.75; margin-top: 0.3rem;";
+      const refresh = async () => {
+        const m = await import("./board-3d.js");
+        const st = m.getBoard3dStats();
+        cb.checked = st.active;
+        info.textContent = st.active
+          ? `WebGLで描画中：板 ${st.quads} 枚 / 画像 ${st.textures} 種`
+          : "OFF（従来どおりCSSで描いています）";
+      };
+      cb.addEventListener("change", async () => {
+        const m = await import("./board-3d.js");
+        const ok = m.setBoard3dActive(cb.checked);
+        if (cb.checked && !ok) {
+          cb.checked = false;
+          info.textContent = "この端末ではWebGLを開始できませんでした。";
+          return;
+        }
+        setTimeout(refresh, 400);
+      });
+      const label = document.createElement("span");
+      label.textContent = "盤面の絵（プレイマット・カード・駒・山）をWebGLで描く";
+      row.appendChild(cb);
+      row.appendChild(label);
+      content.appendChild(row);
+      content.appendChild(info);
+      refresh();
+    },
+  },
+  {
     // ユーザー要望2026-09-01。自動処理モード中は公開カードを手札の扇の中に出しているので、
     // 下の公開エリアは常に空＝場所だけ取る。既定OFF（＝隠す）。
     title: "🃏 自動処理中の「自分の手札公開エリア」",
