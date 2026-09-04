@@ -2714,3 +2714,104 @@ end;
 $$;
 revoke execute on function so7_get_friends() from public;
 grant execute on function so7_get_friends() to authenticated;
+
+-- ============================================================================
+-- 修正(2026-09-05): 管理者ダッシュボードの「ログイン履歴」「登録ユーザー一覧」が取れない
+--   （ユーザー報告「取得に失敗しました: structure of query does not match function
+--     result type」／登録ユーザー一覧が0件）
+--
+-- 原因: plpgsql の `returns table (...)` は、返す列の型が**厳密に一致**していないと
+-- この実行時エラーになる。auth.users.email は text ではなく **character varying(255)**
+-- なので、`email text` として返そうとすると落ちる（Supabaseでよくある落とし穴）。
+-- count(*) の bigint と integer の 0 を混ぜた coalesce なども同種の事故になりやすい。
+-- → **返す列すべてに明示的なキャストを付ける**（これでこの種のエラーは起きなくなる）。
+--
+-- 実行方法: 下の2つの関数定義をSQL Editorに貼って実行する（既存を置き換えるだけ。
+-- 何度実行しても安全）。
+-- ============================================================================
+
+drop function if exists so7_get_admin_visit_log(int, int);
+create or replace function so7_get_admin_visit_log(p_limit int default 200, p_offset int default 0)
+returns table (
+  created_at timestamptz,
+  user_id uuid,
+  email text,
+  display_name text,
+  total_logins bigint,
+  first_login_at timestamptz,
+  month_logins bigint
+)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  if ((auth.jwt() ->> 'email') is distinct from 'asobuzz.asobazunihairarenai@gmail.com' and (auth.jwt() ->> 'email') is distinct from 'shogoshogo0929@gmail.com') then
+    raise exception 'not_authorized';
+  end if;
+  return query
+    with agg as (
+      select
+        v.user_id as uid,
+        count(*) as total,
+        min(v.created_at) as first_at,
+        count(*) filter (where v.created_at >= date_trunc('month', now())) as this_month
+      from so7_visit_log v
+      where v.user_id is not null
+      group by v.user_id
+    )
+    select
+      v.created_at::timestamptz,
+      v.user_id::uuid,
+      u.email::text,
+      p.display_name::text,
+      coalesce(a.total, 0)::bigint,
+      a.first_at::timestamptz,
+      coalesce(a.this_month, 0)::bigint
+    from so7_visit_log v
+    left join auth.users u on u.id = v.user_id
+    left join so7_user_profiles p on p.user_id = v.user_id
+    left join agg a on a.uid = v.user_id
+    order by v.created_at desc
+    limit p_limit offset p_offset;
+end;
+$$;
+revoke execute on function so7_get_admin_visit_log(int, int) from public;
+grant execute on function so7_get_admin_visit_log(int, int) to authenticated;
+
+drop function if exists so7_get_admin_user_list();
+create or replace function so7_get_admin_user_list()
+returns table (
+  user_id uuid,
+  email text,
+  display_name text,
+  created_at timestamptz,
+  last_seen_at timestamptz,
+  is_guest boolean
+)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  if ((auth.jwt() ->> 'email') is distinct from 'asobuzz.asobazunihairarenai@gmail.com' and (auth.jwt() ->> 'email') is distinct from 'shogoshogo0929@gmail.com') then
+    raise exception 'not_authorized';
+  end if;
+  return query
+    select
+      u.id::uuid,
+      u.email::text,
+      p.display_name::text,
+      u.created_at::timestamptz,
+      p.last_seen_at::timestamptz,
+      -- 匿名ログイン（ゲスト）か。auth.users.is_anonymous を第一の根拠にし、無い場合は
+      -- 本人が書いた so7_user_profiles.is_guest、それも無ければ「メールアドレスが無い＝
+      -- ゲスト」で判定する。
+      coalesce(u.is_anonymous, p.is_guest, (u.email is null))::boolean
+    from auth.users u
+    left join so7_user_profiles p on p.user_id = u.id
+    order by u.created_at desc;
+end;
+$$;
+revoke execute on function so7_get_admin_user_list() from public;
+grant execute on function so7_get_admin_user_list() to authenticated;

@@ -76,6 +76,11 @@ function buildRow(cells) {
 
 // 取得した全ユーザー（ゲストを隠すチェックの切り替えで再描画するために保持する）。
 let allUsers = [];
+// 直近の取得が失敗した理由。ユーザー報告2026-09-04で「登録ユーザー一覧が0件」と見えていたのは、
+// 実際には取得に失敗していたのに、その後「ゲストを隠す」チェックを触った拍子に renderUserList が
+// 説明行を「0件（直近0件を表示）」で上書きしていたため（＝失敗が見えなくなっていた）。
+// 失敗した時はその理由を出し続ける。
+let userListError = null;
 // ゲスト（匿名ログイン）か。SQLがまだ古くて is_guest を返さない環境では、
 // 「メールアドレスが無い」＝ゲスト、で代用する（表示名未設定の使い捨てアカウント）。
 function isGuestUser(row) {
@@ -86,9 +91,10 @@ function renderUserList() {
   const hideGuests = !!userListHideGuestsEl?.checked;
   const rows = hideGuests ? allUsers.filter((r) => !isGuestUser(r)) : allUsers;
   const guests = allUsers.length - allUsers.filter((r) => !isGuestUser(r)).length;
-  userListStatusEl.textContent =
-    `${rows.length}件（直近${Math.min(INITIAL_ROWS, rows.length)}件を表示）` +
-    (hideGuests && guests > 0 ? ` ／ ゲスト${guests}件を非表示` : "");
+  userListStatusEl.textContent = userListError
+    ? `取得に失敗しました: ${userListError}`
+    : `${rows.length}件（直近${Math.min(INITIAL_ROWS, rows.length)}件を表示）` +
+      (hideGuests && guests > 0 ? ` ／ ゲスト${guests}件を非表示` : "");
   renderCollapsibleRows(
     userListBody,
     rows,
@@ -100,9 +106,12 @@ userListHideGuestsEl?.addEventListener("change", renderUserList);
 
 async function loadUserList() {
   userListStatusEl.textContent = "読み込み中...";
+  userListError = null;
   const { data, error } = await client.rpc("so7_get_admin_user_list");
   if (error) {
-    userListStatusEl.textContent = `取得に失敗しました: ${error.message}`;
+    userListError = error.message;
+    console.error("so7_get_admin_user_list failed", error);
+    renderUserList();
     return;
   }
   allUsers = data ?? [];

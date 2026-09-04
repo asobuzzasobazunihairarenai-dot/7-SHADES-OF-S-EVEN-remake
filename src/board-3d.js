@@ -26,6 +26,7 @@
 
 import * as THREE from "../vendor/three.module.min.js";
 import { subscribe } from "./state.js";
+import { logAction } from "./action-log.js";
 
 let renderer = null;
 let scene = null;
@@ -616,10 +617,43 @@ let lastDrawMs = 0;
 let frameAvgMs = 0;
 let lastFrameAt = 0;
 
+// 実機での重さを、行動ログにも定期的に残す（ユーザー要望2026-09-05「ログに出力するように
+// するのはどうでしょう？」）。管理者パネルを開いていなくても、不具合報告や📜行動ログから
+// 実機の数値をそのまま読める——ヘッドレスのテスト環境はGPUが無いので、実機の数値だけが頼り。
+// 20秒に1回だけ（ログを埋めない）。
+const LOG_INTERVAL_MS = 20000;
+let lastStatsLogAt = 0;
+function maybeLogStats() {
+  const now = performance.now();
+  // 1回目は「まだ何も描いていない」状態で出ても意味が無いので、動き出して5秒経ってから。
+  if (!lastStatsLogAt) {
+    lastStatsLogAt = now - (LOG_INTERVAL_MS - 5000);
+    return;
+  }
+  if (now - lastStatsLogAt < LOG_INTERVAL_MS) return;
+  lastStatsLogAt = now;
+  try {
+    const st = getBoard3dStats();
+    logAction("diag-board3d", {
+      quads: st.quads,
+      shapes: st.shapes,
+      textures: st.textures,
+      frameMs: st.frameMs,
+      drawMs: st.drawMs,
+      rebuildMs: st.rebuildMs,
+      dpr: Math.min(window.devicePixelRatio || 1, 2),
+      canvas: canvasEl ? canvasEl.width + "x" + canvasEl.height : null,
+    });
+  } catch (err) {
+    /* 記録できなくても描画は続ける */
+  }
+}
+
 function frame() {
   if (!active) return;
   rafId = requestAnimationFrame(frame);
   const t0 = performance.now();
+  maybeLogStats();
   if (lastFrameAt) frameAvgMs = frameAvgMs * 0.9 + (t0 - lastFrameAt) * 0.1;
   lastFrameAt = t0;
   if (needsRebuild) {
@@ -703,6 +737,7 @@ export function setBoard3dActive(on) {
     }
     meshByElement.clear();
     shapeMeshByElement.clear();
+    lastStatsLogAt = 0;
     if (renderer) renderer.clear();
   }
   return active;
