@@ -527,6 +527,9 @@ function rebuild() {
   needsSort = true; // 板の位置が変わったので並べ替え直す
 }
 
+// 画面上でどれだけ引き伸ばされているか（ステージ倍率）。キャンバスの解像度とログで使う。
+let lastStageScale = 1;
+
 // --- カメラ（CSSのperspectiveと同じ投影）----------------------------------------------
 function syncCamera() {
   const sceneEl = getScene();
@@ -542,8 +545,21 @@ function syncCamera() {
   const ox = po[0] ?? W / 2;
   const oy = po[1] ?? H / 2;
 
-  // キャンバスの大きさ（実ピクセル）。iOSのメモリを考えて解像度は2倍までに抑える。
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  // キャンバスの大きさ（実ピクセル）。
+  // 【重要・#244】devicePixelRatio だけで決めてはいけない。このアプリは 1600x900 の
+  // 「ステージ」を body ごと拡大／縮小して画面に合わせるので（applyViewportStage）、
+  // 大きな画面では盤面が実寸より大きく引き伸ばされて表示される。CSSの描画は最終的な
+  // 倍率で描き直されるので問題ないが、**WebGLのキャンバスは固定サイズのビットマップ**
+  // なので、そのまま引き伸ばされてぼやける。
+  // 実測（ユーザー報告#244）: 画面2560x1276・dpr0.75 の環境ではステージ倍率が1.42倍で、
+  // キャンバス1200x675 が画面上2268x1276 に引き伸ばされていた（約1.9倍）。カード裏の
+  // 細かい模様がつぶれ、一様な濃いグレーに見えていた（dpr1.2・倍率0.96のもう一方は
+  // ほぼ1:1で、そちらが実物に近い色味だった）。
+  // 「画面上の大きさ ÷ レイアウト上の大きさ」がそのまま必要な倍率なので、それを掛ける
+  // （盤面拡大などスケールが変わっても自動で追随する）。iOSのメモリを考えて上限は2倍のまま。
+  const stageScale = W > 0 && rect.width > 0 ? rect.width / W : 1;
+  lastStageScale = stageScale;
+  const dpr = Math.min((window.devicePixelRatio || 1) * stageScale, 2);
   if (canvasEl.width !== Math.round(W * dpr) || canvasEl.height !== Math.round(H * dpr)) {
     renderer.setPixelRatio(dpr);
     renderer.setSize(W, H, false);
@@ -642,8 +658,12 @@ function maybeLogStats() {
       frameMs: st.frameMs,
       drawMs: st.drawMs,
       rebuildMs: st.rebuildMs,
-      dpr: Math.min(window.devicePixelRatio || 1, 2),
+      dpr: window.devicePixelRatio || 1,
+      // #244 の切り分け用: 画面上でどれだけ引き伸ばされているか（ステージ倍率）と、
+      // その結果キャンバス1ピクセルが画面の何ピクセルに広がっているか。1.0 に近ければ等倍。
+      stage: lastStageScale ? +lastStageScale.toFixed(2) : null,
       canvas: canvasEl ? canvasEl.width + "x" + canvasEl.height : null,
+      onScreen: canvasEl && lastStageScale ? Math.round(canvasEl.clientWidth * lastStageScale) + "x" + Math.round(canvasEl.clientHeight * lastStageScale) : null,
     });
   } catch (err) {
     /* 記録できなくても描画は続ける */
