@@ -37,6 +37,7 @@ export const HANDLED_BUG_REPORT_IDS = new Set([
   231, // エターナルで勝った時、ゲート侵攻の演出を飛ばして勝利演出になる
   232, // 「もう一度遊ぶ」でブースト・白黒・マイデッキの設定が引き継がれない
   233, // 「タイマーをONにする」ボタンが出たままになる
+  234, // スキップ/マイデッキのボタンが出なくなる（#227の対応で入れた回帰）
 ]);
 
 export function isBugReportHandledInCode(id) {

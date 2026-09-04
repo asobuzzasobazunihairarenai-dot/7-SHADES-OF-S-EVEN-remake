@@ -14,6 +14,7 @@ export const CHANGELOG = [
   {
     date: "2026-09-04",
     items: [
+      "フェイズを進める「スキップ」「マイデッキ」のボタンが、対局の途中から出てこなくなる不具合を直しました（昨日の修正で入り込んだものです。申し訳ありません）。",
       "「なないろの欠片」などで効果を選ぶモーダルが出ないまま、勝手に片方（1枚ドロー）に決まってしまう不具合を直しました。スマホでカードをタップして指を離した位置に選択肢のボタンが現れ、その指のタップがそのままボタンを押していました。",
       "対局中に「タイマーをONにする」ボタンが出たままになってしまうのを直しました。他の場所を触るか、しばらく置くと閉じます。",
       "ランク戦などで「もう一度遊ぶ」を選ぶと、ブースト・白黒カード・マイデッキ戦の設定が消えてしまう不具合を直しました。前の対局と同じルールで続きます。",
@@ -24,6 +25,7 @@ export const CHANGELOG = [
       "段位ランキング（戦績管理システム）で、まだ1勝もしていないブロンズ（ゲージ０）の方を対象外にしました。",
     ],
     itemsEn: [
+      "Fixed the Skip / My Deck buttons disappearing partway through a match (introduced by yesterday's fix — sorry).",
       "Fixed the effect-choice dialog (Prism Shard and others) silently resolving to the first option (Draw 1) without ever appearing. On a phone the buttons appeared right under the finger that had just tapped the card, and that same tap pressed one of them.",
       "Fixed the \"Turn the timer on\" button staying on screen during a match. It now closes when you tap elsewhere, or after a short while.",
       "Fixed \"Play again\" losing the Boost, black/white cards and My Deck settings (in ranked matches for example). The next game keeps the same rules.",

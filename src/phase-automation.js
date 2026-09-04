@@ -780,9 +780,18 @@ export function updateSkipButtonVisibility() {
   const busyResolving = (() => {
     if (handEffectBusy) return true;
     try {
+      // #234（2026-09-04・#227の対応で私が入れた回帰）: 案内バナー(#card-effect-picker-hint)は
+      // **一度作られたらDOMに残り続け、.show の付け外しだけで見せ隠しする**要素。
+      // display は block のままなので getClientRects() は常に矩形を返してしまい、
+      // 「その対局で一度でも案内が出たら、以後スキップ/マイデッキのボタンが二度と
+      // 出てこない」状態になっていた。実際の表示は .show が付いているかで判定する。
       const hint = document.getElementById("card-effect-picker-hint");
-      if (hint && hint.getClientRects().length) return true;
-      if (document.querySelector(".so7-modal-backdrop")) return true;
+      if (hint?.classList.contains("show")) return true;
+      // 返事待ちのモーダル（暗い背景つき）が出ている間も出さない。こちらは閉じる時に
+      // DOMから取り除かれるが、念のため実際に見えているものだけを数える。
+      for (const el of document.querySelectorAll(".so7-modal-backdrop")) {
+        if (el.getClientRects().length) return true;
+      }
     } catch {
       /* DOMが無い環境（テスト等）では判定しない */
     }
