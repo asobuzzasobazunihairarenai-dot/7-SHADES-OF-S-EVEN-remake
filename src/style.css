@@ -19765,11 +19765,7 @@ body.theme-light .post-game-friend-chip {
    いた影・光彩だけ——つまりiOSで合成レイヤーとGPUメモリを食っていた分。 */
 body.board-3d-on .board-card,
 body.board-3d-on .piece-face,
-body.board-3d-on .stack-top,
-body.board-3d-on .stack-front,
-body.board-3d-on .stack-back,
-body.board-3d-on .stack-left,
-body.board-3d-on .stack-right {
+body.board-3d-on .stack-top {
   background-image: none !important;
   background-color: transparent !important;
   /* 影・光彩も剥がす（iOSで重い合成の元）。ただし !important は付けない——「今ここに置いた」
@@ -19783,4 +19779,38 @@ body.board-3d-on .stack-right {
   left: 0;
   top: 0;
   pointer-events: none;
+}
+
+/* WebGL描画中に、DOMの「光る演出」をキャンバスの手前へ逃がす層（board-3d.js の
+   syncGlowLayer）。キャンバス(z-index:5)より手前に置くことで、手番の駒のグローや
+   ホバーの光が、WebGLの描くカード・マスの板に隠されなくなる（ユーザー報告2026-09-05
+   「自ターン時の駒のカラーEFFECTがしっかり光っていない」）。中身は空の箱で、
+   位置と大きさだけJS側が元の要素に合わせる。 */
+#board-3d-glow-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+.board-3d-glow {
+  position: absolute;
+  border-radius: 0.2rem;
+  pointer-events: none;
+}
+.board-3d-glow.is-turn {
+  animation: piece-own-turn-glow 2.6s ease-in-out infinite;
+}
+.board-3d-glow.is-hover {
+  box-shadow: 0 0 0.4rem 0.12rem rgba(56, 189, 248, 0.9);
+}
+.board-3d-glow.is-turn.is-hover {
+  animation: piece-own-turn-glow-hover 2.6s ease-in-out infinite;
+}
+/* 「常時光る演出をやめる」設定は、逃がした先でも同じように効かせる。 */
+body.reduce-glow .board-3d-glow.is-turn,
+body.reduce-glow .board-3d-glow.is-turn.is-hover {
+  animation: none !important;
 }

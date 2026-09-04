@@ -14,6 +14,8 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "山札・捨て場などの山の「側面」（厚み）が消えて、上面だけが浮いて見えていたのを直しました。",
+      "自分のターンに自分の駒が光る演出が、うっすらとしか見えなくなっていたのを直しました。光が盤面のカードの裏側に隠れていました。",
       "画面の大きい環境で、盤面のカードや駒がぼやけて色がくすんで見えていたのを直しました。盤面を描く解像度が画面の大きさに追いついていませんでした。同じ対局でも人によって色味が違って見えることがなくなります。",
       "【重要】オンライン対戦の「参加できる部屋」が常に空になり、対戦ロビーや観戦一覧、進行中の対局の再開も表示されなくなっていた不具合を直しました。部屋は正しく作られていて、一覧を画面に出す処理だけが止まっていました。8月29日から起きていました。ご不便をおかけしました。",
       "「ホーム画面に追加」の案内が、ホーム画面のボタンに重なっていたのを直しました。画面の右上（オプションの下）へ移動し、パソコンでは「アプリとしてインストール」という言い方に変えました。",
@@ -27,6 +29,8 @@ export const CHANGELOG = [
       "「ホーム画面に追加」の案内文が、最後の2文字だけ次の行にこぼれて読みにくかったのを直しました。",
     ],
     itemsEn: [
+      "Fixed the sides (the thickness) of the deck and discard piles disappearing, leaving only the top face floating.",
+      "Fixed the glow on your own piece during your turn being barely visible — the light was hidden behind the cards on the board.",
       "On large screens the board cards and pieces looked blurry and washed out. The board was being drawn at a lower resolution than the screen actually shows. Two people in the same match will no longer see different shades.",
       "[Important] Fixed a bug that left the online “rooms you can join” list always empty, and also broke the match lobby, the spectate list and resuming a game in progress. Rooms were being created correctly — only the code that displayed the list was failing. This had been happening since August 29. Sorry for the trouble.",
       "The “add to home screen” prompt no longer overlaps the buttons on the home screen. It moved to the top right (under the options), and on a computer it now says “install as an app”.",

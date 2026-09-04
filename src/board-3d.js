@@ -60,15 +60,11 @@ const textureLoader = new THREE.TextureLoader();
 // 割り込めない（プレイマットはマスの枠線より奥、カードは手前）。ここではキャンバスを
 // 盤面のDOMより**手前**に置き、手前に来るべきもの（カード・駒・山）だけをWebGLに移す。
 // プレイマットと床は画像1枚ずつで、合成レイヤーが増える原因ではないためCSSのままでよい。
-const PAINT_SELECTOR = [
-  ".board-card",
-  ".piece-face",
-  ".stack-top",
-  ".stack-front",
-  ".stack-back",
-  ".stack-left",
-  ".stack-right",
-].join(",");
+// 【#245】山の側面（.stack-front/back/left/right）はここに入れない。あちらは画像を持たず
+// CSSの色と inset の影だけで描いているので、WebGLに移そうとしても板が作られず、
+// 塗りを剥がした結果まるごと消えてしまう（ユーザー報告「山札の側面がなくなっちゃってます」）。
+// 山の**上面**だけは実際のカード画像を持つのでWebGLで描く。
+const PAINT_SELECTOR = [".board-card", ".piece-face", ".stack-top"].join(",");
 
 // 【第2段（2026-09-04）】画像だけでなく、**マスとロックスロットの「形」**（角丸の枠と
 // 薄い背景色）もWebGLで描く。狙いは合成レイヤーの枚数を減らすこと——iOSは preserve-3d の
@@ -670,6 +666,68 @@ function maybeLogStats() {
   }
 }
 
+// --- 光る演出をキャンバスの手前へ逃がす層 ---------------------------------------------
+// 【ユーザー報告2026-09-05「自ターン時の駒のカラーEFFECTがしっかり光っていない」】
+// キャンバスは盤面のDOMより**手前**（z-index:5）にあるので、DOMの box-shadow で描いている
+// 「光」は、WebGLが描くカードやマスの板に隠れてしまう。光は要素の外側へ広がるが、その広がった
+// 先も周りのカードの板に覆われるため、マスの隙間にしか見えない＝「なんとなく光っている」状態。
+//
+// そこで、光っている要素と同じ位置・同じ大きさの**空の箱**をキャンバスより手前の層に置き、
+// 既存のCSSアニメーションをそこで再生する。WebGL側で光を描き直すより確実で、
+// 「常時光る演出をやめる」設定（body.reduce-glow）もそのまま効く。
+let glowLayerEl = null;
+const glowMirrors = new Map(); // 元の要素 -> 手前に置いた箱
+function ensureGlowLayer(sceneEl) {
+  if (glowLayerEl && glowLayerEl.isConnected) return glowLayerEl;
+  glowLayerEl = document.createElement("div");
+  glowLayerEl.id = "board-3d-glow-layer";
+  sceneEl.appendChild(glowLayerEl); // キャンバスより後＝手前
+  return glowLayerEl;
+}
+function clearGlowLayer() {
+  for (const el of glowMirrors.values()) el.remove();
+  glowMirrors.clear();
+  glowLayerEl?.remove();
+  glowLayerEl = null;
+}
+function syncGlowLayer() {
+  const table = getTable();
+  const sceneEl = getScene();
+  if (!table || !sceneEl) return;
+  const sources = table.querySelectorAll(".piece.is-my-turn-glow, .piece.hover-active");
+  if (!sources.length && !glowMirrors.size) return;
+  const layer = ensureGlowLayer(sceneEl);
+  const sceneRect = sceneEl.getBoundingClientRect();
+  const scale = lastStageScale || 1;
+  const seen = new Set();
+  for (const src of sources) {
+    // 見えている立方体の**上面**に合わせる（.piece自身の箱は translateZ で持ち上げる前の位置）。
+    const top = src.querySelector(".piece-top") || src;
+    const r = top.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) continue;
+    let el = glowMirrors.get(src);
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "board-3d-glow";
+      layer.appendChild(el);
+      glowMirrors.set(src, el);
+    }
+    seen.add(src);
+    el.classList.toggle("is-turn", src.classList.contains("is-my-turn-glow"));
+    el.classList.toggle("is-hover", src.classList.contains("hover-active"));
+    // 駒の色（--piece-turn-glow-color）はJS側が駒ごとに設定しているので、そのまま引き継ぐ。
+    const color = getComputedStyle(src).getPropertyValue("--piece-turn-glow-color");
+    if (color) el.style.setProperty("--piece-turn-glow-color", color.trim());
+    el.style.left = ((r.left - sceneRect.left) / scale) + "px";
+    el.style.top = ((r.top - sceneRect.top) / scale) + "px";
+    el.style.width = (r.width / scale) + "px";
+    el.style.height = (r.height / scale) + "px";
+  }
+  for (const [src, el] of glowMirrors) {
+    if (!seen.has(src)) { el.remove(); glowMirrors.delete(src); }
+  }
+}
+
 function frame() {
   if (!active) return;
   rafId = requestAnimationFrame(frame);
@@ -683,6 +741,7 @@ function frame() {
   }
   if (!syncCamera()) return;
   sortByDepth();
+  syncGlowLayer();
   const t1 = performance.now();
   renderer.render(scene, camera);
   lastDrawMs = lastDrawMs * 0.8 + (performance.now() - t1) * 0.2;
@@ -760,6 +819,7 @@ export function setBoard3dActive(on) {
   } else {
     active = false;
     document.body.classList.remove("board-3d-on");
+    clearGlowLayer();
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
     clearInterval(rebuildTimer);
