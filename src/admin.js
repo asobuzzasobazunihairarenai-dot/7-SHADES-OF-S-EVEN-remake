@@ -1721,7 +1721,13 @@ let themeLightIngame = (() => {
 })();
 function applyThemeMode() {
   document.body.classList.toggle("theme-light", themeLightMode);
-  document.body.classList.toggle("theme-light-ingame", themeLightIngame);
+  // ユーザー報告 #235/#239「ライトモードなのにモーダルがダークです」の原因はここ。
+  // 対戦画面のライト化(theme-light-ingame)を、メニュー等のライト(theme-light)と完全に
+  // 独立させていたため、管理者が「ライトモード」だけONにしていると、盤面の上に出る
+  // モーダル（到達・効果の説明など）だけダークのままになっていた。ライト化の作業自体は
+  // もう終わっているので、**ライトモードなら対戦画面もライト**にする。このトグルは
+  // 「メニューはダークのまま対戦画面だけライトにする」ための上書きとして残す。
+  document.body.classList.toggle("theme-light-ingame", themeLightIngame || themeLightMode);
 }
 // モジュール読み込み時に一度適用する（type=module/deferのため、この時点でbodyは存在する）。
 applyThemeMode();

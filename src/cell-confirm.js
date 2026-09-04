@@ -12,10 +12,10 @@
 //   ・選んだマスを強く光らせる
 // の3点で、必ず対象マスが見えている状態で確認できるようにする。
 import { t } from "./ui-text.js";
-import { createBackdrop } from "./ui-helpers.js";
+import { createBackdrop, createOpenGuard } from "./ui-helpers.js";
 // 【重要】body 自体がステージ変形(translate+scale)を持つので、実画面座標をそのまま
 // left/top に入れると二重にかかる（続き355）。必ずローカル座標へ直してから使う。
-import { stageClientToLocal } from "./main.js";
+import { stageClientToLocal, showQuickNote } from "./main.js";
 
 const STORAGE_KEY = "so7-cell-confirm-enabled";
 
@@ -55,6 +55,11 @@ export function confirmCellChoice(cellEl, hint, opts = {}) {
     // 対象マスを強く光らせる（確認中どのマスの話か一目で分かるように）。
     cellEl?.classList.add("cell-confirm-target");
 
+    // 開いた直後の合成クリック除け（#236）。このモーダルは**選んだマスのすぐ隣**に出るので、
+    // マスをタップして指を離した位置にボタンが現れることがある。実際、報告 #236 は
+    // 「今後このモーダルを表示しない」が知らないうちに押されて設定が切れていた。
+    const guard = createOpenGuard();
+
     // 盤面を隠さないため dim しない。クリックは受け止めて誤操作を防ぐ。
     const backdrop = createBackdrop(() => {}, { dim: false, zIndex: 10610 });
     const modal = document.createElement("div");
@@ -83,12 +88,12 @@ export function confirmCellChoice(cellEl, hint, opts = {}) {
     yesBtn.className = "contact-approval-approve";
     yesBtn.type = "button";
     yesBtn.textContent = t("game.confirm.yes");
-    yesBtn.addEventListener("click", () => finish(true));
+    yesBtn.addEventListener("click", () => { if (guard()) return; finish(true); });
     const noBtn = document.createElement("button");
     noBtn.className = "contact-approval-reject";
     noBtn.type = "button";
     noBtn.textContent = t("game.cellConfirm.redo");
-    noBtn.addEventListener("click", () => finish(false));
+    noBtn.addEventListener("click", () => { if (guard()) return; finish(false); });
     buttons.appendChild(yesBtn);
     buttons.appendChild(noBtn);
     modal.appendChild(buttons);
@@ -100,7 +105,11 @@ export function confirmCellChoice(cellEl, hint, opts = {}) {
     dontShow.type = "button";
     dontShow.textContent = t("game.confirm.never");
     dontShow.addEventListener("click", () => {
+      if (guard()) return;
       setCellConfirmEnabled(false);
+      // 何が起きたのか分かるように一言残す（#236: 押した覚えがないまま切れていて、
+      // 「モーダルが出ない不具合」に見えていた）。戻し方もここで伝える。
+      try { showQuickNote?.(t("game.cellConfirm.turnedOff")); } catch (err) { /* 出せなくても致命的ではない */ }
       finish(true);
     });
     modal.appendChild(dontShow);

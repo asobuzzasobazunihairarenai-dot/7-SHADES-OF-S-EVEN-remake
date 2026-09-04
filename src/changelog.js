@@ -14,6 +14,23 @@ export const CHANGELOG = [
   {
     date: "2026-09-04",
     items: [
+      "盤面の絵の描き方を新しい方式（WebGL）に切り替えられるようにしました。iPhone・iPadで盤面がチカチカする・アプリが落ちる症状への対策です。あわせて、この方式のときに出ていた見た目の崩れを直しました——ロックしたカードの絵が上下逆さまになる／移動できるマスを選んでいる間だけカードのまわりに濃い影が出たように見える／対戦開始の準備中に、まだ出ていないはずの駒が変な形で一瞬見える／駒がカードの下に隠れてしまう、の4件です。",
+      "ライトモードなのに、対局中に出るモーダル（到達したカードの拡大表示、効果の説明など）だけがダークのままだったのを直しました。",
+      "「このマスでいいですか？」の確認が、いつの間にか出なくなってしまう不具合を直しました。スマホでマスをタップして指を離した位置に「今後このモーダルを表示しない」が現れ、その指のタップがそのままボタンを押していました。もし今後この確認をオフにした時は、画面に一言お知らせします（基本設定からいつでも戻せます）。",
+      "「使う前に確認する」モーダルにも同じ対策を入れました。開いた直後の一瞬は、はい／いいえ／今後表示しない のどれも反応しません。",
+      "ザ・ギャンブルや試練の儀式の心臓の鼓動を、スマホ本体のスピーカーでも聞こえるようにしました。これまでは低い音が中心で、iPhoneのスピーカーではほとんど鳴っていませんでした。",
+    ],
+    itemsEn: [
+      "The board can now be drawn with a new method (WebGL), to address the flickering and crashes on iPhone/iPad. We also fixed four visual problems that came with it: locked cards were drawn upside down; a heavy shadow appeared around cards while choosing a square to move to; pieces briefly appeared in a strange shape during setup before they should be visible; and pieces could be hidden behind cards.",
+      "Fixed in-game modals (the arrival card zoom, effect explanations, and so on) staying dark even in light mode.",
+      "Fixed the “Use this square?” confirmation silently turning itself off. On a phone, the “Don’t show this again” button appeared right where your finger had just been, and that same tap pressed it. If the confirmation ever gets turned off, we now tell you on screen (you can turn it back on in Settings).",
+      "The same protection was added to the “confirm before acting” dialog: for a moment after it opens, none of its buttons respond.",
+      "The heartbeat sound in The Gamble and Trial Ritual can now actually be heard through a phone’s own speaker. It used to be almost all low frequencies, which an iPhone speaker can barely reproduce.",
+    ],
+  },
+  {
+    date: "2026-09-04",
+    items: [
       "フレンド機能を追加しました。オンラインで対戦した相手には、対戦が終わった画面からその場で申請できます（マイページの「👥 フレンド」からも、最近対戦した人に申請できます）。フレンドになると、その人が今アプリを開いているか、その人との通算成績が分かります。知らない人から申請が届くことはありません（名前で検索する仕組みは用意していません）。",
       "フェイズを進める「スキップ」「マイデッキ」のボタンが、対局の途中から出てこなくなる不具合を直しました（昨日の修正で入り込んだものです。申し訳ありません）。",
       "「なないろの欠片」などで効果を選ぶモーダルが出ないまま、勝手に片方（1枚ドロー）に決まってしまう不具合を直しました。スマホでカードをタップして指を離した位置に選択肢のボタンが現れ、その指のタップがそのままボタンを押していました。",

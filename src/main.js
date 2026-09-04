@@ -148,7 +148,7 @@ import {
 import { openPlaymatPicker, registerPlaymatHelpers, getSelectedPlaymatPath, setSelectedPlaymatId } from "./playmat.js";
 import { openBackgroundPicker, registerBackgroundHelpers, getSelectedBackgroundPath, setSelectedBackgroundId } from "./background.js";
 import { openPetPicker, registerPetHelpers, getSelectedPetIndex, PET_OPTIONS, petSpriteSrc, pushMyPetToProfile } from "./pet-skins.js";
-import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
+import { createModalCloseX, createBackdrop, createOpenGuard } from "./ui-helpers.js";
 import {
   getPlayerName,
   getPlayerAvatar,
@@ -3702,6 +3702,8 @@ document.addEventListener(
       if (yes || no || never) {
         e.preventDefault();
         e.stopPropagation();
+        // 開いた直後は受け付けない（#236。指がまだ元の場所にある間の誤反応を防ぐ）。
+        if (activeTouchActionConfirm.guard?.()) return;
         const c = activeTouchActionConfirm;
         activeTouchActionConfirm = null;
         if (yes) c.yes();
@@ -5406,6 +5408,9 @@ function confirmTouchAction(title, { cardId = null } = {}) {
   // （スポットライト等の演出と重なって見えなくなるのも防ぐ）。
   if (!isActionConfirmEnabled() || isTutorialBattleActive()) return Promise.resolve(true);
   return new Promise((resolve) => {
+    // 開いた直後の合成クリック除け（#230/#236と同じ）。タップして指を離した位置に
+    // ボタンが現れて、モーダルが見えないまま押されるのを防ぐ。
+    const guard = createOpenGuard();
     const backdrop = createBackdrop(() => {}, { dim: true, zIndex: 10610 });
     const modal = document.createElement("div");
     modal.id = "touch-action-confirm-modal";
@@ -5438,6 +5443,7 @@ function confirmTouchAction(title, { cardId = null } = {}) {
     };
     // capture フェーズの pointerdown から直接呼べるように登録する（#200）。
     activeTouchActionConfirm = {
+      guard,
       yes: () => finish(true),
       no: () => finish(false),
       never: () => {
@@ -5446,12 +5452,12 @@ function confirmTouchAction(title, { cardId = null } = {}) {
         finish(true);
       },
     };
-    yesBtn.addEventListener("click", () => finish(true));
+    yesBtn.addEventListener("click", () => { if (guard()) return; finish(true); });
     const noBtn = document.createElement("button");
     noBtn.className = "contact-approval-reject";
     noBtn.type = "button";
     noBtn.textContent = t("game.confirm.no");
-    noBtn.addEventListener("click", () => finish(false));
+    noBtn.addEventListener("click", () => { if (guard()) return; finish(false); });
     buttons.appendChild(yesBtn);
     buttons.appendChild(noBtn);
     modal.appendChild(buttons);
@@ -5463,8 +5469,10 @@ function confirmTouchAction(title, { cardId = null } = {}) {
     dontShow.type = "button";
     dontShow.textContent = t("game.confirm.never");
     dontShow.addEventListener("click", () => {
+      if (guard()) return;
       setActionConfirmEnabled(false);
       saveMyPreference({ action_confirm_enabled: false }); // アカウントにも保存（別端末で共有）
+      showQuickNote(t("game.confirm.turnedOff"));
       finish(true);
     });
     modal.appendChild(dontShow);
@@ -5627,7 +5635,7 @@ function confirmGenericYesNo(title, { yesLabel = t("game.confirm.yesPlain"), noL
 // のを防ぐ用途。モーダルほど重くない）。
 let quickNoteEl = null;
 let quickNoteTimer = null;
-function showQuickNote(text) {
+export function showQuickNote(text) {
   if (quickNoteTimer) clearTimeout(quickNoteTimer);
   if (!quickNoteEl) {
     quickNoteEl = document.createElement("div");

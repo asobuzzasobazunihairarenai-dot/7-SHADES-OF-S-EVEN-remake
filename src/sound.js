@@ -630,6 +630,15 @@ function schedulePartial(ctx, when, freq, peak, decay) {
 function scheduleThump(ctx, when, freq, peak) {
   schedulePartial(ctx, when, freq, peak, 0.18); // 低音（本体）
   schedulePartial(ctx, when, freq * 2.6, peak * 0.45, 0.12); // 中音（スマホでも聞こえる成分）
+  // #237（ユーザー報告2026-09-04「iPhoneでザ・ギャンブルの心臓の鼓動が聞こえなかった」）。
+  // 続き381で中音（×2.6＝約160Hz）を足したが、**iPhone本体のスピーカーは300Hz以下がほとんど
+  // 出ない**（物理的に小さすぎる）ため、まだ本体では鳴っていないに等しかった。イヤホンや
+  // PCでは低音が聞こえるので気づきにくい。可聴域まで持ち上げた短い「コッ」を1層足す
+  // ——低音（体で感じる）と合わせて、スピーカーでもイヤホンでも同じ鼓動として聞こえる。
+  // 倍率・音量は実測で決めた（OfflineAudioContextで合成し、400Hzのハイパスを通して
+  // 「スマホのスピーカーで実際に出る帯域」だけのRMSを比べた）: ×7・0.5倍・60msで、
+  // その帯域の音量が現行の約3.0倍。全帯域のピークは0.87で歪まない（1.0未満）。
+  schedulePartial(ctx, when, freq * 7, peak * 0.5, 0.06);
 }
 
 // スマホの振動（ユーザー要望2026-09-03「スマホであれば振動を与えることできる？」）。
@@ -676,9 +685,32 @@ export function startHeartbeat() {
   if (!ctx) return;
   heartbeatActive = true;
   const periodMs = 900;
+  // #237の切り分け用。次に「聞こえなかった」と報告された時、音の作り方の問題なのか
+  // （＝下のstateはrunningなのに聞こえない＝端末のスピーカー/マナースイッチ）、
+  // それとも音を出す前段で止まっているのか（state が suspended・音量0・画面が隠れている）を
+  // 推測せずに判定できるようにする。1回の鼓動につき最初の1回だけ残す。
+  try {
+    logAction("diag-heartbeat", {
+      state: ctx.state,
+      masterVolume,
+      hidden: typeof document !== "undefined" ? document.hidden : null,
+      session: (typeof navigator !== "undefined" && navigator.audioSession?.type) || null,
+    });
+  } catch (err) {
+    /* 記録できなくても鳴らす方を優先 */
+  }
+  // AudioContext の resume は非同期で、iOSでは要求してから running になるまで少し待つ。
+  // 以前は「running でなければ何もせず次の鼓動(900ms後)まで待つ」実装だったため、
+  // 立ち上がりの数拍が丸ごと無音になっていた。running になるまでは短い間隔で見に行く。
+  let warmupLeft = 16; // 120ms × 16 ≒ 2秒
   const beat = () => {
     if (!heartbeatActive) return;
     const c = getAudioContext();
+    if (c && c.state !== "running" && warmupLeft > 0) {
+      warmupLeft--;
+      heartbeatTimer = setTimeout(beat, 120);
+      return;
+    }
     if (c && c.state === "running") {
       // 以前は上限0.5・master×0.9。上限0.62・master×1.35に上げ、さらに中音成分を足した
       // （上のscheduleThump参照）。合計ピークは0.90までで歪まない。

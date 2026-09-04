@@ -19741,7 +19741,10 @@ body.board-3d-on .stack-left,
 body.board-3d-on .stack-right {
   background-image: none !important;
   background-color: transparent !important;
-  box-shadow: none !important;
+  /* 影・光彩も剥がす（iOSで重い合成の元）。ただし !important は付けない——「今ここに置いた」
+     「この候補が選ばれている」等の**ハイライトの光**（.cell.card-effect-just-placed .board-card 等、
+     このルールより詳細度が高い）は、3D描画中でも今までどおり見えてほしいため。 */
+  box-shadow: none;
 }
 /* WebGLのキャンバス自体。.scene の中に敷き、盤面のDOMより手前・UIより奥に置く。 */
 #board-3d-canvas {

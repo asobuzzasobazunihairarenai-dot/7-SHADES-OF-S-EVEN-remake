@@ -61,3 +61,20 @@ export function neutralModalSkin() {
         btn: "background: rgba(148, 163, 184, 0.25); color: #e2e8f0;",
       };
 }
+
+// 開いた直後の「指の下で押されてしまう」事故を防ぐ小さな門番（#230 / #236）。
+//
+// スマホでは、カードやマスをタップして指を離した位置に、その直後に作られたモーダルの
+// ボタンがそのまま現れることがある。ブラウザは pointerup のあとに click を合成して
+// 「その時点で指の下にある要素」へ送るため、**モーダルが一瞬も見えないまま1つ目の
+// ボタンが押される**。実際 #230（なないろの欠片の選択肢が出ずに1ドローになる）と
+// #236（「このマスでいいですか？」が二度と出なくなる＝「今後表示しない」が押されていた）が
+// これで起きている。
+//
+// 使い方: モーダルを作る所で `const guard = createOpenGuard();` とし、各ボタンの先頭で
+// `if (guard()) return;` と書く。既定の 400ms は対戦終了パネルの事故クリック対策（続き296）と
+// 同じ考え方の値。
+export function createOpenGuard(ms = 400) {
+  const openedAt = performance.now();
+  return () => performance.now() - openedAt < ms;
+}

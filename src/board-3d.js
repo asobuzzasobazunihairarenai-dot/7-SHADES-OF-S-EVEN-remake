@@ -137,12 +137,59 @@ function getTexture(url) {
   if (!tex) {
     tex = textureLoader.load(url, () => scheduleRender());
     tex.colorSpace = THREE.SRGBColorSpace;
+    // 【重要】three.jsの既定(flipY=true)は「Yが上向き」の座標系向け。ここではCSSの座標系
+    // （Yが下向き）のまま板を並べているので、そのままだと絵が**上下逆さま**に貼られる
+    // （実測: ロックしたカードの文字が上下反転して見えた＝#238。カード裏面はほぼ上下対称の
+    // 柄なので気づきにくく、表向きのロックカードで初めて分かった）。
+    tex.flipY = false;
     tex.generateMipmaps = true;
     tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.anisotropy = renderer ? Math.min(4, renderer.capabilities.getMaxAnisotropy()) : 1;
     textureCache.set(url, tex);
   }
   return tex;
+}
+
+// --- 見え方（祖先まで見る）------------------------------------------------------------
+// CSSでは opacity / visibility は**祖先から継承して効く**。WebGL側はその要素だけを見て
+// 描くので、親が消しているものまで描いてしまう。実際 #240 は「セットアップ中、駒の親
+// （.piece）が opacity:0 で隠れているのに、子の .piece-face を全部描いてしまい、まだ出て
+// いないはずの駒が変な形で見えていた」というもの。root まで遡って実効値を求める。
+function effectiveVisual(el, root) {
+  let opacity = 1;
+  let node = el;
+  while (node && node !== root) {
+    const cs = getComputedStyle(node);
+    if (cs.display === "none" || cs.visibility === "hidden") return { opacity: 0, hidden: true };
+    const o = parseFloat(cs.opacity);
+    if (Number.isFinite(o)) opacity *= o;
+    node = node.parentElement;
+  }
+  return { opacity, hidden: opacity <= 0.001 };
+}
+
+// マス（.cell / .lock-slot）に掛かっている「暗転オーバーレイ」を色として取り込む。
+// ムーブフェイズ等では ::after で黒い半透明の膜をマスの上に重ねて、選べないマスを暗く
+// 見せている（body.phase-move-picking のルール参照）。ところがWebGLのキャンバスは盤面の
+// DOMより**手前**にあるので、カードの絵だけがその膜の上に出てしまい「カードだけ明るく、
+// 周りが真っ暗＝濃い影が付いたように見える」状態になっていた（#238）。膜の色をそのまま
+// 板の色に混ぜて、DOMと同じ見え方に戻す。
+function overlayTint(el, root) {
+  let node = el.parentElement;
+  while (node && node !== root) {
+    if (node.classList.contains("cell") || node.classList.contains("lock-slot")) {
+      const bg = getComputedStyle(node, "::after").backgroundColor || "";
+      const m = bg.match(/rgba?(([^)]+))/);
+      if (m) {
+        const v = m[1].split(",").map((x) => parseFloat(x));
+        const a = v.length > 3 ? v[3] : 1;
+        if (a > 0.02) return { r: (v[0] || 0) / 255, g: (v[1] || 0) / 255, b: (v[2] || 0) / 255, a };
+      }
+      return null;
+    }
+    node = node.parentElement;
+  }
+  return null;
 }
 
 // --- 走査してメッシュを作る -----------------------------------------------------------
@@ -178,6 +225,8 @@ function rebuild() {
     if (!url) continue;
     const cs = getComputedStyle(el);
     if (cs.display === "none" || cs.visibility === "hidden") continue;
+    const vis = effectiveVisual(el, table);
+    if (vis.hidden) continue;
     const w = el.offsetWidth;
     const h = el.offsetHeight;
     if (w <= 0 || h <= 0) continue;
@@ -189,8 +238,15 @@ function rebuild() {
     m.multiply(new THREE.Matrix4().makeScale(w, h, 1));
     mesh.matrixAutoUpdate = false;
     mesh.matrix.copy(m);
-    mesh.material.opacity = parseFloat(cs.opacity || "1");
-    mesh.renderOrder = order++;
+    mesh.material.opacity = vis.opacity;
+    const tint = overlayTint(el, table);
+    if (tint) {
+      // 膜が上に重なった時の見え方（元の色 * (1-a) + 膜の色 * a）を板の色として先に作る。
+      mesh.material.color.setRGB(1 - tint.a + tint.r * tint.a, 1 - tint.a + tint.g * tint.a, 1 - tint.a + tint.b * tint.a);
+    } else {
+      mesh.material.color.setRGB(1, 1, 1);
+    }
+    mesh.userData.domIndex = order++;
     mesh.visible = true;
   }
   // 消えた要素のメッシュを片付ける（カードが手札へ戻った等）。
@@ -258,11 +314,31 @@ function scheduleRender() {
   // rAFループが回っているので、次のフレームで自然に反映される。
 }
 
+// 重なり順を「カメラからの遠さ」で決める（#241）。
+// 板は半透明を含むので深度バッファ(depthWrite)を使わず、描く順番だけで重なりを決めている。
+// 最初はDOMの並び順をそのまま使っていたが、CSSの3D（preserve-3d）は**実際のZ位置**で
+// 前後を決めるため、駒（translateZで持ち上がっている）より後ろのDOMにあるカードが駒の上に
+// 描かれてしまっていた。毎フレーム、板の中心のワールドZ（カメラは z=P から -z を見ている
+// ので、Zが大きいほど手前）で並べ替える。同じ高さのもの（盤面のカード同士）はDOM順に従う。
+const _center = new THREE.Vector3();
+const _world = new THREE.Matrix4();
+function sortByDepth() {
+  const list = [];
+  for (const [, mesh] of meshByElement) {
+    _world.multiplyMatrices(rootGroup.matrix, mesh.matrix);
+    _center.set(0, 0, 0).applyMatrix4(_world);
+    list.push({ mesh, z: _center.z, i: mesh.userData.domIndex ?? 0 });
+  }
+  list.sort((a, b) => (a.z !== b.z ? a.z - b.z : a.i - b.i));
+  for (let i = 0; i < list.length; i++) list[i].mesh.renderOrder = i;
+}
+
 function frame() {
   if (!active) return;
   rafId = requestAnimationFrame(frame);
   if (needsRebuild) rebuild();
   if (!syncCamera()) return;
+  sortByDepth();
   renderer.render(scene, camera);
 }
 
@@ -345,6 +421,7 @@ export function getBoard3dStats() {
   return {
     active,
     quads: meshByElement.size,
+    tinted: [...meshByElement.values()].filter((m) => m.material.color.getHex() !== 0xffffff).length,
     textures: textureCache.size,
   };
 }
@@ -380,4 +457,11 @@ export function debugProjectElement(el) {
     top: Math.min(...ys) + r.top,
     bottom: Math.max(...ys) + r.top,
   };
+}
+
+// 検証用: その要素を描いている板の「描く順番」（大きいほど手前）。#241（駒がカードに
+// 隠れる）のように重なり順が問題になった時、目で見て判断せず数値で確かめるために使う。
+export function debugRenderOrder(el) {
+  const mesh = meshByElement.get(el);
+  return mesh ? mesh.renderOrder : null;
 }
