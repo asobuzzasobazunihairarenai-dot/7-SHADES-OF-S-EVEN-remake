@@ -1936,7 +1936,7 @@ const TOGGLE_SECTIONS = [
     // まだ試験中なので既定OFF。ONにすると、盤面の絵（プレイマット・カード・駒・山）だけを
     // three.jsが1枚のキャンバスにまとめて描く（当たり判定・位置調整は今まで通りDOMのまま）。
     title: "🧪 盤面をWebGLで描く（three.js・試験中）",
-    category: "advanced",
+    category: "admin-only",
     buildContent: (content) => {
       const row = document.createElement("label");
       row.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer;";
@@ -2878,6 +2878,18 @@ function buildPanel(rebuildSlidersRef) {
 
   // 項目数が増えて縦に長くなりすぎたため、GROUPS/TOGGLE_SECTIONSをそれぞれのcategoryごとに
   // 大項目<details>の中へ振り分けて配置する（CATEGORIESの並び順を採用）。
+  // 【事故防止】CATEGORIES に無い category を書いた項目は、この振り分けループから漏れて
+  // **画面にまったく出ない**（2026-09-04、WebGL描画のトグルを category:"advanced" と
+  // 書いてしまい、ユーザーから「どこにある？」と言われて発覚した）。構文エラーにも
+  // ならず静かに消えるので、開発時に気づけるよう警告を出す。
+  {
+    const known = new Set(CATEGORIES.map((c) => c.key));
+    for (const item of [...TOGGLE_SECTIONS, ...GROUPS]) {
+      if (!known.has(item.category)) {
+        console.warn(`admin.js: 未知のカテゴリ "${item.category}" の項目は表示されません:`, item.title);
+      }
+    }
+  }
   for (const cat of CATEGORIES) {
     const categoryEl = buildCategory(cat.label);
     for (const toggle of TOGGLE_SECTIONS) {
