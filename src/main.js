@@ -14140,6 +14140,60 @@ function checkFinalLockApprovalTimeout() {
 // 各種モーダルもゲート侵攻も一切無いのに一定時間 busy のままなら「取り残し」と断定し、安全に解除して
 // 盤面を復帰させる（進行中の効果を中断するわけではなく、あくまで宙に浮いたフラグの後始末）。
 // 根本原因の特定用に diag ログも残す。
+// 【自分の手番なのにフェイズが始まらない】ことへの保険（2026-09-05、オンラインの自動対戦で実測）。
+// 症状: 手番のクライアントだけ getCurrentPhase() が null のまま、相手のクライアントは "lock" と
+// 認識していて、持ち時間が切れても誰も動かず対局が止まる（turn 19 と turn 24 で再現）。
+// フェイズ自動進行は render()（＝状態の変化）をきっかけに走るので、ターンが切り替わった通知を
+// 取りこぼすと、次に何かが起きるまで永久に始まらない。原因の特定はまだだが、**対局が完全に
+// 止まる**のが一番まずいので、まず自力で立ち上げ直せるようにする。
+// 「自分の手番・自分に優先権・フェイズ未開始」が続いている間だけ、5秒ごとに
+// reconcilePhaseAutomation() を呼び直す（何か表示中・処理中の時は手を出さない）。
+let phaseRescueSince = 0;
+function rescuePhaseIfNeverStarted() {
+  const st = getState();
+  if (!st.turnPlayer || hasAnyoneWon()) {
+    phaseRescueSince = 0;
+    return;
+  }
+  // オンラインでは自分の席の番の時だけ（他人の番は相手のクライアントが動かす）。
+  if (isOnlineMode() && st.turnPlayer !== getSelfSeat()) {
+    phaseRescueSince = 0;
+    return;
+  }
+  if (getCurrentPhase() !== null) {
+    phaseRescueSince = 0;
+    return;
+  }
+  // 何か処理中・表示中なら手を出さない（上のフラグ救済と同じ考え方）。
+  if (
+    isAnyBlockingModalOpen() ||
+    activeEffectPicker ||
+    isArrivalEffectProcessing() ||
+    openContactResultModals > 0 ||
+    anytimeInterruptModalEl ||
+    isGateInvasionPending() ||
+    isGateInvasionQueueActive() ||
+    isLocalGateInvasionActive() ||
+    getState().pendingContact
+  ) {
+    phaseRescueSince = 0;
+    return;
+  }
+  const now = Date.now();
+  if (!phaseRescueSince) {
+    phaseRescueSince = now;
+    return;
+  }
+  if (now - phaseRescueSince < 5000) return;
+  phaseRescueSince = now; // 直っていなければ5秒後にまた試す
+  logAction("diag-phase-restart", {
+    turnPlayer: st.turnPlayer,
+    selfSeat: getSelfSeat(),
+    priorityPlayer: st.priorityState?.player ?? null,
+  });
+  reconcilePhaseAutomation();
+}
+
 setInterval(() => {
   try {
     // #214: 判定の意味を「busyになってからの経過」から「最後に何かが起きてからの経過」へ
@@ -14175,6 +14229,9 @@ setInterval(() => {
   try {
     checkFinalLockApprovalTimeout();
     checkContactApprovalTimeout();
+  } catch { /* noop */ }
+  try {
+    rescuePhaseIfNeverStarted();
   } catch { /* noop */ }
 }, 5000);
 
