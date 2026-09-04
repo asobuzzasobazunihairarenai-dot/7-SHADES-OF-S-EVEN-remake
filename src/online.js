@@ -1547,26 +1547,53 @@ export async function loadMyPreferences() {
 const HEARTBEAT_MS = 25000;
 let heartbeatIntervalId = null;
 
+let lastHeartbeatLogAt = 0;
+let heartbeatVisibilityBound = false;
+// 今の部屋の生存報告。部屋を移ると差し替わるので、visibilitychange のハンドラは
+// 「その時の最新」をここ経由で呼ぶ（古い部屋のIDへ送り続けないため）。
+let currentHeartbeatBeat = null;
 function stopHeartbeat() {
   if (heartbeatIntervalId) {
     clearInterval(heartbeatIntervalId);
     heartbeatIntervalId = null;
   }
+  currentHeartbeatBeat = null;
 }
 
 function startHeartbeat(gameId, userId) {
   stopHeartbeat();
-  heartbeatIntervalId = setInterval(async () => {
+  const beat = async () => {
     try {
       await client
         .from("so7_game_seats")
         .update({ last_seen: new Date().toISOString() })
         .eq("game_id", gameId)
         .eq("user_id", userId);
+      // 90秒 last_seen が更新されないと、サーバー側の掃除(so7_cleanup_stale_rooms)で座席ごと
+      // 消え、結果その部屋も消える。ブラウザは**裏に回ったタブのタイマーを間引く**ので、
+      // 「部屋を作ってから別のブラウザへ移った」ような時に届いていない恐れがある。
+      // 実際に飛んでいるかを60秒に1回だけ記録して、後から間隔を確かめられるようにする。
+      const now = Date.now();
+      if (now - lastHeartbeatLogAt >= 60000) {
+        lastHeartbeatLogAt = now;
+        logAction("diag-room-heartbeat", {
+          gameId,
+          hidden: typeof document !== "undefined" ? document.hidden : null,
+        });
+      }
     } catch (err) {
       // 送れなくても致命的ではない（上のコメント参照）。
     }
-  }, HEARTBEAT_MS);
+  };
+  currentHeartbeatBeat = beat;
+  heartbeatIntervalId = setInterval(beat, HEARTBEAT_MS);
+  // 裏に回っている間は間引かれるので、戻ってきた瞬間にも1回送る（掃除に消される窓を狭める）。
+  if (typeof document !== "undefined" && !heartbeatVisibilityBound) {
+    heartbeatVisibilityBound = true;
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && heartbeatIntervalId) void currentHeartbeatBeat?.();
+    });
+  }
 }
 
 // 不具合#146: 部屋の待機中（対局開始前）にホストが「ゲームを開始する」を押すと、
@@ -1617,7 +1644,30 @@ export async function createRoom(name, password, ranked = false) {
       p_ranked: !!ranked, // 合言葉フレンドランク戦（結果がレートに反映される私的な部屋）
     });
     if (error) throw error;
+    // ユーザー報告2026-09-05「ランク戦にチェックしていないのに、もう一方のアカウントの
+    // 一覧に出ない」。双方が不具合報告を送った時に突き合わせられるよう、作った部屋の素性を
+    // 残す（is_ranked が付いていないか・パスワード付きか・いつ作ったか）。
+    logAction("diag-room-created", {
+      gameId,
+      ranked: !!ranked,
+      hasPassword: !!(password && password.length),
+      name: name || null,
+      userId: user.id,
+    });
     await joinRoom(gameId, password);
+    // **座席ができたかどうか**まで確かめて残す。サーバー側の掃除は「開いている部屋のうち
+    // 座席が1つも無いもの」を即座に消すため（so7_cleanup_stale_rooms）、参加に失敗して
+    // 座席ができていないと、相手が一覧を開いた瞬間にその部屋が消える＝「作ったのに出ない」に
+    // なる。ここで seats:0 が残っていれば、原因を推測せずに特定できる。
+    try {
+      const { count, error: seatErr } = await client
+        .from("so7_game_seats")
+        .select("user_id", { count: "exact", head: true })
+        .eq("game_id", gameId);
+      logAction("diag-room-seat-check", { gameId, seats: count ?? null, error: seatErr?.message ?? null });
+    } catch (err) {
+      logAction("diag-room-seat-check", { gameId, seats: null, error: String(err?.message ?? err) });
+    }
     return gameId;
   });
 }
@@ -1687,19 +1737,39 @@ export async function spectateGame(gameId, mode = "public") {
 // ハッシュ自体を一切含まず、has_password（真偽値）だけを返す。一覧を取る前に必ず
 // so7_cleanup_stale_roomsを呼び、ブラウザを閉じて放置された部屋を掃除してから
 // 取得する（定期実行cronジョブ等を使わない、「次に誰かが一覧を見た時に掃除される」方式）。
+let lastCleanupError = null;
 export async function listOpenRooms() {
   try {
     // supabase-jsの.rpc()は失敗時に例外をthrowするのではなく{error}を返すため、
     // 分割代入で明示的に受け取って確認する必要がある（awaitしただけでは失敗に
     // 気づけない）。
     const { error: cleanupErr } = await client.rpc("so7_cleanup_stale_rooms");
-    if (cleanupErr) console.error("so7_cleanup_stale_rooms failed", cleanupErr);
+    if (cleanupErr) {
+      lastCleanupError = cleanupErr.message ?? String(cleanupErr);
+      console.error("so7_cleanup_stale_rooms failed", cleanupErr);
+    } else {
+      lastCleanupError = null;
+    }
   } catch (err) {
+    lastCleanupError = String(err?.message ?? err);
     console.error("so7_cleanup_stale_rooms failed", err);
   }
   const { data, error } = await client.from("so7_games_list").select("*").order("created_at", { ascending: false });
-  if (error) throw error;
-  return data ?? [];
+  if (error) {
+    logAction("diag-room-list", { error: error.message, signedIn: !!cachedUser });
+    throw error;
+  }
+  const rooms = data ?? [];
+  // 見る側の記録。0件だった時に「そもそも取得できていないのか／本当に0件なのか」を
+  // 推測せずに判定できるようにする（ユーザー報告2026-09-05）。
+  logAction("diag-room-list", {
+    count: rooms.length,
+    ids: rooms.slice(0, 10).map((r) => r.id),
+    signedIn: !!cachedUser,
+    userId: cachedUser?.id ?? null,
+    cleanupError: lastCleanupError,
+  });
+  return rooms;
 }
 
 // 観戦できる（進行中の）対局の一覧（supabase_setup_spectate.sqlのso7_games_spectate_list）。

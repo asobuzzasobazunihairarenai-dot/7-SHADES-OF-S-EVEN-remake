@@ -19249,7 +19249,7 @@ body.is-phone-device #announcement-modal {
   top: calc(var(--option-area-band-height, 3rem) + 0.6rem);
   right: 1rem;
   z-index: 1600; /* ホーム画面(1500)より手前・モーダル類より奥 */
-  max-width: 19rem;
+  max-width: 21rem;
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
@@ -19261,6 +19261,12 @@ body.is-phone-device #announcement-modal {
   font-size: 0.8rem;
   color: #cbd5e1;
   text-align: right;
+  line-height: 1.5;
+}
+/* 案内文は1行まるごと使う（ボタンと同じ行を取り合うと、日本語が2文字だけ次の行へ
+   こぼれて見栄えが悪くなる。ユーザー報告2026-09-05「『すぐに開けます』の改行がダサい」）。 */
+.pwa-install-text {
+  flex: 1 0 100%;
 }
 body.theme-light #pwa-install-banner {
   background: #fdfbf5;
