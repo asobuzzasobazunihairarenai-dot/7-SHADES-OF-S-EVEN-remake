@@ -14,6 +14,7 @@ export const CHANGELOG = [
   {
     date: "2026-09-04",
     items: [
+      "フレンド機能を追加しました。オンラインで対戦した相手には、対戦が終わった画面からその場で申請できます（マイページの「👥 フレンド」からも、最近対戦した人に申請できます）。フレンドになると、その人が今アプリを開いているか、その人との通算成績が分かります。知らない人から申請が届くことはありません（名前で検索する仕組みは用意していません）。",
       "フェイズを進める「スキップ」「マイデッキ」のボタンが、対局の途中から出てこなくなる不具合を直しました（昨日の修正で入り込んだものです。申し訳ありません）。",
       "「なないろの欠片」などで効果を選ぶモーダルが出ないまま、勝手に片方（1枚ドロー）に決まってしまう不具合を直しました。スマホでカードをタップして指を離した位置に選択肢のボタンが現れ、その指のタップがそのままボタンを押していました。",
       "対局中に「タイマーをONにする」ボタンが出たままになってしまうのを直しました。他の場所を触るか、しばらく置くと閉じます。",
@@ -25,6 +26,7 @@ export const CHANGELOG = [
       "段位ランキング（戦績管理システム）で、まだ1勝もしていないブロンズ（ゲージ０）の方を対象外にしました。",
     ],
     itemsEn: [
+      "Added friends. You can send a request right from the end-of-match screen to anyone you just played online (or from \"👥 Friends\" on My Page, to people you played recently). Once you are friends you can see whether they have the app open and your head-to-head record. Strangers can never send you a request — there is no name search.",
       "Fixed the Skip / My Deck buttons disappearing partway through a match (introduced by yesterday's fix — sorry).",
       "Fixed the effect-choice dialog (Prism Shard and others) silently resolving to the first option (Draw 1) without ever appearing. On a phone the buttons appeared right under the finger that had just tapped the card, and that same tap pressed one of them.",
       "Fixed the \"Turn the timer on\" button staying on screen during a match. It now closes when you tap elsewhere, or after a short while.",

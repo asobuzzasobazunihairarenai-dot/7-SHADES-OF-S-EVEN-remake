@@ -19,6 +19,8 @@ export const PROFILE_LAYOUT = {
   name: { x: -268, y: 594, scale: 3.01 },
   // ランク表示（ranked-rank）はユーザーがレイアウト編集モードで配置（2026-08-17）。
   "ranked-rank": { x: 369, y: 1, scale: 1 },
+  // フレンドのボタン（2026-09-04）。位置はレイアウト編集モードで調整できる。
+  friends: { x: 60, y: 600, scale: 1.4 },
   stats: { x: 357, y: 257, scale: 1.88 },
 };
 

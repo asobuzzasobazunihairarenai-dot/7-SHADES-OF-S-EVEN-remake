@@ -14,6 +14,7 @@ import { getPlayerName, getPlayerAvatar, setPlayerName } from "./player-identity
 import { fetchStatsProfile } from "./stats-profile.js";
 import { TITLE_DEFS, computeUnlockedTitleKeys, getTitleGroups, formatTitle } from "./titles.js";
 import { openStatsPlayerLinkModal } from "./stats-player-link.js";
+import { buildFriendsButton } from "./friends-ui.js"; // フレンド機能（2026-09-04）
 import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { buildIconButtonContent, wireIconButtonClick, openIconDetailModal } from "./icon-action-button.js";
 import { openOnlinePanel } from "./online-ui.js";
@@ -398,6 +399,15 @@ export async function renderMyPageBody(body, close) {
   rankGroup.style.display = "none";
   body.appendChild(rankGroup);
   renderMyPageRankedRank(rankGroup);
+
+  // フレンド（2026-09-04）。中身は多くなりうるので、称号と同じく**ボタン1つ**にして
+  // 押したらモーダルで開く（マイページのレイアウトは絶対配置＋width:max-contentなので、
+  // 幅の広いリストを直接置くと隣の実績を押し出す。続き316の教訓）。
+  const friendsGroup = document.createElement("div");
+  friendsGroup.className = "my-page-friends-group";
+  friendsGroup.dataset.layoutKey = "friends";
+  friendsGroup.appendChild(buildFriendsButton());
+  body.appendChild(friendsGroup);
 
   // 実績・戦績のテキスト群は1つのグループにまとめる（ユーザー要望「一旦それらでグループでいい」）。
   // レイアウト編集モードでも "stats" という1ブロックとして扱えるようにする。

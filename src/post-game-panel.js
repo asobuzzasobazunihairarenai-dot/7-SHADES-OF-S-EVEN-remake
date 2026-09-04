@@ -14,7 +14,7 @@
 // 始まったこと（＝勝者のロック済み色数が7から減った）を全クライアントが検知したら、
 // このパネルは自動で閉じる。
 
-import { subscribe } from "./state.js";
+import { subscribe, getState } from "./state.js";
 import {
   isOnlineMode,
   getSelfSeat,
@@ -31,7 +31,9 @@ import {
   setRematchReady,
   maybeTriggerRematch,
   leaveGame,
+  getSyncedIdentity,
 } from "./online.js";
+import { buildPostGameFriendRow } from "./friends-ui.js"; // フレンド申請の一行（2026-09-04）
 import { t } from "./ui-text.js"; // UI英語化フェーズ11
 import { createBackdrop } from "./ui-helpers.js";
 import { logAction } from "./action-log.js";
@@ -148,6 +150,24 @@ function closePanel() {
   panelEl = null;
 }
 
+// この対局で一緒に遊んだ相手（自分以外の座席）のうち、アカウントが分かる人を集める。
+// ゲスト（匿名ログイン）は players 行を持たないので、申請しても意味が無い＝
+// friends-ui 側の fetchFriends/requestFriend が弾くが、ここでも userId が無ければ落とす。
+function collectFriendCandidates() {
+  try {
+    const me = getSelfSeat();
+    return (getState().activePlayers ?? [])
+      .filter((seat) => seat !== me)
+      .map((seat) => {
+        const id = getSyncedIdentity(seat);
+        return id?.userId ? { userId: id.userId, name: id.name } : null;
+      })
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 function buildButtonsSection(gameId) {
   // #189: 変数名を t にすると翻訳関数 t を隠して "t is not a function" になる。
   const tone = postGamePanelTokens();
@@ -249,6 +269,16 @@ function buildButtonsSection(gameId) {
   row.appendChild(leaveBtn);
   col.appendChild(row);
   col.appendChild(waitingLabel);
+  // ユーザー要望2026-09-04: 一緒に遊んだ相手にその場でフレンド申請できるようにする。
+  // 別のモーダルは増やさず、このパネルの中に小さく一行だけ出す（相手が全員ゲスト、
+  // もしくは既にフレンド／申請済みなら何も出ない）。取得は非同期なので後から差し込む。
+  const friendSlot = document.createElement("div");
+  col.appendChild(friendSlot);
+  buildPostGameFriendRow(collectFriendCandidates())
+    .then((rowEl) => {
+      if (rowEl) friendSlot.appendChild(rowEl);
+    })
+    .catch((err) => console.error("buildPostGameFriendRow failed", err));
   return col;
 }
 

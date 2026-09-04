@@ -2559,3 +2559,158 @@ end;
 $$;
 revoke execute on function so7_get_admin_user_list() from public;
 grant execute on function so7_get_admin_user_list() to authenticated;
+
+-- ============================================================================
+-- 追加(2026-09-04): フレンド機能（ユーザー要望）
+--   ・申請は「一度対戦した相手」に対してだけ出す想定（クライアント側の導線で担保する）。
+--   ・1組につき1行。user_a < user_b の順に正規化して入れる（同じ2人の行が2つできないように）。
+--   ・status: 'pending'（申請中）/ 'accepted'（成立）/ 'declined'（断られた）。
+--     断ったことは相手に伝えない——クライアントは自分が requested_by の時、declined を
+--     「まだ返事がない」と区別せず単に「申請済み」として扱い、再申請の導線も出さない。
+--   ・相手の表示名・アバター・最終アクセス（＝今アプリを開いているか）は so7_user_profiles に
+--     あるが、そのRLSは「自分の行だけ」なので普通には読めない（2026-09-04のゲスト誤登録の
+--     原因と同じ制限）。フレンドの分だけまとめて返す専用の関数を用意する。
+-- ============================================================================
+
+create table if not exists so7_friendships (
+  user_a uuid not null references auth.users(id) on delete cascade,
+  user_b uuid not null references auth.users(id) on delete cascade,
+  status text not null default 'pending',
+  requested_by uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_a, user_b),
+  check (user_a < user_b)
+);
+alter table so7_friendships enable row level security;
+-- 自分が当事者の行だけ読める。書き込みは下のRPC経由に限定する（直接insertは許可しない＝
+-- 「対戦したことのある相手にだけ申請できる」という導線を迂回されないようにするため）。
+drop policy if exists "so7_friendships_select" on so7_friendships;
+create policy "so7_friendships_select" on so7_friendships for select to authenticated
+  using (auth.uid() = user_a or auth.uid() = user_b);
+
+-- フレンド申請を出す。既に行があれば何もしない（二重申請・断られた相手への再申請を防ぐ）。
+create or replace function so7_request_friend(p_target uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  me uuid := auth.uid();
+  a uuid;
+  b uuid;
+  existing text;
+begin
+  if me is null then raise exception 'not_signed_in'; end if;
+  if p_target is null or p_target = me then return 'invalid'; end if;
+  a := least(me, p_target);
+  b := greatest(me, p_target);
+  select status into existing from so7_friendships where user_a = a and user_b = b;
+  if existing is not null then return existing; end if;
+  insert into so7_friendships (user_a, user_b, status, requested_by)
+    values (a, b, 'pending', me);
+  return 'pending';
+end;
+$$;
+revoke execute on function so7_request_friend(uuid) from public;
+grant execute on function so7_request_friend(uuid) to authenticated;
+
+-- 申請に返事をする（承認 or 辞退）。申請を出した本人は返事できない。
+create or replace function so7_respond_friend(p_other uuid, p_accept boolean)
+returns text
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  me uuid := auth.uid();
+  a uuid;
+  b uuid;
+  row_requested_by uuid;
+  row_status text;
+begin
+  if me is null then raise exception 'not_signed_in'; end if;
+  a := least(me, p_other);
+  b := greatest(me, p_other);
+  select requested_by, status into row_requested_by, row_status
+    from so7_friendships where user_a = a and user_b = b;
+  if row_requested_by is null then return 'none'; end if;
+  if row_requested_by = me then return row_status; end if; -- 自分の申請には返事できない
+  if row_status <> 'pending' then return row_status; end if;
+  update so7_friendships
+    set status = case when p_accept then 'accepted' else 'declined' end, updated_at = now()
+    where user_a = a and user_b = b;
+  return case when p_accept then 'accepted' else 'declined' end;
+end;
+$$;
+revoke execute on function so7_respond_friend(uuid, boolean) from public;
+grant execute on function so7_respond_friend(uuid, boolean) to authenticated;
+
+-- フレンドを解除する（成立済み・申請中どちらでも、自分が当事者なら行ごと消す）。
+create or replace function so7_remove_friend(p_other uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  me uuid := auth.uid();
+  n int;
+begin
+  if me is null then raise exception 'not_signed_in'; end if;
+  delete from so7_friendships
+    where user_a = least(me, p_other) and user_b = greatest(me, p_other);
+  get diagnostics n = row_count;
+  return n > 0;
+end;
+$$;
+revoke execute on function so7_remove_friend(uuid) from public;
+grant execute on function so7_remove_friend(uuid) to authenticated;
+
+-- 自分のフレンド（成立・申請中・受信した申請）を、相手の表示名・アバター・
+-- 最終アクセス日時つきで返す。so7_user_profiles は自分の行しか読めないため、
+-- 「自分が当事者の行に出てくる相手の分だけ」をこの関数で解禁する。
+-- direction: 'incoming'（相手からの申請）/ 'outgoing'（自分が出した申請）/ 'mutual'（成立）。
+create or replace function so7_get_friends()
+returns table (
+  friend_id uuid,
+  status text,
+  direction text,
+  display_name text,
+  avatar text,
+  last_seen_at timestamptz,
+  created_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  me uuid := auth.uid();
+begin
+  if me is null then raise exception 'not_signed_in'; end if;
+  return query
+    select
+      case when f.user_a = me then f.user_b else f.user_a end as friend_id,
+      f.status,
+      case
+        when f.status = 'accepted' then 'mutual'
+        when f.requested_by = me then 'outgoing'
+        else 'incoming'
+      end as direction,
+      p.display_name,
+      p.avatar,
+      p.last_seen_at,
+      f.created_at
+    from so7_friendships f
+    left join so7_user_profiles p
+      on p.user_id = (case when f.user_a = me then f.user_b else f.user_a end)
+    where (f.user_a = me or f.user_b = me)
+      -- 断られた申請は自分の画面から静かに消す（相手にも自分にも見せない）。
+      and f.status <> 'declined'
+    order by f.status, f.created_at desc;
+end;
+$$;
+revoke execute on function so7_get_friends() from public;
+grant execute on function so7_get_friends() to authenticated;

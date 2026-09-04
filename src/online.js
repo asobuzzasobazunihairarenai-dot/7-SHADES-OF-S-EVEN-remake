@@ -3541,3 +3541,142 @@ export async function deleteAnnouncement(id) {
   if (error) throw error;
   if (!data || data.length === 0) throw new Error("no_rows_deleted");
 }
+
+// --- フレンド機能（2026-09-04、ユーザー要望）-----------------------------------------
+// 申請は「一度でも対戦した相手」に対してだけ出す（対戦終了パネル／マイページの
+// 「最近対戦した人」）。ゲスト（匿名ログイン）は対象外——アカウントが残らないため。
+// データとサーバー側の関数は supabase_setup_so7.sql の「フレンド機能」を参照。
+
+// 「今アプリを開いている」とみなす時間。so7_user_profiles.last_seen_at は
+// ログイン中2分おきに更新されるので、その倍を少し超える程度にしておく。
+const FRIEND_ONLINE_WINDOW_MS = 5 * 60 * 1000;
+export function isFriendOnline(lastSeenAt) {
+  if (!lastSeenAt) return false;
+  const t = new Date(lastSeenAt).getTime();
+  return Number.isFinite(t) && Date.now() - t < FRIEND_ONLINE_WINDOW_MS;
+}
+
+// フレンド一覧（成立・申請中・受信した申請）。相手の表示名・アバター・最終アクセスつき。
+export async function fetchFriends() {
+  if (!client || !cachedUser || cachedUser.is_anonymous) return [];
+  try {
+    const { data, error } = await client.rpc("so7_get_friends");
+    if (error) throw error;
+    return (data ?? []).map((r) => ({
+      userId: r.friend_id,
+      status: r.status,
+      direction: r.direction, // mutual / outgoing / incoming
+      name: r.display_name || null,
+      avatar: r.avatar || null,
+      lastSeenAt: r.last_seen_at || null,
+      online: isFriendOnline(r.last_seen_at),
+      createdAt: r.created_at || null,
+    }));
+  } catch (err) {
+    console.error("fetchFriends failed", err);
+    return [];
+  }
+}
+
+export async function requestFriend(userId) {
+  if (!client || !cachedUser || cachedUser.is_anonymous) return null;
+  try {
+    const { data, error } = await client.rpc("so7_request_friend", { p_target: userId });
+    if (error) throw error;
+    logAction("diag-friend", { action: "request", result: data ?? null });
+    return data ?? null;
+  } catch (err) {
+    console.error("requestFriend failed", err);
+    return null;
+  }
+}
+
+export async function respondFriend(userId, accept) {
+  if (!client || !cachedUser) return null;
+  try {
+    const { data, error } = await client.rpc("so7_respond_friend", { p_other: userId, p_accept: !!accept });
+    if (error) throw error;
+    logAction("diag-friend", { action: accept ? "accept" : "decline", result: data ?? null });
+    return data ?? null;
+  } catch (err) {
+    console.error("respondFriend failed", err);
+    return null;
+  }
+}
+
+export async function removeFriend(userId) {
+  if (!client || !cachedUser) return false;
+  try {
+    const { data, error } = await client.rpc("so7_remove_friend", { p_other: userId });
+    if (error) throw error;
+    return !!data;
+  } catch (err) {
+    console.error("removeFriend failed", err);
+    return false;
+  }
+}
+
+// 「最近対戦した人」＋その相手との通算成績。戦績システムの matches / players から作る
+// （どちらも誰でも読めるテーブルなので追加のSQLは要らない）。ゲストは players 行を
+// 持たないので自然に除外される＝申請の候補にも上がらない。
+export async function fetchRecentOpponents(limit = 12) {
+  if (!client || !cachedUser || cachedUser.is_anonymous) return [];
+  try {
+    const myPlayerId = await lookupStatsPlayerId(cachedUser.id);
+    if (!myPlayerId) return []; // まだ一度もオンライン対戦をしていない
+    const { data: matches, error } = await client
+      .from("matches")
+      .select("id, members, winner_id, created_at, date")
+      .order("created_at", { ascending: false })
+      .limit(300);
+    if (error) throw error;
+    const mine = (matches ?? []).filter((m) => Array.isArray(m.members) && m.members.includes(myPlayerId));
+    // 相手ごとに「対戦数・自分の勝ち数・最後に対戦した日時」を集計する。
+    const byPlayer = new Map();
+    for (const m of mine) {
+      for (const pid of m.members) {
+        if (pid === myPlayerId) continue;
+        const cur = byPlayer.get(pid) ?? { playerId: pid, matches: 0, wins: 0, lastAt: null };
+        cur.matches += 1;
+        if (m.winner_id === myPlayerId) cur.wins += 1;
+        if (!cur.lastAt) cur.lastAt = m.created_at ?? m.date ?? null;
+        byPlayer.set(pid, cur);
+      }
+    }
+    if (byPlayer.size === 0) return [];
+    const ids = [...byPlayer.keys()];
+    const { data: players, error: pErr } = await client
+      .from("players")
+      .select("id, name, avatar_url, user_id")
+      .in("id", ids);
+    if (pErr) throw pErr;
+    const out = [];
+    for (const p of players ?? []) {
+      if (!p.user_id || p.user_id === cachedUser.id) continue; // アカウント未連携の相手には申請できない
+      const agg = byPlayer.get(p.id);
+      out.push({
+        userId: p.user_id,
+        playerId: p.id,
+        name: p.name || null,
+        avatarUrl: p.avatar_url || null,
+        matches: agg.matches,
+        wins: agg.wins,
+        lastAt: agg.lastAt,
+      });
+    }
+    out.sort((a, b) => new Date(b.lastAt ?? 0) - new Date(a.lastAt ?? 0));
+    return out.slice(0, limit);
+  } catch (err) {
+    console.error("fetchRecentOpponents failed", err);
+    return [];
+  }
+}
+
+// その相手との通算成績（フレンド一覧に出す用）。fetchRecentOpponents と同じ集計を
+// user_id をキーに引けるようにしたもの。対戦したことが無ければ null。
+export async function fetchHeadToHeadByUserId() {
+  const list = await fetchRecentOpponents(1000);
+  const map = new Map();
+  for (const o of list) map.set(o.userId, { matches: o.matches, wins: o.wins });
+  return map;
+}
