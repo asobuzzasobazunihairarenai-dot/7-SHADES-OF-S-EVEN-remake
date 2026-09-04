@@ -304,13 +304,13 @@ async function renderLobbyModal() {
 
   const countEl = document.createElement("div");
   countEl.className = "online-lobby-count";
-    metaEl.textContent = t("oui.members", { n: info.count });
+  countEl.textContent = t("oui.members", { n: info.count });
   card.appendChild(countEl);
 
   if (info.amIHost) {
     card.appendChild(buildLobbyOptionRows());
     const canStart = info.count >= 2;
-      startBtn.textContent = t("oui.startGame", { n: info.count });
+    const startBtn = textButton(canStart ? t("oui.startGame", { n: info.count }) : t("oui.L312"));
     startBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box; margin-top: 0.6rem;";
     startBtn.disabled = !canStart;
     startBtn.addEventListener("click", async () => {
@@ -333,7 +333,7 @@ async function renderLobbyModal() {
   } else {
     const waiting = document.createElement("div");
     waiting.className = "online-lobby-waiting";
-      waitEl.textContent = t("oui.waitingHost", { host: info.hostName });
+    waiting.textContent = t("oui.waitingHost", { host: info.hostName });
     card.appendChild(waiting);
   }
 
@@ -591,7 +591,7 @@ function buildRoomRow(room) {
 
   const label = document.createElement("div");
   label.style.cssText = "font-size: 0.85rem;";
-    btn.textContent = t("oui.roomRow", { lock: room.has_password ? "🔒 " : "", name: room.name, n: room.member_count });
+  label.textContent = t("oui.roomRow", { lock: room.has_password ? "🔒 " : "", name: room.name, n: room.member_count });
   row.appendChild(label);
 
   const passRow = document.createElement("div");
@@ -617,7 +617,7 @@ function buildRoomRow(room) {
       if (room.has_password) {
         passStatus.textContent = err.message ?? String(err);
       } else {
-        status.textContent = t("oui.joinFailed", { msg: err.message ?? err });
+        alert(t("oui.joinFailed", { msg: err.message ?? err }));
       }
     }
   }
@@ -665,7 +665,7 @@ async function renderRoomChoice(user, myGeneration) {
         // （全員抜ければ部屋自体も片付く）。放棄した古い部屋がこの一覧に残り続ける件への対応。
         const row = document.createElement("div");
         row.style.cssText = "display: flex; gap: 0.4rem; margin-bottom: 0.4rem;";
-    resumeBtn.textContent = t("oui.resume", { name: game.name });
+        const resumeBtn = textButton(t("oui.resume", { name: game.name }));
         resumeBtn.style.cssText = "flex: 1; box-sizing: border-box; min-width: 0;";
         resumeBtn.addEventListener("click", async () => {
           resumeBtn.disabled = true;
@@ -674,7 +674,7 @@ async function renderRoomChoice(user, myGeneration) {
             history.replaceState(null, "", `?room=${game.id}`);
             await renderPanelContent();
           } catch (err) {
-        status.textContent = t("oui.resumeFailed", { msg: err.message ?? err });
+            alert(t("oui.resumeFailed", { msg: err.message ?? err }));
             resumeBtn.disabled = false;
           }
         });
@@ -689,7 +689,7 @@ async function renderRoomChoice(user, myGeneration) {
             await leaveGameById(game.id);
             await renderPanelContent();
           } catch (err) {
-        status.textContent = t("oui.leaveFailed", { msg: err.message ?? err });
+            alert(t("oui.leaveFailed", { msg: err.message ?? err }));
             leaveBtn.disabled = false;
             resumeBtn.disabled = false;
           }
@@ -803,7 +803,7 @@ async function renderRoomChoice(user, myGeneration) {
       for (const room of rooms) listContainer.appendChild(buildRoomRow(room));
     }
   } catch (err) {
-    status.textContent = t("oui.listFailed", { msg: err.message ?? err });
+    listStatus.textContent = t("oui.listFailed", { msg: err.message ?? err });
   }
 
   // 「部屋コードで参加」（合言葉フレンドランク戦の復活で再追加）。ランク戦の私的部屋は
@@ -884,7 +884,7 @@ async function renderRoomChoice(user, myGeneration) {
           "display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.3rem 0; border-top: 1px solid rgba(148,163,184,0.15);";
         const info = document.createElement("span");
         info.style.cssText = "font-size: 0.82rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;";
-    btn.textContent = t("oui.watchRow", { name: g.name || t("oui.unnamedRoom"), n: g.member_count, lock: g.has_password ? " 🔒" : "" });
+        info.textContent = t("oui.watchRow", { name: g.name || t("oui.unnamedRoom"), n: g.member_count, lock: g.has_password ? " 🔒" : "" });
         const watchBtn = document.createElement("button");
         watchBtn.type = "button";
         watchBtn.textContent = t("oui.L889");
@@ -896,7 +896,7 @@ async function renderRoomChoice(user, myGeneration) {
             await spectateGame(g.id, specAllCheckbox.checked ? "all" : "public");
             closePanel();
           } catch (err) {
-        status.textContent = t("oui.watchFailed", { msg: err.message ?? err });
+            alert(t("oui.watchFailed", { msg: err.message ?? err }));
             watchBtn.disabled = false;
           }
         });
@@ -906,7 +906,7 @@ async function renderRoomChoice(user, myGeneration) {
       }
     }
   } catch (err) {
-    status.textContent = t("oui.watchListFailed", { msg: err.message ?? err });
+    specStatus.textContent = t("oui.watchListFailed", { msg: err.message ?? err });
   }
 
   // ユーザー要望でこの部屋パネルからは「ログアウト」を撤去（用途が分かりづらく場違いなため）。
@@ -917,6 +917,10 @@ async function renderRoomChoice(user, myGeneration) {
 // renderRoomChoice同様、内部のawait（getRoomName/getMemberCount）の間に新しい世代の
 // 呼び出しが割り込むケースに備え、myGenerationを都度チェックする（詳しい経緯は
 // renderRoomChoiceのコメント参照）。
+// 【注意】この関数は現在どこからも呼ばれていない（死んだコード）。ロビー刷新で、部屋に
+// 入っている時は renderPanelContent がパネルを閉じて openLobbyModal へ切り替えるようになり、
+// この「部屋の待機画面」は表示経路を失った。将来また出したくなった時のために残してある
+// （2026-09-05に、英語化の一括置換で壊れていた4箇所を直したうえで確認）。
 async function renderRoomStatus(gameId, myGeneration) {
   const mySeat = getMySeat();
   let roomName = t("oui.L730");
@@ -935,7 +939,9 @@ async function renderRoomStatus(gameId, myGeneration) {
 
   const title = document.createElement("div");
   title.style.cssText = "font-weight: bold; margin-bottom: 0.4rem;";
-  title.textContent = t("oui.roomHeader", { name: roomName, seat: mySeat });
+  title.textContent = mySeat
+    ? t("oui.roomHeader", { name: roomName, seat: mySeat })
+    : t("oui.roomHeaderNoSeat", { name: roomName });
   contentEl.appendChild(title);
 
   if (isRanked) {
@@ -949,7 +955,7 @@ async function renderRoomStatus(gameId, myGeneration) {
 
   const codeHint = document.createElement("div");
   codeHint.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.4rem;";
-  codeEl.textContent = t("oui.roomCode", { code: gameId });
+  codeHint.textContent = t("oui.roomCode", { code: gameId });
   contentEl.appendChild(codeHint);
 
   let count = 0;
@@ -1010,13 +1016,13 @@ async function renderRoomStatus(gameId, myGeneration) {
       if (count >= 2 && count <= 4) {
         const readyText = document.createElement("div");
         readyText.style.cssText = "font-weight: bold; margin-bottom: 0.5rem;";
-      rankedNote.textContent = t("oui.rankedReady", { n: count });
+        readyText.textContent = t("oui.rankedReady", { n: count });
         waitingBox.appendChild(readyText);
         const rulesNote = document.createElement("div");
         rulesNote.style.cssText = "font-size: 0.76rem; color: #cbd5e1; margin-bottom: 0.6rem; line-height: 1.4;";
         rulesNote.textContent = t("oui.L1016");
         waitingBox.appendChild(rulesNote);
-      startBtn.textContent = t("oui.rankedStart", { n: count });
+        const startBtn = textButton(t("oui.rankedStart", { n: count }));
         startBtn.style.cssText = "display: block; width: 100%; box-sizing: border-box;";
         startBtn.addEventListener("click", async () => {
           startBtn.disabled = true;
@@ -1042,7 +1048,7 @@ async function renderRoomStatus(gameId, myGeneration) {
         // 5人以上いる。ランク戦は2〜4人対戦なので開始できない。
         const tooManyText = document.createElement("div");
         tooManyText.style.cssText = "font-weight: bold; margin-bottom: 0.4rem; color: #fca5a5;";
-      rankedNote.textContent = t("oui.rankedNeedPlayers", { n: count });
+        tooManyText.textContent = t("oui.rankedNeedPlayers", { n: count });
         waitingBox.appendChild(tooManyText);
         const tooManyNote = document.createElement("div");
         tooManyNote.style.cssText = "font-size: 0.76rem; color: #cbd5e1;";
@@ -1131,7 +1137,7 @@ async function renderRoomStatus(gameId, myGeneration) {
       boostRow.appendChild(boostLabel);
       waitingBox.appendChild(boostRow);
 
-    startBtn.textContent = t("oui.startGame", { n: count });
+      const startBtn = textButton(t("oui.startGame", { n: count }));
       // ログインパネルのボタン（renderLoginForm）と同じ理由で、display:blockを明示しないと
       // .header-tool-buttonの既定表示(inline-block)のせいで横並びになってしまう
       // （ユーザー報告のスクリーンショットで確認）。

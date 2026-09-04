@@ -4305,3 +4305,40 @@ CPUの速さ/強さ/人数/自動送り・フェイズの自動スキップ・�
   幅も 19rem→21rem。**実測**: 1600x900 で案内文は1行（幅218px）・バーは右上(1248,58,336x73)・ホームのタイルとの重なり0件。
 - **検証**: `node --input-type=module --check`（online.js/ui-text.js）通過・CSSブレース平衡。`npm test` 56/56 PASS、
   `node test/smoke.mjs 2` PASS。サーバー側（Supabase）の変更は無い＝SQLの実行・Edge Functionの再デプロイは不要。
+
+### 2026-09-05（続き411）：#242/#243「参加できる部屋が空」「ロビーが白紙」の真因＝英語化の一括置換が壊した17箇所（オンラインの部屋UIが約1週間まるごと死んでいた）
+
+続き410で入れた診断ログが、その日のうちに効いた。**双方の報告を突き合わせたら、サーバー側は完全に正常**だった:
+- 作った側（YGM）: `diag-room-created {gameId:"ICJZJ7", ranked:false}` → `diag-room-seat-check {seats:1}` → `diag-room-heartbeat {hidden:false}`
+- 見た側（SHO）: `diag-room-list {count:2, ids:["ICJZJ7","BGN4JL"]}` ＝**その部屋はちゃんと返ってきていた**
+- そして**同じミリ秒**に `UNHANDLED_REJECTION: Cannot create property 'textContent' on string ''`
+
+つまり「部屋が消えていた」のではなく、**一覧を描く側が例外で死んで空になっていた**。
+- **真因**: UI英語化フェーズ11（`50359c8`、続き327）の一括置換が、`online-ui.js` の**行ごと差し替えの際に周りのコードを壊していた**。
+  置換前の実装（`git show 50359c8^`）と突き合わせて、**17箇所**が別物になっていた——
+  `countEl`→`metaEl` / `waiting`→`waitEl` / `codeHint`→`codeEl` / `label`→`btn` / `info`→`btn` /
+  `listStatus`・`specStatus`・`alert(...)`→`status` / `readyText`・`tooManyText`→`rankedNote`、
+  さらに **`const startBtn = textButton(...)` が3箇所・`const resumeBtn = textButton(...)` が1箇所、宣言ごと消えていた**。
+  - エラー文が「文字列に textContent を作れない」だったのは、`status` がどこにも宣言されておらず
+    **ブラウザの `window.status`（値は空文字列）に解決していた**ため。一覧の描画が投げた例外を catch した先で
+    その `status.textContent = …` を踏み、未処理の Promise 拒否として表に出ていた。
+  - 影響範囲は「部屋一覧」「観戦一覧」「進行中の対局の再開」「対戦ロビー」＝**オンラインの入口ほぼ全て**。
+    2026-08-29 のフェーズ11以降ずっと壊れていたが、`node --check` も `npm test` もスモークも素通りするため
+    誰も気づけなかった（`test/online-smoke.mjs` は `online.js` を直接呼ぶのでUIを通らない）。
+- **同じ形をもう3件、別ファイルで発見・修正**（いずれもフェーズ10 `956d639`）:
+  `my-deck-list.js` の `label`→`note`、`my-deck-builder.js` の `entry.setAttribute(...)`→`tile.title`、
+  `my-page.js` の `statusEl`→`status`。
+- **常設の検査を追加（[tools/check-undeclared.mjs](tools/check-undeclared.mjs)）**: 「宣言されていない変数・別の関数の変数への代入」を
+  全 src から静的に洗う。トップレベル関数ごとにブロックを切り出し、その中＋モジュール直下の宣言だけを
+  「見える名前」として突き合わせる。`node tools/check-undeclared.mjs` で実行（問題があれば終了コード1）。
+  **この事故はこれで4回目**（続き325 t()のimport漏れ／続き342 tを隠すローカル変数／続き347 存在しないaddRow／今回）なので、
+  使い捨てスクリプトではなく tools/ に常設した。実行結果: 159ファイル・0件。
+- **`renderRoomStatus` は死んだコードだった**（ロビー刷新で表示経路を失っていた）。壊れていた4箇所は直したうえで、
+  その旨をコメントに明記した。あわせて `oui.roomHeader` が座席を必ず出す形だったのを直し（ロビー中は `mySeat` が null で
+  「（座席null）」になる）、`oui.roomHeaderNoSeat` を追加した。
+- **検証**: 実アプリをヘッドレスでゲストログインさせ、**本番の部屋一覧が実際に描画される**ことを確認
+  （「セブンの部屋-2（1人）」の行が出る・エラー0件）。部屋を作って対戦ロビーを開き、
+  「🌐 対戦ロビー／参加人数: 1人／ターンタイマー ON…／あと1人以上でゲーム開始できます／この部屋を離れる」が
+  正しく出ることも実測（`oui.L312` の分岐も復活）。`npm test` 56/56 PASS、`node test/smoke.mjs 2` PASS。
+- **申し送り**: `test/online-smoke.mjs` は `online.js` を直接叩くため、この種の**UIの壊れを検出できない**。
+  部屋一覧・ロビーを画面から操作する経路を1つ足しておくと、同じ見落としを防げる。

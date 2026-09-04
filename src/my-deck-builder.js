@@ -320,7 +320,7 @@ function rebuildDeckList() {
     entry.type = "button";
     entry.className = "mdb-deck-entry";
     if (isSpecialDeckCard(card.id)) entry.classList.add("is-special");
-    tile.title = t("mdb.removeCard", { card: cardDisplayName(card.id) });
+    entry.setAttribute("aria-label", t("mdb.removeCard", { card: cardDisplayName(card.id) }));
 
     const art = document.createElement("div");
     art.className = "mdb-deck-entry-art";

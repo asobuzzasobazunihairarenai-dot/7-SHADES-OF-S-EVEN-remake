@@ -124,7 +124,7 @@ function buildStatsSyncRow(seat) {
       statusEl.textContent = t("mypage.L122");
     } catch (err) {
       console.error("syncMyStatsProfile failed", err);
-      status.textContent = t("mypage.error", { msg: err.message ?? err });
+      statusEl.textContent = t("mypage.error", { msg: err.message ?? err });
     } finally {
       syncBtn.disabled = false;
     }

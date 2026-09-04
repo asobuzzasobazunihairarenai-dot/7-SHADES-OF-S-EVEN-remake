@@ -14,6 +14,7 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "【重要】オンライン対戦の「参加できる部屋」が常に空になり、対戦ロビーや観戦一覧、進行中の対局の再開も表示されなくなっていた不具合を直しました。部屋は正しく作られていて、一覧を画面に出す処理だけが止まっていました。8月29日から起きていました。ご不便をおかけしました。",
       "「ホーム画面に追加」の案内が、ホーム画面のボタンに重なっていたのを直しました。画面の右上（オプションの下）へ移動し、パソコンでは「アプリとしてインストール」という言い方に変えました。",
       "参加できる部屋が1つも無い時の案内に、「ランク戦にする」で作った部屋はこの一覧には出ないこと（部屋コードで参加すること）を書き添えました。",
       "駒が1マス移動する時に、パッと次のマスへ現れるのではなく、実際に移動して見えるようにしました（相手の移動を見ている時と同じ見え方になります）。",
@@ -25,6 +26,7 @@ export const CHANGELOG = [
       "「ホーム画面に追加」の案内文が、最後の2文字だけ次の行にこぼれて読みにくかったのを直しました。",
     ],
     itemsEn: [
+      "[Important] Fixed a bug that left the online “rooms you can join” list always empty, and also broke the match lobby, the spectate list and resuming a game in progress. Rooms were being created correctly — only the code that displayed the list was failing. This had been happening since August 29. Sorry for the trouble.",
       "The “add to home screen” prompt no longer overlaps the buttons on the home screen. It moved to the top right (under the options), and on a computer it now says “install as an app”.",
       "When no rooms are open, the message now explains that rooms created with “Make it ranked” never appear in that list and are joined with a room code.",
       "When a piece moves one square it now travels there instead of appearing instantly (the same way you already see opponents move).",

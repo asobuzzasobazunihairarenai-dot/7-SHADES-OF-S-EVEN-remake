@@ -253,7 +253,7 @@ function buildLimitReachedBox(limit) {
   box.appendChild(icon);
   const label = document.createElement("div");
   label.className = "mdl-deck-new-label";
-  note.textContent = t("mdl.limit", { n: limit });
+  label.textContent = t("mdl.limit", { n: limit });
   box.appendChild(label);
   return box;
 }
