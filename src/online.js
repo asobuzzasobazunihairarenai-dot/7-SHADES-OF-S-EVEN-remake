@@ -58,6 +58,7 @@ import {
   setOpponentBaseTimerVisible,
 } from "./motion-prefs.js";
 import { SHORTCUT_TARGETS, setShortcut } from "./player-buttons.js";
+import { applySyncedPrefs, takeChangedSyncedPrefs, resetSyncedPrefTracking } from "./pref-registry.js";
 
 // state.jsの方が唯一の真実（main.jsも同じ関数をstate.jsから直接importして使う）。
 // ここでは呼び出し側（online-ui.js）の利便性のためだけに再エクスポートする。
@@ -224,6 +225,8 @@ export async function getCurrentUser() {
 
 export async function signOut() {
   if (!client) return;
+  // 別のアカウントで入り直した時に、前の人の設定をそのまま書き戻してしまわないように。
+  resetSyncedPrefTracking();
   await client.auth.signOut();
   leaveGame();
 }
@@ -963,6 +966,62 @@ export async function fetchMyEidosProgress() {
   }
 }
 
+// --- この端末にだけ保存されていた設定を、アカウントにも保存する（2026-09-05）------------
+// ユーザー報告「基本設定が割とリセットされている印象（CPUの速さとか）」への対応。
+// 中身と設計の理由は src/pref-registry.js の冒頭に書いてある。ここでは
+//   ・ログイン時に so7_user_profiles.extra_prefs（jsonb）から読んで適用する
+//   ・変化を見つけたら書き戻す（15秒ごと＋画面を離れる時）
+// の2つだけを行う。**大きなSELECTには混ぜない**——列が1つ無いだけで他の設定まで
+// 読めなくなる事故を避けるため、独立したクエリにする（lang / my_deck と同じ作法）。
+export async function fetchMyExtraPrefs() {
+  if (!cachedUser) return null;
+  try {
+    const { data, error } = await client
+      .from("so7_user_profiles")
+      .select("extra_prefs")
+      .eq("user_id", cachedUser.id)
+      .maybeSingle();
+    if (error) throw error;
+    const v = data?.extra_prefs ?? null;
+    return v && typeof v === "object" ? v : null;
+  } catch (err) {
+    console.error("fetchMyExtraPrefs failed (未実行のsupabase_setup_so7.sql追加分がある可能性)", err);
+    return null;
+  }
+}
+
+let extraPrefsTimer = null;
+async function flushExtraPrefs() {
+  if (!cachedUser) return;
+  const changed = takeChangedSyncedPrefs();
+  if (!changed) return;
+  try {
+    const { error } = await client
+      .from("so7_user_profiles")
+      .upsert(
+        { user_id: cachedUser.id, extra_prefs: changed, updated_at: new Date().toISOString() },
+        { onConflict: "user_id" }
+      );
+    if (error) throw error;
+  } catch (err) {
+    console.error("extra_prefs の保存に失敗 (未実行のsupabase_setup_so7.sql追加分がある可能性)", err);
+  }
+}
+
+// ログイン後に一度だけ呼ぶ。設定は色々な場所（モーダルの「今後表示しない」等）から変わるので、
+// 個々のsetterに保存処理を足すのではなく、**値そのものの変化を定期的に見て**書き戻す
+// （呼び忘れの経路ができない）。
+function startExtraPrefsAutoSave() {
+  if (extraPrefsTimer) return;
+  extraPrefsTimer = setInterval(() => {
+    if (typeof document !== "undefined" && document.hidden) return;
+    void flushExtraPrefs();
+  }, 15000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) void flushExtraPrefs();
+  });
+}
+
 // 表示言語（ja/en）をアカウント（so7_user_profiles.lang）から読む。ユーザー要望「言語設定は
 // 端末を変えても引き継がれるようアカウントに記録」。他と同じく大きなSELECTには混ぜず独立クエリ
 // （lang列が未追加の環境でもここだけ失敗して他設定に影響させない）。未ログイン/未保存はnull。
@@ -1401,6 +1460,14 @@ export async function loadMyPreferences() {
       setShortcut(id, data.shortcuts[id] ?? null);
     }
   }
+  // この端末にだけ保存されていた設定（CPUの速さ等）もアカウントから復元する。
+  // 独立したクエリなので、extra_prefs 列がまだ無い環境でもここだけ失敗して他に影響しない。
+  fetchMyExtraPrefs()
+    .then((extra) => {
+      if (extra) applySyncedPrefs(extra);
+      startExtraPrefsAutoSave();
+    })
+    .catch((err) => console.error("extra_prefs の読み込みに失敗", err));
   identityApplierFn?.({
     name: data.display_name || null,
     avatar: data.avatar || null,

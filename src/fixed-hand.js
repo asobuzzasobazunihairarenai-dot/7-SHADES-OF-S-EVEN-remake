@@ -6,6 +6,8 @@
 // 実体は body.fixed-hand-mode クラスの付け外し＋端末保存（localStorage）だけ。実際に手札DOMを
 // オーバーレイへ移す・固定位置に並べるのは main.js の render()／CSS 側が担当する。
 
+import { registerSyncedPref } from "./pref-registry.js";
+
 const KEY = "so7-fixed-hand";
 
 // ユーザー要望2026-08-08: 既定をON（手札を画面下に固定）にする。未設定（新規端末）はON、
@@ -38,3 +40,7 @@ export function setFixedHandEnabled(v) {
   // 手札DOMをオーバーレイへ移す／戻すのは render() が判断するため、切り替え直後に再描画させる。
   window.dispatchEvent(new CustomEvent("admin:change"));
 }
+
+
+// アカウントにも保存する（pref-registry.js 参照）。
+registerSyncedPref("fixedHand", isFixedHandEnabled, setFixedHandEnabled);

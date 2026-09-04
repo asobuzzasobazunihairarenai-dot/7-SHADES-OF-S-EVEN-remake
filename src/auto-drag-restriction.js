@@ -9,6 +9,8 @@
 // 管理者だけがオプション画面からこの制限を解除できる（制限が無い方がテストしやすいため）。
 // 解除状態はこの端末に保存する（localStorage）。
 
+import { registerSyncedPref } from "./pref-registry.js";
+
 const STORAGE_KEY = "so7-auto-drag-restriction";
 
 let enabled = true;
@@ -31,3 +33,7 @@ export function setAutoDragRestrictionEnabled(v) {
     /* 保存できなくても現在の実行中は反映される */
   }
 }
+
+
+// アカウントにも保存する（pref-registry.js 参照）。
+registerSyncedPref("autoDragRestriction", isAutoDragRestrictionEnabled, setAutoDragRestrictionEnabled);

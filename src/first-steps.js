@@ -15,6 +15,7 @@
 // 目印でしかないため）。
 import { t } from "./ui-text.js";
 import { isEidosProgress } from "./eidos-story.js";
+import { registerSyncedPref } from "./pref-registry.js";
 
 const KEY = "so7-first-steps-v1";
 
@@ -118,3 +119,12 @@ export function buildFirstStepCard(actions) {
 
   return card;
 }
+
+// アカウントにも保存する（pref-registry.js 参照）。別の端末で「1 遊び方を覚える」に
+// 戻ってしまうと不自然なので、進み具合は本人に紐づける（物語チュートリアルの完了自体は
+// 元からアカウント同期されている）。
+registerSyncedPref("firstSteps", read, (v) => {
+  if (!v || typeof v !== "object") return;
+  // 「もう終わった」印は消さない方向にだけ揃える（どちらかの端末で進んでいれば進んだ扱い）。
+  write({ ...read(), ...v });
+});

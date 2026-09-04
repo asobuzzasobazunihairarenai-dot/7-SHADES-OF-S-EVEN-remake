@@ -6,6 +6,7 @@
 
 import { getState, subscribe } from "./state.js";
 import { logAction } from "./action-log.js";
+import { registerSyncedPref } from "./pref-registry.js";
 
 // ユーザー報告「iPhoneで基本設定のBGM音量を下げようとしたけど変化がありません」の
 // 原因: iOS Safariは仕様として<audio>/<video>要素の.volumeプロパティのsetterを
@@ -678,6 +679,10 @@ export function vibrate(pattern) {
     /* 未対応・拒否された場合は何もしない */
   }
 }
+
+// アカウントにも保存する（pref-registry.js 参照）。振動できない端末では設定項目自体を
+// 出さないので、その端末では単に使われない値として残るだけ。
+registerSyncedPref("vibration", isVibrationEnabled, setVibrationEnabled);
 
 export function startHeartbeat() {
   if (heartbeatActive) return;

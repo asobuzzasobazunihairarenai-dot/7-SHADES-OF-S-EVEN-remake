@@ -7,6 +7,8 @@
 // これは一般ユーザー向けの明示的な好み設定なので、端末に保存して継続させるのが自然と判断した。
 // 保存が無ければ style.css の :root 既定値（20rem）がそのまま使われる。
 
+import { registerSyncedPref } from "./pref-registry.js";
+
 const KEY = "so7-card-preview-size-rem";
 const MIN = 8;
 const MAX = 36;
@@ -25,6 +27,17 @@ export function applyStoredCardPreviewSize() {
   } catch {
     /* localStorageが使えない環境でも既定サイズで問題なく動く */
   }
+}
+
+// 今のサイズ(rem)。保存されていなければ既定の20を返す（アカウント同期で使う）。
+export function getCardPreviewSize() {
+  try {
+    const v = parseFloat(localStorage.getItem(KEY));
+    if (Number.isFinite(v)) return clamp(v);
+  } catch {
+    /* 読めなければ既定値 */
+  }
+  return 20;
 }
 
 // スライダー操作時に呼ぶ。CSS変数へ即反映し、端末へ保存し、再描画を促す（admin:change）。
@@ -65,3 +78,8 @@ export function setCardPreviewSide(side) {
   }
   window.dispatchEvent(new CustomEvent("admin:change"));
 }
+
+
+// アカウントにも保存する（pref-registry.js 参照）。
+registerSyncedPref("cardPreviewSize", getCardPreviewSize, setCardPreviewSize);
+registerSyncedPref("cardPreviewSide", getCardPreviewSide, setCardPreviewSide);

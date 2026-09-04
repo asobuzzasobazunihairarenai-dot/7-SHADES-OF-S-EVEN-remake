@@ -5,6 +5,8 @@
 // なり得る。フラグと設定だけをここに切り出し、何も import しないことで循環を断つ。
 // 設定は端末に保存する好み（localStorage）。オプションの基本設定から変更できる。
 
+import { registerSyncedPref } from "./pref-registry.js";
+
 let active = false;
 
 export function isCpuBattleActive() {
@@ -317,3 +319,11 @@ export function setLobbyPseudoCpuToggleVisible(v) {
     /* 保存できなくてもそのセッションでは効く */
   }
 }
+
+
+// アカウントにも保存する設定（pref-registry.js の説明参照）。CPU戦の設定は「好み」なので、
+// 端末を変えても付いてくるようにする。
+registerSyncedPref("cpuSpeed", getCpuSpeed, setCpuSpeed);
+registerSyncedPref("cpuDifficulty", getCpuDifficulty, setCpuDifficulty);
+registerSyncedPref("cpuPlayerCount", getCpuPlayerCount, setCpuPlayerCount);
+registerSyncedPref("cpuAutoSkip", isCpuAutoSkipEnabled, setCpuAutoSkipEnabled);

@@ -14,9 +14,11 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "これまで「そのブラウザにだけ」保存されていた設定を、アカウントにも保存するようにしました。CPUの速さ・強さ・人数、CPU戦の自動送り、フェイズの自動スキップ、マスの確認、カードを拡大表示する大きさと向き、盤面のカードを絵だけにする、手札を画面下に固定、自動処理中のドラッグ制限、ランク戦の通知（時間帯を含む）、振動、ホーム画面の「次にやること」の進み具合です。端末やブラウザを変えても引き継がれ、閲覧データを消しても元に戻りません。",
       "スマホ・タブレットで最初に一度だけ出ていた「2D表示がおすすめです」のお知らせを、出さないようにしました。盤面の描き方を新しくしたことで、画面がチカチカする症状が解消したためです（2D表示そのものは今までどおり基本設定から切り替えられます）。",
     ],
     itemsEn: [
+      "Settings that used to be saved only in one browser are now saved to your account as well: CPU speed, strength and player count, CPU auto-advance, phase auto-skip, the square confirmation, the size and side of the enlarged card, showing board cards as artwork only, pinning your hand to the bottom of the screen, the drag restriction during automatic processing, ranked match notifications (including the time window), vibration, and your progress on the “what to do next” card. They now follow you across devices and browsers, and clearing your browsing data no longer resets them.",
       "The one-time “the flat 2D view is recommended” notice no longer appears on phones and tablets. The new way of drawing the board fixed the flickering it was there to work around (the 2D view itself is still available in Settings).",
     ],
   },

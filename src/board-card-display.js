@@ -7,6 +7,8 @@
 // モジュール」にして、cards-data.js/main.js/options-menu.js等どこからimportしても循環・評価順の
 // 問題が起きないようにする。
 
+import { registerSyncedPref } from "./pref-registry.js";
+
 const STORAGE_KEY = "so7-board-illust-only";
 // ユーザー要望2026-08-08: 既定をON（イラストのみ表示）にする。未設定（新規端末）はON、
 // 明示的にOFF("0")にしたことがある端末はその選択を尊重する。
@@ -32,3 +34,7 @@ export function setBoardIllustOnly(v) {
   // 盤面を再描画させる（main.jsがadmin:changeでrender()する既存の仕組みに相乗り）。
   window.dispatchEvent(new CustomEvent("admin:change"));
 }
+
+
+// アカウントにも保存する（pref-registry.js 参照）。
+registerSyncedPref("boardIllustOnly", isBoardIllustOnly, setBoardIllustOnly);

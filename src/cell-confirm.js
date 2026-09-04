@@ -16,6 +16,7 @@ import { createBackdrop, createOpenGuard } from "./ui-helpers.js";
 // 【重要】body 自体がステージ変形(translate+scale)を持つので、実画面座標をそのまま
 // left/top に入れると二重にかかる（続き355）。必ずローカル座標へ直してから使う。
 import { stageClientToLocal, showQuickNote } from "./main.js";
+import { registerSyncedPref } from "./pref-registry.js";
 
 const STORAGE_KEY = "so7-cell-confirm-enabled";
 
@@ -158,3 +159,8 @@ function placeNextToCell(modal, cellEl) {
   modal.style.left = `${local.x}px`;
   modal.style.top = `${local.y}px`;
 }
+
+
+// アカウントにも保存する（pref-registry.js 参照）。対になる「使う前の確認」は既にアカウントへ
+// 保存されているので、こちらも揃える。
+registerSyncedPref("cellConfirm", isCellConfirmEnabled, setCellConfirmEnabled);

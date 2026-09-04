@@ -12,6 +12,8 @@
 // この端末のみの設定（localStorage、アカウント/相手には同期しない——自分の手番の進み方を
 // 選ぶだけでゲーム状態には一切影響しないため）。
 
+import { registerSyncedPref } from "./pref-registry.js";
+
 const STORAGE_KEY = "so7-auto-phase-skip";
 let enabled = true;
 try {
@@ -46,3 +48,7 @@ export function setAutoPhaseSkipEnabled(v) {
 export function onAutoPhaseSkipChange(fn) {
   listeners.push(fn);
 }
+
+
+// アカウントにも保存する（pref-registry.js 参照）。
+registerSyncedPref("autoPhaseSkip", isAutoPhaseSkipEnabled, setAutoPhaseSkipEnabled);

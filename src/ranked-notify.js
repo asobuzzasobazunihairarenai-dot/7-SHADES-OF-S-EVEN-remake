@@ -16,6 +16,7 @@ import {
   stopFaviconAlert,
 } from "./browser-notify.js";
 import { t } from "./ui-text.js"; // UI英語化フェーズ13
+import { registerSyncedPref } from "./pref-registry.js";
 
 const KEY_ENABLED = "so7-ranked-notify-enabled";
 const KEY_START = "so7-ranked-notify-start";
@@ -235,3 +236,15 @@ export function shouldSuggestRankedNotify() {
 export function enableRankedNotifyFromPrompt() {
   setRankedNotifyEnabled(true);
 }
+
+
+// アカウントにも保存する（pref-registry.js 参照）。通知の時間帯は「その人の生活時間」なので
+// 端末ごとより本人に紐づく方が自然。
+registerSyncedPref("rankedNotify", () => {
+  const w = getRankedNotifyWindow();
+  return { enabled: isRankedNotifyEnabled(), start: w.start, end: w.end };
+}, (v) => {
+  if (!v || typeof v !== "object") return;
+  if (typeof v.start === "number" && typeof v.end === "number") setRankedNotifyWindow(v.start, v.end);
+  if (typeof v.enabled === "boolean") setRankedNotifyEnabled(v.enabled);
+});
