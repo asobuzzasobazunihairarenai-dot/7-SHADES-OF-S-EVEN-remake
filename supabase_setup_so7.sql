@@ -2370,18 +2370,35 @@ grant execute on function so7_get_bug_report_counts() to authenticated;
 -- ファイル名にランダムな時刻を含めるので総当たりは現実的でない）。書き込みはログイン中の
 -- 本人が自分のフォルダ（user_id/）へだけ、に限定する。
 -- ※ このSQLを実行するまでは、画像の添付だけが失敗する（本文・ログの送信は今まで通り成功する）。
-insert into storage.buckets (id, name, public)
-values ('bug-shots', 'bug-shots', true)
-on conflict (id) do update set public = true;
+-- 【ファイル全体を貼って実行する時のための保険】storage.buckets への書き込みは、プロジェクトに
+-- よっては権限が足りずエラーになることがある。SQL Editorは1つでもエラーが出るとそこで止まり、
+-- **それ以降の定義（このファイル末尾の修正など）が反映されない**ため、ここだけは失敗しても
+-- 続行できるように包んでおく（バケットが作られなければ、不具合報告の画像添付だけが効かない）。
+do $bucket$
+begin
+  insert into storage.buckets (id, name, public)
+  values ('bug-shots', 'bug-shots', true)
+  on conflict (id) do update set public = true;
+exception when others then
+  raise notice 'bug-shots バケットの作成をスキップしました: %', sqlerrm;
+end
+$bucket$;
 
-drop policy if exists "bug_shots_read" on storage.objects;
-create policy "bug_shots_read" on storage.objects
-  for select using (bucket_id = 'bug-shots');
-
-drop policy if exists "bug_shots_insert_own" on storage.objects;
-create policy "bug_shots_insert_own" on storage.objects
-  for insert to authenticated
-  with check (bucket_id = 'bug-shots' and (storage.foldername(name))[1] = auth.uid()::text);
+-- 上と同じ理由（権限が足りない時にファイル全体の実行が止まらないように）で、
+-- storage のポリシーも失敗を許容する形にしておく。
+do $bucketpol$
+begin
+  drop policy if exists "bug_shots_read" on storage.objects;
+  create policy "bug_shots_read" on storage.objects
+    for select using (bucket_id = 'bug-shots');
+  drop policy if exists "bug_shots_insert_own" on storage.objects;
+  create policy "bug_shots_insert_own" on storage.objects
+    for insert to authenticated
+    with check (bucket_id = 'bug-shots' and (storage.foldername(name))[1] = auth.uid()::text);
+exception when others then
+  raise notice 'bug-shots のポリシー設定をスキップしました: %', sqlerrm;
+end
+$bucketpol$;
 
 -- ---------------------------------------------------------------------------
 -- 追加(2026-09-02): 全員へのお知らせ（ユーザー要望「テスターに連絡したい」）。

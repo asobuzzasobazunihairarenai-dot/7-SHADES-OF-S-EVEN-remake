@@ -361,6 +361,16 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー要望2026-09-05「駒が一瞬で次のマスに行っているような挙動。しっかり移動して
+    // いる感じにしたい」への対応（main.jsのplayPieceMoveAnimation）。他人の移動を見せる時と
+    // 同じ飛翔演出を、自分・CPUの移動にも使う。
+    title: "駒の移動アニメーション",
+    category: "effect",
+    controls: [
+      { key: "--piece-move-duration", label: "駒が1マス移動する時間（秒）", unit: "", min: 0.1, max: 2, step: 0.05, default: 0.45 },
+    ],
+  },
+  {
     // ユーザー要望「タックル演出が早すぎて何が起きたかよくわからない。秒数を管理者
     // モードで設定できるといい」への対応。承認ボタンが押されてから①演出開始までの間→
     // ②気合を入れる（到達演出流用、演出自体の時間なのでここには含めない）→③助走→
@@ -1975,7 +1985,7 @@ const TOGGLE_SECTIONS = [
     // 盤面のWebGL描画（board-3d.js、2026-09-04）。iPhoneのチカチカ／強制終了対策の第1段。
     // まだ試験中なので既定OFF。ONにすると、盤面の絵（プレイマット・カード・駒・山）だけを
     // three.jsが1枚のキャンバスにまとめて描く（当たり判定・位置調整は今まで通りDOMのまま）。
-    title: "🧪 盤面をWebGLで描く（three.js・試験中）",
+    title: "🧪 盤面をWebGLで描く（three.js）",
     category: "admin-only",
     buildContent: (content) => {
       const row = document.createElement("label");
@@ -1995,7 +2005,7 @@ const TOGGLE_SECTIONS = [
       };
       cb.addEventListener("change", async () => {
         const m = await import("./board-3d.js");
-        const ok = m.setBoard3dActive(cb.checked);
+        const ok = m.setBoard3dEnabled(cb.checked);
         if (cb.checked && !ok) {
           cb.checked = false;
           info.textContent = "この端末ではWebGLを開始できませんでした。";

@@ -80,6 +80,7 @@ import {
 import { getOptionArea } from "./option-area.js";
 import { getState, requestAutoProcessingToggle, nextTurn } from "./state.js";
 import { getFinalLockApprovalOrder } from "./board-layout.js";
+import { isBoard3dEnabled, setBoard3dEnabledSetting } from "./board-3d-setting.js";
 
 function buildMenuItem(label, onClick) {
   const btn = document.createElement("button");
@@ -1070,6 +1071,18 @@ export function initOptionsMenu() {
               setContinuousGlowDisabled(checked);
               document.body.classList.toggle("reduce-glow", checked);
               saveMyPreference({ continuous_glow_disabled: checked });
+            })
+          );
+          // 盤面の描き方（WebGL）。2026-09-05から既定ON——iPhone/iPadのチカチカ・強制終了が
+          // これで解消したため。うまく描けない端末のために切れるようにしておく。設定値だけを
+          // 持つ極小モジュール(board-3d-setting.js)を見て、実際の描画モジュール（three.jsを
+          // 含むので重い）は切り替えた時にだけ動的importする。
+          content.appendChild(
+            buildCheckboxRow(t("opt.chk.board3d"), isBoard3dEnabled(), (checked) => {
+              setBoard3dEnabledSetting(checked);
+              import("./board-3d.js")
+                .then((m) => m.setBoard3dActive(checked))
+                .catch((err) => console.error("board-3d の切り替えに失敗", err));
             })
           );
           // 実体はtablet-2d-mode.jsで管理者モードのトグルと共有している（同じ状態）。

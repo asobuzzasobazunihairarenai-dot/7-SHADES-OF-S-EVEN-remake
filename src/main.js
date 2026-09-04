@@ -3970,11 +3970,62 @@ document.addEventListener(
 // 裏向きだったら自動でオープンしてほしい」への対応。通常のドラッグ移動と違い、裏向き
 // カードでも「オープンする/しない」を尋ねず自動で開く（runAutoArrivalEffectの連鎖時と
 // 同じ考え方——フェイズ自動進行の一部なので、着地後の判断もそこまで自動で進めるのが自然）。
+// 駒が「一瞬で次のマスに現れる」のではなく、実際に歩いて移動したように見せる
+// （ユーザー要望2026-09-05「駒が一瞬で次のマスに行っているような挙動。しっかり移動している
+// 感じにしたい」）。オンラインで**他人の移動を見せる時**（remote-move-animator.js）と全く
+// 同じ方式にする——移動先の駒をいったん隠し、飛翔ゴーストを飛ばし、着いたら現す。
+// こうすると自分/CPUの移動と他人の移動が同じ見え方になり、実装も既存の仕組みに乗るだけで済む
+// （駒のDOMはrender()のたびに作り直されるので、実物にCSSトランジションを掛ける方式だと
+// 移動中にrender()が走った瞬間にアニメーションが消えてしまう）。
+function pieceMoveDurationMs() {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue("--piece-move-duration").trim();
+  const v = parseFloat(raw);
+  return Number.isFinite(v) && v > 0 ? Math.round(v * 1000) : 450;
+}
+
+async function playPieceMoveAnimation(pieceId, fromLocation) {
+  if (isFlightAnimationDisabled()) return; // 「駒やカードが飛ぶ動きをやめる」設定を尊重
+  if (!fromLocation || fromLocation.zone !== "cell") return;
+  const table = document.getElementById("game-table");
+  if (!table) return;
+  const token = getState().tokens.find((t) => t.id === pieceId);
+  const to = token?.location;
+  if (!token || to?.zone !== "cell") return;
+  if (to.row === fromLocation.row && to.col === fromLocation.col) return;
+  const fromEl = findLocationElement(table, fromLocation);
+  const pieceEl = table.querySelector(`.piece[data-token-id="${pieceId}"]`);
+  if (!fromEl || !pieceEl) return;
+  const toRect = pieceEl.getBoundingClientRect();
+  const fromCellRect = fromEl.getBoundingClientRect();
+  if (!toRect.width || !fromCellRect.width) return;
+  // 飛ぶのは「駒」なので、出発点も駒と同じ大きさにして、元のマスの中心に置く
+  // （マスの大きさで飛ばすと、出発の瞬間だけ駒が大きくなったように見えるため）。
+  const cx = fromCellRect.left + fromCellRect.width / 2;
+  const cy = fromCellRect.top + fromCellRect.height / 2;
+  const fromRect = {
+    left: cx - toRect.width / 2,
+    top: cy - toRect.height / 2,
+    width: toRect.width,
+    height: toRect.height,
+  };
+  setSetupPendingTokenIds(new Set([pieceId]));
+  render();
+  try {
+    const { done } = flyGhost(fromRect, toRect, getSkinImagePath(token.color, token.player), "setup-fly-piece", pieceMoveDurationMs());
+    await done;
+  } finally {
+    setSetupPendingTokenIds(new Set());
+    render();
+  }
+}
+
 async function performPhaseMoveToCell(location, actingSeat = getSelfSeat()) {
   // actingSeat: 通常は自分の席。ローカルCPU戦では自動処理がCPU(C)の席を渡してくる。
   const player = actingSeat;
   const piece = getState().tokens.find((t) => t.kind === "piece" && t.player === player);
   if (!piece) return;
+  // 動く前の位置を控えておく（移動アニメーションの出発点）。
+  const moveFrom = piece.location;
   // ユーザー要望（続き77）「移動もロックも宣言と処理を分けてください」。実際に状態を
   // 動かす直前を「移動宣言」の瞬間とみなして発火する（処理側は下のtriggerCardArrival
   // 完了後、既存の通り）。
@@ -3999,6 +4050,9 @@ async function performPhaseMoveToCell(location, actingSeat = getSelfSeat()) {
     }
     playSound("piecePlace");
     render();
+    // 「一瞬で次のマスに現れる」のを避け、実際に移動して見えるようにする。到達効果は
+    // この演出が終わってから始まる（動き終わってから効果が出る方が分かりやすい）。
+    await playPieceMoveAnimation(piece.id, moveFrom);
     const card = findTopCardAt(location);
     if (!card) return;
     if (!card.faceUp) {
@@ -13938,6 +13992,14 @@ initOpeningScreen();
 applyStoredCardPreviewSize();
 // 「手札を画面下に固定する」設定を body クラスへ復元（render()がこれを見て手札の描画先を決める）。
 applyStoredFixedHand();
+// 盤面のWebGL描画（board-3d.js）。2026-09-05から既定ON——iPhone/iPadのチカチカ・強制終了が
+// これで解消したため。設定でOFFにしている端末では何もしない。盤面のDOMが組み上がってから
+// 始める必要があるので、最初の描画の後に回す（読み込み自体も動的importで後回しにする）。
+setTimeout(() => {
+  import("./board-3d.js")
+    .then((m) => m.applyStoredBoard3d())
+    .catch((err) => console.error("board-3d の起動に失敗", err));
+}, 0);
 // 初回起動時だけ、オープニングの手前にサウンド／表示の設定モーダル（試聴ボタン付き）を出す。
 maybeShowFirstRunBgmModal();
 

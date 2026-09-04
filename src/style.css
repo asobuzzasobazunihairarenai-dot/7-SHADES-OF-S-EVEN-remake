@@ -11992,6 +11992,20 @@ body.cpu-battle-mode #quick-start-bar {
 
 /* ファーストカードの山・山札からマス/ロックスロットへ飛んでいく途中のゴースト。
    ドラッグ中のゴースト(.drag-ghost)と同じくdocument.body直下、3D空間の外に浮かべる。 */
+/* 駒の移動の飛翔ゴースト。カードと同じ仕組み（.setup-fly-card）を使うが、駒のスキン画像は
+   正方形なので、カードのように上下が切れる心配はない。 */
+.setup-fly-piece {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 9998;
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  filter: drop-shadow(0 0.2rem 0.3rem rgba(0, 0, 0, 0.45));
+}
+
 .setup-fly-card {
   position: fixed;
   left: 0;
@@ -13018,6 +13032,9 @@ body.is-phone-device .opening-lang-toggle-seg.is-current {
   --start-player-avatar-size: 12rem;
   --gate-invasion-modal-size: 28rem;
   --gate-invasion-modal-step-duration: 3.5;
+  /* 駒が1マス移動するのにかける時間（秒）。一瞬で次のマスに現れると「移動した」感じが
+     しないため、他人の移動を見せる時と同じ飛翔演出を自分/CPUの移動にも使う。 */
+  --piece-move-duration: 0.45;
   --contact-anim-pre-delay: 1;
   --contact-anim-runup-duration: 0.5;
   --contact-anim-tackle-duration: 0.5;

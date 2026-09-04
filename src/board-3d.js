@@ -27,6 +27,7 @@
 import * as THREE from "../vendor/three.module.min.js";
 import { subscribe } from "./state.js";
 import { logAction } from "./action-log.js";
+import { isBoard3dEnabled, setBoard3dEnabledSetting } from "./board-3d-setting.js";
 
 let renderer = null;
 let scene = null;
@@ -703,6 +704,21 @@ function ensureRenderer() {
     setBoard3dActive(false);
   });
   return true;
+}
+
+// 使うかどうかの設定（2026-09-05から既定ON）。iPhone/iPadのチカチカ・強制終了が
+// この描画で解消したことを実機で確認できたため、全員に既定で効かせる。うまく描けない端末の
+// ために、基本設定「動きが重い・カクつくとき」と管理者モードから切り替えられるようにしてある
+// （WebGLを開始できない端末では ensureRenderer が false を返し、自動的に従来のCSS描画のまま
+//  になる。描画中に打ち切られた場合も webglcontextlost で自動的に戻る）。
+export function setBoard3dEnabled(on) {
+  setBoard3dEnabledSetting(!!on);
+  return setBoard3dActive(!!on);
+}
+// 起動時に一度呼ぶ（main.js）。設定がONなら描画を始める。
+export function applyStoredBoard3d() {
+  if (!isBoard3dEnabled()) return false;
+  return setBoard3dActive(true);
 }
 
 export function isBoard3dActive() {
