@@ -1996,8 +1996,13 @@ const TOGGLE_SECTIONS = [
       info.style.cssText = "font-size: 0.7rem; opacity: 0.75; margin-top: 0.3rem;";
       const refresh = async () => {
         const m = await import("./board-3d.js");
+        const s = await import("./board-3d-setting.js");
         const st = m.getBoard3dStats();
-        cb.checked = st.active;
+        // 【重要】チェックは「保存されている設定」を映す。「今まさに描画中か」ではない
+        // ——起動直後や盤面が組まれる前は、設定がONでもまだ描き始めていないため、
+        // そこを映すと「既定ONにしたのにOFFに見える」ことになる（ユーザー報告#247）。
+        // しかもそれを見て押し直すと、設定が本当にOFFで保存されてしまう。
+        cb.checked = s.isBoard3dEnabled();
         info.textContent = st.active
           ? `WebGLで描画中：板 ${st.quads} 枚（うち枠 ${st.shapes}）/ 画像 ${st.textures} 種` +
             ` ／ 1フレーム ${st.frameMs}ms（描画 ${st.drawMs}ms・作り直し ${st.rebuildMs}ms）`
@@ -2006,8 +2011,11 @@ const TOGGLE_SECTIONS = [
       cb.addEventListener("change", async () => {
         const m = await import("./board-3d.js");
         const ok = m.setBoard3dEnabled(cb.checked);
+        // 設定は保存済み。描画の開始に失敗した時だけ下で戻す。
         if (cb.checked && !ok) {
           cb.checked = false;
+          const s = await import("./board-3d-setting.js");
+          s.setBoard3dEnabledSetting(false);
           info.textContent = "この端末ではWebGLを開始できませんでした。";
           return;
         }
@@ -2020,6 +2028,11 @@ const TOGGLE_SECTIONS = [
       content.appendChild(row);
       content.appendChild(info);
       refresh();
+      // 開いている間は数値を更新し続ける（描き始めるまでの一瞬も追いかける）。
+      const timer = setInterval(() => {
+        if (!content.isConnected) { clearInterval(timer); return; }
+        void refresh();
+      }, 1000);
     },
   },
   {

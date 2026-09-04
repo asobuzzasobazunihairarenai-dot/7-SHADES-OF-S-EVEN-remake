@@ -655,6 +655,13 @@ function maybeLogStats() {
       drawMs: st.drawMs,
       rebuildMs: st.rebuildMs,
       dpr: window.devicePixelRatio || 1,
+      // #247「カードにドロップシャドウのようなものがある」の切り分け用。
+      // #238a は「移動できるマスを選んでいる間だけ、暗転の膜のせいでカードが浮いて見える」
+      // だったので、その膜が出ている状況かどうかと、実際に膜の色を混ぜた板の枚数を残す。
+      tinted: st.tinted,
+      dim:
+        (document.body.classList.contains("phase-move-picking") ? "move" : "") +
+          (document.body.classList.contains("card-effect-picking-cells") ? "+effect" : "") || null,
       // #244 の切り分け用: 画面上でどれだけ引き伸ばされているか（ステージ倍率）と、
       // その結果キャンバス1ピクセルが画面の何ピクセルに広がっているか。1.0 に近ければ等倍。
       stage: lastStageScale ? +lastStageScale.toFixed(2) : null,
