@@ -1038,6 +1038,11 @@ grant execute on function so7_get_admin_stats() to authenticated;
 -- so7_get_admin_stats等と同じauth.jwt()チェック）。auth.usersはSECURITY DEFINERの
 -- 内部でのみ参照でき、クライアントから直接SELECTすることはできない。
 -- ★重要: このメールアドレスが実際の管理者アカウントと一致しているか確認すること。
+-- この2つの関数は後半（続き405）で戻り値を table から jsonb へ作り直しているため、
+-- 既に新しい版が入っているDBに対して create or replace すると
+-- 「cannot change return type of existing function」でファイル全体が止まる。
+-- 全文コピペで通るように、定義のたびに先に drop しておく。
+drop function if exists so7_get_admin_user_list();
 create or replace function so7_get_admin_user_list()
 returns table (
   user_id uuid,
@@ -1066,6 +1071,11 @@ grant execute on function so7_get_admin_user_list() to authenticated;
 
 -- ログイン履歴（実体はso7_visit_log、ページを開くたびの訪問記録）を新しい順に
 -- ページングしながら遡れるようにする。p_offsetを増やしながら呼び出す想定。
+-- この2つの関数は後半（続き405）で戻り値を table から jsonb へ作り直しているため、
+-- 既に新しい版が入っているDBに対して create or replace すると
+-- 「cannot change return type of existing function」でファイル全体が止まる。
+-- 全文コピペで通るように、定義のたびに先に drop しておく。
+drop function if exists so7_get_admin_visit_log(int, int);
 create or replace function so7_get_admin_visit_log(p_limit int default 200, p_offset int default 0)
 returns table (
   created_at timestamptz,
@@ -1211,6 +1221,11 @@ $$;
 -- PL/pgSQLのRETURN QUERYが要求する型の完全一致に違反していた（varcharとtextは
 -- 通常のSELECTでは区別なく扱えるが、RETURN QUERYの行タイプ照合ではこの違いが
 -- エラーになる）。u.email::textと明示キャストするだけで直る。
+-- この2つの関数は後半（続き405）で戻り値を table から jsonb へ作り直しているため、
+-- 既に新しい版が入っているDBに対して create or replace すると
+-- 「cannot change return type of existing function」でファイル全体が止まる。
+-- 全文コピペで通るように、定義のたびに先に drop しておく。
+drop function if exists so7_get_admin_user_list();
 create or replace function so7_get_admin_user_list()
 returns table (
   user_id uuid,
@@ -1237,6 +1252,11 @@ $$;
 revoke execute on function so7_get_admin_user_list() from public;
 grant execute on function so7_get_admin_user_list() to authenticated;
 
+-- この2つの関数は後半（続き405）で戻り値を table から jsonb へ作り直しているため、
+-- 既に新しい版が入っているDBに対して create or replace すると
+-- 「cannot change return type of existing function」でファイル全体が止まる。
+-- 全文コピペで通るように、定義のたびに先に drop しておく。
+drop function if exists so7_get_admin_visit_log(int, int);
 create or replace function so7_get_admin_visit_log(p_limit int default 200, p_offset int default 0)
 returns table (
   created_at timestamptz,

@@ -14,6 +14,7 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "【重要】この日の一時期に、パソコンで盤面のカードやマスが見えなくなり、スマホでは画面がチカチカする不具合が出ていました。盤面の絵を描く順番を変えた変更が原因だったため、その変更を取り消しました。ご迷惑をおかけしました。",
       "処理中に、ロックエリアの色の枠が一瞬すべて消えてまた出る、という点滅を直しました。",
       "盤面の演出（到達した時の光、ロックした時の刻印、ロック中でも使えるカードのまわりを回る光）が、盤面の絵の裏に隠れて見えなくなっていたのを直しました。",
       "ゲートのマスに置かれたカードが、黄色っぽく透けて見えていたのを直しました。マスの色がカードの上に重なっていました。",
@@ -33,6 +34,7 @@ export const CHANGELOG = [
       "「ホーム画面に追加」の案内文が、最後の2文字だけ次の行にこぼれて読みにくかったのを直しました。",
     ],
     itemsEn: [
+      "Fixed a problem that appeared briefly this day: on PC the cards and squares on the board became invisible, and on phones the screen flickered. The change to the board’s drawing order that caused it has been rolled back. Sorry for the trouble.",
       "Fixed the coloured frames in the Lock Areas flickering — all of them briefly vanished and came back while the game was processing.",
       "Board effects (the glow on arrival, the lock stamp, the light circling cards you can still use while locked) were hidden behind the board artwork. They are visible again.",
       "Fixed cards on a gate square looking washed out with a yellow tint — the square's colour was being drawn over the card.",
