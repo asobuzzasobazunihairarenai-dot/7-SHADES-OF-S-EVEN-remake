@@ -36,6 +36,12 @@ let prevExpanded = false;
 // 一目で分かるように）。名前は呼び出し側（main.js）から渡してもらう——ここで player-identity.js を
 // import すると online.js を経由して循環しかねないため。
 let prevOwnerName = "";
+// 【#279】直前に終わったターンの鍵。中央のフラッシュは「出す順番待ち→最大1.8秒表示→
+// 右下へ0.4秒かけて飛ぶ」ので、ターン終わり際の出来事はチップが積まれる頃にはもう次の
+// ターンに入っていることがある。以前はそれを**捨てて**いた（#184。前のターンの出来事が
+// 次のターンの帯に取り残されるのを防ぐため）が、前のターンの行ができた今は、捨てずに
+// そちらへ積める。
+let prevTurnKey = null;
 
 function ensureStrip() {
   if (stripEl) return stripEl;
@@ -233,7 +239,16 @@ function buildChip(entry, isPrev = false) {
 }
 
 export function pushTurnEventStock(entry, turnKey = null) {
-  if (turnKey !== null && turnKey !== getTurnEventStockKey()) return;
+  if (turnKey !== null && turnKey !== getTurnEventStockKey()) {
+    // 【#279】ターンが変わってから届いた分は、捨てずに「前のターン」の行へ積む
+    // （ユーザー報告「CPUが試練の儀式を手に入れたのにこのターンの出来事に並ばなかった」）。
+    // それより古いターンの分だけは捨てる（帯が際限なく伸びないように）。
+    if (turnKey !== prevTurnKey) return;
+    ensureStrip();
+    prevEntries.push(entry);
+    renderPrev();
+    return;
+  }
   ensureStrip();
   entries.push(entry);
   const chip = buildChip(entry);
@@ -250,8 +265,11 @@ export function pushTurnEventStock(entry, turnKey = null) {
 // 変化を見て）。今までは捨てていたが、ユーザー要望で**前のターンの行へ移して残す**ようにした。
 // 残すのは直前の1ターン分だけ（それ以上は帯が長くなって盤面を隠すため）。
 // ownerName（省略可）: 今まさに終わったターンの持ち主の表示名。行の見出しに添える。
-export function clearTurnEventStock(ownerName = "") {
+// endedTurnKey（省略可）: 今まさに終わったターンの鍵。遅れて届いた出来事を、捨てずに
+// この行へ積めるようにするため（上の prevTurnKey / #279 参照）。
+export function clearTurnEventStock(ownerName = "", endedTurnKey = null) {
   prevOwnerName = ownerName || "";
+  prevTurnKey = endedTurnKey;
   prevEntries = entries.slice();
   prevExpanded = false; // ターンが変わったら必ず畳んだ状態に戻す
   entries.length = 0;

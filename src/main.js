@@ -4233,6 +4233,7 @@ function playPieceHopGhost(fromRect, toRect, token, durationMs, opts = {}) {
 
   const outer = document.createElement("div"); // 横の移動だけを担当
   outer.className = "piece-hop-ghost";
+  outer.dataset.tokenId = token.id; // どの駒のゴーストか（検証・不具合調査用）
   outer.style.width = `${w}px`;
   outer.style.height = `${h}px`;
   outer.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%)`;
@@ -4266,7 +4267,8 @@ function playPieceHopGhost(fromRect, toRect, token, durationMs, opts = {}) {
   const unyaw = document.createElement("div");
   unyaw.className = "piece-hop-yaw";
   unyaw.style.transform = `rotateZ(${-yawDeg}deg)`;
-  unyaw.appendChild(buildCubePiece(token.color, token.player));
+  const ghostCube = buildCubePiece(token.color, token.player);
+  unyaw.appendChild(ghostCube);
   pitch.appendChild(unyaw);
   yaw.appendChild(pitch);
   inner.appendChild(yaw);
@@ -4274,17 +4276,38 @@ function playPieceHopGhost(fromRect, toRect, token, durationMs, opts = {}) {
   outer.appendChild(lift);
   document.body.appendChild(outer);
 
+  // 【ユーザー報告2026-09-05】「着地する瞬間の駒の大きさと実際の駒の大きさにギャップがあり、
+  // 駒が急に大きくなる」。ゴーストの立方体は buildCubePiece がそのまま作るので大きさは
+  // `--piece-size` 固定だが、盤面の駒は `.game-table` の自動フィット倍率（fitTableToViewport、
+  // 盤面拡大ボタンを含む）と遠近の分だけ違う大きさで映る。**実測して差を打ち消す**——
+  // 着地点の実物の駒の矩形(toRect)と、今置いたゴーストの矩形を比べ、その比を outer に掛ける。
+  // 計算で合わせようとすると倍率・遠近・傾きの掛け算を二重に書くことになるので、測る方が確実。
+  // 潰れ（squash）のアニメは測り終わってから始める（0%が scale(1.12, 0.85) なので、
+  // 動き出した後だと横に1.12倍された値を測ってしまう）。
+  let sizeFix = 1;
+  const ghostRect = ghostCube.getBoundingClientRect();
+  if (ghostRect.width > 1 && toRect.width > 1) {
+    sizeFix = Math.min(4, Math.max(0.25, toRect.width / ghostRect.width));
+  }
+  const sizeFixCss = sizeFix === 1 ? "" : ` scale(${sizeFix.toFixed(4)})`;
+  outer.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%)${sizeFixCss}`;
+  if (shadow) {
+    shadow.style.width = `${w * 0.72 * sizeFix}px`;
+    shadow.style.height = `${h * 0.3 * sizeFix}px`;
+  }
+  lift.classList.add("is-animating"); // 測り終わったので跳ね・潰れを始める
+
   const done = new Promise((resolve) => {
     if (isWarp) {
       // 消えている一瞬（真ん中）で、位置だけを瞬間移動させる。
       setTimeout(() => {
-        outer.style.transform = `translate(${to.x}px, ${to.y}px) translate(-50%, -50%)`;
+        outer.style.transform = `translate(${to.x}px, ${to.y}px) translate(-50%, -50%)${sizeFixCss}`;
       }, Math.round(durationMs * 0.5));
     } else {
       requestAnimationFrame(() => {
         const ease = "cubic-bezier(0.32, 0, 0.24, 1)";
         outer.style.transition = `transform ${durationMs}ms ${ease}`;
-        outer.style.transform = `translate(${to.x}px, ${to.y}px) translate(-50%, -50%)`;
+        outer.style.transform = `translate(${to.x}px, ${to.y}px) translate(-50%, -50%)${sizeFixCss}`;
         if (shadow) {
           shadow.style.transition = `transform ${durationMs}ms ${ease}`;
           shadow.style.transform = `translate(${to.x}px, ${to.y + h * 0.34}px) translate(-50%, -50%)`;
@@ -5246,10 +5269,14 @@ function requestPlayerChoiceForEffect(candidates, hint, options = {}) {
 // 収穫と種まきで取ったカードが「あなた（＝画面の持ち主）が獲得」として中身ごと表示され、
 // CPUの手札がバレていた。実際に取った player を受け取り、自分（この画面の席）が取った時
 // だけ通知＆発光する（他席が取った時は何もしない——CPUの取得は伏せたまま）。
+// 【#279】ここも同じ考え方に揃えた。以前は「自分の席でなければ何も出さない」だったが、
+// それは**取った席に関係なく getSelfSeat() で通知していた**のが本当の問題（#35）で、
+// 実際の席を渡せば伏せ情報は announceHandPickups が正しく隠してくれる。手札の中で光らせる
+// のは自分の手札だけ（他人の手札は裏向きなので光らせる意味が無い）。
 function onEffectCardAcquiredToHand(tokenId, cardId, wasFaceUp, player) {
-  if (player !== undefined && player !== getSelfSeat()) return;
-  announceHandPickups(getSelfSeat(), [{ cardId, wasPublic: wasFaceUp }]);
-  glowingEffectHandTokenId = tokenId;
+  const seat = player ?? getSelfSeat();
+  announceHandPickups(seat, [{ cardId, wasPublic: wasFaceUp }]);
+  if (seat === getSelfSeat()) glowingEffectHandTokenId = tokenId;
   render();
 }
 
@@ -6363,10 +6390,15 @@ async function runAutoArrivalEffect(cardId, location, player) {
       pickLocation: requestCellChoiceForEffect,
       pickHandCard: requestHandCardChoiceForEffect,
       onCardAcquiredToHand: onEffectCardAcquiredToHand,
-      // 到達効果の既定動作でこのカード自身を手札へ加えた時のカード獲得トースト（右下）。
-      // 自分（この画面の見ている席）の獲得だけ出す——CPU戦でCPUの獲得まで毎回出すと煩いため。
+      // 到達効果の既定動作でこのカード自身を手札へ加えた時のお知らせ。
+      // 【#279】ユーザー報告「CPUが試練の儀式に到達して手に入れたのに、このターンの出来事に
+      // 並ばなかった」。以前はここで **自分の席の分だけ**に絞っていた（CPU戦で毎回出ると煩い、
+      // という当時の判断）。その後「このターンの出来事」の帯ができ、**全員分を並べる**のが
+      // 確定仕様になっている（#4）ので、絞るのをやめて実際の席をそのまま渡す。
+      // 伏せ情報の扱いは announceHandPickups が引き受ける——到達したカードは駒が乗って
+      // めくれた**公開情報**なので中身ごと出てよく、裏向きのまま手に入れた場合は自動的に
+      // 「非公開のカードを1枚」に変わる（isPickupVisible 参照）。
       announceCardAddedToHand: (cardId, seat, wasFaceUp) => {
-        if (seat !== getSelfSeat()) return;
         announceHandPickups(seat, [{ cardId, wasPublic: wasFaceUp }]);
       },
       markPlacementTarget: markEffectPlacementTarget,
@@ -8974,7 +9006,9 @@ function maybeClearTurnEventStock() {
   if (lastTurnKeyForEventStock === key) return;
   // 初回（対局開始やリロード直後）は掃除するものが無いので、キーを覚えるだけ。
   if (lastTurnKeyForEventStock !== null) {
-    clearTurnEventStock(lastTurnPlayerForEventStock ? getPlayerName(lastTurnPlayerForEventStock) : "");
+    // 第2引数（今まさに終わったターンの鍵）は、遅れて届いた出来事を捨てずに
+    // 「前のターン」の行へ積むために渡す（#279）。
+    clearTurnEventStock(lastTurnPlayerForEventStock ? getPlayerName(lastTurnPlayerForEventStock) : "", lastTurnKeyForEventStock);
   }
   lastTurnPlayerForEventStock = getState().turnPlayer ?? null;
   lastTurnKeyForEventStock = key;

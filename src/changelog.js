@@ -14,6 +14,19 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "駒が移動して着地した瞬間に、駒の大きさが急に変わって見えていたのを直しました。移動中の駒が、着地先の実物と同じ大きさで飛ぶようになります。",
+      "相手が到達したカードを手に入れた時、「このターンの出来事」に並ばなかったのを直しました。到達して表になったカードは全員に見えている情報なので、誰が手に入れたかも並びます（裏向きのまま手に入れた分は、これまで通り中身を伏せて「非公開のカードを1枚」と出ます）。",
+      "ターンの終わり際に起きた出来事が「このターンの出来事」から消えてしまうことがあったのを直しました。お知らせが右下へ飛ぶ頃には次のターンに入っていた分は、捨てずに「前のターン」の行へ積みます。",
+    ],
+    itemsEn: [
+      "Fixed pieces appearing to change size the moment they land after a move. A moving piece is now drawn at the same size as the real piece at its destination.",
+      "Fixed cards an opponent picked up on arrival not appearing in What happened this turn. A card turned face up on arrival is public information, so who took it is shown too (cards taken while still face down are still hidden, shown as \"one hidden card\").",
+      "Fixed events near the end of a turn disappearing from What happened this turn. Notices that only reach the corner after the turn has changed are now filed under Previous turn instead of being discarded.",
+    ],
+  },
+  {
+    date: "2026-09-05",
+    items: [
       "マイデッキ戦で、自分の手札のどれが他の人のデッキの札なのか分かるようにしました。他の人の札は、カードの左上の角がめくれて持ち主の裏面がのぞきます（自分の札には何も付きません）。",
       "マイデッキ戦で、他の人のデッキの札が手札の右端にまとまるようにしました。奪ってきた札を探しやすくなります。",
       "カードを拡大表示すると「誰のマイデッキの札か」が出るようになりました。",

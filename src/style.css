@@ -12102,9 +12102,14 @@ body.cpu-battle-mode #quick-start-bar {
   height: 100%;
   transform-style: preserve-3d;
   transform-origin: 50% 100%; /* 足元を軸に潰れる（浮き上がって見えないように） */
-  animation-name: piece-hop-lift;
+  /* 【ユーザー報告2026-09-05】アニメは .is-animating を付けてから始める。0%が squash
+     （scale(1.12, 0.85)）なので、付けたまま置くと**大きさを測る前に横へ1.12倍された値**を
+     測ってしまう（main.js の playPieceHopGhost が実物と大きさを揃えるために測っている）。 */
   animation-timing-function: linear; /* 緩急はキーフレームの配置側で作る */
   animation-fill-mode: both;
+}
+.piece-hop-lift.is-animating {
+  animation-name: piece-hop-lift;
 }
 .piece-hop-inner {
   width: 100%;
@@ -12145,7 +12150,7 @@ body.cpu-battle-mode #quick-start-bar {
 }
 /* ワープ（紫のキューブ ディメンションの移動）。跳ばずに、その場で縦に伸びて消え、
    移動先で戻る。位置の瞬間移動はJS側（消えている一瞬で行う）。 */
-.piece-hop-lift.is-warp {
+.piece-hop-lift.is-warp.is-animating {
   animation-name: piece-warp-lift;
   animation-timing-function: ease-in-out;
 }

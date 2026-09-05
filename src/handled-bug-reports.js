@@ -76,6 +76,7 @@ export const HANDLED_BUG_REPORT_IDS = new Set([
   276, // CPUがドムス・ネロを使った後、移動せずにターンが終わる
   277, // 最初の画面のHUERISEボタンが何度も押さないと進まない
   278, // 3D描画でロックエリアバー・盤面カードのチカチカが残る（WebGLの文脈が失われたまま戻らなかった）
+  279, // CPUが到達したカードを手に入れても「このターンの出来事」に並ばない
 ]);
 
 export function isBugReportHandledInCode(id) {
