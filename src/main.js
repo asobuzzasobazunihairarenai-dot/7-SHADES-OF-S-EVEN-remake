@@ -479,6 +479,10 @@ function buildLockAreaBar(side, steps = 0) {
   outer.style.display = isLockAreaBarVisible() ? "block" : "none";
   const img = document.createElement("div");
   img.className = "lock-area-bar-image";
+  // 画像は**インラインstyleで**敷く（CSSのurl()ではなく）。盤面のWebGL描画は
+  // インラインの background-image しか読まないため（board-3d.js の backgroundImageUrl）。
+  // ここが唯一の指定元＝style.css 側には書かない（2か所に散らすとズレる）。
+  img.style.backgroundImage = 'url("assets/lock-area-bar.webp")';
   outer.appendChild(img);
   return outer;
 }

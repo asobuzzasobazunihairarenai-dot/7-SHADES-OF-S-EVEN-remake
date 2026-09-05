@@ -65,7 +65,11 @@ const textureLoader = new THREE.TextureLoader();
 // CSSの色と inset の影だけで描いているので、WebGLに移そうとしても板が作られず、
 // 塗りを剥がした結果まるごと消えてしまう（ユーザー報告「山札の側面がなくなっちゃってます」）。
 // 山の**上面**だけは実際のカード画像を持つのでWebGLで描く。
-const PAINT_SELECTOR = [".board-card", ".piece-face", ".stack-top"].join(",");
+// .lock-area-bar-image（盤面とロックエリアの間の装飾バー・4辺で計4枚）もここに含める。
+// iPhoneでこのバーだけがチカチカし続ける報告（#257/#259）があり、WebGL描画がONの時に
+// 「盤面の中で唯一DOMが絵を描いたまま残っていた要素」がこれだったため。板は薄く盤面の
+// 平面に収まり、DOM順でも盤面・ロックエリアより前（＝奥に描かれる）ので重なり順は変わらない。
+const PAINT_SELECTOR = [".board-card", ".piece-face", ".stack-top", ".lock-area-bar-image"].join(",");
 
 // 【第2段（2026-09-04）】画像だけでなく、**マスとロックスロットの「形」**（角丸の枠と
 // 薄い背景色）もWebGLで描く。狙いは合成レイヤーの枚数を減らすこと——iOSは preserve-3d の

@@ -3321,7 +3321,8 @@ body.is-phone-device .priority-transfer-label .phase-guide-tooltip {
   left: 50%;
   width: calc(var(--lock-band-length) * var(--lock-bar-scale));
   height: calc(var(--lock-bar-thickness) * var(--lock-bar-scale));
-  background-image: url("../assets/lock-area-bar.webp");
+  /* 画像は main.js の buildLockAreaBar がインラインstyleで敷く（WebGL描画がインラインしか
+     読まないため）。ここで url() を書くと指定元が2か所に散るので書かない。 */
   background-size: 100% 100%;
   background-repeat: no-repeat;
   transform: translate(-50%, -50%);
@@ -19771,7 +19772,8 @@ body.theme-light .post-game-friend-chip {
    いた影・光彩だけ——つまりiOSで合成レイヤーとGPUメモリを食っていた分。 */
 body.board-3d-on .board-card,
 body.board-3d-on .piece-face,
-body.board-3d-on .stack-top {
+body.board-3d-on .stack-top,
+body.board-3d-on .lock-area-bar-image {
   background-image: none !important;
   background-color: transparent !important;
   /* 影・光彩も剥がす（iOSで重い合成の元）。ただし !important は付けない——「今ここに置いた」
