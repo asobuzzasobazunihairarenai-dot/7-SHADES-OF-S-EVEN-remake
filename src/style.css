@@ -19817,9 +19817,15 @@ body.board-3d-on .lock-area-bar-image {
 .board-3d-glow.is-turn.is-hover {
   animation: piece-own-turn-glow-hover 2.6s ease-in-out infinite;
 }
+/* 手番プレイヤーのロックエリアの光。元の .lock-area.is-turn-player と同じアニメーションを
+   逃がし先で再生する（色は --turn-glow-rgb をJS側が引き継ぐ）。 */
+.board-3d-glow.is-lock-turn {
+  animation: lock-area-turn-glow 2.6s ease-in-out infinite;
+}
 /* 「常時光る演出をやめる」設定は、逃がした先でも同じように効かせる。 */
 body.reduce-glow .board-3d-glow.is-turn,
-body.reduce-glow .board-3d-glow.is-turn.is-hover {
+body.reduce-glow .board-3d-glow.is-turn.is-hover,
+body.reduce-glow .board-3d-glow.is-lock-turn {
   animation: none !important;
 }
 

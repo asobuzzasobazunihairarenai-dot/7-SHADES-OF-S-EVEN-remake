@@ -14,6 +14,8 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "移動先を選んでいる間、選べないマスのカードが十分に暗くならず、カードに影が付いているように見えていたのを直しました。暗くする量の計算が間違っていました。",
+      "手番のプレイヤーを示すロックエリアの光が、途切れ途切れに見えていたのを直しました。光が盤面の絵の裏に隠れていました。",
       "iPhone・iPadで、盤面のふちの色帯（赤橙黄緑青桃紫のバー）だけがチカチカしていたのを直しました。盤面の中でこの帯だけが古い描き方のまま残っていました。",
       "【重要】この日の一時期に、パソコンで盤面のカードやマスが見えなくなり、スマホでは画面がチカチカする不具合が出ていました。盤面の絵を描く順番を変えた変更が原因だったため、その変更を取り消しました。ご迷惑をおかけしました。",
       "処理中に、ロックエリアの色の枠が一瞬すべて消えてまた出る、という点滅を直しました。",
@@ -35,6 +37,8 @@ export const CHANGELOG = [
       "「ホーム画面に追加」の案内文が、最後の2文字だけ次の行にこぼれて読みにくかったのを直しました。",
     ],
     itemsEn: [
+      "While choosing where to move, cards on unavailable squares were not dimmed enough, so they looked like they had a shadow. The dimming calculation was wrong; it is fixed.",
+      "Fixed the glow marking the current player’s Lock Area appearing broken up. The glow was hidden behind the board artwork.",
       "Fixed the coloured band around the board (red, orange, yellow, green, blue, pink, purple) flickering on iPhone and iPad. It was the one part of the board still using the old drawing method.",
       "Fixed a problem that appeared briefly this day: on PC the cards and squares on the board became invisible, and on phones the screen flickered. The change to the board’s drawing order that caused it has been rolled back. Sorry for the trouble.",
       "Fixed the coloured frames in the Lock Areas flickering — all of them briefly vanished and came back while the game was processing.",

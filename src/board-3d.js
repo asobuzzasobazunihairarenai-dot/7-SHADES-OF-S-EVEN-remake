@@ -511,9 +511,19 @@ function rebuild() {
       mesh.material.opacity = vis.opacity;
       if (tint) {
         // 膜が上に重なった時の見え方（元の色 * (1-a) + 膜の色 * a）を板の色として先に作る。
-        mesh.material.color.setRGB(1 - tint.a + tint.r * tint.a, 1 - tint.a + tint.g * tint.a, 1 - tint.a + tint.b * tint.a);
+        // 【重要】第4引数で sRGB を明示する。three.js の既定の作業色空間は**リニア**なので、
+        // 省略すると「0.45」をリニア値として受け取り、画面には sRGB の約0.70として出る
+        // ＝暗転が55%のつもりで30%程度しか効かない。その結果、周りのマス（DOMの膜が正しく
+        // 効いている）だけが暗く、カードだけ明るく残って**カードに影が付いたように見えて**
+        // いた（ユーザー報告 #238a/#247/#260「盤面のカードにドロップシャドウのようなものがある」）。
+        mesh.material.color.setRGB(
+          1 - tint.a + tint.r * tint.a,
+          1 - tint.a + tint.g * tint.a,
+          1 - tint.a + tint.b * tint.a,
+          THREE.SRGBColorSpace
+        );
       } else {
-        mesh.material.color.setRGB(1, 1, 1);
+        mesh.material.color.setRGB(1, 1, 1, THREE.SRGBColorSpace);
       }
       mesh.userData.domIndex = order++;
       mesh.visible = true;
@@ -729,6 +739,19 @@ function collectGlowSources(table) {
         (src.classList.contains("hover-active") ? " is-hover" : ""),
       // 駒の色はJS側が駒ごとに設定しているので、そのまま引き継ぐ。
       vars: { "--piece-turn-glow-color": getComputedStyle(src).getPropertyValue("--piece-turn-glow-color").trim() },
+    });
+  }
+  // 手番プレイヤーを示すロックエリアの光（.lock-area.is-turn-player の box-shadow アニメ）も
+  // キャンバスの裏になるため逃がす（ユーザー報告 #260「ターンプレイヤーを示すロックエリアの
+  // 光がたまにチカチカします」）。.lock-area 自身は背景を持たない枠なので、空の箱に同じ
+  // アニメーションを再生させるだけで元と同じ見え方になる。
+  for (const src of table.querySelectorAll(".lock-area.is-turn-player")) {
+    const cs = getComputedStyle(src);
+    if (cs.display === "none" || cs.visibility === "hidden") continue;
+    out.push({
+      el: src,
+      className: "board-3d-glow is-lock-turn",
+      vars: { "--turn-glow-rgb": cs.getPropertyValue("--turn-glow-rgb").trim() },
     });
   }
   for (const src of table.querySelectorAll(".board-card.is-usable-while-locked")) {
