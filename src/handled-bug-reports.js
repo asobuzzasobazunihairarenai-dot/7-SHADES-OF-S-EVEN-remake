@@ -69,6 +69,8 @@ export const HANDLED_BUG_REPORT_IDS = new Set([
   269, // 手札をタップしたのに背面のロック中カードが使われる
   270, // フェイズ告知が前の告知に重なって出る
   271, // 対戦結果の最小化案内モーダルがライトモードでもダークのまま
+  272, // CPUが1ターンに2回ロックする（T3）
+  273, // CPUが1ターンに2回ロックする（T5・同じ原因）
 ]);
 
 export function isBugReportHandledInCode(id) {

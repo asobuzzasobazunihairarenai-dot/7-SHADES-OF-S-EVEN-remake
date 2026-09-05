@@ -66,6 +66,7 @@ import {
   registerMyDeckDrawAnnouncer,
   setSetupRevealActive,
   canDrawFromMyDeck,
+  hasPlacedNewLockThisPhase,
 } from "./phase-automation.js";
 import { initHelpButton } from "./help.js";
 import { initDiscordLink } from "./discord-link.js";
@@ -4182,6 +4183,16 @@ async function performLockPhaseClick(tokenId, { skipConfirm = false, actingSeat 
     // 停止の調査用（2026-09-05）: 自動ロックが「候補はあるのに何も起きない」形で止まることが
     // あるため、黙って抜けた理由を残す。
     logAction("diag-lock-click-skip", { reason: token ? "not-lockable" : "no-token", tokenId, player });
+    return;
+  }
+  // 【#272/#273】このロックフェイズで既に1枚ロックしていたら、もうロックしない。
+  // ロックは1フェイズに1枚だけ——今まではロックした直後にフェイズが進むことでそれを担保して
+  // いたが、#266/#267 でフェイズの切り替えを演出・お知らせの後まで待たせたため、その3〜4秒の
+  // 間に疑似CPUの自動ロックが再度走って2枚目をロックしていた（人間が2回タップしても同じ）。
+  // ここは人間のタップも自動ロックも必ず通る1か所なので、両方まとめて塞げる。
+  if (hasPlacedNewLockThisPhase(player)) {
+    logAction("diag-lock-click-skip", { reason: "already-locked-this-phase", tokenId, player });
+    if (!skipConfirm) showQuickNote(t("game.lock.alreadyLockedThisPhase")); // 自動ロック(CPU)には出さない
     return;
   }
   // ユーザー報告（続き85）「スマホでロックするとき手札効果の使用時同様の
@@ -12068,6 +12079,14 @@ async function onDragEnd(e) {
     const token = getState().tokens.find((t) => t.id === tokenId);
     const wasAlreadyLocked = !!token && token.location.zone === "lock";
     if (kind === "card" && dropTarget.zone === "lock") {
+      // 【#272/#273】タップ経路（performLockPhaseClick）と同じ「1フェイズに1枚だけ」のガード。
+      // ロックフェイズ中でなければ hasPlacedNewLockThisPhase は常に false なので、自由配置や
+      // セットアップでのドラッグには影響しない。
+      if (hasPlacedNewLockThisPhase(SIDE_TO_SEAT[dropTarget.side])) {
+        showQuickNote(t("game.lock.alreadyLockedThisPhase"));
+        render();
+        return;
+      }
       if (!(await confirmTouchAction(t("game.confirm.lockCard", { card: cardDisplayName(token?.cardId) || t("game.thisCard") }), { cardId: token?.cardId }))) {
         render();
         return;

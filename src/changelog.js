@@ -14,6 +14,7 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "1回のロックフェイズで2枚ロックできてしまうことがあったのを直しました。演出とお知らせを待つ間に、もう1枚ロックできる状態が残っていました。",
       "ロックの演出を見ている最中にハンドフェイズのお知らせが出てしまうのを直しました。ロックの様子と「ロックしました」のお知らせが終わってから次のフェイズに入ります。",
       "フェイズのお知らせがまだ出ているのに、次のフェイズのお知らせが重なって出てしまうのを直しました。",
       "相手が何もしていないターンが猛スピードで飛んでいってしまうことがあったのを直しました。プレゼントなどでお知らせが並んだ後に起きていました。",
@@ -54,6 +55,7 @@ export const CHANGELOG = [
       "「ホーム画面に追加」の案内文が、最後の2文字だけ次の行にこぼれて読みにくかったのを直しました。",
     ],
     itemsEn: [
+      "Fixed being able to lock two cards in a single Lock phase. While waiting for the animation and the notice, a second lock could still slip through.",
       "Fixed the Hand Phase notice appearing while you are still watching the lock animation. The next phase now starts after the lock animation and the \"locked\" notice have finished.",
       "Fixed the next phase notice appearing on top of the previous one while it was still showing.",
       "Fixed turns where nothing happens racing past. This happened after notices piled up, for example from Present.",

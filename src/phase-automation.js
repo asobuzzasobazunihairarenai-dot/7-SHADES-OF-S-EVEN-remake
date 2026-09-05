@@ -258,6 +258,21 @@ export function getPhaseDebugInfo() {
   };
 }
 
+// 【#272/#273】このロックフェイズで、もう1枚ロックし終えているか。
+// ユーザー報告「なぜCPUはT3で二回ロックした？？？」。ロックは1フェイズに1枚だけだが、その
+// 「1枚だけ」は今まで**ロックした直後にフェイズがハンドへ進むこと**だけで担保されていた。
+// #266/#267 でフェイズの切り替えを「演出とお知らせが終わるまで待つ」ようにしたため、ロックして
+// から次のフェイズへ進むまでに3〜4秒の窓ができ、その間に疑似CPUの自動ロックがもう一度走って
+// 2枚目をロックしていた（人間がその窓で2回タップしても同じことが起きる）。フェイズが進んだか
+// どうかに頼らず、**このフェイズで新しくロックしたか**そのもので判定する。
+export function hasPlacedNewLockThisPhase(player) {
+  if (currentPhase !== "lock" || phaseOwner !== player) return false;
+  for (const id of getLockedTokenIds(player)) {
+    if (!lockedIdsAtPhaseStart.has(id)) return true;
+  }
+  return false;
+}
+
 export function isMovePhaseActive() {
   return currentPhase === "move" && !moveActionTaken;
 }
