@@ -17,6 +17,7 @@ import {
 } from "./admin.js";
 import { optionLabel } from "./card-effects.js"; // UI英語化フェーズ11
 import { logAction, initActionLogPanel, getActionLogText, getActionLogEntries } from "./action-log.js";
+import { isBoardOverlayActive, mountOverlayEffect } from "./board-3d-overlay.js";
 import { initDeckViewer, openDeckViewer } from "./deck-viewer.js";
 import { initStatsPlayerLinkModal } from "./stats-player-link.js";
 import { initMyPage, registerAvatarPickerHelper, registerProfilePageOpener } from "./my-page.js";
@@ -1170,6 +1171,13 @@ function bumpEffectZIndex(hostEl, ttlMs) {
 // 祖先の回転を打ち消す。中身の座標系（center基準の配置・アニメーション）は
 // 180度回転しても中心位置は変わらないため、この入れ子を挟んでも見た目のズレは生じない。
 function appendEffectHost(hostEl, effectEl, ttlMs) {
+  // 盤面をWebGLで描いている間は、キャンバスが盤面のDOMより手前にあるため、ここに入れた
+  // 演出は**カードやマスの板に覆われて見えない**。同じ位置・同じ大きさでキャンバスの手前の
+  // 層へ出す（board-3d-overlay.js）。
+  // その層は3Dの外にあるので、盤面の傾きも祖先の180度回転も掛からない——つまり演出は常に
+  // 画面の上向きに描かれる。下の .effect-side-flip（祖先の回転を打ち消す入れ子）は
+  // そもそも不要になるので付けない。
+  if (isBoardOverlayActive() && mountOverlayEffect(hostEl, effectEl, ttlMs)) return;
   bumpEffectZIndex(hostEl, ttlMs);
   if (hostEl.closest(".lock-right") || hostEl.closest(".lock-top")) {
     const flip = document.createElement("div");
