@@ -72,6 +72,8 @@ import {
   hasPlacedNewLockThisPhase,
   computePhaseMoveCandidates,
   isPhaseTransitionPending,
+  hasDrawnMyDeckThisPhase,
+  noteMyDeckDrawThisPhase,
 } from "./phase-automation.js";
 import { initHelpButton } from "./help.js";
 import { initDiscordLink } from "./discord-link.js";
@@ -1072,7 +1074,12 @@ function buildCardStack(count, pileClass, imagePath) {
   // 【ユーザー要望2026-09-05】「山札の側面がつるつるなのが気になる。本当は縞々になってるはず」。
   // 側面を無地で塗るのをやめ、カード1枚ぶんの厚みごとに細い線を入れて「重なった紙の断面」に
   // 見せる（線の間隔＝1枚の厚み＝枚数がそのまま縞の本数になる）。細すぎると潰れるので下限を置く。
-  stack.style.setProperty("--stack-stripe", `${Math.max(0.9, perCardPx)}px`);
+  // 【#289・重要】縞の間隔を「カード1枚の厚み(0.6px)」そのものにすると、画面のピクセルより
+  // 細かい繰り返しになる。すると隣り合う線が画面の格子と干渉して**太い縞（モアレ）**になり、
+  // ユーザー報告のとおり「太い縞々」に見える（1枚ずつの線として描かれることは原理的に無い）。
+  // 実際に線として見える間隔まで広げる（＝数枚ごとに1本の断面線）。枚数と本数は一致しなく
+  // なるが、狙いは「紙が重なっている質感」なので問題ない。
+  stack.style.setProperty("--stack-stripe", `${Math.max(3, perCardPx)}px`);
   stack.style.setProperty("--stack-height", `${heightPx}px`);
   // ユーザー要望「カードが束になってる時の側面の色を、カード裏面の色に対応した
   // 雰囲気の色に自動で変更できますか」への対応。色テーマ付きの裏面セット（赤〜黒）を
@@ -1292,8 +1299,20 @@ function playCardFlipOpenGhost(rect, item) {
   inner.appendChild(flipper);
   outer.appendChild(inner);
   document.body.appendChild(outer);
+  // 【#287】めくれている間は「盤面の演出中」として扱う。ユーザー報告「試練の儀式で移動する
+  // とき、（中央の）モーダルで何のカードだったか分かった**後に**盤面のカードがオープン
+  // された」——順番が逆で、盤面でめくれてから中央のお知らせが出るべき。#266 の
+  // 「画面の中央は一度に1つ・演出が終わるまでお知らせを待たせる」仕組みに乗せるだけでよい。
+  beginBoardAnimation();
+  let flipGateClosed = false;
+  const closeFlipGate = () => {
+    if (flipGateClosed) return;
+    flipGateClosed = true;
+    endBoardAnimation();
+  };
   setTimeout(() => {
     outer.remove();
+    closeFlipGate();
     flippingOpenTokenIds.delete(item.tokenId);
     render(); // 隠していた実物を出し直す
   }, CARD_FLIP_OPEN_MS + 30);
@@ -4647,8 +4666,14 @@ async function playPieceMoveAnimation__inner(pieceId, fromLocation, animOpts = {
     width: toRect.width,
     height: toRect.height,
   };
-  setSetupPendingTokenIds(new Set([pieceId]));
-  render();
+  // 【#285】remote-move-animator から呼ばれる時は、あちらが既に駒を隠して**自分の**
+  // 隠す集合を管理しているので、ここで集合を上書き（＝他の飛翔中トークンを露出させる）
+  // してはいけない。その場合は隠す/戻すの操作だけを飛ばし、跳ねる動きは同じものを使う。
+  const managePending = !animOpts.skipPendingHide;
+  if (managePending) {
+    setSetupPendingTokenIds(new Set([pieceId]));
+    render();
+  }
   try {
     const styleName = animOpts.style || "hop";
     const chained = Date.now() - (lastPieceMoveAt.get(pieceId) || 0) < PIECE_MOVE_CHAIN_MS;
@@ -4661,8 +4686,10 @@ async function playPieceMoveAnimation__inner(pieceId, fromLocation, animOpts = {
     const { done } = playPieceHopGhost(fromRect, toRect, token, durationMs, { style: styleName, trail: chained });
     await done;
   } finally {
-    setSetupPendingTokenIds(new Set());
-    render();
+    if (managePending) {
+      setSetupPendingTokenIds(new Set());
+      render();
+    }
     // 着地の輪は、実物の駒が描き直された後のマスへ出す（render で作り直されるため）。
     const landedHost = findLocationElement(document.getElementById("game-table"), to);
     spawnPieceLandingRing(landedHost, token.color);
@@ -4693,8 +4720,13 @@ async function performPhaseMoveToCell(location, actingSeat = getSelfSeat()) {
   try {
     if (isOnlineMode()) {
       try {
-        await moveToken(piece.id, location);
+        // 【#285】印は**送信の前**に付ける。送信を待っている間にサーバーからの通知で
+        // hydrate が走ることがあり、その時点でまだ印が無いと remote-move-animator が
+        // 「他人の移動」として**古い平たいゴースト**を飛ばしてしまう（そのあと自分の
+        // 跳ねる演出も出るので二重に見える。ユーザー報告「古い移動演出のあとに正規の
+        // よっこいしょ移動演出が出た」）。印にはTTLがあるので、送信が失敗しても実害は無い。
         markSelfHandled([piece.id]);
+        await moveToken(piece.id, location);
         await fetchAndHydrate(getCurrentGameId());
       } catch (err) {
         console.error("performPhaseMoveToCell failed", err);
@@ -4764,6 +4796,11 @@ async function performLockPhaseClick(tokenId, { skipConfirm = false, actingSeat 
   // いたが、#266/#267 でフェイズの切り替えを演出・お知らせの後まで待たせたため、その3〜4秒の
   // 間に疑似CPUの自動ロックが再度走って2枚目をロックしていた（人間が2回タップしても同じ）。
   // ここは人間のタップも自動ロックも必ず通る1か所なので、両方まとめて塞げる。
+  // 【#286/#288】マイデッキから引いたのは「ロックする代わり」なので、その後はロックできない。
+  if (hasDrawnMyDeckThisPhase() && player === getSelfSeat()) {
+    logAction("diag-lock-click-skip", { reason: "already-drew-my-deck-this-phase", tokenId, player });
+    return;
+  }
   if (hasPlacedNewLockThisPhase(player)) {
     logAction("diag-lock-click-skip", { reason: "already-locked-this-phase", tokenId, player });
     if (!skipConfirm) showQuickNote(t("game.lock.alreadyLockedThisPhase")); // 自動ロック(CPU)には出さない
@@ -5206,6 +5243,7 @@ export function performPriorityTimeoutAutoAction() {
     // 7色を揃える方を優先。単純方針、後で強化余地あり）。引いた後はロックの代替なので
     // ロックフェイズを終える（人間のマイデッキボタンが drawFromMyDeck→advancePhase するのと同じ）。
     if (isTarget && lockable.length === 0 && canDrawFromMyDeck(player)) {
+      noteMyDeckDrawThisPhase(); // 【#286/#288】このロックフェイズではもう引かない／ロックしない
       drawFromMyDeckLocal(player);
       announceMyDeckDraw(player); // 行動ログ＋中央モーダルで全プレイヤーに知らせる（ユーザー要望2026-08-15）
       forceEndCurrentPhase();
@@ -15314,6 +15352,10 @@ registerRemoteMoveAnimatorHelpers({
   triggerCardArrivalIfFaceUp,
   announceHandPickups,
   findLocationElement,
+  // 【#285】他プレイヤーの駒の移動も、自分の移動と同じ「立方体のまま跳ねる」動きで見せる
+  // （以前はここだけ古い平たいゴーストのままだった）。隠す/戻すの管理はあちら側が持っている
+  // ので skipPendingHide を渡す。
+  playPieceMove: (pieceId, fromLocation) => playPieceMoveAnimation(pieceId, fromLocation, { skipPendingHide: true }),
   // CPU戦で「CPU（自分以外の手番）の盤面操作」だけ、オンラインと同じ点滅＋矢印を出すための判定
   // （ユーザー要望2026-08-13）。remote-move-animator.jsのhandleHydrateが参照する。自分の手番中は
   // 差分検知しない＝自分の操作は点滅させない。

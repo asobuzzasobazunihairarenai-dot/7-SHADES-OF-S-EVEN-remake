@@ -14,6 +14,10 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "1回のロックフェイズでマイデッキから何枚も引けてしまう／ロックした直後にも引けてしまうのを直しました。マイデッキから引けるのは「ロックする代わり」に1回だけです。",
+      "オンラインで、自分が駒を動かした時に古い平たい移動演出が出てから跳ねる演出が出る（二重に見える）のを直しました。相手の駒の移動も、自分と同じ立方体のまま跳ねる動きになります。",
+      "盤面のカードがめくれる演出より先に、画面中央のお知らせで中身が分かってしまうことがあったのを直しました。盤面でめくれてからお知らせが出ます。",
+      "山の側面の縞が、細い断面ではなく太い縞に見えていたのを直しました。",
       "山札や捨て場にカードが積まれた瞬間、少し沈み込んで「トン」と収まるようにしました。厚みも1枚ぶん増えます。",
       "自分の手札に札が加わる時、隣の札が場所を空けるように開き、そこへ新しい札が下から滑り込むようにしました。",
       "相手の手札からカードを奪った時（スリカエ・接触・ゲート侵攻）、奪われた人の手札から奪った人の手札へ、奪った人の色の光の筋が走るようにしました。",
@@ -32,6 +36,10 @@ export const CHANGELOG = [
       "山札・捨て場などの山の側面を、カード1枚ずつの断面が見える縞模様にしました。つるつるの板ではなく、紙が重なっているように見えます。",
     ],
     itemsEn: [
+      "Fixed being able to draw many cards from your deck in one lock phase, or draw right after locking. Drawing from your deck replaces locking and happens once per lock phase.",
+      "Fixed a doubled move animation online: your own move showed the old flat glide before the hop. Opponents' pieces now hop as a cube, the same as yours.",
+      "Fixed the notice in the middle of the screen sometimes revealing a card before it visibly flipped over on the board. The board flips first now.",
+      "Fixed the stripes on the side of a pile showing as thick bands instead of thin card edges.",
       "Cards now settle onto the deck and discard piles with a small dip, and the pile grows by one card's thickness.",
       "When a card joins your hand, the cards beside it now open to make room and the new card slides in from below.",
       "Taking a card from an opponent's hand (sleight of hand, contact, gate invasion) now draws a streak of light in the taker's colour, from the victim's hand to theirs.",

@@ -287,8 +287,21 @@ async function flyAndReveal(item, fromRect, table, blinkDestination, blinkOnly =
   // blinkOnly（CPU戦の配置インジケータ）は飛翔ゴーストを出さない（駒の移動はエンジンが既に
   // render()で反映済み。ここは点滅で「どこに置いたか」を示すだけ）。
   if (!blinkOnly && fromRect) {
-    const { done } = flyGhost(fromRect, toRect, getGhostImagePath(item.token), "setup-fly-card", FLIGHT_MS);
-    await done;
+    // 【#285】駒のマス→マスの移動は、自分の移動と同じ「立方体のまま跳ねる」動きで見せる
+    // （平たい画像1枚のゴーストは、盤面では立方体なのに移動中だけ板になって見える）。
+    // 演出の中身は main.js が持っているので、注入された helper 経由で呼ぶ。
+    const cellToCell =
+      item.token.kind === "piece" && item.prevLocation?.zone === "cell" && item.token.location?.zone === "cell";
+    if (cellToCell && helpers.playPieceMove) {
+      try {
+        await helpers.playPieceMove(item.id, item.prevLocation);
+      } catch (err) {
+        console.error("playPieceMove failed", err);
+      }
+    } else {
+      const { done } = flyGhost(fromRect, toRect, getGhostImagePath(item.token), "setup-fly-card", FLIGHT_MS);
+      await done;
+    }
   }
   el.classList.remove("is-setup-pending");
   // 場に「置かれた」到着マスなので常に↓（置いた）の矢印を出す。

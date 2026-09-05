@@ -3913,14 +3913,15 @@ body.is-phone-device .priority-transfer-label .phase-guide-tooltip {
      入れて、重なった紙の断面に見せる。background-color は上で別に指定しているので、
      ここは必ず background-image（ロングハンド）で足す——background ショートハンドを使うと
      色の指定まで初期値へ戻ってしまう（カード裏面で踏んだのと同じ罠）。 */
+  /* 線は1本ずつが実際に見える太さにする（サブピクセルの繰り返しはモアレになる。#289）。 */
   background-image: repeating-linear-gradient(
     to bottom,
-    rgba(255, 255, 255, 0.28) 0,
-    rgba(255, 255, 255, 0.28) 0.25px,
-    rgba(0, 0, 0, 0.3) 0.25px,
-    rgba(0, 0, 0, 0.3) 0.5px,
-    transparent 0.5px,
-    transparent var(--stack-stripe, 1px)
+    rgba(255, 255, 255, 0.22) 0,
+    rgba(255, 255, 255, 0.22) 0.6px,
+    rgba(0, 0, 0, 0.26) 0.6px,
+    rgba(0, 0, 0, 0.26) 1.2px,
+    transparent 1.2px,
+    transparent var(--stack-stripe, 3px)
   );
   backface-visibility: hidden;
 }

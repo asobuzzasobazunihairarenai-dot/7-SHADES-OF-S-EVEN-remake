@@ -70,6 +70,21 @@ function isPseudoCpuTarget(seat) {
 // まだできるか。オンライン（マスクされた "myDeck-<seat>" パイルが枚数を公開）でも、ローカルの
 // 本気エイドス戦（state.jsのSETUP_MY_DECK_MODEで実配列を持つ）でも、同じく残枚数>0で判定できる。
 // main.jsのCPU（ロック不可の時にマイデッキから引く）からも使うためexportした。
+// 【#286/#288】マイデッキから引くのは「ロックする代わり」なので、1回のロックフェイズに1回だけ。
+// 以前はこれを「引いたら advancePhase() でフェイズが終わるから2回目は押せない」ことだけで
+// 担保していた。ところが #266/#267 でフェイズの切り替えが（演出・お知らせが終わるまで）
+// 待つようになったため、その数秒の窓で**連打すると山が尽きるまで引けて**しまい、
+// **ロックした直後（ロック演出中）にも引けて**しまった。続き427（#272の二重ロック）と
+// 同じ形なので、同じ直し方をする——「もう引いたか」という事実そのものを持って判定する。
+let myDeckDrawnThisPhase = false;
+export function hasDrawnMyDeckThisPhase() {
+  return myDeckDrawnThisPhase;
+}
+// CPUの自動ドロー（main.js）からも印を付けてもらう。
+export function noteMyDeckDrawThisPhase() {
+  myDeckDrawnThisPhase = true;
+}
+
 export function canDrawFromMyDeck(seat) {
   const s = getState();
   return !!s.myDeckMode && (s.piles?.[`myDeck-${seat}`] || []).length > 0;
@@ -783,6 +798,10 @@ function ensureMyDeckButton() {
     if (isFinalLockApprovalPending()) return; // #181
 
     const seat = getSelfSeat();
+    // 【#286/#288】このロックフェイズで既に引いた／既にロックした後は受け付けない。
+    // 印は**送信より前**に付ける（送信の応答を待つ間の連打を止めるため）。
+    if (myDeckDrawnThisPhase || hasPlacedNewLockThisPhase(seat)) return;
+    myDeckDrawnThisPhase = true;
     const pile = getState().piles?.[`myDeck-${seat}`];
     if (!pile || pile.length === 0) return;
     myDeckButtonEl.disabled = true;
@@ -857,6 +876,10 @@ export function updateSkipButtonVisibility() {
     !isPseudoCpuTarget(phaseOwner) &&
     !approvalPending &&
     !busyResolving &&
+    // 【#286/#288】このロックフェイズで既に引いた／既にロックした後は出さない
+    // （フェイズの切り替えが待たされている間、ボタンだけ残って連打できてしまっていた）。
+    !myDeckDrawnThisPhase &&
+    !hasPlacedNewLockThisPhase(selfSeat) &&
     myDeckCount > 0;
   myDeckBtn.style.display = showMyDeck ? "block" : "none";
   if (showMyDeck) myDeckBtn.textContent = t("pa.myDeck", { n: myDeckCount });
@@ -988,6 +1011,7 @@ function enterPhase__inner(phase, player) {
   currentPhase = phase;
   phaseOwner = player; // このフェイズがどの席のものか（ターン境界のリセット判定に使う。#19）
   if (phase === "lock") lockedIdsAtPhaseStart = getLockedTokenIds(player);
+  if (phase === "lock") myDeckDrawnThisPhase = false; // 【#286/#288】ロックフェイズごとに1回だけ
   if (phase === "move") moveActionTaken = false;
   // 黒の契約の烙印の★(a): lock→hand へ移る時、このロックフェイズに新規ロックが1枚も無ければ
   // （＝ロックしなかった）、烙印所持者は1枚ドローしてよい（main.js側で任意モーダル、fire-and-forget）。
