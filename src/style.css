@@ -1055,6 +1055,51 @@ body.diagnostic-flatten-3d.is-touch-device .zone-left .hand-area {
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.55);
 }
 
+/* 【ユーザー要望2026-09-05・⑧「奪う」】相手の手札から自分の手札へ走る光の筋
+   （スリカエ・接触・ゲート侵攻に共通）。始点で細く光り、終点へ向かって明るい塊が抜けていく。
+   起点を左端・中心に固定して rotate で向きを合わせるので、JS側は長さと角度を渡すだけでよい。 */
+.steal-beam {
+  position: fixed;
+  height: 0.34rem;
+  transform-origin: 0 50%;
+  margin-top: -0.17rem;
+  pointer-events: none;
+  z-index: 10450;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--steal-beam-color, #f6c945) 85%, transparent) 45%,
+    #ffffff 50%,
+    color-mix(in srgb, var(--steal-beam-color, #f6c945) 85%, transparent) 55%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  box-shadow: 0 0 0.8rem color-mix(in srgb, var(--steal-beam-color, #f6c945) 70%, transparent);
+  animation: steal-beam 0.85s cubic-bezier(0.35, 0.8, 0.3, 1) forwards;
+}
+@keyframes steal-beam {
+  0% {
+    opacity: 0;
+    background-position: 100% 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    background-position: -20% 0;
+  }
+}
+body.reduce-glow .steal-beam {
+  animation-duration: 0.5s;
+  box-shadow: none;
+}
+
+
 /* 【ユーザー要望2026-09-05】マイデッキ戦: 自分の手札に「これは他人のデッキの札」の印を付ける。
    自分の手札は右へ右へと重ねて並ぶ（後のカードほど手前）ので、**左上は必ず見えている**。
    そこへ印を置く。印の種類は管理者モードで切り替えられる。 */
@@ -1123,6 +1168,13 @@ body.diagnostic-flatten-3d.is-touch-device .zone-left .hand-area {
      （main.jsのsetPeekedCard参照。JS側がtransformを直接書き換えるため、ここでは
      滑らかにするtransitionだけを持たせる）。 */
   transition: transform 0.2s ease-out;
+}
+
+/* 【ユーザー要望2026-09-05・⑥】手札に差し込まれる動き（applyHandInsertMotion）。位置は
+   インラインの transform で決まるので、動かすのはトランジションに任せる。この2つの値だけを
+   動かすので、扇の並び自体（レイアウト）には一切影響しない。 */
+.hand-card.is-hand-inserting {
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease;
 }
 
 /* ユーザー要望2026-08-28: 自動処理モードで自分の公開カード（publicDraw）を手札の扇の中に
@@ -3816,6 +3868,24 @@ body.is-phone-device .priority-transfer-label .phase-guide-tooltip {
   backface-visibility: hidden;
 }
 
+/* 【ユーザー要望2026-09-05・⑥】山へカードが積まれた瞬間の「トン」。少し上から落ちてきて、
+   一度わずかに沈んでから戻る。山の天面は translateZ(--stack-height) で厚みのぶん持ち上げて
+   いるので、キーフレーム側でもその持ち上げを必ず含める（含めないと天面が根元まで落ちる）。 */
+.stack.is-settling .stack-top {
+  animation: stack-settle 0.42s cubic-bezier(0.3, 0.9, 0.35, 1);
+}
+@keyframes stack-settle {
+  0% {
+    transform: translateZ(calc(var(--stack-height) + 0.55rem));
+  }
+  55% {
+    transform: translateZ(calc(var(--stack-height) - 0.12rem));
+  }
+  100% {
+    transform: translateZ(var(--stack-height));
+  }
+}
+
 .stack-top .stack-count {
   font-size: 0.85em;
   opacity: 0.8;
@@ -3975,6 +4045,13 @@ body.is-phone-device .priority-transfer-label .phase-guide-tooltip {
     transform: translate(-50%, -150%) scale(1);
   }
 }
+/* 【③】めくれて起きた到達は「N コンボ」。連鎖（金）と一目で区別できるよう水色にする。 */
+.arrival-chain-badge.is-combo {
+  border-color: rgba(56, 189, 248, 0.85);
+  text-shadow: 0 0 0.4rem rgba(56, 189, 248, 0.9);
+  box-shadow: 0 0 calc(0.2rem + var(--arrival-chain-level, 2) * 0.12rem) rgba(56, 189, 248, 0.75);
+}
+
 /* 連鎖中の到達は、オーラ自体も少し強くする。 */
 .arrival-effect-burst.is-chained {
   filter: saturate(1.25) brightness(1.12);
@@ -9663,6 +9740,47 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   opacity: 1;
   transform: translate(-50%, -50%) scale(1);
 }
+/* 【ユーザー要望2026-09-05・②】ターンの始まりに、その人の席の方向から光が走ってくる。
+   モーダルを増やすと待ち時間が伸びるので、今のモーダルに重ねるだけの一発演出にした
+   （1.1秒で消える・クリックは一切拾わない）。色はその人の駒の色。 */
+.turn-announce-sweep {
+  position: fixed;
+  inset: 0;
+  z-index: 8999;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    var(--turn-announce-sweep-angle, 0deg),
+    transparent 0%,
+    color-mix(in srgb, var(--turn-announce-color, #facc15) 55%, transparent) 18%,
+    transparent 42%
+  );
+  background-size: 100% 300%;
+  animation: turn-announce-sweep 1.1s cubic-bezier(0.25, 0.8, 0.3, 1) forwards;
+}
+/* 席の辺＝光がやって来る向き。手前(bottom)の席なら画面の下から上へ。 */
+.turn-announce-sweep[data-from="bottom"] { --turn-announce-sweep-angle: 0deg; }
+.turn-announce-sweep[data-from="top"] { --turn-announce-sweep-angle: 180deg; }
+.turn-announce-sweep[data-from="left"] { --turn-announce-sweep-angle: 90deg; }
+.turn-announce-sweep[data-from="right"] { --turn-announce-sweep-angle: 270deg; }
+@keyframes turn-announce-sweep {
+  0% {
+    opacity: 0;
+    background-position: 50% 100%;
+  }
+  25% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    background-position: 50% 0%;
+  }
+}
+body.reduce-glow .turn-announce-sweep {
+  animation: none;
+  opacity: 0;
+}
+
 .turn-announce-label {
   font-family: sans-serif;
   font-weight: bold;
@@ -9673,8 +9791,25 @@ body.reduce-glow #final-lock-approval-banner.is-visible {
   border-radius: 1rem;
   padding: 1rem 2.2rem;
   text-shadow: 0 0 0.6rem rgba(250, 204, 21, 0.8);
-  box-shadow: 0 0 2.5rem rgba(250, 204, 21, 0.55), 0 20px 50px rgba(0, 0, 0, 0.6);
+  /* 【②】枠と光は、その番のプレイヤーの駒の色（未指定なら従来の金色）。 */
+  border-color: var(--turn-announce-color, #facc15);
+  text-shadow: 0 0 0.6rem color-mix(in srgb, var(--turn-announce-color, #facc15) 80%, transparent);
+  box-shadow:
+    0 0 2.5rem color-mix(in srgb, var(--turn-announce-color, #facc15) 55%, transparent),
+    0 20px 50px rgba(0, 0, 0, 0.6);
   white-space: nowrap;
+}
+/* 【②】自分の番の時だけ、名前が一拍だけ大きく脈打つ（相手の番は静かなまま）。 */
+.turn-announce-label.is-self {
+  animation: turn-announce-self-beat 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) 0.25s 1 both;
+}
+@keyframes turn-announce-self-beat {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.14); }
+  100% { transform: scale(1); }
+}
+body.reduce-glow .turn-announce-label.is-self {
+  animation: none;
 }
 
 /* フェイズ自動進行（src/phase-automation.js）。ユーザー要望「効果自動処理がオンの時は
@@ -18480,6 +18615,43 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
   pointer-events: none;
   transition: transform 0.42s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.42s ease;
 }
+/* 【ユーザー要望2026-09-05・#282「このモーダルの余白が気になる！」】
+   中央のフラッシュは、見出しや「〜の効果」の一行の方がカードより横に長いことが多く、
+   カード（4.2rem）だけが左端に寄って右側に大きな空白ができていた（右下トーストのままの
+   左揃えを中央でもそのまま使っていたため）。中央に出ている間だけ中身を横位置の中央に
+   揃え、カード名もカードの幅に縛られず折り返しにくくする。右下へ畳んだ後のチップや、
+   従来の右下トーストの見た目は変えない。 */
+.hand-pickup-toast.is-flash .hand-pickup-toast-title,
+.hand-pickup-toast.is-flash .hand-pickup-toast-reason,
+.hand-pickup-toast.is-flash .hand-pickup-toast-hidden-note {
+  text-align: center;
+}
+.hand-pickup-toast.is-flash .hand-pickup-toast-cards {
+  justify-content: center;
+}
+.hand-pickup-toast.is-flash .hand-pickup-toast-card {
+  width: auto;
+  min-width: calc(4.2rem * var(--hand-pickup-toast-scale));
+  max-width: calc(9rem * var(--hand-pickup-toast-scale));
+}
+/* カード画像は display:block の固定幅なので、幅が広がった枠の中では中央に置き直す。 */
+.hand-pickup-toast.is-flash .hand-pickup-toast-card img,
+.hand-pickup-toast.is-flash .hand-pickup-toast-img {
+  margin-left: auto;
+  margin-right: auto;
+}
+/* ✕ボタンのぶん右だけ広くしていた余白は、中央揃えでは左右の差が目立つので揃える。 */
+.hand-pickup-toast.is-flash {
+  padding-left: calc(1.6rem * var(--hand-pickup-toast-scale));
+}
+/* 【ユーザー報告2026-09-05・#281】対戦が終わってホームに戻っても、右上にターン数・
+   ラウンド数が残っていた。#turn-round-counter は対局中の情報なので、全画面ページ
+   （ホーム/マイページ/ランキング/図鑑/マイデッキ）が開いている間は隠す。JS側は
+   inline style で display:block を書くため !important が要る。 */
+body.full-screen-page-active #turn-round-counter {
+  display: none !important;
+}
+
 /* 「〜の効果で」等、何によって起きたかの一行。 */
 .hand-pickup-toast-reason {
   font-size: calc(0.66rem * var(--hand-pickup-toast-scale));

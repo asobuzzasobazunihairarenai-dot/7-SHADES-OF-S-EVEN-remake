@@ -12,12 +12,30 @@ import { t } from "./ui-text.js"; // UI英語化フェーズ6
 // 呼ばれる任意コールバック。ユーザー報告「『○○のターン』の表示がちゃんと消えてから
 // フェイズのモーダル表示に移ってほしい」への対応で、呼び出し元(main.js)が
 // phase-automation.jsのフェイズ自動開始をこのコールバックまで待たせるために使う。
-export function announceTurnChange(player, onComplete) {
+//
+// 【ユーザー要望2026-09-05・②「ターンの始まりにもう一声」】モーダルを増やすと待ち時間が
+// 伸びるので、**今のモーダルの出方を変える**形にした（表示時間は2.2秒のまま）。
+//   ・opts.side …… その人の席の辺（bottom/left/top/right）。**その方向から光が走ってくる**。
+//     誰の番かが、名前を読む前に体で分かる。
+//   ・opts.color …… その人の駒の色。枠と光をその色にする（今までは全員おなじ金色だった）。
+//   ・opts.isSelf … 自分の番の時だけ、名前が一拍だけ大きく脈打つ。
+export function announceTurnChange(player, onComplete, opts = {}) {
   playSound("turnSwitch");
+  const { side = null, color = null, isSelf = false } = opts;
+  // 光の帯は画面全体を横切るので、中央のトーストとは別の層（クリックを一切拾わない）に置く。
+  if (side) {
+    const sweep = document.createElement("div");
+    sweep.className = "turn-announce-sweep";
+    sweep.dataset.from = side;
+    if (color && color !== "rainbow") sweep.style.setProperty("--turn-announce-color", `var(--color-${color})`);
+    document.body.appendChild(sweep);
+    setTimeout(() => sweep.remove(), 1200);
+  }
   const el = document.createElement("div");
   el.id = "turn-announce-toast";
   const label = document.createElement("div");
-  label.className = "turn-announce-label";
+  label.className = isSelf ? "turn-announce-label is-self" : "turn-announce-label";
+  if (color && color !== "rainbow") label.style.setProperty("--turn-announce-color", `var(--color-${color})`);
   label.textContent = t("game.turnOf", { name: getPlayerName(player) });
   el.appendChild(label);
   document.body.appendChild(el);

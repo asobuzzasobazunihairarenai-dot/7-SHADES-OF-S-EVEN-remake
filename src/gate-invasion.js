@@ -152,10 +152,17 @@ function runStealHand(attacker, defender, onDone) {
     // ユーザー要望2026-08-07「複数枚奪う時、1枚ごとに実際に自分の手札へ描画。今はまとめて最後」。
     // 儀式ヘルパー（1枚ずつ選んで中央に見せる）経由なら、選ぶたびにその1枚を手札へ移して再描画する。
     const stolenTokens = stealHandRitualHelper
-      ? await stealHandRitualHelper(defender, count, (t) => {
-          gateInvasionStealHand(attacker, [t.id]);
-          notifyChange();
-        })
+      ? await stealHandRitualHelper(
+          defender,
+          count,
+          (t) => {
+            gateInvasionStealHand(attacker, [t.id]);
+            notifyChange();
+          },
+          // #280: 「選ぶ人」は奪う側。これを渡さないと、優先権の持ち主（ターン終了時点では
+          // 既に次の人）で判断され、奪われる本人に選択モーダルが出てしまう。
+          attacker
+        )
       : shuffled(defenderHand).slice(0, count);
     // ヘルパーが無いフォールバック（無作為・儀式なし）の時だけ、ここでまとめて移す。
     if (!stealHandRitualHelper) gateInvasionStealHand(attacker, stolenTokens.map((t) => t.id));

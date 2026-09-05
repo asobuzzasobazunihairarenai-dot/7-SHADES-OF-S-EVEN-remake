@@ -71,6 +71,7 @@ import {
   canDrawFromMyDeck,
   hasPlacedNewLockThisPhase,
   computePhaseMoveCandidates,
+  isPhaseTransitionPending,
 } from "./phase-automation.js";
 import { initHelpButton } from "./help.js";
 import { initDiscordLink } from "./discord-link.js";
@@ -117,6 +118,7 @@ import {
   setAnimGateLogger,
   isBoardAnimationPlaying,
   isNoticeQueueBusy,
+  isPhaseAnnounceVisible,
 } from "./anim-gate.js";
 // 【#266】お知らせを待たせた時間を行動ログへ残す（ユーザー要望「表示タイミングをログに出るように」）。
 // anim-gate.js は import を一切持たない葉モジュールなので、記録する手段をここから差し込む。
@@ -556,6 +558,63 @@ function buildArena(steps = 0) {
 // isSelf: 自分の手札は大きく扇状に開く。他プレイヤーの手札は裏向き・密集させて控えめに見せる。
 const ARC_SIGN = { top: -1, bottom: 1, left: -1, right: 1 }; // 盤面から遠ざかる方向
 
+// 【ユーザー要望2026-09-05・⑥】手札に差し込まれる動き。新しく増えた札は少し下から滑り込み、
+// 隣の札は**元いた位置から**今の位置へ動く＝「場所を空けて迎え入れる」ように見える。
+// 扇の位置はインラインの transform で決まっているので、キーフレームでは上書きできない。
+// そこで「前回の位置をいったん入れてから、次のフレームで本来の位置へ戻す」＝CSSトランジション
+// に任せる形にした（ひょこっと持ち上げ演出が使う dataset.baseTransform はそのままなので、
+// ホバー等の既存の動きとは喧嘩しない）。
+const HAND_INSERT_MS = 420;
+let prevSelfHandTransforms = new Map(); // tokenId -> 前回の扇の位置（transform文字列）
+// 一番最初の描画（＝対局が始まった瞬間に既にある札）は動かさない。手札が空の状態も普通に
+// あるので「覚えている札が0枚か」ではなく「一度でも描いたか」で判定する。
+let handInsertPrimed = false;
+function applyHandInsertMotion(fanEl) {
+  const cards = [...fanEl.querySelectorAll(".hand-card")];
+  const next = new Map();
+  for (const el of cards) next.set(el.dataset.tokenId, el.style.transform);
+  // 増えた札があるかどうか（減っただけ・並び替えだけの時は動かさない）。
+  let hasNew = false;
+  for (const id of next.keys()) if (!prevSelfHandTransforms.has(id)) { hasNew = true; break; }
+  const skip = isFlightAnimationDisabled() || !handInsertPrimed;
+  handInsertPrimed = true;
+  if (!hasNew || skip) {
+    prevSelfHandTransforms = next;
+    return;
+  }
+  const moved = [];
+  for (const el of cards) {
+    const id = el.dataset.tokenId;
+    const to = el.style.transform;
+    const from = prevSelfHandTransforms.get(id);
+    if (from === undefined) {
+      // 新しく入ってきた札: 少し下から、小さめの状態で滑り込む。
+      el.style.transform = `${to} translateY(2.2rem) scale(0.84)`;
+      el.style.opacity = "0";
+      el.classList.add("is-hand-inserting");
+      moved.push({ el, to });
+    } else if (from !== to) {
+      // 元からあった札: 前回の位置から始めて、今の位置（＝1枚ぶん広がった扇）へ動かす。
+      el.style.transform = from;
+      el.classList.add("is-hand-inserting");
+      moved.push({ el, to });
+    }
+  }
+  prevSelfHandTransforms = next;
+  if (moved.length === 0) return;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      for (const m of moved) {
+        m.el.style.transform = m.to;
+        m.el.style.opacity = "";
+      }
+    });
+  });
+  setTimeout(() => {
+    for (const m of moved) m.el.classList.remove("is-hand-inserting");
+  }, HAND_INSERT_MS + 80);
+}
+
 function layoutFan(count, orientation, isSelf, side) {
   const maxSpread = isSelf ? Math.min(50, count * 11) : Math.min(24, count * 6); // 度
   const step = count > 1 ? maxSpread / (count - 1) : 0;
@@ -831,6 +890,8 @@ function buildPlayerZone(side, player, isSelf) {
     cardEl.appendChild(eye);
     fanEl.appendChild(cardEl);
   });
+  // 【⑥】自分の手札に札が増えた瞬間だけ、扇が開いて迎え入れる動きを付ける。
+  if (isSelf) applyHandInsertMotion(fanEl);
   handEl.appendChild(fanEl);
 
   // 手札公開エリア: 盤面のそば・プレイヤー名の下あたりに置く、表向きカードの公開表示場所
@@ -1000,6 +1061,9 @@ async function discardFromHandReveal(tokenId, opts = {}) {
 // imagePathを渡すと、その画像を背景に敷く（山札/エターナルは常に裏面画像、捨て場は
 // 空でなければ一番上のカードの実際の絵柄）。名前・枚数は常時表示のテキストではなく、
 // ホバー時のツールチップ（updatePileTooltip参照）でだけ見せるようにしている。
+// 【⑥】山ごとの前回の枚数（積まれた瞬間の「トン」を出すかの判定用）。
+const prevPileCounts = {};
+
 function buildCardStack(count, pileClass, imagePath) {
   const stack = document.createElement("div");
   stack.className = "stack";
@@ -1079,6 +1143,12 @@ function buildPileZone(pileKey) {
         : cardBackSetImagePath(config.backImageKind, getCardBackSetIndex());
   }
   const stack = buildCardStack(count, config.pileClass, imagePath);
+  // 【ユーザー要望2026-09-05・⑥】山へ積まれた瞬間の「トン」。前回の描画時の枚数を覚えておき、
+  // 増えていたら一拍だけ沈み込ませる（厚み自体は元々1枚ぶん増えるが、0.6pxでは気づけない）。
+  // 「駒やカードが飛ぶ動きをやめる」設定は尊重する。
+  const prevCount = prevPileCounts[pileKey];
+  if (prevCount !== undefined && count > prevCount && !isFlightAnimationDisabled()) stack.classList.add("is-settling");
+  prevPileCounts[pileKey] = count;
   stack.dataset.pile = pileKey;
   zone.appendChild(stack);
   return zone;
@@ -1382,6 +1452,11 @@ function appendEffectHost(hostEl, effectEl, ttlMs) {
 // 例えば、到達時にボワーンとオーラが出る演出とかロック演出とかいろんな演出です！」）。
 // 続き421で7つの演出に入れた演出ゲートに、この一発演出も乗せる。この関数は同期で要素を
 // 返す作りなので（呼び出し側が戻り値を使う）、包む代わりに演出の長さぶんだけ手で押さえる。
+// 【③】今スポーンしようとしている到達のオーラが「めくれて起きた到達（コンボ）」かどうか。
+// triggerCardArrival が spawnArrivalBurst を呼ぶ**直前**に立て、呼び終えたら戻す（同期処理なので
+// 取り違えは起きない）。演出の引数を増やすと呼び出し口が4か所あって漏れやすいため、この形にした。
+let arrivalIsExposureNow = false;
+
 function spawnArrivalBurst(hostEl, color) {
   const burst = spawnArrivalBurst__inner(hostEl, color);
   if (burst) {
@@ -1414,12 +1489,15 @@ function spawnArrivalBurst__inner(hostEl, color) {
   // ように続くのがセブンらしさなのに、今までは同じ演出が淡々と繰り返されるだけだった）。
   // 到達処理の入れ子の深さ（arrivalEffectProcessingDepth）は、この演出を出す直前に
   // 加算済みなので、2以上なら「2連鎖目」。深いほど強く光らせる。
+  // 【ユーザー選択2026-09-05・③】「移動での連鎖」と「めくれての連鎖」で文字を分ける
+  //（「一旦『2 連鎖』と『2 コンボ』で！」）。上のカードが取り除かれて下のカードが露出し、
+  // 駒がその場にいたことで起きた到達＝コンボ。駒が動いて次のカードに乗った到達＝連鎖。
   if (arrivalEffectProcessingDepth >= 2) {
     burst.classList.add("is-chained");
     const chain = document.createElement("div");
-    chain.className = "arrival-chain-badge";
+    chain.className = arrivalIsExposureNow ? "arrival-chain-badge is-combo" : "arrival-chain-badge";
     chain.style.setProperty("--arrival-chain-level", String(Math.min(6, arrivalEffectProcessingDepth)));
-    chain.textContent = `${arrivalEffectProcessingDepth} ${t("game.chain")}`;
+    chain.textContent = `${arrivalEffectProcessingDepth} ${t(arrivalIsExposureNow ? "game.combo" : "game.chain")}`;
     burst.appendChild(chain);
   }
 
@@ -1853,6 +1931,8 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, reve
       backdrop.remove();
       modal.remove();
       if (isRitualBroadcastTarget) broadcastRitualPickEnded({ targetPlayer, pickedTokenId: token?.id ?? null });
+      // 【⑧・奪う】相手の手札から自分の手札へ光の筋が走る（スリカエ・接触・ゲート侵攻に共通）。
+      if (token) playStealBeam(targetPlayer, options?.actingSeat ?? getSelfSeat());
       // 奪った（受け取った）カードが何かを、画面中央に大きく見せて周知する（奪う側は裏向きしか
       // 見ていないため。ユーザー要望2026-08-07「スリカエ・ゲート侵攻で何を奪ったか分かるように」）。
       // showCardReceivedModalはこの画面にだけ出す（ブロードキャストしない）ので、1画面共有の
@@ -1946,19 +2026,29 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, reve
       cardsWrap.appendChild(cardEl);
     });
     modal.appendChild(cardsWrap);
-    activeEffectPicker = { type: "opponentHand", tokens: shuffled, resolve: finish };
+    // 【#280】この儀式で「選ぶ人」は奪う側（attacker）。以前は owner を持たせておらず、
+    // 表示するかどうかも isCpuSelectingNow()（＝**優先権の持ち主**）で判断していた。ところが
+    // ゲート侵攻はターン終了時に走り、その時点で優先権は既に次の人へ渡っているため、CPUが
+    // 奪う場面でも優先権が人間側にあることがあり（実測: turnPlayer=C なのに priorityPlayer=A）、
+    // **奪われる本人**にモーダルが出て「自分で選ばされた」状態になっていた（ユーザー報告）。
+    // 呼び出し側が actingSeat を渡してくれた時は、優先権ではなくその席で判断する。
+    const actingSeat = options?.actingSeat ?? null;
+    activeEffectPicker = { type: "opponentHand", tokens: shuffled, resolve: finish, owner: actingSeat ?? undefined };
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
-    // CPUが奪う札を選ぶ番はこの儀式ピックモーダルを表示しない（自動で選ばれる。奪った結果は
-    // 中央のカード表示で別途出る）。
-    if (isCpuSelectingNow()) {
-      backdrop.classList.add("is-cpu-hidden");
-      modal.classList.add("is-cpu-hidden");
-    }
     // シャッフル演出中はカードのクリックを無効化（is-shuffling→CSSでpointer-events:none）。
     // 演出が終わったらクリック可能にし、案内文を本来のピック文言へ切り替える。
     modal.classList.add("is-shuffling");
     const SHUFFLE_MS = 1100;
+    // CPUが奪う札を選ぶ番はこの儀式ピックモーダルを表示しない（自動で選ばれる。奪った結果は
+    // 中央のカード表示で別途出る）。
+    if (isCpuSelectingNow(actingSeat ?? undefined)) {
+      backdrop.classList.add("is-cpu-hidden");
+      modal.classList.add("is-cpu-hidden");
+      // 決着も自分で付ける。以前は「優先権の時間切れの自動代行」任せだったが、上記のとおり
+      // 優先権が別の席にあることがあり、その場合は誰も解決しないまま止まる。
+      setTimeout(() => finish(pickRandomFrom(shuffled)), SHUFFLE_MS + 250);
+    }
     setTimeout(() => {
       if (settled) return;
       modal.classList.remove("is-shuffling");
@@ -2474,7 +2564,41 @@ function announceGateInvasionSuccessBeforeStealPick(defender, count) {
 // トーストにまとめて表示するので、ここでは1枚ずつの「奪った」中央モーダルは出さない
 // （＝ユーザー要望「確認も複数枚同時に1つのモーダルで」を満たす）。オンラインは開始/終了だけ
 // 実況し（1枚ずつのライブホバーは複数選択では煩雑なので省略）、結果はサーバー同期に委ねる。
-function requestOpponentHandRitualMultiPick(targetPlayer, count) {
+// 【ユーザー要望2026-09-05・⑧「各カードのめぼしい効果に演出」／おすすめ順の1つ目＝『奪う』】
+// スリカエ・接触・ゲート侵攻——「相手の手札から自分の手札へ1枚移る」場面はどれもこの儀式ピックを
+// 通るので、ここ1か所で全部に演出が付く。奪われた側の手札から奪った側の手札へ、光の筋が走る。
+// 盤面の外（body直下）に置く1本の細い帯なので、盤面のWebGL描画のON/OFFにも左右されない。
+function playStealBeam(fromSeat, toSeat) {
+  if (!fromSeat || !toSeat || fromSeat === toSeat) return;
+  if (isFlightAnimationDisabled()) return;
+  const fromEl = document.querySelector(`.hand-area[data-player="${fromSeat}"]`);
+  const toEl = document.querySelector(`.hand-area[data-player="${toSeat}"]`);
+  if (!fromEl || !toEl) return;
+  const a = fromEl.getBoundingClientRect();
+  const b = toEl.getBoundingClientRect();
+  if (a.width < 1 || b.width < 1) return;
+  // 実画面座標のままだとステージ変形が二重にかかる（#197/#198の教訓）。必ずローカルへ直す。
+  const p1 = stageClientToLocal(a.left + a.width / 2, a.top + a.height / 2);
+  const p2 = stageClientToLocal(b.left + b.width / 2, b.top + b.height / 2);
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 8) return;
+  const beam = document.createElement("div");
+  beam.className = "steal-beam";
+  beam.style.left = `${p1.x}px`;
+  beam.style.top = `${p1.y}px`;
+  beam.style.width = `${len}px`;
+  beam.style.transform = `rotate(${(Math.atan2(dy, dx) * 180) / Math.PI}deg)`;
+  // 奪った側の色で走らせる（誰が奪ったのかが色で分かる）。
+  const color = getState().tokens.find((tk) => tk.kind === "piece" && tk.player === toSeat)?.color ?? null;
+  if (color && color !== "rainbow") beam.style.setProperty("--steal-beam-color", `var(--color-${color})`);
+  document.body.appendChild(beam);
+  setTimeout(() => beam.remove(), 900);
+}
+
+// options.actingSeat: この儀式で「選ぶ人」＝奪う側の席（#280。詳しくは単発版のコメント）。
+function requestOpponentHandRitualMultiPick(targetPlayer, count, options = {}) {
   return new Promise((resolve) => {
     const theirHand = getState().tokens.filter(
       (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === targetPlayer
@@ -2496,6 +2620,8 @@ function requestOpponentHandRitualMultiPick(targetPlayer, count) {
       backdrop.remove();
       modal.remove();
       if (isRitualBroadcastTarget) broadcastRitualPickEnded({ targetPlayer, pickedTokenId: null });
+      // 【⑧・奪う】複数枚まとめて奪う時も同じ光の筋を1本走らせる。
+      if (tokens && tokens.length > 0) playStealBeam(targetPlayer, options?.actingSeat ?? getSelfSeat());
       resolve(tokens);
     };
 
@@ -2554,13 +2680,22 @@ function requestOpponentHandRitualMultiPick(targetPlayer, count) {
       type: "opponentHandMulti",
       tokens: shuffled,
       count: need,
+      owner: options?.actingSeat ?? undefined,
       resolve: (tokens) => finish(tokens),
     };
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
-    if (isCpuSelectingNow()) {
+    if (isCpuSelectingNow(options?.actingSeat ?? undefined)) {
       backdrop.classList.add("is-cpu-hidden");
       modal.classList.add("is-cpu-hidden");
+      // 【#280】CPUが奪う番なら、優先権が誰にあっても自分で無作為に選んで決着させる
+      // （単発版と同じ理由。以前は優先権の時間切れ任せで、奪われる本人に選ばせていた）。
+      setTimeout(() => {
+        const pool = [...shuffled];
+        const picked = [];
+        for (let i = 0; i < need && pool.length > 0; i++) picked.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+        finish(picked);
+      }, 1350);
     }
     // シャッフル演出中はクリック不可（単発版と同じ1100ms）。終わったら選択案内へ。
     modal.classList.add("is-shuffling");
@@ -2576,12 +2711,16 @@ function requestOpponentHandRitualMultiPick(targetPlayer, count) {
 // これで「1枚ごとに実際に自分の手札へ移す」（ユーザー要望2026-08-07「複数枚奪う時、1枚ずつ
 // 手札に描画。今はまとめて最後に加わる」）。オンラインは奪う札のidを集めるだけ（実際の移動は
 // サーバー）なので onPicked を渡さない＝従来通りまとめて。
-async function stealHandCardsRitualForGateInvasion(defender, count, onPicked) {
+// attacker: 奪う側の席（#280）。この儀式で「選ぶ人」は奪う側であって、奪われる側ではない。
+// ゲート侵攻はターン終了時に走るため優先権はもう別の席にあることがあり、優先権から
+// 判断すると奪われる本人に選択モーダルが出てしまう（ユーザー報告「自分で選ばされたけど
+// 本来は相手が選ぶものです」）。
+async function stealHandCardsRitualForGateInvasion(defender, count, onPicked, attacker = null) {
   // 2枚以上奪う時は複数選択UIでまとめて選ぶ（ユーザー要望2026-08-13。マイ異数が多いと1枚ずつは
   // 面倒）。1枚ずつの「奪った」中央モーダルは出さず、選び終えたら呼び出し側(gate-invasion.js)の
   // announceHandPickupsが全枚数を1トーストで見せる。1枚だけなら従来の単発ピック（シンプル）。
   if (count >= 2) {
-    const tokens = await requestOpponentHandRitualMultiPick(defender, count);
+    const tokens = await requestOpponentHandRitualMultiPick(defender, count, { actingSeat: attacker ?? undefined });
     // ローカルは onPicked で1枚ずつ実際に手札へ移す（オンラインはidを集めるだけ＝サーバーが移す）。
     if (onPicked) {
       for (const token of tokens) await onPicked(token);
@@ -2605,7 +2744,9 @@ async function stealHandCardsRitualForGateInvasion(defender, count, onPicked) {
     const token = await requestOpponentHandRitualPick(
       defender,
       t("game.ritual.pickStealFaceDown", { name: getPlayerName(defender), i: i + 1, n: count }),
-      excludeTokenIds
+      excludeTokenIds,
+      undefined,
+      { actingSeat: attacker ?? undefined }
     );
     if (!token) break;
     stolen.push(token);
@@ -4768,6 +4909,28 @@ function isCpuBrainDriving(seat) {
   return isCpuBattleActive() && !isOnlineMode() && isPseudoCpuTarget(seat) && isCpuBrainSmart();
 }
 
+// 【#283】CPUが手札効果を続けて使う時、前の効果のお知らせ（ドロー・捨て等）がまだ中央に
+// 出ているうちに次を始めてしまい、何が起きたのか読めなくなっていた（ユーザー報告「CPUが
+// ドムスネロの諸々を処理している途中で試練の儀式を使用しました」）。#266 で決めた
+// 「画面の中央は一度に1つだけ」を、手札効果の**開始**にも広げる。
+// 止まらないための作り: 上限を過ぎたら待つのをやめて始める（中央が何かの理由で空かなくても
+// 対局が進まなくなる方が実害が大きい。#261/#266 と同じ考え方）。
+const CPU_HAND_EFFECT_WAIT_MAX_MS = 8000;
+let cpuHandEffectWaitStartedAt = 0;
+function shouldWaitForCenterBeforeCpuHandEffect() {
+  const busy = isBoardAnimationPlaying() || isNoticeQueueBusy() || isPhaseAnnounceVisible();
+  if (!busy) {
+    cpuHandEffectWaitStartedAt = 0;
+    return false;
+  }
+  if (!cpuHandEffectWaitStartedAt) cpuHandEffectWaitStartedAt = Date.now();
+  if (Date.now() - cpuHandEffectWaitStartedAt >= CPU_HAND_EFFECT_WAIT_MAX_MS) {
+    cpuHandEffectWaitStartedAt = 0;
+    return false;
+  }
+  return true;
+}
+
 export function performPriorityTimeoutAutoAction() {
   // ローカルCPU戦ではCPU(C)の番を、それ以外は自分の席を代行する。
   const driveSeat = getAutoDriveSeat();
@@ -4866,8 +5029,11 @@ export function performPriorityTimeoutAutoAction() {
       // スリカエ・接触・ゲート侵攻の奪うカード選択（requestOpponentHandRitualPick）用。
       // 中級・上級は相手の手札が見えない（非公開）ためランダム。最強のみのぞき見して一番価値の
       // 高い札を奪う（chooseOpponentHandCardToStealが最強以外はランダムを返す）。新人はランダム。
-      const choice = isCpuBrainDriving(driveSeat)
-        ? chooseOpponentHandCardToSteal(picker.tokens, driveSeat)
+      // #280: 奪う側の席が分かっているならそれで判断する（ゲート侵攻はターン終了時に走るため、
+      // 優先権や手番から決めると別の席になることがある）。
+      const stealSeat = picker.owner ?? driveSeat;
+      const choice = isCpuBrainDriving(stealSeat)
+        ? chooseOpponentHandCardToSteal(picker.tokens, stealSeat)
         : pickRandomFrom(picker.tokens);
       picker.resolve(choice);
     } else if (picker.type === "opponentHandMulti") {
@@ -4888,6 +5054,12 @@ export function performPriorityTimeoutAutoAction() {
   // フェイズ自動進行(lock→hand→move)自体もphase-automation.js側でhandEffectBusyを見て止まる。
   if (isHandEffectBusy()) return false;
   const phase = getCurrentPhase();
+  // 【#284】フェイズはもう終わっているのに、中央（演出・お知らせ・フェイズ告知）が塞がって
+  // いて次のフェイズの開始が待たされている間は、currentPhase が前のフェイズのまま残る。
+  // その窓でロック/手札効果を続けると「役人でハンドフェイズを終えた直後にドムスネロを使う」
+  // ことになるので、切り替えの予約が入っている間は新しい行動を始めない（待つだけ。
+  // enterPhase 側に上限があるので止まらない）。
+  if ((phase === "lock" || phase === "hand") && isPhaseTransitionPending()) return false;
   // 【停止からの脱出 その2】「もう移動/接触は済んだ(moveActionTaken)のに、ターンが終わって
   // いない」状態でここに来ると、下のムーブ分岐は isMovePhaseActive() が false で丸ごと飛ばされ、
   // ロック分岐にも当たらず、**何もせず false を返して永久に止まる**（オンラインの自動対戦で
@@ -5055,6 +5227,8 @@ export function performPriorityTimeoutAutoAction() {
         canUseHandEffect(t.cardId, t.id, driveSeat)
     );
     if (noir) {
+      // 【#283】前の効果のお知らせがまだ中央に出ている間は始めない（下の一般スキャンと同じ）。
+      if (shouldWaitForCenterBeforeCpuHandEffect()) return false;
       runAutoHandEffect(noir.cardId, noir.id, driveSeat);
       return true;
     }
@@ -5090,6 +5264,10 @@ export function performPriorityTimeoutAutoAction() {
     const usable = getState().tokens.filter(isCpuUsableEffectToken);
     const chosen = chooseHandEffectCard(usable, player);
     if (chosen) {
+      // 【#283】前の手札効果のお知らせ（ドロー・捨て等）がまだ中央に出ているうちは始めない。
+      // 「使う効果が無い」時はここに来ないので、待つことでフェイズが止まることはない
+      // （効果が無ければ下の分岐が今まで通りフェイズを終わらせる）。
+      if (shouldWaitForCenterBeforeCpuHandEffect()) return false;
       noteCpuHandEffectAttempt(chosen.id, chosen.cardId);
       // fire-and-forget（内部の選択待ちは後続tickの自動代行で解決される）。
       runAutoHandEffect(chosen.cardId, chosen.id, player);
@@ -6933,7 +7111,11 @@ function triggerCardArrival(cardId, location, onFullyResolved, opts = {}) {
     playSound("arrivalEffect");
     const table = document.getElementById("game-table");
     const hostEl = findLocationElement(table, location);
-    if (hostEl) spawnArrivalBurst(hostEl, getCardDefinition(cardId).color);
+    if (hostEl) {
+      arrivalIsExposureNow = !!opts.fromExposure; // 【③】「N コンボ」と出すかどうか
+      spawnArrivalBurst(hostEl, getCardDefinition(cardId).color);
+      arrivalIsExposureNow = false;
+    }
     // ユーザー要望「到達アニメが完全終了して一息ついた後に効果モーダルを出すように
     // してください」。以前はspawnArrivalBurst（柱状のオーラ、ARRIVAL_BURST_DURATION_MS
     // ぶんの一発演出）と同時にrunAutoArrivalEffectを並行して開始していたため、
@@ -7119,10 +7301,12 @@ function maybeTriggerCardArrival(dropTarget, pieceTokenId, onResolved, onFullyRe
 // 場合に await できるよう、到達の完全解決で解決するPromiseを返す（triggerCardArrivalの
 // onFullyResolvedは全経路で必ず呼ばれる＝5082行のfinally等、デッドロックしない）。await
 // しない従来の呼び出し元は戻り値を無視するだけで挙動は変わらない。
-function triggerCardArrivalIfFaceUp(location, fromDiff = false) {
+// fromExposure: 上のカードが取り除かれて下のカードが露出したことで起きた到達か（【③】の
+// 「N コンボ」表示に使う。駒が動いて起きた到達は「N 連鎖」）。
+function triggerCardArrivalIfFaceUp(location, fromDiff = false, fromExposure = false) {
   const card = findTopCardAt(location);
   if (card && card.faceUp) {
-    return new Promise((resolve) => triggerCardArrival(card.cardId, card.location, resolve, { fromDiff }));
+    return new Promise((resolve) => triggerCardArrival(card.cardId, card.location, resolve, { fromDiff, fromExposure }));
   }
   return Promise.resolve();
 }
@@ -7212,7 +7396,7 @@ function maybeTriggerCardArrivalForExposedCard(location, fromDiff = false, prevT
   if (!location || (location.zone !== "cell" && location.zone !== "lock")) return Promise.resolve();
   if (!hasPieceAt(location)) return Promise.resolve();
   // 到達（コンボ）の完全解決で解決するPromiseを返す（await可能。#85）。
-  return triggerCardArrivalIfFaceUp(location, fromDiff);
+  return triggerCardArrivalIfFaceUp(location, fromDiff, true); // 【③】めくれての到達＝コンボ
 }
 
 // 「オープンする/しない」の選択アイコン。同時に1つだけ表示する（新しく駒が別のカードに
@@ -15624,12 +15808,22 @@ subscribe(() => {
 // （online.jsのisGateInvasionPending参照）。今回の変化にゲート侵攻が伴う場合は告知を
 // 保留し、モーダル列が実際に始まって・空になったタイミング
 // （registerOnGateInvasionQueueDrained）で改めて告知する。
+// 【②】ターンの始まりの見せ方を、その人に合わせて変えるための材料（席の辺・駒の色・自分か）。
+// turn-announce.js は表示専用の部品なので、盤面の知識（座席→辺、駒の色）はこちら側で解決して渡す。
+function turnAnnounceLook(player) {
+  return {
+    side: SEAT_TO_SIDE[player] ?? null,
+    color: getState().tokens.find((tk) => tk.kind === "piece" && tk.player === player)?.color ?? null,
+    isSelf: player === getSelfSeat(),
+  };
+}
+
 let prevTurnPlayerForAnnouncement = null;
 let pendingTurnAnnouncePlayer = null;
 registerOnGateInvasionQueueDrained(() => {
   if (pendingTurnAnnouncePlayer !== null) {
     setTurnAnnounceActive(true);
-    announceTurnChange(pendingTurnAnnouncePlayer, () => setTurnAnnounceActive(false));
+    announceTurnChange(pendingTurnAnnouncePlayer, () => setTurnAnnounceActive(false), turnAnnounceLook(pendingTurnAnnouncePlayer));
     pendingTurnAnnouncePlayer = null;
   }
 });
@@ -15654,7 +15848,7 @@ subscribe(() => {
       pendingTurnAnnouncePlayer = turnPlayer;
     } else {
       setTurnAnnounceActive(true);
-      announceTurnChange(turnPlayer, () => setTurnAnnounceActive(false));
+      announceTurnChange(turnPlayer, () => setTurnAnnounceActive(false), turnAnnounceLook(turnPlayer));
     }
   }
   prevTurnPlayerForAnnouncement = turnPlayer;

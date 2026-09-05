@@ -967,6 +967,17 @@ function enterPhase(phase, player) {
   enterPhase__inner(phase, player);
 }
 
+// 【#284】「このフェイズを終了する」（役人・なないろの巨光・ザ・ギャンブル）等でフェイズは
+// もう終わっているのに、中央が塞がっていて次のフェイズの開始が待たされている間、
+// currentPhase は前のフェイズのまま残る。その窓でCPUがロック/手札効果を続けてしまっていた
+// （ユーザー報告「CPUが役人を使った後フェイズは終了するはずなのにドムスネロを使っていた」）。
+// 「フェイズが実際に切り替わること」に頼らず、**切り替えの予約が入っているか**そのもので
+// 判定できるようにする（続き427・#272 で学んだ形＝『1回だけ』の制約を、別の処理が直後に
+// 走ることを前提にして担保しない）。
+export function isPhaseTransitionPending() {
+  return !!pendingEnterPhase;
+}
+
 function enterPhase__inner(phase, player) {
   lockAdvanceGraceUntil = 0; // 【#267】次のフェイズへ進んだら猶予は用済み
   // 前のフェイズのスキップモーダルがまだ残っていれば、新しいフェイズの表示
