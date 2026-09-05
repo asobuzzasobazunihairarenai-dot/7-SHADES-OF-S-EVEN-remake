@@ -63,6 +63,7 @@ export const HANDLED_BUG_REPORT_IDS = new Set([
   263, // 暗転がPCだけ濃すぎる（二重）／ロック演出中にモーダルが出る
   264, // iPhoneでWebGL描画が起動しない（削除したモジュールが404）
   265, // 駒が透けて見える（面ごとの陰影が失われていた）／演出中の中央お知らせ／お知らせが一斉に出る
+  266, // 演出中にフェイズが切り替わる／モーダルが前の表示に重なって出る
 ]);
 
 export function isBugReportHandledInCode(id) {

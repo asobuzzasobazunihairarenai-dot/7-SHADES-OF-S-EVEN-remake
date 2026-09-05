@@ -13,6 +13,20 @@
 // 出ないという最悪の事態にはならない（少し遅れて出るだけ）。さらに、フラグが立ちっぱなしに
 // なった場合も一定時間で自動的に下ろす（下記 STUCK_MS）。
 
+// 【#266】タイミングの記録用フック。このファイルは import を一切持たない葉モジュールなので、
+// 行動ログへの記録は外（main.js）から関数を差し込んでもらう。
+let logHook = null;
+export function setAnimGateLogger(fn) {
+  logHook = typeof fn === "function" ? fn : null;
+}
+function note(event, data) {
+  try {
+    logHook?.(event, data);
+  } catch (err) {
+    // 記録に失敗しても演出・お知らせは止めない。
+  }
+}
+
 let depth = 0;
 let startedAt = 0;
 const waiters = new Set();
@@ -126,20 +140,71 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// 【#266】いま画面に「返事待ちのモーダル」が出ているか。
+// ・.so7-modal-backdrop … 画面を覆って返事を待つモーダルの背景（#225 で付けた目印。
+//   儀式の奪取ピッカー・「受け取った」表示・各種確認モーダルが該当する）
+// ・#card-effect-picker-hint.show … マス/手札を選ばせている時の上部の案内バナー
+// **実際に見えているものだけ**を数える——このアプリには「作りっぱなしで display / .show を
+// 切り替えるだけ」の常駐要素が多く、存在の有無で判定すると永久に待つ（続き396・415の教訓）。
+function isBlockingModalVisible() {
+  try {
+    for (const el of document.querySelectorAll(".so7-modal-backdrop")) {
+      if (el.getClientRects().length > 0) return true;
+    }
+    const hint = document.getElementById("card-effect-picker-hint");
+    if (hint && hint.classList.contains("show")) return true;
+    // フェイズ告知（「ロックフェイズ」等・画面のやや上に約2.6秒出る）も中央の占有物として扱う。
+    // ここに重ねると、ユーザーの言う「モーダルが一つ前の処理にラップして出る」状態になる。
+    for (const el of document.querySelectorAll(".phase-announce-toast.show")) {
+      if (el.getClientRects().length > 0) return true;
+    }
+  } catch (err) {
+    // DOMが無い環境（テスト等）では「出ていない」とみなす。
+  }
+  return false;
+}
+
+// 返事待ちのモーダルが閉じるのを待つ上限。これを超えたら諦めて出す——お知らせを await して
+// いる効果処理があるので、**待ち続けて対局が止まる方が実害が大きい**（続き421と同じ考え方）。
+const NOTICE_MODAL_WAIT_MAX_MS = 10000;
+// 演出が途切れるのを待つ上限（連続する演出をまたいで待つ。同じく上限付き）。
+const NOTICE_ANIM_WAIT_MAX_MS = 9000;
+
 // 「中央にお知らせを出してよい順番」が来るまで待つ。演出中ならその後まで回される。
 // holdMs: このお知らせが中央（同じ場所）を占める長さ。次のお知らせはそれだけ待つ。
 export function waitForNoticeSlot(holdMs = NOTICE_HOLD_MS) {
   noticePending++;
   const run = async () => {
+    const startedAt = Date.now();
+    let reason = null;
     try {
-      await waitForBoardAnimation();
+      // 演出は連続することがある（到達のオーラが何度も出る等）。1回 flush を待っただけだと、
+      // その直後に始まった次の演出に重なってしまう（実測でそうなっていた）。演出が途切れる
+      // まで繰り返し待つ——ただし全体の上限は必ず設ける。
+      const animDeadline = Date.now() + NOTICE_ANIM_WAIT_MAX_MS;
+      while (isBoardAnimationPlaying() && Date.now() < animDeadline) {
+        reason = "anim";
+        await waitForBoardAnimation(Math.min(2000, Math.max(200, animDeadline - Date.now())));
+      }
       const hold =
         noticePending > NOTICE_QUEUE_BUSY ? Math.max(NOTICE_MIN_HOLD_MS, Math.round(holdMs / 2)) : holdMs;
       const wait = noticeFreeAt - Date.now();
-      if (wait > 0) await sleep(Math.min(wait, holdMs));
+      if (wait > 0) {
+        reason = reason || "queue";
+        await sleep(Math.min(wait, holdMs));
+      }
+      // 【#266】返事待ちのモーダル（儀式の奪取ピッカー・確認モーダル等）が出ている間は
+      // 中央にお知らせを重ねない。ユーザー報告「モーダルが一つ前の処理にラップして出る」。
+      const modalDeadline = Date.now() + NOTICE_MODAL_WAIT_MAX_MS;
+      while (isBlockingModalVisible() && Date.now() < modalDeadline) {
+        reason = "modal";
+        await sleep(150);
+      }
       noticeFreeAt = Date.now() + hold;
     } finally {
       noticePending = Math.max(0, noticePending - 1);
+      const waited = Date.now() - startedAt;
+      if (waited >= 300) note("diag-notice-wait", { waited, reason, pending: noticePending });
     }
   };
   const p = noticeChain.then(run, run);
@@ -148,6 +213,13 @@ export function waitForNoticeSlot(holdMs = NOTICE_HOLD_MS) {
     () => {}
   );
   return p;
+}
+
+// 【#266】中央のお知らせがまだ出ている／これから出る、という状態か。フェイズの切り替えを
+// 待たせるのに使う（ユーザー報告「ミニモーダルが中央に出ている時にもフェイズが切り替わる」）。
+// noticeFreeAt は最大でも「今＋holdMs」なので、この値は自然に短時間で false へ戻る。
+export function isNoticeQueueBusy() {
+  return noticePending > 0 || Date.now() < noticeFreeAt;
 }
 
 // 対局のリセット・勝利演出などで、溜まっている順番待ちを無かったことにする。

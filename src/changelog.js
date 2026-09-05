@@ -14,6 +14,8 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "演出（ロックの刻印や到達のオーラなど）の最中にフェイズが切り替わってしまうのをやめました。演出とお知らせが終わってから次のフェイズに入ります。",
+      "お知らせや確認のモーダルが、前のモーダルに重なって出てしまうのを直しました。画面の中央には一度に1つだけ出るようにしています。",
       "駒が平べったく、少し透けているように見えていたのを直しました。立方体の面ごとの陰影（奥や左右の面を暗くする処理）が、盤面の新しい描き方で失われていました。",
       "到達したときのオーラなど、演出の最中に画面中央のお知らせが出てしまうのをやめました。演出が終わってから出ます。",
       "お知らせが次から次へと一瞬で切り替わって読めなかったのを直しました。1つずつ間を空けて出るようにしています。",
@@ -45,6 +47,8 @@ export const CHANGELOG = [
       "「ホーム画面に追加」の案内文が、最後の2文字だけ次の行にこぼれて読みにくかったのを直しました。",
     ],
     itemsEn: [
+      "Phases no longer change in the middle of an animation (the lock seal, the aura when you land on a card, and so on). The next phase starts once the animation and the notices have finished.",
+      "Fixed notices and confirmation dialogs appearing on top of the previous one. Only one thing is shown in the middle of the screen at a time.",
       "Fixed pieces looking flat and slightly see-through. The shading that darkens the back and side faces of the cube had been lost when the board moved to the new drawing method.",
       "Notices in the middle of the screen no longer appear during animations such as the aura that rises when you land on a card. They now wait until the animation has finished.",
       "Fixed notices flashing past one after another too quickly to read. They now appear one at a time, with a pause between them.",

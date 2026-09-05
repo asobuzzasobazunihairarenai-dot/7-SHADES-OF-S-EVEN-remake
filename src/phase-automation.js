@@ -36,6 +36,8 @@ import { isPseudoCpuModeEnabled as isPseudoCpuModeEnabledLocal, isPseudoCpuInclu
 import { logAction } from "./action-log.js";
 import { isAutoPhaseSkipEnabled, onAutoPhaseSkipChange } from "./auto-phase-skip-setting.js";
 import { isCpuBattleActive } from "./cpu-battle-state.js";
+// 【#266】盤面の演出・中央のお知らせが出ている間はフェイズを進めない（下記 reconcile 参照）。
+import { isBoardAnimationPlaying, isNoticeQueueBusy } from "./anim-gate.js";
 
 // フェイズ自動進行が「今どの席を対象に動くか」。通常は自分の席（getSelfSeat）。ただしローカルの
 // CPU戦では、自分(A)だけでなくCPU(C)の番も自動で流したいので、その時だけ「今のターン
@@ -886,7 +888,53 @@ onAutoPhaseSkipChange((on) => {
 });
 
 // --- フェイズの開始・進行 ---------------------------------------------------------------
+// 【#266】フェイズの開始は reconcilePhaseAutomation 以外からも呼ばれる——自動スキップの
+// 1.5秒タイマー（advancePhaseAfterSkip）・スキップボタン・マイデッキで引いた時・カード効果の
+// 「このフェイズを終了する」。そのため reconcile 側だけを止めても、演出の最中にフェイズ告知が
+// 出る経路が残る（実測でも残っていた）。**入口である enterPhase 自体**で待たせる。
+// 待つ間の予約は1件だけ持ち、演出とお知らせが終わり次第そのフェイズを開始する。
+let pendingEnterPhase = null;
+let enterPhaseRetryTimer = null;
+let enterPhaseDeferStartedAt = 0;
+// 万一ゲートが下りない時の上限。演出は15秒で自力解除、お知らせも上限付きなので通常は届かないが、
+// **フェイズが永久に始まらない方が実害が大きい**ので必ず抜ける（続き421と同じ考え方）。
+const ENTER_PHASE_DEFER_MAX_MS = 8000;
+
+function phaseDisplayBusy() {
+  return isBoardAnimationPlaying() || isNoticeQueueBusy();
+}
+
+function scheduleEnterPhaseRetry() {
+  if (enterPhaseRetryTimer) return;
+  enterPhaseRetryTimer = setTimeout(() => {
+    enterPhaseRetryTimer = null;
+    const next = pendingEnterPhase;
+    if (!next) return;
+    if (phaseDisplayBusy() && Date.now() - enterPhaseDeferStartedAt < ENTER_PHASE_DEFER_MAX_MS) {
+      scheduleEnterPhaseRetry();
+      return;
+    }
+    pendingEnterPhase = null;
+    enterPhase(next.phase, next.player);
+  }, 150);
+}
+
 function enterPhase(phase, player) {
+  if (phaseDisplayBusy() && (!enterPhaseDeferStartedAt || Date.now() - enterPhaseDeferStartedAt < ENTER_PHASE_DEFER_MAX_MS)) {
+    if (!enterPhaseDeferStartedAt) enterPhaseDeferStartedAt = Date.now();
+    pendingEnterPhase = { phase, player };
+    scheduleEnterPhaseRetry();
+    return;
+  }
+  if (enterPhaseDeferStartedAt) {
+    logAction("diag-phase-deferred", { waited: Date.now() - enterPhaseDeferStartedAt, phase, player, via: "enter" });
+    enterPhaseDeferStartedAt = 0;
+  }
+  pendingEnterPhase = null;
+  enterPhase__inner(phase, player);
+}
+
+function enterPhase__inner(phase, player) {
   // 前のフェイズのスキップモーダルがまだ残っていれば、新しいフェイズの表示
   // （スキップモーダルであれ通常のannouncePhase()トーストであれ）とかぶらないよう
   // ここで必ず消す（詳しい経緯はdismissSkipModal()のコメント参照）。
@@ -1006,6 +1054,22 @@ function clearPhase() {
 // render()のたびに呼ばれ、今のフェイズで「もう次へ進めるか」を判定する。
 // カード効果自動処理と同じ「呼び出し元(main.js)がrender()の末尾で毎回呼ぶ」設計
 // （remote-move-animator.jsのreapplyActiveHighlights等と同じ考え方）。
+// 【#266】演出・お知らせで待たされた時に、終わり次第もう一度 reconcile を呼ぶための小さな見張り。
+// reconcilePhaseAutomation() は render()（＝状態の変化）をきっかけに呼ばれる作りなので、待って
+// いる間に何も起きないと**そのまま止まってしまう**（続き407で踏んだのと同じ形）。二重に走らない
+// よう1本だけ動かす。
+let reconcileRetryTimer = null;
+// 待たされた時間を1回だけ記録する（ユーザー要望「表示タイミングをログに出るように」）。
+let reconcileDeferStartedAt = 0;
+function scheduleReconcileRetry() {
+  if (!reconcileDeferStartedAt) reconcileDeferStartedAt = Date.now();
+  if (reconcileRetryTimer) return;
+  reconcileRetryTimer = setTimeout(() => {
+    reconcileRetryTimer = null;
+    reconcilePhaseAutomation();
+  }, 200);
+}
+
 export function reconcilePhaseAutomation() {
   // 続き76の修正: 以前はupdateSkipButtonVisibility()（スキップボタン/「自分の
   // ターンです」表示の更新）がclearPhase()の中、それも「currentPhaseが既に
@@ -1024,6 +1088,21 @@ export function reconcilePhaseAutomation() {
   // 自動処理（＝実質的な「ターンが移った」挙動）が始まってしまう。演出キューが空になるまでは
   // フェイズ自動進行を進めない（clearPhase()はせず、そのまま待つだけにして表示のちらつきを避ける）。
   if (isGateInvasionQueueActive()) return;
+  // 【#266】ユーザー報告「フェイズの切り替えが演出中（ロック演出とか）に起きます。ミニモーダルが
+  // 中央に出ているときにもフェイズが切り替わります」。盤面の演出（ロックの刻印・到達のオーラ・
+  // 接触のタックル・駒の移動）が再生中、または中央のお知らせがまだ出ている間は、フェイズを
+  // 進めない。上のゲート侵攻の待ちと**まったく同じ形**（clearPhase はせず、ただ待つ）。
+  // 演出もお知らせも上限付きで必ず終わる（anim-gate.js の STUCK_MS / 各お知らせの hold）ので、
+  // ここで対局が止まることはない。終わったら scheduleReconcileRetry が呼び直す。
+  if (isBoardAnimationPlaying() || isNoticeQueueBusy()) {
+    scheduleReconcileRetry();
+    return;
+  }
+  if (reconcileDeferStartedAt) {
+    const waited = Date.now() - reconcileDeferStartedAt;
+    reconcileDeferStartedAt = 0;
+    if (waited >= 300) logAction("diag-phase-deferred", { waited, phase: currentPhase, via: "reconcile" });
+  }
   // #181: 最後のロックの承認待ちの間は、どのクライアントでもフェイズ自動進行を進めない
   // （承認が終われば pendingFinalLock が消えて自然に再開する）。
   if (isFinalLockApprovalPending()) return;

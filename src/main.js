@@ -105,7 +105,10 @@ import {
 import { announceHandPickups, announceCardLocked, announceDrawCount, announceCardDiscarded } from "./hand-announcer.js";
 import { clearTurnEventStock, getTurnEventStockKey } from "./turn-event-stock.js";
 // 盤面の演出中は「情報を見せるだけ」のモーダルを演出の後まで待たせる（#261）。
-import { withBoardAnimation, beginBoardAnimation, endBoardAnimation } from "./anim-gate.js";
+import { withBoardAnimation, beginBoardAnimation, endBoardAnimation, setAnimGateLogger } from "./anim-gate.js";
+// 【#266】お知らせを待たせた時間を行動ログへ残す（ユーザー要望「表示タイミングをログに出るように」）。
+// anim-gate.js は import を一切持たない葉モジュールなので、記録する手段をここから差し込む。
+setAnimGateLogger((event, data) => logAction(event, data));
 import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained, reapplyGateInvasionModal, registerGateInvasionModalEternalAnim, registerGateInvasionModalStealAnim, registerGateInvasionModalEternalPreHide, forceCloseGateInvasionModal } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking, hasAnyoneWon } from "./victory.js";
 import { formatTitle } from "./titles.js"; // 称号（続き313）
