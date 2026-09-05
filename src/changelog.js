@@ -14,6 +14,13 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "ロックの演出を見ている最中にハンドフェイズのお知らせが出てしまうのを直しました。ロックの様子と「ロックしました」のお知らせが終わってから次のフェイズに入ります。",
+      "フェイズのお知らせがまだ出ているのに、次のフェイズのお知らせが重なって出てしまうのを直しました。",
+      "相手が何もしていないターンが猛スピードで飛んでいってしまうことがあったのを直しました。プレゼントなどでお知らせが並んだ後に起きていました。",
+      "お知らせが画面の中央に出ている間は、ターンが終わらないようにしました。",
+      "赤のキューブ フェニックスを使ったとき、コストで捨てたカードが2回捨てたことになってしまうのを直しました。",
+      "自分の手札をタップしたのに、その奥に重なって見えているロックエリアのカードが使われてしまうことがあったのを直しました。",
+      "対戦結果を小さくしまう時のお知らせが、明るい配色にしていても暗いままだったのを直しました。",
       "演出（ロックの刻印や到達のオーラなど）の最中にフェイズが切り替わってしまうのをやめました。演出とお知らせが終わってから次のフェイズに入ります。",
       "お知らせや確認のモーダルが、前のモーダルに重なって出てしまうのを直しました。画面の中央には一度に1つだけ出るようにしています。",
       "駒が平べったく、少し透けているように見えていたのを直しました。立方体の面ごとの陰影（奥や左右の面を暗くする処理）が、盤面の新しい描き方で失われていました。",
@@ -47,6 +54,13 @@ export const CHANGELOG = [
       "「ホーム画面に追加」の案内文が、最後の2文字だけ次の行にこぼれて読みにくかったのを直しました。",
     ],
     itemsEn: [
+      "Fixed the Hand Phase notice appearing while you are still watching the lock animation. The next phase now starts after the lock animation and the \"locked\" notice have finished.",
+      "Fixed the next phase notice appearing on top of the previous one while it was still showing.",
+      "Fixed turns where nothing happens racing past. This happened after notices piled up, for example from Present.",
+      "Turns no longer end while a notice is still showing in the middle of the screen.",
+      "Fixed the card discarded as a cost being counted twice in this turn's events when you used Phoenix, the Red Cube.",
+      "Fixed tapping your own hand card sometimes using the Lock Area card that shows through behind it.",
+      "Fixed the notice shown when you tuck the match result away staying dark even in the light colour scheme.",
       "Phases no longer change in the middle of an animation (the lock seal, the aura when you land on a card, and so on). The next phase starts once the animation and the notices have finished.",
       "Fixed notices and confirmation dialogs appearing on top of the previous one. Only one thing is shown in the middle of the screen at a time.",
       "Fixed pieces looking flat and slightly see-through. The shading that darkens the back and side faces of the cube had been lost when the board moved to the new drawing method.",

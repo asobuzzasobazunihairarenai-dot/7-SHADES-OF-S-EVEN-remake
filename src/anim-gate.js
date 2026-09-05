@@ -164,6 +164,21 @@ function isBlockingModalVisible() {
   return false;
 }
 
+// 【#270】フェイズ告知（「ロックフェイズ」等）が今まさに出ているか。
+// ユーザー報告「CPUがハンドフェイズをスキップするとき、まだハンドフェイズモーダルが出ているのに
+// ムーブフェイズモーダルがラップしてくる」。告知は 2.6 秒出るのに、ハンドフェイズの自動スキップは
+// 1.5 秒で次へ進むため、同じ場所に2枚重なっていた。次のフェイズへ進む側がこれを見て待つ。
+export function isPhaseAnnounceVisible() {
+  try {
+    for (const el of document.querySelectorAll(".phase-announce-toast.show")) {
+      if (el.getClientRects().length > 0) return true;
+    }
+  } catch (err) {
+    // DOMが無い環境（テスト等）では「出ていない」とみなす。
+  }
+  return false;
+}
+
 // 返事待ちのモーダルが閉じるのを待つ上限。これを超えたら諦めて出す——お知らせを await して
 // いる効果処理があるので、**待ち続けて対局が止まる方が実害が大きい**（続き421と同じ考え方）。
 const NOTICE_MODAL_WAIT_MAX_MS = 10000;

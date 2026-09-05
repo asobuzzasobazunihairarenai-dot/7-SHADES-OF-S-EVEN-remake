@@ -105,7 +105,14 @@ import {
 import { announceHandPickups, announceCardLocked, announceDrawCount, announceCardDiscarded } from "./hand-announcer.js";
 import { clearTurnEventStock, getTurnEventStockKey } from "./turn-event-stock.js";
 // 盤面の演出中は「情報を見せるだけ」のモーダルを演出の後まで待たせる（#261）。
-import { withBoardAnimation, beginBoardAnimation, endBoardAnimation, setAnimGateLogger } from "./anim-gate.js";
+import {
+  withBoardAnimation,
+  beginBoardAnimation,
+  endBoardAnimation,
+  setAnimGateLogger,
+  isBoardAnimationPlaying,
+  isNoticeQueueBusy,
+} from "./anim-gate.js";
 // 【#266】お知らせを待たせた時間を行動ログへ残す（ユーザー要望「表示タイミングをログに出るように」）。
 // anim-gate.js は import を一切持たない葉モジュールなので、記録する手段をここから差し込む。
 setAnimGateLogger((event, data) => logAction(event, data));
@@ -864,12 +871,17 @@ function currentEffectReasonLabel() {
   const def = getCardDefinition(currentEffectCardIdForReason);
   return def ? t("game.effectOf", { card: cardDisplayName(def.id) }) : null;
 }
-async function discardFromHandReveal(tokenId) {
-  playHandCardBurn(tokenId); // #3: 捨てる瞬間、そのカードの位置で焼失演出（トークンが消える前に捕捉）
+// opts.silent: 「捨てた」ことを見せない（焼失演出も出さない・右下の出来事にも積まない）。
+// 【#268】赤のキューブ フェニックスは「捨て場の上から2番目」を取るために、一番上を一度
+// 引いて退避し、あとで捨て場へ戻す（捨て場には途中を直接指す手段が無いため）。この
+// 「戻す」は捨てた行為ではないのに、以前は普通の捨てと同じ扱いで告知していたため、
+// 追色コストで捨てたカードが（そのまま一番上にあるので）**2回捨てたように見えて**いた。
+async function discardFromHandReveal(tokenId, opts = {}) {
+  if (!opts.silent) playHandCardBurn(tokenId); // #3: 捨てる瞬間、そのカードの位置で焼失演出（トークンが消える前に捕捉）
   // #4: 「捨て」もターンの出来事ストックに残す。捨て場は表向き＝公開情報なので中身を出してよい。
   // トークンは直後に手札から消えるので、消える前にここで拾っておく。
   {
-    const discarded = getState().tokens.find((t) => t.id === tokenId);
+    const discarded = opts.silent ? null : getState().tokens.find((t) => t.id === tokenId);
     if (discarded?.cardId) announceCardDiscarded(discarded.location?.player ?? getSelfSeat(), discarded.cardId, currentEffectReasonLabel());
   }
   if (isOnlineMode()) {
@@ -3901,6 +3913,13 @@ document.addEventListener(
         for (const el of elements) {
           const cardEl = el.closest(".board-card.is-usable-while-locked");
           if (!cardEl) continue;
+          // 【#269】ユーザー報告「手札を選択したのに手札の背面のエターナルカードを
+          // クリックしちゃってます」。自分の手札の扇は、自分のロックエリアの帯に**重なって**
+          // 描かれる。elementsFromPoint() は手前から順に返すので、手札カードの方が手前に
+          // あるなら、そのタップは手札のもの——ここで拾ってはいけない（#189 でホバー拡大と
+          // ドラッグ開始に入れたのと同じ考え方。この経路だけ抜けていた）。
+          const frontHandEl = elements.find((e2) => e2.closest(".hand-card"));
+          if (frontHandEl && elements.indexOf(frontHandEl) < elements.indexOf(el)) break;
           const tok = getState().tokens.find((t) => t.id === cardEl.dataset.tokenId);
           if (tok && tok.location.zone === "lock" && SIDE_TO_SEAT[tok.location.side] === getSelfSeat()) {
             e.preventDefault();
@@ -12532,32 +12551,64 @@ function markEndTurnAdvancePending() {
   autoEndTurnPendingForTurn = getState().turnNumber;
   autoEndTurnPendingSince = Date.now();
 }
+// 【#267】自動ターン終了を実際に撃つところ。中央（お知らせ・演出）が塞がっている間は撃たずに
+// 少し置いてやり直す。待ちっぱなしで対局が止まる方が実害が大きいので必ず上限を設ける。
+const AUTO_END_TURN_DEFER_MAX_MS = 6000;
+let autoEndTurnDeferForTurn = null;
+let autoEndTurnDeferSince = 0;
+function fireAutoEndTurn() {
+  // #130: 直前に自動ターン終了を送っていて、まだサーバーからターン交代が
+  // 戻ってきていない（turnNumberが変わっていない）間は再クリックしない。
+  // これをしないとオンライン往復の遅延中にNEXT_TURNを連打して相手のターンが飛ぶ。
+  if (isEndTurnAdvancePending()) return;
+  // ユーザー報告「収穫と種まきの到達効果処理が始まったばかりなのにターンが
+  // 自動で終了してしまう」「接触を申し込んでいる最中にターンが終了してしまう」
+  // の原因: armされた時点のshouldEmphasizeを信じてそのままクリックしていたが、
+  // render()はstate.js側のdispatch（moveToken等）が起きた時にしか呼ばれない
+  // ため、「移動した直後・到達効果の自動処理がまだ始まる前」にたまたまrender()が
+  // 走ってarmされてしまうと、その後の「stateの変化を伴わない待ち」の間は
+  // shouldEmphasizeが再評価されず、古い「安全」判定のまま1.5秒後に発火していた。
+  // 発火時点で必ずcomputeShouldEmphasize()を呼び直してから撃つ。
+  if (!computeShouldEmphasize()) return;
+  // 【#267】中央にお知らせが出ている／盤面の演出が流れている間はターンを終えない。
+  // ユーザー報告「CPUの処理をゆっくりに設定しているのにすごく早く感じるときがある」。
+  // #266 で決めた「画面の中央は一度に1つだけ・中央がふさがっている間はゲームを進めない」
+  // という規則を、フェイズの開始（enterPhase）だけでなくターンの終わりにも適用する。
+  if (isBoardAnimationPlaying() || isNoticeQueueBusy()) {
+    const turn = getState().turnNumber;
+    if (autoEndTurnDeferForTurn !== turn) {
+      autoEndTurnDeferForTurn = turn;
+      autoEndTurnDeferSince = Date.now();
+    }
+    if (Date.now() - autoEndTurnDeferSince < AUTO_END_TURN_DEFER_MAX_MS) {
+      // まだ待てる。少し置いて同じ判定をやり直す（render() が来なくても自力で戻ってくる）。
+      if (!autoEndTurnTimer) {
+        autoEndTurnTimer = setTimeout(() => {
+          autoEndTurnTimer = null;
+          fireAutoEndTurn();
+        }, 200);
+      }
+      return;
+    }
+  }
+  if (autoEndTurnDeferForTurn !== null) {
+    const waited = Date.now() - autoEndTurnDeferSince;
+    autoEndTurnDeferForTurn = null;
+    if (waited >= 300) logAction("diag-turn-end-deferred", { waited });
+  }
+  endTurnButtonEl?.click();
+}
 function reconcileAutoEndTurn(shouldEmphasize) {
   if (shouldEmphasize) {
     if (autoEndTurnTimer) return;
     autoEndTurnTimer = setTimeout(() => {
       autoEndTurnTimer = null;
-      // #130: 直前に自動ターン終了を送っていて、まだサーバーからターン交代が
-      // 戻ってきていない（turnNumberが変わっていない）間は再クリックしない。
-      // これをしないとオンライン往復の遅延中にNEXT_TURNを連打して相手のターンが飛ぶ。
-      if (isEndTurnAdvancePending()) return;
-      // ユーザー報告「収穫と種まきの到達効果処理が始まったばかりなのにターンが
-      // 自動で終了してしまう」「接触を申し込んでいる最中にターンが終了してしまう」
-      // の原因: armされた時点のshouldEmphasizeを信じてそのままクリックしていたが、
-      // render()はstate.js側のdispatch（moveToken等）が起きた時にしか呼ばれない
-      // ため、「移動した直後・到達効果の自動処理がまだ始まる前（arrivalEffect
-      // AutoProcessingがまだfalseの一瞬）」にたまたまrender()が走ってarmされて
-      // しまうと、その後カード効果の候補選択待ち（DOM操作のみでrender()を呼ばない）
-      // のような「stateの変化を伴わない待ち」が続く間はshouldEmphasizeが再評価
-      // されず、armされた時の古い「安全」判定のまま1.5秒後に発火していた。発火
-      // 時点で必ずcomputeShouldEmphasize()を呼び直し、その時点のライブな状態
-      // （arrivalEffectAutoProcessing・pendingContact等、render()を経由しない
-      // プレーンなJS変数も含む）で再確認してからでないとクリックしない。
-      if (computeShouldEmphasize()) endTurnButtonEl?.click();
+      fireAutoEndTurn();
     }, AUTO_END_TURN_DELAY_MS);
   } else if (autoEndTurnTimer) {
     clearTimeout(autoEndTurnTimer);
     autoEndTurnTimer = null;
+    autoEndTurnDeferForTurn = null;
   }
 }
 

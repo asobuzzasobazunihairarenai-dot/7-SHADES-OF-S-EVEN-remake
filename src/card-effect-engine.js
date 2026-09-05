@@ -887,10 +887,10 @@ async function runAction(action, ctx, helpers) {
       if (!targetToken) {
         // 2枚目が引けなかった場合（同時操作等でスタック枚数がズレた等）、退避した分を
         // 捨て場へ戻して原状回復する。
-        await helpers.discardAndSync(setAsideToken.id);
+        await helpers.discardAndSync(setAsideToken.id, { silent: true }); // 【#268】戻すだけなので「捨てた」とは知らせない
         return false;
       }
-      await helpers.discardAndSync(setAsideToken.id);
+      await helpers.discardAndSync(setAsideToken.id, { silent: true }); // 【#268】戻すだけなので「捨てた」とは知らせない
       // お知らせ（ユーザー要望）: 誰が捨て場から何を手札に加えたか。
       await helpers.announceEffectReason?.(
         ctx.cardId,

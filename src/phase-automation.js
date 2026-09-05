@@ -37,7 +37,7 @@ import { logAction } from "./action-log.js";
 import { isAutoPhaseSkipEnabled, onAutoPhaseSkipChange } from "./auto-phase-skip-setting.js";
 import { isCpuBattleActive } from "./cpu-battle-state.js";
 // 【#266】盤面の演出・中央のお知らせが出ている間はフェイズを進めない（下記 reconcile 参照）。
-import { isBoardAnimationPlaying, isNoticeQueueBusy } from "./anim-gate.js";
+import { isBoardAnimationPlaying, isNoticeQueueBusy, isPhaseAnnounceVisible } from "./anim-gate.js";
 
 // フェイズ自動進行が「今どの席を対象に動くか」。通常は自分の席（getSelfSeat）。ただしローカルの
 // CPU戦では、自分(A)だけでなくCPU(C)の番も自動で流したいので、その時だけ「今のターン
@@ -901,7 +901,11 @@ let enterPhaseDeferStartedAt = 0;
 const ENTER_PHASE_DEFER_MAX_MS = 8000;
 
 function phaseDisplayBusy() {
-  return isBoardAnimationPlaying() || isNoticeQueueBusy();
+  // 【#270】フェイズ告知が出ている間は次のフェイズへ進まない。ユーザー報告「CPUがハンドフェイズを
+  // スキップするとき、まだハンドフェイズモーダルが出ているのにムーブフェイズモーダルがラップして
+  // くる」＝告知は 2.6 秒表示なのに自動スキップは 1.5 秒で次へ行くため、同じ場所に2枚重なっていた。
+  // 上限（ENTER_PHASE_DEFER_MAX_MS）があるので、告知が消えなくても対局は止まらない。
+  return isBoardAnimationPlaying() || isNoticeQueueBusy() || isPhaseAnnounceVisible();
 }
 
 function scheduleEnterPhaseRetry() {
@@ -935,6 +939,7 @@ function enterPhase(phase, player) {
 }
 
 function enterPhase__inner(phase, player) {
+  lockAdvanceGraceUntil = 0; // 【#267】次のフェイズへ進んだら猶予は用済み
   // 前のフェイズのスキップモーダルがまだ残っていれば、新しいフェイズの表示
   // （スキップモーダルであれ通常のannouncePhase()トーストであれ）とかぶらないよう
   // ここで必ず消す（詳しい経緯はdismissSkipModal()のコメント参照）。
@@ -1041,6 +1046,7 @@ export function forceEndCurrentPhase() {
 }
 
 function clearPhase() {
+  lockAdvanceGraceUntil = 0;
   if (currentPhase === null) return;
   currentPhase = null;
   phaseOwner = null;
@@ -1059,6 +1065,10 @@ function clearPhase() {
 // いる間に何も起きないと**そのまま止まってしまう**（続き407で踏んだのと同じ形）。二重に走らない
 // よう1本だけ動かす。
 let reconcileRetryTimer = null;
+// 【#267】ロックを検知してから次のフェイズへ進むまでの、ごく短い猶予（ロック演出が
+// 立ち上がるのを待つだけ。詳しくは下の placedNewLock の分岐のコメント）。
+const LOCK_ADVANCE_GRACE_MS = 400;
+let lockAdvanceGraceUntil = 0;
 // 待たされた時間を1回だけ記録する（ユーザー要望「表示タイミングをログに出るように」）。
 let reconcileDeferStartedAt = 0;
 function scheduleReconcileRetry() {
@@ -1088,21 +1098,6 @@ export function reconcilePhaseAutomation() {
   // 自動処理（＝実質的な「ターンが移った」挙動）が始まってしまう。演出キューが空になるまでは
   // フェイズ自動進行を進めない（clearPhase()はせず、そのまま待つだけにして表示のちらつきを避ける）。
   if (isGateInvasionQueueActive()) return;
-  // 【#266】ユーザー報告「フェイズの切り替えが演出中（ロック演出とか）に起きます。ミニモーダルが
-  // 中央に出ているときにもフェイズが切り替わります」。盤面の演出（ロックの刻印・到達のオーラ・
-  // 接触のタックル・駒の移動）が再生中、または中央のお知らせがまだ出ている間は、フェイズを
-  // 進めない。上のゲート侵攻の待ちと**まったく同じ形**（clearPhase はせず、ただ待つ）。
-  // 演出もお知らせも上限付きで必ず終わる（anim-gate.js の STUCK_MS / 各お知らせの hold）ので、
-  // ここで対局が止まることはない。終わったら scheduleReconcileRetry が呼び直す。
-  if (isBoardAnimationPlaying() || isNoticeQueueBusy()) {
-    scheduleReconcileRetry();
-    return;
-  }
-  if (reconcileDeferStartedAt) {
-    const waited = Date.now() - reconcileDeferStartedAt;
-    reconcileDeferStartedAt = 0;
-    if (waited >= 300) logAction("diag-phase-deferred", { waited, phase: currentPhase, via: "reconcile" });
-  }
   // #181: 最後のロックの承認待ちの間は、どのクライアントでもフェイズ自動進行を進めない
   // （承認が終われば pendingFinalLock が消えて自然に再開する）。
   if (isFinalLockApprovalPending()) return;
@@ -1126,6 +1121,30 @@ export function reconcilePhaseAutomation() {
   // 先頭としてリセットする（通常プレイではplayerは常に自分なので発火せず無害）。
   if (currentPhase !== null && phaseOwner !== null && phaseOwner !== player) {
     clearPhase();
+  }
+  // 【#266/#267】ユーザー報告「フェイズの切り替えが演出中（ロック演出とか）に起きます。ミニモーダルが
+  // 中央に出ているときにもフェイズが切り替わります」。盤面の演出（ロックの刻印・到達のオーラ・
+  // 接触のタックル・駒の移動）が再生中、または中央のお知らせがまだ出ている間は、フェイズを
+  // 進めない。上のゲート侵攻の待ちと**まったく同じ形**（clearPhase はせず、ただ待つ）。
+  // 演出もお知らせも上限付きで必ず終わる（anim-gate.js の STUCK_MS / 各お知らせの hold）ので、
+  // ここで対局が止まることはない。終わったら scheduleReconcileRetry が呼び直す。
+  //
+  // 【#267・重要】この待ちは**上の「前のターンの残骸を片付ける」処理より後**に置くこと。
+  // #266 で最初これを関数の先頭付近（ゲート侵攻の待ちの直後）に置いたところ、待っている間は
+  // 上の不具合#19の後始末（phaseOwner が変わったら clearPhase）まで飛ばしてしまい、**前のターンの
+  // currentPhase="move"＋moveActionTaken が残ったまま**次のターンに入っていた。すると
+  // computeShouldEmphasize() が即 true になって自動ターン終了が1.5秒ごとに走り続け、
+  // 何も起きないターンが猛スピードで流れる（ユーザー報告「プレゼントに到達した後とか、
+  // CPUの処理をゆっくりに設定しているのにすごく早く感じる」＝プレゼントは全員がドローするので
+  // お知らせが並び、その間ずっとこの早期returnに入っていた）。
+  if (isBoardAnimationPlaying() || isNoticeQueueBusy()) {
+    scheduleReconcileRetry();
+    return;
+  }
+  if (reconcileDeferStartedAt) {
+    const waited = Date.now() - reconcileDeferStartedAt;
+    reconcileDeferStartedAt = 0;
+    if (waited >= 300) logAction("diag-phase-deferred", { waited, phase: currentPhase, via: "reconcile" });
   }
   if (currentPhase === null) {
     // 「○○のターン」トースト・「スタートプレイヤー決定」モーダル表示中はフェイズ開始
@@ -1158,6 +1177,21 @@ export function reconcilePhaseAutomation() {
       }
     }
     if (placedNewLock) {
+      // 【#267】ユーザー報告「ロックしている最中に、ハンドフェイズのモーダルが出ました」。
+      // ロックは「トークンを動かす → その dispatch で render() → ここで次のフェイズへ →
+      // 呼び出し側に戻ってからロック演出（maybeAnnounceLock → triggerLockEffect）を始める」
+      // という順番なので、**演出が始まる前のほんの一瞬**だけ演出ゲートが下りたままになり、
+      // その隙にハンドフェイズの告知が出ていた（実測: ロックの dispatch と告知が同じ一瞬、
+      // その 27ms 後にロック演出が開始）。ロックを検知したら、演出が立ち上がるだけの
+      // ごく短い間を置いてから次へ進む——その頃には上の「中央がふさがっている間は進めない」
+      // が効くので、あとはそちらに任せられる。演出が無いカード（白黒）でも、この間の分
+      // 遅れるだけで止まりはしない。
+      if (!lockAdvanceGraceUntil) lockAdvanceGraceUntil = Date.now() + LOCK_ADVANCE_GRACE_MS;
+      if (Date.now() < lockAdvanceGraceUntil) {
+        scheduleReconcileRetry();
+        return;
+      }
+      lockAdvanceGraceUntil = 0;
       advancePhase();
       return;
     }

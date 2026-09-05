@@ -100,10 +100,17 @@ function minimizePanel() {
 function showMinimizeNoticeThenMinimize() {
   const nb = createBackdrop(() => {}, { dim: true, zIndex: 10610 });
   const m = document.createElement("div");
+  // 【#271】このモーダルだけインラインstyleで暗い色を直に書いていたため、ライトモードでも
+  // ダークのまま残っていた（CSS側のライト上書きはインラインstyleには届かない）。他のモーダルと
+  // 同じアイボリー地＋濃い文字（続き338/339で決めた配色）に切り替える。
+  const light =
+    document.body.classList.contains("theme-light") || document.body.classList.contains("theme-light-ingame");
   m.style.cssText =
     "position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(22rem, 90vw); " +
-    "background: rgba(15,23,32,0.98); border: 1px solid rgba(148,163,184,0.4); border-radius: 0.5rem; " +
-    "padding: 1.2rem; z-index: 10611; color: #e2e8f0; font-family: sans-serif; text-align: center;";
+    (light
+      ? "background: #fdfbf5; border: 1px solid rgba(176,141,63,0.55); color: #3a3326; "
+      : "background: rgba(15,23,32,0.98); border: 1px solid rgba(148,163,184,0.4); color: #e2e8f0; ") +
+    "border-radius: 0.5rem; padding: 1.2rem; z-index: 10611; font-family: sans-serif; text-align: center;";
   const txt = document.createElement("div");
   txt.textContent = t("postgamepanel.L105");
   txt.style.cssText = "margin-bottom: 1rem; line-height: 1.6; font-size: 0.9rem;";

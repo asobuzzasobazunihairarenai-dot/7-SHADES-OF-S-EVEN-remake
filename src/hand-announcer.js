@@ -75,7 +75,11 @@ async function showToast(innerHTML, opts = {}) {
   const turnKey = getTurnEventStockKey();
   // 盤面の演出が終わり、前のお知らせを読む間が空くまで待つ。中央のトーストは
   // フラッシュの長さだけ場所を占めるので、その分を「次を出さない間」として渡す。
-  await waitForNoticeSlot(flashDurationMs());
+  // 【#267】フラッシュが消えた後、右下のストックへ**飛んでいく 0.42 秒**も中央はまだ塞がって
+  // いる（ユーザー報告「ロックしている最中に、ハンドフェイズのモーダルが出ました」＝ロックの
+  // お知らせが飛んでいる途中でフェイズ告知が重なっていた。実測でもフェイズ告知はフラッシュの
+  // 表示時間が切れた 0.08 秒後に出ていた）。飛び終わるまでを「場所を占める長さ」に含める。
+  await waitForNoticeSlot(flashDurationMs() + STOCK_FLIGHT_MS);
   if (isCelebrationActive()) return;
   const toast = document.createElement("div");
   toast.className = "hand-pickup-toast is-flash";
