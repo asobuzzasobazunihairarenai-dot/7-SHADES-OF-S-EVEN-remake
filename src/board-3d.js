@@ -619,7 +619,16 @@ function sortByDepth() {
     _center.set(0, 0, 0).applyMatrix4(_world);
     list.push({ mesh, z: _center.z, i: mesh.userData.domIndex ?? 0 });
   }
-  list.sort((a, b) => (a.z !== b.z ? a.z - b.z : a.i - b.i));
+  // 【重要・#251】同じ高さのものは「DOMの並び順」で決める、という意図だったが、比較が
+  // `a.z !== b.z` の**厳密比較**だったため事実上その分岐に入らなかった。マスとその中の
+  // カードは同じ平面にあるのに、行列を積み上げた結果のZには 1e-9 程度の誤差が必ず乗るので、
+  // 毎回「別の高さ」と判定されて並び順が誤差で決まっていた（実測: ゲートのマスの板が
+  // カードより後に描かれ、.cell.is-gate の黄色い膜 rgba(250,204,21,0.12) がカード全面に
+  // 被って「カードの裏面が黄色っぽく透ける」状態になっていた）。
+  // わずかな差は「同じ高さ」とみなす。駒はtranslateZで数px以上持ち上がっているので、
+  // 0.5px の幅なら駒とカードの前後（#241）は今までどおり正しく決まる。
+  const SAME_PLANE = 0.5;
+  list.sort((a, b) => (Math.abs(a.z - b.z) > SAME_PLANE ? a.z - b.z : a.i - b.i));
   for (let i = 0; i < list.length; i++) list[i].mesh.renderOrder = i;
 }
 
@@ -902,4 +911,20 @@ export function debugShapeKeys() {
 export function debugRenderOrder(el) {
   const mesh = meshByElement.get(el);
   return mesh ? mesh.renderOrder : null;
+}
+
+// 検証用: その要素の「絵の板」と「形の板」がどう描かれているか（重なり順・色・不透明度）。
+export function debugMeshInfo(el) {
+  const one = (mesh) =>
+    mesh
+      ? {
+          renderOrder: mesh.renderOrder,
+          color: "#" + mesh.material.color.getHexString(),
+          opacity: +mesh.material.opacity.toFixed(3),
+          visible: mesh.visible,
+          domIndex: mesh.userData.domIndex,
+          z: +(mesh.matrix.elements[14]).toFixed(2),
+        }
+      : null;
+  return { image: one(meshByElement.get(el)), shape: one(shapeMeshByElement.get(el)) };
 }

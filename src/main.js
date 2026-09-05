@@ -3657,6 +3657,18 @@ let pendingPlacementLocations = new Set();
 let justPlacedLocations = new Set();
 let justPlacedClearTimer = null;
 
+// 画面を覆って返事を待つモーダルの背景が、いま実際に出ているか。
+// createBackdrop({dim:true}) が付ける .so7-modal-backdrop のうち、**表示されているもの**だけ。
+function isBlockingBackdropVisible() {
+  for (const el of document.querySelectorAll(".so7-modal-backdrop")) {
+    if (el.getClientRects().length === 0) continue; // display:none で畳まれている
+    const cs = getComputedStyle(el);
+    if (cs.visibility === "hidden" || cs.display === "none") continue;
+    return true;
+  }
+  return false;
+}
+
 document.addEventListener(
   "pointerdown",
   (e) => {
@@ -3732,6 +3744,23 @@ document.addEventListener(
         return;
       }
     }
+    // 【#250・総点検】ここから下は「盤面を触った」時の処理（アバターのメニュー・移動先の
+    // タップ・カード効果の候補選択）。このハンドラは3D階層でネイティブの当たり判定が
+    // 信用できないため elementsFromPoint() で自前に判定する——つまり**返事待ちモーダルの
+    // 背景を透かして、その下の盤面を触ってしまう**。
+    // ユーザー報告2026-09-05「接触するを押したら、その背後のマスも選択されてマス確認
+    // モーダルが出た」。ドラッグ開始側は #225 で塞いだが、こちらのタップ経路が残っていた。
+    // 画面を覆って返事を待つモーダル（createBackdrop の dim:true ＝ .so7-modal-backdrop）が
+    // 1つでも出ている間は、盤面側では何もしない。モーダル自身のボタンは上の
+    // activeTouchActionConfirm / #generic-confirm-modal の分岐で先に処理済みで、
+    // それ以外のモーダルは自前の click で動くので、ここは preventDefault せずに素通りさせる
+    // （握り潰すと、モーダルのボタンまで効かなくなる——続き76で踏んだ「画面が固まって見える」）。
+    // 【重要】「存在するか」で判定してはいけない。パネル系の背景（山札一覧・マイページ・
+    // ヘルプ・行動ログ・優先権の譲渡など7つ）は**作りっぱなしで display の切り替えだけ**で
+    // 見せ隠ししており、閉じている間もDOMに残る（実測: 起動直後から常に7個ある）。
+    // 存在で判定すると盤面が永久に触れなくなる（続き396で踏んだのと同じ罠）。
+    // 実際に画面に出ているもの（矩形を持つもの）だけを数える。
+    if (isBlockingBackdropVisible()) return;
     if (!activeEffectPicker) {
       // ユーザー要望2026-08-17「相手のアバターをクリックすると『このプレイヤーのエモートを
       // 非表示』的なボタンが出るようにしたい」。選択待ち(activeEffectPicker)中は手品師の技等の

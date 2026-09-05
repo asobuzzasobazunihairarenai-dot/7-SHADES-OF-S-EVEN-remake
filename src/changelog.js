@@ -14,6 +14,8 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "ゲートのマスに置かれたカードが、黄色っぽく透けて見えていたのを直しました。マスの色がカードの上に重なっていました。",
+      "モーダルのボタンを押した時に、その裏の盤面まで反応してしまうこと（接触の確認を押したら移動の確認も出る、など）を直しました。",
       "山札・捨て場などの山の「側面」（厚み）が消えて、上面だけが浮いて見えていたのを直しました。",
       "自分のターンに自分の駒が光る演出が、うっすらとしか見えなくなっていたのを直しました。光が盤面のカードの裏側に隠れていました。",
       "画面の大きい環境で、盤面のカードや駒がぼやけて色がくすんで見えていたのを直しました。盤面を描く解像度が画面の大きさに追いついていませんでした。同じ対局でも人によって色味が違って見えることがなくなります。",
@@ -29,6 +31,8 @@ export const CHANGELOG = [
       "「ホーム画面に追加」の案内文が、最後の2文字だけ次の行にこぼれて読みにくかったのを直しました。",
     ],
     itemsEn: [
+      "Fixed cards on a gate square looking washed out with a yellow tint — the square's colour was being drawn over the card.",
+      "Tapping a button in a dialog no longer also reaches the board behind it (for example, confirming a contact and getting the move confirmation as well).",
       "Fixed the sides (the thickness) of the deck and discard piles disappearing, leaving only the top face floating.",
       "Fixed the glow on your own piece during your turn being barely visible — the light was hidden behind the cards on the board.",
       "On large screens the board cards and pieces looked blurry and washed out. The board was being drawn at a lower resolution than the screen actually shows. Two people in the same match will no longer see different shades.",
