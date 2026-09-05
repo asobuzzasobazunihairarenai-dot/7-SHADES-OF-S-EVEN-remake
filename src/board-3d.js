@@ -27,6 +27,7 @@
 import * as THREE from "../vendor/three.module.min.js";
 import { subscribe } from "./state.js";
 import { logAction } from "./action-log.js";
+import { syncOverlayMirrors, clearOverlayMirrors, removeOverlayLayer } from "./board-3d-overlay.js";
 import { isBoard3dEnabled, setBoard3dEnabledSetting } from "./board-3d-setting.js";
 
 let renderer = null;
@@ -691,57 +692,44 @@ function maybeLogStats() {
 // そこで、光っている要素と同じ位置・同じ大きさの**空の箱**をキャンバスより手前の層に置き、
 // 既存のCSSアニメーションをそこで再生する。WebGL側で光を描き直すより確実で、
 // 「常時光る演出をやめる」設定（body.reduce-glow）もそのまま効く。
-let glowLayerEl = null;
-const glowMirrors = new Map(); // 元の要素 -> 手前に置いた箱
-function ensureGlowLayer(sceneEl) {
-  if (glowLayerEl && glowLayerEl.isConnected) return glowLayerEl;
-  glowLayerEl = document.createElement("div");
-  glowLayerEl.id = "board-3d-glow-layer";
-  sceneEl.appendChild(glowLayerEl); // キャンバスより後＝手前
-  return glowLayerEl;
+// 対象は2つ。どちらも「キャンバスの裏に隠れて見えなくなる」ためここへ逃がす。
+//  ・手番の駒／ホバーの光（.piece の box-shadow アニメーション）
+//  ・ロック中でも使えるカードの周回する光・きらめき（.board-card の ::before/::after）
+// 位置は駒だけ**上面**（.piece-top）に合わせる——.piece 自身の箱は translateZ で持ち上げる
+// 前の位置なので、そこに合わせると光が下にずれる。
+function collectGlowSources(table) {
+  const out = [];
+  for (const src of table.querySelectorAll(".piece.is-my-turn-glow, .piece.hover-active")) {
+    const top = src.querySelector(".piece-top") || src;
+    out.push({
+      el: top,
+      className:
+        "board-3d-glow" +
+        (src.classList.contains("is-my-turn-glow") ? " is-turn" : "") +
+        (src.classList.contains("hover-active") ? " is-hover" : ""),
+      // 駒の色はJS側が駒ごとに設定しているので、そのまま引き継ぐ。
+      vars: { "--piece-turn-glow-color": getComputedStyle(src).getPropertyValue("--piece-turn-glow-color").trim() },
+    });
+  }
+  for (const src of table.querySelectorAll(".board-card.is-usable-while-locked")) {
+    const cs = getComputedStyle(src);
+    if (cs.display === "none" || cs.visibility === "hidden") continue;
+    out.push({
+      el: src,
+      className:
+        "board-3d-glow is-usable-while-locked" +
+        (src.classList.contains("effect-orbit") ? " effect-orbit" : "") +
+        (src.classList.contains("effect-shine") ? " effect-shine" : ""),
+      vars: { "--usable-locked-color": cs.getPropertyValue("--usable-locked-color").trim() },
+    });
+  }
+  return out;
 }
-function clearGlowLayer() {
-  for (const el of glowMirrors.values()) el.remove();
-  glowMirrors.clear();
-  glowLayerEl?.remove();
-  glowLayerEl = null;
-}
+
 function syncGlowLayer() {
   const table = getTable();
-  const sceneEl = getScene();
-  if (!table || !sceneEl) return;
-  const sources = table.querySelectorAll(".piece.is-my-turn-glow, .piece.hover-active");
-  if (!sources.length && !glowMirrors.size) return;
-  const layer = ensureGlowLayer(sceneEl);
-  const sceneRect = sceneEl.getBoundingClientRect();
-  const scale = lastStageScale || 1;
-  const seen = new Set();
-  for (const src of sources) {
-    // 見えている立方体の**上面**に合わせる（.piece自身の箱は translateZ で持ち上げる前の位置）。
-    const top = src.querySelector(".piece-top") || src;
-    const r = top.getBoundingClientRect();
-    if (r.width <= 0 || r.height <= 0) continue;
-    let el = glowMirrors.get(src);
-    if (!el) {
-      el = document.createElement("div");
-      el.className = "board-3d-glow";
-      layer.appendChild(el);
-      glowMirrors.set(src, el);
-    }
-    seen.add(src);
-    el.classList.toggle("is-turn", src.classList.contains("is-my-turn-glow"));
-    el.classList.toggle("is-hover", src.classList.contains("hover-active"));
-    // 駒の色（--piece-turn-glow-color）はJS側が駒ごとに設定しているので、そのまま引き継ぐ。
-    const color = getComputedStyle(src).getPropertyValue("--piece-turn-glow-color");
-    if (color) el.style.setProperty("--piece-turn-glow-color", color.trim());
-    el.style.left = ((r.left - sceneRect.left) / scale) + "px";
-    el.style.top = ((r.top - sceneRect.top) / scale) + "px";
-    el.style.width = (r.width / scale) + "px";
-    el.style.height = (r.height / scale) + "px";
-  }
-  for (const [src, el] of glowMirrors) {
-    if (!seen.has(src)) { el.remove(); glowMirrors.delete(src); }
-  }
+  if (!table) return;
+  syncOverlayMirrors(collectGlowSources(table));
 }
 
 function frame() {
@@ -835,7 +823,8 @@ export function setBoard3dActive(on) {
   } else {
     active = false;
     document.body.classList.remove("board-3d-on");
-    clearGlowLayer();
+    clearOverlayMirrors();
+    removeOverlayLayer();
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
     clearInterval(rebuildTimer);

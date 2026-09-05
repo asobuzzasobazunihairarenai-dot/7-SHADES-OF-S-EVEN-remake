@@ -1313,11 +1313,13 @@ body.reduce-glow [style*="rainbow-shard.webp"]::after {
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
   }
 }
-.board-card.is-usable-while-locked.effect-shine {
+.board-card.is-usable-while-locked.effect-shine,
+.board-3d-glow.is-usable-while-locked.effect-shine {
   overflow: hidden;
   animation: usable-locked-glow-pulse 4s ease-in-out infinite;
 }
-.board-card.is-usable-while-locked.effect-shine::after {
+.board-card.is-usable-while-locked.effect-shine::after,
+.board-3d-glow.is-usable-while-locked.effect-shine::after {
   content: "";
   position: absolute;
   top: 0;
@@ -1339,7 +1341,8 @@ body.reduce-glow [style*="rainbow-shard.webp"]::after {
   75%  { top: 100%; left: 0%; }
   100% { top: 0%; left: 0%; }
 }
-.board-card.is-usable-while-locked.effect-orbit::before {
+.board-card.is-usable-while-locked.effect-orbit::before,
+.board-3d-glow.is-usable-while-locked.effect-orbit::before {
   content: "";
   position: absolute;
   width: 0.4rem;
@@ -7430,7 +7433,10 @@ body.reduce-glow .piece.is-my-turn-glow .piece-face,
 body.reduce-glow .piece.hover-active.is-my-turn-glow .piece-face,
 body.reduce-glow .board-card.is-usable-while-locked.effect-shine,
 body.reduce-glow .board-card.is-usable-while-locked.effect-shine::after,
-body.reduce-glow .board-card.is-usable-while-locked.effect-orbit::before {
+body.reduce-glow .board-card.is-usable-while-locked.effect-orbit::before,
+body.reduce-glow .board-3d-glow.is-usable-while-locked.effect-shine,
+body.reduce-glow .board-3d-glow.is-usable-while-locked.effect-shine::after,
+body.reduce-glow .board-3d-glow.is-usable-while-locked.effect-orbit::before {
   animation: none !important;
 }
 /* ユーザー報告「砂時計ロープのアニメーションが環境によっては重くなる」への対応。
@@ -19813,4 +19819,21 @@ body.board-3d-on .stack-top {
 body.reduce-glow .board-3d-glow.is-turn,
 body.reduce-glow .board-3d-glow.is-turn.is-hover {
   animation: none !important;
+}
+
+/* 盤面のWebGL描画中に、一時的な演出（到達バースト・ロックの刻印など）をキャンバスの手前へ
+   逃がすための入れ物（board-3d-overlay.js の mountOverlayEffect）。中身は元の置き場所と
+   同じく inset:0 で広がるので、この箱に元の要素と同じ位置・大きさを与えるだけでよい。 */
+.board-3d-effect-box {
+  position: absolute;
+  pointer-events: none;
+}
+/* ロック中でも使えるカードの光を逃がした先の箱。カードと同じ角丸にして、
+   きらめき（帯）は箱の中で切り、周回する球は箱の外へはみ出せるようにする。 */
+.board-3d-glow.is-usable-while-locked {
+  border-radius: 0.2rem;
+  overflow: hidden;
+}
+.board-3d-glow.is-usable-while-locked.effect-orbit {
+  overflow: visible;
 }
