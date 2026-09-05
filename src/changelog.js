@@ -14,6 +14,7 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "処理中に、ロックエリアの色の枠が一瞬すべて消えてまた出る、という点滅を直しました。",
       "盤面の演出（到達した時の光、ロックした時の刻印、ロック中でも使えるカードのまわりを回る光）が、盤面の絵の裏に隠れて見えなくなっていたのを直しました。",
       "ゲートのマスに置かれたカードが、黄色っぽく透けて見えていたのを直しました。マスの色がカードの上に重なっていました。",
       "モーダルのボタンを押した時に、その裏の盤面まで反応してしまうこと（接触の確認を押したら移動の確認も出る、など）を直しました。",
@@ -32,6 +33,7 @@ export const CHANGELOG = [
       "「ホーム画面に追加」の案内文が、最後の2文字だけ次の行にこぼれて読みにくかったのを直しました。",
     ],
     itemsEn: [
+      "Fixed the coloured frames in the Lock Areas flickering — all of them briefly vanished and came back while the game was processing.",
       "Board effects (the glow on arrival, the lock stamp, the light circling cards you can still use while locked) were hidden behind the board artwork. They are visible again.",
       "Fixed cards on a gate square looking washed out with a yellow tint — the square's colour was being drawn over the card.",
       "Tapping a button in a dialog no longer also reaches the board behind it (for example, confirming a contact and getting the move confirmation as well).",

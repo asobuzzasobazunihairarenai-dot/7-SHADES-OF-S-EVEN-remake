@@ -246,10 +246,25 @@ let lastShapeSpecs = new Map();
 let lastShapeReadAt = 0;
 const SHAPE_READ_INTERVAL_MS = 400;
 
+// 前回読んだ時に見た要素（塗りが無くて板を作らなかったものも含む）。DOMが作り直された
+// ことを見分けるために持つ——【#253】render() は盤面のDOMを毎回作り直すので、その直後は
+// キャッシュの要素が**全部いなくなる**。以前はそれを消すだけで次の読み直し（最大400ms後）まで
+// 待っていたため、その間だけマスとロックの色枠が丸ごと0枚になっていた
+// （ユーザー報告「たまに処理中にロックエリアのカラー枠が全部消えたりついたりします」。
+//  実際にログへ quads:59 / shapes:0 のように残っていた）。
+let lastShapeSeen = new Set();
+
 // 剥がすルールを一瞬だけ無効化して、CSSが本来意図している値を読む。
 function readShapeSpecs(table, force) {
   const now = performance.now();
-  if (!force && now - lastShapeReadAt < SHAPE_READ_INTERVAL_MS) {
+  const els = table.querySelectorAll(SHAPE_SELECTOR);
+  // 前回見ていない要素が1つでもあれば、DOMが作り直された＝キャッシュはもう使えない。
+  // 間隔を待たずに読み直す（待つと上記のとおり枠が消える）。
+  let replaced = false;
+  for (const el of els) {
+    if (!lastShapeSeen.has(el)) { replaced = true; break; }
+  }
+  if (!force && !replaced && now - lastShapeReadAt < SHAPE_READ_INTERVAL_MS) {
     // 前回の結果のうち、まだ画面にある要素の分だけを使う。
     for (const el of [...lastShapeSpecs.keys()]) {
       if (!el.isConnected) lastShapeSpecs.delete(el);
@@ -257,6 +272,7 @@ function readShapeSpecs(table, force) {
     return lastShapeSpecs;
   }
   lastShapeReadAt = now;
+  lastShapeSeen = new Set(els);
   return (lastShapeSpecs = readShapeSpecsNow(table));
 }
 
