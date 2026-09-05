@@ -27,7 +27,6 @@
 import * as THREE from "../vendor/three.module.min.js";
 import { subscribe } from "./state.js";
 import { logAction } from "./action-log.js";
-import { syncOverlayMirrors, clearOverlayMirrors, removeOverlayLayer } from "./board-3d-overlay.js";
 import { isBoard3dEnabled, setBoard3dEnabledSetting } from "./board-3d-setting.js";
 
 let renderer = null;
@@ -65,7 +64,13 @@ const textureLoader = new THREE.TextureLoader();
 // CSSの色と inset の影だけで描いているので、WebGLに移そうとしても板が作られず、
 // 塗りを剥がした結果まるごと消えてしまう（ユーザー報告「山札の側面がなくなっちゃってます」）。
 // 山の**上面**だけは実際のカード画像を持つのでWebGLで描く。
-const PAINT_SELECTOR = [".board-card", ".piece-face", ".stack-top"].join(",");
+// 【第3段（2026-09-05）】プレイマットと床もWebGLで描く。
+// 狙いは軽量化ではなく**重なり順の整理**——今まではキャンバスを盤面のDOMより手前に置き、
+// 「手前に来るべきもの（カード・駒・山）だけ」をWebGLへ移していた。そのせいで、DOMに残した
+// 光る演出がキャンバスの裏に隠れ、一時は「手前へ逃がす層」が必要になっていた（続き416）。
+// 盤面で**塗っているものを全部WebGLへ移せば**、キャンバスを盤面DOMの一番下に置ける。
+// そうすると光・枠・刻印はDOMのまま自然に手前になり、隠れる問題が構造的に無くなる。
+const PAINT_SELECTOR = [".board-card", ".piece-face", ".stack-top", ".playmat-bg", ".table-background-bg"].join(",");
 
 // 【第2段（2026-09-04）】画像だけでなく、**マスとロックスロットの「形」**（角丸の枠と
 // 薄い背景色）もWebGLで描く。狙いは合成レイヤーの枚数を減らすこと——iOSは preserve-3d の
@@ -708,46 +713,6 @@ function maybeLogStats() {
 // そこで、光っている要素と同じ位置・同じ大きさの**空の箱**をキャンバスより手前の層に置き、
 // 既存のCSSアニメーションをそこで再生する。WebGL側で光を描き直すより確実で、
 // 「常時光る演出をやめる」設定（body.reduce-glow）もそのまま効く。
-// 対象は2つ。どちらも「キャンバスの裏に隠れて見えなくなる」ためここへ逃がす。
-//  ・手番の駒／ホバーの光（.piece の box-shadow アニメーション）
-//  ・ロック中でも使えるカードの周回する光・きらめき（.board-card の ::before/::after）
-// 位置は駒だけ**上面**（.piece-top）に合わせる——.piece 自身の箱は translateZ で持ち上げる
-// 前の位置なので、そこに合わせると光が下にずれる。
-function collectGlowSources(table) {
-  const out = [];
-  for (const src of table.querySelectorAll(".piece.is-my-turn-glow, .piece.hover-active")) {
-    const top = src.querySelector(".piece-top") || src;
-    out.push({
-      el: top,
-      className:
-        "board-3d-glow" +
-        (src.classList.contains("is-my-turn-glow") ? " is-turn" : "") +
-        (src.classList.contains("hover-active") ? " is-hover" : ""),
-      // 駒の色はJS側が駒ごとに設定しているので、そのまま引き継ぐ。
-      vars: { "--piece-turn-glow-color": getComputedStyle(src).getPropertyValue("--piece-turn-glow-color").trim() },
-    });
-  }
-  for (const src of table.querySelectorAll(".board-card.is-usable-while-locked")) {
-    const cs = getComputedStyle(src);
-    if (cs.display === "none" || cs.visibility === "hidden") continue;
-    out.push({
-      el: src,
-      className:
-        "board-3d-glow is-usable-while-locked" +
-        (src.classList.contains("effect-orbit") ? " effect-orbit" : "") +
-        (src.classList.contains("effect-shine") ? " effect-shine" : ""),
-      vars: { "--usable-locked-color": cs.getPropertyValue("--usable-locked-color").trim() },
-    });
-  }
-  return out;
-}
-
-function syncGlowLayer() {
-  const table = getTable();
-  if (!table) return;
-  syncOverlayMirrors(collectGlowSources(table));
-}
-
 function frame() {
   if (!active) return;
   rafId = requestAnimationFrame(frame);
@@ -761,7 +726,6 @@ function frame() {
   }
   if (!syncCamera()) return;
   sortByDepth();
-  syncGlowLayer();
   const t1 = performance.now();
   renderer.render(scene, camera);
   lastDrawMs = lastDrawMs * 0.8 + (performance.now() - t1) * 0.2;
@@ -779,9 +743,13 @@ function ensureRenderer() {
   canvasEl = document.createElement("canvas");
   canvasEl.id = "board-3d-canvas";
   // 盤面のDOM（当たり判定用に残す）より手前、UI（ボタン・モーダル）より奥に置く。
+  // 【第3段】キャンバスは盤面のDOMより**奥**に置く（z-index:0・.scene の先頭）。
+  // 盤面で塗っているものは全部WebGLへ移したので、DOM側は「大きさと当たり判定だけの
+  // 透明な箱」になっている。奥に置けば、DOMに残っている光・枠・刻印・ハイライトは
+  // 何もしなくても自然に手前になる（逃がし層が要らなくなる）。
   canvasEl.style.cssText =
-    "position:absolute; left:0; top:0; pointer-events:none; z-index:5;";
-  sceneEl.appendChild(canvasEl);
+    "position:absolute; left:0; top:0; pointer-events:none; z-index:0;";
+  sceneEl.insertBefore(canvasEl, sceneEl.firstChild);
   try {
     renderer = new THREE.WebGLRenderer({ canvas: canvasEl, alpha: true, antialias: true, powerPreference: "low-power" });
   } catch (err) {
@@ -839,8 +807,6 @@ export function setBoard3dActive(on) {
   } else {
     active = false;
     document.body.classList.remove("board-3d-on");
-    clearOverlayMirrors();
-    removeOverlayLayer();
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
     clearInterval(rebuildTimer);

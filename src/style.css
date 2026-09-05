@@ -1313,13 +1313,11 @@ body.reduce-glow [style*="rainbow-shard.webp"]::after {
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
   }
 }
-.board-card.is-usable-while-locked.effect-shine,
-.board-3d-glow.is-usable-while-locked.effect-shine {
+.board-card.is-usable-while-locked.effect-shine {
   overflow: hidden;
   animation: usable-locked-glow-pulse 4s ease-in-out infinite;
 }
-.board-card.is-usable-while-locked.effect-shine::after,
-.board-3d-glow.is-usable-while-locked.effect-shine::after {
+.board-card.is-usable-while-locked.effect-shine::after {
   content: "";
   position: absolute;
   top: 0;
@@ -1341,8 +1339,7 @@ body.reduce-glow [style*="rainbow-shard.webp"]::after {
   75%  { top: 100%; left: 0%; }
   100% { top: 0%; left: 0%; }
 }
-.board-card.is-usable-while-locked.effect-orbit::before,
-.board-3d-glow.is-usable-while-locked.effect-orbit::before {
+.board-card.is-usable-while-locked.effect-orbit::before {
   content: "";
   position: absolute;
   width: 0.4rem;
@@ -7433,10 +7430,7 @@ body.reduce-glow .piece.is-my-turn-glow .piece-face,
 body.reduce-glow .piece.hover-active.is-my-turn-glow .piece-face,
 body.reduce-glow .board-card.is-usable-while-locked.effect-shine,
 body.reduce-glow .board-card.is-usable-while-locked.effect-shine::after,
-body.reduce-glow .board-card.is-usable-while-locked.effect-orbit::before,
-body.reduce-glow .board-3d-glow.is-usable-while-locked.effect-shine,
-body.reduce-glow .board-3d-glow.is-usable-while-locked.effect-shine::after,
-body.reduce-glow .board-3d-glow.is-usable-while-locked.effect-orbit::before {
+body.reduce-glow .board-card.is-usable-while-locked.effect-orbit::before {
   animation: none !important;
 }
 /* ユーザー報告「砂時計ロープのアニメーションが環境によっては重くなる」への対応。
@@ -19771,7 +19765,9 @@ body.theme-light .post-game-friend-chip {
    いた影・光彩だけ——つまりiOSで合成レイヤーとGPUメモリを食っていた分。 */
 body.board-3d-on .board-card,
 body.board-3d-on .piece-face,
-body.board-3d-on .stack-top {
+body.board-3d-on .stack-top,
+body.board-3d-on .playmat-bg,
+body.board-3d-on .table-background-bg {
   background-image: none !important;
   background-color: transparent !important;
   /* 影・光彩も剥がす（iOSで重い合成の元）。ただし !important は付けない——「今ここに置いた」
@@ -19779,61 +19775,21 @@ body.board-3d-on .stack-top {
      このルールより詳細度が高い）は、3D描画中でも今までどおり見えてほしいため。 */
   box-shadow: none;
 }
-/* WebGLのキャンバス自体。.scene の中に敷き、盤面のDOMより手前・UIより奥に置く。 */
+/* WebGLのキャンバス自体。.scene の中の**一番奥**（z-index:0）に敷く。盤面で塗っている
+   ものは全部WebGLへ移してあるので、DOM側は透明な箱だけが残る＝奥に敷いても何も隠れない。
+   逆に、DOMに残っている光・枠・刻印・ハイライトは何もしなくても自然に手前になる。 */
 #board-3d-canvas {
   position: absolute;
   left: 0;
   top: 0;
   pointer-events: none;
 }
-
-/* WebGL描画中に、DOMの「光る演出」をキャンバスの手前へ逃がす層（board-3d.js の
-   syncGlowLayer）。キャンバス(z-index:5)より手前に置くことで、手番の駒のグローや
-   ホバーの光が、WebGLの描くカード・マスの板に隠されなくなる（ユーザー報告2026-09-05
-   「自ターン時の駒のカラーEFFECTがしっかり光っていない」）。中身は空の箱で、
-   位置と大きさだけJS側が元の要素に合わせる。 */
-#board-3d-glow-layer {
-  position: absolute;
-  left: 0;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
-  z-index: 6;
-}
-.board-3d-glow {
-  position: absolute;
-  border-radius: 0.2rem;
-  pointer-events: none;
-}
-.board-3d-glow.is-turn {
-  animation: piece-own-turn-glow 2.6s ease-in-out infinite;
-}
-.board-3d-glow.is-hover {
-  box-shadow: 0 0 0.4rem 0.12rem rgba(56, 189, 248, 0.9);
-}
-.board-3d-glow.is-turn.is-hover {
-  animation: piece-own-turn-glow-hover 2.6s ease-in-out infinite;
-}
-/* 「常時光る演出をやめる」設定は、逃がした先でも同じように効かせる。 */
-body.reduce-glow .board-3d-glow.is-turn,
-body.reduce-glow .board-3d-glow.is-turn.is-hover {
-  animation: none !important;
+/* 盤面のDOMはキャンバスより手前。z-index を明示しないと、position 指定の無い通常要素と
+   キャンバス(position:absolute)の重なりが DOM 順まかせになり、環境によって前後が入れ替わる
+   （このプロジェクトで何度も踏んでいる。CLAUDE.md「重なる可能性のある要素全部に明示的な
+   z-index を割り振る」参照）。 */
+body.board-3d-on #game-table {
+  position: relative;
+  z-index: 1;
 }
 
-/* 盤面のWebGL描画中に、一時的な演出（到達バースト・ロックの刻印など）をキャンバスの手前へ
-   逃がすための入れ物（board-3d-overlay.js の mountOverlayEffect）。中身は元の置き場所と
-   同じく inset:0 で広がるので、この箱に元の要素と同じ位置・大きさを与えるだけでよい。 */
-.board-3d-effect-box {
-  position: absolute;
-  pointer-events: none;
-}
-/* ロック中でも使えるカードの光を逃がした先の箱。カードと同じ角丸にして、
-   きらめき（帯）は箱の中で切り、周回する球は箱の外へはみ出せるようにする。 */
-.board-3d-glow.is-usable-while-locked {
-  border-radius: 0.2rem;
-  overflow: hidden;
-}
-.board-3d-glow.is-usable-while-locked.effect-orbit {
-  overflow: visible;
-}
