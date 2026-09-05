@@ -32,6 +32,10 @@ let prevEl = null;
 let prevListEl = null;
 let prevCountEl = null;
 let prevExpanded = false;
+// 【ユーザー要望2026-09-05】その行が「誰のターンだったか」も出す（さっき相手が何をしたのかが
+// 一目で分かるように）。名前は呼び出し側（main.js）から渡してもらう——ここで player-identity.js を
+// import すると online.js を経由して循環しかねないため。
+let prevOwnerName = "";
 
 function ensureStrip() {
   if (stripEl) return stripEl;
@@ -92,7 +96,11 @@ function renderPrev() {
   if (!prevEl) return;
   prevEl.classList.toggle("is-collapsed", !prevExpanded);
   const labelEl = document.getElementById("turn-event-stock-prev-label");
-  if (labelEl) labelEl.textContent = t(prevExpanded ? "tes.prevOpen" : "tes.prevClosed");
+  if (labelEl) {
+    labelEl.textContent = prevOwnerName
+      ? t(prevExpanded ? "tes.prevOpenBy" : "tes.prevClosedBy", { name: prevOwnerName })
+      : t(prevExpanded ? "tes.prevOpen" : "tes.prevClosed");
+  }
   prevListEl.innerHTML = "";
   for (const entry of prevEntries) prevListEl.appendChild(buildChip(entry, true));
   // 畳んでいる時、隠れている枚数を「+N」で見せる（何枚あるか分かるように）。
@@ -241,7 +249,9 @@ export function pushTurnEventStock(entry, turnKey = null) {
 // 「誰のでもターンが変わるたび」に呼ばれる（main.jsのrender()から、turnNumber/turnPlayerの
 // 変化を見て）。今までは捨てていたが、ユーザー要望で**前のターンの行へ移して残す**ようにした。
 // 残すのは直前の1ターン分だけ（それ以上は帯が長くなって盤面を隠すため）。
-export function clearTurnEventStock() {
+// ownerName（省略可）: 今まさに終わったターンの持ち主の表示名。行の見出しに添える。
+export function clearTurnEventStock(ownerName = "") {
+  prevOwnerName = ownerName || "";
   prevEntries = entries.slice();
   prevExpanded = false; // ターンが変わったら必ず畳んだ状態に戻す
   entries.length = 0;

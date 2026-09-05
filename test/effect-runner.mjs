@@ -44,7 +44,13 @@ export async function runOneCase(spec) {
   const helpers = {
     // --- 状態変更（本物の state.js を dispatch）---
     moveAndSync: async (tokenId, location, sound, suppressArrival) => { callLog.push(["moveAndSync", tokenId, location]); st.moveToken(tokenId, location, suppressArrival); },
-    discardAndSync: async (tokenId, pile) => { callLog.push(["discard", tokenId, pile]); st.sendTokenToPile(tokenId, pile || "discard"); },
+    // 第2引数は本物（main.js の discardFromHandReveal）ではオプション（{silent}/{noBurn}）。
+    // 昔ここを「捨て先の山」として受けていた名残があったので、文字列の時だけ山名として扱う。
+    discardAndSync: async (tokenId, opts) => {
+      const pile = typeof opts === "string" ? opts : "discard";
+      callLog.push(["discard", tokenId, pile]);
+      st.sendTokenToPile(tokenId, pile);
+    },
     drawCards: async (player, count) => { callLog.push(["draw", player, count]); for (let i = 0; i < count; i++) st.drawFromPile("deck", { zone: "hand", player }); },
     flipCard: async (tokenId) => { callLog.push(["flip", tokenId]); const t = findToken(tokenId); if (t && !t.faceUp) st.flipToken(tokenId); },
     placeFromDeck: async (location, faceUp) => { callLog.push(["placeFromDeck", location, faceUp]); st.drawFromPile("deck", location); if (faceUp) { const top = S().tokens.filter((t)=>t.kind==="card"&&t.location.zone===location.zone&&(location.zone==="cell"?t.location.row===location.row&&t.location.col===location.col:t.location.side===location.side&&t.location.index===location.index)); const last = top[top.length-1]; if (last && !last.faceUp) st.flipToken(last.id); } },

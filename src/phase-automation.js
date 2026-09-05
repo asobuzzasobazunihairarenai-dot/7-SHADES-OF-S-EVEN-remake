@@ -914,13 +914,27 @@ let enterPhaseDeferStartedAt = 0;
 // 万一ゲートが下りない時の上限。演出は15秒で自力解除、お知らせも上限付きなので通常は届かないが、
 // **フェイズが永久に始まらない方が実害が大きい**ので必ず抜ける（続き421と同じ考え方）。
 const ENTER_PHASE_DEFER_MAX_MS = 8000;
+// 【#276】手札効果の解決を待つ時の上限は長めに取る。効果は人が選ぶ時間も含むので8秒では
+// 足りず（試練の儀式で実測14秒）、途中でフェイズが切り替わってしまう。handEffectBusy 自身が
+// main.js のウォッチドッグ（#93/#214）で必ず解除されるので、ここが永久に待つことはない。
+const ENTER_PHASE_DEFER_MAX_HAND_EFFECT_MS = 30000;
+function enterPhaseDeferMaxMs() {
+  return handEffectBusy ? ENTER_PHASE_DEFER_MAX_HAND_EFFECT_MS : ENTER_PHASE_DEFER_MAX_MS;
+}
 
 function phaseDisplayBusy() {
   // 【#270】フェイズ告知が出ている間は次のフェイズへ進まない。ユーザー報告「CPUがハンドフェイズを
   // スキップするとき、まだハンドフェイズモーダルが出ているのにムーブフェイズモーダルがラップして
   // くる」＝告知は 2.6 秒表示なのに自動スキップは 1.5 秒で次へ行くため、同じ場所に2枚重なっていた。
   // 上限（ENTER_PHASE_DEFER_MAX_MS）があるので、告知が消えなくても対局は止まらない。
-  return isBoardAnimationPlaying() || isNoticeQueueBusy() || isPhaseAnnounceVisible();
+  // 【#276】カード効果（手札効果）の解決中もフェイズを進めない。ユーザー報告「CPUがドムス・
+  // ネロの効果を使って、その後ムーブフェイズをせずにターンを終わった」。ロック/ハンドの自動
+  // スキップは1.5秒後に advancePhase() を予約する作りなので、**予約した後に効果が始まる**と、
+  // 効果の最中にムーブフェイズが開始されてしまっていた（実測: 効果の開始1秒後にムーブ開始、
+  // 効果が終わるのはその6秒後）。reconcilePhaseAutomation 側は前から handEffectBusy を見て
+  // 止まっていたが、**入口である enterPhase の予約経路だけが素通り**していた（続き427と同じ
+  // 「別の処理が直後に走ることを前提にした担保」の形）。
+  return isBoardAnimationPlaying() || isNoticeQueueBusy() || isPhaseAnnounceVisible() || handEffectBusy;
 }
 
 function scheduleEnterPhaseRetry() {
@@ -929,7 +943,7 @@ function scheduleEnterPhaseRetry() {
     enterPhaseRetryTimer = null;
     const next = pendingEnterPhase;
     if (!next) return;
-    if (phaseDisplayBusy() && Date.now() - enterPhaseDeferStartedAt < ENTER_PHASE_DEFER_MAX_MS) {
+    if (phaseDisplayBusy() && Date.now() - enterPhaseDeferStartedAt < enterPhaseDeferMaxMs()) {
       scheduleEnterPhaseRetry();
       return;
     }
@@ -939,7 +953,7 @@ function scheduleEnterPhaseRetry() {
 }
 
 function enterPhase(phase, player) {
-  if (phaseDisplayBusy() && (!enterPhaseDeferStartedAt || Date.now() - enterPhaseDeferStartedAt < ENTER_PHASE_DEFER_MAX_MS)) {
+  if (phaseDisplayBusy() && (!enterPhaseDeferStartedAt || Date.now() - enterPhaseDeferStartedAt < enterPhaseDeferMaxMs())) {
     if (!enterPhaseDeferStartedAt) enterPhaseDeferStartedAt = Date.now();
     pendingEnterPhase = { phase, player };
     scheduleEnterPhaseRetry();
@@ -1247,6 +1261,25 @@ function clearMovableHighlights() {
   for (const el of highlightedMoveCellEls) el.classList.remove("phase-move-highlight", "phase-contact-highlight");
   highlightedMoveCellEls = [];
   document.body.classList.remove("phase-move-picking");
+}
+
+// 【#276】今のムーブフェイズで「移動できるマス」「接触できる相手」を、**状態から**数え直す。
+// ユーザー報告「CPUがドムス・ネロの効果を使ってその後ムーブフェイズをせずにターンを終わった」。
+// 持ち時間切れの自動処理（main.js）は移動先の候補を**画面のハイライト(.phase-move-highlight)**
+// から集めていたが、ハイライトは render() のたびに作り直され、その再適用は reconcile が
+// 演出・お知らせ・効果処理で止められている間は行われない。つまり「候補が無い」のではなく
+// 「まだハイライトが貼られていないだけ」の瞬間に当たると、**動けると判定できずにターンを
+// 終わらせて**いた。画面ではなく事実（盤面の状態）で数えるようにする。
+// 戻り値 null ＝「今このプレイヤーのムーブフェイズではない／判定できない」。
+export function computePhaseMoveCandidates(player) {
+  if (currentPhase !== "move" || phaseOwner !== player) return null;
+  if (performingFallback || moveActionTaken || awaitingFallbackPick) return null;
+  const piece = getSelfPiece(player);
+  if (!piece || piece.location.zone !== "cell") return null;
+  const boosted = isMovementBoostActiveThisTurn(player);
+  const move = isMovementDisabledThisTurn(player) ? [] : getMoveCandidates(piece.location, boosted ? 2 : 1, boosted);
+  const contact = getContactableCells(piece.location, player);
+  return { move, contact };
 }
 
 function reconcileMovePhase(player) {

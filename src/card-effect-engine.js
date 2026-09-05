@@ -2165,7 +2165,10 @@ async function runHandEffectOption(ctx, option, helpers) {
   // 続き218: 追色コストありの手札効果（V5）は、コスト確定後に「吸収→霧散」演出を出すため、
   // ここでの視覚・音・broadcastを遅延する（deferVisual）。追色なし（V4）は従来通りここで霧散演出。
   const hasAddColorCost = option.cost?.verb === VERBS.DISCARD_SAME_COLOR;
-  helpers.announceUse?.(ctx.cardId, optionLabel(option), ctx.player, { deferVisual: hasAddColorCost });
+  // 【#274】追色なし(V4)の霧散演出も**完了を待つ**（追色あり(V5)は下の playAdditionalColorUse で
+  // 待っている）。待たないと、演出が始まった直後に効果本体のモーダル（試練の儀式なら色宣言）が
+  // 重なって出る。演出OFF・タップでのスキップ時も必ず解決するので、ここで止まることはない。
+  await helpers.announceUse?.(ctx.cardId, optionLabel(option), ctx.player, { deferVisual: hasAddColorCost });
   // ユーザー指摘: 手札効果は「原則まず最初にそのカードを捨てて効果を発動する」。
   // 凡例（docs/cards.md）「効果カード自身の処遇の記載がなければ、効果発動時に
   // このカードを捨てる」の「発動時に」は、追色コストの支払いやアクション実行より
@@ -2178,7 +2181,9 @@ async function runHandEffectOption(ctx, option, helpers) {
   // main.js側の他の分岐と同じ基準）。なないろの欠片の「２枚をロックする」選択肢の
   // ように、選択肢自体がこのカードを別の形で処遇する場合はkeepsCardOnUseで上書きする。
   if (!option.keepsCardOnUse && !ctx.cardId.startsWith("eternal-") && !ctx.cardId.startsWith("first-")) {
-    await helpers.discardAndSync(ctx.cardTokenId);
+    // 【#274】焼失演出は出さない（noBurn）。直前の使用演出で同じカードが霧散していくところを
+    // 既に見せているので、続けて焼失まで出すと同じカードが2回消えるように見える。
+    await helpers.discardAndSync(ctx.cardTokenId, { noBurn: true });
   }
   if (option.cost?.verb === VERBS.DISCARD_SAME_COLOR) {
     // フェニックス(first-red)ループ防止(#72): これから追色コストを払うと、その後の

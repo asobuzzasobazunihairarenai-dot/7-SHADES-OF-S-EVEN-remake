@@ -41,6 +41,7 @@ import {
   findSameColorDiscardCandidates,
   rotatedActivePlayersFrom,
   isMovementDisabledThisTurn,
+  isMovementBoostActiveThisTurn,
   isContactDisabledThisTurn,
   getLockableHandTokensExceptFinal,
 } from "./card-effect-engine.js";
@@ -67,6 +68,7 @@ import {
   setSetupRevealActive,
   canDrawFromMyDeck,
   hasPlacedNewLockThisPhase,
+  computePhaseMoveCandidates,
 } from "./phase-automation.js";
 import { initHelpButton } from "./help.js";
 import { initDiscordLink } from "./discord-link.js";
@@ -873,12 +875,15 @@ function currentEffectReasonLabel() {
   return def ? t("game.effectOf", { card: cardDisplayName(def.id) }) : null;
 }
 // opts.silent: 「捨てた」ことを見せない（焼失演出も出さない・右下の出来事にも積まない）。
+// opts.noBurn: 焼失演出だけ出さない（「捨てた」記録は残す）。【#274】手札効果を使った時、
+//   その効果カード自身を捨てる分は、直前の「使用演出（霧散）」で既に同じカードが消えていく
+//   ところを見せているため、続けて焼失演出まで出すと**同じカードが2回消える**ように見える。
 // 【#268】赤のキューブ フェニックスは「捨て場の上から2番目」を取るために、一番上を一度
 // 引いて退避し、あとで捨て場へ戻す（捨て場には途中を直接指す手段が無いため）。この
 // 「戻す」は捨てた行為ではないのに、以前は普通の捨てと同じ扱いで告知していたため、
 // 追色コストで捨てたカードが（そのまま一番上にあるので）**2回捨てたように見えて**いた。
 async function discardFromHandReveal(tokenId, opts = {}) {
-  if (!opts.silent) playHandCardBurn(tokenId); // #3: 捨てる瞬間、そのカードの位置で焼失演出（トークンが消える前に捕捉）
+  if (!opts.silent && !opts.noBurn) playHandCardBurn(tokenId); // #3: 捨てる瞬間、そのカードの位置で焼失演出（トークンが消える前に捕捉）
   // #4: 「捨て」もターンの出来事ストックに残す。捨て場は表向き＝公開情報なので中身を出してよい。
   // トークンは直後に手札から消えるので、消える前にここで拾っておく。
   {
@@ -1318,7 +1323,7 @@ async function addArrivedCardToHand(location, player) {
 // 満たすために使う。これをawaitしないと、露出到達と直後のPLACE（種まきの手札選択）が並行して走り、
 // 種まきのピッカーが宙に浮く（手札が全部トーンオフのまま固着）不具合になっていた。他の呼び出し元は
 // 従来通り撃ちっぱなし（false）で挙動を変えない。
-async function moveAndSyncForEffect(tokenId, location, soundName, suppressArrival, awaitExposedArrival = false, skipExposedArrival = false) {
+async function moveAndSyncForEffect(tokenId, location, soundName, suppressArrival, awaitExposedArrival = false, skipExposedArrival = false, animOpts = null) {
   const movingToken = getState().tokens.find((t) => t.id === tokenId);
   const fromLocation = movingToken?.location ?? null;
   // #152: 露出到達コンボは「マスの“一番上”のカードがどいて別のカードが新しく一番上になった」
@@ -1364,6 +1369,23 @@ async function moveAndSyncForEffect(tokenId, location, soundName, suppressArriva
     moveToken(tokenId, location, suppressArrival);
   }
   if (soundName) playSound(soundName);
+  // 【ユーザー要望2026-09-05】カード効果による駒の移動（ジャンプ台・試練の儀式・コノハナサクヤ・
+  // ゴメンナサイ等）にも移動演出を付ける（続き406では通常の移動だけだった）。距離で見え方を
+  // 変える: 1マス=ぴょんと跳ねる／2〜3マス=高く長く跳ぶ（ジャンプ台）／4マス以上＝ワープ
+  // （自分のゲートへ戻る等、盤面を横断する移動を跳ねさせると間延びするため）。
+  // animOpts.skipPieceMove: マスチェンジの入れ替えのように、専用の演出を別に持つ経路用。
+  if (
+    movingToken?.kind === "piece" &&
+    fromLocation?.zone === "cell" &&
+    location?.zone === "cell" &&
+    !animOpts?.skipPieceMove
+  ) {
+    const dist = Math.abs(location.row - fromLocation.row) + Math.abs(location.col - fromLocation.col);
+    // 演出は「移動後の駒のDOM位置」を着地点として測るので、先に描き直しておく
+    // （この関数は dispatch しても自動では render しない＝performPhaseMoveToCell と同じ作法）。
+    render();
+    await playPieceMoveAnimation(tokenId, fromLocation, { style: dist >= 4 ? "warp" : dist >= 2 ? "jump" : "hop" });
+  }
   // #163: 呼び出し側が露出到達コンボを別途（明示的に順序制御して）発動する場合は、ここでの
   // 自動発動を抑止する（例: マスチェンジ自身の回収時。回収の露出コンボでB(相手)の到達がA(発動者)
   // より先に発動してしまうのを防ぎ、A→Bの処理順を保つため）。既定はfalse＝従来通り自動発動。
@@ -1596,8 +1618,8 @@ async function swapPiecesForEffect(pieceTokenId, fromLocation, targetLocation) {
   // するためのフラグ）を、入れ替わる両方の駒に付ける。
   if (isOnlineMode()) {
     // オンラインは各MOVE_TOKENをサーバー（so7-apply-action）へ送る必要があるため従来通り2回に分ける。
-    await moveAndSyncForEffect(opponentPiece.id, { zone: "cell", row: fromLocation.row, col: fromLocation.col }, undefined, true);
-    await moveAndSyncForEffect(pieceTokenId, targetLocation, undefined, true);
+    await moveAndSyncForEffect(opponentPiece.id, { zone: "cell", row: fromLocation.row, col: fromLocation.col }, undefined, true, false, false, { skipPieceMove: true });
+    await moveAndSyncForEffect(pieceTokenId, targetLocation, undefined, true, false, false, { skipPieceMove: true });
   } else {
     // ローカルは原子的入れ替え（続き226）。2回のMOVE_TOKENに分けると、その間だけ両駒が片方の
     // マスに乗る一過性のpiece-overlapが生じ、スモークの不変条件チェッカーがFAILにしていた。
@@ -2499,7 +2521,8 @@ function playHandEffectUseBurn(cardId) {
 // 妨げない（続き214の方針を維持）。演出OFF時（isArrivalEffectDisabled）はモジュール側で即モーダル。
 // V4（追色なし）
 function playHandEffectUseV4(cardId, optionLabel) {
-  playCardDissolve(cardId, { onShowModal: () => showHandEffectUseModal(cardId, optionLabel) });
+  // 演出の完了で解決する Promise をそのまま返す（呼び出し側が待てるように。【#274】）。
+  return playCardDissolve(cardId, { onShowModal: () => showHandEffectUseModal(cardId, optionLabel) });
 }
 // V5（追色あり）。costStart＝追色カードの飛び出し元（ステージ座標、省略時はカード左下）。
 function playHandEffectUseV5(cardId, optionLabel, costCardId, costStart) {
@@ -2523,14 +2546,24 @@ function announceHandEffectUseForEffect(cardId, optionLabel, player, opts) {
   // V5（追色あり）は、コスト確定後に playAdditionalColorUseForEffect で「吸収→霧散」演出＋音＋
   // broadcastを出すため、ここでは視覚・音・broadcastを遅延する（deferVisual）。
   if (opts?.deferVisual) return;
+  // 【#274】ユーザー報告「試練の儀式の手札効果使用時、効果使用ボタンを押した後の演出中に
+  // 色選択モーダルが出ました」。追色あり(V5)は既に演出の完了を待っていたが、追色なし(V4)は
+  // 投げっぱなしだったため、霧散演出が始まった直後に効果本体（色宣言・マス選択等）のモーダルが
+  // 重なって出ていた。**演出の完了を待てるよう Promise を返す**（呼び出し側の
+  // card-effect-engine.js が await する）。演出OFF・タップでのスキップ時も必ず解決する。
   // 続き218（V4）: 中央の霧散演出→その後に右の使用モーダル。
-  playHandEffectUseV4(cardId, optionLabel);
+  // 演出が万一終わらなくても効果の処理が止まらないよう、上限（8秒）を付けて待つ。
+  const done = Promise.race([
+    Promise.resolve(playHandEffectUseV4(cardId, optionLabel)).catch(() => {}),
+    new Promise((r) => setTimeout(r, 8000)),
+  ]);
   // ユーザー要望「手札効果の使用が宣言されたときの効果音が欲しい。到達時の効果音を
   // 流用でよい」（続き62）。
   playSound("arrivalEffect");
   if (isOnlineMode()) {
     broadcastHandEffectUse({ fromPlayer: getSelfSeat(), cardId, optionLabel, mode: "v4" });
   }
+  return done;
 }
 
 // V5（追色あり）: 追色コスト確定後に呼ばれる（card-effect-engine.js の runHandEffectOption、
@@ -4078,19 +4111,66 @@ async function playPieceMoveAnimation(...args) {
 //   ・盤面に落ちる影が、浮いている間だけ小さく薄くなる（高さが伝わる）
 //   ・着地した瞬間に小さな衝撃の輪が広がる
 // 3D空間の外(document.body直下)に置くので、盤面のWebGL描画のON/OFFに関係なく同じに見える。
-function playPieceHopGhost(fromRect, toRect, token, durationMs) {
+// 【ユーザー要望2026-09-05】移動の見え方を場面ごとに変える。
+//   hop  … 通常の1マス移動。ぴょんと跳ねる。
+//   jump … ジャンプ台など2マス以上の移動。高く長く跳ぶ（距離が体感できる）。
+//   warp … 紫のキューブ ディメンションの移動。その場で縦に伸びて消え、移動先で戻る。
+const PIECE_MOVE_STYLES = {
+  hop: { height: 0.9, duration: 1, lean: 16 },
+  jump: { height: 2.1, duration: 1.5, lean: 24 },
+  warp: { height: 0, duration: 1.6, lean: 0 },
+};
+function pieceMoveStyleOf(name) {
+  return PIECE_MOVE_STYLES[name] || PIECE_MOVE_STYLES.hop;
+}
+
+// 通り道に残る光の軌跡（ユーザー要望「試練の儀式などの連続移動では通り道に光の軌跡が
+// うっすらあるとかっこいい？」）。1回の移動ごとに細い光の帯を1本置き、ゆっくり消す。
+// 連続で動くと帯が重なって「通ってきた道」になる。連続移動の時だけ少し濃く・長く残す。
+function spawnPieceMoveTrail(from, to, size, color, durationMs, chained) {
+  if (isArrivalEffectDisabled()) return;
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 4) return;
+  const thickness = Math.max(3, size * 0.18);
+  const life = Math.round(durationMs + (chained ? 2200 : 1100));
+  const el = document.createElement("div");
+  el.className = "piece-move-trail";
+  el.style.width = `${len}px`;
+  el.style.height = `${thickness}px`;
+  el.style.setProperty("--trail-peak", chained ? "0.55" : "0.3");
+  el.style.setProperty("--trail-color", color === "rainbow" ? "#f6c945" : `var(--color-${color})`);
+  el.style.transformOrigin = "0 50%";
+  el.style.transform = `translate(${from.x}px, ${from.y - thickness / 2}px) rotate(${Math.atan2(dy, dx)}rad)`;
+  el.style.animationDuration = `${life}ms`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), life + 120);
+}
+
+function playPieceHopGhost(fromRect, toRect, token, durationMs, opts = {}) {
+  const style = pieceMoveStyleOf(opts.style);
+  const isWarp = opts.style === "warp";
   const from = stageClientToLocal(fromRect.left + fromRect.width / 2, fromRect.top + fromRect.height / 2);
   const to = stageClientToLocal(toRect.left + toRect.width / 2, toRect.top + toRect.height / 2);
   const w = stageDelta(fromRect.width);
   const h = stageDelta(fromRect.height);
+  const tiltRaw = getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim();
+  const tiltDeg = parseFloat(tiltRaw) || 42;
+
+  spawnPieceMoveTrail(from, to, h, token.color, durationMs, !!opts.trail);
 
   // 影（盤面に落ちる楕円）。ゴーストより先に置いて、必ず駒の下になるようにする。
-  const shadow = document.createElement("div");
-  shadow.className = "piece-hop-shadow";
-  shadow.style.width = `${w * 0.72}px`;
-  shadow.style.height = `${h * 0.3}px`;
-  shadow.style.transform = `translate(${from.x}px, ${from.y + h * 0.34}px) translate(-50%, -50%)`;
-  document.body.appendChild(shadow);
+  // ワープは浮かないので影は出さない。
+  let shadow = null;
+  if (!isWarp) {
+    shadow = document.createElement("div");
+    shadow.className = "piece-hop-shadow";
+    shadow.style.width = `${w * 0.72}px`;
+    shadow.style.height = `${h * 0.3}px`;
+    shadow.style.transform = `translate(${from.x}px, ${from.y + h * 0.34}px) translate(-50%, -50%)`;
+    document.body.appendChild(shadow);
+  }
 
   const outer = document.createElement("div"); // 横の移動だけを担当
   outer.className = "piece-hop-ghost";
@@ -4099,27 +4179,61 @@ function playPieceHopGhost(fromRect, toRect, token, durationMs) {
   outer.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%)`;
   const lift = document.createElement("div"); // 上下の跳ねと潰れだけを担当
   lift.className = "piece-hop-lift";
-  lift.style.setProperty("--piece-hop-height", `${Math.round(h * 0.9)}px`);
+  if (isWarp) lift.classList.add("is-warp");
+  lift.style.setProperty("--piece-hop-height", `${Math.round(h * style.height)}px`);
   lift.style.animationDuration = `${durationMs}ms`;
   const inner = document.createElement("div"); // 盤面と同じ傾き（立方体に見せる）
   inner.className = "piece-hop-inner";
-  const tilt = getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim();
-  inner.style.transform = `rotateX(${tilt})`;
-  inner.appendChild(buildCubePiece(token.color, token.player));
+  inner.style.transform = `rotateX(${tiltDeg}deg)`;
+  // 【ユーザー要望】「移動方向に前方を持ち上げて、よっこいしょって感じ」。進行方向の前の辺を
+  // 持ち上げて跳び、着地でわずかに前へつんのめる。盤面は rotateX で傾いているので、画面上の
+  // 縦の差は cos(傾き) で割って**盤面の上での方向**に直してから角度を求める（そうしないと
+  // 斜め移動で持ち上がる向きがずれる）。
+  //   yaw   … 進行方向を +X に合わせる
+  //   pitch … その +X の辺を持ち上げる（ここだけアニメーション）
+  //   unyaw … 向きを戻す（駒の面ごとの陰影は固定なので、立方体自体は回さない）
+  const dyBoard = (to.y - from.y) / Math.max(0.2, Math.cos((tiltDeg * Math.PI) / 180));
+  const yawDeg = (Math.atan2(dyBoard, to.x - from.x) * 180) / Math.PI;
+  const yaw = document.createElement("div");
+  yaw.className = "piece-hop-yaw";
+  yaw.style.transform = `rotateZ(${yawDeg}deg)`;
+  const pitch = document.createElement("div");
+  pitch.className = "piece-hop-pitch";
+  if (style.lean > 0) {
+    pitch.style.setProperty("--piece-hop-lean", `${style.lean}deg`);
+    pitch.style.animationDuration = `${durationMs}ms`;
+    pitch.classList.add("is-leaning");
+  }
+  const unyaw = document.createElement("div");
+  unyaw.className = "piece-hop-yaw";
+  unyaw.style.transform = `rotateZ(${-yawDeg}deg)`;
+  unyaw.appendChild(buildCubePiece(token.color, token.player));
+  pitch.appendChild(unyaw);
+  yaw.appendChild(pitch);
+  inner.appendChild(yaw);
   lift.appendChild(inner);
   outer.appendChild(lift);
   document.body.appendChild(outer);
 
   const done = new Promise((resolve) => {
-    requestAnimationFrame(() => {
-      const ease = "cubic-bezier(0.32, 0, 0.24, 1)";
-      outer.style.transition = `transform ${durationMs}ms ${ease}`;
-      outer.style.transform = `translate(${to.x}px, ${to.y}px) translate(-50%, -50%)`;
-      shadow.style.transition = `transform ${durationMs}ms ${ease}`;
-      shadow.style.transform = `translate(${to.x}px, ${to.y + h * 0.34}px) translate(-50%, -50%)`;
-      shadow.classList.add("is-flying"); // 浮いている間だけ小さく薄くする（CSSアニメ）
-      shadow.style.animationDuration = `${durationMs}ms`;
-    });
+    if (isWarp) {
+      // 消えている一瞬（真ん中）で、位置だけを瞬間移動させる。
+      setTimeout(() => {
+        outer.style.transform = `translate(${to.x}px, ${to.y}px) translate(-50%, -50%)`;
+      }, Math.round(durationMs * 0.5));
+    } else {
+      requestAnimationFrame(() => {
+        const ease = "cubic-bezier(0.32, 0, 0.24, 1)";
+        outer.style.transition = `transform ${durationMs}ms ${ease}`;
+        outer.style.transform = `translate(${to.x}px, ${to.y}px) translate(-50%, -50%)`;
+        if (shadow) {
+          shadow.style.transition = `transform ${durationMs}ms ${ease}`;
+          shadow.style.transform = `translate(${to.x}px, ${to.y + h * 0.34}px) translate(-50%, -50%)`;
+          shadow.classList.add("is-flying"); // 浮いている間だけ小さく薄くする（CSSアニメ）
+          shadow.style.animationDuration = `${durationMs}ms`;
+        }
+      });
+    }
     setTimeout(() => {
       // flyGhost と同じ作法: 先に resolve して呼び出し側に render() させ、実物の駒が
       // 描かれてからゴーストを消す（先に消すと1フレームだけ駒が消えてちらつく）。
@@ -4127,7 +4241,7 @@ function playPieceHopGhost(fromRect, toRect, token, durationMs) {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           outer.remove();
-          shadow.remove();
+          shadow?.remove();
         });
       });
     }, durationMs + 20);
@@ -4145,7 +4259,11 @@ function spawnPieceLandingRing(hostEl, color) {
   appendEffectHost(hostEl, ring, 460);
 }
 
-async function playPieceMoveAnimation__inner(pieceId, fromLocation) {
+// 同じ駒が続けて動いた時（試練の儀式のように「置く→移動」を繰り返す効果）を見分けるための
+// 目印。連続なら通り道の光の軌跡を濃く長く残す（ユーザー要望）。
+const lastPieceMoveAt = new Map();
+const PIECE_MOVE_CHAIN_MS = 2600;
+async function playPieceMoveAnimation__inner(pieceId, fromLocation, animOpts = {}) {
   if (isFlightAnimationDisabled()) return; // 「駒やカードが飛ぶ動きをやめる」設定を尊重
   if (!fromLocation || fromLocation.zone !== "cell") return;
   const table = document.getElementById("game-table");
@@ -4173,13 +4291,22 @@ async function playPieceMoveAnimation__inner(pieceId, fromLocation) {
   setSetupPendingTokenIds(new Set([pieceId]));
   render();
   try {
-    const { done } = playPieceHopGhost(fromRect, toRect, token, pieceMoveDurationMs());
+    const styleName = animOpts.style || "hop";
+    const chained = Date.now() - (lastPieceMoveAt.get(pieceId) || 0) < PIECE_MOVE_CHAIN_MS;
+    lastPieceMoveAt.set(pieceId, Date.now());
+    const durationMs = Math.round(pieceMoveDurationMs() * pieceMoveStyleOf(styleName).duration);
+    // ワープは「消える」演出なので、出発点にも輪を出して“ここから飛んだ”ことを見せる。
+    if (styleName === "warp") {
+      spawnPieceLandingRing(findLocationElement(document.getElementById("game-table"), fromLocation), token.color);
+    }
+    const { done } = playPieceHopGhost(fromRect, toRect, token, durationMs, { style: styleName, trail: chained });
     await done;
   } finally {
     setSetupPendingTokenIds(new Set());
     render();
     // 着地の輪は、実物の駒が描き直された後のマスへ出す（render で作り直されるため）。
     spawnPieceLandingRing(findLocationElement(document.getElementById("game-table"), to), token.color);
+    lastPieceMoveAt.set(pieceId, Date.now());
   }
 }
 
@@ -4216,7 +4343,10 @@ async function performPhaseMoveToCell(location, actingSeat = getSelfSeat()) {
     render();
     // 「一瞬で次のマスに現れる」のを避け、実際に移動して見えるようにする。到達効果は
     // この演出が終わってから始まる（動き終わってから効果が出る方が分かりやすい）。
-    await playPieceMoveAnimation(piece.id, moveFrom);
+    // 【ユーザー要望2026-09-05】紫のキューブ ディメンションで移動範囲が伸びている時は、
+    // ただ大きく跳ぶのではなく「ワープしている感じ」にする（効果の異質さが伝わるように）。
+    const moveStyle = isMovementBoostActiveThisTurn(player) ? "warp" : "hop";
+    await playPieceMoveAnimation(piece.id, moveFrom, { style: moveStyle });
     const card = findTopCardAt(location);
     if (!card) return;
     if (!card.faceUp) {
@@ -4557,12 +4687,22 @@ export function performPriorityTimeoutAutoAction() {
   }
   if (phase === "move" && isMovePhaseActive()) {
     const table = document.getElementById("game-table");
-    const candidates = table
+    // 【#276】候補は**盤面の状態**から数え直す（画面のハイライトは、演出・お知らせ・効果の
+    // 処理中は貼り直されないため、「まだ貼られていないだけ」の瞬間を『動けない』と誤判定して
+    // ターンを終わらせてしまっていた）。マスの要素自体はハイライトの有無に関係なく引ける。
+    const computed = computePhaseMoveCandidates(driveSeat);
+    const cellElAt = (loc) => table?.querySelector(`.cell[data-row="${loc.row}"][data-col="${loc.col}"]`) ?? null;
+    const candidates = computed
       ? [
-          ...[...table.querySelectorAll(".cell.phase-move-highlight")].map((el) => ({ el, isMove: true })),
-          ...[...table.querySelectorAll(".cell.phase-contact-highlight")].map((el) => ({ el, isMove: false })),
-        ]
-      : [];
+          ...computed.move.map((loc) => ({ el: cellElAt(loc), isMove: true })),
+          ...computed.contact.map((loc) => ({ el: cellElAt(loc), isMove: false })),
+        ].filter((c) => c.el)
+      : table
+        ? [
+            ...[...table.querySelectorAll(".cell.phase-move-highlight")].map((el) => ({ el, isMove: true })),
+            ...[...table.querySelectorAll(".cell.phase-contact-highlight")].map((el) => ({ el, isMove: false })),
+          ]
+        : [];
     // 賢いCPU（中級以上）は移動先を評価して選ぶ。着地マスの一番上のカード・駒の持ち主は
     // DOM/スタック順に依存するため、ここ（main.js）で調べて cpu-brain へ渡す。それ以外の
     // 経路（新人・オンライン離脱者代行等）は従来通りランダム。
@@ -8767,11 +8907,17 @@ function updateSpectatorBanner() {
 // #4: 「このターンの出来事」ストックは、誰のでもターンが変わるたびに掃除する
 // （ユーザー確定仕様）。render()のたびに turnNumber / turnPlayer の組を見て変化を検知する。
 let lastTurnKeyForEventStock = null;
+// 【ユーザー要望2026-09-05】前のターンの行に「誰のターンだったか」を出すため、直前の手番の
+// 席も覚えておく（turn-event-stock.js は表示名を自分で引けない＝循環importになるので渡す）。
+let lastTurnPlayerForEventStock = null;
 function maybeClearTurnEventStock() {
   const key = getTurnEventStockKey();
   if (lastTurnKeyForEventStock === key) return;
   // 初回（対局開始やリロード直後）は掃除するものが無いので、キーを覚えるだけ。
-  if (lastTurnKeyForEventStock !== null) clearTurnEventStock();
+  if (lastTurnKeyForEventStock !== null) {
+    clearTurnEventStock(lastTurnPlayerForEventStock ? getPlayerName(lastTurnPlayerForEventStock) : "");
+  }
+  lastTurnPlayerForEventStock = getState().turnPlayer ?? null;
   lastTurnKeyForEventStock = key;
 }
 

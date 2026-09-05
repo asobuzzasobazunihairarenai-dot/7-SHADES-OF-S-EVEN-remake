@@ -90,10 +90,11 @@ function ensureStripSheet() {
   const el = document.createElement("style");
   el.id = "board-3d-shape-strip";
   el.textContent =
-    "body.board-3d-on .cell, body.board-3d-on .lock-slot, body.board-3d-on .board-card {" +
+    // 盤面の外の同名要素（ドラッグ/移動ゴースト等）まで剥がさないよう #game-table の中に限る。
+    "body.board-3d-on #game-table .cell, body.board-3d-on #game-table .lock-slot, body.board-3d-on #game-table .board-card {" +
     "background-color: transparent !important; border-color: transparent !important; }" +
     // ロックスロットのグロー（枠の外側にぼんやり広がる色）もWebGL側で描くので剥がす。
-    "body.board-3d-on .lock-slot { box-shadow: none !important; }";
+    "body.board-3d-on #game-table .lock-slot { box-shadow: none !important; }";
   document.head.appendChild(el);
   stripSheet = el.sheet;
   return stripSheet;
@@ -104,9 +105,21 @@ const shapeTextures = new Map();
 // 捨てた（作り直した）回数。増え続けているなら「同じ見た目のテクスチャを毎フレーム作り直して
 // いる＝GPUへの転送が止まらない」状態で、iOSのチカチカの原因になり得る（#262の切り分け用）。
 let shapeTextureEvictions = 0;
+// 【#275】上限。テクスチャは1辺最大256pxなので、この枚数でも数MB程度に収まる。
+const SHAPE_TEXTURE_MAX = 80;
 function shapeTexture(key, spec) {
   let tex = shapeTextures.get(key);
-  if (tex) return tex;
+  // 【#275】使ったものは列の最後尾へ入れ直す（LRU）。ユーザー報告「盤面のカードの一部と
+  // ロックエリアバーの一部が不規則にチカチカする」。以前は**入れた順**に古いものから捨てて
+  // いたため、点滅アニメ（マスの点滅・使えるカードの明滅）で毎フレーム新しい見た目が増えると、
+  // 毎フレーム使われている49マス・28スロットの分まで巻き添えで捨てられ、次のフレームで作り直し
+  // →GPUへ転送し直し、を延々と繰り返していた（実測 texEvicted が180まで増え続けていた）。
+  // 使い続けているものは捨てられないようにする。
+  if (tex) {
+    shapeTextures.delete(key);
+    shapeTextures.set(key, tex);
+    return tex;
+  }
   const scale = 2; // 縁がギザギザにならない程度の解像度で十分（1辺は最大256pxに抑える）
   const pad = spec.pad || 0;
   const fullW = spec.w + pad * 2;
@@ -166,14 +179,28 @@ function shapeTexture(key, spec) {
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.flipY = false; // 画像テクスチャと同じ理由（CSSはYが下向き。#238）
   shapeTextures.set(key, tex);
-  // 保険: 想定外の理由で種類が増え続けても、メモリを食い潰さないよう古い順に捨てる。
-  while (shapeTextures.size > 48) {
-    const oldest = shapeTextures.keys().next().value;
-    shapeTextures.get(oldest)?.dispose();
-    shapeTextures.delete(oldest);
+  return tex;
+}
+
+// 【#275・重要】いま板が使っているテクスチャは絶対に捨てない。以前は shapeTexture() の中で
+// 「入れた順に古いものから」捨てていたが、**まだ板が参照しているテクスチャを dispose して**
+// いた。見た目が変わらない板は shapeTexture() を呼び直さない（key が同じなら素通り）ので、
+// 捨てられたことに気づけず、GPU上の中身が無いテクスチャを貼ったまま描き続ける——これが
+// 「盤面のカードの一部・ロックエリアバーの一部が不規則にチカチカする」の正体と考えられる。
+// 片付けは作り直しの最後にまとめて行い、**今どの板も使っていないもの**だけを捨てる。
+function pruneShapeTextures() {
+  if (shapeTextures.size <= SHAPE_TEXTURE_MAX) return;
+  const inUse = new Set();
+  for (const mesh of shapeMeshByElement.values()) {
+    if (mesh.userData.shapeKey) inUse.add(mesh.userData.shapeKey);
+  }
+  for (const key of [...shapeTextures.keys()]) {
+    if (shapeTextures.size <= SHAPE_TEXTURE_MAX) break;
+    if (inUse.has(key)) continue;
+    shapeTextures.get(key)?.dispose();
+    shapeTextures.delete(key);
     shapeTextureEvictions++;
   }
-  return tex;
 }
 
 // --- 色の読み取り --------------------------------------------------------------------
@@ -219,8 +246,10 @@ function parseCssColor(c) {
 function quantColor(c) {
   const v = parseCssColor(c);
   if (!v) return null;
-  const q = (n) => Math.round(n / 8) * 8;
-  const a = Math.round(v.a * 20) / 20;
+  // 【#275】段階をさらに粗くした（8→16）。マスの点滅（move-highlight-blink）は背景色を
+  // color-mix で連続的に変えるので、細かく見分けると1フレームごとに新しい見た目が増える。
+  const q = (n) => Math.round(n / 16) * 16;
+  const a = Math.round(v.a * 10) / 10;
   return `rgba(${q(v.r)}, ${q(v.g)}, ${q(v.b)}, ${a})`;
 }
 
@@ -243,7 +272,9 @@ function parseBoxShadow(v) {
   const blur = n[2] || 0;
   const spread = n[3] || 0;
   if (blur <= 0 && spread <= 0) return null;
-  return { color: quantColor(color), dx: n[0], dy: n[1], blur, spread };
+  // 【#275】ぼかし・広がりも段階を粗くする（光が脈打つアニメで毎フレーム別物になるのを防ぐ）。
+  const q2 = (x) => Math.round(x / 2) * 2;
+  return { color: quantColor(color), dx: Math.round(n[0]), dy: Math.round(n[1]), blur: q2(blur), spread: q2(spread) };
 }
 
 // 直前に読んだ結果と、その時刻。マス・スロットの枠線や背景色は滅多に変わらないので、
@@ -560,6 +591,7 @@ function rebuild() {
     mesh.material.dispose();
     shapeMeshByElement.delete(el);
   }
+  pruneShapeTextures(); // 【#275】使われていないテクスチャだけを片付ける
   needsRebuild = false;
   needsSort = true; // 板の位置が変わったので並べ替え直す
 }

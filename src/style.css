@@ -12042,6 +12042,101 @@ body.cpu-battle-mode #quick-start-bar {
   height: 100%;
   transform-style: preserve-3d;
 }
+/* 【ユーザー要望2026-09-05】「移動方向に前方を持ち上げて、よっこいしょって感じ」。
+   進行方向を +X に合わせる(.piece-hop-yaw) → その辺を持ち上げる(.piece-hop-pitch) →
+   向きを戻す(.piece-hop-yaw) の3枚重ね。立方体そのものは回さない（面ごとの陰影が固定なので、
+   回すと暗い面が正面に来て光の向きが破綻するため）。 */
+.piece-hop-yaw,
+.piece-hop-pitch {
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+}
+.piece-hop-pitch.is-leaning {
+  animation-name: piece-hop-lean;
+  animation-timing-function: ease-in-out;
+  animation-fill-mode: both;
+}
+@keyframes piece-hop-lean {
+  0% {
+    transform: rotateY(0deg);
+  }
+  22% {
+    transform: rotateY(calc(var(--piece-hop-lean, 16deg) * -1));
+  }
+  62% {
+    transform: rotateY(calc(var(--piece-hop-lean, 16deg) * -0.7));
+  }
+  90% {
+    transform: rotateY(calc(var(--piece-hop-lean, 16deg) * 0.35));
+  }
+  100% {
+    transform: rotateY(0deg);
+  }
+}
+/* ワープ（紫のキューブ ディメンションの移動）。跳ばずに、その場で縦に伸びて消え、
+   移動先で戻る。位置の瞬間移動はJS側（消えている一瞬で行う）。 */
+.piece-hop-lift.is-warp {
+  animation-name: piece-warp-lift;
+  animation-timing-function: ease-in-out;
+}
+@keyframes piece-warp-lift {
+  0% {
+    transform: scale3d(1, 1, 1);
+    opacity: 1;
+  }
+  30% {
+    transform: scale3d(0.55, 1.7, 0.55);
+    opacity: 0.55;
+  }
+  46%, 54% {
+    transform: scale3d(0.06, 2.3, 0.06);
+    opacity: 0;
+  }
+  70% {
+    transform: scale3d(0.55, 1.7, 0.55);
+    opacity: 0.55;
+  }
+  88% {
+    transform: scale3d(1.12, 0.86, 1.12);
+    opacity: 1;
+  }
+  100% {
+    transform: scale3d(1, 1, 1);
+    opacity: 1;
+  }
+}
+/* 通り道に残る光の軌跡（連続移動で道になる）。左端(0 50%)を起点に回転させて置く。 */
+.piece-move-trail {
+  position: fixed;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: 9996;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    var(--trail-color, #ffffff) 22%,
+    var(--trail-color, #ffffff) 78%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  filter: blur(1.5px);
+  animation-name: piece-move-trail;
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+}
+@keyframes piece-move-trail {
+  0% {
+    opacity: 0;
+  }
+  18% {
+    opacity: var(--trail-peak, 0.4);
+  }
+  100% {
+    opacity: 0;
+  }
+}
 @keyframes piece-hop-lift {
   0% {
     transform: translateY(0) scale(1.12, 0.85);
@@ -19956,12 +20051,17 @@ body.theme-light .post-game-friend-chip {
    そのまま残すので、タップ判定（elementsFromPoint ベースの自前方式）も、管理者モードの
    位置調整も、今までどおり一切変わらない。ここで消しているのは背景画像と、それに付いて
    いた影・光彩だけ——つまりiOSで合成レイヤーとGPUメモリを食っていた分。 */
-body.board-3d-on .board-card,
-body.board-3d-on .piece-face,
-body.board-3d-on .stack-top,
-body.board-3d-on .lock-area-bar-image,
-body.board-3d-on .playmat-bg,
-body.board-3d-on .table-background-bg {
+/* 【重要】必ず #game-table の中だけに限る。WebGLが描くのは #game-table の中を走査して
+   見つけた要素だけなので、盤面の外にある同じクラスの要素——ドラッグ中のゴーストや、
+   駒の移動演出のゴースト（body直下に置く .piece-hop-ghost の中の .piece-face）、左下の
+   駒スキンのプレビュー——まで絵を剥がしてしまうと、**代わりに描くものが無いので
+   まっさらな箱になる**（実測: 3D描画ONの間、移動/ドラッグ中の駒が無地になっていた）。 */
+body.board-3d-on #game-table .board-card,
+body.board-3d-on #game-table .piece-face,
+body.board-3d-on #game-table .stack-top,
+body.board-3d-on #game-table .lock-area-bar-image,
+body.board-3d-on #game-table .playmat-bg,
+body.board-3d-on #game-table .table-background-bg {
   background-image: none !important;
   background-color: transparent !important;
   /* 影・光彩も剥がす（iOSで重い合成の元）。ただし !important は付けない——「今ここに置いた」
