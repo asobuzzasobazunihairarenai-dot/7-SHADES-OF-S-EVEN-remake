@@ -418,11 +418,30 @@ function buildLockArea(side, steps = 0) {
   const el = document.createElement("div");
   const turnPlayer = getState().turnPlayer;
   const isTurnSide = turnPlayer && SEAT_TO_SIDE[turnPlayer] === side;
+  // 「あと1色」の判定: この辺の持ち主が6色ロック済みなら、唯一空いているスロットの番号。
+  const owner = SIDE_TO_SEAT[side];
+  let oneAwayIndex = -1;
+  if (owner && getLockedCount(owner) === 6) {
+    const filled = new Set(
+      getState()
+        .tokens.filter((tk) => tk.kind === "card" && tk.location.zone === "lock" && tk.location.side === side)
+        .map((tk) => tk.location.index)
+    );
+    for (let i = 0; i < COLORS.length; i++) {
+      if (!filled.has(i)) {
+        oneAwayIndex = i;
+        break;
+      }
+    }
+  }
   const displaySide = rotateSide(side, steps);
   el.className = `lock-area lock-${displaySide}${isTurnSide ? " is-turn-player" : ""}`;
   COLORS.forEach((color, index) => {
     const slot = document.createElement("div");
     slot.className = "lock-slot";
+    // 【ユーザー要望2026-09-05】6色ロック済み＝あと1色で勝ち、という場面の緊張感。
+    // 残った1つの空きスロットだけを、ゆっくり呼吸するように光らせ続ける。
+    if (oneAwayIndex === index) slot.classList.add("is-one-away");
     slot.dataset.side = side;
     slot.dataset.index = String(index);
     // オプションメニューの「基本設定」でオフにされていれば、色の上書きをせずCSS側の
@@ -984,7 +1003,12 @@ async function discardFromHandReveal(tokenId, opts = {}) {
 function buildCardStack(count, pileClass, imagePath) {
   const stack = document.createElement("div");
   stack.className = "stack";
-  const heightPx = Math.max(2.4, count * 0.6);
+  const perCardPx = 0.6;
+  const heightPx = Math.max(2.4, count * perCardPx);
+  // 【ユーザー要望2026-09-05】「山札の側面がつるつるなのが気になる。本当は縞々になってるはず」。
+  // 側面を無地で塗るのをやめ、カード1枚ぶんの厚みごとに細い線を入れて「重なった紙の断面」に
+  // 見せる（線の間隔＝1枚の厚み＝枚数がそのまま縞の本数になる）。細すぎると潰れるので下限を置く。
+  stack.style.setProperty("--stack-stripe", `${Math.max(0.9, perCardPx)}px`);
   stack.style.setProperty("--stack-height", `${heightPx}px`);
   // ユーザー要望「カードが束になってる時の側面の色を、カード裏面の色に対応した
   // 雰囲気の色に自動で変更できますか」への対応。色テーマ付きの裏面セット（赤〜黒）を
@@ -1134,10 +1158,84 @@ function isEternalLockRenderSuppressed(token) {
   );
 }
 
+// 【ユーザー要望2026-09-05】カードがオープンする瞬間の演出。今までは裏から表へパッと
+// 切り替わるだけだった。ユーザー曰く「到達の時はボワーンで隠れるかもしれないが、
+// ただオープンするだけの場合もあるので、全体としてオープンする演出は欲しい」。
+// 仕組み: 描画のたびに「このカードは前回まで裏だったのに今は表になった」を見つけ、
+// 実物は一瞬隠して、盤面の外（body直下）でめくれるゴーストを回す（駒の移動ゴーストと
+// 同じ「perspective + 盤面と同じ傾き」の入れ子なので、WebGL描画のON/OFFに左右されない）。
+const lastBoardFaceUpById = new Map();
+const flippingOpenTokenIds = new Set();
+const pendingFlipOpens = [];
+const CARD_FLIP_OPEN_MS = 460;
+function noteBoardCardFaceUp(token) {
+  const onCell = token.location?.zone === "cell";
+  const was = lastBoardFaceUpById.get(token.id);
+  lastBoardFaceUpById.set(token.id, !!token.faceUp);
+  if (!onCell || was !== false || !token.faceUp) return;
+  if (isArrivalEffectDisabled()) return; // 「演出をやめる」設定を尊重
+  if (flippingOpenTokenIds.has(token.id)) return;
+  flippingOpenTokenIds.add(token.id);
+  pendingFlipOpens.push({ tokenId: token.id, cardId: token.cardId, backUrl: cardBackImageForToken(token) });
+}
+// render() の末尾から呼ぶ。実物のDOMが出来上がってから位置を測る必要があるので、
+// 1フレーム待ってから回す。
+function flushPendingCardFlipOpens() {
+  if (pendingFlipOpens.length === 0) return;
+  const list = pendingFlipOpens.splice(0, pendingFlipOpens.length);
+  requestAnimationFrame(() => {
+    const table = document.getElementById("game-table");
+    for (const item of list) {
+      const el = table?.querySelector(`.board-card[data-token-id="${item.tokenId}"]`);
+      const rect = el?.getBoundingClientRect();
+      if (!rect || rect.width < 2) {
+        flippingOpenTokenIds.delete(item.tokenId);
+        continue;
+      }
+      playCardFlipOpenGhost(rect, item);
+    }
+  });
+}
+function playCardFlipOpenGhost(rect, item) {
+  const c = stageClientToLocal(rect.left + rect.width / 2, rect.top + rect.height / 2);
+  const w = stageDelta(rect.width);
+  const h = stageDelta(rect.height);
+  const tiltDeg = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--table-tilt")) || 42;
+  const outer = document.createElement("div");
+  outer.className = "card-flip-ghost";
+  outer.style.width = `${w}px`;
+  outer.style.height = `${h}px`;
+  outer.style.transform = `translate(${c.x}px, ${c.y}px) translate(-50%, -50%)`;
+  const inner = document.createElement("div");
+  inner.className = "card-flip-inner";
+  inner.style.transform = `rotateX(${tiltDeg}deg)`;
+  const flipper = document.createElement("div");
+  flipper.className = "card-flip-flipper";
+  flipper.style.animationDuration = `${CARD_FLIP_OPEN_MS}ms`;
+  const back = document.createElement("div");
+  back.className = "card-flip-face card-flip-back";
+  back.style.backgroundImage = `url("${item.backUrl}")`;
+  const front = document.createElement("div");
+  front.className = "card-flip-face card-flip-front";
+  front.style.backgroundImage = `url("${getBoardCardImagePath(item.cardId)}")`;
+  flipper.append(back, front);
+  inner.appendChild(flipper);
+  outer.appendChild(inner);
+  document.body.appendChild(outer);
+  setTimeout(() => {
+    outer.remove();
+    flippingOpenTokenIds.delete(item.tokenId);
+    render(); // 隠していた実物を出し直す
+  }, CARD_FLIP_OPEN_MS + 30);
+}
+
 function buildFlatCard(token) {
   const card = document.createElement("div");
   // 上記の演出中は、このカードだけ場所を確保したまま不可視にする（着地演出後にrender()で戻す）。
   if (isEternalLockRenderSuppressed(token)) card.style.visibility = "hidden";
+  // めくれる演出の最中は、実物を場所だけ確保して隠す（ゴーストと二重に見えないように）。
+  noteBoardCardFaceUp(token);
+  if (flippingOpenTokenIds.has(token.id)) card.style.visibility = "hidden";
   if (token.faceUp) {
     card.className = "board-card";
     // 盤面・ロックエリアのカードは以前から「イラストのみ画像」を採用（テキスト合成の対象外）。
@@ -1311,6 +1409,19 @@ function spawnArrivalBurst__inner(hostEl, color) {
   const ring = document.createElement("div");
   ring.className = "arrival-effect-ring";
   burst.appendChild(ring);
+
+  // 【ユーザー要望2026-09-05】到達が連鎖した時、何回目かを見せる（ジャンプ台→パーティ→…の
+  // ように続くのがセブンらしさなのに、今までは同じ演出が淡々と繰り返されるだけだった）。
+  // 到達処理の入れ子の深さ（arrivalEffectProcessingDepth）は、この演出を出す直前に
+  // 加算済みなので、2以上なら「2連鎖目」。深いほど強く光らせる。
+  if (arrivalEffectProcessingDepth >= 2) {
+    burst.classList.add("is-chained");
+    const chain = document.createElement("div");
+    chain.className = "arrival-chain-badge";
+    chain.style.setProperty("--arrival-chain-level", String(Math.min(6, arrivalEffectProcessingDepth)));
+    chain.textContent = `${arrivalEffectProcessingDepth} ${t("game.chain")}`;
+    burst.appendChild(chain);
+  }
 
   appendEffectHost(hostEl, burst, 1400);
   return burst;
@@ -4333,6 +4444,31 @@ function playPieceHopGhost(fromRect, toRect, token, durationMs, opts = {}) {
 
 // 着地の衝撃（小さな輪が広がって消える）。盤面のマスの上に置くので、演出の重なり順は
 // appendEffectHost に任せる（到達のオーラ・ロックの刻印と同じ扱い）。
+// 【ユーザー要望2026-09-05】相手のゲートに乗った瞬間の演出。今まではターン終了時の侵攻処理に
+// しか演出が無く、**乗った瞬間**は普通の移動と同じだった。乗られた側の色で警告の輪を広げ、
+// そのゲートのマスをしばらく脈打たせる（「やった／やられた」がその場で伝わるように）。
+// 自分のゲート・空席のゲートは対象外（ゲート侵攻ボーナスの判定と同じ条件）。
+function gateOwnerAtCell(location) {
+  if (!location || location.zone !== "cell") return null;
+  for (const [side, pos] of Object.entries(GATE_POSITIONS)) {
+    if (pos.row === location.row && pos.col === location.col) return SIDE_TO_SEAT[side] ?? null;
+  }
+  return null;
+}
+function spawnGateIntrusionEffect(hostEl, defender) {
+  if (!hostEl || isArrivalEffectDisabled()) return;
+  const color = getState().tokens.find((tk) => tk.kind === "piece" && tk.player === defender)?.color ?? null;
+  const css = color && color !== "rainbow" ? `var(--color-${color})` : "#f6c945";
+  const ring = document.createElement("div");
+  ring.className = "gate-intrusion-ring";
+  ring.style.setProperty("--gate-intrusion-color", css);
+  appendEffectHost(hostEl, ring, 1200);
+  const ring2 = document.createElement("div");
+  ring2.className = "gate-intrusion-ring is-delayed";
+  ring2.style.setProperty("--gate-intrusion-color", css);
+  appendEffectHost(hostEl, ring2, 1400);
+}
+
 function spawnPieceLandingRing(hostEl, color) {
   if (!hostEl || isArrivalEffectDisabled()) return;
   const ring = document.createElement("div");
@@ -4387,7 +4523,13 @@ async function playPieceMoveAnimation__inner(pieceId, fromLocation, animOpts = {
     setSetupPendingTokenIds(new Set());
     render();
     // 着地の輪は、実物の駒が描き直された後のマスへ出す（render で作り直されるため）。
-    spawnPieceLandingRing(findLocationElement(document.getElementById("game-table"), to), token.color);
+    const landedHost = findLocationElement(document.getElementById("game-table"), to);
+    spawnPieceLandingRing(landedHost, token.color);
+    // 相手のゲートに乗ったら、そのゲートの持ち主の色で警告の輪を出す。
+    const gateOwner = gateOwnerAtCell(to);
+    if (gateOwner && gateOwner !== token.player && (getState().activePlayers || []).includes(gateOwner)) {
+      spawnGateIntrusionEffect(landedHost, gateOwner);
+    }
     lastPieceMoveAt.set(pieceId, Date.now());
   }
 }
@@ -9143,6 +9285,8 @@ function render() {
   flushPendingGateInvasionEvents();
   // チュートリアルCPU戦は台本で勝利演出を出すため、実ゲームの勝利判定（オンライン向けの
   // 勝利モーダル・通貨・ランキング等）はスキップする。
+  // カードがオープンした分のめくれ演出を回す（実物のDOMが出来上がった後に測るため末尾で）。
+  flushPendingCardFlipOpens();
   if (!isTutorialBattleActive()) checkForVictory();
   // 更新バナーは対局中は保留。対局終了・ホーム復帰などで状況が変わったここで再評価する。
   reevaluateUpdateBanner();

@@ -14,6 +14,25 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "盤面のカードがオープンする瞬間に、実際にめくれる動きを付けました。裏面が回って表になります。",
+      "到達が続けて起きた時に「2 連鎖」「3 連鎖」と回数を出すようにしました。連鎖するほど光が強くなります。",
+      "6色ロックした人の、残り1つの空きスロットがゆっくり光り続けるようにしました。あと1色で勝ち、という場面が一目で分かります。",
+      "相手のゲートに乗った瞬間に、そのゲートの持ち主の色で警告の輪が広がるようにしました。",
+      "自分の持ち時間が残り10秒を切ると、画面のふちが自分の色でゆっくり脈打つようにしました。",
+      "山札・捨て場などの山の側面を、カード1枚ずつの断面が見える縞模様にしました。つるつるの板ではなく、紙が重なっているように見えます。",
+    ],
+    itemsEn: [
+      "Cards on the board now physically flip over when they are revealed, turning from back to face.",
+      "Consecutive arrivals now show a chain count (\"2 CHAIN\", \"3 CHAIN\"), and the glow grows stronger the longer the chain.",
+      "When a player has locked six colours, their one remaining empty slot now glows slowly, so \"one colour from winning\" is visible at a glance.",
+      "Landing on an opponent's gate now sends out a warning ring in that gate owner's colour.",
+      "When your own clock drops below ten seconds, the edge of the screen now pulses slowly in your colour.",
+      "The sides of the deck, discard and other piles are now striped so you can see the edge of each card, instead of looking like a smooth block.",
+    ],
+  },
+  {
+    date: "2026-09-05",
+    items: [
       "駒が移動して着地した瞬間に、駒の大きさが急に変わって見えていたのを直しました。移動中の駒が、着地先の実物と同じ大きさで飛ぶようになります。",
       "相手が到達したカードを手に入れた時、「このターンの出来事」に並ばなかったのを直しました。到達して表になったカードは全員に見えている情報なので、誰が手に入れたかも並びます（裏向きのまま手に入れた分は、これまで通り中身を伏せて「非公開のカードを1枚」と出ます）。",
       "ターンの終わり際に起きた出来事が「このターンの出来事」から消えてしまうことがあったのを直しました。お知らせが右下へ飛ぶ頃には次のターンに入っていた分は、捨てずに「前のターン」の行へ積みます。",

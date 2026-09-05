@@ -527,16 +527,34 @@ function buildBaseClock() {
   bar.appendChild(baseClockEl);
 }
 
+// 【ユーザー要望2026-09-05】残り時間の警告。自分の持ち時間がこの秒数を切ったら、
+// 画面のふちを自分の駒の色でゆっくり脈打たせる（style.css の body.time-critical）。
+const TIME_CRITICAL_SECONDS = 10;
+let timeCriticalOn = false;
+function setTimeCriticalEdge(on, color) {
+  if (on === timeCriticalOn) return;
+  timeCriticalOn = on;
+  document.body.classList.toggle("time-critical", on);
+  if (on) {
+    document.documentElement.style.setProperty(
+      "--time-critical-color",
+      color && color !== "rainbow" ? `var(--color-${color})` : "#ef4444"
+    );
+  }
+}
+
 function updateBaseClock(state) {
   if (!baseClockEl) return;
   // CPU戦（1人用）では、CPUを自動で動かすためにタイマー機能自体は有効にしているが、
   // 人間側に基本時間の数字（900秒など）を見せる必要はない（ユーザー要望）。表示だけ隠す。
   if (isCpuBattleActive()) {
     setDisplayIfChanged(baseClockEl, "none");
+    setTimeCriticalEdge(false, null);
     return;
   }
   if (!isTurnTimerEnabled() || !state.turnPlayer) {
     setDisplayIfChanged(baseClockEl, "none");
+    setTimeCriticalEdge(false, null);
     return;
   }
   baseClockEl.style.display = "flex"; // タイマー機能が有効な間は常時表示（詳しくは上のコメント参照）
@@ -575,8 +593,13 @@ function updateBaseClock(state) {
     const ratio = remainingSec / totalSeconds;
     baseClockEl.classList.toggle("is-warning", ratio <= 0.5 && ratio > 0.2);
     baseClockEl.classList.toggle("is-critical", ratio <= 0.2);
+    // 【ユーザー要望2026-09-05】自分の持ち時間が残りわずかになったら、画面のふちを
+    // **自分の色で**脈打たせる（数字の小さな表示だけでは気づきにくいため）。
+    // 自分の分が減っている時だけ——相手の分で自分の画面が赤くなると誤解を招く。
+    setTimeCriticalEdge(isSelfCounting && remainingSec <= TIME_CRITICAL_SECONDS, getPieceColor(getSelfSeat()));
     return;
   }
+  setTimeCriticalEdge(false, null);
 
   // カウント中でない（延長ロープが燃えている・優先権未確定・相手の基本時間が非表示設定）
   // 間は、秒数の代わりに自分自身の砂時計残数だけを静かに表示するフォールバック状態にする
