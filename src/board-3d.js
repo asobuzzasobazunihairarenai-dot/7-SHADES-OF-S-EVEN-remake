@@ -27,7 +27,6 @@
 import * as THREE from "../vendor/three.module.min.js";
 import { subscribe } from "./state.js";
 import { logAction } from "./action-log.js";
-import { syncOverlayMirrors, clearOverlayMirrors, removeOverlayLayer } from "./board-3d-overlay.js";
 import { isBoard3dEnabled, setBoard3dEnabledSetting } from "./board-3d-setting.js";
 
 let renderer = null;
@@ -69,7 +68,7 @@ const textureLoader = new THREE.TextureLoader();
 // iPhoneでこのバーだけがチカチカし続ける報告（#257/#259）があり、WebGL描画がONの時に
 // 「盤面の中で唯一DOMが絵を描いたまま残っていた要素」がこれだったため。板は薄く盤面の
 // 平面に収まり、DOM順でも盤面・ロックエリアより前（＝奥に描かれる）ので重なり順は変わらない。
-const PAINT_SELECTOR = [".board-card", ".piece-face", ".stack-top", ".lock-area-bar-image"].join(",");
+const PAINT_SELECTOR = [".board-card", ".piece-face", ".stack-top", ".lock-area-bar-image", ".playmat-bg", ".table-background-bg"].join(",");
 
 // 【第2段（2026-09-04）】画像だけでなく、**マスとロックスロットの「形」**（角丸の枠と
 // 薄い背景色）もWebGLで描く。狙いは合成レイヤーの枚数を減らすこと——iOSは preserve-3d の
@@ -650,9 +649,19 @@ function sortByDepth() {
   needsSort = false;
   const list = [];
   for (const mesh of allMeshes()) {
-    _world.multiplyMatrices(rootGroup.matrix, mesh.matrix);
-    _center.set(0, 0, 0).applyMatrix4(_world);
-    list.push({ mesh, z: _center.z, i: mesh.userData.domIndex ?? 0 });
+    // 【重要・#258の真因】以前はここで「ワールド座標での板の中心のZ」を並べ替えの鍵にしていた。
+    // ところが盤面は42度傾いているので、**同じ平面に載っているだけ**の板でも、手前寄りにある
+    // ものほどZが大きくなる（実測: 奥の列のカード -165.8 / プレイマット -28.3 / 床 +324.5）。
+    // つまりこの鍵は事実上「盤面のどの列にいるか」を見ていただけで、重なりの前後とは無関係。
+    // 小さくて同じ大きさのタイル同士（マスとその中のカード）は中心がほぼ一致するので今まで
+    // 破綻しなかったが、**盤面全体を覆うほど大きい板**（床＝4.75倍）を入れた瞬間、その中心が
+    // 手前寄りにあるせいでZが最大になり、**最後に描かれて盤面を丸ごと隠した**（#258）。
+    //
+    // 正しい鍵は「盤面の平面からどれだけ持ち上がっているか」＝板自身の translateZ。
+    // 駒だけが立方体として持ち上がっており（数px以上）、カード・マス・山の上面・プレイマット・
+    // 床はすべて 0＝同じ高さ。同じ高さのものはCSSと同じく**DOMの並び順**で決める。
+    // こうすると、盤面のどこにあるか・どれだけ大きいかに関係なく、CSSでの見え方と一致する。
+    list.push({ mesh, z: mesh.matrix.elements[14], i: mesh.userData.domIndex ?? 0 });
   }
   // 【重要・#251】同じ高さのものは「DOMの並び順」で決める、という意図だったが、比較が
   // `a.z !== b.z` の**厳密比較**だったため事実上その分岐に入らなかった。マスとその中の
@@ -660,8 +669,9 @@ function sortByDepth() {
   // 毎回「別の高さ」と判定されて並び順が誤差で決まっていた（実測: ゲートのマスの板が
   // カードより後に描かれ、.cell.is-gate の黄色い膜 rgba(250,204,21,0.12) がカード全面に
   // 被って「カードの裏面が黄色っぽく透ける」状態になっていた）。
-  // わずかな差は「同じ高さ」とみなす。駒はtranslateZで数px以上持ち上がっているので、
-  // 0.5px の幅なら駒とカードの前後（#241）は今までどおり正しく決まる。
+  // わずかな差は「同じ高さ」とみなす（行列の積み上げで 1e-9 程度の誤差が乗るため）。
+  // 駒はtranslateZで数px以上持ち上がっているので、0.5px の幅なら駒とカードの前後（#241）は
+  // 今までどおり正しく決まる。
   const SAME_PLANE = 0.5;
   list.sort((a, b) => (Math.abs(a.z - b.z) > SAME_PLANE ? a.z - b.z : a.i - b.i));
   for (let i = 0; i < list.length; i++) list[i].mesh.renderOrder = i;
@@ -722,66 +732,10 @@ function maybeLogStats() {
 
 // --- 光る演出をキャンバスの手前へ逃がす層 ---------------------------------------------
 // 【ユーザー報告2026-09-05「自ターン時の駒のカラーEFFECTがしっかり光っていない」】
-// キャンバスは盤面のDOMより**手前**（z-index:5）にあるので、DOMの box-shadow で描いている
-// 「光」は、WebGLが描くカードやマスの板に隠れてしまう。光は要素の外側へ広がるが、その広がった
-// 先も周りのカードの板に覆われるため、マスの隙間にしか見えない＝「なんとなく光っている」状態。
-//
-// そこで、光っている要素と同じ位置・同じ大きさの**空の箱**をキャンバスより手前の層に置き、
-// 既存のCSSアニメーションをそこで再生する。WebGL側で光を描き直すより確実で、
-// 「常時光る演出をやめる」設定（body.reduce-glow）もそのまま効く。
-// 対象は2つ。どちらも「キャンバスの裏に隠れて見えなくなる」ためここへ逃がす。
-//  ・手番の駒／ホバーの光（.piece の box-shadow アニメーション）
-//  ・ロック中でも使えるカードの周回する光・きらめき（.board-card の ::before/::after）
-// 位置は駒だけ**上面**（.piece-top）に合わせる——.piece 自身の箱は translateZ で持ち上げる
-// 前の位置なので、そこに合わせると光が下にずれる。
-function collectGlowSources(table) {
-  const out = [];
-  for (const src of table.querySelectorAll(".piece.is-my-turn-glow, .piece.hover-active")) {
-    const top = src.querySelector(".piece-top") || src;
-    out.push({
-      el: top,
-      className:
-        "board-3d-glow" +
-        (src.classList.contains("is-my-turn-glow") ? " is-turn" : "") +
-        (src.classList.contains("hover-active") ? " is-hover" : ""),
-      // 駒の色はJS側が駒ごとに設定しているので、そのまま引き継ぐ。
-      vars: { "--piece-turn-glow-color": getComputedStyle(src).getPropertyValue("--piece-turn-glow-color").trim() },
-    });
-  }
-  // 手番プレイヤーを示すロックエリアの光（.lock-area.is-turn-player の box-shadow アニメ）も
-  // キャンバスの裏になるため逃がす（ユーザー報告 #260「ターンプレイヤーを示すロックエリアの
-  // 光がたまにチカチカします」）。.lock-area 自身は背景を持たない枠なので、空の箱に同じ
-  // アニメーションを再生させるだけで元と同じ見え方になる。
-  for (const src of table.querySelectorAll(".lock-area.is-turn-player")) {
-    const cs = getComputedStyle(src);
-    if (cs.display === "none" || cs.visibility === "hidden") continue;
-    out.push({
-      el: src,
-      className: "board-3d-glow is-lock-turn",
-      vars: { "--turn-glow-rgb": cs.getPropertyValue("--turn-glow-rgb").trim() },
-    });
-  }
-  for (const src of table.querySelectorAll(".board-card.is-usable-while-locked")) {
-    const cs = getComputedStyle(src);
-    if (cs.display === "none" || cs.visibility === "hidden") continue;
-    out.push({
-      el: src,
-      className:
-        "board-3d-glow is-usable-while-locked" +
-        (src.classList.contains("effect-orbit") ? " effect-orbit" : "") +
-        (src.classList.contains("effect-shine") ? " effect-shine" : ""),
-      vars: { "--usable-locked-color": cs.getPropertyValue("--usable-locked-color").trim() },
-    });
-  }
-  return out;
-}
-
-function syncGlowLayer() {
-  const table = getTable();
-  if (!table) return;
-  syncOverlayMirrors(collectGlowSources(table));
-}
-
+// 【2026-09-05以降】WebGLのキャンバスは盤面のDOMより**奥**（z-index:0・.scene の先頭）にある。
+// 盤面で塗っているものは全部WebGLへ移したので、DOM側は「大きさと当たり判定だけの透明な箱」に
+// なっており、奥に敷いても何も隠れない。逆に光・枠・刻印・ハイライトはDOMのまま自然に手前に
+// なるので、一時期あった「手前へ逃がす層」（board-3d-overlay.js）は役目を終えて撤去した。
 function frame() {
   if (!active) return;
   rafId = requestAnimationFrame(frame);
@@ -795,7 +749,6 @@ function frame() {
   }
   if (!syncCamera()) return;
   sortByDepth();
-  syncGlowLayer();
   const t1 = performance.now();
   renderer.render(scene, camera);
   lastDrawMs = lastDrawMs * 0.8 + (performance.now() - t1) * 0.2;
@@ -814,8 +767,8 @@ function ensureRenderer() {
   canvasEl.id = "board-3d-canvas";
   // 盤面のDOM（当たり判定用に残す）より手前、UI（ボタン・モーダル）より奥に置く。
   canvasEl.style.cssText =
-    "position:absolute; left:0; top:0; pointer-events:none; z-index:5;";
-  sceneEl.appendChild(canvasEl);
+    "position:absolute; left:0; top:0; pointer-events:none; z-index:0;";
+  sceneEl.insertBefore(canvasEl, sceneEl.firstChild);
   try {
     renderer = new THREE.WebGLRenderer({ canvas: canvasEl, alpha: true, antialias: true, powerPreference: "low-power" });
   } catch (err) {
@@ -873,8 +826,6 @@ export function setBoard3dActive(on) {
   } else {
     active = false;
     document.body.classList.remove("board-3d-on");
-    clearOverlayMirrors();
-    removeOverlayLayer();
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
     clearInterval(rebuildTimer);
@@ -968,6 +919,14 @@ export function debugMeshInfo(el) {
           visible: mesh.visible,
           domIndex: mesh.userData.domIndex,
           z: +(mesh.matrix.elements[14]).toFixed(2),
+          // 並べ替えに実際に使っている値（ワールド座標での板の中心のZ）。上の z は板の
+          // ローカル行列の平行移動成分で、盤面の傾き（rootGroup）が入っていない別物なので、
+          // 描画順を調べる時はこちらを見ること。
+          worldZ: (() => {
+            const w = new THREE.Matrix4().multiplyMatrices(rootGroup.matrix, mesh.matrix);
+            const c = new THREE.Vector3(0, 0, 0).applyMatrix4(w);
+            return +c.z.toFixed(2);
+          })(),
         }
       : null;
   return { image: one(meshByElement.get(el)), shape: one(shapeMeshByElement.get(el)) };

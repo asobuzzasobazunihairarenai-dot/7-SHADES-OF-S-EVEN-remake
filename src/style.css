@@ -19773,7 +19773,9 @@ body.theme-light .post-game-friend-chip {
 body.board-3d-on .board-card,
 body.board-3d-on .piece-face,
 body.board-3d-on .stack-top,
-body.board-3d-on .lock-area-bar-image {
+body.board-3d-on .lock-area-bar-image,
+body.board-3d-on .playmat-bg,
+body.board-3d-on .table-background-bg {
   background-image: none !important;
   background-color: transparent !important;
   /* 影・光彩も剥がす（iOSで重い合成の元）。ただし !important は付けない——「今ここに置いた」
@@ -19788,6 +19790,7 @@ body.board-3d-on .lock-area-bar-image {
   top: 0;
   pointer-events: none;
 }
+body.board-3d-on #game-table { position: relative; z-index: 1; }
 
 /* WebGL描画中に、DOMの「光る演出」をキャンバスの手前へ逃がす層（board-3d.js の
    syncGlowLayer）。キャンバス(z-index:5)より手前に置くことで、手番の駒のグローや
