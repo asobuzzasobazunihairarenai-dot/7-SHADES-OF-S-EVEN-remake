@@ -14,6 +14,9 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "駒が平べったく、少し透けているように見えていたのを直しました。立方体の面ごとの陰影（奥や左右の面を暗くする処理）が、盤面の新しい描き方で失われていました。",
+      "到達したときのオーラなど、演出の最中に画面中央のお知らせが出てしまうのをやめました。演出が終わってから出ます。",
+      "お知らせが次から次へと一瞬で切り替わって読めなかったのを直しました。1つずつ間を空けて出るようにしています。",
       "iPhone・iPadで、盤面のふちの色帯（赤橙黄緑青桃紫のバー）がチカチカしたままだったのを直しました。盤面を新しい方式で描くための部品が読み込めなくなっており、しかも一度失敗すると更新しても直らない状態になっていました。",
       "移動先を選んでいる間の暗転が、パソコンだけ濃すぎたのを直しました。暗くする処理が二重にかかっていました（スマホでの見え方が本来の濃さです）。",
       "ロックの演出（光が集まって刻印が焼き付く演出）の最中に、次のお知らせが重なって出ていたのをやめました。演出が終わってから出ます。",
@@ -42,6 +45,9 @@ export const CHANGELOG = [
       "「ホーム画面に追加」の案内文が、最後の2文字だけ次の行にこぼれて読みにくかったのを直しました。",
     ],
     itemsEn: [
+      "Fixed pieces looking flat and slightly see-through. The shading that darkens the back and side faces of the cube had been lost when the board moved to the new drawing method.",
+      "Notices in the middle of the screen no longer appear during animations such as the aura that rises when you land on a card. They now wait until the animation has finished.",
+      "Fixed notices flashing past one after another too quickly to read. They now appear one at a time, with a pause between them.",
       "Fixed the coloured band around the board (red/orange/yellow/green/blue/pink/purple) still flickering on iPhone and iPad. The part needed to draw the board the new way could no longer be loaded, and once it failed it stayed broken even after updating.",
       "Fixed the dimming shown while you choose where to move being too dark on PC. It was being applied twice (the way it looks on phones is the intended darkness).",
       "Notices no longer appear on top of the lock animation (the light gathering and the seal burning in). They now wait until the animation has finished.",

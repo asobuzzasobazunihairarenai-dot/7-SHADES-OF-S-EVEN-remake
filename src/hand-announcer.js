@@ -14,10 +14,25 @@ import { pushTurnEventStock, getTurnEventStockTargetRect, getTurnEventStockKey }
 import { stageClientToLocal, stageDelta } from "./main.js";
 // 勝利演出中は対局中のお知らせを出さない（ユーザー報告2026-09-02）。
 import { isCelebrationActive, registerCelebrationCleanup } from "./celebration-state.js";
+// 【#265】盤面の演出（到達のオーラ・ロック・接触のタックル等）が流れている間は中央に出さない。
+// ユーザー報告「中央に出るミニモーダルはいまだに演出中に表示されます。例えば、到達時にボワーンと
+// オーラが出る演出とかロック演出とかいろんな演出です！」。あわせて、演出が終わった後も
+// お知らせ同士が一斉に出て上書きし合わないよう、1列に並ばせて間隔を空ける。
+import { waitForNoticeSlot, resetNoticeQueue, registerBoardAnimationStart } from "./anim-gate.js";
+
+// 演出が始まった時点で中央にフラッシュが残っていたら、その場で右下のストックへ畳む
+// （#265「中央に出るミニモーダルはいまだに演出中に表示されます」。出す側は演出の終わりを
+//  待つようにしたが、フラッシュの途中で演出が始まる場合が残るため）。中身は失われず、
+// チップとして積まれるので後から見返せる。
+registerBoardAnimationStart(() => {
+  document.querySelectorAll(".hand-pickup-toast.is-flash").forEach((el) => el.click());
+});
 
 // 演出が始まったら、表示中のフラッシュは即座に片付ける（飛翔の途中でも消す）。
 registerCelebrationCleanup(() => {
   document.querySelectorAll(".hand-pickup-toast").forEach((el) => el.remove());
+  // 順番待ちに残っていた分の間隔を持ち越さない（次の対局の最初のお知らせが無駄に待たされる）。
+  resetNoticeQueue();
 });
 
 // カード名は表示用（英語版のカードテキストがあればそれ、無ければ日本語の原名）。
@@ -49,14 +64,21 @@ function flashDurationMs() {
 }
 
 // opts: { icon, label, cardId } — ストックのチップ（右下の横帯）に載せる情報。
-function showToast(innerHTML, opts = {}) {
+// 【#265】演出中は出さず、お知らせ同士の間隔も空ける（waitForNoticeSlot）。そのため非同期に
+// なったが、呼び出し側は戻り値を使っていないのでシグネチャ上の影響は無い。
+async function showToast(innerHTML, opts = {}) {
   // 勝利演出中は出さない（演出の邪魔になるだけで、勝敗には関係しない情報のため）。
+  if (isCelebrationActive()) return;
+  // #184: この出来事が「どのターンのものか」を**出来事が起きた瞬間**に確定させておく
+  // （順番待ちや飛翔でチップを積む頃には次のターンに入っていることがあるため。ターンが
+  //  変わっていればチップは積まれない＝前のターンの分が残らない）。
+  const turnKey = getTurnEventStockKey();
+  // 盤面の演出が終わり、前のお知らせを読む間が空くまで待つ。中央のトーストは
+  // フラッシュの長さだけ場所を占めるので、その分を「次を出さない間」として渡す。
+  await waitForNoticeSlot(flashDurationMs());
   if (isCelebrationActive()) return;
   const toast = document.createElement("div");
   toast.className = "hand-pickup-toast is-flash";
-  // #184: この出来事が「どのターンのものか」をフラッシュを出す瞬間に確定させておく
-  // （飛翔が終わってチップを積む頃には次のターンに入っていることがあるため）。
-  const turnKey = getTurnEventStockKey();
   let done = false;
   // フラッシュを畳んで、右下のストックへ飛ばす。飛び終わったらチップとして積む。
   const stow = () => {

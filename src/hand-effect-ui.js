@@ -23,7 +23,10 @@ import { t } from "./ui-text.js"; // UI英語化フェーズ13
 import { isCelebrationActive, registerCelebrationCleanup } from "./celebration-state.js";
 // 盤面の演出（接触のタックル・マスチェンジの入れ替え・駒の移動など）が再生中は、
 // 「情報を見せるだけ」のモーダルを演出の後まで待たせる（#261）。選択を求めるモーダルは待たせない。
-import { waitForBoardAnimation } from "./anim-gate.js";
+// さらに #265: 演出が終わった瞬間に溜まっていた分が**一斉に**出て互いに上書きし合い、
+// 「次から次へと勝手に消えて何が起こったか分からない」状態になっていた。waitForNoticeSlot は
+// 演出の終わりを待つのに加えて、お知らせ同士の間隔も空けてくれる（1列に並ばせる）。
+import { waitForNoticeSlot } from "./anim-gate.js";
 
 registerCelebrationCleanup(() => {
   document
@@ -42,7 +45,7 @@ let currentUseModalTimer = null;
 
 export async function showHandEffectUseModal(cardId, optionLabel) {
   if (isCelebrationActive()) return;
-  await waitForBoardAnimation();
+  await waitForNoticeSlot();
   if (isCelebrationActive()) return;
   if (currentUseModal) {
     clearTimeout(currentUseModalTimer);
@@ -139,7 +142,7 @@ export const REASON_MODAL_TOTAL_MS = REASON_MODAL_DURATION_MS + 300;
 // 止めるため）。戻り値は「閉じたら解決するPromise」（呼び出し側が待てるように）。
 export async function showEffectReasonModal(cardId, text, { holdUntilClick = false, onUserDismiss = null } = {}) {
   if (isCelebrationActive()) return;
-  await waitForBoardAnimation();
+  await waitForNoticeSlot();
   if (isCelebrationActive()) return;
   if (currentReasonModal) {
     clearTimeout(currentReasonModalTimer);
@@ -264,7 +267,7 @@ const RECEIVED_MODAL_DURATION_MS = 3200;
 // 時はbroadcastCardReceived/onCardReceivedEvents経由で受け取る側自身の画面にだけ出す）。
 export async function showCardReceivedModal(cardId, subtitle, { labelText = null } = {}) {
   if (isCelebrationActive()) return;
-  await waitForBoardAnimation();
+  await waitForNoticeSlot();
   if (isCelebrationActive()) return;
   labelText = labelText ?? t("heu.received");
   if (currentReceivedModal) {
@@ -335,7 +338,7 @@ export async function showCardReceivedModal(cardId, subtitle, { labelText = null
 // （オンラインの非公開札）はgetCardImagePath側が裏面を返す。閉じたら解決するPromiseを返す。
 export async function showMultipleCardsReceivedModal(cardIds, subtitle, { labelText = null } = {}) {
   if (isCelebrationActive()) return;
-  await waitForBoardAnimation();
+  await waitForNoticeSlot();
   if (isCelebrationActive()) return;
   labelText = labelText ?? t("heu.stolen");
   if (currentReceivedModal) {

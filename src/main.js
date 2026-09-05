@@ -105,7 +105,7 @@ import {
 import { announceHandPickups, announceCardLocked, announceDrawCount, announceCardDiscarded } from "./hand-announcer.js";
 import { clearTurnEventStock, getTurnEventStockKey } from "./turn-event-stock.js";
 // 盤面の演出中は「情報を見せるだけ」のモーダルを演出の後まで待たせる（#261）。
-import { withBoardAnimation } from "./anim-gate.js";
+import { withBoardAnimation, beginBoardAnimation, endBoardAnimation } from "./anim-gate.js";
 import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained, reapplyGateInvasionModal, registerGateInvasionModalEternalAnim, registerGateInvasionModalStealAnim, registerGateInvasionModalEternalPreHide, forceCloseGateInvasionModal } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking, hasAnyoneWon } from "./victory.js";
 import { formatTitle } from "./titles.js"; // 称号（続き313）
@@ -1199,7 +1199,20 @@ function appendEffectHost(hostEl, effectEl, ttlMs) {
 // 虹（なないろの欠片、cards-data.jsのcolor: "rainbow"）は単色のCSS変数では表現できない
 // （border-color/box-shadow/color-mix()はグラデーションを受け付けない）ため、
 // .is-rainbowクラスを付けてCSS側で柱・光の輪を虹色に個別上書きする。
+// 【#265】到達のオーラ（ボワーンと立ち上る柱）が流れている間は、中央に出る「見せるだけ」の
+// お知らせを待たせる（ユーザー報告「中央に出るミニモーダルはいまだに演出中に表示されます。
+// 例えば、到達時にボワーンとオーラが出る演出とかロック演出とかいろんな演出です！」）。
+// 続き421で7つの演出に入れた演出ゲートに、この一発演出も乗せる。この関数は同期で要素を
+// 返す作りなので（呼び出し側が戻り値を使う）、包む代わりに演出の長さぶんだけ手で押さえる。
 function spawnArrivalBurst(hostEl, color) {
+  const burst = spawnArrivalBurst__inner(hostEl, color);
+  if (burst) {
+    beginBoardAnimation();
+    setTimeout(endBoardAnimation, ARRIVAL_BURST_DURATION_MS);
+  }
+  return burst;
+}
+function spawnArrivalBurst__inner(hostEl, color) {
   if (isArrivalEffectDisabled()) return null;
   const burst = document.createElement("div");
   burst.className = color === "rainbow" ? "arrival-effect-burst is-rainbow" : "arrival-effect-burst";

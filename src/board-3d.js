@@ -403,17 +403,46 @@ function getTexture(url) {
 // 描くので、親が消しているものまで描いてしまう。実際 #240 は「セットアップ中、駒の親
 // （.piece）が opacity:0 で隠れているのに、子の .piece-face を全部描いてしまい、まだ出て
 // いないはずの駒が変な形で見えていた」というもの。root まで遡って実効値を求める。
+// CSSの filter から brightness(x) だけを取り出して掛け合わせる。
+// 【#265・重要】駒の立方体の陰影は box-shadow ではなく **filter: brightness()** で付けている
+// （.piece-wall-back 0.35 / -left 0.55 / -right 0.8 / -front と -top は等倍）。WebGL側でこれを
+// 読んでいなかったため、5面すべてが同じ明るさの同じスキン画像で描かれ、立体の陰影が丸ごと
+// 失われていた＝「駒が少し透けているように見える」の正体。CSSの filter はDOMには残っている
+// が、その要素はもう何も塗らない（背景画像を剥がしてある）ので効き目が無い。
+function cssBrightness(filter) {
+  if (!filter || filter === "none") return 1;
+  let b = 1;
+  // 正規表現を使わずに素朴に走査する（このファイルはCRLFで、エスケープの取り違えが起きやすいため）。
+  let i = 0;
+  for (;;) {
+    const start = filter.indexOf("brightness(", i);
+    if (start < 0) break;
+    const end = filter.indexOf(")", start);
+    if (end < 0) break;
+    let raw = filter.slice(start + "brightness(".length, end).trim();
+    let pct = false;
+    if (raw.endsWith("%")) { pct = true; raw = raw.slice(0, -1); }
+    const v = parseFloat(raw);
+    if (Number.isFinite(v)) b *= pct ? v / 100 : v;
+    i = end + 1;
+  }
+  return b;
+}
+
 function effectiveVisual(el, root) {
   let opacity = 1;
+  let brightness = 1;
   let node = el;
   while (node && node !== root) {
     const cs = getComputedStyle(node);
-    if (cs.display === "none" || cs.visibility === "hidden") return { opacity: 0, hidden: true };
+    if (cs.display === "none" || cs.visibility === "hidden") return { opacity: 0, brightness: 1, hidden: true };
     const o = parseFloat(cs.opacity);
     if (Number.isFinite(o)) opacity *= o;
+    // filter は「その要素とその子孫の描画」に掛かるので、opacity と同じく祖先まで遡って掛ける。
+    brightness *= cssBrightness(cs.filter);
     node = node.parentElement;
   }
-  return { opacity, hidden: opacity <= 0.001 };
+  return { opacity, brightness, hidden: opacity <= 0.001 };
 }
 
 // 【暗転（膜）はWebGL側では描かない・2026-09-05 #263】
@@ -499,8 +528,13 @@ function rebuild() {
       mesh.matrix.copy(m);
       mesh.material.opacity = vis.opacity;
       // 暗転はDOMの膜（.cell::after）がキャンバスの手前から掛けてくれるので、ここでは混ぜない
-      // （上の overlayTint の説明参照。混ぜると二重に暗くなる）。
-      mesh.material.color.setRGB(1, 1, 1, THREE.SRGBColorSpace);
+      // （上の説明参照。混ぜると二重に暗くなる）。板の色に入れるのは、CSSが filter:brightness で
+      // 付けている**面ごとの陰影**だけ（駒の立方体。#265）。
+      // 色空間に SRGBColorSpace を渡すのが要点——sRGBはおおむねべき乗なので、sRGB空間で
+      // 指定した係数を掛けると CSS の brightness() と同じ結果になる（リニアのまま渡すと
+      // 掛け算の意味が変わって暗くなりすぎる。続き420で踏んだのと同じ話）。
+      const b = Math.max(0, Math.min(4, vis.brightness));
+      mesh.material.color.setRGB(b, b, b, THREE.SRGBColorSpace);
       mesh.userData.domIndex = order++;
       mesh.visible = true;
     };
@@ -688,7 +722,7 @@ function maybeLogStats() {
       // #247「カードにドロップシャドウのようなものがある」の切り分け用。
       // #238a は「移動できるマスを選んでいる間だけ、暗転の膜のせいでカードが浮いて見える」
       // だったので、その膜が出ている状況かどうかと、実際に膜の色を混ぜた板の枚数を残す。
-      tinted: st.tinted,
+      tinted: st.tinted, // 素の白でない板の数（駒の面の陰影＝filter:brightness を反映したもの）
       dim:
         (document.body.classList.contains("phase-move-picking") ? "move" : "") +
           (document.body.classList.contains("card-effect-picking-cells") ? "+effect" : "") || null,
