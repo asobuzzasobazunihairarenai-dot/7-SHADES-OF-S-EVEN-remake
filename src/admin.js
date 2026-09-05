@@ -1994,6 +1994,11 @@ const TOGGLE_SECTIONS = [
       cb.type = "checkbox";
       const info = document.createElement("div");
       info.style.cssText = "font-size: 0.7rem; opacity: 0.75; margin-top: 0.3rem;";
+      // 【2026-09-05 #264】この中の import は本番で失敗し得る（古いキャッシュのモジュールが
+      // 削除済みファイルを読もうとして404）。以前は失敗を拾っておらず、下の1秒間隔と合わさって
+      // 未処理の例外を毎秒出し続け、不具合報告のコンソールログが数百行それで埋まっていた。
+      // 失敗したら理由を出して、繰り返しも止める。
+      let importFailed = false;
       const refresh = async () => {
         const m = await import("./board-3d.js");
         const s = await import("./board-3d-setting.js");
@@ -2027,11 +2032,16 @@ const TOGGLE_SECTIONS = [
       row.appendChild(label);
       content.appendChild(row);
       content.appendChild(info);
-      refresh();
+      const safeRefresh = () =>
+        refresh().catch((err) => {
+          importFailed = true;
+          info.textContent = "WebGL描画の読み込みに失敗しています：" + String(err?.message ?? err);
+        });
+      void safeRefresh();
       // 開いている間は数値を更新し続ける（描き始めるまでの一瞬も追いかける）。
       const timer = setInterval(() => {
-        if (!content.isConnected) { clearInterval(timer); return; }
-        void refresh();
+        if (!content.isConnected || importFailed) { clearInterval(timer); return; }
+        void safeRefresh();
       }, 1000);
     },
   },

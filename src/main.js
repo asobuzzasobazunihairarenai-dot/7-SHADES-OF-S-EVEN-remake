@@ -6546,7 +6546,14 @@ function spawnLockSear(hostEl, color) {
 // ファーストカードのロックで最初のプレイヤー以外にロック画像が表示されないバグの真因が
 // これだった：setTimeoutで捕まえていたhostElが、演出完了前に後続のrender()でDOMごと
 // 作り直されて画面から切り離され、そこに追加されても見えなくなっていた）。
-function triggerLockEffect(cardId, location) {
+// ロックの演出（オーラの収束→焼き付く閃光→刻印）が終わるまで、「見せるだけ」のモーダルを
+// 待たせる（ユーザー報告2026-09-05 #263「ロック演出時に次のモーダルが出ちゃってます」）。
+// 続き421で接触・マスチェンジ等7つの演出に入れたのと同じ仕組み。ロック演出はここ1か所に
+// 集約されているので、包めば全ての経路（通常のロック・セットアップ・チュートリアル）に効く。
+function triggerLockEffect(...args) {
+  return withBoardAnimation(() => triggerLockEffect__inner(...args));
+}
+function triggerLockEffect__inner(cardId, location) {
   const table = document.getElementById("game-table");
   const hostEl = findLocationElement(table, location);
   if (!hostEl) return Promise.resolve();
@@ -14138,7 +14145,17 @@ applyStoredFixedHand();
 setTimeout(() => {
   import("./board-3d.js")
     .then((m) => m.applyStoredBoard3d())
-    .catch((err) => console.error("board-3d の起動に失敗", err));
+    .catch((err) => {
+      // 【重要・2026-09-05 #264】ここは実際に本番で失敗した（古いキャッシュの board-3d.js が、
+      // 削除済みのモジュールを読もうとして404になり「Importing a module script failed」）。
+      // その時 console.error だけでは中身が {} としか出ず、原因が読めなかった。不具合報告に
+      // 必ず載る行動ログへ、理由が分かる形で残す。
+      console.error("board-3d の起動に失敗", err?.message ?? err);
+      logAction("diag-board3d-import-failed", {
+        name: err?.name ?? null,
+        message: String(err?.message ?? err).slice(0, 200),
+      });
+    });
 }, 0);
 // 初回起動時だけ、オープニングの手前にサウンド／表示の設定モーダル（試聴ボタン付き）を出す。
 maybeShowFirstRunBgmModal();

@@ -14,6 +14,9 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "iPhone・iPadで、盤面のふちの色帯（赤橙黄緑青桃紫のバー）がチカチカしたままだったのを直しました。盤面を新しい方式で描くための部品が読み込めなくなっており、しかも一度失敗すると更新しても直らない状態になっていました。",
+      "移動先を選んでいる間の暗転が、パソコンだけ濃すぎたのを直しました。暗くする処理が二重にかかっていました（スマホでの見え方が本来の濃さです）。",
+      "ロックの演出（光が集まって刻印が焼き付く演出）の最中に、次のお知らせが重なって出ていたのをやめました。演出が終わってから出ます。",
       "盤面の描き方をさらに進め、プレイマットと床も新しい方式で描くようにしました。iPhone・iPadで画面がチカチカする症状の軽減をねらったものです。うまく表示されない場合は、基本設定の「動きが重い・カクつくとき」から元の方式に戻せます。",
       "接触やマスチェンジなどの演出の最中に、お知らせのモーダルが重なって出ていたのをやめました。演出が終わってから出ます（選択が必要なモーダルは今までどおりすぐ出ます）。",
       "移動先を選んでいる間、選べないマスのカードが十分に暗くならず、カードに影が付いているように見えていたのを直しました。暗くする量の計算が間違っていました。",
@@ -39,6 +42,9 @@ export const CHANGELOG = [
       "「ホーム画面に追加」の案内文が、最後の2文字だけ次の行にこぼれて読みにくかったのを直しました。",
     ],
     itemsEn: [
+      "Fixed the coloured band around the board (red/orange/yellow/green/blue/pink/purple) still flickering on iPhone and iPad. The part needed to draw the board the new way could no longer be loaded, and once it failed it stayed broken even after updating.",
+      "Fixed the dimming shown while you choose where to move being too dark on PC. It was being applied twice (the way it looks on phones is the intended darkness).",
+      "Notices no longer appear on top of the lock animation (the light gathering and the seal burning in). They now wait until the animation has finished.",
       "The board now also draws the playmat and the floor with the new method, aiming to further reduce flickering on iPhone and iPad. If anything looks wrong, you can switch back under Settings → “When things feel slow or stutter”.",
       "Information pop-ups no longer appear on top of animations such as contact or Space Swap. They now wait until the animation finishes (pop-ups that ask you to choose still appear right away).",
       "While choosing where to move, cards on unavailable squares were not dimmed enough, so they looked like they had a shadow. The dimming calculation was wrong; it is fixed.",

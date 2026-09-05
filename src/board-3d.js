@@ -416,26 +416,13 @@ function effectiveVisual(el, root) {
   return { opacity, hidden: opacity <= 0.001 };
 }
 
-// マス（.cell / .lock-slot）に掛かっている「暗転オーバーレイ」を色として取り込む。
-// ムーブフェイズ等では ::after で黒い半透明の膜をマスの上に重ねて、選べないマスを暗く
-// 見せている（body.phase-move-picking のルール参照）。ところがWebGLのキャンバスは盤面の
-// DOMより**手前**にあるので、カードの絵だけがその膜の上に出てしまい「カードだけ明るく、
-// 周りが真っ暗＝濃い影が付いたように見える」状態になっていた（#238）。膜の色をそのまま
-// 板の色に混ぜて、DOMと同じ見え方に戻す。
-function overlayTint(el, root) {
-  // el 自身がマス／ロックスロットのこともある（第2段でこれらの「形」もWebGLで描くように
-  // なったため）。自分から見始めてよい——.board-card 等はここに当たらないので素通りする。
-  let node = el;
-  while (node && node !== root) {
-    if (node.classList.contains("cell") || node.classList.contains("lock-slot")) {
-      const v = parseCssColor(getComputedStyle(node, "::after").backgroundColor || "");
-      if (v && v.a > 0.02) return { r: v.r / 255, g: v.g / 255, b: v.b / 255, a: v.a };
-      return null;
-    }
-    node = node.parentElement;
-  }
-  return null;
-}
+// 【暗転（膜）はWebGL側では描かない・2026-09-05 #263】
+// マス選択中の「候補以外を暗くする」膜は .cell::after / .lock-slot::after のDOMが描いている。
+// 続き422でキャンバスを盤面DOMの**奥**へ移したので、この膜は WebGL が描いたカード・駒・山の
+// 上にもそのまま掛かる（#game-table が z-index:1、キャンバスは 0）。つまりWebGL側で同じ膜の
+// 色を板に混ぜると **二重に暗くなる**（0.45 × 0.45 ≒ 0.20）。実際それが「PCだと暗転が濃すぎる。
+// スマホだといい感じ」の正体だった——スマホはWebGL描画が起動に失敗していてDOMの膜だけが
+// 効いており、そちらが本来の濃さだった。よってここでは何もしない（板は常に素の色で描く）。
 
 // --- 走査してメッシュを作る -----------------------------------------------------------
 const QUAD = new THREE.PlaneGeometry(1, 1);
@@ -500,7 +487,6 @@ function rebuild() {
     const h = el.offsetHeight;
     if (w <= 0 || h <= 0) continue;
     const base = localMatrixTo(el, table);
-    const tint = overlayTint(el, table);
     // 1つの要素が「絵の板」と「形の板（枠線・背景色・グロー）」の両方を持つことがある
     // （盤面のカード＝絵はWebGL・枠線もWebGL）。CSSと同じく、枠線は絵の上に描く。
     const place = (mesh, pad) => {
@@ -512,22 +498,9 @@ function rebuild() {
       mesh.matrixAutoUpdate = false;
       mesh.matrix.copy(m);
       mesh.material.opacity = vis.opacity;
-      if (tint) {
-        // 膜が上に重なった時の見え方（元の色 * (1-a) + 膜の色 * a）を板の色として先に作る。
-        // 【重要】第4引数で sRGB を明示する。three.js の既定の作業色空間は**リニア**なので、
-        // 省略すると「0.45」をリニア値として受け取り、画面には sRGB の約0.70として出る
-        // ＝暗転が55%のつもりで30%程度しか効かない。その結果、周りのマス（DOMの膜が正しく
-        // 効いている）だけが暗く、カードだけ明るく残って**カードに影が付いたように見えて**
-        // いた（ユーザー報告 #238a/#247/#260「盤面のカードにドロップシャドウのようなものがある」）。
-        mesh.material.color.setRGB(
-          1 - tint.a + tint.r * tint.a,
-          1 - tint.a + tint.g * tint.a,
-          1 - tint.a + tint.b * tint.a,
-          THREE.SRGBColorSpace
-        );
-      } else {
-        mesh.material.color.setRGB(1, 1, 1, THREE.SRGBColorSpace);
-      }
+      // 暗転はDOMの膜（.cell::after）がキャンバスの手前から掛けてくれるので、ここでは混ぜない
+      // （上の overlayTint の説明参照。混ぜると二重に暗くなる）。
+      mesh.material.color.setRGB(1, 1, 1, THREE.SRGBColorSpace);
       mesh.userData.domIndex = order++;
       mesh.visible = true;
     };
