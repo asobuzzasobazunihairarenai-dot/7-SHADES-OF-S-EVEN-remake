@@ -105,6 +105,8 @@ import {
 } from "./gate-invasion.js";
 import { announceHandPickups, announceCardLocked, announceDrawCount, announceCardDiscarded } from "./hand-announcer.js";
 import { clearTurnEventStock, getTurnEventStockKey } from "./turn-event-stock.js";
+// 盤面の演出中は「情報を見せるだけ」のモーダルを演出の後まで待たせる（#261）。
+import { withBoardAnimation } from "./anim-gate.js";
 import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained, reapplyGateInvasionModal, registerGateInvasionModalEternalAnim, registerGateInvasionModalStealAnim, registerGateInvasionModalEternalPreHide, forceCloseGateInvasionModal } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking, hasAnyoneWon } from "./victory.js";
 import { formatTitle } from "./titles.js"; // 称号（続き313）
@@ -1495,7 +1497,11 @@ function createSwapArc(rectA, rectB) {
 // マスチェンジの入れ替え演出本体。①両駒を発光→②電撃アークで結ぶ→③実駒を隠してゴーストで
 // お互いの位置へ飛翔。終了時、実駒は隠したまま（pending）にして呼び出し側の状態入れ替え＋
 // renderで新しい位置に現れるようにする。演出オフ時は何もしない。
-async function playMassChangeSwapAnimation(pieceAId, pieceBId) {
+// マスチェンジの入れ替えの演出。再生中は「情報を見せるだけ」のモーダルを待たせる（#261）。
+async function playMassChangeSwapAnimation(...args) {
+  return withBoardAnimation(() => playMassChangeSwapAnimation__inner(...args));
+}
+async function playMassChangeSwapAnimation__inner(pieceAId, pieceBId) {
   if (isFlightAnimationDisabled()) return;
   const table = document.getElementById("game-table");
   const elA = table?.querySelector(`.piece[data-token-id="${pieceAId}"]`);
@@ -4027,7 +4033,11 @@ function pieceMoveDurationMs() {
   return Number.isFinite(v) && v > 0 ? Math.round(v * 1000) : 450;
 }
 
-async function playPieceMoveAnimation(pieceId, fromLocation) {
+// 駒の移動の演出。再生中は「情報を見せるだけ」のモーダルを待たせる（#261）。
+async function playPieceMoveAnimation(...args) {
+  return withBoardAnimation(() => playPieceMoveAnimation__inner(...args));
+}
+async function playPieceMoveAnimation__inner(pieceId, fromLocation) {
   if (isFlightAnimationDisabled()) return; // 「駒やカードが飛ぶ動きをやめる」設定を尊重
   if (!fromLocation || fromLocation.zone !== "cell") return;
   const table = document.getElementById("game-table");
@@ -7083,7 +7093,11 @@ function getContactAnimSeconds(varName, fallback) {
   return Number.isNaN(seconds) ? fallback : seconds;
 }
 
-async function playContactLunge({ attackerEl, defenderFromRect, attackerRect, defenderFromLocation, attackerFromLocation, attackerColor }) {
+// 接触のタックル（助走）の演出。再生中は「情報を見せるだけ」のモーダルを待たせる（#261）。
+async function playContactLunge(...args) {
+  return withBoardAnimation(() => playContactLunge__inner(...args));
+}
+async function playContactLunge__inner({ attackerEl, defenderFromRect, attackerRect, defenderFromLocation, attackerFromLocation, attackerColor }) {
   const table = document.getElementById("game-table");
   const dx = defenderFromRect.left + defenderFromRect.width / 2 - (attackerRect.left + attackerRect.width / 2);
   const dy = defenderFromRect.top + defenderFromRect.height / 2 - (attackerRect.top + attackerRect.height / 2);
@@ -7131,7 +7145,11 @@ async function playContactLunge({ attackerEl, defenderFromRect, attackerRect, de
 // 駒が実際に移動した「後」に呼ぶ。相手の駒がゲートへ飛んでいく見た目を作る。render()で
 // 新しい位置に駒を作る「前」にsetSetupPendingTokenIdsへ登録しておくことで、一瞬フルに
 // 見えてから隠れる「フラッシュ」を防ぐ（セットアップ配布演出と同じ考え方）。
-async function playContactFlight(defenderPieceId, defenderFromRect) {
+// 接触のタックル（ゲートへ飛ばす）の演出。再生中は「情報を見せるだけ」のモーダルを待たせる（#261）。
+async function playContactFlight(...args) {
+  return withBoardAnimation(() => playContactFlight__inner(...args));
+}
+async function playContactFlight__inner(defenderPieceId, defenderFromRect) {
   setSetupPendingTokenIds(new Set([defenderPieceId]));
   render();
   const table = document.getElementById("game-table");
@@ -7295,7 +7313,11 @@ async function playCenterCardFlipReveal(cardId, { labelText = t("game.label.reve
   reveal.remove();
 }
 
-async function playEternalAcquisitionAnim(attacker, cardId, cardDef, onDone) {
+// エターナル獲得の演出。再生中は「情報を見せるだけ」のモーダルを待たせる（#261）。
+async function playEternalAcquisitionAnim(...args) {
+  return withBoardAnimation(() => playEternalAcquisitionAnim__inner(...args));
+}
+async function playEternalAcquisitionAnim__inner(attacker, cardId, cardDef, onDone) {
   const table = document.getElementById("game-table");
   const pileEl = table?.querySelector('.zone[data-pile="eternal"]');
   if (!table || !pileEl) {
@@ -7637,7 +7659,11 @@ async function playGateInvasionStealRitual(info, onDone) {
 // だが、オンラインはサーバーが既に無作為抽選済みのため同じ対話は再現できない。代わりに、
 // 奪われた側の手札エリアから攻撃側の手札エリアへ、count枚ぶんのカード裏ゴーストを少しずつ
 // 飛ばす純演出にする（儀式演出が使えない/フォールバック時に使う）。
-async function playGateInvasionStealAnim(attacker, defender, count, onDone) {
+// ゲート侵攻の手札奪取の演出。再生中は「情報を見せるだけ」のモーダルを待たせる（#261）。
+async function playGateInvasionStealAnim(...args) {
+  return withBoardAnimation(() => playGateInvasionStealAnim__inner(...args));
+}
+async function playGateInvasionStealAnim__inner(attacker, defender, count, onDone) {
   const fromEl = document.querySelector(`.hand-area[data-player="${defender}"]`);
   const toEl = document.querySelector(`.hand-area[data-player="${attacker}"]`);
   if (isFlightAnimationDisabled() || !fromEl || !toEl || !count || count <= 0) {
@@ -8439,7 +8465,11 @@ async function waitForTokenLocationChange(tokenId, fromLocation, timeoutMs) {
   return false;
 }
 
-async function playContactTackleForBystander({ attackerPieceId, defenderPieceId, attackerColor }) {
+// 接触のタックル（観戦側）の演出。再生中は「情報を見せるだけ」のモーダルを待たせる（#261）。
+async function playContactTackleForBystander(...args) {
+  return withBoardAnimation(() => playContactTackleForBystander__inner(...args));
+}
+async function playContactTackleForBystander__inner({ attackerPieceId, defenderPieceId, attackerColor }) {
   if (isFlightAnimationDisabled()) return;
   const table = document.getElementById("game-table");
   const attackerEl = table?.querySelector(`.piece[data-token-id="${attackerPieceId}"]`);

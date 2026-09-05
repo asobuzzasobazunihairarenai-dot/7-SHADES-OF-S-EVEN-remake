@@ -21,6 +21,9 @@ import { t } from "./ui-text.js"; // UI英語化フェーズ13
 // 勝利演出中は「見せるだけ」のモーダルを出さない（ユーザー報告2026-09-02）。選択を求める
 // モーダル（showHandEffectOptionPicker等）は対象外——止めると効果の解決が進まなくなるため。
 import { isCelebrationActive, registerCelebrationCleanup } from "./celebration-state.js";
+// 盤面の演出（接触のタックル・マスチェンジの入れ替え・駒の移動など）が再生中は、
+// 「情報を見せるだけ」のモーダルを演出の後まで待たせる（#261）。選択を求めるモーダルは待たせない。
+import { waitForBoardAnimation } from "./anim-gate.js";
 
 registerCelebrationCleanup(() => {
   document
@@ -37,7 +40,9 @@ function getUseModalDurationMs() {
 let currentUseModal = null;
 let currentUseModalTimer = null;
 
-export function showHandEffectUseModal(cardId, optionLabel) {
+export async function showHandEffectUseModal(cardId, optionLabel) {
+  if (isCelebrationActive()) return;
+  await waitForBoardAnimation();
   if (isCelebrationActive()) return;
   if (currentUseModal) {
     clearTimeout(currentUseModalTimer);
@@ -132,8 +137,10 @@ export const REASON_MODAL_TOTAL_MS = REASON_MODAL_DURATION_MS + 300;
 // holdUntilClick=true の時は自動で消えず、モーダルのクリック／✕／画面どこかのクリックで
 // 初めて閉じる（＝CPU戦の自動スキップOFFで、CPUの結果通知をプレイヤーが読み終えるまで
 // 止めるため）。戻り値は「閉じたら解決するPromise」（呼び出し側が待てるように）。
-export function showEffectReasonModal(cardId, text, { holdUntilClick = false, onUserDismiss = null } = {}) {
-  if (isCelebrationActive()) return Promise.resolve();
+export async function showEffectReasonModal(cardId, text, { holdUntilClick = false, onUserDismiss = null } = {}) {
+  if (isCelebrationActive()) return;
+  await waitForBoardAnimation();
+  if (isCelebrationActive()) return;
   if (currentReasonModal) {
     clearTimeout(currentReasonModalTimer);
     // 不具合#1（関連）: 以前はここで currentReasonModal.remove() でDOMから消すだけで、
@@ -255,8 +262,10 @@ const RECEIVED_MODAL_DURATION_MS = 3200;
 // とは違い見逃されると困る情報のため、儀式的ピック系モーダルと同じく画面中央・
 // 背景ディム付きにする（main.jsのswapHandCardWithOpponentForEffect、およびオンライン
 // 時はbroadcastCardReceived/onCardReceivedEvents経由で受け取る側自身の画面にだけ出す）。
-export function showCardReceivedModal(cardId, subtitle, { labelText = null } = {}) {
-  if (isCelebrationActive()) return Promise.resolve();
+export async function showCardReceivedModal(cardId, subtitle, { labelText = null } = {}) {
+  if (isCelebrationActive()) return;
+  await waitForBoardAnimation();
+  if (isCelebrationActive()) return;
   labelText = labelText ?? t("heu.received");
   if (currentReceivedModal) {
     clearTimeout(currentReceivedModalTimer);
@@ -324,8 +333,10 @@ export function showCardReceivedModal(cardId, subtitle, { labelText = null } = {
 // 複数枚を1つの中央モーダルにまとめて見せる（ユーザー要望2026-08-13「ゲート侵攻で奪ったカードは
 // 複数枚でも画面中央にモーダルで表示したい」）。showCardReceivedModalの複数枚版。cardIdがnull
 // （オンラインの非公開札）はgetCardImagePath側が裏面を返す。閉じたら解決するPromiseを返す。
-export function showMultipleCardsReceivedModal(cardIds, subtitle, { labelText = null } = {}) {
-  if (isCelebrationActive()) return Promise.resolve();
+export async function showMultipleCardsReceivedModal(cardIds, subtitle, { labelText = null } = {}) {
+  if (isCelebrationActive()) return;
+  await waitForBoardAnimation();
+  if (isCelebrationActive()) return;
   labelText = labelText ?? t("heu.stolen");
   if (currentReceivedModal) {
     clearTimeout(currentReceivedModalTimer);

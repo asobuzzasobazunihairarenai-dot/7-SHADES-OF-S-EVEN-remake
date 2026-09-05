@@ -14,6 +14,7 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "接触やマスチェンジなどの演出の最中に、お知らせのモーダルが重なって出ていたのをやめました。演出が終わってから出ます（選択が必要なモーダルは今までどおりすぐ出ます）。",
       "移動先を選んでいる間、選べないマスのカードが十分に暗くならず、カードに影が付いているように見えていたのを直しました。暗くする量の計算が間違っていました。",
       "手番のプレイヤーを示すロックエリアの光が、途切れ途切れに見えていたのを直しました。光が盤面の絵の裏に隠れていました。",
       "iPhone・iPadで、盤面のふちの色帯（赤橙黄緑青桃紫のバー）だけがチカチカしていたのを直しました。盤面の中でこの帯だけが古い描き方のまま残っていました。",
@@ -37,6 +38,7 @@ export const CHANGELOG = [
       "「ホーム画面に追加」の案内文が、最後の2文字だけ次の行にこぼれて読みにくかったのを直しました。",
     ],
     itemsEn: [
+      "Information pop-ups no longer appear on top of animations such as contact or Space Swap. They now wait until the animation finishes (pop-ups that ask you to choose still appear right away).",
       "While choosing where to move, cards on unavailable squares were not dimmed enough, so they looked like they had a shadow. The dimming calculation was wrong; it is fixed.",
       "Fixed the glow marking the current player’s Lock Area appearing broken up. The glow was hidden behind the board artwork.",
       "Fixed the coloured band around the board (red, orange, yellow, green, blue, pink, purple) flickering on iPhone and iPad. It was the one part of the board still using the old drawing method.",

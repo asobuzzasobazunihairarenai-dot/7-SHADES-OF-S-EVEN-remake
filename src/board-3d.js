@@ -102,6 +102,9 @@ function ensureStripSheet() {
 
 // 角丸の枠＋背景色を1枚の小さな画像として作る（同じ見た目のものは使い回す）。
 const shapeTextures = new Map();
+// 捨てた（作り直した）回数。増え続けているなら「同じ見た目のテクスチャを毎フレーム作り直して
+// いる＝GPUへの転送が止まらない」状態で、iOSのチカチカの原因になり得る（#262の切り分け用）。
+let shapeTextureEvictions = 0;
 function shapeTexture(key, spec) {
   let tex = shapeTextures.get(key);
   if (tex) return tex;
@@ -169,6 +172,7 @@ function shapeTexture(key, spec) {
     const oldest = shapeTextures.keys().next().value;
     shapeTextures.get(oldest)?.dispose();
     shapeTextures.delete(oldest);
+    shapeTextureEvictions++;
   }
   return tex;
 }
@@ -691,6 +695,9 @@ function maybeLogStats() {
       quads: st.quads,
       shapes: st.shapes,
       textures: st.textures,
+      texImg: st.texImg,
+      texShape: st.texShape,
+      texEvicted: st.texEvicted,
       frameMs: st.frameMs,
       drawMs: st.drawMs,
       rebuildMs: st.rebuildMs,
@@ -895,6 +902,11 @@ export function getBoard3dStats() {
     shapes: shapeMeshByElement.size,
     tinted: allMeshes().filter((m) => m.material.color.getHex() !== 0xffffff).length,
     textures: textureCache.size + shapeTextures.size,
+    // 内訳（#262の切り分け用）。texShape が上限48に張り付き texEvicted が増え続けるなら、
+    // テクスチャの作り直しが止まっていない＝チカチカの原因として濃厚。
+    texImg: textureCache.size,
+    texShape: shapeTextures.size,
+    texEvicted: shapeTextureEvictions,
     rebuildMs: +lastRebuildMs.toFixed(1),
     drawMs: +lastDrawMs.toFixed(2),
     frameMs: +frameAvgMs.toFixed(1),
