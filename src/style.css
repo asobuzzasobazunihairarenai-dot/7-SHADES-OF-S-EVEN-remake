@@ -12013,6 +12013,108 @@ body.cpu-battle-mode #quick-start-bar {
   filter: drop-shadow(0 0.2rem 0.3rem rgba(0, 0, 0, 0.45));
 }
 
+/* 【ユーザー要望2026-09-05】駒の移動を「立体のまま跳ねて動く」ようにする（.setup-fly-piece の
+   平たい1枚絵に代わるもの）。役割を3枚に分けているのが要点:
+     .piece-hop-ghost  … 横の移動だけ（transition で A地点→B地点）
+     .piece-hop-lift   … 上下の跳ねと潰れ（squash & stretch）だけ（CSSアニメ）
+     .piece-hop-inner  … 盤面と同じ傾き（rotateX）。中に本物の .piece（立方体）が入る
+   横と縦を別の要素に分けると、それぞれ別のイージングをかけられるので素直な放物線になる。 */
+.piece-hop-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  perspective: var(--camera-perspective);
+  pointer-events: none;
+  z-index: 9998;
+  will-change: transform;
+}
+.piece-hop-lift {
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transform-origin: 50% 100%; /* 足元を軸に潰れる（浮き上がって見えないように） */
+  animation-name: piece-hop-lift;
+  animation-timing-function: linear; /* 緩急はキーフレームの配置側で作る */
+  animation-fill-mode: both;
+}
+.piece-hop-inner {
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+}
+@keyframes piece-hop-lift {
+  0% {
+    transform: translateY(0) scale(1.12, 0.85);
+  }
+  14% {
+    transform: translateY(calc(var(--piece-hop-height, 2rem) * -0.55)) scale(0.94, 1.1);
+  }
+  46% {
+    transform: translateY(calc(var(--piece-hop-height, 2rem) * -1)) scale(1, 1);
+  }
+  80% {
+    transform: translateY(calc(var(--piece-hop-height, 2rem) * -0.45)) scale(0.97, 1.05);
+  }
+  93% {
+    transform: translateY(0) scale(1.16, 0.82);
+  }
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+}
+/* 盤面に落ちる影。浮いている間だけ薄くぼやける（高さが伝わる）。移動そのものは
+   transition（JS側）で駒と一緒に動かすので、ここでは transform を触らない
+   ——同じプロパティをアニメとトランジションの両方で動かすと取り合いになるため。 */
+.piece-hop-shadow {
+  position: fixed;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0) 72%);
+  pointer-events: none;
+  z-index: 9997;
+}
+.piece-hop-shadow.is-flying {
+  animation-name: piece-hop-shadow;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+@keyframes piece-hop-shadow {
+  0% {
+    opacity: 0.6;
+    filter: blur(0.5px);
+  }
+  46% {
+    opacity: 0.22;
+    filter: blur(2.5px);
+  }
+  100% {
+    opacity: 0.6;
+    filter: blur(0.5px);
+  }
+}
+/* 着地の衝撃。マス（3D変形の中）の子なので、輪は盤面に寝た状態で広がる。 */
+.piece-land-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 70%;
+  height: 70%;
+  border: 0.12rem solid var(--land-ring-color, #fff);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: piece-land-ring 0.42s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+@keyframes piece-land-ring {
+  0% {
+    transform: translate(-50%, -50%) scale(0.25);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.6);
+    opacity: 0;
+  }
+}
 .setup-fly-card {
   position: fixed;
   left: 0;
@@ -18106,6 +18208,90 @@ body.reduce-glow .rank-showcase-gem.is-dimming {
   padding: 0.1rem 0.15rem;
   background: rgba(15, 23, 32, 0.85);
   border-top-left-radius: 0.25rem;
+}
+/* 【ユーザー要望2026-09-05】「このターンの出来事」の**下**に、前のターンの出来事も残す行。
+   普段は畳んで2〜3枚だけ半透明で重ね、押すと開く。帯全体は画面下端からの距離で位置が
+   決まっているので、この行が増えても下のボタン列を押し下げず、上へ伸びる。 */
+#turn-event-stock-prev {
+  display: none;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3rem;
+}
+#turn-event-stock-prev-label {
+  flex: 0 0 auto;
+  font-size: 0.58rem;
+  line-height: 1;
+  padding: 0.2rem 0.35rem;
+  color: rgba(226, 232, 240, 0.62);
+  background: rgba(15, 23, 32, 0.62);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 0.35rem;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+#turn-event-stock-prev-label:hover {
+  color: rgba(226, 232, 240, 0.95);
+  border-color: rgba(56, 189, 248, 0.7);
+}
+#turn-event-stock-prev-list {
+  display: flex;
+  flex-direction: row;
+  gap: 0.3rem;
+  max-width: min(46rem, 62vw);
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.2rem;
+  border-radius: 0.4rem;
+  background: rgba(15, 23, 32, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  scrollbar-width: thin;
+}
+#turn-event-stock-prev-count {
+  flex: 0 0 auto;
+  font-size: 0.58rem;
+  color: rgba(226, 232, 240, 0.6);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+/* 畳んでいる時: 先頭3枚だけを少し重ねて小さく・薄く見せる（枚数は JS の
+   COLLAPSED_PREVIEW_COUNT と必ず揃えること）。 */
+#turn-event-stock-prev.is-collapsed #turn-event-stock-prev-list {
+  gap: 0;
+  overflow: visible;
+  cursor: pointer;
+}
+#turn-event-stock-prev.is-collapsed .turn-event-stock-chip {
+  width: calc(var(--turn-event-stock-chip) * 0.72);
+  height: calc(var(--turn-event-stock-chip) * 0.72);
+  opacity: 0.42;
+  pointer-events: none;
+}
+#turn-event-stock-prev.is-collapsed .turn-event-stock-chip + .turn-event-stock-chip {
+  margin-left: calc(var(--turn-event-stock-chip) * -0.42);
+}
+#turn-event-stock-prev.is-collapsed .turn-event-stock-chip:nth-child(n + 4) {
+  display: none;
+}
+#turn-event-stock-prev.is-collapsed:hover .turn-event-stock-chip {
+  opacity: 0.75;
+}
+/* 開いている時も、今のターンの行より一段控えめにして主役を取り違えないようにする。 */
+#turn-event-stock-prev:not(.is-collapsed) .turn-event-stock-chip {
+  opacity: 0.85;
+}
+body.theme-light #turn-event-stock-prev-list,
+body.theme-light-ingame #turn-event-stock-prev-list,
+body.theme-light #turn-event-stock-prev-label,
+body.theme-light-ingame #turn-event-stock-prev-label {
+  background: rgba(255, 253, 245, 0.8);
+  border-color: rgba(120, 113, 108, 0.35);
+  color: #3a3326;
+}
+body.theme-light #turn-event-stock-prev-count,
+body.theme-light-ingame #turn-event-stock-prev-count {
+  color: #3a3326;
+  text-shadow: none;
 }
 /* チップをクリックした時に、飛ばす前と同じ中身をもう一度見せる小さなモーダル。 */
 #turn-event-stock-detail {

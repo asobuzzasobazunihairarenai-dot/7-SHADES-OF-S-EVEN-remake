@@ -4068,6 +4068,83 @@ function pieceMoveDurationMs() {
 async function playPieceMoveAnimation(...args) {
   return withBoardAnimation(() => playPieceMoveAnimation__inner(...args));
 }
+// 【ユーザー要望2026-09-05】「移動するとき駒がひらぺったくなって移動する。立体のまま動かしたい」。
+// 従来は汎用の飛翔ゴースト（flyGhost＝スキン画像を1枚貼っただけの平たい四角）を使っていたので、
+// 盤面では立方体なのに移動中だけ板になっていた。ドラッグ中のゴースト（.drag-ghost-piece-outer/
+// -inner）で既に実績のある「perspective + 盤面と同じ傾きの入れ子に、本物の buildCubePiece() を
+// そのまま入れる」やり方に揃える。あわせて、ただ滑らせるのではなく**跳ねて着地する**動きにした:
+//   ・踏み切りと着地で潰れて伸びる（squash & stretch）
+//   ・弧を描いて跳ぶ（横移動と上下移動を別の要素に分けると、素直な放物線になる）
+//   ・盤面に落ちる影が、浮いている間だけ小さく薄くなる（高さが伝わる）
+//   ・着地した瞬間に小さな衝撃の輪が広がる
+// 3D空間の外(document.body直下)に置くので、盤面のWebGL描画のON/OFFに関係なく同じに見える。
+function playPieceHopGhost(fromRect, toRect, token, durationMs) {
+  const from = stageClientToLocal(fromRect.left + fromRect.width / 2, fromRect.top + fromRect.height / 2);
+  const to = stageClientToLocal(toRect.left + toRect.width / 2, toRect.top + toRect.height / 2);
+  const w = stageDelta(fromRect.width);
+  const h = stageDelta(fromRect.height);
+
+  // 影（盤面に落ちる楕円）。ゴーストより先に置いて、必ず駒の下になるようにする。
+  const shadow = document.createElement("div");
+  shadow.className = "piece-hop-shadow";
+  shadow.style.width = `${w * 0.72}px`;
+  shadow.style.height = `${h * 0.3}px`;
+  shadow.style.transform = `translate(${from.x}px, ${from.y + h * 0.34}px) translate(-50%, -50%)`;
+  document.body.appendChild(shadow);
+
+  const outer = document.createElement("div"); // 横の移動だけを担当
+  outer.className = "piece-hop-ghost";
+  outer.style.width = `${w}px`;
+  outer.style.height = `${h}px`;
+  outer.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%)`;
+  const lift = document.createElement("div"); // 上下の跳ねと潰れだけを担当
+  lift.className = "piece-hop-lift";
+  lift.style.setProperty("--piece-hop-height", `${Math.round(h * 0.9)}px`);
+  lift.style.animationDuration = `${durationMs}ms`;
+  const inner = document.createElement("div"); // 盤面と同じ傾き（立方体に見せる）
+  inner.className = "piece-hop-inner";
+  const tilt = getComputedStyle(document.documentElement).getPropertyValue("--table-tilt").trim();
+  inner.style.transform = `rotateX(${tilt})`;
+  inner.appendChild(buildCubePiece(token.color, token.player));
+  lift.appendChild(inner);
+  outer.appendChild(lift);
+  document.body.appendChild(outer);
+
+  const done = new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      const ease = "cubic-bezier(0.32, 0, 0.24, 1)";
+      outer.style.transition = `transform ${durationMs}ms ${ease}`;
+      outer.style.transform = `translate(${to.x}px, ${to.y}px) translate(-50%, -50%)`;
+      shadow.style.transition = `transform ${durationMs}ms ${ease}`;
+      shadow.style.transform = `translate(${to.x}px, ${to.y + h * 0.34}px) translate(-50%, -50%)`;
+      shadow.classList.add("is-flying"); // 浮いている間だけ小さく薄くする（CSSアニメ）
+      shadow.style.animationDuration = `${durationMs}ms`;
+    });
+    setTimeout(() => {
+      // flyGhost と同じ作法: 先に resolve して呼び出し側に render() させ、実物の駒が
+      // 描かれてからゴーストを消す（先に消すと1フレームだけ駒が消えてちらつく）。
+      resolve();
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          outer.remove();
+          shadow.remove();
+        });
+      });
+    }, durationMs + 20);
+  });
+  return { done };
+}
+
+// 着地の衝撃（小さな輪が広がって消える）。盤面のマスの上に置くので、演出の重なり順は
+// appendEffectHost に任せる（到達のオーラ・ロックの刻印と同じ扱い）。
+function spawnPieceLandingRing(hostEl, color) {
+  if (!hostEl || isArrivalEffectDisabled()) return;
+  const ring = document.createElement("div");
+  ring.className = "piece-land-ring";
+  ring.style.setProperty("--land-ring-color", color === "rainbow" ? "#f6c945" : `var(--color-${color})`);
+  appendEffectHost(hostEl, ring, 460);
+}
+
 async function playPieceMoveAnimation__inner(pieceId, fromLocation) {
   if (isFlightAnimationDisabled()) return; // 「駒やカードが飛ぶ動きをやめる」設定を尊重
   if (!fromLocation || fromLocation.zone !== "cell") return;
@@ -4096,11 +4173,13 @@ async function playPieceMoveAnimation__inner(pieceId, fromLocation) {
   setSetupPendingTokenIds(new Set([pieceId]));
   render();
   try {
-    const { done } = flyGhost(fromRect, toRect, getSkinImagePath(token.color, token.player), "setup-fly-piece", pieceMoveDurationMs());
+    const { done } = playPieceHopGhost(fromRect, toRect, token, pieceMoveDurationMs());
     await done;
   } finally {
     setSetupPendingTokenIds(new Set());
     render();
+    // 着地の輪は、実物の駒が描き直された後のマスへ出す（render で作り直されるため）。
+    spawnPieceLandingRing(findLocationElement(document.getElementById("game-table"), to), token.color);
   }
 }
 

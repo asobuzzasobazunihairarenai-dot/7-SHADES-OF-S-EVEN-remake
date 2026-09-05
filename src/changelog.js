@@ -14,6 +14,9 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "駒が移動するとき、平たい絵ではなく立方体のまま「ぴょんと跳ねて」動くようにしました。盤面に落ちる影と、着地したときの小さな輪も出ます。",
+      "画面の中央に出るお知らせは、画面のどこかを押すとすぐに右下へしまえるようにしました（待ちきれない時用。中身はこれまで通り右下に残ります）。",
+      "「このターンの出来事」の下に「前のターン」の行を追加しました。普段は数枚だけ薄く畳んであり、押すと全部開きます。相手のターンに何が起きたかを見逃しても、後から確かめられます。",
       "1回のロックフェイズで2枚ロックできてしまうことがあったのを直しました。演出とお知らせを待つ間に、もう1枚ロックできる状態が残っていました。",
       "ロックの演出を見ている最中にハンドフェイズのお知らせが出てしまうのを直しました。ロックの様子と「ロックしました」のお知らせが終わってから次のフェイズに入ります。",
       "フェイズのお知らせがまだ出ているのに、次のフェイズのお知らせが重なって出てしまうのを直しました。",
@@ -55,6 +58,9 @@ export const CHANGELOG = [
       "「ホーム画面に追加」の案内文が、最後の2文字だけ次の行にこぼれて読みにくかったのを直しました。",
     ],
     itemsEn: [
+      "Pieces now hop as a cube when they move, instead of sliding as a flat picture. They cast a shadow on the board and land with a small ring.",
+      "Notices in the middle of the screen can now be tucked away to the bottom right by tapping anywhere (for when you do not want to wait — the contents still stay in the bottom-right row).",
+      "Added a \"Previous turn\" row under \"What happened this turn\". It stays folded as a few faded cards and opens when you tap it, so you can check what happened on your opponent's turn.",
       "Fixed being able to lock two cards in a single Lock phase. While waiting for the animation and the notice, a second lock could still slip through.",
       "Fixed the Hand Phase notice appearing while you are still watching the lock animation. The next phase now starts after the lock animation and the \"locked\" notice have finished.",
       "Fixed the next phase notice appearing on top of the previous one while it was still showing.",

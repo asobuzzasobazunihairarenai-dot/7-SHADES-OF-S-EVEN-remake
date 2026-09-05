@@ -8,7 +8,7 @@ import { getCardName } from "./card-text.js"; // UI英語化フェーズ6: 表�
 import { t } from "./ui-text.js";
 import { showCardFace } from "./card-face-display.js";
 import { getPlayerName } from "./player-identity.js";
-import { createModalCloseX } from "./ui-helpers.js";
+import { createModalCloseX, createOpenGuard } from "./ui-helpers.js";
 import { getSelfSeat, isOnlineMode } from "./online.js";
 import { pushTurnEventStock, getTurnEventStockTargetRect, getTurnEventStockKey } from "./turn-event-stock.js";
 import { stageClientToLocal, stageDelta } from "./main.js";
@@ -85,10 +85,14 @@ async function showToast(innerHTML, opts = {}) {
   toast.className = "hand-pickup-toast is-flash";
   let done = false;
   // フラッシュを畳んで、右下のストックへ飛ばす。飛び終わったらチップとして積む。
+  // 【ユーザー要望】「せっかちな人用」に、画面のどこを押してもこのフラッシュを畳めるようにする。
+  // その解除用（stow より後で代入するので、TDZを避けて let で先に置いておく）。
+  let stowOnAnyPointer = null;
   const stow = () => {
     if (done) return;
     done = true;
     clearTimeout(timer);
+    if (stowOnAnyPointer) document.removeEventListener("pointerdown", stowOnAnyPointer, true);
     const from = toast.getBoundingClientRect();
     const to = getTurnEventStockTargetRect();
     // 【#197/#198・重要】getBoundingClientRect() が返すのは**ステージ変形後の実画面座標**。
@@ -129,6 +133,18 @@ async function showToast(innerHTML, opts = {}) {
   toast.appendChild(content);
   toast.addEventListener("click", stow); // クリックで即ストックへ（読み終えた人を待たせない）
   document.body.appendChild(toast);
+  // 画面のどこを押しても、その場で右下のストックへ畳む（内容はチップとして残る）。
+  // ・**握り潰さない**（preventDefault も stopPropagation もしない）——ここで止めると、同じ
+  //   タップでボタンや盤面を操作したかった人の入力まで消える（続き76の教訓）。
+  // ・出した直後の一瞬は受け付けない。タップして指を離した位置にフラッシュが現れると、その
+  //   同じタップで即座に消えてしまうため（#230/#236 と同じ「開いた瞬間の合成クリック」の話）。
+  // ・capture フェーズで拾うので、盤面やモーダルが先に握っていても届く。
+  const tooEarlyToStow = createOpenGuard(300);
+  stowOnAnyPointer = () => {
+    if (tooEarlyToStow()) return;
+    stow();
+  };
+  document.addEventListener("pointerdown", stowOnAnyPointer, true);
   // カード画像のプレースホルダーに、カード面（テキスト合成/画像）を描画する。
   content.querySelectorAll(".hand-pickup-toast-img[data-cardface-id]").forEach((el) => {
     const id = el.dataset.cardfaceId;
