@@ -1831,13 +1831,30 @@ async function runAction(action, ctx, helpers) {
         // ユーザー要望2026-08-08「移動先をしっかり周知した後、じらしフリップで」。駒が移動先へ
         // 進んだ姿を一拍見せて（周知）から、中央のじらしフリップで踏んだカードを公開する。
         await helpers.delay?.(500);
-        // 踏んだカードを中央に大きく“じらしてフリップ”で見せ、その後で盤面のカードも表向きにする
-        // （試練で踏んだカードは表向きで盤面に残る）。
-        await helpers.announceSteppedCard?.(placedCardId);
-        // まだ裏向きなら（ローカルのじらし用）ここで盤面のカードを表向きに。オンラインで上の
-        // 判明処理により既に表向きの場合は、二度目のflipで裏返さないよう最新状態を見て判断する。
-        const boardCardNow = getState().tokens.find((t) => t.id === placedToken.id);
-        if (boardCardNow && !boardCardNow.faceUp) await helpers.flipCard?.(placedToken.id);
+        // 踏んだカードを中央に大きく“じらしてフリップ”で見せる（試練で踏んだカードは
+        // 表向きで盤面に残る）。
+        // 【#287】盤面のカードのめくれは、中央のじらしフリップが**開く瞬間**に合わせて
+        // 同時に行う。ユーザー指摘「盤のめくれとモーダルのめくれは同時でいい。今回は盤の
+        // めくれがモーダルのめくれの後に来たので、二回めくれたことになってしまっていた」。
+        // 以前は中央の演出が完全に終わってから盤面をめくっていた（当時は盤面が一瞬で
+        // 切り替わるだけだったので目立たなかった）が、続き432で盤面にも「めくれる動き」を
+        // 付けたため、同じカードが2回めくれて見えるようになっていた。
+        // onFlip は演出側（playCenterCardFlipReveal）が中央のカードを開く瞬間に呼ぶ。
+        // 演出が無い環境（演出オフ・テストのスタブ）でも必ずめくれるよう、演出の後に
+        // 同じ関数をもう一度呼ぶ（2回目は最初のPromiseを返すだけの no-op）。
+        let boardFlipPromise = null;
+        const flipBoardCardNow = () => {
+          if (boardFlipPromise) return boardFlipPromise;
+          const boardCardNow = getState().tokens.find((t) => t.id === placedToken.id);
+          // オンラインで上の判明処理により既に表向きの場合は、二度目のflipで裏返さない。
+          boardFlipPromise =
+            boardCardNow && !boardCardNow.faceUp
+              ? Promise.resolve(helpers.flipCard?.(placedToken.id))
+              : Promise.resolve();
+          return boardFlipPromise;
+        };
+        await helpers.announceSteppedCard?.(placedCardId, flipBoardCardNow);
+        await flipBoardCardNow();
         const placedColor = getCardDefinition(placedCardId)?.color;
         const isMatch = placedCardId === "rainbow-shard" || declaredColors.includes(placedColor);
         // 続き65: 置いたカードで宣言色が判明した瞬間なので、常駐していた色宣言表示を消す

@@ -1033,8 +1033,9 @@ async function discardFromHandReveal(tokenId, opts = {}) {
   }
   if (isOnlineMode()) {
     try {
-      await sendTokenToPile(tokenId, "discard");
+      // 【#285】印は送信より前に付ける（理由は self-handled-tokens.js の冒頭）。
       markSelfHandled([tokenId]);
+      await sendTokenToPile(tokenId, "discard");
       await fetchAndHydrate(getCurrentGameId());
     } catch (err) {
       console.error("sendTokenToPile failed, retrying once after resync", err);
@@ -1043,8 +1044,9 @@ async function discardFromHandReveal(tokenId, opts = {}) {
         // 既に何らかの理由でこのトークンが手札/公開エリアに無ければ（他経路で既に
         // 処理済み等）、再送する必要が無い。
         if (getState().tokens.find((t) => t.id === tokenId)) {
-          await sendTokenToPile(tokenId, "discard");
+          // 【#285】印は送信より前に付ける（理由は self-handled-tokens.js の冒頭）。
           markSelfHandled([tokenId]);
+          await sendTokenToPile(tokenId, "discard");
           await fetchAndHydrate(getCurrentGameId());
         }
       } catch (retryErr) {
@@ -1536,8 +1538,9 @@ async function addArrivedCardToHand(location, player) {
   const prevTopId = token.id;
   if (isOnlineMode()) {
     try {
-      await moveToken(token.id, { zone: "hand", player });
+      // 【#285】印は送信より前に付ける（理由は self-handled-tokens.js の冒頭）。
       markSelfHandled([token.id]);
+      await moveToken(token.id, { zone: "hand", player });
       await fetchAndHydrate(getCurrentGameId());
     } catch (err) {
       console.error("moveToken failed", err);
@@ -1626,8 +1629,9 @@ async function moveAndSyncForEffect(tokenId, location, soundName, suppressArriva
     : null;
   if (isOnlineMode()) {
     try {
-      await moveToken(tokenId, location, suppressArrival);
+      // 【#285】印は送信より前に付ける（理由は self-handled-tokens.js の冒頭）。
       markSelfHandled([tokenId]);
+      await moveToken(tokenId, location, suppressArrival);
       await fetchAndHydrate(getCurrentGameId());
     } catch (err) {
       console.error("moveAndSyncForEffect failed", err);
@@ -1672,8 +1676,9 @@ async function moveAndSyncForEffect(tokenId, location, soundName, suppressArriva
 async function flipToFaceUpForEffect(tokenId) {
   if (isOnlineMode()) {
     try {
-      await flipToken(tokenId);
+      // 【#285】印は送信より前に付ける（理由は self-handled-tokens.js の冒頭）。
       markSelfHandled([tokenId]);
+      await flipToken(tokenId);
       await fetchAndHydrate(getCurrentGameId());
     } catch (err) {
       console.error("flipToFaceUpForEffect failed", err);
@@ -3109,13 +3114,15 @@ async function announceEffectFizzleForEffect(cardId, addsToHand) {
 // （ユーザー要望2026-08-08「他のカード効果の演出も同様に相手にも見せて」）。試練で踏んだカード・
 // ギャンブルの公開カードなど、いずれも公開情報。実行者はローカルでも再生（awaitで待てる）、他
 // クライアントは受信側で同じ演出を再生する（stepped_card_revealブロードキャスト）。
-function revealCenterCardForAll(cardId, labelText) {
+// onFlip: 中央のカードが実際に開く瞬間に1回だけ呼ばれる（【#287】盤面のカードのめくれを
+// この瞬間に合わせて同時に走らせるため。詳しくは card-effect-engine.js の試練の儀式を参照）。
+function revealCenterCardForAll(cardId, labelText, onFlip) {
   if (isOnlineMode()) broadcastSteppedCardReveal({ fromPlayer: getSelfSeat(), cardId, labelText });
-  return playCenterCardFlipReveal(cardId, { labelText });
+  return playCenterCardFlipReveal(cardId, { labelText, onFlip });
 }
 // showCardReceivedModal（awaitable）を「踏んだ」ラベルで流用する。
-function announceSteppedCardForEffect(cardId) {
-  return revealCenterCardForAll(cardId, t("game.label.stepped"));
+function announceSteppedCardForEffect(cardId, onFlip) {
+  return revealCenterCardForAll(cardId, t("game.label.stepped"), onFlip);
 }
 
 // プレゼントの到達効果（１番少なくロックしている全員がドロー）等で、「誰が対象か」を
@@ -3556,8 +3563,9 @@ async function placeFromDeckFaceUpForEffect(location) {
   if (!token.faceUp) {
     if (isOnlineMode()) {
       try {
-        await flipToken(token.id);
+        // 【#285】印は送信より前に付ける（理由は self-handled-tokens.js の冒頭）。
         markSelfHandled([token.id]);
+        await flipToken(token.id);
         await fetchAndHydrate(getCurrentGameId());
       } catch (err) {
         console.error("placeFromDeckFaceUpForEffect flip failed", err);
@@ -4749,8 +4757,9 @@ async function performPhaseMoveToCell(location, actingSeat = getSelfSeat()) {
     if (!card.faceUp) {
       if (isOnlineMode()) {
         try {
-          await flipToken(card.id);
+          // 【#285】印は送信より前に付ける（理由は self-handled-tokens.js の冒頭）。
           markSelfHandled([card.id]);
+          await flipToken(card.id);
           await fetchAndHydrate(getCurrentGameId());
         } catch (err) {
           console.error("performPhaseMoveToCell auto-open failed", err);
@@ -4781,7 +4790,28 @@ async function performPhaseMoveToCell(location, actingSeat = getSelfSeat()) {
 // maybeAnnounceLock参照）と全く同じ結果になるよう、同じ関数・同じ順序（移動→
 // 効果音→render()→ロック演出）で処理する。ロック先はカード自身の色に対応する
 // 1つのスロットに一意に決まる（isCardLockableと同じ判定基準）。
-async function performLockPhaseClick(tokenId, { skipConfirm = false, actingSeat = getSelfSeat() } = {}) {
+// 【総点検2026-09-06】「このロックフェイズで既にロックしたか」(hasPlacedNewLockThisPhase) が
+// 真になるのは、カードが実際にロックエリアへ動いて（オンラインでは送信の往復を終えて）
+// からなので、**確認モーダルを出している間と送信中は偽のまま**＝その窓で2枚目が通る。
+// #272 で塞いだのは「ロック後、フェイズが切り替わるまでの窓」で、こちらの窓は残っていた。
+// 『別の処理が終われば止まるはず』に頼らず、「今まさに1枚ロックしようとしている」という
+// 事実そのもので弾く（人間のタップ・ドラッグ・疑似CPUの自動ロックは全部ここを通る）。
+// ドラッグ&ドロップでの1手（ロック・駒の移動）を送信している間だけ立つ印（onDragEnd参照）。
+let boardDropDispatchInFlight = false;
+let lockPhaseClickInFlight = false;
+async function performLockPhaseClick(tokenId, opts = {}) {
+  if (lockPhaseClickInFlight) {
+    logAction("diag-lock-click-skip", { reason: "already-in-flight", tokenId });
+    return;
+  }
+  lockPhaseClickInFlight = true;
+  try {
+    return await performLockPhaseClick__inner(tokenId, opts);
+  } finally {
+    lockPhaseClickInFlight = false;
+  }
+}
+async function performLockPhaseClick__inner(tokenId, { skipConfirm = false, actingSeat = getSelfSeat() } = {}) {
   // actingSeat: 通常は自分の席。ローカルCPU戦では自動処理がCPU(C)の席を渡してくる。
   const player = actingSeat;
   const token = getState().tokens.find((t) => t.id === tokenId);
@@ -4864,8 +4894,9 @@ async function performLockPhaseClick(tokenId, { skipConfirm = false, actingSeat 
   const lockSourceRect = cardElRectForToken(tokenId);
   if (isOnlineMode()) {
     try {
-      await moveToken(tokenId, dropTarget);
+      // 【#285】印は送信より前に付ける（理由は self-handled-tokens.js の冒頭）。
       markSelfHandled([tokenId]);
+      await moveToken(tokenId, dropTarget);
       await fetchAndHydrate(getCurrentGameId());
     } catch (err) {
       console.error("performLockPhaseClick failed", err);
@@ -6831,8 +6862,9 @@ async function runAutoArrivalEffect(cardId, location, player) {
       if (!nextCard.faceUp) {
         if (isOnlineMode()) {
           try {
-            await flipToken(nextCard.id);
+            // 【#285】印は送信より前に付ける（理由は self-handled-tokens.js の冒頭）。
             markSelfHandled([nextCard.id]);
+            await flipToken(nextCard.id);
             await fetchAndHydrate(getCurrentGameId());
           } catch (err) {
             console.error("auto-open failed", err);
@@ -7459,8 +7491,9 @@ async function openCardNow(card, onResolved, onFullyResolved) {
     // 反転前の古い状態のまま描画・演出判定してしまうため、応答を待ってから
     // fetchAndHydrate()で明示的に再同期してから続ける。
     try {
-      await flipToken(card.id);
+      // 【#285】印は送信より前に付ける（理由は self-handled-tokens.js の冒頭）。
       markSelfHandled([card.id]);
+      await flipToken(card.id);
       await fetchAndHydrate(getCurrentGameId());
     } catch (err) {
       console.error("flipToken failed", err);
@@ -7666,7 +7699,22 @@ function checkContactAttackerResolution() {
 // 実際に接触を申し込む処理そのもの（okBtnクリックハンドラの中身）をここへ切り出し、
 // 通常のボタンクリックからも、疑似CPU対象が自動でスキップする経路からも同じ処理を
 // 呼べるようにする。
+// 【総点検2026-09-06】接触の「1手を使った」印(markPhaseMoveActionTaken)は、requestContact の
+// 送信が成功してから付ける（途中でキャンセルされた時にターンを消費しないため）。ところが
+// その往復の間は isMovePhaseActive() が真のまま・移動/接触のハイライトも出たままなので、
+// 2回目のタップで接触をもう一度申し込めてしまう。ロックと同じく「今まさに申し込み中」と
+// いう事実そのもので弾く（クリック・ドラッグ・疑似CPUの自動接触は全部ここを通る）。
+let contactProposalInFlight = false;
 async function submitContactProposal(attacker, defender) {
+  if (contactProposalInFlight) return;
+  contactProposalInFlight = true;
+  try {
+    return await submitContactProposal__inner(attacker, defender);
+  } finally {
+    contactProposalInFlight = false;
+  }
+}
+async function submitContactProposal__inner(attacker, defender) {
   // #228 の安全網。通常は上の showContactPrompt で弾かれるが、別経路が増えても漏れないよう
   // 実際に申し込む直前でも確認する（接触の成立はこの関数に集約されている）。
   if (isContactDisabledThisTurn(attacker)) return false;
@@ -7985,8 +8033,20 @@ function getEternalRevealCenterRect(pileRect) {
 // 2026-08-08「公開エリアだけでなく画面中央に大々的に、少しじらしてフリップして開く感じ」）。
 // エターナル獲得と同じ正方形スケールXフリップを流用した簡易版（飛翔・ロック着地は無し）。
 // 演出オフ設定中は既存のカード受け取りモーダルで簡潔に見せる。
-async function playCenterCardFlipReveal(cardId, { labelText = t("game.label.reveal"), suspenseMs = 850, holdMs = 850 } = {}) {
+async function playCenterCardFlipReveal(cardId, { labelText = t("game.label.reveal"), suspenseMs = 850, holdMs = 850, onFlip } = {}) {
+  // 【#287】「開く瞬間」に呼ぶ合図。1回しか呼ばない（呼び忘れ・二重呼び出しの両方を防ぐ）。
+  let flipSignalled = false;
+  const signalFlip = () => {
+    if (flipSignalled) return;
+    flipSignalled = true;
+    try {
+      onFlip?.();
+    } catch (err) {
+      console.error("playCenterCardFlipReveal onFlip failed", err);
+    }
+  };
   if (isArrivalEffectDisabled()) {
+    signalFlip(); // 演出オフの時は、モーダルを出すのと同時に盤面もめくる
     await showCardReceivedModal(cardId, "", { labelText });
     return;
   }
@@ -8016,6 +8076,8 @@ async function playCenterCardFlipReveal(cardId, { labelText = t("game.label.reve
   await wait(suspenseMs);
   // ②スケールXフリップで表向きに（正方形なので上下は切れない）。
   reveal.classList.remove("is-suspense");
+  // 【#287】盤面のカードも今この瞬間からめくり始める（待たない＝中央の動きを止めないため）。
+  signalFlip();
   const color = getCardDefinition(cardId)?.color;
   if (color) reveal.style.setProperty("--eternal-reveal-color", `var(--color-${color})`);
   playSound("cardFlip");
@@ -8786,8 +8848,9 @@ async function respondToContactInner(approve) {
         if (forcedCard && !forcedCard.faceUp) {
           if (isOnlineMode()) {
             try {
-              await flipToken(forcedCard.id);
+              // 【#285】印は送信より前に付ける（理由は self-handled-tokens.js の冒頭）。
               markSelfHandled([forcedCard.id]); // remote-move-animatorの差分再発火で二重にならないように
+              await flipToken(forcedCard.id);
               await fetchAndHydrate(getCurrentGameId());
             } catch (err) {
               console.error("forced-move auto-open failed", err);
@@ -8879,12 +8942,14 @@ async function runContractBrandCurseOnLock(player, brandId) {
         // flipToken で裏向きへ倒す（烙印は★(b)発火時点で常にロックエリアの表向きなので実質必ず倒す）。
         if (isOnlineMode()) {
           try {
-            await moveToken(brandId, dest);
+            // 【#285】印は送信より前に付ける（理由は self-handled-tokens.js の冒頭）。
             markSelfHandled([brandId]);
+            await moveToken(brandId, dest);
             await fetchAndHydrate(getCurrentGameId());
             if (getState().tokens.find((t) => t.id === brandId)?.faceUp) {
-              await flipToken(brandId);
+              // 【#285】印は送信より前に付ける（理由は self-handled-tokens.js の冒頭）。
               markSelfHandled([brandId]);
+              await flipToken(brandId);
               await fetchAndHydrate(getCurrentGameId());
             }
           } catch (err) {
@@ -9045,7 +9110,19 @@ function checkCounterLockAutoApproval() {
 // 発火してしまっていた（2回目の呼び出しはpendingContactが既にnullのため無害だが、
 // 意図した「無効化」ではなく「承認」が先に成立してしまう）。無効化を先に行い
 // pendingContactを即座にnullへ落としてから捨てることで、この競合を防ぐ。
+// 【総点検2026-09-06】カウンターロックの使用も、押してから捨て札が反映されるまでの間は
+// 「まだ使える」と判定されるため、モーダルが作り直されると二重に使えてしまう。
+let counterLockUseInFlight = false;
 async function useCounterLockOnContact() {
+  if (counterLockUseInFlight) return;
+  counterLockUseInFlight = true;
+  try {
+    return await useCounterLockOnContactInner();
+  } finally {
+    counterLockUseInFlight = false;
+  }
+}
+async function useCounterLockOnContactInner() {
   const pending = getState().pendingContact;
   if (!pending) return;
   const defender = pending.defender;
@@ -9151,8 +9228,9 @@ async function useCounterLockOnContact() {
   }
   if (isOnlineMode()) {
     try {
-      await moveToken(chosen.id, dropTarget);
+      // 【#285】印は送信より前に付ける（理由は self-handled-tokens.js の冒頭）。
       markSelfHandled([chosen.id]);
+      await moveToken(chosen.id, dropTarget);
       await fetchAndHydrate(getCurrentGameId());
     } catch (err) {
       console.error("useCounterLockOnContact (optional lock) failed", err);
@@ -11346,8 +11424,9 @@ function initDragHandlers() {
           // fetchAndHydrate()で明示的に再同期してから演出判定する（promptCardOpenの
           // 「オープンする」ボタンと同じ考え方）。
           try {
-            await flipToken(hit.tokenId);
+            // 【#285】印は送信より前に付ける（理由は self-handled-tokens.js の冒頭）。
             markSelfHandled([hit.tokenId]);
+            await flipToken(hit.tokenId);
             await fetchAndHydrate(getCurrentGameId());
           } catch (err) {
             console.error("flipToken failed", err);
@@ -11732,7 +11811,21 @@ function maybeAnnounceLock(dropTarget, cardId, wasAlreadyLocked) {
 // 統一する（自分だけ特別扱いすると二重発火・見た目の不一致が起きるリスクがある）。
 // ローカルモードはremote-move-animator.jsが動かない（isOnlineMode()で早期returnする設計）
 // ため、ここで直接演出を発火する必要がある。
+// 【総点検2026-09-06】最後のロックの承認も、押してから結果が戻って pendingFinalLock の
+// 承認待ち行列が動くまでの間はバナーがそのまま残る（render() のたびに作り直されるので、
+// 押した直後に隠しても復活する）。2回押すと**次の承認者の分まで自分が承認してしまう**ので、
+// 接触の応答（respondToContact）と同じく応答そのものに1本の錠をかける。
+let finalLockResponseInFlight = false;
 async function respondToFinalLock(approve) {
+  if (finalLockResponseInFlight) return;
+  finalLockResponseInFlight = true;
+  try {
+    return await respondToFinalLockInner(approve);
+  } finally {
+    finalLockResponseInFlight = false;
+  }
+}
+async function respondToFinalLockInner(approve) {
   const pendingBefore = getState().pendingFinalLock;
   if (!pendingBefore) return;
   if (isOnlineMode()) {
@@ -12077,8 +12170,9 @@ async function useGomennasaiOnFinalLock() {
   logAction("diag-gomennasai-steal", { attacker: attackerSeat, stealingCardId: target.cardId, stealIndex: target.location.index, attackerLocksBefore: locksSnapshot() });
   if (isOnlineMode()) {
     try {
-      await moveToken(target.id, { zone: "hand", player: selfSeat });
+      // 【#285】印は送信より前に付ける（理由は self-handled-tokens.js の冒頭）。
       markSelfHandled([target.id]);
+      await moveToken(target.id, { zone: "hand", player: selfSeat });
       await fetchAndHydrate(getCurrentGameId());
     } catch (err) {
       console.error("moveToken (gomennasai steal) failed", err);
@@ -12460,8 +12554,9 @@ async function onDragEnd(e) {
       // リクエストのPromiseを返すだけ（onDragEnd冒頭のdrawFromPileと同じ考え方）。
       // 捨てたカードがサイレントに元に戻って見えるバグを防ぐため、必ず再同期する。
       try {
-        await sendTokenToPile(tokenId, dropTarget.pile);
+        // 【#285】印は送信より前に付ける（理由は self-handled-tokens.js の冒頭）。
         markSelfHandled([tokenId]);
+        await sendTokenToPile(tokenId, dropTarget.pile);
         await fetchAndHydrate(getCurrentGameId());
       } catch (err) {
         console.error("sendTokenToPile failed", err);
@@ -12505,8 +12600,9 @@ async function onDragEnd(e) {
             : null;
         if (isOnlineMode()) {
           try {
-            await moveToken(tokenId, dropTarget);
+            // 【#285】印は送信より前に付ける（理由は self-handled-tokens.js の冒頭）。
             markSelfHandled([tokenId]);
+            await moveToken(tokenId, dropTarget);
             await fetchAndHydrate(getCurrentGameId());
           } catch (err) {
             console.error("moveToken failed", err);
@@ -12790,22 +12886,36 @@ async function onDragEnd(e) {
     } else if (kind === "piece") {
       fireAnytimeCheckpoint(token?.player ?? getSelfSeat());
     }
-    if (isOnlineMode()) {
-      // オンライン中はmoveToken()がローカルstateを書き換えないため、awaitせずすぐ
-      // render()・演出関数を呼ぶと移動前の古い状態のまま判定してしまい、到達演出・
-      // ロック演出・効果音が正しく発火しない（発火してもズレたデータで発火する）
-      // バグになっていた。応答を待ち、fetchAndHydrate()で明示的に再同期してから続ける。
-      try {
-        await moveToken(tokenId, dropTarget);
-        markSelfHandled([tokenId]);
-        await fetchAndHydrate(getCurrentGameId());
-      } catch (err) {
-        console.error("moveToken failed", err);
-        render();
-        return;
+    // 【総点検2026-09-06】ドラッグでのドロップも、送信の往復中は「ロック済み」「移動済み」の
+    // 印がまだ付いていない（下の markPhaseMoveActionTaken / hasPlacedNewLockThisPhase は
+    // どちらも送信が終わってからでないと真にならない）。その窓で2回目のドロップが通らない
+    // よう、「今まさに1手を送信中」という事実そのもので弾く。
+    if (boardDropDispatchInFlight) {
+      render();
+      return;
+    }
+    boardDropDispatchInFlight = true;
+    try {
+      if (isOnlineMode()) {
+        // オンライン中はmoveToken()がローカルstateを書き換えないため、awaitせずすぐ
+        // render()・演出関数を呼ぶと移動前の古い状態のまま判定してしまい、到達演出・
+        // ロック演出・効果音が正しく発火しない（発火してもズレたデータで発火する）
+        // バグになっていた。応答を待ち、fetchAndHydrate()で明示的に再同期してから続ける。
+        try {
+          // 【#285】印は送信より前に付ける（理由は self-handled-tokens.js の冒頭）。
+          markSelfHandled([tokenId]);
+          await moveToken(tokenId, dropTarget);
+          await fetchAndHydrate(getCurrentGameId());
+        } catch (err) {
+          console.error("moveToken failed", err);
+          render();
+          return;
+        }
+      } else {
+        moveToken(tokenId, dropTarget);
       }
-    } else {
-      moveToken(tokenId, dropTarget);
+    } finally {
+      boardDropDispatchInFlight = false;
     }
     if (kind === "card") playSound("cardPlace");
     if (kind === "piece") playSound("piecePlace");

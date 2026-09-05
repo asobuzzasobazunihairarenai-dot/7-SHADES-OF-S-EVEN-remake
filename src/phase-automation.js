@@ -745,6 +745,11 @@ function ensureSkipButton() {
   skipButtonEl.id = "phase-automation-skip-button";
   skipButtonEl.textContent = t("phaseautomation.L624");
   skipButtonEl.addEventListener("click", () => {
+    // 【総点検2026-09-06】次のフェイズの開始が（演出・お知らせ待ちで）予約されている間は、
+    // currentPhase が前のフェイズのまま残るのでこのボタンも押せてしまう。advancePhase() は
+    // currentPhase から次を計算するので二重に進みはしないが、「もう終わったフェイズを
+    // もう一度スキップする」操作自体を受け付けないようにする（持ち時間の再付与も走るため）。
+    if (isPhaseTransitionPending()) return;
     if (handEffectBusy) return;
     if (isFinalLockApprovalPending()) return; // #181
 
@@ -857,7 +862,14 @@ export function updateSkipButtonVisibility() {
     }
     return false;
   })();
-  const showSkip = (currentPhase === "lock" || currentPhase === "hand") && !isPseudoCpuTarget(phaseOwner) && !approvalPending && !busyResolving;
+  // 【総点検2026-09-06】次のフェイズの開始が予約されている間（＝このフェイズはもう終わって
+  // いる）はボタンを出さない。マイデッキ側は下で myDeckDrawnThisPhase により同じ扱いになる。
+  const showSkip =
+    (currentPhase === "lock" || currentPhase === "hand") &&
+    !isPseudoCpuTarget(phaseOwner) &&
+    !approvalPending &&
+    !busyResolving &&
+    !isPhaseTransitionPending();
   btn.style.display = showSkip ? "block" : "none";
   const state = getState();
   // マイデッキ戦: 自分のロックフェイズで、マイデッキに残りがあれば「マイデッキ (残枚数)」

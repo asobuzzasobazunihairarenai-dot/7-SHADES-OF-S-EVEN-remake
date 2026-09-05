@@ -100,8 +100,9 @@ async function summonAndTriggerHandEffect(cardId) {
   const location = { zone: "hand", player: selfSeat };
   if (isOnlineMode()) {
     try {
-      await moveToken(cardToken.id, location);
+      // 【#285】印は送信より前に付ける（理由は self-handled-tokens.js の冒頭）。
       markSelfHandled([cardToken.id]);
+      await moveToken(cardToken.id, location);
       await fetchAndHydrate(getCurrentGameId());
     } catch (err) {
       console.error("summonAndTriggerHandEffect failed", err);

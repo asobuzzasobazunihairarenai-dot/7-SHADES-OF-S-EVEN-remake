@@ -12,6 +12,21 @@ import { getLang } from "./i18n.js";
 
 export const CHANGELOG = [
   {
+    date: "2026-09-06",
+    items: [
+      "試練の儀式などで踏んだカードが、画面中央の演出で開くのと同じ瞬間に盤面でもめくれるようにしました（中央で中身が分かった後にもう一度盤面がめくれ、二度めくれたように見えていました）。",
+      "ボタンやカードを続けて押した時に、同じ行動が二重に通ってしまう場面をまとめて塞ぎました（ロック・接触の申し込み・最後のロックの承認・カウンターロックの使用・ドラッグでの1手）。",
+      "オンラインで、自分の操作が一瞬だけ「相手の操作」として古い演出で再生されることがあったのを、移動以外の場面（カードを置く・めくる・捨てる・奪う など）でも起きないようにしました。",
+      "次のフェイズへ移るのを待っている間は「スキップ」ボタンを押せないようにしました。",
+    ],
+    itemsEn: [
+      "The card you step on (Trial Ritual and the like) now flips over on the board at the very moment the centre animation opens it — previously the board flipped afterwards, so it looked as if it flipped twice.",
+      "Closed a group of cases where pressing a button or a card twice in quick succession could put the same action through twice (locking, proposing contact, approving a final lock, using a counter lock, and drag-and-drop plays).",
+      "Online, your own actions could briefly replay as if they were an opponent's, using the old animation. This was fixed for moves before; it now covers placing, flipping, discarding and stealing cards as well.",
+      "The Skip button can no longer be pressed while the game is waiting to move on to the next phase.",
+    ],
+  },
+  {
     date: "2026-09-05",
     items: [
       "1回のロックフェイズでマイデッキから何枚も引けてしまう／ロックした直後にも引けてしまうのを直しました。マイデッキから引けるのは「ロックする代わり」に1回だけです。",
