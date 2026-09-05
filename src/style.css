@@ -1055,6 +1055,63 @@ body.diagnostic-flatten-3d.is-touch-device .zone-left .hand-area {
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.55);
 }
 
+/* 【ユーザー要望2026-09-05】マイデッキ戦: 自分の手札に「これは他人のデッキの札」の印を付ける。
+   自分の手札は右へ右へと重ねて並ぶ（後のカードほど手前）ので、**左上は必ず見えている**。
+   そこへ印を置く。印の種類は管理者モードで切り替えられる。 */
+/* ① 角がめくれて、持ち主の裏面がのぞく（既定）。三角形に切り抜いた裏面画像＋折り目の線。 */
+.hand-card-mydeck-dogear {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 34%;
+  height: 34%;
+  border-top-left-radius: 0.3rem;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  pointer-events: none;
+  z-index: 3;
+}
+/* 折り目。めくれた紙の断面に見えるよう、持ち主の色の細い線を斜めに置く。 */
+.hand-card-mydeck-dogear::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    transparent 0 calc(70.7% - 0.09rem),
+    var(--mydeck-mark-color, #f6c945) calc(70.7% - 0.09rem) 70.7%,
+    transparent 70.7%
+  );
+  filter: drop-shadow(0 0 0.12rem rgba(0, 0, 0, 0.6));
+}
+/* ② 持ち主のアバターの小さな丸（ふちは持ち主の駒の色）。 */
+.hand-card-mydeck-badge {
+  position: absolute;
+  left: 4%;
+  top: 4%;
+  width: 30%;
+  height: 30%;
+  border-radius: 50%;
+  border: 0.14rem solid var(--mydeck-mark-color, #f6c945);
+  background: rgba(15, 23, 42, 0.85);
+  box-shadow: 0 0 0.35rem rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-size: 0.9rem;
+  line-height: 1;
+  pointer-events: none;
+  z-index: 3;
+}
+.hand-card-mydeck-badge .avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 /* 自分の手札は視認性優先で大きく表示する */
 .hand-card.is-self {
   width: var(--hand-card-self-size, 9rem);
@@ -7551,6 +7608,18 @@ body.is-phone-device #piece-hide-button {
 body.is-phone-device #card-hide-button {
   bottom: calc(9.2rem + var(--eraser-icons-pos-phone-y, 0rem));
 }
+/* スマホ専用: 盤面拡大ボタンの位置・大きさ（管理者モード、ユーザー要望2026-09-05・#278
+   「駒消しボタン群の左側に持っていきたい」）。上の駒消し／カード消しと同じ作法で right/bottom
+   にだけ効かせるので、タッチ用の transform オフセットとは干渉しない。＋Xで右へ・＋Yで上へ
+   （右端基準なので、右へ動かす＝right を減らす）。 */
+body.is-phone-device #board-zoom-button {
+  right: calc(1.2rem - var(--board-zoom-btn-pos-phone-x, 0rem));
+  bottom: calc(8.8rem + var(--board-zoom-btn-pos-phone-y, 0rem));
+}
+body.is-phone-device #board-zoom-button .icon-action-button-icon-wrap {
+  width: var(--board-zoom-btn-size-phone, 3.5rem);
+  height: var(--board-zoom-btn-size-phone, 3.5rem);
+}
 body.is-phone-device #piece-hide-button .icon-action-button-icon-wrap,
 body.is-phone-device #card-hide-button .icon-action-button-icon-wrap {
   width: var(--eraser-icons-size-phone, 2.6rem);
@@ -12900,8 +12969,13 @@ body.is-phone-device .opening-lang-toggle-seg.is-current {
   animation-delay: 2.5s;
   transition: transform 0.2s ease;
 }
-.opening-start-btn:hover {
-  transform: translateY(-0.15rem) scale(1.03);
+/* 【#277】ホバーできる端末（マウス）だけに限定する。タッチ端末では「1回目のタップが
+   hover 扱いになり click が来ない」ことがあり、STARTボタンが何度も押さないと反応しない
+   原因になる（ユーザー報告2026-09-05）。 */
+@media (hover: hover) and (pointer: fine) {
+  .opening-start-btn:hover {
+    transform: translateY(-0.15rem) scale(1.03);
+  }
 }
 .opening-start-btn img {
   display: block;
@@ -13563,9 +13637,13 @@ body.is-phone-device .opening-lang-toggle-seg.is-current {
   --fixed-hand-x-offset-phone: -34.1rem;
   --fixed-hand-scale-phone: 1;
   --fixed-hand-rotate-phone: 47deg;
-  --eraser-icons-pos-phone-x: 2.8rem;
-  --eraser-icons-pos-phone-y: 11.9rem;
+  --eraser-icons-pos-phone-x: 5.4rem;
+  --eraser-icons-pos-phone-y: 19rem;
   --eraser-icons-size-phone: 5.3rem;
+  /* スマホ専用: 盤面拡大ボタンの位置・大きさ（管理者モード、ユーザー要望2026-09-05・#278）。 */
+  --board-zoom-btn-pos-phone-x: 0rem;
+  --board-zoom-btn-pos-phone-y: 0rem;
+  --board-zoom-btn-size-phone: 3.5rem;
   --mini-lock-top-phone: 4.3rem;
   --mini-lock-top-x-offset-phone: 0rem;
   --mini-lock-top-scale-phone: 1;

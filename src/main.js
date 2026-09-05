@@ -14,6 +14,8 @@ import {
   registerAdminAuthHelpers,
   refreshAdminOnlySection,
   isSelfHandRevealAreaVisible,
+  getMyDeckHandMarkStyle,
+  isMyDeckHandSortEnabled,
 } from "./admin.js";
 import { optionLabel } from "./card-effects.js"; // UI英語化フェーズ11
 import { logAction, initActionLogPanel, getActionLogText, getActionLogEntries } from "./action-log.js";
@@ -565,6 +567,42 @@ function isAfkCpuSubstitutedSeat(seat) {
   return !!afkCpuStatusBySeat[seat];
 }
 
+// 【ユーザー要望2026-09-05】マイデッキ戦で、自分の手札のどれが誰のマイデッキの札かを見分ける。
+// 自分の手札は表向きに描くので、持ち主の裏面デザイン（cardBackImageForToken）が見えず、
+// これまでは手掛かりがまったく無かった（相手の手札や盤面の裏向きカードでは裏面で分かる）。
+// 印を付けるのは**他人のデッキ由来の札だけ**——マイデッキ戦では手札のほとんどが自分の札なので、
+// 全部に付けると賑やかになるだけ。「印が付いていたら他人の札」の方が探しやすい。
+function myDeckForeignOwnerOf(token, handOwner) {
+  if (!getState().myDeckMode) return null;
+  const owner = token?.myDeckOwner;
+  if (!owner || owner === handOwner) return null;
+  return owner;
+}
+// 持ち主を表す色（その人のファーストカード＝駒の色）。虹・不明はマイデッキの金色にする。
+function myDeckOwnerMarkColor(owner) {
+  const color = myDeckOwnerPieceColor(owner);
+  return color && color !== "rainbow" ? `var(--color-${color})` : "#f6c945";
+}
+// 印そのもの（管理者モードで種類を切り替えられる。既定は「角がめくれて裏面がのぞく」）。
+function buildMyDeckHandMark(token, owner) {
+  const style = getMyDeckHandMarkStyle();
+  if (style === "none") return null;
+  const title = t("game.myDeck.ownerNote", { name: getPlayerName(owner) });
+  const el = document.createElement("div");
+  el.style.setProperty("--mydeck-mark-color", myDeckOwnerMarkColor(owner));
+  el.title = title;
+  if (style === "avatar") {
+    el.className = "hand-card-mydeck-badge";
+    applyAvatarContent(el, getPlayerAvatar(owner));
+    return el;
+  }
+  // dogear: 左上の角を折ったように見せ、そこに**持ち主の実際の裏面**をのぞかせる
+  // （「裏面が見えてればいい」というユーザーの言い方にそのまま応える形）。
+  el.className = "hand-card-mydeck-dogear";
+  el.style.backgroundImage = `url("${cardBackImageForToken(token)}")`;
+  return el;
+}
+
 function buildPlayerZone(side, player, isSelf) {
   const zone = document.createElement("div");
   zone.className = `zone zone-${side} player-zone`;
@@ -613,6 +651,12 @@ function buildPlayerZone(side, player, isSelf) {
   const handTokens = getState().tokens.filter(
     (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player
   );
+  // 【ユーザー要望2026-09-05・案C】マイデッキ戦では、他人のデッキ由来の札を扇の右端へまとめる。
+  // 扇は右のカードほど手前に描かれる＝右端が一番よく見える場所なので、探す手間が減る。
+  // 並べ替えるのは**見た目だけ**（状態には触らない）。sort は安定なので、それ以外の並びは保たれる。
+  if (isSelf && isMyDeckHandSortEnabled()) {
+    handTokens.sort((a, b) => (myDeckForeignOwnerOf(a, player) ? 1 : 0) - (myDeckForeignOwnerOf(b, player) ? 1 : 0));
+  }
 
   // ユーザー要望2026-08-28「自動処理モードでは、自分の公開カード（publicDraw）を別の手札公開
   // エリアではなく自分の手札の扇の中に、通常の手札と1枚分の隙間を空けて、目印（👁ハイライト）
@@ -725,6 +769,15 @@ function buildPlayerZone(side, player, isSelf) {
       cardEl.style.backgroundImage = `url("${cardBackImageForToken(token)}")`;
     }
     cardEl.dataset.tokenId = token.id;
+    // マイデッキ戦: **表向きに見えている**札にだけ「誰の札か」の印を付ける
+    // （裏向きの札は持ち主の裏面デザインがそのまま見えているので不要）。
+    if (!cardEl.classList.contains("is-facedown")) {
+      const foreignOwner = myDeckForeignOwnerOf(token, player);
+      if (foreignOwner) {
+        const mark = buildMyDeckHandMark(token, foreignOwner);
+        if (mark) cardEl.appendChild(mark);
+      }
+    }
     const card = layout[i];
     cardEl.style.transform = `translateX(${card.spreadX}px) translateY(${card.spreadY}px) rotate(${card.angle}deg)`;
     // ひょこっと持ち上げ演出（initHandPeek参照）が、この基準となる扇の位置に戻せるよう
@@ -742,6 +795,12 @@ function buildPlayerZone(side, player, isSelf) {
     cardEl.className = "hand-card is-self is-public-in-hand";
     cardEl.dataset.tokenId = token.id;
     showCardFace(cardEl, token.cardId, getCardImagePath(token.cardId));
+    {
+      // 公開カードも表向きなので、同じ印を付ける。
+      const foreignOwner = myDeckForeignOwnerOf(token, player);
+      const mark = foreignOwner ? buildMyDeckHandMark(token, foreignOwner) : null;
+      if (mark) cardEl.appendChild(mark);
+    }
     const card = layout[handTokens.length + revealGapSlots + j];
     if (card) {
       cardEl.style.transform = `translateX(${card.spreadX}px) translateY(${card.spreadY}px) rotate(${card.angle}deg)`;
@@ -10030,6 +10089,13 @@ function getPreviewNoteFor(el) {
   if (!tokenId) return null;
   for (const set of pendingTurnEndDiscards.values()) {
     if (set.has(tokenId)) return t("game.preview.discardAtTurnEnd");
+  }
+  // 【ユーザー要望2026-09-05】マイデッキ戦: 拡大表示に「誰のマイデッキの札か」を出す。
+  // ホバーのツールチップ（my-deck-owner-tooltip）はマウスでしか出ないので、
+  // スマホでも確かめられる場所として拡大表示にも載せる。
+  const token = getState().tokens.find((t) => t.id === tokenId);
+  if (getState().myDeckMode && token?.myDeckOwner) {
+    return t("game.myDeck.ownerNote", { name: getPlayerName(token.myDeckOwner) });
   }
   return null;
 }

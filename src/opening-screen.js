@@ -33,6 +33,7 @@ import { createModalCloseX, createBackdrop } from "./ui-helpers.js";
 import { playOpeningBgm, stopOpeningBgm } from "./sound.js";
 import { APP_VERSION } from "./app-version.js";
 import { isFlatten2dMode } from "./tablet-2d-mode.js";
+import { isTouchPrimaryDevice } from "./device-detect.js";
 import { startTitlePetWalk } from "./title-pet.js";
 import { t } from "./ui-text.js";
 import { getLang, setLang, onLangChange, SUPPORTED_LANGS, LANG_LABEL } from "./i18n.js";
@@ -174,7 +175,12 @@ function startAuraTrailsSimplified(container) {
 
 function startAuraTrails(container) {
   if (isFlatten2dMode()) return startAuraTrailsSimplified(container);
-  const trailLength = Math.max(1, Math.round(getAuraCssNumber("--opening-aura-trail-length", 10)));
+  // 【#277】スマホでは残像の数を減らす。1色につき残像25個 × 7色 ＝ 175個の、
+  // それぞれ blur() の掛かった円を毎フレーム動かすのはiPhoneには重すぎて、
+  // タップの取りこぼし（＝STARTボタンが何度も押さないと効かない）やGPUの逼迫の
+  // 原因になり得る。見た目の尾の長さは短くなるが、動きは同じ。
+  const trailCap = isTouchPrimaryDevice() ? 8 : Infinity;
+  const trailLength = Math.min(trailCap, Math.max(1, Math.round(getAuraCssNumber("--opening-aura-trail-length", 10))));
   const sizeRem = getAuraCssNumber("--opening-aura-size", 12);
   // ユーザー要望「もっとゆったりと動き回ってほしい」を受けて基準速度を半分程度に
   // 落とした。--opening-aura-speedは管理者モードで動かせる倍率（既定1）。
@@ -661,7 +667,17 @@ export function initOpeningScreen() {
     { once: true }
   );
 
-  startBtn.addEventListener("click", () => {
+  // 【#277】ユーザー報告「1番最初の画面のHUERISEですが、何回も押さないとタイトル画面に
+  // 移行しません」。原因になり得るものが2つあり、両方に手を打った——
+  //  ①iOSの「1回目のタップは hover 扱いになる」挙動。`:hover` で見た目が変わる要素は、
+  //    最初のタップが click にならないことがある（CSS側で hover を持つ端末だけに限定した）。
+  //  ②人魂の重さでタップを取りこぼす（上の trailCap）。
+  // そのうえで、click だけに頼らず pointerup でも進めるようにする（どちらか1回で確定。
+  // 二重発火は startPressed で防ぐ）。
+  let startPressed = false;
+  const beginFromStart = () => {
+    if (startPressed) return;
+    startPressed = true;
     playOpeningBgm();
     startGate.classList.add("is-closing");
     stopAuras();
@@ -669,7 +685,9 @@ export function initOpeningScreen() {
       startGate.style.display = "none";
       beginTitleSequence();
     }, CLOSE_TRANSITION_MS);
-  });
+  };
+  startBtn.addEventListener("click", beginFromStart);
+  startBtn.addEventListener("pointerup", beginFromStart);
 
   function showCard() {
     loginToggleBtn.style.display = "none";

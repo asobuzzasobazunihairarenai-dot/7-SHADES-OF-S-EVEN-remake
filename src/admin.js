@@ -1275,6 +1275,19 @@ const GROUPS = [
     ],
   },
   {
+    // ユーザー要望2026-09-05（#278）「スマホで盤面拡大ボタンの位置調整を管理者モードに設置して。
+    // 駒消しボタン群の左側に持っていきたい」。駒消し／カード消しと同じ作法で、スマホの時だけ
+    // right/bottom に効かせる（既存のタッチ用 transform オフセットとは干渉しない）。
+    // 駒消し群は画面左端(left)基準なので、そこまで動かせるよう可動域は広めに取ってある。
+    title: "📱 スマホ専用：盤面拡大ボタンの位置・サイズ",
+    category: "phone",
+    controls: [
+      { key: "--board-zoom-btn-pos-phone-x", label: "位置X（＋で右へ）", unit: "rem", min: -80, max: 20, step: 0.1, default: 0 },
+      { key: "--board-zoom-btn-pos-phone-y", label: "位置Y（＋で上へ）", unit: "rem", min: -20, max: 30, step: 0.1, default: 0 },
+      { key: "--board-zoom-btn-size-phone", label: "アイコンの大きさ", unit: "rem", min: 1.4, max: 8, step: 0.1, default: 3.5 },
+    ],
+  },
+  {
     // ユーザー要望2026-08-08「スマホでの『駒消し』『カード消し』アイコンの一括位置調整を管理者
     // モードに追加してほしい」。2つのボタン(#piece-hide-button/#card-hide-button)を同じ量だけ
     // まとめて動かす（縦の並び間隔は保つ）。style.cssはbody.is-phone-deviceでleft/bottomに
@@ -1282,8 +1295,8 @@ const GROUPS = [
     title: "📱 スマホ専用：駒消し／カード消しアイコンの一括位置・サイズ",
     category: "phone",
     controls: [
-      { key: "--eraser-icons-pos-phone-x", label: "位置X（＋で右へ・一括）", unit: "rem", min: -20, max: 20, step: 0.1, default: 2.8 },
-      { key: "--eraser-icons-pos-phone-y", label: "位置Y（＋で上へ・一括）", unit: "rem", min: -20, max: 30, step: 0.1, default: 11.9 },
+      { key: "--eraser-icons-pos-phone-x", label: "位置X（＋で右へ・一括）", unit: "rem", min: -20, max: 20, step: 0.1, default: 5.4 },
+      { key: "--eraser-icons-pos-phone-y", label: "位置Y（＋で上へ・一括）", unit: "rem", min: -20, max: 30, step: 0.1, default: 19 },
       { key: "--eraser-icons-size-phone", label: "アイコンの大きさ（一括）", unit: "rem", min: 1.4, max: 6, step: 0.1, default: 5.3 },
     ],
   },
@@ -1578,6 +1591,25 @@ export function isDiscardListEnabled() {
 // 目立たせる演出の種類。"orbit"=色の球がふちを回る（デフォルト）、"shine"=斜めに光る帯が
 // 定期的に横切る。main.jsのbuildFlatCardが参照する。
 let usableLockedEffect = "orbit";
+
+// 【ユーザー要望2026-09-05】マイデッキ戦で、自分の手札のどれが誰のマイデッキの札かを
+// 見分けられるようにする。自分の手札は表向き＝裏面デザインが見えないため、印が要る。
+// 印を付けるのは**他人のデッキ由来の札だけ**（自分の札が大半なので、全部に付けると賑やかに
+// なるだけ。「印が付いていたら他人の札」という決まりの方が探しやすい）。
+//   "dogear" … カードの左上の角がめくれて、持ち主の裏面がのぞく（既定・ユーザー選択）
+//   "avatar" … カードの左上に、持ち主のアバターの小さな丸（ふちは持ち主の駒の色）
+//   "none"   … 印を出さない
+let myDeckHandMarkStyle = "dogear";
+export function getMyDeckHandMarkStyle() {
+  return myDeckHandMarkStyle;
+}
+// 同じくユーザー要望の案C: 自分の手札を「自分の札」→「他人の札」の順に並べ替える
+// （他人の札が扇の右端＝一番手前・一番見やすい位置にまとまる）。マイデッキ戦で、
+// 他人の札が実際に手札にある時だけ効く。
+let myDeckHandSortEnabled = true;
+export function isMyDeckHandSortEnabled() {
+  return myDeckHandSortEnabled;
+}
 
 export function getUsableLockedEffect() {
   return usableLockedEffect;
@@ -2282,6 +2314,51 @@ const TOGGLE_SECTIONS = [
       turnGlowRow.appendChild(turnGlowCheckbox);
       turnGlowRow.appendChild(turnGlowLabel);
       content.appendChild(turnGlowRow);
+    },
+  },
+  {
+    // 【ユーザー要望2026-09-05】マイデッキ戦での「誰の札か」の見せ方（上の myDeckHandMarkStyle）。
+    title: "マイデッキ戦: 自分の手札の「誰の札か」の印",
+    category: "effect",
+    buildContent: (content) => {
+      const row = document.createElement("label");
+      row.style.cssText = "display: flex; align-items: center; gap: 0.4rem;";
+      const caption = document.createElement("span");
+      caption.textContent = "印の出し方";
+      const select = document.createElement("select");
+      select.style.cssText = "flex: 1; min-width: 0;";
+      for (const [value, label] of [
+        ["dogear", "角がめくれて裏面がのぞく（既定）"],
+        ["avatar", "持ち主のアバターの丸"],
+        ["none", "印を出さない"],
+      ]) {
+        const opt = document.createElement("option");
+        opt.value = value;
+        opt.textContent = label;
+        select.appendChild(opt);
+      }
+      select.value = myDeckHandMarkStyle;
+      select.addEventListener("change", () => {
+        myDeckHandMarkStyle = select.value;
+        window.dispatchEvent(new CustomEvent("admin:change"));
+        updateExportRef.current();
+      });
+      row.append(caption, select);
+      content.appendChild(row);
+      const sortRow = document.createElement("label");
+      sortRow.style.cssText = "display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-top: 0.4rem;";
+      const sortCheckbox = document.createElement("input");
+      sortCheckbox.type = "checkbox";
+      sortCheckbox.checked = myDeckHandSortEnabled;
+      sortCheckbox.addEventListener("change", () => {
+        myDeckHandSortEnabled = sortCheckbox.checked;
+        window.dispatchEvent(new CustomEvent("admin:change"));
+        updateExportRef.current();
+      });
+      const sortLabel = document.createElement("span");
+      sortLabel.textContent = "他人の札を手札の右端にまとめる";
+      sortRow.append(sortCheckbox, sortLabel);
+      content.appendChild(sortRow);
     },
   },
   {
@@ -3049,6 +3126,8 @@ function buildPanel(rebuildSlidersRef) {
       `discardListEnabled: ${discardListEnabled}`,
       `turnGlowWhite: ${turnGlowWhite}`,
       `usableLockedEffect: "${usableLockedEffect}"`,
+      `myDeckHandMarkStyle: "${myDeckHandMarkStyle}"`,
+      `myDeckHandSortEnabled: ${myDeckHandSortEnabled}`,
       `cardArrivalModalPersistent: ${cardArrivalModalPersistent}`,
       `gatePedestalVisible: ${gatePedestalVisible}`,
       `selfBoardAvatarVisible: ${selfBoardAvatarVisible}`,

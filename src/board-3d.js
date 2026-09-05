@@ -789,7 +789,16 @@ function frame() {
   if (!syncCamera()) return;
   sortByDepth();
   const t1 = performance.now();
-  renderer.render(scene, camera);
+  // 【#278】文脈が失われかけていると three.js が投げることがある（実測: iPhoneで
+  // "shaderSource must be an instance of WebGLShader" が未捕捉例外として出ていた）。
+  // 未捕捉のまま出すと本物のエラーが埋もれるので、ここで受けて復帰の流れに合流させる。
+  try {
+    renderer.render(scene, camera);
+  } catch (err) {
+    console.warn("board-3d: 描画に失敗", err?.message || err);
+    handleContextLost();
+    return;
+  }
   lastDrawMs = lastDrawMs * 0.8 + (performance.now() - t1) * 0.2;
 }
 
@@ -798,6 +807,56 @@ function markDirty() {
 }
 
 // --- 起動・停止 ----------------------------------------------------------------------
+// 【#278】WebGLの文脈（GPUとのつながり）が失われた時の自動復帰。
+// ユーザー報告「まだロックエリアバーの一部と盤面のカードの一部がチカチカします」＋
+// コンソールに `Context Lost` → 0.09秒後に `Context Restored`。以前は失われた時点で
+// **CSS描画へ戻したきり**だったので、GPUが戻ってきても盤面はCSSのままで、iPhoneでは
+// その状態のチカチカが再発していた（続き398で入れた保険が、そのまま片道切符になっていた）。
+// 戻ってきたら作り直して再開する。失われ続ける端末で無限に往復しないよう回数の上限を設け、
+// 上限に達したらCSS描画のまま静かに諦める（＝以前と同じ振る舞い）。
+const CONTEXT_LOST_RETRY_MAX = 4;
+let contextLostCount = 0;
+let contextRecoveryTimer = null;
+function disposeRenderer() {
+  try { renderer?.dispose?.(); } catch (err) {}
+  renderer = null;
+  scene = null;
+  camera = null;
+  rootGroup = null;
+  try { canvasEl?.remove(); } catch (err) {}
+  canvasEl = null;
+  // GPU側の中身はもう無いので、こちらの持ち物も全部捨てて作り直させる。
+  meshByElement.clear();
+  shapeMeshByElement.clear();
+  for (const tex of textureCache.values()) { try { tex.dispose(); } catch (err) {} }
+  textureCache.clear();
+  for (const tex of shapeTextures.values()) { try { tex.dispose(); } catch (err) {} }
+  shapeTextures.clear();
+  lastShapeSpecs = new Map();
+  lastShapeSeen = new Set();
+  lastShapeReadAt = 0;
+}
+function handleContextLost() {
+  contextLostCount++;
+  try {
+    logAction("diag-board3d-context-lost", { count: contextLostCount, willRetry: contextLostCount <= CONTEXT_LOST_RETRY_MAX });
+  } catch (err) {}
+  console.warn("board-3d: WebGL context lost — 作り直して復帰を試みます (" + contextLostCount + ")");
+  try { setBoard3dActive(false); } catch (err) {}
+  disposeRenderer();
+  if (contextLostCount <= CONTEXT_LOST_RETRY_MAX) scheduleContextRecovery(1200 * contextLostCount);
+}
+function scheduleContextRecovery(delayMs) {
+  if (contextRecoveryTimer) return;
+  contextRecoveryTimer = setTimeout(() => {
+    contextRecoveryTimer = null;
+    if (active) return; // 既に他の経路で復帰していれば何もしない
+    if (!isBoard3dEnabled()) return; // 設定でOFFにされていたら戻さない
+    const ok = setBoard3dActive(true);
+    try { logAction("diag-board3d-context-recover", { ok, count: contextLostCount }); } catch (err) {}
+  }, Math.max(0, delayMs));
+}
+
 function ensureRenderer() {
   if (renderer) return true;
   const sceneEl = getScene();
@@ -809,7 +868,13 @@ function ensureRenderer() {
     "position:absolute; left:0; top:0; pointer-events:none; z-index:0;";
   sceneEl.insertBefore(canvasEl, sceneEl.firstChild);
   try {
-    renderer = new THREE.WebGLRenderer({ canvas: canvasEl, alpha: true, antialias: true, powerPreference: "low-power" });
+    // 【#278】スマホではアンチエイリアスを切る。GPU側に「見えている画面と同じ大きさの絵」を
+    // もう1枚（実際にはもっと）余分に持たせる仕組みなので、画像だけで既に48MB使っている
+    // iPhoneでは、文脈ごと打ち切られる（Context Lost）一押しになりやすい。板は角ばった
+    // 四角なので、切っても縁が少しかたくなる程度で済む。解像度は下げない（#244 のぼやけの
+    // 原因になるため）。
+    const phone = document.body.classList.contains("is-phone-device");
+    renderer = new THREE.WebGLRenderer({ canvas: canvasEl, alpha: true, antialias: !phone, powerPreference: "low-power" });
   } catch (err) {
     console.error("board-3d: WebGLRenderer failed", err);
     canvasEl.remove();
@@ -825,8 +890,11 @@ function ensureRenderer() {
   // 従来のCSS描画へ戻す——真っ黒な盤面のまま操作不能、という状態を作らない。
   canvasEl.addEventListener("webglcontextlost", (e) => {
     e.preventDefault();
-    console.warn("board-3d: WebGL context lost — CSS描画に戻します");
-    setBoard3dActive(false);
+    handleContextLost();
+  });
+  // 【#278】失われた文脈が戻ってきた時のために、こちらも拾っておく（下の自動復帰の保険）。
+  canvasEl.addEventListener("webglcontextrestored", () => {
+    scheduleContextRecovery(0);
   });
   return true;
 }
@@ -872,14 +940,18 @@ export function setBoard3dActive(on) {
     window.removeEventListener("resize", markDirty);
     unsubscribe?.();
     unsubscribe = null;
-    for (const mesh of allMeshes()) {
-      rootGroup?.remove(mesh);
-      mesh.material.dispose();
-    }
+    // 【#278】文脈が失われた後にもここを通る（handleContextLost）ので、GPU側の後片付けは
+    // 全部 try で包む——失敗しても「CSS描画へ戻す」ところまでは必ず終わらせる。
+    try {
+      for (const mesh of allMeshes()) {
+        rootGroup?.remove(mesh);
+        mesh.material.dispose();
+      }
+    } catch (err) {}
     meshByElement.clear();
     shapeMeshByElement.clear();
     lastStatsLogAt = 0;
-    if (renderer) renderer.clear();
+    try { if (renderer) renderer.clear(); } catch (err) {}
   }
   return active;
 }

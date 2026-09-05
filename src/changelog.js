@@ -14,6 +14,29 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "マイデッキ戦で、自分の手札のどれが他の人のデッキの札なのか分かるようにしました。他の人の札は、カードの左上の角がめくれて持ち主の裏面がのぞきます（自分の札には何も付きません）。",
+      "マイデッキ戦で、他の人のデッキの札が手札の右端にまとまるようにしました。奪ってきた札を探しやすくなります。",
+      "カードを拡大表示すると「誰のマイデッキの札か」が出るようになりました。",
+      "iPhone・iPadで、盤面の描画が端末の都合で打ち切られた時に、自動でやり直すようにしました。これまでは打ち切られたきり古い描き方に戻ってしまい、そのまま画面がチカチカし続けていました。",
+      "スマホでは盤面のふちをなめらかにする処理を切って、端末の負担を減らしました。",
+      "最初の画面の「HUERISE」ボタンが、何度も押さないと次に進まないことがあったのを直しました。",
+      "最初の画面の光の玉を、スマホでは軽くしました。動き方は同じで、尾が少し短くなります。",
+      "スマホでの「駒を消す」「カードを消す」ボタンの位置を調整しました。",
+    ],
+    itemsEn: [
+      "In My Deck matches you can now tell which cards in your hand came from someone else's deck: their top-left corner is folded back to reveal the owner's card back (your own cards are left unmarked).",
+      "In My Deck matches, cards from other people's decks are now grouped at the right end of your hand, making the ones you took easier to find.",
+      "Enlarging a card now shows whose deck it came from.",
+      "On iPhone and iPad, board rendering now restarts automatically if the device cuts it off. Previously it stayed cut off, fell back to the old drawing method, and the screen kept flickering.",
+      "Edge smoothing for the board is now switched off on phones to lighten the load on the device.",
+      "Fixed the HUERISE button on the first screen sometimes needing several taps before it would continue.",
+      "The orbs of light on the first screen are now lighter on phones. They move the same way, with a slightly shorter trail.",
+      "Adjusted the position of the Hide pieces / Hide cards buttons on phones.",
+    ],
+  },
+  {
+    date: "2026-09-05",
+    items: [
       "駒の移動に「よっこいしょ」感を足しました。進む方向の前側を持ち上げて跳び、着地でわずかに前へつんのめります。",
       "ジャンプ台のように2マス以上動く時は、高く長く跳ぶようにしました。距離が体感できます。",
       "紫のキューブ ディメンションで移動範囲が伸びている時は、跳ぶのではなく「ワープする」動きにしました。",
