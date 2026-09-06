@@ -14,6 +14,15 @@ export const CHANGELOG = [
   {
     date: "2026-09-06",
     items: [
+      "マイデッキ戦で、自分の手札の1枚1枚が「自分のマイデッキ」「共有の山札」「相手のマイデッキ」のどれから来た札かを見分けられるようになりました。カードの左上の折れた角に、その札の実際の裏面がのぞきます（これまでは相手の札にしか印が付いていませんでした）。",
+    ],
+    itemsEn: [
+      "In My Deck matches you can now tell, card by card in your own hand, whether it came from your own deck, the shared deck, or an opponent's deck. The folded corner at the top-left shows that card's actual back (previously only opponents' cards were marked).",
+    ],
+  },
+  {
+    date: "2026-09-06",
+    items: [
       "移動した駒や、飛んでいったカードが、置かれる瞬間に一瞬消えたり枠だけになったりしていたのを直しました。",
       "「合同建設」で山札から置くか手札から置くかを選ぶ画面が、明るい表示にしていても暗いままだったのを直しました。",
       "「パーティ」で表向きのカードを手札に加えた時、中央のお知らせが裏面で出ることがあったのを直しました。",

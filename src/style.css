@@ -1156,6 +1156,12 @@ body.reduce-glow .steal-beam {
   height: 100%;
   object-fit: cover;
 }
+/* 【ユーザー要望2026-09-06】共有の山札から引いた札には持ち主が居ないので、アバターの代わりに
+   カードの裏を表す記号を出す。色も銀色（どのプレイヤーの色でもないことが色でも分かるように）。 */
+.hand-card-mydeck-badge.is-shared {
+  color: rgba(226, 232, 240, 0.95);
+  font-size: 1.05rem;
+}
 
 /* 自分の手札は視認性優先で大きく表示する */
 .hand-card.is-self {

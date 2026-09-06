@@ -659,22 +659,52 @@ function myDeckForeignOwnerOf(token, handOwner) {
   if (!owner || owner === handOwner) return null;
   return owner;
 }
+// 【ユーザー要望2026-09-06】「マイデッキから引いたもの・共有の山札から引いたもの・他人の
+// マイデッキのカード、これらは裏面がすべて異なる。自分の手札で見分けがついた方が良い」。
+// 以前は**他人の札にだけ**印を付けていた（全部に付けると印の意味が無くなる、という私の判断）
+// が、裏面が3種類ある以上「印が無い＝どれ？」が分からないのが実態だった。3種類とも印を付け、
+// 角めくれには**その札の実際の裏面**が出るので、そのまま見分けられる。
+// 戻り値: { kind: "own" | "foreign" | "shared", owner } ／ マイデッキ戦でなければ null。
+function myDeckHandOriginOf(token, handOwner) {
+  if (!getState().myDeckMode) return null;
+  const owner = token?.myDeckOwner ?? null;
+  if (!owner) return { kind: "shared", owner: null };
+  return { kind: owner === handOwner ? "own" : "foreign", owner };
+}
 // 持ち主を表す色（その人のファーストカード＝駒の色）。虹・不明はマイデッキの金色にする。
 function myDeckOwnerMarkColor(owner) {
   const color = myDeckOwnerPieceColor(owner);
   return color && color !== "rainbow" ? `var(--color-${color})` : "#f6c945";
 }
+// その札の由来を一言で表す（ホバーのツールチップ・拡大表示の注記に使う）。
+function myDeckOriginNote(origin) {
+  if (!origin) return null;
+  if (origin.kind === "shared") return t("game.myDeck.sharedNote");
+  if (origin.kind === "own") return t("game.myDeck.ownNote");
+  return t("game.myDeck.ownerNote", { name: getPlayerName(origin.owner) });
+}
 // 印そのもの（管理者モードで種類を切り替えられる。既定は「角がめくれて裏面がのぞく」）。
-function buildMyDeckHandMark(token, owner) {
+function buildMyDeckHandMark(token, origin) {
   const style = getMyDeckHandMarkStyle();
-  if (style === "none") return null;
-  const title = t("game.myDeck.ownerNote", { name: getPlayerName(owner) });
+  if (style === "none" || !origin) return null;
+  const title = myDeckOriginNote(origin);
   const el = document.createElement("div");
-  el.style.setProperty("--mydeck-mark-color", myDeckOwnerMarkColor(owner));
+  // 折り目の線の色。マイデッキ札は持ち主の色、共有の山札は色を持たないので銀色にする
+  // （「どの色のプレイヤーのものでもない」ことが色でも分かるように）。
+  el.style.setProperty(
+    "--mydeck-mark-color",
+    origin.kind === "shared" ? "rgba(226, 232, 240, 0.9)" : myDeckOwnerMarkColor(origin.owner)
+  );
   el.title = title;
   if (style === "avatar") {
     el.className = "hand-card-mydeck-badge";
-    applyAvatarContent(el, getPlayerAvatar(owner));
+    if (origin.kind === "shared") {
+      // 共有の山札には持ち主が居ないので、アバターの代わりにカードの裏を表す記号を出す。
+      el.classList.add("is-shared");
+      el.textContent = "🂠";
+    } else {
+      applyAvatarContent(el, getPlayerAvatar(origin.owner));
+    }
     return el;
   }
   // dogear: 左上の角を折ったように見せ、そこに**持ち主の実際の裏面**をのぞかせる
@@ -850,14 +880,12 @@ function buildPlayerZone(side, player, isSelf) {
       cardEl.style.backgroundImage = `url("${cardBackImageForToken(token)}")`;
     }
     cardEl.dataset.tokenId = token.id;
-    // マイデッキ戦: **表向きに見えている**札にだけ「誰の札か」の印を付ける
-    // （裏向きの札は持ち主の裏面デザインがそのまま見えているので不要）。
+    // マイデッキ戦: **表向きに見えている**札に「どこから来た札か」の印を付ける
+    // （裏向きの札は裏面デザインがそのまま見えているので不要）。自分のマイデッキ・共有の
+    // 山札・相手のマイデッキの3種類とも付ける（ユーザー要望2026-09-06）。
     if (!cardEl.classList.contains("is-facedown")) {
-      const foreignOwner = myDeckForeignOwnerOf(token, player);
-      if (foreignOwner) {
-        const mark = buildMyDeckHandMark(token, foreignOwner);
-        if (mark) cardEl.appendChild(mark);
-      }
+      const mark = buildMyDeckHandMark(token, myDeckHandOriginOf(token, player));
+      if (mark) cardEl.appendChild(mark);
     }
     const card = layout[i];
     cardEl.style.transform = `translateX(${card.spreadX}px) translateY(${card.spreadY}px) rotate(${card.angle}deg)`;
@@ -878,8 +906,7 @@ function buildPlayerZone(side, player, isSelf) {
     showCardFace(cardEl, token.cardId, getCardImagePath(token.cardId));
     {
       // 公開カードも表向きなので、同じ印を付ける。
-      const foreignOwner = myDeckForeignOwnerOf(token, player);
-      const mark = foreignOwner ? buildMyDeckHandMark(token, foreignOwner) : null;
+      const mark = buildMyDeckHandMark(token, myDeckHandOriginOf(token, player));
       if (mark) cardEl.appendChild(mark);
     }
     const card = layout[handTokens.length + revealGapSlots + j];
@@ -10874,8 +10901,12 @@ function getPreviewNoteFor(el) {
   // ホバーのツールチップ（my-deck-owner-tooltip）はマウスでしか出ないので、
   // スマホでも確かめられる場所として拡大表示にも載せる。
   const token = getState().tokens.find((t) => t.id === tokenId);
-  if (getState().myDeckMode && token?.myDeckOwner) {
-    return t("game.myDeck.ownerNote", { name: getPlayerName(token.myDeckOwner) });
+  if (getState().myDeckMode && token) {
+    // 手札／手札公開エリアの札は「どこから来たか」を出す（3種類とも。ユーザー要望2026-09-06）。
+    // 盤面のカードは、置かれた時点で由来を気にする場面ではないので従来どおり持ち主だけ。
+    const inHand = token.location?.zone === "hand" || token.location?.zone === "publicDraw";
+    if (inHand) return myDeckOriginNote(myDeckHandOriginOf(token, token.location.player));
+    if (token.myDeckOwner) return t("game.myDeck.ownerNote", { name: getPlayerName(token.myDeckOwner) });
   }
   return null;
 }
