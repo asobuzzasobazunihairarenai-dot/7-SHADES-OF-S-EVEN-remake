@@ -180,7 +180,7 @@ export function forceCloseVictoryModal() {
   dismissCurrentVictoryModal?.();
 }
 
-function showVictoryModal(player, onClose) {
+function showVictoryModal(player, onClose, { subtitleKey = "game.victory.sub" } = {}) {
   playVictoryBgm();
   const modal = document.createElement("div");
   modal.id = "victory-modal";
@@ -219,7 +219,7 @@ function showVictoryModal(player, onClose) {
 
   const subtitle = document.createElement("div");
   subtitle.className = "victory-modal-subtitle";
-  subtitle.textContent = t("game.victory.sub");
+  subtitle.textContent = t(subtitleKey);
 
   const closeX = createModalCloseX(close);
   closeX.classList.add("victory-modal-close");
@@ -331,7 +331,10 @@ export function concludeMatchWithWinner(player, { reason = "seven" } = {}) {
   // なお勝敗の確定・戦績システムへの登録は、この上で既に済んでいる（演出とは切り離す）。
   void (async () => {
     await waitForGateInvasionToFinish(); // #231: 侵攻の演出が終わってから勝利演出へ
-    const celebration = await playVictoryCelebration(player);
+    // 【続き456】「七色、集結」の演出は、勝者のロックエリアの7色を集めて見せるもの。
+    // **降参で勝った時は7色そろっていない**ので、そのまま出すと集まる色が足りない
+    // 嘘の演出になる。降参の時は演出を飛ばし、勝利モーダルの副題も差し替える。
+    const celebration = reason === "resign" ? null : await playVictoryCelebration(player);
     showVictoryModal(player, async () => {
       // #189の教訓: ここから先は「途中で1つ失敗したら残り全部が出ない」直列の鎖になっている。
       // 実際に post-game-panel.js の変数名衝突で例外が出て、CPU戦の終了パネルが出ず
@@ -444,6 +447,8 @@ export function concludeMatchWithWinner(player, { reason = "seven" } = {}) {
     } catch (err) {
       console.error("showPostGamePanel failed", err);
     }
-    });
+    // 【続き456】降参で勝った時は副題を「相手が降参しました」に差し替える
+    // （7色そろえて勝ったわけではないので、既定の文言だと嘘になる）。
+    }, { subtitleKey: reason === "resign" ? "game.victory.subResign" : "game.victory.sub" });
   })();
 }

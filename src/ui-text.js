@@ -84,6 +84,7 @@ const UI = {
     // 旧 volume/display/autoTimer/lockArea/reduceAnim はもう使っていないが、他所からの
     // 参照が残っていても壊れないようキー自体は残す。
     // 降参（オンラインの2人戦のみ・続き456）
+    "game.victory.subResign": "相手が降参しました",
     "resign.menu": "🏳️ 降参する",
     "resign.confirmTitle": "降参しますか？",
     "resign.confirmBody": "この対局はあなたの負けとして記録され、相手の勝ちになります。取り消せません。",
@@ -1923,6 +1924,7 @@ const UI = {
     "opt.statsLinkReloginGoogle": "Sign in again with Google",
     "opt.pressKey": "Press a key…",
     // Resign (online 1v1 only)
+    "game.victory.subResign": "Your opponent resigned",
     "resign.menu": "🏳️ Resign",
     "resign.confirmTitle": "Resign this match?",
     "resign.confirmBody": "This match will be recorded as your loss and your opponent's win. This cannot be undone.",
