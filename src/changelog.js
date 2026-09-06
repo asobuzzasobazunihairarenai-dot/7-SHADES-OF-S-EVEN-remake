@@ -14,6 +14,15 @@ export const CHANGELOG = [
   {
     date: "2026-09-06",
     items: [
+      "オンラインの1対1で「降参する」を追加しました。⚙オプションの中にあり、対戦中だけ出ます。降参するとその対局はあなたの負け・相手の勝ちとして、普通に決着した時とまったく同じように記録されます（押す前に確認が出ます）。",
+    ],
+    itemsEn: [
+      "Added Resign for online 1v1 matches. It sits in the ⚙ options and only appears during a match. Resigning records the game as your loss and your opponent's win, exactly like any other finish (you are asked to confirm first).",
+    ],
+  },
+  {
+    date: "2026-09-06",
+    items: [
       "初回の音量設定やデイリーボーナスなど、対局とは関係のないお知らせが開いている間、対局が進まなくなっていたのを直しました。",
     ],
     itemsEn: [

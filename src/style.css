@@ -21352,3 +21352,76 @@ body.theme-light #sleight-ritual-modal.is-place-source-choice .place-source-choi
 body.theme-light #sleight-ritual-modal.is-place-source-choice .place-source-choice-buttons button:hover {
   background: rgba(109, 75, 196, 0.24);
 }
+
+/* 降参の確認モーダル（続き456・オンラインの2人戦のみ）。
+   取り返しがつかない操作なので、他の確認モーダルより「重い」見た目にしてある
+   （赤系のアクセント＋「降参する」ボタンだけを赤で塗る）。ライトモードにも対応。 */
+.resign-confirm-modal {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10621;
+  width: min(26rem, 92vw);
+  padding: 1.4rem 1.5rem 1.2rem;
+  border-radius: 0.9rem;
+  background: rgba(17, 20, 28, 0.98);
+  border: 1px solid rgba(220, 60, 70, 0.5);
+  box-shadow: 0 22px 55px rgba(0, 0, 0, 0.55);
+  color: #e2e8f0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+body.theme-light .resign-confirm-modal,
+body.theme-light-ingame .resign-confirm-modal {
+  background: rgba(253, 251, 245, 0.99);
+  border-color: rgba(190, 40, 50, 0.55);
+  color: #1e293b;
+  box-shadow: 0 22px 55px rgba(15, 23, 42, 0.28);
+}
+.resign-confirm-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fca5a5;
+  margin-bottom: 0.6rem;
+}
+body.theme-light .resign-confirm-title,
+body.theme-light-ingame .resign-confirm-title {
+  color: #b91c1c;
+}
+.resign-confirm-body {
+  margin-bottom: 1.1rem;
+}
+.resign-confirm-actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+}
+.resign-confirm-actions button {
+  padding: 0.5rem 1.1rem;
+  border-radius: 0.5rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: rgba(51, 65, 85, 0.6);
+  color: inherit;
+}
+body.theme-light .resign-confirm-actions button,
+body.theme-light-ingame .resign-confirm-actions button {
+  background: rgba(226, 232, 240, 0.8);
+  border-color: rgba(100, 116, 139, 0.5);
+}
+.resign-confirm-actions .resign-confirm-ok {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  color: #fff;
+  font-weight: 700;
+}
+/* オプションメニューの「降参する」だけ赤字にして、他の項目と取り違えないようにする。 */
+.options-menu-item-danger {
+  color: #fca5a5;
+}
+body.theme-light .options-menu-item-danger,
+body.theme-light-ingame .options-menu-item-danger {
+  color: #b91c1c;
+}

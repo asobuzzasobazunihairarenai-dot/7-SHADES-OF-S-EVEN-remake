@@ -83,6 +83,12 @@ const UI = {
     // 「機能の種類」から「困りごと」へ、項目名を「何が起きるか」の言葉へ書き換えた。
     // 旧 volume/display/autoTimer/lockArea/reduceAnim はもう使っていないが、他所からの
     // 参照が残っていても壊れないようキー自体は残す。
+    // 降参（オンラインの2人戦のみ・続き456）
+    "resign.menu": "🏳️ 降参する",
+    "resign.confirmTitle": "降参しますか？",
+    "resign.confirmBody": "この対局はあなたの負けとして記録され、相手の勝ちになります。取り消せません。",
+    "resign.confirmOk": "降参する",
+    "resign.cancel": "やめる",
     "opt.sec.group.volume": "音量",
     "opt.sec.group.display": "表示・演出",
     "opt.sec.group.autoTimer": "自動処理・タイマー",
@@ -1916,6 +1922,12 @@ const UI = {
     "opt.statsLinkGoogleOnly": "You must be signed in with Google to link.",
     "opt.statsLinkReloginGoogle": "Sign in again with Google",
     "opt.pressKey": "Press a key…",
+    // Resign (online 1v1 only)
+    "resign.menu": "🏳️ Resign",
+    "resign.confirmTitle": "Resign this match?",
+    "resign.confirmBody": "This match will be recorded as your loss and your opponent's win. This cannot be undone.",
+    "resign.confirmOk": "Resign",
+    "resign.cancel": "Cancel",
     "opt.sec.group.volume": "Volume",
     "opt.sec.group.display": "Display & Effects",
     "opt.sec.group.autoTimer": "Auto-processing & Timer",

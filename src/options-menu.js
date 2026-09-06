@@ -20,6 +20,7 @@ import {
   setPseudoCpuDeadlineMs,
 } from "./admin.js";
 import { openDeckViewer } from "./deck-viewer.js";
+import { canResignNow, requestResign } from "./resign.js";
 import { isLockAreaBarVisible, setLockAreaBarVisible } from "./lock-area-bar.js";
 import { isLockColorVisible, setLockColorVisible } from "./lock-color.js";
 import { isActionConfirmEnabled, setActionConfirmEnabled } from "./action-confirm-prefs.js";
@@ -1056,6 +1057,18 @@ export function initOptionsMenu() {
           openDeckViewer();
         })
       );
+      // ⑥ 降参（続き456）。**オンラインの2人戦を戦っている最中だけ**出す
+      //（CPU戦はいつでもタイトルへ戻れるので不要、3・4人戦は仕様未定＝canResignNow が false）。
+      // 押した時にもう一度 canResignNow() を見るのは、メニューを開いたまま対局が終わることが
+      // あるため（待ちを挟んだら確かめ直す＝続き437の形）。
+      if (canResignNow()) {
+        const resignBtn = buildMenuItem(t("resign.menu"), () => {
+          close();
+          void requestResign();
+        });
+        resignBtn.classList.add("options-menu-item-danger");
+        panel.appendChild(resignBtn);
+      }
       // 対局中の状態（盤面・オンライン接続等）を個別に片付けるより、ページを丸ごと
       // 再読み込みする方が確実で安全（Googleログイン後の遷移等、既存の「戻ってくると
       // 最初からになる」フローと同じ挙動）。オンライン対戦中でも部屋の座席自体は

@@ -268,169 +268,182 @@ export function checkForVictory() {
   for (const player of getState().activePlayers) {
     if (announcedPlayers.has(player)) continue;
     if (hasAllSevenLocked(player)) {
-      announcedPlayers.add(player);
-      // 不具合#36診断: 勝利判定が成立した瞬間の、勝者の7色スロットの中身を記録する
-      // （ゴメンナサイでロックを奪ったのに相手が勝ってしまう報告の追跡用。どの色が実際に
-      // 埋まっていたか＝奪ったはずの色が本当に空いていたかを、後から確認できるようにする）。
-      {
-        const side = SEAT_TO_SIDE[player];
-        const slots = COLORS.map((color, index) => {
-          const tok = getState().tokens.find(
-            (t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side && t.location.index === index
-          );
-          return { color, cardId: tok?.cardId ?? null };
-        });
-        logAction("diag-victory", { player, lockedCount: getLockedCount(player), slots });
-      }
-      // ユーザー要望2026-08-28「戦績システムへの登録は勝敗が決まった瞬間に」。以前は
-      // 対戦終了パネル（モーダルを全部閉じ切った後）から登録していたため、勝者がそこへ
-      // たどり着けないと対戦がまるごと記録されなかった。ここで登録してしまえば、以後の
-      // モーダル・コメント入力・退室のどれが起きても記録は残る。登録するのは勝者本人の
-      // クライアントだけ（二重登録を避けるため）。他の参加者は、勝者が落ちていた場合の
-      // 保険として、少し待ってからまだ登録されていなければ代わりに登録する。
-      if (isOnlineMode()) {
-        const activePlayers = [...getState().activePlayers];
-        if (player === getSelfSeat()) {
-          void ensureStatsMatchRecorded({ activePlayers, winnerSeat: player });
-        } else {
-          scheduleStatsBackupRecord({ activePlayers, winnerSeat: player });
-        }
-      }
-      // ユーザー要望「ゲーム終了時にコメント記入→戦績確認・もう一度遊ぶボタン」＋
-      // （続き87）「勝利時にお金を獲得した演出モーダルが欲しい」「勝利後、自分の順位を
-      // 表示させたい」への対応。オンライン対戦の全員の画面に出す（実際に戦績システムへ
-      // 書き込むのは勝者本人の画面だけ——post-game-panel.js内でgetSelfSeat()===
-      // winnerSeatを見て判定する）。ローカルモードでは対象外（対戦記録・通貨・
-      // ランキングいずれも意味を持つのはオンライン対戦のみのため）。
-      // 勝利モーダル→通貨獲得モーダル→順位モーダル→戦績パネル、の順に必ず1つずつ
-      // 閉じてから次を出す（続き48「勝利モーダルが5秒ぐらいしっかり出た後に次の
-      // モーダルが出るように」の教訓通り、同時に出すと画面が重なってごちゃつくため）。
-      // awardMatchCurrency()自身がサーバー側で「1ゲーム1回」に制限するため、
-      // 全クライアント（勝者本人・傍観者それぞれ）がここを通っても二重付与にはならない
-      // （online.jsのso7_award_match_currencyコメント参照）。playerは今まさに7色揃えた
-      // 本人＝勝者の座席なので、そのままボーナス対象の座席として渡す。
-      // 勝利演出「七色、集結」（victory-celebration.js）。演出の完了を待ってからリザルトへ進む。
-      // **白い光は演出が終わっても消さない**（keepWhite）。その白を背景にしたまま勝利モーダルを
-      // 出し、モーダルを閉じる時に白を引く＝急な画面の切り替えにしない。演出が失敗しても
-      // playVictoryCelebration は必ず解決するので、リザルトへ進めなくなることはない。
-      // なお勝敗の確定・戦績システムへの登録は、この上で既に済んでいる（演出とは切り離す）。
-      void (async () => {
-        await waitForGateInvasionToFinish(); // #231: 侵攻の演出が終わってから勝利演出へ
-        const celebration = await playVictoryCelebration(player);
-        showVictoryModal(player, async () => {
-          // #189の教訓: ここから先は「途中で1つ失敗したら残り全部が出ない」直列の鎖になっている。
-          // 実際に post-game-panel.js の変数名衝突で例外が出て、CPU戦の終了パネルが出ず
-          // 「勝利モーダルを閉じたら盤面に戻され、その後どうすれば？」という状態になった。
-          // 以降の各段は個別に try/catch で包み、1つ転んでも最後のパネルまで必ず辿り着かせる。
-          try {
-            celebration?.dismiss?.(); // 勝利モーダルを閉じたら白を引く（リザルトへ地続きで渡す）
-          } catch (err) {
-            console.error("victory celebration dismiss failed", err);
-          }
-        if (!isOnlineMode()) {
-          // 物語オンボーディングのエイドス戦は、まず通常の勝利モーダルを出し（ユーザー要望
-          // #107「エイドス戦にも通常の勝利モーダルがあっていい」）、それを閉じた時に、勝利BGMを
-          // 止めて（通常BGMへ戻し）、勝敗シーン（→次の戦い/セプト獲得/ホーム）へ委譲する。
-          // #104の二重表示は teardownStoryBattle 側の resetGame（勝利状態の盤面を消す）で防いで
-          // いるため、コールバック内で委譲しても同じ勝者が再検出されることはない。
-          const storyStage = getEidosStoryStage();
-          const storyHandler = getEidosStoryResultHandler();
-          if (isCpuBattleActive() && storyStage && storyHandler) {
-            stopVictoryBgm(); // 勝利ジングルを止めて通常へ（ユーザー要望「閉じたらBGMが戻る」）
-            storyHandler({ winnerSeat: player, stage: storyStage });
-            return;
-          }
-          // ローカルCPU戦（1人用）: 人間が勝った時だけ毎回20コインを付与する
-          // （ユーザー確定方針）。CPU(C)が勝った時は付与しない。未ログイン時は
-          // awardCpuWinCurrencyが0を返すので演出も出ない（お金はアカウント紐付けのため）。
-          // 順位・戦績・ポストゲームパネルはオンライン専用のためCPU戦では出さない。
-          if (isCpuBattleActive() && player === getSelfSeat()) {
-            try {
-              const amount = await awardCpuWinCurrency();
-              refreshCurrencyDisplay();
-              if (amount > 0) await showCurrencyAwardModal(amount);
-            } catch (err) {
-              console.error("awardCpuWinCurrency failed", err);
-            }
-          }
-          // ユーザー要望2026-08-12「CPU戦終了時に もう一度戦う／ホームに戻る／盤面を見る(最小化) を
-          // 出す」。勝敗どちらでも（人間A勝ち・CPU C勝ちのどちらでも）CPU戦なら終了パネルを出す。
-          if (isCpuBattleActive()) {
-            try {
-              showCpuBattleEndPanel({ winnerSeat: player });
-            } catch (err) {
-              console.error("showCpuBattleEndPanel failed", err);
-            }
-          }
-          return;
-        }
-        try {
-          const amount = await awardMatchCurrency(player);
-          refreshCurrencyDisplay();
-          // 0は「他クライアントが先に付与済みだった」場合なので演出は出さない
-          // （online.jsのawardMatchCurrencyコメント参照）。
-          if (amount > 0) await showCurrencyAwardModal(amount);
-        } catch (err) {
-          console.error("awardMatchCurrency failed", err);
-        }
-        try {
-          // 戦績システムと未連携・ランキング対象外（対戦数が少なすぎる等）の場合は
-          // 何も表示せず即座に戻る（rank-reveal-modal.js参照）。
-          await showRankRevealModal();
-        } catch (err) {
-          console.error("showRankRevealModal failed", err);
-        }
-        // ユーザー要望（続き95）「対戦終了時の個人結果を実装」。勝者/敗者を問わず
-        // 全員の画面に、今回1対局限りのスタッツ・順位（3-4人戦）を見せる
-        // （rank-reveal-modal.jsの戦績システム全体の通算順位とは別物）。
-        try {
-          await showMatchPersonalResultModal({ activePlayers: getState().activePlayers, winnerSeat: player });
-        } catch (err) {
-          console.error("showMatchPersonalResultModal failed", err);
-        }
-        // フェーズ3: ランク対局なら結果からレートを反映し、自分の新しいランク（段位・七色ゲージ）を
-        // 簡易表示する。非ランク対局はサーバー側でskip（冪等）。全クライアント（勝者本人・傍観者）が
-        // 呼んでもranked_result_appliedで1回だけ反映される。skipped!=='not_ranked'（適用済み含む）で
-        // 「ランク対局だった」を判定し、各クライアントは自分の新ランク(getSelfRank)を表示する。
-        try {
-          const rankedGameId = getCurrentGameId();
-          const placements = computeRankedPlacements(getState().activePlayers, player);
-          const rankedRes = rankedGameId ? await reportRankedResult(rankedGameId, placements) : null;
-          if (rankedRes && rankedRes.skipped !== "not_ranked") {
-            // 復帰時検知（main.js）が二重に結果モーダルを出さないよう、この対局の結果表示済みを記録。
-            markRankedResultShown(rankedGameId);
-            const myRank = await getSelfRank();
-            if (myRank) {
-              // 昇格演出（docs/ranked-spec.md）: 対局開始時に覚えたランク(getRankedPreMatchRank)と
-              // 比べて rank が上がっていれば昇格＝結果モーダルで昇格演出を出す（シーズン中は降格
-              // なしなので rank 増加＝昇格のみ見ればよい）。before が無い（reconnect等）場合は
-              // promotedFrom=null で通常表示にフォールバックする。
-              const before = getRankedPreMatchRank();
-              const promotedFrom =
-                before && typeof before.rank === "number" && before.rank < myRank.rank ? before.rank : null;
-              await showRankedResultModal({
-                won: player === getSelfSeat(),
-                rank: myRank.rank,
-                gauge: myRank.gauge,
-                legendPoints: myRank.legend_points,
-                promotedFrom,
-                // 対局前のランク・ゲージ（ジェムを1個ずつ増える演出の開始点。無ければ演出なし）。
-                fromRank: before && typeof before.rank === "number" ? before.rank : null,
-                fromGauge: before && typeof before.gauge === "number" ? before.gauge : null,
-              });
-            }
-          }
-        } catch (err) {
-          console.error("ranked result reflect failed", err);
-        }
-        const { activePlayers } = getState();
-        try {
-          showPostGamePanel({ activePlayers, winnerSeat: player });
-        } catch (err) {
-          console.error("showPostGamePanel failed", err);
-        }
-        });
-      })();
+      concludeMatchWithWinner(player);
     }
   }
+}
+
+// 【続き456】対局の終了（勝敗の確定→戦績への登録→勝利演出→通貨→順位→結果→終了パネル）を
+// 1つの関数にまとめた。以前はこの中身が checkForVictory() の for ループの中に直接書かれており、
+// **「7色そろえた」以外の理由で対局を終わらせる手段が無かった**。降参（オンライン2人戦）を
+// 足すにあたり、**勝ち方が違うだけで見せ方も記録も完全に同じ**にしたいので、ここを共通の
+// 入口にした。中身は1行も変えていない（インデントを浅くしただけ）。
+//   player: 勝った人の座席。reason: "seven"（7色そろえた）/ "resign"（相手が降参した）。
+// 二重に走らないよう announcedPlayers で1回だけに絞る（hasAnyoneWon() もこれを見る）。
+export function concludeMatchWithWinner(player, { reason = "seven" } = {}) {
+  if (announcedPlayers.has(player)) return;
+  announcedPlayers.add(player);
+  logAction("diag-match-concluded", { winner: player, reason });
+  // 不具合#36診断: 勝利判定が成立した瞬間の、勝者の7色スロットの中身を記録する
+  // （ゴメンナサイでロックを奪ったのに相手が勝ってしまう報告の追跡用。どの色が実際に
+  // 埋まっていたか＝奪ったはずの色が本当に空いていたかを、後から確認できるようにする）。
+  {
+    const side = SEAT_TO_SIDE[player];
+    const slots = COLORS.map((color, index) => {
+      const tok = getState().tokens.find(
+        (t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === side && t.location.index === index
+      );
+      return { color, cardId: tok?.cardId ?? null };
+    });
+    logAction("diag-victory", { player, lockedCount: getLockedCount(player), slots });
+  }
+  // ユーザー要望2026-08-28「戦績システムへの登録は勝敗が決まった瞬間に」。以前は
+  // 対戦終了パネル（モーダルを全部閉じ切った後）から登録していたため、勝者がそこへ
+  // たどり着けないと対戦がまるごと記録されなかった。ここで登録してしまえば、以後の
+  // モーダル・コメント入力・退室のどれが起きても記録は残る。登録するのは勝者本人の
+  // クライアントだけ（二重登録を避けるため）。他の参加者は、勝者が落ちていた場合の
+  // 保険として、少し待ってからまだ登録されていなければ代わりに登録する。
+  if (isOnlineMode()) {
+    const activePlayers = [...getState().activePlayers];
+    if (player === getSelfSeat()) {
+      void ensureStatsMatchRecorded({ activePlayers, winnerSeat: player });
+    } else {
+      scheduleStatsBackupRecord({ activePlayers, winnerSeat: player });
+    }
+  }
+  // ユーザー要望「ゲーム終了時にコメント記入→戦績確認・もう一度遊ぶボタン」＋
+  // （続き87）「勝利時にお金を獲得した演出モーダルが欲しい」「勝利後、自分の順位を
+  // 表示させたい」への対応。オンライン対戦の全員の画面に出す（実際に戦績システムへ
+  // 書き込むのは勝者本人の画面だけ——post-game-panel.js内でgetSelfSeat()===
+  // winnerSeatを見て判定する）。ローカルモードでは対象外（対戦記録・通貨・
+  // ランキングいずれも意味を持つのはオンライン対戦のみのため）。
+  // 勝利モーダル→通貨獲得モーダル→順位モーダル→戦績パネル、の順に必ず1つずつ
+  // 閉じてから次を出す（続き48「勝利モーダルが5秒ぐらいしっかり出た後に次の
+  // モーダルが出るように」の教訓通り、同時に出すと画面が重なってごちゃつくため）。
+  // awardMatchCurrency()自身がサーバー側で「1ゲーム1回」に制限するため、
+  // 全クライアント（勝者本人・傍観者それぞれ）がここを通っても二重付与にはならない
+  // （online.jsのso7_award_match_currencyコメント参照）。playerは今まさに7色揃えた
+  // 本人＝勝者の座席なので、そのままボーナス対象の座席として渡す。
+  // 勝利演出「七色、集結」（victory-celebration.js）。演出の完了を待ってからリザルトへ進む。
+  // **白い光は演出が終わっても消さない**（keepWhite）。その白を背景にしたまま勝利モーダルを
+  // 出し、モーダルを閉じる時に白を引く＝急な画面の切り替えにしない。演出が失敗しても
+  // playVictoryCelebration は必ず解決するので、リザルトへ進めなくなることはない。
+  // なお勝敗の確定・戦績システムへの登録は、この上で既に済んでいる（演出とは切り離す）。
+  void (async () => {
+    await waitForGateInvasionToFinish(); // #231: 侵攻の演出が終わってから勝利演出へ
+    const celebration = await playVictoryCelebration(player);
+    showVictoryModal(player, async () => {
+      // #189の教訓: ここから先は「途中で1つ失敗したら残り全部が出ない」直列の鎖になっている。
+      // 実際に post-game-panel.js の変数名衝突で例外が出て、CPU戦の終了パネルが出ず
+      // 「勝利モーダルを閉じたら盤面に戻され、その後どうすれば？」という状態になった。
+      // 以降の各段は個別に try/catch で包み、1つ転んでも最後のパネルまで必ず辿り着かせる。
+      try {
+        celebration?.dismiss?.(); // 勝利モーダルを閉じたら白を引く（リザルトへ地続きで渡す）
+      } catch (err) {
+        console.error("victory celebration dismiss failed", err);
+      }
+    if (!isOnlineMode()) {
+      // 物語オンボーディングのエイドス戦は、まず通常の勝利モーダルを出し（ユーザー要望
+      // #107「エイドス戦にも通常の勝利モーダルがあっていい」）、それを閉じた時に、勝利BGMを
+      // 止めて（通常BGMへ戻し）、勝敗シーン（→次の戦い/セプト獲得/ホーム）へ委譲する。
+      // #104の二重表示は teardownStoryBattle 側の resetGame（勝利状態の盤面を消す）で防いで
+      // いるため、コールバック内で委譲しても同じ勝者が再検出されることはない。
+      const storyStage = getEidosStoryStage();
+      const storyHandler = getEidosStoryResultHandler();
+      if (isCpuBattleActive() && storyStage && storyHandler) {
+        stopVictoryBgm(); // 勝利ジングルを止めて通常へ（ユーザー要望「閉じたらBGMが戻る」）
+        storyHandler({ winnerSeat: player, stage: storyStage });
+        return;
+      }
+      // ローカルCPU戦（1人用）: 人間が勝った時だけ毎回20コインを付与する
+      // （ユーザー確定方針）。CPU(C)が勝った時は付与しない。未ログイン時は
+      // awardCpuWinCurrencyが0を返すので演出も出ない（お金はアカウント紐付けのため）。
+      // 順位・戦績・ポストゲームパネルはオンライン専用のためCPU戦では出さない。
+      if (isCpuBattleActive() && player === getSelfSeat()) {
+        try {
+          const amount = await awardCpuWinCurrency();
+          refreshCurrencyDisplay();
+          if (amount > 0) await showCurrencyAwardModal(amount);
+        } catch (err) {
+          console.error("awardCpuWinCurrency failed", err);
+        }
+      }
+      // ユーザー要望2026-08-12「CPU戦終了時に もう一度戦う／ホームに戻る／盤面を見る(最小化) を
+      // 出す」。勝敗どちらでも（人間A勝ち・CPU C勝ちのどちらでも）CPU戦なら終了パネルを出す。
+      if (isCpuBattleActive()) {
+        try {
+          showCpuBattleEndPanel({ winnerSeat: player });
+        } catch (err) {
+          console.error("showCpuBattleEndPanel failed", err);
+        }
+      }
+      return;
+    }
+    try {
+      const amount = await awardMatchCurrency(player);
+      refreshCurrencyDisplay();
+      // 0は「他クライアントが先に付与済みだった」場合なので演出は出さない
+      // （online.jsのawardMatchCurrencyコメント参照）。
+      if (amount > 0) await showCurrencyAwardModal(amount);
+    } catch (err) {
+      console.error("awardMatchCurrency failed", err);
+    }
+    try {
+      // 戦績システムと未連携・ランキング対象外（対戦数が少なすぎる等）の場合は
+      // 何も表示せず即座に戻る（rank-reveal-modal.js参照）。
+      await showRankRevealModal();
+    } catch (err) {
+      console.error("showRankRevealModal failed", err);
+    }
+    // ユーザー要望（続き95）「対戦終了時の個人結果を実装」。勝者/敗者を問わず
+    // 全員の画面に、今回1対局限りのスタッツ・順位（3-4人戦）を見せる
+    // （rank-reveal-modal.jsの戦績システム全体の通算順位とは別物）。
+    try {
+      await showMatchPersonalResultModal({ activePlayers: getState().activePlayers, winnerSeat: player });
+    } catch (err) {
+      console.error("showMatchPersonalResultModal failed", err);
+    }
+    // フェーズ3: ランク対局なら結果からレートを反映し、自分の新しいランク（段位・七色ゲージ）を
+    // 簡易表示する。非ランク対局はサーバー側でskip（冪等）。全クライアント（勝者本人・傍観者）が
+    // 呼んでもranked_result_appliedで1回だけ反映される。skipped!=='not_ranked'（適用済み含む）で
+    // 「ランク対局だった」を判定し、各クライアントは自分の新ランク(getSelfRank)を表示する。
+    try {
+      const rankedGameId = getCurrentGameId();
+      const placements = computeRankedPlacements(getState().activePlayers, player);
+      const rankedRes = rankedGameId ? await reportRankedResult(rankedGameId, placements) : null;
+      if (rankedRes && rankedRes.skipped !== "not_ranked") {
+        // 復帰時検知（main.js）が二重に結果モーダルを出さないよう、この対局の結果表示済みを記録。
+        markRankedResultShown(rankedGameId);
+        const myRank = await getSelfRank();
+        if (myRank) {
+          // 昇格演出（docs/ranked-spec.md）: 対局開始時に覚えたランク(getRankedPreMatchRank)と
+          // 比べて rank が上がっていれば昇格＝結果モーダルで昇格演出を出す（シーズン中は降格
+          // なしなので rank 増加＝昇格のみ見ればよい）。before が無い（reconnect等）場合は
+          // promotedFrom=null で通常表示にフォールバックする。
+          const before = getRankedPreMatchRank();
+          const promotedFrom =
+            before && typeof before.rank === "number" && before.rank < myRank.rank ? before.rank : null;
+          await showRankedResultModal({
+            won: player === getSelfSeat(),
+            rank: myRank.rank,
+            gauge: myRank.gauge,
+            legendPoints: myRank.legend_points,
+            promotedFrom,
+            // 対局前のランク・ゲージ（ジェムを1個ずつ増える演出の開始点。無ければ演出なし）。
+            fromRank: before && typeof before.rank === "number" ? before.rank : null,
+            fromGauge: before && typeof before.gauge === "number" ? before.gauge : null,
+          });
+        }
+      }
+    } catch (err) {
+      console.error("ranked result reflect failed", err);
+    }
+    const { activePlayers } = getState();
+    try {
+      showPostGamePanel({ activePlayers, winnerSeat: player });
+    } catch (err) {
+      console.error("showPostGamePanel failed", err);
+    }
+    });
+  })();
 }

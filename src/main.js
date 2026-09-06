@@ -16123,6 +16123,11 @@ registerGameGoneHandler(() => {
 registerAvatarPickerHelper(openAvatarPicker);
 registerProfilePageOpener(() => openProfilePage());
 initGameSetup();
+// 【続き456】相手の降参の合図を受け取れるようにする（送る側は options-menu の「降参する」）。
+// 動的importにするのは、起動を重くしないため（他の後追い初期化と同じ形）。
+import("./resign.js")
+  .then((m) => m.initResign?.())
+  .catch((err) => console.error("initResign failed", err));
 registerStartPlayerPreviewHelper(previewStartPlayerModal);
 registerAuraPreviewHelper(previewOpeningAuras);
 registerVictorySummaryHelper(generateVictorySummaryCanvas);

@@ -3365,6 +3365,21 @@ export function isRankedResultShown(gameId) {
 // 相手クライアントへ配信する（相手は自分の勝ち＋レート反映を見てホームへ戻る）。他のbroadcast
 // （effect_reason等）と同じ「状態は変えない見た目だけの合図」パターン。
 let rankedForfeitEventListeners = [];
+// 【続き456】降参の合図。**サーバー側（Edge Function）には触らない**——状態そのものは
+// 変えず「相手が降参した」という合図だけを流し、受け取った側が自分で対局終了の処理を
+// 走らせる（match-stats-tracker.js と同じ考え方＝再デプロイが不要）。
+let resignEventListeners = [];
+export function onResignEvents(fn) {
+  resignEventListeners.push(fn);
+  return () => {
+    resignEventListeners = resignEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastResign(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "resign", payload });
+  }
+}
 export function onRankedForfeitEvents(fn) {
   rankedForfeitEventListeners.push(fn);
   return () => {
@@ -3575,6 +3590,10 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // #127: 相手がランク対局でAFK放置敗北した合図（broadcastRankedForfeit参照）。
     .on("broadcast", { event: "ranked_forfeit" }, ({ payload }) => {
       for (const fn of rankedForfeitEventListeners) fn(payload);
+    })
+    // 【続き456】相手が降参した合図（broadcastResign参照）。
+    .on("broadcast", { event: "resign" }, ({ payload }) => {
+      for (const fn of resignEventListeners) fn(payload);
     })
     // 不具合報告時のログ収集要求／応答（broadcastBugLogRequest/Response参照）。
     .on("broadcast", { event: "bug_log_request" }, ({ payload }) => {
