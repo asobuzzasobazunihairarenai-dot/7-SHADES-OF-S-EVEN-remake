@@ -43,6 +43,8 @@ const ISOLATED = ARGS.includes("--isolated");
 
 const TARGET_TURN = 8;
 const STALL_MS = 45000; // オンラインは通信の往復があるぶんローカルより緩める
+// 手は動いているのにターンだけが延々と進まない場合の上限（効果の堂々巡り検出）。
+const TURN_STALL_MAX_MS = 300000;
 const HARD_TIMEOUT_MS = RUN_TO_COMPLETION ? 900000 : Math.round(420000 * (PLAYER_COUNT / 2));
 // 全クライアントの盤面が「一度も一致しないまま」この時間続いたら食い違い（desync）とみなす。
 // 1クライアントだけ一瞬遅れるのは正常なので、瞬間的な不一致では落とさない。
@@ -227,8 +229,19 @@ async function snapshot(client) {
       .map(([k, v]) => k + ":" + (Array.isArray(v) ? v.length : 0))
       .sort()
       .join(",");
+    // 【2026-09-07】行動ログのうち **diag- で始まらない**エントリの数＝実際にゲームが動いた記録。
+    // 心拍・再試行・待ち時間の記録（diag-）は**本物の停止でも出続ける**ので活動の証拠にしない
+    // （86秒止まった時のログは diag- だけだった）。
+    let acts = 0;
+    try {
+      const al = await import("/src/action-log.js");
+      for (const e of al.getActionLogEntries?.() || []) {
+        if (!String(e?.category || "").startsWith("diag-")) acts++;
+      }
+    } catch (e) {}
     return {
       seat,
+      acts,
       turnNumber: s.turnNumber ?? 0,
       turnPlayer: s.turnPlayer ?? null,
       tokens: Array.isArray(s.tokens) ? s.tokens.length : 0,
@@ -335,6 +348,8 @@ async function run() {
     let lastProgressAt = Date.now();
     let lastAgreeAt = Date.now();
     let lastSig = "";
+    let lastTurnAt = Date.now(); // 最後にターン番号が進んだ時刻
+    let lastActs = 0;            // 前回見た「実際に動いた記録」の数
     const seenViolations = new Set();
     let prevPollSigs = [];
     let seatsLogged = false;
@@ -373,9 +388,13 @@ async function run() {
       if (leader.turnNumber > lastTurn) {
         lastTurn = leader.turnNumber;
         lastProgressAt = Date.now();
+        lastTurnAt = Date.now();
         log("turn " + leader.turnNumber + " (player " + leader.turnPlayer + ", tokens " + leader.tokens + ")");
       }
       if (leader.sig !== lastSig) { lastSig = leader.sig; lastProgressAt = Date.now(); }
+      // どのクライアントかで実際に手が進んでいれば活動あり＝停止ではない。
+      const actsNow = Math.max(...snaps.map((x) => (typeof x.acts === "number" ? x.acts : 0)));
+      if (actsNow > lastActs) { lastActs = actsNow; lastProgressAt = Date.now(); }
 
       // オンライン特有の本命チェック: 全員の盤面が一致しているか。
       const allAgree = snaps.every((s) => s.sig === snaps[0].sig);
@@ -425,7 +444,12 @@ async function run() {
       if (snaps.some((s) => s.tokens > 0 && s.tokens < 40)) { fail("board looks corrupted (tokens: " + snaps.map((s) => s.tokens).join(",") + ")"); break; }
       if (!RUN_TO_COMPLETION && lastTurn >= TARGET_TURN) { log("reached target turn", TARGET_TURN, "— PASS"); break; }
       if (Date.now() - lastProgressAt > STALL_MS) {
-        fail("STALLED: no progress for " + STALL_MS / 1000 + "s (turn " + lastTurn + ")");
+        fail("STALLED: no activity for " + STALL_MS / 1000 + "s (turn " + lastTurn + ")");
+        await dumpDiagnostics(clients);
+        break;
+      }
+      if (Date.now() - lastTurnAt > TURN_STALL_MAX_MS) {
+        fail("STALLED: turn " + lastTurn + " has not advanced for " + Math.round((Date.now() - lastTurnAt) / 1000) + "s (the app is still doing things, so this is a loop rather than a freeze)");
         await dumpDiagnostics(clients);
         break;
       }

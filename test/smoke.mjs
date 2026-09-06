@@ -56,7 +56,19 @@ const BUSY_MAX_MS = 120000;
 // 当たると、止まっていないのに8ターンへ到達する前に制限時間を迎えてFAILになっていた（実測: 進行は
 // 続いているのにturn7で時間切れ）。本当の停止は上の STALL_MS（30秒まったく状態が変化しない）で
 // 検出するので、こちらはあくまで暴走防止の上限として長めに取る。
-const HARD_TIMEOUT_MS = RUN_TO_COMPLETION ? 720000 : Math.round(300000 * (PLAYER_COUNT / 2));
+// 【2026-09-07】ターンが進まなくても「アプリが実際に手を打っている」なら停止ではない。
+// 行動ログの **diag- で始まらないエントリ**（dispatch / lock / hand-effect / effect-verb …
+// ＝実際にゲームが動いた記録）が増えていれば活動ありとみなす。diag- は心拍・再試行・
+// 待ち時間の記録なので、**本物の停止でも出続ける**＝活動の証拠にしてはいけない
+// （実際、オンラインで86秒止まった時のログは diag- だけだった）。
+// それでもターンが延々と進まないのは異常なので、下の TURN_STALL_MAX_MS で必ず落とす。
+const TURN_STALL_MAX_MS = 240000;
+// 3-4人は1局が長いので制限時間を人数に比例（in-app版と同じ考え方）。
+// 【2026-09-07】300秒→480秒。続き425〜427で「画面の中央は一度に1つ」にして以降、
+// 効果の解決に1つ50秒かかることがあり（ユーザー確認済み・意図した遅さ＝初心者が読める）、
+// 8ターンに届く前に時間切れになっていた。**アプリは正常なのにテストが落ちると、次に本物の
+// 停止が起きた時に埋もれる**ので緩める（続き439と同じ判断）。
+const HARD_TIMEOUT_MS = RUN_TO_COMPLETION ? 900000 : Math.round(480000 * (PLAYER_COUNT / 2));
 
 const MIME = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
@@ -156,6 +168,8 @@ async function playOneGame(page, allErrors) {
   const started = Date.now();
   let lastTurn = 0;
   let lastProgressAt = Date.now();
+  let lastTurnAt = Date.now();   // 最後にターン番号が進んだ時刻
+  let lastActs = 0;              // 前回見た「実際に動いた記録」の数
   let busyProgressAt = Date.now(); // 「処理中」であり続けている時間の起点
   let lastStateSig = "";
   const invariantViolations = [];
@@ -199,9 +213,13 @@ async function playOneGame(page, allErrors) {
       // （実測: 到達から色宣言まで23秒）。それを STALL と誤検知していたので、アプリが自分で
       // 「まだ処理中」と言っている間は停止と数えない（下の busy 参照。上限は別に設ける）。
       let busy = false;
+      let acts = 0; // 行動ログのうち diag- で始まらない＝実際にゲームが動いた記録の数
       try {
         const al = await import("/src/action-log.js");
         const entries = al.getActionLogEntries() || [];
+        for (const e of entries) {
+          if (!String(e?.category || "").startsWith("diag-")) acts++;
+        }
         for (let i = entries.length - 1; i >= 0 && i > entries.length - 30; i--) {
           const e = entries[i];
           if (e?.category !== "diag-auto-action-nothing") continue;
@@ -211,6 +229,7 @@ async function playOneGame(page, allErrors) {
       } catch (e) {}
       return {
         busy,
+        acts,
         turnNumber: s.turnNumber ?? 0,
         turnPlayer: s.turnPlayer ?? null,
         tokens: Array.isArray(s.tokens) ? s.tokens.length : 0,
@@ -241,9 +260,15 @@ async function playOneGame(page, allErrors) {
       lastStateSig = snap.sig;
       lastProgressAt = Date.now();
     }
+    // 実際に手が進んでいれば（diag- 以外の記録が増えていれば）活動あり＝停止ではない。
+    if (typeof snap.acts === "number" && snap.acts > lastActs) {
+      lastActs = snap.acts;
+      lastProgressAt = Date.now();
+    }
     if (snap.turnNumber > lastTurn) {
       lastTurn = snap.turnNumber;
       lastProgressAt = Date.now();
+      lastTurnAt = Date.now();
       log(`turn ${snap.turnNumber} (player ${snap.turnPlayer}, tokens ${snap.tokens})`);
     }
     // 決着までモードでなければ8ターン到達で健全とみなす。決着までは勝者が出るまで続ける。
@@ -254,7 +279,12 @@ async function playOneGame(page, allErrors) {
     const stalledMs = Date.now() - lastProgressAt;
     const busyMs = Date.now() - busyProgressAt;
     if (stalledMs > STALL_MS && !(snap.busy && busyMs < BUSY_MAX_MS)) {
-      pushErr(`STALLED: no turn progress for ${Math.round(stalledMs / 1000)}s (stuck at turn ${lastTurn}${snap.busy ? ", busy" : ""})`);
+      pushErr(`STALLED: no activity for ${Math.round(stalledMs / 1000)}s (stuck at turn ${lastTurn}${snap.busy ? ", busy" : ""})`);
+      break;
+    }
+    // 手は動いているのにターンだけが延々と進まない＝効果が堂々巡りしている可能性。
+    if (Date.now() - lastTurnAt > TURN_STALL_MAX_MS) {
+      pushErr(`STALLED: turn ${lastTurn} has not advanced for ${Math.round((Date.now() - lastTurnAt) / 1000)}s (the app is still doing things, so this is a loop rather than a freeze)`);
       break;
     }
     if (Date.now() - started > HARD_TIMEOUT_MS) { pushErr(`hard timeout after ${HARD_TIMEOUT_MS / 1000}s (reached turn ${lastTurn})`); break; }
