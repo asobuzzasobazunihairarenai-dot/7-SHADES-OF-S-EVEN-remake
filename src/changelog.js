@@ -14,6 +14,21 @@ export const CHANGELOG = [
   {
     date: "2026-09-06",
     items: [
+      "CPUの打ち方を良くしました。同じターンに「ディメンション」を二度使って手札を無駄にすることがなくなりました。",
+      "CPUの「ワイナウエア」が、相手が欲しがっている色のカードや、相手が次に進もうとしているマスを狙って壊すようになりました（自分がまだ欲しい色や、自分の進み先は壊しません）。",
+      "CPUの「合同建設」などでカードを置く時、ゲートに攻め込めそうで、かつ自分のゲートの近くに相手がいない時は、自分のゲートに置くようになりました（帰還の時に手札へ戻せるため）。",
+      "「ワイナウエア」でどのマスのカードを捨てたのか分かるように、そのマスを光らせ、何枚捨てたかもお知らせに出すようにしました。",
+    ],
+    itemsEn: [
+      "Smarter CPU: it no longer wastes a card by using \"Dimension\" twice in the same turn.",
+      "The CPU's \"Wineware\" now targets cards in colors an opponent still needs, or squares an opponent is about to move onto — and avoids destroying colors it still needs itself.",
+      "When placing a card (Joint Construction and similar), the CPU now places it on its own gate if it is about to invade and no opponent is near that gate, since it will pick the card back up on returning home.",
+      "\"Wineware\" now highlights the square whose cards were discarded and says how many were discarded.",
+    ],
+  },
+  {
+    date: "2026-09-06",
+    items: [
       "スマホでブーストカードの絵が出ないことがあったのを直しました（仮の絵の作り方を変えました）。",
       "「ランク戦で対戦相手を募集中の人がいます！」の案内で「参加する」を押しても何も起きないことがあったのを直しました。押すとそのまま相手探しが始まります。",
     ],

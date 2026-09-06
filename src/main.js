@@ -281,6 +281,7 @@ import {
   chooseEffectOption,
   dropAvoidedOptions,
   chooseEffectCell,
+  chooseEmptyCellToPlace,
   chooseHandEffectCard,
   chooseHandCardToken,
   chooseHandCardToLock,
@@ -3755,35 +3756,12 @@ async function runJointConstructionTask(player) {
   if (emptyCells.length === 0) return false; // 善処の原則: 置ける空きマスが無ければ何もしない
 
   // 【CPU強化 2026-08-08】賢いCPUは「置く効果」を目的的に使う。移動は“カードがあるマス”にしか
-  // 行けない（card-effect-engine.js getMoveCandidates）ため:
-  // ・相手ゲートが空きなら、そこへ山札から置いて「自分が侵攻するための足場」を作るのが最も有効。
-  //   足場が無ければ空ゲートには着地できず＝侵攻できないため。相手ゲートに近い空きマスほど
-  //   侵攻ルートの前進になる。
-  // ・自分のゲートには置かない。空の自ゲートは着地不能で既に安全なのに、置くと相手に着地の
-  //   足場を与えてしまう（自滅）。
-  // ・山札から置く（手札を温存）。
+  // 行けない（card-effect-engine.js getMoveCandidates）ため、相手ゲートに近い空きマスへ置いて
+  // 侵攻ルートの足場を作る。#311（ユーザー要望）で「ゲート侵攻が見込めて、相手が自ゲートの近くに
+  // いない時は自分のゲートへ置く（侵攻の帰還で回収できる＝実質手札に戻る）」を追加した。
+  // 判断は cpu-brain.js の chooseEmptyCellToPlace に集約してある。置くのは山札から（手札を温存）。
   if (isCpuBrainDriving(player)) {
-    const active = getState().activePlayers ?? [];
-    const oppGates = [];
-    for (const [side, pos] of Object.entries(GATE_POSITIONS)) {
-      const owner = SIDE_TO_SEAT[side];
-      if (owner && owner !== player && active.includes(owner)) oppGates.push({ row: pos.row, col: pos.col });
-    }
-    const myGatePos = GATE_POSITIONS[SEAT_TO_SIDE[player]];
-    const isMyGate = (c) => myGatePos && c.row === myGatePos.row && c.col === myGatePos.col;
-    const safe = emptyCells.filter((c) => !isMyGate(c));
-    const pool = safe.length > 0 ? safe : emptyCells; // 万一自ゲートしか無ければやむを得ずそこ
-    let dest;
-    if (oppGates.length > 0) {
-      // 相手ゲートに最も近い空きマス（相手ゲートそのものが空きなら距離0で最優先＝侵攻の足場）。
-      const minDist = (c) => oppGates.reduce((m, g) => Math.min(m, Math.abs(g.row - c.row) + Math.abs(g.col - c.col)), Infinity);
-      let best = Infinity;
-      const scored = pool.map((c) => { const d = minDist(c); if (d < best) best = d; return { c, d }; });
-      const closest = scored.filter((x) => x.d <= best).map((x) => x.c);
-      dest = closest[Math.floor(Math.random() * closest.length)];
-    } else {
-      dest = pool[Math.floor(Math.random() * pool.length)];
-    }
+    const dest = chooseEmptyCellToPlace(emptyCells, player) ?? emptyCells[0];
     await placeFromDeckForEffect({ zone: "cell", row: dest.row, col: dest.col });
     await announceEffectChoiceForEffect("green-joint-construction", player, t("game.place.deckFaceDown"));
     return true;
@@ -5315,7 +5293,7 @@ export function performPriorityTimeoutAutoAction() {
       // 賢いCPU（中級以上）は、候補に相手ゲートがあればそこを選ぶ（ゲート侵攻セットアップ）。
       // 新人・その他はランダム（従来通り）。
       const choice = isCpuBrainDriving(decisionSeat)
-        ? chooseEffectCell(picker.candidates, decisionSeat)
+        ? chooseEffectCell(picker.candidates, decisionSeat, picker.purpose)
         : pickRandomFrom(picker.candidates);
       // #213: この選択は「本人が選んだ」のではなく持ち時間切れの自動代行。確認モーダル
       // （このマスでいいですか？）は出さない（下の requestCellChoiceForEffect 参照）。
@@ -5828,6 +5806,9 @@ function requestCellChoiceForEffectOnce(candidates, hint, options = {}) {
       type: "cell",
       owner: options.owner ?? null,
       candidates,
+      // #313: このマス選択の用途（"destroy" ＝ そのマスのカードを全部捨てる）。賢いCPUの
+      // 選び方を用途で切り替えるために持つ（cpu-brain.js chooseEffectCell 参照）。
+      purpose: options.purpose ?? null,
       // 既に選んだマス（候補外）をクリックした時に注意を出すため（プリドゥエン/増殖する樹々の
       // 「別々のマスに置く」用、card-effect-engine.jsのPLACE_CARD CHOOSEから渡る）。
       alertCells: options.alertCells ?? null,

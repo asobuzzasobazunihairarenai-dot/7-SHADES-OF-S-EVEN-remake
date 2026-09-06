@@ -991,18 +991,30 @@ async function runAction(action, ctx, helpers) {
       // 含め全部、表裏問わず）を捨てる。
       const candidates = getAnyCellWithCardCandidates();
       if (candidates.length === 0) return false;
+      // #313: purpose:"destroy" ＝ 賢いCPUの選び方を「拾う」ではなく「壊す」用に切り替える
+      // （cpu-brain.js chooseEffectCell）。人間の選択には影響しない。
       const chosen =
-        candidates.length === 1 && !ctx.forcePrompt ? candidates[0] : await helpers.pickLocation(candidates, t("ce.L910"));
+        candidates.length === 1 && !ctx.forcePrompt
+          ? candidates[0]
+          : await helpers.pickLocation(candidates, t("ce.L910"), { purpose: "destroy" });
       if (!chosen) return false;
       const stack = getState().tokens.filter(
         (t) => t.kind === "card" && t.location.zone === "cell" && t.location.row === chosen.row && t.location.col === chosen.col
       );
       if (stack.length === 0) return false;
+      // #312（ユーザー報告「ワイナウェアの効果でどのマスを捨てたのか分かりづらかった」）:
+      // 盤面からカードが消えるだけなので、どこが対象だったのかが分からない。配置系と同じ
+      // ハイライト（markPlacementTarget＝捨てている間ずっと光る／markPlacedLocation＝
+      // 捨て終わった後も数秒残る）を流用して、対象のマスを見せる。
+      const targetCell = { zone: "cell", row: chosen.row, col: chosen.col };
+      helpers.markPlacementTarget?.(targetCell);
+      const discardedCount = stack.length;
       for (const token of stack) {
         await helpers.discardAndSync(token.id);
       }
-      // お知らせ（ユーザー要望）: どのマスを対象にしたか。
-      await helpers.announceEffectReason?.(ctx.cardId, t("ce.L920"));
+      helpers.markPlacedLocation?.(targetCell);
+      // お知らせ（ユーザー要望）: どのマスを対象にしたか＋何枚捨てたか。
+      await helpers.announceEffectReason?.(ctx.cardId, t("ce.winewareDiscarded", { n: discardedCount }));
       return true;
     }
     case VERBS.PUBLIC_DRAW_THEN_DISCARD_AT_TURN_END: {

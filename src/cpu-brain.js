@@ -18,6 +18,9 @@ import { getState } from "./state.js";
 import { getCardDefinition } from "./cards-data.js";
 import { GATE_POSITIONS, SIDE_TO_SEAT, SEAT_TO_SIDE, COLORS } from "./board-layout.js";
 import { isCpuPeekAllowed, isCpuOpponentAware } from "./cpu-battle-state.js";
+// #310: 「ディメンションをこのターン既に使ったか」を見るため（重ねても意味が無いので二度撃たない）。
+// card-effect-engine.js は cpu-brain.js を import しないので循環しない。
+import { isMovementBoostActiveThisTurn } from "./card-effect-engine.js";
 
 // カードごとの「そのマスに着地して到達効果を受けるのが得か損か」の大まかな評価値。
 // 確信の持てるものだけ載せる（不明・中立なカードは 0 のまま＝載せない）。過剰な決めつけで
@@ -399,10 +402,16 @@ function opponentsLastNeededColors(state, seat) {
   return out;
 }
 
-export function chooseEffectCell(candidates, driveSeat) {
+// #313（ユーザー要望「ワイナウェアで破壊するのは相手が欲しそうな色のカードまたは相手の移動候補が
+// いい」）。マス選択は用途で価値がまるごと逆さまになる——「拾う/置く」なら要る色や相手ゲートは
+// 大歓迎だが、「そのマスのカードを全部捨てる（＝壊す）」では要る色を壊すのは自滅で、相手ゲートの
+// カードを壊すと自分の侵攻の足場まで消える。purpose を受け取って選び方を切り替える。
+// purpose: "destroy"（ワイナウエア）／それ以外は従来どおり「拾う・オープンする」前提。
+export function chooseEffectCell(candidates, driveSeat, purpose) {
   if (!candidates || candidates.length === 0) return null;
   const state = getState();
   const rand = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  if (purpose === "destroy") return chooseCellToDestroy(candidates, driveSeat, state, rand);
   // 優先1: 相手ゲートに乗れる候補（ゲート侵攻セットアップ）。
   const gates = activeOpponentGateCells(state, driveSeat);
   const gateCandidates = candidates.filter((c) => gates.some((g) => g.row === c.row && g.col === c.col));
@@ -455,6 +464,87 @@ export function chooseEffectCell(candidates, driveSeat) {
     return rand(closest);
   }
   return rand(candidates);
+}
+
+// #313: 「そのマスのカードを全部捨てる」（紅蓮の火山 ワイナウエア）の対象マス。
+// 壊して一番おいしいのは、①相手の次の一歩（移動はカードのあるマスにしか行けないので、踏み台を
+// 消すと相手はそこへ進めない＝ユーザーの言う「相手の移動候補」）②相手がまだ要る色の表向きカード
+// （拾われると相手のロックが1色進む＝ユーザーの言う「相手が欲しそうな色」）。逆に、自分がまだ要る
+// 色・自分の足場・相手ゲートのカードを壊すのは自滅なので減点する。同点なら無作為（一本道を避ける）。
+function chooseCellToDestroy(candidates, seat, state, rand) {
+  const myNeeds = neededColors(state, seat);
+  const lastNeeds = opponentsLastNeededColors(state, seat); // あと1色で勝つ相手が欲しい色
+  const oppNeeds = new Set();
+  for (const p of (state.activePlayers || []).filter((x) => x !== seat)) for (const c of neededColors(state, p)) oppNeeds.add(c);
+  const oppGates = activeOpponentGateCells(state, seat);
+  const myGate = ownGateCell(seat);
+  const myCell = pieceCellOf(state, seat);
+  const oppCells = (state.activePlayers || [])
+    .filter((p) => p !== seat)
+    .map((p) => pieceCellOf(state, p))
+    .filter(Boolean);
+  const stackCountAt = (c) =>
+    state.tokens.filter(
+      (t) => t.kind === "card" && t.location.zone === "cell" && t.location.row === c.row && t.location.col === c.col
+    ).length;
+
+  const score = (c) => {
+    let v = 0;
+    const top = topFaceUpCardAt(state, c.row, c.col);
+    // ①相手の侵攻の踏み台（自ゲートへ向かう次の一歩）を消す＝守り。一番強い。
+    if (blocksOpponentInvasionStep(state, seat, c)) v += 5;
+    // ②相手が欲しい色の表向きカードを消す（あと1色の相手のものなら勝ち筋を直接断てる）。
+    if (top?.color && lastNeeds.has(top.color)) v += 4;
+    else if (top?.color && oppNeeds.has(top.color)) v += 3;
+    // ③相手の駒の隣＝相手の移動先の候補を1つ減らす。
+    if (oppCells.some((o) => manhattan(o, c) === 1)) v += 2;
+    // ④自分のゲートに置かれたカードは相手の着地の足場になる。相手が近い時だけ消す価値がある。
+    if (myGate && c.row === myGate.row && c.col === myGate.col) v += opponentThreateningOwnGate(state, seat, 3) ? 3 : -2;
+    // ⑤積み重なっているマスはまとめて減らせる（1枚につき+1、上限+2）。
+    v += Math.min(2, Math.max(0, stackCountAt(c) - 1));
+    // ⑥自滅の減点: 自分がまだ要る色／自分の次の一歩／相手ゲート（自分の侵攻の足場）。
+    if (top?.color && myNeeds.has(top.color)) v -= 4;
+    if (myCell && manhattan(myCell, c) === 1) v -= 3;
+    if (oppGates.some((g) => g.row === c.row && g.col === c.col)) v -= 5;
+    return v;
+  };
+
+  let best = -Infinity;
+  const scored = candidates.map((c) => {
+    const v = score(c);
+    if (v > best) best = v;
+    return { c, v };
+  });
+  return rand(scored.filter((x) => x.v >= best).map((x) => x.c));
+}
+
+// #311（ユーザー要望「ゲート侵攻ができそうなら合同建設などでは自分のゲートに置くのがいい。後で
+// 回収できるカードなので。しかし相手が自分のゲートの近くにいるならやらない方がいい」）。
+// 「何もない1マスに1枚置く」（合同建設）の置き先。ゲート侵攻の3段階目で自分のゲートのカードは
+// 手札に回収されるので、侵攻が見込める時に自ゲートへ置くと、そのカードは実質そのまま手札に戻る。
+// ただし自ゲートのカードは相手の着地の足場でもある（移動はカードのあるマスにしか行けない）ので、
+// 相手の駒が近い時は今までどおり置かない。
+export function chooseEmptyCellToPlace(emptyCells, seat) {
+  if (!emptyCells || emptyCells.length === 0) return null;
+  const state = getState();
+  const rand = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const myGate = ownGateCell(seat);
+  const isMyGate = (c) => myGate && c.row === myGate.row && c.col === myGate.col;
+  const myGateCandidate = emptyCells.find(isMyGate);
+  const invasionLikely = isOnActiveOpponentGate(state, seat) || canReachOpponentGateInOneStep(state, seat);
+  if (myGateCandidate && invasionLikely && !opponentThreateningOwnGate(state, seat, 3)) return myGateCandidate;
+  // 従来どおり: 自ゲートは避けて、相手ゲートに最も近い空きマス（侵攻ルートの足場を作る）。
+  const safe = emptyCells.filter((c) => !isMyGate(c));
+  const pool = safe.length > 0 ? safe : emptyCells; // 万一自ゲートしか無ければやむを得ずそこ
+  const gates = activeOpponentGateCells(state, seat);
+  if (gates.length === 0) return rand(pool);
+  let best = Infinity;
+  const scored = pool.map((c) => {
+    const d = minDistTo(c, gates);
+    if (d < best) best = d;
+    return { c, d };
+  });
+  return rand(scored.filter((x) => x.d <= best).map((x) => x.c));
 }
 
 // --- 手札効果の能動使用（ユーザー要望2026-08-08「CPUに手札効果を使わせる」）-----------------
@@ -722,6 +812,10 @@ function handEffectValueFor(card, seat, state, handCount) {
     }
     case "first-purple": // ディメンション: 【追色1】このターン2マス移動。1マスでは届かない距離2のマスが相手ゲート/表向きの
       // 要る色の時だけ使う（ちょうど届く時のみ得。ユーザー案）。追色コストはcanUseHandEffect担保。
+      // #310（ユーザー報告「CPUが1ターンに2回ディメンションを使用しました。一回しか効果ないのに
+      // 勿体無い行為です」）: ルール上は1ターンに何度でも撃てる（usageLimitが無い）が、「2マス移動」は
+      // 重ねても効果が増えないので、2回目は追色コストで手札を1枚失うだけの丸損。既に発動済みなら撃たない。
+      if (isMovementBoostActiveThisTurn(seat)) return 0;
       return beneficialTwoMoveExists(state, seat) ? 2 : 0;
     case "first-green": // 奇跡の森(first): 【追色1】2枚公開ドロー（ターン終了で捨てる、1/turn）。引いた札はこのターン
       // 使える（publicDrawも手札扱いにしたのでCPUも使用可能になった。ユーザー指摘2026-08-10）。緑が既に

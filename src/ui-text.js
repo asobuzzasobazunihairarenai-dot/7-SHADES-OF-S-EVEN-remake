@@ -948,6 +948,8 @@ const UI = {
     "ce.L842": "これ以上開かない",
     "ce.L910": "カードをすべて捨てるマスを選択してください",
     "ce.L920": "このマスのカードをすべて捨てました。",
+    // #312: どのマスだったか分かるよう、そのマスを光らせたうえで枚数も添える。
+    "ce.winewareDiscarded": "光っているマスのカード{n}枚をすべて捨てました。",
     "ce.L958": "選べる相手が1人しかいないため、自動的に選択しました。",
     "ce.L960": "移動させる相手の駒を選んでください",
     "ce.L971": "相手を移動させるマスを選択してください",
@@ -2774,6 +2776,7 @@ const UI = {
     "ce.L842": "Stop revealing",
     "ce.L910": "Choose the square whose cards are all discarded",
     "ce.L920": "Discarded every card on that square.",
+    "ce.winewareDiscarded": "Discarded all {n} card(s) on the highlighted square.",
     "ce.L958": "Only one opponent could be chosen, so they were chosen automatically.",
     "ce.L960": "Choose the opponent's piece to move",
     "ce.L971": "Choose the square to move that opponent to",
