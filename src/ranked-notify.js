@@ -94,7 +94,12 @@ async function tick() {
     prevWaiting < 1 &&
     count >= 1 &&
     withinWindow() &&
-    Date.now() - lastNotifyAt > COOLDOWN_MS
+    Date.now() - lastNotifyAt > COOLDOWN_MS &&
+    // 【#295】ここでもう一度確かめるのが要点。関数の先頭で isOnlineMode() を見てから、
+    // getCurrentUser() と pollRanked() の2回の通信（数秒かかることがある）を挟んでいるので、
+    // その間に対局が始まっていることがある。「先頭で確かめたから大丈夫」は、間に待ち時間が
+    // 1msでもあれば破れる（続き437の総点検と同じ形）。出す直前の事実で判定する。
+    !isOnlineMode()
   ) {
     fireNotification();
     lastNotifyAt = Date.now();
@@ -152,9 +157,31 @@ function stopTitleFlash() {
   }
 }
 
+// 【#295】バナーは出しっぱなしで数十秒残る。その間に対局が始まったら（ホームから
+// ランク戦に参加した・部屋に入った等）、盤面の上に「参加する」バナーが乗ったままになる。
+// 表示中だけ様子を見て、対局が始まっていたら自分で引っ込む。
+let bannerWatchTimer = null;
+function startBannerWatch() {
+  stopBannerWatch();
+  bannerWatchTimer = setInterval(() => {
+    if (!bannerEl) {
+      stopBannerWatch();
+      return;
+    }
+    if (isOnlineMode()) dismissBanner();
+  }, 1000);
+}
+function stopBannerWatch() {
+  if (bannerWatchTimer) {
+    clearInterval(bannerWatchTimer);
+    bannerWatchTimer = null;
+  }
+}
+
 function dismissBanner() {
   bannerEl?.remove();
   bannerEl = null;
+  stopBannerWatch();
   stopTitleFlash();
   stopFaviconAlert();
 }
@@ -214,6 +241,7 @@ function fireNotification() {
   bannerEl.appendChild(closeBtn);
 
   document.body.appendChild(bannerEl);
+  startBannerWatch();
   // バナー自体は一定時間で自動的に消す（点滅は別途 FLASH_MS で止まる）。
   setTimeout(() => {
     if (bannerEl) dismissBanner();

@@ -27,7 +27,7 @@
 import * as THREE from "../vendor/three.module.min.js";
 import { subscribe } from "./state.js";
 import { logAction } from "./action-log.js";
-import { isBoard3dEnabled, setBoard3dEnabledSetting } from "./board-3d-setting.js";
+import { isBoard3dEnabled, setBoard3dEnabledSetting, setBoard3dInvalidator } from "./board-3d-setting.js";
 
 let renderer = null;
 let scene = null;

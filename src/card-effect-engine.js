@@ -972,6 +972,10 @@ async function runAction(action, ctx, helpers) {
         const discardPile = getState().piles?.discard ?? [];
         const discardedCardId = discardPile[discardPile.length - 1] ?? picked.cardId;
         const discardedDef = getCardDefinition(discardedCardId);
+        // 【#298】中央の「捨てさせた／捨てさせられた」のカード表示は、選んだ直後ではなく
+        // ここまで持ち越してある（オンラインでは選んだ時点の cardId が伏せられていて裏面に
+        // なるため）。捨て場に積まれた今なら公開情報として実際の札が読めるので、それで見せる。
+        await helpers.showForcedDiscardReveal?.(discardedCardId);
         await helpers.announceEffectReason?.(
           ctx.cardId,
           discardedDef
@@ -1723,7 +1727,13 @@ async function runAction(action, ctx, helpers) {
         (cardId) => cardId === "rainbow-shard" || declaredColors.includes(getCardDefinition(cardId)?.color)
       );
       // 続き65: 公開ドローの結果で宣言色が判明した瞬間なので、常駐していた色宣言表示を消す。
-      await helpers.announceColorsResolved?.();
+      // 【演出③-2・賭ける】その際、当たり／外れを表示側に伝えて見せ場にする（当たった色の丸が
+      // 輝いて割れる／外れた色はひび割れて沈む）。どの色で当たったかも渡す。
+      const hitColor =
+        revealedCardIds
+          .map((cardId) => (cardId === "rainbow-shard" ? "rainbow" : getCardDefinition(cardId)?.color))
+          .find((c) => c === "rainbow" || declaredColors.includes(c)) ?? null;
+      await helpers.announceColorsResolved?.({ hit: matches, color: hitColor });
       helpers.stopSuspenseSound?.(); // 結果が出たので鼓動を止める
       // 誰の結果かが分かるように発動者名を主語に添える（相手が発動した時に自分の画面で
       // 「自分が成功した」ように見えないように。ユーザー要望2026-08-08の総点検）。
@@ -1859,7 +1869,11 @@ async function runAction(action, ctx, helpers) {
         const isMatch = placedCardId === "rainbow-shard" || declaredColors.includes(placedColor);
         // 続き65: 置いたカードで宣言色が判明した瞬間なので、常駐していた色宣言表示を消す
         // （当たっていた場合はこの直後にhelpers.declareColorsで新しい表示に置き換わる）。
-        await helpers.announceColorsResolved?.();
+        // 【演出③-2・賭ける】当たり／外れを表示側へ伝える（ザ・ギャンブルと同じ見せ方）。
+        await helpers.announceColorsResolved?.({
+          hit: isMatch,
+          color: placedCardId === "rainbow-shard" ? "rainbow" : placedColor ?? null,
+        });
         if (!isMatch) break; // 宣言色が出なかった＝試練終了。結果はループ後にまとめて出す。
         // 当たり。踏んだカード自体は announceSteppedCard で中央に見せているので、ここでは
         // 「おめでとう」モーダルは挟まず（ユーザー: おめでとうはダサい／最後にまとめて出す）、

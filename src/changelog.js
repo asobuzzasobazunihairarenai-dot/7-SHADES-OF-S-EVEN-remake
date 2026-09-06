@@ -14,6 +14,29 @@ export const CHANGELOG = [
   {
     date: "2026-09-06",
     items: [
+      "接触をカウンターロックで止めた時と、最後のロックをゴメンナサイで止めた時に「防いだ！」の演出が出るようになりました。守った人のところに盾が張られ、攻めた駒がよろけます。",
+      "山札が切れて捨て場が新しい山札になる瞬間に、捨て場の山がまるごと裏返って山札の場所へ移る演出を追加しました（今までは黙って入れ替わっていました）。",
+      "宣言した色が当たったか外れたかが、色の丸の輝き・崩れで分かるようになりました（ザ・ギャンブル／試練の儀式）。",
+      "カードが盤面に配られる時、着地したマスからそのカードの色の粒が弾けるようになりました。",
+      "対局中なのに「ランク戦で対戦相手を募集中の人がいます！」の案内が出てしまうことがあったのを直しました。",
+      "移動した駒が、着地の瞬間に一瞬消えることがあったのを直しました。",
+      "相手の手札から１枚捨てさせる効果で、捨てさせたカードが裏面のまま表示されていたのを直しました（捨てたカードは表向きで見えます）。",
+      "ブーストカードの絵柄が一部の端末で表示されないことがあった件の対策を入れました。",
+    ],
+    itemsEn: [
+      "Blocking a contact with Counter Lock, or stopping a final lock with Sorry!, now plays a \"BLOCKED!\" effect: a shield flares around the defender and the attacking piece is knocked back.",
+      "When the deck runs out and the discard pile becomes the new deck, the pile now visibly flips over and moves across (it used to happen silently).",
+      "You can now see at a glance whether a declared colour hit or missed, from the way the colour dots flare or crumble (The Gamble / Rite of Trial).",
+      "Cards dealt onto the board now burst with sparks in that card's colour where they land.",
+      "Fixed the \"Someone is looking for a ranked opponent!\" banner appearing while you were already in a game.",
+      "Fixed a moved piece briefly vanishing at the moment it landed.",
+      "Fixed the card shown face-down in the modal when an effect makes an opponent discard a card. Discarded cards are now shown face-up.",
+      "Added a fix for Boost cards whose artwork did not appear on some devices.",
+    ],
+  },
+  {
+    date: "2026-09-06",
+    items: [
       "基本設定の1画面目を6つの大きな項目にまとめました（音量／案内表示に畳み、カードの拡大サイズは詳細設定へ）。スマホでは1つ1つが指で押せる大きさになり、スクロールなしで全部見えます。",
       "ランク戦で、お互いに「対戦開始」を押したのに始まらないことがあったのを直しました。押した後も自動でやり直すようになり、それでも始まらない時はもう一度押せるようになります。",
       "物語チュートリアルの「遊び方を知っているのでスキップ」などのボタンが、スマホで画面の端に寄りすぎて押しづらかったのを直しました。",

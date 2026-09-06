@@ -20621,3 +20621,177 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
 .board-3d-glow.is-usable-while-locked.effect-orbit {
   overflow: visible;
 }
+
+/* ===== 【演出①】「防いだ！」の瞬間（カウンターロック／ゴメンナサイ） =====================
+   ユーザー要望2026-09-06「演出で強化できるところ→おすすめ順で実装しよう！」の1位。
+   接触をカウンターロックで無効化した瞬間・最後のロックをゴメンナサイで止めた瞬間は、この
+   ゲームで一番の見せ場なのに、今までは文章のモーダルが出るだけだった（専用の動きは0件）。
+   守った側の駒（ゴメンナサイは守った人のロックエリア）に六角形の盾が張られ、衝撃波が広がり、
+   画面中央に「防いだ！」が一瞬だけ出る。攻めた側の駒は弾かれてよろける。
+   盤面のDOMに載せる演出なので、キャンバス（奥）より自然に手前に描かれる（appendEffectHost）。 */
+.block-shield {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 260%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) scale(0.2);
+  border: 0.22rem solid var(--block-color, #f6c945);
+  /* 六角形。物理的な「盾」に見せたいので円ではなく角のある形にする。 */
+  clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--block-color, #f6c945) 42%, transparent), transparent 72%);
+  box-shadow: 0 0 1.4rem color-mix(in srgb, var(--block-color, #f6c945) 70%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  animation: block-shield-pop 620ms cubic-bezier(0.16, 0.9, 0.3, 1) forwards;
+}
+@keyframes block-shield-pop {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+  18% { opacity: 1; transform: translate(-50%, -50%) scale(1.12); }
+  38% { opacity: 0.95; transform: translate(-50%, -50%) scale(0.96); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.3); }
+}
+
+.block-shockwave {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 120%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 0.16rem solid color-mix(in srgb, var(--block-color, #f6c945) 85%, white);
+  transform: translate(-50%, -50%) scale(0.3);
+  opacity: 0;
+  pointer-events: none;
+  animation: block-shockwave-out 700ms ease-out forwards;
+}
+.block-shockwave.is-delayed { animation-delay: 130ms; }
+@keyframes block-shockwave-out {
+  0% { opacity: 0.9; transform: translate(-50%, -50%) scale(0.3); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(3.2); }
+}
+
+/* 攻めた側の駒が弾かれてよろける（駒は5面の立方体なので、回さずに横揺れだけにする）。 */
+.piece.is-block-recoil { animation: block-recoil 520ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
+@keyframes block-recoil {
+  0% { translate: 0 0; }
+  18% { translate: -0.42rem -0.12rem; }
+  40% { translate: 0.28rem 0; }
+  62% { translate: -0.16rem 0; }
+  82% { translate: 0.08rem 0; }
+  100% { translate: 0 0; }
+}
+
+/* 画面中央の「防いだ！」。盤面の外（body直下・position:fixed）なので、ステージ変形にも
+   WebGL描画のON/OFFにも左右されない。操作を邪魔しないよう pointer-events は無し。 */
+.board-flash-label {
+  position: fixed;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  z-index: 10680;
+  pointer-events: none;
+  font-size: 3.1rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  color: #fff;
+  text-shadow:
+    0 0 0.7rem var(--block-color, #f6c945),
+    0 0 1.6rem var(--block-color, #f6c945),
+    0 0.2rem 0.5rem rgba(0, 0, 0, 0.7);
+  animation: block-flash-label 900ms cubic-bezier(0.16, 0.9, 0.3, 1) forwards;
+}
+/* 山札の作り直しは「新しい山ができた」お知らせなので、少し控えめ・少し下に出す。 */
+.board-flash-label.is-deck-refill { font-size: 2.3rem; top: 46%; letter-spacing: 0.1em; }
+@keyframes block-flash-label {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+  16% { opacity: 1; transform: translate(-50%, -50%) scale(1.14); }
+  32% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  76% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.06); }
+}
+/* 「ずっと光り続ける演出をやめる」設定は常時光るものが対象。ここは一瞬の演出なので止めない。 */
+
+
+/* ===== 【演出②】山札切れ → 捨て場をひっくり返して新しい山札にする ==========================
+   ユーザー要望2026-09-06（おすすめ順の2位）。ルール上とても大きな出来事（docs/rulebook.md
+   「こんな時は」）なのに、今までは黙って山が入れ替わるだけで、気づかないまま進んでいた。
+   捨て場の山がまるごと裏返りながら山札の位置へ移動し、着いたところで山札が「トン」と沈む
+   （沈み込みは既存の .stack.is-settling が枚数の増加で自動的に付く）。
+   カードのめくれ演出（.card-flip-*）の部品をそのまま使い、向きだけ逆（表→裏）にしている。 */
+.card-flip-flipper.is-closing { animation-direction: reverse; }
+.deck-refill-ghost { z-index: 10590; }
+.deck-refill-burst {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 320%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 0.14rem solid rgba(255, 245, 210, 0.9);
+  background: radial-gradient(circle at 50% 50%, rgba(255, 240, 190, 0.35), transparent 70%);
+  transform: translate(-50%, -50%) scale(0.2);
+  opacity: 0;
+  pointer-events: none;
+  animation: deck-refill-burst 620ms ease-out forwards;
+}
+@keyframes deck-refill-burst {
+  0% { opacity: 0.95; transform: translate(-50%, -50%) scale(0.2); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.9); }
+}
+
+
+/* ===== 【演出③-1】ばらまく（増殖する樹々・合同建設・白の意思ほか） ==========================
+   ユーザー要望2026-09-06（おすすめ順の3位・⑧の残り）。カードが何枚も盤面に配られる効果は
+   「1枚ずつ着地する」だけで、ばらまいている感じが無かった（.scatter 系のCSSは0件だった）。
+   着地したマスから、そのカードの色の粒が四方に弾ける。1枚ごとに出るので、複数マスに置く
+   効果では自然に「順番に光が飛ぶ」流れになる。 */
+.scatter-spark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, #fff, var(--scatter-color, #f6c945) 55%, transparent 72%);
+  box-shadow: 0 0 0.5rem var(--scatter-color, #f6c945);
+  transform: translate(-50%, -50%) scale(0.4);
+  opacity: 0;
+  pointer-events: none;
+  animation: scatter-spark-out 620ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+@keyframes scatter-spark-out {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+  14% { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--scatter-dx, 0px)), calc(-50% + var(--scatter-dy, 0px))) scale(0.15);
+  }
+}
+
+/* ===== 【演出③-2】賭ける（ザ・ギャンブル・試練の儀式）＝宣言色の当たり／外れ ==================
+   宣言色の丸（.declared-colors-indicator）は「結果が出た瞬間に黙って消える」だけだった。
+   当たった色は一度大きく輝いて割れ、外れた色はひび割れて灰色に沈む。どちらに転んだのかが
+   一目で分かるようにする（当たり＝宣言色が出た。ザ・ギャンブルでは手札全捨て、試練の儀式では
+   もう一度続く）。 */
+.declared-colors-indicator.is-resolving { transition: none; }
+.declared-colors-indicator-swatch.is-hit {
+  animation: declared-swatch-hit 760ms cubic-bezier(0.16, 0.9, 0.3, 1) forwards;
+  z-index: 2;
+}
+@keyframes declared-swatch-hit {
+  0% { transform: scale(1); filter: brightness(1); }
+  22% { transform: scale(1.9); filter: brightness(2.1) saturate(1.4); }
+  46% { transform: scale(1.25); filter: brightness(1.3); }
+  100% { transform: scale(2.6); filter: brightness(2.4); opacity: 0; }
+}
+.declared-colors-indicator-swatch.is-miss {
+  animation: declared-swatch-miss 760ms ease-in forwards;
+}
+@keyframes declared-swatch-miss {
+  0% { transform: translate(0, 0) rotate(0deg); filter: grayscale(0); opacity: 1; }
+  18% { transform: translate(0, -0.16rem) rotate(-8deg); }
+  100% { transform: translate(0, 0.9rem) rotate(24deg); filter: grayscale(1); opacity: 0; }
+}
+.declared-colors-indicator-swatch.is-miss:nth-child(2n) { animation-delay: 70ms; }
+.declared-colors-indicator-swatch.is-miss:nth-child(3n) { animation-delay: 130ms; }

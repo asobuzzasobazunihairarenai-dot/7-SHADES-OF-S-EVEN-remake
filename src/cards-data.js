@@ -80,7 +80,18 @@ function blankBoostCardDataUri(color) {
     `<text x='100' y='98' font-size='30' font-family='sans-serif' font-weight='bold' fill='white' text-anchor='middle'>BOOST</text>` +
     `<text x='100' y='130' font-size='17' font-family='sans-serif' fill='rgba(255,255,255,0.9)' text-anchor='middle'>${getLang() === "en" ? "No effect" : "効果なし"}</text>` +
     `</svg>`;
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+  // 【#291/#296】「スマホだけブーストカードが描画されない」への対策。手元では Chromium/WebKit
+  // ともPC幅・スマホ幅の4通りで正しく描画され再現できなかったが、この画像データ自体に不備が
+  // あった: `data:image/svg+xml;utf8,` の `utf8` は**正しくないMIMEパラメータ**（正しくは
+  // `charset=utf-8`）。厳しめのパーサーはこれを理由に読み込みを拒む。加えて、この文字列は
+  // CSSの url("...") の中・WebGLのテクスチャ読み込み・<img> の3経路すべてを通るので、
+  // パーセントエンコードのままだと経路ごとの解釈の違いを踏む余地が残る。
+  // 最も広く確実に通る形（正しいcharset + base64）に変えた。日本語（「効果なし」）を含むので
+  // btoa には必ず UTF-8 のバイト列を渡す（btoa は Latin-1 しか受け取れない）。
+  const bytes = new TextEncoder().encode(svg);
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return `data:image/svg+xml;charset=utf-8;base64,${btoa(bin)}`;
 }
 
 // エイドス物語戦専用の「効果なしの黒いファーストカード」（ユーザー要望2026-08-15）。エイドス(C)は

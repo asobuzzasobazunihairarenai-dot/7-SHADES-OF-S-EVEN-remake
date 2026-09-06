@@ -28,3 +28,25 @@ export function setBoard3dEnabledSetting(on) {
     /* 保存できなくてもそのセッションでは効く */
   }
 }
+
+// --- 「盤面のDOMを描き直したので、WebGL側も作り直して」の合図 ---------------------------
+// 【#297「移動で移動先に着地するとき一瞬駒が消えます」】盤面のWebGL描画は
+// ①ゲーム状態が変わった時 ②500msごとの保険 の2つでしか作り直していなかった。ところが
+// 駒の着地では「隠していた駒を戻すためだけの render()」が走る——状態は何も変わらないので
+// ①では拾われず、②までの最大0.5秒、実物の駒は**箱はあるが絵が無い**状態になる。
+// ゴーストは着地の2フレーム後に消えるので、その差が「一瞬消える」に見えていた。
+// render() から毎回この合図を送れば、次のフレームで必ず描き直される。
+// ここに置くのは board-3d.js が three.js を静的importしているため（main.js から直接
+// importすると起動時に700KB弱を読み込むことになる）。実際の描画モジュールが動いている時だけ
+// 中身が入り、止まっている時は何もしない空関数のまま。
+let invalidator = null;
+export function setBoard3dInvalidator(fn) {
+  invalidator = typeof fn === "function" ? fn : null;
+}
+export function invalidateBoard3d() {
+  try {
+    invalidator?.();
+  } catch (err) {
+    /* 描画の作り直しの合図なので、失敗しても描画以外に影響はさせない */
+  }
+}

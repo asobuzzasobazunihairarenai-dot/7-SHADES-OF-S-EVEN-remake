@@ -386,6 +386,7 @@ function cardDisplayName(cardId) {
   return getCardName(cardId) || getCardDefinition(cardId)?.name || cardId;
 }
 import { isBoardIllustOnly } from "./board-card-display.js";
+import { invalidateBoard3d } from "./board-3d-setting.js";
 import { showCardFace } from "./card-face-display.js";
 import { onLangChange } from "./i18n.js";
 import { t } from "./ui-text.js";
@@ -2015,7 +2016,11 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, reve
           // 中央の「奪った」表示を出さず、呼び出し側にその表示関数だけ渡す（呼び出し側が
           // タックル演出の後に await して出す）。他の呼び出し（スリカエ・ゲート侵攻）は
           // deferReveal 未指定なので従来通りその場で表示する。
-          const doReveal = () => showCardReceivedModal(revealCardId, sub, { labelText });
+          // 【#298】overrideCardId: 見せる時点より後にならないと中身が分からない場合に、
+          // 呼び出し側が正しい cardId を渡せるようにする（セレスティアの「捨てさせた」札は
+          // 捨て場に積まれた後なら公開情報として読める）。引数なしなら従来どおり。
+          const doReveal = (overrideCardId) =>
+            showCardReceivedModal(overrideCardId ?? revealCardId, sub, { labelText });
           if (options?.deferReveal) options.deferReveal(doReveal);
           else await doReveal();
         }
@@ -3269,7 +3274,30 @@ function dismissDeclaredColorsIndicator() {
 // 色宣言の結果が判明した瞬間（試練の儀式のカードが置かれた／ザ・ギャンブルの公開ドローが
 // 終わった）にcard-effect-engine.jsから呼ばれる。ローカルの表示を消し、オンライン中は
 // 他プレイヤーにも「消してよい」と伝える。
-function announceColorsResolvedForEffect() {
+// 【演出③-2・賭ける】ザ・ギャンブル／試練の儀式の「宣言した色が出たか」が判明した瞬間。
+// 以前はここで黙って表示を消すだけだった（勝ち負けが分かる見せ場なのに何も起きなかった）。
+// 当たった色の丸は大きく輝いて割れ、外れた色はひび割れて灰色に沈む。結果が分からない
+// 呼び出し（引数なし＝従来通り）は、今までどおりすぐ消す。
+// outcome: { hit: boolean, color: 当たった色 } を card-effect-engine.js から受け取る。
+async function announceColorsResolvedForEffect(outcome = null) {
+  const el = declaredColorsIndicatorEl;
+  if (el && outcome && typeof outcome.hit === "boolean" && !isArrivalEffectDisabled()) {
+    el.classList.add("is-resolving");
+    const swatches = [...el.querySelectorAll(".declared-colors-indicator-swatch")];
+    // 当たりなら「どの色で当たったか」だけを輝かせ、残りは静かに沈める。色が分からない時は
+    // 全部輝かせる（どれかで当たったことは確かなので、嘘にはならない）。
+    const hitColorVar = outcome.color && outcome.color !== "rainbow" ? `var(--color-${outcome.color})` : null;
+    for (const dot of swatches) {
+      const isThisOne = !hitColorVar || dot.style.getPropertyValue("--swatch-color") === hitColorVar;
+      dot.classList.add(outcome.hit && isThisOne ? "is-hit" : "is-miss");
+    }
+    beginBoardAnimation();
+    try {
+      await new Promise((r) => setTimeout(r, 820));
+    } finally {
+      endBoardAnimation();
+    }
+  }
   dismissDeclaredColorsIndicator();
   if (isOnlineMode()) broadcastColorsResolved();
 }
@@ -4643,6 +4671,202 @@ function spawnGateIntrusionEffect(hostEl, defender) {
   appendEffectHost(hostEl, ring2, 1400);
 }
 
+// ===== 【演出①】「防いだ！」の瞬間 =====================================================
+// ユーザー要望2026-09-06（おすすめ順の1位）。カウンターロックで接触を無効にした瞬間と、
+// ゴメンナサイで最後のロックを止めた瞬間は、このゲームで一番の見せ場なのに、今までは文章の
+// モーダルが出るだけで専用の動きが1つも無かった（grepで確認: 該当CSS 0件・呼び出し0件）。
+//
+// 見せ方: 守った人のところに六角形の盾が張られて衝撃波が広がり、攻めた人の駒が弾かれて
+// よろける。画面中央に「防いだ！」が一瞬だけ出る。色は**守った人の色**（誰が防いだのかが
+// 色で分かる。奪う光の筋 playStealBeam と同じ考え方）。
+//
+// 置き場所: 盤面のDOM（appendEffectHost）に載せるので、WebGLのキャンバス（奥）より自然に
+// 手前になる。中央のラベルだけは body 直下の position:fixed（ステージ変形の二重掛けを避ける
+// ため、座標計算そのものをしない形にしてある）。
+//
+// 進行との関係: この演出の間は beginBoardAnimation/endBoardAnimation で「盤面の演出中」に
+// 数える。そうしないと #266 で決めた「画面の中央は一度に1つ・演出中はお知らせを待たせる」に
+// 乗らず、盾が出ている最中に無効化の告知モーダルが被る。
+const BLOCK_EFFECT_MS = 900;
+function seatColorCss(seat) {
+  const color = getState().tokens.find((tk) => tk.kind === "piece" && tk.player === seat)?.color ?? null;
+  return color && color !== "rainbow" ? `var(--color-${color})` : "#f6c945";
+}
+// 守った人の「見せ場の中心」を返す。駒が盤面にいればその駒のマス、いなければ自分のロック
+// エリア（ゴメンナサイは駒と関係ない場面でも起きる）。
+function blockEffectHostFor(seat) {
+  const table = document.getElementById("game-table");
+  if (!table) return null;
+  const piece = getState().tokens.find((tk) => tk.kind === "piece" && tk.player === seat);
+  if (piece) {
+    const pieceEl = table.querySelector(`.piece[data-token-id="${piece.id}"]`);
+    const host = pieceEl?.closest(".cell") || pieceEl?.parentElement;
+    if (host) return host;
+  }
+  const side = SEAT_TO_SIDE[seat];
+  return side ? table.querySelector(`.lock-area.lock-${side}`) : null;
+}
+async function playBlockedEffect(defenderSeat, attackerSeat) {
+  if (isArrivalEffectDisabled()) return; // 「演出をやめる」設定を尊重
+  beginBoardAnimation();
+  try {
+    const color = seatColorCss(defenderSeat);
+    const host = blockEffectHostFor(defenderSeat);
+    if (host) {
+      const shield = document.createElement("div");
+      shield.className = "block-shield";
+      shield.style.setProperty("--block-color", color);
+      appendEffectHost(host, shield, BLOCK_EFFECT_MS);
+      for (const extra of ["", " is-delayed"]) {
+        const wave = document.createElement("div");
+        wave.className = `block-shockwave${extra}`;
+        wave.style.setProperty("--block-color", color);
+        appendEffectHost(host, wave, BLOCK_EFFECT_MS);
+      }
+    }
+    // 攻めた側の駒をよろけさせる。render() で作り直されたら途中で止まるだけなので実害は無い。
+    if (attackerSeat) {
+      const atk = getState().tokens.find((tk) => tk.kind === "piece" && tk.player === attackerSeat);
+      const atkEl = atk ? document.getElementById("game-table")?.querySelector(`.piece[data-token-id="${atk.id}"]`) : null;
+      if (atkEl) {
+        atkEl.classList.add("is-block-recoil");
+        setTimeout(() => atkEl.classList.remove("is-block-recoil"), 560);
+      }
+    }
+    // 画面中央の「防いだ！」。既に出ているものがあれば作り直す（連続で防いだ時に重ならない）。
+    document.getElementById("block-flash-label")?.remove();
+    const label = document.createElement("div");
+    label.id = "block-flash-label";
+    label.className = "board-flash-label";
+    label.textContent = t("game.blocked.label");
+    label.style.setProperty("--block-color", color);
+    document.body.appendChild(label);
+    setTimeout(() => label.remove(), BLOCK_EFFECT_MS + 60);
+    playSound("arrivalEffect");
+    await new Promise((r) => setTimeout(r, BLOCK_EFFECT_MS));
+  } finally {
+    endBoardAnimation();
+  }
+}
+
+// ===== 【演出②】山札切れ → 捨て場をひっくり返して新しい山札にする =========================
+// ユーザー要望2026-09-06（おすすめ順の2位）。ルール上とても大きな出来事（docs/rulebook.md
+// 「こんな時は」＝捨て場をそのまま裏返して山札にする・シャッフルはしない）なのに、今までは
+// `refillDeckFromDiscard(); render();` と黙って入れ替わるだけで、気づかないまま進んでいた。
+//
+// 見つけ方: 特定の呼び出し口に演出を足すのではなく、**「捨て場が空になり、山札が増えた」と
+// いう事実**を render() のたびに見て拾う。こうするとローカルの自動補充（ensureDeckAvailable）
+// でも、サーバー側で補充されるオンライン（so7-apply-action.ts が引く直前に補充する）でも、
+// 同じ1か所で拾える。呼び出し口を1つずつ追いかけると必ずどれかを取りこぼす（このプロジェクト
+// で何度も踏んでいる形）。
+//
+// 呼ぶ場所は render() の**先頭**。この時点では DOM はまだ前回の状態（＝捨て場に山が積まれて
+// いる）なので、そこから位置と一番上の絵を測れる。状態の方はもう新しい（捨て場が空）。
+let prevRefillCounts = null;
+function maybeAnnounceDeckRefill() {
+  const piles = getState().piles || {};
+  const deck = piles.deck?.length ?? 0;
+  const discard = piles.discard?.length ?? 0;
+  const prev = prevRefillCounts;
+  prevRefillCounts = { deck, discard };
+  if (!prev) return; // 起動直後の1回目は比較対象が無い
+  // 「捨て場に2枚以上あった」→「捨て場が空」かつ「山札が増えた」＝作り直しが起きた瞬間。
+  // 2枚以上を条件にするのは、1枚だけの捨て場が普通に引かれた場合と紛らわしいため。
+  if (!(prev.discard >= 2 && discard === 0 && deck > prev.deck)) return;
+  void playDeckRefillEffect();
+}
+
+const DECK_REFILL_MS = 780;
+async function playDeckRefillEffect() {
+  if (isArrivalEffectDisabled() || isFlightAnimationDisabled()) return;
+  const table = document.getElementById("game-table");
+  const discardEl = table?.querySelector('.stack[data-pile="discard"]');
+  const deckEl = table?.querySelector('.stack[data-pile="deck"]');
+  if (!discardEl || !deckEl) return;
+  const a = discardEl.getBoundingClientRect();
+  const b = deckEl.getBoundingClientRect();
+  if (a.width < 2 || b.width < 2) return;
+  // 実画面座標のままだとステージ変形が二重にかかる（#197/#198の教訓）。必ずローカルへ直す。
+  const from = stageClientToLocal(a.left + a.width / 2, a.top + a.height / 2);
+  const to = stageClientToLocal(b.left + b.width / 2, b.top + b.height / 2);
+  const w = stageDelta(a.width);
+  const h = stageDelta(a.height);
+  // 捨て場の一番上の絵は、状態の上ではもう空なので DOM から読む（この時点の DOM は前回の描画）。
+  const topFace = discardEl.querySelector(".stack-top")?.style.backgroundImage || "";
+  const tiltDeg = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--table-tilt")) || 42;
+
+  beginBoardAnimation();
+  try {
+    const outer = document.createElement("div");
+    outer.className = "card-flip-ghost deck-refill-ghost";
+    outer.style.width = `${w}px`;
+    outer.style.height = `${h}px`;
+    outer.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%)`;
+    const inner = document.createElement("div");
+    inner.className = "card-flip-inner";
+    inner.style.transform = `rotateX(${tiltDeg}deg)`;
+    const flipper = document.createElement("div");
+    // 表→裏（＝ひっくり返して裏向きの山にする）なので、めくれ演出と同じ部品を逆再生する。
+    flipper.className = "card-flip-flipper is-closing";
+    flipper.style.animationDuration = `${DECK_REFILL_MS}ms`;
+    const back = document.createElement("div");
+    back.className = "card-flip-face card-flip-back";
+    back.style.backgroundImage = `url("${cardBackSetImagePath("normal", getCardBackSetIndex())}")`;
+    const front = document.createElement("div");
+    front.className = "card-flip-face card-flip-front";
+    if (topFace) front.style.backgroundImage = topFace;
+    flipper.append(back, front);
+    inner.appendChild(flipper);
+    outer.appendChild(inner);
+    document.body.appendChild(outer);
+    requestAnimationFrame(() => {
+      outer.style.transition = `transform ${DECK_REFILL_MS}ms cubic-bezier(0.32, 0, 0.24, 1)`;
+      outer.style.transform = `translate(${to.x}px, ${to.y}px) translate(-50%, -50%)`;
+    });
+
+    const label = document.createElement("div");
+    label.className = "board-flash-label is-deck-refill";
+    label.textContent = t("game.deckRefill.label");
+    label.style.setProperty("--block-color", "#f6c945");
+    document.body.appendChild(label);
+    playSound("arrivalEffect");
+    await new Promise((r) => setTimeout(r, DECK_REFILL_MS));
+    // 着いた瞬間の「トン」。山札の沈み込み自体は枚数が増えたことで .stack.is-settling が
+    // 自動的に付く（続き435）ので、ここでは光の輪だけを重ねる。
+    const deckNow = document.getElementById("game-table")?.querySelector('.stack[data-pile="deck"]');
+    if (deckNow?.parentElement) {
+      const burst = document.createElement("div");
+      burst.className = "deck-refill-burst";
+      appendEffectHost(deckNow.parentElement, burst, 700);
+    }
+    outer.remove();
+    await new Promise((r) => setTimeout(r, 260));
+    label.remove();
+  } finally {
+    endBoardAnimation();
+  }
+}
+
+// 【演出③-1】ばらまく。着地したマスから、そのカードの色の粒が四方へ弾ける。
+// 粒は6個・角度を散らして飛ばす（マスの子として置くので、盤面と一緒に傾く＝盤面に沿って
+// 弾けて見える）。虹（なないろの欠片）と色不明は金色にする（他の演出と同じ扱い）。
+function spawnScatterSpark(hostEl, cardId) {
+  if (!hostEl || isArrivalEffectDisabled()) return;
+  const color = cardId ? getCardDefinition(cardId)?.color ?? null : null;
+  const css = color && color !== "rainbow" ? `var(--color-${color})` : "#f6c945";
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI * 2 * i) / 6 + Math.random() * 0.5;
+    const dist = 16 + Math.random() * 14;
+    const spark = document.createElement("div");
+    spark.className = "scatter-spark";
+    spark.style.setProperty("--scatter-color", css);
+    spark.style.setProperty("--scatter-dx", `${Math.cos(angle) * dist}px`);
+    spark.style.setProperty("--scatter-dy", `${Math.sin(angle) * dist}px`);
+    spark.style.animationDelay = `${i * 22}ms`;
+    appendEffectHost(hostEl, spark, 760);
+  }
+}
+
 function spawnPieceLandingRing(hostEl, color) {
   if (!hostEl || isArrivalEffectDisabled()) return;
   const ring = document.createElement("div");
@@ -5877,6 +6101,10 @@ function playCardCellLanding(sourceRect, cellLocation, tokenId) {
     }, t.glide + t.hold);
     setTimeout(() => {
       spawnCardLandingPuff(cellRect); // 着地の風/ホコリ
+      // 【演出③-1・ばらまく】着地したマスから、そのカードの色の粒が四方へ弾ける。1枚ごとに
+      // 出るので、増殖する樹々・合同建設・白の意思のように何枚も配る効果では、そのまま
+      // 「順番に光が飛ぶ」流れになる（配置は1枚ずつ await されるため）。
+      spawnScatterSpark(cellEl, getState().tokens.find((tk) => tk.id === tokenId)?.cardId ?? null);
       cardEl.style.visibility = ""; // 実カードを見せる
       requestAnimationFrame(() => requestAnimationFrame(() => ghost.remove()));
       resolve(); // 着地完了→次のアクションへ
@@ -6050,15 +6278,32 @@ async function drawFromDiscardForEffect(player) {
 // targetPlayerの裏向きの手札から、儀式的に（見た目上ランダムに）1枚選ぶ。中身を
 // 手札に加えるのではなく捨てるための選出のため、requestOpponentHandRitualPick
 // そのままでよい（選んだ後どう処理するかは呼び出し元＝card-effect-engine.js側の責務）。
+// 【#298】セレスティアで「捨てさせた」中央モーダルのカードが裏面だった件。オンラインでは
+// 相手の手札の中身はサーバー側で伏せられている（cardId が null）ので、選んだ直後の時点では
+// 何の札か分からず、裏面が出ていた。**捨てた後なら捨て場の一番上＝公開情報**として実際の札が
+// 読めるので、中央の公開だけを「捨てた後」まで持ち越し、engine 側（DISCARD_RANDOM_FROM_
+// QUALIFYING_OPPONENTS）が捨て終えてから正しい札で見せる。ユーザー確認済み「捨てるカードは
+// 公開でいいです」。奪われた側の画面でも同じ関数を通るので、両方とも表向きで揃う。
+let pendingForcedDiscardReveal = null;
 function pickRandomFromOpponentHandForEffect(targetPlayer) {
   // ユーザー要望2026-08-08: セレスティアは相手の手札を「捨てさせる」効果で、自分の手札には
   // 加わらないため、中央の周知は「奪った／奪われた」ではなく「捨てさせた／捨てさせられた」にする。
+  pendingForcedDiscardReveal = null;
   return requestOpponentHandRitualPick(
     targetPlayer,
     t("game.pick.randomFromHand", { name: getPlayerName(targetPlayer) }),
     undefined,
-    { takes: t("game.label.madeDiscard"), loses: t("game.label.forcedDiscard") }
+    { takes: t("game.label.madeDiscard"), loses: t("game.label.forcedDiscard") },
+    { deferReveal: (fn) => { pendingForcedDiscardReveal = fn; } }
   );
+}
+// engine が捨て終えた後に呼ぶ。捨て場の一番上から読んだ実際の cardId で中央に見せる。
+// 持ち越しが無い（＝選ばれなかった等）時は何もしない。
+async function showForcedDiscardRevealForEffect(cardId) {
+  const fn = pendingForcedDiscardReveal;
+  pendingForcedDiscardReveal = null;
+  if (!fn) return;
+  await fn(cardId ?? undefined);
 }
 
 // docs/rulebook.md「いつでも使える」の定義: 「効果等の何らかの『処理中』は使用
@@ -6736,6 +6981,8 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         // セレスティア（DISCARD_RANDOM_FROM_QUALIFYING_OPPONENTS）用。
         drawFromDiscard: drawFromDiscardForEffect,
         pickRandomFromOpponentHand: pickRandomFromOpponentHandForEffect,
+        // 【#298】セレスティアで捨てさせた札を「捨てた後」に中央で公開する（上記参照）。
+        showForcedDiscardReveal: showForcedDiscardRevealForEffect,
         // 奇跡の森 マンズウッド（PUBLIC_DRAW_THEN_DISCARD_AT_TURN_END）用。
         publicDrawReturningTokens: publicDrawReturningTokensForEffect,
         markDiscardAtTurnEnd,
@@ -9165,6 +9412,8 @@ async function useCounterLockOnContactInner() {
     isPseudoCpuTargetDefender: isPseudoCpuTarget(defender),
   });
   await respondToContact(false);
+  // 【演出①】接触を止めた瞬間の「防いだ！」。告知モーダルより先に、盤面で何が起きたかを見せる。
+  await playBlockedEffect(defender, pending.attacker);
   await discardFromHandReveal(token.id);
 
   // #90: 接触をカウンターロックで無効化したことを全プレイヤーに知らせる（[[effect-result-
@@ -9472,6 +9721,14 @@ function maybeClearTurnEventStock() {
 }
 
 function render() {
+  // 【#297】盤面のDOMを作り直したことをWebGL描画側にも知らせる。あちらは「ゲーム状態が
+  // 変わった時」と「500msごとの保険」でしか作り直さないので、状態を変えない描き直し
+  // （駒の着地で隠していた駒を戻す等）だと最大0.5秒ぶん、箱はあるのに絵が無い＝駒が
+  // 一瞬消える状態になっていた。合図を送るだけの軽い処理（次のフレームで作り直される）。
+  invalidateBoard3d();
+  // 【演出②】山札切れ→捨て場を裏返して新しい山札にした瞬間を拾う（この時点の DOM はまだ
+  // 前回の状態＝捨て場に山が積まれているので、そこから位置と絵を測れる）。
+  maybeAnnounceDeckRefill();
   maybeClearTurnEventStock();
   updateSpectatorBanner();
   // オンライン対戦（第一弾）ではまだサーバー側にポートしていないアクション（セットアップ
@@ -12174,6 +12431,9 @@ async function useGomennasaiOnFinalLock() {
   // #102: ゴメンナサイは手札効果＝発動時にこのカード自身も捨てる（追色コストとは別）。追色コストの
   // 支払いが確定した後に、ゴメンナサイ本体を捨てる（以前は本体が手札に残っていた）。
   await discardFromHandReveal(eligibility.sorryToken.id);
+  // 【演出①】最後のロックを止めた瞬間の「防いだ！」。コストとゴメンナサイ本体を払い終えて
+  // 「止まったことが確定した」ここで見せる（奪う札の中央表示より前）。
+  await playBlockedEffect(selfSeat, pending.attacker);
   // 不具合#36診断: ゴメンナサイで奪ったカード・奪う前後の攻撃側ロック内容を記録する
   // （奪ったのに相手が勝ってしまう報告の追跡用）。
   const attackerSeat = pending.attacker;
