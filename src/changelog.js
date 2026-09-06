@@ -14,6 +14,15 @@ export const CHANGELOG = [
   {
     date: "2026-09-06",
     items: [
+      "勝利演出とそのあとの画面が重くなっていたのを直しました。7色が集まる演出から結果表示まで、動きがなめらかになります。",
+    ],
+    itemsEn: [
+      "Fixed the victory sequence and the screens after it running heavy — the seven-colour finale and the result screens now stay smooth.",
+    ],
+  },
+  {
+    date: "2026-09-06",
+    items: [
       "駒の奥側の上の辺に黒い太い線が出ていたのを直しました（見えないはずの面が描かれていました）。",
       "設定などの画面を開いている時に、その裏の盤面を触ってカードが拡大表示されたり駒を掴めたりしたのを直しました。",
       "基本設定の1画面目の見た目を整えました。並んでいるものを同じ形のカードに揃え、押すと開くものには右端に同じ矢印を出しています。",

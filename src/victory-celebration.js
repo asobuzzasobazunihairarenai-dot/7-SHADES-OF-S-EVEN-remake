@@ -302,6 +302,10 @@ export async function playVictoryCelebration(player, opts = {}) {
     await step(ms(BASE.victoryIn));
     await step(ms(BASE.victoryHold * s.hold));
 
+    // 【重さ対策・2026-09-06】ここから先、この演出は「勝利モーダル→通貨→順位→個人結果→
+    // 対戦終了パネル」の**背景**として数分間残る。見せ場は終わっているので、白の中の七色残光の
+    // ような重い装飾はここで止める（style.css の .is-settled）。演出そのものの見え方は変わらない。
+    root.classList.add("is-settled");
     stage("RESULT");
   } catch (err) {
     console.error("[so7] playVictoryCelebration failed", err);
@@ -699,5 +703,11 @@ function runGatherCanvas(root, origins, cube, s, durMs) {
     stopped = true;
     cancelAnimationFrame(raf);
     ctx.clearRect(0, 0, W, H);
+    // 【重さ対策・2026-09-06】この後もキャンバスは勝利表示・リザルトの背景として残り続けるが、
+    // 中身はもう使わない。全画面ぶんの描画バッファ（1600x900 に dpr の2乗＝最大20MB超）を
+    // 抱えたままにすると、画像だけで既に苦しいiPhoneのGPUメモリを圧迫する（#223 の系統）。
+    // 大きさを 0 にして手放す（要素自体は root ごと片付けられる時に消える）。
+    canvas.width = 0;
+    canvas.height = 0;
   };
 }

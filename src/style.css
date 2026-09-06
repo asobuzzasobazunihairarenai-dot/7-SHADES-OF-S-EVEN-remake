@@ -11422,6 +11422,19 @@ body.victory-celebration-active #option-area {
   }
 }
 #victory-celebration.is-hushed .vic-veil { opacity: 1; }
+/* 【重さ対策・2026-09-06】白い光が画面を覆った後（.is-flash）は、この幕は白の裏に隠れて
+   ほとんど見えないのに、**画面全体の backdrop-filter を毎フレーム掛け続ける**。勝利演出は
+   そのまま勝利モーダル→通貨→順位→個人結果→対戦終了パネルの背景として数分間残るので、
+   その間ずっと画面全体のフィルタが走り、実機（iPhone）で1フレーム 740→1500ms まで落ちていた
+   （報告 #318 のログ）。暗い地のグラデーション自体は残すので見た目はほぼ変わらない。 */
+#victory-celebration.is-flash .vic-veil {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  /* filter を外すと盤面が白の向こうに薄く透けてしまう（白は 88% で、残り 12% に盤面が出る）。
+     見た目を今までどおり「一面の白」に保つため、幕の地の色そのものをほぼ不透明にして盤面を隠す。
+     ただの塗りなので、毎フレーム画面全体を作り直す backdrop-filter とは負荷が桁違いに軽い。 */
+  background: rgba(3, 4, 8, 0.96);
+}
 
 /* GATHER: 光の帯・霧を描くキャンバス（位置に依らない大量描画はここ） */
 #victory-celebration .vic-canvas {
@@ -11640,15 +11653,19 @@ body.victory-celebration-active #option-area {
   position: absolute;
   inset: -20%;
   opacity: calc(0.1 * var(--vic-residue, 1));
+  /* 【重さ対策・2026-09-06】以前はここに filter: blur(18px) を掛けていた。全画面より一回り
+     大きい板（inset:-20%）を毎フレームぼかし直す＝実機で一番重かった処理で、しかも勝利演出は
+     リザルトの背景として数分間残るため、その間ずっと効き続けていた（実測: これを外すだけで
+     1フレーム 333ms→250ms＝演出前の水準に戻る）。ぼかしの代わりに、グラデーションを中心から
+     そのまま薄れる形にして同じやわらかさを出す（不透明度0.1・白地の上なので見分けは付かない）。 */
   background:
-    radial-gradient(circle at 22% 32%, #ff405c 0 12%, transparent 42%),
-    radial-gradient(circle at 68% 24%, #ff8a32 0 10%, transparent 40%),
-    radial-gradient(circle at 82% 58%, #ffd84a 0 11%, transparent 42%),
-    radial-gradient(circle at 58% 78%, #42e58a 0 10%, transparent 40%),
-    radial-gradient(circle at 30% 72%, #49a8ff 0 11%, transparent 42%),
-    radial-gradient(circle at 12% 54%, #ff74c8 0 10%, transparent 40%),
-    radial-gradient(circle at 46% 46%, #a875ff 0 12%, transparent 44%);
-  filter: blur(18px);
+    radial-gradient(circle at 22% 32%, #ff405c 0%, transparent 46%),
+    radial-gradient(circle at 68% 24%, #ff8a32 0%, transparent 44%),
+    radial-gradient(circle at 82% 58%, #ffd84a 0%, transparent 46%),
+    radial-gradient(circle at 58% 78%, #42e58a 0%, transparent 44%),
+    radial-gradient(circle at 30% 72%, #49a8ff 0%, transparent 46%),
+    radial-gradient(circle at 12% 54%, #ff74c8 0%, transparent 44%),
+    radial-gradient(circle at 46% 46%, #a875ff 0%, transparent 48%);
   animation: vic-residue-drift 9s ease-in-out infinite alternate;
 }
 @keyframes vic-residue-drift {
@@ -11703,6 +11720,11 @@ body.victory-celebration-active #option-area {
   opacity: 0.9;
 }
 /* リザルトへ渡した後、白をゆっくり引く（急な切り替えにしない）。 */
+/* 【重さ対策・2026-09-06】演出が終わってリザルトの背景になった後（.is-settled）は、
+   白の中の七色残光を止める。全画面より一回り大きい板に七色のグラデーションを7枚重ねて
+   常時ゆっくり動かし続けるもので、実測でフレーム間隔が 250ms→300ms（＝この1枚だけで
+   2割増し）になっていた。演出中（FLASH〜VICTORY の数秒）はそのまま見せる。 */
+#victory-celebration.is-settled .vic-flash::after { display: none; }
 #victory-celebration.is-dismissing { transition: opacity 650ms ease-out; opacity: 0; }
 
 @media (max-width: 760px) {
