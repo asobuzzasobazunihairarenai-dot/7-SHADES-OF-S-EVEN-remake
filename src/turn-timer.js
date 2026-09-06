@@ -36,6 +36,7 @@ import {
   syncCpuStepHint,
 } from "./main.js";
 import { t } from "./ui-text.js"; // UI英語化フェーズ11
+import { playSound } from "./sound.js";
 import { SEAT_ORDER, SEAT_TO_SIDE, getRotationSteps, rotateSide } from "./board-layout.js";
 import { getSelfSeat, getSyncedTimerConfig, getCurrentGameId, fetchAndHydrate, isSpectatingGame, isRankedGame } from "./online.js";
 // フェイズ自動処理の再評価（phase-automation.js）。本来はrender()のたびに呼ばれるが、
@@ -745,13 +746,22 @@ function setDisplayIfChanged(el, value) {
   if (el && el.style.display !== value) el.style.display = value;
 }
 
+// 【2026-09-07】持ち時間が切れた瞬間が**完全に無音**だった（このファイルには効果音の
+// 呼び出しが1つも無かった）。画面から目を離していると、時間切れで自動処理に切り替わった
+// ことに気づけない。警告が「出た瞬間」に1回だけ鳴らす（毎tick鳴らさないよう印で管理）。
+let warningSoundPlayed = false;
 function updateWarning(shouldShow) {
   if (!warningEl) return;
   const endTurnBtn = document.getElementById("end-turn-button");
   if (!shouldShow || !endTurnBtn || getComputedStyle(endTurnBtn).display === "none") {
     setDisplayIfChanged(warningEl, "none");
     endTurnBtn?.classList.remove("turn-timer-warning-glow");
+    warningSoundPlayed = false;
     return;
+  }
+  if (!warningSoundPlayed) {
+    warningSoundPlayed = true;
+    try { playSound("turnSwitch"); } catch (err) { /* 音が鳴らなくても進行には影響しない */ }
   }
   // 「1枚ドロー」ボタン等、#end-turn-buttonの真上に縦に積まれている他のボタンと重なって
   // いた（ボタンの上に表示する方式だった）ため、縦積みの列とは重ならない列の左側へ表示する

@@ -3368,6 +3368,22 @@ let rankedForfeitEventListeners = [];
 // 【続き456】降参の合図。**サーバー側（Edge Function）には触らない**——状態そのものは
 // 変えず「相手が降参した」という合図だけを流し、受け取った側が自分で対局終了の処理を
 // 走らせる（match-stats-tracker.js と同じ考え方＝再デプロイが不要）。
+// 【2026-09-07】「防いだ！」の演出は、**防いだ本人の画面にしか出ていなかった**。
+// 攻めた側と観戦者はこのゲーム一番の見せ場を見られず、文字のモーダルで結果を知るだけ
+// だった。状態は変えず**合図だけ**を流し、受け取った側が同じ演出を再生する
+//（降参・ranked_forfeit と同じ形＝Edge Function の変更は不要）。
+let blockedEventListeners = [];
+export function onBlockedEvents(fn) {
+  blockedEventListeners.push(fn);
+  return () => {
+    blockedEventListeners = blockedEventListeners.filter((f) => f !== fn);
+  };
+}
+export function broadcastBlocked(payload) {
+  if (broadcastChannel) {
+    broadcastChannel.send({ type: "broadcast", event: "blocked", payload });
+  }
+}
 let resignEventListeners = [];
 export function onResignEvents(fn) {
   resignEventListeners.push(fn);
@@ -3594,6 +3610,10 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
     // 【続き456】相手が降参した合図（broadcastResign参照）。
     .on("broadcast", { event: "resign" }, ({ payload }) => {
       for (const fn of resignEventListeners) fn(payload);
+    })
+    // 【2026-09-07】「防いだ！」の合図（broadcastBlocked参照）。
+    .on("broadcast", { event: "blocked" }, ({ payload }) => {
+      for (const fn of blockedEventListeners) fn(payload);
     })
     // 不具合報告時のログ収集要求／応答（broadcastBugLogRequest/Response参照）。
     .on("broadcast", { event: "bug_log_request" }, ({ payload }) => {

@@ -248,6 +248,15 @@ function runEternal(attacker, onDone) {
 // main.jsから注入してもらう（getSelfSeat判定・showCardReceivedModal等の依存が向こうにあるため。
 // registerEternalAnimHelpers等と同じ「register helper」パターン）。attacker本人の画面だけで出す。
 let returnHomeRevealHelper = null; // async (attacker, cards:[{cardId,faceUp}]) => void
+// 【2026-09-07】ゲート侵攻の3段階のうち、③自ゲートへの帰還だけ**盤面の演出が無かった**
+//（①手札を半分奪う＝光の筋、②エターナル獲得＝3Dフリップ、はある）。数ターンかけた計画の
+// 締めくくりで、駒が音もなく瞬間移動して終わっていた。ローカル・オンライン両方から呼べる
+// よう helper 方式にする（main.js が実体を注入する）。
+let returnHomeAnimHelper = null; // (attacker) => void
+export function registerReturnHomeAnimHelper(fn) {
+  returnHomeAnimHelper = fn;
+}
+
 export function registerReturnHomeRevealHelper(fn) {
   returnHomeRevealHelper = fn;
 }
@@ -264,6 +273,8 @@ function runReturnHome(attacker, onDone) {
   showBonusStepModal(t("game.gate.step.returnHomeCards", { attacker: getPlayerName(attacker) }), async () => {
     gateInvasionReturnHome(attacker);
     notifyChange();
+    // 帰還そのものを見せる（カードの中央表示より先に、盤面で起きたことを見せる）。
+    try { returnHomeAnimHelper?.(attacker); } catch (err) { console.error("returnHomeAnim failed", err); }
     announceHandPickups(attacker, collected.map((c) => ({ cardId: c.cardId, wasPublic: c.faceUp })), t("game.gate.reason.collected"));
     // 何を回収したのかを、回収した本人の画面だけに中央で大きく見せる。
     if (returnHomeRevealHelper && collected.length > 0) await returnHomeRevealHelper(attacker, collected);

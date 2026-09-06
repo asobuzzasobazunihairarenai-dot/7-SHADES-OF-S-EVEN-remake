@@ -26,6 +26,12 @@ export function registerGateInvasionModalEternalAnim(fn) {
 }
 // 手札を奪う飛翔演出（ユーザー要望「スリカエの時のような奪う演出をオンラインでも」）。
 let stealAnimHelper = null; // (attacker, defender, count, onDone) => void
+// 【2026-09-07】③自ゲートへの帰還の演出（ローカル版の registerReturnHomeAnimHelper と同じ実体）。
+let returnHomeAnimHelper = null; // (attacker) => void
+export function registerGateInvasionModalReturnHomeAnim(fn) {
+  returnHomeAnimHelper = fn;
+}
+
 export function registerGateInvasionModalStealAnim(fn) {
   stealAnimHelper = fn;
 }
@@ -134,6 +140,7 @@ function buildSteps(events) {
 
     if ((ev.gateCards ?? []).length > 0) {
       steps.push({
+        returnHomeAnim: { attacker: ev.attacker },
         text: t("game.gate.step.returnHomeCards", { attacker: getPlayerNameOrYou(ev.attacker) }),
         cardsHtml: buildCardsHtml(
           ev.attacker,
@@ -147,7 +154,7 @@ function buildSteps(events) {
         ),
       });
     } else {
-      steps.push({ text: t("game.gate.step.returnHome", { attacker: getPlayerNameOrYou(ev.attacker) }) });
+      steps.push({ returnHomeAnim: { attacker: ev.attacker }, text: t("game.gate.step.returnHome", { attacker: getPlayerNameOrYou(ev.attacker) }) });
     }
   }
   return steps;
@@ -214,6 +221,10 @@ export function forceCloseGateInvasionModal() {
 }
 
 function showStep(step) {
+  // 帰還の演出は「盤面で起きたこと」を見せるだけなので、モーダルは止めずに同時に出す。
+  if (step.returnHomeAnim && returnHomeAnimHelper && !isArrivalEffectDisabled()) {
+    try { returnHomeAnimHelper(step.returnHomeAnim.attacker); } catch (err) { console.error("returnHomeAnim failed", err); }
+  }
   // エターナル獲得ステップは、演出（3Dフリップ＋色バースト）が使える環境では、静的な
   // モーダルの代わりにローカル版と同じ派手な演出を再生する（ユーザー要望）。演出は盤面の
   // エターナル山・ロックスロットのDOM位置を読むため、盤面が見えているオンライン対局中に

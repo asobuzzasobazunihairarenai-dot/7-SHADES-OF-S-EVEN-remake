@@ -21425,3 +21425,81 @@ body.theme-light .options-menu-item-danger,
 body.theme-light-ingame .options-menu-item-danger {
   color: #b91c1c;
 }
+
+/* 接触の申し込み中（相手の返事待ち）のにらみ合い（2026-09-07）。
+   攻めた駒は相手の方向へ前のめりに脈打ち、狙われた駒は自分の色で警戒する。
+   「ずっと光り続ける演出をやめる」設定では止める。 */
+.piece.is-contact-attacker .piece-face,
+.piece.is-contact-defender .piece-face {
+  animation: contact-standoff-pulse 0.9s ease-in-out infinite alternate;
+}
+.piece.is-contact-defender .piece-face {
+  animation-name: contact-standoff-alarm;
+  animation-duration: 0.55s;
+}
+@keyframes contact-standoff-pulse {
+  from { box-shadow: 0 0 0.1rem var(--contact-standoff-color, #fff); }
+  to { box-shadow: 0 0 0.9rem 0.16rem var(--contact-standoff-color, #fff); }
+}
+@keyframes contact-standoff-alarm {
+  from { box-shadow: 0 0 0.14rem rgba(255, 255, 255, 0.5); }
+  to { box-shadow: 0 0 1rem 0.2rem var(--contact-standoff-color, #fff); }
+}
+body.reduce-glow .piece.is-contact-attacker .piece-face,
+body.reduce-glow .piece.is-contact-defender .piece-face {
+  animation: none;
+}
+
+/* ゲート侵攻③「自ゲートへ帰還」（2026-09-07）。外から内へ締まっていく輪で
+   「自分の陣地が迎え入れる」感じを出す（侵攻された側に出る gate-intrusion-ring とは
+   逆向きの動き＝役割の違いが動きで分かる）。 */
+.gate-return-ring {
+  position: absolute;
+  inset: -60%;
+  border-radius: 50%;
+  border: 0.2rem solid var(--gate-return-color, #f6c945);
+  box-shadow: 0 0 1.2rem var(--gate-return-color, #f6c945);
+  opacity: 0;
+  pointer-events: none;
+  animation: gate-return-close 1.2s ease-out forwards;
+}
+.gate-return-ring.is-delayed {
+  animation-delay: 0.22s;
+  animation-duration: 1.25s;
+}
+@keyframes gate-return-close {
+  0% { transform: scale(1); opacity: 0; }
+  25% { opacity: 0.85; }
+  100% { transform: scale(0.28); opacity: 0; }
+}
+
+/* ゴメンナサイで相手のロックエリアから1枚を引き抜く瞬間（2026-09-07）。
+   スロットに亀裂が走ってから、その色の光の筋（.steal-beam）が奪った人の手札へ飛ぶ。 */
+.lock-pull-crack {
+  position: absolute;
+  inset: -10%;
+  pointer-events: none;
+  border-radius: 0.2rem;
+  background:
+    linear-gradient(105deg, transparent 46%, var(--lock-pull-color, #e2e8f0) 49%, transparent 52%),
+    linear-gradient(72deg, transparent 44%, var(--lock-pull-color, #e2e8f0) 47%, transparent 50%);
+  filter: drop-shadow(0 0 0.35rem var(--lock-pull-color, #e2e8f0));
+  opacity: 0;
+  animation: lock-pull-crack 0.75s ease-out forwards;
+}
+@keyframes lock-pull-crack {
+  0% { transform: scale(0.6); opacity: 0; }
+  30% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+/* 手札が0枚でハンドフェイズが飛ばされた時、空の手札エリアを一度だけ淡く光らせる
+   （2026-09-07。従来は文字のモーダルだけで、手札エリア自体には何も起きていなかった）。 */
+.hand-area.is-hand-empty-flash {
+  animation: hand-empty-flash 0.9s ease-out;
+}
+@keyframes hand-empty-flash {
+  0% { box-shadow: 0 0 0 rgba(148, 163, 184, 0); }
+  35% { box-shadow: 0 0 1.6rem 0.3rem rgba(148, 163, 184, 0.55); }
+  100% { box-shadow: 0 0 0 rgba(148, 163, 184, 0); }
+}

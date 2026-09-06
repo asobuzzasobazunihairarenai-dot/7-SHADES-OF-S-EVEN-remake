@@ -1078,6 +1078,22 @@ function enterPhase__inner(phase, player) {
     // ユーザー指摘、hasUsableLockedFirstOrEternal参照）。
     if (phase === "hand" && !hasUsableLockedFirstOrEternal(player) && !isHandAutoSkipSuppressedByPublicDraw(player)) {
       if (handIsEmpty(player)) {
+        // 【2026-09-07】文字のモーダルが出るだけで、**手札エリア自体には何も起きて
+        // いなかった**。空になった自分の手札エリアを一度だけ淡く光らせて、「ここが
+        // 空だから飛ばされた」を目で分かるようにする（0.9秒で消える見た目だけの印）。
+        if (isMine) {
+          try {
+            const el = document.querySelector(`.hand-area[data-player="${player}"]`);
+            if (el) {
+              el.classList.remove("is-hand-empty-flash");
+              void el.offsetWidth; // 連続で起きた時も必ず再生し直す
+              el.classList.add("is-hand-empty-flash");
+              setTimeout(() => el.classList.remove("is-hand-empty-flash"), 1000);
+            }
+          } catch (err) {
+            /* 見た目だけなので失敗しても進行には影響しない */
+          }
+        }
         if (isMine) showPhaseSkipModal(t("phaseautomation.L824"));
         advancePhaseAfterSkip();
         return;

@@ -104,6 +104,7 @@ import {
   runGateInvasionsIfNeeded,
   registerEternalAnimHelpers,
   registerGateInvasionStealHelper,
+  registerReturnHomeAnimHelper,
   registerReturnHomeRevealHelper,
   registerGateInvasionCpuChecker,
   hasAnyGateInvasionCandidate,
@@ -131,6 +132,7 @@ import {
 // 【#266】お知らせを待たせた時間を行動ログへ残す（ユーザー要望「表示タイミングをログに出るように」）。
 // anim-gate.js は import を一切持たない葉モジュールなので、記録する手段をここから差し込む。
 setAnimGateLogger((event, data) => logAction(event, data));
+import { registerGateInvasionModalReturnHomeAnim } from "./gate-invasion-modal.js";
 import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained, reapplyGateInvasionModal, registerGateInvasionModalEternalAnim, registerGateInvasionModalStealAnim, registerGateInvasionModalEternalPreHide, forceCloseGateInvasionModal } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking, hasAnyoneWon } from "./victory.js";
 import { formatTitle } from "./titles.js"; // 称号（続き313）
@@ -338,6 +340,8 @@ import {
   isRankedGame,
   broadcastRankedForfeit,
   onRankedForfeitEvents,
+  onBlockedEvents,
+  broadcastBlocked,
   reportRankedResult,
   getRankedResultInfo,
   markRankedResultShown,
@@ -2674,6 +2678,58 @@ function announceGateInvasionSuccessBeforeStealPick(defender, count) {
 // スリカエ・接触・ゲート侵攻——「相手の手札から自分の手札へ1枚移る」場面はどれもこの儀式ピックを
 // 通るので、ここ1か所で全部に演出が付く。奪われた側の手札から奪った側の手札へ、光の筋が走る。
 // 盤面の外（body直下）に置く1本の細い帯なので、盤面のWebGL描画のON/OFFにも左右されない。
+// 【2026-09-07】2つの要素の間に光の筋を引く共通部品。もともと playStealBeam の中に
+// 直接書かれていたが、ロックエリアから札を引き抜く演出でも同じものが要るので切り出した
+//（中身は1行も変えていない）。座標は必ず stageClientToLocal を通すこと（#197/#198）。
+function spawnBeamBetween(fromEl, toEl, colorCss) {
+  if (!fromEl || !toEl) return;
+  const a = fromEl.getBoundingClientRect();
+  const b = toEl.getBoundingClientRect();
+  if (a.width < 1 || b.width < 1) return;
+  const p1 = stageClientToLocal(a.left + a.width / 2, a.top + a.height / 2);
+  const p2 = stageClientToLocal(b.left + b.width / 2, b.top + b.height / 2);
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 8) return;
+  const beam = document.createElement("div");
+  beam.className = "steal-beam";
+  beam.style.left = `${p1.x}px`;
+  beam.style.top = `${p1.y}px`;
+  beam.style.width = `${len}px`;
+  beam.style.transform = `rotate(${(Math.atan2(dy, dx) * 180) / Math.PI}deg)`;
+  if (colorCss) beam.style.setProperty("--steal-beam-color", colorCss);
+  document.body.appendChild(beam);
+  setTimeout(() => beam.remove(), 900);
+}
+
+// 【2026-09-07】ゴメンナサイで**相手のロックエリアから完成間近の1枚を引き抜く**瞬間。
+// 7色目＝勝利宣言を止めたうえに相手のロックを1枚壊す、試合中で最大の逆転なのに、
+// スロットから札が消える動きが無音だった（「防いだ！」の盾はその手前で出ている）。
+// スロットが割れて、その色の光の筋が奪った人の手札へ走る。
+function playLockPullEffect(tokenId, takerSeat) {
+  if (isArrivalEffectDisabled()) return;
+  const cardEl = document.querySelector(`[data-token-id="${tokenId}"]`);
+  const slotEl = cardEl ? cardEl.closest(".lock-slot") : null;
+  const hostEl = slotEl || cardEl;
+  if (!hostEl) return;
+  const tok = getState().tokens.find((t) => t.id === tokenId);
+  const cardColor = tok ? getCardDefinition(tok.cardId)?.color : null;
+  const css = cardColor && cardColor !== "rainbow" ? `var(--color-${cardColor})` : "#e2e8f0";
+  const crack = document.createElement("div");
+  crack.className = "lock-pull-crack";
+  crack.style.setProperty("--lock-pull-color", css);
+  appendEffectHost(hostEl, crack, 900);
+  const toEl = document.querySelector(`.hand-area[data-player="${takerSeat}"]`);
+  if (!isFlightAnimationDisabled()) spawnBeamBetween(hostEl, toEl, css);
+  try {
+    playSound("cardFlip");
+    playPulseThump(0.8);
+  } catch (err) {
+    /* 音が鳴らなくても進行には影響しない */
+  }
+}
+
 function playStealBeam(fromSeat, toSeat) {
   if (!fromSeat || !toSeat || fromSeat === toSeat) return;
   if (isFlightAnimationDisabled()) return;
@@ -3591,8 +3647,44 @@ function declareColorsForEffect(requirement, cardId, player) {
 // 「公開ドロー」ボタン（buildPublicDrawButton）と同じ経路（drawFromPile("deck",
 // {zone:"publicDraw",player})）をcount回ループするだけの、効果専用の一般化版。
 // 山札が途中で尽きたらそこで打ち切る（善処の原則）。戻り値は実際に引けたcardIdの配列。
+// 【2026-09-07】公開ドロー（奇跡の森マンズウッド等）は、音は鳴るものの**山札から飛ばず
+// その場に湧いていた**（ザ・ギャンブル／マルメゴは中央のじらしフリップがあるのに、
+// こちらだけ静かだった）。山札から公開エリアへ実際に飛ばす。
+// 手順は他の飛翔演出と同じ——①出発点（山札）の位置を先に測る ②実物を隠す
+// ③ゴーストを飛ばす ④実物を見せて flushBoard3d()（#301の教訓）。
+async function playPublicDrawFlight(player, newTokenIds, fromRect) {
+  if (!fromRect || newTokenIds.length === 0 || isFlightAnimationDisabled()) return;
+  const flights = [];
+  const shown = [];
+  for (const id of newTokenIds) {
+    // 【重要】公開エリアの札は **#game-table の外** にある（実測で判明——盤面の中だけを
+    // 探していて一度も見つからず、飛翔が丸ごと出ていなかった）。document 全体から引く。
+    const el = document.querySelector(`[data-token-id="${id}"]`);
+    if (!el) continue;
+    const toRect = el.getBoundingClientRect();
+    if (toRect.width < 1) continue;
+    const tok = getState().tokens.find((t) => t.id === id);
+    const img = tok?.cardId ? getCardImagePath(tok.cardId) : null;
+    el.style.visibility = "hidden";
+    shown.push(el);
+    flights.push(flyGhost(fromRect, toRect, img, "setup-fly-card", 420).done);
+  }
+  if (flights.length === 0) return;
+  flushBoard3d(); // 隠した直後にWebGL側も描き直す
+  await Promise.all(flights);
+  for (const el of shown) el.style.visibility = "";
+  flushBoard3d(); // 見せた直後にも（#301: 合図だけだと次のフレームまで絵が無い）
+}
+
 async function publicDrawForEffect(player, count) {
   const drawnCardIds = [];
+  // 飛翔の出発点（山札）と、引く前の公開エリアの中身を先に控える。
+  const deckRect = document.querySelector('.stack[data-pile="deck"]')?.getBoundingClientRect() ?? null;
+  const beforeIds = new Set(
+    getState()
+      .tokens.filter((t) => t.kind === "card" && t.location.zone === "publicDraw" && t.location.player === player)
+      .map((t) => t.id)
+  );
   for (let i = 0; i < count; i++) {
     if (isOnlineMode()) {
       try {
@@ -3619,6 +3711,17 @@ async function publicDrawForEffect(player, count) {
     notePublicDrawForHandPhase(player);
   }
   render();
+  // 引いた分だけを差分で拾って、山札から飛ばす（実物は render 済みなのでここで掴める）。
+  const newIds = getState()
+    .tokens.filter(
+      (t) => t.kind === "card" && t.location.zone === "publicDraw" && t.location.player === player && !beforeIds.has(t.id)
+    )
+    .map((t) => t.id);
+  try {
+    await playPublicDrawFlight(player, newIds, deckRect);
+  } catch (err) {
+    console.error("playPublicDrawFlight failed", err);
+  }
   return drawnCardIds;
 }
 
@@ -4820,6 +4923,36 @@ function spawnGateIntrusionEffect(hostEl, defender) {
   appendEffectHost(hostEl, ring2, 1400);
 }
 
+// 【2026-09-07】ゲート侵攻③「自ゲートへ帰還」の演出。①手札を半分奪う（光の筋）・
+// ②エターナル獲得（3Dフリップ）は派手なのに、**締めくくりだけ無音で瞬間移動**していた。
+// 数ターンかけて敵陣へ乗り込んだ計画が実った瞬間なので、自分のゲートが自分の色で
+// 迎え入れるように光る（外から内へ締まっていく輪＋着地の輪＋着地音）。
+// ローカル(gate-invasion.js)・オンライン(gate-invasion-modal.js)の両方から同じ実体を呼ぶ。
+function playGateReturnHomeEffect(attacker) {
+  if (isArrivalEffectDisabled()) return;
+  const table = document.getElementById("game-table");
+  const side = SEAT_TO_SIDE[attacker];
+  const gate = side ? GATE_POSITIONS[side] : null;
+  if (!table || !gate) return;
+  const hostEl = findLocationElement(table, { zone: "cell", row: gate.row, col: gate.col });
+  if (!hostEl) return;
+  const color = getState().tokens.find((tk) => tk.kind === "piece" && tk.player === attacker)?.color ?? null;
+  const css = color && color !== "rainbow" ? `var(--color-${color})` : "#f6c945";
+  for (const extra of ["", " is-delayed"]) {
+    const ring = document.createElement("div");
+    ring.className = `gate-return-ring${extra}`;
+    ring.style.setProperty("--gate-return-color", css);
+    appendEffectHost(hostEl, ring, 1500);
+  }
+  spawnPieceLandingRing(hostEl, color);
+  try {
+    playSound("piecePlace");
+    playPulseThump(0.6);
+  } catch (err) {
+    /* 音が鳴らなくても進行には影響しない */
+  }
+}
+
 // ===== 【演出①】「防いだ！」の瞬間 =====================================================
 // ユーザー要望2026-09-06（おすすめ順の1位）。カウンターロックで接触を無効にした瞬間と、
 // ゴメンナサイで最後のロックを止めた瞬間は、このゲームで一番の見せ場なのに、今までは文章の
@@ -5045,6 +5178,26 @@ function spawnBoardCardDiscardBurst(victims) {
     playSound("cardFlip");
     if (shown >= 4) playPulseThump(0.75);
   } catch (e) {}
+}
+
+// 【2026-09-07】接触を申し込まれた側に、**音でも**気づけるようにする。
+// 返事待ちのモーダルは出るが、画面から目を離していると宣戦布告に気づけない。
+// 「起きた事実」を render() の先頭で拾う形（山札の作り直しと同じ考え方）——
+// 申し込みの経路が増えても取りこぼさない。鳴らすのは**狙われた本人だけ**。
+let prevContactStandoffKey = "";
+function maybeAnnounceContactStandoff() {
+  const pending = getState().pendingContact;
+  const key = pending ? pending.attacker + "|" + pending.defender : "";
+  if (key === prevContactStandoffKey) return;
+  prevContactStandoffKey = key;
+  if (!pending) return;
+  if (getSelfSeat() !== pending.defender) return;
+  try {
+    playSound("arrivalEffect");
+    playPulseThump(0.9);
+  } catch (err) {
+    /* 音が鳴らなくても進行には影響しない */
+  }
 }
 
 const DECK_REFILL_MS = 780;
@@ -8623,6 +8776,14 @@ async function playContactFlight__inner(defenderPieceId, defenderFromRect) {
     await done;
   }
   setSetupPendingTokenIds(new Set());
+  // 【2026-09-07】接触で飛ばされた駒の「着地」が無音だった。通常の移動には元から
+  // 着地の輪（spawnPieceLandingRing）と着地音があるのに、**強制帰還だけ抜けていた**
+  // ——一番痛い目に遭った側の駒が、音もなくすとんと置かれて終わっていた。
+  const landedHost = newDefenderEl ? newDefenderEl.closest(".cell") : null;
+  if (landedHost && defenderToken) {
+    spawnPieceLandingRing(landedHost, defenderToken.color);
+    playSound("piecePlace");
+  }
 }
 
 // チュートリアルCPU戦（tutorial-battle.js）の「接触」を台本で忠実に再現する。実際の
@@ -9890,6 +10051,9 @@ async function useCounterLockOnContactInner() {
   });
   await respondToContact(false);
   // 【演出①】接触を止めた瞬間の「防いだ！」。告知モーダルより先に、盤面で何が起きたかを見せる。
+  // 【2026-09-07】この演出は今まで**防いだ本人の画面にしか出ていなかった**。
+  // 攻めた側と観戦者にも同じ見せ場を届ける（状態は変えず合図だけ）。
+  if (isOnlineMode()) broadcastBlocked({ defender, attacker: pending.attacker });
   await playBlockedEffect(defender, pending.attacker);
   await discardFromHandReveal(token.id);
 
@@ -10081,6 +10245,18 @@ function renderBoardTokens(table) {
       el.classList.add("is-my-turn-glow");
       el.style.setProperty("--piece-turn-glow-color", `var(--color-${token.color})`);
     }
+    // 【2026-09-07】接触の申し込み中（相手の返事待ち）は、**盤面が完全に平常運転**だった。
+    // 手札を1枚奪われ自ゲートへ強制送還される宣戦布告で、返事を待つ数秒がこのゲームで
+    // 一番緊張する時間なのに、にらみ合っている2つの駒に何も起きていなかった。
+    // 攻めた駒は前のめりに脈打ち、狙われた駒は自分の色で警戒する。
+    const standoff = getState().pendingContact;
+    if (token.kind === "piece" && standoff && !isArrivalEffectDisabled()) {
+      if (token.player === standoff.attacker) el.classList.add("is-contact-attacker");
+      else if (token.player === standoff.defender) el.classList.add("is-contact-defender");
+      if (token.player === standoff.attacker || token.player === standoff.defender) {
+        el.style.setProperty("--contact-standoff-color", `var(--color-${token.color})`);
+      }
+    }
     host.appendChild(el);
     // ユーザー報告「スマホで2D表示時に、駒をまだ触ってない状態で駒が描画されないことが
     // ある。見えない駒を触ると描画される」。.pieceの元々のwill-change:transformコメントに
@@ -10207,6 +10383,7 @@ function render() {
   // 【演出②】山札切れ→捨て場を裏返して新しい山札にした瞬間を拾う（この時点の DOM はまだ
   // 前回の状態＝捨て場に山が積まれているので、そこから位置と絵を測れる）。
   maybeAnnounceDeckRefill();
+  maybeAnnounceContactStandoff();
   // 【演出・2026-09-06】盤面／ロックエリアのカードが捨てられた瞬間を拾う（同上の理由で
   // この位置＝DOM がまだ前回の状態のうちに測る）。
   maybeAnnounceBoardCardDiscard();
@@ -12857,6 +13034,9 @@ async function cpuUseGomennasaiOnFinalLock(seat, eligibility, attacker) {
     await respondToFinalLock(true);
     return;
   }
+  // 【2026-09-07】スロットから引き抜かれる瞬間を見せる（動かす**前**に呼ぶ——
+  // 動かした後だとカードはもうロックスロットに居ない）。
+  playLockPullEffect(target.id, seat);
   moveToken(target.id, { zone: "hand", player: seat });
   // #102: 何を奪ったかを画面中央のモーダルで見せる（従来は小さいトーストだけだった）。
   // #209: このモーダルを await する（従来は出しっぱなしで先へ進んでいたため、CPUの
@@ -12932,6 +13112,7 @@ async function useGomennasaiOnFinalLock() {
   await discardFromHandReveal(eligibility.sorryToken.id);
   // 【演出①】最後のロックを止めた瞬間の「防いだ！」。コストとゴメンナサイ本体を払い終えて
   // 「止まったことが確定した」ここで見せる（奪う札の中央表示より前）。
+  if (isOnlineMode()) broadcastBlocked({ defender: selfSeat, attacker: pending.attacker });
   await playBlockedEffect(selfSeat, pending.attacker);
   // 不具合#36診断: ゴメンナサイで奪ったカード・奪う前後の攻撃側ロック内容を記録する
   // （奪ったのに相手が勝ってしまう報告の追跡用）。
@@ -12952,7 +13133,8 @@ async function useGomennasaiOnFinalLock() {
       console.error("moveToken (gomennasai steal) failed", err);
     }
   } else {
-    moveToken(target.id, { zone: "hand", player: selfSeat });
+    playLockPullEffect(target.id, selfSeat);
+  moveToken(target.id, { zone: "hand", player: selfSeat });
   }
   // #102: 何を奪ったかを画面中央のモーダルで見せる（従来は小さいトーストだけだった）。
   showCardReceivedModal(
@@ -15196,6 +15378,27 @@ function buildPublicDrawButton() {
       if (!getState().turnPlayer) return;
       const player = getSelfSeat();
       ensureDeckAvailable(async () => {
+        // 【2026-09-07】山札→公開エリアの飛翔は、カード効果の公開ドロー（publicDrawForEffect）
+        // だけでなく**この手動ボタンにも**要る（プレイヤーが実際に押すのはこちら）。
+        // 出発点と、引く前の公開エリアの中身を先に控えておく。
+        const deckRect = document.querySelector('.stack[data-pile="deck"]')?.getBoundingClientRect() ?? null;
+        const beforeIds = new Set(
+          getState()
+            .tokens.filter((t) => t.kind === "card" && t.location.zone === "publicDraw" && t.location.player === player)
+            .map((t) => t.id)
+        );
+        const flyNewOnes = async () => {
+          const newIds = getState()
+            .tokens.filter(
+              (t) => t.kind === "card" && t.location.zone === "publicDraw" && t.location.player === player && !beforeIds.has(t.id)
+            )
+            .map((t) => t.id);
+          try {
+            await playPublicDrawFlight(player, newIds, deckRect);
+          } catch (err) {
+            console.error("playPublicDrawFlight failed", err);
+          }
+        };
         if (isOnlineMode()) {
           let result = null;
           try {
@@ -15213,6 +15416,7 @@ function buildPublicDrawButton() {
           } catch (err) {
             console.error("fetchAndHydrate failed", err);
           }
+          await flyNewOnes();
           return;
         }
         const pileArray = getState().piles.deck;
@@ -15222,6 +15426,7 @@ function buildPublicDrawButton() {
         playSound("cardDraw");
         announceHandPickups(player, [{ cardId, wasPublic: true }]);
         render();
+        await flyNewOnes();
       });
     },
   });
@@ -16409,6 +16614,9 @@ registerReturnHomeRevealHelper(async (attacker, cards) => {
 // オンラインのゲート侵攻（サーバー処理→受信モーダル経路）でも、ローカルと同じエターナル獲得の
 // 派手な演出（3Dフリップ＋色バースト）を出す（ユーザー要望）。純演出関数のため両経路で共用できる。
 registerGateInvasionModalEternalAnim(playEternalAcquisitionAnim);
+// 【2026-09-07】ゲート侵攻③「自ゲートへ帰還」の演出を両方の経路へ注入する。
+registerGateInvasionModalReturnHomeAnim(playGateReturnHomeEffect);
+registerReturnHomeAnimHelper(playGateReturnHomeEffect);
 // オンラインのゲート侵攻で「手札を奪う」儀式的な演出（ユーザー要望「奪う手札を選択する
 // 儀式的な演出は必要／戻してください」#126）。以前はターン終了時の事前ピックに分けていたが、
 // 順序が不自然（告知が二重・非手番プレイヤーの侵攻では出ない）だったため撤去し、この受信
@@ -16616,6 +16824,19 @@ function onAfkThresholdReached() {
 }
 // 相手がランク対局で放置敗北した合図を受けたら、こちら（勝者）も結果反映＆表示してホームへ。
 onRankedForfeitEvents(({ loserSeat }) => finishRankedForfeit(loserSeat));
+// 【2026-09-07】相手が「防いだ！」合図。自分の画面でも同じ演出を再生する
+//（自分が防いだ側なら既に再生済みなので二重に出さない）。
+onBlockedEvents((payload) => {
+  try {
+    const defender = payload?.defender;
+    const attacker = payload?.attacker;
+    if (!defender || !attacker) return;
+    if (getSelfSeat() === defender) return;
+    void playBlockedEffect(defender, attacker);
+  } catch (err) {
+    console.error("blocked relay failed", err);
+  }
+});
 // #138: 相手主導の放置敗北。起きている側（相手）のturn-timerが、手番プレイヤーの完全な放置を
 // 検知して発火する。勝ちを確定＝相手（放置した本人）を敗者として reportRankedResult を呼ぶ
 // （この申告が両者のランクをサーバー側で確定＝放置した本人が復帰しようがしまいがランクは下がる）。

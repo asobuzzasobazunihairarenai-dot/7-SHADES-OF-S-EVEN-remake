@@ -14,6 +14,27 @@ export const CHANGELOG = [
   {
     date: "2026-09-07",
     items: [
+      "接触を申し込んでいる間、にらみ合っている2つの駒が盤面で光るようになりました。狙われた側には音でも知らせます。",
+      "接触で自分のゲートへ飛ばされた駒に、着地の輪と音が付きました。",
+      "「防いだ！」の演出が、防いだ本人だけでなく相手や観戦している人の画面にも出るようになりました。",
+      "ゲート侵攻の締めくくり（自分のゲートへ帰る瞬間）に、自分の色の輪が迎え入れる演出を追加しました。",
+      "ゴメンナサイで相手のロックエリアから1枚を引き抜く瞬間に、スロットが割れて光の筋が走るようになりました。",
+      "公開ドローのカードが、その場に現れるのではなく山札から飛んでくるようになりました。",
+      "持ち時間が切れた時に音で知らせるようにしました。手札が0枚でハンドフェイズが飛ぶ時は手札エリアが一度光ります。",
+    ],
+    itemsEn: [
+      "While a contact request is waiting, the two pieces facing off now glow on the board — and the targeted player also hears it.",
+      "A piece knocked back to its own gate by a contact now lands with a ring and a sound.",
+      "The block effect now also plays for the opponent and for spectators, not just the player who blocked.",
+      "Returning home at the end of a gate invasion now closes with rings in your own colour.",
+      "Pulling a card out of an opponent lock area with Gomennasai now cracks the slot and sends a beam of light.",
+      "Public draws now fly in from the deck instead of appearing in place.",
+      "Running out of time now plays a sound, and an empty hand flashes once when the hand phase is skipped.",
+    ],
+  },
+  {
+    date: "2026-09-07",
+    items: [
       "オンライン対戦で、接触を申し込んだあと相手の返事が返ってこないと対局が動かなくなることがあったのを直しました。相手が答えられない状態が続いた場合は、その接触を取り消して先に進みます。",
       "7色目のロックの承認が返ってこない時も同じように止まっていたのを直しました。しばらく待っても答えが無ければ承認されて先に進みます。",
       "相手が席を外していても一定時間で自動的に承認される仕組みが、実際には働いていなかったのを直しました。",
