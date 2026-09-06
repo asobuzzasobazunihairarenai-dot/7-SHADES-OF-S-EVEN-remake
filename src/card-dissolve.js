@@ -17,8 +17,20 @@ const STAGE_H = 900;
 // ホバー拡大を抑制できるよう、再生中かどうかを外部から見えるようにする（参照カウント方式：
 // 連続使用でも正しく数える）。
 let dissolvePlayingCount = 0;
+// 【取りこぼしの修正・2026-09-06】このカウンタが上がるのは**カードの画像を読み終わってから**
+// （下の await Promise.all の後）。そのため「捨てる処理を呼んだ直後」にここを見ると、演出は
+// これから始まるのに false が返る。実際、コノハナサクヤの桜の演出が「追色コストの霧散が
+// 終わるのを待つ」つもりで待たずに出て、霧散の裏に隠れていた（実測: 300ms 重なっていた）。
+// 呼ばれた時刻を控えておき、その直後の短い間も「再生中」として扱う。時間で自然に切れるので
+// 読み込みに失敗しても取り残されない。
+let dissolveRequestedAt = 0;
+const DISSOLVE_STARTUP_GRACE_MS = 600;
+export function noteCardDissolveRequested() {
+  dissolveRequestedAt = performance.now();
+}
 export function isCardDissolvePlaying() {
-  return dissolvePlayingCount > 0;
+  if (dissolvePlayingCount > 0) return true;
+  return dissolveRequestedAt > 0 && performance.now() - dissolveRequestedAt < DISSOLVE_STARTUP_GRACE_MS;
 }
 
 // 演出パラメータは管理者モードで調整できるよう CSS変数から読む（--table-tilt等と同じ方式）。
@@ -99,6 +111,7 @@ export async function playCardDissolve(usedCardId, opts = {}) {
     onShowModal?.();
     return;
   }
+  noteCardDissolveRequested(); // 画像の読み込みを待っている間も「再生中」として見えるように
   const isV5 = !!costCardId;
   const [cardImg, costImg] = await Promise.all([
     loadImage(getCardImagePath(usedCardId)),

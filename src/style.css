@@ -1807,6 +1807,144 @@ body.reduce-glow .rainbow-lock-sweep {
   display: none;
 }
 
+/* ===== 結ばれの一本桜 コノハナサクヤ「手繰り寄せる」（main.js playKonohanaPull）=====
+   マスチェンジの入れ替えには駒と駒をつなぐ電撃のアークがあるが、こちらは説明モーダルが
+   出るだけだった。桜のカードなので電撃は流用せず、引き寄せ先から相手の駒へ桜の筋が伸び、
+   花びらが巻き取られるように戻ってくる形にした。盤面の3D階層の外（body直下）に置くので、
+   盤面のWebGL描画のON/OFFに左右されない。 */
+.konohana-pull {
+  position: fixed;
+  height: 0;
+  z-index: 10440;
+  pointer-events: none;
+  transform-origin: 0 50%; /* 起点＝引き寄せ先。あとは rotate で相手の駒の方へ向ける */
+}
+/* 引き寄せの筋。先（相手の駒側）から手前（発動者側）へ巻き取られていく。 */
+.konohana-thread {
+  position: absolute;
+  left: 0;
+  top: -1px;
+  width: 100%;
+  height: 3px;
+  border-radius: 3px;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg,
+    rgba(255, 214, 232, 0) 0%,
+    rgba(var(--konohana-rgb, 241, 158, 194), 0.95) 45%,
+    rgba(255, 255, 255, 1) 100%);
+  box-shadow: 0 0 0.5rem 0.06rem rgba(var(--konohana-rgb, 241, 158, 194), 0.75);
+  animation: konohana-thread 900ms cubic-bezier(0.25, 0.8, 0.3, 1) forwards;
+}
+@keyframes konohana-thread {
+  0% { opacity: 0; transform: scaleX(0.05); }
+  30% { opacity: 1; transform: scaleX(1); }
+  100% { opacity: 0; transform: scaleX(0.12); }
+}
+/* 花びら。--start（筋のどこから流れ出すか）・--sway（横ぶれ）・--spin（回転）は JS が1枚ずつ決める。 */
+.konohana-petal {
+  position: absolute;
+  left: 0;
+  top: 0;
+  /* 【重要】--start は「筋のどこから流れ出すか」の割合。translate() の % は**自分自身の
+     大きさ**に対する割合なので、大きさを持たない箱に入れると常に 0px になり、花びらが全部
+     起点に重なって出ない（実測でそうなっていた）。筋と同じ幅を持たせて、% が筋の長さに
+     対する割合として効くようにする。高さは 0 のままで、中の花びらが負のマージンで 中央に来る。 */
+  width: 100%;
+  height: 0;
+  opacity: 0;
+  /* both にするのは、遅らせている間も 0% の姿勢（＝流れ出す位置で待つ）を保つため。
+     forwards だけだと、順番待ちの花びらが起点に戻った状態で待機する。 */
+  animation: konohana-petal 900ms cubic-bezier(0.3, 0.7, 0.35, 1) both;
+}
+.konohana-petal-inner {
+  /* 筋の傾きを打ち消して、花びらが横倒しにならないようにする（JS が rotate を入れる）。 */
+  /* 盤面（明るいプレイマット）の上でも見えるよう、白より桃を強く・輪郭に濃い縁を置く。 */
+  width: 0.72rem;
+  height: 0.86rem;
+  margin: -0.43rem 0 0 -0.36rem;
+  border-radius: 60% 60% 55% 55% / 70% 70% 40% 40%;
+  background: linear-gradient(160deg, #ffe6f1 0%, rgba(var(--konohana-rgb, 241, 158, 194), 1) 45%, #d2649a 100%);
+  box-shadow: 0 0 0.45rem 0.05rem rgba(var(--konohana-rgb, 241, 158, 194), 0.9),
+    0 0 0 0.5px rgba(160, 60, 105, 0.55);
+}
+@keyframes konohana-petal {
+  0% { opacity: 0; transform: translate(var(--start), 0) rotate(0deg) scale(0.6); }
+  18% { opacity: 1; transform: translate(calc(var(--start) * 0.82), var(--sway)) rotate(calc(var(--spin) * 0.3)) scale(1); }
+  100% { opacity: 0; transform: translate(0, calc(var(--sway) * -0.4)) rotate(var(--spin)) scale(0.5); }
+}
+/* 引き寄せ先で花びらが渦を巻く（着地点の目印） */
+.konohana-swirl {
+  position: fixed;
+  width: 3.4rem;
+  height: 3.4rem;
+  margin: -1.7rem 0 0 -1.7rem;
+  border-radius: 50%;
+  z-index: 10439;
+  pointer-events: none;
+  border: 0.12rem solid rgba(var(--konohana-rgb, 241, 158, 194), 0.85);
+  box-shadow: 0 0 0.9rem 0.1rem rgba(var(--konohana-rgb, 241, 158, 194), 0.55),
+    inset 0 0 0.7rem rgba(255, 255, 255, 0.75);
+  animation: konohana-swirl 1000ms 260ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+  opacity: 0;
+}
+@keyframes konohana-swirl {
+  0% { opacity: 0; transform: rotate(0deg) scale(0.35); }
+  35% { opacity: 1; transform: rotate(140deg) scale(1); }
+  100% { opacity: 0; transform: rotate(300deg) scale(1.5); }
+}
+
+/* ===== 盤面・ロックエリアのカードが捨てられる瞬間（main.js spawnBoardCardDiscardBurst）=====
+   手札のカードには前から霧散演出があったが、盤面とロックエリアのカードは音もなく消えていた。
+   白の意思の覚醒のように一度に何枚も捨てられることがあるので、全画面のキャンバスを使う手札側の
+   演出は流用せず、**その場で小さく散る**軽い作りにしてある（1枚あたり DOM 数個）。
+   盤面の3D階層の外（body直下）に置くので、盤面のWebGL描画のON/OFFに左右されない。 */
+.board-discard-ghost {
+  position: fixed;
+  z-index: 10440; /* 盤面より手前・勝利演出(10450)より下 */
+  pointer-events: none;
+  transform-origin: 50% 60%;
+  animation: board-discard-fall 820ms cubic-bezier(0.3, 0, 0.4, 1) forwards;
+}
+.board-discard-face {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  border-radius: 0.18rem;
+  box-shadow: 0 0 0.5rem 0.05rem rgba(var(--discard-rgb, 226, 232, 240), 0.55);
+}
+/* 火（ワイナウエア）は下から炙られたように、光（白の意思）は白く飛ばす。 */
+.board-discard-ghost.is-fire .board-discard-face {
+  box-shadow: 0 0 0.7rem 0.1rem rgba(255, 96, 48, 0.8), inset 0 -0.5rem 0.7rem rgba(255, 60, 0, 0.6);
+}
+.board-discard-ghost.is-light .board-discard-face {
+  box-shadow: 0 0 1rem 0.22rem rgba(255, 255, 255, 0.95);
+}
+@keyframes board-discard-fall {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); filter: brightness(1); }
+  22% { opacity: 1; transform: translate(0, -6%) rotate(-3deg) scale(1.05); filter: brightness(1.5); }
+  100% { opacity: 0; transform: translate(0, 26%) rotate(9deg) scale(0.72); filter: brightness(0.7); }
+}
+/* 散る火の粉。--ex/--ey は JS が1粒ずつ向きを決める。 */
+.board-discard-ember {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.22rem;
+  height: 0.22rem;
+  margin: -0.11rem 0 0 -0.11rem;
+  border-radius: 50%;
+  opacity: 0;
+  background: rgba(var(--discard-rgb, 226, 232, 240), 0.95);
+  box-shadow: 0 0 0.35rem 0.06rem rgba(var(--discard-rgb, 226, 232, 240), 0.8);
+  animation: board-discard-ember 640ms ease-out forwards;
+}
+@keyframes board-discard-ember {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.5); }
+  25% { opacity: 1; transform: translate(calc(var(--ex) * 0.4), calc(var(--ey) * 0.4)) scale(1); }
+  100% { opacity: 0; transform: translate(var(--ex), var(--ey)) scale(0.3); }
+}
+
 .lock-converge {
   position: absolute;
   left: 50%;

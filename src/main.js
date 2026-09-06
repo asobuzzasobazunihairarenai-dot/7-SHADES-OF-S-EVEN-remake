@@ -1712,6 +1712,18 @@ async function moveAndSyncForEffect(tokenId, location, soundName, suppressArriva
     !animOpts?.skipPieceMove
   ) {
     const dist = Math.abs(location.row - fromLocation.row) + Math.abs(location.col - fromLocation.col);
+    // 【演出・2026-09-06】結ばれの一本桜 コノハナサクヤ（相手を自分の周囲へ引き寄せる）。
+    // マスチェンジには駒と駒をつなぐ電撃のアークがあるのに、こちらは説明モーダルが出るだけだった。
+    // 桜のカードなので電撃は流用せず、**花びらが舞って手繰り寄せる**形にする。移動そのものは
+    // この後の跳ねる演出が担うので、ここでは「引き寄せる糸」だけを先に見せて重ならないようにする。
+    if (currentEffectCardIdForReason === "eternal-pink") {
+      // 追色コストで捨てた札の霧散演出が、まだ画面の真ん中を覆っていることがある（実測で
+      // 桜がその裏に隠れていた。あちらは全画面のキャンバスで、投げっぱなしで再生される）。
+      // 終わるのを少しだけ待ってから出す。上限は必ず置く——待ち続けて効果が止まる方が実害が大きい。
+      await waitForCardDissolveToClear(1800);
+      playKonohanaPull(fromLocation, location);
+      await new Promise((r) => setTimeout(r, KONOHANA_PULL_LEAD_MS));
+    }
     // 演出は「移動後の駒のDOM位置」を着地点として測るので、先に描き直しておく
     // （この関数は dispatch しても自動では render しない＝performPhaseMoveToCell と同じ作法）。
     render();
@@ -2683,6 +2695,75 @@ function playStealBeam(fromSeat, toSeat) {
   if (color && color !== "rainbow") beam.style.setProperty("--steal-beam-color", `var(--color-${color})`);
   document.body.appendChild(beam);
   setTimeout(() => beam.remove(), 900);
+}
+
+// --- コノハナサクヤ「手繰り寄せる」桜の演出 ------------------------------------------
+// 引き寄せ先（発動者の隣）から相手の駒へ桜の花びらが伸び、巻き取るように戻っていく。
+// 花びらが着いた頃に駒が動き出す（呼び出し側が KONOHANA_PULL_LEAD_MS だけ待つ）ので、
+// 「引き寄せられて動いた」という順番に見える。
+const KONOHANA_PULL_LEAD_MS = 420;
+async function waitForCardDissolveToClear(maxMs) {
+  const until = Date.now() + maxMs;
+  while (isCardDissolvePlaying() && Date.now() < until) {
+    await new Promise((r) => setTimeout(r, 80));
+  }
+}
+const KONOHANA_PETALS = 9;
+function cellCenterLocal(location) {
+  if (!location || location.zone !== "cell") return null;
+  const el = document
+    .getElementById("game-table")
+    ?.querySelector(".cell[data-row='" + location.row + "'][data-col='" + location.col + "']");
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  if (r.width < 2) return null;
+  return stageClientToLocal(r.left + r.width / 2, r.top + r.height / 2);
+}
+function playKonohanaPull(fromLocation, toLocation) {
+  if (isArrivalEffectDisabled() || isFlightAnimationDisabled()) return;
+  // 実画面座標のままだとステージ変形が二重にかかる（#197/#198の教訓）。必ずローカルへ直す。
+  const target = cellCenterLocal(fromLocation); // 引き寄せられる側（相手の駒）
+  const anchor = cellCenterLocal(toLocation); // 引き寄せ先（発動者の隣）
+  if (!target || !anchor) return;
+  const dx = target.x - anchor.x;
+  const dy = target.y - anchor.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 8) return;
+  const deg = (Math.atan2(dy, dx) * 180) / Math.PI;
+  const layer = document.createElement("div");
+  layer.className = "konohana-pull";
+  layer.style.left = anchor.x + "px";
+  layer.style.top = anchor.y + "px";
+  layer.style.width = len + "px";
+  layer.style.transform = "rotate(" + deg + "deg)";
+  // 引き寄せの筋（発動者側へ巻き取られていく）
+  const thread = document.createElement("div");
+  thread.className = "konohana-thread";
+  layer.appendChild(thread);
+  // 花びら。相手の駒の側（＝筋の先端）から発動者の側へ順に流れてくる。
+  for (let i = 0; i < KONOHANA_PETALS; i++) {
+    const p = document.createElement("div");
+    p.className = "konohana-petal";
+    p.style.setProperty("--start", (100 - (i / KONOHANA_PETALS) * 14) + "%");
+    p.style.setProperty("--sway", ((i % 2 ? 1 : -1) * (7 + (i % 3) * 5)) + "px");
+    p.style.setProperty("--spin", ((i % 2 ? 1 : -1) * (180 + i * 40)) + "deg");
+    // 花びらは筋と一緒に回転してしまうと横倒しになるので、傾きを打ち消す入れ子にする。
+    const inner = document.createElement("div");
+    inner.className = "konohana-petal-inner";
+    inner.style.transform = "rotate(" + -deg + "deg)";
+    p.appendChild(inner);
+    p.style.animationDelay = (i * 34) + "ms";
+    layer.appendChild(p);
+  }
+  document.body.appendChild(layer);
+  // 引き寄せ先で花びらが渦を巻く（着地点の目印にもなる）
+  const swirl = document.createElement("div");
+  swirl.className = "konohana-swirl";
+  swirl.style.left = anchor.x + "px";
+  swirl.style.top = anchor.y + "px";
+  document.body.appendChild(swirl);
+  try { playSound("swap"); } catch (e) {}
+  setTimeout(() => { layer.remove(); swirl.remove(); }, 1500);
 }
 
 // options.actingSeat: この儀式で「選ぶ人」＝奪う側の席（#280。詳しくは単発版のコメント）。
@@ -4836,6 +4917,128 @@ function maybeAnnounceDeckRefill() {
   // 2枚以上を条件にするのは、1枚だけの捨て場が普通に引かれた場合と紛らわしいため。
   if (!(prev.discard >= 2 && discard === 0 && deck > prev.deck)) return;
   void playDeckRefillEffect();
+}
+
+// --- 盤面・ロックエリアのカードが捨てられる瞬間 ------------------------------------
+// 【なぜ必要だったか】カードが消える演出（playHandCardBurn → playCardDissolve）は
+// **手札と手札公開エリアのカードにしか出していなかった**（あの関数は zone が hand /
+// publicDraw でなければ即 return する）。そのため
+//   ・紅蓮の火山 ワイナウエア（マス1つのカードを全部捨てる）
+//   ・白の意思の覚醒（場の表向きのカードを一斉に捨てる）
+//   ・ロックエリアから1枚捨てる（＝そろえた色が1つ減る）
+// といった見せ場が、どれも「カードが音もなくパッと消える」だけだった。
+//
+// 【見つけ方】呼び出し口を1つずつ追いかけると必ず取りこぼすので、**「盤面／ロックエリアに
+// あったカードが、捨て場へ積まれた」という事実**を render() の先頭で拾う（山札の作り直し
+// ＝maybeAnnounceDeckRefill と同じ考え方）。こうすればカード効果でも手動のドラッグでも、
+// ローカルでもオンライン（サーバーから届く差分）でも、この1か所で全部かかる。
+//
+// 【誤爆しない作り】「捨て場が実際に増えた分」とだけ突き合わせる。盤面のリセットや
+// セットアップの配り直しはカードが**山札**へ戻るので捨て場は増えず、ここには入らない。
+// 手札へ拾われた場合はトークンが残るので、それも除外する。
+let prevBoardCardSnapshot = null;
+function maybeAnnounceBoardCardDiscard() {
+  const st = getState();
+  const onBoard = new Map(); // 盤面／ロックにあるカード
+  const alive = new Set();
+  for (const t of st.tokens) {
+    alive.add(t.id);
+    if (t.kind !== "card" || !t.cardId) continue;
+    const z = t.location?.zone;
+    if (z === "cell" || z === "lock") onBoard.set(t.id, { cardId: t.cardId, zone: z });
+  }
+  const discard = st.piles?.discard ?? [];
+  const prev = prevBoardCardSnapshot;
+  prevBoardCardSnapshot = { onBoard, discardLen: discard.length };
+  if (!prev) return; // 起動直後の1回目は比較対象が無い
+  if (discard.length <= prev.discardLen) return; // 捨て場が増えていない＝捨てられていない
+  // 今回新しく積まれた分（末尾が一番上）。この中に居たものだけを「捨てられた」とみなす。
+  const pool = new Map();
+  for (const cardId of discard.slice(prev.discardLen)) pool.set(cardId, (pool.get(cardId) ?? 0) + 1);
+  const victims = [];
+  for (const [id, info] of prev.onBoard) {
+    if (alive.has(id)) continue; // トークンが残っている＝手札へ拾われた／別のマスへ動いた
+    const n = pool.get(info.cardId) ?? 0;
+    if (n <= 0) continue; // 捨て場ではなく山札へ戻った等
+    pool.set(info.cardId, n - 1);
+    victims.push({ id, cardId: info.cardId, zone: info.zone });
+  }
+  if (victims.length) spawnBoardCardDiscardBurst(victims);
+}
+
+// 何によって捨てられたかで色を変える（今まさに処理中の効果カードから判断する）。
+// ワイナウエア＝紅蓮の火山なので赤い熱、白の意思の覚醒＝白い光。それ以外はそのカード自身の色。
+function discardBurstToneFor(victim) {
+  const cause = currentEffectCardIdForReason;
+  if (cause === "eternal-red") return { rgb: "255, 96, 48", kind: "fire" };
+  if (cause === "white-awakening") return { rgb: "255, 255, 255", kind: "light" };
+  if (victim.zone === "lock") return { rgb: colorRgbForCard(victim.cardId), kind: "lock" };
+  return { rgb: colorRgbForCard(victim.cardId), kind: "ash" };
+}
+
+// カードの色を "r, g, b" で返す（--color-* の実際の値を読む＝配色を二重に書かない）。
+function colorRgbForCard(cardId) {
+  const color = getCardDefinition(cardId)?.color;
+  const fallback = "226, 232, 240";
+  if (!color) return fallback;
+  const hex = getComputedStyle(document.documentElement).getPropertyValue(`--color-${color}`).trim();
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!m) return fallback;
+  return `${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)}`;
+}
+
+const BOARD_DISCARD_MS = 820;
+function spawnBoardCardDiscardBurst(victims) {
+  if (isArrivalEffectDisabled()) return;
+  // 白の意思の覚醒は場のカードを一斉に捨てるので枚数が多くなる。1枚ずつ全画面のキャンバスを
+  // 使う手札の霧散演出（playCardDissolve）をここで流用すると端末が持たないので、**その場に
+  // 小さく散る**軽い作りにしてある（1枚あたり DOM 数個）。順に少しずつ遅らせて波にする。
+  const list = victims.slice(0, 30);
+  let shown = 0;
+  for (let i = 0; i < list.length; i++) {
+    const v = list[i];
+    const rect = cardElRectForToken(v.id); // この時点の DOM はまだ前回の描画＝消える前の位置
+    if (!rect || rect.width < 2) continue;
+    const s = toStageLocalRect(rect);
+    const w = s.right - s.left;
+    const h = s.bottom - s.top;
+    const tone = discardBurstToneFor(v);
+    const delay = Math.min(360, shown * 55); // 一斉に消さず、端から順に散らす
+    shown++;
+    const ghost = document.createElement("div");
+    ghost.className = `board-discard-ghost is-${tone.kind}`;
+    ghost.style.left = `${s.left}px`;
+    ghost.style.top = `${s.top}px`;
+    ghost.style.width = `${w}px`;
+    ghost.style.height = `${h}px`;
+    ghost.style.setProperty("--discard-rgb", tone.rgb);
+    ghost.style.animationDelay = `${delay}ms`;
+    const face = document.createElement("div");
+    face.className = "board-discard-face";
+    face.style.backgroundImage = `url("${getBoardCardImagePath(v.cardId)}")`;
+    ghost.appendChild(face);
+    // 火の粉（枚数が多い時は減らす）
+    const sparks = list.length > 8 ? 3 : 6;
+    for (let k = 0; k < sparks; k++) {
+      const sp = document.createElement("div");
+      sp.className = "board-discard-ember";
+      const ang = (k / sparks) * Math.PI * 2 + Math.random() * 0.8;
+      const dist = 26 + Math.random() * 26;
+      sp.style.setProperty("--ex", `${Math.cos(ang) * dist}px`);
+      sp.style.setProperty("--ey", `${Math.sin(ang) * dist - 14}px`);
+      sp.style.animationDelay = `${delay + 40 + k * 18}ms`;
+      ghost.appendChild(sp);
+    }
+    document.body.appendChild(ghost);
+    setTimeout(() => ghost.remove(), BOARD_DISCARD_MS + delay + 200);
+  }
+  if (!shown) return;
+  // 専用の音源は持たない。紙が翻る音を1回だけ鳴らし、まとめて捨てられた時だけ
+  // 合成音の重い一撃を添える（枚数ぶん鳴らすと耳が痛いので必ず1回だけ）。
+  try {
+    playSound("cardFlip");
+    if (shown >= 4) playPulseThump(0.75);
+  } catch (e) {}
 }
 
 const DECK_REFILL_MS = 780;
@@ -9968,6 +10171,9 @@ function render() {
   // 【演出②】山札切れ→捨て場を裏返して新しい山札にした瞬間を拾う（この時点の DOM はまだ
   // 前回の状態＝捨て場に山が積まれているので、そこから位置と絵を測れる）。
   maybeAnnounceDeckRefill();
+  // 【演出・2026-09-06】盤面／ロックエリアのカードが捨てられた瞬間を拾う（同上の理由で
+  // この位置＝DOM がまだ前回の状態のうちに測る）。
+  maybeAnnounceBoardCardDiscard();
   maybeClearTurnEventStock();
   updateSpectatorBanner();
   // オンライン対戦（第一弾）ではまだサーバー側にポートしていないアクション（セットアップ

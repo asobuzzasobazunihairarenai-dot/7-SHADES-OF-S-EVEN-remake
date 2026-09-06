@@ -14,6 +14,17 @@ export const CHANGELOG = [
   {
     date: "2026-09-06",
     items: [
+      "盤面やロックエリアのカードが捨てられる時に、散って消える演出を追加しました。紅蓮の火山は赤い熱、白の意思の覚醒は白い光、ロックエリアはその色の光が砕けます。",
+      "結ばれの一本桜 コノハナサクヤで相手を引き寄せる時に、桜の花びらが舞う演出を追加しました。",
+    ],
+    itemsEn: [
+      "Cards discarded from the board or a lock area now scatter as they vanish — red heat for the crimson volcano, white light for the awakening of the white will, and the slot's own colour shattering in a lock area.",
+      "Drawing an opponent in with the Bound Cherry Tree now sends cherry blossom petals streaming across the board.",
+    ],
+  },
+  {
+    date: "2026-09-06",
+    items: [
       "勝利演出とそのあとの画面が重くなっていたのを直しました。7色が集まる演出から結果表示まで、動きがなめらかになります。",
     ],
     itemsEn: [
