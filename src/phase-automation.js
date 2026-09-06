@@ -291,7 +291,13 @@ export function hasPlacedNewLockThisPhase(player) {
 export function isMovePhaseActive() {
   return currentPhase === "move" && !moveActionTaken;
 }
-export function markPhaseMoveActionTaken() {
+// 【#292 の調査用・2026-09-06】「ムーブフェイズが飛ばされた」＝ムーブフェイズに入った瞬間に
+// 既に『もう動いた』印が立っていた、という形の報告が出ている。印を立てる経路は6つあり
+// （タップ移動・ドラッグ移動・接触の成立・持ち時間切れの自動移動・救済のターン終了・
+// 再読み込みからの復元）、ログからはどれが立てたのか分からなかった。どの経路が・どの
+// フェイズで立てたのかを残して、次の報告で推測せずに切り分けられるようにする。
+export function markPhaseMoveActionTaken(reason = "unknown") {
+  logAction("diag-move-action-taken", { reason, phase: currentPhase, owner: phaseOwner, already: moveActionTaken });
   moveActionTaken = true;
   clearMovableHighlights();
   // #167: 「このターンはもう動いた」ことも残す（更新して戻ってきても再度動けないように）。
@@ -1233,7 +1239,7 @@ export function reconcilePhaseAutomation() {
     const restored = restorableTurnPhase(player);
     if (restored) {
       enterPhase(restored.phase, player);
-      if (restored.phase === "move" && restored.moveActionTaken) markPhaseMoveActionTaken();
+      if (restored.phase === "move" && restored.moveActionTaken) markPhaseMoveActionTaken("restore");
       return;
     }
     enterPhase("lock", player);
@@ -1421,7 +1427,7 @@ export async function runMoveFallbackNow(player) {
   });
   // ありえないはずの状態。対局が完全に止まるのが一番まずいので、ここだけは
   // カードを置かずにターンを終える（ルールではなく、詰み回避の最後の手段）。
-  markPhaseMoveActionTaken();
+  markPhaseMoveActionTaken("fallback-no-empty-cell");
   await performMoveFallbackAndEndTurn(player, null);
   return "no-empty-cell";
 }
@@ -1430,7 +1436,7 @@ export async function runMoveFallbackNow(player) {
 // これはルールの追加ではなく、本来この後すぐ起きるはずのターン終了を、取りこぼした時に
 // 代わりに行うもの。
 export function endTurnAlreadyActed(player) {
-  markPhaseMoveActionTaken();
+  markPhaseMoveActionTaken("already-acted");
   return performMoveFallbackAndEndTurn(player, null);
 }
 

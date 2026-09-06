@@ -241,7 +241,12 @@ function ensureUi() {
 // ブロッキング説明を表示。body は段落の配列（文字列 / {text,note} / {image}）。
 // position: "center" | "left"（省略時 "left"）。icon: タイトル横の小アイコン。
 // showBack/onBack: 「戻る」ボタンの表示と押下時コールバック。
-export function showBlockingHint({ title, body = [], buttonLabel = null, onNext, position = "left", icon = null } = {}) {
+// 【#290・2026-09-06】showBack / onBack が引数から消えていた（UI英語化フェーズ13 b6b14d6 の
+// 一括置換がこの1行を丸ごと差し替えた際に落ちた）。本体は今も showBack を読むので、
+// この関数は**呼ばれるたび ReferenceError で落ち**、下の scrimEl / calloutEl を表示する行まで
+// 到達しない＝物語チュートリアルの説明モーダルが一度も出ない状態だった（実機のコンソールに
+// 「Can't find variable: showBack」が連続で出ていた）。続き411とまったく同じ形の事故。
+export function showBlockingHint({ title, body = [], buttonLabel = null, onNext, position = "left", icon = null, showBack = false, onBack = null } = {}) {
   ensureUi();
   hideTip();
   calloutTitleEl.innerHTML = "";

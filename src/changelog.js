@@ -14,6 +14,17 @@ export const CHANGELOG = [
   {
     date: "2026-09-06",
     items: [
+      "物語チュートリアルの説明が一切出ず、左上のボタンも効かなくなっていたのを直しました。",
+      "到達が続けて起きた時の「N 連鎖」の数え方が1つずれていたのを直しました。移動して最初に乗ったカードがいきなり「2 連鎖」と出て、その次も同じ数字のままでした。",
+    ],
+    itemsEn: [
+      "Fixed the story tutorial showing no instructions at all, which also left the buttons in the top-left unresponsive.",
+      "Fixed the chain counter being off by one. The first card you landed on after moving was labelled \"2 CHAIN\", and the next one kept the same number.",
+    ],
+  },
+  {
+    date: "2026-09-06",
+    items: [
       "試練の儀式などで踏んだカードが、画面中央の演出で開くのと同じ瞬間に盤面でもめくれるようにしました（中央で中身が分かった後にもう一度盤面がめくれ、二度めくれたように見えていました）。",
       "ボタンやカードを続けて押した時に、同じ行動が二重に通ってしまう場面をまとめて塞ぎました（ロック・接触の申し込み・最後のロックの承認・カウンターロックの使用・ドラッグでの1手）。",
       "オンラインで、自分の操作が一瞬だけ「相手の操作」として古い演出で再生されることがあったのを、移動以外の場面（カードを置く・めくる・捨てる・奪う など）でも起きないようにしました。",

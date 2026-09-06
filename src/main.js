@@ -1513,12 +1513,18 @@ function spawnArrivalBurst__inner(hostEl, color) {
   // 【ユーザー選択2026-09-05・③】「移動での連鎖」と「めくれての連鎖」で文字を分ける
   //（「一旦『2 連鎖』と『2 コンボ』で！」）。上のカードが取り除かれて下のカードが露出し、
   // 駒がその場にいたことで起きた到達＝コンボ。駒が動いて次のカードに乗った到達＝連鎖。
-  if (arrivalEffectProcessingDepth >= 2) {
+  // 【#293・2026-09-06】数える深さは「本物の到達の入れ子」だけ。移動〜到達の空白を埋める
+  // ガード（beginPostMoveArrivalGuard）が同じカウンタを+1していたため、**移動して最初に
+  // 到達したカードがいきなり「2 連鎖」**になり、その次の到達も 2 のままで「1つ増えていない」
+  // ように見えていた（ユーザー報告「ジャンプ台に到達は1連鎖のはず。ゴメンナサイ移動が
+  // 連鎖にカウントされていない」）。ガードの分を引いて数える。
+  const chainDepth = arrivalChainDepth();
+  if (chainDepth >= 2) {
     burst.classList.add("is-chained");
     const chain = document.createElement("div");
     chain.className = arrivalIsExposureNow ? "arrival-chain-badge is-combo" : "arrival-chain-badge";
-    chain.style.setProperty("--arrival-chain-level", String(Math.min(6, arrivalEffectProcessingDepth)));
-    chain.textContent = `${arrivalEffectProcessingDepth} ${t(arrivalIsExposureNow ? "game.combo" : "game.chain")}`;
+    chain.style.setProperty("--arrival-chain-level", String(Math.min(6, chainDepth)));
+    chain.textContent = `${chainDepth} ${t(arrivalIsExposureNow ? "game.combo" : "game.chain")}`;
     burst.appendChild(chain);
   }
 
@@ -4234,7 +4240,7 @@ document.addEventListener(
                 if (!(await confirmCellChoice(cellEl, t("game.cellConfirm.moveHint")))) return;
                 // 確認中に状況が変わっている可能性があるので、まだ移動できるかを見直す。
                 if (!isMovePhaseActive()) return;
-                markPhaseMoveActionTaken();
+                markPhaseMoveActionTaken("tap-move");
                 performPhaseMoveToCell(location);
               })();
             } else {
@@ -5195,7 +5201,7 @@ export function performPriorityTimeoutAutoAction() {
       const location = { zone: "cell", row: Number(chosen.el.dataset.row), col: Number(chosen.el.dataset.col) };
       // 接触は成立時（submitContactProposal内）まで行動済みにしない。移動はここで確定。
       if (chosen.isMove) {
-        markPhaseMoveActionTaken();
+        markPhaseMoveActionTaken("auto-move");
         performPhaseMoveToCell(location, driveSeat);
       } else performPhaseContact(location, driveSeat);
       return true;
@@ -6908,6 +6914,13 @@ async function runAutoArrivalEffect(cardId, location, player) {
 // 処理していない」と誤判定されてしまう（→自動ターン終了・ゲート侵攻処理が割り込む窓が開く）。
 // 入れ子に強いよう、boolフラグではなく深さカウンタにして「1つでも処理中なら true」とする。
 let arrivalEffectProcessingDepth = 0;
+// 【#293】そのうち「移動〜到達の空白を埋めるためのガード」が占めている分。連鎖の回数を
+// 数える時だけ差し引く（busy 判定は今までどおり合計で見る＝挙動を変えない）。
+let postMoveArrivalGuardDepth = 0;
+// 演出に出す「N 連鎖 / N コンボ」の N。本物の到達の入れ子だけを数える。
+function arrivalChainDepth() {
+  return Math.max(0, arrivalEffectProcessingDepth - postMoveArrivalGuardDepth);
+}
 function isArrivalEffectProcessing() {
   return arrivalEffectProcessingDepth > 0;
 }
@@ -7039,10 +7052,12 @@ function beginPostMoveArrivalGuard() {
   // ここが1回の移動アクションの起点なので、最外周（まだ到達処理が走っていない）の時だけ
   // ループ記録をリセットする。効果内のネスト移動（depth>0）では連鎖内ループ検知のため消さない。
   if (arrivalEffectProcessingDepth === 0) moveChainVisitedCells.clear();
+  postMoveArrivalGuardDepth++; // 【#293】連鎖の回数にはこの分を数えない
   arrivalEffectProcessingDepth++;
 }
 function endPostMoveArrivalGuard() {
   arrivalEffectProcessingDepth = Math.max(0, arrivalEffectProcessingDepth - 1);
+  postMoveArrivalGuardDepth = Math.max(0, postMoveArrivalGuardDepth - 1); // 【#293】
   // ガードを外した時点で本物の到達処理も走っていなければ、その間にためたゲート侵攻を流す
   // （triggerCardArrivalのfinallyと同じ後始末。到達が続く場合はdepth>0のままなので流さない）。
   if (arrivalEffectProcessingDepth === 0) flushPendingGateInvasionEvents();
@@ -7741,7 +7756,7 @@ async function submitContactProposal__inner(attacker, defender) {
     // ため、接触の行動済み化はこの1箇所に集約する（クリック時点で先に消費してしまうと、
     // 確認モーダルをキャンセルした時にmoveActionTaken=trueのまま自動でターンが終わって
     // しまう——ユーザー報告への対応）。
-    markPhaseMoveActionTaken();
+    markPhaseMoveActionTaken("contact");
     render();
     // ユーザー要望（続き76/77）「接触宣言の直後にも割り込みモーダルを出す」。
     fireAnytimeCheckpoint(attacker);
@@ -12926,7 +12941,7 @@ async function onDragEnd(e) {
     // 効果処理後、また移動させられた」の原因。手番プレイヤー自身の駒を移動フェイズ中に
     // ドラッグで動かした時だけ消費する（他座席の駒・移動フェイズ外は対象外）。
     if (kind === "piece" && token && token.player === getState().turnPlayer && isMovePhaseActive()) {
-      markPhaseMoveActionTaken();
+      markPhaseMoveActionTaken("drag-move");
     }
     render();
     // 到達プロンプト/モーダル・ロック演出の位置決めに実際のDOM座標(getBoundingClientRect)を
@@ -15888,6 +15903,22 @@ subscribe(() => {
     // 他人がゲストかどうかは RLS の都合で判定できず、ゲストまで「プレイヤー」という名前で
     // 登録されてしまっていた。自分の分だけ、自分のクライアントが登録する。
     void registerSelfAsStatsPlayer();
+    // 【#291 の調査用・2026-09-06】ユーザー報告「ランク戦でブーストカードが描画されていない」。
+    // 手元（ローカルのブーストON）では正しく描かれ、404も0件だったので、疑うべきは
+    // 「そもそもサーバーがブーストの札を作っていない」か「作っているのに描けていない」かの
+    // どちらか。対局が始まった時点で、ロックエリアにブーストの札（first-blank-*）が何枚
+    // あるかを残しておけば、次の報告でどちらかが確定する（0枚ならサーバー側、あるのに
+    // 見えないなら描画側）。
+    try {
+      const lockCards = getState().tokens.filter((t) => t.kind === "card" && t.location?.zone === "lock");
+      logAction("diag-boost", {
+        boostCards: lockCards.filter((t) => String(t.cardId || "").startsWith("first-blank-")).length,
+        lockCards: lockCards.length,
+        ids: lockCards.map((t) => t.cardId).slice(0, 12),
+      });
+    } catch (e) {
+      /* 診断なので失敗しても対局には影響させない */
+    }
     // マイデッキ戦: 選択オーバーレイが残っていれば閉じる（BOOTSTRAPで盤面が始まったため）。
     if (isDeckSelectOpen()) closeDeckSelect();
     suppressGenericRenderForOnlineStart = true;
