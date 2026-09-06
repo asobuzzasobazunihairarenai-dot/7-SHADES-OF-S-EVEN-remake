@@ -222,12 +222,32 @@ function fireNotification() {
   joinBtn.textContent = t("rn.join");
   joinBtn.addEventListener("click", async () => {
     dismissBanner();
-    // ホーム画面を開く（そこのランク戦タイルから参加）。動的importで静的な循環依存を避ける。
+    // 【#306】「参加するボタン押したけどモーダルが消えただけで何も起きません」。
+    // 以前は**ホーム画面を開くだけ**で、そこからランク戦タイルを押すのは利用者任せだった。
+    // ホームが既に開いていれば見た目に何も起きず、タイトル画面やオープニングが手前にある時は
+    // その裏でホームが開くだけ＝やはり何も起きない。ボタンの文言どおり**ランク戦へ直行**する。
+    // 動的importで静的な循環依存を避ける（ranked-notify.js は online.js に依存しているため）。
     try {
-      const { openHomeScreen } = await import("./home-screen.js");
-      openHomeScreen();
+      if (isOnlineMode()) return; // 既に対局中なら何もしない（バナー側の見張りでも消えるが念のため）
+      // 手前に被さっている画面をどけてから進む（オープニングが出ている間は何も見えないため）。
+      try {
+        const { forceCloseOpeningScreen } = await import("./opening-screen.js");
+        forceCloseOpeningScreen?.();
+      } catch (err) {
+        /* オープニングが無い状態なら何もしなくてよい */
+      }
+      const home = await import("./home-screen.js");
+      home.closeHomeScreen?.();
+      const { startRankedMatchmaking } = await import("./ranked-match.js");
+      await startRankedMatchmaking(() => home.openHomeScreen());
     } catch (err) {
-      console.error("openHomeScreen from ranked-notify failed", err);
+      console.error("ranked matchmaking from notify failed", err);
+      try {
+        const { openHomeScreen } = await import("./home-screen.js");
+        openHomeScreen();
+      } catch (e) {
+        /* ここまで来たら諦める（バナーは既に閉じている） */
+      }
     }
   });
   bannerEl.appendChild(joinBtn);

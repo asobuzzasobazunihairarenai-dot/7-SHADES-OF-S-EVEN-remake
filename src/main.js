@@ -16244,6 +16244,52 @@ subscribe(() => {
         lockCards: lockCards.length,
         ids: lockCards.map((t) => t.cardId).slice(0, 12),
       });
+      // 【#307・ユーザー要望「原因を調査するログを仕込んでください」】
+      // ブーストカードが「盤面に出ているのに絵が出ない」時、どこで落ちているのかを1回だけ記録する。
+      // ・el      … その札のDOM要素があるか（無ければ描画以前の問題＝状態/レイアウト側）
+      // ・img     … その要素に入っている画像の種類（data:image/png… なら今回の対策が効いている版）
+      // ・decoded … その画像をブラウザが実際にデコードできたか（できていなければ画像データ側）
+      // ・quad    … WebGL側に板があるか・見えているか（板が無ければ走査/可視判定側）
+      // 盤面が組み上がってから測るため3秒待つ。診断なので失敗しても対局には影響させない。
+      setTimeout(() => {
+        void (async () => {
+          try {
+            const boosts = getState().tokens.filter((t) => String(t.cardId || "").startsWith("first-blank-"));
+            if (boosts.length === 0) return;
+            let mesh = null;
+            try {
+              mesh = (await import("./board-3d.js")).debugMeshInfo;
+            } catch (err) {
+              /* WebGL描画OFF/起動失敗時は板の情報が取れないだけ */
+            }
+            const rows = [];
+            for (const tk of boosts.slice(0, 6)) {
+              const el = document.querySelector(`.board-card[data-token-id="${tk.id}"]`);
+              const src = el ? (el.style.backgroundImage || "").slice(5, 28) : null;
+              let decoded = "n/a";
+              try {
+                const img = new Image();
+                img.src = getCardImagePath(tk.cardId);
+                await img.decode();
+                decoded = `${img.naturalWidth}x${img.naturalHeight}`;
+              } catch (err) {
+                decoded = "FAIL";
+              }
+              let quad = null;
+              try {
+                const info = el && mesh ? mesh(el) : null;
+                quad = info?.image ? { visible: !!info.image.visible, opacity: info.image.opacity } : null;
+              } catch (err) {
+                /* 板の情報が取れないだけ */
+              }
+              rows.push({ cardId: tk.cardId, el: !!el, img: src, decoded, quad });
+            }
+            logAction("diag-boost-render", { board3d: document.body.classList.contains("board-3d-on"), rows });
+          } catch (err) {
+            /* 診断なので失敗しても対局には影響させない */
+          }
+        })();
+      }, 3000);
     } catch (e) {
       /* 診断なので失敗しても対局には影響させない */
     }

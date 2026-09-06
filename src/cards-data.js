@@ -70,15 +70,76 @@ export const BOOST_BLANK_FIRST_CARDS = Object.keys(BOOST_COLOR_JP).map((color) =
   note: "ブーストモード用の効果なしファーストカード。効果は持たず、他のカードの効果の対象にもならない。",
   isBlankBoost: true,
 }));
-// 仮デザイン: 色のベタ塗り＋白枠＋"BOOST"表記のSVGデータURI（差し替え用の実画像が入るまでの暫定）。
+// 【#291/#296/#307】「スマホ（iPhone）だけブーストカードが描画されない」の対策。
+// ブーストカードは**全カード中でただ1枚だけSVGで描いている**仮デザインで、他は全部 webp/png。
+// 実機のスクリーンショットでは、盤面のカード・ファーストカード・駒はすべて描かれていて
+// **ブーストカードだけが空のスロット**だった＝「SVGだから落ちている」以外に共通点が無い。
+// 盤面はWebGL（three.js）で描いており、**SVG画像をWebGLのテクスチャに載せる経路は iOS Safari で
+// 昔から不安定**（ラスタライズの扱いがブラウザごとに違う）。Playwright の WebKit では再現
+// しなかったが、あれは Windows 上の WebKit で **iOS Safari とは描画の土台が別物**なので、
+// 「WebKitで大丈夫だった」を根拠にしてはいけなかった（続き441の私の誤り）。
+//
+// そこで**SVGをやめ、同じ絵をcanvasに描いてPNGにして返す**。PNGはどの環境でも同じように
+// デコードされ、WebGLのテクスチャにもそのまま載る。見た目は今までと同じ仮デザインのまま。
+// canvasが使えない環境（Node上のテスト等、描画しないので実害は無い）ではSVGの文字列に戻す。
+const boostCardImageCache = new Map(); // "色|言語" → data URI
+function roundRectPath(ctx, x, y, w, h, r) {
+  // ctx.roundRect は比較的新しい（iOS16未満に無い）ので、手で描く。
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
 function blankBoostCardDataUri(color) {
+  const lang = getLang();
+  const key = `${color}|${lang}`;
+  const cached = boostCardImageCache.get(key);
+  if (cached) return cached;
+  const hex = BOOST_COLOR_HEX[color] || "#888888";
+  const noEffect = lang === "en" ? "No effect" : "効果なし";
+  try {
+    if (typeof document === "undefined") throw new Error("no document");
+    const size = 256;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("no 2d context");
+    const k = size / 200; // 元のSVG（200x200）の座標をそのまま使えるようにする倍率
+    ctx.fillStyle = hex;
+    roundRectPath(ctx, 0, 0, size, size, 16 * k);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.65)";
+    ctx.lineWidth = 5 * k;
+    roundRectPath(ctx, 8 * k, 8 * k, 184 * k, 184 * k, 12 * k);
+    ctx.stroke();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `bold ${30 * k}px sans-serif`;
+    ctx.fillText("BOOST", 100 * k, 98 * k);
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.font = `${17 * k}px sans-serif`;
+    ctx.fillText(noEffect, 100 * k, 130 * k);
+    const url = canvas.toDataURL("image/png");
+    boostCardImageCache.set(key, url);
+    return url;
+  } catch (err) {
+    // canvasが使えない環境（テスト等）だけ、従来のSVGへ落とす。
+    return blankBoostCardSvgDataUri(color, noEffect);
+  }
+}
+function blankBoostCardSvgDataUri(color, noEffect) {
   const hex = BOOST_COLOR_HEX[color] || "#888888";
   const svg =
     `<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'>` +
     `<rect width='200' height='200' rx='16' fill='${hex}'/>` +
     `<rect x='8' y='8' width='184' height='184' rx='12' fill='none' stroke='rgba(255,255,255,0.65)' stroke-width='5'/>` +
     `<text x='100' y='98' font-size='30' font-family='sans-serif' font-weight='bold' fill='white' text-anchor='middle'>BOOST</text>` +
-    `<text x='100' y='130' font-size='17' font-family='sans-serif' fill='rgba(255,255,255,0.9)' text-anchor='middle'>${getLang() === "en" ? "No effect" : "効果なし"}</text>` +
+    `<text x='100' y='130' font-size='17' font-family='sans-serif' fill='rgba(255,255,255,0.9)' text-anchor='middle'>${noEffect}</text>` +
     `</svg>`;
   // 【#291/#296】「スマホだけブーストカードが描画されない」への対策。手元では Chromium/WebKit
   // ともPC幅・スマホ幅の4通りで正しく描画され再現できなかったが、この画像データ自体に不備が

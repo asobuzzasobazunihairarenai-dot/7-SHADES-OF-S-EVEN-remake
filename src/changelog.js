@@ -14,6 +14,17 @@ export const CHANGELOG = [
   {
     date: "2026-09-06",
     items: [
+      "スマホでブーストカードの絵が出ないことがあったのを直しました（仮の絵の作り方を変えました）。",
+      "「ランク戦で対戦相手を募集中の人がいます！」の案内で「参加する」を押しても何も起きないことがあったのを直しました。押すとそのまま相手探しが始まります。",
+    ],
+    itemsEn: [
+      "Fixed Boost cards sometimes showing no artwork on phones (their placeholder image is now drawn a different way).",
+      "Fixed the \"Join\" button on the \"Someone is looking for a ranked opponent!\" notice doing nothing. It now takes you straight into matchmaking.",
+    ],
+  },
+  {
+    date: "2026-09-06",
+    items: [
       "マイデッキ戦で、自分の手札の1枚1枚が「自分のマイデッキ」「相手のマイデッキ」「共有の山札」のどれから来た札かを見分けられるようになりました。マイデッキの札はカードの左上の角が折れ、その札の実際の裏面がのぞきます（共有の山札の札には折り目は付きません）。これまでは相手の札にしか印が付いていませんでした。",
     ],
     itemsEn: [
