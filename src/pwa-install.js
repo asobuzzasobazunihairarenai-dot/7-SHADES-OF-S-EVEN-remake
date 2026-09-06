@@ -90,7 +90,7 @@ function refreshBanner() {
 
 // iPhone/iPad 用の手順モーダル（ボタン一つで追加できないため、やり方を案内する）。
 function showIosHowTo() {
-  const backdrop = createBackdrop(() => close(), { dim: true, zIndex: 10450 });
+  const backdrop = createBackdrop(() => close(), { dim: true, blocksGame: false, zIndex: 10450 });
   const modal = document.createElement("div");
   modal.id = "pwa-install-modal";
   const close = () => {

@@ -149,6 +149,8 @@ function sleep(ms) {
 function isBlockingModalVisible() {
   try {
     for (const el of document.querySelectorAll(".so7-modal-backdrop")) {
+      // 対局と無関係のお知らせ（ui-helpers.js の blocksGame:false）は数えない。
+      if (el.classList.contains("so7-modal-nonblocking")) continue;
       if (el.getClientRects().length > 0) return true;
     }
     const hint = document.getElementById("card-effect-picker-hint");
@@ -185,6 +187,7 @@ export function describeCenterBlocker() {
   try {
     const found = [];
     for (const el of document.querySelectorAll(".so7-modal-backdrop")) {
+      if (el.classList.contains("so7-modal-nonblocking")) continue;
       if (el.getClientRects().length === 0) continue;
       // 背景は無名なので、直後の兄弟（＝ダイアログ本体）の素性を添える。
       found.push("backdrop>" + tag(el.nextElementSibling));

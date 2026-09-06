@@ -18,7 +18,7 @@ export function createModalCloseX(onClose) {
 // パネルの外側をクリックした時にも閉じられるようにする、全画面の透明なクリック受け皿。
 // dim:trueにすると背景を薄暗くする（一覧・情報モーダル向け）。省略時は透明のまま
 // （常駐ツールパネル向け。盤面を見ながら調整したいので背景を暗くしたくないケース）。
-export function createBackdrop(onClose, { dim = false, zIndex = 2000 } = {}) {
+export function createBackdrop(onClose, { dim = false, zIndex = 2000, blocksGame = true } = {}) {
   const backdrop = document.createElement("div");
   backdrop.style.cssText = `position: fixed; inset: 0; z-index: ${zIndex};${dim ? " background: rgba(0, 0, 0, 0.6);" : ""}`;
   // #225: 暗くする背景（＝画面を覆って返事を待つモーダル）には目印を付ける。盤面のドラッグ判定
@@ -27,6 +27,13 @@ export function createBackdrop(onClose, { dim = false, zIndex = 2000 } = {}) {
   // タップ→そのカードの手札効果が発動、等）。この目印があれば一律に無視できる。
   // dim:false（管理者モード・セットアップ等の常駐パネル）は盤面操作を妨げたくないので付けない。
   if (dim) backdrop.classList.add("so7-modal-backdrop");
+  // 【続き455】上の目印（盤面のタップを透かさない）とは**別に**、「画面の中央がふさがっている
+  // 間はゲームを進めない」（#266）という仕組みがある。ところがそちらは同じ目印を見ていたため、
+  // **対局とは無関係のお知らせ**（初回の音量設定・デイリーボーナス等、アプリが勝手に出すもの）が
+  // 開いているだけでフェイズが進まなくなっていた（オンラインの自動対戦で実際に停止を掴まえた）。
+  // 対局の流れに属さないモーダルは blocksGame: false を渡すこと——タップの保護は今までどおり効き、
+  // ゲームの進行だけ止めなくなる。
+  if (dim && !blocksGame) backdrop.classList.add("so7-modal-nonblocking");
   backdrop.addEventListener("click", onClose);
   return backdrop;
 }

@@ -42,7 +42,7 @@ export async function maybeShowAnnouncement() {
 
 export function showAnnouncementModal(a) {
   if (document.getElementById("announcement-modal")) return;
-  const backdrop = createBackdrop(() => {}, { dim: true, zIndex: 2700 });
+  const backdrop = createBackdrop(() => {}, { dim: true, blocksGame: false, zIndex: 2700 });
   const modal = document.createElement("div");
   modal.id = "announcement-modal";
 

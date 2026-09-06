@@ -17020,7 +17020,7 @@ function showDailyBonusToast(amount) {
     backdrop.remove();
     modal.remove();
   };
-  const backdrop = createBackdrop(close, { dim: true, zIndex: 10060 });
+  const backdrop = createBackdrop(close, { dim: true, blocksGame: false, zIndex: 10060 });
   const modal = document.createElement("div");
   modal.id = "daily-bonus-modal";
   const title = document.createElement("div");

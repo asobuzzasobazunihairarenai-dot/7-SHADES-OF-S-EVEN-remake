@@ -14,6 +14,15 @@ export const CHANGELOG = [
   {
     date: "2026-09-06",
     items: [
+      "初回の音量設定やデイリーボーナスなど、対局とは関係のないお知らせが開いている間、対局が進まなくなっていたのを直しました。",
+    ],
+    itemsEn: [
+      "Fixed the game halting while an unrelated pop-up was open — the first-run volume prompt or the daily bonus no longer holds up your match.",
+    ],
+  },
+  {
+    date: "2026-09-06",
+    items: [
       "対局が長く止まってしまうことがあったのを直しました。画面の中央に出るお知らせやモーダルが閉じずに残ると、その間ずっと次の手番へ進めなくなっていました。",
     ],
     itemsEn: [
@@ -1053,7 +1062,7 @@ function close() {
 export function openChangelogModal() {
   if (modalEl) return;
   markChangelogRead(); // 開いた時点で既読に（メニューのNEW表示を消す）
-  backdropEl = createBackdrop(close, { dim: true, zIndex: 2400 });
+  backdropEl = createBackdrop(close, { dim: true, blocksGame: false, zIndex: 2400 });
   modalEl = document.createElement("div");
   modalEl.id = "changelog-modal";
 

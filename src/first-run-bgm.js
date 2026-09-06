@@ -69,7 +69,7 @@ export function maybeShowFirstRunBgmModal() {
   markShown(); // 一度出したら（このあと閉じる前にリロードされても）再表示しない
 
   // 背景クリックでは閉じない（「はじめる」ボタンでのみ閉じる）。オープニングより前面。
-  const backdrop = createBackdrop(() => {}, { dim: true, zIndex: 100050 });
+  const backdrop = createBackdrop(() => {}, { dim: true, blocksGame: false, zIndex: 100050 });
   const modal = document.createElement("div");
   modal.id = "first-run-bgm-modal";
 

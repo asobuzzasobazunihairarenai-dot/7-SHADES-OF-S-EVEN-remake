@@ -48,7 +48,7 @@ export function maybeShowTablet2dWarning() {
     modal.remove();
   }
 
-  const backdrop = createBackdrop(dismiss, { dim: true, zIndex: 60000 });
+  const backdrop = createBackdrop(dismiss, { dim: true, blocksGame: false, zIndex: 60000 });
 
   const modal = document.createElement("div");
   modal.style.cssText = `

@@ -41,7 +41,7 @@ export function maybeShowAlphaNotice() {
 export function showAlphaNotice() {
   if (document.getElementById("alpha-notice-modal")) return;
   // 背景は暗くする（読んでほしいお知らせなので、他の操作は一旦止める）。
-  const backdrop = createBackdrop(() => {}, { dim: true, zIndex: 2700 });
+  const backdrop = createBackdrop(() => {}, { dim: true, blocksGame: false, zIndex: 2700 });
   const modal = document.createElement("div");
   modal.id = "alpha-notice-modal";
 
