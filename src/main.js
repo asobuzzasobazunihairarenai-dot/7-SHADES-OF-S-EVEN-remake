@@ -375,7 +375,15 @@ import {
 import { fetchStatsProfile, getTierInfo } from "./stats-profile.js";
 import { setRankRingOrbitContainer, startRankRingOrbit } from "./rank-ring-orbit.js";
 import { generateVictorySummaryCanvas } from "./victory-summary-image.js";
-import { playSound, initGameBgmAutoStart, initSoundUnlock, startHeartbeat, stopHeartbeat } from "./sound.js";
+import {
+  playSound,
+  initGameBgmAutoStart,
+  initSoundUnlock,
+  startHeartbeat,
+  stopHeartbeat,
+  playVictoryChime,
+  playPulseThump,
+} from "./sound.js";
 import { initScreenWakeLock } from "./wake-lock.js";
 import { getCardDefinition, getCardImagePath, getCardBackImagePath, getCardIllustPath } from "./cards-data.js";
 import { getCardName, getCardNote } from "./card-text.js"; // UI英語化フェーズ7: 表示用のカード名（英語版があればそちら）
@@ -5686,7 +5694,12 @@ document.addEventListener(
   (e) => {
     if (!isCpuBattleActive() || isOnlineMode()) return;
     if (!activeEffectPicker) return;
-    const owner = getState().priorityPlayer || getAutoDriveSeat();
+    // 【2026-09-06】「今この選択をしているのは誰か」は、**そのピッカーの持ち主(owner)**を
+    // 最優先で見る（#280 と同じ理由）。優先権から推測すると、ターン終了時のゲート侵攻や、
+    // 接触の解決中（防御側へ優先権を移した後に攻撃側が奪う札を選ぶ）のように**優先権が別の
+    // 席にある場面**で判断を間違える。実測では、接触で人間が奪う札を選ぶ最中に優先権が
+    // CPU側にあるため、この握りつぶしが働いて**カードを1枚も選べなくなっていた**。
+    const owner = activeEffectPicker.owner || getState().priorityPlayer || getAutoDriveSeat();
     if (!isPseudoCpuTarget(owner)) return; // 人間の選択待ちなら邪魔しない
     e.preventDefault();
     e.stopPropagation();
@@ -7591,6 +7604,107 @@ function spawnLockSear(hostEl, color) {
   appendEffectHost(hostEl, el, 700);
 }
 
+// ===== 【演出】黒のカードがロックエリアに置かれた瞬間（ユーザー要望2026-09-06）=============
+// 誘惑の黒の烙印・色落ちキャットは**ロックではなく「置く」**（docs/cards.md「『置く』は
+// 『ロック』していることにはならない」）なので、maybeAnnounceLock は白黒を早期returnして
+// おり、今まで**演出も音も一切出ていなかった**。ルール上の扱いはそのままに、見た目だけ
+// 「呪印が焼き付く」形で分かるようにする（通常のロックの金色の刻印とは別物に見せる）。
+const BLACK_SEAL_MS = 1250;
+function spawnBlackSealEffect(hostEl) {
+  if (isArrivalEffectDisabled()) return;
+  const el = document.createElement("div");
+  el.className = "black-seal";
+  el.appendChild(Object.assign(document.createElement("div"), { className: "black-seal-smoke" }));
+  el.appendChild(Object.assign(document.createElement("div"), { className: "black-seal-ring" }));
+  el.appendChild(Object.assign(document.createElement("div"), { className: "black-seal-ring is-inner" }));
+  el.appendChild(Object.assign(document.createElement("div"), { className: "black-seal-flash" }));
+  appendEffectHost(hostEl, el, BLACK_SEAL_MS);
+  // 中央の「見せるだけ」のお知らせを、この演出が終わるまで待たせる（#265/#266 と同じ扱い）。
+  beginBoardAnimation();
+  setTimeout(endBoardAnimation, BLACK_SEAL_MS);
+  playPulseThump(0.85); // 低く沈む一撃（鼓動と同じ合成音なので素材は要らない）
+  setTimeout(() => {
+    playSound("lock");
+    playPulseThump(1.15);
+  }, 520);
+}
+
+// ===== 【演出】なないろの欠片の2枚ロック（ユーザー要望2026-09-06「壮大な演出でもいいかも」）=
+// LOCK_PAIR は moveAndSync で2枚まとめて動かすため maybeAnnounceLock を通らず、こちらも
+// **今まで演出が無かった**。7色のカードが1つのスロットに2枚重なる、このゲームで一番派手な
+// ロックなので、スロットの中だけでなく画面全体に七色の光を走らせる。
+const RAINBOW_LOCK_MS = 1800;
+function spawnRainbowLockEffect(hostEl) {
+  if (isArrivalEffectDisabled()) return;
+  // 既にある虹色の柱（到達演出の .is-rainbow）をそのまま土台に使う。
+  spawnArrivalBurst(hostEl, "rainbow");
+  const el = document.createElement("div");
+  el.className = "rainbow-lock";
+  el.appendChild(Object.assign(document.createElement("div"), { className: "rainbow-lock-rays" }));
+  el.appendChild(Object.assign(document.createElement("div"), { className: "rainbow-lock-ring" }));
+  el.appendChild(Object.assign(document.createElement("div"), { className: "rainbow-lock-ring is-2" }));
+  el.appendChild(Object.assign(document.createElement("div"), { className: "rainbow-lock-ring is-3" }));
+  el.appendChild(Object.assign(document.createElement("div"), { className: "rainbow-lock-flash" }));
+  appendEffectHost(hostEl, el, RAINBOW_LOCK_MS);
+  // 画面全体の七色の帯は、盤面の3D階層の外（turn-announce.js の光の帯と同じ作り）。
+  const sweep = document.createElement("div");
+  sweep.className = "rainbow-lock-sweep";
+  document.body.appendChild(sweep);
+  setTimeout(() => sweep.remove(), RAINBOW_LOCK_MS);
+  beginBoardAnimation();
+  setTimeout(endBoardAnimation, RAINBOW_LOCK_MS);
+  // 七色ぶん、音が上がっていく（勝利演出と同じ合成音を流用）。
+  for (let i = 0; i < 7; i++) setTimeout(() => playVictoryChime(i), i * 95);
+  setTimeout(() => playSound("lock"), 720);
+}
+
+// 上の2つを「どの経路から置かれても」拾うための見張り。render() の末尾（実物のDOMが
+// 出来上がった後）から呼ぶ。特定の呼び出し口に演出を足すのではなく**事実**を見る形にして
+// あるのは、この2つがどちらも通常のロック経路（maybeAnnounceLock）を通らず、しかも
+// ローカル／オンライン（サーバーから届く差分）の両方で起こるため（山札の作り直しの演出＝
+// maybeAnnounceDeckRefill と同じ考え方）。
+let prevLockPlacements = null;
+function maybeAnnounceSpecialLockPlacement() {
+  const tokensById = new Map();
+  const now = new Map();
+  for (const t of getState().tokens) {
+    if (t.kind !== "card") continue;
+    tokensById.set(t.id, t);
+    if (t.location.zone !== "lock") continue;
+    now.set(t.id, `${t.location.side}:${t.location.index}`);
+  }
+  const prev = prevLockPlacements;
+  prevLockPlacements = now;
+  if (!prev) return; // 起動直後の1回目は比較対象が無い
+  if (isArrivalEffectDisabled()) return;
+  const table = document.getElementById("game-table");
+  if (!table) return;
+  const appeared = [...now].filter(([id, slot]) => prev.get(id) !== slot);
+  // まとめて入れ替わった時（対局のセットアップ、オンラインで途中参加した時の初回同期、
+  // ゲームのリセット）は演出を出さない——「今まさに置かれた」わけではないため。
+  // 実際の配置は1枚（黒）か2枚（なないろの欠片）なので、3枚以上なら一括入れ替えとみなす。
+  if (appeared.length === 0 || appeared.length >= 3) return;
+  const fired = new Set();
+  for (const [id, slot] of appeared) {
+    if (fired.has(slot)) continue;
+    const token = tokensById.get(id);
+    const def = token ? getCardDefinition(token.cardId) : null;
+    if (!def) continue;
+    const hostEl = findLocationElement(table, token.location);
+    if (!hostEl) continue;
+    if (def.color === "black") {
+      fired.add(slot);
+      spawnBlackSealEffect(hostEl);
+    } else if (token.cardId === "rainbow-shard") {
+      // 2枚そろって初めて「2枚ロック」。1枚目が置かれた瞬間には出さない。
+      const pair = [...now].filter(([oid, oslot]) => oslot === slot && tokensById.get(oid)?.cardId === "rainbow-shard");
+      if (pair.length < 2) continue;
+      fired.add(slot);
+      spawnRainbowLockEffect(hostEl);
+    }
+  }
+}
+
 // カードが新しくロックされた瞬間の演出。到達演出と同じ柱状のオーラ＋到達効果音をそのマスに
 // 流用し、そのオーラがほぼ収まってから（重ねず順番に）ロック画像がカードより大きく拡大
 // しながらフェードアウトする演出とロック効果音を続けて行う（ユーザー指定の順序）。
@@ -8830,6 +8944,13 @@ async function respondToContactInner(approve) {
   const pendingBefore = getState().pendingContact;
   if (!pendingBefore) return;
   const { attacker, defender } = pendingBefore;
+  // 承認/拒否が決まった時点で、承認モーダルは役目を終えている。人がボタンを押した時は
+  // contact-approval.js 側で即座に隠しているが、**CPU（疑似CPU/AFK代行）が決めた時は
+  // 隠されない**ため、pendingContact が消える（respondContact）までずっと画面中央に
+  // 出たままだった。これは z-index 10631 ＝ 奪う札を選ぶ儀式モーダル（10621）より手前
+  // なので、その上に重なって**カードが選べない**（実測: カードの中心にいる要素が承認
+  // モーダルの本文だった）。タックル演出の邪魔にもなるので、ここで必ず隠す。
+  hideContactApprovalModalImmediately();
   // ユーザー要望2026-08-28「『奪った』モーダルは接触演出の直後に」。ローカルの奪取儀式で
   // 選んだ後、中央の「奪った」表示関数をここに受け取り、タックル演出が終わってから出す。
   let deferredStealReveal = null;
@@ -8865,8 +8986,17 @@ async function respondToContactInner(approve) {
   // 共有しているため、この往復は不要——そのままattacker視点の案内文でdefenderの
   // 手札を選ばせる（requestOpponentHandRitualPick自体はtargetPlayer＝defenderの
   // 手札を見せるだけで、呼び出し元が誰であるかは問わない）。
+  //
+  // 【ユーザー指示2026-09-06】接触の見せ方の順番を
+  //   ①タックル演出 → ②相手の手札から1枚選ぶ → ③奪ったカードの表示 → ④相手が自ゲートへ
+  // に変えた（以前は②が一番最初で、突進する前に結果だけ先に分かってしまっていた）。
+  // ここでは**選ぶ処理を関数にまとめておくだけ**で、実際に呼ぶのはタックル演出の後（下）。
+  // オンラインでは、attacker側へ「選んでいいよ」を送るのもこの中＝タックルの後になるので、
+  // attackerの画面でも同じ順番（タックル→選ぶ）になる。
   let stolenCardId;
-  if (approve && defenderHandBefore.length > 0) {
+  let stealPickCancelled = false;
+  const runContactStealPick = async () => {
+    if (!approve || defenderHandBefore.length === 0) return;
     if (isOnlineMode()) {
       broadcastContactApproved({ attacker, defender });
       // attacker側がbackdropクリック等でピックをキャンセルした場合はstolenCardId:null
@@ -8894,12 +9024,21 @@ async function respondToContactInner(approve) {
           deferReveal: (fn) => {
             deferredStealReveal = fn;
           },
+          // 【必須・2026-09-06】選ぶのは attacker（相手の裏向きの手札を覗いて選ぶ側）。
+          // 渡さないと「今この選択をしているのは誰か」を**優先権**から推測してしまうが、
+          // 2026-09-06 の順番変更で優先権は既に防御側へ移った後なので、防御側がCPUだと
+          // **人間が選ぶはずの場面をCPUが勝手に無作為で選んで**しまう（実測で発覚）。
+          // #280 で学んだとおり、選ぶ主体は呼び出し側から明示的に渡す。
+          actingSeat: attacker,
         }
       );
-      if (!chosenCard) return;
+      if (!chosenCard) {
+        stealPickCancelled = true;
+        return;
+      }
       stolenCardId = chosenCard.id;
     }
-  }
+  };
 
   // ユーザー報告「接触されてゲートのカードに到達して到達効果処理しないといけないけど、
   // ターンが切り替わっちゃってる」への対応。defenderの強制移動→ゲート到達効果の解決が
@@ -8917,6 +9056,11 @@ async function respondToContactInner(approve) {
   // 優先権を誤って手番プレイヤーへ戻し、余計なNEXT_TURN＝相手ターン飛ばし・優先権表示の
   // 乱れを起こす。#61で入れた保険が誤爆していた）。
   let contactSafetyTimer = null;
+  // 【2026-09-06】保険タイマーは**奪う札を選び終えてから**動かす（armContactSafetyTimer を
+  // 下のタックル→選ぶの後で呼ぶ）。順番を変えて「選ぶ」が優先権の移譲より後に来たため、
+  // 以前のようにここで動かすと、人が選んでいる時間（儀式の演出＋考える時間）まで20秒の
+  // 猶予に含まれてしまい、**まだ解決中なのに保険が誤発火して優先権が戻る**（実測で発生）。
+  let armContactSafetyTimer = () => {};
   if (approve && defenderPieceId) {
     const priorityBeforeTransfer = getState().priorityPlayer;
     logAction("diag-delegate", { phase: "contact-request", defender, turnPlayer: getState().turnPlayer });
@@ -8931,7 +9075,7 @@ async function respondToContactInner(approve) {
     // 到達処理も終わっている」場合だけ手番プレイヤーへ強制返却する（正常時は既に返却済みで
     // 条件に掛からず無害）。この接触解決コードは防御側の端末で走るので isArrivalEffectProcessing()
     // はその端末の実状を正しく見られる。優先権の書き込みはサーバー永続でターンプレイヤーへ伝播する。
-    {
+    armContactSafetyTimer = () => {
       const heldTurnPlayer = getState().turnPlayer;
       contactSafetyTimer = setTimeout(() => {
         contactSafetyTimer = null;
@@ -8943,7 +9087,7 @@ async function respondToContactInner(approve) {
           transferPriorityTo(heldTurnPlayer);
         }
       }, 20000);
-    }
+    };
     // #61診断: 接触解決中の「防御側へ優先権を移してターンを保持する」仕組みが効いたかを記録する。
     // タイマーOFFの対局では state.priorityPlayer が終始 null で、transferPriorityTo() は
     // 早期return（何もしない）。その場合 took:false になり、ターンプレイヤー側の
@@ -9015,7 +9159,50 @@ async function respondToContactInner(approve) {
     // （suppressGenericRenderForOnlineStartと同じパターン）。
     suppressGenericRenderForContactTackle = true;
     await playContactLunge(tackle);
-    logAction("diag-contact-tackle", { phase: "lunge-end-state-move" });
+    logAction("diag-contact-tackle", { phase: "lunge-end" });
+    // 【2026-09-06】ここで**いったん止める**のが要点。この後は「奪う札を選ぶ」という
+    // 人の操作（相手の画面を待つこともある）が挟まるので、その間ずっと盤面の描き直しを
+    // 止めておくと、オンラインで届いた他の変化が画面に出なくなる。突進した駒は
+    // 元の位置へ戻し終えているので、ここで再開しても見た目は崩れない。
+    suppressGenericRenderForContactTackle = false;
+  }
+
+  // ②相手の手札から1枚選ぶ（タックルの後）。
+  await runContactStealPick();
+  if (stealPickCancelled) {
+    // 選ばずに閉じられた＝この接触の解決を取りやめる。上で防御側へ移した優先権と
+    // 保険タイマーをここで元に戻さないと、ターンが進められなくなる。
+    if (contactSafetyTimer) {
+      clearTimeout(contactSafetyTimer);
+      contactSafetyTimer = null;
+    }
+    if (getState().priorityPlayer === defender) transferPriorityTo(getState().turnPlayer);
+    suppressGenericRenderForContactTackle = false;
+    render();
+    return;
+  }
+
+  // ここから先（状態変更→到達効果の解決）が20秒の猶予の対象。
+  armContactSafetyTimer();
+
+  // ③奪ったカードの表示（相手がゲートへ飛ぶ前に見せる。ユーザー指示2026-09-06）。
+  // 【#191】自動ターン終了から見ると“何も起きていない”ように見えるため、開いている間は
+  // 同じカウンタに数えて止める（表示位置を変えてもこの理由は変わらない）。
+  if (deferredStealReveal) {
+    openContactResultModals += 1;
+    try {
+      await deferredStealReveal();
+    } catch (err) {
+      console.error("deferred steal reveal failed", err);
+    } finally {
+      openContactResultModals = Math.max(0, openContactResultModals - 1);
+    }
+  }
+
+  // ④ここから実際に相手を自ゲートへ移す。飛翔の間はまた盤面の描き直しを止める。
+  if (tackle) {
+    suppressGenericRenderForContactTackle = true;
+    logAction("diag-contact-tackle", { phase: "state-move" });
   }
 
   if (isOnlineMode()) {
@@ -9049,26 +9236,6 @@ async function respondToContactInner(approve) {
     playSound("piecePlace");
   }
   render();
-
-  // ユーザー要望2026-08-28「『奪った』モーダルは接触演出の直後に」。タックル演出（lunge→
-  // move→flight）が終わってから、奪ったカードの中央表示を出す（閉じるまで await）。強制移動の
-  // 到達処理（下）はその後に始まるので、到達効果の選択モーダルと重ならない。
-  if (deferredStealReveal) {
-    // 【#191】「接触の演出がすべて終わる前にターンが切り替わってしまっている」への対応。
-    // タックル演出が終わった直後に出すこの「奪った」モーダルは、それ自体は await しているが、
-    // 自動ターン終了(computeShouldEmphasize)の側からは“何も起きていない”ように見えていた
-    // （pendingContact は既に消えており、接触結果モーダルの openContactResultModals にも
-    // 数えられていないため）。実機ログでも演出終了の0.5秒後に NEXT_TURN が走っていた。
-    // 同じカウンタに数えて、閉じるまで自動ターン終了を止める。
-    openContactResultModals += 1;
-    try {
-      await deferredStealReveal();
-    } catch (err) {
-      console.error("deferred steal reveal failed", err);
-    } finally {
-      openContactResultModals = Math.max(0, openContactResultModals - 1);
-    }
-  }
 
   if (approve && defenderPieceId) {
     // 到達プロンプト/モーダルの位置決めに実際のDOM座標(getBoundingClientRect)を使うため、
@@ -9608,10 +9775,11 @@ async function playContactTackleForBystander__inner({ attackerPieceId, defenderP
       attackerFromLocation: attackerToken.location,
       attackerColor,
     });
-    // タックル演出自体（数秒）の間に、実際の状態変更がほぼ確実に届いているはずだが、
-    // 万一まだの場合に備えて少し待つ（最大4秒）。それでも届かなければ諦めて
-    // render()だけで最新状態に追従する。
-    await waitForTokenLocationChange(defenderPieceId, defenderFromLocation, 4000);
+    // タックル演出の後に「奪う札を選ぶ」操作が入る（2026-09-06の順番変更）ので、実際の
+    // 状態変更が届くのは人の操作が終わってから＝数十秒かかることもある。届くまで待って
+    // から飛ばす（待っている間は上のフラグで盤面の描き直しを止めてある）。それでも
+    // 届かなければ諦めて render() だけで最新状態に追従する。
+    await waitForTokenLocationChange(defenderPieceId, defenderFromLocation, 45000);
     await playContactFlight(defenderPieceId, defenderFromRect);
   } finally {
     suppressGenericRenderForContactTackle = false;
@@ -9902,6 +10070,8 @@ function render() {
   // 勝利モーダル・通貨・ランキング等）はスキップする。
   // カードがオープンした分のめくれ演出を回す（実物のDOMが出来上がった後に測るため末尾で）。
   flushPendingCardFlipOpens();
+  // 黒のカードがロックエリアに置かれた／なないろの欠片が2枚そろった瞬間の演出（2026-09-06）。
+  maybeAnnounceSpecialLockPlacement();
   if (!isTutorialBattleActive()) checkForVictory();
   // 更新バナーは対局中は保留。対局終了・ホーム復帰などで状況が変わったここで再評価する。
   reevaluateUpdateBanner();

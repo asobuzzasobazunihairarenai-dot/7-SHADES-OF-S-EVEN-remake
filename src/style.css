@@ -1537,6 +1537,276 @@ body.reduce-glow [style*="rainbow-shard.webp"]::after {
 
 /* 続き218・ロック演出「A：焼き付く刻印」。ロックするスロット(.cell/.lock-slot)に重ねる。
    --crest-color＝カードの色（虹は金）。収束リング→焼き付く閃光＋衝撃波。 */
+/* ===== 黒のカードがロックエリアに置かれた瞬間（ユーザー要望2026-09-06）=====================
+   通常のロック（金色の刻印 .lock-sear）とは別物に見えるよう、暗い紫〜黒で「呪印が焼き付く」
+   形にしてある。真っ黒だと盤面に埋もれるので、ふちは明るい紫で縁取る。 */
+.black-seal {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100%;
+  height: 100%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 32;
+  --seal-color: #a855f7;
+}
+/* 外から染み出してくる暗い霧。 */
+.black-seal-smoke {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 260%;
+  height: 260%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(24, 6, 38, 0.92) 0%, rgba(38, 10, 58, 0.55) 42%, transparent 72%);
+  opacity: 0;
+  animation: black-seal-smoke-kf 1.2s ease-out forwards;
+}
+@keyframes black-seal-smoke-kf {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.35);
+  }
+  35% {
+    opacity: 0.95;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.28);
+  }
+}
+/* 締まっていく封印のリング（2枚を逆向きに回す）。 */
+.black-seal-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 190%;
+  height: 190%;
+  transform: translate(-50%, -50%);
+  border-radius: 22%;
+  border: 0.2rem solid var(--seal-color);
+  box-shadow: 0 0 0.8rem var(--seal-color), inset 0 0 0.7rem rgba(15, 3, 26, 0.9);
+  opacity: 0;
+  animation: black-seal-ring-kf 1.05s cubic-bezier(0.5, 0, 0.75, 0) forwards;
+}
+.black-seal-ring.is-inner {
+  width: 140%;
+  height: 140%;
+  border-width: 0.12rem;
+  animation-duration: 1.2s;
+  animation-direction: reverse;
+}
+@keyframes black-seal-ring-kf {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(2.2) rotate(60deg);
+  }
+  30% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0.15;
+    transform: translate(-50%, -50%) scale(0.8) rotate(0deg);
+  }
+}
+/* 焼き付く瞬間の暗い閃光（明るい白ではなく紫の芯）。 */
+.black-seal-flash {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 210%;
+  height: 210%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, #f5e8ff 0%, var(--seal-color) 26%, rgba(30, 6, 48, 0.85) 55%, transparent 72%);
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: black-seal-flash-kf 0.6s 0.5s ease-out forwards;
+}
+@keyframes black-seal-flash-kf {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+  25% {
+    opacity: 0.95;
+    transform: translate(-50%, -50%) scale(1.02);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.4);
+  }
+}
+
+/* ===== なないろの欠片の2枚ロック（ユーザー要望2026-09-06「壮大な演出でもいいかも」）=======
+   このゲームで一番派手なロックなので、スロットの中（光条＋3重のリング＋白い芯）に加えて
+   画面全体にも七色の帯を走らせる（.rainbow-lock-sweep、body直下＝盤面の3D階層の外）。 */
+.rainbow-lock {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100%;
+  height: 100%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 33;
+}
+/* 回る七色の光条。 */
+.rainbow-lock-rays {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 420%;
+  height: 420%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: repeating-conic-gradient(
+    from 0deg,
+    rgba(199, 0, 37, 0.55) 0deg 8deg,
+    transparent 8deg 22deg,
+    rgba(250, 190, 0, 0.55) 22deg 30deg,
+    transparent 30deg 44deg,
+    rgba(34, 172, 56, 0.55) 44deg 52deg,
+    transparent 52deg 66deg,
+    rgba(27, 184, 206, 0.55) 66deg 74deg,
+    transparent 74deg 88deg,
+    rgba(145, 93, 163, 0.55) 88deg 96deg,
+    transparent 96deg 120deg
+  );
+  mask-image: radial-gradient(circle, transparent 18%, #000 34%, #000 62%, transparent 78%);
+  -webkit-mask-image: radial-gradient(circle, transparent 18%, #000 34%, #000 62%, transparent 78%);
+  opacity: 0;
+  animation: rainbow-lock-rays-kf 1.6s ease-out forwards;
+}
+@keyframes rainbow-lock-rays-kf {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.25) rotate(0deg);
+  }
+  25% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.15) rotate(150deg);
+  }
+}
+/* 外へ広がる七色のリング（3枚を時間差で）。 */
+.rainbow-lock-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 130%;
+  height: 130%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 0.24rem solid transparent;
+  border-image: conic-gradient(
+      #c70025,
+      #ee781f,
+      #fabe00,
+      #22ac38,
+      #1bb8ce,
+      #f19ec2,
+      #915da3,
+      #c70025
+    )
+    1;
+  opacity: 0;
+  animation: rainbow-lock-ring-kf 1.25s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+.rainbow-lock-ring.is-2 {
+  animation-delay: 0.22s;
+}
+.rainbow-lock-ring.is-3 {
+  animation-delay: 0.44s;
+}
+@keyframes rainbow-lock-ring-kf {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.35);
+  }
+  20% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(3.4);
+  }
+}
+/* 中央の白い芯。 */
+.rainbow-lock-flash {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 260%;
+  height: 260%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, rgba(255, 255, 255, 0.85) 18%, transparent 58%);
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: rainbow-lock-flash-kf 0.7s 0.62s ease-out forwards;
+}
+@keyframes rainbow-lock-flash-kf {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+  22% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.6);
+  }
+}
+/* 画面全体を横切る七色の帯（turn-announce.js の光の帯と同じ作り＝body直下・fixed）。 */
+.rainbow-lock-sweep {
+  position: fixed;
+  inset: 0;
+  z-index: 8998;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(199, 0, 37, 0.22) 12%,
+    rgba(250, 190, 0, 0.22) 20%,
+    rgba(34, 172, 56, 0.22) 28%,
+    rgba(27, 184, 206, 0.22) 36%,
+    rgba(145, 93, 163, 0.22) 44%,
+    transparent 58%
+  );
+  background-size: 300% 100%;
+  animation: rainbow-lock-sweep-kf 1.7s cubic-bezier(0.25, 0.8, 0.3, 1) forwards;
+}
+@keyframes rainbow-lock-sweep-kf {
+  0% {
+    opacity: 0;
+    background-position: 100% 50%;
+  }
+  22% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    background-position: 0% 50%;
+  }
+}
+/* 「ずっと光り続ける演出をやめる」設定では、画面全体の帯は出さない（一発の演出だが、
+   眩しさを避けたい人の意図に沿う。スロットの中の演出はそのまま）。 */
+body.reduce-glow .rainbow-lock-sweep {
+  display: none;
+}
+
 .lock-converge {
   position: absolute;
   left: 50%;

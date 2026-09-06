@@ -14,6 +14,21 @@ export const CHANGELOG = [
   {
     date: "2026-09-06",
     items: [
+      "接触の見せ方の順番を変えました。まず突進の演出、次に相手の手札から1枚選び、奪ったカードを見せてから、相手が自分のゲートへ飛ばされます（以前は突進の前に手札を選んでいたので、結果が先に分かってしまっていました）。",
+      "接触でカードを選ぶ時、CPU戦でまれにカードを1枚も選べなくなることがあったのを直しました。",
+      "黒いカードがロックエリアに置かれる時、暗い封印が焼き付く演出を追加しました。",
+      "「なないろの欠片」を2枚まとめてロックした時、七色の光が広がる大きな演出を追加しました。",
+    ],
+    itemsEn: [
+      "Reordered the contact sequence: the charge animation comes first, then you pick a card from the opponent's hand, then the stolen card is revealed, and only then is the opponent sent flying back to their gate (previously the card was picked before the charge, so the outcome was known too early).",
+      "Fixed a case in CPU battles where no card could be picked while resolving a contact.",
+      "Placing a black card on a lock slot now burns a dark seal into it.",
+      "Locking two \"Shards of Seven\" at once now triggers a large seven-color burst.",
+    ],
+  },
+  {
+    date: "2026-09-06",
+    items: [
       "CPUの打ち方を良くしました。同じターンに「ディメンション」を二度使って手札を無駄にすることがなくなりました。",
       "CPUの「ワイナウエア」が、相手が欲しがっている色のカードや、相手が次に進もうとしているマスを狙って壊すようになりました（自分がまだ欲しい色や、自分の進み先は壊しません）。",
       "CPUの「合同建設」などでカードを置く時、ゲートに攻め込めそうで、かつ自分のゲートの近くに相手がいない時は、自分のゲートに置くようになりました（帰還の時に手札へ戻せるため）。",
