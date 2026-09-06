@@ -25,10 +25,10 @@ export const CHANGELOG = [
   {
     date: "2026-09-06",
     items: [
-      "マイデッキ戦で、自分の手札の1枚1枚が「自分のマイデッキ」「相手のマイデッキ」「共有の山札」のどれから来た札かを見分けられるようになりました。マイデッキの札はカードの左上の角が折れ、その札の実際の裏面がのぞきます（共有の山札の札には折り目は付きません）。これまでは相手の札にしか印が付いていませんでした。",
+      "マイデッキ戦で、自分の手札の1枚1枚が「自分のマイデッキ」「相手のマイデッキ」「共有の山札」のどれから来た札かを見分けられるようになりました。マイデッキの札は角が折れ、その札の実際の裏面がのぞきます（共有の山札の札には何も付きません＝角が折れていない札が共有の山札の札です）。これまでは相手の札にしか印が付いていませんでした。",
     ],
     itemsEn: [
-      "In My Deck matches you can now tell, card by card in your own hand, whether it came from your own deck, an opponent's deck, or the shared deck. Cards from a personal deck have a folded top-left corner showing that card's actual back; cards from the shared deck have no crease. Previously only opponents' cards were marked.",
+      "In My Deck matches you can now tell, card by card in your own hand, whether it came from your own deck, an opponent's deck, or the shared deck. Cards from a personal deck have a folded corner showing that card's actual back; cards from the shared deck are left plain — an unfolded corner means it came from the shared deck. Previously only opponents' cards were marked.",
     ],
   },
   {

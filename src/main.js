@@ -707,12 +707,14 @@ function buildMyDeckHandMark(token, origin) {
     }
     return el;
   }
-  // dogear: 左上の角を折ったように見せ、そこに**持ち主の実際の裏面**をのぞかせる
+  // dogear: 角を折ったように見せ、そこに**持ち主の実際の裏面**をのぞかせる
   // （「裏面が見えてればいい」というユーザーの言い方にそのまま応える形）。
+  // 【ユーザー指示2026-09-06・#309】共有の山札の札には**角の折れ自体を出さない**。
+  // 続き444では折り目の線だけを消したが「まだ折れている」との報告だった——折れて見える
+  // 正体は三角に切り抜いた裏面そのものなので、共有の札には印を出さない形にした。
+  // ＝**角が折れていない札＝共有の山札の札**（折れていれば色でどちらのマイデッキか分かる）。
+  if (origin.kind === "shared") return null;
   el.className = "hand-card-mydeck-dogear";
-  // 【ユーザー指示2026-09-06】共有の山札の札には**折り目の線を出さない**。
-  // マイデッキの札（自分・相手）だけが「角が折れている」ことになり、ひと目で区別できる。
-  if (origin.kind === "shared") el.classList.add("is-shared");
   el.style.backgroundImage = `url("${cardBackImageForToken(token)}")`;
   return el;
 }
