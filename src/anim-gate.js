@@ -164,6 +164,42 @@ function isBlockingModalVisible() {
   return false;
 }
 
+// 【続き454】中央をふさいでいるものを**名前で**返す（診断ログ用）。
+// オンライン自動対戦で「フェイズの進行が86秒待たされる」停止を掴まえた時、待っている理由が
+// reason:"modal" としか分からず、どのモーダルが閉じずに残っているのか特定できなかった。
+// 返すのは要素の id / クラス / データ属性だけで、**カード名や伏せ情報は一切含めない**
+// （不具合報告にそのまま載るため）。背景(backdrop)自体は無名なので、その直後の兄弟要素
+// ＝実際のダイアログの id を見に行く。
+export function describeCenterBlocker() {
+  // 注意: この関数はバックスラッシュを使わずに書くこと。ヒアドキュメント経由で書き込むと
+  // 正規表現の記号が静かに落ちる（実際にここで /s+/ になり、クラス名が文字の s で分割されて
+  // 意味不明な文字列を出していた）。空白区切りは split(" ") で十分。
+  const tag = (el) => {
+    if (!el) return "?";
+    const id = el.id ? "#" + el.id : "";
+    const classes = (el.className && typeof el.className === "string")
+      ? el.className.trim().split(" ").filter(Boolean).slice(0, 2).map((c) => "." + c).join("")
+      : "";
+    return (el.tagName || "?").toLowerCase() + id + classes;
+  };
+  try {
+    const found = [];
+    for (const el of document.querySelectorAll(".so7-modal-backdrop")) {
+      if (el.getClientRects().length === 0) continue;
+      // 背景は無名なので、直後の兄弟（＝ダイアログ本体）の素性を添える。
+      found.push("backdrop>" + tag(el.nextElementSibling));
+    }
+    const hint = document.getElementById("card-effect-picker-hint");
+    if (hint && hint.classList.contains("show")) found.push("picker-hint");
+    for (const el of document.querySelectorAll(".phase-announce-toast.show")) {
+      if (el.getClientRects().length > 0) found.push("phase-announce");
+    }
+    return found.length ? found.join(" / ") : "none";
+  } catch (err) {
+    return "n/a";
+  }
+}
+
 // 【#270】フェイズ告知（「ロックフェイズ」等）が今まさに出ているか。
 // ユーザー報告「CPUがハンドフェイズをスキップするとき、まだハンドフェイズモーダルが出ているのに
 // ムーブフェイズモーダルがラップしてくる」。告知は 2.6 秒出るのに、ハンドフェイズの自動スキップは
@@ -219,7 +255,16 @@ export function waitForNoticeSlot(holdMs = NOTICE_HOLD_MS) {
     } finally {
       noticePending = Math.max(0, noticePending - 1);
       const waited = Date.now() - startedAt;
-      if (waited >= 300) note("diag-notice-wait", { waited, reason, pending: noticePending });
+      // 【続き454】待たされた理由が modal（返事待ちのモーダルが閉じない）の時は、**どのモーダルか**
+      // まで残す。オンラインの停止調査で reason:"modal" だけでは特定できず時間を溶かしたため。
+      if (waited >= 300) {
+        note("diag-notice-wait", {
+          waited,
+          reason,
+          pending: noticePending,
+          ...(reason === "modal" ? { blocker: describeCenterBlocker() } : {}),
+        });
+      }
     }
   };
   const p = noticeChain.then(run, run);

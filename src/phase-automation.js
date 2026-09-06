@@ -37,7 +37,7 @@ import { logAction } from "./action-log.js";
 import { isAutoPhaseSkipEnabled, onAutoPhaseSkipChange } from "./auto-phase-skip-setting.js";
 import { isCpuBattleActive } from "./cpu-battle-state.js";
 // 【#266】盤面の演出・中央のお知らせが出ている間はフェイズを進めない（下記 reconcile 参照）。
-import { isBoardAnimationPlaying, isNoticeQueueBusy, isPhaseAnnounceVisible } from "./anim-gate.js";
+import { isBoardAnimationPlaying, isNoticeQueueBusy, isPhaseAnnounceVisible, describeCenterBlocker } from "./anim-gate.js";
 
 // フェイズ自動進行が「今どの席を対象に動くか」。通常は自分の席（getSelfSeat）。ただしローカルの
 // CPU戦では、自分(A)だけでなくCPU(C)の番も自動で流したいので、その時だけ「今のターン
@@ -1155,6 +1155,18 @@ let reconcileRetryTimer = null;
 const LOCK_ADVANCE_GRACE_MS = 400;
 let lockAdvanceGraceUntil = 0;
 // 待たされた時間を1回だけ記録する（ユーザー要望「表示タイミングをログに出るように」）。
+// 【続き454・重要】この待ちの上限。オンラインの自動対戦を決着まで回したところ、turn 9 で
+// `diag-phase-deferred {waited:86828, via:"reconcile"}` ＝**86.8秒**フェイズが進まない停止を
+// 掴まえた。理由は毎回 reason:"modal"（＝返事待ちのモーダルの背景が閉じずに残っていた）で、
+// お知らせは1件ずつ10秒待って諦める作りなので、溜まった件数ぶん直列に待ち続けていた。
+// 下の待ちには**上限が無かった**（「演出もお知らせも上限付きなので止まらない」と書いていたが、
+// お知らせが次々に積まれる限り isNoticeQueueBusy() は真のままで、その前提が崩れていた）。
+// この待ちは**見せる順番を整えるためだけ**のもので、破っても起きるのは「フェイズ告知が
+// お知らせと重なる」という見た目の乱れだけ。**対局が止まる方が実害が桁違いに大きい**ので、
+// 必ず上限で先へ進める（enterPhase 側は前から同じ考え方で上限付きにしてある）。
+// 16秒にしてあるのは、演出の自動解除（anim-gate の STUCK_MS = 15秒）より後に効かせるため
+// ——本当に演出が固まっている場合は、まずあちらの解除を待ってから進みたい。
+const RECONCILE_DEFER_MAX_MS = 16000;
 let reconcileDeferStartedAt = 0;
 function scheduleReconcileRetry() {
   if (!reconcileDeferStartedAt) reconcileDeferStartedAt = Date.now();
@@ -1223,8 +1235,19 @@ export function reconcilePhaseAutomation() {
   // CPUの処理をゆっくりに設定しているのにすごく早く感じる」＝プレゼントは全員がドローするので
   // お知らせが並び、その間ずっとこの早期returnに入っていた）。
   if (isBoardAnimationPlaying() || isNoticeQueueBusy()) {
-    scheduleReconcileRetry();
-    return;
+    const waitedSoFar = reconcileDeferStartedAt ? Date.now() - reconcileDeferStartedAt : 0;
+    if (waitedSoFar < RECONCILE_DEFER_MAX_MS) {
+      scheduleReconcileRetry();
+      return;
+    }
+    // 上限に達した＝何かが閉じずに残っている。諦めて先へ進みつつ、**何がふさいでいたのか**を
+    // 名前で残す（次に同じ停止が報告された時、推測せずに原因のモーダルを特定できるように）。
+    logAction("diag-phase-defer-timeout", {
+      waited: waitedSoFar,
+      anim: isBoardAnimationPlaying(),
+      notice: isNoticeQueueBusy(),
+      blocker: describeCenterBlocker(),
+    });
   }
   if (reconcileDeferStartedAt) {
     const waited = Date.now() - reconcileDeferStartedAt;

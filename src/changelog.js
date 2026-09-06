@@ -14,6 +14,15 @@ export const CHANGELOG = [
   {
     date: "2026-09-06",
     items: [
+      "対局が長く止まってしまうことがあったのを直しました。画面の中央に出るお知らせやモーダルが閉じずに残ると、その間ずっと次の手番へ進めなくなっていました。",
+    ],
+    itemsEn: [
+      "Fixed matches that could freeze for a long time. If a message or dialog in the middle of the screen failed to close, the game stopped moving on to the next phase for as long as it stayed there.",
+    ],
+  },
+  {
+    date: "2026-09-06",
+    items: [
       "盤面やロックエリアのカードが捨てられる時に、散って消える演出を追加しました。紅蓮の火山は赤い熱、白の意思の覚醒は白い光、ロックエリアはその色の光が砕けます。",
       "結ばれの一本桜 コノハナサクヤで相手を引き寄せる時に、桜の花びらが舞う演出を追加しました。",
     ],
