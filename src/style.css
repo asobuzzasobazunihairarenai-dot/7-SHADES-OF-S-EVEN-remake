@@ -1132,6 +1132,13 @@ body.reduce-glow .steal-beam {
   filter: drop-shadow(0 0 0.12rem rgba(0, 0, 0, 0.6));
 }
 /* ② 持ち主のアバターの小さな丸（ふちは持ち主の駒の色）。 */
+/* 【ユーザー指示2026-09-06】共有の山札から来た札は「折り目」を出さない。マイデッキの札
+   （自分・相手）だけが角の折れた見た目になるので、3種類がより静かに見分けられる。
+   角からのぞく裏面自体はそのまま残す（それが何の札かを示す本体のため）。 */
+.hand-card-mydeck-dogear.is-shared::after {
+  display: none;
+}
+
 .hand-card-mydeck-badge {
   position: absolute;
   left: 4%;

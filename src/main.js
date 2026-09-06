@@ -710,6 +710,9 @@ function buildMyDeckHandMark(token, origin) {
   // dogear: 左上の角を折ったように見せ、そこに**持ち主の実際の裏面**をのぞかせる
   // （「裏面が見えてればいい」というユーザーの言い方にそのまま応える形）。
   el.className = "hand-card-mydeck-dogear";
+  // 【ユーザー指示2026-09-06】共有の山札の札には**折り目の線を出さない**。
+  // マイデッキの札（自分・相手）だけが「角が折れている」ことになり、ひと目で区別できる。
+  if (origin.kind === "shared") el.classList.add("is-shared");
   el.style.backgroundImage = `url("${cardBackImageForToken(token)}")`;
   return el;
 }
