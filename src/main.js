@@ -15924,6 +15924,51 @@ function checkContactApprovalTimeout() {
   void respondToContact(true);
 }
 
+// 【2026-09-07】接触の申し込みが**誰にも解決されないまま残り続けて対局が永久に止まる**のを
+// 防ぐ最後の砦。オンラインの自動対戦（決着まで）で実際に turn 12 で掴まえた——
+//   diag-auto-action-nothing: {"phase":"move","movePhaseActive":false,"pendingContact":true}
+// ムーブフェイズの救済（動けないならターン終了）は「接触の申し込み中は手を出さない」という
+// 条件を持っているので**正しく素通り**し、その結果どの経路も何もしなくなっていた。
+//
+// 上の checkContactApprovalTimeout は45秒で自動承認するが、**防御側の画面でしか動かない**
+//（`getSelfSeat() !== pending.defender` で return）。防御側の通信が切れている・状態が届いて
+// いない・タブを閉じた場合は、**誰も解決できない**。
+//
+// そこで、席に関係なく**どのクライアントでも**75秒で申し込みを取り消す。承認ではなく
+// **取り消し**にするのは、返事を見ていない相手からカードを奪ってしまわないため
+//（防御側の画面が生きていれば45秒で自動承認が先に走るので、ここに来る＝相手は見ていない）。
+// サーバー側の RESPOND_CONTACT は送り主を見ないので**Edge Function の変更は不要**。
+// 全員がほぼ同時に送っても、リデューサーは pendingContact が無ければ何もしない（冪等）。
+const CONTACT_STUCK_CANCEL_MS = 75000;
+let contactStuckKey = "";
+let contactStuckSince = 0;
+function checkContactStuckCancel() {
+  if (!isOnlineMode()) return;
+  const pending = getState().pendingContact;
+  if (!pending) {
+    contactStuckKey = "";
+    contactStuckSince = 0;
+    return;
+  }
+  const key = pending.attacker + "|" + pending.defender;
+  if (key !== contactStuckKey) {
+    contactStuckKey = key;
+    contactStuckSince = Date.now();
+    return;
+  }
+  if (Date.now() - contactStuckSince < CONTACT_STUCK_CANCEL_MS) return;
+  contactStuckSince = Date.now(); // 連続発火を防ぐ
+  logAction("diag-contact-stuck-cancel", {
+    attacker: pending.attacker,
+    defender: pending.defender,
+    selfSeat: getSelfSeat(),
+    iAmDefender: getSelfSeat() === pending.defender,
+    waitedMs: CONTACT_STUCK_CANCEL_MS,
+  });
+  respondContact(false);
+  void showEffectReasonModal(null, t("game.contact.stuckCancelled"));
+}
+
 function checkFinalLockApprovalTimeout() {
   if (!isOnlineMode()) return;
   const pending = getState().pendingFinalLock;
@@ -16005,8 +16050,22 @@ function rescuePhaseIfNeverStarted() {
   reconcilePhaseAutomation();
 }
 
-setInterval(() => {
-  try {
+// 【2026-09-07・重大】この中身はもともと 5秒ウォッチドッグの setInterval の中へ直接書かれて
+// いた。ところが本体には早期 return が8個あり、**その return は setInterval のコールバック
+// 全体を終わらせていた**——つまり「手札効果の取り残しは無い」という**普段の状態**で毎回すぐ
+// 抜けてしまい、同じコールバックに並んでいた
+//   ・接触の45秒自動承認（checkContactApprovalTimeout・続き393）
+//   ・最後のロックの自動承認（checkFinalLockApprovalTimeout）
+//   ・フェイズが始まらない時の救済（rescuePhaseIfNeverStarted・続き407）
+// が**一度も動いていなかった**。オンラインの自動対戦で「接触の申し込みが解決されないまま
+// 対局が永久に止まる」を掴まえ、計測して発覚した（見張りは10回回っているのに、その先の
+// 関数は0回しか呼ばれていなかった）。**独立した関数に切り出して、return がここだけで
+// 止まるようにする**。
+//
+// 教訓: 1つのタイマーに複数の見張りを並べる時、**早期 return を直接書かない**
+//（それぞれ関数にする）。書いた本人には「この見張りを飛ばす」つもりでも、実際には
+// 後ろに並んでいる全部を道連れにする。しかも何も起きないので気づけない。
+function runHandEffectBusyWatchdog() {
     // #214: 判定の意味を「busyになってからの経過」から「最後に何かが起きてからの経過」へ
     // 変えた（phase-automation.js の noteHandEffectProgress 参照）。人が何分かけて選んでいても
     // 1枚めくるたびに時計が戻るので誤解除されない。本当に何も起きない時だけ救済する。
@@ -16036,10 +16095,16 @@ setInterval(() => {
     });
     setHandEffectBusy(false);
     render();
+}
+
+setInterval(() => {
+  try {
+    runHandEffectBusyWatchdog();
   } catch { /* noop: ウォッチドッグ自身で例外を投げても進行を止めない */ }
   try {
     checkFinalLockApprovalTimeout();
     checkContactApprovalTimeout();
+    checkContactStuckCancel();
   } catch { /* noop */ }
   try {
     rescuePhaseIfNeverStarted();
