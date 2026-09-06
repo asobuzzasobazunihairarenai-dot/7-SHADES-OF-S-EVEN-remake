@@ -27,7 +27,12 @@
 import * as THREE from "../vendor/three.module.min.js";
 import { subscribe } from "./state.js";
 import { logAction } from "./action-log.js";
-import { isBoard3dEnabled, setBoard3dEnabledSetting, setBoard3dInvalidator } from "./board-3d-setting.js";
+import {
+  isBoard3dEnabled,
+  setBoard3dEnabledSetting,
+  setBoard3dInvalidator,
+  setBoard3dFlusher,
+} from "./board-3d-setting.js";
 
 let renderer = null;
 let scene = null;
@@ -775,6 +780,23 @@ function maybeLogStats() {
 // 盤面で塗っているものは全部WebGLへ移したので、DOM側は「大きさと当たり判定だけの透明な箱」に
 // なっており、奥に敷いても何も隠れない。逆に光・枠・刻印・ハイライトはDOMのまま自然に手前に
 // なるので、一時期あった「手前へ逃がす層」（board-3d-overlay.js）は役目を終えて撤去した。
+// 【#301/#302】「今すぐ描き直す」。飛翔演出が実物を visibility で見せた直後に呼ばれる。
+// frame() を待たずにその場で板を作り直して描く——実機のログでは1フレームが 60〜200ms あるので、
+// 次のフレームまで待つと「箱はあるが絵が無い」瞬間がはっきり見えてしまう。
+// 中身は frame() と同じ（作り直し→カメラ→並べ替え→描く）。失敗しても演出は止めない。
+function flushNow() {
+  if (!active || !renderer) return;
+  try {
+    needsRebuild = true;
+    rebuild();
+    if (!syncCamera()) return;
+    sortByDepth();
+    renderer.render(scene, camera);
+  } catch (err) {
+    console.warn("board-3d: 即時の描き直しに失敗", err?.message || err);
+  }
+}
+
 function frame() {
   if (!active) return;
   rafId = requestAnimationFrame(frame);
@@ -927,6 +949,11 @@ export function setBoard3dActive(on) {
     needsRebuild = true;
     unsubscribe = subscribe(() => markDirty());
     window.addEventListener("resize", markDirty);
+    // 【#297】盤面のDOMを描き直した合図（main.js の render()）を受け取る。状態が変わらない
+    // 描き直し（駒の着地で隠していた駒を戻す等）も、次のフレームで必ず作り直されるようになる。
+    setBoard3dInvalidator(markDirty);
+    // 【#301/#302】演出が実物を見せた瞬間に、その場で描き直せるようにする（上の flushNow）。
+    setBoard3dFlusher(flushNow);
     // 保険: 状態変更を伴わない見た目の変化（管理者モードのスライダー等）にも追随する。
     rebuildTimer = setInterval(markDirty, 500);
     rafId = requestAnimationFrame(frame);
@@ -938,6 +965,8 @@ export function setBoard3dActive(on) {
     clearInterval(rebuildTimer);
     rebuildTimer = null;
     window.removeEventListener("resize", markDirty);
+    setBoard3dInvalidator(null);
+    setBoard3dFlusher(null);
     unsubscribe?.();
     unsubscribe = null;
     // 【#278】文脈が失われた後にもここを通る（handleContextLost）ので、GPU側の後片付けは

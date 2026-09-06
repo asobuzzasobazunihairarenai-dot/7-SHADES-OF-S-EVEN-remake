@@ -20795,3 +20795,27 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
 }
 .declared-colors-indicator-swatch.is-miss:nth-child(2n) { animation-delay: 70ms; }
 .declared-colors-indicator-swatch.is-miss:nth-child(3n) { animation-delay: 130ms; }
+
+
+/* 【#304】合同建設などの「山札から／手札から」を選ぶモーダル（儀式ピックの見た目を流用して
+   いる）が、ライトモードでも暗いままだった。ここはカードを見せない純粋な二択なので、他の
+   ライトモーダルと同じアイボリー地＋濃い文字に揃える。儀式ピック本体（裏向きのカードを並べて
+   選ぶ場面）は暗いことに意味があるので、そちらは変えない。 */
+body.theme-light #sleight-ritual-modal.is-place-source-choice {
+  background: linear-gradient(160deg, #f6f3fd, #fdfbf5);
+  border-color: #6d4bc4;
+  color: #3a3326;
+  box-shadow: 0 0 1.2rem rgba(109, 75, 196, 0.25), 0 20px 50px rgba(0, 0, 0, 0.2);
+}
+body.theme-light #sleight-ritual-modal.is-place-source-choice .sleight-ritual-title {
+  color: #4c2f8f;
+  text-shadow: none;
+}
+body.theme-light #sleight-ritual-modal.is-place-source-choice .place-source-choice-buttons button {
+  background: rgba(109, 75, 196, 0.12);
+  color: #3a3326;
+  border-color: rgba(109, 75, 196, 0.55);
+}
+body.theme-light #sleight-ritual-modal.is-place-source-choice .place-source-choice-buttons button:hover {
+  background: rgba(109, 75, 196, 0.24);
+}

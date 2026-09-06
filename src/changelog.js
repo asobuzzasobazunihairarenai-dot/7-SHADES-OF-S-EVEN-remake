@@ -14,6 +14,19 @@ export const CHANGELOG = [
   {
     date: "2026-09-06",
     items: [
+      "移動した駒や、飛んでいったカードが、置かれる瞬間に一瞬消えたり枠だけになったりしていたのを直しました。",
+      "「合同建設」で山札から置くか手札から置くかを選ぶ画面が、明るい表示にしていても暗いままだったのを直しました。",
+      "「パーティ」で表向きのカードを手札に加えた時、中央のお知らせが裏面で出ることがあったのを直しました。",
+    ],
+    itemsEn: [
+      "Fixed pieces and cards briefly vanishing, or showing only their outline, at the moment they land.",
+      "Fixed the \"place from deck or hand\" prompt in Joint Construction staying dark even in light mode.",
+      "Fixed the centre notice showing a card back when Party added a face-up card to your hand.",
+    ],
+  },
+  {
+    date: "2026-09-06",
+    items: [
       "接触をカウンターロックで止めた時と、最後のロックをゴメンナサイで止めた時に「防いだ！」の演出が出るようになりました。守った人のところに盾が張られ、攻めた駒がよろけます。",
       "山札が切れて捨て場が新しい山札になる瞬間に、捨て場の山がまるごと裏返って山札の場所へ移る演出を追加しました（今までは黙って入れ替わっていました）。",
       "宣言した色が当たったか外れたかが、色の丸の輝き・崩れで分かるようになりました（ザ・ギャンブル／試練の儀式）。",

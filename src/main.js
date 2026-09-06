@@ -386,7 +386,7 @@ function cardDisplayName(cardId) {
   return getCardName(cardId) || getCardDefinition(cardId)?.name || cardId;
 }
 import { isBoardIllustOnly } from "./board-card-display.js";
-import { invalidateBoard3d } from "./board-3d-setting.js";
+import { invalidateBoard3d, flushBoard3d } from "./board-3d-setting.js";
 import { showCardFace } from "./card-face-display.js";
 import { onLangChange } from "./i18n.js";
 import { t } from "./ui-text.js";
@@ -1314,10 +1314,13 @@ function playCardFlipOpenGhost(rect, item) {
     endBoardAnimation();
   };
   setTimeout(() => {
-    outer.remove();
+    // 【#301/#302】順番が大事: ①実物を出し直す ②その場でWebGLも描き直す ③最後にゴーストを消す。
+    // 先にゴーストを消すと、実物が描かれるまでの数フレームだけカードが消えて見える。
     closeFlipGate();
     flippingOpenTokenIds.delete(item.tokenId);
     render(); // 隠していた実物を出し直す
+    flushBoard3d();
+    outer.remove();
   }, CARD_FLIP_OPEN_MS + 30);
 }
 
@@ -2934,10 +2937,12 @@ function playAdditionalColorUseForEffect(cardId, optionLabel, costTokenId) {
   // （レイアウトを崩さないよう visibility。演出後は次の render() で作り直される）。
   const costEl = document.querySelector(`.hand-card[data-token-id="${costTokenId}"], .hand-reveal-card[data-token-id="${costTokenId}"]`);
   if (costEl) costEl.style.visibility = "hidden";
+  flushBoard3d(); // 【#301/#302】隠した/見せたことをWebGL描画へ即座に反映（board-3d-setting.js 参照）
   const done = playHandEffectUseV5(cardId, optionLabel, costCardId, costStart);
   void Promise.resolve(done).finally(() => {
     // 演出が終わった時点でまだ同じ要素が残っていれば戻す（通常は捨てられて消えている）。
     if (costEl?.isConnected) costEl.style.visibility = "";
+    flushBoard3d();
   });
   playSound("arrivalEffect");
   if (isOnlineMode()) {
@@ -3662,6 +3667,10 @@ function requestPlaceSourceChoiceForEffect() {
     const modal = document.createElement("div");
     // 見た目は儀式的ピックモーダルと同じ紫系スタイルを流用する。
     modal.id = "sleight-ritual-modal";
+    // 【#304】ただし、こちらは「山札から／手札から」を選ぶだけでカードを見せないので、
+    // ライトモードでは他のモーダルと同じ明るい地にする（儀式ピック本体は裏向きのカードを
+    // 並べる場面なので、暗いままの方が見やすい＝あちらは変えない）。そのための目印。
+    modal.classList.add("is-place-source-choice");
     const title = document.createElement("div");
     title.className = "sleight-ritual-title";
     title.textContent = t("game.place.where");
@@ -3860,7 +3869,18 @@ async function runPartyOptionTask(player) {
     if (!token) return false;
     const wasFaceUp = token.faceUp;
     await moveAndSyncForEffect(token.id, { zone: "hand", player });
-    onEffectCardAcquiredToHand(token.id, token.cardId, wasFaceUp, player);
+    // 【#303】「表向きの札を取ったのに中央のお知らせが裏面になる」への対応。ここで渡していた
+    // token は**動かす前に控えた古い写し**で、オンラインでは中身が伏せられている（cardId が
+    // null の）ことがある。手札に入った今なら本人の画面では必ず中身が分かるので、最新の状態
+    // から読み直して渡す（#298 の「捨てた後なら捨て場から読める」と同じ考え方）。
+    const acquired = getState().tokens.find((t) => t.id === token.id);
+    logAction("diag-party-pickup", {
+      player,
+      wasFaceUp,
+      cardIdBefore: token.cardId ?? null,
+      cardIdAfter: acquired?.cardId ?? null,
+    });
+    onEffectCardAcquiredToHand(token.id, acquired?.cardId ?? token.cardId, wasFaceUp, player);
     return true;
   }
   // open-two: 2枚選んでオープンする（手札に加えず、その場でめくるだけ）。
@@ -4927,6 +4947,9 @@ async function playPieceMoveAnimation__inner(pieceId, fromLocation, animOpts = {
     if (managePending) {
       setSetupPendingTokenIds(new Set());
       render();
+      // 【#301】render() は合図を送るだけで、実際に描き直されるのは次のフレーム。実機では
+      // 1フレーム 60〜200ms あるので、それでは駒が「一瞬フレームだけ」に見える。その場で描く。
+      flushBoard3d();
     }
     // 着地の輪は、実物の駒が描き直された後のマスへ出す（render で作り直されるため）。
     const landedHost = findLocationElement(document.getElementById("game-table"), to);
@@ -5947,6 +5970,7 @@ async function flyBoardCardToHand(tokenId, player) {
   const fromRect = cardEl.getBoundingClientRect();
   const toRect = handArea.getBoundingClientRect();
   cardEl.style.visibility = "hidden"; // 元カードを隠してゴーストだけ飛ばす（着地後のrenderで消える）
+  flushBoard3d();
   const img = token.faceUp ? getCardImagePath(token.cardId) : cardBackImageForToken(token);
   // ユーザー要望「もう少しゆっくり手札に入っていってほしい」。ドロー演出(500ms)より少し長め。
   const { done } = flyGhost(fromRect, toRect, img, "setup-fly-card", 800);
@@ -6062,6 +6086,7 @@ function playCardCellLanding(sourceRect, cellLocation, tokenId) {
   const cardRect = cardEl.getBoundingClientRect(); // 着地先の実カード（＝マスのカード）の見た目サイズ
   const img = paintedBackgroundImage(cardEl);
   cardEl.style.visibility = "hidden"; // 実カードを隠してゴーストだけ動かす（着地後に見せる）
+  flushBoard3d();
   const ghost = document.createElement("div");
   ghost.className = "setup-fly-card card-landing-ghost";
   ghost.style.backgroundImage = img;
@@ -6106,6 +6131,9 @@ function playCardCellLanding(sourceRect, cellLocation, tokenId) {
       // 「順番に光が飛ぶ」流れになる（配置は1枚ずつ await されるため）。
       spawnScatterSpark(cellEl, getState().tokens.find((tk) => tk.id === tokenId)?.cardId ?? null);
       cardEl.style.visibility = ""; // 実カードを見せる
+      // 【#302】ここが肝。実物を見せた「その場で」WebGLも描き直す。次のフレームまで待つと、
+      // 実機では 60〜200ms のあいだ「箱はあるが絵が無い」＝カードが一瞬消えて見える。
+      flushBoard3d();
       requestAnimationFrame(() => requestAnimationFrame(() => ghost.remove()));
       resolve(); // 着地完了→次のアクションへ
     }, t.glide + t.hold + t.drop + 20);
@@ -6128,6 +6156,7 @@ function playCardLiftToHand(sourceRect, player, tokenId, sourceImg = null) {
     sourceImg ||
     (cardEl ? paintedBackgroundImage(cardEl) : getCardBackImagePath(null) && `url("${getCardBackImagePath(null)}")`);
   if (cardEl) cardEl.style.visibility = "hidden";
+  flushBoard3d();
   spawnCardLandingPuff(sourceRect); // 持ち上がりのホコリ（マス側）
   const ghost = document.createElement("div");
   ghost.className = "setup-fly-card card-landing-ghost";
@@ -6165,6 +6194,7 @@ function playCardLiftToHand(sourceRect, player, tokenId, sourceImg = null) {
     }, t.drop + t.hold);
     setTimeout(() => {
       if (cardEl) cardEl.style.visibility = "";
+      flushBoard3d(); // 【#302】実物を見せた「その場で」WebGLも描き直す
       requestAnimationFrame(() => requestAnimationFrame(() => ghost.remove()));
       resolve(); // 手札への飛翔完了→次のアクションへ
     }, t.drop + t.hold + t.glide + 20);
@@ -11914,6 +11944,7 @@ function startTokenDrag(e, tokenId, kind, sourceEl) {
   // 手札に残ったまま見えたりしないようにするため）。dropの成否にかかわらず必ずrender()で
   // DOMが作り直されるので、明示的に元に戻す処理は不要。
   sourceEl.style.visibility = "hidden";
+  flushBoard3d();
   // 自分・相手を問わず、手札のカードを掴んだ瞬間に「抜き取る」効果音を鳴らす。
   const draggedToken = getState().tokens.find((t) => t.id === tokenId);
   if (draggedToken && draggedToken.kind === "card" && draggedToken.location.zone === "hand") {
@@ -14427,6 +14458,7 @@ async function animateHandShuffle(seat) {
   cardEls.forEach((el) => {
     el.style.visibility = "hidden";
   });
+  flushBoard3d();
 
   const backImage = getCardBackImagePath(null); // 自分の手札は常に通常カードのため裏面は1種類固定
   // ハマりどころ（ユーザー報告: シャッフル中の裏向きカードが上部だけ切れて見える）:
@@ -14499,6 +14531,7 @@ async function animateHandShuffle(seat) {
   newCardEls.forEach((el) => {
     el.style.visibility = "hidden";
   });
+  flushBoard3d();
   const newRects = newCardEls.map((el) => el.getBoundingClientRect());
 
   const RESTORE_MS = 320;
@@ -14513,6 +14546,7 @@ async function animateHandShuffle(seat) {
   newCardEls.forEach((el) => {
     el.style.visibility = "";
   });
+  flushBoard3d(); // 【#302】実物を見せた「その場で」WebGLも描き直してからゴーストを消す
   ghosts.forEach((g) => g.remove());
   updateHandShuffleButton();
 }
