@@ -854,7 +854,12 @@ function buildPlayerZone(side, player, isSelf) {
       // ユーザー要望「白と黒のカードは自分の手札内でそれぞれの色の湯気のような神秘的な
       // オーラで纏われている演出を入れたい」。自分の手札だけが実際の色を知っている
       // （相手の手札は常に裏向きのため対象外）。
-      const cardColor = getCardDefinition(token.cardId).color;
+      // 【2026-09-07】`?.` が要る。オンラインでは札の中身がサーバー側で伏せられることがあり
+      // （通信の失敗・session切れの直後など）、その時 cardId が null になって
+      // getCardDefinition(null) が undefined を返す。**ここは render() の中なので、
+      // 例外が出ると盤面まるごと描かれなくなり、操作不能になる**（実際にオンラインの
+      // 自動対戦で発生。session が切れた側の画面が丸ごと死んだ）。
+      const cardColor = getCardDefinition(token.cardId)?.color;
       if (cardColor === "white" || cardColor === "black") {
         cardEl.classList.add("has-mystic-aura", `aura-${cardColor}`);
       }
@@ -1399,8 +1404,9 @@ function buildFlatCard(token) {
   if (token.location.zone === "lock" && token.cardId && (token.cardId.startsWith("first-") || token.cardId.startsWith("eternal-"))) {
     const effect = getUsableLockedEffect();
     card.classList.add("is-usable-while-locked", `effect-${effect}`);
-    const cardColor = getCardDefinition(token.cardId).color;
-    card.style.setProperty("--usable-locked-color", `var(--color-${cardColor})`);
+    // 中身が分からない時は色を付けない（①と同じ理由。描画中に落とさない）。
+    const cardColor = getCardDefinition(token.cardId)?.color;
+    if (cardColor) card.style.setProperty("--usable-locked-color", `var(--color-${cardColor})`);
   }
   return card;
 }
@@ -5346,8 +5352,15 @@ async function performLockPhaseClick__inner(tokenId, { skipConfirm = false, acti
   // 「疑似CPUモードの時、ロックの確認モーダルで停止しました」）。人間のクリック/タップ経路は
   // 従来通りskipConfirm=falseで確認を挟む（isActionConfirmEnabled設定に従う）。
   if (!skipConfirm && !(await confirmTouchAction(t("game.confirm.lockCard", { card: cardDisplayName(token.cardId) }), { cardId: token.cardId }))) return;
-  const color = getCardDefinition(token.cardId).color;
-  const dropTarget = { zone: "lock", side: SEAT_TO_SIDE[player], index: COLORS.indexOf(color) };
+  // 【2026-09-07】色が分からない札はロックできない。`?.` を付けずに落ちていたのに加え、
+  // 仮に通ると COLORS.indexOf(undefined) が **-1** になり、存在しないスロットへ置いてしまう。
+  const color = getCardDefinition(token.cardId)?.color;
+  const colorIndex = COLORS.indexOf(color);
+  if (colorIndex < 0) {
+    logAction("diag-lock-click-skip", { reason: "unknown-card-color", tokenId: token.id });
+    return;
+  }
+  const dropTarget = { zone: "lock", side: SEAT_TO_SIDE[player], index: colorIndex };
   // 最後のロック承認: ドラッグ&ドロップ経路（onDragEndのkind==="card"分岐）と同じく、この
   // ロックで持ち主が7色すべて揃って勝利になる場合は、通常のmoveTokenを呼ばず、他の参加
   // プレイヤー全員の承認を待つ専用フローへ切り替える。
@@ -5872,6 +5885,18 @@ function logAutoActionDidNothing(driveSeat, phase) {
   logAction("diag-auto-action-nothing", {
     driveSeat,
     phase,
+    // 【2026-09-07】ムーブフェイズで止まった時、**どの分岐にも入らなかった理由**が
+    // これまで読めなかった（画面のハイライト数しか残していなかった）。実際に分岐の
+    // 判断に使っている値そのものを残す。
+    movePhaseActive: isMovePhaseActive(),
+    moveCandidates: (() => {
+      try {
+        const c = computePhaseMoveCandidates(driveSeat);
+        return c ? { move: c.move.length, contact: c.contact.length } : null;
+      } catch (e) {
+        return "err";
+      }
+    })(),
     turnPlayer: st.turnPlayer,
     priorityPlayer: st.priorityPlayer,
     selfSeat: getSelfSeat(),
@@ -7732,7 +7757,8 @@ function triggerCardArrival(cardId, location, onFullyResolved, opts = {}) {
     const hostEl = findLocationElement(table, location);
     if (hostEl) {
       arrivalIsExposureNow = !!opts.fromExposure; // 【③】「N コンボ」と出すかどうか
-      spawnArrivalBurst(hostEl, getCardDefinition(cardId).color);
+      // 色が分からない札（伏せ情報）でも落とさない。演出の色が無いだけ。
+      spawnArrivalBurst(hostEl, getCardDefinition(cardId)?.color);
       arrivalIsExposureNow = false;
     }
     // ユーザー要望「到達アニメが完全終了して一息ついた後に効果モーダルを出すように
@@ -7794,7 +7820,7 @@ function triggerCardArrival(cardId, location, onFullyResolved, opts = {}) {
   const table = document.getElementById("game-table");
   const hostEl = findLocationElement(table, location);
   if (!hostEl) return;
-  const color = getCardDefinition(cardId).color;
+  const color = getCardDefinition(cardId)?.color;
   spawnArrivalBurst(hostEl, color);
 }
 
@@ -7957,7 +7983,7 @@ function triggerLockEffect__inner(cardId, location) {
   const table = document.getElementById("game-table");
   const hostEl = findLocationElement(table, location);
   if (!hostEl) return Promise.resolve();
-  const color = getCardDefinition(cardId).color;
+  const color = getCardDefinition(cardId)?.color;
   playSound("arrivalEffect");
   spawnArrivalBurst(hostEl, color);
   spawnLockConverge(hostEl, color); // 続き218「A：焼き付く刻印」: 色のオーラがスロットへ収束
@@ -12765,7 +12791,8 @@ function pickCpuGomennasaiStealTarget(seat, stealableLocks) {
   const myLockedColors = new Set(
     getState()
       .tokens.filter((t) => t.kind === "card" && t.location.zone === "lock" && t.location.side === mySide)
-      .map((t) => getCardDefinition(t.cardId).color)
+      .map((t) => getCardDefinition(t.cardId)?.color)
+      .filter(Boolean)
   );
   const preciousIds = new Set(["rainbow-shard", "purple-sorry", "red-counter-lock"]);
   const scoreOf = (t) => {

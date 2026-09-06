@@ -275,13 +275,15 @@ async function dumpDiagnostics(clients) {
         try {
           const log = await import("/src/action-log.js");
           const txt = log.getActionLogText?.() ?? "";
-          out.tail = txt.split(String.fromCharCode(10)).filter((l) => l.trim()).slice(-6);
+          out.tail = txt.split(String.fromCharCode(10)).filter((l) => l.trim()).slice(-10);
         } catch (e) {}
         return out;
       });
       log("  [" + c.tag + "] phase=" + d.phase + " turn=" + d.turn + " priority=" + d.priority + " deadlineIn=" + d.deadlineIn + "s");
       log("    stall:", JSON.stringify(d.stall));
-      for (const line of d.tail || []) log("    |", line.slice(0, 200));
+      // 【2026-09-07】以前は200文字で切っていたため、止まった瞬間の内訳
+      //（pendingContact 等）が読めず原因を特定できなかった。切らずに全部出す。
+      for (const line of d.tail || []) log("    |", line);
     } catch (e) {
       log("  [" + c.tag + "] diagnostics failed: " + e.message);
     }

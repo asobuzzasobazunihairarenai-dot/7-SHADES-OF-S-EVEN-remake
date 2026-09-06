@@ -1614,3 +1614,42 @@ diag-phase-defer-timeout: {"waited":21025, "notice":true,
 - **検証（実測）**: `node test/smoke.mjs 2` が **PASS（8ターン到達）**。直前まで3回連続で
   同じ理由で落ちていたものが通るようになった。オンライン（`--full --isolated`）でも同じ判定に
   そろえた。`npm test` 56/56 PASS。アプリ側（src/）の変更は無し＝配信物は変わらない。
+
+
+### 2026-09-07（続き459）：札の中身が分からない状態で**盤面まるごと描画が死ぬ**不具合を修正（`getCardDefinition(...).color` の無防備な参照7か所）
+
+続き458 のテスト修正後にオンラインの決着まで自動対戦を回したところ、片方のゲストの session が
+切れて（`_removeSession` → 送信が `401 unauthorized`）、その巻き添えで**描画が例外で落ちていた**:
+
+```
+TypeError: Cannot read properties of undefined (reading 'color')
+  at buildPlayerZone (src/main.js:857) ← render() の中
+```
+
+- **原因**: `getCardDefinition(token.cardId).color` に `?.` が無かった。オンラインでは札の中身が
+  サーバー側で伏せられる（`cardId` が null）ことがあり、`getCardDefinition(null)` は undefined を返す。
+  **ここは `render()` の中なので、例外が出ると盤面まるごと描かれず操作不能になる**。
+  同じ形が全部で**7か所**あった（card-effect-engine.js のコメントに、#166 で同じ罠を踏んだ記録が残っている）。
+
+- **場所ごとに直し方を変えた**（一律 `?.` ではなく、その後どう使われるかを見て決めた）:
+  ・手札のオーラ／ロック中カードの色 … `?.color` にして、色が無ければ演出を付けない（描画は続ける）。
+  ・到達のオーラ3か所 … 同上（色の無い演出になるだけ）。
+  ・自分のロック済みの色の集合 … `?.color` ＋ `.filter(Boolean)`（不明な色を集合に入れない）。
+  ・**ロックの置き先（5349）だけは落ちる以上の問題があった** … 色が undefined だと
+  　`COLORS.indexOf(undefined)` が **-1** になり、**存在しないスロットへカードを置いてしまう**。
+  　色が引けなければロック自体を受け付けない形にし、`diag-lock-click-skip {reason:"unknown-card-color"}` を残す。
+
+- **検証（修正前後のA/B・これが決定的）**: 自分の手札とロックエリアの札の `cardId` を null にした
+  状態を流し込んで描画させた——**修正前は `main.js:857` でまさにその例外**（オンラインで出たものと同一）、
+  **修正後は盤面49マスが正常に描かれ例外0件**。`npm test` 56/56 PASS、`node test/smoke.mjs 2` PASS、
+  `node tools/check-undeclared.mjs` 0件（162ファイル）。無防備な `getCardDefinition(...).` は**残り0件**。
+
+- **教訓**: `render()` の中では**1つの undefined 参照が画面全体を消す**。オンラインでは
+  「相手の札」だけでなく**自分の札の中身が伏せられて届く**瞬間がある（通信の失敗・session切れの直後）ので、
+  カードの定義を引く時は常に中身が無い場合を想定する。
+
+- **未解決（診断だけ入れた）**: 別の回で、turn 7 に**ムーブフェイズのまま移動先も接触相手も無い**状態で
+  止まるのを観測した（救済の分岐がどれも素通り）。止まった瞬間の内訳がテストのログで200文字に
+  切られていて読めなかったため、①テストのログを切らずに出す ②`diag-auto-action-nothing` に
+  **分岐の判断に使っている値そのもの**（`movePhaseActive` / 状態から数え直した移動・接触の候補数）を
+  足した。次に再現した時に推測せず特定できる。

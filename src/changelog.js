@@ -12,6 +12,15 @@ import { getLang } from "./i18n.js";
 
 export const CHANGELOG = [
   {
+    date: "2026-09-07",
+    items: [
+      "通信が一時的に切れた時などに、盤面が丸ごと表示されなくなり操作できなくなることがあったのを直しました。",
+    ],
+    itemsEn: [
+      "Fixed the board vanishing entirely and becoming unusable after a temporary connection problem.",
+    ],
+  },
+  {
     date: "2026-09-06",
     items: [
       "オンラインの1対1で「降参する」を追加しました。⚙オプションの中にあり、対戦中だけ出ます。降参するとその対局はあなたの負け・相手の勝ちとして、普通に決着した時とまったく同じように記録されます（押す前に確認が出ます）。",
