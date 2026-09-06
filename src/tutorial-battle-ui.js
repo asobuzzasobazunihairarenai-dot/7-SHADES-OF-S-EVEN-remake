@@ -155,6 +155,16 @@ const STYLE = `
   font-family: sans-serif; font-size: 0.75rem;
 }
 #tutorial-battle-restart:hover { filter: brightness(1.12); }
+/* 【#290・2026-09-06】スマホでは画面の端に寄りすぎていて押しづらい（ユーザー報告）。
+   このアプリは 1600x900 の「ステージ」を画面に合わせて縮めて表示するので、ここの 1rem は
+   スマホでは実画面 6〜8px にしかならず、しかも端は端末側のスワイプ操作と取り合いになる。
+   スマホの時だけ、端から十分に離し、ボタン自体も指1本分の大きさにする（実画面で約35px）。 */
+body.is-phone-device #tutorial-battle-skip,
+body.is-phone-device #tutorial-battle-restart {
+  left: 3rem; padding: 1.1rem 1.8rem; font-size: 2rem; border-radius: 0.8rem;
+}
+body.is-phone-device #tutorial-battle-skip { top: 1.8rem; }
+body.is-phone-device #tutorial-battle-restart { top: 7.4rem; }
 #tutorial-battle-bubbles { position: fixed; inset: 0; z-index: 40011; pointer-events: none; }
 #tutorial-battle-bubbles .tb-bubble {
   position: absolute; transform: translate(-50%, -100%);

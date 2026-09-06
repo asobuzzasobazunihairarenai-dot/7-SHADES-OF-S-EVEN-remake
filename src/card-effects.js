@@ -52,10 +52,10 @@ export const VERBS = {
   DISCARD_ANY_OWN_LOCKED_DRAW_PER: "discard_any_own_locked_draw_per", // 色落ちキャット手札効果専用: 自分のロックカードを任意の枚数捨て、1枚につきdrawPer枚ドロー
   DISCARD_ONE_HAND_CARD: "discard_one_hand_card", // ザ・ギャンブル専用: 手札から1枚を選んで捨てる（追色コストと違い色の制約は無い）
   DRAW_IF_HAND_AT_MOST: "draw_if_hand_at_most", // スラム上がりの役人専用: 自分の手札が指定枚数以下ならドローする
-  // ザ・ギャンブルの手札効果専用: 「上記の到達時の効果を得る」の前後に別のアクション
+  // ザ・ギャンブルの手札効果専用: 「上記の到達効果を得る」の前後に別のアクション
   // （手札を1枚捨てる・このフェイズを終了する）が挟まるカード用。既存のeffectDef単位の
   // inheritsArrivalフラグ（マスチェンジ・手品師の技・試練の儀式・合同建設の手札効果、
-  // どれも「上記の到達時の効果を得る」だけで完結する）とは別に、actions配列の中の
+  // どれも「上記の到達効果を得る」だけで完結する）とは別に、actions配列の中の
   // 1アクションとして「到達効果のactionsをそのまま呼ぶ」を表現できるようにした。
   INHERIT_ARRIVAL_ACTIONS: "inherit_arrival_actions",
   // ここから続き43（ファースト/エターナルカードの手札効果を4枚追加）で新設した動詞。
@@ -327,7 +327,7 @@ export const CARD_EFFECTS = {
 
   // 4. 収穫と種まき（橙、通常カード）
   // 到達効果: 「任意の１マスの１枚をあなたの手札に加える。そのマスに手札から１枚
-  // 裏向きで置く。」／手札効果: 「上記の到達時の効果を得る。」（docs/cards.md、
+  // 裏向きで置く。」／手札効果: 「上記の到達効果を得る。」（docs/cards.md、
   // コスト無し）。ユーザー報告「手札からドラッグしても使用宣言がかからず、場に
   // 裏向きで置かれてしまう」の原因: handEffectデータ自体が無く、main.js側の
   // hasHandEffectData判定が常にfalseを返すため、ドラッグ時の自動処理割り込み
@@ -387,9 +387,9 @@ export const CARD_EFFECTS = {
   // 手品師の技 -スリカエ-（黄、通常カード）
   // 到達効果: 「相手１人の手札から無作為に１枚、あなたの手札に加える。あなたの手札から
   // １枚、その相手の手札に加える。」
-  // 手札効果: 「上記の到達時の効果を得る。」——コスト無し。
+  // 手札効果: 「上記の到達効果を得る。」——コスト無し。
   // ユーザー要望（続き87）「一旦『スリカエ』の手札効果を『この効果はいつでも使える。
-  // 上記の到達時の効果を得る。』から『上記の到達時の効果を得る。』に変更します。
+  // 上記の到達効果を得る。』から『上記の到達効果を得る。』に変更します。
   // そうすると事実上『いつでも使える』カードはなくなりますが、今後、そういった
   // カードが出てくるし、スリカエをまたいつでも使えるカードにする場合があるので
   // 『いつでも使える』ギミック自体は削除しないでください」への対応。usableAnytime:
@@ -405,7 +405,7 @@ export const CARD_EFFECTS = {
     },
     handEffect: {
       // inheritsArrival: 到達効果と全く同じactionsを実行するが、生成テキストは
-      // 「上記の到達時の効果を得る。」になる（docs/cards.md参照）。
+      // 「上記の到達効果を得る。」になる（docs/cards.md参照）。
       inheritsArrival: true,
       actions: [{ verb: VERBS.SWAP_RANDOM_HAND_CARD }],
     },
@@ -481,7 +481,7 @@ export const CARD_EFFECTS = {
 
   // 9. マスチェンジ（橙、通常カード） 到達効果: 「３マス以内の相手のいる場所と
   // あなたのいる場所を入れ替える。相手はこのカードの到達効果を得ない。」／
-  // 手札効果: 「【追色１】上記の到達時の効果を得る。」——同じ入れ替え効果を
+  // 手札効果: 「【追色１】上記の到達効果を得る。」——同じ入れ替え効果を
   // 到達・手札の両方から呼べるよう、アクション自体を共有する。
   // 「入れ替える」は「移動」ではないため、入れ替え先のカードはオープンせず
   // 到達判定も連鎖しない（docs/cards.md 到達効果補足）。
@@ -492,7 +492,7 @@ export const CARD_EFFECTS = {
     handEffect: {
       cost: { verb: VERBS.DISCARD_SAME_COLOR, count: 1 },
       // inheritsArrival: 実際の実行はarrivalと同じactionsをそのまま使うが、
-      // 生成テキストは「上記の到達時の効果を得る。」という参照文になる
+      // 生成テキストは「上記の到達効果を得る。」という参照文になる
       // （docs/cards.md、renderAction()参照）。
       inheritsArrival: true,
       actions: [{ verb: VERBS.SWAP_POSITION, count: 3 }],
@@ -700,7 +700,7 @@ export const CARD_EFFECTS = {
         { verb: VERBS.DISCARD_HAND_IF_REVEALED_MATCHES_DECLARED },
       ],
     },
-    // 手札効果: 「あなたは手札を１枚捨てる。上記の到達時の効果を得る。このフェイズを
+    // 手札効果: 「あなたは手札を１枚捨てる。上記の到達効果を得る。このフェイズを
     // 終了する。」到達効果と全く同じ処理をINHERIT_ARRIVAL_ACTIONSで挟み込む
     // （前後に「1枚捨てる」「フェイズ終了」が付くため、続き29のeffectDef単位の
     // inheritsArrivalフラグでは表現できず、アクション単位の新しい動詞にした）。
@@ -726,7 +726,7 @@ export const CARD_EFFECTS = {
         { verb: VERBS.RITUAL_PLACE_MOVE_REPEAT },
       ],
     },
-    // 手札効果: 「上記の到達時の効果を得る。」到達効果と全く同じactionsを
+    // 手札効果: 「上記の到達効果を得る。」到達効果と全く同じactionsを
     // そのまま実行する（inheritsArrival、続き29のマスチェンジ・手品師の技と
     // 同じパターン）。
     handEffect: {
@@ -748,7 +748,7 @@ export const CARD_EFFECTS = {
     arrival: {
       actions: [{ verb: VERBS.ALL_PLAYERS_PLACE_ONE_CARD_IN_EMPTY_CELL }],
     },
-    // 手札効果: 「上記の到達時の効果を得る。」到達効果と同じ（inheritsArrival）。
+    // 手札効果: 「上記の到達効果を得る。」到達効果と同じ（inheritsArrival）。
     handEffect: {
       inheritsArrival: true,
       actions: [{ verb: VERBS.ALL_PLAYERS_PLACE_ONE_CARD_IN_EMPTY_CELL }],
@@ -960,7 +960,7 @@ function renderAction(action, context) {
     case VERBS.DRAW_IF_HAND_AT_MOST:
       return `あなたの手札が${toFullWidthNumber(action.maxHandSize)}枚以下なら${count}枚ドロー。`;
     case VERBS.INHERIT_ARRIVAL_ACTIONS:
-      return "上記の到達時の効果を得る。";
+      return "上記の到達効果を得る。";
     default:
       return `（未対応の動詞: ${action.verb}）`;
   }
@@ -993,7 +993,7 @@ export function generateEffectText(effectDef) {
     (a) => a.verb === VERBS.DISCARD_SELF || (a.verb === VERBS.PLACE_CARD && a.source === "self")
   );
   if (effectDef.addsCardToHandAfter === false && !actionsHandleSelf) parts.push("これはあなたの手札に加えない。");
-  // ユーザー要望「マスチェンジのように『上記の到達時の効果を得る』で生成文を整理
+  // ユーザー要望「マスチェンジのように『上記の到達効果を得る』で生成文を整理
   // できないか。到達効果の文面を手札効果が踏襲している場合この文言を使用する
   // ように」。手品師の技の「この効果はいつでも使える。」も同じく、今まで
   // generateEffectTextが素通りしていたフラグだったため、あわせて文章化する。
@@ -1002,11 +1002,11 @@ export function generateEffectText(effectDef) {
   if (costText) parts.push(costText);
   // inheritsArrival: true（マスチェンジ・手品師の技の手札効果等）は、実際の
   // アクション配列（エンジン実行用にactionsは引き続き持つ）をテキスト化せず、
-  // 代わりに「上記の到達時の効果を得る。」という参照文だけを出す
+  // 代わりに「上記の到達効果を得る。」という参照文だけを出す
   // （docs/cards.mdの凡例通り、到達効果と全く同じ処理を手札効果からも呼べる
   // カードに共通の言い回し）。
   if (effectDef.inheritsArrival) {
-    parts.push("上記の到達時の効果を得る。");
+    parts.push("上記の到達効果を得る。");
   } else {
     for (const action of effectDef.actions) {
       parts.push(renderAction(action, context));
@@ -1101,11 +1101,11 @@ if (typeof process !== "undefined" && process.argv[1] && process.argv[1].endsWit
 
   console.log("[マスチェンジ 手札効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["orange-mass-change"].handEffect));
-  console.log("  実際: 【追色1】上記の到達時の効果を得る。\n");
+  console.log("  実際: 【追色1】上記の到達効果を得る。\n");
 
   console.log("[手品師の技 -スリカエ- 手札効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["yellow-sleight-of-hand"].handEffect));
-  console.log("  実際: この効果はいつでも使える。上記の到達時の効果を得る。\n");
+  console.log("  実際: この効果はいつでも使える。上記の到達効果を得る。\n");
 
   console.log("[なないろの巨光 到達効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["white-radiance"].arrival));
@@ -1137,7 +1137,7 @@ if (typeof process !== "undefined" && process.argv[1] && process.argv[1].endsWit
 
   console.log("[試練の儀式 手札効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["purple-trial-ritual"].handEffect));
-  console.log("  実際: 上記の到達時の効果を得る。\n");
+  console.log("  実際: 上記の到達効果を得る。\n");
 
   console.log("[黒の契約の烙印 到達効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["black-contract-brand"].arrival));
@@ -1153,7 +1153,7 @@ if (typeof process !== "undefined" && process.argv[1] && process.argv[1].endsWit
 
   console.log("[合同建設 手札効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["green-joint-construction"].handEffect));
-  console.log("  実際: 上記の到達時の効果を得る。\n");
+  console.log("  実際: 上記の到達効果を得る。\n");
 
   console.log("[スラム上がりの役人 到達効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["blue-slum-official"].arrival));
@@ -1199,7 +1199,7 @@ if (typeof process !== "undefined" && process.argv[1] && process.argv[1].endsWit
 
   console.log("[ザ・ギャンブル 手札効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["yellow-gamble"].handEffect));
-  console.log("  実際: あなたは手札を１枚捨てる。上記の到達時の効果を得る。このフェイズを終了する。\n");
+  console.log("  実際: あなたは手札を１枚捨てる。上記の到達効果を得る。このフェイズを終了する。\n");
 
   console.log("[赤のキューブ フェニックス 手札効果]");
   console.log("  生成: " + generateEffectText(CARD_EFFECTS["first-red"].handEffect));

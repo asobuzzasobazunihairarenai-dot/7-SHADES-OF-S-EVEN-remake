@@ -946,62 +946,79 @@ export function initOptionsMenu() {
     // 小さくさらっとあった方が良い」。ここからは撤去し、マイページ（my-page.js）へ移した。
     // buildStatsPlayerLinkRow自体は、将来また基本設定に出したくなった時のため残してある。
 
-    // よく使う設定のブロックは基本設定ビューだけに出す（詳細設定ビューでは出さない）。
+    // 【2026-09-06・ユーザー要望】基本設定の1画面目を「7つのボタン」に絞る（セブンの7に合わせる）。
+    // 以前はここに 言語／音量2本／カード拡大サイズ／確認2つ／振動 がベタ置きで並んでおり、
+    // 合計12行・スマホでは1行が実画面12px しかなくて押しづらかった（前回の実測）。
+    // 中身は減らさず、性質でまとめて畳む——①言語 ②音量 ③案内表示 ④詳細設定 ⑤山札一覧
+    // ⑥（対局中は降参・未実装） ⑦タイトルに戻る。カード拡大サイズは詳細設定の
+    // 「画面の見え方」へ移した（見た目の微調整であり、毎回触る設定ではないため）。
     if (!detailMode) {
+      // ② 音量（効果音・BGM）
       panel.appendChild(
-        buildPlainGroupHeader(t("opt.sec.group.common"), () => {
-          setSoundVolume(0.8);
-          setBgmVolume(0.5);
-          setCardPreviewSize(20);
-          setActionConfirmEnabled(true);
-          saveMyPreference({ sound_volume: 0.8, sound_volume_bgm: 50, action_confirm_enabled: true });
-          renderContent();
-        })
+        buildCollapsibleSection(
+          t("opt.sec.group.volume"),
+          (content) => {
+            const volumeRow = buildVolumeRow();
+            const volumeSlider = volumeRow.querySelector("input[type=range]");
+            volumeSlider.addEventListener("change", () => {
+              saveMyPreference({ sound_volume: Number(volumeSlider.value) / 100 });
+            });
+            content.appendChild(volumeRow);
+            content.appendChild(buildBgmVolumeRow());
+          },
+          {
+            icon: "🔊",
+            onReset: () => {
+              setSoundVolume(0.8);
+              setBgmVolume(0.5);
+              saveMyPreference({ sound_volume: 0.8, sound_volume_bgm: 50 });
+              renderContent();
+            },
+          }
+        )
       );
-      {
-        const volumeRow = buildVolumeRow();
-        const volumeSlider = volumeRow.querySelector("input[type=range]");
-        volumeSlider.addEventListener("change", () => {
-          saveMyPreference({ sound_volume: Number(volumeSlider.value) / 100 });
-        });
-        panel.appendChild(volumeRow);
-      }
-      panel.appendChild(buildBgmVolumeRow());
-      panel.appendChild(buildCardPreviewSizeRow());
-      // 「全画面で遊ぶ」はユーザー要望2026-08-28「オプションエリアにアイコンがあるからいらない
-      // かも」で撤去した（#fullscreen-toggle-button が同じ機能を持つ）。
-      // ユーザー要望「ロック前・手札使用前の確認モーダルを全デバイスで出す。モーダルの
-      // 『今後表示しない』でオフにでき、ここから再度オンに戻せるように」。うっかり操作を
-      // 防ぐ設定＝初めての人ほど触るため、よく使う設定として一番上のブロックに置く。
+      // ③ 案内表示（うっかり操作を防ぐ確認モーダルと、その仲間）
       panel.appendChild(
-        buildCheckboxRow(t("opt.chk.actionConfirm"), isActionConfirmEnabled(), (checked) => {
-          setActionConfirmEnabled(checked);
-          saveMyPreference({ action_confirm_enabled: checked });
-        })
+        buildCollapsibleSection(
+          t("opt.sec.group.guides"),
+          (content) => {
+            // ユーザー要望「ロック前・手札使用前の確認モーダルを全デバイスで出す。モーダルの
+            // 『今後表示しない』でオフにでき、ここから再度オンに戻せるように」。
+            content.appendChild(
+              buildCheckboxRow(t("opt.chk.actionConfirm"), isActionConfirmEnabled(), (checked) => {
+                setActionConfirmEnabled(checked);
+                saveMyPreference({ action_confirm_enabled: checked });
+              })
+            );
+            // ユーザー要望2026-09-01「マス選択の確認モーダル」。上の確認とは別設定
+            // （マス選択は頻度が段違いに高いので、こちらだけ切りたいのが自然なため）。
+            content.appendChild(
+              buildCheckboxRow(t("opt.chk.cellConfirm"), isCellConfirmEnabled(), (checked) => {
+                setCellConfirmEnabled(checked);
+              })
+            );
+            // ユーザー要望2026-09-03「スマホであれば振動を与えることできる？」。**対応している
+            // 端末でだけ**出す（iPhone/iPadのSafariにはVibration APIが無いため）。
+            if (supportsVibration()) {
+              content.appendChild(
+                buildCheckboxRow(t("opt.chk.vibration"), isVibrationEnabled(), (checked) => {
+                  setVibrationEnabled(checked);
+                })
+              );
+            }
+          },
+          {
+            icon: "💬",
+            onReset: () => {
+              setActionConfirmEnabled(true);
+              setCellConfirmEnabled(true);
+              saveMyPreference({ action_confirm_enabled: true });
+              renderContent();
+            },
+          }
+        )
       );
-      // ユーザー要望2026-09-01「マス選択の確認モーダル。『今後表示しない』でオフにでき、
-      // 設定からいつでも復活できるように」。上の確認とは別設定（マス選択は頻度が段違いに
-      // 高いので、こちらだけ切りたいのが自然なため）。この端末に保存する。
-      panel.appendChild(
-        buildCheckboxRow(t("opt.chk.cellConfirm"), isCellConfirmEnabled(), (checked) => {
-          setCellConfirmEnabled(checked);
-        })
-      );
-      // ユーザー要望2026-09-03「スマホであれば振動を与えることできる？」。鼓動の演出に合わせて
-      // 端末を振動させる。**対応している端末でだけ**この行を出す（iPhone/iPadのSafariには
-      // Vibration APIが無いので、出しても何も起きない項目になってしまうため）。
-      if (supportsVibration()) {
-        panel.appendChild(
-          buildCheckboxRow(t("opt.chk.vibration"), isVibrationEnabled(), (checked) => {
-            setVibrationEnabled(checked);
-          })
-        );
-      }
-
     }
-
-    // 基本設定ビューはここまで。以降（困りごと別のセクション群・アカウント初期化・
-    // アクションログ・管理者向け）は「詳細設定」ビューへ格納する。ユーザー要望により
     // 「山札一覧」だけは対局中によく開くため基本設定ビューに残す。
     if (!detailMode) {
       const detailBtn = document.createElement("button");
@@ -1120,6 +1137,9 @@ export function initOptionsMenu() {
       buildCollapsibleSection(
         t("opt.sec.group.look"),
         (content) => {
+          // 【2026-09-06】基本設定を7項目に絞った際、ここへ移した（見た目の微調整であり、
+          // 毎回触る設定ではないため）。設定そのものは今までどおり効く。
+          content.appendChild(buildCardPreviewSizeRow());
           // ユーザー要望「盤面（場・捨て場・ロックエリア）のカードは遠景で文字が読めないので、
           // イラストのみのカード画像で映えさせたい。ホバー拡大や手札は通常のテキストあり画像
           // のまま」。この端末のみのローカル設定（board-card-display.js、相手には非同期）。

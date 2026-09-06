@@ -49,6 +49,8 @@ const REPEAT = (() => {
 })();
 const TARGET_TURN = 8; // ここまで進めば十分健全とみなす（回帰検出には十分な手数）
 const STALL_MS = 30000; // ターンがこの時間まったく進まなければ「詰み」とみなす
+// アプリが「効果を解決中」と言っている間の猶予。これを超えて処理中のままなら本物の詰まり。
+const BUSY_MAX_MS = 120000;
 // 3-4人は1局が長いので制限時間を人数に比例（in-app版と同じ考え方）。決着まで＝最大12分。
 // 続き321: 180秒→300秒に緩めた。試練の儀式のような「1ターンの中で何度も繰り返す」到達効果に
 // 当たると、止まっていないのに8ターンへ到達する前に制限時間を迎えてFAILになっていた（実測: 進行は
@@ -154,6 +156,7 @@ async function playOneGame(page, allErrors) {
   const started = Date.now();
   let lastTurn = 0;
   let lastProgressAt = Date.now();
+  let busyProgressAt = Date.now(); // 「処理中」であり続けている時間の起点
   let lastStateSig = "";
   const invariantViolations = [];
   const seenViolations = new Set();
@@ -191,7 +194,23 @@ async function playOneGame(page, allErrors) {
         const piles = Object.values(s.piles || {}).map((a) => (Array.isArray(a) ? a.length : 0)).join(",");
         sig = `${s.turnNumber ?? ""}|${s.priorityPlayer ?? ""}|${piles}|${toks}`;
       } catch (e) {}
+      // 【2026-09-06】「効果を解決している最中」かどうか。ザ・ギャンブル／試練の儀式のように
+      // 色宣言・鼓動・じらし演出を挟む効果は、盤面が1つも動かないまま30秒を超えることがある
+      // （実測: 到達から色宣言まで23秒）。それを STALL と誤検知していたので、アプリが自分で
+      // 「まだ処理中」と言っている間は停止と数えない（下の busy 参照。上限は別に設ける）。
+      let busy = false;
+      try {
+        const al = await import("/src/action-log.js");
+        const entries = al.getActionLogEntries() || [];
+        for (let i = entries.length - 1; i >= 0 && i > entries.length - 30; i--) {
+          const e = entries[i];
+          if (e?.category !== "diag-auto-action-nothing") continue;
+          busy = !!(e.detail?.arrivalProcessing || e.detail?.handEffectBusy || e.detail?.picker);
+          break;
+        }
+      } catch (e) {}
       return {
+        busy,
         turnNumber: s.turnNumber ?? 0,
         turnPlayer: s.turnPlayer ?? null,
         tokens: Array.isArray(s.tokens) ? s.tokens.length : 0,
@@ -229,7 +248,15 @@ async function playOneGame(page, allErrors) {
     }
     // 決着までモードでなければ8ターン到達で健全とみなす。決着までは勝者が出るまで続ける。
     if (!RUN_TO_COMPLETION && lastTurn >= TARGET_TURN) { log("reached target turn", TARGET_TURN, "— PASS"); break; }
-    if (Date.now() - lastProgressAt > STALL_MS) { pushErr(`STALLED: no turn progress for ${STALL_MS / 1000}s (stuck at turn ${lastTurn})`); break; }
+    // アプリが「効果を解決中」と言っている間は停止と数えない。ただし際限なく待つと本物の
+    // 詰まりを見逃すので、その状態が BUSY_MAX_MS 続いたらやはり失敗にする。
+    if (snap.busy) busyProgressAt = Date.now();
+    const stalledMs = Date.now() - lastProgressAt;
+    const busyMs = Date.now() - busyProgressAt;
+    if (stalledMs > STALL_MS && !(snap.busy && busyMs < BUSY_MAX_MS)) {
+      pushErr(`STALLED: no turn progress for ${Math.round(stalledMs / 1000)}s (stuck at turn ${lastTurn}${snap.busy ? ", busy" : ""})`);
+      break;
+    }
     if (Date.now() - started > HARD_TIMEOUT_MS) { pushErr(`hard timeout after ${HARD_TIMEOUT_MS / 1000}s (reached turn ${lastTurn})`); break; }
   }
 

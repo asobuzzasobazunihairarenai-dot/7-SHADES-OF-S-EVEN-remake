@@ -16066,6 +16066,60 @@ body.is-phone-device .hand-effect-option-picker.is-peeking {
    要望通り、こちらだけ別のつまみ（--options-menu-scale-phone）を用意する。
    アンカー（右上の呼び出しボタン直下）を基準点に保つためtransform-originは
    右上にする。 */
+/* 【2026-09-06・ユーザー要望】スマホで基本設定の各項目が小さすぎて押しづらい。
+   このアプリは 1600x900 の「ステージ」を画面に合わせて縮めて描くので、ここの 1rem は
+   スマホでは実画面 7px 前後にしかならない。実測（iPhone 横向き 844x390・倍率0.433）では
+   チェックの行の高さ 11.7px・チェックボックス本体 5.6px・選択ボタン 11.1px しかなく、
+   目安（Apple 44pt / Google 48dp）の 1/4〜1/8 だった。
+   **パネル全体を transform で拡大するのは不可**（実測: 画面外へ 826px はみ出し、全行が
+   画面外・スクロールも届かない）。行そのものを大きくして、増えた分は縦スクロールに任せる。
+   狙いは主要な行が実画面で 40px 前後、補助的なもの（「戻す」等）が 32px 前後。 */
+body.is-phone-device .options-menu-details > summary,
+body.is-phone-device .options-menu-checkbox-row,
+body.is-phone-device .options-menu-item,
+body.is-phone-device .options-menu-detail-entry {
+  font-size: 1.9rem;
+  line-height: 1.35;
+  padding: 1.1rem 1.2rem;
+  min-height: 5.2rem;
+  box-sizing: border-box;
+  align-items: center;
+}
+body.is-phone-device .options-menu-detail-entry {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+}
+body.is-phone-device .options-menu-detail-entry-hint {
+  font-size: 1.4rem;
+}
+/* チェックボックス本体も指で押せる大きさに（行全体が <label> なのでどこを押しても効くが、
+   見た目が小さいと「押せる」と分からないため）。 */
+body.is-phone-device .options-menu-checkbox-row > input[type="checkbox"] {
+  width: 2.6rem;
+  height: 2.6rem;
+  margin-top: 0;
+}
+body.is-phone-device .options-menu-volume-row,
+body.is-phone-device .options-menu-shortcut-row {
+  font-size: 1.7rem;
+  padding: 0.9rem 1.2rem;
+}
+/* スライダーのつまみと帯（実測で帯の高さ 6.9px しかなかった）。 */
+body.is-phone-device .options-menu-volume-row input[type="range"] {
+  height: 3.4rem;
+}
+body.is-phone-device .options-menu-segment-btn,
+body.is-phone-device .options-menu-section-reset-btn {
+  font-size: 1.6rem;
+  padding: 0.7rem 1.2rem;
+  min-height: 4rem;
+}
+body.is-phone-device .options-menu-section-title,
+body.is-phone-device .options-menu-sub-label {
+  font-size: 1.5rem;
+}
+
 body.is-phone-device #options-menu-panel {
   transform-origin: top right;
   transform: scale(var(--options-menu-scale-phone, 1));

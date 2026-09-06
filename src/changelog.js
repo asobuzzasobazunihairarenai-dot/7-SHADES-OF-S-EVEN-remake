@@ -14,6 +14,21 @@ export const CHANGELOG = [
   {
     date: "2026-09-06",
     items: [
+      "基本設定の1画面目を6つの大きな項目にまとめました（音量／案内表示に畳み、カードの拡大サイズは詳細設定へ）。スマホでは1つ1つが指で押せる大きさになり、スクロールなしで全部見えます。",
+      "ランク戦で、お互いに「対戦開始」を押したのに始まらないことがあったのを直しました。押した後も自動でやり直すようになり、それでも始まらない時はもう一度押せるようになります。",
+      "物語チュートリアルの「遊び方を知っているのでスキップ」などのボタンが、スマホで画面の端に寄りすぎて押しづらかったのを直しました。",
+      "カードの効果文の「上記の到達時の効果を得る」を「上記の到達効果を得る」に統一しました（ほかの効果文と同じ言い方になり、少し短くなります）。",
+    ],
+    itemsEn: [
+      "The first page of Settings is now six large items (volume and prompts are grouped; card zoom size moved to Advanced). On phones each one is finger-sized and they all fit without scrolling.",
+      "Fixed ranked matches sometimes not starting even though both players pressed Start match. It now retries on its own, and lets you press again if it still cannot start.",
+      "Fixed the story tutorial's Skip and Restart buttons sitting too close to the screen edge to press on a phone.",
+      "Card text now reads \"Gain the Arrival Effect above\" consistently, matching the wording used elsewhere.",
+    ],
+  },
+  {
+    date: "2026-09-06",
+    items: [
       "物語チュートリアルの説明が一切出ず、左上のボタンも効かなくなっていたのを直しました。",
       "到達が続けて起きた時の「N 連鎖」の数え方が1つずれていたのを直しました。移動して最初に乗ったカードがいきなり「2 連鎖」と出て、その次も同じ数字のままでした。",
     ],

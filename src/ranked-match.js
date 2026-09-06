@@ -26,6 +26,7 @@ import {
   sendPushToUsers,
 } from "./online.js";
 import { t } from "./ui-text.js";
+import { logAction } from "./action-log.js";
 // ユーザー要望2026-09-02「ランク戦待ちの時にも（通知を）促す」。
 import { shouldSuggestRankedNotify, enableRankedNotifyFromPrompt } from "./ranked-notify.js"; // UI英語化フェーズ11
 import { openDeckSelect } from "./my-deck-select.js";
@@ -63,6 +64,13 @@ let titleFlashTimer = null;
 let exitToHome = null; // キャンセル/失敗時にホームへ戻すコールバック（home-screen.jsから注入）
 let practicing = false; // 待機中CPU練習中か（マッチ成立で中断してオンライン対局へ移る）
 let practiceBannerEl = null; // 練習中に画面隅に出す小さな「探し中」バナー
+// 【2026-09-06】「お互い対戦開始を押したのに始まらない」対策。押したことを覚えておき、
+// **ポーリングのたびに ready を送り直す**。サーバー側の so7_ranked_ready は冪等
+//（既に ready なら足さない・対局作成済みなら game_id をそのまま返す）なので、送り直しは安全。
+// これで「1回目の送信が通信エラーで落ちた」「まだロック前で ready が記録されなかった」の
+// どちらでも自力で復帰でき、全員が押した瞬間に対局が作られる（サーバーの締め切り処理を待たない）。
+let readyPressedMatchId = null;
+let readyPressedAt = 0;
 
 // ホームの「フリーマッチ（ランク戦）」タイルから呼ばれる入口。
 // onExit: キャンセル・失敗でホームへ戻すためのコールバック（呼び出し元がclose→この関数、
@@ -338,6 +346,30 @@ async function handlePollResult(res) {
         tag: "so7-ranked-matched",
       });
     }
+    // 【ランク戦が始まらない・2026-09-06】押した後は毎回 ready を送り直す（冪等）。全員押していれば、その場で対局が
+    // 作られて game_id が返るのでそのまま入場する。押したのに始まらない、を自力で抜ける。
+    if (readyPressedMatchId && readyPressedMatchId === res.match_id && !entering) {
+      const gameId = await readyRanked(res.match_id);
+      if (gameId) {
+        logAction("diag-ranked-ready", { via: "retry", matchId: res.match_id, gameId });
+        await enterRankedGame(gameId, res.opponents);
+        return;
+      }
+      // 締め切りを大きく過ぎても始まらない＝サーバー側の締め切り処理が働いていない可能性。
+      // 押しっぱなしで固まったままにせず、状況を記録して「もう一度押せる」状態へ戻す。
+      const stuckMs = Date.now() - readyPressedAt;
+      if (stuckMs > (READY_WINDOW_SEC + 20) * 1000) {
+        logAction("diag-ranked-ready", { via: "stuck", matchId: res.match_id, stuckMs });
+        readyPressedMatchId = null;
+        const btn = readyModalEl?.querySelector(".ranked-ready-start");
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = t("rm.L440");
+        }
+        const cd = readyModalEl?.querySelector(".ranked-ready-countdown");
+        if (cd) cd.textContent = t("rm.readyStuck");
+      }
+    }
     lastState = "matched";
   } else if (state === "ingame") {
     lastState = "ingame";
@@ -473,7 +505,10 @@ function showReadyModal(res) {
     startBtn.disabled = true;
     startBtn.textContent = t("rm.L443");
     stopTitleFlash();
+    readyPressedMatchId = res.match_id; // 【ランク戦が始まらない・2026-09-06】以後、ポーリングのたびに送り直す
+    readyPressedAt = Date.now();
     const gameId = await readyRanked(res.match_id);
+    logAction("diag-ranked-ready", { via: "press", matchId: res.match_id, gameId: gameId ?? null });
     if (gameId) {
       // 全員readyになり対局が作成された（自分が最後）→ そのまま入場。
       await enterRankedGame(gameId, res.opponents);
@@ -505,6 +540,8 @@ function showReadyModal(res) {
 }
 
 function hideReadyModal() {
+  readyPressedMatchId = null; // 【ランク戦が始まらない・2026-09-06】次のマッチへ持ち越さない
+  readyPressedAt = 0;
   readyModalEl?.remove();
   readyModalEl = null;
   if (readyCountdownTimer) {

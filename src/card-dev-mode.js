@@ -157,12 +157,12 @@ const PILOT_CARDS = [
     kind: "arrival",
     actual: "３マス以内の相手のいる場所とあなたのいる場所を入れ替える。相手はこのカードの到達効果を得ない。",
   },
-  // ユーザー要望「マスチェンジのように『上記の到達時の効果を得る』で生成文を
+  // ユーザー要望「マスチェンジのように『上記の到達効果を得る』で生成文を
   // 整理できないか」への対応でinheritsArrival:trueを追加し、実際に生成文へ
-  // 「上記の到達時の効果を得る。」が出るようになった（続き29）。「1」（半角）と
+  // 「上記の到達効果を得る。」が出るようになった（続き29）。「1」（半角）と
   // 「１」（全角）だけ、docs/cards.md側の表記揺れ（なないろの巨光と同種）で
   // ⚠️のまま残るが、これはdocs側の入力ミスであり生成側の不具合ではない。
-  { cardId: "orange-mass-change", kind: "handEffect", actual: "【追色1】上記の到達時の効果を得る。" },
+  { cardId: "orange-mass-change", kind: "handEffect", actual: "【追色1】上記の到達効果を得る。" },
   // 続き90: orange-harvest-sowと同じくカード効果テキスト.txt/docs/cards.mdを
   // 生成文の語順に合わせて修正したため追従（以前の⚠️は解消）。
   { cardId: "first-orange", kind: "handEffect", actual: "【追色１】２マス以内の１枚をあなたの手札に加える。" },
@@ -199,11 +199,11 @@ const PILOT_CARDS = [
   // 続き88でこのカードのhandEffectからusableAnytime:trueを外した
   // （ユーザー要望「一旦スリカエの手札効果からいつでも使えるを外す」）ため、
   // 生成文から「この効果はいつでも使える。」が消え、実際の文言も
-  // docs/cards.mdの「上記の到達時の効果を得る。」に合わせて更新した。
+  // docs/cards.mdの「上記の到達効果を得る。」に合わせて更新した。
   {
     cardId: "yellow-sleight-of-hand",
     kind: "handEffect",
-    actual: "上記の到達時の効果を得る。",
+    actual: "上記の到達効果を得る。",
   },
   { cardId: "red-jump-pad", kind: "handEffect", actual: "これをゲート以外の任意のマスに表向きで置く。" },
   { cardId: "red-counter-lock", kind: "arrival", actual: "１番少なくロックしているなら1枚ドロー。" },
@@ -239,20 +239,20 @@ const PILOT_CARDS = [
   {
     cardId: "yellow-gamble",
     kind: "handEffect",
-    actual: "あなたは手札を１枚捨てる。上記の到達時の効果を得る。このフェイズを終了する。",
+    actual: "あなたは手札を１枚捨てる。上記の到達効果を得る。このフェイズを終了する。",
   },
   {
     cardId: "purple-trial-ritual",
     kind: "arrival",
     actual: "色を３色宣言する。あなたの隣に山札から１枚表向きで置く。そのマスに移動し、移動先の到達効果は得ない。置いたカードが宣言色ならこの効果を繰り返す。",
   },
-  { cardId: "purple-trial-ritual", kind: "handEffect", actual: "上記の到達時の効果を得る。" },
+  { cardId: "purple-trial-ritual", kind: "handEffect", actual: "上記の到達効果を得る。" },
   {
     cardId: "green-joint-construction",
     kind: "arrival",
     actual: "全員は何もない１マスに山札または手札から１枚裏向きで置く。",
   },
-  { cardId: "green-joint-construction", kind: "handEffect", actual: "上記の到達時の効果を得る。" },
+  { cardId: "green-joint-construction", kind: "handEffect", actual: "上記の到達効果を得る。" },
   {
     cardId: "blue-slum-official",
     kind: "arrival",
