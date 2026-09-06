@@ -15,10 +15,12 @@ export const CHANGELOG = [
     date: "2026-09-07",
     items: [
       "オンライン対戦で、接触を申し込んだあと相手の返事が返ってこないと対局が動かなくなることがあったのを直しました。相手が答えられない状態が続いた場合は、その接触を取り消して先に進みます。",
+      "7色目のロックの承認が返ってこない時も同じように止まっていたのを直しました。しばらく待っても答えが無ければ承認されて先に進みます。",
       "相手が席を外していても一定時間で自動的に承認される仕組みが、実際には働いていなかったのを直しました。",
     ],
     itemsEn: [
       "Fixed online matches locking up when a contact request never got an answer. If the opponent stays unable to respond, the contact is now cancelled so play continues.",
+      "Fixed the same lock-up when approval for a seventh-colour lock never came back — after a wait it is approved so play continues.",
       "Fixed the safeguard that auto-approves after a while when an opponent is away — it was not actually running.",
     ],
   },

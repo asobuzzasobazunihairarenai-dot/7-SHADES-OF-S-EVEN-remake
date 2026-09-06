@@ -6643,6 +6643,16 @@ export function getStallDiagnostics() {
     anytimeInterruptModal: !!anytimeInterruptModalEl,
     cpuResultHold: cpuResultHoldActive,
     currentPhase: getCurrentPhase(),
+    // 【2026-09-07】「誰の返事を待っているのか」。オンラインの停止調査で、接触・最後のロックの
+    // 承認待ちが残っているのは分かっても**誰待ちなのか**が読めず特定に時間がかかった。
+    // 席の記号だけで、カード名などの伏せ情報は含まない。
+    pendingContact: getState().pendingContact
+      ? { attacker: getState().pendingContact.attacker, defender: getState().pendingContact.defender }
+      : null,
+    pendingFinalLock: getState().pendingFinalLock
+      ? { attacker: getState().pendingFinalLock.attacker, queue: getState().pendingFinalLock.queue }
+      : null,
+    selfSeat: getSelfSeat(),
   };
 }
 
@@ -15969,6 +15979,46 @@ function checkContactStuckCancel() {
   void showEffectReasonModal(null, t("game.contact.stuckCancelled"));
 }
 
+// 【2026-09-07】接触と**まったく同じ形**の停止を、最後のロックの承認でも掴まえた——
+//   diag-lock-click-skip: {"reason":"pending-final-lock"} が延々と出続けて対局が進まない。
+// 上の checkFinalLockApprovalTimeout は45秒で自動承認するが、**承認の順番が回ってきている
+// クライアントでしか動かない**（`getSelfSeat() !== pending.queue[0]` で return）。その人の
+// 通信が切れていれば誰も解決できない。
+//
+// そこで席に関係なく**どのクライアントでも**75秒で承認を進める。**取り消しではなく承認**に
+// するのは、45秒の自動承認と同じ方針だから（相手が答えられないだけで、ロックした人の
+// 正当な勝ちを取り上げる理由は無い）。サーバー側の RESPOND_FINAL_LOCK は送り主を見ず、
+// queue の先頭を1つ進めるだけなので**Edge Function の変更は不要**。承認者が複数いる
+// 3・4人戦では、この砦が順番に効いて最後まで進む。
+const FINAL_LOCK_STUCK_APPROVE_MS = 75000;
+let finalLockStuckKey = "";
+let finalLockStuckSince = 0;
+function checkFinalLockStuckApprove() {
+  if (!isOnlineMode()) return;
+  const pending = getState().pendingFinalLock;
+  if (!pending || !pending.queue || pending.queue.length === 0) {
+    finalLockStuckKey = "";
+    finalLockStuckSince = 0;
+    return;
+  }
+  const key = pending.attacker + "|" + pending.queue[0] + "|" + (pending.tokenId ?? "");
+  if (key !== finalLockStuckKey) {
+    finalLockStuckKey = key;
+    finalLockStuckSince = Date.now();
+    return;
+  }
+  if (Date.now() - finalLockStuckSince < FINAL_LOCK_STUCK_APPROVE_MS) return;
+  finalLockStuckSince = Date.now(); // 連続発火を防ぐ
+  logAction("diag-final-lock-stuck-approve", {
+    attacker: pending.attacker,
+    approver: pending.queue[0],
+    selfSeat: getSelfSeat(),
+    iAmApprover: getSelfSeat() === pending.queue[0],
+    waitedMs: FINAL_LOCK_STUCK_APPROVE_MS,
+  });
+  respondFinalLock(true);
+}
+
 function checkFinalLockApprovalTimeout() {
   if (!isOnlineMode()) return;
   const pending = getState().pendingFinalLock;
@@ -16105,6 +16155,7 @@ setInterval(() => {
     checkFinalLockApprovalTimeout();
     checkContactApprovalTimeout();
     checkContactStuckCancel();
+    checkFinalLockStuckApprove();
   } catch { /* noop */ }
   try {
     rescuePhaseIfNeverStarted();

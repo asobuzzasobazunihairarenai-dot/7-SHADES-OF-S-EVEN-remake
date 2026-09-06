@@ -1702,3 +1702,41 @@ diag-auto-action-nothing: {"phase":"move","movePhaseActive":false,"pendingContac
   修正前は**180秒待っても取り消されなかった**（＝永久に停止）。
   `npm test` 56/56 PASS、`node test/smoke.mjs 2` PASS、`node tools/check-undeclared.mjs` 0件、
   CSSブレース平衡（3136）、構文チェック通過、お知らせ ja/en とも2件。例外0件。
+
+
+### 2026-09-07（続き461）：最後のロックの承認でも同じ停止を掴まえた——同じ最後の砦を入れた／停止調査の内訳に「誰待ちか」を足した
+
+続き460 の修正後にオンラインの決着まで自動対戦を回すと、**turn 23 まで到達**した
+（それまでは 12 → 9 → 7 → 4）。見張りの修復が効いている。そこで次の停止:
+
+```
+diag-lock-click-skip: {"reason":"pending-final-lock"} が10秒ごとに出続けて対局が進まない
+```
+
+- **接触とまったく同じ形**: `checkFinalLockApprovalTimeout`（45秒で自動承認）は
+  **承認の順番が回っているクライアントでしか動かない**（`getSelfSeat() !== pending.queue[0]` で return）。
+  その人の通信が切れていれば誰も解決できず、ロックしようとしている側は
+  `pending-final-lock` で弾かれ続けて永久に止まる。
+- **修正**: `checkFinalLockStuckApprove()` を追加。席に関係なく**どのクライアントでも**75秒で
+  承認を進める。**取り消しではなく承認**にしたのは45秒の自動承認と同じ方針だから
+  （相手が答えられないだけで、ロックした人の正当な勝ちを取り上げる理由が無い）。
+  サーバー側の `RESPOND_FINAL_LOCK` は送り主を見ず queue の先頭を1つ進めるだけなので
+  **Edge Function の変更は不要**。承認者が複数いる3・4人戦では順番に効いて最後まで進む。
+
+- **停止調査の内訳に「誰待ちか」を足した**: 今回、承認待ちが残っているのは分かっても
+  **誰待ちなのか**が読めず特定に時間がかかった（テストのログは末尾10行しか残らない）。
+  `getStallDiagnostics()` に `pendingContact {attacker, defender}` / 
+  `pendingFinalLock {attacker, queue}` / `selfSeat` を追加した。**席の記号だけで、
+  カード名などの伏せ情報は含まない**。
+
+- **検証（実測・本物のオンライン対戦）**: 最後のロックの承認待ちを作った直後に
+  **承認する側のブラウザを閉じる**——**75秒で承認が進み**、
+  `diag-final-lock-stuck-approve {attacker:"C", approver:"A", selfSeat:"C", iAmApprover:false}`
+  が残った。`npm test` 56/56 PASS、`node test/smoke.mjs 2` PASS、
+  `node tools/check-undeclared.mjs` 0件（162ファイル）、構文チェック通過、お知らせ ja/en とも3件。例外0件。
+
+- **申し送り**: 「特定の1人しか解決できない待ち」は**この2つ以外にもある可能性が高い**
+  （タイマーのオン/オフの承認 `REQUEST_TIMER_TOGGLE` / 自動処理の切り替え
+  `REQUEST_AUTO_PROCESSING_TOGGLE` も同じ queue 方式）。ただしこの2つは**対局の進行を
+  ブロックしない**（承認されなくても手は進められる）ので、今回は触っていない。
+  進行を止める待ちを新しく足す時は、必ず**席に関係なく効く上限**をセットで入れること。
