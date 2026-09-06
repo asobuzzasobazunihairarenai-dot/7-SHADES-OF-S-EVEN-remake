@@ -110,7 +110,13 @@ import {
   findInvadedDefender,
   isLocalGateInvasionActive,
 } from "./gate-invasion.js";
-import { announceHandPickups, announceCardLocked, announceDrawCount, announceCardDiscarded } from "./hand-announcer.js";
+import {
+  announceHandPickups,
+  announceCardLocked,
+  announceDrawCount,
+  announceCardDiscarded,
+  announceCardsDiscarded,
+} from "./hand-announcer.js";
 import { clearTurnEventStock, getTurnEventStockKey } from "./turn-event-stock.js";
 // 盤面の演出中は「情報を見せるだけ」のモーダルを演出の後まで待たせる（#261）。
 import {
@@ -1070,7 +1076,10 @@ async function discardFromHandReveal(tokenId, opts = {}) {
   // #4: 「捨て」もターンの出来事ストックに残す。捨て場は表向き＝公開情報なので中身を出してよい。
   // トークンは直後に手札から消えるので、消える前にここで拾っておく。
   {
-    const discarded = opts.silent ? null : getState().tokens.find((t) => t.id === tokenId);
+    // 【#315】batchNotice: この1枚ぶんのお知らせは出さない（呼び出し側が捨て終わってから
+    // まとめて1つ出す）。焼失演出と出来事ストックの扱いは silent とは別なので、こちらは
+    // 焼失演出をそのまま残す。
+    const discarded = opts.silent || opts.batchNotice ? null : getState().tokens.find((t) => t.id === tokenId);
     if (discarded?.cardId) announceCardDiscarded(discarded.location?.player ?? getSelfSeat(), discarded.cardId, currentEffectReasonLabel());
   }
   if (isOnlineMode()) {
@@ -4154,6 +4163,21 @@ function isBlockingBackdropVisible() {
   return false;
 }
 
+// 【#317】盤面の手前に「画面を覆う別の画面」が出ているか。
+// ユーザー報告2026-09-06「基本設定画面で左側をタップしたらカードが出てきた！w」——
+// 盤面のタップ/ホバーは3D階層の当たり判定が信用できないため elementsFromPoint() で自前に
+// 判定しており、**手前に何が乗っていようとその下の盤面を触ってしまう**。返事待ちモーダル
+// （.so7-modal-backdrop）は #250 で塞いだが、
+//   ・全画面ページ（ホーム/マイページ/ランキング/図鑑/マイデッキ）
+//   ・オプションの基本設定パネル（常駐パネルなので dim 背景を持たない）
+// は対象外だった。どちらも「今は盤面を触る場面ではない」ので、まとめて塞ぐ。
+// ここでも**存在ではなく実際に出ているか**で見る（続き396/415の罠）。
+function isBoardCoveredByOtherScreen() {
+  if (document.body.classList.contains("full-screen-page-active")) return true;
+  const panel = document.getElementById("options-menu-panel");
+  return !!panel && panel.getClientRects().length > 0;
+}
+
 document.addEventListener(
   "pointerdown",
   (e) => {
@@ -4245,7 +4269,7 @@ document.addEventListener(
     // 見せ隠ししており、閉じている間もDOMに残る（実測: 起動直後から常に7個ある）。
     // 存在で判定すると盤面が永久に触れなくなる（続き396で踏んだのと同じ罠）。
     // 実際に画面に出ているもの（矩形を持つもの）だけを数える。
-    if (isBlockingBackdropVisible()) return;
+    if (isBlockingBackdropVisible() || isBoardCoveredByOtherScreen()) return;
     if (!activeEffectPicker) {
       // ユーザー要望2026-08-17「相手のアバターをクリックすると『このプレイヤーのエモートを
       // 非表示』的なボタンが出るようにしたい」。選択待ち(activeEffectPicker)中は手品師の技等の
@@ -6967,6 +6991,8 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
       { cardId, cardTokenId, player },
       {
         discardAndSync: discardFromHandReveal,
+        // 【#315】まとめて捨てた分は1つのお知らせにまとめて見せる（ザ・ギャンブル等）。
+        announceCardsDiscarded: (p, ids) => announceCardsDiscarded(p, ids, currentEffectReasonLabel()),
         drawCards: drawCardsForEffect,
         pickDiscardCost: (candidates, hint) => requestHandCardChoiceForEffect(player, hint, new Set(candidates.map((t) => t.id))),
         moveAndSync: moveAndSyncForEffect,
@@ -7136,6 +7162,8 @@ async function runAutoArrivalEffect(cardId, location, player) {
       // 追色コストの支払いで元々discardAndSyncを持っていたが、到達効果側には
       // まだ無かったので追加した。
       discardAndSync: discardFromHandReveal,
+      // 【#315】まとめて捨てた分は1つのお知らせにまとめて見せる（ザ・ギャンブル等）。
+      announceCardsDiscarded: (p, ids) => announceCardsDiscarded(p, ids, currentEffectReasonLabel()),
       // ユーザー要望「効果が不発だった場合は『不発のためこのカードを手札に加えます』
       // 的なモーダルを出す」用。
       announceFizzle: announceEffectFizzleForEffect,
@@ -10745,6 +10773,8 @@ function isOwnGrabbableCard(tokenId) {
 function findDraggableAt(clientX, clientY) {
   // 観戦者は読み取り専用。掴める対象を一切返さない（ドラッグ・接触・ロック等を封じる）。
   if (isSpectatingGame()) return null;
+  // 【#317】全画面ページ・基本設定パネルが手前に出ている間は掴ませない（ホバーと同じ理由）。
+  if (isBoardCoveredByOtherScreen()) return null;
   const elements = document.elementsFromPoint(clientX, clientY);
   // #141: 盤面拡大中のミニロックエリアのスロット（is-usable/is-pick-target＝pointer-events:auto）を
   // クリックした時、その背面にある手札カードまで掴んで手札効果を誤発動させないようにする。
@@ -11147,6 +11177,14 @@ function showAllPieceNameBubbles() {
 }
 
 function updateHover(clientX, clientY) {
+  // 【#317】盤面の手前に別の画面（全画面ページ・基本設定パネル・返事待ちモーダル）が
+  // 出ている間は、盤面のホバー/拡大プレビューを出さない。
+  if (isBoardCoveredByOtherScreen() || isBlockingBackdropVisible()) {
+    clearHover();
+    updatePreview(null);
+    hideAllPieceNameBubbles();
+    return;
+  }
   // ドラッグ中はドロップ先ハイライト(.drop-target-active)と役割が被って紛らわしいので休止する。
   if (dragSession) {
     clearHover();
@@ -15807,7 +15845,17 @@ subscribe(() => {
   }
 });
 registerCardDevModeArrivalHelpers({ triggerCardArrival, runAutoHandEffect, render });
-registerPhaseAutomationHelpers({ render, findTopCardAt, pickLocation: requestCellChoiceForEffect, notifyPlayerDecision });
+registerPhaseAutomationHelpers({
+  render,
+  findTopCardAt,
+  pickLocation: requestCellChoiceForEffect,
+  notifyPlayerDecision,
+  // 【#316】動けなかった時の救済（隣へ山札から1枚置く）を画面で知らせる。中央は一度に1つ
+  // （#266）の列に乗るので、他のお知らせと重ならず順番に出る。
+  announceMoveFallback: (player) => {
+    void showEffectReasonModal(null, t("game.move.fallbackPlaced", { name: getPlayerName(player) }));
+  },
+});
 initHelpButton();
 initRankingIcon();
 initUpdateChecker(); // デプロイ検知＆更新案内バナー（version.jsonを定期チェック）

@@ -1773,13 +1773,20 @@ async function runAction(action, ctx, helpers) {
       // 呼び出し元main.jsのtriggerCardArrivalではconsole.errorに落ちるだけで、
       // ユーザーからは何も起きなくなったように見える）。1枚失敗しても残りは
       // 続けて捨てられるようにする。
+      // 【#315】1枚ずつ「捨てました」を出すと、中央は一度に1つ（#266）なので手札の枚数ぶん
+      // 順番待ちになる（ユーザー要望「捨てるカードの全てを一気に表示させたい」）。捨てる間は
+      // 焼失演出だけを出し、お知らせは捨て終わってから**1つにまとめて**見せる。
+      const discardedIds = [];
       for (const token of toDiscard) {
         try {
-          await helpers.discardAndSync(token.id);
+          const shownId = token.cardId;
+          await helpers.discardAndSync(token.id, { batchNotice: true });
+          if (shownId) discardedIds.push(shownId);
         } catch (err) {
           console.error("DISCARD_HAND_IF_REVEALED_MATCHES_DECLARED: discardAndSync failed for", token.id, err);
         }
       }
+      await helpers.announceCardsDiscarded?.(ctx.player, discardedIds);
       return true;
     }
     case VERBS.RITUAL_PLACE_MOVE_REPEAT: {

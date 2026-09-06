@@ -7597,6 +7597,96 @@ body.shop-open #options-menu-panel {
   text-align: left;
   cursor: pointer;
 }
+/* ===== 【#318】基本設定の1画面目の見た目を揃える（ユーザー報告2026-09-06「なんかスマホの
+   基本設定画面の、uiがダサい感じがするのはきのせい？」）====================================
+   ダサく見えていた正体は**同じ1画面に4種類の見た目が並んでいた**こと——言語だけ枠なし、
+   音量/案内表示は細い枠、詳細設定は塗りつぶしの箱、山札一覧/タイトルに戻るは枠なしで
+   左端の位置も違う。中身は変えず「同じ形のカードが縦に並ぶ」だけに揃える。
+   detailMode（詳細設定ビュー）は項目が多く性質も違うので対象外＝is-basic-view で絞る。 */
+#options-menu-panel.is-basic-view > .options-menu-basic-row,
+#options-menu-panel.is-basic-view > .options-menu-details,
+#options-menu-panel.is-basic-view > .options-menu-detail-entry,
+#options-menu-panel.is-basic-view > .options-menu-item {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0 auto 0.45rem;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 0.55rem;
+  background: rgba(255, 255, 255, 0.045);
+}
+#options-menu-panel.is-basic-view > .options-menu-details:hover,
+#options-menu-panel.is-basic-view > .options-menu-detail-entry:hover,
+#options-menu-panel.is-basic-view > .options-menu-item:hover {
+  border-color: rgba(56, 189, 248, 0.55);
+  background: rgba(56, 189, 248, 0.1);
+}
+/* 中身の並びも揃える: 左に名前、右に操作。 */
+#options-menu-panel.is-basic-view > .options-menu-item,
+#options-menu-panel.is-basic-view > .options-menu-basic-row > .options-menu-volume-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+/* 折りたたみの見出しは「名前 … 戻す ›」の順に右へ詰める（space-between のままだと
+   3つ目の矢印に押されて「戻す」が行の真ん中に浮いてしまう）。 */
+#options-menu-panel.is-basic-view > .options-menu-details > summary {
+  justify-content: flex-start;
+}
+
+/* 「押すと何かが開く」ものには、右端に同じ形の矢印を出す（押せることが一目で分かる）。 */
+#options-menu-panel.is-basic-view > .options-menu-item::after,
+#options-menu-panel.is-basic-view > .options-menu-detail-entry::after,
+#options-menu-panel.is-basic-view > .options-menu-details > summary::after {
+  content: "›";
+  margin-left: auto;
+  padding-left: 0.4rem;
+  color: #7dd3fc;
+  opacity: 0.85;
+  font-size: 1.35em;
+  line-height: 1;
+}
+#options-menu-panel.is-basic-view > .options-menu-details[open] > summary::after {
+  content: "⌄";
+}
+/* 見出しの行だけは矢印側の margin-left:auto を外す。auto が2つあると余白を**半分ずつ
+   分け合う**ので、そのままだと「戻す」が行の真ん中に浮く（実測: 右端まで 124px 残った）。
+   ※このルールは上の矢印ルールより**後ろ**に置くこと（同じ詳細度なので順番で決まる）。 */
+#options-menu-panel.is-basic-view > .options-menu-details > summary::after {
+  margin-left: 0;
+}
+/* 開閉の三角は右端の矢印と役割が重なるので、基本設定では出さない。 */
+#options-menu-panel.is-basic-view .options-menu-details-title::before {
+  content: none;
+}
+/* 詳細設定だけは2行（名前＋説明）なので、矢印は右端の中央に重ねて置く。 */
+#options-menu-panel.is-basic-view > .options-menu-detail-entry {
+  position: relative;
+  padding-right: 2rem;
+}
+#options-menu-panel.is-basic-view > .options-menu-detail-entry::after {
+  position: absolute;
+  right: 0.8rem;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 0;
+  padding-left: 0;
+}
+/* 言語の但し書きはカードの中へ（名前と左端をそろえる）。 */
+#options-menu-panel.is-basic-view > .options-menu-basic-row > .options-menu-lang-note {
+  margin: 0 !important;
+  padding: 0 0.6rem 0.5rem;
+}
+/* 「戻す」は補助的な操作なので控えめに、右端の矢印の手前へ寄せる。 */
+#options-menu-panel.is-basic-view .options-menu-section-reset-btn {
+  margin-left: auto;
+  opacity: 0.75;
+}
+/* 全部カードになったので区切り線は要らない。 */
+#options-menu-panel.is-basic-view > .options-menu-divider {
+  display: none;
+}
+
 .options-menu-detail-entry:hover {
   border-color: rgba(56, 189, 248, 0.7);
   background: rgba(56, 189, 248, 0.12);

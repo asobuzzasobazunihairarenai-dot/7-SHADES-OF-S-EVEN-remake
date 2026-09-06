@@ -295,6 +295,41 @@ export function announceCardLocked(player, cardId) {
 // #4: 「捨て」もストックに残す（ユーザー要望の獲得／捨て／ドロー／奪取のうち“捨て”）。
 // 捨て場は表向きに積む＝公開情報なので、中身は常に全員へ見せてよい。
 // reason: 「〜の効果で」等、何によって捨てたかの短い説明（省略可）。
+// 【#315】まとめて捨てた分を**1つのお知らせにまとめて**見せる（ユーザー要望2026-09-06
+// 「ギャンブルで外した時、捨てるカードのミニモーダルは捨てるカードの全てを一気に表示させたい」）。
+// 1枚ずつ出すと、中央は一度に1つ（#266）なので順番待ちになり、手札の枚数ぶん待たされていた。
+// 見た目は「獲得」のまとめ表示（announceHandPickups）と同じ横並び。
+export function announceCardsDiscarded(player, cardIds, reason) {
+  const ids = (cardIds || []).filter((id) => id && getCardDefinition(id));
+  if (ids.length === 0) return;
+  if (ids.length === 1) return announceCardDiscarded(player, ids[0], reason);
+  const name = getPlayerNameOrYou(player);
+  showToast(
+    `
+    <div class="hand-pickup-toast-title">${t("game.toast.discardedMany", { name, n: ids.length })}</div>
+    ${reasonLine(reason)}
+    <div class="hand-pickup-toast-cards">
+      ${ids
+        .map(
+          (cardId) => `
+        <div class="hand-pickup-toast-card">
+          <div class="hand-pickup-toast-img" data-cardface-id="${cardId}"></div>
+          <div class="hand-pickup-toast-name">${cardNameOf(cardId)}</div>
+        </div>`
+        )
+        .join("")}
+    </div>
+  `,
+    {
+      icon: "trash",
+      cardId: ids[0],
+      label:
+        t("game.chip.discardMany", { name, n: ids.length, cards: ids.map((id) => cardNameOf(id)).join("、") }) +
+        reasonSuffix(reason, true),
+    }
+  );
+}
+
 export function announceCardDiscarded(player, cardId, reason) {
   if (!cardId) return;
   const def = getCardDefinition(cardId);

@@ -608,6 +608,8 @@ function buildCpuDifficultyRow() {
 // setLang で保存(localStorage・この端末のみ)し、onLangChange→盤面再描画でカード面が切り替わる。
 function buildLanguageRow() {
   const wrap = document.createElement("div");
+  // 【#318】基本設定では他の行と同じカードの見た目にする（style.css）。
+  wrap.className = "options-menu-basic-row";
   const row = document.createElement("div");
   row.className = "options-menu-volume-row";
   const label = document.createElement("span");
@@ -637,6 +639,7 @@ function buildLanguageRow() {
   row.appendChild(group);
   wrap.appendChild(row);
   const note = document.createElement("div");
+  note.className = "options-menu-lang-note";
   note.style.cssText = "font-size: 0.72rem; color: #94a3b8; margin: 0.1rem 0 0.5rem; line-height: 1.5;";
   note.textContent = t("opt.langNote");
   wrap.appendChild(note);
@@ -909,6 +912,9 @@ export function initOptionsMenu() {
 
   function renderContent() {
     panel.innerHTML = "";
+    // 【#318】基本設定の1画面目だけ、並んでいるものの見た目を揃える（style.css の
+    // is-basic-view 参照）。詳細設定ビューは項目が多く性質も違うので今までどおり。
+    panel.classList.toggle("is-basic-view", !detailMode);
 
     // 全画面表示（ユーザー要望）にしたので、他の全画面ページ同様に左上へ「← 戻る」を置く。
     // ユーザー要望2026-08-28「よく使う設定より下の設定は詳細設定というボタンを作り格納する
@@ -1026,7 +1032,8 @@ export function initOptionsMenu() {
       detailBtn.className = "options-menu-detail-entry";
       const detailTitle = document.createElement("span");
       detailTitle.className = "options-menu-detail-entry-title";
-      detailTitle.textContent = `${t("opt.detailSettings")} ▸`;
+      // 【#318】右端に共通の矢印（›）を出すようにしたので、文字の ▸ は重複するため外した。
+      detailTitle.textContent = t("opt.detailSettings");
       const detailHint = document.createElement("span");
       detailHint.className = "options-menu-detail-entry-hint";
       detailHint.textContent = t("opt.detailSettingsHint");

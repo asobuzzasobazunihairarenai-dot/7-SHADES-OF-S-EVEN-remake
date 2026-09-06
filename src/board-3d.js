@@ -573,6 +573,23 @@ function rebuild() {
       mesh.material.color.setRGB(b, b, b, THREE.SRGBColorSpace);
       mesh.userData.domIndex = order++;
       mesh.visible = true;
+      // 【#314】CSSの backface-visibility: hidden を尊重する（ユーザー報告「キューブの奥側
+      // 上の辺の黒太線が気になります」）。駒の立方体の**奥の壁**は、CSSでは裏を向いた瞬間に
+      // 消える（.piece-face に backface-visibility: hidden がある）が、こちらは板を両面
+      // （DoubleSide）で描いていたため、上面のさらに向こう側に**一番暗い面（brightness 0.35）**
+      // がそのまま見えて、黒い太線に見えていた。
+      // 判定はCSSと同じ「その要素の表側（ローカル+Z）がカメラの方を向いているか」。行列の
+      // 3列目が変形後の+Z軸、4列目が板の中心。Yを反転して置いてあるが、法線と視線の両方が
+      // 同じように反転するので内積の符号は変わらない（＝この判定はそのまま使える）。
+      if (cs.backfaceVisibility === "hidden" || cs.webkitBackfaceVisibility === "hidden") {
+        _world.multiplyMatrices(rootGroup.matrix, mesh.matrix);
+        const e = _world.elements;
+        const dot =
+          e[8] * (camera.position.x - e[12]) +
+          e[9] * (camera.position.y - e[13]) +
+          e[10] * (camera.position.z - e[14]);
+        if (dot <= 0) mesh.visible = false;
+      }
     };
     if (url) {
       seen.add(el);

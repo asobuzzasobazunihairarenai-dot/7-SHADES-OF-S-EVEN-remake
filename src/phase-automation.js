@@ -96,11 +96,14 @@ let findTopCardAtHelper = null;
 // notifyPlayerDecision（applyActionRecoveryを優先権保持者本人に適用）を注入してもらい、
 // 実際にフェイズが開始した時に1回呼ぶ（循環import回避のため直接importせず注入）。
 let notifyPlayerDecisionHelper = null;
-export function registerPhaseAutomationHelpers({ render, findTopCardAt, pickLocation, notifyPlayerDecision }) {
+// 【#316】「動けないので山札から隣に1枚置いた」ことを画面で知らせる関数（main.jsから注入）。
+let announceMoveFallbackHelper = null;
+export function registerPhaseAutomationHelpers({ render, findTopCardAt, pickLocation, notifyPlayerDecision, announceMoveFallback }) {
   renderHelper = render;
   findTopCardAtHelper = findTopCardAt;
   pickLocationHelper = pickLocation;
   notifyPlayerDecisionHelper = notifyPlayerDecision;
+  announceMoveFallbackHelper = announceMoveFallback;
 }
 // ムーブフェイズの救済（移動先も接触相手も無い時、山札から隣へ1枚置く）で、プレイヤーに
 // 置き先マスを選ばせるためのピッカー（main.jsのrequestCellChoiceForEffectを注入）。
@@ -1462,6 +1465,11 @@ async function performMoveFallbackAndEndTurn(player, location) {
       }
       playSound("cardPlace");
       renderHelper?.();
+      // 【#316】ユーザー要望2026-09-06「ムーブフェイズで動けなくて山札から隣に置いた時、
+      // その旨を知らしめるモーダルあった方がいいな！」。ルール上の救済（移動先も接触相手も
+      // 無い＝隣に山札から1枚裏向きで置いてターン終了）は、今までカードが1枚増えるだけで
+      // 何も説明が無く、何が起きたのか分からなかった。
+      announceMoveFallbackHelper?.(player);
     }
     // ユーザー報告（続き95）「優先権が相手から自分に戻らない」の原因調査で判明:
     // nextTurn()はturnPlayerを次のプレイヤーへ進めるだけで、priorityPlayerには一切

@@ -14,6 +14,23 @@ export const CHANGELOG = [
   {
     date: "2026-09-06",
     items: [
+      "駒の奥側の上の辺に黒い太い線が出ていたのを直しました（見えないはずの面が描かれていました）。",
+      "設定などの画面を開いている時に、その裏の盤面を触ってカードが拡大表示されたり駒を掴めたりしたのを直しました。",
+      "基本設定の1画面目の見た目を整えました。並んでいるものを同じ形のカードに揃え、押すと開くものには右端に同じ矢印を出しています。",
+      "ザ・ギャンブルで外して手札を捨てる時、1枚ずつ順番に出ていたお知らせを、捨てたカードをまとめて1つに表示するようにしました。",
+      "移動できるマスも接触できる相手もいない時に隣へ山札から1枚置く決まりを、何が起きたか分かるようお知らせで説明するようにしました。",
+    ],
+    itemsEn: [
+      "Fixed a thick black line along the far top edge of the cube pieces (a face that should have been hidden was being drawn).",
+      "Fixed being able to touch the board behind a settings or full-screen page — cards no longer pop up and pieces can no longer be picked up through it.",
+      "Tidied up the first page of the basic settings: every entry now uses the same card shape, and anything that opens shows the same arrow on the right.",
+      "When The Gamble misses and your hand is discarded, the discarded cards are now shown together in a single notice instead of one at a time.",
+      "When you have nowhere to move and no one to contact, the rule that places a card from the deck beside you is now explained in a notice.",
+    ],
+  },
+  {
+    date: "2026-09-06",
+    items: [
       "接触の見せ方の順番を変えました。まず突進の演出、次に相手の手札から1枚選び、奪ったカードを見せてから、相手が自分のゲートへ飛ばされます（以前は突進の前に手札を選んでいたので、結果が先に分かってしまっていました）。",
       "接触でカードを選ぶ時、CPU戦でまれにカードを1枚も選べなくなることがあったのを直しました。",
       "黒いカードがロックエリアに置かれる時、暗い封印が焼き付く演出を追加しました。",
