@@ -230,7 +230,9 @@ export async function playVictoryCelebration(player, opts = {}) {
     stopFlareTrack = trackSlotFlares(flares, liveSlots);
     for (let i = 0; i < slots.length; i++) {
       flares[i]?.firstChild?.classList.add("is-lit");
-      playSound("lock");
+      // 【ユーザー指示2026-09-07】各ロックカードが光る瞬間の音は**暫定で到達時の効果音**を割り当てる
+      // （専用の素材ができたらここだけ差し替える）。1段ずつ音が上がる playVictoryChime は別に鳴らす。
+      playSound("arrivalEffect");
       playVictoryChime(i); // 色が灯るたびに1段ずつ音が上がる（ユーザー要望2026-09-03）
       // 前半はゆっくり、後半に向けてテンポを上げる
       const k = slots.length > 1 ? i / (slots.length - 1) : 1;

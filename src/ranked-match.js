@@ -26,6 +26,7 @@ import {
   sendPushToUsers,
 } from "./online.js";
 import { t } from "./ui-text.js";
+import { createWaitingTips } from "./waiting-tips.js";
 import { logAction } from "./action-log.js";
 // ユーザー要望2026-09-02「ランク戦待ちの時にも（通知を）促す」。
 import { shouldSuggestRankedNotify, enableRankedNotifyFromPrompt } from "./ranked-notify.js"; // UI英語化フェーズ11
@@ -50,6 +51,7 @@ function rankNames() {
 }
 
 let overlayEl = null; // 待機画面オーバーレイ
+let waitingTips = null; // 待機中に流す豆知識（createWaitingTips の戻り値。閉じる時に stop する）
 let statusEl = null;
 let countEl = null;
 let pollTimer = null;
@@ -196,6 +198,12 @@ function showWaitingScreen() {
   cancelBtn.addEventListener("click", () => void cancelMatchmaking());
   overlayEl.appendChild(cancelBtn);
 
+  // 【ユーザー要望2026-09-07】「暇なので助かり情報や豆知識を流すのはどうかな？」。
+  // ボタン類の位置を動かさないよう一番下に置く（待っている間に読むもので、操作の邪魔をしない）。
+  // 画面を閉じる時に必ず止める（closeWaitingScreen）。
+  waitingTips = createWaitingTips();
+  overlayEl.appendChild(waitingTips.el);
+
   document.body.appendChild(overlayEl);
 }
 
@@ -270,6 +278,9 @@ function updateWaitingCount(n) {
 }
 
 function closeWaitingScreen() {
+  // 豆知識のタイマーを取り残さない（画面が消えた後も回り続けないように）。
+  waitingTips?.stop();
+  waitingTips = null;
   overlayEl?.remove();
   overlayEl = null;
   statusEl = null;

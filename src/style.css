@@ -13574,10 +13574,17 @@ body.cpu-battle-mode #quick-start-bar {
 }
 /* 管理者パネルを開くボタン（タイトル画面、テストモードの少し上）。ユーザー要望で、
    テストモードともども管理者(body.is-admin-user)にだけ表示する。 */
+/* 【2026-09-07・ユーザー報告】右下の管理者向けボタンは4つ縦に並ぶが、**間隔がボタンの高さより
+   狭く**、実測で「管理者パネル×テストモード」が2px、「スモークテスト×ダッシュボード」が18px
+   重なっていた。ここは position:fixed だが**変形した祖先（1600x900のステージ）の中にある**ため
+   fixed が absolute のように振る舞い、1rem が実画面では約12.9px にしかならない。一方ボタンの
+   高さは実測23px（＝約1.78rem。border 1px×2 は rem に連動しないぶん相対的に厚くなる）。
+   つまり **rem で 1.7〜1.8 の間隔を空けても足りない**。実測に合わせて 2.1rem 間隔にしてある。
+   **数字を変える時は必ず実際に測って重なりが0であることを確かめること**（計算だけで決めない）。 */
 .opening-admin-btn {
   position: fixed;
   right: 1rem;
-  bottom: 2.7rem;
+  bottom: 3.1rem;
   z-index: 2;
   font-family: sans-serif;
   font-size: 0.7rem;
@@ -13602,13 +13609,14 @@ body.cpu-battle-mode #quick-start-bar {
   color: #fde68a;
 }
 /* 管理者ダッシュボード（別ページ）へのリンク（タイトル画面、管理者パネルのさらに上）。
-   ユーザー要望2026-09-02。テストモード(bottom:1rem)・管理者パネル(2.7rem)と重ならないよう
-   4.5rem に置く（ボタンの高さ28px＜間隔28.8pxで、1pxも重ならない）。表示は管理者
-   (body.is-admin-user)のときだけ。 */
+   ユーザー要望2026-09-02。テストモード(1rem)・管理者パネル(3.1rem)の上に 2.1rem 間隔で置く。
+   ※以前ここに「ボタンの高さ28px＜間隔28.8pxなので1pxも重ならない」と書いていたが、**実測は
+   高さ23px・間隔22px で逆に重なっていた**（1rem が16pxではない。上の .opening-admin-btn の
+   コメント参照）。表示は管理者(body.is-admin-user)のときだけ。 */
 .opening-dashboard-btn {
   position: fixed;
   right: 1rem;
-  bottom: 4.5rem;
+  bottom: 5.2rem;
   z-index: 2;
   font-family: sans-serif;
   font-size: 0.7rem;
@@ -14260,8 +14268,8 @@ body.is-phone-device .opening-lang-toggle-seg.is-current {
   --profile-maindeck-edit-x: 0.3rem;
   --profile-maindeck-edit-y: -1.7rem;
   --profile-maindeck-edit-scale: 0.8;
-  --smoke-test-btn-right: 0.8rem;
-  --smoke-test-btn-bottom: 4.9rem;
+  --smoke-test-btn-right: 1rem;
+  --smoke-test-btn-bottom: 7.3rem;
   --smoke-test-btn-font-size: 0.85rem;
   --turn-timer-rope-pos-x: 0rem;
   --turn-timer-rope-pos-y: 0rem;
@@ -18008,8 +18016,8 @@ body.theme-light .mdb-setting-btn {
 #smoke-test-launch-btn {
   display: none;
   position: fixed;
-  right: var(--smoke-test-btn-right, 0.8rem);
-  bottom: var(--smoke-test-btn-bottom, 4.9rem);
+  right: var(--smoke-test-btn-right, 1rem);
+  bottom: var(--smoke-test-btn-bottom, 7.3rem);
   z-index: 50200;
   padding: 0.59em 1.06em;
   font-family: sans-serif;
@@ -21537,4 +21545,42 @@ body.reduce-glow .piece.is-contact-defender .piece-face {
 }
 body.reduce-glow .turn-timeout-strike {
   box-shadow: none;
+}
+
+/* 【ユーザー要望2026-09-07】ランク戦のマッチング待ち画面に流す「豆知識」（waiting-tips.js）。
+   ボタン類の下に置き、待っている間だけ読むもの。切り替わりは瞬間的に入れ替わると読んでいる
+   途中で消えて驚くので、いったん薄くしてから差し替える（JS側の FADE_MS と揃えること）。 */
+.waiting-tips {
+  margin-top: 1.4rem;
+  max-width: 26rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+}
+.waiting-tips-label {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: rgba(250, 204, 21, 0.75);
+}
+.waiting-tips-body {
+  font-size: 0.66rem;
+  line-height: 1.7;
+  color: rgba(226, 232, 240, 0.78);
+  transition: opacity 0.42s ease;
+  opacity: 1;
+  min-height: 2.4em; /* 文の長さで下のものが跳ねないように高さを確保する */
+}
+.waiting-tips-body.is-fading {
+  opacity: 0;
+}
+body.theme-light .waiting-tips-label,
+body.theme-light-ingame .waiting-tips-label {
+  color: #8a6d1f;
+}
+body.theme-light .waiting-tips-body,
+body.theme-light-ingame .waiting-tips-body {
+  color: #3a3326;
 }

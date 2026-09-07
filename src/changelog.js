@@ -14,6 +14,19 @@ export const CHANGELOG = [
   {
     date: "2026-09-07",
     items: [
+      "ランク戦で相手を探している間、遊び方の豆知識が順番に流れるようになりました。",
+      "勝利演出で7色が1枚ずつ光る瞬間の効果音を差し替えました（暫定）。",
+      "タイトル画面の右下に並ぶボタンが重なっていたのを直しました（管理者のみ表示）。",
+    ],
+    itemsEn: [
+      "While you wait for a ranked opponent, gameplay tips now cycle on screen.",
+      "Changed the sound played as each of the seven colours lights up in the victory sequence (provisional).",
+      "Fixed the buttons in the bottom-right of the title screen overlapping each other (admin only).",
+    ],
+  },
+  {
+    date: "2026-09-07",
+    items: [
       "接触の解決中（相手が奪う札を選んでいる間）に、申し込んだ側のターンが先に終わってしまうことがあったのを直しました。",
       "相手が奪う札を選ばないまま画面を閉じても、対局が止まらないようにしました。しばらく待つと無作為に1枚が渡って先へ進みます。",
       "時間切れが続くと敗北（またはおまかせに交代）になることが分かるよう、「時間切れ 2/3」のように残り回数を画面に出すようにしました。あと1回になると赤くなり、中央でも一度お知らせします。",
