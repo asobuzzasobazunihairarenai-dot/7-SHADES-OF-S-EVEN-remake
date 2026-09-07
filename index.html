@@ -2,6 +2,9 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<!-- 【2026-09-07】アルファ版のうちは検索結果に載せない（ユーザー判断）。
+     正式公開の時にこの2行を消せば、通常どおり検索対象に戻る。 -->
+<meta name="robots" content="noindex, nofollow">
 <!-- maximum-scale=1.0 + user-scalable=no でブラウザ標準のピンチズーム（ページ全体が
      拡縮され、固定配置のアイコン類まで一緒に動いてしまう）を無効化する。代わりに
      src/main.js の initCameraControls() が盤面(.scene)だけを対象にした独自の
