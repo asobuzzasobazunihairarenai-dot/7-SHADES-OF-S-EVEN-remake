@@ -128,6 +128,45 @@ function shapeKeyGeomPrefix(key) {
   const i = key.indexOf("|", key.indexOf("|", key.indexOf("|") + 1) + 1); // w x h | r | bw まで
   return i < 0 ? key : key.slice(0, i);
 }
+// 【2026-09-08・続き481】#330（iPhoneのカクつき）の原因。実機ログで確定した——
+// 1回の対戦で「色だけ違う鍵」が 67→416 と増え続ける一方、「寸法が違う鍵」は 4 のまま
+// 動かなかった（diag-board3d の texNewColor / texNewGeom）。手番の明滅・グロー・ハイライトは
+// 色や透明度が連続的に変わるので、その値をそのまま鍵にすると**毎フレーム新しい鍵**になり、
+// 上限80枚の棚から追い出しては作り直す（texEvicted が 340 まで増えていた）。その作り直しが
+// rebuildMs 40〜138ms、frameMs 最大 571ms という数字の正体。
+// 対策: 鍵にする前に色を粗い刻みへ丸める。8/255 と 1/16 の刻みなら、白地に薄く重なる光の
+// 見え方は変わらないのに、鍵の種類が桁違いに減って棚に収まるようになる。
+// 丸めた色は**描画にもそのまま使う**（鍵と絵がずれると「同じ鍵なのに違う色」になるため）。
+const COLOR_STEP = 8; // 0-255 を8刻みに
+const ALPHA_STEP = 16; // 透明度を1/16刻みに
+const quantizedColorCache = new Map();
+function quantizeColor(css) {
+  if (typeof css !== "string" || css === "") return css;
+  const cached = quantizedColorCache.get(css);
+  if (cached !== undefined) return cached;
+  let out = css;
+  const open = css.indexOf("(");
+  const close = css.lastIndexOf(")");
+  if (open > 0 && close > open && (css.startsWith("rgb(") || css.startsWith("rgba("))) {
+    const parts = css.slice(open + 1, close).split(",").map((v) => v.trim());
+    if (parts.length >= 3) {
+      const ch = parts.slice(0, 3).map((v) => {
+        const n = Math.max(0, Math.min(255, Math.round(parseFloat(v) || 0)));
+        return Math.min(255, Math.round(n / COLOR_STEP) * COLOR_STEP);
+      });
+      if (parts.length >= 4) {
+        const a = Math.max(0, Math.min(1, parseFloat(parts[3]) || 0));
+        out = "rgba(" + ch.join(",") + "," + Math.round(a * ALPHA_STEP) / ALPHA_STEP + ")";
+      } else {
+        out = "rgb(" + ch.join(",") + ")";
+      }
+    }
+  }
+  if (quantizedColorCache.size > 4000) quantizedColorCache.clear();
+  quantizedColorCache.set(css, out);
+  return out;
+}
+
 // 【#275】上限。テクスチャは1辺最大256pxなので、この枚数でも数MB程度に収まる。
 const SHAPE_TEXTURE_MAX = 80;
 function shapeTexture(key, spec) {
@@ -538,9 +577,16 @@ function ensureMesh(el, url) {
 }
 
 function ensureShapeMesh(el, spec) {
+  // 続き481: 色を丸めてから鍵にする（明滅で毎フレーム新しい鍵ができるのを防ぐ。上の quantizeColor 参照）。
+  const bc = quantizeColor(spec.bc);
+  const bg = quantizeColor(spec.bg);
+  const glowColor = spec.glow ? quantizeColor(spec.glow.color) : null;
+  const paintSpec = spec.glow
+    ? { ...spec, bc, bg, glow: { ...spec.glow, color: glowColor } }
+    : { ...spec, bc, bg };
   const key =
-    spec.w + "x" + spec.h + "|" + spec.r + "|" + spec.bw + "|" + spec.bc + "|" + spec.bg +
-    "|" + (spec.glow ? spec.glow.color + spec.glow.blur + "/" + spec.glow.spread : "");
+    spec.w + "x" + spec.h + "|" + spec.r + "|" + spec.bw + "|" + bc + "|" + bg +
+    "|" + (spec.glow ? glowColor + spec.glow.blur + "/" + spec.glow.spread : "");
   let mesh = shapeMeshByElement.get(el);
   if (!mesh) {
     const mat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide });
@@ -550,7 +596,7 @@ function ensureShapeMesh(el, spec) {
   }
   if (mesh.userData.shapeKey !== key) {
     mesh.userData.shapeKey = key;
-    mesh.material.map = shapeTexture(key, spec);
+    mesh.material.map = shapeTexture(key, paintSpec); // 続き481: 鍵と同じ丸めた色で描く
     mesh.material.needsUpdate = true;
   }
   return mesh;

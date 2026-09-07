@@ -14,6 +14,15 @@ export const CHANGELOG = [
   {
     date: "2026-09-08",
     items: [
+      "スマホ（特にiPhone）で4人戦がカクついて重くなる問題に対処しました。光の明滅のたびに盤面の絵を作り直していたのが原因で、作り直しの回数を大幅に減らしました。見た目は変わりません。",
+    ],
+    itemsEn: [
+      "Improved the slowdown on phones (especially iPhone) during 4-player games. The board art was being rebuilt every time a glow pulsed; that rebuilding is now greatly reduced. The look is unchanged.",
+    ],
+  },
+  {
+    date: "2026-09-08",
+    items: [
       "ザ・ギャンブル・試練の儀式で、宣言した色のカードが手札に2枚以上あると、捨てる処理が途中で止まってしまうことがあったのを直しました（昨日お配りした「捨てる順番を選べる」機能の不具合です。失礼しました）。",
       "対戦が途中で進まなくなることがある不具合を直しました。誰かの手番待ちのまま止まってしまった場合、しばらくすると自動で次へ進みます。",
     ],
