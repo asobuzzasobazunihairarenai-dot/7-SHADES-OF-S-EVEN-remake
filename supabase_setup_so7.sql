@@ -2970,3 +2970,27 @@ end;
 $$;
 revoke execute on function so7_get_admin_visit_log(int, int) from public;
 grant execute on function so7_get_admin_visit_log(int, int) to authenticated;
+
+
+-- ============================================================================
+-- 【2026-09-07・続き477】アドレス移行（https://seven.asobuzz.net/）に伴う、
+-- 保存済みアバターURLの読み替え。
+--
+-- 背景: players.avatar_url は「保存した時に開いていたアドレス」を基準に絶対URLとして
+--   保存される（src/online.js の new URL(resolved, window.location.href).href が4箇所）。
+--   2026-09-07にアプリのアドレスを移したため、それ以前に保存された行は古いアドレスを
+--   指したままになり、戦績管理システムでアバターだけが表示されない。
+--   （人がリンクを開く場合は 404.html の案内が拾えるが、画像の読み込みはJSを実行できないので
+--     拾えない——これが「アバターのサムネだけ壊れる」症状の正体。）
+--
+-- 対象: 旧GitHub Pagesのホストを指し、かつ /assets/ を含む行だけ。
+--   /assets/ 以降をそのまま新しいアドレスの下に付け替える（リポジトリ名の部分を落とす）。
+--   条件に一致しなくなるので、**何度実行しても結果は同じ**（再実行安全）。
+--
+-- 補足: これ以降に保存される行は、その時点のアドレス＝新しいアドレスになるので対処不要。
+--   対局を登録するたびに書き直されるため、遊び続けている人の行は自然に直る。
+-- ============================================================================
+update players
+   set avatar_url = 'https://seven.asobuzz.net'
+                    || substring(avatar_url from position('/assets/' in avatar_url))
+ where avatar_url like 'https://asobuzzasobazunihairarenai-dot.github.io/%/assets/%';
