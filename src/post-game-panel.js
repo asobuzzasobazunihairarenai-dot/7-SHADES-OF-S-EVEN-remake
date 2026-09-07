@@ -58,7 +58,16 @@ export function registerVictoryHelpers({ getLockedCount, resetVictoryTracking })
   resetVictoryTrackingFn = resetVictoryTracking;
 }
 
-const STATS_SITE_URL = "https://asobuzzasobazunihairarenai-dot.github.io/BATTLE-log/";
+// 【2026-09-07・続き475】独自ドメイン（seven.asobuzz.net）へ引っ越しても壊れないよう、
+// アドレスを直書きせず「今開いているページの1つ上」から組み立てる。
+//   引っ越し前: .../github.io/7-SHADES-.../ → ../BATTLE-log/ → .../github.io/BATTLE-log/
+//   引っ越し後: seven.asobuzz.net/         → ../BATTLE-log/ → seven.asobuzz.net/BATTLE-log/
+// URLの ".." はドメイン直下より上へは行かないので、両方の形で正しく解決される。
+// ローカルの確認用サーバーには戦績システムが無いので、そこだけ公開アドレスへ逃がす。
+const STATS_SITE_URL =
+  location.hostname === "localhost" || location.hostname === "127.0.0.1"
+    ? "https://asobuzzasobazunihairarenai-dot.github.io/BATTLE-log/"
+    : new URL("../BATTLE-log/", location.href).href;
 
 let panelEl = null;
 let backdropEl = null;

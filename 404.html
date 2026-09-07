@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ページが見つかりません</title>
+<!-- 【2026-09-07・続き475】独自ドメインへの引っ越しで、古いアドレス
+     （旧リポジトリ名のパス）をブックマーク・ホーム画面に持っている人が
+     迷子にならないようにするための案内ページ。GitHub Pages は、存在しないパスへの
+     アクセスに対してリポジトリ直下の 404.html を返す仕様なので、1枚置くだけで
+     すべての古いアドレスをまとめて拾える（パスごとの転送ページを作らなくて済む＝
+     ゲーム名をリポジトリ内に書き戻さずに済む）。
+     引っ越しが完全に落ち着いたら、このファイルは消してよい。 -->
+<style>
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: #05070a; color: #e2e8f0;
+    font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    display: flex; align-items: center; justify-content: center; text-align: center; padding: 1.5rem;
+  }
+  .box { max-width: 30rem; }
+  h1 { font-size: 1.25rem; margin: 0 0 0.75rem; color: #fabe00; }
+  p { line-height: 1.8; margin: 0 0 1.25rem; font-size: 0.95rem; color: #cbd5e1; }
+  a.go {
+    display: inline-block; padding: 0.75rem 1.5rem; border-radius: 0.5rem;
+    background: #1bb8ce; color: #05070a; font-weight: 700; text-decoration: none;
+  }
+  .small { font-size: 0.8rem; color: #64748b; margin-top: 1.25rem; }
+</style>
+</head>
+<body>
+  <div class="box">
+    <h1>アドレスが変わりました</h1>
+    <p>お探しのページは移動しました。<br>まもなく新しいアドレスへ移動します。</p>
+    <a class="go" id="go" href="/">今すぐ移動する</a>
+    <p class="small">ホーム画面に追加している場合は、移動先のページから<br>あらためて「ホーム画面に追加」をしてください。</p>
+  </div>
+<script>
+  // ルート自身が 404 になった場合に無限に転送し続けないよう、念のため守る。
+  var atRoot = location.pathname === "/" || location.pathname === "";
+  if (!atRoot) setTimeout(function () { location.replace("/"); }, 2000);
+</script>
+</body>
+</html>
