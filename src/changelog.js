@@ -14,6 +14,15 @@ export const CHANGELOG = [
   {
     date: "2026-09-07",
     items: [
+      "「2D表示に切り替える」を使っていると、盤面が小さく左上にずれて描かれ、ロックエリアの枠や光る演出が実際の盤面と別の場所に出ていた不具合を直しました。2D表示中は盤面の絵の描き方が自動で切り替わります。",
+    ],
+    itemsEn: [
+      "Fixed a bug where, with the flat 2D board turned on, the board was drawn small and shifted to the upper left, leaving lock-area frames and glow effects in a different place from the board itself. The board now switches its drawing method automatically while flat 2D is on.",
+    ],
+  },
+  {
+    date: "2026-09-07",
+    items: [
       "ランク戦で「対戦開始」を押さずに締め切りを迎えた後、待機画面に「もう一度さがす」ボタンが出るようになりました。これまでは探すのをやめた後もぐるぐるが回り続け、相手が入り直してもマッチしませんでした。",
     ],
     itemsEn: [

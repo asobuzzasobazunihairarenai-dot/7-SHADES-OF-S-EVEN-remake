@@ -33,6 +33,9 @@ import {
   setBoard3dInvalidator,
   setBoard3dFlusher,
 } from "./board-3d-setting.js";
+// 【#324・2026-09-07】2D表示（body.diagnostic-flatten-3d）中はWebGL描画を止めるために見る。
+// tablet-2d-mode.js は board-3d.js を import しないので循環しない。
+import { isFlatten2dMode, onFlatten2dModeChange } from "./tablet-2d-mode.js";
 
 let renderer = null;
 let scene = null;
@@ -947,6 +950,15 @@ export function setBoard3dEnabled(on) {
   setBoard3dEnabledSetting(!!on);
   return setBoard3dActive(!!on);
 }
+// 2D表示のON/OFFに追随する（#324）。ONになったら止め、OFFに戻ったら設定に従って再開する。
+try {
+  onFlatten2dModeChange(() => {
+    reconcileBoard3dActive();
+  });
+} catch (err) {
+  /* 監視できなくても、次に設定を触った時に反映される */
+}
+
 // 起動時に一度呼ぶ（main.js）。設定がONなら描画を始める。
 export function applyStoredBoard3d() {
   if (!isBoard3dEnabled()) return false;
@@ -957,7 +969,33 @@ export function isBoard3dActive() {
   return active;
 }
 
+// 【#324・2026-09-07・重要】2D表示の間はWebGL描画を動かさない。
+// このファイルは冒頭の説明のとおり「**CSSの3D → WebGL の変換器**」で、CSSがどう映すはずかを
+// 計算して同じ絵を描いている。ところが2D表示は style.css で
+//   body.diagnostic-flatten-3d .scene { perspective: none; }
+//   body.diagnostic-flatten-3d * { transform-style: flat !important; }
+// ＝**CSS側が3D合成そのものをやめる**ので、変換元が存在しない。それでも syncCamera() は
+// perspective が "none"（parseFloat が NaN）なので既定値の1000を使って**勝手な透視投影**で
+// 描き、しかも各要素の変形を preserve-3d 前提で合成するため、盤面まるごとが実際とは別の
+// 位置・別の大きさに描かれる。
+// 実測（852x393・dpr3・2D表示）: 盤面のDOMは (318,113) 214x200 にあるのに、WebGLは
+// (212,42) 約102px幅＝**半分の大きさで左上へずれて**描いていた。プレイマット・カード・駒は
+// WebGLが描くのでそちらへ、ロックエリアの枠・各種エフェクト・タップ判定はDOMのままなので
+// こちらへ——と**二重の盤面**になり、ユーザー報告#324「ロックエリアの枠のエフェクトなどが
+// ずれてます」になっていた。2D表示はもともと「3D合成をやめて軽く・確実に描く」ための表示
+// なので、WebGLを止めれば素のCSS描画に戻るだけで失うものは無い。
+let board3dDesired = false;
+
 export function setBoard3dActive(on) {
+  board3dDesired = !!on;
+  return reconcileBoard3dActive();
+}
+
+// 「設定でON」かつ「2D表示ではない」時だけ実際に動かす。2D表示の切り替えでも呼ばれる。
+function reconcileBoard3dActive() {
+  let flat = false;
+  try { flat = isFlatten2dMode(); } catch (err) { flat = false; }
+  const on = board3dDesired && !flat;
   if (on === active) return active;
   if (on) {
     if (!ensureRenderer()) return false;
