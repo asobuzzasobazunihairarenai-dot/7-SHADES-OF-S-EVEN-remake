@@ -2811,7 +2811,7 @@ function playStealBeam(fromSeat, toSeat) {
 // 引き寄せ先（発動者の隣）から相手の駒へ桜の花びらが伸び、巻き取るように戻っていく。
 // 花びらが着いた頃に駒が動き出す（呼び出し側が KONOHANA_PULL_LEAD_MS だけ待つ）ので、
 // 「引き寄せられて動いた」という順番に見える。
-const KONOHANA_PULL_LEAD_MS = 420;
+const KONOHANA_PULL_LEAD_MS = 640; // 【#333】420msでは桜が見え切る前に駒が動き出していた
 async function waitForCardDissolveToClear(maxMs) {
   const until = Date.now() + maxMs;
   while (isCardDissolvePlaying() && Date.now() < until) {

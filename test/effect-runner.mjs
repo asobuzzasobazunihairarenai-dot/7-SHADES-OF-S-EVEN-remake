@@ -126,7 +126,10 @@ export async function runOneCase(spec) {
     markDiscardAtTurnEnd: (player, ids) => { callLog.push(["markDiscardAtTurnEnd", player, ids]); }, markPlacedLocation: () => {}, markPlacementTarget: () => {},
     maybeTriggerArrivalForPlacedCard: async () => {}, onCardAcquiredToHand: () => {},
     playAdditionalColorUse: () => {}, recordMoveVisited: () => {}, startSuspenseSound: () => {},
-    stopSuspenseSound: () => {}, triggerArrivalAtIfFaceUp: async () => {},
+    stopSuspenseSound: () => {},
+    // 【#333】「そのマスの到達効果を、この人に起こす」の呼び出しを記録する。空スタブのままだと
+    // 到達を起こし忘れてもテストが通ってしまう（コノハナサクヤで実際に起きた）。
+    triggerArrivalAtIfFaceUp: async (location, player) => { callLog.push(["arrivalAt", location, player]); },
   };
 
   // 手札効果ケースの失敗調査用の軽い診断（DEBUG_CALLS 時のみ出力）。

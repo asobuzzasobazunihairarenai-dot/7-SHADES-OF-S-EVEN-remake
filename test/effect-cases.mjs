@@ -760,6 +760,32 @@ export const CASES = [
     // ★picks に "index:7"（8番目の候補）を使うのが要点——テストランナーの pickLocation は
     //   「指定したマスが候補に無ければ指定通りに返す」ため、座標で指定すると4マスのままでも
     //   通ってしまい回帰を検出できない。番号指定なら候補が4つだと undefined になり失敗する。
+    name: "結ばれの一本桜/eternal-pink(手札): 移動先の到達効果を、移動させられた相手が得る(#333)",
+    kind: "hand",
+    cardId: "eternal-pink",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "pieceB", kind: "piece", player: "B", location: { zone: "cell", row: 3, col: 5 } },
+        { id: "self", kind: "card", cardId: "eternal-pink", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "cost", kind: "card", cardId: "pink-present", faceUp: true, location: { zone: "hand", player: "A" } },
+        // 移動先は**裏向き**。移動でオープンされ、その到達効果を相手(B)が得る（docs/cards.md の補足）。
+        { id: "dest", kind: "card", cardId: "red-jump-pad", faceUp: false, location: { zone: "cell", row: 3, col: 4 } },
+      ],
+      piles: { deck: [], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "eternal-pink", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    picks: { discardCost: ["cost"], location: [{ row: 3, col: 4 }] },
+    expect: [
+      { kind: "pieceAt", player: "B", row: 3, col: 4 },
+      { kind: "tokenFaceUp", id: "dest" },
+      // ここが本体: 到達効果を起こす相手が B であること。以前は相手クライアント任せで、
+      // CPU戦ではこの呼び出しが一度も無く、カードがオープンするだけだった。
+      { kind: "called", name: "arrivalAt", arg: "B" },
+    ],
+  },
+  {
     name: "結ばれの一本桜/eternal-pink(手札): 移動先は「周囲」＝斜めも選べる(#224)",
     kind: "hand",
     cardId: "eternal-pink",

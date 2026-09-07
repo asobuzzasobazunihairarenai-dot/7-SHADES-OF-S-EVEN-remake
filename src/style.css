@@ -1825,15 +1825,16 @@ body.reduce-glow .rainbow-lock-sweep {
   left: 0;
   top: -1px;
   width: 100%;
-  height: 3px;
-  border-radius: 3px;
+  /* 【#333】スマホでは実画面 1.4px しかなく見えなかった（ステージの縮小率は約0.46）。太くする。 */
+  height: 6px;
+  border-radius: 6px;
   transform-origin: 0 50%;
   background: linear-gradient(90deg,
     rgba(255, 214, 232, 0) 0%,
     rgba(var(--konohana-rgb, 241, 158, 194), 0.95) 45%,
     rgba(255, 255, 255, 1) 100%);
   box-shadow: 0 0 0.5rem 0.06rem rgba(var(--konohana-rgb, 241, 158, 194), 0.75);
-  animation: konohana-thread 900ms cubic-bezier(0.25, 0.8, 0.3, 1) forwards;
+  animation: konohana-thread 1250ms cubic-bezier(0.25, 0.8, 0.3, 1) forwards;
 }
 @keyframes konohana-thread {
   0% { opacity: 0; transform: scaleX(0.05); }
@@ -1854,14 +1855,15 @@ body.reduce-glow .rainbow-lock-sweep {
   opacity: 0;
   /* both にするのは、遅らせている間も 0% の姿勢（＝流れ出す位置で待つ）を保つため。
      forwards だけだと、順番待ちの花びらが起点に戻った状態で待機する。 */
-  animation: konohana-petal 900ms cubic-bezier(0.3, 0.7, 0.35, 1) both;
+  animation: konohana-petal 1250ms cubic-bezier(0.3, 0.7, 0.35, 1) both;
 }
 .konohana-petal-inner {
   /* 筋の傾きを打ち消して、花びらが横倒しにならないようにする（JS が rotate を入れる）。 */
   /* 盤面（明るいプレイマット）の上でも見えるよう、白より桃を強く・輪郭に濃い縁を置く。 */
-  width: 0.72rem;
-  height: 0.86rem;
-  margin: -0.43rem 0 0 -0.36rem;
+  /* 【#333】0.72rem はスマホでは実画面 5px 程度で「演出が全然見えなかった」（ユーザー報告）。 */
+  width: 1.25rem;
+  height: 1.5rem;
+  margin: -0.75rem 0 0 -0.62rem;
   border-radius: 60% 60% 55% 55% / 70% 70% 40% 40%;
   background: linear-gradient(160deg, #ffe6f1 0%, rgba(var(--konohana-rgb, 241, 158, 194), 1) 45%, #d2649a 100%);
   box-shadow: 0 0 0.45rem 0.05rem rgba(var(--konohana-rgb, 241, 158, 194), 0.9),
@@ -1875,16 +1877,16 @@ body.reduce-glow .rainbow-lock-sweep {
 /* 引き寄せ先で花びらが渦を巻く（着地点の目印） */
 .konohana-swirl {
   position: fixed;
-  width: 3.4rem;
-  height: 3.4rem;
-  margin: -1.7rem 0 0 -1.7rem;
+  width: 4.8rem;
+  height: 4.8rem;
+  margin: -2.4rem 0 0 -2.4rem;
   border-radius: 50%;
   z-index: 10439;
   pointer-events: none;
   border: 0.12rem solid rgba(var(--konohana-rgb, 241, 158, 194), 0.85);
   box-shadow: 0 0 0.9rem 0.1rem rgba(var(--konohana-rgb, 241, 158, 194), 0.55),
     inset 0 0 0.7rem rgba(255, 255, 255, 0.75);
-  animation: konohana-swirl 1000ms 260ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+  animation: konohana-swirl 1350ms 260ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
   opacity: 0;
 }
 @keyframes konohana-swirl {

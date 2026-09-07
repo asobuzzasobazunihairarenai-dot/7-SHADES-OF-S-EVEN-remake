@@ -1085,6 +1085,14 @@ async function runAction(action, ctx, helpers) {
         ctx.cardId,
         t("ce.movedNextTo", { target: helpers.getPlayerName(targetPiece.player), name: helpers.getPlayerName(ctx.player) })
       );
+      // 【#333・2026-09-07】移動先の到達効果を、**移動させられた相手**が得る。
+      // docs/cards.md の補足に明記されている（「効果の対象となった相手プレイヤーは『移動』扱いに
+      // なるため、移動先のカードが裏向きであればオープンし到達効果を得る」）。
+      // 以前はこれを「相手プレイヤー本人のクライアントの差分検知に任せる」設計にしていたが、
+      // **CPU戦（1画面で全席を回す）にはその経路が無い**ため、カードがオープンするだけで
+      // 到達効果が一度も起きなかった（ユーザー報告 #333）。マスチェンジ(MASS_CHANGE)が
+      // 相手ぶんの到達を自分で発火させているのと同じ形に揃える。
+      await helpers.triggerArrivalAtIfFaceUp?.(dest, targetPiece.player);
       return true;
     }
     case VERBS.PUBLIC_DRAW_DISABLE_HAND_EFFECTS_CONDITIONAL_DISCARD: {

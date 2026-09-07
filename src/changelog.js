@@ -14,6 +14,17 @@ export const CHANGELOG = [
   {
     date: "2026-09-07",
     items: [
+      "結ばれの一本桜 コノハナサクヤで相手を引き寄せた時、移動先のカードがめくれるだけで到達効果が起きないことがあったのを直しました。カードの補足どおり、動かされた相手が到達効果を得ます。",
+      "コノハナサクヤの桜の演出が小さくて見えづらかったので、花びら・光の筋・渦を大きくし、少しゆっくりにしました。",
+    ],
+    itemsEn: [
+      "Fixed Konohanasakuya: when you pulled an opponent next to you, the card at the destination was flipped but its Arrival Effect sometimes never triggered. As the card note says, the moved player now gains it.",
+      "Made Konohanasakuya's petals, thread and swirl larger and a little slower — they were too small to notice on phones.",
+    ],
+  },
+  {
+    date: "2026-09-07",
+    items: [
       "自分が関わっていない奪い合い（CPU同士など）で、本来見えないはずの相手のカードが表向きで出ていたのを直しました。何が起きたかは今までどおり分かりますが、中身は伏せられます。",
       "右下の「このターンの出来事」の帯が、たくさん並ぶと盤面に重なっていたのを直しました。5枚ぶんで止まり、それ以上は横になぞって見られます。",
       "最後のミニモーダルが右下へ畳まれ切る前に「◯◯のターンです」が重なって出ていたのを直しました。",
