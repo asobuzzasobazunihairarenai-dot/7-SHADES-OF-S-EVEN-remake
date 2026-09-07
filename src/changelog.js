@@ -14,6 +14,21 @@ export const CHANGELOG = [
   {
     date: "2026-09-07",
     items: [
+      "接触された時に出ていた「拒否する」を、カード効果の自動処理がオンの時は出さないようにしました。接触は申し込まれたら断れないルールで、止められるのはカウンターロックだけです（自動処理をオフにして手動で進めている時は今までどおり出ます）。",
+      "相手の返事が返ってこないまま接触が宙に浮いた時、これまでその接触を取り消していたのを、承認して先へ進める形に改めました。黙っていれば接触を避けられる、ということが無くなります。",
+      "オンライン対戦で接触を申し込まれた時、返事をしている間はその人に手番の持ち時間が回るようになりました。時間内に答えないと承認されたものとして進みます（接触は断れないルールなので、待たせても得はしません）。",
+      "上の見切りと、7色目のロックの承認の見切りを、どちらも少し早めました。",
+    ],
+    itemsEn: [
+      "The Reject button shown when you are contacted no longer appears while automatic card processing is on. A contact cannot be refused under the rules — only a Counter Lock stops it. (With automatic processing off, the button stays as before.)",
+      "When a contact request was left hanging with no answer, it used to be cancelled; it is now approved so play moves on. Staying silent no longer lets you avoid a contact.",
+      "In online play, being asked to accept a contact now runs on your own clock. If you do not answer in time it counts as approved (a contact cannot be refused, so stalling gains you nothing).",
+      "That fallback, and the one for approving a seventh-colour lock, now both kick in a little sooner.",
+    ],
+  },
+  {
+    date: "2026-09-07",
+    items: [
       "接触を申し込んでいる間、にらみ合っている2つの駒が盤面で光るようになりました。狙われた側には音でも知らせます。",
       "接触で自分のゲートへ飛ばされた駒に、着地の輪と音が付きました。",
       "「防いだ！」の演出が、防いだ本人だけでなく相手や観戦している人の画面にも出るようになりました。",
@@ -35,12 +50,12 @@ export const CHANGELOG = [
   {
     date: "2026-09-07",
     items: [
-      "オンライン対戦で、接触を申し込んだあと相手の返事が返ってこないと対局が動かなくなることがあったのを直しました。相手が答えられない状態が続いた場合は、その接触を取り消して先に進みます。",
+      "オンライン対戦で、接触を申し込んだあと相手の返事が返ってこないと対局が動かなくなることがあったのを直しました。相手が答えられない状態が続いた場合は、その接触は承認されて先に進みます。",
       "7色目のロックの承認が返ってこない時も同じように止まっていたのを直しました。しばらく待っても答えが無ければ承認されて先に進みます。",
       "相手が席を外していても一定時間で自動的に承認される仕組みが、実際には働いていなかったのを直しました。",
     ],
     itemsEn: [
-      "Fixed online matches locking up when a contact request never got an answer. If the opponent stays unable to respond, the contact is now cancelled so play continues.",
+      "Fixed online matches locking up when a contact request never got an answer. If the opponent stays unable to respond, the contact is now approved so play continues.",
       "Fixed the same lock-up when approval for a seventh-colour lock never came back — after a wait it is approved so play continues.",
       "Fixed the safeguard that auto-approves after a while when an opponent is away — it was not actually running.",
     ],

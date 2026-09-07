@@ -42,10 +42,17 @@ const KEEP_OPEN = ARGS.includes("--keep"); // 失敗時に画面を残して観�
 const ISOLATED = ARGS.includes("--isolated");
 
 const TARGET_TURN = 8;
-const STALL_MS = 45000; // オンラインは通信の往復があるぶんローカルより緩める
+// 【2026-09-07】45秒だと**アプリ自身の立て直しより先にテストが諦めていた**。接触の申し込みが
+// 返らない時、防御側は45秒で自動承認し、どのクライアントも75秒で申し込みを取り消す。閾値が
+// 45秒ちょうどでは前者と競走になり、後者に至っては一度も観測できない（実際 turn 11 で
+// pendingContact のまま45秒で FAIL した）。**アプリ側の最長の立て直し（75秒）より必ず後**に
+// 諦めること。そうしないと「保険が効いたかどうか」をこのテストでは永久に確かめられない。
+const STALL_MS = 100000;
 // 手は動いているのにターンだけが延々と進まない場合の上限（効果の堂々巡り検出）。
 const TURN_STALL_MAX_MS = 300000;
-const HARD_TIMEOUT_MS = RUN_TO_COMPLETION ? 900000 : Math.round(420000 * (PLAYER_COUNT / 2));
+// 決着まで回す時の上限。900秒では turn 18 で時間切れになった（停止ではなく、単に対局が
+// まだ続いていた＝1ターンおよそ50秒）。7色そろえるには数十ターンかかるので45分を見る。
+const HARD_TIMEOUT_MS = RUN_TO_COMPLETION ? 2700000 : Math.round(420000 * (PLAYER_COUNT / 2));
 // 全クライアントの盤面が「一度も一致しないまま」この時間続いたら食い違い（desync）とみなす。
 // 1クライアントだけ一瞬遅れるのは正常なので、瞬間的な不一致では落とさない。
 const DESYNC_TOLERANCE_MS = 30000;

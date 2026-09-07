@@ -1807,7 +1807,7 @@ const UI = {
     "game.toast.discarded": "{name}が捨てました",
     "game.toast.discardedMany": "{name}が{n}枚捨てました",
     // 【#316】移動先も接触相手も無い時のルール上の救済を知らせる。
-    "game.contact.stuckCancelled": "接触の返事が返ってこなかったので、この接触は取り消されました。",
+    "game.contact.stuckApproved": "接触の返事が返ってこなかったので、この接触は承認されました。",
     "game.move.fallbackPlaced": "{name}は移動できるマスも接触できる相手もいなかったので、隣のマスに山札から1枚を裏向きで置いてターンを終わります。",
     // 右下「このターンの出来事」のチップ（ツールチップ文言）
     "game.chip.gainedN": "{name}が{n}枚獲得",
@@ -3644,7 +3644,7 @@ const UI = {
     "game.toast.locked": "{name} locked a card",
     "game.toast.discarded": "{name} discarded",
     "game.toast.discardedMany": "{name} discarded {n} cards",
-    "game.contact.stuckCancelled": "No answer came back for the contact, so it was cancelled.",
+    "game.contact.stuckApproved": "No answer came back for the contact, so it was approved.",
     "game.move.fallbackPlaced": "{name} had nowhere to move and no one to contact, so a card from the deck is placed face down on an adjacent square and the turn ends.",
     "game.chip.gainedN": "{name} gained {n} card(s)",
     "game.chip.gained": "{name} gained a card",

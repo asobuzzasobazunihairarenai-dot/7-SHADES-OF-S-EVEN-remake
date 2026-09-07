@@ -5191,6 +5191,29 @@ function maybeAnnounceContactStandoff() {
   if (key === prevContactStandoffKey) return;
   prevContactStandoffKey = key;
   if (!pending) return;
+  // 【2026-09-07・ユーザー指示】「承認するかカウンターロックを使うかのモーダルが出ていて選択を
+  // するときは、そのプレイヤーにもちろん優先権が渡るべき。そのプレイヤーのタイマーが進むべき」。
+  // ここで渡す。以前は渡していなかったので**返事をする側には時計が1つも動いておらず**、
+  // 相手を待たせ放題だった（実測: 止まった対局で防御側の画面が priority=攻撃側・deadlineIn=-41s）。
+  // 時間切れは承認として扱う（performPriorityTimeoutAutoAction の接触分岐）。接触は申し込まれたら
+  // 断れない（ルールブック 198/332行）ので、放置しても不利になるだけで有利にはならない。
+  //
+  // 置き場所: 申し込みの**呼び出し口**ではなく「pendingContact が新しく立った」という**事実**で
+  // 拾う（このプロジェクトで何度も学んだ形。呼び出し口を1つずつ追いかけると必ず取りこぼす。
+  // 実際、最初に submitContactProposal へ書いた版は検証用の経路を通らず測れなかった）。
+  // 書き込むのは**申し込んだ側のクライアントだけ**＝同時に複数から書かれない。
+  //
+  // オンライン限定にしている理由: ローカルのCPU戦は1画面で全員を見ているので待たせる相手が
+  // 居らず、しかも自席は持ち時間の対象外（isSelfTimeLimitExempt）。ここで時計を動かすと、
+  // 人間が考えている最中に時間切れで勝手に承認されるという**改悪**になる。
+  if (isOnlineMode() && getSelfSeat() === pending.attacker && getState().priorityPlayer !== pending.defender) {
+    logAction("diag-contact-priority", {
+      phase: "grant-to-defender-for-answer",
+      attacker: pending.attacker,
+      defender: pending.defender,
+    });
+    transferPriorityTo(pending.defender, { initializeIfUnset: true });
+  }
   if (getSelfSeat() !== pending.defender) return;
   try {
     playSound("arrivalEffect");
@@ -5785,6 +5808,27 @@ export function performPriorityTimeoutAutoAction() {
   // あるので、解決待ちの選択（★(b)の捨て札選択・置くマス選択等）は引き続き自動代行される。
   // フェイズ自動進行(lock→hand→move)自体もphase-automation.js側でhandEffectBusyを見て止まる。
   if (isHandEffectBusy()) return false;
+  // 【2026-09-07・ユーザー指示】「承認するかカウンターロックを使うかのモーダルが出ていて
+  // 選択をするときは、そのプレイヤーに優先権が渡るべき。そのプレイヤーのタイマーが進むべき」。
+  // ここは**その持ち時間が切れた時**の受け口。接触は申し込まれたら断れない（ルールブック
+  // 198/332行。止められるのはカウンターロックだけ）ので、時間切れ＝**承認**で先へ進める。
+  // カウンターロックを持っていても「使わなかった」だけ＝承認、で正しい（45秒の自動承認
+  // checkContactApprovalTimeout と同じ結論。あちらは持ち時間とは別の保険として残す）。
+  //
+  // 置き場所: 選択ピッカーの分岐より**後**（何か選んでいる最中ならそちらが先）、フェイズの
+  // 分岐より**前**（防御側は手番プレイヤーとは限らず、フェイズの分岐はどれにも当たらない）。
+  {
+    const pc = getState().pendingContact;
+    if (pc && driveSeat === pc.defender) {
+      logAction("diag-contact-timeout-approve", {
+        attacker: pc.attacker,
+        defender: pc.defender,
+        selfSeat: getSelfSeat(),
+      });
+      void respondToContact(true);
+      return true;
+    }
+  }
   const phase = getCurrentPhase();
   // 【#284】フェイズはもう終わっているのに、中央（演出・お知らせ・フェイズ告知）が塞がって
   // いて次のフェイズの開始が待たされている間は、currentPhase が前のフェイズのまま残る。
@@ -12866,7 +12910,11 @@ function checkGomennasaiAutoApproval() {
   // 承認ボタンを出して押してもらう**（誰も飛ばされないので、かかった時間から何も分からない）。
   // 最後のロック＝勝利がかかったロックなので、1対局に1〜数回しか起きない＝手間はごく小さい。
   // ローカルのCPU戦は相手が人間ではないため従来通り自動で進める（CPU席に押させても意味が無い）。
-  if (isOnlineMode()) return;
+  // 【2026-09-07】ただし**疑似CPUモードの席**（スモークテスト・観戦＝誰も座っていない）は
+  // 別。押す人がいないので、この配慮のために45秒の自動承認まで対局が丸ごと止まる。情報漏れの
+  // 心配は「相手が人間だから」成り立つ話なので、テスト用の席には当てはまらない。
+  // isPseudoCpuTarget は疑似CPUモードでなければ常に false ＝人間の席には一切影響しない。
+  if (isOnlineMode() && !isPseudoCpuTarget(approver)) return;
   // 診断ログ（ユーザー報告「ゴメンナサイと追色コストを持っているのに最後のロック承認で使えな
   // かった」の調査用）: なぜ「使えない＝自動承認」と判定したのかを記録する。ゴメンナサイ本体が
   // 手札に無い(hasSorryInHand:false)のか、追色に使える紫カードが手札に無い(purpleForCost が空、
@@ -12948,7 +12996,11 @@ function checkCpuFinalLockApproval() {
     });
     return;
   }
-  if (isOnlineMode() || !isCpuBattleActive()) return;
+  // 【2026-09-07】オンラインでも疑似CPUモードの席（スモークテスト・観戦）は自動で答える。
+  // 自分の席の分を自分の画面が答えるだけ（相手や観戦者が代わりに答えることはない）。
+  if (isOnlineMode()) {
+    if (getSelfSeat() !== approver) return;
+  } else if (!isCpuBattleActive()) return;
   if (!isPseudoCpuTarget(approver)) return; // 人間の承認は自動化しない（本人が選ぶ）
   const eligible = findGomennasaiEligibility(approver);
   if (!eligible) return; // 使えない席はcheckGomennasaiAutoApprovalが自動承認する
@@ -16149,15 +16201,28 @@ function checkContactApprovalTimeout() {
 //（`getSelfSeat() !== pending.defender` で return）。防御側の通信が切れている・状態が届いて
 // いない・タブを閉じた場合は、**誰も解決できない**。
 //
-// そこで、席に関係なく**どのクライアントでも**75秒で申し込みを取り消す。承認ではなく
-// **取り消し**にするのは、返事を見ていない相手からカードを奪ってしまわないため
-//（防御側の画面が生きていれば45秒で自動承認が先に走るので、ここに来る＝相手は見ていない）。
+// そこで、席に関係なく**どのクライアントでも**60秒で**承認**して先へ進める。
+//
+// 【2026-09-07・ユーザー指摘で「取り消し」から「承認」へ直した】最初これを**取り消し**に
+// していたのは誤り。ルールブック（docs/rulebook.md の 198/332行・「こんな時は」）では接触は
+// **申し込んだ側の一方的な行動**で、接触された側に断る権利は無い（唯一の対抗手段が
+// カウンターロック＝カードの効果）。つまり「返事をしなければ取り消される」は、**黙って
+// いるだけ・アプリを閉じるだけで、あらゆる接触を無条件に回避できる抜け道**になる。
+// 45秒の自動承認（上）と結論をそろえ、放置しても不利になるだけで有利には決してならない
+// ようにした。渡す相手が画面を見ていないことは問題ではない——ルール上その札はもう
+// 攻撃側のものだから。
+//
+// 60秒にした理由: 防御側の画面が生きていれば45秒の自動承認が先に走るので、ここに来るのは
+// **防御側の通信が切れている時だけ**。カウンターロックを押した場合はその瞬間に
+// respondToContact(false) が走って pendingContact が消える（useCounterLockOnContactInner の
+// 先頭。捨てる処理や演出はその後）ので、悩んでいる最中に横から承認される窓は無い。
 // サーバー側の RESPOND_CONTACT は送り主を見ないので**Edge Function の変更は不要**。
 // 全員がほぼ同時に送っても、リデューサーは pendingContact が無ければ何もしない（冪等）。
-const CONTACT_STUCK_CANCEL_MS = 75000;
+// 奪う札は指定せずに送るので、サーバー側が無作為に1枚選ぶ＝ルールどおり。
+const CONTACT_STUCK_APPROVE_MS = 60000;
 let contactStuckKey = "";
 let contactStuckSince = 0;
-function checkContactStuckCancel() {
+function checkContactStuckApprove() {
   if (!isOnlineMode()) return;
   const pending = getState().pendingContact;
   if (!pending) {
@@ -16171,17 +16236,24 @@ function checkContactStuckCancel() {
     contactStuckSince = Date.now();
     return;
   }
-  if (Date.now() - contactStuckSince < CONTACT_STUCK_CANCEL_MS) return;
+  if (Date.now() - contactStuckSince < CONTACT_STUCK_APPROVE_MS) return;
   contactStuckSince = Date.now(); // 連続発火を防ぐ
-  logAction("diag-contact-stuck-cancel", {
+  logAction("diag-contact-stuck-approve", {
     attacker: pending.attacker,
     defender: pending.defender,
     selfSeat: getSelfSeat(),
     iAmDefender: getSelfSeat() === pending.defender,
-    waitedMs: CONTACT_STUCK_CANCEL_MS,
+    waitedMs: CONTACT_STUCK_APPROVE_MS,
   });
-  respondContact(false);
-  void showEffectReasonModal(null, t("game.contact.stuckCancelled"));
+  respondContact(true);
+  // 優先権も一緒に返す。申し込んだ時点で**返事をする側**へ移してあるが、その人の画面は
+  // ここに来ている時点で生きていない（生きていれば45秒の自動承認が先に走る）。優先権を
+  // 返すのは「今まさに時間切れになった本人のクライアント」だけなので（turn-timer.js の
+  // tick 参照）、居なくなった席に優先権が残ると**今度は優先権が誰にも返せなくなる**。
+  // ここは席に関係なくどのクライアントでも走る最後の砦なので、あわせて返す。
+  const st = getState();
+  if (st.turnPlayer && st.priorityPlayer === pending.defender) transferPriorityTo(st.turnPlayer);
+  void showEffectReasonModal(null, t("game.contact.stuckApproved"));
 }
 
 // 【2026-09-07】接触と**まったく同じ形**の停止を、最後のロックの承認でも掴まえた——
@@ -16195,7 +16267,7 @@ function checkContactStuckCancel() {
 // 正当な勝ちを取り上げる理由は無い）。サーバー側の RESPOND_FINAL_LOCK は送り主を見ず、
 // queue の先頭を1つ進めるだけなので**Edge Function の変更は不要**。承認者が複数いる
 // 3・4人戦では、この砦が順番に効いて最後まで進む。
-const FINAL_LOCK_STUCK_APPROVE_MS = 75000;
+const FINAL_LOCK_STUCK_APPROVE_MS = 60000;
 let finalLockStuckKey = "";
 let finalLockStuckSince = 0;
 function checkFinalLockStuckApprove() {
@@ -16359,7 +16431,7 @@ setInterval(() => {
   try {
     checkFinalLockApprovalTimeout();
     checkContactApprovalTimeout();
-    checkContactStuckCancel();
+    checkContactStuckApprove();
     checkFinalLockStuckApprove();
   } catch { /* noop */ }
   try {

@@ -82,7 +82,8 @@ export function updateContactApprovalModal() {
   // 実際に接触された本人（defender）にだけ応答を許可する。
   const canRespond = !isOnlineMode() || getSelfSeat() === pending.defender;
   const autoMode = isAutoProcessingEnabled();
-  const hasCounterLock = canRespond && autoMode && !!checkCounterLockEligibility?.(pending.defender);
+  const counterLockEligible = canRespond && !!checkCounterLockEligibility?.(pending.defender);
+  const hasCounterLock = counterLockEligible && autoMode;
   // 自動処理モードON・応答可能・リアクションカード無し、の場合はボタン自体を出さない
   // （main.js側のcheckCounterLockAutoApproval()が自動で承認して先へ進める。final-lock-
   // approval.jsのゴメンナサイと同じ「使えない人にはボタンを見せてもチラつくだけ」の考え方）。
@@ -114,11 +115,24 @@ export function updateContactApprovalModal() {
   // ますか？」モーダルが漏れて出ていた）。ブレインが「使う」と判断すれば実際に使い（#59-①）、
   // でなければ承認する。多重発火はinFlightで防ぐが、in-flight中でもモーダルは組み立てずに返す
   // （＝どのタイミングでも人間に判断モーダルを漏らさない）。
-  if (canRespond && hasCounterLock && autoDeclineDefender) {
+  //
+  // 【2026-09-07】オンラインの**疑似CPUの席**にも広げた。それまでこの自動判断は「カウンター
+  // ロックを持っている時」だけで、持っていない時のオンラインは**人間用の承認ボタンを出して
+  // 待つ**だけだった（#229「使えない人にも承認を押してもらう」＝人間向けの方針）。誰も座って
+  // いない席ではそれを押す人がおらず、45秒の自動承認まで対局が丸ごと止まる。実測: オンライン
+  // の決着まで対戦が turn 11 で pendingContact {attacker:"C",defender:"A"} のまま停止した。
+  // ・広げたのは**疑似CPUモードの席だけ**（スモークテスト・観戦）。AFK代行の席は従来どおり
+  //   45秒待つ——**全員に同じ時間**が与えられることが、#229 の「早く通った＝持っていない」
+  //   という情報漏れを防ぐ仕組みそのものだから。誰も座っていないテスト用の席にはその配慮は
+  //   要らない（人間の対戦相手がいない）。
+  // ・canRespond はオンラインでは「自分が防御側本人」を意味するので、**自分の席の分を自分の
+  //   画面が答えるだけ**＝相手や観戦者が代わりに答えてしまうことはない。
+  const onlineAutoSeat = isOnlineMode() && !!isPseudoCpuTargetCheck?.(pending.defender);
+  if (canRespond && autoDeclineDefender && (hasCounterLock || onlineAutoSeat)) {
     hideImmediately();
     if (!pseudoCpuCounterLockAutoDeclineInFlight) {
       pseudoCpuCounterLockAutoDeclineInFlight = true;
-      const useIt = !!cpuCounterLockDecider?.(pending.defender);
+      const useIt = counterLockEligible && !!cpuCounterLockDecider?.(pending.defender);
       Promise.resolve(useIt ? useCounterLockHandler?.() : respondHandler?.(true)).finally(() => {
         pseudoCpuCounterLockAutoDeclineInFlight = false;
       });
@@ -176,16 +190,31 @@ export function updateContactApprovalModal() {
         hideImmediately();
         respondHandler?.(true);
       });
-      const rejectBtn = document.createElement("button");
-      rejectBtn.className = "contact-approval-reject";
-      rejectBtn.type = "button";
-      rejectBtn.textContent = t("game.contact.reject");
-      rejectBtn.addEventListener("click", () => {
-        hideImmediately();
-        respondHandler?.(false);
-      });
       buttons.appendChild(approveBtn);
-      buttons.appendChild(rejectBtn);
+      // 【2026-09-07・ユーザー判断】「拒否する」は**カード効果の自動処理がオフの時だけ**出す。
+      // ルールブック（docs/rulebook.md 198/332行）では接触は申し込んだ側の一方的な行動で、
+      // 接触された側に断る権利は無い（唯一の対抗手段が275行のカウンターロック＝カードの効果）。
+      // 自動処理モードでこのボタンを出していると、**誰でもあらゆる接触を無条件に断れる**
+      // ——接触は相手の手札を減らす主要な攻め手なので、勝敗に直結する抜け道になっていた。
+      //
+      // なぜ紛れ込んだか: この「承認／拒否」の2択はもともと**自己申告で処理する形**
+      // （ユドンリウムコネクト風＝自動処理オフ）のUIで、そこでは「カードの効果で接触を防いだ」
+      // 等をプレイヤー自身が申告するための正当な選択肢。自動処理モードのローカル戦では
+      // そもそもこのモーダルを出さない（上の分岐で main.js が自動承認する）ので表に出なかったが、
+      // **オンラインだけ #229「使えない人にも承認ボタンを出す」（＝早く通った人＝持っていない、
+      // という情報漏れを防ぐため）で表示するようにしたため、拒否まで一緒に出てしまっていた**。
+      // 承認ボタンは残るので #229 の狙い（全員が同じように1回押す）はそのまま成立する。
+      if (!autoMode) {
+        const rejectBtn = document.createElement("button");
+        rejectBtn.className = "contact-approval-reject";
+        rejectBtn.type = "button";
+        rejectBtn.textContent = t("game.contact.reject");
+        rejectBtn.addEventListener("click", () => {
+          hideImmediately();
+          respondHandler?.(false);
+        });
+        buttons.appendChild(rejectBtn);
+      }
     }
     modalEl.appendChild(buttons);
   }

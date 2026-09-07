@@ -1208,7 +1208,19 @@ function updateTimeoutWarnings(state, isTimedOut) {
       // 誰にも自動解決されず永久に止まる。CPUの委任中はここでは返さず、下の
       // performPriorityTimeoutAutoAction に任せる（ピッカーが出れば解決、無ければ何もしないだけ。
       // 委任が終われば delegateToPlayerForEffect の finally が優先権を手番プレイヤーへ戻す）。
-      if (state.turnPlayer && state.priorityPlayer !== state.turnPlayer && !isPseudoCpuTarget(state.priorityPlayer)) {
+      // 【2026-09-07】接触の返事を待っている席（＝ pendingContact の defender）はここで除外する。
+      // この分岐は「手番でない席が時間切れになったら、何もせず優先権を手番プレイヤーへ返す」もの。
+      // 接触の承認に優先権と持ち時間を持たせた以上、ここに素通りさせると**返事をしないまま優先権
+      // だけが返り、pendingContact が残ったまま堂々巡りになる**（申し込み側は次へ進めない）。
+      // 下の performPriorityTimeoutAutoAction に任せる＝時間切れは承認として扱われる。
+      const pendingContact = state.pendingContact;
+      const owesContactAnswer = !!pendingContact && state.priorityPlayer === pendingContact.defender;
+      if (
+        state.turnPlayer &&
+        state.priorityPlayer !== state.turnPlayer &&
+        !isPseudoCpuTarget(state.priorityPlayer) &&
+        !owesContactAnswer
+      ) {
         timedOutAutoActionFired = true;
         timedOutAutoActionFiredAt = Date.now();
         withGuard(() =>
