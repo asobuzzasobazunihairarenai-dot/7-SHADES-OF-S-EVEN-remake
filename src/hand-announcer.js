@@ -79,7 +79,11 @@ async function showToast(innerHTML, opts = {}) {
   // いる（ユーザー報告「ロックしている最中に、ハンドフェイズのモーダルが出ました」＝ロックの
   // お知らせが飛んでいる途中でフェイズ告知が重なっていた。実測でもフェイズ告知はフラッシュの
   // 表示時間が切れた 0.08 秒後に出ていた）。飛び終わるまでを「場所を占める長さ」に含める。
-  await waitForNoticeSlot(flashDurationMs() + STOCK_FLIGHT_MS);
+  // 【#329】中央を押さえておく長さ。表示時間＋右下へ畳む飛翔に加えて、少しだけ余裕を足す——
+  // 予約はこの行（順番が回ってきた時点）から数え始めるのに、実際にトーストがDOMに現れるのは
+  // 中身を組み立てた数十ms後なので、その分だけ予約の終わりが実物の消滅より早くなり、
+  // 次のお知らせ（ターン告知）が飛翔の最後に約0.1秒だけ重なっていた（実測）。
+  await waitForNoticeSlot(flashDurationMs() + STOCK_FLIGHT_MS + 200);
   if (isCelebrationActive()) return;
   const toast = document.createElement("div");
   toast.className = "hand-pickup-toast is-flash";

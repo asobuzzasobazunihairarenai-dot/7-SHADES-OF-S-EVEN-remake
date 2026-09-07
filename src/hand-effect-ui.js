@@ -312,7 +312,9 @@ export async function showCardReceivedModal(cardId, subtitle, { labelText = null
 
     const nameEl = document.createElement("div");
     nameEl.className = "card-received-modal-name";
-    nameEl.textContent = def?.name ?? cardId;
+    // 【#331】中身を見せない場合は cardId が null で渡ってくる（画像は裏面になる）。
+    // そのまま出すと "null" と表示されてしまうので、非公開である旨の文言にする。
+    nameEl.textContent = cardId ? def?.name ?? cardId : t("heu.hiddenCard");
     modal.appendChild(nameEl);
 
     if (subtitle) {

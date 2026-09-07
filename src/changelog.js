@@ -14,6 +14,19 @@ export const CHANGELOG = [
   {
     date: "2026-09-07",
     items: [
+      "自分が関わっていない奪い合い（CPU同士など）で、本来見えないはずの相手のカードが表向きで出ていたのを直しました。何が起きたかは今までどおり分かりますが、中身は伏せられます。",
+      "右下の「このターンの出来事」の帯が、たくさん並ぶと盤面に重なっていたのを直しました。5枚ぶんで止まり、それ以上は横になぞって見られます。",
+      "最後のミニモーダルが右下へ畳まれ切る前に「◯◯のターンです」が重なって出ていたのを直しました。",
+    ],
+    itemsEn: [
+      "Fixed cards being shown face-up in steals you are not part of (CPU vs CPU, for example). You still see that it happened, but not what was taken.",
+      "Fixed the \"this turn\" strip at the bottom right overlapping the board when many entries piled up. It now stops at five and scrolls sideways.",
+      "The turn announcement no longer appears on top of the last mini popup while it is still folding away.",
+    ],
+  },
+  {
+    date: "2026-09-07",
+    items: [
       "ゲート侵攻が、案内どおりの順番で見えるようになりました。案内が進むまで、あなたの駒は相手のゲートに乗ったまま、相手の手札も減らないまま、自分のゲートのカードも盤面に残ります。奪う札をめくる前に手札を見て中身が分かってしまうこともなくなりました。最後は自分のゲートへ跳んで帰ります。",
     ],
     itemsEn: [

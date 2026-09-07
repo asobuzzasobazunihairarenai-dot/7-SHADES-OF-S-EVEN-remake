@@ -129,6 +129,7 @@ import {
   isBoardAnimationPlaying,
   isNoticeQueueBusy,
   isPhaseAnnounceVisible,
+  waitForNoticeSlot,
 } from "./anim-gate.js";
 // 【#266】お知らせを待たせた時間を行動ログへ残す（ユーザー要望「表示タイミングをログに出るように」）。
 // anim-gate.js は import を一切持たない葉モジュールなので、記録する手段をここから差し込む。
@@ -2107,8 +2108,11 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, reve
         // 指定した時はこの中央公開だけを省く（ライブのホバー実況 broadcast や実際のピックは
         // そのまま行う）。
         if (!options?.suppressReceivedReveal) {
-          // 自分視点でラベル・文面を出し分ける。この札は targetPlayer → actor(手番) へ移る。
-          const actor = getState().turnPlayer;
+          // 自分視点でラベル・文面を出し分ける。この札は targetPlayer → actor へ移る。
+          // 【#331・2026-09-07】actor を turnPlayer から推測しない。ゲート侵攻は**ターン終了時**に
+          // 走るので、その時点の turnPlayer は既に次の人であることがある（#280 と同じ罠）。
+          // 奪う側は呼び出し側が actingSeat で明示している。
+          const actor = options?.actingSeat ?? getState().turnPlayer;
           const self = getSelfSeat();
           let labelText, sub;
           if (targetPlayer === self) {
@@ -2131,8 +2135,15 @@ function requestOpponentHandRitualPick(targetPlayer, hint, excludeTokenIds, reve
           // 【#298】overrideCardId: 見せる時点より後にならないと中身が分からない場合に、
           // 呼び出し側が正しい cardId を渡せるようにする（セレスティアの「捨てさせた」札は
           // 捨て場に積まれた後なら公開情報として読める）。引数なしなら従来どおり。
+          // 【#331・2026-09-07】自分が当事者（奪う側 or 奪われる側）でない時は中身を見せない。
+          // CPU戦は1画面で全席を回すため、CPU同士のゲート侵攻でも人間の画面にこのモーダルが出て、
+          // **本来知り得ない相手の手札が表向きで見えてしまっていた**（ユーザー報告 #331）。
+          // スリカエでは #217 として 2026-09-03 に同じ判定を入れてあり、こちらが取り残されていた。
+          // 見せないだけで「何が起きたか」は伝える（中身の代わりに裏面を出す。
+          // getCardImagePath(null) が裏面を返す）。
+          const maySeeIdentity = targetPlayer === self || actor === self;
           const doReveal = (overrideCardId) =>
-            showCardReceivedModal(overrideCardId ?? revealCardId, sub, { labelText });
+            showCardReceivedModal(maySeeIdentity ? overrideCardId ?? revealCardId : null, sub, { labelText });
           if (options?.deferReveal) options.deferReveal(doReveal);
           else await doReveal();
         }
@@ -3002,7 +3013,12 @@ async function stealHandCardsRitualForGateInvasion(defender, count, onPicked, at
     if (cardIds.length > 0) {
       const self = getSelfSeat();
       const sub = self === defender ? "" : t("game.ritual.fromPlayer", { name: getPlayerName(defender) });
-      await showMultipleCardsReceivedModal(cardIds, sub, { labelText: t("game.label.took") });
+      // 【#331】単発の奪取と同じ判定。当事者でなければ枚数だけ伝え、中身は裏面のまま見せる。
+      const actingSeat = attacker ?? getState().turnPlayer;
+      const maySeeIdentity = self === defender || self === actingSeat;
+      await showMultipleCardsReceivedModal(maySeeIdentity ? cardIds : cardIds.map(() => null), sub, {
+        labelText: t("game.label.took"),
+      });
     }
     return tokens;
   }
@@ -17441,12 +17457,30 @@ function turnAnnounceLook(player) {
   };
 }
 
+// 【#329・2026-09-07】ユーザー報告「最後のミニモーダルが右に捌ける前に『◯◯のターンです』の
+// 表示が出ちゃう」。原因は、ターン告知が**中央の順番待ちの列に一度も並んでいなかった**こと。
+// 獲得などのフラッシュは中央に出てから右下のストックへ畳まれる（飛翔0.42秒）まで中央を
+// 占有する予約を取っているのに、ターン告知だけは turnPlayer の変化を検知した瞬間に無条件で
+// 出していたため、畳まれる途中の上に重なっていた。他のお知らせと同じ列に並ばせる。
+// 待ちは全て上限付き（演出9秒・返事待ちモーダル・列の順番）なので、ここで対局は止まらない
+// （続き454の『待ちには例外なく上限を付ける』を満たしている）。
+// 告知そのものの表示時間は 2.2 秒（turn-announce.js）なので、その分だけ中央を予約する。
+const TURN_ANNOUNCE_HOLD_MS = 2200;
+function announceTurnChangeWhenCenterIsFree(player) {
+  const look = turnAnnounceLook(player);
+  waitForNoticeSlot(TURN_ANNOUNCE_HOLD_MS)
+    .catch(() => {})
+    .then(() => {
+      setTurnAnnounceActive(true);
+      announceTurnChange(player, () => setTurnAnnounceActive(false), look);
+    });
+}
+
 let prevTurnPlayerForAnnouncement = null;
 let pendingTurnAnnouncePlayer = null;
 registerOnGateInvasionQueueDrained(() => {
   if (pendingTurnAnnouncePlayer !== null) {
-    setTurnAnnounceActive(true);
-    announceTurnChange(pendingTurnAnnouncePlayer, () => setTurnAnnounceActive(false), turnAnnounceLook(pendingTurnAnnouncePlayer));
+    announceTurnChangeWhenCenterIsFree(pendingTurnAnnouncePlayer);
     pendingTurnAnnouncePlayer = null;
   }
 });
@@ -17470,8 +17504,7 @@ subscribe(() => {
     if (isGateInvasionPending() || isGateInvasionQueueActive()) {
       pendingTurnAnnouncePlayer = turnPlayer;
     } else {
-      setTurnAnnounceActive(true);
-      announceTurnChange(turnPlayer, () => setTurnAnnounceActive(false), turnAnnounceLook(turnPlayer));
+      announceTurnChangeWhenCenterIsFree(turnPlayer);
     }
   }
   prevTurnPlayerForAnnouncement = turnPlayer;

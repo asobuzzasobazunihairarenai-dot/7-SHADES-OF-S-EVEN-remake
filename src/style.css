@@ -19277,9 +19277,21 @@ body.full-screen-page-active #turn-round-counter {
   display: flex;
   flex-direction: row;
   gap: 0.3rem;
-  max-width: min(46rem, 62vw);
+  /* 【#332・2026-09-07】以前は max-width: min(46rem, 62vw) だった。vw は**実画面**の幅で
+     測られるのに、この帯は 1600x900 の「ステージ」の中に置かれている（変形した祖先の中では
+     position:fixed が absolute のように振る舞う）ため、vw の値がステージ座標では実質2倍前後に
+     効いてしまい、帯が左へ伸びて**盤面に食い込んで**いた（実測: 盤面の右端はステージ座標で
+     約1253px、帯の右端は約1581px＝空きは約20rem しかないのに、上限は最大36rem相当だった）。
+     ステージは端末に関係なく同じ大きさなので、正しい単位は rem。チップ5枚ぶんで打ち止めにし、
+     それ以上は横スワイプで見る。 */
+  max-width: 17rem;
   overflow-x: auto;
   overflow-y: hidden;
+  /* 指で横に払って見られるようにする。盤面側は touch-action:none で掴む操作を拾うので、
+     この帯だけは横方向のスワイプとして扱うと明示する。 */
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 0.25rem;
   border-radius: 0.45rem;
   background: rgba(15, 23, 32, 0.72);
@@ -19362,9 +19374,21 @@ body.full-screen-page-active #turn-round-counter {
   display: flex;
   flex-direction: row;
   gap: 0.3rem;
-  max-width: min(46rem, 62vw);
+  /* 【#332・2026-09-07】以前は max-width: min(46rem, 62vw) だった。vw は**実画面**の幅で
+     測られるのに、この帯は 1600x900 の「ステージ」の中に置かれている（変形した祖先の中では
+     position:fixed が absolute のように振る舞う）ため、vw の値がステージ座標では実質2倍前後に
+     効いてしまい、帯が左へ伸びて**盤面に食い込んで**いた（実測: 盤面の右端はステージ座標で
+     約1253px、帯の右端は約1581px＝空きは約20rem しかないのに、上限は最大36rem相当だった）。
+     ステージは端末に関係なく同じ大きさなので、正しい単位は rem。チップ5枚ぶんで打ち止めにし、
+     それ以上は横スワイプで見る。 */
+  max-width: 17rem;
   overflow-x: auto;
   overflow-y: hidden;
+  /* 指で横に払って見られるようにする。盤面側は touch-action:none で掴む操作を拾うので、
+     この帯だけは横方向のスワイプとして扱うと明示する。 */
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 0.2rem;
   border-radius: 0.4rem;
   background: rgba(15, 23, 32, 0.5);
