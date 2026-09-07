@@ -85,6 +85,16 @@ export function noteMyDeckDrawThisPhase() {
   myDeckDrawnThisPhase = true;
 }
 
+// 【報告#320】「ロックする札を選んだ後も、マイデッキボタンが少しだけ残る」。
+// ボタンを隠す条件は hasPlacedNewLockThisPhase（＝実際にロックエリアへ札が動いたか）だが、
+// オンラインではサーバーへの往復のぶん、押してから真になるまでに数百ms〜数秒かかる。
+// その窓でボタンが残って見えていた（押せてしまう窓は #288 で別途塞いである）。
+// **送信している最中かどうか**という事実で隠す（main.js の performLockPhaseClick が印を付ける）。
+let lockSubmitInFlight = false;
+export function noteLockSubmitInFlight(v) {
+  lockSubmitInFlight = !!v;
+}
+
 export function canDrawFromMyDeck(seat) {
   const s = getState();
   return !!s.myDeckMode && (s.piles?.[`myDeck-${seat}`] || []).length > 0;
@@ -900,6 +910,7 @@ export function updateSkipButtonVisibility() {
     // 【#286/#288】このロックフェイズで既に引いた／既にロックした後は出さない
     // （フェイズの切り替えが待たされている間、ボタンだけ残って連打できてしまっていた）。
     !myDeckDrawnThisPhase &&
+    !lockSubmitInFlight && // #320: 送信中はもう隠す（往復を待たない）
     !hasPlacedNewLockThisPhase(selfSeat) &&
     myDeckCount > 0;
   myDeckBtn.style.display = showMyDeck ? "block" : "none";

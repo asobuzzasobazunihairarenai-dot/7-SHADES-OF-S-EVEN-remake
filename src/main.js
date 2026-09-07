@@ -74,6 +74,7 @@ import {
   isPhaseTransitionPending,
   hasDrawnMyDeckThisPhase,
   noteMyDeckDrawThisPhase,
+  noteLockSubmitInFlight,
 } from "./phase-automation.js";
 import { initHelpButton } from "./help.js";
 import { initDiscordLink } from "./discord-link.js";
@@ -1090,6 +1091,9 @@ async function discardFromHandReveal(tokenId, opts = {}) {
     // 焼失演出をそのまま残す。
     const discarded = opts.silent || opts.batchNotice ? null : getState().tokens.find((t) => t.id === tokenId);
     if (discarded?.cardId) announceCardDiscarded(discarded.location?.player ?? getSelfSeat(), discarded.cardId, currentEffectReasonLabel());
+    // 【報告#321】この画面が捨てた分だという印。下の maybeAnnounceSelfHandDiscard が
+    // 二重にお知らせを出さないために使う（silent/batchNotice も「この画面の判断」なので印を付ける）。
+    noteLocallyAnnouncedDiscard(tokenId);
   }
   if (isOnlineMode()) {
     try {
@@ -5076,6 +5080,64 @@ function maybeAnnounceDeckRefill() {
 // セットアップの配り直しはカードが**山札**へ戻るので捨て場は増えず、ここには入らない。
 // 手札へ拾われた場合はトークンが残るので、それも除外する。
 let prevBoardCardSnapshot = null;
+// 【報告#321】「相手のターンに色落ちキャットが出た。私の画面のミニモーダル群に捨てたログが
+// 残っていない」。色落ちキャット・セレスティア等の「全員の手札を捨てさせる」効果は、
+// **効果を使った人のクライアントだけ**が engine を回してお知らせのチップを作る。他の人の
+// 画面には「手札が入れ替わった結果」しか届かないので、何が起きたかの記録がどこにも残らない。
+//
+// 呼び出し口（効果ごと）に足すと必ず取りこぼすので、**「自分の手札にあった札が捨て場へ
+// 積まれた」という事実**を render() で拾う（続き451の盤面・ロックの散り演出と同じ考え方）。
+// この画面自身が捨てた分は上の印で除外するので、二重には出ない。
+const locallyAnnouncedDiscards = new Map(); // tokenId → 印を付けた時刻
+const LOCAL_DISCARD_MARK_TTL_MS = 15000;
+function noteLocallyAnnouncedDiscard(tokenId) {
+  locallyAnnouncedDiscards.set(tokenId, Date.now());
+  // 溜め込まないよう、ついでに古い印を捨てる。
+  if (locallyAnnouncedDiscards.size > 200) {
+    const limit = Date.now() - LOCAL_DISCARD_MARK_TTL_MS;
+    for (const [id, at] of locallyAnnouncedDiscards) if (at < limit) locallyAnnouncedDiscards.delete(id);
+  }
+}
+function wasLocallyAnnouncedDiscard(tokenId) {
+  const at = locallyAnnouncedDiscards.get(tokenId);
+  if (!at) return false;
+  if (Date.now() - at > LOCAL_DISCARD_MARK_TTL_MS) {
+    locallyAnnouncedDiscards.delete(tokenId);
+    return false;
+  }
+  return true;
+}
+let prevSelfHandSnapshot = null;
+function maybeAnnounceSelfHandDiscard() {
+  const st = getState();
+  const me = getSelfSeat();
+  const hand = new Map();
+  const alive = new Set();
+  for (const tok of st.tokens) {
+    alive.add(tok.id);
+    if (tok.kind !== "card" || !tok.cardId) continue;
+    if (tok.location?.zone === "hand" && tok.location.player === me) hand.set(tok.id, tok.cardId);
+  }
+  const discard = st.piles?.discard ?? [];
+  const prev = prevSelfHandSnapshot;
+  prevSelfHandSnapshot = { hand, discardLen: discard.length };
+  if (!prev || !me) return; // 起動直後の1回目は比べる相手が無い
+  if (discard.length <= prev.discardLen) return; // 捨て場が増えていない＝捨てられていない
+  // 今回新しく積まれた分とだけ cardId で突き合わせる（山札へ戻った・場へ出した等を除くため）。
+  const pool = new Map();
+  for (const cardId of discard.slice(prev.discardLen)) pool.set(cardId, (pool.get(cardId) ?? 0) + 1);
+  const gone = [];
+  for (const [id, cardId] of prev.hand) {
+    if (alive.has(id)) continue; // まだ手札にある／別の場所へ動いただけ
+    if (wasLocallyAnnouncedDiscard(id)) continue; // この画面が既にお知らせを出している
+    const n = pool.get(cardId) ?? 0;
+    if (n <= 0) continue;
+    pool.set(cardId, n - 1);
+    gone.push(cardId);
+  }
+  if (gone.length) announceCardsDiscarded(me, gone, null);
+}
+
 function maybeAnnounceBoardCardDiscard() {
   const st = getState();
   const onBoard = new Map(); // 盤面／ロックにあるカード
@@ -5485,10 +5547,12 @@ async function performLockPhaseClick(tokenId, opts = {}) {
     return;
   }
   lockPhaseClickInFlight = true;
+  noteLockSubmitInFlight(true); // #320: マイデッキボタンを往復を待たずに隠す
   try {
     return await performLockPhaseClick__inner(tokenId, opts);
   } finally {
     lockPhaseClickInFlight = false;
+    noteLockSubmitInFlight(false);
   }
 }
 async function performLockPhaseClick__inner(tokenId, { skipConfirm = false, actingSeat = getSelfSeat() } = {}) {
@@ -9362,13 +9426,31 @@ async function playGateInvasionStealAnim__inner(attacker, defender, count, onDon
 // broadcastContactPickResolvedを送り返すまでの間、defender側で待つためのPromise。
 // attacker/defenderの組み合わせが今のpendingContactと一致する初回の1件だけを拾う
 // （複数回発火することは無い想定だが、念のため一致確認する）。
+// 【2026-09-07・報告#319の調査で判明】ここには**上限が1つも無かった**。攻撃側の画面が
+// 落ちる・閉じられると、防御側はこの Promise で**永久に待ち続ける**（しかもその間
+// pendingContact は立ったまま＝対局が完全に止まる）。「待ちには例外なく上限を付ける」
+// （続き454の教訓）に反していた。
+// 上限に達したら**奪う札を指定せずに**先へ進める＝サーバー側が無作為に1枚選ぶ。
+// ルール上「無作為に1枚奪う」なので、これは正しい決着であって取り消しではない。
+const CONTACT_PICK_WAIT_MAX_MS = 90000;
 function waitForContactPickResolved(attacker, defender) {
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = (v) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(giveUpTimer);
+      unregister();
+      resolve(v);
+    };
     const unregister = onContactPickResolvedEvents((payload) => {
       if (payload.attacker !== attacker || payload.defender !== defender) return;
-      unregister();
-      resolve(payload.stolenCardId ?? null);
+      finish(payload.stolenCardId ?? null);
     });
+    const giveUpTimer = setTimeout(() => {
+      logAction("diag-contact-pick-timeout", { attacker, defender, waitedMs: CONTACT_PICK_WAIT_MAX_MS });
+      finish(null);
+    }, CONTACT_PICK_WAIT_MAX_MS);
   });
 }
 
@@ -10431,6 +10513,7 @@ function render() {
   // 【演出・2026-09-06】盤面／ロックエリアのカードが捨てられた瞬間を拾う（同上の理由で
   // この位置＝DOM がまだ前回の状態のうちに測る）。
   maybeAnnounceBoardCardDiscard();
+  maybeAnnounceSelfHandDiscard(); // #321: 相手の効果で自分の手札が捨てられた時も記録を残す
   maybeClearTurnEventStock();
   updateSpectatorBanner();
   // オンライン対戦（第一弾）ではまだサーバー側にポートしていないアクション（セットアップ
@@ -16236,6 +16319,17 @@ function checkContactStuckApprove() {
     contactStuckSince = Date.now();
     return;
   }
+  // 【2026-09-07・報告#319】**この砦が正常な解決に割り込んでいた**。承認の経路
+  // （respondToContactInner）は タックル → 攻撃側が奪う札を選ぶ → 飛翔 と続き、その間
+  // pendingContact は立ったままになる。攻撃側がスマホの人間だと選ぶのに1分以上かかることが
+  // あり（実測: 承認から決着まで68秒）、その最中にここが発火して優先権まで手番プレイヤーへ
+  // 返してしまい、**まだ到達効果を処理している最中に相手のターンが終わった**。
+  // この砦は「**誰も解決できない**時」のためのものなので、この画面が解決を進めている間は
+  // 時計を押し戻す。上の①で待ちに上限を付けたので、これで永久に発火しなくなることはない。
+  if (contactResponseInFlight) {
+    contactStuckSince = Date.now();
+    return;
+  }
   if (Date.now() - contactStuckSince < CONTACT_STUCK_APPROVE_MS) return;
   contactStuckSince = Date.now(); // 連続発火を防ぐ
   logAction("diag-contact-stuck-approve", {
@@ -17035,6 +17129,15 @@ if (typeof window !== "undefined") {
 }
 // しきい値到達（turn-timer.jsが連続タイムアップを数えて発火）→ ランクなら放置敗北、それ以外はCPU代行。
 window.addEventListener("afk-cpu-threshold-reached", onAfkThresholdReached);
+// 【報告#323】時間切れを1回するたびに turn-timer.js が知らせてくる。フェイズ案内板のバッジ
+// （⏳ 時間切れ n/max）は常に出しているが、**あと1回で敗北**という一番大事な瞬間だけは
+// 見落としようがないように画面中央でも知らせる。毎回出すと対局のテンポを削るので、
+// 「残り1回」になった時だけにしている。
+window.addEventListener("self-timeout-recorded", (e) => {
+  const { used = 0, max = 0, ranked = false } = e.detail || {};
+  if (max - used !== 1) return;
+  void showEffectReasonModal(null, t(ranked ? "tt.timeoutLastWarnRanked" : "tt.timeoutLastWarnCpu", { used }));
+});
 // 手動操作（在席の証拠）があれば連続タイムアップのカウンタをリセット。ただし既に代行中の間は
 // 解除しない（誤って触れただけで戻さない。復帰は明示ボタンのみ）。captureで拾い、バナーの
 // 「復帰する」ボタン自身のクリックも通常どおり動く（resetは代行中は何もしないため干渉しない）。

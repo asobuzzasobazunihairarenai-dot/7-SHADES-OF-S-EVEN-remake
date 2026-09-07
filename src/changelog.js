@@ -14,6 +14,25 @@ export const CHANGELOG = [
   {
     date: "2026-09-07",
     items: [
+      "接触の解決中（相手が奪う札を選んでいる間）に、申し込んだ側のターンが先に終わってしまうことがあったのを直しました。",
+      "相手が奪う札を選ばないまま画面を閉じても、対局が止まらないようにしました。しばらく待つと無作為に1枚が渡って先へ進みます。",
+      "時間切れが続くと敗北（またはおまかせに交代）になることが分かるよう、「時間切れ 2/3」のように残り回数を画面に出すようにしました。あと1回になると赤くなり、中央でも一度お知らせします。",
+      "ロックする札を選んだ直後も「マイデッキ」ボタンが少しの間残っていたのを直しました。",
+      "右下のお知らせで、中身が「＋」だけの空っぽのカードが並ぶことがあったのを直しました。引いた分は裏面、まとめて手に入れた分は実際の札の絵が出ます。",
+      "相手の効果で自分の手札が捨てられた時、自分の画面にも「何を捨てたか」の記録が残るようになりました。",
+    ],
+    itemsEn: [
+      "Fixed the attacker's turn sometimes ending while a contact was still being resolved (while they were choosing which card to take).",
+      "A contact no longer freezes the match if the attacker closes their screen without picking a card — after a wait, one random card is taken and play continues.",
+      "Repeated timeouts now show a counter (e.g. \"Timeouts 2/3\") so you can see how close you are to losing the match or being switched to auto-play. It turns red on the last one, with a one-off notice in the centre.",
+      "The My Deck button no longer lingers for a moment after you pick a card to lock.",
+      "Notification chips no longer show an empty card with just a \"+\" on it — draws show a card back, and multi-card gains show the actual card.",
+      "When an opponent effect discards your hand, your own screen now keeps a record of what was discarded.",
+    ],
+  },
+  {
+    date: "2026-09-07",
+    items: [
       "接触された時に出ていた「拒否する」を、カード効果の自動処理がオンの時は出さないようにしました。接触は申し込まれたら断れないルールで、止められるのはカウンターロックだけです（自動処理をオフにして手動で進めている時は今までどおり出ます）。",
       "相手の返事が返ってこないまま接触が宙に浮いた時、これまでその接触を取り消していたのを、承認して先へ進める形に改めました。黙っていれば接触を避けられる、ということが無くなります。",
       "オンライン対戦で接触を申し込まれた時、返事をしている間はその人に手番の持ち時間が回るようになりました。時間内に答えないと承認されたものとして進みます（接触は断れないルールなので、待たせても得はしません）。",

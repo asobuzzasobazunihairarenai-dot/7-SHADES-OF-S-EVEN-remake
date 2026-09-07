@@ -68,7 +68,15 @@ import {
 import { isOpponentBaseTimerVisible } from "./motion-prefs.js";
 import { toggleTimerTogglePopover } from "./timer-toggle.js";
 import { hasAnyoneWon } from "./victory.js";
-import { isCpuBattleActive, getCpuStepDeadlineMs, isSelfCpuSubstituted, recordSelfTimeout } from "./cpu-battle-state.js";
+import {
+  isCpuBattleActive,
+  getCpuStepDeadlineMs,
+  isSelfCpuSubstituted,
+  recordSelfTimeout,
+  getConsecutiveTimeouts,
+  getAfkTimeoutThreshold,
+  isAfkCpuTakeoverEnabled,
+} from "./cpu-battle-state.js";
 import { isAutoProcessingEnabled } from "./card-effect-engine.js";
 import { logAction } from "./action-log.js";
 
@@ -492,6 +500,47 @@ function onStateChange(state) {
 // 統一感を出したい」への対応。従来の横長バー表示をやめ、ロック/ハンド/ムーブと同じ
 // 丸いアイコンボタンの見た目（icon-action-button.js共通CSSをそのまま流用）にし、
 // アイコン画像の代わりに残り秒数の数字を丸枠の中央に表示する。
+// 【報告#323】「何回かタイムアップになると敗北しますが、あと何回でやばいのかを見える化したい」。
+// ランク戦では連続タイムアップがしきい値（既定3回）に達すると**その場で敗北**になり
+// （game.afk.youLost）、ランク戦以外では自席がおまかせ（CPU代行）に切り替わる。ところが
+// **今が何回目なのかはどこにも出ておらず**、気づかないうちに1回前まで来ていることがあった。
+// 1回でも使ったらフェイズ案内板に「⏳ 時間切れ n/max」を出し、あと1回になったら赤くする。
+// 在席の証拠（タップ/キー入力）でカウンタは0に戻る＝表示も自動的に消える。
+let timeoutStrikeEl = null;
+let prevTimeoutStrike = 0;
+function buildTimeoutStrike() {
+  const bar = document.getElementById("phase-guide-bar");
+  if (!bar) return;
+  timeoutStrikeEl = document.createElement("div");
+  timeoutStrikeEl.id = "turn-timeout-strike";
+  timeoutStrikeEl.className = "turn-timeout-strike";
+  timeoutStrikeEl.style.display = "none";
+  bar.appendChild(timeoutStrikeEl);
+}
+function updateTimeoutStrike() {
+  if (!timeoutStrikeEl) return;
+  const used = getConsecutiveTimeouts();
+  const max = getAfkTimeoutThreshold();
+  // 出すのは「その先に本当に不利益がある時」だけ。おまかせ交代を切っている設定では
+  // しきい値に達しても何も起きないので、数える意味が無い＝出さない。
+  const meaningful = isOnlineMode() && isAfkCpuTakeoverEnabled() && !isSelfCpuSubstituted() && !isSpectatingGame();
+  if (!meaningful || used <= 0) {
+    setDisplayIfChanged(timeoutStrikeEl, "none");
+    prevTimeoutStrike = 0;
+    return;
+  }
+  const left = Math.max(0, max - used);
+  timeoutStrikeEl.textContent = t(isRankedGame() ? "tt.timeoutStrikeRanked" : "tt.timeoutStrikeCpu", { used, max, left });
+  timeoutStrikeEl.classList.toggle("is-critical", left <= 1);
+  setDisplayIfChanged(timeoutStrikeEl, "");
+  if (used !== prevTimeoutStrike) {
+    prevTimeoutStrike = used;
+    timeoutStrikeEl.classList.remove("is-bump");
+    void timeoutStrikeEl.offsetWidth; // アニメーションを毎回やり直させる
+    timeoutStrikeEl.classList.add("is-bump");
+  }
+}
+
 function buildBaseClock() {
   const bar = document.getElementById("phase-guide-bar");
   if (!bar) return;
@@ -1234,7 +1283,16 @@ function updateTimeoutWarnings(state, isTimedOut) {
         // しきい値に達したら自席をCPU代行に切り替える（main.js側でフラグON・「復帰しますか？」
         // モーダル表示・相手への通知を行う）。代行中の（CPUの短時間）タイムアウトは数えない。
         if (result && isOnlineMode() && getSelfSeat() === state.priorityPlayer && !isSelfCpuSubstituted()) {
-          if (recordSelfTimeout()) {
+          const reached = recordSelfTimeout();
+          // #323: 何回目かをその場で表示に反映し、main.js へも知らせる（あと1回の時だけ
+          // 画面中央でも警告する。バッジだけだと見落とすため）。
+          updateTimeoutStrike();
+          window.dispatchEvent(
+            new CustomEvent("self-timeout-recorded", {
+              detail: { used: getConsecutiveTimeouts(), max: getAfkTimeoutThreshold(), ranked: isRankedGame() },
+            })
+          );
+          if (reached) {
             window.dispatchEvent(new CustomEvent("afk-cpu-threshold-reached"));
           }
         }
@@ -1532,6 +1590,7 @@ export function transferPriorityTo(player, { initializeIfUnset = false } = {}) {
 
 export function initTurnTimer() {
   buildBaseClock();
+  buildTimeoutStrike();
   buildRope();
   buildWarning();
   buildPriorityReturnWarning();
@@ -1539,6 +1598,7 @@ export function initTurnTimer() {
   subscribe((state) => {
     onStateChange(state);
     updateBaseClock(state);
+    updateTimeoutStrike(); // #323: 在席の証拠でカウンタが0に戻ったら表示も消す
     rebuildTransferButtons();
   });
   window.addEventListener("admin:change", () => {

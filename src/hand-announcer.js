@@ -235,7 +235,12 @@ export function announceHandPickups(player, pickups, reason) {
   `,
     {
       icon: "＋",
-      cardId: visible.length === 1 ? visible[0].cardId : null,
+      // 【報告#322】ここを「1枚の時だけ絵を出す」にしていたため、2枚以上まとめて手に入れると
+      // **札の形のまま中央に「＋」だけ**の、中身の無いカードに見えるチップになっていた。
+      // 実際に手に入れた札の1枚目の絵を出す（＋は隅のバッジで示され、全部の中身はチップを
+      // 押した時の詳細で見られる）。visible が空の場合は上の非公開ぶんの分岐で既に返している。
+      cardId: visible[0]?.cardId ?? null,
+      cardBack: !visible[0]?.cardId,
       label: t("game.chip.gained", { name: getPlayerNameOrYou(player) }) + reasonSuffix(reason),
     }
   );
@@ -268,7 +273,14 @@ export function announceDrawCount(player, count, reason) {
     <div class="hand-pickup-toast-title">${t("game.toast.draws", { name: getPlayerNameOrYou(player), n: count })}</div>
     ${reasonLine(reason)}
   `,
-    { icon: "＋", label: t("game.chip.draw", { name: getPlayerNameOrYou(player), n: count }) + reasonSuffix(reason) }
+    {
+      icon: "＋",
+      // 【報告#322】絵が無いと札の形のまま「＋」だけになり、中身の無いカードに見える。
+      // 何を引いたかは伝えない出来事なので、非公開ぶんの獲得チップと同じく**裏面**を見せる
+      // （＋は隅のバッジに出る）。
+      cardBack: true,
+      label: t("game.chip.draw", { name: getPlayerNameOrYou(player), n: count }) + reasonSuffix(reason),
+    }
   );
 }
 
