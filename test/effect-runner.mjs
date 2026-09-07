@@ -89,11 +89,20 @@ export async function runOneCase(spec) {
 
     // --- 選択（台本を消費）---
     pickLocation: async (candidates) => { const r = resolveLocation(nextPick("location"), candidates); callLog.push(["pickLocation", r]); return r; },
-    pickHandCard: async (player, filter) => {
+    // 【2026-09-08・続き479】引数の並びが本物とずれていた（本物は (player, hint, tokenIdFilter, options)）。
+    // 第2引数を filter として受けていたので実際には見出しの文字列を掴んでおり、**絞り込みを一度も
+    // 検査できていなかった**。そのせいで「配列を渡していて本物では TypeError になる」不具合を
+    // 58/58 PASS のまま素通りさせた（オンラインの通しテストで初めて表に出た）。並びを本物に合わせ、
+    // 渡された候補に含まれているかも検査する。
+    pickHandCard: async (player, hint, tokenIdFilter) => {
       const want = nextPick("handCard");
       let tok = null;
       if (want && typeof want === "string" && want.startsWith("index:")) { const hand = S().tokens.filter((t)=>t.kind==="card"&&t.location.zone==="hand"&&t.location.player===player); tok = hand[parseInt(want.slice(6),10)]; }
       else if (want) tok = findToken(want);
+      if (tok && tokenIdFilter) {
+        const ids = tokenIdFilter instanceof Set ? tokenIdFilter : new Set(tokenIdFilter);
+        if (!ids.has(tok.id)) throw new Error("pickHandCard: " + tok.id + " は候補に含まれていない");
+      }
       callLog.push(["pickHandCard", tok && tok.id]); return tok || null;
     },
     pickDiscardCost: async (candidates) => {

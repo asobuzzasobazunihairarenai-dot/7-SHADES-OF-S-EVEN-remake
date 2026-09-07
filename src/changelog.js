@@ -12,6 +12,17 @@ import { getLang } from "./i18n.js";
 
 export const CHANGELOG = [
   {
+    date: "2026-09-08",
+    items: [
+      "ザ・ギャンブル・試練の儀式で、宣言した色のカードが手札に2枚以上あると、捨てる処理が途中で止まってしまうことがあったのを直しました（昨日お配りした「捨てる順番を選べる」機能の不具合です。失礼しました）。",
+      "対戦が途中で進まなくなることがある不具合を直しました。誰かの手番待ちのまま止まってしまった場合、しばらくすると自動で次へ進みます。",
+    ],
+    itemsEn: [
+      "Fixed The Gamble and Trial Ritual: when two or more cards in hand matched the declared color, the discard step could stop partway. (This was a defect in yesterday's \"choose the discard order\" feature — sorry about that.)",
+      "Fixed a case where a match could stop progressing. If play stalls while waiting on someone's turn, it now moves on automatically after a short while.",
+    ],
+  },
+  {
     date: "2026-09-07",
     items: [
       "アプリのアドレスが新しくなりました。これまでのアドレスを開いた場合も自動でご案内しますので、そのままお使いいただけます。",

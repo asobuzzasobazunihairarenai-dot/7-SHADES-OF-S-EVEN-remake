@@ -6465,7 +6465,12 @@ function requestHandCardChoiceForEffect(player, hint, tokenIdFilter, options = {
       ...(handArea ? handArea.querySelectorAll(".hand-card") : []),
       ...(revealArea ? revealArea.querySelectorAll(".hand-reveal-card") : []),
     ];
-    const cardEls = tokenIdFilter ? allCardEls.filter((el) => tokenIdFilter.has(el.dataset.tokenId)) : allCardEls;
+    // 【2026-09-08・続き479】tokenIdFilter は Set で渡す約束だが、配列を渡す呼び出しが1つ
+    // 紛れ込んでいて（続き469で足した「捨てる順番を選ぶ」）、配列に .has が無いため TypeError で
+    // 効果ごと止まっていた（ザ・ギャンブル／試練の儀式）。呼び出し側は直したうえで、ここでも
+    // 配列を受けられるようにしておく（この一段があれば同じ間違いが致命傷にならない）。
+    const filterIds = tokenIdFilter ? (tokenIdFilter instanceof Set ? tokenIdFilter : new Set(tokenIdFilter)) : null;
+    const cardEls = filterIds ? allCardEls.filter((el) => filterIds.has(el.dataset.tokenId)) : allCardEls;
     if (cardEls.length === 0) {
       resolve(null);
       return;

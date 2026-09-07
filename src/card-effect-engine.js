@@ -1799,7 +1799,7 @@ async function runAction(action, ctx, helpers) {
           const chosen = await helpers.pickHandCard(
             ctx.player,
             t("ce.pickDiscardOrder", { n: i + 1 }),
-            [...remaining.keys()],
+            new Set(remaining.keys()), // 続き479: ここは Set で渡す約束（配列だと受け側の .has が無い）
             { purpose: "discard" }
           );
           if (!chosen) break;

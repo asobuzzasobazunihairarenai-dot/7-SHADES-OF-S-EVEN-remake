@@ -1082,6 +1082,18 @@ let timedOutAutoActionFiredAt = 0;
 // CPU戦の結果通知モーダルでクリック待ちの間（isCpuResultHoldActive）は意図的に止まっているので対象外。
 const STUCK_RETRY_MS = 10000;
 
+// 【2026-09-07・続き478】疑似CPU（CPU戦のCPU席・スモークテストの席）が優先権を持ったまま
+// 時間切れになり、しかも何の処理も走っていない状態が続いた時の最後の砦。
+// 下の #31 対策のガード（優先権の持ち主が疑似CPUなら手番プレイヤーへ返さない）は、
+// 「委任の最中に横から優先権を奪い返さない」ためのものだが、**委任が実際に走っているか**では
+// なく**持ち主が疑似CPUか**だけで判定していたため、委任が何も無い場面でも一切返さなくなり、
+// 誰も何もできないまま永久に止まる（オンラインの決着まで通すテストが turn 5 で停止した実例）。
+// 「処理中でない状態が連続してこの時間続いたら」に限って返す。委任中の結果モーダルの表示は
+// 数秒なので、この長さなら #31 の再発にはならない。
+const PSEUDO_CPU_PRIORITY_IDLE_MS = 30000;
+// 「処理中でない」が続き始めた時刻。処理中になった時・優先権や期限が変わった時に0へ戻す。
+let pseudoCpuIdleSince = 0;
+
 // #138（ユーザー要望2026-08-18）: ランク戦の「相手主導の放置敗北」。手番プレイヤーのタブが
 // 凍結する等で、その手番プレイヤー本人のクライアントでしか動かないタイムアウト自動処理が
 // 進まず対局が固まった場合、起きている側（相手）がそれを検知して勝ちを確定する
@@ -1169,6 +1181,7 @@ function updateTimeoutWarnings(state, isTimedOut) {
   if (!isTimedOut) {
     timedOutAutoActionFired = false;
     timedOutAutoActionDeadline = state.priorityDeadline;
+    pseudoCpuIdleSince = 0; // 続き478: 期限が動いた/まだ時間切れでない間は「何もしていない時間」を数え直す
     updateWarning(false);
     updatePriorityReturnWarning(false);
     return;
@@ -1190,6 +1203,7 @@ function updateTimeoutWarnings(state, isTimedOut) {
     }
     timedOutAutoActionFired = false;
     timedOutAutoActionDeadline = state.priorityDeadline;
+    pseudoCpuIdleSince = 0; // 続き478: 期限が動いた/まだ時間切れでない間は「何もしていない時間」を数え直す
   }
   if (
     timedOutAutoActionFired &&
@@ -1220,6 +1234,7 @@ function updateTimeoutWarnings(state, isTimedOut) {
     // 立てずに即return し、200ms後の次のtick()で改めてこの分岐に入り直す——選択待ちが
     // 無くなるまで自然に繰り返され、無くなった時点で初めて下の優先権の判定に進む。
     if (isAnyEffectProcessingBusy()) {
+      pseudoCpuIdleSince = 0; // 続き478: 処理が走っている間は最後の砦のカウントを止める
       performPriorityTimeoutAutoAction();
       return;
     }
@@ -1264,12 +1279,29 @@ function updateTimeoutWarnings(state, isTimedOut) {
       // 下の performPriorityTimeoutAutoAction に任せる＝時間切れは承認として扱われる。
       const pendingContact = state.pendingContact;
       const owesContactAnswer = !!pendingContact && state.priorityPlayer === pendingContact.defender;
+      // 続き478: 疑似CPUが優先権を持ったまま、処理も何も走らない状態が続いていないか。
+      // ここに来ている時点で isAnyEffectProcessingBusy() は偽（上で早期returnしている）。
+      const pseudoCpuHolder = isPseudoCpuTarget(state.priorityPlayer);
+      if (pseudoCpuHolder) {
+        if (!pseudoCpuIdleSince) pseudoCpuIdleSince = Date.now();
+      } else {
+        pseudoCpuIdleSince = 0;
+      }
+      const pseudoCpuStuck = pseudoCpuHolder && Date.now() - pseudoCpuIdleSince > PSEUDO_CPU_PRIORITY_IDLE_MS;
       if (
         state.turnPlayer &&
         state.priorityPlayer !== state.turnPlayer &&
-        !isPseudoCpuTarget(state.priorityPlayer) &&
+        (!pseudoCpuHolder || pseudoCpuStuck) &&
         !owesContactAnswer
       ) {
+        if (pseudoCpuStuck) {
+          logAction("diag-pseudo-cpu-priority-stuck", {
+            priorityPlayer: state.priorityPlayer,
+            turnPlayer: state.turnPlayer,
+            idleMs: Date.now() - pseudoCpuIdleSince,
+          });
+        }
+        pseudoCpuIdleSince = 0;
         timedOutAutoActionFired = true;
         timedOutAutoActionFiredAt = Date.now();
         withGuard(() =>
