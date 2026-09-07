@@ -14,6 +14,7 @@ import { logAction } from "./action-log.js";
 import { isFlightAnimationDisabled, isArrivalEffectDisabled } from "./motion-prefs.js";
 import { t } from "./ui-text.js"; // UI英語化フェーズ6
 import { getCardName } from "./card-text.js";
+import { releaseGateInvasionStage, clearGateInvasionStage } from "./gate-invasion-stage.js";
 
 // ユーザー要望「ゲート侵攻のエターナル獲得のド派手な演出がオンラインで出ない（テストモードでは
 // 出る）」。ローカル版(gate-invasion.js)はrunEternalでeternalAnimHelper（3Dフリップ＋色バースト）
@@ -115,15 +116,19 @@ function buildSteps(events) {
           count: ev.stolenCount,
           stolenTokenIds: ev.stolenTokenIds ?? [],
         },
+        // 【2026-09-07】この段に来て初めて、奪われた札が実際に手札を移ったように見せる
+        // （それまでは gate-invasion-stage.js が相手の手札に残っている姿で描いている）。
+        releaseStage: { attacker: ev.attacker, group: "steal" },
       });
     } else {
-      steps.push({ text: t("game.gate.step.stealNone", { attacker: getPlayerNameOrYou(ev.attacker), defender: getPlayerNameOrYou(ev.defender) }) });
+      steps.push({ text: t("game.gate.step.stealNone", { attacker: getPlayerNameOrYou(ev.attacker), defender: getPlayerNameOrYou(ev.defender) }), releaseStage: { attacker: ev.attacker, group: "steal" } });
     }
 
     if (ev.eternalCardId) {
       const def = getCardDefinition(ev.eternalCardId);
       steps.push({
         text: t("game.gate.step.eternal", { attacker: getPlayerNameOrYou(ev.attacker), card: getCardName(ev.eternalCardId) || def.name }),
+        releaseStage: { attacker: ev.attacker, group: "eternal" },
         cardsHtml: buildCardsHtml(ev.attacker, [{ cardId: ev.eternalCardId, wasPublic: true }]),
         // 演出が使える環境では、このステップをモーダルの代わりに派手な3Dフリップ演出で見せる。
         eternalAnim: { attacker: ev.attacker, cardId: ev.eternalCardId },
@@ -135,7 +140,7 @@ function buildSteps(events) {
         });
       }
     } else {
-      steps.push({ text: t("game.gate.step.eternalEmpty", { attacker: getPlayerNameOrYou(ev.attacker) }) });
+      steps.push({ text: t("game.gate.step.eternalEmpty", { attacker: getPlayerNameOrYou(ev.attacker) }), releaseStage: { attacker: ev.attacker, group: "eternal" } });
     }
 
     if ((ev.gateCards ?? []).length > 0) {
@@ -218,6 +223,7 @@ function closeCurrent() {
 export function forceCloseGateInvasionModal() {
   queue = [];
   closeCurrent();
+  clearGateInvasionStage();
 }
 
 function showStep(step) {
@@ -256,6 +262,8 @@ function showStep(step) {
       if (advanced) return;
       advanced = true;
       clearInterval(rehideTimer);
+      // 演出が着地した瞬間に据え置きを解除する（＝ここで初めてロックエリアに現れる）。
+      try { releaseGateInvasionStage(attacker, "eternal"); } catch (err) { /* 見た目だけなので握りつぶす */ }
       const el = lockedTok ? document.querySelector(`[data-token-id="${lockedTok.id}"]`) : null;
       if (el) el.style.visibility = "";
       advance();
@@ -293,6 +301,14 @@ function showStep(step) {
     return;
   }
 
+  // この段の結果を、いま初めて見せる（据え置きの解除。gate-invasion-stage.js 参照）。
+  if (step.releaseStage) {
+    try {
+      releaseGateInvasionStage(step.releaseStage.attacker, step.releaseStage.group);
+    } catch (err) {
+      /* 見た目だけなので握りつぶす */
+    }
+  }
   backdropEl = document.createElement("div");
   backdropEl.style.cssText = "position: fixed; inset: 0; z-index: 10001; background: rgba(0, 0, 0, 0.55);";
 

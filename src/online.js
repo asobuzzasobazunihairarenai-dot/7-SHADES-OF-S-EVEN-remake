@@ -27,6 +27,7 @@ import {
 import { t } from "./ui-text.js"; // UI英語化フェーズ11
 import { SEAT_ORDER } from "./board-layout.js";
 import { markSelfHandled } from "./self-handled-tokens.js";
+import { stageGateInvasionRender } from "./gate-invasion-stage.js";
 // マイデッキ戦: ログイン時にアカウント保存のデッキを復元する（my-deck.jsはcards-data.jsのみ
 // 依存の葉モジュールなので、online.jsから直接importしても循環参照にならない）。
 import { setMyDeckFromAccount } from "./my-deck.js";
@@ -3449,6 +3450,16 @@ function subscribeToGame(gameId, { announceJoin = false } = {}) {
         // 自分の手札のcardIdへ解決できる。ここで解決してイベントに添え、gate-invasion-modal.jsが
         // 奪われた本人の画面でだけ一覧表示できるようにする（他クライアントには添えない）。
         const preHydrateState = getState();
+        // 【2026-09-07】ゲート侵攻の「見た目の据え置き」を、取り直し(fetchAndHydrate)より**前**に
+        // 仕掛ける。ここが決定的な境界——これより後（.then()の中）でしか指示を出せなかったのが、
+        // 「エターナルが案内より先にロックされて見える」を何度直しても再発していた原因。
+        // 取り直しは同期的に描き直しまで走るので、後から隠しても必ず一度は描かれてしまう。
+        // すぐ上の markSelfHandled(ids) をここに置いてあるのと、まったく同じ理由。
+        try {
+          stageGateInvasionRender(payload.gateInvasionEvents, preHydrateState.tokens);
+        } catch (err) {
+          console.error("stageGateInvasionRender failed", err);
+        }
         for (const ev of payload.gateInvasionEvents) {
           if (currentSeat && ev.defender === currentSeat && (ev.stolenTokenIds ?? []).length) {
             ev.defenderStolenCards = ev.stolenTokenIds.map((tid) => {

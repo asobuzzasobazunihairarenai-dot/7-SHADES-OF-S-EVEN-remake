@@ -14,6 +14,15 @@ export const CHANGELOG = [
   {
     date: "2026-09-07",
     items: [
+      "ゲート侵攻が、案内どおりの順番で見えるようになりました。案内が進むまで、あなたの駒は相手のゲートに乗ったまま、相手の手札も減らないまま、自分のゲートのカードも盤面に残ります。奪う札をめくる前に手札を見て中身が分かってしまうこともなくなりました。最後は自分のゲートへ跳んで帰ります。",
+    ],
+    itemsEn: [
+      "Gate invasions now play out in the order the narration describes. Until each step arrives, your piece stays on the enemy gate, the opponent's hand stays full, and the cards on your own gate stay on the board — and you can no longer read the stolen cards in your hand before flipping them. Your piece then leaps home at the end.",
+    ],
+  },
+  {
+    date: "2026-09-07",
+    items: [
       "手札を全て捨てる時（ザ・ギャンブルなど）、どの順番で捨てるかを選べるようになりました。捨て場に積まれる順番が変わるので、捨て場から拾うカードとの組み合わせが狙えます。",
       "オプションエリアのランキングアイコンを押すと、「ランキングを見る」「戦績システムへ」を選べるようになりました。",
       "スマホでマイページの下が見切れていたのを直しました（スクロールは出さず、中身が画面に収まるようになります）。",

@@ -134,6 +134,15 @@ import {
 // anim-gate.js は import を一切持たない葉モジュールなので、記録する手段をここから差し込む。
 setAnimGateLogger((event, data) => logAction(event, data));
 import { registerGateInvasionModalReturnHomeAnim } from "./gate-invasion-modal.js";
+import {
+  stagedRenderStateOf,
+  releaseGateInvasionStage,
+  clearGateInvasionStage,
+  pruneGateInvasionStage,
+  isGateInvasionStageActive,
+  getStagedPiece,
+  isEternalStagedHidden,
+} from "./gate-invasion-stage.js";
 import { enqueueGateInvasionSteps, isGateInvasionQueueActive, registerOnGateInvasionQueueDrained, reapplyGateInvasionModal, registerGateInvasionModalEternalAnim, registerGateInvasionModalStealAnim, registerGateInvasionModalEternalPreHide, forceCloseGateInvasionModal } from "./gate-invasion-modal.js";
 import { checkForVictory, wouldCompleteLockWithNewIndex, getLockedCount, resetVictoryTracking, hasAnyoneWon } from "./victory.js";
 import { formatTitle } from "./titles.js"; // 称号（続き313）
@@ -784,7 +793,7 @@ function buildPlayerZone(side, player, isSelf) {
   const fanEl = document.createElement("div");
   fanEl.className = `hand-fan ${isSelf ? "is-self" : "is-opponent"}`;
 
-  const handTokens = getState().tokens.filter(
+  const handTokens = tokensForRender().filter(
     (t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player
   );
   // 【ユーザー要望2026-09-05・案C】マイデッキ戦では、他人のデッキ由来の札を扇の右端へまとめる。
@@ -1290,6 +1299,30 @@ function getBoardCardImagePath(cardId) {
 // アトミックなサーバー確定・切断時のdesync等の問題があるため採らない（playEternalAcquisitionAnim
 // 末尾コメント参照）。{side, index, cardId} の完全一致でそのカード1枚だけを対象にする。
 let suppressedEternalLockRender = null;
+
+// 【2026-09-07】ゲート侵攻の「見た目の据え置き」を描画に反映する唯一の入口
+// （gate-invasion-stage.js 参照）。案内がその段に来るまで、駒・自ゲートのカード・
+// 奪われる札を「まだ動いていない姿」で描き、獲得したエターナルはまだ描かない。
+// **状態は一切変えない**——ここで差し替えているのは描くための写しだけなので、
+// リロードすれば常に本当の盤面が出るし、通信が切れても対局は止まらない。
+// 盤面(renderBoardTokens)と手札(buildPlayerZone)の2か所だけがこれを通る。
+function tokensForRender() {
+  const all = getState().tokens;
+  if (!isGateInvasionStageActive()) return all;
+  pruneGateInvasionStage(all);
+  const out = [];
+  for (const token of all) {
+    let st = null;
+    try {
+      st = stagedRenderStateOf(token);
+    } catch (err) {
+      st = null;
+    }
+    if (st?.hidden) continue;
+    out.push(st?.token ?? token);
+  }
+  return out;
+}
 function isEternalLockRenderSuppressed(token) {
   const s = suppressedEternalLockRender;
   return (
@@ -4368,6 +4401,10 @@ function isBlockingBackdropVisible() {
 // ここでも**存在ではなく実際に出ているか**で見る（続き396/415の罠）。
 function isBoardCoveredByOtherScreen() {
   if (document.body.classList.contains("full-screen-page-active")) return true;
+  // ゲート侵攻の見た目の据え置き中は、盤面が「まだ動いていない姿」で描かれている
+  // （gate-invasion-stage.js）。この間に掴めてしまうと、見えている場所と実際の場所が
+  // 食い違ったまま操作されるので触らせない。数秒で必ず解除される。
+  if (isGateInvasionStageActive()) return true;
   const panel = document.getElementById("options-menu-panel");
   return !!panel && panel.getClientRects().length > 0;
 }
@@ -4955,6 +4992,34 @@ function playGateReturnHomeEffect(attacker) {
   } catch (err) {
     /* 音が鳴らなくても進行には影響しない */
   }
+}
+
+// 【2026-09-07】オンラインのゲート侵攻③「自ゲートへ帰還」。サーバーはターン終了と同時に
+// 駒を自ゲートへ戻しているが、gate-invasion-stage.js が「まだ敵ゲートに乗っている姿」で
+// 描いている。案内がこの段に来たところで据え置きを解き、**実際に跳んで帰る**ところを見せる
+// （解く前に隠しておかないと、自ゲートに1フレームだけ現れてから飛ぶ形になる）。
+function playGateInvasionReturnHome(attacker) {
+  const staged = getStagedPiece(attacker);
+  const canFly = !!staged && !isFlightAnimationDisabled() && !isArrivalEffectDisabled();
+  if (canFly) setSetupPendingTokenIds(new Set([staged.id]));
+  releaseGateInvasionStage(attacker, "home");
+  render();
+  if (!canFly) {
+    playGateReturnHomeEffect(attacker);
+    return;
+  }
+  const finish = () => {
+    setSetupPendingTokenIds(new Set());
+    render();
+    flushBoard3d();
+    playGateReturnHomeEffect(attacker);
+  };
+  playPieceMoveAnimation(staged.id, staged.location, { skipPendingHide: true, style: "jump" })
+    .then(finish)
+    .catch((err) => {
+      console.error("playGateInvasionReturnHome failed", err);
+      finish();
+    });
 }
 
 // ===== 【演出①】「防いだ！」の瞬間 =====================================================
@@ -10373,7 +10438,7 @@ async function playContactTackleForBystander__inner({ attackerPieceId, defenderP
 }
 
 function renderBoardTokens(table) {
-  for (const token of getState().tokens) {
+  for (const token of tokensForRender()) {
     if (token.location.zone !== "cell" && token.location.zone !== "lock") continue;
     const host = findLocationElement(table, token.location);
     if (!host) continue;
@@ -12881,8 +12946,13 @@ function maybeAnnounceLock(dropTarget, cardId, wasAlreadyLocked) {
     // されちゃってる」と見えていた（ユーザー報告#327）。案内の「エターナルカードを獲得！
     // ロックします」の歩でちゃんと知らせるので、ここは黙って通す。
     const sup = suppressedEternalLockRender;
+    // 【2026-09-07】据え置き(gate-invasion-stage.js)側でも判定する。以前は
+    // suppressedEternalLockRender だけを見ていたが、その印が立つのは盤面を描き直した**後**
+    // なので、ロックのお知らせの方が先に出てしまうことがあった（これが #327 が何度直しても
+    // 再発していた理由そのもの）。据え置きは取り直しより前に仕掛けてあるので取りこぼさない。
     const isPreHiddenEternal =
-      !!sup && sup.cardId === cardId && sup.side === dropTarget.side && sup.index === dropTarget.index;
+      (!!sup && sup.cardId === cardId && sup.side === dropTarget.side && sup.index === dropTarget.index) ||
+      isEternalStagedHidden(cardId);
     if (isPreHiddenEternal) {
       logAction("diag-gate-invasion-lock-defer", { cardId, player, side: dropTarget.side, index: dropTarget.index });
     } else {
@@ -16823,7 +16893,7 @@ registerReturnHomeRevealHelper(async (attacker, cards) => {
 // 派手な演出（3Dフリップ＋色バースト）を出す（ユーザー要望）。純演出関数のため両経路で共用できる。
 registerGateInvasionModalEternalAnim(playEternalAcquisitionAnim);
 // 【2026-09-07】ゲート侵攻③「自ゲートへ帰還」の演出を両方の経路へ注入する。
-registerGateInvasionModalReturnHomeAnim(playGateReturnHomeEffect);
+registerGateInvasionModalReturnHomeAnim(playGateInvasionReturnHome);
 registerReturnHomeAnimHelper(playGateReturnHomeEffect);
 // オンラインのゲート侵攻で「手札を奪う」儀式的な演出（ユーザー要望「奪う手札を選択する
 // 儀式的な演出は必要／戻してください」#126）。以前はターン終了時の事前ピックに分けていたが、
@@ -16848,6 +16918,9 @@ registerOnGateInvasionQueueDrained(() => {
     suppressedEternalLockRender = null;
     render();
   }
+  // 見た目の据え置き（gate-invasion-stage.js）も、案内が終わったら必ず全部戻す
+  // （途中で閉じた・飛ばした・演出が使えない設定、どの経路でもここを通る）。
+  if (clearGateInvasionStage()) render();
 });
 buildGameTitle();
 buildSpotlightOverlay();
