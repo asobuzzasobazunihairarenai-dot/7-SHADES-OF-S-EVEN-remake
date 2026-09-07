@@ -14,6 +14,17 @@ export const CHANGELOG = [
   {
     date: "2026-09-08",
     items: [
+      "相手ゲート侵攻の処理中に、その人がもう1枚ロックしてしまうことがあったのを直しました（1ターンに2枚ロックはルール違反です）。侵攻の処理が終わるまで、他の自動処理は動かなくなります。",
+      "紅蓮の火山 ワイナウエアで、どのマスのカードを捨てたのか分かりにくかったのを直しました。お知らせが出て読み終わるまで、対象のマスが光り続けます。",
+    ],
+    itemsEn: [
+      "Fixed a case where a player could lock a second card during their Gate Invasion (locking twice in one turn is against the rules). Other automation now stays paused until the invasion finishes.",
+      "Made it clear which cell Wineware discarded from: the target cell now keeps glowing until the notice has appeared and been read.",
+    ],
+  },
+  {
+    date: "2026-09-08",
+    items: [
       "スマホ（特にiPhone）で4人戦がカクついて重くなる問題に対処しました。光の明滅のたびに盤面の絵を作り直していたのが原因で、作り直しの回数を大幅に減らしました。見た目は変わりません。",
     ],
     itemsEn: [

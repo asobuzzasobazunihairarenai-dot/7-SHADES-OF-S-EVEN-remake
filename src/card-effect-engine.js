@@ -1012,9 +1012,14 @@ async function runAction(action, ctx, helpers) {
       for (const token of stack) {
         await helpers.discardAndSync(token.id);
       }
-      helpers.markPlacedLocation?.(targetCell);
+      // 【#335】お知らせは中央が空くまで順番待ちする（実機で最大9秒）。既定の3秒で光が消えると
+      // 文面の「光っているマス」が何も指さなくなるので、**お知らせが出て読み終わるまで光らせ続け**、
+      // 終わってから短く畳む。焼失の演出 → お知らせ、という順番はこれで自然に成立する
+      // （ユーザー提案「炎で燃えるような演出が終わった後にミニモーダルを出すのはどう？」）。
+      helpers.markPlacedLocation?.(targetCell, { holdMs: 20000 });
       // お知らせ（ユーザー要望）: どのマスを対象にしたか＋何枚捨てたか。
       await helpers.announceEffectReason?.(ctx.cardId, t("ce.winewareDiscarded", { n: discardedCount }));
+      helpers.markPlacedLocation?.(targetCell, { holdMs: 1200 });
       return true;
     }
     case VERBS.PUBLIC_DRAW_THEN_DISCARD_AT_TURN_END: {

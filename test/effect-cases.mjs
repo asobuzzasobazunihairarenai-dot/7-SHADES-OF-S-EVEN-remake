@@ -573,6 +573,11 @@ export const CASES = [
       { kind: "tokenGone", id: "st1" }, // そのマスのカードを全て捨てた
       { kind: "tokenGone", id: "st2" },
       { kind: "boardCardCount", n: 0 },
+      // 【#335】お知らせは中央が空くまで順番待ちするので、その間ずっと対象マスを光らせ続け
+      // （20秒）、お知らせが終わってから短く畳む（1.2秒）。文面が「光っているマスの」と言うので、
+      // 読む時に光っていないと何も指さない。
+      { kind: "called", name: "markPlacedLocation", arg: 20000 },
+      { kind: "called", name: "markPlacedLocation", arg: 1200 },
     ],
   },
   {

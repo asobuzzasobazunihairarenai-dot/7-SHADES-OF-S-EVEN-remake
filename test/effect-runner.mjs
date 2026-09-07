@@ -132,7 +132,7 @@ export async function runOneCase(spec) {
     announceFizzle: async () => {}, announceSteppedCard: () => {}, announceUse: () => {},
     beginPublicDrawDefer: () => {}, endPublicDrawDefer: () => {}, celebrate: () => {}, delay: async () => {},
     endCurrentPhase: () => { callLog.push(["endCurrentPhase"]); }, flyCardToHand: async () => {},
-    markDiscardAtTurnEnd: (player, ids) => { callLog.push(["markDiscardAtTurnEnd", player, ids]); }, markPlacedLocation: () => {}, markPlacementTarget: () => {},
+    markDiscardAtTurnEnd: (player, ids) => { callLog.push(["markDiscardAtTurnEnd", player, ids]); }, markPlacedLocation: (location, options) => { callLog.push(["markPlacedLocation", location, options?.holdMs ?? null]); }, markPlacementTarget: () => {},
     maybeTriggerArrivalForPlacedCard: async () => {}, onCardAcquiredToHand: () => {},
     playAdditionalColorUse: () => {}, recordMoveVisited: () => {}, startSuspenseSound: () => {},
     stopSuspenseSound: () => {},

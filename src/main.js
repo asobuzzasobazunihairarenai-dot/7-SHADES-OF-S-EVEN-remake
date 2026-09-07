@@ -5987,6 +5987,17 @@ export function performPriorityTimeoutAutoAction() {
       return true;
     }
   }
+  // 【#334・2026-09-08・続き482】ゲート侵攻の最中は、フェイズの自動処理を一切始めない。
+  // 実機ログ（4人戦）で、C のゲート侵攻の最中（手札奪取→エターナル獲得の間）に **C が2枚目の
+  // ロックをしていた**——このターンの分は既に済んでいるのに、奪ったばかりの札をそのまま
+  // ロックエリアへ置いていた（＝1ターン2枚ロック＝ルール違反）。さらにその後、
+  // diag-lock-click-skip {reason:"already-locked-this-phase"} が6秒間に約30回出続けていた
+  // ＝自動処理が侵攻の最中に空回りしていた。
+  // 下のムーブ分岐（#276の脱出）には既に同じ3つの判定が入っていたが、**ロック/手札の分岐には
+  // 無かった**。分岐ごとに足すと必ずどれかを取りこぼすので、フェイズを見る前にまとめて塞ぐ。
+  // ※ 上の activeEffectPicker の処理より後に置くこと——侵攻そのものが出す「奪う札を選ぶ」
+  //   ピッカーは、ここで止めてしまうと誰も解決できなくなる。
+  if (isGateInvasionPending() || isGateInvasionQueueActive() || isLocalGateInvasionActive()) return false;
   const phase = getCurrentPhase();
   // 【#284】フェイズはもう終わっているのに、中央（演出・お知らせ・フェイズ告知）が塞がって
   // いて次のフェイズの開始が待たされている間は、currentPhase が前のフェイズのまま残る。
@@ -6574,13 +6585,17 @@ function markEffectPlacementTarget(location) {
 // 置き終えた直後に呼ぶ（card-effect-engine.jsのrunActionから、helpers.markPlacedLocation
 // 経由）。効果全体の完了（clearEffectUiHighlights）を待たず、一定時間で自動的に消える。
 const JUST_PLACED_HIGHLIGHT_MS = 3000;
-function markEffectJustPlaced(location) {
+// 【#335・2026-09-08・続き482】持続時間を呼び出し側から指定できるようにした。
+// 既定の3秒は「置いた瞬間を示す」には十分だが、**お知らせは中央が空くまで順番待ちする**
+// （実機ログで最大9秒待っていた）ので、その頃には光が消えていて、文面の「光っているマスの」が
+// 何も指していなかった（ユーザー報告「ワイナウェアで捨てたマスがどこかわからなかった」）。
+function markEffectJustPlaced(location, options) {
   justPlacedLocations.add(`${location.row},${location.col}`);
   clearTimeout(justPlacedClearTimer);
   justPlacedClearTimer = setTimeout(() => {
     justPlacedLocations.clear();
     render();
-  }, JUST_PLACED_HIGHLIGHT_MS);
+  }, options?.holdMs ?? JUST_PLACED_HIGHLIGHT_MS);
   render();
 }
 
