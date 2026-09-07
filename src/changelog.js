@@ -14,6 +14,19 @@ export const CHANGELOG = [
   {
     date: "2026-09-07",
     items: [
+      "アプリのアドレスが新しくなりました。これまでのアドレスを開いた場合も自動でご案内しますので、そのままお使いいただけます。",
+      "ホーム画面に追加してくださっている方は、新しいアドレスを開いてから、あらためて「ホーム画面に追加」をお願いします（古いアイコンは削除して構いません）。",
+      "戦績管理システムも同じアドレスの下に移りました。ゲームでログインしていれば、これまでどおりそのまま見られます。",
+    ],
+    itemsEn: [
+      "The app has a new address. Old links redirect automatically, so you can keep using them.",
+      "If you added the app to your home screen, please open the new address and add it again (you can delete the old icon).",
+      "The match record system moved under the same address. If you are signed in to the game, it stays signed in as before.",
+    ],
+  },
+  {
+    date: "2026-09-07",
+    items: [
       "結ばれの一本桜 コノハナサクヤで相手を引き寄せた時、移動先のカードがめくれるだけで到達効果が起きないことがあったのを直しました。カードの補足どおり、動かされた相手が到達効果を得ます。",
       "コノハナサクヤの桜の演出が小さくて見えづらかったので、花びら・光の筋・渦を大きくし、少しゆっくりにしました。",
     ],

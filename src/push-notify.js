@@ -39,7 +39,7 @@ export function initPushNotify() {
   if (!isPushSupported()) return Promise.resolve(null);
   if (registerPromise) return registerPromise;
   // 相対パス "sw.js" は現在のページURL基準で解決される。GitHub Pages のサブパス配信でも
-  // …/7-SHADES-OF-S-EVEN-remake/sw.js を指し、スコープはそのディレクトリ（＝アプリ全体）になる。
+  // …/sw.js を指し、スコープはそのディレクトリ（＝アプリ全体）になる。
   registerPromise = navigator.serviceWorker
     .register("sw.js")
     .then((reg) => reg)
