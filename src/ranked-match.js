@@ -73,6 +73,7 @@ let practiceBannerEl = null; // 練習中に画面隅に出す小さな「探し
 // どちらでも自力で復帰でき、全員が押した瞬間に対局が作られる（サーバーの締め切り処理を待たない）。
 let readyPressedMatchId = null;
 let readyPressedAt = 0;
+let requeueBtnEl = null; // キューから外れた後に出す「もう一度さがす」ボタン
 
 // ホームの「フリーマッチ（ランク戦）」タイルから呼ばれる入口。
 // onExit: キャンセル・失敗でホームへ戻すためのコールバック（呼び出し元がclose→この関数、
@@ -281,6 +282,7 @@ function closeWaitingScreen() {
   // 豆知識のタイマーを取り残さない（画面が消えた後も回り続けないように）。
   waitingTips?.stop();
   waitingTips = null;
+  requeueBtnEl = null; // オーバーレイごと消えるので参照だけ捨てる
   overlayEl?.remove();
   overlayEl = null;
   statusEl = null;
@@ -296,6 +298,47 @@ async function cancelMatchmaking() {
   closeWaitingScreen();
   lastState = null;
   exitToHome?.(); // ホームへ戻す
+}
+
+// キューから外れた状態（探していない）と、探している状態を見た目で切り替える。
+// stopped=true: ぐるぐるを止めて「もう一度さがす」を出す／false: 元の探索中の見た目へ戻す。
+function showSearchStopped(stopped) {
+  if (!overlayEl) return;
+  overlayEl.classList.toggle("is-search-stopped", !!stopped);
+  if (!stopped) {
+    requeueBtnEl?.remove();
+    requeueBtnEl = null;
+    return;
+  }
+  if (requeueBtnEl) return;
+  requeueBtnEl = document.createElement("button");
+  requeueBtnEl.type = "button";
+  requeueBtnEl.className = "ranked-waiting-requeue";
+  requeueBtnEl.textContent = t("rm.requeue");
+  requeueBtnEl.addEventListener("click", () => void requeueFromStopped());
+  // 「キャンセル」の直前に置く（キャンセルは常に一番下）。
+  const cancel = overlayEl.querySelector(".ranked-waiting-cancel");
+  if (cancel) overlayEl.insertBefore(requeueBtnEl, cancel);
+  else overlayEl.appendChild(requeueBtnEl);
+}
+
+// 「もう一度さがす」。キューへ入れ直してポーリングを再開する。
+async function requeueFromStopped() {
+  if (!requeueBtnEl) return;
+  requeueBtnEl.disabled = true;
+  setWaitingStatus(t("rm.L94"));
+  const ok = await enqueueRanked(myDeck);
+  if (!ok) {
+    requeueBtnEl.disabled = false;
+    setWaitingStatus(t("rm.L97"));
+    return;
+  }
+  logAction("diag-ranked-requeue", { from: "kicked" });
+  lastState = null; // 前回の状態を引きずらない（次の matched で通知が出るように）
+  readyPressedMatchId = null;
+  showSearchStopped(false);
+  setWaitingStatus(t("rm.L100"));
+  startPolling();
 }
 
 // ---- ポーリング -----------------------------------------------------------
@@ -396,6 +439,12 @@ async function handlePollResult(res) {
       stopTitleFlash();
       setWaitingStatus(t("rm.L323"));
       lastState = "none";
+      // 【ユーザー報告2026-09-07】ここでポーリングを止めると、この画面はもう
+      // **サーバーに一言も聞かない**（キューにも入っていない）。それなのに待機画面の
+      // ぐるぐるが回ったままなので「まだ探している」ように見え、相手がキューに入り直しても
+      // 永久にマッチしない（実測: none の後 9秒で問い合わせ0回）。ぐるぐるを止めて、
+      // その場で入り直せるボタンを出す。
+      showSearchStopped(true);
     }
   }
 }

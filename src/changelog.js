@@ -14,6 +14,15 @@ export const CHANGELOG = [
   {
     date: "2026-09-07",
     items: [
+      "ランク戦で「対戦開始」を押さずに締め切りを迎えた後、待機画面に「もう一度さがす」ボタンが出るようになりました。これまでは探すのをやめた後もぐるぐるが回り続け、相手が入り直してもマッチしませんでした。",
+    ],
+    itemsEn: [
+      "In ranked matches, if you miss the Start prompt, the waiting screen now offers a Search again button. Previously the spinner kept turning even though the search had stopped, so you would never match even if your opponent re-queued.",
+    ],
+  },
+  {
+    date: "2026-09-07",
+    items: [
       "ランク戦で相手を探している間、遊び方の豆知識が順番に流れるようになりました。",
       "勝利演出で7色が1枚ずつ光る瞬間の効果音を差し替えました（暫定）。",
       "タイトル画面の右下に並ぶボタンが重なっていたのを直しました（管理者のみ表示）。",
