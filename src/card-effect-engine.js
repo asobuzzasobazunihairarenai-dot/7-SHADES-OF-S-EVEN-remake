@@ -1776,8 +1776,34 @@ async function runAction(action, ctx, helpers) {
       // 【#315】1枚ずつ「捨てました」を出すと、中央は一度に1つ（#266）なので手札の枚数ぶん
       // 順番待ちになる（ユーザー要望「捨てるカードの全てを一気に表示させたい」）。捨てる間は
       // 焼失演出だけを出し、お知らせは捨て終わってから**1つにまとめて**見せる。
+      // 【ユーザー要望2026-09-07】「複数枚捨てるときは捨てる順番を選べるようにしたい。
+      // フェニックスなどの効果がある以上、捨てる順番は重要です」。赤のキューブ フェニックスは
+      // **捨て場の上から2番目**を拾うので、どの順で積むかがそのまま次の一手の価値を変える。
+      // 2枚以上ある時だけ、本人に「1番目に捨てる／2番目に捨てる…」と選んでもらう
+      // （最後の1枚は自動＝残りが1枚になったら選ぶ意味が無い）。CPU・自動代行のときは
+      // pickHandCard 側が自動で選ぶので、ここは人間かどうかを気にしなくてよい。
+      // ※他の複数枚捨てる効果（スラム上がりの役人・選べる罠）は元から1枚ずつ選ぶ作りなので、
+      //   すでに選んだ順に積まれている。
+      const orderedToDiscard = [];
+      if (toDiscard.length >= 2) {
+        const remaining = new Map(toDiscard.map((tk) => [tk.id, tk]));
+        for (let i = 0; i < toDiscard.length - 1; i++) {
+          const chosen = await helpers.pickHandCard(
+            ctx.player,
+            t("ce.pickDiscardOrder", { n: i + 1 }),
+            [...remaining.keys()],
+            { purpose: "discard" }
+          );
+          if (!chosen) break;
+          remaining.delete(chosen.id);
+          orderedToDiscard.push(chosen);
+        }
+        for (const tk of toDiscard) if (remaining.has(tk.id)) orderedToDiscard.push(tk);
+      } else {
+        orderedToDiscard.push(...toDiscard);
+      }
       const discardedIds = [];
-      for (const token of toDiscard) {
+      for (const token of orderedToDiscard) {
         try {
           const shownId = token.cardId;
           await helpers.discardAndSync(token.id, { batchNotice: true });

@@ -240,6 +240,50 @@ export function closeRankingPage() {
 // ヘルプアイコンとマイページアイコンの間にお願いします」。my-page.js/help.jsと同じ
 // 部品（icon-action-button.js）・同じ「アイコンのみ」見た目にする。option-areaから
 // はいつでも開けるため、戻るボタンはこのページ自体を閉じるだけでよい（onCloseなし）。
+// 【ユーザー要望2026-09-07】「オプションエリアのランキングアイコンをタップしたら、
+// 『ランキングを見る』『戦績システムへ』の2つを選べるようにしたい」。
+// 戦績システムは別サイト（姉妹プロジェクト BATTLE-log）なので新しいタブで開く。
+// 他の簡易モーダルと同じ createBackdrop / createModalCloseX の作りにそろえる。
+const STATS_SITE_URL = "https://asobuzzasobazunihairarenai-dot.github.io/BATTLE-log/";
+let choiceBackdropEl = null;
+let choiceMenuEl = null;
+
+function closeRankingChoiceMenu() {
+  choiceBackdropEl?.remove();
+  choiceBackdropEl = null;
+  choiceMenuEl?.remove();
+  choiceMenuEl = null;
+}
+
+function openRankingChoiceMenu() {
+  if (choiceMenuEl) return;
+  choiceBackdropEl = createBackdrop(closeRankingChoiceMenu, { dim: true, zIndex: 1610 });
+  choiceMenuEl = document.createElement("div");
+  choiceMenuEl.id = "ranking-choice-menu";
+
+  const title = document.createElement("div");
+  title.className = "ranking-choice-title";
+  title.textContent = t("rank.iconCaption");
+  choiceMenuEl.appendChild(title);
+
+  const add = (labelKey, onClick) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "ranking-choice-item";
+    b.textContent = t(labelKey);
+    b.addEventListener("click", () => {
+      closeRankingChoiceMenu();
+      onClick();
+    });
+    choiceMenuEl.appendChild(b);
+  };
+  add("rank.choice.inApp", () => openRankingPage());
+  add("rank.choice.statsSite", () => window.open(STATS_SITE_URL, "_blank", "noopener"));
+
+  choiceMenuEl.appendChild(createModalCloseX(closeRankingChoiceMenu));
+  document.body.appendChild(choiceMenuEl);
+}
+
 export function initRankingIcon() {
   const btn = document.createElement("button");
   btn.id = "ranking-page-button";
@@ -251,7 +295,7 @@ export function initRankingIcon() {
   wireIconButtonClick(btn, {
     detailTitle: () => t("rank.iconCaption"),
     detailParagraphs: () => [t("rank.iconDetail")],
-    onAction: () => openRankingPage(),
+    onAction: () => openRankingChoiceMenu(),
   });
   getOptionArea().appendChild(btn);
   onLangChange(() => {

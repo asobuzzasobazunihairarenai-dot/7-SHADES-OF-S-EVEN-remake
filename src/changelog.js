@@ -14,6 +14,21 @@ export const CHANGELOG = [
   {
     date: "2026-09-07",
     items: [
+      "手札を全て捨てる時（ザ・ギャンブルなど）、どの順番で捨てるかを選べるようになりました。捨て場に積まれる順番が変わるので、捨て場から拾うカードとの組み合わせが狙えます。",
+      "オプションエリアのランキングアイコンを押すと、「ランキングを見る」「戦績システムへ」を選べるようになりました。",
+      "スマホでマイページの下が見切れていたのを直しました（スクロールは出さず、中身が画面に収まるようになります）。",
+      "ゲート侵攻で、エターナルカードを獲得した知らせが案内より先に出ていたのを直しました。案内の順番どおりに見えるようになります。",
+    ],
+    itemsEn: [
+      "When you discard your whole hand (The Gamble and similar), you can now choose the order. The order they stack in the discard pile matters for cards that pick from it.",
+      "Tapping the ranking icon now lets you choose between the in-app ranking and the match-record site.",
+      "Fixed the bottom of My Page being cut off on phones. It now fits the screen instead of scrolling.",
+      "In a gate invasion, the notice about gaining an Eternal card no longer appears before the narration reaches it.",
+    ],
+  },
+  {
+    date: "2026-09-07",
+    items: [
       "接触をカウンターロックで止めた時や断った時に、返事をした側から手番のプレイヤーへ操作の順番が戻らず、対局が進まなくなることがあったのを直しました。",
       "持ち時間タイマーを使わない対局では、接触の返事のために操作の順番を移さないようにしました（時計が無いので移す意味がなく、戻らなくなる原因でした）。",
       "スマホでマイページの下が見切れて、指でスクロールしても届かなかったのを直しました。",

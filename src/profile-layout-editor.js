@@ -104,18 +104,11 @@ export function applyProfileLayout(container) {
         fullScreen.style.overflowX = "";
         fullScreen.style.overflowY = "";
       } else {
-        // 【#326・2026-09-07】ここは以前 overflow:hidden だった（「全画面版はステージ＝画面
-        // いっぱいなので、はみ出しは起き得ない。切れるのは画面端だけ」という前提）。
-        // **その前提が縦だけ崩れていた**——スマホの短い画面では上端の安全余白
-        // （--page-top-safe。オプションの帯のぶん、スマホでは約1.65倍）が加わって、
-        // 中身がステージの高さを超える。実測（iPhone・932x332・報告と同じ）:
-        // 器の高さ 900 に対して中身 1007＝**107はみ出し**、しかも overflow:hidden なので
-        // 指でスクロールしても届かない＝下が永久に見切れる（ユーザー報告#326）。
-        // 横は従来どおりクリップする（レイアウト編集で負のxへ置いた装飾がステージの外へ
-        // はみ出しても横スクロールを出さないため）。縦だけスクロールを許す。
-        fullScreen.style.overflow = "";
-        fullScreen.style.overflowX = "hidden";
-        fullScreen.style.overflowY = "auto";
+        // 全画面版はスクロールを出さない（ユーザー指示2026-09-07「スクロールはなしにしたい」）。
+        // はみ出す時は profile-page.js の fitProfilePageContent() が中身を縮めて収める。
+        fullScreen.style.overflow = "hidden";
+        fullScreen.style.overflowX = "";
+        fullScreen.style.overflowY = "";
       }
     }
     container.style.width = "100%";

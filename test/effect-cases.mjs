@@ -971,6 +971,32 @@ export const CASES = [
     ],
   },
   {
+    name: "ザ・ギャンブル(到達): 手札を全て捨てる時、捨てる順番を選べる（フェニックス対策）",
+    kind: "arrival",
+    cardId: "yellow-gamble",
+    state: {
+      activePlayers: ["A", "B"], turnPlayer: "A",
+      tokens: [
+        { id: "pieceA", kind: "piece", player: "A", location: { zone: "cell", row: 3, col: 3 } },
+        { id: "self", kind: "card", cardId: "yellow-gamble", faceUp: true, location: { zone: "cell", row: 3, col: 3 } },
+        { id: "h1", kind: "card", cardId: "orange-harvest-sow", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "h2", kind: "card", cardId: "green-growing-trees", faceUp: true, location: { zone: "hand", player: "A" } },
+        { id: "h3", kind: "card", cardId: "pink-present", faceUp: true, location: { zone: "hand", player: "A" } },
+      ],
+      piles: { deck: ["red-jump-pad", "blue-choosable-trap"], eternal: [], first: [], discard: [] },
+    },
+    ctx: { player: "A", cardId: "yellow-gamble", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
+    // 宣言色 red/blue が出る → 手札全捨て。捨てる順番は h3 → h1 →（残りの h2 と公開ドロー分）。
+    picks: { colors: [["red", "blue"]], option: ["all"], handCard: ["h3", "h1"] },
+    expect: [
+      { kind: "tokenGone", id: "h1" },
+      { kind: "tokenGone", id: "h2" },
+      { kind: "tokenGone", id: "h3" },
+      // 捨て場は「先に捨てたものが下」。選んだ順（h3=プレゼント → h1=収穫と種まき）で積まれる。
+      { kind: "pileOrder", pile: "discard", cards: ["pink-present", "orange-harvest-sow", "green-growing-trees", "blue-choosable-trap", "red-jump-pad"] },
+    ],
+  },
+  {
     name: "なないろの欠片(手札・選択肢): 2枚をロックする（要2枚）を選ぶ",
     kind: "hand",
     cardId: "rainbow-shard",
@@ -1288,6 +1314,15 @@ export function checkExpect(res, exp) {
     case "tokenGone":
       if (t) return `token ${exp.id} がまだ存在する（期待 消滅＝山/捨て場へ）`;
       return null;
+    // 【ユーザー要望2026-09-07】捨てる順番は フェニックス（捨て場の上から2番目を拾う）に
+    // 直結するので、**積まれた順**まで検査できるようにする。pile の末尾＝一番上。
+    case "pileOrder": {
+      const pile = res.piles[exp.pile] || [];
+      const tail = pile.slice(-exp.cards.length);
+      if (JSON.stringify(tail) !== JSON.stringify(exp.cards))
+        return `${exp.pile} の並びが ${JSON.stringify(tail)}（期待 ${JSON.stringify(exp.cards)}）`;
+      return null;
+    }
     case "pileContains": {
       const pile = res.piles[exp.pile] || [];
       const n = pile.filter((cid) => cid === exp.cardId).length;

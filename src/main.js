@@ -12873,7 +12873,21 @@ function maybeAnnounceLock(dropTarget, cardId, wasAlreadyLocked) {
     // 行動ログ用（ユーザー要望「何をロックしたかを行動ログに追加」）。全ロック経路が
     // ここを通る（performLockPhaseClick・ドラッグ&ドロップ・最後のロック承認）。
     logAction("lock", { cardId, player });
-    announceCardLocked(player, cardId);
+    // 【#327・2026-09-07】ゲート侵攻のエターナル獲得だけは、ここでお知らせを出さない。
+    // ゲート侵攻はサーバー側で**一度にまとめて**適用されるので、案内モーダルが「侵攻！」の
+    // 1歩目を出している時点でロックはもう済んでいる（実測: 1歩目の0.4秒後に lock、
+    // エターナルの演出はその19秒後）。カードの絵は suppressedEternalLockRender で既に
+    // 隠してあるのに、**このお知らせと刻印の演出だけが先に出ていた**ため「先にロック
+    // されちゃってる」と見えていた（ユーザー報告#327）。案内の「エターナルカードを獲得！
+    // ロックします」の歩でちゃんと知らせるので、ここは黙って通す。
+    const sup = suppressedEternalLockRender;
+    const isPreHiddenEternal =
+      !!sup && sup.cardId === cardId && sup.side === dropTarget.side && sup.index === dropTarget.index;
+    if (isPreHiddenEternal) {
+      logAction("diag-gate-invasion-lock-defer", { cardId, player, side: dropTarget.side, index: dropTarget.index });
+    } else {
+      announceCardLocked(player, cardId);
+    }
     // ユーザー要望（続き76）「ロック処理の直後にも割り込みモーダルを出す」。宣言側は
     // 続き77でperformLockPhaseドラッグ&ドロップハンドラ・requestFinalLock
     // それぞれの実際に動かす直前に追加したため、ここは「処理」側の1回。

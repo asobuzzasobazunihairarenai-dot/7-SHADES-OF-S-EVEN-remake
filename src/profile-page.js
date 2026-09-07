@@ -33,6 +33,35 @@ async function renderProfileBody() {
   if (!bodyEl) return;
   await renderMyPageBody(bodyEl, closeProfilePage);
   applyProfileLayout(bodyEl); // PROFILE_LAYOUT適用＋編集モードなら移動/リサイズ配線
+  fitProfilePageContent();
+}
+
+// 【#326・2026-09-07】マイページの下が見切れる。ユーザー指示は「スクロールはなしにしたい」。
+// 実測（ステージ単位・どの端末でも同じ）: 器の高さ 900 に対して中身が 1007＝**107はみ出す**。
+//   上余白54 ＋ 戻るボタン34+16 ＋ 見出し29+22 ＋ カード820 ＋ 下余白32 = 1007
+// はみ出しの大半はカード(820)なので、**カードだけを縮めて収める**。縮めた分は margin-bottom で
+// 打ち消す（transform は場所を空けないので、そのままだと下に余分な空きが残る）。
+// スマホでは上端の安全余白（--page-top-safe。オプションの帯のぶん約1.65倍）が加わってさらに
+// はみ出すが、**実測してから縮める**ので端末ごとの違いに自動で追随する。
+// レイアウト編集モードでは触らない（ドラッグで座標を決めている最中に倍率が変わると混乱するため）。
+function fitProfilePageContent() {
+  const page = overlayEl;
+  const card = document.getElementById("profile-page-card");
+  if (!page || !card) return;
+  if (document.body.classList.contains("profile-layout-edit")) return;
+  // いったん等倍に戻してから測る（前回の縮小を含んだ値で計算しないため）。
+  card.style.transform = "";
+  card.style.marginBottom = "";
+  const clientH = page.clientHeight;
+  const scrollH = page.scrollHeight;
+  const cardH = card.offsetHeight;
+  if (!clientH || !cardH || scrollH <= clientH) return; // 収まっているなら何もしない
+  const nonCard = scrollH - cardH; // カード以外（余白・戻る・見出し）が使っている高さ
+  const k = Math.max(0.55, Math.min(1, (clientH - nonCard) / cardH));
+  if (k >= 0.999) return;
+  card.style.transformOrigin = "top center";
+  card.style.transform = `scale(${k})`;
+  card.style.marginBottom = `${-Math.round(cardH * (1 - k))}px`;
 }
 
 export function openProfilePage(onClose) {
@@ -130,9 +159,12 @@ export function openProfilePage(onClose) {
   // （ログインする／連携するボタン等）で使われる。画面全体版でも同じ導線を保つため、
   // ここでのcloseもこのページ自体を閉じる処理にする。レイアウト編集モードの適用込みで描く。
   renderProfileBody();
+  // 画面の高さが変わったら測り直す（スマホはツールバーの出入りで実際に変わる）。
+  window.addEventListener("resize", fitProfilePageContent);
 }
 
 export function closeProfilePage() {
+  window.removeEventListener("resize", fitProfilePageContent);
   overlayEl?.remove();
   overlayEl = null;
   bodyEl = null;
