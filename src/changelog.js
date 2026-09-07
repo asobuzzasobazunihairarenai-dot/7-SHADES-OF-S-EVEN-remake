@@ -14,6 +14,19 @@ export const CHANGELOG = [
   {
     date: "2026-09-07",
     items: [
+      "接触をカウンターロックで止めた時や断った時に、返事をした側から手番のプレイヤーへ操作の順番が戻らず、対局が進まなくなることがあったのを直しました。",
+      "持ち時間タイマーを使わない対局では、接触の返事のために操作の順番を移さないようにしました（時計が無いので移す意味がなく、戻らなくなる原因でした）。",
+      "スマホでマイページの下が見切れて、指でスクロールしても届かなかったのを直しました。",
+    ],
+    itemsEn: [
+      "Fixed the turn order failing to return to the active player after a contact was stopped with a Counter Lock or declined, which could leave the match stuck.",
+      "In matches played without the turn timer, the turn order is no longer handed over for answering a contact (there is no clock to run, and it could not be handed back).",
+      "Fixed the bottom of My Page being cut off on phones with no way to scroll to it.",
+    ],
+  },
+  {
+    date: "2026-09-07",
+    items: [
       "「2D表示に切り替える」を使っていると、盤面が小さく左上にずれて描かれ、ロックエリアの枠や光る演出が実際の盤面と別の場所に出ていた不具合を直しました。2D表示中は盤面の絵の描き方が自動で切り替わります。",
     ],
     itemsEn: [

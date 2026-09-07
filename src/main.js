@@ -229,7 +229,7 @@ import { initPiecePets, registerPiecePetHelpers } from "./piece-pet.js";
 import { isActionConfirmEnabled, setActionConfirmEnabled } from "./action-confirm-prefs.js";
 import { isCellConfirmEnabled, confirmCellChoice } from "./cell-confirm.js";
 import { registerTutorialBattleUiHelpers } from "./tutorial-battle-ui.js";
-import { initTurnTimer, transferPriorityTo, isPseudoCpuTarget, notifyPlayerDecision } from "./turn-timer.js";
+import { initTurnTimer, transferPriorityTo, isPseudoCpuTarget, notifyPlayerDecision, isTurnTimerEnabled } from "./turn-timer.js";
 import { initIconRearrange } from "./icon-rearrange.js";
 import { initSelfStatusRearrange } from "./self-status-rearrange.js";
 import { initInteractionModeToggle } from "./interaction-mode.js";
@@ -5268,7 +5268,20 @@ function maybeAnnounceContactStandoff() {
   // オンライン限定にしている理由: ローカルのCPU戦は1画面で全員を見ているので待たせる相手が
   // 居らず、しかも自席は持ち時間の対象外（isSelfTimeLimitExempt）。ここで時計を動かすと、
   // 人間が考えている最中に時間切れで勝手に承認されるという**改悪**になる。
-  if (isOnlineMode() && getSelfSeat() === pending.attacker && getState().priorityPlayer !== pending.defender) {
+  //
+  // 【#325・2026-09-07】**持ち時間タイマーがOFFの対局では渡さない**。渡す理由は「返事をする人の
+  // 時計を進めるため」なので、時計そのものが無い対局では渡す意味が無い。それどころか有害だった——
+  // タイマーOFFの対局は state.priorityPlayer が終始 null のまま進むのに、ここは
+  // initializeIfUnset:true で**わざわざ値を作ってしまう**。時間切れが来ないので
+  // performPriorityTimeoutAutoAction も turn-timer の「非手番の席が時間切れ→手番へ返す」分岐も
+  // 動かず、**誰も戻せない優先権**になる（ユーザー報告#325「ゴメンナサイを打ったあと、相手に
+  // 優先権があるままになってる」）。
+  if (
+    isOnlineMode() &&
+    isTurnTimerEnabled() &&
+    getSelfSeat() === pending.attacker &&
+    getState().priorityPlayer !== pending.defender
+  ) {
     logAction("diag-contact-priority", {
       phase: "grant-to-defender-for-answer",
       attacker: pending.attacker,
@@ -9779,6 +9792,21 @@ async function respondToContactInner(approve) {
     }
   } else {
     respondContact(approve, stolenCardId);
+  }
+  // 【#325・2026-09-07】**承認されずに終わった接触でも優先権を返す**。承認の経路には
+  // finishContactResolution（下）に返す処理があるが、そこは `if (approve && defenderPieceId)`
+  // の中なので、**カウンターロックで止めた時と「拒否する」で断った時は誰も返していなかった**。
+  // 続き463で「返事をする側へ優先権を渡す」ようにするまでは渡していなかったので表に出なかったが、
+  // 渡すようにした以上、**渡した分は必ず返す**経路が要る（ユーザー報告#325）。
+  // カウンターロックの後片付け（捨てる・告知・「1枚ロックしますか？」）の間にターンが自動で
+  // 終わってしまわないことは、呼び出し元が setHandEffectBusy(true) を握っていることで担保
+  // されている（#106）。
+  if (!approve) {
+    const tp = getState().turnPlayer;
+    if (tp && getState().priorityPlayer === defender) {
+      logAction("diag-contact-priority", { phase: "return-after-decline", defender, turnPlayer: tp });
+      transferPriorityTo(tp);
+    }
   }
 
   if (tackle) {
