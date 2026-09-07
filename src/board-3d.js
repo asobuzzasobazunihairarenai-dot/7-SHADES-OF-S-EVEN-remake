@@ -113,6 +113,21 @@ const shapeTextures = new Map();
 // 捨てた（作り直した）回数。増え続けているなら「同じ見た目のテクスチャを毎フレーム作り直して
 // いる＝GPUへの転送が止まらない」状態で、iOSのチカチカの原因になり得る（#262の切り分け用）。
 let shapeTextureEvictions = 0;
+// 【#330・2026-09-07】ユーザー報告「iPhoneでカクつく」。報告ログでは texShape が上限80に
+// 張り付いたまま texEvicted が 433 まで増え続けており（＝同じ枠を作り直してGPUへ送り直す
+// 動作が止まらない）、rebuildMs も 50〜209ms あった。ただし**何が新しい鍵を生み続けて
+// いるのか**は既存のログからは分からない。推測で丸め処理を入れる前に、内訳を残す:
+//   texNewColor … 大きさ・角丸・線幅は同じで**色だけ**違う鍵（明滅アニメが原因ならこれが伸びる）
+//   texNewGeom  … 大きさそのものが違う鍵（レイアウトの微揺れが原因ならこちらが伸びる）
+// どちらが伸びるかで、丸めるべき対象（色か寸法か）が推測なしに決まる。
+let shapeTextureNewColorOnly = 0;
+let shapeTextureNewGeom = 0;
+// 鍵のうち「寸法の部分」だけを集めた集合（同じ寸法が既にあるか＝色だけの差か、を判定する）。
+const shapeGeomPrefixes = new Map(); // prefix -> その寸法を使っている鍵の数
+function shapeKeyGeomPrefix(key) {
+  const i = key.indexOf("|", key.indexOf("|", key.indexOf("|") + 1) + 1); // w x h | r | bw まで
+  return i < 0 ? key : key.slice(0, i);
+}
 // 【#275】上限。テクスチャは1辺最大256pxなので、この枚数でも数MB程度に収まる。
 const SHAPE_TEXTURE_MAX = 80;
 function shapeTexture(key, spec) {
@@ -138,6 +153,11 @@ function shapeTexture(key, spec) {
   const sy = ch / fullH;
   const padX = pad * sx;
   const padY = pad * sy;
+  // 新しく作る鍵の内訳を数える（#330。実際にキャンバスを作る＝GPUへ送る直前）。
+  const geomPrefix = shapeKeyGeomPrefix(key);
+  if (shapeGeomPrefixes.has(geomPrefix)) shapeTextureNewColorOnly++;
+  else shapeTextureNewGeom++;
+  shapeGeomPrefixes.set(geomPrefix, (shapeGeomPrefixes.get(geomPrefix) || 0) + 1);
   const cv = document.createElement("canvas");
   cv.width = cw;
   cv.height = ch;
@@ -208,6 +228,11 @@ function pruneShapeTextures() {
     shapeTextures.get(key)?.dispose();
     shapeTextures.delete(key);
     shapeTextureEvictions++;
+    // 捨てた鍵のぶん、寸法の集合からも1つ減らす（残り0なら消す）。
+    const gp = shapeKeyGeomPrefix(key);
+    const left = (shapeGeomPrefixes.get(gp) || 1) - 1;
+    if (left <= 0) shapeGeomPrefixes.delete(gp);
+    else shapeGeomPrefixes.set(gp, left);
   }
 }
 
@@ -772,6 +797,8 @@ function maybeLogStats() {
       texImg: st.texImg,
       texShape: st.texShape,
       texEvicted: st.texEvicted,
+      texNewColor: st.texNewColor,
+      texNewGeom: st.texNewGeom,
       frameMs: st.frameMs,
       drawMs: st.drawMs,
       rebuildMs: st.rebuildMs,
@@ -1053,6 +1080,8 @@ export function getBoard3dStats() {
     texImg: textureCache.size,
     texShape: shapeTextures.size,
     texEvicted: shapeTextureEvictions,
+    texNewColor: shapeTextureNewColorOnly,
+    texNewGeom: shapeTextureNewGeom,
     rebuildMs: +lastRebuildMs.toFixed(1),
     drawMs: +lastDrawMs.toFixed(2),
     frameMs: +frameAvgMs.toFixed(1),
