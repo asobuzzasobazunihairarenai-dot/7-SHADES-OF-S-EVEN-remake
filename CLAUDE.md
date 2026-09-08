@@ -3284,3 +3284,32 @@ diag-lock-click-skip: {"reason":"pending-final-lock"} が10秒ごとに出続け
   もう1つ、`page.evaluate` の中では**動的 import が使えない**（Playwright が関数を包む都合で
   `SyntaxError: missing ) after argument list` になる）ので、`addScriptTag({ type: "module" })` で
   モジュールを読み込み、必要な関数を window に置いてから触る。
+
+### 2026-09-08（続き491）：「対戦画面用」のペットの1枚絵（水彩画風）を、対戦開始前の紹介に使う
+
+ユーザーが `画像素材/ペット/ペット_対戦画面用/` に8体ぶんの水彩画風イラスト（1254x1254・各1.3〜2MB）を
+置いてくれた。**大きく見せる場所＝続き489〜490で作った「今回のメンバー」**で使うのが素直なので、そこに入れた。
+
+- **配信用に変換した**（`assets/pets/portraits/<sprite>.webp`・8枚で計648KB）。手順は
+  `tools/shrink-assets.mjs` と同じ考え方（Playwright の Chromium の canvas で再エンコード）:
+  ①**透明な余白を切り詰めてから正方形に整える**——8体で余白の量がばらばら（中身が 798x1174 のものも
+  1201x1220 のものもある）なので、そのまま並べると**同じ枠に入れても大きさが揃わない**。
+  ②長辺512（`assets/pets` の上限と同じ）。1.3〜2MB → 61〜107KB。
+  ・**画像はファイルサイズではなく「幅×高さ×4バイト」でメモリを食う**（#223 の教訓）。原寸のままだと
+  　1枚 6.3MB で、4人ぶん並べば25MB——iPhone が落ちる側に寄る。
+- **追従スプライトとは別物として持つ**（`petPortraitSrc(sprite)` を新設）。あちらは方向×モーションの
+  小さなドット絵で、盤面を歩かせる用。1枚絵は正面の座り姿だけなので置き換えではなく**用途で使い分ける**。
+- **素材が無い環境では従来のスプライトへ落とす**（読み込み失敗を1回だけ拾って差し替え、それも失敗したら
+  要素ごと消す）。落ちた先はドット絵なので `.is-sprite` を付けて `image-rendering: pixelated` に戻す
+  ——**1枚絵の方は滑らかに拡大させたい**ので、CSSの既定からは pixelated を外した。
+
+- **検証（実測）**: 4人戦を実際に開始して紹介を撮影——`src` が `assets/pets/portraits/cubit.webp`・
+  **実寸 512x512**・`image-rendering: auto`。**落ちる側も測った**——Playwright の route で
+  1枚絵の配信だけを止めると、`assets/pets/cubit/cubit-front-static.webp` へ差し替わり、
+  `is-sprite` が付いて `pixelated` に戻る（＝素材が無い端末でも壊れない）。
+  `npm test` 58/58 PASS、`node tools/check-undeclared.mjs` 0件（164ファイル）、CSSブレース平衡（3256）、
+  `node --check`（.mjs へコピーして）main.js・pet-skins.js とも通過、例外0件。
+  サーバー側（Supabase）の変更は無い＝SQLの実行・Edge Function の再デプロイは不要。
+
+- **申し送り**: 1枚絵は今のところ紹介だけで使っている。ペット選択・ショップ・戦績など
+  「大きく見せる場所」が他にもあるので、必要なら同じ `petPortraitSrc()` を差し込むだけで足りる。

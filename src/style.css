@@ -21356,9 +21356,10 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
   width: var(--match-intro-pet-size, 7rem);
   height: var(--match-intro-pet-size, 7rem);
   object-fit: contain;
-  image-rendering: pixelated;
   animation: match-intro-pet 1.6s ease-in-out infinite;
 }
+/* 素材が無くて追従スプライト（ドット絵）へ落ちた時だけ、拡大でぼやけないようにする。 */
+.match-intro-pet.is-sprite { image-rendering: pixelated; }
 @keyframes match-intro-pet {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(calc(-1 * var(--match-intro-pet-lift, 0.4rem))); }

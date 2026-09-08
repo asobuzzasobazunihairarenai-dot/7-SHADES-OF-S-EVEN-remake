@@ -45,6 +45,13 @@ export function petSpriteSrc(sprite, dir, motion) {
   return `assets/pets/${sprite}/${sprite}-${dir}-${motion}.webp`;
 }
 
+// 【続き491】対戦の見せ場用の1枚絵（水彩画風）。追従スプライト（上の petSpriteSrc、
+// 小さく歩かせる用の絵）とは別物で、こちらは大きく見せる場所（対戦開始前の「今回のメンバー」）で使う。
+// 素材が無い環境もあり得るので、呼び出し側は必ず読み込み失敗の受け皿を用意すること。
+export function petPortraitSrc(sprite) {
+  return `assets/pets/portraits/${sprite}.webp`;
+}
+
 // ペットごとの表示倍率（既定1）。piece-pet.jsのupdateSpriteが基準サイズに掛ける。
 export function petSpriteScale(sprite) {
   const opt = PET_OPTIONS.find((o) => o.sprite === sprite);

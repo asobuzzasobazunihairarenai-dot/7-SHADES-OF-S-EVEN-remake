@@ -191,7 +191,7 @@ import {
 } from "./card-back-skins.js";
 import { openPlaymatPicker, registerPlaymatHelpers, getSelectedPlaymatPath, setSelectedPlaymatId } from "./playmat.js";
 import { openBackgroundPicker, registerBackgroundHelpers, getSelectedBackgroundPath, setSelectedBackgroundId } from "./background.js";
-import { openPetPicker, registerPetHelpers, getSelectedPetIndex, PET_OPTIONS, petSpriteSrc, pushMyPetToProfile } from "./pet-skins.js";
+import { openPetPicker, registerPetHelpers, getSelectedPetIndex, PET_OPTIONS, petSpriteSrc, petPortraitSrc, pushMyPetToProfile } from "./pet-skins.js";
 import { createModalCloseX, createBackdrop, createOpenGuard } from "./ui-helpers.js";
 import {
   getPlayerName,
@@ -5136,14 +5136,20 @@ function playMatchIntro(previewSeats = null) {
     // ペットは飾り。取れない席（CPU戦の相手・列が未追加の環境）では出さないだけにする。
     const petIndex = seat === getSelfSeat() ? getSelectedPetIndex() : getSyncedIdentity(seat)?.petIndex;
     const petOpt = typeof petIndex === "number" ? PET_OPTIONS[petIndex] : null;
-    const petSrc = petOpt?.sprite ? petSpriteSrc(petOpt.sprite, "front", "static") : null;
-    if (petSrc) {
+    if (petOpt?.sprite) {
       const pet = document.createElement("img");
       pet.className = "match-intro-pet";
-      pet.src = petSrc;
+      // 大きく見せる場所なので「対戦画面用」の1枚絵を使う。素材が無ければ従来の
+      // 追従スプライトへ落とし、それも無ければ壊れた画像の枠が出ないように消す。
+      let fallbackTried = false;
+      pet.src = petPortraitSrc(petOpt.sprite);
       pet.alt = "";
-      // 画像が無い環境（素材未配置・列未追加）で壊れた画像の枠が出ないように、失敗したら消す。
-      pet.addEventListener("error", () => pet.remove());
+      pet.addEventListener("error", () => {
+        if (fallbackTried) { pet.remove(); return; }
+        fallbackTried = true;
+        pet.classList.add("is-sprite"); // スプライトはドット絵なので拡大の仕方を変える
+        pet.src = petSpriteSrc(petOpt.sprite, "front", "static");
+      });
       info.appendChild(pet);
     }
 
