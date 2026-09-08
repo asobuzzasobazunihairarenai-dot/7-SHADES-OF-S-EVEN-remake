@@ -35,9 +35,11 @@ export const CHANGELOG = [
     ],
     devItems: [
       "「今回のメンバー」の調整値を既定として焼き込みました（ペットの大きさ 7→18rem・位置 -4.7/0.7rem、段位バッジ 4→9.1rem・段位名 0.8→1.3rem・位置 6.6/8rem）。あわせて上限に張り付いていたスライダーの幅を広げました——ペットの大きさ 18→30rem、段位バッジの大きさ 10→20rem、段位バッジの上下 ±8→−12〜24rem、左右 ±8→±16rem、段位名 2.5→4rem。",
+      "「今回のメンバー」で段位バッジがペットの後ろに隠れていたのを、手前に描くようにしました。あわせて調整値を焼き直しています（段位バッジの大きさ 9.1→11.2rem・上下 8→18.2rem）。",
     ],
     devItemsEn: [
       "Baked the tuned lineup values in as defaults (pet size 7→18rem at -4.7/0.7rem; rank badge 4→9.1rem, its label 0.8→1.3rem, at 6.6/8rem). Widened the sliders that were pinned at their ceiling: pet size 18→30rem, rank badge size 10→20rem, rank badge vertical ±8→-12..24rem, horizontal ±8→±16rem, label 2.5→4rem.",
+      "The lineup rank badge was being covered by the pet; it now draws in front. Re-baked the tuned values (rank badge size 9.1→11.2rem, vertical 8→18.2rem).",
     ],
   },
   {

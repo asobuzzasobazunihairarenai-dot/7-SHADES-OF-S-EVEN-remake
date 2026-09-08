@@ -560,10 +560,10 @@ const GROUPS = [
       // 【続き495】以前は「0=上・100=下」だったが、切り取られるのは**左右**なので上下は1pxも
       // 動かなかった（パネルが縦長・絵が正方形のため。style.css の .match-intro-portrait 参照）。
       { key: "--match-intro-portrait-pos-x", label: "アバター画像の見せる位置（0=左・100=右）", unit: "%", min: 0, max: 100, step: 1, default: 50, previewOnInteract: () => matchIntroPreviewFn?.() },
-      { key: "--match-intro-rank-size", label: "段位バッジの大きさ（ランク戦のみ）", unit: "rem", min: 1, max: 20, step: 0.1, default: 9.1, previewOnInteract: () => matchIntroPreviewFn?.() },
+      { key: "--match-intro-rank-size", label: "段位バッジの大きさ（ランク戦のみ）", unit: "rem", min: 1, max: 20, step: 0.1, default: 11.2, previewOnInteract: () => matchIntroPreviewFn?.() },
       { key: "--match-intro-rank-name-size", label: "段位名の大きさ", unit: "rem", min: 0.4, max: 4, step: 0.05, default: 1.3, previewOnInteract: () => matchIntroPreviewFn?.() },
       { key: "--match-intro-rank-pos-x", label: "段位バッジの位置（左右・マイナスで左へ）", unit: "rem", min: -16, max: 16, step: 0.1, default: 6.6, previewOnInteract: () => matchIntroPreviewFn?.() },
-      { key: "--match-intro-rank-pos-y", label: "段位バッジの位置（上下・マイナスで上へ）", unit: "rem", min: -12, max: 24, step: 0.1, default: 8, previewOnInteract: () => matchIntroPreviewFn?.() },
+      { key: "--match-intro-rank-pos-y", label: "段位バッジの位置（上下・マイナスで上へ）", unit: "rem", min: -12, max: 24, step: 0.1, default: 18.2, previewOnInteract: () => matchIntroPreviewFn?.() },
       { key: "--match-intro-veil-top", label: "下の暗い幕の高さ", unit: "%", min: 20, max: 100, step: 1, default: 62, previewOnInteract: () => matchIntroPreviewFn?.() },
     ],
   },

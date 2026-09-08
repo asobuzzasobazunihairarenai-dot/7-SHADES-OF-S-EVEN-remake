@@ -21287,9 +21287,9 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
   --match-intro-pet-pos-x: -4.7rem;   /* ペットの左右 */
   --match-intro-pet-pos-y: 0.7rem;    /* ペットの上下 */
   --match-intro-rank-pos-x: 6.6rem;   /* 段位バッジの左右 */
-  --match-intro-rank-pos-y: 8rem;     /* 段位バッジの上下 */
+  --match-intro-rank-pos-y: 18.2rem;  /* 段位バッジの上下 */
   --match-intro-veil-top: 62%;        /* 下の暗い幕がどこまで上がるか */
-  --match-intro-rank-size: 9.1rem;    /* 段位バッジ（ランク戦のときだけ出る） */
+  --match-intro-rank-size: 11.2rem;   /* 段位バッジ（ランク戦のときだけ出る） */
   --match-intro-rank-name-size: 1.3rem; /* 段位名 */
 }
 
@@ -21420,6 +21420,10 @@ body.match-intro-preview-active #admin-panel { z-index: 10680; }
 /* 【ユーザー要望2026-09-08・続き495】「ランクバッチは？」。ランク戦のときだけ、名前の上に
    段位バッジを出す（ランク戦でない対戦では段位そのものが動かないので出さない）。 */
 .match-intro-rank {
+  /* 【続き500】ペットより手前に描く。DOM順ではペットが後（＝上）に来るので、
+     重なり順だけをここで明示する（並び順は変えない＝位置調整の変数の意味を保つ）。 */
+  position: relative;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -21440,6 +21444,8 @@ body.match-intro-preview-active #admin-panel { z-index: 10680; }
 
 /* ペット（ユーザー要望「ペットも入れれるといい」）。名前の上でふわふわさせる。 */
 .match-intro-pet {
+  position: relative;
+  z-index: 1; /* 段位バッジ（z-index:2）より後ろ＝続き500 */
   width: var(--match-intro-pet-size, 7rem);
   height: var(--match-intro-pet-size, 7rem);
   object-fit: contain;
