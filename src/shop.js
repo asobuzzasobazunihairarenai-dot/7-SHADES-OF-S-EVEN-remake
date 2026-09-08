@@ -112,6 +112,17 @@ function buildItemCard(item) {
   bg.className = "shop-item-bg";
   bg.style.backgroundImage = `url("${item.imagePath}")`;
   card.appendChild(bg);
+  // 【続き497】ペット商品だけは背面の飾りを水彩画の1枚絵にする（ユーザー要望）。
+  // background-image は読み込みの失敗を教えてくれないので、先に Image で確かめてから
+  // 差し替える＝素材が無い環境では今までどおりスプライトのままになる。
+  if (item.bgImagePath && item.bgImagePath !== item.imagePath) {
+    const probe = new Image();
+    probe.onload = () => {
+      bg.classList.add("is-portrait");
+      bg.style.backgroundImage = `url("${item.bgImagePath}")`;
+    };
+    probe.src = item.bgImagePath;
+  }
 
   const thumb = document.createElement("div");
   thumb.className = "shop-item-thumb";

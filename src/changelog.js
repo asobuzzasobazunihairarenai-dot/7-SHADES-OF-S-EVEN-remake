@@ -28,6 +28,23 @@ export const CHANGELOG = [
   {
     date: "2026-09-08",
     items: [
+      "CPU戦で、CPUの番が毎回10秒ほど止まっていたのを直しました。ロックを終えたCPUがもう一度ロックしようとして空振りし、そのまま10秒待ってから次に進んでいました。",
+      "ペット選択の画面・ショップ・マイページでも、大きな描き下ろしのイラスト（水彩画）が背景にうっすら出るようになりました。",
+    ],
+    itemsEn: [
+      "Fixed the CPU pausing for about ten seconds on every one of its turns. Having already locked a card, it would try to lock a second one, come up empty, and then sit there until a ten-second safety net released it.",
+      "The large watercolour pet artwork now also sits, softly, behind the pet picker, the shop and My Page.",
+    ],
+    devItems: [
+      "原因は「ロックできる札を選ぶ→ performLockPhaseClick が already-locked-this-phase で断る→それでも自動処理は true を返す」形でした。呼び出し側（turn-timer）は1手打ったと見なしてラッチを立てるので、持ち時間が動かず10秒の安全網（diag-timeout-latch-retry）が下りるまで完全に止まっていました。ロック済みなら手前で避けるようにし、#334 で見えていた diag-lock-click-skip の連発も出なくなりました。",
+    ],
+    devItemsEn: [
+      "The cause: the auto-play picked a lockable card, performLockPhaseClick refused it with already-locked-this-phase, and the auto action still reported true. The caller latched it as \"a move was made\", so the clock never moved and nothing happened until the ten-second stuck-retry fired. It now bails out before choosing, which also stops the diag-lock-click-skip spam seen in #334.",
+    ],
+  },
+  {
+    date: "2026-09-08",
+    items: [
       "ランク戦の待ち時間に出る「豆知識」が読みにくかったのを直しました（明るい配色にしていると、文字が暗いままで背景に沈んでいました）。",
       "ランク戦では「今回のメンバー」に、参加者全員の段位バッジが出るようになりました。",
       "「今回のメンバー」に並ぶペットが、大きな描き下ろしのイラスト（水彩画）になりました。",

@@ -37,6 +37,10 @@ export function getPetShopItems() {
     cost: o.cost,
     sprite: o.sprite, // ショップでクリック時にモーション再生するために渡す（shop.js参照）
     imagePath: petSpriteSrc(o.sprite, "front", "static"),
+    // 【続き497】カード背面の半透明の飾り（.shop-item-bg）だけは水彩画の1枚絵を使う
+    // （ユーザー要望）。サムネ本体は今までどおり追従スプライト＝ショップでモーションを
+    // 見せる用。素材が無い環境もあるので、shop.js 側で読み込めた時だけ差し替える。
+    bgImagePath: petPortraitSrc(o.sprite),
   }));
 }
 
@@ -181,6 +185,15 @@ export function openPetPicker(options = {}) {
     if (locked) swatch.classList.add("is-locked");
     let face;
     if (opt.sprite) {
+      // 【続き497】マスの背面に水彩画の1枚絵を薄く敷く（ユーザー要望「背面の半透明の
+      // 部分に使うのはどう？」）。素材が無ければ読み込み失敗で自分から消える＝
+      // 今までどおりの見た目に戻るだけ。
+      const bg = document.createElement("img");
+      bg.className = "pet-picker-bg";
+      bg.src = petPortraitSrc(opt.sprite);
+      bg.alt = "";
+      bg.addEventListener("error", () => bg.remove());
+      swatch.appendChild(bg);
       face = document.createElement("img");
       face.className = "pet-picker-sprite";
       face.src = petSpriteSrc(opt.sprite, "front", "static");

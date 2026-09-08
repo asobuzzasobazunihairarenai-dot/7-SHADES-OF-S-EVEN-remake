@@ -15,6 +15,9 @@
 export const PROFILE_LAYOUT = {
   avatar: { x: -283, y: 7, scale: 6 },
   "avatar-bg": { x: -483, y: -206, scale: 4.5 },
+  // 【続き497】背面の巨大半透明ペット（水彩画の1枚絵）。avatar-bg と同じ「わざと画面から
+  // はみ出す飾り」なので、位置合わせの範囲計算からは除外する。
+  "pet-bg": { x: 470, y: 468, scale: 2.6 },
   cosmetics: { x: 571, y: 29, scale: 1.52 },
   name: { x: -268, y: 594, scale: 3.01 },
   // ランク表示（ranked-rank）はユーザーがレイアウト編集モードで配置（2026-08-17）。
@@ -178,7 +181,7 @@ export function applyProfileLayout(container) {
     // クリック透過にする（変更は別ボタン avatar-change 側にあるのでアバター画像自体は
     // クリック不要）。編集モードでは掴んで動かすため透過しない。
     if (!editMode) {
-      el.style.pointerEvents = m.key === "avatar" || m.key === "avatar-bg" ? "none" : "";
+      el.style.pointerEvents = m.key === "avatar" || m.key === "avatar-bg" || m.key === "pet-bg" ? "none" : "";
     } else {
       el.style.pointerEvents = "";
     }
@@ -187,7 +190,7 @@ export function applyProfileLayout(container) {
     // 飾り)は「意図的にはみ出して背景いっぱいに広がる」要素なので範囲計算からは除外する
     // （含めると全体が大きくずれてしまう）。それ以外の要素（アバター本体・名前・着せ替え・
     // 戦績等）は左右上下すべての端を測り、全部が切れずに収まるようにする。
-    if (m.key !== "avatar-bg") {
+    if (m.key !== "avatar-bg" && m.key !== "pet-bg") {
       maxBottom = Math.max(maxBottom, cfg.y + el.offsetHeight * cfg.scale);
       maxRight = Math.max(maxRight, cfg.x + el.offsetWidth * cfg.scale);
       minLeft = Math.min(minLeft, cfg.x);

@@ -24,7 +24,7 @@ import { openPieceSkinPicker, getSkinImagePath, getMyPieceColor } from "./piece-
 import { openCardBackSkinPicker, getCardBackSetIndex, backImagePath } from "./card-back-skins.js";
 import { openPlaymatPicker, getSelectedPlaymatPath } from "./playmat.js";
 import { openBackgroundPicker, getSelectedBackgroundPath } from "./background.js";
-import { openPetPicker, getSelectedPetIndex, PET_OPTIONS, petSpriteSrc } from "./pet-skins.js";
+import { openPetPicker, getSelectedPetIndex, PET_OPTIONS, petSpriteSrc, petPortraitSrc } from "./pet-skins.js";
 import { applyProfileLayout } from "./profile-layout-editor.js";
 
 // main.jsのopenAvatarPicker()はmain.js内のローカル関数（circular importを避けるための
@@ -292,6 +292,27 @@ export async function renderMyPageBody(body, close) {
   bgAvatar.title = t("mypage.L290");
   bgAvatar.addEventListener("click", () => avatarPickerFn?.());
   body.appendChild(bgAvatar);
+
+  // 【続き497】今つれているペットの水彩画の1枚絵も、巨大な半透明の飾りとして背面に置く
+  // （ユーザー要望「水彩画のペットをペット選択画面・ショップ・マイページにも使う→
+  // 背面の半透明の部分に使うのはどう？」）。ペットが「なし」なら置かない。位置・大きさは
+  // 巨大アバターと同じくレイアウト編集モードで調整できる（PROFILE_LAYOUT["pet-bg"]）。
+  const petOpt = PET_OPTIONS[getSelectedPetIndex()];
+  if (petOpt?.sprite) {
+    const bgPet = document.createElement("div");
+    bgPet.className = "my-page-bg-pet";
+    bgPet.dataset.layoutKey = "pet-bg";
+    const bgPetImg = document.createElement("img");
+    bgPetImg.src = petPortraitSrc(petOpt.sprite);
+    bgPetImg.alt = "";
+    // 素材が無い環境では飾りごと消す（追従スプライトへ落とすと絵の質が違いすぎるため）。
+    bgPetImg.addEventListener("error", () => bgPet.remove());
+    bgPet.appendChild(bgPetImg);
+    bgPet.style.cursor = "pointer";
+    bgPet.title = t("mypage.L384");
+    bgPet.addEventListener("click", () => openPetPicker());
+    body.appendChild(bgPet);
+  }
 
   const avatarWrap = document.createElement("div");
   avatarWrap.dataset.layoutKey = "avatar"; // レイアウト編集モードの識別子（profile-layout-editor.js）

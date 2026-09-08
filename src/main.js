@@ -6337,6 +6337,18 @@ export function performPriorityTimeoutAutoAction() {
   // ロックできるカードが無ければ、疑似CPU対象でも通常通りスキップする。
   if (phase === "lock") {
     const player = driveSeat;
+    // 【続き497・「CPUのターンが毎回10秒ほど足踏みする」の原因】このロックフェイズの分
+    // （ロック1枚 or マイデッキから1枚）が**既に済んでいる**なら、もう一度ロックを試みない。
+    // 済んでいるのにここへ来るのは、#266/#267 でフェイズの切り替えを演出・お知らせの後まで
+    // 待たせているため（currentPhase が "lock" のまま数秒残る）。
+    // それまでは「候補を選ぶ → performLockPhaseClick が already-locked-this-phase で断る →
+    // それでも**この関数は true を返す**」形だったので、呼び出し側(turn-timer.js)は
+    // 「1手打った」と見なしてラッチを立てる。ところが実際には何も起きず持ち時間も動かないので、
+    // 10秒の安全網（STUCK_RETRY_MS の diag-timeout-latch-retry）が下りるまで**CPUが完全に
+    // 止まる**——これが毎ターンの10秒の足踏みの正体。ここで手前から避ければ、下の
+    // 「ロック/ハンドはスキップ」へ落ちて持ち時間が更新され、待ちは中央が空くまでの分だけになる。
+    // ついでに #334 の diag-lock-click-skip の連発（数秒で約30件）も出なくなる。
+    const lockDoneThisPhase = hasPlacedNewLockThisPhase(player) || (hasDrawnMyDeckThisPhase() && player === getSelfSeat());
     const isTarget = isPseudoCpuTarget(player);
     const hand = getState().tokens.filter((t) => t.kind === "card" && t.location.zone === "hand" && t.location.player === player);
     // #116: ノワール(first-noir)が“置いてある”色スロットへは、ロックフェイズで普通にロックしない
@@ -6363,8 +6375,9 @@ export function performPriorityTimeoutAutoAction() {
       handCount: hand.length,
       handColors: hand.map((t) => getCardDefinition(t.cardId)?.color ?? null),
       lockableCount: lockable.length,
+      lockDoneThisPhase, // 【続き497】この回のロックは済んでいるか（済んでいれば何もしない）
     });
-    if (isTarget && lockable.length > 0) {
+    if (isTarget && !lockDoneThisPhase && lockable.length > 0) {
       // ②CPU戦を強くする（2026-08-18）: 「どの色をロックするか」は、従来ここで全難易度 random だった
       // （＝賢いCPUでもロック色が運任せ＝これが「合法手をランダムに選ぶだけ」の主因の一つ）。賢いCPU
       // （中級以上・isCpuBrainDriving）は chooseHandCardToLock で評価して選ぶ（虹＝なないろの欠片や、
@@ -6391,7 +6404,7 @@ export function performPriorityTimeoutAutoAction() {
     // CPU(疑似CPU)は、ロックできるカードが無い時だけマイデッキから引く（＝ロックできる時は
     // 7色を揃える方を優先。単純方針、後で強化余地あり）。引いた後はロックの代替なので
     // ロックフェイズを終える（人間のマイデッキボタンが drawFromMyDeck→advancePhase するのと同じ）。
-    if (isTarget && lockable.length === 0 && canDrawFromMyDeck(player)) {
+    if (isTarget && !lockDoneThisPhase && lockable.length === 0 && canDrawFromMyDeck(player)) {
       noteMyDeckDrawThisPhase(); // 【#286/#288】このロックフェイズではもう引かない／ロックしない
       drawFromMyDeckLocal(player);
       announceMyDeckDraw(player); // 行動ログ＋中央モーダルで全プレイヤーに知らせる（ユーザー要望2026-08-15）
