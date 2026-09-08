@@ -28,6 +28,19 @@ export const CHANGELOG = [
   {
     date: "2026-09-08",
     items: [
+      "「ゴメンナサイッ！」で相手の最後のロックを止めた瞬間を、大きな発動演出にしました。画面が紫に染まり、カードと名乗りが飛び出します。相手や観戦している方の画面にも同じように出ます。",
+      "CPUが「ゴメンナサイッ！」を使った時にも「防いだ！」の演出が出るようになりました（これまでは人が使った時だけでした）。",
+      "ランク戦の待ち時間に出る豆知識から囲みを外し、文字だけを大きく出すようにしました。文の長さで枠が伸び縮みして下のボタンが動くこともなくなります。",
+    ],
+    itemsEn: [
+      "Stopping an opponent's final lock with So Sorry! now gets a full declaration: the screen floods purple and the card slams in. Everyone else sees it too.",
+      "The \"Blocked!\" effect now also plays when a CPU uses So Sorry! (previously only when a person did).",
+      "The tips shown while waiting for a ranked match lost their box — just large text now, and the layout no longer shifts with the length of the tip.",
+    ],
+  },
+  {
+    date: "2026-09-08",
+    items: [
       "動作が重くなる問題に対処しました。盤面の絵を置いておく棚が、実際に必要な数より小さかったため、毎回作り直しになっていました。特に4人戦で効きます。",
       "ランク戦の待ち時間に出る豆知識を、大きく中央に出すようにしました。",
     ],

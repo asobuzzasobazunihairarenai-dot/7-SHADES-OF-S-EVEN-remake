@@ -21213,6 +21213,83 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
    守った側の駒（ゴメンナサイは守った人のロックエリア）に六角形の盾が張られ、衝撃波が広がり、
    画面中央に「防いだ！」が一瞬だけ出る。攻めた側の駒は弾かれてよろける。
    盤面のDOMに載せる演出なので、キャンバス（奥）より自然に手前に描かれる（appendEffectHost）。 */
+/* 【ユーザー要望2026-09-08・続き487】「ゴメンナサイの手札効果が使用されるタイミングはど派手に」。
+   このゲームで一番の逆転（相手の7色目＝勝利宣言を止めたうえに、完成間近のロックを1枚奪う）なので、
+   止まったことを見せる「防いだ！」(.block-shield)の**前**に、発動そのものを宣言する。
+   ★重い装飾は使わない: filter / backdrop-filter は全画面に掛けるとGPUの弱い端末で1フレームを
+     丸ごと持っていく（続き450で勝利演出のぼかしを外した実測、#339でも重さが問題になっている）。
+     ここは**塗りと transform だけ**で組む。 */
+.gomennasai-declare {
+  position: fixed;
+  inset: 0;
+  z-index: 10680;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: gomennasai-wash 1.5s ease-out forwards;
+}
+@keyframes gomennasai-wash {
+  0% { background: rgba(88, 28, 135, 0); }
+  12% { background: rgba(88, 28, 135, 0.82); }
+  70% { background: rgba(88, 28, 135, 0.62); }
+  100% { background: rgba(88, 28, 135, 0); }
+}
+/* 中央のカード。斜めに滑り込んで一度大きく止まり、最後に手前へ抜ける。 */
+.gomennasai-declare-card {
+  width: 13rem;
+  height: 13rem;
+  border-radius: 0.6rem;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 0 2.4rem rgba(216, 180, 254, 0.85), 0 0.6rem 1.6rem rgba(0, 0, 0, 0.55);
+  animation: gomennasai-card 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes gomennasai-card {
+  0% { transform: translateX(-38%) rotate(-16deg) scale(0.5); opacity: 0; }
+  18% { transform: translateX(0) rotate(-6deg) scale(1.18); opacity: 1; }
+  30% { transform: translateX(0) rotate(0deg) scale(1); opacity: 1; }
+  78% { transform: translateX(0) rotate(0deg) scale(1); opacity: 1; }
+  100% { transform: translateX(0) rotate(0deg) scale(1.5); opacity: 0; }
+}
+/* 「ゴメンナサイッ！」の文字。カードの少し下で、叩きつけるように出る。 */
+.gomennasai-declare-text {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 8.2rem);
+  transform: translateX(-50%);
+  font-size: 2.6rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #f5f3ff;
+  text-shadow: 0 0 1.2rem rgba(192, 132, 252, 0.95), 0 0.25rem 0 rgba(59, 7, 100, 0.9);
+  white-space: nowrap;
+  animation: gomennasai-text 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes gomennasai-text {
+  0% { opacity: 0; transform: translateX(-50%) scale(2.2); }
+  20% { opacity: 1; transform: translateX(-50%) scale(1); }
+  80% { opacity: 1; transform: translateX(-50%) scale(1); }
+  100% { opacity: 0; transform: translateX(-50%) scale(1.15); }
+}
+/* 外へ弾ける紫の輪。2枚を時間差で。 */
+.gomennasai-declare-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 13rem;
+  height: 13rem;
+  margin: -6.5rem 0 0 -6.5rem;
+  border-radius: 50%;
+  border: 0.28rem solid rgba(216, 180, 254, 0.9);
+  animation: gomennasai-ring 1.1s ease-out forwards;
+}
+.gomennasai-declare-ring.is-delayed { animation-delay: 0.16s; border-color: rgba(250, 204, 21, 0.75); }
+@keyframes gomennasai-ring {
+  0% { opacity: 0.95; transform: scale(0.35); }
+  100% { opacity: 0; transform: scale(2.6); }
+}
+body.reduce-glow .gomennasai-declare-card { box-shadow: none; }
 .block-shield {
   position: absolute;
   left: 50%;
@@ -21598,19 +21675,22 @@ body.reduce-glow .turn-timeout-strike {
    1600x900 のステージを画面に合わせて縮めて描くので、スマホでは **実画面で約5px** にしか
    ならず読めなかった（続き439で基本設定の行を大きくしたのと同じ話）。待ち時間の主役に
    格上げして、囲みを付けて中央に大きく出す。 */
+/* 【ユーザー指摘2026-09-08・続き487】「この豆知識の背景はさすがにダサくないですか？w
+   分量によって枠のサイズが変わるのも嫌です。枠ない方が良いんじゃ？」——そのとおりなので
+   囲み（背景・枠線・角丸・内側の余白）をやめ、**文字だけ**を大きく中央に置く。
+   ★背景をぼかす案は採らない。全画面のぼかしはGPUの弱い端末で1フレームまるごと持っていく
+     （続き450で勝利演出の blur を外した時の実測）。塗りも敷かない方が軽くて綺麗。
+   ★高さは**固定**にする（文の長さで枠が伸び縮みして下のボタンが動くのを止めたい、という指摘）。
+     3行ぶんを確保し、中で上下中央に置くので、1行の豆知識でも3行の豆知識でも箱は動かない。 */
 .waiting-tips {
-  margin-top: 1.2rem;
-  margin-bottom: 1.2rem;
+  margin-top: 1.4rem;
+  margin-bottom: 1.4rem;
   max-width: 34rem;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.6rem;
-  padding: 1.1rem 1.4rem;
-  border-radius: 0.9rem;
-  border: 1px solid rgba(250, 204, 21, 0.28);
-  background: rgba(15, 23, 42, 0.55);
+  gap: 0.5rem;
 }
 .waiting-tips-label {
   font-size: 0.9rem;
@@ -21624,12 +21704,10 @@ body.reduce-glow .turn-timeout-strike {
   color: rgba(241, 245, 249, 0.95);
   transition: opacity 0.42s ease;
   opacity: 1;
-  min-height: 3.5em; /* 文の長さで下のものが跳ねないように高さを確保する */
-}
-body.theme-light .waiting-tips,
-body.theme-light-ingame .waiting-tips {
-  background: rgba(255, 252, 240, 0.9);
-  border-color: rgba(180, 140, 30, 0.35);
+  height: 5.25em; /* 1.75em × 3行ぶんで固定。文の長さが変わっても箱は動かない */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .waiting-tips-body.is-fading {
   opacity: 0;

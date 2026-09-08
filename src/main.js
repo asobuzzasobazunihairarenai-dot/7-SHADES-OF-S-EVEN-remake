@@ -5075,6 +5075,38 @@ function blockEffectHostFor(seat) {
   const side = SEAT_TO_SIDE[seat];
   return side ? table.querySelector(`.lock-area.lock-${side}`) : null;
 }
+// 【ユーザー要望2026-09-08・続き487】「ゴメンナサイの手札効果が使用されるタイミングはど派手に」。
+// 相手の7色目（＝勝利宣言）を止めたうえに完成間近のロックを1枚奪う、試合中で最大の逆転なので、
+// 止まったことを見せる playBlockedEffect の**前**に、発動そのものを大きく宣言する。
+// 盤面の外（body直下）に置くので、盤面のWebGL描画のON/OFFにも2D表示にも左右されない。
+// 重い装飾（filter / backdrop-filter）は使わない——全画面に掛けるとGPUの弱い端末で1フレームを
+// 丸ごと持っていく（続き450の実測。#339で重さが問題になっている今はなおさら）。
+const GOMENNASAI_DECLARE_MS = 1500;
+function playGomennasaiDeclaration() {
+  if (isArrivalEffectDisabled()) return Promise.resolve(); // 「演出をやめる」設定を尊重
+  const root = document.createElement("div");
+  root.className = "gomennasai-declare";
+  const card = document.createElement("div");
+  card.className = "gomennasai-declare-card";
+  const img = getCardImagePath("purple-sorry");
+  if (img) card.style.backgroundImage = "url(" + JSON.stringify(img) + ")";
+  root.appendChild(card);
+  for (const extra of ["", " is-delayed"]) {
+    const ring = document.createElement("div");
+    ring.className = "gomennasai-declare-ring" + extra;
+    root.appendChild(ring);
+  }
+  const text = document.createElement("div");
+  text.className = "gomennasai-declare-text";
+  text.textContent = t("game.gomennasai.declare");
+  root.appendChild(text);
+  document.body.appendChild(root);
+  try { playSound("arrivalEffect"); } catch { /* 音が出せなくても演出は続ける */ }
+  return new Promise((resolve) => {
+    setTimeout(() => { root.remove(); resolve(); }, GOMENNASAI_DECLARE_MS);
+  });
+}
+
 async function playBlockedEffect(defenderSeat, attackerSeat) {
   if (isArrivalEffectDisabled()) return; // 「演出をやめる」設定を尊重
   beginBoardAnimation();
@@ -13314,6 +13346,11 @@ async function cpuUseGomennasaiOnFinalLock(seat, eligibility, attacker) {
   }
   // #102: 手札効果の使用宣言モーダル（＋行動ログに hand-effect を残す）を出す。以前は理由モーダル
   // だけで、ゴメンナサイを使った合図（手札効果使用モーダル）が出ていなかった。
+  // 続き487: 発動を大きく宣言してから、止まったことを見せる。
+  // ※CPUがゴメンナサイを使った時は、これまで「防いだ！」の演出が**出ていなかった**
+  //   （人間の経路にだけ入れてあった）。同じ見え方に揃える。
+  await playGomennasaiDeclaration();
+  await playBlockedEffect(seat, attacker);
   announceHandEffectUseForEffect("purple-sorry", t("game.gomennasai.blockBtn"), seat);
   await announceEffectReasonForEffect(
     "purple-sorry",
@@ -13409,7 +13446,10 @@ async function useGomennasaiOnFinalLock() {
   await discardFromHandReveal(eligibility.sorryToken.id);
   // 【演出①】最後のロックを止めた瞬間の「防いだ！」。コストとゴメンナサイ本体を払い終えて
   // 「止まったことが確定した」ここで見せる（奪う札の中央表示より前）。
-  if (isOnlineMode()) broadcastBlocked({ defender: selfSeat, attacker: pending.attacker });
+  // 続き487: 「ど派手な発動宣言」→「防いだ！」の順に見せる。合図に via を足して、
+  // 相手や観戦している人の画面でも同じ順番で出るようにする（online.js は payload を素通しする）。
+  if (isOnlineMode()) broadcastBlocked({ defender: selfSeat, attacker: pending.attacker, via: "gomennasai" });
+  await playGomennasaiDeclaration();
   await playBlockedEffect(selfSeat, pending.attacker);
   // 不具合#36診断: ゴメンナサイで奪ったカード・奪う前後の攻撃側ロック内容を記録する
   // （奪ったのに相手が勝ってしまう報告の追跡用）。
@@ -17163,6 +17203,11 @@ onBlockedEvents((payload) => {
     const attacker = payload?.attacker;
     if (!defender || !attacker) return;
     if (getSelfSeat() === defender) return;
+    // 続き487: ゴメンナサイなら、防いだ演出の前に発動宣言も出す（送り手と同じ順番）。
+    if (payload?.via === "gomennasai") {
+      void playGomennasaiDeclaration().then(() => playBlockedEffect(defender, attacker));
+      return;
+    }
     void playBlockedEffect(defender, attacker);
   } catch (err) {
     console.error("blocked relay failed", err);
