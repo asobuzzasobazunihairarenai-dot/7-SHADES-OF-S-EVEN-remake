@@ -21279,6 +21279,15 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
   --match-intro-emoji-size: 9rem;     /* 絵文字アバターの大きさ（画像アバターには効かない） */
   --match-intro-info-bottom: 2.4rem;  /* 名前まわりを下端からどれだけ上げるか */
   --match-intro-portrait-pos-x: 50%;  /* アバター画像の見せる位置（0%=左寄り・100%=右寄り） */
+  /* 【続き498】位置の微調整（ユーザー要望）。既定はすべて0＝今までと同じ見た目。
+     ※ transform を持つ要素（見出し・名前まわり・ペット）は animation が transform を
+     　最後まで保持する（fill-mode both / infinite）ので、**キーフレーム側に含めないと効かない**。 */
+  --match-intro-title-pos-y: 0rem;    /* 見出し「今回のメンバー」の上下 */
+  --match-intro-info-pos-x: 0rem;     /* 名前まわり（段位・ペット・席・名前）の左右 */
+  --match-intro-pet-pos-x: 0rem;      /* ペットの左右 */
+  --match-intro-pet-pos-y: 0rem;      /* ペットの上下 */
+  --match-intro-rank-pos-x: 0rem;     /* 段位バッジの左右 */
+  --match-intro-rank-pos-y: 0rem;     /* 段位バッジの上下 */
   --match-intro-veil-top: 62%;        /* 下の暗い幕がどこまで上がるか */
   --match-intro-rank-size: 4rem;      /* 段位バッジ（ランク戦のときだけ出る） */
   --match-intro-rank-name-size: 0.8rem; /* 段位名 */
@@ -21391,8 +21400,8 @@ body.match-intro-preview-active #admin-panel { z-index: 10680; }
   animation-delay: calc(var(--intro-delay, 0s) + 0.2s);
 }
 @keyframes match-intro-info {
-  from { opacity: 0; transform: translateY(0.8rem); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; transform: translate(var(--match-intro-info-pos-x, 0rem), 0.8rem); }
+  to { opacity: 1; transform: translateX(var(--match-intro-info-pos-x, 0rem)); }
 }
 .match-intro-seat {
   font-size: var(--match-intro-seat-size, 0.85rem);
@@ -21415,6 +21424,7 @@ body.match-intro-preview-active #admin-panel { z-index: 10680; }
   flex-direction: column;
   align-items: center;
   gap: 0.15rem;
+  transform: translate(var(--match-intro-rank-pos-x, 0rem), var(--match-intro-rank-pos-y, 0rem));
 }
 .match-intro-rank .rank-badge-image {
   width: var(--match-intro-rank-size, 4rem);
@@ -21438,8 +21448,16 @@ body.match-intro-preview-active #admin-panel { z-index: 10680; }
 /* 素材が無くて追従スプライト（ドット絵）へ落ちた時だけ、拡大でぼやけないようにする。 */
 .match-intro-pet.is-sprite { image-rendering: pixelated; }
 @keyframes match-intro-pet {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(calc(-1 * var(--match-intro-pet-lift, 0.4rem))); }
+  0%,
+  100% {
+    transform: translate(var(--match-intro-pet-pos-x, 0rem), var(--match-intro-pet-pos-y, 0rem));
+  }
+  50% {
+    transform: translate(
+      var(--match-intro-pet-pos-x, 0rem),
+      calc(var(--match-intro-pet-pos-y, 0rem) - var(--match-intro-pet-lift, 0.4rem))
+    );
+  }
 }
 
 /* 見出しと案内は画面全体に横断させる（パネルの分割線をまたぐ）。 */
@@ -21458,8 +21476,8 @@ body.match-intro-preview-active #admin-panel { z-index: 10680; }
   animation: match-intro-title 0.5s ease-out both;
 }
 @keyframes match-intro-title {
-  from { opacity: 0; transform: translateY(-0.6rem); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; transform: translateY(calc(var(--match-intro-title-pos-y, 0rem) - 0.6rem)); }
+  to { opacity: 1; transform: translateY(var(--match-intro-title-pos-y, 0rem)); }
 }
 .match-intro-hint {
   position: absolute;

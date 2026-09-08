@@ -36,9 +36,11 @@ export const CHANGELOG = [
       "The large watercolour pet artwork now also sits, softly, behind the pet picker, the shop and My Page.",
     ],
     devItems: [
+      "管理者モードの「今回のメンバー」に位置調整を6本足しました（見出しの上下／名前まわりの左右／ペットの左右・上下／段位バッジの左右・上下）。既定はすべて0＝今までと同じ見た目です。",
       "原因は「ロックできる札を選ぶ→ performLockPhaseClick が already-locked-this-phase で断る→それでも自動処理は true を返す」形でした。呼び出し側（turn-timer）は1手打ったと見なしてラッチを立てるので、持ち時間が動かず10秒の安全網（diag-timeout-latch-retry）が下りるまで完全に止まっていました。ロック済みなら手前で避けるようにし、#334 で見えていた diag-lock-click-skip の連発も出なくなりました。",
     ],
     devItemsEn: [
+      "Added six position sliders to the admin mode's lineup group: title vertical, name block horizontal, pet horizontal/vertical, rank badge horizontal/vertical. All default to 0, so nothing looks different until you move them.",
       "The cause: the auto-play picked a lockable card, performLockPhaseClick refused it with already-locked-this-phase, and the auto action still reported true. The caller latched it as \"a move was made\", so the clock never moved and nothing happened until the ten-second stuck-retry fired. It now bails out before choosing, which also stops the diag-lock-click-skip spam seen in #334.",
     ],
   },
