@@ -21249,9 +21249,13 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
   animation: match-intro-in 0.28s ease-out;
 }
 .match-intro.is-leaving { animation: match-intro-out 0.32s ease-in forwards; }
-/* 【続き493】管理者モードのプレビューは、パネル(z-index 2600)より下・その透明な背景(999)より
-   上に出す。こうすると**紹介を見ながらスライダーを触れる**（本番の紹介は 10670 のまま）。 */
-.match-intro.is-preview { z-index: 1500; }
+/* 【続き494・ユーザー報告「プレビューが表示されない」】続き493 でプレビューだけ z-index を
+   1500 まで下げたのが誤りだった——管理者パネルはホーム画面等では 2800 / その背景は 2799 へ
+   **引き上げられる**（上の body.full-screen-page-active 参照）ので、プレビューはその背景の下に
+   潜って見えなくなる。**固定の数字で場所取りをしない**——プレビューは本番と同じ高さのまま置き、
+   出ている間だけ管理者パネルをその上へ出す（下の body.match-intro-preview-active）。 */
+.match-intro.is-preview { z-index: 10670; }
+body.match-intro-preview-active #admin-panel { z-index: 10680; }
 @keyframes match-intro-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes match-intro-out { from { opacity: 1; } to { opacity: 0; } }
 

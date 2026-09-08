@@ -5184,7 +5184,10 @@ function playMatchIntro(previewSeats = null) {
   document.body.appendChild(root);
   // 紹介の間だけ印を付ける。不具合報告ボタンなど「常に最前面」のUIは、この印がある間だけ
   // 引っ込める（z-indexで勝てない相手なので、CSSで隠す方が確実。style.css参照）。
-  document.body.classList.add("match-intro-active");
+  // 【続き494】プレビューでは**引っ込めない**。プレビューは自分で閉じるまで出っぱなしなので、
+  // ここで隠すと「不具合報告ボタンが消えた」状態が延々と残る（ユーザー報告で実際に起きた）。
+  // 代わりに、管理者パネルをプレビューより前へ出す印を付ける（style.css参照）。
+  document.body.classList.add(isPreview ? "match-intro-preview-active" : "match-intro-active");
   // プレビューは「盤面の演出」として数えない。数えると、開けている間ずっと対局の進行を
   // 待たせることになる（#266 の中央の順番待ち。上限15秒で自動解除されるとはいえ無意味）。
   if (!isPreview) beginBoardAnimation();
@@ -5195,6 +5198,7 @@ function playMatchIntro(previewSeats = null) {
       done = true;
       root.classList.add("is-leaving");
       document.body.classList.remove("match-intro-active");
+      document.body.classList.remove("match-intro-preview-active");
       setTimeout(() => {
         root.remove();
         if (!isPreview) endBoardAnimation();
