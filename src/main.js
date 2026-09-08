@@ -5095,13 +5095,20 @@ function matchIntroMs() {
   return Number.isFinite(raw) && raw > 0 ? raw * 1000 : 2800;
 }
 // previewSeats: 管理者モードのプレビュー用（対局していなくても見本を出すため）。
+// 【続き493・ユーザー要望】プレビューは「見ながら調整する」ためのものなので、本番とは3点変える——
+// ①勝手に消えない（押した時だけ閉じる）②管理者パネルより下に出して**スライダーを触れる**ように
+// する（CSSの .is-preview、style.css参照）③どの席にも見本のペットを出す（ペットの大きさを
+// 調整したいのに、自分が「なし」だと1体も出ず確かめようが無かった）。
 function playMatchIntro(previewSeats = null) {
-  if (!previewSeats && isArrivalEffectDisabled()) return Promise.resolve(); // 「演出をやめる」設定を尊重
+  const isPreview = !!previewSeats;
+  if (!isPreview && isArrivalEffectDisabled()) return Promise.resolve(); // 「演出をやめる」設定を尊重
   const state = getState();
   const seats = previewSeats ?? (state.activePlayers || []).filter(Boolean);
   if (seats.length === 0) return Promise.resolve();
+  // プレビューで席ごとに違う見本を出すための、絵を持つペットの一覧。
+  const samplePets = isPreview ? PET_OPTIONS.filter((o) => o.sprite) : [];
   const root = document.createElement("div");
-  root.className = "match-intro";
+  root.className = "match-intro" + (isPreview ? " is-preview" : "");
 
   const title = document.createElement("div");
   title.className = "match-intro-title";
@@ -5135,7 +5142,9 @@ function playMatchIntro(previewSeats = null) {
 
     // ペットは飾り。取れない席（CPU戦の相手・列が未追加の環境）では出さないだけにする。
     const petIndex = seat === getSelfSeat() ? getSelectedPetIndex() : getSyncedIdentity(seat)?.petIndex;
-    const petOpt = typeof petIndex === "number" ? PET_OPTIONS[petIndex] : null;
+    let petOpt = typeof petIndex === "number" ? PET_OPTIONS[petIndex] : null;
+    // プレビューでは必ず見本を出す（席ごとに別のペット。大きさの当たりを付けるため）。
+    if (isPreview && samplePets.length > 0) petOpt = samplePets[i % samplePets.length];
     if (petOpt?.sprite) {
       const pet = document.createElement("img");
       pet.className = "match-intro-pet";
@@ -5169,14 +5178,16 @@ function playMatchIntro(previewSeats = null) {
 
   const hint = document.createElement("div");
   hint.className = "match-intro-hint";
-  hint.textContent = t("game.intro.skip");
+  hint.textContent = isPreview ? t("game.intro.previewHint") : t("game.intro.skip");
   root.appendChild(hint);
 
   document.body.appendChild(root);
   // 紹介の間だけ印を付ける。不具合報告ボタンなど「常に最前面」のUIは、この印がある間だけ
   // 引っ込める（z-indexで勝てない相手なので、CSSで隠す方が確実。style.css参照）。
   document.body.classList.add("match-intro-active");
-  beginBoardAnimation();
+  // プレビューは「盤面の演出」として数えない。数えると、開けている間ずっと対局の進行を
+  // 待たせることになる（#266 の中央の順番待ち。上限15秒で自動解除されるとはいえ無意味）。
+  if (!isPreview) beginBoardAnimation();
   return new Promise((resolve) => {
     let done = false;
     const finish = () => {
@@ -5186,13 +5197,14 @@ function playMatchIntro(previewSeats = null) {
       document.body.classList.remove("match-intro-active");
       setTimeout(() => {
         root.remove();
-        endBoardAnimation();
+        if (!isPreview) endBoardAnimation();
         resolve();
       }, 320);
     };
     // タップで飛ばせる（ユーザー選択のA案）。開いた直後の合成クリックで消えないよう少し待つ。
     setTimeout(() => root.addEventListener("click", finish), 250);
-    setTimeout(finish, matchIntroMs());
+    // プレビューは勝手に消えない（見ながら調整するため。閉じるのは押した時だけ）。
+    if (!isPreview) setTimeout(finish, matchIntroMs());
   });
 }
 

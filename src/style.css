@@ -21249,6 +21249,9 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
   animation: match-intro-in 0.28s ease-out;
 }
 .match-intro.is-leaving { animation: match-intro-out 0.32s ease-in forwards; }
+/* 【続き493】管理者モードのプレビューは、パネル(z-index 2600)より下・その透明な背景(999)より
+   上に出す。こうすると**紹介を見ながらスライダーを触れる**（本番の紹介は 10670 のまま）。 */
+.match-intro.is-preview { z-index: 1500; }
 @keyframes match-intro-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes match-intro-out { from { opacity: 1; } to { opacity: 0; } }
 
