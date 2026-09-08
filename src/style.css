@@ -21271,7 +21271,7 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
    admin.js の default と必ず同じ数字にしておくこと（リセットで戻る先がここになる）。 */
 :root {
   --match-intro-duration: 2.8;        /* 見せる長さ（秒）。main.js が読む */
-  --match-intro-pet-size: 7rem;       /* ペットの大きさ */
+  --match-intro-pet-size: 18rem;      /* ペットの大きさ */
   --match-intro-pet-lift: 0.4rem;     /* ペットがふわふわ浮く高さ */
   --match-intro-name-size: 2rem;      /* 名前 */
   --match-intro-seat-size: 0.85rem;   /* 「あなた／対戦相手」 */
@@ -21284,13 +21284,13 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
      　最後まで保持する（fill-mode both / infinite）ので、**キーフレーム側に含めないと効かない**。 */
   --match-intro-title-pos-y: 0rem;    /* 見出し「今回のメンバー」の上下 */
   --match-intro-info-pos-x: 0rem;     /* 名前まわり（段位・ペット・席・名前）の左右 */
-  --match-intro-pet-pos-x: 0rem;      /* ペットの左右 */
-  --match-intro-pet-pos-y: 0rem;      /* ペットの上下 */
-  --match-intro-rank-pos-x: 0rem;     /* 段位バッジの左右 */
-  --match-intro-rank-pos-y: 0rem;     /* 段位バッジの上下 */
+  --match-intro-pet-pos-x: -4.7rem;   /* ペットの左右 */
+  --match-intro-pet-pos-y: 0.7rem;    /* ペットの上下 */
+  --match-intro-rank-pos-x: 6.6rem;   /* 段位バッジの左右 */
+  --match-intro-rank-pos-y: 8rem;     /* 段位バッジの上下 */
   --match-intro-veil-top: 62%;        /* 下の暗い幕がどこまで上がるか */
-  --match-intro-rank-size: 4rem;      /* 段位バッジ（ランク戦のときだけ出る） */
-  --match-intro-rank-name-size: 0.8rem; /* 段位名 */
+  --match-intro-rank-size: 9.1rem;    /* 段位バッジ（ランク戦のときだけ出る） */
+  --match-intro-rank-name-size: 1.3rem; /* 段位名 */
 }
 
 .match-intro {

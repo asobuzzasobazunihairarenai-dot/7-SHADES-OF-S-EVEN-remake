@@ -28,6 +28,21 @@ export const CHANGELOG = [
   {
     date: "2026-09-08",
     items: [
+      "対戦が始まる前の「今回のメンバー」の見た目を整えました。ペットが大きくなり、ランク戦の段位バッジも大きく・見やすい位置になります。",
+    ],
+    itemsEn: [
+      "Tuned the pre-match lineup: pets are much larger, and in ranked matches the rank badge is bigger and better placed.",
+    ],
+    devItems: [
+      "「今回のメンバー」の調整値を既定として焼き込みました（ペットの大きさ 7→18rem・位置 -4.7/0.7rem、段位バッジ 4→9.1rem・段位名 0.8→1.3rem・位置 6.6/8rem）。あわせて上限に張り付いていたスライダーの幅を広げました——ペットの大きさ 18→30rem、段位バッジの大きさ 10→20rem、段位バッジの上下 ±8→−12〜24rem、左右 ±8→±16rem、段位名 2.5→4rem。",
+    ],
+    devItemsEn: [
+      "Baked the tuned lineup values in as defaults (pet size 7→18rem at -4.7/0.7rem; rank badge 4→9.1rem, its label 0.8→1.3rem, at 6.6/8rem). Widened the sliders that were pinned at their ceiling: pet size 18→30rem, rank badge size 10→20rem, rank badge vertical ±8→-12..24rem, horizontal ±8→±16rem, label 2.5→4rem.",
+    ],
+  },
+  {
+    date: "2026-09-08",
+    items: [
       "CPU戦で、CPUの番が毎回10秒ほど止まっていたのを直しました。ロックを終えたCPUがもう一度ロックしようとして空振りし、そのまま10秒待ってから次に進んでいました。",
       "ペット選択の画面・ショップ・マイページでも、大きな描き下ろしのイラスト（水彩画）が背景にうっすら出るようになりました。",
     ],
