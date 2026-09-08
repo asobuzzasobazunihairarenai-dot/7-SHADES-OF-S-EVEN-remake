@@ -29,7 +29,7 @@ export const CHANGELOG = [
     date: "2026-09-08",
     items: [
       "ランク戦の待ち時間に出る「豆知識」が読みにくかったのを直しました（明るい配色にしていると、文字が暗いままで背景に沈んでいました）。",
-      "ランク戦では「今回のメンバー」に自分の段位バッジが出るようになりました。",
+      "ランク戦では「今回のメンバー」に、参加者全員の段位バッジが出るようになりました。",
       "「今回のメンバー」に並ぶペットが、大きな描き下ろしのイラスト（水彩画）になりました。",
       "対戦が始まる前に「今回のメンバー」を出すようにしました。画面を人数ぶんに縦割りして、参加者のアバターが枠なしで大きく並びます（名前・駒の色・ペットつき）。画面をタップすればすぐ飛ばせます。",
       "Googleでログインした時に、Googleのプロフィール写真が自動で設定されるのをやめました。写真は選択肢の1つとして残るので、使いたい方はご自分で選べます。Googleの名前はもともと使っていませんでしたが、今後も一切読み取りません。",
@@ -37,7 +37,7 @@ export const CHANGELOG = [
     ],
     itemsEn: [
       "Fixed the tips shown while waiting for a ranked match being hard to read - with a light colour scheme the text stayed dark against the dark waiting screen.",
-      "In ranked matches, the pre-match lineup now shows your rank badge.",
+      "In ranked matches, the pre-match lineup now shows every player's rank badge.",
       "Pets in the pre-match lineup are now shown as large, newly drawn watercolour artwork.",
       "Matches now open with a full-screen lineup: the screen splits into one tall panel per player, each filled edge to edge with their avatar, plus name, piece colour and pet. Tap anywhere to skip it.",
       "Signing in with Google no longer applies your Google profile photo automatically. It stays available as one of the avatar choices, so you can pick it yourself. Your Google name was never used, and is no longer read at all.",

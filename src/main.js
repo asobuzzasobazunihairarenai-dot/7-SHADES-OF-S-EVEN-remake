@@ -363,6 +363,7 @@ import {
   markRankedResultShown,
   isRankedResultShown,
   getSelfRank,
+  fetchRanksForUsers,
   claimSeasonReward,
   broadcastColorsDeclared,
   onColorsDeclaredEvents,
@@ -5128,6 +5129,9 @@ function playMatchIntro(previewSeats = null) {
   title.textContent = t("game.intro.title");
   root.appendChild(title);
 
+  // ランク戦なら、席ごとに段位バッジの置き場所を作っておく（中身は後から届く。下の fillMatchIntroRankBadges）。
+  const rankSlots = !isPreview && isOnlineMode() && isRankedGame() ? new Map() : null;
+
   // 【続き489】画面まるごとを人数ぶんに縦割りし、1人1枚の縦長パネルにする（ユーザー要望
   // 「画面全体を4等分したような感じで！アバターも丸枠無くしてがっつりめいっぱい表示で！」）。
   // パネルは flex:1 で等分されるので、2人戦なら2分割・3人なら3分割・4人なら4等分になる。
@@ -5153,24 +5157,16 @@ function playMatchIntro(previewSeats = null) {
     info.className = "match-intro-info";
     info.style.setProperty("--intro-delay", i * MATCH_INTRO_STAGGER_MS + "ms");
 
-    // 【続き495・ユーザー要望「ランクバッチは？」】ランク戦のときだけ段位バッジを出す。
-    // ★相手の段位は今のデータでは出せない——同期しているのは名前・アバター・駒スキン・ペットだけで、
-    //   段位を返すのは so7_ranked_get_self（＝自分の分）しか無い。全員ぶんを出すには
-    //   「この対戦の参加者の段位をまとめて返す」仕組みをサーバー側に足す必要がある（SQLの追加）。
+    // 【続き495/496・ユーザー要望「ランクバッチは？」】ランク戦のときだけ段位バッジを出す。
+    // 段位の取得は通信なので、ここでは**場所だけ**作っておき、届いたらまとめて差し替える
+    // （紹介は2.8秒で閉じるので、間に合わなければ何も出さない＝レイアウトは崩れない）。
     // プレビューでは席ごとに違う段位の見本を出す（大きさの当たりを付けるため）。
     if (isPreview) {
       info.appendChild(buildMatchIntroRankBadge(i % 7));
-    } else if (seat === getSelfSeat() && isOnlineMode() && isRankedGame()) {
-      // 段位の取得は通信なので、先に場所だけ作っておき、間に合ったら差し替える
-      // （紹介は2.8秒で閉じるので、間に合わなければ何も出さない＝レイアウトは崩れない）。
+    } else if (rankSlots) {
       const slot = document.createElement("div");
       info.appendChild(slot);
-      void getSelfRank()
-        .then((info2) => {
-          if (!slot.isConnected || typeof info2?.rank !== "number") { slot.remove(); return; }
-          slot.replaceWith(buildMatchIntroRankBadge(info2.rank));
-        })
-        .catch(() => slot.remove());
+      rankSlots.set(seat, slot);
     }
 
     // ペットは飾り。取れない席（CPU戦の相手・列が未追加の環境）では出さないだけにする。
@@ -5209,6 +5205,8 @@ function playMatchIntro(previewSeats = null) {
     root.appendChild(panel);
   });
 
+  if (rankSlots && rankSlots.size > 0) void fillMatchIntroRankBadges(rankSlots);
+
   const hint = document.createElement("div");
   hint.className = "match-intro-hint";
   hint.textContent = isPreview ? t("game.intro.previewHint") : t("game.intro.skip");
@@ -5243,6 +5241,37 @@ function playMatchIntro(previewSeats = null) {
     // プレビューは勝手に消えない（見ながら調整するため。閉じるのは押した時だけ）。
     if (!isPreview) setTimeout(finish, matchIntroMs());
   });
+}
+
+// 【続き496】参加者ぶんの段位をまとめて取って、席ごとのバッジに差し替える。
+// ★別シーズンの記録は出さない——so7_ranked_players は1人1行で、今シーズンまだ打っていない人の行は
+//   前シーズンの段位のまま残る（次に打った時に so7_ranked_apply_delta が繰り越す）。そのまま出すと
+//   古い段位を今の段位として見せてしまう。
+async function fillMatchIntroRankBadges(slots) {
+  try {
+    const seatIds = new Map();
+    for (const seat of slots.keys()) {
+      const uid = getSyncedIdentity(seat)?.userId;
+      if (uid) seatIds.set(seat, uid);
+    }
+    const [ranks, selfInfo] = await Promise.all([fetchRanksForUsers([...seatIds.values()]), getSelfRank()]);
+    const season = selfInfo?.season_id ?? null;
+    for (const [seat, slot] of slots) {
+      if (!slot.isConnected) continue;
+      let entry = ranks.get(seatIds.get(seat));
+      // 自分の行は、初めてのランク戦だとこの取得の時点でまだ作られていないことがある
+      // （so7_ranked_get_self が作る）。その時は今取ってきた自分の段位を使う。
+      if (!entry && seat === getSelfSeat() && typeof selfInfo?.rank === "number") {
+        entry = { rank: selfInfo.rank, seasonId: selfInfo.season_id };
+      }
+      const usable = entry && typeof entry.rank === "number" && (!season || entry.seasonId === season);
+      if (usable) slot.replaceWith(buildMatchIntroRankBadge(entry.rank));
+      else slot.remove();
+    }
+  } catch (err) {
+    console.error("fillMatchIntroRankBadges failed", err);
+    for (const slot of slots.values()) slot.remove();
+  }
 }
 
 // 管理者モードの「今回のメンバー」スライダーから呼ばれる（admin.js の previewOnInteract）。

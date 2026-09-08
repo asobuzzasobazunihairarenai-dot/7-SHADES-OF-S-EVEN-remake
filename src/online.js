@@ -1196,6 +1196,25 @@ export async function getSelfRank() {
   return data?.[0] ?? null;
 }
 
+// 【続き496】対戦の参加者ぶんの段位をまとめて取る（対戦開始前の「今回のメンバー」用）。
+// ★SQLの追加は要らない——so7_ranked_players は作った時から
+//   「ランクは公開情報（相手のランク表示・ランキング）なのでSELECTは全員可」という
+//   RLSポリシーになっている（supabase_setup_so7.sql 参照）。書き込みだけがRPC経由。
+// 返すのは Map(userId → { rank, seasonId })。記録の無い人は入らない（＝段位を出さない）。
+export async function fetchRanksForUsers(userIds) {
+  const ids = [...new Set((userIds ?? []).filter(Boolean))];
+  if (!client || !cachedUser || ids.length === 0) return new Map();
+  const { data, error } = await client
+    .from("so7_ranked_players")
+    .select("user_id, rank, season_id")
+    .in("user_id", ids);
+  if (error) {
+    console.error("fetchRanksForUsers failed", error);
+    return new Map();
+  }
+  return new Map((data ?? []).map((r) => [r.user_id, { rank: r.rank, seasonId: r.season_id }]));
+}
+
 // シーズン終了報酬の「未受取」記録をクリアする（モーダルを表示し終えた後に呼ぶ）。
 // 通貨自体はサーバー側のシーズン切替時に付与済みで、これは「1回だけ見せる」ための消し込み。
 export async function claimSeasonReward() {
