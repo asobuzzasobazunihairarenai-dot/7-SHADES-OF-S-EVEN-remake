@@ -29,62 +29,64 @@ export const CHANGELOG = [
     date: "2026-09-08",
     items: [
       "動作が重くなる問題に対処しました。盤面の絵を置いておく棚が、実際に必要な数より小さかったため、毎回作り直しになっていました。特に4人戦で効きます。",
-      "CPUが、自分のゲートに相手が迫っていても守りに戻らないことがあったのを直しました。ジャンプ台などカードの効果で動く時に、守りの判断が働いていませんでした。",
       "ランク戦の待ち時間に出る豆知識を、大きく中央に出すようにしました。",
     ],
     itemsEn: [
       "Addressed the slowdown. The shelf holding the board's artwork was smaller than what the screen actually needs, so it was being rebuilt constantly. This matters most in 4-player games.",
-      "Fixed the CPU failing to fall back and defend its own gate when an opponent was closing in. When it moved via a card effect (a Jump Pad, for example), the defensive judgement was not applied at all.",
       "The tips shown while waiting for a ranked match are now large and centered.",
     ],
     devItems: [
-      "#339: shapes（画面上の枠の数）が125〜137に対し SHAPE_TEXTURE_MAX が80固定で、in-use を保護する分だけで棚が埋まり余白ゼロ＝明滅で色が戻るたびに必ず作り直していた（texEvicted が延々増加）。上限を「in-use + 64、絶対上限256」の動的な値にした。",
-      "#340: card-effect-engine の MOVE が pickLocation に用途を渡しておらず、CPUの行き先選択が chooseEffectCell の既定（拾う/乗る用）になっていた。purpose:\"move\" を渡して scoreMove で選ぶようにし、あわせて自ゲート防衛を「相手が隣（距離1）なら+9／距離2なら+5」に段階化、防衛の手では相手ゲートへの前進度を数えないようにした。",
-      "チュートリアル7/16は自動処理モードで #end-turn-button が display:none のため、表示されている時だけそれを指し、無い時はフェイズ案内板を指すようにした（文面もボタン非依存に変更）。",
+      "CPUが、自分のゲートに相手が迫っていても守りに戻らないことがあったのを直しました。ジャンプ台などカードの効果で動く時に、守りの判断が働いていませんでした。",
     ],
     devItemsEn: [
-      "#339: shapes on screen were 125-137 against a fixed SHAPE_TEXTURE_MAX of 80, so the cache held only the in-use set with zero spare — any glow colour returning had to be rebuilt (texEvicted climbed without bound). The budget is now in-use + 64, hard-capped at 256.",
-      "#340: the engine's MOVE verb passed no purpose to pickLocation, so CPU destination choice fell through to chooseEffectCell's pickup/landing heuristic. It now passes purpose:\"move\" and scores with scoreMove; own-gate defence is graded (+9 when an opponent is adjacent, +5 at distance 2) and the advance term is skipped for a defensive hold.",
-      "Tutorial step 7/16 now targets the end-turn button only when it is actually visible (auto-processing hides it), falling back to the phase guide bar; the copy no longer depends on that button existing.",
+      "Fixed the CPU failing to fall back and defend its own gate when an opponent was closing in. When it moved via a card effect (a Jump Pad, for example), the defensive judgement was not applied at all.",
     ],
   },
   {
     date: "2026-09-08",
     items: [
-      "遊び方の案内（チュートリアル）で、説明している場所が光らないことがあったのを直しました。「あなたの手札」「手札効果」の手順で手札がきちんと光ります。",
+
     ],
     itemsEn: [
-      "Fixed the how-to-play walkthrough not highlighting what it was describing. Your hand is now spotlighted correctly on the \"Your hand\" and \"Hand effects\" steps.",
+
     ],
     devItems: [
-      "チュートリアルの対象16か所を実測で総点検した。手札の対象が \".zone-bottom .hand-area\" で、手札を画面下に固定するモードでは0件になっていた（席で引く形に変更）。「ターン終了」は自動処理モード（既定ON）でボタンが display:none のため、大きさ0のスポットが画面左上に出ていた（見えない対象にはスポットを出さないようにした）。",
-      "物語の対戦チュートリアル側は同じ穴なし（選択子が盤面・トークンid基準で、大きさ0を弾く判定を元から持っている）。",
+      "遊び方の案内（チュートリアル）で、説明している場所が光らないことがあったのを直しました。「あなたの手札」「手札効果」の手順で手札がきちんと光ります。",
     ],
     devItemsEn: [
-      "Audited all 16 tutorial targets by measurement. The hand target used \".zone-bottom .hand-area\", which matches nothing in fixed-hand mode (now resolved by seat). \"End turn\" pointed at a display:none button under auto-processing (default on), producing a 0x0 spotlight at the top-left; invisible targets no longer get a spotlight.",
-      "The story battle tutorial does not share these defects (its selectors are board/token-id based and it already rejects zero-size rects).",
+      "Fixed the how-to-play walkthrough not highlighting what it was describing. Your hand is now spotlighted correctly on the \"Your hand\" and \"Hand effects\" steps.",
     ],
   },
   {
     date: "2026-09-08",
     items: [
-      "CPUが「増殖する樹々」などでカードを置く時、自分が向かっていない相手のゲートにまで置いていたのを直しました。これからは自分の進む道すじに置きます。",
-      "CPUが「収穫と種まき」で、そのカード自身を拾って同じマスに置き直すだけ、という空振りをしていたのを直しました（そのカードは効果のあとで自動的に手札に入るので、拾う必要がありません）。",
       "不具合報告の画面を開いている間、対戦の進行が止まってしまうことがあったのを直しました。報告を書きながらでもゲームは進みます。",
     ],
     itemsEn: [
+      "Fixed the game stalling while the bug report window was open. The match now keeps going while you write a report.",
+    ],
+    devItems: [
+      "CPUが「増殖する樹々」などでカードを置く時、自分が向かっていない相手のゲートにまで置いていたのを直しました。これからは自分の進む道すじに置きます。",
+      "CPUが「収穫と種まき」で、そのカード自身を拾って同じマスに置き直すだけ、という空振りをしていたのを直しました（そのカードは効果のあとで自動的に手札に入るので、拾う必要がありません）。",
+    ],
+    devItemsEn: [
       "Fixed CPU placement (Growing Trees and similar): it was placing cards on opponent gates it was not heading for. It now builds along its own route instead.",
       "Fixed a wasted CPU play with Harvest and Sow, where it picked up that very card and put it straight back on the same cell (the card is added to your hand automatically after the effect, so there is no need to take it).",
-      "Fixed the game stalling while the bug report window was open. The match now keeps going while you write a report.",
     ],
   },
   {
     date: "2026-09-08",
     items: [
+
+    ],
+    itemsEn: [
+
+    ],
+    devItems: [
       "相手ゲート侵攻の処理中に、その人がもう1枚ロックしてしまうことがあったのを直しました（1ターンに2枚ロックはルール違反です）。侵攻の処理が終わるまで、他の自動処理は動かなくなります。",
       "紅蓮の火山 ワイナウエアで、どのマスのカードを捨てたのか分かりにくかったのを直しました。お知らせが出て読み終わるまで、対象のマスが光り続けます。",
     ],
-    itemsEn: [
+    devItemsEn: [
       "Fixed a case where a player could lock a second card during their Gate Invasion (locking twice in one turn is against the rules). Other automation now stays paused until the invasion finishes.",
       "Made it clear which cell Wineware discarded from: the target cell now keeps glowing until the notice has appeared and been read.",
     ],
@@ -101,12 +103,16 @@ export const CHANGELOG = [
   {
     date: "2026-09-08",
     items: [
-      "ザ・ギャンブル・試練の儀式で、宣言した色のカードが手札に2枚以上あると、捨てる処理が途中で止まってしまうことがあったのを直しました（昨日お配りした「捨てる順番を選べる」機能の不具合です。失礼しました）。",
       "対戦が途中で進まなくなることがある不具合を直しました。誰かの手番待ちのまま止まってしまった場合、しばらくすると自動で次へ進みます。",
     ],
     itemsEn: [
-      "Fixed The Gamble and Trial Ritual: when two or more cards in hand matched the declared color, the discard step could stop partway. (This was a defect in yesterday's \"choose the discard order\" feature — sorry about that.)",
       "Fixed a case where a match could stop progressing. If play stalls while waiting on someone's turn, it now moves on automatically after a short while.",
+    ],
+    devItems: [
+      "ザ・ギャンブル・試練の儀式で、宣言した色のカードが手札に2枚以上あると、捨てる処理が途中で止まってしまうことがあったのを直しました（昨日お配りした「捨てる順番を選べる」機能の不具合です。失礼しました）。",
+    ],
+    devItemsEn: [
+      "Fixed The Gamble and Trial Ritual: when two or more cards in hand matched the declared color, the discard step could stop partway. (This was a defect in yesterday's \"choose the discard order\" feature — sorry about that.)",
     ],
   },
   {
@@ -125,22 +131,32 @@ export const CHANGELOG = [
   {
     date: "2026-09-07",
     items: [
-      "結ばれの一本桜 コノハナサクヤで相手を引き寄せた時、移動先のカードがめくれるだけで到達効果が起きないことがあったのを直しました。カードの補足どおり、動かされた相手が到達効果を得ます。",
       "コノハナサクヤの桜の演出が小さくて見えづらかったので、花びら・光の筋・渦を大きくし、少しゆっくりにしました。",
     ],
     itemsEn: [
-      "Fixed Konohanasakuya: when you pulled an opponent next to you, the card at the destination was flipped but its Arrival Effect sometimes never triggered. As the card note says, the moved player now gains it.",
       "Made Konohanasakuya's petals, thread and swirl larger and a little slower — they were too small to notice on phones.",
+    ],
+    devItems: [
+      "結ばれの一本桜 コノハナサクヤで相手を引き寄せた時、移動先のカードがめくれるだけで到達効果が起きないことがあったのを直しました。カードの補足どおり、動かされた相手が到達効果を得ます。",
+    ],
+    devItemsEn: [
+      "Fixed Konohanasakuya: when you pulled an opponent next to you, the card at the destination was flipped but its Arrival Effect sometimes never triggered. As the card note says, the moved player now gains it.",
     ],
   },
   {
     date: "2026-09-07",
     items: [
+
+    ],
+    itemsEn: [
+
+    ],
+    devItems: [
       "自分が関わっていない奪い合い（CPU同士など）で、本来見えないはずの相手のカードが表向きで出ていたのを直しました。何が起きたかは今までどおり分かりますが、中身は伏せられます。",
       "右下の「このターンの出来事」の帯が、たくさん並ぶと盤面に重なっていたのを直しました。5枚ぶんで止まり、それ以上は横になぞって見られます。",
       "最後のミニモーダルが右下へ畳まれ切る前に「◯◯のターンです」が重なって出ていたのを直しました。",
     ],
-    itemsEn: [
+    devItemsEn: [
       "Fixed cards being shown face-up in steals you are not part of (CPU vs CPU, for example). You still see that it happened, but not what was taken.",
       "Fixed the \"this turn\" strip at the bottom right overlapping the board when many entries piled up. It now stops at five and scrolls sideways.",
       "The turn announcement no longer appears on top of the last mini popup while it is still folding away.",
@@ -149,9 +165,15 @@ export const CHANGELOG = [
   {
     date: "2026-09-07",
     items: [
-      "ゲート侵攻が、案内どおりの順番で見えるようになりました。案内が進むまで、あなたの駒は相手のゲートに乗ったまま、相手の手札も減らないまま、自分のゲートのカードも盤面に残ります。奪う札をめくる前に手札を見て中身が分かってしまうこともなくなりました。最後は自分のゲートへ跳んで帰ります。",
+
     ],
     itemsEn: [
+
+    ],
+    devItems: [
+      "ゲート侵攻が、案内どおりの順番で見えるようになりました。案内が進むまで、あなたの駒は相手のゲートに乗ったまま、相手の手札も減らないまま、自分のゲートのカードも盤面に残ります。奪う札をめくる前に手札を見て中身が分かってしまうこともなくなりました。最後は自分のゲートへ跳んで帰ります。",
+    ],
+    devItemsEn: [
       "Gate invasions now play out in the order the narration describes. Until each step arrives, your piece stays on the enemy gate, the opponent's hand stays full, and the cards on your own gate stay on the board — and you can no longer read the stolen cards in your hand before flipping them. Your piece then leaps home at the end.",
     ],
   },
@@ -160,12 +182,16 @@ export const CHANGELOG = [
     items: [
       "手札を全て捨てる時（ザ・ギャンブルなど）、どの順番で捨てるかを選べるようになりました。捨て場に積まれる順番が変わるので、捨て場から拾うカードとの組み合わせが狙えます。",
       "オプションエリアのランキングアイコンを押すと、「ランキングを見る」「戦績システムへ」を選べるようになりました。",
-      "スマホでマイページの下が見切れていたのを直しました（スクロールは出さず、中身が画面に収まるようになります）。",
-      "ゲート侵攻で、エターナルカードを獲得した知らせが案内より先に出ていたのを直しました。案内の順番どおりに見えるようになります。",
     ],
     itemsEn: [
       "When you discard your whole hand (The Gamble and similar), you can now choose the order. The order they stack in the discard pile matters for cards that pick from it.",
       "Tapping the ranking icon now lets you choose between the in-app ranking and the match-record site.",
+    ],
+    devItems: [
+      "スマホでマイページの下が見切れていたのを直しました（スクロールは出さず、中身が画面に収まるようになります）。",
+      "ゲート侵攻で、エターナルカードを獲得した知らせが案内より先に出ていたのを直しました。案内の順番どおりに見えるようになります。",
+    ],
+    devItemsEn: [
       "Fixed the bottom of My Page being cut off on phones. It now fits the screen instead of scrolling.",
       "In a gate invasion, the notice about gaining an Eternal card no longer appears before the narration reaches it.",
     ],
@@ -173,11 +199,17 @@ export const CHANGELOG = [
   {
     date: "2026-09-07",
     items: [
+
+    ],
+    itemsEn: [
+
+    ],
+    devItems: [
       "接触をカウンターロックで止めた時や断った時に、返事をした側から手番のプレイヤーへ操作の順番が戻らず、対局が進まなくなることがあったのを直しました。",
       "持ち時間タイマーを使わない対局では、接触の返事のために操作の順番を移さないようにしました（時計が無いので移す意味がなく、戻らなくなる原因でした）。",
       "スマホでマイページの下が見切れて、指でスクロールしても届かなかったのを直しました。",
     ],
-    itemsEn: [
+    devItemsEn: [
       "Fixed the turn order failing to return to the active player after a contact was stopped with a Counter Lock or declined, which could leave the match stuck.",
       "In matches played without the turn timer, the turn order is no longer handed over for answering a contact (there is no clock to run, and it could not be handed back).",
       "Fixed the bottom of My Page being cut off on phones with no way to scroll to it.",
@@ -195,9 +227,15 @@ export const CHANGELOG = [
   {
     date: "2026-09-07",
     items: [
-      "ランク戦で「対戦開始」を押さずに締め切りを迎えた後、待機画面に「もう一度さがす」ボタンが出るようになりました。これまでは探すのをやめた後もぐるぐるが回り続け、相手が入り直してもマッチしませんでした。",
+
     ],
     itemsEn: [
+
+    ],
+    devItems: [
+      "ランク戦で「対戦開始」を押さずに締め切りを迎えた後、待機画面に「もう一度さがす」ボタンが出るようになりました。これまでは探すのをやめた後もぐるぐるが回り続け、相手が入り直してもマッチしませんでした。",
+    ],
+    devItemsEn: [
       "In ranked matches, if you miss the Start prompt, the waiting screen now offers a Search again button. Previously the spinner kept turning even though the search had stopped, so you would never match even if your opponent re-queued.",
     ],
   },
@@ -206,17 +244,27 @@ export const CHANGELOG = [
     items: [
       "ランク戦で相手を探している間、遊び方の豆知識が順番に流れるようになりました。",
       "勝利演出で7色が1枚ずつ光る瞬間の効果音を差し替えました（暫定）。",
-      "タイトル画面の右下に並ぶボタンが重なっていたのを直しました（管理者のみ表示）。",
     ],
     itemsEn: [
       "While you wait for a ranked opponent, gameplay tips now cycle on screen.",
       "Changed the sound played as each of the seven colours lights up in the victory sequence (provisional).",
+    ],
+    devItems: [
+      "タイトル画面の右下に並ぶボタンが重なっていたのを直しました（管理者のみ表示）。",
+    ],
+    devItemsEn: [
       "Fixed the buttons in the bottom-right of the title screen overlapping each other (admin only).",
     ],
   },
   {
     date: "2026-09-07",
     items: [
+
+    ],
+    itemsEn: [
+
+    ],
+    devItems: [
       "接触の解決中（相手が奪う札を選んでいる間）に、申し込んだ側のターンが先に終わってしまうことがあったのを直しました。",
       "相手が奪う札を選ばないまま画面を閉じても、対局が止まらないようにしました。しばらく待つと無作為に1枚が渡って先へ進みます。",
       "時間切れが続くと敗北（またはおまかせに交代）になることが分かるよう、「時間切れ 2/3」のように残り回数を画面に出すようにしました。あと1回になると赤くなり、中央でも一度お知らせします。",
@@ -224,7 +272,7 @@ export const CHANGELOG = [
       "右下のお知らせで、中身が「＋」だけの空っぽのカードが並ぶことがあったのを直しました。引いた分は裏面、まとめて手に入れた分は実際の札の絵が出ます。",
       "相手の効果で自分の手札が捨てられた時、自分の画面にも「何を捨てたか」の記録が残るようになりました。",
     ],
-    itemsEn: [
+    devItemsEn: [
       "Fixed the attacker's turn sometimes ending while a contact was still being resolved (while they were choosing which card to take).",
       "A contact no longer freezes the match if the attacker closes their screen without picking a card — after a wait, one random card is taken and play continues.",
       "Repeated timeouts now show a counter (e.g. \"Timeouts 2/3\") so you can see how close you are to losing the match or being switched to auto-play. It turns red on the last one, with a one-off notice in the centre.",
@@ -236,12 +284,18 @@ export const CHANGELOG = [
   {
     date: "2026-09-07",
     items: [
+
+    ],
+    itemsEn: [
+
+    ],
+    devItems: [
       "接触された時に出ていた「拒否する」を、カード効果の自動処理がオンの時は出さないようにしました。接触は申し込まれたら断れないルールで、止められるのはカウンターロックだけです（自動処理をオフにして手動で進めている時は今までどおり出ます）。",
       "相手の返事が返ってこないまま接触が宙に浮いた時、これまでその接触を取り消していたのを、承認して先へ進める形に改めました。黙っていれば接触を避けられる、ということが無くなります。",
       "オンライン対戦で接触を申し込まれた時、返事をしている間はその人に手番の持ち時間が回るようになりました。時間内に答えないと承認されたものとして進みます（接触は断れないルールなので、待たせても得はしません）。",
       "上の見切りと、7色目のロックの承認の見切りを、どちらも少し早めました。",
     ],
-    itemsEn: [
+    devItemsEn: [
       "The Reject button shown when you are contacted no longer appears while automatic card processing is on. A contact cannot be refused under the rules — only a Counter Lock stops it. (With automatic processing off, the button stays as before.)",
       "When a contact request was left hanging with no answer, it used to be cancelled; it is now approved so play moves on. Staying silent no longer lets you avoid a contact.",
       "In online play, being asked to accept a contact now runs on your own clock. If you do not answer in time it counts as approved (a contact cannot be refused, so stalling gains you nothing).",
@@ -251,19 +305,23 @@ export const CHANGELOG = [
   {
     date: "2026-09-07",
     items: [
-      "接触を申し込んでいる間、にらみ合っている2つの駒が盤面で光るようになりました。狙われた側には音でも知らせます。",
-      "接触で自分のゲートへ飛ばされた駒に、着地の輪と音が付きました。",
       "「防いだ！」の演出が、防いだ本人だけでなく相手や観戦している人の画面にも出るようになりました。",
       "ゲート侵攻の締めくくり（自分のゲートへ帰る瞬間）に、自分の色の輪が迎え入れる演出を追加しました。",
+    ],
+    itemsEn: [
+      "The block effect now also plays for the opponent and for spectators, not just the player who blocked.",
+      "Returning home at the end of a gate invasion now closes with rings in your own colour.",
+    ],
+    devItems: [
+      "接触を申し込んでいる間、にらみ合っている2つの駒が盤面で光るようになりました。狙われた側には音でも知らせます。",
+      "接触で自分のゲートへ飛ばされた駒に、着地の輪と音が付きました。",
       "ゴメンナサイで相手のロックエリアから1枚を引き抜く瞬間に、スロットが割れて光の筋が走るようになりました。",
       "公開ドローのカードが、その場に現れるのではなく山札から飛んでくるようになりました。",
       "持ち時間が切れた時に音で知らせるようにしました。手札が0枚でハンドフェイズが飛ぶ時は手札エリアが一度光ります。",
     ],
-    itemsEn: [
+    devItemsEn: [
       "While a contact request is waiting, the two pieces facing off now glow on the board — and the targeted player also hears it.",
       "A piece knocked back to its own gate by a contact now lands with a ring and a sound.",
-      "The block effect now also plays for the opponent and for spectators, not just the player who blocked.",
-      "Returning home at the end of a gate invasion now closes with rings in your own colour.",
       "Pulling a card out of an opponent lock area with Gomennasai now cracks the slot and sends a beam of light.",
       "Public draws now fly in from the deck instead of appearing in place.",
       "Running out of time now plays a sound, and an empty hand flashes once when the hand phase is skipped.",
@@ -272,11 +330,17 @@ export const CHANGELOG = [
   {
     date: "2026-09-07",
     items: [
+
+    ],
+    itemsEn: [
+
+    ],
+    devItems: [
       "オンライン対戦で、接触を申し込んだあと相手の返事が返ってこないと対局が動かなくなることがあったのを直しました。相手が答えられない状態が続いた場合は、その接触は承認されて先に進みます。",
       "7色目のロックの承認が返ってこない時も同じように止まっていたのを直しました。しばらく待っても答えが無ければ承認されて先に進みます。",
       "相手が席を外していても一定時間で自動的に承認される仕組みが、実際には働いていなかったのを直しました。",
     ],
-    itemsEn: [
+    devItemsEn: [
       "Fixed online matches locking up when a contact request never got an answer. If the opponent stays unable to respond, the contact is now approved so play continues.",
       "Fixed the same lock-up when approval for a seventh-colour lock never came back — after a wait it is approved so play continues.",
       "Fixed the safeguard that auto-approves after a while when an opponent is away — it was not actually running.",
@@ -341,13 +405,19 @@ export const CHANGELOG = [
   {
     date: "2026-09-06",
     items: [
+
+    ],
+    itemsEn: [
+
+    ],
+    devItems: [
       "駒の奥側の上の辺に黒い太い線が出ていたのを直しました（見えないはずの面が描かれていました）。",
       "設定などの画面を開いている時に、その裏の盤面を触ってカードが拡大表示されたり駒を掴めたりしたのを直しました。",
       "基本設定の1画面目の見た目を整えました。並んでいるものを同じ形のカードに揃え、押すと開くものには右端に同じ矢印を出しています。",
       "ザ・ギャンブルで外して手札を捨てる時、1枚ずつ順番に出ていたお知らせを、捨てたカードをまとめて1つに表示するようにしました。",
       "移動できるマスも接触できる相手もいない時に隣へ山札から1枚置く決まりを、何が起きたか分かるようお知らせで説明するようにしました。",
     ],
-    itemsEn: [
+    devItemsEn: [
       "Fixed a thick black line along the far top edge of the cube pieces (a face that should have been hidden was being drawn).",
       "Fixed being able to touch the board behind a settings or full-screen page — cards no longer pop up and pieces can no longer be picked up through it.",
       "Tidied up the first page of the basic settings: every entry now uses the same card shape, and anything that opens shows the same arrow on the right.",
@@ -359,26 +429,36 @@ export const CHANGELOG = [
     date: "2026-09-06",
     items: [
       "接触の見せ方の順番を変えました。まず突進の演出、次に相手の手札から1枚選び、奪ったカードを見せてから、相手が自分のゲートへ飛ばされます（以前は突進の前に手札を選んでいたので、結果が先に分かってしまっていました）。",
-      "接触でカードを選ぶ時、CPU戦でまれにカードを1枚も選べなくなることがあったのを直しました。",
       "黒いカードがロックエリアに置かれる時、暗い封印が焼き付く演出を追加しました。",
       "「なないろの欠片」を2枚まとめてロックした時、七色の光が広がる大きな演出を追加しました。",
     ],
     itemsEn: [
       "Reordered the contact sequence: the charge animation comes first, then you pick a card from the opponent's hand, then the stolen card is revealed, and only then is the opponent sent flying back to their gate (previously the card was picked before the charge, so the outcome was known too early).",
-      "Fixed a case in CPU battles where no card could be picked while resolving a contact.",
       "Placing a black card on a lock slot now burns a dark seal into it.",
       "Locking two \"Shards of Seven\" at once now triggers a large seven-color burst.",
+    ],
+    devItems: [
+      "接触でカードを選ぶ時、CPU戦でまれにカードを1枚も選べなくなることがあったのを直しました。",
+    ],
+    devItemsEn: [
+      "Fixed a case in CPU battles where no card could be picked while resolving a contact.",
     ],
   },
   {
     date: "2026-09-06",
     items: [
+
+    ],
+    itemsEn: [
+
+    ],
+    devItems: [
       "CPUの打ち方を良くしました。同じターンに「ディメンション」を二度使って手札を無駄にすることがなくなりました。",
       "CPUの「ワイナウエア」が、相手が欲しがっている色のカードや、相手が次に進もうとしているマスを狙って壊すようになりました（自分がまだ欲しい色や、自分の進み先は壊しません）。",
       "CPUの「合同建設」などでカードを置く時、ゲートに攻め込めそうで、かつ自分のゲートの近くに相手がいない時は、自分のゲートに置くようになりました（帰還の時に手札へ戻せるため）。",
       "「ワイナウエア」でどのマスのカードを捨てたのか分かるように、そのマスを光らせ、何枚捨てたかもお知らせに出すようにしました。",
     ],
-    itemsEn: [
+    devItemsEn: [
       "Smarter CPU: it no longer wastes a card by using \"Dimension\" twice in the same turn.",
       "The CPU's \"Wineware\" now targets cards in colors an opponent still needs, or squares an opponent is about to move onto — and avoids destroying colors it still needs itself.",
       "When placing a card (Joint Construction and similar), the CPU now places it on its own gate if it is about to invade and no opponent is near that gate, since it will pick the card back up on returning home.",
@@ -388,10 +468,16 @@ export const CHANGELOG = [
   {
     date: "2026-09-06",
     items: [
+
+    ],
+    itemsEn: [
+
+    ],
+    devItems: [
       "スマホでブーストカードの絵が出ないことがあったのを直しました（仮の絵の作り方を変えました）。",
       "「ランク戦で対戦相手を募集中の人がいます！」の案内で「参加する」を押しても何も起きないことがあったのを直しました。押すとそのまま相手探しが始まります。",
     ],
-    itemsEn: [
+    devItemsEn: [
       "Fixed Boost cards sometimes showing no artwork on phones (their placeholder image is now drawn a different way).",
       "Fixed the \"Join\" button on the \"Someone is looking for a ranked opponent!\" notice doing nothing. It now takes you straight into matchmaking.",
     ],
@@ -408,11 +494,17 @@ export const CHANGELOG = [
   {
     date: "2026-09-06",
     items: [
+
+    ],
+    itemsEn: [
+
+    ],
+    devItems: [
       "移動した駒や、飛んでいったカードが、置かれる瞬間に一瞬消えたり枠だけになったりしていたのを直しました。",
       "「合同建設」で山札から置くか手札から置くかを選ぶ画面が、明るい表示にしていても暗いままだったのを直しました。",
       "「パーティ」で表向きのカードを手札に加えた時、中央のお知らせが裏面で出ることがあったのを直しました。",
     ],
-    itemsEn: [
+    devItemsEn: [
       "Fixed pieces and cards briefly vanishing, or showing only their outline, at the moment they land.",
       "Fixed the \"place from deck or hand\" prompt in Joint Construction staying dark even in light mode.",
       "Fixed the centre notice showing a card back when Party added a face-up card to your hand.",
@@ -423,6 +515,12 @@ export const CHANGELOG = [
     items: [
       "接触をカウンターロックで止めた時と、最後のロックをゴメンナサイで止めた時に「防いだ！」の演出が出るようになりました。守った人のところに盾が張られ、攻めた駒がよろけます。",
       "山札が切れて捨て場が新しい山札になる瞬間に、捨て場の山がまるごと裏返って山札の場所へ移る演出を追加しました（今までは黙って入れ替わっていました）。",
+    ],
+    itemsEn: [
+      "Blocking a contact with Counter Lock, or stopping a final lock with Sorry!, now plays a \"BLOCKED!\" effect: a shield flares around the defender and the attacking piece is knocked back.",
+      "When the deck runs out and the discard pile becomes the new deck, the pile now visibly flips over and moves across (it used to happen silently).",
+    ],
+    devItems: [
       "宣言した色が当たったか外れたかが、色の丸の輝き・崩れで分かるようになりました（ザ・ギャンブル／試練の儀式）。",
       "カードが盤面に配られる時、着地したマスからそのカードの色の粒が弾けるようになりました。",
       "対局中なのに「ランク戦で対戦相手を募集中の人がいます！」の案内が出てしまうことがあったのを直しました。",
@@ -430,9 +528,7 @@ export const CHANGELOG = [
       "相手の手札から１枚捨てさせる効果で、捨てさせたカードが裏面のまま表示されていたのを直しました（捨てたカードは表向きで見えます）。",
       "ブーストカードの絵柄が一部の端末で表示されないことがあった件の対策を入れました。",
     ],
-    itemsEn: [
-      "Blocking a contact with Counter Lock, or stopping a final lock with Sorry!, now plays a \"BLOCKED!\" effect: a shield flares around the defender and the attacking piece is knocked back.",
-      "When the deck runs out and the discard pile becomes the new deck, the pile now visibly flips over and moves across (it used to happen silently).",
+    devItemsEn: [
       "You can now see at a glance whether a declared colour hit or missed, from the way the colour dots flare or crumble (The Gamble / Rite of Trial).",
       "Cards dealt onto the board now burst with sparks in that card's colour where they land.",
       "Fixed the \"Someone is looking for a ranked opponent!\" banner appearing while you were already in a game.",
@@ -444,12 +540,18 @@ export const CHANGELOG = [
   {
     date: "2026-09-06",
     items: [
+
+    ],
+    itemsEn: [
+
+    ],
+    devItems: [
       "基本設定の1画面目を6つの大きな項目にまとめました（音量／案内表示に畳み、カードの拡大サイズは詳細設定へ）。スマホでは1つ1つが指で押せる大きさになり、スクロールなしで全部見えます。",
       "ランク戦で、お互いに「対戦開始」を押したのに始まらないことがあったのを直しました。押した後も自動でやり直すようになり、それでも始まらない時はもう一度押せるようになります。",
       "物語チュートリアルの「遊び方を知っているのでスキップ」などのボタンが、スマホで画面の端に寄りすぎて押しづらかったのを直しました。",
       "カードの効果文の「上記の到達時の効果を得る」を「上記の到達効果を得る」に統一しました（ほかの効果文と同じ言い方になり、少し短くなります）。",
     ],
-    itemsEn: [
+    devItemsEn: [
       "The first page of Settings is now six large items (volume and prompts are grouped; card zoom size moved to Advanced). On phones each one is finger-sized and they all fit without scrolling.",
       "Fixed ranked matches sometimes not starting even though both players pressed Start match. It now retries on its own, and lets you press again if it still cannot start.",
       "Fixed the story tutorial's Skip and Restart buttons sitting too close to the screen edge to press on a phone.",
@@ -459,10 +561,16 @@ export const CHANGELOG = [
   {
     date: "2026-09-06",
     items: [
+
+    ],
+    itemsEn: [
+
+    ],
+    devItems: [
       "物語チュートリアルの説明が一切出ず、左上のボタンも効かなくなっていたのを直しました。",
       "到達が続けて起きた時の「N 連鎖」の数え方が1つずれていたのを直しました。移動して最初に乗ったカードがいきなり「2 連鎖」と出て、その次も同じ数字のままでした。",
     ],
-    itemsEn: [
+    devItemsEn: [
       "Fixed the story tutorial showing no instructions at all, which also left the buttons in the top-left unresponsive.",
       "Fixed the chain counter being off by one. The first card you landed on after moving was labelled \"2 CHAIN\", and the next one kept the same number.",
     ],
@@ -471,23 +579,33 @@ export const CHANGELOG = [
     date: "2026-09-06",
     items: [
       "試練の儀式などで踏んだカードが、画面中央の演出で開くのと同じ瞬間に盤面でもめくれるようにしました（中央で中身が分かった後にもう一度盤面がめくれ、二度めくれたように見えていました）。",
-      "ボタンやカードを続けて押した時に、同じ行動が二重に通ってしまう場面をまとめて塞ぎました（ロック・接触の申し込み・最後のロックの承認・カウンターロックの使用・ドラッグでの1手）。",
       "オンラインで、自分の操作が一瞬だけ「相手の操作」として古い演出で再生されることがあったのを、移動以外の場面（カードを置く・めくる・捨てる・奪う など）でも起きないようにしました。",
-      "次のフェイズへ移るのを待っている間は「スキップ」ボタンを押せないようにしました。",
     ],
     itemsEn: [
       "The card you step on (Trial Ritual and the like) now flips over on the board at the very moment the centre animation opens it — previously the board flipped afterwards, so it looked as if it flipped twice.",
-      "Closed a group of cases where pressing a button or a card twice in quick succession could put the same action through twice (locking, proposing contact, approving a final lock, using a counter lock, and drag-and-drop plays).",
       "Online, your own actions could briefly replay as if they were an opponent's, using the old animation. This was fixed for moves before; it now covers placing, flipping, discarding and stealing cards as well.",
+    ],
+    devItems: [
+      "ボタンやカードを続けて押した時に、同じ行動が二重に通ってしまう場面をまとめて塞ぎました（ロック・接触の申し込み・最後のロックの承認・カウンターロックの使用・ドラッグでの1手）。",
+      "次のフェイズへ移るのを待っている間は「スキップ」ボタンを押せないようにしました。",
+    ],
+    devItemsEn: [
+      "Closed a group of cases where pressing a button or a card twice in quick succession could put the same action through twice (locking, proposing contact, approving a final lock, using a counter lock, and drag-and-drop plays).",
       "The Skip button can no longer be pressed while the game is waiting to move on to the next phase.",
     ],
   },
   {
     date: "2026-09-05",
     items: [
-      "1回のロックフェイズでマイデッキから何枚も引けてしまう／ロックした直後にも引けてしまうのを直しました。マイデッキから引けるのは「ロックする代わり」に1回だけです。",
       "オンラインで、自分が駒を動かした時に古い平たい移動演出が出てから跳ねる演出が出る（二重に見える）のを直しました。相手の駒の移動も、自分と同じ立方体のまま跳ねる動きになります。",
       "盤面のカードがめくれる演出より先に、画面中央のお知らせで中身が分かってしまうことがあったのを直しました。盤面でめくれてからお知らせが出ます。",
+    ],
+    itemsEn: [
+      "Fixed a doubled move animation online: your own move showed the old flat glide before the hop. Opponents' pieces now hop as a cube, the same as yours.",
+      "Fixed the notice in the middle of the screen sometimes revealing a card before it visibly flipped over on the board. The board flips first now.",
+    ],
+    devItems: [
+      "1回のロックフェイズでマイデッキから何枚も引けてしまう／ロックした直後にも引けてしまうのを直しました。マイデッキから引けるのは「ロックする代わり」に1回だけです。",
       "山の側面の縞が、細い断面ではなく太い縞に見えていたのを直しました。",
       "山札や捨て場にカードが積まれた瞬間、少し沈み込んで「トン」と収まるようにしました。厚みも1枚ぶん増えます。",
       "自分の手札に札が加わる時、隣の札が場所を空けるように開き、そこへ新しい札が下から滑り込むようにしました。",
@@ -506,10 +624,8 @@ export const CHANGELOG = [
       "自分の持ち時間が残り10秒を切ると、画面のふちが自分の色でゆっくり脈打つようにしました。",
       "山札・捨て場などの山の側面を、カード1枚ずつの断面が見える縞模様にしました。つるつるの板ではなく、紙が重なっているように見えます。",
     ],
-    itemsEn: [
+    devItemsEn: [
       "Fixed being able to draw many cards from your deck in one lock phase, or draw right after locking. Drawing from your deck replaces locking and happens once per lock phase.",
-      "Fixed a doubled move animation online: your own move showed the old flat glide before the hop. Opponents' pieces now hop as a cube, the same as yours.",
-      "Fixed the notice in the middle of the screen sometimes revealing a card before it visibly flipped over on the board. The board flips first now.",
       "Fixed the stripes on the side of a pile showing as thick bands instead of thin card edges.",
       "Cards now settle onto the deck and discard piles with a small dip, and the pile grows by one card's thickness.",
       "When a card joins your hand, the cards beside it now open to make room and the new card slides in from below.",
@@ -532,11 +648,17 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+
+    ],
+    itemsEn: [
+
+    ],
+    devItems: [
       "駒が移動して着地した瞬間に、駒の大きさが急に変わって見えていたのを直しました。移動中の駒が、着地先の実物と同じ大きさで飛ぶようになります。",
       "相手が到達したカードを手に入れた時、「このターンの出来事」に並ばなかったのを直しました。到達して表になったカードは全員に見えている情報なので、誰が手に入れたかも並びます（裏向きのまま手に入れた分は、これまで通り中身を伏せて「非公開のカードを1枚」と出ます）。",
       "ターンの終わり際に起きた出来事が「このターンの出来事」から消えてしまうことがあったのを直しました。お知らせが右下へ飛ぶ頃には次のターンに入っていた分は、捨てずに「前のターン」の行へ積みます。",
     ],
-    itemsEn: [
+    devItemsEn: [
       "Fixed pieces appearing to change size the moment they land after a move. A moving piece is now drawn at the same size as the real piece at its destination.",
       "Fixed cards an opponent picked up on arrival not appearing in What happened this turn. A card turned face up on arrival is public information, so who took it is shown too (cards taken while still face down are still hidden, shown as \"one hidden card\").",
       "Fixed events near the end of a turn disappearing from What happened this turn. Notices that only reach the corner after the turn has changed are now filed under Previous turn instead of being discarded.",
@@ -546,19 +668,23 @@ export const CHANGELOG = [
     date: "2026-09-05",
     items: [
       "マイデッキ戦で、自分の手札のどれが他の人のデッキの札なのか分かるようにしました。他の人の札は、カードの左上の角がめくれて持ち主の裏面がのぞきます（自分の札には何も付きません）。",
+      "iPhone・iPadで、盤面の描画が端末の都合で打ち切られた時に、自動でやり直すようにしました。これまでは打ち切られたきり古い描き方に戻ってしまい、そのまま画面がチカチカし続けていました。",
+    ],
+    itemsEn: [
+      "In My Deck matches you can now tell which cards in your hand came from someone else's deck: their top-left corner is folded back to reveal the owner's card back (your own cards are left unmarked).",
+      "On iPhone and iPad, board rendering now restarts automatically if the device cuts it off. Previously it stayed cut off, fell back to the old drawing method, and the screen kept flickering.",
+    ],
+    devItems: [
       "マイデッキ戦で、他の人のデッキの札が手札の右端にまとまるようにしました。奪ってきた札を探しやすくなります。",
       "カードを拡大表示すると「誰のマイデッキの札か」が出るようになりました。",
-      "iPhone・iPadで、盤面の描画が端末の都合で打ち切られた時に、自動でやり直すようにしました。これまでは打ち切られたきり古い描き方に戻ってしまい、そのまま画面がチカチカし続けていました。",
       "スマホでは盤面のふちをなめらかにする処理を切って、端末の負担を減らしました。",
       "最初の画面の「HUERISE」ボタンが、何度も押さないと次に進まないことがあったのを直しました。",
       "最初の画面の光の玉を、スマホでは軽くしました。動き方は同じで、尾が少し短くなります。",
       "スマホでの「駒を消す」「カードを消す」ボタンの位置を調整しました。",
     ],
-    itemsEn: [
-      "In My Deck matches you can now tell which cards in your hand came from someone else's deck: their top-left corner is folded back to reveal the owner's card back (your own cards are left unmarked).",
+    devItemsEn: [
       "In My Deck matches, cards from other people's decks are now grouped at the right end of your hand, making the ones you took easier to find.",
       "Enlarging a card now shows whose deck it came from.",
-      "On iPhone and iPad, board rendering now restarts automatically if the device cuts it off. Previously it stayed cut off, fell back to the old drawing method, and the screen kept flickering.",
       "Edge smoothing for the board is now switched off on phones to lighten the load on the device.",
       "Fixed the HUERISE button on the first screen sometimes needing several taps before it would continue.",
       "The orbs of light on the first screen are now lighter on phones. They move the same way, with a slightly shorter trail.",
@@ -568,6 +694,12 @@ export const CHANGELOG = [
   {
     date: "2026-09-05",
     items: [
+      "盤面のカードや、盤面のふちの色帯がチカチカする症状に対策を入れました。まだ使っている絵をしまい込んでしまい、描き直しが止まらなくなることがありました。",
+    ],
+    itemsEn: [
+      "Added a fix for the flickering of board cards and the coloured border bars. Textures that were still in use could be discarded, causing them to be redrawn over and over.",
+    ],
+    devItems: [
       "駒の移動に「よっこいしょ」感を足しました。進む方向の前側を持ち上げて跳び、着地でわずかに前へつんのめります。",
       "ジャンプ台のように2マス以上動く時は、高く長く跳ぶようにしました。距離が体感できます。",
       "紫のキューブ ディメンションで移動範囲が伸びている時は、跳ぶのではなく「ワープする」動きにしました。",
@@ -577,10 +709,9 @@ export const CHANGELOG = [
       "手札のカードを使った時、使用の演出が終わってから色の宣言などの選択が出るようにしました。演出の途中で選択が重なって出ることがなくなります。",
       "CPUがカードの効果を使った後、移動せずにターンが終わってしまうことがあったのを直しました。効果を処理している最中にフェイズが切り替わっていました。",
       "移動できるマスがあるのに「動けない」と判断されてターンが終わってしまうことがあったのを直しました。",
-      "盤面のカードや、盤面のふちの色帯がチカチカする症状に対策を入れました。まだ使っている絵をしまい込んでしまい、描き直しが止まらなくなることがありました。",
       "駒をドラッグしている間と、移動している間の駒が、色も模様も無いまっさらな箱になっていたのを直しました。盤面の新しい描き方に切り替えた時から、盤面の外にある駒の絵まで消してしまっていました。",
     ],
-    itemsEn: [
+    devItemsEn: [
       "Pieces now lean into their move: the leading edge lifts as they take off, and they tip forward slightly on landing.",
       "Moves of two squares or more (such as the Jump Pad) now arc higher and longer, so distance is easier to feel.",
       "While Dimension has extended your movement range, your piece now warps instead of hopping.",
@@ -590,7 +721,6 @@ export const CHANGELOG = [
       "When you use a card from your hand, the choice prompt (such as declaring colours) now appears after the use animation finishes, instead of overlapping it.",
       "Fixed a bug where the CPU could end its turn without moving after using a card effect. The phase was advancing while the effect was still being resolved.",
       "Fixed a bug where a turn could end as if the piece could not move, even though valid destinations existed.",
-      "Added a fix for the flickering of board cards and the coloured border bars. Textures that were still in use could be discarded, causing them to be redrawn over and over.",
       "Fixed pieces appearing as blank, untextured boxes while being dragged or while moving. The switch to the new board rendering was also stripping the artwork from pieces drawn outside the board.",
     ],
   },
@@ -598,90 +728,94 @@ export const CHANGELOG = [
     date: "2026-09-05",
     items: [
       "駒が移動するとき、平たい絵ではなく立方体のまま「ぴょんと跳ねて」動くようにしました。盤面に落ちる影と、着地したときの小さな輪も出ます。",
-      "画面の中央に出るお知らせは、画面のどこかを押すとすぐに右下へしまえるようにしました（待ちきれない時用。中身はこれまで通り右下に残ります）。",
       "「このターンの出来事」の下に「前のターン」の行を追加しました。普段は数枚だけ薄く畳んであり、押すと全部開きます。相手のターンに何が起きたかを見逃しても、後から確かめられます。",
       "1回のロックフェイズで2枚ロックできてしまうことがあったのを直しました。演出とお知らせを待つ間に、もう1枚ロックできる状態が残っていました。",
       "ロックの演出を見ている最中にハンドフェイズのお知らせが出てしまうのを直しました。ロックの様子と「ロックしました」のお知らせが終わってから次のフェイズに入ります。",
+      "演出（ロックの刻印や到達のオーラなど）の最中にフェイズが切り替わってしまうのをやめました。演出とお知らせが終わってから次のフェイズに入ります。",
+      "到達したときのオーラなど、演出の最中に画面中央のお知らせが出てしまうのをやめました。演出が終わってから出ます。",
+      "iPhone・iPadで、盤面のふちの色帯（赤橙黄緑青桃紫のバー）がチカチカしたままだったのを直しました。盤面を新しい方式で描くための部品が読み込めなくなっており、しかも一度失敗すると更新しても直らない状態になっていました。",
+      "盤面の描き方をさらに進め、プレイマットと床も新しい方式で描くようにしました。iPhone・iPadで画面がチカチカする症状の軽減をねらったものです。うまく表示されない場合は、基本設定の「動きが重い・カクつくとき」から元の方式に戻せます。",
+      "iPhone・iPadで、盤面のふちの色帯（赤橙黄緑青桃紫のバー）だけがチカチカしていたのを直しました。盤面の中でこの帯だけが古い描き方のまま残っていました。",
+      "【重要】この日の一時期に、パソコンで盤面のカードやマスが見えなくなり、スマホでは画面がチカチカする不具合が出ていました。盤面の絵を描く順番を変えた変更が原因だったため、その変更を取り消しました。ご迷惑をおかけしました。",
+      "盤面の演出（到達した時の光、ロックした時の刻印、ロック中でも使えるカードのまわりを回る光）が、盤面の絵の裏に隠れて見えなくなっていたのを直しました。",
+      "自分のターンに自分の駒が光る演出が、うっすらとしか見えなくなっていたのを直しました。光が盤面のカードの裏側に隠れていました。",
+      "【重要】オンライン対戦の「参加できる部屋」が常に空になり、対戦ロビーや観戦一覧、進行中の対局の再開も表示されなくなっていた不具合を直しました。部屋は正しく作られていて、一覧を画面に出す処理だけが止まっていました。8月29日から起きていました。ご不便をおかけしました。",
+      "盤面の描き方を新しい方式（WebGL）に切り替えました。これまで管理者だけの試験機能でしたが、iPhone・iPadで画面がチカチカする・アプリが落ちる症状がこれで解消したため、全員に既定で有効にします。うまく表示されない端末では、基本設定の「動きが重い・カクつくとき」から元の方式に戻せます。",
+      "これまで「そのブラウザにだけ」保存されていた設定を、アカウントにも保存するようにしました。CPUの速さ・強さ・人数、CPU戦の自動送り、フェイズの自動スキップ、マスの確認、カードを拡大表示する大きさと向き、盤面のカードを絵だけにする、手札を画面下に固定、自動処理中のドラッグ制限、ランク戦の通知（時間帯を含む）、振動、ホーム画面の「次にやること」の進み具合です。端末やブラウザを変えても引き継がれ、閲覧データを消しても元に戻りません。",
+      "スマホ・タブレットで最初に一度だけ出ていた「2D表示がおすすめです」のお知らせを、出さないようにしました。盤面の描き方を新しくしたことで、画面がチカチカする症状が解消したためです（2D表示そのものは今までどおり基本設定から切り替えられます）。",
+    ],
+    itemsEn: [
+      "Pieces now hop as a cube when they move, instead of sliding as a flat picture. They cast a shadow on the board and land with a small ring.",
+      "Added a \"Previous turn\" row under \"What happened this turn\". It stays folded as a few faded cards and opens when you tap it, so you can check what happened on your opponent's turn.",
+      "Fixed being able to lock two cards in a single Lock phase. While waiting for the animation and the notice, a second lock could still slip through.",
+      "Fixed the Hand Phase notice appearing while you are still watching the lock animation. The next phase now starts after the lock animation and the \"locked\" notice have finished.",
+      "Phases no longer change in the middle of an animation (the lock seal, the aura when you land on a card, and so on). The next phase starts once the animation and the notices have finished.",
+      "Notices in the middle of the screen no longer appear during animations such as the aura that rises when you land on a card. They now wait until the animation has finished.",
+      "Fixed the coloured band around the board (red/orange/yellow/green/blue/pink/purple) still flickering on iPhone and iPad. The part needed to draw the board the new way could no longer be loaded, and once it failed it stayed broken even after updating.",
+      "The board now also draws the playmat and the floor with the new method, aiming to further reduce flickering on iPhone and iPad. If anything looks wrong, you can switch back under Settings → “When things feel slow or stutter”.",
+      "Fixed the coloured band around the board (red, orange, yellow, green, blue, pink, purple) flickering on iPhone and iPad. It was the one part of the board still using the old drawing method.",
+      "Fixed a problem that appeared briefly this day: on PC the cards and squares on the board became invisible, and on phones the screen flickered. The change to the board’s drawing order that caused it has been rolled back. Sorry for the trouble.",
+      "Board effects (the glow on arrival, the lock stamp, the light circling cards you can still use while locked) were hidden behind the board artwork. They are visible again.",
+      "Fixed the glow on your own piece during your turn being barely visible — the light was hidden behind the cards on the board.",
+      "[Important] Fixed a bug that left the online “rooms you can join” list always empty, and also broke the match lobby, the spectate list and resuming a game in progress. Rooms were being created correctly — only the code that displayed the list was failing. This had been happening since August 29. Sorry for the trouble.",
+      "The board is now drawn with the new method (WebGL) for everyone. It used to be an admin-only experiment, but since it fixed the flickering and crashes on iPhone and iPad, it is on by default. If your device does not display it correctly, you can switch back under “When things feel slow or stutter” in Settings.",
+      "Settings that used to be saved only in one browser are now saved to your account as well: CPU speed, strength and player count, CPU auto-advance, phase auto-skip, the square confirmation, the size and side of the enlarged card, showing board cards as artwork only, pinning your hand to the bottom of the screen, the drag restriction during automatic processing, ranked match notifications (including the time window), vibration, and your progress on the “what to do next” card. They now follow you across devices and browsers, and clearing your browsing data no longer resets them.",
+      "The one-time “the flat 2D view is recommended” notice no longer appears on phones and tablets. The new way of drawing the board fixed the flickering it was there to work around (the 2D view itself is still available in Settings).",
+    ],
+    devItems: [
+      "画面の中央に出るお知らせは、画面のどこかを押すとすぐに右下へしまえるようにしました（待ちきれない時用。中身はこれまで通り右下に残ります）。",
       "フェイズのお知らせがまだ出ているのに、次のフェイズのお知らせが重なって出てしまうのを直しました。",
       "相手が何もしていないターンが猛スピードで飛んでいってしまうことがあったのを直しました。プレゼントなどでお知らせが並んだ後に起きていました。",
       "お知らせが画面の中央に出ている間は、ターンが終わらないようにしました。",
       "赤のキューブ フェニックスを使ったとき、コストで捨てたカードが2回捨てたことになってしまうのを直しました。",
       "自分の手札をタップしたのに、その奥に重なって見えているロックエリアのカードが使われてしまうことがあったのを直しました。",
       "対戦結果を小さくしまう時のお知らせが、明るい配色にしていても暗いままだったのを直しました。",
-      "演出（ロックの刻印や到達のオーラなど）の最中にフェイズが切り替わってしまうのをやめました。演出とお知らせが終わってから次のフェイズに入ります。",
       "お知らせや確認のモーダルが、前のモーダルに重なって出てしまうのを直しました。画面の中央には一度に1つだけ出るようにしています。",
       "駒が平べったく、少し透けているように見えていたのを直しました。立方体の面ごとの陰影（奥や左右の面を暗くする処理）が、盤面の新しい描き方で失われていました。",
-      "到達したときのオーラなど、演出の最中に画面中央のお知らせが出てしまうのをやめました。演出が終わってから出ます。",
       "お知らせが次から次へと一瞬で切り替わって読めなかったのを直しました。1つずつ間を空けて出るようにしています。",
-      "iPhone・iPadで、盤面のふちの色帯（赤橙黄緑青桃紫のバー）がチカチカしたままだったのを直しました。盤面を新しい方式で描くための部品が読み込めなくなっており、しかも一度失敗すると更新しても直らない状態になっていました。",
       "移動先を選んでいる間の暗転が、パソコンだけ濃すぎたのを直しました。暗くする処理が二重にかかっていました（スマホでの見え方が本来の濃さです）。",
       "ロックの演出（光が集まって刻印が焼き付く演出）の最中に、次のお知らせが重なって出ていたのをやめました。演出が終わってから出ます。",
-      "盤面の描き方をさらに進め、プレイマットと床も新しい方式で描くようにしました。iPhone・iPadで画面がチカチカする症状の軽減をねらったものです。うまく表示されない場合は、基本設定の「動きが重い・カクつくとき」から元の方式に戻せます。",
       "接触やマスチェンジなどの演出の最中に、お知らせのモーダルが重なって出ていたのをやめました。演出が終わってから出ます（選択が必要なモーダルは今までどおりすぐ出ます）。",
       "移動先を選んでいる間、選べないマスのカードが十分に暗くならず、カードに影が付いているように見えていたのを直しました。暗くする量の計算が間違っていました。",
       "手番のプレイヤーを示すロックエリアの光が、途切れ途切れに見えていたのを直しました。光が盤面の絵の裏に隠れていました。",
-      "iPhone・iPadで、盤面のふちの色帯（赤橙黄緑青桃紫のバー）だけがチカチカしていたのを直しました。盤面の中でこの帯だけが古い描き方のまま残っていました。",
-      "【重要】この日の一時期に、パソコンで盤面のカードやマスが見えなくなり、スマホでは画面がチカチカする不具合が出ていました。盤面の絵を描く順番を変えた変更が原因だったため、その変更を取り消しました。ご迷惑をおかけしました。",
       "処理中に、ロックエリアの色の枠が一瞬すべて消えてまた出る、という点滅を直しました。",
-      "盤面の演出（到達した時の光、ロックした時の刻印、ロック中でも使えるカードのまわりを回る光）が、盤面の絵の裏に隠れて見えなくなっていたのを直しました。",
       "ゲートのマスに置かれたカードが、黄色っぽく透けて見えていたのを直しました。マスの色がカードの上に重なっていました。",
       "モーダルのボタンを押した時に、その裏の盤面まで反応してしまうこと（接触の確認を押したら移動の確認も出る、など）を直しました。",
       "山札・捨て場などの山の「側面」（厚み）が消えて、上面だけが浮いて見えていたのを直しました。",
-      "自分のターンに自分の駒が光る演出が、うっすらとしか見えなくなっていたのを直しました。光が盤面のカードの裏側に隠れていました。",
       "画面の大きい環境で、盤面のカードや駒がぼやけて色がくすんで見えていたのを直しました。盤面を描く解像度が画面の大きさに追いついていませんでした。同じ対局でも人によって色味が違って見えることがなくなります。",
-      "【重要】オンライン対戦の「参加できる部屋」が常に空になり、対戦ロビーや観戦一覧、進行中の対局の再開も表示されなくなっていた不具合を直しました。部屋は正しく作られていて、一覧を画面に出す処理だけが止まっていました。8月29日から起きていました。ご不便をおかけしました。",
       "「ホーム画面に追加」の案内が、ホーム画面のボタンに重なっていたのを直しました。画面の右上（オプションの下）へ移動し、パソコンでは「アプリとしてインストール」という言い方に変えました。",
       "参加できる部屋が1つも無い時の案内に、「ランク戦にする」で作った部屋はこの一覧には出ないこと（部屋コードで参加すること）を書き添えました。",
       "駒が1マス移動する時に、パッと次のマスへ現れるのではなく、実際に移動して見えるようにしました（相手の移動を見ている時と同じ見え方になります）。",
-      "盤面の描き方を新しい方式（WebGL）に切り替えました。これまで管理者だけの試験機能でしたが、iPhone・iPadで画面がチカチカする・アプリが落ちる症状がこれで解消したため、全員に既定で有効にします。うまく表示されない端末では、基本設定の「動きが重い・カクつくとき」から元の方式に戻せます。",
       "接触する時に駒の上へ出ていた「🤝 接触する」ボタンを無くしました。すぐ後に「本当に接触しますか？」の確認が出るので、同じことを2回聞いていました。これからは相手の駒へドラッグすると、そのまま確認が出ます。",
       "接触のタックル演出を短くしました（助走・タックル・ゲートへ戻るまでの時間）。",
-      "これまで「そのブラウザにだけ」保存されていた設定を、アカウントにも保存するようにしました。CPUの速さ・強さ・人数、CPU戦の自動送り、フェイズの自動スキップ、マスの確認、カードを拡大表示する大きさと向き、盤面のカードを絵だけにする、手札を画面下に固定、自動処理中のドラッグ制限、ランク戦の通知（時間帯を含む）、振動、ホーム画面の「次にやること」の進み具合です。端末やブラウザを変えても引き継がれ、閲覧データを消しても元に戻りません。",
-      "スマホ・タブレットで最初に一度だけ出ていた「2D表示がおすすめです」のお知らせを、出さないようにしました。盤面の描き方を新しくしたことで、画面がチカチカする症状が解消したためです（2D表示そのものは今までどおり基本設定から切り替えられます）。",
       "「ホーム画面に追加」の案内文が、最後の2文字だけ次の行にこぼれて読みにくかったのを直しました。",
     ],
-    itemsEn: [
-      "Pieces now hop as a cube when they move, instead of sliding as a flat picture. They cast a shadow on the board and land with a small ring.",
+    devItemsEn: [
       "Notices in the middle of the screen can now be tucked away to the bottom right by tapping anywhere (for when you do not want to wait — the contents still stay in the bottom-right row).",
-      "Added a \"Previous turn\" row under \"What happened this turn\". It stays folded as a few faded cards and opens when you tap it, so you can check what happened on your opponent's turn.",
-      "Fixed being able to lock two cards in a single Lock phase. While waiting for the animation and the notice, a second lock could still slip through.",
-      "Fixed the Hand Phase notice appearing while you are still watching the lock animation. The next phase now starts after the lock animation and the \"locked\" notice have finished.",
       "Fixed the next phase notice appearing on top of the previous one while it was still showing.",
       "Fixed turns where nothing happens racing past. This happened after notices piled up, for example from Present.",
       "Turns no longer end while a notice is still showing in the middle of the screen.",
       "Fixed the card discarded as a cost being counted twice in this turn's events when you used Phoenix, the Red Cube.",
       "Fixed tapping your own hand card sometimes using the Lock Area card that shows through behind it.",
       "Fixed the notice shown when you tuck the match result away staying dark even in the light colour scheme.",
-      "Phases no longer change in the middle of an animation (the lock seal, the aura when you land on a card, and so on). The next phase starts once the animation and the notices have finished.",
       "Fixed notices and confirmation dialogs appearing on top of the previous one. Only one thing is shown in the middle of the screen at a time.",
       "Fixed pieces looking flat and slightly see-through. The shading that darkens the back and side faces of the cube had been lost when the board moved to the new drawing method.",
-      "Notices in the middle of the screen no longer appear during animations such as the aura that rises when you land on a card. They now wait until the animation has finished.",
       "Fixed notices flashing past one after another too quickly to read. They now appear one at a time, with a pause between them.",
-      "Fixed the coloured band around the board (red/orange/yellow/green/blue/pink/purple) still flickering on iPhone and iPad. The part needed to draw the board the new way could no longer be loaded, and once it failed it stayed broken even after updating.",
       "Fixed the dimming shown while you choose where to move being too dark on PC. It was being applied twice (the way it looks on phones is the intended darkness).",
       "Notices no longer appear on top of the lock animation (the light gathering and the seal burning in). They now wait until the animation has finished.",
-      "The board now also draws the playmat and the floor with the new method, aiming to further reduce flickering on iPhone and iPad. If anything looks wrong, you can switch back under Settings → “When things feel slow or stutter”.",
       "Information pop-ups no longer appear on top of animations such as contact or Space Swap. They now wait until the animation finishes (pop-ups that ask you to choose still appear right away).",
       "While choosing where to move, cards on unavailable squares were not dimmed enough, so they looked like they had a shadow. The dimming calculation was wrong; it is fixed.",
       "Fixed the glow marking the current player’s Lock Area appearing broken up. The glow was hidden behind the board artwork.",
-      "Fixed the coloured band around the board (red, orange, yellow, green, blue, pink, purple) flickering on iPhone and iPad. It was the one part of the board still using the old drawing method.",
-      "Fixed a problem that appeared briefly this day: on PC the cards and squares on the board became invisible, and on phones the screen flickered. The change to the board’s drawing order that caused it has been rolled back. Sorry for the trouble.",
       "Fixed the coloured frames in the Lock Areas flickering — all of them briefly vanished and came back while the game was processing.",
-      "Board effects (the glow on arrival, the lock stamp, the light circling cards you can still use while locked) were hidden behind the board artwork. They are visible again.",
       "Fixed cards on a gate square looking washed out with a yellow tint — the square's colour was being drawn over the card.",
       "Tapping a button in a dialog no longer also reaches the board behind it (for example, confirming a contact and getting the move confirmation as well).",
       "Fixed the sides (the thickness) of the deck and discard piles disappearing, leaving only the top face floating.",
-      "Fixed the glow on your own piece during your turn being barely visible — the light was hidden behind the cards on the board.",
       "On large screens the board cards and pieces looked blurry and washed out. The board was being drawn at a lower resolution than the screen actually shows. Two people in the same match will no longer see different shades.",
-      "[Important] Fixed a bug that left the online “rooms you can join” list always empty, and also broke the match lobby, the spectate list and resuming a game in progress. Rooms were being created correctly — only the code that displayed the list was failing. This had been happening since August 29. Sorry for the trouble.",
       "The “add to home screen” prompt no longer overlaps the buttons on the home screen. It moved to the top right (under the options), and on a computer it now says “install as an app”.",
       "When no rooms are open, the message now explains that rooms created with “Make it ranked” never appear in that list and are joined with a room code.",
       "When a piece moves one square it now travels there instead of appearing instantly (the same way you already see opponents move).",
-      "The board is now drawn with the new method (WebGL) for everyone. It used to be an admin-only experiment, but since it fixed the flickering and crashes on iPhone and iPad, it is on by default. If your device does not display it correctly, you can switch back under “When things feel slow or stutter” in Settings.",
       "The floating “🤝 Contact” button that appeared above the piece is gone. A “Really make contact?” confirmation follows right after it, so it was asking the same thing twice. Dragging onto an opponent’s piece now brings up that confirmation directly.",
       "The contact tackle animation is shorter (the run-up, the tackle, and the return to the gate).",
-      "Settings that used to be saved only in one browser are now saved to your account as well: CPU speed, strength and player count, CPU auto-advance, phase auto-skip, the square confirmation, the size and side of the enlarged card, showing board cards as artwork only, pinning your hand to the bottom of the screen, the drag restriction during automatic processing, ranked match notifications (including the time window), vibration, and your progress on the “what to do next” card. They now follow you across devices and browsers, and clearing your browsing data no longer resets them.",
-      "The one-time “the flat 2D view is recommended” notice no longer appears on phones and tablets. The new way of drawing the board fixed the flickering it was there to work around (the 2D view itself is still available in Settings).",
       "The wording on the “add to home screen” prompt no longer breaks awkwardly onto a second line.",
     ],
   },
@@ -689,13 +823,17 @@ export const CHANGELOG = [
     date: "2026-09-04",
     items: [
       "盤面の絵の描き方を新しい方式（WebGL）に切り替えられるようにしました。iPhone・iPadで盤面がチカチカする・アプリが落ちる症状への対策です。あわせて、この方式のときに出ていた見た目の崩れを直しました——ロックしたカードの絵が上下逆さまになる／移動できるマスを選んでいる間だけカードのまわりに濃い影が出たように見える／対戦開始の準備中に、まだ出ていないはずの駒が変な形で一瞬見える／駒がカードの下に隠れてしまう、の4件です。",
+    ],
+    itemsEn: [
+      "The board can now be drawn with a new method (WebGL), to address the flickering and crashes on iPhone/iPad. We also fixed four visual problems that came with it: locked cards were drawn upside down; a heavy shadow appeared around cards while choosing a square to move to; pieces briefly appeared in a strange shape during setup before they should be visible; and pieces could be hidden behind cards.",
+    ],
+    devItems: [
       "ライトモードなのに、対局中に出るモーダル（到達したカードの拡大表示、効果の説明など）だけがダークのままだったのを直しました。",
       "「このマスでいいですか？」の確認が、いつの間にか出なくなってしまう不具合を直しました。スマホでマスをタップして指を離した位置に「今後このモーダルを表示しない」が現れ、その指のタップがそのままボタンを押していました。もし今後この確認をオフにした時は、画面に一言お知らせします（基本設定からいつでも戻せます）。",
       "「使う前に確認する」モーダルにも同じ対策を入れました。開いた直後の一瞬は、はい／いいえ／今後表示しない のどれも反応しません。",
       "ザ・ギャンブルや試練の儀式の心臓の鼓動を、スマホ本体のスピーカーでも聞こえるようにしました。これまでは低い音が中心で、iPhoneのスピーカーではほとんど鳴っていませんでした。",
     ],
-    itemsEn: [
-      "The board can now be drawn with a new method (WebGL), to address the flickering and crashes on iPhone/iPad. We also fixed four visual problems that came with it: locked cards were drawn upside down; a heavy shadow appeared around cards while choosing a square to move to; pieces briefly appeared in a strange shape during setup before they should be visible; and pieces could be hidden behind cards.",
+    devItemsEn: [
       "Fixed in-game modals (the arrival card zoom, effect explanations, and so on) staying dark even in light mode.",
       "Fixed the “Use this square?” confirmation silently turning itself off. On a phone, the “Don’t show this again” button appeared right where your finger had just been, and that same tap pressed it. If the confirmation ever gets turned off, we now tell you on screen (you can turn it back on in Settings).",
       "The same protection was added to the “confirm before acting” dialog: for a moment after it opens, none of its buttons respond.",
@@ -706,25 +844,29 @@ export const CHANGELOG = [
     date: "2026-09-04",
     items: [
       "フレンド機能を追加しました。オンラインで対戦した相手には、対戦が終わった画面からその場で申請できます（マイページの「👥 フレンド」からも、最近対戦した人に申請できます）。フレンドになると、その人が今アプリを開いているか、その人との通算成績が分かります。知らない人から申請が届くことはありません（名前で検索する仕組みは用意していません）。",
+      "ゲート侵攻の演出の途中で勝敗が決まった時、演出を飛ばして勝利演出に切り替わってしまうのを直しました。侵攻の演出が最後まで流れてから勝利演出に進みます。",
+    ],
+    itemsEn: [
+      "Added friends. You can send a request right from the end-of-match screen to anyone you just played online (or from \"👥 Friends\" on My Page, to people you played recently). Once you are friends you can see whether they have the app open and your head-to-head record. Strangers can never send you a request — there is no name search.",
+      "Fixed the victory sequence cutting off the Gate Invasion animation when the game was decided in the middle of it. The invasion now plays out fully before the victory sequence begins.",
+    ],
+    devItems: [
       "フェイズを進める「スキップ」「マイデッキ」のボタンが、対局の途中から出てこなくなる不具合を直しました（昨日の修正で入り込んだものです。申し訳ありません）。",
       "「なないろの欠片」などで効果を選ぶモーダルが出ないまま、勝手に片方（1枚ドロー）に決まってしまう不具合を直しました。スマホでカードをタップして指を離した位置に選択肢のボタンが現れ、その指のタップがそのままボタンを押していました。",
       "対局中に「タイマーをONにする」ボタンが出たままになってしまうのを直しました。他の場所を触るか、しばらく置くと閉じます。",
       "ランク戦などで「もう一度遊ぶ」を選ぶと、ブースト・白黒カード・マイデッキ戦の設定が消えてしまう不具合を直しました。前の対局と同じルールで続きます。",
       "ゲストとして遊んだ方が、戦績管理システムに「プレイヤー」という名前で登録されてしまう不具合を直しました。以前は他の人がゲストかどうかを確かめる仕組みがうまく働いておらず、7月末から30件ほど余分な登録ができていました。",
       "「結ばれの一本桜 コノハナサクヤ」を、動かす先が無い時（相手の駒が盤面にいない／自分の周囲にカードの置かれた空きマスが無い）は使えないようにしました。コストだけ払って何も起きない、ということが無くなります。",
-      "ゲート侵攻の演出の途中で勝敗が決まった時、演出を飛ばして勝利演出に切り替わってしまうのを直しました。侵攻の演出が最後まで流れてから勝利演出に進みます。",
       "「なないろの欠片」の「２枚をロックする」で、2枚目が手札公開エリアにある時に選べるのに何も起きなかった不具合を直しました。",
       "段位ランキング（戦績管理システム）で、まだ1勝もしていないブロンズ（ゲージ０）の方を対象外にしました。",
     ],
-    itemsEn: [
-      "Added friends. You can send a request right from the end-of-match screen to anyone you just played online (or from \"👥 Friends\" on My Page, to people you played recently). Once you are friends you can see whether they have the app open and your head-to-head record. Strangers can never send you a request — there is no name search.",
+    devItemsEn: [
       "Fixed the Skip / My Deck buttons disappearing partway through a match (introduced by yesterday's fix — sorry).",
       "Fixed the effect-choice dialog (Prism Shard and others) silently resolving to the first option (Draw 1) without ever appearing. On a phone the buttons appeared right under the finger that had just tapped the card, and that same tap pressed one of them.",
       "Fixed the \"Turn the timer on\" button staying on screen during a match. It now closes when you tap elsewhere, or after a short while.",
       "Fixed \"Play again\" losing the Boost, black/white cards and My Deck settings (in ranked matches for example). The next game keeps the same rules.",
       "Fixed a bug where people playing as a guest were registered in the battle-record system under the name \"Player\". The check for whether someone else was a guest never worked, and about 30 stray entries had built up since late July.",
       "Konohanasakuya, the Cherry of Bonds can no longer be used when there is nowhere to move an opponent to (no opponent piece on the board, or no empty square with a card around you). You will no longer pay the cost for nothing.",
-      "Fixed the victory sequence cutting off the Gate Invasion animation when the game was decided in the middle of it. The invasion now plays out fully before the victory sequence begins.",
       "Fixed \"Lock two\" on Prism Shard doing nothing when the second shard was in your revealed-card area.",
       "Players still at Bronze with an empty gauge (no wins yet) are no longer listed in the rank ranking on the battle-record system.",
     ],
@@ -732,6 +874,22 @@ export const CHANGELOG = [
   {
     date: "2026-09-03",
     items: [
+      "「奪ったカード」などの画面中央のお知らせが出ている間に手札をタップすると、そのカードの手札効果が発動してしまうことがあったのを直しました（スリカエで返すカードを選ぶつもりが使ってしまう等）。お知らせを閉じるまで盤面や手札には触れなくなります。",
+      "アプリが使う画像を、実際に表示される大きさに合わせて作り直しました。スマホ（特にiPhone）で対戦中にアプリが落ちてタイトル画面に戻ってしまう不具合の対策です。ゲーム中に読み込む画像の重さがおよそ3分の1になり、通信量と読み込みの待ち時間も減ります。見た目は変わりません。",
+      "追色を払う演出でカードが脈打つ時に効果音を付けました。",
+      "勝利の演出に音を足しました。七色が1つ灯るごとに音が上がっていき、光が弾ける瞬間に一撃が入ります。",
+      "最後のロックの承認で、相手の番のまま進まなくなることがあった不具合を直しました。",
+      "対応しているスマホでは、鼓動に合わせて端末が振動するようにしました（基本設定でオフにできます。iPhone・iPadは振動できません）。",
+    ],
+    itemsEn: [
+      "Tapping a hand card while a centre notice (such as “you took this card”) was showing could trigger that card’s hand effect — for example using a card you meant to hand back during Sleight of Hand. The board and your hand now ignore taps until the notice is closed.",
+      "Every image in the app has been rebuilt at the size it is actually displayed. This targets the crash where the app would drop back to the title screen mid-match on phones (iPhone especially): the memory used by images during a match is now about a third of what it was, and downloads are lighter too. Nothing looks different.",
+      "Added a sound to the card’s pulse when you pay a Color Cost.",
+      "Added sound to the victory sequence: the pitch rises as each of the seven colours lights up, with an impact as the light bursts.",
+      "Fixed: approving someone’s final lock could get stuck waiting on one player and never continue.",
+      "On phones that support it, the device now vibrates along with the heartbeat (switchable in Settings; iPhone and iPad cannot vibrate).",
+    ],
+    devItems: [
       "「結ばれの一本桜 コノハナサクヤ」で相手を呼び寄せる時、光るマスを「カードが置かれているマス」だけにしました。これは「移動」なので、カードの無いマスへは動かせません。",
       "同じカードの「このターンあなたは接触できない」を、実際に守るようにしました（これまでは文章で知らせるだけで、接触できてしまいました）。",
       "オンラインで接触された時、相手にもきちんと承認の確認が出るようにしました。これまではカウンターロックを持っていない人には何も出ずに自動で承認されていて、申し込んだ側からは「聞かれていない」ように見えるうえ、すぐ承認が返ること自体が「あの人は持っていない」と分かってしまっていました。",
@@ -739,20 +897,14 @@ export const CHANGELOG = [
       "カードの効果を処理している間（相手の選択を待っている時も含む）は、フェイズを進める「スキップ」「マイデッキ」のボタンを出さないようにしました。処理の途中でフェイズが終わってしまうのを防ぎます。",
       "CPUが、場に出ている「パーティー」を優先して手札に回収するようになりました。相手が置いて踏み直して使い回すのを止められます。",
       "カード効果でカードを置くマスを選ぶ時の案内を分かりやすくしました。1枚だけ置くカードで「（それぞれ別のマス）」と出て意味が分からなかったのを直し、複数枚置く時は「何枚目か・同じマスには置けない」と出るようにしました。",
-      "「奪ったカード」などの画面中央のお知らせが出ている間に手札をタップすると、そのカードの手札効果が発動してしまうことがあったのを直しました（スリカエで返すカードを選ぶつもりが使ってしまう等）。お知らせを閉じるまで盤面や手札には触れなくなります。",
       "「結ばれの一本桜 コノハナサクヤ」で相手を引き寄せる時、斜めの4マスが選べなかったのを直しました。カードの「周囲」は縦横斜めの8マスです。",
-      "アプリが使う画像を、実際に表示される大きさに合わせて作り直しました。スマホ（特にiPhone）で対戦中にアプリが落ちてタイトル画面に戻ってしまう不具合の対策です。ゲーム中に読み込む画像の重さがおよそ3分の1になり、通信量と読み込みの待ち時間も減ります。見た目は変わりません。",
       "はじめての方向けに、ホーム画面の一番上へ「次にやること」を1つだけ表示するようにしました。①遊び方を覚える→②CPUと1戦→③誰かと対戦、と進み、終われば自動的に消えます（✕でいつでも消せます）。",
       "BGMが重なって鳴ってしまう不具合を直しました（マイページからホームに戻るとタイトルのBGMが鳴り出し、対戦を始めても鳴りやまない等）。BGMは常に1つだけ鳴る作りにしました。",
       "ホーム画面のBGMを待機中のBGMに変えました。",
-      "追色を払う演出でカードが脈打つ時に効果音を付けました。",
-      "勝利の演出に音を足しました。七色が1つ灯るごとに音が上がっていき、光が弾ける瞬間に一撃が入ります。",
       "オンライン対戦では、最後のロックの承認を全員に確認するようにしました。以前はゴメンナサイを使えない人が自動で承認されていたため、すぐ通ったことで「あの人は持っていない」と分かってしまっていました。",
-      "最後のロックの承認で、相手の番のまま進まなくなることがあった不具合を直しました。",
       "右下に並ぶ「このターンの出来事」のマークを分かりやすくしました。手に入れた・引いたは「＋」に統一、ロックはカードに鎖が重なる表示、ゲート侵攻は「∞」になります。",
       "「不発のためこのカードを手札に加えます」などの結果のお知らせは、画面のどこかをタップすればすぐ閉じて次へ進めるようにしました（放置すれば今まで通り自動で消えます）。",
       "試練の儀式やザ・ギャンブルで鳴る心臓の鼓動を、もっとはっきり聞こえるようにしました（特にスマホ）。",
-      "対応しているスマホでは、鼓動に合わせて端末が振動するようにしました（基本設定でオフにできます。iPhone・iPadは振動できません）。",
       "CPU戦を始めた時、配り始める直前に前の盤面（または起動時の盤面）が一瞬映っていたのを直しました。",
       "CPUがカウンターロックを持っているのに使わないことがあったのを直しました。ロックするカードが無くても、接触を無効にするために使うようになります。",
       "カードをじっくり選んでいると、処理中の判定が先に切れて駒が動かせてしまう不具合を、根本から直しました。何分かけて選んでも大丈夫です。",
@@ -766,7 +918,7 @@ export const CHANGELOG = [
       "カードをオープンする効果（サフランなど）でじっくり選んでいると、処理中の判定が先に切れてしまい、その隙に駒が動かせてしまうことがあったのを直しました。",
       "対戦のあとホーム画面に戻ると無音になっていたのを直しました。タイトル画面と同じBGMが流れます。",
     ],
-    itemsEn: [
+    devItemsEn: [
       "Konohanasakuya, the Cherry of Bonds now highlights only squares that have a card on them. Pulling an opponent is a Move, so squares without a card are not valid destinations.",
       "That card’s “you cannot make contact this turn” is now actually enforced — it used to be a message only, and contact still went through.",
       "In online play the defender is now always asked to approve a contact. Previously anyone without a Counter Lock was auto-approved silently, which looked like they were never asked — and the instant approval itself revealed that they held no Counter Lock.",
@@ -774,20 +926,14 @@ export const CHANGELOG = [
       "While a card effect is being resolved — including while waiting for an opponent to choose — the Skip and My Deck buttons are hidden, so a phase can no longer end in the middle of an effect.",
       "The CPU now prefers to take a Party card that is sitting on the board, denying an opponent the place-and-step-on-it loop.",
       "The prompt for choosing where to place a card is clearer now. Cards that place just one no longer say “each on a different square”, and when placing several it tells you which one you are on and that two cannot share a square.",
-      "Tapping a hand card while a centre notice (such as “you took this card”) was showing could trigger that card’s hand effect — for example using a card you meant to hand back during Sleight of Hand. The board and your hand now ignore taps until the notice is closed.",
       "Konohanasakuya, the Cherry of Bonds now lets you pull an opponent to any of the eight surrounding squares. The four diagonals were missing — “surrounding” includes them.",
-      "Every image in the app has been rebuilt at the size it is actually displayed. This targets the crash where the app would drop back to the title screen mid-match on phones (iPhone especially): the memory used by images during a match is now about a third of what it was, and downloads are lighter too. Nothing looks different.",
       "New players now see a single “Next up” card at the top of the home screen: 1) learn how to play, 2) play one CPU match, 3) play someone. It disappears once you are up and running (or via the ✕).",
       "Fixed overlapping background music (for example the title theme starting when you returned home from My Page and never stopping once a match began). Only one track can now play at a time.",
       "The home screen now uses the waiting-room music.",
-      "Added a sound to the card’s pulse when you pay a Color Cost.",
-      "Added sound to the victory sequence: the pitch rises as each of the seven colours lights up, with an impact as the light bursts.",
       "Online matches now ask every player to approve a final lock. Previously players who could not use So Sorry! were approved automatically, and the instant skip revealed that they did not hold the card.",
-      "Fixed: approving someone’s final lock could get stuck waiting on one player and never continue.",
       "Clearer marks on the “this turn” chips at the bottom right: gaining and drawing are now both “+”, a lock shows chains over the card, and a gate invasion shows “∞”.",
       "Result notices such as “the effect fizzled, so this card returns to your hand” can now be dismissed by tapping anywhere, moving the game on immediately (leave it alone and it still closes by itself).",
       "The heartbeat sound in Trial Ritual and The Gamble is now much easier to hear, especially on phones.",
-      "On phones that support it, the device now vibrates along with the heartbeat (switchable in Settings; iPhone and iPad cannot vibrate).",
       "Fixed: starting a CPU battle briefly flashed the previous (or the app’s startup) board just before the deal.",
       "Fixed: the CPU sometimes held Counter Lock without using it. It now uses it to negate contact even when it has no card to lock (locking is optional).",
       "Fixed at the root: taking your time choosing cards no longer ends the “busy” state early, which had allowed a piece to be moved mid-effect.",
@@ -806,11 +952,15 @@ export const CHANGELOG = [
     date: "2026-09-02",
     items: [
       "アプリの更新中に、どこまで進んでいるかが画面上部に出るようになりました（時間がかかる時でも止まっているのか進んでいるのか分かります）。",
-      "CPU戦では、あなたの手番に持ち時間の時間切れが起きなくなりました。待っている相手がいないので、席を外していても勝手に手が進んだり砂時計が減ったりしません（オンライン対戦はこれまで通りです）。",
-      "しばらく席を外して自動で進んだあと戻ってきた時に、「このマスでいいですか？」で「選び直す」を押すと何度も同じ確認が出てしまう不具合を直しました。自動で選ばれた分にはこの確認を出しません。",
     ],
     itemsEn: [
       "Updating the app now shows progress at the top of the screen, so you can tell it is working even when it takes a while.",
+    ],
+    devItems: [
+      "CPU戦では、あなたの手番に持ち時間の時間切れが起きなくなりました。待っている相手がいないので、席を外していても勝手に手が進んだり砂時計が減ったりしません（オンライン対戦はこれまで通りです）。",
+      "しばらく席を外して自動で進んだあと戻ってきた時に、「このマスでいいですか？」で「選び直す」を押すと何度も同じ確認が出てしまう不具合を直しました。自動で選ばれた分にはこの確認を出しません。",
+    ],
+    devItemsEn: [
       "In CPU battles your own turn no longer times out. Nobody is waiting on you, so stepping away never plays a move for you or spends your hourglasses (online matches are unchanged).",
       "Fixed: after being away and having your turn played automatically, choosing “Pick again” on “Is this the square?” could ask you over and over. Automatic choices no longer show that confirmation.",
     ],
@@ -819,10 +969,14 @@ export const CHANGELOG = [
     date: "2026-09-02",
     items: [
       "勝利演出の最中に「ロックしました」などの対局中のお知らせが画面中央に出て、演出の邪魔になっていたのをやめました。演出が始まったら、その時に出ているお知らせも片付きます（選択が必要なモーダルはこれまで通り出ます）。",
-      "対戦のあとホーム画面に戻っても、盤面のBGMが鳴り続けていたのを直しました。",
     ],
     itemsEn: [
       "In-game notices (like “Locked!”) no longer appear over the victory celebration — any already on screen are cleared when it starts. Modals that need your choice still appear as before.",
+    ],
+    devItems: [
+      "対戦のあとホーム画面に戻っても、盤面のBGMが鳴り続けていたのを直しました。",
+    ],
+    devItemsEn: [
       "Fixed: the in-game music kept playing after a match when you returned to the home screen.",
     ],
   },
@@ -830,11 +984,15 @@ export const CHANGELOG = [
     date: "2026-09-02",
     items: [
       "追色（同じ色のカードを捨てて使う）の演出で、吸い込まれていくカードが手札にも残ったままで二重に見えていたのを直しました。",
-      "「スリカエ」で相手に返すカードを選んでいる最中に、選んだつもりのカードをそのまま使ってしまうことがあった不具合を直しました。カード効果の選択待ちの間は、手札や駒に触れても動かなくなります。",
-      "ゲート侵攻の処理中に駒を動かせてしまい、本来の「自分のゲートへ戻る」が上書きされてしまうことがあった不具合を直しました。処理が終わるまで盤面の操作を受け付けません。",
     ],
     itemsEn: [
       "Fixed: during the Color Cost animation, the card being absorbed also stayed in your hand, so it looked doubled.",
+    ],
+    devItems: [
+      "「スリカエ」で相手に返すカードを選んでいる最中に、選んだつもりのカードをそのまま使ってしまうことがあった不具合を直しました。カード効果の選択待ちの間は、手札や駒に触れても動かなくなります。",
+      "ゲート侵攻の処理中に駒を動かせてしまい、本来の「自分のゲートへ戻る」が上書きされてしまうことがあった不具合を直しました。処理が終わるまで盤面の操作を受け付けません。",
+    ],
+    devItemsEn: [
       "Fixed: while choosing which card to hand back for Sleight of Hand, tapping a card could use it instead. Cards and pieces no longer respond while a card effect is waiting for a choice.",
       "Fixed: pieces could still be moved while a Gate Invasion was resolving, which overrode the “return to your own gate” step. The board no longer accepts input until it finishes.",
     ],
@@ -842,34 +1000,94 @@ export const CHANGELOG = [
   {
     date: "2026-09-02",
     items: [
+      "運営からのお知らせに掲載期間を設定できるようにしました。期間を過ぎたお知らせは、まだ読んでいない方にも表示されません。",
+      "ブラウザで遊んでいる方に、ホーム画面への追加（アプリのように起動できます）をご案内するようにしました。Androidなどではボタン一つで追加でき、iPhone・iPadでは追加の手順をご案内します（「あとで」を押すとしばらく出ません）。",
+    ],
+    itemsEn: [
+      "Announcements from the team can now have a display period. Once it ends, the announcement is no longer shown — not even to people who have not seen it yet.",
+      "If you play in a browser, you will now be offered a way to add the game to your home screen. On Android it takes one tap; on iPhone and iPad we show you the steps (“Later” hides it for a while).",
+    ],
+    devItems: [
       "「奇跡の森 ヴァーディアン」で公開ドローしたカードをタップしても、そのカードが手札に入って裏向きになるだけで使えなかった不具合を直しました。タップすると、手札のカードと同じように使用の確認が出ます。",
       "公開ドローしたカードにカーソルを合わせる（長押しする）と、拡大表示に「このターン使わなかったら、ターン終了時に捨てられます」と出るようにしました。",
       "通常の移動でも、移動先のマスを選んだあとに「このマスでいいですか？」の確認が出るようにしました（カード効果でマスを選ぶ時と同じ確認です。基本設定でまとめて切り替えられます）。",
       "CPUが「ゴメンナサイッ！」を使った時、処理が速すぎて何が起きたのか分からなかったのを直しました。奪ったカードを見せるモーダルを閉じる（または自動で消える）まで、次へ進まなくなります。",
       "ホームに戻っても勝利BGMが鳴り続け、しばらくすると勝利BGMがまた鳴り始めることがあった不具合を直しました。",
       "非公開のカードを手に入れた時のお知らせに、花札の絵文字ではなくカードの裏面を出すようにしました（画面中央のお知らせと、右下の「このターンの出来事」の両方）。",
-      "運営からのお知らせに掲載期間を設定できるようにしました。期間を過ぎたお知らせは、まだ読んでいない方にも表示されません。",
-      "ブラウザで遊んでいる方に、ホーム画面への追加（アプリのように起動できます）をご案内するようにしました。Androidなどではボタン一つで追加でき、iPhone・iPadでは追加の手順をご案内します（「あとで」を押すとしばらく出ません）。",
     ],
-    itemsEn: [
+    devItemsEn: [
       "Fixed: a card drawn face-up by Verdian, the Wondrous Forest could not be used — tapping it just moved it into your hand face-down. Tapping it now asks to use it, just like a card in your hand.",
       "Hovering (or long-pressing) a face-up drawn card now shows “Discarded at end of turn if you don’t use it this turn” on the enlarged card.",
       "Normal moves now also ask “Is this the square?” after you pick a destination — the same confirmation used when a card effect asks you to pick a square (both can be turned off together in Settings).",
       "Fixed: when a CPU used So Sorry!, everything resolved too fast to follow. The game now waits for the “what was taken” card modal to close before continuing.",
       "Fixed: the victory music kept playing after returning home, and could start again on its own after a while.",
       "Notices about cards gained face-down now show the actual card back instead of a playing-card emoji (both the center flash and the “this turn” strip at the bottom right).",
-      "Announcements from the team can now have a display period. Once it ends, the announcement is no longer shown — not even to people who have not seen it yet.",
-      "If you play in a browser, you will now be offered a way to add the game to your home screen. On Android it takes one tap; on iPhone and iPad we show you the steps (“Later” hides it for a while).",
     ],
   },
   {
     date: "2026-08-29",
     items: [
       "運営からのお知らせを、ホーム画面を開いた時にお伝えできるようにしました（同じお知らせが何度も出ることはありません）。通知を許可している方には、アプリを開いていなくても届くお知らせも送れるようにしました。",
+      "不具合報告に、CPUの強さ・人数・2D表示・自動処理・演出の設定などの「その時の状態」を自動で添えるようにしました。原因の特定が早くなります。",
+      "ホーム画面を開いたときに、このアプリがまだα版（テスト中）であることと、不具合の教え方をお知らせするようにしました。アプリを開くたびに1回だけ出ます（「今後このお知らせを表示しない」で止められます）。",
+      "追色の演出は、画面のどこかをタップすればスキップできるようになりました。",
+      "スマホで、画面左下のプレイヤー名・称号・手札枚数が表示されなくなっていたのを直しました（着せ替えアイコンを隠した際に、その分だけ表示欄が画面の外へずれていました）。",
+      "画面の左上から駒に向かって半透明のカードが飛んでいく、意味のない演出が時々出ていたのを直しました（隠れている場所から飛ばそうとして、位置が測れず画面の隅から飛んでいました）。",
+      "スマホ・タブレットで勝利演出の光やカードが実物と大きくズレて出ていたのを直しました（画面全体の縮小が二重にかかっていたためで、演出全体が対象です）。",
+      "接触の演出のあと「奪った」表示が出ている最中に、ターンが次の人へ切り替わってしまうことがあったのを直しました。",
+      "スマホでの勝利演出で、ロックの光が画面外の見えない場所に出ていたのを直しました。スマホで実際に見えている小さいロック表示の方に光ります。",
+      "スマホでは、画面左下の着せ替えアイコン（駒スキン・カード裏・ペット・プレイマット・背景）を表示しないようにしました。狭い画面で盤面や手札の邪魔になっていたためです。着せ替えはマイページからこれまで通り変更できます。",
+      "マイページの実績（対戦数・勝利数・勝率・勝率順位・対戦数順位・登録年月日）が表示されなくなっていたのを直しました。英語表示に対応した際の書き換えミスが原因でした。",
+      "勝利演出で、ロックエリアの光がカードの外側に浮いて見えていたのを直しました。光を合わせる相手をロックの枠から実際のカードに変え、盤面が動いても常に追いかけるようにしたので、カードのふちにぴったり沿って光ります。",
+      "勝利演出の脈動から、駒のまわりの丸い光（スポットライト）をなくしました。駒自体が光るだけになります。",
+      "勝利演出で、ロックエリアの光が実際のカードの位置とずれていたのを直しました。盤面の映り方を実際に測って合わせるようにしたので、画面の大きさや盤面の拡大率が変わってもぴったり重なります。",
+      "勝利演出の脈動から、中央の白い丸を消しました（勝者の色のにじみだけになります）。",
+      "勝利演出を細かく直しました。ロックエリアの光が盤面と同じ向きに寝るようになり（板が立って見えていました）、脈動に重なる白い光は勝者の駒の色でやわらかくにじむようにしました。",
+      "勝利演出で、宙に浮いたロックカードがその場で消えるのをやめ、勝者の駒（キューブ）へ吸い込まれるようにしました。カードが浮いた後はロックエリアの光も残らず消えます。",
+      "勝利演出で、勝者のロックエリアの七色が暗転の裏側に隠れてしまい色が見えなかったのを直しました。七色は暗転より手前ではっきりと灯ります。",
+      "勝利演出の標準の強さを、以前の「派手版」の設定にしました（光の量・脈動・残光が強めになります）。",
+      "ライトモードで、モーダルの中の文字が薄くて読めなかったところを直しました（63か所）。前回モーダルの地を明るくした際に、中の文字色が暗い地のままの想定で残っていたためです。あわせて、以前から明るかったマイページ・ランキング・マイデッキ・ショップなどのページ内も点検して直しています。",
+      "7色目をロックした時の演出を「七色、集結」として作り直しました。盤面が静まり、勝者のロックエリアの七色が順に灯り、その光が帯や霧のように揺れながら勝者の国宝キューブへ集まって吸い込まれます。キューブが3回脈動したあと、強烈な白い光が画面を覆い、その中に勝者が浮かび上がります。",
+      "不具合報告にスクリーンショットを添付できるようにしました（任意）。ファイルを選ぶほか、Ctrl+Vでの貼り付け・ドラッグ＆ドロップにも対応しています。",
+      "ショップの駒スキンから「0thリメイク」を外しました（「標準」と同じ絵柄のため）。これを選んでいた場合は「標準」として表示されます。",
+      "英語表示に対応しました。オプションの「基本設定」で言語を English に切り替えると、タイトル画面から対局中の案内・ヘルプ・物語・マイページ・ショップ、カードの効果文やその補足まで英語で表示されます。",
+      "称号を追加しました。対戦成績・ランク戦・不具合報告に応じて全16種類が少しずつ解放されます。マイページの名前の上をクリックするとコレクションが開き、お気に入りの1つを選んで名前の上に表示できます。",
+      "マイデッキ編集画面に「使い方」を追加しました。初めて開いた時に自動で表示され、以降はヘッダーの「？ 使い方」からいつでも見返せます。あわせて、デッキの箱にカードをドラッグすると箱の絵をそのカードに変えられるようになりました。",
+      "CPU戦や自動処理の途中で、まれに盤面が完全に止まって何も進まなくなる不具合を直しました。",
+    ],
+    itemsEn: [
+      "The team can now send you a message that appears when you open the home screen (the same message never shows twice). If you have allowed notifications, it can also reach you while the app is closed.",
+      "Bug reports now automatically include the settings in effect at the time — CPU strength and player count, 2D display, auto-processing, animation options and so on — so causes can be pinned down faster.",
+      "When you open the home screen, a notice now explains that the app is still an alpha and how to report anything odd. It appears once each time you open the app, and can be turned off from the notice itself.",
+      "You can now skip the colour-cost animation by tapping anywhere on the screen.",
+      "Fixed your name, title and hand count disappearing from the bottom-left of the screen on phones. Hiding the dress-up icons had pushed that panel off the edge of the screen.",
+      "Fixed a stray translucent card sometimes flying from the top-left corner of the screen toward a piece. It was a flight animation starting from a hidden element whose position could not be measured.",
+      "Fixed the victory sequence appearing far from where it should on phones and tablets — the whole-screen scaling was being applied twice, which threw off every part of the sequence.",
+      "Fixed the turn sometimes passing to the next player while the “stolen card” display from a contact was still on screen.",
+      "Fixed the Lock Area glow in the victory sequence appearing off-screen on phones. It now lights up the small lock display you can actually see.",
+      "On phones, the dress-up icons at the bottom-left (piece skin, card back, pet, playmat, background) are no longer shown — they got in the way of the board and your hand on a small screen. You can still change all of them from My Page as before.",
+      "Fixed the achievements on My Page (matches, wins, win rate, rankings, join date) not appearing at all. It was caused by a mistake made while adding English support.",
+      "Fixed the Lock Area glow appearing to float outside the cards during the victory sequence. It now tracks the actual card instead of the slot frame and follows the board if it moves, so it traces each card’s edge exactly.",
+      "Removed the round pool of light around the piece during the victory pulse — now only the piece itself glows.",
+      "Fixed the Lock Area glow not sitting on the actual cards during the victory sequence. It now measures how the board is actually drawn, so it lines up exactly at any window size or board zoom.",
+      "Removed the white disc from the pulse in the victory sequence — only the winner’s coloured haze remains.",
+      "Polished the victory sequence. The glow on the Lock Area now lies flat along the board instead of standing upright, and the light around the pulsing cube is now a soft haze in the winner’s colour rather than a hard white disc.",
+      "In the victory sequence, the locked cards floating in mid-air are now drawn into the winner’s cube instead of fading out where they are, and the Lock Area glow no longer lingers once the cards have lifted away.",
+      "Fixed the winner’s seven colors being hidden behind the dimming layer during the victory sequence — they now light up clearly in front of it.",
+      "The victory sequence now defaults to what used to be the “flashy” setting (stronger light, pulse and afterglow).",
+      "Fixed 63 places where text inside a modal was too faint to read in light mode. When the panel backgrounds were lightened, the text colours inside were still written for a dark background. Pages that were already light — My Page, the rankings, your decks, the shop — were checked and fixed too.",
+      "The victory sequence has been rebuilt as “Seven Colors, Gathered”. The board falls quiet, the seven colours in the winner's Lock Area light up in turn, and their light drifts as ribbons and mist into the winner's National Treasure Cube. The cube beats three times, then a blinding white light floods the screen, and the winner appears within it.",
+      "You can now attach a screenshot to a problem report (optional). Pick a file, paste with Ctrl+V, or drag and drop.",
+      "Removed the “0th Remake” piece skin from the shop — it is the same artwork as “Standard”. If you had it selected, it now shows as “Standard”.",
+      "The app is now available in English. Switch the language to English in Settings and everything is translated — the title screen, the prompts during a match, the help, the story, My Page, the shop, and the text and notes on the cards themselves.",
+      "Titles have been added. All 16 of them unlock gradually from your match record, your ranked play and the problems you report. Click above your name on My Page to open your collection and pick one favorite to show there.",
+      "The deck editor now has a “How to use” walkthrough. It appears the first time you open the editor, and you can bring it back at any time from “? How to use” in the header. You can also drag a card onto the deck case to make it the artwork on the box.",
+      "Fixed a problem where the board could occasionally freeze completely during a CPU match or while effects were resolving automatically.",
+    ],
+    devItems: [
       "「この相手でいいですか？」の確認を、マスを選ぶ効果と相手を選ぶ効果できちんと出し分けるようにしました（駒が乗っているマスを選ぶ効果では、これまで通り「このマスでいいですか？」と出ます）。",
       "CPUが、パーティのような「全員がそれぞれ選ぶ」効果で、強さの設定に関係なくランダムに選んでしまっていた不具合を直しました（最強にしていても2枚オープンを選ぶことがあったのはこれが原因でした）。",
       "相手を選ぶカード効果（プレゼントなど）で、駒を選んでいるのに「このマスでいいですか？」と出ていたのを「この相手でいいですか？」に直しました。",
-      "不具合報告に、CPUの強さ・人数・2D表示・自動処理・演出の設定などの「その時の状態」を自動で添えるようにしました。原因の特定が早くなります。",
       "CPU戦が途中で止まってしまうことがあった原因を突き止めて直しました（赤のキューブ フェニックスを、CPUが「使えるのに何も起きない」状態で撃ち続けていました）。念のため、CPUが同じカードを撃ち続けても止まらないようにもしています。",
       "「収穫と種まき」に到達して、その効果でその「収穫と種まき」自身を拾い、同じマスへ置き直した時に、最後にもう一度手札へ加わってしまう不具合を直しました。置き直した場所に残ります。",
       "CPUがパーティの効果で「2枚オープン」を選んでしまうことがあったのを直しました（他に選べる選択肢がある限り選びません。CPUの強さの設定に関係なく効きます）。",
@@ -879,64 +1097,36 @@ export const CHANGELOG = [
       "CPUが、自分のロックエリアに置いたままでも使えるカード（ファーストカード・エターナルカード）を使えるようになりました。これまでは一切使わなかったため、ディメンションで一気に2マス動いてゲート侵攻できる場面などを見逃していました。",
       "CPUが、あと1色で勝ちの相手が必要としている色のカードを、場から優先して回収するようになりました（相手の勝ち筋を止めにきます）。",
       "スマホでα版のお知らせがスクロールしないと読めなかったのを直しました。横向きの画面では3つの項目が横に並び、文字も大きくなって、そのまま全部読めます。",
-      "ホーム画面を開いたときに、このアプリがまだα版（テスト中）であることと、不具合の教え方をお知らせするようにしました。アプリを開くたびに1回だけ出ます（「今後このお知らせを表示しない」で止められます）。",
       "効果の自動処理モード中は、自分の手札公開エリア（画面下の枠）を出さないようにしました。公開したカードは手札の並びの中に出るので、下の枠は常に空で場所だけ取っていたためです（管理者向けの設定で元に戻せます）。",
       "「このマスでいいですか？」の確認を、画面の端ではなく選んだマスのすぐ隣（右上、入らなければ右下・左上・左下）に出すようにしました。上に出たり下に出たりしないので視線が動きません。",
       "追色（同じ色のカードを捨てて使う）の演出中に、効果の続き（セレスティアなら「相手の手札を選ぶ」など）が重なって出てしまうのを直しました。演出が終わってから次へ進みます。",
-      "追色の演出は、画面のどこかをタップすればスキップできるようになりました。",
       "「このカードを選びますか？」の確認モーダルで、ボタンを押しても反応しないこと（カウンターロックでロックするカードを選ぶ場面など）を直しました。以前この症状を直した別のモーダルと同じ原因で、押した反応（明るくなる）だけは出るのにボタンが効かない状態でした。",
       "色を宣言する画面で、必要な数（試練の儀式なら3色）まで選び終えたら、残りの色が灰色になって選べなくなるようにしました。うっかり4色目を押しても増えません。選び直したいときは、選んだ色をもう一度押して外してください。",
       "カード効果でマスを選んだあと、「このマスでいいですか？」と一度確認するようにしました。押し間違えたまま確定してしまうのを防ぎます。確認は盤面を隠さない位置（選んだマスと反対側の端）に出て、そのマスが金色に光ります。モーダルの「今後このモーダルを表示しない」で切れますし、基本設定からいつでも戻せます。",
       "「黄のキューブ サフラン」でカードをオープンしたとき、何のカードをオープンしたのかが全員に分かるようになりました。",
       "CPUが「パーティー」の効果で「2枚オープン」を選ばないようにしました（他に選べるものが無い時だけ選びます）。",
-      "スマホで、画面左下のプレイヤー名・称号・手札枚数が表示されなくなっていたのを直しました（着せ替えアイコンを隠した際に、その分だけ表示欄が画面の外へずれていました）。",
       "スマホで、ロックなどのミニ通知が画面中央から一瞬だけ左上へ飛んでから右下へ向かう、おかしな動きを直しました。エモートのメニューが開く位置も同じ理由でずれていたので直しています。",
-      "画面の左上から駒に向かって半透明のカードが飛んでいく、意味のない演出が時々出ていたのを直しました（隠れている場所から飛ばそうとして、位置が測れず画面の隅から飛んでいました）。",
       "iPhone・iPadで、カードのタイトルとふりがなが効果文に重なって表示されることがあったのを直しました（ふりがなの作り方を、機種によって解釈が変わらない方法に変えました）。",
-      "スマホ・タブレットで勝利演出の光やカードが実物と大きくズレて出ていたのを直しました（画面全体の縮小が二重にかかっていたためで、演出全体が対象です）。",
-      "接触の演出のあと「奪った」表示が出ている最中に、ターンが次の人へ切り替わってしまうことがあったのを直しました。",
       "「ゴメンナサイッ！」をCPUが使ったのに、そのまま相手が勝利してしまう不具合を修正しました。カードのコストを払った一瞬のすきに、システムが「使えなかった」と判断して先に承認していたためです。",
-      "スマホでの勝利演出で、ロックの光が画面外の見えない場所に出ていたのを直しました。スマホで実際に見えている小さいロック表示の方に光ります。",
       "色を宣言する画面で、1色選んだだけで残りの色が薄くなり「もう選べない」ように見えていたのをやめました。",
-      "スマホでは、画面左下の着せ替えアイコン（駒スキン・カード裏・ペット・プレイマット・背景）を表示しないようにしました。狭い画面で盤面や手札の邪魔になっていたためです。着せ替えはマイページからこれまで通り変更できます。",
       "スマホでの、自分のアバター・手札を画面下に固定した時のトレイ・左下ステータスの位置を調整しました。",
-      "マイページの実績（対戦数・勝利数・勝率・勝率順位・対戦数順位・登録年月日）が表示されなくなっていたのを直しました。英語表示に対応した際の書き換えミスが原因でした。",
       "スマホでの、画面左下に大きく映る自分のアバターの位置と、その背後にうっすら重なるアバターの大きさ・位置・濃さを、スマホ専用に調整できるようにしました（管理者向けの設定です）。",
-      "勝利演出で、ロックエリアの光がカードの外側に浮いて見えていたのを直しました。光を合わせる相手をロックの枠から実際のカードに変え、盤面が動いても常に追いかけるようにしたので、カードのふちにぴったり沿って光ります。",
-      "勝利演出の脈動から、駒のまわりの丸い光（スポットライト）をなくしました。駒自体が光るだけになります。",
-      "勝利演出で、ロックエリアの光が実際のカードの位置とずれていたのを直しました。盤面の映り方を実際に測って合わせるようにしたので、画面の大きさや盤面の拡大率が変わってもぴったり重なります。",
-      "勝利演出の脈動から、中央の白い丸を消しました（勝者の色のにじみだけになります）。",
-      "勝利演出を細かく直しました。ロックエリアの光が盤面と同じ向きに寝るようになり（板が立って見えていました）、脈動に重なる白い光は勝者の駒の色でやわらかくにじむようにしました。",
-      "勝利演出で、宙に浮いたロックカードがその場で消えるのをやめ、勝者の駒（キューブ）へ吸い込まれるようにしました。カードが浮いた後はロックエリアの光も残らず消えます。",
-      "勝利演出で、勝者のロックエリアの七色が暗転の裏側に隠れてしまい色が見えなかったのを直しました。七色は暗転より手前ではっきりと灯ります。",
       "勝利演出の脈動を作り直しました。白い丸が広がるだけだったところを、勝者の駒（キューブ）に少し半透明のもう1つのキューブが重なって脈打ち、脈動のたびに一回り大きく広がって消えるようにしました。駒スキンもそのまま反映されます。",
-      "勝利演出の標準の強さを、以前の「派手版」の設定にしました（光の量・脈動・残光が強めになります）。",
-      "ライトモードで、モーダルの中の文字が薄くて読めなかったところを直しました（63か所）。前回モーダルの地を明るくした際に、中の文字色が暗い地のままの想定で残っていたためです。あわせて、以前から明るかったマイページ・ランキング・マイデッキ・ショップなどのページ内も点検して直しています。",
       "ライトモードなのにダークのままだったモーダル・パネル・案内表示を、まとめてライトの見た目に直しました（53か所）。確認モーダル、右クリックメニュー、カード補足、各種ピッカー、フェイズ案内、承認バナー、ツールチップなどが対象です。幕（背景を暗くするもの）・お祝いの色付きモーダル・物語の場面は、暗いままが正しいのでそのままにしています。",
-      "7色目をロックした時の演出を「七色、集結」として作り直しました。盤面が静まり、勝者のロックエリアの七色が順に灯り、その光が帯や霧のように揺れながら勝者の国宝キューブへ集まって吸い込まれます。キューブが3回脈動したあと、強烈な白い光が画面を覆い、その中に勝者が浮かび上がります。",
       "カードの文字を、印刷されたカードに近い書体・太さにしました。これまでは端末に入っているフォント任せで、WindowsとMacで別の書体・細い表示になっていました。今後はどの端末でも同じ見た目になります。",
       "手札のカードにカーソルを合わせた時、その後ろにあるロックエリアのカードが拡大表示されてしまうことがあったのを直しました。実際に手前に見えているカードが拡大されます。",
-      "不具合報告にスクリーンショットを添付できるようにしました（任意）。ファイルを選ぶほか、Ctrl+Vでの貼り付け・ドラッグ＆ドロップにも対応しています。",
-      "ショップの駒スキンから「0thリメイク」を外しました（「標準」と同じ絵柄のため）。これを選んでいた場合は「標準」として表示されます。",
       "手札のカードが透明になって見えない・カードが丸く切り抜かれて見える・カードの効果文が中央寄せになる、という不具合を直しました（同じ日に入れた変更による一時的な不具合でした。ご迷惑をおかけしました）。",
       "英語表示で、フェイズ案内の「移動か接触ができます」・スキップボタン・左下の称号・カード名の一部が日本語のままだったのを直しました（言語をあとから切り替えた時も追随します）。",
-      "英語表示に対応しました。オプションの「基本設定」で言語を English に切り替えると、タイトル画面から対局中の案内・ヘルプ・物語・マイページ・ショップ、カードの効果文やその補足まで英語で表示されます。",
-      "称号を追加しました。対戦成績・ランク戦・不具合報告に応じて全16種類が少しずつ解放されます。マイページの名前の上をクリックするとコレクションが開き、お気に入りの1つを選んで名前の上に表示できます。",
-      "マイデッキ編集画面に「使い方」を追加しました。初めて開いた時に自動で表示され、以降はヘッダーの「？ 使い方」からいつでも見返せます。あわせて、デッキの箱にカードをドラッグすると箱の絵をそのカードに変えられるようになりました。",
       "カードの効果文が枠からはみ出して絵の上に重なってしまうこと（なないろの欠片）を直しました。今後は枠に収まらない時だけ、その文だけ自動的に少し小さくなります。",
-      "CPU戦や自動処理の途中で、まれに盤面が完全に止まって何も進まなくなる不具合を直しました。",
       "オンライン対局中にブラウザを更新すると、そのターンのロックフェイズがやり直しになり、もう1枚ロックできてしまう不具合を直しました。更新しても続きのフェイズから再開します。",
       "カウンターロックで接触を無効にした後、最後の1色（置けば勝利になるカード）をロックできなかったのを直しました。この場合も通常どおり全員の承認を挟みます。",
       "「重なっているカードを見る」の一覧で、カードにカーソルを合わせても拡大表示されなかったのを直しました。",
       "右下の「このターンの出来事」に、前のターンの出来事が残ってしまうことがあったのを直しました。",
     ],
-    // 英語表示のとき items の代わりに出る（併記はしない。同じ順番・同じ件数で書くこと）。
-    itemsEn: [
-      "The team can now send you a message that appears when you open the home screen (the same message never shows twice). If you have allowed notifications, it can also reach you while the app is closed.",
+    devItemsEn: [
       "The confirmation now correctly distinguishes “Choose this opponent?” from “Use this square?”, so effects that target a square still say square even when a piece is standing on it.",
       "Fixed a bug where the CPU chose at random in “everyone chooses” effects such as Party, regardless of the difficulty setting. This is why the strongest CPU sometimes picked “open two cards”.",
       "When a card effect asks you to choose an opponent (Present and others), the confirmation now says “Choose this opponent?” instead of “Use this square?”.",
-      "Bug reports now automatically include the settings in effect at the time — CPU strength and player count, 2D display, auto-processing, animation options and so on — so causes can be pinned down faster.",
       "Fixed the cause of CPU battles freezing mid-game (the CPU kept firing Phoenix, the Red Cube, in a state where it counted as usable but nothing could happen). As a safety net, the CPU also stops repeating the same card.",
       "When you land on Harvest and Sow and its effect picks up that same Harvest and Sow and puts it back on the board, it no longer gets added to your hand afterwards. It stays where you put it.",
       "The CPU no longer picks Party’s “open two cards” option while any other option is available — at every CPU strength setting.",
@@ -946,52 +1136,27 @@ export const CHANGELOG = [
       "The CPU can now use cards that stay usable in its own Lock Area (First and Eternal cards). It never used them before, so it missed plays such as moving two squares at once with Dimension to invade your gate.",
       "The CPU now prefers to pick up a board card in the colour an opponent needs to win, to cut off their last colour.",
       "On phones, the alpha notice no longer has to be scrolled to be read. In landscape the three points sit side by side and the text is larger, so it all fits on one screen.",
-      "When you open the home screen, a notice now explains that the app is still an alpha and how to report anything odd. It appears once each time you open the app, and can be turned off from the notice itself.",
       "While automatic effect processing is on, your own reveal area at the bottom of the screen is no longer shown — revealed cards already appear among your hand, so the frame was always empty and just took up space (an admin setting can bring it back).",
       "The “Use this square?” prompt now appears right next to the square you picked (upper-right, falling back to lower-right, upper-left or lower-left) instead of at the edge of the screen, so your eyes stay in one place.",
       "Fixed the rest of an effect (such as Celestia’s “choose an opponent’s card”) appearing on top of the colour-cost animation. It now waits for the animation to finish.",
-      "You can now skip the colour-cost animation by tapping anywhere on the screen.",
       "Fixed the “Choose this card?” prompt not responding to its buttons — for example when picking a card to lock with Counter Lock. It was the same cause as another prompt fixed earlier: the button lit up on tap but the press never registered.",
       "In the colour declaration screen, once you have picked the required number of colours (three for Trial Ritual) the rest turn grey and can no longer be picked. To change your mind, tap a chosen colour again to deselect it.",
       "After you pick a square for a card effect, the game now asks “Use this square?” once, so a mis-tap no longer locks in. The prompt appears on the opposite edge from the square you picked so it never covers it, and that square glows gold. You can switch it off from the prompt itself and turn it back on any time in the basic settings.",
       "When “Saffron, the Yellow Cube” reveals a card, everyone can now see which card was revealed.",
       "The CPU no longer picks “reveal two squares” for Party — it only does so when nothing else is available.",
-      "Fixed your name, title and hand count disappearing from the bottom-left of the screen on phones. Hiding the dress-up icons had pushed that panel off the edge of the screen.",
       "Fixed the mini notifications (for locking a card and so on) briefly jumping to the top-left of the screen before flying to the corner on phones. The emote menu opened in the wrong place for the same reason and is fixed too.",
-      "Fixed a stray translucent card sometimes flying from the top-left corner of the screen toward a piece. It was a flight animation starting from a hidden element whose position could not be measured.",
       "Fixed the card title and its reading overlapping the effect text on iPhone and iPad. The reading is now built in a way that every browser lays out the same.",
-      "Fixed the victory sequence appearing far from where it should on phones and tablets — the whole-screen scaling was being applied twice, which threw off every part of the sequence.",
-      "Fixed the turn sometimes passing to the next player while the “stolen card” display from a contact was still on screen.",
       "Fixed “So Sorry!” being played by a CPU yet the opponent still winning. While the cost was being paid, the game briefly judged the card unusable and approved the lock first.",
-      "Fixed the Lock Area glow in the victory sequence appearing off-screen on phones. It now lights up the small lock display you can actually see.",
       "In the colour declaration screen, the remaining colours no longer dim after you pick just one — it looked as if you could not choose any more.",
-      "On phones, the dress-up icons at the bottom-left (piece skin, card back, pet, playmat, background) are no longer shown — they got in the way of the board and your hand on a small screen. You can still change all of them from My Page as before.",
       "Adjusted the placement on phones of your avatar, the fixed hand tray at the bottom of the screen, and the bottom-left status area.",
-      "Fixed the achievements on My Page (matches, wins, win rate, rankings, join date) not appearing at all. It was caused by a mistake made while adding English support.",
       "On phones, the position of the large avatar at the bottom-left of the screen, and the size, position and opacity of the translucent one behind it, can now be adjusted separately from desktop (an admin setting).",
-      "Fixed the Lock Area glow appearing to float outside the cards during the victory sequence. It now tracks the actual card instead of the slot frame and follows the board if it moves, so it traces each card’s edge exactly.",
-      "Removed the round pool of light around the piece during the victory pulse — now only the piece itself glows.",
-      "Fixed the Lock Area glow not sitting on the actual cards during the victory sequence. It now measures how the board is actually drawn, so it lines up exactly at any window size or board zoom.",
-      "Removed the white disc from the pulse in the victory sequence — only the winner’s coloured haze remains.",
-      "Polished the victory sequence. The glow on the Lock Area now lies flat along the board instead of standing upright, and the light around the pulsing cube is now a soft haze in the winner’s colour rather than a hard white disc.",
-      "In the victory sequence, the locked cards floating in mid-air are now drawn into the winner’s cube instead of fading out where they are, and the Lock Area glow no longer lingers once the cards have lifted away.",
-      "Fixed the winner’s seven colors being hidden behind the dimming layer during the victory sequence — they now light up clearly in front of it.",
       "Rebuilt the pulse in the victory sequence. Instead of a plain white circle expanding, a slightly translucent copy of the winner’s cube now sits on top of the real one and beats, sending out a larger fading cube with every pulse. Your chosen piece skin is used as-is.",
-      "The victory sequence now defaults to what used to be the “flashy” setting (stronger light, pulse and afterglow).",
-      "Fixed 63 places where text inside a modal was too faint to read in light mode. When the panel backgrounds were lightened, the text colours inside were still written for a dark background. Pages that were already light — My Page, the rankings, your decks, the shop — were checked and fixed too.",
       "Fixed 53 modals, panels and notices that stayed dark in light mode — confirmation dialogs, the right-click menu, card notes, the various pickers, phase notices, approval banners, tooltips and more. Dimming layers, the coloured celebration modals and the story scenes are meant to be dark, so those are unchanged.",
-      "The victory sequence has been rebuilt as “Seven Colors, Gathered”. The board falls quiet, the seven colours in the winner's Lock Area light up in turn, and their light drifts as ribbons and mist into the winner's National Treasure Cube. The cube beats three times, then a blinding white light floods the screen, and the winner appears within it.",
       "The text on the cards now uses a typeface and weight close to the printed cards. Until now it depended on whichever fonts your device happened to have, so it looked different — and thinner — on Windows than on a Mac. Everyone now sees the same thing.",
       "Fixed hovering a card in your hand sometimes enlarging the card behind it in the Lock Area instead. The card you can actually see in front is the one that enlarges.",
-      "You can now attach a screenshot to a problem report (optional). Pick a file, paste with Ctrl+V, or drag and drop.",
-      "Removed the “0th Remake” piece skin from the shop — it is the same artwork as “Standard”. If you had it selected, it now shows as “Standard”.",
       "Fixed cards in your hand becoming invisible, cards being clipped into a circle, and the text on a card being centred. These were introduced by a change made earlier the same day — sorry about that.",
       "Fixed parts of the interface staying in Japanese in English mode — the “Move or make contact” phase note, the Skip button, the title under your name, and some card names. They now follow the language even when you switch it after the app has started.",
-      "The app is now available in English. Switch the language to English in Settings and everything is translated — the title screen, the prompts during a match, the help, the story, My Page, the shop, and the text and notes on the cards themselves.",
-      "Titles have been added. All 16 of them unlock gradually from your match record, your ranked play and the problems you report. Click above your name on My Page to open your collection and pick one favorite to show there.",
-      "The deck editor now has a “How to use” walkthrough. It appears the first time you open the editor, and you can bring it back at any time from “? How to use” in the header. You can also drag a card onto the deck case to make it the artwork on the box.",
       "Fixed the text on a card spilling out of its frame and over the artwork (Prism Shard). From now on, only the text that does not fit is shrunk slightly to stay inside the frame.",
-      "Fixed a problem where the board could occasionally freeze completely during a CPU match or while effects were resolving automatically.",
       "Fixed a problem where reloading the page during an online match restarted your Lock phase for that turn, letting you lock a second card. You now resume from the phase you were in.",
       "Fixed Counter Lock not letting you lock your last remaining color (the card that would win you the game) after nullifying contact. As usual, everyone still has to approve that final lock.",
       "Fixed cards in the “See the stacked cards” list not enlarging when you hovered over them.",
@@ -1001,6 +1166,9 @@ export const CHANGELOG = [
   {
     date: "2026-08-28",
     items: [
+
+    ],
+    devItems: [
       "オプションの「基本設定」を整理しました。よく使う設定（効果音・BGMの音量／カードを拡大表示する大きさ／全画面で遊ぶ／使う前に確認する）は開いてすぐ触れる位置に出し、残りは「動きが重い・カクつくとき」「画面の見え方」のように“困りごと”の名前でまとめました。折りたたみの中にさらに折りたたみがある状態も無くし、項目名も何が起きるか分かる言い方に書き換えています（設定できることは今まで通り全部あります）。",
       "対戦が終わった後、結果モーダルを閉じた直後に勝手にホーム画面へ戻されてしまうこと（ランク戦）を修正しました。終了後も部屋に残って盤面を確認できます。",
       "対戦結果が戦績システムに登録されないことがある不具合を修正しました。登録は勝敗が決まった瞬間に行われるようになり、対戦後のコメントは勝ち負けに関係なく参加者それぞれが残せます。",
@@ -1011,8 +1179,10 @@ export const CHANGELOG = [
   {
     date: "2026-08-24",
     items: [
-      "対戦終了時のモーダル（勝敗・もう一度戦う等）の文字が、ライト配色の時に薄くて見えにくかったのを読みやすい色に修正しました。",
       "スマホ・タブレットで横向きに固定しやすくしました。全画面表示ボタンで全画面にすると、対応端末では自動で横向きに固定されます。また、ホーム画面に追加したアプリ（PWA）として起動すると横向きで開くようになります（iPhoneのSafariのタブのままでは、これまで通り縦向きの時に横向き案内が出ます）。",
+    ],
+    devItems: [
+      "対戦終了時のモーダル（勝敗・もう一度戦う等）の文字が、ライト配色の時に薄くて見えにくかったのを読みやすい色に修正しました。",
       "ゲート侵攻で奪ったカードの中身が、本来見えないはずの他のプレイヤー（観戦者など）にも伝わってしまう不具合を修正しました（オンライン対戦のプライバシー）。",
       "カウンターロックの「手札を1枚ロックしますか？」の確認ボタンが、まれにタップしても反応せず進めなくなる不具合に、より確実な対策を入れました。",
       "マスチェンジ（到達効果）で、入れ替えが終わった直後にカードが手札へ回収されるよう、処理の順番を直しました。",
@@ -1022,29 +1192,33 @@ export const CHANGELOG = [
     date: "2026-08-18",
     items: [
       "カードを盤面のマスに置くとき、手札や山札からマスの真上へすーっと滑り、上空で止まってストンと落ちて配置され、着地の瞬間にカードの周りに風・ホコリがふわっと舞う演出を追加しました。逆に、マスのカードが手札へ入るときも持ち上がって滑り込む演出になります。手で置く時（ドラッグ＆ドロップ）だけでなく、合同建設・増殖する樹々・ジャンプ台などのカード効果で置かれる時や、CPUが置く時も対象です（動作を軽くしたい時はオプションの「アニメーションを減らす」でオフにできます）。",
-      "CPU戦（1人用の練習相手）が賢くなりました。標準の強さを「中級」にして、行き当たりばったりではなく盤面を見て打つようになります（移動先の選び方・効果の使いどころ・色の宣言などを考えて選びます）。もっと弱く／強くしたい時は、CPU戦の開始画面や基本設定で「新人（ランダム）〜最強（伏せカードののぞき見あり）」を選べます。",
       "ホーム画面に追加して、アプリのように起動できるようになりました（PWA）。ブラウザのメニューから「ホーム画面に追加／インストール」を選ぶと、タブやアドレスバーの無い全画面で遊べます。",
       "iPhone・iPadでは、ホーム画面に追加しておくと、アプリを閉じていてもランク戦のマッチ成立などの通知が届くようになります（Safariのタブのままだと閉じている間は届きません）。",
       "【ランク戦】対局結果のランクバッジに、湯気のような幻想的なオーラと、表面の光沢の演出を加えました。",
+    ],
+    devItems: [
+      "CPU戦（1人用の練習相手）が賢くなりました。標準の強さを「中級」にして、行き当たりばったりではなく盤面を見て打つようになります（移動先の選び方・効果の使いどころ・色の宣言などを考えて選びます）。もっと弱く／強くしたい時は、CPU戦の開始画面や基本設定で「新人（ランダム）〜最強（伏せカードののぞき見あり）」を選べます。",
       "マイページを開いたまま「ヘルプ」「ランキング」を押すと開かないことがある不具合を修正しました。",
     ],
   },
   {
     date: "2026-08-17",
     items: [
-      "スマホで別のアプリ／画面を開いている間は、BGM・効果音が鳴らないようにしました。iPhoneのマナーモード（サイレントスイッチ）もできるだけ尊重して消音します。画面に戻ると、鳴っていたBGMが再開します。",
       "【ランク戦】3〜4人のランク戦に対応しました。マッチメイク（自動で相手を探す）は、まず2人集まったら対戦を組み、そこから約20秒のあいだ3人目・4人目の参加を待ってから対戦を確定します（人数がなかなか揃わなくてもすぐ遊べて、集まれば自然に3〜4人戦になります）。合言葉フレンド戦でも、部屋に2〜4人集まれば開始できます。順位は「7色ロックの勝者=1位、以降はロックできていた色の数が多い順」で決まり、人数に応じたポイント表でレートに反映されます。",
-      "【ランク戦】別のタブやアプリを見ている時でも、対戦相手が見つかった時・待機中の相手が現れた時にブラウザ通知とタブのアイコン（ファビコン）点滅で気づけるようにしました（特にキュー待ち中に別タブへ移っていても、マッチのレディチェックを見逃しにくくなります）。通知の許可を求める前に「何のための通知か」をアプリ内で説明するようにしました（いきなりブラウザの許可ダイアログが出て戸惑わないように）。",
       "【ランク戦】合言葉（部屋コード）で友達とランク戦ができるようになりました。部屋を作る時に「🏆 ランク戦にする」にチェックすると、結果がちゃんとレートに反映される2人対戦の私的な部屋になります（部屋コードを相手に共有し、「🔑 部屋コードで参加」から入ってもらいます）。",
       "【ランク戦】ランク戦のルールを統一しました：ターンタイマー・マイデッキ戦・白黒（無色）カードあり・ブーストモードの4つを常にON固定にします（マッチメイク／合言葉フレンド戦とも共通）。",
       "【ランク戦】対戦相手を探している待機中に、CPUと練習できるようになりました（マッチが成立したら自動で中断して対人戦に呼び戻します。CPU戦はレートに影響しません）。",
-      "【ランク戦】シーズン（毎月）終了時に、その月の到達ランクに応じて通貨がもらえるようになりました。新しい月に初めてログインした時に「先月の報酬」として受け取れます。",
       "新しいペット「モリラ」「ポヨン」を追加しました（ショップで購入でき、タイトル画面のお散歩にも登場します）。",
-      "2D表示モードでペットが見えない（一瞬たまに見える）不具合を修正しました。",
       "【ランク戦】対局終了後の結果画面で、七色ゲージの宝石を1個ずつゆっくり点灯（勝ち）／消灯（負け）させる演出にしました。昇格した時は、旧ランクのゲージが完成→称号が変わる→新ランクのゲージへ余りが持ち越される、という流れで見せます。",
       "【ランク戦】ホーム画面・マイページのランク表示をクリックすると「ランク戦について」の説明（段位・七色ゲージ・ポイント・シーズン・対戦相手の見つけ方）が開くようにしました。ヘルプの索引にも「🏆 ランク戦について」を追加しました。",
-      "【ランク戦】ランク戦は自動処理モード・ターンタイマーが常にON固定です（不正・放置対策）。",
       "【ランク戦】対戦相手が待機に現れたら通知を受け取る設定（オプション）を追加し、ホーム画面のランク戦メニューに現在の待機人数を表示するようにしました（プレイ人口が少ないうち向け。通知の時間帯も設定できます）。",
+    ],
+    devItems: [
+      "スマホで別のアプリ／画面を開いている間は、BGM・効果音が鳴らないようにしました。iPhoneのマナーモード（サイレントスイッチ）もできるだけ尊重して消音します。画面に戻ると、鳴っていたBGMが再開します。",
+      "【ランク戦】別のタブやアプリを見ている時でも、対戦相手が見つかった時・待機中の相手が現れた時にブラウザ通知とタブのアイコン（ファビコン）点滅で気づけるようにしました（特にキュー待ち中に別タブへ移っていても、マッチのレディチェックを見逃しにくくなります）。通知の許可を求める前に「何のための通知か」をアプリ内で説明するようにしました（いきなりブラウザの許可ダイアログが出て戸惑わないように）。",
+      "【ランク戦】シーズン（毎月）終了時に、その月の到達ランクに応じて通貨がもらえるようになりました。新しい月に初めてログインした時に「先月の報酬」として受け取れます。",
+      "2D表示モードでペットが見えない（一瞬たまに見える）不具合を修正しました。",
+      "【ランク戦】ランク戦は自動処理モード・ターンタイマーが常にON固定です（不正・放置対策）。",
       "【管理者向け】スモークテスト（CPU同士の自己対戦点検）に「不変条件チェック」を追加しました。対戦が止まらなくても、状態が壊れていないか（トークンの重複・同じマスに駒が2つ・カード総数の増減・ロックの色不一致など）を毎手番点検し、異常があれば診断ログに記録してFAIL扱いにします。人間対戦のバグ発見の負担軽減が狙いです。",
     ],
   },
@@ -1052,31 +1226,40 @@ export const CHANGELOG = [
     date: "2026-08-14",
     items: [
       "ザ・ギャンブルの公開演出を改善しました（#95）。公開するカードを、公開エリアに出す前に画面中央のじらしフリップで全員に見せ、フリップ演出が全部終わってから公開エリアにまとめて並べるようにしました（以前は公開エリアに先に表向きで置かれてしまっていました）。",
+      "タイトル画面の「🤖 CPU戦（1人用）」ボタンを撤去しました。CPU戦はログイン後のホーム画面「CPUマッチ＆フレンドリーマッチ」から始められます。",
+      "ローカルCPU戦などで、接触の解決後にまれに進行が止まってしまう不具合を修正しました（接触後に優先権が手番プレイヤーへ戻らないケース。閉じる人がいない結果モーダルを短時間で自動的に閉じるようにしました）。",
+      "盤面が固まって（手札が全部グレー表示・スキップボタンが押せない）進めなくなった時、しばらくすると自動で操作可能な状態へ復帰する安全装置を追加しました（#93。原因の切り分け用に、どこで固まったかの記録も残します）。",
+    ],
+    devItems: [
       "ザ・ギャンブルの「1枚ずつ公開する／全部公開する」モーダルが、オンライン対戦で到達効果が二重発火して二重に出たり閉じなくなったりする不具合を修正しました（#96）。",
       "カウンターロックで相手の接触を無効化した時、その旨を全員にカード画像付きモーダルで知らせるようにしました（#90）。",
       "「もう一度遊ぶ／もう一度戦う」を押した“その瞬間”に勝利BGMが止まるようにしました（#88。以前は再戦のセットアップが終わるまで鳴り続けていました）。",
       "2D／3D切替の説明モーダルが実質2回出てしまっていたのを、1つに統合しました（#89）。",
-      "タイトル画面の「🤖 CPU戦（1人用）」ボタンを撤去しました。CPU戦はログイン後のホーム画面「CPUマッチ＆フレンドリーマッチ」から始められます。",
-      "ローカルCPU戦などで、接触の解決後にまれに進行が止まってしまう不具合を修正しました（接触後に優先権が手番プレイヤーへ戻らないケース。閉じる人がいない結果モーダルを短時間で自動的に閉じるようにしました）。",
-      "盤面が固まって（手札が全部グレー表示・スキップボタンが押せない）進めなくなった時、しばらくすると自動で操作可能な状態へ復帰する安全装置を追加しました（#93。原因の切り分け用に、どこで固まったかの記録も残します）。",
       "【管理者向け】タイトル画面の右下（管理者ログイン時のみ）に、CPU同士の自己対戦を自動で回してエラー・盤面破損・詰みを点検する「🧪 スモークテスト」ボタンを新設しました。ウィンドウはドラッグで移動でき、位置・サイズは管理者モードの「📐 位置合わせ」で調整できます。",
     ],
   },
   {
     date: "2026-08-08",
     items: [
+      "【新機能】タイマーが連続で規定回数タイムアップしたプレイヤーを、自動的にCPU操作へ切り替えるようにしました（放置対策）。切り替わった本人には画面下に「🤖 CPUに切替中です／復帰する」バナーが出て、押せばすぐ操作に戻れます（手動操作すればカウントはリセット）。相手側にはそのプレイヤー名に「🤖CPU操作中」が表示されます。切り替えまでの回数と代行CPUの強さは、基本設定内（管理者のみ表示）で調整できます。",
+      "ザ・ギャンブルの公開カードの中央じらしフリップ演出も、オンライン対戦で全プレイヤーに配信するようにしました（試練・マスチェンジと同様。公開カードのため全員が同じ演出を見られます）。",
+      "マスチェンジの入れ替え電撃演出が、オンライン対戦で相手の画面に出ていなかった不具合を修正しました（#43。演出が実行者本人の画面だけのローカル再生だったため、相手クライアントにも配信して同じアークが見えるようにしました）。",
+      "試練の儀式で踏んだカードの中央じらしフリップ演出を、オンライン対戦では全プレイヤーに配信するようにしました（踏んだカードは公開情報のため、実行者だけでなく全員が同じ演出を見られます）。",
+      "マスチェンジの入れ替え演出の電撃を、鋭い実線から「ぼやけた湯気のようなオーラの電撃」に変更しました（外側に広くぼかしたオーラ層を追加し、芯も柔らかくにじませ、明滅を少しゆっくりに）。",
+      "マスチェンジの入れ替え演出の電撃を橙色に変え、線をもっと太くしました。",
+      "試練の儀式も、移動先を選んで駒が進んだ後に一拍おいてから、踏んだカードを画面中央で“じらしフリップ”で公開するようにしました（ザ・ギャンブルと同じ演出）。",
+      "マスチェンジで駒が入れ替わる時に、両方の駒が発光し、不安定な電撃のような光で結ばれて位置が入れ替わる演出を追加しました。",
+      "到達カードモーダルに「📌 キープ」ボタンを追加しました。押すとそのカードはターンを跨いでも消えず、✕で閉じるまで残ります（あとでゆっくり読みたい時用。複数キープすると左上に少しずつずらして重なります）。",
+    ],
+    devItems: [
       "盤面拡大でミニロックエリア（画面下中央の縮小ロック＋ミニ手札公開エリア）が出ている間は、自分の通常の手札公開エリアを非表示にしました（重複を解消）。",
       "無意味なループ（例：2マス離れたジャンプ台の永久往復）を、ルール通り正しく防ぐようにしました（#49）。移動連鎖で既に通ったマスへ戻る「ループ先」は、CPUは選ばず別の手を採り、人間はそのマスをクリックすると警告が出て選べません。行き先が実質無い場合は直前に着地したマスに正しく留まります（以前の暫定対応の“途中で打ち切り”を廃止）。",
       "不具合報告に対局コンテキスト（オンライン/ローカル/CPU戦の別、各座席・手番・自席がCPU代行中か）を添付するようにしました（#48のご提案。状況の切り分け用）。",
       "試練の儀式で、オンライン対戦時に到達効果が二重発火して儀式が二重に走り、色選択モーダルが選択しても閉じない等の異常になる不具合を修正しました（#46。儀式に再入ガードを追加し、同時に2つ走らないようにしました。#47の合同建設まわりの異常もこの二重処理が原因の可能性が高く、あわせて改善が見込まれます）。",
       "対戦後のコメントが戦績システムに反映されない不具合をさらに強化修正しました（#45）。敗者はコメントを勝者へも中継し、勝者（試合IDを確実に保持）が代理投稿する経路を追加。あわせて敗者本人の直接投稿も試みます（返信IDを試合×プレイヤーで一意にしたため二重投稿にはなりません）。",
       "【CPU代行】AFKでCPU代行中のプレイヤーが、ゴメンナサイ／カウンターロックなどのリアクション判断でも止まらないようにしました（CPU戦と同じ挙動。相手の最後のロードにはゴメンナサイで自動対応、接触にはカウンターロックを使わず自動承認）。",
-      "【新機能】タイマーが連続で規定回数タイムアップしたプレイヤーを、自動的にCPU操作へ切り替えるようにしました（放置対策）。切り替わった本人には画面下に「🤖 CPUに切替中です／復帰する」バナーが出て、押せばすぐ操作に戻れます（手動操作すればカウントはリセット）。相手側にはそのプレイヤー名に「🤖CPU操作中」が表示されます。切り替えまでの回数と代行CPUの強さは、基本設定内（管理者のみ表示）で調整できます。",
       "スリカエで相手の手札を奪う時、中央の受け取りモーダルのカード画像が「null」になってしまう不具合を修正しました（#43/#44。オンラインでは相手の手札の中身が隠れているため、先に自分の手札へ移してから中身を表示するようにしました）。",
-      "ザ・ギャンブルの公開カードの中央じらしフリップ演出も、オンライン対戦で全プレイヤーに配信するようにしました（試練・マスチェンジと同様。公開カードのため全員が同じ演出を見られます）。",
-      "マスチェンジの入れ替え電撃演出が、オンライン対戦で相手の画面に出ていなかった不具合を修正しました（#43。演出が実行者本人の画面だけのローカル再生だったため、相手クライアントにも配信して同じアークが見えるようにしました）。",
       "対戦後のコメントが戦績システムに反映されないことがある不具合を修正しました（#42）。敗者側は勝者からの試合ID通知（Realtime）を取りこぼすとコメントが黙って捨てられていたため、通知を受け取れなかった場合は直近の試合を直接検索してコメントを紐づけるフォールバックを追加しました。",
-      "試練の儀式で踏んだカードの中央じらしフリップ演出を、オンライン対戦では全プレイヤーに配信するようにしました（踏んだカードは公開情報のため、実行者だけでなく全員が同じ演出を見られます）。",
       "スマホの縦持ち時に出る「端末を横向きにしてください」の案内を、画面全体に大きく表示するようにしました（アイコン・文字を画面サイズに追従して拡大）。",
       "接触の結果モーダルが閉じる前に次のターンが始まってしまう不具合を修正しました（#40）。結果モーダルが閉じるまで自動ターン終了を止め、通常は数秒で自動的にも閉じるようにしました（CPU戦では自動で閉じず、クリックするまで結果を確認できます）。",
       "試練の儀式のじらしフリップを、オンライン対戦でもローカルと同じように（盤面は伏せたまま、中央で1枚ずつじらしフリップ→その後に盤面を表向き）体験できるようにしました（サーバーが引いたカードの中身を引いた本人だけに返す方式。※サーバー側の再デプロイ後に有効。未デプロイの間は従来どおり先に表向きになりますが正常動作します）。",
@@ -1084,7 +1267,6 @@ export const CHANGELOG = [
       "オンライン対戦で試練の儀式が不発（カードがめくられず、駒も動かず「残念でした」で終了）になっていた不具合を修正しました（#41。伏せて置いたカードの中身がオンラインでは読めず色判定に失敗していたため、読めない場合は先に表向きにして判定するようにしました）。",
       "【CPU強化】スリカエ（手品師の技）でCPUが相手に渡すカードを賢く選ぶようにしました。自分がまだ要る色・相手がまだ要る色・貴重札はなるべく渡さず、双方ロック済みで無害な色を優先して渡します。",
       "【CPU強化】合同建設でCPUが置く場所を賢くしました。相手ゲート（＝空きなら侵攻の足場作り、近い空きマスなら侵攻ルートの前進）へ山札から置き、自分のゲート（空なら着地不能で既に安全）には置かないようにしました。",
-      "マスチェンジの入れ替え演出の電撃を、鋭い実線から「ぼやけた湯気のようなオーラの電撃」に変更しました（外側に広くぼかしたオーラ層を追加し、芯も柔らかくにじませ、明滅を少しゆっくりに）。",
       "【CPU強化】自ゲート防衛を「乗られてから」ではなく「乗られる前」に行うよう修正しました。相手駒が自分のゲートに接近したら、CPUが自駒で自ゲートを占有し、相手が着地（＝ゲート侵攻）できないようブロックします。",
       "【CPU強化】CPUの移動が相手ゲートへ直行しやすくなりました（不具合#38対応。ゲートへの近づき度の重みを大きくし、途中のカード拾いより侵攻ルートの前進を優先）。",
       "【CPU強化】CPUの接触判断をカウンターロックの所持と連動させました。カウンターロックを持っていない時はむやみに相手の隣へ行かず（接触を狙わない・隣接に留まらない）、持っている時は積極的に接触を狙います。自分のゲートに乗った侵入者への体当たり（防衛）は常に行います。",
@@ -1102,23 +1284,19 @@ export const CHANGELOG = [
       "【CPU強化】CPU（中級以上）が、ハンドフェイズで手札効果を能動的に使うようになりました（第一歩として、明確に得で安全な「収穫と種まき」「増殖する樹々」のみ。ザ・ギャンブルのようなリスクのある効果は使いません）。以前はハンドフェイズを丸ごとスキップしていました。",
       "捨てる／奪うロックカードを選ぶ時（選べる罠のロック捨て・ゴメンナサイの奪取など）、盤面を拡大してロックエリアが画面外の場合でも、ミニロックエリアの光っているスロットから選べるようにしました。",
       "セレスティア（青のキューブ）で相手の手札を選んだ時の中央モーダルを「奪った」→「捨てさせた」に変更しました（セレスティアは相手に捨てさせる効果で、自分の手札には加わらないため）。",
-      "マスチェンジの入れ替え演出の電撃を橙色に変え、線をもっと太くしました。",
       "【CPU強化】CPU（中級以上）がゲート侵攻をより狙うようにしました。効果のマス選択で相手ゲートに乗れるならそこを選び、パーティーで1マス移動して相手ゲートに乗れるなら「移動」を優先、選べる罠では相手ゲートに乗って侵攻できる時に「自ゲートへ強制移動」を避けます。",
       "【CPU強化】CPU（中級以上）が、効果の選択肢を賢く選ぶようにしました。パーティーでは「場のカードを手札に得る」を優先し、選べる罠では被害の一番小さい選択肢（ロックを捨てる＝色が減る最悪手を避ける）を選びます（新人は従来通りランダム）。",
       "管理者モードのBGM「▶ 試聴」ボタンを、試聴中は「⏹ 停止」に切り替わるトグルにしました（もう一度押すと止まります）。スライダーは試聴中の音量をその場で反映します。",
       "スタートプレイヤー決定モーダルを、モーダルのどこかをクリックすると閉じられるようにしました（✕を押さなくてもOK。背景クリックは従来通り盤面へ素通しします）。",
-      "試練の儀式も、移動先を選んで駒が進んだ後に一拍おいてから、踏んだカードを画面中央で“じらしフリップ”で公開するようにしました（ザ・ギャンブルと同じ演出）。",
       "勝利時BGMの既定音量を40%にしました（管理者モードで変更可）。",
       "接触で相手の手札を奪う時、「奪った」モーダルが出るその瞬間に、実際にそのカードが自分の手札へ加わるようにしました（以前は接触の一連の処理がすべて終わった後に加わっていました）。「奪った」モーダルは閉じる（クリック）まで次の処理へ進みません（タイムアップ時は自動で進みます）。",
       "【不具合#36】「ゴメンナサイを使う」を押した後、承認バナーが「ロックエリアから奪うカードを選んでください」の案内に切り替わるようにしました（承認/ゴメンナサイのボタンは引っ込みます）。",
       "管理者モードの各BGM音量スライダー（勝利時・オープニング・ゲーム時・待機中）に「▶ 試聴」ボタンを追加しました。スライダーを動かさなくても現在の音量で鳴らして確認できます（今後BGMが増えても同じ形で追加します）。",
-      "マスチェンジで駒が入れ替わる時に、両方の駒が発光し、不安定な電撃のような光で結ばれて位置が入れ替わる演出を追加しました。",
       "マスチェンジの入れ替えと到達効果のルールを整備しました。入れ替えは「移動」ではないので裏向きカードは開きませんが、入れ替わり先に表向きのカードがあれば到達効果が発動します（発動者・相手ともそれぞれの入れ替わり先について）。到達効果で使った場合、相手が入れ替わった先＝マスチェンジ自身は再発動せず、マスチェンジが手札に加わって下の表向きカードが露出すればそれが相手の到達効果になります。両者の入れ替わり先に表向きカードがあれば同時発動で、処理順は発動者から時計回りです（カードの補足とQ&Aにも追記しました）。",
       "行動ログウィンドウの右上に✕（閉じる）ボタンを追加しました（📜アイコンだけでなくウィンドウ自身からも閉じられます）。",
       "【CPU強化】CPU（中級以上）が、ザ・ギャンブル・試練の儀式で色を賢く宣言するようにしました。ザ・ギャンブルでは手札を捨てないよう「出にくい色」を、試練の儀式では続きやすいよう「出やすい色」を、見えているカードから各色の残り枚数を推定して選びます。最強はさらに山札の一番上をのぞき見して、試練は当たる色、ギャンブルは引かれない色を狙います（新人は従来通りランダム）。",
       "ザ・ギャンブルの公開を、公開エリアだけでなく画面中央に大きく“じらしてフリップ”で1枚ずつ見せるようにしました（エターナル獲得と同じ正方形フリップ）。",
       "ザ・ギャンブル・試練の儀式の最中に、心臓の鼓動の効果音（合成音）を鳴らして緊張感を出すようにしました（結果が出たら止まります）。",
-      "到達カードモーダルに「📌 キープ」ボタンを追加しました。押すとそのカードはターンを跨いでも消えず、✕で閉じるまで残ります（あとでゆっくり読みたい時用。複数キープすると左上に少しずつずらして重なります）。",
       "パーティで選択肢を選んでから移動先などのマスがハイライトされるまでの間が長かったのを、「○○を選択しました」の告知中にすぐハイライトされるようにしました。",
       "試練の儀式で、色を宣言してから実際にカードを置いて捲るまでに“ため”（少し間＋鼓動）を作り、CPUの進行が早すぎて追えなかったのを見やすくしました。",
     ],
@@ -1129,6 +1307,17 @@ export const CHANGELOG = [
       "ザ・ギャンブルで宣言した色が出ずに手札を守れた時に、紙吹雪＋大きな「CONGRATULATIONS!」のお祝い演出を追加しました。",
       "試練の儀式は必ず最後はハズレで終わるため、最後に「〇回成功！」（当たった回数）を紙吹雪でお祝い表示するようにしました（途中の「おめでとう」モーダルはなくし、踏んだカードの中央表示＋最後のまとめ演出に整理しました）。",
       "カード拡大表示（PCはホバー、スマホ/タブレットは長押し）を、指やカーソルの右に出すか左に出すかをオプションの「基本設定」→「カード拡大を出す向き」で選べるようにしました（既定は右）。",
+      "【CPU戦】CPUの強さを選べるようにしました（オプション →「CPU戦（1人用）」→「CPUの強さ」）。新人＝これまで通り完全ランダム。中級＝移動先を評価して選びます（相手ゲートに乗って侵攻を狙う／選べる罠・ザ・ギャンブル等の自滅マスを避ける／まだ揃っていない色を優先）。上級＝さらに相手の進行度を見て、進んでいる相手には接触（体当たり）で妨害します。最強＝上級に加えて伏せカードの中身ものぞき見して最善手を選びます。",
+      "ゲート侵攻でエターナルを獲得する演出について、①画面中央で止まった後に少し“きゅっ”と拡大してからフリップしていたのを、継ぎ目なく（拡大せず）フリップするようにしました。②スマホでフリップしても表にならず裏向きのままになる不具合を修正しました（一部端末で効かない3D回転をやめ、全端末で確実に表になる方式に変更）。",
+      "ミニロックエリア（拡大時の表示）に「ミニ手札公開エリア」を追加しました。公開ドロー（表向きに引いたカード）を、各プレイヤーのミニロック行の左隣に左揃えで表示します（自分・相手とも）。",
+      "ミニロックエリアを改良しました。相手プレイヤーのミニロックエリアは画面最上部に表示するようにし、名前の隣は「N/7」ではなく手札枚数を表示するようにしました。自分のミニロックエリアの右隣にはミニ捨て場（一番上のカードと枚数）を追加しました（位置は管理者モードで調整可）。",
+      "駒スキンの新デザイン（0thリメイク）を追加し、これを標準（デフォルト）の駒スキンにしました。旧「基本」スキンは「紋様」に名前を変更しました（駒スキン選択・ショップに反映）。※以前の駒が表示され続ける場合は、一度 Ctrl+Shift+R で強制再読み込みしてください（ブラウザの画像キャッシュ対策）。",
+      "ミニロックエリア（拡大時に出る下部表示）の位置を画面最下部に変更しました。念のため、管理者モードの「表示位置」に位置調整（下からの位置・横ずれ・手札固定ON時の位置）を追加しました。",
+      "盤面を拡大した状態でゲート侵攻のエターナル獲得演出が入ると、フリップするエターナルが画面からはみ出す不具合を修正しました（表示サイズを盤面ズームに引きずられず、常に画面内に収まるようにしました）。",
+      "オプションの「基本設定」に『自分の手札を画面下に固定する』を追加しました（既定OFF）。ONにすると、マウスホイールで盤面を拡大しても自分の手札が見切れず、画面下に一定サイズ・一定位置の手札トレイとして固定表示されます（ステータスエリアと同じく盤面ズームの外側に出すため、見た目は平らな手札トレイになります）。",
+      "【CPU戦】ゲーム開始時に、通常対戦と同じセットアップ演出（ファーストカードの配布→盤面へのカード配置アニメ）を見せるようにしました（以前は演出が裏で終わってしまい見えませんでした。開始時に一瞬4人が座って見える問題は引き続き出ません）。",
+    ],
+    devItems: [
       "初回起動時の「サウンドと表示の設定」モーダルを、①サウンド（BGM/効果音）②表示（カード拡大サイズ）の2ステップに分け、スクロール不要にしました。",
       "ゲート侵攻でエターナルを獲得する演出で、フリップするタイミングでカードの上下が見切れる不具合を修正しました（カード画像は正方形なのに、直前の修正で表示枠を横長のエターナル束の比率に合わせてしまい上下が切れていました。表示枠を正方形に戻し、飛翔から中央表示への受け渡しも継ぎ目なく保ちました）。",
       "合同建設で、置くプレイヤーの手札が無い時は「山札から／手札から」の選択を出さず、自動で山札から１枚置き、「手札がないため山札から置きました」と全員に周知するようにしました（手札が無いのに選択を求められる無駄をなくしました）。",
@@ -1138,13 +1327,9 @@ export const CHANGELOG = [
       "【不具合#33】自分がゴメンナサイッ！を使った時、奪うロックカードが自動で選ばれてしまう不具合を修正しました。相手（CPU等）のターン中に自分がリアクションでゴメンナサイを使うと、選択の主体が自分なのにCPUの選択と誤判定され、CPUの自動処理が勝手に1枚選んでいたのが原因です。自分が使うリアクションの選択は自分で選べるようにしました（同種の『あなたのターン以外に使う手札効果』全般に効きます）。",
       "到達したカードを手札に獲得した時、右下のカード獲得トースト（何を獲得したか）が出ないことがある不具合を修正しました（自動処理で到達効果を処理した場合に通知が漏れていました。手動で「手札に加える」した時と同じ通知を出します）。",
       "【不具合#32】ゲート侵攻で相手の手札を全部奪ってしまう（本来は半分）不具合を修正しました。攻撃側が人間で「奪う札を選ぶ」のに時間がかかると、内部の多重実行防止ガードの安全タイマー（60秒）が切れてしまい、その隙に自動ターン終了が再発火してゲート侵攻が二重に走り、手札を全部奪う・エターナルも複数回獲得していたのが原因です。侵攻処理中は自動ターン終了を止め、二重起動もしないようにしました。",
-      "【CPU戦】CPUの強さを選べるようにしました（オプション →「CPU戦（1人用）」→「CPUの強さ」）。新人＝これまで通り完全ランダム。中級＝移動先を評価して選びます（相手ゲートに乗って侵攻を狙う／選べる罠・ザ・ギャンブル等の自滅マスを避ける／まだ揃っていない色を優先）。上級＝さらに相手の進行度を見て、進んでいる相手には接触（体当たり）で妨害します。最強＝上級に加えて伏せカードの中身ものぞき見して最善手を選びます。",
-      "ゲート侵攻でエターナルを獲得する演出について、①画面中央で止まった後に少し“きゅっ”と拡大してからフリップしていたのを、継ぎ目なく（拡大せず）フリップするようにしました。②スマホでフリップしても表にならず裏向きのままになる不具合を修正しました（一部端末で効かない3D回転をやめ、全端末で確実に表になる方式に変更）。",
-      "ミニロックエリア（拡大時の表示）に「ミニ手札公開エリア」を追加しました。公開ドロー（表向きに引いたカード）を、各プレイヤーのミニロック行の左隣に左揃えで表示します（自分・相手とも）。",
       "ミニロックエリアの位置調整で、相手（上部）の横方向のずれを自分（下部）とは別に調整できるようにしました（管理者モード →「ミニロックエリアの位置」→「相手：横方向のずれ」）。",
       "行動ログ（📜）に、移動して到達した効果が記録されないことがある不具合を修正しました（内部の処理深度の都合で、移動由来の到達がほとんど記録から漏れていました）。連鎖した到達効果も記録されるようになります。",
       "スリカエで、カードの「受け取った／渡した」モーダルのタイトルが逆になることがある不具合を修正しました（CPUがあなたにスリカエした時など。今は常に“あなた（この画面）視点”で、受け取ったカードは「受け取った」、渡した（奪われた）カードは「渡した／奪われた」と表示します）。",
-      "ミニロックエリアを改良しました。相手プレイヤーのミニロックエリアは画面最上部に表示するようにし、名前の隣は「N/7」ではなく手札枚数を表示するようにしました。自分のミニロックエリアの右隣にはミニ捨て場（一番上のカードと枚数）を追加しました（位置は管理者モードで調整可）。",
       "【CPU戦】CPUが選ぶ番の選択モーダルを総点検し、色宣言（ザ・ギャンブル/試練の儀式）・選択肢（パーティ等）・奪う札の選択・「どこから置きますか？」・接触の承認・任意のはい/いいえなど、CPUの選択モーダルを人間の画面に出さないようにしました（自動で選ばれます）。「何を選んだか」の結果表示は従来通り出ます。",
       "ミニロックエリア（拡大時の下部表示）に、相手プレイヤーのロック状況も表示するようにしました（相手→自分の順で、自分が一番下。相手がどの色をあと何色でロックし切るか一目で分かります）。",
       "【CPU戦】CPUがパーティ・合同建設などの「マスを選ぶ」効果の途中で止まってしまう不具合を修正しました（選んだ結果の通知を出している一瞬に、CPUの優先権が誤って自分へ戻り、続くCPUの選択が誰にも自動処理されず固まっていたのが原因。#31）。",
@@ -1154,18 +1339,13 @@ export const CHANGELOG = [
       "試練の儀式で「何を踏んだか（置いて移動したカード）」を、その都度画面中央に大きく表示するようにしました。",
       "ゲート侵攻で相手から複数枚奪う時、1枚選ぶごとに実際に自分の手札へ加える（手札が1枚ずつ増える）ようにしました（以前はまとめて最後に加わっていました）。",
       "「自分の手札を画面下に固定する」ON時の手札トレイ（手札＋公開エリア）の位置・全体サイズを、管理者モードの「表示位置」で調整できるようにしました。",
-      "駒スキンの新デザイン（0thリメイク）を追加し、これを標準（デフォルト）の駒スキンにしました。旧「基本」スキンは「紋様」に名前を変更しました（駒スキン選択・ショップに反映）。※以前の駒が表示され続ける場合は、一度 Ctrl+Shift+R で強制再読み込みしてください（ブラウザの画像キャッシュ対策）。",
       "アバターの初期設定（デフォルト）を「記憶を失った青年」にしました（ゲーム開始前は灰色、開始後は自分のファーストカードの色になります）。",
-      "ミニロックエリア（拡大時に出る下部表示）の位置を画面最下部に変更しました。念のため、管理者モードの「表示位置」に位置調整（下からの位置・横ずれ・手札固定ON時の位置）を追加しました。",
-      "盤面を拡大した状態でゲート侵攻のエターナル獲得演出が入ると、フリップするエターナルが画面からはみ出す不具合を修正しました（表示サイズを盤面ズームに引きずられず、常に画面内に収まるようにしました）。",
       "盤面を拡大して自分のロックエリアが画面外に出た時、画面下中央に「ミニロックエリア」（7色スロットのロック状況＝勝利まであと何色か）を自動表示するようにしました。ロックエリアが半分以上見えていれば出ません。",
-      "オプションの「基本設定」に『自分の手札を画面下に固定する』を追加しました（既定OFF）。ONにすると、マウスホイールで盤面を拡大しても自分の手札が見切れず、画面下に一定サイズ・一定位置の手札トレイとして固定表示されます（ステータスエリアと同じく盤面ズームの外側に出すため、見た目は平らな手札トレイになります）。",
       "スリカエ・ゲート侵攻・接触などで相手の手札からカードを奪った（受け取った）時、何のカードを取ったのかを画面中央に大きく表示するようにしました（奪う側は裏向きしか見ていないため。ゲート侵攻で複数枚奪う時は1枚ずつ順番に表示）。",
       "プレゼントの到達効果（1番少なくロックしている人がドロー）で、誰がドロー対象なのかを画面中央にアバターで並べて周知するようにしました。",
       "セレナーデの手札効果でロックする時、ロック先が1つに決まっているカード（通常の色カード）では「ロックする場所を選択してください」のモーダルを出さず、自動でそこへロックするようにしました（七色の欠片のように複数の色スロットに置ける場合だけ選択モーダルを出します）。",
       "スリカエ（手品師の技）で相手にカードを渡した時、渡した側の画面に「受け取った」と出て『渡したのに自分が受け取った？』と誤解する問題を修正しました。渡した側には「渡した」と、相手に渡したカードを表示するようにしました。",
       "【CPU戦】画面右上の「🎲 セットアップ」ウィザードのボタン／パネルを、CPU戦の間は表示しないようにしました（1人用では使わないため）。",
-      "【CPU戦】ゲーム開始時に、通常対戦と同じセットアップ演出（ファーストカードの配布→盤面へのカード配置アニメ）を見せるようにしました（以前は演出が裏で終わってしまい見えませんでした。開始時に一瞬4人が座って見える問題は引き続き出ません）。",
       "【CPU戦】「CPUの結果通知を自動で進める」（旧・CPUのモーダルを自動で進める）をOFFにした時の挙動を変えました。CPUが“選ぶ”モーダル（パーティの選択肢・色宣言など）は自動で進め、その“結果”を知らせる通知モーダルだけをクリックするまで表示するようにしました（自分が選ぶのかと錯覚してしまう問題の解消。じっくり結果を読めます）。",
       "【CPU戦】自分のターンなのに「画面をクリックしてCPUの手を進める」の案内が出たままになる不具合を修正しました（CPUが選択待ちの間だけ出るようにしました）。パーティ等の『全員が選ぶ』効果で、あなた自身の選択中にこの案内が残って紛らわしかったのも解消しています（#29 / #30）。",
       "【CPU戦】CPUの選択モーダル（パーティの選択肢など）のボタンを、あなたが代わりに押せてしまう不具合を修正しました。CPUの選択はCPU自身が行い、あなたはCPUのモーダルを操作できません（自動スキップONなら自動で、OFFならクリックで1手ずつ進みます）。",
@@ -1179,37 +1359,41 @@ export const CHANGELOG = [
       "【CPU戦】CPUに勝利すると、勝利モーダルに続いてコイン獲得の演出が出て、毎回20コインもらえるようにしました（ログイン時のみ。コインはアカウントに紐づくため、未ログインだと獲得できません）。",
       "【CPU戦】オプションの「CPU戦（1人用）」に『CPUのモーダルを自動で進める』のON/OFFを追加しました。OFFにすると、CPUの効果モーダル（ザ・ギャンブル等）は自動で進まず、画面をどこでもクリックするたびに1手ずつ進みます（じっくり読みたい方向け。待機中は画面下に案内が出ます）。移動やロックはこれまで通り自動です。",
       "【CPU戦】オプションの「基本設定」に🤖CPU戦（1人用）の項目を追加し、CPUの速さを「ゆっくり／普通／早い」から選べるようにしました（CPUの行動が速すぎてザ・ギャンブル等のモーダルが読み取れない、という声への対応です。選ぶと次のCPUの手から効きます）。",
-      "「新しいバージョンがあります」の更新通知バナーを、CPU戦の最中でも出すようにしました（以前は「対局中は出さない」対象にCPU戦も含まれており、CPU戦を続けていると新版に気づけず古い版のまま遊び続けてしまう状態でした）。",
-      "オンライン対戦のゲート侵攻（手札を奪う時）で、「奪う札を選ぶ」モーダルが何重にも開いて閉じない・背景がだんだん暗くなる・「手札をシャッフル」が点滅する・ターンが勝手に何度も進む、という不具合を修正しました（ターン終了処理が奪う札の選択中に多重に走っていたのが原因）。「ゲート侵攻成功！」の告知が奪うモーダルより先に出るのもあわせて安定します。",
       "🤖 CPU戦（1人用・ベータ）を追加しました。タイトル画面の「CPU戦」ボタンから、ログイン不要であなた対CPUの対戦をこの端末だけで遊べます。CPUの手はまだランダムです（今後かしこくしていきます）。",
-      "【CPU戦】ゲーム開始後にターンチェンジが延々と繰り返され、プレイできなくなる不具合を修正しました（ターンの区切りでフェイズがリセットされず、毎ターン即終了していたのが原因）。CPUの番が止まる・自分の番が始まらない症状もあわせて解消しています。",
-      "【CPU戦】CPUがカードに到達しても到達効果が発動しない不具合を修正しました（到達効果の自動処理が自分の席の到達にしか働いておらず、CPU側の到達で素通りしていたのが原因）。",
       "【CPU戦】ゲート侵攻時に「OK」を何度も押させられる・背景がだんだん真っ暗になる・エターナル演出が何度も起きる不具合を修正しました（ローカルのゲート侵攻処理中に自動ターン終了が多重に走っていたのが原因。#20のオンライン版と同種の問題）。",
-      "【CPU戦】パーティ・合同建設・スラム上がりの役人など「全員がそれぞれ選ぶ」効果で、CPUの選択まであなたが代行させられていた不具合を修正しました（CPUの選択はCPUが自動で行います）。",
-      "【CPU戦】逆に、CPUの番にパーティ・スラム上がりの役人などであなたの選択（残す札・捨てる札）まで勝手に自動で選ばれてしまう不具合を修正しました（あなたの選択はあなたが選べます）。",
-      "【CPU戦】開始時に一瞬4人が座った盤面が見える問題を直しました（2人対戦のセットアップが終わってから盤面を表示します）。また、CPU戦では基本時間・タイマーの表示を出さないようにしました（CPUを自動で動かすため内部的には使いますが、画面には出しません）。",
-      "捨て札の山をダブルタップ（ダブルクリック）すると、捨て札の一覧を確認できるようにしました（右クリックの無いタブレット/スマホでも見られます）。",
       "初回起動時の設定モーダルに「効果音の音量」と「カード拡大表示のサイズ」の調整を追加しました（試聴・プレビュー付き。文字が読みやすいサイズにご調整ください）。いずれもあとからオプションの「基本設定」で再調整でき、カード拡大サイズは次回以降も保持されます。",
-      "ヴァーディアンなどの「公開ドロー」で加えたカードが、ステータスエリアの手札枚数に反映されない不具合を修正しました。",
       "ゲート侵攻の表示順を整えました（「ゲート侵攻成功！」の告知を、奪う札を選ぶ画面や手札を奪う演出より先に表示するようにしました）。",
       "ゲート侵攻のエターナル獲得演出で、獲得エターナルが演出前からロックエリアに見えて直前に急に消える／フリップしたエターナルが画面左上へ飛んでいってしまう、不具合を修正しました。",
       "新しいペット「キィ」を追加しました（画像アニメ・4方向×モーション。ショップで購入でき、タイトル画面のお散歩にも登場します）。",
       "スマホ／タブレットで、アプリを開いている間は画面が自動で暗くならない・ロックされないようにしました（対応ブラウザのみ）。",
-      "BGMの既定音量を調整しました（オープニング／ゲーム時／待機中を40%に）。ゲーム中のBGMがスマホで鳴りにくかったのも、操作をきっかけに鳴らし直すよう改善しました。",
-      "スマホでオプションを開くと画面全体が左にずれて左半分が見切れる不具合を修正しました。",
       "ゲート侵攻で手札を奪う演出を改善しました（クリックした裏向きカードと別のカードがめくれて見える誤解を解消。奪う札は左から順にめくる表示にしました）。",
       "ゲート侵攻のエターナル獲得などの演出が終わり切る前に次のプレイヤーのターンへ移ってしまう不具合を修正しました（演出を最後まで見てから移行します）。",
+    ],
+    devItems: [
+      "「新しいバージョンがあります」の更新通知バナーを、CPU戦の最中でも出すようにしました（以前は「対局中は出さない」対象にCPU戦も含まれており、CPU戦を続けていると新版に気づけず古い版のまま遊び続けてしまう状態でした）。",
+      "オンライン対戦のゲート侵攻（手札を奪う時）で、「奪う札を選ぶ」モーダルが何重にも開いて閉じない・背景がだんだん暗くなる・「手札をシャッフル」が点滅する・ターンが勝手に何度も進む、という不具合を修正しました（ターン終了処理が奪う札の選択中に多重に走っていたのが原因）。「ゲート侵攻成功！」の告知が奪うモーダルより先に出るのもあわせて安定します。",
+      "【CPU戦】ゲーム開始後にターンチェンジが延々と繰り返され、プレイできなくなる不具合を修正しました（ターンの区切りでフェイズがリセットされず、毎ターン即終了していたのが原因）。CPUの番が止まる・自分の番が始まらない症状もあわせて解消しています。",
+      "【CPU戦】CPUがカードに到達しても到達効果が発動しない不具合を修正しました（到達効果の自動処理が自分の席の到達にしか働いておらず、CPU側の到達で素通りしていたのが原因）。",
+      "【CPU戦】パーティ・合同建設・スラム上がりの役人など「全員がそれぞれ選ぶ」効果で、CPUの選択まであなたが代行させられていた不具合を修正しました（CPUの選択はCPUが自動で行います）。",
+      "【CPU戦】逆に、CPUの番にパーティ・スラム上がりの役人などであなたの選択（残す札・捨てる札）まで勝手に自動で選ばれてしまう不具合を修正しました（あなたの選択はあなたが選べます）。",
+      "【CPU戦】開始時に一瞬4人が座った盤面が見える問題を直しました（2人対戦のセットアップが終わってから盤面を表示します）。また、CPU戦では基本時間・タイマーの表示を出さないようにしました（CPUを自動で動かすため内部的には使いますが、画面には出しません）。",
+      "捨て札の山をダブルタップ（ダブルクリック）すると、捨て札の一覧を確認できるようにしました（右クリックの無いタブレット/スマホでも見られます）。",
+      "ヴァーディアンなどの「公開ドロー」で加えたカードが、ステータスエリアの手札枚数に反映されない不具合を修正しました。",
+      "BGMの既定音量を調整しました（オープニング／ゲーム時／待機中を40%に）。ゲーム中のBGMがスマホで鳴りにくかったのも、操作をきっかけに鳴らし直すよう改善しました。",
+      "スマホでオプションを開くと画面全体が左にずれて左半分が見切れる不具合を修正しました。",
       "不具合報告で、ページ読み込み直後のログや対戦相手のコンソールログも取りこぼさず取得するようにしました（調査の精度向上）。管理者用の不具合一覧で、コメントが長いと「詳細」ボタンが押せない不具合も修正しました。",
     ],
   },
   {
     date: "2026-08-05",
     items: [
+      "カードのドロー演出を改善しました（プレゼント等で演出の前に手札へ加わってしまう／手札に着地する瞬間に一瞬カードが消える、を修正）。",
+    ],
+    devItems: [
       "ステータスエリアの自分のアバターに丸い枠が残る／背景が透明にならない不具合を修正しました（ランクリングの影が原因でした）。",
       "パーティの効果が2回処理される・自分のターン（ムーブフェイズ）が終わらなくなる不具合を修正しました。パーティを相手に取られた後にターンが相手へ移らない不具合もあわせて修正しました。",
       "ザ・ギャンブルなどの到達効果を処理している最中に、相手のターンへ移ってしまう不具合を修正しました。",
       "「記憶を失った青年」アバターを、ゲーム開始前は灰色、ゲームが始まって自分のファーストカードの色が決まったら、その色の青年に変わるようにしました。",
-      "カードのドロー演出を改善しました（プレゼント等で演出の前に手札へ加わってしまう／手札に着地する瞬間に一瞬カードが消える、を修正）。",
       "不具合報告に、対戦相手全員のアクションログも自動で添付するようにしました。",
       "ライトモードで「接触の結果」モーダルがダークのままだったのを修正しました。",
       "ランクリングの太さを調整しました（管理者モードでさらに微調整できます）。",
@@ -1220,11 +1404,13 @@ export const CHANGELOG = [
     items: [
       "ライトモード（白系テーマ）を追加しました。管理者モードの「カラーテーマ」で切り替えられ、マイページ・ランキング・オプション・ショップ・ルールブック・図鑑・部屋一覧に対応。「対戦画面もライトにする」は別トグルで、対戦中もその場で切り替えて見比べられます。",
       "新しいペット「キュビット」（画像アニメ・4方向×モーション）を追加しました。歩く向きに合わせて向きが変わり、待機と行動（ジャンプ／あくび／耳ピク／歩く／一周）を交互に行います。駒の裏に回ると駒に隠れます。大きさ・一周の軌跡は管理者モードで調整できます。",
+      "ゲート侵攻のエターナル獲得演出で、フリップ直後に一瞬裏向きになる（2回フリップに見える）不具合を修正しました。",
+    ],
+    devItems: [
       "ロックしたファーストカード／エターナルカードをクリックしても効果を使えない不具合を修正しました（自動処理＋ドラッグ制限中に発火していなかった全種が対象）。",
       "自動処理モードで移動先も接触相手も無いとき、山札から隣に置くカードを「自分でマスを選び、裏向きで（中身は誰にも分からないように）」置くよう修正しました。",
       "ザ・ギャンブルのカード公開を1枚ずつにしました（「1枚公開する／全部公開する」「最後の1枚を公開する」モーダルでもったいぶれます）。",
       "合同建設で、各プレイヤーが山札から置いたのか手札から置いたのかを全員にお知らせするようにしました。",
-      "ゲート侵攻のエターナル獲得演出で、フリップ直後に一瞬裏向きになる（2回フリップに見える）不具合を修正しました。",
       "対戦記録の画像にラウンド数・通算ターン数を記載するようにしました。",
       "対戦後のコメントがエンターで送信されず反映されない不具合を修正しました（Enterで送信、改行はShift+Enter）。",
       "ステータスエリアのオンライン状態アイコンを画面右上（残金の左）へ移し、部屋名を隣に表示するようにしました。プレイヤーB・C・Dのエモート表示位置も、名前と被らないよう調整しました。",
@@ -1233,6 +1419,9 @@ export const CHANGELOG = [
   {
     date: "2026-08-01",
     items: [
+
+    ],
+    devItems: [
       "国王アバターが激昂状態のときに別の国王の絵になってしまう不具合を修正しました（全7種を点検・修正）。",
       "対戦終了後のモーダルは、✕や外側クリックでは閉じないようにしました（「この部屋を出る」か「もう一度遊ぶ」でのみ閉じます。「盤面を確認する」は最小化です）。",
       "ステータスエリアのアバターを枠線の無い丸に戻し、背面に半透明のアバターを少しずらして重ねられるようにしました（サイズ・位置・透明度は管理者モードで調整可能）。半透明側をクリックしてもエモートは出ません。",
@@ -1245,6 +1434,17 @@ export const CHANGELOG = [
       "対戦終了後のモーダルに「盤面を確認する」を追加しました。押すと案内のあとモーダルが画面左上の🏆アイコンに最小化され、盤面を確認できます（アイコンを押すといつでも戻せます）。また「この部屋を出る」を押すとホーム画面に戻るようにしました。",
       "対戦終了後の順位表示を、実際のランキングのようにアバターと名前が並んだ一覧にし、ハイライトが最下位から自分の順位まで登っていく演出にしました（自分の行に到達すると強調表示）。",
       "選べるアバターに「各国の国王」7種（赤の王・橙のキツネ王・黄の光の王・緑の森の王・青の氷海王・桃の女王・紫の長老女王）を追加しました。ロック数に応じた覚醒版・激昂版もあります。",
+      "ホーム画面のメニューアイコンを大きくし、文字・間隔を調整。マイページの配置を更新し、巨大な半透明アバター（最背面の飾り）を追加しました。",
+      "チュートリアルCPU戦のターン3まで完成：ジャンプ台で空いた相手ゲートへ侵攻→ゲート侵攻ボーナスでエターナル「緑」を獲得・ロック→7色そろえて勝利、まで遊べます。文言・演出も調整（CPU移動時のカードオープン、終了後はホームへ戻る 等）。",
+      "観戦機能を追加：進行中の対局を後から観戦できます（「公開情報のみ」か「すべて見える」を選択可）。",
+      "オンラインでゲート侵攻の演出（エターナル獲得・手札奪う）が出ない不具合を修正。",
+      "アプリ更新時にお知らせバナーを表示（対局中は出さず、対局が終わってから出ます）。この更新情報ページも追加。",
+      "チュートリアルCPU戦の左上に「チュートリアルを終了する」ボタンを追加（確認のうえホームへ戻ります）。",
+      "駒に遅れて追従する飾りのペット（仮）を追加しました。ゲームには一切関係ない見た目だけの要素です。ペットは各プレイヤーの「自ゲート側」に立ち、うろうろ歩く・小さく跳ねる・たまに高く飛ぶ・駒の周りを一周する・止まるをランダムに行います（全員バラバラの動き）。ペットは仮の絵文字7種から選べます（左下ステータスエリアのアイコン／マイページから）。管理者モードで位置・大きさ・追従速度・うろつき範囲・跳ねる激しさを微調整できます。",
+      "マイページに着せ替え一式（駒スキン・カード裏・プレイマット・背景・ペット）の変更ボタンを追加しました。",
+      "ホーム画面のメニューアイコンを、新しく作成した専用アイコン画像に変更しました（アイコンごとの枠は撤去）。明るい背景でも見やすいよう文字・アイコンを調整し、4個ずつ2段に整列。ホバーするとアイコン背面に幻想的なオーラが浮かぶ演出を追加しました。ホーム画面に入る時に一瞬暗い画面が出る不具合も修正（背景の下地色＋画像の事前読み込み）。メニューアイコンのサイズを管理者モードで一括調整できるようにしました。",
+    ],
+    devItems: [
       "ランキングで自分の行をハイライト点滅で強調するようにしました（3ランキングそれぞれで見つけやすく）。",
       "マイページでアバターを変更したとき、巨大アバター（背面の飾り）も即座に見た目が変わるように修正しました（全画面版でも反映）。",
       "戦績システムとの同期を完全自動化しました：名前・アバターを変更した瞬間に（連携済みなら）自動で戦績システムへ反映されます。対局開始時・勝利時の自動同期はそのままで、手動の「戦績システムと同期する」ボタンは不要になったので撤去しました。",
@@ -1276,29 +1476,20 @@ export const CHANGELOG = [
       "ペットの選択肢に「なし（非表示）」を追加しました。",
       "ホーム画面の「お知らせ／更新情報」に、未読があると「NEW」バッジが付くようにしました。開くと消えます。",
       "「図鑑／ルールブック」を全画面表示にし、山札一覧とルール・ヘルプの内容を1画面にまとめて表示するようにしました。",
-      "ホーム画面のメニューアイコンを大きくし、文字・間隔を調整。マイページの配置を更新し、巨大な半透明アバター（最背面の飾り）を追加しました。",
       "ペット変更ピッカーが背面に隠れて開かない不具合を修正（モーダルのz-index指定漏れ）。",
       "ホームのメニューアイコンを大きくしても頭打ちになる不具合を修正（グリッド幅をアイコンサイズに連動）。マイページのレイアウト編集で要素の枠が中身に合うよう調整し、プロフィールを囲う枠を撤去しました。",
       "ホーム画面から管理者モードを開いてもウィンドウが背面に隠れて見えない不具合を修正。",
-      "チュートリアルCPU戦のターン3まで完成：ジャンプ台で空いた相手ゲートへ侵攻→ゲート侵攻ボーナスでエターナル「緑」を獲得・ロック→7色そろえて勝利、まで遊べます。文言・演出も調整（CPU移動時のカードオープン、終了後はホームへ戻る 等）。",
-      "観戦機能を追加：進行中の対局を後から観戦できます（「公開情報のみ」か「すべて見える」を選択可）。",
-      "オンラインでゲート侵攻の演出（エターナル獲得・手札奪う）が出ない不具合を修正。",
       "戦績システムの試合コメントを「みんなのコメント」に刷新し、各コメントへ個別に返信できるようにしました。",
-      "アプリ更新時にお知らせバナーを表示（対局中は出さず、対局が終わってから出ます）。この更新情報ページも追加。",
       "更新バナーが出ないまま勝手に更新されることがある不具合を修正（実行中コード自身のバージョンを基準に判定するように変更）。",
       "ホーム画面の背景画像を新しいタイトル画像に変更。ゲーム盤面の既定背景を「灰」に変更。",
       "右上オプションエリアに装飾帯を追加し（画面の左端から右端まで）、背景が白系でもアイコンが見やすくなるように改善。2D/3D切替アイコンは丸囲みと文字を外し、ホバーで説明が出る形にしました。",
-      "チュートリアルCPU戦の左上に「チュートリアルを終了する」ボタンを追加（確認のうえホームへ戻ります）。",
       "更新バナーの「更新する」を押しても反映されず何度も出る不具合を修正（再読み込み前にキャッシュを取り直すように変更）。万一反映されない時はハードリフレッシュの案内も表示します。",
       "右上オプションエリアの各アイコン（Discord・ヘルプ・ランキング・マイページ・2D/3D）もホバーで簡易説明が出るように修正（画面上端で見切れないよう下側に表示）。アイコン下のテキストは背景が白系でも読めるよう暗いバッジ＋影を付けました。",
       "HUERISE画面の右下に、今動いているアプリのバージョン（デプロイ日時）を小さく表示するようにしました。",
       "自動処理モードで、ルールに反した自由なドラッグを制限しました：掴めるのは自分の手札カードだけになり、駒・盤面/ロックのカード・山札・捨て場・エターナル/ファースト束・相手の手札は掴めません。駒の移動は移動フェイズで光るマスをタップして行います。手札カードでも不正なドロップ（ロック不可タイミングでのロック、使えないタイミングでの効果発動、山などへの配置）は弾きます。管理者はオプションからこの制限を解除できます。",
-      "駒に遅れて追従する飾りのペット（仮）を追加しました。ゲームには一切関係ない見た目だけの要素です。ペットは各プレイヤーの「自ゲート側」に立ち、うろうろ歩く・小さく跳ねる・たまに高く飛ぶ・駒の周りを一周する・止まるをランダムに行います（全員バラバラの動き）。ペットは仮の絵文字7種から選べます（左下ステータスエリアのアイコン／マイページから）。管理者モードで位置・大きさ・追従速度・うろつき範囲・跳ねる激しさを微調整できます。",
-      "マイページに着せ替え一式（駒スキン・カード裏・プレイマット・背景・ペット）の変更ボタンを追加しました。",
       "（管理者用）マイページのレイアウト編集モードを追加。ONにするとマイページの各要素をドラッグ移動・端で拡大縮小でき、「テキスト出力」で配置を書き出せます（保存はせず、製作者がプログラムに焼き込む運用）。",
       "ステータスエリアの着せ替えアイコン群（駒スキン・カード裏・ペット・プレマ・背景・オンライン）が崩れる不具合を修正し、flexで自動整列するようにしました。ペット変更アイコンが反応しない不具合も修正（他アイコンと重なっていたのが原因）。ステータスエリアのレイアウト（アバター・情報位置等）を調整。",
       "マイページのレイアウト編集モードを改善：アバター変更ボタンを独立要素化、右へ動かすと要素が潰れる不具合（カード幅の見えない壁）を修正、要素の実寸を保持するように。",
-      "ホーム画面のメニューアイコンを、新しく作成した専用アイコン画像に変更しました（アイコンごとの枠は撤去）。明るい背景でも見やすいよう文字・アイコンを調整し、4個ずつ2段に整列。ホバーするとアイコン背面に幻想的なオーラが浮かぶ演出を追加しました。ホーム画面に入る時に一瞬暗い画面が出る不具合も修正（背景の下地色＋画像の事前読み込み）。メニューアイコンのサイズを管理者モードで一括調整できるようにしました。",
       "Googleでログイン済みでも「戦績システム連携」がログイン未検出になることがある不具合を修正（Google連携の判定を厳格すぎる条件から総合判定に変更）。",
     ],
   },
@@ -1306,9 +1497,11 @@ export const CHANGELOG = [
     date: "2026-07-30",
     items: [
       "ブーストモードを追加：開始時にファーストカードの両隣の色をロックした状態でスタート（時短ルール）。",
+      "スリカエ・セレスティア等、対象や結果が分かるお知らせモーダルを追加。スリカエにシャッフル演出も追加。",
+    ],
+    devItems: [
       "捨て札の山を右クリックで捨て札一覧を表示できるようにしました。",
       "山札が切れたら自動でノーシャッフル補充（捨て場の一番上が山札の一番下）。",
-      "スリカエ・セレスティア等、対象や結果が分かるお知らせモーダルを追加。スリカエにシャッフル演出も追加。",
       "駒にカーソルを合わせると全員のプレイヤー名を表示。盤外ではカーソル位置を相手に見せないように。",
     ],
   },
