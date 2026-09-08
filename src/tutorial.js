@@ -122,6 +122,23 @@ function getOpponentGateCell() {
   return document.querySelector(`.cell[data-row="${pos.row}"][data-col="${pos.col}"]`);
 }
 
+// 続き484（ユーザー報告「チュートリアルで注目させたい箇所がスポットされてない場合があります」）。
+// 自分の手札を指すステップ（「あなたの手札」「手札効果」）の対象は、以前 ".zone-bottom .hand-area"
+// と書いていた。ところが「手札を画面下に固定する」(body.fixed-hand-mode) が有効だと、自分の手札は
+// .zone-bottom の外＝body直下の固定オーバーレイへ移るため、**この選択子は0件になる**。
+// 実測: 対局中に .hand-area は2つ在るのに ".zone-bottom .hand-area" は0件で、スポットが出ず
+// 画面がただ暗くなるだけだった。席で引けば、固定表示でも通常表示でも必ず当たる
+// （main.js の findDraggableAt も ".zone-bottom .hand-area, #self-hand-overlay" と両方見ている。
+//  こちらだけが片方しか見ておらず取り残されていた）。
+function getSelfHandAreaEl() {
+  const seat = getSelfSeat();
+  return (
+    (seat ? document.querySelector(`.hand-area[data-player="${seat}"]`) : null) ??
+    document.querySelector(".zone-bottom .hand-area") ??
+    null
+  );
+}
+
 // ユーザー要望「ムーブフェイズ、実際に駒を移動できる範囲をハイライトさせたりできる？」
 // への対応。自分の駒の現在地から前後左右のマスを（有効/無効を厳密に判定せず）ざっくり
 // 示す軽量版。本物の移動・接触を実際にシミュレーションして動かして見せるのは、
@@ -330,7 +347,7 @@ function buildSteps() {
     ],
   },
   {
-    target: () => document.querySelector(".zone-bottom .hand-area"),
+    target: () => getSelfHandAreaEl(),
     title: t("tut.s2.title"),
     body: [
       t("tut.s2.b1"),
@@ -421,7 +438,7 @@ function buildSteps() {
     renderExtra: (container) => container.appendChild(buildMoveDemoDiagram(["up"])),
   },
   {
-    target: () => document.querySelector(".zone-bottom .hand-area"),
+    target: () => getSelfHandAreaEl(),
     title: t("tut.s10.title"),
     icon: "assets/icons/hand-effect.png",
     body: [
@@ -619,8 +636,16 @@ function positionCallout(targetStageRect) {
 function positionForCurrentStep() {
   const step = getSteps()[currentStepIndex];
   const target = step.target();
-  if (target) {
-    const realRect = target.getBoundingClientRect();
+  // 続き484: 「要素は在るが表示されていない」時にスポットを出さない。以前は target が
+  // null でなければ無条件に出していたため、大きさ0の要素だと **画面左上に 0x0 の見えない点**
+  // が出るだけで、どこも指していないように見えた。
+  // 実測でこれが起きていたのが「ターン終了」の手順——既定の自動処理モードでは
+  // #end-turn-button を display:none で隠しているので（続き74のユーザー要望）、
+  // 対象は存在するのに大きさ0だった。
+  // 対戦チュートリアル側（tutorial-battle-ui.js の stageRectOf）は元からこの判定を持っている。
+  const realRect = target ? target.getBoundingClientRect() : null;
+  const visible = !!realRect && (realRect.width > 0 || realRect.height > 0);
+  if (visible) {
     const rect = toStageRect(realRect);
     spotlightEl.style.display = "block";
     spotlightEl.style.left = `${rect.left}px`;

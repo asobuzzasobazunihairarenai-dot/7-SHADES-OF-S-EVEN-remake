@@ -2203,6 +2203,21 @@ body.theme-light #changelog-back {
   line-height: 1.6;
   margin-bottom: 0.25rem;
 }
+/* 続き484: 管理者だけに出る「開発者向けの詳細」の見出しと項目。一般向けの項目と
+   見分けが付くよう、見出しを付けて本文を一段落ち着かせる（changelog.js参照）。 */
+.changelog-dev-head {
+  margin-top: 0.5rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: bold;
+  color: #a5b4fc;
+  opacity: 0.9;
+}
+.changelog-dev-items li {
+  color: #cbd5e1;
+  opacity: 0.85;
+  font-size: 0.78rem;
+}
 /* 英語表示で、その回のお知らせに英訳(itemsEn)が無い時の一言（changelog.js参照）。 */
 .changelog-ja-only {
   color: #94a3b8;
@@ -20134,6 +20149,8 @@ body.theme-light .bug-report-status,
 body.theme-light .bug-report-status.is-error,
 body.theme-light .changelog-empty,
 body.theme-light .changelog-ja-only,
+body.theme-light .changelog-dev-head,
+body.theme-light .changelog-dev-items li,
 body.theme-light .currency-about-title,
 body.theme-light .currency-award-float,
 body.theme-light .emote-mute-menu-btn,

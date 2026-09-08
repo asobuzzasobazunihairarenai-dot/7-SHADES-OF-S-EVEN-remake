@@ -25,7 +25,7 @@ import { openCodexPage } from "./codex-page.js";
 // ユーザー要望「ランキングを実装しましょう」への対応で新設したページ。
 import { openRankingPage } from "./ranking-page.js";
 // ランク戦フェーズ4/6: 現ランクをホームに常時表示（称号バッジ静止版＋七色ゲージ）。
-import { getSelfRank, pollRanked, getCurrentUser } from "./online.js";
+import { getSelfRank, pollRanked, getCurrentUser, isAdminUser } from "./online.js";
 import { rankName } from "./rank-badge.js";
 import { buildRankShowcase } from "./rank-showcase.js";
 import { showRankExplanationModal } from "./rank-explain.js";
@@ -132,7 +132,7 @@ const TILES = [
       openCodexPage(() => openHomeScreen());
     },
   },
-  { icon: "📰", image: "assets/home-icons/news.webp", labelKey: "home.tile.news", status: "ready", onOpen: () => openChangelogModal(), showNewIfUnread: () => hasUnreadChangelog() },
+  { icon: "📰", image: "assets/home-icons/news.webp", labelKey: "home.tile.news", status: "ready", onOpen: () => openChangelogModal({ admin: isAdminUser() }), showNewIfUnread: () => hasUnreadChangelog() },
 ];
 
 // 「近日公開」タイルを押した時の軽いトースト。モーダルを挟むほどの重さは不要

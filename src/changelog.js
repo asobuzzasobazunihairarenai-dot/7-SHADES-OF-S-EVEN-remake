@@ -5,12 +5,43 @@
 //   （新しい順＝先頭が最新）。日付は YYYY-MM-DD。itemsはその回の変更の概要（箇条書き）。
 //   ★2026-08-29から: 新しく追記する回は itemsEn（英語版・itemsと同じ順番・同じ件数）も
 //     一緒に書く（ユーザー判断で過去分の英訳はしない＝itemsEnが無い回は日本語のまま出る）。
+//
+// ★2026-09-08（続き484）から: 項目を2階層に分ける（ユーザー要望「debug関係の詳細は管理者のみ
+//   見れるようにして、一般の方にはもっと大きな変更を伝えたい。アプリが問題だらけであると
+//   ネガティブキャンペーンしている感じになっちゃうので」）。
+//     items / itemsEn       … 全員に見せる。**プレイヤーにとって意味のある変化**だけを書く
+//                             （新しくできること・遊び方や見え方が変わること・端末での快適さ・
+//                              連絡事項。「対戦が途中で止まることがあったのを直しました」の
+//                              ように、起きていた現象がプレイヤーの言葉で書けるもの）。
+//     devItems / devItemsEn … 管理者だけに見せる（isAdminUser）。**開発の内輪話**をここへ置く
+//                             （特定カードの内部処理・CPUの思考の細部・診断ログ・テストの話。
+//                              「CPUが収穫と種まきで自分自身を拾って置き直す空振りをしていた」等）。
+//   どちらも ja/en は同じ順番・同じ件数で書くこと。**事実を消すためのものではない**——
+//   詳しさの階層を分けるだけで、管理者の画面には今までどおり全部出る。
+//   items が空（devItems だけ）の回は、一般の画面ではその日付ごと出さない。
 
 import { createBackdrop } from "./ui-helpers.js";
 import { t } from "./ui-text.js"; // UI英語化フェーズ13
 import { getLang } from "./i18n.js";
 
 export const CHANGELOG = [
+  {
+    date: "2026-09-08",
+    items: [
+      "遊び方の案内（チュートリアル）で、説明している場所が光らないことがあったのを直しました。「あなたの手札」「手札効果」の手順で手札がきちんと光ります。",
+    ],
+    itemsEn: [
+      "Fixed the how-to-play walkthrough not highlighting what it was describing. Your hand is now spotlighted correctly on the \"Your hand\" and \"Hand effects\" steps.",
+    ],
+    devItems: [
+      "チュートリアルの対象16か所を実測で総点検した。手札の対象が \".zone-bottom .hand-area\" で、手札を画面下に固定するモードでは0件になっていた（席で引く形に変更）。「ターン終了」は自動処理モード（既定ON）でボタンが display:none のため、大きさ0のスポットが画面左上に出ていた（見えない対象にはスポットを出さないようにした）。",
+      "物語の対戦チュートリアル側は同じ穴なし（選択子が盤面・トークンid基準で、大きさ0を弾く判定を元から持っている）。",
+    ],
+    devItemsEn: [
+      "Audited all 16 tutorial targets by measurement. The hand target used \".zone-bottom .hand-area\", which matches nothing in fixed-hand mode (now resolved by seat). \"End turn\" pointed at a display:none button under auto-processing (default on), producing a 0x0 spotlight at the top-left; invisible targets no longer get a spotlight.",
+      "The story battle tutorial does not share these defects (its selectors are board/token-id based and it already rejects zero-size rects).",
+    ],
+  },
   {
     date: "2026-09-08",
     items: [
@@ -1267,10 +1298,18 @@ let backdropEl = null;
 // 最新エントリの日付＋項目数＋エントリ総数を「署名」とし、開いた時にlocalStorageへ保存する。
 // 署名が保存値と違えば未読（新しいお知らせがある）とみなす。
 const CHANGELOG_READ_KEY = "so7-changelog-read";
+// 続き484: 一般向けの項目（items）が1つでもある回だけを数える。
+// **署名は管理者かどうかで変えない**——isAdminUser() はログインの読み込みが終わるまで false を
+// 返すので、署名に混ぜると起動直後だけ NEW が付いたり消えたりする。管理者向けの項目のために
+// NEW を出す必要も無い（開けば見える）。
+function generalEntries() {
+  return CHANGELOG.filter((e) => Array.isArray(e.items) && e.items.length > 0);
+}
 function currentSignature() {
-  const top = CHANGELOG[0];
+  const list = generalEntries();
+  const top = list[0];
   if (!top) return "";
-  return `${top.date}|${top.items.length}|${CHANGELOG.length}`;
+  return `${top.date}|${top.items.length}|${list.length}`;
 }
 export function hasUnreadChangelog() {
   try {
@@ -1294,7 +1333,11 @@ function close() {
   backdropEl = null;
 }
 
-export function openChangelogModal() {
+// 続き484: 管理者かどうかは呼び出し側（home-screen.js）から渡す。ここで online.js を
+// import すると、表示だけのこの小さなモジュールがオンライン通信の塊に繋がってしまう
+// （実際に Node からこのファイルを読むだけで location 未定義で落ちるようになった）。
+// phase-automation / board-3d と同じく、必要なものは外から渡す形にしておく。
+export function openChangelogModal({ admin = false } = {}) {
   if (modalEl) return;
   markChangelogRead(); // 開いた時点で既読に（メニューのNEW表示を消す）
   backdropEl = createBackdrop(close, { dim: true, blocksGame: false, zIndex: 2400 });
@@ -1322,15 +1365,16 @@ export function openChangelogModal() {
     empty.textContent = t("chg.empty");
     list.appendChild(empty);
   } else {
-    for (const entry of CHANGELOG) {
+    // 続き484: 管理者だけが開発者向けの詳細（devItems）も見る。一般の画面では、
+    // 一般向けの項目が1つも無い回はその日付ごと出さない（空の日付が並ぶのを防ぐ）。
+    const entries = admin ? CHANGELOG : generalEntries();
+    for (const entry of entries) {
       const section = document.createElement("div");
       section.className = "changelog-entry";
       const date = document.createElement("div");
       date.className = "changelog-date";
       date.textContent = entry.date;
       section.appendChild(date);
-      const ul = document.createElement("ul");
-      ul.className = "changelog-items";
       // 英語表示では itemsEn があればそちらを出す。無ければ日本語のまま出し、
       // 「この回は日本語のみ」と一言添える（過去分は英訳しない方針＝ユーザー判断）。
       const useEn = getLang() !== "ja" && Array.isArray(entry.itemsEn) && entry.itemsEn.length > 0;
@@ -1340,12 +1384,29 @@ export function openChangelogModal() {
         note.textContent = t("chg.jaOnly");
         section.appendChild(note);
       }
-      for (const item of useEn ? entry.itemsEn : entry.items) {
-        const li = document.createElement("li");
-        li.textContent = item; // textContentで安全に表示
-        ul.appendChild(li);
+      const appendList = (texts, className) => {
+        if (!Array.isArray(texts) || texts.length === 0) return;
+        const ul = document.createElement("ul");
+        ul.className = className;
+        for (const item of texts) {
+          const li = document.createElement("li");
+          li.textContent = item; // textContentで安全に表示
+          ul.appendChild(li);
+        }
+        section.appendChild(ul);
+      };
+      appendList(useEn ? entry.itemsEn : entry.items, "changelog-items");
+      if (admin) {
+        const useDevEn = getLang() !== "ja" && Array.isArray(entry.devItemsEn) && entry.devItemsEn.length > 0;
+        const devTexts = useDevEn ? entry.devItemsEn : entry.devItems;
+        if (Array.isArray(devTexts) && devTexts.length > 0) {
+          const head = document.createElement("div");
+          head.className = "changelog-dev-head";
+          head.textContent = t("chg.devHead");
+          section.appendChild(head);
+          appendList(devTexts, "changelog-items changelog-dev-items");
+        }
       }
-      section.appendChild(ul);
       list.appendChild(section);
     }
   }
