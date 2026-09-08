@@ -41,9 +41,11 @@ export const CHANGELOG = [
     ],
     devItems: [
       "対戦開始前の「今回のメンバー」の大きさ・見せる長さを管理者モードから調整できるようにしました（スライダーを触ると実際の紹介画面が出ます）。ペットは既定を大きくしました。",
+      "管理者モードの「今回のメンバー」に、値を変えずに今の見た目だけ確かめられるプレビュー用のボタンを付けました。",
     ],
     devItemsEn: [
       "The pre-match lineup can now be tuned from admin mode - sizes and how long it stays up, with the real screen appearing as you drag a slider. Pets are larger by default.",
+      "Added a preview button to the admin mode's lineup group, so the current look can be checked without changing any value.",
     ],
   },
   {

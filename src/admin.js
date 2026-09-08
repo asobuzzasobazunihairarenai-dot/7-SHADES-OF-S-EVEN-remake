@@ -544,6 +544,7 @@ const GROUPS = [
     title: "対戦開始前の「今回のメンバー」紹介（実験用プレビュー付き）",
     category: "effect",
     controls: [
+      { button: true, label: "▶ 紹介画面を見る（プレビュー）", onClick: () => matchIntroPreviewFn?.() },
       { key: "--match-intro-duration", label: "見せる長さ（秒）", unit: "", min: 1, max: 8, step: 0.1, default: 2.8, previewOnInteract: () => matchIntroPreviewFn?.() },
       { key: "--match-intro-pet-size", label: "ペットの大きさ", unit: "rem", min: 2, max: 18, step: 0.1, default: 7, previewOnInteract: () => matchIntroPreviewFn?.() },
       { key: "--match-intro-pet-lift", label: "ペットが浮く高さ", unit: "rem", min: 0, max: 1.5, step: 0.02, default: 0.4, previewOnInteract: () => matchIntroPreviewFn?.() },
@@ -1590,7 +1591,10 @@ const GROUPS = [
   },
 ];
 
-const CONTROLS = GROUPS.flatMap((g) => g.controls);
+// 【続き492】button: true の項目（スライダーを持たない・押すだけ）は CSS変数を持たないので、
+// リセット／出力／スライダーの作り直しの対象から外す（key が無いまま混ざると出力に
+// "undefined: undefinedundefined;" の行が出る）。
+const CONTROLS = GROUPS.flatMap((g) => g.controls).filter((c) => c.key);
 
 // セットアップウィザード（game-setup.js）の「０：プレイ人数選択」で、2人/3人プレイ時の
 // 座席をどう決めるか。CSS変数のスライダー群とは性質が異なる（見た目の微調整ではなく
@@ -2947,6 +2951,23 @@ function buildPanel(rebuildSlidersRef) {
       for (const c of group.controls) {
         const row = document.createElement("div");
         row.style.cssText = "margin-bottom: 0.5rem;";
+
+        // 【続き492・ユーザー要望】「実験用プレビュー表示ボタンも欲しいな」。
+        // これまではスライダーを触らないとプレビューが出せなかった（値を動かさずに
+        // 今の見た目だけ確かめたい、という場面に応えられていなかった）。
+        // スライダーを持たない「押すだけ」の項目をここで作る。
+        if (c.button) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = c.label;
+          btn.style.cssText =
+            "width: 100%; padding: 0.35rem 0.7rem; background: #0891b2; color: #fff; border: none; " +
+            "border-radius: 0.25rem; cursor: pointer; font-size: 0.8rem; font-weight: 700;";
+          btn.addEventListener("click", () => c.onClick?.());
+          row.appendChild(btn);
+          content.appendChild(row);
+          continue;
+        }
 
         const labelRow = document.createElement("div");
         labelRow.style.cssText = "display: flex; justify-content: space-between; align-items: center; gap: 0.3rem; margin-bottom: 0.15rem;";
