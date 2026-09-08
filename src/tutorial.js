@@ -130,6 +130,15 @@ function getOpponentGateCell() {
 // 画面がただ暗くなるだけだった。席で引けば、固定表示でも通常表示でも必ず当たる
 // （main.js の findDraggableAt も ".zone-bottom .hand-area, #self-hand-overlay" と両方見ている。
 //  こちらだけが片方しか見ておらず取り残されていた）。
+// 続き485: id で引いた要素が「実際に画面に出ているか」（大きさを持つか）まで見て返す。
+// display:none の要素も getElementById は返してくるので、素の取得だけでは判断できない。
+function visibleEl(id) {
+  const el = document.getElementById(id);
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  return r.width > 0 || r.height > 0 ? el : null;
+}
+
 function getSelfHandAreaEl() {
   const seat = getSelfSeat();
   return (
@@ -375,7 +384,15 @@ function buildSteps() {
     ],
   },
   {
-    target: () => document.getElementById("end-turn-button"),
+    // 続き485（ユーザー判断「A案で。基本最終的には自動処理モードがメインになります」）。
+    // 以前は #end-turn-button を指し「このボタンで」と書いていたが、**既定の自動処理モードでは
+    // そのボタンを表示しない**（続き74のユーザー要望）ので、ほとんどの人には指す先が無かった。
+    // ターンの終わり自体はルール上の大事な区切りなので説明は残し、指す先を
+    // 「今どのフェイズか」が出ているフェイズ案内板に変え、文面もボタンに依存しない言い方にした。
+    // 自己申告モード（ボタンが出る）の時は、そのボタンを指す方が具体的なのでそちらを優先する。
+    // ★注意: 非表示の要素も getElementById では**返ってくる**ので、`??` では切り替わらない。
+    //   大きさを見て「実際に出ているか」で判断する（続き484の positionForCurrentStep と同じ考え方）。
+    target: () => visibleEl("end-turn-button") ?? document.getElementById("phase-guide-bar"),
     title: t("tut.s4.title"),
     body: [t("tut.s4.b1")],
   },

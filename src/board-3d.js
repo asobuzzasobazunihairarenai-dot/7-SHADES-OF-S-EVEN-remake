@@ -168,7 +168,18 @@ function quantizeColor(css) {
 }
 
 // 【#275】上限。テクスチャは1辺最大256pxなので、この枚数でも数MB程度に収まる。
-const SHAPE_TEXTURE_MAX = 80;
+// 【#339・2026-09-08】この 80 という固定値そのものが「重い」の原因だった。実機ログでは
+// **画面に出ている形の数（shapes）が 125〜137** で、上限 80 を常に超えている。下の
+// pruneShapeTextures は「今どの板も使っているものは捨てない」ので描画は壊れないが、
+// **使っていないものは毎回すべて捨てられる**＝棚に余白が1枚も残らない。手番の明滅のように
+// 色が行ったり来たりする形は、戻ってきた時に必ず作り直しになる（texEvicted が 12→174 と
+// 延々増え続けていたのがこれ）。続き481の色の丸めは「鍵の種類」を減らしたが、
+// **同時に必要な数が上限を超えている**限り効果が出ない。
+// 対策: 上限を固定値ではなく「いま画面に出ている数＋余白」にする。余白がある限り、
+// 明滅で戻ってきた色は作り直さずに済む。絶対上限は端末のメモリのために残す
+// （iPhone は画像だけで既に 51MB・ピーク 68MB。青天井にはしない）。
+const SHAPE_TEXTURE_SPARE = 64; // 画面の形の数に上乗せする余白（明滅の色の行き来を吸収する分）
+const SHAPE_TEXTURE_HARD_MAX = 256; // 端末のメモリのための絶対上限
 function shapeTexture(key, spec) {
   let tex = shapeTextures.get(key);
   // 【#275】使ったものは列の最後尾へ入れ直す（LRU）。ユーザー報告「盤面のカードの一部と
@@ -256,13 +267,15 @@ function shapeTexture(key, spec) {
 // 「盤面のカードの一部・ロックエリアバーの一部が不規則にチカチカする」の正体と考えられる。
 // 片付けは作り直しの最後にまとめて行い、**今どの板も使っていないもの**だけを捨てる。
 function pruneShapeTextures() {
-  if (shapeTextures.size <= SHAPE_TEXTURE_MAX) return;
   const inUse = new Set();
   for (const mesh of shapeMeshByElement.values()) {
     if (mesh.userData.shapeKey) inUse.add(mesh.userData.shapeKey);
   }
+  // #339: 「いま出ている数＋余白」を棚の大きさにする（上の定数のコメント参照）。
+  const budget = Math.min(SHAPE_TEXTURE_HARD_MAX, inUse.size + SHAPE_TEXTURE_SPARE);
+  if (shapeTextures.size <= budget) return;
   for (const key of [...shapeTextures.keys()]) {
-    if (shapeTextures.size <= SHAPE_TEXTURE_MAX) break;
+    if (shapeTextures.size <= budget) break;
     if (inUse.has(key)) continue;
     shapeTextures.get(key)?.dispose();
     shapeTextures.delete(key);

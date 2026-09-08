@@ -192,18 +192,20 @@ function showWaitingScreen() {
     overlayEl.appendChild(notifyRow);
   }
 
+  // 【ユーザー要望2026-09-07】「暇なので助かり情報や豆知識を流すのはどうかな？」。
+  // 【続き485】当初はボタン類の位置を動かさないよう一番下に置いていたが、ユーザー判断
+  // 「小さすぎます。むしろ豆知識を中央に大きく持ってきましょう」で**キャンセルボタンより上**へ
+  // 移した（待ち時間の主役はこちら。操作ボタンは引き続き一番下にまとまっている）。
+  // 画面を閉じる時に必ず止める（closeWaitingScreen）。
+  waitingTips = createWaitingTips();
+  overlayEl.appendChild(waitingTips.el);
+
   const cancelBtn = document.createElement("button");
   cancelBtn.type = "button";
   cancelBtn.className = "ranked-waiting-cancel";
   cancelBtn.textContent = t("rm.L158");
   cancelBtn.addEventListener("click", () => void cancelMatchmaking());
   overlayEl.appendChild(cancelBtn);
-
-  // 【ユーザー要望2026-09-07】「暇なので助かり情報や豆知識を流すのはどうかな？」。
-  // ボタン類の位置を動かさないよう一番下に置く（待っている間に読むもので、操作の邪魔をしない）。
-  // 画面を閉じる時に必ず止める（closeWaitingScreen）。
-  waitingTips = createWaitingTips();
-  overlayEl.appendChild(waitingTips.el);
 
   document.body.appendChild(overlayEl);
 }

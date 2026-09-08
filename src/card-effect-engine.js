@@ -806,7 +806,9 @@ async function runAction(action, ctx, helpers) {
         dest =
           freshCells.length === 1 && !ctx.forcePrompt
             ? freshCells[0]
-            : await helpers.pickLocation(freshCells, t("ce.L738"));
+            // #340: 用途を渡さないと、CPUの自動選択が「拾う/乗る」用の判断になり
+            //   移動の善し悪し（自ゲート防衛・接触の危険・前進）が一切入らない（cpu-brain.js 参照）。
+            : await helpers.pickLocation(freshCells, t("ce.L738"), { purpose: "move" });
       } else {
         // 人間: ループ先は警告して選べないようにする（alertCellsでクリック時に注意を出し選択させない）。
         // 非ループの行き先が1つも無ければ移動しない（＝実質行き先なし。駒は現在地に留まる）。

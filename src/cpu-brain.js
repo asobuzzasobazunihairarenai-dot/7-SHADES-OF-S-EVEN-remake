@@ -70,6 +70,54 @@ function neededColors(state, seat) {
   return new Set(COLORS.filter((c) => !locked.has(c)));
 }
 
+// #340: 自分のゲートに相手の駒が迫っているか（マンハッタン距離2以内）。「自ゲートを固める」の
+// 判定を2か所（前進度を数えない／防衛の加点）で使うので、同じ条件を1つの関数にまとめた
+// （片方だけ条件が変わって食い違うのを防ぐ）。
+// #340（ユーザー報告「CPU1がCPU2のゲートの隣にいて侵攻目前なのに、CPU2は自ゲートに戻らなかった」）
+// の**本当の原因**。ジャンプ台・ゴメンナサイ等、カード効果で駒が動く時の行き先は
+// card-effect-engine の MOVE が `pickLocation` で選ばせているが、用途を渡していなかったため
+// CPUの自動選択は chooseEffectCell の既定＝**「拾う/乗る」用の判断**になっていた。
+// あの判断には移動の善し悪し（自ゲート防衛・接触の危険・相手ゲートへの前進）が一切入らない。
+// 実際の報告の場面（Cが(0,1)からジャンプ台で2マス）でも、既定の判断は「相手ゲートに近いマス」
+// として(1,2)を選び、自分のゲート(0,3)を素通りしていた。
+// 移動フェイズと同じものさし（scoreMove）で選ぶ。候補は {zone,row,col} だけなので、
+// 盤面から「そのマスの一番上のカード・駒」を補ってから採点し、選ばれたマスを元の形で返す。
+function chooseMoveDestinationCell(cells, driveSeat) {
+  const state = getState();
+  const list = (cells || []).filter((c) => c && c.row != null && c.col != null);
+  if (list.length === 0) return null;
+  const enriched = list.map((c) => {
+    const stack = state.tokens.filter(
+      (t) => t.kind === "card" && t.location.zone === "cell" && t.location.row === c.row && t.location.col === c.col
+    );
+    const top = stack[stack.length - 1];
+    const piece = state.tokens.find(
+      (t) => t.kind === "piece" && t.location.zone === "cell" && t.location.row === c.row && t.location.col === c.col
+    );
+    return {
+      row: c.row,
+      col: c.col,
+      isMove: true,
+      topCardId: top?.cardId ?? null,
+      topFaceUp: !!top?.faceUp,
+      occupantPlayer: piece?.player ?? null,
+    };
+  });
+  const chosen = chooseMoveCandidate(enriched, driveSeat);
+  if (!chosen) return null;
+  return list.find((c) => c.row === chosen.row && c.col === chosen.col) ?? null;
+}
+
+function gateThreatDistance(ctx) {
+  if (!ctx.myGate || ctx.oppPieceCells.length === 0) return Infinity;
+  return Math.min(
+    ...ctx.oppPieceCells.map((p) => Math.abs(p.row - ctx.myGate.row) + Math.abs(p.col - ctx.myGate.col))
+  );
+}
+function gateThreatened(ctx) {
+  return gateThreatDistance(ctx) <= 2;
+}
+
 function scoreMove(c, seat, ctx) {
   let score = 0;
   const gateSeat = gateSeatAt(c.row, c.col);
@@ -92,7 +140,16 @@ function scoreMove(c, seat, ctx) {
     // 不具合#38「最短ルートを選ばない」対応: 途中のカード拾い（要る色+1／収穫+2等）に負けて
     // 寄り道しないよう、1マス近づく＝+3（旧+1.5から増強）。ゲート直行を明確に優先させる。
     const here = { row: c.row, col: c.col };
-    if (ctx.myCell && ctx.oppGates.length > 0) {
+    // #340（ユーザー報告「CPU1がCPU2のゲートの隣にいてゲート侵攻目前。そのタイミングでCPU2は
+    // 自ゲートに戻って妨害できるチャンスだったのに行かなかった」）。自ゲートを固める手は、
+    // 定義上どうしても相手ゲートから遠ざかるので、この「前進度」の項でまとめて減点されていた。
+    // 実測（報告のT21）: (0,1)から自ゲート(0,3)へ＝防衛+5 に対し前進度が**−6**で、
+    // 何もしない別のマス(1,2)（0点）に負けていた。ジャンプ台のように2マス動ける時は
+    // 前進度の振れ幅が2倍(±6)になるので、特に負けやすい。
+    // 守りに入る手を攻めのものさしで測らない——自ゲートを固める手では前進度を数えない。
+    const isDefensiveGateHold =
+      ctx.myGate && here.row === ctx.myGate.row && here.col === ctx.myGate.col && gateThreatened(ctx);
+    if (!isDefensiveGateHold && ctx.myCell && ctx.oppGates.length > 0) {
       score += (minDistTo(ctx.myCell, ctx.oppGates) - minDistTo(here, ctx.oppGates)) * 3;
     }
     // 接触狙い（相手駒へ近づく）は「カウンターロック所持時のみ」（ユーザー方針2026-08-08:
@@ -106,11 +163,15 @@ function scoreMove(c, seat, ctx) {
     // （state.js RESPOND_CONTACT）ため、ゲート侵攻（＝ゲートへの着地）が成立しない。よって相手駒が
     // 自ゲートに接近（マンハッタン距離≤2）している時に自ゲートへ移動する手を高く評価する。
     const onMyGateHere = ctx.myGate && here.row === ctx.myGate.row && here.col === ctx.myGate.col;
+    // 侵攻が迫っている時だけ自ゲートを固める（普段は前進を優先）。
+    // #340: 差し迫り具合で重みを変える。**相手が自ゲートの隣（距離1）＝次の相手のターンに
+    // 乗られて確定で侵攻される**ので、他のどんな前進より優先すべき緊急事態
+    // （前進度は1マスあたり+3、ジャンプ台等で2マス動けば+6まで出るので、それを上回る+9にする）。
+    // 距離2はまだ猶予があるので従来どおり+5＝前進と釣り合わせる。
     if (onMyGateHere) {
-      const threatened = ctx.oppPieceCells.some(
-        (p) => Math.abs(p.row - ctx.myGate.row) + Math.abs(p.col - ctx.myGate.col) <= 2
-      );
-      if (threatened) score += 5; // 侵攻が迫っている時だけ自ゲートを固める（普段は前進を優先）
+      const d = gateThreatDistance(ctx);
+      if (d <= 1) score += 9;
+      else if (d <= 2) score += 5;
     }
     // カウンターロック未所持時は、相手駒の隣（＝次の相手ターンに接触され、手札を奪われ自ゲートへ
     // 戻される危険な位置）で終わるのを避ける（ユーザー報告#59-②「無防備なのに隣に来る」）。ペナルティは
@@ -413,6 +474,7 @@ export function chooseEffectCell(candidates, driveSeat, purpose) {
   const rand = (arr) => arr[Math.floor(Math.random() * arr.length)];
   if (purpose === "destroy") return chooseCellToDestroy(candidates, driveSeat, state, rand);
   if (purpose === "place") return chooseCellToPlace(candidates, driveSeat, state, rand);
+  if (purpose === "move") return chooseMoveDestinationCell(candidates, driveSeat) ?? rand(candidates);
   // 優先1: 相手ゲートに乗れる候補（ゲート侵攻セットアップ）。
   const gates = activeOpponentGateCells(state, driveSeat);
   const gateCandidates = candidates.filter((c) => gates.some((g) => g.row === c.row && g.col === c.col));

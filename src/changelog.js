@@ -28,6 +28,29 @@ export const CHANGELOG = [
   {
     date: "2026-09-08",
     items: [
+      "動作が重くなる問題に対処しました。盤面の絵を置いておく棚が、実際に必要な数より小さかったため、毎回作り直しになっていました。特に4人戦で効きます。",
+      "CPUが、自分のゲートに相手が迫っていても守りに戻らないことがあったのを直しました。ジャンプ台などカードの効果で動く時に、守りの判断が働いていませんでした。",
+      "ランク戦の待ち時間に出る豆知識を、大きく中央に出すようにしました。",
+    ],
+    itemsEn: [
+      "Addressed the slowdown. The shelf holding the board's artwork was smaller than what the screen actually needs, so it was being rebuilt constantly. This matters most in 4-player games.",
+      "Fixed the CPU failing to fall back and defend its own gate when an opponent was closing in. When it moved via a card effect (a Jump Pad, for example), the defensive judgement was not applied at all.",
+      "The tips shown while waiting for a ranked match are now large and centered.",
+    ],
+    devItems: [
+      "#339: shapes（画面上の枠の数）が125〜137に対し SHAPE_TEXTURE_MAX が80固定で、in-use を保護する分だけで棚が埋まり余白ゼロ＝明滅で色が戻るたびに必ず作り直していた（texEvicted が延々増加）。上限を「in-use + 64、絶対上限256」の動的な値にした。",
+      "#340: card-effect-engine の MOVE が pickLocation に用途を渡しておらず、CPUの行き先選択が chooseEffectCell の既定（拾う/乗る用）になっていた。purpose:\"move\" を渡して scoreMove で選ぶようにし、あわせて自ゲート防衛を「相手が隣（距離1）なら+9／距離2なら+5」に段階化、防衛の手では相手ゲートへの前進度を数えないようにした。",
+      "チュートリアル7/16は自動処理モードで #end-turn-button が display:none のため、表示されている時だけそれを指し、無い時はフェイズ案内板を指すようにした（文面もボタン非依存に変更）。",
+    ],
+    devItemsEn: [
+      "#339: shapes on screen were 125-137 against a fixed SHAPE_TEXTURE_MAX of 80, so the cache held only the in-use set with zero spare — any glow colour returning had to be rebuilt (texEvicted climbed without bound). The budget is now in-use + 64, hard-capped at 256.",
+      "#340: the engine's MOVE verb passed no purpose to pickLocation, so CPU destination choice fell through to chooseEffectCell's pickup/landing heuristic. It now passes purpose:\"move\" and scores with scoreMove; own-gate defence is graded (+9 when an opponent is adjacent, +5 at distance 2) and the advance term is skipped for a defensive hold.",
+      "Tutorial step 7/16 now targets the end-turn button only when it is actually visible (auto-processing hides it), falling back to the phase guide bar; the copy no longer depends on that button existing.",
+    ],
+  },
+  {
+    date: "2026-09-08",
+    items: [
       "遊び方の案内（チュートリアル）で、説明している場所が光らないことがあったのを直しました。「あなたの手札」「手札効果」の手順で手札がきちんと光ります。",
     ],
     itemsEn: [

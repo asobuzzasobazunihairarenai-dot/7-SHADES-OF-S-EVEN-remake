@@ -21593,28 +21593,43 @@ body.reduce-glow .turn-timeout-strike {
 /* 【ユーザー要望2026-09-07】ランク戦のマッチング待ち画面に流す「豆知識」（waiting-tips.js）。
    ボタン類の下に置き、待っている間だけ読むもの。切り替わりは瞬間的に入れ替わると読んでいる
    途中で消えて驚くので、いったん薄くしてから差し替える（JS側の FADE_MS と揃えること）。 */
+/* 【ユーザー要望2026-09-08・続き485】「豆知識が小さすぎます。むしろ豆知識を中央に大きく
+   持ってきましょう！」。以前は 0.66rem でボタン類の下に置いていたが、このアプリは
+   1600x900 のステージを画面に合わせて縮めて描くので、スマホでは **実画面で約5px** にしか
+   ならず読めなかった（続き439で基本設定の行を大きくしたのと同じ話）。待ち時間の主役に
+   格上げして、囲みを付けて中央に大きく出す。 */
 .waiting-tips {
-  margin-top: 1.4rem;
-  max-width: 26rem;
+  margin-top: 1.2rem;
+  margin-bottom: 1.2rem;
+  max-width: 34rem;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.6rem;
+  padding: 1.1rem 1.4rem;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(250, 204, 21, 0.28);
+  background: rgba(15, 23, 42, 0.55);
 }
 .waiting-tips-label {
-  font-size: 0.58rem;
+  font-size: 0.9rem;
   font-weight: 700;
   letter-spacing: 0.16em;
-  color: rgba(250, 204, 21, 0.75);
+  color: rgba(250, 204, 21, 0.95);
 }
 .waiting-tips-body {
-  font-size: 0.66rem;
-  line-height: 1.7;
-  color: rgba(226, 232, 240, 0.78);
+  font-size: 1.15rem;
+  line-height: 1.75;
+  color: rgba(241, 245, 249, 0.95);
   transition: opacity 0.42s ease;
   opacity: 1;
-  min-height: 2.4em; /* 文の長さで下のものが跳ねないように高さを確保する */
+  min-height: 3.5em; /* 文の長さで下のものが跳ねないように高さを確保する */
+}
+body.theme-light .waiting-tips,
+body.theme-light-ingame .waiting-tips {
+  background: rgba(255, 252, 240, 0.9);
+  border-color: rgba(180, 140, 30, 0.35);
 }
 .waiting-tips-body.is-fading {
   opacity: 0;
