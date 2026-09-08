@@ -1220,10 +1220,23 @@ async function runAction(action, ctx, helpers) {
       const candidates =
         action.withinCells != null ? getCellsWithCardWithinRange(ctx.pieceLocation, action.withinCells) : getAnyCellWithCardCandidates();
       if (candidates.length === 0) return false;
+      // #336（ユーザー報告「収穫の種まきの到達効果でその収穫と種まき自身を回収するのは
+      // 勿体無いです！」）。到達効果でこのカード自身のマスを選ぶと二重に損をする——
+      //   ①到達効果の既定動作（処理後にこのカード自身を手札に加える）で**どうせ手札に入る**札に
+      //     「任意の1枚」を使ってしまう。
+      //   ②しかも一度手札へ動かしたことで #203 の判定が働き、既定動作が省かれる＝置き直した札は
+      //     盤面に裏向きで残り、**結局そのカードを手に入れられない**。
+      // ルール上は選べるので候補からは外さない（人間の選択肢は変えない・#203のテストも通す）。
+      // CPUの自動選択でだけ避ける（avoidCells は「他に候補があるなら選ばない」という弱い指定）。
+      const selfToken = getState().tokens.find((x) => x.id === ctx.cardTokenId);
+      const selfCell =
+        selfToken && selfToken.location.zone === "cell"
+          ? [{ row: selfToken.location.row, col: selfToken.location.col }]
+          : null;
       const chosen =
         candidates.length === 1 && !ctx.forcePrompt
           ? candidates[0]
-          : await helpers.pickLocation(candidates, t("ce.L1108"));
+          : await helpers.pickLocation(candidates, t("ce.L1108"), selfCell ? { avoidCells: selfCell } : undefined);
       if (!chosen) return false;
       // ユーザー報告「収穫と種まきで場のカードを取るとき、そのマスがスタックされて
       // いたら一番上ではなく上から2枚目のカードを取ってしまう」の原因: Array#find()は
@@ -1247,6 +1260,10 @@ async function runAction(action, ctx, helpers) {
       // （ユーザー確認済みルール #85）。
       await helpers.moveAndSync(token.id, { zone: "hand", player: ctx.player }, undefined, undefined, true);
       helpers.onCardAcquiredToHand?.(token.id, token.cardId, wasFaceUp, ctx.player);
+      // #336: 直後の「手札から1枚そのマスへ置く」で**今拾った札をそのまま置き直す**と、
+      // 拾って戻すだけの完全な空振りになる（実機ログ T15: 同じ card-91 が手札へ→同じマスへ）。
+      // CPUの自動選択でだけ避けるため、拾った札のidを控える。
+      ctx.justPickedUpTokenId = token.id;
       if (action.target?.saveAs) {
         ctx.selections[action.target.saveAs] = chosen;
         helpers.markPlacementTarget?.(chosen);
@@ -1282,6 +1299,14 @@ async function runAction(action, ctx, helpers) {
           // 「何枚目か／同じマスには置けない」ことを具体的に伝える。
           const placeHint = pickCount <= 1 ? t("ce.placeOne") : t("ce.placeNth", { i: i + 1, n: pickCount });
           const dest = await helpers.pickLocation(available, placeHint, {
+            // #337（ユーザー報告「CPUが増殖する樹々の手札効果で、目指してなさそうなゲートにも
+            // 置いたのなんでだろう？」）。用途を渡していなかったため、CPUの自動選択は
+            // chooseEffectCell の既定＝「拾う/乗る」用の判断（優先1が相手ゲート）で選んでいた。
+            // その結果、参加している**全員のゲートに1枚ずつ**置いていた（実機ログ T17: Dが
+            // B・C・Aの3つのゲートに置き、自分のゲートには置いていない）。「置く」は
+            // 「そこが着地できるマスになる」手なので、狙っていない相手のゲートに作るのは
+            // 相手に足場を配るだけ。cpu-brain.js の purpose:"place" で選び方を切り替える。
+            purpose: "place",
             alertCells: [...pickedKeys].map((k) => {
               const [row, col] = k.split(",").map(Number);
               return { row, col };
@@ -1347,7 +1372,14 @@ async function runAction(action, ctx, helpers) {
           // source:"self"は効果カード自身＝公開情報なので名前を出す（faceUp指定なら表向き）。
           logAction("place", { player: ctx.player, cardId: ctx.cardId, location: dest, faceDown: !action.faceUp, revealName: true });
         } else if (action.source === "hand") {
-          const handToken = await helpers.pickHandCard(ctx.player, t("ce.L1227"));
+          // #336: 直前に拾った札をそのまま置き直すのは完全な空振り。CPUの自動選択でだけ避ける
+          // （人間は今までどおり選べる＝#203のテストが通る）。
+          const handToken = await helpers.pickHandCard(
+            ctx.player,
+            t("ce.L1227"),
+            undefined,
+            ctx.justPickedUpTokenId ? { avoidTokenIds: [ctx.justPickedUpTokenId] } : undefined
+          );
           if (!handToken) continue;
           await helpers.moveAndSync(handToken.id, { zone: "cell", row: dest.row, col: dest.col });
           // 手札から裏向きで置いた＝中身は非公開。座標だけ記録し、名前は伏せる（cardIdを含めない）。

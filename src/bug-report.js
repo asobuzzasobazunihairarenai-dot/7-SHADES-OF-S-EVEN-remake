@@ -394,7 +394,13 @@ function close() {
 
 export function openBugReportModal() {
   if (modalEl) return;
-  backdropEl = createBackdrop(close, { dim: true, zIndex: 10040 });
+  // blocksGame:false（続き455）。この背景は「盤面のタップを透かさない」ためだけに要る。
+  // 続き455で `.so7-modal-backdrop` を「ゲームの進行を止める印」にも流用したため、
+  // **不具合報告を書いている間ずっとフェイズが進まなくなっていた**（実機ログ:
+  // blocker "backdrop>div#bug-report-modal" でフェイズが最大16秒待たされていた）。
+  // 報告は対局中に書くものなので、報告している最中に対局が固まるのは本末転倒。
+  // 対局の流れに属さない「アプリが出すウィンドウ」なので、進行の妨害からは外す。
+  backdropEl = createBackdrop(close, { dim: true, zIndex: 10040, blocksGame: false });
   modalEl = document.createElement("div");
   modalEl.id = "bug-report-modal";
 

@@ -14,6 +14,19 @@ export const CHANGELOG = [
   {
     date: "2026-09-08",
     items: [
+      "CPUが「増殖する樹々」などでカードを置く時、自分が向かっていない相手のゲートにまで置いていたのを直しました。これからは自分の進む道すじに置きます。",
+      "CPUが「収穫と種まき」で、そのカード自身を拾って同じマスに置き直すだけ、という空振りをしていたのを直しました（そのカードは効果のあとで自動的に手札に入るので、拾う必要がありません）。",
+      "不具合報告の画面を開いている間、対戦の進行が止まってしまうことがあったのを直しました。報告を書きながらでもゲームは進みます。",
+    ],
+    itemsEn: [
+      "Fixed CPU placement (Growing Trees and similar): it was placing cards on opponent gates it was not heading for. It now builds along its own route instead.",
+      "Fixed a wasted CPU play with Harvest and Sow, where it picked up that very card and put it straight back on the same cell (the card is added to your hand automatically after the effect, so there is no need to take it).",
+      "Fixed the game stalling while the bug report window was open. The match now keeps going while you write a report.",
+    ],
+  },
+  {
+    date: "2026-09-08",
+    items: [
       "相手ゲート侵攻の処理中に、その人がもう1枚ロックしてしまうことがあったのを直しました（1ターンに2枚ロックはルール違反です）。侵攻の処理が終わるまで、他の自動処理は動かなくなります。",
       "紅蓮の火山 ワイナウエアで、どのマスのカードを捨てたのか分かりにくかったのを直しました。お知らせが出て読み終わるまで、対象のマスが光り続けます。",
     ],

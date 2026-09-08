@@ -412,6 +412,7 @@ export function chooseEffectCell(candidates, driveSeat, purpose) {
   const state = getState();
   const rand = (arr) => arr[Math.floor(Math.random() * arr.length)];
   if (purpose === "destroy") return chooseCellToDestroy(candidates, driveSeat, state, rand);
+  if (purpose === "place") return chooseCellToPlace(candidates, driveSeat, state, rand);
   // 優先1: 相手ゲートに乗れる候補（ゲート侵攻セットアップ）。
   const gates = activeOpponentGateCells(state, driveSeat);
   const gateCandidates = candidates.filter((c) => gates.some((g) => g.row === c.row && g.col === c.col));
@@ -509,6 +510,86 @@ function chooseCellToDestroy(candidates, seat, state, rand) {
     return v;
   };
 
+  let best = -Infinity;
+  const scored = candidates.map((c) => {
+    const v = score(c);
+    if (v > best) best = v;
+    return { c, v };
+  });
+  return rand(scored.filter((x) => x.v >= best).map((x) => x.c));
+}
+
+// #336: CPUの自動選択でだけ「なるべく選ばない候補」を外す。**外した結果が空になるなら
+// 元のまま返す**（効果を不発にしない＝善処の原則）。人間の候補・ハイライトには一切触れない
+// （呼び出しているのは main.js のCPU自動解決だけ）。この形にしてあるのは、続き442の教訓
+// 「送る側だけでなく受け取る側が繋がっているかまで測る」ために、ここを直接測れるようにするため。
+export function dropAvoidedCells(candidates, avoidCells) {
+  if (!Array.isArray(candidates) || !avoidCells || avoidCells.length === 0) return candidates;
+  const kept = candidates.filter((c) => !avoidCells.some((a) => a.row === c.row && a.col === c.col));
+  return kept.length > 0 ? kept : candidates;
+}
+export function dropAvoidedTokenIds(tokenIds, avoidTokenIds) {
+  const all = [...(tokenIds || [])];
+  if (!avoidTokenIds || avoidTokenIds.length === 0) return all;
+  const kept = all.filter((id) => !avoidTokenIds.includes(id));
+  return kept.length > 0 ? kept : all;
+}
+
+// #337（ユーザー報告「CPUが増殖する樹々の手札効果で各プレイヤーのゲートにカード置いたけど、
+// 目指してなさそうなゲートにも置いたのなんでだろう？」）。「山札/手札からこのマスへ置く」
+// （増殖する樹々の手札効果・プリドゥエン等、PLACE_CARD の CHOOSE）の置き先。
+// 従来は用途を渡していなかったので chooseEffectCell の既定＝「拾う/乗る」用の判断が効き、
+// 優先1「候補に相手ゲートがあればそこ」で**参加者全員のゲートに1枚ずつ**置いていた。
+// 置くことの意味は「そこが着地できるマスになる」（移動はカードのあるマスにしか行けない）
+// ＝自分の侵攻ルートを敷く手なので、狙っていない相手のゲートに敷くのは足場を配るだけ。
+function chooseCellToPlace(candidates, seat, state, rand) {
+  const myCell = pieceCellOf(state, seat);
+  const myGate = ownGateCell(seat);
+  const oppGates = activeOpponentGateCells(state, seat);
+  const at = (list, c) => list.some((g) => g.row === c.row && g.col === c.col);
+  // 自分が狙っているゲート＝自分の駒から一番近い相手ゲートのうち、**もう手が届く**もの。
+  // 「一番近い」だけで判定すると、盤の中央寄りにいる時は3つとも同じ距離になり、
+  // 結局3つとも「狙っている」ことになって全員のゲートに置いてしまう（#337の実測で確認）。
+  // 移動は1ターン1マス（ディメンションで2マス）なので、2マス以内＝次の1〜2手で乗れる距離。
+  const REACHABLE_GATE_DIST = 2;
+  let nearestOppGateDist = Infinity;
+  let targetGates = [];
+  if (myCell && oppGates.length > 0) {
+    nearestOppGateDist = Math.min(...oppGates.map((g) => manhattan(myCell, g)));
+    // 0マス＝もう乗っている＝そこに着地点を作る必要は無い（むしろ #311 のとおり、この時は
+    // 自分のゲートに置いて侵攻の3段階目で回収するのが一番得）。1〜2マスの時だけ「狙う」と見なす。
+    if (nearestOppGateDist >= 1 && nearestOppGateDist <= REACHABLE_GATE_DIST)
+      targetGates = oppGates.filter((g) => manhattan(myCell, g) === nearestOppGateDist);
+  }
+  // #311 と同じ判断: 侵攻が見込めて相手が自ゲートに近くないなら、自ゲートに置いた札は
+  // ゲート侵攻の3段階目でそのまま手札へ戻る＝実質ノーコスト。逆に普段は相手の踏み台になる。
+  const ownGateGood =
+    !!myGate &&
+    (isOnActiveOpponentGate(state, seat) || canReachOpponentGateInOneStep(state, seat)) &&
+    !opponentThreateningOwnGate(state, seat, 3);
+  const oppPieceCells = state.tokens
+    .filter((t) => t.kind === "piece" && t.location.zone === "cell" && t.player && t.player !== seat)
+    .map((t) => t.location);
+  const score = (c) => {
+    if (c.row == null || c.col == null) return 0; // ロックスロット等（この用途では来ない想定）
+    let v = 0;
+    if (myGate && c.row === myGate.row && c.col === myGate.col) v += ownGateGood ? 5 : -4;
+    else if (at(targetGates, c)) v += 4; // もう手が届く相手ゲート＝侵攻の着地点を作る
+    else if (at(oppGates, c)) v -= 3; // 遠い相手のゲート＝今作っても自分では使えない足場配り
+    if (myCell) {
+      const d = manhattan(myCell, c);
+      if (d === 1) v += 2; // 自分の次の一歩
+      else if (d === 2) v += 1;
+      if (oppGates.length > 0 && Number.isFinite(nearestOppGateDist)) {
+        // 自分→そのマス→一番近い相手ゲート が遠回りになっていない＝侵攻ルート上の踏み台。
+        const dg = Math.min(...oppGates.map((g) => manhattan(c, g)));
+        if (d + dg <= nearestOppGateDist) v += 2;
+      }
+    }
+    for (const p of oppPieceCells) if (manhattan(p, c) === 1) v -= 2; // 相手の次の一歩を作らない
+    if (cellHasCard(state, c.row, c.col)) v -= 1; // 既にカードがある＝新しい足場にならない
+    return v;
+  };
   let best = -Infinity;
   const scored = candidates.map((c) => {
     const v = score(c);

@@ -300,6 +300,8 @@ import {
   chooseEffectOption,
   dropAvoidedOptions,
   chooseEffectCell,
+  dropAvoidedCells,
+  dropAvoidedTokenIds,
   chooseEmptyCellToPlace,
   chooseHandEffectCard,
   chooseHandCardToken,
@@ -5872,11 +5874,15 @@ export function performPriorityTimeoutAutoAction() {
     // 実際に選ぶ席＝優先権を持つ席で判断する。
     const decisionSeat = (!isOnlineMode() && getState().priorityPlayer) || driveSeat;
     if (picker.type === "cell") {
+      // #336: 「なるべく選ばないマス」を先に外す（他に候補が残る時だけ。全部外れるなら
+      // 従来どおり全候補から選ぶ＝効果が不発にならない）。強さの設定に関わらず適用する——
+      // これは賢さの話ではなく「拾っても損にしかならない」ことが確定している選択のため。
+      const pool = dropAvoidedCells(picker.candidates, picker.avoidCells);
       // 賢いCPU（中級以上）は、候補に相手ゲートがあればそこを選ぶ（ゲート侵攻セットアップ）。
       // 新人・その他はランダム（従来通り）。
       const choice = isCpuBrainDriving(decisionSeat)
-        ? chooseEffectCell(picker.candidates, decisionSeat, picker.purpose)
-        : pickRandomFrom(picker.candidates);
+        ? chooseEffectCell(pool, decisionSeat, picker.purpose)
+        : pickRandomFrom(pool);
       // #213: この選択は「本人が選んだ」のではなく持ち時間切れの自動代行。確認モーダル
       // （このマスでいいですか？）は出さない（下の requestCellChoiceForEffect 参照）。
       cellPickAutoResolved = true;
@@ -5885,11 +5891,13 @@ export function performPriorityTimeoutAutoAction() {
       // 賢いCPU（中級以上）は用途に応じて選ぶ。purpose:"lock"（セレナーデ/カウンターロックのロック対象）は
       // 「ロックしたい札＝虹や要る色を優先」(chooseHandCardToLock)、それ以外（追色コスト等で手放す）は
       // 「手放してよい札＝ロック済みの色等」(chooseHandCardToken)。新人は従来通りランダム。
+      // #336: 「なるべく選ばない札」を先に外す（他に候補が残る時だけ）。cell側と同じ考え方。
+      const idPool = new Set(dropAvoidedTokenIds(picker.tokenIds, picker.avoidTokenIds));
       const tokenId = isCpuBrainDriving(decisionSeat)
         ? picker.purpose === "lock"
-          ? chooseHandCardToLock(picker.tokenIds, decisionSeat)
-          : chooseHandCardToken(picker.tokenIds, decisionSeat)
-        : pickRandomFrom([...picker.tokenIds]);
+          ? chooseHandCardToLock(idPool, decisionSeat)
+          : chooseHandCardToken(idPool, decisionSeat)
+        : pickRandomFrom([...idPool]);
       const token = tokenId ? getState().tokens.find((t) => t.id === tokenId) : null;
       picker.resolve(token ?? null);
     } else if (picker.type === "player") {
@@ -6440,6 +6448,9 @@ function requestCellChoiceForEffectOnce(candidates, hint, options = {}) {
       // #313: このマス選択の用途（"destroy" ＝ そのマスのカードを全部捨てる）。賢いCPUの
       // 選び方を用途で切り替えるために持つ（cpu-brain.js chooseEffectCell 参照）。
       purpose: options.purpose ?? null,
+      // #336: CPUの自動選択でだけ「なるべく選ばない」マス（他に候補があれば外す）。
+      // 候補そのものは減らさないので、人間の選択肢・ハイライトは一切変わらない。
+      avoidCells: options.avoidCells ?? null,
       // 既に選んだマス（候補外）をクリックした時に注意を出すため（プリドゥエン/増殖する樹々の
       // 「別々のマスに置く」用、card-effect-engine.jsのPLACE_CARD CHOOSEから渡る）。
       alertCells: options.alertCells ?? null,
@@ -6508,6 +6519,9 @@ function requestHandCardChoiceForEffect(player, hint, tokenIdFilter, options = {
       // purpose:"lock" の時、CPUの自動解決は「手放す用(chooseHandCardToken)」ではなく「ロックする用
       // (chooseHandCardToLock＝虹や要る色を優先)」で選ぶ。セレナーデ/カウンターロックのロック対象選択用。
       purpose: options.purpose ?? null,
+      // #336: CPUの自動選択でだけ「なるべく選ばない」札（他に候補があれば外す）。
+      // 収穫と種まき等で「今拾った札をそのまま置き直す」空振りを防ぐ。
+      avoidTokenIds: options.avoidTokenIds ?? null,
       tokenIds: new Set(cardEls.map((el) => el.dataset.tokenId)),
       resolve: (token) => {
         for (const el of cardEls) el.classList.remove("card-effect-target-cell");

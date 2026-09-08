@@ -88,13 +88,22 @@ export async function runOneCase(spec) {
     publicDrawReturningTokens: async (player, count) => { const ids = []; for (let i = 0; i < count; i++) { const b = new Set(S().tokens.map((t) => t.id)); st.drawFromPile("deck", { zone: "publicDraw", player }); const nw = S().tokens.find((t) => !b.has(t.id)); if (nw) ids.push(nw.id); } callLog.push(["publicDrawReturningTokens", player, count]); return ids; },
 
     // --- 選択（台本を消費）---
-    pickLocation: async (candidates) => { const r = resolveLocation(nextPick("location"), candidates); callLog.push(["pickLocation", r]); return r; },
+    // 続き479の教訓（スタブは本物と同じ引数の並び・同じ厳しさで書く）。本物は
+    // (candidates, hint, options)。options.purpose / options.avoidCells は CPU の自動選択の
+    // 切り替えに使われるので、渡っているかを callLog に残して検査できるようにする。
+    pickLocation: async (candidates, hint, options) => {
+      const r = resolveLocation(nextPick("location"), candidates);
+      callLog.push(["pickLocation", r]);
+      callLog.push(["pickLocationPurpose", options?.purpose ?? null]);
+      if (options?.avoidCells) for (const a of options.avoidCells) callLog.push(["pickLocationAvoidCell", a.row + "," + a.col]);
+      return r;
+    },
     // 【2026-09-08・続き479】引数の並びが本物とずれていた（本物は (player, hint, tokenIdFilter, options)）。
     // 第2引数を filter として受けていたので実際には見出しの文字列を掴んでおり、**絞り込みを一度も
     // 検査できていなかった**。そのせいで「配列を渡していて本物では TypeError になる」不具合を
     // 58/58 PASS のまま素通りさせた（オンラインの通しテストで初めて表に出た）。並びを本物に合わせ、
     // 渡された候補に含まれているかも検査する。
-    pickHandCard: async (player, hint, tokenIdFilter) => {
+    pickHandCard: async (player, hint, tokenIdFilter, options) => {
       const want = nextPick("handCard");
       let tok = null;
       if (want && typeof want === "string" && want.startsWith("index:")) { const hand = S().tokens.filter((t)=>t.kind==="card"&&t.location.zone==="hand"&&t.location.player===player); tok = hand[parseInt(want.slice(6),10)]; }
@@ -103,7 +112,10 @@ export async function runOneCase(spec) {
         const ids = tokenIdFilter instanceof Set ? tokenIdFilter : new Set(tokenIdFilter);
         if (!ids.has(tok.id)) throw new Error("pickHandCard: " + tok.id + " は候補に含まれていない");
       }
-      callLog.push(["pickHandCard", tok && tok.id]); return tok || null;
+      callLog.push(["pickHandCard", tok && tok.id]);
+      // #336: 「今拾ったばかりの札は置き直さない」指定が渡っているか（CPUの自動選択で使う）。
+      if (options?.avoidTokenIds) for (const id of options.avoidTokenIds) callLog.push(["pickHandCardAvoid", id]);
+      return tok || null;
     },
     pickDiscardCost: async (candidates) => {
       // 追色コスト。engine は返り値の .id / .cardId を読む＝トークンを返す必要がある。

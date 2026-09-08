@@ -149,6 +149,10 @@ export const CASES = [
       { kind: "tokenZone", id: "target", zone: "hand", player: "A" }, // 拾った
       { kind: "tokenAtCell", id: "inhand", row: 2, col: 2 }, // 手札の札をそのマスへ置いた
       { kind: "tokenFaceDown", id: "inhand" }, // 裏向きで
+      // #336: CPUの自動選択が「自分自身のマス(6,3)」と「今拾った札(target)の置き直し」を
+      // 避けられるよう、その2つが選択時に渡っていること（人間の候補は減らさない）。
+      { kind: "called", name: "pickLocationAvoidCell", arg: "6,3" },
+      { kind: "called", name: "pickHandCardAvoid", arg: "target" },
     ],
   },
   {
@@ -246,6 +250,9 @@ export const CASES = [
       { kind: "cardAtCell", row: 0, col: 1, faceUp: false },
       { kind: "cardAtCell", row: 0, col: 2, faceUp: false },
       { kind: "boardCardCount", n: 3 },
+      // #337: 置き先のマス選択には用途 "place" を渡す（渡さないとCPUの自動選択が
+      // 「拾う/乗る」用の判断になり、参加者全員のゲートに1枚ずつ置いてしまう）。
+      { kind: "called", name: "pickLocationPurpose", arg: "place", n: 3 },
     ],
   },
   {
