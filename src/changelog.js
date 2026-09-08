@@ -28,22 +28,28 @@ export const CHANGELOG = [
   {
     date: "2026-09-08",
     items: [
+      "ランク戦の待ち時間に出る「豆知識」が読みにくかったのを直しました（明るい配色にしていると、文字が暗いままで背景に沈んでいました）。",
+      "ランク戦では「今回のメンバー」に自分の段位バッジが出るようになりました。",
       "「今回のメンバー」に並ぶペットが、大きな描き下ろしのイラスト（水彩画）になりました。",
       "対戦が始まる前に「今回のメンバー」を出すようにしました。画面を人数ぶんに縦割りして、参加者のアバターが枠なしで大きく並びます（名前・駒の色・ペットつき）。画面をタップすればすぐ飛ばせます。",
       "Googleでログインした時に、Googleのプロフィール写真が自動で設定されるのをやめました。写真は選択肢の1つとして残るので、使いたい方はご自分で選べます。Googleの名前はもともと使っていませんでしたが、今後も一切読み取りません。",
       "初めてログインした時の「ニックネームとアバターを決める」案内が、Googleでログインした方以外にも出るようになりました。",
     ],
     itemsEn: [
+      "Fixed the tips shown while waiting for a ranked match being hard to read - with a light colour scheme the text stayed dark against the dark waiting screen.",
+      "In ranked matches, the pre-match lineup now shows your rank badge.",
       "Pets in the pre-match lineup are now shown as large, newly drawn watercolour artwork.",
       "Matches now open with a full-screen lineup: the screen splits into one tall panel per player, each filled edge to edge with their avatar, plus name, piece colour and pet. Tap anywhere to skip it.",
       "Signing in with Google no longer applies your Google profile photo automatically. It stays available as one of the avatar choices, so you can pick it yourself. Your Google name was never used, and is no longer read at all.",
       "The first-time \"pick a nickname and avatar\" prompt now appears for everyone, not just Google sign-ins.",
     ],
     devItems: [
+      "管理者モードの「今回のメンバー」の『アバター画像の見せる位置』が動かなかったのを直しました（切り取られるのは左右なのに上下を動かしていたため。左右に直し、段位バッジの大きさも調整できるようにしました）。",
       "対戦開始前の「今回のメンバー」の大きさ・見せる長さを管理者モードから調整できるようにしました（スライダーを触ると実際の紹介画面が出ます）。ペットは既定を大きくしました。",
       "管理者モードの「今回のメンバー」に、プレビュー用のボタンを付けました。ホーム画面など、どこから開いても前面に出ます。プレビューは勝手に消えず、管理者パネルを触りながら調整できます（見本のペットも席ごとに並びます）。",
     ],
     devItemsEn: [
+      "Fixed the admin lineup slider for the avatar's visible position doing nothing - it moved the axis that is never cropped. It now moves left/right, and the rank badge size is adjustable too.",
       "The pre-match lineup can now be tuned from admin mode - sizes and how long it stays up, with the real screen appearing as you drag a slider. Pets are larger by default.",
       "Added a preview button to the admin mode's lineup group. It comes to the front wherever it is opened from, stays up while you adjust the sliders behind it, and shows a sample pet on every panel.",
     ],

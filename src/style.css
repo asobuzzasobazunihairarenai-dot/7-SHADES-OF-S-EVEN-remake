@@ -20517,9 +20517,7 @@ body.theme-light .ranked-waiting-notify {
   background: rgba(176, 141, 63, 0.1);
   border-color: rgba(176, 141, 63, 0.35);
 }
-body.theme-light .ranked-waiting-notify-text {
-  color: #3a3326;
-}
+/* （続き495で削除）待機画面は常に暗いので、ライト配色でも文字は明るいままにする。 */
 
 /* 全員へのお知らせ（announcement.js、ユーザー要望2026-09-02）。α版のお知らせと同じ見た目の
    系統にして、運営からの連絡だと一目で分かるようにする。中身は管理者が書いた自由文なので、
@@ -21235,8 +21233,10 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
   --match-intro-title-size: 1.5rem;   /* 見出し「今回のメンバー」 */
   --match-intro-emoji-size: 9rem;     /* 絵文字アバターの大きさ（画像アバターには効かない） */
   --match-intro-info-bottom: 2.4rem;  /* 名前まわりを下端からどれだけ上げるか */
-  --match-intro-portrait-pos-y: 50%;  /* アバター画像の見せる位置（0%=上寄り・100%=下寄り） */
+  --match-intro-portrait-pos-x: 50%;  /* アバター画像の見せる位置（0%=左寄り・100%=右寄り） */
   --match-intro-veil-top: 62%;        /* 下の暗い幕がどこまで上がるか */
+  --match-intro-rank-size: 4rem;      /* 段位バッジ（ランク戦のときだけ出る） */
+  --match-intro-rank-name-size: 0.8rem; /* 段位名 */
 }
 
 .match-intro {
@@ -21313,7 +21313,12 @@ body.match-intro-preview-active #admin-panel { z-index: 10680; }
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 50% var(--match-intro-portrait-pos-y, 50%);
+  /* 【ユーザー報告2026-09-08・続き495】「アバター画像の見せる位置が変わりません」。
+     原因は動かす向きが逆だったこと——パネルは**縦長**、アバターの絵は**正方形**なので、
+     object-fit: cover では**左右がはみ出して切り取られ、上下は切り取られない**（実測: 4人戦の
+     パネル 319x720 に 768x768 の絵→ 720x720 に拡大され、横に401px はみ出す／縦は0）。
+     つまり上下をいくら動かしても1pxも変わらない。動かせる向き＝左右にした。 */
+  object-position: var(--match-intro-portrait-pos-x, 50%) 50%;
   display: block;
 }
 @keyframes match-intro-portrait {
@@ -21358,6 +21363,26 @@ body.match-intro-preview-active #admin-panel { z-index: 10680; }
   word-break: break-word;
   line-height: 1.2;
 }
+/* 【ユーザー要望2026-09-08・続き495】「ランクバッチは？」。ランク戦のときだけ、名前の上に
+   段位バッジを出す（ランク戦でない対戦では段位そのものが動かないので出さない）。 */
+.match-intro-rank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+.match-intro-rank .rank-badge-image {
+  width: var(--match-intro-rank-size, 4rem);
+  height: var(--match-intro-rank-size, 4rem);
+  object-fit: contain;
+}
+.match-intro-rank-name {
+  font-size: var(--match-intro-rank-name-size, 0.8rem);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #fde68a;
+}
+
 /* ペット（ユーザー要望「ペットも入れれるといい」）。名前の上でふわふわさせる。 */
 .match-intro-pet {
   width: var(--match-intro-pet-size, 7rem);
@@ -21901,14 +21926,14 @@ body.reduce-glow .turn-timeout-strike {
 .waiting-tips-body.is-fading {
   opacity: 0;
 }
-body.theme-light .waiting-tips-label,
-body.theme-light-ingame .waiting-tips-label {
-  color: #8a6d1f;
-}
-body.theme-light .waiting-tips-body,
-body.theme-light-ingame .waiting-tips-body {
-  color: #3a3326;
-}
+/* 【ユーザー報告2026-09-08・続き495】「豆知識の文字が見にくいです。コントラストの問題？」
+   ——そのとおりで、原因は続き487で私が足したライト配色の文字色だった。**待機画面
+   (#ranked-waiting) は配色設定に関わらず常に暗い**（背景は固定の暗い放射グラデーション）のに、
+   ライト配色の時だけ文字を暗い色（#3a3326 / #8a6d1f）にしていたため、暗い地に暗い字＝読めない。
+   ライト配色用の上書きは丸ごとやめ、常に明るい文字（上の .waiting-tips-* の指定）を使う。
+   ★教訓: 「配色設定がライトだから文字を暗く」ではなく、**その文字が乗る面が明るいかどうか**で
+     決める。全画面の覆いは配色に追従しないものが多い。 */
+/* 同じ理由で、待機画面の「お知らせON」の案内文もライト配色の上書きをやめる（地は暗いまま）。 */
 
 /* 【ユーザー報告2026-09-07】「対戦開始」を押さずに締め切りを迎えるとキューから外れるが、
    待機画面のぐるぐるが回ったままで「まだ探している」ように見えていた（実測: その後は

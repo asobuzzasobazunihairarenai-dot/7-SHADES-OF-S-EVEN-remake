@@ -192,6 +192,8 @@ import {
 import { openPlaymatPicker, registerPlaymatHelpers, getSelectedPlaymatPath, setSelectedPlaymatId } from "./playmat.js";
 import { openBackgroundPicker, registerBackgroundHelpers, getSelectedBackgroundPath, setSelectedBackgroundId } from "./background.js";
 import { openPetPicker, registerPetHelpers, getSelectedPetIndex, PET_OPTIONS, petSpriteSrc, petPortraitSrc, pushMyPetToProfile } from "./pet-skins.js";
+// 【続き495】対戦開始前の紹介に出す段位バッジ（ランク戦のときだけ）。
+import { buildRankBadgeImage, rankName } from "./rank-badge.js";
 import { createModalCloseX, createBackdrop, createOpenGuard } from "./ui-helpers.js";
 import {
   getPlayerName,
@@ -5089,6 +5091,17 @@ function blockEffectHostFor(seat) {
 //   自然に乗り、この紹介が終わるまで「◯◯のターンです」の告知が待ってくれる（続き471で告知も
 //   順番待ちの列に並べてある）。演出の自動解除は15秒なので、2.8秒のこれが止まる心配は無い。
 const MATCH_INTRO_STAGGER_MS = 220;
+// 紹介に出す段位バッジ（バッジ＋段位名）。大きさは管理者モードから変えられる。
+function buildMatchIntroRankBadge(rank) {
+  const wrap = document.createElement("div");
+  wrap.className = "match-intro-rank";
+  wrap.appendChild(buildRankBadgeImage(rank, { size: "var(--match-intro-rank-size, 4rem)" }));
+  const nameEl = document.createElement("div");
+  nameEl.className = "match-intro-rank-name";
+  nameEl.textContent = rankName(rank);
+  wrap.appendChild(nameEl);
+  return wrap;
+}
 // 見せる長さは管理者モードから変えられる（--match-intro-duration・秒）。
 function matchIntroMs() {
   const raw = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--match-intro-duration"));
@@ -5139,6 +5152,26 @@ function playMatchIntro(previewSeats = null) {
     const info = document.createElement("div");
     info.className = "match-intro-info";
     info.style.setProperty("--intro-delay", i * MATCH_INTRO_STAGGER_MS + "ms");
+
+    // 【続き495・ユーザー要望「ランクバッチは？」】ランク戦のときだけ段位バッジを出す。
+    // ★相手の段位は今のデータでは出せない——同期しているのは名前・アバター・駒スキン・ペットだけで、
+    //   段位を返すのは so7_ranked_get_self（＝自分の分）しか無い。全員ぶんを出すには
+    //   「この対戦の参加者の段位をまとめて返す」仕組みをサーバー側に足す必要がある（SQLの追加）。
+    // プレビューでは席ごとに違う段位の見本を出す（大きさの当たりを付けるため）。
+    if (isPreview) {
+      info.appendChild(buildMatchIntroRankBadge(i % 7));
+    } else if (seat === getSelfSeat() && isOnlineMode() && isRankedGame()) {
+      // 段位の取得は通信なので、先に場所だけ作っておき、間に合ったら差し替える
+      // （紹介は2.8秒で閉じるので、間に合わなければ何も出さない＝レイアウトは崩れない）。
+      const slot = document.createElement("div");
+      info.appendChild(slot);
+      void getSelfRank()
+        .then((info2) => {
+          if (!slot.isConnected || typeof info2?.rank !== "number") { slot.remove(); return; }
+          slot.replaceWith(buildMatchIntroRankBadge(info2.rank));
+        })
+        .catch(() => slot.remove());
+    }
 
     // ペットは飾り。取れない席（CPU戦の相手・列が未追加の環境）では出さないだけにする。
     const petIndex = seat === getSelfSeat() ? getSelectedPetIndex() : getSyncedIdentity(seat)?.petIndex;

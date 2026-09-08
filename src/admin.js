@@ -553,7 +553,11 @@ const GROUPS = [
       { key: "--match-intro-title-size", label: "見出し「今回のメンバー」の大きさ", unit: "rem", min: 0.6, max: 4, step: 0.05, default: 1.5, previewOnInteract: () => matchIntroPreviewFn?.() },
       { key: "--match-intro-emoji-size", label: "絵文字アバターの大きさ（画像には効かない）", unit: "rem", min: 3, max: 20, step: 0.25, default: 9, previewOnInteract: () => matchIntroPreviewFn?.() },
       { key: "--match-intro-info-bottom", label: "名前まわりを下端から上げる量", unit: "rem", min: 0, max: 12, step: 0.1, default: 2.4, previewOnInteract: () => matchIntroPreviewFn?.() },
-      { key: "--match-intro-portrait-pos-y", label: "アバター画像の見せる位置（0=上・100=下）", unit: "%", min: 0, max: 100, step: 1, default: 50, previewOnInteract: () => matchIntroPreviewFn?.() },
+      // 【続き495】以前は「0=上・100=下」だったが、切り取られるのは**左右**なので上下は1pxも
+      // 動かなかった（パネルが縦長・絵が正方形のため。style.css の .match-intro-portrait 参照）。
+      { key: "--match-intro-portrait-pos-x", label: "アバター画像の見せる位置（0=左・100=右）", unit: "%", min: 0, max: 100, step: 1, default: 50, previewOnInteract: () => matchIntroPreviewFn?.() },
+      { key: "--match-intro-rank-size", label: "段位バッジの大きさ（ランク戦のみ）", unit: "rem", min: 1, max: 10, step: 0.1, default: 4, previewOnInteract: () => matchIntroPreviewFn?.() },
+      { key: "--match-intro-rank-name-size", label: "段位名の大きさ", unit: "rem", min: 0.4, max: 2.5, step: 0.05, default: 0.8, previewOnInteract: () => matchIntroPreviewFn?.() },
       { key: "--match-intro-veil-top", label: "下の暗い幕の高さ", unit: "%", min: 20, max: 100, step: 1, default: 62, previewOnInteract: () => matchIntroPreviewFn?.() },
     ],
   },
