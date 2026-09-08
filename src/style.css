@@ -21219,120 +21219,171 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
    ★重い装飾は使わない: filter / backdrop-filter は全画面に掛けるとGPUの弱い端末で1フレームを
      丸ごと持っていく（続き450で勝利演出のぼかしを外した実測、#339でも重さが問題になっている）。
      ここは**塗りと transform だけ**で組む。 */
-/* 【ユーザー要望2026-09-08・続き488】対戦開始の直前に「今回戦うのはこのメンバーです」を出す
-   （Apexの「チャンピオン部隊」のような画面が例として挙がった）。ユーザー選択はA案＝
-   「2〜3秒しっかり見せる（画面をタップすれば飛ばせる）」＋「ペットも入れれるといい」。
-   ★ここでも重い装飾（filter / backdrop-filter）は使わない——塗りと transform だけで組む
-     （続き450の実測・#339）。 */
+/* 【ユーザー要望2026-09-08・続き489】「もっとかっこよくしたい。画面全体を4等分したような感じで！
+   アバターも丸枠無くしてがっつりめいっぱい表示で！」（例として挙がったのはApexの「チャンピオン部隊」）。
+   前の版は暗幕の上に小さなカードを並べる形だったので、**画面まるごとを人数ぶんに縦割りし、
+   1人1枚の縦長パネルにアバターを全面で敷く**形へ作り直した。2人戦なら2分割、3人なら3分割になる。
+   ★ここでも重い装飾（filter / backdrop-filter）は使わない——塗りと transform だけ（続き450・#339）。 */
 .match-intro {
   position: fixed;
   inset: 0;
   z-index: 10670;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1.6rem;
-  background: rgba(4, 6, 12, 0.95);
+  display: flex; /* 人数ぶんの縦割り。パネルが flex:1 で等分される */
+  background: #05070d;
   cursor: pointer; /* タップで飛ばせる */
-  animation: match-intro-in 0.3s ease-out;
+  animation: match-intro-in 0.28s ease-out;
 }
 .match-intro.is-leaving { animation: match-intro-out 0.32s ease-in forwards; }
 @keyframes match-intro-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes match-intro-out { from { opacity: 1; } to { opacity: 0; } }
-.match-intro-title {
-  font-size: 1.5rem;
-  font-weight: 900;
-  letter-spacing: 0.22em;
-  color: #fde68a;
-  text-shadow: 0 0 1.2rem rgba(250, 204, 21, 0.5);
-  animation: match-intro-title 0.5s ease-out both;
-}
-@keyframes match-intro-title {
-  from { opacity: 0; transform: translateY(-0.6rem); }
-  to { opacity: 1; transform: none; }
-}
-.match-intro-row {
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-  max-width: 58rem;
-}
-/* 1人分。席の色を縁と上の帯に使うので「誰が何色か」が一目で分かる。 */
-.match-intro-card {
+
+/* 1人ぶんの縦長パネル。下から迫り上がるように現れる（席の順に少しずつ遅らせる）。 */
+.match-intro-panel {
   position: relative;
-  width: 11rem;
-  padding: 1.5rem 0.9rem 1.1rem;
-  border-radius: 0.9rem;
-  border: 1px solid var(--intro-color, #f6c945);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(0, 0, 0, 0.32));
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.55rem;
-  animation: match-intro-card 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  justify-content: flex-end;
+  animation: match-intro-panel 0.62s cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: var(--intro-delay, 0s);
 }
-.match-intro-card::before {
+.match-intro-panel + .match-intro-panel { border-left: 1px solid rgba(255, 255, 255, 0.14); }
+@keyframes match-intro-panel {
+  from { opacity: 0; transform: translateY(7%); }
+  to { opacity: 1; transform: none; }
+}
+/* 上の色帯と、下からにじむその人の色。「誰が何色か」が一目で分かる。 */
+.match-intro-panel::before {
   content: "";
   position: absolute;
   left: 0; right: 0; top: 0;
-  height: 0.32rem;
-  border-radius: 0.9rem 0.9rem 0 0;
+  height: 0.34rem;
   background: var(--intro-color, #f6c945);
+  z-index: 3;
 }
-@keyframes match-intro-card {
-  from { opacity: 0; transform: translateY(1.4rem) scale(0.9); }
-  to { opacity: 1; transform: none; }
+.match-intro-panel::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 42%;
+  background: linear-gradient(to top, var(--intro-color, #f6c945), transparent);
+  opacity: 0.3;
+  z-index: 2;
+  pointer-events: none;
 }
-.match-intro-avatar {
-  width: 4.6rem;
-  height: 4.6rem;
-  border-radius: 50%;
-  overflow: hidden;
-  border: 0.16rem solid var(--intro-color, #f6c945);
-  background: rgba(0, 0, 0, 0.35);
+
+/* ★アバターは丸枠なしで全面。画像は cover で敷き詰め、絵文字のアバターは特大で中央に置く。 */
+.match-intro-portrait {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2.4rem;
+  font-size: 9rem; /* 絵文字アバター用 */
+  line-height: 1;
+  color: #e2e8f0;
+  animation: match-intro-portrait 3.4s ease-out both; /* ゆっくり寄っていく */
+  animation-delay: var(--intro-delay, 0s);
 }
-.match-intro-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.match-intro-name {
-  font-size: 0.95rem;
-  font-weight: 800;
-  color: #f8fafc;
+.match-intro-portrait .avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+@keyframes match-intro-portrait {
+  from { transform: scale(1.14); }
+  to { transform: scale(1); }
+}
+/* 下半分を暗くして名前を読ませる（アバターの上に重ねるだけ。ぼかしは使わない）。 */
+.match-intro-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(to top, rgba(3, 5, 10, 0.95) 10%, rgba(3, 5, 10, 0.55) 34%, rgba(3, 5, 10, 0) 62%);
+}
+
+.match-intro-info {
+  position: relative;
+  z-index: 4;
+  padding: 0 0.7rem 2.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
   text-align: center;
-  word-break: break-word;
+  animation: match-intro-info 0.5s ease-out both;
+  animation-delay: calc(var(--intro-delay, 0s) + 0.2s);
+}
+@keyframes match-intro-info {
+  from { opacity: 0; transform: translateY(0.8rem); }
+  to { opacity: 1; transform: none; }
 }
 .match-intro-seat {
-  font-size: 0.6rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
   color: var(--intro-color, #f6c945);
-  opacity: 0.9;
 }
-/* ペット（ユーザー要望「ペットも入れれるといい」）。飾りなので取れなければ出さないだけ。 */
+.match-intro-name {
+  font-size: 2rem;
+  font-weight: 900;
+  color: #ffffff;
+  text-shadow: 0 0.12rem 0.5rem rgba(0, 0, 0, 0.9);
+  word-break: break-word;
+  line-height: 1.2;
+}
+/* ペット（ユーザー要望「ペットも入れれるといい」）。名前の上でふわふわさせる。 */
 .match-intro-pet {
-  width: 2.6rem;
-  height: 2.6rem;
+  width: 4.4rem;
+  height: 4.4rem;
   object-fit: contain;
   image-rendering: pixelated;
   animation: match-intro-pet 1.6s ease-in-out infinite;
 }
 @keyframes match-intro-pet {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-0.22rem); }
+  50% { transform: translateY(-0.26rem); }
+}
+
+/* 見出しと案内は画面全体に横断させる（パネルの分割線をまたぐ）。 */
+.match-intro-title {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  z-index: 6;
+  padding: 0.85rem 0 1.5rem;
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 900;
+  letter-spacing: 0.32em;
+  color: #fde68a;
+  text-shadow: 0 0 1rem rgba(250, 204, 21, 0.45);
+  background: linear-gradient(to bottom, rgba(3, 5, 10, 0.92), rgba(3, 5, 10, 0));
+  animation: match-intro-title 0.5s ease-out both;
+}
+@keyframes match-intro-title {
+  from { opacity: 0; transform: translateY(-0.6rem); }
+  to { opacity: 1; transform: none; }
 }
 .match-intro-hint {
-  font-size: 0.66rem;
-  color: rgba(226, 232, 240, 0.55);
+  position: absolute;
+  left: 0; right: 0; bottom: 0.55rem;
+  z-index: 6;
+  text-align: center;
+  font-size: 0.6rem;
   letter-spacing: 0.08em;
+  color: rgba(226, 232, 240, 0.5);
 }
+/* 「今回のメンバー」は画面全体を使う演出なので、常に最前面に居るボタン（不具合報告など、
+   紹介より高い z-index を持つもの）はこの数秒だけ引っ込める。z-index の競り合いにすると
+   壊れやすいので、印が付いている間だけ隠す形にした。 */
+body.match-intro-active #self-status-bug-report { opacity: 0; pointer-events: none; }
+
 body.reduce-glow .match-intro-title { text-shadow: none; }
 body.reduce-glow .match-intro-pet { animation: none; }
+body.reduce-glow .match-intro-portrait { animation: none; }
 .gomennasai-declare {
   position: fixed;
   inset: 0;

@@ -5102,28 +5102,30 @@ function playMatchIntro() {
   title.textContent = t("game.intro.title");
   root.appendChild(title);
 
-  const row = document.createElement("div");
-  row.className = "match-intro-row";
+  // 【続き489】画面まるごとを人数ぶんに縦割りし、1人1枚の縦長パネルにする（ユーザー要望
+  // 「画面全体を4等分したような感じで！アバターも丸枠無くしてがっつりめいっぱい表示で！」）。
+  // パネルは flex:1 で等分されるので、2人戦なら2分割・3人なら3分割・4人なら4等分になる。
   seats.forEach((seat, i) => {
-    const card = document.createElement("div");
-    card.className = "match-intro-card";
-    card.style.setProperty("--intro-color", seatColorCss(seat));
-    card.style.setProperty("--intro-delay", i * MATCH_INTRO_STAGGER_MS + "ms");
+    const panel = document.createElement("div");
+    panel.className = "match-intro-panel";
+    panel.style.setProperty("--intro-color", seatColorCss(seat));
+    panel.style.setProperty("--intro-delay", i * MATCH_INTRO_STAGGER_MS + "ms");
 
-    const avatar = document.createElement("div");
-    avatar.className = "match-intro-avatar";
-    applyAvatarContent(avatar, getPlayerAvatar(seat));
-    card.appendChild(avatar);
+    // アバターは丸枠なしで面いっぱいに敷く（画像は cover で全面、絵文字は特大で中央）。
+    const portrait = document.createElement("div");
+    portrait.className = "match-intro-portrait";
+    portrait.style.setProperty("--intro-delay", i * MATCH_INTRO_STAGGER_MS + "ms");
+    applyAvatarContent(portrait, getPlayerAvatar(seat));
+    panel.appendChild(portrait);
 
-    const name = document.createElement("div");
-    name.className = "match-intro-name";
-    name.textContent = getPlayerName(seat);
-    card.appendChild(name);
+    // 下側を暗くして名前を読ませる幕（アバターの上に重ねるだけの塗り。filterは使わない）。
+    const veil = document.createElement("div");
+    veil.className = "match-intro-veil";
+    panel.appendChild(veil);
 
-    const seatLabel = document.createElement("div");
-    seatLabel.className = "match-intro-seat";
-    seatLabel.textContent = seat === getSelfSeat() ? t("game.intro.you") : t("game.intro.rival");
-    card.appendChild(seatLabel);
+    const info = document.createElement("div");
+    info.className = "match-intro-info";
+    info.style.setProperty("--intro-delay", i * MATCH_INTRO_STAGGER_MS + "ms");
 
     // ペットは飾り。取れない席（CPU戦の相手・列が未追加の環境）では出さないだけにする。
     const petIndex = seat === getSelfSeat() ? getSelectedPetIndex() : getSyncedIdentity(seat)?.petIndex;
@@ -5136,11 +5138,22 @@ function playMatchIntro() {
       pet.alt = "";
       // 画像が無い環境（素材未配置・列未追加）で壊れた画像の枠が出ないように、失敗したら消す。
       pet.addEventListener("error", () => pet.remove());
-      card.appendChild(pet);
+      info.appendChild(pet);
     }
-    row.appendChild(card);
+
+    const seatLabel = document.createElement("div");
+    seatLabel.className = "match-intro-seat";
+    seatLabel.textContent = seat === getSelfSeat() ? t("game.intro.you") : t("game.intro.rival");
+    info.appendChild(seatLabel);
+
+    const name = document.createElement("div");
+    name.className = "match-intro-name";
+    name.textContent = getPlayerName(seat);
+    info.appendChild(name);
+
+    panel.appendChild(info);
+    root.appendChild(panel);
   });
-  root.appendChild(row);
 
   const hint = document.createElement("div");
   hint.className = "match-intro-hint";
@@ -5148,6 +5161,9 @@ function playMatchIntro() {
   root.appendChild(hint);
 
   document.body.appendChild(root);
+  // 紹介の間だけ印を付ける。不具合報告ボタンなど「常に最前面」のUIは、この印がある間だけ
+  // 引っ込める（z-indexで勝てない相手なので、CSSで隠す方が確実。style.css参照）。
+  document.body.classList.add("match-intro-active");
   beginBoardAnimation();
   return new Promise((resolve) => {
     let done = false;
@@ -5155,6 +5171,7 @@ function playMatchIntro() {
       if (done) return;
       done = true;
       root.classList.add("is-leaving");
+      document.body.classList.remove("match-intro-active");
       setTimeout(() => {
         root.remove();
         endBoardAnimation();
