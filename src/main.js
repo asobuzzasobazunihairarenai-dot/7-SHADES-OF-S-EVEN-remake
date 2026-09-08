@@ -10,6 +10,7 @@ import {
   isSelfNameLabelVisible,
   registerStartPlayerPreviewHelper,
   registerAuraPreviewHelper,
+  registerMatchIntroPreviewHelper,
   registerRankRingPreviewHelper,
   registerAdminAuthHelpers,
   refreshAdminOnlySection,
@@ -5087,12 +5088,17 @@ function blockEffectHostFor(seat) {
 // ★盤面の演出として数える（beginBoardAnimation）。こうすると #266 の「画面の中央は一度に1つ」に
 //   自然に乗り、この紹介が終わるまで「◯◯のターンです」の告知が待ってくれる（続き471で告知も
 //   順番待ちの列に並べてある）。演出の自動解除は15秒なので、2.8秒のこれが止まる心配は無い。
-const MATCH_INTRO_MS = 2800;
 const MATCH_INTRO_STAGGER_MS = 220;
-function playMatchIntro() {
-  if (isArrivalEffectDisabled()) return Promise.resolve(); // 「演出をやめる」設定を尊重
+// 見せる長さは管理者モードから変えられる（--match-intro-duration・秒）。
+function matchIntroMs() {
+  const raw = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--match-intro-duration"));
+  return Number.isFinite(raw) && raw > 0 ? raw * 1000 : 2800;
+}
+// previewSeats: 管理者モードのプレビュー用（対局していなくても見本を出すため）。
+function playMatchIntro(previewSeats = null) {
+  if (!previewSeats && isArrivalEffectDisabled()) return Promise.resolve(); // 「演出をやめる」設定を尊重
   const state = getState();
-  const seats = (state.activePlayers || []).filter(Boolean);
+  const seats = previewSeats ?? (state.activePlayers || []).filter(Boolean);
   if (seats.length === 0) return Promise.resolve();
   const root = document.createElement("div");
   root.className = "match-intro";
@@ -5180,8 +5186,16 @@ function playMatchIntro() {
     };
     // タップで飛ばせる（ユーザー選択のA案）。開いた直後の合成クリックで消えないよう少し待つ。
     setTimeout(() => root.addEventListener("click", finish), 250);
-    setTimeout(finish, MATCH_INTRO_MS);
+    setTimeout(finish, matchIntroMs());
   });
+}
+
+// 管理者モードの「今回のメンバー」スライダーから呼ばれる（admin.js の previewOnInteract）。
+// 対局中ならその面子で、そうでなければ4人ぶんの見本で出す。既に出ていれば何もしない。
+function previewMatchIntro() {
+  if (document.querySelector(".match-intro")) return;
+  const live = (getState().activePlayers || []).filter(Boolean);
+  void playMatchIntro(live.length > 0 ? live : ["A", "B", "C", "D"]);
 }
 
 const GOMENNASAI_DECLARE_MS = 1500;
@@ -16950,6 +16964,7 @@ import("./resign.js")
   .catch((err) => console.error("initResign failed", err));
 registerStartPlayerPreviewHelper(previewStartPlayerModal);
 registerAuraPreviewHelper(previewOpeningAuras);
+registerMatchIntroPreviewHelper(previewMatchIntro);
 registerVictorySummaryHelper(generateVictorySummaryCanvas);
 registerVictoryHelpers({ getLockedCount, resetVictoryTracking });
 initOptionsMenu();

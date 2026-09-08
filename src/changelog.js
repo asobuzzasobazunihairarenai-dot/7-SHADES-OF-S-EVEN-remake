@@ -37,6 +37,12 @@ export const CHANGELOG = [
       "Signing in with Google no longer applies your Google profile photo automatically. It stays available as one of the avatar choices, so you can pick it yourself. Your Google name was never used, and is no longer read at all.",
       "The first-time \"pick a nickname and avatar\" prompt now appears for everyone, not just Google sign-ins.",
     ],
+    devItems: [
+      "対戦開始前の「今回のメンバー」の大きさ・見せる長さを管理者モードから調整できるようにしました（スライダーを触ると実際の紹介画面が出ます）。ペットは既定を大きくしました。",
+    ],
+    devItemsEn: [
+      "The pre-match lineup can now be tuned from admin mode - sizes and how long it stays up, with the real screen appearing as you drag a slider. Pets are larger by default.",
+    ],
   },
   {
     date: "2026-09-08",

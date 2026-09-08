@@ -21224,6 +21224,21 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
    前の版は暗幕の上に小さなカードを並べる形だったので、**画面まるごとを人数ぶんに縦割りし、
    1人1枚の縦長パネルにアバターを全面で敷く**形へ作り直した。2人戦なら2分割、3人なら3分割になる。
    ★ここでも重い装飾（filter / backdrop-filter）は使わない——塗りと transform だけ（続き450・#339）。 */
+/* ★管理者モードの「対戦開始前の『今回のメンバー』紹介」から調整する値。
+   admin.js の default と必ず同じ数字にしておくこと（リセットで戻る先がここになる）。 */
+:root {
+  --match-intro-duration: 2.8;        /* 見せる長さ（秒）。main.js が読む */
+  --match-intro-pet-size: 7rem;       /* ペットの大きさ */
+  --match-intro-pet-lift: 0.4rem;     /* ペットがふわふわ浮く高さ */
+  --match-intro-name-size: 2rem;      /* 名前 */
+  --match-intro-seat-size: 0.85rem;   /* 「あなた／対戦相手」 */
+  --match-intro-title-size: 1.5rem;   /* 見出し「今回のメンバー」 */
+  --match-intro-emoji-size: 9rem;     /* 絵文字アバターの大きさ（画像アバターには効かない） */
+  --match-intro-info-bottom: 2.4rem;  /* 名前まわりを下端からどれだけ上げるか */
+  --match-intro-portrait-pos-y: 50%;  /* アバター画像の見せる位置（0%=上寄り・100%=下寄り） */
+  --match-intro-veil-top: 62%;        /* 下の暗い幕がどこまで上がるか */
+}
+
 .match-intro {
   position: fixed;
   inset: 0;
@@ -21281,7 +21296,7 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 9rem; /* 絵文字アバター用 */
+  font-size: var(--match-intro-emoji-size, 9rem); /* 絵文字アバター用 */
   line-height: 1;
   color: #e2e8f0;
   animation: match-intro-portrait 3.4s ease-out both; /* ゆっくり寄っていく */
@@ -21291,6 +21306,7 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: 50% var(--match-intro-portrait-pos-y, 50%);
   display: block;
 }
 @keyframes match-intro-portrait {
@@ -21302,13 +21318,13 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: linear-gradient(to top, rgba(3, 5, 10, 0.95) 10%, rgba(3, 5, 10, 0.55) 34%, rgba(3, 5, 10, 0) 62%);
+  background: linear-gradient(to top, rgba(3, 5, 10, 0.95) 10%, rgba(3, 5, 10, 0.55) calc(var(--match-intro-veil-top, 62%) * 0.55), rgba(3, 5, 10, 0) var(--match-intro-veil-top, 62%));
 }
 
 .match-intro-info {
   position: relative;
   z-index: 4;
-  padding: 0 0.7rem 2.4rem;
+  padding: 0 0.7rem var(--match-intro-info-bottom, 2.4rem);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -21322,13 +21338,13 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
   to { opacity: 1; transform: none; }
 }
 .match-intro-seat {
-  font-size: 0.85rem;
+  font-size: var(--match-intro-seat-size, 0.85rem);
   font-weight: 800;
   letter-spacing: 0.22em;
   color: var(--intro-color, #f6c945);
 }
 .match-intro-name {
-  font-size: 2rem;
+  font-size: var(--match-intro-name-size, 2rem);
   font-weight: 900;
   color: #ffffff;
   text-shadow: 0 0.12rem 0.5rem rgba(0, 0, 0, 0.9);
@@ -21337,15 +21353,15 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
 }
 /* ペット（ユーザー要望「ペットも入れれるといい」）。名前の上でふわふわさせる。 */
 .match-intro-pet {
-  width: 4.4rem;
-  height: 4.4rem;
+  width: var(--match-intro-pet-size, 7rem);
+  height: var(--match-intro-pet-size, 7rem);
   object-fit: contain;
   image-rendering: pixelated;
   animation: match-intro-pet 1.6s ease-in-out infinite;
 }
 @keyframes match-intro-pet {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-0.26rem); }
+  50% { transform: translateY(calc(-1 * var(--match-intro-pet-lift, 0.4rem))); }
 }
 
 /* 見出しと案内は画面全体に横断させる（パネルの分割線をまたぐ）。 */
@@ -21355,7 +21371,7 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
   z-index: 6;
   padding: 0.85rem 0 1.5rem;
   text-align: center;
-  font-size: 1.5rem;
+  font-size: var(--match-intro-title-size, 1.5rem);
   font-weight: 900;
   letter-spacing: 0.32em;
   color: #fde68a;

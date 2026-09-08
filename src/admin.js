@@ -35,6 +35,12 @@ export function registerStartPlayerPreviewHelper(fn) {
 // （getMaxHourglassStock等）をimportしているため、上と同じ理由でここから
 // opening-screen.jsを直接importすると循環importになる。同じ注入パターンで回避する。
 let auraPreviewFn = null;
+// 【続き490】「今回のメンバー」紹介のプレビュー（main.js から注入）。人魂と同じ形——
+// スライダーを触った瞬間に一度だけ呼び、既に出ていれば何もしない。
+let matchIntroPreviewFn = null;
+export function registerMatchIntroPreviewHelper(fn) {
+  matchIntroPreviewFn = fn;
+}
 export function registerAuraPreviewHelper(fn) {
   auraPreviewFn = fn;
 }
@@ -529,6 +535,25 @@ const GROUPS = [
       { key: "--opening-aura-size", label: "大きさ", unit: "rem", min: 1, max: 24, step: 0.25, default: 2, previewOnInteract: () => auraPreviewFn?.() },
       { key: "--opening-aura-trail-length", label: "軌跡残像の長さ（個数）", unit: "", min: 1, max: 25, step: 1, default: 25, previewOnInteract: () => auraPreviewFn?.() },
       { key: "--opening-aura-speed", label: "スピード（倍率）", unit: "", min: 0.2, max: 3, step: 0.1, default: 1, previewOnInteract: () => auraPreviewFn?.() },
+    ],
+  },
+  {
+    // 【続き490・ユーザー要望】「管理者モードにこの画面のレイアウト調整を入れましょう」。
+    // スライダーを触ると実際の紹介画面が出る（対局中でなければ4人ぶんの見本で出す）。
+    // 既定値は style.css の :root の --match-intro-* と必ず同じ数字にしておくこと。
+    title: "対戦開始前の「今回のメンバー」紹介（実験用プレビュー付き）",
+    category: "effect",
+    controls: [
+      { key: "--match-intro-duration", label: "見せる長さ（秒）", unit: "", min: 1, max: 8, step: 0.1, default: 2.8, previewOnInteract: () => matchIntroPreviewFn?.() },
+      { key: "--match-intro-pet-size", label: "ペットの大きさ", unit: "rem", min: 2, max: 18, step: 0.1, default: 7, previewOnInteract: () => matchIntroPreviewFn?.() },
+      { key: "--match-intro-pet-lift", label: "ペットが浮く高さ", unit: "rem", min: 0, max: 1.5, step: 0.02, default: 0.4, previewOnInteract: () => matchIntroPreviewFn?.() },
+      { key: "--match-intro-name-size", label: "名前の大きさ", unit: "rem", min: 0.8, max: 5, step: 0.05, default: 2, previewOnInteract: () => matchIntroPreviewFn?.() },
+      { key: "--match-intro-seat-size", label: "「あなた／対戦相手」の大きさ", unit: "rem", min: 0.4, max: 2.5, step: 0.05, default: 0.85, previewOnInteract: () => matchIntroPreviewFn?.() },
+      { key: "--match-intro-title-size", label: "見出し「今回のメンバー」の大きさ", unit: "rem", min: 0.6, max: 4, step: 0.05, default: 1.5, previewOnInteract: () => matchIntroPreviewFn?.() },
+      { key: "--match-intro-emoji-size", label: "絵文字アバターの大きさ（画像には効かない）", unit: "rem", min: 3, max: 20, step: 0.25, default: 9, previewOnInteract: () => matchIntroPreviewFn?.() },
+      { key: "--match-intro-info-bottom", label: "名前まわりを下端から上げる量", unit: "rem", min: 0, max: 12, step: 0.1, default: 2.4, previewOnInteract: () => matchIntroPreviewFn?.() },
+      { key: "--match-intro-portrait-pos-y", label: "アバター画像の見せる位置（0=上・100=下）", unit: "%", min: 0, max: 100, step: 1, default: 50, previewOnInteract: () => matchIntroPreviewFn?.() },
+      { key: "--match-intro-veil-top", label: "下の暗い幕の高さ", unit: "%", min: 20, max: 100, step: 1, default: 62, previewOnInteract: () => matchIntroPreviewFn?.() },
     ],
   },
   {
