@@ -68,7 +68,14 @@ const TURN_STALL_MAX_MS = 240000;
 // 効果の解決に1つ50秒かかることがあり（ユーザー確認済み・意図した遅さ＝初心者が読める）、
 // 8ターンに届く前に時間切れになっていた。**アプリは正常なのにテストが落ちると、次に本物の
 // 停止が起きた時に埋もれる**ので緩める（続き439と同じ判断）。
-const HARD_TIMEOUT_MS = RUN_TO_COMPLETION ? 900000 : Math.round(480000 * (PLAYER_COUNT / 2));
+// 【2026-09-08・続き501】決着までの方（--full）は **人数に比例していなかった**（900秒の固定）。
+// 上の「人数に比例」という方針が片方の枝にしか入っていなかった取りこぼし。実測では4人戦は
+// 1ターンおよそ32秒で、15分では28ターンまでしか進めず**まだ元気に動いている最中に時間切れ**に
+// なっていた（＝アプリは正常なのにテストが落ちる＝本物の停止を埋もれさせる。続き439/480と同じ）。
+// 止まった時は無活動・同一ターンの見張りが先に捕まえるので、この上限は長くても検出力は落ちない。
+const HARD_TIMEOUT_MS = RUN_TO_COMPLETION
+  ? Math.round(1800000 * (PLAYER_COUNT / 2))   // 2人=30分 / 4人=60分
+  : Math.round(480000 * (PLAYER_COUNT / 2));
 
 const MIME = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
@@ -80,15 +87,30 @@ const MIME = {
 };
 
 function startServer() {
+  // 【2026-09-08・続き501】以前は1リクエストごとに fs.createReadStream でファイルを開いて
+  // いたため、4画面ぶんを20分以上配り続けたところ **EMFILE（同時に開けるファイル数の上限）**
+  // でテストごと落ちた（実測: assets/pets/... の読み込みで停止）。
+  // 中身を一度メモリに読んで使い回す。鍵に更新時刻と大きさを含めるので、テスト中に
+  // ファイルを書き換えても古い中身を返すことはない（no-store の意図はそのまま）。
+  const cache = new Map();
   const server = http.createServer((req, res) => {
     let p = decodeURIComponent((req.url || "/").split("?")[0].split("#")[0]);
     if (p === "/") p = "/index.html";
     const fp = path.join(ROOT, p);
-    if (!fp.startsWith(ROOT) || !fs.existsSync(fp) || fs.statSync(fp).isDirectory()) {
+    let st = null;
+    try { st = fs.statSync(fp); } catch (e) { st = null; }
+    if (!fp.startsWith(ROOT) || !st || st.isDirectory()) {
       res.writeHead(404); res.end("404"); return;
     }
+    const key = fp + "|" + st.mtimeMs + "|" + st.size;
+    let buf = cache.get(key);
+    if (!buf) {
+      try { buf = fs.readFileSync(fp); } catch (e) { res.writeHead(500); res.end("500"); return; }
+      if (cache.size > 500) cache.clear();
+      cache.set(key, buf);
+    }
     res.writeHead(200, { "Content-Type": MIME[path.extname(fp).toLowerCase()] || "application/octet-stream", "Cache-Control": "no-store" });
-    fs.createReadStream(fp).pipe(res);
+    res.end(buf);
   });
   return new Promise((resolve) => server.listen(PORT, () => resolve(server)));
 }

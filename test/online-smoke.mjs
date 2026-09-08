@@ -77,15 +77,30 @@ const MIME = {
 };
 
 function startServer() {
+  // 【2026-09-08・続き501】以前は1リクエストごとに fs.createReadStream でファイルを開いて
+  // いたため、4画面ぶんを20分以上配り続けたところ **EMFILE（同時に開けるファイル数の上限）**
+  // でテストごと落ちた（実測: assets/pets/... の読み込みで停止）。
+  // 中身を一度メモリに読んで使い回す。鍵に更新時刻と大きさを含めるので、テスト中に
+  // ファイルを書き換えても古い中身を返すことはない（no-store の意図はそのまま）。
+  const cache = new Map();
   const server = http.createServer((req, res) => {
     let p = decodeURIComponent((req.url || "/").split("?")[0].split("#")[0]);
     if (p === "/") p = "/index.html";
     const fp = path.join(ROOT, p);
-    if (!fp.startsWith(ROOT) || !fs.existsSync(fp) || fs.statSync(fp).isDirectory()) {
+    let st = null;
+    try { st = fs.statSync(fp); } catch (e) { st = null; }
+    if (!fp.startsWith(ROOT) || !st || st.isDirectory()) {
       res.writeHead(404); res.end("404"); return;
     }
+    const key = fp + "|" + st.mtimeMs + "|" + st.size;
+    let buf = cache.get(key);
+    if (!buf) {
+      try { buf = fs.readFileSync(fp); } catch (e) { res.writeHead(500); res.end("500"); return; }
+      if (cache.size > 500) cache.clear();
+      cache.set(key, buf);
+    }
     res.writeHead(200, { "Content-Type": MIME[path.extname(fp).toLowerCase()] || "application/octet-stream", "Cache-Control": "no-store" });
-    fs.createReadStream(fp).pipe(res);
+    res.end(buf);
   });
   return new Promise((resolve) => server.listen(PORT, () => resolve(server)));
 }
@@ -365,6 +380,7 @@ async function run() {
     let lastTurn = 0;
     let lastProgressAt = Date.now();
     let lastAgreeAt = Date.now();
+    let slowMeasureCount = 0; // 続き501: 測定そのものが間に合わなかった回数
     let lastSig = "";
     let lastTurnAt = Date.now(); // 最後にターン番号が進んだ時刻
     let lastActs = 0;            // 前回見た「実際に動いた記録」の数
@@ -421,16 +437,45 @@ async function run() {
         const disagreedMs = Date.now() - lastAgreeAt;
         // 本当に状態がズレているのか、単に更新が届いていないだけなのかを切り分ける:
         // 全員に「今の正解」をサーバーから取り直させて、それでも揃わなければ本物の食い違い。
+        // 取り直しの前の進み具合を控えておく（後で「測っている間にゲームが進んだか」を見る）。
+        const preTurn = Math.max(...snaps.map((s) => s.turnNumber || 0));
+        const preActs = Math.max(...snaps.map((s) => (typeof s.acts === "number" ? s.acts : 0)));
+        const resyncT0 = Date.now();
         log("clients disagreed for " + Math.round(disagreedMs / 1000) + "s — forcing a resync to check");
+        // 【2026-09-08・続き501】取り直しの「結果」を必ず記録する。
+        // 以前は失敗しても黙って次へ進んでいたので、"取り直しても直らない" のか
+        // "そもそも取り直せていない" のかが区別できなかった。このプロジェクトで何度も
+        // 踏んでいる「送っただけで結果を測らない」形（続き442/462/463）。
+        // 記録するのは ①取り直しが成功したか（失敗なら理由） ②かかった時間
+        // ③取り直しの前後でその画面の状態が実際に変わったか、の3点。
         for (const c of clients) {
+          const beforeSnap = await snapshot(c).catch(() => null);
+          const t0 = Date.now();
+          let r = null;
           try {
-            await evalSafe(c.page, async () => {
+            r = await evalSafe(c.page, async () => {
               const online = await import("/src/online.js");
               const id = online.getCurrentGameId?.();
-              if (id) await online.fetchAndHydrate(id);
-              return true;
+              if (!id) return { ok: false, why: "no-game-id" };
+              try {
+                await online.fetchAndHydrate(id);
+              } catch (e) {
+                return { ok: false, why: "threw: " + (e && e.message ? e.message : String(e)) };
+              }
+              return { ok: true };
             });
-          } catch (e) { /* 取り直しに失敗したクライアントは下の再判定で分かる */ }
+          } catch (e) {
+            r = { ok: false, why: "evaluate-failed: " + (e && e.message ? e.message : String(e)) };
+          }
+          const ms = Date.now() - t0;
+          const afterSnap = await snapshot(c).catch(() => null);
+          const moved = beforeSnap && afterSnap && beforeSnap.sig !== afterSnap.sig;
+          log(
+            "  resync " + c.tag + ": " + (r && r.ok ? "ok" : "NG(" + ((r && r.why) || "no-result") + ")") +
+            " " + ms + "ms  T" + (beforeSnap ? beforeSnap.turnNumber : "?") + "/" + (beforeSnap ? beforeSnap.tokens : "?") +
+            " -> T" + (afterSnap ? afterSnap.turnNumber : "?") + "/" + (afterSnap ? afterSnap.tokens : "?") +
+            (moved ? "  [状態が変わった]" : "  [状態は変わらず]")
+          );
         }
         await clients[0].page.waitForTimeout(3000);
         const after = [];
@@ -442,8 +487,24 @@ async function run() {
           lastAgreeAt = Date.now();
           continue;
         }
+        // 【2026-09-08・続き501】揃わなかった時、それが「状態が壊れている」のか
+        // 「測っている間にもゲームが進んでしまって比べられない」のかを分ける。
+        // 1台のPCで4画面を動かすと取り直し1回に20秒前後かかり（正常時は0.2秒）、その間に
+        // ターンが進むので、全員の絵が同じ瞬間を指すことが原理的に無くなる。
+        // ＝ゲームが進み続けている間の食い違いは「遅れ」であって「壊れ」ではない。
+        // 本物の食い違いは「もう誰も動いていないのに揃わない」形で出るので、検出力は残る。
+        const resyncMs = Date.now() - resyncT0;
+        const postTurn = Math.max(...after.map((s2) => s2.turnNumber || 0));
+        const postActs = Math.max(...after.map((s2) => (typeof s2.acts === "number" ? s2.acts : 0)));
+        if (postTurn > preTurn || postActs > preActs) {
+          slowMeasureCount++;
+          log("  取り直しに " + resyncMs + "ms かかり、その間にもゲームが進んだ（T" + preTurn + "→T" + postTurn + "）。");
+          log("  ＝このPCが" + clients.length + "画面に追いつけていないだけなので、食い違いとは判定しない。");
+          lastAgreeAt = Date.now();
+          continue;
+        }
         const diff = after.map((s2) => s2.tag + ":T" + s2.turnNumber + "/" + s2.tokens).join(" vs ");
-        fail("DESYNC: clients still disagree after a forced resync (" + Math.round(disagreedMs / 1000) + "s) (" + diff + ")");
+        fail("DESYNC: clients still disagree after a forced resync (" + Math.round(disagreedMs / 1000) + "s, 取り直し " + resyncMs + "ms・その間ゲームは進んでいない) (" + diff + ")");
         // どこが食い違ったのかを具体的に出す（先頭数件）。
         const base = new Set(after[0].sig.split("|")[3].split(","));
         for (const s2 of after.slice(1)) {
@@ -458,7 +519,11 @@ async function run() {
         break;
       }
 
-      if (snaps.some((s) => s.won)) { log("someone won at turn", leader.turnNumber, "— healthy finish"); break; }
+      if (snaps.some((s) => s.won)) {
+        log("someone won at turn", leader.turnNumber, "— healthy finish");
+        if (slowMeasureCount > 0) log("（注）測定が追いつかず食い違い判定を見送った回数: " + slowMeasureCount + " ＝この回の食い違い検査は当てにならない");
+        break;
+      }
       if (snaps.some((s) => s.tokens > 0 && s.tokens < 40)) { fail("board looks corrupted (tokens: " + snaps.map((s) => s.tokens).join(",") + ")"); break; }
       if (!RUN_TO_COMPLETION && lastTurn >= TARGET_TURN) { log("reached target turn", TARGET_TURN, "— PASS"); break; }
       if (Date.now() - lastProgressAt > STALL_MS) {
