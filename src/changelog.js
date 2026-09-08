@@ -28,6 +28,19 @@ export const CHANGELOG = [
   {
     date: "2026-09-08",
     items: [
+      "対戦が始まる前に「今回のメンバー」を出すようにしました。参加している全員のアバター・名前・駒の色・ペットが順番に並びます。画面をタップすればすぐ飛ばせます。",
+      "Googleでログインした時に、Googleのプロフィール写真が自動で設定されるのをやめました。写真は選択肢の1つとして残るので、使いたい方はご自分で選べます。Googleの名前はもともと使っていませんでしたが、今後も一切読み取りません。",
+      "初めてログインした時の「ニックネームとアバターを決める」案内が、Googleでログインした方以外にも出るようになりました。",
+    ],
+    itemsEn: [
+      "Matches now open with a lineup screen showing every player's avatar, name, piece colour and pet. Tap anywhere to skip it.",
+      "Signing in with Google no longer applies your Google profile photo automatically. It stays available as one of the avatar choices, so you can pick it yourself. Your Google name was never used, and is no longer read at all.",
+      "The first-time \"pick a nickname and avatar\" prompt now appears for everyone, not just Google sign-ins.",
+    ],
+  },
+  {
+    date: "2026-09-08",
+    items: [
       "「ゴメンナサイッ！」で相手の最後のロックを止めた瞬間を、大きな発動演出にしました。画面が紫に染まり、カードと名乗りが飛び出します。相手や観戦している方の画面にも同じように出ます。",
       "CPUが「ゴメンナサイッ！」を使った時にも「防いだ！」の演出が出るようになりました（これまでは人が使った時だけでした）。",
       "ランク戦の待ち時間に出る豆知識から囲みを外し、文字だけを大きく出すようにしました。文の長さで枠が伸び縮みして下のボタンが動くこともなくなります。",

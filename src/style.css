@@ -21219,6 +21219,120 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
    ★重い装飾は使わない: filter / backdrop-filter は全画面に掛けるとGPUの弱い端末で1フレームを
      丸ごと持っていく（続き450で勝利演出のぼかしを外した実測、#339でも重さが問題になっている）。
      ここは**塗りと transform だけ**で組む。 */
+/* 【ユーザー要望2026-09-08・続き488】対戦開始の直前に「今回戦うのはこのメンバーです」を出す
+   （Apexの「チャンピオン部隊」のような画面が例として挙がった）。ユーザー選択はA案＝
+   「2〜3秒しっかり見せる（画面をタップすれば飛ばせる）」＋「ペットも入れれるといい」。
+   ★ここでも重い装飾（filter / backdrop-filter）は使わない——塗りと transform だけで組む
+     （続き450の実測・#339）。 */
+.match-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 10670;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.6rem;
+  background: rgba(4, 6, 12, 0.95);
+  cursor: pointer; /* タップで飛ばせる */
+  animation: match-intro-in 0.3s ease-out;
+}
+.match-intro.is-leaving { animation: match-intro-out 0.32s ease-in forwards; }
+@keyframes match-intro-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes match-intro-out { from { opacity: 1; } to { opacity: 0; } }
+.match-intro-title {
+  font-size: 1.5rem;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  color: #fde68a;
+  text-shadow: 0 0 1.2rem rgba(250, 204, 21, 0.5);
+  animation: match-intro-title 0.5s ease-out both;
+}
+@keyframes match-intro-title {
+  from { opacity: 0; transform: translateY(-0.6rem); }
+  to { opacity: 1; transform: none; }
+}
+.match-intro-row {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  max-width: 58rem;
+}
+/* 1人分。席の色を縁と上の帯に使うので「誰が何色か」が一目で分かる。 */
+.match-intro-card {
+  position: relative;
+  width: 11rem;
+  padding: 1.5rem 0.9rem 1.1rem;
+  border-radius: 0.9rem;
+  border: 1px solid var(--intro-color, #f6c945);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(0, 0, 0, 0.32));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  animation: match-intro-card 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--intro-delay, 0s);
+}
+.match-intro-card::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 0.32rem;
+  border-radius: 0.9rem 0.9rem 0 0;
+  background: var(--intro-color, #f6c945);
+}
+@keyframes match-intro-card {
+  from { opacity: 0; transform: translateY(1.4rem) scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+.match-intro-avatar {
+  width: 4.6rem;
+  height: 4.6rem;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 0.16rem solid var(--intro-color, #f6c945);
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.4rem;
+}
+.match-intro-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.match-intro-name {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #f8fafc;
+  text-align: center;
+  word-break: break-word;
+}
+.match-intro-seat {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--intro-color, #f6c945);
+  opacity: 0.9;
+}
+/* ペット（ユーザー要望「ペットも入れれるといい」）。飾りなので取れなければ出さないだけ。 */
+.match-intro-pet {
+  width: 2.6rem;
+  height: 2.6rem;
+  object-fit: contain;
+  image-rendering: pixelated;
+  animation: match-intro-pet 1.6s ease-in-out infinite;
+}
+@keyframes match-intro-pet {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-0.22rem); }
+}
+.match-intro-hint {
+  font-size: 0.66rem;
+  color: rgba(226, 232, 240, 0.55);
+  letter-spacing: 0.08em;
+}
+body.reduce-glow .match-intro-title { text-shadow: none; }
+body.reduce-glow .match-intro-pet { animation: none; }
 .gomennasai-declare {
   position: fixed;
   inset: 0;

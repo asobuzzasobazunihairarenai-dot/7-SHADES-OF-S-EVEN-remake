@@ -5081,6 +5081,92 @@ function blockEffectHostFor(seat) {
 // 盤面の外（body直下）に置くので、盤面のWebGL描画のON/OFFにも2D表示にも左右されない。
 // 重い装飾（filter / backdrop-filter）は使わない——全画面に掛けるとGPUの弱い端末で1フレームを
 // 丸ごと持っていく（続き450の実測。#339で重さが問題になっている今はなおさら）。
+// 【ユーザー要望2026-09-08・続き488】対戦開始の直前に「今回戦うのはこのメンバーです」を出す。
+// ユーザー選択は A案＝2〜3秒しっかり見せる／画面をタップすれば飛ばせる。ペットも入れる。
+// 席の時計回り順に1人ずつ、その人の駒の色でアバター・名前・ペットが現れる。
+// ★盤面の演出として数える（beginBoardAnimation）。こうすると #266 の「画面の中央は一度に1つ」に
+//   自然に乗り、この紹介が終わるまで「◯◯のターンです」の告知が待ってくれる（続き471で告知も
+//   順番待ちの列に並べてある）。演出の自動解除は15秒なので、2.8秒のこれが止まる心配は無い。
+const MATCH_INTRO_MS = 2800;
+const MATCH_INTRO_STAGGER_MS = 220;
+function playMatchIntro() {
+  if (isArrivalEffectDisabled()) return Promise.resolve(); // 「演出をやめる」設定を尊重
+  const state = getState();
+  const seats = (state.activePlayers || []).filter(Boolean);
+  if (seats.length === 0) return Promise.resolve();
+  const root = document.createElement("div");
+  root.className = "match-intro";
+
+  const title = document.createElement("div");
+  title.className = "match-intro-title";
+  title.textContent = t("game.intro.title");
+  root.appendChild(title);
+
+  const row = document.createElement("div");
+  row.className = "match-intro-row";
+  seats.forEach((seat, i) => {
+    const card = document.createElement("div");
+    card.className = "match-intro-card";
+    card.style.setProperty("--intro-color", seatColorCss(seat));
+    card.style.setProperty("--intro-delay", i * MATCH_INTRO_STAGGER_MS + "ms");
+
+    const avatar = document.createElement("div");
+    avatar.className = "match-intro-avatar";
+    applyAvatarContent(avatar, getPlayerAvatar(seat));
+    card.appendChild(avatar);
+
+    const name = document.createElement("div");
+    name.className = "match-intro-name";
+    name.textContent = getPlayerName(seat);
+    card.appendChild(name);
+
+    const seatLabel = document.createElement("div");
+    seatLabel.className = "match-intro-seat";
+    seatLabel.textContent = seat === getSelfSeat() ? t("game.intro.you") : t("game.intro.rival");
+    card.appendChild(seatLabel);
+
+    // ペットは飾り。取れない席（CPU戦の相手・列が未追加の環境）では出さないだけにする。
+    const petIndex = seat === getSelfSeat() ? getSelectedPetIndex() : getSyncedIdentity(seat)?.petIndex;
+    const petOpt = typeof petIndex === "number" ? PET_OPTIONS[petIndex] : null;
+    const petSrc = petOpt?.sprite ? petSpriteSrc(petOpt.sprite, "front", "static") : null;
+    if (petSrc) {
+      const pet = document.createElement("img");
+      pet.className = "match-intro-pet";
+      pet.src = petSrc;
+      pet.alt = "";
+      // 画像が無い環境（素材未配置・列未追加）で壊れた画像の枠が出ないように、失敗したら消す。
+      pet.addEventListener("error", () => pet.remove());
+      card.appendChild(pet);
+    }
+    row.appendChild(card);
+  });
+  root.appendChild(row);
+
+  const hint = document.createElement("div");
+  hint.className = "match-intro-hint";
+  hint.textContent = t("game.intro.skip");
+  root.appendChild(hint);
+
+  document.body.appendChild(root);
+  beginBoardAnimation();
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      root.classList.add("is-leaving");
+      setTimeout(() => {
+        root.remove();
+        endBoardAnimation();
+        resolve();
+      }, 320);
+    };
+    // タップで飛ばせる（ユーザー選択のA案）。開いた直後の合成クリックで消えないよう少し待つ。
+    setTimeout(() => root.addEventListener("click", finish), 250);
+    setTimeout(finish, MATCH_INTRO_MS);
+  });
+}
+
 const GOMENNASAI_DECLARE_MS = 1500;
 function playGomennasaiDeclaration() {
   if (isArrivalEffectDisabled()) return Promise.resolve(); // 「演出をやめる」設定を尊重
@@ -15976,11 +16062,12 @@ async function openAvatarPicker() {
 async function openFirstLoginProfileModal() {
   const seat = getSelfSeat();
   const googleAvatarUrl = getGoogleAvatarUrl();
-  // 画像だけ自動で設定（ユーザー要望）。この時点ではまだ部屋に入っていないため、
-  // getSelfSeat()は常に"A"を返す（registerIdentityApplierのコールバックと同じ理由）。
-  // ニックネームはGoogleアカウントの本名が入ってしまうため自動設定しない
-  // （ユーザー要望「Googleの名前を一切出さない」）。ここで自分で決めてもらう。
-  if (googleAvatarUrl) setPlayerAvatar(seat, googleAvatarUrl);
+  // 【続き488】以前はここで**Googleのプロフィール写真を勝手に設定**していた（ユーザー要望
+  // 「自動でGoogleのサムネを設定して」への対応）。しかしGoogleの写真は本人の顔写真であることが
+  // 多く、しかもこの写真は戦績システム（公開サイト）の一覧にもそのまま出る。名前と同じ理由で
+  // **自動では入れず、下の選択肢の1つとして自分で選んでもらう**形に変えた。
+  // ニックネームも同様に自動設定しない（Googleの名前は online.js で読まないようにしてある）。
+  // この時点ではまだ部屋に入っていないため getSelfSeat() は常に "A" を返す。
   render();
 
   const modal = document.createElement("div");
@@ -16897,6 +16984,32 @@ registerDeckSelectHandler(showDeckSelect);
 onDeckSelectionStartEvents((payload) => showDeckSelect(payload?.deadline));
 registerPlaymatHelpers({ render });
 registerBackgroundHelpers({ render });
+// 【続き488】対戦開始の合図で「今回のメンバー」を1回だけ出す。引き金は
+// initTutorialAutoStart（tutorial.js）と同じ「turnPlayer が入った瞬間」。
+// 出さない場合:
+//   ・物語チュートリアルの対戦（あちらは自前の台本で進むので邪魔になる）
+//   ・自己対戦（両席が疑似CPU＝スモークテスト等。操作する人がいないので暗幕が邪魔なだけ）
+//   ・観戦（自分の席が無い時は「あなた」の表示が意味を持たないが、メンバー紹介自体は有用なので出す）
+let matchIntroShownForMatch = false;
+subscribe(() => {
+  const started = Boolean(getState().turnPlayer);
+  if (!started) {
+    matchIntroShownForMatch = false; // 対局が終わって盤面が空になったら次の対局のために戻す
+    return;
+  }
+  if (matchIntroShownForMatch || isTutorialBattleActive()) return;
+  matchIntroShownForMatch = true;
+  void (async () => {
+    try {
+      const { isPseudoCpuIncludeSelf } = await import("./admin.js");
+      if (isPseudoCpuIncludeSelf?.()) return;
+    } catch {
+      /* 取得に失敗した時は従来どおり出す */
+    }
+    void playMatchIntro();
+  })();
+});
+
 registerPetHelpers({ render });
 // ログイン直後（online.jsのloadMyPreferences）に、保存済みの名前・アバター・駒スキンを
 // ローカルの表示側（player-identity.js/piece-skins.js）へ反映する。部屋に入る前は

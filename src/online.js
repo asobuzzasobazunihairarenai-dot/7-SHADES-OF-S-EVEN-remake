@@ -736,8 +736,15 @@ export function getGoogleAvatarUrl() {
 // というモーダルを出し、自動でGoogleの名前やサムネを設定してほしい」への対応。
 // getGoogleAvatarUrlと同じ理由でuser_metadataのキー名をfull_name/nameの順にフォールバック
 // する。
+// 【ユーザー判断2026-09-08・続き488】「Googleでのアカウント名を拾わないようにした方が良いですか？」
+// → 拾わない。Googleの表示名は**本名であることが多く**、対戦相手・観戦者・戦績システムの
+// ランキングにそのまま出てしまうと後から取り消せない。
+// 表示名として使っている箇所は元から無かった（この関数の呼び出しは「初回ログインの案内を出すか」
+// の判定1か所だけだった）が、**将来うっかり使われる余地そのものを無くす**ため、常にnullを返す。
+// ★関数自体は消さない: 利用者の端末のキャッシュに古い import が生きている可能性があるため
+//   （公開済みのものを消すと「読み込みに失敗しました」で機能ごと起動しなくなる＝続き423）。
 export function getGoogleDisplayName() {
-  return cachedUser?.user_metadata?.full_name ?? cachedUser?.user_metadata?.name ?? null;
+  return null;
 }
 
 // ユーザー要望「配信時にメールアドレスが画面に映るのが気になる（タイトルのログイン欄・
@@ -1439,7 +1446,10 @@ export async function loadMyPreferences() {
     // 初回ログイン等、まだ何も保存していない場合はDBのデフォルト値のまま。
     // Googleログインでの初回だけ、Googleの名前/サムネで自動設定した上で確認モーダルを出す
     // （ユーザー要望）。
-    if (getGoogleDisplayName() || getGoogleAvatarUrl()) {
+    // 続き488: 以前は「Googleの名前か写真が取れたら」出していたが、名前は読まないことにしたので
+    // 判定を「初めてのログイン（この行がまだ無い）で、ゲストでない」に変えた。
+    // Googleでないログインでも名前を決める機会ができる＝どのログイン方法でも本名が既定にならない。
+    if (!cachedUser.is_anonymous) {
       firstGoogleLoginPrompterFn?.();
     }
     return;
