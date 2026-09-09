@@ -1831,23 +1831,25 @@ async function runAction(action, ctx, helpers) {
       // pickHandCard 側が自動で選ぶので、ここは人間かどうかを気にしなくてよい。
       // ※他の複数枚捨てる効果（スラム上がりの役人・選べる罠）は元から1枚ずつ選ぶ作りなので、
       //   すでに選んだ順に積まれている。
-      const orderedToDiscard = [];
-      if (toDiscard.length >= 2) {
-        const remaining = new Map(toDiscard.map((tk) => [tk.id, tk]));
-        for (let i = 0; i < toDiscard.length - 1; i++) {
-          const chosen = await helpers.pickHandCard(
-            ctx.player,
-            t("ce.pickDiscardOrder", { n: i + 1 }),
-            new Set(remaining.keys()), // 続き479: ここは Set で渡す約束（配列だと受け側の .has が無い）
-            { purpose: "discard" }
-          );
-          if (!chosen) break;
-          remaining.delete(chosen.id);
-          orderedToDiscard.push(chosen);
+      // 【#344・2026-09-09】以前は1枚ずつ pickHandCard で聞いていたため、選ぶたびに
+      // 「これでいいですか？」の確認が挟まり、5枚捨てる場面では確認が4回出ていた
+      // （ユーザー報告「毎回これでいいかの確認は大変」）。押した順に番号が付き、もう一度
+      // 押せば外れ、最後に1回だけ確定する pickHandCardsOrdered に置き換える。
+      // 古い pickHandCard しか持たない呼び出し元でも動くよう、無ければ手札の並び順のまま
+      // 捨てる（＝順番を選べないだけで、効果は不発にしない＝善処の原則）。
+      let orderedToDiscard = toDiscard;
+      if (toDiscard.length >= 2 && helpers.pickHandCardsOrdered) {
+        const ordered = await helpers.pickHandCardsOrdered(
+          ctx.player,
+          t("ce.pickDiscardOrder", { n: 1 }),
+          new Set(toDiscard.map((tk) => tk.id)),
+          { purpose: "discard" }
+        );
+        if (Array.isArray(ordered) && ordered.length > 0) {
+          // 選ばれなかった札が万一あっても必ず捨てる（全部捨てる効果のため）。
+          const seen = new Set(ordered.map((tk) => tk.id));
+          orderedToDiscard = [...ordered, ...toDiscard.filter((tk) => !seen.has(tk.id))];
         }
-        for (const tk of toDiscard) if (remaining.has(tk.id)) orderedToDiscard.push(tk);
-      } else {
-        orderedToDiscard.push(...toDiscard);
       }
       const discardedIds = [];
       for (const token of orderedToDiscard) {

@@ -1211,6 +1211,35 @@ body.reduce-glow .steal-beam {
   z-index: 2;
 }
 
+/* 【#344】手札から複数枚まとめて捨てる時、押した順に付く番号（①②③…）。
+   捨て場に積まれる順そのものなので、カードの中央に大きめに出して読み違えないようにする
+   （左上の小さな印＝公開ドローの👁 と場所も見た目も分ける）。 */
+.hand-card-discard-order {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 1.6rem;
+  height: 1.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: bold;
+  color: #06202e;
+  background: linear-gradient(160deg, #fde68a, #f59e0b);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  box-shadow: 0 0.1rem 0.35rem rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  z-index: 6;
+}
+/* 選び済みのカードは少し沈ませて「もう決まっている」ことを分かるようにする。 */
+.hand-card.is-discard-picked,
+.hand-reveal-card.is-discard-picked {
+  filter: brightness(0.72);
+}
+
 /* ユーザー要望「白と黒のカードは自分の手札内でそれぞれの色の湯気のような神秘的な
    オーラで纏われている演出を入れたい」への対応（main.jsのbuildPlayerZone参照、自分の
    手札のみ対象）。カードの縁からはみ出す2層のぼかしたグラデーションを、それぞれ別の
@@ -15649,6 +15678,34 @@ body.reduce-glow .cell.card-effect-placement-target {
   color: #8397ab;
   line-height: 1.5;
   max-width: 32rem;
+}
+/* CPU戦の「対戦ルール」4つ（続き506）。人数・強さのセグメントと違い、それぞれが独立した
+   入/切なので、1つずつ枠を持たせて折り返せるようにする（スマホでは2行になる）。 */
+.home-match-choice-rules {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+}
+.home-match-choice-rule-btn {
+  padding: 0.4rem 0.85rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.5rem;
+  color: #cbd5e1;
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.home-match-choice-rule-btn:hover {
+  background: rgba(56, 189, 248, 0.15);
+}
+.home-match-choice-rule-btn.is-selected {
+  background: linear-gradient(160deg, #38bdf8, #0ea5e9);
+  border-color: rgba(56, 189, 248, 0.7);
+  color: #06202e;
 }
 /* ライトテーマ */
 body.theme-light #home-match-choice {

@@ -72,6 +72,7 @@ import {
   isCpuBattleActive,
   getCpuStepDeadlineMs,
   isSelfCpuSubstituted,
+  isCpuSelfTimerEnabled,
   recordSelfTimeout,
   getConsecutiveTimeouts,
   getAfkTimeoutThreshold,
@@ -238,6 +239,9 @@ function isSelfTimeLimitExempt(seat) {
   if (!seat) return false;
   if (isOnlineMode()) return false;
   if (!isCpuBattleActive()) return false;
+  // ユーザー要望2026-09-09「CPU戦でもタイマーあり（実質自分だけ）を選べるように」。
+  // この設定がONの時は、自分の席も普通に持ち時間で回す（＝この免除を使わない）。
+  if (isCpuSelfTimerEnabled()) return false;
   if (seat !== getSelfSeat()) return false;
   if (isPseudoCpuTarget(seat)) return false;
   if (isSelfCpuSubstituted()) return false;

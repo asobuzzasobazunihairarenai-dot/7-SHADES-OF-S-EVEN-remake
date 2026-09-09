@@ -44,7 +44,20 @@ import { openChangelogModal, hasUnreadChangelog } from "./changelog.js";
 // CPU戦の強さ選択（対戦モード選択モーダルで選べるようにする。ユーザー要望2026-08-09）。
 // cpu-battle-state.js は依存ゼロの葉モジュールなので静的importでも循環参照の心配はない
 // （cpu-battle.js 本体の動的importとは別物）。選んだ値は端末に保存され、CPU戦開始時に効く。
-import { getCpuDifficulty, setCpuDifficulty, getCpuPlayerCount, setCpuPlayerCount } from "./cpu-battle-state.js";
+import {
+  getCpuDifficulty,
+  setCpuDifficulty,
+  getCpuPlayerCount,
+  setCpuPlayerCount,
+  isCpuBlackWhiteEnabled,
+  setCpuBlackWhiteEnabled,
+  isCpuBoostEnabled,
+  setCpuBoostEnabled,
+  isCpuMyDeckEnabled,
+  setCpuMyDeckEnabled,
+  isCpuSelfTimerEnabled,
+  setCpuSelfTimerEnabled,
+} from "./cpu-battle-state.js";
 import { maybeShowAlphaNotice } from "./alpha-notice.js";
 import { buildPwaInstallBanner } from "./pwa-install.js";
 // ユーザー要望2026-09-02: 管理者が投稿した「全員へのお知らせ」を、ホームで一度だけ出す。
@@ -310,6 +323,46 @@ function openMatchChoiceModal() {
   cnt.appendChild(cntHint);
   refreshCnt();
   panel.appendChild(cnt);
+
+  // CPU戦の対戦ルール（ユーザー要望2026-09-09「CPU戦でも 白黒あり／タイマーあり（実質自分だけ）／
+  // ブーストあり／マイデッキあり を選べるようにしたい」）。オンラインの部屋で選べるものと同じ4つ。
+  // 押すたびに入り／外れが切り替わり、端末とアカウントに保存される（人数・強さと同じ扱い）。
+  const rules = document.createElement("div");
+  rules.className = "home-match-choice-difficulty";
+  const rulesLabel = document.createElement("div");
+  rulesLabel.className = "home-match-choice-difficulty-label";
+  rulesLabel.textContent = t("home.matchChoice.rulesLabel");
+  rules.appendChild(rulesLabel);
+  const rulesRow = document.createElement("div");
+  rulesRow.className = "home-match-choice-rules";
+  for (const [key, get, set] of [
+    ["home.matchChoice.ruleBlackWhite", isCpuBlackWhiteEnabled, setCpuBlackWhiteEnabled],
+    ["home.matchChoice.ruleBoost", isCpuBoostEnabled, setCpuBoostEnabled],
+    ["home.matchChoice.ruleMyDeck", isCpuMyDeckEnabled, setCpuMyDeckEnabled],
+    ["home.matchChoice.ruleSelfTimer", isCpuSelfTimerEnabled, setCpuSelfTimerEnabled],
+  ]) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "home-match-choice-rule-btn";
+    b.textContent = t(key);
+    const refresh = () => {
+      const on = !!get();
+      b.classList.toggle("is-selected", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    };
+    b.addEventListener("click", () => {
+      set(!get());
+      refresh();
+    });
+    refresh();
+    rulesRow.appendChild(b);
+  }
+  rules.appendChild(rulesRow);
+  const rulesHint = document.createElement("div");
+  rulesHint.className = "home-match-choice-difficulty-hint";
+  rulesHint.textContent = t("home.matchChoice.rulesHint");
+  rules.appendChild(rulesHint);
+  panel.appendChild(rules);
 
   const cancel = document.createElement("button");
   cancel.type = "button";

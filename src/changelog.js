@@ -35,6 +35,8 @@ export const CHANGELOG = [
       "アプリを一度離れて戻ってきた時に、BGMだけ聞こえなくなることがあった不具合を直しました。",
       "動きの重い端末で、BGMの出だしが長いあいだほとんど無音のままだった不具合を直しました。どの端末でも同じ速さで鳴り切ります。",
       "ロックするカードを選んだ後、右下の「スキップ」ボタンが消えるようになりました（もうすることが無い場面なのに押せて、迷わせていました）。",
+      "CPU戦でも「白黒カード」「ブースト」「マイデッキ」「自分にも持ち時間」を選べるようになりました。CPU戦を始める画面の「対戦ルール」から、押すたびに入／切が切り替わります。",
+      "手札を何枚もまとめて捨てる時の選び方を変えました。捨てたい順にカードを押していくと①②③…と番号が付き、最後に「これで捨てる」を1回押すだけで確定します（これまでは1枚選ぶたびに確認が出ていました）。押し間違えたカードはもう一度押せば外れ、後ろの番号が繰り上がります。",
     ],
     itemsEn: [
       "The app now loads lighter. The home screen background image is about nine times smaller, so it appears sooner after opening (it looks the same).",
@@ -44,6 +46,8 @@ export const CHANGELOG = [
       "Fixed the music going silent after you left the app and came back.",
       "Fixed the music staying almost silent for a long time at the start on slower devices. It now reaches full volume in the same time everywhere.",
       "The Skip button in the bottom right now disappears once you have chosen a card to lock (it used to stay pressable when there was nothing left to do).",
+      "CPU matches can now use Black & white cards, Boost, My Deck, and a timer on your own turns. Toggle each one under Match rules on the CPU match screen.",
+      "Changed how you discard several cards at once. Tap them in the order you want to discard and they get numbered 1, 2, 3...; then press Discard in this order once to confirm (it used to ask for confirmation after every single card). Tap a card again to unselect it, and the rest renumber.",
     ],
     devItems: [
       "起動時に何が落ちてくるかを実測したところ 10.1MB で、その単体最大が assets/home-bg.png（2104KB）でした。他の画像は既にWebP化済みで、これだけPNGのまま残っていたものです。WebP(quality 92)へ変換して230KBになりました（3倍に拡大して元と見比べ、紙の質感・金線とも差が分からないことを確認済み）。元のPNGは、古いCSSがキャッシュされている端末のために assets/ へ残してあります。",
@@ -53,6 +57,8 @@ export const CHANGELOG = [
       "【管理者向け】画面が隠れた時に AudioContext を suspend しているのに、戻った時に resume していませんでした。BGMは createMediaElementSource を通しているため、context が止まったままだと「再生中なのに完全に無音」になります（paused では検知できない）。戻った時に resume するようにしました。",
       "【管理者向け】フェードインの進み具合を「setInterval が呼ばれた回数」から「実際に経過した時間」に変えました。1フレーム135〜190msかかる端末では回数方式だと1.4秒のつもりが数秒〜十数秒かかり、その間ほぼ無音になります。実測で、3秒後の音量が目標の半分(0.061/0.12)から目標そのもの(0.12)になりました。",
       "【管理者向け】#342: スキップボタンの表示条件に、マイデッキボタン(#320)と同じ3つ（送信中／このフェイズで既にロック済み／ロックの代わりにマイデッキから引いた）を足しました。演出待ちでフェイズがまだ lock のまま残っている窓を塞ぎます。",
+      "【管理者向け】CPU戦の4つは cpu-battle-state.js に永続フラグとして持ち（localStorage＋アカウント同期）、白黒・ブーストは quickStart の引数、マイデッキは setupMyDeckMode（3人・4人戦でも全席ぶん配る）、持ち時間は turn-timer.js の isSelfTimeLimitExempt を外す形で効かせています。「自分にも持ち時間」を選んだ時は基本時間の15分上書き（HUMAN_BASE_SECONDS）もしません。A/B実測: 席数2→3／白黒0→2枚／ブースト札0→6枚／マイデッキ無し→A・B・C全員ぶん／基本時間900→30秒。免除が外れることも実測（切=残り−12秒でも何も起きずターン1で停止、入=時間切れで処理が進み手番がCへ）。",
+      "【管理者向け】#344: 順番付きの複数選択ピッカー（main.js の requestHandCardsOrderedForEffect、picker type=\"handMulti\"）を新設し、engine 側の1枚ずつのループ（続き469）を置き換えました。CPUが選ぶ番なら画面に出さずその場で順番を決め、持ち時間切れの自動代行にも受け口があります。常設テストも pickHandCardsOrdered を検査する形に更新し、engine 側の呼び出しを外すと 57/58 で落ちることをA/Bで確認済みです。",
     ],
     devItemsEn: [
       "Measured what actually downloads at startup: 10.1MB, whose single largest file was assets/home-bg.png (2104KB) — the only image never converted to WebP. Re-encoded at quality 92 for 230KB (verified against the original at 3x zoom: paper grain and gold linework are indistinguishable). The original PNG stays in assets/ for devices holding a cached copy of the old CSS.",
@@ -62,6 +68,8 @@ export const CHANGELOG = [
       "[Admin] The AudioContext was suspended when the page hid but never resumed when it came back. Music runs through createMediaElementSource, so a suspended context means \"playing yet completely silent\" - invisible to a paused check. It now resumes on return.",
       "[Admin] Fade-in progress is now driven by elapsed time rather than by how many times setInterval fired. On a device spending 135-190ms per frame the step-counting version stretched a 1.4s fade into many seconds of near-silence. Measured: volume three seconds in went from half the target (0.061/0.12) to the target itself (0.12).",
       "[Admin] #342: the Skip button now also hides on the same three conditions the My Deck button uses (#320): submit in flight, already locked this phase, or drew from My Deck instead. This covers the window where the phase is still \"lock\" while the animation plays.",
+      "[Admin] The four CPU-match rules live in cpu-battle-state.js as persisted flags (localStorage plus account sync). Black & white and Boost go through quickStart's arguments, My Deck through setupMyDeckMode (dealing a deck to every seat, including 3- and 4-player games), and the timer by skipping isSelfTimeLimitExempt in turn-timer.js. With the timer on, the 15-minute HUMAN_BASE_SECONDS override is also skipped. Measured A/B: seats 2 to 3, black/white 0 to 2 cards, boost 0 to 6, My Deck none to A/B/C, base time 900s to 30s; and the exemption really lifts (off: -12s remaining with nothing happening, stuck on turn 1; on: the turn times out and passes to C).",
+      "[Admin] #344: added an ordered multi-select picker (requestHandCardsOrderedForEffect in main.js, picker type \"handMulti\") replacing the one-card-at-a-time loop from entry 469. CPU turns resolve it in place without any UI, and the priority-timeout fallback has a branch for it. The permanent test now checks pickHandCardsOrdered; removing the engine call drops it to 57/58, confirmed A/B.",
     ],
   },
   {

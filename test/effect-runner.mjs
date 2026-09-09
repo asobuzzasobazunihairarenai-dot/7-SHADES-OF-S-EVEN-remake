@@ -117,6 +117,29 @@ export async function runOneCase(spec) {
       if (options?.avoidTokenIds) for (const id of options.avoidTokenIds) callLog.push(["pickHandCardAvoid", id]);
       return tok || null;
     },
+    // 【#344】順番を付けて複数枚まとめて選ぶ（本物は main.js の
+    // requestHandCardsOrderedForEffect）。テストの筋書きは「pickHandCardsOrdered」に
+    // トークンidの配列（捨てる順）を1つ置く。**本物と同じ厳しさ**で、渡された候補に
+    // 含まれない札を指定したら例外にする（続き479の教訓＝スタブが甘いと検査にならない）。
+    pickHandCardsOrdered: async (player, hint, tokenIdFilter, options) => {
+      const ids = tokenIdFilter instanceof Set ? tokenIdFilter : new Set(tokenIdFilter || []);
+      const want = nextPick("handCardsOrdered");
+      let order = [];
+      if (Array.isArray(want)) {
+        for (const w of want) {
+          const tok = findToken(w);
+          if (!tok) throw new Error("pickHandCardsOrdered: " + w + " というトークンが無い");
+          if (!ids.has(tok.id)) throw new Error("pickHandCardsOrdered: " + tok.id + " は候補に含まれていない");
+          order.push(tok);
+        }
+      } else {
+        // 筋書きに指定が無ければ、渡された候補をそのままの並びで返す（＝順番を選ばない）。
+        order = [...ids].map((id) => findToken(id)).filter(Boolean);
+      }
+      callLog.push(["pickHandCardsOrdered", order.map((tk) => tk.id).join(",")]);
+      if (options?.purpose) callLog.push(["pickHandCardsOrderedPurpose", options.purpose]);
+      return order;
+    },
     pickDiscardCost: async (candidates) => {
       // 追色コスト。engine は返り値の .id / .cardId を読む＝トークンを返す必要がある。
       const want = nextPick("discardCost");

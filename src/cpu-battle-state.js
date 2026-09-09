@@ -62,6 +62,52 @@ export function setCpuPlayerCount(n) {
   }
 }
 
+// --- CPU戦の対戦ルール4つ（ユーザー要望2026-09-09） -------------------------------------------
+// 「CPU戦でも 白黒あり／タイマーあり（実質自分だけ）／ブーストあり／マイデッキあり を選べる
+// ようにしたい」。オンライン対戦の部屋で選べるものを、CPU戦のモーダルからも選べるようにする。
+// どれも端末に保存し、次にCPU戦を始める時の既定になる（人数・強さと同じ扱い）。
+//
+// タイマーだけ意味が特殊: CPU戦ではCPUの自動プレイを動かすためにタイマー自体は常に動いていて、
+// **自分の席だけが持ち時間の対象外**になっている（turn-timer.js の isSelfTimeLimitExempt）。
+// なのでこの設定は「自分にも持ち時間を付けるか」＝その例外をやめるかどうか、になる。
+function makeCpuFlag(key, initial) {
+  let value = initial;
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved === "1") value = true;
+    else if (saved === "0") value = false;
+  } catch {
+    /* 既定で動く */
+  }
+  return {
+    get: () => value,
+    set: (v) => {
+      value = !!v;
+      try {
+        localStorage.setItem(key, value ? "1" : "0");
+      } catch {
+        /* 保存できなくてもそのセッションでは効く */
+      }
+    },
+  };
+}
+// 白黒（無色）カードを山札に入れるか。説明書の推奨（初めてのうちは外す）に合わせて既定オフ。
+const cpuBlackWhite = makeCpuFlag("so7-cpu-battle-blackwhite", false);
+export const isCpuBlackWhiteEnabled = cpuBlackWhite.get;
+export const setCpuBlackWhiteEnabled = cpuBlackWhite.set;
+// ブーストカード（ロックエリアの空きに置かれる仮の札）を入れるか。
+const cpuBoost = makeCpuFlag("so7-cpu-battle-boost", false);
+export const isCpuBoostEnabled = cpuBoost.get;
+export const setCpuBoostEnabled = cpuBoost.set;
+// マイデッキ戦（各自が自分のデッキから引く）にするか。
+const cpuMyDeck = makeCpuFlag("so7-cpu-battle-mydeck", false);
+export const isCpuMyDeckEnabled = cpuMyDeck.get;
+export const setCpuMyDeckEnabled = cpuMyDeck.set;
+// 自分の席にも持ち時間を付けるか（既定オフ＝今までどおり急かされない）。
+const cpuSelfTimer = makeCpuFlag("so7-cpu-battle-self-timer", false);
+export const isCpuSelfTimerEnabled = cpuSelfTimer.get;
+export const setCpuSelfTimerEnabled = cpuSelfTimer.set;
+
 // --- CPUの速さ（1手ごとの「考える間」＝疑似CPUの持ち時間） ---------------------------------
 // ユーザー要望「CPUの行動が早すぎて（ザ・ギャンブル等の）モーダルが読み取れない。速度を
 // ゆっくり／普通／早いで選べるようにしたい」。値は「CPUがその席で1手打つまでの持ち時間(ms)」で、
@@ -327,3 +373,8 @@ registerSyncedPref("cpuSpeed", getCpuSpeed, setCpuSpeed);
 registerSyncedPref("cpuDifficulty", getCpuDifficulty, setCpuDifficulty);
 registerSyncedPref("cpuPlayerCount", getCpuPlayerCount, setCpuPlayerCount);
 registerSyncedPref("cpuAutoSkip", isCpuAutoSkipEnabled, setCpuAutoSkipEnabled);
+// CPU戦の対戦ルール4つも、他の端末で同じ設定で遊べるようアカウントへ保存する。
+registerSyncedPref("cpuBlackWhite", isCpuBlackWhiteEnabled, setCpuBlackWhiteEnabled);
+registerSyncedPref("cpuBoost", isCpuBoostEnabled, setCpuBoostEnabled);
+registerSyncedPref("cpuMyDeck", isCpuMyDeckEnabled, setCpuMyDeckEnabled);
+registerSyncedPref("cpuSelfTimer", isCpuSelfTimerEnabled, setCpuSelfTimerEnabled);

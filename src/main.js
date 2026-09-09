@@ -4663,7 +4663,13 @@ document.addEventListener(
     // ため、ここで盤面全体のクリックを丸ごと奪ってしまう（下のpreventDefault/
     // stopPropagation）と、モーダルのボタン自体が押せなくなってしまう。cell/hand/
     // player以外のtypeはここで素通りさせる。
-    if (activeEffectPicker.type !== "cell" && activeEffectPicker.type !== "hand" && activeEffectPicker.type !== "player") return;
+    if (
+      activeEffectPicker.type !== "cell" &&
+      activeEffectPicker.type !== "hand" &&
+      activeEffectPicker.type !== "handMulti" && // #344: 順番を付けて複数枚選ぶ
+      activeEffectPicker.type !== "player"
+    )
+      return;
     e.preventDefault();
     e.stopPropagation();
     const picker = activeEffectPicker;
@@ -4719,6 +4725,20 @@ document.addEventListener(
           }
           return;
         }
+      }
+      return;
+    }
+    if (picker.type === "handMulti") {
+      // #344: 押した順に番号が付く／もう一度押すと外れる／「これで捨てる」で確定。
+      for (const el of elements) {
+        if (el.closest("#card-effect-skip-button")) {
+          picker.confirmOrder();
+          return;
+        }
+        const cardEl = el.closest(".hand-card") ?? el.closest(".hand-reveal-card");
+        if (!cardEl) continue;
+        if (picker.tokenIds.has(cardEl.dataset.tokenId)) picker.toggle(cardEl.dataset.tokenId);
+        return;
       }
       return;
     }
@@ -6163,6 +6183,11 @@ export function performPriorityTimeoutAutoAction() {
         // 選ばない。他に選べる物が無い時だけ残る（dropAvoidedOptions参照）。
         picker.resolve(pickRandomFrom(dropAvoidedOptions(picker.cardId, usable)));
       }
+    } else if (picker.type === "handMulti") {
+      // #344: 順番を付けて複数枚捨てる選択。持ち時間が切れたら、まだ選んでいない分を
+      // CPUと同じ決め方（手放してよい札から）で並べて確定する。既に押した順は尊重する。
+      activeEffectPicker = null;
+      picker.resolve();
     } else if (picker.type === "colors") {
       // ザ・ギャンブル/試練の儀式の色宣言モーダル用。「N色以上」「ちょうどN色」の
       // どちらでも、必要数ちょうどをCOLORS（７色）から重複無しで選べば両方の条件を満たす。
@@ -6632,6 +6657,126 @@ function showEffectSkipButton(label) {
 }
 function hideEffectSkipButton() {
   effectSkipButtonEl?.classList.remove("show");
+}
+
+// 【#344・2026-09-09】手札から複数枚まとめて捨てる時の「順番を付けて選ぶ」ピッカー。
+// ユーザー要望「捨てる順に押して行って最後に確認がいいかも！毎回これでいいかの確認は大変。
+// またその際、選び済みのカードを再度クリックしたら選択解除とかが便利かな？」。
+//
+// それまでは1枚選ぶたびに confirmTouchAction（これでいいですか？）が挟まっていたため、
+// 5枚捨てる場面では確認が4回出ていた。ここでは「押した順に①②③…と番号を付け、もう一度
+// 押すと外れて後ろが繰り上がる。最後に『これで捨てる』を1回だけ押す」形にする。
+//
+// 候補が1枚しかない時は選ぶ意味が無いのでそのまま確定する（1枚ずつ選ぶ時の既存の
+// 「候補が1枚なら確認を出さない」と同じ考え方）。CPUが選ぶ番なら、盤面には何も出さずに
+// その場で順番を決めて返す（CPUの手札選びと同じ chooseHandCardToken を繰り返す）。
+function requestHandCardsOrderedForEffect(player, hint, tokenIdFilter, options = {}) {
+  return new Promise((resolve) => {
+    const handArea = document.querySelector(`.hand-area[data-player="${player}"]`);
+    const revealArea = document.querySelector(`.hand-reveal-area[data-player="${player}"]`);
+    const allCardEls = [
+      ...(handArea ? handArea.querySelectorAll(".hand-card") : []),
+      ...(revealArea ? revealArea.querySelectorAll(".hand-reveal-card") : []),
+    ];
+    const filterIds = tokenIdFilter ? (tokenIdFilter instanceof Set ? tokenIdFilter : new Set(tokenIdFilter)) : null;
+    const cardEls = filterIds ? allCardEls.filter((el) => filterIds.has(el.dataset.tokenId)) : allCardEls;
+    const tokensOf = (ids) => {
+      const state = getState();
+      return ids.map((id) => state.tokens.find((t) => t.id === id)).filter(Boolean);
+    };
+    if (cardEls.length === 0) {
+      resolve([]);
+      return;
+    }
+    if (cardEls.length === 1) {
+      resolve(tokensOf([cardEls[0].dataset.tokenId]));
+      return;
+    }
+    // CPUが選ぶ番: 画面には出さず、その場で順番を決めて返す。
+    if (isCpuSelectingNow(player)) {
+      const pool = new Set(cardEls.map((el) => el.dataset.tokenId));
+      const order = [];
+      while (pool.size > 0) {
+        const id = chooseHandCardToken(pool, player) ?? [...pool][0];
+        pool.delete(id);
+        order.push(id);
+      }
+      resolve(tokensOf(order));
+      return;
+    }
+    for (const el of cardEls) {
+      el.classList.add("card-effect-target-cell");
+      el.classList.remove("hand-card-effect-unusable");
+    }
+    document.body.classList.add("card-effect-picking-hand");
+    if (hint) showEffectPickerHint(hint);
+
+    const picked = []; // 押した順のトークンid
+    const badgeOf = new Map(); // tokenId -> バッジ要素
+    const paint = () => {
+      for (const el of cardEls) {
+        const id = el.dataset.tokenId;
+        const idx = picked.indexOf(id);
+        el.classList.toggle("is-discard-picked", idx >= 0);
+        let badge = badgeOf.get(id);
+        if (idx >= 0) {
+          if (!badge) {
+            badge = document.createElement("div");
+            badge.className = "hand-card-discard-order";
+            el.appendChild(badge);
+            badgeOf.set(id, badge);
+          }
+          badge.textContent = String(idx + 1);
+        } else if (badge) {
+          badge.remove();
+          badgeOf.delete(id);
+        }
+      }
+      showEffectSkipButton(t("game.pick.discardOrderConfirm", { n: picked.length, total: cardEls.length }));
+    };
+    const finish = (ids) => {
+      for (const el of cardEls) el.classList.remove("card-effect-target-cell", "is-discard-picked");
+      for (const badge of badgeOf.values()) badge.remove();
+      badgeOf.clear();
+      document.body.classList.remove("card-effect-picking-hand");
+      hideEffectPickerHint();
+      hideEffectSkipButton();
+      resolve(tokensOf(ids));
+    };
+    paint();
+    activeEffectPicker = {
+      type: "handMulti",
+      owner: player,
+      purpose: options.purpose ?? null,
+      tokenIds: new Set(cardEls.map((el) => el.dataset.tokenId)),
+      // 1枚押すたびに呼ばれる（クリック経路とスキップボタンから）。
+      toggle: (id) => {
+        const i = picked.indexOf(id);
+        if (i >= 0) picked.splice(i, 1);
+        else picked.push(id);
+        paint();
+      },
+      // 「これで捨てる」＝選んでいない残りは、手札に並んでいる順のまま後ろへ付ける
+      // （全部捨てる効果なので、選ばなかった札も必ず捨てる）。
+      confirmOrder: () => {
+        const rest = cardEls.map((el) => el.dataset.tokenId).filter((id) => !picked.includes(id));
+        const ids = [...picked, ...rest];
+        activeEffectPicker = null;
+        finish(ids);
+      },
+      // 持ち時間切れの自動代行から呼ぶ（順番はCPUと同じ決め方）。
+      resolve: () => {
+        const pool = new Set(cardEls.map((el) => el.dataset.tokenId).filter((id) => !picked.includes(id)));
+        const ids = [...picked];
+        while (pool.size > 0) {
+          const id = chooseHandCardToken(pool, player) ?? [...pool][0];
+          pool.delete(id);
+          ids.push(id);
+        }
+        finish(ids);
+      },
+    };
+  });
 }
 
 // 効果の対象マスをプレイヤーに選ばせる（候補マスをハイライトし、クリックを待つ）。
@@ -7875,6 +8020,7 @@ async function runAutoHandEffect(cardId, cardTokenId, player) {
         flyCardToHand: flyBoardCardToHand,
         pickLocation: requestCellChoiceForEffect,
         pickHandCard: requestHandCardChoiceForEffect,
+        pickHandCardsOrdered: requestHandCardsOrderedForEffect, // #344: 順番を付けてまとめて選ぶ
         onCardAcquiredToHand: onEffectCardAcquiredToHand,
         markPlacementTarget: markEffectPlacementTarget,
         markPlacedLocation: markEffectJustPlaced,
@@ -7986,6 +8132,7 @@ async function runAutoArrivalEffect(cardId, location, player) {
       flyCardToHand: flyBoardCardToHand,
       pickLocation: requestCellChoiceForEffect,
       pickHandCard: requestHandCardChoiceForEffect,
+      pickHandCardsOrdered: requestHandCardsOrderedForEffect, // #344: 順番を付けてまとめて選ぶ
       onCardAcquiredToHand: onEffectCardAcquiredToHand,
       // 到達効果の既定動作でこのカード自身を手札へ加えた時のお知らせ。
       // 【#279】ユーザー報告「CPUが試練の儀式に到達して手に入れたのに、このターンの出来事に

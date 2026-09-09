@@ -22,7 +22,16 @@ import {
 import { quickStart } from "./game-setup.js";
 import { setPlayerName, setPlayerAvatar, ENTRUSTED_AVATAR } from "./player-identity.js";
 import { setAutoProcessingEnabled } from "./card-effect-engine.js";
-import { setCpuBattleActive, setSeatLoadout, clearSeatLoadouts, getCpuPlayerCount } from "./cpu-battle-state.js";
+import {
+  setCpuBattleActive,
+  setSeatLoadout,
+  clearSeatLoadouts,
+  getCpuPlayerCount,
+  isCpuBlackWhiteEnabled,
+  isCpuBoostEnabled,
+  isCpuMyDeckEnabled,
+  isCpuSelfTimerEnabled,
+} from "./cpu-battle-state.js";
 import { resetGame, setupMyDeckMode } from "./state.js";
 // マイデッキ戦（本気エイドス戦）用。my-deck.jsはcards-data.jsだけに依存する葉モジュールなので
 // ここから安全にimportできる（online.js等は経由しない）。
@@ -66,7 +75,10 @@ export async function startCpuBattle(count = getCpuPlayerCount()) {
   // 疑似CPUの自動プレイはタイマー tick で駆動されるため、タイマーを有効化する。
   setTurnTimerEnabled(true);
   // あなた(A)は時間切れで急かされないよう基本時間を長めに（CPU席はこの値を使わない）。
-  setRopeBaseSeconds(HUMAN_BASE_SECONDS);
+  // ただし「自分にも持ち時間を付ける」(isCpuSelfTimerEnabled)を選んでいる時は上書きしない
+  // ——ここで15分にしてしまうと、免除を外しても実質時間切れが来ないため（ユーザー要望
+  // 2026-09-09「タイマーあり（実質自分だけ）」）。管理者モードで設定した基本時間で回す。
+  if (!isCpuSelfTimerEnabled()) setRopeBaseSeconds(HUMAN_BASE_SECONDS);
   // 人数切替で前回のCPU席の名前/アバターが残らないよう、まず相手席（A以外）をクリアする。
   // 【重要】自分(A)は消さない——マイページ等で設定した自分の名前・アバターを保持する
   // （ユーザー報告「マイページで名前変更→CPU戦開始→プレイヤーAに戻る」の修正。ローカルCPU戦の
@@ -128,7 +140,18 @@ export async function teardownCpuBattle() {
 
 // オープニングを閉じて盤面を見せた「後」に呼ぶ。空の盤面の上で、2人対戦(A/C)のセットアップ
 // を演出付き（quickStartのファースト配布・盤面配置アニメ）で実際に見せながら開始する。
-export async function runCpuBattleSetup({ noirSeat = null, noirBrands = false, myDeck = false, myDeckA = null, count = getCpuPlayerCount() } = {}) {
+export async function runCpuBattleSetup({
+  noirSeat = null,
+  noirBrands = false,
+  // ユーザー要望2026-09-09「CPU戦でも 白黒あり／ブーストあり／マイデッキあり を選べるように」。
+  // 既定はCPU戦モーダルで選んだ設定。物語のエイドス戦は myDeck を明示で渡してくるので、
+  // そちらは今までどおりこの設定に左右されない。
+  myDeck = isCpuMyDeckEnabled(),
+  includeBlackWhite = isCpuBlackWhiteEnabled(),
+  boost = isCpuBoostEnabled(),
+  myDeckA = null,
+  count = getCpuPlayerCount(),
+} = {}) {
   // noirSeat: エイドス物語戦で相手(C)のファースト・駒を黒(noir)にする（配布アニメーションの前に
   // 適用されるので最初から黒く見える）。通常のCPU戦ではnull（＝差し替えなし）。
   // noirBrands: 本気エイドス戦で、ノワールの両端スロットに「誘惑の黒の烙印」を置いて開始する。
@@ -160,15 +183,19 @@ export async function runCpuBattleSetup({ noirSeat = null, noirBrands = false, m
   // 開始色（ファーストカード）を A に反映（デッキに色があれば。おまかせデッキも resolveDeck で
   // ランダム色が確定しているので常に色が入る）。C はノワールへ差し替わるので指定しない。
   const firstColors = deckA?.firstColor ? { A: deckA.firstColor } : null;
-  // 本気エイドス戦(myDeck)は必ず2人。通常のCPU戦は count(2〜4)人。
-  const seatCount = myDeck ? 2 : count;
-  await quickStart(seatCount, false, false, noirSeat, noirBrands, firstColors);
+  // 物語のエイドス戦（noirSeat が指定されている＝相手がノワール）は必ず2人。
+  // 通常のCPU戦は count(2〜4)人——マイデッキ戦を選んでいても人数は減らさない。
+  const seatCount = noirSeat ? 2 : count;
+  await quickStart(seatCount, includeBlackWhite, boost, noirSeat, noirBrands, firstColors);
   if (myDeck && deckA) {
     // A: 確定したデッキ、C(エイドス): おまかせランダム（ユーザー合意: エイドスのデッキは一旦
     // ランダム）。cardsは{cardId:count}なので展開＋シャッフルして「一番上=末尾」のcardId配列に
     // してから setupMyDeckMode でパイルとして持たせる。
-    const cardsC = makeRandomDeck().cards;
-    setupMyDeckMode({ A: expandAndShuffleDeck(deckA.cards), C: expandAndShuffleDeck(cardsC) });
+    // 相手側のデッキはおまかせランダム（ユーザー合意: 相手のデッキは一旦ランダム）。
+    // 3人・4人戦でも全員ぶん配る——1席でも欠けるとその席だけマイデッキから引けない。
+    const piles = { A: expandAndShuffleDeck(deckA.cards) };
+    for (const seat of cpuSeatsFor(seatCount)) piles[seat] = expandAndShuffleDeck(makeRandomDeck().cards);
+    setupMyDeckMode(piles);
   }
 }
 

@@ -1024,14 +1024,17 @@ export const CASES = [
       piles: { deck: ["red-jump-pad", "blue-choosable-trap"], eternal: [], first: [], discard: [] },
     },
     ctx: { player: "A", cardId: "yellow-gamble", cardTokenId: "self", pieceTokenId: "pieceA", pieceLocation: { zone: "cell", row: 3, col: 3 } },
-    // 宣言色 red/blue が出る → 手札全捨て。捨てる順番は h3 → h1 →（残りの h2 と公開ドロー分）。
-    picks: { colors: [["red", "blue"]], option: ["all"], handCard: ["h3", "h1"] },
+    // 宣言色 red/blue が出る → 手札全捨て。捨てる順番は h3 → h1 → h2（#344 で、1枚ずつ
+    // 聞く形から「押した順に番号を付けて最後に1回だけ確定する」形に変えた）。
+    picks: { colors: [["red", "blue"]], option: ["all"], handCardsOrdered: [["h3", "h1", "h2"]] },
     expect: [
       { kind: "tokenGone", id: "h1" },
       { kind: "tokenGone", id: "h2" },
       { kind: "tokenGone", id: "h3" },
       // 捨て場は「先に捨てたものが下」。選んだ順（h3=プレゼント → h1=収穫と種まき）で積まれる。
       { kind: "pileOrder", pile: "discard", cards: ["pink-present", "orange-harvest-sow", "green-growing-trees", "blue-choosable-trap", "red-jump-pad"] },
+      // #344: 1枚ずつ聞くのではなく、順番付きで**1回だけ**呼ばれること（確認も1回で済む）。
+      { kind: "called", name: "pickHandCardsOrdered", arg: "h3,h1,h2" },
     ],
   },
   {
