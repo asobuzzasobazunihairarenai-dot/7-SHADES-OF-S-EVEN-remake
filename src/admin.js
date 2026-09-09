@@ -2877,7 +2877,8 @@ const TOGGLE_SECTIONS = [
       const select = document.createElement("select");
       select.style.cssText = "flex: 1; min-width: 0;";
       for (const [value, label] of [
-        ["bell", "澄んだ鐘（既定）"],
+        ["whump", "低い「バフン」（既定）"],
+        ["bell", "澄んだ鐘"],
         ["crystal", "鐘＋きらめき（華やか）"],
         ["legacy", "以前のまま（到達効果音を重ねる）"],
       ]) {

@@ -900,15 +900,16 @@ export function playPulseThump(strength = 1) {
 // いう打撃音のための関数**で、鳴っている間に音程が 0.6倍まで滑り落ちる作りになっている
 // （打撃音ではそれが正しい）。鐘や鈴は音程が動かないので、1音ごとに「ボヨン」と下がって
 // 安っぽく聞こえていた。鐘専用の組み立て（下記 scheduleBellPartial）を用意して切り替える。
-//   "bell"    … 澄んだ鐘（既定）。音程は動かさず、倍音ほど早く消え、余韻が長い。
+//   "whump"   … 低い「バフン」（既定・ユーザー要望2026-09-09）。空気が押し出される感じ。
+//   "bell"    … 澄んだ鐘。音程は動かさず、倍音ほど早く消え、余韻が長い。
 //   "crystal" … 鐘＋きらめき。少し遅らせた高い部分音を足して粒が散るように響かせる。
 //   "legacy"  … 以前のまま（到達効果音を重ねる形も含めて元に戻す）。
-let victoryChimeStyle = "bell";
+let victoryChimeStyle = "whump";
 export function getVictoryChimeStyle() {
   return victoryChimeStyle;
 }
 export function setVictoryChimeStyle(style) {
-  if (style === "bell" || style === "crystal" || style === "legacy") victoryChimeStyle = style;
+  if (style === "whump" || style === "bell" || style === "crystal" || style === "legacy") victoryChimeStyle = style;
 }
 // 音程を動かさない部分音。立ち上がりを速く、余韻を長く取る（鐘・鈴の鳴り方）。
 function scheduleBellPartial(ctx, when, freq, peak, decay) {
@@ -928,15 +929,77 @@ function scheduleBellPartial(ctx, when, freq, peak, decay) {
     /* 合成に失敗しても進行は止めない */
   }
 }
+// 「バフン」の空気成分。白色雑音を低い方だけ通して短く鳴らす（これが無いと「ドン」になる）。
+// 雑音の元は文脈ごとに1つ作って使い回す（毎回作ると無駄なうえ、端末によっては重い）。
+let noiseBuffer = null;
+let noiseBufferCtx = null;
+function getNoiseBuffer(ctx) {
+  if (noiseBuffer && noiseBufferCtx === ctx) return noiseBuffer;
+  const len = Math.max(1, Math.floor(ctx.sampleRate * 0.6));
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  noiseBuffer = buf;
+  noiseBufferCtx = ctx;
+  return buf;
+}
+function scheduleAirPuff(ctx, when, peak, decay, cutoff, opts = {}) {
+  try {
+    const src = ctx.createBufferSource();
+    src.buffer = getNoiseBuffer(ctx);
+    const lp = ctx.createBiquadFilter();
+    lp.type = opts.type || "lowpass";
+    if (opts.q) lp.Q.setValueAtTime(opts.q, when);
+    lp.frequency.setValueAtTime(cutoff, when);
+    if (!opts.hold) lp.frequency.exponentialRampToValueAtTime(Math.max(80, cutoff * 0.45), when + decay);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, when);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), when + 0.014);
+    gain.gain.exponentialRampToValueAtTime(0.0001, when + decay);
+    src.connect(lp);
+    lp.connect(gain);
+    gain.connect(ctx.destination);
+    src.start(when);
+    src.stop(when + decay + 0.03);
+  } catch {
+    /* 合成に失敗しても進行は止めない */
+  }
+}
+// 低い「バフン」1発。低音（体で感じる本体）＋中音＋可聴域の芯＋空気、の4層。
+// **iPhone本体のスピーカーは300Hz以下がほとんど出ない**（#237・続き381で実測）ので、
+// 低音だけで作るとスマホでは無音同然になる。scheduleThump と同じ考え方で上の層を足す。
+function scheduleWhump(ctx, when, freq, peak, decay) {
+  schedulePartial(ctx, when, freq, peak, decay);                   // 低音（本体・鳴りながら下がる）
+  schedulePartial(ctx, when, freq * 2.6, peak * 0.5, decay * 0.6); // 中音
+  scheduleAirPuff(ctx, when, peak * 0.42, decay * 0.7, freq * 9);  // 「フ」の空気（本体）
+  // ここから下は**スマホのスピーカーで実際に出る帯域**の層。最初は schedulePartial（打撃音用）で
+  // 高い部分音を1本足しただけだったが、あの関数は鳴りながら音程が0.6倍まで落ちるので、
+  // 足した芯が**すぐ400Hzより下へ逃げてしまい**、実測で400Hz以上の成分がほぼ0だった
+  // （＝iPhone本体では無音同然。#237・続き381と同じ罠を踏みかけた）。
+  // 音程が動かない部品（scheduleBellPartial）と、帯域を絞った空気で作り直した。
+  // 量は実測で決めた（OfflineAudioContext で合成し、400Hzのハイパスを通した後のRMS＝
+  // 「スマホのスピーカーで実際に出る分」を比べた）。0.0039 では #237 で手当てした鼓動(0.0010)より
+  // 上とはいえ心細いので、0.008前後＝勝利の一撃(0.0097)に近いところまで上げてある。
+  scheduleBellPartial(ctx, when, 470, peak * 0.46, 0.15);          // 芯（音程を落とさない）
+  scheduleBellPartial(ctx, when, 780, peak * 0.24, 0.1);
+  scheduleAirPuff(ctx, when, peak * 0.7, 0.16, 900, { type: "bandpass", q: 0.8, hold: true }); // 「フ」の芯
+}
+// 「バフン」の音程。低いまま7段ゆるやかに上がる（旋律にならない程度の上がり幅）。
+const VICTORY_WHUMP_SCALE = [96, 104, 113, 123, 134, 146, 159];
 // 全音階（ド レ ミ ソ ラ ド レ）で7段。和音にせず単音を重ねて澄んだ響きにする。
 const VICTORY_SCALE = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5, 1174.66];
 export function playVictoryChime(index = 0) {
   if (!canPlaySynth()) return;
   const ctx = getAudioContext();
   if (!ctx || ctx.state !== "running") return;
-  const freq = VICTORY_SCALE[Math.max(0, Math.min(VICTORY_SCALE.length - 1, index))];
+  const i = Math.max(0, Math.min(VICTORY_SCALE.length - 1, index));
+  const freq = VICTORY_SCALE[i];
   const peak = Math.min(0.34, masterVolume * 0.5);
   const t = ctx.currentTime + 0.01;
+  if (victoryChimeStyle === "whump") {
+    scheduleWhump(ctx, t, VICTORY_WHUMP_SCALE[i], Math.min(0.5, masterVolume * 0.72), 0.34);
+    return;
+  }
   if (victoryChimeStyle === "legacy") {
     schedulePartial(ctx, t, freq, peak, 0.5);
     schedulePartial(ctx, t, freq * 2, peak * 0.3, 0.35); // 倍音で鈴のような明るさを足す
@@ -959,6 +1022,11 @@ export function playVictoryChimeChord() {
   if (!ctx || ctx.state !== "running") return;
   const peak = Math.min(0.26, masterVolume * 0.38);
   const t = ctx.currentTime + 0.01;
+  if (victoryChimeStyle === "whump") {
+    // 7色が同時に灯る瞬間は、一段低く長い「バフゥン」で締める。
+    scheduleWhump(ctx, t, 74, Math.min(0.58, masterVolume * 0.85), 0.62);
+    return;
+  }
   for (const [n, i] of [[0, 0], [2, 1], [4, 2], [6, 3]]) {
     const freq = VICTORY_SCALE[n];
     scheduleBellPartial(ctx, t + i * 0.012, freq, peak, 1.5); // ほんの少しずらして厚みを出す
