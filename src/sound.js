@@ -103,6 +103,17 @@ function handleVisibilityChange() {
       /* ignore */
     }
   } else {
+    // 【2026-09-09・続き505】戻ってきたら **先に AudioContext を resume する**。
+    // BGMは createMediaElementSource でこの AudioContext を通しているので、context が
+    // suspended のままだと「再生中なのに完全に無音」になる（要素は動いているので
+    // paused では検知できず、原因が分からない不具合になる）。上の hidden 側で明示的に
+    // suspend しているのに、ここで戻していなかった＝iPhoneでアプリを切り替えて戻ると
+    // BGMだけ聞こえなくなる経路があった。
+    try {
+      if (audioCtx && audioCtx.state !== "running") audioCtx.resume().catch(() => {});
+    } catch (err) {
+      /* ignore */
+    }
     // 戻ったら、隠れる直前に鳴っていたBGMだけ再開する。
     for (const a of bgmResumeOnVisible) {
       try {
@@ -173,22 +184,79 @@ function setBgmTrackVolume(audioEl, gainNode, volume) {
 // フェードイン中に stop*Bgm が呼ばれた時にお互いを打ち消せず、音量を下げる処理と上げる処理が
 // 同時に走り続ける。目標音量は毎回読み直す（getTarget）——固定値で捕まえると、フェード中に
 // 音量スライダーを動かしても、フェード終了時に古い値へ巻き戻ってしまう。
+// 【2026-09-09・続き505】BGMを mp3 から m4a(AAC) へ移した（続き503）ぶんのリスク止め。
+// ユーザー報告「なぜかBGMが鳴ってない」を手元で再現できなかったので、次の2つを入れる。
+//
+// ① 万一その端末で m4a を再生できなかった時は、**残してある mp3 へ自動で切り替える**。
+//    元の mp3 は消していない（続き503。古い sound.js がキャッシュされた端末で404に
+//    しないため）ので必ず在る。切り替えは1回だけ（無限に往復しない）。
+// ② 鳴らし始めた数秒後の状態を1回だけ行動ログに残す。「鳴っていない」の正体が
+//    **そもそも始まっていない / 音量が0 / AudioContextが止まっている / ファイルを
+//    再生できない** のどれなのかを、次の報告で推測せず特定できるようにする（続き473と
+//    同じ考え方＝再現できない時は測れるようにしてから直す）。
+function createBgmAudio(name) {
+  const a = new Audio("assets/sounds/" + name + ".m4a");
+  a.addEventListener("error", () => {
+    if (a.dataset.so7Fallback) return; // 既に mp3 へ切り替え済み
+    a.dataset.so7Fallback = "1";
+    try {
+      logAction("diag-bgm-fallback", { name, code: a.error ? a.error.code : null });
+    } catch (err) {
+      /* ログ失敗は無視 */
+    }
+    const wasPlaying = !a.paused;
+    a.src = "assets/sounds/" + name + ".mp3";
+    a.load();
+    if (wasPlaying) a.play().catch(() => {});
+  });
+  return a;
+}
+
+const bgmDiagDone = new Set();
+function watchBgm(name, audioEl, getGain, getTarget) {
+  if (bgmDiagDone.has(name)) return; // 1回の起動につき1トラック1回だけ
+  bgmDiagDone.add(name);
+  setTimeout(() => {
+    try {
+      const g = getGain();
+      logAction("diag-bgm", {
+        name,
+        src: (audioEl.currentSrc || audioEl.src || "").split("/").pop(),
+        paused: audioEl.paused,
+        t: Number(audioEl.currentTime.toFixed(2)),
+        readyState: audioEl.readyState,
+        err: audioEl.error ? audioEl.error.code : null,
+        gain: g ? Number(g.gain.value.toFixed(3)) : null,
+        elVol: Number(audioEl.volume.toFixed(3)),
+        target: Number(getTarget().toFixed(3)),
+        masterBgm: masterBgmVolume,
+        ctx: audioCtx ? audioCtx.state : null,
+        hidden: typeof document !== "undefined" ? document.hidden : null,
+      });
+    } catch (err) {
+      /* ログ失敗は無視 */
+    }
+  }, 3000);
+}
+
 const BGM_FADE_IN_MS = 1400;
 function fadeInBgm(audioEl, gainNode, getTarget, timer) {
   if (timer.get()) clearInterval(timer.get());
   setBgmTrackVolume(audioEl, gainNode, 0);
-  const stepMs = 30;
-  const steps = Math.max(1, Math.round(BGM_FADE_IN_MS / stepMs));
-  let step = 0;
+  // 【2026-09-09・続き505】進み具合は「呼ばれた回数」ではなく**実際に経過した時間**で決める。
+  // 回数で数えると、端末が重くて setInterval が遅れた分だけフェードが間延びする——実測で
+  // 1フレーム135〜190msかかっている端末では、1.4秒のつもりが数秒〜十数秒かかり、その間
+  // ずっとほぼ無音＝「BGMが鳴っていない」ように聞こえてしまう。時間で見れば、何回呼ばれても
+  // 必ず 1.4 秒で鳴り切る（遅れた時は一段が大きくなるだけ）。
+  const startedAt = Date.now();
   timer.set(setInterval(() => {
-    step++;
-    const ratio = Math.min(1, step / steps);
+    const ratio = Math.min(1, (Date.now() - startedAt) / BGM_FADE_IN_MS);
     setBgmTrackVolume(audioEl, gainNode, getTarget() * ratio);
-    if (step >= steps) {
+    if (ratio >= 1) {
       clearInterval(timer.get());
       timer.set(null);
     }
-  }, stepMs));
+  }, 30));
 }
 
 const SOUND_DEFS = {
@@ -231,15 +299,15 @@ function stopOtherBgms(keep) {
 export function playOpeningBgm() {
   stopOtherBgms("opening");
   if (!openingBgmAudio) {
-    openingBgmAudio = new Audio("assets/sounds/opening-bgm.m4a");
+    openingBgmAudio = createBgmAudio("opening-bgm");
     openingBgmAudio.loop = true;
     openingBgmGain = attachGainNode(openingBgmAudio);
   }
   openingBgmAudio.currentTime = 0;
   openingBgmAudio.play().catch(() => {});
-  fadeInBgm(openingBgmAudio, openingBgmGain,
-    () => Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-opening-bgm"))),
-    openingFadeTimer);
+  const openingTarget = () => Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-opening-bgm")));
+  fadeInBgm(openingBgmAudio, openingBgmGain, openingTarget, openingFadeTimer);
+  watchBgm("opening", openingBgmAudio, () => openingBgmGain, openingTarget);
 }
 
 let bgmFadeIntervalId = null;
@@ -278,15 +346,15 @@ let gameBgmGain = null;
 export function playGameBgm() {
   stopOtherBgms("game");
   if (!gameBgmAudio) {
-    gameBgmAudio = new Audio("assets/sounds/game-bgm.m4a");
+    gameBgmAudio = createBgmAudio("game-bgm");
     gameBgmAudio.loop = true;
     gameBgmGain = attachGainNode(gameBgmAudio);
   }
   gameBgmAudio.currentTime = 0;
   gameBgmAudio.play().catch(() => {});
-  fadeInBgm(gameBgmAudio, gameBgmGain,
-    () => Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-game-bgm"))),
-    gameFadeTimer);
+  const gameTarget = () => Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-game-bgm")));
+  fadeInBgm(gameBgmAudio, gameBgmGain, gameTarget, gameFadeTimer);
+  watchBgm("game", gameBgmAudio, () => gameBgmGain, gameTarget);
 }
 
 export function stopGameBgm(durationMs = 600) {
@@ -322,7 +390,7 @@ let waitingBgmGain = null;
 export function playWaitingBgm() {
   stopOtherBgms("waiting");
   if (!waitingBgmAudio) {
-    waitingBgmAudio = new Audio("assets/sounds/waiting-bgm.m4a");
+    waitingBgmAudio = createBgmAudio("waiting-bgm");
     waitingBgmAudio.loop = true;
     waitingBgmGain = attachGainNode(waitingBgmAudio);
   }
@@ -331,6 +399,7 @@ export function playWaitingBgm() {
     waitingBgmAudio.currentTime = 0;
     waitingBgmAudio.play().catch(() => {});
     fadeInBgm(waitingBgmAudio, waitingBgmGain, waitingTarget, waitingFadeTimer);
+    watchBgm("waiting", waitingBgmAudio, () => waitingBgmGain, waitingTarget);
   } else {
     // 既に鳴っている時は鳴らし直さない（従来通り）。フェードインもしない——途中から
     // 音量を0に落として上げ直すと、聴いている側には「一瞬途切れた」ようにしか聞こえない。
@@ -487,7 +556,7 @@ export function playVictoryBgm(loop = false) {
   const volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-victory-bgm")));
   if (volume <= 0 && !loop) return; // 実際の勝利時は音量0なら鳴らさない（従来通り）
   if (!victoryBgmAudio) {
-    victoryBgmAudio = new Audio("assets/sounds/victory-bgm.m4a");
+    victoryBgmAudio = createBgmAudio("victory-bgm");
     victoryBgmGain = attachGainNode(victoryBgmAudio);
   }
   if (victoryBgmFadeIntervalId) {

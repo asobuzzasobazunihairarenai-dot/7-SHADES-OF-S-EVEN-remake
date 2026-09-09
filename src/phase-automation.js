@@ -883,11 +883,19 @@ export function updateSkipButtonVisibility() {
   })();
   // 【総点検2026-09-06】次のフェイズの開始が予約されている間（＝このフェイズはもう終わって
   // いる）はボタンを出さない。マイデッキ側は下で myDeckDrawnThisPhase により同じ扱いになる。
+  // 【#342・2026-09-09】ロックする札を選んだ後（＝ロックの演出が流れている間）は、この
+  // フェイズでやることがもう済んでいるのにスキップボタンだけ残っていた。押しても何も
+  // 得しないうえ「まだ何かできるのか」と迷わせるので隠す。判定はマイデッキボタン側
+  // （#320）と同じ3つ——送信中／既にロック済み／ロックの代わりにマイデッキから引いた。
+  const lockPhaseDone =
+    currentPhase === "lock" &&
+    (lockSubmitInFlight || myDeckDrawnThisPhase || hasPlacedNewLockThisPhase(phaseOwner ?? getSelfSeat()));
   const showSkip =
     (currentPhase === "lock" || currentPhase === "hand") &&
     !isPseudoCpuTarget(phaseOwner) &&
     !approvalPending &&
     !busyResolving &&
+    !lockPhaseDone &&
     !isPhaseTransitionPending();
   btn.style.display = showSkip ? "block" : "none";
   const state = getState();
