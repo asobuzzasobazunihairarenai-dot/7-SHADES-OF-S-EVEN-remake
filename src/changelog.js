@@ -29,15 +29,23 @@ export const CHANGELOG = [
     date: "2026-09-09",
     items: [
       "アプリの起動が軽くなりました。ホーム画面の背景画像が約9分の1の大きさになり、開いてから表示されるまでが速くなります（見た目は変わりません）。",
+      "BGMの通信量を大きく減らしました。音楽データが合計で3分の1以下になり、モバイル回線でも軽く鳴り始めます（曲は同じものです）。",
+      "BGMが鳴り始めるときに、そっと音が立ち上がるようになりました。いきなり最大音量で始まる唐突さがなくなります。",
     ],
     itemsEn: [
       "The app now loads lighter. The home screen background image is about nine times smaller, so it appears sooner after opening (it looks the same).",
+      "Cut the data used by the music. The audio is now under a third of its former size, so it starts quickly even on mobile data (same tracks as before).",
+      "Music now eases in when it starts, instead of jumping straight to full volume.",
     ],
     devItems: [
       "起動時に何が落ちてくるかを実測したところ 10.1MB で、その単体最大が assets/home-bg.png（2104KB）でした。他の画像は既にWebP化済みで、これだけPNGのまま残っていたものです。WebP(quality 92)へ変換して230KBになりました（3倍に拡大して元と見比べ、紙の質感・金線とも差が分からないことを確認済み）。元のPNGは、古いCSSがキャッシュされている端末のために assets/ へ残してあります。",
+      "BGMを mp3(188〜256kbps) から AAC(.m4a, 96kbps) へ変換しました（15.68MB→5.59MB）。待機BGMは5:23の原曲から113秒のループ素材に切り出し、末尾3秒を先頭へクロスフェードして繋ぎ目を消してあります。変換は新設の tools/shrink-audio.mjs で行い、ループ点の決め方（周波数指紋の類似度で採点）もそこに書いてあります。",
+      "【管理者向け】フェードインは src/sound.js の再生開始時に入れてあり、ファイルには焼き込んでいません（焼き込むとループのたびにフェードインして繋ぎ目が復活するため）。タイマーはフェードアウトと共有し、目標音量は毎回読み直すので、フェード中に音量スライダーを動かしても巻き戻りません。",
     ],
     devItemsEn: [
       "Measured what actually downloads at startup: 10.1MB, whose single largest file was assets/home-bg.png (2104KB) — the only image never converted to WebP. Re-encoded at quality 92 for 230KB (verified against the original at 3x zoom: paper grain and gold linework are indistinguishable). The original PNG stays in assets/ for devices holding a cached copy of the old CSS.",
+      "Converted the music from mp3 (188-256kbps) to AAC (.m4a, 96kbps): 15.68MB down to 5.59MB. The waiting theme is now a 113-second loop cut from the 5:23 original, with its last 3 seconds crossfaded onto the head so the seam disappears. Conversion runs through the new tools/shrink-audio.mjs, which also documents how the loop points were chosen (spectral-fingerprint similarity scoring).",
+      "[Admin] The fade-in lives in src/sound.js at playback start, not baked into the files — baking it in would re-introduce a fade on every loop. It shares the fade-out timer per track and re-reads the target volume each step, so moving the volume slider mid-fade is not undone.",
     ],
   },
   {

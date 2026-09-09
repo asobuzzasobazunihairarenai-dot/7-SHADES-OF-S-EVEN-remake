@@ -161,6 +161,36 @@ function setBgmTrackVolume(audioEl, gainNode, volume) {
   }
 }
 
+// 【再生開始時のフェードイン】ユーザー報告2026-09-09「ホームに入って流れ始めるときだけ最初が
+// 気になる」への対応。ループ素材は繋ぎ目を消すために末尾3秒を先頭へ重ねてあるので、ファイルの
+// 0秒目は「曲の途中の音が最大音量で」始まる。無音から突然そこへ飛び込むと唐突に聞こえる。
+//
+// フェードインを**ファイルに焼き込んではいけない**——ループのたびにフェードインしてしまい、
+// せっかく消した繋ぎ目が復活する。必ずここ＝再生開始時にかけること（tools/shrink-audio.mjs
+// の冒頭にも同じ注意を書いてある）。
+//
+// タイマーはそのトラックのフェードアウトと同じ変数を共有する（timer引数）。共有しないと、
+// フェードイン中に stop*Bgm が呼ばれた時にお互いを打ち消せず、音量を下げる処理と上げる処理が
+// 同時に走り続ける。目標音量は毎回読み直す（getTarget）——固定値で捕まえると、フェード中に
+// 音量スライダーを動かしても、フェード終了時に古い値へ巻き戻ってしまう。
+const BGM_FADE_IN_MS = 1400;
+function fadeInBgm(audioEl, gainNode, getTarget, timer) {
+  if (timer.get()) clearInterval(timer.get());
+  setBgmTrackVolume(audioEl, gainNode, 0);
+  const stepMs = 30;
+  const steps = Math.max(1, Math.round(BGM_FADE_IN_MS / stepMs));
+  let step = 0;
+  timer.set(setInterval(() => {
+    step++;
+    const ratio = Math.min(1, step / steps);
+    setBgmTrackVolume(audioEl, gainNode, getTarget() * ratio);
+    if (step >= steps) {
+      clearInterval(timer.get());
+      timer.set(null);
+    }
+  }, stepMs));
+}
+
 const SOUND_DEFS = {
   buttonPress: { path: "assets/sounds/button-press.mp3", cssVar: "--sound-volume-button-press" },
   handShuffle: { path: "assets/sounds/hand-shuffle.mp3", cssVar: "--sound-volume-hand-shuffle" },
@@ -201,17 +231,19 @@ function stopOtherBgms(keep) {
 export function playOpeningBgm() {
   stopOtherBgms("opening");
   if (!openingBgmAudio) {
-    openingBgmAudio = new Audio("assets/sounds/opening-bgm.mp3");
+    openingBgmAudio = new Audio("assets/sounds/opening-bgm.m4a");
     openingBgmAudio.loop = true;
     openingBgmGain = attachGainNode(openingBgmAudio);
   }
-  const volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-opening-bgm")));
-  setBgmTrackVolume(openingBgmAudio, openingBgmGain, volume);
   openingBgmAudio.currentTime = 0;
   openingBgmAudio.play().catch(() => {});
+  fadeInBgm(openingBgmAudio, openingBgmGain,
+    () => Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-opening-bgm"))),
+    openingFadeTimer);
 }
 
 let bgmFadeIntervalId = null;
+const openingFadeTimer = { get: () => bgmFadeIntervalId, set: (v) => { bgmFadeIntervalId = v; } };
 
 // ゲーム本編に入ったら（オープニング画面が閉じたら）止める。ユーザー要望「音楽もプチっと
 // 終わるんじゃなくてフェードアウトしてほしい」への対応で、即座にpauseするのではなく
@@ -246,14 +278,15 @@ let gameBgmGain = null;
 export function playGameBgm() {
   stopOtherBgms("game");
   if (!gameBgmAudio) {
-    gameBgmAudio = new Audio("assets/sounds/game-bgm.mp3");
+    gameBgmAudio = new Audio("assets/sounds/game-bgm.m4a");
     gameBgmAudio.loop = true;
     gameBgmGain = attachGainNode(gameBgmAudio);
   }
-  const volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-game-bgm")));
-  setBgmTrackVolume(gameBgmAudio, gameBgmGain, volume);
   gameBgmAudio.currentTime = 0;
   gameBgmAudio.play().catch(() => {});
+  fadeInBgm(gameBgmAudio, gameBgmGain,
+    () => Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-game-bgm"))),
+    gameFadeTimer);
 }
 
 export function stopGameBgm(durationMs = 600) {
@@ -276,6 +309,7 @@ export function stopGameBgm(durationMs = 600) {
   }, stepMs);
 }
 let gameBgmFadeIntervalId = null;
+const gameFadeTimer = { get: () => gameBgmFadeIntervalId, set: (v) => { gameBgmFadeIntervalId = v; } };
 
 // ユーザー要望「プレイヤー待機中のBGMを追加しました」への対応。オンライン対戦の
 // 部屋で他のプレイヤーを待っている間（online-ui.jsの「対戦相手を待っています」/
@@ -288,15 +322,19 @@ let waitingBgmGain = null;
 export function playWaitingBgm() {
   stopOtherBgms("waiting");
   if (!waitingBgmAudio) {
-    waitingBgmAudio = new Audio("assets/sounds/waiting-bgm.mp3");
+    waitingBgmAudio = new Audio("assets/sounds/waiting-bgm.m4a");
     waitingBgmAudio.loop = true;
     waitingBgmGain = attachGainNode(waitingBgmAudio);
   }
-  const volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-waiting-bgm")));
-  setBgmTrackVolume(waitingBgmAudio, waitingBgmGain, volume);
+  const waitingTarget = () => Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-waiting-bgm")));
   if (waitingBgmAudio.paused) {
     waitingBgmAudio.currentTime = 0;
     waitingBgmAudio.play().catch(() => {});
+    fadeInBgm(waitingBgmAudio, waitingBgmGain, waitingTarget, waitingFadeTimer);
+  } else {
+    // 既に鳴っている時は鳴らし直さない（従来通り）。フェードインもしない——途中から
+    // 音量を0に落として上げ直すと、聴いている側には「一瞬途切れた」ようにしか聞こえない。
+    setBgmTrackVolume(waitingBgmAudio, waitingBgmGain, waitingTarget());
   }
 }
 
@@ -320,6 +358,7 @@ export function stopWaitingBgm(durationMs = 600) {
   }, stepMs);
 }
 let waitingBgmFadeIntervalId = null;
+const waitingFadeTimer = { get: () => waitingBgmFadeIntervalId, set: (v) => { waitingBgmFadeIntervalId = v; } };
 
 // victory.js・tutorial.jsと同じ「turnPlayerがnull→非nullに変わった瞬間＝新しい対局が
 // 実際に始まった」検知パターンを、このモジュール自身で完結させる（main.js側の配線を
@@ -433,7 +472,7 @@ function getPerSoundVolume(cssVar) {
 // ユーザー要望「『勝利時.mp3』をBGMフォルダへ移しました。音量調整などではBGMとして
 // 扱ってください」への対応。以前はSOUND_DEFS（効果音、鳴らすたびnew Audio()を使い
 // 捨てにする方式）の一員だったが、オープニングBGMと同じ「-bgm」接尾辞のファイル名
-// 規約に合わせてassets/sounds/victory-bgm.mp3へ配置してもらう前提にし、専用の
+// 規約に合わせてassets/sounds/victory-bgm.m4a へ配置してもらう前提にし、専用の
 // CSS変数（--sound-volume-victory-bgm）で音量を管理する。ループはしない（勝利の瞬間に
 // 1回だけ再生するBGM）ため、オープニングBGMのような使い回しAudioインスタンスは不要で、
 // 効果音と同じ「毎回new Audio()」のままでよい。
@@ -448,7 +487,7 @@ export function playVictoryBgm(loop = false) {
   const volume = Math.min(1, Math.max(0, masterBgmVolume * getPerSoundVolume("--sound-volume-victory-bgm")));
   if (volume <= 0 && !loop) return; // 実際の勝利時は音量0なら鳴らさない（従来通り）
   if (!victoryBgmAudio) {
-    victoryBgmAudio = new Audio("assets/sounds/victory-bgm.mp3");
+    victoryBgmAudio = new Audio("assets/sounds/victory-bgm.m4a");
     victoryBgmGain = attachGainNode(victoryBgmAudio);
   }
   if (victoryBgmFadeIntervalId) {
