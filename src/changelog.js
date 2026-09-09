@@ -37,6 +37,8 @@ export const CHANGELOG = [
       "ロックするカードを選んだ後、右下の「スキップ」ボタンが消えるようになりました（もうすることが無い場面なのに押せて、迷わせていました）。",
       "CPU戦でも「白黒カード」「ブースト」「マイデッキ」「自分にも持ち時間」を選べるようになりました。CPU戦を始める画面の「対戦ルール」から、押すたびに入／切が切り替わります。",
       "手札を何枚もまとめて捨てる時の選び方を変えました。捨てたい順にカードを押していくと①②③…と番号が付き、最後に「これで捨てる」を1回押すだけで確定します（これまでは1枚選ぶたびに確認が出ていました）。押し間違えたカードはもう一度押せば外れ、後ろの番号が繰り上がります。",
+      "ゴメンナサイを使った時の演出を少し長くしました。カードが大きく止まっている時間が伸びて、何が起きたのか読み取りやすくなります。",
+      "対戦が始まる前の「今回のメンバー」の紹介を少し長くしました（これまでどおり、画面をタップすれば飛ばせます）。",
     ],
     itemsEn: [
       "The app now loads lighter. The home screen background image is about nine times smaller, so it appears sooner after opening (it looks the same).",
@@ -48,6 +50,8 @@ export const CHANGELOG = [
       "The Skip button in the bottom right now disappears once you have chosen a card to lock (it used to stay pressable when there was nothing left to do).",
       "CPU matches can now use Black & white cards, Boost, My Deck, and a timer on your own turns. Toggle each one under Match rules on the CPU match screen.",
       "Changed how you discard several cards at once. Tap them in the order you want to discard and they get numbered 1, 2, 3...; then press Discard in this order once to confirm (it used to ask for confirmation after every single card). Tap a card again to unselect it, and the rest renumber.",
+      "The Sorry! card now holds on screen a little longer when played, so it is easier to see what happened.",
+      "The pre-match line-up now stays on screen a little longer (tap anywhere to skip it, as before).",
     ],
     devItems: [
       "起動時に何が落ちてくるかを実測したところ 10.1MB で、その単体最大が assets/home-bg.png（2104KB）でした。他の画像は既にWebP化済みで、これだけPNGのまま残っていたものです。WebP(quality 92)へ変換して230KBになりました（3倍に拡大して元と見比べ、紙の質感・金線とも差が分からないことを確認済み）。元のPNGは、古いCSSがキャッシュされている端末のために assets/ へ残してあります。",

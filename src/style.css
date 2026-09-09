@@ -21327,7 +21327,7 @@ body.reduce-glow .board-3d-glow.is-lock-turn {
 /* ★管理者モードの「対戦開始前の『今回のメンバー』紹介」から調整する値。
    admin.js の default と必ず同じ数字にしておくこと（リセットで戻る先がここになる）。 */
 :root {
-  --match-intro-duration: 2.8;        /* 見せる長さ（秒）。main.js が読む */
+  --match-intro-duration: 3.8;        /* 見せる長さ（秒）。main.js が読む */
   --match-intro-pet-size: 18rem;      /* ペットの大きさ */
   --match-intro-pet-lift: 0.4rem;     /* ペットがふわふわ浮く高さ */
   --match-intro-name-size: 2rem;      /* 名前 */
@@ -21559,6 +21559,14 @@ body.match-intro-active #self-status-bug-report { opacity: 0; pointer-events: no
 body.reduce-glow .match-intro-title { text-shadow: none; }
 body.reduce-glow .match-intro-pet { animation: none; }
 body.reduce-glow .match-intro-portrait { animation: none; }
+
+/* ゴメンナサイの発動演出（続き487）。見せる長さは管理者モードから変えられる。
+   キーフレームの%はこの長さに対する割合なので、伸ばすとカードが止まっている時間も
+   そのぶん長くなる（30%〜78%が「大きく止まっている」区間）。
+   既定値は admin.js の default と必ず同じ数字にしておくこと。 */
+:root {
+  --gomennasai-declare-duration: 2.2; /* 見せる長さ（秒）。main.js が読む */
+}
 .gomennasai-declare {
   position: fixed;
   inset: 0;
@@ -21567,7 +21575,7 @@ body.reduce-glow .match-intro-portrait { animation: none; }
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: gomennasai-wash 1.5s ease-out forwards;
+  animation: gomennasai-wash calc(var(--gomennasai-declare-duration, 2.2) * 1s) ease-out forwards;
 }
 @keyframes gomennasai-wash {
   0% { background: rgba(88, 28, 135, 0); }
@@ -21583,7 +21591,7 @@ body.reduce-glow .match-intro-portrait { animation: none; }
   background-size: cover;
   background-position: center;
   box-shadow: 0 0 2.4rem rgba(216, 180, 254, 0.85), 0 0.6rem 1.6rem rgba(0, 0, 0, 0.55);
-  animation: gomennasai-card 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: gomennasai-card calc(var(--gomennasai-declare-duration, 2.2) * 1s) cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 @keyframes gomennasai-card {
   0% { transform: translateX(-38%) rotate(-16deg) scale(0.5); opacity: 0; }
@@ -21604,7 +21612,7 @@ body.reduce-glow .match-intro-portrait { animation: none; }
   color: #f5f3ff;
   text-shadow: 0 0 1.2rem rgba(192, 132, 252, 0.95), 0 0.25rem 0 rgba(59, 7, 100, 0.9);
   white-space: nowrap;
-  animation: gomennasai-text 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: gomennasai-text calc(var(--gomennasai-declare-duration, 2.2) * 1s) cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 @keyframes gomennasai-text {
   0% { opacity: 0; transform: translateX(-50%) scale(2.2); }

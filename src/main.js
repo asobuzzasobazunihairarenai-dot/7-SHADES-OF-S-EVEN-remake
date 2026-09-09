@@ -11,6 +11,7 @@ import {
   registerStartPlayerPreviewHelper,
   registerAuraPreviewHelper,
   registerMatchIntroPreviewHelper,
+  registerGomennasaiPreviewHelper,
   registerRankRingPreviewHelper,
   registerAdminAuthHelpers,
   refreshAdminOnlySection,
@@ -5302,7 +5303,17 @@ function previewMatchIntro() {
   void playMatchIntro(live.length > 0 ? live : ["A", "B", "C", "D"]);
 }
 
-const GOMENNASAI_DECLARE_MS = 1500;
+// 見せる長さは管理者モードから変えられる（--gomennasai-declare-duration・秒）。
+// CSSのキーフレームも同じ変数を見ているので、ここだけ伸ばして絵が先に終わることはない。
+function gomennasaiDeclareMs() {
+  const raw = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--gomennasai-declare-duration"));
+  return Number.isFinite(raw) && raw > 0 ? raw * 1000 : 2200;
+}
+// 管理者モードのプレビュー用（本物の対局で最後のロックを止める場面まで行かなくても見られる）。
+function previewGomennasaiDeclaration() {
+  if (document.querySelector(".gomennasai-declare")) return; // 二重に出さない
+  void playGomennasaiDeclaration();
+}
 function playGomennasaiDeclaration() {
   if (isArrivalEffectDisabled()) return Promise.resolve(); // 「演出をやめる」設定を尊重
   const root = document.createElement("div");
@@ -5324,7 +5335,7 @@ function playGomennasaiDeclaration() {
   document.body.appendChild(root);
   try { playSound("arrivalEffect"); } catch { /* 音が出せなくても演出は続ける */ }
   return new Promise((resolve) => {
-    setTimeout(() => { root.remove(); resolve(); }, GOMENNASAI_DECLARE_MS);
+    setTimeout(() => { root.remove(); resolve(); }, gomennasaiDeclareMs());
   });
 }
 
@@ -17209,6 +17220,7 @@ import("./resign.js")
 registerStartPlayerPreviewHelper(previewStartPlayerModal);
 registerAuraPreviewHelper(previewOpeningAuras);
 registerMatchIntroPreviewHelper(previewMatchIntro);
+registerGomennasaiPreviewHelper(previewGomennasaiDeclaration);
 registerVictorySummaryHelper(generateVictorySummaryCanvas);
 registerVictoryHelpers({ getLockedCount, resetVictoryTracking });
 initOptionsMenu();

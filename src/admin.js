@@ -41,6 +41,12 @@ let matchIntroPreviewFn = null;
 export function registerMatchIntroPreviewHelper(fn) {
   matchIntroPreviewFn = fn;
 }
+// 【続き507】ゴメンナサイの発動演出のプレビュー（main.js から注入）。本物の対局で
+// 「相手の7色目を止める」場面まで行かないと見られないので、ここから確かめられるようにした。
+let gomennasaiPreviewFn = null;
+export function registerGomennasaiPreviewHelper(fn) {
+  gomennasaiPreviewFn = fn;
+}
 export function registerAuraPreviewHelper(fn) {
   auraPreviewFn = fn;
 }
@@ -538,6 +544,17 @@ const GROUPS = [
     ],
   },
   {
+    // 【続き507・ユーザー要望】「ゴメンナサイの発動演出、もう少し気持ち長くカードを表示させたい」。
+    // 長さを伸ばすとキーフレームの%がそのまま伸びるので、カードが大きく止まっている時間も長くなる。
+    // 既定値は style.css の :root の --gomennasai-declare-duration と必ず同じ数字にしておくこと。
+    title: "ゴメンナサイの発動演出（実験用プレビュー付き）",
+    category: "effect",
+    controls: [
+      { button: true, label: "▶ 発動演出を見る（プレビュー）", onClick: () => gomennasaiPreviewFn?.() },
+      { key: "--gomennasai-declare-duration", label: "見せる長さ（秒）", unit: "", min: 0.8, max: 6, step: 0.1, default: 2.2, previewOnInteract: () => gomennasaiPreviewFn?.() },
+    ],
+  },
+  {
     // 【続き490・ユーザー要望】「管理者モードにこの画面のレイアウト調整を入れましょう」。
     // スライダーを触ると実際の紹介画面が出る（対局中でなければ4人ぶんの見本で出す）。
     // 既定値は style.css の :root の --match-intro-* と必ず同じ数字にしておくこと。
@@ -545,7 +562,7 @@ const GROUPS = [
     category: "effect",
     controls: [
       { button: true, label: "▶ 紹介画面を見る（プレビュー）", onClick: () => matchIntroPreviewFn?.() },
-      { key: "--match-intro-duration", label: "見せる長さ（秒）", unit: "", min: 1, max: 8, step: 0.1, default: 2.8, previewOnInteract: () => matchIntroPreviewFn?.() },
+      { key: "--match-intro-duration", label: "見せる長さ（秒）", unit: "", min: 1, max: 8, step: 0.1, default: 3.8, previewOnInteract: () => matchIntroPreviewFn?.() },
       { key: "--match-intro-pet-size", label: "ペットの大きさ", unit: "rem", min: 2, max: 30, step: 0.1, default: 18, previewOnInteract: () => matchIntroPreviewFn?.() },
       { key: "--match-intro-pet-lift", label: "ペットが浮く高さ", unit: "rem", min: 0, max: 1.5, step: 0.02, default: 0.4, previewOnInteract: () => matchIntroPreviewFn?.() },
       { key: "--match-intro-pet-pos-x", label: "ペットの位置（左右・マイナスで左へ）", unit: "rem", min: -16, max: 16, step: 0.1, default: -4.7, previewOnInteract: () => matchIntroPreviewFn?.() },
