@@ -8,7 +8,7 @@ import { stageDelta, toStageLocalRect } from "./main.js";
 import { isFlatten2dMode, setFlatten2dMode } from "./tablet-2d-mode.js";
 import { getTierInfo } from "./stats-profile.js";
 import { showRankUpModal } from "./rank-up-modal.js";
-import { previewBgmVolume, toggleBgmPreview } from "./sound.js";
+import { previewBgmVolume, toggleBgmPreview, playVictoryChime, playVictoryChimeChord, getVictoryChimeStyle, setVictoryChimeStyle } from "./sound.js";
 // エイドス会話プレビュー（実機で演出確認用）。eidos-dialogue-* は admin.js を（直接にも間接にも）
 // importしていないため循環参照は起きない。
 import { runEidosDialogue } from "./eidos-dialogue-ui.js";
@@ -2855,6 +2855,57 @@ const TOGGLE_SECTIONS = [
         "background: #6d28d9; border: none; border-radius: 0.3rem; color: white; cursor: pointer; font-size: 0.9rem;";
       openBtn.addEventListener("click", () => openDissolvePreview());
       content.appendChild(openBtn);
+    },
+  },
+  {
+    // 【ユーザー報告2026-09-09】「勝利時にロックカードが一個ずつ光るときの音がダサい」。
+    // 耳で決めるものなので、その場で聴き比べられるようにした（7音＋最後の同時発光の和音を再生）。
+    // 実体は sound.js の victoryChimeStyle（既定 "bell"）。
+    title: "🏆 勝利演出: 色が灯る音（聴き比べ）",
+    category: "effect",
+    buildContent: (content) => {
+      const note = document.createElement("div");
+      note.style.cssText = "font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.5rem; line-height: 1.5;";
+      note.textContent =
+        "7色が1つずつ灯る時の音です。「試聴」で7音＋最後の同時発光の和音を鳴らします。" +
+        "音量は基本設定の🔊に従います（消音だと鳴りません）。";
+      content.appendChild(note);
+      const row = document.createElement("label");
+      row.style.cssText = "display: flex; align-items: center; gap: 0.4rem;";
+      const caption = document.createElement("span");
+      caption.textContent = "鳴らし方";
+      const select = document.createElement("select");
+      select.style.cssText = "flex: 1; min-width: 0;";
+      for (const [value, label] of [
+        ["bell", "澄んだ鐘（既定）"],
+        ["crystal", "鐘＋きらめき（華やか）"],
+        ["legacy", "以前のまま（到達効果音を重ねる）"],
+      ]) {
+        const opt = document.createElement("option");
+        opt.value = value;
+        opt.textContent = label;
+        select.appendChild(opt);
+      }
+      select.value = getVictoryChimeStyle();
+      select.addEventListener("change", () => {
+        setVictoryChimeStyle(select.value);
+        window.dispatchEvent(new CustomEvent("admin:change"));
+      });
+      row.append(caption, select);
+      content.appendChild(row);
+      const playBtn = document.createElement("button");
+      playBtn.textContent = "▶ 試聴（7色ぶん＋同時発光）";
+      playBtn.style.cssText = "margin-top: 0.5rem; width: 100%; padding: 0.4rem; cursor: pointer;";
+      playBtn.addEventListener("click", () => {
+        // 本番と同じ間隔（前半ゆっくり→後半速く）で7音、最後に和音。
+        for (let i = 0; i < 7; i++) {
+          const k = i / 6;
+          const at = i * (520 - 200 * k);
+          setTimeout(() => playVictoryChime(i), at);
+          if (i === 6) setTimeout(() => playVictoryChimeChord(), at + 420);
+        }
+      });
+      content.appendChild(playBtn);
     },
   },
   {

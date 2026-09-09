@@ -24,7 +24,7 @@
 // （victory-preview.js）が同じ変数を書き換えるので、**シミュレーターと本番で数値が分かれない**。
 
 import { COLORS, SEAT_TO_SIDE } from "./board-layout.js";
-import { playSound, stopGameBgm, playVictoryChime, playVictoryImpact, playPulseThump } from "./sound.js";
+import { playSound, stopGameBgm, playVictoryChime, playVictoryChimeChord, getVictoryChimeStyle, playVictoryImpact, playPulseThump } from "./sound.js";
 // 演出中は対局中のお知らせ（獲得/ロック/効果の理由など）を出さない（ユーザー報告2026-09-02）。
 import { setCelebrationActive } from "./celebration-state.js";
 
@@ -230,9 +230,10 @@ export async function playVictoryCelebration(player, opts = {}) {
     stopFlareTrack = trackSlotFlares(flares, liveSlots);
     for (let i = 0; i < slots.length; i++) {
       flares[i]?.firstChild?.classList.add("is-lit");
-      // 【ユーザー指示2026-09-07】各ロックカードが光る瞬間の音は**暫定で到達時の効果音**を割り当てる
-      // （専用の素材ができたらここだけ差し替える）。1段ずつ音が上がる playVictoryChime は別に鳴らす。
-      playSound("arrivalEffect");
+      // 【ユーザー報告2026-09-09】「一個ずつ光るときの音がダサい」。到達効果音（カードに乗った時の
+      // 音）を7回鳴らしていたのが賑やかすぎたので、鐘の響きだけで見せる形にした。以前の鳴り方は
+      // 管理者モードの「鳴らし方」で "legacy" を選べば戻る（その時だけ到達効果音も重ねる）。
+      if (getVictoryChimeStyle() === "legacy") playSound("arrivalEffect");
       playVictoryChime(i); // 色が灯るたびに1段ずつ音が上がる（ユーザー要望2026-09-03）
       // 前半はゆっくり、後半に向けてテンポを上げる
       const k = slots.length > 1 ? i / (slots.length - 1) : 1;
@@ -240,7 +241,9 @@ export async function playVictoryCelebration(player, opts = {}) {
       await step(ms(gap * s.colorStep));
     }
     flares.forEach((el) => el.firstChild?.classList.add("is-all"));
-    playSound("arrivalEffect");
+    // 7色が同時に灯る瞬間。鐘で通すなら和音、以前の鳴り方なら従来どおり到達効果音。
+    if (getVictoryChimeStyle() === "legacy") playSound("arrivalEffect");
+    else playVictoryChimeChord();
     await step(ms(BASE.colorAllFlare));
 
     // --- （任意）ロックした7枚が中央に扇状に並ぶ ----------------------------------

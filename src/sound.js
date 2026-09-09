@@ -895,17 +895,75 @@ export function playPulseThump(strength = 1) {
 }
 
 // 勝利演出：七色が1つずつ灯る時の音。index 0〜6 で音が上がっていく（集まっていく高揚感）。
+// 【ユーザー報告2026-09-09】「勝利時にロックカードが一個ずつ光るときの音がダサい」。
+// 原因は流用元にあった——この音は schedulePartial で組んでいたが、あれは**鼓動や「コツン」と
+// いう打撃音のための関数**で、鳴っている間に音程が 0.6倍まで滑り落ちる作りになっている
+// （打撃音ではそれが正しい）。鐘や鈴は音程が動かないので、1音ごとに「ボヨン」と下がって
+// 安っぽく聞こえていた。鐘専用の組み立て（下記 scheduleBellPartial）を用意して切り替える。
+//   "bell"    … 澄んだ鐘（既定）。音程は動かさず、倍音ほど早く消え、余韻が長い。
+//   "crystal" … 鐘＋きらめき。少し遅らせた高い部分音を足して粒が散るように響かせる。
+//   "legacy"  … 以前のまま（到達効果音を重ねる形も含めて元に戻す）。
+let victoryChimeStyle = "bell";
+export function getVictoryChimeStyle() {
+  return victoryChimeStyle;
+}
+export function setVictoryChimeStyle(style) {
+  if (style === "bell" || style === "crystal" || style === "legacy") victoryChimeStyle = style;
+}
+// 音程を動かさない部分音。立ち上がりを速く、余韻を長く取る（鐘・鈴の鳴り方）。
+function scheduleBellPartial(ctx, when, freq, peak, decay) {
+  try {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(freq, when); // ここが打撃音との違い（滑り落とさない）
+    gain.gain.setValueAtTime(0.0001, when);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), when + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, when + decay);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(when);
+    osc.stop(when + decay + 0.05);
+  } catch {
+    /* 合成に失敗しても進行は止めない */
+  }
+}
+// 全音階（ド レ ミ ソ ラ ド レ）で7段。和音にせず単音を重ねて澄んだ響きにする。
+const VICTORY_SCALE = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5, 1174.66];
 export function playVictoryChime(index = 0) {
   if (!canPlaySynth()) return;
   const ctx = getAudioContext();
   if (!ctx || ctx.state !== "running") return;
-  // 全音階（ド レ ミ ソ ラ ド レ）で7段。和音にせず単音を重ねて澄んだ響きにする。
-  const scale = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5, 1174.66];
-  const freq = scale[Math.max(0, Math.min(scale.length - 1, index))];
+  const freq = VICTORY_SCALE[Math.max(0, Math.min(VICTORY_SCALE.length - 1, index))];
   const peak = Math.min(0.34, masterVolume * 0.5);
   const t = ctx.currentTime + 0.01;
-  schedulePartial(ctx, t, freq, peak, 0.5);
-  schedulePartial(ctx, t, freq * 2, peak * 0.3, 0.35); // 倍音で鈴のような明るさを足す
+  if (victoryChimeStyle === "legacy") {
+    schedulePartial(ctx, t, freq, peak, 0.5);
+    schedulePartial(ctx, t, freq * 2, peak * 0.3, 0.35); // 倍音で鈴のような明るさを足す
+    return;
+  }
+  scheduleBellPartial(ctx, t, freq, peak, 1.15);
+  scheduleBellPartial(ctx, t, freq * 2, peak * 0.34, 0.8);
+  scheduleBellPartial(ctx, t, freq * 3, peak * 0.16, 0.5);
+  scheduleBellPartial(ctx, t, freq * 4.2, peak * 0.09, 0.32); // 整数倍でない部分音＝金属らしさ
+  if (victoryChimeStyle === "crystal") {
+    scheduleBellPartial(ctx, t + 0.03, freq * 5.4, peak * 0.1, 0.5);
+    scheduleBellPartial(ctx, t + 0.07, freq * 8, peak * 0.06, 0.4);
+  }
+}
+// 7色が同時に灯る瞬間の和音（1音ずつのチャイムと同じ音階から4音）。
+// 以前はここも到達効果音を1回鳴らすだけだったので、鐘に替えると浮いてしまう。
+export function playVictoryChimeChord() {
+  if (!canPlaySynth()) return;
+  const ctx = getAudioContext();
+  if (!ctx || ctx.state !== "running") return;
+  const peak = Math.min(0.26, masterVolume * 0.38);
+  const t = ctx.currentTime + 0.01;
+  for (const [n, i] of [[0, 0], [2, 1], [4, 2], [6, 3]]) {
+    const freq = VICTORY_SCALE[n];
+    scheduleBellPartial(ctx, t + i * 0.012, freq, peak, 1.5); // ほんの少しずらして厚みを出す
+    scheduleBellPartial(ctx, t + i * 0.012, freq * 2, peak * 0.3, 0.9);
+  }
 }
 
 // 勝利演出：白く弾ける瞬間の一撃（低い衝撃＋高く抜ける残響）。
