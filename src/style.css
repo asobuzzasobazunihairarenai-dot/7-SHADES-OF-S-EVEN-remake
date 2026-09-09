@@ -15114,12 +15114,12 @@ body.reduce-glow .cell.card-effect-placement-target {
   justify-content: center;
   gap: 0.4rem;
   padding: 2rem 1rem;
-  /* ユーザー提供の背景画像（assets/home-bg.png、元は画像素材/ホーム画面/タイトル寄せ.png）。
+  /* ユーザー提供の背景画像（assets/home-bg.webp、元は画像素材/ホーム画面/タイトル寄せ.png）。
      ユーザー報告「ホームに入る時に一瞬“以前の黒い画面”が出て、そこへ今のホーム画面が覆い
      かぶさるように出る」の対策として、下地の色を（旧デザインの暗色ではなく）画像に近い
      クリーム色にした。画像の読み込みが間に合わない一瞬でも暗転せず、オープニングの黒からの
      切替も自然になる。画像自体はhome-screen.jsで事前読み込み(preload)する。 */
-  background: url("../assets/home-bg.png") center / cover no-repeat, #ece6da;
+  background: url("../assets/home-bg.webp") center / cover no-repeat, #ece6da;
   font-family: sans-serif;
   color: #1e293b;
   overflow-y: auto;

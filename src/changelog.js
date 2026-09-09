@@ -26,6 +26,21 @@ import { getLang } from "./i18n.js";
 
 export const CHANGELOG = [
   {
+    date: "2026-09-09",
+    items: [
+      "アプリの起動が軽くなりました。ホーム画面の背景画像が約9分の1の大きさになり、開いてから表示されるまでが速くなります（見た目は変わりません）。",
+    ],
+    itemsEn: [
+      "The app now loads lighter. The home screen background image is about nine times smaller, so it appears sooner after opening (it looks the same).",
+    ],
+    devItems: [
+      "起動時に何が落ちてくるかを実測したところ 10.1MB で、その単体最大が assets/home-bg.png（2104KB）でした。他の画像は既にWebP化済みで、これだけPNGのまま残っていたものです。WebP(quality 92)へ変換して230KBになりました（3倍に拡大して元と見比べ、紙の質感・金線とも差が分からないことを確認済み）。元のPNGは、古いCSSがキャッシュされている端末のために assets/ へ残してあります。",
+    ],
+    devItemsEn: [
+      "Measured what actually downloads at startup: 10.1MB, whose single largest file was assets/home-bg.png (2104KB) — the only image never converted to WebP. Re-encoded at quality 92 for 230KB (verified against the original at 3x zoom: paper grain and gold linework are indistinguishable). The original PNG stays in assets/ for devices holding a cached copy of the old CSS.",
+    ],
+  },
+  {
     date: "2026-09-08",
     items: [
       "対戦が始まる前の「今回のメンバー」の見た目を整えました。ペットが大きくなり、ランク戦の段位バッジも大きく・見やすい位置になります。",

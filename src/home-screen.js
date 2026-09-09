@@ -56,10 +56,13 @@ let overlayEl = null;
 let toastEl = null;
 let toastTimer = null;
 
-// ホーム背景画像(2MB超)を起動時に先読みしておく（ユーザー報告「ホームに入る時に一瞬黒い
+// ホーム背景画像を起動時に先読みしておく（ユーザー報告「ホームに入る時に一瞬黒い
 // 画面が出る」の対策）。読み込み済みなら、ホームを開いた瞬間から背景画像が表示され暗転しない。
+// 2026-09-09: PNG(2104KB)からWebP(230KB)へ差し替え。起動時に必ず落ちてくる中で単体最大の
+// ファイルだった（他の画像は既にWebP化済みで、これだけPNGのまま残っていた）。元のPNGは
+// 利用者の端末に古いCSSがキャッシュされている場合に備えて assets/ に残してある。
 const homeBgPreload = new Image();
-homeBgPreload.src = "assets/home-bg.png";
+homeBgPreload.src = "assets/home-bg.webp";
 
 // icon: 画像が無い時のフォールバック絵文字。image: ユーザー作成のホーム画面アイコン
 // （assets/home-icons/、枠なしでそのまま表示する）。
