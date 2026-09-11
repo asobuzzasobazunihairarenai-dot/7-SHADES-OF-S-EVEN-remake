@@ -26,6 +26,15 @@ import { getLang } from "./i18n.js";
 
 export const CHANGELOG = [
   {
+    date: "2026-09-11",
+    items: [
+      "登録しなくても遊べる入口を用意しました。戦績管理システムの「デジタルアプリ版をテストプレイする」から開くと、ログインの代わりに「遊び方を教わりながら遊ぶ」「すぐにCPUと対戦する」が出て、そのまま遊び始められます。ログインしている方は、今までどおりの画面になります。",
+    ],
+    itemsEn: [
+      "Added a way to play without signing up. Open the app from the Battle Records site's test-play button and, instead of logging in, you can choose Learn as you play or Play the CPU now and start right away. If you are already logged in, nothing changes.",
+    ],
+  },
+  {
     date: "2026-09-09",
     items: [
       "アプリの起動が軽くなりました。ホーム画面の背景画像が約9分の1の大きさになり、開いてから表示されるまでが速くなります（見た目は変わりません）。",

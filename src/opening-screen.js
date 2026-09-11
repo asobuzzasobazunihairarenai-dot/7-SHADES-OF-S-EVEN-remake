@@ -37,6 +37,7 @@ import { isTouchPrimaryDevice } from "./device-detect.js";
 import { startTitlePetWalk } from "./title-pet.js";
 import { t } from "./ui-text.js";
 import { getLang, setLang, onLangChange, SUPPORTED_LANGS, LANG_LABEL } from "./i18n.js";
+import { isTrialEntry, clearTrialParam } from "./trial-entry.js";
 // （旧CPU戦ボタン撤去に伴い cpu-battle.js の静的importも撤去。これで opening-screen.js が
 //  cpu-battle.js を芋づるで静的に読み込む依存辺が消え、循環import由来の黒画面リスクも下がる。）
 
@@ -442,6 +443,77 @@ export function initOpeningScreen() {
   loginToggleBtn.textContent = t("opening.loginToggle");
   content.appendChild(loginToggleBtn);
 
+  // 【2026-09-11】試遊の入口（trial-entry.js）。URLに ?trial が付いている時だけ、ログインの
+  // ボタンの代わりに「遊び方を教わりながら遊ぶ／すぐにCPUと対戦する」を出す。
+  // クラファンのページ（戦績管理システム経由）から来た、まだ登録していない人のため。
+  // ログイン済みの人（テスターが同じボタンから来た場合）には、従来どおり「オンラインで続ける」の
+  // カードが自動で開く（showCard がこのパネルを隠す）ので、今までの遊び方は変わらない。
+  let trialPanel = null;
+  const trialTexts = [];
+  if (isTrialEntry()) {
+    trialPanel = document.createElement("div");
+    trialPanel.className = "opening-trial-panel";
+    const addTrialEl = (tag, cls, key) => {
+      const el = document.createElement(tag);
+      el.className = cls;
+      if (tag === "button") el.type = "button";
+      el.textContent = t(key);
+      trialTexts.push([el, key]);
+      trialPanel.appendChild(el);
+      return el;
+    };
+    addTrialEl("div", "opening-trial-badge", "trial.badge");
+    addTrialEl("div", "opening-trial-lead", "trial.lead");
+    const storyBtn = addTrialEl("button", "opening-screen-menu-btn opening-trial-btn is-primary", "trial.story");
+    addTrialEl("div", "opening-trial-desc", "trial.storyDesc");
+    const cpuBtn = addTrialEl("button", "opening-screen-menu-btn opening-trial-btn", "trial.cpu");
+    addTrialEl("div", "opening-trial-desc", "trial.cpuDesc");
+    const loginLink = addTrialEl("button", "opening-trial-login-link", "trial.login");
+    let trialStarting = false; // 続けて押されて2回始まらないように
+    storyBtn.addEventListener("click", async () => {
+      if (trialStarting) return;
+      trialStarting = true;
+      try {
+        // 動的import（opening-screen.js から重いモジュールへ静的な依存辺を作らないため）。
+        const { startEidosStory } = await import("./eidos-story.js");
+        close(() => startEidosStory({ openHome: () => openHomeScreen() }));
+      } catch (err) {
+        trialStarting = false;
+        console.error("trial story start failed", err);
+      }
+    });
+    cpuBtn.addEventListener("click", async () => {
+      if (trialStarting) return;
+      trialStarting = true;
+      try {
+        const [{ startCpuBattle, runCpuBattleSetup }, { noteCpuBattlePlayed }] = await Promise.all([
+          import("./cpu-battle.js"),
+          import("./first-steps.js"),
+        ]);
+        noteCpuBattlePlayed(); // ホームの「次にやること」の段階も進めておく
+        // 盤面を空にしてから閉じる（ホームのCPU戦と同じ順番。先に閉じると起動時の既定盤面が一瞬見える）。
+        // 人数は1対1に固定（いちばん短くて分かりやすい。ホームの「はじめての1戦」と同じ判断）。
+        await startCpuBattle(2);
+        close(() => {
+          setTimeout(() => {
+            runCpuBattleSetup({ count: 2 }).catch((err) => console.error("runCpuBattleSetup failed", err));
+          }, 60);
+        });
+      } catch (err) {
+        trialStarting = false;
+        console.error("trial CPU start failed", err);
+      }
+    });
+    loginLink.addEventListener("click", () => {
+      // Googleログインはページを離れて「今のURL」へ戻ってくるので、?trial を持ち越さない。
+      clearTrialParam();
+      setTestModeRequested(false);
+      showCard();
+    });
+    loginToggleBtn.style.display = "none";
+    content.appendChild(trialPanel);
+  }
+
   // （旧「🤖 CPU戦（1人用）」ボタンはユーザー要望2026-08-14で撤去。CPU戦はログイン後の
   //  ホーム画面「CPUマッチ＆フレンドリーマッチ」から開始できる。）
 
@@ -691,6 +763,7 @@ export function initOpeningScreen() {
 
   function showCard() {
     loginToggleBtn.style.display = "none";
+    if (trialPanel) trialPanel.style.display = "none";
     card.style.display = "flex";
     renderCard();
   }
@@ -698,6 +771,11 @@ export function initOpeningScreen() {
   function hideCard() {
     card.style.display = "none";
     loginToggleBtn.style.display = "inline-block";
+    // 試遊の入口から来ていた場合は、ログインのボタンではなく試遊のパネルへ戻す。
+    if (trialPanel) {
+      loginToggleBtn.style.display = "none";
+      trialPanel.style.display = "";
+    }
     // カードを✕で閉じた（＝ログインを完了せずに引き返した）場合、テストモード経由で
     // あったという記憶は捨てる。捨てておかないと、この後に通常の「ログイン」ボタンから
     // 入り直してログインした時、本来出るはずの「オンラインで続ける」カードが誤って
@@ -1019,6 +1097,7 @@ export function initOpeningScreen() {
   onLangChange(() => {
     updateOpeningLangToggle();
     loginToggleBtn.textContent = t("opening.loginToggle");
+    for (const [el, key] of trialTexts) el.textContent = t(key);
     testModeBtn.textContent = t("opening.testMode");
     testModeBtn.title = t("opening.testMode.tip");
     adminBtn.textContent = t("opening.adminPanel");

@@ -286,6 +286,7 @@ import {
 import { initOnlineUi, openOnlinePanel, isOnlineIntentActive } from "./online-ui.js";
 import { initOpeningScreen, previewOpeningAuras } from "./opening-screen.js";
 import { maybeShowFirstRunBgmModal } from "./first-run-bgm.js";
+import { isTrialEntry } from "./trial-entry.js";
 import { applyStoredCardPreviewSize, getCardPreviewSide } from "./card-preview-size.js";
 import { isFixedHandEnabled, applyStoredFixedHand } from "./fixed-hand.js";
 import {
@@ -16737,7 +16738,9 @@ setTimeout(() => {
     });
 }, 0);
 // 初回起動時だけ、オープニングの手前にサウンド／表示の設定モーダル（試聴ボタン付き）を出す。
-maybeShowFirstRunBgmModal();
+// 試遊の入口（?trial）から来た人には出さない——遊び始めるまでの手順を減らすため
+// （音量は既定のまま始まり、あとからオプションで変えられる。trial-entry.js 参照）。
+if (!isTrialEntry()) maybeShowFirstRunBgmModal();
 
 // 管理者モードのスライダーには、CSS変数を変えるだけでは反映されない値（--hand-*-sizeなど、
 // JS側でgetComputedStyleして読み取り、inline styleとして適用しているもの）があるため、

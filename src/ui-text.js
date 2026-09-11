@@ -188,6 +188,13 @@ const UI = {
 
     // --- オープニング/ログイン画面（opening-screen.js） ---
     "opening.loginToggle": "ログイン",
+    "trial.badge": "試遊版（開発中）",
+    "trial.lead": "登録なしで、すぐに遊べます。",
+    "trial.story": "📖 遊び方を教わりながら遊ぶ",
+    "trial.storyDesc": "はじめての方はこちら。操作を順番に案内します。",
+    "trial.cpu": "🤖 すぐにCPUと対戦する",
+    "trial.cpuDesc": "遊び方を知っている方向けの1対1です。",
+    "trial.login": "ログインして、すべての機能を使う",
     "opening.testMode": "テストモード",
     "opening.testMode.tip": "1画面で複数人分を動かせる検証用の盤面へ直接進みます（開発・動作確認用）",
     "opening.adminPanel": "🔧 管理者パネル",
@@ -2065,6 +2072,13 @@ const UI = {
 
     // --- Opening / login screen ---
     "opening.loginToggle": "Log in",
+    "trial.badge": "Free trial (in development)",
+    "trial.lead": "Play now. No account needed.",
+    "trial.story": "📖 Learn as you play",
+    "trial.storyDesc": "New here? A story walks you through each move.",
+    "trial.cpu": "🤖 Play the CPU now",
+    "trial.cpuDesc": "One-on-one, for players who know the rules.",
+    "trial.login": "Log in to use every feature",
     "opening.testMode": "Test mode",
     "opening.testMode.tip": "Go straight to a sandbox board where you can move all players on one screen (for development/testing).",
     "opening.adminPanel": "🔧 Admin panel",

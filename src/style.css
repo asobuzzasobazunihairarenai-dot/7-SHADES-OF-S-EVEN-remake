@@ -13629,6 +13629,90 @@ body.cpu-battle-mode #quick-start-bar {
 .opening-screen-cpu-btn:hover {
   background: rgba(8, 145, 178, 0.6);
 }
+/* 【2026-09-11】試遊の入口（?trial・opening-screen.js / trial-entry.js）。
+   ログインのボタンの代わりに出す。タイトルの絵の上に乗るので、文字には影を付けて読めるようにする。 */
+.opening-trial-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  /* 22rem だと右端がタイトルロゴの「SHADES」の文字にかかり、説明文が読みにくかった（実測）。 */
+  width: 18rem;
+  max-width: 100%;
+}
+.opening-trial-badge {
+  font-family: sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  color: #fde68a;
+  background: rgba(15, 23, 32, 0.65);
+  border: 1px solid rgba(253, 230, 138, 0.55);
+  border-radius: 1rem;
+  padding: 0.2rem 0.9rem;
+}
+.opening-trial-lead {
+  font-family: sans-serif;
+  font-size: 1rem;
+  color: #f8fafc;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+  margin: 0.2rem 0 0.3rem;
+  text-align: center;
+}
+.opening-trial-btn {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+.opening-trial-btn.is-primary {
+  background: rgba(8, 145, 178, 0.6);
+  border-color: rgba(56, 189, 248, 0.9);
+}
+.opening-trial-desc {
+  font-family: sans-serif;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: rgba(241, 245, 249, 0.9);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+  text-align: center;
+}
+/* スマホ: このアプリは1600x900の画面を縮めて描くので、1remが実画面で7px前後にしかならない
+   （続き439の実測）。そのままでは説明文が4〜5pxで読めないため、スマホでは説明文を省き、
+   ボタンと見出しを指で押せる大きさにする（ボタンは不透明なので、ロゴに重なっても読める）。 */
+body.is-phone-device .opening-trial-panel {
+  width: auto;
+  gap: 0.7rem;
+}
+body.is-phone-device .opening-trial-badge {
+  font-size: 1.5rem;
+  padding: 0.3rem 1.2rem;
+}
+body.is-phone-device .opening-trial-lead {
+  font-size: 2.1rem;
+}
+body.is-phone-device .opening-trial-btn {
+  font-size: 2.5rem;
+  padding: 1.1rem 2.2rem;
+  margin-top: 0.4rem;
+}
+body.is-phone-device .opening-trial-desc {
+  display: none;
+}
+body.is-phone-device .opening-trial-login-link {
+  font-size: 1.8rem;
+}
+.opening-trial-login-link {
+  margin-top: 0.9rem;
+  background: none;
+  border: none;
+  padding: 0.3rem 0.6rem;
+  font-family: sans-serif;
+  font-size: 0.8rem;
+  color: rgba(226, 232, 240, 0.9);
+  text-decoration: underline;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+  cursor: pointer;
+}
 /* ユーザー要望「1画面で複数人が遊べるモードは、実際にそういう遊び方をさせる予定が
    無いのでテストモード画面とし、右下に小さく置きたい」。ログイン導線（.opening-screen-menu-btn）
    とは違い、あえて目立たせない見た目にする。#opening-screenがposition:fixed要素の
