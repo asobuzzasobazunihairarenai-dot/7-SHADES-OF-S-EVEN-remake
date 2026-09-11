@@ -13640,15 +13640,32 @@ body.cpu-battle-mode #quick-start-bar {
   width: 18rem;
   max-width: 100%;
 }
-.opening-trial-badge {
+/* 「開発中のアプリです」の囲み。ユーザー要望「最初にでっかく、しっかり出そう」で、パネルの先頭で
+   一番目立つもの（不透明な地＝タイトルの絵に重なっても読める）にした。 */
+.opening-trial-notice {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(154, 52, 18, 0.94);
+  border: 2px solid #fbbf24;
+  border-radius: 0.8rem;
+  padding: 0.55rem 0.8rem 0.6rem;
+  margin-bottom: 0.4rem;
+  text-align: center;
+  box-shadow: 0 0.3rem 1rem rgba(0, 0, 0, 0.35);
+}
+.opening-trial-notice-title {
   font-family: sans-serif;
-  font-size: 0.75rem;
-  letter-spacing: 0.12em;
-  color: #fde68a;
-  background: rgba(15, 23, 32, 0.65);
-  border: 1px solid rgba(253, 230, 138, 0.55);
-  border-radius: 1rem;
-  padding: 0.2rem 0.9rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.3;
+  color: #ffffff;
+}
+.opening-trial-notice-note {
+  font-family: sans-serif;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #ffedd5;
+  margin-top: 0.25rem;
 }
 .opening-trial-lead {
   font-family: sans-serif;
@@ -13680,12 +13697,21 @@ body.cpu-battle-mode #quick-start-bar {
    （続き439の実測）。そのままでは説明文が4〜5pxで読めないため、スマホでは説明文を省き、
    ボタンと見出しを指で押せる大きさにする（ボタンは不透明なので、ロゴに重なっても読める）。 */
 body.is-phone-device .opening-trial-panel {
-  width: auto;
+  /* 幅を決めておかないと、囲みの説明文が1行に伸びようとしてパネルごと横に広がる。 */
+  width: 42rem;
   gap: 0.7rem;
 }
-body.is-phone-device .opening-trial-badge {
-  font-size: 1.5rem;
-  padding: 0.3rem 1.2rem;
+body.is-phone-device .opening-trial-notice {
+  border-width: 0.25rem;
+  border-radius: 1.4rem;
+  padding: 0.7rem 1.6rem 0.8rem;
+  margin-bottom: 0;
+}
+body.is-phone-device .opening-trial-notice-title {
+  font-size: 3rem;
+}
+body.is-phone-device .opening-trial-notice-note {
+  font-size: 1.7rem;
 }
 body.is-phone-device .opening-trial-lead {
   font-size: 2.1rem;
@@ -13698,21 +13724,8 @@ body.is-phone-device .opening-trial-btn {
 body.is-phone-device .opening-trial-desc {
   display: none;
 }
-body.is-phone-device .opening-trial-login-link {
-  font-size: 1.8rem;
-}
-.opening-trial-login-link {
-  margin-top: 0.9rem;
-  background: none;
-  border: none;
-  padding: 0.3rem 0.6rem;
-  font-family: sans-serif;
-  font-size: 0.8rem;
-  color: rgba(226, 232, 240, 0.9);
-  text-decoration: underline;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
-  cursor: pointer;
-}
+/* 「ログインして、すべての機能を使う」は、以前は下線付きの小さな文字だった。ユーザー要望で
+   他の2つと同じボタン（.opening-trial-btn）にしたので、専用の見た目はもう持たない。 */
 /* ユーザー要望「1画面で複数人が遊べるモードは、実際にそういう遊び方をさせる予定が
    無いのでテストモード画面とし、右下に小さく置きたい」。ログイン導線（.opening-screen-menu-btn）
    とは違い、あえて目立たせない見た目にする。#opening-screenがposition:fixed要素の

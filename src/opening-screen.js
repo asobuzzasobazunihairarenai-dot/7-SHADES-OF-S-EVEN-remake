@@ -453,22 +453,31 @@ export function initOpeningScreen() {
   if (isTrialEntry()) {
     trialPanel = document.createElement("div");
     trialPanel.className = "opening-trial-panel";
-    const addTrialEl = (tag, cls, key) => {
+    const addTrialEl = (tag, cls, key, parent = trialPanel) => {
       const el = document.createElement(tag);
       el.className = cls;
       if (tag === "button") el.type = "button";
       el.textContent = t(key);
       trialTexts.push([el, key]);
-      trialPanel.appendChild(el);
+      parent.appendChild(el);
       return el;
     };
-    addTrialEl("div", "opening-trial-badge", "trial.badge");
+    // ユーザー要望「最初にでっかく、これは開発中アプリですとしっかり出そう」。
+    // 小さな札（試遊版（開発中））から、パネルの先頭で一番目立つ囲みに変えた。
+    const notice = document.createElement("div");
+    notice.className = "opening-trial-notice";
+    trialPanel.appendChild(notice);
+    addTrialEl("div", "opening-trial-notice-title", "trial.badge", notice);
+    addTrialEl("div", "opening-trial-notice-note", "trial.devNote", notice);
     addTrialEl("div", "opening-trial-lead", "trial.lead");
     const storyBtn = addTrialEl("button", "opening-screen-menu-btn opening-trial-btn is-primary", "trial.story");
     addTrialEl("div", "opening-trial-desc", "trial.storyDesc");
     const cpuBtn = addTrialEl("button", "opening-screen-menu-btn opening-trial-btn", "trial.cpu");
     addTrialEl("div", "opening-trial-desc", "trial.cpuDesc");
-    const loginLink = addTrialEl("button", "opening-trial-login-link", "trial.login");
+    // ユーザー要望「ログインしてすべてを利用する的なボタンをほかの試遊のボタンと同等に目立たせよう」。
+    // 以前は下線付きの小さな文字だった。
+    const loginLink = addTrialEl("button", "opening-screen-menu-btn opening-trial-btn opening-trial-login", "trial.login");
+    addTrialEl("div", "opening-trial-desc", "trial.loginDesc");
     let trialStarting = false; // 続けて押されて2回始まらないように
     storyBtn.addEventListener("click", async () => {
       if (trialStarting) return;
