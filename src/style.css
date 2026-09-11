@@ -16194,6 +16194,44 @@ body.theme-light .tutorial-callout-back {
   color: #3a3326;
 }
 
+/* ---- ライトテーマ：物語チュートリアル（tutorial-battle-ui.js、#tutorial-battle-callout）。
+   【2026-09-11・ユーザー報告「最初のチュートリアルはモーダルがダークになっている」】
+   あちらは自前の <style> で暗い配色を入れており、ライト配色の指定が1つも無かった
+   （実測: ライト配色でも文字色 rgb(226,232,240)＝暗い地用の白文字）。
+   同じ id に body.theme-light を足して**詳細度で**上書きする（<style> の差し込み順に依存しない）。
+   見た目は通常チュートリアル（#tutorial-callout）のライト配色に揃える。暗幕はダークのまま。 ---- */
+body.theme-light #tutorial-battle-callout {
+  background: rgba(255, 253, 247, 0.98);
+  border-color: rgba(176, 141, 63, 0.6);
+  color: #3a3326;
+  box-shadow: 0 1rem 3rem rgba(120, 100, 60, 0.28);
+}
+body.theme-light #tutorial-battle-callout .tb-callout-title {
+  color: #a67c1a;
+}
+body.theme-light #tutorial-battle-callout .tb-callout-body p.tb-note {
+  color: #8a7d63;
+}
+body.theme-light #tutorial-battle-callout .tb-callout-body .tb-body-image,
+body.theme-light #tutorial-battle-callout .tb-callout-body .tb-body-icontext img {
+  background: rgba(176, 141, 63, 0.1);
+}
+body.theme-light #tutorial-battle-callout .tb-callout-back {
+  background: rgba(176, 141, 63, 0.14);
+  border-color: rgba(176, 141, 63, 0.4);
+  color: #3a3326;
+}
+body.theme-light #tutorial-battle-callout .tb-callout-next {
+  background: #be185d;
+  color: #ffffff;
+}
+body.theme-light #tutorial-battle-tip {
+  background: rgba(255, 253, 247, 0.97);
+  border-color: rgba(176, 141, 63, 0.6);
+  color: #6b4f12;
+  box-shadow: 0 0.4rem 1.4rem rgba(120, 100, 60, 0.28);
+}
+
 /* ---- ライトテーマ：ショップ（#shop-panel、全画面）。オレンジ系のボタン/リボンは
    そのまま（白背景でも映える）、地・カード・タブ・文字だけライト化する。 ---- */
 body.theme-light #shop-panel {

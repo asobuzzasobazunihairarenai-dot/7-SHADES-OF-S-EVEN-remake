@@ -83,7 +83,7 @@ function hasCompletedTutorial() {
   }
 }
 
-function markTutorialCompleted() {
+export function markTutorialCompleted() {
   try {
     localStorage.setItem(STORAGE_KEY, "1");
   } catch (err) {
@@ -665,6 +665,11 @@ function positionForCurrentStep() {
   if (visible) {
     const rect = toStageRect(realRect);
     spotlightEl.style.display = "block";
+    // 【2026-09-11・ユーザー報告「ロックアイコンがスポットされていない」】以前は暗幕（#tutorial-scrim）の
+    // 上にスポット（穴の周りだけ box-shadow で暗くする）を重ねていたので、**穴の中も暗幕で暗いまま**だった
+    // （実測: 対象の中心で一番上にあるのが #tutorial-scrim）。明るい手札は暗くても見えたが、暗い色の
+    // アイコンだと照らされていないように見えた。スポットを出す時は暗幕を隠し、暗さはスポット側だけで作る。
+    scrimEl.style.display = "none";
     spotlightEl.style.left = `${rect.left}px`;
     spotlightEl.style.top = `${rect.top}px`;
     spotlightEl.style.width = `${rect.width}px`;
@@ -672,6 +677,7 @@ function positionForCurrentStep() {
     positionCallout(rect);
   } else {
     spotlightEl.style.display = "none";
+    scrimEl.style.display = ""; // 指す先が無い手順は、今までどおり画面全体を暗くする
     positionCallout(null);
   }
   // 自分の駒の移動範囲ハイライト（.cellは#game-tableの中身でrenderのたびに作り直される
@@ -793,6 +799,16 @@ export function initTutorialAutoStart() {
         try {
           const { isPseudoCpuIncludeSelf } = await import("./admin.js");
           if (isPseudoCpuIncludeSelf?.()) return;
+        } catch { /* 取得失敗時は従来どおり出す */ }
+        // 【2026-09-11・ユーザー報告「エイドス戦に入ると再度チュートリアルが発生する」】
+        // 物語チュートリアルで遊び方を教わった人には出さない（こちらの印も付けておく）。
+        // eidos-story.js は重い依存を持つので、ここでも対局開始後に動的importで確かめる。
+        try {
+          const { isEidosProgress } = await import("./eidos-story.js");
+          if (isEidosProgress?.("tutorial_completed")) {
+            markTutorialCompleted();
+            return;
+          }
         } catch { /* 取得失敗時は従来どおり出す */ }
         startTutorial();
       }, 1200);

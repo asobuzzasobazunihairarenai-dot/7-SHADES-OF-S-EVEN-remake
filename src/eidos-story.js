@@ -410,6 +410,12 @@ async function handleStoryResult({ winnerSeat, stage }) {
 // 出し、「挑戦する」なら易しいエイドス戦へ、「あとで」ならホームへ。
 async function onOperationTutorialComplete() {
   setEidosProgress("tutorial_completed", true);
+  // 【2026-09-11】通常チュートリアル（tutorial.js）の「見た」印も付ける。付けないと、この後の
+  // エイドス戦が始まった瞬間に通常チュートリアルが自動でもう一度出ていた（ユーザー報告）。
+  // 動的import（tutorial.js ⇄ このモジュールの間に静的な依存辺を作らないため）。
+  import("./tutorial.js")
+    .then((m) => m.markTutorialCompleted?.())
+    .catch(() => {});
   const choice = await playSceneChain(EIDOS_SCENE.OPERATION_TUTORIAL_COMPLETE);
   if (choice === "start-intermediate-battle") {
     startStoryBattle("intermediate");
