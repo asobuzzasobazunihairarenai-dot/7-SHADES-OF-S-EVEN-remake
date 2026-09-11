@@ -584,6 +584,9 @@ export function initOpeningScreen() {
   // ため、両方の言語を常に並べて出し、**今の言語を大きく明るく**・切り替え先を小さく淡く
   // 表示する（見ただけで現在のモードが分かる）。あわせて、右上のオプションアイコン
   // （#options-menu-button, top:0.3rem/right:1rem）と重なっていたので画面左上へ移した。
+  // ユーザー要望（2026-09-11）「押すと言語が切り替わるようにしちゃおう」: 以前は切り替え先の
+  // 小さい文字だけが押せて、今の言語（大きい方）を押しても何も起きなかった。どこを押しても
+  // 次の言語へ切り替わるようにした（ボタンは各言語の文字のままなので、キーボードでも押せる）。
   const langToggleBtn = document.createElement("div");
   langToggleBtn.className = "opening-lang-toggle";
   const langSegments = SUPPORTED_LANGS.map((lang) => {
@@ -592,11 +595,12 @@ export function initOpeningScreen() {
     seg.className = "opening-lang-toggle-seg";
     seg.dataset.lang = lang;
     seg.textContent = LANG_LABEL[lang] ?? lang;
-    seg.addEventListener("click", () => {
-      if (getLang() !== lang) setLang(lang);
-    });
     langToggleBtn.appendChild(seg);
     return seg;
+  });
+  langToggleBtn.addEventListener("click", () => {
+    const i = SUPPORTED_LANGS.indexOf(getLang());
+    setLang(SUPPORTED_LANGS[(i + 1) % SUPPORTED_LANGS.length]);
   });
   const updateOpeningLangToggle = () => {
     for (const seg of langSegments) seg.classList.toggle("is-current", seg.dataset.lang === getLang());

@@ -13877,6 +13877,15 @@ body.is-phone-device .opening-version-badge {
   border-radius: 999px;
   padding: 0.22rem 0.5rem;
   backdrop-filter: blur(2px);
+  /* どこを押しても次の言語へ切り替わる（2026-09-11 ユーザー要望）。 */
+  cursor: pointer;
+  /* 【2026-09-11 実測で判明】#opening-screen は pointer-events:none（下の .opening-screen-content と
+     同じ事情）で、このトグルはそれを受け継いだまま戻していなかった＝**押しても指が素通りして、
+     一度も切り替わっていなかった**（その点の最前面は開始ゲート／#scene だった）。 */
+  pointer-events: auto;
+}
+.opening-lang-toggle:hover {
+  border-color: rgba(255, 255, 255, 0.6);
 }
 .opening-lang-toggle-seg {
   font-family: sans-serif;
@@ -13893,16 +13902,16 @@ body.is-phone-device .opening-version-badge {
   /* font-size はトランジションさせない（文字サイズが動くと隣の文字が押されて読みにくい）。 */
   transition: color 0.15s, background 0.15s;
 }
-.opening-lang-toggle-seg:hover {
+/* 枠のどこにカーソルを乗せても、切り替え先の文字が明るくなる（押すとそちらになる、の合図）。 */
+.opening-lang-toggle:hover .opening-lang-toggle-seg:not(.is-current) {
   color: #f8fafc;
   background: rgba(255, 255, 255, 0.12);
 }
-/* 現在の言語＝大きく明るく（押しても何も起きないのでカーソルは既定に戻す） */
+/* 現在の言語＝大きく明るく（押すと次の言語へ切り替わるので、カーソルは指のまま） */
 .opening-lang-toggle-seg.is-current {
   font-size: 1.02rem;
   color: #f8fafc;
   background: rgba(255, 255, 255, 0.18);
-  cursor: default;
 }
 body.is-phone-device .opening-lang-toggle-seg {
   font-size: 0.95rem;

@@ -33,6 +33,7 @@ export const CHANGELOG = [
       "チュートリアルで説明している場所（フェイズのアイコンなど）が、ちゃんと明るく照らされるようにしました。これまでは周りと一緒に暗くなっていて、どこを指しているのか分かりにくいことがありました。",
       "物語チュートリアルの説明の枠を、明るい配色の時は明るい見た目にしました（これまでは暗いままでした）。",
       "登録しなくても遊べる入口の画面で、「開発中のアプリです」という案内を大きく出すようにしました。「ログインして、すべての機能を使う」も、他のボタンと同じ大きさのボタンにしています。",
+      "タイトル画面の左上にある「日本語／English」を押すと、言語が切り替わるようにしました（これまでは押しても反応しませんでした）。",
     ],
     itemsEn: [
       "Added a way to play without signing up. Open the app from the Battle Records site's test-play button and, instead of logging in, you can choose Learn as you play or Play the CPU now and start right away. If you are already logged in, nothing changes.",
@@ -40,6 +41,7 @@ export const CHANGELOG = [
       "The part of the screen a tutorial step is explaining (such as the phase icons) is now properly lit up. It used to be dimmed along with everything else, which could make it hard to tell what was being pointed at.",
       "The story tutorial's explanation box now uses the light look when the light color scheme is on (it used to stay dark).",
       "The no-sign-up entry screen now shows a large notice that the app is still in development. Log in to use every feature is now a full-size button like the others.",
+      "Tapping the 日本語 / English switch at the top left of the title screen now changes the language (before, it did not respond).",
     ],
   },
   {
